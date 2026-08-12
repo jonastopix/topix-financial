@@ -2833,6 +2833,15 @@ export type Database = {
           updated_at: string
         }[]
       }
+      get_community_medlemmer: {
+        Args: never
+        Returns: {
+          avatar_url: string
+          navn: string
+          user_id: string
+          virksomhed: string
+        }[]
+      }
       get_community_svar: {
         Args: { p_traad_id: string }
         Returns: {
