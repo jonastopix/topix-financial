@@ -84,6 +84,28 @@ to the entire access-control model.
   `get_member_directory`); `REVOKE ALL FROM PUBLIC` and `FROM anon`
 - Introduced in migration `20260812110000_community_billed_adgangsdom.sql`
 
+### `maa_se_community_fil(_user_id uuid, _sti text) → boolean`
+- **Fail-closed** access verdict for signing community file attachments —
+  the edge function's gate BEFORE service-role `createSignedUrl` against
+  the private `community-filer` bucket, NOT an RLS policy (no SELECT
+  policy on the bucket; this function IS the read gate)
+- Same shape as `maa_se_community_billede` but matches nodes with
+  `type = "fil"` (Danish, our own node type — not a Tiptap standard node)
+  instead of `type = "image"`; the two buckets/node types cannot share a
+  verdict function
+- False on NULL/empty path, false without community access
+  (`har_aktivt_medlemskab` OR advisor via `has_role`), true ONLY when the
+  path appears as a fil node (`attrs.path`) in `indhold_json` on an
+  ACTIVE thread or ACTIVE reply — hiding content revokes file access
+- jsonpath `'$.**?(...)'` written without whitespace between wildcard and
+  filter (the unambiguous form); multi-level duplicate matches are
+  harmless under EXISTS
+- STABLE, SECURITY DEFINER with `search_path = public`
+- Grants: `EXECUTE TO authenticated` AND `TO service_role` — service_role
+  does not inherit authenticated grants (learned 2026-08-10 with
+  `get_member_directory`); `REVOKE ALL FROM PUBLIC` and `FROM anon`
+- Introduced in migration `20260812140000_community_fil_adgangsdom.sql`
+
 ### Member-visibility RPCs: `get_member_profile(p_user_id uuid)`, `get_event_participants(p_event_id uuid)`, `get_member_directory()`
 - All three: STABLE, SECURITY DEFINER with `search_path = public`
 - Grants: `EXECUTE TO authenticated` only — `REVOKE ALL FROM PUBLIC` and `FROM anon`
