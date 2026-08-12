@@ -1,6 +1,7 @@
 import { Fragment, type ReactNode } from "react";
 import {
   parseCommunityDokument,
+  type CommunityMark,
   type CommunityNode,
 } from "@/lib/hjemmebane/communityDokument";
 
@@ -24,7 +25,9 @@ function renderTekst(node: Extract<CommunityNode, { type: "text" }>): ReactNode 
       element = <em>{element}</em>;
     }
   }
-  const link = node.marks.find((mark) => mark.type === "link");
+  const link = node.marks.find(
+    (mark): mark is Extract<CommunityMark, { type: "link" }> => mark.type === "link",
+  );
   if (link !== undefined) {
     /* target="_blank" + rel="noopener noreferrer nofollow" på ALLE links:
        noopener afskærer den åbnede side fra window.opener, og linket er
