@@ -1,6 +1,8 @@
-import { Fragment, type ReactNode } from "react";
+import { Fragment, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { hentBilledUrl } from "@/lib/hjemmebane/communityApi";
+import { Download, File, FileCode, FileSpreadsheet, FileText, Loader2 } from "lucide-react";
+import { toast } from "sonner";
+import { hentBilledUrl, hentFilUrl } from "@/lib/hjemmebane/communityApi";
 import {
   parseCommunityDokument,
   type CommunityMark,
@@ -96,6 +98,66 @@ function CommunityBillede({ path, alt }: { path: string; alt: string }) {
   );
 }
 
+/** Ikon efter filendelsen — visuel genkendelighed, ingen sikkerhed (stien
+    er allerede hvidlistet af motoren). */
+const filIkon = (path: string) => {
+  const endelse = path.slice(path.lastIndexOf(".") + 1).toLowerCase();
+  if (endelse === "pdf" || endelse === "docx" || endelse === "doc") return FileText;
+  if (endelse === "xlsx" || endelse === "xls") return FileSpreadsheet;
+  if (endelse === "xml") return FileCode;
+  return File;
+};
+
+/** Vedhæftet fil som dokument-række med downloadknap.
+
+    ADFÆRD — anderledes end billeder: URL'en hentes IKKE ved montering.
+    Et opslag kan have flere vedhæftninger, og et signeringskald pr. fil
+    ved hver visning er spild for filer, ingen åbner. URL'en hentes FØRST
+    når medlemmet klikker download.
+
+    useState frem for useQuery: der er ingen cache at holde ved lige, og
+    en signeret URL skal være frisk i det øjeblik den bruges. */
+function CommunityFil({ path, navn }: { path: string; navn: string }) {
+  const [henter, setHenter] = useState(false);
+  const Ikon = filIkon(path);
+  const endelse = path.slice(path.lastIndexOf(".") + 1).toUpperCase();
+
+  const download = async () => {
+    if (henter) return;
+    setHenter(true);
+    try {
+      const { url } = await hentFilUrl(path);
+      /* Edge-funktionen signerer med download: true, så svaret bærer
+         Content-Disposition: attachment — browseren HENTER filen frem
+         for at navigere væk fra siden. */
+      window.location.href = url;
+    } catch (fejl) {
+      toast.error(fejl instanceof Error ? fejl.message : "Filen kunne ikke hentes");
+    } finally {
+      setHenter(false);
+    }
+  };
+
+  return (
+    <div className="flex items-center gap-3 rounded-hb border border-hb-line px-4 py-3">
+      <Ikon className="h-5 w-5 shrink-0 text-hb-ink-soft" />
+      <div className="min-w-0 flex-1">
+        <p className="truncate font-body text-sm text-hb-ink">{navn}</p>
+        <p className="text-xs text-hb-ink-soft">{endelse}</p>
+      </div>
+      <button
+        type="button"
+        disabled={henter}
+        onClick={() => void download()}
+        title={`Hent ${navn}`}
+        className="shrink-0 text-hb-ink-soft transition-colors hover:text-hb-ink disabled:opacity-50"
+      >
+        {henter ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+      </button>
+    </div>
+  );
+}
+
 function renderNode(node: CommunityNode, key: number): ReactNode {
   switch (node.type) {
     case "paragraph":
@@ -152,6 +214,9 @@ function renderNode(node: CommunityNode, key: number): ReactNode {
          dekorativt billede. max-w-full + h-auto (i CommunityBillede):
          billedet må aldrig sprænge sin container. */
       return <CommunityBillede key={key} path={node.path} alt={node.alt} />;
+
+    case "fil":
+      return <CommunityFil key={key} path={node.path} navn={node.navn} />;
   }
 }
 

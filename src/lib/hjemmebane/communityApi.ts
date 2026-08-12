@@ -198,6 +198,18 @@ export async function hentBilledUrl(sti: string): Promise<{ url: string; expires
   return data as { url: string; expiresAt: string };
 }
 
+/** Signeret URL til en vedhæftet community-fil via get-community-fil-url —
+    bag adgangsdommen maa_se_community_fil. Edge-funktionen signerer med
+    download: true, så filen HENTES frem for at blive vist i en fane
+    (Content-Disposition: attachment). */
+export async function hentFilUrl(sti: string): Promise<{ url: string; expiresAt: string }> {
+  const { data, error } = await supabase.functions.invoke("get-community-fil-url", {
+    body: { sti },
+  });
+  if (error) throw new Error(`Filen kunne ikke hentes: ${error.message}`);
+  return data as { url: string; expiresAt: string };
+}
+
 /** Kaster bevidst IKKE ved manglende adgang: RPC'en returnerer stille
     (RETURN, ikke RAISE), fordi en visning er en bivirkning af at kigge,
     ikke en handling — og idempotent via ON CONFLICT DO NOTHING. Kun
