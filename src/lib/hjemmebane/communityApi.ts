@@ -127,6 +127,23 @@ export async function opretSvar(
   ) as string;
 }
 
+/** Beder notify-community-svar notificere trådens forfatter om et nyt
+    svar. Må ALDRIG kaste: notifikationen er en bivirkning af at have
+    svaret. Svaret ER gemt i det øjeblik opret_community_svar er
+    returneret — en fejlet notifikation må ikke kunne se ud som om svaret
+    mislykkedes, og må slet ikke udløse den fejl-toast, der ville få
+    medlemmet til at skrive igen. Fejl logges og sluges. */
+export async function notificerSvar(svarId: string): Promise<void> {
+  try {
+    const { error } = await supabase.functions.invoke("notify-community-svar", {
+      body: { svarId },
+    });
+    if (error) console.error("notificerSvar fejlede:", error);
+  } catch (fejl) {
+    console.error("notificerSvar fejlede:", fejl);
+  }
+}
+
 /** Ret/slet eget indhold + rådgiver-skjul (20260812120000). Reglerne bor
     i RPC'erne: kun forfatteren kan rette/slette, kun rådgivere kan
     skjule, og alt er soft-delete via status. */
