@@ -33,6 +33,8 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { uploadCommunityBillede, uploadCommunityFil } from "@/lib/hjemmebane/communityUpload";
 import { hentCommunityMedlemmer, type CommunityMedlem } from "@/lib/hjemmebane/communityApi";
+import { listPublishedItems } from "@/lib/hjemmebane/akademiApi";
+import type { ContentItem } from "@/lib/hjemmebane/adminContentApi";
 import { HbCard } from "@/components/hjemmebane/HbCard";
 import { HbButton } from "@/components/hjemmebane/HbButton";
 
@@ -230,16 +232,18 @@ const NaevnelseNode = Mention.extend({
   },
 });
 
-/** Dropdown-rendereren til @-forslag — ren DOM (ingen ReactRenderer/tippy):
-    rækkerne bygges med createElement + textContent, så navne og
-    virksomheder (brugerdata) aldrig fortolkes som markup. Hb-stil:
+/** Fælles dropdown-maskineri for editor-forslag (@-nævnelser og
+    #-henvisninger) — ren DOM (ingen ReactRenderer/tippy): rækkerne
+    bygges med createElement + textContent, så brugerdata aldrig
+    fortolkes som markup. Kun rækkens INDHOLD varierer (tegnRaekke);
+    ramme, positionering, lyttere og tastatur deles. Hb-stil:
     HbCard-lignende ramme, valgt række i bg-hb-sage. Piletaster op/ned,
     Enter vælger, Escape lukker. */
-function opretNaevnelsesDropdown() {
+function opretForslagsDropdown<T>(tegnRaekke: (item: T, raekke: HTMLButtonElement) => void) {
   let element: HTMLDivElement | null = null;
-  let items: CommunityMedlem[] = [];
+  let items: T[] = [];
   let valgt = 0;
-  let vaelg: ((medlem: CommunityMedlem) => void) | null = null;
+  let vaelg: ((item: T) => void) | null = null;
   let sidsteRect: (() => DOMRect | null) | null | undefined = null;
   let scrollLytter: (() => void) | null = null;
   let klikLytter: ((e: MouseEvent) => void) | null = null;
@@ -274,42 +278,17 @@ function opretNaevnelsesDropdown() {
       return;
     }
     element.style.display = "block";
-    items.forEach((medlem, i) => {
+    items.forEach((item, i) => {
       const raekke = document.createElement("button");
       raekke.type = "button";
       raekke.className = cn(
         "flex w-full items-center gap-3 px-3 py-2 text-left transition-colors",
         i === valgt ? "bg-hb-sage" : "hover:bg-hb-sage/40",
       );
-      if (medlem.avatar_url) {
-        const img = document.createElement("img");
-        img.src = medlem.avatar_url;
-        img.alt = medlem.navn ?? "Medlem";
-        img.className = "h-7 w-7 shrink-0 rounded-full border border-hb-line object-cover";
-        raekke.appendChild(img);
-      } else {
-        const cirkel = document.createElement("span");
-        cirkel.className =
-          "flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-hb-line bg-hb-sage/40 font-editorial text-xs text-hb-ink-soft";
-        cirkel.textContent = (medlem.navn ?? "?").charAt(0);
-        raekke.appendChild(cirkel);
-      }
-      const tekst = document.createElement("span");
-      tekst.className = "min-w-0 flex-1";
-      const navn = document.createElement("span");
-      navn.className = "block truncate font-body text-sm text-hb-ink";
-      navn.textContent = medlem.navn ?? "Medlem";
-      tekst.appendChild(navn);
-      if (medlem.virksomhed) {
-        const virksomhed = document.createElement("span");
-        virksomhed.className = "block truncate text-xs text-hb-ink-soft";
-        virksomhed.textContent = medlem.virksomhed;
-        tekst.appendChild(virksomhed);
-      }
-      raekke.appendChild(tekst);
+      tegnRaekke(item, raekke);
       raekke.addEventListener("mousedown", (e) => {
         e.preventDefault();
-        vaelg?.(medlem);
+        vaelg?.(item);
       });
       element!.appendChild(raekke);
     });
@@ -321,7 +300,7 @@ function opretNaevnelsesDropdown() {
   };
 
   return {
-    onStart: (props: SuggestionProps<CommunityMedlem, any>) => {
+    onStart: (props: SuggestionProps<T, any>) => {
       items = props.items;
       valgt = 0;
       vaelg = props.command;
@@ -365,7 +344,7 @@ function opretNaevnelsesDropdown() {
 
       tegn();
     },
-    onUpdate: (props: SuggestionProps<CommunityMedlem, any>) => {
+    onUpdate: (props: SuggestionProps<T, any>) => {
       items = props.items;
       vaelg = props.command;
       sidsteRect = props.clientRect;
@@ -397,6 +376,120 @@ function opretNaevnelsesDropdown() {
     onExit: luk,
   };
 }
+
+/** Rækkerne til @-forslag: avatar (img eller sage-cirkel med
+    forbogstav), navn og virksomhed. */
+const opretNaevnelsesDropdown = () =>
+  opretForslagsDropdown<CommunityMedlem>((medlem, raekke) => {
+    if (medlem.avatar_url) {
+      const img = document.createElement("img");
+      img.src = medlem.avatar_url;
+      img.alt = medlem.navn ?? "Medlem";
+      img.className = "h-7 w-7 shrink-0 rounded-full border border-hb-line object-cover";
+      raekke.appendChild(img);
+    } else {
+      const cirkel = document.createElement("span");
+      cirkel.className =
+        "flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-hb-line bg-hb-sage/40 font-editorial text-xs text-hb-ink-soft";
+      cirkel.textContent = (medlem.navn ?? "?").charAt(0);
+      raekke.appendChild(cirkel);
+    }
+    const tekst = document.createElement("span");
+    tekst.className = "min-w-0 flex-1";
+    const navn = document.createElement("span");
+    navn.className = "block truncate font-body text-sm text-hb-ink";
+    navn.textContent = medlem.navn ?? "Medlem";
+    tekst.appendChild(navn);
+    if (medlem.virksomhed) {
+      const virksomhed = document.createElement("span");
+      virksomhed.className = "block truncate text-xs text-hb-ink-soft";
+      virksomhed.textContent = medlem.virksomhed;
+      tekst.appendChild(virksomhed);
+    }
+    raekke.appendChild(tekst);
+  });
+
+/** Læsbare danske områdenavne til #-pickerens undertekst. */
+const OMRAADE_LABELS: Record<string, string> = {
+  classroom: "Kursus",
+  academy: "Akademi",
+  skabeloner: "Skabelon",
+  rabataftaler: "Rabataftale",
+  talks: "Talk",
+  quick_wins: "Quick win",
+  start_her: "Start her",
+};
+
+/** Skal spejle motorens TILLADTE_OMRAADER (communityDokument.ts) —
+    ellers kan pickeren tilbyde noget, motoren kasserer ved visning. */
+const HENVISNINGS_OMRAADER = new Set(Object.keys(OMRAADE_LABELS));
+
+/** Rækkerne til #-forslag: titel + område og evt. varighed som
+    undertekst. Ingen cover-billeder — de kræver signering pr. række. */
+const opretHenvisningsDropdown = () =>
+  opretForslagsDropdown<ContentItem>((item, raekke) => {
+    const tekst = document.createElement("span");
+    tekst.className = "min-w-0 flex-1";
+    const titel = document.createElement("span");
+    titel.className = "block truncate font-body text-sm text-hb-ink";
+    titel.textContent = item.title;
+    tekst.appendChild(titel);
+    const dele = [OMRAADE_LABELS[item.area] ?? item.area];
+    if (item.duration_seconds) {
+      dele.push(`${Math.max(1, Math.round(item.duration_seconds / 60))} min`);
+    }
+    const under = document.createElement("span");
+    under.className = "block truncate text-xs text-hb-ink-soft";
+    under.textContent = dele.join(" · ");
+    tekst.appendChild(under);
+    raekke.appendChild(tekst);
+  });
+
+/** #-henvisninger — Mention-extensionen omdøbt til motorens nodetype
+    "henvisning" med area/slug/titel som eneste attributter. renderHTML
+    og parseHTML spejler hinanden: span med data-area, data-slug og
+    data-titel; parseren matcher span[data-area][data-slug][data-titel]
+    — INGEN overlap med naevnelse-nodens span[data-user-id][data-navn]
+    (attributsættene er disjunkte, ingen af selektorerne kan matche den
+    andens markup). */
+const HenvisningNode = Mention.extend({
+  name: "henvisning",
+  addAttributes() {
+    return {
+      area: {
+        default: null,
+        parseHTML: (element: HTMLElement) => element.getAttribute("data-area"),
+        renderHTML: (attributes: { area?: string | null }) =>
+          attributes.area ? { "data-area": attributes.area } : {},
+      },
+      slug: {
+        default: null,
+        parseHTML: (element: HTMLElement) => element.getAttribute("data-slug"),
+        renderHTML: (attributes: { slug?: string | null }) =>
+          attributes.slug ? { "data-slug": attributes.slug } : {},
+      },
+      titel: {
+        default: "",
+        parseHTML: (element: HTMLElement) => element.getAttribute("data-titel") ?? "",
+        renderHTML: (attributes: { titel?: string }) =>
+          attributes.titel ? { "data-titel": attributes.titel } : {},
+      },
+    };
+  },
+  parseHTML() {
+    return [{ tag: "span[data-area][data-slug][data-titel]" }];
+  },
+  renderHTML({ node, HTMLAttributes }) {
+    return [
+      "span",
+      mergeAttributes(HTMLAttributes, { class: "font-medium text-hb-rust" }),
+      `#${node.attrs.titel ?? ""}`,
+    ];
+  },
+  renderText({ node }) {
+    return `#${node.attrs.titel ?? ""}`;
+  },
+});
 
 /** Kun http/https/mailto får lov at forlade composeren — men motoren
     hærder href'en IGEN ved visning: editoren er bekvemmelighed, ikke
@@ -469,6 +562,14 @@ export function CommunityComposer({
   });
   const medlemmerRef = useRef<CommunityMedlem[]>([]);
   medlemmerRef.current = medlemmerQuery.data ?? [];
+
+  /* Kataloget til #-pickeren — SAMME queryKey som useAkademiData
+     (["akademi", "items"]), så cachen deles med Akademiets flader og
+     kataloget ikke hentes dobbelt. Læses via ref af samme grund som
+     medlemslisten. */
+  const itemsQuery = useQuery({ queryKey: ["akademi", "items"], queryFn: listPublishedItems });
+  const itemsRef = useRef<ContentItem[]>([]);
+  itemsRef.current = itemsQuery.data ?? [];
   const sendRef = useRef<() => void>(() => {});
   const billedInputRef = useRef<HTMLInputElement>(null);
   const filInputRef = useRef<HTMLInputElement>(null);
@@ -549,6 +650,39 @@ export function CommunityComposer({
               .run();
           },
           render: opretNaevnelsesDropdown,
+        },
+      }),
+      HenvisningNode.configure({
+        suggestion: {
+          char: "#",
+          items: ({ query }) => {
+            const q = query.toLowerCase();
+            return itemsRef.current
+              /* Kun områder med element-rute — skal spejle motorens
+                 TILLADTE_OMRAADER, ellers kan pickeren tilbyde noget,
+                 motoren kasserer ved visning. */
+              .filter((item) => HENVISNINGS_OMRAADER.has(item.area))
+              .filter((item) => item.title.toLowerCase().includes(q))
+              .slice(0, 8);
+          },
+          command: ({ editor: ed, range, props }) => {
+            const item = props as unknown as ContentItem;
+            // Henvisningen efterfølges af et mellemrum som text-node —
+            // samme mønster som nævnelser (markøren lander klar til at
+            // skrive videre).
+            ed
+              .chain()
+              .focus()
+              .insertContentAt(range, [
+                {
+                  type: "henvisning",
+                  attrs: { area: item.area, slug: item.slug, titel: item.title },
+                },
+                { type: "text", text: " " },
+              ])
+              .run();
+          },
+          render: opretHenvisningsDropdown,
         },
       }),
       Placeholder.configure({ placeholder }),

@@ -231,6 +231,23 @@ function renderNode(node: CommunityNode, key: number): ReactNode {
           @{node.navn}
         </Link>
       );
+
+    case "henvisning":
+      /* Rust er den redaktionelle accent (eyebrows, links i Hb) og
+         adskiller en henvisning visuelt fra en nævnelse, som er
+         evergreen. Ruten er ProtectedRoute (App.tsx:283-285) — ikke
+         MemberRoute som community — og et dryppet element møder
+         modtageren med ElementViews låseskærm, ikke en fejl; drip er
+         pr. virksomhed, så afsender og modtager kan se forskelligt. */
+      return (
+        <Link
+          key={key}
+          to={`/akademiet/${node.area}/${node.slug}`}
+          className="font-medium text-hb-rust hover:underline"
+        >
+          #{node.titel}
+        </Link>
+      );
   }
 }
 
