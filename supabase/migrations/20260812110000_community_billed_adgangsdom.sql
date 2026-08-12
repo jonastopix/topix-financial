@@ -46,6 +46,10 @@ BEGIN
   -- '**' genbruges her. Uparsbare/skæve dokumenter kaster ikke i lax mode
   -- (default) — noder uden attrs matcher bare ikke; NULL-dokumenter
   -- frasorteres eksplicit.
+  --
+  -- Formen '$.**?(...)' skrives UDEN mellemrum mellem wildcard og filter:
+  -- mellemrummet er ikke gyldigt i alle Postgres-versioners jsonpath-
+  -- parser, og formen uden mellemrum er den entydige.
   RETURN EXISTS (
     SELECT 1
     FROM public.community_traade t
@@ -53,7 +57,7 @@ BEGIN
       AND t.indhold_json IS NOT NULL
       AND jsonb_path_exists(
             t.indhold_json,
-            '$.** ? (@.type == "image" && @.attrs.path == $sti)',
+            '$.**?(@.type == "image" && @.attrs.path == $sti)',
             jsonb_build_object('sti', _sti)
           )
   ) OR EXISTS (
@@ -63,7 +67,7 @@ BEGIN
       AND s.indhold_json IS NOT NULL
       AND jsonb_path_exists(
             s.indhold_json,
-            '$.** ? (@.type == "image" && @.attrs.path == $sti)',
+            '$.**?(@.type == "image" && @.attrs.path == $sti)',
             jsonb_build_object('sti', _sti)
           )
   );
