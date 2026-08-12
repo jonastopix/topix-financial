@@ -1,5 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { EditorContent, useEditor } from "@tiptap/react";
+// mergeAttributes kommer fra @tiptap/core, men importeres via @tiptap/react,
+// som re-eksporterer hele core (dist/index.d.ts: export * from '@tiptap/core')
+// — @tiptap/core er en udeklareret transitiv afhængighed, og den deklarerede
+// vej er den robuste.
+import { EditorContent, mergeAttributes, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Link from "@tiptap/extension-link";
 import Image from "@tiptap/extension-image";
@@ -33,17 +37,34 @@ import { HbButton } from "@/components/hjemmebane/HbButton";
 const CommunityBilledeNode = Image.extend({
   addAttributes() {
     return {
-      path: { default: null },
-      alt: { default: "" },
+      path: {
+        default: null,
+        parseHTML: (element: HTMLElement) => element.getAttribute("data-path"),
+        renderHTML: (attributes: { path?: string | null }) =>
+          attributes.path ? { "data-path": attributes.path } : {},
+      },
+      alt: {
+        default: "",
+        parseHTML: (element: HTMLElement) => element.getAttribute("alt") ?? "",
+      },
     };
   },
-  renderHTML() {
+  /* renderHTML og parseHTML skal spejle hinanden, ellers overlever noden
+     ikke en serialiserings-runde: uden data-path i den renderede markup
+     går stien tabt, og uden div[data-path]-parseren kan noden ikke læses
+     tilbage — det bider første gang et eksisterende opslag skal redigeres.
+     Pladsholderen er stadig kun visuel — det rigtige billede kræver
+     signering og vises først ved visning (CommunityBillede). */
+  parseHTML() {
+    return [{ tag: "div[data-path]" }];
+  },
+  renderHTML({ HTMLAttributes }) {
     return [
       "div",
-      {
+      mergeAttributes(HTMLAttributes, {
         class:
           "select-none rounded-hb border border-hb-line bg-hb-sage/30 px-4 py-6 text-center text-sm text-hb-ink-soft",
-      },
+      }),
       "Billede",
     ];
   },
