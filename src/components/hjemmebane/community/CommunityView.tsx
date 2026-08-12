@@ -1,12 +1,14 @@
-import { useQuery } from "@tanstack/react-query";
-import { Link } from "react-router-dom";
-import { hentFeed, type CommunityTraad } from "@/lib/hjemmebane/communityApi";
+import { useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Link, useNavigate } from "react-router-dom";
+import { toast } from "sonner";
+import { hentFeed, opretTraad, type CommunityTraad } from "@/lib/hjemmebane/communityApi";
+import { CommunityComposer } from "./CommunityComposer";
 import { HbSection } from "../HbSection";
 import { HbTag } from "../HbTag";
 
-/** Fællesskabets feed (/community) — LÆSE-leddet: tråde med forfatter,
-    tællere og kilde-mærkater. Composer, like-knap og opret-tråd kommer i
-    et senere led. Række-udtrykket spejler EventsView: rammeløse
+/** Fællesskabets feed (/community) — læsning + SKRIVE-leddet: composer
+    øverst til nye tråde. Række-udtrykket spejler EventsView: rammeløse
     hb-line-rækker, ikke HbCard; hele rækken er et link til tråden. */
 
 /** Relativ tid på seneste aktivitet — samme ånd som EventsViews
@@ -84,15 +86,50 @@ const TraadRaekke = ({ traad }: { traad: CommunityTraad }) => {
 };
 
 export const CommunityView = () => {
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const [titel, setTitel] = useState("");
+
   const feedQuery = useQuery({
     queryKey: ["community", "feed"],
     queryFn: () => hentFeed(30),
+  });
+
+  const opretMutation = useMutation({
+    mutationFn: (args: { titel: string; indholdJson: unknown }) =>
+      opretTraad({ titel: args.titel, indhold: "", indholdJson: args.indholdJson }),
+    onSuccess: (nytId) => {
+      queryClient.invalidateQueries({ queryKey: ["community", "feed"] });
+      navigate(`/community/${nytId}`);
+    },
+    /* Composeren sluger bevidst fejl (den beholder blot medlemmets tekst),
+       så fejlvisningen ejes HER — uden denne toast ville et mislykket
+       opslag se ud som om intet skete. */
+    onError: (fejl: Error) => {
+      toast.error("Opslaget blev ikke delt", { description: fejl.message });
+    },
   });
 
   const traade = feedQuery.data ?? [];
 
   return (
     <HbSection eyebrow="Fællesskab" hairline>
+      {/* Composeren vises først når feedet er færdigindlæst, så den ikke
+          hopper ind over skeleton-rækkerne. */}
+      {!feedQuery.isLoading && (
+        <div className="mb-8">
+          <CommunityComposer
+            visTitel
+            titel={titel}
+            onTitelChange={setTitel}
+            submitLabel="Del"
+            onSubmit={(indholdJson) =>
+              opretMutation.mutateAsync({ titel, indholdJson }).then(() => undefined)
+            }
+          />
+        </div>
+      )}
+
       {feedQuery.isLoading ? (
         <ul className="list-none">
           <RowSkeleton />
