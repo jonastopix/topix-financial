@@ -24,6 +24,7 @@
 --   SELECT pg_get_functiondef('public.ret_community_svar(uuid, jsonb)'::regprocedure);
 --   SELECT pg_get_functiondef('public.slet_community_traad(uuid)'::regprocedure);
 --   SELECT pg_get_functiondef('public.skjul_community_traad(uuid, boolean)'::regprocedure);
+--   SELECT pg_get_functiondef('public.slet_community_svar(uuid)'::regprocedure);
 
 -- ─────────────────────────────────────────────────────────────────────────
 -- 1) ret_community_traad — kun forfatteren selv
@@ -281,3 +282,57 @@ COMMENT ON FUNCTION public.skjul_community_traad(uuid, boolean) IS
 REVOKE ALL ON FUNCTION public.skjul_community_traad(uuid, boolean) FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.skjul_community_traad(uuid, boolean) FROM anon;
 GRANT EXECUTE ON FUNCTION public.skjul_community_traad(uuid, boolean) TO authenticated;
+
+-- ─────────────────────────────────────────────────────────────────────────
+-- 5) slet_community_svar — forfatterens egen soft-delete af et svar
+-- ─────────────────────────────────────────────────────────────────────────
+
+CREATE OR REPLACE FUNCTION public.slet_community_svar(p_svar_id uuid)
+RETURNS void
+LANGUAGE plpgsql
+VOLATILE SECURITY DEFINER
+SET search_path TO 'public'
+AS $$
+DECLARE
+  _forfatter_id uuid;
+  _status text;
+BEGIN
+  IF NOT (public.har_aktivt_medlemskab(auth.uid())
+          OR public.has_role(auth.uid(), 'advisor')) THEN
+    RAISE EXCEPTION 'Ingen adgang til community';
+  END IF;
+
+  -- KUN svarets egen status dømmes — bevidst INGEN krav om aktiv tråd,
+  -- modsat ret_community_svar: et medlem skal kunne fjerne sit svar,
+  -- SELV om tråden er blevet skjult — ellers kan man ikke trække sine
+  -- ord tilbage, fordi en anden har fået sin tråd modereret.
+  SELECT s.forfatter_id, s.status INTO _forfatter_id, _status
+  FROM public.community_svar s
+  WHERE s.id = p_svar_id
+  FOR UPDATE;
+
+  -- Status-dommen FØR forfatter-dommen: et slettet svars eksistens skal
+  -- ikke bekræftes over for andre end dem, der allerede kunne se det.
+  IF _forfatter_id IS NULL OR _status <> 'aktiv' THEN
+    RAISE EXCEPTION 'Svaret findes ikke eller er lukket';
+  END IF;
+
+  IF _forfatter_id <> auth.uid() THEN
+    RAISE EXCEPTION 'Du kan kun slette dine egne svar';
+  END IF;
+
+  -- Trådens antal_svar og sidste_svar_at genberegnes automatisk af
+  -- triggeren community_svar_taellere, som lytter på UPDATE OF status.
+  UPDATE public.community_svar
+  SET status = 'slettet',
+      updated_at = now()
+  WHERE id = p_svar_id;
+END;
+$$;
+
+COMMENT ON FUNCTION public.slet_community_svar(uuid) IS
+  'Soft-delete af forfatterens EGET aktive svar: status = ''slettet'' + updated_at, ingen fysisk DELETE. Kræver bevidst IKKE en aktiv tråd — man skal kunne trække sine egne ord tilbage, selv om tråden er modereret skjult. Trådens tællere genberegnes af community_svar_taellere. Fail-closed: fejl uden community-adgang, ved ukendt/lukket svar eller fremmed forfatter.';
+
+REVOKE ALL ON FUNCTION public.slet_community_svar(uuid) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.slet_community_svar(uuid) FROM anon;
+GRANT EXECUTE ON FUNCTION public.slet_community_svar(uuid) TO authenticated;
