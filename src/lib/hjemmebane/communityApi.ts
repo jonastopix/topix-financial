@@ -140,6 +140,18 @@ export async function saetReaktion(
   return Boolean(result);
 }
 
+/** Signeret URL til et community-billede. Edge-funktionen
+    get-community-billed-url signerer kun efter databasens adgangsdom
+    (maa_se_community_billede) — stien skal optræde i et aktivt dokument,
+    kalderen må se. expiresAt er ISO, så klienten kan planlægge genhentning. */
+export async function hentBilledUrl(sti: string): Promise<{ url: string; expiresAt: string }> {
+  const { data, error } = await supabase.functions.invoke("get-community-billed-url", {
+    body: { sti },
+  });
+  if (error) throw new Error(`Billedet kunne ikke hentes: ${error.message}`);
+  return data as { url: string; expiresAt: string };
+}
+
 /** Kaster bevidst IKKE ved manglende adgang: RPC'en returnerer stille
     (RETURN, ikke RAISE), fordi en visning er en bivirkning af at kigge,
     ikke en handling — og idempotent via ON CONFLICT DO NOTHING. Kun

@@ -1,4 +1,6 @@
 import { Fragment, type ReactNode } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { hentBilledUrl } from "@/lib/hjemmebane/communityApi";
 import {
   parseCommunityDokument,
   type CommunityMark,
@@ -45,6 +47,53 @@ function renderTekst(node: Extract<CommunityNode, { type: "text" }>): ReactNode 
     );
   }
   return element;
+}
+
+/** Billed-noden bærer en STI i den private bucket; URL'en signeres ved
+    visning. Komponenten kalder IKKE parseCommunityDokument — den får en
+    færdig, hvidlistet sti fra motoren, og dens eneste job er opslag +
+    visningstilstande. */
+function CommunityBillede({ path, alt }: { path: string; alt: string }) {
+  /* useChatAttachmentUrl har ingen refetchInterval, så en flade der står
+     åben og urørt længere end TTL'en viser en død URL indtil en tilfældig
+     trigger (remount, vinduesfokus) genhenter. Det hul arves ikke her:
+     intervallet fornyer URL'en ti minutter før udløb (TTL er 3600 s), og
+     refetchIntervalInBackground: false sparer kald i en fane ingen kigger
+     på — den henter ved fokus i stedet. */
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ["community", "billede", path],
+    queryFn: () => hentBilledUrl(path),
+    staleTime: 50 * 60_000,
+    gcTime: 60 * 60_000,
+    refetchInterval: 50 * 60_000,
+    refetchIntervalInBackground: false,
+  });
+
+  if (isLoading) {
+    // Pladsholder i billedets egen afrunding, så layoutet ikke hopper.
+    // Ingen spinner — samme rolige skeleton-udtryk som fladens rækker.
+    return (
+      <div
+        aria-hidden
+        className="aspect-[3/2] w-full animate-pulse rounded-hb border border-hb-line bg-hb-sage/30"
+      />
+    );
+  }
+
+  /* Ved fejl eller manglende url: intet. Et billede der ikke kan hentes,
+     må ikke efterlade en brudt ikon-firkant i et opslag — opslaget skal
+     stadig kunne læses, og adgangsdommen kan legitimt sige nej (skjult
+     tråd) uden at det er en fejl, læseren skal se. */
+  if (isError || !data?.url) return null;
+
+  return (
+    <img
+      src={data.url}
+      alt={alt}
+      loading="lazy"
+      className="h-auto max-w-full rounded-hb border border-hb-line"
+    />
+  );
 }
 
 function renderNode(node: CommunityNode, key: number): ReactNode {
@@ -100,17 +149,9 @@ function renderNode(node: CommunityNode, key: number): ReactNode {
 
     case "image":
       /* alt kommer fra noden — tom streng er gyldigt og korrekt for et
-         dekorativt billede. max-w-full + h-auto: billedet må aldrig
-         sprænge sin container. */
-      return (
-        <img
-          key={key}
-          src={node.src}
-          alt={node.alt}
-          loading="lazy"
-          className="h-auto max-w-full rounded-hb border border-hb-line"
-        />
-      );
+         dekorativt billede. max-w-full + h-auto (i CommunityBillede):
+         billedet må aldrig sprænge sin container. */
+      return <CommunityBillede key={key} path={node.path} alt={node.alt} />;
   }
 }
 
