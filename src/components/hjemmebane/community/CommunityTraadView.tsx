@@ -1,16 +1,21 @@
 import { useEffect } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Heart } from "lucide-react";
+import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 import {
   hentSvar,
   hentTraad,
+  opretSvar,
   registrerVisning,
+  saetReaktion,
   type CommunitySvar,
 } from "@/lib/hjemmebane/communityApi";
+import { CommunityComposer } from "./CommunityComposer";
+import { CommunityDokument } from "./CommunityDokument";
 
-/** Trådsiden (/community/:id) — LÆSE-leddet: tråden med sine svar,
-    kronologisk. Composer og svar-knap kommer i et senere led.
+/** Trådsiden (/community/:id) — læsning + svar og reaktioner.
     Ikke-fundet håndteres blødt (EventDetailView-mønstret: venlig tekst +
     tilbage-link, ingen throw) — og tom kan også betyde "ingen adgang";
     de to kan bevidst ikke skelnes (jf. communityApi.hentTraad). */
@@ -41,7 +46,46 @@ const ForfatterAvatar = ({ navn, avatarUrl }: { navn: string | null; avatarUrl: 
     </span>
   );
 
-const SvarRaekke = ({ svar }: { svar: CommunitySvar }) => (
+/** Like-knappen — tekstuel handling i evergreen som fladens øvrige
+    handlinger; fyldt hjerte når jeg_har_reageret. INGEN optimistisk UI:
+    medlems-præcedensen er invalidering (EventRegisterAction), så tallet
+    er altid databasens, aldrig klientens gæt. */
+const LikeKnap = ({
+  antal,
+  harReageret,
+  disabled,
+  onClick,
+}: {
+  antal: number;
+  harReageret: boolean;
+  disabled: boolean;
+  onClick: () => void;
+}) => (
+  <button
+    type="button"
+    disabled={disabled}
+    onClick={onClick}
+    className={cn(
+      "inline-flex items-center gap-1.5 text-sm transition-colors disabled:opacity-50",
+      harReageret ? "text-hb-evergreen" : "text-hb-ink-soft hover:text-hb-ink",
+    )}
+    aria-pressed={harReageret}
+    title={harReageret ? "Fjern reaktion" : "Synes godt om"}
+  >
+    <Heart className={cn("h-4 w-4", harReageret && "fill-hb-evergreen")} />
+    {antal}
+  </button>
+);
+
+const SvarRaekke = ({
+  svar,
+  reagerer,
+  onLike,
+}: {
+  svar: CommunitySvar;
+  reagerer: boolean;
+  onLike: () => void;
+}) => (
   <li className="flex items-start gap-4 border-t border-hb-line py-5 last:border-b">
     <ForfatterAvatar navn={svar.forfatter_navn} avatarUrl={svar.forfatter_avatar_url} />
     <div className="min-w-0 flex-1">
@@ -49,14 +93,34 @@ const SvarRaekke = ({ svar }: { svar: CommunitySvar }) => (
         <span className="font-medium">{svar.forfatter_navn ?? "Medlem"}</span>
         <span className="text-hb-ink-soft"> · {fmtDato(svar.created_at)}</span>
       </p>
-      {/* Ren tekst i dette led — composeren og HTML-håndteringen kommer i
-          et senere led, og indtil da renderes intet indhold som markup. */}
-      <p className="mt-2 whitespace-pre-line text-sm leading-relaxed text-hb-ink">{svar.indhold}</p>
+      {/* Struktureret rendering når indhold_json findes; ren tekst som
+          fallback. Fallback'en er nødvendig indtil læse-RPC'erne leverer
+          indhold_json — i dag gør de ikke, så eksisterende svar rendres
+          som hidtil. */}
+      {svar.indhold_json != null ? (
+        <div className="mt-2">
+          <CommunityDokument doc={svar.indhold_json} />
+        </div>
+      ) : (
+        <p className="mt-2 whitespace-pre-line text-sm leading-relaxed text-hb-ink">
+          {svar.indhold}
+        </p>
+      )}
+      <div className="mt-2">
+        <LikeKnap
+          antal={svar.antal_reaktioner}
+          harReageret={svar.jeg_har_reageret}
+          disabled={reagerer}
+          onClick={onLike}
+        />
+      </div>
     </div>
   </li>
 );
 
 export const CommunityTraadView = ({ traadId }: { traadId: string }) => {
+  const queryClient = useQueryClient();
+
   const traadQuery = useQuery({
     queryKey: ["community", "traad", traadId],
     queryFn: () => hentTraad(traadId),
@@ -73,6 +137,35 @@ export const CommunityTraadView = ({ traadId }: { traadId: string }) => {
     if (traadId) registrerVisning(traadId).catch(() => {});
   }, [traadId]);
 
+  /* Svar og reaktioner rører både svarlisten, trådens tællere
+     (antal_svar/antal_reaktioner står på tråden) og feedets metalinje —
+     derfor invalideres alle tre nøgler samlet. */
+  const invaliderTraadOgFeed = () => {
+    queryClient.invalidateQueries({ queryKey: ["community", "svar", traadId] });
+    queryClient.invalidateQueries({ queryKey: ["community", "traad", traadId] });
+    queryClient.invalidateQueries({ queryKey: ["community", "feed"] });
+  };
+
+  const svarMutation = useMutation({
+    mutationFn: (indholdJson: unknown) => opretSvar(traadId, "", indholdJson),
+    onSuccess: invaliderTraadOgFeed,
+    /* Composeren sluger bevidst fejl (den beholder blot medlemmets tekst),
+       så fejlvisningen ejes HER — uden toasten ville et mislykket svar se
+       ud som om intet skete. */
+    onError: (fejl: Error) => {
+      toast.error("Svaret blev ikke sendt", { description: fejl.message });
+    },
+  });
+
+  const reaktionMutation = useMutation({
+    mutationFn: (maal: { traadId: string } | { svarId: string }) => saetReaktion(maal),
+    onSuccess: invaliderTraadOgFeed,
+    onError: (fejl: Error) => {
+      toast.error("Reaktionen blev ikke gemt", { description: fejl.message });
+    },
+  });
+
+  // Betingede returns EFTER samtlige hooks (React #310-reglen).
   if (traadQuery.isLoading) {
     return (
       <div>
@@ -113,11 +206,27 @@ export const CommunityTraadView = ({ traadId }: { traadId: string }) => {
         <h1 className="mt-4 font-editorial text-2xl font-medium leading-tight text-hb-ink md:text-3xl">
           {traad.titel}
         </h1>
-        {/* Ren tekst i dette led — composeren og HTML-håndteringen kommer i
-            et senere led; dangerouslySetInnerHTML bruges bevidst ikke. */}
-        <p className="mt-4 whitespace-pre-line text-sm leading-relaxed text-hb-ink">
-          {traad.indhold}
-        </p>
+        {/* Struktureret rendering når indhold_json findes; ren tekst som
+            fallback. Fallback'en er nødvendig indtil læse-RPC'erne leverer
+            indhold_json — i dag gør de ikke, så eksisterende tråde rendres
+            som hidtil. dangerouslySetInnerHTML bruges fortsat bevidst ikke. */}
+        {traad.indhold_json != null ? (
+          <div className="mt-4">
+            <CommunityDokument doc={traad.indhold_json} />
+          </div>
+        ) : (
+          <p className="mt-4 whitespace-pre-line text-sm leading-relaxed text-hb-ink">
+            {traad.indhold}
+          </p>
+        )}
+        <div className="mt-4">
+          <LikeKnap
+            antal={traad.antal_reaktioner}
+            harReageret={traad.jeg_har_reageret}
+            disabled={reaktionMutation.isPending}
+            onClick={() => reaktionMutation.mutate({ traadId })}
+          />
+        </div>
       </article>
 
       <section className="mt-10">
@@ -129,10 +238,24 @@ export const CommunityTraadView = ({ traadId }: { traadId: string }) => {
         ) : (
           <ul className="mt-4 list-none">
             {svar.map((s) => (
-              <SvarRaekke key={s.id} svar={s} />
+              <SvarRaekke
+                key={s.id}
+                svar={s}
+                reagerer={reaktionMutation.isPending}
+                onLike={() => reaktionMutation.mutate({ svarId: s.id })}
+              />
             ))}
           </ul>
         )}
+
+        <div className="mt-8">
+          <CommunityComposer
+            visTitel={false}
+            submitLabel="Svar"
+            placeholder="Skriv et svar"
+            onSubmit={(indholdJson) => svarMutation.mutateAsync(indholdJson).then(() => undefined)}
+          />
+        </div>
       </section>
     </div>
   );

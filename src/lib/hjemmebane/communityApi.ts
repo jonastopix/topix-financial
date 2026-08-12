@@ -29,6 +29,10 @@ export interface CommunityTraad {
   antal_reaktioner: number;
   jeg_har_reageret: boolean;
   seneste_aktivitet_at: string;
+  /** Tiptap-dokumentet bag indhold-teksten. Valgfrit: læse-RPC'erne
+      (get_community_feed/get_community_traad) returnerer det IKKE endnu —
+      de skal udvides i et senere led, og indtil da er feltet undefined. */
+  indhold_json?: unknown | null;
 }
 
 export interface CommunitySvar {
@@ -43,6 +47,8 @@ export interface CommunitySvar {
   forfatter_avatar_url: string | null;
   antal_reaktioner: number;
   jeg_har_reageret: boolean;
+  /** Som på CommunityTraad: get_community_svar returnerer det ikke endnu. */
+  indhold_json?: unknown | null;
 }
 
 function throwIfError<T>(result: { data: T | null; error: { message: string } | null }): T {
@@ -90,6 +96,7 @@ export async function hentSvar(traadId: string): Promise<CommunitySvar[]> {
 export async function opretTraad(input: {
   titel: string;
   indhold: string;
+  indholdJson?: unknown;
   kildeType?: "content_item" | "event";
   kildeItemId?: string;
   kildeEventId?: string;
@@ -98,6 +105,7 @@ export async function opretTraad(input: {
     await (supabase.rpc as any)("opret_community_traad", {
       p_titel: input.titel,
       p_indhold: input.indhold,
+      p_indhold_json: input.indholdJson ?? null,
       p_kilde_type: input.kildeType ?? null,
       p_kilde_item_id: input.kildeItemId ?? null,
       p_kilde_event_id: input.kildeEventId ?? null,
@@ -105,11 +113,16 @@ export async function opretTraad(input: {
   ) as string;
 }
 
-export async function opretSvar(traadId: string, indhold: string): Promise<string> {
+export async function opretSvar(
+  traadId: string,
+  indhold: string,
+  indholdJson?: unknown,
+): Promise<string> {
   return throwIfError(
     await (supabase.rpc as any)("opret_community_svar", {
       p_traad_id: traadId,
       p_indhold: indhold,
+      p_indhold_json: indholdJson ?? null,
     }),
   ) as string;
 }
