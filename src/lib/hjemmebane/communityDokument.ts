@@ -28,7 +28,8 @@ export type CommunityNode =
   | { type: "text"; text: string; marks: CommunityMark[] }
   | { type: "image"; path: string; alt: string }
   | { type: "fil"; path: string; navn: string }
-  | { type: "naevnelse"; userId: string; navn: string };
+  | { type: "naevnelse"; userId: string; navn: string }
+  | { type: "henvisning"; area: string; slug: string; titel: string };
 
 /** Dybdegrænsen. try/catch fanger et stack overflow, men et dokument skal
     afvises på en KENDT grænse frem for at afhænge af, hvornår kaldestakken
@@ -47,7 +48,8 @@ export const MAKS_DYBDE = 20;
       blok   (roden, listItem, blockquote) → paragraph, heading, bulletList,
                                              orderedList, blockquote, image, fil
       liste  (bulletList, orderedList)     → KUN listItem
-      inline (paragraph, heading)          → text, hardBreak og naevnelse
+      inline (paragraph, heading)          → text, hardBreak, naevnelse
+                                             og henvisning
 
     Konsekvensen: et blockquote må indeholde blokke og dermed nestes, en
     liste kan kun indeholde listItem, og et listItem kan indeholde både
@@ -67,9 +69,9 @@ const TILLADT: Record<Kontekst, ReadonlySet<string>> = {
     "fil",
   ]),
   liste: new Set(["listItem"]),
-  // "naevnelse" er INLINE — en @-nævnelse står midt i en sætning, ikke
-  // som en blok.
-  inline: new Set(["text", "hardBreak", "naevnelse"]),
+  // "naevnelse" og "henvisning" er INLINE — en @-nævnelse og en
+  // #-henvisning står midt i en sætning, ikke som blokke.
+  inline: new Set(["text", "hardBreak", "naevnelse", "henvisning"]),
 };
 
 const erObjekt = (v: unknown): v is Record<string, unknown> =>
@@ -214,6 +216,44 @@ function sikkertUuid(raw: unknown): string | null {
   return trimmet;
 }
 
+/** Områder en #-henvisning må pege på — hvidliste, præcis disse værdier
+    og intet andet. 'push' er BEVIDST ikke med: der findes ingen
+    medlems-rute til et push-indslag (fladen linker aldrig
+    /akademiet/push/{slug}), så et link dertil ville føre ingen steder.
+    Listen spejler content_items' area-CHECK minus push og minus
+    'ugens_video', 'redaktionelt', 'evergreen' — de tre sidste er
+    forsidens egne områder uden element-rute. */
+const TILLADTE_OMRAADER = new Set([
+  "classroom",
+  "academy",
+  "skabeloner",
+  "rabataftaler",
+  "talks",
+  "quick_wins",
+  "start_her",
+]);
+
+function sikkertOmraade(raw: unknown): string | null {
+  if (typeof raw !== "string") return null;
+  const trimmet = raw.trim();
+  if (!TILLADTE_OMRAADER.has(trimmet)) return null;
+  return trimmet;
+}
+
+/** Slug'en bliver til en URL-sti (/akademiet/{area}/{slug}) — tegnsættet
+    er derfor snævert: kun [a-z0-9-], maks 200 tegn. Ingen skråstreger,
+    intet punktum, intet kolon, ingen mellemrum — alt andet kunne bryde
+    ud af stien. */
+const SLUG_MOENSTER = /^[a-z0-9-]{1,200}$/;
+
+function sikkertSlug(raw: unknown): string | null {
+  if (typeof raw !== "string") return null;
+  const trimmet = raw.trim();
+  if (trimmet.length === 0) return null;
+  if (!SLUG_MOENSTER.test(trimmet)) return null;
+  return trimmet;
+}
+
 /** Oversæt ét content-array rekursivt i en given kontekst. Noder uden for
     kontekstens hvidliste og noder, der ender tomme efter filtrering, falder
     væk — et afsnit uden brugbart indhold er ikke et afsnit. */
@@ -304,6 +344,17 @@ function oversaetNode(raw: unknown, kontekst: Kontekst, dybde: number): Communit
          indsætte navnet som en text-node ved siden af nævnelsen — motoren
          skal ikke kompensere. Led ikke efter fejlen her. */
       return { type: "naevnelse", userId, navn };
+    }
+
+    case "henvisning": {
+      const attrs = erObjekt(raw.attrs) ? raw.attrs : {};
+      const area = sikkertOmraade(attrs.area);
+      const slug = sikkertSlug(attrs.slug);
+      const titel = sikkertVisningsNavn(attrs.titel);
+      // Area, slug OG titel skal alle tre være gyldige — ellers falder
+      // noden væk.
+      if (area === null || slug === null || titel === null) return null;
+      return { type: "henvisning", area, slug, titel };
     }
 
     // Uden for hvidlisten (eller nested "doc") → stille væk, resten består.
