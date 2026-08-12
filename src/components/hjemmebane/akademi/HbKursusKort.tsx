@@ -44,14 +44,20 @@ export const HbKursusKort = ({
   const meta = [
     `${antalLektioner} ${antalLektioner === 1 ? "lektion" : "lektioner"}`,
     tid,
+    done > 0 ? `${done} af ${total} gennemført` : null,
   ]
     .filter(Boolean)
     .join(" · ");
 
   return (
     <Link to={`/akademiet/${areaKey}/${slug}`} className="group block h-full">
-      <HbCard className="flex h-full flex-col p-6">
-        <h3 className="font-editorial text-2xl font-medium leading-tight text-hb-ink transition-colors group-hover:text-hb-evergreen">
+      {/* Naturlig højde — ingen mt-auto/h-full-udfyldning indeni: et
+          kort uden beskrivelse skal være LAVT, ikke strakt med tomrum.
+          Grid'ets items-stretch (default) sørger for at rækkerne
+          flugter. Set i produktion 12/8: ingen af de 13 samlinger har
+          en beskrivelse, så strakte kort var titel → tomrum → bund. */}
+      <HbCard className="p-6">
+        <h3 className="font-editorial text-[26px] font-medium leading-tight text-hb-ink transition-colors group-hover:text-hb-evergreen">
           {titel}
         </h3>
         {beskrivelse && (
@@ -59,14 +65,16 @@ export const HbKursusKort = ({
             {beskrivelse}
           </p>
         )}
-        <div className="mt-auto pt-5">
-          <p className="border-t border-hb-line pt-3 text-xs text-hb-ink-soft">{meta}</p>
-          {total > 0 && (
-            <div className="mt-3">
-              <HbProgressBar done={done} total={total} />
-            </div>
-          )}
-        </div>
+        <p className="mt-4 border-t border-hb-line pt-3 text-xs text-hb-ink-soft">{meta}</p>
+        {/* En bjælke på nul er støj, ikke information — den dukker op i
+            det øjeblik der er noget at vise. Indtil da bærer metalinjen
+            lektionstallet (og "x af y gennemført", når fremdriften
+            begynder). */}
+        {done > 0 && (
+          <div className="mt-3">
+            <HbProgressBar done={done} total={total} />
+          </div>
+        )}
       </HbCard>
     </Link>
   );
