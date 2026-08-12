@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import { cn } from "@/lib/utils";
 import { HbCard } from "@/components/hjemmebane/HbCard";
 import { HbProgressBar } from "./HbProgressBar";
 
@@ -41,10 +42,12 @@ export const HbKursusKort = ({
   total,
 }: HbKursusKortProps) => {
   const tid = formatTid(samletMinutter);
-  const meta = [
+  const erGennemfoert = total > 0 && done >= total;
+  // Metalinjens faste led — det sidste led (fremdrift/Gennemført) har
+  // sin egen klasse og renderes separat nedenfor.
+  const metaDele = [
     `${antalLektioner} ${antalLektioner === 1 ? "lektion" : "lektioner"}`,
     tid,
-    done > 0 ? `${done} af ${total} gennemført` : null,
   ]
     .filter(Boolean)
     .join(" · ");
@@ -56,7 +59,17 @@ export const HbKursusKort = ({
           Grid'ets items-stretch (default) sørger for at rækkerne
           flugter. Set i produktion 12/8: ingen af de 13 samlinger har
           en beskrivelse, så strakte kort var titel → tomrum → bund. */}
-      <HbCard className="p-6">
+      <HbCard
+        className={cn(
+          "p-6",
+          /* Evergreen-venstrekanten er den ENESTE farveflade på et
+             gennemført kort — ingen badge, ingen farvet baggrund, i
+             tråd med HbProgressBars "ingen procenter, ingen badges".
+             Titel, luft og hairline er uændrede: kortet ser ud som de
+             øvrige, bare tydeligvis lukket. */
+          erGennemfoert && "border-l-2 border-l-hb-evergreen",
+        )}
+      >
         <h3 className="font-editorial text-[26px] font-medium leading-tight text-hb-ink transition-colors group-hover:text-hb-evergreen">
           {titel}
         </h3>
@@ -65,12 +78,25 @@ export const HbKursusKort = ({
             {beskrivelse}
           </p>
         )}
-        <p className="mt-4 border-t border-hb-line pt-3 text-xs text-hb-ink-soft">{meta}</p>
+        <p className="mt-4 border-t border-hb-line pt-3 text-xs text-hb-ink-soft">
+          {metaDele}
+          {erGennemfoert ? (
+            <>
+              {" · "}
+              <span className="font-medium text-hb-evergreen">Gennemført</span>
+            </>
+          ) : done > 0 ? (
+            <>
+              {" · "}
+              {done} af {total} gennemført
+            </>
+          ) : null}
+        </p>
         {/* En bjælke på nul er støj, ikke information — den dukker op i
-            det øjeblik der er noget at vise. Indtil da bærer metalinjen
-            lektionstallet (og "x af y gennemført", når fremdriften
-            begynder). */}
-        {done > 0 && (
+            det øjeblik der er noget at vise. Og ved GENNEMFØRT udelades
+            den igen: "Gennemført" i metalinjen siger det hele, og en
+            fuld bjælke oven i er gentagelse. */}
+        {done > 0 && !erGennemfoert && (
           <div className="mt-3">
             <HbProgressBar done={done} total={total} />
           </div>
