@@ -26,7 +26,7 @@ export type CommunityNode =
   | { type: "blockquote"; content: CommunityNode[] }
   | { type: "hardBreak" }
   | { type: "text"; text: string; marks: CommunityMark[] }
-  | { type: "image"; src: string; alt: string };
+  | { type: "image"; path: string; alt: string };
 
 /** Dybdegrænsen. try/catch fanger et stack overflow, men et dokument skal
     afvises på en KENDT grænse frem for at afhænge af, hvornår kaldestakken
@@ -80,16 +80,55 @@ function sikkerHref(raw: unknown): string | null {
   return null;
 }
 
-/** Samme regel for billeder, men uden mailto: — en billedkilde er altid en
-    hentbar URL. Blokerer bl.a. data:text/html og javascript:-kilder. */
-function sikkerBilledSrc(raw: unknown): string | null {
+/** Billed-noden bærer en STI i vores egen private bucket, ikke en URL. En
+    signeret URL udløber (1 time), mens dokumentet lever for evigt — en gemt
+    URL ville give brudte billeder i gamle opslag. Rendereren signerer ved
+    visning gennem get-community-billed-url, som kun signerer efter
+    databasens adgangsdom (maa_se_community_billede). En sti kan desuden
+    aldrig pege ud af huset, hvor en URL-node ville kræve at vi stoler på
+    et prefiks-tjek.
+
+    Mønstret, linje for linje:
+      ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}
+        — et uuid: fem hex-grupper (8-4-4-4-12) adskilt af bindestreger;
+          uploaderens mappe, håndhævet af bucketens INSERT-policy
+      \/
+        — præcis én skråstreg mellem mappe og filnavn
+      [A-Za-z0-9._-]+
+        — filnavnet: kun bogstaver, tal, punktum, underscore, bindestreg
+      \.(jpg|jpeg|png|webp|gif)$
+        — og en billedendelse til sidst
+      /i
+        — case-insensitivt, så .PNG og hex i store bogstaver også rammer
+
+    Reglerne oven på mønstret (bælte OG seler — flere af dem er allerede
+    udelukket af tegnsættet, men de står eksplicit så hensigten kan læses):
+    - ikke-tom efter trim
+    - ".." må ikke forekomme (ingen path-traversal, heller ikke i filnavnet
+      hvor punktummer ellers er lovlige)
+    - må ikke starte med "/" og må ikke indeholde "//" (ingen absolutte
+      stier, ingen tomme segmenter)
+    - ":" må ikke forekomme (så hverken https:, data: eller javascript:
+      kan smugles ind som "sti")
+    Alt andet giver null, og billedet falder stille væk som enhver anden
+    ulovlig node. */
+const BILLED_STI_MOENSTER =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/[A-Za-z0-9._-]+\.(jpg|jpeg|png|webp|gif)$/i;
+
+function sikkerBilledSti(raw: unknown): string | null {
   if (typeof raw !== "string") return null;
   const trimmet = raw.trim();
-  const lille = trimmet.toLowerCase();
-  if (lille.startsWith("https://") || lille.startsWith("http://")) {
-    return trimmet;
+  if (trimmet.length === 0) return null;
+  if (
+    trimmet.includes("..") ||
+    trimmet.startsWith("/") ||
+    trimmet.includes("//") ||
+    trimmet.includes(":")
+  ) {
+    return null;
   }
-  return null;
+  if (!BILLED_STI_MOENSTER.test(trimmet)) return null;
+  return trimmet;
 }
 
 /** Hvidlist marks på en text-node. Ukendte marks fjernes stille; et link-mark
@@ -171,9 +210,9 @@ function oversaetNode(raw: unknown, kontekst: Kontekst, dybde: number): Communit
 
     case "image": {
       const attrs = erObjekt(raw.attrs) ? raw.attrs : {};
-      const src = sikkerBilledSrc(attrs.src);
-      if (src === null) return null;
-      return { type: "image", src, alt: typeof attrs.alt === "string" ? attrs.alt : "" };
+      const path = sikkerBilledSti(attrs.path);
+      if (path === null) return null;
+      return { type: "image", path, alt: typeof attrs.alt === "string" ? attrs.alt : "" };
     }
 
     // Uden for hvidlisten (eller nested "doc") → stille væk, resten består.

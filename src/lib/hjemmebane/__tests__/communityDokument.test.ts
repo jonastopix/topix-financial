@@ -140,23 +140,48 @@ describe("parseCommunityDokument — link-hærdning", () => {
   });
 });
 
-describe("parseCommunityDokument — billed-hærdning", () => {
-  it("data:text/html som image.src → billedet fjernet", () => {
+describe("parseCommunityDokument — billed-sti-hærdning", () => {
+  const GYLDIG_STI = "3f2504e0-4f89-11d3-9a0c-0305e82c3301/foto-01.jpg";
+
+  it("gyldig sti → bevaret med path og alt", () => {
+    const input = doc([{ type: "image", attrs: { path: GYLDIG_STI, alt: "Foto" } }]);
+    expect(parseCommunityDokument(input)).toEqual([
+      { type: "image", path: GYLDIG_STI, alt: "Foto" },
+    ]);
+  });
+
+  it("gyldig sti med .PNG i store bogstaver → bevaret", () => {
+    const sti = "3f2504e0-4f89-11d3-9a0c-0305e82c3301/GRAF.PNG";
+    const input = doc([{ type: "image", attrs: { path: sti, alt: "" } }]);
+    expect(parseCommunityDokument(input)).toEqual([{ type: "image", path: sti, alt: "" }]);
+  });
+
+  it.each([
+    ["https-URL som path (indeholder ':')", "https://cdn.example.dk/x.png"],
+    ["data-URL som path", "data:text/html,<script>alert(1)</script>"],
+    ["path-traversal", "../../etc/passwd"],
+    ["absolut sti", "/absolut/sti.jpg"],
+    ["dobbelt skråstreg", "3f2504e0-4f89-11d3-9a0c-0305e82c3301//dobbelt.jpg"],
+    ["forkert endelse", "3f2504e0-4f89-11d3-9a0c-0305e82c3301/fil.txt"],
+    ["ikke et uuid som mappe", "ikke-et-uuid/fil.jpg"],
+    ["mellemrum i filnavnet", "3f2504e0-4f89-11d3-9a0c-0305e82c3301/mit foto.jpg"],
+  ])("%s → billedet fjernet", (_navn, sti) => {
     const input = doc([
       { type: "paragraph", content: [tekst("før")] },
-      { type: "image", attrs: { src: "data:text/html,<script>alert(1)</script>", alt: "x" } },
+      { type: "image", attrs: { path: sti, alt: "x" } },
     ]);
     expect(parseCommunityDokument(input)).toEqual([
       { type: "paragraph", content: [{ type: "text", text: "før", marks: [] }] },
     ]);
   });
 
-  it("https-billede består med src og alt", () => {
+  it("image-node uden attrs → fjernet", () => {
     const input = doc([
-      { type: "image", attrs: { src: "https://cdn.example.dk/graf.png", alt: "Graf" } },
+      { type: "image" },
+      { type: "paragraph", content: [tekst("beholdes")] },
     ]);
     expect(parseCommunityDokument(input)).toEqual([
-      { type: "image", src: "https://cdn.example.dk/graf.png", alt: "Graf" },
+      { type: "paragraph", content: [{ type: "text", text: "beholdes", marks: [] }] },
     ]);
   });
 });
@@ -401,17 +426,18 @@ describe("parseCommunityDokument — kontekstafhængig hvidliste", () => {
     ]);
   });
 
-  it("image inde i et blockquote → bevaret", () => {
+  it("image inde i et blockquote med gyldig sti → bevaret (kontekstreglen holder)", () => {
+    const sti = "3f2504e0-4f89-11d3-9a0c-0305e82c3301/citat-billede.webp";
     const input = doc([
       {
         type: "blockquote",
-        content: [{ type: "image", attrs: { src: "https://cdn.example.dk/x.png", alt: "X" } }],
+        content: [{ type: "image", attrs: { path: sti, alt: "X" } }],
       },
     ]);
     expect(parseCommunityDokument(input)).toEqual([
       {
         type: "blockquote",
-        content: [{ type: "image", src: "https://cdn.example.dk/x.png", alt: "X" }],
+        content: [{ type: "image", path: sti, alt: "X" }],
       },
     ]);
   });
@@ -422,7 +448,10 @@ describe("parseCommunityDokument — kontekstafhængig hvidliste", () => {
         type: "paragraph",
         content: [
           tekst("tekst"),
-          { type: "image", attrs: { src: "https://cdn.example.dk/x.png", alt: "X" } },
+          {
+            type: "image",
+            attrs: { path: "3f2504e0-4f89-11d3-9a0c-0305e82c3301/x.jpg", alt: "X" },
+          },
         ],
       },
     ]);
