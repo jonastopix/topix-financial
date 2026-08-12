@@ -29,11 +29,21 @@ import { HbButton } from "@/components/hjemmebane/HbButton";
     `src`: motoren (parseCommunityDokument) accepterer kun `path`, og en
     `src` ville blive kasseret ved visning.
 
-    Editoren renderer noden som en simpel pladsholder-ramme med teksten
-    "Billede" — ikke det rigtige billede. Et signeringskald pr. tastetryk
-    i en editor er spild, og opslaget er ikke gemt endnu, så adgangsdommen
-    ville alligevel sige nej. renderHTML rækker til en statisk ramme —
-    ingen NodeView nødvendig. */
+    PREVIEW i editoren: filen vises lokalt via URL.createObjectURL — et
+    preview uden et eneste netværkskald, af præcis den fil medlemmet lige
+    har valgt. Der signeres bevidst IKKE i editoren, og grunden er ikke
+    kald-økonomi (useQuery cacher på stien — det ville være ét kald pr.
+    billede): grunden er, at adgangsdommen (maa_se_community_billede)
+    siger nej, indtil opslaget er gemt — stien findes endnu ikke i noget
+    dokument.
+
+    Opslaget sker i et modul-niveau Map, fordi Tiptaps renderHTML kører
+    uden adgang til React-state. renderHTML rækker (ingen NodeView):
+    upload-flowet gemmer object-URL'en FØR noden indsættes, så første
+    rendering ser den allerede, og posten ændrer sig aldrig for en given
+    sti. Composeren rydder sine egne poster op ved unmount. */
+const PREVIEW_URLS = new Map<string, string>();
+
 const CommunityBilledeNode = Image.extend({
   addAttributes() {
     return {
@@ -51,14 +61,34 @@ const CommunityBilledeNode = Image.extend({
   },
   /* renderHTML og parseHTML skal spejle hinanden, ellers overlever noden
      ikke en serialiserings-runde: uden data-path i den renderede markup
-     går stien tabt, og uden div[data-path]-parseren kan noden ikke læses
-     tilbage — det bider første gang et eksisterende opslag skal redigeres.
-     Pladsholderen er stadig kun visuel — det rigtige billede kræver
-     signering og vises først ved visning (CommunityBillede). */
+     går stien tabt, og uden parseren kan noden ikke læses tilbage — det
+     bider første gang et eksisterende opslag skal redigeres. Begge
+     render-former (img og div) bærer data-path, og parseHTML matcher
+     begge. */
   parseHTML() {
-    return [{ tag: "div[data-path]" }];
+    return [{ tag: "img[data-path]" }, { tag: "div[data-path]" }];
   },
-  renderHTML({ HTMLAttributes }) {
+  renderHTML({ node, HTMLAttributes }) {
+    const previewUrl =
+      typeof node.attrs.path === "string" ? PREVIEW_URLS.get(node.attrs.path) : undefined;
+
+    if (previewUrl) {
+      // Samme klasser som visningen (CommunityBillede), så det medlemmet
+      // ser mens der skrives, er det der publiceres.
+      return [
+        "img",
+        mergeAttributes(HTMLAttributes, {
+          src: previewUrl,
+          class: "h-auto max-w-full rounded-hb border border-hb-line",
+        }),
+      ];
+    }
+
+    /* Ingen preview-URL: fx et eksisterende opslag åbnet til redigering,
+       hvor filen aldrig har været i denne fane — dér findes filen ikke
+       lokalt, og signering i editoren er ikke vejen (adgangsdommen og
+       flowet ovenfor). Det rette billede vises igen, så snart opslaget
+       er gemt. */
     return [
       "div",
       mergeAttributes(HTMLAttributes, {
@@ -158,6 +188,25 @@ export function CommunityComposer({
   const [uploaderBillede, setUploaderBillede] = useState(false);
   const sendRef = useRef<() => void>(() => {});
   const billedInputRef = useRef<HTMLInputElement>(null);
+  /** Denne composers egne previews (sti → object-URL) — delmængden af
+      PREVIEW_URLS, som netop denne instans har skabt og skal rydde op. */
+  const egnePreviews = useRef(new Map<string, string>());
+
+  /* Oprydning ved unmount: uden revokeObjectURL holder browseren fast i
+     hvert uploadet billede i hukommelsen, indtil fanen lukkes — en
+     composer der har set ti billeder, ville lække ti blobs. Posterne
+     fjernes også fra modul-Map'et, så det ikke vokser på tværs af
+     composer-liv. */
+  useEffect(() => {
+    const previews = egnePreviews.current;
+    return () => {
+      for (const [sti, url] of previews) {
+        URL.revokeObjectURL(url);
+        PREVIEW_URLS.delete(sti);
+      }
+      previews.clear();
+    };
+  }, []);
 
   const editor = useEditor({
     extensions: [
@@ -239,6 +288,11 @@ export function CommunityComposer({
       setUploaderBillede(true);
       try {
         const sti = await uploadCommunityBillede(fil, brugerId);
+        // Object-URL'en registreres FØR noden indsættes, så renderHTML
+        // ser den allerede ved første rendering.
+        const previewUrl = URL.createObjectURL(fil);
+        PREVIEW_URLS.set(sti, previewUrl);
+        egnePreviews.current.set(sti, previewUrl);
         editor
           .chain()
           .focus()
