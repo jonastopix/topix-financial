@@ -453,6 +453,136 @@ describe("parseCommunityDokument — fil-noder", () => {
   });
 });
 
+describe("parseCommunityDokument — naevnelse-noder", () => {
+  const BRUGER_ID = "3f2504e0-4f89-11d3-9a0c-0305e82c3301";
+
+  it("gyldig nævnelse i et afsnit → bevaret med userId og navn", () => {
+    const input = doc([
+      {
+        type: "paragraph",
+        content: [
+          tekst("Spørg "),
+          { type: "naevnelse", attrs: { userId: BRUGER_ID, navn: "Mette" } },
+        ],
+      },
+    ]);
+    expect(parseCommunityDokument(input)).toEqual([
+      {
+        type: "paragraph",
+        content: [
+          { type: "text", text: "Spørg ", marks: [] },
+          { type: "naevnelse", userId: BRUGER_ID, navn: "Mette" },
+        ],
+      },
+    ]);
+  });
+
+  it("attrs.user_id i stedet for userId → bevaret", () => {
+    const input = doc([
+      {
+        type: "paragraph",
+        content: [{ type: "naevnelse", attrs: { user_id: BRUGER_ID, navn: "Mette" } }],
+      },
+    ]);
+    expect(parseCommunityDokument(input)).toEqual([
+      {
+        type: "paragraph",
+        content: [{ type: "naevnelse", userId: BRUGER_ID, navn: "Mette" }],
+      },
+    ]);
+  });
+
+  it("ugyldigt uuid → fjernet", () => {
+    const input = doc([
+      {
+        type: "paragraph",
+        content: [
+          tekst("før"),
+          { type: "naevnelse", attrs: { userId: "ikke-et-uuid", navn: "Mette" } },
+        ],
+      },
+    ]);
+    expect(parseCommunityDokument(input)).toEqual([
+      { type: "paragraph", content: [{ type: "text", text: "før", marks: [] }] },
+    ]);
+  });
+
+  it("manglende navn → fjernet", () => {
+    const input = doc([
+      {
+        type: "paragraph",
+        content: [tekst("før"), { type: "naevnelse", attrs: { userId: BRUGER_ID } }],
+      },
+    ]);
+    expect(parseCommunityDokument(input)).toEqual([
+      { type: "paragraph", content: [{ type: "text", text: "før", marks: [] }] },
+    ]);
+  });
+
+  it("navn med kontroltegn → renset", () => {
+    const input = doc([
+      {
+        type: "paragraph",
+        content: [{ type: "naevnelse", attrs: { userId: BRUGER_ID, navn: "\u0000Mette" } }],
+      },
+    ]);
+    expect(parseCommunityDokument(input)).toEqual([
+      {
+        type: "paragraph",
+        content: [{ type: "naevnelse", userId: BRUGER_ID, navn: "Mette" }],
+      },
+    ]);
+  });
+
+  it("nævnelse som direkte barn af roden → fjernet (blok tillader den ikke)", () => {
+    const input = doc([
+      { type: "naevnelse", attrs: { userId: BRUGER_ID, navn: "Mette" } },
+      { type: "paragraph", content: [tekst("beholdes")] },
+    ]);
+    expect(parseCommunityDokument(input)).toEqual([
+      { type: "paragraph", content: [{ type: "text", text: "beholdes", marks: [] }] },
+    ]);
+  });
+
+  it("nævnelse i en overskrift → bevaret (inline-kontekst)", () => {
+    const input = doc([
+      {
+        type: "heading",
+        attrs: { level: 2 },
+        content: [
+          tekst("Tak til "),
+          { type: "naevnelse", attrs: { userId: BRUGER_ID, navn: "Mette" } },
+        ],
+      },
+    ]);
+    expect(parseCommunityDokument(input)).toEqual([
+      {
+        type: "heading",
+        level: 2,
+        content: [
+          { type: "text", text: "Tak til ", marks: [] },
+          { type: "naevnelse", userId: BRUGER_ID, navn: "Mette" },
+        ],
+      },
+    ]);
+  });
+
+  it("afsnit med KUN en nævnelse → afsnittet bevares (noden er ikke tom)", () => {
+    const input = doc([
+      {
+        type: "paragraph",
+        content: [{ type: "naevnelse", attrs: { userId: BRUGER_ID, navn: "Mette" } }],
+      },
+    ]);
+    expect(parseCommunityDokument(input)).toEqual([
+      {
+        type: "paragraph",
+        content: [{ type: "naevnelse", userId: BRUGER_ID, navn: "Mette" }],
+      },
+    ]);
+  });
+});
+
 describe("parseCommunityDokument — kontekstafhængig hvidliste", () => {
   it("listItem som direkte barn af roden → fjernet", () => {
     const input = doc([

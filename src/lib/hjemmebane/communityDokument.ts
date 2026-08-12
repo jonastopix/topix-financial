@@ -27,7 +27,8 @@ export type CommunityNode =
   | { type: "hardBreak" }
   | { type: "text"; text: string; marks: CommunityMark[] }
   | { type: "image"; path: string; alt: string }
-  | { type: "fil"; path: string; navn: string };
+  | { type: "fil"; path: string; navn: string }
+  | { type: "naevnelse"; userId: string; navn: string };
 
 /** Dybdegrænsen. try/catch fanger et stack overflow, men et dokument skal
     afvises på en KENDT grænse frem for at afhænge af, hvornår kaldestakken
@@ -46,7 +47,7 @@ export const MAKS_DYBDE = 20;
       blok   (roden, listItem, blockquote) → paragraph, heading, bulletList,
                                              orderedList, blockquote, image, fil
       liste  (bulletList, orderedList)     → KUN listItem
-      inline (paragraph, heading)          → KUN text og hardBreak
+      inline (paragraph, heading)          → text, hardBreak og naevnelse
 
     Konsekvensen: et blockquote må indeholde blokke og dermed nestes, en
     liste kan kun indeholde listItem, og et listItem kan indeholde både
@@ -66,7 +67,9 @@ const TILLADT: Record<Kontekst, ReadonlySet<string>> = {
     "fil",
   ]),
   liste: new Set(["listItem"]),
-  inline: new Set(["text", "hardBreak"]),
+  // "naevnelse" er INLINE — en @-nævnelse står midt i en sætning, ikke
+  // som en blok.
+  inline: new Set(["text", "hardBreak", "naevnelse"]),
 };
 
 const erObjekt = (v: unknown): v is Record<string, unknown> =>
@@ -165,12 +168,13 @@ function sikkerFilSti(raw: unknown): string | null {
   return trimmet;
 }
 
-/** Filnavnet er rent brugerdata og vises som tekst i et element med en
-    downloadknap — det må hverken kunne bryde layoutet (derfor 120 tegn)
+/** Visningsnavne (filnavne OG nævnelses-navne) er rent brugerdata og
+    vises som tekst — et nævnelses-navn er lige så meget brugerdata som
+    et filnavn. De må hverken kunne bryde layoutet (derfor 120 tegn)
     eller bære usynlige tegn (derfor fjernes alle kontroltegn, char code
     < 32 og 127). Tomt efter rensning → null, og noden falder væk: en
-    vedhæftning uden navn er anonym. */
-function sikkertFilNavn(raw: unknown): string | null {
+    vedhæftning eller nævnelse uden navn er anonym. */
+function sikkertVisningsNavn(raw: unknown): string | null {
   if (typeof raw !== "string") return null;
   // eslint-disable-next-line no-control-regex
   const renset = raw.replace(/[\u0000-\u001F\u007F]/g, "").trim().slice(0, 120);
@@ -195,6 +199,19 @@ function hvidlistMarks(raw: unknown): CommunityMark[] {
     }
   }
   return marks;
+}
+
+/** Et nævnelses-userId skal være et rent uuid — det bliver til et
+    profil-link (/medlemmer/{userId}) ved visning, og alt andet end
+    uuid-formen kasseres. */
+const UUID_MOENSTER =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function sikkertUuid(raw: unknown): string | null {
+  if (typeof raw !== "string") return null;
+  const trimmet = raw.trim();
+  if (!UUID_MOENSTER.test(trimmet)) return null;
+  return trimmet;
 }
 
 /** Oversæt ét content-array rekursivt i en given kontekst. Noder uden for
@@ -265,10 +282,28 @@ function oversaetNode(raw: unknown, kontekst: Kontekst, dybde: number): Communit
     case "fil": {
       const attrs = erObjekt(raw.attrs) ? raw.attrs : {};
       const path = sikkerFilSti(attrs.path);
-      const navn = sikkertFilNavn(attrs.navn);
+      const navn = sikkertVisningsNavn(attrs.navn);
       // Både sti OG navn skal være gyldige — ellers falder noden væk.
       if (path === null || navn === null) return null;
       return { type: "fil", path, navn };
+    }
+
+    case "naevnelse": {
+      const attrs = erObjekt(raw.attrs) ? raw.attrs : {};
+      // Både userId og user_id accepteres — Tiptap-attributter navngives
+      // ofte med underscore. userId har forrang.
+      const userId = sikkertUuid(attrs.userId ?? attrs.user_id);
+      const navn = sikkertVisningsNavn(attrs.navn);
+      // Både userId OG navn skal være gyldige — ellers falder noden væk.
+      if (userId === null || navn === null) return null;
+      /* TOMHEDSPROBLEMET — bevidst IKKE løst her: community_json_til_tekst
+         læser kun text-felter og aldrig attrs, så en nævnelses-node
+         bidrager med NUL tekst til det udledte uddrag. Et opslag, der KUN
+         består af en nævnelse, ville derfor blive afvist af skrive-
+         RPC'ernes tomhedstjek. Løsningen ligger i composeren, som skal
+         indsætte navnet som en text-node ved siden af nævnelsen — motoren
+         skal ikke kompensere. Led ikke efter fejlen her. */
+      return { type: "naevnelse", userId, navn };
     }
 
     // Uden for hvidlisten (eller nested "doc") → stille væk, resten består.
