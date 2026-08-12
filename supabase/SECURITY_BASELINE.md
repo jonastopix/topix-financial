@@ -67,6 +67,23 @@ to the entire access-control model.
   (advisor policies unchanged, gated by `has_role`)
 - Introduced in migration `20260811160000_community_adgang.sql`
 
+### `maa_se_community_billede(_user_id uuid, _sti text) → boolean`
+- **Fail-closed** access verdict for signing community images — the edge
+  function's gate BEFORE service-role `createSignedUrl` against the private
+  `community-billeder` bucket, NOT an RLS policy (the bucket has no SELECT
+  policy; service-role bypasses RLS, so this function IS the read gate)
+- False on NULL/empty path, false without community access
+  (`har_aktivt_medlemskab` OR advisor via `has_role`), true ONLY when the
+  path appears as an image node (`attrs.path`) in `indhold_json` on an
+  ACTIVE thread or ACTIVE reply — hiding content revokes image access
+- jsonpath `'$.**'` is EXISTS-only here: multi-level duplicate matches (the
+  `20260811200000` text-derivation trap) are harmless for existence checks
+- STABLE, SECURITY DEFINER with `search_path = public`
+- Grants: `EXECUTE TO authenticated` AND `TO service_role` — service_role
+  does not inherit authenticated grants (learned 2026-08-10 with
+  `get_member_directory`); `REVOKE ALL FROM PUBLIC` and `FROM anon`
+- Introduced in migration `20260812110000_community_billed_adgangsdom.sql`
+
 ### Member-visibility RPCs: `get_member_profile(p_user_id uuid)`, `get_event_participants(p_event_id uuid)`, `get_member_directory()`
 - All three: STABLE, SECURITY DEFINER with `search_path = public`
 - Grants: `EXECUTE TO authenticated` only — `REVOKE ALL FROM PUBLIC` and `FROM anon`
