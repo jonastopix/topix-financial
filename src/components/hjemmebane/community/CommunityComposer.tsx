@@ -3,7 +3,13 @@ import { useCallback, useEffect, useRef, useState } from "react";
 // som re-eksporterer hele core (dist/index.d.ts: export * from '@tiptap/core')
 // — @tiptap/core er en udeklareret transitiv afhængighed, og den deklarerede
 // vej er den robuste.
-import { EditorContent, mergeAttributes, useEditor, type Content } from "@tiptap/react";
+import {
+  EditorContent,
+  mergeAttributes,
+  Node as TiptapNode,
+  useEditor,
+  type Content,
+} from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Link from "@tiptap/extension-link";
 import Image from "@tiptap/extension-image";
@@ -17,11 +23,12 @@ import {
   List,
   ListOrdered,
   Loader2,
+  Paperclip,
   Quote,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { uploadCommunityBillede } from "@/lib/hjemmebane/communityBilledUpload";
+import { uploadCommunityBillede, uploadCommunityFil } from "@/lib/hjemmebane/communityUpload";
 import { HbCard } from "@/components/hjemmebane/HbCard";
 import { HbButton } from "@/components/hjemmebane/HbButton";
 
@@ -66,7 +73,11 @@ const CommunityBilledeNode = Image.extend({
      render-former (img og div) bærer data-path, og parseHTML matcher
      begge. */
   parseHTML() {
-    return [{ tag: "img[data-path]" }, { tag: "div[data-path]" }];
+    /* :not([data-navn]) er nødvendigt: CSS-selektoren div[data-path]
+       matcher OGSÅ en div der desuden bærer data-navn — fil-nodens
+       markup. Uden udelukkelsen ville de to parseHTML-regler overlappe,
+       og en fil kunne parses tilbage som et billede. */
+    return [{ tag: "img[data-path]" }, { tag: "div[data-path]:not([data-navn])" }];
   },
   renderHTML({ node, HTMLAttributes }) {
     const previewUrl =
@@ -127,6 +138,55 @@ export interface CommunityComposerProps {
   onAnnuller?: () => void;
 }
 
+/** Vedhæftet fil — egen atom-blok-node bygget med Node.create, IKKE en
+    Image-udvidelse: en fil er ikke et billede, og navnet (ikke alt) er
+    dens bærende attribut. Nodetypen hedder "fil" (dansk, vores egen —
+    motoren matcher på det navn).
+
+    renderHTML og parseHTML spejler hinanden: div med data-path OG
+    data-navn, parseren matcher div[data-path][data-navn]. Billed-noden
+    matcher div[data-path]:not([data-navn]), så de to kan ikke forveksles
+    — en serialiserings-runde lander altid på den rigtige nodetype.
+
+    Editoren renderer noden som samme dokumentrække som visningen
+    (CommunityFil), men UDEN downloadknap — filen er ikke gemt endnu, og
+    adgangsdommen ville sige nej til signering. */
+const CommunityFilNode = TiptapNode.create({
+  name: "fil",
+  group: "block",
+  atom: true,
+  draggable: false,
+  addAttributes() {
+    return {
+      path: {
+        default: null,
+        parseHTML: (element: HTMLElement) => element.getAttribute("data-path"),
+        renderHTML: (attributes: { path?: string | null }) =>
+          attributes.path ? { "data-path": attributes.path } : {},
+      },
+      navn: {
+        default: "",
+        parseHTML: (element: HTMLElement) => element.getAttribute("data-navn") ?? "",
+        renderHTML: (attributes: { navn?: string }) =>
+          attributes.navn ? { "data-navn": attributes.navn } : {},
+      },
+    };
+  },
+  parseHTML() {
+    return [{ tag: "div[data-path][data-navn]" }];
+  },
+  renderHTML({ node, HTMLAttributes }) {
+    return [
+      "div",
+      mergeAttributes(HTMLAttributes, {
+        class:
+          "select-none rounded-hb border border-hb-line px-4 py-3 font-body text-sm text-hb-ink",
+      }),
+      String(node.attrs.navn ?? ""),
+    ];
+  },
+});
+
 /** Kun http/https/mailto får lov at forlade composeren — men motoren
     hærder href'en IGEN ved visning: editoren er bekvemmelighed, ikke
     forsvar. Skemaløse indtastninger får https:// foran (samme greb som
@@ -186,8 +246,10 @@ export function CommunityComposer({
 }: CommunityComposerProps) {
   const [sender, setSender] = useState(false);
   const [uploaderBillede, setUploaderBillede] = useState(false);
+  const [uploaderFil, setUploaderFil] = useState(false);
   const sendRef = useRef<() => void>(() => {});
   const billedInputRef = useRef<HTMLInputElement>(null);
+  const filInputRef = useRef<HTMLInputElement>(null);
   /** Denne composers egne previews (sti → object-URL) — delmængden af
       PREVIEW_URLS, som netop denne instans har skabt og skal rydde op. */
   const egnePreviews = useRef(new Map<string, string>());
@@ -229,6 +291,7 @@ export function CommunityComposer({
         protocols: ["http", "https", "mailto"],
       }),
       CommunityBilledeNode,
+      CommunityFilNode,
       Placeholder.configure({ placeholder }),
     ],
     autofocus: autoFocus ? "end" : false,
@@ -302,6 +365,29 @@ export function CommunityComposer({
         toast.error(fejl instanceof Error ? fejl.message : "Billedet kunne ikke uploades");
       } finally {
         setUploaderBillede(false);
+      }
+    },
+    [editor, brugerId],
+  );
+
+  const vaelgFil = useCallback(
+    async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const fil = e.target.files?.[0];
+      // Nulstil straks, så den samme fil kan vælges igen.
+      e.target.value = "";
+      if (!fil || !editor) return;
+      setUploaderFil(true);
+      try {
+        const { sti, navn } = await uploadCommunityFil(fil, brugerId);
+        editor
+          .chain()
+          .focus()
+          .insertContent({ type: "fil", attrs: { path: sti, navn } })
+          .run();
+      } catch (fejl) {
+        toast.error(fejl instanceof Error ? fejl.message : "Filen kunne ikke uploades");
+      } finally {
+        setUploaderFil(false);
       }
     },
     [editor, brugerId],
@@ -443,6 +529,24 @@ export function CommunityComposer({
           accept="image/jpeg,image/png,image/webp,image/gif"
           className="hidden"
           onChange={vaelgBillede}
+        />
+        <VaerktoejsKnap
+          disabled={uploaderFil || disabled || sender}
+          onClick={() => filInputRef.current?.click()}
+          title="Vedhæft fil"
+        >
+          {uploaderFil ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <Paperclip className="h-4 w-4" />
+          )}
+        </VaerktoejsKnap>
+        <input
+          ref={filInputRef}
+          type="file"
+          accept=".pdf,.xlsx,.xls,.docx,.doc,.xml"
+          className="hidden"
+          onChange={vaelgFil}
         />
 
         <div className="ml-auto flex items-center gap-2">
