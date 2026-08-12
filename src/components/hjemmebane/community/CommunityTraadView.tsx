@@ -13,7 +13,6 @@ import {
   retSvar,
   retTraad,
   saetReaktion,
-  skjulTraad,
   sletSvar,
   sletTraad,
   type CommunitySvar,
@@ -21,8 +20,8 @@ import {
 import { CommunityComposer } from "./CommunityComposer";
 import { CommunityDokument } from "./CommunityDokument";
 
-/** Trådsiden (/community/:id) — læsning, svar, reaktioner og nu også
-    ret/slet af eget indhold + rådgiver-skjul (RPC'erne 20260812120000).
+/** Trådsiden (/community/:id) — læsning, svar, reaktioner og ret/slet af
+    eget indhold (RPC'erne 20260812120000).
     Ikke-fundet håndteres blødt (EventDetailView-mønstret: venlig tekst +
     tilbage-link, ingen throw) — og tom kan også betyde "ingen adgang";
     de to kan bevidst ikke skelnes (jf. communityApi.hentTraad). */
@@ -186,7 +185,7 @@ const SvarRaekke = ({
 export const CommunityTraadView = ({ traadId }: { traadId: string }) => {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
-  const { user, isAdvisor } = useAuth();
+  const { user } = useAuth();
 
   const [redigererTraad, setRedigererTraad] = useState(false);
   const [traadTitel, setTraadTitel] = useState("");
@@ -276,17 +275,6 @@ export const CommunityTraadView = ({ traadId }: { traadId: string }) => {
     onSuccess: invaliderTraadOgFeed,
     onError: (fejl: Error) => {
       toast.error("Svaret blev ikke slettet", { description: fejl.message });
-    },
-  });
-
-  const skjulMutation = useMutation({
-    mutationFn: () => skjulTraad(traadId, true),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["community", "feed"] });
-      navigate("/community");
-    },
-    onError: (fejl: Error) => {
-      toast.error("Opslaget blev ikke skjult", { description: fejl.message });
     },
   });
 
@@ -391,18 +379,15 @@ export const CommunityTraadView = ({ traadId }: { traadId: string }) => {
                   </TekstKnap>
                 </>
               )}
-              {isAdvisor && (
-                <TekstKnap
-                  disabled={skjulMutation.isPending}
-                  onClick={() => {
-                    if (window.confirm("Skjul opslaget for alle medlemmer?")) {
-                      skjulMutation.mutate();
-                    }
-                  }}
-                >
-                  Skjul opslag
-                </TekstKnap>
-              )}
+              {/* Ingen skjul-knap her endnu: skjul er en envejsdør, indtil
+                  moderationsfladen findes. Læse-RPC'erne filtrerer på
+                  status = 'aktiv' også for rådgivere, så en skjult tråd
+                  forsvinder fra ENHVER flade — også rådgiverens egen — og
+                  kan kun vises igen via SQL-editoren.
+                  skjul_community_traad understøtter p_skjul = false, men
+                  der er intet sted at trykke fortryd. Knappen kommer
+                  tilbage sammen med en flade, hvor skjulte tråde kan ses
+                  og genåbnes. */}
             </div>
           </>
         )}
