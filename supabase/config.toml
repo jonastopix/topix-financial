@@ -71,6 +71,11 @@ project_id = "loiavmastgeieqyiwyyr"
     verify_jwt = false
   [functions.get-chat-attachment-url]
     verify_jwt = false
+  # Samme valg som get-chat-attachment-url (Bucket A): gatewayens
+  # verify_jwt validerer bevisligt intet i dette projekt, og funktionen
+  # validerer selv via authenticateUser før enhver service-role-handling.
+  [functions.get-community-billed-url]
+    verify_jwt = false
   [functions.calendly-webhook]
     verify_jwt = false
   [functions.bunny-content-admin]
