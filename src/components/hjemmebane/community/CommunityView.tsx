@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
+import { useAuth } from "@/hooks/useAuth";
 import { hentFeed, opretTraad, type CommunityTraad } from "@/lib/hjemmebane/communityApi";
 import { CommunityComposer } from "./CommunityComposer";
 import { HbSection } from "../HbSection";
@@ -88,6 +89,7 @@ const TraadRaekke = ({ traad }: { traad: CommunityTraad }) => {
 export const CommunityView = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { user } = useAuth();
   const [titel, setTitel] = useState("");
 
   const feedQuery = useQuery({
@@ -115,11 +117,15 @@ export const CommunityView = () => {
   return (
     <HbSection eyebrow="Fællesskab" hairline>
       {/* Composeren vises først når feedet er færdigindlæst, så den ikke
-          hopper ind over skeleton-rækkerne. */}
-      {!feedQuery.isLoading && (
+          hopper ind over skeleton-rækkerne — OG først når brugeren er
+          indlæst: den må ikke montere med et tomt brugerId, for så ville
+          en billed-upload lande på en ulovlig sti, som motoren bagefter
+          kasserer. */}
+      {!feedQuery.isLoading && user && (
         <div className="mb-8">
           <CommunityComposer
             visTitel
+            brugerId={user.id}
             titel={titel}
             onTitelChange={setTitel}
             submitLabel="Del"

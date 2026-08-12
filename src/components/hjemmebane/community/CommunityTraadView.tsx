@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { ArrowLeft, Heart } from "lucide-react";
 import { toast } from "sonner";
+import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
 import {
   hentSvar,
@@ -120,6 +121,7 @@ const SvarRaekke = ({
 
 export const CommunityTraadView = ({ traadId }: { traadId: string }) => {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
 
   const traadQuery = useQuery({
     queryKey: ["community", "traad", traadId],
@@ -248,14 +250,22 @@ export const CommunityTraadView = ({ traadId }: { traadId: string }) => {
           </ul>
         )}
 
-        <div className="mt-8">
-          <CommunityComposer
-            visTitel={false}
-            submitLabel="Svar"
-            placeholder="Skriv et svar"
-            onSubmit={(indholdJson) => svarMutation.mutateAsync(indholdJson).then(() => undefined)}
-          />
-        </div>
+        {/* Composeren vises først når brugeren er indlæst — den må ikke
+            montere med et tomt brugerId, for så ville en billed-upload
+            lande på en ulovlig sti, som motoren bagefter kasserer. */}
+        {user && (
+          <div className="mt-8">
+            <CommunityComposer
+              visTitel={false}
+              brugerId={user.id}
+              submitLabel="Svar"
+              placeholder="Skriv et svar"
+              onSubmit={(indholdJson) =>
+                svarMutation.mutateAsync(indholdJson).then(() => undefined)
+              }
+            />
+          </div>
+        )}
       </section>
     </div>
   );
