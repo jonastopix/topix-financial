@@ -2995,6 +2995,10 @@ export type Database = {
         Args: { _sti: string; _user_id: string }
         Returns: boolean
       }
+      maa_se_community_fil: {
+        Args: { _sti: string; _user_id: string }
+        Returns: boolean
+      }
       mark_messages_read: {
         Args: { p_conversation_id: string }
         Returns: number
@@ -3051,10 +3055,24 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      ret_community_svar: {
+        Args: { p_indhold_json: Json; p_svar_id: string }
+        Returns: undefined
+      }
+      ret_community_traad: {
+        Args: { p_indhold_json: Json; p_titel: string; p_traad_id: string }
+        Returns: undefined
+      }
       saet_community_reaktion: {
         Args: { p_svar_id?: string; p_traad_id?: string }
         Returns: boolean
       }
+      skjul_community_traad: {
+        Args: { p_skjul: boolean; p_traad_id: string }
+        Returns: undefined
+      }
+      slet_community_svar: { Args: { p_svar_id: string }; Returns: undefined }
+      slet_community_traad: { Args: { p_traad_id: string }; Returns: undefined }
       user_company_id: { Args: { _user_id: string }; Returns: string }
     }
     Enums: {
