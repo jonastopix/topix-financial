@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseCommunityDokument } from "../communityDokument";
+import { MAKS_DYBDE, parseCommunityDokument } from "../communityDokument";
 import type { CommunityNode } from "../communityDokument";
 
 /** Hjælper: et doc-objekt som Tiptap serialiserer det. */
@@ -328,5 +328,195 @@ describe("parseCommunityDokument — nesting og tomme noder", () => {
       },
     ]);
     expect(parseCommunityDokument(input)).toEqual([]);
+  });
+});
+
+describe("parseCommunityDokument — kontekstafhængig hvidliste", () => {
+  it("listItem som direkte barn af roden → fjernet", () => {
+    const input = doc([
+      { type: "listItem", content: [{ type: "paragraph", content: [tekst("løsrevet")] }] },
+      { type: "paragraph", content: [tekst("beholdes")] },
+    ]);
+    expect(parseCommunityDokument(input)).toEqual([
+      { type: "paragraph", content: [{ type: "text", text: "beholdes", marks: [] }] },
+    ]);
+  });
+
+  it("paragraph som direkte barn af bulletList → fjernet, og den tomme liste falder væk", () => {
+    const input = doc([
+      { type: "bulletList", content: [{ type: "paragraph", content: [tekst("forkert plads")] }] },
+      { type: "paragraph", content: [tekst("beholdes")] },
+    ]);
+    expect(parseCommunityDokument(input)).toEqual([
+      { type: "paragraph", content: [{ type: "text", text: "beholdes", marks: [] }] },
+    ]);
+  });
+
+  it("bulletList inde i et listItem → bevaret (lovlig nesting)", () => {
+    const input = doc([
+      {
+        type: "bulletList",
+        content: [
+          {
+            type: "listItem",
+            content: [
+              { type: "paragraph", content: [tekst("ydre")] },
+              {
+                type: "bulletList",
+                content: [
+                  {
+                    type: "listItem",
+                    content: [{ type: "paragraph", content: [tekst("indre")] }],
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    ]);
+    expect(parseCommunityDokument(input)).toEqual([
+      {
+        type: "bulletList",
+        content: [
+          {
+            type: "listItem",
+            content: [
+              { type: "paragraph", content: [{ type: "text", text: "ydre", marks: [] }] },
+              {
+                type: "bulletList",
+                content: [
+                  {
+                    type: "listItem",
+                    content: [
+                      { type: "paragraph", content: [{ type: "text", text: "indre", marks: [] }] },
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    ]);
+  });
+
+  it("image inde i et blockquote → bevaret", () => {
+    const input = doc([
+      {
+        type: "blockquote",
+        content: [{ type: "image", attrs: { src: "https://cdn.example.dk/x.png", alt: "X" } }],
+      },
+    ]);
+    expect(parseCommunityDokument(input)).toEqual([
+      {
+        type: "blockquote",
+        content: [{ type: "image", src: "https://cdn.example.dk/x.png", alt: "X" }],
+      },
+    ]);
+  });
+
+  it("image inde i en paragraph → fjernet (inline tillader kun text/hardBreak)", () => {
+    const input = doc([
+      {
+        type: "paragraph",
+        content: [
+          tekst("tekst"),
+          { type: "image", attrs: { src: "https://cdn.example.dk/x.png", alt: "X" } },
+        ],
+      },
+    ]);
+    expect(parseCommunityDokument(input)).toEqual([
+      { type: "paragraph", content: [{ type: "text", text: "tekst", marks: [] }] },
+    ]);
+  });
+
+  it("heading inde i et listItem → bevaret", () => {
+    const input = doc([
+      {
+        type: "bulletList",
+        content: [
+          {
+            type: "listItem",
+            content: [{ type: "heading", attrs: { level: 2 }, content: [tekst("Punkt-titel")] }],
+          },
+        ],
+      },
+    ]);
+    expect(parseCommunityDokument(input)).toEqual([
+      {
+        type: "bulletList",
+        content: [
+          {
+            type: "listItem",
+            content: [
+              {
+                type: "heading",
+                level: 2,
+                content: [{ type: "text", text: "Punkt-titel", marks: [] }],
+              },
+            ],
+          },
+        ],
+      },
+    ]);
+  });
+});
+
+describe("parseCommunityDokument — dybdegrænse", () => {
+  it("25 niveauers nesting → returnerer uden at kaste, indhold under niveau 20 er væk", () => {
+    /** Blockquote-kæde: lag-i er et blockquote på dybde i med et afsnit og
+        det næste lag som indhold. Lovlig struktur hele vejen ned — kun
+        dybden fælder de inderste lag. */
+    let inderst: unknown = { type: "paragraph", content: [tekst("lag-25")] };
+    for (let lag = 24; lag >= 1; lag--) {
+      inderst = {
+        type: "blockquote",
+        content: [
+          { type: "paragraph", content: [tekst(`lag-${String(lag).padStart(2, "0")}`)] },
+          inderst,
+        ],
+      };
+    }
+    const resultat = parseCommunityDokument(doc([inderst]));
+    const serialiseret = JSON.stringify(resultat);
+
+    expect(resultat.length).toBeGreaterThan(0);
+    expect(serialiseret).toContain("lag-01");
+    expect(serialiseret).toContain("lag-18");
+    expect(serialiseret).not.toContain("lag-21");
+    expect(serialiseret).not.toContain("lag-25");
+  });
+
+  it("MAKS_DYBDE er 20", () => {
+    expect(MAKS_DYBDE).toBe(20);
+  });
+});
+
+describe("parseCommunityDokument — kun linjeskift er tomt", () => {
+  it("afsnit med kun hardBreak → fjernet", () => {
+    const input = doc([
+      { type: "paragraph", content: [{ type: "hardBreak" }, { type: "hardBreak" }] },
+      { type: "paragraph", content: [tekst("beholdes")] },
+    ]);
+    expect(parseCommunityDokument(input)).toEqual([
+      { type: "paragraph", content: [{ type: "text", text: "beholdes", marks: [] }] },
+    ]);
+  });
+
+  it("afsnit med tekst OG hardBreak → bevaret med begge", () => {
+    const input = doc([
+      { type: "paragraph", content: [tekst("linje et"), { type: "hardBreak" }, tekst("linje to")] },
+    ]);
+    expect(parseCommunityDokument(input)).toEqual([
+      {
+        type: "paragraph",
+        content: [
+          { type: "text", text: "linje et", marks: [] },
+          { type: "hardBreak" },
+          { type: "text", text: "linje to", marks: [] },
+        ],
+      },
+    ]);
   });
 });
