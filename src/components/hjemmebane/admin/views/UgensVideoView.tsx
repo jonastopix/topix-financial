@@ -81,7 +81,8 @@ const VideoEditor = forwardRef<
 
   // (i) Akademi-indhold: eksisterende Bunny-videoer fra ALLE medlemsvendte
   // content-areas m. video-indhold (fix/ugens-video-kilder — admin-testens
-  // fund: kun Grundforløbet dukkede op). IKKE push/ugens_video (kuraterings-
+  // fund: kun Fundamentet, dengang "Grundforløbet", dukkede op). IKKE
+  // push/ugens_video (kuraterings-
   // kanaler, ikke kilder) og ikke rabataftaler. Valg KOPIERER bunny_video_id
   // (én sandhed er media-kolonnerne; intet link tilbage, bevidst simpelt).
   // KUN published — kladder er ikke kilder (status-dommen som

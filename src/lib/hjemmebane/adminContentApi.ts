@@ -36,7 +36,15 @@ export const AREAS = [
   },
   {
     key: "classroom",
-    label: "Grundforløbet",
+    /* "Fundamentet", ikke "Grundforløbet": "Grundforløbet" lovede en
+       rækkefølge, der ikke findes — de otte samlinger er discipliner,
+       ikke trin, og ordet fik medlemmer til at tro, de skulle starte
+       forfra. "Fundamentet" er Mortens eget ord fra rådgivningen ("har
+       du styr på fundamentet i din forretning?") og er allerede i omløb
+       blandt medlemmerne. Parret er bevidst: Fundamentet er Jonas' og
+       Mortens egen undervisning, Kurser (academy) er eksterne
+       eksperter. */
+    label: "Fundamentet",
     akademi: true,
     hint: "Det store sammenhængende forløb (Circles Classroom)",
   },
