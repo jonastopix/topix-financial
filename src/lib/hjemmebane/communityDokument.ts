@@ -29,7 +29,8 @@ export type CommunityNode =
   | { type: "image"; path: string; alt: string }
   | { type: "fil"; path: string; navn: string }
   | { type: "naevnelse"; userId: string; navn: string }
-  | { type: "henvisning"; area: string; slug: string; titel: string };
+  | { type: "henvisning"; area: string; slug: string; titel: string }
+  | { type: "eventhenvisning"; eventId: string; titel: string };
 
 /** Dybdegrænsen. try/catch fanger et stack overflow, men et dokument skal
     afvises på en KENDT grænse frem for at afhænge af, hvornår kaldestakken
@@ -48,8 +49,8 @@ export const MAKS_DYBDE = 20;
       blok   (roden, listItem, blockquote) → paragraph, heading, bulletList,
                                              orderedList, blockquote, image, fil
       liste  (bulletList, orderedList)     → KUN listItem
-      inline (paragraph, heading)          → text, hardBreak, naevnelse
-                                             og henvisning
+      inline (paragraph, heading)          → text, hardBreak, naevnelse,
+                                             henvisning og eventhenvisning
 
     Konsekvensen: et blockquote må indeholde blokke og dermed nestes, en
     liste kan kun indeholde listItem, og et listItem kan indeholde både
@@ -69,9 +70,9 @@ const TILLADT: Record<Kontekst, ReadonlySet<string>> = {
     "fil",
   ]),
   liste: new Set(["listItem"]),
-  // "naevnelse" og "henvisning" er INLINE — en @-nævnelse og en
-  // #-henvisning står midt i en sætning, ikke som blokke.
-  inline: new Set(["text", "hardBreak", "naevnelse", "henvisning"]),
+  // "naevnelse", "henvisning" og "eventhenvisning" er INLINE — de står
+  // midt i en sætning, ikke som blokke.
+  inline: new Set(["text", "hardBreak", "naevnelse", "henvisning", "eventhenvisning"]),
 };
 
 const erObjekt = (v: unknown): v is Record<string, unknown> =>
@@ -355,6 +356,23 @@ function oversaetNode(raw: unknown, kontekst: Kontekst, dybde: number): Communit
       // noden væk.
       if (area === null || slug === null || titel === null) return null;
       return { type: "henvisning", area, slug, titel };
+    }
+
+    case "eventhenvisning": {
+      /* SEPARAT nodetype, ikke en udvidelse af "henvisning": items
+         navigeres på /akademiet/{area}/{slug}, events på /events/{id}
+         med et uuid — to forskellige nøgletyper. En fælles node med
+         valgfrie felter ville altid have halvdelen tomme og gøre
+         valideringen bredere for begge; to smalle noder er strammere
+         end én bred. */
+      const attrs = erObjekt(raw.attrs) ? raw.attrs : {};
+      // Både eventId og event_id accepteres — samme mønster som
+      // nævnelsens userId/user_id. eventId har forrang.
+      const eventId = sikkertUuid(attrs.eventId ?? attrs.event_id);
+      const titel = sikkertVisningsNavn(attrs.titel);
+      // Både eventId OG titel skal være gyldige — ellers falder noden væk.
+      if (eventId === null || titel === null) return null;
+      return { type: "eventhenvisning", eventId, titel };
     }
 
     // Uden for hvidlisten (eller nested "doc") → stille væk, resten består.

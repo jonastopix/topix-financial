@@ -638,6 +638,103 @@ describe("parseCommunityDokument — henvisning-noder", () => {
   });
 });
 
+describe("parseCommunityDokument — eventhenvisning-noder", () => {
+  const EVENT_ID = "3f2504e0-4f89-11d3-9a0c-0305e82c3301";
+
+  it("gyldig eventhenvisning i et afsnit → bevaret med eventId og titel", () => {
+    const input = doc([
+      {
+        type: "paragraph",
+        content: [
+          tekst("Vi ses til "),
+          { type: "eventhenvisning", attrs: { eventId: EVENT_ID, titel: "Vaekstdag" } },
+        ],
+      },
+    ]);
+    expect(parseCommunityDokument(input)).toEqual([
+      {
+        type: "paragraph",
+        content: [
+          { type: "text", text: "Vi ses til ", marks: [] },
+          { type: "eventhenvisning", eventId: EVENT_ID, titel: "Vaekstdag" },
+        ],
+      },
+    ]);
+  });
+
+  it("attrs.event_id i stedet for eventId → bevaret", () => {
+    const input = doc([
+      {
+        type: "paragraph",
+        content: [{ type: "eventhenvisning", attrs: { event_id: EVENT_ID, titel: "Vaekstdag" } }],
+      },
+    ]);
+    expect(parseCommunityDokument(input)).toEqual([
+      {
+        type: "paragraph",
+        content: [{ type: "eventhenvisning", eventId: EVENT_ID, titel: "Vaekstdag" }],
+      },
+    ]);
+  });
+
+  it.each([
+    ["ugyldigt uuid", { eventId: "ikke-et-uuid", titel: "Vaekstdag" }],
+    ["manglende titel", { eventId: EVENT_ID }],
+  ])("%s → fjernet", (_navn, attrs) => {
+    const input = doc([
+      { type: "paragraph", content: [tekst("før"), { type: "eventhenvisning", attrs }] },
+    ]);
+    expect(parseCommunityDokument(input)).toEqual([
+      { type: "paragraph", content: [{ type: "text", text: "før", marks: [] }] },
+    ]);
+  });
+
+  it("titel med kontroltegn → renset", () => {
+    const input = doc([
+      {
+        type: "paragraph",
+        content: [
+          {
+            type: "eventhenvisning",
+            attrs: { eventId: EVENT_ID, titel: String.fromCharCode(0) + "Vaekstdag" },
+          },
+        ],
+      },
+    ]);
+    expect(parseCommunityDokument(input)).toEqual([
+      {
+        type: "paragraph",
+        content: [{ type: "eventhenvisning", eventId: EVENT_ID, titel: "Vaekstdag" }],
+      },
+    ]);
+  });
+
+  it("eventhenvisning som direkte barn af roden → fjernet", () => {
+    const input = doc([
+      { type: "eventhenvisning", attrs: { eventId: EVENT_ID, titel: "Vaekstdag" } },
+      { type: "paragraph", content: [tekst("beholdes")] },
+    ]);
+    expect(parseCommunityDokument(input)).toEqual([
+      { type: "paragraph", content: [{ type: "text", text: "beholdes", marks: [] }] },
+    ]);
+  });
+
+  it("afsnit med KUN en eventhenvisning → afsnittet bevares", () => {
+    const input = doc([
+      {
+        type: "paragraph",
+        content: [{ type: "eventhenvisning", attrs: { eventId: EVENT_ID, titel: "Vaekstdag" } }],
+      },
+    ]);
+    expect(parseCommunityDokument(input)).toEqual([
+      {
+        type: "paragraph",
+        content: [{ type: "eventhenvisning", eventId: EVENT_ID, titel: "Vaekstdag" }],
+      },
+    ]);
+  });
+});
+
 describe("parseCommunityDokument — kontekstafhængig hvidliste", () => {
   it("listItem som direkte barn af roden → fjernet", () => {
     const input = doc([
