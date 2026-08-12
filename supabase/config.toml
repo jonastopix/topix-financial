@@ -71,6 +71,15 @@ project_id = "loiavmastgeieqyiwyyr"
     verify_jwt = false
   [functions.get-chat-attachment-url]
     verify_jwt = false
+  # verify_jwt = true: funktionen læser JWT-claims via authenticateUser, og
+  # gatewayen bærer signaturtjekket — samme invariant som CI-værnet
+  # scripts/check-verify-jwt-invariant.ts håndhæver. Bevist 10. august
+  # (PR #267): med true afviser gatewayen forfalskede signaturer før koden
+  # kører; uden blok validerer den intet. get-chat-attachment-url står på
+  # false fordi den er ældre end det fund — den skal migreres i et separat
+  # spor og er IKKE forbilledet her.
+  [functions.get-community-billed-url]
+    verify_jwt = true
   [functions.calendly-webhook]
     verify_jwt = false
   [functions.bunny-content-admin]
