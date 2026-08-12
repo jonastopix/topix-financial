@@ -161,6 +161,23 @@ export async function notificerSvar(svarId: string): Promise<void> {
   }
 }
 
+/** Beder notify-community-naevnelse notificere @-nævnte medlemmer. Kun
+    den satte parameter sendes — funktionen kræver præcis ét mål og
+    afviser ellers med 400. Må ALDRIG kaste (samme form som
+    notificerSvar): notifikationen er en bivirkning, og opslaget ER gemt
+    — en fejlet notifikation må ikke ligne et mislykket opslag. */
+export async function notificerNaevnelser(
+  maal: { traadId: string } | { svarId: string },
+): Promise<void> {
+  try {
+    const body = "traadId" in maal ? { traadId: maal.traadId } : { svarId: maal.svarId };
+    const { error } = await supabase.functions.invoke("notify-community-naevnelse", { body });
+    if (error) console.error("notificerNaevnelser fejlede:", error);
+  } catch (fejl) {
+    console.error("notificerNaevnelser fejlede:", fejl);
+  }
+}
+
 /** Ret/slet eget indhold + rådgiver-skjul (20260812120000). Reglerne bor
     i RPC'erne: kun forfatteren kan rette/slette, kun rådgivere kan
     skjule, og alt er soft-delete via status. */
