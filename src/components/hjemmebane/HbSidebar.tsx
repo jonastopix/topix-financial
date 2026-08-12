@@ -1,6 +1,6 @@
 import * as React from "react";
 import { Link } from "react-router-dom";
-import { X } from "lucide-react";
+import { LogOut, X } from "lucide-react";
 import topixIcon from "@/assets/topix-icon-green.png";
 import { cn } from "@/lib/utils";
 
@@ -42,6 +42,8 @@ interface HbSidebarProps {
   nav?: HbNavEntry[];
   /** Logo-linkets mål; udeladt = dødt (preview). */
   homeTo?: string;
+  /** Log ud-handler. Udeladt = ingen knap (previewens brug er urørt). */
+  onSignOut?: () => void;
 }
 
 const NavItem = ({ label, active, to }: { label: string; active?: boolean; to?: string }) => {
@@ -86,6 +88,7 @@ const SidebarContent = ({
   userName = "Medlem",
   nav = NAV,
   homeTo,
+  onSignOut,
 }: HbSidebarProps) => (
   <>
     {homeTo ? (
@@ -123,10 +126,23 @@ const SidebarContent = ({
       )}
       <div className="min-w-0 text-sm leading-tight">
         <div className="truncate font-medium text-hb-ink">{userName}</div>
-        <a href="#" className="text-xs text-hb-ink-soft transition-colors hover:text-hb-ink">
+        {/* /settings er en AppLayout-side (gammelt design) — det er
+            bevidst: en vej til indstillinger i gammelt udtryk er bedre
+            end ingen vej. */}
+        <Link to="/settings" className="text-xs text-hb-ink-soft transition-colors hover:text-hb-ink">
           Indstillinger
-        </a>
+        </Link>
       </div>
+      {onSignOut && (
+        <button
+          type="button"
+          onClick={onSignOut}
+          title="Log ud"
+          className="ml-auto shrink-0 p-1.5 text-hb-ink-soft transition-colors hover:text-hb-ink"
+        >
+          <LogOut className="h-4 w-4" />
+        </button>
+      )}
     </div>
   </>
 );
