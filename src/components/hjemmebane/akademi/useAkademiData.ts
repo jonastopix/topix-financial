@@ -99,7 +99,13 @@ export function useAkademiData() {
     const byId = new Map(all.map((entry) => [entry.item.id, entry]));
     const bySlug = new Map(all.map((entry) => [entry.item.slug, entry]));
 
-    return { collections, orderedByArea, byId, bySlug };
+    /* Item- og collection-slugs bor i ADSKILTE tabeller uden
+       kryds-constraint — det samme slug kan i teorien findes begge
+       steder. Akademiet.tsx skal derfor slå items op FØRST (bySlug) og
+       først derefter her, så et element aldrig skygges af en samling. */
+    const collectionBySlug = new Map(collections.map((c) => [c.slug, c]));
+
+    return { collections, orderedByArea, byId, bySlug, collectionBySlug };
   }, [collectionsQuery.data, itemsQuery.data, progressQuery.data, joinedQuery.data, isAdvisor]);
 
   // Optimistisk for ALLE progress-skrivninger (kvittér, fortryd, spring,
