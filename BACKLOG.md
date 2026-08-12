@@ -1005,6 +1005,21 @@ straks; 'draft' committer aldrig). Broens toasts består indtil da.
 
 ---
 
+### [P2] Bucket A-funktioner med verify_jwt = false bør migreres til true (noteret 2026-08-12)
+
+Fundet fra 10. august (PR #267) beviste, at gatewayen MED `verify_jwt =
+true` afviser forfalskede signaturer før koden kører (fem funktioner gav
+UNAUTHORIZED_LEGACY_JWT; ægte vault-nøgle gav 200), mens den uden blok —
+eller med `false` — intet validerer. `get-community-billed-url` er den
+første Bucket A-funktion født med `true` (PR #296). `get-chat-attachment-url`
+og de øvrige Bucket A-funktioner med `verify_jwt = false` i
+`supabase/config.toml` er ældre end fundet og bør gennemgås og migreres til
+`true` i et dedikeret spor — én funktion ad gangen med verificering af alle
+kald-stier (FORBIDDEN-reglen i CLAUDE.md: aldrig `true` uden den
+verificering; auth-hook/webhooks med egne signaturordninger er undtaget).
+
+---
+
 ### Bogføringsnote — deploy-re-baseline af edge functions (2026-08-06)
 
 Serverside-fejning af alle 55 repo-funktioner + kontrolgruppe af 5 kendte
