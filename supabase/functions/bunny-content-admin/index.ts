@@ -24,6 +24,9 @@ import { authenticateUser, corsHeaders } from "../_shared/edgeFunctionAuth.ts";
 
 const BUNNY_API_BASE = "https://video.bunnycdn.com/library";
 const TUS_GRANT_TTL_SECONDS = 6 * 60 * 60;
+// Samme mønster som frontends GUID_RE (HbBunnyPicker.tsx) — det bor kun
+// dér, så tjekket spejles her frem for at importeres på tværs af lag.
+const GUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -63,7 +66,11 @@ Deno.serve(async (req) => {
   } catch {
     return jsonResponse({ error: "Invalid JSON body" }, 400);
   }
-  const { action, title } = (body ?? {}) as { action?: unknown; title?: unknown };
+  const { action, title, videoId } = (body ?? {}) as {
+    action?: unknown;
+    title?: unknown;
+    videoId?: unknown;
+  };
 
   const libraryId = Deno.env.get("BUNNY_STREAM_LIBRARY_ID") ?? "";
   const apiKey = Deno.env.get("BUNNY_STREAM_API_KEY") ?? "";
@@ -101,6 +108,33 @@ Deno.serve(async (req) => {
     const signature = await sha256Hex(`${libraryId}${apiKey}${expires}${video.guid}`);
 
     return jsonResponse({ videoGuid: video.guid, signature, expires, libraryId });
+  }
+
+  if (action === "video-info") {
+    if (!configured) {
+      return jsonResponse({ error: "not_configured" }, 503);
+    }
+    if (typeof videoId !== "string" || !GUID_RE.test(videoId)) {
+      return jsonResponse({ error: "Ugyldigt videoId" }, 400);
+    }
+
+    const infoResponse = await fetch(`${BUNNY_API_BASE}/${libraryId}/videos/${videoId}`, {
+      headers: { AccessKey: apiKey },
+    });
+    if (!infoResponse.ok) {
+      // Ikke-200 returneres med status og body, så fejlsøgningen kan se
+      // hvad Bunny faktisk svarede — ikke en generisk fejl.
+      const fejlBody = await infoResponse.text();
+      return jsonResponse({ ok: false, status: infoResponse.status, body: fejlBody }, 502);
+    }
+
+    /* Hele svaret returneres BEVIDST urørt under `raw`: formålet er at
+       efterprøve hvilke felter Bunny faktisk leverer (varighed?), før
+       der bygges automatisk varighedsudfyldning på en antagelse om et
+       fremmed API. Denne action skal STRAMMES til kun de nødvendige
+       felter, når feltlisten er afklaret. */
+    const raw = await infoResponse.json();
+    return jsonResponse({ ok: true, raw });
   }
 
   return jsonResponse({ error: "Unknown action" }, 400);
