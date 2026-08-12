@@ -52,6 +52,9 @@ export interface FocusOpenAction {
   id: string;
   title: string;
   priority: string; // "high" | "medium" | "low" — kalderen har allerede sorteret (ActionCenter:205-208)
+  /** company_actions.context — handlingens egen begrundelse fra
+      AI-analysen. Nullable i databasen, derfor valgfri her. */
+  context?: string | null;
 }
 
 export interface FocusWeeklyFocus {
@@ -222,7 +225,10 @@ export function deriveFocus(inputs: FocusInputs): FocusItem[] {
       kind: "company-action",
       priority: 6,
       title: action.title,
-      description: "Åben handling fra din handlingsplan.",
+      /* context er handlingens egen begrundelse fra AI-analysen og siger
+         HVORFOR — fallbacken bevares, fordi kolonnen er nullable, men
+         den er sidste udvej, ikke normen. */
+      description: action.context?.trim() || "Åben handling fra din handlingsplan.",
       ctaLabel: "Se handlinger",
       ctaHref: "/",
       sourceId: action.id,

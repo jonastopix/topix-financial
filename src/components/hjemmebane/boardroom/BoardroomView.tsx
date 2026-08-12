@@ -1441,7 +1441,7 @@ export const BoardroomView = () => {
       weeklyFocus: weeklyFocusQuery.data
         ? { headline: weeklyFocusQuery.data.headline ?? null, seen: Boolean(weeklyFocusQuery.data.seen_at) }
         : null,
-      openActions: (actionsQuery.data ?? []).map((a: any) => ({ id: a.id, title: a.title, priority: a.priority })),
+      openActions: (actionsQuery.data ?? []).map((a: any) => ({ id: a.id, title: a.title, priority: a.priority, context: a.context ?? null })),
       unlinkedLevers: leversQuery.data ?? [],
       askMeAboutMissing: ownProfileQuery.data === true,
     });
