@@ -80,6 +80,9 @@ project_id = "loiavmastgeieqyiwyyr"
   # spor og er IKKE forbilledet her.
   [functions.get-community-billed-url]
     verify_jwt = true
+  # Samme begrundelse som get-community-billed-url ovenfor.
+  [functions.get-community-fil-url]
+    verify_jwt = true
   [functions.calendly-webhook]
     verify_jwt = false
   [functions.bunny-content-admin]
