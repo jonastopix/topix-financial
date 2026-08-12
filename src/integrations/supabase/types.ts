@@ -344,6 +344,181 @@ export type Database = {
           },
         ]
       }
+      community_reaktioner: {
+        Row: {
+          bruger_id: string
+          created_at: string
+          svar_id: string | null
+          traad_id: string | null
+          type: string
+        }
+        Insert: {
+          bruger_id: string
+          created_at?: string
+          svar_id?: string | null
+          traad_id?: string | null
+          type?: string
+        }
+        Update: {
+          bruger_id?: string
+          created_at?: string
+          svar_id?: string | null
+          traad_id?: string | null
+          type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "community_reaktioner_svar_id_fkey"
+            columns: ["svar_id"]
+            isOneToOne: false
+            referencedRelation: "community_svar"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "community_reaktioner_traad_id_fkey"
+            columns: ["traad_id"]
+            isOneToOne: false
+            referencedRelation: "community_traade"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      community_svar: {
+        Row: {
+          created_at: string
+          forfatter_id: string
+          id: string
+          indhold: string
+          indhold_json: Json | null
+          status: string
+          traad_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          forfatter_id: string
+          id?: string
+          indhold: string
+          indhold_json?: Json | null
+          status?: string
+          traad_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          forfatter_id?: string
+          id?: string
+          indhold?: string
+          indhold_json?: Json | null
+          status?: string
+          traad_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "community_svar_traad_id_fkey"
+            columns: ["traad_id"]
+            isOneToOne: false
+            referencedRelation: "community_traade"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      community_traade: {
+        Row: {
+          antal_svar: number
+          antal_visninger: number
+          created_at: string
+          fastgjort: boolean
+          forfatter_id: string
+          id: string
+          indhold: string
+          indhold_json: Json | null
+          kilde_event_id: string | null
+          kilde_item_id: string | null
+          kilde_type: string | null
+          sidste_svar_at: string | null
+          status: string
+          titel: string
+          updated_at: string
+        }
+        Insert: {
+          antal_svar?: number
+          antal_visninger?: number
+          created_at?: string
+          fastgjort?: boolean
+          forfatter_id: string
+          id?: string
+          indhold: string
+          indhold_json?: Json | null
+          kilde_event_id?: string | null
+          kilde_item_id?: string | null
+          kilde_type?: string | null
+          sidste_svar_at?: string | null
+          status?: string
+          titel: string
+          updated_at?: string
+        }
+        Update: {
+          antal_svar?: number
+          antal_visninger?: number
+          created_at?: string
+          fastgjort?: boolean
+          forfatter_id?: string
+          id?: string
+          indhold?: string
+          indhold_json?: Json | null
+          kilde_event_id?: string | null
+          kilde_item_id?: string | null
+          kilde_type?: string | null
+          sidste_svar_at?: string | null
+          status?: string
+          titel?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "community_traade_kilde_event_id_fkey"
+            columns: ["kilde_event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "community_traade_kilde_item_id_fkey"
+            columns: ["kilde_item_id"]
+            isOneToOne: false
+            referencedRelation: "content_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      community_visninger: {
+        Row: {
+          bruger_id: string
+          set_at: string
+          traad_id: string
+        }
+        Insert: {
+          bruger_id: string
+          set_at?: string
+          traad_id: string
+        }
+        Update: {
+          bruger_id?: string
+          set_at?: string
+          traad_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "community_visninger_traad_id_fkey"
+            columns: ["traad_id"]
+            isOneToOne: false
+            referencedRelation: "community_traade"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       companies: {
         Row: {
           address: string | null
@@ -2614,6 +2789,7 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      community_json_til_tekst: { Args: { p_doc: Json }; Returns: string }
       compute_facts_metrics_hash: { Args: { _metrics: Json }; Returns: string }
       delete_email: {
         Args: { message_id: number; queue_name: string }
@@ -2630,6 +2806,73 @@ export type Database = {
           avatar_url: string
           full_name: string
           user_id: string
+        }[]
+      }
+      get_community_feed: {
+        Args: { p_limit?: number; p_offset?: number }
+        Returns: {
+          antal_reaktioner: number
+          antal_svar: number
+          antal_visninger: number
+          created_at: string
+          fastgjort: boolean
+          forfatter_avatar_url: string
+          forfatter_id: string
+          forfatter_navn: string
+          id: string
+          indhold: string
+          indhold_json: Json
+          jeg_har_reageret: boolean
+          kilde_event_id: string
+          kilde_item_id: string
+          kilde_type: string
+          seneste_aktivitet_at: string
+          sidste_svar_at: string
+          status: string
+          titel: string
+          updated_at: string
+        }[]
+      }
+      get_community_svar: {
+        Args: { p_traad_id: string }
+        Returns: {
+          antal_reaktioner: number
+          created_at: string
+          forfatter_avatar_url: string
+          forfatter_id: string
+          forfatter_navn: string
+          id: string
+          indhold: string
+          indhold_json: Json
+          jeg_har_reageret: boolean
+          status: string
+          traad_id: string
+          updated_at: string
+        }[]
+      }
+      get_community_traad: {
+        Args: { p_traad_id: string }
+        Returns: {
+          antal_reaktioner: number
+          antal_svar: number
+          antal_visninger: number
+          created_at: string
+          fastgjort: boolean
+          forfatter_avatar_url: string
+          forfatter_id: string
+          forfatter_navn: string
+          id: string
+          indhold: string
+          indhold_json: Json
+          jeg_har_reageret: boolean
+          kilde_event_id: string
+          kilde_item_id: string
+          kilde_type: string
+          seneste_aktivitet_at: string
+          sidste_svar_at: string
+          status: string
+          titel: string
+          updated_at: string
         }[]
       }
       get_conversation_sender_profiles: {
@@ -2730,6 +2973,7 @@ export type Database = {
           user_id: string
         }[]
       }
+      har_aktivt_medlemskab: { Args: { _user_id: string }; Returns: boolean }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -2746,6 +2990,10 @@ export type Database = {
       lookup_invite_company_info: {
         Args: { invite_token: string }
         Returns: Json
+      }
+      maa_se_community_billede: {
+        Args: { _sti: string; _user_id: string }
+        Returns: boolean
       }
       mark_messages_read: {
         Args: { p_conversation_id: string }
@@ -2765,6 +3013,21 @@ export type Database = {
         }
         Returns: number
       }
+      opret_community_svar: {
+        Args: { p_indhold: string; p_indhold_json?: Json; p_traad_id: string }
+        Returns: string
+      }
+      opret_community_traad: {
+        Args: {
+          p_indhold: string
+          p_indhold_json?: Json
+          p_kilde_event_id?: string
+          p_kilde_item_id?: string
+          p_kilde_type?: string
+          p_titel: string
+        }
+        Returns: string
+      }
       parse_dk_report_period_key: { Args: { _period: string }; Returns: string }
       read_email_batch: {
         Args: { batch_size: number; queue_name: string; vt: number }
@@ -2773,6 +3036,10 @@ export type Database = {
           msg_id: number
           read_ct: number
         }[]
+      }
+      registrer_community_visning: {
+        Args: { p_traad_id: string }
+        Returns: undefined
       }
       resolve_report_commit_candidate: {
         Args: { p_report_id: string }
@@ -2783,6 +3050,10 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      saet_community_reaktion: {
+        Args: { p_svar_id?: string; p_traad_id?: string }
+        Returns: boolean
       }
       user_company_id: { Args: { _user_id: string }; Returns: string }
     }
