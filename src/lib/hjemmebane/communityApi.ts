@@ -127,6 +127,52 @@ export async function opretSvar(
   ) as string;
 }
 
+/** Ret/slet eget indhold + rådgiver-skjul (20260812120000). Reglerne bor
+    i RPC'erne: kun forfatteren kan rette/slette, kun rådgivere kan
+    skjule, og alt er soft-delete via status. */
+
+export async function retTraad(
+  traadId: string,
+  titel: string,
+  indholdJson: unknown,
+): Promise<void> {
+  throwIfError(
+    await (supabase.rpc as any)("ret_community_traad", {
+      p_traad_id: traadId,
+      p_titel: titel,
+      p_indhold_json: indholdJson,
+    }),
+  );
+}
+
+export async function retSvar(svarId: string, indholdJson: unknown): Promise<void> {
+  throwIfError(
+    await (supabase.rpc as any)("ret_community_svar", {
+      p_svar_id: svarId,
+      p_indhold_json: indholdJson,
+    }),
+  );
+}
+
+export async function sletTraad(traadId: string): Promise<void> {
+  throwIfError(
+    await (supabase.rpc as any)("slet_community_traad", { p_traad_id: traadId }),
+  );
+}
+
+export async function sletSvar(svarId: string): Promise<void> {
+  throwIfError(await (supabase.rpc as any)("slet_community_svar", { p_svar_id: svarId }));
+}
+
+export async function skjulTraad(traadId: string, skjul: boolean): Promise<void> {
+  throwIfError(
+    await (supabase.rpc as any)("skjul_community_traad", {
+      p_traad_id: traadId,
+      p_skjul: skjul,
+    }),
+  );
+}
+
 /** Toggle. Returværdien er "har jeg nu reageret". Kun den satte parameter
     sendes — RPC'en kræver præcis ét mål og rejser ellers fejl. */
 export async function saetReaktion(

@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 // som re-eksporterer hele core (dist/index.d.ts: export * from '@tiptap/core')
 // — @tiptap/core er en udeklareret transitiv afhængighed, og den deklarerede
 // vej er den robuste.
-import { EditorContent, mergeAttributes, useEditor } from "@tiptap/react";
+import { EditorContent, mergeAttributes, useEditor, type Content } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Link from "@tiptap/extension-link";
 import Image from "@tiptap/extension-image";
@@ -91,6 +91,10 @@ export interface CommunityComposerProps {
   visTitel?: boolean; // trådcomposer: true, svarcomposer: false
   titel?: string;
   onTitelChange?: (v: string) => void;
+  /** Redigeringstilstand: et Tiptap-dokument, editoren starter med. */
+  startIndhold?: unknown;
+  /** Vises som sekundær knap ved siden af send-knappen, når den er sat. */
+  onAnnuller?: () => void;
 }
 
 /** Kun http/https/mailto får lov at forlade composeren — men motoren
@@ -147,6 +151,8 @@ export function CommunityComposer({
   visTitel = false,
   titel = "",
   onTitelChange,
+  startIndhold,
+  onAnnuller,
 }: CommunityComposerProps) {
   const [sender, setSender] = useState(false);
   const [uploaderBillede, setUploaderBillede] = useState(false);
@@ -177,7 +183,7 @@ export function CommunityComposer({
       Placeholder.configure({ placeholder }),
     ],
     autofocus: autoFocus ? "end" : false,
-    content: "",
+    content: (startIndhold ?? "") as Content,
     editable: !disabled,
     editorProps: {
       attributes: {
@@ -261,9 +267,15 @@ export function CommunityComposer({
       /* Feltet ryddes FØRST når onSubmit er resolvet uden fejl — modsat
          ChatRichInput, som rydder optimistisk. Fejler kaldet, må
          medlemmets tekst ikke være væk; den står urørt og kan sendes
-         igen. Fejlvisning (toast mv.) ejes af kalderen. */
-      editor.commands.clearContent(true);
-      onTitelChange?.("");
+         igen. Fejlvisning (toast mv.) ejes af kalderen.
+
+         I REDIGERINGSTILSTAND (startIndhold sat) ryddes der slet ikke:
+         formularen lukkes af kalderen, og en rydning ville blinke et
+         tomt felt op, lige før den forsvinder. */
+      if (startIndhold === undefined) {
+        editor.commands.clearContent(true);
+        onTitelChange?.("");
+      }
     } catch {
       /* Bevidst tomt: indholdet bliver stående ved fejl. */
     } finally {
@@ -379,7 +391,12 @@ export function CommunityComposer({
           onChange={vaelgBillede}
         />
 
-        <div className="ml-auto">
+        <div className="ml-auto flex items-center gap-2">
+          {onAnnuller && (
+            <HbButton type="button" variant="secondary" disabled={sender} onClick={onAnnuller}>
+              Annuller
+            </HbButton>
+          )}
           <HbButton
             type="button"
             variant="primary"

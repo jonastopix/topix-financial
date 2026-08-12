@@ -1,6 +1,6 @@
-import { useEffect } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { ArrowLeft, Heart } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
@@ -10,13 +10,19 @@ import {
   hentTraad,
   opretSvar,
   registrerVisning,
+  retSvar,
+  retTraad,
   saetReaktion,
+  skjulTraad,
+  sletSvar,
+  sletTraad,
   type CommunitySvar,
 } from "@/lib/hjemmebane/communityApi";
 import { CommunityComposer } from "./CommunityComposer";
 import { CommunityDokument } from "./CommunityDokument";
 
-/** Trådsiden (/community/:id) — læsning + svar og reaktioner.
+/** Trådsiden (/community/:id) — læsning, svar, reaktioner og nu også
+    ret/slet af eget indhold + rådgiver-skjul (RPC'erne 20260812120000).
     Ikke-fundet håndteres blødt (EventDetailView-mønstret: venlig tekst +
     tilbage-link, ingen throw) — og tom kan også betyde "ingen adgang";
     de to kan bevidst ikke skelnes (jf. communityApi.hentTraad). */
@@ -78,14 +84,51 @@ const LikeKnap = ({
   </button>
 );
 
+/** Diskrete tekst-handlinger (Rediger/Slet/Skjul) — samme dæmpede udtryk
+    som like-knappen, så rækken læses som ét roligt handlings-spor. */
+const TekstKnap = ({
+  onClick,
+  disabled,
+  children,
+}: {
+  onClick: () => void;
+  disabled?: boolean;
+  children: ReactNode;
+}) => (
+  <button
+    type="button"
+    onClick={onClick}
+    disabled={disabled}
+    className="font-body text-sm text-hb-ink-soft transition-colors hover:text-hb-ink disabled:opacity-50"
+  >
+    {children}
+  </button>
+);
+
 const SvarRaekke = ({
   svar,
   reagerer,
   onLike,
+  erForfatter,
+  redigerer,
+  brugerId,
+  onStartRediger,
+  onAnnullerRediger,
+  onGem,
+  onSlet,
+  sletter,
 }: {
   svar: CommunitySvar;
   reagerer: boolean;
   onLike: () => void;
+  erForfatter: boolean;
+  redigerer: boolean;
+  brugerId: string | null;
+  onStartRediger: () => void;
+  onAnnullerRediger: () => void;
+  onGem: (indholdJson: unknown) => Promise<void>;
+  onSlet: () => void;
+  sletter: boolean;
 }) => (
   <li className="flex items-start gap-4 border-t border-hb-line py-5 last:border-b">
     <ForfatterAvatar navn={svar.forfatter_navn} avatarUrl={svar.forfatter_avatar_url} />
@@ -94,34 +137,60 @@ const SvarRaekke = ({
         <span className="font-medium">{svar.forfatter_navn ?? "Medlem"}</span>
         <span className="text-hb-ink-soft"> · {fmtDato(svar.created_at)}</span>
       </p>
-      {/* Struktureret rendering når indhold_json findes; ren tekst som
-          fallback. Fallback'en er nødvendig indtil læse-RPC'erne leverer
-          indhold_json — i dag gør de ikke, så eksisterende svar rendres
-          som hidtil. */}
-      {svar.indhold_json != null ? (
+      {redigerer && brugerId ? (
         <div className="mt-2">
-          <CommunityDokument doc={svar.indhold_json} />
+          <CommunityComposer
+            visTitel={false}
+            brugerId={brugerId}
+            startIndhold={svar.indhold_json ?? undefined}
+            submitLabel="Gem"
+            onAnnuller={onAnnullerRediger}
+            onSubmit={onGem}
+          />
         </div>
       ) : (
-        <p className="mt-2 whitespace-pre-line text-sm leading-relaxed text-hb-ink">
-          {svar.indhold}
-        </p>
+        <>
+          {/* Struktureret rendering når indhold_json findes; ren tekst som
+              fallback for indhold fra før JSON-leddet. */}
+          {svar.indhold_json != null ? (
+            <div className="mt-2">
+              <CommunityDokument doc={svar.indhold_json} />
+            </div>
+          ) : (
+            <p className="mt-2 whitespace-pre-line text-sm leading-relaxed text-hb-ink">
+              {svar.indhold}
+            </p>
+          )}
+          <div className="mt-2 flex items-center gap-4">
+            <LikeKnap
+              antal={svar.antal_reaktioner}
+              harReageret={svar.jeg_har_reageret}
+              disabled={reagerer}
+              onClick={onLike}
+            />
+            {erForfatter && (
+              <>
+                <TekstKnap onClick={onStartRediger}>Rediger</TekstKnap>
+                <TekstKnap onClick={onSlet} disabled={sletter}>
+                  Slet
+                </TekstKnap>
+              </>
+            )}
+          </div>
+        </>
       )}
-      <div className="mt-2">
-        <LikeKnap
-          antal={svar.antal_reaktioner}
-          harReageret={svar.jeg_har_reageret}
-          disabled={reagerer}
-          onClick={onLike}
-        />
-      </div>
     </div>
   </li>
 );
 
 export const CommunityTraadView = ({ traadId }: { traadId: string }) => {
   const queryClient = useQueryClient();
-  const { user } = useAuth();
+  const navigate = useNavigate();
+  const { user, isAdvisor } = useAuth();
+
+  const [redigererTraad, setRedigererTraad] = useState(false);
+  const [traadTitel, setTraadTitel] = useState("");
+  const [redigererSvarId, setRedigererSvarId] = useState<string | null>(null);
 
   const traadQuery = useQuery({
     queryKey: ["community", "traad", traadId],
@@ -167,6 +236,60 @@ export const CommunityTraadView = ({ traadId }: { traadId: string }) => {
     },
   });
 
+  const retTraadMutation = useMutation({
+    mutationFn: (args: { titel: string; indholdJson: unknown }) =>
+      retTraad(traadId, args.titel, args.indholdJson),
+    onSuccess: () => {
+      invaliderTraadOgFeed();
+      setRedigererTraad(false);
+    },
+    onError: (fejl: Error) => {
+      toast.error("Ændringerne blev ikke gemt", { description: fejl.message });
+    },
+  });
+
+  const retSvarMutation = useMutation({
+    mutationFn: (args: { svarId: string; indholdJson: unknown }) =>
+      retSvar(args.svarId, args.indholdJson),
+    onSuccess: () => {
+      invaliderTraadOgFeed();
+      setRedigererSvarId(null);
+    },
+    onError: (fejl: Error) => {
+      toast.error("Ændringerne blev ikke gemt", { description: fejl.message });
+    },
+  });
+
+  const sletTraadMutation = useMutation({
+    mutationFn: () => sletTraad(traadId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["community", "feed"] });
+      navigate("/community");
+    },
+    onError: (fejl: Error) => {
+      toast.error("Opslaget blev ikke slettet", { description: fejl.message });
+    },
+  });
+
+  const sletSvarMutation = useMutation({
+    mutationFn: (svarId: string) => sletSvar(svarId),
+    onSuccess: invaliderTraadOgFeed,
+    onError: (fejl: Error) => {
+      toast.error("Svaret blev ikke slettet", { description: fejl.message });
+    },
+  });
+
+  const skjulMutation = useMutation({
+    mutationFn: () => skjulTraad(traadId, true),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["community", "feed"] });
+      navigate("/community");
+    },
+    onError: (fejl: Error) => {
+      toast.error("Opslaget blev ikke skjult", { description: fejl.message });
+    },
+  });
+
   // Betingede returns EFTER samtlige hooks (React #310-reglen).
   if (traadQuery.isLoading) {
     return (
@@ -192,6 +315,7 @@ export const CommunityTraadView = ({ traadId }: { traadId: string }) => {
   }
 
   const svar = svarQuery.data ?? [];
+  const erTraadForfatter = user !== null && user.id === traad.forfatter_id;
 
   return (
     <div>
@@ -205,30 +329,83 @@ export const CommunityTraadView = ({ traadId }: { traadId: string }) => {
             <span className="text-hb-ink-soft"> · {fmtDato(traad.created_at)}</span>
           </p>
         </div>
-        <h1 className="mt-4 font-editorial text-2xl font-medium leading-tight text-hb-ink md:text-3xl">
-          {traad.titel}
-        </h1>
-        {/* Struktureret rendering når indhold_json findes; ren tekst som
-            fallback. Fallback'en er nødvendig indtil læse-RPC'erne leverer
-            indhold_json — i dag gør de ikke, så eksisterende tråde rendres
-            som hidtil. dangerouslySetInnerHTML bruges fortsat bevidst ikke. */}
-        {traad.indhold_json != null ? (
+
+        {redigererTraad && user ? (
           <div className="mt-4">
-            <CommunityDokument doc={traad.indhold_json} />
+            <CommunityComposer
+              visTitel
+              brugerId={user.id}
+              titel={traadTitel}
+              onTitelChange={setTraadTitel}
+              startIndhold={traad.indhold_json ?? undefined}
+              submitLabel="Gem"
+              onAnnuller={() => setRedigererTraad(false)}
+              onSubmit={(indholdJson) =>
+                retTraadMutation.mutateAsync({ titel: traadTitel, indholdJson }).then(() => undefined)
+              }
+            />
           </div>
         ) : (
-          <p className="mt-4 whitespace-pre-line text-sm leading-relaxed text-hb-ink">
-            {traad.indhold}
-          </p>
+          <>
+            <h1 className="mt-4 font-editorial text-2xl font-medium leading-tight text-hb-ink md:text-3xl">
+              {traad.titel}
+            </h1>
+            {/* Struktureret rendering når indhold_json findes; ren tekst som
+                fallback for indhold fra før JSON-leddet.
+                dangerouslySetInnerHTML bruges fortsat bevidst ikke. */}
+            {traad.indhold_json != null ? (
+              <div className="mt-4">
+                <CommunityDokument doc={traad.indhold_json} />
+              </div>
+            ) : (
+              <p className="mt-4 whitespace-pre-line text-sm leading-relaxed text-hb-ink">
+                {traad.indhold}
+              </p>
+            )}
+            <div className="mt-4 flex items-center gap-4">
+              <LikeKnap
+                antal={traad.antal_reaktioner}
+                harReageret={traad.jeg_har_reageret}
+                disabled={reaktionMutation.isPending}
+                onClick={() => reaktionMutation.mutate({ traadId })}
+              />
+              {erTraadForfatter && (
+                <>
+                  <TekstKnap
+                    onClick={() => {
+                      setTraadTitel(traad.titel);
+                      setRedigererTraad(true);
+                    }}
+                  >
+                    Rediger
+                  </TekstKnap>
+                  <TekstKnap
+                    disabled={sletTraadMutation.isPending}
+                    onClick={() => {
+                      if (window.confirm("Slet dit opslag? Det kan ikke fortrydes.")) {
+                        sletTraadMutation.mutate();
+                      }
+                    }}
+                  >
+                    Slet
+                  </TekstKnap>
+                </>
+              )}
+              {isAdvisor && (
+                <TekstKnap
+                  disabled={skjulMutation.isPending}
+                  onClick={() => {
+                    if (window.confirm("Skjul opslaget for alle medlemmer?")) {
+                      skjulMutation.mutate();
+                    }
+                  }}
+                >
+                  Skjul opslag
+                </TekstKnap>
+              )}
+            </div>
+          </>
         )}
-        <div className="mt-4">
-          <LikeKnap
-            antal={traad.antal_reaktioner}
-            harReageret={traad.jeg_har_reageret}
-            disabled={reaktionMutation.isPending}
-            onClick={() => reaktionMutation.mutate({ traadId })}
-          />
-        </div>
       </article>
 
       <section className="mt-10">
@@ -245,6 +422,20 @@ export const CommunityTraadView = ({ traadId }: { traadId: string }) => {
                 svar={s}
                 reagerer={reaktionMutation.isPending}
                 onLike={() => reaktionMutation.mutate({ svarId: s.id })}
+                erForfatter={user !== null && user.id === s.forfatter_id}
+                redigerer={redigererSvarId === s.id}
+                brugerId={user?.id ?? null}
+                onStartRediger={() => setRedigererSvarId(s.id)}
+                onAnnullerRediger={() => setRedigererSvarId(null)}
+                onGem={(indholdJson) =>
+                  retSvarMutation.mutateAsync({ svarId: s.id, indholdJson }).then(() => undefined)
+                }
+                onSlet={() => {
+                  if (window.confirm("Slet dit svar? Det kan ikke fortrydes.")) {
+                    sletSvarMutation.mutate(s.id);
+                  }
+                }}
+                sletter={sletSvarMutation.isPending}
               />
             ))}
           </ul>
