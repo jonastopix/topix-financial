@@ -42,12 +42,6 @@ const AdminFeedback = lazy(() => import("./pages/AdminFeedback"));
 const AdminLegat = lazy(() => import("./pages/AdminLegat"));
 const LegatDashboard = lazy(() => import("./pages/LegatDashboard"));
 
-// Lazy — designprøve (Projekt Hjemmebane V0)
-const PreviewHjemmebane = lazy(() => import("./pages/PreviewHjemmebane"));
-
-// Lazy — Hb-forsiden "Dit Boardroom" (route-parallel; advisor-gated indtil swap-GO)
-const Boardroom = lazy(() => import("./pages/Boardroom"));
-
 // Lazy — Hb-rapporteringen (bærer /reports efter Rapportering-GO 2026-08-06)
 const Rapportering = lazy(() => import("./pages/Rapportering"));
 
@@ -283,11 +277,9 @@ const App = () => (
               <Route path="/akademiet" element={<ProtectedRoute><Akademiet /></ProtectedRoute>} />
               <Route path="/akademiet/:area" element={<ProtectedRoute><Akademiet /></ProtectedRoute>} />
               <Route path="/akademiet/:area/:slug" element={<ProtectedRoute><Akademiet /></ProtectedRoute>} />
-              {/* Designprøve (Hjemmebane V0) — standalone, bag login */}
-              <Route path="/preview/hjemmebane" element={<ProtectedRoute><PreviewHjemmebane /></ProtectedRoute>} />
-              {/* Hb-forsiden "Dit Boardroom" — AdvisorRoute KUN i byggeperioden;
-                  swap-PR'en (GO) flytter den til "/"-medlemsgrenen. */}
-              <Route path="/boardroom" element={<AdvisorRoute><Boardroom /></AdvisorRoute>} />
+              {/* Forside-GO 2026-08-12: "/" bærer Hb-forsiden "Dit Boardroom"
+                  (Index' medlemsgren) — /boardroom-ruten og previewen
+                  (/preview/hjemmebane) er pensioneret. */}
               {/* Rapportering-GO gennemført 2026-08-06: /reports bærer fladen
                   (email-kontrakt); /rapportering redirecter m. bevaret hash/query. */}
               <Route path="/rapportering" element={<RapporteringRedirect />} />
