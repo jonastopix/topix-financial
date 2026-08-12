@@ -1,18 +1,13 @@
 import * as React from "react";
 import { useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
-import { useViewMode } from "@/hooks/useViewMode";
 import { HbSidebar, HbSidebarDrawer, type HbNavEntry } from "./HbSidebar";
 import { HbNav } from "./HbNav";
 
-/** Fælles Hb-medlemsskal for /akademiet og /boardroom (generalisering af
-    den tidligere HbAkademiShell): V0-layoutmodellen (egen scroll-container
-    på lg, sidebar som fuldhøjde-kolonne), rigtige links og brugerens
-    profil. `active` styrer nav'ens aktiv-markering.
-    "Dit Boardroom"-målet er ADVISOR-GATED i byggeperioden (Akademiet-bro-
-    mønstret): advisors → /boardroom (den nye forside under byggeri),
-    medlemmer → "/" (uændret gammel forside). Ved forside-swappen (GO)
-    peger begge på "/" — ingen døde links på noget tidspunkt. */
+/** Fælles Hb-medlemsskal for forsiden ("/") og de øvrige medlemsflader
+    (generalisering af den tidligere HbAkademiShell): V0-layoutmodellen
+    (egen scroll-container på lg, sidebar som fuldhøjde-kolonne), rigtige
+    links og brugerens profil. `active` styrer nav'ens aktiv-markering. */
 export const HbMemberShell = ({
   active,
   children,
@@ -24,13 +19,12 @@ export const HbMemberShell = ({
   children: React.ReactNode;
 }) => {
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const { profile, isAdvisor } = useAuth();
-  const { viewingAsMember } = useViewMode();
-  const effectiveAdvisor = isAdvisor && !viewingAsMember;
+  const { profile } = useAuth();
   const avatarSrc = profile?.avatar_url || undefined;
   const userName = profile?.full_name || "Medlem";
 
-  const boardroomTo = effectiveAdvisor ? "/boardroom" : "/";
+  // Forside-GO (2026-08-12): "Dit Boardroom" ér forsiden — "/" for alle.
+  const boardroomTo = "/";
   const nav: HbNavEntry[] = [
     { label: "Dit Boardroom", to: boardroomTo, active: active === "boardroom" },
     {
