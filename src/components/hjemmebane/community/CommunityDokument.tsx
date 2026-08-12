@@ -1,4 +1,5 @@
 import { Fragment, useState, type ReactNode } from "react";
+import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Download, File, FileCode, FileSpreadsheet, FileText, Loader2 } from "lucide-react";
 import { toast } from "sonner";
@@ -217,6 +218,19 @@ function renderNode(node: CommunityNode, key: number): ReactNode {
 
     case "fil":
       return <CommunityFil key={key} path={node.path} navn={node.navn} />;
+
+    case "naevnelse":
+      /* Ruten er MemberRoute-gated (App.tsx:240) — et klik fra en bruger
+         uden adgang lander på redirect frem for en fejl. */
+      return (
+        <Link
+          key={key}
+          to={`/medlemmer/${node.userId}`}
+          className="font-medium text-hb-evergreen hover:underline"
+        >
+          @{node.navn}
+        </Link>
+      );
   }
 }
 

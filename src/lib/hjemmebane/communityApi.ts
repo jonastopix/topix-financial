@@ -127,6 +127,23 @@ export async function opretSvar(
   ) as string;
 }
 
+/** Opslagslisten bag @-nævnelser (get_community_medlemmer,
+    20260812150000): alle med community-adgang — IKKE get_member_directory,
+    som dømmer fail-open. Kalderen selv er med; klienten filtrerer. */
+export interface CommunityMedlem {
+  user_id: string;
+  navn: string | null;
+  avatar_url: string | null;
+  virksomhed: string | null;
+}
+
+export async function hentCommunityMedlemmer(): Promise<CommunityMedlem[]> {
+  const rows = throwIfError(
+    await (supabase.rpc as any)("get_community_medlemmer"),
+  ) as CommunityMedlem[] | null;
+  return rows ?? [];
+}
+
 /** Beder notify-community-svar notificere trådens forfatter om et nyt
     svar. Må ALDRIG kaste: notifikationen er en bivirkning af at have
     svaret. Svaret ER gemt i det øjeblik opret_community_svar er

@@ -13,7 +13,10 @@ import {
 import StarterKit from "@tiptap/starter-kit";
 import Link from "@tiptap/extension-link";
 import Image from "@tiptap/extension-image";
+import Mention from "@tiptap/extension-mention";
 import Placeholder from "@tiptap/extension-placeholder";
+import type { SuggestionKeyDownProps, SuggestionProps } from "@tiptap/suggestion";
+import { useQuery } from "@tanstack/react-query";
 import {
   Bold,
   Heading2,
@@ -29,6 +32,7 @@ import {
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { uploadCommunityBillede, uploadCommunityFil } from "@/lib/hjemmebane/communityUpload";
+import { hentCommunityMedlemmer, type CommunityMedlem } from "@/lib/hjemmebane/communityApi";
 import { HbCard } from "@/components/hjemmebane/HbCard";
 import { HbButton } from "@/components/hjemmebane/HbButton";
 
@@ -187,6 +191,161 @@ const CommunityFilNode = TiptapNode.create({
   },
 });
 
+/** @-nævnelser — Mention-extensionen omdøbt til motorens nodetype
+    "naevnelse" med userId/navn som eneste attributter. renderHTML og
+    parseHTML spejler hinanden: span med data-user-id og data-navn,
+    parseren matcher span[data-user-id][data-navn]. Node-niveau
+    renderHTML/renderText overstyres direkte (frem for options.renderHTML),
+    så markup'en er fuldt under vores kontrol. */
+const NaevnelseNode = Mention.extend({
+  name: "naevnelse",
+  addAttributes() {
+    return {
+      userId: {
+        default: null,
+        parseHTML: (element: HTMLElement) => element.getAttribute("data-user-id"),
+        renderHTML: (attributes: { userId?: string | null }) =>
+          attributes.userId ? { "data-user-id": attributes.userId } : {},
+      },
+      navn: {
+        default: "",
+        parseHTML: (element: HTMLElement) => element.getAttribute("data-navn") ?? "",
+        renderHTML: (attributes: { navn?: string }) =>
+          attributes.navn ? { "data-navn": attributes.navn } : {},
+      },
+    };
+  },
+  parseHTML() {
+    return [{ tag: "span[data-user-id][data-navn]" }];
+  },
+  renderHTML({ node, HTMLAttributes }) {
+    return [
+      "span",
+      mergeAttributes(HTMLAttributes, { class: "font-medium text-hb-evergreen" }),
+      `@${node.attrs.navn ?? ""}`,
+    ];
+  },
+  renderText({ node }) {
+    return `@${node.attrs.navn ?? ""}`;
+  },
+});
+
+/** Dropdown-rendereren til @-forslag — ren DOM (ingen ReactRenderer/tippy):
+    rækkerne bygges med createElement + textContent, så navne og
+    virksomheder (brugerdata) aldrig fortolkes som markup. Hb-stil:
+    HbCard-lignende ramme, valgt række i bg-hb-sage. Piletaster op/ned,
+    Enter vælger, Escape lukker. */
+function opretNaevnelsesDropdown() {
+  let element: HTMLDivElement | null = null;
+  let items: CommunityMedlem[] = [];
+  let valgt = 0;
+  let vaelg: ((medlem: CommunityMedlem) => void) | null = null;
+  let sidsteRect: (() => DOMRect | null) | null | undefined = null;
+
+  const luk = () => {
+    element?.remove();
+    element = null;
+  };
+
+  const tegn = () => {
+    if (!element) return;
+    element.replaceChildren();
+    if (items.length === 0) {
+      element.style.display = "none";
+      return;
+    }
+    element.style.display = "block";
+    items.forEach((medlem, i) => {
+      const raekke = document.createElement("button");
+      raekke.type = "button";
+      raekke.className = cn(
+        "flex w-full items-center gap-3 px-3 py-2 text-left transition-colors",
+        i === valgt ? "bg-hb-sage" : "hover:bg-hb-sage/40",
+      );
+      if (medlem.avatar_url) {
+        const img = document.createElement("img");
+        img.src = medlem.avatar_url;
+        img.alt = medlem.navn ?? "Medlem";
+        img.className = "h-7 w-7 shrink-0 rounded-full border border-hb-line object-cover";
+        raekke.appendChild(img);
+      } else {
+        const cirkel = document.createElement("span");
+        cirkel.className =
+          "flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-hb-line bg-hb-sage/40 font-editorial text-xs text-hb-ink-soft";
+        cirkel.textContent = (medlem.navn ?? "?").charAt(0);
+        raekke.appendChild(cirkel);
+      }
+      const tekst = document.createElement("span");
+      tekst.className = "min-w-0 flex-1";
+      const navn = document.createElement("span");
+      navn.className = "block truncate font-body text-sm text-hb-ink";
+      navn.textContent = medlem.navn ?? "Medlem";
+      tekst.appendChild(navn);
+      if (medlem.virksomhed) {
+        const virksomhed = document.createElement("span");
+        virksomhed.className = "block truncate text-xs text-hb-ink-soft";
+        virksomhed.textContent = medlem.virksomhed;
+        tekst.appendChild(virksomhed);
+      }
+      raekke.appendChild(tekst);
+      raekke.addEventListener("mousedown", (e) => {
+        e.preventDefault();
+        vaelg?.(medlem);
+      });
+      element!.appendChild(raekke);
+    });
+    const rect = sidsteRect?.();
+    if (rect) {
+      element.style.left = `${rect.left}px`;
+      element.style.top = `${rect.bottom + 4}px`;
+    }
+  };
+
+  return {
+    onStart: (props: SuggestionProps<CommunityMedlem, any>) => {
+      items = props.items;
+      valgt = 0;
+      vaelg = props.command;
+      sidsteRect = props.clientRect;
+      element = document.createElement("div");
+      element.className =
+        "fixed z-50 w-64 overflow-hidden rounded-hb border border-hb-line bg-hb-paper py-1 shadow-hb-hover";
+      document.body.appendChild(element);
+      tegn();
+    },
+    onUpdate: (props: SuggestionProps<CommunityMedlem, any>) => {
+      items = props.items;
+      vaelg = props.command;
+      sidsteRect = props.clientRect;
+      if (valgt >= items.length) valgt = 0;
+      tegn();
+    },
+    onKeyDown: ({ event }: SuggestionKeyDownProps) => {
+      if (event.key === "Escape") {
+        luk();
+        return true;
+      }
+      if (!element || items.length === 0) return false;
+      if (event.key === "ArrowDown") {
+        valgt = (valgt + 1) % items.length;
+        tegn();
+        return true;
+      }
+      if (event.key === "ArrowUp") {
+        valgt = (valgt + items.length - 1) % items.length;
+        tegn();
+        return true;
+      }
+      if (event.key === "Enter") {
+        vaelg?.(items[valgt]);
+        return true;
+      }
+      return false;
+    },
+    onExit: luk,
+  };
+}
+
 /** Kun http/https/mailto får lov at forlade composeren — men motoren
     hærder href'en IGEN ved visning: editoren er bekvemmelighed, ikke
     forsvar. Skemaløse indtastninger får https:// foran (samme greb som
@@ -247,6 +406,17 @@ export function CommunityComposer({
   const [sender, setSender] = useState(false);
   const [uploaderBillede, setUploaderBillede] = useState(false);
   const [uploaderFil, setUploaderFil] = useState(false);
+
+  /* Medlemslisten til @-pickeren — samme cache-form som
+     MemberDirectoryView. Læses via ref i suggestion.items, fordi
+     editorens extensions kun bygges én gang ved mount. */
+  const medlemmerQuery = useQuery({
+    queryKey: ["community", "medlemmer"],
+    queryFn: hentCommunityMedlemmer,
+    staleTime: 5 * 60_000,
+  });
+  const medlemmerRef = useRef<CommunityMedlem[]>([]);
+  medlemmerRef.current = medlemmerQuery.data ?? [];
   const sendRef = useRef<() => void>(() => {});
   const billedInputRef = useRef<HTMLInputElement>(null);
   const filInputRef = useRef<HTMLInputElement>(null);
@@ -292,6 +462,43 @@ export function CommunityComposer({
       }),
       CommunityBilledeNode,
       CommunityFilNode,
+      NaevnelseNode.configure({
+        suggestion: {
+          char: "@",
+          items: ({ query }) => {
+            const q = query.toLowerCase();
+            return medlemmerRef.current
+              /* Kalderen selv filtreres FRA her i klienten: RPC'en
+                 inkluderer bevidst én selv (den svarer på "hvem kan
+                 nævnes", ikke "hvem er ikke mig"), og frafiltreringen
+                 hører i den flade, der ved hvem der skriver. */
+              .filter((m) => m.user_id !== brugerId)
+              .filter((m) => (m.navn ?? "").toLowerCase().includes(q))
+              .slice(0, 8);
+          },
+          command: ({ editor: ed, range, props }) => {
+            const medlem = props as unknown as CommunityMedlem;
+            /* Nævnelsen indsættes EFTERFULGT af et mellemrum som
+               text-node — tomhedsproblemet: community_json_til_tekst
+               læser aldrig attrs, så uden en text-node ved siden af
+               ville skrive-RPC'en afvise et opslag, der kun består af
+               nævnelsen, som tomt. Mellemrummet sikrer også, at
+               markøren lander klar til at skrive videre. */
+            ed
+              .chain()
+              .focus()
+              .insertContentAt(range, [
+                {
+                  type: "naevnelse",
+                  attrs: { userId: medlem.user_id, navn: medlem.navn ?? "Medlem" },
+                },
+                { type: "text", text: " " },
+              ])
+              .run();
+          },
+          render: opretNaevnelsesDropdown,
+        },
+      }),
       Placeholder.configure({ placeholder }),
     ],
     autofocus: autoFocus ? "end" : false,
