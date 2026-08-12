@@ -68,7 +68,20 @@ export const ItemEditor = forwardRef<EditorHandle, ItemEditorProps>(
     const form = { ...item, ...draft } as ContentItem;
     const dirty = Object.keys(draft).length > 0;
     const areaLabel = AREAS.find((a) => a.key === (form.area as AreaKey))?.label ?? form.area;
-    const showDuration = form.type === "video" || form.type === "episode";
+    /* Varighed hører til et MEDIE, ikke til en type. En skabelon uden
+       medie har ingen varighed; en lektion med en Bunny-video har.
+       media_provider er i forvejen den kolonne, der styrer både
+       afspilningen (ElementView.tsx:206) og fremdriften (isTrackedEntry,
+       useAkademiData.ts:170-176) — varigheden skal følge samme dom.
+       Type bruges kun som label (ITEM_TYPES) og må ikke afgøre hvilke
+       felter der findes.
+
+       Historik: før denne rettelse var feltet bundet til type
+       video/episode, og de eksisterende lektions-varigheder havde INGEN
+       skrivevej gennem admin — de er sat, da itemet havde en anden
+       type, eller direkte i SQL, og kunne ikke genskabes, hvis de blev
+       nulstillet. */
+    const showDuration = form.media_provider !== "none";
     const collection = collections.find((c) => c.id === form.collection_id);
     const inheritedDrip = collection?.drip_after_days;
 
