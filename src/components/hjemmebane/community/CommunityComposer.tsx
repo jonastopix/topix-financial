@@ -241,8 +241,27 @@ function opretNaevnelsesDropdown() {
   let valgt = 0;
   let vaelg: ((medlem: CommunityMedlem) => void) | null = null;
   let sidsteRect: (() => DOMRect | null) | null | undefined = null;
+  let scrollLytter: (() => void) | null = null;
+  let klikLytter: ((e: MouseEvent) => void) | null = null;
+  let resizeLytter: (() => void) | null = null;
 
+  /* Idempotent: luk() kaldes af onExit, af klik udenfor OG af Escape —
+     gentagne kald må ikke fejle. ALLE tre lyttere fjernes og nulstilles
+     her, så en composer der monteres og unmountes gentagne gange ikke
+     efterlader lyttere på window/document. */
   const luk = () => {
+    if (scrollLytter) {
+      window.removeEventListener("scroll", scrollLytter, { capture: true });
+      scrollLytter = null;
+    }
+    if (klikLytter) {
+      document.removeEventListener("mousedown", klikLytter);
+      klikLytter = null;
+    }
+    if (resizeLytter) {
+      window.removeEventListener("resize", resizeLytter);
+      resizeLytter = null;
+    }
     element?.remove();
     element = null;
   };
@@ -311,6 +330,26 @@ function opretNaevnelsesDropdown() {
       element.className =
         "fixed z-50 w-64 overflow-hidden rounded-hb border border-hb-line bg-hb-paper py-1 shadow-hb-hover";
       document.body.appendChild(element);
+
+      // Positionen følger med scroll — capture er nødvendigt, fordi
+      // scroll ikke bobler fra indre containere (kun capture-fasen ser
+      // scroll i fx en overflow-container).
+      scrollLytter = () => tegn();
+      window.addEventListener("scroll", scrollLytter, { capture: true, passive: true });
+
+      // Klik udenfor lukker. Rækkernes egen mousedown rammer INDE i
+      // elementet, så element.contains(e.target) springer luk() over —
+      // valget når altid igennem før en eventuel lukning.
+      klikLytter = (e: MouseEvent) => {
+        if (element && e.target instanceof Node && !element.contains(e.target)) {
+          luk();
+        }
+      };
+      document.addEventListener("mousedown", klikLytter);
+
+      resizeLytter = () => tegn();
+      window.addEventListener("resize", resizeLytter);
+
       tegn();
     },
     onUpdate: (props: SuggestionProps<CommunityMedlem, any>) => {
