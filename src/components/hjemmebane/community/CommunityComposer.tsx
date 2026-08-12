@@ -409,10 +409,18 @@ const opretNaevnelsesDropdown = () =>
     raekke.appendChild(tekst);
   });
 
-/** Læsbare danske områdenavne til #-pickerens undertekst. */
+/** Læsbare danske områdenavne til #-pickerens undertekst.
+
+    Labels for samme area-nøgle må IKKE drive fra hinanden — AREAS i
+    adminContentApi er den KANONISKE kilde, og denne liste findes kun,
+    fordi pickeren skal kunne oversætte uden at importere hele
+    AREAS-strukturen. Listen kan ikke afledes af AREAS: den skal spejle
+    motorens TILLADTE_OMRAADER (som rummer 'rabataftaler' — et område
+    AREAS slet ikke kender). Ændres en label i AREAS, skal den ændres
+    her i samme PR. */
 const OMRAADE_LABELS: Record<string, string> = {
-  classroom: "Kursus",
-  academy: "Akademi",
+  classroom: "Fundamentet",
+  academy: "Kursus",
   skabeloner: "Skabelon",
   rabataftaler: "Rabataftale",
   talks: "Talk",
