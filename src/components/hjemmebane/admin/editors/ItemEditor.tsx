@@ -1,6 +1,9 @@
 import * as React from "react";
 import { forwardRef, useImperativeHandle, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { Loader2 } from "lucide-react";
+import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 import {
   AREAS,
   ITEM_TYPES,
@@ -64,6 +67,7 @@ export const ItemEditor = forwardRef<EditorHandle, ItemEditorProps>(
     const [slugError, setSlugError] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [durationText, setDurationText] = useState<string | null>(null);
+    const [henterVarighed, setHenterVarighed] = useState(false);
 
     const form = { ...item, ...draft } as ContentItem;
     const dirty = Object.keys(draft).length > 0;
@@ -308,16 +312,74 @@ export const ItemEditor = forwardRef<EditorHandle, ItemEditorProps>(
         <div className="grid gap-6 md:grid-cols-2">
           {showDuration && (
             <HbField label="Varighed" htmlFor="item-duration" help="mm:ss — bruges i visning og progress.">
-              <HbInput
-                id="item-duration"
-                value={durationText ?? formatDuration(form.duration_seconds)}
-                onChange={(e) => {
-                  setDurationText(e.target.value);
-                  onDraftChange({ duration_seconds: parseDuration(e.target.value) });
-                }}
-                onBlur={() => setDurationText(null)}
-                placeholder="12:30"
-              />
+              <div className="flex items-center gap-3">
+                <HbInput
+                  id="item-duration"
+                  value={durationText ?? formatDuration(form.duration_seconds)}
+                  onChange={(e) => {
+                    setDurationText(e.target.value);
+                    onDraftChange({ duration_seconds: parseDuration(e.target.value) });
+                  }}
+                  onBlur={() => setDurationText(null)}
+                  placeholder="12:30"
+                />
+                {form.media_provider === "bunny" && form.bunny_video_id && (
+                  <button
+                    type="button"
+                    disabled={henterVarighed}
+                    onClick={async () => {
+                      if (!form.bunny_video_id) return;
+                      setHenterVarighed(true);
+                      try {
+                        const { data, error: fnError } = await supabase.functions.invoke(
+                          "bunny-content-admin",
+                          { body: { action: "video-info", videoId: form.bunny_video_id } },
+                        );
+                        if (fnError) throw new Error(fnError.message);
+                        const raw = ((data as { raw?: Record<string, unknown> })?.raw ?? {}) as
+                          Record<string, unknown>;
+                        /* Rækkefølgen er et GÆT på Bunnys feltnavn for
+                           varighed — `length` er det mest sandsynlige.
+                           Skær listen ned til det rigtige felt, så snart
+                           ét kald har bevist hvilket det er. */
+                        const kandidater = [
+                          raw.length,
+                          raw.duration,
+                          raw.videoLength,
+                          raw.lengthSeconds,
+                        ];
+                        const sekunder = kandidater.find(
+                          (v): v is number => typeof v === "number" && v > 0,
+                        );
+                        if (sekunder !== undefined) {
+                          const rundet = Math.round(sekunder);
+                          onDraftChange({ duration_seconds: rundet });
+                          setDurationText(formatDuration(rundet));
+                          toast.success(`Varighed hentet: ${formatDuration(rundet)}`);
+                        } else {
+                          /* Det rå svar vises BEVIDST i beskeden: knappen
+                             er også efterprøvningen af, hvilke felter
+                             Bunny leverer — en generisk fejl ville skjule
+                             svaret. */
+                          toast.error("Bunny returnerede ingen varighed", {
+                            description: JSON.stringify(raw).slice(0, 300),
+                          });
+                        }
+                      } catch (fejl) {
+                        toast.error(
+                          fejl instanceof Error ? fejl.message : "Kaldet fejlede",
+                        );
+                      } finally {
+                        setHenterVarighed(false);
+                      }
+                    }}
+                    className="flex shrink-0 items-center gap-1.5 text-sm text-hb-ink-soft transition-colors hover:text-hb-ink disabled:opacity-50"
+                  >
+                    {henterVarighed && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                    Hent fra Bunny
+                  </button>
+                )}
+              </div>
             </HbField>
           )}
 
