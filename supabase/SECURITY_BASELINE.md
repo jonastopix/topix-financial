@@ -106,6 +106,27 @@ to the entire access-control model.
   `get_member_directory`); `REVOKE ALL FROM PUBLIC` and `FROM anon`
 - Introduced in migration `20260812140000_community_fil_adgangsdom.sql`
 
+### `get_community_medlemmer() → TABLE (user_id, navn, avatar_url, virksomhed)`
+- Lookup list behind @-mentions in community: all users where
+  `har_aktivt_medlemskab(user_id)` is true PLUS all advisors — exactly
+  the set that can see community itself
+- **Polarity note — do NOT confuse with `get_member_directory`**: the
+  directory uses fail-open `is_membership_active` (built for the member
+  directory surface); this function uses the fail-closed community
+  verdict, so the picker can never show someone who cannot open the post
+  they are mentioned in
+- Fail-closed access check FIRST in body (har_aktivt_medlemskab OR
+  advisor) — empty result, not error (get_community_feed rationale)
+- Caller is deliberately INCLUDED (self-filtering belongs in the client);
+  company name picked deterministically (oldest membership, id
+  tie-break) — `user_company_id` deliberately avoided (LIMIT 1 without
+  ORDER BY); duplicate-free by construction (source is `profiles`, PK
+  user_id); ORDER BY navn
+- STABLE, SECURITY DEFINER with `search_path = public`
+- Grants: `EXECUTE TO authenticated` only — `REVOKE ALL FROM PUBLIC` and
+  `FROM anon`
+- Introduced in migration `20260812150000_community_naevnelse_rpc.sql`
+
 ### Member-visibility RPCs: `get_member_profile(p_user_id uuid)`, `get_event_participants(p_event_id uuid)`, `get_member_directory()`
 - All three: STABLE, SECURITY DEFINER with `search_path = public`
 - Grants: `EXECUTE TO authenticated` only — `REVOKE ALL FROM PUBLIC` and `FROM anon`
