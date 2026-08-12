@@ -106,6 +106,39 @@ describe("deriveFocus — hver kilde for sig", () => {
     expect(items[0]).toMatchObject({ kind: "company-action", title: "Ring til banken", priority: 6 });
   });
 
+  it("(f) context bruges som description — handlingens egen begrundelse, ikke standardsætningen", () => {
+    // Ordret produktions-eksempel (målt 2026-08-12).
+    const context =
+      "Handouts fra bogholderi (128 dage) og administration (110 dage) er ubesvarede. " +
+      "Samtidig er 'Få styr på likviditeten' stagneret i 41 dage. Prioritér at få svar " +
+      "på disse og genoptag arbejdet med likviditeten hurtigst muligt.";
+    const items = deriveFocus(
+      base({
+        openActions: [
+          { id: "a1", title: "Følg op på ubesvarede handouts og likviditet", priority: "high", context },
+        ],
+      }),
+    );
+    expect(items[0].description).toBe(context);
+  });
+
+  it("(f) fallback-sætningen når context er null, mangler eller kun whitespace", () => {
+    const items = deriveFocus(
+      base({
+        openActions: [
+          { id: "a1", title: "Uden context", priority: "high", context: null },
+          { id: "a2", title: "Context mangler helt", priority: "medium" },
+          { id: "a3", title: "Kun whitespace", priority: "low", context: "   \n  " },
+        ],
+      }),
+    );
+    expect(items.map((i) => i.description)).toEqual([
+      "Åben handling fra din handlingsplan.",
+      "Åben handling fra din handlingsplan.",
+      "Åben handling fra din handlingsplan.",
+    ]);
+  });
+
   it("(g) pulse-nudgen er GATED bag committed rapport (ActionCenter:166-176)", () => {
     const gated = deriveFocus(base({ committedPeriodKeys: new Set(), hasPulseThisMonth: false }));
     expect(gated.map((i) => i.kind)).toEqual(["pending-approval"]); // ingen pulse før godkendt
