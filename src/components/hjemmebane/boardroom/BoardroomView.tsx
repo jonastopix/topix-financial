@@ -978,9 +978,15 @@ const FocusCard = ({
             </Link>
           )}
           {quiet.length > 0 && (
+            /* Titlen bærer vægten, svaret bærer luften — et udfoldet
+               punkt skal læses som et SVAR på titlen, ikke som en
+               fortsættelse af den: titlen i font-medium/hb-ink,
+               description i soft med luft over og under, og en hairline
+               mellem punkterne (first:border-t-0 — ul'en bærer allerede
+               sin egen toplinje). */
             <ul className="mt-9 w-full border-t border-hb-line pt-4">
               {quiet.map((item) => (
-                <li key={item.key}>
+                <li key={item.key} className="border-t border-hb-line first:border-t-0">
                   {item.ctaHref !== "/" ? (
                     <Link
                       to={item.ctaHref}
@@ -995,7 +1001,7 @@ const FocusCard = ({
                       onClick={() => setExpandedKey((k) => (k === item.key ? null : item.key))}
                       className="flex w-full items-center gap-3 py-2.5 text-left text-sm text-hb-ink-soft transition-colors hover:text-hb-ink"
                     >
-                      <span className="min-w-0 flex-1 truncate">{item.title}</span>
+                      <span className="min-w-0 flex-1 truncate font-medium text-hb-ink">{item.title}</span>
                       {expandedKey === item.key ? (
                         <ChevronUp className="h-4 w-4 shrink-0" />
                       ) : (
@@ -1004,7 +1010,10 @@ const FocusCard = ({
                     </button>
                   )}
                   {expandedKey === item.key && (
-                    <p className="pb-2 pl-0 text-sm leading-relaxed text-hb-ink-soft">
+                    /* pl-0 er flugtningen: knappen har ingen vandret
+                       padding, så titlen står ved kanten — en indrykning
+                       ville netop bryde flugten med titlen. */
+                    <p className="pb-3 pl-0 pt-1 text-sm leading-relaxed text-hb-ink-soft">
                       {item.description}
                       {inlineBody(item) && <span className="mt-1 block text-hb-ink">{inlineBody(item)}</span>}
                     </p>
