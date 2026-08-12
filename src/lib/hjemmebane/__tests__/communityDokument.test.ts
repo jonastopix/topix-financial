@@ -583,6 +583,61 @@ describe("parseCommunityDokument — naevnelse-noder", () => {
   });
 });
 
+describe("parseCommunityDokument — henvisning-noder", () => {
+  const GYLDIG = { area: "classroom", slug: "kom-godt-i-gang", titel: "Kom godt i gang" };
+
+  it("gyldig henvisning i et afsnit → bevaret med area, slug og titel", () => {
+    const input = doc([
+      {
+        type: "paragraph",
+        content: [tekst("Se "), { type: "henvisning", attrs: GYLDIG }],
+      },
+    ]);
+    expect(parseCommunityDokument(input)).toEqual([
+      {
+        type: "paragraph",
+        content: [
+          { type: "text", text: "Se ", marks: [] },
+          { type: "henvisning", ...GYLDIG },
+        ],
+      },
+    ]);
+  });
+
+  it.each([
+    ['area "push"', { ...GYLDIG, area: "push" }],
+    ['area "findes-ikke"', { ...GYLDIG, area: "findes-ikke" }],
+    ["slug med skråstreg", { ...GYLDIG, slug: "../hemmelig" }],
+    ["slug med mellemrum", { ...GYLDIG, slug: "kom godt i gang" }],
+    ["slug med store bogstaver", { ...GYLDIG, slug: "Kom-Godt-I-Gang" }],
+    ["manglende titel", { area: GYLDIG.area, slug: GYLDIG.slug }],
+  ])("%s → fjernet", (_navn, attrs) => {
+    const input = doc([
+      { type: "paragraph", content: [tekst("før"), { type: "henvisning", attrs }] },
+    ]);
+    expect(parseCommunityDokument(input)).toEqual([
+      { type: "paragraph", content: [{ type: "text", text: "før", marks: [] }] },
+    ]);
+  });
+
+  it("henvisning som direkte barn af roden → fjernet (blok tillader den ikke)", () => {
+    const input = doc([
+      { type: "henvisning", attrs: GYLDIG },
+      { type: "paragraph", content: [tekst("beholdes")] },
+    ]);
+    expect(parseCommunityDokument(input)).toEqual([
+      { type: "paragraph", content: [{ type: "text", text: "beholdes", marks: [] }] },
+    ]);
+  });
+
+  it("afsnit med KUN en henvisning → afsnittet bevares", () => {
+    const input = doc([{ type: "paragraph", content: [{ type: "henvisning", attrs: GYLDIG }] }]);
+    expect(parseCommunityDokument(input)).toEqual([
+      { type: "paragraph", content: [{ type: "henvisning", ...GYLDIG }] },
+    ]);
+  });
+});
+
 describe("parseCommunityDokument — kontekstafhængig hvidliste", () => {
   it("listItem som direkte barn af roden → fjernet", () => {
     const input = doc([
