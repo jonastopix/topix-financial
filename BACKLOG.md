@@ -1020,6 +1020,19 @@ verificering; auth-hook/webhooks med egne signaturordninger er undtaget).
 
 ---
 
+### [P3] Forældreløse community-billeder (noteret 2026-08-12)
+
+Uploader et medlem et billede og lukker fanen uden at sende, bliver filen
+liggende i community-billeder-bucketen uden at optræde i noget dokument.
+Den er utilgængelig (maa_se_community_billede kræver en aktiv tråd eller
+et aktivt svar, der refererer stien), men den fylder. Mulig løsning: et
+oprydningsjob der sletter filer ældre end et døgn, som ingen aktiv tråd
+eller svar refererer. Bemærk at storage.objects er DELETE-beskyttet af
+storage.protect_delete() — oprydning skal ske via Storage API, ikke SQL
+DELETE.
+
+---
+
 ### Bogføringsnote — deploy-re-baseline af edge functions (2026-08-06)
 
 Serverside-fejning af alle 55 repo-funktioner + kontrolgruppe af 5 kendte

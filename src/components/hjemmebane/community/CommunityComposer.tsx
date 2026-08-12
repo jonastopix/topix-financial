@@ -1,11 +1,17 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { EditorContent, useEditor, type Editor } from "@tiptap/react";
+// mergeAttributes kommer fra @tiptap/core, men importeres via @tiptap/react,
+// som re-eksporterer hele core (dist/index.d.ts: export * from '@tiptap/core')
+// — @tiptap/core er en udeklareret transitiv afhængighed, og den deklarerede
+// vej er den robuste.
+import { EditorContent, mergeAttributes, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Link from "@tiptap/extension-link";
+import Image from "@tiptap/extension-image";
 import Placeholder from "@tiptap/extension-placeholder";
 import {
   Bold,
   Heading2,
+  Image as ImageIcon,
   Italic,
   Link as LinkIcon,
   List,
@@ -13,9 +19,56 @@ import {
   Loader2,
   Quote,
 } from "lucide-react";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { uploadCommunityBillede } from "@/lib/hjemmebane/communityBilledUpload";
 import { HbCard } from "@/components/hjemmebane/HbCard";
 import { HbButton } from "@/components/hjemmebane/HbButton";
+
+/** Billed-noden bærer `path` og `alt` som ENESTE attributter — ingen
+    `src`: motoren (parseCommunityDokument) accepterer kun `path`, og en
+    `src` ville blive kasseret ved visning.
+
+    Editoren renderer noden som en simpel pladsholder-ramme med teksten
+    "Billede" — ikke det rigtige billede. Et signeringskald pr. tastetryk
+    i en editor er spild, og opslaget er ikke gemt endnu, så adgangsdommen
+    ville alligevel sige nej. renderHTML rækker til en statisk ramme —
+    ingen NodeView nødvendig. */
+const CommunityBilledeNode = Image.extend({
+  addAttributes() {
+    return {
+      path: {
+        default: null,
+        parseHTML: (element: HTMLElement) => element.getAttribute("data-path"),
+        renderHTML: (attributes: { path?: string | null }) =>
+          attributes.path ? { "data-path": attributes.path } : {},
+      },
+      alt: {
+        default: "",
+        parseHTML: (element: HTMLElement) => element.getAttribute("alt") ?? "",
+      },
+    };
+  },
+  /* renderHTML og parseHTML skal spejle hinanden, ellers overlever noden
+     ikke en serialiserings-runde: uden data-path i den renderede markup
+     går stien tabt, og uden div[data-path]-parseren kan noden ikke læses
+     tilbage — det bider første gang et eksisterende opslag skal redigeres.
+     Pladsholderen er stadig kun visuel — det rigtige billede kræver
+     signering og vises først ved visning (CommunityBillede). */
+  parseHTML() {
+    return [{ tag: "div[data-path]" }];
+  },
+  renderHTML({ HTMLAttributes }) {
+    return [
+      "div",
+      mergeAttributes(HTMLAttributes, {
+        class:
+          "select-none rounded-hb border border-hb-line bg-hb-sage/30 px-4 py-6 text-center text-sm text-hb-ink-soft",
+      }),
+      "Billede",
+    ];
+  },
+});
 
 /** Community-composeren — producerer NØJAGTIGT det dokumentformat,
     parseCommunityDokument accepterer. Editoren er konfigureret så den ikke
@@ -28,6 +81,9 @@ import { HbButton } from "@/components/hjemmebane/HbButton";
 
 export interface CommunityComposerProps {
   onSubmit: (indholdJson: unknown) => void | Promise<void>;
+  /** Bruges som mappe-præfiks ved billed-upload (bucketens INSERT-policy
+      kræver eget uuid-præfiks). Kalderen leverer den. */
+  brugerId: string;
   disabled?: boolean;
   placeholder?: string;
   autoFocus?: boolean;
@@ -51,11 +107,13 @@ const normaliserLinkUrl = (raa: string): string => {
 
 function VaerktoejsKnap({
   aktiv,
+  disabled,
   onClick,
   title,
   children,
 }: {
   aktiv?: boolean;
+  disabled?: boolean;
   onClick: () => void;
   title: string;
   children: React.ReactNode;
@@ -63,11 +121,12 @@ function VaerktoejsKnap({
   return (
     <button
       type="button"
+      disabled={disabled}
       onMouseDown={(e) => e.preventDefault()}
       onClick={onClick}
       title={title}
       className={cn(
-        "rounded-md p-1.5 transition-colors",
+        "rounded-md p-1.5 transition-colors disabled:opacity-50",
         aktiv
           ? "bg-hb-sage text-hb-ink"
           : "text-hb-ink-soft hover:bg-hb-sage/50 hover:text-hb-ink",
@@ -80,6 +139,7 @@ function VaerktoejsKnap({
 
 export function CommunityComposer({
   onSubmit,
+  brugerId,
   disabled = false,
   placeholder = "Hvad arbejder du med lige nu?",
   autoFocus = false,
@@ -89,7 +149,9 @@ export function CommunityComposer({
   onTitelChange,
 }: CommunityComposerProps) {
   const [sender, setSender] = useState(false);
+  const [uploaderBillede, setUploaderBillede] = useState(false);
   const sendRef = useRef<() => void>(() => {});
+  const billedInputRef = useRef<HTMLInputElement>(null);
 
   const editor = useEditor({
     extensions: [
@@ -111,6 +173,7 @@ export function CommunityComposer({
         autolink: true,
         protocols: ["http", "https", "mailto"],
       }),
+      CommunityBilledeNode,
       Placeholder.configure({ placeholder }),
     ],
     autofocus: autoFocus ? "end" : false,
@@ -160,6 +223,29 @@ export function CommunityComposer({
         .run();
     }
   }, [editor]);
+
+  const vaelgBillede = useCallback(
+    async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const fil = e.target.files?.[0];
+      // Nulstil straks, så den samme fil kan vælges igen.
+      e.target.value = "";
+      if (!fil || !editor) return;
+      setUploaderBillede(true);
+      try {
+        const sti = await uploadCommunityBillede(fil, brugerId);
+        editor
+          .chain()
+          .focus()
+          .insertContent({ type: "image", attrs: { path: sti, alt: "" } })
+          .run();
+      } catch (fejl) {
+        toast.error(fejl instanceof Error ? fejl.message : "Billedet kunne ikke uploades");
+      } finally {
+        setUploaderBillede(false);
+      }
+    },
+    [editor, brugerId],
+  );
 
   const harIndhold = (editor?.getText().trim().length ?? 0) > 0;
   const titelOk = !visTitel || titel.trim().length > 0;
@@ -274,6 +360,24 @@ export function CommunityComposer({
         >
           <Heading2 className="h-4 w-4" />
         </VaerktoejsKnap>
+        <VaerktoejsKnap
+          disabled={uploaderBillede || disabled || sender}
+          onClick={() => billedInputRef.current?.click()}
+          title="Indsæt billede"
+        >
+          {uploaderBillede ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <ImageIcon className="h-4 w-4" />
+          )}
+        </VaerktoejsKnap>
+        <input
+          ref={billedInputRef}
+          type="file"
+          accept="image/jpeg,image/png,image/webp,image/gif"
+          className="hidden"
+          onChange={vaelgBillede}
+        />
 
         <div className="ml-auto">
           <HbButton
