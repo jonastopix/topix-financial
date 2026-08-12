@@ -33,8 +33,12 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { uploadCommunityBillede, uploadCommunityFil } from "@/lib/hjemmebane/communityUpload";
 import { hentCommunityMedlemmer, type CommunityMedlem } from "@/lib/hjemmebane/communityApi";
-import { listPublishedCollections, listPublishedItems } from "@/lib/hjemmebane/akademiApi";
-import type { ContentItem } from "@/lib/hjemmebane/adminContentApi";
+import {
+  listAllUpcomingEvents,
+  listPublishedCollections,
+  listPublishedItems,
+} from "@/lib/hjemmebane/akademiApi";
+import type { ContentItem, EventRow } from "@/lib/hjemmebane/adminContentApi";
 import { HbCard } from "@/components/hjemmebane/HbCard";
 import { HbButton } from "@/components/hjemmebane/HbButton";
 
@@ -432,33 +436,47 @@ const OMRAADE_LABELS: Record<string, string> = {
     ellers kan pickeren tilbyde noget, motoren kasserer ved visning. */
 const HENVISNINGS_OMRAADER = new Set(Object.keys(OMRAADE_LABELS));
 
-/** Rækkerne til #-forslag: titel + undertekst med samling, område og
-    evt. varighed. Ingen cover-billeder — de kræver signering pr. række.
+/** Rækkerne til #-forslag: titel + undertekst. For items: samling,
+    område og evt. varighed; for events: "Event · {dato}". Ingen
+    cover-billeder — de kræver signering pr. række.
 
-    Samlingen står FØRST i underteksten: en lektionstitel som "Dit
+    Samlingen står FØRST i item-underteksten: en lektionstitel som "Dit
     mindset ➤ System før superhelt" siger intet uden sit kursus — fire
     lektioner kan hedde "Introduktion & målsætning", og kun samlingens
     navn placerer dem. Områdelabelen alene ("Kursus") er den mindst
     sigende del. */
 const opretHenvisningsDropdown =
   (samlingsTitelFor: (item: ContentItem) => string | null) => () =>
-    opretForslagsDropdown<ContentItem>((item, raekke) => {
+    opretForslagsDropdown<HenvisningsForslag>((forslag, raekke) => {
       const tekst = document.createElement("span");
       tekst.className = "min-w-0 flex-1";
       const titel = document.createElement("span");
       titel.className = "block truncate font-body text-sm text-hb-ink";
-      titel.textContent = item.title;
-      tekst.appendChild(titel);
-      const dele: string[] = [];
-      const samling = samlingsTitelFor(item);
-      if (samling) dele.push(samling);
-      dele.push(OMRAADE_LABELS[item.area] ?? item.area);
-      if (item.duration_seconds) {
-        dele.push(`${Math.max(1, Math.round(item.duration_seconds / 60))} min`);
-      }
       const under = document.createElement("span");
       under.className = "block truncate text-xs text-hb-ink-soft";
-      under.textContent = dele.join(" · ");
+
+      if (forslag.slags === "event") {
+        titel.textContent = forslag.event.title;
+        // Samme dato-mønster som EventsView. Ingen varighed på events.
+        const dato = new Date(forslag.event.starts_at).toLocaleDateString("da-DK", {
+          day: "numeric",
+          month: "short",
+        });
+        under.textContent = `Event · ${dato}`;
+      } else {
+        const item = forslag.item;
+        titel.textContent = item.title;
+        const dele: string[] = [];
+        const samling = samlingsTitelFor(item);
+        if (samling) dele.push(samling);
+        dele.push(OMRAADE_LABELS[item.area] ?? item.area);
+        if (item.duration_seconds) {
+          dele.push(`${Math.max(1, Math.round(item.duration_seconds / 60))} min`);
+        }
+        under.textContent = dele.join(" · ");
+      }
+
+      tekst.appendChild(titel);
       tekst.appendChild(under);
       raekke.appendChild(tekst);
     });
@@ -508,6 +526,65 @@ const HenvisningNode = Mention.extend({
     return `#${node.attrs.titel ?? ""}`;
   },
 });
+
+/** #-eventhenvisninger — samme snit som HenvisningNode, men mod events.
+    Events og akademi-indhold DELER tegnet '#': et medlem skal ikke lære
+    to tegn for "henvis til noget på platformen" — listen skelner dem
+    visuelt i stedet ("Event · dato"-undertekst).
+
+    renderHTML/parseHTML spejler hinanden: span med data-event-id og
+    data-titel; parseren matcher span[data-event-id][data-titel] —
+    ingen overlap med HenvisningNode (kræver data-area+data-slug, som
+    en event-span mangler) eller NaevnelseNode (kræver data-user-id,
+    som en event-span mangler); omvendt mangler deres markup
+    data-event-id. Hver af de tre selektorer kræver mindst én attribut,
+    de to andre aldrig skriver. */
+const EventHenvisningNode = Mention.extend({
+  name: "eventhenvisning",
+  addAttributes() {
+    return {
+      eventId: {
+        default: null,
+        parseHTML: (element: HTMLElement) => element.getAttribute("data-event-id"),
+        renderHTML: (attributes: { eventId?: string | null }) =>
+          attributes.eventId ? { "data-event-id": attributes.eventId } : {},
+      },
+      titel: {
+        default: "",
+        parseHTML: (element: HTMLElement) => element.getAttribute("data-titel") ?? "",
+        renderHTML: (attributes: { titel?: string }) =>
+          attributes.titel ? { "data-titel": attributes.titel } : {},
+      },
+    };
+  },
+  parseHTML() {
+    return [{ tag: "span[data-event-id][data-titel]" }];
+  },
+  renderHTML({ node, HTMLAttributes }) {
+    return [
+      "span",
+      mergeAttributes(HTMLAttributes, { class: "font-medium text-hb-rust" }),
+      `#${node.attrs.titel ?? ""}`,
+    ];
+  },
+  renderText({ node }) {
+    return `#${node.attrs.titel ?? ""}`;
+  },
+  /* INGEN egen suggestion-plugin: uden dette ville Mention-defaulten
+     montere et ekstra '@'-suggestion-plugin for denne node ved siden af
+     nævnelses-pickeren. Event-forslagene bor i HenvisningNodes
+     #-suggestion, som indsætter begge nodetyper — denne node er kun
+     skema (parse/render). */
+  addProseMirrorPlugins() {
+    return [];
+  },
+});
+
+/** #-pickerens forslag rummer BÅDE akademi-items og events —
+    diskrimineret union, så række og command kan forgrene uden casts. */
+type HenvisningsForslag =
+  | { slags: "item"; item: ContentItem }
+  | { slags: "event"; event: EventRow };
 
 /** Kun http/https/mailto får lov at forlade composeren — men motoren
     hærder href'en IGEN ved visning: editoren er bekvemmelighed, ikke
@@ -600,6 +677,20 @@ export function CommunityComposer({
   samlingsTitelRef.current = new Map(
     (samlingerQuery.data ?? []).map((samling) => [samling.id, samling.title]),
   );
+
+  /* Events til #-pickeren — listAllUpcomingEvents er MEDLEMSFLADENS egen
+     dom (published + fremtid via isEventPast), og queryKey'en deles med
+     EventsView (["events", "upcoming-all"]), så cachen er fælles.
+     Admin-funktionen listEvents bruges bevidst IKKE: den er ufiltreret
+     (drafts + afholdte), og under den delte nøgle ville den forgifte
+     EventsViews cache. Læses via ref som de øvrige kilder. */
+  const eventsQuery = useQuery({
+    queryKey: ["events", "upcoming-all"],
+    queryFn: listAllUpcomingEvents,
+    staleTime: 5 * 60_000,
+  });
+  const eventsRef = useRef<EventRow[]>([]);
+  eventsRef.current = eventsQuery.data ?? [];
   const sendRef = useRef<() => void>(() => {});
   const billedInputRef = useRef<HTMLInputElement>(null);
   const filInputRef = useRef<HTMLInputElement>(null);
@@ -645,6 +736,7 @@ export function CommunityComposer({
       }),
       CommunityBilledeNode,
       CommunityFilNode,
+      EventHenvisningNode,
       NaevnelseNode.configure({
         suggestion: {
           char: "@",
@@ -685,31 +777,48 @@ export function CommunityComposer({
       HenvisningNode.configure({
         suggestion: {
           char: "#",
-          items: ({ query }) => {
+          items: ({ query }): HenvisningsForslag[] => {
             const q = query.toLowerCase();
-            return itemsRef.current
+            /* Events: kun published med starts_at i FREMTIDEN — et link
+               til et afholdt event hjælper ingen. Dommen bor allerede i
+               listAllUpcomingEvents (published + isEventPast), så listen
+               her er filtreret ved kilden. Events vises ØVERST når de
+               matcher, derefter items — maks 8 i alt. */
+            const events: HenvisningsForslag[] = eventsRef.current
+              .filter((event) => event.title.toLowerCase().includes(q))
+              .map((event) => ({ slags: "event" as const, event }));
+            const items: HenvisningsForslag[] = itemsRef.current
               /* Kun områder med element-rute — skal spejle motorens
                  TILLADTE_OMRAADER, ellers kan pickeren tilbyde noget,
                  motoren kasserer ved visning. */
               .filter((item) => HENVISNINGS_OMRAADER.has(item.area))
               .filter((item) => item.title.toLowerCase().includes(q))
-              .slice(0, 8);
+              .map((item) => ({ slags: "item" as const, item }));
+            return [...events, ...items].slice(0, 8);
           },
           command: ({ editor: ed, range, props }) => {
-            const item = props as unknown as ContentItem;
-            // Henvisningen efterfølges af et mellemrum som text-node —
+            const forslag = props as unknown as HenvisningsForslag;
+            // Begge slags efterfølges af et mellemrum som text-node —
             // samme mønster som nævnelser (markøren lander klar til at
             // skrive videre).
+            const node =
+              forslag.slags === "event"
+                ? {
+                    type: "eventhenvisning",
+                    attrs: { eventId: forslag.event.id, titel: forslag.event.title },
+                  }
+                : {
+                    type: "henvisning",
+                    attrs: {
+                      area: forslag.item.area,
+                      slug: forslag.item.slug,
+                      titel: forslag.item.title,
+                    },
+                  };
             ed
               .chain()
               .focus()
-              .insertContentAt(range, [
-                {
-                  type: "henvisning",
-                  attrs: { area: item.area, slug: item.slug, titel: item.title },
-                },
-                { type: "text", text: " " },
-              ])
+              .insertContentAt(range, [node, { type: "text", text: " " }])
               .run();
           },
           render: opretHenvisningsDropdown((item) =>
