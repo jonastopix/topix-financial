@@ -1,43 +1,14 @@
-import * as React from "react";
 import { Link } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
 import { AREAS } from "@/lib/hjemmebane/adminContentApi";
-import type { ContentCollection } from "@/lib/hjemmebane/adminContentApi";
 import { HbItemRow } from "../HbItemRow";
+import { HbKursusKort } from "../HbKursusKort";
 import { HbProgressBar } from "../HbProgressBar";
-import { progressSummary, useAkademiData, type AkademiItem } from "../useAkademiData";
+import { progressSummary, useAkademiData } from "../useAkademiData";
 
-/** Samling som sektion: HbSection-rytmen med fremdrift i headeren. */
-const CollectionSection = ({
-  collection,
-  entries,
-  children,
-}: {
-  collection: ContentCollection;
-  entries: AkademiItem[];
-  children?: React.ReactNode;
-}) => {
-  const summary = progressSummary(entries);
-  return (
-    <section className="mt-10 first:mt-0">
-      <div className="mb-2 flex items-baseline justify-between gap-4">
-        <h2 className="min-w-0 truncate font-editorial text-2xl font-medium leading-tight text-hb-ink">
-          {collection.title}
-        </h2>
-        <div className="w-32 shrink-0 md:w-44">
-          <HbProgressBar done={summary.done} total={summary.total} />
-        </div>
-      </div>
-      {collection.description && (
-        <p className="mb-3 max-w-2xl text-sm leading-relaxed text-hb-ink-soft">
-          {collection.description}
-        </p>
-      )}
-      <div className="-mx-3">{children}</div>
-    </section>
-  );
-};
-
+/** Områdesiden: løse elementer som rækker, kurser som KORT der linker
+    til kursussiden (KursusView) — en destination frem for en sektion i
+    én lang rulle. */
 export const OmraadeView = ({ areaKey }: { areaKey: string }) => {
   const data = useAkademiData();
   const area = AREAS.find((a) => a.key === areaKey);
@@ -85,6 +56,8 @@ export const OmraadeView = ({ areaKey }: { areaKey: string }) => {
           <p className="text-sm text-hb-ink-soft">Endnu intet indhold her — det er på vej.</p>
         )}
 
+        {/* Løse elementer hører ikke til noget kursus og står derfor for
+            sig — som rækker, øverst, præcis som hidtil. */}
         {looseEntries.length > 0 && (
           <div className="-mx-3">
             {looseEntries.map((entry) => (
@@ -93,35 +66,42 @@ export const OmraadeView = ({ areaKey }: { areaKey: string }) => {
           </div>
         )}
 
-        {roots.map((root) => {
-          const children = areaCollections.filter((c) => c.parent_id === root.id);
-          const rootEntries = [
-            ...entriesOf(root.id),
-            ...children.flatMap((child) => entriesOf(child.id)),
-          ];
-          if (rootEntries.length === 0) return null;
-          return (
-            <CollectionSection key={root.id} collection={root} entries={rootEntries}>
-              {entriesOf(root.id).map((entry) => (
-                <HbItemRow key={entry.item.id} entry={entry} />
-              ))}
-              {children.map((child) => {
-                const childEntries = entriesOf(child.id);
-                if (childEntries.length === 0) return null;
-                return (
-                  <div key={child.id} className="mt-4">
-                    <p className="mb-1 px-3 text-xs font-medium uppercase tracking-[0.14em] text-hb-ink-soft">
-                      {child.title}
-                    </p>
-                    {childEntries.map((entry) => (
-                      <HbItemRow key={entry.item.id} entry={entry} />
-                    ))}
-                  </div>
-                );
-              })}
-            </CollectionSection>
-          );
-        })}
+        {/* Kurserne som kort — ét pr. rod-samling i samme rækkefølge som
+            sektionerne stod. Lektionstal, samlet tid og fremdrift udledes
+            af samlingens entries inkl. under-samlingernes (samme
+            roots/children-mønster som KursusView). */}
+        {roots.length > 0 && (
+          <div className="mt-8 grid grid-cols-1 gap-4 md:grid-cols-2">
+            {roots.map((root) => {
+              const children = areaCollections.filter((c) => c.parent_id === root.id);
+              const rootEntries = [
+                ...entriesOf(root.id),
+                ...children.flatMap((child) => entriesOf(child.id)),
+              ];
+              if (rootEntries.length === 0) return null;
+              const rootSummary = progressSummary(rootEntries);
+              const samletMinutter = Math.round(
+                rootEntries.reduce(
+                  (sum, entry) => sum + (entry.item.duration_seconds ?? 0),
+                  0,
+                ) / 60,
+              );
+              return (
+                <HbKursusKort
+                  key={root.id}
+                  areaKey={areaKey}
+                  slug={root.slug}
+                  titel={root.title}
+                  beskrivelse={root.description}
+                  antalLektioner={rootEntries.length}
+                  samletMinutter={samletMinutter}
+                  done={rootSummary.done}
+                  total={rootSummary.total}
+                />
+              );
+            })}
+          </div>
+        )}
       </div>
     </div>
   );
