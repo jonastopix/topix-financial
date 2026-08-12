@@ -248,6 +248,19 @@ function renderNode(node: CommunityNode, key: number): ReactNode {
           #{node.titel}
         </Link>
       );
+
+    case "eventhenvisning":
+      // Ruten er MemberRoute-gated (App.tsx:238). Samme rust-udtryk som
+      // henvisning — begge er #-referencer til platformen.
+      return (
+        <Link
+          key={key}
+          to={`/events/${node.eventId}`}
+          className="font-medium text-hb-rust hover:underline"
+        >
+          #{node.titel}
+        </Link>
+      );
   }
 }
 
