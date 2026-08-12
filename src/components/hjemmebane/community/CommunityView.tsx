@@ -3,7 +3,12 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
-import { hentFeed, opretTraad, type CommunityTraad } from "@/lib/hjemmebane/communityApi";
+import {
+  hentFeed,
+  notificerNaevnelser,
+  opretTraad,
+  type CommunityTraad,
+} from "@/lib/hjemmebane/communityApi";
 import { CommunityComposer } from "./CommunityComposer";
 import { HbSection } from "../HbSection";
 import { HbTag } from "../HbTag";
@@ -98,8 +103,19 @@ export const CommunityView = () => {
   });
 
   const opretMutation = useMutation({
-    mutationFn: (args: { titel: string; indholdJson: unknown }) =>
-      opretTraad({ titel: args.titel, indhold: "", indholdJson: args.indholdJson }),
+    /* Nævnelses-notifikationen kaldes i mutationFn (samme placering og
+       begrundelse som notificerSvar på trådsiden): koblingen til det
+       netop oprettede id er direkte, og notificerNaevnelser kaster
+       aldrig, så den kan ikke vælte mutationen. */
+    mutationFn: async (args: { titel: string; indholdJson: unknown }) => {
+      const nytId = await opretTraad({
+        titel: args.titel,
+        indhold: "",
+        indholdJson: args.indholdJson,
+      });
+      await notificerNaevnelser({ traadId: nytId });
+      return nytId;
+    },
     onSuccess: (nytId) => {
       queryClient.invalidateQueries({ queryKey: ["community", "feed"] });
       navigate(`/community/${nytId}`);

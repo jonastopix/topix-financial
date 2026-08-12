@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 import {
   hentSvar,
   hentTraad,
+  notificerNaevnelser,
   notificerSvar,
   opretSvar,
   registrerVisning,
@@ -226,6 +227,7 @@ export const CommunityTraadView = ({ traadId }: { traadId: string }) => {
     mutationFn: async (indholdJson: unknown) => {
       const svarId = await opretSvar(traadId, "", indholdJson);
       await notificerSvar(svarId);
+      await notificerNaevnelser({ svarId });
       return svarId;
     },
     onSuccess: invaliderTraadOgFeed,
@@ -246,8 +248,14 @@ export const CommunityTraadView = ({ traadId }: { traadId: string }) => {
   });
 
   const retTraadMutation = useMutation({
-    mutationFn: (args: { titel: string; indholdJson: unknown }) =>
-      retTraad(traadId, args.titel, args.indholdJson),
+    /* Rettelser notificerer OGSÅ nævnelser: nævner man nogen i en
+       redigering, skal de have besked — og dedup_key'en i edge-
+       funktionen er pr. objekt OG modtager, så den, der allerede var
+       nævnt, ikke får en besked mere. */
+    mutationFn: async (args: { titel: string; indholdJson: unknown }) => {
+      await retTraad(traadId, args.titel, args.indholdJson);
+      await notificerNaevnelser({ traadId });
+    },
     onSuccess: () => {
       invaliderTraadOgFeed();
       setRedigererTraad(false);
@@ -258,8 +266,11 @@ export const CommunityTraadView = ({ traadId }: { traadId: string }) => {
   });
 
   const retSvarMutation = useMutation({
-    mutationFn: (args: { svarId: string; indholdJson: unknown }) =>
-      retSvar(args.svarId, args.indholdJson),
+    // Rettelser notificerer også nævnelser — se retTraadMutation.
+    mutationFn: async (args: { svarId: string; indholdJson: unknown }) => {
+      await retSvar(args.svarId, args.indholdJson);
+      await notificerNaevnelser({ svarId: args.svarId });
+    },
     onSuccess: () => {
       invaliderTraadOgFeed();
       setRedigererSvarId(null);
