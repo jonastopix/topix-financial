@@ -2266,6 +2266,10 @@ export type Database = {
         }
         Relationships: []
       }
+      // 'indhold' er tilføjet MANUELT efter migration 20260813160000
+      // (partners.indhold, TEXT nullable, kørt i prod 13-08-2026).
+      // Linjerne forsvinder igen når Lovable regenererer typerne —
+      // uskadeligt, så længe kolonnen findes i databasen.
       partners: {
         Row: {
           category: string
@@ -2273,6 +2277,7 @@ export type Database = {
           description: string | null
           discount_text: string
           id: string
+          indhold: string | null
           logo_path: string | null
           name: string
           position: number
@@ -2291,6 +2296,7 @@ export type Database = {
           description?: string | null
           discount_text: string
           id?: string
+          indhold?: string | null
           logo_path?: string | null
           name: string
           position?: number
@@ -2309,6 +2315,7 @@ export type Database = {
           description?: string | null
           discount_text?: string
           id?: string
+          indhold?: string | null
           logo_path?: string | null
           name?: string
           position?: number
