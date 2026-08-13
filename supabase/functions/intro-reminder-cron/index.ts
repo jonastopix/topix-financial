@@ -135,12 +135,20 @@ async function koerIntroPaamindelser(
         continue;
       }
 
-      // 3. Find medlemsbrugeren (samme moenster som send-pulse-reminder + create-free-intro-booking).
+      // 3. Find medlemsbrugeren. Rollefilteret .eq("role", "member") er FJERNET
+      //    (13-08-2026): en intro-sparring er inkluderet i medlemskabet, ikke i en
+      //    rolle — ejeren er typisk netop den, sessionen er til. I prod-toerkoerslen
+      //    var 8 af 12 kandidater role='owner' og blev fejlagtigt talt som
+      //    ingen_medlemsbruger. Moenstret var kopieret fra send-pulse-reminder og
+      //    create-free-intro-booking, som formentlig deler samme blinde vinkel —
+      //    det skal efterproeves separat og er IKKE rettet her.
+      //    .limit(1) uden .order() vaelger vilkaarligt ved flere raekker (samme
+      //    faelde som user_company_id), derfor deterministisk aeldste raekke foerst.
       const { data: members } = await supabase
         .from("company_members")
         .select("user_id")
         .eq("company_id", company.id)
-        .eq("role", "member")
+        .order("created_at", { ascending: true })
         .limit(1);
 
       const member = members?.[0] as any;
