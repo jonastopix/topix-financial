@@ -2982,6 +2982,7 @@ export type Database = {
           user_id: string
         }[]
       }
+      har_aktivt_abonnement: { Args: { _user_id: string }; Returns: boolean }
       har_aktivt_medlemskab: { Args: { _user_id: string }; Returns: boolean }
       has_role: {
         Args: {
