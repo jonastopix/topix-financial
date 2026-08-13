@@ -148,11 +148,20 @@ Deno.serve(async (req) => {
         .eq("id", milestoneCompanyId)
         .single();
 
+      // Maalt i produktion 13-08-2026: company_members.role er 24 'owner' / 13 'member'
+      // af 37 raekker. Kolonnens default er 'owner'::text, og der findes INGEN
+      // CHECK-constraint. handle_new_user tildeler 'member' ved invitation MED
+      // company_id og 'owner' ved invitation UDEN company_id (der oprettes en ny
+      // virksomhed) — 'owner' er altsaa netop founderen. Ingen RLS-policy og ingen
+      // SQL-funktion i databasen laeser kolonnen; det er verificeret mod pg_policies
+      // og pg_proc. Et filter .eq("role","member") rammer derfor systematisk forbi
+      // founderen. Foersteoprettede raekke pr. virksomhed er founderen, jf. samme
+      // loesning i PR #343 og #345.
       const { data: companyMember } = await admin
         .from("company_members")
         .select("user_id")
         .eq("company_id", milestoneCompanyId)
-        .eq("role", "member")
+        .order("created_at", { ascending: true })
         .limit(1)
         .maybeSingle();
       const memberUserId = companyMember?.user_id;
@@ -200,11 +209,20 @@ Deno.serve(async (req) => {
         .eq("id", pulseCompanyId)
         .single();
 
+      // Maalt i produktion 13-08-2026: company_members.role er 24 'owner' / 13 'member'
+      // af 37 raekker. Kolonnens default er 'owner'::text, og der findes INGEN
+      // CHECK-constraint. handle_new_user tildeler 'member' ved invitation MED
+      // company_id og 'owner' ved invitation UDEN company_id (der oprettes en ny
+      // virksomhed) — 'owner' er altsaa netop founderen. Ingen RLS-policy og ingen
+      // SQL-funktion i databasen laeser kolonnen; det er verificeret mod pg_policies
+      // og pg_proc. Et filter .eq("role","member") rammer derfor systematisk forbi
+      // founderen. Foersteoprettede raekke pr. virksomhed er founderen, jf. samme
+      // loesning i PR #343 og #345.
       const { data: pulseCompanyMember } = await admin
         .from("company_members")
         .select("user_id")
         .eq("company_id", pulseCompanyId)
-        .eq("role", "member")
+        .order("created_at", { ascending: true })
         .limit(1)
         .maybeSingle();
       const pulseMemberUserId = pulseCompanyMember?.user_id;
