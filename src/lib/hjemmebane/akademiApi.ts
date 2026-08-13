@@ -217,6 +217,25 @@ export async function listPastEvents(limit?: number): Promise<EventRow[]> {
   return limit != null ? past.slice(0, limit) : past;
 }
 
+/** Optagelsens item til eventsiden (B8): events.recording_item_id →
+    content_items på id. RLS bærer adgangen (published-gate + abonnent-
+    hvidlisten) — et upubliceret eller area-lukket item giver bare null,
+    og eventsiden falder tilbage til afholdt-linjen. */
+export async function getRecordingItem(
+  itemId: string,
+): Promise<Pick<
+  ContentItem,
+  "id" | "title" | "media_provider" | "bunny_video_id" | "external_url" | "duration_seconds"
+> | null> {
+  const { data, error } = await supabase
+    .from("content_items")
+    .select("id, title, media_provider, bunny_video_id, external_url, duration_seconds")
+    .eq("id", itemId)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  return data;
+}
+
 /** Deltagerlisten på /events/:id (Events trin 3) — kolonnesættet fra
     get_event_participants (SECURITY DEFINER-RPC, migration 20260810120000
     + aktivt-medlemskabs-gaten i 20260810150000). RPC'en er ikke i de

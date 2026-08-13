@@ -8,12 +8,14 @@ import {
   declineEvent,
   getEvent,
   getMyEventResponse,
+  getRecordingItem,
   listEventParticipants,
   registerForEvent,
   type EventParticipant,
 } from "@/lib/hjemmebane/akademiApi";
 import { eventMeetPhase } from "@/lib/hjemmebane/eventPhase";
 import { HbButton, hbButtonVariants } from "../HbButton";
+import { HbVideoEmbed } from "../akademi/HbVideoEmbed";
 
 /** Events-miljøet, trin 3: eventsiden (/events/:id) med tilmelding og
     deltagerliste. Ikke-fundet håndteres blødt (ElementView-mønstret:
@@ -78,6 +80,20 @@ export const EventDetailView = ({ eventId }: { eventId: string }) => {
     enabled: !!user,
   });
 
+  // Optagelsens item (B8): hentes KUN når koblingen er sat OG eventet er
+  // afholdt — ingen fetch på kommende events. Query'en ligger FØR de
+  // betingede returns (hook-rækkefølgen skal være stabil); enabled bærer
+  // gatingen. RLS bærer adgangen: et upubliceret eller area-lukket item
+  // giver null, og after-grenen falder tilbage til afholdt-linjen.
+  const recordingId = eventQuery.data?.recording_item_id ?? null;
+  const recordingQuery = useQuery({
+    queryKey: ["event", eventId, "recording", recordingId],
+    queryFn: () => getRecordingItem(recordingId!),
+    enabled:
+      !!recordingId && !!eventQuery.data && eventMeetPhase(eventQuery.data) === "after",
+    staleTime: 60_000,
+  });
+
   const invalidateRegistrationState = () => {
     queryClient.invalidateQueries({ queryKey: ["event", eventId, "participants"] });
     queryClient.invalidateQueries({ queryKey: ["event", eventId, "registration", user?.id] });
@@ -118,6 +134,9 @@ export const EventDetailView = ({ eventId }: { eventId: string }) => {
 
   const cancelled = event.status === "cancelled";
   const phase = eventMeetPhase(event);
+  // Mens opslaget henter er recording null → after-grenen viser
+  // afholdt-linjen (ingen spinner, ingen flimren).
+  const recording = recordingQuery.data ?? null;
   const dateLine = new Date(event.starts_at).toLocaleDateString("da-DK", {
     weekday: "long",
     day: "numeric",
@@ -199,10 +218,56 @@ export const EventDetailView = ({ eventId }: { eventId: string }) => {
             Deltag nu
           </a>
         )}
+        {/* Optagelsen (B8): events.recording_item_id har eksisteret siden
+            20260804120000:298 og kunnet sættes i admin (EventEditor.tsx:247),
+            men INGEN medlemsflade læste den — koblingen blev skrevet og
+            aldrig vist. Det var det sidste der bandt platformen til Circle.
+            Pladsen var reserveret her siden Events-GO ("optagelsen selv er
+            senere trin", :175). Videoporten genbruges: HbVideoEmbed kører
+            allerede uden for Akademiet på forsiden (BoardroomView.tsx:407)
+            med no-op callbacks — en event-optagelse skal IKKE skrive
+            Akademi-progression. storage håndteres ikke: get-video-embed
+            dækker kun bunny (index.ts:71-72), og en storage-fil ville kræve
+            en signeret URL fra content-assets-bucketen, som der ikke findes
+            en hjælper til på denne sti; kandidatlisten i admin er i praksis
+            episoder/videoer i Bunny. Mens opslaget henter, står
+            afholdt-linjen — ingen flimren mellem to tilstande. */}
         {!cancelled && phase === "after" && (
-          <p className="mt-8 text-sm text-hb-ink-soft">
-            Sessionen er afholdt. Optagelsen lægges her, når den er klar.
-          </p>
+          recording && recording.media_provider === "bunny" && recording.bunny_video_id ? (
+            <div className="mt-8">
+              <h2 className="text-xs font-semibold uppercase tracking-[0.14em] text-hb-ink-soft">
+                Optagelse
+              </h2>
+              <div className="mt-4">
+                <HbVideoEmbed
+                  itemId={recording.id}
+                  resumeAt={null}
+                  onPosition={() => {}}
+                  onCompleted={() => {}}
+                />
+              </div>
+            </div>
+          ) : recording && recording.media_provider === "external" && recording.external_url ? (
+            <div className="mt-8">
+              <h2 className="text-xs font-semibold uppercase tracking-[0.14em] text-hb-ink-soft">
+                Optagelse
+              </h2>
+              <p className="mt-4 text-sm">
+                <a
+                  href={recording.external_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-hb-evergreen underline-offset-4 hover:underline"
+                >
+                  Se optagelsen
+                </a>
+              </p>
+            </div>
+          ) : (
+            <p className="mt-8 text-sm text-hb-ink-soft">
+              Sessionen er afholdt. Optagelsen lægges her, når den er klar.
+            </p>
+          )
         )}
 
         {/* Svaret: tre tilstande — intet svar (primær Tilmeld + "Jeg kan
