@@ -12,6 +12,7 @@ import type {
   ContentItem,
   ContentItemAttachment,
   EventRow,
+  Partner,
 } from "./adminContentApi";
 
 export type MemberProgress = {
@@ -215,6 +216,41 @@ export async function listPastEvents(limit?: number): Promise<EventRow[]> {
       (event.status === "published" && isEventPast(event)),
   );
   return limit != null ? past.slice(0, limit) : past;
+}
+
+/** Rabataftalerne til medlemsfladen (13-08-2026): published partnere i
+    admin-rækkefølgen (position, derefter navn). RLS ("Members can view
+    published partners") bærer adgangen — status-filteret her er den
+    EKSPLICITTE hensigt i koden, så fladen ikke stiltiende arver alt,
+    hvad en fremtidig policy-lempelse måtte gøre synligt. */
+export type MedlemsPartner = Pick<
+  Partner,
+  | "id"
+  | "name"
+  | "category"
+  | "description"
+  | "discount_text"
+  | "indhold"
+  | "redemption_type"
+  | "redemption_code"
+  | "redemption_url"
+  | "redemption_contact"
+  | "logo_path"
+  | "website_url"
+  | "valid_until"
+>;
+
+export async function listMedlemsPartnere(): Promise<MedlemsPartner[]> {
+  return throwIfError(
+    await supabase
+      .from("partners")
+      .select(
+        "id, name, category, description, discount_text, indhold, redemption_type, redemption_code, redemption_url, redemption_contact, logo_path, website_url, valid_until",
+      )
+      .eq("status", "published")
+      .order("position", { ascending: true })
+      .order("name", { ascending: true }),
+  );
 }
 
 /** Optagelsens item til eventsiden (B8): events.recording_item_id →

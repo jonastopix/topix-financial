@@ -15,7 +15,7 @@ export const HbMemberShell = ({
   // "medlemmer" = Netværket (/medlemmer). Profilsiderne (/medlemmer/:userId)
   // deler værdien — en profil hører til netværket. "community" deles
   // tilsvarende af feed (/community) og trådsider (/community/:id).
-  active: "boardroom" | "akademiet" | "rapportering" | "noegletal" | "budget" | "handouts" | "booksession" | "podcast" | "events" | "medlemmer" | "community";
+  active: "boardroom" | "akademiet" | "rapportering" | "noegletal" | "budget" | "handouts" | "booksession" | "podcast" | "rabataftaler" | "events" | "medlemmer" | "community";
   children: React.ReactNode;
 }) => {
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -74,8 +74,16 @@ export const HbMemberShell = ({
     to: "/podcast",
     active: active === "podcast",
   };
+  // Rabataftaler (13-08-2026): ét delt objekt i begge nav-grene
+  // (dineTal-/podcastTalks-mønstret) — abonnenter må bevidst gerne se
+  // aftalerne.
+  const rabataftaler: HbNavEntry = {
+    label: "Rabataftaler",
+    to: "/rabataftaler",
+    active: active === "rabataftaler",
+  };
   const nav: HbNavEntry[] = erAbonnent
-    ? [dineTal, podcastTalks]
+    ? [dineTal, podcastTalks, rabataftaler]
     : [
         { label: "Dit Boardroom", to: boardroomTo, active: active === "boardroom" },
         dineTal,
@@ -93,6 +101,7 @@ export const HbMemberShell = ({
         },
         { label: "Akademiet", to: "/akademiet", active: active === "akademiet" },
         podcastTalks,
+        rabataftaler,
         { label: "Events", to: "/events", active: active === "events" },
         { label: "Netværket", to: "/medlemmer", active: active === "medlemmer" },
         { label: "Community", to: "/community", active: active === "community" },
