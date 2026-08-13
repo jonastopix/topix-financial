@@ -31,6 +31,7 @@ const PulseCheckin = lazy(() => import("./pages/PulseCheckin"));
 const ReportReviewQueue = lazy(() => import("./pages/ReportReviewQueue"));
 const AdminContent = lazy(() => import("./pages/AdminContent"));
 const Akademiet = lazy(() => import("./pages/Akademiet"));
+const PodcastTalks = lazy(() => import("./pages/PodcastTalks"));
 
 // Lazy — admin-only routes
 const AdminConfig = lazy(() => import("./pages/AdminConfig"));
@@ -277,6 +278,11 @@ const App = () => (
               <Route path="/akademiet" element={<ProtectedRoute><Akademiet /></ProtectedRoute>} />
               <Route path="/akademiet/:area" element={<ProtectedRoute><Akademiet /></ProtectedRoute>} />
               <Route path="/akademiet/:area/:slug" element={<ProtectedRoute><Akademiet /></ProtectedRoute>} />
+              {/* Podcast & Talks (2026-08-13): MemberRoute, ikke ProtectedRoute —
+                  samme gate som /events og /community. En abonnent passerer den
+                  (ingen af gates kender "subscriber"), hvilket er tilsigtet:
+                  podcast og talks er deres miljø. */}
+              <Route path="/podcast" element={<MemberRoute><PodcastTalks /></MemberRoute>} />
               {/* Forside-GO 2026-08-12: "/" bærer Hb-forsiden "Dit Boardroom"
                   (Index' medlemsgren) — /boardroom-ruten og previewen
                   (/preview/hjemmebane) er pensioneret. */}
