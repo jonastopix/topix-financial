@@ -1305,6 +1305,75 @@ IKKE gennemført. Før den køres:
 
 ---
 
+### [P3] MCP-server til rådgivere: samlet medlemskontekst (ønsket 2026-08-13)
+
+Ønske (Jonas): en MCP-server der samler ALT data og AL chathistorik pr.
+medlem, så rådgivere hurtigt kan søge, få svar, få udkast til besvarelser
+og bruge den til sparring.
+
+Bygger videre på det eksisterende: mcp/-pakken i repoet
+(`mcp/src/access/accessContext.ts` m.fl.) og det tidligere skitserede
+"Boardroom tid" med værktøjerne `get_pending_conversations`,
+`get_conversation_context` og `draft_reply`.
+
+UFRAVIGELIGT: `draft_reply` skriver kun UDKAST — aldrig auto-send.
+
+Krav der skal afklares før byg:
+
+- Hvilke kilder indgår: conversations/chat, rapporter, KPI'er, budget,
+  handouts, milestones, community-indlæg, notifikationer, bookinger.
+- Adgangsmodel: MCP-serveren kører i dag med accessContext og AccessMode
+  "service-role" | "user". En rådgiver-MCP der læser på tværs af
+  medlemmer omgår RLS og skal have sin EGEN håndhævelse — jf. husreglen
+  om at SECURITY DEFINER-lignende adgange selv skal gate. Det er den
+  vigtigste designbeslutning i posten.
+- Afgrænsning mod abonnenter: se posten om at abonnenter skal forsvinde
+  fra rådgivernes daglige flader. En samlet søgeflade må ikke genindføre
+  dem ad bagvejen.
+
+---
+
+### [P3] Gamification: selvstyret progression og aggregeret social proof (ønsket 2026-08-13)
+
+Ønske (Jonas). Northstar er vanen — ugentlig selvstyret tilbagevenden —
+og gamification skal tjene den, ikke konkurrencen.
+
+RAMME, besluttet tidligere og gentaget her så den ikke går tabt:
+
+- Selvstyret progression: medlemmet måler sig mod sig selv.
+- Aggregeret social proof: "dig mod gennemsnittet".
+- INGEN personidentificerende feeds, scoreboards eller rangeringer. Det
+  bryder med den premium-tone og med privatlivshensynet.
+
+Datagrundlag der allerede findes og kan bruges: `member_progress`
+(Akademiet), `community_visninger` og `community_reaktioner` (tællere er
+bevidst lagt i datamodellen fra dag ét), `event_registrations`, rapporter
+og milestones.
+
+Åbent: hvad der overhovedet skal tælles, og om progression vises på
+forsiden eller i det enkelte miljø.
+
+---
+
+### [P4] Kalenderlink til events (ønsket 2026-08-13)
+
+Ønske (Jonas): et medlem skal kunne lægge et event direkte i sin egen
+kalender.
+
+Datagrundlaget findes i events-tabellen. Før byg skal det afklares:
+
+- Hvilke felter bærer start- og sluttid, og har de tidszone? Recon
+  påkrævet — gæt ikke.
+- Format: .ics-fil (virker i alle kalendere, kan genereres klientside)
+  kontra Google/Outlook-links (nemmere, men bundet til én udbyder).
+- Skal linket opdatere sig, hvis eventet flyttes eller aflyses? En .ics
+  uden opdatering bliver forkert ved ændringer, og cancel-event sender
+  allerede besked ved aflysning.
+- Adgang: events er lukket for abonnenter siden `20260813104000`, så
+  kalenderlinket må ikke blive en omvej udenom den gate.
+
+---
+
 ### Bogføringsnote — deploy-re-baseline af edge functions (2026-08-06)
 
 Serverside-fejning af alle 55 repo-funktioner + kontrolgruppe af 5 kendte
