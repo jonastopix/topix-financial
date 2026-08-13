@@ -425,9 +425,7 @@ const opretNaevnelsesDropdown = () =>
 const OMRAADE_LABELS: Record<string, string> = {
   classroom: "Fundamentet",
   academy: "Kursus",
-  skabeloner: "Skabelon",
   rabataftaler: "Rabataftale",
-  talks: "Talk",
   quick_wins: "Quick win",
   start_her: "Start her",
 };

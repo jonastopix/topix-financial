@@ -224,12 +224,14 @@ function sikkertUuid(raw: unknown): string | null {
     Listen spejler content_items' area-CHECK minus push og minus
     'ugens_video', 'redaktionelt', 'evergreen' — de tre sidste er
     forsidens egne områder uden element-rute. */
+// 'talks' og 'skabeloner' udgik 13-08-2026: talks er indholdsbeholder uden
+// medlemsflade (optagelser vises på deres event), og skabeloner er nedlagt
+// som område (vedhæftninger på lektionen i stedet). Eksisterende
+// henvisninger til dem fjernes STILLE ved visning — motorens kontrakt.
 const TILLADTE_OMRAADER = new Set([
   "classroom",
   "academy",
-  "skabeloner",
   "rabataftaler",
-  "talks",
   "quick_wins",
   "start_her",
 ]);

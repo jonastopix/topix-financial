@@ -31,7 +31,6 @@ const DEFAULT_TYPE: Record<AreaKey, string> = {
   start_her: "lektion",
   classroom: "lektion",
   academy: "lektion",
-  skabeloner: "skabelon",
   talks: "episode",
   quick_wins: "video",
   push: "push_indslag",
@@ -319,10 +318,11 @@ export const ContentView = () => {
     <div className="flex h-full min-h-0 flex-col">
       <div className="shrink-0 border-b border-hb-line px-4 pb-2.5 pt-2.5">
         <div role="tablist" aria-label="Områder" className="flex flex-wrap items-center gap-1.5">
-          {/* Kun forløbsområder — push redigeres i Dit Boardroom-fanen
-              (Admin-spejlet, konvergens.md §5); samme akademi-flag som
-              medlemsfladen gater på. */}
-          {AREAS.filter((entry) => entry.akademi).map((entry) => {
+          {/* Fanerne gater på adminFane, IKKE akademi (adskilt 13-08-2026):
+              talks er ude af Akademiet men skal fortsat kunne oprettes her
+              — det er den eneste vej til en optagelse. push m.fl. redigeres
+              i egne admin-views (Admin-spejlet, konvergens.md §5). */}
+          {AREAS.filter((entry) => entry.adminFane).map((entry) => {
             const active = entry.key === area;
             return (
               <button

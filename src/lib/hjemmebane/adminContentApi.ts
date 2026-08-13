@@ -26,12 +26,20 @@ export type ContentStatus = "draft" | "published" | "archived";
     hjælpelinje under område-rækken for det valgte område.
     `akademi`: true = forløbsområde i /akademiet; false = området har hjem
     et andet sted (push → forsidens hero) og må ALDRIG optræde i Akademiet
-    (ForsideView/OmraadeView/ElementView gater på flaget). */
+    (ForsideView/OmraadeView/ElementView gater på flaget).
+    `adminFane`: om området får en fane i /admin/indhold. ADSKILT fra
+    `akademi` (13-08-2026): ét flag styrede før BÅDE medlemsfladen og
+    admin-fanerne, så et område ikke kunne forlade Akademiet uden også at
+    miste sin eneste oprettelsesvej — talks er indholdsbeholder uden
+    medlemsflade (som push), men optagelser skal fortsat oprettes her.
+    push/ugens_video/redaktionelt/evergreen har egne admin-views og
+    dermed adminFane: false. */
 export const AREAS = [
   {
     key: "start_her",
     label: "Start her",
     akademi: true,
+    adminFane: true,
     hint: "Akademiets introduktion — det første, medlemmet møder her (platform-onboarding bor udenfor, jf. BACKLOG-epic)",
   },
   {
@@ -46,54 +54,63 @@ export const AREAS = [
        eksperter. */
     label: "Fundamentet",
     akademi: true,
+    adminFane: true,
     hint: "Det store sammenhængende forløb (Circles Classroom)",
   },
   {
     key: "academy",
     label: "Kurser",
     akademi: true,
+    adminFane: true,
     hint: "Enkeltstående emnekurser (Circles Academy)",
   },
   {
-    key: "skabeloner",
-    label: "Skabeloner",
-    akademi: true,
-    hint: "Dokumenter og ressourcer til download",
-  },
-  {
     key: "talks",
+    /* Produktbeslutning 13-08-2026 (Jonas): en optagelse kan KUN ses på
+       sit event (events.recording_item_id → videoporten, PR #368). talks
+       er dermed en ren indholdsbeholder uden medlemsflade — samme rolle
+       som 'push'. Ingen detaljeside, intet områdekort, ingen
+       #-henvisning. Skabeloner nedlægges som område: en skabelon hænges
+       på den lektion den hører til, som vedhæftning via HbMaterials
+       (content_item_attachments), ikke som selvstændigt indhold. */
     label: "Talks",
-    akademi: true,
-    hint: "Optagelser af live sessions og video-talks — podcast-episoder hentes automatisk via RSS (C2), ikke her",
+    akademi: false,
+    adminFane: true,
+    hint: "Optagelser af live sessions — optagelsen vises på sit event (recording_item_id); podcast-episoder hentes automatisk via RSS, ikke her",
   },
   {
     key: "quick_wins",
     label: "Quick Wins",
     akademi: true,
+    adminFane: true,
     hint: "Korte, hurtige videoer",
   },
   {
     key: "push",
     label: "Ugens push",
     akademi: false,
+    adminFane: false,
     hint: "Forsidens hero — seneste publicerede indslag er det, medlemmet møder først på Dit Boardroom",
   },
   {
     key: "ugens_video",
     label: "Ugens video",
     akademi: false,
+    adminFane: false,
     hint: "Forsidens kuraterede videoindslag — nyeste publicerede, ikke-udløbne vinder (Bunny-id eller ekstern URL); kræver migration 20260809140000 kørt i Lovable",
   },
   {
     key: "redaktionelt",
     label: "Redaktionelt",
     akademi: false,
+    adminFane: false,
     hint: "Forsidens redaktionelle indslag (blog/LinkedIn m.m.) — link/citat i metadata; kræver migration 20260809170000 kørt i Lovable",
   },
   {
     key: "evergreen",
     label: "Evergreen",
     akademi: false,
+    adminFane: false,
     hint: "Forsidens tidløse bibliotek (5-10 indslag UDEN udløb) — roterer deterministisk pr. ISO-uge; kræver migration 20260809170000 kørt i Lovable",
   },
 ] as const;

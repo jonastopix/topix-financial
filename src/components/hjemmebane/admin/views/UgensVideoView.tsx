@@ -51,7 +51,7 @@ type SourceMode = "akademi" | "bunny" | "external";
 /** Kilde-areas (fix/ugens-video-kilder): alle medlemsvendte content-areas
     der kan bære video — IKKE 'push'/'ugens_video' (kuraterings-kanaler,
     ikke kilder) og ikke 'rabataftaler'. Labels slås op i AREAS. */
-const SOURCE_AREAS = ["talks", "classroom", "academy", "quick_wins", "skabeloner", "start_her"] as const;
+const SOURCE_AREAS = ["talks", "classroom", "academy", "quick_wins", "start_her"] as const;
 
 const areaLabel = (key: string) => AREAS.find((a) => a.key === key)?.label ?? key;
 
