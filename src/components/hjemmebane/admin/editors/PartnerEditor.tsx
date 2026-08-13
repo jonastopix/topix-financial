@@ -2,6 +2,7 @@ import * as React from "react";
 import { forwardRef, useImperativeHandle, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { type Partner, deletePartner, updatePartner } from "@/lib/hjemmebane/adminContentApi";
+import { HbEditorRichtext } from "../HbEditorRichtext";
 import { HbField, HbInput, HbTextarea } from "../HbField";
 import { HbSegmented } from "../HbSegmented";
 import { HbUploadZone } from "../HbUploadZone";
@@ -164,6 +165,18 @@ export const PartnerEditor = forwardRef<EditorHandle, PartnerEditorProps>(
             id="partner-discount"
             value={form.discount_text}
             onChange={(e) => onDraftChange({ discount_text: e.target.value })}
+          />
+        </HbField>
+
+        {/* htmlFor udeladt: richtext/picker/zone har ikke ét labelbart input. */}
+        <HbField
+          label="Hvad medlemmet får"
+          help="Punktliste over hvad aftalen giver. Vises på aftalens side."
+        >
+          <HbEditorRichtext
+            key={partner.id}
+            content={form.indhold ?? ""}
+            onChange={(html) => onDraftChange({ indhold: html })}
           />
         </HbField>
 
