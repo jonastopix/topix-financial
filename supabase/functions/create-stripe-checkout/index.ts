@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
+import { computeMembershipTier } from "../_shared/membershipTier.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -45,11 +46,43 @@ Deno.serve(async (req) => {
     // loesning i PR #343 og #345.
     const { data: member } = await adminClient
       .from("company_members")
-      .select("company_id")
+      .select("company_id, companies:company_id(contract_end_date, subscription_status, subscription_current_period_end)")
       .eq("user_id", user.id)
       .order("created_at", { ascending: true })
       .limit(1)
       .maybeSingle();
+
+    // Maalt i produktion 13-08-2026: create-stripe-checkout havde INGEN
+    // tier-kontrol. Hele adgangskravet var en gyldig Bearer-JWT. Graensen for
+    // det betalte 1:1-koeb laa alene i UI-skaermen BookSession.tsx:28, som en
+    // abonnent kan gaa uden om ved at kalde funktionen direkte — og saa
+    // gennemfoerer stripe-webhook bookingen uden noget medlemskabstjek.
+    // Produktbeslutning 13-08-2026 (Jonas): naar et medlem gaar over paa
+    // exit-abonnementet, ophoerer raadgiverforholdet. En abonnent skal derfor
+    // heller ikke kunne KOEBE en session. Kun tier "full" maa koebe.
+    // create-free-intro-booking:101-103 har haft samme kontrol siden foer.
+
+    // Uden virksomhed kan tier ikke afgoeres, saa her afvises ogsaa — og
+    // indtil nu blev company_id da skrevet som tom streng i Stripe-metadata
+    // og NULL i session_bookings, saa stien var i forvejen degraderet.
+    // Raadgivere rammes ikke: BookSession.tsx:116 slaar flowet fra for
+    // isAdvisor.
+    if (!member?.company_id) {
+      return new Response(JSON.stringify({ error: "Du er ikke tilknyttet en virksomhed." }), {
+        status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const tier = computeMembershipTier({
+      contract_end_date: member.companies?.contract_end_date ?? null,
+      subscription_status: member.companies?.subscription_status ?? null,
+      subscription_current_period_end: member.companies?.subscription_current_period_end ?? null,
+    });
+    if (tier !== "full") {
+      return new Response(JSON.stringify({ error: "Kun fulde medlemmer kan købe en 1:1-session." }), {
+        status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     const APP_URL = "https://app.theboardroom.dk";
     const PRICE_ID = "price_1TJXmx4DoYItGRbIw9DSzmuW";
