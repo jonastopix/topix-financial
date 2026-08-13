@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useSearchParams } from "react-router-dom";
+import { Navigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import "@/styles/hjemmebane.css";
 import AppLayout from "@/components/AppLayout";
@@ -81,6 +81,22 @@ const Dashboard = () => {
      FØR den nye forside. */
   if (!rawAdvisor && membershipTier === "expired") {
     return <MembershipExpiredGate />;
+  }
+
+  /* Abonnenten (exit-produktet) beholder KUN Dine tal og Podcast & Talks.
+     Alt andet er lukket i datalaget siden 13-08-2026 (PR #350, #351, #354).
+     Landingen manglede: en abonnent faldt gennem fallthrough til Dit
+     Boardroom og så hele nav'en, hvor seks af otte punkter er lukkede.
+     Podcast & Talks findes endnu ikke som rute — noteret i BACKLOG.
+
+     Abonnenten har ikke Dit Boardroom. "/" spærres bevidst IKKE — den er
+     husets universelle fallback (logo-hjemlink, expired-redirect,
+     rolleafvisninger, onboarding-resume, PulseCheckin, Auth) — så roden
+     skal kunne modtage en abonnent og selv sende dem videre. Landingen er
+     /kpis: produktet er "behold dine tal", og der findes ingen
+     Dine tal-oversigtsside at lande på. */
+  if (!rawAdvisor && membershipTier === "subscriber") {
+    return <Navigate to="/kpis" replace />;
   }
 
   if (isAdvisor && !companyId) {

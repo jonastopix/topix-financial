@@ -19,61 +19,75 @@ export const HbMemberShell = ({
   children: React.ReactNode;
 }) => {
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const { profile, signOut } = useAuth();
+  const { profile, signOut, membershipTier } = useAuth();
   const avatarSrc = profile?.avatar_url || undefined;
   const userName = profile?.full_name || "Medlem";
 
+  /* Abonnenten (exit-produktet) beholder KUN Dine tal og Podcast & Talks.
+     Alt andet er lukket i datalaget siden 13-08-2026 (PR #350, #351, #354).
+     Podcast & Talks findes endnu ikke som rute — noteret i BACKLOG.
+     membershipTier er null i flere renders efter loading er falsk (useAuth
+     henter tier i en SENERE runde). null betyder UAFGJORT, aldrig abonnent —
+     behandles null som abonnent, flimrer nav'en for alle medlemmer ved hver
+     sideindlæsning. */
+  const erAbonnent = membershipTier === "subscriber";
+
   // Forside-GO (2026-08-12): "Dit Boardroom" ér forsiden — "/" for alle.
-  const boardroomTo = "/";
-  const nav: HbNavEntry[] = [
-    { label: "Dit Boardroom", to: boardroomTo, active: active === "boardroom" },
-    {
-      label: "Dine tal",
-      children: [
-        // Rapportering-GO 2026-08-06: /reports bærer fladen for alle roller.
+  // Logo-hjemlinket må ikke sende abonnenten tilbage til en flade de
+  // bliver redirigeret væk fra.
+  const boardroomTo = erAbonnent ? "/kpis" : "/";
+  const dineTal: HbNavEntry = {
+    label: "Dine tal",
+    children: [
+      // Rapportering-GO 2026-08-06: /reports bærer fladen for alle roller.
+      {
+        label: "Rapportering",
+        to: "/reports",
+        active: active === "rapportering",
+      },
+      // KPI-GO 2026-08-06: /kpis bærer fladen for alle roller.
+      {
+        label: "KPI'er",
+        to: "/kpis",
+        active: active === "noegletal",
+      },
+      // Budget-GO 2026-08-06: /budget bærer fladen for alle roller.
+      {
+        label: "Budget",
+        to: "/budget",
+        active: active === "budget",
+      },
+      { label: "Milestones", to: "/milestones" },
+      // Handouts-GO 2026-08-06: /handouts bærer fladen for alle roller.
+      {
+        label: "Handouts",
+        to: "/handouts",
+        active: active === "handouts",
+      },
+    ],
+  };
+  const nav: HbNavEntry[] = erAbonnent
+    ? [dineTal]
+    : [
+        { label: "Dit Boardroom", to: boardroomTo, active: active === "boardroom" },
+        dineTal,
         {
-          label: "Rapportering",
-          to: "/reports",
-          active: active === "rapportering",
+          label: "Din rådgiver",
+          children: [
+            { label: "Chat", to: "/chat" },
+            // BookSession-GO 2026-08-13: /book-session bærer Hb-fladen.
+            {
+              label: "Book session",
+              to: "/book-session",
+              active: active === "booksession",
+            },
+          ],
         },
-        // KPI-GO 2026-08-06: /kpis bærer fladen for alle roller.
-        {
-          label: "KPI'er",
-          to: "/kpis",
-          active: active === "noegletal",
-        },
-        // Budget-GO 2026-08-06: /budget bærer fladen for alle roller.
-        {
-          label: "Budget",
-          to: "/budget",
-          active: active === "budget",
-        },
-        { label: "Milestones", to: "/milestones" },
-        // Handouts-GO 2026-08-06: /handouts bærer fladen for alle roller.
-        {
-          label: "Handouts",
-          to: "/handouts",
-          active: active === "handouts",
-        },
-      ],
-    },
-    {
-      label: "Din rådgiver",
-      children: [
-        { label: "Chat", to: "/chat" },
-        // BookSession-GO 2026-08-13: /book-session bærer Hb-fladen.
-        {
-          label: "Book session",
-          to: "/book-session",
-          active: active === "booksession",
-        },
-      ],
-    },
-    { label: "Akademiet", to: "/akademiet", active: active === "akademiet" },
-    { label: "Events", to: "/events", active: active === "events" },
-    { label: "Netværket", to: "/medlemmer", active: active === "medlemmer" },
-    { label: "Community", to: "/community", active: active === "community" },
-  ];
+        { label: "Akademiet", to: "/akademiet", active: active === "akademiet" },
+        { label: "Events", to: "/events", active: active === "events" },
+        { label: "Netværket", to: "/medlemmer", active: active === "medlemmer" },
+        { label: "Community", to: "/community", active: active === "community" },
+      ];
 
   return (
     <div className="theme-hjemmebane min-h-screen bg-hb-paper font-body text-hb-ink antialiased">
