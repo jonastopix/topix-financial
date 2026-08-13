@@ -1,11 +1,24 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
+import { authenticateServiceRole, corsHeaders } from "../_shared/edgeFunctionAuth.ts";
 import { bulletproofButton, fallbackLinkBlock } from "../_shared/emailButtonHelpers.ts";
 
-// Daglig cron: paaminder fulde medlemmer der endnu ikke har booket deres inkluderede
-// intro-session hos Morten. Foerste mail 2 dage efter medlemskabsstart, derefter maanedligt
-// indtil de booker (intro_session_used_at saettes) eller kontrakten udloeber.
-// Spejler legat-reminder-cron: ingen Deno.serve, kun Deno.cron. Send-vej, bruger-opslag og
-// opt-out-tjek er genbrugt verbatim fra send-pulse-reminder.
+// BAGGRUND (rettelse 13-08-2026): Funktionen havde kun Deno.cron og ingen
+// HTTP-overflade. Deno.cron eksekveres ALDRIG på Supabases edge-runtime, så den
+// havde aldrig kørt — ingen intro-påmindelse er nogensinde sendt, og
+// companies.intro_reminder_last_sent_at er NULL for alle. Kolonnen skrives kun
+// ét sted i hele repoet: af denne funktion. Rettelsen er at give den en
+// HTTP-indgang og planlægge den med pg_cron, som de seks fungerende jobs
+// (målt i prod 13. august: alle seks bruger hårdkodet URL og vault-nøglen
+// email_queue_service_role_key).
+//
+// Dagligt pg_cron-mål: paaminder fulde medlemmer der endnu ikke har booket deres
+// inkluderede intro-session hos Morten. Foerste mail 2 dage efter
+// medlemskabsstart, derefter maanedligt indtil de booker (intro_session_used_at
+// saettes) eller kontrakten udloeber.
+// HTTP-indgang (Bucket B): samme form som event-reminders —
+// authenticateServiceRole fra _shared/edgeFunctionAuth.ts bag verify_jwt = true.
+// Send-vej, bruger-opslag og opt-out-tjek er genbrugt verbatim fra
+// send-pulse-reminder.
 
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
 const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -45,10 +58,45 @@ function buildIntroReminderHtml(firstName: string, bookingUrl: string): string {
 </html>`;
 }
 
-Deno.cron("intro-session-reminder", "0 9 * * *", async () => {
-  const supabase = createClient(supabaseUrl, serviceKey, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
+interface IntroPaamindelsesResultat {
+  ok: boolean;
+  dry_run: boolean;
+  /** Raekker fra maalgruppe-query'en (foer per-virksomhed-filtre). */
+  kandidater: number;
+  /** Enqueuede mails (altid 0 i toerkoersel). */
+  sendte: number;
+  /** Kun toerkoersel: passerede alle filtre og VILLE have faaet en mail. */
+  ville_sende: number;
+  sprunget_over: {
+    under_2_dage: number;
+    ingen_medlemsbruger: number;
+    ingen_email: number;
+    opt_out: number;
+    enqueue_fejl: number;
+    fejl: number;
+  };
+  error?: string;
+}
+
+async function koerIntroPaamindelser(
+  supabase: ReturnType<typeof createClient>,
+  toerKoersel: boolean,
+): Promise<IntroPaamindelsesResultat> {
+  const resultat: IntroPaamindelsesResultat = {
+    ok: true,
+    dry_run: toerKoersel,
+    kandidater: 0,
+    sendte: 0,
+    ville_sende: 0,
+    sprunget_over: {
+      under_2_dage: 0,
+      ingen_medlemsbruger: 0,
+      ingen_email: 0,
+      opt_out: 0,
+      enqueue_fejl: 0,
+      fejl: 0,
+    },
+  };
 
   const nowIso = new Date().toISOString();
   const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000).toISOString();
@@ -65,16 +113,15 @@ Deno.cron("intro-session-reminder", "0 9 * * *", async () => {
 
   if (companiesErr) {
     console.error("[intro-reminder-cron] Failed to fetch companies:", companiesErr.message);
-    return;
+    return { ...resultat, ok: false, error: companiesErr.message };
   }
+
+  resultat.kandidater = companies?.length ?? 0;
 
   if (!companies || companies.length === 0) {
     console.log("[intro-reminder-cron] No eligible companies found");
-    return;
+    return resultat;
   }
-
-  let sent = 0;
-  let skipped = 0;
 
   for (const company of companies) {
     try {
@@ -84,6 +131,7 @@ Deno.cron("intro-session-reminder", "0 9 * * *", async () => {
         (Date.now() - new Date(start).getTime()) / 86400000
       );
       if (daysSinceStart < 2) {
+        resultat.sprunget_over.under_2_dage++;
         continue;
       }
 
@@ -96,11 +144,17 @@ Deno.cron("intro-session-reminder", "0 9 * * *", async () => {
         .limit(1);
 
       const member = members?.[0] as any;
-      if (!member?.user_id) continue;
+      if (!member?.user_id) {
+        resultat.sprunget_over.ingen_medlemsbruger++;
+        continue;
+      }
 
       const { data: userData } = await supabase.auth.admin.getUserById(member.user_id);
       const email = userData?.user?.email;
-      if (!email) continue;
+      if (!email) {
+        resultat.sprunget_over.ingen_email++;
+        continue;
+      }
 
       // 4. Fornavn + opt-out (samme moenster som send-pulse-reminder).
       const { data: profile } = await supabase
@@ -111,7 +165,14 @@ Deno.cron("intro-session-reminder", "0 9 * * *", async () => {
 
       const prefs = (profile?.notification_email_prefs as any) || {};
       if (prefs.intro_reminders === false) {
-        skipped++;
+        resultat.sprunget_over.opt_out++;
+        continue;
+      }
+
+      if (toerKoersel) {
+        // Toerkoersel: kandidaten er fundet og logget — intet sendes, intet skrives.
+        console.log(`[intro-reminder-cron] TOERKOERSEL ville sende til: ${email} (${company.name})`);
+        resultat.ville_sende++;
         continue;
       }
 
@@ -148,6 +209,7 @@ Deno.cron("intro-session-reminder", "0 9 * * *", async () => {
       if (enqueueError) {
         // Fejlet enqueue: last_sent opdateres IKKE, saa den proeves igen i morgen (ikke om en maaned).
         console.error(`[intro-reminder-cron] Enqueue failed for ${email}:`, enqueueError);
+        resultat.sprunget_over.enqueue_fejl++;
         continue;
       }
 
@@ -158,12 +220,41 @@ Deno.cron("intro-session-reminder", "0 9 * * *", async () => {
         .eq("id", company.id);
 
       console.log(`[intro-reminder-cron] Enqueued for: ${email} (${company.name})`);
-      sent++;
+      resultat.sendte++;
     } catch (err) {
       console.error(`[intro-reminder-cron] Error processing company ${company.id}:`, err);
+      resultat.sprunget_over.fejl++;
     }
   }
 
-  const summary = { sent, skipped, eligible: companies.length };
-  console.log("[intro-reminder-cron] Summary:", JSON.stringify(summary));
+  return resultat;
+}
+
+Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+
+  const auth = authenticateServiceRole(req);
+  if (auth !== true) return auth;
+
+  // TOERKOERSEL default: samme moenster som nudge-report-no-reflection. Uden body
+  // finder funktionen kandidaterne og logger dem, men sender intet — saa et
+  // fejlkald aldrig sender mails til medlemmer. Kun et eksplicit
+  // { "dry_run": false } slaar live-afsendelse til.
+  let toerKoersel = true;
+  try {
+    const body = await req.json();
+    if (body?.dry_run === false) toerKoersel = false;
+  } catch { /* ingen body, sikker toerkoersel */ }
+
+  const supabase = createClient(supabaseUrl, serviceKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+
+  const resultat = await koerIntroPaamindelser(supabase, toerKoersel);
+  console.log("[intro-reminder-cron] Summary:", JSON.stringify(resultat));
+
+  return new Response(JSON.stringify(resultat), {
+    status: resultat.ok ? 200 : 500,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
 });

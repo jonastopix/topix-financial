@@ -103,3 +103,9 @@ project_id = "loiavmastgeieqyiwyyr"
     verify_jwt = true
   [functions.event-reminders]
     verify_jwt = true
+  # Samme begrundelse som get-community-billed-url ovenfor: gatewayen bærer
+  # signaturtjekket, authenticateServiceRole læser role-claimet (Bucket B).
+  # Samme værdi som event-reminders, hvis pg_cron-job med vault-nøglen
+  # beviseligt passerer gaten i prod.
+  [functions.intro-reminder-cron]
+    verify_jwt = true
