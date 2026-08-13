@@ -295,8 +295,18 @@ export const PodcastTalksView = () => {
           skærme skjules cover og sæson-linjen, så <audio> og luk-knappen
           altid er fuldt brugbare. */}
       {aktivEntry && aktivEntry.episode.audioUrl && (
-        <div className="sticky bottom-0 z-10 mt-6 border-t border-hb-line bg-hb-surface">
-          <div className="flex items-center gap-4 py-3">
+        <>
+          {/* Luft i bunden KUN mens bjælken er der: spaceren gør at den
+              sidste række og Talks-sektionen kan scrolles helt fri af det
+              klæbende lag, og den bærer afstanden mellem Talks og bjælken,
+              når man står i bunden. Ingen tom plads uden aktiv episode. */}
+          <div aria-hidden="true" className="h-24" />
+          {/* rounded-t-hb + hairline hele vejen rundt (minus bunden) læser
+              bjælken som et lag der ligger OVER listen — ikke en kant der
+              er vokset fast i skærmen; px-4 holder indholdet fri af de
+              afrundede hjørner. */}
+          <div className="sticky bottom-0 z-10 rounded-t-hb border border-b-0 border-hb-line bg-hb-surface">
+            <div className="flex items-center gap-4 px-4 py-3">
             {aktivEntry.episode.imageUrl && (
               <img
                 src={aktivEntry.episode.imageUrl}
@@ -333,8 +343,9 @@ export const PodcastTalksView = () => {
             >
               <X className="h-4 w-4" aria-hidden="true" />
             </button>
+            </div>
           </div>
-        </div>
+        </>
       )}
     </div>
   );
