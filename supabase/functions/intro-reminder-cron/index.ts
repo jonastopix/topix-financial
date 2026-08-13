@@ -28,6 +28,8 @@ const VERIFIED_FROM_EMAIL = `noreply@${SENDER_DOMAIN}`;
 const SENDER = `Morten fra The Boardroom <${VERIFIED_FROM_EMAIL}>`;
 const APP_URL = "https://app.theboardroom.dk";
 
+// Teksten vises for medlemmer og skrives med danske tegn. Filen er UTF-8, og
+// resten af huset skriver æøå — translitterationen var unødvendig forsigtighed.
 function buildIntroReminderHtml(firstName: string, bookingUrl: string): string {
   return `<!DOCTYPE html>
 <html>
@@ -43,8 +45,8 @@ function buildIntroReminderHtml(firstName: string, bookingUrl: string): string {
     <p style="font-size:11px;font-weight:600;color:#16a34a;text-transform:uppercase;letter-spacing:.08em;margin:0 0 10px">Din sparring med Morten</p>
     <h1 style="color:#0f1117;font-size:22px;font-weight:700;margin:0 0 14px;line-height:1.3;letter-spacing:-.02em">Du har en sparring med mig til gode</h1>
     <p style="color:#4a4a4a;font-size:14px;line-height:24px;margin:0 0 14px">Hej ${firstName},</p>
-    <p style="color:#4a4a4a;font-size:14px;line-height:24px;margin:0 0 14px">Du har en sparring med mig paa 30 minutter inkluderet i dit medlemskab, og den har du ikke booket endnu.</p>
-    <p style="color:#4a4a4a;font-size:14px;line-height:24px;margin:0 0 14px">Den er der, naar du har brug for den. Du vaelger selv tidspunktet.</p>
+    <p style="color:#4a4a4a;font-size:14px;line-height:24px;margin:0 0 14px">Du har en sparring med mig på 30 minutter inkluderet i dit medlemskab, og den har du ikke booket endnu.</p>
+    <p style="color:#4a4a4a;font-size:14px;line-height:24px;margin:0 0 14px">Den er der, når du har brug for den. Du vælger selv tidspunktet.</p>
     ${bulletproofButton({ href: bookingUrl, label: "Book din session", bgColor: "#16a34a" })}
     ${fallbackLinkBlock(bookingUrl)}
     <p style="color:#4a4a4a;font-size:14px;line-height:24px;margin:0 0 14px">Morten</p>
