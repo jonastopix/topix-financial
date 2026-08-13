@@ -1191,6 +1191,52 @@ Deadline er ikke en dato: grænsen skal stå før det første medlem får at
 vide, at exit-produktet findes. Ingen har endnu gennemført et
 abonnementskøb (alle fire Stripe-kolonner er NULL for alle virksomheder).
 
+STATUS 13-08-2026 — datalaget er færdigt og bevist i produktion.
+
+Bygget og kørt manuelt i Lovables SQL editor, hver med FØR/EFTER målt
+ved påtaget authenticated-rolle på rigtige brugere:
+
+- PR #349 / `20260813093000` — rådgiverdør på `event_registrations`
+  (INSERT + UPDATE, kun egne rækker). Bygget FØRST, så senere gates
+  ikke låser rådgivere ude.
+- PR #350 / `20260813100000` — `har_aktivt_abonnement` oprettet
+  (fail-closed, ser kun på abonnementsfelterne) + hvidliste pr. area på
+  `content_items`, `content_collections` og `content_item_attachments`.
+  Bevis: fuldt medlem 83 items / 13 collections, udløbet 0 / 0,
+  rådgiver 84 / 13.
+- PR #351 / `20260813104000` — medlemskabsdom på `events` og
+  `event_registrations`, ingen hvidliste. Bevis: udløbet gik fra 2
+  synlige events til 0, fuldt medlem uændret 2, rådgiver 2.
+- PR #352 — `create-stripe-checkout` fik serverside tier-gate (kun
+  "full" må købe 1:1-session). Deployet 13-08-2026 kl. 09.50 CEST.
+- PR #353 — `BookSession.tsx`: den tidlige abonnent-return lå FØR tre
+  useQuery-kald og kunne udløse React-fejl #310 for den første abonnent
+  nogensinde; flyttet under hooksene. Desuden body-parsning i
+  handleBook, så 403-beskeden fra PR #352 når frem på dansk.
+- PR #354 / `20260813110000` — content-assets-storage lukket med
+  medlemskabsdom + rådgiverdør. Bevis: udløbet gik fra 9 filer til 0,
+  fuldt medlem og rådgiver uændret 9. Tre øvrige buckets målt samtidig
+  og uændrede.
+
+Sidegevinst: `get-video-embed` behøver ikke længere en egen
+tier-kontrol. Den slår indhold op med kalderens egen RLS, så en abonnent
+kan ikke nå det item der bærer `bunny_video_id`.
+
+UDESTÅENDE på dette spor (IKKE datalaget):
+
+- Abonnenten har ingen forside. Dit Boardroom er lukket, så roden af
+  appen kan ikke sende dem derhen. De skal lande direkte i tal-miljøet,
+  og `HbMemberShell` skal skrumpe til to menupunkter.
+- Podcast & Talks findes ikke som miljø. Ingen rute; labelet står kun i
+  V0-previewens døde nav. Podcasten hentes fra eksternt RSS og vises i
+  dag kun på forsiden; area='talks' har 0 rækker. Fladen skal bygges,
+  før abonnenten har noget at komme efter.
+- Rådgiversiden — se den separate post om at abonnenter skal forsvinde
+  fra rådgivernes daglige flader.
+- KENDT BEGRÆNSNING i `20260813110000`: content-assets har ingen
+  area-hvidliste (filerne er mappedelt, ikke area-delt). Får talks
+  senere coverbilleder, skal den policy revideres.
+
 ---
 
 ### [P2] user_company_id blokerer flere virksomheder pr. bruger (noteret 2026-08-13)
