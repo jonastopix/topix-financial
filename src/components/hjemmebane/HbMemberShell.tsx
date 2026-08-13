@@ -15,7 +15,7 @@ export const HbMemberShell = ({
   // "medlemmer" = Netværket (/medlemmer). Profilsiderne (/medlemmer/:userId)
   // deler værdien — en profil hører til netværket. "community" deles
   // tilsvarende af feed (/community) og trådsider (/community/:id).
-  active: "boardroom" | "akademiet" | "rapportering" | "noegletal" | "budget" | "handouts" | "events" | "medlemmer" | "community";
+  active: "boardroom" | "akademiet" | "rapportering" | "noegletal" | "budget" | "handouts" | "booksession" | "events" | "medlemmer" | "community";
   children: React.ReactNode;
 }) => {
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -61,7 +61,12 @@ export const HbMemberShell = ({
       label: "Din rådgiver",
       children: [
         { label: "Chat", to: "/chat" },
-        { label: "Book session", to: "/book-session" },
+        // BookSession-GO 2026-08-13: /book-session bærer Hb-fladen.
+        {
+          label: "Book session",
+          to: "/book-session",
+          active: active === "booksession",
+        },
       ],
     },
     { label: "Akademiet", to: "/akademiet", active: active === "akademiet" },
