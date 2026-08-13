@@ -1033,6 +1033,22 @@ DELETE.
 
 ---
 
+### [P2] role='member'-filteret udelukker ejere (noteret 2026-08-13)
+
+Fundet i `intro-reminder-cron` 13. august: tørkørslen i prod fandt 12
+kandidater, men opslaget af medlemsbrugeren filtrerede på
+`.eq("role", "member")` — 8 af de 12 havde `role='owner'` og blev sprunget
+over som `ingen_medlemsbruger` (heraf et medlem gennem 342 dage). Rettet i
+intro-reminder-cron (filteret fjernet + deterministisk
+`.order("created_at")` før `.limit(1)`). Samme mønster findes efter
+kommentaren i `send-pulse-reminder` (pensioneret) og
+`create-free-intro-booking` — sidstnævnte er live og bør efterprøves: kan
+en EJER overhovedet booke sin gratis intro-session i dag?
+(`create-free-intro-booking/index.ts:63-68` returnerer 400 "Du er ikke
+tilknyttet en virksomhed." når opslaget er tomt.)
+
+---
+
 ### Bogføringsnote — deploy-re-baseline af edge functions (2026-08-06)
 
 Serverside-fejning af alle 55 repo-funktioner + kontrolgruppe af 5 kendte
