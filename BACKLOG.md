@@ -1066,6 +1066,86 @@ Status pr. 13. august (recon-ejer-booking.md):
 
 ---
 
+### [P2] Verificér effekten af PR #346 ved næste ejer-booking (noteret 2026-08-13)
+
+PR #346 fjernede `.eq("role","member")` fra `create-stripe-checkout` og fra
+begge grene af `send-slack-report-notification`, deployet 13-08-2026
+kl. 02.58 CEST. Rettelsen er IKKE bevist i produktion: projektet er
+Lovable-ejet, så hverken Supabase-dashboardets funktionsversion eller en
+service-role-nøgle er tilgængelig, og der blev ikke lagt en aflæselig
+markør i koden. Curl mod begge funktioner gav 401 med JSON-krop — det
+beviser kun, at de booter.
+
+Beviset kommer ved næste betalte booking foretaget af en bruger med
+`role='owner'`: `session_bookings.company_id` skal da være UDFYLDT. Før
+PR #346 blev den skrevet som NULL for ejere (`create-stripe-checkout`
+linje 82) og Stripe-metadata company_id som tom streng (linje 58).
+
+Måles med:
+
+```sql
+select id, company_id, created_at from session_bookings
+order by created_at desc limit 20;
+```
+
+---
+
+### [P2] Normaliseringen af company_members.role er FALSIFICERET som planlagt (noteret 2026-08-13)
+
+Beslutningen 13-08-2026 om at sætte alle rækker til `'member'` hvilede på
+præmissen "rollen bærer ingen reel forskel". Præmissen holder ikke.
+
+Målt i produktion 13-08-2026:
+- Ingen RLS-policy og ingen SQL-funktion læser kolonnen (pg_policies,
+  pg_proc).
+- Men TO frontend-steder forgrener på værdien `'owner'`:
+  - `src/pages/Members.tsx:622` — `if (member.role === 'owner') return;`
+  - `src/components/members/MemberCompanyRow.tsx:336` — `{isAdmin && m.role !== 'owner' && (`
+
+  Det er beskyttelsen mod at fjerne ejeren fra sin egen virksomhed. En
+  normalisering til `'member'` fjerner den lydløst for 24 rækker;
+  sletningen fjerner company_members-rækken, `user_company_id()` holder op
+  med at resolve, og founderen mister adgang til sin egen virksomhed.
+
+Normaliseringen er heller ikke nødvendig for at rette de degraderede
+funktioner: den ville gøre `.eq("role","member").limit(1)` ikke-tomt, men
+uden sortering peger opslaget på en VILKÅRLIG række, ikke på founderen.
+Den rigtige rettelse var `.order("created_at", ascending)` — gennemført i
+PR #343, #345, #346.
+
+Verificeret 13-08-2026: der findes NUL virksomheder, hvor den først
+oprettede række er `'member'`, mens der findes en `'owner'`.
+created_at-ankeret er sikkert. Kolonnens default er fortsat `'owner'::text`
+og der findes INGEN CHECK-constraint.
+
+Før kolonnen normaliseres eller fjernes, SKAL ejer-guarden genopbygges på
+created_at, og serverside-hullet i P3-punktet nedenfor (ejer-guarden er
+ujævn) lukkes.
+
+Resterende sted med rollefilter: `send-pulse-reminder:79` — pensioneret
+cron (`20260612090000`), ingen kaldsvej, bevidst ikke rettet.
+
+---
+
+### [P3] Ejer-guarden er ujævn og har ingen serverside-modpart (noteret 2026-08-13)
+
+Målt 13-08-2026: 34 virksomheder, 37 company_members-rækker, 24 `'owner'` /
+13 `'member'`. TOLV virksomheder har INGEN owner-række — de har præcis én
+række, oprettet som `'member'` (selskabet oprettet først, personen
+inviteret bagefter, eller rækken skrevet af `attach-user-to-company` /
+`create-legat-enrollment`). Guarden i `Members.tsx:622` beskytter derfor
+ingenting i 12 af 34 virksomheder: deres eneste bruger kan fjernes fra
+admin-UI'et med ét klik.
+
+Guarden er desuden ren UI-konvention: `manage-advisor/index.ts:314-316`
+sletter company_members-rækken uden noget rolletjek.
+
+To virksomheder (Friends & Fries, Startkørekort) har to owner-rækker hver —
+produceret af merge-funktionen `Members.tsx:735`, ikke af
+`handle_new_user`.
+
+---
+
 ### Bogføringsnote — deploy-re-baseline af edge functions (2026-08-06)
 
 Serverside-fejning af alle 55 repo-funktioner + kontrolgruppe af 5 kendte
