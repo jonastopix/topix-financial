@@ -1395,7 +1395,7 @@ Datagrundlaget findes i events-tabellen. Før byg skal det afklares:
 så lyden fortsætter når man klikker videre til en anden side.
 
 HVORFOR DET IKKE ER EN LILLE TING — målt 13-08-2026: afspilleren lever
-i dag i `PodcastTalksView` (PR #362-#365). Ved navigation afmonteres
+i dag i `PodcastTalksView` (PR #362-#366). Ved navigation afmonteres
 komponenten, `<audio>`-elementet forsvinder med den, og lyden stopper.
 For at overleve navigation skal tre ting flyttes:
 
