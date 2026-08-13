@@ -1,23 +1,20 @@
-import { Fragment, useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { Pause, Play } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { parsePodcastFeed, type PodcastEpisode } from "@/lib/hjemmebane/podcastRss";
-import { useAkademiData } from "../akademi/useAkademiData";
-import { HbEpisodeRow } from "../HbEpisodeRow";
 import { HbSection } from "../HbSection";
 
 /** Podcast & Talks som selvstændigt medlemsmiljø (13-08-2026) — abonnentens
-    sidste manglende flade, jf. BACKLOG "Abonnent-grænsen". To sektioner:
-    Podcast (hele RSS-feedet, sæsongrupperet, med cover og afspilning på
-    siden — samme proxy/parser som forsidens tile, men EGEN queryKey så
-    forsidens cache ikke forgiftes med et andet resultat under samme
-    nøgle) og Talks (content_items med area='talks' fra Akademiets delte
-    katalog-cache — talks BLIVER i Akademiet i dette trin; flytningen er
-    et separat PR). Tom talks-liste er den forventede tilstand i dag
-    (0 rækker i prod). */
+    sidste manglende flade, jf. BACKLOG "Abonnent-grænsen". Podcast-sektionen
+    bærer hele RSS-feedet, sæsongrupperet, med cover og afspilning på siden
+    (samme proxy/parser som forsidens tile, men EGEN queryKey så forsidens
+    cache ikke forgiftes med et andet resultat under samme nøgle).
+    Talks-sektionen henviser til events: produktbeslutning 13-08-2026
+    (Jonas) — en optagelse hører til sit event og vises der, ikke i en
+    samlet talks-liste. */
 
 /** mm:ss af sekunder — "–" når varigheden er ukendt (RSS-kontrakten:
     manglende felter er null). */
@@ -38,9 +35,6 @@ interface EpisodeEntry {
 
 export const PodcastTalksView = () => {
   const { user } = useAuth();
-  const navigate = useNavigate();
-  const akademi = useAkademiData();
-  const talks = akademi.orderedByArea.get("talks") ?? [];
 
   // Podcast: dum proxy (podcast-rss, B2) + ren parser (parsePodcastFeed,
   // B1) → HELE listen, nyeste først. FEJL/tom → tom liste: queryFn'en
@@ -108,19 +102,28 @@ export const PodcastTalksView = () => {
       : medNummer;
   }, [episoder]);
 
-  /* Afspilning: ÉT <audio>-element for hele sektionen — det renderes kun
-     under den aktive række. Lyden hentes fra RSS-feedets enclosure.
-     Bliver den blokeret af Anchors CORS/hotlink-beskyttelse, fanger
-     onError det og rækken falder tilbage til eksternt link — derfor kan
-     afspilleren ikke vise en død knap. En fejlet episode huskes i
-     fejledeNoegler, så den fremover åbner eksternt uden at forsøge igen.
-     Ingen Spotify-iframe: Spotify-ID'et findes ikke i feedet, ville
-     skulle vedligeholdes manuelt pr. episode, henter tredjepartskode ind
-     og giver kun 30 sekunder uden login. */
+  /* Afspilning: ÉT <audio>-element for hele sektionen — det ligger FAST i
+     bunden af sektionen i en altid-reserveret plads, så INGEN række
+     flytter sig lodret, når en episode vælges (afspilleren mellem
+     rækkerne skubbede alt nedenunder). Lyden hentes fra RSS-feedets
+     enclosure. Bliver den blokeret af Anchors CORS/hotlink-beskyttelse,
+     fanger onError det og rækken falder tilbage til eksternt link —
+     derfor kan afspilleren ikke vise en død knap. En fejlet episode
+     huskes i fejledeNoegler, så den fremover åbner eksternt uden at
+     forsøge igen. Ingen Spotify-iframe: Spotify-ID'et findes ikke i
+     feedet, ville skulle vedligeholdes manuelt pr. episode, henter
+     tredjepartskode ind og giver kun 30 sekunder uden login. */
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [aktivNoegle, setAktivNoegle] = useState<string | null>(null);
   const [spiller, setSpiller] = useState(false);
   const [fejledeNoegler, setFejledeNoegler] = useState<Set<string>>(new Set());
+
+  const aktivEntry = useMemo(
+    () =>
+      saesoner.flatMap((gruppe) => gruppe.entries).find((entry) => entry.noegle === aktivNoegle) ??
+      null,
+    [saesoner, aktivNoegle],
+  );
 
   const aabnEksternt = (episode: PodcastEpisode) => {
     const url = episode.link ?? episode.audioUrl;
@@ -172,97 +175,120 @@ export const PodcastTalksView = () => {
         ) : episoder.length === 0 ? (
           <p className="text-sm text-hb-ink-soft">Ingen episoder at vise lige nu.</p>
         ) : (
-          saesoner.map(({ saeson, entries }) => (
-            <div key={saeson ?? "uden-saeson"} className="mb-8 last:mb-0">
-              {saeson !== null && (
-                <p className="mb-2 text-xs font-medium uppercase tracking-[0.14em] text-hb-rust">
-                  Sæson {saeson}
-                </p>
-              )}
-              <div className="border-b border-hb-line">
-                {entries.map((entry) => {
-                  const erAktiv = aktivNoegle === entry.noegle;
-                  /* Rækken bygges LOKALT i HbEpisodeRows visuelle form
-                     (samme hairline, samme talstil, samme højde) i stedet
-                     for at genbruge komponenten: den har ikke et
-                     cover-prop, og den udvides ikke her — den bruges også
-                     til talks-listen nedenfor og potentielt andre steder. */
-                  return (
-                    <Fragment key={entry.noegle}>
-                      <div
-                        className="group flex cursor-pointer items-center gap-5 border-t border-hb-line py-4 transition-colors hover:bg-hb-sage/20"
-                        onClick={() => vaelgEpisode(entry)}
-                      >
-                        <span className="w-10 shrink-0 font-editorial text-2xl font-medium text-hb-ink-soft">
-                          {String(entry.nummer).padStart(2, "0")}
-                        </span>
-                        {entry.episode.imageUrl && (
-                          <img
-                            src={entry.episode.imageUrl}
-                            alt=""
-                            loading="lazy"
-                            className="h-12 w-12 shrink-0 rounded-hb object-cover"
-                          />
-                        )}
-                        <span className="flex-1 text-base text-hb-ink">{entry.episode.title}</span>
-                        <span className="shrink-0 text-sm text-hb-ink-soft">
-                          {formatVarighed(entry.episode.durationSeconds)}
-                        </span>
-                        {/* Diskret markering af den aktive række: kun ikonet
-                            skifter — evergreen og pause/play-form. Ingen
-                            animation, intet farveskift af hele rækken. */}
-                        {erAktiv ? (
-                          spiller ? (
-                            <Pause className="h-4 w-4 shrink-0 text-hb-evergreen" />
+          <>
+            {/* mt-4 giver første sæson-label luft til sektionens hairline;
+                space-y-8 holder afstanden mellem grupperne ens hele vejen
+                (samme spacing-sprog som kortenes space-y-8). */}
+            <div className="mt-4 space-y-8">
+              {saesoner.map(({ saeson, entries }) => (
+                <div key={saeson ?? "uden-saeson"}>
+                  {saeson !== null && (
+                    <p className="mb-2 text-xs font-medium uppercase tracking-[0.14em] text-hb-rust">
+                      Sæson {saeson}
+                    </p>
+                  )}
+                  <div className="border-b border-hb-line">
+                    {entries.map((entry) => {
+                      const erAktiv = aktivNoegle === entry.noegle;
+                      /* Rækken bygges LOKALT i HbEpisodeRows visuelle form
+                         (samme hairline, samme talstil, samme højde) i
+                         stedet for at genbruge komponenten: den har ikke
+                         et cover-prop, og den udvides ikke her. Rækken er
+                         en RIGTIG <button> (tabbar, tastatur, skærmlæser)
+                         med nulstillet knap-styling — hele rækken bærer
+                         handlingen; ikonet er ren tilstandsmarkering. */
+                      return (
+                        <button
+                          key={entry.noegle}
+                          type="button"
+                          aria-label={
+                            erAktiv && spiller
+                              ? `Sæt ${entry.episode.title} på pause`
+                              : `Afspil ${entry.episode.title}`
+                          }
+                          className="group flex w-full items-center gap-5 border-t border-hb-line py-4 text-left transition-colors hover:bg-hb-sage/20"
+                          onClick={() => vaelgEpisode(entry)}
+                        >
+                          <span className="w-10 shrink-0 font-editorial text-2xl font-medium text-hb-ink-soft">
+                            {String(entry.nummer).padStart(2, "0")}
+                          </span>
+                          {entry.episode.imageUrl && (
+                            <img
+                              src={entry.episode.imageUrl}
+                              alt=""
+                              loading="lazy"
+                              className="h-12 w-12 shrink-0 rounded-hb object-cover"
+                            />
+                          )}
+                          <span className="flex-1 text-base text-hb-ink">
+                            {entry.episode.title}
+                          </span>
+                          <span className="shrink-0 text-sm text-hb-ink-soft">
+                            {formatVarighed(entry.episode.durationSeconds)}
+                          </span>
+                          {/* Ren tilstandsmarkering — ingen hover-farve på
+                              ikonet selv, så det ikke ligner en selvstændig
+                              knap; evergreen + pause/play viser kun den
+                              aktive tilstand. */}
+                          {erAktiv ? (
+                            spiller ? (
+                              <Pause
+                                className="h-4 w-4 shrink-0 text-hb-evergreen"
+                                aria-hidden="true"
+                              />
+                            ) : (
+                              <Play
+                                className="h-4 w-4 shrink-0 text-hb-evergreen"
+                                aria-hidden="true"
+                              />
+                            )
                           ) : (
-                            <Play className="h-4 w-4 shrink-0 text-hb-evergreen" />
-                          )
-                        ) : (
-                          <Play className="h-4 w-4 shrink-0 text-hb-ink-soft transition-colors group-hover:text-hb-evergreen" />
-                        )}
-                      </div>
-                      {erAktiv && entry.episode.audioUrl && (
-                        // eslint-disable-next-line jsx-a11y/media-has-caption -- eksternt podcast-feed uden tekstspor
-                        <audio
-                          ref={audioRef}
-                          src={entry.episode.audioUrl}
-                          controls
-                          autoPlay
-                          className="mb-4 mt-1 w-full"
-                          onPlay={() => setSpiller(true)}
-                          onPause={() => setSpiller(false)}
-                          onError={() => haandterLydfejl(entry)}
-                        />
-                      )}
-                    </Fragment>
-                  );
-                })}
-              </div>
+                            <Play
+                              className="h-4 w-4 shrink-0 text-hb-ink-soft"
+                              aria-hidden="true"
+                            />
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
             </div>
-          ))
+            {/* Afspilleren ligger FAST i bunden med altid-reserveret højde
+                (h-14 ≈ audio-elementets egen), så hverken rækker eller
+                sektionen nedenunder flytter sig, når en episode vælges. */}
+            <div className="mt-6 h-14">
+              {aktivEntry && aktivEntry.episode.audioUrl && (
+                // eslint-disable-next-line jsx-a11y/media-has-caption -- eksternt podcast-feed uden tekstspor
+                <audio
+                  ref={audioRef}
+                  src={aktivEntry.episode.audioUrl}
+                  controls
+                  autoPlay
+                  className="h-full w-full"
+                  onPlay={() => setSpiller(true)}
+                  onPause={() => setSpiller(false)}
+                  onError={() => haandterLydfejl(aktivEntry)}
+                />
+              )}
+            </div>
+          </>
         )}
       </HbSection>
 
+      {/* Produktbeslutning 13-08-2026 (Jonas): en optagelse hører til sit
+          event og vises der, ikke i en samlet talks-liste. Sektionen
+          henviser derfor roligt til events — ingen liste, ingen
+          call-to-action. */}
       <HbSection eyebrow="Talks" hairline className="mt-14 md:mt-16">
-        {akademi.loading ? (
-          <p className="text-sm text-hb-ink-soft">Henter talks…</p>
-        ) : talks.length === 0 ? (
-          <p className="text-sm text-hb-ink-soft">
-            Optagelser fra live sessions lander her, efterhånden som de afholdes.
-          </p>
-        ) : (
-          <div className="border-b border-hb-line">
-            {talks.map((entry, idx) => (
-              <HbEpisodeRow
-                key={entry.item.id}
-                number={idx + 1}
-                title={entry.item.title}
-                duration={formatVarighed(entry.item.duration_seconds)}
-                onClick={() => navigate(`/akademiet/talks/${entry.item.slug}`)}
-              />
-            ))}
-          </div>
-        )}
+        <p className="text-sm text-hb-ink-soft">
+          Optagelser fra afholdte sessions ligger på det enkelte event under{" "}
+          <Link to="/events" className="text-hb-evergreen underline-offset-4 hover:underline">
+            Events
+          </Link>
+          .
+        </p>
       </HbSection>
     </div>
   );
