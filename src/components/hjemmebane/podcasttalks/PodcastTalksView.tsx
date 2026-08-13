@@ -77,24 +77,35 @@ export const PodcastTalksView = () => {
      nederst — vi gætter aldrig på et sæsonnummer. En ny sæson i feedet
      dukker op af sig selv. */
   const saesoner = useMemo(() => {
-    const nummererede: EpisodeEntry[] = episoder.map((episode, idx) => ({
+    const raakke = episoder.map((episode, idx) => ({
       episode,
       noegle: episode.guid ?? `${episode.title}-${idx}`,
-      nummer: episode.episode ?? episoder.length - idx,
     }));
-    const grupper = new Map<number | null, EpisodeEntry[]>();
-    for (const entry of nummererede) {
+    const grupper = new Map<number | null, typeof raakke>();
+    for (const entry of raakke) {
       const saeson = entry.episode.season;
       const liste = grupper.get(saeson) ?? [];
       liste.push(entry);
       grupper.set(saeson, liste);
     }
+    /* Fallback-nummeret tildeles INDEN FOR gruppen — et globalt løbenummer
+       betyder intet efter sæsongrupperingen: to sæsoner kunne få samme
+       fallback-nummer, og en gruppe kunne starte på 16. Hver sæson tæller
+       fra sin egen top (gruppens længde ned til 1, nyeste øverst);
+       itunes-episodenummeret vinder fortsat, når det findes. */
+    const nummerer = (entries: typeof raakke): EpisodeEntry[] =>
+      entries.map((entry, idxIGruppe) => ({
+        ...entry,
+        nummer: entry.episode.episode ?? entries.length - idxIGruppe,
+      }));
     const medNummer = [...grupper.entries()]
-      .filter((par): par is [number, EpisodeEntry[]] => par[0] !== null)
+      .filter((par): par is [number, typeof raakke] => par[0] !== null)
       .sort((a, b) => b[0] - a[0])
-      .map(([saeson, entries]) => ({ saeson: saeson as number | null, entries }));
+      .map(([saeson, entries]) => ({ saeson: saeson as number | null, entries: nummerer(entries) }));
     const udenNummer = grupper.get(null);
-    return udenNummer ? [...medNummer, { saeson: null, entries: udenNummer }] : medNummer;
+    return udenNummer
+      ? [...medNummer, { saeson: null, entries: nummerer(udenNummer) }]
+      : medNummer;
   }, [episoder]);
 
   /* Afspilning: ÉT <audio>-element for hele sektionen — det renderes kun
