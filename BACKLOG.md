@@ -1429,6 +1429,76 @@ sidebaren).
 
 ---
 
+### [P2] HbEditorRichtext mangler formateringsknapper i PartnerEditor (fundet 2026-08-13)
+
+Fundet i produktion 13-08-2026 ved oprettelse af den første rigtige
+rabataftale (Dinero): feltet "Hvad medlemmet får" (`partners.indhold`,
+PR #372/#373) kan BÆRE rig tekst — visningen renderer prose-hb med
+ul/ol stylet — men editoren giver ingen synlige formateringsmuligheder.
+Jonas kunne ikke lave punktopstilling eller fed skrift, så de fem
+punkter endte som én lang linje med bindestreger i discount_text i
+stedet.
+
+Skal afklares: har `HbEditorRichtext` en værktøjslinje der bare ikke
+vises i PartnerEditor, eller mangler den helt? Sammenlign med
+`ItemEditor.tsx:285-291`, hvor samme komponent bruges til
+`content_items.body` — virker formatering DER?
+
+Minimum der skal kunne skrives i en rabataftale: punktopstilling, fed
+skrift, links.
+
+Bemærk feltdelingen, som også skal formidles i admin: `discount_text` =
+aftalens løfte i ÉN linje ("50% rabat på første år af Dinero Pro");
+`indhold` = punktlisten over hvad man får; `description` =
+produktbeskrivelsen. På fladen læses de i den rækkefølge.
+
+---
+
+### Bogføringsnote — Dagens stand 13-08-2026
+
+PR #346-#374. Alt merget; frontend kræver Update-klik i Lovable,
+migrationer er kørt manuelt og bevist med FØR/EFTER.
+
+FÆRDIGT OG BEVIST I PRODUKTION:
+
+- Abonnent-grænsen i datalaget: indhold (hvidliste pr. area), events,
+  content-assets-storage, videoporten og det betalte 1:1-køb. Bevist
+  med påtaget authenticated-rolle på rigtige brugere.
+- Abonnentens landing: rod-redirect til /kpis + skrumpet nav (PR #360).
+- Book session konverteret til Hjemmebane, motor-først
+  (PR #356/#357/#359) — tilstandsmaskinen bevist på en rigtig overgang
+  i produktion.
+- Podcast & Talks som miljø (PR #362-#366): sæsongruppering, covers,
+  afspilning på siden, klæbende afspiller-bjælke.
+- Eventsiden viser optagelsen (PR #368) — bevist end-to-end med en
+  rigtig Bunny-upload. Det sidste der bandt platformen til Circle.
+- Akademi-oprydning (PR #369-#371): talks ud af Akademiet (bevaret i
+  admin som "Optagelser"), skabeloner nedlagt helt, area-CHECKs ryddet.
+- Rabataftaler som medlemsmiljø (PR #372-#374) — datamodel og admin
+  fandtes i forvejen; kun medlemsfladen manglede.
+- Rollefilter-fejl rettet i create-stripe-checkout og
+  send-slack-report-notification (PR #346).
+
+UDESTÅENDE VERIFIKATIONER:
+
+- PR #346 kan først bevises ved næste ejer-booking
+  (session_bookings.company_id skal være UDFYLDT).
+- Abonnent-grenene i HbMemberShell, Index og BookSession kan først
+  bevises, når der findes en abonnent. Alle fire Stripe-kolonner er
+  NULL for alle virksomheder.
+
+NÆSTE PÅ SPORET:
+
+- Rabataftalens formatering (posten ovenfor) — blokerer at Jonas kan
+  skrive aftalerne færdigt.
+- Rådgiversiden: abonnenter skal forsvinde fra de daglige flader.
+- Forlængelsesprisen: 50% af 15.000/20.000/25.000, tre kohorter. Skal
+  tastes ind én gang for de nuværende; derefter skriver betalingen den
+  selv. Anbefaling står ved magt: kohorte-felt, ikke beløb.
+- Oprydning af ikke-medlemmer — afgrænsning målt, afventer go.
+
+---
+
 ### Bogføringsnote — deploy-re-baseline af edge functions (2026-08-06)
 
 Serverside-fejning af alle 55 repo-funktioner + kontrolgruppe af 5 kendte
