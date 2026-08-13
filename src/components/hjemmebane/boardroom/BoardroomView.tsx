@@ -1091,13 +1091,6 @@ export const BoardroomView = () => {
       ),
     [items],
   );
-  const latestTalk = useMemo(
-    () =>
-      [...(items.get("talks") ?? [])]
-        .map((entry) => entry.item)
-        .sort(byPublishedDesc)[0],
-    [items],
-  );
   const weekVideo = useMemo(
     () =>
       pickActiveWeekVideo(
@@ -1553,18 +1546,18 @@ export const BoardroomView = () => {
   // skubbet ud igen når feedet lander — ingen indholds-swap/layout-hop.
   const podcastCouldLeadBand = podcastPending && !pushItem && !weekVideo && !redaktioneltItem;
   const hasBand = Boolean(
-    band.main || podcastCouldLeadBand || latestTalk || redaktioneltHistory.length > 0,
+    band.main || podcastCouldLeadBand || redaktioneltHistory.length > 0,
   );
   const sideBefore = band.side.filter((s) => KIND_RANK[s.kind] < KIND_RANK.podcast);
   const sideAfter = band.side.filter((s) => KIND_RANK[s.kind] >= KIND_RANK.podcast);
   // Antal tiles i rækken (polering #2) — skeletonet tæller med, så
   // kolonnevalget ikke skifter når feedet lander. Event er flyttet til
-  // egen sektion og tælles IKKE længere med; tileColsClass-mapningen
-  // (2→2, 3→3, 4→4/2+2, 5-6→3) dækker fortsat hele intervallet — rækken
-  // kan nu højst rumme 5 (4 side-historier + talk), og 5 → 3+2.
+  // egen sektion og talk-tilen er fjernet (talks bor på sit event,
+  // 13-08-2026); tileColsClass-mapningen (2→2, 3→3, 4→4/2+2, 5-6→3)
+  // dækker fortsat hele intervallet — rækken kan nu højst rumme 4
+  // side-historier.
   const tileCount =
-    (podcastCouldLeadBand ? 0 : band.side.length + (podcastPending ? 1 : 0)) +
-    (latestTalk ? 1 : 0);
+    podcastCouldLeadBand ? 0 : band.side.length + (podcastPending ? 1 : 0);
 
   return (
     <div>
@@ -1706,7 +1699,7 @@ export const BoardroomView = () => {
                 pushCoverUrl={pushCoverUrl}
               />
             ))}
-          {(band.side.length > 0 || podcastPending || latestTalk) && (
+          {(band.side.length > 0 || podcastPending) && (
             <div className={cn("mt-10 grid grid-cols-1 items-start gap-x-8 gap-y-9", tileColsClass(tileCount))}>
               {!podcastCouldLeadBand && (
                 <>
@@ -1730,31 +1723,6 @@ export const BoardroomView = () => {
                     />
                   ))}
                 </>
-              )}
-              {/* Talk som SAMME tile-materiale — rækken er ét
-                  redaktionelt opslag, ikke dashboard-fliser. Event er
-                  flyttet til sin egen "Kommende"-sektion ovenfor. */}
-              {latestTalk && (
-                <Link
-                  to={`/akademiet/talks/${latestTalk.slug}`}
-                  className="group block border-t border-hb-line pt-4"
-                >
-                  <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft">
-                    Seneste talk
-                    {publishedMarker(latestTalk.published_at ?? latestTalk.created_at) && (
-                      <span className="ml-2 normal-case tracking-normal">
-                        · {publishedMarker(latestTalk.published_at ?? latestTalk.created_at)}
-                      </span>
-                    )}
-                  </p>
-                  <p className="mt-2 text-[15px] font-medium leading-snug text-hb-ink">
-                    {latestTalk.title}
-                  </p>
-                  <p className="mt-1.5 flex items-center gap-2 text-sm text-hb-ink-soft transition-colors group-hover:text-hb-ink">
-                    {latestTalk.duration_seconds != null && formatDuration(latestTalk.duration_seconds)}
-                    <ArrowRight className="h-4 w-4" />
-                  </p>
-                </Link>
               )}
             </div>
           )}
