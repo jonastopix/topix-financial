@@ -265,52 +265,6 @@ export const PodcastTalksView = () => {
                 </div>
               ))}
             </div>
-            {/* Klæbende afspiller-bjælke: sticky bottom-0 mod nærmeste
-                scrollport (den indre kolonne på lg, viewporten på mobil).
-                Renderes KUN når en episode er aktiv — ingen reserveret
-                plads og ingen synlig bjælke ellers. Solid hb-surface +
-                hairline foroven løfter den fra rækkerne der scroller
-                forbi; ingen skygge, ingen animation. */}
-            {aktivEntry && aktivEntry.episode.audioUrl && (
-              <div className="sticky bottom-0 z-10 mt-6 border-t border-hb-line bg-hb-surface">
-                <div className="flex items-center gap-4 py-3">
-                  {aktivEntry.episode.imageUrl && (
-                    <img
-                      src={aktivEntry.episode.imageUrl}
-                      alt=""
-                      className="h-10 w-10 shrink-0 rounded-hb object-cover"
-                    />
-                  )}
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm text-hb-ink">{aktivEntry.episode.title}</p>
-                    <p className="text-xs text-hb-ink-soft">
-                      {aktivEntry.episode.season !== null
-                        ? `Sæson ${aktivEntry.episode.season} · Episode ${aktivEntry.nummer}`
-                        : `Episode ${aktivEntry.nummer}`}
-                    </p>
-                  </div>
-                  {/* eslint-disable-next-line jsx-a11y/media-has-caption -- eksternt podcast-feed uden tekstspor */}
-                  <audio
-                    ref={audioRef}
-                    src={aktivEntry.episode.audioUrl}
-                    controls
-                    autoPlay
-                    className="h-10 w-full max-w-sm shrink"
-                    onPlay={() => setSpiller(true)}
-                    onPause={() => setSpiller(false)}
-                    onError={() => haandterLydfejl(aktivEntry)}
-                  />
-                  <button
-                    type="button"
-                    aria-label="Luk afspilleren"
-                    onClick={lukAfspiller}
-                    className="shrink-0 p-2 text-hb-ink-soft transition-colors hover:text-hb-ink"
-                  >
-                    <X className="h-4 w-4" aria-hidden="true" />
-                  </button>
-                </div>
-              </div>
-            )}
           </>
         )}
       </HbSection>
@@ -328,6 +282,60 @@ export const PodcastTalksView = () => {
           .
         </p>
       </HbSection>
+
+      {/* Klæbende afspiller-bjælke: sticky bottom-0 mod nærmeste scrollport
+          (den indre kolonne på lg, viewporten på mobil). Ligger paa RODENS
+          niveau, EFTER begge sektioner — sticky klæber kun inden for sin
+          forælders højde, så inde i podcast-sektionen holdt bjælken op med
+          at følge med, når man scrollede forbi sektionens bund; her er
+          klæbeområdet hele siden. Renderes KUN når en episode er aktiv —
+          ingen reserveret plads og ingen synlig bjælke ellers. Solid
+          hb-surface + hairline foroven løfter den fra indholdet der
+          scroller forbi; ingen skygge, ingen animation. På de smalleste
+          skærme skjules cover og sæson-linjen, så <audio> og luk-knappen
+          altid er fuldt brugbare. */}
+      {aktivEntry && aktivEntry.episode.audioUrl && (
+        <div className="sticky bottom-0 z-10 mt-6 border-t border-hb-line bg-hb-surface">
+          <div className="flex items-center gap-4 py-3">
+            {aktivEntry.episode.imageUrl && (
+              <img
+                src={aktivEntry.episode.imageUrl}
+                alt=""
+                className="hidden h-10 w-10 shrink-0 rounded-hb object-cover sm:block"
+              />
+            )}
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm text-hb-ink">{aktivEntry.episode.title}</p>
+              <p className="hidden text-xs text-hb-ink-soft sm:block">
+                {aktivEntry.episode.season !== null
+                  ? `Sæson ${aktivEntry.episode.season} · Episode ${aktivEntry.nummer}`
+                  : `Episode ${aktivEntry.nummer}`}
+              </p>
+            </div>
+            {/* min-w-56 holder kontrollerne brugbare — titlen (flex-1 +
+                truncate) giver plads først. */}
+            {/* eslint-disable-next-line jsx-a11y/media-has-caption -- eksternt podcast-feed uden tekstspor */}
+            <audio
+              ref={audioRef}
+              src={aktivEntry.episode.audioUrl}
+              controls
+              autoPlay
+              className="h-10 w-full min-w-56 max-w-sm"
+              onPlay={() => setSpiller(true)}
+              onPause={() => setSpiller(false)}
+              onError={() => haandterLydfejl(aktivEntry)}
+            />
+            <button
+              type="button"
+              aria-label="Luk afspilleren"
+              onClick={lukAfspiller}
+              className="shrink-0 p-2 text-hb-ink-soft transition-colors hover:text-hb-ink"
+            >
+              <X className="h-4 w-4" aria-hidden="true" />
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
