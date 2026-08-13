@@ -25,45 +25,6 @@ export default function BookSession() {
   const success = searchParams.get("success") === "true";
   const sessionId = searchParams.get("session_id");
 
-  if (!isAdvisor && membershipTier === "subscriber") {
-    return (
-      <AppLayout>
-        <div className="min-h-[60vh] flex items-center justify-center px-4 py-12">
-          <div className="max-w-lg w-full text-center space-y-8">
-            <div className="flex items-center justify-center gap-8">
-              <img
-                src="/jonas-herlev.png"
-                alt="Jonas Herlev"
-                className="h-16 w-16 rounded-full object-cover"
-              />
-              <div className="h-16 w-16 rounded-full bg-accent/40 text-foreground flex items-center justify-center text-base font-semibold">
-                MH
-              </div>
-            </div>
-            <div className="space-y-3">
-              <h1 className="text-2xl md:text-3xl font-semibold text-foreground">
-                Book session er forbeholdt fulde medlemmer
-              </h1>
-              <p className="text-muted-foreground">
-                1:1 sessioner med Jonas er en del af det fulde Boardroom-medlemskab.
-                Som abonnent har du adgang til alle data-features — opgrader for at få personlig sparring.
-              </p>
-            </div>
-            <a
-              href="mailto:jonas@topix.dk?subject=Opgradering%20til%20fuldt%20medlemskab"
-              className="inline-flex items-center gap-2 rounded-lg bg-primary px-6 py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
-            >
-              Kontakt Jonas om fuldt medlemskab →
-            </a>
-            <p className="text-xs text-muted-foreground">
-              Dit abonnement fortsætter uændret
-            </p>
-          </div>
-        </div>
-      </AppLayout>
-    );
-  }
-
   const { data: booking } = useQuery({
     queryKey: ["session-booking", sessionId],
     queryFn: async () => {
@@ -153,6 +114,52 @@ export default function BookSession() {
   const showMortenColumn =
     mortenState !== "hidden" && mortenState !== "none";
 
+  // Denne return laa foer de tre useQuery-kald. Ved foerste render er
+  // membershipTier endnu ikke afgjort, saa hooksene koerte; naar auth landede
+  // og vaerdien blev "subscriber", blev returnen taget og hooksene sprunget
+  // over — React-fejl #310, "rendered fewer hooks than expected". Ingen har
+  // set den, fordi der endnu ikke findes en eneste abonnent i produktion
+  // (alle fire Stripe-kolonner er NULL for alle virksomheder, maalt
+  // 13-08-2026). Returnen skal blive liggende under hooksene.
+  if (!isAdvisor && membershipTier === "subscriber") {
+    return (
+      <AppLayout>
+        <div className="min-h-[60vh] flex items-center justify-center px-4 py-12">
+          <div className="max-w-lg w-full text-center space-y-8">
+            <div className="flex items-center justify-center gap-8">
+              <img
+                src="/jonas-herlev.png"
+                alt="Jonas Herlev"
+                className="h-16 w-16 rounded-full object-cover"
+              />
+              <div className="h-16 w-16 rounded-full bg-accent/40 text-foreground flex items-center justify-center text-base font-semibold">
+                MH
+              </div>
+            </div>
+            <div className="space-y-3">
+              <h1 className="text-2xl md:text-3xl font-semibold text-foreground">
+                Book session er forbeholdt fulde medlemmer
+              </h1>
+              <p className="text-muted-foreground">
+                1:1 sessioner med Jonas er en del af det fulde Boardroom-medlemskab.
+                Som abonnent har du adgang til alle data-features — opgrader for at få personlig sparring.
+              </p>
+            </div>
+            <a
+              href="mailto:jonas@topix.dk?subject=Opgradering%20til%20fuldt%20medlemskab"
+              className="inline-flex items-center gap-2 rounded-lg bg-primary px-6 py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
+            >
+              Kontakt Jonas om fuldt medlemskab →
+            </a>
+            <p className="text-xs text-muted-foreground">
+              Dit abonnement fortsætter uændret
+            </p>
+          </div>
+        </div>
+      </AppLayout>
+    );
+  }
+
   const handleBook = async () => {
     if (!user) return;
     setLoading(true);
@@ -163,7 +170,19 @@ export default function BookSession() {
       else toast.error("Ingen URL modtaget — prøv igen");
     } catch (err: any) {
       console.error("Booking error:", err);
-      toast.error(err?.message || "Noget gik galt — prøv igen");
+      // PR #352 gav create-stripe-checkout en serverside tier-gate der svarer
+      // 403 med dansk tekst; uden body-parsning naaede den besked aldrig frem
+      // til brugeren.
+      let message = err?.message || "Noget gik galt. Prøv igen.";
+      if (err?.context && typeof err.context.json === "function") {
+        try {
+          const payload = await err.context.json();
+          if (payload?.error) message = payload.error;
+        } catch {
+          // ignorer parse-fejl og brug fallback-beskeden
+        }
+      }
+      toast.error(message);
     } finally {
       setLoading(false);
     }
