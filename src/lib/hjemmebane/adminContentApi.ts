@@ -72,8 +72,13 @@ export const AREAS = [
        som 'push'. Ingen detaljeside, intet områdekort, ingen
        #-henvisning. Skabeloner nedlægges som område: en skabelon hænges
        på den lektion den hører til, som vedhæftning via HbMaterials
-       (content_item_attachments), ikke som selvstændigt indhold. */
-    label: "Talks",
+       (content_item_attachments), ikke som selvstændigt indhold.
+       NØGLEN 'talks' må IKKE omdøbes: den bærer abonnent-hvidlisten i
+       RLS (20260813100000, tre policies), står i content_items' og
+       content_collections' CHECK-constraints og i migrationshistorikken.
+       Kun labelet er ændret (13-08-2026) — fanen hedder "Optagelser",
+       fordi indholdet er optagelser fra afholdte events. */
+    label: "Optagelser",
     akademi: false,
     adminFane: true,
     hint: "Optagelser af live sessions — optagelsen vises på sit event (recording_item_id); podcast-episoder hentes automatisk via RSS, ikke her",
