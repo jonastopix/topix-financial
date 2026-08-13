@@ -1224,13 +1224,28 @@ kan ikke nå det item der bærer `bunny_video_id`.
 
 UDESTÅENDE på dette spor (IKKE datalaget):
 
-- Abonnenten har ingen forside. Dit Boardroom er lukket, så roden af
-  appen kan ikke sende dem derhen. De skal lande direkte i tal-miljøet,
-  og `HbMemberShell` skal skrumpe til to menupunkter.
-- Podcast & Talks findes ikke som miljø. Ingen rute; labelet står kun i
-  V0-previewens døde nav. Podcasten hentes fra eksternt RSS og vises i
-  dag kun på forsiden; area='talks' har 0 rækker. Fladen skal bygges,
-  før abonnenten har noget at komme efter.
+- Abonnentens landing er BYGGET (PR #360, 13-08-2026):
+  `Index.tsx` fik en subscriber-gren der redirigerer til `/kpis`, og
+  `HbMemberShell` skrumper nav'en til alene "Dine tal"-gruppen for
+  abonnenter. Logo-hjemlinket peger på `/kpis` for dem.
+  Tre ting bærer designet og må ikke rulles tilbage:
+  `membershipTier === null` betyder UAFGJORT og giver den fulde nav —
+  behandles null som abonnent, flimrer nav'en for alle medlemmer ved hver
+  sideindlæsning, fordi useAuth henter tier i en senere runde.
+  `"/"` spærres bevidst IKKE, men redirigerer indefra: roden er husets
+  universelle fallback for logo-hjemlink, expired-redirect,
+  rolleafvisninger, onboarding-resume, PulseCheckin og Auth.
+  "Dine tal"-gruppen er ÉT objekt der genbruges i begge nav-grene, så
+  medlemmets og abonnentens punkter ikke kan skride fra hinanden.
+  Verificeret i produktion 13-08-2026: ingen ændring for fulde medlemmer.
+  Abonnent-grenen kan først verificeres, når der findes en abonnent.
+- Podcast & Talks er den SIDSTE blokering før exit-produktet kan tilbydes.
+  Ingen rute; labelet står kun i V0-previewens døde nav. Podcasten
+  hentes fra eksternt RSS via podcast-rss-proxyen og vises i dag kun på
+  forsiden — som abonnenten ikke har. `area='talks'` har 0 rækker, så
+  der er hverken flade eller indhold. Bemærk: `podcast-rss` kræver kun
+  authenticateUser, så selve feedet er allerede åbent for abonnenter —
+  det der mangler, er et sted at vise det. Indholdsopgave før kodeopgave.
 - Rådgiversiden — se den separate post om at abonnenter skal forsvinde
   fra rådgivernes daglige flader.
 - KENDT BEGRÆNSNING i `20260813110000`: content-assets har ingen
