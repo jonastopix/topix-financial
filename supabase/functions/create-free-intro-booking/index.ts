@@ -59,12 +59,21 @@ Deno.serve(async (req: Request) => {
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const admin = createClient(supabaseUrl, serviceRoleKey);
 
-    // 4. Find brugerens virksomhed (samme moenster som create-stripe-checkout).
+    // 4. Find brugerens virksomhed. Rollefilteret .eq("role", "member") er FJERNET
+    //    (13-08-2026): handle_new_user giver 'owner' til selv-tilmeldte foundere og
+    //    'member' til inviterede (20260319101733:75-76, 92-93), saa filteret ramte
+    //    systematisk forbi netop founderne — enhver ejer fik 400 "Du er ikke
+    //    tilknyttet en virksomhed." Rollen baerer ingen adgang nogen steder:
+    //    user_company_id filtrerer ikke paa den (20260224222456:29-38), og ingen
+    //    RLS-policy skelner. .limit(1) uden .order() vaelger vilkaarligt ved flere
+    //    brugere (samme faelde som user_company_id), derfor deterministisk aeldste
+    //    raekke foerst.
     const { data: member } = await admin
       .from("company_members")
       .select("company_id")
       .eq("user_id", callerId)
-      .eq("role", "member")
+      .order("created_at", { ascending: true })
+      .limit(1)
       .maybeSingle();
 
     const companyId = member?.company_id;

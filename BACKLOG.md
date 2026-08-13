@@ -1040,12 +1040,29 @@ kandidater, men opslaget af medlemsbrugeren filtrerede på
 `.eq("role", "member")` — 8 af de 12 havde `role='owner'` og blev sprunget
 over som `ingen_medlemsbruger` (heraf et medlem gennem 342 dage). Rettet i
 intro-reminder-cron (filteret fjernet + deterministisk
-`.order("created_at")` før `.limit(1)`). Samme mønster findes efter
-kommentaren i `send-pulse-reminder` (pensioneret) og
-`create-free-intro-booking` — sidstnævnte er live og bør efterprøves: kan
-en EJER overhovedet booke sin gratis intro-session i dag?
-(`create-free-intro-booking/index.ts:63-68` returnerer 400 "Du er ikke
-tilknyttet en virksomhed." når opslaget er tomt.)
+`.order("created_at")` før `.limit(1)`).
+
+Rodårsagen er at filteret er omvendt af hvad det tror: `handle_new_user`
+giver `'owner'` til selv-tilmeldte foundere og `'member'` til inviterede
+(`20260319101733:75-76, 92-93`), så "find founderen"-opslag med
+`role='member'` rammer systematisk forbi netop founderne. Rollen bærer
+ingen adgang nogen steder: `user_company_id` filtrerer ikke på den
+(`20260224222456:29-38`), og ingen RLS-policy skelner — feltet kan på
+sigt overvejes fjernet eller omdøbt.
+
+Status pr. 13. august (recon-ejer-booking.md):
+- ✅ `intro-reminder-cron` — rettet (PR #343).
+- ✅ `create-free-intro-booking` — rettet (PR ejer-kan-booke-intro):
+  ejere fik 400 "Du er ikke tilknyttet en virksomhed." og kunne ikke
+  booke deres gratis intro-session.
+- ⬜ `create-stripe-checkout/index.ts:41` — degraderende: en ejer kan
+  betale, men `session_bookings.company_id` bliver NULL (linje 58, 82).
+- ⬜ `send-slack-report-notification/index.ts:155` og `:207` —
+  degraderende: founder-opslaget er tomt for ejer-virksomheder, så
+  Slack-notifikationen mangler founder-data.
+- ⬜ `send-pulse-reminder/index.ts:79` — pensioneret cron
+  (`20260612090000`), koden ligger stadig; ret eller ryd op hvis den
+  genoplives.
 
 ---
 
