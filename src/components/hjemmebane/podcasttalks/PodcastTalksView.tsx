@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
-import { Pause, Play } from "lucide-react";
+import { Pause, Play, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { parsePodcastFeed, type PodcastEpisode } from "@/lib/hjemmebane/podcastRss";
@@ -102,10 +102,14 @@ export const PodcastTalksView = () => {
       : medNummer;
   }, [episoder]);
 
-  /* Afspilning: ÉT <audio>-element for hele sektionen — det ligger FAST i
-     bunden af sektionen i en altid-reserveret plads, så INGEN række
-     flytter sig lodret, når en episode vælges (afspilleren mellem
-     rækkerne skubbede alt nedenunder). Lyden hentes fra RSS-feedets
+  /* Afspilning: ÉT <audio>-element for hele sektionen — i en KLÆBENDE
+     bjælke sidst i sektionen (sticky bottom-0), så den altid er synlig
+     mens noget spiller. STICKY, ikke fixed: HbMemberShell har sin egen
+     scroll-container på lg (lg:overflow-y-auto på den indre kolonne), og
+     sticky klæber til nærmeste scrollport — den indre kolonne på desktop,
+     viewporten på mobil — hvor fixed ville pinne til vinduet og
+     overlejre sidebaren. Rækkerne flytter sig fortsat ikke, når en
+     episode vælges. Lyden hentes fra RSS-feedets
      enclosure. Bliver den blokeret af Anchors CORS/hotlink-beskyttelse,
      fanger onError det og rækken falder tilbage til eksternt link —
      derfor kan afspilleren ikke vise en død knap. En fejlet episode
@@ -153,6 +157,12 @@ export const PodcastTalksView = () => {
     setAktivNoegle(null);
     setSpiller(false);
     aabnEksternt(entry.episode);
+  };
+
+  const lukAfspiller = () => {
+    audioRef.current?.pause();
+    setAktivNoegle(null);
+    setSpiller(false);
   };
 
   return (
@@ -255,24 +265,52 @@ export const PodcastTalksView = () => {
                 </div>
               ))}
             </div>
-            {/* Afspilleren ligger FAST i bunden med altid-reserveret højde
-                (h-14 ≈ audio-elementets egen), så hverken rækker eller
-                sektionen nedenunder flytter sig, når en episode vælges. */}
-            <div className="mt-6 h-14">
-              {aktivEntry && aktivEntry.episode.audioUrl && (
-                // eslint-disable-next-line jsx-a11y/media-has-caption -- eksternt podcast-feed uden tekstspor
-                <audio
-                  ref={audioRef}
-                  src={aktivEntry.episode.audioUrl}
-                  controls
-                  autoPlay
-                  className="h-full w-full"
-                  onPlay={() => setSpiller(true)}
-                  onPause={() => setSpiller(false)}
-                  onError={() => haandterLydfejl(aktivEntry)}
-                />
-              )}
-            </div>
+            {/* Klæbende afspiller-bjælke: sticky bottom-0 mod nærmeste
+                scrollport (den indre kolonne på lg, viewporten på mobil).
+                Renderes KUN når en episode er aktiv — ingen reserveret
+                plads og ingen synlig bjælke ellers. Solid hb-surface +
+                hairline foroven løfter den fra rækkerne der scroller
+                forbi; ingen skygge, ingen animation. */}
+            {aktivEntry && aktivEntry.episode.audioUrl && (
+              <div className="sticky bottom-0 z-10 mt-6 border-t border-hb-line bg-hb-surface">
+                <div className="flex items-center gap-4 py-3">
+                  {aktivEntry.episode.imageUrl && (
+                    <img
+                      src={aktivEntry.episode.imageUrl}
+                      alt=""
+                      className="h-10 w-10 shrink-0 rounded-hb object-cover"
+                    />
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm text-hb-ink">{aktivEntry.episode.title}</p>
+                    <p className="text-xs text-hb-ink-soft">
+                      {aktivEntry.episode.season !== null
+                        ? `Sæson ${aktivEntry.episode.season} · Episode ${aktivEntry.nummer}`
+                        : `Episode ${aktivEntry.nummer}`}
+                    </p>
+                  </div>
+                  {/* eslint-disable-next-line jsx-a11y/media-has-caption -- eksternt podcast-feed uden tekstspor */}
+                  <audio
+                    ref={audioRef}
+                    src={aktivEntry.episode.audioUrl}
+                    controls
+                    autoPlay
+                    className="h-10 w-full max-w-sm shrink"
+                    onPlay={() => setSpiller(true)}
+                    onPause={() => setSpiller(false)}
+                    onError={() => haandterLydfejl(aktivEntry)}
+                  />
+                  <button
+                    type="button"
+                    aria-label="Luk afspilleren"
+                    onClick={lukAfspiller}
+                    className="shrink-0 p-2 text-hb-ink-soft transition-colors hover:text-hb-ink"
+                  >
+                    <X className="h-4 w-4" aria-hidden="true" />
+                  </button>
+                </div>
+              </div>
+            )}
           </>
         )}
       </HbSection>
