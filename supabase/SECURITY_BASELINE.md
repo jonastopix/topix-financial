@@ -67,6 +67,31 @@ to the entire access-control model.
   (advisor policies unchanged, gated by `has_role`)
 - Introduced in migration `20260811160000_community_adgang.sql`
 
+### `har_aktivt_abonnement(_user_id uuid) → boolean`
+- **Fail-closed** exit-subscription verdict (dated note 2026-08-13): true
+  ONLY when the user belongs to at least one non-legat company with
+  `subscription_status = 'active'` AND a SET and FUTURE
+  `subscription_current_period_end`. Deliberately does NOT evaluate
+  `contract_end_date` — a subscriber has precisely an EXPIRED contract
+  date.
+- Uses `EXISTS` over ALL of the user's companies — `user_company_id` is
+  deliberately avoided (LIMIT 1 without ORDER BY picks arbitrarily for
+  multi-company users)
+- STABLE, SECURITY DEFINER with `search_path = public`
+- Grants: `EXECUTE TO authenticated` only — `REVOKE ALL FROM PUBLIC` and `FROM anon`
+- Consumed by the three member SELECT policies on `content_items`,
+  `content_collections` and `content_item_attachments`: full members
+  (`har_aktivt_medlemskab`) see all published content, subscribers see
+  ONLY `area = 'talks'` — a whitelist, so new areas are hidden until
+  deliberately opened (advisor and service-role policies unchanged,
+  gated by `has_role`/`service_role`)
+- **Deliberate break (2026-08-13)**: `har_aktivt_medlemskab` and
+  `har_aktivt_abonnement` deliberately have separate input bases — the
+  contract date versus the subscription fields. The date decides full
+  membership; the subscription decides exit access. They answer each
+  their own question and must never be consolidated.
+- Introduced in migration `20260813100000_abonnent_gate_indhold.sql`
+
 ### `maa_se_community_billede(_user_id uuid, _sti text) → boolean`
 - **Fail-closed** access verdict for signing community images — the edge
   function's gate BEFORE service-role `createSignedUrl` against the private
