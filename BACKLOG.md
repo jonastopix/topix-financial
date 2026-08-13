@@ -1146,6 +1146,119 @@ produceret af merge-funktionen `Members.tsx:735`, ikke af
 
 ---
 
+### [P1] Abonnent-grænsen findes ikke for events og Akademiet (besluttet 2026-08-13)
+
+Produktbeslutning 13-08-2026 (Jonas): abonnement er EXIT-produktet for
+tidligere medlemmer. En abonnent beholder tal-miljøet og mister events,
+sessions, Akademiet og Community. Indholdet skal være USYNLIGT, ikke låst.
+
+Målt i produktion 13-08-2026: grænsen er kun håndhævet for Community.
+
+- `content_collections` / `content_items` / `content_item_attachments`:
+  medlems-policyen er alene `(status = 'published')` — intet medlemskab.
+- `events`: `(status = ANY (ARRAY['published','cancelled','completed']))`
+  — intet medlemskab.
+- `event_registrations` INSERT: `WITH CHECK (auth.uid() = user_id)` —
+  intet medlemskab.
+- `member_progress`: FOR ALL med `(auth.uid() = user_id)` — intet
+  medlemskab.
+- `get-video-embed` gater på auth + published-RLS + dryp
+  (`company_members.created_at`), aldrig på tier. En abonnent beholder sin
+  company_members-række, så drypankeret virker fortsat for dem.
+- `create-stripe-checkout` har INGEN tier-kontrol; grænsen for det betalte
+  1:1-køb er alene UI-skærmen `BookSession.tsx:28`.
+- `create-free-intro-booking` ER lukket serverside (`tier !== "full"` →
+  403).
+- MemberRoute/ProtectedRoute afviser kun legat og expired — "subscriber"
+  passerer, og nav-punktet til Akademiet vises for alle.
+
+Løsningen er Community-mønstret: `har_aktivt_medlemskab` AND'et på
+medlems-policyen, og en SEPARAT advisor-policy med
+`has_role(auth.uid(),'advisor')`. Postgres OR'er policies, så rådgiveren
+kommer ind ad sin egen dør. `har_aktivt_medlemskab` kan genbruges uændret
+— dens logik (`is_legat = false AND contract_end_date IS NOT NULL AND
+contract_end_date > now()`) er præcis definitionen på "fuldt medlem". KUN
+navnet og COMMENT er community-specifikke og bør opdateres, ikke
+duplikeres.
+
+OBS ved implementering: `event_registrations` og `member_progress` mangler
+begge en advisor-skrivepolicy. jonas@topix.dk (admin+advisor) har 0
+company_members-rækker men 10 rækker i member_progress og 2
+event_registrations — uden en advisor-dør på de to tabeller mister
+rådgiverkontoen sine egne data.
+
+Deadline er ikke en dato: grænsen skal stå før det første medlem får at
+vide, at exit-produktet findes. Ingen har endnu gennemført et
+abonnementskøb (alle fire Stripe-kolonner er NULL for alle virksomheder).
+
+---
+
+### [P2] user_company_id blokerer flere virksomheder pr. bruger (noteret 2026-08-13)
+
+Ønske 13-08-2026 (Jonas): en bruger skal kunne have FLERE virksomheder og
+skifte mellem dem. Funktionen der står i vejen, ordret:
+
+```sql
+SELECT company_id FROM public.company_members
+WHERE user_id = _user_id LIMIT 1
+```
+
+Ingen ORDER BY. Med flere tilhørsforhold vælger den vilkårligt, og valget
+kan skifte mellem kald. Målt 13-08-2026: ingen bruger har i dag mere end
+én company_members-række, så problemet er latent, ikke aktivt.
+
+`har_aktivt_medlemskab` undgår bevidst funktionen og bruger EXISTS over
+ALLE brugerens virksomheder — det mønster bør gentages, og hver kaldssti
+til `user_company_id` skal gennemgås, før multi-company åbnes.
+
+---
+
+### [P2] Rådgivernes dobbeltlogin skal afskaffes (noteret 2026-08-13)
+
+Ønske 13-08-2026 (Jonas): der skal flyttes virksomhed over på Morten og
+Jonas, så Jonas ikke længere behøver to logins.
+
+Målt 13-08-2026: jonas@topix.dk har rollerne admin+advisor og INGEN
+company_members-række; morten@molainvest.dk har advisor og ingen række.
+Konsekvensen af at give dem en virksomhed er ikke neutral: de vil da få
+`har_aktivt_medlemskab = true` og dermed medlemsadgang oveni
+advisor-adgangen, og `isAdvisor && !companyId` — som i dag er
+advisor-hjemmefladen — holder op med at gælde for dem. Begge dele skal
+løses samtidig med flytningen.
+
+---
+
+### [P3] Oprydning af ikke-medlemmer — afgrænsning målt, afventer go (besluttet 2026-08-13)
+
+Beslutning 13-08-2026 (Jonas): alle brugere og virksomheder der ikke er
+medlemmer skal fjernes helt. Ingen grund til at gemme deres data.
+
+Målt afgrænsning 13-08-2026 (42 brugere i alt på det tidspunkt):
+
+- 7 udløbne virksomheder med 8 brugere: Coskun Holding, Regnskabsvikar,
+  Sebastian & Amalie, Stadio (alle udløbet 06-05-2026), Startkørekort
+  (21-05, 2 brugere), Alina Beauty & Skincare (29-05), Capture IT (04-08).
+- 3 aldrig-brugte konti oprettet inden for samme minut 23-02-2026, rolle
+  'member' i user_roles, ingen virksomhed, aldrig logget ind:
+  jeppe1864@gmail.com, lars@dasgruppen.dk, mads@scandimate.dk.
+- 1 rolleløs konto uden virksomhed: jh@jonasherlev.dk (sidst inde
+  01-06-2026).
+- Legat-testkontoen jonas+legat6@topix.dk bruges ikke lige nu.
+- BEVARES: jonas@topix.dk og morten@molainvest.dk (rådgivere).
+
+IKKE gennemført. Før den køres:
+
+1. Afklares mod Stripe/e-conomic om nogen af de 7 faktisk stadig betaler —
+   databasen indeholder INTET betalingsbevis for nogen virksomhed (alle
+   Stripe-kolonner NULL for alle), fordi betalingerne hidtil er kørt
+   gennem Circles gateway. Datoerne er manuelt indtastede.
+2. Fuld eksport af det der slettes.
+3. companyHardDelete efterlader forældreløse rækker i storage og
+   notifikationer (kendt P4) — 7 virksomheder på én gang giver 7 gange den
+   utæthed.
+
+---
+
 ### Bogføringsnote — deploy-re-baseline af edge functions (2026-08-06)
 
 Serverside-fejning af alle 55 repo-funktioner + kontrolgruppe af 5 kendte
