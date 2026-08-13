@@ -32,6 +32,7 @@ const ReportReviewQueue = lazy(() => import("./pages/ReportReviewQueue"));
 const AdminContent = lazy(() => import("./pages/AdminContent"));
 const Akademiet = lazy(() => import("./pages/Akademiet"));
 const PodcastTalks = lazy(() => import("./pages/PodcastTalks"));
+const Rabataftaler = lazy(() => import("./pages/Rabataftaler"));
 
 // Lazy — admin-only routes
 const AdminConfig = lazy(() => import("./pages/AdminConfig"));
@@ -283,6 +284,10 @@ const App = () => (
                   (ingen af gates kender "subscriber"), hvilket er tilsigtet:
                   podcast og talks er deres miljø. */}
               <Route path="/podcast" element={<MemberRoute><PodcastTalks /></MemberRoute>} />
+              {/* Rabataftaler (2026-08-13): medlemsfladen for partners-tabellen.
+                  MemberRoute som /podcast; abonnenter må bevidst gerne se
+                  aftalerne (published-gatet RLS, ingen medlemskabsdom). */}
+              <Route path="/rabataftaler" element={<MemberRoute><Rabataftaler /></MemberRoute>} />
               {/* Forside-GO 2026-08-12: "/" bærer Hb-forsiden "Dit Boardroom"
                   (Index' medlemsgren) — /boardroom-ruten og previewen
                   (/preview/hjemmebane) er pensioneret. */}
