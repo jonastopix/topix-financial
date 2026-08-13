@@ -313,27 +313,32 @@ export const BookSessionView = () => {
             </div>
           </div>
 
-          {/* "book": uaendret book-kort-indhold (3-grid, beskrivelse, book-knap). */}
+          {/* Fakta-tiles: deles af "book" og "link-ready", saa Morten-kortet
+              holder hoejde med Jonas-kortet naar linket er klar. Identiske
+              tiles i begge tilstande. */}
+          {(mortenState === "book" || mortenState === "link-ready") && (
+            <div className="grid grid-cols-3 gap-4">
+              <div className="text-center p-4 rounded-hb bg-hb-paper">
+                <Clock className="h-5 w-5 mx-auto mb-2 text-hb-evergreen" />
+                <p className="text-sm font-medium text-hb-ink">30 minutter</p>
+                <p className="text-xs text-hb-ink-soft">Personlig sparring</p>
+              </div>
+              <div className="text-center p-4 rounded-hb bg-hb-paper">
+                <Video className="h-5 w-5 mx-auto mb-2 text-hb-evergreen" />
+                <p className="text-sm font-medium text-hb-ink">Online</p>
+                <p className="text-xs text-hb-ink-soft">Google Meet</p>
+              </div>
+              <div className="text-center p-4 rounded-hb bg-hb-paper">
+                <Calendar className="h-5 w-5 mx-auto mb-2 text-hb-evergreen" />
+                <p className="text-sm font-medium text-hb-ink">Fleksibelt</p>
+                <p className="text-xs text-hb-ink-soft">Vælg selv tid</p>
+              </div>
+            </div>
+          )}
+
+          {/* "book": uaendret book-kort-indhold (beskrivelse, book-knap). */}
           {mortenState === "book" && (
             <>
-              <div className="grid grid-cols-3 gap-4">
-                <div className="text-center p-4 rounded-hb bg-hb-paper">
-                  <Clock className="h-5 w-5 mx-auto mb-2 text-hb-evergreen" />
-                  <p className="text-sm font-medium text-hb-ink">30 minutter</p>
-                  <p className="text-xs text-hb-ink-soft">Personlig sparring</p>
-                </div>
-                <div className="text-center p-4 rounded-hb bg-hb-paper">
-                  <Video className="h-5 w-5 mx-auto mb-2 text-hb-evergreen" />
-                  <p className="text-sm font-medium text-hb-ink">Online</p>
-                  <p className="text-xs text-hb-ink-soft">Google Meet</p>
-                </div>
-                <div className="text-center p-4 rounded-hb bg-hb-paper">
-                  <Calendar className="h-5 w-5 mx-auto mb-2 text-hb-evergreen" />
-                  <p className="text-sm font-medium text-hb-ink">Fleksibelt</p>
-                  <p className="text-xs text-hb-ink-soft">Vælg selv tid</p>
-                </div>
-              </div>
-
               <div>
                 <h3 className="font-semibold text-hb-ink mb-2">Det kan du få ud af det</h3>
                 <p className="text-sm text-hb-ink-soft">
@@ -456,15 +461,12 @@ export const BookSessionView = () => {
         </div>
 
         <div className="border-t border-hb-line pt-6">
-          <div className="flex items-baseline justify-between mb-4">
-            <div>
-              <p className="text-sm text-hb-ink-soft line-through">1.000 kr. ex. moms</p>
-              <div className="flex items-baseline gap-2">
-                <p className="font-editorial text-2xl font-medium text-hb-ink">500 kr.</p>
-                <p className="text-sm text-hb-ink-soft">ex. moms · member-pris</p>
-              </div>
+          <div className="mb-4">
+            <p className="text-sm text-hb-ink-soft line-through">1.000 kr. ex. moms</p>
+            <div className="flex items-baseline gap-2">
+              <p className="font-editorial text-2xl font-medium text-hb-ink">500 kr.</p>
+              <p className="text-sm text-hb-ink-soft">ex. moms · member-pris</p>
             </div>
-            <p className="text-xs text-hb-ink-soft text-right">Sikker betaling<br />via Stripe</p>
           </div>
           <HbButton className="w-full" onClick={handleBook} disabled={loading}>
             {loading ? (
@@ -475,6 +477,9 @@ export const BookSessionView = () => {
           </HbButton>
           <p className="text-xs text-hb-ink-soft text-center mt-3">
             Du modtager et personligt booking-link via email og i platformen efter betaling.
+          </p>
+          <p className="text-xs text-hb-ink-soft text-center mt-1">
+            Sikker betaling via Stripe
           </p>
         </div>
       </HbCard>
