@@ -1389,6 +1389,46 @@ Datagrundlaget findes i events-tabellen. Før byg skal det afklares:
 
 ---
 
+### [P3] Global podcast-afspiller der overlever navigation (ønsket 2026-08-13)
+
+Ønske (Jonas): afspilleren skal blive hængende i bunden af platformen,
+så lyden fortsætter når man klikker videre til en anden side.
+
+HVORFOR DET IKKE ER EN LILLE TING — målt 13-08-2026: afspilleren lever
+i dag i `PodcastTalksView` (PR #362-#365). Ved navigation afmonteres
+komponenten, `<audio>`-elementet forsvinder med den, og lyden stopper.
+For at overleve navigation skal tre ting flyttes:
+
+1. En context med den aktive episode (nøgle, titel, cover, audioUrl,
+   sæson/nummer) og afspilningstilstanden.
+2. Selve `<audio>`-elementet op i `HbMemberShell` — den eneste komponent
+   der IKKE afmonteres ved sideskift. Skallen renderer på 15 sider
+   (jf. recon 13-08-2026), så enhver ændring dér rammer bredt.
+3. `PodcastTalksView` reduceres til at SÆTTE tilstanden; den må ikke
+   længere eje `<audio>`.
+
+SPØRGSMÅL DER SKAL BESVARES FØR BYG:
+
+- Skal bjælken vises på ALLE medlemsflader, eller kun nogle? Den dækker
+  bunden af skærmen og vil ligge over Community-feedet, event-lister og
+  tal-fladerne.
+- Abonnentens skal har kun to nav-punkter (PR #360) — skal bjælken også
+  være der?
+- Skal afspilningen overleve en hård genindlæsning? Det kræver
+  persistering af episode + position, og der er ingen eksisterende
+  mekanisme til den slags klientside-tilstand i repoet.
+- Rådgivermiljøet bruger AppLayout, ikke HbMemberShell — bjælken ville
+  ikke findes dér.
+
+DET DER SKAL BEVARES FRA DEN NUVÆRENDE LØSNING: ÉT `<audio>`-element.
+Fallback ved manglende audioUrl eller onError: åbn episoden eksternt,
+og husk den fejlede episode så den ikke forsøges igen. Sticky mod
+nærmeste scrollport (IKKE fixed — `HbMemberShell` har `lg:overflow-y-auto`
+på den indre kolonne, og fixed ville pinne til vinduet og overlejre
+sidebaren).
+
+---
+
 ### Bogføringsnote — deploy-re-baseline af edge functions (2026-08-06)
 
 Serverside-fejning af alle 55 repo-funktioner + kontrolgruppe af 5 kendte
