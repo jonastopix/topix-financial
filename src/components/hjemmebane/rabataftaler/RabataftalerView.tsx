@@ -35,8 +35,8 @@ const fmtDato = (iso: string): string =>
     staleTime under signaturens TTL på 1 time. Rammen renderes ALTID når
     aftalen har logo_path — pladsen er reserveret, så rækken ikke hopper
     når den signerede URL lander. Intet logo_path → intet element
-    (kalderen betinger), rækken står uden hul. h-12 spænder navn +
-    kategori, så logoet står på linje med navnet. */
+    (kalderen betinger), rækken står uden hul. h-20: logoet bærer
+    leverandørens identitet og skal kunne ses, ikke blot markere. */
 const PartnerLogo = ({ path, navn }: { path: string; navn: string }) => {
   const url = useQuery({
     queryKey: ["rabataftaler", "logo", path],
@@ -45,7 +45,7 @@ const PartnerLogo = ({ path, navn }: { path: string; navn: string }) => {
     retry: 1,
   });
   return (
-    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-hb border border-hb-line bg-hb-surface p-2">
+    <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-hb border border-hb-line bg-hb-surface p-3">
       {url.data && (
         <img src={url.data} alt={`${navn} logo`} className="max-h-full max-w-full object-contain" />
       )}
@@ -142,7 +142,7 @@ export const RabataftalerView = () => {
         </p>
       </section>
 
-      <section className="mt-10 max-w-3xl md:mt-12">
+      <section className="mt-10 max-w-4xl md:mt-12">
         {aftalerQuery.isLoading ? (
           <p className="text-sm text-hb-ink-soft">Henter rabataftaler…</p>
         ) : aftaler.length === 0 ? (
@@ -151,7 +151,7 @@ export const RabataftalerView = () => {
           <div className="border-b border-hb-line">
             {aftaler.map((aftale) => (
               <article key={aftale.id} className="border-t border-hb-line py-8">
-                <div className="flex items-start gap-4">
+                <div className="flex items-start gap-6">
                   {aftale.logo_path && <PartnerLogo path={aftale.logo_path} navn={aftale.name} />}
                   <div className="min-w-0 flex-1">
                     <h2 className="font-editorial text-2xl font-medium leading-tight text-hb-ink">
@@ -169,13 +169,13 @@ export const RabataftalerView = () => {
 
                     {hasRichTextContent(aftale.indhold) && (
                       <div
-                        className="prose-hb mt-3 text-[15px] leading-relaxed text-hb-ink [&_a]:text-hb-rust [&_a]:underline [&_h2]:mt-8 [&_h2]:font-editorial [&_h2]:text-2xl [&_h2]:font-medium [&_h3]:mt-6 [&_h3]:font-editorial [&_h3]:text-xl [&_h3]:font-medium [&_li]:my-0.5 [&_li]:text-sm [&_li]:leading-snug [&_ol]:list-decimal [&_ol]:pl-5 [&_p]:my-3 [&_ul]:list-disc [&_ul]:pl-5"
+                        className="prose-hb mt-3 text-[15px] leading-relaxed text-hb-ink [&_a]:text-hb-rust [&_a]:underline [&_h2]:mt-8 [&_h2]:font-editorial [&_h2]:text-2xl [&_h2]:font-medium [&_h3]:mt-6 [&_h3]:font-editorial [&_h3]:text-xl [&_h3]:font-medium [&_li]:my-0 [&_ol]:my-2 [&_ol]:list-decimal [&_ol]:pl-5 [&_ol]:text-sm [&_ol]:leading-snug [&_p]:my-3 [&_ul]:my-2 [&_ul]:list-disc [&_ul]:pl-5 [&_ul]:text-sm [&_ul]:leading-snug"
                         dangerouslySetInnerHTML={{ __html: aftale.indhold as string }}
                       />
                     )}
 
                     {aftale.description && (
-                      <p className="mt-4 max-w-md text-[13px] leading-relaxed text-hb-ink-soft">
+                      <p className="mt-4 max-w-prose text-[13px] leading-relaxed text-hb-ink-soft">
                         {aftale.description}
                       </p>
                     )}
