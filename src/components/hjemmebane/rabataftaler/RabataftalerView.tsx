@@ -32,8 +32,11 @@ const fmtDato = (iso: string): string =>
 
 /** Logo på lys flade med object-contain, så fremmede logoer ikke
     kolliderer med papir-baggrunden. Signeret URL (privat bucket) —
-    staleTime under signaturens TTL på 1 time. Intet logo → intet element,
-    rækken står uden hul (flex håndterer det). */
+    staleTime under signaturens TTL på 1 time. Rammen renderes ALTID når
+    aftalen har logo_path — pladsen er reserveret, så rækken ikke hopper
+    når den signerede URL lander. Intet logo_path → intet element
+    (kalderen betinger), rækken står uden hul. h-12 spænder navn +
+    kategori, så logoet står på linje med navnet. */
 const PartnerLogo = ({ path, navn }: { path: string; navn: string }) => {
   const url = useQuery({
     queryKey: ["rabataftaler", "logo", path],
@@ -41,10 +44,11 @@ const PartnerLogo = ({ path, navn }: { path: string; navn: string }) => {
     staleTime: 30 * 60_000,
     retry: 1,
   });
-  if (!url.data) return null;
   return (
-    <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-hb border border-hb-line bg-hb-surface p-2">
-      <img src={url.data} alt={`${navn} logo`} className="max-h-full max-w-full object-contain" />
+    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-hb border border-hb-line bg-hb-surface p-2">
+      {url.data && (
+        <img src={url.data} alt={`${navn} logo`} className="max-h-full max-w-full object-contain" />
+      )}
     </div>
   );
 };
@@ -65,7 +69,7 @@ const KopierKode = ({ kode }: { kode: string }) => {
   };
   return (
     <div className="flex items-center gap-3">
-      <code className="select-all rounded-hb border border-hb-line bg-hb-paper px-4 py-2 font-mono text-sm text-hb-ink">
+      <code className="select-all rounded-hb border border-hb-line bg-hb-paper px-4 py-2 font-mono text-base font-medium text-hb-ink">
         {kode}
       </code>
       <button
@@ -101,7 +105,7 @@ const Indloesning = ({ aftale }: { aftale: MedlemsPartner }) => {
   }
   if (aftale.redemption_type === "kontakt" && aftale.redemption_contact) {
     return (
-      <p className="text-sm text-hb-ink">
+      <p className="text-base text-hb-ink">
         {aftale.redemption_contact}
         <span className="mt-1 block text-sm text-hb-ink-soft">
           Sig at du er medlem af The Boardroom.
@@ -147,13 +151,13 @@ export const RabataftalerView = () => {
           <div className="border-b border-hb-line">
             {aftaler.map((aftale) => (
               <article key={aftale.id} className="border-t border-hb-line py-8">
-                <div className="flex items-start gap-5">
+                <div className="flex items-start gap-4">
                   {aftale.logo_path && <PartnerLogo path={aftale.logo_path} navn={aftale.name} />}
                   <div className="min-w-0 flex-1">
                     <h2 className="font-editorial text-2xl font-medium leading-tight text-hb-ink">
                       {aftale.name}
                     </h2>
-                    <p className="mt-1 text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft">
+                    <p className="mt-0.5 text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft">
                       {aftale.category}
                     </p>
 
@@ -165,18 +169,20 @@ export const RabataftalerView = () => {
 
                     {hasRichTextContent(aftale.indhold) && (
                       <div
-                        className="prose-hb mt-8 text-[15px] leading-relaxed text-hb-ink [&_a]:text-hb-rust [&_a]:underline [&_h2]:mt-8 [&_h2]:font-editorial [&_h2]:text-2xl [&_h2]:font-medium [&_h3]:mt-6 [&_h3]:font-editorial [&_h3]:text-xl [&_h3]:font-medium [&_li]:my-1 [&_ol]:list-decimal [&_ol]:pl-5 [&_p]:my-3 [&_ul]:list-disc [&_ul]:pl-5"
+                        className="prose-hb mt-3 text-[15px] leading-relaxed text-hb-ink [&_a]:text-hb-rust [&_a]:underline [&_h2]:mt-8 [&_h2]:font-editorial [&_h2]:text-2xl [&_h2]:font-medium [&_h3]:mt-6 [&_h3]:font-editorial [&_h3]:text-xl [&_h3]:font-medium [&_li]:my-0.5 [&_li]:text-sm [&_li]:leading-snug [&_ol]:list-decimal [&_ol]:pl-5 [&_p]:my-3 [&_ul]:list-disc [&_ul]:pl-5"
                         dangerouslySetInnerHTML={{ __html: aftale.indhold as string }}
                       />
                     )}
 
                     {aftale.description && (
-                      <p className="mt-4 text-sm leading-relaxed text-hb-ink-soft">
+                      <p className="mt-4 max-w-md text-[13px] leading-relaxed text-hb-ink-soft">
                         {aftale.description}
                       </p>
                     )}
 
-                    <div className="mt-6">
+                    {/* Mere luft OVER indløsningen end mellem de øvrige
+                        elementer — den er kortets afslutning og handling. */}
+                    <div className="mt-8">
                       <Indloesning aftale={aftale} />
                     </div>
 
