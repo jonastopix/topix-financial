@@ -1519,6 +1519,40 @@ payload-validering 400, cron-only-moduler 500, og en statisk stub kan give
 
 ---
 
+## Produkt-idéer til Morten-prioritering
+
+(Idé 1-7 er endnu ikke bogført i dette dokument — de lever pt. uden for
+repoet. Nummereringen her følger den fælles idéliste.)
+
+8. Delings-/SoMe-miljø — skabeloner medlemmer kan bruge til at fortælle
+   at de er medlem af The Boardroom med Morten og Jonas som sparringspartnere.
+   Tre skabelontyper: uden billeder (rent design), med Morten+Jonas,
+   med Morten+Jonas + upload af eget billede.
+   Siden indeholder tekstforslag og tagging-guideline (copy-to-clipboard).
+
+   Teknisk retning (besluttet 2026-08-20):
+   - Klientside canvas-render. Medlemmets billede forlader ALDRIG browseren
+     (FileReader -> canvas -> download). Ingen bucket, ingen storage-policy,
+     ingen RLS-ændring, ingen edge function.
+   - Skabeloner defineres som layout-data i relative koordinater, ikke som
+     hardcodede varianter. Motor-først: opslagSkabelonEngine testes rent
+     før fladen bygges.
+   - Første version: 3 designs x 2 formater (1:1 og 9:16).
+   - Crop-kontrol (drag + zoom) er påkrævet i v1 — uden den bliver output
+     grimt og miljøet bruges ikke.
+   - Download-tællere pr. skabelon og format skal i datamodellen fra dag ét.
+
+   Åbne spørgsmål før design-epic:
+   - Hvor lander nysgerrige fra opslagene? (ansøgningsflow via Monday)
+   - Trigger er optagelsesøjeblikket via push-laget, ikke siden selv
+     -> forudsætter Forside-GO
+
+   Kompleksitet: LAV (billigste miljø på idélisten).
+   Sekvens: efter Forside-GO. Kan skydes ind før fuld Circle-exit
+   hvis push-laget er klar — kræver Mortens accept.
+
+---
+
 ## Anbefalet rækkefølge
 
 1. **[P0] `get_users_last_login`** først. Eneste aktive læk; lav indsats; ingen FORBIDDEN-overlap.

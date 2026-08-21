@@ -798,6 +798,20 @@ const CompanyChatPane = () => {
     ));
   };
 
+  const handleNoReplyNeeded = async () => {
+    if (!activeConvId || !user) return;
+    const { table, id } = getOpsTarget();
+    const { error } = await supabase
+      .from(table as any)
+      .update({ awaiting_reply_from: null })
+      .eq("id", id);
+    if (error) { toast.error("Kunne ikke opdatere samtalen"); return; }
+    setConversations(prev => prev.map(c =>
+      c.id === activeConvId ? { ...c, awaiting_reply_from: null } : c
+    ));
+    toast.success("Fjernet fra Kræver svar");
+  };
+
   // Determine what to show on mobile
   const showSidebar = isAdvisor && (!isMobile || !showMessages);
   const showMessageArea = !isMobile || showMessages || !isAdvisor;
@@ -1242,6 +1256,18 @@ const CompanyChatPane = () => {
                                 </button>
                               )}
                             </div>
+                            {activeConv?.awaiting_reply_from === "advisor" && (
+                              <>
+                                <div className="border-t border-border my-1" />
+                                <button
+                                  onClick={() => { handleNoReplyNeeded(); setAssignmentPopoverOpen(false); }}
+                                  className="flex items-center gap-2 w-full px-2 py-1.5 rounded-md text-xs text-muted-foreground hover:bg-secondary/60 transition-colors"
+                                >
+                                  <CheckCheck className="h-3.5 w-3.5" />
+                                  Kræver ikke svar
+                                </button>
+                              </>
+                            )}
                           </PopoverContent>
                       </Popover>
                       {/* Prev/next */}
