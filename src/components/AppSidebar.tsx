@@ -40,7 +40,6 @@ import { useViewMode } from "@/hooks/useViewMode";
 import { supabase } from "@/integrations/supabase/client";
 import { useAppConfig } from "@/hooks/useAppConfig";
 import { useQuery } from "@tanstack/react-query";
-import { isConversationActionable } from "@/lib/advisorActionHelpers";
 import topixIconWhite from "@/assets/topix-icon-white.png";
 
 const baseNavItems = [
@@ -197,15 +196,12 @@ const AppSidebar = ({ isOpen, onClose, isStandalone = false }: AppSidebarProps) 
     if (effectiveAdvisor) {
       const { data: convs } = await supabase
         .from("conversations")
-        .select("id, awaiting_reply_from, acknowledged_at, conversation_status, follow_up_at, assigned_advisor_id")
-        .eq("awaiting_reply_from", "advisor")
-        .neq("conversation_status", "resolved");
+        .select("id, awaiting_reply_from, assigned_advisor_id")
+        .eq("awaiting_reply_from", "advisor");
 
       if (!convs) { setUnreadChat(0); return; }
-      const now = new Date();
       const count = convs.filter(c =>
-        (!c.assigned_advisor_id || c.assigned_advisor_id === user.id) &&
-        isConversationActionable(c, now)
+        !c.assigned_advisor_id || c.assigned_advisor_id === user.id
       ).length;
       setUnreadChat(count);
     } else {
