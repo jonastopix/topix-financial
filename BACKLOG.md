@@ -1519,6 +1519,73 @@ payload-validering 400, cron-only-moduler 500, og en statisk stub kan give
 
 ---
 
+## Chat-epic — fund fra recon 2026-08-21
+
+### ✅ LUKKET 2026-08-21 — Fase 0 SPOR 1 (PR #378)
+
+Ubrugt ops-model fjernet fra chat og rådgiverflader. Rådgiverne
+bruger ikke kvittér, snooze eller intern note. Ca. 900 linjer ude.
+"Kræver ikke svar" genindført: sætter kun awaiting_reply_from = null,
+selvhelbredende via update_conversation_reply_state-triggeren.
+Bevist live på alle fire punkter.
+
+---
+
+### [P2] Ulæst-begrebet er splittet — samles i fase 1 (recon 2026-08-21)
+
+Tre symptomer, én årsag. Ret dem IKKE enkeltvis.
+
+  a) messages.read_at er delt mellem rådgivere. mark_messages_read
+     (20260420223823:31) filtrerer kun sender_id != caller, så én
+     rådgivers åbning rydder alle rådgiveres ulæst-markering.
+     Fejl ved to rådgivere, uholdbar ved flere.
+  b) Ulæst-tælling bygger på et globalt vindue af de seneste 500
+     beskeder på tværs af alle samtaler (CompanyChatPane:303-305).
+     Holder ved 34 virksomheder, brister på vej mod 100.
+  c) Fem beskedtyper får aldrig read_at (welcome, reflection-nudge,
+     legat-momentum-reminder, ubrugt ai). Members.tsx:400-406 tæller
+     uden type-filter, så de står som ulæste for altid. AppSidebar:220
+     og AppLayout:60 bruger hver sit filter — tre sandheder.
+
+Løsning hører i fase 1 sammen med splittet af CompanyChatPane.
+
+---
+
+### [P3] send-welcome-message skriver ugyldig værdi (recon 2026-08-21)
+
+send-welcome-message/index.ts:157-163 sætter
+awaiting_reply_from = 'member'. CHECK-constrainten
+(20260311034115:16-18) tillader kun 'advisor', 'company' og NULL.
+Updaten må fejle for hvert nyt medlem. IKKE verificeret mod prod.
+Uafhængig af chat-epicet — kan lukkes selvstændigt.
+
+---
+
+### [P4] Døde DB-kolonner efter Fase 0 SPOR 1 (noteret 2026-08-21)
+
+Ingen kode læser eller skriver længere:
+conversations.conversation_status, resolved_at,
+resolved_by_advisor_id, acknowledged_at,
+acknowledged_by_advisor_id, follow_up_at
+samt tabellerne conversation_notes og
+advisor_company_acknowledgments.
+Kolonner og tabeller er BEVIDST efterladt i databasen indtil fase 1
+er kørt og bevist. Drop-migration er sit eget spor med SELECT-før
+og FØR/EFTER-tællinger.
+
+---
+
+### [P4] Amputeret beregning — mønster, ikke enkeltfejl (noteret 2026-08-21)
+
+Tre steder beregnede appen tilstand der aldrig blev vist:
+pinnedMessages (CompanyChatPane), stats-memoet, samt actionQueue /
+overdueFollowUps / upcomingFollowUps (AdvisorDashboard). Alle kunne
+fjernes uden en eneste JSX-ændring. Bevist af ren typecheck efter
+fjernelse. Læring: kontrollér at en beregning har en aftager, før
+den bygges.
+
+---
+
 ## Produkt-idéer til Morten-prioritering
 
 (Idé 1-7 er endnu ikke bogført i dette dokument — de lever pt. uden for
