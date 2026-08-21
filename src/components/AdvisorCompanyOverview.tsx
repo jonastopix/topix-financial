@@ -6,7 +6,7 @@ import { useViewMode } from "@/hooks/useViewMode";
 import { useIsMobile } from "@/hooks/use-mobile";
 import {
   ArrowLeft, MessageSquare, FileText, Target, BarChart3,
-  BookOpen, Clock, StickyNote, DollarSign, TrendingUp, TrendingDown, Minus, Wallet,
+  BookOpen, DollarSign, TrendingUp, TrendingDown, Minus, Wallet,
   ChevronRight, ChevronDown, Sparkles, ExternalLink, AlertCircle,
 } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
@@ -36,11 +36,6 @@ interface ChatState {
 
 function deriveChatState(conv: ConvRow | null): ChatState {
   if (!conv) return { label: "Ingen aktiv samtale", color: "text-muted-foreground", icon: MessageSquare };
-  if (conv.conversation_status === "resolved") return { label: "Afsluttet", color: "text-muted-foreground", icon: MessageSquare };
-  if (conv.follow_up_at && new Date(conv.follow_up_at) > new Date()) {
-    const d = new Date(conv.follow_up_at).toLocaleDateString("da-DK", { day: "numeric", month: "short" });
-    return { label: `Følger op ${d}`, color: "text-chart-warning", icon: Clock };
-  }
   if (conv.awaiting_reply_from === "advisor") return { label: "Afventer dit svar", color: "text-destructive", icon: MessageSquare };
   if (conv.awaiting_reply_from === "company") return { label: "Afventer virksomhed", color: "text-primary", icon: MessageSquare };
   return { label: "Aktiv samtale", color: "text-foreground", icon: MessageSquare };
@@ -50,42 +45,26 @@ interface ConvRow {
   id: string;
   awaiting_reply_from: string | null;
   assigned_advisor_id: string | null;
-  conversation_status: string;
-  follow_up_at: string | null;
   last_message_at: string | null;
 }
 
 /**
  * Select the operationally most relevant conversation.
- * Priority: awaiting advisor reply → active follow-up → latest open → latest resolved
+ * Priority: awaiting advisor reply → latest conversation
  */
 function selectPrimaryConversation(conversations: ConvRow[]): ConvRow | null {
   if (conversations.length === 0) return null;
 
-  const now = new Date();
-
-  // 1. Open + awaiting advisor reply (oldest first = most urgent)
+  // 1. Awaiting advisor reply (oldest first = most urgent)
   const awaitingAdvisor = conversations
-    .filter(c => c.conversation_status === "open" && c.awaiting_reply_from === "advisor")
+    .filter(c => c.awaiting_reply_from === "advisor")
     .sort((a, b) => (a.last_message_at || "").localeCompare(b.last_message_at || ""));
   if (awaitingAdvisor.length > 0) return awaitingAdvisor[0];
 
-  // 2. Open + active follow-up (soonest first)
-  const withFollowUp = conversations
-    .filter(c => c.conversation_status === "open" && c.follow_up_at && new Date(c.follow_up_at) > now)
-    .sort((a, b) => (a.follow_up_at || "").localeCompare(b.follow_up_at || ""));
-  if (withFollowUp.length > 0) return withFollowUp[0];
-
-  // 3. Latest open conversation
-  const open = conversations
-    .filter(c => c.conversation_status === "open")
+  // 2. Latest conversation
+  const latest = [...conversations]
     .sort((a, b) => (b.last_message_at || "").localeCompare(a.last_message_at || ""));
-  if (open.length > 0) return open[0];
-
-  // 4. Latest resolved conversation
-  const resolved = [...conversations]
-    .sort((a, b) => (b.last_message_at || "").localeCompare(a.last_message_at || ""));
-  return resolved[0];
+  return latest[0];
 }
 
 // ── Trend helpers ──
@@ -159,7 +138,7 @@ const AdvisorCompanyOverview = () => {
       const [companyRes, convsRes, reportsRes] = await Promise.all([
         supabase.from("companies").select("id, name, industry_label, cvr_number, logo_url").eq("id", companyId!).single(),
         supabase.from("conversations")
-          .select("id, awaiting_reply_from, assigned_advisor_id, conversation_status, follow_up_at, last_message_at")
+          .select("id, awaiting_reply_from, assigned_advisor_id, last_message_at")
           .eq("company_id", companyId!)
           .order("last_message_at", { ascending: false })
           .limit(10), // Phase-1 limit — sufficient for most companies
@@ -179,16 +158,9 @@ const AdvisorCompanyOverview = () => {
       const primaryConv = selectPrimaryConversation(conversations);
 
       // Stage 2: scoped follow-up fetches — only when relevant
-      const convIds = conversations.map(c => c.id);
       const assignedId = primaryConv?.assigned_advisor_id ?? null;
 
-      const [notesRes, advisorProfileRes, membersRes] = await Promise.all([
-        // Notes: only for this company's conversations
-        convIds.length > 0
-          ? supabase.from("conversation_notes")
-              .select("conversation_id")
-              .in("conversation_id", convIds)
-          : Promise.resolve({ data: [] as { conversation_id: string }[] }),
+      const [advisorProfileRes, membersRes] = await Promise.all([
         // Advisor profile: only for the assigned advisor
         assignedId
           ? supabase.from("profiles")
@@ -215,14 +187,6 @@ const AdvisorCompanyOverview = () => {
           .filter(Boolean)
           .join(", ");
       }
-
-      // Notes: check if any conversation for this company has a note
-      const noteConvIds = new Set(((notesRes as any).data || []).map((n: any) => n.conversation_id));
-      const hasNote = convIds.some(id => noteConvIds.has(id));
-      // Track which conversation has the note for deep-linking
-      const noteConvId = primaryConv && noteConvIds.has(primaryConv.id)
-        ? primaryConv.id
-        : convIds.find(id => noteConvIds.has(id)) ?? null;
 
       // Reports
       const reports = (reportsRes.data || []) as ReportData[];
@@ -251,8 +215,6 @@ const AdvisorCompanyOverview = () => {
       return {
         company,
         primaryConv,
-        hasNote,
-        noteConvId,
         latest,
         previous,
         bankReport,
@@ -379,8 +341,6 @@ const AdvisorCompanyOverview = () => {
   const ChatIcon = chatState.icon;
   const latest = data?.latest;
   const bankReport = data?.bankReport;
-  const hasNote = data?.hasNote ?? false;
-  const noteConvId = data?.noteConvId ?? null;
 
   const hasReport = !!latest;
   const hasPulse = !!latestPulse;
@@ -426,25 +386,19 @@ const AdvisorCompanyOverview = () => {
         </Link>
       </div>
 
-      {/* ── Chat status + follow-up ── */}
+      {/* ── Chat status ── */}
       {primaryConv && (
         <div className={`flex items-center gap-3 px-4 py-3 rounded-xl border ${
           primaryConv.awaiting_reply_from === "advisor"
             ? "bg-destructive/5 border-destructive/20"
-            : primaryConv.follow_up_at && new Date(primaryConv.follow_up_at) > new Date()
-            ? "bg-amber-500/5 border-amber-500/20"
             : "bg-secondary/30 border-border"
         }`}>
           <MessageSquare className={`h-4 w-4 shrink-0 ${
-            primaryConv.awaiting_reply_from === "advisor" ? "text-destructive" :
-            primaryConv.follow_up_at ? "text-amber-600" : "text-muted-foreground"
+            primaryConv.awaiting_reply_from === "advisor" ? "text-destructive" : "text-muted-foreground"
           }`} />
           <p className="text-sm font-medium text-foreground flex-1">
             {deriveChatState(primaryConv).label}
           </p>
-          {primaryConv.follow_up_at && new Date(primaryConv.follow_up_at) <= new Date() && (
-            <span className="text-xs text-destructive font-medium">Forfalden</span>
-          )}
         </div>
       )}
 
@@ -627,20 +581,6 @@ const AdvisorCompanyOverview = () => {
           </div>
         )}
       </div>
-
-      {/* ── Intern note (always visible) ── */}
-      {hasNote && noteConvId && (
-        <div className="glass-card rounded-xl p-4">
-          <div className="flex items-center gap-2 mb-2">
-            <StickyNote className="h-3.5 w-3.5 text-amber-600" />
-            <p className="text-[11px] font-semibold text-amber-700 dark:text-amber-400 uppercase tracking-wider">Intern note</p>
-            <Link to={`/chat?conversationId=${noteConvId}`} className="ml-auto text-[11px] text-primary hover:underline">
-              Se i chat →
-            </Link>
-          </div>
-          <p className="text-xs text-muted-foreground italic">Note er gemt — klik for at se og redigere i chatten</p>
-        </div>
-      )}
 
       {/* ── Quick links ── */}
       {primaryMemberUserId && (

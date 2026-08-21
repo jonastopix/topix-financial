@@ -2,21 +2,13 @@ import React, { useState, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { toast } from "sonner";
-import { isConversationActionable } from "@/lib/advisorActionHelpers";
 import { computeMembershipTier } from "@/lib/membershipTier";
 import {
   MessageSquare, Clock, Building2, ChevronRight, CheckCircle2,
   Activity, Target, Search, List, LayoutGrid, UserCheck, Heart, AlertTriangle, Sparkles,
-  MoreHorizontal, FileText, Sprout,
+  FileText, Sprout,
 } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { DANISH_MONTHS, REPORT_OVERRIDE_SELECT, getEffectiveReportPeriodKey, getEffectiveKeyFigures, formatCompact, type ReportData } from "@/lib/financialUtils";
 import { formatDistanceToNow } from "date-fns";
 import { da } from "date-fns/locale";
@@ -73,11 +65,8 @@ interface ConversationRow {
   company_id: string | null;
   awaiting_reply_from: string | null;
   assigned_advisor_id: string | null;
-  conversation_status: string;
-  follow_up_at: string | null;
   last_member_message_at: string | null;
   last_message_at: string | null;
-  acknowledged_at: string | null;
 }
 
 interface CompanyRow {
@@ -324,7 +313,7 @@ const AdvisorDashboard = () => {
       const currentYear = new Date().getFullYear();
 
       const [
-        convRes, companiesRes, reportsRes, notesRes,
+        convRes, companiesRes, reportsRes,
         budgetRes, pulseRes, recentReportsRes, recentFactsRes,
         milestonesRes, kpiTargetsRes, companyMembersRes, advisorProfilesRes,
         recentMilestonesRes, weeklyFocusRes,
@@ -332,7 +321,7 @@ const AdvisorDashboard = () => {
       ] = await Promise.all([
         supabase
           .from("conversations")
-          .select("id, company_id, awaiting_reply_from, assigned_advisor_id, conversation_status, follow_up_at, last_member_message_at, last_message_at, acknowledged_at")
+          .select("id, company_id, awaiting_reply_from, assigned_advisor_id, last_member_message_at, last_message_at")
           .order("last_message_at", { ascending: false }),
         supabase
           .from("companies")
@@ -343,9 +332,6 @@ const AdvisorDashboard = () => {
           .select(`company_id, report_period, extracted_data, normalized_data, ${REPORT_OVERRIDE_SELECT}`) as any)
           .is("deleted_at", null)
           .eq("status", "processed"),
-        supabase
-          .from("conversation_notes")
-          .select("conversation_id"),
         supabase
           .from("budget_targets")
           .select("company_id, category, budget_amount, period")
@@ -423,7 +409,6 @@ const AdvisorDashboard = () => {
       ]);
 
       const allConversations = (convRes.data || []) as ConversationRow[];
-      const conversations = allConversations.filter((conversation) => conversation.conversation_status === "open");
       const companies = (companiesRes.data || []) as CompanyRow[];
       const reports = (reportsRes.data || []) as (ReportData & { company_id: string })[];
       const advisorProfiles = ((advisorProfilesRes.data || []) as any[]).map((advisor) => ({
@@ -532,7 +517,7 @@ const AdvisorDashboard = () => {
 
       // Unread messages per company
       const unreadByCompany = new Map<string, number>();
-      for (const c of conversations) {
+      for (const c of allConversations) {
         if (c.company_id && c.awaiting_reply_from === "advisor") {
           unreadByCompany.set(c.company_id, (unreadByCompany.get(c.company_id) || 0) + 1);
         }
@@ -541,7 +526,7 @@ const AdvisorDashboard = () => {
       // Unread agent messages per company
       const unreadAgentByCompany = new Map<string, number>();
       const convIdToCompanyId = new Map<string, string>();
-      for (const c of conversations) {
+      for (const c of allConversations) {
         if (c.company_id && c.id) convIdToCompanyId.set(c.id, c.company_id);
       }
       for (const msg of (unreadAgentMsgsRes.data || []) as any[]) {
@@ -612,25 +597,7 @@ const AdvisorDashboard = () => {
         }
       }
 
-      // Personal scope
-      const myConversations = conversations.filter(c =>
-        c.assigned_advisor_id === user!.id || c.assigned_advisor_id === null
-      );
-
-      // Action Queue
       const now = new Date();
-      const actionQueue = myConversations
-        .filter(c => isConversationActionable(c, now))
-        .sort((a, b) => (a.last_member_message_at || "").localeCompare(b.last_member_message_at || ""));
-
-      // Follow-ups
-      const weekFromNow = new Date(now.getTime() + 7 * 86400000);
-      const overdueFollowUps = myConversations
-        .filter(c => c.follow_up_at && new Date(c.follow_up_at) <= now)
-        .sort((a, b) => (a.follow_up_at || "").localeCompare(b.follow_up_at || ""));
-      const upcomingFollowUps = myConversations
-        .filter(c => c.follow_up_at && new Date(c.follow_up_at) > now && new Date(c.follow_up_at) <= weekFromNow)
-        .sort((a, b) => (a.follow_up_at || "").localeCompare(b.follow_up_at || ""));
 
       // ── Spor 2-datalag (additivt) ──
       // Målsætnings-handout udfyldt pr. virksomhed (modul 'overordnet', completed).
@@ -809,56 +776,9 @@ const AdvisorDashboard = () => {
         alertsByCompany.get(alert.company_id)!.push({ type: alert.type, title: alert.title });
       }
 
-      // ── Holdbar, virksomheds-bred kvittering (advisor_company_acknowledgments) ──
-      // Hent denne advisors kvitteringer. RLS scoper allerede til auth.uid; eksplicit
-      // .eq for klarhed. Gælder VIRKSOMHEDEN, så den dækker alle action-bunker.
-      const { data: acksData } = await (supabase
-        .from("advisor_company_acknowledgments" as any)
-        .select("company_id, snoozed_until, basis_at")
-        .eq("advisor_id", user!.id) as any);
-      const ackByCompany = new Map<string, { snoozed_until: string | null; basis_at: string }>();
-      for (const a of ((acksData as any[]) || [])) {
-        ackByCompany.set(a.company_id, { snoozed_until: a.snoozed_until, basis_at: a.basis_at });
-      }
-
-      // Nyeste signal-tidsstempel pr. virksomhed (til "klaret indtil noget nyt").
-      // max af: seneste medlems-besked, ny committed fact, ny upload, ny alert.
-      // (Agent-beskeder hentes uden created_at; deres friskhed proxies af committed_at,
-      // da AI-indsigt genereres ved commit.)
-      const newestSignalAtByCompany = new Map<string, number>();
-      const bumpSignal = (companyId: string | null | undefined, ts: string | null | undefined) => {
-        if (!companyId || !ts) return;
-        const ms = new Date(ts).getTime();
-        if (Number.isNaN(ms)) return;
-        const cur = newestSignalAtByCompany.get(companyId);
-        if (cur == null || ms > cur) newestSignalAtByCompany.set(companyId, ms);
-      };
-      for (const c of conversations) bumpSignal(c.company_id, c.last_member_message_at);
-      for (const f of ((recentFactsRes.data as any[]) || [])) bumpSignal(f.company_id, f.committed_at);
-      for (const r of ((recentReportsRes.data as any[]) || [])) bumpSignal(r.company_id, r.uploaded_at);
-      for (const a of ((alertsData as any[]) || [])) bumpSignal(a.company_id, a.created_at);
-
-      // Skjul-gate: en virksomhed skjules fra action-bunkerne hvis (a) snooze-vinduet
-      // er aktivt, eller (b) den er "klaret" og intet signal er NYERE end basis_at.
-      // Rører IKKE unreadMessages/awaiting_reply_from, kun action-bunkerne gates.
-      const acknowledgedHiddenCompanyIds = new Set<string>();
-      for (const [companyId, ack] of ackByCompany) {
-        if (ack.snoozed_until && new Date(ack.snoozed_until).getTime() > now.getTime()) {
-          acknowledgedHiddenCompanyIds.add(companyId); // "Påmind"-vindue aktivt
-          continue;
-        }
-        if (!ack.snoozed_until) {
-          const newest = newestSignalAtByCompany.get(companyId) ?? 0;
-          if (newest <= new Date(ack.basis_at).getTime()) {
-            acknowledgedHiddenCompanyIds.add(companyId); // "Klaret", intet nyt sket
-          }
-        }
-      }
-
       // Udløbs-gate: skjul tier === "expired" fra dagligt arbejde (display-niveau).
-      // Selvstændigt Set, ortogonalt til acknowledgedHiddenCompanyIds; rører ikke
-      // kilden, så investorSummaries/companyMap/tællere forbliver hele. no_date/full/
-      // subscriber beholdes (fail-open, test !== "expired").
+      // Rører ikke kilden, så investorSummaries/companyMap/tællere forbliver hele.
+      // no_date/full/subscriber beholdes (fail-open, test !== "expired").
       const expiredCompanyIds = new Set<string>();
       for (const c of (companies as any[])) {
         if (computeMembershipTier({
@@ -907,8 +827,7 @@ const AdvisorDashboard = () => {
       const bPositive: BucketItem[] = [];
 
       for (const c of investorSummaries) {
-        // Gates: spring kvitterede + udløbede + pending over (dækker alle fem bunker)
-        if (acknowledgedHiddenCompanyIds.has(c.company_id)) continue;
+        // Gates: spring udløbede + pending over (dækker alle fem bunker)
         if (expiredCompanyIds.has(c.company_id) || pendingCompanyIds.has(c.company_id)) continue;
 
         const conv = convByCompany.get(c.company_id)?.[0];
@@ -918,12 +837,9 @@ const AdvisorDashboard = () => {
           assigned_advisor_name: advisorProfiles.find(a => a.user_id === conv?.assigned_advisor_id)?.full_name ?? null,
         };
 
-        // Bunke 1: Venter på dit svar (ulæst besked ELLER opfølgning forfalden)
+        // Bunke 1: Venter på dit svar (ulæst besked)
         if (c.unreadMessages > 0) {
           bWaiting.push({ ...base, subtext: `${c.unreadMessages} ulæst${c.unreadMessages > 1 ? "e" : ""} besked${c.unreadMessages > 1 ? "er" : ""}`, sortValue: c.unreadMessages });
-        } else if (conv?.follow_up_at && new Date(conv.follow_up_at) <= now) {
-          const d = new Date(conv.follow_up_at).toLocaleDateString("da-DK", { day: "numeric", month: "short" });
-          bWaiting.push({ ...base, subtext: `Opfølgning forfalden (${d})`, sortValue: 0 });
         }
 
         // Bunke 2: Friske tal (committet rapport inden for 14 dage, T8)
@@ -982,8 +898,7 @@ const AdvisorDashboard = () => {
       };
 
       return {
-        actionQueue, overdueFollowUps, upcomingFollowUps,
-        investorSummaries, companyMap, activityFeed, convByCompany, newestSignalAtByCompany, expiredCompanyIds, pendingCompanyIds,
+        investorSummaries, companyMap, activityFeed, convByCompany, expiredCompanyIds, pendingCompanyIds,
         buckets, advisorProfiles,
         allConversations, companyToUser, companies, legatCompanyIds,
         companyMemberNameMap,
@@ -994,9 +909,6 @@ const AdvisorDashboard = () => {
     staleTime: 2 * 60_000,
   });
 
-  const actionQueue = data?.actionQueue || [];
-  const overdueFollowUps = data?.overdueFollowUps || [];
-  const upcomingFollowUps = data?.upcomingFollowUps || [];
   const investorSummaries = data?.investorSummaries || [];
   const expiredCompanyIds: Set<string> = data?.expiredCompanyIds || new Set<string>();
   const pendingCompanyIds: Set<string> = data?.pendingCompanyIds || new Set<string>();
@@ -1007,8 +919,6 @@ const AdvisorDashboard = () => {
   const convByCompany = data?.convByCompany || new Map<string, ConversationRow[]>();
   const buckets = data?.buckets || { waiting: [], fresh: [], stale: [], standsOut: [], positive: [] };
   const advisorProfiles = data?.advisorProfiles || [];
-
-  const hasFollowUps = overdueFollowUps.length > 0 || upcomingFollowUps.length > 0;
 
   // KPI aggregates
   const total = investorSummaries.length;
@@ -1139,43 +1049,6 @@ const AdvisorDashboard = () => {
   const [memberSearch, setMemberSearch] = useState("");
   const [memberFilter, setMemberFilter] = useState<"alle" | "ubesvaret" | "aktive" | "passive">("alle");
   const [memberView, setMemberView] = useState<"table" | "cards">("table");
-  const [showAllQueue, setShowAllQueue] = useState(false);
-  const [dismissedItems, setDismissedItems] = useState(() => new Set<string>());
-
-  const dismissItem = (companyId: string) => {
-    setDismissedItems(prev => new Set([...prev, companyId]));
-  };
-
-  // Holdbar, virksomheds-bred kvittering. Afløser den kosmetiske dismissItem som
-  // sandhed (dismissItem beholdes kun som optimistisk umiddelbar skjul).
-  //   mode "cleared"   → "Klaret indtil noget nyt" (snoozed_until = null)
-  //   mode { days: N } → "Påmind om N dage" (snoozed_until = nu + N dage)
-  // basis_at = nyeste signal-tidsstempel netop nu, så "klaret" slipper virksomheden
-  // fri igen når et NYERE signal opstår.
-  const acknowledgeCompany = async (companyId: string, mode: "cleared" | { days: number }) => {
-    if (!user) return;
-    const basisMs = data?.newestSignalAtByCompany?.get(companyId);
-    const basis_at = basisMs ? new Date(basisMs).toISOString() : new Date().toISOString();
-    const snoozed_until = mode === "cleared"
-      ? null
-      : new Date(Date.now() + mode.days * 86400000).toISOString();
-    dismissItem(companyId); // optimistisk: skjul straks; DB er sandheden
-    const { error } = await (supabase
-      .from("advisor_company_acknowledgments" as any)
-      .upsert({
-        advisor_id: user.id,
-        company_id: companyId,
-        snoozed_until,
-        basis_at,
-        acknowledged_at: new Date().toISOString(),
-      } as any, { onConflict: "advisor_id,company_id" }) as any);
-    if (error) {
-      toast.error("Kunne ikke gemme kvitteringen", { description: error.message });
-      return;
-    }
-    queryClient.invalidateQueries({ queryKey: ["advisor-dashboard"] });
-  };
-
   const filteredMembers = useMemo(() => {
     let list = [...investorSummaries];
     if (memberSearch.trim()) {
@@ -1267,18 +1140,17 @@ const AdvisorDashboard = () => {
           </div>
         </div>
         {(() => {
-          const filterItems = (items: any[]) => (items as any[]).filter(it => !dismissedItems.has(it.company.company_id));
           // Accent pr. bunke efter hastighed, token-baseret (ingen hardcodede farver).
           // Venstre kolonne = kræver opmærksomhed; højre = muligheder + blødt vedligehold.
           // primary = den fremhævede handling pr. bunke (dialog -> chat, tal -> se virksomhed).
           const LEFT = [
-            { key: "waiting", title: "Venter på dit svar", items: filterItems(buckets.waiting), Icon: MessageSquare, border: "border-l-destructive", head: "bg-destructive/10 text-destructive", icon: "text-destructive", primary: "chat" },
-            { key: "standsOut", title: "Noget stikker ud i tallene", items: filterItems(buckets.standsOut), Icon: AlertTriangle, border: "border-l-chart-warning", head: "bg-chart-warning/10 text-chart-warning", icon: "text-chart-warning", primary: "company" },
+            { key: "waiting", title: "Venter på dit svar", items: buckets.waiting, Icon: MessageSquare, border: "border-l-destructive", head: "bg-destructive/10 text-destructive", icon: "text-destructive", primary: "chat" },
+            { key: "standsOut", title: "Noget stikker ud i tallene", items: buckets.standsOut, Icon: AlertTriangle, border: "border-l-chart-warning", head: "bg-chart-warning/10 text-chart-warning", icon: "text-chart-warning", primary: "company" },
           ];
           const RIGHT = [
-            { key: "fresh", title: "Friske tal, fortjener sparring", items: filterItems(buckets.fresh), Icon: FileText, border: "border-l-chart-positive", head: "bg-chart-positive/10 text-chart-positive", icon: "text-chart-positive", primary: "company" },
-            { key: "positive", title: "Positive muligheder", items: filterItems(buckets.positive), Icon: Sparkles, border: "border-l-chart-positive/60", head: "bg-chart-positive/5 text-chart-positive", icon: "text-chart-positive", primary: "company" },
-            { key: "stale", title: "Ikke hørt fra længe", items: filterItems(buckets.stale), Icon: Clock, border: "border-l-border", head: "bg-muted text-muted-foreground", icon: "text-muted-foreground", primary: "chat" },
+            { key: "fresh", title: "Friske tal, fortjener sparring", items: buckets.fresh, Icon: FileText, border: "border-l-chart-positive", head: "bg-chart-positive/10 text-chart-positive", icon: "text-chart-positive", primary: "company" },
+            { key: "positive", title: "Positive muligheder", items: buckets.positive, Icon: Sparkles, border: "border-l-chart-positive/60", head: "bg-chart-positive/5 text-chart-positive", icon: "text-chart-positive", primary: "company" },
+            { key: "stale", title: "Ikke hørt fra længe", items: buckets.stale, Icon: Clock, border: "border-l-border", head: "bg-muted text-muted-foreground", icon: "text-muted-foreground", primary: "chat" },
           ];
           const totalItems = [...LEFT, ...RIGHT].reduce((n, b) => n + b.items.length, 0);
           if (totalItems === 0) {
@@ -1343,24 +1215,6 @@ const AdvisorDashboard = () => {
                             Se virksomhed
                           </button>
                         )}
-                        <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <button className="h-6 w-6 rounded-md border border-border bg-card hover:bg-accent/50 transition-colors flex items-center justify-center text-muted-foreground">
-                                <MoreHorizontal className="h-3 w-3" />
-                              </button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem onClick={() => acknowledgeCompany(item.company.company_id, "cleared")} className="px-3 py-2 text-xs text-left hover:bg-accent/50 transition-colors text-foreground cursor-pointer">
-                                ✓ Klaret, indtil noget nyt
-                              </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => acknowledgeCompany(item.company.company_id, { days: 2 })} className="px-3 py-2 text-xs text-left hover:bg-accent/50 transition-colors text-foreground cursor-pointer">
-                                ⏰ Påmind om 2 dage
-                              </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => acknowledgeCompany(item.company.company_id, { days: 7 })} className="px-3 py-2 text-xs text-left hover:bg-accent/50 transition-colors text-foreground cursor-pointer">
-                                ⏰ Påmind om 7 dage
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                        </DropdownMenu>
                       </div>
                     </div>
                   );

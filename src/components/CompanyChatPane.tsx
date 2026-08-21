@@ -17,7 +17,6 @@ import MessageActionMenu from "@/components/MessageActionMenu";
 import MessageEditDialog from "@/components/MessageEditDialog";
 import MobileMessageActionDrawer from "@/components/MobileMessageActionDrawer";
 import { openReportFile } from "@/lib/reportFileAccess";
-import { isConversationActionable } from "@/lib/advisorActionHelpers";
 import { computeMembershipTier, type MembershipTier } from "@/lib/membershipTier";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import DOMPurify from "dompurify";
@@ -25,12 +24,11 @@ import {
   Send, MessageCircle, CheckCheck, FileText, Sparkles, Target,
   Search, Inbox, Clock, AlertCircle, Filter, Calculator, BookOpen, MessageSquare,
   BarChart3, Pin, Maximize2, Minimize2, ArrowLeft, ExternalLink, Eye,
-  UserCheck, Users as UsersIcon, ChevronDown, ChevronLeft, ChevronRight, Check, ArrowRightLeft, X,
-  CalendarIcon, StickyNote, MoreHorizontal, Building2, Loader2, AlertTriangle,
+  UserCheck, Users as UsersIcon, ChevronDown, ChevronLeft, ChevronRight, Check, ArrowRightLeft,
+  CalendarIcon, MoreHorizontal, Building2, Loader2, AlertTriangle,
   TrendingUp, TrendingDown, Minus,
 } from "lucide-react";
 import ChatRichInput from "@/components/ChatRichInput";
-import { Textarea } from "@/components/ui/textarea";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
@@ -47,7 +45,7 @@ import { useKpiBenchmarks } from "@/hooks/useKpiBenchmarks";
 import { deriveKpiMetrics, getTargetStatus } from "@/lib/kpiDefs";
 import { useCompanyCommentary } from "@/hooks/useCompanyCommentary";
 import type { AnalysisData } from "@/components/AIFinancialAnalysis";
-import { format, formatDistanceToNow, startOfDay, addDays, nextMonday, setHours, setMinutes, setSeconds } from "date-fns";
+import { format, formatDistanceToNow, startOfDay } from "date-fns";
 import { da } from "date-fns/locale";
 
 /** Smart date separator label: "I dag", "I går", or "9. marts 2026" */
@@ -96,12 +94,6 @@ interface ConversationWithProfile {
   assigned_advisor_id?: string | null;
   last_member_message_at?: string | null;
   last_advisor_reply_at?: string | null;
-  acknowledged_at?: string | null;
-  acknowledged_by_advisor_id?: string | null;
-  conversation_status?: string;
-  resolved_at?: string | null;
-  resolved_by_advisor_id?: string | null;
-  follow_up_at?: string | null;
 }
 
 type MessageTopic = "report" | "handout" | "milestone" | "budget" | null;
@@ -149,15 +141,7 @@ const CompanyChatPane = () => {
   const [participants, setParticipants] = useState<{ user_id: string; full_name: string; avatar_url: string | null; isAdvisor: boolean }[]>([]);
   const [companyMembers, setCompanyMembers] = useState<{ user_id: string; full_name: string; avatar_url: string | null }[]>([]);
   const [assignmentPopoverOpen, setAssignmentPopoverOpen] = useState(false);
-
-  // Internal note state
-  const [noteContent, setNoteContent] = useState("");
-  const [noteDbContent, setNoteDbContent] = useState("");
-  const [noteMeta, setNoteMeta] = useState<{ updated_at: string; updated_by: string } | null>(null);
-  const [noteSaveStatus, setNoteSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
-  const [noteExpanded, setNoteExpanded] = useState(false);
   const [showCompanyDrawer, setShowCompanyDrawer] = useState(false);
-  const [conversationNoteIds, setConversationNoteIds] = useState<Set<string>>(new Set());
 
   // Fetch all advisors for member header (independent of conversation participation)
   const { data: allAdvisors } = useQuery({
@@ -406,12 +390,6 @@ const CompanyChatPane = () => {
           assigned_advisor_id: c.assigned_advisor_id || null,
           last_member_message_at: c.last_member_message_at || null,
           last_advisor_reply_at: c.last_advisor_reply_at || null,
-          acknowledged_at: c.acknowledged_at || null,
-          acknowledged_by_advisor_id: c.acknowledged_by_advisor_id || null,
-          conversation_status: c.conversation_status || 'open',
-          resolved_at: c.resolved_at || null,
-          resolved_by_advisor_id: c.resolved_by_advisor_id || null,
-          follow_up_at: c.follow_up_at || null,
         };
       });
 
@@ -458,12 +436,6 @@ const CompanyChatPane = () => {
                   assigned_advisor_id: updated.assigned_advisor_id || null,
                   last_member_message_at: updated.last_member_message_at || null,
                   last_advisor_reply_at: updated.last_advisor_reply_at || null,
-                  acknowledged_at: updated.acknowledged_at || null,
-                  acknowledged_by_advisor_id: updated.acknowledged_by_advisor_id || null,
-                  conversation_status: updated.conversation_status || 'open',
-                  resolved_at: updated.resolved_at || null,
-                  resolved_by_advisor_id: updated.resolved_by_advisor_id || null,
-                  follow_up_at: updated.follow_up_at || null,
                   last_message_at: updated.last_message_at || c.last_message_at,
                 }
               : c
@@ -474,119 +446,6 @@ const CompanyChatPane = () => {
 
     return () => { supabase.removeChannel(channel); };
   }, [user, isAdvisor]);
-
-  // Fetch note existence for loaded conversations (advisor only)
-  useEffect(() => {
-    if (!isAdvisor || conversations.length === 0) return;
-    const companyConvIds = conversations.map(c => c.id);
-    if (companyConvIds.length === 0) { setConversationNoteIds(new Set()); return; }
-    supabase
-      .from("conversation_notes" as any)
-      .select("conversation_id")
-      .in("conversation_id", companyConvIds)
-      .then(({ data }) => {
-        if (data) {
-          setConversationNoteIds(new Set((data as any[]).map(d => d.conversation_id)));
-        }
-      });
-  }, [isAdvisor, conversations]);
-
-  // Fetch note for active conversation (advisor only)
-  useEffect(() => {
-    if (!isAdvisor || !activeConvId) {
-      setNoteContent("");
-      setNoteDbContent("");
-      setNoteMeta(null);
-      setNoteExpanded(false);
-      setNoteSaveStatus('idle');
-      return;
-    }
-    supabase
-      .from("conversation_notes" as any)
-      .select("content, updated_at, updated_by")
-      .eq("conversation_id", activeConvId)
-      .maybeSingle()
-      .then(({ data }) => {
-        if (data) {
-          setNoteContent((data as any).content || "");
-          setNoteDbContent((data as any).content || "");
-          setNoteMeta({ updated_at: (data as any).updated_at, updated_by: (data as any).updated_by });
-          setNoteExpanded(true);
-        } else {
-          setNoteContent("");
-          setNoteDbContent("");
-          setNoteMeta(null);
-          setNoteExpanded(false);
-        }
-        setNoteSaveStatus('idle');
-      });
-  }, [isAdvisor, activeConvId]);
-
-  // Save/delete note on blur
-  const handleNoteSave = async () => {
-    if (!activeConvId || !user) return;
-    const trimmed = noteContent.trim();
-    if (trimmed === noteDbContent.trim()) return;
-
-    setNoteSaveStatus('saving');
-
-    if (!trimmed) {
-      await supabase
-        .from("conversation_notes" as any)
-        .delete()
-        .eq("conversation_id", activeConvId);
-      setNoteDbContent("");
-      setNoteContent("");
-      setNoteMeta(null);
-      setConversationNoteIds(prev => {
-        const next = new Set(prev);
-        next.delete(activeConvId);
-        return next;
-      });
-    } else {
-      const { data, error } = await supabase
-        .from("conversation_notes" as any)
-        .upsert({
-          conversation_id: activeConvId,
-          content: trimmed,
-          updated_by: user.id,
-        } as any, { onConflict: "conversation_id" })
-        .select("content, updated_at, updated_by")
-        .single();
-      if (!error && data) {
-        setNoteDbContent((data as any).content);
-        setNoteMeta({ updated_at: (data as any).updated_at, updated_by: (data as any).updated_by });
-        setConversationNoteIds(prev => {
-          const next = new Set(prev);
-          next.add(activeConvId);
-          return next;
-        });
-      }
-    }
-
-    setNoteSaveStatus('saved');
-    setTimeout(() => setNoteSaveStatus('idle'), 2000);
-  };
-
-  const stats = useMemo(() => {
-    const now = new Date();
-    const actionCount = conversations.filter((c) => {
-      if (c.awaiting_reply_from !== "advisor" || c.conversation_status === 'resolved') return false;
-      if (!c.assigned_advisor_id || c.assigned_advisor_id === user?.id) {
-        if (!c.acknowledged_at) return true;
-        if (c.follow_up_at && new Date(c.follow_up_at) <= now) return true;
-      }
-      return false;
-    }).length;
-
-    return {
-      total: conversations.length,
-      action: actionCount,
-      withReports: conversations.filter((c) => c.hasRecentReport).length,
-      mine: conversations.filter((c) => c.assigned_advisor_id === user?.id).length,
-      unassigned: conversations.filter((c) => !c.assigned_advisor_id).length,
-    };
-  }, [conversations, user?.id]);
 
   const CHECKIN_THRESHOLD_MS = 14 * 24 * 60 * 60 * 1000; // 14 days
   const groupedConversations = useMemo(() => {
@@ -601,12 +460,9 @@ const CompanyChatPane = () => {
     // hiding live conversations).
     const activeConvs = regularConvs.filter(c => c.membershipTier !== "expired");
     const expiredConvs = regularConvs.filter(c => c.membershipTier === "expired");
-    // KRÆVER SVAR: all conversations awaiting any advisor reply, not acknowledged, not snoozed
+    // KRÆVER SVAR: all conversations awaiting any advisor reply
     const needsReply = activeConvs.filter(c => {
-      if (c.conversation_status === 'resolved') return false;
-      if (c.awaiting_reply_from !== 'advisor') return false;
-      const hasExpiredSnooze = !!c.follow_up_at && new Date(c.follow_up_at) <= now;
-      return !c.acknowledged_at || hasExpiredSnooze;
+      return c.awaiting_reply_from === 'advisor';
     }).sort((a, b) => {
       const aT = a.last_member_message_at ? new Date(a.last_member_message_at).getTime() : 0;
       const bT = b.last_member_message_at ? new Date(b.last_member_message_at).getTime() : 0;
@@ -616,7 +472,6 @@ const CompanyChatPane = () => {
     // TJEK IND: all conversations where no advisor has written in 14+ days
     const needsCheckin = activeConvs.filter(c => {
       if (needsReplyIds.has(c.id)) return false;
-      if (c.conversation_status === 'resolved') return false;
       const lastAdvisor = c.last_advisor_reply_at
         ? new Date(c.last_advisor_reply_at).getTime()
         : new Date(c.last_message_at).getTime();
@@ -943,118 +798,6 @@ const CompanyChatPane = () => {
     ));
   };
 
-  const handleAcknowledge = async () => {
-    if (!activeConvId || !user) return;
-    const { table, id } = getOpsTarget();
-    const now = new Date().toISOString();
-    const conv = conversations.find(c => c.id === activeConvId);
-    const updateData: any = {
-      acknowledged_at: now,
-      acknowledged_by_advisor_id: user.id,
-      awaiting_reply_from: null,
-      follow_up_at: null,
-    };
-    if (!conv?.assigned_advisor_id) {
-      updateData.assigned_advisor_id = user.id;
-    }
-    await supabase
-      .from(table as any)
-      .update(updateData)
-      .eq("id", id);
-    setConversations(prev => prev.map(c =>
-      c.id === activeConvId ? { ...c, ...updateData } : c
-    ));
-  };
-
-  const handleNoActionNeeded = async () => {
-    if (!activeConvId || !user) return;
-    const { table, id } = getOpsTarget();
-    const now = new Date().toISOString();
-    const updateData = {
-      awaiting_reply_from: null,
-      follow_up_at: null,
-      acknowledged_at: null,
-      acknowledged_by_advisor_id: null,
-      last_advisor_reply_at: now,
-    };
-    const { error } = await supabase
-      .from(table as any)
-      .update(updateData)
-      .eq("id", id);
-    if (error) { toast.error("Kunne ikke opdatere samtalen"); return; }
-    setConversations(prev => prev.map(c =>
-      c.id === activeConvId ? { ...c, ...updateData } : c
-    ));
-    toast.success("Markeret som tjekket ind");
-  };
-
-  // Snooze / follow-up helpers
-  const getSnoozeDate = (option: 'tomorrow' | '3days' | 'nextweek'): Date => {
-    const now = new Date();
-    let d: Date;
-    switch (option) {
-      case 'tomorrow':
-        d = addDays(now, 1);
-        break;
-      case '3days':
-        d = addDays(now, 3);
-        break;
-      case 'nextweek':
-        d = nextMonday(now);
-        break;
-    }
-    return setSeconds(setMinutes(setHours(d, 9), 0), 0);
-  };
-
-  const handleSnooze = async (followUpAt: Date) => {
-    if (!activeConvId || !user) return;
-    const { table, id } = getOpsTarget();
-    const now = new Date().toISOString();
-    const conv = conversations.find(c => c.id === activeConvId);
-    const updateData: any = {
-      follow_up_at: followUpAt.toISOString(),
-      acknowledged_at: now,
-      acknowledged_by_advisor_id: user.id,
-    };
-    if (!conv?.assigned_advisor_id) {
-      updateData.assigned_advisor_id = user.id;
-    }
-    const { error } = await supabase
-      .from(table as any)
-      .update(updateData)
-      .eq("id", id);
-    if (error) {
-      toast.error("Kunne ikke sætte opfølgning");
-      return;
-    }
-    setConversations(prev => prev.map(c =>
-      c.id === activeConvId ? { ...c, ...updateData } : c
-    ));
-    toast.success(`Følger op ${format(followUpAt, "d. MMM", { locale: da })}`);
-  };
-
-  const handleCancelSnooze = async () => {
-    if (!activeConvId || !user) return;
-    const { table, id } = getOpsTarget();
-    const updateData: any = {
-      follow_up_at: null,
-      acknowledged_at: null,
-      acknowledged_by_advisor_id: null,
-    };
-    const { error } = await supabase
-      .from(table as any)
-      .update(updateData)
-      .eq("id", id);
-    if (error) {
-      toast.error("Kunne ikke fjerne opfølgning");
-      return;
-    }
-    setConversations(prev => prev.map(c =>
-      c.id === activeConvId ? { ...c, ...updateData } : c
-    ));
-    toast.success("Opfølgning fjernet");
-  };
-
   // Determine what to show on mobile
   const showSidebar = isAdvisor && (!isMobile || !showMessages);
   const showMessageArea = !isMobile || showMessages || !isAdvisor;
@@ -1202,7 +945,6 @@ const CompanyChatPane = () => {
 
                 const renderConvCard = (conv: ConversationWithProfile, urgency: 'reply' | 'checkin' | 'normal') => {
                   const isActive = activeConvId === conv.id;
-                  const hasFutureSnooze = !!conv.follow_up_at && new Date(conv.follow_up_at) > new Date();
                   const assignedInitials = getAdvisorInitials(conv.assigned_advisor_id);
                   const assignedName = getAdvisorName(conv.assigned_advisor_id);
                   return (
@@ -1272,18 +1014,10 @@ const CompanyChatPane = () => {
                                 {conv.lastMessage.replace(/<[^>]+>/g, "").slice(0, 50)}
                               </p>
                             )}
-                            {hasFutureSnooze && (
-                              <span className="ml-auto text-[10px] text-amber-500 flex-shrink-0">
-                                ↩ {format(new Date(conv.follow_up_at!), "d. MMM", { locale: da })}
-                              </span>
-                            )}
                             {conv.hasRecentReport && (
                               <span className="ml-auto flex-shrink-0">
                                 <FileText className="h-3 w-3 text-primary" />
                               </span>
-                            )}
-                            {urgency === 'normal' && conversationNoteIds.has(conv.id) && (
-                              <StickyNote className="h-3 w-3 text-amber-500/70 flex-shrink-0 ml-auto" />
                             )}
                             {assignedInitials && (
                               <span
@@ -1388,30 +1122,6 @@ const CompanyChatPane = () => {
                 );
               })()}
             </div>
-            {/* Internal note — fixed at sidebar bottom */}
-            {isAdvisor && activeConvId && !isMobile && (
-              <div className="border-t border-border bg-amber-500/5 flex-shrink-0">
-                <div className="px-3 py-2 flex items-center gap-2">
-                  <StickyNote className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400 flex-shrink-0" />
-                  <span className="text-[10px] font-semibold text-amber-700 dark:text-amber-300 uppercase tracking-wider flex-1">
-                    Intern note
-                  </span>
-                  <span className="text-[9px] text-amber-600/50 dark:text-amber-400/50">Kun rådgivere</span>
-                </div>
-                <div className="px-3 pb-3">
-                  <Textarea
-                    value={noteContent}
-                    onChange={(e) => setNoteContent(e.target.value)}
-                    onBlur={handleNoteSave}
-                    placeholder="Skriv en intern note..."
-                    className="min-h-[72px] max-h-[140px] text-xs bg-transparent border-amber-500/20 focus-visible:ring-amber-500/30 resize-none placeholder:text-amber-600/40 dark:placeholder:text-amber-400/40"
-                  />
-                  <p className="text-[9px] text-amber-600/50 dark:text-amber-400/50 mt-1">
-                    {noteSaveStatus === 'saving' ? "Gemmer..." : noteSaveStatus === 'saved' ? "Gemt ✓" : noteMeta?.updated_at ? `Opdateret ${formatDistanceToNow(new Date(noteMeta.updated_at), { addSuffix: true, locale: da })}` : ""}
-                  </p>
-                </div>
-              </div>
-            )}
           </div>
         )}
 
@@ -1486,31 +1196,12 @@ const CompanyChatPane = () => {
                         </Button>
                       )}
                       {/* Primary contextual action */}
-                      {(() => {
-                        const now = new Date();
-                        const isActionable = activeConv &&
-                          activeConv.awaiting_reply_from === "advisor" &&
-                          activeConv.conversation_status !== "resolved" &&
-                          (!activeConv.acknowledged_at || (!!activeConv.follow_up_at && new Date(activeConv.follow_up_at) <= now));
-                        const hasFutureSnooze = activeConv?.follow_up_at && new Date(activeConv.follow_up_at) > now;
-                        if (isActionable) {
-                          return (
-                            <span className="inline-flex items-center gap-1.5 text-[10px] font-semibold px-1.5 sm:px-2.5 py-1.5 rounded-lg bg-destructive/10 text-destructive border border-destructive/20 flex-shrink-0">
-                              <Clock className="h-3.5 w-3.5" />
-                              <span className="hidden sm:inline">Afventer dit svar</span>
-                            </span>
-                          );
-                        }
-                        if (hasFutureSnooze) {
-                          return (
-                            <span className="inline-flex items-center gap-1.5 text-[10px] font-medium px-1.5 sm:px-2.5 py-1.5 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 flex-shrink-0">
-                              <Clock className="h-3.5 w-3.5" />
-                              <span className="hidden sm:inline">Følger op {format(new Date(activeConv!.follow_up_at!), "d. MMM", { locale: da })}</span>
-                            </span>
-                          );
-                        }
-                        return null;
-                      })()}
+                      {activeConv?.awaiting_reply_from === "advisor" && (
+                        <span className="inline-flex items-center gap-1.5 text-[10px] font-semibold px-1.5 sm:px-2.5 py-1.5 rounded-lg bg-destructive/10 text-destructive border border-destructive/20 flex-shrink-0">
+                          <Clock className="h-3.5 w-3.5" />
+                          <span className="hidden sm:inline">Afventer dit svar</span>
+                        </span>
+                      )}
                       {/* ⋯ secondary actions menu */}
                       <Popover open={assignmentPopoverOpen} onOpenChange={setAssignmentPopoverOpen} modal={false}>
                           <PopoverTrigger asChild>
@@ -1551,54 +1242,6 @@ const CompanyChatPane = () => {
                                 </button>
                               )}
                             </div>
-                            <div className="border-t border-border my-1" />
-                            {/* Snooze */}
-                            {activeConv?.conversation_status !== 'resolved' && (
-                              <>
-                                <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider px-2 py-1">Følg op</p>
-                                {[
-                                  { label: "I morgen", date: getSnoozeDate('tomorrow') },
-                                  { label: "Om 3 dage", date: getSnoozeDate('3days') },
-                                  { label: "Næste uge", date: getSnoozeDate('nextweek') },
-                                ].map(({ label, date }) => (
-                                  <button
-                                    key={label}
-                                    onClick={() => { handleSnooze(date); setAssignmentPopoverOpen(false); }}
-                                    className="flex items-center justify-between w-full px-2 py-1.5 rounded-md text-xs text-foreground hover:bg-secondary/60 transition-colors"
-                                  >
-                                    <span>{label}</span>
-                                    <span className="text-muted-foreground text-[10px]">{format(date, "EEE d. MMM", { locale: da })}</span>
-                                  </button>
-                                ))}
-                                {activeConv?.follow_up_at && new Date(activeConv.follow_up_at) > new Date() && (
-                                  <button
-                                    onClick={() => { handleCancelSnooze(); setAssignmentPopoverOpen(false); }}
-                                    className="flex items-center gap-2 w-full px-2 py-1.5 rounded-md text-xs text-muted-foreground hover:text-destructive hover:bg-destructive/5 transition-colors"
-                                  >
-                                    <X className="h-3 w-3" />
-                                    Fjern opfølgning
-                                  </button>
-                                )}
-                                <div className="border-t border-border my-1" />
-                              </>
-                            )}
-                            {/* Acknowledge / no action */}
-                            {activeConv?.awaiting_reply_from === "advisor" && !activeConv?.acknowledged_at && (
-                              <button
-                                onClick={() => { handleAcknowledge(); setAssignmentPopoverOpen(false); }}
-                                className="flex items-center gap-2 w-full px-2 py-1.5 rounded-md text-xs text-foreground hover:bg-secondary/60 transition-colors"
-                              >
-                                <Check className="h-3.5 w-3.5 text-emerald-500" />
-                                Jeg følger op (fjern fra kø)
-                              </button>
-                            )}
-                            <button
-                              onClick={() => { handleNoActionNeeded(); setAssignmentPopoverOpen(false); }}
-                              className="flex items-center gap-2 w-full px-2 py-1.5 rounded-md text-xs text-muted-foreground hover:bg-secondary/60 transition-colors"
-                            >
-                              <CheckCheck className="h-3.5 w-3.5" />
-                              Ingen handling nødvendig
-                            </button>
                           </PopoverContent>
                       </Popover>
                       {/* Prev/next */}

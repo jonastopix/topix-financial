@@ -228,8 +228,6 @@ const MemberDetail = () => {
   const [convStatus, setConvStatus] = useState<{
     awaiting_reply_from: string | null;
     assigned_advisor_id: string | null;
-    follow_up_at: string | null;
-    conversation_status: string | null;
   } | null>(null);
   const [assignedAdvisorName, setAssignedAdvisorName] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -412,7 +410,7 @@ const MemberDetail = () => {
           supabase.from("profiles").select("full_name, company_name, avatar_url, created_at, email").eq("user_id", userId).single(),
           (supabase.from("financial_reports").select("*") as any).eq("user_id", userId).is("deleted_at", null).order("uploaded_at", { ascending: false }),
           supabase.from("milestones").select("*").eq("user_id", userId).order("deadline", { ascending: true }),
-          supabase.from("conversations").select("id, awaiting_reply_from, assigned_advisor_id, follow_up_at, conversation_status").eq("member_id", userId).single(),
+          supabase.from("conversations").select("id, awaiting_reply_from, assigned_advisor_id").eq("member_id", userId).single(),
           supabase.from("handouts").select("module, status, responses, checklist, levers").eq("user_id", userId),
         ]);
 
@@ -484,8 +482,6 @@ const MemberDetail = () => {
         setConvStatus(convData ? {
           awaiting_reply_from: convData.awaiting_reply_from ?? null,
           assigned_advisor_id: convData.assigned_advisor_id ?? null,
-          follow_up_at: convData.follow_up_at ?? null,
-          conversation_status: convData.conversation_status ?? null,
         } : null);
         if (convData?.assigned_advisor_id) {
           const { data: advisorProfile } = await supabase
@@ -698,7 +694,6 @@ const MemberDetail = () => {
   // ── Conversation status helpers ──
   const conversationStatusBadge = (() => {
     if (!convStatus) return { label: "Ingen samtale", tone: "muted" as const };
-    if (convStatus.conversation_status === "resolved") return { label: "Løst", tone: "success" as const };
     if (convStatus.awaiting_reply_from === "advisor") return { label: "Afventer rådgiver", tone: "warning" as const };
     if (convStatus.awaiting_reply_from === "company") return { label: "Afventer member", tone: "info" as const };
     return { label: "Åben", tone: "muted" as const };
@@ -987,14 +982,6 @@ const MemberDetail = () => {
                 <span className="flex items-center gap-1.5 text-muted-foreground">
                   <Briefcase className="h-3 w-3" />
                   Tildelt: <span className="text-foreground font-medium">{assignedAdvisorName}</span>
-                </span>
-              )}
-              {convStatus?.follow_up_at && (
-                <span className="flex items-center gap-1.5 text-muted-foreground">
-                  <Clock className="h-3 w-3" />
-                  Opfølgning: <span className="text-foreground font-medium">
-                    {format(new Date(convStatus.follow_up_at), "d. MMM yyyy", { locale: da })}
-                  </span>
                 </span>
               )}
               {invitedEmail && (
