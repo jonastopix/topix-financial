@@ -125,9 +125,10 @@ export function accepter(opgave: Opgave, dueDate: Date, nu: Date): OpgaveResulta
 }
 
 /** B7/B11: "ikke endnu" er aftagende. Kun fra active og kun når fristen
-    er passeret. Første udskydelse: due_date + 14 dage automatisk, nyDato
-    ignoreres. Anden: medlemmet vælger selv datoen. Tredje: ulovlig —
-    opgaven skal lukkes. */
+    er passeret. Første udskydelse: 14 dage fra det øjeblik medlemmet
+    svarer ("nu"), nyDato ignoreres — regnet fra due_date kunne den nye
+    frist lande i fortiden. Anden: medlemmet vælger selv datoen. Tredje:
+    ulovlig — opgaven skal lukkes. */
 export function udskyd(opgave: Opgave, nu: Date, nyDato?: Date): OpgaveResultat {
   if (opgave.status !== "active") {
     return { ok: false, grund: `kun aktive opgaver kan udskydes (status er '${opgave.status}')` };
@@ -144,7 +145,7 @@ export function udskyd(opgave: Opgave, nu: Date, nyDato?: Date): OpgaveResultat 
 
   let nyDueDate: Date;
   if (opgave.deferral_count === 0) {
-    nyDueDate = laegDageTil(opgave.due_date, 14);
+    nyDueDate = laegDageTil(nu, 14);
   } else {
     if (nyDato == null) {
       return { ok: false, grund: "anden udskydelse kræver en valgt dato (B11)" };

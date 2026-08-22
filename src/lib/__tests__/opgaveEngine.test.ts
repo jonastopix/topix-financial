@@ -149,9 +149,16 @@ describe("udskyd (B7/B11)", () => {
 
   it("første udskydelse flytter fristen 14 dage frem automatisk og ignorerer nyDato", () => {
     const resultat = forventOk(udskyd(forfalden(), nu, d(2026, 12, 24)));
-    expect(resultat.due_date?.getTime()).toBe(d(2026, 8, 24).getTime());
+    expect(resultat.due_date?.getTime()).toBe(d(2026, 9, 5).getTime());
     expect(resultat.deferral_count).toBe(1);
     expect(resultat.status).toBe("active");
+  });
+
+  it("første udskydelse regnes fra nu — en længe overskredet frist lander ikke i fortiden", () => {
+    const laengeOverskredet = opgave({ status: "active", due_date: d(2026, 6, 1), accepted_at: d(2026, 5, 1) });
+    const resultat = forventOk(udskyd(laengeOverskredet, nu));
+    expect(resultat.due_date?.getTime()).toBe(d(2026, 9, 5).getTime());
+    expect(erForfalden(resultat, nu)).toBe(false);
   });
 
   it("anden udskydelse bruger medlemmets valgte dato", () => {
