@@ -1,8 +1,9 @@
 # Opgave-model — design
 
 **Besluttet**: 2026-08-22
-**Status**: Form besluttet (B1-B9). Datamodel, tabelnavne, RLS og UI er ikke besluttet.
+**Status**: Form besluttet (B1-B11). Datamodel implementeret. UI og RLS er ikke besluttet.
 **Grundlag**: `docs/opgave-model-kortlaegning.md` (kode-evidens) og måling mod prod 2026-08-22.
+**Migration**: `supabase/migrations/20260822220000_opgave_model_kolonner.sql` (PR #382)
 **Placering**: Fase 1 i chat-epicet. Se `BACKLOG.md` → "Chat-epic — fund fra recon 2026-08-21".
 
 ---
@@ -39,6 +40,8 @@ De 74% på handout-løftestænger er afgørende: medlemmerne skriver gerne ned h
 **B1 — Medlemmet forpligter sig.**
 Rådgiver og AI kan foreslå, men intet er en opgave før medlemmet har trykket ja. Et ubesvaret forslag er et signal, ikke en fejl.
 
+Opretter medlemmet selv en opgave, springes accept-trinnet over. De har forpligtet sig ved at skrive den.
+
 **B2 — Opgaver udløber på deres dato.**
 Når datoen passerer, spørger systemet én gang: gjort / ikke gjort / ikke endnu. Ingen manuel oprydning. Stilhed bliver information frem for gæld.
 
@@ -66,7 +69,7 @@ Første udskydelse er gratis. Anden gang spørger systemet om opgaven stadig er 
 Det vigtige er ikke tallet, men at **"drop den" skal være et lige så pænt svar som "gjort"**. Er fuldførelse den eneste værdige udgang, udskyder folk i stedet for at erkende — og så er vi tilbage ved 94 evigt aktive milestones. En bevidst droppet opgave er et sundt udfald.
 
 **B8 — Ubesvarede forslag udløber for medlemmet, men tælles for rådgiveren.**
-Et forslag forsvinder fra medlemmets liste efter en periode. Kendsgerningen om at det lå ubesvaret bliver i data og fodrer tilstandslaget i fase 2 — "otte forslag ubesvaret siden maj" bliver en anledning på virksomhedskortet.
+Et forslag forsvinder fra medlemmets liste når `expires_at` passerer. Kendsgerningen om at det lå ubesvaret bliver i data og fodrer tilstandslaget i fase 2 — "otte forslag ubesvaret siden maj" bliver en anledning på virksomhedskortet.
 
 Uden en udgang vokser bunken med cirka 150 om året pr. aktiv virksomhed (op til 3 AI-forslag hver mandag).
 
@@ -78,6 +81,26 @@ Ved lancering præsenteres hver virksomheds aktive milestones som forslag: er de
 Det er ikke en migration, det er modellens første anvendelse. Medlemmet møder præcis den mekanik der gælder fremover, på materiale de selv har skabt.
 
 **Migrations-forslag udløber som alle andre (B8).** Bestanden er død — 8% fuldførelse, ingen ny på 53 dage. Tager nogen ikke stilling til deres egne gamle mål, er det svaret. At holde dem kunstigt i live modsiger grunden til at modellen bygges om.
+
+### Tal
+
+**B10 — Udløbsfristen afhænger af kilden.**
+Forslag er ikke lige meget værd, og skal ikke leve lige længe.
+
+| Kilde | `source_type` | Frist |
+|---|---|---|
+| Rådgiverforslag | `advisor` | 30 dage |
+| Født af en refleksion | `reflection` | 21 dage |
+| Ugefokus, AI-genereret | `ai_weekly`, `agent` | 14 dage |
+
+Rådgiverforslag lever længst: der er brugt tid på dem, og medlemmet bør have rimelig tid til at forholde sig. Ugefokus lever kortest: der kommer nye hver mandag, og et forslag fra tre uger siden er sjældent stadig det rigtige. De 14 dage svarer til to ugefokus, så et forslag ikke forsvinder før medlemmet har haft mindst to chancer for at se det.
+
+**B11 — Udskydelse: fast interval første gang, valgt dato anden gang.**
+Første "ikke endnu" flytter opgaven **14 dage** frem automatisk. Ét tryk, ingen datovælger.
+
+Anden gang — hvor systemet alligevel spørger om opgaven stadig er relevant — vælger medlemmet selv den nye dato.
+
+Det følger B7's optrapning: første gang er let, anden gang kræver stillingtagen. Datovælgeren bruges præcis der hvor den betyder noget.
 
 ---
 
@@ -102,26 +125,17 @@ At kun AI-agenten sætter deadline automatisk forklarer hvorfor 61 af 102 mangle
 
 **Bemærk:** medlemmet ser ikke overskredne milestones som overskredne nogen steder — se §6.1.
 
-### 3.2 `company_actions` — erstattes, men skemaet peger allerede rigtigt
+### 3.2 `company_actions` — bærer den nye model
 
-Skemaet bærer allerede hele forpligtelses-maskineriet:
+Skemaet bar allerede halvdelen af forpligtelses-maskineriet: `status` med open/done/parked/dismissed, `completed_at`, `dismissed_at`, `source_id` og `context`. Accept- og afvis-kontrollerne fandtes — men kun i død kode (`DashboardActionCenter.tsx:321, 335`). Den levende medlemsflade (`BoardroomView.tsx:1345-1358`) havde **ingen mutation overhovedet**: alle 70 handlinger stod permanent på `open`.
 
-```sql
-status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open','done','parked','dismissed')),
-completed_at, dismissed_at
-```
-
-Accept- og afvis-kontrollerne findes — men kun i død kode (`DashboardActionCenter.tsx:321, 335`). Den levende medlemsflade (`BoardroomView.tsx:1345-1358`) har **ingen mutation overhovedet**: alle 70 handlinger står permanent på `open`, og "ubesvaret" og "besvaret" er derfor samme tilstand i data.
-
-**Konsekvens for B1:** modellen for foreslå og acceptere findes allerede i skemaet. Det der mangler er en flade — og et datofelt. `company_actions` har `week_key`, `generated_at`, `completed_at` og `dismissed_at`, men **ingen forfaldsdato**. B3 og B6 kræver et nyt felt, som først sættes ved accept.
-
-**Ingen rådgiverflade læser tabellen.** RLS giver rådgivere SELECT på alle rækker (`20260329190316…:85-87`), men adgangen er aldrig taget i brug. B8 kræver den taget i brug.
+Derfor blev tabellen udvidet frem for erstattet. Se §7.
 
 ### 3.3 `pulse_checkins` — erstattes ikke, men får en udgang
 
 Felterne er `went_well`, `biggest_challenge`, `help_needed` (fritekst) og `milestone_progress` (auto-beregnet, ikke indtastet).
 
-**Der findes intet næste-skridt-, forpligtelses- eller datofelt i tabellen.** Det er hele grunden til at refleksioner bliver løs snak: der er ingen udgang fra dem. B5 kræver at refleksionen kan munde ud i et forslag.
+**Der findes intet næste-skridt-, forpligtelses- eller datofelt i tabellen.** Det er hele grunden til at refleksioner bliver løs snak: der er ingen udgang fra dem. B5 kræver at refleksionen kan munde ud i et forslag med `source_type = 'reflection'`.
 
 Én kanal når allerede rådgiveren: `help_needed` vises som banner i chatten (`CompanyChatPane.tsx:691-698`) og bygger rådgiverlistens `report_no_reflection`-tilstand.
 
@@ -137,17 +151,14 @@ Rådgiveren ser i dag kun en boolean "har én denne uge" (`AdvisorDashboard.tsx:
 
 ## 4. Åbne spørgsmål
 
-**4.1 Hvor længe er "en periode" i B8?**
-Hvor mange uger et ubesvaret forslag ligger på medlemmets liste før det udløber, er ikke besluttet. Skal formentlig afhænge af kilden — et rådgiverforslag bør leve længere end et automatisk ugentligt.
-
-**4.2 Hvad er "gratis" i B7?**
-Første udskydelse er gratis, men hvor langt skubbes opgaven? Vælger medlemmet en ny dato, eller flyttes den et fast interval?
-
-**4.3 Hvordan præsenteres migrationen i B9?**
+**4.1 Hvordan præsenteres migrationen i B9?**
 En virksomhed med tolv aktive milestones møder tolv spørgsmål. Alt på én gang, eller fordelt over tid? Ikke besluttet.
 
-**4.4 Hvad sker der med opgaver når en virksomhed forlader platformen?**
-**Delvist svar fra kortlægningen:** der findes ingen offboarding-livscyklus, kun hard delete via `companyHardDelete.ts`. `pulse_checkins`, `company_actions` og `weekly_focus` har `ON DELETE CASCADE`; **`milestones.company_id` har ikke** (`20260224222456…:104`), hvilket blokerer en rå `DELETE FROM companies`. Fornyelsesbeslutningen (`company_fornyelse`) registrerer hensigt, men udløser ingen datahåndtering. Den nye model skal tage stilling til FK-adfærd fra dag ét.
+**4.2 Hvad sker der med opgaver når en virksomhed forlader platformen?**
+**Delvist svar fra kortlægningen:** der findes ingen offboarding-livscyklus, kun hard delete via `companyHardDelete.ts`. `company_actions` har `ON DELETE CASCADE` på `company_id`; **`milestones.company_id` har ikke** (`20260224222456…:104`), hvilket blokerer en rå `DELETE FROM companies`. Fornyelsesbeslutningen (`company_fornyelse`) registrerer hensigt, men udløser ingen datahåndtering.
+
+**4.3 RLS på de nye kolonner.**
+De eksisterende politikker på `company_actions` giver medlemmer read/insert/update på egen company og rådgivere SELECT på alle. B1 kræver at kun medlemmet kan sætte `accepted_at` og `due_date`; B8 kræver at rådgivere kan læse `expires_at` på udløbne forslag. Ikke besluttet.
 
 ### Lukket siden første udgave
 
@@ -156,14 +167,16 @@ En virksomhed med tolv aktive milestones møder tolv spørgsmål. Alt på én ga
 - Udløber et ubesvaret forslag? → **B8**
 - Kan rådgiveren se ubesvarede forslag? → Nej i dag, verificeret. Løses i fase 2 via **B8**
 - Hvad sker der med de 102 eksisterende milestones? → **B9**
+- Hvor længe ligger et forslag før det udløber? → **B10**
+- Hvad sker der ved en udskydelse? → **B11**
 
 ---
 
 ## 5. Hvad der ikke er besluttet
 
-Datamodel, tabelnavne, kolonner, RLS-politikker og UI. Dette dokument beslutter **form**, ikke implementering.
+UI og RLS-politikker. Datamodellen er implementeret (§7).
 
-Motor-først-mønstret gælder: forpligtelses- og udløbslogikken (B2, B7, B8) udtrækkes og testes som ren motor før nogen flade bygges.
+Motor-først-mønstret gælder: forpligtelses- og udløbslogikken (B2, B7, B8, B10, B11) udtrækkes og testes som ren motor før nogen flade bygges. Motoren skal kunne afgøre lovlige tilstandsovergange, beregne udløb ud fra kilde, håndtere forfald, håndtere udskydelse med tælleren, og udlede hvad en virksomhed skylder lige nu.
 
 ---
 
@@ -172,8 +185,8 @@ Motor-først-mønstret gælder: forpligtelses- og udløbslogikken (B2, B7, B8) u
 **6.1 Månedsdigesten viser overskredne deadlines som kommende.**
 `send-monthly-digest/index.ts:201-211` bruger `.lte("deadline", in30Days)` uden nedre grænse. Overskredne rækker medtages og renderes under overskriften "Milestones med deadline snart:" (`:267`) med den passerede dato printet som var den kommende. Cron den 22. kl. 08:00 (`20260810230000_cron_oprydning.sql:74-79`). **Dette er den eneste kanal hvor en overskredet milestone når et medlem — og den præsenterer den forkert.** Uafhængig af opgave-modellen; kan lukkes selvstændigt.
 
-**6.2 `run-company-agent` skriver ugyldig `source_type`.**
-`run-company-agent/index.ts:736-756` (`write_company_action`) skriver `source_type: "agent"`. CHECK-constrainten tillader kun `ai_weekly|milestone|handout|manual` (`20260329190316…:50`). Insertet må fejle. Ikke verificeret mod prod. Samme klasse fejl som `send-welcome-message` (se `BACKLOG.md`, P3).
+**6.2 `run-company-agent` skrev ugyldig `source_type`.**
+`run-company-agent/index.ts:736-756` (`write_company_action`) skriver `source_type: "agent"`. CHECK-constrainten tillod kun `ai_weekly|milestone|handout|manual`. **Lukket i databasen 2026-08-22** — `agent` er nu en gyldig værdi (§7). Koden er ikke ændret.
 
 **6.3 `AdvisorCompanyOverview.tsx` er død kode.**
 Refereres ingen steder uden for sig selv. Blev vedligeholdt i PR #378 uden at nogen ser den. Skal slettes, ikke vedligeholdes.
@@ -182,7 +195,48 @@ Refereres ingen steder uden for sig selv. Blev vedligeholdt i PR #378 uden at no
 Import i `AdvisorDashboard.tsx:17` er eneste forekomst i filen. Panelet indeholder færdigbygget overdue- og stalled-alerting med snooze (`:104-131, 237-263`). Femte tilfælde af mønsteret "bygget færdigt, aldrig koblet til en flade" — se `BACKLOG.md`, P4 "Amputeret beregning".
 
 **6.5 `milestones.company_id` mangler `ON DELETE CASCADE`.**
-Afviger fra de tre øvrige tabeller. Se §4.4.
+Afviger fra de tre øvrige tabeller. Se §4.2.
+
+---
+
+## 7. Datamodel (implementeret 2026-08-22)
+
+Migration: `supabase/migrations/20260822220000_opgave_model_kolonner.sql`, PR #382. Kørt manuelt i Lovable SQL editor og verificeret via `pg_constraint`. Ingen data rørt.
+
+### Tilstande
+
+| Status | Betydning |
+|---|---|
+| `proposed` | Foreslået, ikke besvaret. Ingen dato endnu. |
+| `active` | Accepteret af medlemmet, har dato. |
+| `done` | Fuldført. |
+| `not_done` | Nåede det ikke ved forfald. |
+| `dropped` | Ikke relevant længere, aktivt valg. |
+| `dismissed` | Afvist som forslag, aktivt valg. |
+| `expired` | Forslag der aldrig blev besvaret. |
+
+`dismissed` og `expired` skilles ad med vilje: det ene er et nej, det andet er tavshed. `not_done` og `dropped` ligeså: det ene handler om kapacitet, det andet om prioritet.
+
+`open` og `parked` er overgangsværdier der fjernes i spor 2 efter datamigreringen af de 70 eksisterende rækker.
+
+### Nye kolonner
+
+| Kolonne | Type | Formål |
+|---|---|---|
+| `due_date` | `date` | B3/B6. Bundet af CHECK: `status <> 'active' or due_date is not null` |
+| `accepted_at` | `timestamptz` | B1. Grundlag for accept-raten i B6 |
+| `deferral_count` | `integer not null default 0` | B7/B11 |
+| `expires_at` | `timestamptz` | B8/B10 |
+| `closed_at` | `timestamptz` | Sluttilstand, uanset hvilken |
+| `proposed_by` | `uuid → auth.users on delete set null` | NULL = system/AI. Ellers rådgiverens id |
+
+`user_id` er altid **medlemmet der ejer opgaven**. `proposed_by` er **den der foreslog**. To forskellige mennesker, to kolonner.
+
+`completed_at` og `dismissed_at` er overflødiggjort af `closed_at`. De bliver liggende urørte og droppes i et senere spor med bevis.
+
+### Indeks
+
+To partielle indeks til de kommende cron-job: `idx_company_actions_expiry` på `expires_at` hvor status er `proposed`, og `idx_company_actions_due` på `due_date` hvor status er `active`.
 
 ---
 
@@ -196,3 +250,6 @@ Afviger fra de tre øvrige tabeller. Se §4.4.
 | 2026-08-22 | B7 truffet: "ikke endnu" er aftagende over tre trin, med "drop den" som værdigt udfald. |
 | 2026-08-22 | B8 truffet: ubesvarede forslag udløber for medlemmet, tælles for rådgiveren. Asymmetrien er bevidst. |
 | 2026-08-22 | B9 truffet: kun aktive milestones migreres, og kun ved medlemmets valg. Migrations-forslag udløber som alle andre. |
+| 2026-08-22 | `company_actions` udvides frem for erstattes. Et upræcist tabelnavn er en mindre pris end en unødig migration af levende produktionsdata. |
+| 2026-08-22 | B10 truffet: udløbsfrist pr. kilde — 30 dage for rådgiver, 21 for refleksion, 14 for ugefokus. |
+| 2026-08-22 | B11 truffet: udskydelse er 14 dage automatisk første gang, valgt dato anden gang. |
