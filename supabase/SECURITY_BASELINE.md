@@ -364,11 +364,49 @@ companies. Decided by Jonas and Morten 2026-08-10; the precedent is Circle,
 where members are already visible to each other. Migration
 `20260810120000_member_profiles.sql`.
 
+### Opgave-modellens skrivevej (`company_actions`)
+
+Ændret 2026-08-22, migration `20260822224100_opgave_model_rls.sql` (PR #385).
+
+**Politikker efter ændringen (tre i alt)**:
+
+| cmd | policy | clause |
+|---|---|---|
+| ALL | `Service role can manage company actions` | `auth.role() = 'service_role'` |
+| SELECT | `Advisors can view all company actions` | `has_role(auth.uid(), 'advisor')` |
+| SELECT | `Members can view own company actions` | `company_id = user_company_id(auth.uid())` |
+
+**Deliberate break (2026-08-22)**: INSERT og UPDATE er fjernet for både
+authenticated medlemmer og rådgivere. Det er med vilje. Tabellen bærer
+opgave-modellen, hvor tilstandsovergange styres af
+`src/lib/opgaveEngine.ts`. Motoren kører i browseren og kan omgås; RLS
+kan ikke udtrykke regler som "deferral_count må kun stige med én" uden
+at duplikere logikken i SQL. Derfor sker al skrivning gennem edge
+functions med service role, så motoren er den ene sandhed (beslutning A,
+`docs/opgave-model-design.md`).
+
+Før ændringen havde medlemmets UPDATE-politik ingen `with_check` og
+faldt tilbage på `qual`. Et medlem kunne dermed sætte `deferral_count`
+til nul, flytte `expires_at` eller markere en opgave som gjort uden at
+have gjort den.
+
+**Konsekvens hvis nogen tilføjer INSERT eller UPDATE tilbage**:
+forpligtelses- og udløbsreglerne (B1, B2, B7, B8, B10, B11) kan omgås
+fra klienten. Tilføj dem aldrig uden først at flytte reglerne med.
+
+**Verifikation**: `pg_policies`-udtræk 2026-08-22 22:41 bekræfter tre
+politikker tilbage. Ingen levende flade skrev til tabellen på
+ændringstidspunktet (`docs/opgave-model-kortlaegning.md` §2), og begge
+skrivende edge functions bruger `SUPABASE_SERVICE_ROLE_KEY`.
+
 ### Service-role-only tables (no client INSERT/UPDATE/DELETE)
 - `slack_conversation_threads`
 - `slack_notification_log`
 - `slack_handout_notification_log`
 - `slack_report_notification_log`
+- `company_actions` — afviger fra de øvrige: klienter HAR SELECT
+  (medlem company-scoped, rådgiver bredt); kun skrivning er
+  service-role-only, se afsnittet ovenfor
 
 ---
 
