@@ -638,14 +638,20 @@ export type Database = {
       }
       company_actions: {
         Row: {
+          accepted_at: string | null
+          closed_at: string | null
           company_id: string
           completed_at: string | null
           context: string | null
           created_at: string
+          deferral_count: number
           dismissed_at: string | null
+          due_date: string | null
+          expires_at: string | null
           generated_at: string | null
           id: string
           priority: string
+          proposed_by: string | null
           source_id: string | null
           source_type: string
           status: string
@@ -655,14 +661,20 @@ export type Database = {
           week_key: string | null
         }
         Insert: {
+          accepted_at?: string | null
+          closed_at?: string | null
           company_id: string
           completed_at?: string | null
           context?: string | null
           created_at?: string
+          deferral_count?: number
           dismissed_at?: string | null
+          due_date?: string | null
+          expires_at?: string | null
           generated_at?: string | null
           id?: string
           priority?: string
+          proposed_by?: string | null
           source_id?: string | null
           source_type?: string
           status?: string
@@ -672,14 +684,20 @@ export type Database = {
           week_key?: string | null
         }
         Update: {
+          accepted_at?: string | null
+          closed_at?: string | null
           company_id?: string
           completed_at?: string | null
           context?: string | null
           created_at?: string
+          deferral_count?: number
           dismissed_at?: string | null
+          due_date?: string | null
+          expires_at?: string | null
           generated_at?: string | null
           id?: string
           priority?: string
+          proposed_by?: string | null
           source_id?: string | null
           source_type?: string
           status?: string
