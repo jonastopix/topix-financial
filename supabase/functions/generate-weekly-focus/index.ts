@@ -547,6 +547,10 @@ Generer en ugentlig fokusanalyse. Svar med dette JSON-format:
     const userId = members?.[0]?.user_id;
 
     if (userId) {
+      // Udløbsfrist for kilden ai_weekly: 14 dage, jf. B10 i
+      // docs/opgave-model-design.md. Beregnet lokalt — edge functions
+      // kan ikke importere fra src/.
+      const AI_WEEKLY_EXPIRY_DAYS = 14;
       const actionRows = actions.map((a: any) => ({
         company_id: company.id,
         user_id: userId,
@@ -554,9 +558,10 @@ Generer en ugentlig fokusanalyse. Svar med dette JSON-format:
         context: a.context,
         source_type: "ai_weekly",
         priority: a.priority || "medium",
-        status: "open",
+        status: "proposed",
         week_key: weekKey,
         generated_at: now.toISOString(),
+        expires_at: new Date(now.getTime() + AI_WEEKLY_EXPIRY_DAYS * 24 * 60 * 60 * 1000).toISOString(),
       }));
       await admin.from("company_actions").insert(actionRows);
     }
