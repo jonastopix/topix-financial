@@ -404,6 +404,9 @@ skrivende edge functions bruger `SUPABASE_SERVICE_ROLE_KEY`.
 - `slack_notification_log`
 - `slack_handout_notification_log`
 - `slack_report_notification_log`
+- `company_actions` — afviger fra de øvrige: klienter HAR SELECT
+  (medlem company-scoped, rådgiver bredt); kun skrivning er
+  service-role-only, se afsnittet ovenfor
 
 ---
 
