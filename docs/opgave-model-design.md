@@ -1,7 +1,7 @@
 # Opgave-model — design
 
 **Besluttet**: 2026-08-22
-**Status**: Form besluttet. Datamodel, tabelnavne, RLS og UI er ikke besluttet.
+**Status**: Form besluttet (B1-B9). Datamodel, tabelnavne, RLS og UI er ikke besluttet.
 **Grundlag**: `docs/opgave-model-kortlaegning.md` (kode-evidens) og måling mod prod 2026-08-22.
 **Placering**: Fase 1 i chat-epicet. Se `BACKLOG.md` → "Chat-epic — fund fra recon 2026-08-21".
 
@@ -32,7 +32,9 @@ De 74% på handout-løftestænger er afgørende: medlemmerne skriver gerne ned h
 
 ---
 
-## 2. De fem beslutninger
+## 2. Beslutningerne
+
+### Grundform
 
 **B1 — Medlemmet forpligter sig.**
 Rådgiver og AI kan foreslå, men intet er en opgave før medlemmet har trykket ja. Et ubesvaret forslag er et signal, ikke en fejl.
@@ -49,6 +51,34 @@ Intet mål/handling-hierarki. Et langsigtet mål er en opgave med lang horisont.
 **B5 — Refleksioner er ikke opgaver — de er stedet hvor opgaver opstår.**
 Refleksionen efter en rapportering skal pege på konkrete tal, huske hvad medlemmet skrev sidst, og munde ud i et forslag medlemmet kan sige ja til.
 
+### Livscyklus
+
+**B6 — Medlemmet sætter datoen ved accept.**
+Et forslag kommer uden dato. Datoen vælges af den der forpligter sig, ikke af den der foreslår. Accept er dermed to handlinger: sig ja, og vælg hvornår.
+
+> **Registreret indvending (Claude, 2026-08-22):** hver ekstra handling har historisk kostet næsten al adoption i denne platform — 8% fuldførte milestones, nul interne noter, nul kvitteringer. Alternativet var at forslaget bærer en foreslået dato medlemmet kan ændre (ét tryk ved accept). Jonas' modargument vejer tungere: en dato medlemmet ikke selv har valgt, er ikke en forpligtelse, den er et nik. Hele B1 hviler på at den er deres.
+>
+> **Skal observeres:** accept-raten. Er den lav, er den foreslåede-dato-variant den første justering at prøve.
+
+**B7 — "Ikke endnu" er aftagende, ikke ubegrænset.**
+Første udskydelse er gratis. Anden gang spørger systemet om opgaven stadig er relevant, med "drop den" som ligeværdigt valg. Tredje gang lukkes den.
+
+Det vigtige er ikke tallet, men at **"drop den" skal være et lige så pænt svar som "gjort"**. Er fuldførelse den eneste værdige udgang, udskyder folk i stedet for at erkende — og så er vi tilbage ved 94 evigt aktive milestones. En bevidst droppet opgave er et sundt udfald.
+
+**B8 — Ubesvarede forslag udløber for medlemmet, men tælles for rådgiveren.**
+Et forslag forsvinder fra medlemmets liste efter en periode. Kendsgerningen om at det lå ubesvaret bliver i data og fodrer tilstandslaget i fase 2 — "otte forslag ubesvaret siden maj" bliver en anledning på virksomhedskortet.
+
+Uden en udgang vokser bunken med cirka 150 om året pr. aktiv virksomhed (op til 3 AI-forslag hver mandag).
+
+> **Bevidst konsekvens:** medlem og rådgiver ser forskellige ting om samme forslag. Rådgiveren ved noget medlemmet ikke kan se på sin egen skærm.
+
+**B9 — Kun det levende migreres, og kun ved at medlemmet vælger det.**
+Ved lancering præsenteres hver virksomheds aktive milestones som forslag: er det her stadig noget du vil? Ja plus dato bliver til en opgave. Nej bliver arkiveret. Fuldførte bevares som historik.
+
+Det er ikke en migration, det er modellens første anvendelse. Medlemmet møder præcis den mekanik der gælder fremover, på materiale de selv har skabt.
+
+**Migrations-forslag udløber som alle andre (B8).** Bestanden er død — 8% fuldførelse, ingen ny på 53 dage. Tager nogen ikke stilling til deres egne gamle mål, er det svaret. At holde dem kunstigt i live modsiger grunden til at modellen bygges om.
+
 ---
 
 ## 3. Hvad der erstattes
@@ -64,7 +94,7 @@ Refleksionen efter en rapportering skal pege på konkrete tal, huske hvad medlem
 | `supabase/functions/run-company-agent/index.ts:544-587` | AI-agent | `agent` | Ja, i dag + 30 dage |
 | `supabase/functions/create-legat-enrollment/index.ts:169-179` | Legat-onboarding, auto | `legat` | — |
 
-At kun AI-agenten sætter deadline automatisk forklarer hvorfor 61 af 102 mangler den.
+At kun AI-agenten sætter deadline automatisk forklarer hvorfor 61 af 102 mangler den. Bemærk at netop den automatik er det B6 afviser: en dato på i dag plus tredive dage betyder ingenting.
 
 **Medlemsflader:** `/milestones` (kun tilgængelig som underpunkt under "Dine tal", `HbMemberShell.tsx:60`), forsidens fokus-kort via `deriveFocus`, pulse-modalens progress-beregning, legat-dashboardet.
 
@@ -83,9 +113,9 @@ completed_at, dismissed_at
 
 Accept- og afvis-kontrollerne findes — men kun i død kode (`DashboardActionCenter.tsx:321, 335`). Den levende medlemsflade (`BoardroomView.tsx:1345-1358`) har **ingen mutation overhovedet**: alle 70 handlinger står permanent på `open`, og "ubesvaret" og "besvaret" er derfor samme tilstand i data.
 
-**Konsekvens for B1:** modellen for foreslå → accepter findes allerede i skemaet. Det der mangler er en flade — og et datofelt. `company_actions` har `week_key`, `generated_at`, `completed_at` og `dismissed_at`, men **ingen forfaldsdato**. B3 kræver et nyt felt.
+**Konsekvens for B1:** modellen for foreslå og acceptere findes allerede i skemaet. Det der mangler er en flade — og et datofelt. `company_actions` har `week_key`, `generated_at`, `completed_at` og `dismissed_at`, men **ingen forfaldsdato**. B3 og B6 kræver et nyt felt, som først sættes ved accept.
 
-**Ingen rådgiverflade læser tabellen.** RLS giver rådgivere SELECT på alle rækker (`20260329190316…:85-87`), men adgangen er aldrig taget i brug.
+**Ingen rådgiverflade læser tabellen.** RLS giver rådgivere SELECT på alle rækker (`20260329190316…:85-87`), men adgangen er aldrig taget i brug. B8 kræver den taget i brug.
 
 ### 3.3 `pulse_checkins` — erstattes ikke, men får en udgang
 
@@ -107,23 +137,25 @@ Rådgiveren ser i dag kun en boolean "har én denne uge" (`AdvisorDashboard.tsx:
 
 ## 4. Åbne spørgsmål
 
-**4.1 Hvor mange gange kan "ikke endnu" siges?**
-B2 giver tre svar ved udløb. "Ikke endnu" skal kunne siges uden skam, men en opgave der kan udskydes uendeligt er milestones om igen. Grænsen er ikke besluttet.
+**4.1 Hvor længe er "en periode" i B8?**
+Hvor mange uger et ubesvaret forslag ligger på medlemmets liste før det udløber, er ikke besluttet. Skal formentlig afhænge af kilden — et rådgiverforslag bør leve længere end et automatisk ugentligt.
 
-**4.2 Hvem sætter datoen — den der foreslår, eller den der siger ja?**
-B1 siger medlemmet forpligter sig; B3 siger datoen er obligatorisk. Hvis rådgiveren foreslår med dato, accepterer medlemmet så også datoen? Eller sætter medlemmet sin egen ved accept? Ikke besluttet.
+**4.2 Hvad er "gratis" i B7?**
+Første udskydelse er gratis, men hvor langt skubbes opgaven? Vælger medlemmet en ny dato, eller flyttes den et fast interval?
 
-**4.3 Udløber et ubesvaret forslag?**
-B1 gør ubesvarede forslag til et signal. Men et forslag fra marts der stadig ligger i august er ikke et signal, det er skrald. Ikke besluttet.
+**4.3 Hvordan præsenteres migrationen i B9?**
+En virksomhed med tolv aktive milestones møder tolv spørgsmål. Alt på én gang, eller fordelt over tid? Ikke besluttet.
 
-**4.4 Kan rådgiveren se ubesvarede forslag?**
-**Nej — verificeret.** Ingen rådgiverflade læser `company_actions`. Se §3.2. Dette skal løses i tilstandslaget (fase 2).
-
-**4.5 Hvad sker der med de 102 eksisterende milestones?**
-Migrationsplan er bevidst ikke besluttet i dette dokument. Bemærk at 8 er fuldførte (historik værd at bevare), 24 er overskredne og 61 mangler deadline — og B3 kræver dato, så de kan ikke migreres uændret.
-
-**4.6 Hvad sker der med opgaver når en virksomhed forlader platformen?**
+**4.4 Hvad sker der med opgaver når en virksomhed forlader platformen?**
 **Delvist svar fra kortlægningen:** der findes ingen offboarding-livscyklus, kun hard delete via `companyHardDelete.ts`. `pulse_checkins`, `company_actions` og `weekly_focus` har `ON DELETE CASCADE`; **`milestones.company_id` har ikke** (`20260224222456…:104`), hvilket blokerer en rå `DELETE FROM companies`. Fornyelsesbeslutningen (`company_fornyelse`) registrerer hensigt, men udløser ingen datahåndtering. Den nye model skal tage stilling til FK-adfærd fra dag ét.
+
+### Lukket siden første udgave
+
+- Hvor mange gange kan "ikke endnu" siges? → **B7**
+- Hvem sætter datoen? → **B6**
+- Udløber et ubesvaret forslag? → **B8**
+- Kan rådgiveren se ubesvarede forslag? → Nej i dag, verificeret. Løses i fase 2 via **B8**
+- Hvad sker der med de 102 eksisterende milestones? → **B9**
 
 ---
 
@@ -131,7 +163,7 @@ Migrationsplan er bevidst ikke besluttet i dette dokument. Bemærk at 8 er fuldf
 
 Datamodel, tabelnavne, kolonner, RLS-politikker og UI. Dette dokument beslutter **form**, ikke implementering.
 
-Motor-først-mønstret gælder: forpligtelses- og udløbslogikken udtrækkes og testes som ren motor før nogen flade bygges.
+Motor-først-mønstret gælder: forpligtelses- og udløbslogikken (B2, B7, B8) udtrækkes og testes som ren motor før nogen flade bygges.
 
 ---
 
@@ -150,7 +182,7 @@ Refereres ingen steder uden for sig selv. Blev vedligeholdt i PR #378 uden at no
 Import i `AdvisorDashboard.tsx:17` er eneste forekomst i filen. Panelet indeholder færdigbygget overdue- og stalled-alerting med snooze (`:104-131, 237-263`). Femte tilfælde af mønsteret "bygget færdigt, aldrig koblet til en flade" — se `BACKLOG.md`, P4 "Amputeret beregning".
 
 **6.5 `milestones.company_id` mangler `ON DELETE CASCADE`.**
-Afviger fra de tre øvrige tabeller. Se §4.6.
+Afviger fra de tre øvrige tabeller. Se §4.4.
 
 ---
 
@@ -160,3 +192,7 @@ Afviger fra de tre øvrige tabeller. Se §4.6.
 |---|---|
 | 2026-08-22 | B1-B5 truffet. Opgave-modellen bygges før tilstandslaget, fordi tilstandslaget uden aftaler kun kan rapportere stilhed og talfriskhed. |
 | 2026-08-22 | `weekly_focus` erstattes ikke — den bliver stående som forslagskilde. |
+| 2026-08-22 | B6 truffet: medlemmet sætter datoen ved accept. Claudes indvending registreret i B6; accept-raten skal observeres. |
+| 2026-08-22 | B7 truffet: "ikke endnu" er aftagende over tre trin, med "drop den" som værdigt udfald. |
+| 2026-08-22 | B8 truffet: ubesvarede forslag udløber for medlemmet, tælles for rådgiveren. Asymmetrien er bevidst. |
+| 2026-08-22 | B9 truffet: kun aktive milestones migreres, og kun ved medlemmets valg. Migrations-forslag udløber som alle andre. |
