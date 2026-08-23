@@ -5,6 +5,7 @@ import { GROUP_LABELS, GROUP_ORDER } from "@/lib/budgetTemplates";
 import {
   gruppeForslag,
   indsaetFraTekst,
+  normaliseretVaerdi,
   opsummer,
   saetEtiket,
   saetMedtag,
@@ -77,20 +78,27 @@ export const HbImportGitter = ({ gitter, onChange }: HbImportGitterProps) => {
     tekst: string;
   } | null>(null);
 
+  // Cellerne viser den NORMALISEREDE værdi (normaliseretVaerdi — samme
+  // regel som skriveplanen), så det medlemmet ser og godkender ER det der
+  // gemmes: Løn står som 200.000, ikke filens -200.000. Gruppevælgeren
+  // styrer fortegnet, så et skift til/fra Indtægter opdaterer visningen
+  // med det samme. Det rå fortegn bevares i modellen (motoren læser
+  // trofast) — vis det aldrig her.
   const visVaerdi = (raekke: GitterRaekke, kolonne: number): string => {
     if (redigerer && redigerer.raekkeIndex === raekke.raekkeIndex && redigerer.kolonne === kolonne) {
       return redigerer.tekst;
     }
-    const vaerdi = raekke.vaerdier[kolonne];
+    const vaerdi = normaliseretVaerdi(gitter, raekke, kolonne);
     return vaerdi === null ? "" : fmtNumber(vaerdi);
   };
 
   const startRedigering = (raekke: GitterRaekke, kolonne: number) => {
-    const vaerdi = raekke.vaerdier[kolonne];
+    const vaerdi = normaliseretVaerdi(gitter, raekke, kolonne);
     setRedigerer({
       raekkeIndex: raekke.raekkeIndex,
       kolonne,
-      // Rå værdi med dansk decimaltegn, så den kan tastes videre på.
+      // Normaliseret værdi med dansk decimaltegn, så der tastes videre på
+      // præcis det tal der vises og skrives.
       tekst: vaerdi === null ? "" : String(vaerdi).replace(".", ","),
     });
   };

@@ -92,6 +92,30 @@ export type Gitter = {
   advarsler: string[];
 };
 
+/** Rækkens opløste gruppenøgle: medlemmets valg i gitteret, ellers forslaget. */
+export function raekkeGruppe(gitter: Gitter, raekke: GitterRaekke): Gruppenoegle {
+  return gitter.sektionsGrupper?.[sektionsNoegle(raekke.sektion)] ?? gruppeForslag(raekke.sektion);
+}
+
+/** DEN værdi medlemmet ser og der skrives — må IKKE rulles tilbage:
+    gitteret gemmer filens rå fortegn (motoren læser trofast, og skifter
+    medlemmet gruppen til Indtægter skal originalfortegnet kunne komme
+    igen), men alle flader medlemmet ser (celler, summer) OG skriveplanen
+    deler denne ENE regel: absolutværdi for alle grupper undtagen
+    indtaegter. Platformens konvention er positive omkostninger (målt mod
+    prod 2026-08-24: 2.221 positive beløb hos 12 virksomheder mod 228
+    negative hos 1 — en import før normaliseringen), og medlemmet skal
+    godkende præcis det der gemmes — aldrig se -200.000 og få 200.000. */
+export function normaliseretVaerdi(
+  gitter: Gitter,
+  raekke: GitterRaekke,
+  kolonne: number,
+): number | null {
+  const vaerdi = raekke.vaerdier[kolonne];
+  if (vaerdi === null || vaerdi === undefined) return null;
+  return raekkeGruppe(gitter, raekke) === "indtaegter" ? vaerdi : Math.abs(vaerdi);
+}
+
 export type GitterOpsummering = {
   medtaget: number;
   fravalgt: number;
@@ -275,9 +299,12 @@ export function byggGitter(resultat: ImportResultat): Gitter {
 
   // Dobbelttællings-værn: en post hvis etiket matcher en sektion eller
   // subtotal i en ANDEN tabel er med stor sandsynlighed samme størrelse
-  // opgjort igen (nøgletals-resuméer, videreførte totaler). Motoren
-  // foreslår, medlemmet retter — rækken forbliver medtaget (P1), aldrig
-  // fravalgt i stilhed.
+  // opgjort igen (nøgletals-resuméer, videreførte totaler). Besluttet
+  // 2026-08-24 efter første rigtige gennemløb (EBITDA −28 kr. fordi en
+  // videreført total blev importeret trods rød advarsel): "alt er valgt
+  // til" gælder TVIVL — for rækker vi er ret sikre på dobbelttæller, er
+  // standardudfaldet forkert. De FRAVÆLGES; bemærkningen bliver stående
+  // og forklarer hvorfor, og medlemmet kan vælge dem til igen.
   for (const raekke of raekker) {
     const etiket = raekke.etiket.trim().toLowerCase();
     if (etiket === "") continue;
@@ -285,9 +312,10 @@ export function byggGitter(resultat: ImportResultat): Gitter {
       (s) => s.tabelIndex !== raekke.tabelIndex && s.etiket.trim().toLowerCase() === etiket,
     );
     if (match) {
+      raekke.medtag = false;
       tilfoejNote(
         raekke,
-        `Ligner totalen '${raekke.etiket.trim()}' i en anden del af filen — tages den med, tælles beløbet to gange`,
+        `Fravalgt: ligner totalen '${raekke.etiket.trim()}' i en anden del af filen — tages den med, tælles beløbet to gange`,
       );
     }
   }
@@ -315,9 +343,13 @@ export function byggGitter(resultat: ImportResultat): Gitter {
       if (harAndre && indenForTolerance(sum, vaerdi)) matchendeKolonner++;
     }
     if (matchendeKolonner >= 2) {
+      // Samme beslutning som cross-table-værnet: sikker dobbelttælling
+      // fravælges som standard. (Forholdstals-rækker nedenfor forbliver
+      // derimod VALGT TIL — de forstyrrer ikke summen og er ægte linjer.)
+      raekke.medtag = false;
       tilfoejNote(
         raekke,
-        "Ser ud til at være en total af de øvrige linjer — tages den med, tælles beløbet to gange",
+        "Fravalgt: ser ud til at være en total af de øvrige linjer — tages den med, tælles beløbet to gange",
       );
     }
   }
@@ -553,8 +585,9 @@ export function opsummer(gitter: Gitter): GitterOpsummering {
     let harVaerdi = false;
     let total = 0;
     for (const r of iSum) {
-      const v = r.vaerdier[kolonne];
-      if (v !== null && v !== undefined) {
+      // Summen viser de NORMALISEREDE værdier — samme tal som skrives.
+      const v = normaliseretVaerdi(gitter, r, kolonne);
+      if (v !== null) {
         harVaerdi = true;
         total += v;
       }

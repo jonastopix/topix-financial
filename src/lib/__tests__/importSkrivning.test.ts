@@ -5,6 +5,7 @@ import { laesMatrix } from "@/lib/importEngine";
 import {
   byggGitter,
   GYLDIGE_GRUPPER,
+  normaliseretVaerdi,
   saetMedtag,
   saetSektionsgruppe,
   type Gitter,
@@ -344,13 +345,13 @@ describe("golden: skriveplaner for de syv fixtures", () => {
     }
   };
 
-  it("Remm-budget (CSV): 62 rækker; Årstotal fordelt for KPI-rækkerne og ubrugt for månedsrækkerne", () => {
+  it("Remm-budget (CSV): 54 rækker (8 dobbelttællings-rækker fravalgt); Årstotal fordelt for KPI-rækkerne og ubrugt for månedsrækkerne", () => {
     const g = byggGitter(
       laesMatrix(parseCsvTilMatrix(fs.readFileSync(`${FIX}/remm-budget-base-2026.csv`, "utf-8"))),
     );
     const { plan, fordelteKolonner, noeglerUnikke } = planAf(g, "2026");
     fastlaas(plan, fordelteKolonner, noeglerUnikke, {
-      raekker: 62, // 63 medtagne minus "Blended ROAS" (ingen tal)
+      raekker: 54, // 63 minus ROAS (ingen tal) minus de 8 auto-fravalgte dobbelttællinger
       fordelte: ["Årstotal"],
       utolkede: [],
       sprungetOver: ["Årstotal"], // brugt for KPI-rækkerne, sprunget over for månedsrækkerne
@@ -358,11 +359,11 @@ describe("golden: skriveplaner for de syv fixtures", () => {
     expect(plan.advarsler.some((a) => a.includes("uden tal blev udeladt"))).toBe(true);
   });
 
-  it("Topix Budget2026 (XLSX): 32 rækker, intet fordelt, Årstotal uden år filtreres fra", () => {
+  it("Topix Budget2026 (XLSX): 31 rækker ('Resultat' fravalgt), intet fordelt, Årstotal uden år filtreres fra", () => {
     const g = byggGitter(laesMatrix(laesArkTilMatrix(`${FIX}/topix-budget-2026.xlsx`, "Budget2026")));
     const { plan, fordelteKolonner, noeglerUnikke } = planAf(g, "2026");
     fastlaas(plan, fordelteKolonner, noeglerUnikke, {
-      raekker: 32,
+      raekker: 31,
       fordelte: [],
       utolkede: [],
       sprungetOver: ["Årstotal"], // intet år på kolonnen, månederne bærer -26
@@ -411,13 +412,13 @@ describe("golden: skriveplaner for de syv fixtures", () => {
     });
   });
 
-  it("robusthed 04 (semikolon-dansk): 11 rækker, ren månedsskrivning", () => {
+  it("robusthed 04 (semikolon-dansk): 10 rækker ('Resultat' fravalgt), ren månedsskrivning", () => {
     const g = byggGitter(
       laesMatrix(parseCsvTilMatrix(fs.readFileSync(`${FIX}/robusthed/04-semikolon-dansk.csv`, "utf-8"), ";")),
     );
     const { plan, fordelteKolonner, noeglerUnikke } = planAf(g, "2026");
     fastlaas(plan, fordelteKolonner, noeglerUnikke, {
-      raekker: 11,
+      raekker: 10,
       fordelte: [],
       utolkede: [],
       sprungetOver: [],
@@ -445,12 +446,47 @@ describe("golden: skriveplaner for de syv fixtures", () => {
     });
   });
 
-  it("fravalg slår igennem i planen (Remm: fravælg én række → 61)", () => {
+  it("fravalg slår igennem i planen (Remm: fravælg én MEDTAGET række → 53)", () => {
     const g = byggGitter(
       laesMatrix(parseCsvTilMatrix(fs.readFileSync(`${FIX}/remm-budget-base-2026.csv`, "utf-8"))),
     );
-    const foerste = g.raekker[0].raekkeIndex;
-    const { plan } = planAf(saetMedtag(g, foerste, false), "2026");
-    expect(plan.raekker).toHaveLength(61);
+    const foersteMedtagne = g.raekker.find((r) => r.medtag)!.raekkeIndex;
+    const { plan } = planAf(saetMedtag(g, foersteMedtagne, false), "2026");
+    expect(plan.raekker).toHaveLength(53);
+  });
+});
+
+// ─────────────── Visning ≡ skrivning (alle syv fixtures) ───────────────
+
+/**
+ * Det medlemmet SER i gitteret (normaliseretVaerdi) skal være præcis det
+ * skriveplanen skriver. Bevis: et gitter hvor alle celler er erstattet med
+ * deres normaliserede visningsværdi giver en IDENTISK skriveplan —
+ * normaliseringen er én delt regel, ikke to der kan glide fra hinanden.
+ */
+describe("visning ≡ skrivning", () => {
+  const FIX2 = path.resolve(__dirname, "../__fixtures__");
+  const tilfaelde: [string, () => Gitter][] = [
+    ["remm", () => byggGitter(laesMatrix(parseCsvTilMatrix(fs.readFileSync(`${FIX2}/remm-budget-base-2026.csv`, "utf-8"))))],
+    ["topix", () => byggGitter(laesMatrix(laesArkTilMatrix(`${FIX2}/topix-budget-2026.xlsx`, "Budget2026")))],
+    ["rob01", () => byggGitter(laesMatrix(laesArkTilMatrix(`${FIX2}/robusthed/01-kvartal-positive-omkostninger.xlsx`, "Budget")))],
+    ["rob02", () => byggGitter(laesMatrix(laesArkTilMatrix(`${FIX2}/robusthed/02-transponeret.xlsx`, "Budget 2026")))],
+    ["rob03", () => byggGitter(laesMatrix(laesArkTilMatrix(`${FIX2}/robusthed/03-flettede-total-oeverst.xlsx`, "Resultatbudget")))],
+    ["rob04", () => byggGitter(laesMatrix(parseCsvTilMatrix(fs.readFileSync(`${FIX2}/robusthed/04-semikolon-dansk.csv`, "utf-8"), ";")))],
+    ["rob05", () => byggGitter(laesMatrix(laesArkTilMatrix(`${FIX2}/robusthed/05-engelsk-fire-aar.xlsx`, "Consolidated")))],
+  ];
+
+  it("skriveplanen af de VISTE værdier er identisk med skriveplanen af de rå", () => {
+    for (const [navn, byg] of tilfaelde) {
+      const g = byg();
+      const somVist: Gitter = {
+        ...g,
+        raekker: g.raekker.map((r) => ({
+          ...r,
+          vaerdier: r.vaerdier.map((_, k) => normaliseretVaerdi(g, r, k)),
+        })),
+      };
+      expect(byggSkriveplan(somVist, "2026"), navn).toEqual(byggSkriveplan(g, "2026"));
+    }
   });
 });

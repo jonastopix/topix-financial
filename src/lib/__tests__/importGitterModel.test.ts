@@ -1,11 +1,13 @@
 import * as fs from "fs";
 import * as path from "path";
 import { describe, expect, it } from "vitest";
-import { laesMatrix, laesTal, type ImportResultat, type Matrix, type Tabel } from "@/lib/importEngine";
+import { erMaanedsnavn, laesMatrix, laesTal, type ImportResultat, type Matrix, type Tabel } from "@/lib/importEngine";
 import {
   byggGitter,
   gruppeForslag,
   indsaetFraTekst,
+  normaliseretVaerdi,
+  raekkeGruppe,
   opsummer,
   saetSektionsgruppe,
   saetEtiket,
@@ -181,7 +183,7 @@ describe("byggGitter", () => {
     expect(g.raekker[0].vaerdier).toEqual([5, 6, null]);
   });
 
-  it("dobbelttælling: post der matcher subtotal i ANDEN tabel får bemærkning og forbliver medtaget", () => {
+  it("dobbelttælling: post der matcher subtotal i ANDEN tabel FRAVÆLGES med forklarende bemærkning", () => {
     const g = byggGitter(
       resultat([
         tabel([post(0, "Gross Profit", [100])]),
@@ -200,9 +202,9 @@ describe("byggGitter", () => {
     );
     const posten = g.raekker.find((r) => r.raekkeIndex === 0)!;
     expect(posten.bemaerkning).toBe(
-      "Ligner totalen 'Gross Profit' i en anden del af filen — tages den med, tælles beløbet to gange",
+      "Fravalgt: ligner totalen 'Gross Profit' i en anden del af filen — tages den med, tælles beløbet to gange",
     );
-    expect(posten.medtag).toBe(true);
+    expect(posten.medtag).toBe(false); // sikker dobbelttælling → fravalgt som standard
   });
 
   it("dobbelttælling: samme etiket som subtotal i SAMME tabel giver ingen bemærkning", () => {
@@ -225,7 +227,7 @@ describe("byggGitter", () => {
     expect(g.raekker.every((r) => r.bemaerkning === null)).toBe(true);
   });
 
-  it("total af alle øvrige linjer: rækken der summer resten af gitteret får bemærkning", () => {
+  it("total af alle øvrige linjer: rækken FRAVÆLGES med forklarende bemærkning", () => {
     const g = byggGitter(
       resultat([
         tabel([post(0, "Dækningsbidrag", [500, 600])]),
@@ -238,9 +240,9 @@ describe("byggGitter", () => {
     );
     const resultatRaekke = g.raekker.find((r) => r.etiket === "Resultat")!;
     expect(resultatRaekke.bemaerkning).toBe(
-      "Ser ud til at være en total af de øvrige linjer — tages den med, tælles beløbet to gange",
+      "Fravalgt: ser ud til at være en total af de øvrige linjer — tages den med, tælles beløbet to gange",
     );
-    expect(resultatRaekke.medtag).toBe(true);
+    expect(resultatRaekke.medtag).toBe(false);
     expect(g.raekker.filter((r) => r.bemaerkning !== null)).toHaveLength(1);
   });
 
@@ -304,8 +306,9 @@ describe("byggGitter", () => {
     );
     const posten = g.raekker.find((r) => r.raekkeIndex === 0)!;
     expect(posten.bemaerkning).toBe(
-      "Alle måneder er nul · Ligner totalen 'Net Profit' i en anden del af filen — tages den med, tælles beløbet to gange",
+      "Alle måneder er nul · Fravalgt: ligner totalen 'Net Profit' i en anden del af filen — tages den med, tælles beløbet to gange",
     );
+    expect(posten.medtag).toBe(false);
   });
 
   it("bemærkning: alle værdier null og ingen ulæselige → 'Ingen tal i denne linje'", () => {
@@ -703,9 +706,10 @@ describe("golden: gitter af Remm-budget 2026", () => {
   const res = laesMatrix(parseCsvTilMatrix(fs.readFileSync(fixturePath, "utf-8")));
   const g = byggGitter(res);
 
-  it("63 rækker — alle poster, alt medtaget som udgangspunkt", () => {
+  it("63 rækker — 55 medtaget, de 8 dobbelttællings-rækker fravalgt fra start", () => {
     expect(g.raekker).toHaveLength(63);
-    expect(g.raekker.every((r) => r.medtag)).toBe(true);
+    expect(g.raekker.filter((r) => r.medtag)).toHaveLength(55);
+    expect(g.raekker.filter((r) => !r.medtag)).toHaveLength(8);
   });
 
   it("ingen subtotal er blandt rækkerne — de 13 står i struktur", () => {
@@ -746,9 +750,9 @@ describe("golden: gitter af Remm-budget 2026", () => {
     expect(g.raekker.filter((r) => r.bemaerkning?.includes("forholdstal"))).toEqual([]);
   });
 
-  it("dobbelttællings-bemærkning på præcis de otte rækker der gentager en total fra en anden tabel", () => {
+  it("dobbelttællings-bemærkning OG fravalg på præcis de otte rækker der gentager en total fra en anden tabel", () => {
     const medNote = g.raekker
-      .filter((r) => r.bemaerkning?.includes("Ligner totalen"))
+      .filter((r) => r.bemaerkning?.includes("ligner totalen"))
       .map((r) => [r.raekkeIndex, r.etiket]);
     expect(medNote).toEqual([
       [4, "Revenue"],                // KPI-resumé ↔ sektion/subtotal i tabel 2
@@ -760,7 +764,8 @@ describe("golden: gitter af Remm-budget 2026", () => {
       [93, "Contribution Margin"],   // videreført total fra tabel 4 i tabel 6
       [94, "Total Fixed Expenses"],  // videreført total fra tabel 5 i tabel 6
     ]);
-    expect(medNote.every(([idx]) => g.raekker.find((r) => r.raekkeIndex === idx)!.medtag)).toBe(true);
+    // Sikker dobbelttælling er FRAVALGT fra start — bemærkningen forklarer.
+    expect(medNote.every(([idx]) => !g.raekker.find((r) => r.raekkeIndex === idx)!.medtag)).toBe(true);
   });
 });
 
@@ -795,13 +800,48 @@ describe("golden: gitter af Topix-budget 2026 (XLSX)", () => {
     expect(alle.find((r) => r.etiket === "Dækningsbidrag")!.type).toBe("subtotal");
   });
 
-  it("'Resultat' er post MED total-af-øvrige-bemærkningen", () => {
+  it("'Resultat' er post, FRAVALGT med total-af-øvrige-bemærkningen", () => {
     const r = g.raekker.find((x) => x.etiket === "Resultat")!;
     expect(alle.find((x) => x.etiket === "Resultat")!.type).toBe("post");
     expect(r.bemaerkning).toBe(
-      "Ser ud til at være en total af de øvrige linjer — tages den med, tælles beløbet to gange",
+      "Fravalgt: ser ud til at være en total af de øvrige linjer — tages den med, tælles beløbet to gange",
     );
-    expect(r.medtag).toBe(true);
+    expect(r.medtag).toBe(false);
+  });
+
+  it("fravalgt fra start: præcis 'Resultat' — margins er forholdstal og forbliver valgt til", () => {
+    // Bestillingen forventede tre fravalgte, men kun ÉN række rammes af
+    // dobbelttællings-værnene i denne fil: Bruttomargin/Nettomargin bærer
+    // forholdstals-bemærkningen og skal netop IKKE fravælges (de forstyrrer
+    // ikke summen — opsummer holder dem allerede ude).
+    expect(g.raekker.filter((r) => !r.medtag).map((r) => r.etiket)).toEqual(["Resultat"]);
+    expect(g.raekker.find((r) => r.etiket === "Bruttomargin")!.medtag).toBe(true);
+    expect(g.raekker.find((r) => r.etiket === "Nettomargin")!.medtag).toBe(true);
+  });
+
+  it("omkostningerne i det ubehandlede gitter er ca. 4,90 mio. — ikke 9,66 mio.", () => {
+    // Normaliserede beløb, medtagne ikke-indtægts-rækker uden forholdstal —
+    // dvs. præcis det opsummer/skriveplanen regner med.
+    const omkostninger = g.raekker
+      .filter(
+        (r) =>
+          r.medtag &&
+          raekkeGruppe(g, r) !== "indtaegter" &&
+          !r.bemaerkning?.includes("forholdstal"),
+      )
+      .reduce(
+        (s, r) =>
+          s +
+          r.vaerdier.reduce(
+            // Kun månedskolonnerne — Årstotal-kolonnen springes over af
+            // skriveplanen og skal heller ikke tælles her.
+            (a: number, _, k) => a + (erMaanedsnavn(g.kolonner[k]) ? (normaliseretVaerdi(g, r, k) ?? 0) : 0),
+            0,
+          ),
+        0,
+      );
+    expect(omkostninger).toBeGreaterThan(4_800_000);
+    expect(omkostninger).toBeLessThan(5_000_000);
   });
 
   it("'Nettomargin' er post MED forholdstals-bemærkningen", () => {
@@ -891,7 +931,9 @@ describe("golden: robusthed-fixtures", () => {
     expect(g.struktur.filter((s) => s.slags === "subtotal")).toHaveLength(3);
     expect(g.advarsler).toEqual([]);
     expect(g.kolonner[0]).toBe("Jan-feb");
-    expect(opsummer(g).sum[0]).toBe(154000);
+    // Summen viser de normaliserede (skrevne) beløb: alle rækker er uden
+    // sektion → drift → omkostningerne tælles positivt (742+186+402 tkr.).
+    expect(opsummer(g).sum[0]).toBe(1330000);
     expect(tabte).toEqual([]);
   });
 
@@ -911,7 +953,8 @@ describe("golden: robusthed-fixtures", () => {
     expect(g.raekker).toHaveLength(6);
     expect(g.struktur.filter((s) => s.slags === "subtotal")).toHaveLength(3);
     expect(g.advarsler).toEqual([]);
-    expect(opsummer(g).sum).toEqual([120, 230, 180, 360, 500, 690, 740, 980]);
+    // Normaliserede summer: costs positive (revenue+cogs+opex adderet).
+    expect(opsummer(g).sum).toEqual([9520, 10050, 11040, 11800, 13280, 14150, 15460, 16540]);
     expect(tabte).toEqual([]);
   });
 });

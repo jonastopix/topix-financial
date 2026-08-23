@@ -19,6 +19,7 @@
 import { maanedsIndeks } from "@/lib/importEngine";
 import {
   gruppeForslag,
+  normaliseretVaerdi,
   sektionsNoegle,
   type Gitter,
   type Gruppenoegle,
@@ -219,8 +220,10 @@ export function byggSkriveplan(gitter: Gitter, aar: string): Skriveplan {
     const fordelinger: Fordeling[] = [];
 
     for (const kolonne of maanedsKolonner) {
-      const vaerdi = raekke.vaerdier[kolonne.kolonne];
-      if (vaerdi === null || vaerdi === undefined) continue;
+      // normaliseretVaerdi er DEN fælles regel (importGitterModel): det
+      // medlemmet ser i gitteret er det der skrives — én kilde til fortegn.
+      const vaerdi = normaliseretVaerdi(gitter, raekke, kolonne.kolonne);
+      if (vaerdi === null) continue;
       if (kolonne.maaneder.length === 1) {
         maanedsbeloeb[kolonne.maaneder[0]] = vaerdi;
       } else {
@@ -241,8 +244,8 @@ export function byggSkriveplan(gitter: Gitter, aar: string): Skriveplan {
 
     const harMaanedsdaekning = maanedsbeloeb.some((v) => v !== null);
     for (const kolonne of aarsKolonner) {
-      const vaerdi = raekke.vaerdier[kolonne.kolonne];
-      if (vaerdi === null || vaerdi === undefined) continue;
+      const vaerdi = normaliseretVaerdi(gitter, raekke, kolonne.kolonne);
+      if (vaerdi === null) continue;
       if (harMaanedsdaekning) {
         // Årstotal oven i måneder ville dobbelttælle — springes over.
         sprungetOver.add(kolonne.navn);
@@ -271,26 +274,20 @@ export function byggSkriveplan(gitter: Gitter, aar: string): Skriveplan {
     }
 
     // Gruppen OPLØSES til en af platformens seks nøgler: medlemmets valg i
-    // gitteret først, ellers forslaget fra sektionsnavnet.
+    // gitteret først, ellers forslaget fra sektionsnavnet. Fortegnet er
+    // allerede normaliseret pr. celle via normaliseretVaerdi ovenfor —
+    // platformens konvention er positive omkostninger (prod-målingen og
+    // begrundelsen står ved normaliseretVaerdi i importGitterModel, som er
+    // den ENE kilde til reglen; den må ikke rulles tilbage).
     const gruppe: Gruppenoegle =
       gitter.sektionsGrupper?.[sektionsNoegle(raekke.sektion)] ?? gruppeForslag(raekke.sektion);
-
-    // FORTEGNS-NORMALISERING — må IKKE "rettes tilbage": platformens
-    // konvention er POSITIVE omkostninger (målt mod prod 2026-08-24: 2.221
-    // positive beløb hos 12 virksomheder mod 228 negative hos 1 — og de 228
-    // var netop en import ad denne vej). computeEbitda regner
-    // revenue − Σ|cost| af samme grund (budgetEngine:111-127). Motoren
-    // læser filen trofast; det er SKRIVEVEJEN der normaliserer. Kun
-    // indtægter beholder deres fortegn (negativ omsætning er information).
-    const normaliser = (v: number | null): number | null =>
-      v === null || gruppe === "indtaegter" ? v : Math.abs(v);
 
     raekker.push({
       noegle: `import_${slug(raekke.etiket) || "linje"}_${raekke.raekkeIndex}`,
       etiket: raekke.etiket,
       gruppe,
-      maanedsbeloeb: maanedsbeloeb.map(normaliser),
-      fordelinger: fordelinger.map((f) => ({ ...f, beloebPrMaaned: normaliser(f.beloebPrMaaned) })),
+      maanedsbeloeb,
+      fordelinger,
     });
   }
 
