@@ -2,7 +2,13 @@ import * as fs from "fs";
 import * as path from "path";
 import { describe, expect, it } from "vitest";
 import { laesMatrix } from "@/lib/importEngine";
-import { byggGitter, saetMedtag, type Gitter } from "@/lib/importGitterModel";
+import {
+  byggGitter,
+  GYLDIGE_GRUPPER,
+  saetMedtag,
+  saetSektionsgruppe,
+  type Gitter,
+} from "@/lib/importGitterModel";
 import {
   byggSkriveplan,
   tolkKolonner,
@@ -36,6 +42,8 @@ const gitter = (
     tabelIndex: 0,
   })),
   struktur: [],
+  // Tomt valg-kort: byggSkriveplan falder tilbage til gruppeForslag.
+  sektionsGrupper: {},
   advarsler: [],
 });
 
@@ -173,7 +181,7 @@ describe("byggSkriveplan", () => {
     expect(plan.sprungetOverKolonner).toContain("Januar-25");
   });
 
-  it("gruppen sættes fra gitterrækkens sektion", () => {
+  it("gruppen OPLØSES til en gruppenøgle — forslag fra sektionsnavnet, drift uden sektion", () => {
     const plan = byggSkriveplan(
       gitter(
         ["Januar"],
@@ -184,7 +192,64 @@ describe("byggSkriveplan", () => {
       ),
       "2026",
     );
-    expect(plan.raekker.map((r) => r.gruppe)).toEqual(["Personale & konsulentydelser", null]);
+    expect(plan.raekker.map((r) => r.gruppe)).toEqual(["personale", "drift"]);
+    expect(plan.grupper).toEqual([
+      { sektion: "Personale & konsulentydelser", gruppe: "personale" },
+      { sektion: null, gruppe: "drift" },
+    ]);
+  });
+
+  it("medlemmets gruppevalg i gitteret vinder over forslaget", () => {
+    const g0 = byggGitter(
+      laesMatrix([
+        ["Post", "Januar"],
+        ["Shop & IT", null],
+        ["Shopify", 100],
+        ["Hosting", 50],
+      ]),
+    );
+    expect(g0.sektionsGrupper["Shop & IT"]).toBe("drift"); // forslaget
+    const plan = byggSkriveplan(saetSektionsgruppe(g0, "Shop & IT", "faste"), "2026");
+    expect(plan.raekker.map((r) => r.gruppe)).toEqual(["faste", "faste"]);
+  });
+
+  it("fortegns-normalisering: omkostninger skrives som absolutværdi, indtægter beholder fortegn", () => {
+    const plan = byggSkriveplan(
+      byggGitter(
+        laesMatrix([
+          ["Post", "Januar"],
+          ["Omsætning", null],
+          ["B2C Salg", -500], // negativ omsætning er information — bevares
+          ["Medarbejdere", null],
+          ["Løn", -200],
+        ]),
+      ),
+      "2026",
+    );
+    const salg = plan.raekker.find((r) => r.etiket === "B2C Salg")!;
+    const loen = plan.raekker.find((r) => r.etiket === "Løn")!;
+    expect(salg.gruppe).toBe("indtaegter");
+    expect(salg.maanedsbeloeb[0]).toBe(-500);
+    expect(loen.gruppe).toBe("personale");
+    expect(loen.maanedsbeloeb[0]).toBe(200);
+  });
+
+  it("fortegns-normalisering gælder også fordelinger", () => {
+    const plan = byggSkriveplan(
+      byggGitter(
+        laesMatrix([
+          ["Post", "Q1"],
+          ["Lokaler", null],
+          ["Husleje", -3000],
+          ["El", -600],
+        ]),
+      ),
+      "2026",
+    );
+    const husleje = plan.raekker.find((r) => r.etiket === "Husleje")!;
+    expect(husleje.gruppe).toBe("faste");
+    expect(husleje.maanedsbeloeb.slice(0, 3)).toEqual([1000, 1000, 1000]);
+    expect(husleje.fordelinger[0].beloebPrMaaned).toBe(1000);
   });
 
   it("nøgler er unikke selv når to rækker har samme etiket", () => {
@@ -272,6 +337,11 @@ describe("golden: skriveplaner for de syv fixtures", () => {
     expect(fordelteKolonner).toEqual(forventet.fordelte);
     expect(plan.utolkedeKolonner).toEqual(forventet.utolkede);
     expect(plan.sprungetOverKolonner).toEqual(forventet.sprungetOver);
+    // __group__-markørerne bærer raekke.gruppe verbatim — den SKAL altid
+    // være en af platformens seks nøgler, for alle fixtures.
+    for (const raekke of plan.raekker) {
+      expect(GYLDIGE_GRUPPER, `${raekke.noegle}: ${raekke.gruppe}`).toContain(raekke.gruppe);
+    }
   };
 
   it("Remm-budget (CSV): 62 rækker; Årstotal fordelt for KPI-rækkerne og ubrugt for månedsrækkerne", () => {

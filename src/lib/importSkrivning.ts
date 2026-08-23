@@ -17,7 +17,12 @@
  */
 
 import { maanedsIndeks } from "@/lib/importEngine";
-import type { Gitter } from "@/lib/importGitterModel";
+import {
+  gruppeForslag,
+  sektionsNoegle,
+  type Gitter,
+  type Gruppenoegle,
+} from "@/lib/importGitterModel";
 
 export type Periodetype = "maaned" | "kvartal" | "halvaar" | "aar" | "ukendt";
 
@@ -42,8 +47,10 @@ export type SkriveplanRaekke = {
   /** Unik pr. række: import_{slug}_{raekkeIndex}. */
   noegle: string;
   etiket: string;
-  /** Gitterrækkens sektion — bevares som __group__-markør ved skrivning. */
-  gruppe: string | null;
+  /** OPLØST gruppenøgle (en af platformens seks) — __group__-markøren må
+      aldrig bære medlemmets frie sektionsnavn; det knækkede fladen
+      (omsætning 0 kr., rækker væk fra redigeringstabellen). */
+  gruppe: Gruppenoegle;
   /** Altid længde 12; null = ingen værdi for måneden. */
   maanedsbeloeb: (number | null)[];
   /** Hvad der blev fordelt fra ikke-måneds-kolonner — til visning. */
@@ -53,6 +60,8 @@ export type SkriveplanRaekke = {
 export type Skriveplan = {
   aar: string;
   raekker: SkriveplanRaekke[];
+  /** Gruppevalget pr. sektion som planen skriver med (null = uden sektion). */
+  grupper: { sektion: string | null; gruppe: Gruppenoegle }[];
   /** Kolonner der ALDRIG kunne tolkes som en periode (type "ukendt"). */
   utolkedeKolonner: string[];
   /** Kolonner der KUNNE tolkes men blev sprunget over — årstotaler hvor
@@ -261,12 +270,27 @@ export function byggSkriveplan(gitter: Gitter, aar: string): Skriveplan {
       continue;
     }
 
+    // Gruppen OPLØSES til en af platformens seks nøgler: medlemmets valg i
+    // gitteret først, ellers forslaget fra sektionsnavnet.
+    const gruppe: Gruppenoegle =
+      gitter.sektionsGrupper?.[sektionsNoegle(raekke.sektion)] ?? gruppeForslag(raekke.sektion);
+
+    // FORTEGNS-NORMALISERING — må IKKE "rettes tilbage": platformens
+    // konvention er POSITIVE omkostninger (målt mod prod 2026-08-24: 2.221
+    // positive beløb hos 12 virksomheder mod 228 negative hos 1 — og de 228
+    // var netop en import ad denne vej). computeEbitda regner
+    // revenue − Σ|cost| af samme grund (budgetEngine:111-127). Motoren
+    // læser filen trofast; det er SKRIVEVEJEN der normaliserer. Kun
+    // indtægter beholder deres fortegn (negativ omsætning er information).
+    const normaliser = (v: number | null): number | null =>
+      v === null || gruppe === "indtaegter" ? v : Math.abs(v);
+
     raekker.push({
       noegle: `import_${slug(raekke.etiket) || "linje"}_${raekke.raekkeIndex}`,
       etiket: raekke.etiket,
-      gruppe: raekke.sektion,
-      maanedsbeloeb,
-      fordelinger,
+      gruppe,
+      maanedsbeloeb: maanedsbeloeb.map(normaliser),
+      fordelinger: fordelinger.map((f) => ({ ...f, beloebPrMaaned: normaliser(f.beloebPrMaaned) })),
     });
   }
 
@@ -292,9 +316,23 @@ export function byggSkriveplan(gitter: Gitter, aar: string): Skriveplan {
     }
   }
 
+  // Gruppevalget pr. sektion blandt planens rækker — til visning og bevis.
+  const grupperSet = new Map<string, { sektion: string | null; gruppe: Gruppenoegle }>();
+  for (const raekke of gitter.raekker) {
+    if (!raekke.medtag) continue;
+    const noegle = sektionsNoegle(raekke.sektion);
+    if (!grupperSet.has(noegle)) {
+      grupperSet.set(noegle, {
+        sektion: raekke.sektion,
+        gruppe: gitter.sektionsGrupper?.[noegle] ?? gruppeForslag(raekke.sektion),
+      });
+    }
+  }
+
   return {
     aar,
     raekker,
+    grupper: [...grupperSet.values()],
     utolkedeKolonner: [...utolkede],
     sprungetOverKolonner: [...sprungetOver],
     advarsler,
@@ -351,15 +389,16 @@ export function byggSkriveplanInserts(args: {
       period: raekke.etiket,
     }));
 
-  const groupInserts = plan.raekker
-    .filter((raekke) => raekke.gruppe !== null && raekke.gruppe.trim() !== "")
-    .map((raekke) => ({
-      user_id: userId,
-      company_id: companyId,
-      category: `__group__${plan.aar}_${raekke.noegle}`,
-      budget_amount: 0,
-      period: raekke.gruppe as string,
-    }));
+  // period er ALTID en af de seks gruppenøgler — aldrig medlemmets frie
+  // sektionsnavn (fladen filtrerer på nøglerne; frie navne gjorde rækker
+  // usynlige og talte omsætning som omkostning).
+  const groupInserts = plan.raekker.map((raekke) => ({
+    user_id: userId,
+    company_id: companyId,
+    category: `__group__${plan.aar}_${raekke.noegle}`,
+    budget_amount: 0,
+    period: raekke.gruppe,
+  }));
 
   return [...vaerdiInserts, ...labelInserts, ...groupInserts];
 }

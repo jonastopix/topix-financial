@@ -100,6 +100,7 @@ const tomtGitter = (): Gitter => ({
     tabelIndex: 0,
   })),
   struktur: [],
+  sektionsGrupper: { "": "drift" },
   advarsler: [],
 });
 
@@ -110,10 +111,13 @@ export const HbBudgetExcelImport = ({
   userId,
   companyId,
   onImported,
+  onAabenSkift,
 }: {
   userId: string | undefined;
   companyId: string | undefined;
   onImported: (result: { year: string }) => void;
+  /** Meldes når gitteret åbner/lukker, så fladen kan give det fuld bredde. */
+  onAabenSkift?: (aaben: boolean) => void;
 }) => {
   const [parsing, setParsing] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -146,6 +150,10 @@ export const HbBudgetExcelImport = ({
     if (!draftKey || !gitter) return;
     writeDraft(draftKey, { gitter, aar, udledteAar });
   }, [draftKey, gitter, aar, udledteAar]);
+
+  useEffect(() => {
+    onAabenSkift?.(gitter !== null);
+  }, [gitter, onAabenSkift]);
 
   /** Matrix → gitter + årsudledning. Tom fil ender i det tomme gitter (P1). */
   const aabnMatrix = useCallback((matrix: Matrix) => {

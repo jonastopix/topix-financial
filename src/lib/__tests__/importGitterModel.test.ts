@@ -4,8 +4,10 @@ import { describe, expect, it } from "vitest";
 import { laesMatrix, laesTal, type ImportResultat, type Matrix, type Tabel } from "@/lib/importEngine";
 import {
   byggGitter,
+  gruppeForslag,
   indsaetFraTekst,
   opsummer,
+  saetSektionsgruppe,
   saetEtiket,
   saetMedtag,
   saetVaerdi,
@@ -427,6 +429,75 @@ describe("mutationer — nye objekter, aldrig mutation af input", () => {
     const negative = g.raekker.filter((r) => r.raekkeIndex < 0).map((r) => r.raekkeIndex);
     expect(negative).toHaveLength(2);
     expect(new Set(negative).size).toBe(2);
+  });
+});
+
+// ───────────────────────── Gruppeforslag og gruppevalg ─────────────────────────
+
+describe("gruppeForslag og saetSektionsgruppe", () => {
+  it("hver af de seks regler plus fallback", () => {
+    expect(gruppeForslag("Omsætning")).toBe("indtaegter");
+    expect(gruppeForslag("Total Revenue")).toBe("indtaegter");
+    expect(gruppeForslag("Personale & konsulentydelser")).toBe("personale");
+    expect(gruppeForslag("Medarbejdere")).toBe("personale");
+    expect(gruppeForslag("Marketing, CRM & værktøjer")).toBe("salg_marketing");
+    expect(gruppeForslag("Lokaler")).toBe("faste");
+    expect(gruppeForslag("Husleje og kontor")).toBe("faste");
+    expect(gruppeForslag("Direkte omkostninger")).toBe("variable");
+    expect(gruppeForslag("Variable omkostninger")).toBe("variable");
+    expect(gruppeForslag("Shop & IT")).toBe("drift"); // fallback
+    expect(gruppeForslag(null)).toBe("drift"); // uden sektion
+  });
+
+  it("byggGitter initialiserer sektionsGrupper med forslag; saetSektionsgruppe ændrer immutabelt", () => {
+    const g = byggGitter(
+      resultat([
+        tabel([
+          { raekkeIndex: 0, etiket: "Medarbejdere", type: "sektion", felter: [felt(null)] },
+          post(1, "Løn", [100]),
+          post(2, "Uden sektion... nej vent", [50]),
+        ]),
+      ]),
+    );
+    expect(g.sektionsGrupper).toEqual({ Medarbejdere: "personale" });
+    const foer = JSON.parse(JSON.stringify(g));
+    const ny = saetSektionsgruppe(g, "Medarbejdere", "faste");
+    expect(ny.sektionsGrupper["Medarbejdere"]).toBe("faste");
+    expect(g).toEqual(foer); // muterer ikke input
+  });
+
+  it("golden: Remms elleve sektionsnavne får de rigtige forslag", () => {
+    const g = byggGitter(
+      laesMatrix(parseCsvTilMatrix(fs.readFileSync(path.resolve(__dirname, "../__fixtures__/remm-budget-base-2026.csv"), "utf-8"))),
+    );
+    expect(g.sektionsGrupper).toEqual({
+      "": "drift", // KPI-rækkerne uden sektion
+      Revenue: "indtaegter",
+      "Gross Profit": "drift",
+      "Contribution Margin": "drift",
+      "Net Profit": "drift", // "Fixed Expenses" har ingen direkte rækker — dens rækker bor i undersektionerne
+      "Personale & konsulentydelser": "personale",
+      "Økonomi, administration & forsikring": "drift",
+      "Webshop, betaling & logistiksystemer": "drift",
+      "Marketing, CRM & værktøjer": "salg_marketing",
+      "Content, udvikling & vækstprojekter": "drift",
+      "Øvrige & reserve": "drift",
+    });
+  });
+
+  it("golden: Topix' syv sektionsnavne får de rigtige forslag", () => {
+    const g = byggGitter(
+      laesMatrix(laesArkTilMatrix(path.resolve(__dirname, "../__fixtures__/topix-budget-2026.xlsx"), "Budget2026")),
+    );
+    expect(g.sektionsGrupper).toEqual({
+      "Omsætning": "indtaegter",
+      "Direkte omkostninger": "variable",
+      "Variable omkostninger": "variable",
+      "Medarbejdere": "personale",
+      "Shop & IT": "drift",
+      "Lokaler": "faste",
+      "Administrativt": "drift",
+    });
   });
 });
 

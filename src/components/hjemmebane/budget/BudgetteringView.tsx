@@ -68,6 +68,7 @@ export const BudgetteringView = () => {
   const [changingTemplate, setChangingTemplate] = useState(false);
   const [headerNote, setHeaderNote] = useState<string | null>(null);
   const [reloadNonce, setReloadNonce] = useState(0);
+  const [importGitterAabent, setImportGitterAabent] = useState(false);
   const autoYearAdjustedFor = useRef<string | null>(null);
 
   // Load — samme forløb som Budget.tsx' effekt, over motoren.
@@ -487,15 +488,24 @@ export const BudgetteringView = () => {
             />
           </HbSection>
 
-          {/* IMPORT (planlæg, fortsat) */}
+          {/* IMPORT (planlæg, fortsat). Når importgitteret er åbent, fylder
+              det HELE bredden — "Generér fra regnskab" er en anden opgave og
+              står ikke ved siden af et åbent gennemsyn. */}
           <HbSection eyebrow="Planlæg" title="Importér" id="import">
-            <div className="grid gap-4 lg:grid-cols-2">
+            <div className={cn("grid gap-4", !importGitterAabent && "lg:grid-cols-2")}>
               <HbCard className="p-5">
-                <HbBudgetExcelImport userId={user?.id} companyId={companyId ?? undefined} onImported={handleImported} />
+                <HbBudgetExcelImport
+                  userId={user?.id}
+                  companyId={companyId ?? undefined}
+                  onImported={handleImported}
+                  onAabenSkift={setImportGitterAabent}
+                />
               </HbCard>
-              <HbCard className="p-5">
-                <HbBudgetFromAccounts userId={user?.id} companyId={companyId ?? undefined} onImported={handleImported} />
-              </HbCard>
+              {!importGitterAabent && (
+                <HbCard className="p-5">
+                  <HbBudgetFromAccounts userId={user?.id} companyId={companyId ?? undefined} onImported={handleImported} />
+                </HbCard>
+              )}
             </div>
           </HbSection>
         </div>

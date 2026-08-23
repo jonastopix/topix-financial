@@ -1,16 +1,21 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
 import { laesTal, type TalKonvention } from "@/lib/importEngine";
+import { GROUP_LABELS, GROUP_ORDER } from "@/lib/budgetTemplates";
 import {
+  gruppeForslag,
   indsaetFraTekst,
   opsummer,
   saetEtiket,
   saetMedtag,
+  saetSektionsgruppe,
   saetVaerdi,
+  sektionsNoegle,
   slet,
   tilfoejRaekke,
   type Gitter,
   type GitterRaekke,
+  type Gruppenoegle,
 } from "@/lib/importGitterModel";
 import { HbCard } from "../HbCard";
 import { fmtNumber } from "./hbBudgetShared";
@@ -156,16 +161,39 @@ export const HbImportGitter = ({ gitter, onChange }: HbImportGitterProps) => {
             <tbody>
               {grupperet.map((gruppe, gruppeIndex) => (
                 <React.Fragment key={`${gruppeIndex}-${gruppe.sektion ?? "uden"}`}>
-                  {gruppe.sektion !== null && (
-                    <tr className="bg-hb-sage/25">
-                      <td
-                        colSpan={gitter.kolonner.length + 3}
-                        className="px-3 py-2 text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft"
-                      >
-                        {gruppe.sektion}
-                      </td>
-                    </tr>
-                  )}
+                  {/* Sektionsoverskrift MED gruppevælger — valget er en del af
+                      overskriften, aldrig et skjult felt. Rækker uden sektion
+                      får deres egen vælger. */}
+                  <tr className="bg-hb-sage/25">
+                    <td
+                      colSpan={gitter.kolonner.length + 3}
+                      className="px-3 py-2 text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft"
+                    >
+                      <span className="flex flex-wrap items-center gap-2">
+                        <span>{gruppe.sektion ?? "Linjer uden sektion"}</span>
+                        <span className="normal-case tracking-normal">→</span>
+                        <select
+                          value={
+                            gitter.sektionsGrupper[sektionsNoegle(gruppe.sektion)] ??
+                            gruppeForslag(gruppe.sektion)
+                          }
+                          onChange={(e) =>
+                            onChange(
+                              saetSektionsgruppe(gitter, gruppe.sektion, e.target.value as Gruppenoegle),
+                            )
+                          }
+                          className="rounded-md border border-hb-line bg-hb-surface px-1.5 py-0.5 text-[11px] normal-case tracking-normal text-hb-ink focus:outline-none focus:ring-2 focus:ring-hb-evergreen/50"
+                          aria-label={`Budgetgruppe for ${gruppe.sektion ?? "linjer uden sektion"}`}
+                        >
+                          {GROUP_ORDER.map((noegle) => (
+                            <option key={noegle} value={noegle}>
+                              {GROUP_LABELS[noegle]}
+                            </option>
+                          ))}
+                        </select>
+                      </span>
+                    </td>
+                  </tr>
                   {gruppe.raekker.map((raekke) => (
                     <React.Fragment key={raekke.raekkeIndex}>
                       <tr

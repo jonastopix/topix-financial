@@ -45,12 +45,50 @@ export type StrukturNote = {
   tabelIndex: number;
 };
 
+/** Platformens seks gruppenøgler — samme union som BudgetCategory["group"]
+    (budgetTemplates.ts:11). __group__-markører må ALDRIG bære andet. */
+export type Gruppenoegle =
+  | "indtaegter"
+  | "variable"
+  | "personale"
+  | "faste"
+  | "salg_marketing"
+  | "drift";
+
+export const GYLDIGE_GRUPPER: readonly Gruppenoegle[] = [
+  "indtaegter",
+  "variable",
+  "personale",
+  "faste",
+  "salg_marketing",
+  "drift",
+];
+
+/** Nøgle i sektionsGrupper: rækker uden sektion samles under "". */
+export const sektionsNoegle = (sektion: string | null): string => sektion ?? "";
+
+/** Forslag: frit sektionsnavn → gruppenøgle. Medlemmet kan altid ændre
+    valget i gitteret — det her er kun forvalget. ("variable" matcher også
+    det danske flertals-"Variable omkostninger", ikke kun "variabel".) */
+export function gruppeForslag(sektion: string | null): Gruppenoegle {
+  const navn = sektion ?? "";
+  if (/omsætning|salg|indtægt|revenue|income|sales/i.test(navn)) return "indtaegter";
+  if (/løn|medarbejder|personale|staff|payroll/i.test(navn)) return "personale";
+  if (/marketing|reklame|kundepleje/i.test(navn)) return "salg_marketing";
+  if (/lokale|husleje|kontor|facility|rent|bygning/i.test(navn)) return "faste";
+  if (/variabel|variable|vareforbrug|direkte|cogs|fragt/i.test(navn)) return "variable";
+  return "drift";
+}
+
 export type Gitter = {
   /** Kolonnenavne uden etiketkolonnen. */
   kolonner: string[];
   raekker: GitterRaekke[];
   /** Subtotaler og sektioner — rammen der beviser at filen blev forstået. */
   struktur: StrukturNote[];
+  /** Gruppevalg pr. sektion (nøgle = sektionsNoegle; "" = uden sektion),
+      initialiseret med gruppeForslag og ændret via saetSektionsgruppe. */
+  sektionsGrupper: Record<string, Gruppenoegle>;
   advarsler: string[];
 };
 
@@ -336,7 +374,15 @@ export function byggGitter(resultat: ImportResultat): Gitter {
     );
   }
 
-  return { kolonner, raekker, struktur, advarsler };
+  // Gruppevalg pr. sektion: forvalgt med gruppeForslag; medlemmet ændrer
+  // via saetSektionsgruppe. Rækker uden sektion samles under "".
+  const sektionsGrupper: Record<string, Gruppenoegle> = {};
+  for (const raekke of raekker) {
+    const noegle = sektionsNoegle(raekke.sektion);
+    if (!(noegle in sektionsGrupper)) sektionsGrupper[noegle] = gruppeForslag(raekke.sektion);
+  }
+
+  return { kolonner, raekker, struktur, sektionsGrupper, advarsler };
 }
 
 // ───────────────────────── Mutationer (immutable) ─────────────────────────
@@ -345,6 +391,7 @@ const kopiGitter = (g: Gitter): Gitter => ({
   kolonner: [...g.kolonner],
   raekker: g.raekker.map((r) => ({ ...r, vaerdier: [...r.vaerdier] })),
   struktur: g.struktur.map((s) => ({ ...s, daekker: s.daekker ? [...s.daekker] : undefined })),
+  sektionsGrupper: { ...g.sektionsGrupper },
   advarsler: [...g.advarsler],
 });
 
@@ -380,6 +427,17 @@ export function saetEtiket(gitter: Gitter, raekkeIndex: number, etiket: string):
   return opdaterRaekke(gitter, raekkeIndex, (r) => {
     r.etiket = etiket;
   });
+}
+
+/** Medlemmets gruppevalg for en sektion (null = rækkerne uden sektion). */
+export function saetSektionsgruppe(
+  gitter: Gitter,
+  sektion: string | null,
+  gruppe: Gruppenoegle,
+): Gitter {
+  const ny = kopiGitter(gitter);
+  ny.sektionsGrupper[sektionsNoegle(sektion)] = gruppe;
+  return ny;
 }
 
 /** Fjerner rækken helt. Enhver række kan slettes — også importerede
