@@ -260,15 +260,17 @@ describe("klassificerRaekker", () => {
     expect(ud[0].type).toBe("stoej");
   });
 
-  it("sektion mellem poster bryder subtotal-blokken", () => {
+  it("sektion mellem poster bryder IKKE blokken — den bidrager med nul", () => {
     const rows = [
       raekke(0, "A", [100, 100]),
       { ...raekke(1, "Ny sektion", []), felter: [felt(null), felt(null)] },
       raekke(2, "B", [200, 200]),
-      raekke(3, "Sum?", [300, 300]), // ville kræve A+B hen over sektionen
+      raekke(3, "Hovedtotal", [300, 300]), // A+B hen over sektionen
     ];
     const ud = klassificerRaekker(rows);
-    expect(ud[3].type).toBe("post");
+    expect(ud[1].type).toBe("sektion");
+    expect(ud[3].type).toBe("subtotal");
+    expect(ud[3].daekker).toEqual([0, 2]);
   });
 
   it("muterer ikke input", () => {
@@ -307,6 +309,71 @@ describe("klassificerRaekker", () => {
     expect(ud[2].type).toBe("subtotal");
     expect(ud[2].daekker).toEqual([0, 1]);
   });
+
+  it("etiket med kun ulæselige felter → post, ikke stoej ('Blended ROAS'-casen)", () => {
+    const ud = klassificerRaekker([
+      {
+        ...raekke(0, "Blended ROAS", []),
+        felter: [{ vaerdi: null, kilde: "ulaeselig", raa: "3.6x" } as Felt, felt(null)],
+      },
+    ]);
+    expect(ud[0].type).toBe("post");
+  });
+
+  it("hverken etiket eller indhold → stoej", () => {
+    const ud = klassificerRaekker([{ ...raekke(0, "", []), felter: [felt(null), felt(null)] }]);
+    expect(ud[0].type).toBe("stoej");
+  });
+
+  it("indlejrede overskrifter: overskrift → overskrift → talrækker giver to sektioner", () => {
+    const ud = klassificerRaekker([
+      { ...raekke(0, "Fixed Expenses", []), felter: [felt(null), felt(null)] },
+      { ...raekke(1, "Personale & konsulentydelser", []), felter: [felt(null), felt(null)] },
+      raekke(2, "Chatrine Løn", [20000, 20000]),
+    ]);
+    expect(ud[0].type).toBe("sektion");
+    expect(ud[1].type).toBe("sektion");
+  });
+
+  it("afsluttende etiketrække uden tal efter sig → stoej", () => {
+    const ud = klassificerRaekker([
+      raekke(0, "Løn", [10, 20]),
+      { ...raekke(1, "Note: alle beløb ex. moms", []), felter: [felt(null), felt(null)] },
+    ]);
+    expect(ud[1].type).toBe("stoej");
+  });
+
+  it("hovedtotal på tværs af seks sektioner: summer alle detaljerækker hen over sektioner og subtotaler", () => {
+    const rows: Raekke[] = [];
+    const alleDetaljer: number[] = [];
+    let idx = 0;
+    let total1 = 0;
+    let total2 = 0;
+    for (let s = 0; s < 6; s++) {
+      rows.push({ ...raekke(idx++, `Sektion ${s + 1}`, []), felter: [felt(null), felt(null)] });
+      const a = 10 * (s + 1);
+      const b = 7 * (s + 1);
+      rows.push(raekke(idx, `Post ${s + 1}a`, [a, a * 2]));
+      alleDetaljer.push(idx++);
+      total1 += a;
+      total2 += a * 2;
+      rows.push(raekke(idx, `Post ${s + 1}b`, [b, b * 3]));
+      alleDetaljer.push(idx++);
+      total1 += b;
+      total2 += b * 3;
+      rows.push(raekke(idx++, `Subtotal ${s + 1}`, [a + b, a * 2 + b * 3]));
+    }
+    rows.push(raekke(idx, "Total Fixed Expenses", [total1, total2]));
+
+    const ud = klassificerRaekker(rows);
+    for (let s = 0; s < 6; s++) {
+      expect(ud[s * 4 + 3].type).toBe("subtotal");
+      expect(ud[s * 4 + 3].daekker).toEqual([s * 4 + 1, s * 4 + 2]);
+    }
+    const hoved = ud[ud.length - 1];
+    expect(hoved.type).toBe("subtotal");
+    expect(hoved.daekker).toEqual(alleDetaljer);
+  });
 });
 
 // ───────────────────────── laesMatrix ─────────────────────────
@@ -323,12 +390,16 @@ describe("laesMatrix", () => {
     expect(res.tabeller).toHaveLength(2);
     const [resume, maaneder] = res.tabeller;
 
-    expect(resume.headerRaekke).toBeNull();
-    expect(resume.raekker.map((r) => r.etiket)).toEqual(["Nøgletal", "Omsætningsmål", "Resultatmål"]);
+    // Resuméets første række ("Nøgletal"/"Værdi"/"Kommentar") promoveres til
+    // overskriftsrække — tekst i kolonne 0 OG i andre kolonner, tal nedenunder.
+    expect(resume.headerRaekke).toBe(2);
+    expect(resume.kolonneOverskrifter.slice(0, 3)).toEqual(["Nøgletal", "Værdi", "Kommentar"]);
+    expect(resume.foersteDataRaekke).toBe(3);
+    expect(resume.raekker.map((r) => r.etiket)).toEqual(["Omsætningsmål", "Resultatmål"]);
     // Resuméets værdier bor i kolonne B → felt[0].
-    expect(resume.raekker[1].felter[0].vaerdi).toBe(2700000);
+    expect(resume.raekker[0].felter[0].vaerdi).toBe(2700000);
     // Fælde 1: parentes-negativ.
-    expect(resume.raekker[2].felter[0]).toMatchObject({ vaerdi: -17000, kilde: "parentes" });
+    expect(resume.raekker[1].felter[0]).toMatchObject({ vaerdi: -17000, kilde: "parentes" });
 
     expect(maaneder.headerRaekke).toBe(6);
     expect(maaneder.kolonneOverskrifter).toEqual(["Post", "Jan", "Feb", "I alt"]);
@@ -419,6 +490,31 @@ describe("laesMatrix", () => {
     expect(res.tabeller).toHaveLength(1);
     expect(res.tabeller[0].headerRaekke).toBeNull();
     expect(res.tabeller[0].raekker).toHaveLength(2);
+  });
+
+  it("headerløs tabel: første række med tekst i flere kolonner promoveres til overskriftsrække", () => {
+    const res = laesMatrix([
+      ["KPI", "Årstotal", "Kommentar"],
+      ["Revenue", "2,700,000", "Netto"],
+      ["Net Profit", "188,724", "Efter faste"],
+    ]);
+    const t = res.tabeller[0];
+    expect(t.headerRaekke).toBe(0);
+    expect(t.kolonneOverskrifter).toEqual(["KPI", "Årstotal", "Kommentar"]);
+    expect(t.foersteDataRaekke).toBe(1);
+    expect(t.raekker.map((r) => r.etiket)).toEqual(["Revenue", "Net Profit"]);
+  });
+
+  it("headerløs tabel: første række med tekst KUN i kolonne 0 promoveres ikke — forbliver sektion", () => {
+    const res = laesMatrix([
+      ["Gross Profit", null, null],
+      ["Nettoomsætning", "1,000", "2,000"],
+    ]);
+    const t = res.tabeller[0];
+    expect(t.headerRaekke).toBeNull();
+    expect(t.kolonneOverskrifter).toEqual([]);
+    expect(t.raekker[0].type).toBe("sektion");
+    expect(t.raekker).toHaveLength(2);
   });
 
   it("tom matrix kaster ikke og giver tomt resultat uden advarsler", () => {

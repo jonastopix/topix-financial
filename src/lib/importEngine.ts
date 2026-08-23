@@ -396,9 +396,14 @@ const STOETTE_ETIKET_RE = /(^|\s)(subtotal|i alt|ialt|total|sum)(\s|$)/i;
  *              dommen alene — dér kræves i TILLÆG at etiketten støtter
  *              (STOETTE_ETIKET_RE). Ordet afgør stadig aldrig alene: der
  *              skal to signaler til, ikke ét.
- *   sektion  — etiket uden tal, efterfulgt af rækker med tal.
- *   stoej    — hverken etiket eller tal (eller etiket uden efterfølgende tal).
- *   post     — alt andet.
+ *   sektion  — etiket uden indhold i felterne, med MINDST ÉN senere række
+ *              med tal i tabellen (overskrifter kan ligge i lag — "Fixed
+ *              Expenses" over seks under-sektioner).
+ *   stoej    — hverken etiket eller indhold; eller en afsluttende
+ *              etiketrække uden tal efter sig (en note).
+ *   post     — alt andet. En række med etiket og indhold der ikke kunne
+ *              læses som tal ("3.6x") er en POST med ulæselige værdier,
+ *              aldrig støj — medlemmets linje må ikke forsvinde (P1/P3).
  * Muterer ikke input; returnerer nye række-objekter.
  */
 export function klassificerRaekker(raekker: Raekke[]): Raekke[] {
@@ -408,13 +413,20 @@ export function klassificerRaekker(raekker: Raekke[]): Raekke[] {
     const raekke = resultat[i];
 
     if (!harTal(raekke)) {
+      // P1: indhold der ikke kunne læses som tal er stadig indhold — rækken
+      // er en post med ulæselige værdier, aldrig støj.
+      const harIndhold = raekke.felter.some((f) => f.kilde !== "tom");
+      if (harIndhold) {
+        raekke.type = "post";
+        continue;
+      }
       if (!harEtiket(raekke)) {
         raekke.type = "stoej";
         continue;
       }
-      // Etiket uden tal: sektion hvis den efterfølges af rækker med tal.
-      const naeste = resultat.slice(i + 1).find((r) => harTal(r) || harEtiket(r));
-      raekke.type = naeste && harTal(naeste) ? "sektion" : "stoej";
+      // Etiket uden indhold: sektion hvis NOGEN senere række i tabellen har
+      // tal — ikke kun den umiddelbart næste (indlejrede overskrifter).
+      raekke.type = resultat.slice(i + 1).some((r) => harTal(r)) ? "sektion" : "stoej";
       continue;
     }
 
@@ -435,7 +447,11 @@ export function klassificerRaekker(raekker: Raekke[]): Raekke[] {
     for (let j = i - 1; j >= 0 && !(kraevEtiketStoette && !etiketStoetter); j--) {
       const over = resultat[j];
       if (over.type === "subtotal") continue; // gentager posterne — spring over
-      if (!harTal(over)) break; // sektion/støj bryder den sammenhængende blok
+      // Sektioner/støj/ulæselige poster bidrager nul og bryder IKKE blokken —
+      // kun toppen af tabellen stopper løkken. Det er kravet om match i ALLE
+      // kandidatens talkolonner (og etiket-støtten ved én kolonne) der værner
+      // mod tilfældige sammenfald i de lange blokke.
+      if (!harTal(over)) continue;
       blok.push(j);
       for (const { idx } of talKolonner) {
         sum[idx] += over.felter[idx]?.vaerdi ?? 0;
@@ -509,7 +525,7 @@ export function laesMatrix(matrix: Matrix): ImportResultat {
 
     let ulaeselige = 0;
     const tabeller: Tabel[] = graenser.map((g) => {
-      const raekker: Raekke[] = [];
+      let raekker: Raekke[] = [];
       for (let r = g.foersteDataRaekke; r <= g.sidsteDataRaekke; r++) {
         const raaRaekke = Array.isArray(matrix[r]) ? matrix[r] : [];
         const felter = raaRaekke.slice(1).map((c) => celleTilFelt(c, konvention));
@@ -519,6 +535,26 @@ export function laesMatrix(matrix: Matrix): ImportResultat {
           type: "post",
           felter,
         });
+      }
+
+      // Header-promovering i headerløse tabeller: den FØRSTE datarække er en
+      // overskriftsrække hvis den har ikke-tom tekst i kolonne 0 OG tekst
+      // (ikke tal — kilde "ulaeselig") i mindst én anden kolonne, og mindst
+      // én af de øvrige kolonner har tal i rækkerne under. En
+      // sektionsoverskrift har kun tekst i kolonne 0 og rammes ikke.
+      let headerRaekke = g.headerRaekke;
+      let foersteDataRaekke = g.foersteDataRaekke;
+      if (headerRaekke === null && raekker.length >= 2) {
+        const foerste = raekker[0];
+        const tekstIAndenKolonne = foerste.felter.some((f) => f.kilde === "ulaeselig");
+        const talNedenunder = raekker
+          .slice(1)
+          .some((r) => r.felter.some((f) => f.vaerdi !== null));
+        if (foerste.etiket.trim() !== "" && tekstIAndenKolonne && talNedenunder) {
+          headerRaekke = foerste.raekkeIndex;
+          raekker = raekker.slice(1);
+          foersteDataRaekke = raekker[0].raekkeIndex;
+        }
       }
 
       // Tekstkolonner (P1/P3): en kolonne hvor mindst 60 % af datarækkerne
@@ -548,14 +584,14 @@ export function laesMatrix(matrix: Matrix): ImportResultat {
         });
       }
 
-      const headerCeller =
-        g.headerRaekke !== null && Array.isArray(matrix[g.headerRaekke])
-          ? matrix[g.headerRaekke].map((c) => (c == null ? "" : String(c)))
-          : [];
+      const headerKilde = headerRaekke !== null ? matrix[headerRaekke] : null;
+      const headerCeller = Array.isArray(headerKilde)
+        ? headerKilde.map((c) => (c == null ? "" : String(c)))
+        : [];
       return {
-        headerRaekke: g.headerRaekke,
+        headerRaekke,
         kolonneOverskrifter: headerCeller,
-        foersteDataRaekke: g.foersteDataRaekke,
+        foersteDataRaekke,
         sidsteDataRaekke: g.sidsteDataRaekke,
         raekker: klassificerRaekker(raekker),
         tekstKolonner,
