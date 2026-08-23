@@ -360,11 +360,28 @@ export function decodeBudgetRows(data: BudgetTargetRow[], year: string): Decoded
       extraGroupMap[key] = g.period;
     });
 
-  const extraCategories: BudgetCategory[] = extraKeys.map((key) => ({
-    key,
-    label: key.replace(/_/g, " "),
-    group: (extraGroupMap[key] || "variable") as BudgetCategory["group"],
-  }));
+  // __group__-markørens værdi VALIDERES mod de seks gyldige gruppenøgler —
+  // castet var en type-løgn: en ugyldig værdi (fx et frit sektionsnavn fra
+  // en tidlig import) gled igennem, faldt uden for GROUP_ORDER og gjorde
+  // rækker usynlige i fladen. Ugyldigt → "variable", stille.
+  const GYLDIGE_GRUPPER = new Set<BudgetCategory["group"]>([
+    "indtaegter",
+    "variable",
+    "personale",
+    "faste",
+    "salg_marketing",
+    "drift",
+  ]);
+  const extraCategories: BudgetCategory[] = extraKeys.map((key) => {
+    const gemt = extraGroupMap[key];
+    return {
+      key,
+      label: key.replace(/_/g, " "),
+      group: GYLDIGE_GRUPPER.has(gemt as BudgetCategory["group"])
+        ? (gemt as BudgetCategory["group"])
+        : "variable",
+    };
+  });
 
   const allCategories = [...template.categories, ...extraCategories];
 

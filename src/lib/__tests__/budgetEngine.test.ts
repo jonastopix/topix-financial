@@ -23,7 +23,7 @@ import {
 } from "../budgetEngine";
 import { BUDGET_TEMPLATES } from "../budgetTemplates";
 import { laesMatrix } from "@/lib/importEngine";
-import { byggGitter } from "@/lib/importGitterModel";
+import { byggGitter, GYLDIGE_GRUPPER } from "@/lib/importGitterModel";
 import { byggSkriveplan, byggSkriveplanInserts, type Skriveplan } from "@/lib/importSkrivning";
 import { parseCsvTilMatrix } from "@/lib/csvLaesning";
 import { laesArkTilMatrix } from "./xlsxTestHelper";
@@ -444,6 +444,32 @@ describe("decodeBudgetRows", () => {
  * læses, er etiketterne bevaret i databasen og tabt på skærmen — fejler
  * denne test, er alt det andet ligegyldigt.
  */
+describe("decodeBudgetRows validerer __group__-markører", () => {
+  it("en ugyldig gruppeværdi (frit sektionsnavn) passerer ALDRIG — falder til 'variable'", () => {
+    const decoded = decodeBudgetRows(
+      [
+        { category: "import_loen_1", budget_amount: 100, period: "2026-base-0" },
+        { category: "__group__2026_import_loen_1", budget_amount: 0, period: "Medarbejdere" },
+      ],
+      "2026",
+    );
+    const row = decoded.scenarioData.base.find((r) => r.key === "import_loen_1")!;
+    expect(row.group).toBe("variable");
+  });
+
+  it("en gyldig gruppenøgle læses igennem", () => {
+    const decoded = decodeBudgetRows(
+      [
+        { category: "import_loen_1", budget_amount: 100, period: "2026-base-0" },
+        { category: "__group__2026_import_loen_1", budget_amount: 0, period: "personale" },
+      ],
+      "2026",
+    );
+    const row = decoded.scenarioData.base.find((r) => r.key === "import_loen_1")!;
+    expect(row.group).toBe("personale");
+  });
+});
+
 describe("rundtur: skriveplan → inserts → decodeBudgetRows", () => {
   const FIX = path.resolve(__dirname, "../__fixtures__");
 
@@ -463,8 +489,12 @@ describe("rundtur: skriveplan → inserts → decodeBudgetRows", () => {
       expect(row, `nøglen ${raekke.noegle} skal kunne læses tilbage`).toBeDefined();
       // Etiketten ordret tilbage (P3).
       expect(row!.label, raekke.noegle).toBe(raekke.etiket);
-      // Gruppen tilbage — uden sektion falder afkodningen til "variable".
-      expect(row!.group, raekke.noegle).toBe(raekke.gruppe ?? "variable");
+      // Gruppen tilbage — OG den skal være en af de seks gyldige nøgler.
+      // (Testens blinde vinkel før: den tjekkede kun at group var lig det
+      // vi skrev — også når det vi skrev var et frit sektionsnavn som
+      // fladen ikke kender. Nu kræves begge dele.)
+      expect(row!.group, raekke.noegle).toBe(raekke.gruppe);
+      expect(GYLDIGE_GRUPPER, `${raekke.noegle}: ${row!.group}`).toContain(row!.group);
       // Månedstallene uændrede (null i planen = 0 efter afkodning).
       expect(row!.values, raekke.noegle).toEqual(raekke.maanedsbeloeb.map((v) => v ?? 0));
     }
@@ -478,7 +508,7 @@ describe("rundtur: skriveplan → inserts → decodeBudgetRows", () => {
     expect(plan.raekker).toHaveLength(62);
     // Stikprøver på det der er sværest: dansk sektionsnavn og ordret etiket.
     const chatrine = plan.raekker.find((r) => r.etiket === "Chatrine Løn")!;
-    expect(chatrine.gruppe).toBe("Personale & konsulentydelser");
+    expect(chatrine.gruppe).toBe("personale"); // opløst fra "Personale & konsulentydelser"
     assertRundtur(plan);
   });
 
@@ -487,7 +517,7 @@ describe("rundtur: skriveplan → inserts → decodeBudgetRows", () => {
     const plan = byggSkriveplan(g, "2026");
     expect(plan.raekker).toHaveLength(32);
     const loen = plan.raekker.find((r) => r.etiket === "Løn")!;
-    expect(loen.gruppe).toBe("Medarbejdere");
+    expect(loen.gruppe).toBe("personale"); // opløst fra "Medarbejdere"
     assertRundtur(plan);
   });
 });
