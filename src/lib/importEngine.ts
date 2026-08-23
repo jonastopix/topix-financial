@@ -279,12 +279,15 @@ const KVARTAL_RE = /^q[1-4]$/i;
 const AARSTAL_RE = /^(19|20)\d{2}$/;
 const TOTAL_RE = /^(i\s*alt|total|sum|ytd|år\s*til\s*dato)$/i;
 
-/** Ligner cellen en periode-overskrift (månedsnavn, kvartal, årstal, total)? */
+/** Ligner cellen en periode-overskrift (månedsnavn, kvartal, årstal, total)?
+    Månedsnavne må bære et valgfrit suffiks: separator (bindestreg, skråstreg,
+    punktum eller mellemrum) + 2 eller 4 cifre — "Januar-26", "jan/2026",
+    "Marts.26", "Maj 2026". Versalufølsomt som hidtil. */
 function erPeriodeOverskrift(celle: Celle): boolean {
   if (celle == null) return false;
   const s = String(celle).trim();
   if (!s) return false;
-  const kerne = s.replace(/\s+(19|20)\d{2}$/, ""); // "Jan 2026" → "Jan"
+  const kerne = s.replace(/[\s\-/.]+(\d{4}|\d{2})$/, ""); // "Januar-26" → "Januar"
   return (
     MAANEDER_RE.test(kerne) || KVARTAL_RE.test(s) || AARSTAL_RE.test(s) || TOTAL_RE.test(s)
   );
@@ -435,9 +438,13 @@ export function klassificerRaekker(raekker: Raekke[]): Raekke[] {
       .map((f, idx) => ({ f, idx }))
       .filter(({ f }) => f.vaerdi !== null);
 
-    // Én talkolonne: strukturen er ikke nok — kræv etiket-støtte i tillæg.
-    // Med 2+ talkolonner bærer strukturen dommen alene.
-    const kraevEtiketStoette = talKolonner.length === 1;
+    // Et strukturelt match er kun bevis når det er INFORMATIVT: mindst én af
+    // kandidatens talkolonner skal ligge numerisk over tolerancen (|v| > 2).
+    // Ellers er |0 − 0| ≤ 2 altid sandt, og rigtige nulrækker ville
+    // forsvinde som subtotaler — tavst datatab. Uden informativ kolonne,
+    // eller med kun én talkolonne, kræves etiket-støtte i tillæg.
+    const informativ = talKolonner.some(({ f }) => Math.abs(f.vaerdi as number) > 2);
+    const kraevEtiketStoette = talKolonner.length === 1 || !informativ;
     const etiketStoetter = STOETTE_ETIKET_RE.test(raekke.etiket);
 
     let daekker: number[] | null = null;

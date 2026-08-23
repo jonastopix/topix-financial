@@ -1,13 +1,13 @@
 import * as fs from "fs";
 import * as path from "path";
 import { describe, expect, it } from "vitest";
+import { parseCsvTilMatrix } from "./csvTestHelper";
 import {
   detekterTalKonvention,
   findTabeller,
   klassificerRaekker,
   laesMatrix,
   laesTal,
-  type Celle,
   type Felt,
   type Matrix,
   type Raekke,
@@ -167,6 +167,20 @@ describe("findTabeller", () => {
     });
   });
 
+  it("månedsnavn med suffiks ('Januar-26', 'jan/2026', 'Marts.26') genkendes som periode-header", () => {
+    for (const header of [
+      ["Post", "Januar-26", "Februar-26"],
+      ["Post", "jan/2026", "feb/2026"],
+      ["Post", "Marts.26", "April.26"],
+      ["Post", "Maj 2026", "Juni 2026"],
+    ]) {
+      const graenser = findTabeller([header, ["Løn", "1", "2"]]);
+      expect(graenser, header.join(",")).toEqual([
+        { headerRaekke: 0, foersteDataRaekke: 1, sidsteDataRaekke: 1 },
+      ]);
+    }
+  });
+
   it("to header-tabeller i samme blok: næste header afslutter den første", () => {
     const m: Matrix = [
       ["Post", "Jan", "Feb"],
@@ -308,6 +322,34 @@ describe("klassificerRaekker", () => {
       raekke(0, "A", [10, 100]),
       raekke(1, "B", [20, 200]),
       raekke(2, "Resten", [30, 300]),
+    ]);
+    expect(ud[2].type).toBe("subtotal");
+    expect(ud[2].daekker).toEqual([0, 1]);
+  });
+
+  it("nulrækker: |0−0| ≤ 2 er ikke bevis — uden etiket-støtte forbliver rækken post", () => {
+    const ud = klassificerRaekker([
+      raekke(0, "D2C Fragt & emballage", [0, 0, 0]),
+      raekke(1, "B2B Vareforbrug", [0, 0, 0]),
+      raekke(2, "B2B Fragt & emballage", [0, 0, 0]),
+    ]);
+    expect(ud.map((r) => r.type)).toEqual(["post", "post", "post"]);
+  });
+
+  it("nulrække MED etiket-støtte må stadig være subtotal (to signaler)", () => {
+    const ud = klassificerRaekker([
+      raekke(0, "A", [0, 0]),
+      raekke(1, "B", [0, 0]),
+      raekke(2, "I alt", [0, 0]),
+    ]);
+    expect(ud[2].type).toBe("subtotal");
+  });
+
+  it("én informativ kolonne (|v| > 2) er nok til at strukturen bærer igen", () => {
+    const ud = klassificerRaekker([
+      raekke(0, "A", [0, 5]),
+      raekke(1, "B", [0, 7]),
+      raekke(2, "Resten", [0, 12]),
     ]);
     expect(ud[2].type).toBe("subtotal");
     expect(ud[2].daekker).toEqual([0, 1]);
@@ -535,56 +577,6 @@ describe("laesMatrix", () => {
 });
 
 // ───────────────────────── Golden: ægte medlemsfil ─────────────────────────
-
-/** CSV → Matrix (test-hjælper — motoren arbejder på matricer, ikke filer).
-    Komma-separeret, citationstegn omkring felter med komma, "" = escaped
-    quote, tomme felter → null. */
-function parseCsvTilMatrix(tekst: string): Matrix {
-  const matrix: Matrix = [];
-  let raekke: Celle[] = [];
-  let felt = "";
-  let iCitat = false;
-  let harCitat = false;
-
-  const lukFelt = () => {
-    raekke.push(felt === "" && !harCitat ? null : felt);
-    felt = "";
-    harCitat = false;
-  };
-  const lukRaekke = () => {
-    lukFelt();
-    matrix.push(raekke);
-    raekke = [];
-  };
-
-  const t = tekst.replace(/^﻿/, "");
-  for (let i = 0; i < t.length; i++) {
-    const c = t[i];
-    if (iCitat) {
-      if (c === '"') {
-        if (t[i + 1] === '"') {
-          felt += '"';
-          i++;
-        } else {
-          iCitat = false;
-        }
-      } else {
-        felt += c;
-      }
-    } else if (c === '"') {
-      iCitat = true;
-      harCitat = true;
-    } else if (c === ",") {
-      lukFelt();
-    } else if (c === "\n") {
-      lukRaekke();
-    } else if (c !== "\r") {
-      felt += c;
-    }
-  }
-  if (felt !== "" || harCitat || raekke.length > 0) lukRaekke();
-  return matrix;
-}
 
 /**
  * GOLDEN-TEST mod en ÆGTE medlemsfil (Remm ApS, driftsbudget 2026 BASE).
