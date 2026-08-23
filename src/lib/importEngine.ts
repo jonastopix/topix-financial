@@ -293,6 +293,34 @@ export function erMaanedsnavn(tekst: string): boolean {
   return MAANEDER_RE.test(s);
 }
 
+const MAANED_NAVNE: string[][] = [
+  ["jan", "januar"],
+  ["feb", "februar"],
+  ["mar", "marts", "march"],
+  ["apr", "april"],
+  ["maj", "may"],
+  ["jun", "juni", "june"],
+  ["jul", "juli", "july"],
+  ["aug", "august"],
+  ["sep", "september"],
+  ["okt", "oktober", "oct", "october"],
+  ["nov", "november"],
+  ["dec", "december"],
+];
+
+/** Månedsnavn → 0-baseret månedsindeks ("Januar-26" → 0, "may" → 4); null
+    når teksten ikke er et månedsnavn. Eksporteret til skrivevejens
+    kolonnetolkning — samme navnesæt som MAANEDER_RE. */
+export function maanedsIndeks(tekst: string): number | null {
+  const s = tekst
+    .trim()
+    .replace(/[\s\-/.]+(\d{4}|\d{2})$/, "")
+    .replace(/\.$/, "")
+    .toLowerCase();
+  const idx = MAANED_NAVNE.findIndex((navne) => navne.includes(s));
+  return idx >= 0 ? idx : null;
+}
+
 /** Ligner cellen en periode-overskrift (månedsnavn, kvartal, årstal, total)?
     Månedsnavne må bære et valgfrit suffiks: separator (bindestreg, skråstreg,
     punktum eller mellemrum) + 2 eller 4 cifre — "Januar-26", "jan/2026",

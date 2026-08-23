@@ -41,6 +41,7 @@ import {
   type BudgetTemplate,
   type BudgetCategory,
 } from "@/lib/budgetTemplates";
+import { byggSkriveplanInserts, type Skriveplan } from "@/lib/importSkrivning";
 import { catToRow, MONTHS, type BudgetRow, type ScenarioKey } from "@/components/budget/types";
 
 export interface BudgetTargetRow {
@@ -724,6 +725,53 @@ export async function confirmBudgetImport(args: {
     onConflict: "company_id,user_id,category,period",
     ignoreDuplicates: false,
   });
+  if (error) throw error;
+}
+
+/** W8 — importgitterets skrivevej (feat/import-skrivevej, besluttet
+    2026-08-23). Skriver KUN base-scenariet — et importeret budget er ét
+    budget; optimistisk/pessimistisk laver medlemmet bagefter, bevidst.
+    Etiketten bevares via __label__-markører (samme form som
+    saveScenarioEdits :558-564); nøglerne er unikke pr. RÆKKE fra
+    byggSkriveplan — kollision er en fejl der kastes, ALDRIG stille
+    summering (modsat W5's dedup). Delete følger husreglen: select-først,
+    slet på id — kun årets base-værdier + __label__-markører for netop de
+    nøgler planen skriver. Den gamle confirmBudgetImport (W5) består urørt
+    til den nuværende flade er koblet om. */
+export async function confirmImportFraSkriveplan(args: {
+  userId: string;
+  companyId: string;
+  plan: Skriveplan;
+}): Promise<void> {
+  const { userId, companyId, plan } = args;
+
+  const noegler = plan.raekker.map((r) => r.noegle);
+  if (new Set(noegler).size !== noegler.length) {
+    throw new Error("Skriveplanen har kolliderende nøgler — der skrives intet");
+  }
+  if (!/^\d{4}$/.test(plan.aar)) {
+    throw new Error(`Ugyldigt budgetår i skriveplanen: "${plan.aar}"`);
+  }
+
+  const periodPrefix = `${plan.aar}-base-`;
+  const labelPrefix = `__label__${plan.aar}_`;
+  const groupPrefix = `__group__${plan.aar}_`;
+  const noegleSet = new Set(noegler);
+
+  const existing = await fetchExistingRows(companyId);
+  const toDelete = existing.filter(
+    (e) =>
+      e.period.startsWith(periodPrefix) ||
+      (e.category.startsWith(labelPrefix) && noegleSet.has(e.category.slice(labelPrefix.length))) ||
+      (e.category.startsWith(groupPrefix) && noegleSet.has(e.category.slice(groupPrefix.length))),
+  );
+  if (toDelete.length > 0) {
+    await supabase.from("budget_targets").delete().in("id", toDelete.map((e) => e.id));
+  }
+
+  const { error } = await supabase
+    .from("budget_targets")
+    .insert(byggSkriveplanInserts({ userId, companyId, plan }));
   if (error) throw error;
 }
 
