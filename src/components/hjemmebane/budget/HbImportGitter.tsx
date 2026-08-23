@@ -1,6 +1,8 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
+import { laesTal, type TalKonvention } from "@/lib/importEngine";
 import {
+  indsaetFraTekst,
   opsummer,
   saetEtiket,
   saetMedtag,
@@ -51,16 +53,60 @@ function grupper(raekker: GitterRaekke[]): { sektion: string | null; raekker: Gi
   return grupperet;
 }
 
+/** Tastede tal læses med dansk konvention (gitteret bærer ingen egen
+    konvention endnu) — motorens laesTal, samme regler som ved import. */
+const DANSK_KONVENTION: TalKonvention = { tusind: ".", decimal: ",", sikkerhed: "hoej" };
+
 export const HbImportGitter = ({ gitter, onChange }: HbImportGitterProps) => {
   const sammendrag = opsummer(gitter);
   const grupperet = grupper(gitter.raekker);
   const subtotaler = gitter.struktur.filter((s) => s.slags === "subtotal");
   const sektioner = gitter.struktur.filter((s) => s.slags === "sektion");
 
-  const laesInputTal = (tekst: string): number | null | undefined => {
-    if (tekst.trim() === "") return null;
-    const tal = Number(tekst.replace(",", "."));
-    return Number.isFinite(tal) ? tal : undefined; // undefined = ignorér tastetrykket
+  // Fejl 3: rå værdi under redigering, fmtNumber uden fokus. Lokal state om
+  // HVILKET felt der redigeres og hvad der står i det — modellen skrives kun
+  // når teksten kan læses som tal.
+  const [redigerer, setRedigerer] = React.useState<{
+    raekkeIndex: number;
+    kolonne: number;
+    tekst: string;
+  } | null>(null);
+
+  const visVaerdi = (raekke: GitterRaekke, kolonne: number): string => {
+    if (redigerer && redigerer.raekkeIndex === raekke.raekkeIndex && redigerer.kolonne === kolonne) {
+      return redigerer.tekst;
+    }
+    const vaerdi = raekke.vaerdier[kolonne];
+    return vaerdi === null ? "" : fmtNumber(vaerdi);
+  };
+
+  const startRedigering = (raekke: GitterRaekke, kolonne: number) => {
+    const vaerdi = raekke.vaerdier[kolonne];
+    setRedigerer({
+      raekkeIndex: raekke.raekkeIndex,
+      kolonne,
+      // Rå værdi med dansk decimaltegn, så den kan tastes videre på.
+      tekst: vaerdi === null ? "" : String(vaerdi).replace(".", ","),
+    });
+  };
+
+  const tast = (raekke: GitterRaekke, kolonne: number, tekst: string) => {
+    setRedigerer({ raekkeIndex: raekke.raekkeIndex, kolonne, tekst });
+    if (tekst.trim() === "") {
+      onChange(saetVaerdi(gitter, raekke.raekkeIndex, kolonne, null));
+      return;
+    }
+    const felt = laesTal(tekst, DANSK_KONVENTION);
+    // Ulæseligt: lad tegnene stå i feltet, men skriv ikke til modellen.
+    if (felt.kilde !== "ulaeselig") {
+      onChange(saetVaerdi(gitter, raekke.raekkeIndex, kolonne, felt.vaerdi));
+    }
+  };
+
+  const indsaet = (raekkeIndex: number, kolonne: number) => (e: React.ClipboardEvent) => {
+    e.preventDefault();
+    setRedigerer(null);
+    onChange(indsaetFraTekst(gitter, raekkeIndex, kolonne, e.clipboardData.getData("text")));
   };
 
   return (
@@ -96,9 +142,9 @@ export const HbImportGitter = ({ gitter, onChange }: HbImportGitterProps) => {
                 <th className="min-w-[200px] px-3 py-2.5 text-left text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft">
                   Linje
                 </th>
-                {gitter.kolonner.map((kolonne) => (
+                {gitter.kolonner.map((kolonne, kolonneIndex) => (
                   <th
-                    key={kolonne}
+                    key={kolonneIndex}
                     className="min-w-[84px] px-2 py-2.5 text-right text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft"
                   >
                     {kolonne}
@@ -142,21 +188,22 @@ export const HbImportGitter = ({ gitter, onChange }: HbImportGitterProps) => {
                           <input
                             value={raekke.etiket}
                             onChange={(e) => onChange(saetEtiket(gitter, raekke.raekkeIndex, e.target.value))}
+                            onPaste={indsaet(raekke.raekkeIndex, 0)}
                             placeholder="Navn på linjen…"
                             className="w-full min-w-[180px] rounded-md border border-transparent bg-transparent px-1.5 py-1 text-sm text-hb-ink placeholder:text-hb-ink-soft/60 hover:border-hb-line focus:border-hb-line focus:outline-none focus:ring-2 focus:ring-hb-evergreen/50"
                             aria-label="Etiket"
                           />
                         </td>
                         {gitter.kolonner.map((kolonne, kolonneIndex) => (
-                          <td key={kolonne} className="px-2 py-2 text-right">
+                          <td key={kolonneIndex} className="px-2 py-2 text-right">
                             <input
-                              type="number"
-                              value={raekke.vaerdier[kolonneIndex] ?? ""}
-                              onChange={(e) => {
-                                const tal = laesInputTal(e.target.value);
-                                if (tal !== undefined)
-                                  onChange(saetVaerdi(gitter, raekke.raekkeIndex, kolonneIndex, tal));
-                              }}
+                              type="text"
+                              inputMode="decimal"
+                              value={visVaerdi(raekke, kolonneIndex)}
+                              onFocus={() => startRedigering(raekke, kolonneIndex)}
+                              onBlur={() => setRedigerer(null)}
+                              onChange={(e) => tast(raekke, kolonneIndex, e.target.value)}
+                              onPaste={indsaet(raekke.raekkeIndex, kolonneIndex)}
                               className={cellInputClasses}
                               aria-label={`${raekke.etiket || "Linje"} ${kolonne}`}
                             />

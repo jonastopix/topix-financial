@@ -13,7 +13,14 @@
  *   - Ingen kategorikolonne — etiket og tal (P3; kategorier er spor 3).
  */
 
-import type { ImportResultat, Raekke, Tabel } from "@/lib/importEngine";
+import {
+  detekterTalKonvention,
+  laesTal,
+  type ImportResultat,
+  type Matrix,
+  type Raekke,
+  type Tabel,
+} from "@/lib/importEngine";
 
 export type GitterRaekke = {
   raekkeIndex: number;
@@ -354,6 +361,79 @@ export function tilfoejRaekke(gitter: Gitter, efterRaekkeIndex: number): Gitter 
     tabelIndex: nabo?.tabelIndex ?? 0,
   };
   ny.raekker.splice(pos >= 0 ? pos + 1 : ny.raekker.length, 0, raekke);
+  return ny;
+}
+
+/**
+ * Indsæt fra regneark (P2 — gitteret er rygraden netop fordi indsætning så
+ * følger med). Teksten deles i rækker på \n og kolonner på \t (semikolon som
+ * fallback uden tabs); tallene læses med motorens egen konventions-detektion
+ * og laesTal, så indsatte tal følger PRÆCIS samme regler som importerede.
+ * Indsættes der i kolonne 0 og kan blokkens første kolonne ikke læses som
+ * tal, er den etiketter. Gitteret udvides med nye rækker (negative
+ * raekkeIndex, sektion/tabelIndex arvet fra ankerrækken) når blokken er
+ * højere end pladsen; værdier ud over kolonnetallet ignoreres. Muterer ikke
+ * input.
+ */
+export function indsaetFraTekst(
+  gitter: Gitter,
+  fraRaekkeIndex: number,
+  fraKolonne: number,
+  tekst: string,
+): Gitter {
+  const ny = kopiGitter(gitter);
+
+  const linjer = tekst.replace(/\r/g, "").split("\n");
+  while (linjer.length > 0 && linjer[linjer.length - 1] === "") linjer.pop();
+  if (linjer.length === 0) return ny;
+  const skille = tekst.includes("\t") ? "\t" : ";";
+  const blok = linjer.map((l) => l.split(skille));
+
+  const startPos = ny.raekker.findIndex((r) => r.raekkeIndex === fraRaekkeIndex);
+  if (startPos < 0) return ny;
+  const anker = ny.raekker[startPos];
+
+  const konvention = detekterTalKonvention(blok as Matrix);
+
+  // Etiket-kolonne: kun ved indsætning i kolonne 0, og kun når INGEN ikke-tom
+  // celle i blokkens første kolonne kan læses som tal.
+  const foersteKolonne = blok.map((r) => (r[0] ?? "").trim());
+  const erEtiketKolonne =
+    fraKolonne === 0 &&
+    foersteKolonne.some((c) => c !== "") &&
+    foersteKolonne.every((c) => c === "" || laesTal(c, konvention).kilde === "ulaeselig");
+
+  const vaerdiStart = erEtiketKolonne ? 0 : fraKolonne;
+  let mindste = ny.raekker.reduce((m, r) => Math.min(m, r.raekkeIndex), 0);
+
+  for (let i = 0; i < blok.length; i++) {
+    let raekke = ny.raekker[startPos + i];
+    if (!raekke) {
+      // Blokken er højere end pladsen: udvid med tomme rækker under ankeret.
+      mindste = Math.min(-1, mindste - 1);
+      raekke = {
+        raekkeIndex: mindste,
+        etiket: "",
+        vaerdier: Array.from({ length: ny.kolonner.length }, () => null),
+        medtag: true,
+        bemaerkning: null,
+        kommentar: null,
+        sektion: anker.sektion,
+        tabelIndex: anker.tabelIndex,
+      };
+      ny.raekker.push(raekke);
+    }
+
+    const celler = erEtiketKolonne ? blok[i].slice(1) : blok[i];
+    if (erEtiketKolonne) raekke.etiket = (blok[i][0] ?? "").trim();
+
+    celler.forEach((celle, j) => {
+      const kolonne = vaerdiStart + j;
+      if (kolonne < 0 || kolonne >= ny.kolonner.length) return; // ud over kolonnetallet
+      raekke.vaerdier[kolonne] = laesTal(String(celle), konvention).vaerdi;
+    });
+  }
+
   return ny;
 }
 

@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import { laesMatrix, type ImportResultat, type Tabel } from "@/lib/importEngine";
 import {
   byggGitter,
+  indsaetFraTekst,
   opsummer,
   saetEtiket,
   saetMedtag,
@@ -426,6 +427,75 @@ describe("mutationer — nye objekter, aldrig mutation af input", () => {
     const negative = g.raekker.filter((r) => r.raekkeIndex < 0).map((r) => r.raekkeIndex);
     expect(negative).toHaveLength(2);
     expect(new Set(negative).size).toBe(2);
+  });
+});
+
+// ───────────────────────── indsaetFraTekst ─────────────────────────
+
+describe("indsaetFraTekst", () => {
+  const bredt = () =>
+    byggGitter(resultat([tabel([post(0, "Løn", Array.from({ length: 12 }, () => null))])]));
+
+  it("tolv tab-adskilte tal indsat i kolonne 0 fylder tolv kolonner — og et trettende ignoreres", () => {
+    const tekst = Array.from({ length: 13 }, (_, i) => String((i + 1) * 100)).join("\t");
+    const ny = indsaetFraTekst(bredt(), 0, 0, tekst);
+    expect(ny.raekker[0].vaerdier).toEqual([
+      100, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 1100, 1200,
+    ]);
+  });
+
+  it("blok på tre rækker udvider gitteret med to nye rækker (negativt indeks, arvet sektion)", () => {
+    const g = standardGitter(); // rækker 1 (Løn) og 2 (Pension), sektion "Personale"
+    const ny = indsaetFraTekst(g, 2, 0, "1\t2\n3\t4\n5\t6");
+    expect(ny.raekker).toHaveLength(4);
+    expect(ny.raekker[1].vaerdier).toEqual([1, 2]); // Pension overskrevet
+    const nye = ny.raekker.slice(2);
+    expect(nye.map((r) => r.vaerdier)).toEqual([[3, 4], [5, 6]]);
+    for (const r of nye) {
+      expect(r.raekkeIndex).toBeLessThan(0);
+      expect(r.medtag).toBe(true);
+      expect(r.sektion).toBe("Personale");
+      expect(r.tabelIndex).toBe(0);
+    }
+    expect(new Set(nye.map((r) => r.raekkeIndex)).size).toBe(2);
+  });
+
+  it("blok med tekst i første kolonne indsat i kolonne 0 sætter etiketter", () => {
+    const ny = indsaetFraTekst(standardGitter(), 1, 0, "Husleje\t100\t200\nEl & varme\t300\t400");
+    expect(ny.raekker[0].etiket).toBe("Husleje");
+    expect(ny.raekker[0].vaerdier).toEqual([100, 200]);
+    expect(ny.raekker[1].etiket).toBe("El & varme");
+    expect(ny.raekker[1].vaerdier).toEqual([300, 400]);
+  });
+
+  it("amerikansk og dansk talformat i indsat tekst læses korrekt", () => {
+    const us = indsaetFraTekst(standardGitter(), 1, 0, "2,700,000\t1,500");
+    expect(us.raekker[0].vaerdier).toEqual([2700000, 1500]);
+
+    const dk = indsaetFraTekst(standardGitter(), 1, 0, "2.700.000,50\t1.500");
+    expect(dk.raekker[0].vaerdier).toEqual([2700000.5, 1500]);
+  });
+
+  it("parentes-negativ i indsat tekst følger motorens regler", () => {
+    const ny = indsaetFraTekst(standardGitter(), 1, 0, "(17,000)\t500");
+    expect(ny.raekker[0].vaerdier).toEqual([-17000, 500]);
+  });
+
+  it("semikolon-fallback når der ingen tabs er", () => {
+    const ny = indsaetFraTekst(standardGitter(), 1, 0, "100;200");
+    expect(ny.raekker[0].vaerdier).toEqual([100, 200]);
+  });
+
+  it("indsætning i en senere kolonne rammer den kolonne, ikke kolonne 0", () => {
+    const ny = indsaetFraTekst(standardGitter(), 1, 1, "999");
+    expect(ny.raekker[0].vaerdier).toEqual([100, 999]);
+  });
+
+  it("muterer ikke input", () => {
+    const g = standardGitter();
+    const foer = JSON.parse(JSON.stringify(g));
+    indsaetFraTekst(g, 1, 0, "1\t2\n3\t4\n5\t6");
+    expect(g).toEqual(foer);
   });
 });
 
