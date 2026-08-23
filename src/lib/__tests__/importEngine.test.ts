@@ -277,6 +277,36 @@ describe("klassificerRaekker", () => {
     klassificerRaekker(rows);
     expect(rows).toEqual(kopi);
   });
+
+  it("én talkolonne der summer to rækker over, UDEN støttende etiket → post", () => {
+    const ud = klassificerRaekker([
+      raekke(0, "A", [10]),
+      raekke(1, "B", [20]),
+      raekke(2, "Rest", [30]),
+    ]);
+    expect(ud[2].type).toBe("post");
+    expect(ud[2].daekker).toBeUndefined();
+  });
+
+  it("samme række MED etiketten 'I alt' → subtotal (struktur + etiket = to signaler)", () => {
+    const ud = klassificerRaekker([
+      raekke(0, "A", [10]),
+      raekke(1, "B", [20]),
+      raekke(2, "I alt", [30]),
+    ]);
+    expect(ud[2].type).toBe("subtotal");
+    expect(ud[2].daekker).toEqual([0, 1]);
+  });
+
+  it("to talkolonner der begge summer klarer sig uden etiket-støtte", () => {
+    const ud = klassificerRaekker([
+      raekke(0, "A", [10, 100]),
+      raekke(1, "B", [20, 200]),
+      raekke(2, "Resten", [30, 300]),
+    ]);
+    expect(ud[2].type).toBe("subtotal");
+    expect(ud[2].daekker).toEqual([0, 1]);
+  });
 });
 
 // ───────────────────────── laesMatrix ─────────────────────────
@@ -324,14 +354,47 @@ describe("laesMatrix", () => {
   });
 
   it("ulæselig celle giver en række der stadig kommer med (P1) — plus en advarsel", () => {
+    // To rækker så Feb-kolonnen er BLANDET (tal + tekst) — en ren
+    // tekstkolonne ville med rette være advarsels-fri (se tekstKolonner).
     const res = laesMatrix([
       ["Post", "Jan", "Feb"],
       ["Løn", "1,000", "ikke et tal"],
+      ["Husleje", "2,000", "3,000"],
     ]);
     const row = res.tabeller[0].raekker[0];
     expect(row.etiket).toBe("Løn");
     expect(row.felter[1]).toMatchObject({ vaerdi: null, kilde: "ulaeselig", raa: "ikke et tal" });
     expect(res.advarsler.some((a) => a.includes("kunne ikke læses"))).toBe(true);
+  });
+
+  it("ren kommentarkolonne: ingen ulæselig-advarsel og korrekt indeks i tekstKolonner", () => {
+    const res = laesMatrix([
+      ["Post", "Jan", "Feb", "Kommentar"],
+      ["Løn", "1,000", "2,000", "fastansatte"],
+      ["Husleje", "3,000", "4,000", "kontor + lager"],
+    ]);
+    const tabel = res.tabeller[0];
+    // Kolonneindeks er relative til felter (kolonne 0 skåret fra): Kommentar = 2.
+    expect(tabel.tekstKolonner).toEqual([2]);
+    expect(res.advarsler.some((a) => a.includes("kunne ikke læses"))).toBe(false);
+    // Feltet bevares som det er, så gitteret kan vise indholdet (P1/P3).
+    expect(tabel.raekker[0].felter[2]).toMatchObject({
+      vaerdi: null,
+      kilde: "ulaeselig",
+      raa: "fastansatte",
+    });
+  });
+
+  it("blandet tal/tekst-kolonne er IKKE tekstkolonne — dens ulæselige celler tæller stadig", () => {
+    const res = laesMatrix([
+      ["Post", "Jan", "Feb", "Note"],
+      ["A", "1,000", "5,000", "2,000"],
+      ["B", "2,000", "6,000", "tekst"],
+    ]);
+    const tabel = res.tabeller[0];
+    expect(tabel.tekstKolonner).toEqual([]);
+    expect(res.advarsler.some((a) => a.includes("kunne ikke læses"))).toBe(true);
+    expect(tabel.raekker[1].felter[2]).toMatchObject({ vaerdi: null, kilde: "ulaeselig" });
   });
 
   it("talceller (number) læses direkte uden konvention", () => {

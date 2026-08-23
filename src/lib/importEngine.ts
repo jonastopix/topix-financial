@@ -46,6 +46,9 @@ export type Tabel = {
   foersteDataRaekke: number;
   sidsteDataRaekke: number;
   raekker: Raekke[];
+  /** Fritekstkolonner (fx "Kommentar") — indeks relative til felter-arrayet,
+      altså efter at etiketkolonnen (kolonne 0) er skåret fra. */
+  tekstKolonner: number[];
 };
 
 export type ImportResultat = {
@@ -379,15 +382,20 @@ const indenForTolerance = (sum: number, vaerdi: number): boolean =>
 const harTal = (r: Raekke): boolean => r.felter.some((f) => f.vaerdi !== null);
 const harEtiket = (r: Raekke): boolean => r.etiket.trim() !== "";
 
+/** Etiket-ord der STØTTER en subtotal-dom — aldrig afgør den alene. */
+const STOETTE_ETIKET_RE = /(^|\s)(subtotal|i alt|ialt|total|sum)(\s|$)/i;
+
 /**
  * Klassificerer rækker på STRUKTUR, ikke ordvalg (design §4.4):
  *   subtotal — værdierne svarer til summen af en sammenhængende blok rækker
  *              over den, i ALLE rækkens talkolonner (ét tilfældigt sammenfald
  *              i én kolonne holder ikke over tolv). Tidligere fundne
  *              subtotaler springes over i summen (de gentager posterne) og
- *              registreres ikke i daekker. Ord som "subtotal"/"i alt" i
- *              etiketten afgør bevidst ALDRIG noget alene — de indgår ikke i
- *              dommen, fordi strukturen bærer den fuldt ud.
+ *              registreres ikke i daekker. Har rækken KUN ÉN talkolonne, er
+ *              strukturen ét muligt tilfældigt sammenfald og bærer ikke
+ *              dommen alene — dér kræves i TILLÆG at etiketten støtter
+ *              (STOETTE_ETIKET_RE). Ordet afgør stadig aldrig alene: der
+ *              skal to signaler til, ikke ét.
  *   sektion  — etiket uden tal, efterfulgt af rækker med tal.
  *   stoej    — hverken etiket eller tal (eller etiket uden efterfølgende tal).
  *   post     — alt andet.
@@ -415,11 +423,16 @@ export function klassificerRaekker(raekker: Raekke[]): Raekke[] {
       .map((f, idx) => ({ f, idx }))
       .filter(({ f }) => f.vaerdi !== null);
 
+    // Én talkolonne: strukturen er ikke nok — kræv etiket-støtte i tillæg.
+    // Med 2+ talkolonner bærer strukturen dommen alene.
+    const kraevEtiketStoette = talKolonner.length === 1;
+    const etiketStoetter = STOETTE_ETIKET_RE.test(raekke.etiket);
+
     let daekker: number[] | null = null;
     const sum = new Array<number>(raekke.felter.length).fill(0);
     const blok: number[] = [];
 
-    for (let j = i - 1; j >= 0; j--) {
+    for (let j = i - 1; j >= 0 && !(kraevEtiketStoette && !etiketStoetter); j--) {
       const over = resultat[j];
       if (over.type === "subtotal") continue; // gentager posterne — spring over
       if (!harTal(over)) break; // sektion/støj bryder den sammenhængende blok
@@ -500,7 +513,6 @@ export function laesMatrix(matrix: Matrix): ImportResultat {
       for (let r = g.foersteDataRaekke; r <= g.sidsteDataRaekke; r++) {
         const raaRaekke = Array.isArray(matrix[r]) ? matrix[r] : [];
         const felter = raaRaekke.slice(1).map((c) => celleTilFelt(c, konvention));
-        ulaeselige += felter.filter((f) => f.kilde === "ulaeselig").length;
         raekker.push({
           raekkeIndex: r,
           etiket: raaRaekke[0] == null ? "" : String(raaRaekke[0]),
@@ -508,6 +520,34 @@ export function laesMatrix(matrix: Matrix): ImportResultat {
           felter,
         });
       }
+
+      // Tekstkolonner (P1/P3): en kolonne hvor mindst 60 % af datarækkerne
+      // har en ikke-tom celle og INGEN af de ikke-tomme kan læses som tal,
+      // er fritekst (fx "Kommentar"). Felterne bevares urørt så gitteret kan
+      // vise indholdet — men de tæller ikke som ulæselige tal og udløser
+      // ingen advarsel.
+      const antalKolonner = raekker.reduce((m, r) => Math.max(m, r.felter.length), 0);
+      const tekstKolonner: number[] = [];
+      for (let c = 0; c < antalKolonner; c++) {
+        const ikkeTomme = raekker
+          .map((r) => r.felter[c])
+          .filter((f): f is Felt => f != null && f.kilde !== "tom");
+        if (
+          raekker.length > 0 &&
+          ikkeTomme.length > 0 &&
+          ikkeTomme.length >= raekker.length * 0.6 &&
+          ikkeTomme.every((f) => f.vaerdi === null)
+        ) {
+          tekstKolonner.push(c);
+        }
+      }
+
+      for (const raekke of raekker) {
+        raekke.felter.forEach((f, c) => {
+          if (f.kilde === "ulaeselig" && !tekstKolonner.includes(c)) ulaeselige++;
+        });
+      }
+
       const headerCeller =
         g.headerRaekke !== null && Array.isArray(matrix[g.headerRaekke])
           ? matrix[g.headerRaekke].map((c) => (c == null ? "" : String(c)))
@@ -518,6 +558,7 @@ export function laesMatrix(matrix: Matrix): ImportResultat {
         foersteDataRaekke: g.foersteDataRaekke,
         sidsteDataRaekke: g.sidsteDataRaekke,
         raekker: klassificerRaekker(raekker),
+        tekstKolonner,
       };
     });
 
