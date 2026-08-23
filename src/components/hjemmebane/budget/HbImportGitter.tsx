@@ -126,7 +126,7 @@ export const HbImportGitter = ({ gitter, onChange }: HbImportGitterProps) => {
                         className={cn(
                           "border-b border-hb-line/60",
                           !raekke.medtag && "opacity-45",
-                          raekke.bemaerkning !== null && "border-b-0",
+                          (raekke.bemaerkning !== null || raekke.kommentar !== null) && "border-b-0",
                         )}
                       >
                         <td className="px-3 py-2">
@@ -172,11 +172,19 @@ export const HbImportGitter = ({ gitter, onChange }: HbImportGitterProps) => {
                           </button>
                         </td>
                       </tr>
-                      {raekke.bemaerkning !== null && (
+                      {(raekke.bemaerkning !== null || raekke.kommentar !== null) && (
                         <tr className={cn("border-b border-hb-line/60", !raekke.medtag && "opacity-45")}>
                           <td aria-hidden />
                           <td colSpan={gitter.kolonner.length + 2} className="px-3 pb-2 pt-0">
-                            <p className="text-xs text-hb-ink-soft">{raekke.bemaerkning}</p>
+                            {/* Motorens tvivl som markering; medlemmets egen
+                                kommentar som almindelig tekst — begge synlige,
+                                aldrig bag et hover-ikon. */}
+                            {raekke.bemaerkning !== null && (
+                              <p className="text-xs text-hb-rust">{raekke.bemaerkning}</p>
+                            )}
+                            {raekke.kommentar !== null && (
+                              <p className="text-xs text-hb-ink-soft">{raekke.kommentar}</p>
+                            )}
                           </td>
                         </tr>
                       )}

@@ -102,7 +102,7 @@ describe("byggGitter", () => {
     ]);
   });
 
-  it("tekstkolonne bliver til bemærkning — aldrig til en værdi", () => {
+  it("tekstkolonne bliver til kommentar — aldrig til en værdi eller en tvivls-bemærkning", () => {
     const g = byggGitter(
       resultat([
         tabel(
@@ -119,7 +119,129 @@ describe("byggGitter", () => {
       ]),
     );
     expect(g.raekker[0].vaerdier).toEqual([2700000]);
-    expect(g.raekker[0].bemaerkning).toBe("Nettoomsætning B2C + B2B");
+    expect(g.raekker[0].kommentar).toBe("Nettoomsætning B2C + B2B");
+    expect(g.raekker[0].bemaerkning).toBeNull();
+  });
+
+  it("både ulæselig værdi og tekstkolonne: bemaerkning OG kommentar er sat", () => {
+    const g = byggGitter(
+      resultat([
+        tabel(
+          [
+            {
+              raekkeIndex: 0,
+              etiket: "Blended ROAS",
+              type: "post",
+              felter: [
+                felt(null, "ulaeselig", "3.6x"),
+                felt(null, "ulaeselig", "Total B2C Revenue / Marketing Spend"),
+              ],
+            },
+          ],
+          { tekstKolonner: [1] },
+        ),
+      ]),
+    );
+    expect(g.raekker[0].bemaerkning).toBe("Kunne ikke læses: 3.6x");
+    expect(g.raekker[0].kommentar).toBe("Total B2C Revenue / Marketing Spend");
+  });
+
+  it("kolonner matches på navn: 'Årstotal' lander i Årstotal-pladsen, ikke i Januar", () => {
+    const g = byggGitter(
+      resultat([
+        tabel([post(0, "Revenue", [2700000])], {
+          headerRaekke: -1,
+          kolonneOverskrifter: ["KPI", "Årstotal"],
+        }),
+        tabel([post(10, "Løn", [1, 2, 3])], {
+          headerRaekke: 9,
+          kolonneOverskrifter: ["Post", "Januar", "Februar", "Årstotal"],
+        }),
+      ]),
+    );
+    expect(g.kolonner).toEqual(["Januar", "Februar", "Årstotal"]);
+    expect(g.raekker[0].vaerdier).toEqual([null, null, 2700000]);
+    expect(g.raekker[1].vaerdier).toEqual([1, 2, 3]);
+  });
+
+  it("tabel uden overskrifter placeres positionelt", () => {
+    const g = byggGitter(
+      resultat([
+        tabel([post(0, "Uden header", [5, 6])]),
+        tabel([post(10, "Med header", [1, 2, 3])], {
+          headerRaekke: 9,
+          kolonneOverskrifter: ["Post", "Januar", "Februar", "Årstotal"],
+        }),
+      ]),
+    );
+    expect(g.raekker[0].vaerdier).toEqual([5, 6, null]);
+  });
+
+  it("dobbelttælling: post der matcher subtotal i ANDEN tabel får bemærkning og forbliver medtaget", () => {
+    const g = byggGitter(
+      resultat([
+        tabel([post(0, "Gross Profit", [100])]),
+        tabel([
+          post(10, "Nettoomsætning", [500]),
+          post(11, "Vareforbrug", [-400]),
+          {
+            raekkeIndex: 12,
+            etiket: "Gross Profit",
+            type: "subtotal",
+            daekker: [10, 11],
+            felter: [felt(100)],
+          },
+        ]),
+      ]),
+    );
+    const posten = g.raekker.find((r) => r.raekkeIndex === 0)!;
+    expect(posten.bemaerkning).toBe(
+      "Ligner totalen 'Gross Profit' i en anden del af filen — tages den med, tælles beløbet to gange",
+    );
+    expect(posten.medtag).toBe(true);
+  });
+
+  it("dobbelttælling: samme etiket som subtotal i SAMME tabel giver ingen bemærkning", () => {
+    const g = byggGitter(
+      resultat([
+        tabel([
+          { raekkeIndex: 0, etiket: "Gross Profit", type: "sektion", felter: [felt(null)] },
+          post(1, "Nettoomsætning", [500]),
+          post(2, "Vareforbrug", [-400]),
+          {
+            raekkeIndex: 3,
+            etiket: "Gross Profit",
+            type: "subtotal",
+            daekker: [1, 2],
+            felter: [felt(100)],
+          },
+        ]),
+      ]),
+    );
+    expect(g.raekker.every((r) => r.bemaerkning === null)).toBe(true);
+  });
+
+  it("dobbelttælling i tillæg til eksisterende tvivls-bemærkning", () => {
+    const g = byggGitter(
+      resultat([
+        tabel([post(0, "Net Profit", [0, 0])]),
+        tabel([
+          post(10, "A", [1, 1]),
+          post(11, "B", [2, 2]),
+          {
+            raekkeIndex: 12,
+            etiket: "Net Profit",
+            type: "subtotal",
+            daekker: [10, 11],
+            felter: [felt(3), felt(3)],
+          },
+        ]),
+      ]),
+    );
+    const posten = g.raekker.find((r) => r.raekkeIndex === 0)!;
+    expect(posten.bemaerkning).toBe(
+      "Alle måneder er nul · Ligner totalen 'Net Profit' i en anden del af filen — tages den med, tælles beløbet to gange",
+    );
   });
 
   it("bemærkning: alle værdier null og ingen ulæselige → 'Ingen tal i denne linje'", () => {
@@ -299,9 +421,10 @@ describe("golden: gitter af Remm-budget 2026", () => {
     expect(g.raekker.some((r) => subtotalIndeks.has(r.raekkeIndex))).toBe(false);
   });
 
-  it("'Blended ROAS' har bemærkning om 3.6x", () => {
+  it("'Blended ROAS' har både tvivls-bemærkning om 3.6x og medlemmets kommentar", () => {
     const roas = g.raekker.find((r) => r.etiket === "Blended ROAS")!;
     expect(roas.bemaerkning).toBe("Kunne ikke læses: 3.6x");
+    expect(roas.kommentar).toBe("Total B2C Revenue / Marketing Spend");
     expect(roas.medtag).toBe(true);
   });
 
@@ -317,8 +440,27 @@ describe("golden: gitter af Remm-budget 2026", () => {
     expect(g.kolonner[12]).toBe("Årstotal");
   });
 
-  it("KPI-tabellens kommentarer er bevaret som bemærkninger", () => {
+  it("KPI-tabellens årstotal lander i Årstotal-kolonnen, ikke i Januar", () => {
     const revenue = g.raekker.find((r) => r.etiket === "Revenue" && r.tabelIndex === 0)!;
-    expect(revenue.bemaerkning).toBe("Nettoomsætning B2C + B2B");
+    expect(revenue.vaerdier[0]).toBeNull();
+    expect(revenue.vaerdier[12]).toBe(2700000);
+    expect(revenue.kommentar).toBe("Nettoomsætning B2C + B2B");
+  });
+
+  it("dobbelttællings-bemærkning på præcis de otte rækker der gentager en total fra en anden tabel", () => {
+    const medNote = g.raekker
+      .filter((r) => r.bemaerkning?.includes("tælles beløbet to gange"))
+      .map((r) => [r.raekkeIndex, r.etiket]);
+    expect(medNote).toEqual([
+      [4, "Revenue"],                // KPI-resumé ↔ sektion/subtotal i tabel 2
+      [5, "Gross Profit"],           // KPI-resumé ↔ tabel 3
+      [7, "Contribution Margin"],    // KPI-resumé ↔ tabel 4
+      [9, "Net Profit"],             // KPI-resumé ↔ tabel 6
+      [25, "Nettoomsætning"],        // videreført total fra tabel 2 i tabel 3
+      [38, "Gross Profit"],          // videreført total fra tabel 3 i tabel 4
+      [93, "Contribution Margin"],   // videreført total fra tabel 4 i tabel 6
+      [94, "Total Fixed Expenses"],  // videreført total fra tabel 5 i tabel 6
+    ]);
+    expect(medNote.every(([idx]) => g.raekker.find((r) => r.raekkeIndex === idx)!.medtag)).toBe(true);
   });
 });

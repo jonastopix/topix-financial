@@ -20,8 +20,10 @@ export type GitterRaekke = {
   etiket: string;
   vaerdier: (number | null)[];
   medtag: boolean;
-  /** Hvorfor motoren tvivler — eller bevaret fritekst fra en tekstkolonne. */
+  /** Motorens tvivl — ulæselige værdier, tomme linjer, dobbelttælling. */
   bemaerkning: string | null;
+  /** Medlemmets egen fritekst fra en tekstkolonne — bevares altid (P3). */
+  kommentar: string | null;
   /** Nærmeste sektionsoverskrift over rækken i samme tabel. */
   sektion: string | null;
   tabelIndex: number;
@@ -82,11 +84,56 @@ function tvivl(felter: { vaerdi: number | null; kilde: string; raa: string }[]):
   return null;
 }
 
+/** En tabels egne talkolonne-navne (uden etiketkolonnen, uden tekstkolonner). */
+function tabelKolonneNavne(tabel: Tabel): string[] {
+  return tabel.kolonneOverskrifter
+    .slice(1)
+    .filter((_, idx) => !tabel.tekstKolonner.includes(idx))
+    .map((k) => k.trim());
+}
+
+/**
+ * Kolonneplacering pr. tabel: har tabellen overskrifter, matches hver af
+ * dens talkolonner på NAVN mod det fælles kolonnesæt (trimmet,
+ * versalufølsomt) — en tabel med kun "Årstotal" må aldrig lande sine tal i
+ * "Januar"-pladsen. Umatchede kolonner lægges i første ledige plads efter
+ * de matchede. Tabeller uden overskrifter placeres positionelt.
+ */
+function kolonnePlads(tabel: Tabel, antal: number, faelles: string[]): number[] {
+  if (tabel.kolonneOverskrifter.length <= 1) {
+    return Array.from({ length: antal }, (_, i) => i);
+  }
+  const navne = tabelKolonneNavne(tabel).map((n) => n.toLowerCase());
+  const faellesSmaa = faelles.map((n) => n.trim().toLowerCase());
+  const brugt = new Set<number>();
+  const plads: number[] = new Array(antal).fill(-1);
+
+  for (let i = 0; i < antal; i++) {
+    const navn = navne[i] ?? "";
+    if (navn === "") continue;
+    const j = faellesSmaa.findIndex((k, idx) => !brugt.has(idx) && k === navn);
+    if (j >= 0) {
+      plads[i] = j;
+      brugt.add(j);
+    }
+  }
+  for (let i = 0; i < antal; i++) {
+    if (plads[i] !== -1) continue;
+    let j = 0;
+    while (j < faelles.length && brugt.has(j)) j++;
+    if (j < faelles.length) {
+      plads[i] = j;
+      brugt.add(j);
+    }
+  }
+  return plads;
+}
+
 /**
  * Bygger gitteret af motorens resultat. Kun poster bliver rækker; sektioner
  * og subtotaler lander i struktur. Flere tabeller flades til én liste med
- * tabelIndex bevaret; den bredeste tabel bestemmer kolonnetallet, og
- * smallere rækker efterfyldes med null.
+ * tabelIndex bevaret; den bredeste tabel bestemmer kolonnetallet, tabeller
+ * med overskrifter matches på kolonnenavn, og tomme pladser er null.
  */
 export function byggGitter(resultat: ImportResultat): Gitter {
   const raekker: GitterRaekke[] = [];
@@ -105,10 +152,7 @@ export function byggGitter(resultat: ImportResultat): Gitter {
     const b = tabelBredde(t);
     if (t.kolonneOverskrifter.length > 1 && b > bedsteBredde) {
       bedsteBredde = b;
-      const uafskaaret = t.kolonneOverskrifter.slice(1);
-      kolonner = uafskaaret
-        .filter((_, idx) => !t.tekstKolonner.includes(idx))
-        .map((k) => k.trim());
+      kolonner = tabelKolonneNavne(t);
     }
   }
   kolonner = Array.from({ length: bredde }, (_, i) => {
@@ -117,6 +161,7 @@ export function byggGitter(resultat: ImportResultat): Gitter {
   });
 
   resultat.tabeller.forEach((tabel, tabelIndex) => {
+    const plads = kolonnePlads(tabel, tabelBredde(tabel), kolonner);
     let aktuelSektion: string | null = null;
     for (const raekke of tabel.raekker) {
       if (raekke.type === "sektion") {
@@ -142,22 +187,41 @@ export function byggGitter(resultat: ImportResultat): Gitter {
       if (raekke.type !== "post") continue; // stoej: hverken data eller ramme
 
       const felter = talFelter(raekke, tabel);
-      const vaerdier = Array.from({ length: bredde }, (_, i) =>
-        i < felter.length ? felter[i].vaerdi : null,
-      );
-      const bemaerkning = tvivl(felter) ?? tekstIndhold(raekke, tabel);
+      const vaerdier: (number | null)[] = new Array(bredde).fill(null);
+      felter.forEach((f, i) => {
+        const p = plads[i];
+        if (p !== undefined && p >= 0 && p < bredde) vaerdier[p] = f.vaerdi;
+      });
 
       raekker.push({
         raekkeIndex: raekke.raekkeIndex,
         etiket: raekke.etiket,
         vaerdier,
         medtag: true,
-        bemaerkning,
+        bemaerkning: tvivl(felter),
+        kommentar: tekstIndhold(raekke, tabel),
         sektion: aktuelSektion,
         tabelIndex,
       });
     }
   });
+
+  // Dobbelttællings-værn: en post hvis etiket matcher en sektion eller
+  // subtotal i en ANDEN tabel er med stor sandsynlighed samme størrelse
+  // opgjort igen (nøgletals-resuméer, videreførte totaler). Motoren
+  // foreslår, medlemmet retter — rækken forbliver medtaget (P1), aldrig
+  // fravalgt i stilhed.
+  for (const raekke of raekker) {
+    const etiket = raekke.etiket.trim().toLowerCase();
+    if (etiket === "") continue;
+    const match = struktur.find(
+      (s) => s.tabelIndex !== raekke.tabelIndex && s.etiket.trim().toLowerCase() === etiket,
+    );
+    if (match) {
+      const note = `Ligner totalen '${raekke.etiket.trim()}' i en anden del af filen — tages den med, tælles beløbet to gange`;
+      raekke.bemaerkning = raekke.bemaerkning ? `${raekke.bemaerkning} · ${note}` : note;
+    }
+  }
 
   return { kolonner, raekker, struktur, advarsler: [...resultat.advarsler] };
 }
@@ -226,6 +290,7 @@ export function tilfoejRaekke(gitter: Gitter, efterRaekkeIndex: number): Gitter 
     vaerdier: Array.from({ length: ny.kolonner.length }, () => null),
     medtag: true,
     bemaerkning: null,
+    kommentar: null,
     sektion: nabo?.sektion ?? null,
     tabelIndex: nabo?.tabelIndex ?? 0,
   };
