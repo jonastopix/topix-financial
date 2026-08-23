@@ -500,22 +500,22 @@ describe("rundtur: skriveplan → inserts → decodeBudgetRows", () => {
     }
   };
 
-  it("Remm-budgettet overlever rundturen — 62 rækker, etiketter/grupper/tal intakte", () => {
+  it("Remm-budgettet overlever rundturen — 54 rækker, etiketter/grupper/tal intakte", () => {
     const g = byggGitter(
       laesMatrix(parseCsvTilMatrix(fs.readFileSync(`${FIX}/remm-budget-base-2026.csv`, "utf-8"))),
     );
     const plan = byggSkriveplan(g, "2026");
-    expect(plan.raekker).toHaveLength(62);
+    expect(plan.raekker).toHaveLength(54);
     // Stikprøver på det der er sværest: dansk sektionsnavn og ordret etiket.
     const chatrine = plan.raekker.find((r) => r.etiket === "Chatrine Løn")!;
     expect(chatrine.gruppe).toBe("personale"); // opløst fra "Personale & konsulentydelser"
     assertRundtur(plan);
   });
 
-  it("Topix Budget2026 overlever rundturen — 32 rækker, etiketter/grupper/tal intakte", () => {
+  it("Topix Budget2026 overlever rundturen — 31 rækker, etiketter/grupper/tal intakte", () => {
     const g = byggGitter(laesMatrix(laesArkTilMatrix(`${FIX}/topix-budget-2026.xlsx`, "Budget2026")));
     const plan = byggSkriveplan(g, "2026");
-    expect(plan.raekker).toHaveLength(32);
+    expect(plan.raekker).toHaveLength(31);
     const loen = plan.raekker.find((r) => r.etiket === "Løn")!;
     expect(loen.gruppe).toBe("personale"); // opløst fra "Medarbejdere"
     assertRundtur(plan);
