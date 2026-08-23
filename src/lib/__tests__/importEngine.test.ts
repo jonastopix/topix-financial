@@ -1,0 +1,436 @@
+import { describe, expect, it } from "vitest";
+import {
+  detekterTalKonvention,
+  findTabeller,
+  klassificerRaekker,
+  laesMatrix,
+  laesTal,
+  type Felt,
+  type Matrix,
+  type Raekke,
+  type TalKonvention,
+} from "@/lib/importEngine";
+
+const US: TalKonvention = { tusind: ",", decimal: ".", sikkerhed: "hoej" };
+const DK: TalKonvention = { tusind: ".", decimal: ",", sikkerhed: "hoej" };
+
+const felt = (vaerdi: number | null): Felt => ({
+  vaerdi,
+  kilde: vaerdi === null ? "tom" : "tal",
+  raa: vaerdi === null ? "" : String(vaerdi),
+});
+
+const raekke = (
+  raekkeIndex: number,
+  etiket: string,
+  vaerdier: (number | null)[],
+): Raekke => ({ raekkeIndex, etiket, type: "post", felter: vaerdier.map(felt) });
+
+/** Syntetisk fixture med alle fem fælder fra designdokumentet §1 på én gang:
+    (1) negative tal i parentes, (2) komma som tusindtalsseparator,
+    (3) subtotal direkte under de detaljelinjer den summerer,
+    (4) bindestreg og tom celle side om side, (5) to tabeller i samme matrix
+    hvor den første er et lille nøgletals-resumé med værdi i kolonne B. */
+const REMM_FIXTURE: Matrix = [
+  ["Remm ApS", null, null, null],                       // 0  titel (over resumé-blok)
+  [null, null, null, null],                             // 1  tom række — blokskel
+  ["Nøgletal", "Værdi", "Kommentar", null],             // 2  resumé uden periode-header
+  ["Omsætningsmål", "2,700,000", "helår", null],        // 3  komma-tusinde (fælde 2)
+  ["Resultatmål", "(17,000)", "underskud Q1", null],    // 4  parentes-negativ (fælde 1)
+  [null, null, null, null],                             // 5  tom række — blokskel
+  ["Post", "Jan", "Feb", "I alt"],                      // 6  månedstabel-header (fælde 5)
+  ["Salg indland", "1,000", "2,000", "3,000"],          // 7
+  ["Salg eksport", "500", "-", ""],                     // 8  bindestreg + tom (fælde 4)
+  ["Subtotal salg", "1,500", "2,000", "3,000"],         // 9  subtotal under posterne (fælde 3)
+  ["Fragt", "(100)", "(200)", "(300)"],                 // 10
+];
+
+// ───────────────────────── detekterTalKonvention ─────────────────────────
+
+describe("detekterTalKonvention", () => {
+  it("amerikansk: gentaget komma i '2,700,000' afgør tusind=',', decimal='.'", () => {
+    const k = detekterTalKonvention([["2,700,000"], ["1,234,567"]]);
+    expect(k.tusind).toBe(",");
+    expect(k.decimal).toBe(".");
+    expect(k.sikkerhed).toBe("hoej");
+  });
+
+  it("dansk: '2.700.000,50' afgør tusind='.', decimal=','", () => {
+    const k = detekterTalKonvention([["2.700.000,50"], ["10.000"]]);
+    expect(k.tusind).toBe(".");
+    expect(k.decimal).toBe(",");
+    expect(k.sikkerhed).toBe("hoej");
+  });
+
+  it("tvetydig enkelt separator ('2,700' alene) afgør ikke sikkert — sikkerhed 'lav'", () => {
+    const k = detekterTalKonvention([["2,700"], ["1,500"]]);
+    expect(k.sikkerhed).toBe("lav");
+    expect(k.tusind).toBe(",");
+  });
+
+  it("fil uden entydige signaler får sikkerhed 'lav'", () => {
+    const k = detekterTalKonvention([["Budget", "3,000"], ["Løn", "1,200"]]);
+    expect(k.sikkerhed).toBe("lav");
+  });
+
+  it("én entydig forekomst løfter en fil fuld af tvetydige til 'hoej'", () => {
+    const k = detekterTalKonvention([["2,700"], ["2,700,000"]]);
+    expect(k.tusind).toBe(",");
+    expect(k.sikkerhed).toBe("hoej");
+  });
+
+  it("decimal-signal alene: '63,5' giver decimal=','", () => {
+    const k = detekterTalKonvention([["63,5"]]);
+    expect(k.decimal).toBe(",");
+    expect(k.tusind).toBe(".");
+    expect(k.sikkerhed).toBe("hoej");
+  });
+
+  it("tom matrix kaster ikke og giver 'ingen' tusindtalsseparator", () => {
+    const k = detekterTalKonvention([]);
+    expect(k.tusind).toBe("ingen");
+  });
+});
+
+// ───────────────────────── laesTal ─────────────────────────
+
+describe("laesTal", () => {
+  it("'(17,000)' → -17000 under amerikansk konvention, kilde 'parentes'", () => {
+    const f = laesTal("(17,000)", US);
+    expect(f.vaerdi).toBe(-17000);
+    expect(f.kilde).toBe("parentes");
+    expect(f.raa).toBe("(17,000)");
+  });
+
+  it("'(17.000)' → -17000 under dansk konvention, kilde 'parentes'", () => {
+    const f = laesTal("(17.000)", DK);
+    expect(f.vaerdi).toBe(-17000);
+    expect(f.kilde).toBe("parentes");
+  });
+
+  it("bindestreg → 0 med kilde 'bindestreg'; tom → null med kilde 'tom' — de kan skelnes", () => {
+    const streg = laesTal("-", US);
+    const tom = laesTal("", US);
+    expect(streg).toMatchObject({ vaerdi: 0, kilde: "bindestreg" });
+    expect(tom).toMatchObject({ vaerdi: null, kilde: "tom" });
+    expect(streg.kilde).not.toBe(tom.kilde);
+  });
+
+  it("'63.3%' → kilde 'procent' med værdien som tal", () => {
+    const f = laesTal("63.3%", US);
+    expect(f.vaerdi).toBeCloseTo(63.3);
+    expect(f.kilde).toBe("procent");
+  });
+
+  it("ledende og efterstillet minus giver negativt fortegn", () => {
+    expect(laesTal("-1,234", US).vaerdi).toBe(-1234);
+    expect(laesTal("1.234-", DK).vaerdi).toBe(-1234);
+  });
+
+  it("valutategn og hårde mellemrum strippes", () => {
+    expect(laesTal("kr. 2.700.000,50", DK).vaerdi).toBeCloseTo(2700000.5);
+    expect(laesTal("1 234 567", { tusind: " ", decimal: ",", sikkerhed: "hoej" }).vaerdi).toBe(1234567);
+  });
+
+  it("ulæselig streng → null med kilde 'ulaeselig' — kaster aldrig", () => {
+    const f = laesTal("ikke et tal", US);
+    expect(f).toMatchObject({ vaerdi: null, kilde: "ulaeselig", raa: "ikke et tal" });
+  });
+
+  it("dansk decimal: '63,3' → 63.3 med kilde 'tal'", () => {
+    const f = laesTal("63,3", DK);
+    expect(f.vaerdi).toBeCloseTo(63.3);
+    expect(f.kilde).toBe("tal");
+  });
+});
+
+// ───────────────────────── findTabeller ─────────────────────────
+
+describe("findTabeller", () => {
+  it("finder to tabeller i samme matrix med korrekte grænser (fælde 5)", () => {
+    const graenser = findTabeller(REMM_FIXTURE);
+    expect(graenser).toHaveLength(2);
+    // Resumé-blokken har ingen periode-header → headerløs tabel.
+    expect(graenser[0]).toEqual({
+      headerRaekke: null,
+      foersteDataRaekke: 2,
+      sidsteDataRaekke: 4,
+    });
+    // Månedstabellen starter ved header-rækken med Jan/Feb/I alt.
+    expect(graenser[1]).toEqual({
+      headerRaekke: 6,
+      foersteDataRaekke: 7,
+      sidsteDataRaekke: 10,
+    });
+  });
+
+  it("to header-tabeller i samme blok: næste header afslutter den første", () => {
+    const m: Matrix = [
+      ["Post", "Jan", "Feb"],
+      ["A", "1", "2"],
+      ["Post", "Q1", "Q2"],
+      ["B", "3", "4"],
+    ];
+    const graenser = findTabeller(m);
+    expect(graenser).toEqual([
+      { headerRaekke: 0, foersteDataRaekke: 1, sidsteDataRaekke: 1 },
+      { headerRaekke: 2, foersteDataRaekke: 3, sidsteDataRaekke: 3 },
+    ]);
+  });
+
+  it("rækker over blokkens første header hører ikke til nogen tabel", () => {
+    const m: Matrix = [
+      ["Driftsbudget 2026 — noter uden tal", null, null],
+      ["Post", "Jan", "Feb"],
+      ["A", "1", "2"],
+    ];
+    const graenser = findTabeller(m);
+    expect(graenser).toHaveLength(1);
+    expect(graenser[0].headerRaekke).toBe(1);
+    expect(graenser[0].foersteDataRaekke).toBe(2);
+  });
+
+  it("ren tekstblok uden tal bliver ikke til en tabel", () => {
+    expect(findTabeller([["Kun en titel", null], ["og en note", null]])).toHaveLength(0);
+  });
+
+  it("tom matrix kaster ikke", () => {
+    expect(findTabeller([])).toEqual([]);
+  });
+});
+
+// ───────────────────────── klassificerRaekker ─────────────────────────
+
+describe("klassificerRaekker", () => {
+  it("subtotal findes på tværs af tolv kolonner og dækker blokken over sig", () => {
+    const a = Array.from({ length: 12 }, (_, i) => 100 + i);
+    const b = Array.from({ length: 12 }, (_, i) => 200 + 2 * i);
+    const sum = a.map((v, i) => v + b[i]);
+    const rows = [raekke(0, "Løn", a), raekke(1, "Pension", b), raekke(2, "Personale i alt", sum)];
+    const ud = klassificerRaekker(rows);
+    expect(ud[2].type).toBe("subtotal");
+    expect(ud[2].daekker).toEqual([0, 1]);
+    expect(ud[0].type).toBe("post");
+    expect(ud[1].type).toBe("post");
+  });
+
+  it("subtotal findes IKKE når kun én kolonne tilfældigvis summer", () => {
+    // Kolonne 0 summer (10+20=30), de øvrige elleve gør ikke.
+    const a = [10, ...Array.from({ length: 11 }, () => 5)];
+    const b = [20, ...Array.from({ length: 11 }, () => 7)];
+    const kandidat = [30, ...Array.from({ length: 11 }, () => 999)];
+    const ud = klassificerRaekker([raekke(0, "A", a), raekke(1, "B", b), raekke(2, "Total?", kandidat)]);
+    expect(ud[2].type).toBe("post");
+    expect(ud[2].daekker).toBeUndefined();
+  });
+
+  it("ordet 'subtotal' i etiketten afgør ikke alene — uden sum-match forbliver rækken post", () => {
+    const ud = klassificerRaekker([
+      raekke(0, "A", [10, 10]),
+      raekke(1, "B", [10, 10]),
+      raekke(2, "Subtotal", [500, 500]),
+    ]);
+    expect(ud[2].type).toBe("post");
+  });
+
+  it("tolerance: 2 absolut pr. kolonne accepteres", () => {
+    const ud = klassificerRaekker([
+      raekke(0, "A", [100, 100]),
+      raekke(1, "B", [200, 200]),
+      raekke(2, "I alt", [301, 298]),
+    ]);
+    expect(ud[2].type).toBe("subtotal");
+  });
+
+  it("sektionsoverskrift: etiket uden tal efterfulgt af talrækker", () => {
+    const rows = [
+      { ...raekke(0, "Personale", []), felter: [felt(null), felt(null)] },
+      raekke(1, "Løn", [10, 20]),
+      raekke(2, "Pension", [5, 5]),
+    ];
+    const ud = klassificerRaekker(rows);
+    expect(ud[0].type).toBe("sektion");
+  });
+
+  it("støj: hverken etiket eller tal", () => {
+    const ud = klassificerRaekker([
+      { ...raekke(0, "", []), felter: [felt(null), felt(null)] },
+      raekke(1, "Løn", [10, 20]),
+    ]);
+    expect(ud[0].type).toBe("stoej");
+  });
+
+  it("sektion mellem poster bryder subtotal-blokken", () => {
+    const rows = [
+      raekke(0, "A", [100, 100]),
+      { ...raekke(1, "Ny sektion", []), felter: [felt(null), felt(null)] },
+      raekke(2, "B", [200, 200]),
+      raekke(3, "Sum?", [300, 300]), // ville kræve A+B hen over sektionen
+    ];
+    const ud = klassificerRaekker(rows);
+    expect(ud[3].type).toBe("post");
+  });
+
+  it("muterer ikke input", () => {
+    const rows = [raekke(0, "A", [1, 1]), raekke(1, "B", [2, 2]), raekke(2, "Sum", [3, 3])];
+    const kopi = JSON.parse(JSON.stringify(rows));
+    klassificerRaekker(rows);
+    expect(rows).toEqual(kopi);
+  });
+
+  it("én talkolonne der summer to rækker over, UDEN støttende etiket → post", () => {
+    const ud = klassificerRaekker([
+      raekke(0, "A", [10]),
+      raekke(1, "B", [20]),
+      raekke(2, "Rest", [30]),
+    ]);
+    expect(ud[2].type).toBe("post");
+    expect(ud[2].daekker).toBeUndefined();
+  });
+
+  it("samme række MED etiketten 'I alt' → subtotal (struktur + etiket = to signaler)", () => {
+    const ud = klassificerRaekker([
+      raekke(0, "A", [10]),
+      raekke(1, "B", [20]),
+      raekke(2, "I alt", [30]),
+    ]);
+    expect(ud[2].type).toBe("subtotal");
+    expect(ud[2].daekker).toEqual([0, 1]);
+  });
+
+  it("to talkolonner der begge summer klarer sig uden etiket-støtte", () => {
+    const ud = klassificerRaekker([
+      raekke(0, "A", [10, 100]),
+      raekke(1, "B", [20, 200]),
+      raekke(2, "Resten", [30, 300]),
+    ]);
+    expect(ud[2].type).toBe("subtotal");
+    expect(ud[2].daekker).toEqual([0, 1]);
+  });
+});
+
+// ───────────────────────── laesMatrix ─────────────────────────
+
+describe("laesMatrix", () => {
+  it("læser Remm-fixturen: alle fem fælder i én matrix", () => {
+    const res = laesMatrix(REMM_FIXTURE);
+
+    // Fælde 2: komma-tusinde detekteret på filniveau.
+    expect(res.konvention.tusind).toBe(",");
+    expect(res.konvention.decimal).toBe(".");
+
+    // Fælde 5: to tabeller — resumé (værdi i kolonne B) og månedstabel.
+    expect(res.tabeller).toHaveLength(2);
+    const [resume, maaneder] = res.tabeller;
+
+    expect(resume.headerRaekke).toBeNull();
+    expect(resume.raekker.map((r) => r.etiket)).toEqual(["Nøgletal", "Omsætningsmål", "Resultatmål"]);
+    // Resuméets værdier bor i kolonne B → felt[0].
+    expect(resume.raekker[1].felter[0].vaerdi).toBe(2700000);
+    // Fælde 1: parentes-negativ.
+    expect(resume.raekker[2].felter[0]).toMatchObject({ vaerdi: -17000, kilde: "parentes" });
+
+    expect(maaneder.headerRaekke).toBe(6);
+    expect(maaneder.kolonneOverskrifter).toEqual(["Post", "Jan", "Feb", "I alt"]);
+
+    // Fælde 4: bindestreg og tom celle side om side — samme række, forskellig kilde.
+    const eksport = maaneder.raekker.find((r) => r.etiket === "Salg eksport")!;
+    expect(eksport.felter[1]).toMatchObject({ vaerdi: 0, kilde: "bindestreg" });
+    expect(eksport.felter[2]).toMatchObject({ vaerdi: null, kilde: "tom" });
+
+    // Fælde 3: subtotalen under detaljelinjerne genkendes på summen
+    // (Jan: 1000+500=1500; Feb: 2000+0=2000; I alt: 3000+null=3000).
+    const subtotal = maaneder.raekker.find((r) => r.etiket === "Subtotal salg")!;
+    expect(subtotal.type).toBe("subtotal");
+    expect(subtotal.daekker).toEqual([7, 8]);
+
+    // Etiketter bevares ordret (P3).
+    expect(maaneder.raekker.map((r) => r.etiket)).toEqual([
+      "Salg indland",
+      "Salg eksport",
+      "Subtotal salg",
+      "Fragt",
+    ]);
+  });
+
+  it("ulæselig celle giver en række der stadig kommer med (P1) — plus en advarsel", () => {
+    // To rækker så Feb-kolonnen er BLANDET (tal + tekst) — en ren
+    // tekstkolonne ville med rette være advarsels-fri (se tekstKolonner).
+    const res = laesMatrix([
+      ["Post", "Jan", "Feb"],
+      ["Løn", "1,000", "ikke et tal"],
+      ["Husleje", "2,000", "3,000"],
+    ]);
+    const row = res.tabeller[0].raekker[0];
+    expect(row.etiket).toBe("Løn");
+    expect(row.felter[1]).toMatchObject({ vaerdi: null, kilde: "ulaeselig", raa: "ikke et tal" });
+    expect(res.advarsler.some((a) => a.includes("kunne ikke læses"))).toBe(true);
+  });
+
+  it("ren kommentarkolonne: ingen ulæselig-advarsel og korrekt indeks i tekstKolonner", () => {
+    const res = laesMatrix([
+      ["Post", "Jan", "Feb", "Kommentar"],
+      ["Løn", "1,000", "2,000", "fastansatte"],
+      ["Husleje", "3,000", "4,000", "kontor + lager"],
+    ]);
+    const tabel = res.tabeller[0];
+    // Kolonneindeks er relative til felter (kolonne 0 skåret fra): Kommentar = 2.
+    expect(tabel.tekstKolonner).toEqual([2]);
+    expect(res.advarsler.some((a) => a.includes("kunne ikke læses"))).toBe(false);
+    // Feltet bevares som det er, så gitteret kan vise indholdet (P1/P3).
+    expect(tabel.raekker[0].felter[2]).toMatchObject({
+      vaerdi: null,
+      kilde: "ulaeselig",
+      raa: "fastansatte",
+    });
+  });
+
+  it("blandet tal/tekst-kolonne er IKKE tekstkolonne — dens ulæselige celler tæller stadig", () => {
+    const res = laesMatrix([
+      ["Post", "Jan", "Feb", "Note"],
+      ["A", "1,000", "5,000", "2,000"],
+      ["B", "2,000", "6,000", "tekst"],
+    ]);
+    const tabel = res.tabeller[0];
+    expect(tabel.tekstKolonner).toEqual([]);
+    expect(res.advarsler.some((a) => a.includes("kunne ikke læses"))).toBe(true);
+    expect(tabel.raekker[1].felter[2]).toMatchObject({ vaerdi: null, kilde: "ulaeselig" });
+  });
+
+  it("talceller (number) læses direkte uden konvention", () => {
+    const res = laesMatrix([
+      ["Post", "Jan", "Feb"],
+      ["Løn", 1000.5, -200],
+    ]);
+    expect(res.tabeller[0].raekker[0].felter.map((f) => f.vaerdi)).toEqual([1000.5, -200]);
+  });
+
+  it("lav sikkerhed på konventionen giver en advarsel", () => {
+    const res = laesMatrix([
+      ["Post", "Jan", "Feb"],
+      ["Løn", "2,700", "1,500"],
+    ]);
+    expect(res.konvention.sikkerhed).toBe("lav");
+    expect(res.advarsler.some((a) => a.includes("usikker"))).toBe(true);
+  });
+
+  it("matrix uden genkendelig tabelstruktur lander i én headerløs tabel (P1)", () => {
+    const res = laesMatrix([["Løn", "1000"], ["Husleje", "2000"]]);
+    expect(res.tabeller).toHaveLength(1);
+    expect(res.tabeller[0].headerRaekke).toBeNull();
+    expect(res.tabeller[0].raekker).toHaveLength(2);
+  });
+
+  it("tom matrix kaster ikke og giver tomt resultat uden advarsler", () => {
+    const res = laesMatrix([]);
+    expect(res.tabeller).toEqual([]);
+    expect(res.advarsler).toEqual([]);
+  });
+
+  it("muterer ikke input-matrixen", () => {
+    const m: Matrix = [["Post", "Jan"], ["Løn", "1,000"]];
+    const kopi = JSON.parse(JSON.stringify(m));
+    laesMatrix(m);
+    expect(m).toEqual(kopi);
+  });
+});
