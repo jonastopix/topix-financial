@@ -1,3 +1,5 @@
+import * as fs from "fs";
+import * as path from "path";
 import { describe, expect, it } from "vitest";
 import {
   detekterTalKonvention,
@@ -5,6 +7,7 @@ import {
   klassificerRaekker,
   laesMatrix,
   laesTal,
+  type Celle,
   type Felt,
   type Matrix,
   type Raekke,
@@ -528,5 +531,174 @@ describe("laesMatrix", () => {
     const kopi = JSON.parse(JSON.stringify(m));
     laesMatrix(m);
     expect(m).toEqual(kopi);
+  });
+});
+
+// ───────────────────────── Golden: ægte medlemsfil ─────────────────────────
+
+/** CSV → Matrix (test-hjælper — motoren arbejder på matricer, ikke filer).
+    Komma-separeret, citationstegn omkring felter med komma, "" = escaped
+    quote, tomme felter → null. */
+function parseCsvTilMatrix(tekst: string): Matrix {
+  const matrix: Matrix = [];
+  let raekke: Celle[] = [];
+  let felt = "";
+  let iCitat = false;
+  let harCitat = false;
+
+  const lukFelt = () => {
+    raekke.push(felt === "" && !harCitat ? null : felt);
+    felt = "";
+    harCitat = false;
+  };
+  const lukRaekke = () => {
+    lukFelt();
+    matrix.push(raekke);
+    raekke = [];
+  };
+
+  const t = tekst.replace(/^﻿/, "");
+  for (let i = 0; i < t.length; i++) {
+    const c = t[i];
+    if (iCitat) {
+      if (c === '"') {
+        if (t[i + 1] === '"') {
+          felt += '"';
+          i++;
+        } else {
+          iCitat = false;
+        }
+      } else {
+        felt += c;
+      }
+    } else if (c === '"') {
+      iCitat = true;
+      harCitat = true;
+    } else if (c === ",") {
+      lukFelt();
+    } else if (c === "\n") {
+      lukRaekke();
+    } else if (c !== "\r") {
+      felt += c;
+    }
+  }
+  if (felt !== "" || harCitat || raekke.length > 0) lukRaekke();
+  return matrix;
+}
+
+/**
+ * GOLDEN-TEST mod en ÆGTE medlemsfil (Remm ApS, driftsbudget 2026 BASE).
+ *
+ * Tallene herunder er verificeret manuelt mod medlemmets fil 2026-08-23
+ * (~/Downloads/remm-resultat-2.md, prøvekørslen efter de fire rettelser).
+ * Ændrer en assertion sig, har MOTOREN ændret adfærd på en rigtig fil —
+ * det er et fund der skal forstås, ikke en test der skal rettes.
+ * Samme mønster som pdfStructuralExtractor.test.ts' golden fixture.
+ */
+describe("golden: Remm-budget 2026", () => {
+  const fixturePath = path.resolve(__dirname, "../__fixtures__/remm-budget-base-2026.csv");
+  const matrix = parseCsvTilMatrix(fs.readFileSync(fixturePath, "utf-8"));
+  const res = laesMatrix(matrix);
+  const alleRaekker = res.tabeller.flatMap((t) => t.raekker);
+  const raekkeVed = (idx: number): Raekke => {
+    const r = alleRaekker.find((x) => x.raekkeIndex === idx);
+    expect(r, `raekkeIndex ${idx} findes i en tabel`).toBeDefined();
+    return r as Raekke;
+  };
+
+  it("konvention: tusind ',', decimal '.', sikkerhed 'hoej'", () => {
+    expect(res.konvention).toEqual({ tusind: ",", decimal: ".", sikkerhed: "hoej" });
+  });
+
+  it("advarsler: præcis 1, og den handler om ulæselige celler", () => {
+    expect(res.advarsler).toHaveLength(1);
+    expect(res.advarsler[0]).toContain("kunne ikke læses");
+  });
+
+  it("seks tabeller", () => {
+    expect(res.tabeller).toHaveLength(6);
+  });
+
+  it("rækketyper på tværs af alle tabeller: 63 post, 11 sektion, 13 subtotal, 0 stoej", () => {
+    const tael: Record<string, number> = { post: 0, sektion: 0, subtotal: 0, stoej: 0 };
+    for (const r of alleRaekker) tael[r.type]++;
+    expect(tael).toEqual({ post: 63, sektion: 11, subtotal: 13, stoej: 0 });
+  });
+
+  it("feltkilder i alt: 92 bindestreg, 576 parentes, 42 procent, 133 tal, 276 tom, 12 ulaeselig", () => {
+    const tael: Record<string, number> = {
+      bindestreg: 0, parentes: 0, procent: 0, tal: 0, tom: 0, ulaeselig: 0,
+    };
+    for (const r of alleRaekker) for (const f of r.felter) tael[f.kilde]++;
+    expect(tael).toEqual({
+      bindestreg: 92, parentes: 576, procent: 42, tal: 133, tom: 276, ulaeselig: 12,
+    });
+  });
+
+  it("tabel 1: promoveret KPI-header, foersteDataRaekke 4, tekstKolonner [1]", () => {
+    const t1 = res.tabeller[0];
+    expect(t1.headerRaekke).toBe(3);
+    expect(t1.kolonneOverskrifter.slice(0, 3)).toEqual(["KPI", "Årstotal", "Kommentar"]);
+    expect(t1.foersteDataRaekke).toBe(4);
+    expect(t1.tekstKolonner).toEqual([1]);
+  });
+
+  it("fælde 1 — parentes-negativ: 'B2C Product Cost / COGS' felt0 = -17000 (parentes)", () => {
+    const r = raekkeVed(26);
+    expect(r.etiket).toBe("B2C Product Cost / COGS");
+    expect(r.felter[0]).toMatchObject({ vaerdi: -17000, kilde: "parentes" });
+  });
+
+  it("fælde 2 — komma-tusinde: 'Revenue' felt0 = 2700000", () => {
+    const r = raekkeVed(4);
+    expect(r.etiket).toBe("Revenue");
+    expect(r.felter[0].vaerdi).toBe(2700000);
+  });
+
+  it("fælde 3 — subtotal under detaljelinjer: 'Order Expenses' daekker [26..32]", () => {
+    const r = raekkeVed(33);
+    expect(r.etiket).toBe("Order Expenses");
+    expect(r.type).toBe("subtotal");
+    expect(r.daekker).toEqual([26, 27, 28, 29, 30, 31, 32]);
+  });
+
+  it("fælde 4 — bindestreg vs. tom kan skelnes: 'B2B salg' (0/bindestreg) og 'Corpay' (null/tom)", () => {
+    const b2b = raekkeVed(21);
+    expect(b2b.etiket).toBe("B2B salg");
+    expect(b2b.felter[0]).toMatchObject({ vaerdi: 0, kilde: "bindestreg" });
+
+    const corpay = raekkeVed(55);
+    expect(corpay.etiket).toBe("Corpay");
+    expect(corpay.felter[0]).toMatchObject({ vaerdi: null, kilde: "tom" });
+  });
+
+  it("fælde 5 — flere tabeller: tabel 2 har måneds-header på række 16", () => {
+    const t2 = res.tabeller[1];
+    expect(t2.headerRaekke).toBe(16);
+    expect(t2.kolonneOverskrifter[1]).toBe("Januar");
+  });
+
+  it("fejl 1-rettelsen: 'Blended ROAS' er post med raa '3.6x' — ikke støj", () => {
+    const r = raekkeVed(14);
+    expect(r.etiket).toBe("Blended ROAS");
+    expect(r.type).toBe("post");
+    expect(r.felter[0].raa).toBe("3.6x");
+  });
+
+  it("fejl 2-rettelsen: 'Fixed Expenses' er sektion", () => {
+    const r = raekkeVed(43);
+    expect(r.etiket).toBe("Fixed Expenses");
+    expect(r.type).toBe("sektion");
+  });
+
+  it("fejl 3-rettelsen: 'Total Fixed Expenses' er subtotal og dækker præcis 34 rækker", () => {
+    const r = raekkeVed(90);
+    expect(r.etiket).toBe("Total Fixed Expenses");
+    expect(r.type).toBe("subtotal");
+    expect(r.daekker).toHaveLength(34);
+  });
+
+  it("fejl 4-rettelsen: ingen række i nogen tabel er støj", () => {
+    expect(alleRaekker.filter((r) => r.type === "stoej")).toEqual([]);
   });
 });
