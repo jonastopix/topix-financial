@@ -1,7 +1,7 @@
 import * as fs from "fs";
 import * as path from "path";
 import { describe, expect, it } from "vitest";
-import { parseCsvTilMatrix } from "./csvTestHelper";
+import { parseCsvTilMatrix } from "@/lib/csvLaesning";
 import {
   detekterTalKonvention,
   findTabeller,

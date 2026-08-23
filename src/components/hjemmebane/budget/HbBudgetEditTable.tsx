@@ -531,15 +531,17 @@ export const HbBudgetEditTable = ({
                                 >
                                   Omdøb
                                 </button>
-                                {isManual && (
-                                  <button
-                                    type="button"
-                                    onClick={() => handleDeleteCategory(row.key)}
-                                    className="ml-auto text-[11px] text-hb-ink-soft opacity-0 underline-offset-4 transition-opacity hover:text-hb-rust hover:underline group-hover:opacity-100"
-                                  >
-                                    Fjern
-                                  </button>
-                                )}
+                                {/* Enhver række kan slettes — også importerede
+                                    (design §5: manual_-værnet var en død ende;
+                                    har parseren opfundet en linje, skal medlemmet
+                                    kunne fjerne den, ikke kun rette dens tal). */}
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteCategory(row.key)}
+                                  className="ml-auto text-[11px] text-hb-ink-soft opacity-0 underline-offset-4 transition-opacity hover:text-hb-rust hover:underline group-hover:opacity-100"
+                                >
+                                  Fjern
+                                </button>
                               </span>
                             )}
                           </td>

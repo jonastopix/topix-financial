@@ -1,20 +1,30 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
-import { confirmBudgetFromAccounts, confirmBudgetImport } from "@/lib/budgetEngine";
+import { confirmBudgetFromAccounts, confirmImportFraSkriveplan } from "@/lib/budgetEngine";
+import { laesCsvTilMatrix } from "@/lib/csvLaesning";
+import { laesMatrix, type Matrix } from "@/lib/importEngine";
+import { byggGitter, type Gitter } from "@/lib/importGitterModel";
+import { byggSkriveplan, tolkKolonner, udledAar } from "@/lib/importSkrivning";
 import { HbButton } from "../HbButton";
 import { HbCard } from "../HbCard";
 import { HbField, HbInput } from "../admin/HbField";
+import { HbImportGitter } from "./HbImportGitter";
 import { QuietNote, fmtNumber } from "./hbBudgetShared";
 
 /** Import-sektionens to spor (design-blok §c6) i HbReportUploadZone-sproget:
     rolige zoner, statuslinjer i stedet for spinner-teater, stille
-    kvitteringer. Parse-orkestreringen (XLSX-klientlæsning / pdfjs +
-    edge-funktionerne import-budget-excel og generate-budget-from-accounts)
-    spejler BudgetImport.tsx/BudgetFromAccounts.tsx — SKRIVEVEJENE bor
-    alene i budgetEngine (W5/W6 m. U1+U2). */
+    kvitteringer. Excel/CSV-sporet kører nu den DETERMINISTISKE vej
+    (importEngine → importGitterModel → importSkrivning → budgetEngine W8)
+    helt i browseren — edge-funktionen import-budget-excel kaldes ikke
+    længere herfra. Regnskabs-sporet (HbBudgetFromAccounts) er en
+    selvstændig vej med egen edge function og er urørt (W6). */
 
 const MONTH_LABELS = ["Jan", "Feb", "Mar", "Apr", "Maj", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dec"];
+const MAANEDER_FULDE = [
+  "januar", "februar", "marts", "april", "maj", "juni",
+  "juli", "august", "september", "oktober", "november", "december",
+];
 
 const dropZoneClasses = (active: boolean) =>
   cn(
@@ -72,24 +82,29 @@ function clearDraft(key: string | null) {
   }
 }
 
-// ───────────────────────── Excel-import (W5) ─────────────────────────
+// ──────────────── Excel-import (W8 — deterministisk vej) ────────────────
 
-interface ImportedCategory {
-  key: string;
-  label: string;
-  monthly: number[];
-  details: string[];
-}
+/** Tomt gitter (P1): kan filen slet ikke læses, lander medlemmet stadig i
+    gitteret og kan skrive eller indsætte sine tal direkte fra regnearket —
+    aldrig en blindgyde. Tre tomme rækker som startpunkt. */
+const tomtGitter = (): Gitter => ({
+  kolonner: MAANEDER_FULDE.map((m) => m.charAt(0).toUpperCase() + m.slice(1)),
+  raekker: [0, 1, 2].map((raekkeIndex) => ({
+    raekkeIndex,
+    etiket: "",
+    vaerdier: Array.from({ length: 12 }, () => null),
+    medtag: true,
+    bemaerkning: null,
+    kommentar: null,
+    sektion: null,
+    tabelIndex: 0,
+  })),
+  struktur: [],
+  advarsler: [],
+});
 
-interface YearData {
-  year: string;
-  categories: ImportedCategory[];
-}
-
-interface MultiYearResult {
-  company_name: string;
-  years: YearData[];
-}
+const listeMedOg = (dele: string[]): string =>
+  dele.length <= 1 ? dele.join("") : `${dele.slice(0, -1).join(", ")} og ${dele[dele.length - 1]}`;
 
 export const HbBudgetExcelImport = ({
   userId,
@@ -103,146 +118,156 @@ export const HbBudgetExcelImport = ({
   const [parsing, setParsing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [dragOver, setDragOver] = useState(false);
-  const [multiYear, setMultiYear] = useState<MultiYearResult | null>(null);
-  const [selectedYear, setSelectedYear] = useState<string | null>(null);
+  const [gitter, setGitter] = useState<Gitter | null>(null);
+  const [aar, setAar] = useState<string>(String(new Date().getFullYear()));
+  const [udledteAar, setUdledteAar] = useState<string[]>([]);
   const [sheetNames, setSheetNames] = useState<string[]>([]);
-  const [selectedSheets, setSelectedSheets] = useState<string[]>([]);
   const [statusNote, setStatusNote] = useState<string | null>(null);
   const [errorNote, setErrorNote] = useState<string | null>(null);
   const workbookRef = useRef<any>(null);
-  const pendingFileRef = useRef<File | null>(null);
 
-  // Kladde (recon §4 ii): det PARSEDE resultat persisteres — fil/workbook
-  // kan ikke (File-objekter overlever ikke JSON), og det er resultatet
-  // der mistes ved remount.
-  const draftKey = companyId ? `hb-budget-excel-draft:${companyId}` : null;
+  // Kladde (hb-budget-persistens-recon §4 ii): GITTERET persisteres — det
+  // er medlemmets rettelser der mistes ved remount, ikke filen.
+  const draftKey = companyId ? `hb-budget-gitter-draft:${companyId}` : null;
 
   useEffect(() => {
-    if (!draftKey || multiYear) return;
-    const draft = readDraft<{ multiYear: MultiYearResult; selectedYear: string | null }>(draftKey);
-    if (draft?.multiYear) {
-      setMultiYear(draft.multiYear);
-      setSelectedYear(draft.selectedYear);
+    if (!draftKey || gitter) return;
+    const draft = readDraft<{ gitter: Gitter; aar: string; udledteAar: string[] }>(draftKey);
+    if (draft?.gitter) {
+      setGitter(draft.gitter);
+      setAar(draft.aar);
+      setUdledteAar(draft.udledteAar ?? []);
       setStatusNote("Dit indlæste ark er gendannet — gennemse og godkend nedenfor");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [draftKey]);
 
   useEffect(() => {
-    if (!draftKey || !multiYear) return;
-    writeDraft(draftKey, { multiYear, selectedYear });
-  }, [draftKey, multiYear, selectedYear]);
+    if (!draftKey || !gitter) return;
+    writeDraft(draftKey, { gitter, aar, udledteAar });
+  }, [draftKey, gitter, aar, udledteAar]);
 
-  const preview =
-    multiYear && selectedYear
-      ? multiYear.years.find((y) => y.year === selectedYear) ?? null
-      : null;
-
-  const buildSheetsText = async (workbook: any, names: string[]): Promise<string> => {
-    const XLSX = await import("xlsx");
-    return names
-      .map((name) => {
-        const csv = XLSX.utils.sheet_to_csv(workbook.Sheets[name], { FS: "\t", RS: "\n" });
-        return `=== Ark: ${name} ===\n${csv}`;
-      })
-      .join("\n\n");
-  };
-
-  const runImport = useCallback(async (sheets?: string[]) => {
-    const file = pendingFileRef.current;
-    if (!file) return;
-
-    setParsing(true);
-    setMultiYear(null);
-    setSelectedYear(null);
-    setErrorNote(null);
-    setStatusNote("Vi læser dit budgetark — det tager typisk 10-30 sekunder…");
-
-    try {
-      let fileContent: string;
-      if (workbookRef.current) {
-        const names = sheets ?? workbookRef.current.SheetNames;
-        fileContent = await buildSheetsText(workbookRef.current, names);
-      } else {
-        fileContent = await file.text(); // CSV
-      }
-
-      const { data, error } = await supabase.functions.invoke("import-budget-excel", {
-        body: { fileContent, fileName: file.name },
-      });
-
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
-
-      const result: MultiYearResult = data.years
-        ? { company_name: data.company_name, years: data.years }
-        : { company_name: data.company_name, years: [{ year: data.year, categories: data.categories }] };
-
-      setMultiYear(result);
-      if (result.years.length === 1) {
-        setSelectedYear(result.years[0].year);
-        setStatusNote("Arket er læst — gennemse og godkend nedenfor");
-      } else {
-        setStatusNote(`Arket indeholder ${result.years.length} budgetår — vælg hvilket der skal ind`);
-      }
-    } catch (err: any) {
-      console.error("Budget import error:", err);
-      setStatusNote(null);
-      setErrorNote(err?.message || "Vi kunne ikke læse filen — prøv en anden");
-    } finally {
-      setParsing(false);
+  /** Matrix → gitter + årsudledning. Tom fil ender i det tomme gitter (P1). */
+  const aabnMatrix = useCallback((matrix: Matrix) => {
+    const resultat = laesMatrix(matrix);
+    let g = byggGitter(resultat);
+    if (g.raekker.length === 0) {
+      g = tomtGitter();
+      setStatusNote(
+        "Vi fandt ingen linjer i filen — skriv dine tal direkte i tabellen, eller kopiér dem fra dit regneark og sæt ind",
+      );
+    } else {
+      setStatusNote("Filen er læst — gennemse, ret og godkend nedenfor");
     }
+    const fundneAar = udledAar(tolkKolonner(g.kolonner));
+    setUdledteAar(fundneAar);
+    setAar(fundneAar[0] ?? String(new Date().getFullYear()));
+    setGitter(g);
+  }, []);
+
+  /** P1-fallback når selve læsningen fejler: tomt gitter, aldrig en fejlside. */
+  const aabnTomt = useCallback(() => {
+    setUdledteAar([]);
+    setAar(String(new Date().getFullYear()));
+    setGitter(tomtGitter());
+    setStatusNote(
+      "Vi kunne ikke læse filen — kopiér tallene fra dit regneark og sæt dem ind direkte i tabellen nedenfor",
+    );
   }, []);
 
   const handleFile = useCallback(
     async (file: File) => {
-      if (!file.name.match(/\.(xlsx|xls|csv)$/i)) {
-        setErrorNote("Upload et Excel-ark (.xlsx, .xls) eller CSV");
-        return;
-      }
-
-      pendingFileRef.current = file;
+      setParsing(true);
       setErrorNote(null);
-
-      if (file.name.endsWith(".csv")) {
-        workbookRef.current = null;
-        setSheetNames([]);
-        void runImport();
-        return;
+      setStatusNote(null);
+      setGitter(null);
+      setSheetNames([]);
+      try {
+        if (/\.(xlsx|xls)$/i.test(file.name)) {
+          const XLSX = await import("xlsx");
+          const wb = XLSX.read(await file.arrayBuffer(), { type: "array" });
+          workbookRef.current = wb;
+          if (wb.SheetNames.length > 1) {
+            setSheetNames(wb.SheetNames);
+            setStatusNote("Vælg det ark der indeholder budgettet");
+            return;
+          }
+          const matrix = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], {
+            header: 1,
+            raw: true,
+            defval: null,
+          }) as Matrix;
+          aabnMatrix(matrix);
+        } else {
+          // CSV og alt andet tekstligt: skilletegns-detekteret læsning.
+          aabnMatrix(laesCsvTilMatrix(await file.text()));
+        }
+      } catch (err) {
+        console.error("Budget import-læsning fejlede:", err);
+        aabnTomt();
+      } finally {
+        setParsing(false);
       }
-
-      const XLSX = await import("xlsx");
-      const buf = await file.arrayBuffer();
-      const wb = XLSX.read(buf, { type: "array" });
-      workbookRef.current = wb;
-      setSheetNames(wb.SheetNames);
-
-      if (wb.SheetNames.length === 1) {
-        void runImport(wb.SheetNames);
-        return;
-      }
-
-      // Flere ark: forudvælg budget-arket (arvet /budget/i-gæt) og vis vælgeren
-      const guess = wb.SheetNames.find((n: string) => /budget/i.test(n)) ?? wb.SheetNames[0];
-      setSelectedSheets([guess]);
-      setStatusNote("Vælg det ark, der indeholder budgettet");
     },
-    [runImport],
+    [aabnMatrix, aabnTomt],
   );
 
+  /** Flere ark: ét ark ad gangen — motoren arbejder på én matrix. */
+  const vaelgArk = useCallback(
+    async (navn: string) => {
+      setParsing(true);
+      try {
+        const XLSX = await import("xlsx");
+        const matrix = XLSX.utils.sheet_to_json(workbookRef.current.Sheets[navn], {
+          header: 1,
+          raw: true,
+          defval: null,
+        }) as Matrix;
+        setSheetNames([]);
+        aabnMatrix(matrix);
+      } catch (err) {
+        console.error("Ark-læsning fejlede:", err);
+        setSheetNames([]);
+        aabnTomt();
+      } finally {
+        setParsing(false);
+      }
+    },
+    [aabnMatrix, aabnTomt],
+  );
+
+  // Skriveplanen — konsekvenserne af gitteret, live ved hver ændring.
+  const plan = useMemo(() => (gitter ? byggSkriveplan(gitter, aar) : null), [gitter, aar]);
+
+  const fordelinger = useMemo(() => {
+    if (!plan) return [];
+    const prKolonne = new Map<string, { navn: string; maaneder: number[]; antal: number }>();
+    for (const raekke of plan.raekker) {
+      for (const f of raekke.fordelinger) {
+        const eksisterende = prKolonne.get(f.kolonnenavn);
+        if (eksisterende) eksisterende.antal++;
+        else prKolonne.set(f.kolonnenavn, { navn: f.kolonnenavn, maaneder: f.maaneder, antal: 1 });
+      }
+    }
+    return [...prKolonne.values()];
+  }, [plan]);
+
+  const aarMuligheder = useMemo(() => {
+    const nu = new Date().getFullYear();
+    return [...new Set([...udledteAar, String(nu - 1), String(nu), String(nu + 1), aar])].sort();
+  }, [udledteAar, aar]);
+
   const handleConfirm = async () => {
-    if (!preview || !userId || !companyId) return;
+    if (!plan || !userId || !companyId || plan.raekker.length === 0) return;
     setSaving(true);
     setErrorNote(null);
     try {
-      await confirmBudgetImport({
-        userId,
-        companyId,
-        preview: { year: preview.year, categories: preview.categories },
-      });
+      await confirmImportFraSkriveplan({ userId, companyId, plan });
       clearDraft(draftKey);
-      setStatusNote(`Budget ${preview.year} er importeret`);
-      onImported({ year: preview.year });
+      setGitter(null);
+      setUdledteAar([]);
+      setStatusNote(`Budget ${plan.aar} er importeret`);
+      onImported({ year: plan.aar });
     } catch (err: any) {
       console.error("Save error:", err);
       const msg = err?.message || err?.details || err?.hint || "";
@@ -254,98 +279,44 @@ export const HbBudgetExcelImport = ({
 
   const reset = () => {
     clearDraft(draftKey);
-    setMultiYear(null);
-    setSelectedYear(null);
+    setGitter(null);
+    setUdledteAar([]);
     setSheetNames([]);
-    setSelectedSheets([]);
     workbookRef.current = null;
-    pendingFileRef.current = null;
     setStatusNote(null);
     setErrorNote(null);
   };
 
-  // Ark-vælger (flere ark, før modellen kaldes)
-  if (sheetNames.length > 1 && !multiYear && !parsing) {
-    const toggleSheet = (name: string) =>
-      setSelectedSheets((prev) =>
-        prev.includes(name) ? prev.filter((n) => n !== name) : [...prev, name],
-      );
+  // Ark-vælger (flere ark — ét ad gangen)
+  if (sheetNames.length > 1 && !gitter && !parsing) {
+    const guess = sheetNames.find((n: string) => /budget/i.test(n)) ?? sheetNames[0];
     return (
       <div>
         <p className="text-sm text-hb-ink-soft">
-          Vælg det ark, der indeholder din budget-oversigt — gerne flere, hvis budgettet er fordelt.
+          Filen har flere ark — vælg det der indeholder budgettet. Du kan importere ét ark ad gangen.
         </p>
         <div className="mt-3 space-y-2">
-          {sheetNames.map((name) => {
-            const checked = selectedSheets.includes(name);
-            return (
-              <button
-                key={name}
-                type="button"
-                onClick={() => toggleSheet(name)}
+          {sheetNames.map((navn) => (
+            <button
+              key={navn}
+              type="button"
+              onClick={() => void vaelgArk(navn)}
+              className={cn(
+                "flex w-full items-center gap-3 rounded-lg border px-4 py-3 text-left text-sm transition-colors",
+                navn === guess
+                  ? "border-hb-evergreen bg-hb-sage/30 text-hb-ink"
+                  : "border-hb-line text-hb-ink hover:border-hb-evergreen/50",
+              )}
+            >
+              <span
                 className={cn(
-                  "flex w-full items-center gap-3 rounded-lg border px-4 py-3 text-left text-sm transition-colors",
-                  checked
-                    ? "border-hb-evergreen bg-hb-sage/30 text-hb-ink"
-                    : "border-hb-line text-hb-ink hover:border-hb-evergreen/50",
+                  "h-3 w-3 shrink-0 rounded-full border",
+                  navn === guess ? "border-hb-evergreen bg-hb-evergreen" : "border-hb-line",
                 )}
-              >
-                <span
-                  className={cn(
-                    "h-3 w-3 shrink-0 rounded-full border",
-                    checked ? "border-hb-evergreen bg-hb-evergreen" : "border-hb-line",
-                  )}
-                />
-                {name}
-              </button>
-            );
-          })}
-        </div>
-        <div className="mt-4 flex items-center gap-4">
-          <HbButton
-            className="h-9 px-5 text-sm"
-            disabled={selectedSheets.length === 0}
-            onClick={() => void runImport(selectedSheets)}
-          >
-            Fortsæt
-          </HbButton>
-          <button type="button" onClick={reset} className="text-sm text-hb-ink-soft underline-offset-4 hover:underline">
-            Vælg en anden fil
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  // År-vælger (flere budgetår i samme fil)
-  if (multiYear && multiYear.years.length > 1 && !selectedYear) {
-    return (
-      <div>
-        <p className="text-sm text-hb-ink-soft">
-          Filen indeholder {multiYear.years.length} budgetår — vælg det år, du vil importere.
-        </p>
-        <div className="mt-3 grid gap-3 sm:grid-cols-2">
-          {multiYear.years.map((y) => {
-            const totalRev = y.categories
-              .filter((c) => c.key === "omsaetning")
-              .reduce((s, c) => s + c.monthly.reduce((a, b) => a + b, 0), 0);
-            const totalCost = y.categories
-              .filter((c) => c.key !== "omsaetning")
-              .reduce((s, c) => s + c.monthly.reduce((a, b) => a + b, 0), 0);
-            return (
-              <button
-                key={y.year}
-                type="button"
-                onClick={() => setSelectedYear(y.year)}
-                className="rounded-hb border border-hb-line bg-hb-surface p-4 text-left transition-colors hover:border-hb-evergreen/50"
-              >
-                <p className="font-editorial text-lg font-medium text-hb-ink">{y.year}</p>
-                <p className="mt-1 text-xs text-hb-ink-soft">Omsætning {fmtNumber(totalRev)} kr.</p>
-                <p className="text-xs text-hb-ink-soft">Omkostninger {fmtNumber(totalCost)} kr.</p>
-                <p className="text-xs text-hb-ink-soft">{y.categories.length} kategorier</p>
-              </button>
-            );
-          })}
+              />
+              {navn}
+            </button>
+          ))}
         </div>
         <button type="button" onClick={reset} className="mt-4 text-sm text-hb-ink-soft underline-offset-4 hover:underline">
           Vælg en anden fil
@@ -354,78 +325,89 @@ export const HbBudgetExcelImport = ({
     );
   }
 
-  // Preview + godkend
-  if (preview) {
-    const totalRevenue = preview.categories
-      .filter((c) => c.key === "omsaetning")
-      .reduce((sum, c) => sum + c.monthly.reduce((s, v) => s + v, 0), 0);
-    const totalCosts = preview.categories
-      .filter((c) => c.key !== "omsaetning")
-      .reduce((sum, c) => sum + c.monthly.reduce((s, v) => s + v, 0), 0);
-    const result = totalRevenue - totalCosts;
-
+  // Gitteret + skriveplanens konsekvenser
+  if (gitter && plan) {
     return (
-      <div>
-        <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <p className="font-editorial text-lg font-medium text-hb-ink">Budget {preview.year} — gennemse</p>
-          {multiYear?.company_name && <p className="text-xs text-hb-ink-soft">{multiYear.company_name}</p>}
-        </div>
-        <div className="mt-3 grid grid-cols-3 gap-4">
-          <div>
-            <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft">Omsætning</p>
-            <p className="mt-1 font-editorial text-lg font-medium text-hb-ink">{fmtNumber(totalRevenue)} kr.</p>
+      <div className="space-y-5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="font-editorial text-lg font-medium text-hb-ink">Gennemse dit budget</p>
+          {/* Årsvalget er ALTID synligt og ændringsbart — også når kun ét år
+              er udledt af filen. */}
+          <div className="flex items-center gap-2">
+            <label htmlFor="import-budgetaar" className="text-sm text-hb-ink-soft">
+              Budgetår
+            </label>
+            <select
+              id="import-budgetaar"
+              value={aar}
+              onChange={(e) => setAar(e.target.value)}
+              className="rounded-md border border-hb-line bg-hb-surface px-2.5 py-1.5 text-sm text-hb-ink focus:outline-none focus:ring-2 focus:ring-hb-evergreen/50"
+            >
+              {aarMuligheder.map((muligt) => (
+                <option key={muligt} value={muligt}>
+                  {muligt}
+                </option>
+              ))}
+            </select>
+            {udledteAar.length === 1 && (
+              <span className="text-xs text-hb-ink-soft">aflæst af filen</span>
+            )}
+            {udledteAar.length > 1 && (
+              <span className="text-xs text-hb-ink-soft">
+                filen har {udledteAar.length} år — vælg det der skal ind
+              </span>
+            )}
           </div>
-          <div>
-            <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft">Omkostninger</p>
-            <p className="mt-1 font-editorial text-lg font-medium text-hb-ink">{fmtNumber(totalCosts)} kr.</p>
-          </div>
-          <div>
-            <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft">Resultat</p>
-            <p className={cn("mt-1 font-editorial text-lg font-medium", result < 0 ? "text-hb-rust" : "text-hb-ink")}>
-              {fmtNumber(result)} kr.
-            </p>
-          </div>
         </div>
-        <div className="mt-4 space-y-2">
-          {preview.categories.map((cat) => {
-            const yearTotal = cat.monthly.reduce((s, v) => s + v, 0);
-            return (
-              <div key={cat.key} className="rounded-lg border border-hb-line/70 px-4 py-3">
-                <div className="flex items-baseline justify-between gap-3">
-                  <p className="text-sm font-medium text-hb-ink">
-                    {cat.label}
-                    {cat.details.length > 0 && (
-                      <span className="ml-2 text-xs font-normal text-hb-ink-soft">
-                        ({cat.details.length} poster: {cat.details.slice(0, 3).join(", ")}
-                        {cat.details.length > 3 ? ` +${cat.details.length - 3}` : ""})
-                      </span>
-                    )}
-                  </p>
-                  <p className="text-sm tabular-nums text-hb-ink">{fmtNumber(yearTotal)} kr.</p>
-                </div>
-                {/* Feltbredde (recon 1 §4): 12 kolonner klemte sekscifrede
-                    beløb — nu 4/6 kolonner over flere rækker + større tekst. */}
-                <div className="mt-2 grid grid-cols-4 gap-x-2 gap-y-1.5 sm:grid-cols-6">
-                  {cat.monthly.map((val, i) => (
-                    <div key={i} className="text-center">
-                      <p className="text-[10px] text-hb-ink-soft">{MONTH_LABELS[i]}</p>
-                      <p className="text-[11px] tabular-nums text-hb-ink">{fmtNumber(val)}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-        <div className="mt-4 flex flex-wrap items-center gap-3">
-          <HbButton className="h-9 px-5 text-sm" disabled={saving} onClick={() => void handleConfirm()}>
-            {saving ? "Gemmer…" : "Importér budget"}
-          </HbButton>
-          {multiYear && multiYear.years.length > 1 && (
-            <HbButton variant="secondary" className="h-9 px-5 text-sm" onClick={() => setSelectedYear(null)}>
-              Skift år
-            </HbButton>
+
+        <HbImportGitter gitter={gitter} onChange={setGitter} />
+
+        {/* Skriveplanens konsekvenser — hvad der faktisk skrives, live. */}
+        <HbCard className="p-5">
+          <p className="font-editorial text-lg font-medium text-hb-ink">
+            Det her skrives til budget {aar}
+          </p>
+          <p className="mt-1 text-sm text-hb-ink-soft">
+            {plan.raekker.length === 0
+              ? "Ingen linjer at skrive endnu — vælg linjer til, eller indsæt tal i tabellen."
+              : `${plan.raekker.length} linje${plan.raekker.length === 1 ? "" : "r"} skrives som dit base-budget. Optimistisk og pessimistisk laver du bagefter under Scenarier.`}
+          </p>
+          {fordelinger.length > 0 && (
+            <ul className="mt-3 space-y-1">
+              {fordelinger.map((f) => (
+                <li key={f.navn} className="text-sm text-hb-ink-soft">
+                  "{f.navn}" fordeles ligeligt på {listeMedOg(f.maaneder.map((m) => MAANEDER_FULDE[m]))}
+                  {f.antal > 1 ? ` — ${f.antal} linjer` : ""}
+                </li>
+              ))}
+            </ul>
           )}
+          {plan.sprungetOverKolonner.length > 0 && (
+            <p className="mt-3 text-sm text-hb-ink-soft">
+              Kolonner der ikke skrives, fordi de ville tælle dobbelt eller hører til et andet år:{" "}
+              {plan.sprungetOverKolonner.join(", ")}
+            </p>
+          )}
+          {plan.utolkedeKolonner.length > 0 && (
+            <p className="mt-2 text-sm text-hb-ink-soft">
+              Kolonner vi ikke kunne læse som perioder: {plan.utolkedeKolonner.join(", ")}
+            </p>
+          )}
+          {plan.advarsler.map((advarsel, i) => (
+            <p key={i} className="mt-2 text-sm text-hb-ink-soft" role="status">
+              {advarsel}
+            </p>
+          ))}
+        </HbCard>
+
+        <div className="flex flex-wrap items-center gap-3">
+          <HbButton
+            className="h-9 px-5 text-sm"
+            disabled={saving || plan.raekker.length === 0}
+            onClick={() => void handleConfirm()}
+          >
+            {saving ? "Gemmer…" : `Importér budget ${aar}`}
+          </HbButton>
           <button type="button" onClick={reset} className="text-sm text-hb-ink-soft underline-offset-4 hover:underline">
             Annullér
           </button>
@@ -463,11 +445,11 @@ export const HbBudgetExcelImport = ({
         </p>
         <p className="mt-1 max-w-sm text-xs text-hb-ink-soft">
           {parsing
-            ? "Det tager typisk 10-30 sekunder"
-            : "Træk filen hertil eller klik for at vælge — vi læser hver linje og foreslår kategorierne"}
+            ? "Det tager et øjeblik"
+            : "Træk filen hertil eller klik for at vælge — vi læser hver linje, og du gennemser alt før noget gemmes"}
         </p>
         {!parsing && (
-          <p className="mt-2 text-[11px] text-hb-ink-soft">.xlsx, .xls og .csv · flere budgetår understøttes</p>
+          <p className="mt-2 text-[11px] text-hb-ink-soft">.xlsx, .xls og .csv · du kan også indsætte direkte fra regnearket bagefter</p>
         )}
       </div>
       <div className="mt-2">

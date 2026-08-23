@@ -25,7 +25,7 @@ import { BUDGET_TEMPLATES } from "../budgetTemplates";
 import { laesMatrix } from "@/lib/importEngine";
 import { byggGitter } from "@/lib/importGitterModel";
 import { byggSkriveplan, byggSkriveplanInserts, type Skriveplan } from "@/lib/importSkrivning";
-import { parseCsvTilMatrix } from "./csvTestHelper";
+import { parseCsvTilMatrix } from "@/lib/csvLaesning";
 import { laesArkTilMatrix } from "./xlsxTestHelper";
 
 import type { BudgetRow } from "@/components/budget/types";
