@@ -206,6 +206,12 @@ export function byggGitter(resultat: ImportResultat): Gitter {
     }
   });
 
+  const tilfoejNote = (raekke: GitterRaekke, note: string) => {
+    raekke.bemaerkning = raekke.bemaerkning ? `${raekke.bemaerkning} · ${note}` : note;
+  };
+  const indenForTolerance = (sum: number, vaerdi: number): boolean =>
+    Math.abs(sum - vaerdi) <= Math.max(2, Math.abs(vaerdi) * 0.005);
+
   // Dobbelttællings-værn: en post hvis etiket matcher en sektion eller
   // subtotal i en ANDEN tabel er med stor sandsynlighed samme størrelse
   // opgjort igen (nøgletals-resuméer, videreførte totaler). Motoren
@@ -218,8 +224,61 @@ export function byggGitter(resultat: ImportResultat): Gitter {
       (s) => s.tabelIndex !== raekke.tabelIndex && s.etiket.trim().toLowerCase() === etiket,
     );
     if (match) {
-      const note = `Ligner totalen '${raekke.etiket.trim()}' i en anden del af filen — tages den med, tælles beløbet to gange`;
-      raekke.bemaerkning = raekke.bemaerkning ? `${raekke.bemaerkning} · ${note}` : note;
+      tilfoejNote(
+        raekke,
+        `Ligner totalen '${raekke.etiket.trim()}' i en anden del af filen — tages den med, tælles beløbet to gange`,
+      );
+    }
+  }
+
+  // Total-af-alle-øvrige: en resultatlinje der spænder over flere tabeller
+  // kan motorens sum-løkke ikke se — men i det flade gitter er den summen
+  // af alt andet. Mindst to matchende kolonner og mindst én værdi over
+  // tolerancen (|v| > 2), så nulrækker aldrig rammes.
+  for (const raekke of raekker) {
+    if (!raekke.vaerdier.some((v) => v !== null && Math.abs(v) > 2)) continue;
+    let matchendeKolonner = 0;
+    for (let k = 0; k < kolonner.length; k++) {
+      const vaerdi = raekke.vaerdier[k];
+      if (vaerdi === null) continue;
+      let sum = 0;
+      let harAndre = false;
+      for (const anden of raekker) {
+        if (anden === raekke) continue;
+        const av = anden.vaerdier[k];
+        if (av !== null) {
+          sum += av;
+          harAndre = true;
+        }
+      }
+      if (harAndre && indenForTolerance(sum, vaerdi)) matchendeKolonner++;
+    }
+    if (matchendeKolonner >= 2) {
+      tilfoejNote(
+        raekke,
+        "Ser ud til at være en total af de øvrige linjer — tages den med, tælles beløbet to gange",
+      );
+    }
+  }
+
+  // Forholdstals-værn: alle værdier numerisk ≤ 1 mens naborækkerne i samme
+  // tabel taler i hundreder/tusinder — så er det en margin/brøk, ikke et
+  // beløb. Kræver mindst én værdi FORSKELLIG fra nul (skærpelse ift.
+  // bestillingen: rene nulrækker er tomme budgetlinjer, ikke forholdstal —
+  // de har allerede deres egen bemærkning).
+  for (const raekke of raekker) {
+    const ikkeNull = raekke.vaerdier.filter((v): v is number => v !== null);
+    if (ikkeNull.length === 0) continue;
+    if (!ikkeNull.every((v) => Math.abs(v) <= 1)) continue;
+    if (!ikkeNull.some((v) => v !== 0)) continue;
+    const harStoreNaboer = raekker.some(
+      (anden) =>
+        anden !== raekke &&
+        anden.tabelIndex === raekke.tabelIndex &&
+        anden.vaerdier.some((v) => v !== null && Math.abs(v) > 100),
+    );
+    if (harStoreNaboer) {
+      tilfoejNote(raekke, "Ser ud til at være et forholdstal, ikke et beløb");
     }
   }
 

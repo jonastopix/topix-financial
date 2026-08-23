@@ -13,6 +13,7 @@ import {
   type Gitter,
 } from "@/lib/importGitterModel";
 import { parseCsvTilMatrix } from "./csvTestHelper";
+import { laesArkTilMatrix } from "./xlsxTestHelper";
 
 // ───────────────────────── Byggeklodser ─────────────────────────
 
@@ -219,6 +220,66 @@ describe("byggGitter", () => {
       ]),
     );
     expect(g.raekker.every((r) => r.bemaerkning === null)).toBe(true);
+  });
+
+  it("total af alle øvrige linjer: rækken der summer resten af gitteret får bemærkning", () => {
+    const g = byggGitter(
+      resultat([
+        tabel([post(0, "Dækningsbidrag", [500, 600])]),
+        tabel([
+          post(10, "Løn", [-200, -250]),
+          post(11, "Husleje", [-100, -150]),
+          post(12, "Resultat", [200, 200]), // 500-200-100 / 600-250-150
+        ]),
+      ]),
+    );
+    const resultatRaekke = g.raekker.find((r) => r.etiket === "Resultat")!;
+    expect(resultatRaekke.bemaerkning).toBe(
+      "Ser ud til at være en total af de øvrige linjer — tages den med, tælles beløbet to gange",
+    );
+    expect(resultatRaekke.medtag).toBe(true);
+    expect(g.raekker.filter((r) => r.bemaerkning !== null)).toHaveLength(1);
+  });
+
+  it("total af øvrige rammer aldrig nulrækker (kræver |v| > 2)", () => {
+    const g = byggGitter(
+      resultat([
+        tabel([
+          post(0, "A", [3, -3]),
+          post(1, "B", [-3, 3]),
+          post(2, "Nulrække", [0, 0]), // 3-3=0 og -3+3=0 — matcher, men er ikke informativ
+        ]),
+      ]),
+    );
+    expect(g.raekker.find((r) => r.etiket === "Nulrække")!.bemaerkning).toBe(
+      "Alle måneder er nul",
+    );
+  });
+
+  it("forholdstal: alle værdier ≤ 1 blandt store naborækker får bemærkning", () => {
+    const g = byggGitter(
+      resultat([
+        tabel([post(0, "Omsætning", [80000, 90000]), post(1, "Nettomargin", [0.4, 0.5])]),
+      ]),
+    );
+    expect(g.raekker.find((r) => r.etiket === "Nettomargin")!.bemaerkning).toBe(
+      "Ser ud til at være et forholdstal, ikke et beløb",
+    );
+    expect(g.raekker.find((r) => r.etiket === "Nettomargin")!.medtag).toBe(true);
+    expect(g.raekker.find((r) => r.etiket === "Omsætning")!.bemaerkning).toBeNull();
+  });
+
+  it("forholdstal: rene nulrækker rammes ikke (skærpelsen), og små tabeller uden store naboer heller ikke", () => {
+    const g = byggGitter(
+      resultat([
+        tabel([post(0, "Omsætning", [80000, 90000]), post(1, "Tom budgetlinje", [0, 0])]),
+        tabel([post(10, "Lille A", [0.4, 0.5]), post(11, "Lille B", [0.2, 0.3])]),
+      ]),
+    );
+    expect(g.raekker.find((r) => r.etiket === "Tom budgetlinje")!.bemaerkning).toBe(
+      "Alle måneder er nul",
+    );
+    expect(g.raekker.find((r) => r.etiket === "Lille A")!.bemaerkning).toBeNull();
   });
 
   it("dobbelttælling i tillæg til eksisterende tvivls-bemærkning", () => {
@@ -447,9 +508,14 @@ describe("golden: gitter af Remm-budget 2026", () => {
     expect(revenue.kommentar).toBe("Nettoomsætning B2C + B2B");
   });
 
+  it("ingen Remm-række rammes af total-af-øvrige- eller forholdstals-værnene", () => {
+    expect(g.raekker.filter((r) => r.bemaerkning?.includes("total af de øvrige linjer"))).toEqual([]);
+    expect(g.raekker.filter((r) => r.bemaerkning?.includes("forholdstal"))).toEqual([]);
+  });
+
   it("dobbelttællings-bemærkning på præcis de otte rækker der gentager en total fra en anden tabel", () => {
     const medNote = g.raekker
-      .filter((r) => r.bemaerkning?.includes("tælles beløbet to gange"))
+      .filter((r) => r.bemaerkning?.includes("Ligner totalen"))
       .map((r) => [r.raekkeIndex, r.etiket]);
     expect(medNote).toEqual([
       [4, "Revenue"],                // KPI-resumé ↔ sektion/subtotal i tabel 2
@@ -462,5 +528,66 @@ describe("golden: gitter af Remm-budget 2026", () => {
       [94, "Total Fixed Expenses"],  // videreført total fra tabel 5 i tabel 6
     ]);
     expect(medNote.every(([idx]) => g.raekker.find((r) => r.raekkeIndex === idx)!.medtag)).toBe(true);
+  });
+});
+
+/**
+ * GOLDEN mod Topix.dk ApS' eget budget (XLSX, arket Budget2026) —
+ * verificeret manuelt mod filen 2026-08-23 (~/Downloads/topix-resultat.md
+ * plus rettelserne af de fire fejl fundet dér). Strukturelt anderledes end
+ * Remm-CSV'en: native tal, rigtige minusser, tom afstandskolonne mellem
+ * december og årstotal, månedsoverskrifter som "Januar-26". Ændrer tallene
+ * sig, har motoren eller gitteret ændret adfærd på en rigtig fil.
+ */
+describe("golden: gitter af Topix-budget 2026 (XLSX)", () => {
+  const fixturePath = path.resolve(__dirname, "../__fixtures__/topix-budget-2026.xlsx");
+  const res = laesMatrix(laesArkTilMatrix(fixturePath, "Budget2026"));
+  const alle = res.tabeller.flatMap((t) => t.raekker);
+  const g = byggGitter(res);
+
+  it("de fem nulrækker/margin-rækker der før forsvandt som subtotaler er nu poster", () => {
+    for (const etiket of [
+      "D2C Fragt & emballage",
+      "B2B Vareforbrug",
+      "B2B Fragt & emballage",
+      "El",
+      "Bruttomargin",
+    ]) {
+      const r = alle.find((x) => x.etiket === etiket)!;
+      expect(r.type, etiket).toBe("post");
+    }
+  });
+
+  it("'Dækningsbidrag' er stadig subtotal", () => {
+    expect(alle.find((r) => r.etiket === "Dækningsbidrag")!.type).toBe("subtotal");
+  });
+
+  it("'Resultat' er post MED total-af-øvrige-bemærkningen", () => {
+    const r = g.raekker.find((x) => x.etiket === "Resultat")!;
+    expect(alle.find((x) => x.etiket === "Resultat")!.type).toBe("post");
+    expect(r.bemaerkning).toBe(
+      "Ser ud til at være en total af de øvrige linjer — tages den med, tælles beløbet to gange",
+    );
+    expect(r.medtag).toBe(true);
+  });
+
+  it("'Nettomargin' er post MED forholdstals-bemærkningen", () => {
+    const r = g.raekker.find((x) => x.etiket === "Nettomargin")!;
+    expect(r.bemaerkning).toBe("Ser ud til at være et forholdstal, ikke et beløb");
+    expect(r.medtag).toBe(true);
+  });
+
+  it("gitteret har 32 rækker — de fem reddede linjer er med", () => {
+    expect(g.raekker).toHaveLength(32);
+  });
+
+  it("kolonnenavnene starter med 'Januar-26'", () => {
+    expect(g.kolonner[0]).toBe("Januar-26");
+  });
+
+  it("headeren genkendes nu af findTabeller (via månedssuffiks), ikke kun af promoveringen", () => {
+    const hovedtabel = res.tabeller.find((t) => t.headerRaekke === 3)!;
+    expect(hovedtabel.foersteDataRaekke).toBe(4);
+    expect(hovedtabel.kolonneOverskrifter[1]).toBe("Januar-26");
   });
 });
