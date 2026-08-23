@@ -170,7 +170,7 @@ describe("byggSkriveplan", () => {
     expect(plan.sprungetOverKolonner).toEqual([]);
   });
 
-  it("årsfilter: kun kolonner med det valgte år når år kan udledes", () => {
+  it("årsfilter: kun kolonner med det valgte år når år kan udledes — aarsskift er null", () => {
     const plan = byggSkriveplan(
       gitter(
         ["Januar-25", "Januar-26"],
@@ -180,6 +180,47 @@ describe("byggSkriveplan", () => {
     );
     expect(plan.raekker[0].maanedsbeloeb[0]).toBe(222);
     expect(plan.sprungetOverKolonner).toContain("Januar-25");
+    expect(plan.aarsskift).toBeNull();
+    expect(plan.advarsler.some((a) => a.startsWith("Kolonnerne i filen er fra"))).toBe(false);
+  });
+
+  it("årsskift: matcher INGEN kolonner det valgte år, bruges filens år alligevel (P1)", () => {
+    const plan = byggSkriveplan(
+      gitter(
+        ["Januar-25", "Februar-25"],
+        [{ raekkeIndex: 0, etiket: "Løn", vaerdier: [111, 222] }],
+      ),
+      "2026",
+    );
+    expect(plan.raekker).toHaveLength(1);
+    expect(plan.raekker[0].maanedsbeloeb.slice(0, 2)).toEqual([111, 222]);
+    expect(plan.aarsskift).toEqual({ fra: "2025", til: "2026" });
+    expect(plan.advarsler).toContain(
+      "Kolonnerne i filen er fra 2025. Tallene skrives til budget 2026 — tjek at det er det du vil.",
+    );
+    expect(plan.sprungetOverKolonner).toEqual([]);
+  });
+
+  it("årsskift: året med FLEST kolonner vinder når flere år findes", () => {
+    const plan = byggSkriveplan(
+      gitter(
+        ["Januar-24", "Januar-25", "Februar-25"],
+        [{ raekkeIndex: 0, etiket: "Løn", vaerdier: [1, 111, 222] }],
+      ),
+      "2027",
+    );
+    expect(plan.aarsskift).toEqual({ fra: "2025", til: "2027" });
+    expect(plan.raekker[0].maanedsbeloeb.slice(0, 2)).toEqual([111, 222]);
+    expect(plan.sprungetOverKolonner).toContain("Januar-24");
+  });
+
+  it("fil uden udledbart år: uændret adfærd, aarsskift null", () => {
+    const plan = byggSkriveplan(
+      gitter(["Januar", "Februar"], [{ raekkeIndex: 0, etiket: "Løn", vaerdier: [1, 2] }]),
+      "2026",
+    );
+    expect(plan.raekker).toHaveLength(1);
+    expect(plan.aarsskift).toBeNull();
   });
 
   it("gruppen OPLØSES til en gruppenøgle — forslag fra sektionsnavnet, drift uden sektion", () => {
@@ -444,6 +485,16 @@ describe("golden: skriveplaner for de syv fixtures", () => {
         "FY2027 Plan H2",
       ],
     });
+  });
+
+  it("Topix Budget2025-arket importeret til 2026: 39 rækker med årsskifte-advarsel", () => {
+    const g = byggGitter(laesMatrix(laesArkTilMatrix(`${FIX}/topix-budget-2026.xlsx`, "Budget2025")));
+    const plan = byggSkriveplan(g, "2026");
+    expect(plan.raekker).toHaveLength(39);
+    expect(plan.aarsskift).toEqual({ fra: "2025", til: "2026" });
+    expect(plan.advarsler).toContain(
+      "Kolonnerne i filen er fra 2025. Tallene skrives til budget 2026 — tjek at det er det du vil.",
+    );
   });
 
   it("fravalg slår igennem i planen (Remm: fravælg én MEDTAGET række → 53)", () => {

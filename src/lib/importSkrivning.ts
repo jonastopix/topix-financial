@@ -61,6 +61,10 @@ export type SkriveplanRaekke = {
 export type Skriveplan = {
   aar: string;
   raekker: SkriveplanRaekke[];
+  /** Sat når filens kolonner bærer et ANDET år end det valgte budgetår —
+      fx sidste års budget som grundlag for næste års (P1: aldrig en tom
+      plan alene pga. års-mismatch). Medlemmet skal godkende bevidst. */
+  aarsskift: { fra: string; til: string } | null;
   /** Gruppevalget pr. sektion som planen skriver med (null = uden sektion). */
   grupper: { sektion: string | null; gruppe: Gruppenoegle }[];
   /** Kolonner der ALDRIG kunne tolkes som en periode (type "ukendt"). */
@@ -196,13 +200,37 @@ export function byggSkriveplan(gitter: Gitter, aar: string): Skriveplan {
   const alleKolonnerUkendte =
     kolonner.length > 0 && kolonner.every((k) => k.type === "ukendt");
 
-  // Årsfilter: har INGEN kolonne et år, gælder alle kolonner.
+  // Årsfilter: har INGEN kolonne et år, gælder alle kolonner. Matcher
+  // INGEN kolonner det valgte år, bruges kolonnerne fra det udledte år med
+  // FLEST kolonner alligevel (P1: sidste års tal som grundlag for næste
+  // års budget er en normal arbejdsgang — en tom plan og en død knap var
+  // en blindgyde). Skiftet registreres i aarsskift og som advarsel, så
+  // medlemmet godkender antagelsen bevidst.
+  let aarsskift: Skriveplan["aarsskift"] = null;
+  let effektivtAar = aar;
+  if (aarFundet.length > 0 && !aarFundet.includes(aar)) {
+    const taelling = new Map<string, number>();
+    for (const k of kolonner) {
+      if (k.aar !== null) taelling.set(k.aar, (taelling.get(k.aar) ?? 0) + 1);
+    }
+    let bedste = aarFundet[0];
+    let flest = -1;
+    for (const [kandidatAar, antal] of taelling) {
+      if (antal > flest) {
+        flest = antal;
+        bedste = kandidatAar;
+      }
+    }
+    effektivtAar = bedste;
+    aarsskift = { fra: bedste, til: aar };
+  }
+
   const relevante = kolonner.filter((k) =>
-    aarFundet.length === 0 ? true : k.aar === aar,
+    aarFundet.length === 0 ? true : k.aar === effektivtAar,
   );
   for (const k of kolonner) {
     if (k.type === "ukendt") utolkede.add(k.navn);
-    else if (aarFundet.length > 0 && k.aar !== aar) sprungetOver.add(k.navn);
+    else if (aarFundet.length > 0 && k.aar !== effektivtAar) sprungetOver.add(k.navn);
   }
 
   const maanedsKolonner = relevante.filter((k) => k.type !== "aar" && k.type !== "ukendt");
@@ -291,6 +319,11 @@ export function byggSkriveplan(gitter: Gitter, aar: string): Skriveplan {
     });
   }
 
+  if (aarsskift) {
+    advarsler.push(
+      `Kolonnerne i filen er fra ${aarsskift.fra}. Tallene skrives til budget ${aarsskift.til} — tjek at det er det du vil.`,
+    );
+  }
   if (alleKolonnerUkendte) {
     advarsler.push(
       "Ingen af kolonnerne kunne læses som en periode. Tjek at månederne står som kolonner.",
@@ -329,6 +362,7 @@ export function byggSkriveplan(gitter: Gitter, aar: string): Skriveplan {
   return {
     aar,
     raekker,
+    aarsskift,
     grupper: [...grupperSet.values()],
     utolkedeKolonner: [...utolkede],
     sprungetOverKolonner: [...sprungetOver],

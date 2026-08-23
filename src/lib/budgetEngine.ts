@@ -129,17 +129,19 @@ export function computeEbitda(rows: BudgetRow[]): number[] {
 
 export type BudgetFillState = "empty" | "partial" | "complete";
 
-/** Udfyldnings-dommen (BudgetOverviewTab.tsx:42-47 ordret): filledMonths =
-    måneder hvor mindst én indtægtsrække har værdi > 0; empty = samlet
-    omsætning 0; complete = mindst 10 udfyldte måneder. Domsorden:
-    empty > complete > partial (banner-dommen; den gamle status-pill
-    prioriterede complete i det patologiske Σ=0-tilfælde). */
+/** Udfyldnings-dommen: filledMonths = måneder med mindst ét beløb
+    forskelligt fra nul i NOGEN gruppe — en måned med omkostninger og nul
+    omsætning er en gyldig budgetmåned (rettet 2026-08-24; den arvede dom
+    fra BudgetOverviewTab.tsx:42-47 talte kun indtægtsmåneder og udelod
+    fx januar/februar med Contentproduktion 90.000 men uden salg).
+    empty = samlet omsætning 0 (uændret); complete = mindst 10 udfyldte
+    måneder. Domsorden: empty > complete > partial. */
 export function deriveBudgetFill(rows: BudgetRow[]): {
   state: BudgetFillState;
   filledMonths: number;
 } {
   const revenueRows = rows.filter((r) => r.group === "indtaegter");
-  const filledMonths = MONTHS.filter((_, i) => revenueRows.some((r) => r.values[i] > 0)).length;
+  const filledMonths = MONTHS.filter((_, i) => rows.some((r) => r.values[i] !== 0)).length;
   const totalOmsaetning = revenueRows.reduce(
     (sum, row) => sum + row.values.reduce((s, v) => s + v, 0),
     0,
