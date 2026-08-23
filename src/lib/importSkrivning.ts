@@ -300,3 +300,66 @@ export function byggSkriveplan(gitter: Gitter, aar: string): Skriveplan {
     advarsler,
   };
 }
+
+// ───────────────────────── Insert-dannelse ─────────────────────────
+
+export interface SkriveplanInsert {
+  user_id: string;
+  company_id: string;
+  category: string;
+  budget_amount: number;
+  period: string;
+}
+
+/** REN insert-dannelse for W8 — bor her (ikke i budgetEngine) fordi den er
+    ren logik uden supabase, så rundturen inserts → decodeBudgetRows kan
+    bevises i test uden databasen og uden at trække klienten ind.
+    Værdirækker (base-scenariet), __label__-markører (saveScenarioEdits'
+    form: category `__label__{år}_{key}`, period = etiketten) og
+    __group__-markører (category `__group__{år}_{key}`, period = gruppen).
+    budgetEngine.confirmImportFraSkriveplan bruger den uændret. */
+export function byggSkriveplanInserts(args: {
+  userId: string;
+  companyId: string;
+  plan: Skriveplan;
+}): SkriveplanInsert[] {
+  const { userId, companyId, plan } = args;
+
+  const vaerdiInserts = plan.raekker.flatMap((raekke) =>
+    raekke.maanedsbeloeb.flatMap((beloeb, monthIdx) =>
+      beloeb === null
+        ? []
+        : [
+            {
+              user_id: userId,
+              company_id: companyId,
+              category: raekke.noegle,
+              budget_amount: beloeb,
+              period: `${plan.aar}-base-${monthIdx}`,
+            },
+          ],
+    ),
+  );
+
+  const labelInserts = plan.raekker
+    .filter((raekke) => raekke.etiket.trim() !== "")
+    .map((raekke) => ({
+      user_id: userId,
+      company_id: companyId,
+      category: `__label__${plan.aar}_${raekke.noegle}`,
+      budget_amount: 0,
+      period: raekke.etiket,
+    }));
+
+  const groupInserts = plan.raekker
+    .filter((raekke) => raekke.gruppe !== null && raekke.gruppe.trim() !== "")
+    .map((raekke) => ({
+      user_id: userId,
+      company_id: companyId,
+      category: `__group__${plan.aar}_${raekke.noegle}`,
+      budget_amount: 0,
+      period: raekke.gruppe as string,
+    }));
+
+  return [...vaerdiInserts, ...labelInserts, ...groupInserts];
+}

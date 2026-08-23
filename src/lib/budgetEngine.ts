@@ -41,7 +41,7 @@ import {
   type BudgetTemplate,
   type BudgetCategory,
 } from "@/lib/budgetTemplates";
-import type { Skriveplan } from "@/lib/importSkrivning";
+import { byggSkriveplanInserts, type Skriveplan } from "@/lib/importSkrivning";
 import { catToRow, MONTHS, type BudgetRow, type ScenarioKey } from "@/components/budget/types";
 
 export interface BudgetTargetRow {
@@ -738,65 +738,6 @@ export async function confirmBudgetImport(args: {
     slet på id — kun årets base-værdier + __label__-markører for netop de
     nøgler planen skriver. Den gamle confirmBudgetImport (W5) består urørt
     til den nuværende flade er koblet om. */
-export interface SkriveplanInsert {
-  user_id: string;
-  company_id: string;
-  category: string;
-  budget_amount: number;
-  period: string;
-}
-
-/** REN insert-dannelse for W8 — udtrukket så rundturen (inserts →
-    decodeBudgetRows) kan bevises i test uden supabase. Værdirækker
-    (base-scenariet), __label__-markører (saveScenarioEdits' form :558-564:
-    category `__label__{år}_{key}`, period = etiketten) og __group__-
-    markører (:566-574: category `__group__{år}_{key}`, period = gruppen). */
-export function byggSkriveplanInserts(args: {
-  userId: string;
-  companyId: string;
-  plan: Skriveplan;
-}): SkriveplanInsert[] {
-  const { userId, companyId, plan } = args;
-
-  const vaerdiInserts = plan.raekker.flatMap((raekke) =>
-    raekke.maanedsbeloeb.flatMap((beloeb, monthIdx) =>
-      beloeb === null
-        ? []
-        : [
-            {
-              user_id: userId,
-              company_id: companyId,
-              category: raekke.noegle,
-              budget_amount: beloeb,
-              period: `${plan.aar}-base-${monthIdx}`,
-            },
-          ],
-    ),
-  );
-
-  const labelInserts = plan.raekker
-    .filter((raekke) => raekke.etiket.trim() !== "")
-    .map((raekke) => ({
-      user_id: userId,
-      company_id: companyId,
-      category: `__label__${plan.aar}_${raekke.noegle}`,
-      budget_amount: 0,
-      period: raekke.etiket,
-    }));
-
-  const groupInserts = plan.raekker
-    .filter((raekke) => raekke.gruppe !== null && raekke.gruppe.trim() !== "")
-    .map((raekke) => ({
-      user_id: userId,
-      company_id: companyId,
-      category: `__group__${plan.aar}_${raekke.noegle}`,
-      budget_amount: 0,
-      period: raekke.gruppe as string,
-    }));
-
-  return [...vaerdiInserts, ...labelInserts, ...groupInserts];
-}
-
 export async function confirmImportFraSkriveplan(args: {
   userId: string;
   companyId: string;

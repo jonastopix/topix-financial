@@ -1,3 +1,5 @@
+import * as fs from "fs";
+import * as path from "path";
 import { describe, expect, it, vi } from "vitest";
 
 // Motoren importerer supabase-klienten (skrivevejene); dommene testes rent
@@ -20,6 +22,12 @@ import {
   type BudgetTargetRow,
 } from "../budgetEngine";
 import { BUDGET_TEMPLATES } from "../budgetTemplates";
+import { laesMatrix } from "@/lib/importEngine";
+import { byggGitter } from "@/lib/importGitterModel";
+import { byggSkriveplan, byggSkriveplanInserts, type Skriveplan } from "@/lib/importSkrivning";
+import { parseCsvTilMatrix } from "./csvTestHelper";
+import { laesArkTilMatrix } from "./xlsxTestHelper";
+
 import type { BudgetRow } from "@/components/budget/types";
 
 const row = (key: string, group: string, values: number[], isEditable = true): BudgetRow => ({
@@ -423,5 +431,63 @@ describe("decodeBudgetRows", () => {
     expect(decoded.availableYears).toEqual(["2026"]);
     expect(decoded.scenarioData.base.find((r) => r.key === "omsaetning")!.values[0]).toBe(100);
     expect(decoded.scenarioData.base.some((r) => r.key.startsWith("__sim_event__"))).toBe(false);
+  });
+});
+
+// ───────────────────────── Rundturen (sporets vigtigste test) ─────────────────────────
+
+/**
+ * RUNDTUR uden database: skriveplan → byggSkriveplanInserts (præcis de
+ * rækker confirmImportFraSkriveplan indsætter) → decodeBudgetRows (præcis
+ * afkodningen næste load kører). Beviser at etiketter, grupper og
+ * månedstal overlever gem+genindlæsning. Skriver vi noget der ikke kan
+ * læses, er etiketterne bevaret i databasen og tabt på skærmen — fejler
+ * denne test, er alt det andet ligegyldigt.
+ */
+describe("rundtur: skriveplan → inserts → decodeBudgetRows", () => {
+  const FIX = path.resolve(__dirname, "../__fixtures__");
+
+  const rundtur = (plan: Skriveplan) => {
+    const inserts = byggSkriveplanInserts({ userId: "test-user", companyId: "test-company", plan });
+    const decoded = decodeBudgetRows(
+      inserts.map(({ category, budget_amount, period }) => ({ category, budget_amount, period })),
+      plan.aar,
+    );
+    return { inserts, baseRows: decoded.scenarioData.base };
+  };
+
+  const assertRundtur = (plan: Skriveplan) => {
+    const { baseRows } = rundtur(plan);
+    for (const raekke of plan.raekker) {
+      const row = baseRows.find((r) => r.key === raekke.noegle);
+      expect(row, `nøglen ${raekke.noegle} skal kunne læses tilbage`).toBeDefined();
+      // Etiketten ordret tilbage (P3).
+      expect(row!.label, raekke.noegle).toBe(raekke.etiket);
+      // Gruppen tilbage — uden sektion falder afkodningen til "variable".
+      expect(row!.group, raekke.noegle).toBe(raekke.gruppe ?? "variable");
+      // Månedstallene uændrede (null i planen = 0 efter afkodning).
+      expect(row!.values, raekke.noegle).toEqual(raekke.maanedsbeloeb.map((v) => v ?? 0));
+    }
+  };
+
+  it("Remm-budgettet overlever rundturen — 62 rækker, etiketter/grupper/tal intakte", () => {
+    const g = byggGitter(
+      laesMatrix(parseCsvTilMatrix(fs.readFileSync(`${FIX}/remm-budget-base-2026.csv`, "utf-8"))),
+    );
+    const plan = byggSkriveplan(g, "2026");
+    expect(plan.raekker).toHaveLength(62);
+    // Stikprøver på det der er sværest: dansk sektionsnavn og ordret etiket.
+    const chatrine = plan.raekker.find((r) => r.etiket === "Chatrine Løn")!;
+    expect(chatrine.gruppe).toBe("Personale & konsulentydelser");
+    assertRundtur(plan);
+  });
+
+  it("Topix Budget2026 overlever rundturen — 32 rækker, etiketter/grupper/tal intakte", () => {
+    const g = byggGitter(laesMatrix(laesArkTilMatrix(`${FIX}/topix-budget-2026.xlsx`, "Budget2026")));
+    const plan = byggSkriveplan(g, "2026");
+    expect(plan.raekker).toHaveLength(32);
+    const loen = plan.raekker.find((r) => r.etiket === "Løn")!;
+    expect(loen.gruppe).toBe("Medarbejdere");
+    assertRundtur(plan);
   });
 });

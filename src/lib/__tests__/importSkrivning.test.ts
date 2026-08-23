@@ -1,7 +1,6 @@
 import * as fs from "fs";
 import * as path from "path";
 import { describe, expect, it } from "vitest";
-import { byggSkriveplanInserts, decodeBudgetRows } from "@/lib/budgetEngine";
 import { laesMatrix } from "@/lib/importEngine";
 import { byggGitter, saetMedtag, type Gitter } from "@/lib/importGitterModel";
 import {
@@ -383,63 +382,5 @@ describe("golden: skriveplaner for de syv fixtures", () => {
     const foerste = g.raekker[0].raekkeIndex;
     const { plan } = planAf(saetMedtag(g, foerste, false), "2026");
     expect(plan.raekker).toHaveLength(61);
-  });
-});
-
-// ───────────────────────── Rundturen (sporets vigtigste test) ─────────────────────────
-
-/**
- * RUNDTUR uden database: skriveplan → byggSkriveplanInserts (præcis de
- * rækker confirmImportFraSkriveplan indsætter) → decodeBudgetRows (præcis
- * afkodningen næste load kører). Beviser at etiketter, grupper og
- * månedstal overlever gem+genindlæsning. Skriver vi noget der ikke kan
- * læses, er etiketterne bevaret i databasen og tabt på skærmen — fejler
- * denne test, er alt det andet ligegyldigt.
- */
-describe("rundtur: skriveplan → inserts → decodeBudgetRows", () => {
-  const FIX = path.resolve(__dirname, "../__fixtures__");
-
-  const rundtur = (plan: Skriveplan) => {
-    const inserts = byggSkriveplanInserts({ userId: "test-user", companyId: "test-company", plan });
-    const decoded = decodeBudgetRows(
-      inserts.map(({ category, budget_amount, period }) => ({ category, budget_amount, period })),
-      plan.aar,
-    );
-    return { inserts, baseRows: decoded.scenarioData.base };
-  };
-
-  const assertRundtur = (plan: Skriveplan) => {
-    const { baseRows } = rundtur(plan);
-    for (const raekke of plan.raekker) {
-      const row = baseRows.find((r) => r.key === raekke.noegle);
-      expect(row, `nøglen ${raekke.noegle} skal kunne læses tilbage`).toBeDefined();
-      // Etiketten ordret tilbage (P3).
-      expect(row!.label, raekke.noegle).toBe(raekke.etiket);
-      // Gruppen tilbage — uden sektion falder afkodningen til "variable".
-      expect(row!.group, raekke.noegle).toBe(raekke.gruppe ?? "variable");
-      // Månedstallene uændrede (null i planen = 0 efter afkodning).
-      expect(row!.values, raekke.noegle).toEqual(raekke.maanedsbeloeb.map((v) => v ?? 0));
-    }
-  };
-
-  it("Remm-budgettet overlever rundturen — 62 rækker, etiketter/grupper/tal intakte", () => {
-    const g = byggGitter(
-      laesMatrix(parseCsvTilMatrix(fs.readFileSync(`${FIX}/remm-budget-base-2026.csv`, "utf-8"))),
-    );
-    const plan = byggSkriveplan(g, "2026");
-    expect(plan.raekker).toHaveLength(62);
-    // Stikprøver på det der er sværest: dansk sektionsnavn og ordret etiket.
-    const chatrine = plan.raekker.find((r) => r.etiket === "Chatrine Løn")!;
-    expect(chatrine.gruppe).toBe("Personale & konsulentydelser");
-    assertRundtur(plan);
-  });
-
-  it("Topix Budget2026 overlever rundturen — 32 rækker, etiketter/grupper/tal intakte", () => {
-    const g = byggGitter(laesMatrix(laesArkTilMatrix(`${FIX}/topix-budget-2026.xlsx`, "Budget2026")));
-    const plan = byggSkriveplan(g, "2026");
-    expect(plan.raekker).toHaveLength(32);
-    const loen = plan.raekker.find((r) => r.etiket === "Løn")!;
-    expect(loen.gruppe).toBe("Medarbejdere");
-    assertRundtur(plan);
   });
 });
