@@ -273,11 +273,25 @@ export function laesTal(raa: string, konvention: TalKonvention): Felt {
 
 // ───────────────────────── Tabelgrænser ─────────────────────────
 
-const MAANEDER_RE =
-  /^(jan(uar)?|feb(ruar)?|mar(ts|ch)?|apr(il)?|maj|may|jun[ie]?|jul[iy]?|aug(ust)?|sep(tember)?|okt(ober)?|oct(ober)?|nov(ember)?|dec(ember)?)\.?$/i;
+const MAANED_DEL =
+  "jan(?:uar)?|feb(?:ruar)?|mar(?:ts|ch)?|apr(?:il)?|maj|may|jun[ie]?|jul[iy]?|aug(?:ust)?|sep(?:tember)?|okt(?:ober)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?";
+const MAANEDER_RE = new RegExp(`^(${MAANED_DEL})\\.?$`, "i");
+/** Måneds-interval: to månedsnavne adskilt af bindestreg eller skråstreg. */
+const MAANED_INTERVAL_RE = new RegExp(
+  `^(?:${MAANED_DEL})\\.?\\s*[-/]\\s*(?:${MAANED_DEL})\\.?$`,
+  "i",
+);
+const HALVAAR_RE = /^([12]\.?\s*halvår|h[12])$/i;
 const KVARTAL_RE = /^q[1-4]$/i;
 const AARSTAL_RE = /^(19|20)\d{2}$/;
 const TOTAL_RE = /^(i\s*alt|total|sum|ytd|år\s*til\s*dato)$/i;
+
+/** Er teksten et månedsnavn (evt. med periodesuffiks som "Januar-26")?
+    Eksporteret så gitteret kan genkende transponerede tabeller. */
+export function erMaanedsnavn(tekst: string): boolean {
+  const s = tekst.trim().replace(/[\s\-/.]+(\d{4}|\d{2})$/, "");
+  return MAANEDER_RE.test(s);
+}
 
 /** Ligner cellen en periode-overskrift (månedsnavn, kvartal, årstal, total)?
     Månedsnavne må bære et valgfrit suffiks: separator (bindestreg, skråstreg,
@@ -289,7 +303,12 @@ function erPeriodeOverskrift(celle: Celle): boolean {
   if (!s) return false;
   const kerne = s.replace(/[\s\-/.]+(\d{4}|\d{2})$/, ""); // "Januar-26" → "Januar"
   return (
-    MAANEDER_RE.test(kerne) || KVARTAL_RE.test(s) || AARSTAL_RE.test(s) || TOTAL_RE.test(s)
+    MAANEDER_RE.test(kerne) ||
+    MAANED_INTERVAL_RE.test(s) || // "Jan-feb", "maj/jun"
+    HALVAAR_RE.test(s) || // "1. halvår", "H2"
+    KVARTAL_RE.test(s) ||
+    AARSTAL_RE.test(s) ||
+    TOTAL_RE.test(s)
   );
 }
 
@@ -480,6 +499,48 @@ export function klassificerRaekker(raekker: Raekke[]): Raekke[] {
     }
   }
 
+  // Pass 2 — totaler der står OVER deres detaljer (total-øverst-layouts):
+  // rækker der stadig er poster prøves NEDAD. Samme krav som opad — alle
+  // talkolonner skal stemme, mindst to rækker, informativitets-kravet og
+  // etiket-støtten — men med GRUPPE-semantik: en total-over dækker HELE
+  // blokken under sig, indtil næste subtotal, næste sektion eller
+  // tabellens slutning. Præfiks-match er bevidst fravalgt: i Remm-filen
+  // summer "Shopify App, Contribe" (-200) tilfældigt Hideapp (-75) +
+  // JudgeMe (-125) i alle tolv måneder — en ægte medlemslinje ville
+  // forsvinde som subtotal, hvis et delvist match talte som bevis.
+  for (let i = 0; i < resultat.length; i++) {
+    const raekke = resultat[i];
+    if (raekke.type !== "post" || !harTal(raekke)) continue;
+
+    const talKolonner = raekke.felter
+      .map((f, idx) => ({ f, idx }))
+      .filter(({ f }) => f.vaerdi !== null);
+    const informativ = talKolonner.some(({ f }) => Math.abs(f.vaerdi as number) > 2);
+    const kraevEtiketStoette = talKolonner.length === 1 || !informativ;
+    if (kraevEtiketStoette && !STOETTE_ETIKET_RE.test(raekke.etiket)) continue;
+
+    const sum = new Array<number>(raekke.felter.length).fill(0);
+    const blok: number[] = [];
+
+    for (let j = i + 1; j < resultat.length; j++) {
+      const under = resultat[j];
+      if (under.type === "subtotal" || under.type === "sektion") break; // gruppens ende
+      if (!harTal(under)) continue; // støj/ulæselig-post bidrager nul
+      blok.push(j);
+      for (const { idx } of talKolonner) {
+        sum[idx] += under.felter[idx]?.vaerdi ?? 0;
+      }
+    }
+
+    const match =
+      blok.length >= 2 &&
+      talKolonner.every(({ f, idx }) => indenForTolerance(sum[idx], f.vaerdi as number));
+    if (match) {
+      raekke.type = "subtotal";
+      raekke.daekker = blok.map((j) => resultat[j].raekkeIndex);
+    }
+  }
+
   return resultat;
 }
 
@@ -544,23 +605,27 @@ export function laesMatrix(matrix: Matrix): ImportResultat {
         });
       }
 
-      // Header-promovering i headerløse tabeller: den FØRSTE datarække er en
-      // overskriftsrække hvis den har ikke-tom tekst i kolonne 0 OG tekst
-      // (ikke tal — kilde "ulaeselig") i mindst én anden kolonne, og mindst
-      // én af de øvrige kolonner har tal i rækkerne under. En
-      // sektionsoverskrift har kun tekst i kolonne 0 og rammes ikke.
+      // Header-promovering i headerløse tabeller: blandt de FØRSTE TRE
+      // datarækker bliver den første række med ikke-tom tekst i kolonne 0
+      // OG tekst (ikke tal — kilde "ulaeselig") i mindst én anden kolonne,
+      // og tal i rækkerne under, til overskriftsrække; rækkerne over den
+      // droppes som titelrækker. En sektionsoverskrift har kun tekst i
+      // kolonne 0 og rammes ikke.
       let headerRaekke = g.headerRaekke;
       let foersteDataRaekke = g.foersteDataRaekke;
       if (headerRaekke === null && raekker.length >= 2) {
-        const foerste = raekker[0];
-        const tekstIAndenKolonne = foerste.felter.some((f) => f.kilde === "ulaeselig");
-        const talNedenunder = raekker
-          .slice(1)
-          .some((r) => r.felter.some((f) => f.vaerdi !== null));
-        if (foerste.etiket.trim() !== "" && tekstIAndenKolonne && talNedenunder) {
-          headerRaekke = foerste.raekkeIndex;
-          raekker = raekker.slice(1);
-          foersteDataRaekke = raekker[0].raekkeIndex;
+        for (let k = 0; k < Math.min(3, raekker.length - 1); k++) {
+          const kandidat = raekker[k];
+          const tekstIAndenKolonne = kandidat.felter.some((f) => f.kilde === "ulaeselig");
+          const talNedenunder = raekker
+            .slice(k + 1)
+            .some((r) => r.felter.some((f) => f.vaerdi !== null));
+          if (kandidat.etiket.trim() !== "" && tekstIAndenKolonne && talNedenunder) {
+            headerRaekke = kandidat.raekkeIndex;
+            raekker = raekker.slice(k + 1);
+            foersteDataRaekke = raekker[0].raekkeIndex;
+            break;
+          }
         }
       }
 

@@ -15,6 +15,7 @@
 
 import {
   detekterTalKonvention,
+  erMaanedsnavn,
   laesTal,
   type ImportResultat,
   type Matrix,
@@ -162,10 +163,10 @@ export function byggGitter(resultat: ImportResultat): Gitter {
       kolonner = tabelKolonneNavne(t);
     }
   }
-  kolonner = Array.from({ length: bredde }, (_, i) => {
-    const navn = kolonner[i];
-    return navn && navn !== "" ? navn : `Kolonne ${i + 1}`;
-  });
+  const harNavn = Array.from({ length: bredde }, (_, i) => Boolean(kolonner[i] && kolonner[i] !== ""));
+  kolonner = Array.from({ length: bredde }, (_, i) =>
+    harNavn[i] ? kolonner[i] : `Kolonne ${i + 1}`,
+  );
 
   resultat.tabeller.forEach((tabel, tabelIndex) => {
     const plads = kolonnePlads(tabel, tabelBredde(tabel), kolonner);
@@ -212,6 +213,21 @@ export function byggGitter(resultat: ImportResultat): Gitter {
       });
     }
   });
+
+  // Tomme, unavngivne halekolonner: en kolonne uden navn fra en
+  // overskriftsrække og uden en eneste værdi er filens tomme fyld — den
+  // udelades helt. Navngivne kolonner bevares selv når de er tomme.
+  const beholdes = kolonner.map(
+    (_, i) => harNavn[i] || raekker.some((r) => r.vaerdier[i] !== null),
+  );
+  if (beholdes.some((b) => !b)) {
+    kolonner = kolonner.filter((_, i) => beholdes[i]);
+    for (const raekke of raekker) {
+      raekke.vaerdier = raekke.vaerdier.filter((_, i) => beholdes[i]);
+    }
+  }
+
+  const advarsler = [...resultat.advarsler];
 
   const tilfoejNote = (raekke: GitterRaekke, note: string) => {
     raekke.bemaerkning = raekke.bemaerkning ? `${raekke.bemaerkning} · ${note}` : note;
@@ -289,7 +305,38 @@ export function byggGitter(resultat: ImportResultat): Gitter {
     }
   }
 
-  return { kolonner, raekker, struktur, advarsler: [...resultat.advarsler] };
+  // Fortegns-advarsel: motoren kan ikke afgøre om positive omkostninger er
+  // meningen — men den kan opdage mønstret. Én advarsel, uanset antal grupper.
+  const OMKOSTNINGS_RE = /omkostning|udgift|forbrug|cost|expense/i;
+  const positivOmkostningsgruppe = struktur.some((note) => {
+    if (!OMKOSTNINGS_RE.test(note.etiket)) return false;
+    const daekkede =
+      note.slags === "subtotal"
+        ? raekker.filter((r) => note.daekker?.includes(r.raekkeIndex))
+        : raekker.filter((r) => r.tabelIndex === note.tabelIndex && r.sektion === note.etiket);
+    if (daekkede.length === 0) return false;
+    const sum = daekkede.reduce(
+      (s, r) => s + r.vaerdier.reduce((a: number, v) => a + (v ?? 0), 0),
+      0,
+    );
+    return sum > 0;
+  });
+  if (positivOmkostningsgruppe) {
+    advarsler.push(
+      "Omkostningerne står som positive tal i din fil. Tjek at fortegnene er som du vil have dem.",
+    );
+  }
+
+  // Transponerings-advarsel: månedsnavne som ETIKETTER betyder næsten altid
+  // at tabellen vender på tværs — måneder som rækker, kategorier som kolonner.
+  const maanedsEtiketter = raekker.filter((r) => erMaanedsnavn(r.etiket)).length;
+  if (maanedsEtiketter >= 8) {
+    advarsler.push(
+      "Det ser ud til at dine måneder står som rækker og kategorierne som kolonner. Tjek at tabellen vender rigtigt.",
+    );
+  }
+
+  return { kolonner, raekker, struktur, advarsler };
 }
 
 // ───────────────────────── Mutationer (immutable) ─────────────────────────
@@ -441,10 +488,13 @@ export function indsaetFraTekst(
 
 export function opsummer(gitter: Gitter): GitterOpsummering {
   const medtagne = gitter.raekker.filter((r) => r.medtag);
+  // Forholdstal (marginer, brøker) tælles i medtaget men aldrig i summen —
+  // 0,025 i EBITDA-margin må ikke lægges oven i kronebeløbene.
+  const iSum = medtagne.filter((r) => !r.bemaerkning?.includes("forholdstal"));
   const sum: (number | null)[] = gitter.kolonner.map((_, kolonne) => {
     let harVaerdi = false;
     let total = 0;
-    for (const r of medtagne) {
+    for (const r of iSum) {
       const v = r.vaerdier[kolonne];
       if (v !== null && v !== undefined) {
         harVaerdi = true;

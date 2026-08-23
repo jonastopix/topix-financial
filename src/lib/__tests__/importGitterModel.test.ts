@@ -1,7 +1,7 @@
 import * as fs from "fs";
 import * as path from "path";
 import { describe, expect, it } from "vitest";
-import { laesMatrix, type ImportResultat, type Tabel } from "@/lib/importEngine";
+import { laesMatrix, laesTal, type ImportResultat, type Matrix, type Tabel } from "@/lib/importEngine";
 import {
   byggGitter,
   indsaetFraTekst,
@@ -430,11 +430,102 @@ describe("mutationer — nye objekter, aldrig mutation af input", () => {
   });
 });
 
+// ───────────── Advarsler og kolonne-oprydning (robusthed) ─────────────
+
+describe("advarsler og kolonner", () => {
+  it("positiv omkostningsgruppe giver fortegns-advarsel — én gang, uanset antal grupper", () => {
+    const g = byggGitter(
+      resultat([
+        tabel([
+          { raekkeIndex: 0, etiket: "OMKOSTNINGER", type: "sektion", felter: [felt(null), felt(null)] },
+          post(1, "Råvarer", [1180000, 1290000]),
+          post(2, "Fremmed arbejde", [220000, 240000]),
+          {
+            raekkeIndex: 3,
+            etiket: "Vareforbrug i alt",
+            type: "subtotal",
+            daekker: [1, 2],
+            felter: [felt(1400000), felt(1530000)],
+          },
+        ]),
+      ]),
+    );
+    expect(
+      g.advarsler.filter((a) => a.includes("positive tal")),
+    ).toEqual(["Omkostningerne står som positive tal i din fil. Tjek at fortegnene er som du vil have dem."]);
+  });
+
+  it("negative omkostningsgrupper giver ingen fortegns-advarsel", () => {
+    const g = byggGitter(
+      resultat([
+        tabel([
+          post(0, "Mel og gær", [-84100, -80300]),
+          post(1, "Smør", [-61300, -58500]),
+          {
+            raekkeIndex: 2,
+            etiket: "Vareforbrug i alt",
+            type: "subtotal",
+            daekker: [0, 1],
+            felter: [felt(-145400), felt(-138800)],
+          },
+        ]),
+      ]),
+    );
+    expect(g.advarsler.some((a) => a.includes("positive tal"))).toBe(false);
+  });
+
+  it("mindst 8 månedsetiketter giver transponerings-advarsel — 7 gør ikke", () => {
+    const maaneder = ["Januar", "Februar", "Marts", "April", "Maj", "Juni", "Juli", "August"];
+    const g8 = byggGitter(
+      resultat([tabel(maaneder.map((m, i) => post(i, m, [100, -50])))]),
+    );
+    expect(g8.advarsler.some((a) => a.includes("måneder står som rækker"))).toBe(true);
+
+    const g7 = byggGitter(
+      resultat([tabel(maaneder.slice(0, 7).map((m, i) => post(i, m, [100, -50])))]),
+    );
+    expect(g7.advarsler.some((a) => a.includes("måneder står som rækker"))).toBe(false);
+  });
+
+  it("tom unavngiven kolonne udelades; tom NAVNGIVEN kolonne bevares", () => {
+    const g = byggGitter(
+      resultat([
+        tabel([post(0, "Løn", [100, null, null])], {
+          headerRaekke: -1,
+          kolonneOverskrifter: ["Post", "Jan", "Feb", ""], // sidste kolonne unavngiven
+        }),
+      ]),
+    );
+    expect(g.kolonner).toEqual(["Jan", "Feb"]); // "Feb" tom men navngiven → bevaret
+    expect(g.raekker[0].vaerdier).toEqual([100, null]);
+  });
+
+  it("forholdstals-række tælles i medtaget men aldrig i sum", () => {
+    const g = byggGitter(
+      resultat([
+        tabel([post(0, "EBITDA", [120, 230]), post(1, "EBITDA margin", [0.025, 0.045])]),
+      ]),
+    );
+    expect(g.raekker[1].bemaerkning).toBe("Ser ud til at være et forholdstal, ikke et beløb");
+    const o = opsummer(g);
+    expect(o.medtaget).toBe(2);
+    expect(o.sum).toEqual([120, 230]);
+  });
+});
+
 // ───────────────────────── indsaetFraTekst ─────────────────────────
 
 describe("indsaetFraTekst", () => {
+  // Navngivne kolonner, så de tomme kolonner ikke prunes væk før indsætningen.
   const bredt = () =>
-    byggGitter(resultat([tabel([post(0, "Løn", Array.from({ length: 12 }, () => null))])]));
+    byggGitter(
+      resultat([
+        tabel([post(0, "Løn", Array.from({ length: 12 }, () => null))], {
+          headerRaekke: -1,
+          kolonneOverskrifter: ["Post", ...Array.from({ length: 12 }, (_, i) => `M${i + 1}`)],
+        }),
+      ]),
+    );
 
   it("tolv tab-adskilte tal indsat i kolonne 0 fylder tolv kolonner — og et trettende ignoreres", () => {
     const tekst = Array.from({ length: 13 }, (_, i) => String((i + 1) * 100)).join("\t");
@@ -511,7 +602,8 @@ describe("opsummer", () => {
   });
 
   it("kolonne uden medtagne værdier summer til null", () => {
-    const g = byggGitter(resultat([tabel([post(0, "A", [5, null])])]));
+    let g = byggGitter(resultat([tabel([post(0, "A", [5, null]), post(1, "B", [null, 7])])]));
+    g = saetMedtag(g, 1, false);
     expect(opsummer(g).sum).toEqual([5, null]);
   });
 
@@ -659,5 +751,96 @@ describe("golden: gitter af Topix-budget 2026 (XLSX)", () => {
     const hovedtabel = res.tabeller.find((t) => t.headerRaekke === 3)!;
     expect(hovedtabel.foersteDataRaekke).toBe(4);
     expect(hovedtabel.kolonneOverskrifter[1]).toBe("Januar-26");
+  });
+});
+
+/**
+ * GOLDEN mod de fem robusthed-fixtures — hver bygget til at bryde ÉN
+ * antagelse (verificeret 2026-08-23, ~/Downloads/robusthed-resultat.md
+ * efter de seks rettelser). Fastholder pr. fil: antal gitterrækker, antal
+ * subtotaler, gitterets advarsler — og den ene fejlklasse der ALDRIG må
+ * forekomme: at en række med tal hverken er gitterrække, struktur-note
+ * eller header.
+ */
+describe("golden: robusthed-fixtures", () => {
+  const robusthed = path.resolve(__dirname, "../__fixtures__/robusthed");
+
+  /** Matrix-rækker med tal der hverken blev gitterrække, struktur eller header. */
+  const tabteTalRaekker = (
+    matrix: Matrix,
+    res: ImportResultat,
+    g: ReturnType<typeof byggGitter>,
+  ): number[] => {
+    const daekket = new Set<number>();
+    for (const r of g.raekker) daekket.add(r.raekkeIndex);
+    for (const s of g.struktur) daekket.add(s.raekkeIndex);
+    for (const t of res.tabeller) if (t.headerRaekke !== null) daekket.add(t.headerRaekke);
+    const tabte: number[] = [];
+    matrix.forEach((raekke, ri) => {
+      if (daekket.has(ri)) return;
+      const harTal = (raekke ?? []).some(
+        (c) =>
+          typeof c === "number" ||
+          (typeof c === "string" && laesTal(c, res.konvention).vaerdi !== null),
+      );
+      if (harTal) tabte.push(ri);
+    });
+    return tabte;
+  };
+
+  const koer = (matrix: Matrix) => {
+    const res = laesMatrix(matrix);
+    const g = byggGitter(res);
+    return { res, g, tabte: tabteTalRaekker(matrix, res, g) };
+  };
+
+  it("01 — positive omkostninger: 11 rækker, 5 subtotaler, fortegns-advarsel, intet tal tabt", () => {
+    const { g, tabte } = koer(laesArkTilMatrix(`${robusthed}/01-kvartal-positive-omkostninger.xlsx`, "Budget"));
+    expect(g.raekker).toHaveLength(11);
+    expect(g.struktur.filter((s) => s.slags === "subtotal")).toHaveLength(5);
+    expect(g.advarsler).toEqual([
+      "Omkostningerne står som positive tal i din fil. Tjek at fortegnene er som du vil have dem.",
+    ]);
+    expect(tabte).toEqual([]);
+  });
+
+  it("02 — transponeret: 12 rækker, 1 subtotal, transponerings-advarsel, intet tal tabt", () => {
+    const { g, tabte } = koer(laesArkTilMatrix(`${robusthed}/02-transponeret.xlsx`, "Budget 2026"));
+    expect(g.raekker).toHaveLength(12);
+    expect(g.struktur.filter((s) => s.slags === "subtotal")).toHaveLength(1);
+    expect(g.advarsler).toEqual([
+      "Det ser ud til at dine måneder står som rækker og kategorierne som kolonner. Tjek at tabellen vender rigtigt.",
+    ]);
+    expect(tabte).toEqual([]);
+  });
+
+  it("03 — totaler øverst + flettede intervaller: 8 rækker, 3 subtotaler, sum 154000, intet tal tabt", () => {
+    const { g, tabte } = koer(laesArkTilMatrix(`${robusthed}/03-flettede-total-oeverst.xlsx`, "Resultatbudget"));
+    expect(g.raekker).toHaveLength(8);
+    expect(g.struktur.filter((s) => s.slags === "subtotal")).toHaveLength(3);
+    expect(g.advarsler).toEqual([]);
+    expect(g.kolonner[0]).toBe("Jan-feb");
+    expect(opsummer(g).sum[0]).toBe(154000);
+    expect(tabte).toEqual([]);
+  });
+
+  it("04 — semikolon-dansk: 11 rækker, 4 subtotaler, 12 kolonner (halekolonner væk), intet tal tabt", () => {
+    const csv = fs.readFileSync(`${robusthed}/04-semikolon-dansk.csv`, "utf-8");
+    const { res, g, tabte } = koer(parseCsvTilMatrix(csv, ";"));
+    expect(res.konvention).toMatchObject({ tusind: ".", decimal: "," });
+    expect(g.raekker).toHaveLength(11);
+    expect(g.struktur.filter((s) => s.slags === "subtotal")).toHaveLength(4);
+    expect(g.advarsler).toEqual([]);
+    expect(g.kolonner).toHaveLength(12);
+    expect(tabte).toEqual([]);
+  });
+
+  it("05 — engelsk fire år: 6 rækker, 3 subtotaler, forholdstal ude af summen, intet tal tabt", () => {
+    const { g, tabte } = koer(laesArkTilMatrix(`${robusthed}/05-engelsk-fire-aar.xlsx`, "Consolidated"));
+    expect(g.raekker).toHaveLength(6);
+    expect(g.struktur.filter((s) => s.slags === "subtotal")).toHaveLength(3);
+    expect(g.advarsler).toEqual([]);
+    expect(opsummer(g).sum).toEqual([120, 230, 180, 360, 500, 690, 740, 980]);
+    expect(tabte).toEqual([]);
   });
 });
