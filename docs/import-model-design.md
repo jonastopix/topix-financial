@@ -1,7 +1,7 @@
 # Import-model — design
 
 **Besluttet**: 2026-08-23
-**Status**: Principper og form besluttet. Datamodel, UI og canonical-kobling er ikke besluttet.
+**Status**: Principper og form besluttet (P1-P6). Datamodel, UI og canonical-kobling er ikke besluttet.
 **Grundlag**: `docs/import-recon.md`-fund, `docs/kontoplan-recon.md`-fund, og måling mod prod 2026-08-23.
 **Placering**: Tempo 1 i `docs/RAEKKEFOELGE.md`.
 
@@ -18,7 +18,7 @@ Der findes ingen kode der omdanner en celle til et tal. Hele arket flades til te
 Prompten indeholder to linjer der forklarer begge medlemmets klager (`import-budget-excel/index.ts:107-113`):
 
 - **"Beløb skal ALTID være POSITIVE tal"** — medlemmets fil skriver omkostninger som `(17.000)`. Instruktionen gør dem positive. Det er "den har tilpasset omkostninger selv", sat i system.
-- **"Ignorer totaler, subtotaler, marginer og beregnede felter"** — en instruktion, ikke kode. Medlemmets fil har "Subtotal Personale & konsulentydelser" direkte under de tre poster den summerer. Modellen gætter. Nogle gange tager den subtotalen i stedet for detaljerne.
+- **"Ignorer totaler, subtotaler, marginer og beregnede felter"** — en instruktion, ikke kode. Medlemmets fil har "Subtotal Personale & konsulentydelser" direkte under de tre poster den summerer. Modellen gætter.
 
 Prompten nævner ikke parenteser, tusindtalsseparatorer, decimaltvetydighed, bindestreg-som-nul, procenttegn eller valutategn.
 
@@ -26,15 +26,15 @@ Prompten nævner ikke parenteser, tusindtalsseparatorer, decimaltvetydighed, bin
 
 **Kategori-enummet har 29 faste værdier** (`index.ts:170-202`). Medlemmets budget har omkring 90 linjer. Redigeringstabellen kan holde frie kategorier via `manual_`-nøgler — kun importen kan ikke.
 
-**Dubletter summeres ved skrivning.** `confirmBudgetImport` (`budgetEngine.ts:709-721`) lægger rækker med samme kategori og periode sammen: `existingRow.budget_amount + row.budget_amount`. Tages både detaljelinjen og subtotalen, adderes de i stilhed. Samme klasse som `tech_software`-fejlen (PR #151).
+**Dubletter summeres ved skrivning.** `confirmBudgetImport` (`budgetEngine.ts:709-721`) lægger rækker med samme kategori og periode sammen. Tages både detaljelinjen og subtotalen, adderes de i stilhed. Samme klasse som `tech_software`-fejlen (PR #151).
 
-**Slette-knappen er gated på et præfiks.** `HbBudgetEditTable.tsx:450` sætter `isManual = row.key.startsWith("manual_")`, og knappen renderes kun når den er sand (`:534`). Importerede rækker har enum-nøgler. Medlemmet kan ikke fjerne det AI'en fandt på.
+**Slette-knappen er gated på et præfiks.** `HbBudgetEditTable.tsx:450` sætter `isManual = row.key.startsWith("manual_")`, og knappen renderes kun når den er sand (`:534`). Importerede rækker har enum-nøgler.
 
 ### Rapport-siden har den modsatte fejl
 
 Rapport-vejen har deterministiske parsere. Men `parseDanishNumber` (`_shared/pdfTextParser.ts:22-35`) antager dansk konvention absolut: punktum er tusindtal, komma er decimal.
 
-Medlemmets `2,700,000` bliver til `2.700,000` og `parseFloat` giver **2,7**. To komma syv i stedet for to komma syv millioner, uden fejl og uden advarsel.
+Medlemmets `2,700,000` bliver til `2.700,000` og `parseFloat` giver **2,7**.
 
 ### Målt mod prod 2026-08-23
 
@@ -44,16 +44,51 @@ Medlemmets `2,700,000` bliver til `2.700,000` og `parseFloat` giver **2,7**. To 
 | Hårde fejl (`status = error`) | 6 |
 | Kræver manuel indtastning | 29, fordelt på **5 virksomheder** |
 | `known_source_unsupported_variant` | 2 |
-| Validering FAIL | 53 |
-| **Rapporter med manuel override** | **54** |
 | Uploads seneste 60 dage | 69, heraf 7 fejlede eller manuelle |
 | Budgetter | 14 virksomheder, 84 distinkte kategorier |
 
-**Hver fjerde virksomhed der har uploadet, har ramt muren.** Set pr. rapport er det 15%; set pr. virksomhed er det 24%. Den sidste vinkel er den der betyder noget.
-
-**Flere rapporter er rettet i hånden (54) end systemet selv erkendte var problematiske (29).** Se §6.1 — det skal måles før parseren røres.
+**Hver fjerde virksomhed der har uploadet, har ramt muren.** Set pr. rapport 15%; set pr. virksomhed 24%.
 
 13 af 34 virksomheder har aldrig uploadet. En upload der aldrig blev til en række, kan ikke ses i data.
+
+### Valideringen er tæt på støj
+
+Krydstabel `validation_status` × manuel rettelse:
+
+| | Rettet i hånden | Urørt |
+|---|---|---|
+| **PASS** | 30 | 90 |
+| **FAIL** | 20 | 33 |
+| **NULL** | 4 | 16 |
+
+**30 rapporter bestod valideringen og blev alligevel rettet i hånden.** Et grønt flueben betyder ikke at tallene er rigtige.
+
+**33 rapporter fejlede og blev aldrig rørt.** Rettelsesraten er 38% på FAIL mod 25% på PASS — signalet korrelerer knap nok med om tallene er forkerte.
+
+### 23 fejlede, urørte rapporter er committet
+
+Af de 53 fejlede er 43 committet til `financial_report_facts`; 20 blev rettet først, 23 ikke. Deres tal står i KPI'er, på forsiden, i budget mod faktisk og på rådgiverens skærm.
+
+Fordelingen: **21 af de 23 tilhører Brick Works ApS**, perioderne april-september 2025. De sidste 2 er fra januar-maj 2026 og har tomt `company_name`.
+
+Ingen opdagede det i over et år. Signalet fandtes; der var ingen der lyttede. Samme sygdom som edge functions uden fejlovervågning, men på datasiden.
+
+### Fejlene har én årsag
+
+Ti registrerede fejltekster på tværs af de 23. Fire er ren fortegnsvending:
+
+```
+gross_profit_sum: MISMATCH: -115840.07 ≠ 115840.06999999995
+gross_profit_sum: MISMATCH:  -14709.06 ≠  14709.059999999998
+gross_profit_sum: MISMATCH: -639640.40 ≠ 639640.4
+gross_profit_sum: MISMATCH:  -77799.25 ≠  77799.24999999994
+```
+
+Tallene er identiske; kun fortegnet er vendt. `dkCombinedBalancePnlV1` har fortegnsdetektion for både business- og credit-konvention, men filhovedet (`:5-8`) siger at **kun credit er understøttet**. Bruger virksomhedens regnskabssystem business-konvention, vender alle fortegn. *Ikke verificeret at Brick Works ramte netop den skabelon — mønstret passer.*
+
+`impossible_margin_check` med 1515% og 260% dækningsgrad peger samme vej: omsætning aflæst for lille, formentlig separatorproblem. `EBT > gross_profit` og `2/3 metrics negative` er fortegn igen.
+
+**Mindst syv af ti fejl er fortegnskonvention eller talaflæsning** — begge dele adresseret af motoren i §4. Brick Works løser sig selv ved gen-upload; det er ikke en separat oprydningsopgave.
 
 ---
 
@@ -69,7 +104,7 @@ Værste udfald er at medlemmet ser sine egne tal i en tabel og trykker godkend. 
 
 Alle importer lander i samme redigerbare gitter, uanset om parseren fik det hele, halvdelen eller ingenting. Parseren udfylder bare mere eller mindre af det.
 
-Det gør indsæt-fra-regneark — som medlemmet eksplicit bad om — til en egenskab ved arkitekturen frem for en ekstra funktion. Og det opfylder P1 ved konstruktion: man kan ikke ende i en død ende i et gitter der allerede indeholder ens egne tal.
+Det gør indsæt-fra-regneark — som medlemmet eksplicit bad om — til en egenskab ved arkitekturen frem for en ekstra funktion. Og det opfylder P1 ved konstruktion.
 
 **P3 — Linje-først, ikke kategori-først.**
 
@@ -79,13 +114,17 @@ En kategori-først-model har intet sted at lægge det ukendte. En linje-først-m
 
 **P4 — Tal-konvention detekteres, aldrig antages.**
 
-`parseDanishNumber` antager dansk konvention. Filen fra Remm bruger amerikansk. Konventionen skal udledes af indholdet: har en streng både punktum og komma, er den højeste stilling decimaltegnet; har den kun ét separatortegn, afgøres det af grupperingsmønstret.
+Konventionen udledes af indholdet: har en streng både punktum og komma, er den højeste stilling decimaltegnet; har den kun ét separatortegn, afgøres det af grupperingsmønstret. Det samme gælder fortegnskonvention — business og credit skal begge understøttes, ikke kun den ene.
 
 **P5 — Motoren er vokabularie-uafhængig.**
 
-Motoren omdanner tekst til rækker med etiket og tal. Kategoritildeling er en separat funktion der kan skiftes ud uden at røre motoren.
+Motoren omdanner tekst til rækker med etiket og tal. Kategoritildeling er en separat funktion der kan skiftes ud uden at røre motoren. Det gør det muligt at bygge motoren nu og koble den til canonical bagefter.
 
-Det gør det muligt at bygge motoren nu og koble den til canonical bagefter, uden dobbeltarbejde.
+**P6 — Tallenes tilstand skal være synlig, ikke skjult bag et binært flueben.**
+
+Commit-trinnet gater ikke på validering i dag, og det skal det heller ikke komme til — en gate ville skabe en ny død ende, og valideringen er som målt tæt på støj.
+
+Svaret er synlighed frem for spærring. Et tal der er aflæst automatisk og aldrig efterset, er ikke det samme som et tal et menneske har bekræftet. Medlem og rådgiver skal kunne se forskellen, og et fejlsignal skal nå et menneske frem for at ligge i en kolonne ingen læser.
 
 ---
 
@@ -105,7 +144,7 @@ Men der findes allerede ét fælles vokabularium: `CanonicalMetrics` i `_shared/
 
 Otte skabeloner med hvert sit lokale vokabularium normaliserer allerede ind i det sæt via `KF_TO_CANONICAL`, `SEMANTIC_TO_CANONICAL`, `CLASS_TO_CANONICAL` og fortegnsprofilerne. Budget er bare aldrig blevet koblet på.
 
-Opgaven er derfor ikke at opfinde et vokabularium, men at give budget den samme oversættelse de otte skabeloner allerede har. Budget mod faktisk bliver eksakt ved konstruktion, fordi begge sider lander på samme felt — og `REPORT_FIELD_TO_BUDGET_KEYS` (`budgetEngine.ts:268-281`) med sine dokumenterede huller kan slettes frem for udbygges.
+Opgaven er derfor ikke at opfinde et vokabularium, men at give budget den samme oversættelse de otte skabeloner allerede har. Budget mod faktisk bliver eksakt ved konstruktion — og `REPORT_FIELD_TO_BUDGET_KEYS` (`budgetEngine.ts:268-281`) med sine dokumenterede huller kan slettes frem for udbygges.
 
 De 29 enum-nøgler og `generate-budget-from-accounts`' frie snake_case-nøgler dør begge.
 
@@ -116,7 +155,7 @@ De 29 enum-nøgler og `generate-budget-from-accounts`' frie snake_case-nøgler d
 Ren funktion, ingen database, ingen AI. Testet før nogen flade bygges. Samme mønster som `canonicalEngine`, `budgetEngine`, `opgaveEngine`.
 
 1. **Find tabelgrænser.** Hvor begynder datatabellen, hvor slutter den, og indeholder filen flere tabeller. Remm-filen har et KPI-resumé i linje 4-15 og en månedstabel fra linje 17.
-2. **Detektér tal-konvention** pr. fil, ikke pr. celle (P4). Rapportér hvilken konvention der blev valgt, så det kan vises og overstyres.
+2. **Detektér tal-konvention** pr. fil, ikke pr. celle (P4). Rapportér hvilken konvention der blev valgt, så den kan vises og overstyres.
 3. **Normalisér celler til tal.** Parenteser som negativt fortegn, tusindtalsseparatorer, bindestreg og tom celle som nul, procenttegn, valutategn, mellemrum.
 4. **Klassificér rækker** som post, subtotal, sektionsoverskrift eller støj — på struktur, ikke på ordvalg. En subtotal genkendes på at den summerer rækkerne over sig, ikke på at den hedder "subtotal".
 5. **Bevar etiketten** ordret på hver post.
@@ -132,7 +171,7 @@ Kategoritildeling er **ikke** motorens opgave (P5).
 |---|---|---|
 | `excelTemplates.ts:197-199` (`detectTemplate`) | Enhver workbook med ark `DATA` **og** `P&L Top Line` afvises som fejl | Læses som enhver anden fil, lander i gitteret |
 | `sourceFingerprint.ts:174-176` (`isAiAllowed`) | Kendt kilde uden matchende skabelon → AI spærret, manuel indtastning | Kendt kilde uden skabelon → deterministisk motor → gitter. AI forbliver spærret på kendte kilder (værnet er rigtigt), men gitteret erstatter den døde ende |
-| Periode-gaten, `extract-financial-data/index.ts:1561-1599` | Igangværende måned → `status: "error"` | Advarsel, ikke afvisning. Medlemmet må gerne uploade en delvis måned hvis de vil |
+| Periode-gaten, `extract-financial-data/index.ts:1561-1599` | Igangværende måned → `status: "error"` | Advarsel, ikke afvisning |
 | Budget-enum, `import-budget-excel/index.ts:170-202` | 29 faste værdier, alt andet → `andet` | Fri etiket + valgfrit canonical-felt |
 | `HbBudgetEditTable.tsx:450` | Slette-knap kun på `manual_`-rækker | Enhver række kan slettes |
 
@@ -142,25 +181,23 @@ AI-værnet på kendte kilder bevares. Bekymringen er rigtig: AI må ikke digte t
 
 ## 6. Åbne spørgsmål
 
-**6.1 Hvorfor er 54 rapporter rettet i hånden, når kun 29 blev flaget?**
+**6.1 Sammenligner validatoren floats uden tolerance?**
+Fejlteksterne viser rå float-artefakter (`115840.06999999995` mod `-115840.07`). Selv med korrekt fortegn ville afrundingsstøj kunne udløse en fejl. Det er formentlig en del af forklaringen på at 33 fejl blev ignoreret — nogle var falske alarmer. Samme klasse som float-artefakterne lukket i PR #155. **Skal verificeres i koden, ikke antages.**
 
-To læsninger. Enten fanger valideringen problemerne — 53 FAIL mod 54 overrides passer mistænkeligt godt — og medlemmerne retter det systemet selv markerede. Eller også siger systemet PASS, og medlemmerne opdager selv at tallene er forkerte.
+**6.2 En rapport kan være FAIL uden registreret grund.**
+23 fejlede rapporter, kun 10 fejltekster. 13 er markeret FAIL med tom `validation_errors`. Selv hvis nogen havde kigget, kunne de ikke have handlet.
 
-Den første er acceptabel. Den anden betyder at et grønt flueben ikke kan stoles på, hvilket er værre end en tydelig fejl.
+**6.3 Hvad sker der med de 84 eksisterende budgetkategorier hos 14 virksomheder?**
+De skal mappes én gang til canonical. Automatisk eller med medlemmets bekræftelse er ikke besluttet. Samme klasse som B9 i opgave-modellen.
 
-**Skal måles før parseren røres.** Overlap mellem `validation_status = 'FAIL'` og `manual_normalized_data is not null`.
+**6.4 Hvordan matches budgetlinje mod rapportlinje ved nedboring?**
+Rapportsiden gemmer allerede linjeniveau i `normalized_data.raw_lines`, som ingen læser (§7.2). Materialet findes. Men linjenavne matcher sjældent ordret, så matchningen bliver aldrig perfekt, og fladen skal sige det ærligt.
 
-**6.2 Hvad sker der med de 84 eksisterende kategorier hos 14 virksomheder?**
+**6.5 Hvad med de 13 virksomheder der aldrig har uploadet?**
+Kan ikke ses i data. Nogle har måske prøvet og givet op før en række blev skrevet. Bør genbesøges når importen virker — de 15 aktiverings-sager i `RAEKKEFOELGE.md` er formentlig delvist blokerede frem for frafaldne.
 
-De skal mappes én gang til canonical. Om det sker automatisk eller med medlemmets bekræftelse, er ikke besluttet. Samme klasse som B9 i opgave-modellen.
-
-**6.3 Hvordan matches budgetlinje mod rapportlinje ved nedboring?**
-
-Rapportsiden gemmer allerede linjeniveau i `normalized_data.raw_lines`, som ingen læser (§7.2). Materialet findes. Men linjenavne matcher sjældent ordret på tværs af budget og bogføring, så matchningen bliver aldrig perfekt, og fladen skal sige det ærligt — samme dom som `budgetEngine.ts:266-267` allerede har truffet.
-
-**6.4 Hvad med de 13 virksomheder der aldrig har uploadet?**
-
-Kan ikke ses i data. Nogle af dem har måske prøvet og givet op før en række blev skrevet. Bør genbesøges når importen virker — de 15 aktiverings-sager i `RAEKKEFOELGE.md` er formentlig delvist blokerede frem for frafaldne.
+**6.6 Hvem er de to rapporter med tomt `company_name`?**
+Januar-maj 2026, fejlede, urørte, committet. Enten er feltet aldrig sat, eller rapporten er ikke koblet ordentligt.
 
 ---
 
@@ -178,15 +215,18 @@ Kan ikke ses i data. Nogle af dem har måske prøvet og givet op før en række 
 **7.4 `parseDanishNumber` findes i fem næsten identiske kopier.**
 `_shared/pdfTextParser.ts:22-35` plus varianter i fire skabelonfiler. Klient-varianten `normalizeNumber` (`excelTemplates.ts:53-64`) erstatter ALLE kommaer med punktum, hvilket gør `1,234,567` til `NaN`.
 
+**7.5 `dkCombinedBalancePnlV1` understøtter kun credit-konvention.**
+Dokumenteret i filens eget hoved (`:5-8`), men detektionen findes for begge (`:52-58`). Sandsynlig årsag til Brick Works' 21 fortegnsvendte rapporter.
+
 ---
 
 ## 8. Rækkefølge inden for sporet
 
-**Spor 1 — motoren og de døde ender.** Vokabularie-uafhængigt. Motoren (§4), gitteret som fælles landingsflade (P2), slette-knappen, de fem døde ender (§5). Måling af 6.1 først.
+**Spor 1 — motoren og de døde ender.** Vokabularie-uafhængigt. Motoren (§4), gitteret som fælles landingsflade (P2), slette-knappen, de fem døde ender (§5). Verificér 6.1 først — float-tolerance er en enkeltlinje-rettelse der kan fjerne en stor del af støjen med det samme.
 
 **Spor 2 — canonical-koblingen.** Budget mapper til `CanonicalMetrics`. `REPORT_FIELD_TO_BUDGET_KEYS` slettes. De 84 eksisterende kategorier mappes.
 
-**Spor 3 — nedboring.** Budgetlinje mod rapportlinje, når 6.3 er besvaret.
+**Spor 3 — nedboring.** Budgetlinje mod rapportlinje, når 6.4 er besvaret.
 
 Motoren ved intet om kategorier, så spor 1 skal ikke laves om når spor 2 kommer.
 
