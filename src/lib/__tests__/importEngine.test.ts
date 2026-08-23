@@ -181,6 +181,20 @@ describe("findTabeller", () => {
     }
   });
 
+  it("måneds-intervaller og halvår genkendes som periode-header", () => {
+    for (const header of [
+      ["Konto", "Jan-feb", "Mar-apr"],
+      ["Konto", "maj/jun", "jul/aug"],
+      ["Post", "1. halvår", "2. halvår"],
+      ["Post", "H1", "H2"],
+    ]) {
+      const graenser = findTabeller([header, ["Løn", "1", "2"]]);
+      expect(graenser, header.join(",")).toEqual([
+        { headerRaekke: 0, foersteDataRaekke: 1, sidsteDataRaekke: 1 },
+      ]);
+    }
+  });
+
   it("to header-tabeller i samme blok: næste header afslutter den første", () => {
     const m: Matrix = [
       ["Post", "Jan", "Feb"],
@@ -353,6 +367,42 @@ describe("klassificerRaekker", () => {
     ]);
     expect(ud[2].type).toBe("subtotal");
     expect(ud[2].daekker).toEqual([0, 1]);
+  });
+
+  it("total OVER sine detaljer findes nedad og dækker hele gruppen", () => {
+    const ud = klassificerRaekker([
+      raekke(0, "Nettoomsætning", [742000, 806000]),
+      raekke(1, "  Konsultationer", [498000, 541000]),
+      raekke(2, "  Behandlinger", [201000, 219000]),
+      raekke(3, "  Salg af produkter", [43000, 46000]),
+    ]);
+    expect(ud[0].type).toBe("subtotal");
+    expect(ud[0].daekker).toEqual([1, 2, 3]);
+    expect(ud.slice(1).map((r) => r.type)).toEqual(["post", "post", "post"]);
+  });
+
+  it("nedad gælder GRUPPE-semantik: et præfiks-match uden hele blokken er ikke bevis (Contribe-regressionen)", () => {
+    // -200 = -75 + -125 (de to første under) — men blokken fortsætter til -125 mere.
+    const ud = klassificerRaekker([
+      raekke(0, "Shopify App, Contribe", [-200, -200]),
+      raekke(1, "Shopify App, Hideapp", [-75, -75]),
+      raekke(2, "Shopify App, JudgeMe", [-125, -125]),
+      raekke(3, "Shopify App, EZ Market Translate", [-125, -125]),
+    ]);
+    expect(ud[0].type).toBe("post");
+  });
+
+  it("nedad-søgningen stopper ved næste subtotal — der summes aldrig hen over den", () => {
+    const ud = klassificerRaekker([
+      raekke(0, "X", [100, 100]), // 100 = D+E+F, men F ligger på den anden side af subtotalen
+      raekke(1, "D", [15, 15]),
+      raekke(2, "E", [15, 15]),
+      raekke(3, "I alt", [30, 30]), // subtotal for D+E (opad)
+      raekke(4, "F", [70, 70]),
+    ]);
+    expect(ud[3].type).toBe("subtotal");
+    expect(ud[3].daekker).toEqual([1, 2]);
+    expect(ud[0].type).toBe("post"); // blokken [D,E] stopper ved subtotalen: 30 ≠ 100
   });
 
   it("etiket med kun ulæselige felter → post, ikke stoej ('Blended ROAS'-casen)", () => {
@@ -548,6 +598,19 @@ describe("laesMatrix", () => {
     expect(t.kolonneOverskrifter).toEqual(["KPI", "Årstotal", "Kommentar"]);
     expect(t.foersteDataRaekke).toBe(1);
     expect(t.raekker.map((r) => r.etiket)).toEqual(["Revenue", "Net Profit"]);
+  });
+
+  it("header-promovering ser på de første TRE rækker — titelrækker over headeren droppes", () => {
+    const res = laesMatrix([
+      ["Nordlys Klinik 2026", null, null],
+      ["Konto", "Årstotal", "Note"],
+      ["Løn", "1.000", "x"],
+    ]);
+    const t = res.tabeller[0];
+    expect(t.headerRaekke).toBe(1);
+    expect(t.kolonneOverskrifter).toEqual(["Konto", "Årstotal", "Note"]);
+    expect(t.foersteDataRaekke).toBe(2);
+    expect(t.raekker.map((r) => r.etiket)).toEqual(["Løn"]);
   });
 
   it("headerløs tabel: første række med tekst KUN i kolonne 0 promoveres ikke — forbliver sektion", () => {

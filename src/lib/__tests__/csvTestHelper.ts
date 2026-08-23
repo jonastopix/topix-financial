@@ -1,10 +1,11 @@
 import type { Celle, Matrix } from "@/lib/importEngine";
 
 /** CSV → Matrix (test-hjælper — motoren arbejder på matricer, ikke filer).
-    Komma-separeret, citationstegn omkring felter med komma, "" = escaped
-    quote, tomme felter → null. Deles af importEngine- og
+    Skilletegn er komma medmindre andet angives (robusthed-fixture 04 er
+    semikolonsepareret); citationstegn omkring felter med skilletegn, "" =
+    escaped quote, tomme felter → null. Deles af importEngine- og
     importGitterModel-testene. */
-export function parseCsvTilMatrix(tekst: string): Matrix {
+export function parseCsvTilMatrix(tekst: string, skille: string = ","): Matrix {
   const matrix: Matrix = [];
   let raekke: Celle[] = [];
   let felt = "";
@@ -39,7 +40,7 @@ export function parseCsvTilMatrix(tekst: string): Matrix {
     } else if (c === '"') {
       iCitat = true;
       harCitat = true;
-    } else if (c === ",") {
+    } else if (c === skille) {
       lukFelt();
     } else if (c === "\n") {
       lukRaekke();
