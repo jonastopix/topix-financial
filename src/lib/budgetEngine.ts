@@ -738,36 +738,27 @@ export async function confirmBudgetImport(args: {
     slet på id — kun årets base-værdier + __label__-markører for netop de
     nøgler planen skriver. Den gamle confirmBudgetImport (W5) består urørt
     til den nuværende flade er koblet om. */
-export async function confirmImportFraSkriveplan(args: {
+export interface SkriveplanInsert {
+  user_id: string;
+  company_id: string;
+  category: string;
+  budget_amount: number;
+  period: string;
+}
+
+/** REN insert-dannelse for W8 — udtrukket så rundturen (inserts →
+    decodeBudgetRows) kan bevises i test uden supabase. Værdirækker
+    (base-scenariet), __label__-markører (saveScenarioEdits' form :558-564:
+    category `__label__{år}_{key}`, period = etiketten) og __group__-
+    markører (:566-574: category `__group__{år}_{key}`, period = gruppen). */
+export function byggSkriveplanInserts(args: {
   userId: string;
   companyId: string;
   plan: Skriveplan;
-}): Promise<void> {
+}): SkriveplanInsert[] {
   const { userId, companyId, plan } = args;
 
-  const noegler = plan.raekker.map((r) => r.noegle);
-  if (new Set(noegler).size !== noegler.length) {
-    throw new Error("Skriveplanen har kolliderende nøgler — der skrives intet");
-  }
-  if (!/^\d{4}$/.test(plan.aar)) {
-    throw new Error(`Ugyldigt budgetår i skriveplanen: "${plan.aar}"`);
-  }
-
-  const periodPrefix = `${plan.aar}-base-`;
-  const labelPrefix = `__label__${plan.aar}_`;
-  const noegleSet = new Set(noegler);
-
-  const existing = await fetchExistingRows(companyId);
-  const toDelete = existing.filter(
-    (e) =>
-      e.period.startsWith(periodPrefix) ||
-      (e.category.startsWith(labelPrefix) && noegleSet.has(e.category.slice(labelPrefix.length))),
-  );
-  if (toDelete.length > 0) {
-    await supabase.from("budget_targets").delete().in("id", toDelete.map((e) => e.id));
-  }
-
-  const inserts = plan.raekker.flatMap((raekke) =>
+  const vaerdiInserts = plan.raekker.flatMap((raekke) =>
     raekke.maanedsbeloeb.flatMap((beloeb, monthIdx) =>
       beloeb === null
         ? []
@@ -788,14 +779,58 @@ export async function confirmImportFraSkriveplan(args: {
     .map((raekke) => ({
       user_id: userId,
       company_id: companyId,
-      category: `${labelPrefix}${raekke.noegle}`,
+      category: `__label__${plan.aar}_${raekke.noegle}`,
       budget_amount: 0,
       period: raekke.etiket,
     }));
 
+  const groupInserts = plan.raekker
+    .filter((raekke) => raekke.gruppe !== null && raekke.gruppe.trim() !== "")
+    .map((raekke) => ({
+      user_id: userId,
+      company_id: companyId,
+      category: `__group__${plan.aar}_${raekke.noegle}`,
+      budget_amount: 0,
+      period: raekke.gruppe as string,
+    }));
+
+  return [...vaerdiInserts, ...labelInserts, ...groupInserts];
+}
+
+export async function confirmImportFraSkriveplan(args: {
+  userId: string;
+  companyId: string;
+  plan: Skriveplan;
+}): Promise<void> {
+  const { userId, companyId, plan } = args;
+
+  const noegler = plan.raekker.map((r) => r.noegle);
+  if (new Set(noegler).size !== noegler.length) {
+    throw new Error("Skriveplanen har kolliderende nøgler — der skrives intet");
+  }
+  if (!/^\d{4}$/.test(plan.aar)) {
+    throw new Error(`Ugyldigt budgetår i skriveplanen: "${plan.aar}"`);
+  }
+
+  const periodPrefix = `${plan.aar}-base-`;
+  const labelPrefix = `__label__${plan.aar}_`;
+  const groupPrefix = `__group__${plan.aar}_`;
+  const noegleSet = new Set(noegler);
+
+  const existing = await fetchExistingRows(companyId);
+  const toDelete = existing.filter(
+    (e) =>
+      e.period.startsWith(periodPrefix) ||
+      (e.category.startsWith(labelPrefix) && noegleSet.has(e.category.slice(labelPrefix.length))) ||
+      (e.category.startsWith(groupPrefix) && noegleSet.has(e.category.slice(groupPrefix.length))),
+  );
+  if (toDelete.length > 0) {
+    await supabase.from("budget_targets").delete().in("id", toDelete.map((e) => e.id));
+  }
+
   const { error } = await supabase
     .from("budget_targets")
-    .insert([...inserts, ...labelInserts]);
+    .insert(byggSkriveplanInserts({ userId, companyId, plan }));
   if (error) throw error;
 }
 

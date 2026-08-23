@@ -1,6 +1,7 @@
 import * as fs from "fs";
 import * as path from "path";
 import { describe, expect, it } from "vitest";
+import { byggSkriveplanInserts, decodeBudgetRows } from "@/lib/budgetEngine";
 import { laesMatrix } from "@/lib/importEngine";
 import { byggGitter, saetMedtag, type Gitter } from "@/lib/importGitterModel";
 import {
@@ -16,7 +17,13 @@ import { laesArkTilMatrix } from "./xlsxTestHelper";
 
 const gitter = (
   kolonner: string[],
-  raekker: { raekkeIndex: number; etiket: string; vaerdier: (number | null)[]; medtag?: boolean }[],
+  raekker: {
+    raekkeIndex: number;
+    etiket: string;
+    vaerdier: (number | null)[];
+    medtag?: boolean;
+    sektion?: string | null;
+  }[],
 ): Gitter => ({
   kolonner,
   raekker: raekker.map((r) => ({
@@ -26,7 +33,7 @@ const gitter = (
     medtag: r.medtag ?? true,
     bemaerkning: null,
     kommentar: null,
-    sektion: null,
+    sektion: r.sektion ?? null,
     tabelIndex: 0,
   })),
   struktur: [],
@@ -136,21 +143,23 @@ describe("byggSkriveplan", () => {
     const medMaaneder = plan.raekker[0];
     expect(medMaaneder.maanedsbeloeb[0]).toBe(100);
     expect(medMaaneder.maanedsbeloeb.slice(1)).toEqual(Array(11).fill(null)); // 9999 ikke brugt
-    expect(plan.ubrugteKolonner).toContain("Årstotal");
+    expect(plan.sprungetOverKolonner).toContain("Årstotal");
+    expect(plan.utolkedeKolonner).toEqual([]);
 
     const kunAar = plan.raekker[1];
     expect(kunAar.maanedsbeloeb).toEqual(Array(12).fill(100)); // 1200/12
     expect(kunAar.fordelinger[0]).toMatchObject({ kolonnenavn: "Årstotal", beloebPrMaaned: 100 });
   });
 
-  it("ukendte kolonner ignoreres og registreres i ubrugteKolonner", () => {
+  it("ukendte kolonner ignoreres og registreres i utolkedeKolonner", () => {
     const plan = byggSkriveplan(
       gitter(["Januar", "Kommentar"], [{ raekkeIndex: 0, etiket: "Løn", vaerdier: [100, 555] }]),
       "2026",
     );
     expect(plan.raekker[0].maanedsbeloeb[0]).toBe(100);
     expect(plan.raekker[0].maanedsbeloeb.filter((v) => v !== null)).toEqual([100]);
-    expect(plan.ubrugteKolonner).toContain("Kommentar");
+    expect(plan.utolkedeKolonner).toContain("Kommentar");
+    expect(plan.sprungetOverKolonner).toEqual([]);
   });
 
   it("årsfilter: kun kolonner med det valgte år når år kan udledes", () => {
@@ -162,7 +171,21 @@ describe("byggSkriveplan", () => {
       "2026",
     );
     expect(plan.raekker[0].maanedsbeloeb[0]).toBe(222);
-    expect(plan.ubrugteKolonner).toContain("Januar-25");
+    expect(plan.sprungetOverKolonner).toContain("Januar-25");
+  });
+
+  it("gruppen sættes fra gitterrækkens sektion", () => {
+    const plan = byggSkriveplan(
+      gitter(
+        ["Januar"],
+        [
+          { raekkeIndex: 0, etiket: "Løn", vaerdier: [100], sektion: "Personale & konsulentydelser" },
+          { raekkeIndex: 1, etiket: "Uden sektion", vaerdier: [200] },
+        ],
+      ),
+      "2026",
+    );
+    expect(plan.raekker.map((r) => r.gruppe)).toEqual(["Personale & konsulentydelser", null]);
   });
 
   it("nøgler er unikke selv når to rækker har samme etiket", () => {
@@ -243,12 +266,13 @@ describe("golden: skriveplaner for de syv fixtures", () => {
     plan: Skriveplan,
     fordelteKolonner: string[],
     noeglerUnikke: boolean,
-    forventet: { raekker: number; fordelte: string[]; ubrugte: string[] },
+    forventet: { raekker: number; fordelte: string[]; utolkede: string[]; sprungetOver: string[] },
   ) => {
     expect(plan.raekker).toHaveLength(forventet.raekker);
     expect(noeglerUnikke).toBe(true);
     expect(fordelteKolonner).toEqual(forventet.fordelte);
-    expect(plan.ubrugteKolonner).toEqual(forventet.ubrugte);
+    expect(plan.utolkedeKolonner).toEqual(forventet.utolkede);
+    expect(plan.sprungetOverKolonner).toEqual(forventet.sprungetOver);
   };
 
   it("Remm-budget (CSV): 62 rækker; Årstotal fordelt for KPI-rækkerne og ubrugt for månedsrækkerne", () => {
@@ -259,7 +283,8 @@ describe("golden: skriveplaner for de syv fixtures", () => {
     fastlaas(plan, fordelteKolonner, noeglerUnikke, {
       raekker: 62, // 63 medtagne minus "Blended ROAS" (ingen tal)
       fordelte: ["Årstotal"],
-      ubrugte: ["Årstotal"],
+      utolkede: [],
+      sprungetOver: ["Årstotal"], // brugt for KPI-rækkerne, sprunget over for månedsrækkerne
     });
     expect(plan.advarsler.some((a) => a.includes("uden tal blev udeladt"))).toBe(true);
   });
@@ -270,7 +295,8 @@ describe("golden: skriveplaner for de syv fixtures", () => {
     fastlaas(plan, fordelteKolonner, noeglerUnikke, {
       raekker: 32,
       fordelte: [],
-      ubrugte: ["Årstotal"],
+      utolkede: [],
+      sprungetOver: ["Årstotal"], // intet år på kolonnen, månederne bærer -26
     });
   });
 
@@ -282,7 +308,8 @@ describe("golden: skriveplaner for de syv fixtures", () => {
     fastlaas(plan, fordelteKolonner, noeglerUnikke, {
       raekker: 11,
       fordelte: ["Q1", "Q2", "Q3", "Q4"],
-      ubrugte: ["Total"],
+      utolkede: [],
+      sprungetOver: ["Total"],
     });
   });
 
@@ -294,9 +321,12 @@ describe("golden: skriveplaner for de syv fixtures", () => {
     fastlaas(plan, fordelteKolonner, noeglerUnikke, {
       raekker: 0,
       fordelte: [],
-      ubrugte: ["Omsætning", "Varekøb", "Løn", "Husleje", "Øvrigt", "Resultat"],
+      utolkede: ["Omsætning", "Varekøb", "Løn", "Husleje", "Øvrigt", "Resultat"],
+      sprungetOver: [],
     });
-    expect(plan.advarsler).toEqual(["12 linjer uden tal blev udeladt af planen"]);
+    expect(plan.advarsler).toEqual([
+      "Ingen af kolonnerne kunne læses som en periode. Tjek at månederne står som kolonner.",
+    ]);
   });
 
   it("robusthed 03 (intervaller): 8 rækker, alle seks intervalkolonner fordelt", () => {
@@ -307,7 +337,8 @@ describe("golden: skriveplaner for de syv fixtures", () => {
     fastlaas(plan, fordelteKolonner, noeglerUnikke, {
       raekker: 8,
       fordelte: ["Jan-feb", "Mar-apr", "Maj-jun", "Jul-aug", "Sep-okt", "Nov-dec"],
-      ubrugte: [],
+      utolkede: [],
+      sprungetOver: [],
     });
   });
 
@@ -319,7 +350,8 @@ describe("golden: skriveplaner for de syv fixtures", () => {
     fastlaas(plan, fordelteKolonner, noeglerUnikke, {
       raekker: 11,
       fordelte: [],
-      ubrugte: [],
+      utolkede: [],
+      sprungetOver: [],
     });
     expect(plan.advarsler).toEqual([]);
   });
@@ -332,7 +364,8 @@ describe("golden: skriveplaner for de syv fixtures", () => {
     fastlaas(plan, fordelteKolonner, noeglerUnikke, {
       raekker: 6,
       fordelte: ["FY2026 Plan H1", "FY2026 Plan H2"],
-      ubrugte: [
+      utolkede: [],
+      sprungetOver: [
         "FY2024 Actual H1",
         "FY2024 Actual H2",
         "FY2025 Budget H1",
@@ -350,5 +383,63 @@ describe("golden: skriveplaner for de syv fixtures", () => {
     const foerste = g.raekker[0].raekkeIndex;
     const { plan } = planAf(saetMedtag(g, foerste, false), "2026");
     expect(plan.raekker).toHaveLength(61);
+  });
+});
+
+// ───────────────────────── Rundturen (sporets vigtigste test) ─────────────────────────
+
+/**
+ * RUNDTUR uden database: skriveplan → byggSkriveplanInserts (præcis de
+ * rækker confirmImportFraSkriveplan indsætter) → decodeBudgetRows (præcis
+ * afkodningen næste load kører). Beviser at etiketter, grupper og
+ * månedstal overlever gem+genindlæsning. Skriver vi noget der ikke kan
+ * læses, er etiketterne bevaret i databasen og tabt på skærmen — fejler
+ * denne test, er alt det andet ligegyldigt.
+ */
+describe("rundtur: skriveplan → inserts → decodeBudgetRows", () => {
+  const FIX = path.resolve(__dirname, "../__fixtures__");
+
+  const rundtur = (plan: Skriveplan) => {
+    const inserts = byggSkriveplanInserts({ userId: "test-user", companyId: "test-company", plan });
+    const decoded = decodeBudgetRows(
+      inserts.map(({ category, budget_amount, period }) => ({ category, budget_amount, period })),
+      plan.aar,
+    );
+    return { inserts, baseRows: decoded.scenarioData.base };
+  };
+
+  const assertRundtur = (plan: Skriveplan) => {
+    const { baseRows } = rundtur(plan);
+    for (const raekke of plan.raekker) {
+      const row = baseRows.find((r) => r.key === raekke.noegle);
+      expect(row, `nøglen ${raekke.noegle} skal kunne læses tilbage`).toBeDefined();
+      // Etiketten ordret tilbage (P3).
+      expect(row!.label, raekke.noegle).toBe(raekke.etiket);
+      // Gruppen tilbage — uden sektion falder afkodningen til "variable".
+      expect(row!.group, raekke.noegle).toBe(raekke.gruppe ?? "variable");
+      // Månedstallene uændrede (null i planen = 0 efter afkodning).
+      expect(row!.values, raekke.noegle).toEqual(raekke.maanedsbeloeb.map((v) => v ?? 0));
+    }
+  };
+
+  it("Remm-budgettet overlever rundturen — 62 rækker, etiketter/grupper/tal intakte", () => {
+    const g = byggGitter(
+      laesMatrix(parseCsvTilMatrix(fs.readFileSync(`${FIX}/remm-budget-base-2026.csv`, "utf-8"))),
+    );
+    const plan = byggSkriveplan(g, "2026");
+    expect(plan.raekker).toHaveLength(62);
+    // Stikprøver på det der er sværest: dansk sektionsnavn og ordret etiket.
+    const chatrine = plan.raekker.find((r) => r.etiket === "Chatrine Løn")!;
+    expect(chatrine.gruppe).toBe("Personale & konsulentydelser");
+    assertRundtur(plan);
+  });
+
+  it("Topix Budget2026 overlever rundturen — 32 rækker, etiketter/grupper/tal intakte", () => {
+    const g = byggGitter(laesMatrix(laesArkTilMatrix(`${FIX}/topix-budget-2026.xlsx`, "Budget2026")));
+    const plan = byggSkriveplan(g, "2026");
+    expect(plan.raekker).toHaveLength(32);
+    const loen = plan.raekker.find((r) => r.etiket === "Løn")!;
+    expect(loen.gruppe).toBe("Medarbejdere");
+    assertRundtur(plan);
   });
 });

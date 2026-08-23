@@ -42,6 +42,8 @@ export type SkriveplanRaekke = {
   /** Unik pr. række: import_{slug}_{raekkeIndex}. */
   noegle: string;
   etiket: string;
+  /** Gitterrækkens sektion — bevares som __group__-markør ved skrivning. */
+  gruppe: string | null;
   /** Altid længde 12; null = ingen værdi for måneden. */
   maanedsbeloeb: (number | null)[];
   /** Hvad der blev fordelt fra ikke-måneds-kolonner — til visning. */
@@ -51,8 +53,11 @@ export type SkriveplanRaekke = {
 export type Skriveplan = {
   aar: string;
   raekker: SkriveplanRaekke[];
-  /** Kolonner der blev sprunget over (ukendte, eller årstotaler der ville dobbelttælle). */
-  ubrugteKolonner: string[];
+  /** Kolonner der ALDRIG kunne tolkes som en periode (type "ukendt"). */
+  utolkedeKolonner: string[];
+  /** Kolonner der KUNNE tolkes men blev sprunget over — årstotaler hvor
+      månedsdækning fandtes (dobbelttælling), eller kolonner fra et andet år. */
+  sprungetOverKolonner: string[];
   advarsler: string[];
 };
 
@@ -176,15 +181,18 @@ export function byggSkriveplan(gitter: Gitter, aar: string): Skriveplan {
   const kolonner = tolkKolonner(gitter.kolonner);
   const aarFundet = udledAar(kolonner);
   const advarsler: string[] = [];
-  const ubrugte = new Set<string>();
+  const utolkede = new Set<string>();
+  const sprungetOver = new Set<string>();
+  const alleKolonnerUkendte =
+    kolonner.length > 0 && kolonner.every((k) => k.type === "ukendt");
 
   // Årsfilter: har INGEN kolonne et år, gælder alle kolonner.
   const relevante = kolonner.filter((k) =>
     aarFundet.length === 0 ? true : k.aar === aar,
   );
   for (const k of kolonner) {
-    if (k.type === "ukendt") ubrugte.add(k.navn);
-    else if (aarFundet.length > 0 && k.aar !== aar) ubrugte.add(k.navn);
+    if (k.type === "ukendt") utolkede.add(k.navn);
+    else if (aarFundet.length > 0 && k.aar !== aar) sprungetOver.add(k.navn);
   }
 
   const maanedsKolonner = relevante.filter((k) => k.type !== "aar" && k.type !== "ukendt");
@@ -192,6 +200,7 @@ export function byggSkriveplan(gitter: Gitter, aar: string): Skriveplan {
 
   const raekker: SkriveplanRaekke[] = [];
   let udeladteUdenTal = 0;
+  let udeladteUtolkede = 0;
   let fordelteBeloeb = 0;
 
   for (const raekke of gitter.raekker) {
@@ -227,7 +236,7 @@ export function byggSkriveplan(gitter: Gitter, aar: string): Skriveplan {
       if (vaerdi === null || vaerdi === undefined) continue;
       if (harMaanedsdaekning) {
         // Årstotal oven i måneder ville dobbelttælle — springes over.
-        ubrugte.add(kolonne.navn);
+        sprungetOver.add(kolonne.navn);
         continue;
       }
       const prMaaned = vaerdi / 12;
@@ -245,28 +254,49 @@ export function byggSkriveplan(gitter: Gitter, aar: string): Skriveplan {
     }
 
     if (!maanedsbeloeb.some((v) => v !== null)) {
-      udeladteUdenTal++;
+      // Skeln: havde rækken slet ingen værdier, eller havde den værdier i
+      // kolonner der ikke kunne tolkes som perioder? Beskederne er forskellige.
+      if (raekke.vaerdier.some((v) => v !== null)) udeladteUtolkede++;
+      else udeladteUdenTal++;
       continue;
     }
 
     raekker.push({
       noegle: `import_${slug(raekke.etiket) || "linje"}_${raekke.raekkeIndex}`,
       etiket: raekke.etiket,
+      gruppe: raekke.sektion,
       maanedsbeloeb,
       fordelinger,
     });
   }
 
-  if (fordelteBeloeb > 0) {
+  if (alleKolonnerUkendte) {
     advarsler.push(
-      `${fordelteBeloeb} beløb blev fordelt ligeligt på måneder fra kvartals-, halvårs-, interval- eller totalkolonner`,
+      "Ingen af kolonnerne kunne læses som en periode. Tjek at månederne står som kolonner.",
     );
-  }
-  if (udeladteUdenTal > 0) {
-    advarsler.push(
-      `${udeladteUdenTal} linje${udeladteUdenTal === 1 ? "" : "r"} uden tal blev udeladt af planen`,
-    );
+  } else {
+    if (fordelteBeloeb > 0) {
+      advarsler.push(
+        `${fordelteBeloeb} beløb blev fordelt ligeligt på måneder fra kvartals-, halvårs-, interval- eller totalkolonner`,
+      );
+    }
+    if (udeladteUdenTal > 0) {
+      advarsler.push(
+        `${udeladteUdenTal} linje${udeladteUdenTal === 1 ? "" : "r"} uden tal blev udeladt af planen`,
+      );
+    }
+    if (udeladteUtolkede > 0) {
+      advarsler.push(
+        `${udeladteUtolkede} linje${udeladteUtolkede === 1 ? "" : "r"} havde kun værdier i kolonner der ikke kunne læses som perioder og blev udeladt`,
+      );
+    }
   }
 
-  return { aar, raekker, ubrugteKolonner: [...ubrugte], advarsler };
+  return {
+    aar,
+    raekker,
+    utolkedeKolonner: [...utolkede],
+    sprungetOverKolonner: [...sprungetOver],
+    advarsler,
+  };
 }
