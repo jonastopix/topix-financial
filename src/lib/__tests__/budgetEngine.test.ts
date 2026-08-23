@@ -152,18 +152,40 @@ describe("deriveBudgetFill (§b1)", () => {
     });
   });
 
-  it("kun negative indtægtsværdier: ikke empty (Σ≠0), 0 udfyldte → partial (arvet randadfærd)", () => {
+  it("kun negative indtægtsværdier: ikke empty (Σ≠0), 12 udfyldte → complete", () => {
+    // Måneds-tælleren tæller nu ALLE beløb ≠ 0, ikke kun positiv omsætning.
     expect(deriveBudgetFill([row("omsaetning", "indtaegter", Array(12).fill(-100))])).toEqual({
-      state: "partial",
-      filledMonths: 0,
+      state: "complete",
+      filledMonths: 12,
     });
   });
 
-  it("ingen indtægtsrækker → empty, 0", () => {
+  it("ingen indtægtsrækker → empty, men omkostningsmånederne TÆLLES som udfyldt", () => {
     expect(deriveBudgetFill([row("loenninger", "personale", filled(12))])).toEqual({
       state: "empty",
-      filledMonths: 0,
+      filledMonths: 12,
     });
+  });
+
+  it("måned med kun omkostninger tæller som udfyldt; helt tom måned gør ikke", () => {
+    // Omsætning i mdr. 2-11; Contentproduktion i jan-feb (mdr. 0-1) — alle
+    // 12 måneder har beløb, selv om januar/februar er uden omsætning.
+    const omsaetning = [0, 0, ...Array(10).fill(50000)];
+    const content = [90000, 90000, ...Array(10).fill(0)];
+    expect(
+      deriveBudgetFill([
+        row("omsaetning", "indtaegter", omsaetning),
+        row("contentproduktion", "variable", content),
+      ]),
+    ).toEqual({ state: "complete", filledMonths: 12 });
+
+    // Helt tomme måneder tæller fortsat ikke.
+    expect(
+      deriveBudgetFill([
+        row("omsaetning", "indtaegter", [0, 0, ...Array(10).fill(50000)]),
+        row("contentproduktion", "variable", zeros()),
+      ]),
+    ).toEqual({ state: "complete", filledMonths: 10 });
   });
 });
 

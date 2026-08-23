@@ -375,6 +375,14 @@ export const HbBudgetExcelImport = ({
           <p className="font-editorial text-lg font-medium text-hb-ink">
             Det her skrives til budget {aar}
           </p>
+          {/* Årsskiftet er en ANTAGELSE medlemmet skal godkende bevidst —
+              vises fremhævet her, ikke kun i advarselslisten nederst. */}
+          {plan.aarsskift && (
+            <p className="mt-2 rounded-md bg-hb-sand/60 px-3 py-2 text-sm font-medium text-hb-rust">
+              Kolonnerne i filen er fra {plan.aarsskift.fra}. Tallene skrives til budget{" "}
+              {plan.aarsskift.til} — tjek at det er det du vil.
+            </p>
+          )}
           <p className="mt-1 text-sm text-hb-ink-soft">
             {plan.raekker.length === 0
               ? "Ingen linjer at skrive endnu — vælg linjer til, eller indsæt tal i tabellen."
@@ -401,7 +409,8 @@ export const HbBudgetExcelImport = ({
               Kolonner vi ikke kunne læse som perioder: {plan.utolkedeKolonner.join(", ")}
             </p>
           )}
-          {plan.advarsler.map((advarsel, i) => (
+          {/* Årsskifte-advarslen vises fremhævet ovenfor — ikke dobbelt her. */}
+          {plan.advarsler.filter((a) => !a.startsWith("Kolonnerne i filen er fra")).map((advarsel, i) => (
             <p key={i} className="mt-2 text-sm text-hb-ink-soft" role="status">
               {advarsel}
             </p>
