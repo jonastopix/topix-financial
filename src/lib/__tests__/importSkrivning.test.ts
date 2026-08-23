@@ -9,7 +9,7 @@ import {
   udledAar,
   type Skriveplan,
 } from "@/lib/importSkrivning";
-import { parseCsvTilMatrix } from "./csvTestHelper";
+import { parseCsvTilMatrix } from "@/lib/csvLaesning";
 import { laesArkTilMatrix } from "./xlsxTestHelper";
 
 // ───────────────────────── Byggeklodser ─────────────────────────
