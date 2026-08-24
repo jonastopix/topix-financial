@@ -26,7 +26,6 @@ import {
   gemScenarieRaekker,
   genvaelgKategori,
   hentAlleSider,
-  confirmBudgetImport,
   confirmImportFraSkriveplan,
   copyBaseToScenario,
   generateAIScenario,
@@ -504,51 +503,6 @@ describe("W4 — generateAIScenario (scenarie-design S1-S5) gennem harnesset", (
   });
 });
 
-describe("W5 — confirmBudgetImport", () => {
-  it("sletter årets 3 scenarier (user+company), summerer dublet-keys og upserter ×3", async () => {
-    h.current.seed([
-      ...seedScenario(USER, COMPANY, "2026", "base", "gammel_kategori", 7),
-      ...seedScenario(USER, COMPANY, "2026", "optimistisk", "gammel_kategori", 7),
-    ]);
-
-    await confirmBudgetImport({
-      userId: USER,
-      companyId: COMPANY,
-      preview: {
-        year: "2026",
-        categories: [
-          { key: "omsaetning", monthly: fill(5_000) },
-          { key: "omsaetning", monthly: fill(1_000) },
-        ],
-      },
-    });
-
-    const rows = h.current.rowsWhere((r) => r.user_id === USER);
-    expect(rows.filter((r) => r.category === "gammel_kategori")).toHaveLength(0);
-    for (const scenario of ["base", "optimistisk", "pessimistisk"]) {
-      const sc = rows.filter((r) => r.period.startsWith(`2026-${scenario}-`));
-      expect(sc).toHaveLength(12);
-      expect(sc.every((r) => r.category === "omsaetning" && r.budget_amount === 6_000)).toBe(true);
-    }
-  });
-
-  it("§7.3-arven (bogført, uændret): en ANDEN skribents række for samme company overlever W5", async () => {
-    h.current.seed([
-      { user_id: ADVISOR, company_id: COMPANY, category: "omsaetning", budget_amount: 222, period: "2026-base-0" },
-    ]);
-
-    await confirmBudgetImport({
-      userId: USER,
-      companyId: COMPANY,
-      preview: { year: "2026", categories: [{ key: "omsaetning", monthly: fill(5_000) }] },
-    });
-
-    expect(
-      h.current.rowsWhere((r) => r.user_id === ADVISOR && r.period === "2026-base-0"),
-    ).toHaveLength(1);
-  });
-});
-
 describe("W6 — confirmBudgetFromAccounts (U1 + U2)", () => {
   it("U1: company-filteret — samme brugers rækker for en ANDEN virksomhed overlever", async () => {
     // Advisoren har base-2027-rækker + skabelonmarker for company A …
@@ -602,21 +556,63 @@ describe("W6 — confirmBudgetFromAccounts (U1 + U2)", () => {
     await run();
     expect(h.current.rowsWhere((r) => r.company_id === COMPANY_B)).toHaveLength(12);
   });
+
+  it("over 1.000 rækker: gamle target-års-rækker UDEN FOR de første tusind slettes alligevel", async () => {
+    // 90 rest-kategorier × 12 måneder = 1.080 gamle 2027-base-rækker —
+    // en usaneret hentning ser kun de første tusind og efterlader resten.
+    h.current.seed(
+      Array.from({ length: 90 }, (_, i) =>
+        seedScenario(ADVISOR, COMPANY_B, "2027", "base", `rest_${String(i).padStart(2, "0")}`, 1),
+      ).flat(),
+    );
+    expect(h.current.rowsWhere((r) => r.company_id === COMPANY_B)).toHaveLength(1_080);
+
+    await confirmBudgetFromAccounts({
+      userId: ADVISOR,
+      companyId: COMPANY_B,
+      sourceYear: "2026",
+      categories: [{ key: "omsaetning", monthly: fill(10_000) }],
+    });
+
+    const bRows = h.current.rowsWhere((r) => r.company_id === COMPANY_B);
+    expect(bRows.filter((r) => r.category.startsWith("rest_"))).toHaveLength(0);
+    expect(bRows).toHaveLength(12);
+  });
+
+  it("insert-dannelsen er uændret: præcis kategori × 12 base-måneder, ingen andre scenarier", async () => {
+    const monthly = [1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000, 10000, 11000, 12000];
+    await confirmBudgetFromAccounts({
+      userId: ADVISOR,
+      companyId: COMPANY_B,
+      sourceYear: "2026",
+      categories: [
+        { key: "omsaetning", monthly },
+        { key: "vareforbrug", monthly: fill(4_000) },
+      ],
+    });
+
+    const bRows = h.current.rowsWhere((r) => r.company_id === COMPANY_B);
+    expect(bRows).toHaveLength(24);
+    expect(bRows.every((r) => /^2027-base-\d+$/.test(r.period))).toBe(true);
+    monthly.forEach((amount, monthIdx) => {
+      expect(
+        bRows.find((r) => r.category === "omsaetning" && r.period === `2027-base-${monthIdx}`)!.budget_amount,
+      ).toBe(amount);
+    });
+  });
 });
 
-describe("Rundtur — import → load", () => {
-  it("confirmBudgetImport → loadBudget giver præcis preview-tallene, uden skabelonmarker", async () => {
+describe("Rundtur — generér fra regnskab → load", () => {
+  it("confirmBudgetFromAccounts → loadBudget giver præcis tallene, uden skabelonmarker", async () => {
     const monthly = [1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000, 10000, 11000, 12000];
-    await confirmBudgetImport({
+    await confirmBudgetFromAccounts({
       userId: USER,
       companyId: COMPANY,
-      preview: {
-        year: "2026",
-        categories: [
-          { key: "omsaetning", monthly },
-          { key: "vareforbrug", monthly: fill(4_000) },
-        ],
-      },
+      sourceYear: "2025",
+      categories: [
+        { key: "omsaetning", monthly },
+        { key: "vareforbrug", monthly: fill(4_000) },
+      ],
     });
 
     const result = await loadBudget(COMPANY, "2026");
@@ -625,7 +621,7 @@ describe("Rundtur — import → load", () => {
     const decoded = result.decoded!;
     expect(decoded.templateFromMarker).toBe(false);
     expect(decoded.scenarioData.base.find((r) => r.key === "omsaetning")!.values).toEqual(monthly);
-    expect(decoded.scenarioData.pessimistisk.find((r) => r.key === "vareforbrug")!.values).toEqual(fill(4_000));
+    expect(decoded.scenarioData.base.find((r) => r.key === "vareforbrug")!.values).toEqual(fill(4_000));
   });
 });
 

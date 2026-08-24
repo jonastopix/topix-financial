@@ -894,77 +894,16 @@ export async function genvaelgKategori(args: {
   if (error) throw error;
 }
 
-/** W5 — Excel-import-confirm (BudgetImport.tsx:197-242 ordret): delete
-    (år × 3 scenarier, på user+company) → inserts ×3 scenarier → dedup pr.
-    company:user:category:period (summerede dubletter) → upsert. */
-export async function confirmBudgetImport(args: {
-  userId: string;
-  companyId: string;
-  preview: { year: string; categories: { key: string; monthly: number[] }[] };
-}): Promise<void> {
-  const { userId, companyId, preview } = args;
-
-  // Pagineret + kastende (samme loft-fejlklasse som loadBudget): tre
-  // scenarier × 12 måneder × 28+ kategorier kan overstige 1.000 rækker.
-  const existing = await hentAlleSider<{ id: string; period: string }>((fra, til) =>
-    (supabase
-      .from("budget_targets")
-      .select("id, period") as any)
-      .eq("user_id", userId)
-      .eq("company_id", companyId)
-      .or(
-        `period.like.${preview.year}-base-%,` +
-          `period.like.${preview.year}-optimistisk-%,` +
-          `period.like.${preview.year}-pessimistisk-%`,
-      )
-      .order("id")
-      .range(fra, til),
-  );
-  await sletPaaId(existing.map((e) => e.id));
-
-  const inserts = preview.categories.flatMap((cat) =>
-    (["base", "optimistisk", "pessimistisk"] as const).flatMap((scenario) =>
-      cat.monthly.map((amount, monthIdx) => ({
-        user_id: userId,
-        company_id: companyId,
-        category: cat.key,
-        budget_amount: amount,
-        period: `${preview.year}-${scenario}-${monthIdx}`,
-      })),
-    ),
-  );
-
-  // Deduplicate inserts: if same company_id+user_id+category+period appears multiple times,
-  // keep only the last occurrence (sum amounts for duplicate keys)
-  const insertMap = new Map<string, (typeof inserts)[0]>();
-  for (const row of inserts) {
-    const key = `${row.company_id}:${row.user_id}:${row.category}:${row.period}`;
-    if (insertMap.has(key)) {
-      const existingRow = insertMap.get(key)!;
-      insertMap.set(key, { ...existingRow, budget_amount: existingRow.budget_amount + row.budget_amount });
-    } else {
-      insertMap.set(key, row);
-    }
-  }
-  const dedupedInserts = Array.from(insertMap.values());
-
-  const { error } = await supabase.from("budget_targets").upsert(dedupedInserts, {
-    onConflict: "company_id,user_id,category,period",
-    ignoreDuplicates: false,
-  });
-  if (error) throw error;
-}
-
 /** W8 — importgitterets skrivevej (feat/import-skrivevej, besluttet
     2026-08-23). Skriver KUN base-scenariet — et importeret budget er ét
     budget; optimistisk/pessimistisk laver medlemmet bagefter, bevidst.
     Etiketten bevares via __label__-markører (samme form som
     saveScenarioEdits :558-564); nøglerne er unikke pr. RÆKKE fra
     byggSkriveplan — kollision er en fejl der kastes, ALDRIG stille
-    summering (modsat W5's dedup). Delete følger husreglen: select-først,
-    slet på id — kun årets base-værdier + __label__-markører for netop de
-    nøgler planen skriver. Den gamle confirmBudgetImport (W5) består urørt
-    til den nuværende flade er koblet om. */
+    summering. Delete følger husreglen: select-først, slet på id — kun
+    årets base-værdier + __label__-markører for netop de nøgler planen
+    skriver. (Den gamle confirmBudgetImport (W5) er slettet: fladen er
+    koblet om til denne vej, og W5 stod uden kaldere.) */
 export async function confirmImportFraSkriveplan(args: {
   userId: string;
   companyId: string;
@@ -1049,23 +988,28 @@ export async function confirmBudgetFromAccounts(args: {
   // W6-rettelsen (recon §7.3, design-blok §a4-U1): company_id-filter i
   // begge deletes — den gamle kode slettede på user_id alene og kunne
   // ramme en anden virksomheds rækker skrevet af samme bruger (advisor).
-  const { data: existing } = await supabase
-    .from("budget_targets")
-    .select("id, period")
-    .eq("user_id", userId)
-    .eq("company_id", companyId)
-    .like("period", `${periodPrefix}%`);
+  // Pagineret + kastende (1.000-loftet, BACKLOG-punktet): grænsetilfældet
+  // kræver 84+ kategorier, men rester fra netop denne fejlklasse kan
+  // ophobe rækker over loftet.
+  const existing = await hentAlleSider<{ id: string }>((fra, til) =>
+    (supabase
+      .from("budget_targets")
+      .select("id") as any)
+      .eq("user_id", userId)
+      .eq("company_id", companyId)
+      .like("period", `${periodPrefix}%`)
+      .order("id")
+      .range(fra, til),
+  );
+  await sletPaaId(existing.map((e) => e.id));
 
-  if (existing && existing.length > 0) {
-    await supabase.from("budget_targets").delete().in("id", existing.map((e) => e.id));
-  }
-
-  await supabase
+  const { error: templateError } = await supabase
     .from("budget_targets")
     .delete()
     .eq("user_id", userId)
     .eq("company_id", companyId)
     .eq("category", "__template__");
+  if (templateError) throw templateError;
 
   // U2 (design-blok §a4/§e(i), klik-valg A): den hardcodede
   // "webshop_b2c"-__template__-marker (gl. BudgetFromAccounts.tsx:219-226)
