@@ -110,15 +110,9 @@ interface Report {
   manual_report_period_key?: string | null;
   manual_normalized_data?: Json | null;
   manual_override_status?: string | null;
-  manual_override_note?: string | null;
-  manual_override_by?: string | null;
-  manual_override_at?: string | null;
-  manual_override_source?: string | null;
-  manual_report_type?: string | null;
 }
 
 interface BudgetTarget {
-  id: string;
   category: string;
   budget_amount: number;
   period: string;
@@ -127,24 +121,16 @@ interface BudgetTarget {
 interface Milestone {
   id: string;
   title: string;
-  description: string | null;
   deadline: string | null;
   progress: number;
   status: string;
-  source: string;
-  source_report: string | null;
-  created_at: string;
 }
 
 interface ChatMessage {
   id: string;
-  conversation_id: string;
   sender_id: string;
   content: string;
-  message_type: string;
-  context_type: string | null;
   context_id: string | null;
-  context_meta: Record<string, unknown> | null;
   created_at: string;
 }
 
@@ -408,8 +394,20 @@ const MemberDetail = () => {
       try {
         const [profileRes, reportsRes, milestonesRes, convRes, handoutsRes] = await Promise.all([
           supabase.from("profiles").select("full_name, company_name, avatar_url, created_at, email").eq("user_id", userId).single(),
-          (supabase.from("financial_reports").select("*") as any).eq("user_id", userId).is("deleted_at", null).order("uploaded_at", { ascending: false }),
-          supabase.from("milestones").select("*").eq("user_id", userId).order("deadline", { ascending: true }),
+          // Slank rapporthentning (mønstret fra PR #409/#411): kun de
+          // kolonner fladen læser, og blobsene som serverside jsonb-stier —
+          // ai_analysis og raw_extracted_data (de tungeste) læses INGEN
+          // steder her og hentes ikke. Loft 200: fladen viser alle
+          // rapporter; over loftet vises de 200 nyeste (order ovenfor).
+          (supabase.from("financial_reports").select(
+            "id, file_name, file_path, report_type, status, report_period, uploaded_at, processed_at, " +
+              "manual_override_status, manual_report_period_key, manual_report_period_label, " +
+              "metrics:normalized_data->metrics, key_figures:extracted_data->key_figures, " +
+              "manual_metrics:manual_normalized_data->metrics",
+          ) as any).eq("user_id", userId).is("deleted_at", null).order("uploaded_at", { ascending: false }).limit(200),
+          // Kun de fem kolonner der læses; loft 200 (tællerne tæller over
+          // det hentede — intet medlem er i nærheden af loftet i dag).
+          supabase.from("milestones").select("id, title, deadline, progress, status").eq("user_id", userId).order("deadline", { ascending: true }).limit(200),
           supabase.from("conversations").select("id, awaiting_reply_from, assigned_advisor_id").eq("member_id", userId).single(),
           supabase.from("handouts").select("module, status, responses, checklist, levers").eq("user_id", userId),
         ]);
@@ -425,13 +423,20 @@ const MemberDetail = () => {
         if (cm?.companies) {
           const ctx = { ...cm.companies, company_id: cm.company_id } as CompanyContext;
           setCompanyCtx(ctx);
-          // Fetch budgets by company_id (correct key)
+          // Fetch budgets by company_id (correct key). Fladen læser KUN
+          // omsætnings-rækker i base-scenariet (:716-717, :783) — filteret
+          // ligger serverside og giver ≤12 rækker pr. år, så 1.000-loftet
+          // (BACKLOG-punktet) kan aldrig nås for dette kaldested.
+          // Kategori+base frem for ét års-filter: chartens 8 måneder kan
+          // krydse et årsskifte. (buildBudgetSummary, der ville have brugt
+          // alle kategorier, er død kode — defineret :170, aldrig kaldt.)
           const { data: budgetData } = await supabase
             .from("budget_targets")
-            .select("*")
+            .select("category, budget_amount, period")
             .eq("company_id", cm.company_id)
-            .order("category");
-          setBudgets(budgetData || []);
+            .eq("category", "omsaetning")
+            .like("period", "%-base-%");
+          setBudgets((budgetData || []) as BudgetTarget[]);
           // Fetch invitation that was accepted by this specific user
           let invData: any = null;
           // Primary: match via accepted_by
@@ -473,7 +478,25 @@ const MemberDetail = () => {
           setInvitedEmail(null);
         }
 
-        const reportsList = reportsRes.data || [];
+        // Genindpakning til Report-formen som getEffectiveKeyFigures/
+        // hasManualOverride forventer (nested metrics/key_figures).
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const reportsList: Report[] = ((reportsRes.data || []) as any[]).map((r) => ({
+          id: r.id,
+          file_name: r.file_name,
+          file_path: r.file_path,
+          report_type: r.report_type,
+          status: r.status,
+          report_period: r.report_period,
+          uploaded_at: r.uploaded_at,
+          processed_at: r.processed_at,
+          extracted_data: r.key_figures != null ? { key_figures: r.key_figures } : null,
+          normalized_data: r.metrics != null ? { metrics: r.metrics } : null,
+          manual_override_status: r.manual_override_status,
+          manual_report_period_key: r.manual_report_period_key,
+          manual_report_period_label: r.manual_report_period_label,
+          manual_normalized_data: r.manual_metrics != null ? { metrics: r.manual_metrics } : null,
+        }));
         setProfile(profileRes.data);
         setReports(reportsList);
         setMilestones(milestonesRes.data || []);
@@ -515,7 +538,7 @@ const MemberDetail = () => {
           const reportIds = reportsList.map((r) => r.id);
           const { data: msgs } = await supabase
             .from("messages")
-            .select("*")
+            .select("id, sender_id, content, created_at, context_id")
             .eq("conversation_id", convRes.data.id)
             .eq("context_type", "report")
             .in("context_id", reportIds)
