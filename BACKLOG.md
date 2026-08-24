@@ -1502,11 +1502,12 @@ produktbeskrivelsen. På fladen læses de i den rækkefølge.
 
 ---
 
-### [P2] Supabase-loftet på 1.000 rækker rammer otte hentesteder (bevist i prod 2026-08-24)
+### [P2 → LUKKET 2026-08-24] Supabase-loftet på 1.000 rækker rammer otte hentesteder (bevist i prod 2026-08-24)
 
-Supabase returnerer højst 1.000 rækker pr. forespørgsel. Fem
-hentesteder kan overskride det i dag og fejler i stilhed — de
-returnerer et ufuldstændigt resultat uden fejl.
+Supabase returnerer højst 1.000 rækker pr. forespørgsel. Otte
+hentesteder kunne overskride det og fejlede i stilhed — de
+returnerede et ufuldstændigt resultat uden fejl. ALLE er nu
+lukket (PR-numre pr. sted nedenfor).
 
 BEVIST I PROD 2026-08-24: virksomhed 3ffccc0f har 1.058 rækker i
 budget_targets. Seks importerede linjer fra en tidligere import
@@ -1514,48 +1515,54 @@ overlevede sletningen i confirmImportFraSkriveplan, fordi
 hentningen kun så de første tusind. Rettet i PR #404 med
 serverside-filter plus paginering.
 
-De øvrige, ikke rettet:
+Status pr. sted:
 
-  budgetEngine.ts:459-462  loadBudget
-    Kun .eq(company_id), alt hentes. Over 1.000: JA — 3ffccc0f er
-    der allerede. Budgetsiden afkoder et ufuldstændigt billede for
-    virksomheder med flere års budget.
+  confirmImportFraSkriveplan (W8)
+    RETTET i PR #404 — serverside-filter + paginering (mønstret
+    hentAlleSider + sletPaaId).
 
-  budgetEngine.ts:478-486  fetchExistingRows
-    Ufiltreret. Stadig brugt af replaceScenarioValues (:501) og
-    saveScenarioEdits (:551). Over 1.000: JA — samme fejlklasse som
-    den rettede. Scenarie-gem kan efterlade gamle rækker.
+  loadBudget
+    RETTET i PR #415 — pagineret med hentAlleSider, kaster ved fejl.
 
-  AdvisorDashboard.tsx:335-338
-    Serverside .like på indeværende års base-rækker, men PÅ TVÆRS
-    AF ALLE VIRKSOMHEDER uden company-filter. 28 virksomheder ×
-    ~40 kategorier × 12 måneder ≈ 13.000 rækker. Over 1.000: JA,
-    oplagt. Rådgiveroverblikkets budgetsummer er allerede forkerte.
+  fetchExistingRows (bruges af replaceScenarioValues +
+  saveScenarioEdits)
+    RETTET i PR #415 — pagineret; scenarie-gem efterlader ikke
+    længere gamle rækker over loftet.
 
-  CombinedBudgetWidget.tsx:31-35
-    Kun .eq(company_id), alt hentes. Over 1.000: JA.
+  AdvisorDashboard.tsx budget_targets-fetch (på tværs af alle
+  virksomheder, ≈13.000 rækker)
+    FJERNET i PR #409 — hentningen var død (resultatet blev aldrig
+    vist) og blev slettet i nyttelast-grebet. Intet hentested tilbage.
 
-  MemberDetail.tsx:429-433
-    .eq(company_id).order(category), alt hentes. Over 1.000: JA.
+  CombinedBudgetWidget.tsx
+    RETTET i PR #415 — pagineret med hentAlleSider.
 
-  budgetEngine.ts:695-705  confirmBudgetImport (W5)
-    Serverside-filtreret til ét år × tre scenarier. Over 1.000:
-    GRÆNSETILFÆLDE — 3 × 12 × 28 kategorier = 1.008.
+  MemberDetail.tsx budget_targets-fetch
+    RETTET i PR #412 — serverside-filter (kategori omsaetning +
+    base-scenarie) giver ≤12 rækker pr. år; loftet kan ikke nås.
 
-  budgetEngine.ts:807-812  confirmBudgetFromAccounts
-    Serverside .like på ét års base. Over 1.000: GRÆNSETILFÆLDE —
-    kræver 84+ kategorier.
+  confirmBudgetImport (W5)
+    Pagineret i PR #415 — og derefter SLETTET (fix/sidste-tusind-
+    graense): grep viste ingen kaldere ud over tests; importfladen
+    bruger confirmImportFraSkriveplan (W8). En død skrivevej
+    fjernet frem for vedligeholdt.
+
+  confirmBudgetFromAccounts (W6)
+    RETTET (fix/sidste-tusind-graense) — pagineret med
+    hentAlleSider + sletPaaId, kaster ved fejl. Grænsetilfældet
+    krævede 84+ kategorier, men rester fra netop denne fejlklasse
+    kunne ophobe rækker over loftet.
 
   useCompanyFacts.ts:44-52
-    .eq(company_id), én fact pr. måned. Over 1.000: NEJ i praksis.
+    IKKE ÆNDRET, bevidst: .eq(company_id), én fact pr. måned.
+    Over 1.000: NEJ i praksis (84+ års historik påkrævet).
 
-Fælles mønster: en hentning uden serverside-filter der antager at
-alt kom med. Samme sygdom som 500-beskeders-vinduet i chatten
-(se "Chat-epic — fund fra recon 2026-08-21", punkt b).
-
-Rettes med serverside-filtrering hvor det er muligt, paginering
-hvor det ikke er. AdvisorDashboard bør rettes først — den er den
-eneste hvor tallene er forkerte for alle virksomheder samtidig.
+Fælles mønster (til fremtidige hentninger): en hentning uden
+serverside-filter der antager at alt kom med. Samme sygdom som
+500-beskeders-vinduet i chatten (se "Chat-epic — fund fra recon
+2026-08-21", punkt b). Nye hentesteder mod budget_targets bruger
+hentAlleSider/sletPaaId fra budgetEngine.ts — lav ikke en ny
+udgave af samme løkke.
 
 ---
 
