@@ -12,6 +12,7 @@ import {
   decodeBudgetRows,
   getBudgetRowReportField,
   GROUP_TO_REPORT_FIELD,
+  klassificerBudgetlinje,
   decodeImportedRows,
   deriveBudgetFill,
   deriveGrowthFactor,
@@ -265,6 +266,31 @@ describe("getBudgetRowReportField (spor 3 — opslag på gruppen)", () => {
         expect(getBudgetRowReportField({ group: c.group }), `${t.key}/${c.key}`).not.toBeNull();
       }
     }
+  });
+});
+
+describe("klassificerBudgetlinje (scenarie-design S1/S2)", () => {
+  it("tom: alle 12 værdier er 0", () => {
+    expect(klassificerBudgetlinje(Array(12).fill(0))).toBe("tom");
+  });
+
+  it("fast: ét distinkt beløb, ingen nulmåneder", () => {
+    expect(klassificerBudgetlinje(Array(12).fill(1500))).toBe("fast");
+    expect(klassificerBudgetlinje(Array(12).fill(-2000))).toBe("fast");
+  });
+
+  it("grænsetilfælde: én måned med beløb er varierende", () => {
+    expect(klassificerBudgetlinje([0, 0, 0, 0, 5000, 0, 0, 0, 0, 0, 0, 0])).toBe("varierende");
+  });
+
+  it("grænsetilfælde: ét distinkt beløb MED nulmåneder er varierende — ikke fast", () => {
+    // Remms Corpay-mønster: tom indtil juli, derefter fast.
+    expect(klassificerBudgetlinje([0, 0, 0, 0, 0, 0, 899, 899, 899, 899, 899, 899])).toBe("varierende");
+  });
+
+  it("varierende: flere distinkte beløb — også kun to ('næsten fast' foldes ind)", () => {
+    expect(klassificerBudgetlinje([...Array(11).fill(1000), 1001])).toBe("varierende");
+    expect(klassificerBudgetlinje([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12])).toBe("varierende");
   });
 });
 

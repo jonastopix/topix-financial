@@ -659,30 +659,70 @@ export async function copyBaseToScenario(args: {
   return copiedRows;
 }
 
-/** W4 — AI-generér scenarie (BudgetScenariosTab.tsx:206-241; edge-kald
-    generate-budget-scenarios → merge → delete+insert; originalen
-    ignorerede insert-fejlen — det gør motoren også her). Kalderen ejer
-    state-skiftet og kvitteringen; matchedCount/totalRowCount bæres retur
-    til den ("x af y linjer justeret"). */
+/** Linjens form på de tolv måneder (scenarie-design S1/S2, målt mod prod
+    2026-08-24: 87 faste + 34 tomme af 161 linjer — 121 bør ikke røres).
+    "Næsten fast" (≤3 distinkte) foldes bevidst ind i varierende: grænsen
+    er skarpere når den er binær, og modellen kan selv se at tre distinkte
+    beløb næsten er faste. */
+export type LinjeForm = "tom" | "fast" | "varierende";
+
+export function klassificerBudgetlinje(values: number[]): LinjeForm {
+  const ikkeNul = values.filter((v) => v !== 0);
+  if (ikkeNul.length === 0) return "tom";
+  const distinkte = new Set(ikkeNul).size;
+  if (distinkte === 1 && ikkeNul.length === values.length) return "fast";
+  return "varierende";
+}
+
+/** Et scenarie-FORSLAG — vist, ikke skrevet (S5). Skrivning sker først
+    ved medlemmets godkendelse via gemScenarieRaekker. */
+export interface ScenarieForslag {
+  /** Fuldt rækkesæt: ændrede linjer med forslagets værdier, alle andre
+      (faste, tomme og ikke-returnerede varierende) med base-værdierne. */
+  rows: BudgetRow[];
+  aendrede: {
+    key: string;
+    label: string;
+    foer: number[];
+    efter: number[];
+    begrundelse: string | null;
+  }[];
+  uaendredeAntal: number;
+  reasoning?: string;
+}
+
+/** W4 — AI-foreslå scenarie (scenarie-design S1-S5): tomme linjer sendes
+    ikke med (S1), faste sendes som kontekst markeret uændrede (S2), kun
+    varierende er åbne for justering, modellen må lade linjer stå (S3) —
+    og forslaget SKRIVES IKKE (S5): det returneres til visning, og
+    medlemmet godkender via gemScenarieRaekker. */
 export async function generateAIScenario(args: {
   userId: string;
   companyId: string;
   year: string;
   target: ScenarioKey;
   baseRows: BudgetRow[];
-}): Promise<{
-  updatedRows: BudgetRow[];
-  reasoning?: string;
-  matchedCount: number;
-  totalRowCount: number;
-}> {
-  const { userId, companyId, year, target, baseRows } = args;
-  const payloadRows = baseRows.map((r) => ({
-    key: r.key,
-    label: r.label,
-    group: r.group,
-    values: r.values,
-  }));
+}): Promise<ScenarieForslag> {
+  const { target, baseRows } = args;
+
+  const formAf = new Map(baseRows.map((r) => [r.key, klassificerBudgetlinje(r.values)]));
+  const varierende = baseRows.filter((r) => formAf.get(r.key) === "varierende");
+  if (varierende.length === 0) {
+    throw new Error(
+      "Alle linjer er faste eller tomme — der er ikke noget for et scenarie at justere",
+    );
+  }
+
+  // S1: tomme udelades helt; S2: faste medsendes som kontekst med form-markering.
+  const payloadRows = baseRows
+    .filter((r) => formAf.get(r.key) !== "tom")
+    .map((r) => ({
+      key: r.key,
+      label: r.label,
+      group: r.group,
+      values: r.values,
+      form: formAf.get(r.key) as "fast" | "varierende",
+    }));
 
   const { data, error } = await supabase.functions.invoke("generate-budget-scenarios", {
     body: { baseRows: payloadRows, scenario: target },
@@ -698,8 +738,8 @@ export async function generateAIScenario(args: {
   // base-kopi som succes m. reasoning. Nu matches på normaliseret key OG
   // label; en linje tæller kun som matchet m. gyldig 12-tals monthly
   // (falsy-værnet); nul-match afviser FØR skrivning.
-  const aiByNormKey = new Map<string, number[]>();
-  for (const cat of (data.categories as { key?: unknown; monthly?: unknown }[])) {
+  const aiByNormKey = new Map<string, { monthly: number[]; begrundelse: string | null }>();
+  for (const cat of (data.categories as { key?: unknown; monthly?: unknown; begrundelse?: unknown }[])) {
     if (typeof cat?.key !== "string") continue;
     const monthly = cat.monthly;
     if (
@@ -709,30 +749,63 @@ export async function generateAIScenario(args: {
     )
       continue;
     const norm = normalizeBudgetKey(cat.key);
-    if (norm && !aiByNormKey.has(norm)) aiByNormKey.set(norm, monthly as number[]);
+    if (norm && !aiByNormKey.has(norm)) {
+      aiByNormKey.set(norm, {
+        monthly: monthly as number[],
+        begrundelse: typeof cat.begrundelse === "string" && cat.begrundelse.trim() !== "" ? cat.begrundelse : null,
+      });
+    }
   }
 
-  let matchedCount = 0;
-  const updatedRows = baseRows.map((r) => {
-    const monthly =
+  // KUN varierende linjer er åbne for justering (S2): returnerer modellen
+  // alligevel værdier for en fast linje, ignoreres de — en fast omkostning
+  // er fast, det er hele pointen med at kalde den fast.
+  const aendrede: ScenarieForslag["aendrede"] = [];
+  const rows = baseRows.map((r) => {
+    if (formAf.get(r.key) !== "varierende") return { ...r, values: [...r.values] };
+    const svar =
       aiByNormKey.get(normalizeBudgetKey(r.key)) ?? aiByNormKey.get(normalizeBudgetKey(r.label));
-    if (!monthly) return { ...r, values: [...r.values] };
-    matchedCount++;
-    return { ...r, values: monthly };
+    if (!svar) return { ...r, values: [...r.values] };
+    if (JSON.stringify(svar.monthly) === JSON.stringify(r.values)) {
+      // Identisk med base tæller ikke som en ændring (S3: modellen må lade
+      // linjer stå — men så skal den lade dem stå, ikke gentage dem).
+      return { ...r, values: [...r.values] };
+    }
+    aendrede.push({
+      key: r.key,
+      label: r.label,
+      foer: [...r.values],
+      efter: svar.monthly,
+      begrundelse: svar.begrundelse,
+    });
+    return { ...r, values: svar.monthly };
   });
 
-  if (matchedCount === 0) {
-    throw new Error("AI-forslaget matchede ikke budgetlinjerne — prøv igen");
+  if (aendrede.length === 0) {
+    throw new Error("AI-forslaget ændrede ingen linjer — prøv igen");
   }
 
-  await replaceScenarioValues({ userId, companyId, year, target, rows: updatedRows });
-
+  // S5: INGEN skrivning her. Forslaget returneres til visning; skrivningen
+  // sker først ved medlemmets godkendelse (gemScenarieRaekker).
   return {
-    updatedRows,
+    rows,
+    aendrede,
+    uaendredeAntal: baseRows.length - aendrede.length,
     reasoning: data.reasoning || undefined,
-    matchedCount,
-    totalRowCount: baseRows.length,
   };
+}
+
+/** Godkendelsen af et scenarie-forslag (S5): skriver forslags-rækkerne til
+    scenariet gennem den eksisterende delete-før-insert-vej. Kaster på fejl. */
+export async function gemScenarieRaekker(args: {
+  userId: string;
+  companyId: string;
+  year: string;
+  target: ScenarioKey;
+  rows: BudgetRow[];
+}): Promise<void> {
+  const { error } = await replaceScenarioValues(args);
+  if (error) throw error;
 }
 
 /** W5 — Excel-import-confirm (BudgetImport.tsx:197-242 ordret): delete
