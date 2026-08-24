@@ -329,7 +329,12 @@ export const BudgetteringView = () => {
                 <HbBudgetTemplateGuide onSelect={(t) => void handleTemplateSelect(t)} />
               )}
               {emptyFlow === "import" && (
-                <HbBudgetExcelImport userId={user?.id} companyId={companyId ?? undefined} onImported={handleImported} />
+                <HbBudgetExcelImport
+                  userId={user?.id}
+                  companyId={companyId ?? undefined}
+                  onImported={handleImported}
+                  skabelonKey={templateFromMarker && selectedTemplate ? selectedTemplate.key : null}
+                />
               )}
               {emptyFlow === "accounts" && (
                 <HbBudgetFromAccounts userId={user?.id} companyId={companyId ?? undefined} onImported={handleImported} />
@@ -499,6 +504,7 @@ export const BudgetteringView = () => {
                   companyId={companyId ?? undefined}
                   onImported={handleImported}
                   onAabenSkift={setImportGitterAabent}
+                  skabelonKey={templateFromMarker && selectedTemplate ? selectedTemplate.key : null}
                 />
               </HbCard>
               {!importGitterAabent && (
