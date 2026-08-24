@@ -321,18 +321,21 @@ load-agnostisk gate (skip/warn ved ekstrem load). Lille, isoleret testfil-ændri
 
 ---
 
-### [P4] CI-install-flake: bun install fejler på xlsx-tarball (noteret 2026-08-04)
+### [P4] ✅ Løst i PR #414 — CI-install-flake: bun install fejler på xlsx-tarball (noteret 2026-08-04, lukket 2026-08-24)
 
-**Fund**: GitHub Actions-jobbet "Tests" fejlede to gange samme aften i "Install
-dependencies"-steppet — `bun install --frozen-lockfile` → `error: Fail extracting
-tarball for "xlsx"` — på PR #166 (run 30941610047) og PR #167 (run 30949047881).
-Begge PRs rørte ingen dependencies; begge blev grønne ved simpelt re-run
-(`gh run rerun <id> --failed`). Testene nås aldrig — ren infra-støj i
-download/ekstraktion.
+**Fund**: GitHub Actions-jobbet "Tests" fejlede i "Install dependencies"-steppet
+— `bun install --frozen-lockfile` → `error: Fail extracting tarball for "xlsx"`
+— på PR #166 (run 30941610047) og PR #167 (run 30949047881), begge 2026-08-04.
+**Tredje forekomst ramte 2026-08-24** på PR #413 (run 32722899075) — punktets
+egen genåbnings-tærskel. Alle tre blev grønne ved simpelt re-run; testene nås
+aldrig — ren infra-støj i download/ekstraktion.
 
-**Kandidat-fix** (ikke implementeret): bun-cache i workflowet
-(actions/cache på `~/.bun/install/cache`) eller retry på install-steppet.
-Genåbn med prioritet hvis tredje forekomst rammer.
+**Løst 2026-08-24 (PR #414)**: `actions/cache@v4` på `~/.bun/install/cache` i
+begge jobs (Tests + MCP Tests, hver sit nøglerum; nøgle = hash af lockfilen,
+restore-keys genbruger seneste cache). Cachen fjerner registry-hentningen og
+dermed årsagen — retry-kandidaten blev fravalgt, da den kun skjuler flaken.
+setup-bun@v2 cacher kun Bun-binæren, ikke pakkerne (verificeret mod actionens
+inputs). Rammer flaken alligevel ved cache-miss, kan retry lægges ovenpå.
 
 ---
 
