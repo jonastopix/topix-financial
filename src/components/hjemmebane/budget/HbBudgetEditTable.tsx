@@ -131,13 +131,28 @@ export const HbBudgetEditTable = ({
         scenario: activeScenario,
         rows: updatedScenario,
         labelOverrides,
-        templateKeys: new Set(selectedTemplate?.categories.map((c) => c.key) || []),
       });
       note(`${scenarioConfig.label}-scenariet er gemt`);
     } catch (error) {
       console.error("Budget save error:", error);
       fail("Kunne ikke gemme budgettet — prøv igen");
     }
+  };
+
+  /** Gruppeskift: gruppen er ÉN sandhed pr. key på tværs af scenarierne
+      (__group__-markøren er år+key-nøglet), så alle tre opdateres lokalt.
+      Persisteres ved Gem gennem saveScenarioEdits (den paginerede
+      skrivevej fra PR #415) — ingen ny hentning. */
+  const skiftGruppe = (key: string, gruppe: string) => {
+    setScenarioData((prev) =>
+      prev
+        ? {
+            base: prev.base.map((r) => (r.key === key ? { ...r, group: gruppe } : r)),
+            optimistisk: prev.optimistisk.map((r) => (r.key === key ? { ...r, group: gruppe } : r)),
+            pessimistisk: prev.pessimistisk.map((r) => (r.key === key ? { ...r, group: gruppe } : r)),
+          }
+        : prev,
+    );
   };
 
   const updateCell = (key: string, monthIdx: number, value: string) => {
@@ -417,6 +432,9 @@ export const HbBudgetEditTable = ({
       )}
 
       {/* Redigeringstabellen */}
+      <p className="text-xs text-hb-ink-soft">
+        Gruppen bestemmer hvad linjen sammenlignes med under Budget vs. realiseret.
+      </p>
       <HbCard className="overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -514,7 +532,8 @@ export const HbBudgetEditTable = ({
                                 </button>
                               </span>
                             ) : (
-                              <span className="flex items-center gap-2">
+                              <span className="flex flex-col items-start gap-0.5">
+                                <span className="flex items-center gap-2">
                                 <span title={row.hint}>{row.label}</span>
                                 {isManual && (
                                   <span className="rounded-full bg-hb-sage px-2 py-0.5 text-[10px] text-hb-ink">
@@ -542,6 +561,29 @@ export const HbBudgetEditTable = ({
                                 >
                                   Fjern
                                 </button>
+                                </span>
+                                {/* Gruppevælger pr. linje — samme stille form
+                                    som importgitterets linjevælger (select
+                                    under etiketten, ingen ramme før hover),
+                                    så de to flader ligner hinanden. Kun i
+                                    redigering: skiftet flytter linjen til den
+                                    nye gruppes afsnit med det samme og
+                                    persisteres ved Gem (__group__-markøren
+                                    gennem saveScenarioEdits). */}
+                                {editing && row.isEditable && (
+                                  <select
+                                    value={row.group}
+                                    onChange={(e) => skiftGruppe(row.key, e.target.value)}
+                                    className="cursor-pointer rounded border border-transparent bg-transparent px-1 py-0 text-[10px] text-hb-ink-soft hover:border-hb-line focus:border-hb-line focus:outline-none focus:ring-1 focus:ring-hb-evergreen/50"
+                                    aria-label={`Gruppe for ${row.label}`}
+                                  >
+                                    {GROUP_ORDER.map((noegle) => (
+                                      <option key={noegle} value={noegle}>
+                                        {GROUP_LABELS[noegle]}
+                                      </option>
+                                    ))}
+                                  </select>
+                                )}
                               </span>
                             )}
                           </td>

@@ -145,7 +145,14 @@ export const HbImportGitter = ({ gitter, onChange }: HbImportGitterProps) => {
       )}
 
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <p className="font-editorial text-lg font-medium text-hb-ink">Gennemse dine linjer</p>
+        <div>
+          <p className="font-editorial text-lg font-medium text-hb-ink">Gennemse dine linjer</p>
+          {/* Samme sætning som i redigeringstabellen — gruppevalget har
+              konsekvens ud over placeringen, og det skal siges ved vælgerne. */}
+          <p className="mt-0.5 text-xs text-hb-ink-soft">
+            Gruppen bestemmer hvad linjen sammenlignes med under Budget vs. realiseret.
+          </p>
+        </div>
         <p className="text-sm text-hb-ink-soft">
           {sammendrag.medtaget} medtaget
           {sammendrag.fravalgt > 0 && <> · {sammendrag.fravalgt} fravalgt</>}

@@ -131,7 +131,6 @@ describe("W2 — saveScenarioEdits (delete-før-insert)", () => {
       scenario: "base",
       rows,
       labelOverrides: { omsaetning: "Salg" },
-      templateKeys: new Set(["omsaetning"]),
     });
 
   it("rammer kun årets+scenariets værdirækker og årets markers — alt andet består", async () => {
@@ -157,7 +156,10 @@ describe("W2 — saveScenarioEdits (delete-før-insert)", () => {
     expect(rows.find((r) => r.category === "__label__2026_gammel")).toBeUndefined();
     expect(rows.find((r) => r.category === "__label__2026_omsaetning")?.period).toBe("Salg");
     expect(rows.find((r) => r.category === "__group__2026_ekstra")?.period).toBe("drift");
-    expect(rows.find((r) => r.category === "__group__2026_omsaetning")).toBeUndefined();
+    // FLYTTET (feat/gruppevaelger-i-redigering): skabelon-linjer får nu
+    // OGSÅ en markør, så et gruppeskift i redigeringstabellen overlever
+    // afkodningen — før blev de filtreret fra og skiftet gik tabt.
+    expect(rows.find((r) => r.category === "__group__2026_omsaetning")?.period).toBe("indtaegter");
     // Fremmed års marker består
     expect(rows.find((r) => r.category === "__label__2025_x")?.period).toBe("Y");
   });
@@ -180,6 +182,84 @@ describe("W2 — saveScenarioEdits (delete-før-insert)", () => {
     const cellRows = h.current.rowsWhere((r) => r.period === "2026-base-0" && r.category === "omsaetning");
     expect(cellRows).toHaveLength(1);
     expect(cellRows[0]).toMatchObject({ user_id: USER, budget_amount: 100 });
+  });
+});
+
+describe("gruppeskift i redigeringstabellen (feat/gruppevaelger-i-redigering)", () => {
+  const gem = (rows: BudgetRow[]) =>
+    saveScenarioEdits({
+      userId: USER,
+      companyId: COMPANY,
+      year: "2026",
+      scenario: "base",
+      rows,
+      labelOverrides: {},
+    });
+
+  it("importeret linje: gruppeskift skriver __group__-markøren, og linjen flytter gruppe ved genindlæsning", async () => {
+    h.current.seed([
+      ...seedScenario(USER, COMPANY, "2026", "base", "import_marketing_7", 9695),
+      { user_id: USER, company_id: COMPANY, category: "__group__2026_import_marketing_7", budget_amount: 0, period: "drift" },
+      { user_id: USER, company_id: COMPANY, category: "__label__2026_import_marketing_7", budget_amount: 0, period: "Marketing" },
+    ]);
+
+    await gem([bRow("import_marketing_7", "salg_marketing", 9695, "Marketing")]);
+
+    expect(
+      h.current.rowsWhere((r) => r.category === "__group__2026_import_marketing_7").map((r) => r.period),
+    ).toEqual(["salg_marketing"]);
+
+    const genindlaest = await loadBudget(COMPANY, "2026");
+    const row = genindlaest.decoded!.scenarioData.base.find((r) => r.key === "import_marketing_7");
+    expect(row!.group).toBe("salg_marketing");
+  });
+
+  it("skabelon-linje UDEN markør: gruppeskift opretter markøren, og afkodningen overstyrer skabelonens gruppe", async () => {
+    // digital_marketing er en skabelon-key (webshop_b2c m.fl., group
+    // salg_marketing) — før blev markøren filtreret fra og skiftet tabt.
+    h.current.seed(seedScenario(USER, COMPANY, "2026", "base", "digital_marketing", 5000));
+    expect(h.current.rowsWhere((r) => r.category.startsWith("__group__"))).toEqual([]);
+
+    await gem([bRow("digital_marketing", "drift", 5000)]);
+
+    expect(
+      h.current.rowsWhere((r) => r.category === "__group__2026_digital_marketing").map((r) => r.period),
+    ).toEqual(["drift"]);
+
+    const genindlaest = await loadBudget(COMPANY, "2026");
+    const row = genindlaest.decoded!.scenarioData.base.find((r) => r.key === "digital_marketing");
+    expect(row, "skabelon-linjen skal stadig findes").toBeDefined();
+    expect(row!.group).toBe("drift"); // markøren vinder over skabelonens salg_marketing
+  });
+
+  it("over 1.000 rækker: gruppeskift taber ingen linjer (den paginerede skrivevej)", async () => {
+    h.current.seed(
+      Array.from({ length: 1000 }, (_, i) => ({
+        user_id: USER,
+        company_id: COMPANY,
+        category: `filler_${i}`,
+        budget_amount: 1,
+        period: "2025-base-0",
+      })),
+    );
+    h.current.seed(seedScenario(USER, COMPANY, "2026", "base", "import_linje_a", 100));
+    h.current.seed(seedScenario(USER, COMPANY, "2026", "base", "import_linje_b", 200));
+
+    await gem([
+      bRow("import_linje_a", "faste", 100),
+      bRow("import_linje_b", "personale", 200),
+    ]);
+
+    const genindlaest = await loadBudget(COMPANY, "2026");
+    const base = genindlaest.decoded!.scenarioData.base;
+    expect(base.find((r) => r.key === "import_linje_a")!.group).toBe("faste");
+    expect(base.find((r) => r.key === "import_linje_b")!.group).toBe("personale");
+    // Intet tabt: fyldrækkerne (andet år) består, og 2026-værdirækkerne er
+    // præcis de to linjers 24 rækker.
+    expect(h.current.rowsWhere((r) => r.category.startsWith("filler_"))).toHaveLength(1000);
+    expect(
+      h.current.rowsWhere((r) => r.period.startsWith("2026-base-") && !r.category.startsWith("__")),
+    ).toHaveLength(24);
   });
 });
 
@@ -447,7 +527,6 @@ describe("hentAlleSider — pagineret læsning over 1.000-rækkers-loftet (fix/l
       scenario: "base",
       rows: [bRow("omsaetning", "indtaegter", 100)],
       labelOverrides: {},
-      templateKeys: new Set(["omsaetning"]),
     });
 
     expect(h.current.rowsWhere((r) => r.category === "gammel_kategori")).toEqual([]);
