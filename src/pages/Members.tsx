@@ -248,13 +248,45 @@ const Members = () => {
       const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
 
       const [companiesRes, membersRes, profilesRes, convsRes, reportsRes, invitationsRes, loginLogsRes, factsRes, pulseRes] = await Promise.all([
-        supabase.from("companies" as any).select("*, is_legat").limit(500),
+        // Kun de 23 kolonner fladen læser — select("*") trak hele rækken
+        // inkl. application_context m.fl. (perf/members-nyttelast).
+        supabase.from("companies" as any).select(
+          "id, name, cvr_number, industry_label, contact_person, contact_email, contact_phone, " +
+            "website, address, postal_code, city, annual_revenue, start_date, end_date, status, " +
+            "slack_channel, created_at, logo_url, contract_start_date, contract_end_date, " +
+            "subscription_status, subscription_current_period_end, is_legat",
+        ).limit(500),
         supabase.from("company_members" as any).select("company_id, user_id, role").limit(2000),
         supabase.from("profiles").select("user_id, full_name, avatar_url"),
         supabase.from("conversations").select("id, company_id, last_message_at"),
-        (supabase.from("financial_reports").select("company_id, id, extracted_data, report_period") as any).is("deleted_at", null).limit(1000),
+        // Slank rapporthentning (mønstret fra PR #409): jsonb-stierne
+        // udtrækkes SERVERSIDE i stedet for hele extracted_data (1.439 kB i
+        // prod). Læsningen ledte efter top-level revenue/omsætning/
+        // nettoomsætning — nøgler INGEN skrivevej producerer (verificeret
+        // 2026-08-24: extract-financial-data skriver key_figures.omsaetning,
+        // extract-annual-report skriver nettoomsaetning uden æ, canonical
+        // bor i normalized_data.metrics.revenue) — så reported_revenue har
+        // været død. Stierne her peger på hvor tallet faktisk bor.
+        // uploaded_at læstes (:387) men blev aldrig hentet — latestReport-
+        // Period landede på en vilkårlig række; nu hentes den.
+        (supabase.from("financial_reports").select(
+          "company_id, report_period, uploaded_at, " +
+            "rev_canonical:normalized_data->metrics->revenue, " +
+            "rev_legacy:extracted_data->key_figures->omsaetning, " +
+            "rev_aarsrapport:extracted_data->nettoomsaetning",
+        ) as any).is("deleted_at", null).limit(1000),
         supabase.from("company_invitations").select("id, company_id, email, status, accepted_at, accepted_by, token, created_at"),
-        supabase.from("user_login_log" as any).select("user_id, logged_in_at") as any,
+        // 90-dages vindue + loft: tabellen vokser ubegrænset med logins, og
+        // uden filter rammes 1.000-rækkers-loftet vilkårligt. lastLogin for
+        // brugere uden rækker i vinduet bæres af auth-fallbacken
+        // (get_users_last_login nedenfor); loginCount betyder derefter
+        // "logins de seneste 90 dage", ikke nogensinde.
+        supabase
+          .from("user_login_log" as any)
+          .select("user_id, logged_in_at")
+          .gte("logged_in_at", new Date(Date.now() - 90 * 86400000).toISOString())
+          .order("logged_in_at", { ascending: false })
+          .limit(5000) as any,
         supabase.from("financial_report_facts" as any).select("company_id, period_key"),
         supabase.from("pulse_checkins").select("company_id, period_key").gte("created_at", monthStart),
       ]);
@@ -366,13 +398,10 @@ const Members = () => {
             periods.add(r.report_period);
             periodsByCompany.set(r.company_id, periods);
           }
-          const data = r.extracted_data as any;
-          if (data?.revenue || data?.omsætning || data?.nettoomsætning) {
-            const rev = Number(data.revenue || data.omsætning || data.nettoomsætning || 0);
-            if (rev > 0) {
-              const existing = reportedRevenueByCompany.get(r.company_id) || 0;
-              if (rev > existing) reportedRevenueByCompany.set(r.company_id, rev);
-            }
+          const rev = Number(r.rev_canonical ?? r.rev_legacy ?? r.rev_aarsrapport ?? 0);
+          if (rev > 0) {
+            const existing = reportedRevenueByCompany.get(r.company_id) || 0;
+            if (rev > existing) reportedRevenueByCompany.set(r.company_id, rev);
           }
         }
       });
