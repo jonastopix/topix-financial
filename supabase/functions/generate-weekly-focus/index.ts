@@ -1,6 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
 import { parseJwtClaims } from "../_shared/edgeFunctionAuth.ts";
 import { evaluateKpiTargets } from "../_shared/weeklyFocusKpi.ts";
+import { beregnUdloeb } from "../_shared/opgaveUdloeb.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -548,9 +549,9 @@ Generer en ugentlig fokusanalyse. Svar med dette JSON-format:
 
     if (userId) {
       // Udløbsfrist for kilden ai_weekly: 14 dage, jf. B10 i
-      // docs/opgave-model-design.md. Beregnet lokalt — edge functions
-      // kan ikke importere fra src/.
-      const AI_WEEKLY_EXPIRY_DAYS = 14;
+      // docs/opgave-model-design.md. Reglen bor i _shared/opgaveUdloeb.ts
+      // (spejl af opgaveEngine.ts — edge functions kan ikke importere
+      // fra src/), så den ikke hardcodes pr. function.
       const actionRows = actions.map((a: any) => ({
         company_id: company.id,
         user_id: userId,
@@ -561,7 +562,7 @@ Generer en ugentlig fokusanalyse. Svar med dette JSON-format:
         status: "proposed",
         week_key: weekKey,
         generated_at: now.toISOString(),
-        expires_at: new Date(now.getTime() + AI_WEEKLY_EXPIRY_DAYS * 24 * 60 * 60 * 1000).toISOString(),
+        expires_at: beregnUdloeb("ai_weekly", now).toISOString(),
       }));
       await admin.from("company_actions").insert(actionRows);
     }

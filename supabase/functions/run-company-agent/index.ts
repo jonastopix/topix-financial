@@ -1,6 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
 import { authenticateUser, corsHeaders } from "../_shared/edgeFunctionAuth.ts";
 import { aiGatewayFetch } from "../_shared/aiGatewayFetch.ts";
+import { beregnUdloeb } from "../_shared/opgaveUdloeb.ts";
 
 const DEPLOY_STAMP = "run-company-agent v1 (2026-06-17)";
 
@@ -333,7 +334,7 @@ const tools = [
     type: "function",
     function: {
       name: "write_company_action",
-      description: "Opretter en konkret handlingsopgave i virksomhedens action center på dashboardet. Brug kun til ét klart, specifikt næste skridt — fx 'Ring til din bank om kreditfacilitet' eller 'Opdatér din salgspipeline inden fredag'. Maks 1 action per kørsel.",
+      description: "Foreslår en konkret handlingsopgave til founderen på dashboardet. Forslaget udløber automatisk efter 14 dage hvis founderen ikke tager stilling. Brug kun til ét klart, specifikt næste skridt — fx 'Ring til din bank om kreditfacilitet' eller 'Opdatér din salgspipeline inden fredag'. Maks 1 action per kørsel.",
       parameters: {
         type: "object",
         properties: {
@@ -732,6 +733,10 @@ async function executeTool(name: string, args: any, adminClient: any, trigger: s
         .maybeSingle();
       if (!member) return { ok: false, reason: "no_member" };
 
+      // Opgave-modellens form (B1/B10): et forslag, ikke en åben opgave —
+      // medlemmet forpligter sig ved accept. Udløb for kilden 'agent' er
+      // 14 dage; reglen bor i _shared/opgaveUdloeb.ts (spejl af
+      // opgaveEngine.ts, edge functions kan ikke importere fra src/).
       const { error } = await adminClient
         .from("company_actions")
         .insert({
@@ -741,7 +746,8 @@ async function executeTool(name: string, args: any, adminClient: any, trigger: s
           context: args.context,
           priority: args.priority,
           source_type: "agent",
-          status: "open",
+          status: "proposed",
+          expires_at: beregnUdloeb("agent", new Date()).toISOString(),
         } as any);
 
       if (error) throw new Error(error.message);

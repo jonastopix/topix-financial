@@ -1340,13 +1340,17 @@ export const BoardroomView = () => {
     enabled: !!companyId,
   });
 
-  // Åbne handlinger — query + sortering ordret fra
+  // Åbne handlinger + ubesvarede forslag — sortering ordret fra
   // DashboardActionCenter:200-208 (high → medium → low, dernæst ældste).
+  // Statusfilteret dækker BÅDE 'open' (arven + run-company-agent) og
+  // 'proposed' (opgave-modellens forslag, skrevet af generate-weekly-focus
+  // siden PR #387) — et filter på kun 'open' gjorde forslagene usynlige
+  // for medlemmet.
   const actionsQuery = useQuery({
     queryKey: ["boardroom", "company-actions", companyId],
     queryFn: async () => {
       const { data } = await supabase.from("company_actions").select("id, title, context, priority, status, created_at")
-        .eq("company_id", companyId!).eq("status", "open").order("created_at", { ascending: false }).limit(10) as any;
+        .eq("company_id", companyId!).in("status", ["open", "proposed"]).order("created_at", { ascending: false }).limit(10) as any;
       return ((data || []) as any[]).sort((a: any, b: any) => {
         const order: Record<string, number> = { high: 0, medium: 1, low: 2 };
         return (order[a.priority] ?? 1) - (order[b.priority] ?? 1) || new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
