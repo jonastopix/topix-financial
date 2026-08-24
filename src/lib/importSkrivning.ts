@@ -20,6 +20,7 @@ import { maanedsIndeks } from "@/lib/importEngine";
 import {
   gruppeForslag,
   normaliseretVaerdi,
+  raekkeGruppe,
   sektionsNoegle,
   type Gitter,
   type Gruppenoegle,
@@ -65,7 +66,8 @@ export type Skriveplan = {
       fx sidste års budget som grundlag for næste års (P1: aldrig en tom
       plan alene pga. års-mismatch). Medlemmet skal godkende bevidst. */
   aarsskift: { fra: string; til: string } | null;
-  /** Gruppevalget pr. sektion som planen skriver med (null = uden sektion). */
+  /** Sektionernes gruppevalg (null = uden sektion) — til visning. Enkelte
+      linjer kan afvige via deres egen gruppe; raekker[].gruppe er sandheden. */
   grupper: { sektion: string | null; gruppe: Gruppenoegle }[];
   /** Kolonner der ALDRIG kunne tolkes som en periode (type "ukendt"). */
   utolkedeKolonner: string[];
@@ -304,14 +306,14 @@ export function byggSkriveplan(gitter: Gitter, aar: string): Skriveplan {
       continue;
     }
 
-    // Gruppen OPLØSES til en af platformens seks nøgler: medlemmets valg i
-    // gitteret først, ellers forslaget fra sektionsnavnet. Fortegnet er
-    // allerede normaliseret pr. celle via normaliseretVaerdi ovenfor —
-    // platformens konvention er positive omkostninger (prod-målingen og
-    // begrundelsen står ved normaliseretVaerdi i importGitterModel, som er
-    // den ENE kilde til reglen; den må ikke rulles tilbage).
-    const gruppe: Gruppenoegle =
-      gitter.sektionsGrupper?.[sektionsNoegle(raekke.sektion)] ?? gruppeForslag(raekke.sektion);
+    // Gruppen OPLØSES til en af platformens seks nøgler via raekkeGruppe:
+    // linjens egen gruppe (linjegæt/overstyring) vinder over sektionens
+    // valg. Fortegnet er allerede normaliseret pr. celle via
+    // normaliseretVaerdi ovenfor — platformens konvention er positive
+    // omkostninger (prod-målingen og begrundelsen står ved
+    // normaliseretVaerdi i importGitterModel, som er den ENE kilde til
+    // reglen; den må ikke rulles tilbage).
+    const gruppe: Gruppenoegle = raekkeGruppe(gitter, raekke);
 
     raekker.push({
       noegle: `import_${slug(raekke.etiket) || "linje"}_${raekke.raekkeIndex}`,

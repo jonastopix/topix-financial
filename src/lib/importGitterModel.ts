@@ -34,6 +34,11 @@ export type GitterRaekke = {
   kommentar: string | null;
   /** Nærmeste sektionsoverskrift over rækken i samme tabel. */
   sektion: string | null;
+  /** LINJENS egen gruppe — motorens gæt på etiketten eller medlemmets
+      overstyring (spor3-design §4.1). null = følg sektionens valg. Et nyt
+      SEKTIONSVALG nulstiller feltet for hele sektionen — sektionen sætter
+      alle sine linjer, også de overstyrede. */
+  gruppe: Gruppenoegle | null;
   tabelIndex: number;
 };
 
@@ -67,17 +72,31 @@ export const GYLDIGE_GRUPPER: readonly Gruppenoegle[] = [
 /** Nøgle i sektionsGrupper: rækker uden sektion samles under "". */
 export const sektionsNoegle = (sektion: string | null): string => sektion ?? "";
 
-/** Forslag: frit sektionsnavn → gruppenøgle. Medlemmet kan altid ændre
-    valget i gitteret — det her er kun forvalget. ("variable" matcher også
-    det danske flertals-"Variable omkostninger", ikke kun "variabel".) */
+/** Gæt: fri tekst (sektionsnavn ELLER linje-etiket) → gruppenøgle, null
+    når ingen regel matcher. salg_marketing prøves FØR indtaegter, så
+    "Salg & Marketing" rammer salg_marketing frem for at "salg" trækker den
+    til indtægter. ("variable" matcher også flertals-"Variable
+    omkostninger", ikke kun "variabel".) */
+export function gruppeGaet(tekst: string): Gruppenoegle | null {
+  if (/marketing|reklame|kundepleje/i.test(tekst)) return "salg_marketing";
+  // En omkostningsmarkør spærrer for indtægtsreglen: "Cost of revenue" og
+  // "Salgsomkostninger" er omkostninger, selvom revenue/salg optræder i navnet.
+  const omkostningsMarkoer = /omkostning|cost|expense|udgift/i.test(tekst);
+  if (!omkostningsMarkoer && /omsætning|salg|indtægt|revenue|income|sales/i.test(tekst)) {
+    return "indtaegter";
+  }
+  if (/løn|medarbejder|personale|staff|payroll/i.test(tekst)) return "personale";
+  if (/lokale|husleje|kontor|facility|rent|bygning/i.test(tekst)) return "faste";
+  if (/variabel|variable|vareforbrug|direkte|cogs|fragt|cost of (revenue|sales|goods)/i.test(tekst)) {
+    return "variable";
+  }
+  return null;
+}
+
+/** Forslag: frit sektionsnavn → gruppenøgle med drift som fallback.
+    Medlemmet kan altid ændre valget i gitteret — det her er kun forvalget. */
 export function gruppeForslag(sektion: string | null): Gruppenoegle {
-  const navn = sektion ?? "";
-  if (/omsætning|salg|indtægt|revenue|income|sales/i.test(navn)) return "indtaegter";
-  if (/løn|medarbejder|personale|staff|payroll/i.test(navn)) return "personale";
-  if (/marketing|reklame|kundepleje/i.test(navn)) return "salg_marketing";
-  if (/lokale|husleje|kontor|facility|rent|bygning/i.test(navn)) return "faste";
-  if (/variabel|variable|vareforbrug|direkte|cogs|fragt/i.test(navn)) return "variable";
-  return "drift";
+  return gruppeGaet(sektion ?? "") ?? "drift";
 }
 
 export type Gitter = {
@@ -118,9 +137,15 @@ const harEgetVaern = (raekke: GitterRaekke): boolean =>
   (raekke.bemaerkning.includes("forholdstal") ||
     raekke.bemaerkning.includes("tælles beløbet to gange"));
 
-/** Rækkens opløste gruppenøgle: medlemmets valg i gitteret, ellers forslaget. */
+/** Rækkens opløste gruppenøgle: linjens egen gruppe (motorens linjegæt
+    eller medlemmets overstyring) vinder; ellers sektionens valg, ellers
+    forslaget fra sektionsnavnet. */
 export function raekkeGruppe(gitter: Gitter, raekke: GitterRaekke): Gruppenoegle {
-  return gitter.sektionsGrupper?.[sektionsNoegle(raekke.sektion)] ?? gruppeForslag(raekke.sektion);
+  return (
+    raekke.gruppe ??
+    gitter.sektionsGrupper?.[sektionsNoegle(raekke.sektion)] ??
+    gruppeForslag(raekke.sektion)
+  );
 }
 
 /** DEN værdi medlemmet ser og der skrives — må IKKE rulles tilbage:
@@ -297,6 +322,10 @@ export function byggGitter(resultat: ImportResultat): Gitter {
         bemaerkning: tvivl(felter),
         kommentar: tekstIndhold(raekke, tabel),
         sektion: aktuelSektion,
+        // Linjegættet på etiketten vinder over sektionsgættet når det giver
+        // noget andet end fallback (gruppeGaet = null ved intet match) —
+        // "Personale" under sektionen OMKOSTNINGER skal foreslås personale.
+        gruppe: gruppeGaet(raekke.etiket),
         tabelIndex,
       });
     }
@@ -512,15 +541,34 @@ export function saetEtiket(gitter: Gitter, raekkeIndex: number, etiket: string):
   });
 }
 
-/** Medlemmets gruppevalg for en sektion (null = rækkerne uden sektion). */
+/** Medlemmets gruppevalg for en sektion (null = rækkerne uden sektion).
+    Sektionsvalget sætter ALLE sektionens linjer — også de overstyrede:
+    linje-overstyringerne (og linjegættene) i sektionen nulstilles, så
+    rækkerne følger det nye valg. */
 export function saetSektionsgruppe(
   gitter: Gitter,
   sektion: string | null,
   gruppe: Gruppenoegle,
 ): Gitter {
   const ny = kopiGitter(gitter);
-  ny.sektionsGrupper[sektionsNoegle(sektion)] = gruppe;
+  const noegle = sektionsNoegle(sektion);
+  ny.sektionsGrupper[noegle] = gruppe;
+  for (const raekke of ny.raekker) {
+    if (sektionsNoegle(raekke.sektion) === noegle) raekke.gruppe = null;
+  }
   return ny;
+}
+
+/** Medlemmets gruppevalg for én linje — vinder over sektionens valg indtil
+    et nyt sektionsvalg nulstiller det. */
+export function saetRaekkegruppe(
+  gitter: Gitter,
+  raekkeIndex: number,
+  gruppe: Gruppenoegle,
+): Gitter {
+  return opdaterRaekke(gitter, raekkeIndex, (r) => {
+    r.gruppe = gruppe;
+  });
 }
 
 /** "Ikke et budgetbeløb" for en sektion: alle sektionens rækker fravælges
@@ -568,6 +616,7 @@ export function tilfoejRaekke(gitter: Gitter, efterRaekkeIndex: number): Gitter 
     bemaerkning: null,
     kommentar: null,
     sektion: nabo?.sektion ?? null,
+    gruppe: null,
     tabelIndex: nabo?.tabelIndex ?? 0,
   };
   ny.raekker.splice(pos >= 0 ? pos + 1 : ny.raekker.length, 0, raekke);
@@ -629,6 +678,7 @@ export function indsaetFraTekst(
         bemaerkning: null,
         kommentar: null,
         sektion: anker.sektion,
+        gruppe: null,
         tabelIndex: anker.tabelIndex,
       };
       ny.raekker.push(raekke);

@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { Fragment, useMemo } from "react";
 import {
   Bar,
   BarChart,
@@ -20,12 +20,16 @@ import { HbCard } from "../HbCard";
 import { deriveBudgetTone } from "./budgetTone";
 import { TalStat, fmtNumber, hbBudgetTooltipStyle } from "./hbBudgetShared";
 
-/** Budget vs. Realiseret (design-blok §c4): afledningerne spejler
-    BudgetVsActualTab 1:1 (actualsMap, delt-felt-dommen, EBITDA-rækken);
-    afvigelser dømmes af budgetTone (quiet/attention — aldrig
-    alarm-ikoner). Tabellen beholder 12 månedskolonner (paritet) m. ny
-    ÅTD-førstekolonne og to-lags-celler; rækker uden rapportfelt vises
-    ærligt uden tone-dom (§e(iii)). */
+/** Budget vs. Realiseret — pr. GRUPPE (spor3-design §3, B2): regnskabet
+    bærer ét realiseret tal pr. gruppe pr. måned (financial_report_facts er
+    ét metrics-jsonb pr. periode), så sammenligningen sker hvor tallene
+    faktisk kan mødes: gruppens budgetsum mod gruppens realiserede tal.
+    Linjerne foldes ud under gruppen med budgettal og andel af gruppens
+    budget — UDEN opfundne realiserede tal pr. linje. Koblingen er
+    gruppe→rapportfelt (getBudgetRowReportField, spor3-design §2), så
+    "ikke koblet til rapportfelt" og "(delt felt)" kan ikke længere
+    forekomme. Afvigelser dømmes af budgetTone (quiet/attention — aldrig
+    alarm-ikoner); 12 månedskolonner + ÅTD-førstekolonne beholdes. */
 
 interface Props {
   baseRows: BudgetRow[];
@@ -68,28 +72,25 @@ export const HbBudgetBva = ({ baseRows, year, companyId }: Props) => {
   const isBudgetEmpty = baseRows.every((r) => r.values.every((v) => v === 0));
   const lastActualIdx = Object.keys(actualsMap).reduce((max, k) => Math.max(max, Number(k)), -1);
 
-  // Delt-felt-dommen — spejler BudgetVsActualTab.tsx:73-87.
-  const sharedFieldRows = useMemo(() => {
-    const fieldCount: Record<string, number> = {};
-    for (const row of baseRows) {
-      const field = getBudgetRowReportField(row.key);
-      if (field) fieldCount[field] = (fieldCount[field] || 0) + 1;
-    }
-    return new Set(
-      baseRows
-        .filter((r) => {
-          const f = getBudgetRowReportField(r.key);
-          return f && fieldCount[f]! > 1;
-        })
-        .map((r) => r.key),
+  // Pr. gruppe: budgetsummen pr. måned (kostgrupper som |v| — samme
+  // konvention som totalkortene og de realiserede tal, der er Math.abs'et)
+  // plus gruppens rapportfelt. Linjernes andel regnes af gruppens årstotal.
+  const groupedRows = GROUP_ORDER.map((g) => {
+    const rows = baseRows.filter((r) => r.group === g);
+    const isRevenue = REVENUE_GROUPS.has(g);
+    const budgetMonthly = MONTHS.map((_, i) =>
+      rows.reduce((s, r) => s + (isRevenue ? r.values[i] : Math.abs(r.values[i])), 0),
     );
-  }, [baseRows]);
-
-  const groupedRows = GROUP_ORDER.map((g) => ({
-    group: g,
-    label: GROUP_LABELS[g],
-    rows: baseRows.filter((r) => r.group === g),
-  })).filter((g) => g.rows.length > 0);
+    return {
+      group: g,
+      label: GROUP_LABELS[g],
+      rows,
+      isRevenue,
+      reportField: getBudgetRowReportField({ group: g }),
+      budgetMonthly,
+      budgetTotal: budgetMonthly.reduce((s, v) => s + v, 0),
+    };
+  }).filter((g) => g.rows.length > 0);
 
   const budgetEbitda = computeEbitda(baseRows);
 
@@ -261,92 +262,113 @@ export const HbBudgetBva = ({ baseRows, year, companyId }: Props) => {
                 </tr>
               </thead>
               <tbody>
-                {groupedRows.map((group) => (
-                  <>
-                    <tr key={`bva-group-${group.group}`} className="bg-hb-sage/25">
-                      <td
-                        colSpan={hasAnyActuals ? 14 : 13}
-                        className="sticky left-0 z-10 bg-hb-sage/25 px-4 py-2 text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft"
-                      >
-                        {group.label}
-                      </td>
-                    </tr>
-                    {group.rows.map((row) => {
-                      const isRevenue = REVENUE_GROUPS.has(row.group);
-                      const reportField = getBudgetRowReportField(row.key);
-                      const ytdBudget = row.values.slice(0, lastActualIdx + 1).reduce((s, v) => s + v, 0);
-                      const ytdActual = reportField
-                        ? MONTHS.slice(0, lastActualIdx + 1).reduce(
-                            (s, _, i) => s + (actualsMap[i]?.[reportField] ?? 0),
-                            0,
-                          )
-                        : null;
-                      const ytdTone = deriveBudgetTone({
-                        budget: ytdBudget,
-                        actual: hasAnyActuals ? ytdActual : null,
-                        isRevenue,
-                      });
-                      return (
-                        <tr key={row.key} className="border-b border-hb-line/60">
-                          <td className="sticky left-0 z-10 bg-hb-surface px-4 py-2 text-xs font-medium text-hb-ink">
-                            <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-                              {row.label}
-                              {!reportField && (
-                                <span className="text-[10px] font-normal text-hb-ink-soft">
-                                  ikke koblet til rapportfelt
+                {groupedRows.map((group) => {
+                  // Sammenligningen bor på GRUPPERÆKKEN: gruppens budgetsum
+                  // mod gruppens ene realiserede tal (B2). Linjerne under
+                  // har kun budgettal — regnskabet kan ikke bryde finere ned.
+                  const ytdBudget = group.budgetMonthly
+                    .slice(0, lastActualIdx + 1)
+                    .reduce((s, v) => s + v, 0);
+                  const ytdActual = MONTHS.slice(0, lastActualIdx + 1).reduce(
+                    (s, _, i) => s + (actualsMap[i]?.[group.reportField ?? ""] ?? 0),
+                    0,
+                  );
+                  const ytdTone = deriveBudgetTone({
+                    budget: ytdBudget,
+                    actual: hasAnyActuals ? ytdActual : null,
+                    isRevenue: group.isRevenue,
+                  });
+                  return (
+                    <Fragment key={group.group}>
+                      <tr className="bg-hb-sage/25">
+                        <td className="sticky left-0 z-10 bg-hb-sage/25 px-4 py-2 text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft">
+                          {group.label}
+                        </td>
+                        {hasAnyActuals && (
+                          <td className="border-r border-hb-line bg-hb-sage/25 px-2 py-1.5 text-right">
+                            <span className="block text-[11px] tabular-nums text-hb-ink-soft">
+                              {fmtNumber(ytdBudget)}
+                            </span>
+                            <span className="block text-[11px] font-medium tabular-nums text-hb-ink">
+                              {fmtNumber(ytdActual)}
+                              {ytdTone.pct != null && (
+                                <span className={cn("ml-1", toneClass(ytdTone.tone))}>
+                                  {pctLabel(ytdTone.pct)}
                                 </span>
-                              )}
-                              {sharedFieldRows.has(row.key) && (
-                                <span className="text-[10px] font-normal text-hb-ink-soft">(delt felt)</span>
                               )}
                             </span>
                           </td>
-                          {hasAnyActuals && (
-                            <td className="border-r border-hb-line px-2 py-1.5 text-right">
+                        )}
+                        {group.budgetMonthly.map((budgetVal, i) => {
+                          const actualVal = actualsMap[i]
+                            ? actualsMap[i][group.reportField ?? ""] ?? null
+                            : null;
+                          const tone = deriveBudgetTone({
+                            budget: budgetVal,
+                            actual: actualVal,
+                            isRevenue: group.isRevenue,
+                          });
+                          return (
+                            <td key={i} className="bg-hb-sage/25 px-2 py-1.5 text-right">
                               <span className="block text-[11px] tabular-nums text-hb-ink-soft">
-                                {fmtNumber(ytdBudget)}
+                                {budgetVal === 0 ? "—" : fmtNumber(budgetVal)}
                               </span>
-                              {reportField ? (
-                                <span className="block text-[11px] font-medium tabular-nums text-hb-ink">
-                                  {ytdActual != null ? fmtNumber(ytdActual) : "—"}
-                                  {ytdTone.pct != null && (
-                                    <span className={cn("ml-1", toneClass(ytdTone.tone))}>
-                                      {pctLabel(ytdTone.pct)}
-                                    </span>
-                                  )}
-                                </span>
-                              ) : (
-                                <span className="block text-[11px] text-hb-ink-soft/60">—</span>
-                              )}
+                              <span className="block text-[11px] font-medium tabular-nums text-hb-ink">
+                                {actualVal != null ? fmtNumber(actualVal) : ""}
+                                {actualVal != null && budgetVal !== 0 && tone.pct != null && (
+                                  <span className={cn("ml-1 font-normal", toneClass(tone.tone))}>
+                                    {pctLabel(tone.pct)}
+                                  </span>
+                                )}
+                              </span>
                             </td>
-                          )}
-                          {row.values.map((budgetVal, i) => {
-                            const actualVal =
-                              reportField && actualsMap[i] ? actualsMap[i][reportField] ?? null : null;
-                            const tone = deriveBudgetTone({ budget: budgetVal, actual: actualVal, isRevenue });
-                            return (
+                          );
+                        })}
+                      </tr>
+                      {group.rows.map((row) => {
+                        const rowTotal = row.values.reduce(
+                          (s, v) => s + (group.isRevenue ? v : Math.abs(v)),
+                          0,
+                        );
+                        const andel =
+                          group.budgetTotal !== 0
+                            ? Math.round((rowTotal / group.budgetTotal) * 100)
+                            : null;
+                        const ytdRowBudget = row.values
+                          .slice(0, lastActualIdx + 1)
+                          .reduce((s, v) => s + v, 0);
+                        return (
+                          <tr key={row.key} className="border-b border-hb-line/60">
+                            <td className="sticky left-0 z-10 bg-hb-surface px-4 py-2 text-xs text-hb-ink">
+                              <span className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                                {row.label}
+                                {andel != null && (
+                                  <span className="text-[10px] text-hb-ink-soft">
+                                    {andel} % af gruppen
+                                  </span>
+                                )}
+                              </span>
+                            </td>
+                            {hasAnyActuals && (
+                              <td className="border-r border-hb-line px-2 py-1.5 text-right">
+                                <span className="block text-[11px] tabular-nums text-hb-ink-soft">
+                                  {fmtNumber(ytdRowBudget)}
+                                </span>
+                              </td>
+                            )}
+                            {row.values.map((budgetVal, i) => (
                               <td key={i} className="px-2 py-1.5 text-right">
                                 <span className="block text-[11px] tabular-nums text-hb-ink-soft">
                                   {budgetVal === 0 ? "—" : fmtNumber(budgetVal)}
                                 </span>
-                                {reportField && (
-                                  <span className="block text-[11px] font-medium tabular-nums text-hb-ink">
-                                    {actualVal != null ? fmtNumber(actualVal) : ""}
-                                    {actualVal != null && budgetVal !== 0 && tone.pct != null && (
-                                      <span className={cn("ml-1 font-normal", toneClass(tone.tone))}>
-                                        {pctLabel(tone.pct)}
-                                      </span>
-                                    )}
-                                  </span>
-                                )}
                               </td>
-                            );
-                          })}
-                        </tr>
-                      );
-                    })}
-                  </>
-                ))}
+                            ))}
+                          </tr>
+                        );
+                      })}
+                    </Fragment>
+                  );
+                })}
                 <tr className="border-t border-hb-line bg-hb-sand/40">
                   <td className="sticky left-0 z-10 bg-hb-sand/40 px-4 py-2 text-xs font-medium text-hb-ink">
                     EBITDA
@@ -396,8 +418,9 @@ export const HbBudgetBva = ({ baseRows, year, companyId }: Props) => {
             </table>
           </div>
           <p className="border-t border-hb-line px-4 py-2 text-[11px] text-hb-ink-soft">
-            Alle beløb i kr. · Øverst budget, nederst realiseret · rust = bag budget (mere end 10 % =
-            markant afvigelse) · linjer uden rapportfelt sammenlignes ikke.
+            Alle beløb i kr. · På grupperækkerne: øverst budget, nederst realiseret · rust = bag
+            budget (mere end 10 % = markant afvigelse). Regnskabet bærer ét realiseret tal pr.
+            gruppe pr. måned, så de enkelte linjer viser kun budgettet og deres andel af gruppen.
           </p>
         </HbCard>
       )}

@@ -97,6 +97,7 @@ const tomtGitter = (): Gitter => ({
     bemaerkning: null,
     kommentar: null,
     sektion: null,
+    gruppe: null,
     tabelIndex: 0,
   })),
   struktur: [],

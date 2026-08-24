@@ -8,8 +8,10 @@ import {
   indsaetFraTekst,
   normaliseretVaerdi,
   opsummer,
+  raekkeGruppe,
   saetEtiket,
   saetMedtag,
+  saetRaekkegruppe,
   saetSektionsgruppe,
   saetSektionUdeladt,
   saetVaerdi,
@@ -248,6 +250,42 @@ export const HbImportGitter = ({ gitter, onChange }: HbImportGitterProps) => {
                             className="w-full min-w-[180px] rounded-md border border-transparent bg-transparent px-1.5 py-1 text-sm text-hb-ink placeholder:text-hb-ink-soft/60 hover:border-hb-line focus:border-hb-line focus:outline-none focus:ring-2 focus:ring-hb-evergreen/50"
                             aria-label="Etiket"
                           />
+                          {/* Linjens gruppevalg (spor3-design §4.1). Formvalg:
+                              en lille select UNDER etiketten i etiketkolonnen —
+                              talkolonnerne er allerede trange, og etiketcellen
+                              er den eneste med luft. Den er stylet som stille
+                              metadata (ingen ramme før hover) så gitteret ikke
+                              larmer; som ægte <select> forbliver den ét klik og
+                              tastaturtilgængelig, hvor et ikon-med-popover
+                              ville koste to klik og egen state. "Ikke et
+                              budgetbeløb" pr. linje ER medtag=false — samme
+                              tilstand som fluebenet, vist i vælgeren, så ét
+                              sted afgør hvad der skrives. */}
+                          <select
+                            value={
+                              raekke.medtag ? raekkeGruppe(gitter, raekke) : IKKE_BUDGET_SENTINEL
+                            }
+                            onChange={(e) => {
+                              if (e.target.value === IKKE_BUDGET_SENTINEL) {
+                                onChange(saetMedtag(gitter, raekke.raekkeIndex, false));
+                                return;
+                              }
+                              const gruppe = e.target.value as Gruppenoegle;
+                              const grundlag = raekke.medtag
+                                ? gitter
+                                : saetMedtag(gitter, raekke.raekkeIndex, true);
+                              onChange(saetRaekkegruppe(grundlag, raekke.raekkeIndex, gruppe));
+                            }}
+                            className="mt-0.5 max-w-[180px] cursor-pointer rounded border border-transparent bg-transparent px-1 py-0 text-[10px] text-hb-ink-soft hover:border-hb-line focus:border-hb-line focus:outline-none focus:ring-1 focus:ring-hb-evergreen/50"
+                            aria-label={`Gruppe for ${raekke.etiket || "unavngiven linje"}`}
+                          >
+                            {GROUP_ORDER.map((noegle) => (
+                              <option key={noegle} value={noegle}>
+                                {GROUP_LABELS[noegle]}
+                              </option>
+                            ))}
+                            <option value={IKKE_BUDGET_SENTINEL}>Ikke et budgetbeløb</option>
+                          </select>
                         </td>
                         {gitter.kolonner.map((kolonne, kolonneIndex) => (
                           <td key={kolonneIndex} className="px-2 py-2 text-right">

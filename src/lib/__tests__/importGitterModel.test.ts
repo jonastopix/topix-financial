@@ -6,10 +6,12 @@ import {
   byggGitter,
   erSektionUdeladt,
   gruppeForslag,
+  gruppeGaet,
   indsaetFraTekst,
   normaliseretVaerdi,
   raekkeGruppe,
   opsummer,
+  saetRaekkegruppe,
   saetSektionsgruppe,
   saetSektionUdeladt,
   saetEtiket,
@@ -440,6 +442,79 @@ describe("mutationer — nye objekter, aldrig mutation af input", () => {
 
 // ───────────────────────── Gruppeforslag og gruppevalg ─────────────────────────
 
+describe("gruppeGaet, saetRaekkegruppe og linjeniveau-gruppen (spor 3)", () => {
+  it("linjegæt: rammer rigtigt på Topix-etiketterne, null uden match", () => {
+    expect(gruppeGaet("Salg & Marketing")).toBe("salg_marketing"); // ikke indtaegter
+    expect(gruppeGaet("Personale")).toBe("personale");
+    expect(gruppeGaet("Lokale & Administration")).toBe("faste");
+    expect(gruppeGaet("Direkte Omkostninger")).toBe("variable");
+    expect(gruppeGaet("Software & It")).toBeNull(); // følger sektionen
+    expect(gruppeGaet("Konsulent & øvrig omsætning")).toBe("indtaegter");
+  });
+
+  it("omkostningsmarkør spærrer indtægtsreglen: 'Cost of revenue' og 'Salgsomkostninger' er ikke indtægter", () => {
+    expect(gruppeGaet("Cost of revenue")).toBe("variable");
+    expect(gruppeGaet("Salgsomkostninger")).toBeNull();
+    expect(gruppeGaet("Revenue")).toBe("indtaegter");
+  });
+
+  it("linjegættet vinder over sektionsgættet; uden linjegæt følges sektionen", () => {
+    const g = byggGitter(
+      resultat([
+        tabel([
+          { raekkeIndex: 0, etiket: "OMKOSTNINGER", type: "sektion", felter: [felt(null)] },
+          post(1, "Personale", [100]),
+          post(2, "Software & It", [50]),
+        ]),
+      ]),
+    );
+    const personale = g.raekker.find((r) => r.etiket === "Personale")!;
+    const software = g.raekker.find((r) => r.etiket === "Software & It")!;
+    expect(personale.gruppe).toBe("personale");
+    expect(software.gruppe).toBeNull();
+    expect(raekkeGruppe(g, personale)).toBe("personale");
+    expect(raekkeGruppe(g, software)).toBe("drift"); // sektionens fallback
+  });
+
+  it("saetRaekkegruppe overstyrer linjen; saetSektionsgruppe nulstiller ALLE sektionens linjer — immutabelt", () => {
+    const g = byggGitter(
+      resultat([
+        tabel([
+          { raekkeIndex: 0, etiket: "OMKOSTNINGER", type: "sektion", felter: [felt(null)] },
+          post(1, "Personale", [100]),
+          post(2, "Software & It", [50]),
+        ]),
+      ]),
+    );
+    const foer = JSON.parse(JSON.stringify(g));
+    const overstyret = saetRaekkegruppe(g, 2, "faste");
+    expect(raekkeGruppe(overstyret, overstyret.raekker.find((r) => r.raekkeIndex === 2)!)).toBe("faste");
+    expect(g).toEqual(foer); // muterer ikke input
+
+    // Nyt sektionsvalg sætter alle linjer — også de overstyrede og linjegættet.
+    const sektionsvalgt = saetSektionsgruppe(overstyret, "OMKOSTNINGER", "variable");
+    for (const r of sektionsvalgt.raekker) {
+      expect(r.gruppe).toBeNull();
+      expect(raekkeGruppe(sektionsvalgt, r)).toBe("variable");
+    }
+  });
+
+  it("normaliseretVaerdi følger linjens gruppe: skift til indtaegter genopretter det rå fortegn", () => {
+    const g = byggGitter(
+      resultat([
+        tabel([
+          { raekkeIndex: 0, etiket: "Diverse", type: "sektion", felter: [felt(null)] },
+          post(1, "Refusion", [-500]),
+        ]),
+      ]),
+    );
+    const raekke = g.raekker[0];
+    expect(normaliseretVaerdi(g, raekke, 0)).toBe(500); // drift → absolutværdi
+    const ny = saetRaekkegruppe(g, 1, "indtaegter");
+    expect(normaliseretVaerdi(ny, ny.raekker[0], 0)).toBe(-500);
+  });
+});
+
 describe("gruppeForslag og saetSektionsgruppe", () => {
   it("hver af de seks regler plus fallback", () => {
     expect(gruppeForslag("Omsætning")).toBe("indtaegter");
@@ -582,6 +657,7 @@ describe("saetSektionUdeladt og 'Ikke et budgetbeløb'", () => {
             "Fravalgt: ligner totalen 'Videreført total' i en anden del af filen — tages den med, tælles beløbet to gange",
           kommentar: null,
           sektion: "Resultat",
+          gruppe: null,
           tabelIndex: 0,
         },
         {
@@ -594,6 +670,7 @@ describe("saetSektionUdeladt og 'Ikke et budgetbeløb'", () => {
           bemaerkning: "Fravalgt: ser ud til at være et forholdstal, ikke et beløb",
           kommentar: null,
           sektion: "Resultat",
+          gruppe: null,
           tabelIndex: 0,
         },
         {
@@ -604,6 +681,7 @@ describe("saetSektionUdeladt og 'Ikke et budgetbeløb'", () => {
           bemaerkning: null,
           kommentar: null,
           sektion: "Resultat",
+          gruppe: null,
           tabelIndex: 0,
         },
       ],
@@ -1071,6 +1149,22 @@ describe("golden: gitter af Topix-resultatbudget 2026 (XLSX)", () => {
   it("eneste advarsel er fortegns-advarslen (omkostninger står positive i filen)", () => {
     expect(g.advarsler).toEqual([
       "Omkostningerne står som positive tal i din fil. Tjek at fortegnene er som du vil have dem.",
+    ]);
+  });
+
+  it("spor 3: OMKOSTNINGER-sektionens fem linjer får hver deres gruppe-forvalg fra linjegættet", () => {
+    // Sektionsvalg alene er for groft — én sektion, fem kategorier
+    // (spor3-design §4.1). Software & It har intet linjegæt og følger
+    // sektionens drift-fallback.
+    const forvalg = g.raekker
+      .filter((r) => r.sektion === "OMKOSTNINGER")
+      .map((r) => [r.etiket, raekkeGruppe(g, r)]);
+    expect(forvalg).toEqual([
+      ["Direkte Omkostninger", "variable"],
+      ["Salg & Marketing", "salg_marketing"],
+      ["Software & It", "drift"],
+      ["Personale", "personale"],
+      ["Lokale & Administration", "faste"],
     ]);
   });
 });
