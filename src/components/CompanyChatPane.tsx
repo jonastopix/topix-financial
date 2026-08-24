@@ -282,9 +282,12 @@ const CompanyChatPane = () => {
     if (!user) return;
 
     const loadConversations = async () => {
+      // Kun de 9 læste kolonner — select("*") trak også ops-model-resterne
+      // (acknowledged_*, conversation_status, follow_up_at, resolved_at),
+      // som ingen læser her (perf/chatpane-nyttelast). Join uændret.
       let convsQuery = supabase
         .from("conversations")
-        .select("*, companies:company_id(id, name, logo_url, is_legat, contract_end_date, subscription_status, subscription_current_period_end)")
+        .select("id, member_id, company_id, last_message_at, created_at, awaiting_reply_from, assigned_advisor_id, last_member_message_at, last_advisor_reply_at, companies:company_id(id, name, logo_url, is_legat, contract_end_date, subscription_status, subscription_current_period_end)")
         .order("last_message_at", { ascending: false });
       
       if (isCompanyOverride && companyId) {
@@ -505,12 +508,18 @@ const CompanyChatPane = () => {
 
     // Company thread: existing logic
     const loadMessages = async () => {
+      // Kun de 11 læste kolonner (alt undtagen edited_at — attachments bor i
+      // context_meta-jsonb'en og SKAL med), og et loft på 500: median er 26
+      // beskeder og max 89 i dag, så loftet ændrer intet i praksis. Hentes
+      // nyeste-først og vendes, så en samtale over loftet viser de NYESTE
+      // 500 — ikke de ældste (perf/chatpane-nyttelast).
       const { data } = await supabase
         .from("messages")
-        .select("*")
+        .select("id, conversation_id, sender_id, content, read_at, created_at, message_type, context_type, context_id, context_meta, pinned_at")
         .eq("conversation_id", activeConvId)
-        .order("created_at", { ascending: true });
-      setMessages(data || []);
+        .order("created_at", { ascending: false })
+        .limit(500);
+      setMessages((data || []).reverse());
 
       if (user) {
         await supabase.rpc("mark_messages_read", { p_conversation_id: activeConvId });
