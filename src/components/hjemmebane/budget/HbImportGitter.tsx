@@ -22,6 +22,7 @@ import {
   type GitterRaekke,
   type Gruppenoegle,
 } from "@/lib/importGitterModel";
+import { tolkKolonner } from "@/lib/importSkrivning";
 import { HbCard } from "../HbCard";
 import { fmtNumber } from "./hbBudgetShared";
 
@@ -74,6 +75,8 @@ const IKKE_BUDGET_SENTINEL = "__ikke_et_budgetbeloeb__";
 
 export const HbImportGitter = ({ gitter, onChange }: HbImportGitterProps) => {
   const sammendrag = opsummer(gitter);
+  const ingenTolkbareKolonner =
+    gitter.kolonner.length > 0 && tolkKolonner(gitter.kolonner).every((k) => k.type === "ukendt");
   const grupperet = grupper(gitter.raekker);
   const subtotaler = gitter.struktur.filter((s) => s.slags === "subtotal");
   const sektioner = gitter.struktur.filter((s) => s.slags === "sektion");
@@ -154,9 +157,25 @@ export const HbImportGitter = ({ gitter, onChange }: HbImportGitterProps) => {
           </p>
         </div>
         <p className="text-sm text-hb-ink-soft">
-          {sammendrag.medtaget} medtaget
-          {sammendrag.fravalgt > 0 && <> · {sammendrag.fravalgt} fravalgt</>}
-          {sammendrag.medBemaerkning > 0 && <> · {sammendrag.medBemaerkning} med bemærkning</>}
+          {/* Når INGEN kolonner kan tolkes som perioder, bliver skriveplanen
+              tom uanset tilvalg — "6 medtaget" ved siden af "Ingen linjer at
+              skrive" var to sande udsagn der modsagde hinanden på skærmen.
+              Tællerlinjen bærer nu forklaringen OG vejen ud (indsæt
+              månedstal direkte fra regnearket — P2). Samme dom som
+              skriveplanens alleKolonnerUkendte (tolkKolonner). */}
+          {sammendrag.medtaget > 0 && ingenTolkbareKolonner ? (
+            <>
+              {sammendrag.medtaget} linje{sammendrag.medtaget === 1 ? "" : "r"} valgt til, men ingen
+              af kolonnerne kunne læses som måneder — indsæt dine månedstal direkte fra regnearket,
+              så kan de skrives
+            </>
+          ) : (
+            <>
+              {sammendrag.medtaget} medtaget
+              {sammendrag.fravalgt > 0 && <> · {sammendrag.fravalgt} fravalgt</>}
+              {sammendrag.medBemaerkning > 0 && <> · {sammendrag.medBemaerkning} med bemærkning</>}
+            </>
+          )}
         </p>
       </div>
 

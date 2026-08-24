@@ -143,12 +143,19 @@ export type BudgetFillState = "empty" | "partial" | "complete";
     fx januar/februar med Contentproduktion 90.000 men uden salg).
     empty = samlet omsætning 0 (uændret); complete = mindst 10 udfyldte
     måneder. Domsorden: empty > complete > partial. */
+/** ÉN dom for "er måneden udfyldt": beløb ≠ 0 i NOGEN række (PR #401).
+    Deles af tælleren (deriveBudgetFill) og prik-båndet i BudgetteringView,
+    så de to aldrig kan være uenige igen (observeret: "12 af 12" ved siden
+    af otte fyldte prikker, fordi prikkerne talte positiv omsætning alene). */
+export const erMaanedUdfyldt = (rows: BudgetRow[], monthIdx: number): boolean =>
+  rows.some((r) => r.values[monthIdx] !== 0);
+
 export function deriveBudgetFill(rows: BudgetRow[]): {
   state: BudgetFillState;
   filledMonths: number;
 } {
   const revenueRows = rows.filter((r) => r.group === "indtaegter");
-  const filledMonths = MONTHS.filter((_, i) => rows.some((r) => r.values[i] !== 0)).length;
+  const filledMonths = MONTHS.filter((_, i) => erMaanedUdfyldt(rows, i)).length;
   const totalOmsaetning = revenueRows.reduce(
     (sum, row) => sum + row.values.reduce((s, v) => s + v, 0),
     0,

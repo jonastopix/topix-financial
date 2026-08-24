@@ -20,6 +20,7 @@ import { GROUP_LABELS, GROUP_ORDER, type BudgetTemplate } from "@/lib/budgetTemp
 import {
   computeEbitda,
   deriveBudgetFill,
+  erMaanedUdfyldt,
   loadBudget,
   resolveAutoYear,
   writeTemplateMarker,
@@ -373,13 +374,16 @@ export const BudgetteringView = () => {
             </div>
             <div className="mt-3 flex flex-wrap gap-2.5">
               {MONTHS.map((m, i) => {
-                const hasRevenue = revenueRows.some((r) => r.values[i] > 0);
+                // Samme dom som tælleren ovenfor (erMaanedUdfyldt) — før
+                // talte prikkerne kun positiv omsætning og kunne vise otte
+                // fyldte ved siden af "12 af 12 måneder udfyldt".
+                const udfyldt = erMaanedUdfyldt(viewRows, i);
                 return (
-                  <span key={m} className="flex flex-col items-center gap-1" title={`${m} — ${hasRevenue ? "udfyldt" : "ikke udfyldt"}`}>
+                  <span key={m} className="flex flex-col items-center gap-1" title={`${m} — ${udfyldt ? "udfyldt" : "ikke udfyldt"}`}>
                     <span
                       className={cn(
                         "h-4 w-4 rounded-full border",
-                        hasRevenue ? "border-hb-evergreen bg-hb-evergreen" : "border-hb-line",
+                        udfyldt ? "border-hb-evergreen bg-hb-evergreen" : "border-hb-line",
                       )}
                     />
                     <span className="text-[10px] text-hb-ink-soft">{SHORT_MONTHS[i]}</span>
