@@ -109,3 +109,12 @@ project_id = "loiavmastgeieqyiwyyr"
   # beviseligt passerer gaten i prod.
   [functions.intro-reminder-cron]
     verify_jwt = true
+  # Samme begrundelse som get-community-billed-url ovenfor.
+  [functions.opgave-accepter]
+    verify_jwt = true
+  # Samme begrundelse som get-community-billed-url ovenfor.
+  [functions.opgave-udskyd]
+    verify_jwt = true
+  # Samme begrundelse som get-community-billed-url ovenfor.
+  [functions.opgave-luk]
+    verify_jwt = true

@@ -394,6 +394,20 @@ have gjort den.
 forpligtelses- og udløbsreglerne (B1, B2, B7, B8, B10, B11) kan omgås
 fra klienten. Tilføj dem aldrig uden først at flytte reglerne med.
 
+**Skrivevejen (tilføjet 2026-08-24)**: tre Bucket A-functions med
+`verify_jwt = true` — `opgave-accepter`, `opgave-udskyd`, `opgave-luk`.
+Alle følger notify-community-svar-formen: `authenticateUser` → opslag
+med kalderens klient (RLS gater company-medlemskab) → eksplicit
+ejerskabs-tjek `user_id = callerId` (RLS'ens SELECT er company-scoped,
+men B1/§7 gør `user_id` til ejeren — kun ejeren må forpligte, udskyde
+eller lukke) → motoren dømmer overgangen → service-role UPDATE af
+præcis de felter motoren ændrede, med optimistisk lås på status (og
+`deferral_count` for udskydelse). Tilstandsmaskinen er spejlet i
+`supabase/functions/_shared/opgaveEngine.ts` (edge kan ikke importere
+fra `src/`); paritet håndhæves af
+`src/lib/__tests__/opgaveEngineSpejl.paritet.test.ts`. `expired` er
+ikke et klient-udfald — det hører til den kommende udløbs-cron (B8).
+
 **Verifikation**: `pg_policies`-udtræk 2026-08-22 22:41 bekræfter tre
 politikker tilbage. Ingen levende flade skrev til tabellen på
 ændringstidspunktet (`docs/opgave-model-kortlaegning.md` §2), og begge
