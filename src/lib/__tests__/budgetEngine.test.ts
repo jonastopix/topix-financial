@@ -10,6 +10,8 @@ import {
   applyQuickstartRows,
   computeEbitda,
   decodeBudgetRows,
+  getBudgetRowReportField,
+  GROUP_TO_REPORT_FIELD,
   decodeImportedRows,
   deriveBudgetFill,
   deriveGrowthFactor,
@@ -238,6 +240,31 @@ describe("normalizeBudgetKey (U3 — miss-kataloget 1-4, hb-ai-merge-recon §b3)
     expect(normalizeBudgetKey("fragt_levering")).toBe("fragt_levering");
     expect(normalizeBudgetKey("omsaetning")).toBe("omsaetning");
     expect(normalizeBudgetKey(normalizeBudgetKey("Vareforbrug / COGS"))).toBe("vareforbrug_cogs");
+  });
+});
+
+describe("getBudgetRowReportField (spor 3 — opslag på gruppen)", () => {
+  it("de seks par fra spor3-design §2, og null ved ukendt gruppe", () => {
+    expect(GROUP_TO_REPORT_FIELD).toEqual({
+      indtaegter: "omsaetning",
+      variable: "direkte_omkostninger",
+      personale: "loenninger",
+      salg_marketing: "salgsomkostninger",
+      faste: "lokaleomkostninger",
+      drift: "administrationsomkostninger",
+    });
+    expect(getBudgetRowReportField({ group: "personale" })).toBe("loenninger");
+    expect(getBudgetRowReportField({ group: "ukendt_gruppe" })).toBeNull();
+  });
+
+  it("enhver linje med gyldig gruppe er koblet — også importerede nøgler og de 27 skabelon-nøgler uden gammel mapping", () => {
+    // Nøglen er ligegyldig; kun gruppen tæller (B1). Det gamle key-opslag
+    // lod fx saas_b2b's tre lønlinjer og alle import_-nøgler stå ukoblede.
+    for (const t of BUDGET_TEMPLATES) {
+      for (const c of t.categories) {
+        expect(getBudgetRowReportField({ group: c.group }), `${t.key}/${c.key}`).not.toBeNull();
+      }
+    }
   });
 });
 

@@ -7,6 +7,7 @@ import {
   GYLDIGE_GRUPPER,
   normaliseretVaerdi,
   saetMedtag,
+  saetRaekkegruppe,
   saetSektionsgruppe,
   saetSektionUdeladt,
   type Gitter,
@@ -42,6 +43,7 @@ const gitter = (
     bemaerkning: null,
     kommentar: null,
     sektion: r.sektion ?? null,
+    gruppe: null,
     tabelIndex: 0,
   })),
   struktur: [],
@@ -265,6 +267,25 @@ describe("byggSkriveplan", () => {
       { sektion: "Personale & konsulentydelser", gruppe: "personale" },
       { sektion: null, gruppe: "drift" },
     ]);
+  });
+
+  it("linjens egen gruppe vinder over sektionens valg i planen (spor 3)", () => {
+    const g0 = byggGitter(
+      laesMatrix([
+        ["Post", "Januar"],
+        ["OMKOSTNINGER", null],
+        ["Personale", 100],
+        ["Software & It", 50],
+      ]),
+    );
+    const plan = byggSkriveplan(g0, "2026");
+    expect(plan.raekker.map((r) => [r.etiket, r.gruppe])).toEqual([
+      ["Personale", "personale"], // linjegæt vinder over sektionens drift
+      ["Software & It", "drift"], // intet linjegæt → sektionens fallback
+    ]);
+    // ...og medlemmets linje-overstyring vinder over begge.
+    const plan2 = byggSkriveplan(saetRaekkegruppe(g0, 3, "faste"), "2026");
+    expect(plan2.raekker.find((r) => r.etiket === "Software & It")!.gruppe).toBe("faste");
   });
 
   it("medlemmets gruppevalg i gitteret vinder over forslaget", () => {

@@ -264,31 +264,25 @@ export function decodeImportedRows(result: {
   }));
 }
 
-/** Rapportfelt → budget-keys-mappingen (BudgetVsActualTab.tsx:16-29 ordret
-    — flyttet hertil som én sandhed; gammel BvA-tab og Hb-fladen deler den).
-    NB (recon §1.4): mappingen dækker IKKE alle skabelon-keys — ukoblede
-    rækker vises ærligt (design-blok §e(iii)), mappingen kurateres ikke her. */
-export const REPORT_FIELD_TO_BUDGET_KEYS: Record<string, string[]> = {
-  omsaetning: ["omsaetning"],
-  direkte_omkostninger: ["vareforbrug", "direkte_omk", "fragt_levering",
-    "betalingsgebyrer", "produktions_omk", "lager_logistik"],
-  loenninger: ["loenninger", "personale", "konsulenter_freelance",
-    "rekruttering", "personale_udvikling"],
-  salgsomkostninger: ["marketing", "digital_marketing", "seo_content",
-    "email_marketing", "salg_kundepleje", "reklame"],
-  lokaleomkostninger: ["lokaler", "leje_lokaler", "forsikring_abonnementer",
-    "el_vand_varme"],
-  administrationsomkostninger: ["admin", "admin_regnskab", "tech_software",
-    "platform_tech", "it_udstyr", "forsikring", "revision_jura",
-    "kontorhold", "andet"],
+/** Gruppe → rapportfelt (spor3-design §2): de seks visningsgrupper og de
+    seks rapportfelter er samme opdeling under to navne. Erstatter den
+    håndkuraterede REPORT_FIELD_TO_BUDGET_KEYS (key-baseret; 27 af 44
+    skabelon-keys manglede og alle importerede linjer stod ukoblede) —
+    slettet 2026-08-24. B1: gruppen vinder — medlemmets gruppevalg afgør
+    både hvor linjen står og hvad den sammenlignes med. */
+export const GROUP_TO_REPORT_FIELD: Record<string, string> = {
+  indtaegter: "omsaetning",
+  variable: "direkte_omkostninger",
+  personale: "loenninger",
+  salg_marketing: "salgsomkostninger",
+  faste: "lokaleomkostninger",
+  drift: "administrationsomkostninger",
 };
 
-/** Opslaget budget-key → rapportfelt (BudgetVsActualTab.tsx:31-36 ordret). */
-export function getBudgetRowReportField(key: string): string | null {
-  for (const [field, keys] of Object.entries(REPORT_FIELD_TO_BUDGET_KEYS)) {
-    if (keys.includes(key)) return field;
-  }
-  return null;
+/** Rækkens rapportfelt — opslag på GRUPPEN, ikke nøglen. Enhver række med
+    en gyldig gruppe er koblet; null kun ved ukendt gruppe. */
+export function getBudgetRowReportField(row: Pick<BudgetRow, "group">): string | null {
+  return GROUP_TO_REPORT_FIELD[row.group] ?? null;
 }
 
 // ───────────────────────────── AFKODNING ─────────────────────────────
