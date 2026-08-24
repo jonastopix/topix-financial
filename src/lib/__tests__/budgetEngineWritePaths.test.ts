@@ -23,6 +23,7 @@ vi.mock("@/integrations/supabase/client", () => ({
 import {
   confirmBudgetFromAccounts,
   confirmBudgetImport,
+  confirmImportFraSkriveplan,
   copyBaseToScenario,
   generateAIScenario,
   loadBudget,
@@ -33,6 +34,7 @@ import {
   type SimEvent,
 } from "../budgetEngine";
 import type { BudgetRow } from "@/components/budget/types";
+import { byggSkriveplanInserts, type Skriveplan } from "@/lib/importSkrivning";
 
 const USER = "member-1";
 const ADVISOR = "advisor-1";
@@ -379,6 +381,115 @@ describe("Rundtur — import → load", () => {
     expect(decoded.templateFromMarker).toBe(false);
     expect(decoded.scenarioData.base.find((r) => r.key === "omsaetning")!.values).toEqual(monthly);
     expect(decoded.scenarioData.pessimistisk.find((r) => r.key === "vareforbrug")!.values).toEqual(fill(4_000));
+  });
+});
+
+describe("W8 — confirmImportFraSkriveplan sletter over 1.000-rækkers-loftet", () => {
+  const plan: Skriveplan = {
+    aar: "2026",
+    raekker: [
+      {
+        noegle: "import_ny_linje_1",
+        etiket: "Ny linje",
+        gruppe: "drift",
+        maanedsbeloeb: Array.from({ length: 12 }, () => 100),
+        fordelinger: [],
+      },
+    ],
+    aarsskift: null,
+    grupper: [{ sektion: null, gruppe: "drift" }],
+    utolkedeKolonner: [],
+    sprungetOverKolonner: [],
+    advarsler: [],
+  };
+
+  it("prod-scenariet (3ffccc0f): gamle import-rækker UDEN FOR de første tusind slettes alligevel", async () => {
+    // 1.000 fyldrækker for et andet år lægger sig FØRST i tabellen…
+    h.current.seed(
+      Array.from({ length: 1000 }, (_, i) => ({
+        user_id: USER,
+        company_id: COMPANY,
+        category: `filler_${i}`,
+        budget_amount: 1,
+        period: "2025-base-0",
+      })),
+    );
+    // …og de seks overlevere fra prod ligger derefter — uden for loftet.
+    const overlevere = [
+      "import_stape_30",
+      "import_telefon_internet_50",
+      "import_udvikling_design_vedligeholdelse_28",
+      "import_uforudsete_omkostninger_5_af_fast_base_54",
+      "import_vand_varme_45",
+      "import_zoom_31",
+    ];
+    h.current.seed(
+      overlevere.map((category) => ({
+        user_id: USER,
+        company_id: COMPANY,
+        category,
+        budget_amount: 999,
+        period: "2026-base-0",
+      })),
+    );
+    // Markører: én for planens egen nøgle (skal væk), én for en anden
+    // nøgle (skal overleve — noegleSet-semantikken).
+    h.current.seed([
+      { user_id: USER, company_id: COMPANY, category: "__label__2026_import_ny_linje_1", budget_amount: 0, period: "Gammel etiket" },
+      { user_id: USER, company_id: COMPANY, category: "__label__2026_anden_noegle", budget_amount: 0, period: "Anden linje" },
+    ]);
+
+    // Fejlens forudsætning, bevist mod mocken: en UFILTRERET hentning (den
+    // gamle fetchExistingRows-form) rammer loftet og ser ingen af de seks.
+    const ufiltreret = await (h.current.supabase
+      .from("budget_targets")
+      .select("id, period, category") as never as {
+      eq: (c: string, v: string) => PromiseLike<{ data: { category: string }[] }>;
+    }).eq("company_id", COMPANY);
+    expect(ufiltreret.data).toHaveLength(1000);
+    expect(ufiltreret.data.some((r) => r.category.startsWith("import_"))).toBe(false);
+
+    await confirmImportFraSkriveplan({ userId: USER, companyId: COMPANY, plan });
+
+    // Alle seks overlevere er væk; kun planens egne rækker står for 2026.
+    expect(h.current.rowsWhere((r) => overlevere.includes(r.category))).toEqual([]);
+    const aarsRaekker = h.current.rowsWhere((r) => r.period.startsWith("2026-base-"));
+    expect(aarsRaekker.every((r) => r.category === "import_ny_linje_1")).toBe(true);
+    expect(aarsRaekker).toHaveLength(12);
+    // Markøren for planens nøgle er erstattet; den fremmede står urørt.
+    expect(
+      h.current.rowsWhere((r) => r.category === "__label__2026_import_ny_linje_1").map((r) => r.period),
+    ).toEqual(["Ny linje"]);
+    expect(h.current.rowsWhere((r) => r.category === "__label__2026_anden_noegle")).toHaveLength(1);
+    // Fyldrækkerne (andet år) er urørte.
+    expect(h.current.rowsWhere((r) => r.category.startsWith("filler_"))).toHaveLength(1000);
+  });
+
+  it("paginering: over 1.000 rækker der ALLE matcher filteret slettes fuldt ud", async () => {
+    // 100 kategorier × 12 måneder = 1.200 matchende rækker — mere end ét sidekald.
+    h.current.seed(
+      Array.from({ length: 100 }, (_, k) => k).flatMap((k) =>
+        Array.from({ length: 12 }, (_, m) => ({
+          user_id: USER,
+          company_id: COMPANY,
+          category: `import_gammel_${k}`,
+          budget_amount: 1,
+          period: `2026-base-${m}`,
+        })),
+      ),
+    );
+    await confirmImportFraSkriveplan({ userId: USER, companyId: COMPANY, plan });
+    expect(h.current.rowsWhere((r) => r.category.startsWith("import_gammel_"))).toEqual([]);
+    expect(h.current.rowsWhere((r) => r.period.startsWith("2026-base-"))).toHaveLength(12);
+  });
+
+  it("insert-dannelsen er uændret: præcis byggSkriveplanInserts' rækker skrives", async () => {
+    await confirmImportFraSkriveplan({ userId: USER, companyId: COMPANY, plan });
+    const forventet = byggSkriveplanInserts({ userId: USER, companyId: COMPANY, plan });
+    const skrevet = h.current
+      .rowsWhere(() => true)
+      .map(({ id: _id, ...rest }) => rest);
+    expect(skrevet).toEqual(forventet);
   });
 });
 
