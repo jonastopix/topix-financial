@@ -102,6 +102,14 @@ describe("parseBudgetMarker (§b5)", () => {
     });
   });
 
+  it("__fravalgt__ m. underscore-key", () => {
+    expect(parseBudgetMarker("__fravalgt__2026_digital_marketing")).toEqual({
+      kind: "fravalgt",
+      year: "2026",
+      key: "digital_marketing",
+    });
+  });
+
   it("__sim_event__ → simEvent m. idx", () => {
     expect(parseBudgetMarker("__sim_event__2026_0")).toEqual({
       kind: "simEvent",
@@ -344,11 +352,25 @@ describe("applyQuickstartRows", () => {
     expect(result.find((r) => r.key === "marketing")!.values).toEqual(zeros());
   });
 
-  it("øvrige omkostninger fordeles ligeligt på redigerbare ikke-løn-rækker (arvet (costs−payroll)-formel)", () => {
+  it("jomfrueligt budget (alle omkostningsrækker tomme): fordeles over skabelonens egne linjer som hidtil", () => {
     const result = applyQuickstartRows(rows, { revenue: 1_200_000, costs: 480_000, payroll: 240_000 });
     // (costs/12 − payroll/12) / 2 rækker = (40000 − 20000) / 2 = 10000
     expect(result.find((r) => r.key === "marketing")!.values).toEqual(Array(12).fill(10_000));
     expect(result.find((r) => r.key === "admin")!.values).toEqual(Array(12).fill(10_000));
+  });
+
+  it("sidefejlen rettet: har NOGLE linjer værdier, fordeles KUN over dem — tomme skabelon-rester røres ikke", () => {
+    const delvist = [
+      row("omsaetning", "indtaegter", zeros()),
+      row("loenninger", "personale", zeros()),
+      row("marketing", "salg_marketing", filled(12, 500)), // har allerede værdier
+      row("admin", "faste", zeros()), // tom skabelon-rest
+    ];
+    const result = applyQuickstartRows(delvist, { revenue: 1_200_000, costs: 480_000, payroll: 240_000 });
+    // Hele (costs−payroll)/12 = 20.000 lander på den ENE linje med værdier…
+    expect(result.find((r) => r.key === "marketing")!.values).toEqual(Array(12).fill(20_000));
+    // …og den tomme skabelon-rest forbliver tom.
+    expect(result.find((r) => r.key === "admin")!.values).toEqual(zeros());
   });
 });
 

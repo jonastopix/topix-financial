@@ -22,7 +22,9 @@ vi.mock("@/integrations/supabase/client", () => ({
 
 import {
   confirmBudgetFromAccounts,
+  fravaelgKategori,
   gemScenarieRaekker,
+  genvaelgKategori,
   hentAlleSider,
   confirmBudgetImport,
   confirmImportFraSkriveplan,
@@ -261,6 +263,91 @@ describe("gruppeskift i redigeringstabellen (feat/gruppevaelger-i-redigering)", 
     expect(
       h.current.rowsWhere((r) => r.period.startsWith("2026-base-") && !r.category.startsWith("__")),
     ).toHaveLength(24);
+  });
+});
+
+describe("fravalgte skabelonlinjer (__fravalgt__-markøren)", () => {
+  it("fravalgt skabelon-linje er VÆK efter genindlæsning — den genopstår ikke som 12×0", async () => {
+    h.current.seed([
+      { user_id: USER, company_id: COMPANY, category: "__template__", budget_amount: 0, period: "webshop_b2c" },
+      ...seedScenario(USER, COMPANY, "2026", "base", "omsaetning", 100),
+    ]);
+
+    await fravaelgKategori({ userId: USER, companyId: COMPANY, year: "2026", key: "digital_marketing" });
+
+    const result = await loadBudget(COMPANY, "2026");
+    const keys = result.decoded!.scenarioData.base.map((r) => r.key);
+    expect(keys).not.toContain("digital_marketing");
+    expect(keys).toContain("omsaetning"); // resten af skabelonen består
+    expect(keys).toContain("seo_content");
+    expect(result.decoded!.fravalgte).toEqual([{ key: "digital_marketing", label: "Digital marketing" }]);
+  });
+
+  it("fravalgt linje kan hentes tilbage og dukker op igen", async () => {
+    h.current.seed([
+      { user_id: USER, company_id: COMPANY, category: "__template__", budget_amount: 0, period: "webshop_b2c" },
+      ...seedScenario(USER, COMPANY, "2026", "base", "omsaetning", 100),
+    ]);
+    await fravaelgKategori({ userId: USER, companyId: COMPANY, year: "2026", key: "digital_marketing" });
+    expect((await loadBudget(COMPANY, "2026")).decoded!.scenarioData.base.map((r) => r.key)).not.toContain("digital_marketing");
+
+    await genvaelgKategori({ companyId: COMPANY, year: "2026", key: "digital_marketing" });
+
+    const result = await loadBudget(COMPANY, "2026");
+    const row = result.decoded!.scenarioData.base.find((r) => r.key === "digital_marketing");
+    expect(row).toBeDefined();
+    expect(row!.values).toEqual(Array(12).fill(0));
+    expect(result.decoded!.fravalgte).toEqual([]);
+  });
+
+  it("fravalg af en importeret linje virker UDEN at gemme alle tre scenarier", async () => {
+    // Recon §4: ekstra-nøgler genopstod fra de andre scenariers værdirækker.
+    h.current.seed([
+      ...seedScenario(USER, COMPANY, "2026", "base", "import_gammel_9", 50),
+      ...seedScenario(USER, COMPANY, "2026", "optimistisk", "import_gammel_9", 55),
+      ...seedScenario(USER, COMPANY, "2026", "pessimistisk", "import_gammel_9", 45),
+      ...seedScenario(USER, COMPANY, "2026", "base", "omsaetning", 100),
+      { user_id: USER, company_id: COMPANY, category: "__label__2026_import_gammel_9", budget_amount: 0, period: "Gammel linje" },
+    ]);
+
+    await fravaelgKategori({ userId: USER, companyId: COMPANY, year: "2026", key: "import_gammel_9" });
+
+    const result = await loadBudget(COMPANY, "2026");
+    for (const sc of ["base", "optimistisk", "pessimistisk"] as const) {
+      expect(result.decoded!.scenarioData[sc].map((r) => r.key)).not.toContain("import_gammel_9");
+    }
+    // Markøren bærer label-opslaget med — fladen kan vise navnet.
+    expect(result.decoded!.fravalgte).toEqual([{ key: "import_gammel_9", label: "Gammel linje" }]);
+  });
+
+  it("dobbelt fravalg er idempotent (23505 behandles som succes)", async () => {
+    await fravaelgKategori({ userId: USER, companyId: COMPANY, year: "2026", key: "x" });
+    await expect(
+      fravaelgKategori({ userId: USER, companyId: COMPANY, year: "2026", key: "x" }),
+    ).resolves.toBeUndefined();
+    expect(h.current.rowsWhere((r) => r.category === "__fravalgt__2026_x")).toHaveLength(1);
+  });
+
+  it("markøren forstyrrer ikke de øvrige markører i afkodningen", async () => {
+    h.current.seed([
+      { user_id: USER, company_id: COMPANY, category: "__template__", budget_amount: 0, period: "webshop_b2c" },
+      ...seedScenario(USER, COMPANY, "2026", "base", "omsaetning", 100),
+      ...seedScenario(USER, COMPANY, "2026", "base", "ekstra_linje", 7),
+      { user_id: USER, company_id: COMPANY, category: "__label__2026_ekstra_linje", budget_amount: 0, period: "Min linje" },
+      { user_id: USER, company_id: COMPANY, category: "__group__2026_ekstra_linje", budget_amount: 0, period: "faste" },
+      { user_id: USER, company_id: COMPANY, category: "__fravalgt__2026_seo_content", budget_amount: 0, period: "fravalgt" },
+      { user_id: USER, company_id: COMPANY, category: "__sim_event__2026_0", budget_amount: 0, period: JSON.stringify({ id: "e1", type: "hire", label: "x", monthlyCost: 1, startMonth: 0, isRevenue: false }) },
+    ]);
+
+    const result = await loadBudget(COMPANY, "2026");
+    const base = result.decoded!.scenarioData.base;
+    expect(result.decoded!.templateFromMarker).toBe(true); // __template__ læses
+    const ekstra = base.find((r) => r.key === "ekstra_linje")!;
+    expect(ekstra.label).toBe("Min linje"); // __label__ virker
+    expect(ekstra.group).toBe("faste"); // __group__ virker
+    expect(base.map((r) => r.key)).not.toContain("seo_content"); // __fravalgt__ virker
+    expect(base.map((r) => r.key)).not.toContain("__sim_event__2026_0"); // sim-markør er ikke en række
+    expect(await loadSimEvents(COMPANY, "2026")).toHaveLength(1); // …og læses stadig som event
   });
 });
 
