@@ -19,7 +19,16 @@ vi.mock("@/integrations/supabase/client", () => ({
       invoke: vi.fn(async () => ({ data: h.state.aiResponse, error: null })),
     },
     from: () => ({
-      select: () => ({ eq: async () => ({ data: [], error: null }) }),
+      // Tom-tabel-builder m. kædebare order/range (fetchExistingRows
+      // paginerer nu, fix/loadbudget-over-tusind) — svarer stadig tomt.
+      select: () => {
+        const builder = {
+          eq: () => builder,
+          order: () => builder,
+          range: async () => ({ data: [], error: null }),
+        };
+        return builder;
+      },
       delete: () => ({ in: async () => ({ error: null }) }),
       insert: h.insertSpy,
     }),

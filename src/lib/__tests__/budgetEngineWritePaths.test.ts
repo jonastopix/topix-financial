@@ -22,6 +22,7 @@ vi.mock("@/integrations/supabase/client", () => ({
 
 import {
   confirmBudgetFromAccounts,
+  hentAlleSider,
   confirmBudgetImport,
   confirmImportFraSkriveplan,
   copyBaseToScenario,
@@ -381,6 +382,79 @@ describe("Rundtur — import → load", () => {
     expect(decoded.templateFromMarker).toBe(false);
     expect(decoded.scenarioData.base.find((r) => r.key === "omsaetning")!.values).toEqual(monthly);
     expect(decoded.scenarioData.pessimistisk.find((r) => r.key === "vareforbrug")!.values).toEqual(fill(4_000));
+  });
+});
+
+describe("hentAlleSider — pagineret læsning over 1.000-rækkers-loftet (fix/loadbudget-over-tusind)", () => {
+  it("paginerer indtil en kort side: 1.000 + 378 = alle 1.378 (remm-tallet)", async () => {
+    const kald: [number, number][] = [];
+    const raekker = Array.from({ length: 1378 }, (_, i) => ({ n: i }));
+    const alle = await hentAlleSider<{ n: number }>((fra, til) => {
+      kald.push([fra, til]);
+      return Promise.resolve({ data: raekker.slice(fra, til + 1), error: null });
+    });
+    expect(alle).toHaveLength(1378);
+    expect(alle[1377]).toEqual({ n: 1377 });
+    expect(kald).toEqual([[0, 999], [1000, 1999]]);
+  });
+
+  it("en fejl fra supabase KASTES — aldrig en tom liste", async () => {
+    await expect(
+      hentAlleSider(() => Promise.resolve({ data: null, error: { message: "boom" } })),
+    ).rejects.toEqual({ message: "boom" });
+  });
+
+  it("loadBudget ser rækker UD OVER de første tusind (medlemmets forsvundne rettelser)", async () => {
+    // 1.000 fyldrækker lægger sig først i tabellen — den gamle ufiltrerede
+    // hentning uden paginering så KUN dem, og alt herunder var usynligt.
+    h.current.seed(
+      Array.from({ length: 1000 }, (_, i) => ({
+        user_id: USER,
+        company_id: COMPANY,
+        category: `filler_${i}`,
+        budget_amount: 1,
+        period: "2025-base-0",
+      })),
+    );
+    h.current.seed(seedScenario(USER, COMPANY, "2026", "base", "sidste_raekke", 777));
+
+    const result = await loadBudget(COMPANY, "2026");
+    expect(result.empty).toBe(false);
+    expect(result.availableYears).toContain("2026");
+    const row = result.decoded!.scenarioData.base.find((r) => r.key === "sidste_raekke");
+    expect(row, "rækken uden for de første tusind skal kunne læses").toBeDefined();
+    expect(row!.values).toEqual(Array(12).fill(777));
+  });
+
+  it("saveScenarioEdits sletter gamle rækker UD OVER de første tusind (ingen genopstandne tal)", async () => {
+    h.current.seed(
+      Array.from({ length: 1000 }, (_, i) => ({
+        user_id: USER,
+        company_id: COMPANY,
+        category: `filler_${i}`,
+        budget_amount: 1,
+        period: "2025-base-0",
+      })),
+    );
+    // Gamle 2026-base-rækker EFTER fyldet — uden paginering usete og
+    // dermed aldrig slettet: de ville overskrive de nye ved næste load.
+    h.current.seed(seedScenario(USER, COMPANY, "2026", "base", "gammel_kategori", 999));
+
+    await saveScenarioEdits({
+      userId: USER,
+      companyId: COMPANY,
+      year: "2026",
+      scenario: "base",
+      rows: [bRow("omsaetning", "indtaegter", 100)],
+      labelOverrides: {},
+      templateKeys: new Set(["omsaetning"]),
+    });
+
+    expect(h.current.rowsWhere((r) => r.category === "gammel_kategori")).toEqual([]);
+    expect(
+      h.current.rowsWhere((r) => r.category === "omsaetning" && r.period.startsWith("2026-base-")),
+    ).toHaveLength(12);
+    expect(h.current.rowsWhere((r) => r.category.startsWith("filler_"))).toHaveLength(1000);
   });
 });
 
