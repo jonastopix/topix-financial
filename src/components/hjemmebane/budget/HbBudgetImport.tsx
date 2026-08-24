@@ -101,6 +101,7 @@ const tomtGitter = (): Gitter => ({
   })),
   struktur: [],
   sektionsGrupper: { "": "drift" },
+  udeladteSektioner: {},
   advarsler: [],
 });
 

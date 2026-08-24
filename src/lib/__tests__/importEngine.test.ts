@@ -221,6 +221,76 @@ describe("findTabeller", () => {
     expect(graenser[0].foersteDataRaekke).toBe(2);
   });
 
+  it("header adskilt fra data af ÉN tom række knyttes til næste blok (fejl 1)", () => {
+    const m: Matrix = [
+      [null, "Jan", "Feb"],
+      [null, null],
+      ["Salg", "1", "2"],
+      ["Løn", "3", "4"],
+    ];
+    expect(findTabeller(m)).toEqual([
+      { headerRaekke: 0, foersteDataRaekke: 2, sidsteDataRaekke: 3, headerLaant: true },
+    ]);
+  });
+
+  it("header adskilt af TO tomme rækker ligeså", () => {
+    const m: Matrix = [
+      [null, "Jan", "Feb"],
+      [null, null],
+      [null, null],
+      ["Salg", "1", "2"],
+    ];
+    expect(findTabeller(m)).toEqual([
+      { headerRaekke: 0, foersteDataRaekke: 3, sidsteDataRaekke: 3, headerLaant: true },
+    ]);
+  });
+
+  it("den ventende header gælder ALLE følgende blokke indtil en ny header findes", () => {
+    const m: Matrix = [
+      [null, "Jan", "Feb"],
+      [null, null],
+      ["OMSÆTNING", null, null],
+      ["Salg", "1", "2"],
+      [null, null],
+      ["OMKOSTNINGER", null, null],
+      ["Løn", "3", "4"],
+      [null, null],
+      ["Post", "Q1", "Q2"], // ny header med egne datarækker afløser den ventende
+      ["Husleje", "5", "6"],
+    ];
+    expect(findTabeller(m)).toEqual([
+      { headerRaekke: 0, foersteDataRaekke: 2, sidsteDataRaekke: 3, headerLaant: true },
+      { headerRaekke: 0, foersteDataRaekke: 5, sidsteDataRaekke: 6, headerLaant: true },
+      { headerRaekke: 8, foersteDataRaekke: 9, sidsteDataRaekke: 9 },
+    ]);
+  });
+
+  it("en ny header UDEN datarækker afløser også den ventende", () => {
+    const m: Matrix = [
+      [null, "Jan", "Feb"],
+      [null, null],
+      [null, "Q1", "Q2"],
+      [null, null],
+      ["Salg", "1", "2"],
+    ];
+    expect(findTabeller(m)).toEqual([
+      { headerRaekke: 2, foersteDataRaekke: 4, sidsteDataRaekke: 4, headerLaant: true },
+    ]);
+  });
+
+  it("tekstblokke mellem header og talblokke bliver stadig ikke til tabeller", () => {
+    const m: Matrix = [
+      [null, "Jan", "Feb"],
+      [null, null],
+      ["Kun en note uden cifre", null, null],
+      [null, null],
+      ["Salg", "1", "2"],
+    ];
+    expect(findTabeller(m)).toEqual([
+      { headerRaekke: 0, foersteDataRaekke: 4, sidsteDataRaekke: 4, headerLaant: true },
+    ]);
+  });
+
   it("ren tekstblok uden tal bliver ikke til en tabel", () => {
     expect(findTabeller([["Kun en titel", null], ["og en note", null]])).toHaveLength(0);
   });
@@ -611,6 +681,47 @@ describe("laesMatrix", () => {
     expect(t.kolonneOverskrifter).toEqual(["Konto", "Årstotal", "Note"]);
     expect(t.foersteDataRaekke).toBe(2);
     expect(t.raekker.map((r) => r.etiket)).toEqual(["Løn"]);
+  });
+
+  it("header med tom kolonne 0 og to periode-kolonner bliver overskriftsrække (fejl 2)", () => {
+    const res = laesMatrix([
+      [null, "Jan", "Feb"],
+      ["Salg", "1,000", "2,000"],
+    ]);
+    const t = res.tabeller[0];
+    expect(t.headerRaekke).toBe(0);
+    expect(t.kolonneOverskrifter).toEqual(["", "Jan", "Feb"]);
+    expect(t.raekker.map((r) => r.etiket)).toEqual(["Salg"]);
+  });
+
+  it("kandidat med tom kolonne 0 og INGEN periode-kolonner promoveres ikke", () => {
+    const res = laesMatrix([
+      [null, "FAKTISK", "BUDGET"],
+      ["Salg", "1,000", "2,000"],
+    ]);
+    const t = res.tabeller[0];
+    // Kravet om tekst i kolonne 0 gælder fortsat uden periode-kolonner —
+    // rækken forbliver en datarække med ulæselige felter (P1), ikke header.
+    expect(t.headerRaekke).toBeNull();
+    expect(t.raekker.map((r) => r.etiket)).toEqual(["", "Salg"]);
+  });
+
+  it("lånt header gælder tabellen — men viger for blokkens egen promoverede header", () => {
+    const res = laesMatrix([
+      [null, "Jan", "Feb"],
+      [null, null],
+      ["Salg", "1,000", "2,000"],
+      [null, null],
+      ["KPI", "Årstotal", "Kommentar"], // egen promoverbar header — må ikke arve månederne
+      ["Revenue", "2,700,000", "Netto"],
+      ["Profit", "188,724", "Efter faste"],
+    ]);
+    expect(res.tabeller).toHaveLength(2);
+    expect(res.tabeller[0].headerRaekke).toBe(0);
+    expect(res.tabeller[0].kolonneOverskrifter).toEqual(["", "Jan", "Feb"]);
+    expect(res.tabeller[1].headerRaekke).toBe(4);
+    expect(res.tabeller[1].kolonneOverskrifter).toEqual(["KPI", "Årstotal", "Kommentar"]);
+    expect(res.tabeller[1].raekker.map((r) => r.etiket)).toEqual(["Revenue", "Profit"]);
   });
 
   it("headerløs tabel: første række med tekst KUN i kolonne 0 promoveres ikke — forbliver sektion", () => {

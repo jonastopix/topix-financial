@@ -4,12 +4,14 @@ import { describe, expect, it } from "vitest";
 import { erMaanedsnavn, laesMatrix, laesTal, type ImportResultat, type Matrix, type Tabel } from "@/lib/importEngine";
 import {
   byggGitter,
+  erSektionUdeladt,
   gruppeForslag,
   indsaetFraTekst,
   normaliseretVaerdi,
   raekkeGruppe,
   opsummer,
   saetSektionsgruppe,
+  saetSektionUdeladt,
   saetEtiket,
   saetMedtag,
   saetVaerdi,
@@ -504,6 +506,125 @@ describe("gruppeForslag og saetSektionsgruppe", () => {
   });
 });
 
+// ───────────── "Ikke et budgetbeløb" (fejl 3) ─────────────
+
+describe("saetSektionUdeladt og 'Ikke et budgetbeløb'", () => {
+  const noegletalsGitter = () =>
+    byggGitter(
+      resultat([
+        tabel([
+          { raekkeIndex: 0, etiket: "OMSÆTNING", type: "sektion", felter: [felt(null)] },
+          post(1, "Salg", [100]),
+          { raekkeIndex: 2, etiket: "NØGLETAL", type: "sektion", felter: [felt(null)] },
+          post(3, "MRR", [43031]),
+          post(4, "ARR", [516367]),
+        ]),
+      ]),
+    );
+
+  it("NØGLETAL-sektionen forvælges som udeladt — rækkerne fravalgt men synlige i gitteret (P1)", () => {
+    const g = noegletalsGitter();
+    expect(erSektionUdeladt(g, "NØGLETAL")).toBe(true);
+    expect(erSektionUdeladt(g, "OMSÆTNING")).toBe(false);
+    const mrr = g.raekker.find((r) => r.etiket === "MRR")!;
+    const arr = g.raekker.find((r) => r.etiket === "ARR")!;
+    expect(mrr.medtag).toBe(false);
+    expect(arr.medtag).toBe(false);
+    expect(g.raekker.find((r) => r.etiket === "Salg")!.medtag).toBe(true);
+    // Rækkerne forsvinder ikke — medlemmet kan se hvad der udelades.
+    expect(g.raekker).toHaveLength(3);
+  });
+
+  it("forvalget rammer også KPI- og key figures-navne", () => {
+    for (const navn of ["KPI-oversigt", "Key Figures", "Nøgletalsoversigt"]) {
+      const g = byggGitter(
+        resultat([
+          tabel([
+            { raekkeIndex: 0, etiket: navn, type: "sektion", felter: [felt(null)] },
+            post(1, "MRR", [100]),
+          ]),
+        ]),
+      );
+      expect(erSektionUdeladt(g, navn), navn).toBe(true);
+    }
+  });
+
+  it("saetSektionUdeladt fravælger alle sektionens rækker og kan fortrydes — immutabelt", () => {
+    const g = noegletalsGitter();
+    const foer = JSON.parse(JSON.stringify(g));
+    const udeladt = saetSektionUdeladt(g, "OMSÆTNING", true);
+    expect(erSektionUdeladt(udeladt, "OMSÆTNING")).toBe(true);
+    expect(udeladt.raekker.find((r) => r.etiket === "Salg")!.medtag).toBe(false);
+    const fortrudt = saetSektionUdeladt(udeladt, "OMSÆTNING", false);
+    expect(erSektionUdeladt(fortrudt, "OMSÆTNING")).toBe(false);
+    expect(fortrudt.raekker.find((r) => r.etiket === "Salg")!.medtag).toBe(true);
+    expect(g).toEqual(foer); // muterer ikke input
+  });
+
+  it("udeladelsen er en SEPARAT tilstand — gruppevalget for sektionen røres ikke", () => {
+    const g = saetSektionUdeladt(noegletalsGitter(), "OMSÆTNING", true);
+    expect(g.sektionsGrupper["OMSÆTNING"]).toBe("indtaegter");
+  });
+
+  it("rækker med forholdstals- eller dobbelttællings-bemærkning påvirkes ikke af sektionsvalget", () => {
+    // Håndbygget gitter: én sektion med et dobbelttællings-fravalg, et
+    // forholdstal og en almindelig række.
+    const g: Gitter = {
+      kolonner: ["Jan"],
+      raekker: [
+        {
+          raekkeIndex: 0,
+          etiket: "Videreført total",
+          vaerdier: [500],
+          medtag: false,
+          bemaerkning:
+            "Fravalgt: ligner totalen 'Videreført total' i en anden del af filen — tages den med, tælles beløbet to gange",
+          kommentar: null,
+          sektion: "Resultat",
+          tabelIndex: 0,
+        },
+        {
+          raekkeIndex: 1,
+          etiket: "Margin",
+          vaerdier: [0.2],
+          medtag: true,
+          bemaerkning: "Ser ud til at være et forholdstal, ikke et beløb",
+          kommentar: null,
+          sektion: "Resultat",
+          tabelIndex: 0,
+        },
+        {
+          raekkeIndex: 2,
+          etiket: "Almindelig",
+          vaerdier: [100],
+          medtag: true,
+          bemaerkning: null,
+          kommentar: null,
+          sektion: "Resultat",
+          tabelIndex: 0,
+        },
+      ],
+      struktur: [],
+      sektionsGrupper: { Resultat: "drift" },
+      udeladteSektioner: { Resultat: false },
+      advarsler: [],
+    };
+    const udeladt = saetSektionUdeladt(g, "Resultat", true);
+    // Forholdstallet beholder sit eget tilvalg; den almindelige fravælges.
+    expect(udeladt.raekker.map((r) => r.medtag)).toEqual([false, true, false]);
+    const fortrudt = saetSektionUdeladt(udeladt, "Resultat", false);
+    // Dobbelttællings-fravalget står ved magt når sektionen vælges til igen.
+    expect(fortrudt.raekker.map((r) => r.medtag)).toEqual([false, true, true]);
+  });
+
+  it("rækker uden sektion (null) kan også udelades", () => {
+    const g = byggGitter(resultat([tabel([post(0, "Resultat før skat", [100])])]));
+    const udeladt = saetSektionUdeladt(g, null, true);
+    expect(erSektionUdeladt(udeladt, null)).toBe(true);
+    expect(udeladt.raekker[0].medtag).toBe(false);
+  });
+});
+
 // ───────────── Advarsler og kolonne-oprydning (robusthed) ─────────────
 
 describe("advarsler og kolonner", () => {
@@ -862,6 +983,80 @@ describe("golden: gitter af Topix-budget 2026 (XLSX)", () => {
     const hovedtabel = res.tabeller.find((t) => t.headerRaekke === 3)!;
     expect(hovedtabel.foersteDataRaekke).toBe(4);
     expect(hovedtabel.kolonneOverskrifter[1]).toBe("Januar-26");
+  });
+});
+
+/**
+ * GOLDEN mod Topix.dk ApS' resultatbudget 2026 (XLSX, arket "Budget 2026") —
+ * filen der afslørede de tre importfejl 2026-08-24: månedsheaderen (række 4)
+ * er adskilt fra alle datablokke af en tom række og har tom etiketcelle, og
+ * NØGLETAL-sektionen (MRR/ARR/abonnenter) er tal OM forretningen, ikke
+ * budgetbeløb. NB: kun "I alt 2026"-kolonnen bærer årstallet — månederne
+ * hedder "Jan".."Dec" uden suffiks.
+ */
+describe("golden: gitter af Topix-resultatbudget 2026 (XLSX)", () => {
+  const fixturePath = path.resolve(__dirname, "../__fixtures__/topix-resultatbudget-2026.xlsx");
+  const res = laesMatrix(laesArkTilMatrix(fixturePath, "Budget 2026"));
+  const g = byggGitter(res);
+
+  it("fejl 1: den fritstående månedsheader (række 4) gælder alle fire datablokke", () => {
+    expect(res.tabeller).toHaveLength(4);
+    for (const t of res.tabeller) expect(t.headerRaekke).toBe(3);
+  });
+
+  it("kolonnenavnene er Jan…Dec + 'I alt 2026' — ikke 'Kolonne N'", () => {
+    expect(g.kolonner).toEqual([
+      "Jan", "Feb", "Mar", "Apr", "Maj", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dec", "I alt 2026",
+    ]);
+  });
+
+  it("16 rækker; strukturen er 3 sektioner og 2 subtotaler", () => {
+    expect(g.raekker).toHaveLength(16);
+    expect(g.struktur.filter((s) => s.slags === "sektion").map((s) => s.etiket)).toEqual([
+      "OMSÆTNING", "OMKOSTNINGER", "NØGLETAL",
+    ]);
+    expect(g.struktur.filter((s) => s.slags === "subtotal").map((s) => s.etiket)).toEqual([
+      "OMSÆTNING I ALT", "OMKOSTNINGER I ALT",
+    ]);
+  });
+
+  it("fejl 3: NØGLETAL er forvalgt som 'Ikke et budgetbeløb' — MRR/ARR/abonnenter fravalgt men synlige", () => {
+    expect(erSektionUdeladt(g, "NØGLETAL")).toBe(true);
+    const noegletal = g.raekker.filter((r) => r.sektion === "NØGLETAL");
+    expect(noegletal.map((r) => r.etiket)).toEqual([
+      "Aktive løbende medlemmer, ultimo",
+      "MRR, ultimo (ekskl. moms)",
+      "ARR, ultimo (MRR x 12)",
+    ]);
+    expect(noegletal.every((r) => !r.medtag)).toBe(true);
+    expect(g.raekker.filter((r) => r.medtag)).toHaveLength(13);
+  });
+
+  it("'Overskudsgrad' bærer forholdstals-bemærkningen og forbliver valgt til", () => {
+    const r = g.raekker.find((x) => x.etiket === "Overskudsgrad")!;
+    expect(r.bemaerkning).toBe("Ser ud til at være et forholdstal, ikke et beløb");
+    expect(r.medtag).toBe(true);
+  });
+
+  it("RESULTAT FØR SKAT og Akkumuleret resultat står uden sektion — udelades via 'Ikke et budgetbeløb'", () => {
+    const udenSektion = g.raekker.filter((r) => r.sektion === null);
+    expect(udenSektion.map((r) => r.etiket)).toEqual([
+      "RESULTAT FØR SKAT", "Overskudsgrad", "Akkumuleret resultat",
+    ]);
+    const udeladt = saetSektionUdeladt(g, null, true);
+    const efter = udeladt.raekker.filter((r) => r.sektion === null);
+    // Forholdstallet påvirkes ikke af sektionsvalget; de to andre fravælges.
+    expect(efter.map((r) => [r.etiket, r.medtag])).toEqual([
+      ["RESULTAT FØR SKAT", false],
+      ["Overskudsgrad", true],
+      ["Akkumuleret resultat", false],
+    ]);
+  });
+
+  it("eneste advarsel er fortegns-advarslen (omkostninger står positive i filen)", () => {
+    expect(g.advarsler).toEqual([
+      "Omkostningerne står som positive tal i din fil. Tjek at fortegnene er som du vil have dem.",
+    ]);
   });
 });
 

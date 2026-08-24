@@ -61,6 +61,11 @@ export type TabelGraense = {
   headerRaekke: number | null;
   foersteDataRaekke: number;
   sidsteDataRaekke: number;
+  /** Sat når headeren er LÅNT fra en tidligere blok (en header-række uden
+      egne datarækker). En lånt header viger for blokkens egen promoverede
+      header i laesMatrix — et KPI-resumé med egen overskriftsrække må ikke
+      arve månedskolonner det ikke har. */
+  headerLaant?: boolean;
 };
 
 // ───────────────────────── Talkonvention (P4) ─────────────────────────
@@ -365,6 +370,12 @@ function harTalCelle(raekke: Celle[] | undefined): boolean {
  * Rækker over blokkens første header hører ikke til nogen tabel. En blok
  * UDEN header men MED talrækker er også en tabel (headerRaekke null) — fx et
  * nøgletals-resumé uden periodekolonner.
+ *
+ * Ender en blok med en header-række UDEN datarækker under sig, kasseres
+ * headeren ikke: den knyttes til de FØLGENDE blokke med tal — også hen over
+ * en eller flere tomme rækker, og til dem alle indtil en ny header-række
+ * findes. Det er virkeligheden i mange budgetark: én månedsoverskrift
+ * øverst, en tom række, og derefter flere sektionsblokke.
  */
 export function findTabeller(matrix: Matrix): TabelGraense[] {
   const graenser: TabelGraense[] = [];
@@ -383,6 +394,9 @@ export function findTabeller(matrix: Matrix): TabelGraense[] {
   }
   if (start !== null) blokke.push({ start, slut: matrix.length - 1 });
 
+  // En header uden datarækker under sig venter på de næste blokke med tal.
+  let ventendeHeader: number | null = null;
+
   for (const blok of blokke) {
     const headere: number[] = [];
     for (let r = blok.start; r <= blok.slut; r++) {
@@ -390,28 +404,37 @@ export function findTabeller(matrix: Matrix): TabelGraense[] {
     }
 
     if (headere.length === 0) {
-      // Blok uden header: en tabel hvis der er tal at vise, ellers støj
-      // (titel-/tekstblokke bliver ikke til tabeller).
+      // Blok uden egen header: en tabel hvis der er tal at vise, ellers støj
+      // (titel-/tekstblokke bliver ikke til tabeller). En ventende header
+      // gælder blokken — og forbruges ikke: den gælder alle følgende blokke
+      // indtil en ny header-række findes.
       let harTal = false;
       for (let r = blok.start; r <= blok.slut; r++) {
         if (harTalCelle(matrix[r])) harTal = true;
       }
       if (harTal) {
         graenser.push({
-          headerRaekke: null,
+          headerRaekke: ventendeHeader,
           foersteDataRaekke: blok.start,
           sidsteDataRaekke: blok.slut,
+          ...(ventendeHeader !== null ? { headerLaant: true } : {}),
         });
       }
       continue;
     }
 
     // Blok med headere: én tabel pr. header; rækker over blokkens første
-    // header hører ikke til nogen tabel.
+    // header hører ikke til nogen tabel. En ny header afløser altid den
+    // ventende — headere med datarækker nulstiller, en afsluttende header
+    // uden datarækker bliver den nye ventende.
     for (let h = 0; h < headere.length; h++) {
       const header = headere[h];
       const sidste = h + 1 < headere.length ? headere[h + 1] - 1 : blok.slut;
-      if (header + 1 > sidste) continue; // header uden datarækker
+      if (header + 1 > sidste) {
+        ventendeHeader = header; // header uden datarækker: vent på næste blok
+        continue;
+      }
+      ventendeHeader = null;
       graenser.push({
         headerRaekke: header,
         foersteDataRaekke: header + 1,
@@ -638,17 +661,28 @@ export function laesMatrix(matrix: Matrix): ImportResultat {
       // OG tekst (ikke tal — kilde "ulaeselig") i mindst én anden kolonne,
       // og tal i rækkerne under, til overskriftsrække; rækkerne over den
       // droppes som titelrækker. En sektionsoverskrift har kun tekst i
-      // kolonne 0 og rammes ikke.
+      // kolonne 0 og rammes ikke. Kravet om tekst i kolonne 0 er lempet for
+      // kandidater med mindst TO periode-overskrifter i de øvrige kolonner
+      // (en månedsrække med tom etiketcelle er stadig en overskrift); for
+      // kandidater uden periode-kolonner ("KPI, Årstotal, Kommentar")
+      // gælder kravet fortsat. En LÅNT header (fra en tidligere bloks
+      // header-række uden datarækker) viger for blokkens egen promoverede
+      // header — findes ingen kandidat, beholdes den lånte.
       let headerRaekke = g.headerRaekke;
       let foersteDataRaekke = g.foersteDataRaekke;
-      if (headerRaekke === null && raekker.length >= 2) {
+      if ((headerRaekke === null || g.headerLaant) && raekker.length >= 2) {
         for (let k = 0; k < Math.min(3, raekker.length - 1); k++) {
           const kandidat = raekker[k];
           const tekstIAndenKolonne = kandidat.felter.some((f) => f.kilde === "ulaeselig");
+          const periodeKolonner = kandidat.felter.filter((f) =>
+            erPeriodeOverskrift(f.raa),
+          ).length;
           const talNedenunder = raekker
             .slice(k + 1)
             .some((r) => r.felter.some((f) => f.vaerdi !== null));
-          if (kandidat.etiket.trim() !== "" && tekstIAndenKolonne && talNedenunder) {
+          const kandidatOk =
+            periodeKolonner >= 2 || (kandidat.etiket.trim() !== "" && tekstIAndenKolonne);
+          if (kandidatOk && talNedenunder) {
             headerRaekke = kandidat.raekkeIndex;
             raekker = raekker.slice(k + 1);
             foersteDataRaekke = raekker[0].raekkeIndex;

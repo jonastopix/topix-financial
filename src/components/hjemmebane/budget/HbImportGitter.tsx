@@ -3,6 +3,7 @@ import { cn } from "@/lib/utils";
 import { laesTal, type TalKonvention } from "@/lib/importEngine";
 import { GROUP_LABELS, GROUP_ORDER } from "@/lib/budgetTemplates";
 import {
+  erSektionUdeladt,
   gruppeForslag,
   indsaetFraTekst,
   normaliseretVaerdi,
@@ -10,6 +11,7 @@ import {
   saetEtiket,
   saetMedtag,
   saetSektionsgruppe,
+  saetSektionUdeladt,
   saetVaerdi,
   sektionsNoegle,
   slet,
@@ -62,6 +64,11 @@ function grupper(raekker: GitterRaekke[]): { sektion: string | null; raekker: Gi
 /** Tastede tal læses med dansk konvention (gitteret bærer ingen egen
     konvention endnu) — motorens laesTal, samme regler som ved import. */
 const DANSK_KONVENTION: TalKonvention = { tusind: ".", decimal: ",", sikkerhed: "hoej" };
+
+/** Sentinel for "Ikke et budgetbeløb" i gruppevælgeren. KUN en UI-værdi:
+    tilstanden bor i gitter.udeladteSektioner og er aldrig en gruppenøgle —
+    den må ikke nå __group__-markørerne eller skriveplanen. */
+const IKKE_BUDGET_SENTINEL = "__ikke_et_budgetbeloeb__";
 
 export const HbImportGitter = ({ gitter, onChange }: HbImportGitterProps) => {
   const sammendrag = opsummer(gitter);
@@ -182,14 +189,25 @@ export const HbImportGitter = ({ gitter, onChange }: HbImportGitterProps) => {
                         <span className="normal-case tracking-normal">→</span>
                         <select
                           value={
-                            gitter.sektionsGrupper[sektionsNoegle(gruppe.sektion)] ??
-                            gruppeForslag(gruppe.sektion)
+                            erSektionUdeladt(gitter, gruppe.sektion)
+                              ? IKKE_BUDGET_SENTINEL
+                              : (gitter.sektionsGrupper[sektionsNoegle(gruppe.sektion)] ??
+                                gruppeForslag(gruppe.sektion))
                           }
-                          onChange={(e) =>
+                          onChange={(e) => {
+                            if (e.target.value === IKKE_BUDGET_SENTINEL) {
+                              onChange(saetSektionUdeladt(gitter, gruppe.sektion, true));
+                              return;
+                            }
+                            // Et gruppevalg ophæver en evt. udeladelse i samme
+                            // greb; er sektionen ikke udeladt, røres medtag ikke.
+                            const grundlag = erSektionUdeladt(gitter, gruppe.sektion)
+                              ? saetSektionUdeladt(gitter, gruppe.sektion, false)
+                              : gitter;
                             onChange(
-                              saetSektionsgruppe(gitter, gruppe.sektion, e.target.value as Gruppenoegle),
-                            )
-                          }
+                              saetSektionsgruppe(grundlag, gruppe.sektion, e.target.value as Gruppenoegle),
+                            );
+                          }}
                           className="rounded-md border border-hb-line bg-hb-surface px-1.5 py-0.5 text-[11px] normal-case tracking-normal text-hb-ink focus:outline-none focus:ring-2 focus:ring-hb-evergreen/50"
                           aria-label={`Budgetgruppe for ${gruppe.sektion ?? "linjer uden sektion"}`}
                         >
@@ -198,6 +216,7 @@ export const HbImportGitter = ({ gitter, onChange }: HbImportGitterProps) => {
                               {GROUP_LABELS[noegle]}
                             </option>
                           ))}
+                          <option value={IKKE_BUDGET_SENTINEL}>Ikke et budgetbeløb</option>
                         </select>
                       </span>
                     </td>

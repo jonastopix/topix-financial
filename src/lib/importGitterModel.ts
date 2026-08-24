@@ -89,8 +89,34 @@ export type Gitter = {
   /** Gruppevalg pr. sektion (nøgle = sektionsNoegle; "" = uden sektion),
       initialiseret med gruppeForslag og ændret via saetSektionsgruppe. */
   sektionsGrupper: Record<string, Gruppenoegle>;
+  /** "Ikke et budgetbeløb" pr. sektion (nøgle = sektionsNoegle) — en SEPARAT
+      tilstand ved siden af gruppevalget, ALDRIG en gruppenøgle: den må
+      hverken nå __group__-markørerne eller skriveplanen. Sektionens rækker
+      fravælges (medtag false) men bliver stående i gitteret, så medlemmet
+      kan se hvad der udelades og fortryde (P1). Forvalgt for
+      nøgletals-sektioner; ændres via saetSektionUdeladt. */
+  udeladteSektioner: Record<string, boolean>;
   advarsler: string[];
 };
+
+/** Er sektionen sat til "Ikke et budgetbeløb"? (Tåler gamle kladder uden
+    feltet — de læses fra localStorage.) */
+export function erSektionUdeladt(gitter: Gitter, sektion: string | null): boolean {
+  return gitter.udeladteSektioner?.[sektionsNoegle(sektion)] === true;
+}
+
+/** Sektioner der forvælges som "Ikke et budgetbeløb": nøgletal er tal OM
+    forretningen (MRR, ARR, abonnenter), ikke budgetbeløb — importeret som
+    omkostninger flerdobler de månederne. */
+const NOEGLETALS_SEKTION_RE = /nøgletal|noegletal|kpi|key figures|nøgletals/i;
+
+/** Rækker hvis EGET værn allerede har talt: forholdstals-bemærkningen og
+    dobbelttællings-bemærkningerne. De påvirkes ikke af sektionsvalget —
+    deres egen tilstand står ved magt. */
+const harEgetVaern = (raekke: GitterRaekke): boolean =>
+  raekke.bemaerkning !== null &&
+  (raekke.bemaerkning.includes("forholdstal") ||
+    raekke.bemaerkning.includes("tælles beløbet to gange"));
 
 /** Rækkens opløste gruppenøgle: medlemmets valg i gitteret, ellers forslaget. */
 export function raekkeGruppe(gitter: Gitter, raekke: GitterRaekke): Gruppenoegle {
@@ -414,7 +440,25 @@ export function byggGitter(resultat: ImportResultat): Gitter {
     if (!(noegle in sektionsGrupper)) sektionsGrupper[noegle] = gruppeForslag(raekke.sektion);
   }
 
-  return { kolonner, raekker, struktur, sektionsGrupper, advarsler };
+  // "Ikke et budgetbeløb" pr. sektion: nøgletals-sektioner forvælges som
+  // udeladt — deres rækker fravælges, men bliver stående i gitteret så
+  // medlemmet kan se hvad der udelades og fortryde (P1). Rækker med eget
+  // værn (forholdstal, dobbelttælling) røres ikke.
+  const udeladteSektioner: Record<string, boolean> = {};
+  for (const raekke of raekker) {
+    const noegle = sektionsNoegle(raekke.sektion);
+    if (!(noegle in udeladteSektioner)) {
+      udeladteSektioner[noegle] =
+        raekke.sektion !== null && NOEGLETALS_SEKTION_RE.test(raekke.sektion);
+    }
+  }
+  for (const raekke of raekker) {
+    if (udeladteSektioner[sektionsNoegle(raekke.sektion)] && !harEgetVaern(raekke)) {
+      raekke.medtag = false;
+    }
+  }
+
+  return { kolonner, raekker, struktur, sektionsGrupper, udeladteSektioner, advarsler };
 }
 
 // ───────────────────────── Mutationer (immutable) ─────────────────────────
@@ -424,6 +468,8 @@ const kopiGitter = (g: Gitter): Gitter => ({
   raekker: g.raekker.map((r) => ({ ...r, vaerdier: [...r.vaerdier] })),
   struktur: g.struktur.map((s) => ({ ...s, daekker: s.daekker ? [...s.daekker] : undefined })),
   sektionsGrupper: { ...g.sektionsGrupper },
+  // ?? {}: gamle localStorage-kladder er gemt uden feltet.
+  udeladteSektioner: { ...(g.udeladteSektioner ?? {}) },
   advarsler: [...g.advarsler],
 });
 
@@ -469,6 +515,28 @@ export function saetSektionsgruppe(
 ): Gitter {
   const ny = kopiGitter(gitter);
   ny.sektionsGrupper[sektionsNoegle(sektion)] = gruppe;
+  return ny;
+}
+
+/** "Ikke et budgetbeløb" for en sektion: alle sektionens rækker fravælges
+    (og vælges til igen når valget fortrydes) — undtagen rækker med eget
+    værn (forholdstal, dobbelttælling), hvis egen tilstand står ved magt.
+    Rækkerne bliver stående i gitteret, så medlemmet kan se hvad der
+    udelades og fortryde (P1). Tilstanden er IKKE en gruppenøgle og når
+    aldrig __group__-markørerne eller skriveplanen. */
+export function saetSektionUdeladt(
+  gitter: Gitter,
+  sektion: string | null,
+  udeladt: boolean,
+): Gitter {
+  const ny = kopiGitter(gitter);
+  const noegle = sektionsNoegle(sektion);
+  ny.udeladteSektioner[noegle] = udeladt;
+  for (const raekke of ny.raekker) {
+    if (sektionsNoegle(raekke.sektion) !== noegle) continue;
+    if (harEgetVaern(raekke)) continue;
+    raekke.medtag = !udeladt;
+  }
   return ny;
 }
 
