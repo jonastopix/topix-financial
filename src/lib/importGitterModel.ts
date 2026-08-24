@@ -73,22 +73,35 @@ export const GYLDIGE_GRUPPER: readonly Gruppenoegle[] = [
 export const sektionsNoegle = (sektion: string | null): string => sektion ?? "";
 
 /** Gæt: fri tekst (sektionsnavn ELLER linje-etiket) → gruppenøgle, null
-    når ingen regel matcher. salg_marketing prøves FØR indtaegter, så
-    "Salg & Marketing" rammer salg_marketing frem for at "salg" trækker den
-    til indtægter. ("variable" matcher også flertals-"Variable
-    omkostninger", ikke kun "variabel".) */
+    når ingen regel matcher.
+
+    Rækkefølgen er MEST SPECIFIK FØRST (fix/gruppegaet-loen-og-salg,
+    flip-kontrollen af de otte skabeloner 2026-08-24): personale, så
+    marketing, så variable, så faste — og indtægter ALLERSIDST. En lønlinje
+    er en lønlinje uanset hvilken afdeling der står i parentes: den gamle
+    orden lod "salg" i "Lønninger (salg & CS)" overtrumfe "lønninger" og
+    gættede indtægt på en lønpost.
+
+    Valg om "salg": det bare ord er droppet fra indtægtsreglen — kun
+    "salg af" tæller ("Salg af varer", "Salg af ydelser"). "Salg & CRM"
+    og "Salg & netværk" er salgsOMKOSTNINGER, og et forkert indtægtsgæt
+    er den dyre fejl (fortegnet følger gruppen). Kontekst-heuristikker
+    ("salg uden omkostningsagtig fortsættelse") blev fravalgt som
+    skrøbelige — bare "salg" falder i stedet til SEKTIONENS valg, som
+    medlemmet ser og kan rette (P1). Omkostningsmarkøren spærrer fortsat
+    indtægtsreglen ("Salgsomkostninger" er aldrig en indtægt).
+    ("variable" i variable-reglen fanger flertals-"Variable omkostninger",
+    ikke kun "variabel" — de to er ikke substrings af hinanden.) */
 export function gruppeGaet(tekst: string): Gruppenoegle | null {
-  if (/marketing|reklame|kundepleje/i.test(tekst)) return "salg_marketing";
-  // En omkostningsmarkør spærrer for indtægtsreglen: "Cost of revenue" og
-  // "Salgsomkostninger" er omkostninger, selvom revenue/salg optræder i navnet.
-  const omkostningsMarkoer = /omkostning|cost|expense|udgift/i.test(tekst);
-  if (!omkostningsMarkoer && /omsætning|salg|indtægt|revenue|income|sales/i.test(tekst)) {
-    return "indtaegter";
-  }
   if (/løn|medarbejder|personale|staff|payroll/i.test(tekst)) return "personale";
-  if (/lokale|husleje|kontor|facility|rent|bygning/i.test(tekst)) return "faste";
+  if (/marketing|reklame|kundepleje/i.test(tekst)) return "salg_marketing";
   if (/variabel|variable|vareforbrug|direkte|cogs|fragt|cost of (revenue|sales|goods)/i.test(tekst)) {
     return "variable";
+  }
+  if (/lokale|husleje|kontor|facility|rent|bygning/i.test(tekst)) return "faste";
+  const omkostningsMarkoer = /omkostning|cost|expense|udgift/i.test(tekst);
+  if (!omkostningsMarkoer && /omsætning|salg af|indtægt|revenue|income|sales/i.test(tekst)) {
+    return "indtaegter";
   }
   return null;
 }

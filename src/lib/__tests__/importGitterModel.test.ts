@@ -22,6 +22,7 @@ import {
   type Gitter,
 } from "@/lib/importGitterModel";
 import { parseCsvTilMatrix } from "@/lib/csvLaesning";
+import { BUDGET_TEMPLATES } from "@/lib/budgetTemplates";
 import { laesArkTilMatrix } from "./xlsxTestHelper";
 
 // ───────────────────────── Byggeklodser ─────────────────────────
@@ -456,6 +457,33 @@ describe("gruppeGaet, saetRaekkegruppe og linjeniveau-gruppen (spor 3)", () => {
     expect(gruppeGaet("Cost of revenue")).toBe("variable");
     expect(gruppeGaet("Salgsomkostninger")).toBeNull();
     expect(gruppeGaet("Revenue")).toBe("indtaegter");
+  });
+
+  it("mest specifik vinder: lønlinjer er personale uanset afdeling, og bare 'salg' gætter aldrig indtægt", () => {
+    // De tre skabelon-flips fra flip-kontrollen 2026-08-24:
+    expect(gruppeGaet("Lønninger (salg & CS)")).toBe("personale");
+    expect(gruppeGaet("Salg & netværk")).not.toBe("indtaegter");
+    expect(gruppeGaet("Salg & CRM")).not.toBe("indtaegter");
+    // ...og medlemsfil-varianterne af samme mønster:
+    expect(gruppeGaet("Lønninger salg")).toBe("personale");
+    expect(gruppeGaet("Salgskonsulent")).not.toBe("indtaegter");
+    // "Salg af …" er fortsat en indtægt; "Omsætning" ligeså.
+    expect(gruppeGaet("Salg af varer")).toBe("indtaegter");
+    expect(gruppeGaet("Salg af ydelser")).toBe("indtaegter");
+    expect(gruppeGaet("Omsætning")).toBe("indtaegter");
+  });
+
+  it("NUL flip: alle 92 etiketter fra de otte skabeloner gætter aldrig væk fra kategoriens egen group", () => {
+    const alle = BUDGET_TEMPLATES.flatMap((t) =>
+      t.categories.map((c) => ({ skabelon: t.key, ...c })),
+    );
+    expect(alle).toHaveLength(92);
+    for (const kat of alle) {
+      const gaet = gruppeGaet(kat.label);
+      if (gaet !== null) {
+        expect(gaet, `${kat.skabelon}: "${kat.label}"`).toBe(kat.group);
+      }
+    }
   });
 
   it("linjegættet vinder over sektionsgættet; uden linjegæt følges sektionen", () => {
