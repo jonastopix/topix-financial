@@ -130,6 +130,7 @@ export const HbBudgetExcelImport = ({
   const [sheetNames, setSheetNames] = useState<string[]>([]);
   const [statusNote, setStatusNote] = useState<string | null>(null);
   const [errorNote, setErrorNote] = useState<string | null>(null);
+  const [visVejledning, setVisVejledning] = useState(false);
   const workbookRef = useRef<any>(null);
 
   // Kladde (hb-budget-persistens-recon §4 ii): GITTERET persisteres — det
@@ -471,6 +472,72 @@ export const HbBudgetExcelImport = ({
           <p className="mt-2 text-[11px] text-hb-ink-soft">.xlsx, .xls og .csv · du kan også indsætte direkte fra regnearket bagefter</p>
         )}
       </div>
+
+      {/* Skabelonen tilbydes FØR upload — det er her den hjælper. Vejledningen
+          er en udfoldelig tekst i fladen, ikke en side i appen: den læses i
+          importøjeblikket og ingen andre steder, og en rute + nav-plads for
+          punktuel hjælpetekst ville stride mod Hjemmebanes mønster, hvor
+          importflowet holder alt inline (QuietNote, kort, gitter). */}
+      <div className="mt-3 flex flex-wrap items-baseline gap-x-3 gap-y-1">
+        <a
+          href="/skabeloner/budget-skabelon-2026.xlsx"
+          download
+          className="text-sm font-medium text-hb-evergreen underline-offset-4 hover:underline"
+        >
+          Hent vores skabelon
+        </a>
+        <span className="text-xs text-hb-ink-soft">
+          Udfyld den — selv, eller lad et AI-værktøj gøre det ud fra dine regnskabstal — og upload
+          den igen. Den er bygget til at importere uden bemærkninger.
+        </span>
+        <button
+          type="button"
+          onClick={() => setVisVejledning((v) => !v)}
+          className="text-xs text-hb-ink-soft underline-offset-4 hover:text-hb-ink hover:underline"
+          aria-expanded={visVejledning}
+        >
+          {visVejledning ? "Skjul vejledningen" : "Sådan bruger du den"}
+        </button>
+      </div>
+
+      {visVejledning && (
+        <div className="mt-3 space-y-3 rounded-lg border border-hb-line bg-hb-surface p-4 text-sm text-hb-ink">
+          {/* Forkortet af docs/budget-skabelon-vejledning.md — fladen bærer
+              essensen, dokumentet den fulde tekst. */}
+          <p className="font-editorial text-base font-medium">Sådan bruger du skabelonen</p>
+          <p className="text-hb-ink-soft">
+            Hent den, udfyld tallene, upload den igen — det er det. Vil du have hjælp, så giv
+            skabelonen til ChatGPT, Claude eller et andet AI-værktøj sammen med dine egne tal og
+            bed den udfylde et realistisk budget. En prompt der virker:
+          </p>
+          <p className="border-l-2 border-hb-line pl-3 text-xs italic text-hb-ink-soft">
+            "Her er en tom budgetskabelon og mine regnskabstal. Udfyld skabelonen med et realistisk
+            budget for næste år. Behold arkets opbygning præcis som den er — de samme sektioner, de
+            samme kolonner. Skriv omkostninger som negative tal. Slet de linjer jeg ikke bruger, og
+            tilføj gerne linjer jeg mangler."
+          </p>
+          <p className="text-hb-ink-soft">
+            Det bedste grundlag er din posteringsoversigt fra banken (året til dato + hele sidste
+            år), din saldobalance eller resultatopgørelse, dine korttransaktioner — og de ændringer
+            du allerede kender for næste år. Fjern kunde- og leverandørnavne før du deler noget med
+            et AI-værktøj; budgettet skal kun bruge beløb, dato og kategori.
+          </p>
+          <div className="text-hb-ink-soft">
+            <p className="font-medium text-hb-ink">Fire ting der får importen til at gå rent:</p>
+            <ul className="mt-1 list-disc space-y-0.5 pl-5">
+              <li>Behold overskriftsrækken — månedsnavnene med årstal styrer kolonnerne.</li>
+              <li>Behold de seks sektioner — de afgør hvor linjerne havner og hvad de sammenlignes med.</li>
+              <li>Skriv omkostninger som negative tal.</li>
+              <li>Slet ubrugte linjer, og indsæt ingen tomme rækker eller totalrækker — vi lægger selv sammen.</li>
+            </ul>
+          </div>
+          <p className="text-hb-ink-soft">
+            Du får hele budgettet at se, linje for linje, før noget gemmes. Og skabelonen er
+            valgfri — har du allerede et budget i et regneark, kan du uploade det som det er.
+          </p>
+        </div>
+      )}
+
       <div className="mt-2">
         <QuietNote note={statusNote} error={errorNote} />
       </div>
