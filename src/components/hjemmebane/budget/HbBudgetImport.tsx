@@ -109,17 +109,52 @@ const tomtGitter = (): Gitter => ({
 const listeMedOg = (dele: string[]): string =>
   dele.length <= 1 ? dele.join("") : `${dele.slice(0, -1).join(", ")} og ${dele[dele.length - 1]}`;
 
+// ─────────────── Download-skabeloner (skabelonbevidst) ───────────────
+
+type DownloadSkabelon = { fil: string; titel: string; linje: string };
+
+/** Fallback for alle skabelon-keys uden egen branchefil — og for
+    virksomheder helt uden skabelonvalg. */
+const GENERISK_DOWNLOAD: DownloadSkabelon = {
+  fil: "/skabeloner/budget-skabelon-2026.xlsx",
+  titel: "Hent vores skabelon",
+  linje:
+    "Udfyld den — selv, eller lad et AI-værktøj gøre det ud fra dine regnskabstal — og upload " +
+    "den igen. Den er bygget til at importere uden bemærkninger.",
+};
+
+/** Branchespecifikke skabeloner: valgt skabelon-key (__template__-markøren,
+    via BudgetteringViews selectedTemplate-prop) → downloadfil. Nye brancher
+    tilføjes ved at UDVIDE dette kort med én indgang — aldrig ved en gren
+    pr. branche; alt uden indgang falder til den generiske. Filerne bor i
+    public/skabeloner/ og er golden-bevist i budgetSkabelon.test.ts. */
+const BRANCHE_DOWNLOADS: Record<string, DownloadSkabelon> = {
+  webshop_b2c: {
+    fil: "/skabeloner/budget-skabelon-webshop-b2c-2026.xlsx",
+    titel: "Hent skabelonen til webshop (B2C)",
+    linje:
+      "Tilpasset jeres branche — med linjer for varesalg, fragt, annoncering og webshop-drift. " +
+      "Udfyld den (selv, eller med et AI-værktøj og dine regnskabstal) og upload den igen.",
+  },
+};
+
 export const HbBudgetExcelImport = ({
   userId,
   companyId,
   onImported,
   onAabenSkift,
+  skabelonKey,
 }: {
   userId: string | undefined;
   companyId: string | undefined;
   onImported: (result: { year: string }) => void;
   /** Meldes når gitteret åbner/lukker, så fladen kan give det fuld bredde. */
   onAabenSkift?: (aaben: boolean) => void;
+  /** Virksomhedens valgte budget-skabelon (kun fra en ægte __template__-
+      markør — best-match-gæt tæller ikke). Kommer fra BudgetteringViews
+      selectedTemplate/templateFromMarker frem for et eget opslag; styrer
+      hvilken download-skabelon der tilbydes. null/undefined = generisk. */
+  skabelonKey?: string | null;
 }) => {
   const [parsing, setParsing] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -478,27 +513,36 @@ export const HbBudgetExcelImport = ({
           importøjeblikket og ingen andre steder, og en rute + nav-plads for
           punktuel hjælpetekst ville stride mod Hjemmebanes mønster, hvor
           importflowet holder alt inline (QuietNote, kort, gitter). */}
-      <div className="mt-3 flex flex-wrap items-baseline gap-x-3 gap-y-1">
-        <a
-          href="/skabeloner/budget-skabelon-2026.xlsx"
-          download
-          className="text-sm font-medium text-hb-evergreen underline-offset-4 hover:underline"
-        >
-          Hent vores skabelon
-        </a>
-        <span className="text-xs text-hb-ink-soft">
-          Udfyld den — selv, eller lad et AI-værktøj gøre det ud fra dine regnskabstal — og upload
-          den igen. Den er bygget til at importere uden bemærkninger.
-        </span>
-        <button
-          type="button"
-          onClick={() => setVisVejledning((v) => !v)}
-          className="text-xs text-hb-ink-soft underline-offset-4 hover:text-hb-ink hover:underline"
-          aria-expanded={visVejledning}
-        >
-          {visVejledning ? "Skjul vejledningen" : "Sådan bruger du den"}
-        </button>
-      </div>
+      {(() => {
+        const download = (skabelonKey && BRANCHE_DOWNLOADS[skabelonKey]) || GENERISK_DOWNLOAD;
+        return (
+          <div className="mt-3 flex flex-wrap items-baseline gap-x-3 gap-y-1">
+            <a
+              href={download.fil}
+              download
+              className="text-sm font-medium text-hb-evergreen underline-offset-4 hover:underline"
+            >
+              {download.titel}
+            </a>
+            <span className="text-xs text-hb-ink-soft">{download.linje}</span>
+            <button
+              type="button"
+              onClick={() => setVisVejledning((v) => !v)}
+              className="text-xs text-hb-ink-soft underline-offset-4 hover:text-hb-ink hover:underline"
+              aria-expanded={visVejledning}
+            >
+              {visVejledning ? "Skjul vejledningen" : "Sådan bruger du den"}
+            </button>
+            {/* Intet skabelonvalg: nævn den tilpassede udgave stille —
+                aldrig en spærring, den generiske virker altid. */}
+            {!skabelonKey && (
+              <span className="basis-full text-[11px] text-hb-ink-soft/80">
+                Vælger I branche under "Skift skabelon", får I en udgave tilpasset jeres forretning.
+              </span>
+            )}
+          </div>
+        );
+      })()}
 
       {visVejledning && (
         <div className="mt-3 space-y-3 rounded-lg border border-hb-line bg-hb-surface p-4 text-sm text-hb-ink">
