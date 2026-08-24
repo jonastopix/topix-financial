@@ -1,14 +1,22 @@
-/** Opgave-motoren (opgave-model fase 1, motor-først jf.
-    docs/opgave-model-design.md §5): ren TypeScript — ingen side-effekter,
-    ingen supabase-import, ingen React. Implementerer B1/B2/B6/B7/B8/B10/B11
-    og tilstandsskemaet i §7; reglerne kommer derfra, ikke herfra.
-    Alle datoer ind og ud som Date. "Nu" er altid en eksplicit parameter —
-    aldrig new Date() inde i motoren. Mutationsfunktioner muterer aldrig
-    input og kaster aldrig: de returnerer et diskrimineret resultat.
-    Tilstandsmaskinen er spejlet i supabase/functions/_shared/opgaveEngine.ts
-    (edge functions kan ikke importere fra src/) — enhver ændring her SKAL
-    også laves der. Paritet håndhæves af
-    __tests__/opgaveEngineSpejl.paritet.test.ts. */
+/**
+ * supabase/functions/_shared/opgaveEngine.ts
+ *
+ * Deno-spejl af opgave-motorens TILSTANDSMASKINE (B1/B2/B6/B7/B11 og
+ * tilstandsskemaet i docs/opgave-model-design.md §7). Sandheden bor i
+ * src/lib/opgaveEngine.ts — edge functions kan ikke importere fra src/,
+ * så maskinen findes ét sted pr. runtime og INGEN andre steder. Enhver
+ * ændring her SKAL også laves i motoren. Paritet håndhæves af
+ * src/lib/__tests__/opgaveEngineSpejl.paritet.test.ts
+ * (membershipTier-mønstret, samme greb som opgaveUdloeb.ts i PR #422).
+ *
+ * BEVIDSTE UDELADELSER (ikke drift — de bor andetsteds):
+ *   - beregnUdloeb/UDLOEBSDAGE (B10) bor allerede i ./opgaveUdloeb.ts —
+ *     en kopi her ville være det tredje sted.
+ *   - opgoerTilstand (fase 2-læsning) har ingen edge-kalder endnu og
+ *     spejles først når en får brug for den.
+ *
+ * Nul imports, så filen kan læses af både Deno og Vite/Vitest.
+ */
 
 /** §7: de syv besluttede tilstande plus overgangsværdierne open/parked,
     som fjernes i spor 2 efter datamigreringen af de 70 eksisterende rækker. */
@@ -100,22 +108,6 @@ export function lovligeOvergange(status: OpgaveStatus): OpgaveStatus[] {
   return [...(OVERGANGE[status] ?? [])];
 }
 
-/** B10: udløbsfrist pr. kilde. Kilder uden egen frist falder tilbage på
-    14 dage — samme levetid som ugefokus.
-    Spejlet i supabase/functions/_shared/opgaveUdloeb.ts (edge functions
-    kan ikke importere fra src/) — enhver ændring her SKAL også laves der.
-    Paritet håndhæves af __tests__/opgaveUdloeb.paritet.test.ts. */
-const UDLOEBSDAGE: Partial<Record<OpgaveSourceType, number>> = {
-  advisor: 30,
-  reflection: 21,
-  ai_weekly: 14,
-  agent: 14,
-};
-
-export function beregnUdloeb(sourceType: OpgaveSourceType, oprettet: Date): Date {
-  return laegDageTil(oprettet, UDLOEBSDAGE[sourceType] ?? 14);
-}
-
 /** B1/B6: accept er to handlinger — sig ja, og vælg hvornår. Kun lovligt
     fra proposed; datoen skal være i dag eller senere. */
 export function accepter(opgave: Opgave, dueDate: Date, nu: Date): OpgaveResultat {
@@ -189,55 +181,4 @@ export function erForfalden(opgave: Opgave, nu: Date): boolean {
     timestamptz, så her sammenlignes på tidspunkt, ikke kalenderdag. */
 export function erUdloebet(opgave: Opgave, nu: Date): boolean {
   return opgave.status === "proposed" && opgave.expires_at != null && nu.getTime() > opgave.expires_at.getTime();
-}
-
-export interface Tilstandssammenfatning {
-  antalAktive: number;
-  antalForfaldne: number;
-  /** Forslag der stadig venter på svar (proposed, ikke udløbet endnu). */
-  antalUbesvaredeForslag: number;
-  /** Forslag der aldrig blev besvaret: status expired plus proposed hvor
-      expires_at er passeret men cron endnu ikke har lukket rækken. */
-  antalUdloebneForslag: number;
-  /** created_at for det ældste forslag der stadig venter på svar. */
-  aeldsteUbesvaredeForslag: Date | null;
-  lukkede: Record<SlutUdfald, number>;
-}
-
-/** Sammenfatning til tilstandslaget i fase 2: hvad skylder virksomheden
-    lige nu, og hvordan er det hidtil endt. */
-export function opgoerTilstand(opgaver: Opgave[], nu: Date): Tilstandssammenfatning {
-  const sammenfatning: Tilstandssammenfatning = {
-    antalAktive: 0,
-    antalForfaldne: 0,
-    antalUbesvaredeForslag: 0,
-    antalUdloebneForslag: 0,
-    aeldsteUbesvaredeForslag: null,
-    lukkede: { done: 0, not_done: 0, dropped: 0, dismissed: 0, expired: 0 },
-  };
-
-  for (const opgave of opgaver) {
-    if (opgave.status === "active") {
-      sammenfatning.antalAktive += 1;
-      if (erForfalden(opgave, nu)) sammenfatning.antalForfaldne += 1;
-    } else if (opgave.status === "proposed") {
-      if (erUdloebet(opgave, nu)) {
-        sammenfatning.antalUdloebneForslag += 1;
-      } else {
-        sammenfatning.antalUbesvaredeForslag += 1;
-        if (
-          sammenfatning.aeldsteUbesvaredeForslag == null ||
-          opgave.created_at.getTime() < sammenfatning.aeldsteUbesvaredeForslag.getTime()
-        ) {
-          sammenfatning.aeldsteUbesvaredeForslag = new Date(opgave.created_at.getTime());
-        }
-      }
-    } else if (opgave.status in sammenfatning.lukkede) {
-      sammenfatning.lukkede[opgave.status as SlutUdfald] += 1;
-      if (opgave.status === "expired") sammenfatning.antalUdloebneForslag += 1;
-    }
-    // open/parked tælles bevidst ikke med — de oversættes i spor 2.
-  }
-
-  return sammenfatning;
 }
