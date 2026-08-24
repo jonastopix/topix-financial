@@ -31,6 +31,21 @@ jobs:
           # checks. Bumping this version is a deliberate, reviewed commit.
           bun-version: 1.3.13
 
+      - name: Cache bun install cache
+        # Fjerner årsagen til xlsx-tarball-flaken (BACKLOG [P4], tredje
+        # forekomst 2026-08-24 på PR #413): med ~/.bun/install/cache
+        # genbrugt henter install ikke tarballs fra registry, så den
+        # sporadisk fejlende ekstraktion af xlsx udgår. setup-bun@v2
+        # cacher kun Bun-binæren, ikke pakkerne — deraf dette skridt.
+        # Nøglen invalideres når bun.lock ændres; restore-keys genbruger
+        # den seneste cache alligevel, så kun ændrede pakker hentes.
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: ${{ runner.os }}-bun-install-${{ hashFiles('bun.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-bun-install-
+
       - name: Install dependencies
         # --frozen-lockfile honors bun.lockb verbatim. Deterministic install.
         run: bun install --frozen-lockfile
@@ -56,6 +71,17 @@ jobs:
         uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.3.13
+
+      - name: Cache bun install cache
+        # Samme værn som test-jobbet (xlsx-flaken rammer enhver frisk
+        # runner). Eget nøglerum (-mcp-) så de to parallelle jobs ikke
+        # kappes om at gemme samme nøgle.
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: ${{ runner.os }}-bun-install-mcp-${{ hashFiles('mcp/bun.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-bun-install-mcp-
 
       - name: Install dependencies (frozen)
         # --frozen-lockfile pins to mcp/bun.lock verbatim, so CI cannot drift
