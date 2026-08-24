@@ -4,7 +4,9 @@ import { formatDKK } from "@/lib/financialUtils";
 import { GROUP_LABELS, GROUP_ORDER, type BudgetTemplate } from "@/lib/budgetTemplates";
 import {
   applyQuickstartRows,
+  fravaelgKategori,
   gemScenarieRaekker,
+  genvaelgKategori,
   type ScenarieForslag,
   computeEbitda,
   copyBaseToScenario as engineCopyBaseToScenario,
@@ -39,6 +41,11 @@ interface Props {
   selectedTemplate: BudgetTemplate | null;
   labelOverrides: Record<string, string>;
   setLabelOverrides: React.Dispatch<React.SetStateAction<Record<string, string>>>;
+  /** Fravalgte kategorier for året (__fravalgt__-markører) — til
+      "hent tilbage"-linjen under tabellen. */
+  fravalgte: { key: string; label: string }[];
+  /** Genindlæser budgettet fra motoren (efter genvalg af en linje). */
+  onGenindlaes: () => void;
 }
 
 const cellInputClasses =
@@ -55,6 +62,8 @@ export const HbBudgetEditTable = ({
   selectedTemplate,
   labelOverrides,
   setLabelOverrides,
+  fravalgte,
+  onGenindlaes,
 }: Props) => {
   const [editing, setEditing] = useState(false);
   const [editValues, setEditValues] = useState<Record<string, number[]>>({});
@@ -72,6 +81,7 @@ export const HbBudgetEditTable = ({
     reasoning?: string;
   } | null>(null);
   const [showQuickstart, setShowQuickstart] = useState(true);
+  const [visFravalgte, setVisFravalgte] = useState(false);
   const [quickValues, setQuickValues] = useState({ revenue: "", costs: "", payroll: "" });
   const [savedNote, setSavedNote] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -301,7 +311,29 @@ export const HbBudgetEditTable = ({
       delete next[key];
       return next;
     });
-    note("Linjen er fjernet — ændringen gemmes ved næste gem");
+    // __fravalgt__-markøren skrives med det samme og ENSARTET for skabelon-
+    // og ekstra-linjer: uden den genopstod skabelon-linjer ved næste
+    // indlæsning (afkodningen medtager altid hele skabelonens kategorisæt),
+    // og ekstra-linjer genopstod fra de andre scenariers værdirækker.
+    if (userId && companyId) {
+      fravaelgKategori({ userId, companyId, year, key }).catch((error) => {
+        console.error("Fravalg fejlede:", error);
+        fail("Kunne ikke gemme fravalget — linjen kan komme tilbage ved genindlæsning");
+      });
+    }
+    note("Linjen er fjernet — du kan hente den tilbage nederst i tabellen");
+  };
+
+  const hentTilbage = async (key: string) => {
+    if (!companyId) return;
+    try {
+      await genvaelgKategori({ companyId, year, key });
+      note("Linjen er hentet tilbage");
+      onGenindlaes();
+    } catch (error) {
+      console.error("Genvalg fejlede:", error);
+      fail("Kunne ikke hente linjen tilbage — prøv igen");
+    }
   };
 
   const commitRenameLabel = () => {
@@ -763,6 +795,41 @@ export const HbBudgetEditTable = ({
         <p className="border-t border-hb-line px-4 py-2 text-[11px] text-hb-ink-soft">
           Alle beløb i kr. pr. måned.
         </p>
+        {/* Fravalgte linjer — én stille linje NEDERST I TABELLENS KORT frem
+            for en separat sektion: fravalget hører til tabellen, og linjen
+            skal ses netop dér hvor man leder efter en forsvundet række.
+            At de KAN hentes tilbage skal stå eksplicit — ellers tør ingen
+            fjerne noget. Foldes ud til navne + "Hent tilbage" pr. linje,
+            så genvalget er pr. linje og ikke alt-eller-intet. */}
+        {fravalgte.length > 0 && (
+          <div className="border-t border-hb-line px-4 py-2">
+            <button
+              type="button"
+              onClick={() => setVisFravalgte((v) => !v)}
+              className="text-[11px] text-hb-ink-soft underline-offset-4 hover:text-hb-ink hover:underline"
+              aria-expanded={visFravalgte}
+            >
+              {fravalgte.length} fravalgt{fravalgte.length === 1 ? "" : "e"} linje
+              {fravalgte.length === 1 ? "" : "r"} — kan hentes tilbage
+            </button>
+            {visFravalgte && (
+              <ul className="mt-1.5 space-y-1">
+                {fravalgte.map((f) => (
+                  <li key={f.key} className="flex items-center gap-3 text-xs text-hb-ink-soft">
+                    <span>{f.label}</span>
+                    <button
+                      type="button"
+                      onClick={() => void hentTilbage(f.key)}
+                      className="text-[11px] text-hb-evergreen underline-offset-4 hover:underline"
+                    >
+                      Hent tilbage
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
       </HbCard>
 
       {/* Scenarie-sammenligning */}

@@ -23,6 +23,11 @@
  *   __label__{YYYY}_{catKey}:  period = brugerens label-tekst
  *   __group__{YYYY}_{catKey}:  period = gruppe-key ("variable" …)
  *   __sim_event__{YYYY}_{idx}: period = JSON.stringify(SimEvent)
+ *   __fravalgt__{YYYY}_{catKey}: period = "fravalgt" — medlemmet har
+ *     fjernet linjen (feat/fravalgte-skabelonlinjer); afkodningen udelader
+ *     den, og genvalg sletter markøren. Uden markøren genopstod slettede
+ *     skabelon-linjer ved hver indlæsning (allCategories medtog altid hele
+ *     skabelonens kategorisæt).
  * Alle læsere af værdirækker filtrerer `!category.startsWith("__")`.
  *
  * __sim_event__-KONTRAKTEN (arvet de facto-format; motoren er eneste
@@ -84,6 +89,7 @@ export type BudgetMarker =
   | { kind: "template" }
   | { kind: "label"; year: string; key: string }
   | { kind: "group"; year: string; key: string }
+  | { kind: "fravalgt"; year: string; key: string }
   | { kind: "simEvent"; year: string; idx: number };
 
 /** Marker-genkendelsen samlet som én dom (spredt i dag: Budget.tsx:112,
@@ -94,6 +100,7 @@ export function parseBudgetMarker(category: string): BudgetMarker | null {
   for (const [prefix, kind] of [
     ["__label__", "label"],
     ["__group__", "group"],
+    ["__fravalgt__", "fravalgt"],
   ] as const) {
     if (category.startsWith(prefix)) {
       const m = category.slice(prefix.length).match(/^(\d{4})_(.+)$/);
@@ -214,9 +221,18 @@ export function applyQuickstartRows(
     if (row.key === "loenninger" || row.key === "personale")
       return { ...row, values: Array(12).fill(Math.round(monthlyPay)) };
     if (monthlyCosts > 0 && row.group !== "indtaegter" && row.key !== "loenninger" && row.key !== "personale") {
-      const nonPayrollCostRows = rows.filter(
+      // Sidefejl rettet (feat/fravalgte-skabelonlinjer): fordel KUN over
+      // linjer der allerede har værdier — før blev "Øvrige omkostninger"
+      // spredt ud over alle redigerbare linjer, inkl. de tomme
+      // skabelon-rester medlemmet aldrig har brugt. Har INGEN
+      // omkostningslinje værdier (det jomfruelige budget), fordeles over
+      // skabelonens egne linjer som i dag — genvejen skal stadig kunne
+      // fylde et helt tomt budget.
+      const kandidater = rows.filter(
         (r) => r.group !== "indtaegter" && r.key !== "loenninger" && r.key !== "personale" && r.isEditable,
       );
+      const medVaerdier = kandidater.filter((r) => r.values.some((v) => v !== 0));
+      const nonPayrollCostRows = medVaerdier.length > 0 ? medVaerdier : kandidater;
       const perRow = nonPayrollCostRows.length > 0 ? (monthlyCosts - monthlyPay) / nonPayrollCostRows.length : 0;
       if (nonPayrollCostRows.some((r) => r.key === row.key)) {
         return { ...row, values: Array(12).fill(Math.round(Math.max(0, perRow))) };
@@ -295,6 +311,10 @@ export interface DecodedBudget {
   templateFromMarker: boolean;
   scenarioData: Record<ScenarioKey, BudgetRow[]>;
   labelOverrides: Record<string, string>;
+  /** Kategorier medlemmet har fravalgt (__fravalgt__-markører for året) —
+      udeladt af scenarioData, men båret med så fladen kan tilbyde at
+      hente dem tilbage. label: __label__-markør > skabelonens label > key. */
+  fravalgte: { key: string; label: string }[];
 }
 
 /** Hele loadBudget-afkodningen (Budget.tsx:84-199 ordret, minus setState):
@@ -347,6 +367,16 @@ export function decodeBudgetRows(data: BudgetTargetRow[], year: string): Decoded
   const templateKeys = new Set(template.categories.map((c) => c.key));
   const extraKeys = [...allCatKeys].filter((k) => !templateKeys.has(k));
 
+  // Fravalgte kategorier (feat/fravalgte-skabelonlinjer): markøren afgør
+  // hvilke linjer der IKKE findes i fladen — for skabelon-linjer (som
+  // allCategories ellers altid genskaber) OG ekstra-linjer (hvis nøgler
+  // ellers genopstår fra de andre scenariers værdirækker).
+  const fravalgtSet = new Set<string>(
+    data
+      .filter((d) => d.category.startsWith(`__fravalgt__${year}_`))
+      .map((d) => d.category.replace(`__fravalgt__${year}_`, "")),
+  );
+
   const groupMarkers = data.filter((d) => d.category.startsWith("__group__"));
   const extraGroupMap: Record<string, string> = {};
   groupMarkers
@@ -368,7 +398,7 @@ export function decodeBudgetRows(data: BudgetTargetRow[], year: string): Decoded
     "salg_marketing",
     "drift",
   ]);
-  const extraCategories: BudgetCategory[] = extraKeys.map((key) => {
+  const extraCategories: BudgetCategory[] = extraKeys.filter((key) => !fravalgtSet.has(key)).map((key) => {
     const gemt = extraGroupMap[key];
     return {
       key,
@@ -382,7 +412,7 @@ export function decodeBudgetRows(data: BudgetTargetRow[], year: string): Decoded
   // Skabelon-kategorier: en GYLDIG __group__-markør overstyrer skabelonens
   // gruppe (medlemmets gruppeskift i redigeringstabellen); ugyldig/ingen
   // markør → skabelonens egen gruppe, præcis som før.
-  const templateCategories = template.categories.map((c) => {
+  const templateCategories = template.categories.filter((c) => !fravalgtSet.has(c.key)).map((c) => {
     const gemt = extraGroupMap[c.key];
     return GYLDIGE_GRUPPER.has(gemt as BudgetCategory["group"])
       ? { ...c, group: gemt as BudgetCategory["group"] }
@@ -417,6 +447,15 @@ export function decodeBudgetRows(data: BudgetTargetRow[], year: string): Decoded
     if (loadedLabels[ec.key]) ec.label = loadedLabels[ec.key];
   });
 
+  // Fravalgte med visningsnavn (til "hent tilbage"-fladen).
+  const fravalgte = [...fravalgtSet].sort().map((key) => ({
+    key,
+    label:
+      loadedLabels[key] ??
+      template.categories.find((c) => c.key === key)?.label ??
+      key.replace(/_/g, " "),
+  }));
+
   // Apply values
   data.forEach((item) => {
     if (
@@ -437,6 +476,7 @@ export function decodeBudgetRows(data: BudgetTargetRow[], year: string): Decoded
   });
 
   return {
+    fravalgte,
     availableYears,
     template,
     templateFromMarker,
@@ -805,6 +845,45 @@ export async function gemScenarieRaekker(args: {
   rows: BudgetRow[];
 }): Promise<void> {
   const { error } = await replaceScenarioValues(args);
+  if (error) throw error;
+}
+
+/** Fravælg en kategori (feat/fravalgte-skabelonlinjer): skriver
+    __fravalgt__-markøren, så afkodningen udelader linjen — for
+    skabelon-linjer (som ellers genopstod ved hver indlæsning) OG
+    ekstra-linjer (som ellers genopstod fra de andre scenariers
+    værdirækker indtil alle tre var gemt). En allerede-fravalgt nøgle
+    (23505-dublet) behandles som succes — fravalget står. */
+export async function fravaelgKategori(args: {
+  userId: string;
+  companyId: string;
+  year: string;
+  key: string;
+}): Promise<void> {
+  const { userId, companyId, year, key } = args;
+  const { error } = await supabase.from("budget_targets").insert({
+    user_id: userId,
+    company_id: companyId,
+    category: `__fravalgt__${year}_${key}`,
+    budget_amount: 0,
+    period: "fravalgt",
+  } as never);
+  if (error && (error as { code?: string }).code !== "23505") throw error;
+}
+
+/** Hent en fravalgt kategori tilbage: sletter markøren (company-scoped, på
+    tværs af skribenter — samme én-sandhed som W2's marker-oprydning). */
+export async function genvaelgKategori(args: {
+  companyId: string;
+  year: string;
+  key: string;
+}): Promise<void> {
+  const { companyId, year, key } = args;
+  const { error } = await supabase
+    .from("budget_targets")
+    .delete()
+    .eq("company_id", companyId)
+    .eq("category", `__fravalgt__${year}_${key}`);
   if (error) throw error;
 }
 

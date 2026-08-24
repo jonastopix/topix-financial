@@ -68,6 +68,7 @@ export const BudgetteringView = () => {
   const [changingTemplate, setChangingTemplate] = useState(false);
   const [headerNote, setHeaderNote] = useState<string | null>(null);
   const [reloadNonce, setReloadNonce] = useState(0);
+  const [fravalgte, setFravalgte] = useState<{ key: string; label: string }[]>([]);
   const [importGitterAabent, setImportGitterAabent] = useState(false);
   const autoYearAdjustedFor = useRef<string | null>(null);
 
@@ -97,6 +98,7 @@ export const BudgetteringView = () => {
         setTemplateFromMarker(result.decoded.templateFromMarker);
         setLabelOverrides(result.decoded.labelOverrides);
         setScenarioData(result.decoded.scenarioData);
+        setFravalgte(result.decoded.fravalgte);
       } catch (e) {
         console.error("[Budgettering] loadBudget failed:", e);
       } finally {
@@ -490,6 +492,8 @@ export const BudgetteringView = () => {
               selectedTemplate={selectedTemplate}
               labelOverrides={labelOverrides}
               setLabelOverrides={setLabelOverrides}
+              fravalgte={fravalgte}
+              onGenindlaes={() => setReloadNonce((n) => n + 1)}
             />
           </HbSection>
 
