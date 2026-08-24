@@ -9,7 +9,7 @@ import {
   FileText, Sprout,
 } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
-import { DANISH_MONTHS, REPORT_OVERRIDE_SELECT, getEffectiveReportPeriodKey, getEffectiveKeyFigures, formatCompact, type ReportData } from "@/lib/financialUtils";
+import { DANISH_MONTHS, getEffectiveReportPeriodKey, getEffectiveKeyFigures, formatCompact, type ReportData } from "@/lib/financialUtils";
 import { formatDistanceToNow } from "date-fns";
 import { da } from "date-fns/locale";
 import KPICard from "@/components/KPICard";
@@ -91,37 +91,26 @@ interface CompanyMetricSummary {
   company_id: string;
   company_name: string;
   logo_url: string | null;
-  has_report: boolean;
   has_verified_metrics: boolean;
-  latest_report_id: string | null;
   effective_period_label: string | null;
   effective_period_key: string | null;
   revenue: number | null;
-  gross_profit: number | null;
   ebt: number | null;
   cash: number | null;
   missing_current_period: boolean;
-  revenue_prev?: number | null;
-  has_pulse?: boolean;
 }
 
 interface InvestorCompanySummary extends CompanyMetricSummary {
   revenueTrendPct: number | null;
-  ebitdaMargin: number | null;
-  budgetRevenue: number | null;
-  budgetVsActualPct: number | null;
   latestPulse: { went_well: string; biggest_challenge: string; help_needed?: string | null; created_at: string; period_key: string | null } | null;
   needsAttention: boolean;
   unreadMessages: number;
-  unreadAgentMessages: number;
   milestones: MilestoneData[];
   kpiTargets: KpiTargetData[];
-  hasWeeklyFocus: boolean;
   // ── Spor 2-overblik (additivt datalag) ──
   lastActiveAt: string | null;
   reflectionStatus: "with_reflection" | "report_no_reflection" | "no_report";
   goalHandoutDone: boolean;
-  memberSince: string | null;
   isNewMember: boolean;
   expiresAt: string | null;
 }
@@ -308,16 +297,17 @@ const AdvisorDashboard = () => {
   const { data, isLoading } = useQuery({
     queryKey: ["advisor-dashboard", user?.id, "assignment-display-v2"],
     queryFn: async () => {
+      // Minimal ydeevne-måling (ydeevne-recon §6: der fandtes ingen):
+      // varighed + omtrentlig svarstørrelse logges én linje pr. kørsel,
+      // så nyttelast-ændringer kan aflæses direkte i konsollen.
+      const maalingStart = performance.now();
       const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString();
       const twoWeeksAgo = new Date(Date.now() - 14 * 86400000).toISOString();
-      const currentYear = new Date().getFullYear();
-
       const [
         convRes, companiesRes, reportsRes,
-        budgetRes, pulseRes, recentReportsRes, recentFactsRes,
+        pulseRes, recentReportsRes, recentFactsRes,
         milestonesRes, kpiTargetsRes, companyMembersRes, advisorProfilesRes,
-        recentMilestonesRes, weeklyFocusRes,
-        unreadAgentMsgsRes, recentHandoutsRes, companyInvitationsRes, goalHandoutRes,
+        recentMilestonesRes, recentHandoutsRes, companyInvitationsRes, goalHandoutRes,
       ] = await Promise.all([
         supabase
           .from("conversations")
@@ -327,15 +317,23 @@ const AdvisorDashboard = () => {
           .from("companies")
           .select("id, name, logo_url, is_legat, contract_end_date, subscription_status, subscription_current_period_end, created_at")
           .order("name"),
+        // Slank blob-hentning (perf/advisor-dashboard-nyttelast, målt mod
+        // prod 2026-08-24: 3,1 MB blobs hvoraf kun metrics-nøglerne læses):
+        // PostgREST udtrækker jsonb-stierne SERVERSIDE via alias:kolonne->sti.
+        // Kun det dommene i financialUtils faktisk læser hentes —
+        // normalized_data->metrics, extracted_data->key_figures (legacy-
+        // fallback) og manual_normalized_data->metrics + de to override-
+        // felter der læses. Rækkerne genindpakkes til ReportData-form
+        // nedenfor, så dommene er urørte.
         (supabase
           .from("financial_reports")
-          .select(`company_id, report_period, extracted_data, normalized_data, ${REPORT_OVERRIDE_SELECT}`) as any)
+          .select(
+            "company_id, report_period, manual_override_status, manual_report_period_key, " +
+              "metrics:normalized_data->metrics, key_figures:extracted_data->key_figures, " +
+              "manual_metrics:manual_normalized_data->metrics",
+          ) as any)
           .is("deleted_at", null)
           .eq("status", "processed"),
-        supabase
-          .from("budget_targets")
-          .select("company_id, category, budget_amount, period")
-          .like("period", `${currentYear}-base-%`),
         supabase
           .from("pulse_checkins")
           .select("company_id, period_key, went_well, biggest_challenge, help_needed, created_at")
@@ -373,18 +371,6 @@ const AdvisorDashboard = () => {
           .gte("updated_at", twoWeeksAgo)
           .order("updated_at", { ascending: false })
           .limit(50),
-        (supabase
-          .from("weekly_focus")
-          .select("company_id")
-          .eq("status", "active")
-          .gte("generated_at", new Date(Date.now() - 14 * 86400000).toISOString()) as any),
-        supabase
-          .from("messages")
-          .select("conversation_id")
-          .is("read_at", null)
-          .eq("message_type", "system")
-          .eq("context_type", "agent")
-          .gte("created_at", new Date(Date.now() - 30 * 86400000).toISOString()),
         // Bunke 5: nyligt fuldførte handouts (status='completed', completed_at >= 14 dage)
         (supabase
           .from("handouts")
@@ -410,7 +396,26 @@ const AdvisorDashboard = () => {
 
       const allConversations = (convRes.data || []) as ConversationRow[];
       const companies = (companiesRes.data || []) as CompanyRow[];
-      const reports = (reportsRes.data || []) as (ReportData & { company_id: string })[];
+      // Genindpakning af de slanke rækker til ReportData-formen som
+      // getEffectiveKeyFigures/getEffectiveReportPeriodKey forventer.
+      type SlankRapportRaekke = {
+        company_id: string;
+        report_period: string | null;
+        metrics: Record<string, number | null> | null;
+        key_figures: Record<string, number> | null;
+        manual_override_status: string | null;
+        manual_report_period_key: string | null;
+        manual_metrics: Record<string, number | null> | null;
+      };
+      const reports = ((reportsRes.data || []) as SlankRapportRaekke[]).map((r) => ({
+        company_id: r.company_id,
+        report_period: r.report_period,
+        normalized_data: r.metrics != null ? { metrics: r.metrics } : null,
+        extracted_data: r.key_figures != null ? { key_figures: r.key_figures } : null,
+        manual_override_status: r.manual_override_status,
+        manual_report_period_key: r.manual_report_period_key,
+        manual_normalized_data: r.manual_metrics != null ? { metrics: r.manual_metrics } : null,
+      })) as unknown as (ReportData & { company_id: string })[];
       const advisorProfiles = ((advisorProfilesRes.data || []) as any[]).map((advisor) => ({
         user_id: advisor.user_id,
         full_name: advisor.full_name || "Ukendt",
@@ -458,17 +463,6 @@ const AdvisorDashboard = () => {
       for (const k of (kpiTargetsRes.data || []) as any[]) {
         if (!kpiByCompany.has(k.company_id)) kpiByCompany.set(k.company_id, []);
         kpiByCompany.get(k.company_id)!.push({ kpi_key: k.kpi_key, target_value: k.target_value, target_label: k.target_label });
-      }
-
-      // Budget revenue by company
-      const budgetRevenueByCompany = new Map<string, number>();
-      for (const bt of (budgetRes.data || []) as any[]) {
-        if (bt.category === "omsaetning") {
-          budgetRevenueByCompany.set(
-            bt.company_id,
-            (budgetRevenueByCompany.get(bt.company_id) || 0) + (bt.budget_amount || 0)
-          );
-        }
       }
 
       // Latest pulse by company
@@ -523,17 +517,6 @@ const AdvisorDashboard = () => {
         }
       }
 
-      // Unread agent messages per company
-      const unreadAgentByCompany = new Map<string, number>();
-      const convIdToCompanyId = new Map<string, string>();
-      for (const c of allConversations) {
-        if (c.company_id && c.id) convIdToCompanyId.set(c.id, c.company_id);
-      }
-      for (const msg of (unreadAgentMsgsRes.data || []) as any[]) {
-        const compId = convIdToCompanyId.get(msg.conversation_id);
-        if (compId) unreadAgentByCompany.set(compId, (unreadAgentByCompany.get(compId) || 0) + 1);
-      }
-
       // Build report keys per company + KFs by period
       const reportKeysByCompany = new Map<string, Set<string>>();
       const kfByCompanyPeriod = new Map<string, Map<string, Record<string, number>>>();
@@ -557,11 +540,6 @@ const AdvisorDashboard = () => {
           latestKfByCompany.set(r.company_id, { key, kf });
         }
       }
-
-      // Weekly focus companies (active in last 14 days)
-      const weeklyFocusCompanies = new Set<string>(
-        ((weeklyFocusRes as any)?.data || []).map((r: any) => r.company_id)
-      );
 
       // Latest report key per company
       const latestReportKey = new Map<string, string>();
@@ -638,8 +616,6 @@ const AdvisorDashboard = () => {
       }
 
       // Build InvestorCompanySummary[]
-      const monthsElapsed = new Date().getMonth() + 1;
-
       const investorSummaries: InvestorCompanySummary[] = companies.filter(c => !legatCompanyIds.has(c.id)).map(c => {
         const latest = latestKfByCompany.get(c.id);
         const latestKey = latestReportKey.get(c.id) || null;
@@ -648,7 +624,6 @@ const AdvisorDashboard = () => {
         const ebt = latest?.kf.resultat_foer_skat ?? null;
         const cash = latest?.kf.bank_balance ?? null;
         const revenueTrendPct = revenueTrendByCompany.get(c.id) ?? null;
-        const budgetRevenue = budgetRevenueByCompany.get(c.id) ?? null;
         const pulse = latestPulseByCompany.get(c.id) ?? null;
 
         // ── Spor 2-felter (additivt) ──
@@ -673,15 +648,6 @@ const AdvisorDashboard = () => {
             ? ((c as any).subscription_current_period_end ?? null)
             : null;
 
-        const ebitdaMargin = revenue != null && revenue > 0 && ebt != null
-          ? (ebt / revenue) * 100 : null;
-
-        let budgetVsActualPct: number | null = null;
-        if (budgetRevenue != null && budgetRevenue > 0 && revenue != null) {
-          const proratedBudget = (budgetRevenue / 12) * monthsElapsed;
-          budgetVsActualPct = ((revenue - proratedBudget) / proratedBudget) * 100;
-        }
-
         const needsAttention =
           (cash != null && cash < 0)
           || (revenueTrendPct != null && revenueTrendPct < -15)
@@ -691,31 +657,22 @@ const AdvisorDashboard = () => {
           company_id: c.id,
           company_name: c.name,
           logo_url: c.logo_url,
-          has_report: !!latestKey,
           has_verified_metrics: !!latest,
-          latest_report_id: null,
           effective_period_label: latestKey ? (() => { const [y, m] = latestKey.split("-"); return `${DANISH_MONTHS[parseInt(m, 10) - 1]} ${y}`; })() : null,
           effective_period_key: latestKey,
           revenue,
-          gross_profit: latest?.kf.daekningsbidrag ?? null,
           ebt,
           cash,
           missing_current_period: missingReport,
           revenueTrendPct,
-          ebitdaMargin,
-          budgetRevenue,
-          budgetVsActualPct,
           latestPulse: pulse,
           needsAttention,
           unreadMessages: unreadByCompany.get(c.id) || 0,
-          unreadAgentMessages: unreadAgentByCompany.get(c.id) || 0,
           milestones: milestonesByCompany.get(c.id) || [],
           kpiTargets: kpiByCompany.get(c.id) || [],
-          hasWeeklyFocus: weeklyFocusCompanies.has(c.id),
           lastActiveAt: lastActiveByCompany.get(c.id) ?? null,
           reflectionStatus,
           goalHandoutDone: goalHandoutDoneCompanyIds.has(c.id),
-          memberSince,
           isNewMember,
           expiresAt,
         };
@@ -896,6 +853,22 @@ const AdvisorDashboard = () => {
         standsOut: bStandsOut.sort(bySortDesc),
         positive: bPositive.sort(bySortDesc),
       };
+
+      const svarBytes = [
+        convRes, companiesRes, reportsRes, pulseRes, recentReportsRes, recentFactsRes,
+        milestonesRes, kpiTargetsRes, companyMembersRes, advisorProfilesRes,
+        recentMilestonesRes, recentHandoutsRes, companyInvitationsRes, goalHandoutRes,
+        memberProfilesRes, { data: alertsData },
+      ].reduce((sum, res) => {
+        try {
+          return sum + (JSON.stringify((res as { data?: unknown })?.data ?? null)?.length ?? 0);
+        } catch {
+          return sum;
+        }
+      }, 0);
+      console.info(
+        `[advisor-dashboard] hentning: ${Math.round(performance.now() - maalingStart)} ms · ~${Math.round(svarBytes / 1024)} kB svar`,
+      );
 
       return {
         investorSummaries, companyMap, activityFeed, convByCompany, expiredCompanyIds, pendingCompanyIds,
