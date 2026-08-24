@@ -453,15 +453,52 @@ export interface LoadBudgetResult {
   decoded: DecodedBudget | null;
 }
 
+/** Pagineret hentning hen over Supabase-loftet på 1.000 rækker pr.
+    forespørgsel (prod-bevis 2026-08-24: remm. har 1.378 rækker i
+    budget_targets — loadBudget så kun de første 1.000, og medlemmets
+    gemte rettelser "forsvandt" ved genindlæsning). Kalderen bygger
+    forespørgslen og SKAL selv sætte .order(...) for stabil paginering;
+    range lægges på her. En fejl KASTER — en slugt fejl blev til en tom
+    liste, som ligner et tomt budget (og i delete-før-insert-flowene til
+    dobbeltrækker). Samme mønster som confirmImportFraSkriveplan (PR #404). */
+export async function hentAlleSider<T>(
+  byg: (fra: number, til: number) => PromiseLike<{ data: T[] | null; error: unknown }>,
+): Promise<T[]> {
+  const SIDE = 1000;
+  const alle: T[] = [];
+  for (let fra = 0; ; fra += SIDE) {
+    const res = await byg(fra, fra + SIDE - 1);
+    if (res.error) throw res.error;
+    const side = res.data || [];
+    alle.push(...side);
+    if (side.length < SIDE) break;
+  }
+  return alle;
+}
+
+/** Sletning på id i bidder á 200 — 1.000+ id'er i én .in() sprænger
+    URL-længden (mønstret fra PR #404). Kaster på fejl: en fejlet delete
+    efterfulgt af insert er netop dobbeltskrivningen. */
+async function sletPaaId(ids: string[]): Promise<void> {
+  for (let i = 0; i < ids.length; i += 200) {
+    const del = await supabase.from("budget_targets").delete().in("id", ids.slice(i, i + 200));
+    if (del.error) throw del.error;
+  }
+}
+
 /** Den bærende load (Budget.tsx:73-78 query + decodeBudgetRows). Kaster på
-    query-fejl som originalens try/catch-flow (kalderen logger). */
+    query-fejl som originalens try/catch-flow (kalderen logger). Pagineret:
+    fladen skal bruge ALLE år og ALLE scenarier, så serverside-filtrering
+    er ikke nok her. */
 export async function loadBudget(companyId: string, year: string): Promise<LoadBudgetResult> {
-  const res = await (supabase
-    .from("budget_targets")
-    .select("category, budget_amount, period") as any)
-    .eq("company_id", companyId);
-  if (res.error) throw res.error;
-  const data = (res.data || []) as BudgetTargetRow[];
+  const data = await hentAlleSider<BudgetTargetRow>((fra, til) =>
+    (supabase
+      .from("budget_targets")
+      .select("category, budget_amount, period") as any)
+      .eq("company_id", companyId)
+      .order("id")
+      .range(fra, til),
+  );
 
   if (!data || data.length === 0) {
     return { empty: true, availableYears: [], decoded: null };
@@ -474,15 +511,21 @@ export async function loadBudget(companyId: string, year: string): Promise<LoadB
 // ───────────────────────────── SKRIVEVEJE ─────────────────────────────
 
 /** Delt læse-hjælper for delete-før-insert-flowene (mønstret fra
-    BudgetScenariosTab.tsx:101-105/:172/:225). */
+    BudgetScenariosTab.tsx:101-105/:172/:225). Pagineret og kastende:
+    med 1.378 rækker så den gamle udgave kun de første 1.000 og kunne
+    efterlade gamle rækker, der overskriver nye ved næste indlæsning —
+    og en slugt fejl (`|| []`) blev til "slet ingenting" + insert. */
 async function fetchExistingRows(
   companyId: string,
 ): Promise<{ id: string; period: string; category: string }[]> {
-  const res = await (supabase
-    .from("budget_targets")
-    .select("id, period, category") as any)
-    .eq("company_id", companyId);
-  return (res.data || []) as { id: string; period: string; category: string }[];
+  return hentAlleSider((fra, til) =>
+    (supabase
+      .from("budget_targets")
+      .select("id, period, category") as any)
+      .eq("company_id", companyId)
+      .order("id")
+      .range(fra, til),
+  );
 }
 
 /** Fælles delete(prefix)+insert for et scenaries værdirækker (identisk blok
@@ -500,9 +543,7 @@ async function replaceScenarioValues(args: {
   const periodPrefix = `${year}-${target}-`;
   const existing = await fetchExistingRows(companyId);
   const toDelete = existing.filter((e) => e.period.startsWith(periodPrefix));
-  if (toDelete.length > 0) {
-    await supabase.from("budget_targets").delete().in("id", toDelete.map((e) => e.id));
-  }
+  await sletPaaId(toDelete.map((e) => e.id));
 
   const inserts = rows.flatMap((row) =>
     row.values.map((val, monthIdx) => ({
@@ -555,9 +596,7 @@ export async function saveScenarioEdits(args: {
       e.category.startsWith(`__label__${year}_`) ||
       e.category.startsWith(`__group__${year}_`),
   );
-  if (toDelete.length > 0) {
-    await supabase.from("budget_targets").delete().in("id", toDelete.map((e) => e.id));
-  }
+  await sletPaaId(toDelete.map((e) => e.id));
 
   const inserts = rows.flatMap((row) =>
     row.values.map((val, monthIdx) => ({
@@ -693,20 +732,23 @@ export async function confirmBudgetImport(args: {
 }): Promise<void> {
   const { userId, companyId, preview } = args;
 
-  const { data: existing } = await supabase
-    .from("budget_targets")
-    .select("id, period")
-    .eq("user_id", userId)
-    .eq("company_id", companyId)
-    .or(
-      `period.like.${preview.year}-base-%,` +
-        `period.like.${preview.year}-optimistisk-%,` +
-        `period.like.${preview.year}-pessimistisk-%`,
-    );
-
-  if (existing && existing.length > 0) {
-    await supabase.from("budget_targets").delete().in("id", existing.map((e) => e.id));
-  }
+  // Pagineret + kastende (samme loft-fejlklasse som loadBudget): tre
+  // scenarier × 12 måneder × 28+ kategorier kan overstige 1.000 rækker.
+  const existing = await hentAlleSider<{ id: string; period: string }>((fra, til) =>
+    (supabase
+      .from("budget_targets")
+      .select("id, period") as any)
+      .eq("user_id", userId)
+      .eq("company_id", companyId)
+      .or(
+        `period.like.${preview.year}-base-%,` +
+          `period.like.${preview.year}-optimistisk-%,` +
+          `period.like.${preview.year}-pessimistisk-%`,
+      )
+      .order("id")
+      .range(fra, til),
+  );
+  await sletPaaId(existing.map((e) => e.id));
 
   const inserts = preview.categories.flatMap((cat) =>
     (["base", "optimistisk", "pessimistisk"] as const).flatMap((scenario) =>

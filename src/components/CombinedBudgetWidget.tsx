@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { ArrowRight, TrendingUp, TrendingDown } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { hentAlleSider } from "@/lib/budgetEngine";
 import { useAuth } from "@/hooks/useAuth";
 import { useCompanyFacts } from "@/hooks/useCompanyFacts";
 import { factsToDanishMetrics } from "@/lib/factsAdapter";
@@ -27,13 +28,18 @@ export default function CombinedBudgetWidget() {
   // Budget targets
   const { data: budgetTargets = [] } = useQuery({
     queryKey: ["combined-budget-targets", companyId],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("budget_targets")
-        .select("category, period, budget_amount")
-        .eq("company_id", companyId!);
-      return (data || []) as { category: string; period: string; budget_amount: number }[];
-    },
+    queryFn: async () =>
+      // Pagineret hen over 1.000-rækkers-loftet (fix/loadbudget-over-tusind:
+      // remm. har 1.378 rækker — widgetten så et afkortet budget). Kaster på
+      // fejl; react-query bærer den til error-state frem for et tomt budget.
+      hentAlleSider<{ category: string; period: string; budget_amount: number }>((fra, til) =>
+        (supabase
+          .from("budget_targets")
+          .select("category, period, budget_amount") as any)
+          .eq("company_id", companyId!)
+          .order("id")
+          .range(fra, til),
+      ),
     enabled: !!user && !!companyId,
     staleTime: 5 * 60_000,
   });
