@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import * as Sentry from "@sentry/react";
 import { useAuth } from "@/hooks/useAuth";
 import { computeMembershipTier } from "@/lib/membershipTier";
 import {
@@ -296,11 +297,15 @@ const AdvisorDashboard = () => {
 
   const { data, isLoading } = useQuery({
     queryKey: ["advisor-dashboard", user?.id, "assignment-display-v2"],
-    queryFn: async () => {
-      // Minimal ydeevne-måling (ydeevne-recon §6: der fandtes ingen):
-      // varighed + omtrentlig svarstørrelse logges én linje pr. kørsel,
-      // så nyttelast-ændringer kan aflæses direkte i konsollen.
-      const maalingStart = performance.now();
+    // Målingen bor i Sentry (browserTracingIntegration, main.tsx:36-42):
+    // spannet "advisor-dashboard.load" bærer varigheden selv, og
+    // svarstørrelsen sættes som attributten svar_kb. NB: tracesSampleRate
+    // er 0,1 — omkring hver TIENDE indlæsning registreres. Det er nok til
+    // at se en trend i Performance-visningen, ikke til at fejlsøge en
+    // enkelt sag; leder du efter et konkret tal fra en bestemt dag, er det
+    // derfor sandsynligvis ikke der.
+    queryFn: () =>
+      Sentry.startSpan({ name: "advisor-dashboard.load", op: "advisor.query" }, async (span) => {
       const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString();
       const twoWeeksAgo = new Date(Date.now() - 14 * 86400000).toISOString();
       const [
@@ -866,9 +871,12 @@ const AdvisorDashboard = () => {
           return sum;
         }
       }, 0);
-      console.info(
-        `[advisor-dashboard] hentning: ${Math.round(performance.now() - maalingStart)} ms · ~${Math.round(svarBytes / 1024)} kB svar`,
-      );
+      span.setAttribute("svar_kb", Math.round(svarBytes / 1024));
+      // Lokal udvikling: samme miljø-betingelse som Sentry-opsætningen
+      // (main.tsx:39 enabled: PROD) — konsol-linjen lever kun udenfor prod.
+      if (!import.meta.env.PROD) {
+        console.info(`[advisor-dashboard] hentning: ~${Math.round(svarBytes / 1024)} kB svar`);
+      }
 
       return {
         investorSummaries, companyMap, activityFeed, convByCompany, expiredCompanyIds, pendingCompanyIds,
@@ -877,7 +885,7 @@ const AdvisorDashboard = () => {
         companyMemberNameMap,
         recentReportsData: (recentReportsRes.data || []) as { id: string; company_id: string }[],
       };
-    },
+      }),
     enabled: !!user,
     staleTime: 2 * 60_000,
   });
