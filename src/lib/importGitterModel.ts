@@ -89,8 +89,34 @@ export type Gitter = {
   /** Gruppevalg pr. sektion (nøgle = sektionsNoegle; "" = uden sektion),
       initialiseret med gruppeForslag og ændret via saetSektionsgruppe. */
   sektionsGrupper: Record<string, Gruppenoegle>;
+  /** "Ikke et budgetbeløb" pr. sektion (nøgle = sektionsNoegle) — en SEPARAT
+      tilstand ved siden af gruppevalget, ALDRIG en gruppenøgle: den må
+      hverken nå __group__-markørerne eller skriveplanen. Sektionens rækker
+      fravælges (medtag false) men bliver stående i gitteret, så medlemmet
+      kan se hvad der udelades og fortryde (P1). Forvalgt for
+      nøgletals-sektioner; ændres via saetSektionUdeladt. */
+  udeladteSektioner: Record<string, boolean>;
   advarsler: string[];
 };
+
+/** Er sektionen sat til "Ikke et budgetbeløb"? (Tåler gamle kladder uden
+    feltet — de læses fra localStorage.) */
+export function erSektionUdeladt(gitter: Gitter, sektion: string | null): boolean {
+  return gitter.udeladteSektioner?.[sektionsNoegle(sektion)] === true;
+}
+
+/** Sektioner der forvælges som "Ikke et budgetbeløb": nøgletal er tal OM
+    forretningen (MRR, ARR, abonnenter), ikke budgetbeløb — importeret som
+    omkostninger flerdobler de månederne. */
+const NOEGLETALS_SEKTION_RE = /nøgletal|noegletal|kpi|key figures|nøgletals/i;
+
+/** Rækker hvis EGET værn allerede har talt: forholdstals-bemærkningen og
+    dobbelttællings-bemærkningerne. De påvirkes ikke af sektionsvalget —
+    deres egen tilstand står ved magt. */
+const harEgetVaern = (raekke: GitterRaekke): boolean =>
+  raekke.bemaerkning !== null &&
+  (raekke.bemaerkning.includes("forholdstal") ||
+    raekke.bemaerkning.includes("tælles beløbet to gange"));
 
 /** Rækkens opløste gruppenøgle: medlemmets valg i gitteret, ellers forslaget. */
 export function raekkeGruppe(gitter: Gitter, raekke: GitterRaekke): Gruppenoegle {
@@ -344,8 +370,7 @@ export function byggGitter(resultat: ImportResultat): Gitter {
     }
     if (matchendeKolonner >= 2) {
       // Samme beslutning som cross-table-værnet: sikker dobbelttælling
-      // fravælges som standard. (Forholdstals-rækker nedenfor forbliver
-      // derimod VALGT TIL — de forstyrrer ikke summen og er ægte linjer.)
+      // fravælges som standard.
       raekke.medtag = false;
       tilfoejNote(
         raekke,
@@ -358,7 +383,12 @@ export function byggGitter(resultat: ImportResultat): Gitter {
   // tabel taler i hundreder/tusinder — så er det en margin/brøk, ikke et
   // beløb. Kræver mindst én værdi FORSKELLIG fra nul (skærpelse ift.
   // bestillingen: rene nulrækker er tomme budgetlinjer, ikke forholdstal —
-  // de har allerede deres egen bemærkning).
+  // de har allerede deres egen bemærkning). Et forholdstal er pr.
+  // definition "ikke et budgetbeløb" og FRAVÆLGES som dobbelttællings-
+  // rækkerne (besluttet 2026-08-24: før blev det holdt ude af gitterets
+  // sum men alligevel skrevet — to steder afgjorde forskelligt om samme
+  // række var et beløb). Rækken bliver stående og kan vælges til (P1);
+  // medtag er derefter det ENE sted der afgør både sum og skrivning.
   for (const raekke of raekker) {
     const ikkeNull = raekke.vaerdier.filter((v): v is number => v !== null);
     if (ikkeNull.length === 0) continue;
@@ -371,7 +401,8 @@ export function byggGitter(resultat: ImportResultat): Gitter {
         anden.vaerdier.some((v) => v !== null && Math.abs(v) > 100),
     );
     if (harStoreNaboer) {
-      tilfoejNote(raekke, "Ser ud til at være et forholdstal, ikke et beløb");
+      raekke.medtag = false;
+      tilfoejNote(raekke, "Fravalgt: ser ud til at være et forholdstal, ikke et beløb");
     }
   }
 
@@ -414,7 +445,25 @@ export function byggGitter(resultat: ImportResultat): Gitter {
     if (!(noegle in sektionsGrupper)) sektionsGrupper[noegle] = gruppeForslag(raekke.sektion);
   }
 
-  return { kolonner, raekker, struktur, sektionsGrupper, advarsler };
+  // "Ikke et budgetbeløb" pr. sektion: nøgletals-sektioner forvælges som
+  // udeladt — deres rækker fravælges, men bliver stående i gitteret så
+  // medlemmet kan se hvad der udelades og fortryde (P1). Rækker med eget
+  // værn (forholdstal, dobbelttælling) røres ikke.
+  const udeladteSektioner: Record<string, boolean> = {};
+  for (const raekke of raekker) {
+    const noegle = sektionsNoegle(raekke.sektion);
+    if (!(noegle in udeladteSektioner)) {
+      udeladteSektioner[noegle] =
+        raekke.sektion !== null && NOEGLETALS_SEKTION_RE.test(raekke.sektion);
+    }
+  }
+  for (const raekke of raekker) {
+    if (udeladteSektioner[sektionsNoegle(raekke.sektion)] && !harEgetVaern(raekke)) {
+      raekke.medtag = false;
+    }
+  }
+
+  return { kolonner, raekker, struktur, sektionsGrupper, udeladteSektioner, advarsler };
 }
 
 // ───────────────────────── Mutationer (immutable) ─────────────────────────
@@ -424,6 +473,8 @@ const kopiGitter = (g: Gitter): Gitter => ({
   raekker: g.raekker.map((r) => ({ ...r, vaerdier: [...r.vaerdier] })),
   struktur: g.struktur.map((s) => ({ ...s, daekker: s.daekker ? [...s.daekker] : undefined })),
   sektionsGrupper: { ...g.sektionsGrupper },
+  // ?? {}: gamle localStorage-kladder er gemt uden feltet.
+  udeladteSektioner: { ...(g.udeladteSektioner ?? {}) },
   advarsler: [...g.advarsler],
 });
 
@@ -469,6 +520,28 @@ export function saetSektionsgruppe(
 ): Gitter {
   const ny = kopiGitter(gitter);
   ny.sektionsGrupper[sektionsNoegle(sektion)] = gruppe;
+  return ny;
+}
+
+/** "Ikke et budgetbeløb" for en sektion: alle sektionens rækker fravælges
+    (og vælges til igen når valget fortrydes) — undtagen rækker med eget
+    værn (forholdstal, dobbelttælling), hvis egen tilstand står ved magt.
+    Rækkerne bliver stående i gitteret, så medlemmet kan se hvad der
+    udelades og fortryde (P1). Tilstanden er IKKE en gruppenøgle og når
+    aldrig __group__-markørerne eller skriveplanen. */
+export function saetSektionUdeladt(
+  gitter: Gitter,
+  sektion: string | null,
+  udeladt: boolean,
+): Gitter {
+  const ny = kopiGitter(gitter);
+  const noegle = sektionsNoegle(sektion);
+  ny.udeladteSektioner[noegle] = udeladt;
+  for (const raekke of ny.raekker) {
+    if (sektionsNoegle(raekke.sektion) !== noegle) continue;
+    if (harEgetVaern(raekke)) continue;
+    raekke.medtag = !udeladt;
+  }
   return ny;
 }
 
@@ -577,14 +650,14 @@ export function indsaetFraTekst(
 // ───────────────────────── Opsummering ─────────────────────────
 
 export function opsummer(gitter: Gitter): GitterOpsummering {
+  // medtag er det ENE sted der afgør om en række tæller: forholdstal er
+  // fravalgt fra byggGitter, og vælger medlemmet et til igen, tælles det
+  // med her OG skrives — summen medlemmet ser er altid det der gemmes.
   const medtagne = gitter.raekker.filter((r) => r.medtag);
-  // Forholdstal (marginer, brøker) tælles i medtaget men aldrig i summen —
-  // 0,025 i EBITDA-margin må ikke lægges oven i kronebeløbene.
-  const iSum = medtagne.filter((r) => !r.bemaerkning?.includes("forholdstal"));
   const sum: (number | null)[] = gitter.kolonner.map((_, kolonne) => {
     let harVaerdi = false;
     let total = 0;
-    for (const r of iSum) {
+    for (const r of medtagne) {
       // Summen viser de NORMALISEREDE værdier — samme tal som skrives.
       const v = normaliseretVaerdi(gitter, r, kolonne);
       if (v !== null) {

@@ -153,7 +153,9 @@ export function tolkKolonner(kolonnenavne: string[]): Kolonneperiode[] {
       };
     }
 
-    if (AAR_NAVN_RE.test(trimmet)) {
+    // Årstotal genkendes også med årssuffiks ("I alt 2026", "Total 2026") —
+    // kernen uden suffiks matches, året er allerede udledt ovenfor.
+    if (AAR_NAVN_RE.test(trimmet) || AAR_NAVN_RE.test(kerne)) {
       return {
         kolonne,
         navn,
@@ -225,12 +227,13 @@ export function byggSkriveplan(gitter: Gitter, aar: string): Skriveplan {
     aarsskift = { fra: bedste, til: aar };
   }
 
-  const relevante = kolonner.filter((k) =>
-    aarFundet.length === 0 ? true : k.aar === effektivtAar,
-  );
+  // Kolonner UDEN udledt år hører til det effektive år: en fil hvor kun
+  // totalkolonnen bærer årstallet ("Jan", …, "Dec", "I alt 2026") må ikke
+  // miste alle sine måneder til årsfilteret.
+  const relevante = kolonner.filter((k) => k.aar === null || k.aar === effektivtAar);
   for (const k of kolonner) {
     if (k.type === "ukendt") utolkede.add(k.navn);
-    else if (aarFundet.length > 0 && k.aar !== effektivtAar) sprungetOver.add(k.navn);
+    else if (k.aar !== null && k.aar !== effektivtAar) sprungetOver.add(k.navn);
   }
 
   const maanedsKolonner = relevante.filter((k) => k.type !== "aar" && k.type !== "ukendt");

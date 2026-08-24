@@ -8,10 +8,12 @@ import {
   normaliseretVaerdi,
   saetMedtag,
   saetSektionsgruppe,
+  saetSektionUdeladt,
   type Gitter,
 } from "@/lib/importGitterModel";
 import {
   byggSkriveplan,
+  byggSkriveplanInserts,
   tolkKolonner,
   udledAar,
   type Skriveplan,
@@ -45,6 +47,7 @@ const gitter = (
   struktur: [],
   // Tomt valg-kort: byggSkriveplan falder tilbage til gruppeForslag.
   sektionsGrupper: {},
+  udeladteSektioner: {},
   advarsler: [],
 });
 
@@ -80,6 +83,12 @@ describe("tolkKolonner", () => {
     expect(kolonner[0].maaneder).toEqual([6, 7, 8, 9, 10, 11]);
     expect(kolonner[1].maaneder).toEqual([6, 7, 8]);
     expect(kolonner[4].aar).toBe("2024");
+  });
+
+  it("årstotal med årssuffiks: 'I alt 2026' og 'Total 2026' er aar-kolonner der bærer året", () => {
+    const kolonner = tolkKolonner(["I alt 2026", "Total 2026"]);
+    expect(kolonner.map((k) => k.type)).toEqual(["aar", "aar"]);
+    expect(kolonner.map((k) => k.aar)).toEqual(["2026", "2026"]);
   });
 });
 
@@ -214,6 +223,23 @@ describe("byggSkriveplan", () => {
     expect(plan.sprungetOverKolonner).toContain("Januar-24");
   });
 
+  it("årsfilter: kolonner UDEN udledt år hører til det effektive år — måneder uden suffiks overlever", () => {
+    // Filens virkelighed i Topix-resultatbudgettet: kun totalkolonnen bærer
+    // årstallet. Månederne må ikke tabes til årsfilteret.
+    const plan = byggSkriveplan(
+      gitter(
+        ["Januar", "I alt 2026"],
+        [{ raekkeIndex: 0, etiket: "Løn", vaerdier: [100, 1200] }],
+      ),
+      "2026",
+    );
+    expect(plan.raekker[0].maanedsbeloeb[0]).toBe(100);
+    expect(plan.aarsskift).toBeNull();
+    // Årstotalen bruges ikke (månedsdækning findes) men er tolket, ikke ukendt.
+    expect(plan.sprungetOverKolonner).toEqual(["I alt 2026"]);
+    expect(plan.utolkedeKolonner).toEqual([]);
+  });
+
   it("fil uden udledbart år: uændret adfærd, aarsskift null", () => {
     const plan = byggSkriveplan(
       gitter(["Januar", "Februar"], [{ raekkeIndex: 0, etiket: "Løn", vaerdier: [1, 2] }]),
@@ -253,6 +279,35 @@ describe("byggSkriveplan", () => {
     expect(g0.sektionsGrupper["Shop & IT"]).toBe("drift"); // forslaget
     const plan = byggSkriveplan(saetSektionsgruppe(g0, "Shop & IT", "faste"), "2026");
     expect(plan.raekker.map((r) => r.gruppe)).toEqual(["faste", "faste"]);
+  });
+
+  it("'Ikke et budgetbeløb': sektionens rækker når hverken planen eller __group__-markørerne", () => {
+    const g0 = byggGitter(
+      laesMatrix([
+        ["Post", "Januar"],
+        ["Omsætning", null],
+        ["Salg", 100],
+        ["Nøgletal", null],
+        ["MRR", 43031],
+        ["ARR", 516367],
+      ]),
+    );
+    // Forvalget har allerede udeladt Nøgletal — planen bekræfter det.
+    const plan = byggSkriveplan(g0, "2026");
+    expect(plan.raekker.map((r) => r.etiket)).toEqual(["Salg"]);
+    expect(plan.grupper).toEqual([{ sektion: "Omsætning", gruppe: "indtaegter" }]);
+    const inserts = byggSkriveplanInserts({ userId: "u", companyId: "c", plan });
+    const groupMarkoerer = inserts.filter((i) => i.category.startsWith("__group__"));
+    expect(groupMarkoerer).toHaveLength(1);
+    // Markørens period er en gruppenøgle — aldrig "Ikke et budgetbeløb"
+    // eller noget andet uden for de seks.
+    expect(GYLDIGE_GRUPPER).toContain(groupMarkoerer[0].period as (typeof GYLDIGE_GRUPPER)[number]);
+    expect(inserts.some((i) => i.category.includes("mrr") || i.category.includes("arr"))).toBe(false);
+
+    // Og den anden vej: udelades Omsætning også, er planen tom.
+    const tomPlan = byggSkriveplan(saetSektionUdeladt(g0, "Omsætning", true), "2026");
+    expect(tomPlan.raekker).toEqual([]);
+    expect(byggSkriveplanInserts({ userId: "u", companyId: "c", plan: tomPlan })).toEqual([]);
   });
 
   it("fortegns-normalisering: omkostninger skrives som absolutværdi, indtægter beholder fortegn", () => {
@@ -400,14 +455,17 @@ describe("golden: skriveplaner for de syv fixtures", () => {
     expect(plan.advarsler.some((a) => a.includes("uden tal blev udeladt"))).toBe(true);
   });
 
-  it("Topix Budget2026 (XLSX): 31 rækker ('Resultat' fravalgt), intet fordelt, Årstotal uden år filtreres fra", () => {
+  it("Topix Budget2026 (XLSX): 29 rækker ('Resultat' og de to margins fravalgt), intet fordelt", () => {
     const g = byggGitter(laesMatrix(laesArkTilMatrix(`${FIX}/topix-budget-2026.xlsx`, "Budget2026")));
     const { plan, fordelteKolonner, noeglerUnikke } = planAf(g, "2026");
     fastlaas(plan, fordelteKolonner, noeglerUnikke, {
-      raekker: 31,
+      // FLYTTET 2026-08-24 (fra 31): Bruttomargin/Nettomargin er forholdstal
+      // og fravælges nu i byggGitter — de blev før holdt ude af gitterets
+      // sum men alligevel skrevet.
+      raekker: 29,
       fordelte: [],
       utolkede: [],
-      sprungetOver: ["Årstotal"], // intet år på kolonnen, månederne bærer -26
+      sprungetOver: ["Årstotal"], // månedsdækning findes — årstotalen ville dobbelttælle
     });
   });
 
@@ -473,7 +531,9 @@ describe("golden: skriveplaner for de syv fixtures", () => {
     );
     const { plan, fordelteKolonner, noeglerUnikke } = planAf(g, "2026");
     fastlaas(plan, fordelteKolonner, noeglerUnikke, {
-      raekker: 6,
+      // FLYTTET 2026-08-24 (fra 6): 'EBITDA margin' er forholdstal og
+      // fravælges nu i byggGitter i stedet for kun at holdes ude af summen.
+      raekker: 5,
       fordelte: ["FY2026 Plan H1", "FY2026 Plan H2"],
       utolkede: [],
       sprungetOver: [
@@ -487,14 +547,65 @@ describe("golden: skriveplaner for de syv fixtures", () => {
     });
   });
 
-  it("Topix Budget2025-arket importeret til 2026: 39 rækker med årsskifte-advarsel", () => {
+  it("Topix Budget2025-arket importeret til 2026: 42 rækker med årsskifte-advarsel", () => {
     const g = byggGitter(laesMatrix(laesArkTilMatrix(`${FIX}/topix-budget-2026.xlsx`, "Budget2025")));
     const plan = byggSkriveplan(g, "2026");
-    expect(plan.raekker).toHaveLength(39);
+    // FLYTTET 2026-08-24 (fra 39): årsfilteret smider ikke længere kolonner
+    // UDEN udledt år væk — den umærkede "Årstotal"-kolonne hører nu til
+    // filens år (2025). Fire medlemslinjer med tal KUN i Årstotal (D2C/B2B
+    // Vareforbrug og Fragt & emballage) blev før tavst droppet; nu skrives
+    // de fordelt over tolv måneder. Nødvendig følge af at "I alt 2026" i
+    // resultatbudget-fixturen bærer året alene (P1: medlemmets linjer må
+    // ikke forsvinde til et filter). Minus 'Bruttomargin' (forholdstal,
+    // fravalgt fra byggGitter samme dag): 39 + 4 − 1 = 42.
+    expect(plan.raekker).toHaveLength(42);
+    expect(
+      plan.raekker.filter((r) => r.fordelinger.some((f) => f.kolonnenavn === "Årstotal")).map((r) => r.etiket),
+    ).toEqual(["D2C Vareforbrug", "D2C Fragt & emballage", "B2B Vareforbrug", "B2B Fragt & emballage"]);
     expect(plan.aarsskift).toEqual({ fra: "2025", til: "2026" });
     expect(plan.advarsler).toContain(
       "Kolonnerne i filen er fra 2025. Tallene skrives til budget 2026 — tjek at det er det du vil.",
     );
+  });
+
+  it("Topix-resultatbudget 2026 ('Budget 2026'): Jan…Dec-kolonner, år 2026, NØGLETAL udeladt, hovedtal", () => {
+    const g = byggGitter(laesMatrix(laesArkTilMatrix(`${FIX}/topix-resultatbudget-2026.xlsx`, "Budget 2026")));
+
+    // Fejl 1+2: kolonnerne kommer fra den fritstående månedsheader.
+    expect(g.kolonner.slice(0, 12)).toEqual([
+      "Jan", "Feb", "Mar", "Apr", "Maj", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dec",
+    ]);
+    // Året udledes af "I alt 2026" — den eneste kolonne der bærer det.
+    expect(udledAar(tolkKolonner(g.kolonner))).toEqual(["2026"]);
+
+    // Medlemmet udelader også de sektionsløse resultatlinjer (RESULTAT FØR
+    // SKAT, Akkumuleret resultat) — NØGLETAL er allerede forvalgt udeladt,
+    // og Overskudsgraden er fravalgt af sit eget forholdstals-værn.
+    const { plan, fordelteKolonner, noeglerUnikke } = planAf(saetSektionUdeladt(g, null, true), "2026");
+    fastlaas(plan, fordelteKolonner, noeglerUnikke, {
+      raekker: 10, // 5 omsætningslinjer + 5 omkostningslinjer
+      fordelte: [],
+      utolkede: [],
+      sprungetOver: ["I alt 2026"], // månedsdækning findes — årstotalen ville dobbelttælle
+    });
+    expect(plan.aarsskift).toBeNull();
+    expect(plan.raekker.some((r) => /MRR|ARR|medlemmer|overskudsgrad/i.test(r.etiket))).toBe(false);
+
+    // Hovedtal — verificeret mod filen 2026-08-24: planen rammer filens
+    // egne totaler (OMSÆTNING I ALT / OMKOSTNINGER I ALT), præcis fordi
+    // intet forholdstal og intet nøgletal skrives.
+    // (Bestillingen nævnte 86.364 i januar-indtægter fra et andet udkast
+    // af arket — filens faktiske tal er fastholdt, jf. golden-princippet.)
+    const sumFor = (filter: (g2: string) => boolean, maaned: number) =>
+      plan.raekker
+        .filter((r) => filter(r.gruppe))
+        .reduce((s, r) => s + (r.maanedsbeloeb[maaned] ?? 0), 0);
+    expect(sumFor((g2) => g2 === "indtaegter", 0)).toBeCloseTo(85818.06, 2);
+    expect(sumFor((g2) => g2 !== "indtaegter", 0)).toBeCloseTo(73608.97, 2);
+    const aaret = (filter: (g2: string) => boolean) =>
+      Array.from({ length: 12 }, (_, m) => sumFor(filter, m)).reduce((a, b) => a + b, 0);
+    expect(aaret((g2) => g2 === "indtaegter")).toBeCloseTo(1317572.89, 2);
+    expect(aaret((g2) => g2 !== "indtaegter")).toBeCloseTo(1110535.12, 2);
   });
 
   it("fravalg slår igennem i planen (Remm: fravælg én MEDTAGET række → 53)", () => {
