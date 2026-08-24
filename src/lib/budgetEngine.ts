@@ -379,7 +379,16 @@ export function decodeBudgetRows(data: BudgetTargetRow[], year: string): Decoded
     };
   });
 
-  const allCategories = [...template.categories, ...extraCategories];
+  // Skabelon-kategorier: en GYLDIG __group__-markør overstyrer skabelonens
+  // gruppe (medlemmets gruppeskift i redigeringstabellen); ugyldig/ingen
+  // markør → skabelonens egen gruppe, præcis som før.
+  const templateCategories = template.categories.map((c) => {
+    const gemt = extraGroupMap[c.key];
+    return GYLDIGE_GRUPPER.has(gemt as BudgetCategory["group"])
+      ? { ...c, group: gemt as BudgetCategory["group"] }
+      : c;
+  });
+  const allCategories = [...templateCategories, ...extraCategories];
 
   const newData: Record<ScenarioKey, BudgetRow[]> = {
     base: allCategories.map(catToRow),
@@ -584,9 +593,8 @@ export async function saveScenarioEdits(args: {
   scenario: ScenarioKey;
   rows: BudgetRow[];
   labelOverrides: Record<string, string>;
-  templateKeys: Set<string>;
 }): Promise<void> {
-  const { userId, companyId, year, scenario, rows, labelOverrides, templateKeys } = args;
+  const { userId, companyId, year, scenario, rows, labelOverrides } = args;
   const periodPrefix = `${year}-${scenario}-`;
 
   const existing = await fetchExistingRows(companyId);
@@ -616,8 +624,13 @@ export async function saveScenarioEdits(args: {
     period: label,
   }));
 
+  // Markører for ALLE rækker — også skabelon-linjer
+  // (feat/gruppevaelger-i-redigering): før blev skabelon-keys filtreret
+  // fra, så et gruppeskift på en skabelon-linje gik tabt ved skrivning
+  // OG blev ignoreret ved afkodning. decodeBudgetRows lader nu en gyldig
+  // markør overstyre skabelonens gruppe; en markør lig skabelonens
+  // default er harmløs.
   const groupInserts = rows
-    .filter((r) => !templateKeys.has(r.key))
     .map((r) => ({
       user_id: userId,
       company_id: companyId,
