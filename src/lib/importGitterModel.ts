@@ -370,8 +370,7 @@ export function byggGitter(resultat: ImportResultat): Gitter {
     }
     if (matchendeKolonner >= 2) {
       // Samme beslutning som cross-table-værnet: sikker dobbelttælling
-      // fravælges som standard. (Forholdstals-rækker nedenfor forbliver
-      // derimod VALGT TIL — de forstyrrer ikke summen og er ægte linjer.)
+      // fravælges som standard.
       raekke.medtag = false;
       tilfoejNote(
         raekke,
@@ -384,7 +383,12 @@ export function byggGitter(resultat: ImportResultat): Gitter {
   // tabel taler i hundreder/tusinder — så er det en margin/brøk, ikke et
   // beløb. Kræver mindst én værdi FORSKELLIG fra nul (skærpelse ift.
   // bestillingen: rene nulrækker er tomme budgetlinjer, ikke forholdstal —
-  // de har allerede deres egen bemærkning).
+  // de har allerede deres egen bemærkning). Et forholdstal er pr.
+  // definition "ikke et budgetbeløb" og FRAVÆLGES som dobbelttællings-
+  // rækkerne (besluttet 2026-08-24: før blev det holdt ude af gitterets
+  // sum men alligevel skrevet — to steder afgjorde forskelligt om samme
+  // række var et beløb). Rækken bliver stående og kan vælges til (P1);
+  // medtag er derefter det ENE sted der afgør både sum og skrivning.
   for (const raekke of raekker) {
     const ikkeNull = raekke.vaerdier.filter((v): v is number => v !== null);
     if (ikkeNull.length === 0) continue;
@@ -397,7 +401,8 @@ export function byggGitter(resultat: ImportResultat): Gitter {
         anden.vaerdier.some((v) => v !== null && Math.abs(v) > 100),
     );
     if (harStoreNaboer) {
-      tilfoejNote(raekke, "Ser ud til at være et forholdstal, ikke et beløb");
+      raekke.medtag = false;
+      tilfoejNote(raekke, "Fravalgt: ser ud til at være et forholdstal, ikke et beløb");
     }
   }
 
@@ -645,14 +650,14 @@ export function indsaetFraTekst(
 // ───────────────────────── Opsummering ─────────────────────────
 
 export function opsummer(gitter: Gitter): GitterOpsummering {
+  // medtag er det ENE sted der afgør om en række tæller: forholdstal er
+  // fravalgt fra byggGitter, og vælger medlemmet et til igen, tælles det
+  // med her OG skrives — summen medlemmet ser er altid det der gemmes.
   const medtagne = gitter.raekker.filter((r) => r.medtag);
-  // Forholdstal (marginer, brøker) tælles i medtaget men aldrig i summen —
-  // 0,025 i EBITDA-margin må ikke lægges oven i kronebeløbene.
-  const iSum = medtagne.filter((r) => !r.bemaerkning?.includes("forholdstal"));
   const sum: (number | null)[] = gitter.kolonner.map((_, kolonne) => {
     let harVaerdi = false;
     let total = 0;
-    for (const r of iSum) {
+    for (const r of medtagne) {
       // Summen viser de NORMALISEREDE værdier — samme tal som skrives.
       const v = normaliseretVaerdi(gitter, r, kolonne);
       if (v !== null) {

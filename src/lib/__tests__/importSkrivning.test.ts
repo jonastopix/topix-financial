@@ -455,14 +455,17 @@ describe("golden: skriveplaner for de syv fixtures", () => {
     expect(plan.advarsler.some((a) => a.includes("uden tal blev udeladt"))).toBe(true);
   });
 
-  it("Topix Budget2026 (XLSX): 31 rækker ('Resultat' fravalgt), intet fordelt, Årstotal uden år filtreres fra", () => {
+  it("Topix Budget2026 (XLSX): 29 rækker ('Resultat' og de to margins fravalgt), intet fordelt", () => {
     const g = byggGitter(laesMatrix(laesArkTilMatrix(`${FIX}/topix-budget-2026.xlsx`, "Budget2026")));
     const { plan, fordelteKolonner, noeglerUnikke } = planAf(g, "2026");
     fastlaas(plan, fordelteKolonner, noeglerUnikke, {
-      raekker: 31,
+      // FLYTTET 2026-08-24 (fra 31): Bruttomargin/Nettomargin er forholdstal
+      // og fravælges nu i byggGitter — de blev før holdt ude af gitterets
+      // sum men alligevel skrevet.
+      raekker: 29,
       fordelte: [],
       utolkede: [],
-      sprungetOver: ["Årstotal"], // intet år på kolonnen, månederne bærer -26
+      sprungetOver: ["Årstotal"], // månedsdækning findes — årstotalen ville dobbelttælle
     });
   });
 
@@ -528,7 +531,9 @@ describe("golden: skriveplaner for de syv fixtures", () => {
     );
     const { plan, fordelteKolonner, noeglerUnikke } = planAf(g, "2026");
     fastlaas(plan, fordelteKolonner, noeglerUnikke, {
-      raekker: 6,
+      // FLYTTET 2026-08-24 (fra 6): 'EBITDA margin' er forholdstal og
+      // fravælges nu i byggGitter i stedet for kun at holdes ude af summen.
+      raekker: 5,
       fordelte: ["FY2026 Plan H1", "FY2026 Plan H2"],
       utolkede: [],
       sprungetOver: [
@@ -542,7 +547,7 @@ describe("golden: skriveplaner for de syv fixtures", () => {
     });
   });
 
-  it("Topix Budget2025-arket importeret til 2026: 43 rækker med årsskifte-advarsel", () => {
+  it("Topix Budget2025-arket importeret til 2026: 42 rækker med årsskifte-advarsel", () => {
     const g = byggGitter(laesMatrix(laesArkTilMatrix(`${FIX}/topix-budget-2026.xlsx`, "Budget2025")));
     const plan = byggSkriveplan(g, "2026");
     // FLYTTET 2026-08-24 (fra 39): årsfilteret smider ikke længere kolonner
@@ -551,8 +556,9 @@ describe("golden: skriveplaner for de syv fixtures", () => {
     // Vareforbrug og Fragt & emballage) blev før tavst droppet; nu skrives
     // de fordelt over tolv måneder. Nødvendig følge af at "I alt 2026" i
     // resultatbudget-fixturen bærer året alene (P1: medlemmets linjer må
-    // ikke forsvinde til et filter).
-    expect(plan.raekker).toHaveLength(43);
+    // ikke forsvinde til et filter). Minus 'Bruttomargin' (forholdstal,
+    // fravalgt fra byggGitter samme dag): 39 + 4 − 1 = 42.
+    expect(plan.raekker).toHaveLength(42);
     expect(
       plan.raekker.filter((r) => r.fordelinger.some((f) => f.kolonnenavn === "Årstotal")).map((r) => r.etiket),
     ).toEqual(["D2C Vareforbrug", "D2C Fragt & emballage", "B2B Vareforbrug", "B2B Fragt & emballage"]);
@@ -573,30 +579,33 @@ describe("golden: skriveplaner for de syv fixtures", () => {
     expect(udledAar(tolkKolonner(g.kolonner))).toEqual(["2026"]);
 
     // Medlemmet udelader også de sektionsløse resultatlinjer (RESULTAT FØR
-    // SKAT, Akkumuleret resultat) — NØGLETAL er allerede forvalgt udeladt.
+    // SKAT, Akkumuleret resultat) — NØGLETAL er allerede forvalgt udeladt,
+    // og Overskudsgraden er fravalgt af sit eget forholdstals-værn.
     const { plan, fordelteKolonner, noeglerUnikke } = planAf(saetSektionUdeladt(g, null, true), "2026");
     fastlaas(plan, fordelteKolonner, noeglerUnikke, {
-      raekker: 11, // 5 omsætning + 5 omkostninger + Overskudsgrad (forholdstal, eget værn)
+      raekker: 10, // 5 omsætningslinjer + 5 omkostningslinjer
       fordelte: [],
       utolkede: [],
       sprungetOver: ["I alt 2026"], // månedsdækning findes — årstotalen ville dobbelttælle
     });
     expect(plan.aarsskift).toBeNull();
-    expect(plan.raekker.some((r) => /MRR|ARR|medlemmer/i.test(r.etiket))).toBe(false);
+    expect(plan.raekker.some((r) => /MRR|ARR|medlemmer|overskudsgrad/i.test(r.etiket))).toBe(false);
 
-    // Hovedtal for januar — verificeret mod filen 2026-08-24: omsætningens
-    // fem linjer summer 85.818,06 og omkostningernes fem 73.608,97.
-    // (Bestillingen nævnte 86.364/73.609 fra et andet udkast af arket —
-    // filens faktiske tal er fastholdt, jf. golden-princippet.)
-    const jan = (filter: (g2: string) => boolean) =>
+    // Hovedtal — verificeret mod filen 2026-08-24: planen rammer filens
+    // egne totaler (OMSÆTNING I ALT / OMKOSTNINGER I ALT), præcis fordi
+    // intet forholdstal og intet nøgletal skrives.
+    // (Bestillingen nævnte 86.364 i januar-indtægter fra et andet udkast
+    // af arket — filens faktiske tal er fastholdt, jf. golden-princippet.)
+    const sumFor = (filter: (g2: string) => boolean, maaned: number) =>
       plan.raekker
         .filter((r) => filter(r.gruppe))
-        .reduce((s, r) => s + (r.maanedsbeloeb[0] ?? 0), 0);
-    expect(jan((g2) => g2 === "indtaegter")).toBeCloseTo(85818.06, 2);
-    // Omkostningerne inkluderer Overskudsgradens 0,14 (forholdstals-rækken
-    // er valgt til og skrives — dens eget værn holder den kun ude af
-    // gitterets SUM-linje).
-    expect(jan((g2) => g2 !== "indtaegter")).toBeCloseTo(73609.11, 2);
+        .reduce((s, r) => s + (r.maanedsbeloeb[maaned] ?? 0), 0);
+    expect(sumFor((g2) => g2 === "indtaegter", 0)).toBeCloseTo(85818.06, 2);
+    expect(sumFor((g2) => g2 !== "indtaegter", 0)).toBeCloseTo(73608.97, 2);
+    const aaret = (filter: (g2: string) => boolean) =>
+      Array.from({ length: 12 }, (_, m) => sumFor(filter, m)).reduce((a, b) => a + b, 0);
+    expect(aaret((g2) => g2 === "indtaegter")).toBeCloseTo(1317572.89, 2);
+    expect(aaret((g2) => g2 !== "indtaegter")).toBeCloseTo(1110535.12, 2);
   });
 
   it("fravalg slår igennem i planen (Remm: fravælg én MEDTAGET række → 53)", () => {

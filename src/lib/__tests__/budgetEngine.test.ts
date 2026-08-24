@@ -534,10 +534,12 @@ describe("rundtur: skriveplan → inserts → decodeBudgetRows", () => {
     assertRundtur(plan);
   });
 
-  it("Topix Budget2026 overlever rundturen — 31 rækker, etiketter/grupper/tal intakte", () => {
+  it("Topix Budget2026 overlever rundturen — 29 rækker, etiketter/grupper/tal intakte", () => {
     const g = byggGitter(laesMatrix(laesArkTilMatrix(`${FIX}/topix-budget-2026.xlsx`, "Budget2026")));
     const plan = byggSkriveplan(g, "2026");
-    expect(plan.raekker).toHaveLength(31);
+    // FLYTTET 2026-08-24 (fra 31): Bruttomargin/Nettomargin er forholdstal
+    // og fravælges nu i byggGitter — de skrives ikke længere.
+    expect(plan.raekker).toHaveLength(29);
     const loen = plan.raekker.find((r) => r.etiket === "Løn")!;
     expect(loen.gruppe).toBe("personale"); // opløst fra "Medarbejdere"
     assertRundtur(plan);

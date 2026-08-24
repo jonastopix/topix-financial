@@ -263,16 +263,17 @@ describe("byggGitter", () => {
     );
   });
 
-  it("forholdstal: alle værdier ≤ 1 blandt store naborækker får bemærkning", () => {
+  it("forholdstal: alle værdier ≤ 1 blandt store naborækker FRAVÆLGES med bemærkning", () => {
     const g = byggGitter(
       resultat([
         tabel([post(0, "Omsætning", [80000, 90000]), post(1, "Nettomargin", [0.4, 0.5])]),
       ]),
     );
-    expect(g.raekker.find((r) => r.etiket === "Nettomargin")!.bemaerkning).toBe(
-      "Ser ud til at være et forholdstal, ikke et beløb",
-    );
-    expect(g.raekker.find((r) => r.etiket === "Nettomargin")!.medtag).toBe(true);
+    const margin = g.raekker.find((r) => r.etiket === "Nettomargin")!;
+    expect(margin.bemaerkning).toBe("Fravalgt: ser ud til at være et forholdstal, ikke et beløb");
+    // Et forholdstal er ikke et budgetbeløb — fravalgt som dobbelttællings-
+    // rækkerne, men stående og synligt så medlemmet kan vælge det til (P1).
+    expect(margin.medtag).toBe(false);
     expect(g.raekker.find((r) => r.etiket === "Omsætning")!.bemaerkning).toBeNull();
   });
 
@@ -586,9 +587,11 @@ describe("saetSektionUdeladt og 'Ikke et budgetbeløb'", () => {
         {
           raekkeIndex: 1,
           etiket: "Margin",
+          // Medlemmet har selv valgt forholdstallet til igen — det valg må
+          // sektionsvalget ikke rulle tilbage.
           vaerdier: [0.2],
           medtag: true,
-          bemaerkning: "Ser ud til at være et forholdstal, ikke et beløb",
+          bemaerkning: "Fravalgt: ser ud til at være et forholdstal, ikke et beløb",
           kommentar: null,
           sektion: "Resultat",
           tabelIndex: 0,
@@ -695,16 +698,24 @@ describe("advarsler og kolonner", () => {
     expect(g.raekker[0].vaerdier).toEqual([100, null]);
   });
 
-  it("forholdstals-række tælles i medtaget men aldrig i sum", () => {
+  it("forholdstals-række er fravalgt og ude af summen — vælges den til, tælles den med og skrives", () => {
     const g = byggGitter(
       resultat([
         tabel([post(0, "EBITDA", [120, 230]), post(1, "EBITDA margin", [0.025, 0.045])]),
       ]),
     );
-    expect(g.raekker[1].bemaerkning).toBe("Ser ud til at være et forholdstal, ikke et beløb");
+    expect(g.raekker[1].bemaerkning).toBe(
+      "Fravalgt: ser ud til at være et forholdstal, ikke et beløb",
+    );
     const o = opsummer(g);
-    expect(o.medtaget).toBe(2);
+    expect(o.medtaget).toBe(1);
+    expect(o.fravalgt).toBe(1);
     expect(o.sum).toEqual([120, 230]);
+    // medtag er det ENE sted der afgør: medlemmets gen-tilvalg tæller i
+    // summen — og præcis samme række skrives så af skriveplanen.
+    const valgtTil = opsummer(saetMedtag(g, 1, true));
+    expect(valgtTil.medtaget).toBe(2);
+    expect(valgtTil.sum).toEqual([120.025, 230.045]);
   });
 });
 
@@ -930,14 +941,16 @@ describe("golden: gitter af Topix-budget 2026 (XLSX)", () => {
     expect(r.medtag).toBe(false);
   });
 
-  it("fravalgt fra start: præcis 'Resultat' — margins er forholdstal og forbliver valgt til", () => {
-    // Bestillingen forventede tre fravalgte, men kun ÉN række rammes af
-    // dobbelttællings-værnene i denne fil: Bruttomargin/Nettomargin bærer
-    // forholdstals-bemærkningen og skal netop IKKE fravælges (de forstyrrer
-    // ikke summen — opsummer holder dem allerede ude).
-    expect(g.raekker.filter((r) => !r.medtag).map((r) => r.etiket)).toEqual(["Resultat"]);
-    expect(g.raekker.find((r) => r.etiket === "Bruttomargin")!.medtag).toBe(true);
-    expect(g.raekker.find((r) => r.etiket === "Nettomargin")!.medtag).toBe(true);
+  it("fravalgt fra start: 'Resultat' (total-af-øvrige) og de to margins (forholdstal)", () => {
+    // FLYTTET 2026-08-24 (fra kun 'Resultat'): forholdstal fravælges nu i
+    // byggGitter — medtag er det ENE sted der afgør både gitterets sum og
+    // hvad der skrives, i stedet for at opsummer holdt dem ude af summen
+    // mens skriveplanen alligevel skrev dem.
+    expect(g.raekker.filter((r) => !r.medtag).map((r) => r.etiket)).toEqual([
+      "Bruttomargin",
+      "Resultat",
+      "Nettomargin",
+    ]);
   });
 
   it("omkostningerne i det ubehandlede gitter er ca. 4,90 mio. — ikke 9,66 mio.", () => {
@@ -965,10 +978,10 @@ describe("golden: gitter af Topix-budget 2026 (XLSX)", () => {
     expect(omkostninger).toBeLessThan(5_000_000);
   });
 
-  it("'Nettomargin' er post MED forholdstals-bemærkningen", () => {
+  it("'Nettomargin' er post, FRAVALGT med forholdstals-bemærkningen", () => {
     const r = g.raekker.find((x) => x.etiket === "Nettomargin")!;
-    expect(r.bemaerkning).toBe("Ser ud til at være et forholdstal, ikke et beløb");
-    expect(r.medtag).toBe(true);
+    expect(r.bemaerkning).toBe("Fravalgt: ser ud til at være et forholdstal, ikke et beløb");
+    expect(r.medtag).toBe(false);
   });
 
   it("gitteret har 32 rækker — de fem reddede linjer er med", () => {
@@ -1029,13 +1042,14 @@ describe("golden: gitter af Topix-resultatbudget 2026 (XLSX)", () => {
       "ARR, ultimo (MRR x 12)",
     ]);
     expect(noegletal.every((r) => !r.medtag)).toBe(true);
-    expect(g.raekker.filter((r) => r.medtag)).toHaveLength(13);
+    // 16 minus de 3 nøgletals-rækker minus Overskudsgrad (forholdstal).
+    expect(g.raekker.filter((r) => r.medtag)).toHaveLength(12);
   });
 
-  it("'Overskudsgrad' bærer forholdstals-bemærkningen og forbliver valgt til", () => {
+  it("'Overskudsgrad' er FRAVALGT med forholdstals-bemærkningen", () => {
     const r = g.raekker.find((x) => x.etiket === "Overskudsgrad")!;
-    expect(r.bemaerkning).toBe("Ser ud til at være et forholdstal, ikke et beløb");
-    expect(r.medtag).toBe(true);
+    expect(r.bemaerkning).toBe("Fravalgt: ser ud til at være et forholdstal, ikke et beløb");
+    expect(r.medtag).toBe(false);
   });
 
   it("RESULTAT FØR SKAT og Akkumuleret resultat står uden sektion — udelades via 'Ikke et budgetbeløb'", () => {
@@ -1045,10 +1059,11 @@ describe("golden: gitter af Topix-resultatbudget 2026 (XLSX)", () => {
     ]);
     const udeladt = saetSektionUdeladt(g, null, true);
     const efter = udeladt.raekker.filter((r) => r.sektion === null);
-    // Forholdstallet påvirkes ikke af sektionsvalget; de to andre fravælges.
+    // Overskudsgraden er allerede fravalgt af sit eget forholdstals-værn
+    // (og påvirkes ikke af sektionsvalget); de to andre fravælges her.
     expect(efter.map((r) => [r.etiket, r.medtag])).toEqual([
       ["RESULTAT FØR SKAT", false],
-      ["Overskudsgrad", true],
+      ["Overskudsgrad", false],
       ["Akkumuleret resultat", false],
     ]);
   });
