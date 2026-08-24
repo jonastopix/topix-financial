@@ -48,29 +48,41 @@ serve(async (req) => {
       ? "bedre end forventet (vækst, effektivisering, øget salg)"
       : "værre end forventet (faldende salg, stigende omkostninger, forsinkelser)";
 
+    // S1/S2 (scenarie-design): klienten sender kun ikke-tomme linjer, hver
+    // med form "fast" | "varierende". Faste vises som kontekst i deres egen
+    // prompt-del og indgår IKKE i værktøjets key-enum — modellen kan se
+    // omkostningsbasen men kan ikke returnere værdier for dem. Mangler
+    // form (ældre kalder), behandles linjen som varierende.
+    const varierendeRows = baseRows.filter((r: any) => r.form !== "fast");
+    const fasteRows = baseRows.filter((r: any) => r.form === "fast");
+
     // Prompt-hærdning (BACKLOG [P3], hb-ai-merge-recon §a1): modellen SKAL
     // se de rigtige keys — før viste baseSummary kun labels, og modellen
     // kunne kun gætte sine "key"-returværdier.
-    const baseSummary = baseRows.map((r: any) =>
+    const varierendeSummary = varierendeRows.map((r: any) =>
       `${r.key} — ${r.label} (${r.group}): [${r.values.join(", ")}]`
     ).join("\n");
+    const fasteSummary = fasteRows.map((r: any) =>
+      `${r.label} (${r.group}): ${r.values[0]} kr./md.`
+    ).join("\n");
 
-    const baseKeys = baseRows.map((r: any) => r.key);
+    const baseKeys = varierendeRows.map((r: any) => r.key);
 
     const systemPrompt = `Du er en ekspert i dansk budgettering og scenarieanalyse.
 
-Du modtager et base-budget med 12 månedlige værdier per kategori.
-Din opgave er at generere et realistisk ${scenarioLabel} scenarie.
+Du modtager et base-budget i to dele: linjer der KAN justeres (med 12 månedlige værdier), og faste linjer der IKKE må ændres — de er med, så du kender virksomhedens samlede omkostningsbase.
+
+Din opgave er at foreslå et realistisk ${scenarioLabel} scenarie.
 
 REGLER:
-1. For et OPTIMISTISK scenarie: Øg indtægter med 10-25%, reducer variable omkostninger med 5-15%, fasthold eller let reducer faste omkostninger.
-2. For et PESSIMISTISK scenarie: Reducer indtægter med 10-25%, øg variable omkostninger med 5-15%, fasthold eller let øg faste omkostninger.
-3. Bevar sæsonmønstre fra base-budgettet men ændr størrelserne.
-4. Justeringerne skal være realistiske og varierede — ikke blot en flad procentjustering.
-5. Personaleomkostninger ændres minimalt (2-5%).
+1. For et OPTIMISTISK scenarie: indtægter stiger typisk 10-25 %, og omkostninger der følger aktiviteten stiger med — mens rene besparelser er sjældne. For et PESSIMISTISK: indtægter falder typisk 10-25 %, og aktivitetsafhængige omkostninger falder med, mens andre står fast.
+2. Læs hver linjes ETIKET og tolv værdier, og vurdér hvad linjen afhænger af: følger den omsætningen (vareforbrug, gebyrer, provision), er den en beslutning (abonnementer, husleje), eller noget tredje. Skalér kun det der faktisk ville flytte sig i scenariet.
+3. Bevar sæsonmønstre fra base-budgettet, men ændr størrelserne.
+4. Returnér KUN de linjer du mener skal ændres. En linje der ikke ville flytte sig i scenariet, skal du lade stå — udelad den helt fra svaret.
+5. For hver linje du ændrer: giv en KORT dansk begrundelse (én sætning) for netop den ændring.
 6. Returnér PRÆCIS de angivne "key"-værdier — feltet FØR "—" på hver linje — ordret og uændret. Find aldrig selv på keys.
 7. Alle værdier skal være hele tal (afrundet).
-8. Hvert tal SKAL være forskelligt fra base-budgettet.`;
+8. De FASTE linjer nederst må du IKKE returnere værdier for — de er kontekst, ikke opgave.`;
 
     const MAX_ATTEMPTS = 2;
     let lastError: Error | null = null;
@@ -90,7 +102,13 @@ REGLER:
             { role: "system", content: systemPrompt },
             {
               role: "user",
-              content: `Her er base-budgettet:\n\n${baseSummary}\n\nGenerer et ${scenarioLabel} scenarie. Retning: ${scenarioDirection}.`,
+              content:
+                `LINJER DER KAN JUSTERES:\n\n${varierendeSummary}\n\n` +
+                (fasteRows.length > 0
+                  ? `FASTE LINJER — ÆNDRES IKKE (kun kontekst):\n\n${fasteSummary}\n\n`
+                  : "") +
+                `Foreslå et ${scenarioLabel} scenarie. Retning: ${scenarioDirection}. ` +
+                `Returnér kun de linjer der skal ændres, med en kort begrundelse pr. linje.`,
             },
           ],
           tools: [
@@ -107,14 +125,18 @@ REGLER:
                       items: {
                         type: "object",
                         properties: {
-                          key: { type: "string", enum: baseKeys, description: "Kategori-nøgle (samme som base)" },
+                          key: { type: "string", enum: baseKeys, description: "Kategori-nøgle (kun de justerbare linjer)" },
                           monthly: {
                             type: "array",
                             items: { type: "number" },
-                            description: "12 månedlige værdier - skal være forskellige fra base",
+                            description: "12 månedlige værdier for linjen i scenariet",
+                          },
+                          begrundelse: {
+                            type: "string",
+                            description: "Kort dansk begrundelse (én sætning) for netop denne ændring",
                           },
                         },
-                        required: ["key", "monthly"],
+                        required: ["key", "monthly", "begrundelse"],
                       },
                     },
                     reasoning: {
@@ -172,13 +194,15 @@ REGLER:
         continue;
       }
 
-      // Validate that AI actually changed the numbers (kun over matchede)
-      const isIdentical = matched.every((cat: any) => {
+      // S3: modellen må lade linjer stå og returnerer kun dem der ændres —
+      // værnet mod stille base-kopi er derfor "MINDST ÉN returneret linje
+      // afviger", ikke "alle skal afvige".
+      const nogenAfviger = matched.some((cat: any) => {
         const baseRow = baseRows.find((r: any) => r.key === cat.key);
-        return JSON.stringify(cat.monthly) === JSON.stringify(baseRow.values);
+        return JSON.stringify(cat.monthly) !== JSON.stringify(baseRow.values);
       });
 
-      if (isIdentical) {
+      if (!nogenAfviger) {
         console.warn(`Attempt ${attempt + 1}: AI returned identical values`);
         lastError = new Error("AI returned identical values");
         continue;

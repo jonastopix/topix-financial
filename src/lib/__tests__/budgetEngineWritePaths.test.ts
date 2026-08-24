@@ -22,6 +22,7 @@ vi.mock("@/integrations/supabase/client", () => ({
 
 import {
   confirmBudgetFromAccounts,
+  gemScenarieRaekker,
   hentAlleSider,
   confirmBudgetImport,
   confirmImportFraSkriveplan,
@@ -288,54 +289,130 @@ describe("W3 — copyBaseToScenario", () => {
   });
 });
 
-describe("W4 — generateAIScenario (m. U3-værnet) gennem harnesset", () => {
+describe("W4 — generateAIScenario (scenarie-design S1-S5) gennem harnesset", () => {
+  /** Varierende rækker (december afviger) — flade rækker er FASTE (S2). */
+  const varRow = (key: string, group: string, monthly: number, label = key): BudgetRow => ({
+    key,
+    label,
+    values: [...fill(monthly).slice(0, 11), monthly + 1],
+    isEditable: true,
+    group,
+  });
   const baseRows = [
-    bRow("omsaetning", "indtaegter", 100_000, "Omsætning"),
-    bRow("loenninger", "personale", 30_000, "Lønninger"),
+    varRow("omsaetning", "indtaegter", 100_000, "Omsætning"),
+    varRow("loenninger", "personale", 30_000, "Lønninger"),
+    bRow("husleje", "faste", 15_000, "Husleje"), // fast: 12× samme beløb
+    bRow("tom_linje", "drift", 0, "Aldrig udfyldt"), // tom
   ];
   const args = { userId: USER, companyId: COMPANY, year: "2026", target: "pessimistisk" as const, baseRows };
 
-  it("delvist match: matchede linjer får AI-tal, umatchede beholder base — begge skrives", async () => {
+  it("S1/S2: tomme linjer er IKKE i payloaden; faste er med, markeret som form 'fast'", async () => {
+    let sendteRows: { key: string; form?: string }[] = [];
+    h.current.setInvokeHandler("generate-budget-scenarios", (body: { baseRows: { key: string; form?: string }[] }) => {
+      sendteRows = body.baseRows;
+      return {
+        data: { categories: [{ key: "omsaetning", monthly: fill(80_000), begrundelse: "Lavere salg." }], reasoning: "…" },
+        error: null,
+      };
+    });
+
+    await generateAIScenario(args);
+
+    expect(sendteRows.map((r) => r.key)).toEqual(["omsaetning", "loenninger", "husleje"]);
+    expect(sendteRows.find((r) => r.key === "husleje")?.form).toBe("fast");
+    expect(sendteRows.find((r) => r.key === "omsaetning")?.form).toBe("varierende");
+  });
+
+  it("S3+S5: et svar der kun ændrer NOGLE linjer accepteres, resten beholder base — og INTET skrives", async () => {
     h.current.setInvokeHandler("generate-budget-scenarios", () => ({
       data: {
-        categories: [{ key: "Omsætning", monthly: fill(80_000) }],
-        reasoning: "Omsætning reduceret 20 %.",
+        categories: [{ key: "Omsætning", monthly: fill(80_000), begrundelse: "Omsætning reduceret 20 %." }],
+        reasoning: "Kun omsætningen flytter sig.",
       },
       error: null,
     }));
 
-    const res = await generateAIScenario(args);
+    const forslag = await generateAIScenario(args);
 
-    expect(res.matchedCount).toBe(1);
-    expect(res.totalRowCount).toBe(2);
-    const pess = h.current.rowsWhere((r) => r.period.startsWith("2026-pessimistisk-"));
-    expect(pess.filter((r) => r.category === "omsaetning").every((r) => r.budget_amount === 80_000)).toBe(true);
-    expect(pess.filter((r) => r.category === "loenninger").every((r) => r.budget_amount === 30_000)).toBe(true);
-  });
-
-  it("nul-match: fejl kastes og INTET skrives", async () => {
-    h.current.setInvokeHandler("generate-budget-scenarios", () => ({
-      data: { categories: [{ key: "revenue", monthly: fill(1) }], reasoning: "…" },
-      error: null,
-    }));
-
-    await expect(generateAIScenario(args)).rejects.toThrow(/matchede ikke/i);
+    expect(forslag.aendrede.map((a) => a.key)).toEqual(["omsaetning"]);
+    expect(forslag.aendrede[0].begrundelse).toBe("Omsætning reduceret 20 %.");
+    expect(forslag.uaendredeAntal).toBe(3);
+    expect(forslag.rows.find((r) => r.key === "loenninger")!.values).toEqual(baseRows[1].values);
+    expect(forslag.rows.find((r) => r.key === "husleje")!.values).toEqual(fill(15_000));
+    // S5: generateAIScenario skriver ALDRIG — tabellen er urørt.
     expect(h.current.table).toHaveLength(0);
   });
 
-  it("falsy-værnet: ugyldig monthly (forkert længde/type) tæller som umatchet", async () => {
+  it("S2: returnerede værdier for en FAST linje ignoreres", async () => {
     h.current.setInvokeHandler("generate-budget-scenarios", () => ({
       data: {
         categories: [
-          { key: "Omsætning", monthly: fill(80_000).slice(0, 11) },
-          { key: "Lønninger", monthly: [...fill(31_000).slice(0, 11), "31000"] },
+          { key: "omsaetning", monthly: fill(80_000), begrundelse: "Lavere salg." },
+          { key: "husleje", monthly: fill(20_000), begrundelse: "Må ikke ske." },
         ],
         reasoning: "…",
       },
       error: null,
     }));
 
-    await expect(generateAIScenario(args)).rejects.toThrow(/matchede ikke/i);
+    const forslag = await generateAIScenario(args);
+    expect(forslag.rows.find((r) => r.key === "husleje")!.values).toEqual(fill(15_000));
+    expect(forslag.aendrede.some((a) => a.key === "husleje")).toBe(false);
+  });
+
+  it("et svar hvor INGEN linje afviger fra base afvises — og intet skrives", async () => {
+    h.current.setInvokeHandler("generate-budget-scenarios", () => ({
+      data: {
+        categories: [
+          { key: "omsaetning", monthly: baseRows[0].values, begrundelse: "…" },
+          { key: "loenninger", monthly: baseRows[1].values, begrundelse: "…" },
+        ],
+        reasoning: "…",
+      },
+      error: null,
+    }));
+
+    await expect(generateAIScenario(args)).rejects.toThrow(/ændrede ingen linjer/i);
+    expect(h.current.table).toHaveLength(0);
+  });
+
+  it("kun faste/tomme linjer: ærlig fejl før noget kaldes", async () => {
+    await expect(
+      generateAIScenario({ ...args, baseRows: [bRow("husleje", "faste", 15_000), bRow("tom", "drift", 0)] }),
+    ).rejects.toThrow(/faste eller tomme/i);
+  });
+
+  it("godkendelsen (gemScenarieRaekker) skriver forslags-rækkerne", async () => {
+    h.current.setInvokeHandler("generate-budget-scenarios", () => ({
+      data: {
+        categories: [{ key: "omsaetning", monthly: fill(80_000), begrundelse: "Lavere salg." }],
+        reasoning: "…",
+      },
+      error: null,
+    }));
+    const forslag = await generateAIScenario(args);
+    expect(h.current.table).toHaveLength(0);
+
+    await gemScenarieRaekker({ userId: USER, companyId: COMPANY, year: "2026", target: "pessimistisk", rows: forslag.rows });
+
+    const pess = h.current.rowsWhere((r) => r.period.startsWith("2026-pessimistisk-"));
+    expect(pess.filter((r) => r.category === "omsaetning").every((r) => r.budget_amount === 80_000)).toBe(true);
+    expect(pess.filter((r) => r.category === "husleje").every((r) => r.budget_amount === 15_000)).toBe(true);
+  });
+
+  it("falsy-værnet: ugyldig monthly (forkert længde/type) tæller som umatchet", async () => {
+    h.current.setInvokeHandler("generate-budget-scenarios", () => ({
+      data: {
+        categories: [
+          { key: "Omsætning", monthly: fill(80_000).slice(0, 11), begrundelse: "…" },
+          { key: "Lønninger", monthly: [...fill(31_000).slice(0, 11), "31000"], begrundelse: "…" },
+        ],
+        reasoning: "…",
+      },
+      error: null,
+    }));
+
+    await expect(generateAIScenario(args)).rejects.toThrow(/ændrede ingen linjer/i);
     expect(h.current.table).toHaveLength(0);
   });
 });

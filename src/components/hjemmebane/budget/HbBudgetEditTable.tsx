@@ -4,6 +4,8 @@ import { formatDKK } from "@/lib/financialUtils";
 import { GROUP_LABELS, GROUP_ORDER, type BudgetTemplate } from "@/lib/budgetTemplates";
 import {
   applyQuickstartRows,
+  gemScenarieRaekker,
+  type ScenarieForslag,
   computeEbitda,
   copyBaseToScenario as engineCopyBaseToScenario,
   distributeEvenly,
@@ -61,6 +63,14 @@ export const HbBudgetEditTable = ({
   const [editingLabel, setEditingLabel] = useState<string | null>(null);
   const [editLabelValue, setEditLabelValue] = useState("");
   const [generating, setGenerating] = useState(false);
+  /** Aktivt AI-forslag (S5): vises i tabellen, skrives først ved Godkend.
+      foer = scenariets rækker før forslaget, til Fortryd. */
+  const [forslag, setForslag] = useState<{
+    target: ScenarioKey;
+    foer: BudgetRow[];
+    aendrede: ScenarieForslag["aendrede"];
+    reasoning?: string;
+  } | null>(null);
   const [showQuickstart, setShowQuickstart] = useState(true);
   const [quickValues, setQuickValues] = useState({ revenue: "", costs: "", payroll: "" });
   const [savedNote, setSavedNote] = useState<string | null>(null);
@@ -155,6 +165,30 @@ export const HbBudgetEditTable = ({
     );
   };
 
+  const godkendForslag = async () => {
+    if (!forslag || !userId || !companyId) return;
+    try {
+      await gemScenarieRaekker({
+        userId,
+        companyId,
+        year,
+        target: forslag.target,
+        rows: scenarioData[forslag.target],
+      });
+      note(`${SCENARIOS.find((sc) => sc.key === forslag.target)?.label}-scenariet er gemt`);
+      setForslag(null);
+    } catch (error) {
+      console.error("Scenario approve error:", error);
+      fail("Kunne ikke gemme scenariet — prøv igen");
+    }
+  };
+
+  const fortrydForslag = () => {
+    if (!forslag) return;
+    setScenarioData((prev) => (prev ? { ...prev, [forslag.target]: forslag.foer } : prev));
+    setForslag(null);
+  };
+
   const updateCell = (key: string, monthIdx: number, value: string) => {
     const num = parseInt(value) || 0;
     setEditValues((prev) => {
@@ -189,16 +223,22 @@ export const HbBudgetEditTable = ({
 
     setGenerating(true);
     try {
-      const { updatedRows, reasoning, matchedCount, totalRowCount } = await engineGenerateAIScenario({
+      const nyt = await engineGenerateAIScenario({
         userId,
         companyId,
         year,
         target,
         baseRows: scenarioData.base,
       });
-      setScenarioData((prev) => (prev ? { ...prev, [target]: updatedRows } : prev));
-      const summary = `Forslag klar — ${matchedCount} af ${totalRowCount} linjer justeret`;
-      note(reasoning ? `${summary} · ${reasoning}` : summary);
+      // S5: forslaget vises i tabellen men er IKKE skrevet — foer gemmes
+      // til Fortryd, og først Godkend skriver (gemScenarieRaekker).
+      setForslag({
+        target,
+        foer: scenarioData[target].map((r) => ({ ...r, values: [...r.values] })),
+        aendrede: nyt.aendrede,
+        reasoning: nyt.reasoning,
+      });
+      setScenarioData((prev) => (prev ? { ...prev, [target]: nyt.rows } : prev));
       setActiveScenario(target);
     } catch (err: any) {
       console.error("AI scenario error:", err);
@@ -391,9 +431,38 @@ export const HbBudgetEditTable = ({
         </HbCard>
       )}
 
+      {/* Forslags-banner (S5). Formvalg: forslaget vises I TABELLEN med de
+          ændrede linjer markeret — ikke som en separat oversigt — fordi
+          tabellen er den flade medlemmet kender, og de uændrede linjer skal
+          ses i deres kontekst: at 121 af 161 linjer IKKE røres er en pointe,
+          ikke en mangel. Banneret bærer dommen (antal ændret/uændret +
+          modellens samlede begrundelse) og de to handlinger; hver ændret
+          linje bærer sin egen begrundelse nede i tabellen. */}
+      {forslag && forslag.target === activeScenario && (
+        <HbCard className="border-hb-evergreen/40 p-4">
+          <p className="text-sm font-medium text-hb-ink">
+            Forslag til {scenarioConfig.label.toLowerCase()}-scenariet — intet er gemt endnu
+          </p>
+          <p className="mt-1 text-xs text-hb-ink-soft">
+            {forslag.aendrede.length} linje{forslag.aendrede.length === 1 ? "" : "r"} foreslås ændret ·{" "}
+            {scenarioData[forslag.target].length - forslag.aendrede.length} holdes uændret
+            (faste og tomme linjer røres ikke).
+            {forslag.reasoning ? ` ${forslag.reasoning}` : ""}
+          </p>
+          <div className="mt-3 flex items-center gap-3">
+            <HbButton className="h-9 px-5 text-sm" onClick={() => void godkendForslag()}>
+              Godkend og gem
+            </HbButton>
+            <HbButton variant="secondary" className="h-9 px-5 text-sm" onClick={fortrydForslag}>
+              Fortryd
+            </HbButton>
+          </div>
+        </HbCard>
+      )}
+
       {/* Handlingsrække + kvittering */}
       <div className="flex flex-wrap items-center gap-3">
-        {!editing ? (
+        {forslag && forslag.target === activeScenario ? null : !editing ? (
           <HbButton className="h-9 px-5 text-sm" onClick={startEditing}>
             Redigér tal
           </HbButton>
@@ -407,7 +476,7 @@ export const HbBudgetEditTable = ({
             </HbButton>
           </>
         )}
-        {activeScenario !== "base" && !editing && (
+        {activeScenario !== "base" && !editing && !(forslag && forslag.target === activeScenario) && (
           <>
             <HbButton
               variant="secondary"
@@ -535,6 +604,12 @@ export const HbBudgetEditTable = ({
                               <span className="flex flex-col items-start gap-0.5">
                                 <span className="flex items-center gap-2">
                                 <span title={row.hint}>{row.label}</span>
+                                {forslag && forslag.target === activeScenario &&
+                                  forslag.aendrede.some((a) => a.key === row.key) && (
+                                    <span className="rounded-full bg-hb-evergreen/15 px-2 py-0.5 text-[10px] font-medium text-hb-evergreen">
+                                      Foreslået ændret
+                                    </span>
+                                  )}
                                 {isManual && (
                                   <span className="rounded-full bg-hb-sage px-2 py-0.5 text-[10px] text-hb-ink">
                                     Manuel
@@ -584,6 +659,15 @@ export const HbBudgetEditTable = ({
                                     ))}
                                   </select>
                                 )}
+                                {(() => {
+                                  if (!forslag || forslag.target !== activeScenario) return null;
+                                  const aendring = forslag.aendrede.find((a) => a.key === row.key);
+                                  return aendring?.begrundelse ? (
+                                    <span className="max-w-[240px] text-[10px] leading-snug text-hb-ink-soft">
+                                      {aendring.begrundelse}
+                                    </span>
+                                  ) : null;
+                                })()}
                               </span>
                             )}
                           </td>

@@ -41,7 +41,10 @@ import type { BudgetRow } from "@/components/budget/types";
 const row = (key: string, label: string, group: string, monthly: number): BudgetRow => ({
   key,
   label,
-  values: Array(12).fill(monthly),
+  // Varierende form (december afviger): flade rækker klassificeres som
+  // FASTE efter scenarie-design S2 og er ikke længere åbne for justering —
+  // merge-testene her handler om nøgle-normaliseringen på de justerbare.
+  values: [...Array(11).fill(monthly), monthly + 1],
   isEditable: true,
   group,
 });
@@ -77,11 +80,13 @@ describe("generateAIScenario — merge-leddet (repro af pessimistisk-fejlen)", (
       reasoning: "Omsætning reduceret 20 %, variable omkostninger øget 10 %.",
     };
 
-    const { updatedRows } = await generateAIScenario(args);
+    const forslag = await generateAIScenario(args);
 
-    expect(updatedRows.find((r) => r.key === "omsaetning")!.values).toEqual(Array(12).fill(80_000));
-    expect(updatedRows.find((r) => r.key === "vareforbrug")!.values).toEqual(Array(12).fill(44_000));
-    expect(updatedRows.find((r) => r.key === "fragt_levering")!.values).toEqual(Array(12).fill(8_800));
+    expect(forslag.rows.find((r) => r.key === "omsaetning")!.values).toEqual(Array(12).fill(80_000));
+    expect(forslag.rows.find((r) => r.key === "vareforbrug")!.values).toEqual(Array(12).fill(44_000));
+    expect(forslag.rows.find((r) => r.key === "fragt_levering")!.values).toEqual(Array(12).fill(8_800));
+    // S5: forslaget er IKKE skrevet.
+    expect(h.insertSpy).not.toHaveBeenCalled();
   });
 
   it("label-baserede keys m. casing-/mellemrums-varianter skal matche", async () => {
@@ -94,11 +99,12 @@ describe("generateAIScenario — merge-leddet (repro af pessimistisk-fejlen)", (
       reasoning: "Justeret for lavere aktivitet.",
     };
 
-    const { updatedRows } = await generateAIScenario(args);
+    const forslag = await generateAIScenario(args);
 
-    expect(updatedRows.find((r) => r.key === "omsaetning")!.values).toEqual(Array(12).fill(85_000));
-    expect(updatedRows.find((r) => r.key === "vareforbrug")!.values).toEqual(Array(12).fill(43_000));
-    expect(updatedRows.find((r) => r.key === "fragt_levering")!.values).toEqual(Array(12).fill(8_500));
+    expect(forslag.rows.find((r) => r.key === "omsaetning")!.values).toEqual(Array(12).fill(85_000));
+    expect(forslag.rows.find((r) => r.key === "vareforbrug")!.values).toEqual(Array(12).fill(43_000));
+    expect(forslag.rows.find((r) => r.key === "fragt_levering")!.values).toEqual(Array(12).fill(8_500));
+    expect(h.insertSpy).not.toHaveBeenCalled();
   });
 
   it("nul-match må ALDRIG blive stille succes: ærlig fejl og INGEN skrivning", async () => {
@@ -110,7 +116,7 @@ describe("generateAIScenario — merge-leddet (repro af pessimistisk-fejlen)", (
       reasoning: "Reduceret omsætning og øgede omkostninger.",
     };
 
-    await expect(generateAIScenario(args)).rejects.toThrow(/matchede ikke/i);
+    await expect(generateAIScenario(args)).rejects.toThrow(/ændrede ingen linjer/i);
     expect(h.insertSpy).not.toHaveBeenCalled();
   });
 });
