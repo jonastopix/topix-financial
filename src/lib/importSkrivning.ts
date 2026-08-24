@@ -178,6 +178,14 @@ export function udledAar(kolonner: Kolonneperiode[]): string[] {
 
 // ───────────────────────── Skriveplan ─────────────────────────
 
+/** Årsskifte-advarslens ENE tekst-sandhed: bruges af byggSkriveplan (i
+    advarsler-listen) og af fladen, der viser den fremhævet via
+    plan.aarsskift og derfor skal filtrere netop denne sætning ud af
+    listen. Før filtrerede fladen på startsWith af en gentaget streng —
+    en omformulering ville have vist advarslen to gange. */
+export const aarsskiftAdvarselTekst = (skift: { fra: string; til: string }): string =>
+  `Kolonnerne i filen er fra ${skift.fra}. Tallene skrives til budget ${skift.til} — tjek at det er det du vil.`;
+
 const slug = (etiket: string): string =>
   etiket
     .toLowerCase()
@@ -325,9 +333,7 @@ export function byggSkriveplan(gitter: Gitter, aar: string): Skriveplan {
   }
 
   if (aarsskift) {
-    advarsler.push(
-      `Kolonnerne i filen er fra ${aarsskift.fra}. Tallene skrives til budget ${aarsskift.til} — tjek at det er det du vil.`,
-    );
+    advarsler.push(aarsskiftAdvarselTekst(aarsskift));
   }
   if (alleKolonnerUkendte) {
     advarsler.push(

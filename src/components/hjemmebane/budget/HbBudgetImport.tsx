@@ -5,7 +5,7 @@ import { confirmBudgetFromAccounts, confirmImportFraSkriveplan } from "@/lib/bud
 import { laesCsvTilMatrix } from "@/lib/csvLaesning";
 import { laesMatrix, type Matrix } from "@/lib/importEngine";
 import { byggGitter, type Gitter } from "@/lib/importGitterModel";
-import { byggSkriveplan, tolkKolonner, udledAar } from "@/lib/importSkrivning";
+import { aarsskiftAdvarselTekst, byggSkriveplan, tolkKolonner, udledAar } from "@/lib/importSkrivning";
 import { HbButton } from "../HbButton";
 import { HbCard } from "../HbCard";
 import { HbField, HbInput } from "../admin/HbField";
@@ -447,8 +447,12 @@ export const HbBudgetExcelImport = ({
               Kolonner vi ikke kunne læse som perioder: {plan.utolkedeKolonner.join(", ")}
             </p>
           )}
-          {/* Årsskifte-advarslen vises fremhævet ovenfor — ikke dobbelt her. */}
-          {plan.advarsler.filter((a) => !a.startsWith("Kolonnerne i filen er fra")).map((advarsel, i) => (
+          {/* Årsskifte-advarslen vises fremhævet ovenfor — ikke dobbelt her.
+              Filtreret via plan.aarsskift + tekst-sandheden fra
+              importSkrivning, ikke via en gentaget streng-prefix. */}
+          {plan.advarsler
+            .filter((a) => !(plan.aarsskift && a === aarsskiftAdvarselTekst(plan.aarsskift)))
+            .map((advarsel, i) => (
             <p key={i} className="mt-2 text-sm text-hb-ink-soft" role="status">
               {advarsel}
             </p>
