@@ -1454,6 +1454,63 @@ produktbeskrivelsen. På fladen læses de i den rækkefølge.
 
 ---
 
+### [P2] Supabase-loftet på 1.000 rækker rammer otte hentesteder (bevist i prod 2026-08-24)
+
+Supabase returnerer højst 1.000 rækker pr. forespørgsel. Fem
+hentesteder kan overskride det i dag og fejler i stilhed — de
+returnerer et ufuldstændigt resultat uden fejl.
+
+BEVIST I PROD 2026-08-24: virksomhed 3ffccc0f har 1.058 rækker i
+budget_targets. Seks importerede linjer fra en tidligere import
+overlevede sletningen i confirmImportFraSkriveplan, fordi
+hentningen kun så de første tusind. Rettet i PR #404 med
+serverside-filter plus paginering.
+
+De øvrige, ikke rettet:
+
+  budgetEngine.ts:459-462  loadBudget
+    Kun .eq(company_id), alt hentes. Over 1.000: JA — 3ffccc0f er
+    der allerede. Budgetsiden afkoder et ufuldstændigt billede for
+    virksomheder med flere års budget.
+
+  budgetEngine.ts:478-486  fetchExistingRows
+    Ufiltreret. Stadig brugt af replaceScenarioValues (:501) og
+    saveScenarioEdits (:551). Over 1.000: JA — samme fejlklasse som
+    den rettede. Scenarie-gem kan efterlade gamle rækker.
+
+  AdvisorDashboard.tsx:335-338
+    Serverside .like på indeværende års base-rækker, men PÅ TVÆRS
+    AF ALLE VIRKSOMHEDER uden company-filter. 28 virksomheder ×
+    ~40 kategorier × 12 måneder ≈ 13.000 rækker. Over 1.000: JA,
+    oplagt. Rådgiveroverblikkets budgetsummer er allerede forkerte.
+
+  CombinedBudgetWidget.tsx:31-35
+    Kun .eq(company_id), alt hentes. Over 1.000: JA.
+
+  MemberDetail.tsx:429-433
+    .eq(company_id).order(category), alt hentes. Over 1.000: JA.
+
+  budgetEngine.ts:695-705  confirmBudgetImport (W5)
+    Serverside-filtreret til ét år × tre scenarier. Over 1.000:
+    GRÆNSETILFÆLDE — 3 × 12 × 28 kategorier = 1.008.
+
+  budgetEngine.ts:807-812  confirmBudgetFromAccounts
+    Serverside .like på ét års base. Over 1.000: GRÆNSETILFÆLDE —
+    kræver 84+ kategorier.
+
+  useCompanyFacts.ts:44-52
+    .eq(company_id), én fact pr. måned. Over 1.000: NEJ i praksis.
+
+Fælles mønster: en hentning uden serverside-filter der antager at
+alt kom med. Samme sygdom som 500-beskeders-vinduet i chatten
+(se "Chat-epic — fund fra recon 2026-08-21", punkt b).
+
+Rettes med serverside-filtrering hvor det er muligt, paginering
+hvor det ikke er. AdvisorDashboard bør rettes først — den er den
+eneste hvor tallene er forkerte for alle virksomheder samtidig.
+
+---
+
 ### Bogføringsnote — Dagens stand 13-08-2026
 
 PR #346-#374. Alt merget; frontend kræver Update-klik i Lovable,
