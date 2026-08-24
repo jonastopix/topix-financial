@@ -97,7 +97,10 @@ export function lovligeOvergange(status: OpgaveStatus): OpgaveStatus[] {
 }
 
 /** B10: udløbsfrist pr. kilde. Kilder uden egen frist falder tilbage på
-    14 dage — samme levetid som ugefokus. */
+    14 dage — samme levetid som ugefokus.
+    Spejlet i supabase/functions/_shared/opgaveUdloeb.ts (edge functions
+    kan ikke importere fra src/) — enhver ændring her SKAL også laves der.
+    Paritet håndhæves af __tests__/opgaveUdloeb.paritet.test.ts. */
 const UDLOEBSDAGE: Partial<Record<OpgaveSourceType, number>> = {
   advisor: 30,
   reflection: 21,
