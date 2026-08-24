@@ -13,7 +13,11 @@
       second time", code 21000) — det er præcis adfærden, W5's
       klientside-dedup eksisterer for at undgå.
     - or-strengen parses snævert som komma-adskilte
-      "kolonne.like.<mønster>"-led (W5-formen); like bruger %-wildcard. */
+      "kolonne.like.<mønster>"-led (W5-formen); like bruger %-wildcard.
+    - SELECT returnerer højst 1.000 rækker (PostgRESTs default max-rows) —
+      loftet der lod importerede linjer overleve sletningen hos 3ffccc0f
+      (fix/import-slet-over-tusind). range()/order() understøttes så
+      paginerede læsninger kan testes; DELETE er ikke loftet. */
 
 export interface MockBudgetRow {
   id: string;
@@ -48,8 +52,13 @@ export function createBudgetTargetsMock() {
 
   const makeBuilder = (op: "select" | "delete") => {
     const filters: Filter[] = [];
+    let orderCol: keyof MockBudgetRow | null = null;
+    let rangeFra: number | null = null;
+    let rangeTil: number | null = null;
+    /** PostgRESTs default max-rows: en SELECT uden range giver højst 1.000. */
+    const MAX_ROWS = 1000;
     const exec = () => {
-      const matching = table.filter((row) => filters.every((f) => f(row)));
+      let matching = table.filter((row) => filters.every((f) => f(row)));
       if (op === "delete") {
         for (const row of matching) {
           const idx = table.indexOf(row);
@@ -57,6 +66,15 @@ export function createBudgetTargetsMock() {
         }
         return { data: null, error: null };
       }
+      if (orderCol !== null) {
+        matching = [...matching].sort((a, b) =>
+          String(a[orderCol!]).localeCompare(String(b[orderCol!])),
+        );
+      }
+      matching =
+        rangeFra !== null
+          ? matching.slice(rangeFra, (rangeTil ?? rangeFra) + 1)
+          : matching.slice(0, MAX_ROWS);
       // Kolonne-udvalget ignoreres bevidst — motoren læser kun felter,
       // rækkerne faktisk har.
       return { data: matching.map((r) => ({ ...r })), error: null };
@@ -65,6 +83,15 @@ export function createBudgetTargetsMock() {
     const builder: any = {
       eq(col: keyof MockBudgetRow, val: string) {
         filters.push((r) => String(r[col]) === String(val));
+        return builder;
+      },
+      order(col: keyof MockBudgetRow) {
+        orderCol = col;
+        return builder;
+      },
+      range(fra: number, til: number) {
+        rangeFra = fra;
+        rangeTil = til;
         return builder;
       },
       like(col: keyof MockBudgetRow, pattern: string) {

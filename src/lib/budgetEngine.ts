@@ -771,15 +771,46 @@ export async function confirmImportFraSkriveplan(args: {
   const groupPrefix = `__group__${plan.aar}_`;
   const noegleSet = new Set(noegler);
 
-  const existing = await fetchExistingRows(companyId);
+  // Serverside-filtreret OG pagineret hentning (fix/import-slet-over-tusind,
+  // prod-bevis 2026-08-24): Supabase returnerer højst 1.000 rækker pr.
+  // forespørgsel, og den gamle ufiltrerede fetchExistingRows missede alt
+  // derover — seks importerede linjer hos 3ffccc0f overlevede sletningen og
+  // dobbelttalte. Filteret afgrænser til årets base-rækker + årets markører
+  // (nøgle-matchet sker fortsat klientside nedenfor); pagineringen værner
+  // mod at selv den delmængde overstiger loftet. En fejl KASTER — at
+  // fortsætte til insert uden det fulde billede er netop dobbeltskrivningen.
+  const SIDE = 1000;
+  const existing: { id: string; period: string; category: string }[] = [];
+  for (let fra = 0; ; fra += SIDE) {
+    const res = await (supabase
+      .from("budget_targets")
+      .select("id, period, category") as any)
+      .eq("company_id", companyId)
+      .or(
+        `period.like.${periodPrefix}%,` +
+          `category.like.${labelPrefix}%,` +
+          `category.like.${groupPrefix}%`,
+      )
+      .order("id")
+      .range(fra, fra + SIDE - 1);
+    if (res.error) throw res.error;
+    const side = (res.data || []) as typeof existing;
+    existing.push(...side);
+    if (side.length < SIDE) break;
+  }
+
   const toDelete = existing.filter(
     (e) =>
       e.period.startsWith(periodPrefix) ||
       (e.category.startsWith(labelPrefix) && noegleSet.has(e.category.slice(labelPrefix.length))) ||
       (e.category.startsWith(groupPrefix) && noegleSet.has(e.category.slice(groupPrefix.length))),
   );
-  if (toDelete.length > 0) {
-    await supabase.from("budget_targets").delete().in("id", toDelete.map((e) => e.id));
+  // Slet fortsat på id (select-før-delete, så toDelete.length kan logges) —
+  // men i bidder: 1.000+ id'er i én .in() sprænger URL-længden.
+  for (let i = 0; i < toDelete.length; i += 200) {
+    const bid = toDelete.slice(i, i + 200);
+    const del = await supabase.from("budget_targets").delete().in("id", bid.map((e) => e.id));
+    if (del.error) throw del.error;
   }
 
   const { error } = await supabase
