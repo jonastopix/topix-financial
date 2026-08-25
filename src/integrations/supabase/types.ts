@@ -363,7 +363,7 @@ export type Database = {
           period_label: string | null
           produced_output: boolean
           proposals: Json
-          reasoning: Json
+          reasoning: Json | null
           started_at: string
           stop_reason: string | null
           trigger: string
@@ -382,7 +382,7 @@ export type Database = {
           period_label?: string | null
           produced_output?: boolean
           proposals?: Json
-          reasoning?: Json
+          reasoning?: Json | null
           started_at: string
           stop_reason?: string | null
           trigger: string
@@ -401,7 +401,7 @@ export type Database = {
           period_label?: string | null
           produced_output?: boolean
           proposals?: Json
-          reasoning?: Json
+          reasoning?: Json | null
           started_at?: string
           stop_reason?: string | null
           trigger?: string
