@@ -28,6 +28,7 @@ import {
   skrivegrundlag,
   UNDERSTOETTEDE_SKRIVEVEJE,
   validerInput,
+  validerKategori,
   type Afgoerelse,
 } from "../_shared/forslagEngine.ts";
 
@@ -65,11 +66,12 @@ Deno.serve(async (req) => {
   } catch {
     return jsonResponse({ error: "Ugyldig JSON-body" }, 400);
   }
-  const { proposal_id, decision, reason, edited_args } = (body ?? {}) as {
+  const { proposal_id, decision, reason, edited_args, decision_category } = (body ?? {}) as {
     proposal_id?: unknown;
     decision?: unknown;
     reason?: unknown;
     edited_args?: unknown;
+    decision_category?: unknown;
   };
 
   if (typeof proposal_id !== "string" || !UUID_RE.test(proposal_id)) {
@@ -80,6 +82,15 @@ Deno.serve(async (req) => {
     return jsonResponse({ error: inputDom.grund }, 400);
   }
   const afgoerelse = decision as Afgoerelse;
+
+  // Kategorien (design §4.4): den tællelige dom — påkrævet ved reject,
+  // afvist ved approve/approve_edited. decision_reason forbliver det
+  // menneskelige fritekst-spor og er fortsat påkrævet ved reject
+  // (validerInput ovenfor).
+  const kategoriDom = validerKategori(afgoerelse, decision_category);
+  if (!kategoriDom.ok) {
+    return jsonResponse({ error: kategoriDom.grund }, 400);
+  }
 
   // ── 5. Forslaget + kørslen, med KALDERENS klient (RLS: advisor-SELECT) ──
   const { data: forslag, error: forslagErr } = await callerClient
@@ -164,6 +175,7 @@ Deno.serve(async (req) => {
       new Date(),
       typeof reason === "string" ? reason : undefined,
       edited_args as Record<string, unknown> | undefined,
+      typeof decision_category === "string" ? decision_category : undefined,
     );
     const { data: opdateret, error: patchErr } = await adminClient
       .from("agent_proposals")

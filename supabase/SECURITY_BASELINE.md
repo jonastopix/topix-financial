@@ -437,8 +437,13 @@ skrivende edge functions bruger `SUPABASE_SERVICE_ROLE_KEY`.
   klient-skrivepolicies — heller ikke for rådgivere: afgørelser
   (approved/rejected) er tilstandsovergange og skal dømmes i en kommende
   Bucket A-edge function, ikke i klient-RLS. CHECK-constraints:
-  `forkast_kraever_grund` (rejected kræver ikke-tom decision_reason) og
-  `afgjort_kraever_afgoerer` (afgørelse kræver decided_by + decided_at).
+  `forkast_kraever_grund` (rejected kræver ikke-tom decision_reason),
+  `forkast_kraever_kategori` (rejected kræver decision_category — stabile
+  slugs fra `agent_proposals_decision_category_valid`-CHECK'en:
+  ikke_relevant/forkert_tolkning/allerede_talt_om/forkert_timing/andet;
+  visningstekst hører til fladen — en grund der ikke kan tælles er ikke
+  læring; migration `20260825230000`) og `afgjort_kraever_afgoerer`
+  (afgørelse kræver decided_by + decided_at).
   ON DELETE CASCADE fra både agent_runs og companies.
 
 ---
