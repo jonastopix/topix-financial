@@ -168,7 +168,7 @@ Det sidste er jeres viden og skal ud af hovedet på jer først — det kan ikke 
 
 **6.3 Opbevaring af ræsonnementet.** Hele `messages`-arrayet indeholder virksomhedens tal. Hvor længe gemmes det, og hvem kan læse det?
 
-**6.4 Hvad sker der med de forslag ingen rører?** Udløber de som opgave-modellens forslag (B8), eller bliver de liggende?
+**6.4 Hvad sker der med de forslag ingen rører?** Udløber de som opgave-modellens forslag (B8), eller bliver de liggende? Dertil (25/8, jf. §7.6): et forslag om en given periodes tal er stadig bundet til den periode, uanset hvornår det godkendes. Hvor gammelt må et forslag være før det ikke længere bør kunne godkendes? Ikke besluttet.
 
 **6.5 Brancheviden.** `industry_label` findes, og `get_industry_benchmark` sammenligner med jævnaldrende. Men systemet ved ikke hvad der er *normalt* i en branche. Kan læres af afvisninger over tid — eller skrives ned.
 
@@ -194,4 +194,16 @@ A4: en forkastelse uden grund er tabt læring — og recon'en viste præcis hvor
 
 **7.4 Skrivning kun via edge function.**
 
-RLS er advisor-SELECT + service-role-ALL — ingen klient-skrivepolicies, heller ikke for rådgivere. Grunden er den samme som i opgave-modellens skriveveje (opgave-accepter/-udskyd/-luk): en afgørelse er en TILSTANDSOVERGANG med regler (kun fra 'proposed'; godkend udfører skrivningen; forkast kræver grund), og overgange skal dømmes ét sted, server-side, med optimistisk lås — ikke spredt over klient-policies der kun kan udtrykke "hvem", aldrig "hvornår og hvordan". Klienten læser; edge-funktionen (kommende `agent-forslag-afgoer` el.lign.) skriver. Indtil den findes, kan ingen ændre en forslags-række overhovedet — fail-closed.
+RLS er advisor-SELECT + service-role-ALL — ingen klient-skrivepolicies, heller ikke for rådgivere. Grunden er den samme som i opgave-modellens skriveveje (opgave-accepter/-udskyd/-luk): en afgørelse er en TILSTANDSOVERGANG med regler (kun fra 'proposed'; godkend udfører skrivningen; forkast kræver grund), og overgange skal dømmes ét sted, server-side, med optimistisk lås — ikke spredt over klient-policies der kun kan udtrykke "hvem", aldrig "hvornår og hvordan". Klienten læser; edge-funktionen `agent-forslag-afgoer` skriver (motoren er `_shared/forslagEngine.ts`, skrivevejene deles med run-company-agent via `_shared/agentSkriveveje.ts`).
+
+**7.5 Godkendt ugekort overskriver uden forhåndsvisning.**
+
+**Beslutning Jonas 25/8:** godkendelse af et `update_weekly_focus`-forslag skriver direkte til medlemmets ugekort — upsert på `(company_id, week_key)` — uden forhåndsvisning af hvad der står der i forvejen.
+
+Rationalet: agentens forslag er per definition nyere. Kortet er en syntese af virksomhedens aktuelle tilstand, og rådgiveren har netop læst og godkendt (eller redigeret) den nye syntese — at vise den gamle først ville bede rådgiveren om at dømme mellem to versioner, hvor den ene altid er forældet.
+
+Den kendte konsekvens: `weekly_focus` har `seen_at`. Et kort medlemmet allerede har læst, kan altså skifte indhold under dem — `seen_at` består, og der sendes ingen ny notifikation. **Det er accepteret, ikke overset**: alternativet (skriv kun til ulæste kort) ville lade et forældet kort stå netop fordi medlemmet så det tidligt på ugen.
+
+**7.6 Uge-nøglen beregnes ved skrivetidspunktet.**
+
+Uge-nøglen beregnes ved skrivetidspunktet, ikke ved forslagstidspunktet. Godkendes et forslag i en senere uge end det blev stillet, lander kortet i godkendelsens uge. Begrundelse: et kort skrevet til en forgangen uge ville lande et sted medlemmet aldrig ser det. **Beslutning: Claude som arkitekt, 25/8.**
