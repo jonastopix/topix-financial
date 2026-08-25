@@ -114,14 +114,14 @@ Mønstret følger rapport-godkendelsen (2.4): forslaget er previewet, godkendels
 
 **A4 — en forkastelse uden grund er tabt læring.**
 
-Fire-fem faste grunde plus fritekst. Kandidater (ikke besluttet):
-- *Ikke relevant for denne virksomhed*
-- *Forkert tolkning af tallene*
-- *Allerede talt om det*
-- *Timingen er forkert*
-- *Andet* (fritekst)
+**Besluttet 25/8 (PR: forkast-kategori):** grunden er todelt — en TÆLLELIG kategori og et menneskeligt fritekst-spor.
 
-Grunden skal være ét klik, ikke et essay. Fritekst er tilvalg, ikke krav.
+- `decision_category` — **stabile slugs, aldrig visningstekst**: `ikke_relevant`, `forkert_tolkning`, `allerede_talt_om`, `forkert_timing`, `andet`. Værdisættet bor ét sted i motoren (`forslagEngine.ts`, `FORKAST_KATEGORIER`) og spejles af DB-CHECK'en; fladen spejler det med paritetstest og ejer de danske labels. Hvorfor slugs: **en grund der ikke kan tælles er ikke læring** — "Timingen er forkert" og "forkert timing" og "dårlig timing" er tre buckets for et menneske der læser, men nul buckets for den måling der skal afgøre hvad agenten systematisk tager fejl af (§5, A7). Visningstekst må skifte ordlyd frit; slugs må aldrig.
+- `decision_reason` — fritekst, fortsat påkrævet ved forkast (DB-constraint `forkast_kraever_grund`). Sender fladen ingen fritekst, sender den kategoriens danske label som reason — feltet er aldrig tomt, men kategorien er dommen.
+
+Kategorien er påkrævet ved reject og afvist ved godkendelser (DB-constraint `forkast_kraever_kategori` + motorens `validerKategori`). Grunden skal være ét klik, ikke et essay. Fritekst er tilvalg, ikke krav.
+
+Kendt konsekvens: skriver rådgiveren ingen fritekst, sender fladen kategoriens danske label som `decision_reason`. Kolonnen bærer derfor to ting: det rådgiveren selv formulerede, og en automatisk udfyldning. Det kan ikke tælles hvor ofte rådgiveren faktisk uddybede. **Accepteret bevidst 25/8** for ikke at tilføje endnu en kolonne til et felt vi endnu ikke ved om bliver brugt. Skal revurderes når der findes nok forkastelser til at spørgsmålet er reelt.
 
 Samtidig rettes 2.3: `AdvisorAlertsPanel`s hårdkodede afvisningsnote erstattes af en rigtig grund.
 

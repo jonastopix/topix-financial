@@ -28,6 +28,40 @@ export const UNDERSTOETTEDE_SKRIVEVEJE: ReadonlySet<string> = new Set([
 
 export type Dom = { ok: true } | { ok: false; grund: string };
 
+/** Forkast-kategorierne (design §4.4): DEN ene eksporterede sandhed om
+    værdisættet — stabile slugs, ALDRIG visningstekst. Kategorien er den
+    tællelige dom; decision_reason er det menneskelige fritekst-spor.
+    En grund der ikke kan tælles er ikke læring. Spejler DB-CHECK'en
+    agent_proposals_decision_category_valid (migration 20260825230000);
+    fladen spejler sættet med paritetstest. */
+export const FORKAST_KATEGORIER: readonly string[] = [
+  "ikke_relevant",
+  "forkert_tolkning",
+  "allerede_talt_om",
+  "forkert_timing",
+  "andet",
+] as const;
+
+/** Kategori-dommen — SEPARAT fra validerInput, så input-kontrakten fra
+    PR #428 står urørt: reject KRÆVER en kendt kategori-slug (spejler
+    DB-constrainten forkast_kraever_kategori); approve/approve_edited
+    AFVISER en medsendt kategori — en godkendelse har ingen forkast-dom. */
+export function validerKategori(decision: Afgoerelse, category: unknown): Dom {
+  if (decision === "reject") {
+    if (typeof category !== "string" || !FORKAST_KATEGORIER.includes(category)) {
+      return {
+        ok: false,
+        grund: `en forkastelse kræver en decision_category fra sættet: ${FORKAST_KATEGORIER.join(", ")}`,
+      };
+    }
+    return { ok: true };
+  }
+  if (category !== undefined && category !== null) {
+    return { ok: false, grund: `decision_category er kun gyldig ved reject — ikke ved ${decision}` };
+  }
+  return { ok: true };
+}
+
 function erAlmindeligtObjekt(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null && !Array.isArray(v);
 }
@@ -78,6 +112,7 @@ export interface AfgoerelsesPatch {
   decided_by: string;
   decided_at: string;
   decision_reason?: string;
+  decision_category?: string;
   applied_at?: string;
   edited_args?: Record<string, unknown>;
 }
@@ -92,15 +127,21 @@ export function afgoerelsesPatch(
   nu: Date,
   reason?: string,
   editedArgs?: Record<string, unknown>,
+  decisionCategory?: string,
 ): AfgoerelsesPatch {
   const decidedAt = nu.toISOString();
   if (decision === "reject") {
-    return {
+    const patch: AfgoerelsesPatch = {
       status: "rejected",
       decided_by: callerId,
       decided_at: decidedAt,
       decision_reason: (reason ?? "").trim(),
     };
+    // Kategorien sættes kun når den er givet — edge-funktionen giver den
+    // altid (validerKategori kræver den); udeladelsen holder ældre
+    // kaldeformer (og PR #428-testene) gyldige.
+    if (decisionCategory !== undefined) patch.decision_category = decisionCategory;
+    return patch;
   }
   const patch: AfgoerelsesPatch = {
     status: "approved",
