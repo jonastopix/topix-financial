@@ -173,3 +173,25 @@ Det sidste er jeres viden og skal ud af hovedet på jer først — det kan ikke 
 **6.5 Brancheviden.** `industry_label` findes, og `get_industry_benchmark` sammenligner med jævnaldrende. Men systemet ved ikke hvad der er *normalt* i en branche. Kan læres af afvisninger over tid — eller skrives ned.
 
 **6.6 Rytmen mod opgave-modellen.** Opgaveforslag udløber efter 14 dage (B10, ai_weekly). Ændres kadencen, skal udløbsvinduet følge med.
+
+---
+
+## 7. Godkendelseslaget
+
+**Besluttet 2026-08-25.** Datamodellen er `agent_proposals` (migration `20260825200000`): én række pr. forslag, skrevet af `run-company-agent` umiddelbart efter kørselsrækken. Fire beslutninger bærer formen:
+
+**7.1 Beslutningen er per forslag, ikke per kørsel.**
+
+En kørsel producerer typisk 3-5 forslag af forskellig art (session-forberedelse, opgave, milepæl, ugens fokus). Rådgiveren skal kunne godkende ét og forkaste et andet — en samlet dom over kørslen ville tvinge alt-eller-intet og gøre læringen (§5, A6) ulæselig: det er *forslaget* der forkastes med en grund, ikke kørslen. Recon'en (agent-godkendelse-recon §3/§6) viste desuden at `agent_runs.proposals`-arrayet ingen stabil identitet har — elementerne renderes efter index, og et jsonb-array kan ikke bære beslutningskolonner. Derfor egen tabel med `(run_id, position)` som identitet; `position` er arrayets rækkefølge fra kørslen, og backfillen giver historiske kørsler samme form.
+
+**7.2 Fire statusser: proposed → approved / rejected / expired.**
+
+`proposed` er hviletilstanden. `approved`/`rejected` er rådgiverens afgørelse (fladen kommer i en senere PR). `expired` er reserveret til tavshedens udfald — §6.4 spurgte "hvad sker der med de forslag ingen rører?", og opgave-modellen har allerede svaret for medlems-forslag (B8: cron-udløb). Statussen findes fra dag ét, så udløbs-dommen kan tilføjes uden migration; selve cron'en er bevidst ikke bygget, for vinduet er ikke besluttet (§6.6-koblingen).
+
+**7.3 Grunden er en CHECK-constraint, ikke en UI-regel.**
+
+A4: en forkastelse uden grund er tabt læring — og recon'en viste præcis hvordan det går tabt i praksis: AdvisorAlertsPanels "Afvis"-knap skriver en hardcodet note ("Afvist — ingen handling nødvendig"), fordi grunden kun var en UI-konvention. `forkast_kraever_grund` håndhæver kravet i databasen: `status='rejected'` uden ikke-tom `decision_reason` afvises af Postgres, uanset hvilken flade eller funktion der skriver. Søster-constrainten `afgjort_kraever_afgoerer` sikrer at enhver afgørelse bærer `decided_by` + `decided_at` — en afgørelse uden afsender er ikke en afgørelse. `edited_args` holder rådgiverens redigerede version adskilt fra agentens original (`args`), så "Redigér og godkend" (§4.3) kan læres af som diff, ikke som overskrivning.
+
+**7.4 Skrivning kun via edge function.**
+
+RLS er advisor-SELECT + service-role-ALL — ingen klient-skrivepolicies, heller ikke for rådgivere. Grunden er den samme som i opgave-modellens skriveveje (opgave-accepter/-udskyd/-luk): en afgørelse er en TILSTANDSOVERGANG med regler (kun fra 'proposed'; godkend udfører skrivningen; forkast kræver grund), og overgange skal dømmes ét sted, server-side, med optimistisk lås — ikke spredt over klient-policies der kun kan udtrykke "hvem", aldrig "hvornår og hvordan". Klienten læser; edge-funktionen (kommende `agent-forslag-afgoer` el.lign.) skriver. Indtil den findes, kan ingen ændre en forslags-række overhovedet — fail-closed.
