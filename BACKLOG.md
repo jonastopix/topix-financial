@@ -40,6 +40,36 @@ nu kun i agent-loggen, fire klik nede i medlemsdetaljen.
 
 ---
 
+### [P1] Agentens forslagsrum er større end godkendelseslagets (målt i drift 25/8)
+
+Målt kl. 14:47, kørsel `5da0a17a-2c5a-4e36-aa60-cf1dbbaa5de4`: kørslen
+foreslog `write_company_action` — et af de fem ikke-idempotente tools,
+som godkendelseslaget kun kan forkaste, ikke godkende
+(`UNDERSTOETTEDE_SKRIVEVEJE` i `_shared/forslagEngine.ts` rummer kun
+`update_weekly_focus` og `write_session_prep`). Rådgiveren ser altså et
+forslag hun ikke kan sige ja til.
+
+**Det er en revne der vokser**: jo bedre agenten bliver, jo flere forslag
+lander uden for laget. Lukkes KUN ved at beslutte gentagelses-semantikken
+for opgaver — og hænger sammen med opgave-modellen (motor + tre edge
+functions findes, PR #423, men medlemmet har ingen knapper). Beslutningen
+om semantikken skal tages i det spor, ikke som lap på godkendelseslaget.
+
+---
+
+### [P2] DEPLOY_STAMP i run-company-agent er en manuel konstant (målt 25/8)
+
+`run-company-agent/index.ts:9` — `DEPLOY_STAMP` blev ikke bumpet i
+PR #433: rækken fra kørslen kl. 14:47 siger "v5 agent-proposals", men
+koden var nyere (bevist ved at dry_run defaultede til tør). Stemplet
+findes netop for at kunne se hvad der kører, og det blev brugt hele
+25/8 til at verificere deploys — et stempel der kan lyve om versionen
+er værre end intet stempel. Forslag: udled det af noget automatisk
+(fx commit-SHA injiceret ved deploy) frem for at vedligeholde det i
+hånden. Ikke besluttet her.
+
+---
+
 ### [P1] ✅ Løst i PR #11 — `esm.sh`-imports uden version-pinning
 
 **Status**: Løst. Alle 54 imports af `@supabase/supabase-js` på tværs af edge functions er nu pinnet til eksakt `@2.97.0` (matcher `package.json`). Dækker både esm.sh-imports (52 linjer, statiske + dynamiske, single- og double-quote) og `npm:@supabase/supabase-js@2`-imports i `auth-email-hook` og `process-email-queue` (2 linjer). Ingen funktionel ændring — pinning-only.

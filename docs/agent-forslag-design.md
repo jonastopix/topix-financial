@@ -227,3 +227,7 @@ Lukket i to lag, så et fremtidigt live-kald ikke genåbner chatvejen ved et uhe
 2. `onboarding` har fået en `POOL_BLOCKLIST`-post med `write_chat_message` og `notify_advisor` blokeret, som de øvrige rutine-triggere — og testværnet i `agentToerkoersel.test.ts` kræver nu en post for HVER trigger i `KNOWN_TRIGGERS`.
 
 Konsekvensen er bevidst: velkomstbeskeden i chatten er ikke længere agentens — den kan hverken skrives eller foreslås ad den vej. Onboarding-kørslen samler i stedet medlemmets situation og mål i session-forberedelsen, så rådgiveren selv skriver en personlig velkomst. Dag ét er menneskets.
+
+**8.2 Målt i drift samme dag: forslagsrummet er større end godkendelseslaget.**
+
+Kørsel `5da0a17a-2c5a-4e36-aa60-cf1dbbaa5de4` (25/8 kl. 14:47) foreslog `write_company_action` — et af de fem ikke-idempotente tools, som §7.4-laget kun kan forkaste, aldrig godkende. Rådgiveren ser altså et forslag hun ikke kan sige ja til. Det er en revne der vokser: jo bedre agenten bliver, jo flere forslag lander uden for laget. Lukkes kun ved at beslutte gentagelses-semantikken for opgaverne — hører til opgave-modellens spor (BACKLOG [P1], PR #423-koblingen), ikke som lap her.
