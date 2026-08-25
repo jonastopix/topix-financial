@@ -205,6 +205,7 @@ export function propagateReportCommit(params: PropagateReportCommitParams): void
       trigger: "report_committed",
       period_key: periodKey,
       period_label: periodLabel || periodKey,
+      dry_run: false,
     },
   }).then(({ data, error }) => {
     if (error) {
@@ -251,6 +252,7 @@ export function propagateReportCommit(params: PropagateReportCommitParams): void
           trigger: "anomaly_detected",
           period_key: periodKey,
           period_label: periodLabel || periodKey,
+          dry_run: false,
         },
       }).catch((err) => console.warn("Anomaly agent failed:", err));
     }

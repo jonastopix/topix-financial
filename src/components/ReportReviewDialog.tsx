@@ -309,6 +309,7 @@ export default function ReportReviewDialog({
           trigger: "report_committed",
           period_key: preview?.period_key,
           period_label: preview?.period_label || preview?.period_key,
+          dry_run: false,
         },
       }).then(({ data, error }) => {
         if (error) {
@@ -354,6 +355,7 @@ export default function ReportReviewDialog({
               trigger: "anomaly_detected",
               period_key: preview?.period_key,
               period_label: preview?.period_label || preview?.period_key,
+              dry_run: false,
             },
           }).catch((err) => console.warn("Anomaly agent failed:", err));
         }
@@ -446,6 +448,7 @@ export default function ReportReviewDialog({
           trigger: "report_committed",
           period_key: preview?.period_key,
           period_label: preview?.period_label || preview?.period_key,
+          dry_run: false,
         },
       }).then(({ data, error }) => {
         if (error) {
@@ -490,6 +493,7 @@ export default function ReportReviewDialog({
               trigger: "anomaly_detected",
               period_key: preview?.period_key,
               period_label: preview?.period_label || preview?.period_key,
+              dry_run: false,
             },
           }).catch(() => {});
         }

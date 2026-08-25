@@ -209,3 +209,21 @@ Den kendte konsekvens: `weekly_focus` har `seen_at`. Et kort medlemmet allerede 
 Uge-nøglen beregnes ved skrivetidspunktet, ikke ved forslagstidspunktet. Godkendes et forslag i en senere uge end det blev stillet, lander kortet i godkendelsens uge. Begrundelse: et kort skrevet til en forgangen uge ville lande et sted medlemmet aldrig ser det. **Beslutning: Claude som arkitekt, 25/8.**
 
 Uge-nøglen er **ægte ISO-8601 fra én delt kilde**: `supabase/functions/_shared/isoUge.ts` (torsdags-ankeret; frontendens modstykke er `src/lib/hjemmebane/week.ts`). Efterskrift 25/8: beslutningen ovenfor blev truffet FØR det var kendt, at agentens skrivevej regnede med et mandags-anker og lå én uge bagud (hændelsen i BACKLOG.md, 42 rækker over fire måneder). I den periode gjorde fejlen §7.6 til det modsatte af sin egen hensigt: "skriv til den uge medlemmet ser" landede konsekvent i en uge medlemmet ALDRIG ser — og overskrev den forrige uges kort. Princippet var rigtigt; formlen var det ikke. Deraf kravet om én delt kilde med testværn.
+
+---
+
+## 8. Tør er default
+
+**Besluttet 2026-08-25 (Jonas).** `run-company-agent` kører TØRT medmindre kalderen skriver `dry_run: false`. Før var det omvendt (`dry_run === true` som opt-in) — og recon'en samme dag målte konsekvensen: ni kaldesteder udelod flaget og skrev derfor live udenom godkendelseslaget (§7), mens kun de to rådgiver-knapper kørte tørt.
+
+Princippet: **live skal være et ord nogen har skrevet, aldrig noget nogen glemte.** En glemt parameter skal falde til den ufarlige side — et forslag der venter på godkendelse — ikke til en skrivning hos medlemmet. Testværnet i `agentKaldesteder.test.ts` går skridtet videre: et kaldested i `src/` eller `supabase/functions/` uden eksplicit `dry_run` er en CI-fejl, så udeladelse heller ikke bliver en *stille* tør-kørsel — flaget er en beslutning, og beslutningen skal stå i koden.
+
+**8.1 Onboarding-vejen er lukket (25/8, Jonas).**
+
+Onboarding var den eneste trigger uden post i `POOL_BLOCKLIST` — fuld værktøjspulje inkl. `write_chat_message`, udløst automatisk ved medlemmets første login (recon 25/8: `useAuth.tsx` + `Onboarding.tsx`, begge uden dry_run). Agenten kunne altså skrive direkte i et nyt medlems chat, som rådgiver, uden at nogen havde set beskeden.
+
+Lukket i to lag, så et fremtidigt live-kald ikke genåbner chatvejen ved et uheld:
+1. Begge onboarding-kaldesteder kalder nu TØRT — forslagene (milestones, første opgave, velkomst-headline i ugens fokus, resumé i session-forberedelsen) lander i `agent_proposals` og godkendes af en rådgiver (§7).
+2. `onboarding` har fået en `POOL_BLOCKLIST`-post med `write_chat_message` og `notify_advisor` blokeret, som de øvrige rutine-triggere — og testværnet i `agentToerkoersel.test.ts` kræver nu en post for HVER trigger i `KNOWN_TRIGGERS`.
+
+Konsekvensen er bevidst: velkomstbeskeden i chatten er ikke længere agentens — den kan hverken skrives eller foreslås ad den vej. Onboarding-kørslen samler i stedet medlemmets situation og mål i session-forberedelsen, så rådgiveren selv skriver en personlig velkomst. Dag ét er menneskets.

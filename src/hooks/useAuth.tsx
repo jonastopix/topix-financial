@@ -215,13 +215,16 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           .update({ onboarding_completed: true })
           .eq("id", cm.company_id);
 
-        // Fire and forget — non-blocking
+        // Fire and forget — non-blocking. TØR (lukket 2026-08-25): forslagene
+        // lander i agent_proposals og godkendes af en rådgiver — intet når
+        // medlemmet uden godkendelse.
         supabase.functions.invoke("run-company-agent", {
           body: {
             company_id: cm.company_id,
             trigger: "onboarding",
             period_key: new Date().toISOString().slice(0, 7),
             period_label: new Date().toLocaleDateString("da-DK", { month: "long", year: "numeric" }),
+            dry_run: true,
           },
         }).catch((err) => console.warn("Onboarding agent failed:", err));
       }
