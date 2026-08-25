@@ -68,6 +68,53 @@ import { da } from "date-fns/locale";
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip as RechartsTooltip, LineChart, Line } from "recharts";
 import type { Json } from "@/integrations/supabase/types";
 
+// ── Agent-log: læsbar gengivelse af agent_runs.proposals ──
+// Nøglerne er run-company-agents skrivetools (SKRIVE_TOOLS i
+// _shared/agentToerkoersel.ts); et ukendt tool falder tilbage til rå JSON,
+// så nye tools aldrig vises som ingenting.
+const AGENT_TOOL_LABELS: Record<string, string> = {
+  write_chat_message: "Chat-besked til founder",
+  write_session_prep: "Session-forberedelse",
+  update_weekly_focus: "Ugens fokus",
+  write_company_action: "Opgaveforslag",
+  create_milestone: "Milepæl",
+  update_milestone_progress: "Milepæls-fremdrift",
+  notify_advisor: "Notifikation til rådgiver",
+};
+
+const AGENT_TRIGGER_LABELS: Record<string, string> = {
+  company_review: "Virksomhedsgennemgang",
+  report_committed: "Rapport committet",
+  anomaly_detected: "Anomali",
+  pulse_submitted: "Refleksion",
+  weekly_cron: "Ugentlig gennemgang",
+  onboarding: "Onboarding",
+};
+
+function agentProposalText(tool: string, args: Record<string, unknown> | null | undefined): string {
+  const a = (args ?? {}) as Record<string, any>;
+  switch (tool) {
+    case "write_chat_message":
+      return String(a.content ?? "");
+    case "write_session_prep":
+      return Array.isArray(a.points)
+        ? a.points.map((p: unknown, i: number) => `${i + 1}. ${String(p)}`).join("\n")
+        : "";
+    case "update_weekly_focus":
+      return [a.headline, a.summary].filter(Boolean).join(" — ");
+    case "write_company_action":
+      return [a.title, a.context].filter(Boolean).join(" — ") + (a.priority ? ` (${a.priority})` : "");
+    case "create_milestone":
+      return [a.title, a.description].filter(Boolean).join(" — ");
+    case "update_milestone_progress":
+      return `Fremdrift → ${a.progress}%${a.reason ? ` (${a.reason})` : ""}`;
+    case "notify_advisor":
+      return String(a.message ?? "");
+    default:
+      return JSON.stringify(a);
+  }
+}
+
 interface MemberProfile {
   full_name: string;
   company_name: string | null;
@@ -248,22 +295,19 @@ const MemberDetail = () => {
     staleTime: 5 * 60_000,
   });
 
-  const { data: agentMessages = [] } = useQuery({
-    queryKey: ["agent-log", memberCompanyId],
+  // Agent-log læser agent_runs (kørselstabellen) — IKKE det gamle
+  // messages-spor (context_type='agent'), som ingen nuværende trigger
+  // skriver til (POOL_BLOCKLIST blokerer chat for alle rutine-triggers).
+  // RLS: advisor-SELECT på agent_runs bærer adgangen.
+  const { data: agentRuns = [], refetch: refetchAgentRuns } = useQuery({
+    queryKey: ["agent-runs", memberCompanyId],
     queryFn: async () => {
       if (!memberCompanyId) return [];
-      const { data: conv } = await supabase
-        .from("conversations")
-        .select("id")
-        .eq("company_id", memberCompanyId)
-        .maybeSingle();
-      if (!conv) return [];
       const { data } = await supabase
-        .from("messages")
-        .select("id, content, created_at, context_meta")
-        .eq("conversation_id", conv.id)
-        .eq("context_type", "agent")
-        .order("created_at", { ascending: false })
+        .from("agent_runs")
+        .select("id, started_at, trigger, mode, iterations, stop_reason, produced_output, proposals, period_key, period_label, error")
+        .eq("company_id", memberCompanyId)
+        .order("started_at", { ascending: false })
         .limit(10);
       return data || [];
     },
@@ -1519,36 +1563,104 @@ const MemberDetail = () => {
           </div>
 
           {/* ───── Agent log ───── */}
+          {/* Virksomhedsniveau: knappen bor HER (ikke på rapportrækken —
+              beslutningen 2026-08-25: agenten er et blik på virksomheden,
+              ikke på et dokument). company_review finder selv nyeste
+              periode; tør-kørslens forslag lander i agent_runs nedenfor. */}
           <div className="mt-6 mb-6">
-            <button
-              onClick={() => setShowAgentLog(v => !v)}
-              className="flex items-center gap-2 text-sm font-medium text-foreground mb-3"
-            >
-              <Sparkles className="h-4 w-4 text-primary" />
-              Agent-log
-              <span className="text-xs font-normal text-muted-foreground ml-1">({agentMessages.length})</span>
-              {showAgentLog ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
-            </button>
+            <div className="flex items-center gap-2 mb-3">
+              <button
+                onClick={() => setShowAgentLog(v => !v)}
+                className="flex items-center gap-2 text-sm font-medium text-foreground"
+              >
+                <Sparkles className="h-4 w-4 text-primary" />
+                Agent-log
+                <span className="text-xs font-normal text-muted-foreground ml-1">({agentRuns.length})</span>
+                {showAgentLog ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
+              </button>
+              <button
+                onClick={async () => {
+                  setAgentRunning("company");
+                  try {
+                    const { data: agentData, error: agentError } = await supabase.functions.invoke("run-company-agent", {
+                      body: {
+                        company_id: memberCompanyId,
+                        trigger: "company_review",
+                        dry_run: true,
+                      },
+                    });
+                    if (agentError) throw agentError;
+                    if (!agentData?.ok) {
+                      throw new Error(agentData?.error || "Agenten producerede intet output");
+                    }
+                    if (agentData?.dry_run !== true) {
+                      // Gammel funktions-version uden dry_run: kørslen var LIVE.
+                      throw new Error("Kørslen var IKKE tør — funktionen i prod kender ikke dry_run endnu. Skrivninger kan være udført; verificér deploy.");
+                    }
+                    toast.success("Tør-kørsel gennemført ✓", {
+                      description: `${agentData?.proposals ?? 0} forslag registreret — se dem i Agent-loggen herunder.`,
+                    });
+                    setShowAgentLog(true);
+                    void refetchAgentRuns();
+                  } catch (err) {
+                    console.error("Agent error:", err);
+                    toast.error("Agent fejlede", { description: err instanceof Error ? err.message : String(err) });
+                  } finally {
+                    setAgentRunning(null);
+                  }
+                }}
+                disabled={agentRunning === "company"}
+                className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
+              >
+                <Sparkles className="h-3 w-3" />
+                {agentRunning === "company" ? "Kører..." : "Kør agent (tørt)"}
+              </button>
+            </div>
             {showAgentLog && (
               <div className="space-y-2">
-                {agentMessages.length === 0 ? (
+                {agentRuns.length === 0 ? (
                   <p className="text-xs text-muted-foreground">Agenten har ikke kørt endnu for denne virksomhed.</p>
-                ) : agentMessages.map((msg: any) => (
-                  <div key={msg.id} className="rounded-lg border border-border/40 bg-muted/20 p-3">
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-[10px] font-medium text-primary uppercase tracking-wider">Agent</span>
-                      <span className="text-[10px] text-muted-foreground">
-                        {format(new Date(msg.created_at), "d. MMM yyyy HH:mm", { locale: da })}
-                      </span>
+                ) : agentRuns.map((run: any) => {
+                  const runProposals = Array.isArray(run.proposals) ? run.proposals : [];
+                  return (
+                    <div key={run.id} className="rounded-lg border border-border/40 bg-muted/20 p-3">
+                      <div className="flex items-center justify-between gap-2 mb-1 flex-wrap">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[10px] font-medium text-primary uppercase tracking-wider">
+                            {AGENT_TRIGGER_LABELS[run.trigger] ?? run.trigger}
+                          </span>
+                          <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${run.mode === "dry_run" ? "bg-secondary text-muted-foreground" : "bg-primary/10 text-primary"}`}>
+                            {run.mode === "dry_run" ? "Tør" : "Live"}
+                          </span>
+                          <span className="text-[10px] text-muted-foreground">
+                            {run.period_label || run.period_key} · {runProposals.length} forslag
+                          </span>
+                        </div>
+                        <span className="text-[10px] text-muted-foreground">
+                          {format(new Date(run.started_at), "d. MMM yyyy HH:mm", { locale: da })}
+                        </span>
+                      </div>
+                      {runProposals.length === 0 ? (
+                        <p className="text-xs text-muted-foreground">
+                          {run.error ? `Fejl: ${run.error}` : "Ingen forslag i denne kørsel."}
+                        </p>
+                      ) : (
+                        <div className="space-y-1.5 mt-1.5">
+                          {runProposals.map((p: any, idx: number) => (
+                            <div key={idx} className="rounded-md bg-background/60 border border-border/30 px-2.5 py-1.5">
+                              <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider block">
+                                {AGENT_TOOL_LABELS[p.tool] ?? p.tool}
+                              </span>
+                              <p className="text-xs text-foreground whitespace-pre-line">
+                                {agentProposalText(p.tool, p.args)}
+                              </p>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
-                    <p className="text-xs text-foreground line-clamp-3">{msg.content}</p>
-                    {(msg.context_meta as any)?.feedback && (
-                      <span className="text-[10px] text-muted-foreground mt-1 block">
-                        Feedback: {(msg.context_meta as any).feedback === "up" ? "Nyttigt" : "Ikke nyttigt"}
-                      </span>
-                    )}
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
@@ -1651,61 +1763,6 @@ const MemberDetail = () => {
                               <span className="inline-flex items-center gap-1.5 text-[10px] font-medium px-2 py-0.5 rounded-full bg-primary/10 text-primary">
                                 ✓ Committed
                               </span>
-                            )}
-                            {isCommitted && (
-                              <button
-                                onClick={async () => {
-                                  setAgentRunning(report.id);
-                                  try {
-                                    // Find correct YYYY-MM period_key from committed facts
-                                    const matchingFact = memberFacts.find(f => f.source_report_id === report.id)
-                                      || memberFacts.find(f => f.period_label === report.report_period);
-
-                                    const resolvedPeriodKey = matchingFact?.period_key
-                                      || report.manual_report_period_key
-                                      || report.report_period;
-
-                                    const resolvedPeriodLabel = matchingFact?.period_label
-                                      || report.manual_report_period_label
-                                      || report.report_period;
-
-                                    // Tør-kørsel (design §4.1): skrivekald opsnappes som forslag
-                                    // og registreres i agent_runs — intet når medlemmet.
-                                    const { data: agentData, error: agentError } = await supabase.functions.invoke("run-company-agent", {
-                                      body: {
-                                        company_id: memberCompanyId,
-                                        trigger: "report_committed",
-                                        period_key: resolvedPeriodKey,
-                                        period_label: resolvedPeriodLabel,
-                                        dry_run: true,
-                                      },
-                                    });
-
-                                    if (agentError) throw agentError;
-                                    if (!agentData?.ok) {
-                                      throw new Error(agentData?.error || "Agenten producerede intet output");
-                                    }
-                                    if (agentData?.dry_run !== true) {
-                                      // Gammel funktions-version uden dry_run: kørslen var LIVE.
-                                      throw new Error("Kørslen var IKKE tør — funktionen i prod kender ikke dry_run endnu. Skrivninger kan være udført; verificér deploy.");
-                                    }
-
-                                    toast.success("Tør-kørsel gennemført ✓", {
-                                      description: `${agentData?.proposals ?? 0} forslag registreret i kørselsloggen (agent_runs) — intet er sendt til medlemmet.`,
-                                    });
-                                  } catch (err) {
-                                    console.error("Agent error:", err);
-                                    toast.error("Agent fejlede", { description: err instanceof Error ? err.message : String(err) });
-                                  } finally {
-                                    setAgentRunning(null);
-                                  }
-                                }}
-                                disabled={agentRunning === report.id}
-                                className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
-                              >
-                                <Sparkles className="h-3 w-3" />
-                                {agentRunning === report.id ? "Kører..." : "Kør agent (tørt)"}
-                              </button>
                             )}
                             {report.processed_at && (
                               <span className="text-[10px] text-muted-foreground">

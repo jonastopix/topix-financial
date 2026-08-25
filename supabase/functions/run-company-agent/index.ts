@@ -3,8 +3,9 @@ import { authenticateUser, corsHeaders } from "../_shared/edgeFunctionAuth.ts";
 import { aiGatewayFetch } from "../_shared/aiGatewayFetch.ts";
 import { beregnUdloeb } from "../_shared/opgaveUdloeb.ts";
 import { SKRIVE_TOOLS, toerResultat } from "../_shared/agentToerkoersel.ts";
+import { effektivRapportPeriodeKey, rapporteringsStatus } from "../_shared/rapportStatus.ts";
 
-const DEPLOY_STAMP = "run-company-agent v3 indhold (2026-08-25)";
+const DEPLOY_STAMP = "run-company-agent v4 virksomhedskoersel (2026-08-25)";
 const MODEL = "google/gemini-2.5-flash";
 
 // ARBEJDSGANGS-MINIMUMMET I PROMPTEN — hvorfor det findes: målt mod prod
@@ -1097,7 +1098,10 @@ Deno.serve(async (req) => {
   }
 
   const body = await req.json();
-  const { company_id, trigger, period_key, period_label } = body;
+  // period_key/period_label er let: company_review må udelade perioden og
+  // får den slået op (nyeste fact) efter adminClient er konstrueret.
+  const { company_id, trigger } = body;
+  let { period_key, period_label } = body;
 
   // Tør-kørsel (design §4.1): læse-tools kører normalt, skrivekald opsnappes
   // som forslag og registreres i agent_runs i stedet for at blive udført.
@@ -1107,7 +1111,29 @@ Deno.serve(async (req) => {
   const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   const PERIOD_RE = /^\d{4}-\d{2}$/;
 
-  if (!company_id || !period_key) {
+  // FAIL-CLOSED på trigger-navnet (recon 2026-08-25 fandt fail-open-fælden):
+  // et ukendt navn faldt før i ternary'ens ELSE-gren og fik RAPPORT-prompten
+  // og — værre — POOL_BLOCKLIST[trigger] ?? [] gav FULD tool-pool inkl.
+  // write_chat_message. Et nyt trigger-navn skal nu erklæres her, i
+  // POOL_BLOCKLIST og i prompt-forgreningen — ellers afvises kaldet.
+  const KNOWN_TRIGGERS = [
+    "report_committed",
+    "anomaly_detected",
+    "pulse_submitted",
+    "weekly_cron",
+    "onboarding",
+    "company_review",
+  ];
+  if (!KNOWN_TRIGGERS.includes(trigger)) {
+    return new Response(
+      JSON.stringify({ ok: false, error: `Unknown trigger '${trigger}' — must be one of: ${KNOWN_TRIGGERS.join(", ")}` }),
+      { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  }
+
+  // period_key er påkrævet for alle triggere UNDTAGEN company_review, som
+  // selv finder nyeste periode med tal (opslag efter adminClient nedenfor).
+  if (!company_id || (!period_key && trigger !== "company_review")) {
     return new Response(
       JSON.stringify({ ok: false, error: "Missing required fields" }),
       { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -1121,7 +1147,7 @@ Deno.serve(async (req) => {
     );
   }
 
-  if (!PERIOD_RE.test(period_key)) {
+  if (period_key && !PERIOD_RE.test(period_key)) {
     return new Response(
       JSON.stringify({ ok: false, error: "Invalid period_key (must be YYYY-MM)" }),
       { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -1148,6 +1174,9 @@ Deno.serve(async (req) => {
     anomaly_detected: ["write_chat_message", "notify_advisor"],
     pulse_submitted: ["write_chat_message", "notify_advisor", "write_company_action", "create_milestone"],
     weekly_cron: ["write_chat_message", "notify_advisor"],
+    // Virksomhedsgennemgang (rådgiver-igangsat): samme stramhed som
+    // weekly_cron — al indsigt samles i write_session_prep.
+    company_review: ["write_chat_message", "notify_advisor"],
   };
   const blocked = POOL_BLOCKLIST[trigger] ?? [];
   const activeTools = blocked.length
@@ -1217,6 +1246,72 @@ Deno.serve(async (req) => {
       }
     }
 
+    // ── company_review: perioden findes selv, og rapporteringsstatus dømmes ──
+    // Perioden: nyeste committede fact — run-weekly-agents dom (dens
+    // index.ts:31-42), samme runtime. INGEN facts er IKKE en fejl: det er
+    // præcis den situation agenten skal forholde sig til (beslutningen
+    // 2026-08-25); perioden falder da tilbage til indeværende måned, som
+    // bærer dedup-nøgler og agent_runs-rækken.
+    let ingenFacts = false;
+    let rapportStatusBlok = "";
+    if (trigger === "company_review") {
+      if (!period_key) {
+        const { data: latestFact } = await adminClient
+          .from("financial_report_facts")
+          .select("period_key, period_label")
+          .eq("company_id", company_id)
+          .order("period_key", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (latestFact) {
+          period_key = latestFact.period_key;
+          period_label = latestFact.period_label ?? latestFact.period_key;
+        } else {
+          ingenFacts = true;
+          period_key = new Date().toISOString().slice(0, 7);
+          period_label = "ingen godkendte tal";
+        }
+      }
+
+      // Rapporteringsstatus: deriveFocus-dommen (nextStep.ts:118-152) via
+      // _shared-spejlet rapportStatus.ts (paritetstestet). Input-sættene
+      // spejler BoardroomViews queries: processed = financial_reports m.
+      // status='processed', ikke slettet, effektiv periode-nøgle
+      // (manuel override vinder); committed = facts-lagets period_keys.
+      const [reportsRes, factsRes] = await Promise.all([
+        adminClient
+          .from("financial_reports")
+          .select("report_period, manual_report_period_key, manual_override_status")
+          .eq("company_id", company_id)
+          .is("deleted_at", null)
+          .eq("status", "processed"),
+        adminClient
+          .from("financial_report_facts")
+          .select("period_key")
+          .eq("company_id", company_id),
+      ]);
+      const processedKeys = new Set<string>(
+        ((reportsRes.data ?? []) as any[])
+          .map((r) => effektivRapportPeriodeKey(r))
+          .filter(Boolean) as string[],
+      );
+      const committedKeys = new Set<string>(
+        ((factsRes.data ?? []) as any[]).map((f) => f.period_key as string),
+      );
+      const dom = rapporteringsStatus(processedKeys, committedKeys, new Date());
+      const statusTekst =
+        dom.status === "mangler"
+          ? `Der er IKKE uploadet nogen rapport for ${dom.maanedNavn} ${dom.aar}. Virksomheden mangler at rapportere.`
+          : dom.status === "uploadet_ikke_godkendt"
+            ? `Rapporten for ${dom.maanedNavn} ${dom.aar} er uploadet, men IKKE godkendt endnu — tallene er ikke i drift.`
+            : `Rapporteringen er ajour: ${dom.maanedNavn} ${dom.aar} er uploadet og godkendt.`;
+      rapportStatusBlok = `RAPPORTERINGSSTATUS (forrige måned = ${dom.maanedNavn} ${dom.aar}): ${statusTekst}${
+        ingenFacts
+          ? "\nDer findes desuden INGEN godkendte tal overhovedet for virksomheden — analysér ikke tal der ikke findes."
+          : `\nNyeste godkendte periode med tal: ${period_label} (${period_key}).`
+      }`;
+    }
+
     // Indholdsbiblioteket hentes ved kørselsstart og lægges i systemprompten
     // (design §4.5). Fejler opslaget, kører agenten videre uden bibliotek —
     // en manglende liste må ikke vælte en kørsel, men den skal være synlig
@@ -1251,6 +1346,8 @@ ${trigger === "pulse_submitted"
   ? `KRITISK ALERT: Der er detekteret en finansiel anomali for ${period_label}.\n\nDetaljer: ${period_key}\n\nHent get_financial_alerts og get_company_facts omgående. Saml din indsigt i advisor-forberedelses-sporet med write_session_prep: 3 konkrete punkter der forklarer hvad der er sket og hvad der bør handles på, så advisoren kan tage det op med founder. Founderen ser IKKE denne forberedelse. Du må IKKE skrive i founderens chat. Opdatér IKKE weekly focus med negativ information.`
   : trigger === "onboarding"
   ? `Founder ${founderFirstName} logger ind i The Boardroom for første gang.\n\nDette er en onboarding-kørsel. Gør følgende i rækkefølge:\n1. Hent ansøgningskontekst med get_application_context\n2. Hent virksomhedens brancheinfo\n3. Skriv en personlig velkomstbesked i chatten med write_chat_message og **as_advisor: true** (så den vises som besked fra rådgiveren med navn og avatar — IKKE som system-boks). Beskeden skal:\n   - Bruge fornavnet\n   - Referere specifikt til hvad de selv har skrevet om deres situation og mål\n   - Være varm og motiverende — dette er dag ét\n   - Maks 4 sætninger\n4. Opret præcis 2 start-milestones baseret på deres mål — de skal være tydeligt forskellige fra hinanden og maksimalt 6 ord lange. Tjek eksisterende milestones med get_milestones først.\n5. Opret én konkret første handlingsopgave (fx upload første rapport)\n6. Sæt weekly focus med en velkomst-headline\n7. Notificér advisor om at ny member er aktiv — inkluder et resumé af deres situation og mål\n8. Kald finish`
+  : trigger === "company_review"
+  ? `Rådgiveren har bedt om en samlet gennemgang af virksomheden — et blik på virksomheden som helhed, ikke på et enkelt dokument.\n\n${rapportStatusBlok}\n\nFølg din arbejdsgang: get_previous_agent_messages først, dernæst minimum get_company_facts, get_handout_levers, get_application_context og get_member_content_progress — plus pulse, milestones og KPI-mål.\n\nHvis rapporteringsstatussen ovenfor viser at virksomheden mangler at rapportere, eller har uploadet uden at godkende, SKAL du adressere det som et af dine punkter: at rapportere og forholde sig til sine egne tal ER rådgivning, og et hul i rapporteringen er en observation på linje med et hul i tallene. Findes der ingen godkendte tal overhovedet, er DET dit vigtigste punkt — analysér ikke videre på estimater som om de var friske tal.\n\nSaml din indsigt i advisor-forberedelses-sporet med write_session_prep: 3 konkrete punkter til næste session med founder. Founderen ser IKKE denne forberedelse. Opdatér weekly focus. Du må IKKE skrive i founderens chat.`
   : `Ny rapport committed: ${period_label} (${period_key})\n\nFølg din arbejdsgang: get_previous_agent_messages først, og dernæst — gerne parallelt — get_company_facts, get_handout_levers, get_application_context, get_member_content_progress, get_milestones, get_kpi_targets og get_budget_vs_actual, så du har det fulde billede før du skriver. Hvis der er budget-afvigelser over 20%, prioritér disse i din forberedelse.\n\nSaml din indsigt i advisor-forberedelses-sporet med write_session_prep: 3 konkrete punkter advisoren bør tage op til næste session med founder. Founderen ser IKKE denne forberedelse. Du må IKKE skrive i founderens chat. Opdatér weekly focus.\n\nBemærk: Hvis dette er virksomhedens første rapport, er der automatisk oprettet et udkast-budget og en årsbaseline baseret på de committede tal (annualiseret x12 med jævn fordeling). Tag dette med i forberedelsen som noget advisoren kan drøfte med founder, fx at justere budgetmånederne der afviger fra gennemsnittet. Hvis der findes historiske årsrapport-facts (data_quality='estimat_fra_årsrapport_divideret_med_12') for tidligere år, så sammenlign årets udvikling med det historiske niveau.`
 }`,
       },
