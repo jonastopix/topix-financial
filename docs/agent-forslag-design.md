@@ -166,7 +166,7 @@ Det sidste er jeres viden og skal ud af hovedet på jer først — det kan ikke 
 
 **6.2 Tavshedsgulvet.** Hvor længe, og målt hvordan? Rådgiverdashboardets "Ikke hørt fra længe" har allerede en dom — er den den rigtige?
 
-**6.3 Opbevaring af ræsonnementet.** Hele `messages`-arrayet indeholder virksomhedens tal. Hvor længe gemmes det, og hvem kan læse det?
+**6.3 Opbevaring af ræsonnementet.** ~~Hele `messages`-arrayet indeholder virksomhedens tal. Hvor længe gemmes det, og hvem kan læse det?~~ **Besluttet 25/8 (Jonas + arkitekt, migration `20260825233000_agent_runs_opbevaring.sql`):** `reasoning` sættes til ægte NULL efter 90 dage (kolonnen gjort nullable — NULL betyder "fjernet ved opbevaring", `'[]'` ville være uskelneligt fra en kørsel uden ræsonnement); `agent_runs`-rækken slettes efter 12 måneder, MEDMINDRE et af dens forslag er approved/rejected — afgørelsen er læringen, og CASCADE-FK'en ville slette den. De to regler er uafhængige: også kørsler der bliver stående, mister deres ræsonnement efter 90 dage. Aldersanker: `created_at`. Håndhæves af pg_cron-jobbet `agent-runs-opbevaring` (ren SQL, 05:00 UTC dagligt) — ingen edge function; Deno.cron kører ikke på Supabase edge runtime. Læse-adgangen er uændret rådgiver-SELECT (§4.2/baseline).
 
 **6.4 Hvad sker der med de forslag ingen rører?** Udløber de som opgave-modellens forslag (B8), eller bliver de liggende? Dertil (25/8, jf. §7.6): et forslag om en given periodes tal er stadig bundet til den periode, uanset hvornår det godkendes. Hvor gammelt må et forslag være før det ikke længere bør kunne godkendes? Ikke besluttet.
 
