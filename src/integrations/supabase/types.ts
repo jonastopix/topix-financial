@@ -276,6 +276,75 @@ export type Database = {
           },
         ]
       }
+      agent_proposals: {
+        Row: {
+          applied_at: string | null
+          args: Json
+          company_id: string
+          created_at: string
+          decided_at: string | null
+          decided_by: string | null
+          decision_reason: string | null
+          edited_args: Json | null
+          id: string
+          iteration: number
+          position: number
+          proposed_at: string
+          run_id: string
+          status: string
+          tool: string
+        }
+        Insert: {
+          applied_at?: string | null
+          args: Json
+          company_id: string
+          created_at?: string
+          decided_at?: string | null
+          decided_by?: string | null
+          decision_reason?: string | null
+          edited_args?: Json | null
+          id?: string
+          iteration: number
+          position: number
+          proposed_at: string
+          run_id: string
+          status?: string
+          tool: string
+        }
+        Update: {
+          applied_at?: string | null
+          args?: Json
+          company_id?: string
+          created_at?: string
+          decided_at?: string | null
+          decided_by?: string | null
+          decision_reason?: string | null
+          edited_args?: Json | null
+          id?: string
+          iteration?: number
+          position?: number
+          proposed_at?: string
+          run_id?: string
+          status?: string
+          tool?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agent_proposals_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agent_proposals_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "agent_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       agent_runs: {
         Row: {
           company_id: string
