@@ -207,3 +207,5 @@ Den kendte konsekvens: `weekly_focus` har `seen_at`. Et kort medlemmet allerede 
 **7.6 Uge-nøglen beregnes ved skrivetidspunktet.**
 
 Uge-nøglen beregnes ved skrivetidspunktet, ikke ved forslagstidspunktet. Godkendes et forslag i en senere uge end det blev stillet, lander kortet i godkendelsens uge. Begrundelse: et kort skrevet til en forgangen uge ville lande et sted medlemmet aldrig ser det. **Beslutning: Claude som arkitekt, 25/8.**
+
+Uge-nøglen er **ægte ISO-8601 fra én delt kilde**: `supabase/functions/_shared/isoUge.ts` (torsdags-ankeret; frontendens modstykke er `src/lib/hjemmebane/week.ts`). Efterskrift 25/8: beslutningen ovenfor blev truffet FØR det var kendt, at agentens skrivevej regnede med et mandags-anker og lå én uge bagud (hændelsen i BACKLOG.md, 42 rækker over fire måneder). I den periode gjorde fejlen §7.6 til det modsatte af sin egen hensigt: "skriv til den uge medlemmet ser" landede konsekvent i en uge medlemmet ALDRIG ser — og overskrev den forrige uges kort. Princippet var rigtigt; formlen var det ikke. Deraf kravet om én delt kilde med testværn.

@@ -2,21 +2,14 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
 import { parseJwtClaims } from "../_shared/edgeFunctionAuth.ts";
 import { evaluateKpiTargets } from "../_shared/weeklyFocusKpi.ts";
 import { beregnUdloeb } from "../_shared/opgaveUdloeb.ts";
+// Uge-nøglen: den kanoniske ISO-formel — flyttet ORDRET herfra til
+// _shared/isoUge.ts (hændelsen 2026-08-25), adfærd uændret (paritetstest).
+import { getISOWeekKey } from "../_shared/isoUge.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
-
-// ISO week key: Monday-based, format "YYYY-WNN"
-function getISOWeekKey(date: Date): string {
-  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
-  const dayNum = d.getUTCDay() || 7;
-  d.setUTCDate(d.getUTCDate() + 4 - dayNum);
-  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
-  const weekNo = Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
-  return `${d.getUTCFullYear()}-W${String(weekNo).padStart(2, "0")}`;
-}
 
 // Delay helper for rate limiting
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
