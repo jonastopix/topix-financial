@@ -421,6 +421,15 @@ skrivende edge functions bruger `SUPABASE_SERVICE_ROLE_KEY`.
 - `company_actions` — afviger fra de øvrige: klienter HAR SELECT
   (medlem company-scoped, rådgiver bredt); kun skrivning er
   service-role-only, se afsnittet ovenfor
+- `agent_runs` — kørselslog for run-company-agent inkl. ræsonnement og
+  tør-kørsels-forslag (migration `20260825120000_agent_runs.sql`,
+  `docs/agent-forslag-design.md` §4.2). Afviger som company_actions:
+  rådgivere HAR SELECT (`has_role(auth.uid(), 'advisor')`); kun skrivning
+  er service-role-only (edge-funktionen). BEVIDST ingen medlems-policies:
+  reasoning-kolonnen bærer rå model-output over virksomhedens tal.
+  Opbevaringstid er et åbent spørgsmål (design §6.3) — forslaget i
+  migrationskommentaren (reasoning nulstilles efter 90 dage, række slettes
+  efter 12 mdr.) er ikke besluttet, og ingen oprydning kører endnu.
 
 ---
 

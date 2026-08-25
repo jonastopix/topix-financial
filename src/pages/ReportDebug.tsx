@@ -393,7 +393,8 @@ export default function ReportDebug() {
                 Agent
               </p>
               <p className="text-xs text-muted-foreground mb-3">
-                Kør agenten manuelt for denne rapport — nyttigt til test og fejlfinding.
+                Kør agenten tørt for denne rapport — skrivekald registreres som forslag i
+                kørselsloggen (agent_runs) og udføres ikke. Intet når medlemmet.
               </p>
               <button
                 onClick={async () => {
@@ -405,13 +406,19 @@ export default function ReportDebug() {
                         trigger: "report_committed",
                         period_key: report.report_period_key || report.report_period,
                         period_label: report.report_period,
+                        dry_run: true,
                       },
                     });
                     if (agentError) throw agentError;
                     if (!agentData?.ok) {
-                      throw new Error(agentData?.error || "Agenten skrev ingen besked");
+                      throw new Error(agentData?.error || "Agenten producerede intet output");
                     }
-                    toast.success("Agent kørt ✓", { description: "Tjek chatten for resultatet." });
+                    if (agentData?.dry_run !== true) {
+                      throw new Error("Kørslen var IKKE tør — funktionen i prod kender ikke dry_run endnu. Skrivninger kan være udført; verificér deploy.");
+                    }
+                    toast.success("Tør-kørsel gennemført ✓", {
+                      description: `${agentData?.proposals ?? 0} forslag registreret i agent_runs — intet er skrevet.`,
+                    });
                   } catch (err) {
                     toast.error("Agent fejlede", { description: err instanceof Error ? err.message : String(err) });
                   } finally {
@@ -422,7 +429,7 @@ export default function ReportDebug() {
                 className="inline-flex items-center gap-2 text-xs font-medium px-3 py-1.5 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
               >
                 <Sparkles className="h-3.5 w-3.5" />
-                {agentRunning ? "Kører..." : "Kør agent manuelt"}
+                {agentRunning ? "Kører..." : "Kør agent (tørt)"}
               </button>
             </div>
           </div>
