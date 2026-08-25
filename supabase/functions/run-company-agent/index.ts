@@ -4,9 +4,20 @@ import { aiGatewayFetch } from "../_shared/aiGatewayFetch.ts";
 import { beregnUdloeb } from "../_shared/opgaveUdloeb.ts";
 import { SKRIVE_TOOLS, toerResultat } from "../_shared/agentToerkoersel.ts";
 
-const DEPLOY_STAMP = "run-company-agent v2 toerkoersel (2026-08-25)";
+const DEPLOY_STAMP = "run-company-agent v3 indhold (2026-08-25)";
 const MODEL = "google/gemini-2.5-flash";
 
+// ARBEJDSGANGS-MINIMUMMET I PROMPTEN — hvorfor det findes: målt mod prod
+// 2026-08-25 (agent_runs, tør kørsel) skrev agenten efter 2 iterationer og
+// 5 af 10 værktøjer — get_handout_levers, get_pulse_checkins,
+// get_industry_benchmark, get_financial_alerts og get_application_context
+// blev sprunget over. Den skrev "lønomkostningerne steg betydeligt" uden at
+// kende founders egne ord om situationen (application_context) eller
+// modul-status (handout_levers) — viden der ikke kan udledes af tallene.
+// Derfor kræver DIN ARBEJDSGANG nedenfor et minimum af opslag FØR første
+// skrivning. Indholdsbiblioteket ligger af samme grund direkte i
+// systemprompten (hentIndholdsbibliotek) i stedet for bag et ellevte
+// værktøj den formentlig også ville springe over.
 const SYSTEM_PROMPT = `Du er en proaktiv finansiel sparringspartner for The Boardroom — en platform der hjælper danske iværksættere med at drive bedre virksomheder.
 
 Du handler autonomt når et event sker for en founder (rapport-commit, pulse-refleksion, anomali, onboarding eller ugentlig gennemgang). Dit job er at levere én kort, præcis og handlingsorienteret besked der føles personlig og værdifuld — ikke generisk AI-output. Brug ALTID den korrekte terminologi for det aktuelle event (rapport, refleksion, etc.) — bland aldrig event-typer.
@@ -27,21 +38,35 @@ TONE OG STIL:
 - Skriv altid på dansk
 - Tilpas din tone til virksomhedens alder: 0-6 mdr = validér og opmuntr, 6-18 mdr = fokusér på vækstmønstre, 2+ år = strategisk og udfordrende
 
-HVAD DU GØR (i rækkefølge):
+DIN ARBEJDSGANG (i rækkefølge — sådan arbejder en grundig rådgiver):
 
-1. Hent fakta, pulse, milestones, handouts og KPI-mål
-2. Analysér: hvad er det vigtigste signal i denne måneds tal? Sammenlign med forrige måned og med mål.
-3. Opdatér weekly focus-kortet på dashboardet med en kort overskrift og opsummering
-4. Saml din vigtigste indsigt i advisor-forberedelses-sporet med write_session_prep. Founderen ser den ikke. Fokusér på ét nøglefund, ikke fem. (Undtagelse: ved onboarding skriver du i stedet en velkomst til founder som beskrevet i onboarding-instruktionen.)
-5. Opret én konkret handlingsopgave med write_company_action hvis der er et klart næste skridt founder skal tage inden for de næste 7 dage
-6. Opret max ét milestone hvis tallene klart indikerer et specifikt næste skridt
-7. Notificér KUN advisoren med notify_advisor ved onboarding (engangs-besked om en ny aktiv member). Ved report, anomali, pulse og ugentlig gennemgang skubber du ALDRIG til advisoren; al din indsigt samles i write_session_prep (trin 4)
-8. Hvis der er emner der kræver menneskelig sparring, kald write_session_prep med 3 konkrete punkter til næste møde
-9. Kald finish
+1. Kald get_previous_agent_messages som dit allerførste kald: hvad har du sagt før, så du bygger videre i stedet for at gentage.
+2. Dan dig det FULDE billede, før du skriver noget som helst. Dit minimum, hver gang:
+   - get_company_facts — tallene
+   - get_handout_levers — hvor langt founder er i modulerne (overordnet, bogholderi, administration, salg, marketing)
+   - get_application_context — founders egne ord om situation, mål og hvad de søger hjælp til
+   - get_member_content_progress — hvad founder allerede har set i Akademiet
+   Dertil de værktøjer det aktuelle event peger på (fx get_budget_vs_actual ved rapport, get_pulse_checkins ved refleksion, get_financial_alerts ved anomali).
+   get_handout_levers og get_application_context er en fast del af billedet, ikke et tilvalg: de bærer hvad founder selv har fortalt og hvor de er i forløbet — det kan ikke udledes af tallene, og uden det bliver din sparring generisk. Kald gerne flere værktøjer parallelt.
+3. Analysér: hvad er det vigtigste signal i denne måneds tal? Sammenlign med forrige måned, med mål — og med hvad founder selv har sagt.
+4. Opdatér weekly focus-kortet på dashboardet med en kort overskrift og opsummering
+5. Saml din vigtigste indsigt i advisor-forberedelses-sporet med write_session_prep. Founderen ser den ikke. Fokusér på ét nøglefund, ikke fem. (Undtagelse: ved onboarding skriver du i stedet en velkomst til founder som beskrevet i onboarding-instruktionen.)
+6. Opret én konkret handlingsopgave med write_company_action hvis der er et klart næste skridt founder skal tage inden for de næste 7 dage
+7. Opret max ét milestone hvis tallene klart indikerer et specifikt næste skridt
+8. Notificér KUN advisoren med notify_advisor ved onboarding (engangs-besked om en ny aktiv member). Ved report, anomali, pulse og ugentlig gennemgang skubber du ALDRIG til advisoren; al din indsigt samles i write_session_prep (trin 5)
+9. Hvis der er emner der kræver menneskelig sparring, kald write_session_prep med 3 konkrete punkter til næste møde
+10. Kald finish
+
+INDHOLDSKOBLING (Akademiet):
+
+Nederst i denne prompt står hele Akademiets indholdsbibliotek: samlinger, titler og beskrivelser.
+
+- Når du peger på en udfordring i tallene, og biblioteket har et element der svarer direkte på den, SKAL du nævne det med titel som en del af dit forslag — fx stigende lønomkostninger → "Outsource klogt", bureau-udgifter der stikker af → videoen om at styre sit bureau.
+- Tjek FØRST get_member_content_progress. Har founder allerede set eller gennemført elementet, er det en anden samtale: følg op på om det er omsat til handling ("har set 'Outsource klogt' — er bogføringen lagt ud?") i stedet for at anbefale det som nyt. Har de IKKE set det, så anbefal det konkret.
+- Koblingen skal være reel: elementet skal svare på udfordringen, ikke bare dele emneord. Findes der intet relevant element, så nævn ingen — opfind aldrig indhold.
 
 HVAD DU IKKE GØR:
 
-- Kald altid get_previous_agent_messages som dit første tool-kald
 - Hvis du tidligere har anbefalet noget specifikt (fx "fokusér på at øge dækningsbidraget"), og tallene nu viser fremgang eller tilbagegang på netop det punkt, så nævn det eksplicit: "Sidst anbefalede jeg X — her er hvad der er sket"
 - Skriv aldrig det samme som du sagde sidst — men referer gerne til det
 - Gentag ikke hvad AI-analysen allerede har sagt (den er en detaljeret rapport, din besked er en sparring)
@@ -139,7 +164,20 @@ const tools = [
     function: {
       name: "get_handout_levers",
       description:
-        "Henter virksomhedens handout-status. Brug dette til at identificere om der er et handout-modul der er relevant for de udfordringer tallene viser — fx hvis cash flow er kritisk og 'Likviditetsstyring'-modulet ikke er gennemført, nævn det konkret i din besked.",
+        "Henter virksomhedens handout-status. De fem moduler er overordnet, bogholderi, administration, salg og marketing — der findes ikke andre. Brug dette til at identificere om et ugennemført modul matcher de udfordringer tallene viser — fx hvis marketingomkostningerne stikker af og 'marketing'-modulet ikke er gennemført, nævn det konkret i din besked.",
+      parameters: {
+        type: "object",
+        properties: { company_id: { type: "string" } },
+        required: ["company_id"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_member_content_progress",
+      description:
+        "Henter hvad founder har set i Akademiet: hvilke elementer fra indholdsbiblioteket (i systemprompten) der er åbnet, kvitteret som gennemført eller sprunget over — og hvor langt de nåede i en video (last_position_seconds mod duration_seconds). Kald dette FØR du peger på et element fra biblioteket: er det allerede set, følger du op på om det er omsat til handling i stedet for at anbefale det som nyt.",
       parameters: {
         type: "object",
         properties: { company_id: { type: "string" } },
@@ -416,6 +454,50 @@ async function executeTool(name: string, args: any, adminClient: any, trigger: s
         .eq("company_id", args.company_id);
       if (error) throw new Error(error.message);
       return data ?? [];
+    }
+
+    case "get_member_content_progress": {
+      // member_progress er pr. user_id, ikke company_id — founderen skal
+      // findes først. Founderen er den FØRST OPRETTEDE company_members-række
+      // pr. virksomhed (created_at ASC): role-kolonnen har ingen CHECK og
+      // kan ikke bruges som filter — samme dom som
+      // send-slack-report-notification (PR #343/#345-lærdommen).
+      const { data: member } = await adminClient
+        .from("company_members")
+        .select("user_id")
+        .eq("company_id", args.company_id)
+        .order("created_at", { ascending: true })
+        .limit(1)
+        .maybeSingle();
+      if (!member) return { available: false, reason: "no_member" };
+
+      const { data, error } = await adminClient
+        .from("member_progress")
+        .select(
+          "content_item_id, seen_at, acknowledged_at, skipped_at, last_position_seconds, content_items(title, area, duration_seconds)",
+        )
+        .eq("user_id", member.user_id)
+        .order("updated_at", { ascending: false });
+      if (error) throw new Error(error.message);
+
+      // Tilstandsdommen spejler medlemsfladens itemProgressState
+      // (src/lib/hjemmebane/akademiApi.ts): gennemført > sprunget over > set.
+      return (data ?? []).map((r: any) => ({
+        content_item_id: r.content_item_id,
+        title: r.content_items?.title ?? null,
+        area: r.content_items?.area ?? null,
+        state: r.acknowledged_at
+          ? "gennemført"
+          : r.skipped_at
+            ? "sprunget_over"
+            : r.seen_at
+              ? "set_men_ikke_gennemført"
+              : "urørt",
+        seen_at: r.seen_at,
+        acknowledged_at: r.acknowledged_at,
+        last_position_seconds: r.last_position_seconds,
+        duration_seconds: r.content_items?.duration_seconds ?? null,
+      }));
     }
 
     case "get_kpi_targets": {
@@ -893,6 +975,98 @@ async function executeTool(name: string, args: any, adminClient: any, trigger: s
   }
 }
 
+/** Områderne i agentens indholdsbibliotek, i medlemsrækkefølge, med de
+    labels medlemsfladen bruger (adminContentApi.ts' AREAS). Forside-
+    kuraterings-areas (push, ugens_video, redaktionelt, evergreen) og
+    talks/rabataftaler indgår bevidst ikke — de er ikke anbefalelig læring. */
+const INDHOLDS_OMRAADER: Array<{ key: string; label: string }> = [
+  { key: "start_her", label: "Start her" },
+  { key: "classroom", label: "Fundamentet" },
+  { key: "academy", label: "Kurser" },
+  { key: "quick_wins", label: "Quick Wins" },
+];
+
+/** Whitespace-normaliseret enkeltlinje (beskrivelser kan indeholde linjeskift). */
+function enLinje(tekst: string): string {
+  return tekst.replace(/\s+/g, " ").trim();
+}
+
+/** Bygger indholdsbiblioteket som statisk prompt-kontekst (design §4.5, A5:
+    ingen taksonomi — listen som fri tekst). Målt mod prod 2026-08-25:
+    77 publicerede elementer / 13 samlinger / ~7.100 tegn (≈2.000 tokens
+    før id'er) — småt nok til systemprompten. Det ligger i PROMPTEN og ikke
+    bag et værktøj, fordi agenten målt kun kaldte 5 af 10 værktøjer: et
+    bibliotek den skal opsøge, er et bibliotek den ikke ser.
+    Grupperingen spejler medlemsfladen (useAkademiData): løse elementer
+    først, derefter publicerede samlinger (kursus → moduler); elementer i
+    upublicerede samlinger hæftes bagest under området. */
+async function hentIndholdsbibliotek(adminClient: any): Promise<string> {
+  const areaKeys = INDHOLDS_OMRAADER.map((o) => o.key);
+
+  const [itemsRes, collectionsRes] = await Promise.all([
+    adminClient
+      .from("content_items")
+      .select("id, title, description, area, collection_id, position, created_at")
+      .eq("status", "published")
+      .in("area", areaKeys)
+      .order("position", { ascending: true })
+      .order("created_at", { ascending: true }),
+    adminClient
+      .from("content_collections")
+      .select("id, title, area, parent_id, position, created_at")
+      .eq("status", "published")
+      .in("area", areaKeys)
+      .order("position", { ascending: true })
+      .order("created_at", { ascending: true }),
+  ]);
+  if (itemsRes.error) throw new Error(itemsRes.error.message);
+  if (collectionsRes.error) throw new Error(collectionsRes.error.message);
+
+  const items = itemsRes.data ?? [];
+  const collections = collectionsRes.data ?? [];
+
+  const linje = (item: any): string =>
+    `- "${enLinje(item.title)}"${item.description ? `: ${enLinje(item.description)}` : ""} [id: ${item.id}]`;
+
+  const lines: string[] = [
+    `AKADEMIETS INDHOLDSBIBLIOTEK (${items.length} publicerede elementer, forløbsrækkefølge):`,
+  ];
+
+  for (const omraade of INDHOLDS_OMRAADER) {
+    const areaItems = items.filter((i: any) => i.area === omraade.key);
+    if (areaItems.length === 0) continue;
+    lines.push("", `## ${omraade.label}`);
+
+    const areaCollections = collections.filter((c: any) => c.area === omraade.key);
+    const itemsOf = (collectionId: string | null) =>
+      areaItems.filter((i: any) => (i.collection_id ?? null) === collectionId);
+    const taget = new Set<string>();
+    const skriv = (item: any) => {
+      lines.push(linje(item));
+      taget.add(item.id);
+    };
+
+    for (const item of itemsOf(null)) skriv(item);
+    for (const root of areaCollections.filter((c: any) => !c.parent_id)) {
+      const rootItems = itemsOf(root.id);
+      if (rootItems.length > 0) {
+        lines.push(`### ${enLinje(root.title)}`);
+        for (const item of rootItems) skriv(item);
+      }
+      for (const child of areaCollections.filter((c: any) => c.parent_id === root.id)) {
+        const childItems = itemsOf(child.id);
+        if (childItems.length === 0) continue;
+        lines.push(`### ${enLinje(child.title)}`);
+        for (const item of childItems) skriv(item);
+      }
+    }
+    // Elementer i upublicerede samlinger må ikke forsvinde (medlemsfladens dom).
+    for (const item of areaItems) if (!taget.has(item.id)) skriv(item);
+  }
+
+  return lines.join("\n");
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -1043,8 +1217,21 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Indholdsbiblioteket hentes ved kørselsstart og lægges i systemprompten
+    // (design §4.5). Fejler opslaget, kører agenten videre uden bibliotek —
+    // en manglende liste må ikke vælte en kørsel, men den skal være synlig
+    // for modellen som fravær, ikke som tom liste.
+    let indholdsbibliotek: string;
+    try {
+      indholdsbibliotek = await hentIndholdsbibliotek(adminClient);
+    } catch (err) {
+      console.error("[run-company-agent] hentIndholdsbibliotek fejlede:", err);
+      indholdsbibliotek =
+        "AKADEMIETS INDHOLDSBIBLIOTEK: kunne ikke hentes i denne kørsel — henvis ikke til konkret indhold.";
+    }
+
     const messages: any[] = [
-      { role: "system", content: SYSTEM_PROMPT },
+      { role: "system", content: `${SYSTEM_PROMPT}\n\n${indholdsbibliotek}` },
       {
         role: "user",
         content: `VIRKSOMHED: ${companyData.name}
@@ -1059,12 +1246,12 @@ Virksomhedens alder: ${companyData.start_date ? (() => { const months = Math.flo
 ${trigger === "pulse_submitted" 
   ? `Founder har netop afleveret månedlig REFLEKSION (pulse check-in) for ${period_label}. Dette er IKKE en rapport, og refleksionen vedrører UDELUKKENDE ${period_label}.\n\nHent refleksions-svaret med get_pulse_checkins. Du må hente facts med get_company_facts hvis det hjælper dig med at forstå konteksten.\n\nSaml din indsigt i advisor-forberedelses-sporet med write_session_prep: 3 konkrete punkter advisoren bør tage op til næste session med founder, med udgangspunkt i hvad founder selv har skrevet i deres REFLEKSION, særligt deres største udfordring. Founderen ser IKKE denne forberedelse. Opdatér weekly focus.\n\nDu må IKKE skrive i founderens chat. Du må heller ikke kalde write_company_action, create_milestone eller andre tools der laver synlige aktioner. Pulse-refleksion er founderens stille check-in, ikke en trigger for opgaver.`
   : trigger === "weekly_cron"
-  ? `Det er mandag morgen og agenten gennemgår automatisk virksomhedens seneste data.\n\nHent facts, pulse, milestones og KPI-mål. Saml det vigtigste at fokusere på denne uge i advisor-forberedelses-sporet med write_session_prep: 3 konkrete punkter til næste session med founder. Founderen ser IKKE denne forberedelse. Opdatér weekly focus. Du må IKKE skrive i founderens chat.`
+  ? `Det er mandag morgen og agenten gennemgår automatisk virksomhedens seneste data.\n\nFølg din arbejdsgang: get_previous_agent_messages først, dernæst minimum get_company_facts, get_handout_levers, get_application_context og get_member_content_progress — plus pulse, milestones og KPI-mål. Saml det vigtigste at fokusere på denne uge i advisor-forberedelses-sporet med write_session_prep: 3 konkrete punkter til næste session med founder. Founderen ser IKKE denne forberedelse. Opdatér weekly focus. Du må IKKE skrive i founderens chat.`
   : trigger === "anomaly_detected"
   ? `KRITISK ALERT: Der er detekteret en finansiel anomali for ${period_label}.\n\nDetaljer: ${period_key}\n\nHent get_financial_alerts og get_company_facts omgående. Saml din indsigt i advisor-forberedelses-sporet med write_session_prep: 3 konkrete punkter der forklarer hvad der er sket og hvad der bør handles på, så advisoren kan tage det op med founder. Founderen ser IKKE denne forberedelse. Du må IKKE skrive i founderens chat. Opdatér IKKE weekly focus med negativ information.`
   : trigger === "onboarding"
   ? `Founder ${founderFirstName} logger ind i The Boardroom for første gang.\n\nDette er en onboarding-kørsel. Gør følgende i rækkefølge:\n1. Hent ansøgningskontekst med get_application_context\n2. Hent virksomhedens brancheinfo\n3. Skriv en personlig velkomstbesked i chatten med write_chat_message og **as_advisor: true** (så den vises som besked fra rådgiveren med navn og avatar — IKKE som system-boks). Beskeden skal:\n   - Bruge fornavnet\n   - Referere specifikt til hvad de selv har skrevet om deres situation og mål\n   - Være varm og motiverende — dette er dag ét\n   - Maks 4 sætninger\n4. Opret præcis 2 start-milestones baseret på deres mål — de skal være tydeligt forskellige fra hinanden og maksimalt 6 ord lange. Tjek eksisterende milestones med get_milestones først.\n5. Opret én konkret første handlingsopgave (fx upload første rapport)\n6. Sæt weekly focus med en velkomst-headline\n7. Notificér advisor om at ny member er aktiv — inkluder et resumé af deres situation og mål\n8. Kald finish`
-  : `Ny rapport committed: ${period_label} (${period_key})\n\nStart med at kalde get_company_facts, get_previous_agent_messages, get_milestones, get_kpi_targets og get_budget_vs_actual parallelt for at danne dig et komplet billede. Hvis der er budget-afvigelser over 20%, prioritér disse i din forberedelse.\n\nSaml din indsigt i advisor-forberedelses-sporet med write_session_prep: 3 konkrete punkter advisoren bør tage op til næste session med founder. Founderen ser IKKE denne forberedelse. Du må IKKE skrive i founderens chat. Opdatér weekly focus.\n\nBemærk: Hvis dette er virksomhedens første rapport, er der automatisk oprettet et udkast-budget og en årsbaseline baseret på de committede tal (annualiseret x12 med jævn fordeling). Tag dette med i forberedelsen som noget advisoren kan drøfte med founder, fx at justere budgetmånederne der afviger fra gennemsnittet. Hvis der findes historiske årsrapport-facts (data_quality='estimat_fra_årsrapport_divideret_med_12') for tidligere år, så sammenlign årets udvikling med det historiske niveau.`
+  : `Ny rapport committed: ${period_label} (${period_key})\n\nFølg din arbejdsgang: get_previous_agent_messages først, og dernæst — gerne parallelt — get_company_facts, get_handout_levers, get_application_context, get_member_content_progress, get_milestones, get_kpi_targets og get_budget_vs_actual, så du har det fulde billede før du skriver. Hvis der er budget-afvigelser over 20%, prioritér disse i din forberedelse.\n\nSaml din indsigt i advisor-forberedelses-sporet med write_session_prep: 3 konkrete punkter advisoren bør tage op til næste session med founder. Founderen ser IKKE denne forberedelse. Du må IKKE skrive i founderens chat. Opdatér weekly focus.\n\nBemærk: Hvis dette er virksomhedens første rapport, er der automatisk oprettet et udkast-budget og en årsbaseline baseret på de committede tal (annualiseret x12 med jævn fordeling). Tag dette med i forberedelsen som noget advisoren kan drøfte med founder, fx at justere budgetmånederne der afviger fra gennemsnittet. Hvis der findes historiske årsrapport-facts (data_quality='estimat_fra_årsrapport_divideret_med_12') for tidligere år, så sammenlign årets udvikling med det historiske niveau.`
 }`,
       },
     ];
