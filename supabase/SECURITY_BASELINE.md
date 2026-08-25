@@ -427,9 +427,15 @@ skrivende edge functions bruger `SUPABASE_SERVICE_ROLE_KEY`.
   rådgivere HAR SELECT (`has_role(auth.uid(), 'advisor')`); kun skrivning
   er service-role-only (edge-funktionen). BEVIDST ingen medlems-policies:
   reasoning-kolonnen bærer rå model-output over virksomhedens tal.
-  Opbevaringstid er et åbent spørgsmål (design §6.3) — forslaget i
-  migrationskommentaren (reasoning nulstilles efter 90 dage, række slettes
-  efter 12 mdr.) er ikke besluttet, og ingen oprydning kører endnu.
+  Opbevaring (design §6.3, besluttet 2026-08-25, migration
+  `20260825233000_agent_runs_opbevaring.sql`): pg_cron-jobbet
+  `agent-runs-opbevaring` (ren SQL, 05:00 UTC dagligt) sætter reasoning
+  til NULL efter 90 dage (kolonnen er derfor nullable — NULL betyder
+  "fjernet ved opbevaring") og sletter rækker ældre end 12 måneder UDEN
+  approved/rejected-forslag. Kørsler med en afgørelse bliver stående:
+  agent_proposals.run_id er ON DELETE CASCADE, og afgørelsen er læringen.
+  Jobbet kører som tabelejer (postgres) og er ikke RLS-gated — det er
+  forventet for cron, ikke et hul.
 - `agent_proposals` — ét agent-forslag pr. række til godkendelseslaget
   (migration `20260825200000_agent_proposals.sql`,
   `docs/agent-forslag-design.md` §7). Samme form som agent_runs:
