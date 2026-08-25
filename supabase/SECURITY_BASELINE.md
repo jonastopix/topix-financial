@@ -506,6 +506,14 @@ skrivende edge functions bruger `SUPABASE_SERVICE_ROLE_KEY`.
 - `send-report-reminder` — service-role-only gate
 - `manage-advisor` — admin role gate + service-role operations
 - `process-pending-invitation` — self-only guard + server-verified email
+- `agent-forslag-afgoer` — Bucket A m. `verify_jwt = true` i config.toml
+  (PR #267-mønstret) + advisor gate (`has_role` via callerClient) FØR
+  service-role-konstruktion; target-ressourcen (agent_proposals +
+  agent_runs) læses med kalderens klient (RLS advisor-SELECT). Afgørelsens
+  rækkefølge er bindende: skrivningen (delt vej,
+  `_shared/agentSkriveveje.ts`) udføres FØR status sættes — fejlet
+  skrivning efterlader 'proposed'. decided_by er altid kalderens
+  auth.uid(), aldrig request-body. Optimistisk lås på status='proposed'.
 
 ---
 

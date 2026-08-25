@@ -1,6 +1,11 @@
 project_id = "loiavmastgeieqyiwyyr"
 
 [functions]
+  # Samme begrundelse som get-community-billed-url nedenfor: ny Bucket
+  # A-funktion, gatewayen bærer signaturtjekket (PR #267-mønstret).
+  # Advisor-gate via has_role FØR service-role-konstruktion.
+  [functions.agent-forslag-afgoer]
+    verify_jwt = true
   [functions.ai-financial-feedback]
     verify_jwt = false
   [functions.attach-user-to-company]
