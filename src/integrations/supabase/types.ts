@@ -276,6 +276,74 @@ export type Database = {
           },
         ]
       }
+      agent_runs: {
+        Row: {
+          company_id: string
+          created_at: string
+          deploy_stamp: string
+          error: string | null
+          finished_at: string
+          id: string
+          iterations: number
+          mode: string
+          model: string
+          period_key: string
+          period_label: string | null
+          produced_output: boolean
+          proposals: Json
+          reasoning: Json
+          started_at: string
+          stop_reason: string | null
+          trigger: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          deploy_stamp: string
+          error?: string | null
+          finished_at?: string
+          id?: string
+          iterations?: number
+          mode: string
+          model: string
+          period_key: string
+          period_label?: string | null
+          produced_output?: boolean
+          proposals?: Json
+          reasoning?: Json
+          started_at: string
+          stop_reason?: string | null
+          trigger: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          deploy_stamp?: string
+          error?: string | null
+          finished_at?: string
+          id?: string
+          iterations?: number
+          mode?: string
+          model?: string
+          period_key?: string
+          period_label?: string | null
+          produced_output?: boolean
+          proposals?: Json
+          reasoning?: Json
+          started_at?: string
+          stop_reason?: string | null
+          trigger?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agent_runs_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       app_config: {
         Row: {
           config_key: string
