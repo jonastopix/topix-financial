@@ -24,6 +24,22 @@ udskudt strukturel gæld).
 
 ---
 
+### [P0] Rådgiver-UX — navigation og informationsarkitektur gentænkes (Jonas 25/8)
+
+Hele navigationen og informationsarkitekturen for rådgiverpanelet skal
+gentænkes. Jonas 25/8: for langt ind til det vi bruger dagligt, for mange
+indgange, uoverskueligt når man lander det rigtige sted. Strukturelt spor
+på linje med chat-redesignet, IKKE kosmetik. Kræver egen recon og egen
+designbeslutning — må ikke afgøres som tilføjelse til et andet spor.
+
+Kendt konsekvens der hører til dette spor (bogført som konsekvens af
+beslutningen 25/8, ikke som fejl): onboarding-lukningen (design §8.1)
+fjernede også `notify_advisor`, så rådgiveren ikke længere får besked når
+et nyt medlem er aktivt og venter på en velkomst — den information findes
+nu kun i agent-loggen, fire klik nede i medlemsdetaljen.
+
+---
+
 ### [P1] ✅ Løst i PR #11 — `esm.sh`-imports uden version-pinning
 
 **Status**: Løst. Alle 54 imports af `@supabase/supabase-js` på tværs af edge functions er nu pinnet til eksakt `@2.97.0` (matcher `package.json`). Dækker både esm.sh-imports (52 linjer, statiske + dynamiske, single- og double-quote) og `npm:@supabase/supabase-js@2`-imports i `auth-email-hook` og `process-email-queue` (2 linjer). Ingen funktionel ændring — pinning-only.
@@ -1786,6 +1802,22 @@ overlevende lokalkopi driver fra sandheden. Ret ved lejlighed: erstat
 inline-blokken med `getISOWeekKey` fra week.ts. Ikke rettet i
 hændelses-PR'en, som bevidst kun rørte edge-runtimen (week.ts og dens
 forbrugere er korrekte og urørte).
+
+---
+
+### [P3] run-weekly-agents cron-schedule findes ikke i migrationerne (bogført 2026-08-25)
+
+Recon'en af run-company-agents kaldesteder fandt at `run-weekly-agent`
+kører i prod (design §3 målte den mandag 2026-08-24: 35 opgaver til 13
+virksomheder), men **intet** `cron.schedule`-kald i
+`supabase/migrations/` opretter jobbet — samtlige ni erklærede
+cron-bodies kalder andre functions. Jobbet må være oprettet direkte i
+prod (Lovable SQL editor) udenom migrationshistorikken. Konsekvens:
+repoet kan hverken bevise jobbets eksistens, tidspunkt eller body, og en
+gendannelse fra migrationer ville tavst miste det ugentlige agent-spor.
+Bevis og bogføring: kør `SELECT jobname, schedule, command FROM cron.job;`
+i Lovable SQL editor og nedfæld jobbet i en migration (skabelon:
+`20260810230000_cron_oprydning.sql` — idempotent unschedule + schedule).
 
 ---
 

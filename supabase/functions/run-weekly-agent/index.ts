@@ -75,6 +75,9 @@ Deno.cron("weekly-company-agent", "0 7 * * 1", async () => {
         trigger: "weekly_cron",
         period_key: latestFact.period_key,
         period_label: latestFact.period_label,
+        // Live-kørsel — eksplicit: tør er default i run-company-agent, og
+        // live skal være et ord nogen har skrevet, aldrig noget nogen glemte.
+        dry_run: false,
       }),
     });
 

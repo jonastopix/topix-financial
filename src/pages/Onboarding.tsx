@@ -91,13 +91,16 @@ const Onboarding = () => {
           .from("companies")
           .update({ onboarding_completed: true })
           .eq("id", companyId);
-        // Fire and forget — agent sender velkomst som rådgiver
+        // Fire and forget — TØR (lukket 2026-08-25): agenten sender ikke
+        // længere velkomst direkte; forslagene lander i agent_proposals og
+        // godkendes af en rådgiver.
         supabase.functions.invoke("run-company-agent", {
           body: {
             company_id: companyId,
             trigger: "onboarding",
             period_key: new Date().toISOString().slice(0, 7),
             period_label: new Date().toLocaleDateString("da-DK", { month: "long", year: "numeric" }),
+            dry_run: true,
           },
         }).catch((err) => console.warn("Onboarding agent failed:", err));
       }

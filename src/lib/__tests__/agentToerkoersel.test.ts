@@ -66,3 +66,28 @@ describe("agentToerkoersel — tør-kørslens snit", () => {
     }
   });
 });
+
+describe("run-company-agent — trigger- og default-værn (beslutning 2026-08-25)", () => {
+  it("hver trigger i KNOWN_TRIGGERS har en post i POOL_BLOCKLIST", () => {
+    // Recon 2026-08-25 fandt hullet: onboarding manglede en post og fik
+    // dermed FULD tool-pool inkl. write_chat_message. En trigger uden
+    // erklæret blocklist er en manglende beslutning, ikke en tilladelse.
+    const ktBlok = rcaSource.match(/const KNOWN_TRIGGERS = \[([\s\S]*?)\]/);
+    expect(ktBlok, "KNOWN_TRIGGERS-arrayet ikke fundet — regex-forudsætningen holder ikke").toBeTruthy();
+    const triggers = [...ktBlok![1].matchAll(/"([a-z_]+)"/g)].map((m) => m[1]);
+    expect(triggers.length).toBeGreaterThanOrEqual(6);
+
+    const pbBlok = rcaSource.match(/const POOL_BLOCKLIST[\s\S]*?\{([\s\S]*?)\};/);
+    expect(pbBlok, "POOL_BLOCKLIST-objektet ikke fundet — regex-forudsætningen holder ikke").toBeTruthy();
+    const blocklistKeys = [...pbBlok![1].matchAll(/^\s*([a-z_]+):\s*\[/gm)].map((m) => m[1]);
+    for (const trigger of triggers) {
+      expect(blocklistKeys, `trigger '${trigger}' mangler en post i POOL_BLOCKLIST`).toContain(trigger);
+    }
+  });
+
+  it("tør er default: kun body.dry_run === false giver en live-kørsel", () => {
+    // Live skal være et ord nogen har skrevet, aldrig noget nogen glemte.
+    expect(rcaSource).toContain("const dryRun = body.dry_run !== false");
+    expect(rcaSource).not.toContain("body.dry_run === true");
+  });
+});
