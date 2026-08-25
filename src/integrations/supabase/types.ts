@@ -284,6 +284,7 @@ export type Database = {
           created_at: string
           decided_at: string | null
           decided_by: string | null
+          decision_category: string | null
           decision_reason: string | null
           edited_args: Json | null
           id: string
@@ -301,6 +302,7 @@ export type Database = {
           created_at?: string
           decided_at?: string | null
           decided_by?: string | null
+          decision_category?: string | null
           decision_reason?: string | null
           edited_args?: Json | null
           id?: string
@@ -318,6 +320,7 @@ export type Database = {
           created_at?: string
           decided_at?: string | null
           decided_by?: string | null
+          decision_category?: string | null
           decision_reason?: string | null
           edited_args?: Json | null
           id?: string
