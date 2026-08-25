@@ -2,8 +2,10 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
 import { authenticateUser, corsHeaders } from "../_shared/edgeFunctionAuth.ts";
 import { aiGatewayFetch } from "../_shared/aiGatewayFetch.ts";
 import { beregnUdloeb } from "../_shared/opgaveUdloeb.ts";
+import { SKRIVE_TOOLS, toerResultat } from "../_shared/agentToerkoersel.ts";
 
-const DEPLOY_STAMP = "run-company-agent v1 (2026-06-17)";
+const DEPLOY_STAMP = "run-company-agent v2 toerkoersel (2026-08-25)";
+const MODEL = "google/gemini-2.5-flash";
 
 const SYSTEM_PROMPT = `Du er en proaktiv finansiel sparringspartner for The Boardroom — en platform der hjælper danske iværksættere med at drive bedre virksomheder.
 
@@ -923,6 +925,11 @@ Deno.serve(async (req) => {
   const body = await req.json();
   const { company_id, trigger, period_key, period_label } = body;
 
+  // Tør-kørsel (design §4.1): læse-tools kører normalt, skrivekald opsnappes
+  // som forslag og registreres i agent_runs i stedet for at blive udført.
+  // Eksplicit opt-in — alt andet end body.dry_run === true er en live-kørsel.
+  const dryRun = body.dry_run === true;
+
   const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   const PERIOD_RE = /^\d{4}-\d{2}$/;
 
@@ -1063,12 +1070,16 @@ ${trigger === "pulse_submitted"
     ];
 
     const MAX_ITERATIONS = 12;
+    const startedAt = new Date();
     let iterations = 0;
     let done = false;
     let messageWritten = false;   // KUN write_chat_message; styrer onboarding_completed
     let producedOutput = false;   // write_chat_message ELLER write_session_prep; styrer success-gaten
     let lastError: string | null = null;
     let stopReason: string | null = null;
+    // Opsnappede skrivekald (kun tør-kørsel). Args er de SANITEREDE args —
+    // company_id-tvangsoverskrivningen er sket før opsnapningen.
+    const proposals: Array<{ tool: string; args: unknown; iteration: number; proposed_at: string }> = [];
 
     while (!done && iterations < MAX_ITERATIONS) {
       iterations++;
@@ -1085,7 +1096,7 @@ ${trigger === "pulse_submitted"
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            model: "google/gemini-2.5-flash",
+            model: MODEL,
             messages,
             tools: activeTools,
             tool_choice: "auto",
@@ -1148,6 +1159,20 @@ ${trigger === "pulse_submitted"
           // modellen at kaldet blev afvist, saa den kan vaelge et tilladt tool naeste gang.
           console.log(`[run-company-agent] trigger=${trigger} BLOCKED tool call afvist: ${toolName}`);
           toolResult = { ok: false, blocked: true, reason: `tool '${toolName}' ikke tilladt for trigger '${trigger}'` };
+        } else if (dryRun && SKRIVE_TOOLS.has(toolName)) {
+          // Tør-kørslens snit (design §4.1): skrivekaldet registreres som
+          // forslag og udføres IKKE. Blocklist-tjekket står bevidst FØR —
+          // et blokeret tool skal afvises som blokeret, ikke gemmes som
+          // forslag. Modellen får ok:true-stubben fra toerResultat, så den
+          // fortsætter sin plan i stedet for at prøve igen eller opgive.
+          proposals.push({
+            tool: toolName,
+            args: toolArgs,
+            iteration: iterations,
+            proposed_at: new Date().toISOString(),
+          });
+          console.log(`[run-company-agent] trigger=${trigger} DRY-RUN opsnappet: ${toolName} (forslag #${proposals.length})`);
+          toolResult = toerResultat(toolName);
         } else {
           try {
             toolResult = await executeTool(toolName, toolArgs, adminClient, trigger, period_key);
@@ -1157,8 +1182,12 @@ ${trigger === "pulse_submitted"
           }
         }
 
+        // Succes-gaten tæller også OPSNAPPEDE kald (toerResultat er ok:true) —
+        // en tør-kørsel der ville have skrevet, er en succesfuld kørsel.
+        // messageWritten forbliver KUN live: den styrer onboarding_completed,
+        // og en tør onboarding må ikke markere onboarding som fuldført.
         if (toolName === "write_chat_message" && toolResult?.ok === true) {
-          messageWritten = true;
+          if (!dryRun) messageWritten = true;
           producedOutput = true;
         }
         // Advisor-only-koersler (de fire rutine-triggers) lykkes naar agenten har
@@ -1181,14 +1210,69 @@ ${trigger === "pulse_submitted"
       messages.push(...toolResults);
     }
 
+    // Kørselslog (design §4.2) — FØR succes-gaten, så også kørsler uden
+    // output logges. reasoning = messages-arrayet MINUS system-prompten
+    // (index 0): prompten er kode, og deploy_stamp identificerer versionen.
+    // Best effort for live-kørsler (loggen må ikke vælte skrivninger der
+    // allerede er udført); for tør-kørsler er rækken selve outputtet — en
+    // tør-kørsel uden logget række fejler ærligt nedenfor.
+    const stopReasonFinal = stopReason || (done ? "finish" : "max_iterations_reached");
+    let runId: string | null = null;
+    let runLogError: string | null = null;
+    try {
+      const { data: runRow, error: runErr } = await adminClient
+        .from("agent_runs")
+        .insert({
+          company_id,
+          trigger,
+          period_key,
+          period_label: period_label ?? null,
+          mode: dryRun ? "dry_run" : "live",
+          model: MODEL,
+          deploy_stamp: DEPLOY_STAMP,
+          iterations,
+          stop_reason: stopReasonFinal,
+          produced_output: producedOutput,
+          error: lastError,
+          reasoning: messages.slice(1),
+          proposals,
+          started_at: startedAt.toISOString(),
+          finished_at: new Date().toISOString(),
+        })
+        .select("id")
+        .single();
+      if (runErr) throw new Error(runErr.message);
+      runId = runRow.id;
+    } catch (err) {
+      runLogError = err instanceof Error ? err.message : String(err);
+      console.error("[run-company-agent] agent_runs insert fejlede:", runLogError);
+    }
+
+    if (dryRun && !runId) {
+      return new Response(
+        JSON.stringify({
+          ok: false,
+          dry_run: true,
+          run_id: null,
+          iterations,
+          proposals: proposals.length,
+          error: `run_log_failed: ${runLogError} — tør-kørslens forslag er IKKE gemt (er agent_runs-migrationen kørt i Lovable?)`,
+        }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     if (!producedOutput) {
       return new Response(
         JSON.stringify({
           ok: false,
           done,
           iterations,
+          dry_run: dryRun,
+          run_id: runId,
+          proposals: proposals.length,
           error: lastError || "Agent fuldførte uden at producere output (hverken chat-besked eller session-forberedelse)",
-          diagnostics: { stop_reason: stopReason || "max_iterations_reached", produced_output: false },
+          diagnostics: { stop_reason: stopReasonFinal, produced_output: false },
         }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
@@ -1203,7 +1287,16 @@ ${trigger === "pulse_submitted"
     }
 
     return new Response(
-      JSON.stringify({ ok: true, iterations, done, produced_output: true, message_written: messageWritten }),
+      JSON.stringify({
+        ok: true,
+        iterations,
+        done,
+        produced_output: true,
+        message_written: messageWritten,
+        dry_run: dryRun,
+        run_id: runId,
+        proposals: proposals.length,
+      }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (err) {

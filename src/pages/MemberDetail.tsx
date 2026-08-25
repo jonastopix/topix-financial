@@ -1669,21 +1669,30 @@ const MemberDetail = () => {
                                       || report.manual_report_period_label
                                       || report.report_period;
 
+                                    // Tør-kørsel (design §4.1): skrivekald opsnappes som forslag
+                                    // og registreres i agent_runs — intet når medlemmet.
                                     const { data: agentData, error: agentError } = await supabase.functions.invoke("run-company-agent", {
                                       body: {
                                         company_id: memberCompanyId,
                                         trigger: "report_committed",
                                         period_key: resolvedPeriodKey,
                                         period_label: resolvedPeriodLabel,
+                                        dry_run: true,
                                       },
                                     });
 
                                     if (agentError) throw agentError;
                                     if (!agentData?.ok) {
-                                      throw new Error(agentData?.error || "Agenten skrev ingen besked");
+                                      throw new Error(agentData?.error || "Agenten producerede intet output");
+                                    }
+                                    if (agentData?.dry_run !== true) {
+                                      // Gammel funktions-version uden dry_run: kørslen var LIVE.
+                                      throw new Error("Kørslen var IKKE tør — funktionen i prod kender ikke dry_run endnu. Skrivninger kan være udført; verificér deploy.");
                                     }
 
-                                    toast.success("Agent kørt ✓", { description: "Tjek chatten for analysen." });
+                                    toast.success("Tør-kørsel gennemført ✓", {
+                                      description: `${agentData?.proposals ?? 0} forslag registreret i kørselsloggen (agent_runs) — intet er sendt til medlemmet.`,
+                                    });
                                   } catch (err) {
                                     console.error("Agent error:", err);
                                     toast.error("Agent fejlede", { description: err instanceof Error ? err.message : String(err) });
@@ -1695,7 +1704,7 @@ const MemberDetail = () => {
                                 className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
                               >
                                 <Sparkles className="h-3 w-3" />
-                                {agentRunning === report.id ? "Kører..." : "Kør agent"}
+                                {agentRunning === report.id ? "Kører..." : "Kør agent (tørt)"}
                               </button>
                             )}
                             {report.processed_at && (
