@@ -5,7 +5,7 @@ import { beregnUdloeb } from "../_shared/opgaveUdloeb.ts";
 import { SKRIVE_TOOLS, toerResultat } from "../_shared/agentToerkoersel.ts";
 import { effektivRapportPeriodeKey, rapporteringsStatus } from "../_shared/rapportStatus.ts";
 
-const DEPLOY_STAMP = "run-company-agent v4 virksomhedskoersel (2026-08-25)";
+const DEPLOY_STAMP = "run-company-agent v5 agent-proposals (2026-08-25)";
 const MODEL = "google/gemini-2.5-flash";
 
 // ARBEJDSGANGS-MINIMUMMET I PROMPTEN — hvorfor det findes: målt mod prod
@@ -1544,6 +1544,40 @@ ${trigger === "pulse_submitted"
         }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
+    }
+
+    // Godkendelseslaget (design §7): hvert opsnappet forslag spejles som
+    // egen række i agent_proposals — arrayets rækkefølge ER position, og
+    // (run_id, position) er identiteten beslutninger senere hænges på.
+    // Fejler insertet, fejler kørslen ÆRLIGT som run_log_failed gør det:
+    // en tør-kørsel hvis forslag ikke kan besluttes, er ikke lykkedes.
+    if (runId && proposals.length > 0) {
+      const proposalRows = proposals.map((p, i) => ({
+        run_id: runId,
+        company_id,
+        position: i,
+        tool: p.tool,
+        args: p.args ?? {},
+        iteration: p.iteration,
+        proposed_at: p.proposed_at,
+      }));
+      const { error: propErr } = await adminClient
+        .from("agent_proposals")
+        .insert(proposalRows);
+      if (propErr) {
+        console.error("[run-company-agent] agent_proposals insert fejlede:", propErr.message);
+        return new Response(
+          JSON.stringify({
+            ok: false,
+            dry_run: dryRun,
+            run_id: runId,
+            iterations,
+            proposals: proposals.length,
+            error: `proposals_log_failed: ${propErr.message} — kørslen er logget (agent_runs), men forslagene er IKKE oprettet som beslutningsrækker (er agent_proposals-migrationen kørt i Lovable?)`,
+          }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
     }
 
     if (!producedOutput) {

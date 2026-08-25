@@ -430,6 +430,16 @@ skrivende edge functions bruger `SUPABASE_SERVICE_ROLE_KEY`.
   Opbevaringstid er et åbent spørgsmål (design §6.3) — forslaget i
   migrationskommentaren (reasoning nulstilles efter 90 dage, række slettes
   efter 12 mdr.) er ikke besluttet, og ingen oprydning kører endnu.
+- `agent_proposals` — ét agent-forslag pr. række til godkendelseslaget
+  (migration `20260825200000_agent_proposals.sql`,
+  `docs/agent-forslag-design.md` §7). Samme form som agent_runs:
+  rådgiver-SELECT via `has_role`, service-role ALL, INGEN
+  klient-skrivepolicies — heller ikke for rådgivere: afgørelser
+  (approved/rejected) er tilstandsovergange og skal dømmes i en kommende
+  Bucket A-edge function, ikke i klient-RLS. CHECK-constraints:
+  `forkast_kraever_grund` (rejected kræver ikke-tom decision_reason) og
+  `afgjort_kraever_afgoerer` (afgørelse kræver decided_by + decided_at).
+  ON DELETE CASCADE fra både agent_runs og companies.
 
 ---
 
