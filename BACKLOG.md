@@ -1732,6 +1732,63 @@ repoet. Nummereringen her følger den fælles idéliste.)
 
 ---
 
+### ✅ LUKKET HÆNDELSE 2026-08-25 — agentens uge-nøgle var én uge bagud i fire måneder
+
+**Hvad der skete**: Agentens skrivevej for `weekly_focus` (oprindeligt
+`run-company-agent` executeTool, siden PR #428 `_shared/agentSkriveveje.ts`)
+beregnede uge-nøglen med et MANDAGS-anker (`+ 1 - dayNum`) i stedet for
+ISO-8601's torsdags-anker. I år hvor 1. januar ikke er en mandag, giver det
+systematisk én uge for lidt — i 2026 (1/1 = torsdag) hele året.
+`generate-weekly-focus` havde sin egen, korrekte torsdags-formel. To
+formler, uenige, om samme kolonne.
+
+**Hvor længe og omfang**: Første forkerte række 2026-04-21, seneste
+2026-08-25 — fire måneder. Målt i prod: **42 af 144 rækker** med week_key
+præcis én uge bagud, fordelt på **19 virksomheder** (report_committed 33,
+onboarding 5, pulse_submitted 3, company_review 1). Cron'ens egne rækker
+er korrekte.
+
+**Konsekvensen**: Læsesiden (DashboardActionCenter, BoardroomView,
+AdvisorCompanyOverview) vælger på week_key mod ægte ISO-uge — **ingen af
+de 42 kort er nogensinde blevet vist** for hverken medlem eller rådgiver.
+Værre: upserten på (company_id, week_key) ramte den FORRIGE uges nøgle og
+**overskrev cron'ens kort for ugen før** hver gang.
+
+**Fixet (PR: uge-noegle-iso)**: Én kanonisk formel i
+`supabase/functions/_shared/isoUge.ts` (torsdags-ankeret, flyttet ordret
+fra generate-weekly-focus); begge skrivere importerer den;
+mandags-formlen er slettet; testværn med faste datoer + helårs-paritet +
+kildeværn mod nye inline-kopier (`src/lib/__tests__/isoUge.test.ts`).
+
+**Hvorfor historikken IKKE rettes**: De 42 rækkers "rigtige" uger er i
+mange tilfælde optaget af cron'ens egne korrekte rækker — en UPDATE ville
+kollidere med UNIQUE(company_id, week_key). Og de cron-kort som upserterne
+overskrev, er uigenkaldeligt væk (upsert efterlader ingen historik). At
+flytte de 42 til deres ISO-uger ville altså hverken genskabe det tabte
+eller kunne gennemføres konsistent. Rækkerne bliver stående som de er;
+`triggers_fired`-kolonnen udpeger dem.
+
+**Hvad der fandt den**: En MÅLING af en enkelt godkendelse (agent_runs →
+weekly_focus-rækken den skrev), ikke en fejlrapport. Fejlen var usynlig i
+fire måneder netop fordi dens output aldrig blev vist nogen steder —
+tavse fejl opdages kun ved at efterprøve skrivninger mod deres mål.
+
+---
+
+### [P3] AdvisorCompanyOverview har en dubleret (men korrekt) inline ISO-uge-formel (bogført 2026-08-25)
+
+`src/components/AdvisorCompanyOverview.tsx:305-311` beregner uge-nøglen
+med sin egen inline-kopi af torsdags-formlen i stedet for at importere
+`src/lib/hjemmebane/week.ts` (frontendens delte kilde, som
+DashboardActionCenter, BoardroomView og pushSelection bruger). Kopien er
+KORREKT — men uge-nøgle-hændelsen ovenfor viste præcis hvordan en
+overlevende lokalkopi driver fra sandheden. Ret ved lejlighed: erstat
+inline-blokken med `getISOWeekKey` fra week.ts. Ikke rettet i
+hændelses-PR'en, som bevidst kun rørte edge-runtimen (week.ts og dens
+forbrugere er korrekte og urørte).
+
+---
+
 ## Anbefalet rækkefølge
 
 1. **[P0] `get_users_last_login`** først. Eneste aktive læk; lav indsats; ingen FORBIDDEN-overlap.

@@ -18,22 +18,20 @@
  * deres gentagelses-semantik er besluttet.
  */
 
+import { getISOWeekKey } from "./isoUge.ts";
+
 /** update_weekly_focus: upsert af ugens fokus-kort. Uge-nøglen beregnes
-    af SKRIVETIDSPUNKTET (ISO-uge, mandag som anker) — ved godkendelse er
-    det godkendelsens uge (design §7.6: et kort skrevet til en forgangen
-    uge ville lande et sted medlemmet aldrig ser det). At et eksisterende
-    kort overskrives uden forhåndsvisning er §7.5. */
+    af SKRIVETIDSPUNKTET som ÆGTE ISO-8601 via _shared/isoUge.ts (design
+    §7.6; hændelsen 2026-08-25: den tidligere mandags-ankrede lokalformel
+    skrev én uge bagud og gjorde hvert kort usynligt) — ved godkendelse
+    er det godkendelsens uge. At et eksisterende kort overskrives uden
+    forhåndsvisning er §7.5. */
 export async function skrivUgensFokus(
   adminClient: any,
   args: { company_id: string; headline?: unknown; summary?: unknown },
   trigger: string,
 ): Promise<{ ok: true; week_key: string }> {
-  const now = new Date();
-  const dayNum = now.getUTCDay() || 7;
-  const monday = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1 - dayNum));
-  const yearStart = new Date(Date.UTC(monday.getUTCFullYear(), 0, 1));
-  const weekNo = Math.ceil((((monday.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
-  const weekKey = `${monday.getUTCFullYear()}-W${String(weekNo).padStart(2, "0")}`;
+  const weekKey = getISOWeekKey(new Date());
 
   const { error } = await adminClient
     .from("weekly_focus")
