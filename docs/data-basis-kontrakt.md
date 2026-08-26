@@ -83,6 +83,45 @@ målinger. Delte serier tegnes UDEN connectNulls (dokbloks-begrundelse i
 motoren). Tooltip dedup'es pr. basenøgle og mærker estimatpunkter
 (" · estimat"); forklaringen under grafen genbruger ESTIMAT_FORKLARING.
 
+## Undtagelsen: periodetotaler (2026-08-27, branch `periode-opgoerelse`)
+
+Kontrakten "beregninger udelukker estimater" er begrundet i at den ENKELTE
+estimatmåned er fiktion: extract-annual-report skriver `årstal/12` i tolv
+identiske rækker, så "marts 2025 = 48.000 kr" er ikke en observation af
+marts — det er en regnekonstruktion. Enhver beregning der behandler den
+som en måned (M/M, forecast-trend, budgetafvigelse) måler derfor på noget
+der ikke findes. Deraf gaterne.
+
+**Summen over hele estimatår er det modsatte tilfælde.** Divisionen med 12
+er reversibel: 12 × (årstal/12) giver årsrapportens rigtige årstal tilbage
+(på nær `Math.round`-afrunding, højst 6 kr pr. år — bevist i
+`src/lib/__tests__/periodeOpgoerelse.test.ts`). Fiktionen ligger i
+FORDELINGEN hen over månederne, ikke i totalen — og en sum over hele året
+er præcis den operation der annullerer fordelingen. Årsrapportens årstal er
+oven i købet et REVIDERET tal; for et helt estimatår er periodetotalen
+derfor mere pålidelig end nogen enkelt målt måned.
+
+Derfor gælder for periodetotaler (motoren `src/lib/periodeOpgoerelse.ts`,
+`opgoerPeriode`): estimater regnes MED, og grundlaget bæres ud pr. nøgle
+(basis: measured/estimated/blandet, estimatAndel til "heraf estimeret"),
+så visningen kan sige det — kontraktens visningsled gælder uændret.
+
+Grænsen for undtagelsen er skarp og hedder `heleEstimatAar`:
+- **Hele kalenderår af estimater i perioden** → summen er årsrapportens
+  eksakte tal. Undtagelsen gælder fuldt.
+- **Delår** (fx 6 af 12 estimatmåneder i "Seneste 12") → summen hviler på
+  en jævnhedsantagelse: "halvdelen af månederne = halvdelen af årstallet"
+  påstår at halvåret stod for præcis 50 % af årets aktivitet. Det er en
+  antagelse, ikke et tal fra årsrapporten — flaget er falsk, og visningen
+  bør formulere sig derefter.
+
+Arts-reglerne (hvad "total" overhovedet betyder): flows summeres; forhold
+beregnes ved at køre MÅNEDSFORMLEN (calcDbMargin/calcResultMargin via
+udtraek) på ét summeret kf-objekt — aldrig gennemsnit af månedsprocenter;
+beholdninger (bank) summeres aldrig men viser ultimo, med kilderækkens
+EGEN basis (banken kan komme fra en ældre, evt. estimeret, måned).
+Mål er holdt ude af motoren — månedsmål × N er visningens beslutning.
+
 ## Deploy-note
 
 Migrationen køres manuelt i Lovable → SQL editor (jf. CLAUDE.md).

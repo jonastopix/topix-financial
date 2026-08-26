@@ -1900,6 +1900,12 @@ Samlepunkt for kendte mobil-/touch-mangler til en samlet gennemgang:
 
 ---
 
+### [P2] Vercel-GitHub-appen efterlader evigt-queued check-suites — gh pr checks kan melde falsk "no checks" (bogført 2026-08-27)
+
+Vercel-GitHub-appen opretter check-suites på repoet der hænger i `queued` for evigt og aldrig producerer check-runs. Det får `gh pr checks` til at melde "no checks" selv når Tests er grøn, og holder PR'ens `mergeable` på UNKNOWN. Observeret på PR #438 (periode-opgoerelse): github-actions-suiten var `completed success` (Tests, 41s), men porten meldte tomt. `gh pr checks` har været brugt som port før merge på ti PR'er 26/8 — porten kan altså lukke i uden at sige fra. Der deployes ikke via Vercel (Lovable ejer deploy), så appen bør fjernes fra repoets GitHub-integrationer. Indtil da: verificér med `gh run list --branch <branch>` frem for `gh pr checks` alene.
+
+---
+
 ## Anbefalet rækkefølge
 
 1. **[P0] `get_users_last_login`** først. Eneste aktive læk; lav indsats; ingen FORBIDDEN-overlap.
