@@ -263,6 +263,9 @@ NETTOOMSÆTNING — VIGTIGT: Nettoomsætning kan stå under mange navne i danske
       period_label: `${DANISH_MONTHS[i]} ${year}`,
       source_report_id: report_id,
       source_type: "annual_report",
+      // Årstal fordelt /12 — aldrig en måling af måneden (data_basis-kontrakten,
+      // migration 20260826120000). Sættes eksplicit; default'en er kun et værn.
+      data_basis: "estimated",
       metrics,
       committed_by: user_id || null,
       committed_at: new Date().toISOString(),

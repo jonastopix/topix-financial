@@ -19,6 +19,10 @@ export interface CompanyFact {
   period_label: string;
   source_report_id: string;
   source_type: string;
+  /** HVAD rækken er: 'measured' = rigtig periode-rapport; 'estimated' =
+      afledt/fordelt (årsrapport /12, baseline). source_type bærer HVEM der
+      skrev — kun data_basis bærer dommen (migration 20260826120000). */
+  data_basis: "measured" | "estimated";
   metrics: Record<string, number>;
   committed_at: string;
 }
@@ -46,7 +50,7 @@ export function useCompanyFacts(overrideCompanyId?: string) {
       const { data, error } = await supabase
         .from("financial_report_facts")
         .select(
-          "id, period_key, period_label, source_report_id, source_type, metrics, committed_at"
+          "id, period_key, period_label, source_report_id, source_type, data_basis, metrics, committed_at"
         )
         .eq("company_id", companyId!)
         .order("period_key", { ascending: true });
