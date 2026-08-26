@@ -72,8 +72,16 @@ forklaring bor dér, og formuleringen matcher uploadsidens eget løfte
 ("tallene fordeles over 12 måneder og giver dine grafer historisk
 kontekst"). Mærket bruges af Nøgletal-tælleren (opgoerGrundlag),
 månedstabellens headere, branchesammenligningens "dig"-værdi og forsidens
-TalStrip. Rest: graf-linjernes segmentering (`segmenterSerie` står klar) —
-se BACKLOG.
+TalStrip.
+
+Graf-linjer pr. 2026-08-26 (branch `estimat-graflinje` — kontraktens sidste
+led): `delSerieTilTegning` i `src/lib/dataGrundlag.ts` spalter hver
+værdinøgle i målt + `__estimat` med grænsepunktet i begge nøgler, så
+estimat-delen tegnes prikket i samme farve uden udfyldning og uden hul.
+Reglen: en strækning er kun fuldt optrukket når BEGGE endepunkter er
+målinger. Delte serier tegnes UDEN connectNulls (dokbloks-begrundelse i
+motoren). Tooltip dedup'es pr. basenøgle og mærker estimatpunkter
+(" · estimat"); forklaringen under grafen genbruger ESTIMAT_FORKLARING.
 
 ## Deploy-note
 

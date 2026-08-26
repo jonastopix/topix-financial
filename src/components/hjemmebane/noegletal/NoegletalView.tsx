@@ -1,5 +1,5 @@
 import * as React from "react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -35,7 +35,15 @@ import { HbField, HbInput, HbSelect, hbControlClasses } from "../admin/HbField";
 import { HbSegmented } from "../admin/HbSegmented";
 import { deriveKpiTone, type KpiToneView } from "./kpiTone";
 import { deriveMoMChange } from "./trendMoM";
-import { momErGyldig, opgoerGrundlag, type DataBasis } from "@/lib/dataGrundlag";
+import {
+  basisNoegle,
+  delSerieTilTegning,
+  erEstimatNoegle,
+  ESTIMAT_NOEGLE_SUFFIX,
+  momErGyldig,
+  opgoerGrundlag,
+  type DataBasis,
+} from "@/lib/dataGrundlag";
 import { ESTIMAT_FORKLARING, EstimatMaerke } from "../EstimatMaerke";
 
 /** Nøgletal (/noegletal → /kpis ved GO) — FULD PARITET + trend/AI
@@ -79,6 +87,51 @@ const hbTooltipStyle = {
   },
   labelStyle: { color: "hsl(var(--hb-ink))", fontWeight: 600 },
   itemStyle: { color: "hsl(var(--hb-ink-soft))" },
+};
+
+/** Tooltip til DELTE serier (delSerieTilTegning): grænsepunktet bærer værdi
+    i både den målte og estimat-nøglen, så recharts' standard-tooltip ville
+    vise samme tal to gange — her dedup'es pr. basenøgle (målt vinder), og
+    rene estimatpunkter mærkes " · estimat". Samme visuelle udtryk som
+    hbTooltipStyle. */
+const DeltSerieTooltip = ({
+  active,
+  payload,
+  label,
+  labelFor,
+  format,
+}: {
+  active?: boolean;
+  payload?: { dataKey?: string | number; value?: number | null }[];
+  label?: string;
+  labelFor: (baseKey: string) => string;
+  format: (value: number) => string;
+}) => {
+  if (!active || !payload?.length) return null;
+  const raekker = new Map<string, { vaerdi: number; estimat: boolean }>();
+  for (const item of payload) {
+    if (item.value == null) continue;
+    const noegle = String(item.dataKey);
+    const base = basisNoegle(noegle);
+    const erEst = erEstimatNoegle(noegle);
+    const eksisterende = raekker.get(base);
+    // Findes en række allerede, vinder den — medmindre den er estimat og
+    // den nye er målt (grænsepunktet: den målte værdi er dommen).
+    if (eksisterende && (erEst || !eksisterende.estimat)) continue;
+    raekker.set(base, { vaerdi: item.value, estimat: erEst });
+  }
+  if (raekker.size === 0) return null;
+  return (
+    <div className="text-xs" style={{ ...hbTooltipStyle.contentStyle, padding: "8px 12px" }}>
+      <p style={hbTooltipStyle.labelStyle}>{label}</p>
+      {[...raekker.entries()].map(([base, r]) => (
+        <p key={base} className="mt-1" style={hbTooltipStyle.itemStyle}>
+          {labelFor(base)}: {format(r.vaerdi)}
+          {r.estimat ? " · estimat" : ""}
+        </p>
+      ))}
+    </div>
+  );
 };
 
 /** Hero-prikken: hit=●, near=◐, off=○, no_target=stiplet (StateDot-formsproget). */
@@ -184,6 +237,16 @@ export const NoegletalView = () => {
       })
       .filter(Boolean) as ({ data_basis: DataBasis } & Record<string, any>)[];
   }, [facts, trendPeriod.mode, trendPeriod.customFrom, trendPeriod.customTo]);
+
+  // Delt tegnings-serie (data_basis-kontrakten, sidste led): hver værdinøgle
+  // spaltes i målt + __estimat-nøgle med grænsepunktet i begge, så estimat-
+  // delen kan tegnes prikket i samme farve uden hul. OBS: delte serier
+  // tegnes UDEN connectNulls (motor-dokblokken forklarer hvorfor).
+  const trendTegning = useMemo(
+    () => delSerieTilTegning(trendData, HB_SERIES.map((s) => s.key)),
+    [trendData],
+  );
+  const trendHarEstimater = trendData.some((d) => d.data_basis === "estimated");
 
   // Samtale-id til AI-analysens beskedkobling (arvet fra Reports.loadData).
   const { data: conversationId = null } = useQuery({
@@ -413,6 +476,10 @@ export const NoegletalView = () => {
 
   const activeMetric = kpiMetrics.find((m) => m.key === selectedKPI) ?? kpiMetrics[0];
   const activeUnit = KPI_DEFS.find((d) => d.key === activeMetric?.key)?.unit;
+  // Detail-grafens delte serie (value / value__estimat) — history bærer
+  // data_basis pr. punkt siden estimat-beregningsgrundlag-PR'en.
+  const historyTegning = activeMetric ? delSerieTilTegning(activeMetric.history, ["value"]) : [];
+  const historyHarEstimater = (activeMetric?.history ?? []).some((h) => h.data_basis === "estimated");
 
   // Gauge-rækker: branche-nøgler mappes til fladens def-nøgler
   // (INDUSTRY_TO_DEF_KEY, gamle sides sandhed). Kun RENDERBARE rækker
@@ -458,6 +525,15 @@ export const NoegletalView = () => {
         />
       </g>
     );
+  };
+
+  /** Dot/activeDot til detail-grafens ESTIMAT-serie: grænsepunktet bærer
+      værdi i begge nøgler og ville få to (klikbare) prikker oveni hinanden —
+      den målte serie ejer grænsepunktets prik, så her springes punkter med
+      målt værdi over. */
+  const renderEstimatCommentDot = (props: any) => {
+    if (props.payload?.value != null) return <g key={`estdot-${props.index}`} />;
+    return renderCommentDot(props);
   };
 
   return (
@@ -634,7 +710,7 @@ export const NoegletalView = () => {
 
                 <div className="mt-4 h-72">
                   <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={trendData} margin={{ top: 18, right: 20, left: 10, bottom: 5 }}>
+                    <AreaChart data={trendTegning} margin={{ top: 18, right: 20, left: 10, bottom: 5 }}>
                       <defs>
                         {HB_SERIES.map((s) => (
                           <linearGradient key={`hbgrad-${s.key}`} id={`hbgrad-${s.key}`} x1="0" y1="0" x2="0" y2="1">
@@ -647,32 +723,57 @@ export const NoegletalView = () => {
                       <XAxis dataKey="label" tick={{ fontSize: 11, fill: "hsl(var(--hb-ink-soft))" }} axisLine={false} tickLine={false} />
                       <YAxis tickFormatter={formatCompact} tick={{ fontSize: 11, fill: "hsl(var(--hb-ink-soft))" }} axisLine={false} tickLine={false} />
                       <Tooltip
-                        formatter={(value: number, name: string) => [formatDKK(value), HB_SERIES.find((s) => s.key === name)?.label || name]}
-                        {...hbTooltipStyle}
+                        content={
+                          <DeltSerieTooltip
+                            labelFor={(base) => HB_SERIES.find((s) => s.key === base)?.label || base}
+                            format={formatDKK}
+                          />
+                        }
                       />
+                      {/* Pr. serie TO Areas i samme farve: målt (fuldt optrukket)
+                          og estimat (prikket, ingen udfyldning). Signaturen får
+                          ingen ekstra poster — estimatet er samme størrelse målt
+                          på en anden måde. connectNulls er bevidst fjernet: den
+                          målte serie ville ellers bro-tegne fuldt optrukket hen
+                          over estimatsegmentet (delSerieTilTegning-dokblokken). */}
                       {HB_SERIES.map((s) => {
                         const isActive = activeSeries === s.key;
                         const isDefaultMain = !activeSeries && s.key === "omsaetning";
                         const highlighted = isActive || isDefaultMain;
                         return (
-                          <Area
-                            key={s.key}
-                            type="monotone"
-                            dataKey={s.key}
-                            stroke={s.color}
-                            strokeWidth={highlighted ? 2.5 : 0.8}
-                            opacity={highlighted ? 1 : activeSeries ? 0.15 : 0.4}
-                            strokeDasharray={highlighted ? undefined : "4 4"}
-                            fill={highlighted ? `url(#hbgrad-${s.key})` : "none"}
-                            dot={isActive ? { r: 3, fill: s.color, strokeWidth: 0 } : false}
-                            activeDot={{ r: isActive ? 5 : 3 }}
-                            connectNulls
-                          />
+                          <Fragment key={s.key}>
+                            <Area
+                              type="monotone"
+                              dataKey={s.key}
+                              stroke={s.color}
+                              strokeWidth={highlighted ? 2.5 : 0.8}
+                              opacity={highlighted ? 1 : activeSeries ? 0.15 : 0.4}
+                              strokeDasharray={highlighted ? undefined : "4 4"}
+                              fill={highlighted ? `url(#hbgrad-${s.key})` : "none"}
+                              dot={isActive ? { r: 3, fill: s.color, strokeWidth: 0 } : false}
+                              activeDot={{ r: isActive ? 5 : 3 }}
+                            />
+                            <Area
+                              type="monotone"
+                              dataKey={`${s.key}${ESTIMAT_NOEGLE_SUFFIX}`}
+                              stroke={s.color}
+                              strokeWidth={highlighted ? 2.5 : 0.8}
+                              opacity={highlighted ? 1 : activeSeries ? 0.15 : 0.4}
+                              strokeDasharray="1 4"
+                              strokeLinecap="round"
+                              fill="none"
+                              dot={isActive ? { r: 3, fill: s.color, strokeWidth: 0 } : false}
+                              activeDot={{ r: isActive ? 5 : 3 }}
+                            />
+                          </Fragment>
                         );
                       })}
                     </AreaChart>
                   </ResponsiveContainer>
                 </div>
+                {trendHarEstimater && (
+                  <p className="mt-2 text-xs text-hb-ink-soft">Prikket linje — {ESTIMAT_FORKLARING}</p>
+                )}
 
                 {/* M/M-indikatorer (deriveMoMChange-dommen) — gated af
                     momErGyldig: en M/M mod et /12-estimat måler afstanden
@@ -775,7 +876,7 @@ export const NoegletalView = () => {
               <HbCard className="relative p-6">
                 <div className="h-64">
                   <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={activeMetric.history} margin={{ top: 12, right: 16, left: 8, bottom: 4 }}>
+                    <AreaChart data={historyTegning} margin={{ top: 12, right: 16, left: 8, bottom: 4 }}>
                       <defs>
                         <linearGradient id="hbgrad-detail" x1="0" y1="0" x2="0" y2="1">
                           <stop offset="5%" stopColor="hsl(var(--hb-evergreen))" stopOpacity={0.25} />
@@ -785,23 +886,46 @@ export const NoegletalView = () => {
                       <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--hb-line))" vertical={false} />
                       <XAxis dataKey="month" tick={{ fontSize: 11, fill: "hsl(var(--hb-ink-soft))" }} axisLine={false} tickLine={false} />
                       <YAxis tickFormatter={activeUnit === "%" ? (v: number) => `${v} %` : formatCompact} tick={{ fontSize: 11, fill: "hsl(var(--hb-ink-soft))" }} axisLine={false} tickLine={false} />
-                      <Tooltip formatter={(value: number) => [activeUnit === "%" ? `${value.toFixed(1)} %` : formatDKK(value), activeMetric.label]} {...hbTooltipStyle} />
+                      <Tooltip
+                        content={
+                          <DeltSerieTooltip
+                            labelFor={() => activeMetric.label}
+                            format={(value) => (activeUnit === "%" ? `${value.toFixed(1)} %` : formatDKK(value))}
+                          />
+                        }
+                      />
                       {commentsForSelected.map((c) => (
                         <ReferenceLine key={c.id} x={activeMetric.history.find((h) => h.periodKey === c.period_key)?.month} stroke="hsl(var(--hb-rust))" strokeDasharray="4 4" opacity={0.5} />
                       ))}
+                      {/* Delt serie: målt fuldt optrukket m. udfyldning, estimat
+                          prikket i samme farve uden udfyldning. connectNulls er
+                          bevidst væk (delSerieTilTegning-dokblokken). */}
                       <Area
                         type="monotone"
                         dataKey="value"
                         stroke="hsl(var(--hb-evergreen))"
                         strokeWidth={2.5}
                         fill="url(#hbgrad-detail)"
-                        connectNulls
                         dot={renderCommentDot}
                         activeDot={renderCommentDot}
+                      />
+                      <Area
+                        type="monotone"
+                        dataKey={`value${ESTIMAT_NOEGLE_SUFFIX}`}
+                        stroke="hsl(var(--hb-evergreen))"
+                        strokeWidth={2.5}
+                        strokeDasharray="1 4"
+                        strokeLinecap="round"
+                        fill="none"
+                        dot={renderEstimatCommentDot}
+                        activeDot={renderEstimatCommentDot}
                       />
                     </AreaChart>
                   </ResponsiveContainer>
                 </div>
+                {historyHarEstimater && (
+                  <p className="mt-2 text-xs text-hb-ink-soft">Prikket linje — {ESTIMAT_FORKLARING}</p>
+                )}
 
                 {/* Kommentar-popover — advisors only. INGEN portal: absolut
                     Hb-kort i fladens eget DOM (theme-scope-lektionen). */}
