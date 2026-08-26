@@ -10,6 +10,12 @@
  * DO NOT treat Danish-key remapping as the long-term target model.
  * This file exists solely to avoid a big-bang rewrite of all component internals
  * during the initial facts consumer cutover.
+ *
+ * data_basis ('measured' | 'estimated') er en RÆKKE-kolonne på CompanyFact
+ * (useCompanyFacts), ikke en metrics-nøgle — den passerer altså UDEN OM denne
+ * adapter og må aldrig flyttes ind i metrics-objektet. Konsumenter der afleder
+ * strukturer af facts (monthlyData o.lign.) skal selv bære feltet med fra
+ * rækken, når de en dag skal skelne estimat fra måling.
  */
 
 /**

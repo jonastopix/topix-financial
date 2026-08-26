@@ -1662,6 +1662,7 @@ export type Database = {
           committed_by: string | null
           company_id: string
           created_at: string
+          data_basis: string
           id: string
           metrics: Json
           period_key: string
@@ -1674,6 +1675,7 @@ export type Database = {
           committed_by?: string | null
           company_id: string
           created_at?: string
+          data_basis?: string
           id?: string
           metrics: Json
           period_key: string
@@ -1686,6 +1688,7 @@ export type Database = {
           committed_by?: string | null
           company_id?: string
           created_at?: string
+          data_basis?: string
           id?: string
           metrics?: Json
           period_key?: string

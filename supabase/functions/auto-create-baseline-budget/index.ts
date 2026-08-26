@@ -141,6 +141,9 @@ Deno.serve(async (req) => {
       period_label: `${DANISH_MONTHS[i]} ${year}`,
       source_report_id: sentinelId,
       source_type: "manual_baseline",
+      // Årstal fordelt /12 — estimat, ikke måling (data_basis-kontrakten,
+      // migration 20260826120000).
+      data_basis: "estimated",
       metrics: m,
       committed_by: callerId,
       committed_at: new Date().toISOString(),

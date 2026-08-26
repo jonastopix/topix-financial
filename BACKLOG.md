@@ -1851,6 +1851,30 @@ i Lovable SQL editor og nedfæld jobbet i en migration (skabelon:
 
 ---
 
+### [P3] Årsrapportens `equity` er usynlig i UI'et — nøglekollision mod canonical-vejens `equity_total` (udskudt fra data_basis-PR'en, faktum-datagrundlag)
+
+**Status**: Bogført 2026-08-26 under årsrapport-reconen. `extract-annual-report/index.ts:224` skriver `metrics.equity`, mens canonical-månedsvejen skriver `equity_total` (`_shared/canonicalTypes.ts:52`). `factsAdapter.ts` mapper kun kendte nøgler og dropper resten (`factsToDanishMetrics`), så årsrapportens egenkapital når ALDRIG frem til dansk-nøgle-UI'et — kun de rå AI-serialiseringer (`ai-data-chat`, `run-company-agent`) ser den, under en nøgle intet andet kender.
+
+**Hvorfor eget spor**: data_basis-PR'en er en ren mærknings-PR uden renderingsændringer. En nøgle-rename er en DATA-rettelse (UPDATE af historiske metrics-jsonb + skriver-ændring) der ÆNDRER hvad UI'et viser — egenkapital dukker op hvor den før var usynlig. Hører sammen med metrics-nøgleskema-posten ovenfor ([P3] Varierende metrics-nøglesæt pr. `source_type`).
+
+---
+
+### [P3] Balanceposter (`cash`, `equity`) kopieres som ultimo-tal ind i alle tolv årsrapport-måneder (udskudt fra data_basis-PR'en)
+
+**Status**: Bogført 2026-08-26. `extract-annual-report/index.ts:223-224` kopierer likvider og egenkapital — ultimo-/statusbalancetal — uændret ind i alle 12 månedsrækker, hvor flow-felterne divideres med 12 (:207). En balancepost hører kun til i den måned balancen er gjort op (december for kalenderårs-rapporter); januar-november-rækkerne påstår en bankbeholdning der først fandtes ved årets udgang.
+
+**Hvorfor eget spor**: Rettelsen er afhængig af beslutningen om årsrapport-reduktion til én december-række (Jonas 26/8, jf. ~/Downloads/aarsrapport-recon.md §7) — sletter man januar-november-rækkerne, forsvinder problemet som biprodukt. At fixe fordelingen isoleret nu ville ændre grafer og alerts (renderingsændring) og blive overhalet af reduktionen.
+
+---
+
+### [P3] En årsrapport blokerer godkendelse af rigtige månedsrapporter — og "Erstat gammel data" soft-sletter hele årsrapporten usagt (udskudt fra data_basis-PR'en)
+
+**Status**: Bogført 2026-08-26. Ejerskabs-opslaget i `resolve_report_commit_candidate`/`commit_report_facts` går på `(company_id, period_key)` uden source_type (migration `20260722130000:220-222`, `20260418082434:44-46`), så en årsrapport-række ejer sin måned og sætter en rigtig månedsrapport i `state='blocked'`. Den eneste udvej i UI'et, "Erstat gammel data" (`ReportReviewDialog.tsx:851-855`), soft-sletter HELE årsrapporten (:378-383), hvorefter `cleanup_facts_on_report_delete` (migration `20260326142338`) sletter alle 12 årsrapport-rækker — uden at dialogen fortæller det. Løftet på uploadsiden ("Måneder med rigtige rapporter overskrives aldrig", `RapporteringView.tsx:1014`) holdes bogstaveligt, men brydes i ånden den modsatte vej.
+
+**Hvorfor eget spor**: Kræver en produktbeslutning (må en månedsrapport fortrænge én årsrapport-måned uden at koste de øvrige elleve?) og rører commit-RPC'en + collision-flowet — adfærdsændring i både DB og dialog, langt uden for en mærknings-PR. data_basis-kolonnen er netop forudsætningen for at en senere løsning kan skelne hvad der fortrænges.
+
+---
+
 ## Anbefalet rækkefølge
 
 1. **[P0] `get_users_last_login`** først. Eneste aktive læk; lav indsats; ingen FORBIDDEN-overlap.

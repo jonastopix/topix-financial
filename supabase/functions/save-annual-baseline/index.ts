@@ -108,6 +108,9 @@ Deno.serve(async (req) => {
         period_label: periodLabel,
         source_report_id: sentinelId,
         source_type: "manual",
+        // Baseline-fordeling bag sentinel-attrappen — et estimat, ikke en
+        // måling (data_basis-kontrakten, migration 20260826120000).
+        data_basis: "estimated",
         metrics,
         committed_by: userId,
         committed_at: new Date().toISOString(),
