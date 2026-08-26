@@ -26,6 +26,7 @@ import { formatDuration } from "@/components/hjemmebane/admin/editors/shared";
 import { handoutConfigs, moduleOrder, type HandoutModule } from "@/lib/handoutConfig";
 import { HbButton } from "../HbButton";
 import { HbCard } from "../HbCard";
+import { EstimatMaerke } from "../EstimatMaerke";
 import { HbSection } from "../HbSection";
 import { hasRichTextContent } from "@/lib/hjemmebane/richtext";
 import { isTrackedEntry, useAkademiData, type AkademiItem } from "../akademi/useAkademiData";
@@ -867,21 +868,33 @@ const StorySkeleton = ({ variant }: { variant: StoryVariant }) =>
   );
 
 /** Tal-strip (lag 3): senest godkendte periode fra facts-laget — indhold
-    og kilder uændret; kun placeringen er flyttet nederst. */
+    og kilder uændret; kun placeringen er flyttet nederst.
+
+    data_basis-kontrakten: er seneste periode et estimat, siger ledeteksten
+    det ("Seneste tal" + Estimat-mærke) i stedet for at påstå "Senest
+    godkendt" om en /12-fordelt årsrapportrække. Bank-tallet kan komme fra
+    en ÆLDRE række end periodLabel (bankRow-opslaget) og mærkes separat,
+    når netop dén række er et estimat. */
 const TalStrip = ({
   hasFacts,
   processing,
   periodLabel,
+  estimeret,
   revenue,
   result,
   bank,
+  bankEstimeret,
 }: {
   hasFacts: boolean;
   processing: boolean;
   periodLabel: string | null;
+  /** Seneste periode (periodLabel) er en estimatrække. */
+  estimeret: boolean;
   revenue: number | null;
   result: number | null;
   bank: number | null;
+  /** Bank-tallets kilderække er et estimat (kan afvige fra `estimeret`). */
+  bankEstimeret: boolean;
 }) => {
   if (!hasFacts) {
     return (
@@ -904,10 +917,11 @@ const TalStrip = ({
     );
   }
 
-  const figures: { label: string; value: number | null }[] = [
+  const figures: { label: string; value: number | null; estimeret?: boolean }[] = [
     { label: "Omsætning", value: revenue },
     { label: "Resultat f. skat", value: result },
-    { label: "Bank", value: bank },
+    // Bank mærkes kun når strippen ikke allerede er mærket som helhed.
+    { label: "Bank", value: bank, estimeret: bankEstimeret && !estimeret },
   ];
 
   return (
@@ -915,7 +929,7 @@ const TalStrip = ({
       <div className="shrink-0 md:w-48">
         <p className="text-xs font-medium uppercase tracking-[0.14em] text-hb-rust">Dine tal</p>
         <p className="mt-1 whitespace-nowrap text-sm text-hb-ink-soft">
-          Senest godkendt: {periodLabel}
+          {estimeret ? <>Seneste tal: {periodLabel} <EstimatMaerke className="align-middle" /></> : <>Senest godkendt: {periodLabel}</>}
         </p>
       </div>
       <div className="flex flex-1 flex-col gap-4 md:flex-row md:items-center md:justify-around md:gap-6">
@@ -923,6 +937,7 @@ const TalStrip = ({
           <div key={figure.label}>
             <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft">
               {figure.label}
+              {figure.estimeret && <EstimatMaerke kompakt className="ml-1" />}
             </p>
             {/* Fortegns-tonen: ordret samme udtryk som resten af
                 platformen (HbBudgetEditTable:625). */}
@@ -1533,7 +1548,7 @@ export const BoardroomView = () => {
 
   // ── Tal-strip-afledning (uændret) ───────────────────────────────────────
   const sorted = useMemo(
-    () => facts.map((f) => ({ key: f.period_key, kf: factsToDanishMetrics(f.metrics), period: f.period_label })),
+    () => facts.map((f) => ({ key: f.period_key, kf: factsToDanishMetrics(f.metrics), period: f.period_label, basis: f.data_basis })),
     [facts],
   );
   const latestFacts = sorted[sorted.length - 1];
@@ -1790,9 +1805,11 @@ export const BoardroomView = () => {
             hasFacts={sorted.length > 0}
             processing={processing}
             periodLabel={latestFacts?.period ?? null}
+            estimeret={latestFacts?.basis === "estimated"}
             revenue={latestFacts?.kf.omsaetning ?? null}
             result={latestFacts?.kf.resultat_foer_skat ?? null}
             bank={bankRow?.kf.bank_balance ?? null}
+            bankEstimeret={bankRow?.basis === "estimated"}
           />
         </div>
       )}

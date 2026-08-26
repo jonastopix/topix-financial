@@ -35,7 +35,8 @@ import { HbField, HbInput, HbSelect, hbControlClasses } from "../admin/HbField";
 import { HbSegmented } from "../admin/HbSegmented";
 import { deriveKpiTone, type KpiToneView } from "./kpiTone";
 import { deriveMoMChange } from "./trendMoM";
-import { momErGyldig, type DataBasis } from "@/lib/dataGrundlag";
+import { momErGyldig, opgoerGrundlag, type DataBasis } from "@/lib/dataGrundlag";
+import { ESTIMAT_FORKLARING, EstimatMaerke } from "../EstimatMaerke";
 
 /** Nøgletal (/noegletal → /kpis ved GO) — FULD PARITET + trend/AI
     (klik-valg A): mål-hero, trend-overblik (nyt hjem fra Reports),
@@ -141,6 +142,10 @@ export const NoegletalView = () => {
   const getTarget = (key: string) => targets[key] ?? { value: 0, label: "—" };
 
   const latestKF = monthlyData.length > 0 ? monthlyData[monthlyData.length - 1] : null;
+  // Grundlags-opgørelsen til tælleren + "er seneste periode et estimat?"
+  // til branchesammenligningen (facts er sorteret stigende på period_key).
+  const grundlag = opgoerGrundlag(facts);
+  const senesteErEstimat = facts.length > 0 && facts[facts.length - 1].data_basis === "estimated";
   const heroEntries = KPI_DEFS.map((def) => {
     const actual = latestKF ? (VALUE_EXTRACTORS[def.key]?.(latestKF.kf) ?? null) : null;
     const target = getTarget(def.key);
@@ -464,11 +469,25 @@ export const NoegletalView = () => {
           <h1 className="mt-3 font-editorial text-4xl font-medium leading-[1.1] tracking-tight text-hb-ink md:text-5xl">
             Nøgletal
           </h1>
+          {/* Tælleren skelner målt fra estimeret (data_basis-kontrakten:
+              visninger må vise estimater, men skal sige det). Estimaterne
+              er en funktion medlemmet selv har valgt (årsrapport-upload) —
+              teksten oplyser roligt, den advarer ikke. Forklaringen står
+              ÉT sted: ESTIMAT_FORKLARING, delt med alle mærker. */}
           <p className="mt-3 text-sm text-hb-ink-soft">
-            {monthlyData.length > 0
-              ? `Baseret på ${monthlyData.length} måneder · senest ${monthlyData[monthlyData.length - 1].month}`
-              : "Ingen godkendte tal endnu"}
+            {monthlyData.length === 0
+              ? "Ingen godkendte tal endnu"
+              : grundlag.estimerede === 0
+                ? `Baseret på ${grundlag.samlet} måneder · senest ${monthlyData[monthlyData.length - 1].month}`
+                : grundlag.maalte === 0
+                  ? `Baseret på ${grundlag.estimerede} estimerede måneder · senest ${monthlyData[monthlyData.length - 1].month}`
+                  : `Baseret på ${grundlag.maalte === 1 ? "1 målt måned" : `${grundlag.maalte} målte måneder`} og ${grundlag.estimerede === 1 ? "1 estimeret" : `${grundlag.estimerede} estimerede`} · senest ${monthlyData[monthlyData.length - 1].month}`}
           </p>
+          {grundlag.estimerede > 0 && (
+            <p className="mt-1 max-w-xl text-xs leading-relaxed text-hb-ink-soft">
+              {ESTIMAT_FORKLARING}
+            </p>
+          )}
         </div>
         <div className="flex items-center gap-3">
           <button
@@ -736,7 +755,10 @@ export const NoegletalView = () => {
                           {tone.state !== "no_target" ? " · " : ""}branche {benchLabel}
                         </span>
                       )}
-                      <span className={toneCls}>
+                      {/* "—" (changePct null: intet gyldigt M/M-grundlag) er en
+                          ikke-dom og må aldrig arve målets rust-tone — den ville
+                          ligne et rødt tal. */}
+                      <span className={metric.changePct == null ? "text-hb-ink-soft" : toneCls}>
                         {tone.state !== "no_target" || benchLabel ? " · " : ""}
                         {metric.change}
                       </span>
@@ -849,7 +871,11 @@ export const NoegletalView = () => {
                       <div className="flex items-baseline justify-between gap-3">
                         <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft">{metric.label}</p>
                         <p className="text-xs text-hb-ink-soft">
-                          dig: <span className="font-medium text-hb-ink">{metric.value}</span> · branche: {b.benchmark_label}
+                          dig: <span className="font-medium text-hb-ink">{metric.value}</span>
+                          {/* "dig"-tallet er seneste faktarække — er den et estimat,
+                              må prikken ikke stå umærket mod brancheintervaller
+                              kalibreret til rigtige månedstal. */}
+                          {senesteErEstimat && <EstimatMaerke className="ml-1.5 align-middle" />} · branche: {b.benchmark_label}
                         </p>
                       </div>
                       <div className="relative mt-1.5 h-1.5 rounded-full bg-hb-sage/60">
@@ -874,6 +900,8 @@ export const NoegletalView = () => {
                       {monthlyData.slice(-6).map((m) => (
                         <th key={m.sortKey} className="px-4 py-3 text-right text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft">
                           {m.month}
+                          {/* Kort mærkat, ikke en sætning — forklaringen bor i title. */}
+                          {m.data_basis === "estimated" && <EstimatMaerke kompakt className="block" />}
                         </th>
                       ))}
                     </tr>
