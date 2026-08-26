@@ -63,9 +63,17 @@ kommenteres eller bruges som kontekst), `deriveKpiMetrics`/M/M-blokken
 Håndhævelse: `src/test/factsDataBasisReadGuard.test.ts` kræver at enhver
 fil der læser tabellen enten bruger `data_basis` i kode eller bærer en
 begrundet `// data_basis-undtagelse:`-markør, og at markør-mængden matcher
-testens eksplicitte undtagelsesliste præcist. Visuel estimat-markering
-(badges, stiplede serier, tæller-tekst) er bevidst udskudt til
-visnings-PR'en — se BACKLOG.
+testens eksplicitte undtagelsesliste præcist.
+
+Visningsmærkning pr. 2026-08-26 (branch `estimat-markering`): fælles mærke
+`src/components/hjemmebane/EstimatMaerke.tsx` — pill ("Estimat") og kompakt
+("est."), begge med forklaringen `ESTIMAT_FORKLARING` som title. Den ENE
+forklaring bor dér, og formuleringen matcher uploadsidens eget løfte
+("tallene fordeles over 12 måneder og giver dine grafer historisk
+kontekst"). Mærket bruges af Nøgletal-tælleren (opgoerGrundlag),
+månedstabellens headere, branchesammenligningens "dig"-værdi og forsidens
+TalStrip. Rest: graf-linjernes segmentering (`segmenterSerie` står klar) —
+se BACKLOG.
 
 ## Deploy-note
 

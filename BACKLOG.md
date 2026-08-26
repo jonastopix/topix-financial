@@ -1875,16 +1875,11 @@ i Lovable SQL editor og nedfæld jobbet i en migration (skabelon:
 
 ---
 
-### [P2] Estimater kan stadig VISES som målinger — visnings-PR'en (bogført 2026-08-26, estimat-beregningsgrundlag)
+### [P2] ✅ Delvist løst i branch estimat-markering — estimater vises nu mærket; KUN graf-segmentering udestår
 
-**Status**: Beregningsgates er lukket (branch `estimat-beregningsgrundlag`: forecast, budget-mod-realiseret, commentary, M/M). To visninger viser fortsat estimattal uden at sige det:
-- **Branchesammenligningens "dig"-prik** (`NoegletalView.tsx`, gaugeRows) — virksomhedens eget tal er seneste faktarække uanset data_basis; for kun-årsrapport-virksomheder er prikken en /12-værdi mod branche-intervaller kalibreret til rigtige månedstal.
-- **TalStrips "Senest godkendt"** (`BoardroomView.tsx`) — forsidens tal-bånd viser seneste række uanset grundlag.
+**Status — opdateret 2026-08-26**: Visningshalvdelen af data_basis-kontrakten er lukket i branch `estimat-markering`: tælleren på Nøgletal skelner målte/estimerede måneder (opgoerGrundlag), månedstabellens estimatkolonner bærer "est."-mærke, branchesammenligningens "dig"-værdi mærkes når seneste periode er et estimat, TalStrip siger "Seneste tal" + Estimat-mærke i stedet for "Senest godkendt" (og mærker bank-tallet separat når dets kilderække er et estimat), og "—" (neutral trend) arver ikke længere målets rust-tone. Fælles mærke + den ENE forklaring: `src/components/hjemmebane/EstimatMaerke.tsx` (formulering matcher uploadsidens løfte).
 
-**Hvorfor eget spor**: Kontrakten siger "Visninger må vise dem, men skal sige det" — det kræver visuel markering (badges, segmenterede graf-serier via `segmenterSerie` i `src/lib/dataGrundlag.ts`, som ER bygget og testet men bevidst ubrugt). Denne PR var eksplicit uden renderingsændringer; markeringen er visnings-PR'en. Samme PR bør tage tælleren "Baseret på N måneder" (opgørGrundlag findes) og månedstabellens kolonne-badges.
-
-Også til visnings-PR'en: `KpiMetric.trend` kan nu være `"neutral"` når M/M-grundlaget er ugyldigt; KPI-kortenes farvelogik kender formentlig kun up/down, så en "—" kan blive rød. Kosmetisk, rammer kun virksomheder uden gyldigt M/M-grundlag.
-
+**Rest — eget spor**: graf-LINJERNES segmentering (målt linje / stiplet estimatlinje i "Finansiel udvikling" og "Udvikling · <KPI>"). `segmenterSerie` i `src/lib/dataGrundlag.ts` er bygget og testet til formålet; recharts kræver serie-split pr. segment (evt. med delt grænsepunkt — render-lagets valg). Indtil da bærer graferne estimatpunkter umærket; tælleren og forklaringen lige over grafen siger det.
 ---
 
 ### [P3] Estimat-følsomme læsere uden gate — dokumenteret med undtagelses-markører (bogført 2026-08-26)
@@ -1895,6 +1890,13 @@ Også til visnings-PR'en: `KpiMetric.trend` kan nu være `"neutral"` når M/M-gr
 - `send-report-reminder` — en årsrapport-december dæmper januar-påmindelsen (eksistens-check uden basis-filter).
 
 **Hvorfor eget spor**: Alle tre ændrer udadvendt adfærd (alerts, agentindhold, mails) og var uden for beregningsgate-PR'ens liste. Tages sammen med agent-sporets datakvalitetsarbejde (`run-company-agent`s data_quality-annotering bør samtidig migreres fra source_type-heuristik til data_basis).
+
+---
+
+### [P3] Mobilgennemgang (oprettet 2026-08-26)
+
+Samlepunkt for kendte mobil-/touch-mangler til en samlet gennemgang:
+- Estimat-mærkets forklaring bæres af title-attributten og er derfor utilgængelig på touch. Nøgletal har forklaringen som brødtekst, men forsidens tal-strip har kun title. (estimat-markering, 2026-08-26)
 
 ---
 
