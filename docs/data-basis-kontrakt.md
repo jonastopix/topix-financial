@@ -41,11 +41,31 @@ Samme mærkat, to vidt forskellige epistemiske statusser — deraf kolonnen.
 
 ## Læsere
 
+**KONTRAKTEN: Beregninger udelukker estimater. Visninger må vise dem, men
+skal sige det. Et tal udledt af et estimat og præsenteret som en måling er
+en påstand systemet ikke kan indfri.**
+
 `useCompanyFacts` eksponerer feltet på `CompanyFact.data_basis`.
 `factsAdapter` arbejder kun på `metrics`-objektet — `data_basis` er en
-række-kolonne og må aldrig flyttes ind i metrics. Pr. denne PR ændrer INGEN
-komponent adfærd på feltet; det er alene gjort tilgængeligt, så senere spor
-(estimat-markering i grafer, agent-vægtning m.v.) kan skelne uden ny migration.
+række-kolonne og må aldrig flyttes ind i metrics.
+
+Motoren for skelnen er `src/lib/dataGrundlag.ts` (ren, React-fri, testet):
+`erEstimat`, `kunMaalinger`, `opgoerGrundlag`, `momErGyldig` (M/M kun når
+begge de to seneste punkter er målinger) og `segmenterSerie` (klar til
+segmenterede graf-serier — bygget til visnings-PR'en, endnu ubrugt).
+
+Beregningsgates pr. 2026-08-26 (branch `estimat-beregningsgrundlag`):
+`generate-ai-forecast` (kun measured, ≥3 står), `HbBudgetBva` (estimater er
+ikke realiseret), `generate-financial-commentary` (estimatperioder hverken
+kommenteres eller bruges som kontekst), `deriveKpiMetrics`/M/M-blokken
+(changePct er `null` — aldrig 0 — når grundlaget er ugyldigt).
+
+Håndhævelse: `src/test/factsDataBasisReadGuard.test.ts` kræver at enhver
+fil der læser tabellen enten bruger `data_basis` i kode eller bærer en
+begrundet `// data_basis-undtagelse:`-markør, og at markør-mængden matcher
+testens eksplicitte undtagelsesliste præcist. Visuel estimat-markering
+(badges, stiplede serier, tæller-tekst) er bevidst udskudt til
+visnings-PR'en — se BACKLOG.
 
 ## Deploy-note
 

@@ -287,6 +287,7 @@ const Members = () => {
           .gte("logged_in_at", new Date(Date.now() - 90 * 86400000).toISOString())
           .order("logged_in_at", { ascending: false })
           .limit(5000) as any,
+        // data_basis-undtagelse: rapporteringsdæknings-visning + company-merge-flytning — ingen talberegning
         supabase.from("financial_report_facts" as any).select("company_id, period_key"),
         supabase.from("pulse_checkins").select("company_id, period_key").gte("created_at", monthStart),
       ]);

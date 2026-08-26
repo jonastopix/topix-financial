@@ -28,6 +28,7 @@ Deno.cron("weekly-company-agent", "0 7 * * 1", async () => {
   console.log(`Weekly agent: processing ${activeCompanies.length} companies`);
 
   for (const company of activeCompanies) {
+    // data_basis-undtagelse: eksistens-check (har virksomheden overhovedet tal) — ingen talberegning
     const { data: latestFact } = await adminClient
       .from("financial_report_facts")
       .select("period_key, period_label")

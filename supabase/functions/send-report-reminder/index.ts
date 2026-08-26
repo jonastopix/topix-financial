@@ -319,6 +319,7 @@ Deno.serve(async (req) => {
 
     // Check committed facts instead of uploaded reports
     // A reminder should only be skipped if the period is COMMITTED — not just uploaded
+    // data_basis-undtagelse: eksistens-check pr. periode; kendt adfærd at en årsrapport-december dæmper januar-påmindelsen (BACKLOG, estimat-beregningsgrundlag)
     const { data: committedFacts, error: factsErr } = await supabase
       .from("financial_report_facts")
       .select("company_id, period_key, source_type")

@@ -57,6 +57,7 @@ export async function hardDeleteCompany(
   const conversationIds = (conversations || []).map((conversation: any) => conversation.id);
 
   await mustSucceed(adminSupabase.from('financial_commentaries').delete().eq('company_id', companyId), 'Kunne ikke slette financial_commentaries');
+  // data_basis-undtagelse: hard-delete-infrastruktur — sletter alle rækker, læser ingen tal
   await mustSucceed(adminSupabase.from('financial_report_facts').delete().eq('company_id', companyId), 'Kunne ikke slette financial_report_facts');
   await mustSucceed(adminSupabase.from('advisor_notifications').delete().eq('company_id', companyId), 'Kunne ikke slette advisor_notifications');
   await mustSucceed(adminSupabase.from('slack_conversation_threads').delete().eq('company_id', companyId), 'Kunne ikke slette slack_conversation_threads');

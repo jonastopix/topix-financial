@@ -48,13 +48,25 @@ Deno.serve(async (req) => {
     // 3. Load committed facts for target period (via callerClient for RLS)
     const { data: facts, error: factsErr } = await callerClient
       .from("financial_report_facts")
-      .select("id, company_id, period_key, period_label, source_type, metrics, committed_at")
+      .select("id, company_id, period_key, period_label, source_type, data_basis, metrics, committed_at")
       .eq("company_id", company_id)
       .eq("period_key", period_key)
       .maybeSingle();
 
     if (factsErr || !facts) {
       return jsonRes({ error: "No committed facts found for this period" }, 404);
+    }
+
+    // data_basis-kontrakten: kommenter ikke en estimatperiode — en AI-analyse
+    // af /12-fordelte årsrapporttal ville præsentere en regnekonstruktion
+    // som en måneds virkelighed. (I praksis triggers commentary fra
+    // ReportReviewDialog efter commit af rigtige rapporter, så grenen er
+    // et værn, ikke en hovedvej.)
+    if (facts.data_basis === "estimated") {
+      return jsonRes(
+        { error: "estimated_period", detail: "Perioden er et estimat (data_basis='estimated') og kommenteres ikke" },
+        422
+      );
     }
 
     const metrics = facts.metrics as Record<string, unknown>;
@@ -66,11 +78,14 @@ Deno.serve(async (req) => {
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const adminClient = createClient(supabaseUrl, serviceRoleKey);
 
-    // Fetch up to 5 previous periods for trend analysis
+    // Fetch up to 5 previous periods for trend analysis — kun målinger:
+    // estimatperioder som kontekst ville lade AI'en tegne trends mod flade
+    // /12-tal (data_basis-kontrakten).
     const { data: historicalFacts } = await adminClient
       .from("financial_report_facts")
       .select("period_key, period_label, metrics")
       .eq("company_id", company_id)
+      .eq("data_basis", "measured")
       .neq("period_key", period_key)
       .order("period_key", { ascending: false })
       .limit(5);

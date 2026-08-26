@@ -35,6 +35,7 @@ import { HbField, HbInput, HbSelect, hbControlClasses } from "../admin/HbField";
 import { HbSegmented } from "../admin/HbSegmented";
 import { deriveKpiTone, type KpiToneView } from "./kpiTone";
 import { deriveMoMChange } from "./trendMoM";
+import { momErGyldig, type DataBasis } from "@/lib/dataGrundlag";
 
 /** Nøgletal (/noegletal → /kpis ved GO) — FULD PARITET + trend/AI
     (klik-valg A): mål-hero, trend-overblik (nyt hjem fra Reports),
@@ -127,7 +128,9 @@ export const NoegletalView = () => {
         const kf = factsToDanishMetrics(f.metrics);
         const [, monthStr] = f.period_key.split("-");
         const monthIdx = parseInt(monthStr, 10) - 1;
-        return { sortKey: f.period_key, month: SHORT_MONTHS[monthIdx] || monthStr, kf };
+        // data_basis bæres med på hvert punkt (dataGrundlag-kontrakten) —
+        // ingen komponent læser det endnu; visnings-PR'en gør.
+        return { sortKey: f.period_key, month: SHORT_MONTHS[monthIdx] || monthStr, kf, data_basis: f.data_basis };
       }),
     [facts],
   );
@@ -164,6 +167,9 @@ export const NoegletalView = () => {
         return {
           key,
           label: `${SHORT_MONTHS[monthIdx]} ${year}`,
+          // data_basis på hvert punkt: M/M-gaten (momErGyldig) læser den nu,
+          // graf-markeringen kommer i visnings-PR'en (segmenterSerie).
+          data_basis: fact.data_basis,
           omsaetning: kf.omsaetning ?? null,
           daekningsbidrag: kf.daekningsbidrag ?? null,
           resultat_foer_skat: kf.resultat_foer_skat ?? null,
@@ -171,7 +177,7 @@ export const NoegletalView = () => {
           bank_balance: kf.bank_balance ?? null,
         };
       })
-      .filter(Boolean) as Record<string, any>[];
+      .filter(Boolean) as ({ data_basis: DataBasis } & Record<string, any>)[];
   }, [facts, trendPeriod.mode, trendPeriod.customFrom, trendPeriod.customTo]);
 
   // Samtale-id til AI-analysens beskedkobling (arvet fra Reports.loadData).
@@ -649,8 +655,12 @@ export const NoegletalView = () => {
                   </ResponsiveContainer>
                 </div>
 
-                {/* M/M-indikatorer (deriveMoMChange-dommen) */}
-                {trendData.length >= 2 && (
+                {/* M/M-indikatorer (deriveMoMChange-dommen) — gated af
+                    momErGyldig: en M/M mod et /12-estimat måler afstanden
+                    til en regnekonstruktion, ikke en måneds udvikling
+                    (data_basis-kontrakten). Beregningen kører slet ikke
+                    når grundlaget er ugyldigt. */}
+                {momErGyldig(trendData) && (
                   <div className="mt-4 grid grid-cols-1 gap-3 border-t border-hb-line pt-4 sm:grid-cols-3">
                     {(["omsaetning", "daekningsbidrag", "resultat_foer_skat"] as const).map((key) => {
                       const change = deriveMoMChange(trendData.map((d) => d[key]));

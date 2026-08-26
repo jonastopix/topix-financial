@@ -43,6 +43,7 @@ Deno.serve(async (req) => {
   const monthlyRevenue = Math.round(annual_revenue / 12);
 
   // Fetch all annual_report facts for this year
+  // data_basis-undtagelse: arbejder BEVIDST på estimatrækker (retter årsrapport-omsætningen /12) — estimat-vedligehold, ikke beregning
   const { data: facts, error: fetchErr } = await adminClient
     .from("financial_report_facts")
     .select("id, metrics")

@@ -190,6 +190,7 @@ Deno.serve(async (req) => {
     const companyName = company?.name || "";
 
     // Latest committed facts (most recent period)
+    // data_basis-undtagelse: digest-mail viser seneste tal som visning — estimat-markering i mails hører til visnings-sporet
     const { data: facts } = await adminClient
       .from("financial_report_facts")
       .select("period_label, metrics")

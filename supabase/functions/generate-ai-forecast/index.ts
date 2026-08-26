@@ -11,10 +11,15 @@ Deno.serve(async (req) => {
   const { company_id } = await req.json();
   if (!company_id) return new Response(JSON.stringify({ error: "company_id required" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
+  // data_basis-kontrakten: beregninger udelukker estimater. Et forecast på
+  // /12-fordelte årsrapportrækker er en flad linje solgt som trend — kun
+  // målte måneder tæller. Virksomheder med under tre målinger får
+  // insufficient_data; det er det ærlige svar, ikke en regression.
   const { data: facts } = await callerClient
     .from("financial_report_facts")
     .select("period_key, period_label, metrics")
     .eq("company_id", company_id)
+    .eq("data_basis", "measured")
     .order("period_key", { ascending: false })
     .limit(6);
 

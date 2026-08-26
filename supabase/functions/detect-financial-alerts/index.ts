@@ -77,6 +77,7 @@ Deno.serve(async (req) => {
   }
 
   // 1. Get the committed fact for the current period
+  // data_basis-undtagelse: KENDT beregningshul: MoM-alerts kan regne på estimatrækker; gate ændrer alert-adfærd og kræver produktbeslutning (BACKLOG, estimat-beregningsgrundlag)
   const { data: currentFact } = await adminClient
     .from("financial_report_facts")
     .select("metrics, period_label")

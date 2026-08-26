@@ -47,9 +47,14 @@ export const HbBudgetBva = ({ baseRows, year, companyId }: Props) => {
   const { data: facts = [] } = useCompanyFacts(companyId);
 
   // Realiserede felter pr. måned — spejler BudgetVsActualTab.tsx:47-67.
+  // data_basis-kontrakten: estimater tæller IKKE som realiseret. Et /12-
+  // fordelt årsrapporttal er aldrig målt op mod budgettet, og før gaten
+  // fremstod et helt estimatår som realiseret (inkl. lastActualIdx, der
+  // afledes af dette map og derfor følger med).
   const actualsMap = useMemo(() => {
     const map: Record<number, Record<string, number>> = {};
     for (const fact of facts) {
+      if (fact.data_basis === "estimated") continue;
       const [factYear, monthStr] = fact.period_key.split("-");
       if (factYear !== year) continue;
       const monthIdx = parseInt(monthStr, 10) - 1;
