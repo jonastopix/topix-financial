@@ -351,6 +351,7 @@ const AdvisorDashboard = () => {
           .gte("uploaded_at", weekAgo)
           .order("uploaded_at", { ascending: false })
           .limit(20) as any),
+        // data_basis-undtagelse: aktivitetsfeed: viser HVORNÅR der blev committet, ikke talværdier — estimat-markering af feed-linjer hører til visnings-PR'en
         (supabase
           .from("financial_report_facts")
           .select("company_id, committed_at, period_key")

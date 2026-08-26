@@ -12,6 +12,7 @@ import { DollarSign, TrendingUp, Users, Target, Flame, BarChart3 } from "lucide-
 import type { LucideIcon } from "lucide-react";
 import { calcDbMargin, calcResultMargin, calcTotalExpenses, SHORT_MONTHS } from "@/lib/financialUtils";
 import { factsToDanishMetrics } from "@/lib/factsAdapter";
+import { momErGyldig, type DataBasis } from "@/lib/dataGrundlag";
 import type { CompanyFact } from "@/hooks/useCompanyFacts";
 
 export interface KpiDef {
@@ -30,14 +31,18 @@ export interface KpiMetric {
   numValue: number;
   target: string;
   targetNum: number;
+  /** "—" når changePct er null — aldrig et opdigtet "+0.0%". */
   change: string;
-  changePct: number;
-  trend: "up" | "down";
+  /** null når M/M-grundlaget er ugyldigt (momErGyldig falsk: under to
+      perioder, eller en af de to seneste er et estimat) eller prev er 0/
+      mangler. Kalderen kan skelne "ingen dom" fra tallet 0. */
+  changePct: number | null;
+  trend: "up" | "down" | "neutral";
   unit: string;
   icon: LucideIcon;
   description: string;
   lowerIsBetter: boolean;
-  history: { month: string; periodKey: string; value: number }[];
+  history: { month: string; periodKey: string; value: number; data_basis: DataBasis }[];
   benchmark: { value: number; label: string; source: string };
 }
 
@@ -75,6 +80,13 @@ export function getTargetStatus(metric: KpiMetric): { hit: boolean; pct: number 
  * Derive the KPI metric array from committed facts. Pure — mirrors the
  * monthlyData + kpiMetrics useMemos previously inlined in KPIs.tsx.
  *
+ * data_basis-kontrakten (docs/data-basis-kontrakt.md): beregninger udelukker
+ * estimater — M/M-ændringen (change/changePct/trend) beregnes KUN når de to
+ * seneste perioder begge er målinger (momErGyldig); ellers er changePct null,
+ * change "—" og trend "neutral". Et tal udledt af et estimat og præsenteret
+ * som en måling er en påstand systemet ikke kan indfri. history-punkterne
+ * bærer data_basis videre, så visningslaget kan sige det (visnings-PR).
+ *
  * @param facts      committed facts, pre-sorted ascending by period_key
  * @param targets    per-key resolved target (DB value or fallback already applied)
  * @param benchmarks per-key resolved benchmark (DB value or fallback already applied)
@@ -89,27 +101,30 @@ export function deriveKpiMetrics(
     const [, monthStr] = f.period_key.split("-");
     const monthIdx = parseInt(monthStr, 10) - 1;
     const monthLabel = SHORT_MONTHS[monthIdx] || monthStr;
-    return { sortKey: f.period_key, month: monthLabel, kf };
+    return { sortKey: f.period_key, month: monthLabel, kf, data_basis: f.data_basis };
   });
 
   if (monthlyData.length === 0) return [];
   const latest = monthlyData[monthlyData.length - 1].kf;
   const prev = monthlyData.length > 1 ? monthlyData[monthlyData.length - 2].kf : null;
+  // M/M-gaten: begge de to seneste perioder skal være målinger.
+  const momGyldig = momErGyldig(facts);
 
   return KPI_DEFS.map((def) => {
     const extract = VALUE_EXTRACTORS[def.key];
     const currentVal = extract(latest);
     if (currentVal == null) return null;
     const prevVal = prev ? extract(prev) : null;
-    const changePct = prevVal != null && currentVal != null && prevVal !== 0
-      ? ((currentVal - prevVal) / Math.abs(prevVal)) * 100 : 0;
-    const trendIsGood = def.lowerIsBetter ? changePct <= 0 : changePct >= 0;
+    const changePct = momGyldig && prevVal != null && prevVal !== 0
+      ? ((currentVal - prevVal) / Math.abs(prevVal)) * 100 : null;
+    const trendIsGood = changePct != null && (def.lowerIsBetter ? changePct <= 0 : changePct >= 0);
     const target = targets[def.key] ?? { value: 0, label: "—" };
 
     const history = monthlyData.map((d) => ({
       month: d.month,
       periodKey: d.sortKey,
       value: Math.round(extract(d.kf) ?? 0),
+      data_basis: d.data_basis,
     }));
 
     const formatted = Math.abs(currentVal) >= 1000
@@ -125,9 +140,9 @@ export function deriveKpiMetrics(
       numValue: currentVal,
       target: target.label,
       targetNum: target.value,
-      change: `${changePct >= 0 ? "+" : ""}${changePct.toFixed(1)}%`,
+      change: changePct == null ? "—" : `${changePct >= 0 ? "+" : ""}${changePct.toFixed(1)}%`,
       changePct,
-      trend: trendIsGood ? "up" : "down",
+      trend: changePct == null ? "neutral" : trendIsGood ? "up" : "down",
       unit: def.unit,
       icon: def.icon,
       description: def.description,

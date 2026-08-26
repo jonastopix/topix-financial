@@ -94,6 +94,7 @@ Deno.serve(async (req) => {
   // Hent kun facts fra de seneste 2 maaneder (period_key er YYYY-MM, leksikografisk
   // sorterbar). En virksomhed hvis seneste periode er aeldre end det, har ingen raekker
   // her og udelades dermed korrekt.
+  // data_basis-undtagelse: eksistens-/friskhedscheck for refleksions-nudge — ingen talberegning
   const { data: facts, error: factsErr } = await supabase
     .from("financial_report_facts")
     .select("company_id, period_key, committed_at")

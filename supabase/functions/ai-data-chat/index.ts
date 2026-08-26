@@ -38,6 +38,7 @@ Deno.serve(async (req) => {
   }
 
   // Fetch all committed facts for the company (RLS-scoped)
+  // data_basis-undtagelse: AI-kontekst serialiserer alle rækker rått; eksklusion ville skjule medlemmets egne data i chatten — grundlags-mærkning i prompten er eget spor
   const { data: facts } = await callerClient
     .from("financial_report_facts")
     .select("period_key, period_label, metrics")

@@ -401,6 +401,7 @@ export const RapporteringView = () => {
         await supabase.storage.from("financial-documents").remove([report.file_path]);
       }
       // Delete commentaries linked to this report's facts (defensive — CASCADE also handles this)
+      // data_basis-undtagelse: sletnings-/ejerskabs-infrastruktur via source_report_id og annual-oprydning — læser ingen talværdier
       const { data: reportFacts } = await (supabase
         .from("financial_report_facts" as any)
         .select("id")

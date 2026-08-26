@@ -407,6 +407,7 @@ async function executeTool(name: string, args: any, adminClient: any, trigger: s
   switch (name) {
     case "get_company_facts": {
       const limit = args.limit ?? 6;
+      // data_basis-undtagelse: agenten får allerede grundlags-skelnen pr. række via data_quality-annoteringen (source_type-afledt); migrering til data_basis er eget spor
       const { data, error } = await adminClient
         .from("financial_report_facts")
         .select("period_key, period_label, metrics, source_type")

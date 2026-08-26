@@ -42,6 +42,7 @@ Deno.serve(async (req) => {
   const adminClient = createClient(supabaseUrl, serviceKey);
 
   // Load all facts
+  // data_basis-undtagelse: paritetsværktøj: skal bevidst se ALLE rækker for at sammenligne lagene
   const { data: facts, error: factsErr } = await adminClient
     .from("financial_report_facts")
     .select("*");

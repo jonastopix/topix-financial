@@ -1,7 +1,11 @@
 /** Trend-M/M-dommen (kpi-design §b): måned-over-måned-ændring for en
     serie (seneste sidst) som REN funktion — porteret fra Reports' inline-
     beregning (1116-blokken), så dommen er testet frem for gen-inlinet.
-    flat = |ændring| < 1 % (arvet grænse). */
+    flat = |ændring| < 1 % (arvet grænse).
+
+    data_basis-kontrakten: funktionen modtager rene tal og kan ikke selv se
+    grundlaget — KALDEREN skal gate med momErGyldig (src/lib/dataGrundlag)
+    før beregningen, så en M/M aldrig regnes mod et estimat. */
 
 export interface MoMChange {
   direction: "up" | "down" | "flat";

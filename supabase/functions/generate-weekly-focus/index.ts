@@ -122,6 +122,7 @@ async function processCompany(
   const ninetyDaysAgo = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000).toISOString();
   const sixtyDaysAgo = new Date(now.getTime() - 60 * 24 * 60 * 60 * 1000).toISOString();
 
+  // data_basis-undtagelse: KENDT beregningshul: ugens fokus evaluerer KPI-mål/benchmarks/T9-sammenligning på seneste række uanset grundlag; gate ændrer agent-output og hører til agent-sporet (BACKLOG, estimat-beregningsgrundlag)
   const { data: recentFacts } = await admin
     .from("financial_report_facts")
     .select("id, period_key, metrics, committed_at")

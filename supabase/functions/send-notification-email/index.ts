@@ -307,6 +307,7 @@ Deno.serve(async (req) => {
         .from("financial_reports")
         .select("id, deleted_at, report_period, manual_report_period_key")
         .in("id", reportIds);
+      // data_basis-undtagelse: committed-eksistens via source_report_id til mail-gating — ingen talberegning
       const { data: factRows } = await admin
         .from("financial_report_facts")
         .select("source_report_id")
