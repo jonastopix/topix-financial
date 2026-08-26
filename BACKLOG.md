@@ -1875,11 +1875,11 @@ i Lovable SQL editor og nedfæld jobbet i en migration (skabelon:
 
 ---
 
-### [P2] ✅ Delvist løst i branch estimat-markering — estimater vises nu mærket; KUN graf-segmentering udestår
+### [P2] ✅ LUKKET 2026-08-26 — estimater vises mærket, inkl. graf-linjernes segmentering
 
 **Status — opdateret 2026-08-26**: Visningshalvdelen af data_basis-kontrakten er lukket i branch `estimat-markering`: tælleren på Nøgletal skelner målte/estimerede måneder (opgoerGrundlag), månedstabellens estimatkolonner bærer "est."-mærke, branchesammenligningens "dig"-værdi mærkes når seneste periode er et estimat, TalStrip siger "Seneste tal" + Estimat-mærke i stedet for "Senest godkendt" (og mærker bank-tallet separat når dets kilderække er et estimat), og "—" (neutral trend) arver ikke længere målets rust-tone. Fælles mærke + den ENE forklaring: `src/components/hjemmebane/EstimatMaerke.tsx` (formulering matcher uploadsidens løfte).
 
-**Rest — eget spor**: graf-LINJERNES segmentering (målt linje / stiplet estimatlinje i "Finansiel udvikling" og "Udvikling · <KPI>"). `segmenterSerie` i `src/lib/dataGrundlag.ts` er bygget og testet til formålet; recharts kræver serie-split pr. segment (evt. med delt grænsepunkt — render-lagets valg). Indtil da bærer graferne estimatpunkter umærket; tælleren og forklaringen lige over grafen siger det.
+**Rest lukket i branch `estimat-graflinje` (2026-08-26)**: graf-linjernes segmentering er implementeret via `delSerieTilTegning` i `src/lib/dataGrundlag.ts` (hver værdinøgle spaltes i målt + `__estimat` med grænsepunktet i begge; en strækning tegnes kun fuldt optrukket når begge endepunkter er målt). Begge grafer i NoegletalView tegner estimatdelen prikket i samme farve uden udfyldning, med dedup'et tooltip (" · estimat") og forklaring under grafen (delt ESTIMAT_FORKLARING). Bevidst konsekvens: `connectNulls` er fjernet fra de delte serier — reelt manglende måneder viser nu et ærligt hul i stedet for en opdigtet bro (motiveret i delSerieTilTegning-dokblokken).
 ---
 
 ### [P3] Estimat-følsomme læsere uden gate — dokumenteret med undtagelses-markører (bogført 2026-08-26)
