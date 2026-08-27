@@ -100,12 +100,15 @@ YKRG 2024. Kan normaliseres maskinelt.
 **B — resultatlinjen også vendt (1):** Alina Beauty & Skincare 2025.
 Rettet. Kræver kildelæsning, kan ikke afgøres maskinelt.
 
-**C — stemmer ikke under nogen konvention (4):** Floren Engros 2024
-og 2025, PHILBERT 2025, Rezycl.com 2025. Skal genudtrækkes, ikke
-fortegnsrettes. Tre af dem er påvist fejlfodret: skattebilag,
-aprilbalance, saldobalance. Floren Engros 2025 hedder
-`Årsregnskab 2025.pdf` — dokumenttypen er ikke verificeret, kun at
-regnestykket ikke går op.
+**C — stemmer ikke under nogen konvention (3):** Floren Engros 2024
+og 2025, Rezycl.com 2025. Skal genudtrækkes, ikke fortegnsrettes.
+To af dem er påvist fejlfodret: skattebilag og saldobalance.
+Floren Engros 2025 hedder `Årsregnskab 2025.pdf` — dokumenttypen er
+ikke verificeret, kun at regnestykket ikke går op.
+
+PHILBERT 2025 er ude af klassen: løst 27/8 (§9). Fremgangsmåden er
+gentagelig for Rezycl.com, som har PASS-rapporter for januar, april og
+juni 2026 liggende ucommittede.
 
 **D — for tyndt udtræk til dom (2):** Booking Innovation 2025 og
 remm. 2025. remm. har ingen omkostningsnøgler overhovedet, så
@@ -178,6 +181,15 @@ Rettelsen er ét kanonisk navn, ikke en mapping i adapteren.
   årsrapporten uploades igen.
 - Alina Beauty & Skincare 2025: `payroll` og `ebt` gjort positive
   i fakta og rapport.
+- Klasse A, seks årgange: de fire omkostningsnøgler gjort positive i
+  både `financial_report_facts.metrics` og
+  `financial_reports.normalized_data`, betinget og idempotent.
+  180 værdier. `ebt` urørt og verificeret uændret på alle seks.
+- PHILBERT ApS: tre PASS-rapporter committed via medlemsfladen
+  (januar, marts, april 2026 — målte tal), og den fejltypede
+  årsrapport 2025 slettet. Triggeren `cleanup_facts_on_report_delete`
+  fjernede de tolv faktarækker. Den opdigtede årsomsætning på 192.840
+  var under halvdelen af de rigtige måneders niveau.
 
 ## 10. Påstande der er trukket tilbage
 
@@ -194,6 +206,16 @@ Rettelsen er ét kanonisk navn, ikke en mapping i adapteren.
   ti procent, ikke afrunding. Forkert dokument, ikke forkert fortegn.
 - «133 af 141 uploads» er ikke et medlemstal: 29 af dem er
   Topix' egne testuploads. Korrigeret succesrate ca. 92,9 %.
+- «Rådgiveren har ingen UPDATE-politik på financial_reports» — nej.
+  Målt i pg_policy: seksten politikker, alle permissive, herunder
+  «Advisors can update financial reports» og «Advisors can delete
+  facts». Påstanden var min, ikke reconens.
+- «Slet-knappen på årsrapporten er død» — nej. Den virker, inkl.
+  bekræftelsestrin og facts-oprydning via trigger. Konklusionen byggede
+  på målinger taget før klikket. `financial_report_facts` har derimod
+  ingen UPDATE-politik overhovedet — det står ved magt.
+- «reviewed_at er et dødt felt» — nej. Det er rådgiverens læst-flag,
+  skrevet i CompanyChatPane. Det er blot ikke en godkendelsesmarkør.
 
 ## 11. Åbne beslutninger
 
@@ -203,3 +225,36 @@ Rettelsen er ét kanonisk navn, ikke en mapping i adapteren.
   klassificere dem om? Seks af tretten er i dag fejlfodret.
 - Skal klasse C genudtrækkes eller nulstilles?
 - Hvad fik Alina at vide af agenten i de fire måneder tallet var forkert?
+  Målt 27/8: intet. Fire ugekort i perioden, det eneste med indhold er
+  fra 21. april — fire dage før uploadet — og bygger på hendes
+  månedsdata. Ingen agent_runs, ingen agent_proposals. Intet at
+  trække tilbage.
+
+## 12. Normaliseringsarkitektur — besluttet 27/8
+
+Det eksisterende canonical-maskineri kan allerede det halve af
+`aarsrapportNormalisering`: `expense_must_be_positive` og
+`gross_profit_sum` findes. Fortegnsdetektionen — resultatvending,
+egenkapitalvending, bruttovending — er gated på
+`report_type.toLowerCase().includes("saldo")` og på AI-sporet.
+
+Besluttet:
+
+- **Saldobalance-gaten åbnes ikke.** Den er låst af syv profiler og et
+  tocifret antal tests, og den bærer de veje der virker for flertallet.
+- **Årsrapport-vejen rutes ikke gennem legacy-motoren.**
+  `KF_TO_CANONICAL` kender ikke `nettoomsaetning`,
+  `personaleomkostninger` eller `andre_eksterne_omkostninger`, og
+  `if (!canonicalField) continue` ville droppe fem af ni felter tavst
+  — samme fejlklasse som `equity` i `factsAdapter`.
+- **Mellemvejen:** `runExtendedValidation()` som port — den er
+  metrics-drevet og genbrugelig — og `normaliserAarsrapport` til
+  polaritetsdom og afvisning.
+- **Normaliseringen skal køre på årstallene før divisionen med tolv.**
+  I dag divideres først (`extract-annual-report/index.ts:207-217`), så
+  motoren ville dømme afrundede månedstal mod en 2-kroners tolerance.
+
+Og en beslutning som målingen har truffet for os: vejen skal ikke
+afvise på dokumenttype, men på om regnestykket lukker. Den test ville
+have afvist seks af tretten uploads — inklusive Alinas udkast, som
+intet typetjek ville have fanget.
