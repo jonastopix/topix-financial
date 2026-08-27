@@ -1,6 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
 import { authenticateUser, corsHeaders } from "../_shared/edgeFunctionAuth.ts";
-import { manglerOmsaetning } from "../_shared/aarsrapportNormalisering.ts";
+import { manglerOmsaetning, normaliserAarsrapport } from "../_shared/aarsrapportNormalisering.ts";
 
 const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY")!;
 const DANISH_MONTHS = ["Januar","Februar","Marts","April","Maj","Juni","Juli","August","September","Oktober","November","December"];
@@ -106,7 +106,7 @@ Deno.serve(async (req) => {
 DIN OPGAVE: Udtræk de vigtigste nøgletal fra årsrapporten. Årsrapporten indeholder et helt regnskabsår — IKKE månedlige tal.
 VIGTIGT:
 - Alle tal skal være i KR. (ikke t.kr. — gang med 1000 hvis rapporten bruger t.kr.)
-- Negative tal (underskud, tab) angives som negative tal
+- Underskud og tab på resultatlinjerne (resultat_foer_skat, aarsresultat) angives som negative tal. Omkostninger angives som de står i dokumentet
 - Hvis et tal ikke fremgår af rapporten, returner null — ALDRIG 0 som erstatning
 
 NETTOOMSÆTNING — VIGTIGT: Nettoomsætning kan stå under mange navne i danske årsrapporter: 'Nettoomsætning', 'Omsætning', 'Indtægter', 'Salg', 'Honorarindtægter', 'Provisionsindtægter', 'Omsætningsindtægter', 'Nettoomsætning i alt'. Læs HELE resultatopgørelsen omhyggeligt og returner det beløb der er øverst i resultatopgørelsen som toplinjeindtægt. Hvis rapporten starter direkte med 'Bruttoresultat' eller 'Bruttotab' uden at vise nettoomsætning (klasse B mikro-rapport), sæt is_gross_profit_only: true og nettoomsaetning: null.`;
@@ -135,7 +135,7 @@ NETTOOMSÆTNING — VIGTIGT: Nettoomsætning kan stå under mange navne i danske
               nettoomsaetning: { type: "number", description: "Årets nettoomsætning i kr." },
               direkte_omkostninger: { type: "number" },
               bruttoresultat: { type: "number" },
-              personaleomkostninger: { type: "number", description: "Negativt tal" },
+              personaleomkostninger: { type: "number" },
               andre_eksterne_omkostninger: { type: "number" },
               afskrivninger: { type: "number" },
               resultat_foer_skat: { type: "number" },
@@ -206,25 +206,69 @@ NETTOOMSÆTNING — VIGTIGT: Nettoomsætning kan stå under mange navne i danske
     console.log(`[extract-annual-report] Derived revenue from gross_profit: ${extracted.nettoomsaetning}`);
   }
 
+  // ── STEP 2b: Normalisér og afstem ÅRSTALLENE — før divisionen med 12 ──
+  // (docs/aarsrapport-vejen-design.md §12: motoren dømmer årstal, ikke
+  // /12-afrundede månedstal.) Afvises der, sker det FØR STEP 5: ingen
+  // faktarækker er slettet eller skrevet på dette tidspunkt.
+  const normalisering = normaliserAarsrapport({
+    revenue: extracted.nettoomsaetning ?? null,
+    gross_profit: extracted.bruttoresultat ?? null,
+    payroll: extracted.personaleomkostninger ?? null,
+    cogs: extracted.direkte_omkostninger ?? null,
+    depreciation: extracted.afskrivninger ?? null,
+    admin_costs: extracted.andre_eksterne_omkostninger ?? null,
+    ebt: extracted.resultat_foer_skat ?? null,
+    cash: extracted.likvider ?? null,
+    equity: extracted.egenkapital ?? null,
+  });
+
+  if (!normalisering.ok) {
+    const AFVISNINGS_BESKEDER: Record<string, string> = {
+      for_faa_felter:
+        "Vi kunne ikke finde nok tal i dokumentet til at regne årets resultat igennem. Er det den rigtige årsrapport?",
+      brutto_stemmer_ikke:
+        "Tallene i dokumentet hænger ikke sammen: omsætning minus vareforbrug giver ikke bruttoresultatet. Det sker typisk hvis dokumentet ikke er en årsrapport.",
+      regnestykket_lukker_ikke:
+        "Tallene i dokumentet hænger ikke sammen: bruttoresultat minus omkostninger giver ikke årets resultat. Det sker typisk hvis dokumentet ikke er en årsrapport.",
+      omkostninger_ikke_udtrukket:
+        "Vi fandt ingen omkostningsposter i dokumentet, så årets resultat kan ikke efterprøves.",
+    };
+    const besked = AFVISNINGS_BESKEDER[normalisering.grund];
+    await failReport("afstemning", besked, {
+      grund: normalisering.grund,
+      beregnet: normalisering.beregnet,
+      forventet: normalisering.forventet,
+      afvigelse: normalisering.afvigelse,
+    });
+    return new Response(
+      JSON.stringify({ ok: false, error: besked, step: "afstemning", grund: normalisering.grund }),
+      { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+    );
+  }
+  const vaerdier = normalisering.vaerdier;
+
   // ── STEP 3: Build monthly metrics ──
   const monthly = (val: number | null | undefined) => val != null ? Math.round(val / 12) : null;
 
+  // Motorens vaerdier bærer konventionen (omkostninger positive, ebt dømt,
+  // revenue-nullet fra regel 2) — funktionen har ingen egen fortegns- eller
+  // 0-håndtering længere.
   const baseMetrics: Record<string, number | null> = {
-    revenue: manglerOmsaetning(extracted.nettoomsaetning) ? null : monthly(extracted.nettoomsaetning),
-    gross_profit: monthly(extracted.bruttoresultat),
-    payroll: monthly(extracted.personaleomkostninger),
-    ebt: monthly(extracted.resultat_foer_skat),
-    depreciation: monthly(extracted.afskrivninger),
-    cogs: monthly(extracted.direkte_omkostninger),
-    admin_costs: monthly(extracted.andre_eksterne_omkostninger),
+    revenue: monthly(vaerdier.revenue),
+    gross_profit: monthly(vaerdier.gross_profit),
+    payroll: monthly(vaerdier.payroll),
+    ebt: monthly(vaerdier.ebt),
+    depreciation: monthly(vaerdier.depreciation),
+    cogs: monthly(vaerdier.cogs),
+    admin_costs: monthly(vaerdier.admin_costs),
   };
 
   const metrics: Record<string, number> = {};
   for (const [k, v] of Object.entries(baseMetrics)) {
     if (v != null) metrics[k] = v;
   }
-  if (extracted.likvider != null) metrics.cash = extracted.likvider;
-  if (extracted.egenkapital != null) metrics.equity = extracted.egenkapital;
+  if (vaerdier.cash != null) metrics.cash = vaerdier.cash;
+  if (vaerdier.equity != null) metrics.equity = vaerdier.equity;
 
   if (Object.keys(metrics).length === 0) {
     await failReport("no_metrics", "AI returned no usable metrics from the document", { extracted });
@@ -304,6 +348,7 @@ NETTOOMSÆTNING — VIGTIGT: Nettoomsætning kan stå under mange navne i danske
     revenue_alt_label: extracted.omsaetning_alt_label || null,
     is_gross_profit_only: extracted.is_gross_profit_only || false,
     derived_fields: derivedFields,
+    normaliserings_noter: normalisering.noter,
   };
   await adminClient
     .from("financial_reports")
