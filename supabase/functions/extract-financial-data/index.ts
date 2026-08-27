@@ -860,25 +860,40 @@ serve(async (req) => {
 
         case "no_match":
           routingTrace.deterministic_result = "no_match";
-          // ── KNOWN SOURCE + NO TEMPLATE = FAIL LOUD ──
+          // ── KNOWN SOURCE + NO TEMPLATE: manuel indtastning, ikke blindgyde ──
+          // AI-fallback er fortsat forbudt for kendte kilder — men rapporten
+          // GEMMES (processed + needs_manual_entry), så svaret til klienten er
+          // ikke et fejlsvar: manuel indtastning er det næste skridt.
           if (sourceFingerprint && !isAiAllowed(sourceFingerprint)) {
             routingTrace.branch = "known_source_unsupported_variant";
-            console.log(`[Routing] Known source ${sourceFingerprint.source_system} but no template matched → FAIL LOUD (AI forbidden)`);
+            console.log(`[Routing] Known source ${sourceFingerprint.source_system} but no template matched → needs_manual_entry (AI forbidden)`);
+
+            const KILDENAVNE: Record<string, string> = {
+              dinero: "Dinero",
+              economic: "e-conomic",
+              combined_dk: "dit regnskabssystem",
+            };
+            const kildeNavn = KILDENAVNE[sourceFingerprint.source_system] ?? sourceFingerprint.source_system;
+            // Vises for medlemmet i ReportReviewDialog (PR #448) — skal kunne
+            // læses af et menneske. Den tekniske grund står i routing_trace.
+            const besked = `Filen er genkendt som en rapport fra ${kildeNavn}, men netop dette format understøttes ikke automatisk endnu. Du kan indtaste tallene manuelt på rapportkortet.`;
 
             if (reportId) {
-              const earlyExitErrors = [`Known source ${sourceFingerprint.source_system} detected but no supported template matched. AI fallback is forbidden for known sources.`];
               await supabase
                 .from("financial_reports")
-                .update(getEarlyExitPersistPayload(isV2Cohort, "known_source_unsupported_variant", "known_source_unsupported_variant", earlyExitErrors, routingTrace))
+                .update(getEarlyExitPersistPayload(isV2Cohort, "known_source_unsupported_variant", "known_source_unsupported_variant", [besked], routingTrace))
                 .eq("id", reportId);
             }
 
             return new Response(
               JSON.stringify({
-                error: "Known source without supported template",
+                ok: true,
+                needs_manual_entry: true,
+                reason: "unsupported_variant",
+                message: besked,
                 source_system: sourceFingerprint.source_system,
                 document_type: sourceFingerprint.document_type,
-                status: "error",
+                status: "processed",
               }),
               { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
             );
