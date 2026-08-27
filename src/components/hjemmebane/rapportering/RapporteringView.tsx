@@ -874,6 +874,11 @@ const AnnualSection = ({
   const [manualRevenue, setManualRevenue] = useState("");
   const [savingRevenue, setSavingRevenue] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  // Spørg-om-omsætning: sat ved upload når udtrækket ikke bar nettoomsætning
+  // (revenue_status missing/missing_gross_profit_only). Gemmer ÅRET, ikke
+  // rapport-id'et, så inputtet åbner når rækken renderes — uafhængigt af om
+  // annualQuery er refetchet på sæt-tidspunktet.
+  const [askRevenueYear, setAskRevenueYear] = useState<string | null>(null);
 
   const annualQuery = useQuery({
     queryKey: ["rapportering", "annual", companyId, refreshKey],
@@ -939,6 +944,13 @@ const AnnualSection = ({
 
       const inserted = result.inserted ?? 0;
       const protected_count = result.protected_count ?? 0;
+      // Dokumentet bar ingen nettoomsætning: spørg med det samme frem for at
+      // lade feltet stå tomt. Toasten nedenfor vises stadig — spørgsmålet
+      // erstatter den ikke.
+      if (result.revenue_status === "missing" || result.revenue_status === "missing_gross_profit_only") {
+        setAskRevenueYear(uploadYear);
+        setManualRevenue("");
+      }
       toast.success(`Årsrapport ${uploadYear} importeret ✓`, {
         description:
           inserted === 12
@@ -993,6 +1005,7 @@ const AnnualSection = ({
         description: `${new Intl.NumberFormat("da-DK").format(val)} kr. fordelt over ${data.updated} måneder`,
       });
       setEditingRevenue(null);
+      setAskRevenueYear(null);
       setManualRevenue("");
       queryClient.invalidateQueries({ queryKey: ["company-facts"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard-kpis"] });
@@ -1072,8 +1085,15 @@ const AnnualSection = ({
                     Fortryd
                   </button>
                 </>
-              ) : editingRevenue === report.id ? (
+              ) : editingRevenue === report.id || askRevenueYear === report.year ? (
                 <>
+                  {askRevenueYear === report.year && (
+                    <p className="w-full text-sm text-hb-ink">
+                      Din årsrapport indeholder ikke nettoomsætning — det gør de fleste
+                      klasse B-årsrapporter ikke. Indtast årets omsætning, så er dine tal
+                      komplette.
+                    </p>
+                  )}
                   <input
                     value={manualRevenue}
                     onChange={(e) => setManualRevenue(e.target.value)}
@@ -1093,6 +1113,7 @@ const AnnualSection = ({
                     type="button"
                     onClick={() => {
                       setEditingRevenue(null);
+                      setAskRevenueYear(null);
                       setManualRevenue("");
                     }}
                     className="shrink-0 px-2 text-xs text-hb-ink-soft hover:text-hb-ink"

@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
 import { authenticateUser, corsHeaders } from "../_shared/edgeFunctionAuth.ts";
+import { manglerOmsaetning } from "../_shared/aarsrapportNormalisering.ts";
 
 const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY")!;
 const DANISH_MONTHS = ["Januar","Februar","Marts","April","Maj","Juni","Juli","August","September","Oktober","November","December"];
@@ -187,7 +188,9 @@ NETTOOMSÆTNING — VIGTIGT: Nettoomsætning kan stå under mange navne i danske
   let revenueStatus: "extracted" | "derived" | "missing_gross_profit_only" | "missing" = "missing";
   const derivedFields: string[] = [];
 
-  if (extracted.nettoomsaetning != null) {
+  // Et nul er ikke en måling (YKRG-fejlsporet): 0 behandles som manglende,
+  // så fallbacket får lov at aflede — og ellers skrives null, ikke 0.
+  if (!manglerOmsaetning(extracted.nettoomsaetning)) {
     revenueStatus = "extracted";
   } else if (extracted.is_gross_profit_only) {
     revenueStatus = "missing_gross_profit_only";
@@ -207,7 +210,7 @@ NETTOOMSÆTNING — VIGTIGT: Nettoomsætning kan stå under mange navne i danske
   const monthly = (val: number | null | undefined) => val != null ? Math.round(val / 12) : null;
 
   const baseMetrics: Record<string, number | null> = {
-    revenue: monthly(extracted.nettoomsaetning),
+    revenue: manglerOmsaetning(extracted.nettoomsaetning) ? null : monthly(extracted.nettoomsaetning),
     gross_profit: monthly(extracted.bruttoresultat),
     payroll: monthly(extracted.personaleomkostninger),
     ebt: monthly(extracted.resultat_foer_skat),
@@ -314,7 +317,7 @@ NETTOOMSÆTNING — VIGTIGT: Nettoomsætning kan stå under mange navne i danske
 
   console.log(`[extract-annual-report] Done — inserted ${inserted} facts, ${protected_count} protected for company ${company_id} year ${year}`);
 
-  return new Response(JSON.stringify({ ok: true, inserted, protected_count, year, extracted }), {
+  return new Response(JSON.stringify({ ok: true, inserted, protected_count, year, revenue_status: revenueStatus, extracted }), {
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
 });

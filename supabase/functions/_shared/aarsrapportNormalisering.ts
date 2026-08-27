@@ -95,6 +95,16 @@ export type AarsrapportNormalisering =
 const num = (v: number | null | undefined): number | null =>
   typeof v === "number" && Number.isFinite(v) ? v : null;
 
+/**
+ * Regel 2 som selvstændig dom: mangler omsætningen? Sand for null,
+ * undefined, NaN og 0 (inkl. -0) — et nul er ikke en måling. Målt
+ * eksempel: YKRG 2024 står med revenue 0 i alle tolv måneder; enhver
+ * margin på det år dividerer med nul.
+ */
+export function manglerOmsaetning(v: number | null | undefined): boolean {
+  return v == null || Number.isNaN(v) || v === 0;
+}
+
 /** Omkostningsnøgle: positiv konvention, null når feltet mangler. */
 const absEllerNull = (v: number | null | undefined): number | null => {
   const n = num(v);
@@ -106,9 +116,10 @@ export function normaliserAarsrapport(
 ): AarsrapportNormalisering {
   const noter: string[] = [];
 
-  // Regel 2: et nul er ikke en måling.
-  let revenue = num(input.revenue);
-  if (revenue === 0) {
+  // Regel 2: et nul er ikke en måling (manglerOmsaetning bærer dommen).
+  const revenueRaa = num(input.revenue);
+  let revenue = revenueRaa;
+  if (revenueRaa !== null && manglerOmsaetning(revenueRaa)) {
     revenue = null;
     noter.push("revenue 0 behandlet som manglende: et nul er ikke en måling");
   }
