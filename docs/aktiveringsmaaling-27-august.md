@@ -37,13 +37,11 @@ Stadio, Startkørekort, Studio Mini, TOFT Administration, TuaMea Jewelry.
 
 Uploads pr. målt måned (årsrapport- og baselinerækker trukket fra).
 
-**Udledt, ikke direkte målt.** Kolonnen «uploads» og det samlede antal
-faktarækker er målt pr. virksomhed. «Målte mdr.» er beregnet ved at
-trække kendte estimatrækker fra: tolv pr. årsrapport-årgang og tolv for
-LineAlmegaards baseline. Fordelingen bygger på klassificeringen i
-docs/aarsrapport-vejen-design.md §5. En forespørgsel der grupperer
-faktarækker på `source_type` pr. virksomhed ville måle det direkte og
-bør køres, før tallene citeres videre.
+**Verificeret.** «Målte mdr.» blev først beregnet ved at trække kendte
+estimatrækker fra og derefter efterprøvet direkte mod `data_basis`
+grupperet pr. virksomhed. Alle toogtyve virksomheder med faktarækker
+rammer på tallet — nul afvigelser. Målingen bekræfter samtidig §2:
+remm. og LineAlmegaard står med tolv estimerede og nul målte rækker.
 
 | virksomhed | uploads | målte mdr. | forsøg pr. måned |
 |---|---|---|---|
