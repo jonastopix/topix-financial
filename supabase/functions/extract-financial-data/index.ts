@@ -1369,9 +1369,18 @@ Hvis du er i tvivl om et tal eller en kolonne → sæt validation.status = "UNSU
     }
 
     const finalStatus = canonical.validation?.status ?? "FAIL";
-    const allErrors = (canonical.validation?.canonical_checks ?? [])
-      .filter((c: any) => c.result === "FAIL")
-      .map((c: any) => `${c.name}: ${c.details}`);
+    // Statusdommen fælder på canonical_checks ELLER ai_checks
+    // (runExtendedValidation) — fejllisten skal høste BEGGE kilder.
+    // Frem til 27/8-2026 høstedes kun canonical: fældede ai_checks dommen
+    // alene, blev kolonnen null (33 FAIL-rapporter uden grund i drift).
+    const allErrors = [
+      ...(canonical.validation?.canonical_checks ?? [])
+        .filter((c: any) => c.result === "FAIL")
+        .map((c: any) => `${c.name}: ${c.details}`),
+      ...(canonical.validation?.ai_checks ?? [])
+        .filter((c: any) => c.result === "FAIL")
+        .map((c: any) => `Kontrol af dokumentet — ${c.name}: ${c.details}`),
+    ];
 
     // Log canonical summary
     console.log(`[Canonical] Period: ${extractedData.report_period} | Type: ${canonical.statement_type} | Basis: ${canonical.selected_period_basis}`);

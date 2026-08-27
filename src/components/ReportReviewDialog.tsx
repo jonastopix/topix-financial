@@ -100,6 +100,7 @@ export default function ReportReviewDialog({
 }: ReportReviewDialogProps) {
   const { user, isAdvisor, isAdmin, companyId } = useAuth();
   const [preview, setPreview] = useState<PreviewData | null>(null);
+  const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [committing, setCommitting] = useState(false);
@@ -124,6 +125,25 @@ export default function ReportReviewDialog({
       });
       if (rpcError) throw rpcError;
       setPreview(data as unknown as PreviewData);
+
+      // Fejlgrundene (validation_errors) bæres ikke af preview-RPC'en —
+      // hent dem fra rapport-rækken, så medlemmet kan se HVAD kontrollen
+      // fandt frem for kun "Ingen godkendte metrics fundet". Best-effort:
+      // fejler opslaget, vises dialogen som hidtil.
+      const { data: reportRow, error: fejlgrundErr } = await (supabase
+        .from("financial_reports")
+        .select("validation_errors")
+        .eq("id", reportId)
+        .maybeSingle() as any);
+      if (fejlgrundErr) {
+        // Ikke blokerende — dialogen virker uden. Men uden log kan
+        // "ingen fejl" ikke skelnes fra "kunne ikke hentes", og det er
+        // det mønster der har gjort fjorten andre skrivninger tavse.
+        console.error("[rapport] kunne ikke hente validation_errors", fejlgrundErr);
+      }
+      setValidationErrors(
+        Array.isArray(reportRow?.validation_errors) ? reportRow.validation_errors : [],
+      );
     } catch (err: any) {
       setError(err.message || "Kunne ikke hente preview");
     } finally {
@@ -141,6 +161,7 @@ export default function ReportReviewDialog({
       setPreview(null);
       setError(null);
       setEditing(false);
+      setValidationErrors([]);
     }
   }, [open, reportId, loadPreview]);
 
@@ -636,6 +657,22 @@ export default function ReportReviewDialog({
                 </div>
               );
             })()}
+
+            {/* Fejlgrundene fra valideringen — vises uændret (AI-teksterne er
+                ikke skrevet til medlemmer; omskrivning er et selvstændigt
+                spor), men under en overskrift der sætter dem i kontekst. */}
+            {validationErrors.length > 0 && (
+              <div className="rounded-lg border border-hb-line bg-hb-surface p-3">
+                <p className="text-[10px] font-semibold text-hb-ink-soft uppercase tracking-wider">
+                  Det fandt kontrollen:
+                </p>
+                <ul className="mt-1.5 space-y-1 pl-4 text-xs text-hb-ink-soft list-disc">
+                  {validationErrors.map((e, i) => (
+                    <li key={i}>{e}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
 
             {/* Metrics preview */}
             {preview.metrics_preview && Object.keys(preview.metrics_preview).length > 0 && (
