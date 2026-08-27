@@ -44,7 +44,7 @@ export type FornyelseStatus =
   | "ingen_slutdato"
   | "uden_for_ordningen"
   | "selvbetjener"
-  | "udloebet_uden_beslutning"
+  | "ophoert"
   | "udloebet_tilbyd"
   | "udloebet_tilbyd_ikke"
   | "beslutning_mangler"
@@ -94,9 +94,10 @@ export function afgoerFornyelsestilstand(
   input: FornyelseInput,
   now: Date = new Date(),
 ): Fornyelsestilstand {
-  // tier beregnes her alene til returværdien (alle grene returnerer den som
-  // computeMembershipTier giver den). Status-forgreningen må først bruge den
-  // EFTER null-tjekket og ikrafttrædelses-tjekket nedenfor.
+  // tier beregnes øverst; status-forgreningen bruger den først efter
+  // null-tjekket nedenfor. Udløbs-grenen afgøres FØR ikrafttrædelses-
+  // tjekket — en udløbet kontrakt er ikke et spørgsmål om ordningens
+  // ikrafttræden (besluttet 27/8, se kommentaren ved grenen).
   const tier = computeMembershipTier(
     {
       contract_end_date: input.contract_end_date,
@@ -112,9 +113,35 @@ export function afgoerFornyelsestilstand(
 
   const dage_til_udloeb = beregnDageTilUdloeb(input.contract_end_date, now);
 
-  // UDEN FOR ORDNINGEN — afgøres FØRST, før tier overhovedet indgår i
-  // forgreningen; ingen anden status må kunne returneres for disse
-  // virksomheder. Disse virksomheder er håndteret i personlig dialog uden
+  // UDLØBET — afgøres FØR ikrafttrædelses-reglen (besluttet 27/8): en
+  // udløbet kontrakt er ikke et spørgsmål om ordningens ikrafttræden.
+  //
+  // OPHØRT: en udløbet kontrakt uden truffet beslutning er ikke en
+  // manglende beslutning — det er et afsluttet kundeforhold. Beslutningen
+  // skulle have været truffet FØR udløb; der er ingen beslutning at
+  // træffe længere, og virksomheden skal ikke stå på rådgiverens liste.
+  // tier "expired" indebærer allerede at ingen aktiv Stripe-abonnements-
+  // vej findes (computeMembershipTier giver "subscriber" i det tilfælde).
+  //
+  // En TRUFFET beslutning har forrang og bevares uanset hvor længe siden
+  // slutdatoen er: fjortendagesvinduet efter slutdato (besluttet 27/8:
+  // et medlem der HAR fået tilbud kan forlænge til 50 % af indgangsprisen
+  // i 14 dage efter udløb, UDEN adgang til platformen — de lander på en
+  // fornyelsesside) bygges som selvstændig tilstand i en senere PR, men
+  // grænsen er rigtig allerede nu: kun FRAVÆR af beslutning giver ophoert.
+  if (tier === "expired") {
+    if (input.beslutning === "tilbyd") {
+      return { status: "udloebet_tilbyd", dage_til_udloeb, tier };
+    }
+    if (input.beslutning === "tilbyd_ikke") {
+      return { status: "udloebet_tilbyd_ikke", dage_til_udloeb, tier };
+    }
+    return { status: "ophoert", dage_til_udloeb, tier };
+  }
+
+  // UDEN FOR ORDNINGEN — afgøres før de øvrige tier-grene; ingen anden
+  // status må kunne returneres for disse (ikke-udløbne) virksomheder.
+  // Disse virksomheder er håndteret i personlig dialog uden
   // for systemet. Ordningen træder i kraft 10. september 2026 og må ikke
   // sende noget på bagkant. Grænsen er "på eller før", ikke "før", fordi
   // adgangen forsvinder kl. 00:00 UTC på selve slutdagen — et medlem med
@@ -136,21 +163,7 @@ export function afgoerFornyelsestilstand(
     return { status: "selvbetjener", dage_til_udloeb, tier };
   }
 
-  if (tier === "expired") {
-    // Efter udløb er forskellen mellem tilbud og afsked netop den handling,
-    // der skal udløses. Én samlet "udloebet_besluttet"-status ville tvinge
-    // enhver aftager til selv at læse beslutning og forgrene — og så ligger
-    // dommen to steder. Derfor tre adskilte statusser.
-    if (input.beslutning === "tilbyd") {
-      return { status: "udloebet_tilbyd", dage_til_udloeb, tier };
-    }
-    if (input.beslutning === "tilbyd_ikke") {
-      return { status: "udloebet_tilbyd_ikke", dage_til_udloeb, tier };
-    }
-    return { status: "udloebet_uden_beslutning", dage_til_udloeb, tier };
-  }
-
-  // tier === "full"
+  // tier === "full" (expired er afgjort ovenfor, før ikrafttrædelses-reglen)
   const iVindue = dage_til_udloeb !== null && dage_til_udloeb <= FORNYELSES_VINDUE_DAGE;
   if (!iVindue) {
     return { status: "i_god_tid", dage_til_udloeb, tier };
