@@ -55,12 +55,12 @@ describe("afgoerFornyelsestilstand — de ti statusværdier", () => {
     expect(ud.dage_til_udloeb).toBe(-25);
   });
 
-  it("udloebet_uden_beslutning: tier expired og beslutning null", () => {
+  it("ophoert: tier expired og beslutning null (erstatter udloebet_uden_beslutning, besluttet 27/8)", () => {
     const ud = afgoerFornyelsestilstand(
       input({ contract_end_date: "2026-09-20" }),
       EFTER_IKRAFT_NU,
     );
-    expect(ud).toEqual({ status: "udloebet_uden_beslutning", dage_til_udloeb: -25, tier: "expired" });
+    expect(ud).toEqual({ status: "ophoert", dage_til_udloeb: -25, tier: "expired" });
   });
 
   it("udloebet_tilbyd: tier expired og beslutning tilbyd", () => {
@@ -139,18 +139,69 @@ describe("afgoerFornyelsestilstand — uden_for_ordningen (ikrafttrædelse 2026-
     }
   });
 
-  it("slutdato før ikrafttrædelsen og tier expired → uden_for_ordningen, IKKE udloebet_uden_beslutning", () => {
+  it("slutdato før ikrafttrædelsen og tier expired → ophoert, IKKE uden_for_ordningen (udløb afgøres før ikrafttrædelsen, besluttet 27/8)", () => {
     const ud = afgoerFornyelsestilstand(
       input({ contract_end_date: "2026-09-01" }),
       EFTER_IKRAFT_NU,
     );
     expect(ud.tier).toBe("expired");
-    expect(ud.status).toBe("uden_for_ordningen");
+    expect(ud.status).toBe("ophoert");
   });
 
   it("null-slutdato giver stadig ingen_slutdato, ikke uden_for_ordningen", () => {
     const ud = afgoerFornyelsestilstand(input({ contract_end_date: null }), NU);
     expect(ud.status).toBe("ingen_slutdato");
+  });
+});
+
+describe("afgoerFornyelsestilstand — ophoert (besluttet 27/8, målte fixtures)", () => {
+  // En udløbet kontrakt uden truffet beslutning er et afsluttet
+  // kundeforhold — ikke en manglende beslutning. En TRUFFET beslutning
+  // har forrang og bevares uanset afstanden til slutdatoen
+  // (fjortendagesvinduet bygges som selvstændig tilstand i senere PR).
+
+  it("Stadio: slutdato 2026-05-06, ingen beslutning → ophoert", () => {
+    const ud = afgoerFornyelsestilstand(input({ contract_end_date: "2026-05-06" }), NU);
+    expect(ud.status).toBe("ophoert");
+    expect(ud.tier).toBe("expired");
+    expect(ud.dage_til_udloeb).toBe(-97);
+  });
+
+  it("Friends & Fries: slutdato 2026-08-22, ingen beslutning → ophoert", () => {
+    const ud = afgoerFornyelsestilstand(
+      input({ contract_end_date: "2026-08-22" }),
+      EFTER_IKRAFT_NU,
+    );
+    expect(ud.status).toBe("ophoert");
+    expect(ud.dage_til_udloeb).toBe(-54);
+  });
+
+  it("Friends & Fries med beslutning tilbyd → udloebet_tilbyd (beslutning har forrang)", () => {
+    const ud = afgoerFornyelsestilstand(
+      input({ contract_end_date: "2026-08-22", beslutning: "tilbyd" }),
+      EFTER_IKRAFT_NU,
+    );
+    expect(ud.status).toBe("udloebet_tilbyd");
+  });
+
+  it("Friends & Fries med beslutning tilbyd_ikke → udloebet_tilbyd_ikke", () => {
+    const ud = afgoerFornyelsestilstand(
+      input({ contract_end_date: "2026-08-22", beslutning: "tilbyd_ikke" }),
+      EFTER_IKRAFT_NU,
+    );
+    expect(ud.status).toBe("udloebet_tilbyd_ikke");
+  });
+
+  it("LineAlmegaard: slutdato 2026-09-01, aktiv, ingen beslutning → uden_for_ordningen", () => {
+    const ud = afgoerFornyelsestilstand(input({ contract_end_date: "2026-09-01" }), NU);
+    expect(ud.status).toBe("uden_for_ordningen");
+    expect(ud.tier).toBe("full");
+  });
+
+  it("PHILBERT: slutdato 2026-09-29, ingen beslutning → beslutning_mangler", () => {
+    const ud = afgoerFornyelsestilstand(input({ contract_end_date: "2026-09-29" }), NU);
+    expect(ud.status).toBe("beslutning_mangler");
+    expect(ud.dage_til_udloeb).toBe(49);
   });
 });
 
@@ -181,7 +232,7 @@ describe("afgoerFornyelsestilstand — grænser", () => {
       EFTER_IKRAFT_NU,
     );
     expect(ud.dage_til_udloeb).toBe(0);
-    expect(ud.status).toBe("udloebet_uden_beslutning");
+    expect(ud.status).toBe("ophoert");
     expect(ud.tier).toBe("expired");
   });
 

@@ -43,7 +43,9 @@ interface BeslutningsRow {
 }
 
 const STATUS_VISNING: Record<FornyelseStatus, { label: string; className: string }> = {
-  udloebet_uden_beslutning: { label: "Udløbet — ingen beslutning", className: "bg-destructive/15 text-destructive" },
+  // ophoert frafiltreres (SKJULTE_STATUSSER): et afsluttet kundeforhold —
+  // der er ingen beslutning at træffe, og de skal ikke stå på listen.
+  ophoert: { label: "Ophørt", className: "bg-muted text-muted-foreground" },
   udloebet_tilbyd: { label: "Udløbet — tilbyd", className: "bg-primary/10 text-primary" },
   udloebet_tilbyd_ikke: { label: "Udløbet — tilbyd ikke", className: "bg-muted text-muted-foreground" },
   beslutning_mangler: { label: "Beslutning mangler", className: "bg-chart-warning/15 text-chart-warning" },
@@ -60,6 +62,7 @@ const SKJULTE_STATUSSER: ReadonlySet<FornyelseStatus> = new Set([
   "i_god_tid",
   "ingen_slutdato",
   "selvbetjener",
+  "ophoert",
 ]);
 
 function formatDage(dage: number | null): string {
