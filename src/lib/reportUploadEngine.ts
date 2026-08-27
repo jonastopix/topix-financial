@@ -165,17 +165,26 @@ export async function runPostExtractionPipeline(params: {
       description: "Filen blev ikke genkendt som en finansiel rapport.",
     });
   } else if (needsManualEntry) {
-    // Build a contextual description based on what we know
-    const sourceHint = extractedData?.source_system && extractedData.source_system !== "unknown"
-      ? ` Vi genkender det som ${extractedData.source_system === "economic" ? "e-conomic" : extractedData.source_system}, men formatet er ukendt for os.`
-      : "";
-    const actionHint = extractedData?.extraction_method?.includes("pdf")
-      ? " Prøv at eksportere som Excel i stedet."
-      : "";
+    if (extractedData?.reason === "unsupported_variant" && extractedData?.message) {
+      // Kendt kilde uden template: ikke en fejl — filen er gemt, formatet
+      // kan bare ikke læses automatisk endnu. Serverens danske besked
+      // genbruges ordret (én kilde til sandheden, ingen dublet).
+      toastFn("Filen er gemt", {
+        description: `${extractedData.message} Rapportkortet åbner indtastningen automatisk.`,
+      });
+    } else {
+      // Build a contextual description based on what we know
+      const sourceHint = extractedData?.source_system && extractedData.source_system !== "unknown"
+        ? ` Vi genkender det som ${extractedData.source_system === "economic" ? "e-conomic" : extractedData.source_system}, men formatet er ukendt for os.`
+        : "";
+      const actionHint = extractedData?.extraction_method?.includes("pdf")
+        ? " Prøv at eksportere som Excel i stedet."
+        : "";
 
-    toastFn("Tjek tallene manuelt", {
-      description: `Vi kunne ikke aflæse alle tal automatisk.${sourceHint}${actionHint} Klik på rapporten for at indtaste de vigtigste tal — det tager 1-2 minutter.`,
-    });
+      toastFn("Tjek tallene manuelt", {
+        description: `Vi kunne ikke aflæse alle tal automatisk.${sourceHint}${actionHint} Klik på rapporten for at indtaste de vigtigste tal — det tager 1-2 minutter.`,
+      });
+    }
   } else {
     toastFn.success("Rapport behandlet ✓", {
       description: `${extractedData.report_type === "saldobalance" ? "Saldobalance" : "Resultatopgørelse"} for ${extractedData.report_period} — gennemgangen åbner automatisk`,
