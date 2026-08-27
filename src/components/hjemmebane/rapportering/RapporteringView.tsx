@@ -911,12 +911,9 @@ const AnnualSection = ({
         .replace(/[^a-zA-Z0-9._-]/g, "_");
       const filePath = `${companyId}/annual/${uploadYear}_${Date.now()}_${safeFileName}`;
 
-      // Dedup: soft-delete eksisterende årsrapport for året (arvet adfærd).
-      const existing = annualReports.find((r) => r.year === uploadYear);
-      if (existing) {
-        await supabase.from("financial_reports").update({ deleted_at: new Date().toISOString() } as any).eq("id", existing.id);
-        clearReportReviewNotification(existing.id);
-      }
+      // Dedup udskudt til EFTER succes: den gamle rapports id gemmes her,
+      // men rækken røres ikke før extract-annual-report har svaret ok.
+      const existingReportId = annualReports.find((r) => r.year === uploadYear)?.id ?? null;
 
       const { error: uploadErr } = await supabase.storage.from("financial-documents").upload(filePath, file);
       if (uploadErr) throw new Error(`Upload fejlede: ${uploadErr.message}`);
@@ -941,6 +938,39 @@ const AnnualSection = ({
       });
       if (fnErr) throw new Error(fnErr.message);
       if (!result?.ok) throw new Error(result?.error || "Ekstraktion fejlede");
+
+      // Dedup: soft-delete årets GAMLE årsrapport — først NU, efter at den
+      // nye er bekræftet. Den gamle rapport er medlemmets eneste kopi af
+      // årets tal indtil da: soft-delete før svar ville via
+      // cleanup_facts_on_report_delete-triggeren fjerne årets faktarækker,
+      // og et fejlet upload ville efterlade året tomt.
+      //
+      // Sikkert her, fordi extract-annual-report i STEP 5 allerede har
+      // slettet årets gamle annual-facts og skrevet de nye under den NYE
+      // rapports id — triggerens DELETE på den gamle rammer derfor nul.
+      //
+      // GRÆNSEN: beskyttelsen dækker fejl FØR STEP 5 (download, udtræk,
+      // parse, no_metrics — og en kommende afvisning fra
+      // normaliserAarsrapport, som indsættes før divisionen med 12).
+      // Fejler funktionen MELLEM STEP 5 og STEP 6, er årets gamle facts
+      // allerede slettet server-side, og året står tomt uanset denne
+      // rækkefølge. Det hul lukkes ikke her.
+      if (existingReportId) {
+        const { error: dedupErr } = await supabase
+          .from("financial_reports")
+          .update({ deleted_at: new Date().toISOString() } as any)
+          .eq("id", existingReportId);
+        if (dedupErr) {
+          // Ikke blokerende — de nye tal er skrevet. Men medlemmet står nu
+          // med to årsrapporter for samme år, og kun den ene har tal.
+          console.error("[aarsrapport] dedup af gammel rapport fejlede", dedupErr);
+          toast.warning("Den gamle årsrapport blev ikke fjernet", {
+            description: "Dine nye tal er gemt. Slet den gamle række manuelt.",
+          });
+        } else {
+          clearReportReviewNotification(existingReportId);
+        }
+      }
 
       const inserted = result.inserted ?? 0;
       const protected_count = result.protected_count ?? 0;
