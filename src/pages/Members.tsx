@@ -22,6 +22,7 @@ import { toast } from "sonner";
 import type { CompanyData, CompanyMember, LoginInfo, UnassignedUser, SortKey, SortDir } from "@/components/members/types";
 import MembersStatsBar from "@/components/members/MembersStatsBar";
 import MembersOnboardingFunnel from "@/components/members/MembersOnboardingFunnel";
+import FornyelsesSektion from "@/components/members/FornyelsesSektion";
 import MemberCompanyRow from "@/components/members/MemberCompanyRow";
 import EditCompanyDialog from "@/components/members/EditCompanyDialog";
 import MembersAdminSection from "@/components/members/MembersAdminSection";
@@ -496,6 +497,7 @@ const Members = () => {
             contract_start_date: c.contract_start_date || null,
             contract_end_date: c.contract_end_date || null,
             subscription_status: c.subscription_status || null,
+            subscription_current_period_end: c.subscription_current_period_end || null,
             membershipTier: computeMembershipTier({
               contract_end_date: c.contract_end_date,
               subscription_status: c.subscription_status,
@@ -1127,6 +1129,8 @@ const Members = () => {
         standalonePendingCount={standalonePendingInvitations.length}
         onSearchCompany={(name) => setSearch(name)}
       />
+
+      <FornyelsesSektion companies={companies} />
 
       {/* Search + filter bar */}
       <div className="glass-card rounded-xl p-4 mb-4 flex flex-col sm:flex-row gap-3">
