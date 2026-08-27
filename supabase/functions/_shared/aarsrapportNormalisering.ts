@@ -18,9 +18,18 @@
  *    gøres positive (Math.abs). Intet andet felt røres.
  * 2. revenue lig 0 behandles som manglende (null) med en note — et nul
  *    er ikke en måling.
- * 3. Invariant 1 (kun når både revenue og cogs findes):
- *    revenue − |cogs| skal ≈ gross_profit — med sin EGEN tolerance,
- *    skaleret efter det tal den måler (gross_profit), ikke efter ebt.
+ * 2b. Polaritetsdetektion (efter regel 2, før invariant 1): er BÅDE
+ *    revenue og gross_profit negative, er dokumentet gennemgående
+ *    kreditnegativt — begge vendes positive med note. Kravet er begge:
+ *    et ægte negativt bruttoresultat med positiv omsætning (Topix 2025)
+ *    må ikke vendes. ebt dømmes fortsat af invariant 2.
+ * 3. Invariant 1 (kun når både revenue og cogs findes), to lovlige
+ *    dokumentstrukturer: revenue − |cogs| ≈ gross_profit, ELLER
+ *    revenue − |cogs| − |admin_costs| ≈ gross_profit (bruttolinjen
+ *    ligger under de eksterne omkostninger; noteres, og admin_costs
+ *    udelades så af invariant 2's opex — den er allerede indeholdt i
+ *    bruttoresultatet). Egen tolerance, skaleret efter det tal
+ *    invarianten måler (gross_profit), ikke efter ebt.
  * 4. Invariant 2 (kræver gross_profit og ebt):
  *    beregnet = gross_profit − |payroll| − |depreciation| − |admin_costs|.
  *    cogs indgår IKKE — dækningsbidraget er allerede efter vareforbrug.
@@ -130,8 +139,21 @@ export function normaliserAarsrapport(
   const depreciation = absEllerNull(input.depreciation);
   const adminCosts = absEllerNull(input.admin_costs);
 
-  const grossProfit = num(input.gross_profit);
+  let grossProfit = num(input.gross_profit);
   const ebtRaa = num(input.ebt);
+
+  // Regel 2b — polaritetsdetektion, før invarianterne: er BÅDE toplinjen
+  // og bruttolinjen negative, er dokumentet gennemgående kreditnegativt
+  // (Alinas resultatopgørelse: omsætning −1.808.290, bruttoresultat
+  // −1.345.082), og begge vendes. Kravet er BEGGE: et ægte negativt
+  // bruttoresultat med positiv omsætning findes i drift (Topix 2025) og
+  // må ikke vendes. Omkostningerne er allerede abs'et; ebt dømmes fortsat
+  // af invariant 2's vendingslogik.
+  if (revenue !== null && grossProfit !== null && revenue < 0 && grossProfit < 0) {
+    revenue = -revenue;
+    grossProfit = -grossProfit;
+    noter.push("dokumentet er kreditnegativt: omsætning og bruttoresultat vendt");
+  }
 
   // Uden dækningsbidrag og resultatlinje kan intet regnestykke lukkes.
   if (grossProfit === null || ebtRaa === null) {
@@ -147,13 +169,29 @@ export function normaliserAarsrapport(
   // Regel 5: gulvet absorberer afrunding; 5 % skalerer med resultatet.
   const tolerance = Math.max(Math.abs(ebtRaa) * 0.05, 500);
 
-  // Invariant 1: revenue − |cogs| ≈ gross_profit. Egen tolerance,
+  // Invariant 1: to lovlige dokumentstrukturer. Egen tolerance,
   // skaleret efter det tal invarianten måler — ikke efter ebt.
+  //   a) revenue − |cogs| ≈ gross_profit (bruttolinjen lige efter
+  //      vareforbruget — standardstrukturen).
+  //   b) revenue − |cogs| − |admin_costs| ≈ gross_profit (bruttolinjen
+  //      ligger UNDER de eksterne omkostninger — målt eksempel: Floren
+  //      Engros 2024, hvor afvigelsen i vej a er admin_costs på kronen).
+  // Lukker vej b, er admin_costs allerede indeholdt i bruttoresultatet
+  // og må IKKE trækkes fra igen i invariant 2.
+  let bruttoUnderEksterne = false;
   if (revenue !== null && cogs !== null) {
     const bruttoTolerance = Math.max(Math.abs(grossProfit) * 0.05, 500);
     const bruttoBeregnet = revenue - cogs;
     const bruttoAfvigelse = Math.abs(bruttoBeregnet - grossProfit);
-    if (bruttoAfvigelse > bruttoTolerance) {
+    if (bruttoAfvigelse <= bruttoTolerance) {
+      // vej a — standardstrukturen.
+    } else if (
+      adminCosts !== null &&
+      Math.abs(bruttoBeregnet - adminCosts - grossProfit) <= bruttoTolerance
+    ) {
+      bruttoUnderEksterne = true;
+      noter.push("bruttolinjen ligger under de eksterne omkostninger");
+    } else {
       return {
         ok: false,
         grund: "brutto_stemmer_ikke",
@@ -167,8 +205,13 @@ export function normaliserAarsrapport(
   // Invariant 2: gross_profit − opex ≈ ±ebt. cogs indgår ikke —
   // dækningsbidraget er allerede efter vareforbrug. Manglende
   // omkostningsfelter tæller som 0 (ærligt fravær, ikke et gæt).
+  // Lukkede invariant 1 ad vej b, er admin_costs allerede indeholdt i
+  // bruttoresultatet og udelades her — ellers trækkes den fra to gange.
   const beregnet =
-    grossProfit - (payroll ?? 0) - (depreciation ?? 0) - (adminCosts ?? 0);
+    grossProfit -
+    (payroll ?? 0) -
+    (depreciation ?? 0) -
+    (bruttoUnderEksterne ? 0 : adminCosts ?? 0);
   const afvigelseUaendret = Math.abs(beregnet - ebtRaa);
   const afvigelseVendt = Math.abs(beregnet - -ebtRaa);
 

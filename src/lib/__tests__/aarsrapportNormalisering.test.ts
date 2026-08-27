@@ -159,7 +159,58 @@ describe("normaliserAarsrapport — ok, uændret ebt (klasse A)", () => {
   });
 });
 
+describe("normaliserAarsrapport — bruttolinje under de eksterne omkostninger", () => {
+  it("vej b lukker invariant 1, og admin_costs trækkes ikke fra igen i invariant 2", () => {
+    // Syntetisk: rev 1.000.000 − cogs 400.000 − admin 100.000 = gp 500.000
+    // (vej a fejler med præcis admin-beløbet). Invariant 2 UDEN admin:
+    // 500.000 − 300.000 = 200.000 = ebt. Med admin ville den fejle —
+    // testen låser netop at der ikke trækkes fra to gange.
+    const r = kraevOk(
+      normaliserAarsrapport({
+        revenue: 1_000_000,
+        gross_profit: 500_000,
+        cogs: 400_000,
+        admin_costs: 100_000,
+        payroll: -300_000,
+        ebt: 200_000,
+      }),
+    );
+    expect(r.noter).toContain("bruttolinjen ligger under de eksterne omkostninger");
+    expect(r.vaerdier.ebt).toBe(200_000);
+    expect(r.vaerdier.admin_costs).toBe(100_000);
+    expect(r.vaerdier.payroll).toBe(300_000);
+  });
+});
+
 describe("normaliserAarsrapport — ok, ebt vendes (klasse B)", () => {
+  it("Alina i kreditnegativ form: toplinje og bruttolinje vendes, resultatet dømmes af invariant 2", () => {
+    // Sådan kan AI'en nu aflevere dokumentet (prompten beder ikke længere
+    // om fortegnsvending): omsætning og bruttoresultat i dokumentets egen
+    // kreditnegative konvention. Uden regel 2b ville invariant 1 give
+    // −150691 − 38601 = −189292 mod −112090 og afvise den sag porten
+    // netop skal redde.
+    const r = kraevOk(
+      normaliserAarsrapport({
+        revenue: -150691,
+        gross_profit: -112090,
+        cogs: 38601,
+        payroll: 46796,
+        depreciation: 2207,
+        admin_costs: 29892,
+        ebt: -33208,
+      }),
+    );
+    expect(r.vaerdier.revenue).toBe(150691);
+    expect(r.vaerdier.gross_profit).toBe(112090);
+    expect(r.vaerdier.ebt).toBe(33208);
+    expect(r.noter).toContain(
+      "dokumentet er kreditnegativt: omsætning og bruttoresultat vendt",
+    );
+    expect(r.noter).toContain(
+      "resultatlinjen vendt: dokumentet er kreditnegativt",
+    );
+  });
+
   it("Alina Beauty & Skincare 2025: kreditnegativt dokument, overskud genoprettes", () => {
     const r = kraevOk(
       normaliserAarsrapport({
@@ -184,7 +235,10 @@ describe("normaliserAarsrapport — ok, ebt vendes (klasse B)", () => {
 });
 
 describe("normaliserAarsrapport — ikke ok (klasse C/D)", () => {
-  it("Floren Engros 2024: brutto stemmer ikke (invariant 1)", () => {
+  it("Floren Engros 2024: bruttolinje under eksterne lukker invariant 1, men resultatet lukker ikke", () => {
+    // Invariant 1 lukker ad vej b (109.154 − 46.603 = 62.551 på kronen),
+    // så admin_costs udelades af invariant 2: beregnet = 62.551 − 61.042
+    // − 0 = 1.509 mod ebt 359 — afvigelse 1.150 > tolerance 500.
     const r = kraevAfvist(
       normaliserAarsrapport({
         revenue: 357266,
@@ -195,10 +249,10 @@ describe("normaliserAarsrapport — ikke ok (klasse C/D)", () => {
         ebt: 359,
       }),
     );
-    expect(r.grund).toBe("brutto_stemmer_ikke");
-    expect(r.beregnet).toBe(109154); // 357266 − 248112
-    expect(r.forventet).toBe(62551);
-    expect(r.afvigelse).toBe(46603);
+    expect(r.grund).toBe("regnestykket_lukker_ikke");
+    expect(r.beregnet).toBe(1509); // 62551 − 61042 − 0 (admin udeladt, vej b)
+    expect(r.forventet).toBe(359);
+    expect(r.afvigelse).toBe(1150);
   });
 
   it("Floren Engros 2025: brutto stemmer ikke (invariant 1)", () => {
