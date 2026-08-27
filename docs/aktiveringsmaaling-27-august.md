@@ -67,9 +67,11 @@ remm. og LineAlmegaard står med tolv estimerede og nul målte rækker.
 Median: **2,6**. Topix er udeladt (51 uploads, heraf 44 slettede
 testkørsler — 8,5 er ikke et medlemstal).
 
-**Hypotese, ikke konklusion:** de fire bedste kører deterministisk
-template; flere af de dårligste kører AI-udtræk. Sammenhængen er ikke
-målt og bør afgøres, før noget bygges på den.
+**Hypotesen er afkræftet.** Fejlene fordeler sig næsten ligeligt
+mellem metoderne: `deterministic_template` 49 fejlede uploads,
+`ai_extraction` 44. Templaten fejler flere gange end AI'en i absolutte
+tal. Metodevalget forklarer ikke forskellen mellem de gode og de
+dårlige rater.
 
 ## 4. De to der gav op havde de værste rater
 
@@ -84,10 +86,12 @@ henholdsvis ti og enogfyrre forsøg.
 ## 5. Tre rapporter hænger i processing
 
 To hos Alina Beauty & Skincare, én hos ANLA GLAS. Status `processing`,
-aldrig færdiggjort, aldrig fejlet. De er usynlige i begge retninger:
-tælles hverken som succes eller fejl, og ingen alarm findes.
+aldrig færdiggjort, aldrig fejlet.
 
-Nyt fund. Årsagen er ikke undersøgt.
+Præcisering efter senere måling: alle tre er soft-slettede. De er
+derfor ikke synlige for medlemmet og er ikke et levende hul, men en
+datahygiejnisk kuriositet — en rapport kan ende i en tilstand hvor
+hverken succes eller fejl blev skrevet. Årsagen er ikke undersøgt.
 
 ## 6. Konsekvens for rækkefølgen
 
