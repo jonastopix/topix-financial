@@ -3,6 +3,7 @@ import { describe, it, expect } from "vitest";
 // vi tester den delte Deno-dommerlogik direkte fra vitest, så CI
 // (bun run test) dækker den.
 import {
+  manglerOmsaetning,
   normaliserAarsrapport,
   type AarsrapportNormalisering,
 } from "../../../supabase/functions/_shared/aarsrapportNormalisering.ts";
@@ -38,6 +39,24 @@ const kraevAfvist = (r: AarsrapportNormalisering): AfvistResultat => {
   if (r.ok) throw new Error("Forventede afvisning, fik ok");
   return r as AfvistResultat;
 };
+
+describe("manglerOmsaetning", () => {
+  // Målt eksempel: YKRG 2024 står med revenue 0 i alle tolv måneder —
+  // et falsk nul skrevet i stedet for null. Et nul er ikke en måling.
+  it("null, undefined, 0, -0 og NaN er manglende", () => {
+    expect(manglerOmsaetning(null)).toBe(true);
+    expect(manglerOmsaetning(undefined)).toBe(true);
+    expect(manglerOmsaetning(0)).toBe(true);
+    expect(manglerOmsaetning(-0)).toBe(true);
+    expect(manglerOmsaetning(NaN)).toBe(true);
+  });
+
+  it("målte tal er ikke manglende", () => {
+    expect(manglerOmsaetning(1)).toBe(false);
+    expect(manglerOmsaetning(587157)).toBe(false);
+    expect(manglerOmsaetning(-100)).toBe(false);
+  });
+});
 
 describe("normaliserAarsrapport — ok, uændret ebt (klasse A)", () => {
   it("ANLA GLAS 2024: omkostninger vendes positive, ebt urørt", () => {
