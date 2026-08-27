@@ -936,7 +936,18 @@ const AnnualSection = ({
       const { data: result, error: fnErr } = await supabase.functions.invoke("extract-annual-report", {
         body: { report_id: reportRow.id, file_path: filePath, year: uploadYear, company_id: companyId, user_id: userId },
       });
-      if (fnErr) throw new Error(fnErr.message);
+      if (fnErr) {
+        // FunctionsHttpError bærer serverens JSON-body (fx portens
+        // 422-afvisning med dansk grund) i context-Response — vis den
+        // ærlige besked frem for "non-2xx status code". Samme mønster som
+        // AgentForslagPanel/BookSessionView.
+        let besked = fnErr.message;
+        try {
+          const body = await (fnErr as any).context?.json?.();
+          if (body?.error) besked = body.error;
+        } catch { /* behold fnErr.message */ }
+        throw new Error(besked);
+      }
       if (!result?.ok) throw new Error(result?.error || "Ekstraktion fejlede");
 
       // Dedup: soft-delete årets GAMLE årsrapport — først NU, efter at den
