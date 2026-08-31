@@ -30,7 +30,40 @@ describe("sorterAktive — due_date stigende, forfaldne øverst", () => {
   });
 });
 
-describe("vaelgForslag — prioritet, derefter ældste", () => {
+describe("vaelgForslag — kilde, derefter prioritet, derefter ældste", () => {
+  it("advisor slår et ældre ai_weekly uanset prioritet (B10-vægtningen)", () => {
+    const valgt = vaelgForslag([
+      { id: "ai", source_type: "ai_weekly", priority: "high", created_at: "2026-08-26" },
+      { id: "raadgiver", source_type: "advisor", priority: "medium", created_at: "2026-08-31" },
+    ]);
+    expect((valgt as any).id).toBe("raadgiver");
+  });
+
+  it("kilderangen følger B10: advisor → reflection → ai_weekly/agent; ukendt vejer som 14-dages-klassen", () => {
+    const valgt = vaelgForslag([
+      { id: "agent", source_type: "agent", priority: "high", created_at: "2026-08-01" },
+      { id: "refleksion", source_type: "reflection", priority: "low", created_at: "2026-08-30" },
+      { id: "ukendt", source_type: "???", priority: "high", created_at: "2026-08-01" },
+    ]);
+    expect((valgt as any).id).toBe("refleksion");
+  });
+
+  it("inden for samme kilde afgør prioritet", () => {
+    const valgt = vaelgForslag([
+      { id: "medium", source_type: "advisor", priority: "medium", created_at: "2026-08-01" },
+      { id: "high", source_type: "advisor", priority: "high", created_at: "2026-08-30" },
+    ]);
+    expect((valgt as any).id).toBe("high");
+  });
+
+  it("inden for samme kilde og prioritet afgør ældste created_at — tættest på udløb", () => {
+    const valgt = vaelgForslag([
+      { id: "ny", source_type: "advisor", priority: "high", created_at: "2026-08-30" },
+      { id: "gammel", source_type: "advisor", priority: "high", created_at: "2026-08-24" },
+    ]);
+    expect((valgt as any).id).toBe("gammel");
+  });
+
   it("high vinder over medium og low", () => {
     const valgt = vaelgForslag([
       { id: "m", priority: "medium", created_at: "2026-08-01" },
