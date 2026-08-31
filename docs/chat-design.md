@@ -161,9 +161,10 @@ ligner en kvittering, behandles som en kvittering.
 "Foreslå opgave" (#455) bliver i rådgiverens flade. Der bygges ingen
 automatik der spørger efter en samtale.
 
-Begrundelse: C2 i `docs/opgave-model-design.md` gælder — et forslag er
-en anmodning, og anmodninger der stilles rutinemæssigt, ignoreres
-rutinemæssigt.
+Begrundelse: B6-indvendingen i `docs/opgave-model-design.md` gælder
+også her — hver ekstra handling har historisk kostet næsten al
+adoption i denne platform. Et forslag er en anmodning, og anmodninger
+der stilles rutinemæssigt, ignoreres rutinemæssigt.
 
 Målt eksempel på hvorfor knappen alligevel er rigtig: remm.,
 22. juni — likviditetsbudgettet erkendes som manglende, opskrift gives
