@@ -1451,6 +1451,10 @@ const CompanyChatPane = () => {
                     let lastDateKey = "";
                     let unreadDividerShown = false;
                     return messages.map((msg, msgIdx) => {
+                      // Bælte og seler: RLS (migration 20260831131200) forhindrer at
+                      // session_prep-rækker overhovedet når medlemmets klient. Filteret
+                      // her gælder rådgiveren i "Se som medlem", hvor RLS ikke kan
+                      // skelne — isAdvisor er UI-tilstand, JWT'en er stadig rådgiverens.
                       if (msg.context_type === "session_prep" && !isAdvisor) return null;
                       const isMine = msg.sender_id === user?.id;
                       const contextType = msg.context_type || null;
