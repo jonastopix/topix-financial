@@ -147,9 +147,6 @@ const CompanyChatPane = () => {
   const [forslagTitel, setForslagTitel] = useState("");
   const [forslagBegrundelse, setForslagBegrundelse] = useState("");
   const [foreslaarOpgave, setForeslaarOpgave] = useState(false);
-  // Genindlæsning af beskedlisten fra handlers uden for load-effekten —
-  // chatSubmitRef-mønstret; sættes i loadMessages-effekten.
-  const reloadMessagesRef = useRef<() => void>(() => {});
 
   // Fetch all advisors for member header (independent of conversation participation)
   const { data: allAdvisors } = useQuery({
@@ -534,7 +531,6 @@ const CompanyChatPane = () => {
       }
     };
 
-    reloadMessagesRef.current = loadMessages;
     loadMessages();
 
     const channel = supabase
@@ -873,8 +869,10 @@ const CompanyChatPane = () => {
       setForslagTitel("");
       setForslagBegrundelse("");
       setAssignmentPopoverOpen(false);
-      // Genindlæs beskederne, så systembeskeden ses med det samme.
-      reloadMessagesRef.current();
+      // INGEN manuel genindlæsning af beskederne: realtime-abonnementet
+      // på messages INSERT henter allerede den nye systembesked, og en
+      // genindlæsning oveni gav to kopier i state. Målt 31/8: én række
+      // i databasen, to bobler på skærmen.
     } finally {
       setForeslaarOpgave(false);
     }

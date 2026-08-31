@@ -1572,7 +1572,7 @@ export const BoardroomView = () => {
       // limit(10) ville nye forslag skubbe netop de aktive opgaver ud,
       // og sektionens vigtigste indhold forsvinde først. Målt i prod
       // 31/8: tungeste virksomhed har 20 rækker; 50 er rigelig margin.
-      const { data } = await supabase.from("company_actions").select("id, title, context, priority, status, created_at, due_date, expires_at, deferral_count")
+      const { data } = await supabase.from("company_actions").select("id, title, context, priority, status, created_at, due_date, expires_at, deferral_count, source_type")
         .eq("company_id", companyId!).in("status", ["open", "proposed", "active"]).order("created_at", { ascending: false }).limit(50) as any;
       return ((data || []) as any[]).sort((a: any, b: any) => {
         const order: Record<string, number> = { high: 0, medium: 1, low: 2 };

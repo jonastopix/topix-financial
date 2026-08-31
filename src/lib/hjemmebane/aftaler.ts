@@ -19,22 +19,42 @@ export function sorterAktive<T extends { due_date?: string | null; created_at?: 
   });
 }
 
+/** Kilderangen følger B10's udløbsfrister — husets egen vurdering af
+    hvor tungt et forslag vejer: advisor (30 dage) → reflection (21) →
+    ai_weekly/agent (14). En ukendt kilde vejer som 14-dages-klassen,
+    samme fallback som B10. */
+const KILDE_RANG: Record<string, number> = {
+  advisor: 0,
+  reflection: 1,
+  ai_weekly: 2,
+  agent: 2,
+};
+const KILDE_FALLBACK_RANG = 2;
+
 /** ÉT forslag ad gangen: ti forslag er ikke ti muligheder, det er en
     liste man scroller forbi. Målingen bag: 102 milestones, 8 % fuldført,
     61 uden dato — mens handout-løftestængerne, hvor der er ét sted det
     bliver til noget, står på 74 %. Et ubesvaret forslag er ikke spildt:
     B8 lader det udløbe efter fjorten dage og tælle for rådgiveren.
 
-    Udvælgelsen: prioritet (high → medium → low, ukendt = medium som i
-    fladens øvrige sortering), derefter ældste created_at — det ældste
-    er tættest på at udløbe og skal have sin chance først. */
-export function vaelgForslag<T extends { priority?: string | null; created_at?: string }>(
-  forslag: T[],
-): T | null {
+    Udvælgelsen: KILDE først (KILDE_RANG) — en rådgiver har brugt tid på
+    sit forslag, og B10 giver det netop derfor længst levetid; står det
+    i kø bag et AI-gæt fra sidste uge, er den vurdering ikke afspejlet
+    dér hvor medlemmet ser den. Derefter prioritet (high → medium → low,
+    ukendt = medium som i fladens øvrige sortering), og til sidst ældste
+    created_at INDEN FOR samme kilde og prioritet — det ældste er
+    tættest på at udløbe og skal have sin chance først. */
+export function vaelgForslag<
+  T extends { source_type?: string | null; priority?: string | null; created_at?: string },
+>(forslag: T[]): T | null {
   if (forslag.length === 0) return null;
-  const rang: Record<string, number> = { high: 0, medium: 1, low: 2 };
+  const prioRang: Record<string, number> = { high: 0, medium: 1, low: 2 };
   return [...forslag].sort((a, b) => {
-    const prio = (rang[a.priority ?? ""] ?? 1) - (rang[b.priority ?? ""] ?? 1);
+    const kilde =
+      (KILDE_RANG[a.source_type ?? ""] ?? KILDE_FALLBACK_RANG) -
+      (KILDE_RANG[b.source_type ?? ""] ?? KILDE_FALLBACK_RANG);
+    if (kilde !== 0) return kilde;
+    const prio = (prioRang[a.priority ?? ""] ?? 1) - (prioRang[b.priority ?? ""] ?? 1);
     if (prio !== 0) return prio;
     return (a.created_at ?? "") < (b.created_at ?? "") ? -1 : 1;
   })[0];
