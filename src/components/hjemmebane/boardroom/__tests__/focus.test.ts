@@ -139,28 +139,19 @@ describe("deriveFocus — hver kilde for sig", () => {
     ]);
   });
 
-  it("(f) 'proposed' beskrives som forslag der venter på svar og bærer forslag-handling", () => {
-    const items = deriveFocus(
-      base({
-        openActions: [{ id: "p1", title: "Stram likviditeten", priority: "high", status: "proposed", deferral_count: 0 }],
-      }),
-    );
-    expect(items[0].description).toBe("Et forslag der venter på dit svar.");
-    expect(items[0].handling).toEqual({ slags: "forslag", opgaveId: "p1", deferralCount: 0, dueDate: null });
-  });
-
-  it("(f) 'proposed' med context: forslags-sætningen først, begrundelsen efter", () => {
+  it("(f) 'proposed' giver INTET fokus-punkt — forslaget bor i Dine aftaler (ét ad gangen)", () => {
     const items = deriveFocus(
       base({
         openActions: [
-          { id: "p1", title: "Stram likviditeten", priority: "high", status: "proposed", context: "Kassekreditten er presset." },
+          { id: "p1", title: "Stram likviditeten", priority: "high", status: "proposed", deferral_count: 0 },
+          { id: "p2", title: "Endnu et forslag", priority: "medium", status: "proposed", context: "Begrundelse." },
         ],
       }),
     );
-    expect(items[0].description).toBe("Et forslag der venter på dit svar. Kassekreditten er presset.");
+    expect(items).toEqual([]);
   });
 
-  it("(f) 'active' siger hvornår den skal være gjort og bærer aktiv-handling m. tæller og frist", () => {
+  it("(f) 'active' siger hvornår den skal være gjort og peger på #dine-aftaler", () => {
     const items = deriveFocus(
       base({
         openActions: [
@@ -169,7 +160,7 @@ describe("deriveFocus — hver kilde for sig", () => {
       }),
     );
     expect(items[0].description).toBe("Skal være gjort senest 4. september.");
-    expect(items[0].handling).toEqual({ slags: "aktiv", opgaveId: "k1", deferralCount: 1, dueDate: "2026-09-04" });
+    expect(items[0].ctaHref).toBe("#dine-aftaler");
   });
 
   it("(f) 'active' med context: fristen først, begrundelsen efter", () => {
@@ -183,7 +174,7 @@ describe("deriveFocus — hver kilde for sig", () => {
     expect(items[0].description).toBe("Skal være gjort senest 4. september. Renten skal genforhandles.");
   });
 
-  it("(f) arve-'open' og manglende status er uændret: context/fallback og INGEN handling", () => {
+  it("(f) arve-'open' og manglende status er uændret: context/fallback og href er forsiden (fold-ud)", () => {
     const items = deriveFocus(
       base({
         openActions: [
@@ -193,10 +184,11 @@ describe("deriveFocus — hver kilde for sig", () => {
       }),
     );
     expect(items.map((i) => i.description)).toEqual(["Begrundelsen.", "Åben handling fra din handlingsplan."]);
-    expect(items.every((i) => i.handling === undefined)).toBe(true);
+    expect(items.every((i) => i.ctaHref === "/")).toBe(true);
+    expect(items.every((i) => i.ctaLabel === "Se handlinger")).toBe(true);
   });
 
-  it("(f) blandet liste: prioritet 6 og kalderens orden bevares uanset status", () => {
+  it("(f) blandet liste: proposed udelades, active og arve-'open' består i kalderens orden", () => {
     const items = deriveFocus(
       base({
         openActions: [
@@ -206,13 +198,13 @@ describe("deriveFocus — hver kilde for sig", () => {
         ],
       }),
     );
-    expect(items.map((i) => i.sourceId)).toEqual(["p1", "k1", "a1"]);
+    expect(items.map((i) => i.sourceId)).toEqual(["k1", "a1"]);
     expect(items.every((i) => i.priority === 6)).toBe(true);
   });
 
-  it("(f) B8 på læsesiden: udløbet 'proposed' filtreres fra før deriveFocus, kommende består", () => {
-    // Samme vej som fladen: mappingen kører filtrerUdloebneForslag før
-    // deriveFocus. Tidsstempel-dom (timestamptz), ikke kalenderdag.
+  it("(f) B8: filtrerUdloebneForslag fjerner udløbet 'proposed' på tidsstempel, kommende består", () => {
+    // Helperen bruges af BÅDE fokus-mappingen og Dine aftaler-sektionen.
+    // Tidsstempel-dom (timestamptz), ikke kalenderdag.
     const udloebet = {
       id: "p1",
       title: "Udløbet forslag",
@@ -227,10 +219,7 @@ describe("deriveFocus — hver kilde for sig", () => {
       status: "proposed",
       expires_at: new Date(NOW.getTime() + 1000).toISOString(),
     };
-    expect(deriveFocus(base({ openActions: filtrerUdloebneForslag([udloebet], NOW) }))).toEqual([]);
-    const items = deriveFocus(base({ openActions: filtrerUdloebneForslag([kommende], NOW) }));
-    expect(items).toHaveLength(1);
-    expect(items[0].sourceId).toBe("p2");
+    expect(filtrerUdloebneForslag([udloebet, kommende], NOW).map((a) => a.id)).toEqual(["p2"]);
   });
 
   it("(f) B8 rører kun 'proposed': active og arve-'open' består uanset expires_at-fortid", () => {
