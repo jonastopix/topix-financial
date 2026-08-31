@@ -10,14 +10,28 @@ import { HbNav } from "./HbNav";
     links og brugerens profil. `active` styrer nav'ens aktiv-markering. */
 export const HbMemberShell = ({
   active,
+  layout = "side",
   children,
 }: {
   // "medlemmer" = Netværket (/medlemmer). Profilsiderne (/medlemmer/:userId)
   // deler værdien — en profil hører til netværket. "community" deles
   // tilsvarende af feed (/community) og trådsider (/community/:id).
-  active: "boardroom" | "akademiet" | "rapportering" | "noegletal" | "budget" | "handouts" | "booksession" | "podcast" | "rabataftaler" | "events" | "medlemmer" | "community";
+  active: "boardroom" | "akademiet" | "rapportering" | "noegletal" | "budget" | "handouts" | "booksession" | "podcast" | "rabataftaler" | "events" | "medlemmer" | "community" | "chat";
+  /* layout="fuld" (chatten, C4 i docs/chat-design.md): AppLayout-
+     præcedensen (fullscreen-prop, AppLayout.tsx:28-31, forgrening :337)
+     oversat til Hb-skallen. Prop'en findes fordi shell'ens lodrette
+     padding deles af alle flader og hverken må vokse eller skrumpe for
+     én (BoardroomView:136-138) — derfor en EKSPLICIT variant frem for
+     at en flade bryder ud med negative margins. Varianten fjerner
+     main'ens max-width/padding og binder højdekæden på ALLE breakpoints
+     (h-screen-safe): chattens bundne højde kom før fra AppLayout
+     fullscreen på både mobil og desktop, ikke fra fladen selv.
+     Kolonnen bliver flex-col uden egen scroll; fladen scroller selv
+     indeni. Uden prop'en er alt tegn-for-tegn som før. */
+  layout?: "side" | "fuld";
   children: React.ReactNode;
 }) => {
+  const fuld = layout === "fuld";
   const [drawerOpen, setDrawerOpen] = useState(false);
   const { profile, signOut, membershipTier } = useAuth();
   const avatarSrc = profile?.avatar_url || undefined;
@@ -90,7 +104,7 @@ export const HbMemberShell = ({
         {
           label: "Din rådgiver",
           children: [
-            { label: "Chat", to: "/chat" },
+            { label: "Chat", to: "/chat", active: active === "chat" },
             // BookSession-GO 2026-08-13: /book-session bærer Hb-fladen.
             {
               label: "Book session",
@@ -108,10 +122,10 @@ export const HbMemberShell = ({
       ];
 
   return (
-    <div className="theme-hjemmebane min-h-screen bg-hb-paper font-body text-hb-ink antialiased">
-      <div className="flex lg:h-screen lg:overflow-hidden">
+    <div className={`theme-hjemmebane ${fuld ? "h-screen-safe" : "min-h-screen"} bg-hb-paper font-body text-hb-ink antialiased`}>
+      <div className={`flex ${fuld ? "h-full overflow-hidden" : "lg:h-screen lg:overflow-hidden"}`}>
         <HbSidebar avatarSrc={avatarSrc} userName={userName} nav={nav} homeTo={boardroomTo} onSignOut={signOut} />
-        <div className="min-w-0 flex-1 lg:overflow-y-auto">
+        <div className={`min-w-0 flex-1 ${fuld ? "flex flex-col overflow-hidden" : "lg:overflow-y-auto"}`}>
           <HbNav onMenuClick={() => setDrawerOpen(true)} avatarSrc={avatarSrc} />
           <HbSidebarDrawer
             open={drawerOpen}
@@ -122,7 +136,11 @@ export const HbMemberShell = ({
             homeTo={boardroomTo}
             onSignOut={signOut}
           />
-          <main className="mx-auto max-w-[1200px] px-6 py-10 md:py-14">{children}</main>
+          {fuld ? (
+            <main className="flex min-h-0 flex-1 flex-col">{children}</main>
+          ) : (
+            <main className="mx-auto max-w-[1200px] px-6 py-10 md:py-14">{children}</main>
+          )}
         </div>
       </div>
     </div>
