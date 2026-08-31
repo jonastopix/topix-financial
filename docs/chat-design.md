@@ -93,26 +93,44 @@ designes frit, og rådgiverbordet tages samlet senere.
 
 Det er en ændring af tempo 5's rækkefølge og skal bogføres dér.
 
-### C2 — Systembeskeder ud af tråden
+### C2 — Rapportkvitteringerne ud af tråden
 
-**Forslag:** kvitteringer (`context_type = 'report'`) vises ikke i
-beskedstrømmen. De 354 er en logfil blandet ind i en samtale, og
-teksten peger selv væk fra chatten.
+Gælder `context_type = 'report'` — de 354 kvitteringer og
+AI-analyse-chippene. IKKE agent-kort eller opgave-forslag, som er
+noget nogen skal forholde sig til; session_prep har sit eget punkt
+(C3).
 
-Åbent: hvor de så hører hjemme. Rapportering har allerede en
-leverance-fortælling. Kortet med nøgletal og "Åbn rapportfil" er
-brugbart — det er placeringen der er forkert, ikke kortet.
+De 354 er en logfil blandet ind i en samtale, og teksten peger selv væk
+fra chatten.
 
-Ikke besluttet: om de slettes historisk eller blot skjules fremad.
+**Besluttet 31/8:** de slettes, også historisk. En rapport hører til i
+Rapportering og KPI'er, ikke i chatten. Kortet med nøgletal og "Åbn
+rapportfil" er brugbart — men det er en visning af data, ikke en
+begivenhed i en samtale, og de flader ejer den allerede.
+
+Produktionen standses samtidig: `reportCommit.ts` og
+`useFinancialAnalysis.ts` skriver dem i dag fra klienten.
+
+**Men det åbner noget andet (Jonas, 31/8):** man skal måske kunne
+HENVISE til et tal i chatten. Det er ikke en kvittering vendt om — en
+kvittering er systemet der fortæller, en henvisning er et menneske der
+peger. Målt eksempel: remm. retyper "Nettoomsætning: 1,38 mio. kr.
+(38 % over budget)" i en besked, fordi platformen ikke kan sige det for
+ham.
+
+Det er et selvstændigt spor med sin egen recon — se C12.
 
 ### C3 — Session_prep genereres ikke længere
 
 Funktionen bruges ikke (Jonas, 31/8). 102 beskeder — 9,7 % af alt
 indhold — produceres til ingen.
 
-**Forslag:** `write_session_prep` fjernes som agent-skrivevej, og
-`forslagEngine`s liste over godkendbare skriveveje reduceres
-tilsvarende. Eksisterende rækker bliver stående som historik.
+**Besluttet 31/8: fjernes helt.** `write_session_prep` udgår som
+agent-skrivevej, og `forslagEngine`s liste over godkendbare skriveveje
+reduceres tilsvarende. Ti procent af alt indhold produceret til en
+funktion der ikke bruges, slukkes ikke — det fjernes.
+
+Eksisterende rækker bliver stående som historik.
 
 RLS-carve-out'en fra 31/8 (migration `20260831131200`) bliver stående
 uanset — den koster intet.
@@ -153,8 +171,19 @@ princip som "Dine aftaler".
 Det skal kunne skelnes fra en besked ved første øjekast. En nudge der
 ligner en kvittering, behandles som en kvittering.
 
-Åbent: hvad der nudges til, og i hvilken rækkefølge. Grundlaget er
-§1-tabellen, men rækkefølgen er en produktbeslutning.
+**Ikke afgjort her, bevidst (Jonas, 31/8):** nudging skal tænkes ind i
+hele platformen og i onboardingen, ikke opfindes for chatten alene. En
+nudge i chatten, en anden på forsiden og en tredje i en mail er tre
+mekanismer der konkurrerer om den samme opmærksomhed.
+
+Chat-designet fastlægger derfor kun HVOR en nudge må bo (uden for
+beskedstrømmen) og hvor mange ad gangen (én). Hvad der nudges til, og
+hvordan det hænger sammen med onboarding-sekvensen og forsidens
+fokus-kort, hører til et samlet nudge-spor.
+
+Foreløbig observation, ikke en beslutning: rækkefølgen bør formentlig
+følge afhængighed frem for tal — uden målte måneder er et budget
+meningsløst, og uden budget er KPI-mål tomme.
 
 ### C7 — Aftaler som udgang, ikke som spørgsmål
 
@@ -200,12 +229,17 @@ Samme fejl rammer `reflection-nudge` og `legat-momentum-reminder`.
 `ChatShell` giver medlemmet "Advisor" (engelsk label på desktop,
 "Rådgiver" på mobil) og "Finansiel AI".
 
-**Forslag:** labels rettes til dansk begge steder. Om de to faner
-overhovedet er den rigtige struktur, er ikke afgjort — AI-chatten over
-egne tal er noget andet end sparring med et menneske, men et medlem
-med nul målte måneder har intet at spørge AI'en om.
+**Forslag:** labels rettes til dansk begge steder.
 
-Åbent.
+**Retningen er tiltrådt 31/8:** AI-fanen hører formentlig ikke ved
+rådgiverchatten. Et medlem med nul målte måneder har intet at spørge
+den om, og for dem der har tal, hører den nærmere ved tallene end ved
+mennesket.
+
+Men beslutningen kræver grundlag der ikke findes: ingen har målt
+hvordan AI-fanen bruges — hvor mange, hvor ofte, hvad der spørges om,
+og om spørgsmålene kunne besvares af KPI-fladen. Det skal måles før
+fanen flyttes.
 
 ### C11 — Hvad der IKKE ændres
 
@@ -216,6 +250,30 @@ flade, alt sammen i brug.
 Ulæst-begrebet røres ikke i dette spor. Syv kodesteder afgør "ulæst" på
 hver sin måde (`docs/chat-recon-2.md` §3); det er sit eget arbejde og
 hører til rådgiverfladen, hvor de fleste af målerne bor.
+
+### C12 — Henvis til et tal i chatten
+
+Rejst af Jonas 31/8 som konsekvens af C2.
+
+I dag retyper medlemmer tal platformen allerede kender. remm. skriver
+"Nettoomsætning: 1,38 mio. kr. (38 % over budget)" i en besked;
+Booking Innovation, BR Roset og Fjeldgaardshop gør det samme i deres
+statusopdateringer. Samtalen og tallene lever ved siden af hinanden i
+stedet for sammen.
+
+En henvisning er ikke en kvittering. Kvitteringen er systemet der
+fortæller noget skete; henvisningen er et menneske der peger på noget
+bestemt. Den ene er støj i en samtale, den anden er samtalens indhold.
+
+Ikke afgjort: hvordan man peger (indsætter man et tal, en periode, en
+KPI, en graf?), hvad der vises i beskeden, og om henvisningen er
+levende (viser tallet som det er nu) eller frosset (som det var da
+beskeden blev skrevet). Det sidste er ikke en detalje — et tal der
+ændrer sig efter at nogen har kommenteret på det, gør samtalen
+uforståelig.
+
+Eget spor med egen recon. Forudsætter at rapporteringen virker for
+flere end de 56 % der bruger den i dag.
 
 ---
 
@@ -248,9 +306,11 @@ rådgiver-epicen.
 
 ## 7. Åbne spørgsmål
 
-1. Hvor hører rapportkvitteringerne hjemme, når de forlader tråden
-   (C2)? Og skal historikken skjules eller slettes?
-2. Hvad nudges der til, i hvilken rækkefølge (C6)?
-3. Er to faner den rigtige struktur (C10)?
-4. Skal `write_session_prep` fjernes helt, eller blot ikke køres
-   (C3)?
+1. Hvordan peger man på et tal i chatten, og er henvisningen levende
+   eller frosset (C12)?
+2. Hvordan bruges AI-fanen i dag, og hvor hører den hjemme (C10)?
+3. Hvad nudges der til på tværs af platform, forside, chat og
+   onboarding (C6) — eget spor.
+
+Besvaret 31/8: kvitteringerne slettes (C2), session_prep fjernes
+helt (C3).
