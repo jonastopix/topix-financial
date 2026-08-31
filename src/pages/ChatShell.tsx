@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import AppLayout from "@/components/AppLayout";
+import { HbMemberShell } from "@/components/hjemmebane/HbMemberShell";
 import { useAuth } from "@/hooks/useAuth";
 import { useViewMode } from "@/hooks/useViewMode";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -31,8 +32,11 @@ const ChatShell = () => {
   );
 
   if (!isAdvisor && membershipTier === "subscriber") {
+    // Abonnent-muren er medlemsvendt og bor derfor i Hb-skallen (C4
+    // trin 1) — indholdet står ORDRET som før; konverteringen af selve
+    // murens udtryk er ikke denne PR.
     return (
-      <AppLayout>
+      <HbMemberShell active="chat">
         <div className="min-h-[60vh] flex items-center justify-center px-4 py-12">
           <div className="max-w-lg w-full text-center space-y-8">
             <div className="flex items-center justify-center gap-8">
@@ -67,7 +71,7 @@ const ChatShell = () => {
             </p>
           </div>
         </div>
-      </AppLayout>
+      </HbMemberShell>
     );
   }
 
@@ -90,9 +94,13 @@ const ChatShell = () => {
     );
   }
 
-  // Single-company member: company chat with AI tab
+  // Single-company member: company chat with AI tab.
+  // C4 trin 1: chatten bor i Hb-skallens fuld-variant (layout="fuld" —
+  // AppLayout fullscreen-præcedensen). Indholdet herunder er UÆNDRET:
+  // faner, paner og deres gamle udtryk konverteres i næste PR og ser
+  // bevidst skæve ud på papiret indtil da.
   return (
-    <AppLayout fullscreen>
+    <HbMemberShell active="chat" layout="fuld">
       <div className="flex flex-col h-full min-h-0 overflow-hidden">
         <div className={`flex items-center gap-1 bg-card border-b border-border shrink-0 relative z-20 ${isMobile ? "px-2 pt-1" : "px-4 pt-2"}`}>
           {(["advisor", "ai"] as const).map(tab => {
@@ -127,7 +135,7 @@ const ChatShell = () => {
           )}
         </div>
       </div>
-    </AppLayout>
+    </HbMemberShell>
   );
 };
 

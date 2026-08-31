@@ -275,6 +275,28 @@ uforståelig.
 Eget spor med egen recon. Forudsætter at rapporteringen virker for
 flere end de 56 % der bruger den i dag.
 
+### C13 — To ting chatten mister ved at flytte ind i Hb-skallen
+
+Målt ved C4 trin 1 (PR: chat i Hb-skallen). AppLayouts fullscreen-gren
+bar to elementer som HbMemberShell ikke har:
+
+**FeedbackButton.** Chatten er den flade 88 % af medlemmerne bruger —
+den bedste feedback-indgang platformen har. Knappen findes ikke på
+NOGEN Hb-flade, så det er ikke en konvertering men et tab. Skal
+genindføres i Hb-form; hvor den hører hjemme (chatten alene,
+HbMemberShell generelt) er ikke afgjort.
+
+**Exit-banneret fra "Se som medlem".** Rådgiveren mister vejen ud af
+medlemsvisning på netop /chat, hvor de bliver længst. De kan skifte
+tilbage fra andre sider, så det er en irritation, ikke en fælde.
+Hører i rådgiver-epicen, hvor "Se som medlem" bor.
+
+Dertil to mindre, bogført så de ikke opdages som fejl:
+loading-grenen ligger fortsat i AppLayout og deles mellem roller, så
+medlemmet ser et kort glimt af den gamle skal under indlæsning; og
+abonnent-muren får main'ens py-10/14 oven i sin egen py-12, indtil
+dens udtryk konverteres.
+
 ---
 
 ## 6. Konvergens (påkrævet af konvergens.md)
