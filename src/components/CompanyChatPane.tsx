@@ -47,72 +47,19 @@ import { useCompanyCommentary } from "@/hooks/useCompanyCommentary";
 import type { AnalysisData } from "@/components/AIFinancialAnalysis";
 import { format, formatDistanceToNow, startOfDay } from "date-fns";
 import { da } from "date-fns/locale";
-
-/** Smart date separator label: "I dag", "I går", or "9. marts 2026" */
-function dateSeparatorLabel(date: Date): string {
-  const today = startOfDay(new Date());
-  const d = startOfDay(date);
-  const diff = today.getTime() - d.getTime();
-  if (diff === 0) return "I dag";
-  if (diff === 86400000) return "I går";
-  return format(d, "d. MMMM yyyy", { locale: da });
-}
-
-interface Message {
-  id: string;
-  conversation_id: string;
-  sender_id: string;
-  content: string;
-  read_at: string | null;
-  created_at: string;
-  message_type?: string;
-  context_type?: string | null;
-  context_id?: string | null;
-  context_meta?: any;
-  pinned_at?: string | null;
-}
-
-interface ConversationWithProfile {
-  id: string;
-  member_id: string;
-  last_message_at: string;
-  company_id?: string;
-  companyName?: string;
-  companyLogoUrl?: string;
-  isLegat?: boolean;
-  membershipTier?: MembershipTier;
-  profile: { full_name: string; company_name: string; avatar_url: string } | null;
-  unreadCount: number;
-  lastMessage?: string;
-  lastMessageSenderId?: string;
-  lastMessageType?: string;
-  lastContextType?: string | null;
-  hasRecentReport: boolean;
-  recentReportName?: string;
-  recentReportIds?: string[];
-  awaiting_reply_from?: string | null;
-  assigned_advisor_id?: string | null;
-  last_member_message_at?: string | null;
-  last_advisor_reply_at?: string | null;
-}
-
-type MessageTopic = "report" | "handout" | "milestone" | "budget" | null;
-
-
-const TOPIC_COLORS: Record<string, { bg: string; text: string; label: string; icon: typeof MessageSquare }> = {
-  report: { bg: "bg-blue-500/10", text: "text-blue-600 dark:text-blue-400", label: "Rapport", icon: FileText },
-  handout: { bg: "bg-emerald-500/10", text: "text-emerald-600 dark:text-emerald-400", label: "Handout", icon: BookOpen },
-  milestone: { bg: "bg-purple-500/10", text: "text-purple-600 dark:text-purple-400", label: "Milestone", icon: Target },
-  budget: { bg: "bg-orange-500/10", text: "text-orange-600 dark:text-orange-400", label: "Budget", icon: Calculator },
-};
-
-const MESSAGE_TOPICS: { key: MessageTopic; label: string }[] = [
-  { key: null, label: "Generelt" },
-  { key: "report", label: "Rapport" },
-  { key: "handout", label: "Handout" },
-  { key: "milestone", label: "Milestone" },
-  { key: "budget", label: "Budget" },
-];
+// Delt med MemberChatPane efter C1-splittet (docs/chat-design.md):
+// typerne, emne-konstanterne og små helpers bor i lib/chatShared.ts —
+// ren flytning, samme indhold som før.
+import {
+  dateSeparatorLabel,
+  getInitials as getInitialsLocal,
+  MAX_MESSAGE_LENGTH,
+  MESSAGE_TOPICS,
+  TOPIC_COLORS,
+  type ConversationWithProfile,
+  type Message,
+  type MessageTopic,
+} from "@/lib/chatShared";
 
 const CompanyChatPane = () => {
   const { user, isAdvisor: rawAdvisor, companyId, isCompanyOverride, companyName } = useAuth();
@@ -148,25 +95,11 @@ const CompanyChatPane = () => {
   const [forslagBegrundelse, setForslagBegrundelse] = useState("");
   const [foreslaarOpgave, setForeslaarOpgave] = useState(false);
 
-  // Fetch all advisors for member header (independent of conversation participation)
-  const { data: allAdvisors } = useQuery({
-    queryKey: ["all-advisor-profiles"],
-    queryFn: async () => {
-      const { data, error } = await supabase.rpc("get_all_advisor_profiles" as any);
-      if (error) { console.error("Failed to fetch advisor profiles:", error); return []; }
-      return (data as any[] || []).map((r: any) => ({
-        user_id: r.user_id as string,
-        full_name: r.full_name as string,
-        avatar_url: r.avatar_url as string | null,
-      }));
-    },
-    staleTime: 10 * 60 * 1000,
-    enabled: !isAdvisor, // only needed for member view
-  });
-
-  const advisorNamesLabel = allAdvisors && allAdvisors.length > 0
-    ? allAdvisors.map((a: any) => a.full_name.split(" ")[0]).join(" & ")
-    : "Dine rådgivere";
+  // C1-splittet: all-advisor-profiles-query'en var `enabled: !isAdvisor`
+  // og flyttede med til MemberChatPane. For rådgiveren var værdien altid
+  // fallback'en — composer-placeholderen ("Skriv til Dine rådgivere...")
+  // er derfor uændret.
+  const advisorNamesLabel = "Dine rådgivere";
 
 
   // Cached advisor list for assignment dropdown (two-step: roles then profiles)
@@ -413,13 +346,6 @@ const CompanyChatPane = () => {
       }
 
       setConversations(deduped);
-
-      // Auto-select for members
-      if (!isAdvisor && enriched.length > 0 && !activeConvId) {
-        setActiveConvId(enriched[0].id);
-        if (enriched.length <= 1) setShowMessages(true);
-        else if (isMobile) setShowMessages(true);
-      }
     };
 
     loadConversations();
@@ -598,8 +524,6 @@ const CompanyChatPane = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  const MAX_MESSAGE_LENGTH = 5000;
-
   const handleSend = useCallback(async (content: string, files?: File[]) => {
     const trimmed = content.trim();
     const hasFiles = files && files.length > 0;
@@ -749,9 +673,6 @@ const CompanyChatPane = () => {
     }
   };
 
-  const getInitialsLocal = (name: string) =>
-    name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2);
-
   const relativeTime = (dateStr: string) => {
     try {
       return formatDistanceToNow(new Date(dateStr), { addSuffix: true, locale: da });
@@ -893,13 +814,6 @@ const CompanyChatPane = () => {
     const name = getAdvisorName(advisorId);
     return name ? getInitialsLocal(name) : null;
   };
-
-  // Compute latestReadOwnMsgId for member read receipt
-  const latestReadOwnMsgId = useMemo(() => {
-    if (isAdvisor || !user) return null;
-    const ownMsgs = messages.filter(m => m.sender_id === user.id && m.read_at);
-    return ownMsgs.length > 0 ? ownMsgs[ownMsgs.length - 1].id : null;
-  }, [messages, user, isAdvisor]);
 
   // Reactions hook
   const reactionMessageTable = "messages" as const;
@@ -1386,41 +1300,6 @@ const CompanyChatPane = () => {
                       )}
                     </div>
                   </div>
-                ) : (allAdvisors && allAdvisors.length > 0) ? (
-                  <div className={`${isMobile ? "px-3 py-2" : "px-4 md:px-5 py-3"} border-b border-border flex items-center gap-3`}>
-                    {isMobile && (
-                      <button
-                        onClick={handleBackToList}
-                        className="p-1.5 -ml-1 rounded-lg text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
-                      >
-                        <ArrowLeft className="h-5 w-5" />
-                      </button>
-                    )}
-                    <div className="flex items-center gap-1.5 min-w-0">
-                      <div className="flex -space-x-1.5">
-                        {allAdvisors.slice(0, 3).map((p) => (
-                          <div
-                            key={p.user_id}
-                            className="h-5 w-5 rounded-full border-2 border-background bg-muted flex items-center justify-center overflow-hidden"
-                            title={p.full_name}
-                          >
-                            {p.avatar_url ? (
-                              <img src={p.avatar_url} alt="" className="h-5 w-5 object-cover" />
-                            ) : (
-                              <span className="text-[8px] font-medium text-muted-foreground">
-                                {getInitialsLocal(p.full_name || "?")}
-                              </span>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                      <span className="text-[11px] text-muted-foreground truncate">
-                        {isMobile
-                          ? allAdvisors.map(p => p.full_name.split(" ")[0]).join(", ")
-                          : `Dine rådgivere: ${allAdvisors.map(p => p.full_name.split(" ")[0]).join(", ")}`}
-                      </span>
-                    </div>
-                  </div>
                 ) : null}
 
                 {/* Pulse banner */}
@@ -1451,11 +1330,9 @@ const CompanyChatPane = () => {
                     let lastDateKey = "";
                     let unreadDividerShown = false;
                     return messages.map((msg, msgIdx) => {
-                      // Bælte og seler: RLS (migration 20260831131200) forhindrer at
-                      // session_prep-rækker overhovedet når medlemmets klient. Filteret
-                      // her gælder rådgiveren i "Se som medlem", hvor RLS ikke kan
-                      // skelne — isAdvisor er UI-tilstand, JWT'en er stadig rådgiverens.
-                      if (msg.context_type === "session_prep" && !isAdvisor) return null;
+                      // session_prep-filteret (!isAdvisor) flyttede til
+                      // MemberChatPane med C1-splittet — rådgiveren SER
+                      // session_prep, så her er intet filter.
                       const isMine = msg.sender_id === user?.id;
                       const contextType = msg.context_type || null;
                       const contextMeta = msg.context_meta || null;
@@ -1795,11 +1672,6 @@ const CompanyChatPane = () => {
                                       : "bg-secondary text-foreground rounded-bl-md"
                                   } ${contextType ? "rounded-tl-md" : ""}`}
                                 >
-                                  {!isMine && !isAdvisor && (
-                                    <p className="text-[10px] font-semibold text-muted-foreground mb-0.5">
-                                      {senderName}
-                                    </p>
-                                  )}
                                   {msg.content !== "📎" && (
                                     <div className="text-sm leading-relaxed chat-html-content" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(msg.content, { ALLOWED_TAGS: ['b','strong','i','em','ul','ol','li','a','p','br'], ALLOWED_ATTR: ['href','target','rel'] }) }} />
                                   )}
@@ -1813,12 +1685,6 @@ const CompanyChatPane = () => {
                                     <span className={`text-[10px] ${isMine ? "text-primary-foreground/60" : "text-muted-foreground"}`}>
                                       {format(new Date(msg.created_at), "HH:mm", { locale: da })}
                                     </span>
-                                    {!isAdvisor && isMine && msg.id === latestReadOwnMsgId && (
-                                      <>
-                                        <CheckCheck className="h-3 w-3 text-primary-foreground/60" />
-                                        <span className="text-[10px] text-primary-foreground/60">Læst</span>
-                                      </>
-                                    )}
                                   </div>
                                 </div>
                               </MobileMessageActionDrawer>
@@ -1849,11 +1715,6 @@ const CompanyChatPane = () => {
                                       : "bg-secondary text-foreground rounded-bl-md"
                                   } ${contextType ? "rounded-tl-md" : ""}`}
                                 >
-                                  {!isMine && !isAdvisor && (
-                                    <p className="text-[10px] font-semibold text-muted-foreground mb-0.5">
-                                      {senderName}
-                                    </p>
-                                  )}
                                   {msg.content !== "📎" && (
                                     <div className="text-sm leading-relaxed chat-html-content" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(msg.content, { ALLOWED_TAGS: ['b','strong','i','em','ul','ol','li','a','p','br'], ALLOWED_ATTR: ['href','target','rel'] }) }} />
                                   )}
@@ -1867,12 +1728,6 @@ const CompanyChatPane = () => {
                                     <span className={`text-[10px] ${isMine ? "text-primary-foreground/60" : "text-muted-foreground"}`}>
                                       {format(new Date(msg.created_at), "HH:mm", { locale: da })}
                                     </span>
-                                    {!isAdvisor && isMine && msg.id === latestReadOwnMsgId && (
-                                      <>
-                                        <CheckCheck className="h-3 w-3 text-primary-foreground/60" />
-                                        <span className="text-[10px] text-primary-foreground/60">Læst</span>
-                                      </>
-                                    )}
                                   </div>
                                 </div>
                               </>
@@ -1980,35 +1835,12 @@ const CompanyChatPane = () => {
               </>
             ) : (
               <div className="flex-1 flex flex-col min-w-0">
-                {!isAdvisor && companyName && (
-                  <div className="flex items-center gap-2 px-4 py-2.5 border-b border-border bg-muted/30 text-xs text-muted-foreground">
-                    <Building2 className="h-3.5 w-3.5 shrink-0" />
-                    <span>Samtale for <span className="font-medium text-foreground">{companyName}</span> med {advisorNamesLabel}</span>
+                <div className="flex-1 flex items-center justify-center text-center">
+                  <div>
+                    <MessageCircle className="h-12 w-12 text-muted-foreground/20 mx-auto mb-3" />
+                    <p className="text-sm text-muted-foreground">Vælg en samtale for at starte</p>
                   </div>
-                )}
-                {!isAdvisor ? (
-                  <div className="flex-1 flex items-center justify-center text-center px-6">
-                    <div className="max-w-sm">
-                      <div className="mx-auto w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center mb-4">
-                        <MessageCircle className="h-7 w-7 text-primary" />
-                      </div>
-                      <h3 className="text-base font-semibold text-foreground mb-2">
-                        Din direkte linje til {advisorNamesLabel}
-                      </h3>
-                      <p className="text-sm text-muted-foreground leading-relaxed">
-                        Stil spørgsmål, del opdateringer eller få sparring på dine tal og beslutninger.
-                        Vi svarer typisk inden for 24 timer.
-                      </p>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="flex-1 flex items-center justify-center text-center">
-                    <div>
-                      <MessageCircle className="h-12 w-12 text-muted-foreground/20 mx-auto mb-3" />
-                      <p className="text-sm text-muted-foreground">Vælg en samtale for at starte</p>
-                    </div>
-                  </div>
-                )}
+                </div>
               </div>
             )}
           </div>

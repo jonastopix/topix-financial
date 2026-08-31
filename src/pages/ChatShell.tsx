@@ -2,19 +2,28 @@ import { useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import AppLayout from "@/components/AppLayout";
 import { useAuth } from "@/hooks/useAuth";
+import { useViewMode } from "@/hooks/useViewMode";
 import { useIsMobile } from "@/hooks/use-mobile";
 import CompanyChatPane from "@/components/CompanyChatPane";
+import MemberChatPane from "@/components/MemberChatPane";
 import FinancialAIChat from "@/components/FinancialAIChat";
 import { MessageCircle, Sparkles } from "lucide-react";
 
 /**
  * Unified /chat route orchestrator.
  * Renders the correct chat experience based on user type:
- * - Advisor → flat inbox
- * - Single-company member → company chat with AI tab
+ * - Advisor → flat inbox (CompanyChatPane)
+ * - Single-company member → member chat with AI tab (MemberChatPane)
  */
 const ChatShell = () => {
-  const { isAdvisor, loading, membershipTier } = useAuth();
+  const { isAdvisor: rawAdvisor, loading, membershipTier } = useAuth();
+  const { viewingAsMember } = useViewMode();
+  // C1-splittet: rolle-dommen er den viewMode-JUSTEREDE — samme dom som
+  // CompanyChatPane selv regnede før splittet. En rådgiver i "Se som
+  // medlem" skal mounte MEDLEMS-komponenten; med rå isAdvisor ville de
+  // aldrig se den. Bemærk: dommen gælder nu OGSÅ abonnent-muren nedenfor
+  // (før: rå isAdvisor) — se PR-rapporten for hvad det betyder.
+  const isAdvisor = rawAdvisor && !viewingAsMember;
   const isMobile = useIsMobile();
   const [searchParams] = useSearchParams();
   const [chatTab, setChatTab] = useState<"advisor" | "ai">(
@@ -109,7 +118,7 @@ const ChatShell = () => {
         <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
           {chatTab === "advisor" ? (
             <div className="flex-1 min-h-0 flex flex-col">
-              <CompanyChatPane />
+              <MemberChatPane />
             </div>
           ) : (
             <div className="flex-1 min-h-0">
