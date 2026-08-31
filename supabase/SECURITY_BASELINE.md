@@ -253,6 +253,26 @@ respekterer RLS, så medlemmet modtager heller ikke INSERTs. Kørt
 manuelt i Lovable SQL editor 2026-08-31 13:12 UTC; migrationen i
 repoet er paritets-bogføring og skal ikke køres igen.
 
+**Addendum (2026-08-31, SELECT-politik på message_reactions genskabt)**:
+`message_reactions` stod med RLS slået til, INSERT- og DELETE-politikker
+— og INGEN SELECT. Skrivningen virkede, visningen var død (53 reaktioner
+sat 18/3–20/7 af folk der aldrig så resultatet). Rodårsag: den
+oprindelige SELECT-politik (migration `20260317140729`) refererede
+`group_messages` og `user_can_access_group_conversation`, og koncern-
+oprydningens `DROP ... CASCADE` (migration `20260805224500`) tog
+politikken med sig STILLE — der findes intet DROP POLICY i historikken.
+Ny politik "Users can view reactions on visible messages" (migration
+`20260831162500_reaktioner_select_rls.sql`, kørt manuelt i Lovable
+2026-08-31, paritets-bogføring): reaktioner er synlige præcis når
+beskeden er det — EXISTS mod `messages`, så messages-RLS'ens dom
+(company-scope, has_role, session_prep-carve-out) arves frem for at
+gentages. Verificeret som medlem: egne 3 reaktioner synlige, ikke de
+øvrige 50. **Lærdom (fejlklasse)**: CASCADE-drops fjerner afhængige
+politikker uden spor i migrations-historikken — gennemgang 31/8 af alle
+overlevende tabellers politikker med koncern-referencer fandt kun denne
+ene ramt (pulse_checkins' gruppe-politik var eksplicit erstattet).
+Fremtidige CASCADE-drops skal efterfølges af `pg_policies`-diff i prod.
+
 ### Advisor access (full read, scoped write)
 ```sql
 has_role(auth.uid(), 'advisor'::app_role)
