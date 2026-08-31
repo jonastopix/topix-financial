@@ -142,6 +142,14 @@ const CompanyChatPane = () => {
   const [companyMembers, setCompanyMembers] = useState<{ user_id: string; full_name: string; avatar_url: string | null }[]>([]);
   const [assignmentPopoverOpen, setAssignmentPopoverOpen] = useState(false);
   const [showCompanyDrawer, setShowCompanyDrawer] = useState(false);
+  // Foreslå opgave fra chatten (rådgiver, ⋯-menuen) — B1: et forslag,
+  // ikke en opgave, før medlemmet siger ja i "Dine aftaler".
+  const [forslagTitel, setForslagTitel] = useState("");
+  const [forslagBegrundelse, setForslagBegrundelse] = useState("");
+  const [foreslaarOpgave, setForeslaarOpgave] = useState(false);
+  // Genindlæsning af beskedlisten fra handlers uden for load-effekten —
+  // chatSubmitRef-mønstret; sættes i loadMessages-effekten.
+  const reloadMessagesRef = useRef<() => void>(() => {});
 
   // Fetch all advisors for member header (independent of conversation participation)
   const { data: allAdvisors } = useQuery({
@@ -526,6 +534,7 @@ const CompanyChatPane = () => {
       }
     };
 
+    reloadMessagesRef.current = loadMessages;
     loadMessages();
 
     const channel = supabase
@@ -819,6 +828,56 @@ const CompanyChatPane = () => {
       c.id === activeConvId ? { ...c, awaiting_reply_from: null } : c
     ));
     toast.success("Fjernet fra Kræver svar");
+  };
+
+  // Rådgiveren foreslår en opgave fra chatten. Klienten har KUN SELECT
+  // på company_actions (RLS-migration 20260822224100) — skrivningen går
+  // gennem edge-funktionen foreslaa-opgave (Bucket A), som også skriver
+  // systembeskeden i samtalen. Fejl-body læses ud af FunctionsHttpError
+  // og vises ordret (opgaveMutation-mønstret fra BoardroomView).
+  const handleForeslaaOpgave = async () => {
+    const companyId = activeConv?.company_id;
+    if (!companyId || !activeConvId || foreslaarOpgave || !forslagTitel.trim()) return;
+    setForeslaarOpgave(true);
+    try {
+      // Samtalen sendes med — serveren må ikke gætte den ud fra
+      // company_id: en virksomhed kan have flere samtaler (dedup'en i
+      // loadConversations findes netop af den grund), og klienten
+      // sidder allerede i den rigtige.
+      const { data, error } = await supabase.functions.invoke("foreslaa-opgave", {
+        body: {
+          companyId,
+          conversationId: activeConvId,
+          titel: forslagTitel,
+          ...(forslagBegrundelse.trim() ? { begrundelse: forslagBegrundelse } : {}),
+        },
+      });
+      if (error) {
+        let besked = error.message;
+        try {
+          const svar = await (error as any).context?.json?.();
+          if (svar?.error) besked = svar.error;
+        } catch { /* behold error.message */ }
+        toast.error("Forslaget blev ikke sendt", { description: besked });
+        return;
+      }
+      if (data?.beskedSkrevet === false) {
+        // Opgaven er det vigtige; beskeden er sporet — men rådgiveren
+        // skal vide at sporet mangler, ellers leder de forgæves.
+        toast.warning("Forslaget er sendt, men kom ikke med i samtalen", {
+          description: "Medlemmet ser det stadig under Dine aftaler.",
+        });
+      } else {
+        toast.success("Opgaven er foreslået — medlemmet svarer i Dine aftaler");
+      }
+      setForslagTitel("");
+      setForslagBegrundelse("");
+      setAssignmentPopoverOpen(false);
+      // Genindlæs beskederne, så systembeskeden ses med det samme.
+      reloadMessagesRef.current();
+    } finally {
+      setForeslaarOpgave(false);
+    }
   };
 
   // Determine what to show on mobile
@@ -1277,6 +1336,35 @@ const CompanyChatPane = () => {
                                 </button>
                               </>
                             )}
+                            {/* Foreslå opgave — rådgiverens ikke-besked-handling.
+                                Forslaget lander i medlemmets "Dine aftaler"
+                                (B1: intet er en opgave før medlemmet siger ja;
+                                B6: medlemmet vælger datoen ved accept). */}
+                            <div className="border-t border-border my-1" />
+                            <div className="px-2 py-1.5">
+                              <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider mb-1.5">Foreslå opgave</p>
+                              <input
+                                value={forslagTitel}
+                                onChange={(e) => setForslagTitel(e.target.value)}
+                                maxLength={200}
+                                placeholder="Hvad skal medlemmet gøre?"
+                                className="w-full px-2 py-1.5 mb-1.5 rounded-md border border-border bg-background text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                              />
+                              <textarea
+                                value={forslagBegrundelse}
+                                onChange={(e) => setForslagBegrundelse(e.target.value)}
+                                placeholder="Hvorfor? (valgfrit)"
+                                rows={2}
+                                className="w-full px-2 py-1.5 mb-1.5 rounded-md border border-border bg-background text-xs text-foreground placeholder:text-muted-foreground resize-none focus:outline-none focus:ring-1 focus:ring-ring"
+                              />
+                              <button
+                                onClick={handleForeslaaOpgave}
+                                disabled={foreslaarOpgave || !forslagTitel.trim()}
+                                className="w-full px-2 py-1.5 rounded-md text-xs font-medium bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
+                              >
+                                {foreslaarOpgave ? "Sender…" : "Foreslå opgave"}
+                              </button>
+                            </div>
                           </PopoverContent>
                       </Popover>
                       {/* Prev/next */}

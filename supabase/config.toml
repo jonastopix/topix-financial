@@ -123,3 +123,6 @@ project_id = "loiavmastgeieqyiwyyr"
   # Samme begrundelse som get-community-billed-url ovenfor.
   [functions.opgave-luk]
     verify_jwt = true
+  # Samme begrundelse som get-community-billed-url ovenfor.
+  [functions.foreslaa-opgave]
+    verify_jwt = true
