@@ -24,6 +24,11 @@ interface ChatRichInputProps {
   compact?: boolean;
   /** When true, show inner send button. Defaults to compact value. */
   showInnerSend?: boolean;
+  /** variant="hb" (C4): Hjemmebane-udtrykket — hvid flade på papir,
+      hb-line, evergreen som handlingsfarve, tegn-tælleren i rust ved
+      loftet (advarsel). Uden variant er alt tegn-for-tegn som før
+      (rådgiverens mørke composer er urørt). */
+  variant?: "hb";
 }
 
 function ToolbarBtn({
@@ -31,11 +36,13 @@ function ToolbarBtn({
   onClick,
   children,
   title,
+  hb,
 }: {
   active?: boolean;
   onClick: () => void;
   children: React.ReactNode;
   title: string;
+  hb?: boolean;
 }) {
   return (
     <button
@@ -46,8 +53,12 @@ function ToolbarBtn({
       className={cn(
         "p-1 rounded transition-colors",
         active
-          ? "bg-primary/15 text-primary"
-          : "text-muted-foreground hover:text-foreground hover:bg-secondary"
+          ? hb
+            ? "bg-hb-evergreen/10 text-hb-evergreen"
+            : "bg-primary/15 text-primary"
+          : hb
+            ? "text-hb-ink-soft hover:text-hb-ink hover:bg-hb-sage/30"
+            : "text-muted-foreground hover:text-foreground hover:bg-secondary"
       )}
     >
       {children}
@@ -63,7 +74,7 @@ const normalizeLinkUrl = (rawUrl: string): string => {
   return `https://${trimmed.replace(/^\/+/, "")}`;
 };
 
-function Toolbar({ editor, onAttach }: { editor: Editor; onAttach: () => void }) {
+function Toolbar({ editor, onAttach, hb }: { editor: Editor; onAttach: () => void; hb?: boolean }) {
   const setLink = useCallback(() => {
     const { from, to } = editor.state.selection;
     const hasSelection = from !== to;
@@ -93,9 +104,13 @@ function Toolbar({ editor, onAttach }: { editor: Editor; onAttach: () => void })
   }, [editor]);
 
   return (
-    <div className="flex items-center gap-0.5 px-2 py-1 border-b border-border bg-muted/30">
-      <span className="text-[9px] text-muted-foreground/60 mr-1 select-none">Formater:</span>
+    <div className={cn(
+      "flex items-center gap-0.5 px-2 py-1 border-b",
+      hb ? "border-hb-line bg-hb-sage/10" : "border-border bg-muted/30"
+    )}>
+      <span className={cn("text-[9px] mr-1 select-none", hb ? "text-hb-ink-soft/60" : "text-muted-foreground/60")}>Formater:</span>
       <ToolbarBtn
+        hb={hb}
         active={editor.isActive("bold")}
         onClick={() => editor.chain().focus().toggleBold().run()}
         title="Fed (Ctrl+B)"
@@ -103,14 +118,16 @@ function Toolbar({ editor, onAttach }: { editor: Editor; onAttach: () => void })
         <Bold className="h-3.5 w-3.5" />
       </ToolbarBtn>
       <ToolbarBtn
+        hb={hb}
         active={editor.isActive("italic")}
         onClick={() => editor.chain().focus().toggleItalic().run()}
         title="Kursiv (Ctrl+I)"
       >
         <Italic className="h-3.5 w-3.5" />
       </ToolbarBtn>
-      <div className="w-px h-4 bg-border mx-0.5" />
+      <div className={cn("w-px h-4 mx-0.5", hb ? "bg-hb-line" : "bg-border")} />
       <ToolbarBtn
+        hb={hb}
         active={editor.isActive("bulletList")}
         onClick={() => editor.chain().focus().toggleBulletList().run()}
         title="Punktliste"
@@ -118,22 +135,25 @@ function Toolbar({ editor, onAttach }: { editor: Editor; onAttach: () => void })
         <List className="h-3.5 w-3.5" />
       </ToolbarBtn>
       <ToolbarBtn
+        hb={hb}
         active={editor.isActive("orderedList")}
         onClick={() => editor.chain().focus().toggleOrderedList().run()}
         title="Nummereret liste"
       >
         <ListOrdered className="h-3.5 w-3.5" />
       </ToolbarBtn>
-      <div className="w-px h-4 bg-border mx-0.5" />
+      <div className={cn("w-px h-4 mx-0.5", hb ? "bg-hb-line" : "bg-border")} />
       <ToolbarBtn
+        hb={hb}
         active={editor.isActive("link")}
         onClick={setLink}
         title="Link"
       >
         <LinkIcon className="h-3.5 w-3.5" />
       </ToolbarBtn>
-      <div className="w-px h-4 bg-border mx-0.5" />
+      <div className={cn("w-px h-4 mx-0.5", hb ? "bg-hb-line" : "bg-border")} />
       <ToolbarBtn
+        hb={hb}
         active={false}
         onClick={onAttach}
         title="Vedhæft fil"
@@ -152,7 +172,9 @@ const ChatRichInput: React.FC<ChatRichInputProps> = ({
   onRequestSubmit,
   compact,
   showInnerSend,
+  variant,
 }) => {
+  const hb = variant === "hb";
   const isMobile = useIsMobile();
   const isCompact = compact ?? isMobile;
   const renderInnerSend = showInnerSend ?? isCompact;
@@ -196,7 +218,8 @@ const ChatRichInput: React.FC<ChatRichInputProps> = ({
     editorProps: {
       attributes: {
         class: cn(
-          "px-3 text-sm text-foreground focus:outline-none overflow-y-auto",
+          "px-3 text-sm focus:outline-none overflow-y-auto",
+          hb ? "text-hb-ink" : "text-foreground",
           isCompact ? "py-2.5 min-h-[40px] max-h-[120px]" : "py-2 min-h-[38px] max-h-[120px]"
         ),
         inputmode: "text",
@@ -335,23 +358,33 @@ const ChatRichInput: React.FC<ChatRichInputProps> = ({
     <div
       ref={wrapperRef}
       className={cn(
-        "flex-1 rounded-xl bg-secondary border overflow-hidden transition-shadow",
+        "flex-1 border overflow-hidden transition-shadow",
+        hb ? "rounded-hb bg-hb-surface" : "rounded-xl bg-secondary",
         dragOver
-          ? "border-primary ring-2 ring-primary/50"
-          : "border-border focus-within:ring-2 focus-within:ring-primary/50"
+          ? hb
+            ? "border-hb-evergreen ring-2 ring-hb-evergreen/40"
+            : "border-primary ring-2 ring-primary/50"
+          : hb
+            ? "border-hb-line focus-within:ring-2 focus-within:ring-hb-evergreen/40"
+            : "border-border focus-within:ring-2 focus-within:ring-primary/50"
       )}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
     >
-      {editor && !isCompact && <Toolbar editor={editor} onAttach={() => fileInputRef.current?.click()} />}
+      {editor && !isCompact && <Toolbar editor={editor} hb={hb} onAttach={() => fileInputRef.current?.click()} />}
       {isCompact ? (
         <div className="flex items-center gap-1 pr-1.5 pl-1">
           <button
             type="button"
             onMouseDown={(e) => e.preventDefault()}
             onClick={() => fileInputRef.current?.click()}
-            className="flex-shrink-0 p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-secondary/80 transition-colors"
+            className={cn(
+              "flex-shrink-0 p-2 rounded-lg transition-colors",
+              hb
+                ? "text-hb-ink-soft hover:text-hb-ink hover:bg-hb-sage/30"
+                : "text-muted-foreground hover:text-foreground hover:bg-secondary/80"
+            )}
             aria-label="Vedhæft fil"
           >
             <Paperclip className="h-4 w-4" />
@@ -368,8 +401,12 @@ const ChatRichInput: React.FC<ChatRichInputProps> = ({
               className={cn(
                 "flex-shrink-0 h-9 w-9 rounded-full flex items-center justify-center transition-all",
                 hasContent && !disabled
-                  ? "bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm"
-                  : "bg-muted text-muted-foreground"
+                  ? hb
+                    ? "bg-hb-evergreen text-white hover:bg-hb-evergreen/90 shadow-sm"
+                    : "bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm"
+                  : hb
+                    ? "bg-hb-sage/40 text-hb-ink-soft"
+                    : "bg-muted text-muted-foreground"
               )}
               aria-label="Send besked"
             >
@@ -380,10 +417,11 @@ const ChatRichInput: React.FC<ChatRichInputProps> = ({
       ) : (
         <EditorContent editor={editor} />
       )}
-      <AttachmentPreviewStrip files={pendingFiles} onRemove={removePendingFile} />
+      <AttachmentPreviewStrip files={pendingFiles} onRemove={removePendingFile} variant={variant} />
       {showCounter && (
         <div className="px-3 pb-1 text-right">
-          <span className={`text-[10px] ${charCount >= maxLength ? "text-destructive" : "text-muted-foreground"}`}>
+          {/* Tælleren over loftet er rust (advarsel — en af rusts fire betydninger). */}
+          <span className={`text-[10px] ${charCount >= maxLength ? (hb ? "text-hb-rust" : "text-destructive") : hb ? "text-hb-ink-soft" : "text-muted-foreground"}`}>
             {charCount}/{maxLength}
           </span>
         </div>

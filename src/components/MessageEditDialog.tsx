@@ -16,6 +16,11 @@ interface MessageEditDialogProps {
   initialHTML: string;
   onSave: (html: string) => Promise<boolean> | boolean;
   saving?: boolean;
+  /** variant="hb" (C4): Hjemmebane-udtrykket. DialogContent er en
+      PORTAL uden for .theme-hjemmebane-wrapperen — klassen sættes
+      derfor på Content-elementet selv. Gem er evergreen (handling).
+      Uden variant er alt tegn-for-tegn som før. */
+  variant?: "hb";
 }
 
 // Holdt identisk med ChatRichInput-moenstret. Bevidst kopieret (ikke delt) saa
@@ -29,12 +34,13 @@ const normalizeLinkUrl = (rawUrl: string): string => {
 };
 
 function ToolbarBtn({
-  active, onClick, children, title,
+  active, onClick, children, title, hb,
 }: {
   active?: boolean;
   onClick: () => void;
   children: React.ReactNode;
   title: string;
+  hb?: boolean;
 }) {
   return (
     <button
@@ -45,8 +51,12 @@ function ToolbarBtn({
       className={cn(
         "p-1 rounded transition-colors",
         active
-          ? "bg-primary/15 text-primary"
-          : "text-muted-foreground hover:text-foreground hover:bg-secondary"
+          ? hb
+            ? "bg-hb-evergreen/10 text-hb-evergreen"
+            : "bg-primary/15 text-primary"
+          : hb
+            ? "text-hb-ink-soft hover:text-hb-ink hover:bg-hb-sage/30"
+            : "text-muted-foreground hover:text-foreground hover:bg-secondary"
       )}
     >
       {children}
@@ -54,7 +64,7 @@ function ToolbarBtn({
   );
 }
 
-function Toolbar({ editor }: { editor: Editor }) {
+function Toolbar({ editor, hb }: { editor: Editor; hb?: boolean }) {
   const setLink = useCallback(() => {
     const { from, to } = editor.state.selection;
     const hasSelection = from !== to;
@@ -84,9 +94,13 @@ function Toolbar({ editor }: { editor: Editor }) {
   }, [editor]);
 
   return (
-    <div className="flex items-center gap-0.5 px-2 py-1 border-b border-border bg-muted/30">
-      <span className="text-[9px] text-muted-foreground/60 mr-1 select-none">Formater:</span>
+    <div className={cn(
+      "flex items-center gap-0.5 px-2 py-1 border-b",
+      hb ? "border-hb-line bg-hb-sage/10" : "border-border bg-muted/30"
+    )}>
+      <span className={cn("text-[9px] mr-1 select-none", hb ? "text-hb-ink-soft/60" : "text-muted-foreground/60")}>Formater:</span>
       <ToolbarBtn
+        hb={hb}
         active={editor.isActive("bold")}
         onClick={() => editor.chain().focus().toggleBold().run()}
         title="Fed (Ctrl+B)"
@@ -94,14 +108,16 @@ function Toolbar({ editor }: { editor: Editor }) {
         <Bold className="h-3.5 w-3.5" />
       </ToolbarBtn>
       <ToolbarBtn
+        hb={hb}
         active={editor.isActive("italic")}
         onClick={() => editor.chain().focus().toggleItalic().run()}
         title="Kursiv (Ctrl+I)"
       >
         <Italic className="h-3.5 w-3.5" />
       </ToolbarBtn>
-      <div className="w-px h-4 bg-border mx-0.5" />
+      <div className={cn("w-px h-4 mx-0.5", hb ? "bg-hb-line" : "bg-border")} />
       <ToolbarBtn
+        hb={hb}
         active={editor.isActive("bulletList")}
         onClick={() => editor.chain().focus().toggleBulletList().run()}
         title="Punktliste"
@@ -109,14 +125,16 @@ function Toolbar({ editor }: { editor: Editor }) {
         <List className="h-3.5 w-3.5" />
       </ToolbarBtn>
       <ToolbarBtn
+        hb={hb}
         active={editor.isActive("orderedList")}
         onClick={() => editor.chain().focus().toggleOrderedList().run()}
         title="Nummereret liste"
       >
         <ListOrdered className="h-3.5 w-3.5" />
       </ToolbarBtn>
-      <div className="w-px h-4 bg-border mx-0.5" />
+      <div className={cn("w-px h-4 mx-0.5", hb ? "bg-hb-line" : "bg-border")} />
       <ToolbarBtn
+        hb={hb}
         active={editor.isActive("link")}
         onClick={setLink}
         title="Link"
@@ -128,8 +146,9 @@ function Toolbar({ editor }: { editor: Editor }) {
 }
 
 const MessageEditDialog: React.FC<MessageEditDialogProps> = ({
-  open, onOpenChange, initialHTML, onSave, saving = false,
+  open, onOpenChange, initialHTML, onSave, saving = false, variant,
 }) => {
+  const hb = variant === "hb";
   const [submitting, setSubmitting] = useState(false);
 
   // Samme restriktive StarterKit som compose. Tilladte formater (fed/kursiv/
@@ -152,7 +171,10 @@ const MessageEditDialog: React.FC<MessageEditDialogProps> = ({
     ],
     editorProps: {
       attributes: {
-        class: "px-3 py-2 text-sm text-foreground focus:outline-none min-h-[160px] max-h-[50vh] overflow-y-auto chat-html-content",
+        class: cn(
+          "px-3 py-2 text-sm focus:outline-none min-h-[160px] max-h-[50vh] overflow-y-auto chat-html-content",
+          hb ? "text-hb-ink" : "text-foreground",
+        ),
       },
     },
     content: "",
@@ -201,15 +223,21 @@ const MessageEditDialog: React.FC<MessageEditDialogProps> = ({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        className="sm:max-w-lg max-h-[90vh] overflow-y-auto max-sm:h-[100dvh] max-sm:max-w-full max-sm:rounded-none"
+        className={cn(
+          "sm:max-w-lg max-h-[90vh] overflow-y-auto max-sm:h-[100dvh] max-sm:max-w-full max-sm:rounded-none",
+          hb && "theme-hjemmebane border-hb-line bg-hb-surface",
+        )}
         onKeyDown={handleKeyDown}
       >
         <DialogHeader>
-          <DialogTitle>Redigér besked</DialogTitle>
+          <DialogTitle className={hb ? "text-hb-ink" : undefined}>Redigér besked</DialogTitle>
         </DialogHeader>
 
-        <div className="rounded-xl bg-secondary border border-border overflow-hidden">
-          {editor && <Toolbar editor={editor} />}
+        <div className={cn(
+          "border overflow-hidden",
+          hb ? "rounded-hb bg-hb-paper border-hb-line" : "rounded-xl bg-secondary border-border",
+        )}>
+          {editor && <Toolbar editor={editor} hb={hb} />}
           <EditorContent editor={editor} />
         </div>
 
@@ -218,7 +246,12 @@ const MessageEditDialog: React.FC<MessageEditDialogProps> = ({
             type="button"
             onClick={() => onOpenChange(false)}
             disabled={busy}
-            className="px-3 py-1.5 rounded-lg text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors disabled:opacity-50"
+            className={cn(
+              "px-3 py-1.5 text-sm font-medium transition-colors disabled:opacity-50",
+              hb
+                ? "rounded-full text-hb-ink-soft hover:text-hb-ink hover:bg-hb-sage/20"
+                : "rounded-lg text-muted-foreground hover:text-foreground hover:bg-secondary",
+            )}
           >
             Annuller
           </button>
@@ -226,7 +259,12 @@ const MessageEditDialog: React.FC<MessageEditDialogProps> = ({
             type="button"
             onClick={handleSave}
             disabled={isEmpty || busy}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
+            className={cn(
+              "inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium transition-colors disabled:opacity-50",
+              hb
+                ? "rounded-full bg-hb-evergreen text-white hover:bg-hb-evergreen/90"
+                : "rounded-lg bg-primary text-primary-foreground hover:bg-primary/90",
+            )}
           >
             {busy && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
             Gem

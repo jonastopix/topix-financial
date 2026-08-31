@@ -19,24 +19,30 @@ function formatFileSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-/** Preview strip shown below the input while composing */
+/** Preview strip shown below the input while composing.
+    variant="hb" (C4): Hjemmebane-udtrykket — hb-line/surface som flade,
+    fjern-knappen i rust (destruktiv). Uden variant er alt tegn-for-tegn
+    som før. */
 export function AttachmentPreviewStrip({
   files,
   onRemove,
+  variant,
 }: {
   files: File[];
   onRemove: (index: number) => void;
+  variant?: "hb";
 }) {
   if (files.length === 0) return null;
+  const hb = variant === "hb";
 
   return (
-    <div className="flex gap-2 px-3 py-2 overflow-x-auto border-t border-border">
+    <div className={`flex gap-2 px-3 py-2 overflow-x-auto border-t ${hb ? "border-hb-line" : "border-border"}`}>
       {files.map((file, i) => {
         const isImage = IMAGE_TYPES.includes(file.type);
         return (
           <div
             key={`${file.name}-${i}`}
-            className="relative shrink-0 group rounded-lg border border-border bg-background overflow-hidden"
+            className={`relative shrink-0 group rounded-lg border overflow-hidden ${hb ? "border-hb-line bg-hb-surface" : "border-border bg-background"}`}
           >
             {isImage ? (
               <img
@@ -46,8 +52,8 @@ export function AttachmentPreviewStrip({
               />
             ) : (
               <div className="h-16 w-16 flex flex-col items-center justify-center gap-1 px-1">
-                <FileText className="h-5 w-5 text-muted-foreground" />
-                <span className="text-[9px] text-muted-foreground truncate w-full text-center">
+                <FileText className={`h-5 w-5 ${hb ? "text-hb-ink-soft" : "text-muted-foreground"}`} />
+                <span className={`text-[9px] truncate w-full text-center ${hb ? "text-hb-ink-soft" : "text-muted-foreground"}`}>
                   {file.name.split(".").pop()?.toUpperCase()}
                 </span>
               </div>
@@ -55,7 +61,7 @@ export function AttachmentPreviewStrip({
             <button
               type="button"
               onClick={() => onRemove(i)}
-              className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+              className={`absolute -top-1 -right-1 h-5 w-5 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity ${hb ? "bg-hb-rust text-white" : "bg-destructive text-destructive-foreground"}`}
             >
               <X className="h-3 w-3" />
             </button>
@@ -76,13 +82,16 @@ function ChatAttachmentItem({
   messageId,
   source,
   isMine,
+  variant,
 }: {
   attachment: ChatAttachment;
   attachmentIndex: number;
   messageId: string;
   source: "messages";
   isMine: boolean;
+  variant?: "hb";
 }) {
+  const hb = variant === "hb";
   const { url, isLoading, isError, refetch } = useChatAttachmentUrl({
     source,
     messageId,
@@ -94,20 +103,20 @@ function ChatAttachmentItem({
     if (isLoading) {
       return (
         <div
-          className="max-w-[280px] h-[160px] bg-muted animate-pulse rounded-lg"
+          className={`max-w-[280px] h-[160px] animate-pulse rounded-lg ${hb ? "bg-hb-line/60" : "bg-muted"}`}
           aria-label="Indlæser billede"
         />
       );
     }
     if (isError || !url) {
       return (
-        <div className="max-w-[280px] h-[160px] rounded-lg border border-border bg-muted/40 flex flex-col items-center justify-center gap-1.5 text-xs text-muted-foreground">
+        <div className={`max-w-[280px] h-[160px] rounded-lg border flex flex-col items-center justify-center gap-1.5 text-xs ${hb ? "border-hb-line bg-hb-sage/20 text-hb-ink-soft" : "border-border bg-muted/40 text-muted-foreground"}`}>
           <AlertTriangle className="h-4 w-4" />
           <span>Kunne ikke indlæse billede</span>
           <button
             type="button"
             onClick={() => refetch()}
-            className="text-[11px] underline hover:text-foreground"
+            className={`text-[11px] underline ${hb ? "hover:text-hb-ink" : "hover:text-foreground"}`}
           >
             Prøv igen
           </button>
@@ -133,10 +142,16 @@ function ChatAttachmentItem({
 
   // File variant — render row with known name/size immediately; only the
   // trailing icon reflects URL load state.
+  // hb+isMine: boblen bliver evergreen med hvid tekst i Hb-udtrykket, så
+  // rækken bruger hvid-toner dér; hb+fremmed: sage/ink.
   const baseRow = `flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs transition-colors ${
     isMine
-      ? "bg-primary-foreground/10 hover:bg-primary-foreground/20 text-primary-foreground"
-      : "bg-muted hover:bg-muted/80 text-foreground"
+      ? hb
+        ? "bg-white/10 hover:bg-white/20 text-white"
+        : "bg-primary-foreground/10 hover:bg-primary-foreground/20 text-primary-foreground"
+      : hb
+        ? "bg-hb-sage/30 hover:bg-hb-sage/50 text-hb-ink"
+        : "bg-muted hover:bg-muted/80 text-foreground"
   }`;
 
   if (isError) {
@@ -196,11 +211,13 @@ export function MessageAttachments({
   isMine,
   messageId,
   source,
+  variant,
 }: {
   attachments: ChatAttachment[];
   isMine: boolean;
   messageId: string;
   source: "messages";
+  variant?: "hb";
 }) {
   if (!attachments || attachments.length === 0) return null;
 
@@ -214,6 +231,7 @@ export function MessageAttachments({
           messageId={messageId}
           source={source}
           isMine={isMine}
+          variant={variant}
         />
       ))}
     </div>
