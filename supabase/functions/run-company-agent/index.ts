@@ -4,7 +4,7 @@ import { aiGatewayFetch } from "../_shared/aiGatewayFetch.ts";
 import { beregnUdloeb } from "../_shared/opgaveUdloeb.ts";
 import { SKRIVE_TOOLS, toerResultat } from "../_shared/agentToerkoersel.ts";
 import { effektivRapportPeriodeKey, rapporteringsStatus } from "../_shared/rapportStatus.ts";
-import { skrivSessionPrep, skrivUgensFokus } from "../_shared/agentSkriveveje.ts";
+import { skrivUgensFokus } from "../_shared/agentSkriveveje.ts";
 
 const DEPLOY_STAMP = "run-company-agent v5 agent-proposals (2026-08-25)";
 const MODEL = "google/gemini-2.5-flash";
@@ -51,13 +51,11 @@ DIN ARBEJDSGANG (i rækkefølge — sådan arbejder en grundig rådgiver):
    Dertil de værktøjer det aktuelle event peger på (fx get_budget_vs_actual ved rapport, get_pulse_checkins ved refleksion, get_financial_alerts ved anomali).
    get_handout_levers og get_application_context er en fast del af billedet, ikke et tilvalg: de bærer hvad founder selv har fortalt og hvor de er i forløbet — det kan ikke udledes af tallene, og uden det bliver din sparring generisk. Kald gerne flere værktøjer parallelt.
 3. Analysér: hvad er det vigtigste signal i denne måneds tal? Sammenlign med forrige måned, med mål — og med hvad founder selv har sagt.
-4. Opdatér weekly focus-kortet på dashboardet med en kort overskrift og opsummering
-5. Saml din vigtigste indsigt i advisor-forberedelses-sporet med write_session_prep. Founderen ser den ikke. Fokusér på ét nøglefund, ikke fem.
-6. Opret én konkret handlingsopgave med write_company_action hvis der er et klart næste skridt founder skal tage inden for de næste 7 dage
-7. Opret max ét milestone hvis tallene klart indikerer et specifikt næste skridt
-8. Du skubber ALDRIG til advisoren med notify_advisor; al din indsigt samles i write_session_prep (trin 5)
-9. Hvis der er emner der kræver menneskelig sparring, kald write_session_prep med 3 konkrete punkter til næste møde
-10. Kald finish
+4. Opdatér weekly focus-kortet på dashboardet med en kort overskrift og opsummering — det er dit primære output og skal bære dit vigtigste nøglefund. Fokusér på ét nøglefund, ikke fem.
+5. Opret én konkret handlingsopgave med write_company_action hvis der er et klart næste skridt founder skal tage inden for de næste 7 dage
+6. Opret max ét milestone hvis tallene klart indikerer et specifikt næste skridt
+7. Du skubber ALDRIG til advisoren med notify_advisor
+8. Kald finish
 
 INDHOLDSKOBLING (Akademiet):
 
@@ -334,25 +332,6 @@ const tools = [
           message: { type: "string" },
         },
         required: ["company_id", "message"],
-      },
-    },
-  },
-  {
-    type: "function",
-    function: {
-      name: "write_session_prep",
-      description: "Gemmer 3 konkrete punkter som advisor bør tage op til næste session med founder. Brug dette når du har identificeret vigtige emner der kræver menneskelig sparring. Punkterne vises direkte i advisor-dashboardet.",
-      parameters: {
-        type: "object",
-        properties: {
-          company_id: { type: "string" },
-          points: {
-            type: "array",
-            items: { type: "string" },
-            description: "Præcis 3 punkter. Maks 15 ord per punkt. Konkrete og handlingsorienterede.",
-          },
-        },
-        required: ["company_id", "points"],
       },
     },
   },
@@ -717,15 +696,12 @@ async function executeTool(name: string, args: any, adminClient: any, trigger: s
       return { ok: true, in_app: !!advisorId, slack: false };
     }
 
-    // De to idempotente skriveveje bor i _shared/agentSkriveveje.ts —
-    // ORDRET flyttet herfra, delt med agent-forslag-afgoer (design §7.4).
-    // Ændres en skrivevej, ændres den for både live-kørsel og godkendelse.
+    // Den idempotente skrivevej bor i _shared/agentSkriveveje.ts — delt
+    // med agent-forslag-afgoer (design §7.4). Ændres den, ændres den for
+    // både live-kørsel og godkendelse. write_session_prep udgik med C3
+    // (docs/chat-design.md, 31/8).
     case "update_weekly_focus": {
       return await skrivUgensFokus(adminClient, args, trigger);
-    }
-
-    case "write_session_prep": {
-      return await skrivSessionPrep(adminClient, args, period_key);
     }
 
     case "update_milestone_progress": {
@@ -1092,14 +1068,13 @@ Deno.serve(async (req) => {
 
   // Agenten poster ALDRIG uopfordret i founderens chat.
   // write_chat_message fjernes derfor fra pool'en for ALLE triggere.
-  // Indsigten samles i stedet i advisor-forberedelses-sporet
-  // (write_session_prep, founder-skjult).
+  // Indsigten samles i weekly focus-kortet (write_session_prep udgik
+  // med C3, docs/chat-design.md 31/8 — funktionen blev ikke brugt).
   // Arkitektonisk haandhaevelse, ikke kun prompt: prompt-forbud alene virkede ikke
   // (Gemini kaldte blokerede tools alligevel, PR #63).
   //
   // Intet skubbes mod advisoren ved rutine-koersler: notify_advisor (klokken) er fjernet
-  // fra pool'en for ALLE rutine-triggers. Advisoren gaar selv ind og laeser
-  // forberedelsen i write_session_prep.
+  // fra pool'en for ALLE rutine-triggers.
   // Pulse-refleksion: advisor faar i forvejen en deterministisk template-notifikation fra
   // send-slack-report-notification; write_company_action og create_milestone fjernes ogsaa
   // - refleksion er founderens stille check-in, ikke en handlings-trigger.
@@ -1117,7 +1092,7 @@ Deno.serve(async (req) => {
     weekly_cron: ["write_chat_message", "notify_advisor"],
     onboarding: ["write_chat_message", "notify_advisor"],
     // Virksomhedsgennemgang (rådgiver-igangsat): samme stramhed som
-    // weekly_cron — al indsigt samles i write_session_prep.
+    // weekly_cron.
     company_review: ["write_chat_message", "notify_advisor"],
   };
   const blocked = POOL_BLOCKLIST[trigger] ?? [];
@@ -1281,16 +1256,16 @@ Oprettet: ${companyData.start_date ? new Date(companyData.start_date).toLocaleDa
 Virksomhedens alder: ${companyData.start_date ? (() => { const months = Math.floor((Date.now() - new Date(companyData.start_date).getTime()) / (1000 * 60 * 60 * 24 * 30)); return months < 6 ? `${months} måneder (tidlig fase)` : months < 18 ? `${months} måneder (vækstfase)` : `${Math.floor(months/12)} år (moden fase)`; })() : "ukendt"}
 
 ${trigger === "pulse_submitted" 
-  ? `Founder har netop afleveret månedlig REFLEKSION (pulse check-in) for ${period_label}. Dette er IKKE en rapport, og refleksionen vedrører UDELUKKENDE ${period_label}.\n\nHent refleksions-svaret med get_pulse_checkins. Du må hente facts med get_company_facts hvis det hjælper dig med at forstå konteksten.\n\nSaml din indsigt i advisor-forberedelses-sporet med write_session_prep: 3 konkrete punkter advisoren bør tage op til næste session med founder, med udgangspunkt i hvad founder selv har skrevet i deres REFLEKSION, særligt deres største udfordring. Founderen ser IKKE denne forberedelse. Opdatér weekly focus.\n\nDu må IKKE skrive i founderens chat. Du må heller ikke kalde write_company_action, create_milestone eller andre tools der laver synlige aktioner. Pulse-refleksion er founderens stille check-in, ikke en trigger for opgaver.`
+  ? `Founder har netop afleveret månedlig REFLEKSION (pulse check-in) for ${period_label}. Dette er IKKE en rapport, og refleksionen vedrører UDELUKKENDE ${period_label}.\n\nHent refleksions-svaret med get_pulse_checkins. Du må hente facts med get_company_facts hvis det hjælper dig med at forstå konteksten.\n\nOpdatér weekly focus med udgangspunkt i hvad founder selv har skrevet i deres REFLEKSION, særligt deres største udfordring.\n\nDu må IKKE skrive i founderens chat. Du må heller ikke kalde write_company_action, create_milestone eller andre tools der laver synlige aktioner. Pulse-refleksion er founderens stille check-in, ikke en trigger for opgaver.`
   : trigger === "weekly_cron"
-  ? `Det er mandag morgen og agenten gennemgår automatisk virksomhedens seneste data.\n\nFølg din arbejdsgang: get_previous_agent_messages først, dernæst minimum get_company_facts, get_handout_levers, get_application_context og get_member_content_progress — plus pulse, milestones og KPI-mål. Saml det vigtigste at fokusere på denne uge i advisor-forberedelses-sporet med write_session_prep: 3 konkrete punkter til næste session med founder. Founderen ser IKKE denne forberedelse. Opdatér weekly focus. Du må IKKE skrive i founderens chat.`
+  ? `Det er mandag morgen og agenten gennemgår automatisk virksomhedens seneste data.\n\nFølg din arbejdsgang: get_previous_agent_messages først, dernæst minimum get_company_facts, get_handout_levers, get_application_context og get_member_content_progress — plus pulse, milestones og KPI-mål. Saml det vigtigste at fokusere på denne uge i weekly focus-kortet. Du må IKKE skrive i founderens chat.`
   : trigger === "anomaly_detected"
-  ? `KRITISK ALERT: Der er detekteret en finansiel anomali for ${period_label}.\n\nDetaljer: ${period_key}\n\nHent get_financial_alerts og get_company_facts omgående. Saml din indsigt i advisor-forberedelses-sporet med write_session_prep: 3 konkrete punkter der forklarer hvad der er sket og hvad der bør handles på, så advisoren kan tage det op med founder. Founderen ser IKKE denne forberedelse. Du må IKKE skrive i founderens chat. Opdatér IKKE weekly focus med negativ information.`
+  ? `KRITISK ALERT: Der er detekteret en finansiel anomali for ${period_label}.\n\nDetaljer: ${period_key}\n\nHent get_financial_alerts og get_company_facts omgående. Er der et klart, konkret næste skridt founder bør tage, så opret det som handlingsopgave med write_company_action. Du må IKKE skrive i founderens chat. Opdatér IKKE weekly focus med negativ information.`
   : trigger === "onboarding"
-  ? `Founder ${founderFirstName} logger ind i The Boardroom for første gang.\n\nDette er en onboarding-kørsel. Du skriver IKKE i founderens chat — velkomsten er rådgiverens egen opgave. Gør følgende i rækkefølge:\n1. Hent ansøgningskontekst med get_application_context\n2. Hent virksomhedens brancheinfo\n3. Opret præcis 2 start-milestones baseret på deres mål — de skal være tydeligt forskellige fra hinanden og maksimalt 6 ord lange. Tjek eksisterende milestones med get_milestones først.\n4. Opret én konkret første handlingsopgave (fx upload første rapport)\n5. Sæt weekly focus med en velkomst-headline\n6. Saml et kort resumé af deres situation og mål i advisor-forberedelses-sporet med write_session_prep, så rådgiveren kan skrive en personlig velkomst — referér specifikt til hvad de selv har skrevet\n7. Kald finish`
+  ? `Founder ${founderFirstName} logger ind i The Boardroom for første gang.\n\nDette er en onboarding-kørsel. Du skriver IKKE i founderens chat — velkomsten er rådgiverens egen opgave. Gør følgende i rækkefølge:\n1. Hent ansøgningskontekst med get_application_context\n2. Hent virksomhedens brancheinfo\n3. Opret præcis 2 start-milestones baseret på deres mål — de skal være tydeligt forskellige fra hinanden og maksimalt 6 ord lange. Tjek eksisterende milestones med get_milestones først.\n4. Opret én konkret første handlingsopgave (fx upload første rapport)\n5. Sæt weekly focus med en velkomst-headline\n6. Kald finish`
   : trigger === "company_review"
-  ? `Rådgiveren har bedt om en samlet gennemgang af virksomheden — et blik på virksomheden som helhed, ikke på et enkelt dokument.\n\n${rapportStatusBlok}\n\nFølg din arbejdsgang: get_previous_agent_messages først, dernæst minimum get_company_facts, get_handout_levers, get_application_context og get_member_content_progress — plus pulse, milestones og KPI-mål.\n\nHvis rapporteringsstatussen ovenfor viser at virksomheden mangler at rapportere, eller har uploadet uden at godkende, SKAL du adressere det som et af dine punkter: at rapportere og forholde sig til sine egne tal ER rådgivning, og et hul i rapporteringen er en observation på linje med et hul i tallene. Findes der ingen godkendte tal overhovedet, er DET dit vigtigste punkt — analysér ikke videre på estimater som om de var friske tal.\n\nSaml din indsigt i advisor-forberedelses-sporet med write_session_prep: 3 konkrete punkter til næste session med founder. Founderen ser IKKE denne forberedelse. Opdatér weekly focus. Du må IKKE skrive i founderens chat.`
-  : `Ny rapport committed: ${period_label} (${period_key})\n\nFølg din arbejdsgang: get_previous_agent_messages først, og dernæst — gerne parallelt — get_company_facts, get_handout_levers, get_application_context, get_member_content_progress, get_milestones, get_kpi_targets og get_budget_vs_actual, så du har det fulde billede før du skriver. Hvis der er budget-afvigelser over 20%, prioritér disse i din forberedelse.\n\nSaml din indsigt i advisor-forberedelses-sporet med write_session_prep: 3 konkrete punkter advisoren bør tage op til næste session med founder. Founderen ser IKKE denne forberedelse. Du må IKKE skrive i founderens chat. Opdatér weekly focus.\n\nBemærk: Hvis dette er virksomhedens første rapport, er der automatisk oprettet et udkast-budget og en årsbaseline baseret på de committede tal (annualiseret x12 med jævn fordeling). Tag dette med i forberedelsen som noget advisoren kan drøfte med founder, fx at justere budgetmånederne der afviger fra gennemsnittet. Hvis der findes historiske årsrapport-facts (data_quality='estimat_fra_årsrapport_divideret_med_12') for tidligere år, så sammenlign årets udvikling med det historiske niveau.`
+  ? `Rådgiveren har bedt om en samlet gennemgang af virksomheden — et blik på virksomheden som helhed, ikke på et enkelt dokument.\n\n${rapportStatusBlok}\n\nFølg din arbejdsgang: get_previous_agent_messages først, dernæst minimum get_company_facts, get_handout_levers, get_application_context og get_member_content_progress — plus pulse, milestones og KPI-mål.\n\nHvis rapporteringsstatussen ovenfor viser at virksomheden mangler at rapportere, eller har uploadet uden at godkende, SKAL du adressere det som et af dine punkter: at rapportere og forholde sig til sine egne tal ER rådgivning, og et hul i rapporteringen er en observation på linje med et hul i tallene. Findes der ingen godkendte tal overhovedet, er DET dit vigtigste punkt — analysér ikke videre på estimater som om de var friske tal.\n\nVIGTIGT: weekly focus-kortet er FOUNDER-SYNLIGT. Opdatér det kun hvis gennemgangen giver et medlemsrettet fokus at sætte — det må ALDRIG bære rådgiver-intern gennemgang. Rådgiver-forberedelses-sporet findes ikke længere; har kørslen intet medlemsrettet at skrive, så kald finish uden yderligere output. Du må IKKE skrive i founderens chat.`
+  : `Ny rapport committed: ${period_label} (${period_key})\n\nFølg din arbejdsgang: get_previous_agent_messages først, og dernæst — gerne parallelt — get_company_facts, get_handout_levers, get_application_context, get_member_content_progress, get_milestones, get_kpi_targets og get_budget_vs_actual, så du har det fulde billede før du skriver. Hvis der er budget-afvigelser over 20%, prioritér disse.\n\nOpdatér weekly focus med dit vigtigste nøglefund. Du må IKKE skrive i founderens chat.\n\nBemærk: Hvis dette er virksomhedens første rapport, er der automatisk oprettet et udkast-budget og en årsbaseline baseret på de committede tal (annualiseret x12 med jævn fordeling). Tag dette med i din vurdering, fx at budgetmåneder der afviger fra gennemsnittet kan skulle justeres. Hvis der findes historiske årsrapport-facts (data_quality='estimat_fra_årsrapport_divideret_med_12') for tidligere år, så sammenlign årets udvikling med det historiske niveau.`
 }`,
       },
     ];
@@ -1300,7 +1275,7 @@ ${trigger === "pulse_submitted"
     let iterations = 0;
     let done = false;
     let messageWritten = false;   // KUN write_chat_message; styrer onboarding_completed
-    let producedOutput = false;   // write_chat_message ELLER write_session_prep; styrer success-gaten
+    let producedOutput = false;   // write_chat_message, update_weekly_focus ELLER write_company_action; styrer success-gaten (session_prep udgik med C3)
     let lastError: string | null = null;
     let stopReason: string | null = null;
     // Opsnappede skrivekald (kun tør-kørsel). Args er de SANITEREDE args —
@@ -1416,9 +1391,20 @@ ${trigger === "pulse_submitted"
           if (!dryRun) messageWritten = true;
           producedOutput = true;
         }
-        // Advisor-only-koersler (de fire rutine-triggers) lykkes naar agenten har
-        // samlet sin indsigt i forberedelses-sporet, selv uden en founder-chat-besked.
-        if (toolName === "write_session_prep" && toolResult?.ok === true) {
+        // Rutine-koersler lykkes naar agenten har samlet sin indsigt i
+        // weekly focus-kortet — eller (anomali-sporet, hvor weekly focus
+        // er forbudt) oprettet en handlingsopgave. write_session_prep
+        // udgik med C3 (docs/chat-design.md, 31/8); uden denne udvidelse
+        // ville HVER rutine-koersel fejle success-gaten.
+        // BEMAERK: efter C3 kan gaten fejle paa en koersel der intet
+        // HAVDE at sige (anomali uden klart naeste skridt; company_review
+        // uden medlemsrettet fokus — raadgiver-indhold maa ikke flyttes
+        // til founder-synlige kort). En roed koersel betyder "intet
+        // output", ikke noedvendigvis en fejl i agenten.
+        if (
+          (toolName === "update_weekly_focus" || toolName === "write_company_action") &&
+          toolResult?.ok === true
+        ) {
           producedOutput = true;
         }
 
@@ -1522,6 +1508,10 @@ ${trigger === "pulse_submitted"
       }
     }
 
+    // Efter C3 er "intet output" et LOVLIGT udfald for koersler der intet
+    // havde at sige (anomali uden naeste skridt; company_review uden
+    // medlemsrettet fokus). ok:false her betyder "koerslen producerede
+    // intet" — laes den ikke automatisk som en fejl i agenten.
     if (!producedOutput) {
       return new Response(
         JSON.stringify({
@@ -1531,7 +1521,7 @@ ${trigger === "pulse_submitted"
           dry_run: dryRun,
           run_id: runId,
           proposals: proposals.length,
-          error: lastError || "Agent fuldførte uden at producere output (hverken chat-besked eller session-forberedelse)",
+          error: lastError || "Agent fuldførte uden at producere output (weekly focus, handlingsopgave eller chat-besked)",
           diagnostics: { stop_reason: stopReasonFinal, produced_output: false },
         }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }

@@ -15,8 +15,6 @@ import { useState, useMemo } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCompanyFacts } from "@/hooks/useCompanyFacts";
 import { useCompanyCommentary, generateCommentary } from "@/hooks/useCompanyCommentary";
-import { postActivityMessage } from "@/lib/chatActivity";
-import { parseReportPeriodToKey } from "@/lib/financialUtils";
 import { supabase } from "@/integrations/supabase/client";
 import {
   deriveDataSufficiency,
@@ -122,59 +120,10 @@ export function useFinancialAnalysis({
 
       // (default-fold for nøglefund styres af visningslagene via sortedFindings)
 
-      // Post to chat
-      if (conversationId && userId && result.analysis) {
-        const analysisData = result.analysis as unknown as AnalysisData;
-        const summaryParts: string[] = [];
-        const label = availablePeriods.find(p => p.period_key === targetPeriod)?.period_label || targetPeriod;
-        summaryParts.push(`📊 **AI Finansiel Analyse · ${label}**\n`);
-        summaryParts.push(analysisData.overview || "");
-        if (analysisData.key_findings?.length > 0) {
-          summaryParts.push(`\n\n**Nøglefund:**`);
-          analysisData.key_findings.forEach((f, i) => {
-            const icon = f.severity === "positiv" ? "✅" : f.severity === "advarsel" ? "⚠️" : "🔴";
-            summaryParts.push(`${icon} ${i + 1}. ${f.title} — ${f.recommendation}`);
-          });
-        }
-        const content = summaryParts.join("\n");
-
-        // Periodenøgle for den analyserede periode. targetPeriod ER allerede en
-        // kanonisk YYYY-MM-nøgle (fra committede facts); fald tilbage til at parse
-        // labelen. Uden en nøgle har vi intet idempotens-anker → spring kortet over
-        // (aldrig en "ukendt periode"-dublet).
-        const periodKey = targetPeriod || parseReportPeriodToKey(label);
-        if (periodKey) {
-          const contextMeta = { kind: "ai_analysis", period_key: periodKey, title: `AI Analyse · ${label}` };
-
-          // Idempotent pr. (samtale, periode): EET ai_analysis-kort pr. periode, aldrig
-          // en stak. Findes et → opdatér content + peg på nyeste commentary; ellers
-          // indsæt nyt. Samme mønster som reportCommit.ts' report_card.
-          const { data: existing } = await supabase
-            .from("messages")
-            .select("id")
-            .eq("conversation_id", conversationId)
-            .eq("context_type", "report")
-            .eq("context_meta->>kind", "ai_analysis")
-            .eq("context_meta->>period_key", periodKey)
-            .limit(1);
-
-          if (existing && existing.length > 0) {
-            await supabase
-              .from("messages")
-              .update({ content, context_id: result.id } as never)
-              .eq("id", (existing[0] as { id: string }).id);
-          } else {
-            await postActivityMessage({
-              conversationId,
-              senderId: userId,
-              content,
-              contextType: "report",
-              contextId: result.id,
-              contextMeta,
-            });
-          }
-        }
-      }
+      // C2 (docs/chat-design.md, besluttet 31/8): AI-analysen skrives
+      // IKKE længere som besked i chatten — analysen bor i KPI-/
+      // rapporterings-fladerne (company_commentaries), og chatten skal
+      // ikke bære kvitteringer for den.
 
       onGenerated?.();
     } catch (e: any) {

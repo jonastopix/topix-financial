@@ -28,10 +28,9 @@ describe("MemberChatPane — kildeværn for de stille regressioner", () => {
     expect(source).toContain('searchParams.get("messageId")');
   });
 
-  it("henter useCompanyFacts — ellers mister medlemmets report_card sine nøgletals-fliser uden fejl", () => {
-    expect(source).toContain('import { useCompanyFacts } from "@/hooks/useCompanyFacts"');
-    expect(source).toMatch(/useCompanyFacts\(/);
-  });
+  // useCompanyFacts-låsen er fjernet med C2 (docs/chat-design.md):
+  // report_card-kortet, som var hookens eneste aftager, findes ikke
+  // længere — kvitteringerne er ude af tråden.
 
   it("bærer expired-spærren begge steder (composer-muren + handleSend-værnet)", () => {
     const forekomster = source.match(/membershipTier === "expired"/g) ?? [];

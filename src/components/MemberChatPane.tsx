@@ -15,18 +15,15 @@ import { useConversationLastSeen } from "@/hooks/useConversationLastSeen";
 import MessageActionMenu from "@/components/MessageActionMenu";
 import MessageEditDialog from "@/components/MessageEditDialog";
 import MobileMessageActionDrawer from "@/components/MobileMessageActionDrawer";
-import { openReportFile } from "@/lib/reportFileAccess";
 import { computeMembershipTier } from "@/lib/membershipTier";
 import { useQuery } from "@tanstack/react-query";
 import DOMPurify from "dompurify";
 import {
   Send, MessageCircle, CheckCheck, FileText, Sparkles, Target,
-  AlertCircle, MessageSquare, Pin, ArrowLeft, ExternalLink,
-  Building2, Loader2, TrendingUp, TrendingDown, Minus,
+  AlertCircle, MessageSquare, Pin, ArrowLeft,
+  Building2, Loader2,
 } from "lucide-react";
 import ChatRichInput from "@/components/ChatRichInput";
-import { useCompanyFacts } from "@/hooks/useCompanyFacts";
-import { factsToDanishMetrics } from "@/lib/factsAdapter";
 import { format, startOfDay } from "date-fns";
 import { da } from "date-fns/locale";
 import {
@@ -394,13 +391,8 @@ const MemberChatPane = () => {
 
   const activeConv = conversations.find((c) => c.id === activeConvId);
 
-  // Fra "Se tal"-drawerens hook-sæt beholdes KUN useCompanyFacts:
-  // medlemmets report_card-fliser (nøgletal + forrige periode) læser
-  // drawerFacts. De øvrige drawer-hooks (targets/benchmarks/commentary)
-  // fodrede alene rådgiver-draweren og er ikke med her — glemmes denne
-  // hook, mister rapportkortet sine tal UDEN fejl (chat-split-recon §5).
-  const companyIdForFacts = activeConv?.company_id;
-  const { data: drawerFacts = [] } = useCompanyFacts(companyIdForFacts);
+  // useCompanyFacts er fjernet med C2: hooken var her alene for
+  // report_card-kortets nøgletals-fliser, og kortet findes ikke længere.
 
   const pinnedMessages = useMemo(() =>
     messages.filter(m => m.pinned_at).sort((a, b) =>
@@ -625,109 +617,15 @@ const MemberChatPane = () => {
                                 .replace(/\n/g, '<br>'),
                               { ALLOWED_TAGS: ['b','strong','i','em','ul','ol','li','a','p','br'], ALLOWED_ATTR: ['href','target','rel'] }
                             ) }} />
-                            {contextMeta?.kind === "report_card" && (() => {
-                              // Rich report card — ONLY for the dedicated report_card
-                              // message (has context_meta.kind). The AI analysis message
-                              // has no `kind`, so it stays on the chip path below.
-                              const cardPeriodKey: string | null = contextMeta?.period_key ?? null;
-                              const facts = drawerFacts;
-                              const idx = cardPeriodKey ? facts.findIndex(f => f.period_key === cardPeriodKey) : -1;
-                              const current = idx >= 0 ? facts[idx] : null;
-                              // Previous = the period immediately before this card's period
-                              // (facts are sorted by period_key ascending).
-                              const previous = idx > 0 ? facts[idx - 1] : null;
-                              const cur = current ? factsToDanishMetrics(current.metrics) : {};
-                              const prv = previous ? factsToDanishMetrics(previous.metrics) : {};
-
-                              const periodLabel =
-                                current?.period_label ||
-                                (cardPeriodKey
-                                  ? (() => {
-                                      const [y, m] = cardPeriodKey.split("-").map(Number);
-                                      if (!y || !m) return cardPeriodKey;
-                                      return new Date(y, m - 1, 1).toLocaleDateString("da-DK", { month: "long", year: "numeric" });
-                                    })()
-                                  : "");
-
-                              const fmtKr = (n: number) =>
-                                n.toLocaleString("da-DK", { maximumFractionDigits: 0 }) + " kr.";
-
-                              const rows = [
-                                { label: "Omsætning", key: "omsaetning" },
-                                { label: "Resultat f. skat", key: "resultat_foer_skat" },
-                                { label: "Dækningsbidrag", key: "daekningsbidrag" },
-                              ]
-                                .map(d => ({ label: d.label, curr: cur[d.key] ?? null, prev: prv[d.key] ?? null }))
-                                .filter(r => r.curr != null);
-
-                              return (
-                                <div className="mt-3 rounded-xl border border-border/60 bg-background/60 p-3 md:p-4">
-                                  <div className="flex items-center justify-between gap-2 mb-3">
-                                    <div className="flex items-center gap-2 min-w-0">
-                                      <FileText className="h-4 w-4 text-primary shrink-0" />
-                                      <div className="min-w-0">
-                                        <p className="text-sm font-semibold text-foreground truncate">
-                                          {activeConv?.companyName || "Rapport"}
-                                        </p>
-                                        {periodLabel && (
-                                          <p className="text-[11px] text-muted-foreground">{periodLabel}</p>
-                                        )}
-                                      </div>
-                                    </div>
-                                    <button
-                                      onClick={async () => {
-                                        if (!msg.context_id) return;
-                                        const { data: report } = await supabase
-                                          .from("financial_reports")
-                                          .select("file_path")
-                                          .eq("id", msg.context_id)
-                                          .maybeSingle();
-                                        const filePath = (report as { file_path?: string } | null)?.file_path;
-                                        if (filePath) {
-                                          await openReportFile(filePath);
-                                        } else {
-                                          toast.error("Rapportfil ikke tilgængelig");
-                                        }
-                                      }}
-                                      className="inline-flex items-center gap-1.5 text-[11px] font-medium px-2.5 py-1.5 rounded-md bg-primary/10 text-primary hover:bg-primary/20 transition-colors shrink-0"
-                                    >
-                                      <ExternalLink className="h-3 w-3" />
-                                      Åbn rapportfil
-                                    </button>
-                                  </div>
-                                  {rows.length > 0 && (
-                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                                      {rows.map(r => {
-                                        const hasPrev = r.prev != null && r.prev !== 0;
-                                        const pct = hasPrev ? ((r.curr! - r.prev!) / Math.abs(r.prev!)) * 100 : null;
-                                        const isFlat = pct != null && Math.abs(pct) < 1;
-                                        const isUp = pct != null && pct > 0;
-                                        return (
-                                          <div key={r.label} className="rounded-lg bg-secondary/40 p-2.5">
-                                            <p className="text-[10px] text-muted-foreground">{r.label}</p>
-                                            <p className="text-sm font-semibold text-foreground">{fmtKr(r.curr!)}</p>
-                                            {pct != null && (
-                                              <div className={`flex items-center gap-1 mt-0.5 text-[11px] font-medium ${
-                                                isFlat ? "text-muted-foreground" : isUp ? "text-primary" : "text-destructive"
-                                              }`}>
-                                                {isFlat ? <Minus className="h-3 w-3" /> : isUp ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
-                                                {isUp ? "+" : ""}{pct.toFixed(1)}%
-                                              </div>
-                                            )}
-                                          </div>
-                                        );
-                                      })}
-                                    </div>
-                                  )}
-                                </div>
-                              );
-                            })()}
+                            {/* C2 (besluttet 31/8): report_card-kortet og
+                                ai_analysis-chippen er fjernet — system·report-
+                                bestanden slettes historisk og produceres ikke
+                                længere. Chippen består for milestone-beskederne. */}
                             {contextType && contextMeta?.title && (
                               // Chip'en uden link-varianten: /members/:id-knappen
                               // var rådgiverens (isAdvisor && linkPath).
                               <div className="mt-2">
                                 <span className="inline-flex items-center gap-1.5 text-[10px] px-2 py-1 rounded-md bg-secondary text-muted-foreground">
-                                  {contextType === "report" && <FileText className="h-3 w-3" />}
                                   {contextType === "milestone" && <Target className="h-3 w-3" />}
                                   {String(contextMeta.title)}
                                 </span>

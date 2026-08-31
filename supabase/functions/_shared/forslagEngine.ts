@@ -20,10 +20,11 @@ export const AFGOERELSER: readonly Afgoerelse[] = ["approve", "approve_edited", 
 
 /** De skriveveje godkendelse kan UDFØRE i dag — præcis de idempotente
     (agentSkriveveje.ts). Øvrige tools kan forkastes, men ikke godkendes,
-    før deres gentagelses-semantik er besluttet. */
+    før deres gentagelses-semantik er besluttet. write_session_prep udgik
+    med C3 (docs/chat-design.md, 31/8) — gamle session_prep-forslag kan
+    dermed kun forkastes. */
 export const UNDERSTOETTEDE_SKRIVEVEJE: ReadonlySet<string> = new Set([
   "update_weekly_focus",
-  "write_session_prep",
 ]);
 
 export type Dom = { ok: true } | { ok: false; grund: string };

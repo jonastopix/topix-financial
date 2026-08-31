@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
-import { postReportCardMessage, clearReportReviewNotification } from "@/lib/reportCommit";
+import { clearReportReviewNotification } from "@/lib/reportCommit";
 import { toast } from "sonner";
 import {
   Dialog,
@@ -274,8 +274,7 @@ export default function ReportReviewDialog({
       });
       if (commitError) throw commitError;
 
-      // Founder-facing report card in chat — idempotent per (company, period).
-      postReportCardMessage({ companyId, reportId, periodKey: preview?.period_key });
+      // C2: rapportkvitteringen i chatten skrives ikke længere.
       // Report committed: suppress the "report_review_ready" email fallback.
       clearReportReviewNotification(reportId);
 
@@ -413,8 +412,7 @@ export default function ReportReviewDialog({
       });
       if (commitError) throw commitError;
 
-      // Founder-facing report card in chat — idempotent per (company, period).
-      postReportCardMessage({ companyId, reportId, periodKey: preview?.period_key });
+      // C2: rapportkvitteringen i chatten skrives ikke længere.
       // Report committed: suppress the "report_review_ready" email fallback.
       clearReportReviewNotification(reportId);
 

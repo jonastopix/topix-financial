@@ -15,7 +15,6 @@
 
 export const SKRIVE_TOOLS: ReadonlySet<string> = new Set([
   "write_chat_message",
-  "write_session_prep",
   "update_weekly_focus",
   "write_company_action",
   "notify_advisor",
