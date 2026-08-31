@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { deriveFocus, deriveNextStep, type FocusInputs, type NextStepInputs } from "../nextStep";
+import { deriveFocus, deriveNextStep, filtrerUdloebneForslag, type FocusInputs, type NextStepInputs } from "../nextStep";
 
 /** Fokus-motoren (forside PR 1): hver kilde, rækkefølgen ved samtidige
     signaler, tom-tilstand og wrapper-regressionsværnet. Fast "nu":
@@ -137,6 +137,113 @@ describe("deriveFocus — hver kilde for sig", () => {
       "Åben handling fra din handlingsplan.",
       "Åben handling fra din handlingsplan.",
     ]);
+  });
+
+  it("(f) 'proposed' beskrives som forslag der venter på svar og bærer forslag-handling", () => {
+    const items = deriveFocus(
+      base({
+        openActions: [{ id: "p1", title: "Stram likviditeten", priority: "high", status: "proposed", deferral_count: 0 }],
+      }),
+    );
+    expect(items[0].description).toBe("Et forslag der venter på dit svar.");
+    expect(items[0].handling).toEqual({ slags: "forslag", opgaveId: "p1", deferralCount: 0, dueDate: null });
+  });
+
+  it("(f) 'proposed' med context: forslags-sætningen først, begrundelsen efter", () => {
+    const items = deriveFocus(
+      base({
+        openActions: [
+          { id: "p1", title: "Stram likviditeten", priority: "high", status: "proposed", context: "Kassekreditten er presset." },
+        ],
+      }),
+    );
+    expect(items[0].description).toBe("Et forslag der venter på dit svar. Kassekreditten er presset.");
+  });
+
+  it("(f) 'active' siger hvornår den skal være gjort og bærer aktiv-handling m. tæller og frist", () => {
+    const items = deriveFocus(
+      base({
+        openActions: [
+          { id: "k1", title: "Ring til banken", priority: "high", status: "active", due_date: "2026-09-04", deferral_count: 1 },
+        ],
+      }),
+    );
+    expect(items[0].description).toBe("Skal være gjort senest 4. september.");
+    expect(items[0].handling).toEqual({ slags: "aktiv", opgaveId: "k1", deferralCount: 1, dueDate: "2026-09-04" });
+  });
+
+  it("(f) 'active' med context: fristen først, begrundelsen efter", () => {
+    const items = deriveFocus(
+      base({
+        openActions: [
+          { id: "k1", title: "Ring til banken", priority: "high", status: "active", due_date: "2026-09-04", context: "Renten skal genforhandles." },
+        ],
+      }),
+    );
+    expect(items[0].description).toBe("Skal være gjort senest 4. september. Renten skal genforhandles.");
+  });
+
+  it("(f) arve-'open' og manglende status er uændret: context/fallback og INGEN handling", () => {
+    const items = deriveFocus(
+      base({
+        openActions: [
+          { id: "a1", title: "Arv med status", priority: "high", status: "open", context: "Begrundelsen." },
+          { id: "a2", title: "Arv uden status", priority: "low" },
+        ],
+      }),
+    );
+    expect(items.map((i) => i.description)).toEqual(["Begrundelsen.", "Åben handling fra din handlingsplan."]);
+    expect(items.every((i) => i.handling === undefined)).toBe(true);
+  });
+
+  it("(f) blandet liste: prioritet 6 og kalderens orden bevares uanset status", () => {
+    const items = deriveFocus(
+      base({
+        openActions: [
+          { id: "p1", title: "Forslag", priority: "high", status: "proposed" },
+          { id: "k1", title: "Aktiv", priority: "medium", status: "active", due_date: "2026-09-04" },
+          { id: "a1", title: "Arv", priority: "low", status: "open" },
+        ],
+      }),
+    );
+    expect(items.map((i) => i.sourceId)).toEqual(["p1", "k1", "a1"]);
+    expect(items.every((i) => i.priority === 6)).toBe(true);
+  });
+
+  it("(f) B8 på læsesiden: udløbet 'proposed' filtreres fra før deriveFocus, kommende består", () => {
+    // Samme vej som fladen: mappingen kører filtrerUdloebneForslag før
+    // deriveFocus. Tidsstempel-dom (timestamptz), ikke kalenderdag.
+    const udloebet = {
+      id: "p1",
+      title: "Udløbet forslag",
+      priority: "high",
+      status: "proposed",
+      expires_at: new Date(NOW.getTime() - 1000).toISOString(),
+    };
+    const kommende = {
+      id: "p2",
+      title: "Kommende forslag",
+      priority: "high",
+      status: "proposed",
+      expires_at: new Date(NOW.getTime() + 1000).toISOString(),
+    };
+    expect(deriveFocus(base({ openActions: filtrerUdloebneForslag([udloebet], NOW) }))).toEqual([]);
+    const items = deriveFocus(base({ openActions: filtrerUdloebneForslag([kommende], NOW) }));
+    expect(items).toHaveLength(1);
+    expect(items[0].sourceId).toBe("p2");
+  });
+
+  it("(f) B8 rører kun 'proposed': active og arve-'open' består uanset expires_at-fortid", () => {
+    const fortid = new Date(NOW.getTime() - 1000).toISOString();
+    const beholdt = filtrerUdloebneForslag(
+      [
+        { id: "k1", status: "active", expires_at: fortid },
+        { id: "a1", status: "open", expires_at: null },
+        { id: "p1", status: "proposed", expires_at: fortid },
+      ],
+      NOW,
+    );
+    expect(beholdt.map((a) => a.id)).toEqual(["k1", "a1"]);
   });
 
   it("(g) pulse-nudgen er GATED bag committed rapport (ActionCenter:166-176)", () => {

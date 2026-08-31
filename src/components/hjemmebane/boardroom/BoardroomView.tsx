@@ -1,8 +1,9 @@
 import * as React from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowRight, ChevronDown, ChevronUp, ExternalLink, Pause, Play } from "lucide-react";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
@@ -18,6 +19,9 @@ import { AREAS, getAssetPreviewUrl, type ContentItem } from "@/lib/hjemmebane/ad
 import { bunnyThumbnailUrl } from "@/lib/hjemmebane/bunnyMedia";
 import { parsePodcastFeed, type PodcastEpisode } from "@/lib/hjemmebane/podcastRss";
 import { getISOWeekKey } from "@/lib/hjemmebane/week";
+import { denneUgesFredag, naesteUgesFredag, omEnMaaned, tilDatoStreng } from "@/lib/hjemmebane/opgaveDato";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { listUpcomingEvents } from "@/lib/hjemmebane/akademiApi";
 import { hentFeed } from "@/lib/hjemmebane/communityApi";
 import { eventMeetPhase } from "@/lib/hjemmebane/eventPhase";
@@ -31,7 +35,7 @@ import { HbSection } from "../HbSection";
 import { hasRichTextContent } from "@/lib/hjemmebane/richtext";
 import { isTrackedEntry, useAkademiData, type AkademiItem } from "../akademi/useAkademiData";
 import { HbVideoEmbed } from "../akademi/HbVideoEmbed";
-import { deriveFocus, type FocusItem } from "./nextStep";
+import { deriveFocus, filtrerUdloebneForslag, type FocusItem, type FocusOpgaveHandling } from "./nextStep";
 import {
   byPublishedDesc,
   countNewSince,
@@ -962,6 +966,164 @@ const TalStrip = ({
   );
 };
 
+/** Fladens tre skriveveje mod opgave-modellens edge functions — motoren
+    i nextStep beskriver kun handlingen (FocusOpgaveHandling); selve
+    kaldet bor i BoardroomView (opgaveMutation). */
+type OpgaveKald =
+  | { type: "accepter"; opgaveId: string; dato: string }
+  | { type: "udskyd"; opgaveId: string; dato?: string }
+  | { type: "luk"; opgaveId: string; udfald: "done" | "dropped" | "dismissed" };
+
+/** Knapperne på et opgave-punkt (B1/B6-accept, B7/B11-udskydelse,
+    B2/B7-luk). Fladen gentager INGEN regler — motoren bag edge
+    functions dømmer, og dens 409-grund vises ordret.
+
+    Datovalget er TRE knapper plus en udvej: B6 kræver at medlemmet
+    selv vælger datoen, og indvendingen bogført i B6 er at hver ekstra
+    handling historisk har kostet næsten al adoption. Tre knapper
+    bevarer valget uden at kræve en kalender. Er accept-raten lav, er
+    kalender-først den første justering — det er den observation B6
+    beder om.
+
+    "Ikke endnu" vises kun ved forfald: motoren afviser udskydelse før
+    fristen er passeret (B2, opgaveEngine.ts:146-148), og en knap der
+    altid svarer 409 er ingen handling. Dommen over overgangen er
+    stadig motorens — fladen gater kun visningen. */
+const OpgaveKnapper = ({
+  handling,
+  busy,
+  onKald,
+}: {
+  handling: FocusOpgaveHandling;
+  busy: boolean;
+  onKald: (kald: OpgaveKald) => void;
+}) => {
+  /** null = grundknapperne; ellers er datovalget åbent for accept (B6)
+      eller anden udskydelse (B11). */
+  const [datoFormaal, setDatoFormaal] = useState<"accept" | "udskyd" | null>(null);
+  const [kalenderAaben, setKalenderAaben] = useState(false);
+
+  const idag = new Date();
+  const sendDato = (dato: Date) => {
+    const streng = tilDatoStreng(dato);
+    if (datoFormaal === "udskyd") onKald({ type: "udskyd", opgaveId: handling.opgaveId, dato: streng });
+    else onKald({ type: "accepter", opgaveId: handling.opgaveId, dato: streng });
+    setDatoFormaal(null);
+    setKalenderAaben(false);
+  };
+
+  if (datoFormaal) {
+    return (
+      <div className="mt-4 flex flex-wrap items-center gap-2">
+        <span className="mr-1 text-sm text-hb-ink-soft">Hvornår?</span>
+        <HbButton variant="secondary" className="h-9 px-4" disabled={busy} onClick={() => sendDato(denneUgesFredag(idag))}>
+          Denne uge
+        </HbButton>
+        <HbButton variant="secondary" className="h-9 px-4" disabled={busy} onClick={() => sendDato(naesteUgesFredag(idag))}>
+          Næste uge
+        </HbButton>
+        <HbButton variant="secondary" className="h-9 px-4" disabled={busy} onClick={() => sendDato(omEnMaaned(idag))}>
+          Om en måned
+        </HbButton>
+        <Popover open={kalenderAaben} onOpenChange={setKalenderAaben}>
+          <PopoverTrigger asChild>
+            <HbButton variant="secondary" className="h-9 px-4" disabled={busy}>
+              Vælg selv
+            </HbButton>
+          </PopoverTrigger>
+          {/* Stilpas (Popover+Calendar-mønstret fra Milestones.tsx:387-397):
+              shadcn-Calendar er bygget på default-tokens og ville stikke
+              ud i .theme-hjemmebane — ramme og valgt dag trækkes over på
+              hb-line/hb-evergreen her. Fortid er slået fra: motoren
+              afviser datoer før i dag (B3/B6). */}
+          <PopoverContent className="w-auto border-hb-line bg-white p-0" align="start">
+            <Calendar
+              mode="single"
+              disabled={{ before: idag }}
+              onSelect={(d) => d && sendDato(d)}
+              initialFocus
+              className="p-3 pointer-events-auto text-hb-ink"
+              classNames={{
+                day_selected:
+                  "bg-hb-evergreen text-white hover:bg-hb-evergreen hover:text-white focus:bg-hb-evergreen focus:text-white",
+                day_today: "border border-hb-evergreen/50 bg-transparent",
+              }}
+            />
+          </PopoverContent>
+        </Popover>
+        <button
+          type="button"
+          className="text-sm text-hb-ink-soft underline-offset-4 hover:underline"
+          onClick={() => setDatoFormaal(null)}
+        >
+          Fortryd
+        </button>
+      </div>
+    );
+  }
+
+  if (handling.slags === "forslag") {
+    return (
+      <div className="mt-4 flex flex-wrap gap-2">
+        <HbButton className="h-9 px-4" disabled={busy} onClick={() => setDatoFormaal("accept")}>
+          Ja, det gør jeg
+        </HbButton>
+        <HbButton
+          variant="secondary"
+          className="h-9 px-4"
+          disabled={busy}
+          onClick={() => onKald({ type: "luk", opgaveId: handling.opgaveId, udfald: "dismissed" })}
+        >
+          Nej tak
+        </HbButton>
+      </div>
+    );
+  }
+
+  // Aktiv opgave. B7 er udtrykkelig: "drop den" skal være et lige så
+  // pænt svar som "gjort" — derfor SAMME variant på alle knapper her,
+  // ingen primær/grå-rangorden. Strengsammenligningen er nok: begge
+  // sider er "YYYY-MM-DD", og forfald indtræder dagen EFTER fristen
+  // (spejler erForfalden-dommen uden at gentage den som regel).
+  const forfalden = handling.dueDate != null && handling.dueDate < tilDatoStreng(idag);
+  return (
+    <div className="mt-4 flex flex-wrap gap-2">
+      <HbButton
+        variant="secondary"
+        className="h-9 px-4"
+        disabled={busy}
+        onClick={() => onKald({ type: "luk", opgaveId: handling.opgaveId, udfald: "done" })}
+      >
+        Gjort
+      </HbButton>
+      {forfalden && (
+        <HbButton
+          variant="secondary"
+          className="h-9 px-4"
+          disabled={busy}
+          onClick={() =>
+            handling.deferralCount === 0
+              ? // 1. udskydelse: ingen dato — motoren lægger selv 14 dage til (B11)
+                onKald({ type: "udskyd", opgaveId: handling.opgaveId })
+              : // 2. udskydelse: medlemmet vælger datoen (B11)
+                setDatoFormaal("udskyd")
+          }
+        >
+          Ikke endnu
+        </HbButton>
+      )}
+      <HbButton
+        variant="secondary"
+        className="h-9 px-4"
+        disabled={busy}
+        onClick={() => onKald({ type: "luk", opgaveId: handling.opgaveId, udfald: "dropped" })}
+      >
+        Drop den
+      </HbButton>
+    </div>
+  );
+};
+
 /** Lag 1-kortet: #1 stort, #2-4 som stille linjer. weekly_focus læses
     INLINE (headline + summary) — kontrakten "Ugens fokus er klar" → "/".
     CTA-knap vises kun når punktet peger VÆK fra forsiden (ctaHref ≠ "/").
@@ -972,6 +1134,8 @@ const FocusCard = ({
   weeklySummary,
   nextEntry,
   journeyLine,
+  onOpgaveKald,
+  opgaveBusy,
 }: {
   loading: boolean;
   items: FocusItem[];
@@ -979,6 +1143,10 @@ const FocusCard = ({
   nextEntry: AkademiItem | undefined;
   /** Anerkendelses-linjen (bølge 3) — null når alle tal er 0. */
   journeyLine: string | null;
+  /** Opgave-modellens skrivevej — punkter med `handling` får knapper
+      der ender her (BoardroomViews opgaveMutation). */
+  onOpgaveKald?: (kald: OpgaveKald) => void;
+  opgaveBusy?: boolean;
 }) => {
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
   const displayed = items.slice(0, 4);
@@ -1019,6 +1187,9 @@ const FocusCard = ({
               <HbButton>{primary.ctaLabel}</HbButton>
             </Link>
           )}
+          {primary.handling && onOpgaveKald && (
+            <OpgaveKnapper handling={primary.handling} busy={!!opgaveBusy} onKald={onOpgaveKald} />
+          )}
           {quiet.length > 0 && (
             /* Titlen bærer vægten, svaret bærer luften — et udfoldet
                punkt skal læses som et SVAR på titlen, ikke som en
@@ -1054,11 +1225,15 @@ const FocusCard = ({
                   {expandedKey === item.key && (
                     /* pl-0 er flugtningen: knappen har ingen vandret
                        padding, så titlen står ved kanten — en indrykning
-                       ville netop bryde flugten med titlen. */
-                    <p className="pb-3 pl-0 pt-1 text-sm leading-relaxed text-hb-ink-soft">
+                       ville netop bryde flugten med titlen. div (ikke p):
+                       opgave-knapperne må ikke bo i et afsnit. */
+                    <div className="pb-3 pl-0 pt-1 text-sm leading-relaxed text-hb-ink-soft">
                       {item.description}
                       {inlineBody(item) && <span className="mt-1 block text-hb-ink">{inlineBody(item)}</span>}
-                    </p>
+                      {item.handling && onOpgaveKald && (
+                        <OpgaveKnapper handling={item.handling} busy={!!opgaveBusy} onKald={onOpgaveKald} />
+                      )}
+                    </div>
                   )}
                 </li>
               ))}
@@ -1366,7 +1541,7 @@ export const BoardroomView = () => {
   const actionsQuery = useQuery({
     queryKey: ["boardroom", "company-actions", companyId],
     queryFn: async () => {
-      const { data } = await supabase.from("company_actions").select("id, title, context, priority, status, created_at")
+      const { data } = await supabase.from("company_actions").select("id, title, context, priority, status, created_at, due_date, expires_at, deferral_count")
         .eq("company_id", companyId!).in("status", ["open", "proposed", "active"]).order("created_at", { ascending: false }).limit(10) as any;
       return ((data || []) as any[]).sort((a: any, b: any) => {
         const order: Record<string, number> = { high: 0, medium: 1, low: 2 };
@@ -1491,7 +1666,23 @@ export const BoardroomView = () => {
       weeklyFocus: weeklyFocusQuery.data
         ? { headline: weeklyFocusQuery.data.headline ?? null, seen: Boolean(weeklyFocusQuery.data.seen_at) }
         : null,
-      openActions: (actionsQuery.data ?? []).map((a: any) => ({ id: a.id, title: a.title, priority: a.priority, context: a.context ?? null })),
+      // Opgave-modellen (B1-B11): status skelner forslag fra aktiv
+      // opgave i fokus-laget, due_date bærer fristen, deferral_count
+      // afgør udskydelsens form (B11). Udløbne forslag filtreres fra
+      // FØR deriveFocus — B8 på læsesiden, se filtrerUdloebneForslag.
+      openActions: filtrerUdloebneForslag(
+        (actionsQuery.data ?? []).map((a: any) => ({
+          id: a.id,
+          title: a.title,
+          priority: a.priority,
+          context: a.context ?? null,
+          status: a.status,
+          due_date: a.due_date ?? null,
+          deferral_count: a.deferral_count ?? 0,
+          expires_at: a.expires_at ?? null,
+        })),
+        new Date(),
+      ),
       unlinkedLevers: leversQuery.data ?? [],
       askMeAboutMissing: ownProfileQuery.data === true,
     });
@@ -1514,6 +1705,58 @@ export const BoardroomView = () => {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [weeklyDisplayed, weeklyFocusQuery.data]);
+
+  // ── Opgave-modellens skrivevej (B1/B6/B7/B11) ───────────────────────────
+  // Fladen kalder de tre edge functions og gentager INGEN regler —
+  // motoren bag dem dømmer, og en 409 betyder enten at motoren afviste
+  // overgangen eller at rækken blev ændret imens. Begge dele vises
+  // ordret til medlemmet (beskederne er dansk fra funktionerne) — og
+  // cachen invalideres KUN mod den faktiske tilstand, aldrig optimistisk.
+  // staleTime er 3 min, så invalidering efter skrivning er nødvendig.
+  const queryClient = useQueryClient();
+  const opgaveMutation = useMutation({
+    mutationFn: async (kald: OpgaveKald) => {
+      const { fn, body } =
+        kald.type === "accepter"
+          ? { fn: "opgave-accepter", body: { opgaveId: kald.opgaveId, dato: kald.dato } as Record<string, unknown> }
+          : kald.type === "udskyd"
+            ? { fn: "opgave-udskyd", body: { opgaveId: kald.opgaveId, ...(kald.dato ? { dato: kald.dato } : {}) } }
+            : { fn: "opgave-luk", body: { opgaveId: kald.opgaveId, udfald: kald.udfald } };
+      const { data, error } = await supabase.functions.invoke(fn, { body });
+      if (error) {
+        // FunctionsHttpError bærer serverens JSON-body ({ error }) i
+        // context-Response — vis den ærlige grund (mønstret fra
+        // AgentForslagPanel.tsx:167-176).
+        let besked = error.message;
+        try {
+          const svar = await (error as any).context?.json?.();
+          if (svar?.error) besked = svar.error;
+        } catch { /* behold error.message */ }
+        throw new Error(besked);
+      }
+      return data;
+    },
+    onSuccess: (_data, kald) => {
+      toast.success(
+        kald.type === "accepter"
+          ? "Aftalen er registreret"
+          : kald.type === "udskyd"
+            ? "Opgaven er udskudt"
+            : kald.udfald === "done"
+              ? "Registreret som gjort"
+              : kald.udfald === "dropped"
+                ? "Opgaven er droppet"
+                : "Forslaget er afvist",
+      );
+      void queryClient.invalidateQueries({ queryKey: ["boardroom", "company-actions", companyId] });
+    },
+    onError: (error: any) => {
+      toast.error("Det lykkedes ikke", { description: error?.message || String(error) });
+      // Rækken kan være ændret imens (409-låsen) — hent den faktiske
+      // tilstand frem for at lade fladen stå med et forældet punkt.
+      void queryClient.invalidateQueries({ queryKey: ["boardroom", "company-actions", companyId] });
+    },
+  });
 
   const focusLoading =
     !!companyId &&
@@ -1592,6 +1835,8 @@ export const BoardroomView = () => {
           weeklySummary={weeklyFocusQuery.data?.summary ?? null}
           nextEntry={nextEntry}
           journeyLine={journeyLine}
+          onOpgaveKald={(kald) => opgaveMutation.mutate(kald)}
+          opgaveBusy={opgaveMutation.isPending}
         />
       </HbSection>
 

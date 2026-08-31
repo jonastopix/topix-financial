@@ -55,6 +55,53 @@ export interface FocusOpenAction {
   /** company_actions.context — handlingens egen begrundelse fra
       AI-analysen. Nullable i databasen, derfor valgfri her. */
   context?: string | null;
+  /** company_actions.status — 'proposed' (forslag, B1) | 'active'
+      (accepteret, B6) | 'open' (arv). Valgfri: udeladt behandles som
+      arve-'open' og punktet bærer ingen handling. */
+  status?: string;
+  /** "YYYY-MM-DD" for aktive opgaver (B3) — bærer beskrivelsens frist
+      og fladens forfaldsdom. */
+  due_date?: string | null;
+  /** B7/B11-tælleren — afgør om "Ikke endnu" kan sendes uden dato. */
+  deferral_count?: number;
+  /** company_actions.expires_at (timestamptz, ISO-streng) — kun sat på
+      forslag. Bruges af filtrerUdloebneForslag (B8), ikke af deriveFocus. */
+  expires_at?: string | null;
+}
+
+/** B8 implementeret på læsesiden: et forslag forsvinder fra medlemmets
+    liste når expires_at passerer. Kendsgerningen bliver i data — rækken
+    står stadig som 'proposed', så tilstandslaget i fase 2 kan tælle den;
+    asymmetrien (rådgiveren ved noget medlemmet ikke ser) er bevidst,
+    design B8. Udløbs-cron'en der flytter status til 'expired' mangler
+    stadig — denne filtrering er uafhængig af den og gør ingen skade den
+    dag cron'en findes. Kun 'proposed' dømmes: en accepteret opgave har
+    ingen udløbsdato at forholde sig til, og arve-'open' har ingen
+    expires_at. expires_at er timestamptz, så der sammenlignes på
+    tidsstempel, ikke kalenderdag (samme dom som opgaveEngine.erUdloebet:
+    udløbet først når nu er EFTER tidspunktet). */
+export function filtrerUdloebneForslag<T extends { status?: string; expires_at?: string | null }>(
+  actions: T[],
+  nu: Date,
+): T[] {
+  return actions.filter(
+    (a) => !(a.status === "proposed" && a.expires_at != null && nu.getTime() > new Date(a.expires_at).getTime()),
+  );
+}
+
+/** Handlingen på et opgave-punkt (opgave-modellen, B1-B11): motoren
+    beskriver KUN hvad der kan gøres — fladen ejer selve kaldet mod
+    edge functions (ingen supabase/invoke her). */
+export interface FocusOpgaveHandling {
+  /** 'forslag' (proposed: ja+dato / nej tak) eller 'aktiv' (gjort /
+      ikke endnu / drop den). */
+  slags: "forslag" | "aktiv";
+  opgaveId: string;
+  deferralCount: number;
+  /** "YYYY-MM-DD" — kun sat for aktive opgaver. Fladen gater "Ikke
+      endnu" på forfald (B2: spørgsmålet stilles ved forfald) — dommen
+      over selve overgangen er stadig motorens (opgaveEngine.udskyd). */
+  dueDate: string | null;
 }
 
 export interface FocusWeeklyFocus {
@@ -105,6 +152,9 @@ export interface FocusItem {
   ctaLabel: string;
   ctaHref: string;
   sourceId?: string;
+  /** Sat på opgave-punkter (proposed/active): punktet bærer knapper i
+      stedet for et link — se FocusOpgaveHandling. */
+  handling?: FocusOpgaveHandling;
 }
 
 export interface NextStep {
@@ -114,6 +164,14 @@ export interface NextStep {
   cta: string;
   link: string;
 }
+
+/** "YYYY-MM-DD" → "4. september" — splitter selv frem for new Date():
+    Date-parsning af en ren dato er UTC og kan skride en kalenderdag i
+    lokal tid. */
+const formatDanskDato = (dato: string): string => {
+  const [, m, d] = dato.split("-").map(Number);
+  return `${d}. ${DANISH_MONTHS[m - 1].toLowerCase()}`;
+};
 
 export function deriveFocus(inputs: FocusInputs): FocusItem[] {
   const { now } = inputs;
@@ -218,20 +276,39 @@ export function deriveFocus(inputs: FocusInputs): FocusItem[] {
 
   // (f) Åbne handlinger — kalderens orden bevares (ActionCenter:205-208:
   // high → medium → low, dernæst ældste først). Href er forsiden selv
-  // indtil handlings-visningen ejes af fokus-laget.
+  // indtil handlings-visningen ejes af fokus-laget. Opgave-modellens
+  // rækker skelnes: et 'proposed'-punkt siger at det er et forslag der
+  // venter på svar, et 'active'-punkt hvornår det skal være gjort — og
+  // begge bærer en `handling`, så fladen kan vise knapper (B1/B6-accept,
+  // B7/B11-udskydelse, B2/B7-luk). Arve-'open' er uændret ren navigation.
   for (const action of inputs.openActions) {
+    /* context er handlingens egen begrundelse fra AI-analysen og siger
+       HVORFOR — fallbacken bevares, fordi kolonnen er nullable, men
+       den er sidste udvej, ikke normen. */
+    const grund = action.context?.trim();
+    let description: string;
+    let handling: FocusOpgaveHandling | undefined;
+    if (action.status === "proposed") {
+      description = grund ? `Et forslag der venter på dit svar. ${grund}` : "Et forslag der venter på dit svar.";
+      handling = { slags: "forslag", opgaveId: action.id, deferralCount: action.deferral_count ?? 0, dueDate: action.due_date ?? null };
+    } else if (action.status === "active" && action.due_date) {
+      description = grund
+        ? `Skal være gjort senest ${formatDanskDato(action.due_date)}. ${grund}`
+        : `Skal være gjort senest ${formatDanskDato(action.due_date)}.`;
+      handling = { slags: "aktiv", opgaveId: action.id, deferralCount: action.deferral_count ?? 0, dueDate: action.due_date };
+    } else {
+      description = grund || "Åben handling fra din handlingsplan.";
+    }
     items.push({
       key: `action:${action.id}`,
       kind: "company-action",
       priority: 6,
       title: action.title,
-      /* context er handlingens egen begrundelse fra AI-analysen og siger
-         HVORFOR — fallbacken bevares, fordi kolonnen er nullable, men
-         den er sidste udvej, ikke normen. */
-      description: action.context?.trim() || "Åben handling fra din handlingsplan.",
+      description,
       ctaLabel: "Se handlinger",
       ctaHref: "/",
       sourceId: action.id,
+      ...(handling ? { handling } : {}),
     });
   }
 
