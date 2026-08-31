@@ -21,7 +21,7 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
 import { authenticateUser, corsHeaders } from "../_shared/edgeFunctionAuth.ts";
-import { skrivSessionPrep, skrivUgensFokus } from "../_shared/agentSkriveveje.ts";
+import { skrivUgensFokus } from "../_shared/agentSkriveveje.ts";
 import {
   afgoerelsesPatch,
   kanAfgoeres,
@@ -154,18 +154,12 @@ Deno.serve(async (req) => {
       const skriveArgs = { ...grundlag, company_id: forslag.company_id };
 
       // ── 7a. UDFØR skrivningen FØRST (delt vej, agentSkriveveje.ts) ──
-      const skriveResultat =
-        forslag.tool === "update_weekly_focus"
-          ? await skrivUgensFokus(adminClient, skriveArgs as any, koersel.trigger)
-          : await skrivSessionPrep(adminClient, skriveArgs as any, koersel.period_key);
-
-      if (skriveResultat.ok !== true) {
-        // Fx no_conversation: rækken forbliver 'proposed', fejlen er ærlig.
-        return jsonResponse(
-          { error: `Skrivningen kunne ikke udføres (${(skriveResultat as { reason?: string }).reason ?? "ukendt"}) — forslaget står stadig som 'proposed'` },
-          409,
-        );
-      }
+      // Efter C3 (docs/chat-design.md, 31/8) er update_weekly_focus den
+      // ENESTE godkendbare skrivevej — kanAfgoeres/UNDERSTOETTEDE_SKRIVEVEJE
+      // har allerede afvist alt andet (gamle write_session_prep-forslag
+      // kan kun forkastes). skrivUgensFokus kaster ved fejl; det
+      // tidligere ok:false-spor (no_conversation) var session_preps.
+      await skrivUgensFokus(adminClient, skriveArgs as any, koersel.trigger);
     }
 
     // ── 7b. Afgør rækken BAGEFTER — optimistisk lås på status ──

@@ -74,10 +74,9 @@ describe("forslagEngine — motorens domme", () => {
     expect(afgoerelsesPatch("reject", "x", new Date(), "grund").applied_at).toBeUndefined();
   });
 
-  it("de understøttede skriveveje er præcis de delte idempotente", () => {
+  it("de understøttede skriveveje er præcis de delte idempotente (write_session_prep udgik med C3, 31/8)", () => {
     expect([...UNDERSTOETTEDE_SKRIVEVEJE].sort()).toEqual([
       "update_weekly_focus",
-      "write_session_prep",
     ]);
   });
 });

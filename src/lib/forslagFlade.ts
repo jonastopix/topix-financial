@@ -11,10 +11,10 @@
 
 /** Spejl af UNDERSTOETTEDE_SKRIVEVEJE: kun disse tools kan godkendes
     (de idempotente skriveveje i agentSkriveveje.ts). Øvrige tools får
-    ingen godkend-knap — de kan kun forkastes. */
+    ingen godkend-knap — de kan kun forkastes. write_session_prep udgik
+    med C3 (docs/chat-design.md, 31/8). */
 export const UNDERSTOETTEDE_SKRIVEVEJE_FLADE: ReadonlySet<string> = new Set([
   "update_weekly_focus",
-  "write_session_prep",
 ]);
 
 /** Spejl af FORKAST_KATEGORIER + fladens danske labels (design §4.4).
