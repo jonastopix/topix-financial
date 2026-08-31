@@ -102,23 +102,25 @@ const ChatShell = () => {
   return (
     <HbMemberShell active="chat" layout="fuld">
       <div className="flex flex-col h-full min-h-0 overflow-hidden">
-        <div className={`flex items-center gap-1 bg-card border-b border-border shrink-0 relative z-20 ${isMobile ? "px-2 pt-1" : "px-4 pt-2"}`}>
+        {/* C4: fanerne i Hb-udtryk — understregnings-faner på papiret,
+            aktiv markering i evergreen. "Advisor" → "Rådgiver" på BEGGE
+            breakpoints (desktop-labelen var engelsk). */}
+        <div className={`flex items-center gap-5 border-b border-hb-line shrink-0 relative z-20 ${isMobile ? "px-3" : "px-4 md:px-6"}`}>
           {(["advisor", "ai"] as const).map(tab => {
             const Icon = tab === "advisor" ? MessageCircle : Sparkles;
-            const label = tab === "advisor" ? "Rådgiver" : "AI";
             const active = chatTab === tab;
             return (
               <button
                 key={tab}
                 onClick={() => setChatTab(tab)}
-                className={`flex items-center gap-1.5 ${isMobile ? "px-3 py-1.5 text-xs" : "px-4 py-2 text-sm"} font-medium rounded-t-lg transition-colors ${
+                className={`flex items-center gap-1.5 ${isMobile ? "pb-2 pt-2.5 text-xs" : "pb-2.5 pt-3 text-sm"} font-medium -mb-px border-b-2 transition-colors ${
                   active
-                    ? "bg-background text-foreground border border-b-0 border-border"
-                    : "text-muted-foreground hover:text-foreground"
+                    ? "border-hb-evergreen text-hb-ink"
+                    : "border-transparent text-hb-ink-soft hover:text-hb-ink"
                 }`}
               >
                 <Icon className="h-3.5 w-3.5" />
-                {isMobile ? label : tab === "advisor" ? "Advisor" : "Finansiel AI"}
+                {tab === "advisor" ? "Rådgiver" : isMobile ? "AI" : "Finansiel AI"}
               </button>
             );
           })}
