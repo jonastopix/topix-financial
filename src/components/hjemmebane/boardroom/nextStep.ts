@@ -57,7 +57,7 @@ export interface FocusOpenAction {
   context?: string | null;
   /** company_actions.status — 'proposed' (forslag, B1) | 'active'
       (accepteret, B6) | 'open' (arv). Valgfri: udeladt behandles som
-      arve-'open' og punktet bærer ingen handling. */
+      arve-'open'. */
   status?: string;
   /** "YYYY-MM-DD" for aktive opgaver (B3) — bærer beskrivelsens frist
       og fladens forfaldsdom. */
@@ -87,21 +87,6 @@ export function filtrerUdloebneForslag<T extends { status?: string; expires_at?:
   return actions.filter(
     (a) => !(a.status === "proposed" && a.expires_at != null && nu.getTime() > new Date(a.expires_at).getTime()),
   );
-}
-
-/** Handlingen på et opgave-punkt (opgave-modellen, B1-B11): motoren
-    beskriver KUN hvad der kan gøres — fladen ejer selve kaldet mod
-    edge functions (ingen supabase/invoke her). */
-export interface FocusOpgaveHandling {
-  /** 'forslag' (proposed: ja+dato / nej tak) eller 'aktiv' (gjort /
-      ikke endnu / drop den). */
-  slags: "forslag" | "aktiv";
-  opgaveId: string;
-  deferralCount: number;
-  /** "YYYY-MM-DD" — kun sat for aktive opgaver. Fladen gater "Ikke
-      endnu" på forfald (B2: spørgsmålet stilles ved forfald) — dommen
-      over selve overgangen er stadig motorens (opgaveEngine.udskyd). */
-  dueDate: string | null;
 }
 
 export interface FocusWeeklyFocus {
@@ -152,9 +137,6 @@ export interface FocusItem {
   ctaLabel: string;
   ctaHref: string;
   sourceId?: string;
-  /** Sat på opgave-punkter (proposed/active): punktet bærer knapper i
-      stedet for et link — se FocusOpgaveHandling. */
-  handling?: FocusOpgaveHandling;
 }
 
 export interface NextStep {
@@ -275,27 +257,31 @@ export function deriveFocus(inputs: FocusInputs): FocusItem[] {
   }
 
   // (f) Åbne handlinger — kalderens orden bevares (ActionCenter:205-208:
-  // high → medium → low, dernæst ældste først). Href er forsiden selv
-  // indtil handlings-visningen ejes af fokus-laget. Opgave-modellens
-  // rækker skelnes: et 'proposed'-punkt siger at det er et forslag der
-  // venter på svar, et 'active'-punkt hvornår det skal være gjort — og
-  // begge bærer en `handling`, så fladen kan vise knapper (B1/B6-accept,
-  // B7/B11-udskydelse, B2/B7-luk). Arve-'open' er uændret ren navigation.
+  // high → medium → low, dernæst ældste først). 'proposed' udelades
+  // HELT: et forslag har fået sit eget hjem i "Dine aftaler" og står
+  // dér med knapper. Nævnes det også i fokus-kortet som et link, lover
+  // linket noget sektionen ikke viser (den viser kun ÉT forslag) — og
+  // fire forslag i fokus genindfører netop den liste man scroller
+  // forbi, som ét-ad-gangen-reglen findes for at undgå. En AKTIV opgave
+  // nævnes derimod fortsat: det er en aftale medlemmet har forpligtet
+  // sig til, og den skal huskes i rolige uger — punktet siger hvornår
+  // og peger på #dine-aftaler, som ejer knapperne (samme præcedens som
+  // slot (e), hvor milestone-deadlines nævnes og /milestones ejer
+  // handlingen). Arve-'open' er uændret: href er forsiden selv
+  // (fold-ud), for arven vises ikke i sektionen.
   for (const action of inputs.openActions) {
+    if (action.status === "proposed") continue;
     /* context er handlingens egen begrundelse fra AI-analysen og siger
        HVORFOR — fallbacken bevares, fordi kolonnen er nullable, men
        den er sidste udvej, ikke normen. */
     const grund = action.context?.trim();
     let description: string;
-    let handling: FocusOpgaveHandling | undefined;
-    if (action.status === "proposed") {
-      description = grund ? `Et forslag der venter på dit svar. ${grund}` : "Et forslag der venter på dit svar.";
-      handling = { slags: "forslag", opgaveId: action.id, deferralCount: action.deferral_count ?? 0, dueDate: action.due_date ?? null };
-    } else if (action.status === "active" && action.due_date) {
+    let erAktivOpgave = false;
+    if (action.status === "active" && action.due_date) {
       description = grund
         ? `Skal være gjort senest ${formatDanskDato(action.due_date)}. ${grund}`
         : `Skal være gjort senest ${formatDanskDato(action.due_date)}.`;
-      handling = { slags: "aktiv", opgaveId: action.id, deferralCount: action.deferral_count ?? 0, dueDate: action.due_date };
+      erAktivOpgave = true;
     } else {
       description = grund || "Åben handling fra din handlingsplan.";
     }
@@ -305,10 +291,9 @@ export function deriveFocus(inputs: FocusInputs): FocusItem[] {
       priority: 6,
       title: action.title,
       description,
-      ctaLabel: "Se handlinger",
-      ctaHref: "/",
+      ctaLabel: erAktivOpgave ? "Se dine aftaler" : "Se handlinger",
+      ctaHref: erAktivOpgave ? "#dine-aftaler" : "/",
       sourceId: action.id,
-      ...(handling ? { handling } : {}),
     });
   }
 

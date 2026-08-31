@@ -20,6 +20,7 @@ import { bunnyThumbnailUrl } from "@/lib/hjemmebane/bunnyMedia";
 import { parsePodcastFeed, type PodcastEpisode } from "@/lib/hjemmebane/podcastRss";
 import { getISOWeekKey } from "@/lib/hjemmebane/week";
 import { denneUgesFredag, naesteUgesFredag, omEnMaaned, tilDatoStreng } from "@/lib/hjemmebane/opgaveDato";
+import { fristTekst, sorterAktive, vaelgForslag } from "@/lib/hjemmebane/aftaler";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { listUpcomingEvents } from "@/lib/hjemmebane/akademiApi";
@@ -35,7 +36,7 @@ import { HbSection } from "../HbSection";
 import { hasRichTextContent } from "@/lib/hjemmebane/richtext";
 import { isTrackedEntry, useAkademiData, type AkademiItem } from "../akademi/useAkademiData";
 import { HbVideoEmbed } from "../akademi/HbVideoEmbed";
-import { deriveFocus, filtrerUdloebneForslag, type FocusItem, type FocusOpgaveHandling } from "./nextStep";
+import { deriveFocus, filtrerUdloebneForslag, type FocusItem } from "./nextStep";
 import {
   byPublishedDesc,
   countNewSince,
@@ -67,9 +68,11 @@ import { extractYouTubeId } from "./youtube";
        talk. Hver kandidat kan være null af hvilken som helst grund
        (udløbet, tom pulje, RSS-fejl) — båndet vælter aldrig.
     4) Tal-strippen NEDERST som rolig status (uændret indhold/kilder).
-    Motoren er LÅST (ingen ændringer i deriveFocus); alle nye queries er
-    company-scoped og arvet ORDRET fra DashboardActionCenter (citeret
-    ved hver query). Advisor-gated route i byggeperioden. */
+    Motoren (deriveFocus) var LÅST i forside-byggeriet; låsen er
+    overhalet af opgave-modellen (PR #453 + "Dine aftaler"): slot (f)
+    skelner nu proposed/active og peger på #dine-aftaler. Alle nye
+    queries er company-scoped og arvet ORDRET fra DashboardActionCenter
+    (citeret ved hver query). Advisor-gated route i byggeperioden. */
 
 const getGreeting = () => {
   const h = new Date().getHours();
@@ -966,8 +969,22 @@ const TalStrip = ({
   );
 };
 
-/** Fladens tre skriveveje mod opgave-modellens edge functions — motoren
-    i nextStep beskriver kun handlingen (FocusOpgaveHandling); selve
+/** Det OpgaveKnapper skal vide om rækken. Bygges af "Dine aftaler"-
+    sektionen direkte fra company_actions-rækken — fokus-motoren bærer
+    ikke længere handlinger (omtale i fokus, handling i sektionen). */
+type OpgaveHandling = {
+  /** 'forslag' (proposed: ja+dato / nej tak) eller 'aktiv' (gjort /
+      ikke endnu / drop den). */
+  slags: "forslag" | "aktiv";
+  opgaveId: string;
+  deferralCount: number;
+  /** "YYYY-MM-DD" — kun sat for aktive opgaver. Fladen gater "Ikke
+      endnu" på forfald (B2: spørgsmålet stilles ved forfald) — dommen
+      over selve overgangen er stadig motorens (opgaveEngine.udskyd). */
+  dueDate: string | null;
+};
+
+/** Fladens tre skriveveje mod opgave-modellens edge functions — selve
     kaldet bor i BoardroomView (opgaveMutation). */
 type OpgaveKald =
   | { type: "accepter"; opgaveId: string; dato: string }
@@ -993,10 +1010,12 @@ const OpgaveKnapper = ({
   handling,
   busy,
   onKald,
+  className,
 }: {
-  handling: FocusOpgaveHandling;
+  handling: OpgaveHandling;
   busy: boolean;
   onKald: (kald: OpgaveKald) => void;
+  className?: string;
 }) => {
   /** null = grundknapperne; ellers er datovalget åbent for accept (B6)
       eller anden udskydelse (B11). */
@@ -1014,7 +1033,7 @@ const OpgaveKnapper = ({
 
   if (datoFormaal) {
     return (
-      <div className="mt-4 flex flex-wrap items-center gap-2">
+      <div className={cn("flex flex-wrap items-center gap-2", className)}>
         <span className="mr-1 text-sm text-hb-ink-soft">Hvornår?</span>
         <HbButton variant="secondary" className="h-9 px-4" disabled={busy} onClick={() => sendDato(denneUgesFredag(idag))}>
           Denne uge
@@ -1064,7 +1083,7 @@ const OpgaveKnapper = ({
 
   if (handling.slags === "forslag") {
     return (
-      <div className="mt-4 flex flex-wrap gap-2">
+      <div className={cn("flex flex-wrap gap-2", className)}>
         <HbButton className="h-9 px-4" disabled={busy} onClick={() => setDatoFormaal("accept")}>
           Ja, det gør jeg
         </HbButton>
@@ -1087,7 +1106,7 @@ const OpgaveKnapper = ({
   // (spejler erForfalden-dommen uden at gentage den som regel).
   const forfalden = handling.dueDate != null && handling.dueDate < tilDatoStreng(idag);
   return (
-    <div className="mt-4 flex flex-wrap gap-2">
+    <div className={cn("flex flex-wrap gap-2", className)}>
       <HbButton
         variant="secondary"
         className="h-9 px-4"
@@ -1134,8 +1153,6 @@ const FocusCard = ({
   weeklySummary,
   nextEntry,
   journeyLine,
-  onOpgaveKald,
-  opgaveBusy,
 }: {
   loading: boolean;
   items: FocusItem[];
@@ -1143,10 +1160,6 @@ const FocusCard = ({
   nextEntry: AkademiItem | undefined;
   /** Anerkendelses-linjen (bølge 3) — null når alle tal er 0. */
   journeyLine: string | null;
-  /** Opgave-modellens skrivevej — punkter med `handling` får knapper
-      der ender her (BoardroomViews opgaveMutation). */
-  onOpgaveKald?: (kald: OpgaveKald) => void;
-  opgaveBusy?: boolean;
 }) => {
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
   const displayed = items.slice(0, 4);
@@ -1182,14 +1195,19 @@ const FocusCard = ({
           {inlineBody(primary) && (
             <p className="mt-3 max-w-2xl text-base leading-relaxed text-hb-ink">{inlineBody(primary)}</p>
           )}
-          {primary.ctaHref !== "/" && (
-            <Link to={primary.ctaHref} className="mt-7 inline-block">
-              <HbButton>{primary.ctaLabel}</HbButton>
-            </Link>
-          )}
-          {primary.handling && onOpgaveKald && (
-            <OpgaveKnapper handling={primary.handling} busy={!!opgaveBusy} onKald={onOpgaveKald} />
-          )}
+          {/* Hash-hrefs (#dine-aftaler) rammer et anker på SAMME side:
+              et almindeligt <a> ruller natively — router-Link ville kun
+              omskrive URL'en, og useScrollToHash er ikke mountet her. */}
+          {primary.ctaHref !== "/" &&
+            (primary.ctaHref.startsWith("#") ? (
+              <a href={primary.ctaHref} className="mt-7 inline-block">
+                <HbButton>{primary.ctaLabel}</HbButton>
+              </a>
+            ) : (
+              <Link to={primary.ctaHref} className="mt-7 inline-block">
+                <HbButton>{primary.ctaLabel}</HbButton>
+              </Link>
+            ))}
           {quiet.length > 0 && (
             /* Titlen bærer vægten, svaret bærer luften — et udfoldet
                punkt skal læses som et SVAR på titlen, ikke som en
@@ -1201,13 +1219,25 @@ const FocusCard = ({
               {quiet.map((item) => (
                 <li key={item.key} className="border-t border-hb-line first:border-t-0">
                   {item.ctaHref !== "/" ? (
-                    <Link
-                      to={item.ctaHref}
-                      className="flex items-center gap-3 py-2.5 text-sm text-hb-ink-soft transition-colors hover:text-hb-ink"
-                    >
-                      <span className="min-w-0 flex-1 truncate">{item.title}</span>
-                      <ArrowRight className="h-4 w-4 shrink-0" />
-                    </Link>
+                    /* Hash-hrefs er samme-side-ankre: <a> ruller natively,
+                       router-Link ville kun omskrive URL'en (se primær-CTA). */
+                    item.ctaHref.startsWith("#") ? (
+                      <a
+                        href={item.ctaHref}
+                        className="flex items-center gap-3 py-2.5 text-sm text-hb-ink-soft transition-colors hover:text-hb-ink"
+                      >
+                        <span className="min-w-0 flex-1 truncate">{item.title}</span>
+                        <ArrowRight className="h-4 w-4 shrink-0" />
+                      </a>
+                    ) : (
+                      <Link
+                        to={item.ctaHref}
+                        className="flex items-center gap-3 py-2.5 text-sm text-hb-ink-soft transition-colors hover:text-hb-ink"
+                      >
+                        <span className="min-w-0 flex-1 truncate">{item.title}</span>
+                        <ArrowRight className="h-4 w-4 shrink-0" />
+                      </Link>
+                    )
                   ) : (
                     <button
                       type="button"
@@ -1225,15 +1255,11 @@ const FocusCard = ({
                   {expandedKey === item.key && (
                     /* pl-0 er flugtningen: knappen har ingen vandret
                        padding, så titlen står ved kanten — en indrykning
-                       ville netop bryde flugten med titlen. div (ikke p):
-                       opgave-knapperne må ikke bo i et afsnit. */
-                    <div className="pb-3 pl-0 pt-1 text-sm leading-relaxed text-hb-ink-soft">
+                       ville netop bryde flugten med titlen. */
+                    <p className="pb-3 pl-0 pt-1 text-sm leading-relaxed text-hb-ink-soft">
                       {item.description}
                       {inlineBody(item) && <span className="mt-1 block text-hb-ink">{inlineBody(item)}</span>}
-                      {item.handling && onOpgaveKald && (
-                        <OpgaveKnapper handling={item.handling} busy={!!opgaveBusy} onKald={onOpgaveKald} />
-                      )}
-                    </div>
+                    </p>
                   )}
                 </li>
               ))}
@@ -1541,8 +1567,13 @@ export const BoardroomView = () => {
   const actionsQuery = useQuery({
     queryKey: ["boardroom", "company-actions", companyId],
     queryFn: async () => {
+      // limit(50), ikke 10: sorteringen er created_at desc, og en
+      // accepteret opgave beholder sit oprindelige created_at — med
+      // limit(10) ville nye forslag skubbe netop de aktive opgaver ud,
+      // og sektionens vigtigste indhold forsvinde først. Målt i prod
+      // 31/8: tungeste virksomhed har 20 rækker; 50 er rigelig margin.
       const { data } = await supabase.from("company_actions").select("id, title, context, priority, status, created_at, due_date, expires_at, deferral_count")
-        .eq("company_id", companyId!).in("status", ["open", "proposed", "active"]).order("created_at", { ascending: false }).limit(10) as any;
+        .eq("company_id", companyId!).in("status", ["open", "proposed", "active"]).order("created_at", { ascending: false }).limit(50) as any;
       return ((data || []) as any[]).sort((a: any, b: any) => {
         const order: Record<string, number> = { high: 0, medium: 1, low: 2 };
         return (order[a.priority] ?? 1) - (order[b.priority] ?? 1) || new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
@@ -1800,6 +1831,17 @@ export const BoardroomView = () => {
 
   const firstName = profile?.full_name?.split(" ")[0] || user?.email?.split("@")[0] || "dig";
 
+  // ── "Dine aftaler"-afledningen: alle aktive (forfaldne øverst) + ÉT
+  // forslag. Hvorfor kun ét, og hvordan det vælges, står ved
+  // vaelgForslag i lib/hjemmebane/aftaler.ts. B8-filteret (udløbne
+  // forslag) kører FØR udvælgelsen — et udløbet forslag må hverken
+  // vises eller optage pladsen.
+  const aftaleRaekker = (actionsQuery.data ?? []) as any[];
+  const aftaleAktive = sorterAktive(aftaleRaekker.filter((a) => a.status === "active"));
+  const aftaleForslag = vaelgForslag(
+    filtrerUdloebneForslag(aftaleRaekker.filter((a) => a.status === "proposed"), new Date()),
+  );
+
   if (akademi.loading || factsLoading) {
     return <p className="text-sm text-hb-ink-soft">Henter dit Boardroom…</p>;
   }
@@ -1835,10 +1877,64 @@ export const BoardroomView = () => {
           weeklySummary={weeklyFocusQuery.data?.summary ?? null}
           nextEntry={nextEntry}
           journeyLine={journeyLine}
-          onOpgaveKald={(kald) => opgaveMutation.mutate(kald)}
-          opgaveBusy={opgaveMutation.isPending}
         />
       </HbSection>
+
+      {/* ── DINE AFTALER: aktive opgaver øverst, ÉT forslag nederst ──
+          Læser actionsQuery.data DIREKTE — fokus-laget omtaler (slot f
+          peger herned via #dine-aftaler), sektionen handler; de to
+          præsentationer er bevidst ukoblede. Rammeløse rækker som
+          events-sektionen (border-t hb-line); knapperne står som
+          SØSKENDE til teksten — en klikbar handling i et anker er
+          ugyldig HTML (events-lærdommen). Arve-'open' vises ikke her.
+          Hverken aktive eller forslag → ingen sektion. */}
+      {(aftaleAktive.length > 0 || aftaleForslag) && (
+        <HbSection id="dine-aftaler" eyebrow="Dine aftaler" hairline className="mt-14 md:mt-16">
+          <ul>
+            {aftaleAktive.map((a) => (
+              <li key={a.id} className="border-t border-hb-line first:border-t-0 last:border-b">
+                <div className="flex flex-wrap items-center gap-x-6 gap-y-3 py-4">
+                  <div className="min-w-0 flex-1 basis-64">
+                    <p className="text-[15px] font-medium leading-snug text-hb-ink">{a.title}</p>
+                    <p className="mt-1 text-sm text-hb-ink-soft">{fristTekst(a.due_date!, tilDatoStreng(new Date()))}</p>
+                  </div>
+                  <OpgaveKnapper
+                    className="shrink-0"
+                    handling={{ slags: "aktiv", opgaveId: a.id, deferralCount: a.deferral_count ?? 0, dueDate: a.due_date ?? null }}
+                    busy={opgaveMutation.isPending}
+                    onKald={(kald) => opgaveMutation.mutate(kald)}
+                  />
+                </div>
+              </li>
+            ))}
+            {aftaleForslag && (
+              /* Forslaget skelnes fra aftalerne med en lille evergreen-
+                 overlinje ("Forslag til dig") og INGEN frist-linje: et
+                 forslag er et spørgsmål, ikke en forpligtelse — det har
+                 ingen dato før medlemmet vælger en (B6). Evergreen er
+                 Hjemmebanes handlingsfarve; rust bærer allerede fire
+                 betydninger og eyebrow'en. */
+              <li key={aftaleForslag.id} className="border-t border-hb-line first:border-t-0 last:border-b">
+                <div className="flex flex-wrap items-center gap-x-6 gap-y-3 py-4">
+                  <div className="min-w-0 flex-1 basis-64">
+                    <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-hb-evergreen">Forslag til dig</p>
+                    <p className="mt-1 text-[15px] font-medium leading-snug text-hb-ink">{aftaleForslag.title}</p>
+                    {aftaleForslag.context?.trim() && (
+                      <p className="mt-1 text-sm leading-relaxed text-hb-ink-soft">{aftaleForslag.context.trim()}</p>
+                    )}
+                  </div>
+                  <OpgaveKnapper
+                    className="shrink-0"
+                    handling={{ slags: "forslag", opgaveId: aftaleForslag.id, deferralCount: aftaleForslag.deferral_count ?? 0, dueDate: null }}
+                    busy={opgaveMutation.isPending}
+                    onKald={(kald) => opgaveMutation.mutate(kald)}
+                  />
+                </div>
+              </li>
+            )}
+          </ul>
+        </HbSection>
+      )}
 
       {/* ── EVENTS: egen sektion mellem lag 1 og lag 2 — live-sessions
           er en KERNEYDELSE, ikke en nyhed; de skal ikke bo som én tile
