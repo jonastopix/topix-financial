@@ -234,6 +234,25 @@ only `auth.uid() = user_id` with NO company predicate — a known gap logged
 as BACKLOG [P4] (baseline-stramning), deliberately not addressed in the
 advisor-write migration.
 
+**Addendum (2026-08-31, session_prep-carve-out på messages)**:
+medlems-SELECT-politikken "Members can view own messages" er strammet
+med `context_type IS DISTINCT FROM 'session_prep'` foran
+company/member-joinet, migration `20260831131200_session_prep_rls.sql`
+(ALTER POLICY — bevidst ingen DROP + CREATE, så der aldrig findes et
+vindue uden medlems-SELECT). Formål: rådgiverens session-forberedelse
+("Founderen ser IKKE denne forberedelse", run-company-agents prompts)
+var kun skjult af ét klient-filter (CompanyChatPane) — rækkerne blev
+hentet ned i medlemmets browser og skjult i renderingen. Målt 31/8 som
+medlemmet selv (transaktion, rullet tilbage): 18 af 44 beskeder i en
+samtale var rådgiver-interne og hentbare; efter politikken 0.
+Rådgiverens permissive SELECT ("Advisors can view all messages",
+`has_role`) er urørt — rådgivere ser dem fortsat, også i "Se som
+medlem", hvor klient-filteret består som bælte og seler (isAdvisor er
+UI-tilstand; JWT'en er stadig rådgiverens). postgres_changes-realtime
+respekterer RLS, så medlemmet modtager heller ikke INSERTs. Kørt
+manuelt i Lovable SQL editor 2026-08-31 13:12 UTC; migrationen i
+repoet er paritets-bogføring og skal ikke køres igen.
+
 ### Advisor access (full read, scoped write)
 ```sql
 has_role(auth.uid(), 'advisor'::app_role)
