@@ -19,16 +19,16 @@ import { computeMembershipTier } from "@/lib/membershipTier";
 import { useQuery } from "@tanstack/react-query";
 import DOMPurify from "dompurify";
 import {
-  Send, MessageCircle, CheckCheck, FileText, Sparkles, Target,
+  Send, MessageCircle, CheckCheck, FileText, Target,
   AlertCircle, MessageSquare, Pin, ArrowLeft,
   Building2, Loader2,
 } from "lucide-react";
 import ChatRichInput from "@/components/ChatRichInput";
+import { HbButton } from "@/components/hjemmebane/HbButton";
 import { format, startOfDay } from "date-fns";
 import { da } from "date-fns/locale";
 import {
   dateSeparatorLabel,
-  getInitials,
   MAX_MESSAGE_LENGTH,
   TOPIC_COLORS,
   type ConversationWithProfile,
@@ -43,6 +43,22 @@ import {
     medlemssiden skal kunne designes frit (Hb-konvertering), og delt
     skelet ville binde de to flader sammen igen. Komponenten mountes af
     ChatShell for medlemmer OG for rådgivere i "Se som medlem". */
+/** Samme avatar-form som Community (kopieret fra CommunityTraadView,
+    hvor den er lokal): rounded-full, hb-line-ramme, sage-initial som
+    fallback. */
+const ForfatterAvatar = ({ navn, avatarUrl, className = "h-9 w-9" }: { navn: string | null; avatarUrl: string | null; className?: string }) =>
+  avatarUrl ? (
+    <img
+      src={avatarUrl}
+      alt={navn ?? "Medlem"}
+      className={`${className} shrink-0 rounded-full border border-hb-line object-cover`}
+    />
+  ) : (
+    <span className={`${className} flex shrink-0 items-center justify-center rounded-full border border-hb-line bg-hb-sage/40 font-editorial text-sm text-hb-ink-soft`}>
+      {(navn ?? "?").charAt(0)}
+    </span>
+  );
+
 const MemberChatPane = () => {
   const { user, companyId, companyName } = useAuth();
   const isMobile = useIsMobile();
@@ -409,8 +425,8 @@ const MemberChatPane = () => {
     const el = messageRefs.current.get(msgId);
     if (el) {
       el.scrollIntoView({ behavior: "smooth", block: "center" });
-      el.classList.add("ring-2", "ring-primary/50");
-      setTimeout(() => el.classList.remove("ring-2", "ring-primary/50"), 2000);
+      el.classList.add("ring-2", "ring-hb-evergreen/50");
+      setTimeout(() => el.classList.remove("ring-2", "ring-hb-evergreen/50"), 2000);
     }
   };
 
@@ -486,40 +502,30 @@ const MemberChatPane = () => {
 
   return (
     <>
-      <div className={`${isMobile ? "bg-card overflow-hidden" : "glass-card overflow-hidden"} flex flex-1 min-h-0 ${isMobile ? "" : "rounded-xl"}`}>
+      {/* C4/C: kassen er væk — papiret går ud til kanten; beskedlisten
+          bærer selv sin vandrette margin. */}
+      <div className="flex flex-1 min-h-0 overflow-hidden">
         <div className="flex-1 flex flex-col min-w-0">
           {activeConvId ? (
             <>
-              {/* Header — medlemmets rådgiver-avatarer */}
+              {/* Header — medlemmets rådgiver-avatarer (Community-formen) */}
               {(allAdvisors && allAdvisors.length > 0) ? (
-                <div className={`${isMobile ? "px-3 py-2" : "px-4 md:px-5 py-3"} border-b border-border flex items-center gap-3`}>
+                <div className={`${isMobile ? "px-3 py-2.5" : "px-4 md:px-6 py-3"} border-b border-hb-line flex items-center gap-3`}>
                   {isMobile && (
                     <button
                       onClick={handleBackToList}
-                      className="p-1.5 -ml-1 rounded-lg text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+                      className="p-1.5 -ml-1 rounded-full text-hb-ink-soft hover:text-hb-ink hover:bg-hb-sage/30 transition-colors"
                     >
                       <ArrowLeft className="h-5 w-5" />
                     </button>
                   )}
-                  <div className="flex items-center gap-1.5 min-w-0">
-                    <div className="flex -space-x-1.5">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="flex -space-x-2">
                       {allAdvisors.slice(0, 3).map((p) => (
-                        <div
-                          key={p.user_id}
-                          className="h-5 w-5 rounded-full border-2 border-background bg-muted flex items-center justify-center overflow-hidden"
-                          title={p.full_name}
-                        >
-                          {p.avatar_url ? (
-                            <img src={p.avatar_url} alt="" className="h-5 w-5 object-cover" />
-                          ) : (
-                            <span className="text-[8px] font-medium text-muted-foreground">
-                              {getInitials(p.full_name || "?")}
-                            </span>
-                          )}
-                        </div>
+                        <ForfatterAvatar key={p.user_id} navn={p.full_name} avatarUrl={p.avatar_url} />
                       ))}
                     </div>
-                    <span className="text-[11px] text-muted-foreground truncate">
+                    <span className="text-sm text-hb-ink-soft truncate">
                       {isMobile
                         ? allAdvisors.map(p => p.full_name.split(" ")[0]).join(", ")
                         : `Dine rådgivere: ${allAdvisors.map(p => p.full_name.split(" ")[0]).join(", ")}`}
@@ -532,13 +538,13 @@ const MemberChatPane = () => {
               <div ref={messagesContainerRef} className={`flex-1 overflow-y-auto min-w-0 ${isMobile ? "px-3 py-3 space-y-2" : "px-4 md:px-5 py-4 space-y-4"}`}>
                 {messages.length === 0 && (
                   <div className="flex flex-col items-center justify-center h-full py-16 text-center px-8">
-                    <div className="h-12 w-12 rounded-2xl bg-primary/10 flex items-center justify-center mb-4">
-                      <MessageSquare className="h-6 w-6 text-primary" />
+                    <div className="h-12 w-12 rounded-full bg-hb-sage/40 flex items-center justify-center mb-4">
+                      <MessageSquare className="h-6 w-6 text-hb-evergreen" />
                     </div>
-                    <p className="text-sm font-semibold text-foreground mb-1">
+                    <p className="text-sm font-medium text-hb-ink mb-1">
                       Din direkte linje til rådgiverne
                     </p>
-                    <p className="text-xs text-muted-foreground leading-relaxed max-w-xs">
+                    <p className="text-xs text-hb-ink-soft leading-relaxed max-w-xs">
                       Skriv hvad du har på hjerte — spørgsmål, opdateringer eller bare hvad der fylder. Dine rådgivere læser dine tal og svarer hurtigt.
                     </p>
                   </div>
@@ -565,15 +571,24 @@ const MemberChatPane = () => {
                     if (dateKey !== lastDateKey) {
                       lastDateKey = dateKey;
                       dateSep = (
-                        <div className="flex items-center gap-3 py-2">
-                          <div className="flex-1 border-t border-border" />
-                          <span className="text-[11px] text-muted-foreground font-medium">{dateSeparatorLabel(msgDate)}</span>
-                          <div className="flex-1 border-t border-border" />
+                        /* Events-rytmen: ÉN hairline, labelen står på
+                           papiret over den — ikke to streger om et ord. */
+                        <div className="relative py-3">
+                          <div className="border-t border-hb-line" />
+                          <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-hb-paper px-3 text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft">
+                            {dateSeparatorLabel(msgDate)}
+                          </span>
                         </div>
                       );
                     }
 
-                    // System / AI messages
+                    // System / AI messages — C4/B: ikke længere et KORT.
+                    // Målt: ét systemkort fyldte mere end fire replikker
+                    // tilsammen. Nu en STILLE LINJE i strømmen: centreret,
+                    // rammeløs, ink-soft — den vejer mindre end en
+                    // menneskebesked. Gælder milestone, agent og
+                    // opgave_forslag; agent-feedback består som tekstuelle
+                    // handlinger (evergreen).
                     if (msg.message_type === "system" || msg.message_type === "ai") {
                       return (
                         <React.Fragment key={msg.id}>
@@ -582,58 +597,41 @@ const MemberChatPane = () => {
                           ref={(el) => { if (el) messageRefs.current.set(msg.id, el); }}
                           className="flex justify-center group/msg transition-all duration-300"
                         >
-                          <div
-                            className={`max-w-[90%] md:max-w-[85%] rounded-xl border border-border/50 bg-muted/30 px-4 md:px-5 py-3 md:py-4 relative ${msg.pinned_at ? "ring-1 ring-primary/20" : ""}`}
-                          >
-                            <button
-                              onClick={() => togglePin(msg)}
-                              className={`absolute top-2 right-2 p-1 rounded-md transition-all ${
-                                msg.pinned_at
-                                  ? "text-primary opacity-100 hover:text-destructive"
-                                  : "text-muted-foreground opacity-0 group-hover/msg:opacity-100 hover:text-primary hover:bg-primary/10"
-                              }`}
-                              title={msg.pinned_at ? "Fjern pin" : "Pin besked"}
-                            >
-                              <Pin className="h-3.5 w-3.5" />
-                            </button>
-                            <div className="flex items-center gap-2 mb-1 flex-wrap">
-                              <Sparkles className="h-3.5 w-3.5 text-primary" />
-                              <span className="text-[10px] font-semibold text-primary uppercase tracking-wider">
-                                {msg.message_type === "ai" ? "AI Analyse" : "System"}
-                              </span>
-                              {topicInfo && (
-                                <span className={`inline-flex items-center gap-1 text-[9px] font-medium px-1.5 py-0.5 rounded-full ${topicInfo.bg} ${topicInfo.text}`}>
-                                  <topicInfo.icon className="h-2.5 w-2.5" />
-                                  {topicInfo.label}
-                                </span>
-                              )}
-                              <span className="text-[10px] text-muted-foreground">
-                                {format(new Date(msg.created_at), "HH:mm", { locale: da })}
-                              </span>
-                            </div>
-                            <div className="text-sm text-foreground leading-relaxed chat-html-content" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(
+                          <div className="max-w-[90%] md:max-w-[75%] px-2 py-1 text-center">
+                            <div className="text-[13px] text-hb-ink-soft leading-relaxed chat-html-content" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(
                               msg.content
                                 .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
                                 .replace(/\n/g, '<br>'),
                               { ALLOWED_TAGS: ['b','strong','i','em','ul','ol','li','a','p','br'], ALLOWED_ATTR: ['href','target','rel'] }
                             ) }} />
-                            {/* C2 (besluttet 31/8): report_card-kortet og
-                                ai_analysis-chippen er fjernet — system·report-
-                                bestanden slettes historisk og produceres ikke
-                                længere. Chippen består for milestone-beskederne. */}
-                            {contextType && contextMeta?.title && (
-                              // Chip'en uden link-varianten: /members/:id-knappen
-                              // var rådgiverens (isAdvisor && linkPath).
-                              <div className="mt-2">
-                                <span className="inline-flex items-center gap-1.5 text-[10px] px-2 py-1 rounded-md bg-secondary text-muted-foreground">
-                                  {contextType === "milestone" && <Target className="h-3 w-3" />}
+                            {/* C2 (besluttet 31/8): report_card/ai_analysis er
+                                væk. Milestone-titlen står som stille suffiks —
+                                den lilla off-token-chip er erstattet af ren
+                                tekst i strømmens egen tone. */}
+                            <div className="mt-0.5 flex items-center justify-center gap-2 text-[10px] text-hb-ink-soft/70">
+                              {contextType && contextMeta?.title && (
+                                <span className="inline-flex items-center gap-1 truncate">
+                                  {contextType === "milestone" && <Target className="h-2.5 w-2.5 shrink-0" />}
                                   {String(contextMeta.title)}
+                                  <span aria-hidden>·</span>
                                 </span>
-                              </div>
-                            )}
+                              )}
+                              <span>{format(new Date(msg.created_at), "HH:mm", { locale: da })}</span>
+                              <button
+                                onClick={() => togglePin(msg)}
+                                className={`p-0.5 rounded transition-all ${
+                                  msg.pinned_at
+                                    ? "text-hb-evergreen opacity-100 hover:text-hb-rust"
+                                    : "text-hb-ink-soft opacity-0 group-hover/msg:opacity-100 hover:text-hb-evergreen"
+                                }`}
+                                title={msg.pinned_at ? "Fjern pin" : "Pin besked"}
+                              >
+                                <Pin className="h-3 w-3" />
+                              </button>
+                            </div>
                             {msg.context_type === "agent" && (
-                              <div className="flex items-center gap-2 mt-2 pt-2 border-t border-border/20">
-                                <span className="text-[10px] text-muted-foreground">Var dette nyttigt?</span>
+                              <div className="mt-1 flex items-center justify-center gap-3 text-[11px]">
+                                <span className="text-hb-ink-soft/70">Var dette nyttigt?</span>
                                 <button
                                   onClick={async () => {
                                     await supabase.from("messages").update({
@@ -641,7 +639,7 @@ const MemberChatPane = () => {
                                     } as any).eq("id", msg.id);
                                     toast.success("Tak for feedback");
                                   }}
-                                  className="text-[11px] px-2 py-0.5 rounded border border-border/40 hover:bg-primary/10 hover:border-primary/30 transition-colors"
+                                  className="text-hb-evergreen transition-colors hover:underline underline-offset-2"
                                 >
                                   Ja
                                 </button>
@@ -652,7 +650,7 @@ const MemberChatPane = () => {
                                     } as any).eq("id", msg.id);
                                     toast("Forstået — vi arbejder på det");
                                   }}
-                                  className="text-[11px] px-2 py-0.5 rounded border border-border/40 hover:bg-destructive/10 hover:border-destructive/30 transition-colors"
+                                  className="text-hb-evergreen transition-colors hover:underline underline-offset-2"
                                 >
                                   Nej
                                 </button>
@@ -684,10 +682,13 @@ const MemberChatPane = () => {
                       <React.Fragment key={msg.id}>
                         {dateSep}
                         {showUnreadDivider && (
-                          <div className="flex items-center gap-3 py-2">
-                            <div className="flex-1 border-t border-primary/50" />
-                            <span className="text-[11px] text-primary font-semibold px-2">Nye beskeder</span>
-                            <div className="flex-1 border-t border-primary/50" />
+                          /* Evergreen, diskret — samme én-hairline-form som
+                             dags-separatoren. */
+                          <div className="relative py-3">
+                            <div className="border-t border-hb-evergreen/40" />
+                            <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-hb-paper px-3 text-[11px] font-medium text-hb-evergreen">
+                              Nye beskeder
+                            </span>
                           </div>
                         )}
                       <div
@@ -695,25 +696,19 @@ const MemberChatPane = () => {
                         className={`flex group/msg ${isMine ? "justify-end" : "justify-start"} items-end gap-2 transition-all duration-300`}
                       >
                         {!isMine && !isMobile && (
-                          <div className="h-7 w-7 rounded-full bg-muted flex items-center justify-center overflow-hidden flex-shrink-0 mb-1">
-                            {senderAvatar ? (
-                              <img src={senderAvatar} alt="" className="h-7 w-7 object-cover" />
-                            ) : (
-                              <span className="text-[9px] font-semibold text-muted-foreground">
-                                {getInitials(senderName)}
-                              </span>
-                            )}
+                          <div className="mb-1">
+                            <ForfatterAvatar navn={senderName} avatarUrl={senderAvatar ?? null} className="h-7 w-7" />
                           </div>
                         )}
                         <div
-                          className={`${isMobile ? "max-w-[88%]" : "max-w-[70%]"} relative ${msg.pinned_at ? "ring-1 ring-primary/20 rounded-2xl" : ""}`}
+                          className={`${isMobile ? "max-w-[88%]" : "max-w-[70%]"} relative ${msg.pinned_at ? "ring-1 ring-hb-evergreen/20 rounded-hb" : ""}`}
                           {...(isMobile ? longPressHandlers(msg.id) : {})}
                         >
                           {longPressedMessageId === msg.id && isMobile && (
-                            <div className="absolute -top-10 left-1/2 -translate-x-1/2 z-50 flex items-center gap-1 bg-card border border-border rounded-full px-2 py-1 shadow-lg">
-                              <button onClick={() => { toggleReaction(msg.id, "👍"); setLongPressedMessageId(null); }} className="p-1.5 hover:bg-secondary rounded-full text-sm">👍</button>
-                              <button onClick={() => { toggleReaction(msg.id, "❤️"); setLongPressedMessageId(null); }} className="p-1.5 hover:bg-secondary rounded-full text-sm">❤️</button>
-                              <button onClick={() => { navigator.clipboard.writeText(msg.content || ""); setLongPressedMessageId(null); }} className="p-1.5 hover:bg-secondary rounded-full text-sm">📋</button>
+                            <div className="absolute -top-10 left-1/2 -translate-x-1/2 z-50 flex items-center gap-1 bg-hb-surface border border-hb-line rounded-full px-2 py-1 shadow-hb-hover">
+                              <button onClick={() => { toggleReaction(msg.id, "👍"); setLongPressedMessageId(null); }} className="p-1.5 hover:bg-hb-sage/30 rounded-full text-sm">👍</button>
+                              <button onClick={() => { toggleReaction(msg.id, "❤️"); setLongPressedMessageId(null); }} className="p-1.5 hover:bg-hb-sage/30 rounded-full text-sm">❤️</button>
+                              <button onClick={() => { navigator.clipboard.writeText(msg.content || ""); setLongPressedMessageId(null); }} className="p-1.5 hover:bg-hb-sage/30 rounded-full text-sm">📋</button>
                             </div>
                           )}
                           {!isMobile && !isEditingThis && (
@@ -722,8 +717,8 @@ const MemberChatPane = () => {
                                 onClick={() => togglePin(msg)}
                                 className={`p-1 rounded-md transition-all ${
                                   msg.pinned_at
-                                    ? "text-primary opacity-100 hover:text-destructive"
-                                    : "text-muted-foreground opacity-0 group-hover/msg:opacity-100 hover:text-primary hover:bg-primary/10"
+                                    ? "text-hb-evergreen opacity-100 hover:text-hb-rust"
+                                    : "text-hb-ink-soft opacity-0 group-hover/msg:opacity-100 hover:text-hb-evergreen hover:bg-hb-evergreen/10"
                                 }`}
                                 title={msg.pinned_at ? "Fjern pin" : "Pin besked"}
                               >
@@ -732,6 +727,7 @@ const MemberChatPane = () => {
                               <ReactionPicker
                                 onSelect={(emoji) => toggleReaction(msg.id, emoji)}
                                 isMine={isMine}
+                                variant="hb"
                               />
                               <MessageActionMenu
                                 canEdit={canEditCheck(msg.sender_id, msg.created_at)}
@@ -739,6 +735,7 @@ const MemberChatPane = () => {
                                 onEdit={() => startEdit(msg.id, msg.content)}
                                 onDelete={() => handleDeleteMsg(msg.id)}
                                 isMine={isMine}
+                                variant="hb"
                               />
                             </div>
                           )}
@@ -749,16 +746,19 @@ const MemberChatPane = () => {
                               onEdit={() => startEdit(msg.id, msg.content)}
                               onDelete={() => handleDeleteMsg(msg.id)}
                               onReaction={(emoji) => toggleReaction(msg.id, emoji)}
+                              variant="hb"
                             >
                               {topicInfo && (
-                                <div className={`mb-1 inline-flex items-center gap-1 text-[9px] font-medium px-2 py-0.5 rounded-full ${topicInfo.bg} ${topicInfo.text} ${isMine ? "ml-auto" : ""}`}>
+                                /* Emnefarverne (inkl. milestone-lilla) er off-token —
+                                   i Hb er alle emne-chips sage/ink (HbTag-formen). */
+                                <div className={`mb-1 inline-flex items-center gap-1 text-[9px] font-medium px-2 py-0.5 rounded-full bg-hb-sage/50 text-hb-ink ${isMine ? "ml-auto" : ""}`}>
                                   <topicInfo.icon className="h-2.5 w-2.5" />
                                   {topicInfo.label}
                                 </div>
                               )}
                               {contextType && contextMeta?.title && (
                                 <div className={`mb-1 inline-flex items-center gap-1.5 text-[10px] px-2.5 py-1 rounded-t-lg ${
-                                  isMine ? "bg-primary/20 text-primary ml-auto" : "bg-secondary text-muted-foreground"
+                                  isMine ? "bg-hb-sage/60 text-hb-ink ml-auto" : "bg-hb-sage/30 text-hb-ink-soft"
                                 }`}>
                                   {contextType === "report" && <FileText className="h-3 w-3" />}
                                   {contextType === "milestone" && <Target className="h-3 w-3" />}
@@ -766,34 +766,34 @@ const MemberChatPane = () => {
                                 </div>
                               )}
                               <div
-                                className={`rounded-2xl px-4 py-2.5 ${
+                                className={`rounded-hb px-4 py-2.5 ${
                                   isMine
-                                    ? "bg-primary text-primary-foreground rounded-br-md"
-                                    : "bg-secondary text-foreground rounded-bl-md"
+                                    ? "bg-hb-sage text-hb-ink rounded-br-md"
+                                    : "bg-hb-surface border border-hb-line text-hb-ink rounded-bl-md"
                                 } ${contextType ? "rounded-tl-md" : ""}`}
                               >
                                 {!isMine && (
-                                  <p className="text-[10px] font-semibold text-muted-foreground mb-0.5">
+                                  <p className="text-[10px] font-medium text-hb-ink-soft mb-0.5">
                                     {senderName}
                                   </p>
                                 )}
                                 {msg.content !== "📎" && (
                                   <div className="text-sm leading-relaxed chat-html-content" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(msg.content, { ALLOWED_TAGS: ['b','strong','i','em','ul','ol','li','a','p','br'], ALLOWED_ATTR: ['href','target','rel'] }) }} />
                                 )}
-                                <MessageAttachments attachments={msg.context_meta?.attachments} isMine={isMine} messageId={msg.id} source="messages" />
+                                <MessageAttachments attachments={msg.context_meta?.attachments} isMine={isMine} messageId={msg.id} source="messages" variant="hb" />
                                 <div className={`flex items-center gap-1 mt-1 ${isMine ? "justify-end" : ""}`}>
                                   {(msg as any).edited_at && (
-                                    <span className={`text-[9px] italic ${isMine ? "text-primary-foreground/50" : "text-muted-foreground/60"}`}>
+                                    <span className="text-[9px] italic text-hb-ink-soft/70">
                                       (redigeret)
                                     </span>
                                   )}
-                                  <span className={`text-[10px] ${isMine ? "text-primary-foreground/60" : "text-muted-foreground"}`}>
+                                  <span className="text-[10px] text-hb-ink-soft">
                                     {format(new Date(msg.created_at), "HH:mm", { locale: da })}
                                   </span>
                                   {isMine && msg.id === latestReadOwnMsgId && (
                                     <>
-                                      <CheckCheck className="h-3 w-3 text-primary-foreground/60" />
-                                      <span className="text-[10px] text-primary-foreground/60">Læst</span>
+                                      <CheckCheck className="h-3 w-3 text-hb-ink-soft" />
+                                      <span className="text-[10px] text-hb-ink-soft">Læst</span>
                                     </>
                                   )}
                                 </div>
@@ -802,14 +802,16 @@ const MemberChatPane = () => {
                           ) : (
                             <>
                               {topicInfo && (
-                                <div className={`mb-1 inline-flex items-center gap-1 text-[9px] font-medium px-2 py-0.5 rounded-full ${topicInfo.bg} ${topicInfo.text} ${isMine ? "ml-auto" : ""}`}>
+                                /* Emnefarverne (inkl. milestone-lilla) er off-token —
+                                   i Hb er alle emne-chips sage/ink (HbTag-formen). */
+                                <div className={`mb-1 inline-flex items-center gap-1 text-[9px] font-medium px-2 py-0.5 rounded-full bg-hb-sage/50 text-hb-ink ${isMine ? "ml-auto" : ""}`}>
                                   <topicInfo.icon className="h-2.5 w-2.5" />
                                   {topicInfo.label}
                                 </div>
                               )}
                               {contextType && contextMeta?.title && (
                                 <div className={`mb-1 inline-flex items-center gap-1.5 text-[10px] px-2.5 py-1 rounded-t-lg ${
-                                  isMine ? "bg-primary/20 text-primary ml-auto" : "bg-secondary text-muted-foreground"
+                                  isMine ? "bg-hb-sage/60 text-hb-ink ml-auto" : "bg-hb-sage/30 text-hb-ink-soft"
                                 }`}>
                                   {contextType === "report" && <FileText className="h-3 w-3" />}
                                   {contextType === "milestone" && <Target className="h-3 w-3" />}
@@ -817,34 +819,34 @@ const MemberChatPane = () => {
                                 </div>
                               )}
                               <div
-                                className={`rounded-2xl px-4 py-2.5 ${
+                                className={`rounded-hb px-4 py-2.5 ${
                                   isMine
-                                    ? "bg-primary text-primary-foreground rounded-br-md"
-                                    : "bg-secondary text-foreground rounded-bl-md"
+                                    ? "bg-hb-sage text-hb-ink rounded-br-md"
+                                    : "bg-hb-surface border border-hb-line text-hb-ink rounded-bl-md"
                                 } ${contextType ? "rounded-tl-md" : ""}`}
                               >
                                 {!isMine && (
-                                  <p className="text-[10px] font-semibold text-muted-foreground mb-0.5">
+                                  <p className="text-[10px] font-medium text-hb-ink-soft mb-0.5">
                                     {senderName}
                                   </p>
                                 )}
                                 {msg.content !== "📎" && (
                                   <div className="text-sm leading-relaxed chat-html-content" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(msg.content, { ALLOWED_TAGS: ['b','strong','i','em','ul','ol','li','a','p','br'], ALLOWED_ATTR: ['href','target','rel'] }) }} />
                                 )}
-                                <MessageAttachments attachments={msg.context_meta?.attachments} isMine={isMine} messageId={msg.id} source="messages" />
+                                <MessageAttachments attachments={msg.context_meta?.attachments} isMine={isMine} messageId={msg.id} source="messages" variant="hb" />
                                 <div className={`flex items-center gap-1 mt-1 ${isMine ? "justify-end" : ""}`}>
                                   {(msg as any).edited_at && (
-                                    <span className={`text-[9px] italic ${isMine ? "text-primary-foreground/50" : "text-muted-foreground/60"}`}>
+                                    <span className="text-[9px] italic text-hb-ink-soft/70">
                                       (redigeret)
                                     </span>
                                   )}
-                                  <span className={`text-[10px] ${isMine ? "text-primary-foreground/60" : "text-muted-foreground"}`}>
+                                  <span className="text-[10px] text-hb-ink-soft">
                                     {format(new Date(msg.created_at), "HH:mm", { locale: da })}
                                   </span>
                                   {isMine && msg.id === latestReadOwnMsgId && (
                                     <>
-                                      <CheckCheck className="h-3 w-3 text-primary-foreground/60" />
-                                      <span className="text-[10px] text-primary-foreground/60">Læst</span>
+                                      <CheckCheck className="h-3 w-3 text-hb-ink-soft" />
+                                      <span className="text-[10px] text-hb-ink-soft">Læst</span>
                                     </>
                                   )}
                                 </div>
@@ -855,6 +857,7 @@ const MemberChatPane = () => {
                             reactions={getReactions(msg.id)}
                             onToggle={(emoji) => toggleReaction(msg.id, emoji)}
                             isMine={isMine}
+                            variant="hb"
                             getReactorName={(userId) =>
                               profilesMap.get(userId)?.full_name ||
                               participants.find(p => p.user_id === userId)?.full_name ||
@@ -863,14 +866,8 @@ const MemberChatPane = () => {
                           />
                         </div>
                         {isMine && !isMobile && (
-                          <div className="h-7 w-7 rounded-full bg-primary/10 flex items-center justify-center overflow-hidden flex-shrink-0 mb-1">
-                            {senderAvatar ? (
-                              <img src={senderAvatar} alt="" className="h-7 w-7 object-cover" />
-                            ) : (
-                              <span className="text-[9px] font-semibold text-primary">
-                                {getInitials(senderName)}
-                              </span>
-                            )}
+                          <div className="mb-1">
+                            <ForfatterAvatar navn={senderName} avatarUrl={senderAvatar ?? null} className="h-7 w-7" />
                           </div>
                         )}
                       </div>
@@ -882,18 +879,21 @@ const MemberChatPane = () => {
               </div>
 
               {/* Input — sticky at bottom of message column (ingen emne-
-                  vælger: den var rådgiverens og skrev kun til lokal state) */}
+                  vælger: den var rådgiverens og skrev kun til lokal state).
+                  Hairline over feltet; selve feltet er HbCard-agtigt via
+                  ChatRichInputs hb-variant (hvid flade, hb-line, rounded-hb). */}
               <div
-                className={`${isMobile ? "px-2 pt-2 pb-2" : "p-3 md:p-4"} border-t border-border bg-background shrink-0 z-10`}
+                className={`${isMobile ? "px-2 pt-2 pb-2" : "p-3 md:p-4"} border-t border-hb-line bg-hb-paper shrink-0 z-10`}
                 style={{
                   paddingBottom: isMobile ? "calc(0.5rem + env(safe-area-inset-bottom))" : undefined,
                 }}
               >
                 {activeConv?.membershipTier === "expired" ? (
-                  <div className="flex items-center gap-2 px-3 py-3 rounded-lg bg-muted/50 border border-border text-xs text-muted-foreground">
-                    <AlertCircle className="h-4 w-4 text-destructive shrink-0" />
+                  /* Advarsel — rust (en af rusts fire betydninger). */
+                  <div className="flex items-center gap-2 px-3 py-3 rounded-hb bg-hb-sage/20 border border-hb-line text-xs text-hb-ink-soft">
+                    <AlertCircle className="h-4 w-4 text-hb-rust shrink-0" />
                     <span>
-                      Denne virksomhed er <span className="font-semibold text-foreground">udløbet</span> — beskeder kan ikke sendes. Historik er stadig læsbar.
+                      Denne virksomhed er <span className="font-medium text-hb-ink">udløbet</span> — beskeder kan ikke sendes. Historik er stadig læsbar.
                     </span>
                   </div>
                 ) : (
@@ -905,17 +905,18 @@ const MemberChatPane = () => {
                     disabled={sending}
                     placeholder={`Skriv til ${advisorNamesLabel}...`}
                     maxLength={MAX_MESSAGE_LENGTH}
+                    variant="hb"
                   />
                   {!isMobile && (
-                    <button
+                    <HbButton
                       type="button"
                       onClick={() => chatSubmitRef.current()}
                       disabled={sending}
-                      className="flex-shrink-0 h-10 w-10 rounded-xl bg-primary text-primary-foreground flex items-center justify-center hover:bg-primary/90 transition-colors disabled:opacity-50"
+                      className="h-11 w-11 shrink-0 px-0"
                       aria-label="Send besked"
                     >
                       {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                    </button>
+                    </HbButton>
                   )}
                 </div>
                 {!isMobile && <div className="safe-bottom-spacer" />}
@@ -926,20 +927,20 @@ const MemberChatPane = () => {
           ) : (
             <div className="flex-1 flex flex-col min-w-0">
               {companyName && (
-                <div className="flex items-center gap-2 px-4 py-2.5 border-b border-border bg-muted/30 text-xs text-muted-foreground">
+                <div className="flex items-center gap-2 px-4 py-2.5 border-b border-hb-line bg-hb-sage/20 text-xs text-hb-ink-soft">
                   <Building2 className="h-3.5 w-3.5 shrink-0" />
-                  <span>Samtale for <span className="font-medium text-foreground">{companyName}</span> med {advisorNamesLabel}</span>
+                  <span>Samtale for <span className="font-medium text-hb-ink">{companyName}</span> med {advisorNamesLabel}</span>
                 </div>
               )}
               <div className="flex-1 flex items-center justify-center text-center px-6">
                 <div className="max-w-sm">
-                  <div className="mx-auto w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center mb-4">
-                    <MessageCircle className="h-7 w-7 text-primary" />
+                  <div className="mx-auto w-14 h-14 rounded-full bg-hb-sage/40 flex items-center justify-center mb-4">
+                    <MessageCircle className="h-7 w-7 text-hb-evergreen" />
                   </div>
-                  <h3 className="text-base font-semibold text-foreground mb-2">
+                  <h3 className="font-editorial text-xl font-medium text-hb-ink mb-2">
                     Din direkte linje til {advisorNamesLabel}
                   </h3>
-                  <p className="text-sm text-muted-foreground leading-relaxed">
+                  <p className="text-sm text-hb-ink-soft leading-relaxed">
                     Stil spørgsmål, del opdateringer eller få sparring på dine tal og beslutninger.
                     Vi svarer typisk inden for 24 timer.
                   </p>
@@ -955,6 +956,7 @@ const MemberChatPane = () => {
         onOpenChange={(o) => { if (!o) cancelEdit(); }}
         initialHTML={editContent}
         onSave={handleEditSave}
+        variant="hb"
       />
     </>
   );

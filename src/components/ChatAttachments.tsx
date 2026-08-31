@@ -142,12 +142,12 @@ function ChatAttachmentItem({
 
   // File variant — render row with known name/size immediately; only the
   // trailing icon reflects URL load state.
-  // hb+isMine: boblen bliver evergreen med hvid tekst i Hb-udtrykket, så
-  // rækken bruger hvid-toner dér; hb+fremmed: sage/ink.
+  // hb: egen boble er SAGE (C4-designvalg A), fremmed er hvid surface —
+  // rækken bruger ink-toner på begge, blot med forskellig dybde.
   const baseRow = `flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs transition-colors ${
     isMine
       ? hb
-        ? "bg-white/10 hover:bg-white/20 text-white"
+        ? "bg-hb-ink/5 hover:bg-hb-ink/10 text-hb-ink"
         : "bg-primary-foreground/10 hover:bg-primary-foreground/20 text-primary-foreground"
       : hb
         ? "bg-hb-sage/30 hover:bg-hb-sage/50 text-hb-ink"
