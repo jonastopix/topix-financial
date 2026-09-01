@@ -363,3 +363,22 @@ have fire dage mindre til at betale.
 Virksomheder uden prisniveau skal kunne ses samlet — samme mønster som
 fornyelsesbeslutningerne i `FornyelsesSektion`: kun dem der kræver
 handling, med feltet der mangler og en måde at sætte det på.
+
+## 21. To mails til medlemmet — aldrig samtidig
+
+Betalingsmailen og invitationen er to forskellige mails i to forskellige
+øjeblikke. De må ALDRIG sendes sammen.
+
+| Handling | Systemet gør | Medlemmet får |
+|---|---|---|
+| «Godkendt» på Monday | Opretter virksomheden | — |
+| — med pris | + sender betalingsmailen | Link til betaling |
+| — uden pris | + sender mail til RÅDGIVEREN | Intet |
+| Rådgiver sætter prisen | Sender betalingsmailen | Link til betaling |
+| Medlemmet betaler | Sætter kontraktdatoer, sender invitationen | Login |
+
+**Hvorfor invitationen ikke må følge prissætningen:** en virksomhed uden
+kontraktdatoer giver `computeMembershipTier` værdien «no_date», som
+`useAuth` oversætter til «full» (§3). Kunne de logge ind før betalingen,
+ville de have FULD adgang uden at have betalt. Invitationen er
+adgangens nøgle og hører derfor kun til efter betalingen.
