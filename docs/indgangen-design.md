@@ -306,3 +306,60 @@ først sættes ved betaling.
 **ÅBENT:** hvad der sker hvis `Pris (kontrakt)` er tom ved «Godkendt».
 Falder den tilbage på 50.000, eller skal webhooken afvise og gøre
 opmærksom på det? At gætte på listeprisen er en pris på 10.000 kr.
+
+---
+
+# Tillæg — når prisniveauet mangler (besluttet 1/9)
+
+## 17. Virksomheden oprettes alligevel
+
+Er `Pris (kontrakt)` tom ved «Godkendt», oprettes virksomheden med alle
+øvrige data, men UDEN prisniveau. Der sendes INGEN betalingsmail.
+
+Alternativet — at afvise og ikke oprette — blev fravalgt, fordi det
+modsiger §2: virksomheden oprettes ved underskrift netop for at «har
+skrevet under, mangler noget» bliver en synlig tilstand frem for et
+tomrum. En afvist godkendelse ville efterlade præcis det tomrum der
+kostede jer fem medlemmer.
+
+Virksomheden står derfor som **afventer pris** på rådgiverfladen.
+
+## 18. Besked pr. MAIL, ikke Slack
+
+Besluttet 1/9: beskeden skal komme som mail til rådgiverne. Begrundelsen
+er Jonas' egen — en mail bliver set med sikkerhed, en Slack-besked kan
+drukne. Det er en besked hvor konsekvensen af at overse den er, at et
+nyt medlem sidder og venter på noget der aldrig kommer.
+
+Mailen skal indeholde: virksomhedens navn, CVR, kontaktperson, hvornår
+den blev godkendt, og et direkte link til virksomheden i platformen.
+
+## 19. TO udløsere for betalingsmailen
+
+Dette er det led der ellers ville blive glemt, og som ville låse en
+virksomhed for evigt.
+
+Betalingsmailen (dag 0) udløses af to forskellige begivenheder:
+
+1. **«Godkendt» på Monday MED pris** — normalvejen. Virksomheden
+   oprettes med prisniveau, og mailen sendes med det samme.
+2. **Prisniveauet sættes MANUELT på en virksomhed der mangler det** —
+   undtagelsesvejen. Mailen sendes i det øjeblik prisen gemmes.
+
+Uden nummer 2 ville en virksomhed uden pris aldrig få sin mail: den
+udløsende begivenhed («Godkendt») er allerede sket og kommer ikke igen.
+
+**Idempotens:** mailen må sendes ÉN gang. Er den allerede sendt, må en
+senere ændring af prisniveauet ikke udløse den igen. Et tidsstempel på
+virksomheden bærer det — samme mønster som
+`intro_reminder_last_sent_at`.
+
+**30-dagesfristen løber fra betalingsmailen**, ikke fra godkendelsen.
+En virksomhed der ventede fire dage på at få sin pris sat, skal ikke
+have fire dage mindre til at betale.
+
+## 20. Rådgiverfladen
+
+Virksomheder uden prisniveau skal kunne ses samlet — samme mønster som
+fornyelsesbeslutningerne i `FornyelsesSektion`: kun dem der kræver
+handling, med feltet der mangler og en måde at sætte det på.
