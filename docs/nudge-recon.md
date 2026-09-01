@@ -41,10 +41,10 @@ Fund, ingen forslag.
 | event-reminders (07:00 UTC) | kommende events, dedup pr. event+trin | I DRIFT (aktiveret 10/8) |
 | notify-kpi-comment | rådgiver-kommentar på KPI | I DRIFT |
 | send-pulse-reminder | — | DØD: unscheduled 20260612 (funktionen består) |
-| intro-reminder-cron | fuldt medlem uden booket intro-session; 2 dage efter start, så månedligt | HALVDØD: Deno.cron kørte ALDRIG (ingen intro-påmindelse er nogensinde sendt; intro_reminder_last_sent_at er NULL for alle). HTTP-indgang + Bucket B tilføjet 13/8, men INGEN repo-migration schedulerer den — prod-cron-tilstand uafklaret, skal tjekkes i cron.job |
+| intro-reminder-cron | fuldt medlem uden booket intro-session; 2 dage efter start, så månedligt | **I DRIFT — begge påstande om det modsatte er trukket tilbage 1/9.** Jobbet hedder `intro-session-reminder` i prod (jobid 249, `0 9 * * *`, aktivt) og har kørt siden 13/8. Fjorten virksomheder er markeret, og tretten af dem har en afsendt mail i email_send_log; kun Floren Engros fejlede ("Emails disabled for this project", dead letter 13/8). Kadencen virker: BRILLEVÆRK er markeret 21/8, Livja 25/8, Capture IT 26/8 — jobbet fanger nye løbende. MEN cron'en er en PROD-ZOMBIE: der findes ingen migration i repoet der schedulerer den, præcis som process-notification-emails og daily-circle-sync. Den kan ikke genskabes fra repoet hvis den forsvinder. Og den stempler FØR den ved om mailen kom ud: Floren Engros blev markeret som mindet uden at modtage noget, og ville først være fanget igen 12/9. Stemplet er nulstillet manuelt 1/9, så de fanges i næste kørsel. Slot-note: jobbet ligger 09:00 UTC — samme minut som daily-report-reminder og daily-reflection-nudge. Tre jobs i samme slot. |
 | legat-reminder-cron, run-weekly-agent | — | DØDE: stadig Deno.cron-only |
 | send-engagement-nudge | — | NEDLAGT med princip-begrundelse (persona) |
-| Prod-only-zombier | process-notification-emails (*/5) og daily-circle-sync (03:00) fandtes i prod 22/7 uden repo-modstykke | P2 i email-flows — uafklaret om de stadig kører |
+| Prod-only-zombier | process-notification-emails (*/5) og daily-circle-sync (03:00) fandtes i prod 22/7 uden repo-modstykke; intro-session-reminder (jobid 249, 0 9 * * *) fundet 1/9 som den tredje | P2 i email-flows. Klassen er nu bekræftet: prod bærer cron-jobs der ikke kan genskabes fra repoet. En fuld cron.job-optælling mod migrationshistorikken er ikke lavet. |
 
 ### Push og in-app-kanal
 
@@ -65,6 +65,15 @@ Fund, ingen forslag.
   løfte tallene uden at løfte noget virkeligt — samme fejl som
   feedback-knappen (C13). En kanal der kun virker når brugeren
   allerede er på vej, er ikke en nudge.
+
+### Rettelser efter måling
+
+Reconens første udgave påstod at intro-påmindelsen aldrig havde kørt.
+Det var forkert, og fejlen er lærerig: påstanden byggede på at der
+ikke fandtes en migration i repoet. Fraværet i repoet er ikke det
+samme som fravær i drift — prod har mindst tre cron-jobs uden
+repo-modstykke. Cron-tilstand skal måles i `cron.job`, ikke udledes af
+migrationshistorikken.
 
 ## 2. Konkurrerer de? Ja — målbart
 
@@ -105,10 +114,10 @@ sin dedup.
   focus) lander i agent_proposals og venter på rådgiver-godkendelse.
   Velkomst i chatten er "rådgiverens egen opgave" (send-welcome-message,
   manuel).
-- **Intro-sessionen**: BookSessionView viser gratis intro;
-  intro-reminder-cron skulle minde om den — men har ALDRIG kørt (§1),
-  så påmindelses-leddet i onboarding-sekvensen har været dødt hele
-  platformens levetid.
+- **Intro-sessionen**: BookSessionView viser gratis intro, og
+  påmindelsen kører (§1, rettet 1/9). Den er dermed platformens
+  ENESTE fungerende led i en onboarding-sekvens — men den er også kun
+  ét led: den minder om intro-sessionen og intet andet.
 - **Guiden** (/guide) er tekst-manualen — gammel verden, afgøres i
   onboarding-epicen ("aldrig to onboardings").
 - **Der findes ingen sekvens** i betydningen "dag 1 → dag 3 → dag 7":
