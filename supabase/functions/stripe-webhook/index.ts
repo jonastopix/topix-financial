@@ -131,6 +131,121 @@ Deno.serve(async (req) => {
 
     const session = event.data.object;
 
+    // ── Fornyelse (opret-fornyelse-checkout) — gribes FØR mode-kontrollen
+    //    nedenfor: fuld betaling er mode=payment, raterne mode=subscription,
+    //    og begge skal skrive perioden og forlænge kontrakten ──
+    if (session.metadata?.art === "fornyelse") {
+      const fornyelseCompanyId = session.metadata?.company_id;
+      const betalingsmodel = session.metadata?.betalingsmodel;
+      const grundbeloebOere = Number(session.metadata?.grundbeloeb_oere);
+      if (!fornyelseCompanyId || !betalingsmodel || !Number.isFinite(grundbeloebOere)) {
+        console.error(`[stripe-webhook] fornyelse session ${session.id} mangler metadata`);
+        return new Response("Missing metadata", { status: 400 });
+      }
+
+      // beloeb_oere er "faktisk betalt for perioden" (rate12 bærer
+      // 5 %-tillægget) — det er samlet_oere. Sessions oprettet før
+      // samlet_oere kom i metadata falder tilbage på grundbeløbet; rækken
+      // kan så mangle tillægget, og advarslen gør det synligt.
+      const samletOere = Number(session.metadata?.samlet_oere);
+      let beloebOere: number;
+      if (Number.isFinite(samletOere)) {
+        beloebOere = samletOere;
+      } else {
+        console.warn(
+          `[stripe-webhook] fornyelse session ${session.id} har intet samlet_oere i metadata — falder tilbage på grundbeloeb_oere; beloeb_oere kan mangle rate12-tillægget`
+        );
+        beloebOere = grundbeloebOere;
+      }
+
+      const { data: fornyelseCompany } = await adminClient
+        .from("companies")
+        .select("contract_end_date")
+        .eq("id", fornyelseCompanyId)
+        .maybeSingle();
+
+      // Idempotens FØRST — stripe_reference bærer den (jf. kolonne-
+      // kommentaren på company_perioder). Et gensendt webhook-event må
+      // ALDRIG give to perioder eller forlænge kontrakten to gange.
+      // Tjekket spørger om ARBEJDET er fuldført, ikke kun om perioden
+      // findes: fejlede dato-opdateringen i første forsøg, svarede vi 500,
+      // og gensendelsen skal så FULDFØRE arbejdet frem for at springe over
+      // — ellers forlænges kontrakten aldrig.
+      const { data: eksisterende, error: eksisterendeError } = await adminClient
+        .from("company_perioder")
+        .select("id, periode_slut")
+        .eq("stripe_reference", session.id)
+        .maybeSingle();
+      if (eksisterendeError) {
+        console.error("[stripe-webhook] idempotens-opslag fejlede:", eksisterendeError);
+        throw new Error("Idempotency lookup failed");
+      }
+      if (eksisterende) {
+        if (fornyelseCompany?.contract_end_date === eksisterende.periode_slut) {
+          console.log(`[stripe-webhook] Fornyelse ${session.id} allerede behandlet, springer over`);
+          return new Response(JSON.stringify({ received: true, skipped: "already_processed" }), {
+            headers: { "Content-Type": "application/json" },
+          });
+        }
+        const { error: fuldfoerError } = await adminClient
+          .from("companies")
+          .update({ contract_end_date: eksisterende.periode_slut } as any)
+          .eq("id", fornyelseCompanyId);
+        if (fuldfoerError) {
+          console.error("[stripe-webhook] contract_end_date-opdatering fejlede (gensendelse):", fuldfoerError);
+          throw new Error("Failed to update contract_end_date");
+        }
+        console.log(
+          `[stripe-webhook] Fornyelse ${session.id}: gensendelse fuldførte halvt udført arbejde — contract_end_date sat til ${eksisterende.periode_slut} for company ${fornyelseCompanyId}`
+        );
+        return new Response(JSON.stringify({ received: true }), {
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+
+      // Kontrakten løber fra BETALINGSDATOEN, ikke fra den gamle slutdato
+      // (besluttet 1/9 — medlemmet skal ikke snydes for dage).
+      const startDato = new Date();
+      const periode_start = startDato.toISOString().slice(0, 10);
+      const slutDato = new Date(startDato);
+      slutDato.setUTCMonth(slutDato.getUTCMonth() + 12);
+      const periode_slut = slutDato.toISOString().slice(0, 10);
+
+      // Perioden FØRST, datoen bagefter: fejler opdateringen, findes
+      // perioden som spor af hvad der blev betalt. Fejler indsættelsen,
+      // er intet sket, og Stripe forsøger igen.
+      const { error: periodeError } = await adminClient.from("company_perioder").insert({
+        company_id: fornyelseCompanyId,
+        periode_start,
+        periode_slut,
+        beloeb_oere: beloebOere,
+        betalingsmodel,
+        art: "fornyelse",
+        stripe_reference: session.id,
+        oprettet_af: null, // betalingen er ikke en rådgiverhandling
+      });
+      if (periodeError) {
+        console.error("[stripe-webhook] periode-indsættelse fejlede:", periodeError);
+        throw new Error("Failed to insert company_periode");
+      }
+
+      const { error: datoError } = await adminClient
+        .from("companies")
+        .update({ contract_end_date: periode_slut } as any)
+        .eq("id", fornyelseCompanyId);
+      if (datoError) {
+        console.error("[stripe-webhook] contract_end_date-opdatering fejlede:", datoError);
+        throw new Error("Failed to update contract_end_date");
+      }
+
+      console.log(
+        `[stripe-webhook] Fornyelse for company ${fornyelseCompanyId}: ${beloebOere} øre (${betalingsmodel}), kontrakt ${fornyelseCompany?.contract_end_date ?? "ukendt"} → ${periode_slut}`
+      );
+      return new Response(JSON.stringify({ received: true }), {
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
     // Begge checkout-functions sætter samme metadata-nøgler (user_id,
     // company_id) på sessionen, og Stripe sender checkout.session.completed
     // i BÅDE payment- og subscription-mode. Denne gren er 1:1-sessionskøbet

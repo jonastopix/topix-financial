@@ -146,6 +146,10 @@ Deno.serve(async (req) => {
       "metadata[art]": "fornyelse",
       "metadata[betalingsmodel]": betalingsmodel,
       "metadata[grundbeloeb_oere]": String(pris.grundbeloeb_oere),
+      // Faktisk betalt for perioden (rate12 bærer 5 %-tillægget) — webhooken
+      // skriver denne til company_perioder.beloeb_oere, jf. kolonnens
+      // semantik. grundbeloeb_oere beholdes som aftalens grundbeløb.
+      "metadata[samlet_oere]": String(pris.samlet_oere),
     });
 
     if (mode === "subscription") {
