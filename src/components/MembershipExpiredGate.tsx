@@ -7,7 +7,7 @@ import type { Betalingsmodel } from "@/lib/fornyelsespris";
 import { HbCard } from "@/components/hjemmebane/HbCard";
 import { HbButton } from "@/components/hjemmebane/HbButton";
 import { toast } from "sonner";
-import { Loader2, ArrowRight } from "lucide-react";
+import { Loader2, ArrowRight, ChevronRight } from "lucide-react";
 
 interface FornyelsesMulighed {
   betalingsmodel: Betalingsmodel;
@@ -212,7 +212,12 @@ export default function MembershipExpiredGate() {
                     kr. ekskl. moms
                   </span>
                 </p>
-                <div className="space-y-2">
+                {/* pt-3 oven i kortets space-y-3: beløbet er sidens svar og
+                    skal stå frit — ikke læses som overskrift til knaplisten.
+                    Afstanden mellem knapperne indbyrdes er uændret.
+                    ChevronRight, ikke ArrowRight: knapperne er et VALG mellem
+                    tre ligeværdige muligheder, ikke navigation fremad. */}
+                <div className="space-y-2 pt-3">
                   {tilbud.muligheder.map((m) => (
                     <HbButton
                       key={m.lookup_key}
@@ -225,7 +230,7 @@ export default function MembershipExpiredGate() {
                       {loadingFornyelse === m.betalingsmodel ? (
                         <Loader2 className="h-4 w-4 shrink-0 text-hb-ink-soft animate-spin" />
                       ) : (
-                        <ArrowRight className="h-4 w-4 shrink-0 text-hb-evergreen" />
+                        <ChevronRight className="h-4 w-4 shrink-0 text-hb-evergreen" />
                       )}
                     </HbButton>
                   ))}
