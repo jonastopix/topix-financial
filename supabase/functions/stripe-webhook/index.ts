@@ -24,6 +24,62 @@ async function verifyStripeSignature(payload: string, signature: string, secret:
   return expected === v1;
 }
 
+/**
+ * Sætter cancel_at på et fornyelses-abonnement, hvis det ikke allerede har
+ * et. Kaldes fra fornyelsesgrenen — både ved første behandling og ved
+ * gensendelser, så et abonnement uden ophør aldrig passerer i tavshed.
+ *
+ * REGNESTYKKET: rate12 trækker i måned 0-11, rate2 i måned 0 og 6, og
+ * næste træk ville i begge tilfælde falde i måned 12. cancel_at skal
+ * derfor ligge EFTER sidste aftalte træk og FØR måned 12 — abonnementets
+ * faktiske start + 12 måneder MINUS 1 dag rammer sikkert inden for begge.
+ * Der regnes fra abonnementets start_date, ikke fra "nu": webhooken kan
+ * køre timer efter betalingen (og gensendelser dage efter). Uden
+ * cancel_at trækkes medlemmet i det uendelige.
+ */
+async function sikrOphoerPaaFornyelsesAbonnement(
+  subscriptionId: string,
+  stripeSecretKey: string
+): Promise<void> {
+  const getRes = await fetch(`https://api.stripe.com/v1/subscriptions/${subscriptionId}`, {
+    headers: { Authorization: `Bearer ${stripeSecretKey}` },
+  });
+  if (!getRes.ok) {
+    const err = await getRes.text();
+    console.error(`[stripe-webhook] kunne ikke hente abonnement ${subscriptionId}:`, err);
+    throw new Error(`Failed to fetch subscription ${subscriptionId}`);
+  }
+  const sub = await getRes.json();
+
+  if (sub.cancel_at) {
+    console.log(`[stripe-webhook] abonnement ${subscriptionId} har allerede cancel_at, springer over`);
+    return;
+  }
+
+  const cancelAt = new Date(sub.start_date * 1000);
+  cancelAt.setUTCMonth(cancelAt.getUTCMonth() + 12);
+  cancelAt.setUTCDate(cancelAt.getUTCDate() - 1);
+
+  const postRes = await fetch(`https://api.stripe.com/v1/subscriptions/${subscriptionId}`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${stripeSecretKey}`,
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
+    body: new URLSearchParams({
+      cancel_at: String(Math.floor(cancelAt.getTime() / 1000)),
+    }).toString(),
+  });
+  if (!postRes.ok) {
+    const err = await postRes.text();
+    console.error(`[stripe-webhook] kunne ikke sætte cancel_at på abonnement ${subscriptionId}:`, err);
+    throw new Error(`Failed to set cancel_at on subscription ${subscriptionId}`);
+  }
+  console.log(
+    `[stripe-webhook] cancel_at sat på abonnement ${subscriptionId}: ${cancelAt.toISOString()}`
+  );
+}
+
 async function getCalendlyEventTypeUri(apiKey: string, slug: string): Promise<string> {
   // First get the current user's URI
   const meResponse = await fetch("https://api.calendly.com/users/me", {
@@ -87,6 +143,17 @@ Deno.serve(async (req) => {
     // ── Subscription lifecycle events ──
     if (event.type === "customer.subscription.created" || event.type === "customer.subscription.updated") {
       const sub = event.data.object;
+      // subscription_status på companies er forbeholdt exit-abonnementet
+      // (selvbetjening). En ratebetalt fornyelse er IKKE et selvbetjenings-
+      // abonnement — skrev vi status her, ville virksomheden fremstå som
+      // abonnent (tier "subscriber") i stedet for fuldt medlem; adgangen
+      // ved fornyelse bæres af contract_end_date.
+      if (sub.metadata?.art === "fornyelse") {
+        console.log(`[stripe-webhook] ${event.type} for fornyelses-abonnement ${sub.id}, springer status-skrivning over`);
+        return new Response(JSON.stringify({ received: true, skipped: "fornyelse_subscription" }), {
+          headers: { "Content-Type": "application/json" },
+        });
+      }
       const companyId = sub.metadata?.company_id;
       if (companyId) {
         await adminClient
@@ -107,6 +174,16 @@ Deno.serve(async (req) => {
 
     if (event.type === "customer.subscription.deleted") {
       const sub = event.data.object;
+      // Et fornyelses-abonnement der udløber (rammer sit cancel_at efter
+      // sidste rate), er et normalt afsluttet betalingsforløb — ikke en
+      // opsagt selvbetjening. subscription_status er forbeholdt
+      // exit-abonnementet og må ikke skrives her.
+      if (sub.metadata?.art === "fornyelse") {
+        console.log(`[stripe-webhook] ${event.type} for fornyelses-abonnement ${sub.id}, springer status-skrivning over`);
+        return new Response(JSON.stringify({ received: true, skipped: "fornyelse_subscription" }), {
+          headers: { "Content-Type": "application/json" },
+        });
+      }
       const companyId = sub.metadata?.company_id;
       if (companyId) {
         await adminClient
@@ -181,6 +258,15 @@ Deno.serve(async (req) => {
         throw new Error("Idempotency lookup failed");
       }
       if (eksisterende) {
+        // Også ved gensendelse: sæt cancel_at hvis abonnementet mangler det
+        // — første forsøg kan være fejlet netop dér. Hjælperen springer selv
+        // over hvis cancel_at allerede er sat.
+        if (session.mode === "subscription" && session.subscription) {
+          await sikrOphoerPaaFornyelsesAbonnement(
+            session.subscription,
+            Deno.env.get("STRIPE_SECRET_KEY")!
+          );
+        }
         if (fornyelseCompany?.contract_end_date === eksisterende.periode_slut) {
           console.log(`[stripe-webhook] Fornyelse ${session.id} allerede behandlet, springer over`);
           return new Response(JSON.stringify({ received: true, skipped: "already_processed" }), {
@@ -236,6 +322,18 @@ Deno.serve(async (req) => {
       if (datoError) {
         console.error("[stripe-webhook] contract_end_date-opdatering fejlede:", datoError);
         throw new Error("Failed to update contract_end_date");
+      }
+
+      // Ophør på rate-abonnementet — sættes her fordi Checkout ikke kan
+      // (subscription_data[cancel_at] afvises med parameter_unknown), og
+      // fordi abonnementets faktiske start først kendes nu. Fejler kaldet,
+      // kaster hjælperen → 500 → Stripe gensender; et abonnement uden ophør
+      // må ikke passere i tavshed.
+      if (session.mode === "subscription" && session.subscription) {
+        await sikrOphoerPaaFornyelsesAbonnement(
+          session.subscription,
+          Deno.env.get("STRIPE_SECRET_KEY")!
+        );
       }
 
       console.log(

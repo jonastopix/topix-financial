@@ -155,24 +155,19 @@ Deno.serve(async (req) => {
     if (mode === "subscription") {
       // ── 9. KRITISK: ophør efter N træk. Prisen bærer IKKE selv et ophør —
       //       rate2 er en 6-måneders-pris og rate12 en månedspris, og et
-      //       abonnement på dem fornyer i det uendelige. cancel_at 12
-      //       måneder frem stopper det efter præcis de aftalte træk
-      //       (rate2: 2 træk à 6 måneder; rate12: 12 træk à 1 måned).
-      //       Mangler cancel_at, trækkes medlemmet for evigt. Det er den
-      //       farligste detalje i hele opsætningen.
+      //       abonnement på dem fornyer i det uendelige uden et cancel_at.
       //
-      //       MARGIN +1 DAG: abonnementet starter ved BETALING, ikke ved
-      //       oprettelse — Checkout-sessionen lever op til 24 timer, så
-      //       starten kan ligge timer efter dette tidsstempel. Uden margin
-      //       kan cancel_at falde FØR det tolvte rate12-træk: abonnementet
-      //       stopper efter elleve, og intet fejler. Et døgn rammer sikkert
-      //       inden for lufter til NÆSTE træk (en måned for rate12, seks
-      //       for rate2) ──
-      const cancelAt = new Date();
-      cancelAt.setUTCMonth(cancelAt.getUTCMonth() + 12);
-      cancelAt.setUTCDate(cancelAt.getUTCDate() + 1);
+      //       Ophøret sættes IKKE her: subscription_data[cancel_at] findes
+      //       ikke som Checkout-parameter (Stripe afviser den med
+      //       parameter_unknown, målt i produktion), og abonnementets
+      //       faktiske starttidspunkt kendes først når det er oprettet —
+      //       ved betalingen, ikke ved sessionens oprettelse. Derfor sætter
+      //       stripe-webhook cancel_at på abonnementet når det findes.
+      //       Metadata her (art + betalingsmodel) gør at abonnementet selv
+      //       bærer hvad det er, så webhooken kan kende det ──
       stripeBody.set("subscription_data[metadata][company_id]", company_id);
-      stripeBody.set("subscription_data[cancel_at]", String(Math.floor(cancelAt.getTime() / 1000)));
+      stripeBody.set("subscription_data[metadata][art]", "fornyelse");
+      stripeBody.set("subscription_data[metadata][betalingsmodel]", betalingsmodel);
     }
 
     // Genbrug eksisterende Stripe-kunde; ellers skal Checkout bære kalderens
