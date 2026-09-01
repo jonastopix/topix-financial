@@ -6,6 +6,18 @@ import { InactivityWarningDialog } from "@/components/InactivityWarningDialog";
 import { useQuery } from "@tanstack/react-query";
 import { computeMembershipTier } from "@/lib/membershipTier";
 
+/** Hvor langt virksomhedsopslaget er nået — så "ved det ikke endnu" kan
+    skelnes fra "gik galt". Før denne tilstand var begge `companyId ===
+    null`, og en bruger hvis kobling til virksomheden fejlede, stod på
+    forsidens DashboardSkeleton for evigt (docs/indgangsfladen-design.md §5).
+    - pending: opslaget kører (eller ingen session endnu).
+    - resolved: brugeren har en virksomhed (company_members eller PPI-succes).
+    - none: opslaget SVAREDE, og svaret var "ingen virksomhed" — det normale
+      for en rådgiver uden egen virksomhed (PPI: no_pending_invitation).
+    - failed: kaldet til process-pending-invitation GIK GALT (HTTP-fejl,
+      exception, eller et svar der ikke er et af de kendte). */
+export type CompanyResolution = "pending" | "resolved" | "none" | "failed";
+
 interface AuthContext {
   user: User | null;
   session: Session | null;
@@ -24,6 +36,9 @@ interface AuthContext {
   needsOnboarding: boolean;
   /** Membership tier: full (contract), subscriber (stripe), expired, or null */
   membershipTier: "full" | "subscriber" | "expired" | null;
+  /** Se CompanyResolution. Index læser "failed" og viser en menneskelig
+      flade i stedet for skelettet. */
+  companyResolution: CompanyResolution;
   setCompanyOverride: (id: string, name: string) => void;
   clearCompanyOverride: () => void;
   setOnboardingComplete: () => void;
@@ -46,6 +61,7 @@ const AuthContext = createContext<AuthContext>({
   isCompanyOverride: false,
   needsOnboarding: false,
   membershipTier: null,
+  companyResolution: "pending",
   setCompanyOverride: () => {},
   clearCompanyOverride: () => {},
   setOnboardingComplete: () => {},
@@ -72,6 +88,31 @@ function useSessionTimeout() {
   return data;
 }
 
+/** Svar fra process-pending-invitation der er SVAR, ikke fejl: brugeren
+    har rettelig ingen virksomhed (endnu). Alt andet med success: false
+    regnes som fejl — herunder "already_member", for så siger serveren at
+    der findes et medlemskab, som opslaget ovenfor ikke kunne se; brugeren
+    ville ellers stå uden virksomhed i state og ramme skelettet. */
+const PPI_NORMALE_SVAR = new Set(["no_pending_invitation"]);
+
+/** Uddrager status + grund fra en fejl fra supabase.functions.invoke, så
+    den kan genfindes i Supabase-loggen sammen med funktionens egen linje.
+    FunctionsHttpError bærer Response i `context`; relay-/fetch-fejl har
+    kun en besked. */
+async function laesInvokeFejl(err: unknown): Promise<string> {
+  const ctx = (err as { context?: Response }).context;
+  if (ctx && typeof ctx.json === "function") {
+    try {
+      const body = (await ctx.clone().json()) as { reason?: string; error?: string; detail?: string };
+      const grund = body?.reason ?? body?.error ?? body?.detail;
+      return `http_${ctx.status}${grund ? ` ${String(grund)}` : ""}`;
+    } catch {
+      return `http_${ctx.status}`;
+    }
+  }
+  return err instanceof Error ? err.message : String(err);
+}
+
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
@@ -82,6 +123,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [profile, setProfile] = useState<AuthContext["profile"]>(null);
   const [needsOnboarding, setNeedsOnboarding] = useState(false);
   const [membershipTier, setMembershipTier] = useState<"full" | "subscriber" | "expired" | null>(null);
+  const [companyResolution, setCompanyResolution] = useState<CompanyResolution>("pending");
   const [ownCompanyId, setOwnCompanyId] = useState<string | null>(null);
   const [ownCompanyName, setOwnCompanyName] = useState<string | null>(null);
 
@@ -179,6 +221,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     if (cm?.company_id) {
       setOwnCompanyId(cm.company_id);
       setOwnCompanyName(cm.companies?.name || null);
+      setCompanyResolution("resolved");
 
       // Determine membership tier
       if (isAdv) {
@@ -234,29 +277,56 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       const userEmail = authUser?.email;
       const inviteTokenMeta = authUser?.user_metadata?.invite_token;
       if (userEmail) {
-        try {
-          const { data: invResult } = await supabase.functions.invoke(
-            "process-pending-invitation",
-            { body: { user_id: userId, invite_token: inviteTokenMeta || null } }
+        // Tre fejlgrene (HTTP-fejl, uventet svar, exception) sætter alle
+        // companyResolution = "failed", så Index kan vise noget menneskeligt
+        // frem for et skelet der aldrig fyldes. Et SVAR der siger "ingen
+        // invitation" er ikke en fejl — det er en rådgiver uden egen
+        // virksomhed, hver eneste gang. Loglinjen bærer user_id og PPI's
+        // grund, så den kan genfindes i Supabase-loggen.
+        const markerFejl = (grund: string) => {
+          console.error(
+            `[useAuth] process-pending-invitation fejlede user_id=${userId} reason=${grund}`,
           );
-          if (invResult?.success) {
-            setOwnCompanyId(invResult.company_id);
-            setOwnCompanyName(invResult.company_name);
-          } else {
-            setOwnCompanyId(null);
-            setOwnCompanyName(null);
-            setMembershipTier(null);
-          }
-        } catch (e) {
-          console.error("Failed to process pending invitation:", e);
           setOwnCompanyId(null);
           setOwnCompanyName(null);
           setMembershipTier(null);
+          setCompanyResolution("failed");
+        };
+        try {
+          const { data: invResult, error: invError } = await supabase.functions.invoke(
+            "process-pending-invitation",
+            { body: { user_id: userId, invite_token: inviteTokenMeta || null } }
+          );
+          if (invError) {
+            // HTTP-fejl: invoke returnerer fejlen i stedet for at kaste.
+            // Før lå den skjult som "invResult undefined" i else-grenen.
+            markerFejl(await laesInvokeFejl(invError));
+          } else if (invResult?.success) {
+            setOwnCompanyId(invResult.company_id);
+            setOwnCompanyName(invResult.company_name);
+            setCompanyResolution("resolved");
+          } else if (typeof invResult?.reason === "string" && PPI_NORMALE_SVAR.has(invResult.reason)) {
+            setOwnCompanyId(null);
+            setOwnCompanyName(null);
+            setMembershipTier(null);
+            setCompanyResolution("none");
+          } else {
+            markerFejl(
+              typeof invResult?.reason === "string"
+                ? invResult.reason
+                : typeof invResult?.error === "string"
+                  ? invResult.error
+                  : "uventet_svar",
+            );
+          }
+        } catch (e) {
+          markerFejl(e instanceof Error ? e.message : String(e));
         }
       } else {
         setOwnCompanyId(null);
         setOwnCompanyName(null);
         setMembershipTier(null);
+        setCompanyResolution("none");
       }
     }
   };
@@ -300,6 +370,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           setOverrideCompanyId(null);
           setOverrideCompanyName(null);
           setMembershipTier(null);
+          setCompanyResolution("pending");
           setLoading(false);
         }
       }
@@ -328,7 +399,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       companyId, companyName,
       ownCompanyId, ownCompanyName,
       isCompanyOverride, needsOnboarding,
-      membershipTier,
+      membershipTier, companyResolution,
       setCompanyOverride, clearCompanyOverride, setOnboardingComplete,
       refreshProfile, signOut,
     }}>
