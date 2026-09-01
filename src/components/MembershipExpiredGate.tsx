@@ -1,8 +1,11 @@
+import "@/styles/hjemmebane.css";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import type { Betalingsmodel } from "@/lib/fornyelsespris";
+import { HbCard } from "@/components/hjemmebane/HbCard";
+import { HbButton } from "@/components/hjemmebane/HbButton";
 import { toast } from "sonner";
 import { Loader2, ArrowRight } from "lucide-react";
 
@@ -124,38 +127,35 @@ export default function MembershipExpiredGate() {
 
   if (offboardingDone) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background px-4">
+      <div className="theme-hjemmebane min-h-screen flex items-center justify-center bg-hb-paper font-body text-hb-ink antialiased px-4">
         <div className="max-w-md w-full text-center space-y-6">
-          <h1 className="text-2xl font-semibold text-foreground">
+          <h1 className="font-editorial text-2xl font-medium text-hb-ink">
             Tak for din tid hos The Boardroom
           </h1>
-          <p className="text-muted-foreground">
+          <p className="text-hb-ink-soft">
             Vi har modtaget din anmodning om sletning af data. Jonas kontakter dig
             inden for 2 hverdage for at bekræfte.
           </p>
-          <button
-            onClick={() => signOut()}
-            className="rounded-lg bg-primary text-primary-foreground px-6 py-2.5 text-sm font-medium hover:bg-primary/90 transition-colors"
-          >
+          <HbButton variant="primary" onClick={() => signOut()}>
             Log ud
-          </button>
+          </HbButton>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-background px-4 py-12">
+    <div className="theme-hjemmebane min-h-screen bg-hb-paper font-body text-hb-ink antialiased px-4 py-12">
       <div className="max-w-2xl mx-auto space-y-10">
         {/* Header */}
         <div className="text-center space-y-3">
-          <p className="text-sm uppercase tracking-widest text-muted-foreground font-medium">
+          <p className="text-sm uppercase tracking-widest text-hb-rust font-medium">
             The Boardroom
           </p>
-          <h1 className="text-3xl md:text-4xl font-semibold text-foreground">
+          <h1 className="font-editorial text-3xl md:text-4xl font-medium leading-tight text-hb-ink">
             Dit medlemskab er udløbet, {firstName}
           </h1>
-          <p className="text-muted-foreground max-w-lg mx-auto">
+          <p className="text-hb-ink-soft max-w-lg mx-auto">
             Dit forløb med The Boardroom er afsluttet. Vælg hvad der sker nu —
             din data er stadig her og venter på dig.
           </p>
@@ -169,7 +169,7 @@ export default function MembershipExpiredGate() {
               alt="Jonas Herlev"
               className="h-16 w-16 rounded-full object-cover mx-auto"
             />
-            <p className="text-sm text-foreground">Jonas</p>
+            <p className="text-sm text-hb-ink">Jonas</p>
           </div>
           <div className="text-center space-y-2">
             <img
@@ -177,7 +177,7 @@ export default function MembershipExpiredGate() {
               alt="Morten Larsen"
               className="h-16 w-16 rounded-full object-cover mx-auto"
             />
-            <p className="text-sm text-foreground">Morten</p>
+            <p className="text-sm text-hb-ink">Morten</p>
           </div>
         </div>
 
@@ -189,40 +189,49 @@ export default function MembershipExpiredGate() {
               pladsholder der foldede ud for den ene gruppe og kollapsede for
               den anden, ville lække dommen i selve overgangen — en overgang
               der kun sker for den ene gruppe, er i sig selv en besked. */}
+          {/* Samme ydre form for begge fornyelseskort: samme HbCard, samme
+              polstring, samme placering — kun indholdet varierer. Ordningens
+              §2 kræver at siden ser ens ud for alle uden tilbud, og en
+              forskel i kortets form ville kunne aflæses. Det gælder også
+              hover og markør, ikke kun form: begge kort er selv passive med
+              handlinger på knapper indeni — en forskel man kan MÆRKE (et
+              kort der reagerer på musen hvor det andet ikke gør) er også
+              en besked. */}
           {tilbud ? (
             /* Kortet er ikke længere ét link — det er en pris med tre
-               handlinger. Derfor en div uden hover-styling: intet må se
-               klikbart ud uden at være det. Handlingerne er knapperne. */
-            <div className="w-full rounded-xl border-2 border-primary/30 bg-primary/5 p-5">
+               handlinger. Derfor ingen link-hover på selve kortet: intet må
+               se klikbart ud uden at være det. Handlingerne er knapperne. */
+            <HbCard className="p-5">
               <div className="space-y-3">
-                <h3 className="text-lg font-semibold text-foreground">
+                <h3 className="font-editorial text-lg font-medium text-hb-ink">
                   Forny dit medlemskab
                 </h3>
-                <p className="text-3xl font-semibold text-foreground">
+                <p className="font-editorial text-4xl md:text-5xl font-medium text-hb-ink">
                   {kr(tilbud.grundbeloeb_oere)}{" "}
-                  <span className="text-base font-normal text-muted-foreground">
+                  <span className="font-body text-base font-normal text-hb-ink-soft">
                     kr. ekskl. moms
                   </span>
                 </p>
                 <div className="space-y-2">
                   {tilbud.muligheder.map((m) => (
-                    <button
+                    <HbButton
                       key={m.lookup_key}
+                      variant="secondary"
                       onClick={() => handleFornyelse(m.betalingsmodel)}
                       disabled={loadingFornyelse !== null}
-                      className="flex w-full items-center justify-between gap-3 rounded-lg border border-primary/30 bg-card px-4 py-2.5 text-left text-sm font-medium text-foreground hover:border-primary/60 hover:bg-primary/10 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+                      className="w-full justify-between text-left"
                     >
                       {beskrivMulighed(m)}
                       {loadingFornyelse === m.betalingsmodel ? (
-                        <Loader2 className="h-4 w-4 shrink-0 text-muted-foreground animate-spin" />
+                        <Loader2 className="h-4 w-4 shrink-0 text-hb-ink-soft animate-spin" />
                       ) : (
-                        <ArrowRight className="h-4 w-4 shrink-0 text-primary" />
+                        <ArrowRight className="h-4 w-4 shrink-0 text-hb-evergreen" />
                       )}
-                    </button>
+                    </HbButton>
                   ))}
                 </div>
               </div>
-            </div>
+            </HbCard>
           ) : (
             /* Uden tilbud. Dette kort vises både til medlemmer der ikke får
                tilbudt fornyelse og til dem hvor ingen beslutning er truffet —
@@ -230,99 +239,108 @@ export default function MembershipExpiredGate() {
                love et tilbud: en tekst der lover noget, ville gøre fraværet af
                tilbud til en besked i sig selv. Samme grund til det neutrale
                mail-subject "The Boardroom" frem for "Fornyelse af medlemskab". */
-            <a
-              href={`mailto:jonas@topix.dk?subject=${encodeURIComponent("The Boardroom")}`}
-              className="block w-full rounded-xl border-2 border-primary/30 bg-primary/5 p-5 hover:border-primary/60 hover:bg-primary/10 transition-all group"
-            >
-              <div className="flex items-start justify-between gap-4">
-                <div className="space-y-2 flex-1">
-                  <h3 className="text-lg font-semibold text-foreground">
-                    Vil du fortsætte?
-                  </h3>
-                  <p className="text-sm text-muted-foreground">
-                    Skriv til os, så tager vi en snak om mulighederne.
-                  </p>
-                </div>
-                <ArrowRight className="h-5 w-5 text-primary mt-1 group-hover:translate-x-1 transition-transform" />
+            <HbCard className="p-5">
+              <div className="space-y-3">
+                <h3 className="font-editorial text-lg font-medium text-hb-ink">
+                  Vil du fortsætte?
+                </h3>
+                <p className="text-sm text-hb-ink-soft">
+                  Skriv til os, så tager vi en snak om mulighederne.
+                </p>
+                <HbButton
+                  variant="secondary"
+                  onClick={() => {
+                    window.location.href = `mailto:jonas@topix.dk?subject=${encodeURIComponent("The Boardroom")}`;
+                  }}
+                  className="w-full justify-between text-left"
+                >
+                  Skriv til os
+                  <ArrowRight className="h-4 w-4 shrink-0 text-hb-evergreen" />
+                </HbButton>
               </div>
-            </a>
+            </HbCard>
           )}
 
           {/* Path 2: Self-serve subscription — "The Boardroom — dine tal".
               Beløbet skal stemme med prisen bag lookup_key
               "abonnement_maanedlig" på den aktive Stripe-konto. Ændres
               prisen i Stripe, skal teksten ændres her. */}
-          <button
-            onClick={handleSubscribe}
-            disabled={loadingCheckout}
-            className="block w-full text-left rounded-xl border border-border bg-card p-5 hover:border-foreground/30 hover:bg-muted/30 transition-all group disabled:opacity-60 disabled:cursor-not-allowed"
-          >
-            <div className="flex items-start justify-between gap-4">
-              <div className="space-y-2 flex-1">
-                <h3 className="text-lg font-semibold text-foreground">
-                  Behold adgang til dine tal og din historik
-                </h3>
-                <p className="text-sm text-muted-foreground">
-                  Fortsæt med at uploade rapporter, følge dine KPI'er og bruge
-                  AI-analysen. Uden personlig rådgivning.
-                </p>
-                <p className="text-sm font-medium text-foreground">
-                  399 kr./md. ekskl. moms — opsig når som helst
-                </p>
-              </div>
-              {loadingCheckout ? (
-                <Loader2 className="h-5 w-5 text-muted-foreground mt-1 animate-spin" />
-              ) : (
-                <ArrowRight className="h-5 w-5 text-muted-foreground mt-1 group-hover:translate-x-1 transition-transform" />
-              )}
-            </div>
-          </button>
-
-          {/* Path 3: Offboard */}
-          {!showOffboardConfirm ? (
+          <HbCard className="p-0">
             <button
-              onClick={() => setShowOffboardConfirm(true)}
-              className="block w-full text-left rounded-xl border border-border/50 bg-transparent p-5 hover:bg-muted/30 transition-all group"
+              onClick={handleSubscribe}
+              disabled={loadingCheckout}
+              className="block w-full text-left p-5 group disabled:opacity-60 disabled:cursor-not-allowed"
             >
               <div className="flex items-start justify-between gap-4">
                 <div className="space-y-2 flex-1">
-                  <h3 className="text-base font-semibold text-foreground">
-                    Farvel og tak
+                  <h3 className="font-editorial text-lg font-medium text-hb-ink">
+                    Behold adgang til dine tal og din historik
                   </h3>
-                  <p className="text-sm text-muted-foreground">
-                    Slet din data og luk din konto. Vi sender en bekræftelse og
-                    håndterer det inden for 2 hverdage.
+                  <p className="text-sm text-hb-ink-soft">
+                    Fortsæt med at uploade rapporter, følge dine KPI'er og bruge
+                    AI-analysen. Uden personlig rådgivning.
+                  </p>
+                  <p className="text-sm font-medium text-hb-ink">
+                    399 kr./md. ekskl. moms — opsig når som helst
                   </p>
                 </div>
-                <ArrowRight className="h-5 w-5 text-muted-foreground mt-1 group-hover:translate-x-1 transition-transform" />
+                {loadingCheckout ? (
+                  <Loader2 className="h-5 w-5 text-hb-ink-soft mt-1 animate-spin" />
+                ) : (
+                  <ArrowRight className="h-5 w-5 text-hb-ink-soft mt-1 group-hover:translate-x-1 transition-transform" />
+                )}
               </div>
             </button>
+          </HbCard>
+
+          {/* Path 3: Offboard */}
+          {!showOffboardConfirm ? (
+            <HbCard className="p-0">
+              <button
+                onClick={() => setShowOffboardConfirm(true)}
+                className="block w-full text-left p-5 group"
+              >
+                <div className="flex items-start justify-between gap-4">
+                  <div className="space-y-2 flex-1">
+                    <h3 className="font-editorial text-base font-medium text-hb-ink">
+                      Farvel og tak
+                    </h3>
+                    <p className="text-sm text-hb-ink-soft">
+                      Slet din data og luk din konto. Vi sender en bekræftelse og
+                      håndterer det inden for 2 hverdage.
+                    </p>
+                  </div>
+                  <ArrowRight className="h-5 w-5 text-hb-ink-soft mt-1 group-hover:translate-x-1 transition-transform" />
+                </div>
+              </button>
+            </HbCard>
           ) : (
-            <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-5 space-y-3">
-              <p className="text-sm font-medium text-foreground">
+            <HbCard className="p-5 space-y-3 border-destructive/30 bg-destructive/5">
+              <p className="text-sm font-medium text-hb-ink">
                 Er du sikker? Din data kan ikke gendannes.
               </p>
               <div className="flex gap-2">
                 <button
                   onClick={handleOffboard}
-                  className="flex-1 rounded-lg bg-destructive text-destructive-foreground text-sm font-medium py-2 hover:bg-destructive/90 transition-colors"
+                  className="flex-1 rounded-full bg-destructive text-destructive-foreground text-sm font-medium py-2 hover:bg-destructive/90 transition-colors"
                 >
                   Ja, slet min data
                 </button>
-                <button
+                <HbButton
+                  variant="secondary"
                   onClick={() => setShowOffboardConfirm(false)}
-                  className="flex-1 rounded-lg border border-border text-sm font-medium py-2 hover:bg-muted/50 transition-colors"
+                  className="flex-1"
                 >
                   Annuller
-                </button>
+                </HbButton>
               </div>
-            </div>
+            </HbCard>
           )}
         </div>
 
-        <p className="text-center text-sm text-muted-foreground">
+        <p className="text-center text-sm text-hb-ink-soft">
           Spørgsmål? Skriv til{" "}
-          <a href="mailto:jonas@topix.dk" className="text-primary hover:underline">
+          <a href="mailto:jonas@topix.dk" className="text-hb-evergreen hover:underline">
             jonas@topix.dk
           </a>
         </p>
