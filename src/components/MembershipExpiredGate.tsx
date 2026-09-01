@@ -1,14 +1,65 @@
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import type { Betalingsmodel } from "@/lib/fornyelsespris";
 import { toast } from "sonner";
-import { Loader2, ArrowRight, CalendarDays } from "lucide-react";
+import { Loader2, ArrowRight } from "lucide-react";
+
+interface FornyelsesMulighed {
+  betalingsmodel: Betalingsmodel;
+  samlet_oere: number;
+  rate_oere: number;
+  antal_traek: number;
+  lookup_key: string;
+}
+
+interface Fornyelsestilbud {
+  grundbeloeb_oere: number;
+  muligheder: FornyelsesMulighed[];
+}
+
+// Øre → dansk kronestreng. Hele beløb uden decimaler ("2.000"), skæve med
+// to ("2.187,50") — ører må ikke forsvinde i formateringen.
+function kr(oere: number): string {
+  const kroner = oere / 100;
+  return new Intl.NumberFormat("da-DK", {
+    minimumFractionDigits: Number.isInteger(kroner) ? 0 : 2,
+    maximumFractionDigits: 2,
+  }).format(kroner);
+}
+
+function beskrivMulighed(m: FornyelsesMulighed): string {
+  switch (m.betalingsmodel) {
+    case "fuld":
+      return "Betal på én gang";
+    case "rate2":
+      return `2 rater à ${kr(m.rate_oere)} kr. — nu og om 6 måneder`;
+    case "rate12":
+      return `12 rater à ${kr(m.rate_oere)} kr. — i alt ${kr(m.samlet_oere)} kr.`;
+  }
+}
 
 export default function MembershipExpiredGate() {
   const { companyId, profile, signOut } = useAuth();
   const [loadingCheckout, setLoadingCheckout] = useState(false);
   const [offboardingDone, setOffboardingDone] = useState(false);
   const [showOffboardConfirm, setShowOffboardConfirm] = useState(false);
+
+  // Serverside afgørelse: hent-fornyelsestilbud tager ingen parametre —
+  // virksomheden udledes af kalderen, og beslutningen (company_fornyelse,
+  // advisor-only) når aldrig browseren; her kendes kun resultatet.
+  // Fejl behandles som "intet tilbud": et udløbet medlem skal møde noget
+  // der virker, aldrig en fejlbesked.
+  const { data: tilbud = null } = useQuery({
+    queryKey: ["fornyelsestilbud"],
+    queryFn: async (): Promise<Fornyelsestilbud | null> => {
+      const { data, error } = await supabase.functions.invoke("hent-fornyelsestilbud");
+      if (error) throw error;
+      return (data?.tilbud ?? null) as Fornyelsestilbud | null;
+    },
+    staleTime: 5 * 60_000,
+  });
 
   const firstName = profile?.full_name?.split(" ")[0] || "dig";
 
@@ -99,29 +150,65 @@ export default function MembershipExpiredGate() {
 
         {/* Three paths */}
         <div className="space-y-3">
-          {/* Path 1: Renew full membership — prisen er individuel (50% af den
-              oprindelige aftale) og vedligeholdes uden for systemet, så kortet
-              viser ingen tal og åbner i stedet en mail til rådgiveren. */}
-          <a
-            href="mailto:jonas@topix.dk?subject=Fornyelse%20af%20medlemskab"
-            className="block w-full rounded-xl border-2 border-primary/30 bg-primary/5 p-5 hover:border-primary/60 hover:bg-primary/10 transition-all group"
-          >
-            <div className="flex items-start justify-between gap-4">
-              <div className="space-y-2 flex-1">
-                <span className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-primary bg-primary/10 px-2 py-0.5 rounded">
-                  <CalendarDays className="h-3 w-3" />
-                  Anbefalet
-                </span>
+          {/* Path 1: Fornyelse — afgøres serverside af hent-fornyelsestilbud.
+              Bevidst INGEN indlæsningstilstand: udgangstilstanden er kortet
+              uden tilbud, som kun erstattes hvis der kommer et tilbud. En
+              pladsholder der foldede ud for den ene gruppe og kollapsede for
+              den anden, ville lække dommen i selve overgangen — en overgang
+              der kun sker for den ene gruppe, er i sig selv en besked. */}
+          {tilbud ? (
+            <a
+              href={`mailto:jonas@topix.dk?subject=${encodeURIComponent("Fornyelse af medlemskab")}&body=${encodeURIComponent("Sig til, så sender vi betalingslinket.")}`}
+              className="block w-full rounded-xl border-2 border-primary/30 bg-primary/5 p-5 hover:border-primary/60 hover:bg-primary/10 transition-all group"
+            >
+              <div className="space-y-3">
                 <h3 className="text-lg font-semibold text-foreground">
-                  Forny dit fulde medlemskab
+                  Forny dit medlemskab
                 </h3>
-                <p className="text-sm text-muted-foreground">
-                  Din fornyelsespris afhænger af din oprindelige aftale. Skriv til os, så vender vi tilbage med dit tilbud.
+                <p className="text-3xl font-semibold text-foreground">
+                  {kr(tilbud.grundbeloeb_oere)}{" "}
+                  <span className="text-base font-normal text-muted-foreground">
+                    kr. ekskl. moms
+                  </span>
+                </p>
+                <ul className="space-y-1">
+                  {tilbud.muligheder.map((m) => (
+                    <li key={m.lookup_key} className="text-sm text-muted-foreground">
+                      {beskrivMulighed(m)}
+                    </li>
+                  ))}
+                </ul>
+                {/* Ingen betalingsknap endnu — betalingsvejen findes ikke. */}
+                <p className="flex items-center gap-2 text-sm font-medium text-primary">
+                  Sig til, så sender vi betalingslinket.
+                  <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform" />
                 </p>
               </div>
-              <ArrowRight className="h-5 w-5 text-primary mt-1 group-hover:translate-x-1 transition-transform" />
-            </div>
-          </a>
+            </a>
+          ) : (
+            /* Uden tilbud. Dette kort vises både til medlemmer der ikke får
+               tilbudt fornyelse og til dem hvor ingen beslutning er truffet —
+               de to grupper skal se NØJAGTIG det samme. Teksten må derfor ikke
+               love et tilbud: en tekst der lover noget, ville gøre fraværet af
+               tilbud til en besked i sig selv. Samme grund til det neutrale
+               mail-subject "The Boardroom" frem for "Fornyelse af medlemskab". */
+            <a
+              href={`mailto:jonas@topix.dk?subject=${encodeURIComponent("The Boardroom")}`}
+              className="block w-full rounded-xl border-2 border-primary/30 bg-primary/5 p-5 hover:border-primary/60 hover:bg-primary/10 transition-all group"
+            >
+              <div className="flex items-start justify-between gap-4">
+                <div className="space-y-2 flex-1">
+                  <h3 className="text-lg font-semibold text-foreground">
+                    Vil du fortsætte?
+                  </h3>
+                  <p className="text-sm text-muted-foreground">
+                    Skriv til os, så tager vi en snak om mulighederne.
+                  </p>
+                </div>
+                <ArrowRight className="h-5 w-5 text-primary mt-1 group-hover:translate-x-1 transition-transform" />
+              </div>
+            </a>
+          )}
 
           {/* Path 2: Self-serve subscription */}
           <button
