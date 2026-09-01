@@ -275,27 +275,57 @@ uforståelig.
 Eget spor med egen recon. Forudsætter at rapporteringen virker for
 flere end de 56 % der bruger den i dag.
 
-### C13 — To ting chatten mister ved at flytte ind i Hb-skallen
+### C13 — Feedback-knappen genindføres IKKE
 
-Målt ved C4 trin 1 (PR: chat i Hb-skallen). AppLayouts fullscreen-gren
-bar to elementer som HbMemberShell ikke har:
+**Afgjort 1/9. Præmissen var forkert, og målingen ændrer dommen.**
 
-**FeedbackButton.** Chatten er den flade 88 % af medlemmerne bruger —
-den bedste feedback-indgang platformen har. Knappen findes ikke på
-NOGEN Hb-flade, så det er ikke en konvertering men et tab. Skal
-genindføres i Hb-form; hvor den hører hjemme (chatten alene,
-HbMemberShell generelt) er ikke afgjort.
+C13 påstod oprindeligt at chatten mistede feedback-knappen ved
+flytningen til Hb-skallen. Det passer ikke: `FeedbackButton.tsx:12-13`
+har altid haft `if (isChatRoute) return null`. Knappen har aldrig været
+synlig i chatten, og undtagelsen var formentlig bevidst — en flydende
+FAB oven på en composer er støj.
 
-**Exit-banneret fra "Se som medlem".** Rådgiveren mister vejen ud af
-medlemsvisning på netop /chat, hvor de bliver længst. De kan skifte
-tilbage fra andre sider, så det er en irritation, ikke en fælde.
-Hører i rådgiver-epicen, hvor "Se som medlem" bor.
+Det reelle tab var større og skete tidligere: da forsiden, KPI,
+Rapportering, Budget og Handouts GO'ede over i HbMemberShell i august,
+forsvandt knappen fra alle medlemmets kerne-flader. I dag ses den kun
+på rest-siderne: /milestones, /pulse, /settings, /guide, /legat.
 
-Dertil to mindre, bogført så de ikke opdages som fejl:
-loading-grenen ligger fortsat i AppLayout og deles mellem roller, så
-medlemmet ser et kort glimt af den gamle skal under indlæsning; og
-abonnent-muren får main'ens py-10/14 oven i sin egen py-12, indtil
-dens udtryk konverteres.
+**Men målingen 1/9 vælter genindførelsen:**
+
+| måned | stykker |
+|---|---|
+| marts 2026 | 10 |
+| april 2026 | 1 |
+| maj 2026 | 1 |
+| juni–august | 0 |
+
+Tolv stykker i alt, intet siden maj. Knappen holdt op med at blive
+brugt tre måneder FØR GO'erne fjernede den. GO'erne var ikke årsagen —
+de fjernede en knap ingen længere trykkede på.
+
+Til sammenligning: 564 menneskebeskeder i chatten. Feedback-fladen er
+ikke en manglende knap, den er en kanal der har tabt til en bedre.
+
+En flydende knap der ikke er brugt i fire måneder, bliver ikke brugt
+igen af at flytte til en ny skal. At genindføre den ville være arbejde
+der ser ud som fremskridt.
+
+**Hvis I vil høre mere fra medlemmerne**, er svaret ikke en knap. Det
+er at spørge i et øjeblik hvor nogen lige har gjort noget — ét tryk,
+valgfrit, i fuldførelsesøjeblikket. Det hører til nudge-sporet (C6),
+ikke her.
+
+Kæden bag knappen er i øvrigt hel og fungerer: klient-insert i
+`feedback`, Slack-notifikation, admin-kø på `/admin/feedback`. Den
+skal ikke rives ned — de gamle rest-sider bærer den fortsat, og
+modtagerfladen læser stadig.
+
+**Dertil to mindre fra flytningen, bogført så de ikke opdages som
+fejl:** rådgiverens exit-banner fra "Se som medlem" mangler på /chat
+(hører i rådgiver-epicen); loading-grenen ligger fortsat i AppLayout og
+deles mellem roller, så medlemmet ser et kort glimt af den gamle skal
+under indlæsning; og abonnent-muren får main'ens py-10/14 oven i sin
+egen py-12, indtil dens udtryk konverteres.
 
 ---
 
@@ -335,4 +365,4 @@ rådgiver-epicen.
    onboarding (C6) — eget spor.
 
 Besvaret 31/8: kvitteringerne slettes (C2), session_prep fjernes
-helt (C3).
+helt (C3). Afgjort 1/9: feedback-knappen genindføres ikke (C13).
