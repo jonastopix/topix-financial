@@ -148,6 +148,18 @@ To beslutninger i opsætningen der skal forstås, ikke bare kendes:
   for evigt. Det er den farligste enkeltdetalje i opsætningen og skal
   have en test.
 
+  **Stedet er vigtigt:** `cancel_at` kan IKKE sættes fra Checkout —
+  `subscription_data[cancel_at]` findes ikke som parameter, og Stripe
+  afviser den med `parameter_unknown` (målt i produktion 1/9). Ophøret
+  sættes i stedet af `stripe-webhook` på det oprettede abonnement, ud
+  fra abonnementets faktiske `start_date`.
+
+  Regnestykket: rate12 trækker i måned 0–11, rate2 i måned 0 og 6, og
+  næste træk ville i begge tilfælde falde i måned 12. `cancel_at` =
+  start + 12 måneder MINUS 1 dag rammer efter sidste aftalte træk og
+  før det næste. En tidligere version brugte PLUS 1 dag — den ville
+  have givet rate12 et trettende træk.
+
 ## 8. Migrationen af de eksisterende — besluttet 1/9
 
 **Alle atten aktive abonnementer flyttes til den nye konto**, frem for
@@ -220,18 +232,23 @@ dommen skal stå ét sted. **Ikke bygget endnu.**
 
 ## 10. Åbne punkter
 
-- **Betalingsvejen:** checkout mod den nye konto + webhook der
-  forlænger kontrakten og skriver perioden. Kræver secret-key-cutover,
-  som samtidig flytter 1:1-sessionen og exit-abonnementet.
 - **Prisen for 3.500-kohorten:** oprettes i det nye katalog, eller
   flyttes de tretten først ved fornyelse. Blokerer migrationens trin b.
 - **Circles adgangskobling** ved annullering af et abonnement: ikke
   målt.
 - **Nordic By Hand skal importeres** — startede 1/9, ingen
   platformrække.
+- **Checkout-sidens tekst ved rater:** Stripes standardtekst siger
+  «indtil du opsiger» og «faktureres månedligt», men abonnementet
+  stopper faktisk af sig selv efter tolv træk. Produktbeskrivelsen bør
+  sige det tydeligere.
+- **`handleSubscribe` i `MembershipExpiredGate`** viser `err.message`
+  direkte til medlemmet — en teknisk fejlbesked på den side hvor nogen
+  lige har mistet sin adgang. Bør erstattes af en menneskelig besked,
+  som `handleFornyelse` allerede gør.
 - **Hjemmebane-konvertering** af `MembershipExpiredGate`.
-- **Tilbuds-grenen i gaten** er bygget og typechecket, men UPRØVET i
-  drift: der findes ingen virksomhed med beslutning `tilbyd` endnu.
+- **Betalingslink til nye medlemmer,** så Circles paywall er ude af
+  indgangen.
 - **`create-subscription-checkout`:** adgangstjekket er rettet og læst
   linje for linje, men ikke bevist i drift — det kræver et
   medlems-token.
@@ -241,3 +258,37 @@ dommen skal stå ét sted. **Ikke bygget endnu.**
 - **e-conomic-kobling:** eget spor efter fornyelseskæden.
   Fallback-fakturaer skal gå gennem Stripe Invoicing, ikke uden om
   Stripe — ellers fyrer webhooken ikke, og kontrakten forlænges ikke.
+
+## 11. Fornyelses-abonnementer rører ikke subscription_status
+
+Alle tre subscription-lifecycle-grene i `stripe-webhook` (`created`,
+`updated`, `deleted`) springer over når `sub.metadata.art ===
+"fornyelse"`.
+
+Begrundelse: `subscription_status` på `companies` er forbeholdt
+exit-abonnementet. En ratebetalt fornyelse ville ellers få virksomheden
+til at fremstå som selvbetjenende abonnent (tier «subscriber» i stedet
+for fuldt medlem) — og et fornyelses-abonnement der rammer sit
+`cancel_at` efter tolv træk, ville skrive «cancelled» på en virksomhed
+der lige har haft et normalt medlemsår. Adgangen ved fornyelse bæres af
+`contract_end_date`, ikke af abonnementsfeltet.
+
+## 12. Kæden er bevist i produktion 1/9
+
+Testen kørte på testvirksomheden «Jonas legat» med indgangspris 30.000,
+fornyelse 15.000, betalt i tolv rater. Gennemført betaling på 1.640,63
+kr. (1.312,50 + moms), refunderet bagefter.
+
+Målt serverside:
+
+- `company_perioder`: 2026-09-01 → 2027-09-01, `beloeb_oere` 1575000 —
+  den samlede sum INKLUSIVE 5 %-tillægget, ikke grundbeløbet — rate12,
+  fornyelse, med checkout-sessionens id som `stripe_reference`.
+- `companies.contract_end_date` rykket til 2027-09-01.
+- Abonnementets `cancel_at` sat 364 dage efter `start_date`, 23
+  sekunder efter oprettelsen — altså af webhooken.
+- `companies.subscription_status` forblev NULL gennem hele
+  livscyklussen, også efter annulleringen.
+
+Al testdata er rullet tilbage, verificeret: nul perioder, nul
+beslutninger, slutdato og indgangspris NULL, legat-status genoprettet.
