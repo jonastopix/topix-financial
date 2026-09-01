@@ -292,3 +292,50 @@ Målt serverside:
 
 Al testdata er rullet tilbage, verificeret: nul perioder, nul
 beslutninger, slutdato og indgangspris NULL, legat-status genoprettet.
+
+---
+
+# Rettelse 1/9 — indgangsprisens kilde
+
+## Hvad der stod forkert
+
+Afsnit 2 beskriver backfill'en som «indgangspris = fornyelsespris × 2».
+Tallene er rigtige, men **metoden er ikke en kilde og må ikke gentages.**
+
+`Pris på forlængelse` på Monday er en midlertidig kolonne, der forsvinder
+når platformen overtager fornyelsen. At udlede indgangsprisen af den er
+at regne årsagen ud af virkningen — og det holder kun så længe
+50 %-reglen aldrig fraviges. Nordic By Hand er allerede undtagelsen (ind
+til 40.000 ved en bevidst beslutning); det var tilfældigt at deres
+fornyelse på 20.000 gav det rigtige tal tilbage.
+
+Backfill'en af de 33 var en ENGANGSREKONSTRUKTION af historiske data,
+foretaget fordi indgangsprisen ikke fandtes nogen steder. Den er
+afsluttet.
+
+## Hvor indgangsprisen kommer fra fremover
+
+**Fra betalingen.** Når et nyt medlem betaler, kender systemet præcis
+hvilken pris de valgte, og grundbeløbet står i prisens metadata:
+
+| lookup_key | `metadata.grundbeloeb` | `indgangspris_oere` |
+|---|---|---|
+| `nyt_50000_fuld` / `_rate2` / `_rate12` | 50000 | 5000000 |
+| `nyt_40000_fuld` / `_rate2` / `_rate12` | 40000 | 4000000 |
+
+Webhooken skal skrive feltet ved indgangsbetalingen. **Den gren findes
+ikke endnu** — fornyelsesgrenen rører ikke indgangsprisen, fordi en
+fornyelse ikke ændrer den. Den hører til indgangens kæde, se
+`docs/indgangen-design.md`.
+
+## Reglen der ikke må glemmes
+
+`indgangspris_oere` er **listeprisen**, ikke det betalte beløb.
+Ratetillægget på 5 % er finansiering, ikke pris. En der betaler 52.500 i
+tolv rater er kommet ind på 50.000 og fornyer til 25.000 — ikke 26.250.
+
+## Indtil grenen er bygget
+
+Nye medlemmers indgangspris sættes i hånden, ud fra hvilken pris de
+betalte — ALDRIG ud fra Monday-kolonnen. Er der givet en specialpris,
+er det den aftalte listepris der skal stå, ikke summen af raterne.
