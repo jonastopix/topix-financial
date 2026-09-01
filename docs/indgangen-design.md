@@ -178,3 +178,58 @@ Dokumentets oprindelige åbne punkter er siden lukket:
   betaling (§3).
 - **Efter de 30 dage:** faktura på det fulde beløb via Stripe
   Invoicing på dag 31; aftalen bortfalder ikke (§4).
+
+## 11. Sådan bygges påmindelserne — recon 1/9
+
+Mønsteret findes allerede i huset. `intro-reminder-cron` er det
+nærmeste forlæg: samme opgave (find virksomheder hvor en frist nærmer
+sig, send en mail, husk at den er sendt), og den skal KOPIERES frem for
+at opfindes igen. `legat-reminder-cron` er en anden kandidat — ikke
+læst.
+
+**Målt i repoet:**
+
+- **Send-vejen:** indsæt i `email_send_log` med status «pending»,
+  derefter `rpc("enqueue_email", { queue_name: "transactional_emails",
+  payload })` med `message_id` som både `message_id` og
+  `idempotency_key`.
+- **Fejler enqueue, må tidsstemplet IKKE opdateres** — så prøves
+  mailen igen næste dag frem for at forsvinde. Det er eksplicit i
+  `intro-reminder-cron` linje 220.
+- **Kadencen styres af et tidsstempelfelt på `companies`,** ikke af en
+  tæller. Forlæg: `intro_reminder_last_sent_at`.
+- **Afsender:** «Morten fra The Boardroom <noreply@boardroom.topix.dk>».
+  Bemærk at domænet stadig er topix.dk — værd at overveje ved
+  Forside-GO, men ikke ændret her.
+- **Opt-out** læses fra `profiles.notification_email_prefs`.
+- **Funktionen er Bucket B:** `authenticateServiceRole` bag
+  `verify_jwt = true`.
+
+**Tørkørsel som standard — vigtigst:** uden body sender funktionen
+INTET; den finder kandidaterne og logger dem. Kun et eksplicit
+`{ "dry_run": false }` slår afsendelse til. Det betyder at målgruppen
+kan bevises på rigtige data uden at nogen får en mail, og at et
+fejlkald aldrig sender noget. Samme mønster som
+`nudge-report-no-reflection`.
+
+**Advarsel — den fejl der ikke må gentages:** `intro-reminder-cron`
+havde oprindeligt kun `Deno.cron` og ingen HTTP-overflade. `Deno.cron`
+eksekveres ALDRIG på Supabases edge-runtime, så funktionen kørte
+aldrig, og `intro_reminder_last_sent_at` er NULL for alle virksomheder.
+Påmindelser SKAL have en HTTP-indgang og planlægges med pg_cron.
+
+**Cron-slots** (kortlagt 1/9 i migration 20260901090000): 04:00
+opgave-udløb · 05:00 agent-runs-opbevaring · 06:00
+generate-weekly-focus (mandag) · 07:00 event-reminders · 08:00
+send-pulse-reminder (d. 10) og send-monthly-digest (d. 22) · 09:00
+daily-report-reminder + daily-reflection-nudge.
+
+**ÅBENT:** hvilket slot betalingspåmindelserne skal have. 10:00 ser
+ledigt ud, men det skal måles mod `cron.job` før det vælges.
+
+**Overvej ren SQL-cron i stedet:** migration 20260901090000
+argumenterer for at en simpel dagsregel hører til som ren SQL-cron frem
+for en edge function — edge-vejen er fem fejlkilder (URL, vault-nøgle,
+verify_jwt, deploy, og en ny funktion der ikke auto-deployer). Men
+påmindelserne skal SENDE mails, ikke kun opdatere en status, så
+edge-vejen er formentlig nødvendig her. Ikke afgjort.
