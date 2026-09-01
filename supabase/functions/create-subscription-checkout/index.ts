@@ -1,37 +1,24 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
+// Creates a Stripe Checkout session (subscription mode) for a company.
+//
+// Bucket A: authenticateUser → callerClient SELECT on companies (RLS gate)
+// → Stripe call. RLS on `companies` already encodes "who may act for this
+// company" (member of the company, or advisor via the advisor-wide read
+// policy), so re-using it as the gate keeps the security model in one place.
+// No service-role client is needed: the only DB reads (companies, own
+// profile) are both reachable through the caller's own RLS.
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
+import { authenticateUser, corsHeaders } from "../_shared/edgeFunctionAuth.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const authHeader = req.headers.get("Authorization");
-    if (!authHeader?.startsWith("Bearer ")) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+    // ── Auth (Bucket A) — MUST precede everything else ──
+    const auth = await authenticateUser(req);
+    if (auth instanceof Response) return auth;
+    const { callerId, callerClient } = auth;
 
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
-    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const stripeSecretKey = Deno.env.get("STRIPE_SECRET_KEY")!;
-
-    const authClient = createClient(supabaseUrl, anonKey, {
-      global: { headers: { Authorization: authHeader } },
-    });
-    const { data: { user }, error: userError } = await authClient.auth.getUser();
-    if (userError || !user) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    const adminClient = createClient(supabaseUrl, serviceKey);
 
     const { company_id } = await req.json();
     if (!company_id) {
@@ -40,12 +27,26 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Fetch existing stripe_customer_id if any
-    const { data: company } = await adminClient
+    // ── Authz via callerClient — RLS gates the company row ──
+    // company_id comes from the request body; without this check any logged-in
+    // member could start a subscription on another company's id. No row can
+    // mean "doesn't exist" or "RLS denied" — do NOT differentiate, that would
+    // leak existence info to unauthorised callers.
+    const { data: company, error: companyError } = await callerClient
       .from("companies")
       .select("stripe_customer_id, name")
       .eq("id", company_id)
       .maybeSingle();
+
+    if (companyError) {
+      console.error("[create-subscription-checkout] company lookup failed:", companyError);
+      throw new Error("Company lookup failed");
+    }
+    if (!company) {
+      return new Response(JSON.stringify({ error: "Forbidden — no access to this company" }), {
+        status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     const APP_URL = "https://app.theboardroom.dk";
     const PRICE_ID = "price_1TOkf44DoYItGRbIsXHMPhBq";
@@ -57,18 +58,31 @@ Deno.serve(async (req) => {
       "line_items[0][quantity]": "1",
       "success_url": `${APP_URL}/?subscription=success`,
       "cancel_url": `${APP_URL}/?subscription=cancelled`,
-      "customer_email": user.email!,
       "automatic_tax[enabled]": "true",
       "tax_id_collection[enabled]": "true",
-      "metadata[user_id]": user.id,
+      "metadata[user_id]": callerId,
       "metadata[company_id]": company_id,
       "subscription_data[metadata][company_id]": company_id,
     });
 
-    // Reuse existing Stripe customer if we have one
-    if (company?.stripe_customer_id) {
+    // Reuse existing Stripe customer if we have one; otherwise Checkout needs
+    // the caller's e-mail, read from their own profile (self-only RLS).
+    // profiles.email is nullable — fail loudly if it's missing rather than
+    // sending an empty string: Stripe accepts that silently, the customer
+    // gets no receipt, and the gap would only surface with a human.
+    if (company.stripe_customer_id) {
       stripeBody.set("customer", company.stripe_customer_id);
-      stripeBody.delete("customer_email");
+    } else {
+      const { data: profile } = await callerClient
+        .from("profiles")
+        .select("email")
+        .eq("user_id", callerId)
+        .maybeSingle();
+      if (!profile?.email) {
+        console.error(`[create-subscription-checkout] no profile email for caller ${callerId}`);
+        throw new Error("Caller has no profile email — cannot create checkout without a receipt address");
+      }
+      stripeBody.set("customer_email", profile.email);
     }
 
     const stripeResponse = await fetch("https://api.stripe.com/v1/checkout/sessions", {
