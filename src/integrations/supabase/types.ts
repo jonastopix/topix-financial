@@ -675,7 +675,9 @@ export type Database = {
           cvr_number: string | null
           description: string | null
           end_date: string | null
+          fornyelsespris_oere: number | null
           id: string
+          indgangspris_oere: number | null
           industry: string | null
           industry_code: string | null
           industry_label: string | null
@@ -713,7 +715,9 @@ export type Database = {
           cvr_number?: string | null
           description?: string | null
           end_date?: string | null
+          fornyelsespris_oere?: number | null
           id?: string
+          indgangspris_oere?: number | null
           industry?: string | null
           industry_code?: string | null
           industry_label?: string | null
@@ -751,7 +755,9 @@ export type Database = {
           cvr_number?: string | null
           description?: string | null
           end_date?: string | null
+          fornyelsespris_oere?: number | null
           id?: string
+          indgangspris_oere?: number | null
           industry?: string | null
           industry_code?: string | null
           industry_label?: string | null
@@ -963,6 +969,56 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "company_members_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      company_perioder: {
+        Row: {
+          art: string
+          beloeb_oere: number
+          betalingsmodel: string
+          company_id: string
+          created_at: string
+          id: string
+          note: string | null
+          oprettet_af: string | null
+          periode_slut: string
+          periode_start: string
+          stripe_reference: string | null
+        }
+        Insert: {
+          art: string
+          beloeb_oere: number
+          betalingsmodel: string
+          company_id: string
+          created_at?: string
+          id?: string
+          note?: string | null
+          oprettet_af?: string | null
+          periode_slut: string
+          periode_start: string
+          stripe_reference?: string | null
+        }
+        Update: {
+          art?: string
+          beloeb_oere?: number
+          betalingsmodel?: string
+          company_id?: string
+          created_at?: string
+          id?: string
+          note?: string | null
+          oprettet_af?: string | null
+          periode_slut?: string
+          periode_start?: string
+          stripe_reference?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "company_perioder_company_id_fkey"
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
