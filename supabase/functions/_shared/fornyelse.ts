@@ -1,10 +1,13 @@
 /**
- * src/lib/fornyelse.ts
+ * supabase/functions/_shared/fornyelse.ts
  *
- * Spejlet i supabase/functions/_shared/fornyelse.ts — enhver ændring her
- * SKAL også laves der. Pariteten håndhæves af testen i
- * src/lib/__tests__/fornyelseParitet.test.ts. Importstien er den ENESTE
- * tilladte forskel mellem de to filer ud over filhovederne.
+ * Spejlet fra src/lib/fornyelse.ts — enhver ændring her SKAL også laves
+ * der. Pariteten håndhæves af testen i
+ * src/lib/__tests__/fornyelseParitet.test.ts.
+ *
+ * Kopien er IKKE ordret: importstien ("./membershipTier.ts" med
+ * filendelse, som Deno kræver) er den ENESTE tilladte forskel mellem de
+ * to filer ud over filhovederne.
  *
  * Ren, testbar afgørelse af en virksomheds fornyelsestilstand.
  * Samme mønster som deriveFocus og eventMeetPhase: ingen I/O, ingen
@@ -20,7 +23,7 @@
  * datoer, så tallet er det samme uanset maskinens tidszone (testene skal
  * bestå både lokalt og under TZ=UTC).
  */
-import { computeMembershipTier, type MembershipTier } from "./membershipTier";
+import { computeMembershipTier, type MembershipTier } from "./membershipTier.ts";
 
 /** Beslutningsvinduet: så mange dage (eller færre) før udløb kræves en beslutning. */
 export const FORNYELSES_VINDUE_DAGE = 60;
