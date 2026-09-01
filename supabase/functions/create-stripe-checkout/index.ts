@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
 import { computeMembershipTier } from "../_shared/membershipTier.ts";
+import { hentPrisId } from "../_shared/stripePris.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -85,7 +86,11 @@ Deno.serve(async (req) => {
     }
 
     const APP_URL = "https://app.theboardroom.dk";
-    const PRICE_ID = "price_1TJXmx4DoYItGRbIw9DSzmuW";
+    // Opslag paa lookup_key EFTER tier-kontrollen — intet Stripe-kald for en
+    // der alligevel afvises. Fejler opslaget, fejler funktionen; aldrig
+    // fallback til et hardkodet id (id'er er konto-specifikke, noegler er
+    // roller — se _shared/stripePris.ts).
+    const PRICE_ID = await hentPrisId("session_1on1", stripeSecretKey);
 
     // Create Stripe Checkout session
     const stripeBody = new URLSearchParams({

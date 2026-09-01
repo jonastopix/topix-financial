@@ -8,6 +8,7 @@
 // profile) are both reachable through the caller's own RLS.
 
 import { authenticateUser, corsHeaders } from "../_shared/edgeFunctionAuth.ts";
+import { hentPrisId } from "../_shared/stripePris.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -49,7 +50,11 @@ Deno.serve(async (req) => {
     }
 
     const APP_URL = "https://app.theboardroom.dk";
-    const PRICE_ID = "price_1TOkf44DoYItGRbIsXHMPhBq";
+    // Opslag på lookup_key EFTER adgangstjekket mod callerClient — intet
+    // Stripe-kald for en der alligevel afvises. Fejler opslaget, fejler
+    // funktionen; aldrig fallback til et hardkodet id (id'er er
+    // konto-specifikke, nøgler er roller — se _shared/stripePris.ts).
+    const PRICE_ID = await hentPrisId("abonnement_maanedlig", stripeSecretKey);
 
     // Build Stripe Checkout session (subscription mode)
     const stripeBody = new URLSearchParams({
