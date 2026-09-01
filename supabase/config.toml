@@ -129,3 +129,6 @@ project_id = "loiavmastgeieqyiwyyr"
   # Samme begrundelse som get-community-billed-url ovenfor.
   [functions.hent-fornyelsestilbud]
     verify_jwt = true
+  # Samme begrundelse som get-community-billed-url ovenfor.
+  [functions.opret-fornyelse-checkout]
+    verify_jwt = true
