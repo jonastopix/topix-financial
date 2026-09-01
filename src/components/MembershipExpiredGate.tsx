@@ -43,6 +43,7 @@ function beskrivMulighed(m: FornyelsesMulighed): string {
 export default function MembershipExpiredGate() {
   const { companyId, profile, signOut } = useAuth();
   const [loadingCheckout, setLoadingCheckout] = useState(false);
+  const [loadingFornyelse, setLoadingFornyelse] = useState<Betalingsmodel | null>(null);
   const [offboardingDone, setOffboardingDone] = useState(false);
   const [showOffboardConfirm, setShowOffboardConfirm] = useState(false);
 
@@ -74,6 +75,38 @@ export default function MembershipExpiredGate() {
     } catch (err: any) {
       toast.error("Noget gik galt", { description: err.message });
       setLoadingCheckout(false);
+    }
+  };
+
+  const handleFornyelse = async (betalingsmodel: Betalingsmodel) => {
+    setLoadingFornyelse(betalingsmodel);
+    try {
+      const { data, error } = await supabase.functions.invoke("opret-fornyelse-checkout", {
+        body: { betalingsmodel },
+      });
+      if (error) {
+        // 403-beskeden "Fornyelse er ikke tilgængelig." kan vises som den
+        // er — den rammes fx hvis beslutningen er trukket tilbage mens
+        // medlemmet sad på siden. Alt andet får en neutral besked; aldrig
+        // en teknisk fejlbesked til medlemmet.
+        let besked = "Noget gik galt — skriv til os, så hjælper vi dig videre.";
+        try {
+          const body = await (
+            error as { context?: { json: () => Promise<{ error?: string }> } }
+          ).context?.json();
+          if (body?.error === "Fornyelse er ikke tilgængelig.") besked = body.error;
+        } catch {
+          // uparsebart fejlsvar — behold den neutrale besked
+        }
+        toast.error(besked);
+        setLoadingFornyelse(null);
+        return;
+      }
+      if (!data?.url) throw new Error("Ingen checkout URL");
+      window.location.href = data.url;
+    } catch {
+      toast.error("Noget gik galt — skriv til os, så hjælper vi dig videre.");
+      setLoadingFornyelse(null);
     }
   };
 
@@ -157,10 +190,10 @@ export default function MembershipExpiredGate() {
               den anden, ville lække dommen i selve overgangen — en overgang
               der kun sker for den ene gruppe, er i sig selv en besked. */}
           {tilbud ? (
-            <a
-              href={`mailto:jonas@topix.dk?subject=${encodeURIComponent("Fornyelse af medlemskab")}&body=${encodeURIComponent("Sig til, så sender vi betalingslinket.")}`}
-              className="block w-full rounded-xl border-2 border-primary/30 bg-primary/5 p-5 hover:border-primary/60 hover:bg-primary/10 transition-all group"
-            >
+            /* Kortet er ikke længere ét link — det er en pris med tre
+               handlinger. Derfor en div uden hover-styling: intet må se
+               klikbart ud uden at være det. Handlingerne er knapperne. */
+            <div className="w-full rounded-xl border-2 border-primary/30 bg-primary/5 p-5">
               <div className="space-y-3">
                 <h3 className="text-lg font-semibold text-foreground">
                   Forny dit medlemskab
@@ -171,20 +204,25 @@ export default function MembershipExpiredGate() {
                     kr. ekskl. moms
                   </span>
                 </p>
-                <ul className="space-y-1">
+                <div className="space-y-2">
                   {tilbud.muligheder.map((m) => (
-                    <li key={m.lookup_key} className="text-sm text-muted-foreground">
+                    <button
+                      key={m.lookup_key}
+                      onClick={() => handleFornyelse(m.betalingsmodel)}
+                      disabled={loadingFornyelse !== null}
+                      className="flex w-full items-center justify-between gap-3 rounded-lg border border-primary/30 bg-card px-4 py-2.5 text-left text-sm font-medium text-foreground hover:border-primary/60 hover:bg-primary/10 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+                    >
                       {beskrivMulighed(m)}
-                    </li>
+                      {loadingFornyelse === m.betalingsmodel ? (
+                        <Loader2 className="h-4 w-4 shrink-0 text-muted-foreground animate-spin" />
+                      ) : (
+                        <ArrowRight className="h-4 w-4 shrink-0 text-primary" />
+                      )}
+                    </button>
                   ))}
-                </ul>
-                {/* Ingen betalingsknap endnu — betalingsvejen findes ikke. */}
-                <p className="flex items-center gap-2 text-sm font-medium text-primary">
-                  Sig til, så sender vi betalingslinket.
-                  <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform" />
-                </p>
+                </div>
               </div>
-            </a>
+            </div>
           ) : (
             /* Uden tilbud. Dette kort vises både til medlemmer der ikke får
                tilbudt fornyelse og til dem hvor ingen beslutning er truffet —
