@@ -5,6 +5,7 @@ import "@/styles/hjemmebane.css";
 import AppLayout from "@/components/AppLayout";
 import AdvisorDashboard from "@/components/AdvisorDashboard";
 import MembershipExpiredGate from "@/components/MembershipExpiredGate";
+import CompanyLinkFailedGate from "@/components/CompanyLinkFailedGate";
 import { DashboardSkeleton } from "@/components/DashboardSkeleton";
 import { HbMemberShell } from "@/components/hjemmebane/HbMemberShell";
 import { BoardroomView } from "@/components/hjemmebane/boardroom/BoardroomView";
@@ -28,7 +29,7 @@ function getGreeting() {
 }
 
 const Dashboard = () => {
-  const { user, profile, companyId, isAdvisor: rawAdvisor, refreshProfile, membershipTier } = useAuth();
+  const { user, profile, companyId, isAdvisor: rawAdvisor, refreshProfile, membershipTier, companyResolution } = useAuth();
   const { viewingAsMember } = useViewMode();
   const isAdvisor = rawAdvisor && !viewingAsMember;
   const [searchParams, setSearchParams] = useSearchParams();
@@ -65,6 +66,14 @@ const Dashboard = () => {
   }, [shouldShowTour, tourTriggered]);
 
   const firstName = profile?.full_name?.split(" ")[0] || "dig";
+
+  /* Koblingen konto → virksomhed GIK GALT (ikke "ikke hentet endnu" —
+     useAuth skelner nu). Uden denne gren stod medlemmet på skelettet
+     nedenfor for evigt, for tier bliver aldrig sat uden virksomhed
+     (docs/indgangsfladen-design.md §5). Skal stå FØR skelettet. */
+  if (!rawAdvisor && companyResolution === "failed") {
+    return <CompanyLinkFailedGate />;
+  }
 
   /* Spinner mens auth-tieren afgøres — uden dette ville et udløbet
      medlem nå at se forsiden, før gaten nedenfor kan gribe ind. */
