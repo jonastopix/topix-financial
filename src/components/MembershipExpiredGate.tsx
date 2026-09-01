@@ -210,7 +210,10 @@ export default function MembershipExpiredGate() {
             </a>
           )}
 
-          {/* Path 2: Self-serve subscription */}
+          {/* Path 2: Self-serve subscription — "The Boardroom — dine tal".
+              Beløbet skal stemme med prisen bag lookup_key
+              "abonnement_maanedlig" på den aktive Stripe-konto. Ændres
+              prisen i Stripe, skal teksten ændres her. */}
           <button
             onClick={handleSubscribe}
             disabled={loadingCheckout}
@@ -219,14 +222,14 @@ export default function MembershipExpiredGate() {
             <div className="flex items-start justify-between gap-4">
               <div className="space-y-2 flex-1">
                 <h3 className="text-lg font-semibold text-foreground">
-                  Behold adgang til platformen
+                  Behold adgang til dine tal og din historik
                 </h3>
                 <p className="text-sm text-muted-foreground">
                   Fortsæt med at uploade rapporter, følge dine KPI'er og bruge
                   AI-analysen. Uden personlig rådgivning.
                 </p>
                 <p className="text-sm font-medium text-foreground">
-                  299 kr./md. — opsig når som helst
+                  399 kr./md. ekskl. moms — opsig når som helst
                 </p>
               </div>
               {loadingCheckout ? (
