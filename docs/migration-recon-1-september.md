@@ -226,3 +226,66 @@ dag.
 - Kobling til `companies.id` er IKKE lavet: tabellen ovenfor giver navn
   og mail, men ikke virksomhedens UUID. Det er et opslag på CVR eller
   mail i `companies` og hører til lige før flytningen.
+
+---
+
+# Tillæg 2 — rateoptællingen efterprøvet (1/9 kl. ~22)
+
+## 17. RETTELSE: kolonnen «rater igen» i §3 var én for høj
+
+Tallene i §3 og §15 blev udledt af afstanden mellem næste træk og
+`cancel_at`, med ophørsdatoen talt som et træk. **Det er den ikke.**
+
+Talt efter på doggybed (`sub_1SHhE5`) via alle fakturaer på
+abonnementet — elleve stk., `DZ7BZXM5-0001` til `-0011`, alle betalt:
+
+| rate | trukket | dækker til |
+|---|---|---|
+| 1 | 13/10-2025 | 13/11-2025 |
+| … | … | … |
+| 11 | 13/08-2026 | 13/09-2026 |
+| **12** | **13/09-2026** | **13/10-2026** ← kommer |
+
+`cancel_at` = 13/10-2026.
+
+**Reglen, nu bevist:** hver rate betales FORUD. Trækket 13/9 dækker
+13/9–13/10. Ophørsdatoen er derfor sidste dækkede dag, ikke en
+betalingsdag. Der sker ingen betaling på `cancel_at`.
+
+Og: medlemskabet og betalingsplanen slutter samme dag. doggybed kom ind
+13/10-2025, betaler tolv rater fra 13/10-2025 til 13/9-2026, og har
+adgang til 13/10-2026. Tolv rater, tolv måneder, ingen trettende.
+
+## 18. Den rettede oversigt — gældende
+
+| Virksomhed | abonnement | betaler | ny lookup_key | næste træk | ophør | rater igen | rest ekskl. moms |
+|---|---|---|---|---|---|---|---|
+| TuaMea Jewelry | `sub_1SwW1V` | 3.500 | `nyt_40000_rate12` | 02/09-2026 | 02/02-2027 | 5 | 17.500 |
+| Floren engros | `sub_1T6qX5` | 3.500 | `nyt_40000_rate12` | 03/09-2026 | 03/03-2027 | 6 | 21.000 |
+| BR Roset | `sub_1T6wlH` | 3.500 | `nyt_40000_rate12` | 03/09-2026 | 03/03-2027 | 6 | 21.000 |
+| Brick Works | `sub_1TJTJC` | 3.500 | `nyt_40000_rate12` | 07/09-2026 | 07/04-2027 | 7 | 24.500 |
+| ANLA A/S | `sub_1TUOmK` | 4.375 | `nyt_50000_rate12` | 07/09-2026 | 07/05-2027 | 8 | 35.000 |
+| doggybed | `sub_1SHhE5` | 3.500 | `nyt_40000_rate12` | 13/09-2026 | 13/10-2026 | 1 | 3.500 |
+| Launch Lab | `sub_1TiTS9` | 4.375 | `nyt_50000_rate12` | 15/09-2026 | 15/06-2027 | 9 | 39.375 |
+| Livja | `sub_1S7wf3` | 3.500 | `nyt_40000_rate12` | 16/09-2026 | 15/12-2026 | 3 | 10.500 |
+| Fjeldgaardshop.dk | `sub_1TCHhb` | 3.500 | `nyt_40000_rate12` | 18/09-2026 | 18/03-2027 | 6 | 21.000 |
+| KJ AUTO | `sub_1TZ6sv` | 1.312,50 | `fornyelse_15000_rate12` | 20/09-2026 | 20/05-2027 | 8 | 10.500 |
+| Homie | `sub_1TZ9gh` | 4.375 | `nyt_50000_rate12` | 20/09-2026 | 20/05-2027 | 8 | 35.000 |
+| Two Socks | `sub_1T4yFu` | 3.500 | `nyt_40000_rate12` | 26/09-2026 | 26/02-2027 | 5 | 17.500 |
+| WESDEX | `sub_1SuvT9` | 3.500 | `nyt_40000_rate12` | 29/09-2026 | 29/01-2027 | 4 | 14.000 |
+| YKRG APS | `sub_1TRWKT` | 4.375 | `nyt_50000_rate12` | 29/09-2026 | 29/04-2027 | 7 | 30.625 |
+
+**83 rater, 301.000 kr. ekskl. moms** i samlet udestående på de fjorten.
+
+## 19. Piloten: doggybed
+
+Optællingen ændrer valget. doggybed har **én rate tilbage på 3.500 kr.**
+og ophører 13/10-2026 uanset. Går flytningen galt, er det hele
+eksponeringen — mod 39.375 kr. og ni rater hos Launch Lab.
+
+Livja er næstbedst med tre rater og 10.500 kr.
+
+Bemærk at doggybed står som «Ikke forlænget» på Monday (beslutning
+truffet, jf. `docs/fornyelseskaeden-1-september.md`). At flytte dem
+giver stadig mening som pilot: den sidste rate skal opkræves uanset,
+og gebyret spares.
