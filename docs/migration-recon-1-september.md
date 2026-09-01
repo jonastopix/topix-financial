@@ -144,3 +144,85 @@ b. ÉN virksomhed flyttes som pilot. Vælg en med langt til næste træk:
 c. Bevis i drift: trækket gennemføres, beløbet er uændret, ophøret
    sidder.
 d. Derefter resten i portioner, aldrig alle på én dag.
+
+---
+
+# Tillæg — koblingen og målpriserne (1/9 kl. ~21.30)
+
+## 13. Hvem er de fjorten
+
+Kunderne bærer virksomhedsnavnet i `name` og kontaktpersonen i
+`description`. Koblingen er dermed direkte og kræver ingen gætteri.
+
+| abonnement | kunde | virksomhed | mail |
+|---|---|---|---|
+| `sub_1SwW1V` | `cus_TuKgyHwTAepIPF` | TuaMea Jewelry ApS | marianne@mmoelgaard.com |
+| `sub_1T6qX5` | `cus_U50Yf3DR2g2w02` | Floren engros | floren@mail.dk |
+| `sub_1T6wlH` | `cus_U56zOT7t4OGKPa` | BR Roset | bsl@larsen.dk |
+| `sub_1TJTJC` | `cus_UI3QrNMxLMXQ2M` | Brick Works ApS | caspar@brick-works.dk |
+| `sub_1TUOmK` | `cus_UTLT1NKgoDuzFo` | ANLA A/S | anders@anlaglas.com |
+| `sub_1SHhE5` | `cus_TE9XePd7bWBkaO` | doggybed | roskilde.dan@gmail.com |
+| `sub_1TiTS9` | `cus_UhtEkpmNL8TlrN` | Launch Lab ApS | daniel@launchlab.dk |
+| `sub_1S7wf3` | `cus_T44oqJhzxlpPCf` | Livja | skriv@livja.dk |
+| `sub_1TCHhb` | `cus_UAcxhBRUM4CJzw` | Fjeldgaardshop.dk | kontakt@fjeldgaardshop.dk |
+| `sub_1TZ6sv` | `cus_RvN8lZI83QVo8T` | KJ AUTO | per@kj-auto.dk |
+| `sub_1TZ9gh` | `cus_UYGBqhGIxGiqqF` | Homie Håndværkerservice ApS | nicolai@homie.nu |
+| `sub_1T4yFu` | `cus_U34O099qBoXAru` | Two Socks («TS Warehuose») | simon@simonfrimann.dk |
+| `sub_1SuvT9` | `cus_TsgqAg0mLpRdOn` | WESDEX | jonas@wesdex.dk |
+| `sub_1TRWKT` | `cus_UQN4yeWvSiDOJe` | YKRG APS | tapas@tapasamor.dk |
+
+**Bemærk WESDEX og Two Socks.** De er to af de fem virksomheder der
+manglede en række i `companies` (§4 i indgangens designdokument) — og
+de har betalt via Stripe hele tiden. De blev importeret 1/9. Det er
+belægget for at «findes ikke i platformen» og «betaler ikke» er to
+uafhængige ting.
+
+## 14. Rabatten løser sig selv — målt
+
+`sub_1TZ6sv` (KJ AUTO) bærer kuponen `TB2026V2`. Målt på faktura
+`in_1U6Sk24DoYItGRbIbhIgxYPy`:
+
+| | |
+|---|---|
+| listepris | 437.500 øre (4.375,00 kr.) |
+| rabat | 306.250 øre (3.062,50 kr.) |
+| efter rabat | **131.250 øre (1.312,50 kr.)** |
+| moms | 32.813 øre (328,13 kr.) |
+| i alt | 164.063 øre (1.640,63 kr.) |
+
+1.312,50 kr. er PRÆCIS prisen på `fornyelse_15000_rate12` i det nye
+katalog. KJ AUTO kom ind på 30.000 i 2025 og fornyede til 15.000 i
+tolv rater; paywallen implementerede det som listeprisen med en 70 %-
+kupon. På den nye konto flyttes de til fornyelsesprisen UDEN rabat.
+Kuponen skal ikke genskabes.
+
+## 15. Målpris pr. abonnement på den nye konto
+
+Alle på produktet `prod_VBBXP0VYDpEtek`.
+
+| abonnement(er) | betaler i dag | ny lookup_key | beløb |
+|---|---|---|---|
+| `sub_1SwW1V`, `sub_1T6qX5`, `sub_1T6wlH`, `sub_1TJTJC`, `sub_1SHhE5`, `sub_1S7wf3`, `sub_1TCHhb`, `sub_1T4yFu`, `sub_1SuvT9` | 3.500/md | `nyt_40000_rate12` | 3.500 |
+| `sub_1TUOmK`, `sub_1TiTS9`, `sub_1TZ9gh`, `sub_1TRWKT` | 4.375/md | `nyt_50000_rate12` | 4.375 |
+| `sub_1TZ6sv` (KJ AUTO) | 1.312,50/md efter rabat | `fornyelse_15000_rate12` | 1.312,50 |
+
+Prisen `nyt_40000_rate12` blev oprettet 1/9 netop til denne kohorte —
+og med den dobbeltfunktion at 40.000 fremover kan bruges som en bevidst
+specialpris. Se `docs/fornyelseskaeden-1-september.md`.
+
+**Ingen medlemmer får ændret deres beløb ved flytningen.** Momsen
+opfører sig ens (§1), og hver målpris er identisk med det de betaler i
+dag.
+
+## 16. Hvad der stadig mangler før flytningen
+
+- `billing_cycle_anchor` skal sættes på hvert nyt abonnement, så næste
+  træk falder på samme dag som i dag. Datoerne står i §3.
+- `cancel_at` skal sættes efter genskabelsen — mekanikken er den samme
+  som fornyelsens, bevist i produktion 1/9.
+- `default_payment_method` skal sættes eksplicit for de elleve der har
+  NULL (§4).
+- YKRG skal have et kort der virker (§7).
+- Kobling til `companies.id` er IKKE lavet: tabellen ovenfor giver navn
+  og mail, men ikke virksomhedens UUID. Det er et opslag på CVR eller
+  mail i `companies` og hører til lige før flytningen.
