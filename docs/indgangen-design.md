@@ -233,3 +233,76 @@ for en edge function — edge-vejen er fem fejlkilder (URL, vault-nøgle,
 verify_jwt, deploy, og en ny funktion der ikke auto-deployer). Men
 påmindelserne skal SENDE mails, ikke kun opdatere en status, så
 edge-vejen er formentlig nødvendig her. Ikke afgjort.
+
+---
+
+# Tillæg — prisniveauet og hvordan det når linket (1/9)
+
+## 12. Prisniveauet er en rådgiverbeslutning, ikke et medlemsvalg
+
+Et nyt medlem kommer normalt ind til 50.000. Men I kan beslutte at nogen
+kommer ind til 40.000 — det skete for Nordic By Hand 25/8, og prisen
+`nyt_40000_*` blev oprettet 1/9 netop for at gøre det muligt fremover.
+
+Medlemmet vælger IKKE prisniveauet. De vælger kun **betalingsmodellen**:
+
+| Niveau (I beslutter) | Medlemmet vælger mellem |
+|---|---|
+| 50.000 | 50.000 · 25.000 × 2 · 4.375 × 12 |
+| 40.000 | 40.000 · 20.000 × 2 · 3.500 × 12 |
+
+## 13. Kilden er `Pris (kontrakt)` på Monday
+
+Kolonnen bruges i dag som tilbudspris ved ansøgning (målt 1/9: udfyldt
+med 50.000 for ansøgere, tom for medlemmer). Fremover er den **kilden
+til prisniveauet**: det I har aftalt, og dermed det linket skal bygges
+på.
+
+Den er IKKE kilden til `companies.indgangspris_oere`. Aftalt og betalt
+er ikke det samme — en kan skrive under og aldrig betale, og så må
+feltet ikke stå udfyldt. Indgangsprisen skrives af webhooken ved
+betaling, se rettelsen i `docs/fornyelseskaeden-1-september.md`.
+
+## 14. Kæden fra underskrift til betaling
+
+    Monday: status → "Godkendt"
+        ↓
+    monday-webhook henter fra item'et:
+        CVR, adresse, branche, kontaktperson, mail
+        Pris (kontrakt)  →  prisniveau (40.000 eller 50.000)
+        ↓
+    opretter virksomheden med prisniveauet gemt på rækken
+    genererer et betalingstoken (uuid, udløber efter 30 dage)
+        ↓
+    sender dag 0-mailen med linket:
+        app.theboardroom.dk/betal?token=<uuid>
+        ↓
+    siden slår tokenet op SERVERSIDE, finder virksomheden,
+    læser prisniveauet, viser de tre betalingsmodeller for netop det
+        ↓
+    betaling → webhooken sætter kontraktdatoer, skriver
+    indgangspris_oere fra den valgte pris, sender invitationen
+
+## 15. Linket er ens for alle — prisen ligger på virksomheden
+
+Der findes ikke et «40.000-link» og et «50.000-link». Der findes ét
+link pr. virksomhed, og prisniveauet ligger på virksomheden.
+
+**Det er ikke kun enklere, det er nødvendigt.** Lå niveauet i URL'en,
+kunne et 40.000-link videresendes til en der skulle betale 50.000. Det
+er præcis den fælde der blev lukket ved fornyelsen (§5), og reglen er
+den samme: prisen må aldrig ligge i linket.
+
+## 16. Kontrollen det giver
+
+Sætter du 40.000 på Monday, får de et 40.000-tilbud. Er niveauet sat
+forkert, betaler de ikke det forkerte beløb ved et uheld — de får bare
+det forkerte tilbud, og det opdages FØR pengene skifter hænder.
+
+Et nyt felt på `companies` skal bære niveauet. Navnet er ikke afgjort;
+det må ikke hedde noget der forveksles med `indgangspris_oere`, som
+først sættes ved betaling.
+
+**ÅBENT:** hvad der sker hvis `Pris (kontrakt)` er tom ved «Godkendt».
+Falder den tilbage på 50.000, eller skal webhooken afvise og gøre
+opmærksom på det? At gætte på listeprisen er en pris på 10.000 kr.
