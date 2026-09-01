@@ -126,3 +126,6 @@ project_id = "loiavmastgeieqyiwyyr"
   # Samme begrundelse som get-community-billed-url ovenfor.
   [functions.foreslaa-opgave]
     verify_jwt = true
+  # Samme begrundelse som get-community-billed-url ovenfor.
+  [functions.hent-fornyelsestilbud]
+    verify_jwt = true
