@@ -84,6 +84,11 @@ Fire led, i rækkefølge:
    tallet. Uden det kan hverken en mail eller en knap nævne de 50 %.
    Beslutning udestår: beløb direkte, eller kohorte-felt.
 
+   **LØST 1/9.** Beslutningen er truffet: beløb + afvigelsesfelt
+   (`indgangspris_oere` + `fornyelsespris_oere`), ikke kohorte-felt.
+   De 33 virksomheder er backfillet. Begrundelsen står i
+   `docs/fornyelseskaeden-1-september.md` afsnit 2.
+
 2. **Fjortendagesvinduet som tilstand** i motoren, så en aftager kan
    skelne «tilbudt, tre dage tilbage» fra «tilbudt, vinduet lukket».
 
