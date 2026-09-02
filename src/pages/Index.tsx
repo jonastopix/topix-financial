@@ -6,6 +6,7 @@ import AppLayout from "@/components/AppLayout";
 import AdvisorDashboard from "@/components/AdvisorDashboard";
 import MembershipExpiredGate from "@/components/MembershipExpiredGate";
 import CompanyLinkFailedGate from "@/components/CompanyLinkFailedGate";
+import FornyelseKvittering from "@/components/FornyelseKvittering";
 import { DashboardSkeleton } from "@/components/DashboardSkeleton";
 import { HbMemberShell } from "@/components/hjemmebane/HbMemberShell";
 import { BoardroomView } from "@/components/hjemmebane/boardroom/BoardroomView";
@@ -26,6 +27,57 @@ function getGreeting() {
   if (h < 12) return "Godmorgen";
   if (h < 18) return "God eftermiddag";
   return "God aften";
+}
+
+/* ── Fornyelses-låsen ────────────────────────────────────────────────────
+   HVORFOR DEN FINDES: opret-fornyelse-checkout sender medlemmet tilbage til
+   /?fornyelse=success i samme øjeblik Stripe har gennemført betalingen —
+   mens stripe-webhook, der forlænger contract_end_date, fyrer selvstændigt.
+   Er webhooken ikke landet endnu, er tier stadig "expired" og beslutningen
+   stadig "tilbyd": uden låsen ser medlemmet MembershipExpiredGate IGEN med
+   tilbuddet, som om de ikke havde betalt. Et tryk mere giver en ny
+   checkout-session, og webhookens idempotens (på session.id) forhindrer
+   ikke at der bliver betalt to gange.
+
+   Låsen er et tidsstempel i localStorage — ikke React-state alene, fordi
+   mekanikken er genindlæsning (samme som subscription=success): tier hentes
+   kun af useAuth ved session-start, og useAuth røres ikke. localStorage
+   frem for sessionStorage, så en ny fane i samme browser heller ikke kan
+   nå gaten. Så længe stemplet står, og tier er "expired" (eller uafgjort),
+   vises kvitteringen i stedet for gaten, og siden genindlæser sig selv med
+   FORNYELSE_RETRY_MS mellemrum. Stemplet ryddes i det øjeblik tier ikke
+   længere er "expired". Efter FORNYELSE_GRAENSE_MS uden ændring stopper
+   genindlæsningerne, og kvitteringen skifter til "adgangen åbner snarest"
+   med Prøv igen og Skriv til os — aldrig en uendelig venten. Stemplet
+   udløber af sig selv efter FORNYELSE_TTL_MS, så en webhook der aldrig
+   lander, ikke låser gaten for evigt. */
+const FORNYELSE_STEMPEL_KEY = "tbr.fornyelse_betalt_at";
+const FORNYELSE_RETRY_MS = 3_000;
+const FORNYELSE_GRAENSE_MS = 30_000;
+const FORNYELSE_TTL_MS = 24 * 60 * 60 * 1000;
+
+function laesFornyelseStempel(): number | null {
+  try {
+    const raa = localStorage.getItem(FORNYELSE_STEMPEL_KEY);
+    const stempel = raa ? Number(raa) : NaN;
+    if (!Number.isFinite(stempel)) return null;
+    if (Date.now() - stempel > FORNYELSE_TTL_MS) {
+      localStorage.removeItem(FORNYELSE_STEMPEL_KEY);
+      return null;
+    }
+    return stempel;
+  } catch {
+    return null;
+  }
+}
+
+function skrivFornyelseStempel(stempel: number | null) {
+  try {
+    if (stempel === null) localStorage.removeItem(FORNYELSE_STEMPEL_KEY);
+    else localStorage.setItem(FORNYELSE_STEMPEL_KEY, String(stempel));
+  } catch {
+    // privat tilstand o.l. — låsen lever så kun i React-state for denne visning
+  }
 }
 
 const Dashboard = () => {
@@ -51,6 +103,69 @@ const Dashboard = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [subscriptionResult]);
 
+  /* ?fornyelse=… — samme sted og samme mønster som ?subscription ovenfor:
+     ryd parameteren, vis en toast, genindlæs. Forskellen er låsen (se
+     kommentaren ved FORNYELSE_STEMPEL_KEY): genindlæsningen styres af
+     stemplet og gentages, indtil tier ikke længere er "expired". */
+  const fornyelseResult = searchParams.get("fornyelse");
+  const [fornyelseStempel, setFornyelseStempel] = useState<number | null>(() => laesFornyelseStempel());
+  useEffect(() => {
+    if (fornyelseResult === "success") {
+      setSearchParams({}, { replace: true });
+      const nu = Date.now();
+      skrivFornyelseStempel(nu);
+      setFornyelseStempel(nu);
+      toast.success("Tak — vi glæder os til et år mere", {
+        description: "Vi åbner din adgang om et øjeblik…",
+      });
+    } else if (fornyelseResult === "cancelled") {
+      // En der fortrød, skal ikke mødes med noget.
+      setSearchParams({}, { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fornyelseResult]);
+
+  /* Låsen slippes i det øjeblik tier ikke længere er "expired" — så er
+     webhooken landet, og forsiden nedenfor kan vises. null = uafgjort,
+     der ventes videre. */
+  useEffect(() => {
+    if (fornyelseStempel === null || membershipTier === null) return;
+    if (membershipTier !== "expired") {
+      skrivFornyelseStempel(null);
+      setFornyelseStempel(null);
+    }
+  }, [fornyelseStempel, membershipTier]);
+
+  /* Genindlæs med få sekunders mellemrum, så useAuth henter den nye
+     contract_end_date — kun inden for grænsen; derefter står kvitteringen
+     stille med Prøv igen. */
+  useEffect(() => {
+    if (fornyelseStempel === null || membershipTier !== "expired") return;
+    if (Date.now() - fornyelseStempel > FORNYELSE_GRAENSE_MS) return;
+    const t = setTimeout(() => window.location.reload(), FORNYELSE_RETRY_MS);
+    return () => clearTimeout(t);
+  }, [fornyelseStempel, membershipTier]);
+
+  /* Grænsen som STATE med sin egen timer — ikke en beregning ved render.
+     Uden den kan spinneren blive stående for evigt: efter grænsen stopper
+     genindlæsningerne ovenfor, og dermed også rerender. Rammer den sidste
+     genindlæsning kort før grænsen, ville "Date.now() ved render" aldrig
+     blive regnet igen, og fladen ville aldrig skifte til "Adgangen åbner
+     snarest" med Prøv igen — præcis den uendelige venten uden udgang,
+     låsen skulle forhindre. Timeren fyrer når grænsen nås (minimum 0 ms,
+     så et allerede overskredet stempel skifter med det samme) og ryddes i
+     cleanup. */
+  const [fornyelseOverskredet, setFornyelseOverskredet] = useState(false);
+  useEffect(() => {
+    if (fornyelseStempel === null) {
+      setFornyelseOverskredet(false);
+      return;
+    }
+    const rest = Math.max(0, FORNYELSE_GRAENSE_MS - (Date.now() - fornyelseStempel));
+    const t = setTimeout(() => setFornyelseOverskredet(true), rest);
+    return () => clearTimeout(t);
+  }, [fornyelseStempel]);
+
   /* Den stille tour-markering arves 1:1 (BACKLOG.md:495-497):
      tour-BANNERET er væk med det gamle dashboard, men engangs-stemplet
      af profiles.tour_completed_at skal fortsat sættes ved første besøg,
@@ -73,6 +188,13 @@ const Dashboard = () => {
      (docs/indgangsfladen-design.md §5). Skal stå FØR skelettet. */
   if (!rawAdvisor && companyResolution === "failed") {
     return <CompanyLinkFailedGate />;
+  }
+
+  /* Lige betalt for et år mere (låsen står), og tier er stadig "expired"
+     eller uafgjort: kvitteringen i stedet for gaten. Skal stå FØR både
+     skelettet og gaten — gaten er præcis det, der ikke må vises nu. */
+  if (!rawAdvisor && fornyelseStempel !== null && (membershipTier === null || membershipTier === "expired")) {
+    return <FornyelseKvittering overskredet={fornyelseOverskredet} />;
   }
 
   /* Spinner mens auth-tieren afgøres — uden dette ville et udløbet
