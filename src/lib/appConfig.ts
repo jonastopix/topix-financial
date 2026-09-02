@@ -72,6 +72,41 @@ export const MEETINGS = {
     velkomsten er slået fra (overlejring og tjeklistepunkt udgår). */
 export const VELKOMSTVIDEO_GUID = "";
 
+/** Bunny-GUID'er har uuid-form — samme mønster som HbBunnyPicker og get-video-embed. */
+const VELKOMST_GUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Læser velkomstvideo-GUID'et ud af app_config.config_value.
+ *
+ * config_value er JSON (jsonb), IKKE text. Målt 2/9: rækken er oprettet i
+ * produktion med '""'::json — en tom JSON-streng. supabase-js leverer
+ * jsonb parset (session_timeout_minutes '30'::jsonb ankommer som tallet 30,
+ * rollout-flagene som objekter — ingen JSON.parse nogen steder), så en tom
+ * JSON-streng ankommer som JS-strengen "" (nul tegn). Læses værdien
+ * derimod RÅ (fx config_value::text i en SQL-funktion, eller en fremtidig
+ * læser der ikke parser), er den strengen «""» på TO tegn — og en naiv
+ * `trim().length > 0` ville sige «der er en video». Så ville platformen
+ * vise overlejringen med en tom indlejring og tælle punktet med.
+ *
+ * Derfor: (1) kun strenge tæller; (2) en streng der selv er JSON-kodet
+ * (indledes og afsluttes af ") pakkes ud én gang; (3) der trimmes; (4) kun
+ * GUID-form er en video — alt andet er «ingen video». Fail-closed: vi viser
+ * ikke tomt indhold. Samme dom spejles i get-video-embed (Deno).
+ */
+export function laesVelkomstvideoGuid(configValue: unknown): string {
+  if (typeof configValue !== "string") return "";
+  let s = configValue.trim();
+  if (s.length >= 2 && s.startsWith('"') && s.endsWith('"')) {
+    s = s.slice(1, -1).trim();
+  }
+  return VELKOMST_GUID_RE.test(s) ? s.toLowerCase() : "";
+}
+
+/** Dommen fladen og motoren bruger: er der sat en velkomstvideo? */
+export function harVelkomstvideo(configValue: unknown): boolean {
+  return laesVelkomstvideoGuid(configValue) !== "";
+}
+
 // ─── KPI Fallback Targets ────────────────────────────────────────────────────
 
 export const KPI_FALLBACK_TARGETS: Record<string, { value: number; label: string }> = {

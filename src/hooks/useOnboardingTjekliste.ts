@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { byggTjekliste, type Tjekliste, type TjeklisteInput } from "@/lib/onboardingTjekliste";
+import { harVelkomstvideo as doemVelkomstvideo } from "@/lib/appConfig";
 
 /**
  * Datalaget for onboarding-tjeklisten: henter de seks datastykker for den
@@ -87,9 +88,11 @@ async function hentInput(userId: string, companyId: string): Promise<{ input: Tj
 
   const profil = (profilRes.data ?? null) as { avatar_url: string | null; velkomstvideo_set_at: string | null } | null;
   const velkomstvideoSetAt = profil?.velkomstvideo_set_at ?? null;
-  // Samme dom som useAppConfig: kun en ikke-tom streng er en video.
-  const guid = velkomstRes.data?.config_value;
-  const harVelkomstvideo = typeof guid === "string" && guid.trim().length > 0;
+  // config_value er JSON (jsonb), ikke text: '""'::json er en TOM streng —
+  // parset "" (nul tegn), rå «""» (to tegn). Begge skal give «ingen video»,
+  // ellers vises en tom overlejring og punktet tælles med. Dommen er den
+  // rene, testede funktion i src/lib/appConfig.ts (appConfigVelkomstvideo.test).
+  const harVelkomstvideo = doemVelkomstvideo(velkomstRes.data?.config_value);
 
   return {
     velkomstvideoSetAt,
