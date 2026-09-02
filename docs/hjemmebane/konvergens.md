@@ -43,8 +43,8 @@ Skæbner (konservativt — kun det besluttede er markeret besluttet):
 
 | Route | Side | Formål | Sprog | Skæbne |
 |---|---|---|---|---|
-| /auth(/\*) | Auth.tsx | Login/signup (invite-grene) | HB (2/9, indgangen-overhaling §7.5): alle fem tilstande — signup (delt skærm m. `HbRaadgiverPortraetter`, uden Google), login (rolig, Google kun her), nulstil, «Tjek din mail», «Konto oprettet». Route-spinnerne i App.tsx er stadig gamle tokens | Konverteret (spinnerne følger i trin 10-12) |
-| /reset-password | ResetPassword.tsx | Kodeord-reset | STANDALONE-GAMMEL | Konverteres-før-lancering |
+| /auth(/\*) | Auth.tsx | Login/signup (invite-grene) | HB (2/9, indgangen-overhaling §7.5): alle fem tilstande — signup (delt skærm m. `HbRaadgiverPortraetter`, uden Google), login (rolig, Google kun her), nulstil, «Tjek din mail», «Konto oprettet». Route-spinnerne (ProtectedRoute, MemberRoute, Suspense, AuthRoute) er `HbSpinner` | Konverteret |
+| /reset-password | ResetPassword.tsx | Kodeord-reset | HB (2/9, indgangen-overhaling §7.5): spinner, «Linket virker ikke længere», formular — feltklasser fra `hjemmebane/hbFormKlasser.ts` | Konverteret |
 | /onboarding | Onboarding.tsx | Setup-wizard (navn/branche/virksomhed, needsOnboarding-gate) | STANDALONE-GAMMEL | Afgøres-i-onboarding-epic (dataindsamling vs. oplevelse, jf. §2.1) + Konverteres-før-lancering |
 
 ### Medlem (kerne)
@@ -106,7 +106,7 @@ Skæbner (konservativt — kun det besluttede er markeret besluttet):
 
 | Route | Side | Formål | Sprog | Skæbne |
 |---|---|---|---|---|
-| \* | NotFound.tsx | 404 | STANDALONE-GAMMEL | Forbliver-indtil-videre |
+| \* | NotFound.tsx | 404 | HB (2/9, indgangen-overhaling §7.6): «Siden findes ikke» + «Til forsiden», samme ramme som Auth | Konverteret (ErrorBoundary er bevidst UDEN — §7.6) |
 | (ingen) | ~~pages/Demo.tsx~~, ~~pages/GroupChatRoom.tsx~~ | Forældreløse (uroutede, uimporterede) | — | **Pensioneret i denne PR** (§4) |
 
 ---

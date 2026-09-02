@@ -1,10 +1,22 @@
+import "@/styles/hjemmebane.css";
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { Lock } from "lucide-react";
 import PasswordStrengthIndicator, { getPasswordScore } from "@/components/PasswordStrengthIndicator";
+import { HbCard } from "@/components/hjemmebane/HbCard";
+import { HbButton } from "@/components/hjemmebane/HbButton";
+import { HbSpinner } from "@/components/hjemmebane/HbSpinner";
+import { HB_EYEBROW, HB_H1, HB_INPUT, HB_LABEL, HB_RAMME } from "@/components/hjemmebane/hbFormKlasser";
 
+/* /reset-password — siden Supabases nulstil-mail fører til. Hjemmebane
+   (indgangen-overhaling §7.5, sidste del af trin 10-12), samme udtryk som
+   Auth.tsx' fem tilstande. ADFÆRD ORDRET SOM FØR: sessionen genoprettes
+   fra URL-hashen (recovery-token) via getSession + onAuthStateChange
+   (PASSWORD_RECOVERY eller SIGNED_IN); indtil da spinner; uden session
+   «Ugyldigt eller udløbet link» med vej til /auth; ellers formularen —
+   styrke < 2 toaster «Vælg en stærkere adgangskode», updateUser toaster
+   Supabases fejl eller «Adgangskode opdateret!» og navigerer til «/». */
 const ResetPassword = () => {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -49,69 +61,60 @@ const ResetPassword = () => {
   };
 
   if (!isReady) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="h-8 w-8 rounded-full border-2 border-primary border-t-transparent animate-spin" />
-      </div>
-    );
+    return <HbSpinner />;
   }
 
   if (!hasSession) {
     return (
-      <div className="min-h-screen bg-background flex items-start justify-center p-4 pt-8 pb-safe overflow-y-auto">
-        <div className="w-full max-w-sm text-center">
-          <div className="h-12 w-12 rounded-xl bg-primary flex items-center justify-center mx-auto mb-4">
-            <span className="text-primary-foreground font-display font-bold text-lg">BR</span>
+      <div className={HB_RAMME}>
+        <div className="mx-auto max-w-md space-y-8">
+          <div className="space-y-3 text-center">
+            <p className={HB_EYEBROW}>The Boardroom</p>
+            <h1 className={HB_H1}>Linket virker ikke længere</h1>
+            <p className="text-hb-ink-soft">
+              Linket til at nulstille din adgangskode er udløbet eller allerede brugt. Bed om et nyt fra login.
+            </p>
           </div>
-          <h1 className="text-xl font-display font-bold text-foreground mb-2">Ugyldigt eller udløbet link</h1>
-          <p className="text-sm text-muted-foreground mb-4">
-            Dit reset-link er udløbet eller ugyldigt. Anmod om et nyt link.
-          </p>
-          <button
-            onClick={() => navigate("/auth")}
-            className="py-2.5 px-6 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors"
-          >
-            Gå til login
-          </button>
+          <div className="text-center">
+            <HbButton variant="secondary" onClick={() => navigate("/auth")}>
+              Gå til login
+            </HbButton>
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-background flex items-start justify-center p-4 pt-8 pb-safe overflow-y-auto">
-      <div className="w-full max-w-sm">
-        <div className="text-center mb-8">
-          <div className="h-12 w-12 rounded-xl bg-primary flex items-center justify-center mx-auto mb-4">
-            <span className="text-primary-foreground font-display font-bold text-lg">BR</span>
-          </div>
-          <h1 className="text-xl font-display font-bold text-foreground">Ny adgangskode</h1>
+    <div className={HB_RAMME}>
+      <div className="mx-auto max-w-md space-y-8">
+        <div className="space-y-3 text-center">
+          <p className={HB_EYEBROW}>The Boardroom</p>
+          <h1 className={HB_H1}>Ny adgangskode</h1>
+          <p className="text-hb-ink-soft">Vælg en ny adgangskode, så er du inde igen.</p>
         </div>
-        <form onSubmit={handleSubmit} className="glass-card rounded-xl p-6 space-y-4">
-          <div>
-            <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Ny adgangskode</label>
-            <div className="relative">
-              <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <HbCard className="p-6 md:p-8">
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label className={HB_LABEL}>Ny adgangskode</label>
               <input
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
                 minLength={8}
-                className="w-full pl-10 pr-3 py-2.5 rounded-lg bg-background border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+                className={HB_INPUT}
                 placeholder="••••••••"
               />
+              <div className="mt-3">
+                <PasswordStrengthIndicator password={password} />
+              </div>
             </div>
-            <PasswordStrengthIndicator password={password} />
-          </div>
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full py-2.5 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
-          >
-            {loading ? "Opdaterer..." : "Opdater adgangskode"}
-          </button>
-        </form>
+            <HbButton type="submit" disabled={loading} className="w-full">
+              {loading ? "Opdaterer..." : "Opdater adgangskode"}
+            </HbButton>
+          </form>
+        </HbCard>
       </div>
     </div>
   );

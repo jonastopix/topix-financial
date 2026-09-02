@@ -8,6 +8,7 @@ import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import { ViewModeProvider } from "@/hooks/useViewMode";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import ScrollToTop from "@/components/ScrollToTop";
+import { HbSpinner } from "@/components/hjemmebane/HbSpinner";
 
 // Synchronous — needed on initial load
 import Index from "./pages/Index";
@@ -74,11 +75,7 @@ const queryClient = new QueryClient();
 
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { user, loading, isAdvisor, membershipTier } = useAuth();
-  if (loading) return (
-    <div className="min-h-screen bg-background flex items-center justify-center">
-      <div className="h-8 w-8 rounded-full border-2 border-primary border-t-transparent animate-spin" />
-    </div>
-  );
+  if (loading) return <HbSpinner />;
   if (!user) return <Navigate to="/auth" replace />;
   if (!isAdvisor && membershipTier === "expired" && window.location.pathname !== "/") return <Navigate to="/" replace />;
   return <>{children}</>;
@@ -86,11 +83,7 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
 
 const MemberRoute = ({ children }: { children: React.ReactNode }) => {
   const { user, loading, isLegat, isAdvisor, membershipTier } = useAuth();
-  if (loading) return (
-    <div className="min-h-screen bg-background flex items-center justify-center">
-      <div className="h-8 w-8 rounded-full border-2 border-primary border-t-transparent animate-spin" />
-    </div>
-  );
+  if (loading) return <HbSpinner />;
   if (!user) return <Navigate to="/auth" replace />;
   if (isLegat) return <Navigate to="/legat" replace />;
   if (!isAdvisor && membershipTier === "expired" && window.location.pathname !== "/") return <Navigate to="/" replace />;
@@ -158,7 +151,9 @@ const AuthRoute = ({ children }: { children: React.ReactNode }) => {
   const qs = new URLSearchParams(window.location.search);
   const returnUrl = qs.get("returnUrl");
   const force = qs.get("force");
-  if (loading) return null;
+  // Spinneren frem for null (trin 10-12): null gav en hvid, tom skærm
+  // før /auth tegnede; nu samme rolige papir som siden selv.
+  if (loading) return <HbSpinner />;
   if (user && !force) return <Navigate to={returnUrl || "/"} replace />;
   return <>{children}</>;
 };
@@ -173,11 +168,7 @@ const App = () => (
           <AuthProvider>
             <ViewModeProvider>
             <ScrollToTop />
-            <Suspense fallback={
-              <div className="flex h-screen items-center justify-center bg-background">
-                <div className="h-8 w-8 rounded-full border-2 border-primary border-t-transparent animate-spin" />
-              </div>
-            }>
+            <Suspense fallback={<HbSpinner />}>
             <Routes>
               <Route path="/auth" element={<AuthRoute><Auth /></AuthRoute>} />
               <Route path="/auth/*" element={<AuthRoute><Auth /></AuthRoute>} />
