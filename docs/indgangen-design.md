@@ -442,3 +442,121 @@ kontraktdatoer giver `computeMembershipTier` værdien «no_date», som
 `useAuth` oversætter til «full» (§3). Kunne de logge ind før betalingen,
 ville de have FULD adgang uden at have betalt. Invitationen er
 adgangens nøgle og hører derfor kun til efter betalingen.
+
+---
+
+# Tillæg — det sidste led er bygget (2/9)
+
+## 22. Kæden er bygget og bevist i produktion 2/9
+
+Syv led, alle live: `company_betalingslink` (migration 20260902080000),
+`hent_betalingstilbud` (20260902090000), `/betal`
+(`src/pages/Betal.tsx`), motorerne `src/lib/betalingsfrist.ts` og
+`src/lib/indgangspris.ts` (spejlet til Deno med paritetstest),
+`opret-indgangs-checkout` med `verifyBetalingstoken`, og indgangsgrenen
+i `stripe-webhook` inkl. invitationen.
+
+**MÅLT 2/9:** bevist med en gennemført betaling på 4.375,00 kr.
+(3.500 + 875 moms) på testvirksomheden «Jonas legat», prisniveau 40.000,
+tolv rater. Refunderet og rullet rent tilbage bagefter.
+
+Målt serverside efter betalingen:
+
+| | målt |
+|---|---|
+| `company_perioder` | 2026-09-02 → 2027-09-02, 42.000 kr., rate12, indgang |
+| `contract_start_date` / `contract_end_date` | samme datoer — fra BETALINGSDAGEN |
+| `indgangspris_oere` | 40.000 kr. |
+| `subscription_status` | NULL |
+| `stripe_customer_id` | `cus_VBWu40YVMihBgO` |
+| `cancel_at` på abonnementet | 364 dage efter `start_date`, sat 30 sekunder efter oprettelsen |
+| invitation | pending, til `companies.contact_email`, med afsender-id'et |
+
+**42.000 i perioden, 40.000 som indgangspris.** Det er skelnen fra
+rettelsen 1/9: perioden bærer det FAKTISK betalte inkl. 5 %-tillægget,
+indgangsprisen er LISTEPRISEN. Fornyer de om et år, bliver det 20.000 —
+halvdelen af 40.000, ikke af 42.000. Bevist i drift, ikke kun i kode.
+
+**`subscription_status` forblev NULL.** Alle tre subscription-lifecycle-
+grene i `stripe-webhook` springer nu over ved `art === "indgang"` såvel
+som `"fornyelse"`. Uden det ville virksomheden fremstå som tier
+«subscriber» — exit-abonnenten, der IKKE har rådgivning, IKKE community
+og IKKE er en del af netværket — i stedet for fuldt medlem. Adgangen
+bæres af `contract_end_date`, ikke af `subscription_status`.
+
+## 23. Et nyt auth-mønster: token som legitimation
+
+`opret-indgangs-checkout` kan ikke bruge noget af husets eksisterende
+auth. **MÅLT 2/9:** `authenticateUser` kræver `claims.sub`, og
+anon-nøglen har ingen — ingen Bucket A-funktion kan tage imod en
+sessionsløs kalder. Og funktionen SKAL bruge service role, fordi
+`company_betalingslink` kun har advisor- og service_role-policies
+(20260902080000:53-61).
+
+Løsningen er et ellevte prædikat i `scripts/check-edge-function-auth.ts`:
+
+    { name: "verifyBetalingstoken()", pattern: /\bverifyBetalingstoken\s*\(/ }
+
+Fire af de ti eksisterende prædikater er signaturverifikationer
+(`verifyStripeSignature`, `verifyMondayJwt`, `verifyWebhookRequest`,
+`verifyCalendlySignature`). Vores er samme klasse: legitimationen ligger
+i KALDET, ikke i en session. Det er at udvide husets mønster frem for
+at gå uden om værnet — og CI bekræftede det (Edge Function Auth
+Guardrail grøn, PR #514).
+
+`_shared/betalingstokenAuth.ts` kalder
+`public.hent_betalingsdata_til_checkout(uuid)`: SECURITY DEFINER,
+EXECUTE kun til `service_role`, svarer KUN når betaling er tilladt.
+Dommen ligger i SQL; hjælperen har ingen egen logik. Et ugyldigt
+uuid-format (Postgres 22P02) behandles som «ikke tilladt», ikke som
+serverfejl.
+
+`config.toml`: `verify_jwt = FALSE`, bevidst. Med `true` ville
+gatewayen afvise kaldet før koden kører.
+
+**ÅBENT, ikke undersøgt:** om Supabase har hastighedsbegrænsning på
+edge-funktioner. Tokenet er 122 bits og kan ikke gættes, men hvert
+forsøg koster et databasekald.
+
+## 24. `invited_by` er ikke en afsender — besluttet 2/9
+
+`company_invitations.invited_by` er `uuid NOT NULL` uden FK. **MÅLT:**
+den læses ét eneste sted — `send-invitation-email` bruger den til at
+afgøre om en IKKE-service-role-kalder må gensende en invitation. Vores
+kald er service-role og springer den gren over. Ingen RLS-policy, ingen
+visning, ingen tildeling rører feltet. Mailens afsendernavn kommer fra
+`email_templates.sender_name`.
+
+Jonas og Morten er begge rådgivere for ALLE virksomheder; der er ingen
+tildeling at foretage, og «rådgiver påsat en virksomhed» bruges ikke.
+
+Værdien kommer derfor fra secret'en `INVITATION_AFSENDER_USER_ID`
+(Mortens bruger-id — står i Supabases secrets, ikke i koden), så den kan
+ændres uden kodeændring — og så leddet senere kan bære «hvem godkendte
+på Monday» ét sted. Mangler secret'en, sendes ingen invitation: der
+logges, og grenen fortsætter.
+
+## 25. Alt efter kontraktopdateringen må fejle uden at vælte grenen
+
+Invitationen står EFTER at kontrakten er sat og pengene modtaget. Fejler
+den — manglende secret, tom `contact_email`, mailfejl — logges det med
+`company_id`, og grenen fortsætter til sit normale 200-svar.
+
+Et kast ville få Stripe til at gensende et forløb der allerede er
+gennemført. En manglende invitation er noget en rådgiver kan rette; en
+tabt betaling er det ikke.
+
+Idempotens på to niveauer: perioden på `stripe_reference = session.id`,
+invitationen på en eksisterende pending invitation for virksomheden.
+
+## 26. Det der mangler
+
+- **Monday-grenen ved «Godkendt»**: opret virksomheden med data fra
+  Monday og prisniveau fra «Pris (kontrakt)», generér tokenet, send dag
+  0-mailen. Indtil da oprettes `company_betalingslink`-rækken i hånden.
+- **De fire mails** (dag 0, 14, 25, 31): motoren `afgoerBetalingsfrist`
+  er bygget og testet, men intet sender endnu.
+- **Merchant Logo på kortudtoget**: **MÅLT 2/9** viser bankappen «THE
+  BOARDROOM» uden ikon. Det er et Merchant Logo hos kortnetværkene, ikke
+  det logo der er uploadet i Stripes branding. **IKKE UNDERSØGT:** om det
+  er selvbetjent på denne kontotype eller kræver ansøgning.
