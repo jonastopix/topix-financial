@@ -21,6 +21,7 @@ import {
   type Betalingsmodel,
 } from "../_shared/fornyelsespris.ts";
 import { hentPrisId } from "../_shared/stripePris.ts";
+import { udloebTidligereSession, udloebsTidspunkt } from "../_shared/checkoutSession.ts";
 
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -77,7 +78,7 @@ Deno.serve(async (req) => {
     const { data: company, error: companyError } = await adminClient
       .from("companies")
       .select(
-        "contract_end_date, subscription_status, subscription_current_period_end, indgangspris_oere, fornyelsespris_oere, stripe_customer_id"
+        "contract_end_date, subscription_status, subscription_current_period_end, indgangspris_oere, fornyelsespris_oere, stripe_customer_id, sidste_checkout_session_id"
       )
       .eq("id", company_id)
       .maybeSingle();
@@ -131,10 +132,17 @@ Deno.serve(async (req) => {
     // ── 7. Price-id via lookup_key — aldrig et hardkodet id ──
     const priceId = await hentPrisId(pris.lookup_key, stripeSecretKey);
 
+    // ── 7b. Værnet mod dobbeltbetaling (_shared/checkoutSession.ts):
+    //        udløb virksomhedens seneste session FØR en ny oprettes.
+    //        Hjælperen kaster aldrig ──
+    await udloebTidligereSession(company.sidste_checkout_session_id, stripeSecretKey);
+
     // ── 8. Checkout-sessionen ──
     const mode = betalingsmodel === "fuld" ? "payment" : "subscription";
     const stripeBody = new URLSearchParams({
       "mode": mode,
+      // Kort levetid (30 min, Stripes minimum) — se _shared/checkoutSession.ts.
+      "expires_at": String(udloebsTidspunkt()),
       "line_items[0][price]": priceId,
       "line_items[0][quantity]": "1",
       "success_url": `${APP_URL}/?fornyelse=success`,
@@ -209,6 +217,19 @@ Deno.serve(async (req) => {
     console.log(
       `[opret-fornyelse-checkout] Created ${mode} session ${session.id} for company ${company_id} (${betalingsmodel})`
     );
+
+    // ── 9b. Gem session-id'et, så næste kald kan udløbe det. Fejler
+    //        skrivningen, logges det tydeligt — men url'en returneres ──
+    const { error: gemErr } = await adminClient
+      .from("companies")
+      .update({ sidste_checkout_session_id: session.id })
+      .eq("id", company_id);
+    if (gemErr) {
+      console.error(
+        `[opret-fornyelse-checkout] KUNNE IKKE GEMME session ${session.id} på companies for ${company_id} — værnet mod dobbeltbetaling dækker ikke denne session:`,
+        gemErr,
+      );
+    }
 
     // ── 10. ──
     return jsonResponse({ url: session.url });

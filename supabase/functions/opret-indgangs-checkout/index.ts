@@ -25,6 +25,7 @@ import {
   type Betalingsmodel,
 } from "../_shared/indgangspris.ts";
 import { hentPrisId } from "../_shared/stripePris.ts";
+import { udloebTidligereSession, udloebsTidspunkt } from "../_shared/checkoutSession.ts";
 
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -83,11 +84,28 @@ Deno.serve(async (req) => {
     // ── 4. Price-id via lookup_key — aldrig et hardkodet id ──
     const priceId = await hentPrisId(pris.lookup_key, stripeSecretKey);
 
+    // ── 4b. Værnet mod dobbeltbetaling (_shared/checkoutSession.ts):
+    //        udløb den seneste session for virksomheden FØR en ny oprettes.
+    //        Fejler opslag eller udløb, fortsættes der — en betaling må
+    //        ikke blokeres af en gammel session der ikke kunne lukkes ──
+    try {
+      const { data: link } = await adminClient
+        .from("company_betalingslink")
+        .select("sidste_checkout_session_id")
+        .eq("company_id", company_id)
+        .maybeSingle();
+      await udloebTidligereSession(link?.sidste_checkout_session_id, stripeSecretKey);
+    } catch (err) {
+      console.warn(`[opret-indgangs-checkout] kunne ikke udløbe tidligere session for ${company_id}:`, err);
+    }
+
     // ── 5. Checkout-sessionen ──
     const mode = betalingsmodel === "fuld" ? "payment" : "subscription";
     const tokenParam = encodeURIComponent(token);
     const stripeBody = new URLSearchParams({
       "mode": mode,
+      // Kort levetid (30 min, Stripes minimum) — se _shared/checkoutSession.ts.
+      "expires_at": String(udloebsTidspunkt()),
       "line_items[0][price]": priceId,
       "line_items[0][quantity]": "1",
       // Tilbage til betalingssiden, som selv slår status op. betalt=1 er
@@ -154,6 +172,20 @@ Deno.serve(async (req) => {
     console.log(
       `[opret-indgangs-checkout] Created ${mode} session ${session.id} for company ${company_id} (${betalingsmodel})`,
     );
+
+    // ── 6b. Gem session-id'et, så næste kald kan udløbe det. Fejler
+    //        skrivningen, logges det tydeligt — men url'en returneres:
+    //        medlemmet skal kunne betale ──
+    const { error: gemErr } = await adminClient
+      .from("company_betalingslink")
+      .update({ sidste_checkout_session_id: session.id })
+      .eq("company_id", company_id);
+    if (gemErr) {
+      console.error(
+        `[opret-indgangs-checkout] KUNNE IKKE GEMME session ${session.id} på company_betalingslink for ${company_id} — værnet mod dobbeltbetaling dækker ikke denne session:`,
+        gemErr,
+      );
+    }
 
     // ── 7. ──
     return jsonResponse({ url: session.url });
