@@ -14,7 +14,6 @@ import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import ResetPassword from "./pages/ResetPassword";
 import Betal from "./pages/Betal";
-import Onboarding from "./pages/Onboarding";
 import NotFound from "./pages/NotFound";
 
 // Lazy — member/advisor routes
@@ -74,27 +73,25 @@ const DemoHandouts = lazy(() => import("./demo/DemoHandouts"));
 const queryClient = new QueryClient();
 
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
-  const { user, loading, needsOnboarding, isAdvisor, membershipTier } = useAuth();
+  const { user, loading, isAdvisor, membershipTier } = useAuth();
   if (loading) return (
     <div className="min-h-screen bg-background flex items-center justify-center">
       <div className="h-8 w-8 rounded-full border-2 border-primary border-t-transparent animate-spin" />
     </div>
   );
   if (!user) return <Navigate to="/auth" replace />;
-  if (needsOnboarding && !isAdvisor) return <Navigate to="/onboarding" replace />;
   if (!isAdvisor && membershipTier === "expired" && window.location.pathname !== "/") return <Navigate to="/" replace />;
   return <>{children}</>;
 };
 
 const MemberRoute = ({ children }: { children: React.ReactNode }) => {
-  const { user, loading, needsOnboarding, isLegat, isAdvisor, membershipTier } = useAuth();
+  const { user, loading, isLegat, isAdvisor, membershipTier } = useAuth();
   if (loading) return (
     <div className="min-h-screen bg-background flex items-center justify-center">
       <div className="h-8 w-8 rounded-full border-2 border-primary border-t-transparent animate-spin" />
     </div>
   );
   if (!user) return <Navigate to="/auth" replace />;
-  if (needsOnboarding && !isAdvisor) return <Navigate to="/onboarding" replace />;
   if (isLegat) return <Navigate to="/legat" replace />;
   if (!isAdvisor && membershipTier === "expired" && window.location.pathname !== "/") return <Navigate to="/" replace />;
   return <>{children}</>;
@@ -105,6 +102,15 @@ const MemberRoute = ({ children }: { children: React.ReactNode }) => {
 const NoegletalRedirect = () => {
   const { search, hash } = useLocation();
   return <Navigate to={{ pathname: "/kpis", search, hash }} replace />;
+};
+
+/* Trin 7 (docs/indgangen-overhaling.md §9): Onboarding-porten er
+   pensioneret. /onboarding må ikke 404'e for gamle links i mails og
+   bogmærker — den redirecter til / med bevaret hash/query, samme form
+   som /rapportering → /reports nedenfor. */
+const OnboardingRedirect = () => {
+  const { search, hash } = useLocation();
+  return <Navigate to={{ pathname: "/", search, hash }} replace />;
 };
 
 /* Rapportering-GO (2026-08-06): /rapportering → /reports. Hash/query
@@ -147,42 +153,6 @@ const AdminRoute = ({ children }: { children: React.ReactNode }) => {
   return <>{children}</>;
 };
 
-const OnboardingRoute = ({ children }: { children: React.ReactNode }) => {
-  const { user, loading, needsOnboarding, isAdvisor } = useAuth();
-
-  // Mobile/PWA hardening: if the app is resumed from background while
-  // sitting on /onboarding, force a re-check by reloading the route.
-  // This catches iOS standalone "last route restore" edge cases.
-  React.useEffect(() => {
-    const onResume = () => {
-      try {
-        if (
-          window.location.pathname === "/onboarding" &&
-          localStorage.getItem("tbr.onboarded") === "1"
-        ) {
-          window.location.replace("/");
-        }
-      } catch { /* ignore */ }
-    };
-    window.addEventListener("pageshow", onResume);
-    document.addEventListener("visibilitychange", onResume);
-    return () => {
-      window.removeEventListener("pageshow", onResume);
-      document.removeEventListener("visibilitychange", onResume);
-    };
-  }, []);
-
-  if (loading) return (
-    <div className="min-h-screen bg-background flex items-center justify-center">
-      <div className="h-8 w-8 rounded-full border-2 border-primary border-t-transparent animate-spin" />
-    </div>
-  );
-  if (!user) return <Navigate to="/auth" replace />;
-  if (isAdvisor) return <Navigate to="/" replace />;
-  if (!needsOnboarding) return <Navigate to="/" replace />;
-  return <>{children}</>;
-};
-
 const AuthRoute = ({ children }: { children: React.ReactNode }) => {
   const { user, loading } = useAuth();
   const qs = new URLSearchParams(window.location.search);
@@ -218,7 +188,7 @@ const App = () => (
                   ProtectedRoute, ingen MemberRoute. AuthProvider kalder
                   ikke fetchUserData uden session, så ruten koster intet. */}
               <Route path="/betal" element={<Betal />} />
-              <Route path="/onboarding" element={<OnboardingRoute><Onboarding /></OnboardingRoute>} />
+              <Route path="/onboarding" element={<OnboardingRedirect />} />
               <Route path="/" element={<MemberRoute><Index /></MemberRoute>} />
               {/* Rapportering-GO (2026-08-06): /reports bærer Hb-rapporteringen.
                   MemberRoute som før — advisors passerer (ingen isAdvisor-gate)

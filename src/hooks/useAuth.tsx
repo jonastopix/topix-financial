@@ -33,7 +33,6 @@ interface AuthContext {
   ownCompanyName: string | null;
   /** True when viewing a different company than the advisor's own */
   isCompanyOverride: boolean;
-  needsOnboarding: boolean;
   /** Membership tier: full (contract), subscriber (stripe), expired, or null */
   membershipTier: "full" | "subscriber" | "expired" | null;
   /** Se CompanyResolution. Index læser "failed" og viser en menneskelig
@@ -41,7 +40,6 @@ interface AuthContext {
   companyResolution: CompanyResolution;
   setCompanyOverride: (id: string, name: string) => void;
   clearCompanyOverride: () => void;
-  setOnboardingComplete: () => void;
   refreshProfile: () => Promise<void>;
   signOut: () => Promise<void>;
 }
@@ -59,12 +57,10 @@ const AuthContext = createContext<AuthContext>({
   ownCompanyId: null,
   ownCompanyName: null,
   isCompanyOverride: false,
-  needsOnboarding: false,
   membershipTier: null,
   companyResolution: "pending",
   setCompanyOverride: () => {},
   clearCompanyOverride: () => {},
-  setOnboardingComplete: () => {},
   refreshProfile: async () => {},
   signOut: async () => {},
 });
@@ -121,7 +117,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [isAdmin, setIsAdmin] = useState(false);
   const [isLegat, setIsLegat] = useState(false);
   const [profile, setProfile] = useState<AuthContext["profile"]>(null);
-  const [needsOnboarding, setNeedsOnboarding] = useState(false);
   const [membershipTier, setMembershipTier] = useState<"full" | "subscriber" | "expired" | null>(null);
   const [companyResolution, setCompanyResolution] = useState<CompanyResolution>("pending");
   const [ownCompanyId, setOwnCompanyId] = useState<string | null>(null);
@@ -143,10 +138,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const clearCompanyOverride = useCallback(() => {
     setOverrideCompanyId(null);
     setOverrideCompanyName(null);
-  }, []);
-
-  const setOnboardingComplete = useCallback(() => {
-    setNeedsOnboarding(false);
   }, []);
 
   const refreshProfile = useCallback(async () => {
@@ -188,34 +179,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       setIsLegat(false);
     }
     setProfile(profileRes.data);
-    // Advisors never need onboarding
-    const profileData = profileRes.data as any;
-    const legatActive = !isAdv && !!legatRow;
-    const profileOnboarded = !!(profileData?.onboarded_at);
-
-    // Invalidate stale localStorage flag if server has been reset. Without this,
-    // a stale "1" could mask a server-side onboarding reset within the same
-    // session before the persist block below runs.
-    const localFlag = localStorage.getItem("tbr.onboarded");
-    const serverOnboarded = isAdv || profileOnboarded || legatActive;
-    if (localFlag === "1" && !serverOnboarded) {
-      try { localStorage.removeItem("tbr.onboarded"); } catch { /* ignore */ }
-    }
-
-    const computedNeedsOnboarding = !isAdv && !legatActive && !profileOnboarded;
-    setNeedsOnboarding(computedNeedsOnboarding);
-
-    // Persist a "known onboarded" flag for the pre-React redirect in main.tsx,
-    // so iOS standalone / mobile restoring /onboarding gets bounced instantly.
-    try {
-      if (isAdv || profileOnboarded || legatActive) {
-        localStorage.setItem("tbr.onboarded", "1");
-      } else {
-        localStorage.removeItem("tbr.onboarded");
-      }
-    } catch {
-      // ignore
-    }
+    // Onboarding-porten er pensioneret (trin 7, docs/indgangen-overhaling.md
+    // §9): auth-kontraktens onboarding-flag, localStorage-flaget og
+    // udledningen fra profilens stempel er væk. profiles.onboarded_at
+    // læses stadig i opslaget ovenfor som historik.
 
     const cm = companyRes.data as any;
     if (cm?.company_id) {
@@ -368,8 +335,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           setIsAdmin(false);
           setIsLegat(false);
           setProfile(null);
-          setNeedsOnboarding(false);
-          try { localStorage.removeItem("tbr.onboarded"); } catch { /* ignore */ }
           setOwnCompanyId(null);
           setOwnCompanyName(null);
           setOverrideCompanyId(null);
@@ -403,9 +368,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       user, session, loading, isAdvisor, isAdmin, isLegat, profile,
       companyId, companyName,
       ownCompanyId, ownCompanyName,
-      isCompanyOverride, needsOnboarding,
+      isCompanyOverride,
       membershipTier, companyResolution,
-      setCompanyOverride, clearCompanyOverride, setOnboardingComplete,
+      setCompanyOverride, clearCompanyOverride,
       refreshProfile, signOut,
     }}>
       {children}
