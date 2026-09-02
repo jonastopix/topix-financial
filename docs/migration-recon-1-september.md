@@ -289,3 +289,114 @@ Bemærk at doggybed står som «Ikke forlænget» på Monday (beslutning
 truffet, jf. `docs/fornyelseskaeden-1-september.md`). At flytte dem
 giver stadig mening som pilot: den sidste rate skal opkræves uanset,
 og gebyret spares.
+
+---
+
+# Piloten gennemført — doggybed, 2. september 2026
+
+## 20. Link-gemte kort KOPIERER — den største ubekendte er lukket
+
+Alle atten abonnementer havde deres kort gemt via **Stripe Link**
+(`card.wallet.type: "link"`). Dokumentationen siger at «cards stored as
+Payment method objects» kopieres, men nævner ikke Link-wallets. Havde de
+ikke kopieret, var hele migrationen faldet, og vejen havde været
+«fornyelsen er flytningen» — hvor hvert medlem indtaster kort på ny.
+
+MÅLT 2/9 på doggybed:
+
+| | Topix.dk | The Boardroom |
+|---|---|---|
+| Kort | Visa debit •8134 | Visa debit •8134 |
+| Udløber | 02/2029 | 02/2029 |
+| Adresse, mail, navn | sat | sat |
+| Link-wallet | ja | ja |
+| `pm`-id | `pm_1SHhEB…` | `pm_1UB6tp…` (nyt, som dokumenteret) |
+| fingerprint | `wasoaMO9fe7V69hX` | `tnZhyZzLBedHX1tP` (kontospecifik) |
+
+`cvc_check` nulstilles ved kopien — forventet.
+
+**Migrationen er dermed farbar for alle fjorten.**
+
+## 21. Delvis kopi kræver en CSV UDEN overskrift
+
+Dashboardets «Copy to account» har tre punkter: Copy all customers,
+Upload file, Status page. Der er **ingen** «kopiér valgte», heller ikke
+når man har sat flueben ved en kunde i listen. Delvis kopi går gennem
+Upload file.
+
+Filen skal være **én kolonne af kunde-id'er UDEN overskriftslinje**.
+Dialogen tæller rækker og viser tallet — en fil med overskrift meldes
+som «2 rows in file» for én kunde, og ville forsøge at kopiere en kunde
+ved navn `customer_id`. Dokumentationen nævner ikke formatet; dialogen
+gør.
+
+Kopien tog under to minutter, ikke de «couple of hours» Stripe angiver.
+
+## 22. Sådan blev abonnementet genskabt
+
+Parametre på `POST /v1/subscriptions` mod den nye konto:
+
+    customer                 cus_TE9XePd7bWBkaO
+    items[0][price]          price_1UAzLw3CvBmCx5PtJ4ro7MUC  (nyt_40000_rate12)
+    billing_cycle_anchor     1789288529   (13/09-2026, samme trækdag)
+    cancel_at                1791880529   (13/10-2026, samme ophør)
+    proration_behavior       none
+    default_payment_method   pm_1UB6tp3CvBmCx5Pte8TvAWzc
+    automatic_tax[enabled]   true
+    description              The Boardroom
+    metadata                 art=migreret, company_id,
+                             migreret_fra, migreret_dato
+
+`proration_behavior: none` er den kritiske. Uden den fakturerer Stripe
+straks for perioden mellem oprettelse og anker. Dokumentationen:
+«This action doesn't generate an invoice at all until the first billing
+period.» Bekræftet: `latest_invoice: null`, nul fakturaer på kunden.
+
+Resultat: `sub_1UB6wE3CvBmCx5Ptq3hHp2vt`, aktiv, første faktura 13/9 på
+**3.500 + 875 moms = 4.375 kr.** — identisk med den gamle kontos
+opkrævning.
+
+**`application: null`** — Circles 0,5 % er væk på denne.
+
+Og Stripe oprettede en `SetupIntent` ved oprettelsen, som LYKKEDES. Det
+er bekræftelse på at det kopierede kort kan bruges til fremtidige træk,
+uden at noget blev trukket.
+
+## 23. Annullering frigiver schedulen automatisk
+
+ÅBENT PUNKT I §8 LUKKET. Hvert gammelt abonnement har en subscription
+schedule (Circles måde at implementere ophøret efter tolv træk). Det var
+uafklaret om den skulle håndteres separat.
+
+Målt: `DELETE /v1/subscriptions/sub_1SHhE5…` satte
+`sub_sched_1SHhE5…` til `status: canceled` med samme tidsstempel.
+Schedulen frigives af sig selv. Ingen risiko for genskabelse.
+
+## 24. Rækkefølgen der virkede
+
+1. Kopiér kunden (ikke-destruktivt — kildekontoen består)
+2. Verificér at kortet kom med, FØR noget andet
+3. Opret abonnementet med anker og ophør, `proration_behavior: none`
+4. Verificér: nul fakturaer, rigtigt beløb, rigtige datoer
+5. Annullér det gamle
+
+Trin 2 er det vigtige: kopien koster intet og besvarer det eneste
+spørgsmål der kunne vælte hele planen. Havde kortet ikke kopieret,
+havde vi intet mistet.
+
+## 25. BESLUTTET 2/9: de tretten andre venter til efter 13/9
+
+Alt måleligt er målt, men trækket selv er uprøvet. Circles gebyr på de
+resterende tretten er 0,5 % af 50.312 kr. = **252 kr./md.**, altså cirka
+92 kr. for de elleve dage til 13/9.
+
+Går trækket galt efter en samlet flytning, står tretten medlemmer med en
+fejlet betaling — og det kan ikke rulles tilbage, for det gamle
+abonnement er annulleret og kan ikke genskabes. 92 kroner for
+sikkerhed er en let beslutning.
+
+Den 13/9: mål at trækket på 4.375 kr. gik igennem på
+`sub_1UB6wE3CvBmCx5Ptq3hHp2vt`. Derefter flyttes de tretten i portioner.
+
+Bemærk at TuaMea (2/9), Floren engros og BR Roset (3/9) uanset skal
+vente til efter deres egne træk.
