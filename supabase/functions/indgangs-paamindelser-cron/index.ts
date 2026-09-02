@@ -9,7 +9,9 @@
 // MOTOREN afgør: afgoerBetalingsfrist (_shared/betalingsfrist.ts, spejl
 // af src/lib/betalingsfrist.ts) siger hvilken påmindelse der er forfalden
 // NU — højst én, den seneste forfaldne (springet: 26 dage uden påmindelse
-// giver 25, ikke 14). Cronen sender den og stempler
+// giver 25, ikke 14). DAGENE ER KONTRAKTENS (rettet 2/9): de regnes fra
+// underskrevet_at, ikke fra betalingsmailen. Kom dag 0 sent (prisen sat
+// dag 20), er første påmindelse dag 25 — rytmen følger fristen. Cronen sender den og stempler
 // sidste_paamindelse_dag med det trin der faktisk gik. Fejler sendingen,
 // stemples der IKKE, så mailen prøves igen næste dag (samme regel som
 // intro-reminder-cron:220).
@@ -227,7 +229,7 @@ async function koerPaamindelser(
 
       if (toerKoersel) {
         console.log(
-          `[indgangs-paamindelser-cron] TØRKØRSEL ville sende dag ${trin} til ${til} (${company.name}, ${tilstand.dage_siden_mail} dage siden mail)`,
+          `[indgangs-paamindelser-cron] TØRKØRSEL ville sende dag ${trin} til ${til} (${company.name}, ${tilstand.dage_siden_underskrift} dage siden underskrift)`,
         );
         resultat.ville_sende++;
         resultat.pr_trin[trinNoegle]++;
@@ -237,12 +239,12 @@ async function koerPaamindelser(
         continue;
       }
 
-      // 4. Mailen. Fristen regnes fra betalingsmail_sendt_at — samme dato
-      //    som dag 0-mailen og betalingssiden.
+      // 4. Mailen. Fristen er kontraktens: regnes fra underskrevet_at
+      //    (rettet 2/9) — samme dato som dag 0-mailen og betalingssiden.
       const mail = bygPaamindelse(trin, {
         fornavn: fornavnAf(company.contact_person),
         betalingsUrl: `${APP_URL}/betal?token=${encodeURIComponent(link.token)}`,
-        fristDato: formatDanskDato(betalingsfristDato(link.betalingsmail_sendt_at as string)),
+        fristDato: formatDanskDato(betalingsfristDato(link.underskrevet_at)),
         beloebKr,
       });
 

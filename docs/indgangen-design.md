@@ -360,8 +360,9 @@ Felterne:
 | `betalingsmail_sendt_at` | timestamptz | dag 0; NULL = ikke sendt endnu (§19, idempotens) |
 | `sidste_paamindelse_dag` | integer | 14, 25 eller 31 — seneste sendte trin i §9's rytme |
 
-**Ikke et felt: `token_udloeber`.** Udløbet ER `betalingsmail_sendt_at
-+ 30 dage` (§19: «30-dagesfristen løber fra betalingsmailen»). To
+**Ikke et felt: `token_udloeber`.** Udløbet ER `underskrevet_at + 30
+dage` — **RETTET 2/9:** fristen er kontraktens og løber fra underskriften,
+ikke fra betalingsmailen (se §19). To
 kilder til samme dato ville kunne drive fra hinanden — en rådgiver der
 sætter prisen sent, eller en gensendt mail, ville give ét felt der
 siger én ting og et andet der siger noget andet. Udløbet beregnes, det
@@ -421,9 +422,13 @@ senere ændring af prisniveauet ikke udløse den igen. Et tidsstempel på
 virksomheden bærer det — samme mønster som
 `intro_reminder_last_sent_at`.
 
-**30-dagesfristen løber fra betalingsmailen**, ikke fra godkendelsen.
-En virksomhed der ventede fire dage på at få sin pris sat, skal ikke
-have fire dage mindre til at betale.
+**30-dagesfristen løber fra UNDERSKRIFTEN — RETTET 2/9.** Den oprindelige
+beslutning 1/9 («fra betalingsmailen, så en virksomhed der ventede fire
+dage på sin pris ikke får fire dage mindre») var forkert:
+aftalegrundlaget giver 30 dage fra underskrift, og det er kontraktens
+frist, ikke vores at give. Konsekvensen er tilsigtet: sættes prisen fire
+dage efter godkendelsen, har medlemmet 26 dage tilbage. Påmindelserne
+14/25/31 følger samme ur (migration 20260902140000).
 
 ## 20. Rådgiverfladen
 
