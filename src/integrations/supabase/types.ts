@@ -690,6 +690,7 @@ export type Database = {
           offboarding_requested_at: string | null
           onboarding_completed: boolean
           postal_code: string | null
+          sidste_checkout_session_id: string | null
           slack_channel: string | null
           start_date: string | null
           status: string | null
@@ -731,6 +732,7 @@ export type Database = {
           offboarding_requested_at?: string | null
           onboarding_completed?: boolean
           postal_code?: string | null
+          sidste_checkout_session_id?: string | null
           slack_channel?: string | null
           start_date?: string | null
           status?: string | null
@@ -772,6 +774,7 @@ export type Database = {
           offboarding_requested_at?: string | null
           onboarding_completed?: boolean
           postal_code?: string | null
+          sidste_checkout_session_id?: string | null
           slack_channel?: string | null
           start_date?: string | null
           status?: string | null
@@ -871,6 +874,7 @@ export type Database = {
           company_id: string
           created_at: string
           prisniveau_oere: number | null
+          sidste_checkout_session_id: string | null
           sidste_paamindelse_dag: number | null
           token: string
           underskrevet_at: string
@@ -881,6 +885,7 @@ export type Database = {
           company_id: string
           created_at?: string
           prisniveau_oere?: number | null
+          sidste_checkout_session_id?: string | null
           sidste_paamindelse_dag?: number | null
           token?: string
           underskrevet_at?: string
@@ -891,6 +896,7 @@ export type Database = {
           company_id?: string
           created_at?: string
           prisniveau_oere?: number | null
+          sidste_checkout_session_id?: string | null
           sidste_paamindelse_dag?: number | null
           token?: string
           underskrevet_at?: string
