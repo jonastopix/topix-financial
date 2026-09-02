@@ -8,17 +8,10 @@ import PasswordStrengthIndicator, { getPasswordScore } from "@/components/Passwo
 import { HbCard } from "@/components/hjemmebane/HbCard";
 import { HbButton } from "@/components/hjemmebane/HbButton";
 import { HbRaadgiverPortraetter } from "@/components/hjemmebane/HbRaadgiverPortraetter";
+import { HB_EYEBROW, HB_H1, HB_INPUT, HB_INPUT_LAAST, HB_LABEL, HB_RAMME } from "@/components/hjemmebane/hbFormKlasser";
 
-/* Hb-felter (trin 10-12): ingen HbInput findes i huset, så klasserne står
-   her ét sted. Radius og hairline er Hb-tokens; fokus-ringen er evergreen
-   som HbButton. Fælles ydre ramme for alle fem tilstande: HB_RAMME. */
-const HB_RAMME = "theme-hjemmebane min-h-screen bg-hb-paper font-body text-hb-ink antialiased px-4 py-12";
-const HB_EYEBROW = "text-sm font-medium uppercase tracking-widest text-hb-rust";
-const HB_H1 = "font-editorial text-3xl font-medium leading-tight text-hb-ink md:text-4xl";
-const HB_LABEL = "mb-1.5 block text-xs font-medium text-hb-ink-soft";
-const HB_INPUT =
-  "w-full rounded-hb border border-hb-line bg-hb-surface px-4 py-3 text-[15px] text-hb-ink placeholder:text-hb-ink-soft/60 focus:outline-none focus:ring-2 focus:ring-hb-evergreen/40";
-const HB_INPUT_LAAST = "bg-hb-paper text-hb-ink-soft cursor-default";
+/* Rammen, eyebrow, overskrift og felterne deles med ResetPassword og
+   NotFound — de bor i hjemmebane/hbFormKlasser.ts (trin 10-12). */
 
 const GoogleIkon = () => (
   <svg className="h-4 w-4" viewBox="0 0 24 24" aria-hidden>
