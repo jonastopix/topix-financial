@@ -1,8 +1,10 @@
 # Indgangsfladen — fra invitation til aktivt medlem
 
-**DESIGNDOKUMENT — intet af det beskrevne findes endnu.** Beslutningerne
-er truffet 1.–2. september 2026; dette er den besluttede form, ikke en
-bogføring af noget bygget. Samme regel som `docs/indgangen-design.md`:
+**DESIGNDOKUMENT.** Beslutningerne er truffet 1.–2. september 2026.
+§1–8 er den besluttede form, skrevet før noget var bygget. **Status 2/9
+aften: trin 1–2 (opslaget bærer mail og navn; /auth forudfylder) er
+bygget i #537 og bevist i drift kl. 20:30 — se tillægget §9–13. Trin
+3–7 er fortsat kun design.** Samme regel som `docs/indgangen-design.md`:
 hver påstand er enten målt (med kilde), eller mærket som ikke målt/åben.
 Reconen bag (2/9) ligger uden for repoet; de målte fund er skrevet ind
 her, så dokumentet står alene.
@@ -146,8 +148,14 @@ eller et nyt, og med hvilken prioritet, er åbent (§7).
 
 ## 4. Fire forudsætninger
 
-**Invitationen skal bære MAIL og NAVN.** Målt:
-`lookup_invite_company_info` (migration `20260310210323`) returnerer kun
+**Invitationen skal bære MAIL og NAVN.** **LØST 2/9 (#537, bevist
+kl. 20:30, §9):** `lookup_invite_company_info` returnerer nu også
+`email` (invitationens) og `kontakt` (`companies.contact_person`),
+migration `20260902190000`. Navnet fik IKKE et felt på invitationen som
+foreslået nedenfor — det læses fra virksomheden, hvor `monday-webhook`
+skriver det siden 2/9. For virksomheder oprettet før 2/9 var feltet
+tomt; se §10. Målingen der lå til grund (stadig sand for 1/9):
+`lookup_invite_company_info` (migration `20260310210323`) returnerede kun
 `name` og `logo_url` på virksomheden. `company_invitations` har
 kolonnerne `id, company_id, email, invited_by, token, status,
 created_at, accepted_at, accepted_by` (migrationer `20260223152943`,
@@ -280,3 +288,101 @@ Rettes uafhængigt af ombygningen.
   `CompanyInvitations.tsx`, som ikke ændres af dette dokument.
   Invitationens nye navnefelt skal dog kunne ses/rettes dér; hvor, er
   ikke afgjort.
+
+---
+
+# Tillæg — trin 2 bevist i drift (2. september 2026, aften)
+
+Alt nedenfor er målt 2/9 om aftenen. Tidspunkter er kørsler i Lovable
+SQL editor. Fundene om `contact_person`, tokens og triggers bygger på
+reconen `~/Downloads/recon-contact-person.md` (uden for repoet); de
+målte fund er skrevet ind her, så dokumentet står alene.
+
+## 9. Trin 2 er bevist i drift — kl. 20:30
+
+`/auth?invite=<token>` forudfylder mail (låst: `readOnly`,
+`Auth.tsx:388`) og navn (redigerbart, `required`) fra invitationen.
+Bevist på Two Socks' rigtige invitation, efter at `contact_person` var
+sat (§10). Metadata ved signup er `{ full_name, invite_token }`.
+
+Trin 3–7 mangler fortsat: mailbekræftelse slås fra i Supabase Auth,
+Onboarding-porten pensioneres, `/auth` og `/settings` til Hjemmebane, de
+tre `valueCards` får et hjem (rækkefølgen står i reconen
+`~/Downloads/recon-adgangsrejsen.md` §4).
+
+## 10. Datahullet: `contact_person` var tomt på 35 af 39 — delvist lukket
+
+Målt kl. 20:10: `contact_person` var tom streng på 35 af 39
+virksomheder, NULL på 1, udfyldt på 3. Uden feltet er trin 2 kun halvt:
+mailen forudfyldes, navnet ikke.
+
+Årsagen er målt i repoet: feltet skrives ÉT sted —
+`monday-webhook/index.ts:320` via `bygKontaktnavn(fornavn, efternavn)`
+— og kun i «Godkendt»-grenen fra 2/9. `import-application` skriver det
+aldrig; den lægger navnet i `application_context.contact_name`. Ingen
+frontend-dialog og ingen SQL-funktion skriver feltet.
+
+Tre virksomheder blev rettet kl. 20:28 med Monday som kilde. Selve
+skrivningen (rækker, guard, optælling, hvad der bevidst IKKE blev rettet)
+er bogført i `docs/indgangen-design.md` §32, hvor webhooken der ejer
+feltet hører til. Resultat: 6 udfyldte, 32 tomme.
+
+**Fejl i repoet, rettet i kommentaren (ikke i adfærden):** migration
+`20260902190000` sagde ved `'kontakt'` at `contact_person` «ER NULL» for
+alt ikke-Monday-oprettet. Forkert: kolonnen har `DEFAULT ''` siden
+`20260225104718`, og prod havde 35 tomme strenge mod 1 NULL. Adfærden
+er korrekt — `Auth.tsx:101` gør `?? ""` + `trim()`, så NULL og tom
+streng behandles ens — men begrundelsen ville vildlede den næste læser.
+Kommentaren i migrationsfilen er rettet 2/9.
+
+## 11. Værn om invitationslinkene — intet link blev gensendt
+
+Krav: en UPDATE på `companies` må ikke røre nogen invitation, og intet
+link må gensendes. Målt tre veje:
+
+- **Tokens før og efter:** md5-fingeraftryk af alle fire pending tokens
+  målt før og efter skrivningen kl. 20:28 — identiske: `d1cce835`,
+  `fe007f4f`, `ee3ec6b5`, `328297fc`.
+- **Prod kl. 20:24:** INGEN triggers på `public.companies` (`pg_trigger`,
+  `not tgisinternal`). Kaskaden til `company_invitations` er en FK
+  `ON DELETE CASCADE` (migration `20260225103844`), ikke en trigger.
+- **Repoet:** intet sted ændrer et eksisterende token; ingen
+  `UPDATE … SET token`; «gensend» (`Members.tsx`, `CompanyInvitations.tsx`,
+  `manage-advisor`) genbruger altid det eksisterende token, og
+  `send-invitation-email` overskriver oven i købet `signup_url` med
+  tokenet fra databasen. Kun INSERT skaber tokens; ét sted sætter det
+  selv (`create-legat-enrollment`, `crypto.randomUUID()`).
+
+## 12. Fejlslutning, rettet 2/9 — `invited_by` afgør hvis invitationen er
+
+Claude læste en pending invitation fra 15/6 (`chatrine@remm.dk`,
+company `9f00e582-1050-4d47-ba8f-221e75e72fab`) som «et medlem uden
+adgang». Jonas rettede: det er en EKSTRA bruger som REMM selv har
+inviteret ind, og der er løbende dialog.
+
+Signalet lå allerede i målingen og blev ikke læst: `invited_by` var
+`44d1a5cb…` — en anden bruger end de tre invitationer fra 1/9
+(`23e81de4…`). **Lære:** `invited_by` afgør om en invitation er vores
+(rådgiverens) eller virksomhedens egen, og skal læses FØR en pending
+invitation kaldes et hul. (Jf. `docs/indgangen-design.md` §24 om hvad
+`invited_by` er og ikke er.)
+
+## 13. Åbne punkter fra aftenen
+
+- **En invitation er ikke nødvendigvis medlemmets egen adgang.** En
+  virksomhed kan invitere kolleger ind: `UNIQUE` er `(company_id,
+  email)`, ikke `company_id` alene. Adgangsrejsen må ikke designes som
+  om der er præcis én adgang pr. aftale. Hører sammen med
+  `docs/indgangen-design.md` §1: «Virksomheden er en AFTALE. Medlemmet
+  er en ADGANG.»
+- **`company_invitations` har INGEN udløbsmekanik.** Ingen kolonne,
+  ingen status ud over `accepted` (42) og `pending` (4). Et token er
+  gyldigt i ubegrænset tid — REMM's har ligget åbent siden 15/6. Til
+  sammenligning udløber betalingslinket efter 30 dage
+  (`docs/indgangen-design.md` §7). Om invitationer skal udløbe er et
+  valg der aldrig er truffet, ikke en fejl.
+- **IKKE MÅLT: om Pro-Vision og E-skilte har adgang.** De var blandt de
+  fem virksomheder uden række, men har ingen pending invitation. Det
+  kan betyde accepteret eller aldrig inviteret.
+- De to punkter om Monday-status «I gang» og `application_context.
+  contact_name` hører til webhooken: `docs/indgangen-design.md` §32.

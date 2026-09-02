@@ -567,7 +567,8 @@ invitationen på en eksisterende pending invitation for virksomheden.
   på «Godkendt» (alt andet, også «Medlem»/«I gang», logges og ignoreres),
   læser de 18 kolonner (`_shared/mondayAnsoegning.ts`), opretter
   virksomheden via `opretEllerGenbrugVirksomhed`, sætter
-  `contact_person` + adresse, parser «Pris (kontrakt)» til øre, opretter
+  `contact_person` + adresse (datahullet for virksomheder fra før 2/9:
+  §32), parser «Pris (kontrakt)» til øre, opretter
   `company_betalingslink` (PK-konflikt = gentaget «Godkendt», springes
   over) og udløser dag 0 i samme proces via
   `_shared/indgangsBetalingsmail.ts`. Den gamle invitationsvej er fjernet.
@@ -759,3 +760,54 @@ at et kort fejler»).
 **Restancepolitikken er besluttet** (past_due = åben adgang, unpaid =
 lukket) og ikke bygget. Den kræver at `computeMembershipTier` ændres
 fire steder samlet.
+
+---
+
+# Tillæg — `contact_person` (2. september 2026, aften)
+
+## 32. `contact_person` — datahullet, de tre rettede og skævheden
+
+Feltet bærer fornavnet i dag 0-mailen og påmindelserne
+(`_shared/indgangsBetalingsmail.ts:190`, `indgangs-paamindelser-cron:245`
+via `fornavnAf`) og navnet på signup-skærmen (`lookup_invite_company_info`
+→ `kontakt`, `docs/indgangsfladen-design.md` §9–10).
+
+**Målt kl. 20:10:** tom streng på 35 af 39 virksomheder, NULL på 1,
+udfyldt på 3. Årsag, målt i repoet: feltet skrives ÉT sted —
+`monday-webhook/index.ts:320` via `bygKontaktnavn(fornavn, efternavn)` —
+og kun i «Godkendt»-grenen fra 2/9 (§26). `import-application` skriver
+det aldrig; den lægger navnet i `application_context.contact_name`
+(`src/lib/virksomhedsRaekke.ts:150`). Kolonnen har `DEFAULT ''`
+(migration `20260225104718`), så alt der er oprettet uden om webhooken
+står med tom streng, ikke NULL.
+
+**Rettet kl. 20:28.** Kilde: Monday board 1899777797, kolonne
+`short_text` (Fornavn) + `text_mm2wy52n` (Efternavn), sammensat som
+`bygKontaktnavn` — samme værdi webhooken ville have skrevet.
+
+| virksomhed | company_id | før → efter |
+|---|---|---|
+| Two Socks ApS | `1c54625a-4a34-4d66-a8a6-4242a96b3d1d` | `''` → `'Simon Frimann'` |
+| WESDEX ApS | `6ab77507-d3f3-4980-a699-6d23d1148fe4` | `''` → `'Jonas Wesley Kinana'` |
+| Din økonomiafdeling | `25a801c3-062b-4c97-ba2b-8319a66ec0a9` | `''` → `'Nicolai Marc Haagen olesen'` |
+
+Guard: `and contact_person = ''`. Optælling efter: 6 udfyldte (fra 3),
+32 tomme (fra 35). Navnene blev IKKE rettet ortografisk («olesen» med
+lille o står som i Monday), fordi webhooken ville skrive det samme;
+rettelse hører hjemme i kilden, ikke i vores UPDATE.
+
+Værnet om invitationslinkene under skrivningen (tokens før/efter, ingen
+triggers på `companies` i prod) er bogført i
+`docs/indgangsfladen-design.md` §11.
+
+**Åbent — skævheden vi efterlod:**
+
+- `application_context.contact_name` er stadig NULL på de tre.
+  Webhooken skriver begge felter; de tre rækker har nu kun det ene.
+- Alle tre Monday-items står med status «I gang», ikke «Godkendt» — den
+  nye webhook-gren (§26) når dem aldrig af sig selv. Skulle de sættes
+  til «Godkendt» i dag, ville `opretEllerGenbrugVirksomhed` genbruge
+  virksomheden på CVR og B5 skrive det samme navn igen (kun ikke-tomme
+  felter, over eksisterende).
+- De resterende 32 tomme er ikke rettet. Hvilke af dem der har et navn
+  på Monday, er ikke målt.
