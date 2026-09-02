@@ -70,6 +70,40 @@ hånden. Ikke besluttet her.
 
 ---
 
+### [P2] «Importér ansøgning» viser år 1905 frem for at afvise en ulæselig dato (set 2026-09-02)
+
+`Members.tsx:95-110` (`parseExcelDate` i `parseApplicationExcel`): en
+ISO-datostreng i Startdato-kolonnen blev til år 1905 i importformularen
+i stedet for at blive afvist (set 2/9 aften ved oprettelsen af
+testvirksomheden FLOOR1, docs/indgangen-overhaling.md §11). Jonas
+opdagede det ved at kigge. En kontraktstart i 1905 på en rigtig
+virksomhed ville give forkerte beregninger (kontrakten, `start_date`,
+`computeMembershipTier`-læserne). Fundet er at formularen VISER 1905
+efter indlæsningen i stedet for at afvise den ulæselige dato dér;
+submit-tjekket (`handleImport`, `:558-580`) afviser datoer uden for
+2020–(nu+3 år), og om 1905 nåede submit, er ikke målt. Ikke fixet.
+
+---
+
+### [P3] `agent_runs`-kolonnen hedder `trigger`, ikke `trigger_type` (målt 2026-09-02)
+
+Migration `20260825120000_agent_runs.sql`. Bogført fordi en måling 2/9
+gik galt på navnet. Ingen ændring — kun navnet der skal huskes.
+
+---
+
+### [P3] Onboarding-agenten kalder værktøjer med virksomhedens NAVN i `company_id` (målt 2026-09-02)
+
+Målt i `agent_runs`/tool-kald for testvirksomheden FLOOR1 (kørsel 2/9
+kl. 21:58, trigger `onboarding`, dry_run): modellen sender
+`company_id: "FLOOR1 I/S"` til sine værktøjer, mens de gemte forslag
+bærer det rigtige UUID. Noget normaliserer det serverside
+(`run-company-agent`s company_id-tvangsoverskrivning, jf.
+`agent-forslag-afgoer/index.ts:20`). Det virker, men er skrøbeligt.
+Ikke undersøgt nærmere.
+
+---
+
 ### [P1] ✅ Løst i PR #11 — `esm.sh`-imports uden version-pinning
 
 **Status**: Løst. Alle 54 imports af `@supabase/supabase-js` på tværs af edge functions er nu pinnet til eksakt `@2.97.0` (matcher `package.json`). Dækker både esm.sh-imports (52 linjer, statiske + dynamiske, single- og double-quote) og `npm:@supabase/supabase-js@2`-imports i `auth-email-hook` og `process-email-queue` (2 linjer). Ingen funktionel ændring — pinning-only.
@@ -533,6 +567,13 @@ virksomhedsnavn sættes i dag EFTER oprettelse via Indstillinger —
 bør ind i selve onboardingen (handle_new_user falder i dag tilbage til
 "{navn}s virksomhed" når company_name mangler i signup-metadata).
 Tages med i epic-designet.
+
+HUSK (målt 2026-09-02): `profiles.tour_completed_at` stemples STILLE ved
+første besøg på forsiden (`Index.tsx:169-181`) og læses ingen andre
+steder i `src`. Flaget er altså allerede BRUGT for alle eksisterende
+medlemmer — det kan ikke bære «har set rundvisningen» uden en nulstilling
+eller et nyt felt. Ankomsten (før rundvisningen) er designet i
+docs/indgangen-overhaling.md §5.
 
 ---
 

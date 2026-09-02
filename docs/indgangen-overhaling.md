@@ -81,9 +81,28 @@ uden at mennesket ser det. Det betyder konkret:
 
 ## 3. Mailbekræftelsen slås fra — BESLUTTET
 
-Indstillingen ligger i Supabase Auth, uden for repoet. Ét klik i
-dashboardet; ingen kode. Det er en driftshandling, og den skal bogføres
-med dato i dette dokument når den er gjort.
+**GJORT 2/9 kl. ca. 21:54 — bevist i drift kl. 21:56 (§9 trin 5).**
+
+**RETTELSE 2/9 aften:** indstillingen ligger IKKE i et Supabase-
+dashboard. Projektet er Lovable Cloud, og indstillingen findes i
+Lovable: Cloud-fanen (+ ved siden af Preview) → Users → Auth settings →
+Email. Den hedder **«Auto-confirm email»** og vender MODSAT: den skal
+slås TIL for at fjerne bekræftelsen. Lovables dokumentation:
+docs.lovable.dev/features/email-auth. Supabase-MCP'en har ikke adgang
+til projektet. Ingen kode; en driftshandling, bogført her.
+
+**Bevis (test-signup `jonas+test1@topix.dk`, 2/9 kl. 21:56, SQL editor):**
+
+- `confirmation_sent_at = NULL` — ingen mail afsendt.
+- `email_confirmed_at` sat 0,25 sek. efter `created_at`.
+- «Tjek din mail» blev aldrig vist; brugeren blev logget ind straks.
+- Til sammenligning, signup 1/9 kl. 22:06:40: `confirmation_sent_at`
+  +0,24 sek., `email_confirmed_at` +28 sek.
+
+Triggeren koblede korrekt: profil med navn, `company_members` med rolle
+`'member'` (ikke `'owner'`, fordi invitationen bar `company_id`),
+invitationen `accepted` med `accepted_at` og `accepted_by`, én
+conversation. Testopstillingen står i §11.
 
 **Begrundelse, skrevet ud:** bekræftelsen beskytter ingenting i vores
 kæde.
@@ -103,11 +122,9 @@ kæde.
 
 **Følge der noteres:** `process-pending-invitation`s e-mail-fallback dør.
 `:94-95` kræver `verifiedEmail && emailConfirmed` før opslag på
-`company_invitations.email`. Med bekræftelse slået fra sætter Supabase
-`email_confirmed_at` ved signup (bibliotekets/Auths dokumenterede
-adfærd — IKKE målt i vores projekt endnu; bevises i §9 trin 5), så
-betingelsen er formentlig stadig sand — men designet må ikke hvile på
-det. Fallbacken er alligevel død på hovedruten: triggeren har allerede
+`company_invitations.email`. Med Auto-confirm slået til sætter Auth
+`email_confirmed_at` ved signup — **målt 2/9 kl. 21:56: +0,25 sek.**
+— så betingelsen er stadig sand; men designet må ikke hvile på det. Fallbacken er alligevel død på hovedruten: triggeren har allerede
 sat invitationen til `accepted`, så PPI's token-opslag (`:85-91`,
 `status='pending'`) finder intet, og e-mail-opslaget (`:101-107`, også
 `pending`) heller ikke. PPI er kun relevant når triggeren IKKE koblede
@@ -211,47 +228,102 @@ og create-legat-enrollment:82-87, plus engangs-backfillen
 `20260226125413:4`. Begge veje forsvinder med porten (§4-tabellen);
 den anden erstattes af den rettede betingelse ovenfor.
 
+### Agentens baseline — målt 2/9 kl. 21:58
+
+Da porten blev gennemført af testbrugeren (§11) kl. 21:58, fyrede
+onboarding-agenten korrekt: `agent_runs` én række, `trigger =
+'onboarding'`, `mode = 'dry_run'`, 2 iterationer, `stop_reason =
+'finish'`, `produced_output = true`, 4,8 sekunder. Fem forslag
+registreret og intet udført: to milestones, én company_action, én
+weekly_focus, én session_prep. **FØR porten blev gennemført var
+`agent_runs` 0** — et levende bevis på at trin 6 skal bevises før trin 7
+(§9): forsvinder porten uden den rettede betingelse, står tælleren på 0
+for hvert nyt medlem.
+
+Det tomme branchevalg i porten skrev intet: `industry_code` forblev NULL
+og `industry_label` uændret, som `recon-branche.md` §3 forudsagde.
+
+Fund undervejs, bogført i BACKLOG.md (2/9): `agent_runs`' kolonne hedder
+`trigger`, ikke `trigger_type`; og agenten kalder sine værktøjer med
+virksomhedens NAVN i `company_id`-argumentet, mens de gemte forslag
+bærer det rigtige UUID.
+
 ---
 
-## 5. Ankomsten skal stå selv — BESLUTTET
+## 5. Ankomsten — BESLUTTET 2/9 aften: tjeklisten forfremmes til fokuskort
 
-**Landingen på Dit Boardroom bærer velkomsten uden video:** medlemmets
-fornavn, virksomhedens navn, og tjeklisten UDFOLDET ved første besøg.
-Videoen skal kunne glide ind i pladsen senere, uden ombygning, når
-Morten har optaget den. Hjemmebane-design.
+### Forsiden ved nul data — målt (`recon-forsiden-nul-data.md`)
 
-Hvad der findes at bygge på (målt):
+- **Der findes INGEN gren for nyt medlem i medlemsfladen.** Hilsenen
+  (`BoardroomView.tsx:139-145`, klokkeslæt `:77-83`, navn `:1832`) er
+  ens ved første og hundrede besøg. Det eneste der sker første gang, er
+  to usynlige stempler: `profiles.tour_completed_at` (`Index.tsx:169-181`,
+  læses ingen andre steder) og `hb.forside.lastVisitAt` i localStorage
+  (`BoardroomView.tsx:1389-1398`, tier «nye ting»-linjen).
+- **Fokuskortets slot (a) `missing-report` fyrer ALTID for et
+  nul-data-medlem** (`nextStep.ts:166-180`) og kender ikke virksomhedens
+  `created_at`/`contract_start_date`: en virksomhed oprettet i går bliver
+  bedt om forrige måneds tal («Upload dine august-tal» i september).
+  Slot (i) «Fortæl de andre hvad du er god til» fyrer også. Fallbacken
+  «Alt er ajour» (`BoardroomView.tsx:1269-1280`) kan et nyt medlem
+  aldrig nå.
+- **Tjeklisten starter altid sammenfoldet** (`HbOnboardingTjekliste.tsx:181`,
+  `useState(false)`), gemmes ingen steder og nulstilles ved hver
+  navigation. Målt for testvirksomheden (§11): «1 af 5» — punktet «Din
+  virksomhed» gjort, hvilket efter motoren kræver website, branche OG
+  CVR (`onboardingTjekliste.ts:110-113`).
+- **Velkomstoverlejringen kan aldrig vises i dag**: `velkomstvideo_guid`
+  er tom (målt 2/9), og `harVelkomstvideo` er første led i alle tre
+  betingelser.
+- **De tre redaktionelle sektioner** (Kommende, Fra fællesskabet, Fra os
+  til dig) er globale og skjuler sig pænt når de er tomme
+  (`BoardroomView.tsx:1947`, `:1997`, `:2038`).
+- **Community-adgang kræver `contract_end_date` i fremtiden**
+  (`har_aktivt_medlemskab`, migration `20260811160000:26-41`): et medlem
+  oprettet via standalone-invitation får `INSERT INTO companies (name)`
+  uden slutdato og dermed tomt feed — tomt og «ingen adgang» kan ikke
+  skelnes (`communityApi.ts:75-77`).
+- «Dine tal» står nederst med «Ingen godkendte tal endnu — upload din
+  første rapport, så fylder vi båndet ud.» (`BoardroomView.tsx:906-925`).
 
-- `HbOnboardingTjekliste` er monteret i `HbMemberShell` på alle
-  Hb-sider (`HbMemberShell.tsx:209-212`, ikke for rådgivere), med
-  sammenfoldet pille som standard (`:181`) og «Kom godt i gang» i
-  sidebaren. Motoren `byggTjekliste` giver fem punkter uden video, seks
-  med (`src/lib/onboardingTjekliste.ts`).
-- `VelkomstOverlejring` (samme fil) er videoens plads i dag: fixed
-  inset-0, «Kom i gang» stempler `profiles.velkomstvideo_set_at`, «Se
-  senere» udsætter for sessionen (`tbr.velkomst-udsat`).
-- Fornavnet: `profile.full_name` (Index.tsx:183 bruger allerede
-  `split(" ")[0]`); virksomheden: `companyName` fra `useAuth`.
-- `BoardroomView` har en tom-tilstand «Ingen godkendte tal endnu —
-  upload din første rapport…» (`BoardroomView.tsx:914`) og fokus-kortets
-  «anerkendelse frem for tomhed» (:1274, :1657-1664) — ankomsten skal
-  ikke konkurrere med dem, men stå over dem.
+### Beslutningen (Jonas, 2/9 aften) — står fast
 
-Formen (design, ikke bygget): én velkomstblok øverst i `BoardroomView`
-ved første besøg — «Velkommen, {fornavn}. {virksomhed} er inde.» — med
-tjeklisten udfoldet lige under (samme komponent, samme punkter, ikke en
-kopi), og en tom plads i blokken hvor videoen kommer til at stå. Med
-video sat: pladsen fyldes af `HbVelkomstVideoEmbed` i samme blok;
-overlejringen som fixed inset-0 pensioneres til fordel for blokken.
-Ved andet og senere besøg: blokken forsvinder, tjeklisten er pille som
-i dag.
+**Ankomsten bliver IKKE en velkomstblok lagt oven på forsiden.** (Den
+form dette afsnit beskrev tidligere samme aften — velkomstblok + udfoldet
+tjekliste + plads til video — er FORKASTET.) I stedet skifter
+fokuskortet kilde ved nul data: **TJEKLISTEN FORFREMMES FRA PILLE TIL
+FOKUSKORT.** «Dit næste skridt» viser første ikke-gjorte tjeklistepunkt
+stort og resten som linjer — samme form kortet allerede har (#1 stort,
+#2–4 som linjer, `FocusCard`). Motoren `byggTjekliste` findes; det er
+fokuskortets førsteprioritet der skal ændres.
 
-«Første besøg» skal have en markør. I dag findes: `velkomstvideo_set_at`
-på `profiles` (kun meningsfuld med video), `tbr.tjekliste-lukket` /
-`tbr.tjekliste-faerdig-set` i localStorage (per enhed) og efter §4
-`onboarded_at`. Hvilken der bærer «har set ankomsten» er ÅBENT (§10);
-bemærk at localStorage giver «første besøg pr. browser», ikke pr.
-medlem.
+- **Hilsenen får en gren:** «Velkommen, {fornavn}.» så længe intet er
+  gjort.
+- **Slot (a) skal kende `contract_start_date`,** så der ikke bedes om
+  tal fra før virksomheden fandtes.
+- **Varighed — VALGT A:** ankomsten varer indtil tjeklisten er færdig
+  (alle punkter gjort), derefter almindelig prioritering. Markøren for
+  «ankomst» er dermed tjeklistens egen tilstand (`byggTjekliste(...).faerdig`,
+  data pr. medlem) — ingen ny kolonne, intet localStorage.
+- **Videoen** glider ind som tjeklistepunktet «Se velkomsten» når
+  `velkomstvideo_guid` sættes (punktet findes allerede i motoren og
+  filtreres fra uden video, `onboardingTjekliste.ts:174-176`); dermed
+  bliver den første ikke-gjorte linje i fokuskortet, uden ombygning.
+- Hjemmebane-design; ingen fixed overlejring ud over den eksisterende
+  video-overlejring.
+
+**ÅBENT PUNKT der følger af A** (§10): et medlem der aldrig fylder de
+fem punkter, ser aldrig den almindelige forside. Punkterne skal kunne
+afsluttes — enten afvises enkeltvis, eller ankomsten giver op efter et
+stykke tid. Ikke afgjort.
+
+Hvad der findes at bygge på (målt): `HbOnboardingTjekliste` i
+`HbMemberShell` (`:209-212`, ikke for rådgivere) med pille/liste/
+«Alt er på plads»; `useOnboardingTjekliste` (syv queries, `markerVelkomstSet`);
+`FocusCard` (`BoardroomView.tsx:1150-1294`) med `items`, `nextEntry`,
+`journeyLine`; `deriveFocus` (`nextStep.ts:158-347`) med ni slots og
+tests. Om pillen skal blive stående ved siden af fokuskortet i
+ankomsten, er ikke afgjort (§10).
 
 ---
 
@@ -444,6 +516,20 @@ vedligeholdsregel 2 (indgangsfladen §8).
 
 ---
 
+### 7.7 Invitationsmailen lover den gamle vej
+
+**I dag** (målt 2/9 aften på den modtagne mail): invitationsmailen
+siger «Du kan oprette dig med en hvilken som helst e-mail — du bliver
+automatisk tilknyttet The Boardroom via dit invitationslink.» Efter
+#537 er mailfeltet på /auth `readOnly` og låst til invitationens adresse
+(`Auth.tsx:388`); skriver man en anden, afviser triggeren. Teksten er en
+rest fra den gamle vej (`send-invitation-email`/skabelonen, ikke læst
+linje for linje her).
+
+**Skal blive:** mailen siger det samme som skærmen — at kontoen
+oprettes på netop denne adresse. Hører til trin 10 (§9), hvor /auth's
+tilstande alligevel skrives om.
+
 ## 8. Hvad der IKKE ændres
 
 - `handle_new_user` (FORBIDDEN uden grønt lys, CLAUDE.md:95-98). Det er
@@ -479,10 +565,11 @@ flader. «Bevis» = hvad der måles før næste trin begynder.
    `import-application`, ikke bare merge). Bevis: næste «Godkendt» på
    Monday giver en række med `industry_code` sat (SQL editor), og
    NoegletalView viser branchesammenligning for den.
-5. **Mailbekræftelsen slås fra** (Supabase Auth, driftshandling). Bevis:
-   test-signup → `data.session` findes, `email_confirmed_at` sat ved
-   oprettelsen (SQL editor), «Tjek din mail» vises ikke; dato bogføres
-   her.
+5. **✅ BEVIST 2/9 kl. 21:56 — Mailbekræftelsen slået fra** (Lovable →
+   Cloud → Users → Auth settings → Email → «Auto-confirm email» TIL, kl.
+   ca. 21:54; §3). Bevis målt: `confirmation_sent_at = NULL`,
+   `email_confirmed_at` +0,25 sek., «Tjek din mail» vist ikke, logget
+   ind straks; triggeren koblede korrekt.
 6. **`profileOnboarded` ud af agentens betingelse** (§4-beslutningen:
    `useAuth.tsx:254` bliver `onboarding_completed === false &&
    application_context`, som Onboarding.tsx:89). Bevis: ny konto med
@@ -493,26 +580,39 @@ flader. «Bevis» = hvad der måles før næste trin begynder.
 7. **Porten pensioneres** (de seks steder i §4; `/onboarding` → `/`).
    Bevis: ny konto lander på `/` uden at passere `/onboarding`;
    eksisterende medlem uændret; `grep needsOnboarding` = nul.
-8. **Ankomsten** (§5: velkomstblok + udfoldet tjekliste i `BoardroomView`,
-   pladsen til videoen, markøren for første besøg). Bevis: ny konto ser
-   blokken; andet besøg ser den ikke; med en test-GUID i
-   `velkomstvideo_guid` glider videoen ind uden anden ændring.
-9. **Blindgyden lukkes** (§7.1: grænse på skelettet, `none` = fejl for
+8. **Ankomstens motor** (§5-beslutningen, motor før flade): `deriveFocus`
+   udvides med (1) `contract_start_date` som input, så slot (a) ikke
+   beder om tal fra før virksomheden fandtes, og (2) tjeklisten som
+   kilde med førsteprioritet så længe `byggTjekliste(...).faerdig` er
+   falsk — første ikke-gjorte punkt som #1, resten som linjer. Rene
+   funktioner, tests pr. slot og pr. overgang (sidste punkt gjort →
+   almindelig prioritering). Bevis: `bun run test` grøn, testene læst.
+9. **Ankomstens flade** (§5): `FocusCard` viser tjeklistekilden i sin
+   eksisterende form; hilsenen får grenen «Velkommen, {fornavn}.» så
+   længe intet er gjort; pillens rolle i ankomsten afgjort (§10). Bevis:
+   testbruger med nul data ser «Velkommen, {fornavn}.» og første
+   tjeklistepunkt som fokus; efter alle punkter er gjort, ser samme
+   bruger «Godmorgen/…» og slot (a)–(i); med en test-GUID i
+   `velkomstvideo_guid` bliver «Se velkomsten» første linje uden anden
+   ændring.
+10. **Blindgyden lukkes** (§7.1: grænse på skelettet, `none` = fejl for
    ikke-rådgivere, skelet i Hb-tokens). Bevis: fremkald tilstanden
    (bruger uden `company_members`-række i test) → gaten efter N
    sekunder, ikke skelettet.
-10. **/auth til Hjemmebane** (§7.5: alle fem tilstande + spinnerne +
+11. **/auth til Hjemmebane** (§7.5: alle fem tilstande + spinnerne +
     `/reset-password`; §7.2 dødt/brugt token; §7.3 indlogget browser;
-    §7.4 fejl-parametre). Bevis: hver tilstand fremkaldt og set; login
-    og nulstilling virker for et eksisterende medlem; konvergens.md
-    opdateret.
-11. **404 til Hjemmebane** (§7.6). Bevis: forkert sti viser Hb-siden.
-12. **Bogføring**: dette dokument opdateres pr. trin med dato og bevis;
-    OVERLEVERING DEL 2/3 peger hertil.
+    §7.4 fejl-parametre; §7.7 invitationsmailens tekst). Bevis: hver
+    tilstand fremkaldt og set; login og nulstilling virker for et
+    eksisterende medlem; konvergens.md opdateret.
+12. **404 til Hjemmebane** (§7.6). Bevis: forkert sti viser Hb-siden.
+13. **Bogføring**: dette dokument opdateres pr. trin med dato og bevis;
+    OVERLEVERING DEL 2/3 peger hertil. Testopstillingen (§11) fjernes
+    når ruten er bevist.
 
-Trin 1–4 (branchen) er uafhængige af 5–8 (ruten) og kan køre parallelt
-i to grene; 6 SKAL være bevist før 7; 8 bygger på 7; 9–11 er
-uafhængige af hinanden.
+Trin 1–4 (branchen) er uafhængige af 5–9 (ruten) og kan køre parallelt
+i to grene; 5 er bevist; 6 SKAL være bevist før 7 (§4: `agent_runs` var
+0 før porten blev gennemført); 8 og 9 bygger på 7; 10–12 er uafhængige
+af hinanden.
 
 ---
 
@@ -536,8 +636,16 @@ uafhængige af hinanden.
   `application_context.raw_cvr_data`: antal og hvor mange der har en
   DB07-kode gemt — UKLART. Er en datarettelse (SELECT før/efter,
   guard `industry_code IS NULL`), ikke en del af trin 4.
-- **Markøren for «første besøg»** (§5): `onboarded_at`,
-  `velkomstvideo_set_at`, ny kolonne eller localStorage. Ikke besluttet.
+- **LØST 2/9 aften — Markøren for «første besøg»** (§5): ankomsten
+  varer indtil tjeklisten er færdig (valg A), så markøren er
+  `byggTjekliste(...).faerdig` — data pr. medlem, ingen ny kolonne.
+- **Ankomsten kan vare for evigt** (følger af valg A, §5): et medlem der
+  aldrig fylder de fem punkter, ser aldrig den almindelige forside.
+  Punkterne skal kunne afsluttes — afvises enkeltvis, eller ankomsten
+  giver op efter et stykke tid. Ikke afgjort.
+- **Pillens rolle i ankomsten** (§5): bliver `HbOnboardingTjekliste`
+  stående nederst til højre mens fokuskortet viser samme punkter, eller
+  trækker den sig indtil ankomsten er slut. Ikke afgjort.
 - **N sekunder** før skelettet giver op (§7.1).
 - **Dødt vs. brugt token** (§7.2): kræver at RPC'en svarer med en grund
   for ikke-pending tokens — ændrer hvad et token afslører (i dag: intet
@@ -553,3 +661,30 @@ uafhængige af hinanden.
   konvergens.md §1 («STANDALONE-GAMMEL»), ikke målt her.
 - **Hvor længe «Konto oprettet»-grenen står** før navigationen (§2).
   Ikke målt.
+
+---
+
+## 11. Testopstillingen — bevisernes virksomhed (oprettet 2/9)
+
+Bruges til at bevise trin 5–7 i drift. Fjernes helt når ruten er
+bevist; intet af det er kundedata.
+
+| hvad | værdi |
+|---|---|
+| Virksomhed | **FLOOR1 I/S**, `companies.id = fea24b90-3252-45f3-a2fb-f15fda3f2402`, CVR 41772239 |
+| Oprettet | 2/9 kl. 21:47 via «Importér ansøgning» (`import-application`) med en Excel-fil vi selv lavede |
+| Tilstand | `status = 'active'`, kontrakt 02.09.2026–02.09.2027, `vis_i_netvaerk = false` (sat 2/9 kl. 21:50, så den ikke ses i Netværket — det eneste felt der tager den ud af noget uden at tage adgangen, `recon-testvirksomhed.md` §2) |
+| Bruger, trin 5 | `jonas+test1@topix.dk`, `user_id d06f68cc-76b3-4793-a575-85c0e6e657c2` — signup 2/9 kl. 21:56, porten gennemført kl. 21:58 |
+| Planlagt | `jonas+test2@` og `jonas+test3@` til trin 6 og 7 — én adresse pr. trin, fordi en brugt adresse ikke kan genbruges (kontoen findes i `auth.users`). `UNIQUE (company_id, email)` tillader flere adresser på samme virksomhed |
+| Synlig hvor | /members' liste og AdvisorDashboard (status active, ikke legat), MemberDetail; ikke i Netværket. `is_demo` findes ikke i repoet og ændrer intet (`recon-testvirksomhed.md` §1) |
+
+**Oprydning når ruten er bevist:** `hardDeleteCompany` med
+`deleteUsers: true` (via `admin-cleanup-test-data` `hard_delete_company`
+med `delete_users: true`, dry-run først), plus de rester
+`recon-testvirksomhed.md` §4–5 nævner: storage-objekter (`financial-
+documents/{company_id}/…`, `company-logos`, `chat-attachments/{user_id}/…`),
+notifikationer uden `company_id`, og `user_id`-tabeller uden FK-cascade
+(`conversation_last_seen`, `message_reactions`, `report_comments`,
+`circle_*`, `group_*`). `group_companies` ville blokere sletningen af
+`companies`-rækken hvis en række findes (FK uden `ON DELETE`). SELECT
+før/efter, og bogfør FØR-værdierne her.

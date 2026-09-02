@@ -258,7 +258,7 @@ godt i gang» i sidebaren. Seks punkter når der er velkomstvideo, fem uden
 PulseCheckin er AppLayout og har ikke boksen (accepteret).
 Recon: `~/Downloads/recon-onboarding-tjekliste.md`, `recon-velkomstvideo.md`.
 
-### Adgangsrejsen — trin 1–2 bevist i drift 2/9, 3–7 mangler
+### Adgangsrejsen — trin 1–2 og mailbekræftelsen bevist i drift 2/9
 
 `docs/indgangsfladen-design.md` (design §1–8, 2/9 nat; tillæg §9–13,
 2/9 aften) og `~/Downloads/recon-adgangsrejsen.md` (designet holdt op
@@ -318,7 +318,8 @@ facit og rækkefølge; `docs/chat-design.md` chattens form.
 | åbent | **Velkomstvideoen skal optages** (Morten). Pladsen er bygget; GUID'et sættes i /admin/config. | recon-velkomstvideo |
 | åbent | **Rundvisningen** — interaktiv førstegangs-oplevelse efter velkomsten; bygges efter C3-indflytningen; må aldrig eksistere ved siden af Guiden. | BACKLOG [P2·EPIC] Platform-onboarding |
 | åbent | **Adminfladens overhaling** — rådgiverfladen tages samlet som ét epic, efter medlemsdesignet. /members har i dag IndgangsSektion + FornyelsesSektion i gammelt design. | prioritering §6 |
-| åbent | Indgangens overhaling: branche-motor, mailbekræftelse fra, porten ud, ankomsten, /auth til Hb — tolv trin. | `docs/indgangen-overhaling.md` §9 |
+| åbent | Indgangens overhaling: branche-motor, porten ud, ankomsten (tjeklisten som fokuskort), /auth til Hb — tretten trin; trin 5 (mailbekræftelsen fra) bevist 2/9 kl. 21:56. | `docs/indgangen-overhaling.md` §9 |
+| når ruten er bevist | **Testvirksomheden FLOOR1 I/S** (`fea24b90-…`, `jonas+test1/2/3@topix.dk`) skal fjernes helt: hardDelete med brugere + storage- og user_id-rester. | `docs/indgangen-overhaling.md` §11, `~/Downloads/recon-testvirksomhed.md` |
 | åbent | Nudge-formen som designdokument, Community-opdagelse, Events (bekræftelse, kalender, lokation), Milepælene ud — rækkefølgen fra 1/9 står. | prioritering §2–5 |
 | driftsgæld | Fejlovervågning findes ikke; restore er aldrig afprøvet; `run-weekly-agent` står ikke i `cron.job`; 73 uploads bestod validering uden at blive committet; e-conomic-integrationen er død (migration-recon §10). | status-1-sept §6, OVERLEVERING (forrige) §7 |
 
@@ -332,6 +333,11 @@ De konkrete ting der har kostet tid. Led efter dem.
   kun `Deno.cron` kører aldrig. Påmindelser skal have en HTTP-indgang og
   planlægges med pg_cron (net.http_post + vault-nøglen
   `email_queue_service_role_key`).
+- **Auth-indstillingerne ligger i Lovable, ikke i et Supabase-dashboard.**
+  Cloud-fanen → Users → Auth settings → Email. «Auto-confirm email»
+  vender modsat: TIL fjerner bekræftelsen (gjort 2/9). Supabase-MCP'en
+  har ikke adgang.
+- **`agent_runs.trigger`, ikke `trigger_type`.** Kostede en måling 2/9.
 - **`invited_by` afgør hvis en invitation er.** En pending invitation
   med en anden `invited_by` end rådgiverens er virksomhedens egen
   (kolleger inviteres ind); den er ikke et hul. Læs kolonnen før du
