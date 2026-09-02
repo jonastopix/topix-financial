@@ -245,13 +245,18 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       }
 
       // Trigger onboarding agent if this is first login for an imported company
+      // (trin 6, docs/indgangen-overhaling.md §9): betingelsen bærer IKKE
+      // profileOnboarded. onboarding_completed er det egentlige værn (sættes
+      // true lige herunder, før kaldet), Onboarding.tsx:89 har altid kørt
+      // uden leddet, og profiles.onboarded_at holder op med at blive
+      // skrevet når porten pensioneres i trin 7.
       const { data: companyMeta } = await supabase
         .from("companies")
         .select("onboarding_completed, application_context")
         .eq("id", cm.company_id)
         .maybeSingle();
 
-      if (companyMeta?.onboarding_completed === false && companyMeta?.application_context && profileOnboarded) {
+      if (companyMeta?.onboarding_completed === false && companyMeta?.application_context) {
         // Mark completed immediately to prevent duplicate runs on rapid re-auth
         await supabase
           .from("companies")
