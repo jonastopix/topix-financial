@@ -1,8 +1,8 @@
 /**
- * src/lib/indgangspris.ts
+ * supabase/functions/_shared/indgangspris.ts
  *
- * Spejlet ordret i supabase/functions/_shared/indgangspris.ts — enhver
- * ændring her SKAL også laves der. Pariteten håndhæves af testen i
+ * Spejlet ordret fra src/lib/indgangspris.ts — enhver ændring her SKAL
+ * også laves der. Pariteten håndhæves af testen i
  * src/lib/__tests__/indgangsprisParitet.test.ts.
  *
  * Filen har nul imports og kan derfor loades af både Vite/Vitest (Node)

@@ -132,3 +132,11 @@ project_id = "loiavmastgeieqyiwyyr"
   # Samme begrundelse som get-community-billed-url ovenfor.
   [functions.opret-fornyelse-checkout]
     verify_jwt = true
+  # verify_jwt = FALSE, bevidst: kalderen er /betal — en besøgende UDEN
+  # session og dermed uden JWT (de har ikke en konto endnu). Med true ville
+  # gatewayen afvise kaldet før koden kører. Beskyttelsen er betalingstokenet
+  # i body, verificeret af verifyBetalingstoken (_shared/betalingstokenAuth.ts)
+  # mod hent_betalingsdata_til_checkout, som kun svarer når betaling er
+  # tilladt — samme klasse som webhook-signaturerne (Bucket C).
+  [functions.opret-indgangs-checkout]
+    verify_jwt = false

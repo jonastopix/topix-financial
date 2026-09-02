@@ -106,6 +106,14 @@ const AUTH_PREDICATES: Predicate[] = [
   { name: "verifyWebhookRequest()",       pattern: /\bverifyWebhookRequest\s*\(/ },
   { name: "verifyCalendlySignature()",    pattern: /\bverifyCalendlySignature\s*\(/ },
 
+  // Betalingstoken (indgangen, 2/9): kalderen er en besøgende UDEN session
+  // — personen har ikke en konto endnu — så et JWT-prædikat er umuligt.
+  // Tokenet i body er kalderens legitimation, samme klasse som en
+  // webhook-signatur: noget kun den rigtige kalder kan bære. Dommen ligger
+  // i SQL (hent_betalingsdata_til_checkout, service_role-only), som kun
+  // svarer når betaling er tilladt. Se _shared/betalingstokenAuth.ts.
+  { name: "verifyBetalingstoken()",       pattern: /\bverifyBetalingstoken\s*\(/ },
+
   // Shape-based: `Bearer ${...}` template compared against a request
   // header (=== or !==). Excludes outbound fetch-header assignments
   // by syntactic shape, not by variable name.
