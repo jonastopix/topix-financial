@@ -27,6 +27,20 @@
 // som useAuth oversætter til «full». Rådgiver-opslaget (user_roles
 // limit 1 uden order) var kun til invited_by og er væk med den.
 //
+// DEDUP PÅ MONDAY-ITEM'ET (2/9): ét item = én virksomhed, uanset CVR.
+// Målt 2/9: uden gyldigt CVR gav to «Godkendt» to virksomheder, to tokens
+// og to dag 0-mails; med CVR kunne to SAMTIDIGE kald passere CVR-opslaget
+// før den andens insert. Nu slås company_betalingslink op på
+// monday_item_id FØR noget oprettes (migration 20260902160000, partielt
+// unik-index). Findes rækken: 200 { skipped, item_allerede_behandlet },
+// intet oprettes, intet sendes. Rækkefølgen er værnet mod racen:
+// linkrækken oprettes FØR dag 0 udløses, så taberen af to samtidige kald
+// får 23505 på indekset og svarer «allerede behandlet» — den sender
+// ingen mail. Den resterende skade ved en race er en FORÆLDRELØS
+// companies-række (companies-insert sker før linkrækken, og FK'en binder
+// rækkefølgen): den kan ses i /members som en virksomhed uden
+// indgangsrække. Se afsnittet ved B7.
+//
 // KONTRAKTDATOER SÆTTES IKKE HER. opretEllerGenbrugVirksomhed tager dem
 // ikke imod, og det er værnet: tre steder læser contract_end_date som
 // «har betalt». De skrives af stripe-webhook på betalingsdagen (§1).
@@ -235,6 +249,25 @@ Deno.serve(async (req) => {
       return jsonResponse({ error: "MONDAY_API_TOKEN not configured" }, 500);
     }
 
+    const adminClient = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+
+    // ── B0. Dedup: er item'et allerede behandlet? Slås op FØR Monday-kaldet
+    //        og FØR noget oprettes. Fejler opslaget, fortsættes der —
+    //        unik-indekset fanger en dublet ved insert i B7. ──
+    const { data: tidligere, error: tidligereErr } = await adminClient
+      .from("company_betalingslink")
+      .select("company_id")
+      .eq("monday_item_id", pulseId)
+      .maybeSingle();
+    if (tidligereErr) {
+      console.warn(`[monday-webhook] dedup-opslag på monday_item_id=${pulseId} fejlede — fortsætter, indekset fanger dubletter:`, tidligereErr);
+    } else if (tidligere?.company_id) {
+      console.log(`[monday-webhook] item ${pulseId} ("${pulseName}") er allerede behandlet — company ${tidligere.company_id}. Intet oprettet, intet sendt.`);
+      return jsonResponse({ ok: true, skipped: true, reason: "item_allerede_behandlet", company_id: tidligere.company_id, item_id: pulseId });
+    }
+
     // ── B1. Alle kolonner for item'et ──
     const kolonner = await hentAnsoegningsKolonner(pulseId, MONDAY_API_TOKEN);
     const felter = laesAnsoegningsFelter(kolonner);
@@ -250,9 +283,6 @@ Deno.serve(async (req) => {
     }
 
     const kontaktnavn = bygKontaktnavn(felter.fornavn, felter.efternavn);
-    const adminClient = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
-      auth: { persistSession: false, autoRefreshToken: false },
-    });
 
     // ── B3+B4. Virksomheden — den delte vej (samme som import-application).
     //           INGEN kontraktdatoer: hjælperen tager dem ikke imod. ──
@@ -311,18 +341,48 @@ Deno.serve(async (req) => {
       );
     }
 
-    // ── B7. Linkrækken: company_id, prisniveau_oere, underskrevet_at = now().
-    //        Tokenet genereres af databasen (gen_random_uuid). Findes rækken
-    //        (PK-konflikt, 23505), er det et gentaget «Godkendt»: spring
-    //        over og log — rækken og dens stempler bevares, det er
-    //        idempotensen. ──
+    // ── B7. Linkrækken: company_id, prisniveau_oere, underskrevet_at = now(),
+    //        monday_item_id. Tokenet genereres af databasen (gen_random_uuid).
+    //        To 23505-tilfælde, som skelnes på indeksnavnet:
+    //        - PK-konflikt (company_id findes): gentaget «Godkendt» på en
+    //          virksomhed genbrugt via CVR — spring over, rækken og dens
+    //          stempler bevares. Det er idempotensen for den vej.
+    //        - company_betalingslink_monday_item_unik: RACEN. To samtidige
+    //          kald fandt begge intet i B0; den anden taber her. Svar
+    //          «allerede behandlet», send INGEN mail. Den resterende skade
+    //          er den forældreløse companies-række oprettet i B3 (FK'en
+    //          kræver at virksomheden findes før linkrækken, så rækkefølgen
+    //          kan ikke vendes) — den kan ses i /members som en virksomhed
+    //          uden indgangsrække, uden token og uden mail. ──
     let linkOprettet = false;
     const { error: linkErr } = await adminClient.from("company_betalingslink").insert({
       company_id: companyId,
       prisniveau_oere: prisniveauOere,
       underskrevet_at: new Date().toISOString(),
+      monday_item_id: pulseId,
     });
     if (linkErr) {
+      const paaMondayItem =
+        linkErr.code === "23505" &&
+        `${linkErr.message ?? ""} ${(linkErr as { details?: string }).details ?? ""}`.includes("company_betalingslink_monday_item_unik");
+      if (paaMondayItem) {
+        const { data: vinder } = await adminClient
+          .from("company_betalingslink")
+          .select("company_id")
+          .eq("monday_item_id", pulseId)
+          .maybeSingle();
+        console.error(
+          `[monday-webhook] RACE på item ${pulseId}: linkrækken findes allerede for company ${vinder?.company_id ?? "?"}. Denne kørsel oprettede company ${companyId} (${oprettet.genbrugt ? "genbrugt" : "NY — forældreløs, uden indgangsrække"}) — ingen mail sendt herfra.`,
+        );
+        return jsonResponse({
+          ok: true,
+          skipped: true,
+          reason: "item_allerede_behandlet",
+          company_id: vinder?.company_id ?? null,
+          item_id: pulseId,
+          ...(oprettet.genbrugt ? {} : { foraeldreloes_company_id: companyId }),
+        });
+      }
       if (linkErr.code === "23505") {
         console.log(`[monday-webhook] company_betalingslink findes allerede for ${companyId} — gentaget «Godkendt», rækken bevares`);
       } else {
