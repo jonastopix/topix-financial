@@ -23,6 +23,7 @@ import type { CompanyData, CompanyMember, LoginInfo, UnassignedUser, SortKey, So
 import MembersStatsBar from "@/components/members/MembersStatsBar";
 import MembersOnboardingFunnel from "@/components/members/MembersOnboardingFunnel";
 import FornyelsesSektion from "@/components/members/FornyelsesSektion";
+import IndgangsSektion from "@/components/members/IndgangsSektion";
 import MemberCompanyRow from "@/components/members/MemberCompanyRow";
 import EditCompanyDialog from "@/components/members/EditCompanyDialog";
 import MembersAdminSection from "@/components/members/MembersAdminSection";
@@ -1129,6 +1130,9 @@ const Members = () => {
         standalonePendingCount={standalonePendingInvitations.length}
         onSearchCompany={(name) => setSearch(name)}
       />
+
+      {/* Indgangen står FØR fornyelsen: den kommer først i tid. */}
+      <IndgangsSektion />
 
       <FornyelsesSektion companies={companies} />
 
