@@ -305,7 +305,7 @@ export const BookSessionView = () => {
 
           {/* Avatar-header: konstant i alle tilstande. */}
           <div className="flex items-center gap-4">
-            <AdvisorAvatar src="/morten-larsen.png" alt="Morten" initials="ML" />
+            <AdvisorAvatar src="/morten-larsen.jpg" alt="Morten" initials="ML" />
             <div>
               <h2 className="font-semibold text-hb-ink">Morten Larsen</h2>
               <p className="text-sm text-hb-ink-soft">Investor og rådgiver, The Boardroom</p>

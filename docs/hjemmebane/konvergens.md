@@ -43,7 +43,7 @@ Skæbner (konservativt — kun det besluttede er markeret besluttet):
 
 | Route | Side | Formål | Sprog | Skæbne |
 |---|---|---|---|---|
-| /auth(/\*) | Auth.tsx | Login/signup (invite-grene) | STANDALONE-GAMMEL | Konverteres-før-lancering |
+| /auth(/\*) | Auth.tsx | Login/signup (invite-grene) | DELVIS HB: signup-tilstanden er HB (delt skærm m. `HbRaadgiverPortraetter`, 2/9 — indgangen-overhaling §7.5); login, nulstil, «Tjek din mail», «Konto oprettet» og route-spinnerne er stadig STANDALONE-GAMMEL | Konverteres-før-lancering (resten følger i trin 10-12) |
 | /reset-password | ResetPassword.tsx | Kodeord-reset | STANDALONE-GAMMEL | Konverteres-før-lancering |
 | /onboarding | Onboarding.tsx | Setup-wizard (navn/branche/virksomhed, needsOnboarding-gate) | STANDALONE-GAMMEL | Afgøres-i-onboarding-epic (dataindsamling vs. oplevelse, jf. §2.1) + Konverteres-før-lancering |
 
