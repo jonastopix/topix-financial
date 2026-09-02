@@ -194,12 +194,43 @@ serveren. Motoren `afgoerFornyelsestilstand` (ti tilstande), fladen
 | motoren | `src/lib/betalingsfrist.ts` + spejl | fristen er KONTRAKTENS: 30 dage fra underskriften (rettet 2/9, migration 20260902140000) |
 | værn mod dobbeltbetaling | `_shared/checkoutSession.ts` i alle fire checkout-funktioner | bygget: udløb forrige session, 30 min levetid, id gemt |
 
-Fem migrationer fra 2/9 skal være kørt i SQL editoren for at kæden
+Seks migrationer fra 2/9 skal være kørt i SQL editoren for at kæden
 holder: `20260902140000` (frist fra underskrift), `150000`
 (sidste_checkout_session), `160000` (monday_item_id), `170000`
 (velkomstvideo_set_at), `180000` (velkomstvideo_guid), `190000`
-(lookup_invite email+kontakt). Målt kørt: **UKLART for hver enkelt** —
-verificér med `pg_get_functiondef`/`information_schema.columns`.
+(lookup_invite email+kontakt). **Alt er kørt og verificeret: målt 2/9
+kl. 19:46 i Lovable SQL editor gav de elleve tjek nedenfor alle `true`.**
+SQL'en beholdes, så den kan køres igen efter en genskabelse:
+
+```sql
+select 'company_betalingslink findes' as sektion,
+       to_regclass('public.company_betalingslink') is not null as ok
+union all select 'monday_item_id på linkrækken',
+       exists (select 1 from information_schema.columns
+               where table_name = 'company_betalingslink' and column_name = 'monday_item_id')
+union all select 'sidste_checkout_session_id på company_betalingslink',
+       exists (select 1 from information_schema.columns
+               where table_name = 'company_betalingslink' and column_name = 'sidste_checkout_session_id')
+union all select 'sidste_checkout_session_id på companies',
+       exists (select 1 from information_schema.columns
+               where table_name = 'companies' and column_name = 'sidste_checkout_session_id')
+union all select 'vis_i_netvaerk på companies',
+       exists (select 1 from information_schema.columns
+               where table_name = 'companies' and column_name = 'vis_i_netvaerk')
+union all select 'velkomstvideo_set_at på profiles',
+       exists (select 1 from information_schema.columns
+               where table_name = 'profiles' and column_name = 'velkomstvideo_set_at')
+union all select 'velkomstvideo_guid i app_config',
+       exists (select 1 from public.app_config where config_key = 'velkomstvideo_guid')
+union all select 'hent_betalingstilbud findes',
+       to_regprocedure('public.hent_betalingstilbud(uuid)') is not null
+union all select 'hent_betalingsdata_til_checkout findes',
+       to_regprocedure('public.hent_betalingsdata_til_checkout(uuid)') is not null
+union all select 'lookup_invite_company_info giver email',
+       pg_get_functiondef('public.lookup_invite_company_info(uuid)'::regprocedure) like '%''email''%'
+union all select 'hent_betalingstilbud regner fra underskrevet_at',
+       pg_get_functiondef('public.hent_betalingstilbud(uuid)'::regprocedure) like '%underskrevet_at%';
+```
 
 Kendte huller (recon-indgangen-fuld 2/9, ikke rettet): /members'
 «Send invitation»-knap kan invitere en ubetalt virksomhed (adgang uden
