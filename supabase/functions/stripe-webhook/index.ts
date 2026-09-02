@@ -1,4 +1,5 @@
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
+import { sikrIndgangsInvitation } from "../_shared/sikrIndgangsInvitation.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -442,6 +443,10 @@ Deno.serve(async (req) => {
           );
         }
         if (indgangCompany?.contract_end_date === eksisterende.periode_slut) {
+          // Invitationen sikres også her: første forsøg kan være fejlet
+          // EFTER kontrakten var sat (cancel_at) og FØR invitationen gik.
+          // Idempotent — se _shared/sikrIndgangsInvitation.ts.
+          await sikrIndgangsInvitation(adminClient, indgangCompanyId, session.id);
           console.log(`[stripe-webhook] Indgang ${session.id} allerede behandlet, springer over`);
           return new Response(JSON.stringify({ received: true, skipped: "already_processed" }), {
             headers: { "Content-Type": "application/json" },
@@ -461,6 +466,9 @@ Deno.serve(async (req) => {
           throw new Error("Failed to update contract dates");
         }
         await nulstilIndgangsSession(adminClient, indgangCompanyId);
+        // Kontrakten er nu fuldført — invitationen sikres før svaret, så
+        // en gensendelse aldrig efterlader et betalt medlem uden login.
+        await sikrIndgangsInvitation(adminClient, indgangCompanyId, session.id);
         console.log(
           `[stripe-webhook] Indgang ${session.id}: gensendelse fuldførte halvt udført arbejde — kontrakt ${eksisterende.periode_start} → ${eksisterende.periode_slut}`
         );
@@ -533,105 +541,15 @@ Deno.serve(async (req) => {
       }
 
       // ── INVITATIONEN — det led fornyelsen ikke har. Betalingen giver
-      //    adgang (§21: to mails i to øjeblikke, aldrig samtidig). Alt
-      //    herunder står EFTER kontraktopdateringen og må ALDRIG kaste:
-      //    kontrakten er forlænget og pengene modtaget; et kast ville få
-      //    Stripe til at gensende et forløb der allerede er gennemført. En
-      //    manglende invitation er noget en rådgiver kan rette — en tabt
-      //    betaling er det ikke. Derfor logges hver fejl med company_id, og
-      //    grenen fortsætter til sit normale svar.
-      //
-      //    invited_by (besluttet 2/9): kolonnen er uuid NOT NULL uden FK og
-      //    er IKKE en afsender — mailens afsendernavn kommer fra
-      //    email_templates.sender_name, og feltet læses ét sted
-      //    (send-invitation-email: gensende-autoritet for IKKE-service-role-
-      //    kaldere; vores kald er service-role og springer den gren over).
-      //    Jonas og Morten er begge rådgivere for alle virksomheder, så der
-      //    er ingen tildeling at foretage. Værdien tages fra secret'en
-      //    INVITATION_AFSENDER_USER_ID, så den kan ændres uden kodeændring —
-      //    og så leddet senere kan bære "hvem godkendte på Monday" ét sted ──
-      const invitationAfsender = Deno.env.get("INVITATION_AFSENDER_USER_ID")?.trim() || null;
-      if (!invitationAfsender) {
-        console.error(
-          `[stripe-webhook] Indgang ${session.id} for company ${indgangCompanyId}: INVITATION IKKE SENDT — secret INVITATION_AFSENDER_USER_ID mangler. Rådgiver skal invitere manuelt.`
-        );
-      } else {
-        try {
-          // Idempotens: en gensendelse fra Stripe må ikke give to invitationer.
-          const { data: eksisterendeInvitation, error: invOpslagError } = await adminClient
-            .from("company_invitations")
-            .select("id, email")
-            .eq("company_id", indgangCompanyId)
-            .eq("status", "pending")
-            .limit(1)
-            .maybeSingle();
-          if (invOpslagError) throw new Error(`invitationsopslag fejlede: ${invOpslagError.message}`);
-
-          if (eksisterendeInvitation) {
-            console.log(
-              `[stripe-webhook] Indgang for company ${indgangCompanyId}: pending invitation findes allerede (${eksisterendeInvitation.email}), sender ikke igen`
-            );
-          } else {
-            const { data: invitationCompany, error: invCompanyError } = await adminClient
-              .from("companies")
-              .select("name, contact_email")
-              .eq("id", indgangCompanyId)
-              .maybeSingle();
-            if (invCompanyError) throw new Error(`virksomhedsopslag fejlede: ${invCompanyError.message}`);
-
-            const invitationEmail = invitationCompany?.contact_email?.trim().toLowerCase() || null;
-            if (!invitationEmail) {
-              throw new Error("companies.contact_email er tom — ingen adresse at invitere");
-            }
-
-            // Rækken, som import-application opretter den (:328-337):
-            // company_id, email, invited_by, status. token får sin default.
-            const { data: invitation, error: invErr } = await adminClient
-              .from("company_invitations")
-              .insert({
-                company_id: indgangCompanyId,
-                email: invitationEmail,
-                invited_by: invitationAfsender,
-                status: "pending",
-              })
-              .select("token")
-              .single();
-            if (invErr || !invitation) {
-              throw new Error(`invitations-indsættelse fejlede: ${invErr?.message ?? "ingen række"}`);
-            }
-
-            // Mailen, som import-application sender den (:348-355):
-            // service-role-kald med company_name og signup_url i body.
-            const signupUrl = `https://app.theboardroom.dk/auth?mode=signup&invite=${invitation.token}`;
-            const { error: emailErr } = await adminClient.functions.invoke("send-invitation-email", {
-              body: {
-                email: invitationEmail,
-                company_name: invitationCompany?.name ?? "The Boardroom",
-                signup_url: signupUrl,
-              },
-            });
-            if (emailErr) {
-              let bodyText: string | null = null;
-              let status: number | undefined;
-              try {
-                status = emailErr.context?.status;
-                bodyText = (await emailErr.context?.text()) ?? null;
-              } catch (readErr) {
-                console.warn("[stripe-webhook] kunne ikke læse send-invitation-email-fejlsvar:", readErr);
-              }
-              throw new Error(`send-invitation-email fejlede: status=${status ?? "?"} body=${bodyText ?? ""} error=${emailErr.message ?? String(emailErr)}`);
-            }
-
-            console.log(
-              `[stripe-webhook] Indgang for company ${indgangCompanyId}: invitation sendt til ${invitationEmail}`
-            );
-          }
-        } catch (invitationFejl) {
-          console.error(
-            `[stripe-webhook] Indgang ${session.id} for company ${indgangCompanyId}: INVITATION IKKE SENDT — ${invitationFejl instanceof Error ? invitationFejl.message : String(invitationFejl)}. Rådgiver skal invitere manuelt.`
-          );
-        }
-      }
+      //    adgang (§21: to mails i to øjeblikke, aldrig samtidig). Står
+      //    EFTER kontraktopdateringen og kaster aldrig (kontrakten er sat,
+      //    pengene modtaget). Logikken bor i _shared/sikrIndgangsInvitation.ts
+      //    og kaldes OGSÅ i begge udgange af gensendelsesgrenen ovenfor —
+      //    før udtrækket nåede en gensendelse aldrig hertil, og fejlede
+      //    cancel_at eller kontrakt-opdateringen i første forsøg, udeblev
+      //    invitationen for evigt. Idempotent: pending-opslag +
+      //    UNIQUE(company_id, email). ──
+      await sikrIndgangsInvitation(adminClient, indgangCompanyId, session.id);
 
       // company_betalingslink røres IKKE: rækken bliver stående som historik,
       // og hent_betalingstilbud giver "betalt" af sig selv, nu hvor
