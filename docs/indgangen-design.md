@@ -673,3 +673,89 @@ Bevist i produktion 2/9: en linkrække uden pris viste «Mangler pris»,
 et klik på «40.000 kr.» satte prisen, sendte dag 0-mailen til den
 rigtige adresse med det rigtige fornavn, og rækken skiftede til
 «Afventer betaling» med frist og dage tilbage.
+
+## 30. Dag 31-fakturaen kan ikke kobles til en virksomhed — endnu
+
+Dag 31-mailen siger «vi har sendt dig en faktura». Rådgiveren opretter
+den i Stripe i hånden. Betaler medlemmet den, sker der INTET: kontrakt,
+company_perioder, indgangspris_oere og invitationen skal alle sættes
+manuelt.
+
+**MÅLT 2/9, og det er værre end en manglende gren:** en gren på
+`invoice.paid` ville modtage en betaling den ikke kan placere.
+
+En dag 31-faktura oprettes for en virksomhed der aldrig har betalt — og
+derfor ingen `stripe_customer_id` har (feltet skrives af webhooken ved
+checkout.session.completed). Kunden rådgiveren opretter i dashboardet er
+ny og ukendt for databasen. De seks mulige spor på invoice-objektet er
+alle blinde:
+
+| spor | hvorfor det ikke virker |
+|---|---|
+| `invoice.metadata.company_id` | tom; intet sætter den i dag |
+| `invoice.customer` | virksomheden har ingen `stripe_customer_id` |
+| `invoice.customer_email` | `companies.contact_email` er ikke unik (ingen constraint målt) |
+| `invoice.number` | ingen kolonne gemmer den før betaling |
+| `lines[].price` | siger hvad der er købt, ikke hvem |
+| `parent.subscription_details.metadata` | en manuel faktura har `parent: null` |
+
+**Konsekvensen:** grenen skal ikke bygges før fakturaen bærer
+`company_id`. Og det kan den kun, hvis vi opretter den selv.
+
+**Vejen, målt i Stripes dokumentation og API-detaljerne:**
+1. `POST /v1/customers` (email, name, `metadata[company_id]`)
+2. `POST /v1/invoices` (`customer`, `collection_method=send_invoice`,
+   `days_until_due`, `metadata[company_id]`, `metadata[art]=indgang_faktura`)
+3. `POST /v1/invoiceitems` (`customer`, `invoice`, og enten `price` via
+   lookup_key eller `amount`+`description`)
+4. `POST /v1/invoices/{id}/send` — finaliserer og mailer
+Alle fire er almindelige v1-POST'er, samme form som
+opret-indgangs-checkout bruger.
+
+**Og eventet er ikke tilmeldt.** Endpointet we_1UAtaW3CvBmCx5PtL736lAJN
+har fire events: checkout.session.completed og
+customer.subscription.created/updated/deleted. Ingen `invoice.*`.
+`POST /v1/webhook_endpoints/{id}` med `enabled_events[]` ERSTATTER hele
+listen — kaldet skal sende de fire eksisterende plus de nye. Signing
+secret ændres ikke.
+
+**Hvilket event:** `invoice.paid` sendes både ved en Stripe-betaling OG
+ved `paid_out_of_band` (registreret i hånden). `invoice.payment_succeeded`
+kun ved en faktisk Stripe-betaling. Stripe anbefaler `invoice.paid`.
+
+**IKKE UNDERSØGT:** om dashboardets fakturaeditor har et metadata-felt,
+og om kontoen har en Billing-plan slået til for Invoicing (de to
+eksisterende fakturaer er abonnementsfakturaer, som ikke kræver den).
+
+**ÅBENT:** `company_perioder.betalingsmodel` tillader 'faktura'
+(migration 20260901140000), men værdien er aldrig begrundet i repoet, og
+ingen kode skriver den. `Betalingsmodel`-typen i TypeScript kender kun
+fuld/rate2/rate12. En 'faktura'-række kan i dag kun opstå ved manuel
+indsættelse.
+
+## 31. Månedstrækkene registreres ikke — gælder også fornyelsen
+
+**MÅLT 2/9:** de tre subscription-grene i stripe-webhook springer over
+ved `art === "indgang"` og `"fornyelse"`. Det er rigtigt og bevidst —
+uden det ville `subscription_status` blive skrevet, og virksomheden ville
+fremstå som exit-abonnent (tier «subscriber», uden rådgivning og uden
+netværk) i stedet for fuldt medlem.
+
+Men konsekvensen er utilsigtet: **der findes ingen registrering i
+databasen af at rate 2 til 12 faktisk blev betalt.** Én række i
+company_perioder ved første betaling, og derefter intet. Og et FEJLET
+månedstræk (`invoice.payment_failed`, abonnement `past_due`) når heller
+ikke ind — `invoice.*` er slet ikke tilmeldt endpointet.
+
+Adgangen hviler alene på `contract_end_date`, sat på betalingsdagen.
+Holder et medlem op med at betale i måned fire, beholder de adgangen
+året ud, og intet i platformen viser det. Det opdages kun i Stripe.
+
+Det gælder ikke kun indgangen: **fornyelsen har samme forhold**, og den
+kører nu. YKRG's fejlende kort blev opdaget 1/9 fordi nogen målte i
+Stripe, ikke fordi noget sagde til (bogført i mangellisten som «Ingen ved
+at et kort fejler»).
+
+**Restancepolitikken er besluttet** (past_due = åben adgang, unpaid =
+lukket) og ikke bygget. Den kræver at `computeMembershipTier` ændres
+fire steder samlet.
