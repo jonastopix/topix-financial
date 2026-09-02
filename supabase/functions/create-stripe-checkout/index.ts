@@ -1,6 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
 import { computeMembershipTier } from "../_shared/membershipTier.ts";
 import { hentPrisId } from "../_shared/stripePris.ts";
+import { udloebTidligereSession, udloebsTidspunkt } from "../_shared/checkoutSession.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -92,9 +93,33 @@ Deno.serve(async (req) => {
     // roller — se _shared/stripePris.ts).
     const PRICE_ID = await hentPrisId("session_1on1", stripeSecretKey);
 
+    // Vaernet mod dobbeltbetaling (_shared/checkoutSession.ts): session-id'et
+    // gemmes allerede i session_bookings (UNIQUE, status 'pending' indtil
+    // stripe-webhook saetter 'booking_sent'). Her laeses brugerens seneste
+    // pending booking, og dens session udloebes FOER en ny oprettes.
+    // Bookingens tilstandsmodel roeres ikke: raekken bliver staaende som
+    // 'pending', praecis som en forladt session altid har gjort — kun
+    // Stripe-siden lukkes. Fejler opslaget, fortsaettes der.
+    try {
+      const { data: senestePending } = await adminClient
+        .from("session_bookings")
+        .select("stripe_session_id")
+        .eq("user_id", user.id)
+        .eq("status", "pending")
+        .not("stripe_session_id", "is", null)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      await udloebTidligereSession(senestePending?.stripe_session_id, stripeSecretKey);
+    } catch (err) {
+      console.warn(`[create-stripe-checkout] kunne ikke udloebe tidligere session for ${user.id}:`, err);
+    }
+
     // Create Stripe Checkout session
     const stripeBody = new URLSearchParams({
       "mode": "payment",
+      // Kort levetid (30 min, Stripes minimum) — se _shared/checkoutSession.ts.
+      "expires_at": String(udloebsTidspunkt()),
       "line_items[0][price]": PRICE_ID,
       "line_items[0][quantity]": "1",
       "success_url": `${APP_URL}/book-session?success=true&session_id={CHECKOUT_SESSION_ID}`,
@@ -124,14 +149,21 @@ Deno.serve(async (req) => {
 
     const session = await stripeResponse.json();
 
-    // Log the pending booking
-    await adminClient.from("session_bookings").insert({
+    // Log the pending booking — det er ogsaa vaernets lager af session-id'et.
+    // Fejler skrivningen, logges det tydeligt, men url'en returneres.
+    const { error: bookingErr } = await adminClient.from("session_bookings").insert({
       user_id: user.id,
       company_id: member?.company_id || null,
       stripe_session_id: session.id,
       amount_dkk: 500,
       status: "pending",
     });
+    if (bookingErr) {
+      console.error(
+        `[create-stripe-checkout] KUNNE IKKE GEMME session ${session.id} i session_bookings for ${user.id} — webhooken finder ingen booking, og vaernet daekker ikke denne session:`,
+        bookingErr,
+      );
+    }
 
     return new Response(JSON.stringify({ url: session.url }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },

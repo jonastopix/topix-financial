@@ -1,4 +1,4 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
+import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -116,6 +116,27 @@ async function createCalendlySingleUseLink(apiKey: string, eventTypeUri: string)
   const data = await response.json();
   if (!data.resource?.booking_url) throw new Error("Failed to create Calendly link");
   return data.resource.booking_url;
+}
+
+/**
+ * Nulstiller company_betalingslink.sidste_checkout_session_id når en
+ * indgangsbetaling er behandlet — sessionen er brugt, og feltet skal ikke
+ * pege på noget dødt (værnet mod dobbeltbetaling, _shared/checkoutSession.ts).
+ * Kaster aldrig: kontrakten er sat og pengene modtaget; en manglende
+ * nulstilling betyder kun at næste checkout forsøger at udløbe en session
+ * der allerede er complete, hvilket hjælperen tåler.
+ */
+async function nulstilIndgangsSession(
+  adminClient: SupabaseClient,
+  companyId: string,
+): Promise<void> {
+  const { error } = await adminClient
+    .from("company_betalingslink")
+    .update({ sidste_checkout_session_id: null } as any)
+    .eq("company_id", companyId);
+  if (error) {
+    console.warn(`[stripe-webhook] kunne ikke nulstille sidste_checkout_session_id for ${companyId}:`, error);
+  }
 }
 
 Deno.serve(async (req) => {
@@ -280,7 +301,9 @@ Deno.serve(async (req) => {
         }
         const { error: fuldfoerError } = await adminClient
           .from("companies")
-          .update({ contract_end_date: eksisterende.periode_slut } as any)
+          // sidste_checkout_session_id nulstilles: sessionen er brugt
+          // (værnet mod dobbeltbetaling, _shared/checkoutSession.ts).
+          .update({ contract_end_date: eksisterende.periode_slut, sidste_checkout_session_id: null } as any)
           .eq("id", fornyelseCompanyId);
         if (fuldfoerError) {
           console.error("[stripe-webhook] contract_end_date-opdatering fejlede (gensendelse):", fuldfoerError);
@@ -322,7 +345,9 @@ Deno.serve(async (req) => {
 
       const { error: datoError } = await adminClient
         .from("companies")
-        .update({ contract_end_date: periode_slut } as any)
+        // sidste_checkout_session_id nulstilles: sessionen er brugt
+        // (værnet mod dobbeltbetaling, _shared/checkoutSession.ts).
+        .update({ contract_end_date: periode_slut, sidste_checkout_session_id: null } as any)
         .eq("id", fornyelseCompanyId);
       if (datoError) {
         console.error("[stripe-webhook] contract_end_date-opdatering fejlede:", datoError);
@@ -435,6 +460,7 @@ Deno.serve(async (req) => {
           console.error("[stripe-webhook] kontrakt-opdatering (indgang) fejlede (gensendelse):", fuldfoerError);
           throw new Error("Failed to update contract dates");
         }
+        await nulstilIndgangsSession(adminClient, indgangCompanyId);
         console.log(
           `[stripe-webhook] Indgang ${session.id}: gensendelse fuldførte halvt udført arbejde — kontrakt ${eksisterende.periode_start} → ${eksisterende.periode_slut}`
         );
@@ -487,6 +513,11 @@ Deno.serve(async (req) => {
         console.error("[stripe-webhook] kontrakt-opdatering (indgang) fejlede:", kontraktError);
         throw new Error("Failed to update contract dates");
       }
+
+      // Sessionen er brugt — pegeren på company_betalingslink nulstilles
+      // (værnet mod dobbeltbetaling). Feltet bor på linkrækken, ikke på
+      // companies, fordi opret-indgangs-checkout gemmer det dér.
+      await nulstilIndgangsSession(adminClient, indgangCompanyId);
 
       // Ophør på rate-abonnementet — sættes her fordi Checkout ikke kan
       // (subscription_data[cancel_at] afvises med parameter_unknown), og
