@@ -80,10 +80,20 @@ Deno.serve(async (req) => {
       .eq("config_key", VELKOMST_CONFIG_KEY)
       .maybeSingle();
     if (configError) return jsonResponse({ error: "Lookup failed" }, 500);
-    const guid = typeof raekke?.config_value === "string" ? raekke.config_value.trim() : "";
+    // config_value er JSON (jsonb), ikke text. Rækken er oprettet med
+    // '""'::json — en tom JSON-streng. supabase-js leverer den parset (""),
+    // men læses den rå er den «""» på to tegn. Samme dom som
+    // laesVelkomstvideoGuid i src/lib/appConfig.ts (testet dér): kun
+    // strenge, en JSON-kodet streng pakkes ud én gang, trim, tom = ingen
+    // video. Fail-closed — vi viser ikke tomt indhold.
+    const raa = raekke?.config_value;
+    let guid = typeof raa === "string" ? raa.trim() : "";
+    if (guid.length >= 2 && guid.startsWith('"') && guid.endsWith('"')) {
+      guid = guid.slice(1, -1).trim();
+    }
     if (!guid) {
       // Ingen video sat op = velkomsten er slået fra. 404 er tilstanden,
-      // ikke en fejl — fladen viser intet (vi viser ikke tomt indhold).
+      // ikke en fejl — fladen viser intet.
       return jsonResponse({ error: "ingen_velkomstvideo" }, 404);
     }
     if (!GUID_RE.test(guid)) {
@@ -92,7 +102,7 @@ Deno.serve(async (req) => {
       console.error(`[get-video-embed] ${VELKOMST_CONFIG_KEY} er ikke et GUID: ${JSON.stringify(guid).slice(0, 80)}`);
       return jsonResponse({ error: "ugyldigt_velkomstvideo_guid" }, 500);
     }
-    return await signerEmbed(guid, null);
+    return await signerEmbed(guid.toLowerCase(), null);
   }
 
   if (typeof itemId !== "string" || !UUID_RE.test(itemId)) {
