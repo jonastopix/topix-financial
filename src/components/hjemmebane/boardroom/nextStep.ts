@@ -1,4 +1,5 @@
 import { DANISH_MONTHS } from "@/lib/financialUtils";
+import type { Tjekliste } from "@/lib/onboardingTjekliste";
 
 /** FOKUS-MOTOREN (forside PR 1, hb-forside-recon §D/§G): ÉN samlet,
     testbar prioriteringsdom for forsidens lag 1 — nu som PRIORITERET
@@ -18,8 +19,17 @@ import { DANISH_MONTHS } from "@/lib/financialUtils";
     på "/", generate-weekly-focus:602-611). Nyt: løftestang uden
     milestone (handout-lærdommen) som ét samlet, stille punkt.
 
+    ANKOMSTEN (trin 8, docs/indgangen-overhaling.md §5, Jonas 2/9):
+    tjeklisten er forfremmet fra pille til fokuskort. Så længe tjeklisten
+    IKKE er færdig, er dens ikke-gjorte punkter listens ENESTE kilde —
+    første ikke-gjorte som #1, resten som linjer, i tjeklistens egen
+    rækkefølge (TJEKLISTE_RAEKKEFOELGE). Når alle punkter er gjort,
+    gælder prioriteringen (a)-(i) nedenfor som hidtil. Uden tjekliste
+    (kalderen sender ingen — rådgivere, legacy) gælder (a)-(i) direkte.
+
     PRIORITERINGSRÆKKEFØLGEN (arkitekt-beslutning, fast — aldrig
     tilfældig tie-break):
+      (0) tjeklistepunkt (kun mens tjeklisten er uafsluttet — se ovenfor)
       (a) manglende rapport            (b) rapport afventer godkendelse
       (c) ubesvaret besked (rådgiver før agent — ActionCenter-ordenen)
       (d) weekly_focus (denne uge, ikke set)
@@ -112,9 +122,21 @@ export interface FocusInputs extends NextStepInputs {
   /** Egen member_profiles.ask_me_about er null/tom. Kalderen gater
       rådgivere til false — de har ikke samme profilrolle. */
   askMeAboutMissing: boolean;
+  /** companies.contract_start_date ("YYYY-MM-DD") — skrives af
+      stripe-webhook på betalingsdagen. Slot (a) beder aldrig om en
+      periode fra før kontrakten (regnestykket står ved slottet).
+      Valgfri: udeladt/null = ukendt start = som hidtil (legacy og
+      virksomheder uden dato). Kobles på i BoardroomView i trin 9. */
+  contractStartDate?: string | null;
+  /** Onboarding-tjeklisten (byggTjekliste) for det indloggede medlem.
+      Uafsluttet tjekliste = listens eneste kilde (slot 0). Valgfri:
+      udeladt/null = ingen tjekliste = (a)-(i) direkte. Trin 9 kobler
+      useOnboardingTjekliste på. */
+  tjekliste?: Tjekliste | null;
 }
 
 export type FocusKind =
+  | "tjekliste"
   | "missing-report"
   | "pending-approval"
   | "unread-messages"
@@ -130,7 +152,7 @@ export interface FocusItem {
   /** Stabil, unik nøgle (list-keys/dedup): kind + evt. kilde-id. */
   key: string;
   kind: FocusKind;
-  /** Slot-nummer (a)=1 … (h)=8 — listen ER sorteret efter den. */
+  /** Slot-nummer: tjekliste=0, (a)=1 … (i)=9 — listen ER sorteret efter den. */
   priority: number;
   title: string;
   description: string;
@@ -155,6 +177,32 @@ const formatDanskDato = (dato: string): string => {
   return `${d}. ${DANISH_MONTHS[m - 1].toLowerCase()}`;
 };
 
+/** Ankomstens ctaLabel — ét ord for alle punkter; fladen (trin 9) må
+    vise punktets titel stort og denne som knap. velkomst har sti "" (åbnes
+    i boksen, ikke på en side) — den bæres uændret i ctaHref, så fladen
+    kan skelne. */
+const TJEKLISTE_CTA = "Gør det nu";
+
+/** Første periodenøgle ("YYYY-MM") slot (a) må bede om, givet
+    kontraktstarten "YYYY-MM-DD". REGNESTYKKET: periodenøgler er HELE
+    kalendermåneder (prevKey = måneden før `now`), og en rapport dækker
+    hele måneden. Den første måned kontrakten dækker HELT er derfor
+      - startmåneden selv, hvis kontrakten starter den 1. (2026-09-01 →
+        "2026-09"),
+      - ellers måneden efter (2026-09-15 → "2026-10"; 2026-12-15 →
+        "2027-01" — årsskiftet bæres af Date.UTC-normaliseringen).
+    En virksomhed der betalte 15/9 bliver altså først bedt om tal i
+    november (om oktober); i oktober er prevKey "2026-09" < "2026-10", og
+    slottet tier. Ugyldig dato → null = ukendt = som hidtil. Splitter selv
+    frem for new Date(): en ren dato parses som UTC og kan skride en dag. */
+export function foersteRapportPeriode(contractStartDate: string | null | undefined): string | null {
+  if (!contractStartDate) return null;
+  const [y, m, d] = contractStartDate.split("-").map(Number);
+  if (!y || !m || !d || m < 1 || m > 12) return null;
+  const foerste = d === 1 ? new Date(Date.UTC(y, m - 1, 1)) : new Date(Date.UTC(y, m, 1));
+  return `${foerste.getUTCFullYear()}-${String(foerste.getUTCMonth() + 1).padStart(2, "0")}`;
+}
+
 export function deriveFocus(inputs: FocusInputs): FocusItem[] {
   const { now } = inputs;
   const prevMonth = now.getMonth() === 0 ? 11 : now.getMonth() - 1;
@@ -163,12 +211,46 @@ export function deriveFocus(inputs: FocusInputs): FocusItem[] {
   const monthName = DANISH_MONTHS[prevMonth].toLowerCase();
 
   const items: FocusItem[] = [];
+
+  // (0) ANKOMSTEN — tjeklisten er kilden så længe den ikke er færdig.
+  // Punkternes rækkefølge er tjeklistens egen; kun ikke-gjorte punkter
+  // kommer med (første = #1). Titel/beskrivelse/sti genbruges som
+  // title/description/ctaHref. Listen returneres HER: mens man er ved at
+  // komme ind, konkurrerer intet andet om kortet (§5). Færdig tjekliste
+  // (eller ingen) → falder igennem til (a)-(i).
+  if (inputs.tjekliste && !inputs.tjekliste.faerdig) {
+    for (const punkt of inputs.tjekliste.punkter) {
+      if (punkt.gjort) continue;
+      items.push({
+        key: `tjekliste:${punkt.id}`,
+        kind: "tjekliste",
+        priority: 0,
+        title: punkt.titel,
+        description: punkt.beskrivelse,
+        ctaLabel: TJEKLISTE_CTA,
+        ctaHref: punkt.sti,
+        sourceId: punkt.id,
+      });
+    }
+    return items;
+  }
+
   const hasProcessed = inputs.processedPeriodKeys.has(prevKey);
   const hasCommitted = inputs.committedPeriodKeys.has(prevKey);
 
+  // Kontraktstart-værnet for (a): perioden må ikke ligge FØR den første
+  // hele måned kontrakten dækker (foersteRapportPeriode — regnestykket
+  // står dér). Nøglerne er "YYYY-MM" med nulfyld, så strengsammenligning
+  // er kronologisk. Ukendt start (null) → intet værn = som hidtil.
+  // Værnet gælder KUN (a): findes der uploadede tal for perioden ((b)/
+  // (g)), findes tallene, og så er der noget at godkende og tage
+  // stilling til uanset kontraktstart.
+  const foersteKey = foersteRapportPeriode(inputs.contractStartDate);
+  const foerKontraktstart = foersteKey !== null && prevKey < foersteKey;
+
   // (a) Manglende rapport — udelukker (b) pr. datalogik (tekster ordret
-  // fra den oprindelige port).
-  if (!hasProcessed) {
+  // fra den oprindelige port). Tier når perioden ligger før kontrakten.
+  if (!hasProcessed && !foerKontraktstart) {
     items.push({
       key: "missing-report",
       kind: "missing-report",
@@ -178,7 +260,7 @@ export function deriveFocus(inputs: FocusInputs): FocusItem[] {
       ctaLabel: "Upload tallene",
       ctaHref: "/reports",
     });
-  } else if (!hasCommitted) {
+  } else if (hasProcessed && !hasCommitted) {
     // (b) Uploadet men ikke godkendt.
     items.push({
       key: "pending-approval",
