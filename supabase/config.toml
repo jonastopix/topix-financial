@@ -140,3 +140,12 @@ project_id = "loiavmastgeieqyiwyyr"
   # tilladt — samme klasse som webhook-signaturerne (Bucket C).
   [functions.opret-indgangs-checkout]
     verify_jwt = false
+  # Bucket B: authenticateServiceRole læser role-claimet, gatewayen bærer
+  # signaturtjekket — samme begrundelse som intro-reminder-cron. Kaldes af
+  # Monday-grenen og af prissætningen med service-role-nøglen (§19).
+  [functions.send-indgangs-betalingsmail]
+    verify_jwt = true
+  # Samme begrundelse som intro-reminder-cron: pg_cron-job med vault-nøglen
+  # passerer gaten i prod. Tørkørsel som standard.
+  [functions.indgangs-paamindelser-cron]
+    verify_jwt = true

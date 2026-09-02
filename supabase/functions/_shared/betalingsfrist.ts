@@ -1,8 +1,8 @@
 /**
- * src/lib/betalingsfrist.ts
+ * supabase/functions/_shared/betalingsfrist.ts
  *
- * Spejlet ordret i supabase/functions/_shared/betalingsfrist.ts — enhver
- * ændring her SKAL også laves der. Pariteten håndhæves af testen i
+ * Spejlet ordret fra src/lib/betalingsfrist.ts — enhver ændring her SKAL
+ * også laves der. Pariteten håndhæves af testen i
  * src/lib/__tests__/betalingsfristParitet.test.ts.
  *
  * Filen har nul imports og kan derfor loades af både Vite/Vitest (Node)
