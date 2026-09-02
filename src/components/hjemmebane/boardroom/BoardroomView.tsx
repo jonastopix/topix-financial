@@ -6,6 +6,7 @@ import { ArrowRight, ChevronDown, ChevronUp, ExternalLink, Pause, Play } from "l
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
+import { useOnboardingTjekliste } from "@/hooks/useOnboardingTjekliste";
 import { supabase } from "@/integrations/supabase/client";
 import { useCompanyFacts } from "@/hooks/useCompanyFacts";
 import { factsToDanishMetrics } from "@/lib/factsAdapter";
@@ -136,10 +137,13 @@ const TraadForfatterAvatar = ({ navn, avatarUrl }: { navn: string | null; avatar
     — rubrikken står selv. Topluften (mt-8 md:mt-10) bor HER i
     komponenten, ikke i shell'en — eyebrow'en bar tidligere luften, og
     shell'ens py-10/14 deles af alle flader og må ikke vokse for én. */
-const PageHeader = ({ firstName }: { firstName: string }) => (
+const PageHeader = ({ firstName, velkomst }: { firstName: string; velkomst: boolean }) => (
   <section className="mt-8 max-w-3xl md:mt-10">
     <h1 className="font-editorial text-4xl font-medium leading-[1.1] tracking-tight text-hb-ink md:text-5xl">
-      {getGreeting()}, {firstName}.
+      {/* Ankomsten (trin 9, indgangen-overhaling §5): så længe tjeklisten
+          ikke er færdig, hedder det «Velkommen» — tidshilsenen kommer
+          når medlemmet er kommet ind. */}
+      {velkomst ? "Velkommen" : getGreeting()}, {firstName}.
     </h1>
   </section>
 );
@@ -1169,6 +1173,14 @@ const FocusCard = ({
   const inlineBody = (item: FocusItem) =>
     item.kind === "weekly-focus" && weeklySummary ? weeklySummary : null;
 
+  // Peger punktet VÆK fra forsiden? "/" er forsiden selv (fold-ud), og ""
+  // er tjeklistens velkomst-punkt (trin 9): videoen åbner i tjekliste-
+  // boksen, hvis overlejring er boksens egen state — kortet kan ikke
+  // åbne den uden ny kobling, så punktet står uden knap og folder ud som
+  // de andre linkløse punkter. Boksen (pillen) og den automatiske
+  // velkomst ved første besøg åbner den.
+  const harSide = (href: string) => href !== "/" && href !== "";
+
   // Redesign (ægte form): primær handling i STOR editorial-skala m.
   // manchet i rolig grad og CTA'en i bunden af den primære zone m. luft
   // omkring — ikke klemt op under teksten. Sekundære punkter (#2-4) som
@@ -1198,7 +1210,7 @@ const FocusCard = ({
           {/* Hash-hrefs (#dine-aftaler) rammer et anker på SAMME side:
               et almindeligt <a> ruller natively — router-Link ville kun
               omskrive URL'en, og useScrollToHash er ikke mountet her. */}
-          {primary.ctaHref !== "/" &&
+          {harSide(primary.ctaHref) &&
             (primary.ctaHref.startsWith("#") ? (
               <a href={primary.ctaHref} className="mt-7 inline-block">
                 <HbButton>{primary.ctaLabel}</HbButton>
@@ -1218,7 +1230,7 @@ const FocusCard = ({
             <ul className="mt-9 w-full border-t border-hb-line pt-4">
               {quiet.map((item) => (
                 <li key={item.key} className="border-t border-hb-line first:border-t-0">
-                  {item.ctaHref !== "/" ? (
+                  {harSide(item.ctaHref) ? (
                     /* Hash-hrefs er samme-side-ankre: <a> ruller natively,
                        router-Link ville kun omskrive URL'en (se primær-CTA). */
                     item.ctaHref.startsWith("#") ? (
@@ -1652,6 +1664,31 @@ export const BoardroomView = () => {
     staleTime: 5 * 60_000,
   });
 
+  // ── Ankomsten (trin 9, indgangen-overhaling §5): tjeklisten og
+  // kontraktstarten ind i motoren ──────────────────────────────────────
+  // Tjeklisten: SAMME hook og SAMME react-query-nøgle som HbMemberShell
+  // (TJEKLISTE_QUERY_KEY, userId, companyId) — cachen deles, ingen ekstra
+  // forespørgsel. Rådgivere får null (hooken er deaktiveret for dem), så
+  // motoren falder til (a)-(i) i company-override.
+  const tjeklisteData = useOnboardingTjekliste();
+  // Kontraktstarten findes ikke i nogen eksisterende query på forsiden
+  // (useAuth henter kun slutdato og abonnement til tier-dommen), så én
+  // lille query for den virksomhed forsiden viser. Skrives af stripe-
+  // webhook på betalingsdagen; null for legacy = intet værn (motoren).
+  const contractStartQuery = useQuery({
+    queryKey: ["boardroom", "contract-start", companyId],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("companies")
+        .select("contract_start_date")
+        .eq("id", companyId!)
+        .maybeSingle();
+      return ((data as { contract_start_date?: string | null } | null)?.contract_start_date ?? null) as string | null;
+    },
+    enabled: !!companyId,
+    staleTime: 5 * 60_000,
+  });
+
   const committedKeys = useMemo(() => new Set(facts.map((f) => f.period_key)), [facts]);
 
   // ── Anerkendelses-linjen til fokus-kortets tom-tilstand (bølge 3) ───────
@@ -1716,8 +1753,13 @@ export const BoardroomView = () => {
       ),
       unlinkedLevers: leversQuery.data ?? [],
       askMeAboutMissing: ownProfileQuery.data === true,
+      // Ankomsten (trin 9): uafsluttet tjekliste = kortets eneste kilde;
+      // kontraktstarten holder slot (a) fra at bede om tal fra før
+      // kontrakten. Begge dømmes i motoren (nextStep.ts).
+      contractStartDate: contractStartQuery.data ?? null,
+      tjekliste: tjeklisteData.tjekliste,
     });
-  }, [companyId, processedQuery.data, committedKeys, milestonesQuery.data, pulseQuery.data, unreadQuery.data, weeklyFocusQuery.data, actionsQuery.data, leversQuery.data, ownProfileQuery.data]);
+  }, [companyId, processedQuery.data, committedKeys, milestonesQuery.data, pulseQuery.data, unreadQuery.data, weeklyFocusQuery.data, actionsQuery.data, leversQuery.data, ownProfileQuery.data, contractStartQuery.data, tjeklisteData.tjekliste]);
 
   // Markér ugens fokus som SET når punktet faktisk vises — samme mekanik
   // som DashboardActionCenter:87-98 (mutation + engangs-ref).
@@ -1797,7 +1839,12 @@ export const BoardroomView = () => {
       weeklyFocusQuery.isPending ||
       actionsQuery.isPending ||
       unreadQuery.isPending ||
-      leversQuery.isPending);
+      leversQuery.isPending ||
+      contractStartQuery.isPending ||
+      // Medlemmets tjekliste (rådgivere: isLoading er false — hooken er
+      // deaktiveret). Uden den ville kortet først vise (a)-(i) og så
+      // skifte til tjeklisten når den lander.
+      tjeklisteData.isLoading);
 
   // ── Events-sektionen (egen sektion mellem lag 1 og lag 2) ───────────────
   // Samme kilde som hidtil: listUpcomingEvents (akademiApi.ts:152-162 —
@@ -1867,7 +1914,7 @@ export const BoardroomView = () => {
 
   return (
     <div>
-      <PageHeader firstName={firstName} />
+      <PageHeader firstName={firstName} velkomst={Boolean(tjeklisteData.tjekliste && !tjeklisteData.tjekliste.faerdig)} />
 
       {/* ── LAG 1: Dit næste skridt (fuld bredde, øverst) ── */}
       <HbSection eyebrow="Dit næste skridt" hairline className="mt-10 md:mt-12">

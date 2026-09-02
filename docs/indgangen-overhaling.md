@@ -646,6 +646,16 @@ af hinanden.
 - **Pillens rolle i ankomsten** (§5): bliver `HbOnboardingTjekliste`
   stående nederst til højre mens fokuskortet viser samme punkter, eller
   trækker den sig indtil ankomsten er slut. Ikke afgjort.
+  *Note fra trin 9 (2/9, læst i koden — ikke målt på skærm):* mens
+  ankomsten er aktiv, står de samme ikke-gjorte punkter to steder:
+  fokuskortets #1 er den samme titel som pillens første ikke-gjorte
+  række, og #2-4 er de samme rækker igen. Kortets knap og pillens række
+  fører til samme sti. Én forskel: velkomst-punktet (sti «») åbner
+  videoen fra pillen, men kortet kan ikke åbne overlejringen — den er
+  boksens egen state, og der er ingen kobling fra forsiden; kortet
+  viser punktet uden knap. Folder man pillen ud på forsiden, får
+  indholdskolonnen bund-margin (skallen), så listen står både øverst i
+  kortet og nederst i hjørnet samtidig.
 - **N sekunder** før skelettet giver op (§7.1).
 - **Dødt vs. brugt token** (§7.2): kræver at RPC'en svarer med en grund
   for ikke-pending tokens — ændrer hvad et token afslører (i dag: intet
