@@ -15,11 +15,26 @@
 // færdige, tidsbegrænsede URL (TTL 1 time).
 //
 // POST { itemId, resumeAt? } → { embedUrl, expires }
+// POST { velkomst: true }    → { embedUrl, expires }   (velkomstvideoen, 2/9)
+//
+// VELKOMST-GRENEN (2/9): velkomstvideoen er en hilsen, ikke undervisning —
+// derfor et GUID i app_config.velkomstvideo_guid frem for et content item
+// (beslutning Jonas 2/9). Grenen læser nøglen via KALDERENS klient:
+// app_config's SELECT-policy er «Anyone authenticated can read config»
+// USING (true) (migration 20260224095552), så ingen service-role er
+// nødvendig, og funktionen forbliver uden admin-klient. Tomt GUID = ingen
+// video = 404 { error: "ingen_velkomstvideo" } — en tilstand, ikke en fejl.
+// Dryp-tjekket springes over: det gælder Akademiets indhold (anker i
+// company_members.created_at), og en velkomst skal netop kunne ses fra
+// første minut. Auth, itemId-vejen og signeringen er urørte.
 
 import { authenticateUser, corsHeaders } from "../_shared/edgeFunctionAuth.ts";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+// Bunny-GUID'er har samme form som uuid'er — samme mønster som HbBunnyPicker.
+const GUID_RE = UUID_RE;
 const EMBED_TTL_SECONDS = 3600;
+const VELKOMST_CONFIG_KEY = "velkomstvideo_guid";
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 function jsonResponse(body: unknown, status = 200): Response {
@@ -51,7 +66,35 @@ Deno.serve(async (req) => {
   } catch {
     return jsonResponse({ error: "Invalid JSON body" }, 400);
   }
-  const { itemId, resumeAt } = (body ?? {}) as { itemId?: unknown; resumeAt?: unknown };
+  const { itemId, resumeAt, velkomst } = (body ?? {}) as {
+    itemId?: unknown;
+    resumeAt?: unknown;
+    velkomst?: unknown;
+  };
+
+  // ── 2b. Velkomst-grenen — se filhovedet. Ingen dryp, intet item. ────────
+  if (velkomst === true) {
+    const { data: raekke, error: configError } = await callerClient
+      .from("app_config")
+      .select("config_value")
+      .eq("config_key", VELKOMST_CONFIG_KEY)
+      .maybeSingle();
+    if (configError) return jsonResponse({ error: "Lookup failed" }, 500);
+    const guid = typeof raekke?.config_value === "string" ? raekke.config_value.trim() : "";
+    if (!guid) {
+      // Ingen video sat op = velkomsten er slået fra. 404 er tilstanden,
+      // ikke en fejl — fladen viser intet (vi viser ikke tomt indhold).
+      return jsonResponse({ error: "ingen_velkomstvideo" }, 404);
+    }
+    if (!GUID_RE.test(guid)) {
+      // En rådgiver har skrevet noget der ikke er et GUID: ikke en tilstand
+      // fladen skal gætte på — fejl højt, så det rettes i /admin/config.
+      console.error(`[get-video-embed] ${VELKOMST_CONFIG_KEY} er ikke et GUID: ${JSON.stringify(guid).slice(0, 80)}`);
+      return jsonResponse({ error: "ugyldigt_velkomstvideo_guid" }, 500);
+    }
+    return await signerEmbed(guid, null);
+  }
+
   if (typeof itemId !== "string" || !UUID_RE.test(itemId)) {
     return jsonResponse({ error: "Invalid itemId" }, 400);
   }
@@ -103,6 +146,17 @@ Deno.serve(async (req) => {
   }
 
   // ── 5. Signér embed-URL'en (c0-bunny.md §5) ─────────────────────────────
+  return await signerEmbed(item.bunny_video_id, resume);
+});
+
+/**
+ * Signeringen — delt af item-vejen og velkomst-grenen, ordret det
+ * regnestykke der stod inline før (c0-bunny.md §5): token =
+ * sha256hex(TOKEN_AUTH_KEY + guid + expires), TTL 1 time. Returnerer det
+ * færdige svar: 200 { embedUrl, expires }, eller 503 not_configured hvis
+ * secrets mangler.
+ */
+async function signerEmbed(guid: string, resume: number | null): Promise<Response> {
   const libraryId = Deno.env.get("BUNNY_STREAM_LIBRARY_ID") ?? "";
   const tokenAuthKey = Deno.env.get("BUNNY_STREAM_TOKEN_AUTH_KEY") ?? "";
   if (!libraryId || !tokenAuthKey) {
@@ -110,11 +164,11 @@ Deno.serve(async (req) => {
   }
 
   const expires = Math.floor(Date.now() / 1000) + EMBED_TTL_SECONDS;
-  const token = await sha256Hex(`${tokenAuthKey}${item.bunny_video_id}${expires}`);
+  const token = await sha256Hex(`${tokenAuthKey}${guid}${expires}`);
   const embedUrl =
-    `https://iframe.mediadelivery.net/embed/${libraryId}/${item.bunny_video_id}` +
+    `https://iframe.mediadelivery.net/embed/${libraryId}/${guid}` +
     `?token=${token}&expires=${expires}` +
     (resume ? `&t=${resume}` : "");
 
   return jsonResponse({ embedUrl, expires });
-});
+}

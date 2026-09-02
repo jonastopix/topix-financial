@@ -352,6 +352,18 @@ export async function cancelRegistration(eventId: string, userId: string): Promi
   if (error) throw new Error(error.message);
 }
 
+/** Velkomstvideoen: samme funktion, velkomst-grenen ({ velkomst: true }).
+    GUID'et læses server-side fra app_config.velkomstvideo_guid; 404
+    ingen_velkomstvideo = ingen video sat op. Frontend kalder kun denne
+    når useOnboardingTjekliste siger harVelkomstvideo. */
+export async function getVelkomstVideoEmbed(): Promise<{ embedUrl: string; expires: number }> {
+  const { data, error } = await supabase.functions.invoke("get-video-embed", {
+    body: { velkomst: true },
+  });
+  if (error) throw new Error(error.message);
+  return data as { embedUrl: string; expires: number };
+}
+
 /** Signeret Bunny-embed fra get-video-embed (Bucket A). Token-signering sker
     KUN server-side — frontend modtager den færdige, tidsbegrænsede URL. */
 export async function getVideoEmbed(

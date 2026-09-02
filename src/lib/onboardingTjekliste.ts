@@ -27,11 +27,19 @@
  *
  * TOMME STRENGE tæller som ikke sat — der trimmes før tjek. Et website på
  * « » er ikke et website.
+ *
+ * UDEN VIDEO INGEN VELKOMST (Jonas 2/9: «Vi viser ikke tomt indhold»): er
+ * der ikke sat en velkomstvideo i platformconfig (app_config.
+ * velkomstvideo_guid), udgår punktet «Se velkomsten» HELT — fem punkter,
+ * «N af 5». Fladen viser heller ikke overlejringen. Med video: seks.
  */
 
 export type TjeklistePunktId = "velkomst" | "profil" | "virksomhed" | "rapport" | "handout" | "besked";
 
 export interface TjeklisteInput {
+  /** Er der sat en velkomstvideo i platformconfig (app_config.velkomstvideo_guid)?
+      Uden video udgår punktet helt — vi viser ikke tomt indhold. */
+  har_velkomstvideo: boolean;
   /** profiles.velkomstvideo_set_at — nyt felt, se migrationen. Sættes af fladen når videoen er set. */
   velkomstvideo_set_at: string | null;
   /** profiles.avatar_url. Sættes af Settings (bucket `avatars`, sti {user_id}/avatar). */
@@ -84,11 +92,12 @@ export interface TjeklistePunkt {
 }
 
 export interface Tjekliste {
-  /** Altid seks, i fast rækkefølge. */
+  /** Seks i fast rækkefølge — fem uden velkomstvideo (velkomst udgår). */
   punkter: TjeklistePunkt[];
   antal_gjort: number;
+  /** 6 med video, 5 uden. */
   antal_i_alt: number;
-  /** true når alle seks er gjort. */
+  /** true når alle punkter er gjort. */
   faerdig: boolean;
 }
 
@@ -213,8 +222,11 @@ export function byggTjekliste(input: TjeklisteInput): Tjekliste {
   };
 
   // Rækkefølgen kommer fra TJEKLISTE_RAEKKEFOELGE, ikke fra objektets
-  // nøgleorden — så den er låst ét sted.
-  const punkter = TJEKLISTE_RAEKKEFOELGE.map((id) => punkterEfterId[id]);
+  // nøgleorden — så den er låst ét sted. Uden video filtreres velkomst
+  // fra; de fem andre beholder deres indbyrdes orden.
+  const punkter = TJEKLISTE_RAEKKEFOELGE
+    .filter((id) => id !== "velkomst" || input.har_velkomstvideo)
+    .map((id) => punkterEfterId[id]);
   const antal_gjort = punkter.filter((p) => p.gjort).length;
 
   return {

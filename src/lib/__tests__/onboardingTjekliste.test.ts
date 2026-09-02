@@ -9,6 +9,7 @@ import {
 } from "../onboardingTjekliste";
 
 const TOM: TjeklisteInput = {
+  har_velkomstvideo: true,
   velkomstvideo_set_at: null,
   avatar_url: null,
   ask_me_about: null,
@@ -21,6 +22,7 @@ const TOM: TjeklisteInput = {
 };
 
 const FULD: TjeklisteInput = {
+  har_velkomstvideo: true,
   velkomstvideo_set_at: "2026-09-02T10:00:00.000Z",
   avatar_url: "https://x/storage/v1/object/public/avatars/u1/avatar",
   ask_me_about: "Likviditet og prissætning i håndværk.",
@@ -178,5 +180,33 @@ describe("byggTjekliste — rækkefølge og stier er LÅST", () => {
       expect(p.titel.length).toBeGreaterThan(0);
       expect(p.beskrivelse.length).toBeGreaterThan(0);
     }
+  });
+});
+
+describe("byggTjekliste — uden velkomstvideo udgår velkomsten (vi viser ikke tomt indhold)", () => {
+  it("uden video: fem punkter, velkomst er ikke iblandt, antal_i_alt 5", () => {
+    const ud = byggTjekliste({ ...TOM, har_velkomstvideo: false });
+    expect(ud.punkter).toHaveLength(5);
+    expect(ud.punkter.map((p) => p.id)).toEqual(["profil", "virksomhed", "rapport", "handout", "besked"]);
+    expect(ud.punkter.some((p) => p.id === "velkomst")).toBe(false);
+    expect(ud.antal_i_alt).toBe(5);
+  });
+
+  it("uden video tæller velkomstvideo_set_at ikke med — hverken som gjort eller ikke gjort", () => {
+    const ud = byggTjekliste({ ...TOM, har_velkomstvideo: false, velkomstvideo_set_at: FULD.velkomstvideo_set_at });
+    expect(ud.antal_gjort).toBe(0);
+    expect(ud.antal_i_alt).toBe(5);
+  });
+
+  it("uden video er listen færdig når de fem er gjort", () => {
+    const ud = byggTjekliste({ ...FULD, har_velkomstvideo: false, velkomstvideo_set_at: null });
+    expect(ud.antal_gjort).toBe(5);
+    expect(ud.faerdig).toBe(true);
+  });
+
+  it("med video: seks, i den kendte rækkefølge", () => {
+    const ud = byggTjekliste({ ...TOM, har_velkomstvideo: true });
+    expect(ud.punkter.map((p) => p.id)).toEqual(["velkomst", "profil", "virksomhed", "rapport", "handout", "besked"]);
+    expect(ud.antal_i_alt).toBe(6);
   });
 });

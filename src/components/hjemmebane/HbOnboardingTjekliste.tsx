@@ -1,11 +1,12 @@
 import * as React from "react";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Check, ChevronDown, ChevronRight, ChevronUp, Play, X } from "lucide-react";
+import { Check, ChevronDown, ChevronRight, ChevronUp, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Tjekliste, TjeklistePunkt } from "@/lib/onboardingTjekliste";
 import { HbButton } from "./HbButton";
 import { HbProgressBar } from "./akademi/HbProgressBar";
+import { HbVelkomstVideoEmbed } from "./HbVelkomstVideoEmbed";
 import {
   laesFlag,
   skrivFlag,
@@ -51,21 +52,14 @@ import {
 // ── Velkomst-overlejringen ────────────────────────────────────────────
 
 /**
- * Pladsen til velkomstvideoen — videoen optages senere. Bygget som
- * HbSidebarDrawer: fixed inset-0, egen overlay, i DOM-træet.
+ * Velkomstoverlejringen — bygget som HbSidebarDrawer: fixed inset-0, egen
+ * overlay, i DOM-træet. Videoen er HbVelkomstVideoEmbed: samme form som
+ * Akademiets HbVideoEmbed, men uden content_items-række — get-video-embed
+ * læser GUID'et fra app_config.velkomstvideo_guid ({ velkomst: true }) og
+ * signerer server-side. Videoen sættes ind i /admin/config, ikke i kode.
  *
- * SÅDAN SÆTTES VIDEOEN IND når den findes: den skal ligge i Bunny
- * Stream-library'et (upload via admin-fladens HbBunnyPicker eller GUID i
- * hånden) og have en content_items-række med media_provider = 'bunny',
- * bunny_video_id = <guid>, status = 'published' (adminContentApi
- * createItem — UgensVideoView/ItemEditor er editorerne). Embed slår op på
- * item-id'et og signeres server-side af get-video-embed (TTL 1 time), så
- * pladsholderen nedenfor erstattes af det kald BoardroomView:415 bruger i dag:
- *
- *   <HbVideoEmbed itemId={video.id} resumeAt={null} onPosition={() => {}} onCompleted={() => {}} />
- *
- * (import { HbVideoEmbed } from "./akademi/HbVideoEmbed"). onCompleted kan
- * så kalde onKomIGang i stedet for knappen, hvis «set» skal betyde afspillet.
+ * VISES KUN NÅR DER ER EN VIDEO (Jonas 2/9: «Vi viser ikke tomt indhold»).
+ * Kalderen gater på harVelkomstvideo; denne komponent antager at den er sand.
  */
 const VelkomstOverlejring = ({
   fornavn,
@@ -99,12 +93,8 @@ const VelkomstOverlejring = ({
       <p className="mt-2 text-sm leading-relaxed text-hb-ink-soft">
         Her er en kort gennemgang af, hvordan du får mest ud af platformen. Tjeklisten nederst på siden følger med dig, indtil alt er på plads.
       </p>
-      {/* Pladsholderen — erstattes af HbVideoEmbed, se kommentaren ovenfor. */}
-      <div className="mt-5 flex aspect-video w-full flex-col items-center justify-center gap-3 rounded-hb border border-dashed border-hb-line bg-hb-sage/30">
-        <span className="flex h-14 w-14 items-center justify-center rounded-full bg-hb-surface text-hb-evergreen shadow-hb-hover">
-          <Play className="ml-0.5 h-6 w-6" />
-        </span>
-        <p className="text-sm text-hb-ink-soft">Velkomstvideoen kommer snart</p>
+      <div className="mt-5">
+        <HbVelkomstVideoEmbed />
       </div>
       {fejl && (
         <p className="mt-4 text-sm leading-relaxed text-hb-ink" role="alert">
@@ -162,6 +152,8 @@ const PunktRaekke = ({ punkt, onClick }: { punkt: TjeklistePunkt; onClick: () =>
 
 export interface HbOnboardingTjeklisteProps {
   tjekliste: Tjekliste | null;
+  /** Fra platformconfig. false = overlejringen vises ALDRIG, uanset velkomstvideoSetAt. */
+  harVelkomstvideo: boolean;
   velkomstvideoSetAt: string | null;
   fornavn: string | null;
   lukket: boolean;
@@ -176,6 +168,7 @@ export interface HbOnboardingTjeklisteProps {
 
 export const HbOnboardingTjekliste = ({
   tjekliste,
+  harVelkomstvideo,
   velkomstvideoSetAt,
   fornavn,
   lukket,
@@ -214,9 +207,10 @@ export const HbOnboardingTjekliste = ({
 
   if (!tjekliste || lukket) return null;
 
-  // Velkomsten popper op FØRSTE gang: stemplet er null, boksen er ikke
-  // lukket, og «Se senere» er ikke trykket i denne session.
-  const visVelkomstAutomatisk = velkomstvideoSetAt === null && !videoUdsat;
+  // Velkomsten popper op FØRSTE gang: der ER en video (ellers aldrig —
+  // vi viser ikke tomt indhold), stemplet er null, boksen er ikke lukket,
+  // og «Se senere» er ikke trykket i denne session.
+  const visVelkomstAutomatisk = harVelkomstvideo && velkomstvideoSetAt === null && !videoUdsat;
 
   const luk = () => {
     setLukket(true);
@@ -252,14 +246,16 @@ export const HbOnboardingTjekliste = ({
 
   const gaaTil = (punkt: TjeklistePunkt) => {
     if (punkt.id === "velkomst" || punkt.sti === "") {
-      setVideoAaben(true);
+      // Punktet findes kun i listen når der er en video (motoren filtrerer),
+      // men gaten holdes her også, så overlejringen aldrig åbner tom.
+      if (harVelkomstvideo) setVideoAaben(true);
       return;
     }
     navigate(punkt.sti);
   };
 
   const overlejring =
-    visVelkomstAutomatisk || videoAaben ? (
+    harVelkomstvideo && (visVelkomstAutomatisk || videoAaben) ? (
       <VelkomstOverlejring fornavn={fornavn} onKomIGang={komIGang} onSeSenere={seSenere} gemmer={gemmer} fejl={stempelFejl} />
     ) : null;
 

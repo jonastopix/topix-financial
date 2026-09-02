@@ -21,6 +21,7 @@ import {
   CheckCircle2,
   Clock,
   RefreshCw,
+  Video,
 } from "lucide-react";
 import {
   AlertDialog,
@@ -49,7 +50,7 @@ interface AdvisorEntry {
 
 const AdminConfig = () => {
   const { isAdvisor, isAdmin } = useAuth();
-  const { branding, performanceScore, gamification, meetings, updateConfig } = useAppConfig();
+  const { branding, performanceScore, gamification, meetings, velkomstvideoGuid, updateConfig } = useAppConfig();
 
   const [saving, setSaving] = useState<string | null>(null);
   const [testingWeeklyFocus, setTestingWeeklyFocus] = useState(false);
@@ -137,6 +138,14 @@ const AdminConfig = () => {
     setMeetingDate(meetings.next_meeting_date || "");
   }, [meetings.next_meeting_date]);
 
+  // ─── Velkomstvideo state ────────────────────────────────
+  const [velkomstGuid, setVelkomstGuid] = useState<string>(velkomstvideoGuid);
+  useEffect(() => {
+    setVelkomstGuid(velkomstvideoGuid);
+  }, [velkomstvideoGuid]);
+  const VELKOMST_GUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  const velkomstGuidUgyldig = velkomstGuid.trim() !== "" && !VELKOMST_GUID_RE.test(velkomstGuid.trim());
+
   // ─── Load advisors ─────────────────────────────────────
   const loadAdvisors = async () => {
     setAdvisorsLoading(true);
@@ -217,7 +226,7 @@ const AdminConfig = () => {
   if (!isAdmin) return <Navigate to="/" replace />;
 
   const handleSave = async (
-    key: "branding" | "performance_score" | "gamification" | "meetings",
+    key: "branding" | "performance_score" | "gamification" | "meetings" | "velkomstvideo_guid",
     value: any
   ) => {
     setSaving(key);
@@ -725,6 +734,65 @@ const AdminConfig = () => {
               <p className="text-xs text-muted-foreground italic">
                 Ingen dato sat — mødekortet vises ikke på dashboard
               </p>
+            )}
+          </div>
+        </section>
+
+        {/* ─── Velkomstvideo ───────────────────────────────── */}
+        <section className="glass-card rounded-xl p-6 animate-fade-in">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="font-display font-semibold text-foreground flex items-center gap-2">
+                <Video className="h-4 w-4 text-primary" />
+                Velkomstvideo
+              </h2>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Vises for nye medlemmer første gang de logger ind, og som punkt 1 i onboarding-tjeklisten
+              </p>
+            </div>
+            <button
+              onClick={async () => {
+                if (velkomstGuidUgyldig) {
+                  toast.error("Ikke et gyldigt Bunny-video-ID (GUID-form forventes)");
+                  return;
+                }
+                setSaving("velkomstvideo_guid");
+                await handleSave("velkomstvideo_guid", velkomstGuid.trim());
+                setSaving(null);
+              }}
+              disabled={saving === "velkomstvideo_guid" || velkomstGuidUgyldig}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
+            >
+              {saving === "velkomstvideo_guid" ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Save className="h-3.5 w-3.5" />
+              )}
+              Gem video-ID
+            </button>
+          </div>
+          <div className="space-y-2">
+            <label className="text-xs font-medium text-muted-foreground">Bunny-video-ID (GUID)</label>
+            <input
+              type="text"
+              value={velkomstGuid}
+              onChange={(e) => setVelkomstGuid(e.target.value)}
+              spellCheck={false}
+              placeholder="fx 5c6191a2-c148-470a-b5d2-e9740a25fac7"
+              className="w-full max-w-md px-3 py-2 rounded-lg border border-border bg-background text-sm font-mono focus:outline-none focus:ring-2 focus:ring-primary/30"
+            />
+            <p className="text-xs text-muted-foreground">
+              GUID'et findes i Bunny: Stream → library <span className="font-mono">boardroom-hjemmebane</span> → videoen → «Video ID».
+              Videoen skal ligge i det library — det er dét der er signeret og tilladt for app.theboardroom.dk.
+            </p>
+            {velkomstGuidUgyldig ? (
+              <p className="text-xs text-destructive">Ikke et gyldigt video-ID — GUID-form forventes (8-4-4-4-12 hex).</p>
+            ) : velkomstGuid.trim() === "" ? (
+              <p className="text-xs text-muted-foreground italic">
+                Tomt felt = velkomsten er slået fra: overlejringen vises ikke, og punktet «Se velkomsten» udgår af tjeklisten (fem punkter).
+              </p>
+            ) : (
+              <p className="text-xs text-muted-foreground">Velkomsten er slået til — tjeklisten har seks punkter.</p>
             )}
           </div>
         </section>
