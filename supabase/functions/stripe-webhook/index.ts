@@ -148,9 +148,12 @@ Deno.serve(async (req) => {
       // abonnement — skrev vi status her, ville virksomheden fremstå som
       // abonnent (tier "subscriber") i stedet for fuldt medlem; adgangen
       // ved fornyelse bæres af contract_end_date.
-      if (sub.metadata?.art === "fornyelse") {
-        console.log(`[stripe-webhook] ${event.type} for fornyelses-abonnement ${sub.id}, springer status-skrivning over`);
-        return new Response(JSON.stringify({ received: true, skipped: "fornyelse_subscription" }), {
+      // Samme gælder indgangens rate-abonnementer (art "indgang", 2/9): et
+      // indgangs-abonnement er heller ikke et exit-abonnement — adgangen
+      // bæres af contract_end_date, som indgangsgrenen sætter.
+      if (sub.metadata?.art === "fornyelse" || sub.metadata?.art === "indgang") {
+        console.log(`[stripe-webhook] ${event.type} for ${sub.metadata.art}-abonnement ${sub.id}, springer status-skrivning over`);
+        return new Response(JSON.stringify({ received: true, skipped: `${sub.metadata.art}_subscription` }), {
           headers: { "Content-Type": "application/json" },
         });
       }
@@ -177,10 +180,12 @@ Deno.serve(async (req) => {
       // Et fornyelses-abonnement der udløber (rammer sit cancel_at efter
       // sidste rate), er et normalt afsluttet betalingsforløb — ikke en
       // opsagt selvbetjening. subscription_status er forbeholdt
-      // exit-abonnementet og må ikke skrives her.
-      if (sub.metadata?.art === "fornyelse") {
-        console.log(`[stripe-webhook] ${event.type} for fornyelses-abonnement ${sub.id}, springer status-skrivning over`);
-        return new Response(JSON.stringify({ received: true, skipped: "fornyelse_subscription" }), {
+      // exit-abonnementet og må ikke skrives her. Samme for indgangens
+      // rate-abonnementer (art "indgang", 2/9): et ophør efter tolvte rate
+      // er et normalt afsluttet betalingsforløb, ikke en opsagt selvbetjening.
+      if (sub.metadata?.art === "fornyelse" || sub.metadata?.art === "indgang") {
+        console.log(`[stripe-webhook] ${event.type} for ${sub.metadata.art}-abonnement ${sub.id}, springer status-skrivning over`);
+        return new Response(JSON.stringify({ received: true, skipped: `${sub.metadata.art}_subscription` }), {
           headers: { "Content-Type": "application/json" },
         });
       }
@@ -338,6 +343,271 @@ Deno.serve(async (req) => {
 
       console.log(
         `[stripe-webhook] Fornyelse for company ${fornyelseCompanyId}: ${beloebOere} øre (${betalingsmodel}), kontrakt ${fornyelseCompany?.contract_end_date ?? "ukendt"} → ${periode_slut}`
+      );
+      return new Response(JSON.stringify({ received: true }), {
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
+    // ── Indgang (opret-indgangs-checkout) — gribes FØR mode-kontrollen
+    //    nedenfor af samme grund som fornyelsen: fuld betaling er
+    //    mode=payment, raterne mode=subscription, og begge skal skrive
+    //    perioden, sætte kontraktdatoerne og indgangsprisen. Spejler
+    //    fornyelsesgrenen i form: idempotens først, rækkefølge,
+    //    genindtrædelighed, samme cancel_at-hjælper ──
+    if (session.metadata?.art === "indgang") {
+      const indgangCompanyId = session.metadata?.company_id;
+      const betalingsmodel = session.metadata?.betalingsmodel;
+      const grundbeloebOere = Number(session.metadata?.grundbeloeb_oere);
+      if (!indgangCompanyId || !betalingsmodel || !Number.isFinite(grundbeloebOere)) {
+        console.error(`[stripe-webhook] indgang session ${session.id} mangler metadata`);
+        return new Response("Missing metadata", { status: 400 });
+      }
+
+      // beloeb_oere er det FAKTISK betalte (rate12 bærer 5 %-tillægget) —
+      // det er samlet_oere. Mangler det, falder vi tilbage på grundbeløbet
+      // med en advarsel, som fornyelsen gør.
+      const samletOere = Number(session.metadata?.samlet_oere);
+      let beloebOere: number;
+      if (Number.isFinite(samletOere)) {
+        beloebOere = samletOere;
+      } else {
+        console.warn(
+          `[stripe-webhook] indgang session ${session.id} har intet samlet_oere i metadata — falder tilbage på grundbeloeb_oere; beloeb_oere kan mangle tillægget`
+        );
+        beloebOere = grundbeloebOere;
+      }
+
+      // Stripe-kunden er lige oprettet af Checkout (customer_email). Gemmes
+      // på virksomheden, så fornyelsen om et år kan genbruge den
+      // (opret-fornyelse-checkout:177). I payment-mode kan den mangle —
+      // så skrives feltet ikke.
+      const stripeCustomerId =
+        typeof session.customer === "string" && session.customer ? session.customer : null;
+
+      const { data: indgangCompany } = await adminClient
+        .from("companies")
+        .select("contract_end_date")
+        .eq("id", indgangCompanyId)
+        .maybeSingle();
+
+      // Idempotens FØRST — og som "er ARBEJDET fuldført", ikke "findes
+      // rækken": fejler et senere trin, svarer vi 500, Stripe gensender, og
+      // en simpel findes-test ville springe over uden at fuldføre.
+      // stripe_reference bærer den (jf. kolonnekommentaren på
+      // company_perioder). Et gensendt event må ALDRIG give to perioder
+      // eller sætte kontrakten to gange.
+      const { data: eksisterende, error: eksisterendeError } = await adminClient
+        .from("company_perioder")
+        .select("id, periode_start, periode_slut")
+        .eq("stripe_reference", session.id)
+        .maybeSingle();
+      if (eksisterendeError) {
+        console.error("[stripe-webhook] idempotens-opslag (indgang) fejlede:", eksisterendeError);
+        throw new Error("Idempotency lookup failed");
+      }
+      if (eksisterende) {
+        // Også ved gensendelse: sæt cancel_at hvis abonnementet mangler det
+        // — første forsøg kan være fejlet netop dér. Hjælperen springer selv
+        // over hvis cancel_at allerede er sat, og kaster ellers ved fejl.
+        if (session.mode === "subscription" && session.subscription) {
+          await sikrOphoerPaaFornyelsesAbonnement(
+            session.subscription,
+            Deno.env.get("STRIPE_SECRET_KEY")!
+          );
+        }
+        if (indgangCompany?.contract_end_date === eksisterende.periode_slut) {
+          console.log(`[stripe-webhook] Indgang ${session.id} allerede behandlet, springer over`);
+          return new Response(JSON.stringify({ received: true, skipped: "already_processed" }), {
+            headers: { "Content-Type": "application/json" },
+          });
+        }
+        const { error: fuldfoerError } = await adminClient
+          .from("companies")
+          .update({
+            contract_start_date: eksisterende.periode_start,
+            contract_end_date: eksisterende.periode_slut,
+            indgangspris_oere: grundbeloebOere,
+            ...(stripeCustomerId ? { stripe_customer_id: stripeCustomerId } : {}),
+          } as any)
+          .eq("id", indgangCompanyId);
+        if (fuldfoerError) {
+          console.error("[stripe-webhook] kontrakt-opdatering (indgang) fejlede (gensendelse):", fuldfoerError);
+          throw new Error("Failed to update contract dates");
+        }
+        console.log(
+          `[stripe-webhook] Indgang ${session.id}: gensendelse fuldførte halvt udført arbejde — kontrakt ${eksisterende.periode_start} → ${eksisterende.periode_slut}`
+        );
+        return new Response(JSON.stringify({ received: true }), {
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+
+      // Kontrakten løber fra BETALINGSDAGEN, ikke fra underskriften
+      // (docs/indgangen-design.md §1): aftalegrundlaget giver 30 dages
+      // frist efter underskrift, og de dage skal ikke tages fra medlemmet.
+      const startDato = new Date();
+      const periode_start = startDato.toISOString().slice(0, 10);
+      const slutDato = new Date(startDato);
+      slutDato.setUTCMonth(slutDato.getUTCMonth() + 12);
+      const periode_slut = slutDato.toISOString().slice(0, 10);
+
+      // Perioden FØRST, virksomheden bagefter: fejler det andet, findes
+      // perioden som spor af hvad der blev betalt. Fejler indsættelsen,
+      // er intet sket, og Stripe forsøger igen.
+      const { error: periodeError } = await adminClient.from("company_perioder").insert({
+        company_id: indgangCompanyId,
+        periode_start,
+        periode_slut,
+        beloeb_oere: beloebOere,
+        betalingsmodel,
+        art: "indgang",
+        stripe_reference: session.id,
+        oprettet_af: null, // betalingen er ikke en rådgiverhandling
+      });
+      if (periodeError) {
+        console.error("[stripe-webhook] periode-indsættelse (indgang) fejlede:", periodeError);
+        throw new Error("Failed to insert company_periode");
+      }
+
+      // indgangspris_oere er LISTEPRISEN (grundbeloeb_oere), ikke det
+      // betalte: ratetillægget er finansiering, ikke pris (rettelsen 1/9 i
+      // docs/fornyelseskaeden-1-september.md). En der betaler 52.500 i tolv
+      // rater er kommet ind på 50.000 og fornyer til 25.000.
+      const { error: kontraktError } = await adminClient
+        .from("companies")
+        .update({
+          contract_start_date: periode_start,
+          contract_end_date: periode_slut,
+          indgangspris_oere: grundbeloebOere,
+          ...(stripeCustomerId ? { stripe_customer_id: stripeCustomerId } : {}),
+        } as any)
+        .eq("id", indgangCompanyId);
+      if (kontraktError) {
+        console.error("[stripe-webhook] kontrakt-opdatering (indgang) fejlede:", kontraktError);
+        throw new Error("Failed to update contract dates");
+      }
+
+      // Ophør på rate-abonnementet — sættes her fordi Checkout ikke kan
+      // (subscription_data[cancel_at] afvises med parameter_unknown), og
+      // fordi abonnementets faktiske start først kendes nu. Samme hjælper
+      // som fornyelsen: mekanikken er identisk (start + 12 måneder − 1 dag).
+      // Fejler kaldet, kaster hjælperen → 500 → Stripe gensender; et
+      // abonnement uden ophør må ikke passere i tavshed.
+      if (session.mode === "subscription" && session.subscription) {
+        await sikrOphoerPaaFornyelsesAbonnement(
+          session.subscription,
+          Deno.env.get("STRIPE_SECRET_KEY")!
+        );
+      }
+
+      // ── INVITATIONEN — det led fornyelsen ikke har. Betalingen giver
+      //    adgang (§21: to mails i to øjeblikke, aldrig samtidig). Alt
+      //    herunder står EFTER kontraktopdateringen og må ALDRIG kaste:
+      //    kontrakten er forlænget og pengene modtaget; et kast ville få
+      //    Stripe til at gensende et forløb der allerede er gennemført. En
+      //    manglende invitation er noget en rådgiver kan rette — en tabt
+      //    betaling er det ikke. Derfor logges hver fejl med company_id, og
+      //    grenen fortsætter til sit normale svar.
+      //
+      //    invited_by (besluttet 2/9): kolonnen er uuid NOT NULL uden FK og
+      //    er IKKE en afsender — mailens afsendernavn kommer fra
+      //    email_templates.sender_name, og feltet læses ét sted
+      //    (send-invitation-email: gensende-autoritet for IKKE-service-role-
+      //    kaldere; vores kald er service-role og springer den gren over).
+      //    Jonas og Morten er begge rådgivere for alle virksomheder, så der
+      //    er ingen tildeling at foretage. Værdien tages fra secret'en
+      //    INVITATION_AFSENDER_USER_ID, så den kan ændres uden kodeændring —
+      //    og så leddet senere kan bære "hvem godkendte på Monday" ét sted ──
+      const invitationAfsender = Deno.env.get("INVITATION_AFSENDER_USER_ID")?.trim() || null;
+      if (!invitationAfsender) {
+        console.error(
+          `[stripe-webhook] Indgang ${session.id} for company ${indgangCompanyId}: INVITATION IKKE SENDT — secret INVITATION_AFSENDER_USER_ID mangler. Rådgiver skal invitere manuelt.`
+        );
+      } else {
+        try {
+          // Idempotens: en gensendelse fra Stripe må ikke give to invitationer.
+          const { data: eksisterendeInvitation, error: invOpslagError } = await adminClient
+            .from("company_invitations")
+            .select("id, email")
+            .eq("company_id", indgangCompanyId)
+            .eq("status", "pending")
+            .limit(1)
+            .maybeSingle();
+          if (invOpslagError) throw new Error(`invitationsopslag fejlede: ${invOpslagError.message}`);
+
+          if (eksisterendeInvitation) {
+            console.log(
+              `[stripe-webhook] Indgang for company ${indgangCompanyId}: pending invitation findes allerede (${eksisterendeInvitation.email}), sender ikke igen`
+            );
+          } else {
+            const { data: invitationCompany, error: invCompanyError } = await adminClient
+              .from("companies")
+              .select("name, contact_email")
+              .eq("id", indgangCompanyId)
+              .maybeSingle();
+            if (invCompanyError) throw new Error(`virksomhedsopslag fejlede: ${invCompanyError.message}`);
+
+            const invitationEmail = invitationCompany?.contact_email?.trim().toLowerCase() || null;
+            if (!invitationEmail) {
+              throw new Error("companies.contact_email er tom — ingen adresse at invitere");
+            }
+
+            // Rækken, som import-application opretter den (:328-337):
+            // company_id, email, invited_by, status. token får sin default.
+            const { data: invitation, error: invErr } = await adminClient
+              .from("company_invitations")
+              .insert({
+                company_id: indgangCompanyId,
+                email: invitationEmail,
+                invited_by: invitationAfsender,
+                status: "pending",
+              })
+              .select("token")
+              .single();
+            if (invErr || !invitation) {
+              throw new Error(`invitations-indsættelse fejlede: ${invErr?.message ?? "ingen række"}`);
+            }
+
+            // Mailen, som import-application sender den (:348-355):
+            // service-role-kald med company_name og signup_url i body.
+            const signupUrl = `https://app.theboardroom.dk/auth?mode=signup&invite=${invitation.token}`;
+            const { error: emailErr } = await adminClient.functions.invoke("send-invitation-email", {
+              body: {
+                email: invitationEmail,
+                company_name: invitationCompany?.name ?? "The Boardroom",
+                signup_url: signupUrl,
+              },
+            });
+            if (emailErr) {
+              let bodyText: string | null = null;
+              let status: number | undefined;
+              try {
+                status = emailErr.context?.status;
+                bodyText = (await emailErr.context?.text()) ?? null;
+              } catch (readErr) {
+                console.warn("[stripe-webhook] kunne ikke læse send-invitation-email-fejlsvar:", readErr);
+              }
+              throw new Error(`send-invitation-email fejlede: status=${status ?? "?"} body=${bodyText ?? ""} error=${emailErr.message ?? String(emailErr)}`);
+            }
+
+            console.log(
+              `[stripe-webhook] Indgang for company ${indgangCompanyId}: invitation sendt til ${invitationEmail}`
+            );
+          }
+        } catch (invitationFejl) {
+          console.error(
+            `[stripe-webhook] Indgang ${session.id} for company ${indgangCompanyId}: INVITATION IKKE SENDT — ${invitationFejl instanceof Error ? invitationFejl.message : String(invitationFejl)}. Rådgiver skal invitere manuelt.`
+          );
+        }
+      }
+
+      // company_betalingslink røres IKKE: rækken bliver stående som historik,
+      // og hent_betalingstilbud giver "betalt" af sig selv, nu hvor
+      // contract_end_date er sat.
+
+      console.log(
+        `[stripe-webhook] Indgang for company ${indgangCompanyId}: ${beloebOere} øre (${betalingsmodel}), listepris ${grundbeloebOere} øre, kontrakt ${periode_start} → ${periode_slut}`
       );
       return new Response(JSON.stringify({ received: true }), {
         headers: { "Content-Type": "application/json" },
