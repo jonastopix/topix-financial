@@ -862,6 +862,47 @@ export type Database = {
           },
         ]
       }
+      company_betalingslink: {
+        Row: {
+          betalingsmail_sendt_at: string | null
+          company_id: string
+          created_at: string
+          prisniveau_oere: number | null
+          sidste_paamindelse_dag: number | null
+          token: string
+          underskrevet_at: string
+          updated_at: string
+        }
+        Insert: {
+          betalingsmail_sendt_at?: string | null
+          company_id: string
+          created_at?: string
+          prisniveau_oere?: number | null
+          sidste_paamindelse_dag?: number | null
+          token?: string
+          underskrevet_at?: string
+          updated_at?: string
+        }
+        Update: {
+          betalingsmail_sendt_at?: string | null
+          company_id?: string
+          created_at?: string
+          prisniveau_oere?: number | null
+          sidste_paamindelse_dag?: number | null
+          token?: string
+          underskrevet_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "company_betalingslink_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       company_fornyelse: {
         Row: {
           beslutning: string
@@ -3212,6 +3253,11 @@ export type Database = {
         }
         Returns: boolean
       }
+      hent_betalingsdata_til_checkout: {
+        Args: { betalingstoken: string }
+        Returns: Json
+      }
+      hent_betalingstilbud: { Args: { betalingstoken: string }; Returns: Json }
       is_legat_user: { Args: { _user_id: string }; Returns: boolean }
       is_membership_active: { Args: { p_company_id: string }; Returns: boolean }
       legat_day: { Args: { _user_id: string }; Returns: number }
