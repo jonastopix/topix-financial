@@ -209,6 +209,7 @@ export const HbMemberShell = ({
       {!isAdvisor && (
         <HbOnboardingTjekliste
           tjekliste={tjeklisteData.tjekliste}
+          harVelkomstvideo={tjeklisteData.harVelkomstvideo}
           velkomstvideoSetAt={tjeklisteData.velkomstvideoSetAt}
           fornavn={tjeklisteFornavn}
           lukket={tjeklisteLukket}

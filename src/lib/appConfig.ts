@@ -66,6 +66,12 @@ export const MEETINGS = {
   next_meeting_date: null as string | null,
 } as const;
 
+// ─── Velkomstvideo (onboarding-tjeklisten) ───────────────────────────────────
+
+/** app_config.velkomstvideo_guid — Bunny-video-GUID. Tom = ingen video =
+    velkomsten er slået fra (overlejring og tjeklistepunkt udgår). */
+export const VELKOMSTVIDEO_GUID = "";
+
 // ─── KPI Fallback Targets ────────────────────────────────────────────────────
 
 export const KPI_FALLBACK_TARGETS: Record<string, { value: number; label: string }> = {

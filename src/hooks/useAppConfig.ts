@@ -5,9 +5,10 @@ import {
   PERFORMANCE_SCORE,
   GAMIFICATION,
   MEETINGS,
+  VELKOMSTVIDEO_GUID,
 } from "@/lib/appConfig";
 
-type ConfigKey = "branding" | "performance_score" | "gamification" | "meetings";
+type ConfigKey = "branding" | "performance_score" | "gamification" | "meetings" | "velkomstvideo_guid";
 
 /**
  * Fetches all app_config rows and merges with static defaults.
@@ -34,6 +35,10 @@ export function useAppConfig() {
   const performanceScore = { ...PERFORMANCE_SCORE, ...(dbMap.performance_score || {}) };
   const gamification = { ...GAMIFICATION, ...(dbMap.gamification || {}) };
   const meetings = { ...MEETINGS, ...(dbMap.meetings || {}) };
+  // Én streng, ikke et objekt: trimmes, og alt der ikke er en streng
+  // behandles som «ingen video» (fail-closed — vi viser ikke tomt indhold).
+  const velkomstvideoGuid =
+    typeof dbMap.velkomstvideo_guid === "string" ? dbMap.velkomstvideo_guid.trim() : VELKOMSTVIDEO_GUID;
 
   const updateConfig = async (key: ConfigKey, value: any) => {
     const { error } = await supabase
@@ -46,5 +51,5 @@ export function useAppConfig() {
     queryClient.invalidateQueries({ queryKey: ["app-config"] });
   };
 
-  return { branding, performanceScore, gamification, meetings, updateConfig };
+  return { branding, performanceScore, gamification, meetings, velkomstvideoGuid, updateConfig };
 }
