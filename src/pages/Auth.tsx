@@ -27,7 +27,20 @@ const Auth = () => {
   const [showReset, setShowReset] = useState(false);
   const [signupResult, setSignupResult] = useState<"auto" | "confirm" | null>(null);
   const [signupEmail, setSignupEmail] = useState("");
-  const [inviteCompany, setInviteCompany] = useState<{ name: string; logo_url: string | null } | null>(null);
+  /* Adgangsrejsen trin 1-2 (2/9): opslaget giver nu også invitationens
+     e-mail og companies.contact_person (migration 20260902190000).
+     `kontakt` er NULL for alt der ikke er Monday-oprettet efter 2/9 —
+     fladen skal tåle det. */
+  const [inviteCompany, setInviteCompany] = useState<{
+    name: string;
+    logo_url: string | null;
+    email?: string | null;
+    kontakt?: string | null;
+  } | null>(null);
+  /* Mailen er låst når den kommer fra invitationen: det er den adresse vi
+     lige har sendt til, og skriver medlemmet en anden, matcher triggeren
+     (handle_new_user) ingen invitation og afviser signup med P0001. */
+  const [emailLaast, setEmailLaast] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
 
   // Redirect after successful auth
@@ -67,14 +80,26 @@ const Auth = () => {
     });
   }, [returnUrl]);
 
-  // Look up company info from invite token
+  // Look up company info from invite token — og forudfyld mail + navn.
+  // Svarer opslaget null (ukendt eller brugt token), sker intet nyt her:
+  // felterne står tomme og redigerbare som før, og triggeren afgør.
   useEffect(() => {
     if (!inviteToken) return;
     supabase
       .rpc("lookup_invite_company_info", { invite_token: inviteToken })
       .then(({ data }) => {
         if (data && typeof data === "object" && (data as any).name) {
-          setInviteCompany(data as { name: string; logo_url: string | null });
+          const info = data as { name: string; logo_url: string | null; email?: string | null; kontakt?: string | null };
+          setInviteCompany(info);
+          const invitationsMail = (info.email ?? "").trim().toLowerCase();
+          if (invitationsMail) {
+            setEmail(invitationsMail);
+            setEmailLaast(true);
+          }
+          // Navnet forudfyldes men låses IKKE: det kan være stavet forkert i
+          // Monday, og det er personens eget. Null → tomt og redigerbart.
+          const kontakt = (info.kontakt ?? "").trim();
+          if (kontakt) setFullName((nuvaerende) => nuvaerende || kontakt);
         }
       });
   }, [inviteToken]);
@@ -100,12 +125,18 @@ const Auth = () => {
       return;
     }
     setLoading(true);
+    // company_name i metadata bruges kun af triggeren når invitationen
+    // ingen company_id har (navngiver en NY virksomhed). Med token er
+    // virksomheden kendt, så feltet udgår; rådgivervejen (mode=signup uden
+    // token) beholder det som før.
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
         emailRedirectTo: window.location.origin,
-        data: { full_name: fullName, company_name: companyName, ...(inviteToken ? { invite_token: inviteToken } : {}) },
+        data: inviteToken
+          ? { full_name: fullName, invite_token: inviteToken }
+          : { full_name: fullName, company_name: companyName },
       },
     });
     if (error) {
@@ -132,6 +163,10 @@ const Auth = () => {
   };
 
   const handleGoogleLogin = async () => {
+    // BEVIDST URØRT (2/9): tokenet ligger kun i redirect_uri, ikke i
+    // user-metadata, så triggeren falder til e-mail-match — den låste mail
+    // på formen ovenfor hjælper ikke her. Hvad Lovables OAuth-lag lægger i
+    // raw_user_meta_data er ikke målt. Eget trin.
     setGoogleLoading(true);
     const redirectUri = inviteToken
       ? `${window.location.origin}/auth?invite=${inviteToken}`
@@ -348,10 +383,17 @@ const Auth = () => {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
-                className="w-full pl-10 pr-3 py-2.5 rounded-lg bg-background border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+                // Låst kun ved signup fra en invitation med kendt mail. Login
+                // (isLogin) og rådgivervejen (mode=signup uden token) er redigerbare.
+                readOnly={!isLogin && emailLaast}
+                aria-readonly={!isLogin && emailLaast}
+                className={`w-full pl-10 pr-3 py-2.5 rounded-lg bg-background border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 ${!isLogin && emailLaast ? "text-muted-foreground cursor-default" : ""}`}
                 placeholder="din@email.dk"
               />
             </div>
+            {!isLogin && emailLaast && (
+              <p className="text-xs text-muted-foreground mt-1.5">Invitationen er sendt til denne adresse.</p>
+            )}
           </div>
           <div>
             <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Adgangskode</label>

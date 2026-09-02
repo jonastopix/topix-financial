@@ -84,11 +84,11 @@ Integrationer: Stripe, Slack, Circle (community), Monday.com webhook, pdfjs-dist
 - `protect_message_immutable_fields` på `messages`: `sender_id`, `conversation_id`, `created_at`.
 - `protect_handout_immutable_fields` på `handouts`: `user_id`, `company_id`, `created_at`.
 
-**Signup**: `handle_new_user()` AFTER INSERT på `auth.users` orkestrerer fire grene:
-1. Token-baseret invite (matcher `company_invitations.token`).
-2. Email-baseret invite (kræver `email_confirmed_at` — ellers fail-closed).
-3. Advisor-invite (matcher `advisor_invitations.email`).
-4. Ny virksomhed (når intet invite-match findes).
+**Signup**: `handle_new_user()` AFTER INSERT på `auth.users` orkestrerer fire grene (målt i prod 2/9 via pg_proc — rækkefølgen er den faktiske):
+1. Advisor-invite (matcher `advisor_invitations.email`) — FØRST, og returnerer før medlemsgrenene. Det er vejen for `mode=signup` uden token.
+2. Token-baseret invite (matcher `company_invitations.token`).
+3. Email-baseret invite (matcher `company_invitations.email`). IKKE fail-closed på `email_confirmed_at` — en tidligere version af denne linje påstod det; målt 2/9 er der ingen sådan betingelse.
+4. Intet invite-match → signup AFVISES med `RAISE EXCEPTION` (P0001). «Kun adgang via invitation» er håndhævet i databasen. En ny virksomhed oprettes kun når en matchet invitation har `company_id IS NULL`.
 
 Se `supabase/SECURITY_BASELINE.md` for den autoritative checklist.
 
