@@ -212,11 +212,38 @@ kan bevises på rigtige data uden at nogen får en mail, og at et
 fejlkald aldrig sender noget. Samme mønster som
 `nudge-report-no-reflection`.
 
-**Advarsel — den fejl der ikke må gentages:** `intro-reminder-cron`
-havde oprindeligt kun `Deno.cron` og ingen HTTP-overflade. `Deno.cron`
-eksekveres ALDRIG på Supabases edge-runtime, så funktionen kørte
-aldrig, og `intro_reminder_last_sent_at` er NULL for alle virksomheder.
-Påmindelser SKAL have en HTTP-indgang og planlægges med pg_cron.
+**Mønsteret er i drift og kan kopieres — rettet 2/9.** En tidligere
+version af dette afsnit påstod at `intro-reminder-cron` «kørte aldrig»
+og at `intro_reminder_last_sent_at` er NULL for alle. Det var tilstanden
+FØR 13/8, og teksten stammede fra funktionens eget filhoved. Målt 2/9:
+
+- Funktionen fik `Deno.serve` + `authenticateServiceRole` i commit
+  `c8199691` den 13/8 (`intro-reminder-cron/index.ts:243-246`).
+  `supabase/config.toml:115-116` har `verify_jwt = true`.
+- Der findes et pg_cron-job der kalder den LIVE: jobnavn
+  **`intro-session-reminder`**, `'0 9 * * *'`, `net.http_post` mod
+  `/functions/v1/intro-reminder-cron` med body `{"dry_run": false}` og
+  vault-nøglen `email_queue_service_role_key`. Bogført tegn for tegn i
+  migration `20260901112000_prod_cron_bogfoert.sql` (jobid 249 i prod).
+- Jobbet hedder altså noget ANDET end funktionen det kalder. Det er
+  grunden til at en tidligere recon konkluderede at det ikke fandtes:
+  der blev søgt på funktionsnavnet i `cron.job`, og det gav nul rækker.
+
+**Advarslen der stadig gælder:** `Deno.cron` eksekveres ALDRIG på
+Supabases edge-runtime. En funktion med kun `Deno.cron` kører ikke.
+Påmindelser SKAL have en HTTP-indgang og planlægges med pg_cron — og
+`intro-reminder-cron` er nu netop det forlæg.
+
+**Fejlklasse, så den ikke gentages:** (1) et filhoved beskriver
+tilstanden da det blev skrevet, ikke tilstanden nu — funktionens header
+siger stadig «havde kun Deno.cron … havde aldrig kørt», og det blev
+skrevet af som facit uden at kigge i `cron.job`. (2) Et cron-job kan
+hedde noget andet end funktionen det kalder — søg på URL'en i
+`cron.job.command`, ikke kun på jobnavnet.
+
+**IKKE MÅLT:** om `intro_reminder_last_sent_at` stadig er NULL for alle
+virksomheder i dag, og om funktionen faktisk har sendt en mail siden
+13/8. Det kræver et opslag i prod, ikke i repoet.
 
 **Cron-slots** (kortlagt 1/9 i migration 20260901090000): 04:00
 opgave-udløb · 05:00 agent-runs-opbevaring · 06:00
@@ -299,9 +326,42 @@ Sætter du 40.000 på Monday, får de et 40.000-tilbud. Er niveauet sat
 forkert, betaler de ikke det forkerte beløb ved et uheld — de får bare
 det forkerte tilbud, og det opdages FØR pengene skifter hænder.
 
-Et nyt felt på `companies` skal bære niveauet. Navnet er ikke afgjort;
-det må ikke hedde noget der forveksles med `indgangspris_oere`, som
-først sættes ved betaling.
+**Hvor niveauet bor — besluttet 2/9:** IKKE på `companies`. En
+tidligere version af dette afsnit sagde «et nyt felt på companies skal
+bære niveauet»; det er trukket tilbage. Niveauet, tokenet og
+påmindelsestilstanden ligger i en ny tabel
+`public.company_betalingslink` med `company_id` som primærnøgle,
+advisor- og service-role-adgang, og ingen adgang for medlemmer.
+
+Begrundelsen er den samme som for `company_fornyelse` (migration
+`20260811120000_fornyelsesbeslutning.sql`, linje 5-8): RLS i Postgres
+er rækkeniveau, ikke kolonneniveau. Målt 2/9 har `companies`
+politikken «Members can view own company» med `id =
+user_company_id(auth.uid())` (migration 20260224222456:43-45) — et
+medlem kan læse HELE sin egen række. Tokenet er en bæreradgang: den
+der har det, kan åbne betalingen. Det må ikke ligge et sted et medlem
+kan læse.
+
+Felterne:
+
+| felt | type | betydning |
+|---|---|---|
+| `company_id` | uuid, PK, FK → `companies` | én række pr. virksomhed |
+| `prisniveau_oere` | integer, nullable | 4000000 eller 5000000; NULL = «afventer pris» (§17) |
+| `underskrevet_at` | timestamptz | «Godkendt» på Monday |
+| `token` | uuid, `default gen_random_uuid()` | bæreradgangen i linket |
+| `betalingsmail_sendt_at` | timestamptz | dag 0; NULL = ikke sendt endnu (§19, idempotens) |
+| `sidste_paamindelse_dag` | integer | 14, 25 eller 31 — seneste sendte trin i §9's rytme |
+
+**Ikke et felt: `token_udloeber`.** Udløbet ER `betalingsmail_sendt_at
++ 30 dage` (§19: «30-dagesfristen løber fra betalingsmailen»). To
+kilder til samme dato ville kunne drive fra hinanden — en rådgiver der
+sætter prisen sent, eller en gensendt mail, ville give ét felt der
+siger én ting og et andet der siger noget andet. Udløbet beregnes, det
+gemmes ikke.
+
+Navnet `prisniveau_oere` er valgt så det ikke forveksles med
+`companies.indgangspris_oere`, som først sættes ved betaling (§13).
 
 **ÅBENT:** hvad der sker hvis `Pris (kontrakt)` er tom ved «Godkendt».
 Falder den tilbage på 50.000, eller skal webhooken afvise og gøre
