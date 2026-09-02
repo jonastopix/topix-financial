@@ -573,6 +573,9 @@ invitationen på en eksisterende pending invitation for virksomheden.
   rådgivermailen sendes af `send-indgangs-betalingsmail`; dag 14/25/31
   af `indgangs-paamindelser-cron` (tørkørsel som standard). Begge går
   gennem `_shared/indgangsMailAfsendelse.ts` → `transactional_emails`.
+  Udløser 2 (§19, prisen sættes manuelt): `saet-indgangs-prisniveau`
+  (Bucket A, advisor-gate) skriver prisen med null-guard og udløser dag 0
+  i samme kald; prisen ændres ikke når den først er sat (409).
   **Mangler før det kører:** secret'en `RAADGIVER_MAIL_TIL`, og
   pg_cron-jobbet `indgangs-paamindelser` kl. 10:00 — kommandoen står som
   kommentar i cronens filhoved og køres i hånden i SQL editoren.

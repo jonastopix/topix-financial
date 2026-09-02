@@ -141,11 +141,17 @@ project_id = "loiavmastgeieqyiwyyr"
   [functions.opret-indgangs-checkout]
     verify_jwt = false
   # Bucket B: authenticateServiceRole læser role-claimet, gatewayen bærer
-  # signaturtjekket — samme begrundelse som intro-reminder-cron. Kaldes af
-  # Monday-grenen og af prissætningen med service-role-nøglen (§19).
+  # signaturtjekket — samme begrundelse som intro-reminder-cron. Kun til
+  # manuelle kald med service-role-JWT'en; Monday-grenen og prissætningen
+  # kalder logikken i samme proces (_shared/indgangsBetalingsmail.ts).
   [functions.send-indgangs-betalingsmail]
     verify_jwt = true
   # Samme begrundelse som intro-reminder-cron: pg_cron-job med vault-nøglen
   # passerer gaten i prod. Tørkørsel som standard.
   [functions.indgangs-paamindelser-cron]
+    verify_jwt = true
+  # Bucket A (§19 udløser 2): authenticateUser + advisor-gate, gatewayen
+  # bærer signaturtjekket — samme begrundelse som get-community-billed-url.
+  # Kaldes fra rådgiverfladen med brugerens JWT.
+  [functions.saet-indgangs-prisniveau]
     verify_jwt = true
