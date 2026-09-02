@@ -257,8 +257,12 @@ godt i gang» i sidebaren. Seks punkter når der er velkomstvideo, fem uden
 `{ velkomst: true }` — ingen content_items-række. Settings, Milestones og
 PulseCheckin er AppLayout og har ikke boksen (accepteret).
 Recon: `~/Downloads/recon-onboarding-tjekliste.md`, `recon-velkomstvideo.md`.
+**Siden 2/9 nat er tjeklisten også forsidens fokuskilde** (trin 8–9,
+#546/#547): så længe den ikke er færdig, viser «Dit næste skridt» dens
+ikke-gjorte punkter i stedet for (a)–(i), og hilsenen siger «Velkommen».
+Pillen står stadig ved siden af — ikke afgjort (indgangen-overhaling §10).
 
-### Adgangsrejsen — trin 1–2 og mailbekræftelsen bevist i drift 2/9
+### Adgangsrejsen — trin 1–2 og 5–9 bevist i drift 2/9; kun 10–12 mangler af ruten
 
 `docs/indgangsfladen-design.md` (design §1–8, 2/9 nat; tillæg §9–13,
 2/9 aften) og `~/Downloads/recon-adgangsrejsen.md` (designet holdt op
@@ -277,11 +281,20 @@ medlemmets egen adgang (§13). **Resten er designet som ét epic i
 pensioneres (agentens stempel skal flyttes først); ankomsten står selv
 uden video; branchen udledes af CVR via en ny ren motor; de dårlige
 dage (skelet uden udgang, dødt token, indlogget browser) får Hb-flader;
-rækkefølgen i dets §9. Mangler: mailbekræftelse slås fra i
-Supabase Auth (uden for repoet; PPI's e-mail-fallback dør), Onboarding-
-porten pensioneres (fem steder: App.tsx ×2, OnboardingRoute, useAuth,
-main.tsx), /auth og /settings til Hjemmebane, de tre `valueCards` får et
-hjem. Målt 2/9 i prod: `handle_new_user` er IKKE fail-closed på
+rækkefølgen i dets §9. **Bevist 2/9 aften/nat, trin 5–9:** mail-
+bekræftelsen slået fra (kl. 21:56); agentens betingelse rettet og
+bevist med `onboarded_at` NULL (#544, kl. 20:53); Onboarding-porten
+pensioneret (#545, kl. 23:03 — seks skærme blev til tre: signup,
+spinner, forside); ankomstens motor (#546, 21 nye tests) og flade
+(#547, kl. 23:20: «Velkommen, Jonas.» + første tjeklistepunkt som
+fokus, ikke «Upload dine august-tal»). `profiles.onboarded_at` skrives
+ikke længere af ruten; kolonnen står som historik. **Mangler af ruten:
+kun trin 10–12** — blindgyden (§7.1), /auth til Hjemmebane (§7.5,
+Jonas' beslutning 2/9: loginsiden skal gøres bedre, ikke kun
+konverteres) og 404. Uden for ruten: branchen (trin 1–4), de tre
+`valueCards` uden hjem, pillens rolle i ankomsten, velkomst-punktet
+uden knap i kortet (skal løses før `velkomstvideo_guid` sættes).
+Målt 2/9 i prod: `handle_new_user` er IKKE fail-closed på
 `email_confirmed_at` og afviser signup uden invitation med P0001;
 rådgivergrenen kommer først. CLAUDE.md er rettet (#537).
 
@@ -318,7 +331,8 @@ facit og rækkefølge; `docs/chat-design.md` chattens form.
 | åbent | **Velkomstvideoen skal optages** (Morten). Pladsen er bygget; GUID'et sættes i /admin/config. | recon-velkomstvideo |
 | åbent | **Rundvisningen** — interaktiv førstegangs-oplevelse efter velkomsten; bygges efter C3-indflytningen; må aldrig eksistere ved siden af Guiden. | BACKLOG [P2·EPIC] Platform-onboarding |
 | åbent | **Adminfladens overhaling** — rådgiverfladen tages samlet som ét epic, efter medlemsdesignet. /members har i dag IndgangsSektion + FornyelsesSektion i gammelt design. | prioritering §6 |
-| åbent | Indgangens overhaling: branche-motor, porten ud, ankomsten (tjeklisten som fokuskort), /auth til Hb — tretten trin; trin 5 (mailbekræftelsen fra) bevist 2/9 kl. 21:56. | `docs/indgangen-overhaling.md` §9 |
+| **næste spor** | **Indgangens overhaling, trin 10–12: hele Auth-fladen til Hjemmebane** (blindgyden, /auth med alle fem tilstande + `/reset-password`, 404). Loginsiden skal gøres bedre, ikke kun konverteres (Jonas 2/9). Trin 5–9 er bevist 2/9; trin 1–4 (branchen) står stadig og er uafhængige. | `docs/indgangen-overhaling.md` §9, §7.5 |
+| åbent | Ankomstens løse ender: pillen viser samme punkter som fokuskortet (Claudes dom: den bør trække sig — ikke besluttet); velkomst-punktet kan ikke trykkes i kortet — skal løses FØR `velkomstvideo_guid` sættes; «Dine tal»-kortets tomme tilstand står nederst. | `docs/indgangen-overhaling.md` §10 |
 | når ruten er bevist | **Testvirksomheden FLOOR1 I/S** (`fea24b90-…`, `jonas+test1/2/3@topix.dk`) skal fjernes helt: hardDelete med brugere + storage- og user_id-rester. | `docs/indgangen-overhaling.md` §11, `~/Downloads/recon-testvirksomhed.md` |
 | åbent | Nudge-formen som designdokument, Community-opdagelse, Events (bekræftelse, kalender, lokation), Milepælene ud — rækkefølgen fra 1/9 står. | prioritering §2–5 |
 | driftsgæld | Fejlovervågning findes ikke; restore er aldrig afprøvet; `run-weekly-agent` står ikke i `cron.job`; 73 uploads bestod validering uden at blive committet; e-conomic-integrationen er død (migration-recon §10). | status-1-sept §6, OVERLEVERING (forrige) §7 |

@@ -1,7 +1,10 @@
 # Indgangens overhaling — fra invitationslink til Dit Boardroom på to skærme
 
-**DESIGNDOKUMENT — intet af det beskrevne er bygget.** Beslutningerne er
-truffet af Jonas 2. september 2026 om aftenen. Samme regel som
+**DESIGNDOKUMENT MED BOGFØRING.** Beslutningerne er truffet af Jonas
+2. september 2026 om aftenen. Status 2/9 nat: trin 5–9 i §9 (mail-
+bekræftelsen, agentens betingelse, porten, ankomstens motor og flade) er
+bygget og bevist i drift; trin 1–4 (branchen) og 10–13 (de dårlige
+dage, /auth, 404, bogføring) er ikke bygget. Samme regel som
 `docs/indgangsfladen-design.md`: hver påstand er enten målt (med kilde),
 eller mærket som ikke målt/forslag/åben. Reconerne bag ligger uden for
 repoet (`~/Downloads/recon-adgangsruten.md`, `recon-branche.md`,
@@ -248,6 +251,36 @@ Fund undervejs, bogført i BACKLOG.md (2/9): `agent_runs`' kolonne hedder
 virksomhedens NAVN i `company_id`-argumentet, mens de gemte forslag
 bærer det rigtige UUID.
 
+### ✅ BEVIST 2/9 kl. 20:53 — trin 6: agenten fyrer uden stemplet
+
+PR #544 (`profileOnboarded` ud af betingelsen i `useAuth.tsx`). Bevist
+på testbrugeren `jonas+test2@topix.dk` (§11): `agent_runs` på FLOOR1
+gik fra 1 til 2 med `trigger = 'onboarding'`, `mode = 'dry_run'`,
+`stop_reason = 'finish'` — mens `profiles.onboarded_at` var NULL.
+Agenten fyrer altså uden portens stempel. `onboarding_completed`
+skiftede selv tilbage til `true`, så engangs-værnet virker.
+
+**Bemærk til fremtidig test:** flaget måtte nulstilles manuelt før
+beviset (FØR-værdi `true`, fra kørslen kl. 21:58 dagen før), fordi
+agenten kun må fyre én gang pr. virksomhed. Uden nulstillingen havde
+beviset været umuligt at måle på samme virksomhed.
+
+### ✅ BEVIST 2/9 kl. 23:03 — trin 7: porten er pensioneret
+
+PR #545. De seks steder i tabellen øverst er gennemført: siden slettet,
+`OnboardingRoute` og de to gate-linjer væk, `needsOnboarding` og
+`setOnboardingComplete` ude af auth-kontrakten, localStorage-flaget
+`tbr.onboarded` væk, pre-React-bouncen i `main.tsx` væk. `/onboarding`
+redirecter til `/` med hash og query bevaret. `profileOnboarded` er
+fjernet med — efter trin 6 var `needsOnboarding` dens eneste bruger.
+`grep needsOnboarding|setOnboardingComplete|tbr.onboarded src/` = nul.
+
+Bevist med `jonas+test3@topix.dk`: fra adgangskode til forside uden at
+passere `/onboarding`. `onboarded_at` forblev NULL for både test2 og
+test3 — kolonnen skrives ikke længere af ruten, som besluttet.
+`tour_completed_at` stemples fortsat stille (`Index.tsx`). **Ruten gik
+fra seks skærme til tre: signup, spinner, forside.**
+
 ---
 
 ## 5. Ankomsten — BESLUTTET 2/9 aften: tjeklisten forfremmes til fokuskort
@@ -324,6 +357,38 @@ Hvad der findes at bygge på (målt): `HbOnboardingTjekliste` i
 `journeyLine`; `deriveFocus` (`nextStep.ts:158-347`) med ni slots og
 tests. Om pillen skal blive stående ved siden af fokuskortet i
 ankomsten, er ikke afgjort (§10).
+
+### ✅ BYGGET OG BEVIST 2/9 — trin 8 (motor) og trin 9 (flade)
+
+**Trin 8, PR #546 — bevist med tests.** `deriveFocus` (`nextStep.ts`)
+har fået to VALGFRIE inputs; uden dem opfører motoren sig præcis som
+før — bevist i test: en færdig tjekliste er identisk med ingen
+tjekliste. (1) Tjeklisten er kortets ENESTE kilde så længe den ikke er
+færdig: første ikke-gjorte punkt som #1, resten som linjer, i
+tjeklistens egen rækkefølge; kind `tjekliste`, prioritet 0, titel/
+beskrivelse/sti som title/description/ctaHref. (2)
+`foersteRapportPeriode`: slot (a) beder aldrig om en periode fra før
+kontrakten. Regnestykket: en rapport dækker en hel kalendermåned, så
+den første måned kontrakten dækker HELT er startmåneden hvis kontrakten
+begynder den 1., ellers måneden efter. Betalt 15/9 → første krav i
+november, om oktober. Værnet gælder kun (a): findes der uploadede tal,
+fyrer (b) og (g) som før. **Rettet undervejs:** else-grenen manglede
+`hasProcessed` — uden den ville et nyt medlem, hvor (a) tier på
+kontraktstarten, i stedet være blevet bedt om at godkende en rapport
+der ikke findes. 1234 tests grønne, 21 nye.
+
+**Trin 9, PR #547 — bevist i drift 2/9 kl. 23:20** på
+`jonas+test3@topix.dk`: forsiden viser «Velkommen, Jonas.» og «Din
+profil» som fokus med knappen «Gør det nu», med de tre øvrige
+tjeklistepunkter som linjer. Ikke «Upload dine august-tal». Tjeklisten
+hentes i `BoardroomView` med samme hook og query-nøgle som
+`HbMemberShell` — cachen deles, ingen ekstra forespørgsel.
+Kontraktstarten hentes for sig (én lille query på det viste
+`companyId`; den fandtes ikke i nogen eksisterende query på forsiden).
+`focusLoading` er udvidet med begge, så kortet ikke når at vise (a)–(i)
+først. Pillen er urørt (åbent punkt, §10). Velkomst-punktet (sti «»)
+står uden knap i kortet — overlejringen er tjekliste-boksens egen state
+(§10).
 
 ---
 
@@ -500,6 +565,12 @@ Alle konverteres i dette epic, som standalone Hb-flader uden skal
 som den er (§3). Bogføres i `docs/hjemmebane/konvergens.md` §1 efter
 vedligeholdsregel 2 (indgangsfladen §8).
 
+**BESLUTNING (Jonas, 2/9 nat): næste spor er trin 10–12, hele
+Auth-fladen til Hjemmebane.** Loginsiden skal ikke kun konverteres,
+men gøres BEDRE: den er det første et menneske ser af platformen, og i
+dag er den en centreret boks med tre felter. Om der skal være mere end
+formularen på skærmen, er ikke afgjort.
+
 ### 7.6 ErrorBoundary og 404 — med eller uden for epic'et
 
 - **404 (`NotFound.tsx`): MED.** Målt: standalone side, ingen skal, tre
@@ -570,31 +641,39 @@ flader. «Bevis» = hvad der måles før næste trin begynder.
    ca. 21:54; §3). Bevis målt: `confirmation_sent_at = NULL`,
    `email_confirmed_at` +0,25 sek., «Tjek din mail» vist ikke, logget
    ind straks; triggeren koblede korrekt.
-6. **`profileOnboarded` ud af agentens betingelse** (§4-beslutningen:
+6. **✅ BEVIST 2/9 kl. 20:53 (PR #544) — `profileOnboarded` ud af agentens betingelse** (§4-beslutningen:
    `useAuth.tsx:254` bliver `onboarding_completed === false &&
    application_context`, som Onboarding.tsx:89). Bevis: ny konto med
    `onboarded_at` NULL → `companies.onboarding_completed` skifter til
    true ved første login, og agentens loglinje (`run-company-agent`,
    trigger `onboarding`) står i Supabase-loggen; eksisterende medlem
-   med `onboarding_completed = true` udløser intet.
-7. **Porten pensioneres** (de seks steder i §4; `/onboarding` → `/`).
+   med `onboarding_completed = true` udløser intet. *Målt:* `agent_runs`
+   1 → 2 på FLOOR1 med `onboarded_at` NULL; flaget måtte nulstilles
+   manuelt først (§4).
+7. **✅ BEVIST 2/9 kl. 23:03 (PR #545) — Porten pensioneres** (de seks steder i §4; `/onboarding` → `/`).
    Bevis: ny konto lander på `/` uden at passere `/onboarding`;
-   eksisterende medlem uændret; `grep needsOnboarding` = nul.
-8. **Ankomstens motor** (§5-beslutningen, motor før flade): `deriveFocus`
+   eksisterende medlem uændret; `grep needsOnboarding` = nul. *Målt:*
+   test3 fra adgangskode til forside uden `/onboarding`; grep = nul;
+   seks skærme blev til tre (§4).
+8. **✅ BEVIST MED TESTS 2/9 (PR #546) — Ankomstens motor** (§5-beslutningen, motor før flade): `deriveFocus`
    udvides med (1) `contract_start_date` som input, så slot (a) ikke
    beder om tal fra før virksomheden fandtes, og (2) tjeklisten som
    kilde med førsteprioritet så længe `byggTjekliste(...).faerdig` er
    falsk — første ikke-gjorte punkt som #1, resten som linjer. Rene
    funktioner, tests pr. slot og pr. overgang (sidste punkt gjort →
    almindelig prioritering). Bevis: `bun run test` grøn, testene læst.
-9. **Ankomstens flade** (§5): `FocusCard` viser tjeklistekilden i sin
+   *Målt:* 1234 grønne, 21 nye; else-grenen rettet undervejs (§5).
+9. **✅ BEVIST I DRIFT 2/9 kl. 23:20 (PR #547) — Ankomstens flade** (§5): `FocusCard` viser tjeklistekilden i sin
    eksisterende form; hilsenen får grenen «Velkommen, {fornavn}.» så
    længe intet er gjort; pillens rolle i ankomsten afgjort (§10). Bevis:
    testbruger med nul data ser «Velkommen, {fornavn}.» og første
    tjeklistepunkt som fokus; efter alle punkter er gjort, ser samme
    bruger «Godmorgen/…» og slot (a)–(i); med en test-GUID i
    `velkomstvideo_guid` bliver «Se velkomsten» første linje uden anden
-   ændring.
+   ændring. *Målt:* «Velkommen, Jonas.» + «Din profil» som fokus med
+   «Gør det nu», tre punkter som linjer (§5). Pillens rolle er IKKE
+   afgjort (§10); «efter alle punkter er gjort»- og GUID-beviserne er
+   ikke kørt endnu.
 10. **Blindgyden lukkes** (§7.1: grænse på skelettet, `none` = fejl for
    ikke-rådgivere, skelet i Hb-tokens). Bevis: fremkald tilstanden
    (bruger uden `company_members`-række i test) → gaten efter N
@@ -610,9 +689,9 @@ flader. «Bevis» = hvad der måles før næste trin begynder.
     når ruten er bevist.
 
 Trin 1–4 (branchen) er uafhængige af 5–9 (ruten) og kan køre parallelt
-i to grene; 5 er bevist; 6 SKAL være bevist før 7 (§4: `agent_runs` var
-0 før porten blev gennemført); 8 og 9 bygger på 7; 10–12 er uafhængige
-af hinanden.
+i to grene; **5–9 er bevist 2/9** (6 blev bevist før 7, som §4
+krævede); af ruten mangler kun 10–12, som er uafhængige af hinanden.
+Næste spor er 10–12 (Jonas 2/9, §7.5).
 
 ---
 
@@ -656,6 +735,19 @@ af hinanden.
   viser punktet uden knap. Folder man pillen ud på forsiden, får
   indholdskolonnen bund-margin (skallen), så listen står både øverst i
   kortet og nederst i hjørnet samtidig.
+  *Set på skærm 2/9 kl. 23:20 (test3):* pillen står nu med SAMME
+  punkter som fokuskortet. **Claudes dom efter at have set det:** pillen
+  bør trække sig mens kortet bærer punkterne — to lister med samme
+  indhold på én skærm er støj. **Ikke besluttet af Jonas endnu.**
+- **Velkomst-punktet står uden knap i fokuskortet** (trin 9): sti «»
+  åbner videooverlejringen, som er tjekliste-boksens egen state, og
+  forsiden har ingen kobling til den. Rammer ikke i dag, fordi
+  `velkomstvideo_guid` er tom — men ankomstens FØRSTE punkt bliver
+  noget man ikke kan trykke på, den dag videoen sættes. **Skal løses
+  før GUID'et sættes.**
+- **«Dine tal»-kortets tomme tilstand står nederst på forsiden**, under
+  podcast og «Værd at se igen» — langt nede for et medlem hvis eneste
+  opgave er at komme i gang. Ikke rørt i trin 9.
 - **N sekunder** før skelettet giver op (§7.1).
 - **Dødt vs. brugt token** (§7.2): kræver at RPC'en svarer med en grund
   for ikke-pending tokens — ændrer hvad et token afslører (i dag: intet
@@ -676,8 +768,8 @@ af hinanden.
 
 ## 11. Testopstillingen — bevisernes virksomhed (oprettet 2/9)
 
-Bruges til at bevise trin 5–7 i drift. Fjernes helt når ruten er
-bevist; intet af det er kundedata.
+Bruges til at bevise ruten i drift (trin 5–9 bevist på den 2/9).
+Fjernes helt når ruten er bevist; intet af det er kundedata.
 
 | hvad | værdi |
 |---|---|
@@ -685,7 +777,9 @@ bevist; intet af det er kundedata.
 | Oprettet | 2/9 kl. 21:47 via «Importér ansøgning» (`import-application`) med en Excel-fil vi selv lavede |
 | Tilstand | `status = 'active'`, kontrakt 02.09.2026–02.09.2027, `vis_i_netvaerk = false` (sat 2/9 kl. 21:50, så den ikke ses i Netværket — det eneste felt der tager den ud af noget uden at tage adgangen, `recon-testvirksomhed.md` §2) |
 | Bruger, trin 5 | `jonas+test1@topix.dk`, `user_id d06f68cc-76b3-4793-a575-85c0e6e657c2` — signup 2/9 kl. 21:56, porten gennemført kl. 21:58 |
-| Planlagt | `jonas+test2@` og `jonas+test3@` til trin 6 og 7 — én adresse pr. trin, fordi en brugt adresse ikke kan genbruges (kontoen findes i `auth.users`). `UNIQUE (company_id, email)` tillader flere adresser på samme virksomhed |
+| Bruger, trin 6 | `jonas+test2@topix.dk` — beviste 2/9 kl. 20:53 at agenten fyrer med `onboarded_at` NULL (`agent_runs` 1 → 2; `onboarding_completed` nulstillet manuelt først) |
+| Bruger, trin 7 + 9 | `jonas+test3@topix.dk` — signup 2/9 kl. 23:03 uden `/onboarding`; kl. 23:20 «Velkommen, Jonas.» + «Din profil» som fokus. `onboarded_at` NULL for både test2 og test3 |
+| Adresser | Én adresse pr. trin, fordi en brugt adresse ikke kan genbruges (kontoen findes i `auth.users`). `UNIQUE (company_id, email)` tillader flere adresser på samme virksomhed |
 | Synlig hvor | /members' liste og AdvisorDashboard (status active, ikke legat), MemberDetail; ikke i Netværket. `is_demo` findes ikke i repoet og ændrer intet (`recon-testvirksomhed.md` §1) |
 
 **Oprydning når ruten er bevist:** `hardDeleteCompany` med
