@@ -1,8 +1,8 @@
 /**
- * src/lib/virksomhedsraekke.ts
+ * supabase/functions/_shared/virksomhedsraekke.ts
  *
- * Spejlet ordret i supabase/functions/_shared/virksomhedsraekke.ts — enhver
- * ændring her SKAL også laves der. Pariteten håndhæves af testen i
+ * Spejlet ordret fra src/lib/virksomhedsraekke.ts — enhver ændring her SKAL
+ * også laves der. Pariteten håndhæves af testen i
  * src/lib/__tests__/virksomhedsraekkeParitet.test.ts.
  *
  * Filen har nul imports og kan derfor loades af både Vite/Vitest (Node)

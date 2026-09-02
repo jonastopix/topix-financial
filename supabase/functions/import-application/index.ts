@@ -1,5 +1,11 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
 import { authenticateUser, corsHeaders } from "../_shared/edgeFunctionAuth.ts";
+import { parseCvrStiftelsesdato, type CvrSvar } from "../_shared/virksomhedsraekke.ts";
+import {
+  hentCvrData,
+  opretEllerGenbrugVirksomhed,
+  type OpretResultat,
+} from "../_shared/virksomhedsOprettelse.ts";
 
 interface ApplicationPayload {
   // Required
@@ -27,61 +33,6 @@ interface ApplicationPayload {
   contract_start_date?: string;
   contract_end_date?: string;
   enrich_company_id?: string; // If set, enrich this existing company instead of creating new
-}
-
-/**
- * Convert CVR-API date strings to ISO YYYY-MM-DD.
- * Handles: "YYYY-MM-DD", "DD/MM - YYYY", "DD/MM/YYYY", "DD-MM-YYYY".
- * Returns null when input cannot be parsed (better no date than invalid insert).
- */
-function parseCvrFoundedDate(input: string | null | undefined): string | null {
-  if (!input) return null;
-  const s = String(input).trim();
-  if (!s) return null;
-
-  // ISO already
-  const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
-  if (iso) return `${iso[1]}-${iso[2]}-${iso[3]}`;
-
-  // DK formats: "DD/MM - YYYY", "DD/MM/YYYY", "DD-MM-YYYY", "DD.MM.YYYY"
-  const dk = s.match(/^(\d{1,2})[\/\-.\s]+(\d{1,2})[\/\-.\s]+(\d{4})$/);
-  if (dk) {
-    const dd = dk[1].padStart(2, "0");
-    const mm = dk[2].padStart(2, "0");
-    return `${dk[3]}-${mm}-${dd}`;
-  }
-
-  return null;
-}
-
-async function lookupCVR(cvr: string): Promise<{
-  name?: string;
-  founded?: string;
-  industry_code?: string;
-  industry_label?: string;
-} | null> {
-  try {
-    const resp = await fetch(
-      `https://cvrapi.dk/api?country=dk&search=${cvr}`,
-      {
-        headers: {
-          "User-Agent": "TheboardroomDK/1.0 (kontakt@theboardroom.dk)",
-        },
-      }
-    );
-    if (!resp.ok) return null;
-    const data = await resp.json();
-    if (data.error) return null;
-    return {
-      name: data.name || undefined,
-      founded: data.startdate || undefined,
-      industry_code: data.industrycode ? String(data.industrycode) : undefined,
-      industry_label: data.industrydesc || undefined,
-    };
-  } catch (err) {
-    console.warn("[import-application] CVR lookup failed:", err instanceof Error ? err.message : err);
-    return null;
-  }
 }
 
 Deno.serve(async (req) => {
@@ -135,9 +86,9 @@ Deno.serve(async (req) => {
     }
 
     // CVR lookup if CVR provided and not already fetched
-    let cvrEnrich: Awaited<ReturnType<typeof lookupCVR>> = null;
+    let cvrEnrich: CvrSvar | null = null;
     if (body.cvr_number && /^\d{8}$/.test(body.cvr_number) && !existingCo.cvr_number) {
-      cvrEnrich = await lookupCVR(body.cvr_number);
+      cvrEnrich = await hentCvrData(body.cvr_number);
     }
 
     // Merge: only fill in fields that are currently null/empty
@@ -146,7 +97,7 @@ Deno.serve(async (req) => {
     if (!existingCo.industry_label && (body.industry_label || cvrEnrich?.industry_label))
       updates.industry_label = body.industry_label || cvrEnrich?.industry_label;
     if (!existingCo.start_date && cvrEnrich?.founded) {
-      const parsed = parseCvrFoundedDate(cvrEnrich.founded);
+      const parsed = parseCvrStiftelsesdato(cvrEnrich.founded);
       if (parsed) updates.start_date = parsed;
     }
     if (!existingCo.contract_end_date && body.contract_end_date)
@@ -233,97 +184,65 @@ Deno.serve(async (req) => {
     });
   }
 
-  // 2. Check if company already exists with this CVR
-  let existingCompanyId: string | null = null;
-  if (body.cvr_number && /^\d{8}$/.test(body.cvr_number)) {
-    const { data: existingCompany } = await adminClient
-      .from("companies")
-      .select("id, name")
-      .eq("cvr_number", body.cvr_number)
-      .maybeSingle();
-    if (existingCompany) existingCompanyId = existingCompany.id;
+  // 2-3. Opret eller genbrug virksomheden — den delte vej, som
+  // monday-webhook også skal gå. CVR-opslag, genbrugsreglen (otte cifre +
+  // eksisterende række) og insert'en ligger i hjælperen; rækken bygges af
+  // motoren med låst feltliste. contact_email sendes med: indgangen kræver
+  // den (hent_betalingsdata_til_checkout svarer kun når den findes).
+  let oprettet: OpretResultat;
+  try {
+    oprettet = await opretEllerGenbrugVirksomhed({
+      company_name: body.company_name,
+      cvr_number: body.cvr_number,
+      website: body.website,
+      phone: body.phone,
+      industry_label: body.industry_label,
+      start_date: body.start_date,
+      current_situation: body.current_situation,
+      goals: body.goals,
+      help_needed: body.help_needed,
+      annual_revenue: body.annual_revenue,
+      revenue_interval: body.revenue_interval,
+      contact_name: body.contact_name,
+      contact_email: email,
+      application_date: body.application_date,
+    }, adminClient);
+  } catch (err) {
+    const detail = err instanceof Error ? err.message : String(err);
+    console.error("[import-application] Failed to create company:", detail);
+    return new Response(JSON.stringify({ error: "Failed to create company", detail }), {
+      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
   }
 
-  // 3. Resolve company (reuse or create)
-  let companyId: string;
-  let companyName: string;
-  let cvrData: Awaited<ReturnType<typeof lookupCVR>> = null;
+  const companyId = oprettet.company_id;
+  const companyName = oprettet.company_name;
+  const cvrData = oprettet.cvr_svar;
 
-  if (existingCompanyId) {
-    const { data: co } = await adminClient
+  // 3b. Kontraktdatoerne sættes SEPARAT, og kun ved nyoprettelse. De er
+  // holdt ude af hjælperen med vilje: Monday-vejen må ikke kunne sætte dem,
+  // fordi tre steder læser contract_end_date som «har betalt»
+  // (hent_betalingstilbud, afgoerBetalingsfrist, useAuth via
+  // computeMembershipTier). Rådgiverens import bærer stadig datoer fra
+  // regnearket, så her — og kun her — skrives de efter oprettelsen.
+  // Ved GENBRUG røres datoerne ikke (uændret adfærd fra før udskillelsen).
+  if (!oprettet.genbrugt && (body.contract_start_date || body.contract_end_date)) {
+    const { error: datoErr } = await adminClient
       .from("companies")
-      .select("name")
-      .eq("id", existingCompanyId)
-      .maybeSingle();
-    companyId = existingCompanyId;
-    companyName = co?.name || body.company_name;
-  } else {
-    let startDate: string | null = body.start_date || null;
-
-    if (body.cvr_number && /^\d{8}$/.test(body.cvr_number)) {
-      cvrData = await lookupCVR(body.cvr_number);
-      if (cvrData) {
-        console.log(`[import-application] CVR ${body.cvr_number} → ${cvrData.name}, founded: ${cvrData.founded}`);
-      } else {
-        console.warn(`[import-application] CVR ${body.cvr_number} lookup returned no data`);
-      }
-      if (cvrData?.founded && !startDate) {
-        const parsed = parseCvrFoundedDate(cvrData.founded);
-        if (parsed) {
-          startDate = parsed;
-        } else {
-          console.warn(`[import-application] Could not parse CVR founded date: "${cvrData.founded}"`);
-        }
-      }
-    }
-
-    const resolvedName = cvrData?.name || body.company_name;
-    const industryLabel = body.industry_label || cvrData?.industry_label || null;
-
-    const { data: company, error: companyErr } = await adminClient
-      .from("companies")
-      .insert({
-        name: resolvedName,
-        cvr_number: body.cvr_number || null,
-        industry_label: industryLabel,
-        // CVR's NACE/DB07-tal må IKKE i industry_code: kolonnen bærer
-        // app-taksonomien (INDUSTRY_OPTIONS) og er nøgle til
-        // industry_benchmarks — en NACE-kode giver nul benchmarks.
-        // Koden sættes af medlemmet i onboarding/Settings. CVR-svaret
-        // er bevaret råt i application_context.raw_cvr_data nedenfor.
-        industry_code: null,
-        website: body.website || null,
-        contact_phone: body.phone || null,
-        start_date: startDate,
+      .update({
         contract_start_date: body.contract_start_date ? body.contract_start_date.slice(0, 10) : null,
         contract_end_date: body.contract_end_date ? body.contract_end_date.slice(0, 10) : null,
-        cvr_fetched_at: cvrData ? new Date().toISOString() : null,
-        onboarding_completed: false,
-        application_context: {
-          current_situation: body.current_situation || null,
-          goals: body.goals || null,
-          help_needed: body.help_needed || null,
-          annual_revenue: body.annual_revenue || null,
-          revenue_interval: body.revenue_interval || null,
-          contact_name: body.contact_name || null,
-          application_date: body.application_date || null,
-          raw_cvr_data: cvrData || null,
-        },
       })
-      .select("id")
-      .single();
-
-    if (companyErr || !company) {
-      console.error("[import-application] Failed to create company:", companyErr, "payload:", {
-        name: resolvedName, cvr: body.cvr_number, start_date: startDate,
-      });
-      return new Response(JSON.stringify({ error: "Failed to create company", detail: companyErr?.message }), {
+      .eq("id", companyId);
+    if (datoErr) {
+      // Virksomheden findes nu uden datoer. Fejl højt frem for at invitere
+      // ind i en kontrakt uden løbetid — rådgiveren kan sætte datoerne via
+      // enrich-stien bagefter.
+      console.error("[import-application] Failed to set contract dates:", datoErr, "company_id:", companyId);
+      return new Response(JSON.stringify({ error: "Failed to set contract dates", detail: datoErr.message }), {
         status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-
-    companyId = company.id;
-    companyName = resolvedName;
   }
 
   // 4. Create invitation token
@@ -371,7 +290,7 @@ Deno.serve(async (req) => {
 
   return new Response(JSON.stringify({
     ok: true,
-    reused_company: !!existingCompanyId,
+    reused_company: oprettet.genbrugt,
     company_id: companyId,
     company_name: companyName,
     invitation_token: invitation.token,
