@@ -164,35 +164,52 @@ Kolonnen er `DEFAULT NULL` (migration `20260226125413:1`);
 agenten aldrig for nye medlemmer:** Onboarding.tsx' kald er væk med
 filen, og useAuth's kræver et stempel ingen længere skriver.
 
-### FORSLAG (ikke besluttet): hvor stemplet sættes i stedet
+### BESLUTTET 2/9 aften: stemplet flyttes IKKE — betingelsen rettes
 
-**Forslag: `useAuth.fetchUserData` stempler `onboarded_at` ved første
-vellykkede virksomhedskobling** — i grenen `cm?.company_id` (:221-224),
-når `profiles.onboarded_at` er NULL: én UPDATE på `profiles` med
-`.select("user_id, onboarded_at")` og tjek af rækkeantal (fælden fra
-velkomst-stemplet, OVERLEVERING DEL 4), derefter den eksisterende
-agent-gren (:248-273) uændret i samme kald med `profileOnboarded`
-regnet fra det nye stempel.
+**Beslutning (Jonas, 2/9 aften):** `profileOnboarded` fjernes fra
+agentens betingelse i `useAuth.tsx:254`, så den bliver
+`onboarding_completed === false && application_context` — nøjagtig den
+betingelse `Onboarding.tsx:89` allerede bruger i dag UDEN
+`profileOnboarded` (målt, `recon-onboarded-at.md` §4). Vi fjerner altså
+ikke et værn; vi retter en uoverensstemmelse mellem to kaldesteder.
+`onboarding_completed` sættes til `true` i samme greb (:256-259, før
+kaldet) og forhindrer selv gentagelse. Grenen ligger i `fetchUserData`
+inde i `if (cm?.company_id)` (:221) og evalueres kun med en session og
+en `company_members`-række — «medlemmet er inde» er allerede sandt når
+den kører.
 
-Begrundelse:
+`profiles.onboarded_at` holder op med at blive skrevet når porten dør.
+Kolonnen bliver stående med sin historik — den slettes ikke.
+`create-legat-enrollment:82-87` bliver ved at stemple ubetinget; det er
+uden virkning, fordi `needsOnboarding` allerede er falsk for
+legat-brugere alene på `legatActive` (`useAuth.tsx:205`).
 
-- Samme skrivevej som Onboarding.tsx bruger i dag (klient, RLS
-  «Users can update own profile», migration `20260223152943:43`) — ingen
-  ny rettighed, ingen ny funktion.
-- Stemplets betydning skifter fra «har set porten» til «har været inde
-  første gang». Det er hvad agenten og alt andet faktisk venter på.
-- Rører IKKE `handle_new_user` (FORBIDDEN-listen i CLAUDE.md:95-98).
-  Alternativet — at triggeren sætter `onboarded_at` ved oprettelsen —
-  er renere (serverside, kan ikke fejle klientside), men kræver
-  eksplicit grønt lys til en SECURITY DEFINER-trigger, og gør
-  stemplet identisk med `created_at`.
-- Eksisterende medlemmer: alle profiler før 26/2 er backfilled
-  (`20260226125413:4`), alle siden er stemplet af porten. Medlemmer der
-  har oprettet konto men aldrig gennemført porten, har NULL og bliver
-  stemplet ved næste login. Antal: UKLART (ikke målt).
+**Forkastet: at flytte stemplet til `useAuth`** (det tidligere forslag
+her). Det holdt liv i et felt hvis eneste opgave var at gøre en
+betingelse sand, og lagde en klientskrivning der kan fejle stille ind i
+den vej agenten afhænger af.
 
-Alternativ der er FRAVALGT i forslaget: at flytte agentens udløser til
-`process-pending-invitation` — den nås ikke på hovedruten (§3).
+**Forkastet: at lade `handle_new_user` stemple.** FORBIDDEN-listen
+(CLAUDE.md:95-98), og stemplet ville blive identisk med `created_at` og
+dermed betydningsløst.
+
+**Målt 2/9 kl. 21:18 (Lovable SQL editor):** 42 af 43 profiler har
+`onboarded_at` sat. Den ene uden er Morten Larsen, rådgiver uden
+virksomhed — korrekt uden stempel. 39 profiler er koblet til en
+virksomhed via `company_members`. Der findes altså ikke ét medlem der
+mangler stemplet, og ingen bliver berørt bagudrettet.
+
+**Målt i repoet (`recon-onboarded-at.md`, hele filen):** alt der
+afhænger af feltet går gennem `useAuth.tsx:194`. Derfra to veje:
+`needsOnboarding` (App.tsx:84, :97, :182, Onboarding.tsx:42, og
+localStorage-flaget `tbr.onboarded` i main.tsx:27 og App.tsx:161) og
+`profileOnboarded` (agent-udløseren useAuth:254). Ingen SQL, intet view,
+ingen RPC, ingen RLS-policy, ingen trigger, ingen anden komponent og
+ingen anden edge function læser feltet. Det indgår ikke i
+auth-kontraktens `profile`-type. Skriverne er to: Onboarding.tsx:53-59
+og create-legat-enrollment:82-87, plus engangs-backfillen
+`20260226125413:4`. Begge veje forsvinder med porten (§4-tabellen);
+den anden erstattes af den rettede betingelse ovenfor.
 
 ---
 
@@ -466,10 +483,13 @@ flader. «Bevis» = hvad der måles før næste trin begynder.
    test-signup → `data.session` findes, `email_confirmed_at` sat ved
    oprettelsen (SQL editor), «Tjek din mail» vises ikke; dato bogføres
    her.
-6. **Stemplet flytter** (§4-forslaget efter beslutning: `onboarded_at`
-   ved første kobling i `useAuth`, med `.select()` + rækkeantal). Bevis:
-   ny konto → `onboarded_at` sat inden forsiden vises; agentens loglinje
-   (`run-company-agent`, trigger `onboarding`) i Supabase-loggen.
+6. **`profileOnboarded` ud af agentens betingelse** (§4-beslutningen:
+   `useAuth.tsx:254` bliver `onboarding_completed === false &&
+   application_context`, som Onboarding.tsx:89). Bevis: ny konto med
+   `onboarded_at` NULL → `companies.onboarding_completed` skifter til
+   true ved første login, og agentens loglinje (`run-company-agent`,
+   trigger `onboarding`) står i Supabase-loggen; eksisterende medlem
+   med `onboarding_completed = true` udløser intet.
 7. **Porten pensioneres** (de seks steder i §4; `/onboarding` → `/`).
    Bevis: ny konto lander på `/` uden at passere `/onboarding`;
    eksisterende medlem uændret; `grep needsOnboarding` = nul.
@@ -498,8 +518,14 @@ uafhængige af hinanden.
 
 ## 10. Åbne punkter
 
-- **Stemplets placering** (§4): klient i `useAuth` (forslag) eller
-  trigger (kræver grønt lys). Ikke besluttet.
+- **LØST 2/9 aften — Stemplets placering** (§4): stemplet flyttes
+  ikke; `profileOnboarded` fjernes fra agentens betingelse i
+  `useAuth.tsx:254`. Kolonnen bliver stående. Se §4.
+- **`upgrade-legat-to-member` og enrollment-status:** om funktionen
+  ændrer `legat_enrollments.status`, og hvad `onboarded_at` i så fald
+  betyder for en tidligere legat-bruger (bliver `legatActive` falsk,
+  bærer stemplet alene at de ikke sendes til `/onboarding` — indtil
+  porten dør). Ikke læst i reconen.
 - **`industry_label` når motoren rammer/ikke rammer** (§6-forslag), og
   hvad der sker med `import-application`s enrich-guard og
   `EditCompanyDialog`s fritekstfelt. Ikke besluttet.
@@ -520,9 +546,9 @@ uafhængige af hinanden.
   bruger med pending invitation til en anden virksomhed. Ikke designet.
 - **Google-vejen** med invitationstoken (§3). Eget trin, ikke her.
 - **De tre værdikort** fra Onboarding trin 2. Intet hjem valgt.
-- **Medlemmer midt i det gamle flow** (`onboarded_at` NULL, aldrig
-  gennemført porten): antal UKLART; §4-forslaget stempler dem ved næste
-  login.
+- **LØST 2/9 kl. 21:18 — Medlemmer midt i det gamle flow:** ingen.
+  42 af 43 profiler har stemplet; den ene uden er en rådgiver uden
+  virksomhed (§4).
 - **`ResetPassword.tsx`**: ikke læst; antaget gammelt design ud fra
   konvergens.md §1 («STANDALONE-GAMMEL»), ikke målt her.
 - **Hvor længe «Konto oprettet»-grenen står** før navigationen (§2).
