@@ -67,9 +67,10 @@ describe("run-company-agent-kaldesteder — dry_run skal være eksplicit", () =>
   it("scanningen finder de kendte kaldesteder (regex-forudsætningen holder)", () => {
     // 2026-08-25: 11 kaldesteder (AgentForslagPanel, ReportDebug,
     // ReportReviewDialog x4, reportCommit x2, useAuth, Onboarding,
-    // run-weekly-agent). Falder tallet til nul-nære værdier, er
+    // run-weekly-agent). 2026-09-02 (trin 7): Onboarding-siden er slettet
+    // med porten — 10 tilbage. Falder tallet til nul-nære værdier, er
     // mønstrene drevet fra koden — ikke koden fra kaldene.
-    expect(kaldesteder.length).toBeGreaterThanOrEqual(11);
+    expect(kaldesteder.length).toBeGreaterThanOrEqual(10);
   });
 
   it("hvert kaldested sætter dry_run eksplicit til true eller false", () => {

@@ -18,21 +18,6 @@ if (window.location.hostname === "www.app.theboardroom.dk") {
   );
 }
 
-// Pre-React early redirect: if a known-onboarded user lands on /onboarding
-// (e.g. iOS standalone restoring last route), bounce immediately to "/"
-// before React even mounts. This avoids the brief flash of the onboarding
-// shell on resume from background.
-try {
-  if (window.location.pathname === "/onboarding") {
-    const flag = localStorage.getItem("tbr.onboarded");
-    if (flag === "1") {
-      window.history.replaceState({}, "", "/");
-    }
-  }
-} catch {
-  // ignore (private mode etc.)
-}
-
 Sentry.init({
   dsn: import.meta.env.VITE_SENTRY_DSN,
   environment: import.meta.env.MODE,
