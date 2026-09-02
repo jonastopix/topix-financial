@@ -1,7 +1,7 @@
 import * as React from "react";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Check, ChevronDown, ChevronUp, Play, X } from "lucide-react";
+import { Check, ChevronDown, ChevronRight, ChevronUp, Play, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Tjekliste, TjeklistePunkt } from "@/lib/onboardingTjekliste";
 import { HbButton } from "./HbButton";
@@ -72,11 +72,14 @@ const VelkomstOverlejring = ({
   onKomIGang,
   onSeSenere,
   gemmer,
+  fejl,
 }: {
   fornavn: string | null;
   onKomIGang: () => void;
   onSeSenere: () => void;
   gemmer: boolean;
+  /** Skrivningen fejlede: overlejringen bliver stående og siger det. */
+  fejl: string | null;
 }) => (
   <div className="fixed inset-0 z-40 flex items-end justify-center p-0 sm:items-center sm:p-6" role="dialog" aria-modal="true" aria-label="Velkommen">
     <div className="absolute inset-0 bg-hb-ink/40" onClick={onSeSenere} />
@@ -103,12 +106,17 @@ const VelkomstOverlejring = ({
         </span>
         <p className="text-sm text-hb-ink-soft">Velkomstvideoen kommer snart</p>
       </div>
+      {fejl && (
+        <p className="mt-4 text-sm leading-relaxed text-hb-ink" role="alert">
+          {fejl}
+        </p>
+      )}
       <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:justify-end">
         <HbButton variant="secondary" onClick={onSeSenere} disabled={gemmer}>
           Se senere
         </HbButton>
         <HbButton onClick={onKomIGang} disabled={gemmer}>
-          {gemmer ? "Et øjeblik…" : "Kom i gang"}
+          {gemmer ? "Et øjeblik…" : fejl ? "Prøv igen" : "Kom i gang"}
         </HbButton>
       </div>
     </div>
@@ -139,10 +147,14 @@ const PunktRaekke = ({ punkt, onClick }: { punkt: TjeklistePunkt; onClick: () =>
         <span className="min-w-0">
           <span className="block text-sm font-medium text-hb-ink">{punkt.titel}</span>
           <span className="block text-xs leading-relaxed text-hb-ink-soft">{punkt.beskrivelse}</span>
+          {/* En oplysning, ikke en fejl: ink-soft. Rust er forbeholdt eyebrows og accenter. */}
           {punkt.mangler && punkt.mangler.length > 0 && (
-            <span className="mt-0.5 block text-xs text-hb-rust">Mangler: {punkt.mangler.join(", ")}</span>
+            <span className="mt-0.5 block text-xs text-hb-ink-soft">Mangler: {punkt.mangler.join(", ")}</span>
           )}
         </span>
+        {/* Punkter der fører til en side får en dæmpet chevron (Betal.tsx-
+            mønstret); velkomsten (sti "") åbner overlejringen og får ingen. */}
+        {punkt.sti !== "" && <ChevronRight className="ml-auto mt-0.5 h-4 w-4 shrink-0 text-hb-ink-soft" />}
       </button>
     </li>
   );
@@ -157,6 +169,9 @@ export interface HbOnboardingTjeklisteProps {
   /** Tæller der bumpes af sidebarens «Kom godt i gang» — åbner boksen udfoldet. */
   genaabnTick: number;
   markerVelkomstSet: () => Promise<void>;
+  /** Skallen får besked når boksen er ÅBEN, så indholdskolonnen kan få
+      bund-margin og man kan scrolle forbi den. Sammenfoldet dækker intet. */
+  onUdfoldetChange?: (udfoldet: boolean) => void;
 }
 
 export const HbOnboardingTjekliste = ({
@@ -167,10 +182,12 @@ export const HbOnboardingTjekliste = ({
   setLukket,
   genaabnTick,
   markerVelkomstSet,
+  onUdfoldetChange,
 }: HbOnboardingTjeklisteProps) => {
   const navigate = useNavigate();
   const [udfoldet, setUdfoldet] = useState(false);
   const [videoAaben, setVideoAaben] = useState(false);
+  const [stempelFejl, setStempelFejl] = useState<string | null>(null);
   const [videoUdsat, setVideoUdsat] = useState<boolean>(() =>
     typeof window === "undefined" ? false : laesFlag(window.sessionStorage, VELKOMST_UDSAT_KEY),
   );
@@ -188,6 +205,13 @@ export const HbOnboardingTjekliste = ({
     }
   }, [genaabnTick]);
 
+  // Boksen er «åben» for skallen når den er udfoldet, ikke lukket, ikke
+  // færdig-og-væk. Lykønskningen er lille og regnes ikke med.
+  const synligOgUdfoldet = Boolean(tjekliste) && !lukket && udfoldet && !tjekliste?.faerdig;
+  useEffect(() => {
+    onUdfoldetChange?.(synligOgUdfoldet);
+  }, [synligOgUdfoldet, onUdfoldetChange]);
+
   if (!tjekliste || lukket) return null;
 
   // Velkomsten popper op FØRSTE gang: stemplet er null, boksen er ikke
@@ -201,21 +225,26 @@ export const HbOnboardingTjekliste = ({
 
   const komIGang = async () => {
     setGemmer(true);
+    setStempelFejl(null);
     try {
       await markerVelkomstSet();
-    } catch (err) {
-      // Stemplet fejlede: overlejringen lukkes alligevel (ellers står den
-      // fast), og punktet forbliver ukrydset så det kan prøves igen.
-      console.error("[HbOnboardingTjekliste] velkomstvideo_set_at kunne ikke sættes:", err);
-    } finally {
-      setGemmer(false);
+      // KUN ved succes lukkes der. Rettet 2/9: før lukkede overlejringen i
+      // finally uanset udfald og satte «udsat» — en fejlet skrivning så ud
+      // som om den virkede, og velkomsten poppede op igen ved næste
+      // session, mens punktet aldrig blev krydset af.
       setVideoAaben(false);
       skrivFlag(window.sessionStorage, VELKOMST_UDSAT_KEY, true);
       setVideoUdsat(true);
+    } catch (err) {
+      console.error("[HbOnboardingTjekliste] velkomstvideo_set_at kunne ikke sættes:", err);
+      setStempelFejl("Vi kunne ikke gemme, at du har set velkomsten. Prøv igen — eller tryk «Se senere», så spørger vi igen næste gang.");
+    } finally {
+      setGemmer(false);
     }
   };
 
   const seSenere = () => {
+    setStempelFejl(null);
     skrivFlag(window.sessionStorage, VELKOMST_UDSAT_KEY, true);
     setVideoUdsat(true);
     setVideoAaben(false);
@@ -231,7 +260,7 @@ export const HbOnboardingTjekliste = ({
 
   const overlejring =
     visVelkomstAutomatisk || videoAaben ? (
-      <VelkomstOverlejring fornavn={fornavn} onKomIGang={komIGang} onSeSenere={seSenere} gemmer={gemmer} />
+      <VelkomstOverlejring fornavn={fornavn} onKomIGang={komIGang} onSeSenere={seSenere} gemmer={gemmer} fejl={stempelFejl} />
     ) : null;
 
   // ALT ER GJORT: én kort lykønskning, derefter væk. Menuen (genaabnTick)

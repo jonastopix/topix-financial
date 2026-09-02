@@ -114,14 +114,29 @@ export function useOnboardingTjekliste(): OnboardingTjeklisteResultat {
 
   const stempel = useMutation({
     mutationFn: async () => {
+      // profiles er nøglet på user_id (ikke id) — samme filter som Settings.
+      // .select() bagefter, så et kald der rammer NUL rækker (RLS-filtreret,
+      // forkert bruger, tom userId) ikke passerer som succes — husets kendte
+      // fælde (FornyelsesSektion:134). Uden det ville stemplet «lykkes» uden
+      // at noget blev skrevet.
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { error } = await (supabase.from("profiles") as any)
+      const { data, error } = await (supabase.from("profiles") as any)
         .update({ velkomstvideo_set_at: new Date().toISOString() })
-        .eq("user_id", userId);
-      if (error) throw new Error(error.message);
+        .eq("user_id", userId)
+        .select("user_id, velkomstvideo_set_at");
+      if (error) {
+        console.error("[useOnboardingTjekliste] velkomstvideo_set_at kunne ikke skrives:", error);
+        throw new Error(error.message);
+      }
+      if (!data || data.length === 0) {
+        console.error(`[useOnboardingTjekliste] velkomstvideo_set_at ramte nul rækker for user ${userId} — intet gemt (RLS?)`);
+        throw new Error("Stemplet ramte nul rækker — intet gemt.");
+      }
     },
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: [TJEKLISTE_QUERY_KEY, userId, companyId] });
+    onSuccess: async () => {
+      // Ventes på, så boksen viser det nye punkt som gjort FØR overlejringen
+      // lukker — ellers står velkomstvideoSetAt som null i et render til.
+      await queryClient.invalidateQueries({ queryKey: [TJEKLISTE_QUERY_KEY, userId, companyId] });
     },
   });
 

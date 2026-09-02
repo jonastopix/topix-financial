@@ -79,6 +79,13 @@ export const HbMemberShell = ({
   const tjeklisteData = useOnboardingTjekliste();
   const { lukket: tjeklisteLukket, setLukket: setTjeklisteLukket } = useTjeklisteLukket();
   const [tjeklisteGenaabnTick, setTjeklisteGenaabnTick] = useState(0);
+  // Når boksen er ÅBEN får indholdskolonnen bund-margin, så man kan scrolle
+  // forbi den frem for at den dækker det nederste (målt 2/9: «Dine aftaler»
+  // og fællesskabet på forsiden). Under lg fylder boksen op til 70vh i
+  // bunden; på lg står den i hjørnet (360 px bred, op til 70vh høj) — begge
+  // får luft nok til at det sidste indhold kan komme fri.
+  const [tjeklisteUdfoldet, setTjeklisteUdfoldet] = useState(false);
+  const tjeklisteBundluft = tjeklisteUdfoldet ? "pb-[72vh] lg:pb-[30rem]" : "";
   const tjeklisteFornavn = profile?.full_name?.trim().split(/\s+/)[0] || null;
   // Menupunktet vises kun for medlemmer, og kun når listen ikke er færdig
   // ELLER medlemmet selv har lukket den (så den kan hentes frem igen).
@@ -193,9 +200,9 @@ export const HbMemberShell = ({
             komGodtIGang={komGodtIGang}
           />
           {fuld ? (
-            <main className="flex min-h-0 flex-1 flex-col">{children}</main>
+            <main className={`flex min-h-0 flex-1 flex-col ${tjeklisteBundluft}`}>{children}</main>
           ) : (
-            <main className="mx-auto max-w-[1200px] px-6 py-10 md:py-14">{children}</main>
+            <main className={`mx-auto max-w-[1200px] px-6 py-10 md:py-14 ${tjeklisteBundluft}`}>{children}</main>
           )}
         </div>
       </div>
@@ -208,6 +215,7 @@ export const HbMemberShell = ({
           setLukket={setTjeklisteLukket}
           genaabnTick={tjeklisteGenaabnTick}
           markerVelkomstSet={tjeklisteData.markerVelkomstSet}
+          onUdfoldetChange={setTjeklisteUdfoldet}
         />
       )}
     </div>
