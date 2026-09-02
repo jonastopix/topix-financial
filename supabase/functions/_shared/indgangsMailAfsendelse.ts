@@ -31,8 +31,9 @@
  * fil er et ordret spejl af src/lib/betalingsfrist.ts og skal forblive
  * uden IO og uden formatering. Fristen som DATO er §9's regel, og den
  * skal være den SAMME dato som betalingssiden viser: hent_betalingstilbud
- * regner betalingsmail_sendt_at::date + 30 i Postgres (UTC), så her
- * regnes på UTC-komponenter og lægges BETALINGSFRIST_DAGE til.
+ * regner underskrevet_at::date + 30 i Postgres (UTC), så her regnes på
+ * UTC-komponenter og lægges BETALINGSFRIST_DAGE til. FRISTEN ER
+ * KONTRAKTENS (rettet 2/9): 30 dage fra underskriften, ikke fra mailen.
  */
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
 import { BETALINGSFRIST_DAGE } from "./betalingsfrist.ts";
@@ -166,16 +167,17 @@ export function formatDanskDato(d: Date): string {
 }
 
 /**
- * Betalingsfristen som dato: UTC-kalenderdagen for betalingsmailen plus
- * BETALINGSFRIST_DAGE. Samme regnestykke som hent_betalingstilbud
- * (betalingsmail_sendt_at::date + 30), så mailen og betalingssiden siger
- * samme dato. Kaldes med det tidsstempel der skrives i
- * betalingsmail_sendt_at — ikke med et nyt «nu».
+ * Betalingsfristen som dato: UTC-kalenderdagen for UNDERSKRIFTEN plus
+ * BETALINGSFRIST_DAGE. Fristen er kontraktens — 30 dage fra underskriften,
+ * ikke fra betalingsmailen (rettet 2/9). Samme regnestykke som
+ * hent_betalingstilbud (underskrevet_at::date + 30) og motoren, så mailen,
+ * betalingssiden og rådgiverfladen siger samme dato. Kaldes med
+ * company_betalingslink.underskrevet_at.
  */
-export function betalingsfristDato(betalingsmailSendtAt: Date | string): Date {
-  const sendt = new Date(betalingsmailSendtAt);
+export function betalingsfristDato(underskrevetAt: Date | string): Date {
+  const underskrevet = new Date(underskrevetAt);
   return new Date(
-    Date.UTC(sendt.getUTCFullYear(), sendt.getUTCMonth(), sendt.getUTCDate() + BETALINGSFRIST_DAGE),
+    Date.UTC(underskrevet.getUTCFullYear(), underskrevet.getUTCMonth(), underskrevet.getUTCDate() + BETALINGSFRIST_DAGE),
   );
 }
 

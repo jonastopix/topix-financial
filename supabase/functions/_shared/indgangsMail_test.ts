@@ -159,11 +159,14 @@ Deno.test("rådgivermailen: virksomhed, CVR, kontakt, dato, id, /members-knap, i
     cvr: "46415124",
     kontakt: "Lisbeth Gade",
     godkendtDato: "2. september 2026",
+    dageTilbage: 26,
     companyId: "0f0f0f0f-0000-4000-8000-000000000001",
   });
   assertEquals(m.subject, "Nordic By Hand ApS mangler et prisniveau");
   assertStringIncludes(m.html, "Nordic By Hand ApS (CVR 46415124) blev godkendt 2. september 2026");
   assertStringIncludes(m.html, "Kontakt: Lisbeth Gade.");
+  assertStringIncludes(m.html, "Fristen på 30 dage løber fra underskriften den 2. september 2026 — der er 26 dage tilbage.");
+  assertIkkeIndeholder(m.html, "haster");
   assertStringIncludes(m.html, "Betalingsmailen er IKKE sendt");
   assertStringIncludes(m.html, "sendes betalingsmailen automatisk");
   assertStringIncludes(m.html, ">Åbn i platformen</a>");
@@ -177,10 +180,28 @@ Deno.test("rådgivermailen: manglende CVR og kontakt bliver «ukendt»", () => {
     cvr: null,
     kontakt: "",
     godkendtDato: "i dag",
+    dageTilbage: 30,
     companyId: "x",
   });
   assertStringIncludes(m.html, "(CVR ukendt)");
   assertStringIncludes(m.html, "Kontakt: ukendt.");
+});
+
+Deno.test("rådgivermailen: 7 dage eller færre tilbage → HASTER i emne og tekst", () => {
+  const m = raadgiverManglerPrisMail({ virksomhed: "V", cvr: "1", kontakt: "K", godkendtDato: "1. september 2026", dageTilbage: 7, companyId: "id" });
+  assertEquals(m.subject, "HASTER: V mangler et prisniveau");
+  assertStringIncludes(m.html, "der er 7 dage tilbage. Det haster.");
+  const m1 = raadgiverManglerPrisMail({ virksomhed: "V", cvr: "1", kontakt: "K", godkendtDato: "d", dageTilbage: 1, companyId: "id" });
+  assertStringIncludes(m1.html, "der er 1 dag tilbage. Det haster.");
+  const m0 = raadgiverManglerPrisMail({ virksomhed: "V", cvr: "1", kontakt: "K", godkendtDato: "d", dageTilbage: 0, companyId: "id" });
+  assertStringIncludes(m0.html, "i dag er SIDSTE dag. Det haster.");
+});
+
+Deno.test("rådgivermailen: fristen passeret → mailen siger det", () => {
+  const m = raadgiverManglerPrisMail({ virksomhed: "V", cvr: "1", kontakt: "K", godkendtDato: "1. august 2026", dageTilbage: -5, companyId: "id" });
+  assertEquals(m.subject, "HASTER: V mangler et prisniveau");
+  assertStringIncludes(m.html, "allerede passeret for 5 dage siden");
+  assertStringIncludes(m.html, "en frist der er overskredet");
 });
 
 // ── Tværgående ───────────────────────────────────────────────────────
@@ -209,7 +230,7 @@ Deno.test("ingen af de fem indeholder «by Topix»", () => {
     dag14Mail({ fornavn: "L", betalingsUrl: URL }),
     dag25Mail(fuld),
     dag31Mail({ fornavn: "L", beloebKr: 1 }),
-    raadgiverManglerPrisMail({ virksomhed: "V", cvr: "1", kontakt: "K", godkendtDato: "d", companyId: "id" }),
+    raadgiverManglerPrisMail({ virksomhed: "V", cvr: "1", kontakt: "K", godkendtDato: "d", dageTilbage: 20, companyId: "id" }),
   ];
   for (const m of mails) {
     assertIkkeIndeholder(m.html, "by Topix");

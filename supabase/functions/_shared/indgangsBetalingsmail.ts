@@ -31,15 +31,16 @@
  * der svares skipped; virksomheden er stadig synlig som afventer_pris på
  * rådgiverfladen.
  *
- * FRISTEN som dato (§9): betalingsmail_sendt_at + 30 dage regnet på UTC-
- * kalenderdagen, samme regnestykke som hent_betalingstilbud, så mailen og
- * betalingssiden siger samme dato. Tidsstemplet der skrives i
- * betalingsmail_sendt_at er det SAMME som fristen regnes fra — ikke et
- * nyt now() i databasen — så de to ikke kan ende på hver sin side af
- * midnat.
+ * FRISTEN som dato (§9) ER KONTRAKTENS (rettet 2/9): underskrevet_at + 30
+ * dage regnet på UTC-kalenderdagen — ikke betalingsmailen + 30. Samme
+ * regnestykke som hent_betalingstilbud og motoren, så mailen,
+ * betalingssiden og rådgiverfladen siger samme dato. Sendes dag 0 sent
+ * (prisen sat dag 4), står der i mailen en frist 26 dage ude — det er
+ * tilsigtet. Rådgivermailen får dage tilbage af samme grund: hver dag
+ * prisen mangler, er en dag mindre for medlemmet.
  */
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
-import { afgoerBetalingsfrist } from "./betalingsfrist.ts";
+import { afgoerBetalingsfrist, BETALINGSFRIST_DAGE } from "./betalingsfrist.ts";
 import { dag0Mail, raadgiverManglerPrisMail } from "./indgangsMail.ts";
 import {
   betalingsfristDato,
@@ -132,11 +133,19 @@ export async function udloesIndgangsBetalingsmail(
       .map((s: string | null) => (s ?? "").trim())
       .filter(Boolean)
       .join(", ");
+    // Dage tilbage af kontraktens frist — regnet af motoren fra underskriften.
+    // Ukendt alder (ugyldigt stempel) vises som fuld frist frem for at
+    // skrive et gæt; motoren sender ingen påmindelser i den tilstand.
+    const dageTilbage =
+      tilstand.dage_siden_underskrift === null
+        ? BETALINGSFRIST_DAGE
+        : BETALINGSFRIST_DAGE - tilstand.dage_siden_underskrift;
     const mail = raadgiverManglerPrisMail({
       virksomhed: company.name,
       cvr: company.cvr_number,
       kontakt,
       godkendtDato: formatDanskDato(new Date(link.underskrevet_at)),
+      dageTilbage,
       companyId,
     });
 
@@ -180,10 +189,10 @@ export async function udloesIndgangsBetalingsmail(
   // aldrig «Kære ,».
   const fornavn = fornavnAf(company.contact_person);
 
-  // Tidsstemplet bruges BÅDE til fristen i mailen og som
-  // betalingsmail_sendt_at, så de to aldrig kan ende på hver sin dag.
+  // Fristen er kontraktens: fra underskriften, ikke fra denne mail
+  // (rettet 2/9). sendtAt er kun stemplet for idempotensen.
   const sendtAt = new Date();
-  const frist = betalingsfristDato(sendtAt);
+  const frist = betalingsfristDato(link.underskrevet_at);
   // prisniveau_oere er ikke null her: afventer_pris er afgjort ovenfor.
   const beloebKr = (link.prisniveau_oere as number) / 100;
 

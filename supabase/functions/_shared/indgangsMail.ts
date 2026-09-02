@@ -210,25 +210,42 @@ export function dag31Mail(a: {
  * et nyt medlem, og en mail bliver set.
  *
  * Arbejdsbesked, ikke velkomst: virksomhed, CVR, kontakt, godkendt
- * hvornår, og et direkte link til /members. Siger udtrykkeligt at
- * betalingsmailen IKKE er sendt, og at den sendes automatisk når
- * prisniveauet er sat.
+ * hvornår, hvor mange dage der er tilbage af fristen, og et direkte link
+ * til /members. Siger udtrykkeligt at betalingsmailen IKKE er sendt, og at
+ * den sendes automatisk når prisniveauet er sat.
+ *
+ * FRISTEN ER KONTRAKTENS (rettet 2/9): den løber fra underskriften, ikke
+ * fra betalingsmailen — så hver dag prisen mangler, er en dag mindre for
+ * medlemmet. dageTilbage regnes af kalderen som BETALINGSFRIST_DAGE −
+ * dage siden underskrift. 7 eller færre: det haster. Negativ: fristen er
+ * passeret, og mailen siger det.
  */
 export function raadgiverManglerPrisMail(a: {
   virksomhed: string;
   cvr: string | null | undefined;
   kontakt: string | null | undefined;
   godkendtDato: string;
+  dageTilbage: number;
   companyId: string;
 }): IndgangsMail {
   const cvr = (a.cvr ?? "").trim() || "ukendt";
   const kontakt = (a.kontakt ?? "").trim() || "ukendt";
+  const haster = a.dageTilbage <= 7;
+  const fristLinje =
+    a.dageTilbage < 0
+      ? `Fristen på 30 dage løber fra underskriften den ${a.godkendtDato} — og den er allerede passeret for ${Math.abs(a.dageTilbage)} ${Math.abs(a.dageTilbage) === 1 ? "dag" : "dage"} siden. Sættes prisen nu, får medlemmet en betalingsmail med en frist der er overskredet.`
+      : a.dageTilbage === 0
+        ? `Fristen på 30 dage løber fra underskriften den ${a.godkendtDato} — i dag er SIDSTE dag. Det haster.`
+        : `Fristen på 30 dage løber fra underskriften den ${a.godkendtDato} — der er ${a.dageTilbage} ${a.dageTilbage === 1 ? "dag" : "dage"} tilbage.${haster ? " Det haster." : ""}`;
   return {
-    subject: `${a.virksomhed} mangler et prisniveau`,
+    subject: haster
+      ? `HASTER: ${a.virksomhed} mangler et prisniveau`
+      : `${a.virksomhed} mangler et prisniveau`,
     html: indgangsMailHtml({
       overskrift: `${a.virksomhed} mangler et prisniveau`,
       afsnit: [
         `${a.virksomhed} (CVR ${cvr}) blev godkendt ${a.godkendtDato} og er oprettet i platformen. Kontakt: ${kontakt}.`,
+        fristLinje,
         "Betalingsmailen er IKKE sendt, fordi der ikke er sat et prisniveau. Sæt prisniveauet på virksomheden, så sendes betalingsmailen automatisk.",
       ],
       knap: { tekst: "Åbn i platformen", url: `${APP_URL}/members` },

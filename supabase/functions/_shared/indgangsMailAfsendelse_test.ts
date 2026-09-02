@@ -24,7 +24,7 @@ Deno.test("formatDanskDato: «2. oktober 2026» på UTC-komponenter", () => {
   assertEquals(formatDanskDato(new Date("2026-09-02T23:30:00.000Z")), "2. september 2026");
 });
 
-Deno.test("betalingsfristDato: mail sendt 2/9 → frist 2/10 (30 dage, kalenderdag + 30)", () => {
+Deno.test("betalingsfristDato: underskrevet 2/9 → frist 2/10 (kontraktens 30 dage fra underskriften)", () => {
   const frist = betalingsfristDato("2026-09-02T10:00:00.000Z");
   assertEquals(frist.toISOString(), "2026-10-02T00:00:00.000Z");
   assertEquals(formatDanskDato(frist), "2. oktober 2026");

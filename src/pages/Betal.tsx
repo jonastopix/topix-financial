@@ -38,7 +38,7 @@ interface Betalingstilbud {
   status: Betalingsstatus;
   virksomhed: string | null;
   prisniveau_oere: number | null;
-  /** "YYYY-MM-DD" fra SQL'ens (betalingsmail_sendt_at::date + 30)::text. */
+  /** "YYYY-MM-DD" fra SQL'ens (underskrevet_at::date + 30)::text — kontraktens frist (rettet 2/9). */
   frist: string | null;
   dage_tilbage: number | null;
 }

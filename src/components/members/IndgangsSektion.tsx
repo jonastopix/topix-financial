@@ -56,7 +56,7 @@ interface IndgangsRaekke {
   cvr_number: string | null;
   contact_person: string | null;
   contact_email: string | null;
-  betalingsmail_sendt_at: string | null;
+  underskrevet_at: string;
   tilstand: Betalingsfristtilstand;
 }
 
@@ -79,22 +79,23 @@ const STATUS_ORDEN: Record<Betalingsfriststatus, number> = {
 };
 
 /**
- * Fristen som dato: UTC-kalenderdagen for betalingsmailen + 30 — samme
- * regnestykke som hent_betalingstilbud og dag 0-mailen, så alle tre siger
- * samme dato. Formateres i UTC, så den ikke skrider med maskinens tidszone.
+ * Fristen som dato: UTC-kalenderdagen for UNDERSKRIFTEN + 30 — kontraktens
+ * frist (rettet 2/9), samme regnestykke som hent_betalingstilbud og dag
+ * 0-mailen, så alle tre siger samme dato. Formateres i UTC, så den ikke
+ * skrider med maskinens tidszone.
  */
-function fristDato(betalingsmailSendtAt: string): string {
-  const sendt = new Date(betalingsmailSendtAt);
-  if (Number.isNaN(sendt.getTime())) return "—";
+function fristDato(underskrevetAt: string): string {
+  const underskrevet = new Date(underskrevetAt);
+  if (Number.isNaN(underskrevet.getTime())) return "—";
   const frist = new Date(
-    Date.UTC(sendt.getUTCFullYear(), sendt.getUTCMonth(), sendt.getUTCDate() + BETALINGSFRIST_DAGE),
+    Date.UTC(underskrevet.getUTCFullYear(), underskrevet.getUTCMonth(), underskrevet.getUTCDate() + BETALINGSFRIST_DAGE),
   );
   return frist.toLocaleDateString("da-DK", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
 }
 
-function formatDageTilbage(dageSidenMail: number | null): string {
-  if (dageSidenMail === null) return "—";
-  const tilbage = BETALINGSFRIST_DAGE - dageSidenMail;
+function formatDageTilbage(dageSidenUnderskrift: number | null): string {
+  if (dageSidenUnderskrift === null) return "—";
+  const tilbage = BETALINGSFRIST_DAGE - dageSidenUnderskrift;
   if (tilbage === 0) return "sidste dag i dag";
   if (tilbage < 0) return `passeret for ${Math.abs(tilbage)} ${Math.abs(tilbage) === 1 ? "dag" : "dage"} siden`;
   return `${tilbage} ${tilbage === 1 ? "dag" : "dage"} tilbage`;
@@ -214,7 +215,7 @@ export default function IndgangsSektion() {
         cvr_number: c?.cvr_number ?? null,
         contact_person: c?.contact_person ?? null,
         contact_email: c?.contact_email ?? null,
-        betalingsmail_sendt_at: row.betalingsmail_sendt_at,
+        underskrevet_at: row.underskrevet_at,
         tilstand,
       };
     })
@@ -222,8 +223,8 @@ export default function IndgangsSektion() {
     .sort((a, b) => {
       const orden = STATUS_ORDEN[a.tilstand.status] - STATUS_ORDEN[b.tilstand.status];
       if (orden !== 0) return orden;
-      // Inden for afventer_betaling: færrest dage tilbage øverst = flest dage siden mail.
-      return (b.tilstand.dage_siden_mail ?? -1) - (a.tilstand.dage_siden_mail ?? -1);
+      // Inden for samme status: færrest dage tilbage øverst = flest dage siden underskrift.
+      return (b.tilstand.dage_siden_underskrift ?? -1) - (a.tilstand.dage_siden_underskrift ?? -1);
     });
 
   if (linkQuery.isLoading) return null;
@@ -279,16 +280,12 @@ export default function IndgangsSektion() {
                     CVR {r.cvr_number || "—"} · {r.contact_person || "Ingen kontaktperson"}
                     {r.contact_email ? ` · ${r.contact_email}` : ""}
                   </p>
-                  {r.tilstand.status === "afventer_betaling" && r.betalingsmail_sendt_at && (
-                    <p className="text-xs text-muted-foreground">
-                      Frist {fristDato(r.betalingsmail_sendt_at)} · {formatDageTilbage(r.tilstand.dage_siden_mail)}
-                    </p>
-                  )}
-                  {r.tilstand.status === "frist_overskredet" && r.betalingsmail_sendt_at && (
-                    <p className="text-xs text-muted-foreground">
-                      Frist {fristDato(r.betalingsmail_sendt_at)} · {formatDageTilbage(r.tilstand.dage_siden_mail)} · faktura sendes i hånden
-                    </p>
-                  )}
+                  {/* Fristen er kontraktens og løber fra underskriften — også
+                      mens prisen mangler. Derfor vises den for alle statusser. */}
+                  <p className="text-xs text-muted-foreground">
+                    Frist {fristDato(r.underskrevet_at)} · {formatDageTilbage(r.tilstand.dage_siden_underskrift)}
+                    {r.tilstand.status === "frist_overskredet" && " · faktura sendes i hånden"}
+                  </p>
                 </div>
                 <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-medium ${visning.className}`}>
                   {visning.label}
