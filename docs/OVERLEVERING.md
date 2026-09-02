@@ -1,6 +1,6 @@
 # Overlevering
 
-**Sidst opdateret: 1. september 2026.**
+**Sidst opdateret: 2. september 2026.**
 
 Læses først i enhver ny samtale. Den fortæller hvordan vi arbejder,
 hvor vi står, og hvad der kommer nu — og peger på de dokumenter der
@@ -33,8 +33,32 @@ slukket i prod mens repoet stadig schedulerede det. Cron-tilstand måles
 i `cron.job`. Politikker måles i `pg_policy`. Ikke i
 migrationshistorikken.
 
+**Én ting ad gangen — også i chatten.** Send aldrig to handlinger i
+samme besked. Målt 1–2/9: det skete tre gange og kostede hver gang en
+ekstra runde — en commit plus en recon-kommando, en SQL-kørsel plus en
+terminal-kommando, og en commit der endte på `main` fordi
+branch-oprettelsen blev sprunget over for at spare et trin.
+
 **SELECT før alt destruktivt.** Før/efter-tal med faktiske tal på hver
-ændring der sletter eller overskriver.
+ændring der sletter eller overskriver. Og den fulde form, lært 1–2/9:
+**SELECT før, skriv, SELECT efter — og skriv før-værdierne ud i
+svaret**, så de kan rulles tilbage uden at lede. Guard hver UPDATE på
+den forventede nuværende værdi (`and cvr_number is null`, `and
+contract_end_date = date '…'`), så en allerede rettet række rammer nul
+frem for at blive overskrevet.
+
+**Dokumentation slås op, den gættes ikke.**
+`search_stripe_documentation` blev brugt fem gange 1–2/9 og rettede
+hver gang en antagelse: at `cancel_at` kunne sættes fra Checkout, at
+mailbekræftelse var nødvendig, at kundekopien var alt-eller-intet, at
+et moms-id automatisk blev standard, og hvordan `proration_behavior`
+virker med et fremtidigt anker. Fem antagelser, fem fejl.
+
+**Spørg hvor et felt kommer FRA, og om kilden overlever.** 1/9 blev
+indgangsprisen udledt af Monday-kolonnen «Pris på forlængelse» — en
+kolonne der forsvinder når platformen overtager fornyelsen. Metoden
+blev trukket tilbage samme dag (`docs/fornyelseskaeden-1-september.md`,
+rettelsen). Et felt der bygger på noget der skal dø, dør med det.
 
 **Ret dig selv højt.** Når en måling vælter en konklusion, trækkes den
 tilbage eksplicit — også når den har ført til en beslutning.
@@ -58,6 +82,7 @@ hvert led bliver brugt af det næste.
 | frontend (`src/`) | **Update-klik i Lovable** efter merge, når synken har commit'en |
 | eksisterende edge function | ruller med merge |
 | **ny** edge function | **skal rulles ud eksplicit** — målt 31/8: `foreslaa-opgave` svarede 404 efter merge |
+| ændring der trækker en **ny delt fil** ind (`_shared/…`) | **ruller heller ikke med merge** — målt 1/9 på `_shared/stripePris.ts`. Verificér altid at funktionen svarer noget andet end 404, før noget bygges på den |
 | migration | **køres manuelt** i Lovable SQL editor. Auto-deployer aldrig |
 | SQL-måling | køres manuelt |
 
@@ -69,6 +94,12 @@ for evigt og får kommandoen til at melde falsk tomt.
 en `rollback`-måling må derfor aldrig stå i samme script — lært 31/8,
 hvor en `create policy` blev rullet tilbage sammen med målingen.
 
+**Lovable SQL editor eksporterer kun det SIDSTE resultatsæt.** Flere
+`SELECT` i én kørsel giver kun det sidste i CSV-eksporten — lært 1/9.
+Skal flere ting måles på én gang, samles de i ÉT resultatsæt med `UNION
+ALL` og en `sektion`-kolonne, med alle grene castet til samme
+kolonneantal og -type.
+
 ### Værktøjer
 
 Repo `jonastopix/topix-financial` i `~/topix-financial`. Claude Code i
@@ -76,6 +107,44 @@ terminalen med `/model fable`; output skrives til `~/Downloads/` og
 uploades som fil. Test: `bun run test`. Typecheck: `bunx tsc --noEmit
 -p tsconfig.app.json` (uden `-p` checkes nul filer). Fire
 baseline-typefejl er kendte og dokumenterede.
+
+**Hvornår hvad — lært 1–2/9:**
+
+- **Shell** (heredoc, `cat`, `grep`) til at LÆSE, og til rene datadumps
+  hvor hvert tegn er kendt på forhånd. En heredoc er ordret pr.
+  konstruktion; en model skriver tal af.
+- **Claude Code** til at ÆNDRE kode, og til recon der kræver at følge
+  tråde på tværs af filer — den fanger sammenhænge en
+  enkeltfilslæsning ikke gør. Målt 1–2/9: den stoppede korrekt fordi
+  `fornyelse.ts` ikke var spejlet, og den fandt selv at
+  `customer.subscription.deleted` manglede samme værn som
+  `created`/`updated`.
+- **Ved recon: bed den udtrykkeligt om KUN at rapportere fund** — ingen
+  forslag, ingen vurdering. Ellers blandes måling og mening.
+- **Kodeblokke bærer destinationen som almindelig tekst OVER blokken**,
+  ikke som en `#`-kommentar inde i den. Zsh læser ikke `#` som
+  kommentar interaktivt: «# TERMINAL (ikke SQL editor)» gav
+  `command not found: #` og `unknown file attribute: i`.
+
+### Stripe — målt 1.–2. september
+
+Egen konto `acct_1U6mzp3CvBmCx5Pt` siden 1/9. Det der kostede en runde
+at lære:
+
+- **Hvert MCP-kald kræver eksplicit `stripe_context` OG `livemode:
+  true`.** Uden begge rammer man den forkerte konto eller testdata.
+- **`tax_behavior` kan IKKE ændres på en pris.** Heller ikke `interval`
+  eller `interval_count`. Forkert sat betyder ny pris og flytning af
+  alle abonnementer der bruger den.
+- **`lookup_key` frem for hardkodede price-id'er.** Et price-id er
+  konto-specifikt og brækker ved kontoskifte; en nøgle er en rolle.
+  Den gamle kode havde fejlen to steder.
+- **`subscription_data[cancel_at]` findes IKKE som Checkout-parameter**
+  — `parameter_unknown`, målt i produktion 1/9. Ophør sættes på
+  abonnementet bagefter, fra dets faktiske `start_date`
+  (`stripe-webhook`).
+- **Delvis kundekopi kræver en CSV UDEN overskriftslinje.**
+- **Ny delt fil ruller ikke med merge** — se deploy-kæden ovenfor.
 
 ---
 
@@ -182,6 +251,32 @@ renderingen. Lukket 31/8 med RLS.
 
 **Stille skrivninger.** Klient-writes der rammer nul rækker og ikke
 fejler. Tjek altid både `{ error }` og antal berørte rækker.
+
+**Eksisterende felter overset.** Tre gange 1–2/9 blev et felt foreslået
+som allerede fandtes: `companies.intro_reminder_last_sent_at`,
+`company_invitations.accepted_at`, og to `lookup_invite_*`-funktioner
+hvor der blev antaget én. **Før et felt foreslås: grep på dansk OG
+engelsk, og list alle kolonner der nogensinde er lagt på tabellen** —
+`ALTER TABLE … ADD COLUMN` er spredt over mange migrationer og ses ikke
+i én `CREATE TABLE`. (`~/Downloads/recon-betalingslink.md` §1 har den
+fulde liste for `companies`, 33 kolonner.)
+
+**Påstået fravær uden måling.** «Der findes ikke et sted hvor det kan
+ses» — der fandtes en `MembersOnboardingFunnel`. Søsteren til «fravær
+i repoet er ikke fravær i drift»: fravær i hukommelsen er ikke fravær i
+repoet. Et «findes ikke» skal bære den grep der viste det.
+
+**Margin i den forkerte retning.** `cancel_at` blev først sat til start
+PLUS 1 dag, hvor det skulle være MINUS 1 dag — rate12 ville have fået
+et trettende træk. Rettet 1/9. **Regnestykket skrives ud i
+kommentaren, ikke kun resultatet:** «rate12 trækker i måned 0–11,
+næste træk ville falde i måned 12, start + 12 måneder − 1 dag rammer
+efter sidste aftalte træk og før det næste.»
+
+**Bygget videre på en kilde der skal dø.** Se «Spørg hvor et felt
+kommer FRA» i §1. Fejlklassen: en kolonne der er midlertidig, bruges
+som grundlag for noget varigt, og det holder kun så længe ingen fraviger
+reglen — Nordic By Hand var allerede undtagelsen.
 
 ---
 
