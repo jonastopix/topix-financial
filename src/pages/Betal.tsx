@@ -129,6 +129,10 @@ export default function Betal() {
   const [opslag, setOpslag] = useState<Opslag>({ tilstand: "henter" });
   const [forsoeg, setForsoeg] = useState(0);
   const proevIgen = useCallback(() => setForsoeg((n) => n + 1), []);
+  // Hvilken betalingsmodel der er ved at åbne Checkout — alle tre knapper
+  // deaktiveres imens, så ét klik giver én session. Hook i topblokken, før
+  // enhver betinget return (React #310-lærdommen).
+  const [starter, setStarter] = useState<Betalingsmodel | null>(null);
 
   useEffect(() => {
     // Intet token i URL'en er samme udfald som et ukendt token: linket er
@@ -303,12 +307,31 @@ export default function Betal() {
     );
   }
 
-  // Knapperne gør intet endnu: checkout-funktionen findes ikke. onClick
-  // skal erstattes af et kald til opret-indgangs-checkout (edge function,
-  // token i body, Stripe-session med company_id i metadata — §5). Indtil
-  // da en toast, ikke en mailto: knapperne skal ligne knapper, ikke links.
-  const vaelg = (_betalingsmodel: Betalingsmodel) => {
-    toast("Betaling åbner meget snart — skriv til os, så hjælper vi dig i gang.");
+  // Åbner Stripe Checkout via opret-indgangs-checkout: token + model i
+  // body, alt andet udledes serverside (§5). Kaldet går med anon-nøglen —
+  // funktionen har verify_jwt = false, og tokenet er legitimationen.
+  // Fejl får en menneskelig besked, aldrig err.message: den der lige har
+  // fået en regning på 50.000, skal ikke læse en teknisk fejltekst.
+  const vaelg = async (betalingsmodel: Betalingsmodel) => {
+    if (starter !== null) return;
+    setStarter(betalingsmodel);
+    const besked = "Vi kunne ikke åbne betalingen lige nu — prøv igen om lidt, eller skriv til os.";
+    try {
+      const { data, error } = await supabase.functions.invoke("opret-indgangs-checkout", {
+        body: { token, betalingsmodel },
+      });
+      if (error || !data?.url) {
+        console.error("[betal] opret-indgangs-checkout fejlede:", error ?? "intet url i svaret");
+        toast.error(besked);
+        setStarter(null);
+        return;
+      }
+      window.location.href = data.url;
+    } catch (e) {
+      console.error("[betal] opret-indgangs-checkout kastede:", e);
+      toast.error(besked);
+      setStarter(null);
+    }
   };
 
   const naerFrist = tilbud.dage_tilbage !== null && tilbud.dage_tilbage <= 7;
@@ -341,10 +364,15 @@ export default function Betal() {
                 key={m.lookup_key}
                 variant="secondary"
                 onClick={() => vaelg(m.betalingsmodel)}
+                disabled={starter !== null}
                 className="w-full justify-between text-left"
               >
                 {beskrivMulighed(m)}
-                <ChevronRight className="h-4 w-4 shrink-0 text-hb-evergreen" />
+                {starter === m.betalingsmodel ? (
+                  <Loader2 className="h-4 w-4 shrink-0 text-hb-ink-soft animate-spin" />
+                ) : (
+                  <ChevronRight className="h-4 w-4 shrink-0 text-hb-evergreen" />
+                )}
               </HbButton>
             ))}
           </div>
