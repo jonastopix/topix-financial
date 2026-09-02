@@ -258,14 +258,20 @@ godt i gang» i sidebaren. Seks punkter når der er velkomstvideo, fem uden
 PulseCheckin er AppLayout og har ikke boksen (accepteret).
 Recon: `~/Downloads/recon-onboarding-tjekliste.md`, `recon-velkomstvideo.md`.
 
-### Adgangsrejsen — trin 1–2 bygget, 3–7 mangler
+### Adgangsrejsen — trin 1–2 bevist i drift 2/9, 3–7 mangler
 
-`docs/indgangsfladen-design.md` (design 2/9 nat) og
-`~/Downloads/recon-adgangsrejsen.md` (designet holdt op mod koden 2/9
-aften, med de syv trin i rækkefølge og hvad der kan gå galt).
-Bygget (#537): `lookup_invite_company_info` giver `email` + `kontakt`
+`docs/indgangsfladen-design.md` (design §1–8, 2/9 nat; tillæg §9–13,
+2/9 aften) og `~/Downloads/recon-adgangsrejsen.md` (designet holdt op
+mod koden, med de syv trin i rækkefølge og hvad der kan gå galt).
+Bygget (#537) og **bevist i drift 2/9 kl. 20:30 på Two Socks' rigtige
+invitation** (§9): `lookup_invite_company_info` giver `email` + `kontakt`
 (migration 20260902190000), og /auth forudfylder mail (låst) og navn
-(redigerbart) fra invitationen. Mangler: mailbekræftelse slås fra i
+(redigerbart) fra invitationen. Datahul fundet samme aften:
+`contact_person` var tomt på 35 af 39 virksomheder, fordi kun
+monday-webhookens «Godkendt»-gren skriver det; tre er rettet med Monday
+som kilde, 32 står tomme (`docs/indgangen-design.md` §32). Invitationer
+har ingen udløbsmekanik, og en invitation er ikke nødvendigvis
+medlemmets egen adgang (§13). Mangler: mailbekræftelse slås fra i
 Supabase Auth (uden for repoet; PPI's e-mail-fallback dør), Onboarding-
 porten pensioneres (fem steder: App.tsx ×2, OnboardingRoute, useAuth,
 main.tsx), /auth og /settings til Hjemmebane, de tre `valueCards` får et
@@ -320,6 +326,10 @@ De konkrete ting der har kostet tid. Led efter dem.
   kun `Deno.cron` kører aldrig. Påmindelser skal have en HTTP-indgang og
   planlægges med pg_cron (net.http_post + vault-nøglen
   `email_queue_service_role_key`).
+- **`invited_by` afgør hvis en invitation er.** En pending invitation
+  med en anden `invited_by` end rådgiverens er virksomhedens egen
+  (kolleger inviteres ind); den er ikke et hul. Læs kolonnen før du
+  kalder noget et hul (indgangsfladen §12).
 - **Et cron-job kan hedde noget andet end funktionen det kalder.** Søg på
   URL'en i `cron.job.command`, ikke kun på jobnavnet
   (`intro-session-reminder` → `intro-reminder-cron`).

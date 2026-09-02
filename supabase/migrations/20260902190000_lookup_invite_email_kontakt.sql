@@ -19,11 +19,15 @@
 -- filter (RLS er rækkeniveau og kan ikke se URL'en — lærdommen fra
 -- 20260225103928), og kun status = 'pending' svarer.
 --
--- contact_person ER NULL for alt der ikke er oprettet af monday-webhook
+-- contact_person er TOM for alt der ikke er oprettet af monday-webhook
 -- efter 2/9: import-application skriver contact_name i
--- application_context, ikke i contact_person, og ældre virksomheder har
--- feltet tomt. Fladen SKAL tåle null og falde tilbage på et redigerbart
--- navnefelt.
+-- application_context, ikke i contact_person. RETTET 2/9 aften: en
+-- tidligere version af denne kommentar sagde «ER NULL». Kolonnen har
+-- DEFAULT '' (20260225104718), og målt i prod 2/9 kl. 20:10 stod 35 af
+-- 39 med tom streng og 1 med NULL. Fladen SKAL tåle BÅDE null og tom
+-- streng og falde tilbage på et redigerbart navnefelt — Auth.tsx gør
+-- `?? ""` + trim(), så de to behandles ens. Bogført i
+-- docs/indgangsfladen-design.md §10 og docs/indgangen-design.md §32.
 --
 -- GRANTS: funktionen havde ingen eksplicitte og hvilede på Supabases
 -- default (målt 27/5: anon + authenticated + service_role). De sættes nu
