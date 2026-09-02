@@ -3,8 +3,10 @@
 **DESIGNDOKUMENT MED BOGFØRING.** Beslutningerne er truffet af Jonas
 2. september 2026 om aftenen. Status 2/9 nat: trin 5–9 i §9 (mail-
 bekræftelsen, agentens betingelse, porten, ankomstens motor og flade) er
-bygget og bevist i drift; trin 1–4 (branchen) og 10–13 (de dårlige
-dage, /auth, 404, bogføring) er ikke bygget. Samme regel som
+bygget og bevist i drift; trin 11–12 (hele Auth-fladen til Hjemmebane,
+#549–#551) er gennemført og bekræftet på skærm 2/9 nat; trin 1–4
+(branchen), 10 (blindgyden) og 13 (det grønne blink efter login, målt
+3/9) er ikke bygget. Samme regel som
 `docs/indgangsfladen-design.md`: hver påstand er enten målt (med kilde),
 eller mærket som ikke målt/forslag/åben. Reconerne bag ligger uden for
 repoet (`~/Downloads/recon-adgangsruten.md`, `recon-branche.md`,
@@ -134,9 +136,15 @@ sat invitationen til `accepted`, så PPI's token-opslag (`:85-91`,
 virksomheden, og der svarer den `no_pending_invitation` → blindgyden i
 §7.1. Det er den, der skal lukkes — ikke fallbacken der skal reddes.
 
-**Google-vejen** (`Auth.tsx:165-181`) er urørt af beslutningen: tokenet
-ligger kun i `redirect_uri`, triggeren falder til e-mail-match. Åbent
-punkt (§10).
+**Google-vejen — BESLUTTET 2/9 nat (Jonas), står fast:** Google er
+fjernet fra SIGNUP (#550) og findes kun på login. Målt
+(recon-adgangsruten §5d): Google-vejen bærer ikke invitationstokenet i
+metadata, kun i `redirect_uri`, så triggeren falder tilbage til
+e-mail-match. En Google-konto med en anden adresse end invitationens
+afvises med P0001, og hvad brugeren ser, er uafklaret. Vi låser
+mailfeltet omhyggeligt og skal ikke tilbyde en vej udenom ved siden af.
+Den rigtige løsning er at kunne KOBLE en Google-konto på sin
+eksisterende konto bagefter — en kontoindstilling, eget stykke (§10).
 
 ---
 
@@ -506,6 +514,38 @@ som «rådgiver uden virksomhed» (useAuth.tsx:308-312 skelner ikke på
 rolle). N er ikke afgjort (§10). Skelettet selv tegnes i Hb-tokens
 (`DashboardSkeleton` er `glass-card` + shadcn `Skeleton`).
 
+**Det grønne blink efter login — MÅLT 3/9, IKKE RETTET**
+(`~/Downloads/recon-groent-blink.md`). Jonas ser stadig et stort grønt
+blink EFTER login, før forsiden — også efter at spinnerne blev
+`HbSpinner` (#551). Det er ikke en spinner. Det er SAMME gren som
+blindgyden: `Index.tsx:202-208` tegner det gamle `DashboardSkeleton`
+inde i `AppLayout` — fuld skærm ≈ #101E1C, 256 px sidebar ≈ #0E2521,
+sytten kort med pulserende blokke, fade-in 0,4 s. `index.html`
+hardkoder `<html class="dark">`, så alt uden for `.theme-hjemmebane`
+løses i den mørkegrønne palet. Det er det eneste sted på medlemmets
+forside-vej hvor `AppLayout` stadig rendres.
+
+*Årsagen:* `useAuth` sætter `user` synkront ved `SIGNED_IN`, men sætter
+ALDRIG `loading` tilbage til `true` — den var allerede `false` på
+/auth (der findes intet `setLoading(true)` i filen ud over `useState`).
+Så slipper `AuthRoute` og `MemberRoute` igennem med det samme, mens
+`membershipTier` er `null`, og Index rammer skelet-grenen. Vinduet er
+tre sekventielle Supabase-rundture i `fetchUserData` (roller/profil/
+company_members → legat → tier). Ved HARD RELOAD sker det ikke:
+`loading` er sand fra start, `HbSpinner` vises, og tier er sat før
+Index tegnes. Blinket er specifikt for login-overgangen.
+
+*Besluttet retning (Jonas 2/9 nat, ikke bygget):* rettelsen er IKKE at
+konvertere `DashboardSkeleton` — det ville være at gøre ventetiden
+pænere. Rettelsen er at sætte `loading = true` når `SIGNED_IN` fyrer og
+`fetchUserData` går i gang, så `MemberRoute` holder porten lukket til
+tier er afgjort — præcis som ved hard reload. Så rammes skelet-grenen
+aldrig på login-vejen. **Forbehold:** `loading` er auth-kontraktens
+mest brugte felt. Kræver recon på hvem der læser det FØR linjen skrives;
+en fejl viser sig som en spinner der ikke går væk. Skelet-grenen skal
+STADIG gøres lys og få en udvej — men det er trin 10 (blindgyden), ikke
+denne rettelse. Trin 13 i §9.
+
 ### 7.2 Dødt eller brugt token
 
 **I dag:** `lookup_invite_company_info` svarer null → `Auth.tsx:91`
@@ -571,12 +611,45 @@ men gøres BEDRE: den er det første et menneske ser af platformen, og i
 dag er den en centreret boks med tre felter. Om der skal være mere end
 formularen på skærmen, er ikke afgjort.
 
+### ✅ GENNEMFØRT 2/9 nat — hele Auth-fladen er Hjemmebane (trin 11–12)
+
+- **#549 — signup som delt skærm.** Formularen til venstre; til højre
+  virksomhedens navn, de to rådgiverportrætter og én linje («To
+  rådgivere, der følger din virksomhed tæt — og et sted, hvor dine tal
+  bliver til beslutninger.»). Kontekst-spalten står først i DOM, så den
+  på mobil ligger øverst. Uden invitation vises intet virksomhedsnavn.
+  Ny delt komponent `HbRaadgiverPortraetter` — fem steder i huset skrev
+  hver sin `<img>` (recon-portraetter.md); de fire øvrige flytter
+  senere. Rettet med: `BookSessionView` pegede på `/morten-larsen.png`,
+  som ikke findes — Morten-kortet havde vist initialerne «ML» siden maj.
+- **#550 — login og de øvrige tilstande.** Login er bevidst rolig —
+  ingen delt skærm, ingen portrætter, ingen citater. Den ses hver uge;
+  signup ses én gang. Nulstil, «Tjek din mail» og «Konto oprettet» i
+  samme ramme. Google fjernet fra signup (§3). 251 linjer væk, 140 til;
+  signup-grenene inde i det gamle login-træ ryddet.
+- **#551 — spinnere, ResetPassword, 404.** `HbSpinner` erstatter de tre
+  ens spinnere i App.tsx (ProtectedRoute, MemberRoute, Suspense) og
+  `AuthRoute`s tomme `null`. Hairline-grå, ikke brandgrøn. Importerer
+  selv `hjemmebane.css`, fordi den kan være det allerførste der tegnes.
+  Feltklasserne flyttet fra Auth.tsx til `hjemmebane/hbFormKlasser.ts`
+  og delt med `ResetPassword` og 404. ResetPassword og NotFound
+  konverteret; adfærd ordret bevaret. `ErrorBoundary` bevidst urørt
+  (§7.6).
+- **Bevist i drift:** grep efter `bg-background`, `text-muted-foreground`
+  og `glass-card` i Auth.tsx, ResetPassword.tsx, NotFound.tsx og
+  HbSpinner giver nul. Jonas bekræftede login, signup og nulstil på
+  skærm 2/9 nat. Bogført i konvergens.md §1 (/auth, /reset-password, 404).
+- **Ikke gjort her:** §7.2 (dødt/brugt token), §7.3 (indlogget browser),
+  §7.4 (fejl-parametre) og §7.7 (invitationsmailens tekst) er stadig
+  åbne — de var lagt under trin 11, men er ikke bygget.
+
 ### 7.6 ErrorBoundary og 404 — med eller uden for epic'et
 
-- **404 (`NotFound.tsx`): MED.** Målt: standalone side, ingen skal, tre
-  linjer, gamle tokens. Et nyt medlem kan ramme den fra et forkert
-  skrevet link i en mail. Den koster én fil og deler form med
-  gate-fladerne.
+- **404 (`NotFound.tsx`): MED — ✅ GENNEMFØRT 2/9 nat (#551).** Målt:
+  standalone side, ingen skal, tre linjer, gamle tokens. Et nyt medlem
+  kan ramme den fra et forkert skrevet link i en mail. Nu Hjemmebane:
+  «Siden findes ikke» + én linje + «Til forsiden», samme ramme som Auth;
+  loglinjen bevaret.
 - **ErrorBoundary (`ErrorBoundary.tsx:33-60`): UDEN.** Målt: den omgiver
   HELE appen (App.tsx:197), også rådgiverfladen, som stadig er
   AppLayout/mørk (prioritering-1-september §6: rådgiverfladen tages
@@ -609,7 +682,7 @@ tilstande alligevel skrives om.
   `pending` svarer — indtil §7.2's designvalg er truffet.
 - Kæden før invitationen (`docs/indgangen-design.md` §1–32).
 - Rådgiverfladen (/members, IndgangsSektion, FornyelsesSektion).
-- Google-vejen (§3).
+- Google-LOGIN (§3). Google på SIGNUP er derimod fjernet (#550) — se §3.
 
 ---
 
@@ -677,21 +750,31 @@ flader. «Bevis» = hvad der måles før næste trin begynder.
 10. **Blindgyden lukkes** (§7.1: grænse på skelettet, `none` = fejl for
    ikke-rådgivere, skelet i Hb-tokens). Bevis: fremkald tilstanden
    (bruger uden `company_members`-række i test) → gaten efter N
-   sekunder, ikke skelettet.
-11. **/auth til Hjemmebane** (§7.5: alle fem tilstande + spinnerne +
-    `/reset-password`; §7.2 dødt/brugt token; §7.3 indlogget browser;
-    §7.4 fejl-parametre; §7.7 invitationsmailens tekst). Bevis: hver
-    tilstand fremkaldt og set; login og nulstilling virker for et
-    eksisterende medlem; konvergens.md opdateret.
-12. **404 til Hjemmebane** (§7.6). Bevis: forkert sti viser Hb-siden.
-13. **Bogføring**: dette dokument opdateres pr. trin med dato og bevis;
+   sekunder, ikke skelettet. *Ikke bygget.* Skelet-grenen er den samme
+   som det grønne blink rammer (trin 13) — men de er to rettelser.
+11. **✅ GENNEMFØRT 2/9 nat (#549, #550, #551) — /auth til Hjemmebane**
+    (§7.5: alle fem tilstande + spinnerne + `/reset-password`). Bevis
+    målt: grep efter gamle tokens i de fire filer = nul; Jonas
+    bekræftede login, signup og nulstil på skærm; konvergens.md
+    opdateret. *Rest uden for det byggede:* §7.2 dødt/brugt token, §7.3
+    indlogget browser, §7.4 fejl-parametre, §7.7 invitationsmailens
+    tekst — stadig åbne.
+12. **✅ GENNEMFØRT 2/9 nat (#551) — 404 til Hjemmebane** (§7.6).
+13. **Det grønne blink efter login** (§7.1, målt 3/9): sæt `loading =
+    true` når `SIGNED_IN` fyrer og `fetchUserData` går i gang, så
+    `MemberRoute` holder porten lukket til tier er afgjort — som ved
+    hard reload. FØRST recon på hvem der læser `loading` (auth-
+    kontraktens mest brugte felt); en fejl viser sig som en spinner der
+    ikke går væk. Bevis: log ud og ind — ingen mørkegrøn skærm mellem
+    login og forside; hard reload uændret.
+14. **Bogføring**: dette dokument opdateres pr. trin med dato og bevis;
     OVERLEVERING DEL 2/3 peger hertil. Testopstillingen (§11) fjernes
     når ruten er bevist.
 
 Trin 1–4 (branchen) er uafhængige af 5–9 (ruten) og kan køre parallelt
-i to grene; **5–9 er bevist 2/9** (6 blev bevist før 7, som §4
-krævede); af ruten mangler kun 10–12, som er uafhængige af hinanden.
-Næste spor er 10–12 (Jonas 2/9, §7.5).
+i to grene; **5–9 er bevist 2/9, 11–12 gennemført 2/9 nat**; af ruten
+mangler 10 (blindgyden) og 13 (det grønne blink), som rører samme gren
+men er to rettelser. Næste opgave er 13 (Jonas 2/9 nat, §7.1).
 
 ---
 
@@ -748,13 +831,20 @@ Næste spor er 10–12 (Jonas 2/9, §7.5).
 - **«Dine tal»-kortets tomme tilstand står nederst på forsiden**, under
   podcast og «Værd at se igen» — langt nede for et medlem hvis eneste
   opgave er at komme i gang. Ikke rørt i trin 9.
-- **N sekunder** før skelettet giver op (§7.1).
+- **N sekunder** før skelettet giver op (§7.1). Uafhængigt af det grønne
+  blink (trin 13), som rammer samme gren men rettes i `useAuth`.
 - **Dødt vs. brugt token** (§7.2): kræver at RPC'en svarer med en grund
   for ikke-pending tokens — ændrer hvad et token afslører (i dag: intet
   for brugte). Ikke besluttet.
 - **Kollega-invitationen** (§7.3 + indgangsfladen §13): en indlogget
   bruger med pending invitation til en anden virksomhed. Ikke designet.
-- **Google-vejen** med invitationstoken (§3). Eget trin, ikke her.
+- **LØST 2/9 nat — Google-vejen med invitationstoken** (§3): Google er
+  fjernet fra signup (#550), kun login har den. Erstattet af punktet
+  nedenfor.
+- **Kobl en Google-konto på en eksisterende konto** (Jonas 2/9 nat): den
+  rigtige løsning på Google-vejen er en kontoindstilling, hvor et medlem
+  bagefter knytter sin Google-konto til den konto invitationen skabte —
+  ikke Google på signup. Selvstændigt stykke; ikke designet.
 - **De tre værdikort** fra Onboarding trin 2. Intet hjem valgt.
 - **LØST 2/9 kl. 21:18 — Medlemmer midt i det gamle flow:** ingen.
   42 af 43 profiler har stemplet; den ene uden er en rådgiver uden

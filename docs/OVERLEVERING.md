@@ -262,7 +262,7 @@ Recon: `~/Downloads/recon-onboarding-tjekliste.md`, `recon-velkomstvideo.md`.
 ikke-gjorte punkter i stedet for (a)–(i), og hilsenen siger «Velkommen».
 Pillen står stadig ved siden af — ikke afgjort (indgangen-overhaling §10).
 
-### Adgangsrejsen — trin 1–2 og 5–9 bevist i drift 2/9; kun 10–12 mangler af ruten
+### Adgangsrejsen — trin 1–2, 5–9 og 11–12 bevist 2/9; af ruten mangler blindgyden og det grønne blink
 
 `docs/indgangsfladen-design.md` (design §1–8, 2/9 nat; tillæg §9–13,
 2/9 aften) og `~/Downloads/recon-adgangsrejsen.md` (designet holdt op
@@ -288,12 +288,24 @@ pensioneret (#545, kl. 23:03 — seks skærme blev til tre: signup,
 spinner, forside); ankomstens motor (#546, 21 nye tests) og flade
 (#547, kl. 23:20: «Velkommen, Jonas.» + første tjeklistepunkt som
 fokus, ikke «Upload dine august-tal»). `profiles.onboarded_at` skrives
-ikke længere af ruten; kolonnen står som historik. **Mangler af ruten:
-kun trin 10–12** — blindgyden (§7.1), /auth til Hjemmebane (§7.5,
-Jonas' beslutning 2/9: loginsiden skal gøres bedre, ikke kun
-konverteres) og 404. Uden for ruten: branchen (trin 1–4), de tre
-`valueCards` uden hjem, pillens rolle i ankomsten, velkomst-punktet
-uden knap i kortet (skal løses før `velkomstvideo_guid` sættes).
+ikke længere af ruten; kolonnen står som historik. **Hele Auth-fladen
+er Hjemmebane, 2/9 nat (trin 11–12):** signup som delt skærm med de to
+rådgiverportrætter i den nye `HbRaadgiverPortraetter` (#549), login
+rolig uden portrætter, nulstil, «Tjek din mail», «Konto oprettet»
+(#550), `HbSpinner` i stedet for de tre grønne spinnere og `AuthRoute`s
+null, ResetPassword og 404, feltklasser i `hjemmebane/hbFormKlasser.ts`
+(#551). Google er fjernet fra signup og findes kun på login — besluttet,
+fordi Google-vejen ikke bærer invitationstokenet (§3); den rigtige
+løsning er at koble Google på bagefter (§10). Jonas bekræftede login,
+signup og nulstil på skærm. **Mangler af ruten:** blindgyden (trin 10,
+§7.1) og **det grønne blink efter login** (trin 13, målt 3/9:
+`Index.tsx:202-208` tegner det gamle mørkegrønne DashboardSkeleton,
+fordi `useAuth` aldrig sætter `loading` tilbage til true ved SIGNED_IN
+— rettes i useAuth efter recon på hvem der læser `loading`, IKKE ved
+at konvertere skelettet). Uden for ruten: branchen (trin 1–4), §7.2–7.4
+og §7.7, de tre `valueCards` uden hjem, pillens rolle i ankomsten,
+velkomst-punktet uden knap i kortet (skal løses før `velkomstvideo_guid`
+sættes), Google-kobling som kontoindstilling.
 Målt 2/9 i prod: `handle_new_user` er IKKE fail-closed på
 `email_confirmed_at` og afviser signup uden invitation med P0001;
 rådgivergrenen kommer først. CLAUDE.md er rettet (#537).
@@ -331,7 +343,7 @@ facit og rækkefølge; `docs/chat-design.md` chattens form.
 | åbent | **Velkomstvideoen skal optages** (Morten). Pladsen er bygget; GUID'et sættes i /admin/config. | recon-velkomstvideo |
 | åbent | **Rundvisningen** — interaktiv førstegangs-oplevelse efter velkomsten; bygges efter C3-indflytningen; må aldrig eksistere ved siden af Guiden. | BACKLOG [P2·EPIC] Platform-onboarding |
 | åbent | **Adminfladens overhaling** — rådgiverfladen tages samlet som ét epic, efter medlemsdesignet. /members har i dag IndgangsSektion + FornyelsesSektion i gammelt design. | prioritering §6 |
-| **næste spor** | **Indgangens overhaling, trin 10–12: hele Auth-fladen til Hjemmebane** (blindgyden, /auth med alle fem tilstande + `/reset-password`, 404). Loginsiden skal gøres bedre, ikke kun konverteres (Jonas 2/9). Trin 5–9 er bevist 2/9; trin 1–4 (branchen) står stadig og er uafhængige. | `docs/indgangen-overhaling.md` §9, §7.5 |
+| **næste spor** | **Det grønne blink efter login** (indgangens overhaling, trin 13): `loading = true` ved SIGNED_IN i `useAuth`, så MemberRoute holder porten til tier er afgjort. FØRST recon på hvem der læser `loading`. Bevis: log ud og ind — ingen mørkegrøn skærm. Derefter trin 10 (blindgyden: grænse + udvej + lyst skelet). Trin 11–12 (Auth-fladen) er gennemført 2/9 nat; trin 1–4 (branchen) står stadig og er uafhængige. | `docs/indgangen-overhaling.md` §7.1, §9 |
 | åbent | Ankomstens løse ender: pillen viser samme punkter som fokuskortet (Claudes dom: den bør trække sig — ikke besluttet); velkomst-punktet kan ikke trykkes i kortet — skal løses FØR `velkomstvideo_guid` sættes; «Dine tal»-kortets tomme tilstand står nederst. | `docs/indgangen-overhaling.md` §10 |
 | når ruten er bevist | **Testvirksomheden FLOOR1 I/S** (`fea24b90-…`, `jonas+test1/2/3@topix.dk`) skal fjernes helt: hardDelete med brugere + storage- og user_id-rester. | `docs/indgangen-overhaling.md` §11, `~/Downloads/recon-testvirksomhed.md` |
 | åbent | Nudge-formen som designdokument, Community-opdagelse, Events (bekræftelse, kalender, lokation), Milepælene ud — rækkefølgen fra 1/9 står. | prioritering §2–5 |
