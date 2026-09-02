@@ -3,6 +3,9 @@ import { useEffect, useRef, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { HbSidebar, HbSidebarDrawer, type HbNavEntry } from "./HbSidebar";
 import { HbNav } from "./HbNav";
+import { useOnboardingTjekliste } from "@/hooks/useOnboardingTjekliste";
+import { HbOnboardingTjekliste } from "./HbOnboardingTjekliste";
+import { useTjeklisteLukket } from "@/hooks/useTjeklisteLukket";
 
 /** Fælles Hb-medlemsskal for forsiden ("/") og de øvrige medlemsflader
     (generalisering af den tidligere HbAkademiShell): V0-layoutmodellen
@@ -63,9 +66,31 @@ export const HbMemberShell = ({
       el.style.backgroundColor = forrige;
     };
   }, []);
-  const { profile, signOut, membershipTier } = useAuth();
+  const { profile, signOut, membershipTier, isAdvisor } = useAuth();
   const avatarSrc = profile?.avatar_url || undefined;
   const userName = profile?.full_name || "Medlem";
+
+  /* ONBOARDING-TJEKLISTEN følger med på alle 17 Hb-sider herfra — ikke fra
+     hver side. Hooken henter intet for rådgivere (tjekliste = null), så de
+     ser hverken boksen eller menupunktet. Lukket-tilstanden er pr. enhed
+     (localStorage) og deles mellem sidebarens punkt og boksen; tælleren
+     genaabnTick er menuens «hent den frem»-signal til boksen. Hooks i
+     topblokken, før enhver betinget return. */
+  const tjeklisteData = useOnboardingTjekliste();
+  const { lukket: tjeklisteLukket, setLukket: setTjeklisteLukket } = useTjeklisteLukket();
+  const [tjeklisteGenaabnTick, setTjeklisteGenaabnTick] = useState(0);
+  const tjeklisteFornavn = profile?.full_name?.trim().split(/\s+/)[0] || null;
+  // Menupunktet vises kun for medlemmer, og kun når listen ikke er færdig
+  // ELLER medlemmet selv har lukket den (så den kan hentes frem igen).
+  const komGodtIGang =
+    !isAdvisor && tjeklisteData.tjekliste && (!tjeklisteData.tjekliste.faerdig || tjeklisteLukket)
+      ? {
+          onClick: () => {
+            setTjeklisteLukket(false);
+            setTjeklisteGenaabnTick((t) => t + 1);
+          },
+        }
+      : undefined;
 
   /* Abonnenten (exit-produktet) beholder KUN Dine tal og Podcast & Talks.
      Alt andet er lukket i datalaget siden 13-08-2026 (PR #350, #351, #354).
@@ -154,7 +179,7 @@ export const HbMemberShell = ({
   return (
     <div ref={rodRef} className={`theme-hjemmebane ${fuld ? "h-screen-safe" : "min-h-screen"} bg-hb-paper font-body text-hb-ink antialiased`}>
       <div className={`flex ${fuld ? "h-full overflow-hidden" : "lg:h-screen lg:overflow-hidden"}`}>
-        <HbSidebar avatarSrc={avatarSrc} userName={userName} nav={nav} homeTo={boardroomTo} onSignOut={signOut} />
+        <HbSidebar avatarSrc={avatarSrc} userName={userName} nav={nav} homeTo={boardroomTo} onSignOut={signOut} komGodtIGang={komGodtIGang} />
         <div className={`min-w-0 flex-1 ${fuld ? "flex flex-col overflow-hidden" : "lg:overflow-y-auto"}`}>
           <HbNav onMenuClick={() => setDrawerOpen(true)} avatarSrc={avatarSrc} />
           <HbSidebarDrawer
@@ -165,6 +190,7 @@ export const HbMemberShell = ({
             nav={nav}
             homeTo={boardroomTo}
             onSignOut={signOut}
+            komGodtIGang={komGodtIGang}
           />
           {fuld ? (
             <main className="flex min-h-0 flex-1 flex-col">{children}</main>
@@ -173,6 +199,17 @@ export const HbMemberShell = ({
           )}
         </div>
       </div>
+      {!isAdvisor && (
+        <HbOnboardingTjekliste
+          tjekliste={tjeklisteData.tjekliste}
+          velkomstvideoSetAt={tjeklisteData.velkomstvideoSetAt}
+          fornavn={tjeklisteFornavn}
+          lukket={tjeklisteLukket}
+          setLukket={setTjeklisteLukket}
+          genaabnTick={tjeklisteGenaabnTick}
+          markerVelkomstSet={tjeklisteData.markerVelkomstSet}
+        />
+      )}
     </div>
   );
 };

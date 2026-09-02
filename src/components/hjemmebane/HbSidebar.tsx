@@ -1,6 +1,6 @@
 import * as React from "react";
 import { Link } from "react-router-dom";
-import { LogOut, X } from "lucide-react";
+import { ListChecks, LogOut, X } from "lucide-react";
 import topixIcon from "@/assets/topix-icon-green.png";
 import { cn } from "@/lib/utils";
 
@@ -44,6 +44,9 @@ interface HbSidebarProps {
   homeTo?: string;
   /** Log ud-handler. Udeladt = ingen knap (previewens brug er urørt). */
   onSignOut?: () => void;
+  /** «Kom godt i gang» — henter onboarding-tjeklisten frem igen. Udeladt =
+      intet punkt (rådgivere, færdig liste der ikke er lukket, preview). */
+  komGodtIGang?: { onClick: () => void };
 }
 
 const NavItem = ({ label, active, to }: { label: string; active?: boolean; to?: string }) => {
@@ -89,6 +92,7 @@ const SidebarContent = ({
   nav = NAV,
   homeTo,
   onSignOut,
+  komGodtIGang,
 }: HbSidebarProps) => (
   <>
     {homeTo ? (
@@ -118,6 +122,19 @@ const SidebarContent = ({
         </React.Fragment>
       ))}
     </nav>
+    {/* Tjeklisten hentes frem herfra når medlemmet har lukket den (eller
+        når den er færdig og de vil se den igen). Samme udtryk som NavItem,
+        men en knap: den navigerer ikke, den åbner boksen. */}
+    {komGodtIGang && (
+      <button
+        type="button"
+        onClick={komGodtIGang.onClick}
+        className="mt-4 flex h-10 w-full items-center gap-2 rounded-full px-4 text-left text-[15px] text-hb-ink-soft transition-colors hover:bg-hb-sage/30 hover:text-hb-ink"
+      >
+        <ListChecks className="h-4 w-4" />
+        Kom godt i gang
+      </button>
+    )}
     <div className="mt-8 flex items-center gap-3 border-t border-hb-line pt-5">
       {avatarSrc ? (
         <img src={avatarSrc} alt={avatarAlt} className="h-8 w-8 rounded-full border border-hb-line object-cover" />
