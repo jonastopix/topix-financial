@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { deriveFocus, deriveNextStep, filtrerUdloebneForslag, type FocusInputs, type NextStepInputs } from "../nextStep";
+import { deriveFocus, deriveNextStep, filtrerUdloebneForslag, foersteRapportPeriode, type FocusInputs, type NextStepInputs } from "../nextStep";
+import { byggTjekliste, TJEKLISTE_RAEKKEFOELGE, type TjeklisteInput } from "@/lib/onboardingTjekliste";
 
 /** Fokus-motoren (forside PR 1): hver kilde, rækkefølgen ved samtidige
     signaler, tom-tilstand og wrapper-regressionsværnet. Fast "nu":
@@ -339,6 +340,218 @@ describe("deriveFocus — rækkefølge og tom-tilstand", () => {
     );
     const keys = items.map((i) => i.key);
     expect(new Set(keys).size).toBe(keys.length);
+  });
+});
+
+/* ── Trin 8 (docs/indgangen-overhaling.md §5/§9): ankomstens motor ── */
+
+/** Tjekliste-input hvor ALT er gjort — testene slår enkelte punkter fra. */
+const tjeklisteAltGjort = (overrides: Partial<TjeklisteInput> = {}): TjeklisteInput => ({
+  har_velkomstvideo: true,
+  velkomstvideo_set_at: "2026-08-01T10:00:00Z",
+  avatar_url: "https://x/avatar.png",
+  ask_me_about: "Likviditet",
+  website: "https://firma.dk",
+  industry_label: "Håndværk",
+  cvr_number: "12345678",
+  antal_rapporter: 1,
+  antal_udfyldte_handouts: 1,
+  last_member_message_at: "2026-08-02T10:00:00Z",
+  ...overrides,
+});
+
+/** Nul-data-medlem: intet uploadet, ingen pulse, tom profil — det
+    fokuskortet hidtil mødte med "Upload dine juli-tal". */
+const nulData = (overrides: Partial<FocusInputs> = {}): FocusInputs =>
+  base({
+    processedPeriodKeys: new Set(),
+    committedPeriodKeys: new Set(),
+    hasPulseThisMonth: false,
+    askMeAboutMissing: true,
+    ...overrides,
+  });
+
+describe("foersteRapportPeriode — regnestykket for slot (a)", () => {
+  it("kontrakt fra den 1. → startmåneden selv er den første hele måned", () => {
+    expect(foersteRapportPeriode("2026-09-01")).toBe("2026-09");
+  });
+
+  it("kontrakt midt i måneden → første hele måned er måneden efter", () => {
+    expect(foersteRapportPeriode("2026-09-15")).toBe("2026-10");
+    expect(foersteRapportPeriode("2026-09-30")).toBe("2026-10");
+  });
+
+  it("årsskiftet: 15. december → januar året efter", () => {
+    expect(foersteRapportPeriode("2026-12-15")).toBe("2027-01");
+  });
+
+  it("ukendt eller ugyldig start → null (= som hidtil)", () => {
+    expect(foersteRapportPeriode(null)).toBeNull();
+    expect(foersteRapportPeriode(undefined)).toBeNull();
+    expect(foersteRapportPeriode("")).toBeNull();
+    expect(foersteRapportPeriode("ikke-en-dato")).toBeNull();
+    expect(foersteRapportPeriode("2026-13-01")).toBeNull();
+  });
+});
+
+describe("slot (a) og kontraktstarten", () => {
+  it("oprettet i indeværende måned → beder IKKE om forrige måneds tal", () => {
+    // NOW = 10. august 2026; kontrakt 3. august → første hele måned er
+    // september; prevKey "2026-07" < "2026-09" → slottet tier.
+    const items = deriveFocus(nulData({ contractStartDate: "2026-08-03", askMeAboutMissing: false }));
+    expect(items.map((i) => i.kind)).not.toContain("missing-report");
+    expect(items).toEqual([]);
+  });
+
+  it("oprettet i går (9. august) → samme: intet krav om juli-tal", () => {
+    const items = deriveFocus(nulData({ contractStartDate: "2026-08-09", askMeAboutMissing: false }));
+    expect(items).toEqual([]);
+  });
+
+  it("oprettet for et år siden → opfører sig som i dag: 'Upload dine juli-tal'", () => {
+    const items = deriveFocus(nulData({ contractStartDate: "2025-08-10", askMeAboutMissing: false }));
+    expect(items.map((i) => i.kind)).toEqual(["missing-report"]);
+    expect(items[0].title).toBe("Upload dine juli-tal");
+  });
+
+  it("ukendt kontraktstart (null/udeladt) → som hidtil", () => {
+    expect(deriveFocus(nulData({ contractStartDate: null, askMeAboutMissing: false }))[0]?.kind).toBe("missing-report");
+    expect(deriveFocus(nulData({ askMeAboutMissing: false }))[0]?.kind).toBe("missing-report");
+  });
+
+  it("grænsen: kontrakt 1. juli → juli er første hele måned → juli-tal bedes om; 2. juli → tier", () => {
+    expect(deriveFocus(nulData({ contractStartDate: "2026-07-01", askMeAboutMissing: false }))[0]?.kind).toBe("missing-report");
+    expect(deriveFocus(nulData({ contractStartDate: "2026-07-02", askMeAboutMissing: false }))).toEqual([]);
+  });
+
+  it("værnet gælder KUN (a): findes der uploadede tal for perioden, fyrer (b) uanset kontraktstart", () => {
+    const items = deriveFocus(
+      base({ committedPeriodKeys: new Set(), contractStartDate: "2026-08-03" }),
+    );
+    expect(items.map((i) => i.kind)).toEqual(["pending-approval"]);
+  });
+
+  it("de øvrige slots er urørte af kontraktstarten — (i) står stadig alene når (a) tier", () => {
+    const items = deriveFocus(nulData({ contractStartDate: "2026-08-03" }));
+    expect(items.map((i) => i.kind)).toEqual(["empty-profile"]);
+  });
+
+  it("wrapperen deriveNextStep kender ingen kontraktstart og svarer som før", () => {
+    const step = deriveNextStep({
+      now: NOW,
+      processedPeriodKeys: new Set(),
+      committedPeriodKeys: new Set(),
+      milestones: [],
+      hasPulseThisMonth: true,
+    });
+    expect(step?.id).toBe("missing-report");
+  });
+});
+
+describe("slot (0) — tjeklisten som fokuskortets kilde", () => {
+  it("uafsluttet tjekliste → KUN ikke-gjorte punkter, i tjeklistens rækkefølge, med titel/beskrivelse/sti", () => {
+    const tjekliste = byggTjekliste(tjeklisteAltGjort({ avatar_url: null, antal_rapporter: 0, last_member_message_at: null }));
+    const items = deriveFocus(nulData({ tjekliste, contractStartDate: "2025-01-01" }));
+    expect(items.map((i) => i.kind)).toEqual(["tjekliste", "tjekliste", "tjekliste"]);
+    expect(items.map((i) => i.sourceId)).toEqual(["profil", "rapport", "besked"]);
+    expect(items.every((i) => i.priority === 0)).toBe(true);
+    expect(items[0]).toMatchObject({
+      key: "tjekliste:profil",
+      title: "Din profil",
+      description: "Et billede, og hvad de andre kan spørge dig om.",
+      ctaHref: "/settings",
+      ctaLabel: "Gør det nu",
+    });
+    expect(items[1].ctaHref).toBe("/rapportering");
+    expect(items[2].ctaHref).toBe("/chat");
+  });
+
+  it("nul-data-medlem med helt tom tjekliste → alle punkter, første ikke-gjorte er #1, INTET 'Upload dine juli-tal'", () => {
+    const tjekliste = byggTjekliste({
+      har_velkomstvideo: true,
+      velkomstvideo_set_at: null,
+      avatar_url: null,
+      ask_me_about: null,
+      website: null,
+      industry_label: null,
+      cvr_number: null,
+      antal_rapporter: 0,
+      antal_udfyldte_handouts: 0,
+      last_member_message_at: null,
+    });
+    const items = deriveFocus(nulData({ tjekliste, contractStartDate: "2025-01-01" }));
+    expect(items.map((i) => i.sourceId)).toEqual([...TJEKLISTE_RAEKKEFOELGE]);
+    expect(items[0].title).toBe("Se velkomsten");
+    expect(items.map((i) => i.kind)).not.toContain("missing-report");
+    expect(items.map((i) => i.kind)).not.toContain("empty-profile");
+  });
+
+  it("velkomst-punktets sti '' bæres uændret som ctaHref (åbnes i boksen, ikke en side)", () => {
+    const tjekliste = byggTjekliste(tjeklisteAltGjort({ velkomstvideo_set_at: null }));
+    const items = deriveFocus(base({ tjekliste }));
+    expect(items).toHaveLength(1);
+    expect(items[0]).toMatchObject({ sourceId: "velkomst", ctaHref: "" });
+  });
+
+  it("uden velkomstvideo findes velkomst-punktet ikke — fem punkter, samme indbyrdes orden", () => {
+    const tjekliste = byggTjekliste(tjeklisteAltGjort({ har_velkomstvideo: false, velkomstvideo_set_at: null, antal_udfyldte_handouts: 0 }));
+    const items = deriveFocus(base({ tjekliste }));
+    expect(items.map((i) => i.sourceId)).toEqual(["handout"]);
+  });
+
+  it("tjeklisten vinder over ALT andet mens den er uafsluttet — også beskeder, deadlines og ugens fokus", () => {
+    const tjekliste = byggTjekliste(tjeklisteAltGjort({ last_member_message_at: null }));
+    const items = deriveFocus(
+      base({
+        tjekliste,
+        processedPeriodKeys: new Set(),
+        committedPeriodKeys: new Set(),
+        unreadUserMessages: 2,
+        weeklyFocus: { headline: "X", seen: false },
+        milestones: [{ title: "Deadline", deadline: daysFromNow(5), progress: 20, status: "active" }],
+        openActions: [{ id: "a1", title: "Handling", priority: "high" }],
+        askMeAboutMissing: true,
+      }),
+    );
+    expect(items.map((i) => i.kind)).toEqual(["tjekliste"]);
+    expect(items[0].sourceId).toBe("besked");
+  });
+
+  it("stabile, unikke keys på tværs af tjekliste-punkter", () => {
+    const tjekliste = byggTjekliste(tjeklisteAltGjort({ avatar_url: null, website: null, antal_rapporter: 0 }));
+    const keys = deriveFocus(base({ tjekliste })).map((i) => i.key);
+    expect(new Set(keys).size).toBe(keys.length);
+    expect(keys).toEqual(["tjekliste:profil", "tjekliste:virksomhed", "tjekliste:rapport"]);
+  });
+});
+
+describe("overgangen — sidste tjeklistepunkt gjort", () => {
+  it("ét punkt tilbage → kun det; samme punkt gjort → almindelig prioritering (a)-(i)", () => {
+    const foer = byggTjekliste(tjeklisteAltGjort({ last_member_message_at: null }));
+    expect(foer.faerdig).toBe(false);
+    const inputsFoer = nulData({ tjekliste: foer, contractStartDate: "2025-01-01" });
+    expect(deriveFocus(inputsFoer).map((i) => i.kind)).toEqual(["tjekliste"]);
+
+    const efter = byggTjekliste(tjeklisteAltGjort());
+    expect(efter.faerdig).toBe(true);
+    const inputsEfter = nulData({ tjekliste: efter, contractStartDate: "2025-01-01" });
+    expect(deriveFocus(inputsEfter).map((i) => i.kind)).toEqual(["missing-report", "empty-profile"]);
+  });
+
+  it("færdig tjekliste er identisk med ingen tjekliste — (a)-(i) uændret", () => {
+    const efter = byggTjekliste(tjeklisteAltGjort());
+    const medTjekliste = deriveFocus(base({ tjekliste: efter, unreadUserMessages: 1, askMeAboutMissing: true }));
+    const uden = deriveFocus(base({ tjekliste: null, unreadUserMessages: 1, askMeAboutMissing: true }));
+    const udeladt = deriveFocus(base({ unreadUserMessages: 1, askMeAboutMissing: true }));
+    expect(medTjekliste).toEqual(uden);
+    expect(medTjekliste).toEqual(udeladt);
+    expect(medTjekliste.map((i) => i.kind)).toEqual(["unread-messages", "empty-profile"]);
+  });
+
+  it("færdig tjekliste + ny virksomhed: kontraktstart-værnet tager over, og kortet er tomt frem for at bede om tal", () => {
+    const efter = byggTjekliste(tjeklisteAltGjort());
+    const items = deriveFocus(nulData({ tjekliste: efter, contractStartDate: "2026-08-03", askMeAboutMissing: false }));
+    expect(items).toEqual([]);
   });
 });
 
