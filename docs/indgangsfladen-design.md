@@ -4,7 +4,9 @@
 §1–8 er den besluttede form, skrevet før noget var bygget. **Status 2/9
 aften: trin 1–2 (opslaget bærer mail og navn; /auth forudfylder) er
 bygget i #537 og bevist i drift kl. 20:30 — se tillægget §9–13. Trin
-3–7 er fortsat kun design.** Samme regel som `docs/indgangen-design.md`:
+3–7 er fortsat kun design — og de er nu skrevet om som ét samlet epic i
+`docs/indgangen-overhaling.md` (2/9 aften), der afløser §1–8 hvor de to
+siger noget forskelligt.** Samme regel som `docs/indgangen-design.md`:
 hver påstand er enten målt (med kilde), eller mærket som ikke målt/åben.
 Reconen bag (2/9) ligger uden for repoet; de målte fund er skrevet ind
 her, så dokumentet står alene.
@@ -386,3 +388,6 @@ invitation kaldes et hul. (Jf. `docs/indgangen-design.md` §24 om hvad
   kan betyde accepteret eller aldrig inviteret.
 - De to punkter om Monday-status «I gang» og `application_context.
   contact_name` hører til webhooken: `docs/indgangen-design.md` §32.
+- Resten af rejsen (mailbekræftelsen fra, porten pensioneres,
+  ankomsten, branchen fra CVR, de dårlige dage, rækkefølgen) er
+  designet i `docs/indgangen-overhaling.md`.

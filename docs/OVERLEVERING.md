@@ -271,7 +271,13 @@ invitation** (§9): `lookup_invite_company_info` giver `email` + `kontakt`
 monday-webhookens «Godkendt»-gren skriver det; tre er rettet med Monday
 som kilde, 32 står tomme (`docs/indgangen-design.md` §32). Invitationer
 har ingen udløbsmekanik, og en invitation er ikke nødvendigvis
-medlemmets egen adgang (§13). Mangler: mailbekræftelse slås fra i
+medlemmets egen adgang (§13). **Resten er designet som ét epic i
+`docs/indgangen-overhaling.md`** (2/9 aften): målet er to skærme
+(signup → Dit Boardroom); mailbekræftelsen slås fra; Onboarding-porten
+pensioneres (agentens stempel skal flyttes først); ankomsten står selv
+uden video; branchen udledes af CVR via en ny ren motor; de dårlige
+dage (skelet uden udgang, dødt token, indlogget browser) får Hb-flader;
+rækkefølgen i dets §9. Mangler: mailbekræftelse slås fra i
 Supabase Auth (uden for repoet; PPI's e-mail-fallback dør), Onboarding-
 porten pensioneres (fem steder: App.tsx ×2, OnboardingRoute, useAuth,
 main.tsx), /auth og /settings til Hjemmebane, de tre `valueCards` får et
@@ -312,7 +318,7 @@ facit og rækkefølge; `docs/chat-design.md` chattens form.
 | åbent | **Velkomstvideoen skal optages** (Morten). Pladsen er bygget; GUID'et sættes i /admin/config. | recon-velkomstvideo |
 | åbent | **Rundvisningen** — interaktiv førstegangs-oplevelse efter velkomsten; bygges efter C3-indflytningen; må aldrig eksistere ved siden af Guiden. | BACKLOG [P2·EPIC] Platform-onboarding |
 | åbent | **Adminfladens overhaling** — rådgiverfladen tages samlet som ét epic, efter medlemsdesignet. /members har i dag IndgangsSektion + FornyelsesSektion i gammelt design. | prioritering §6 |
-| åbent | Adgangsrejsen trin 3–7 (se DEL 2). | recon-adgangsrejsen §4 |
+| åbent | Indgangens overhaling: branche-motor, mailbekræftelse fra, porten ud, ankomsten, /auth til Hb — tolv trin. | `docs/indgangen-overhaling.md` §9 |
 | åbent | Nudge-formen som designdokument, Community-opdagelse, Events (bekræftelse, kalender, lokation), Milepælene ud — rækkefølgen fra 1/9 står. | prioritering §2–5 |
 | driftsgæld | Fejlovervågning findes ikke; restore er aldrig afprøvet; `run-weekly-agent` står ikke i `cron.job`; 73 uploads bestod validering uden at blive committet; e-conomic-integrationen er død (migration-recon §10). | status-1-sept §6, OVERLEVERING (forrige) §7 |
 
