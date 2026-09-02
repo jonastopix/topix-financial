@@ -122,6 +122,13 @@ ikke genopfindes.
 
 ## 7. Kendte fejl i den nuværende monday-webhook
 
+**Rettet 2/9** — webhooken er skrevet om (se §26). Punkterne står som
+bogføring af det der var. Målt samme dag: kolonne-id'et `e_mail` fandtes
+ikke på noget board (mailkolonnen hedder `email`), så webhooken svarede
+`no_contact_email` for hver ansøgning; navnet lå i to ulæste kolonner
+(`short_text` Fornavn, `text_mm2wy52n` Efternavn); og «I gang» var
+make.coms ekko efter en betaling på den gamle Stripe-konto.
+
 - **Webhooken fyrer på «I gang», ikke på «Godkendt»** (linje 158) —
   se §8; invitationen følger derfor ikke underskriften.
 - **Invitationen oprettes uden `company_id`,** så virksomhedsdata fra
@@ -551,12 +558,17 @@ invitationen på en eksisterende pending invitation for virksomheden.
 
 ## 26. Det der mangler
 
-- **Monday-grenen ved «Godkendt»**: opret virksomheden med data fra
-  Monday og prisniveau fra «Pris (kontrakt)», generér tokenet, sæt
-  `companies.contact_person` (målt 2/9: ingen skriver feltet i dag, så
-  mailene åbner med «Kære,»), og kald `send-indgangs-betalingsmail` med
-  `{ company_id }`. Indtil da oprettes `company_betalingslink`-rækken i
-  hånden og funktionen kaldes i hånden.
+- **Monday-grenen ved «Godkendt»**: bygget 2/9. `monday-webhook` gater
+  på «Godkendt» (alt andet, også «Medlem»/«I gang», logges og ignoreres),
+  læser de 18 kolonner (`_shared/mondayAnsoegning.ts`), opretter
+  virksomheden via `opretEllerGenbrugVirksomhed`, sætter
+  `contact_person` + adresse, parser «Pris (kontrakt)» til øre, opretter
+  `company_betalingslink` (PK-konflikt = gentaget «Godkendt», springes
+  over) og udløser dag 0 i samme proces via
+  `_shared/indgangsBetalingsmail.ts`. Den gamle invitationsvej er fjernet.
+  **Ikke verificeret i prod endnu:** den rå `value`-form for email-,
+  telefon- og link-kolonner (læseren falder tilbage på `text`), og at
+  Mondays event bærer `boardId` (uden det springes board-tjekket over).
 - **De fire mails** (dag 0, 14, 25, 31): bygget 2/9. Dag 0 og
   rådgivermailen sendes af `send-indgangs-betalingsmail`; dag 14/25/31
   af `indgangs-paamindelser-cron` (tørkørsel som standard). Begge går
