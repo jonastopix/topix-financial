@@ -13,6 +13,7 @@ import ScrollToTop from "@/components/ScrollToTop";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import ResetPassword from "./pages/ResetPassword";
+import Betal from "./pages/Betal";
 import Onboarding from "./pages/Onboarding";
 import NotFound from "./pages/NotFound";
 
@@ -211,6 +212,12 @@ const App = () => (
               <Route path="/auth" element={<AuthRoute><Auth /></AuthRoute>} />
               <Route path="/auth/*" element={<AuthRoute><Auth /></AuthRoute>} />
               <Route path="/reset-password" element={<ResetPassword />} />
+              {/* Indgangens betalingsside (docs/indgangen-design.md §5): en
+                  person UDEN konto lander her fra dag 0-mailen med
+                  ?token=<uuid>. Uguardet som /reset-password — ingen
+                  ProtectedRoute, ingen MemberRoute. AuthProvider kalder
+                  ikke fetchUserData uden session, så ruten koster intet. */}
+              <Route path="/betal" element={<Betal />} />
               <Route path="/onboarding" element={<OnboardingRoute><Onboarding /></OnboardingRoute>} />
               <Route path="/" element={<MemberRoute><Index /></MemberRoute>} />
               {/* Rapportering-GO (2026-08-06): /reports bærer Hb-rapporteringen.
