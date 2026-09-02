@@ -317,15 +317,19 @@ export default function Betal() {
     <Ramme>
       <Overskrift
         titel={tilbud.virksomhed ? `Velkommen i The Boardroom, ${tilbud.virksomhed}` : "Velkommen i The Boardroom"}
-        tekst="Vælg hvordan du vil betale. Tolv rater bærer et tillæg på 5 %; de to andre modeller gør ikke."
+        tekst="Vælg hvordan du vil betale."
       />
 
       <HbCard className="p-5">
         <div className="space-y-3">
-          <h3 className="font-editorial text-lg font-medium text-hb-ink">Dit medlemskab</h3>
           <p className="font-editorial text-4xl md:text-5xl font-medium text-hb-ink">
             {kr(priser.grundbeloeb_oere)}{" "}
             <span className="font-body text-base font-normal text-hb-ink-soft">kr. ekskl. moms</span>
+          </p>
+          {/* Ydelsen som tekst, ikke et kort — den forklarer beløbet, den
+              konkurrerer ikke med det. */}
+          <p className="text-sm text-hb-ink-soft">
+            12 måneder med to rådgivere, løbende sparring og adgang til platformen.
           </p>
           {/* pt-3 oven i kortets space-y-3: beløbet er sidens svar og skal
               stå frit. ChevronRight, ikke ArrowRight: knapperne er et VALG
@@ -344,10 +348,20 @@ export default function Betal() {
               </HbButton>
             ))}
           </div>
-          <p className="text-xs text-hb-ink-soft pt-1">
-            {tilbud.frist ? `Betal inden ${formaterFrist(tilbud.frist)}.` : null}
-            {naerFrist ? ` Der er ${tilbud.dage_tilbage} ${tilbud.dage_tilbage === 1 ? "dag" : "dage"} tilbage.` : null}
-          </p>
+          {/* Fristen er ikke en fodnote: centreret, med luft og en hairline
+              over, så den læses som en frist og ikke som en note. */}
+          {(tilbud.frist || naerFrist) && (
+            <div className="pt-4 mt-1 border-t border-hb-line text-center space-y-0.5">
+              {tilbud.frist && (
+                <p className="text-sm font-medium text-hb-ink">Betal inden {formaterFrist(tilbud.frist)}.</p>
+              )}
+              {naerFrist && (
+                <p className="text-sm text-hb-ink-soft">
+                  Der er {tilbud.dage_tilbage} {tilbud.dage_tilbage === 1 ? "dag" : "dage"} tilbage.
+                </p>
+              )}
+            </div>
+          )}
         </div>
       </HbCard>
 
