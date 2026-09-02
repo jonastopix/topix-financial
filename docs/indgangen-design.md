@@ -592,3 +592,84 @@ invitationen på en eksisterende pending invitation for virksomheden.
   BOARDROOM» uden ikon. Det er et Merchant Logo hos kortnetværkene, ikke
   det logo der er uploadet i Stripes branding. **IKKE UNDERSØGT:** om det
   er selvbetjent på denne kontotype eller kræver ansøgning.
+
+---
+
+# Tillæg — rettelser og de sidste led (2/9, aften)
+
+## 27. RETTELSE 2/9 — fristen er kontraktens
+
+**Hvad der var forkert:** §19 og den oprindelige kode regnede
+30-dagesfristen fra BETALINGSMAILEN. Begrundelsen der blev skrevet ned
+1/9 var: «ventede nogen fire dage på at få prisen sat, må de ikke miste
+fire dage af fristen».
+
+**Hvorfor det var forkert:** fristen er ikke vores at give. Den står i
+aftalegrundlaget — 30 dage fra underskrift. Jonas havde sagt det flere
+gange; begrundelsen ovenfor behandlede kontraktens frist som en
+kulance.
+
+**Rettet:** alle dage regnes nu fra `company_betalingslink.underskrevet_at`.
+`betalingsmail_sendt_at` bruges stadig til at skelne `klar_til_mail` fra
+`afventer_betaling` — men ikke til at regne dage.
+
+Konsekvensen er tilsigtet: sættes prisen fire dage efter godkendelsen,
+har medlemmet 26 dage tilbage. Og påmindelserne 14/25/31 regnes også fra
+underskriften, så en sent sat pris ikke skubber hele rytmen og lader
+dag 31-fakturaen komme efter fristen er passeret.
+
+**Fjorten filer rørt** (jeg kendte fire; Claude Code fandt resten):
+motoren og dens spejl, begge testfiler, de tre SQL-funktioner (migration
+20260902140000), mailmodulerne, cronen, `IndgangsSektion` og
+`Betal.tsx`.
+
+**Bevist i produktion 2/9:** en linkrække med underskrift 26 dage
+tilbage og betalingsmail sendt samme dag gav `frist: 2026-09-06,
+dage_tilbage: 4`. Havde koden regnet fra mailen, ville svaret have været
+30.
+
+**Og rådgivermailen siger nu hvor travlt det har.** Fire tilstande:
+over 7 dage («der er N dage tilbage»), 7 eller færre (samme plus «Det
+haster», og emnelinjen bliver «HASTER: …»), nul («i dag er SIDSTE dag»),
+og negativ («fristen er allerede passeret for N dage siden. Sættes
+prisen nu, får medlemmet en betalingsmail med en frist der er
+overskredet»). Emnelinjen skifter, så det kan ses i indbakken uden at
+åbne mailen.
+
+## 28. Udløser 2 er bygget og bevist 2/9
+
+`saet-indgangs-prisniveau` (Bucket A, advisor-gate): skriver prisen med
+en null-guard og udløser dag 0-mailen i SAMME kald.
+
+**Hvorfor ét kald og ikke to skridt:** `company_betalingslink` har samme
+politik-form som `company_fornyelse`, så fladen KAN skrive prisen
+direkte. Men `send-indgangs-betalingsmail` er Bucket B og kan ikke
+kaldes fra browseren. Skrev fladen prisen selv, ville der findes en
+tilstand hvor prisen er sat og mailen aldrig gik — og rådgivermailen
+lover udtrykkeligt at den sendes.
+
+**Prisen ændres ikke når den først er sat** (409). Er mailen sendt, har
+medlemmet fået et beløb at forholde sig til, og linket læser prisen live
+— en ændring bagefter ville gøre linket til en anden aftale end den de
+læste. Skal den rettes, er det en samtale, ikke et klik.
+
+**Fejler mailen, rulles prisen IKKE tilbage.** Fladen viser en advarsel,
+ikke en fejl. At fjerne prisen igen ville sætte virksomheden tilbage i
+`afventer_pris` og udløse en NY rådgivermail — en løkke frem for en fejl
+der kan ses.
+
+## 29. IndgangsSektion på /members
+
+Viser ALLE i indgangen, ikke kun problemerne: `afventer_pris`,
+`frist_overskredet`, `afventer_betaling`, `klar_til_mail`. «Betalt»
+vises ikke — de er medlemmer og står i listen nedenfor.
+
+Sorteret så det der kræver noget står øverst. Vises kun når der er
+mindst én. Bygget i /members' GAMLE design (AppLayout, glass-card,
+shadcn), ikke Hjemmebane — rådgiverfladens konvertering er sit eget
+spor.
+
+Bevist i produktion 2/9: en linkrække uden pris viste «Mangler pris»,
+et klik på «40.000 kr.» satte prisen, sendte dag 0-mailen til den
+rigtige adresse med det rigtige fornavn, og rækken skiftede til
+«Afventer betaling» med frist og dage tilbage.
