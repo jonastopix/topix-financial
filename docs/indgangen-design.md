@@ -552,10 +552,22 @@ invitationen på en eksisterende pending invitation for virksomheden.
 ## 26. Det der mangler
 
 - **Monday-grenen ved «Godkendt»**: opret virksomheden med data fra
-  Monday og prisniveau fra «Pris (kontrakt)», generér tokenet, send dag
-  0-mailen. Indtil da oprettes `company_betalingslink`-rækken i hånden.
-- **De fire mails** (dag 0, 14, 25, 31): motoren `afgoerBetalingsfrist`
-  er bygget og testet, men intet sender endnu.
+  Monday og prisniveau fra «Pris (kontrakt)», generér tokenet, sæt
+  `companies.contact_person` (målt 2/9: ingen skriver feltet i dag, så
+  mailene åbner med «Kære,»), og kald `send-indgangs-betalingsmail` med
+  `{ company_id }`. Indtil da oprettes `company_betalingslink`-rækken i
+  hånden og funktionen kaldes i hånden.
+- **De fire mails** (dag 0, 14, 25, 31): bygget 2/9. Dag 0 og
+  rådgivermailen sendes af `send-indgangs-betalingsmail`; dag 14/25/31
+  af `indgangs-paamindelser-cron` (tørkørsel som standard). Begge går
+  gennem `_shared/indgangsMailAfsendelse.ts` → `transactional_emails`.
+  **Mangler før det kører:** secret'en `RAADGIVER_MAIL_TIL`, og
+  pg_cron-jobbet `indgangs-paamindelser` kl. 10:00 — kommandoen står som
+  kommentar i cronens filhoved og køres i hånden i SQL editoren.
+- **Fakturaen på dag 31 via Stripe Invoicing** (§4): IKKE bygget. Cronen
+  sender dag 31-mailen (som lover en faktura fra Stripe) og logger
+  `FAKTURA I HÅNDEN` med virksomhed og beløb; svaret bærer listen
+  `faktura_i_haanden`. Fakturaen skal sendes manuelt fra Stripe samme dag.
 - **Merchant Logo på kortudtoget**: **MÅLT 2/9** viser bankappen «THE
   BOARDROOM» uden ikon. Det er et Merchant Logo hos kortnetværkene, ikke
   det logo der er uploadet i Stripes branding. **IKKE UNDERSØGT:** om det
