@@ -1,8 +1,8 @@
 # Overlevering
 
-**Sidst opdateret: 3. september 2026, sen eftermiddag — efter
-månedstrækkene (#572/#574) blev bogført, og filen rustet op så en ny
-samtale kan starte på den alene.**
+**Sidst opdateret: 3. september 2026, aften — efter at adgangsdommene
+blev kortlagt (#583), restancepolitikken udskudt, og rådgiverfladen
+designet (#584, #586, #587).**
 
 Læses først i enhver ny samtale. Claude husker intet mellem samtaler;
 denne fil skal kunne bære det. Den fortæller hvordan vi arbejder, hvor
@@ -66,6 +66,8 @@ prompten, indtil det sidder.
 samtidig er fint; en recon plus en kodeændring er fint; to skrivninger
 er det ikke — heller ikke når den ene «bare» er dokumentation. Sker det
 alligevel: `git reset` det staged, og `git add` med navngivne stier.
+Bekræftet 3/9 aften: to vinduer kørte hele aftenen (recon i det ene,
+bogføring i det andet) uden problemer, fordi højst ét skrev ad gangen.
 
 **Rutinen efter merge, som handlinger** (rækkefølgen er den faktiske):
 
@@ -599,6 +601,44 @@ besluttet og IKKE bygget — den rører `computeMembershipTier` i tre
 spejle plus fornyelsesmotoren, og en fejl dér lukker et betalende
 medlem ude. Naturlig næste opgave. **Bevis udestår 13/9** (DEL 3).
 
+### Adgangsdommene — kortlagt 3/9 aften
+
+`docs/adgangsdomme.md`. Adgang og tier afgøres **fem steder, ikke tre**:
+`computeMembershipTier` i to TypeScript-kopier, og SQL-funktionerne
+`is_membership_active` (fail-open), `har_aktivt_medlemskab` (læser kun
+`contract_end_date`; bærer community, indhold, events, storage) og
+`har_aktivt_abonnement` (læser kun abonnementet). Kun de to
+TypeScript-kopier er dækket af en paritetstest; **de to SQL-domme der
+styrer indhold har ingen.** Hele repoet sammenligner
+`subscription_status` med præcis strengen `active` og intet andet.
+Målt i prod 3/9 kl. 20:32: **`subscription_status` er NULL på alle 38
+virksomheder**; de tre SQL-funktioner matcher migrationsfilerne;
+`company_traek` har 0 rækker. Restancepolitikken er udskudt på det
+grundlag (DEL 3). Filhovederne i begge `membershipTier.ts` og CLAUDE.md
+peger nu på dokumentet (#583).
+
+### Rådgiverfladen — designet er låst 3/9 aften
+
+`docs/raadgiverfladen-design.md` (#584, #586) og `docs/emneliste.md`
+(#587). Kort: **fire rådgiverflader mod atten ruter** i dag — forside
+(Dit Boardroom med alt der venter), indbakke (`/chat`),
+virksomhedsliste (Virksomheder) og virksomhedsside — plus
+platformdriften som egen blok under admin. Rådgiveren får medlemmets
+menu. **Én vej ind til en virksomhed mod fire**: siden nøgles på
+`companyId` (`/virksomhed/:companyId`), ikke `user_id`, fordi
+virksomheden er en aftale og medlemmet en adgang — og fordi tre
+virksomheder uden medlemmer i dag ikke kan åbnes. **Syv blokke**: hvad
+skal du vide nu (ren automatik), deres ord og din forberedelse,
+emnerne I har talt om, chatten, tallene, aktivitet, aftalen. Chatten
+flytter ind på virksomhedssiden i fuld højde; `/chat` bliver stående
+som bevidst dublet til de travle morgener. **Emne-opsamlingen** giver
+chatten hukommelse: hver besked klassificeres mod ni faste emner
+(udledt af 55 læste medlemsbeskeder, `docs/emneliste.md`), og formen
+MÅLES før den bygges — holder målingen ikke, står opgave-historikken
+som opsamling. C8 i `docs/chat-design.md` er delvist omgjort for det.
+**Ingen kode er skrevet endnu.** Det der mangler før kode står i
+designets §10 (DEL 3).
+
 ### Oprydningen 2/9
 
 Otte udløbne virksomheder markeret `status = 'tidligere'`
@@ -637,11 +677,12 @@ facit og rækkefølge; `docs/chat-design.md` chattens form.
 | åbent, besluttet | **Rykkere på dag 31-fakturaen**: Stripes egne påmindelser slås IKKE til (`auto_advance=false` med vilje — en fjerde stemme på engelsk fra en anden afsender ville skurre). Skal der rykkes, er det vores egen kæde. Ikke bygget. Bemærk også: dag 31-mailen siger 50.000 kr, fakturaen 62.500 kr inkl. moms — ikke ændret. | indgangen-design §30 |
 | LØST 3/9 kl. 11:50–12:00 | **Adressen på de eksisterende virksomheder**: `berig-virksomheder` (#567) hentede den fra CVR for 26 af 30 aktive (før 1 af 30). Uden: tre uden CVR-nummer (Alexander Lund, Martin Larsen, Bastant Design) og YKRG, som registret ingen adresse har for. | indgangen-design §33 |
 | efter 13/9 | Migrationen af de 13 (billing_cycle_anchor, cancel_at, default_payment_method, YKRG's kort, kobling til companies.id). | migration-recon §16, §25 |
-| delvist målt 3/9 aften | **1:1-sessionernes Calendly-link efter kontoskiftet.** Målt i Stripe (MCP, livemode): `session_1on1` findes som præcis én aktiv pris på den nye konto (`price_1UApFg3CvBmCx5PtyGkNPRmm`, 500 kr. ekskl. moms; kunden betaler 625 kr. med `automatic_tax`); `abonnement_maanedlig` findes ligeledes (`price_1UApQx3CvBmCx5Pt8GxtQsze`, 399 kr.). Webhook-endpointet `we_1UAtaW3CvBmCx5PtL736lAJN` er enabled med seks events inkl. `checkout.session.completed` og peger på `loiavmastgeieqyiwyyr`. **Stadig ikke afgjort:** om `CALENDLY_API_KEY` tilhører ejeren af event-typen med slug `1to1-session-45`. Se også rækken nedenfor om at bookinger aldrig lukker. | — |
-| åbent, fundet 3/9 aften | **1:1-BOOKINGER LUKKER ALDRIG.** `stripe-webhook` (linje 917 og 925) skriver Calendlys `booking_url` RÅT i `session_bookings.calendly_booking_url`, mens `create-free-intro-booking` (161–162) indlejrer bookingens eget id i URL'en (`salesforce_uuid` + `utm_content`). `calendly-webhook` (75–80) matcher UDELUKKENDE på `salesforce_uuid`/`utm_content` og svarer 200 «Fremmed event uden gyldigt booking-id» på alt andet. En betalt 1:1-booking kan derfor aldrig gå fra `booking_sent` til `booked`. Fundet i recon-kontoskifte; ikke en følge af kontoskiftet — det har været sådan hele tiden. **Ikke afgjort:** om Jonas' Calendly-konto overhovedet sender til vores endpoint. | `~/Downloads/recon-kontoskifte.md` (uden for repoet) |
+| målt 3/9 aften — VIRKER for medlemmet | **1:1-sessionernes Calendly-kæde efter kontoskiftet.** Målt i Stripe (MCP, livemode): `session_1on1` findes som præcis én aktiv pris på den nye konto (`price_1UApFg3CvBmCx5PtyGkNPRmm`, 500 kr. ekskl. moms; kunden betaler 625 kr. med `automatic_tax`); `abonnement_maanedlig` findes ligeledes (`price_1UApQx3CvBmCx5Pt8GxtQsze`, 399 kr.). Webhook-endpointet `we_1UAtaW3CvBmCx5PtL736lAJN` er enabled med seks events inkl. `checkout.session.completed` og peger på `loiavmastgeieqyiwyyr`. **Kæden virker for medlemmet:** to betalte 1:1-sessioner er booket OG afholdt (23/6 og 30/6, målt i Calendly 3/9 aften). Det der fejler, er registreringen — rækken nedenfor. | — |
+| bevidst nedprioriteret 3/9 aften — LAV | **Betalte 1:1-bookinger registreres aldrig som `booked`.** Målt 3/9 aften: **0 af 12 betalte bookinger har `calendly_event_uri`, mod 2 af 3 gratis.** Årsagen er tredelt: (1) `stripe-webhook` (linje 917 og 925) skriver Calendlys `booking_url` RÅT i `session_bookings.calendly_booking_url`, mens `create-free-intro-booking` (161–162) indlejrer bookingens id i URL'en (`salesforce_uuid` + `utm_content`), og `calendly-webhook` (75–80) matcher kun på dem; (2) `calendly-webhook` matcher desuden på `advisor = 'morten'` (l. 94, 129), og de betalte rækker er `'jonas'` (default, migration 20260621120000); (3) Jonas' Calendly-organisation har kun ét medlem, så Mortens webhook-abonnement kan ikke dække Jonas' events. **Prioritet LAV, besluttet:** det koster ikke medlemmet noget — de booker og mødes — og reparationen kræver Calendly-abonnement på premium. Det er nedprioriteret, ikke glemt. Ikke en følge af kontoskiftet; det har været sådan hele tiden. | `~/Downloads/recon-kontoskifte.md`, `recon-1til1-link.md` (uden for repoet) |
 | åbent | **Velkomstvideoen skal optages** (Morten). Pladsen er bygget; GUID'et sættes i /admin/config. Siden 3/9 (#569) kan fokuskortet åbne videoen via `#velkomst`, så velkomst-punktet ikke længere er en fælde den dag GUID'et sættes — beviset på skærm kommer først da. | recon-velkomstvideo, indgangen-overhaling §10 |
 | åbent | **Rundvisningen** — interaktiv førstegangs-oplevelse efter velkomsten; bygges efter C3-indflytningen; må aldrig eksistere ved siden af Guiden. | BACKLOG [P2·EPIC] Platform-onboarding |
-| EPIC, efter medlemsdesignet | **Rådgiverfladens overhaling** — tages SAMLET, på størrelse med indgangen (to dage), og starter med en DESIGNSAMTALE om gruppering (hvad hører sammen i en rådgivers dag, hvad er platformdrift), ikke med kode. Grundlag, målt 3/9: tre skaller og fire menuer; kun tre af elleve admin-områder i Hjemmebane; Hb-admin uden menupunkt; «Medlemmer» i to designsprog; det daglige arbejde (chat, review, agent-forslag, fornyelser, indgang, medlemsoverblik) i gammelt design. Medlemsskiftet er løst uafhængigt (#573) og indgår ikke. Reconen `~/Downloads/recon-raadgiverfladen.md` ligger uden for repoet og skal genskabes hvis den bruges. | konvergens §2.9, §2.2-noten 3/9; prioritering §6 |
+| EPIC, designet 3/9 aften | **Rådgiverfladens overhaling** — tages SAMLET, på størrelse med indgangen. Designsamtalen ER holdt 3/9 aften: designet er låst i `docs/raadgiverfladen-design.md` (fire flader, syv blokke, `companyId`-nøgling, chat ind på virksomhedssiden, emne-opsamling målt før flade), emnelisten i `docs/emneliste.md` (ni emner, to holdt udenfor). **Det der mangler før kode** (designets §10): emnelisten skal bevises ved klassificering af alle 588 menneskebeskeder i et idempotent engangsjob, og målingen skal holde; buckets' linkmål for `primary: "company"` (`AdvisorDashboard.tsx:1130–1134`) er ikke læst; hvilke `advisor_notifications.type`-værdier der findes; hvad de fire AI-edge-functions (`ai-financial-feedback`, `ai-data-chat`, `generate-ai-forecast`, `run-company-agent`/`agent-forslag-afgoer`) læser og skriver serverside; og den samlede rene funktion bag «hvad stikker ud» (to inline-domme i dag). **Byggeomkostnings-reconen er undervejs 3/9 sen aften**; rækkefølgen af ombygningen kan først besluttes når den ligger. Medlemsskiftet er løst uafhængigt (#573). De tre reconer bag designet ligger uden for repoet (`~/Downloads/recon-raadgiverfladen-2.md`, `recon-virksomhedssiden.md`, `recon-emner.md`) og skal genskabes hvis de bruges. | `docs/raadgiverfladen-design.md` §9–10, `docs/emneliste.md` §7 |
+| åbent, sikkerhed | **«Fjern medlem» har to forskellige gates for samme kald** (`manage-advisor`, `action: 'remove-member'`): `MemberCompanyRow.tsx:347` kræver `isAdmin && m.role !== 'owner'`; `MemberDetail.tsx:937–963` kræver kun `isAdvisor` (sidens gate l. 652). Skal afgøres og ensrettes **uafhængigt af ombygningen** — det er ét kald, og det skal have én dom. Fundet 3/9 sen aften. | `docs/raadgiverfladen-design.md` §9 |
 | ved næste oprettelse | **Udestående bevis for trin 4** (branchen): næste rigtige «Godkendt» på Monday eller «Importér ansøgning» skal give en række med `industry_code` sat (SQL editor) og branchesammenligning i NoegletalView. 401 fra de deployede funktioner beviser kun at de svarer. | `docs/indgangen-overhaling.md` §6, §9 trin 4 |
 | LØST 3/9 kl. 11:50–12:00 | **Branchedataene og kontakt-email i prod** (#567): 29 af 30 aktive har kode og label, ingen registerkoder (Two Socks → `food_restaurant`, WESDEX → `construction_craft`, begge med benchmarks nu); 30 af 30 har kontakt-email — 14 fra eget medlem, 3 fra den ventende invitation (Din økonomiafdeling, Two Socks, WESDEX: de har ingen medlemmer). Tilbage: Bastant Design uden kode og label (intet CVR, ingen gemt DB25). | `docs/indgangen-overhaling.md` §10 |
 | samtale | **De otte uenigheder mellem CVR og platformen** er ikke rørt: ANLA GLAS, Brick Works, Homie, Limo Group, Studio Mini, TOFT, Topix, TuaMea. Ti af ti målte koder uenige med motoren; Brick Works og TuaMea ville MISTE deres sammenligning (motoren svarer null). Ikke kosmetisk: ANLA GLAS' DB-margin på 50 % flytter fra venstre kant til over midten. Hvem der har ret kan ikke afgøres fra data (Topix: mennesket; Limo Group: registret). Én samtale, ingen kode. | `docs/indgangen-overhaling.md` §10, `~/Downloads/recon-branche-uenighed.md` |
@@ -819,6 +860,18 @@ De konkrete ting der har kostet tid. Led efter dem.
   en tier-ændring der kun rettes i de tre kendte spejle efterlader
   indholdsadgangen (community, indhold, events, storage) på den gamle
   dom. Målt 3/9 aften; `docs/adgangsdomme.md` §1.
+- **Secrets kan IKKE læses i Lovable.** Målt 3/9 aften: værdierne er
+  skjulte i fladen. Enhver måling der kræver at kende en secret (hvilken
+  Calendly-konto `CALENDLY_API_KEY` tilhører, om `RAADGIVER_MAIL_TIL` er
+  sat), skal gå gennem noget der BRUGER den — et kald, en log, et
+  resultat — ikke gennem at kigge på den.
+- **En gren bygget på `main` FØR en PR merges giver konflikt bagefter,
+  fordi GitHub squasher:** samme indhold får to commit-id'er. Målt 3/9
+  (#585, lukket uden merge som dublet). Vejen ud er ikke at flette, men
+  at bygge grenen om med `cherry-pick` oven på en frisk `main`. Og:
+  `git push origin --delete <gren>` fejler når GitHub allerede har
+  slettet fjerngrenen ved merge — brug `;` og ikke `&&` mellem
+  sletningerne, så den lokale sletning kører alligevel.
 
 ---
 
