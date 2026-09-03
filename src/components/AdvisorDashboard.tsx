@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import * as Sentry from "@sentry/react";
 import { useAuth } from "@/hooks/useAuth";
 import { computeMembershipTier } from "@/lib/membershipTier";
+import { afgoerVirksomhedsSignaler, isFiguresFresh, type FactPunkt, type VirksomhedsInput } from "@/lib/virksomhedsSignaler";
 import {
   MessageSquare, Clock, Building2, ChevronRight, CheckCircle2,
   Activity, Target, Search, List, LayoutGrid, UserCheck, Heart, AlertTriangle, Sparkles,
@@ -43,21 +44,8 @@ function getMissingReportKey(): string {
   return `${prevYear}-${String(prevMonth + 1).padStart(2, "0")}`;
 }
 
-// Friskhed: er tallene (perioden YYYY-MM) inden for de seneste 3 måneder fra nu?
-// Bruger første-i-måneden-sammenligning, så fx "2026-03" tæller hele marts.
-// Null-safe: manglende/uparsbar periode behandles som IKKE frisk, så vi fejler til
-// at SKJULE gamle/ukendte afvigelser frem for at vise dem.
-function isFiguresFresh(periodKey: string | null | undefined, now: Date = new Date()): boolean {
-  if (!periodKey) return false;
-  const m = /^(\d{4})-(\d{2})$/.exec(periodKey);
-  if (!m) return false;
-  const year = parseInt(m[1], 10);
-  const month = parseInt(m[2], 10); // 1-12
-  if (!year || month < 1 || month > 12) return false;
-  const periodStart = new Date(year, month - 1, 1);
-  const cutoff = new Date(now.getFullYear(), now.getMonth() - 3, 1);
-  return periodStart >= cutoff;
-}
+// isFiguresFresh er flyttet ordret til src/lib/virksomhedsSignaler.ts (#589)
+// og importeres derfra — bunke «positive» nedenfor bruger den stadig.
 
 // ── Types ──
 
@@ -724,20 +712,10 @@ const AdvisorDashboard = () => {
         }
       }
 
-      // Fetch recent unread financial alerts (last 30 days)
-      const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
-      const { data: alertsData } = await supabase
-        .from("notifications")
-        .select("company_id, type, title, created_at")
-        .in("type", ["alert_revenue_drop", "alert_negative_cash", "alert_result_negative"])
-        .is("read_at", null)
-        .gte("created_at", thirtyDaysAgo);
-      const alertsByCompany = new Map<string, { type: string; title: string }[]>();
-      for (const alert of alertsData ?? []) {
-        if (!alert.company_id) continue;
-        if (!alertsByCompany.has(alert.company_id)) alertsByCompany.set(alert.company_id, []);
-        alertsByCompany.get(alert.company_id)!.push({ type: alert.type, title: alert.title });
-      }
+      // Alerts-hentningen (notifications fra detect-financial-alerts) er fjernet
+      // 3/9 sen aften: motoren dømmer ikke på alerts (virksomhedsSignaler.ts,
+      // valg 4), og den havde ingen anden aftager i filen (grep: alertsByCompany
+      // blev kun læst af bunke 4).
 
       // Udløbs-gate: skjul tier === "expired" fra dagligt arbejde (display-niveau).
       // Rører ikke kilden, så investorSummaries/companyMap/tællere forbliver hele.
@@ -800,39 +778,68 @@ const AdvisorDashboard = () => {
           assigned_advisor_name: advisorProfiles.find(a => a.user_id === conv?.assigned_advisor_id)?.full_name ?? null,
         };
 
-        // Bunke 1: Venter på dit svar (ulæst besked)
-        if (c.unreadMessages > 0) {
-          bWaiting.push({ ...base, subtext: `${c.unreadMessages} ulæst${c.unreadMessages > 1 ? "e" : ""} besked${c.unreadMessages > 1 ? "er" : ""}`, sortValue: c.unreadMessages });
-        }
-
-        // Bunke 2: Friske tal (committet rapport inden for 14 dage, T8)
+        // ── Bunke 1–4 kommer fra motoren (src/lib/virksomhedsSignaler.ts, #589):
+        //    én dom i huset, ikke to. Inputtet bygges af det queryFn ALLEREDE
+        //    har hentet — ingen ny query. Signalerne fordeles i de eksisterende
+        //    bunker efter `koe`; subtext = signalets tekst, sortValue = alvor.
+        //
+        //    FORSKELLE I UDFALD efter omlægningen (3/9 sen aften):
+        //      - «Ikke hørt fra længe» er VENDT (designets §3.5): kravet om
+        //        has_verified_metrics er væk, og en virksomhed UDEN samtale får
+        //        «Har aldrig skrevet» (alvor 95, øverst). Målt 1/9 var fjorten af
+        //        treogtredive uden ét måltal — de dukker nu op. Køen bliver
+        //        LÆNGERE; det er meningen: ingen må glemmes.
+        //      - Sortering i «stale» er nu alvor (60 + dage over 21, loft 90;
+        //        aldrig skrevet 95), ikke rå dage. Rækkefølgen er den samme for
+        //        dem der har skrevet; de tavse ligger øverst.
+        //      - «Venter på dit svar» sorteres på 70 + antal (før: antal).
+        //      - «Friske tal» sorteres på fast 30 (før: committed_at-tidsstempel),
+        //        så rækkefølgen inden for bunken er indlæsningsrækkefølgen.
+        //      - «Stikker ud»: alerts er UDE (motorens valg 4); MoM regnes med
+        //        Math.abs(prev) og uden kravet latestRev > 0 && prevRev > 0 fra
+        //        revenueTrendByCompany; resultatfald ≥ 15 % MoM er NYT (alvor 70).
+        //      - Budgetafvigelse kan IKKE komme på forsiden endnu: queryFn henter
+        //        ikke budget_targets, så budgetOmsaetning er null (se nedenfor).
+        const facts = kfByCompanyPeriod.get(c.company_id);
+        const factKeys = facts ? [...facts.keys()].sort() : [];
+        const tilFactPunkt = (key: string | undefined): FactPunkt | null => {
+          if (!key || !facts) return null;
+          const kf = facts.get(key);
+          if (!kf) return null;
+          const [y, m] = key.split("-");
+          return {
+            period_key: key,
+            period_label: `${DANISH_MONTHS[parseInt(m, 10) - 1]} ${y}`,
+            omsaetning: kf.omsaetning ?? null,
+            resultat_foer_skat: kf.resultat_foer_skat ?? null,
+            bank_balance: kf.bank_balance ?? null,
+          };
+        };
         const freshFact = (recentFactsRes.data || []).find((f: any) => f.company_id === c.company_id && f.committed_at >= twoWeeksAgo);
-        if (freshFact) {
-          bFresh.push({ ...base, subtext: `Ny rapport for ${c.effective_period_label || "seneste periode"}`, sortValue: new Date(freshFact.committed_at).getTime() });
-        }
-
-        // Bunke 3: Ikke hørt fra længe (>21 dage, kun virksomheder med data, T12)
-        const lastContact = conv?.last_message_at;
-        const daysSinceContact = lastContact ? Math.floor((now.getTime() - new Date(lastContact).getTime()) / 86400000) : 999;
-        if (c.has_verified_metrics && lastContact && daysSinceContact > 21) {
-          bStale.push({ ...base, subtext: `Ingen dialog i ${daysSinceContact} dage`, sortValue: daysSinceContact });
-        }
-
-        // Bunke 4: Stikker ud i tallene (bankovertræk / omsætningsdyk / alerts)
-        {
-          const reasons: string[] = [];
-          let severity = 0;
-          // Bankovertræk + omsætningsdyk tæller kun hvis fact-perioden er nylig (~3 mdr).
-          // Alerts nedenfor er allerede friske via 30-dages-fetch og gates IKKE her.
-          const figuresFresh = isFiguresFresh(c.effective_period_key, now);
-          if (figuresFresh && c.cash != null && c.cash < 0) { reasons.push("Bankovertræk"); severity = Math.max(severity, 90); }
-          if (figuresFresh && c.revenueTrendPct != null && c.revenueTrendPct <= -15) { reasons.push(`Omsætning faldt ${Math.abs(Math.round(c.revenueTrendPct))}% MoM`); severity = Math.max(severity, 80); }
-          const alerts = alertsByCompany.get(c.company_id) ?? [];
-          if (alerts.some(a => a.type === "alert_result_negative")) { reasons.push("Negativt resultat"); severity = Math.max(severity, 60); }
-          if (reasons.length === 0 && alerts.some(a => a.type === "alert_revenue_drop")) { reasons.push("Omsætningsfald detekteret"); severity = Math.max(severity, 75); }
-          if (reasons.length > 0) {
-            bStandsOut.push({ ...base, subtext: reasons.join(" · "), sortValue: severity });
-          }
+        const signalInput: VirksomhedsInput = {
+          senesteFact: tilFactPunkt(factKeys[factKeys.length - 1]),
+          forrigeFact: tilFactPunkt(factKeys[factKeys.length - 2]),
+          // recentFactsRes bærer kun facts committet inden for 14 dage — præcis
+          // det vindue «friske tal» dømmer på. Ældre → null → intet signal.
+          senesteCommittedAt: freshFact?.committed_at ?? null,
+          // queryFn henter IKKE budget_targets. Budgetafvigelse kan derfor ikke
+          // komme på forsiden før den gør — bevidst null, ingen ny query her.
+          budgetOmsaetning: null,
+          forfaldneMilestones: 0, // motoren bruger dem ikke (valg 6); queryFn har kun aktive milestones
+          loeftestaenger: 0, // queryFn henter ikke levers
+          ulaesteBeskeder: c.unreadMessages,
+          // null når der ingen samtale er — det er dét der gør «har aldrig skrevet» muligt.
+          senesteBeskedAt: conv?.last_message_at ?? null,
+          harCommittedeTal: c.has_verified_metrics,
+          agentforslagVenter: 0, // queryFn henter ikke agent_proposals
+        };
+        for (const s of afgoerVirksomhedsSignaler(signalInput, now)) {
+          const item: BucketItem = { ...base, subtext: s.tekst, sortValue: s.alvor };
+          if (s.koe === "ikke_hoert_fra_laenge") bStale.push(item);
+          else if (s.koe === "venter_paa_svar") bWaiting.push(item);
+          else if (s.koe === "stikker_ud") bStandsOut.push(item);
+          else if (s.koe === "friske_tal") bFresh.push(item);
+          // agentforslag_venter: ingen bunke på forsiden endnu (queryFn giver 0).
         }
 
         // Bunke 5: Positive muligheder (opnået milestone / nyt handout / kraftig vækst)
@@ -864,7 +871,7 @@ const AdvisorDashboard = () => {
         convRes, companiesRes, reportsRes, pulseRes, recentReportsRes, recentFactsRes,
         milestonesRes, kpiTargetsRes, companyMembersRes, advisorProfilesRes,
         recentMilestonesRes, recentHandoutsRes, companyInvitationsRes, goalHandoutRes,
-        memberProfilesRes, { data: alertsData },
+        memberProfilesRes,
       ].reduce((sum, res) => {
         try {
           return sum + (JSON.stringify((res as { data?: unknown })?.data ?? null)?.length ?? 0);
