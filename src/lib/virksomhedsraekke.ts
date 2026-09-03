@@ -5,8 +5,9 @@
  * ændring her SKAL også laves der. Pariteten håndhæves af testen i
  * src/lib/__tests__/virksomhedsraekkeParitet.test.ts.
  *
- * Filen har nul imports og kan derfor loades af både Vite/Vitest (Node)
- * og Deno uden ændringer.
+ * Filens eneste import er branchemotoren i ./branchekode (spejlet samme
+ * vej, paritetstestet i branchekodeParitet.test.ts). Importstien er den
+ * eneste tilladte forskel mellem de to kopier, som i fornyelse.ts.
  *
  * Insert-rækken til `companies` som ren funktion. Ingen IO, ingen
  * Supabase, ingen datoer ud over "nu" til cvr_fetched_at.
@@ -37,6 +38,8 @@
  * rådgiverens regneark, sætter dem derfor i en SEPARAT opdatering efter
  * oprettelsen — aldrig gennem denne funktion, og aldrig gennem hjælperen.
  */
+
+import { udledBranchekode } from "./branchekode";
 
 /** Det vi bruger af cvrapi.dk-svaret (import-application: lookupCVR). */
 export interface CvrSvar {
@@ -109,9 +112,25 @@ export function byggVirksomhedsRaekke(
   // juridiske navn.
   const name = cvrSvar?.name || input.company_name;
 
-  // Branchen: ansøgerens/rådgiverens tekst vinder over CVR-registrets
-  // (:281) — registrets branchetekst er en fallback, ikke en rettelse.
-  const industryLabel = input.industry_label || cvrSvar?.industry_label || null;
+  // Branchekoden udledes af CVR-registrets DB25-kode (besluttet 3/9,
+  // docs/indgangen-overhaling.md §6): motoren OVERSÆTTER registerkoden
+  // til app-taksonomiens industry_code — registerkoden selv må stadig
+  // ikke i feltet (se industry_code nedenfor). Rammer motoren ikke, er
+  // svaret null, aldrig other_general. KUN her, ved oprettelse: ved
+  // genbrug af en eksisterende virksomhed på CVR (virksomhedsOprettelse)
+  // kaldes rækkebyggeren ikke, og branchefelterne røres ikke — en
+  // virksomhed der allerede findes, har måske fået sin kode rettet i
+  // hånden.
+  const branche = udledBranchekode(cvrSvar?.industry_code);
+
+  // Branchen som tekst: ansøgerens/rådgiverens tekst vinder over
+  // CVR-registrets (:281) — registrets branchetekst er en fallback, ikke
+  // en rettelse. Motorens label kommer sidst og KUN hvor feltet ellers
+  // ville være tomt (besluttet 3/9: aldrig overskrive noget nogen har
+  // skrevet). I praksis rammer det kun et CVR-svar med kode men uden
+  // tekst — cvrapi.dk sender normalt begge.
+  const industryLabel =
+    input.industry_label || cvrSvar?.industry_label || branche?.industry_label || null;
 
   // Stiftelsesdatoen: input vinder; ellers CVR-registrets, parset. Kan den
   // ikke parses, bliver der ingen dato (:261-278) — «better no date than
@@ -125,12 +144,19 @@ export function byggVirksomhedsRaekke(
     name,
     cvr_number: input.cvr_number || null,
     industry_label: industryLabel,
-    // CVR's NACE/DB07-tal må IKKE i industry_code: kolonnen bærer
-    // app-taksonomien (INDUSTRY_OPTIONS) og er nøgle til
-    // industry_benchmarks — en NACE-kode giver nul benchmarks.
-    // Koden sættes af medlemmet i onboarding/Settings. CVR-svaret
-    // er bevaret råt i application_context.raw_cvr_data nedenfor.
-    industry_code: null,
+    // CVR's registerkode (DB25) må stadig IKKE i industry_code: kolonnen
+    // bærer app-taksonomien (brancher.ts) og er nøgle til
+    // industry_benchmarks — en registerkode giver nul benchmarks. Målt i
+    // prod 3/9: WESDEX (439100) og Two Socks (563020) har en registerkode
+    // stående i feltet i dag og får derfor nul benchmarks; det er en
+    // eksisterende fejl, som IKKE rettes her. Feltet bærer motorens
+    // oversættelse af registerkoden, eller null når den ikke rammer — så
+    // vælger medlemmet i Settings, og tjeklisten spørger. Målt 3/9: kun
+    // 11 af 32 aktive virksomheder har en registerkode i raw_cvr_data, så
+    // motoren rammer primært virksomheder der kommer ind fremover.
+    // CVR-svaret er bevaret råt i application_context.raw_cvr_data
+    // nedenfor.
+    industry_code: branche?.industry_code ?? null,
     website: input.website || null,
     contact_phone: input.phone || null,
     // NY i forhold til import-application, som ikke sætter contact_email.

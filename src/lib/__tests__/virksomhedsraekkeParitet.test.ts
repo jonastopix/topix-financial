@@ -83,6 +83,11 @@ describe("byggVirksomhedsRaekke — parity between src/lib and supabase/function
     ["tom branche og dato → CVR fylder ud", { ...fuldtInput, industry_label: null, start_date: null }, cvr],
     ["uparselig CVR-dato", { ...fuldtInput, start_date: null }, { ...cvr, founded: "marts 2019" }],
     ["tomme strenge og nul", { ...fuldtInput, cvr_number: "", website: "", annual_revenue: 0, contact_email: "" }, cvr],
+    // Branchemotoren (trin 4): registerkode der rammer, der ikke rammer, uden tekst, og med tabt nul.
+    ["registerkode der rammer (471110)", { company_name: "Kun navn" }, { ...cvr, industry_code: "471110", industry_label: "Kioskvarer" }],
+    ["registerkode der ikke rammer (551000 hotel)", { company_name: "Kun navn" }, { ...cvr, industry_code: "551000", industry_label: "Hoteller" }],
+    ["registerkode uden CVR-tekst → motorens label", { company_name: "Kun navn" }, { name: "Kun kode ApS", industry_code: "620100" }],
+    ["registerkode med tabt foranstillet nul (11100)", { company_name: "Kun navn" }, { ...cvr, industry_code: "11100" }],
   ];
 
   for (const [navn, input, svar] of parityCases) {
@@ -92,6 +97,13 @@ describe("byggVirksomhedsRaekke — parity between src/lib and supabase/function
       expect(deno).toEqual(fe);
     });
   }
+
+  it("begge kopier oversætter registerkoden — og ingen af dem lægger den selv i feltet", () => {
+    for (const raekke of [byggVirksomhedsRaekke(fuldtInput, cvr, NU), byggVirksomhedsRaekkeDeno(fuldtInput, cvr, NU)]) {
+      expect(raekke.industry_code).toBe("tech_software");
+      expect(raekke.industry_label).toBe("Detailhandel"); // input-labelen overskrives ikke
+    }
+  });
 
   it("feltlisten er identisk i de to kopier — også inde i application_context", () => {
     const fe = byggVirksomhedsRaekke(fuldtInput, cvr, NU);

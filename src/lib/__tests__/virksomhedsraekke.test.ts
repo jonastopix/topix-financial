@@ -129,10 +129,64 @@ describe("byggVirksomhedsRaekke — feltlisten er LÅST", () => {
 });
 
 describe("byggVirksomhedsRaekke — felt for felt, som import-application gør det", () => {
-  it("industry_code er ALTID null — også når CVR-svaret bærer en NACE-kode", () => {
-    expect(byggVirksomhedsRaekke(input(), cvr, NU).industry_code).toBeNull();
-    expect(byggVirksomhedsRaekke(input(), { ...cvr, industry_code: "471110" }, NU).industry_code).toBeNull();
+  // RETTET 3/9 (docs/indgangen-overhaling.md §6, §9 trin 4). Testen låste
+  // før «industry_code er ALTID null — også når CVR-svaret bærer en
+  // NACE-kode». Grunden holder stadig: registerkoden må ikke i feltet,
+  // fordi feltet er nøgle til industry_benchmarks, og en registerkode
+  // giver nul benchmarks (målt i prod 3/9: WESDEX 439100 og Two Socks
+  // 563020 står med registerkode i feltet og har nul benchmarks). Det der
+  // ændrede sig, er at branchemotoren OVERSÆTTER registerkoden til
+  // taksonomiens kode. Testen låser derfor nu det den altid skulle:
+  // registerkoden selv lander aldrig i feltet — kun oversættelsen, eller
+  // null når motoren ikke rammer. Aldrig other_general.
+  it("industry_code: registerkoden selv lander ALDRIG i feltet — kun motorens oversættelse", () => {
+    const raekke = byggVirksomhedsRaekke(input(), cvr, NU);
+    expect(raekke.industry_code).not.toBe("620100");
+    expect(raekke.industry_code).toBe("tech_software");
+  });
+
+  it("industry_code: registerkode der rammer → taksonomiens kode", () => {
+    expect(byggVirksomhedsRaekke(input(), cvr, NU).industry_code).toBe("tech_software"); // 620100
+    expect(byggVirksomhedsRaekke(input(), { ...cvr, industry_code: "471110" }, NU).industry_code).toBe("retail_grocery");
+    expect(byggVirksomhedsRaekke(input(), { ...cvr, industry_code: "682040" }, NU).industry_code).toBe("realestate_rental");
+  });
+
+  it("industry_code: registerkode der ikke rammer → null, aldrig other_general; labelen står som i dag", () => {
+    const hotel = byggVirksomhedsRaekke(input(), { ...cvr, industry_code: "551000", industry_label: "Hoteller" }, NU);
+    expect(hotel.industry_code).toBeNull();
+    expect(hotel.industry_label).toBe("Hoteller"); // CVR-teksten som før — motoren rører den ikke
+    const holding = byggVirksomhedsRaekke(input(), { ...cvr, industry_code: "642120", industry_label: null as unknown as string }, NU);
+    expect(holding.industry_code).toBeNull();
+    expect(holding.industry_label).toBeNull();
+  });
+
+  it("industry_code: ingen registerkode → null (intet CVR-svar, eller svar uden kode)", () => {
     expect(byggVirksomhedsRaekke(input(), null, NU).industry_code).toBeNull();
+    expect(byggVirksomhedsRaekke(input(), { name: "Uden kode ApS", founded: "2019-03-15" }, NU).industry_code).toBeNull();
+    expect(byggVirksomhedsRaekke(input(), { ...cvr, industry_code: "" }, NU).industry_code).toBeNull();
+  });
+
+  it("industry_label: et input-label overskrives IKKE — koden sættes alligevel", () => {
+    const raekke = byggVirksomhedsRaekke(input({ industry_label: "Detailhandel" }), cvr, NU);
+    expect(raekke.industry_label).toBe("Detailhandel");
+    expect(raekke.industry_code).toBe("tech_software");
+  });
+
+  it("industry_label: CVR-teksten vinder over motorens label", () => {
+    const raekke = byggVirksomhedsRaekke(input(), cvr, NU);
+    expect(raekke.industry_label).toBe("Computerprogrammering");
+    expect(raekke.industry_label).not.toBe("Softwareudvikling");
+  });
+
+  it("industry_label: motorens label KUN når både input og CVR-tekst mangler", () => {
+    const raekke = byggVirksomhedsRaekke(input(), { name: "Kun kode ApS", industry_code: "620100" }, NU);
+    expect(raekke.industry_label).toBe("Softwareudvikling");
+    expect(raekke.industry_code).toBe("tech_software");
+  });
+
+  it("raw_cvr_data bærer stadig registerkoden urørt — det er dér den hører hjemme", () => {
+    const raekke = byggVirksomhedsRaekke(input(), cvr, NU);
+    expect((raekke.application_context as { raw_cvr_data: CvrSvar }).raw_cvr_data.industry_code).toBe("620100");
   });
 
   it("name: CVR-registrets navn vinder over company_name", () => {
