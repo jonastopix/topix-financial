@@ -1,6 +1,7 @@
 import * as React from "react";
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
+import { erVelkomstHash } from "@/lib/hjemmebane/ankomst";
 import { Check, ChevronDown, ChevronRight, ChevronUp, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Tjekliste, TjeklistePunkt } from "@/lib/onboardingTjekliste";
@@ -164,6 +165,13 @@ export interface HbOnboardingTjeklisteProps {
   /** Skallen får besked når boksen er ÅBEN, så indholdskolonnen kan få
       bund-margin og man kan scrolle forbi den. Sammenfoldet dækker intet. */
   onUdfoldetChange?: (udfoldet: boolean) => void;
+  /**
+   * Den SAMMENFOLDEDE pille trækker sig (3/9, §10): skallen sætter den
+   * sand på forsiden når fokuskortet viser de samme punkter — dommen
+   * pillenTraekkerSig i src/lib/hjemmebane/ankomst.ts. Den udfoldede boks
+   * (genaabnTick) og lykønskningen påvirkes ikke; overlejringen heller ikke.
+   */
+  pilleTraekkerSig?: boolean;
 }
 
 export const HbOnboardingTjekliste = ({
@@ -176,8 +184,10 @@ export const HbOnboardingTjekliste = ({
   genaabnTick,
   markerVelkomstSet,
   onUdfoldetChange,
+  pilleTraekkerSig = false,
 }: HbOnboardingTjeklisteProps) => {
   const navigate = useNavigate();
+  const { hash, pathname, search } = useLocation();
   const [udfoldet, setUdfoldet] = useState(false);
   const [videoAaben, setVideoAaben] = useState(false);
   const [stempelFejl, setStempelFejl] = useState<string | null>(null);
@@ -205,7 +215,21 @@ export const HbOnboardingTjekliste = ({
     onUdfoldetChange?.(synligOgUdfoldet);
   }, [synligOgUdfoldet, onUdfoldetChange]);
 
-  if (!tjekliste || lukket) return null;
+  // VELKOMST-HASHEN (3/9, §10): fokuskortet på forsiden linker til
+  // "#velkomst" (src/lib/hjemmebane/ankomst.ts), fordi det ikke kan nå
+  // boksens state — boksen er et søskende til <main>. Hashen læses her,
+  // overlejringen åbnes, og hashen RYDDES med replace, så den ikke hænger
+  // i URL'en og genåbner ved næste navigation. Der ventes til tjeklisten
+  // er landet (ellers ville et koldt /#velkomst blive slugt før
+  // harVelkomstvideo kendes). Uden video åbnes intet — vi viser ikke tomt
+  // indhold — men hashen ryddes stadig.
+  useEffect(() => {
+    if (!erVelkomstHash(hash) || !tjekliste) return;
+    if (harVelkomstvideo) setVideoAaben(true);
+    navigate({ pathname, search }, { replace: true });
+  }, [hash, tjekliste, harVelkomstvideo, navigate, pathname, search]);
+
+  if (!tjekliste) return null;
 
   // Velkomsten popper op FØRSTE gang: der ER en video (ellers aldrig —
   // vi viser ikke tomt indhold), stemplet er null, boksen er ikke lukket,
@@ -259,6 +283,15 @@ export const HbOnboardingTjekliste = ({
       <VelkomstOverlejring fornavn={fornavn} onKomIGang={komIGang} onSeSenere={seSenere} gemmer={gemmer} fejl={stempelFejl} />
     ) : null;
 
+  // LUKKET med krydset: boksen er væk som før — men en EKSPLICIT åbning af
+  // videoen (hashen fra fokuskortet, videoAaben) skal stadig virke, ellers
+  // ville et medlem der har lukket boksen aldrig kunne se velkomsten fra
+  // kortet. Den AUTOMATISKE velkomst følger ikke med: den viste sig aldrig
+  // for en lukket boks, og det ændres ikke her.
+  if (lukket) {
+    return videoAaben ? overlejring : null;
+  }
+
   // ALT ER GJORT: én kort lykønskning, derefter væk. Menuen (genaabnTick)
   // nulstiller faerdigSet, så listen kan ses igen med alle flueben.
   if (tjekliste.faerdig) {
@@ -305,6 +338,11 @@ export const HbOnboardingTjekliste = ({
   const tekst = `Kom godt i gang · ${tjekliste.antal_gjort} af ${tjekliste.antal_i_alt}`;
 
   if (!udfoldet) {
+    // PILLEN TRÆKKER SIG (3/9, §10): på forsiden viser fokuskortet de
+    // samme punkter, så den sammenfoldede pille er støj dér — og KUN dér.
+    // Overlejringen (automatisk eller fra kortets hash) lever videre, og
+    // sidebarens «Kom godt i gang» (genaabnTick) folder stadig boksen ud.
+    if (pilleTraekkerSig) return overlejring;
     return (
       <>
         {overlejring}

@@ -35,6 +35,7 @@ import { HbCard } from "../HbCard";
 import { EstimatMaerke } from "../EstimatMaerke";
 import { HbSection } from "../HbSection";
 import { hasRichTextContent } from "@/lib/hjemmebane/richtext";
+import { fokusCtaHref } from "@/lib/hjemmebane/ankomst";
 import { isTrackedEntry, useAkademiData, type AkademiItem } from "../akademi/useAkademiData";
 import { HbVideoEmbed } from "../akademi/HbVideoEmbed";
 import { deriveFocus, filtrerUdloebneForslag, type FocusItem } from "./nextStep";
@@ -1173,12 +1174,15 @@ const FocusCard = ({
   const inlineBody = (item: FocusItem) =>
     item.kind === "weekly-focus" && weeklySummary ? weeklySummary : null;
 
-  // Peger punktet VÆK fra forsiden? "/" er forsiden selv (fold-ud), og ""
-  // er tjeklistens velkomst-punkt (trin 9): videoen åbner i tjekliste-
-  // boksen, hvis overlejring er boksens egen state — kortet kan ikke
-  // åbne den uden ny kobling, så punktet står uden knap og folder ud som
-  // de andre linkløse punkter. Boksen (pillen) og den automatiske
-  // velkomst ved første besøg åbner den.
+  // Peger punktet VÆK fra forsiden? "/" er forsiden selv (fold-ud).
+  // Tjeklistens velkomst-punkt (sti "") oversættes af fokusCtaHref til
+  // "#velkomst" (3/9, §10): videoen bor i tjekliste-boksens egen
+  // overlejring, som kortet ikke kan nå direkte (boksen er et søskende
+  // til <main>) — men boksen læser URL-hashen, åbner overlejringen og
+  // rydder hashen igen. Hash-hrefs renderes som <a href> nedenfor, så
+  // velkomsten får «Gør det nu» som de andre punkter. Motoren
+  // (nextStep.ts) og tjeklistens stier er urørte; oversættelsen sker her.
+  const hrefAf = (item: FocusItem) => fokusCtaHref(item);
   const harSide = (href: string) => href !== "/" && href !== "";
 
   // Redesign (ægte form): primær handling i STOR editorial-skala m.
@@ -1210,13 +1214,13 @@ const FocusCard = ({
           {/* Hash-hrefs (#dine-aftaler) rammer et anker på SAMME side:
               et almindeligt <a> ruller natively — router-Link ville kun
               omskrive URL'en, og useScrollToHash er ikke mountet her. */}
-          {harSide(primary.ctaHref) &&
-            (primary.ctaHref.startsWith("#") ? (
-              <a href={primary.ctaHref} className="mt-7 inline-block">
+          {harSide(hrefAf(primary)) &&
+            (hrefAf(primary).startsWith("#") ? (
+              <a href={hrefAf(primary)} className="mt-7 inline-block">
                 <HbButton>{primary.ctaLabel}</HbButton>
               </a>
             ) : (
-              <Link to={primary.ctaHref} className="mt-7 inline-block">
+              <Link to={hrefAf(primary)} className="mt-7 inline-block">
                 <HbButton>{primary.ctaLabel}</HbButton>
               </Link>
             ))}
@@ -1230,12 +1234,12 @@ const FocusCard = ({
             <ul className="mt-9 w-full border-t border-hb-line pt-4">
               {quiet.map((item) => (
                 <li key={item.key} className="border-t border-hb-line first:border-t-0">
-                  {harSide(item.ctaHref) ? (
+                  {harSide(hrefAf(item)) ? (
                     /* Hash-hrefs er samme-side-ankre: <a> ruller natively,
                        router-Link ville kun omskrive URL'en (se primær-CTA). */
-                    item.ctaHref.startsWith("#") ? (
+                    hrefAf(item).startsWith("#") ? (
                       <a
-                        href={item.ctaHref}
+                        href={hrefAf(item)}
                         className="flex items-center gap-3 py-2.5 text-sm text-hb-ink-soft transition-colors hover:text-hb-ink"
                       >
                         <span className="min-w-0 flex-1 truncate">{item.title}</span>
@@ -1243,7 +1247,7 @@ const FocusCard = ({
                       </a>
                     ) : (
                       <Link
-                        to={item.ctaHref}
+                        to={hrefAf(item)}
                         className="flex items-center gap-3 py-2.5 text-sm text-hb-ink-soft transition-colors hover:text-hb-ink"
                       >
                         <span className="min-w-0 flex-1 truncate">{item.title}</span>

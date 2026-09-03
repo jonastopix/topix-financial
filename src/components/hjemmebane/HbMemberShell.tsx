@@ -6,6 +6,7 @@ import { HbNav } from "./HbNav";
 import { useOnboardingTjekliste } from "@/hooks/useOnboardingTjekliste";
 import { HbOnboardingTjekliste } from "./HbOnboardingTjekliste";
 import { useTjeklisteLukket } from "@/hooks/useTjeklisteLukket";
+import { pillenTraekkerSig } from "@/lib/hjemmebane/ankomst";
 
 /** Fælles Hb-medlemsskal for forsiden ("/") og de øvrige medlemsflader
     (generalisering af den tidligere HbAkademiShell): V0-layoutmodellen
@@ -87,6 +88,11 @@ export const HbMemberShell = ({
   const [tjeklisteUdfoldet, setTjeklisteUdfoldet] = useState(false);
   const tjeklisteBundluft = tjeklisteUdfoldet ? "pb-[72vh] lg:pb-[30rem]" : "";
   const tjeklisteFornavn = profile?.full_name?.trim().split(/\s+/)[0] || null;
+  // Pillen trækker sig KUN på forsiden, og KUN når fokuskortet faktisk
+  // viser tjeklisten (samme dom som nextStep.ts:221). Skallen er den
+  // eneste der kender ruten (`active`), så dommen falder her og gives til
+  // boksen som prop (src/lib/hjemmebane/ankomst.ts, §10 3/9).
+  const tjeklistePilleTraekkerSig = pillenTraekkerSig(active, tjeklisteData.tjekliste);
   // Menupunktet vises kun for medlemmer, og kun når listen ikke er færdig
   // ELLER medlemmet selv har lukket den (så den kan hentes frem igen).
   const komGodtIGang =
@@ -217,6 +223,7 @@ export const HbMemberShell = ({
           genaabnTick={tjeklisteGenaabnTick}
           markerVelkomstSet={tjeklisteData.markerVelkomstSet}
           onUdfoldetChange={setTjeklisteUdfoldet}
+          pilleTraekkerSig={tjeklistePilleTraekkerSig}
         />
       )}
     </div>
