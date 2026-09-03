@@ -124,6 +124,43 @@ samme kolonneantal og -type.
   SECURITY DEFINER-funktioner, `handle_new_user` eller
   `protect_*`-triggers uden eksplicit grønt lys.
 
+### Git og Claude Code — grene, sletning, samtidighed (målt 2.–3. september)
+
+- **`git diff` kan IKKE afgøre om en gren må slettes i dette repo.**
+  GitHub squasher ved merge, så grenens commits findes aldrig i `main`
+  under samme id. Både to-prik (`origin/main..gren`) og tre-prik
+  (`origin/main...gren`) giver forkerte svar, og `git branch -d` nægter
+  at slette selv når arbejdet ER inde — advarslen «has been merged to
+  refs/remotes/origin/… but not yet merged to HEAD» er præcis det.
+  **Det der virker:** `gh pr list --state merged` — spørg den der ved
+  det. Claude fejlede på det to gange 3/9 og nåede tre forskellige
+  forkerte konklusioner, før den spurgte GitHub.
+- **Læs retningen, når du alligevel læser en diff.** `git diff main..gren`
+  viser hvad grenen ville ændre HVIS den blev merget. Store
+  sletningstal betyder at grenen MANGLER det `main` har — den er ældre —
+  ikke at den ville fjerne noget. En gren der «sletter 3267 linjer» er
+  typisk bare lavet før de sidste PR'er blev merget.
+- **Claude Code laver sine egne grene, og de bliver aldrig merget.**
+  Claude Code opretter selv en gren med sit eget navn, mens Claude
+  (chatten) committer på en gren med et andet navn. Resultatet er en
+  dublet efter hver opgave — 3/9 var der fire tilbage ved dagens
+  slutning (`feat/forsidesektion-faellesskab`, `feat/hb-visning-som`,
+  `feat/registrer-traek`, `feat/traek-badge`) plus flere om formiddagen.
+  De bærer intet `main` ikke har, men koster en oprydningsrunde hver
+  gang. **SKAL AFGØRES:** enten beder vi Claude Code om ikke at oprette
+  grene, eller også committer vi på dens.
+- **To kodeændringer må ikke køre samtidig i to Claude Code-vinduer.**
+  Reglen har hidtil kun stået som CLAUDE.md's «Lovable og Claude Code
+  skriver ALDRIG samtidig»; den gælder også to Claude Code-vinduer.
+  Skærpet 3/9: Claude satte en bogføring i gang mens en kodeændring
+  kørte — begge skriver til repoet, og `git add -A` ville have blandet
+  dem. Det gik godt kun fordi bogføringen ikke nåede at skrive endnu.
+  **Når det ALLIGEVEL sker:** commit med filerne NAVNGIVET (`git add
+  sti1 sti2 …`) frem for `git add -A`, og `git reset` først hvis noget
+  allerede er staged. Reglen står ved magt: to reconer samtidig er
+  fint, en recon plus en kodeændring er fint, to skrivninger er det
+  ikke — heller ikke når den ene «bare» er dokumentation.
+
 ### Dokumentation slås op
 
 Ved tredjepartsværktøjer: slå op frem for at huske. Stripe især — otte
@@ -629,6 +666,20 @@ De konkrete ting der har kostet tid. Led efter dem.
 - **Et Update-klik er ikke nok, hvis browseren har gammel kode.** Hard
   reload FØR du beviser noget i frontenden — ellers beviser du det gamle.
   Andet forsøg efter reload: 27 notifikationer.
+- **`git diff` lyver om merged grene — GitHub squasher.** Hverken
+  `origin/main..gren`, `origin/main...gren` eller `git branch -d` kan
+  se at arbejdet er inde under et andet commit-id. Spørg `gh pr list
+  --state merged`. Og læs diff-retningen: «sletter 3267 linjer» betyder
+  at grenen er ÆLDRE end `main`, ikke at den fjerner noget (3/9, to
+  fejlslutninger). (DEL 1, «Git og Claude Code»)
+- **Claude Code opretter sin egen gren pr. opgave.** Fire forældreløse
+  grene ved dagens slutning 3/9, som ikke bar noget `main` manglede.
+  Uafgjort: forbyd den at oprette grene, eller commit på dens.
+- **To Claude Code-vinduer må ikke skrive samtidig — heller ikke når
+  den ene er dokumentation.** `git add -A` blander dem. Sker det
+  alligevel: `git reset` det staged, og `git add` med navngivne stier.
+  (3/9: en bogføring startet mens en kodeændring kørte; gik godt kun
+  fordi den ikke nåede at skrive.)
 
 ---
 
