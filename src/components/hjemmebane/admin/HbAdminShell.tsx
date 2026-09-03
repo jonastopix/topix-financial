@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
 import topixIcon from "@/assets/topix-icon-green.png";
 import { cn } from "@/lib/utils";
+import { HbVisningSom } from "../HbVisningSom";
 
 export type AdminSection =
   | "boardroom"
@@ -80,6 +81,11 @@ export const HbAdminShell = ({ section, children }: HbAdminShellProps) => (
         Admin · kun rådgivere
       </p>
     </header>
+
+    {/* Samme rettelse som i HbMemberShell (3/9): tilbage-linket ovenfor går
+        til «/», som med et valgt medlem viser MEDLEMMETS Boardroom. Linjen
+        rydder valget først, så «/» igen er rådgiverens forside. */}
+    <HbVisningSom />
 
     <div className="min-h-0 flex-1">{children}</div>
   </div>
