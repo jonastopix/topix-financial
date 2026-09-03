@@ -150,6 +150,10 @@ project_id = "loiavmastgeieqyiwyyr"
   # passerer gaten i prod. Tørkørsel som standard.
   [functions.indgangs-paamindelser-cron]
     verify_jwt = true
+  # Bucket B, samme form som cronen: engangs-berigelse kaldt fra SQL
+  # editoren med vault-nøglen. Tørkørsel som standard.
+  [functions.berig-virksomheder]
+    verify_jwt = true
   # Bucket A (§19 udløser 2): authenticateUser + advisor-gate, gatewayen
   # bærer signaturtjekket — samme begrundelse som get-community-billed-url.
   # Kaldes fra rådgiverfladen med brugerens JWT.

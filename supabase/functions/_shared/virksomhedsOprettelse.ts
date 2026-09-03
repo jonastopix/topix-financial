@@ -73,7 +73,14 @@ export async function hentCvrData(cvr: string): Promise<CvrSvar | null> {
     );
     if (!resp.ok) return null;
     const data = await resp.json();
-    if (data.error) return null;
+    if (data.error) {
+      // Svaret er stadig null (kontrakten er uændret), men GRUNDEN skal i
+      // loggen: cvrapi svarer QUOTA_EXCEEDED over 50 opslag/dag og
+      // INVALID_UA uden gyldig User-Agent (målt 3/9) — uden loglinjen så
+      // det ud som «ukendt CVR».
+      console.warn(`[virksomhedsOprettelse] CVR ${cvr}: cvrapi svarede error=${String(data.error)}`);
+      return null;
+    }
     return {
       name: data.name || undefined,
       founded: data.startdate || undefined,
