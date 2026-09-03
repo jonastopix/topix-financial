@@ -44,28 +44,39 @@
  *    begge steder, og «præcis 15» tæller med begge steder (<= -15 hhv.
  *    !(|pct| < 15)) — det bevares.
  *
- * 4. ALERTS. AdvisorDashboard læste kun ULÆSTE (read_at null) inden for
- *    30 dage og kun typerne alert_result_negative og alert_revenue_drop;
- *    MemberDetail læste alle tre typer inden for 60 dage uanset read_at.
- *    VALGT: ulæste inden for 30 dage (kalderen leverer kun ulæste; vinduet
- *    måles her mod created_at), alle tre typer. alert_negative_cash og
- *    alert_revenue_drop tæller KUN som fallback når det samme signal ikke
- *    allerede kommer fra friske facts — MemberDetails dedup-regel
- *    («alerten og MoM'en måler SAMME signal … og må ikke stå som to
- *    rækker») og AdvisorDashboards «reasons.length === 0» siger det samme.
+ * 4. ALERTS ER UDE — besluttet 3/9 2026 sen aften (Jonas). Begge gamle
+ *    domme læste notifications af typerne alert_result_negative,
+ *    alert_revenue_drop og alert_negative_cash (skrevet af edge-funktionen
+ *    detect-financial-alerts). Den funktion bygger vi ikke videre på: den
+ *    udløses kun fra klienten ved commit af en rapport — ingen upload,
+ *    ingen alerts, uanset hvor skæve tallene bliver — og den skriver én
+ *    kopi pr. rådgiver, så read_at er pr. modtager: markerer den ene
+ *    rådgiver en alert som læst, står den stadig ulæst hos den anden.
+ *    VALGT: alerts tages helt ud af dommen, ikke båret videre ind i den nye
+ *    flade fordi de tilfældigvis lå der. Motoren regner selv bankovertræk,
+ *    omsætningsfald og budgetafvigelse ud af financial_report_facts — den
+ *    rigtige kilde, altid opdateret. To af de tre alert-signaler var
+ *    alligevel kun fallback når friske facts ikke sagde det samme.
+ *    detect-financial-alerts rører vi ikke; den kører videre, vi dømmer
+ *    bare ikke på den.
  *
- * 5. ALVOR. AdvisorDashboards skala bevares: bankovertræk 90,
- *    omsætningsfald 80, omsætningsfald detekteret (alert) 75, negativt
- *    resultat (alert) 60. De nye placeres i samme skala:
- *      - alert_negative_cash 85: siger det samme som bankovertræk, men
- *        uden garantien for friske tal — derfor under 90, over 80.
+ *    KONSEKVENS: uden friske facts giver «stikker ud» nu INTET. En
+ *    virksomhed uden committede tal, eller med tal ældre end tre
+ *    kalendermåneder, får ingen tal-signaler. Det er bevidst — vi opfinder
+ *    ikke et signal ud af data der ikke findes. Målt 1/9: fjorten af
+ *    treogtredive virksomheder havde ikke ét målt tal. For dem bærer
+ *    «Ikke hørt fra længe» hele signalet.
+ *
+ * 5. ALVOR. AdvisorDashboards skala bevares for det der er tilbage:
+ *    bankovertræk 90, omsætningsfald 80. (Alert-graderne 75 og 60 er
+ *    udgået med valg 4.) De nye placeres i samme skala:
  *      - resultatfald MoM 70: penge tabt på bundlinjen, mindre alvorligt
- *        end omsætningsfald (som varsler det) — under 75, over 60.
+ *        end omsætningsfald (som varsler det).
  *      - budget under 50 / over 40: afvigelse fra en PLAN, ikke fra
- *        virkeligheden — under alle alerts. Over budget er stadig en
- *        afvigelse rådgiveren skal kende, men mindre presserende.
+ *        virkeligheden — under alle facts-signaler. Over budget er stadig
+ *        en afvigelse rådgiveren skal kende, men mindre presserende.
  *      - agentforslag venter 55: en afgørelse der venter på rådgiveren
- *        selv — over budget, under negativt resultat.
+ *        selv — over budget, under resultatfald.
  *      - venter på svar 70 + min(antal, 20): ulæste beskeder er altid
  *        handling; flere er mere.
  *      - friske tal 30: godt nyt, skal ses, haster ikke.
@@ -96,12 +107,6 @@ export interface FactPunkt {
   bank_balance: number | null;
 }
 
-/** En ulæst finansiel alert (notifications med read_at IS NULL). */
-export interface UlaestAlert {
-  type: string;
-  created_at: string;
-}
-
 /** Alt dommen har brug for om én virksomhed. Kalderen samler; motoren dømmer. */
 export interface VirksomhedsInput {
   /** Seneste committede fact; null når virksomheden ingen tal har. */
@@ -110,8 +115,6 @@ export interface VirksomhedsInput {
   forrigeFact: FactPunkt | null;
   /** committed_at på senesteFact (ISO); null uden tal. */
   senesteCommittedAt: string | null;
-  /** Ulæste alerts; motoren måler selv 30-dages vinduet mod created_at. */
-  ulaesteAlerts: UlaestAlert[];
   /** Budgetteret omsætning for senesteFacts periode; null når intet budget. */
   budgetOmsaetning: number | null;
   /** Antal forfaldne, ikke-afsluttede milestones. Modtages, bruges ikke (valg 6). */
@@ -141,11 +144,8 @@ export type SignalNoegle =
   | "ingen_dialog"
   | "ulaeste_beskeder"
   | "bankovertraek"
-  | "alert_negative_cash"
   | "omsaetningsfald_mom"
-  | "alert_revenue_drop"
   | "resultatfald_mom"
-  | "alert_result_negative"
   | "budget_under"
   | "budget_over"
   | "agentforslag_venter"
@@ -167,7 +167,6 @@ export interface Signal {
 const MS_PER_DOEGN = 86400000;
 const STALE_DAGE = 21;
 const FRISKE_TAL_DAGE = 14;
-const ALERT_VINDUE_DAGE = 30;
 const MOM_TAERSKEL_PCT = 15;
 const BUDGET_TAERSKEL_PCT = 10;
 
@@ -261,15 +260,14 @@ export function afgoerVirksomhedsSignaler(input: VirksomhedsInput, now: Date = n
     });
   }
 
-  // ── Kø 3: Stikker ud i tallene — de to domme samlet (valg 1–5) ──
+  // ── Kø 3: Stikker ud i tallene — kun friske facts (valg 1–5). Uden
+  //    friske facts giver denne kø INTET (valg 4, konsekvensen). ──
   const seneste = input.senesteFact;
   const forrige = input.forrigeFact;
   const frisk = seneste ? isFiguresFresh(seneste.period_key, now) : false;
 
   // Bankovertræk fra friske facts (AdvisorDashboard: cash < 0, gated).
-  let bankDaekket = false;
   if (frisk && seneste && seneste.bank_balance != null && seneste.bank_balance < 0) {
-    bankDaekket = true;
     signaler.push({
       noegle: "bankovertraek",
       koe: "stikker_ud",
@@ -280,11 +278,9 @@ export function afgoerVirksomhedsSignaler(input: VirksomhedsInput, now: Date = n
   }
 
   // Omsætningsfald MoM fra friske facts (kun fald, valg 2; abs-nævner, valg 3).
-  let omsaetningsfaldDaekket = false;
   if (frisk && seneste && forrige) {
     const pct = pctAendring(seneste.omsaetning, forrige.omsaetning);
     if (pct != null && pct <= -MOM_TAERSKEL_PCT) {
-      omsaetningsfaldDaekket = true;
       signaler.push({
         noegle: "omsaetningsfald_mom",
         koe: "stikker_ud",
@@ -304,36 +300,6 @@ export function afgoerVirksomhedsSignaler(input: VirksomhedsInput, now: Date = n
         detalje: `${kr(forrige.resultat_foer_skat as number)} → ${kr(seneste.resultat_foer_skat as number)}`,
       });
     }
-  }
-
-  // Ulæste alerts inden for 30 dage (valg 4). Typer uden for de tre ignoreres.
-  const alertGraense = now.getTime() - ALERT_VINDUE_DAGE * MS_PER_DOEGN;
-  const friskeAlerts = input.ulaesteAlerts.filter((a) => new Date(a.created_at).getTime() >= alertGraense);
-  const harAlert = (type: string) => friskeAlerts.some((a) => a.type === type);
-
-  if (harAlert("alert_result_negative")) {
-    signaler.push({
-      noegle: "alert_result_negative",
-      koe: "stikker_ud",
-      tekst: "Negativt resultat",
-      alvor: 60,
-    });
-  }
-  if (!omsaetningsfaldDaekket && harAlert("alert_revenue_drop")) {
-    signaler.push({
-      noegle: "alert_revenue_drop",
-      koe: "stikker_ud",
-      tekst: "Omsætningsfald detekteret",
-      alvor: 75,
-    });
-  }
-  if (!bankDaekket && harAlert("alert_negative_cash")) {
-    signaler.push({
-      noegle: "alert_negative_cash",
-      koe: "stikker_ud",
-      tekst: "Negativ bankbeholdning detekteret",
-      alvor: 85,
-    });
   }
 
   // Budgetafvigelse over 10 % (MemberDetail.tsx:779–794; gated på friskhed, valg 1).

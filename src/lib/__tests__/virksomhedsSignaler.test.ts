@@ -31,7 +31,6 @@ function input(over: Partial<VirksomhedsInput> = {}): VirksomhedsInput {
     senesteFact: fact(),
     forrigeFact: fact({ period_key: "2026-07", period_label: "Jul 2026" }),
     senesteCommittedAt: dageSiden(30),
-    ulaesteAlerts: [],
     budgetOmsaetning: null,
     forfaldneMilestones: 0,
     loeftestaenger: 0,
@@ -223,55 +222,29 @@ describe("Stikker ud — budgetafvigelse over 10 %", () => {
   });
 });
 
-describe("Stikker ud — ulæste alerts (valg 4)", () => {
-  const alert = (type: string, dage = 5) => ({ type, created_at: dageSiden(dage) });
-
-  it("alert_result_negative → «Negativt resultat», alvor 60", () => {
-    const s = afgoerVirksomhedsSignaler(input({ ulaesteAlerts: [alert("alert_result_negative")] }), NOW);
-    const a = s.find((x) => x.noegle === "alert_result_negative");
-    expect(a?.alvor).toBe(60);
-    expect(a?.tekst).toBe("Negativt resultat");
-  });
-
-  it("alert_revenue_drop uden MoM-fald → «Omsætningsfald detekteret», alvor 75", () => {
-    const s = afgoerVirksomhedsSignaler(input({ ulaesteAlerts: [alert("alert_revenue_drop")] }), NOW);
-    expect(s.find((x) => x.noegle === "alert_revenue_drop")?.alvor).toBe(75);
-  });
-
-  it("alert_revenue_drop SAMMEN med MoM-fald fra friske facts → kun MoM-signalet (dedup)", () => {
-    const s = noegler(
-      input({
-        ulaesteAlerts: [alert("alert_revenue_drop")],
-        forrigeFact: fact({ period_key: "2026-07", omsaetning: 100_000 }),
-        senesteFact: fact({ omsaetning: 70_000 }),
-      }),
+describe("Stikker ud — uden friske facts gives INTET (valg 4, konsekvensen)", () => {
+  it("ingen facts overhovedet → ingen tal-signaler, selv med budget", () => {
+    const s = afgoerVirksomhedsSignaler(
+      input({ senesteFact: null, forrigeFact: null, senesteCommittedAt: null, harCommittedeTal: false, budgetOmsaetning: 100_000 }),
+      NOW,
     );
-    expect(s).toContain("omsaetningsfald_mom");
-    expect(s).not.toContain("alert_revenue_drop");
-  });
-
-  it("alert_negative_cash uden bankovertræk i facts → signal, alvor 85", () => {
-    const s = afgoerVirksomhedsSignaler(input({ ulaesteAlerts: [alert("alert_negative_cash")] }), NOW);
-    expect(s.find((x) => x.noegle === "alert_negative_cash")?.alvor).toBe(85);
-  });
-
-  it("alert_negative_cash SAMMEN med bankovertræk fra friske facts → kun bankovertræk (dedup)", () => {
-    const s = noegler(input({ ulaesteAlerts: [alert("alert_negative_cash")], senesteFact: fact({ bank_balance: -1 }) }));
-    expect(s).toContain("bankovertraek");
-    expect(s).not.toContain("alert_negative_cash");
-  });
-
-  it("alert ældre end 30 dage → intet signal", () => {
-    expect(noegler(input({ ulaesteAlerts: [alert("alert_result_negative", 31)] }))).not.toContain("alert_result_negative");
-  });
-
-  it("alert præcis 30 dage gammel → tæller (grænsen er inklusiv)", () => {
-    expect(noegler(input({ ulaesteAlerts: [alert("alert_result_negative", 30)] }))).toContain("alert_result_negative");
-  });
-
-  it("ukendt alert-type ignoreres", () => {
-    const s = afgoerVirksomhedsSignaler(input({ ulaesteAlerts: [alert("alert_noget_andet")] }), NOW);
     expect(s.filter((x) => x.koe === "stikker_ud")).toHaveLength(0);
+  });
+
+  it("gamle facts (marts) med overtræk, fald og budgetafvigelse → ingen tal-signaler", () => {
+    const s = afgoerVirksomhedsSignaler(
+      input({
+        forrigeFact: fact({ period_key: "2026-02", period_label: "Feb 2026", omsaetning: 100_000 }),
+        senesteFact: fact({ period_key: "2026-03", period_label: "Mar 2026", omsaetning: 50_000, bank_balance: -5_000 }),
+        budgetOmsaetning: 100_000,
+      }),
+      NOW,
+    );
+    expect(s.filter((x) => x.koe === "stikker_ud")).toHaveLength(0);
+  });
+
+  it("bank_balance null i friske facts → intet bankovertræk", () => {
+    expect(noegler(input({ senesteFact: fact({ bank_balance: null }) }))).not.toContain("bankovertraek");
   });
 });
 
@@ -305,13 +278,12 @@ describe("Friske tal", () => {
 });
 
 describe("Ingen data overhovedet", () => {
-  it("ingen facts, ingen alerts, ingen samtale → præcis ét signal: aldrig skrevet", () => {
+  it("ingen facts, ingen samtale → præcis ét signal: aldrig skrevet", () => {
     const s = afgoerVirksomhedsSignaler(
       {
         senesteFact: null,
         forrigeFact: null,
         senesteCommittedAt: null,
-        ulaesteAlerts: [],
         budgetOmsaetning: null,
         forfaldneMilestones: 0,
         loeftestaenger: 0,
