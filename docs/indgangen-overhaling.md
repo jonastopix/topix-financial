@@ -8,6 +8,8 @@ bygget og deployet, med ét udestående bevis for trin 4 (en rigtig
 oprettelse med `industry_code` sat). Fra invitationslink til Dit
 Boardroom: to skærme, Hjemmebane hele vejen, en ankomst der tager imod,
 og ingen tilstand hvor et medlem kan stå fast uden en vej videre.
+Samme formiddag blev kæden FØR platformen hel (dag 31-fakturaen,
+`docs/indgangen-design.md` §30) — begge halvdele er dermed færdige.
 **Rettelse 3/9:** registret bag branchemotoren er DB25, ikke DB07 — §6
 er rettet, se noten der. Samme regel som
 `docs/indgangsfladen-design.md`: hver påstand er enten målt (med kilde),
@@ -915,7 +917,9 @@ flader. «Bevis» = hvad der måles før næste trin begynder.
     urørt (trin 10).
 14. **Bogføring**: dette dokument opdateres pr. trin med dato og bevis;
     OVERLEVERING DEL 2/3 peger hertil. Testopstillingen (§11) fjernes
-    når ruten er bevist.
+    når ruten er bevist — den ER bevist 3/9, og opstillingen er vokset
+    med en Stripe-side (kunde, faktura, kreditnota) fra dag 31-beviset,
+    som oprydningen skal tage med.
 
 **RUTEN ER FÆRDIG (3/9 formiddag).** Trin 5–13 er bevist i drift: 5–9
 den 2/9, 11–12 den 2/9 nat, 13 den 3/9 morgen (#554), 10 den 3/9 kl.
@@ -1043,6 +1047,8 @@ Fjernes helt når ruten er bevist; intet af det er kundedata.
 | Bruger, trin 7 + 9 | `jonas+test3@topix.dk` — signup 2/9 kl. 23:03 uden `/onboarding`; kl. 23:20 «Velkommen, Jonas.» + «Din profil» som fokus. `onboarded_at` NULL for både test2 og test3 |
 | Adresser | Én adresse pr. trin, fordi en brugt adresse ikke kan genbruges (kontoen findes i `auth.users`). `UNIQUE (company_id, email)` tillader flere adresser på samme virksomhed |
 | Synlig hvor | /members' liste og AdvisorDashboard (status active, ikke legat), MemberDetail; ikke i Netværket. `is_demo` findes ikke i repoet og ændrer intet (`recon-testvirksomhed.md` §1) |
+| Blindgyden, 3/9 kl. 08:53 | test3's `company_members`-række slettet og rullet tilbage (trin 10, §7.1) |
+| **Dag 31-kæden, 3/9 kl. 10:00–10:11** | Opstillingen er VOKSET (`docs/indgangen-design.md` §30): adresse sat (Vestergade 41, 1. tv, 8600 Silkeborg — CVR-registrets), kontraktdatoerne nulstillet og sat igen af webhooken (2026-09-03 → 2027-09-03), `company_betalingslink`-række (prisniveau 5.000.000 øre, stemplet `faktura_invoice_id`, `faktura_sendt_at`, `sidste_paamindelse_dag 31`), `company_perioder`-række (`betalingsmodel 'faktura'`), **Stripe-siden:** kunde `cus_VBtMOGBenIfWt4` (skrevet i `companies.stripe_customer_id`), faktura TBR-0003 / `in_1UBVaB3CvBmCx5PtAQOPtqVN` (62.500 kr inkl. moms, markeret betalt uden for Stripe), kreditnota TBR-0003-CN-01 («Credit outside of Stripe»). Regnskabet er rent, men objekterne findes. |
 
 **Oprydning når ruten er bevist:** `hardDeleteCompany` med
 `deleteUsers: true` (via `admin-cleanup-test-data` `hard_delete_company`
@@ -1053,4 +1059,10 @@ notifikationer uden `company_id`, og `user_id`-tabeller uden FK-cascade
 (`conversation_last_seen`, `message_reactions`, `report_comments`,
 `circle_*`, `group_*`). `group_companies` ville blokere sletningen af
 `companies`-rækken hvis en række findes (FK uden `ON DELETE`). SELECT
-før/efter, og bogfør FØR-værdierne her.
+før/efter, og bogfør FØR-værdierne her. **Nyt 3/9: oprydningen skal
+tage Stripe-siden med, ikke kun databasen** — kunden
+`cus_VBtMOGBenIfWt4`, fakturaen `in_1UBVaB3CvBmCx5PtAQOPtqVN` og
+kreditnotaen TBR-0003-CN-01 ligger på The Boardrooms Stripe-konto
+(fakturaer kan ikke slettes i Stripe, kun voides/krediteres — det ER
+gjort; kunden kan slettes). Ruten er bevist 3/9, så oprydningen kan gå
+i gang.

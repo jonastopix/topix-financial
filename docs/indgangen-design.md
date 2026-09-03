@@ -1,9 +1,16 @@
 # Indgangen — fra underskrift til aktivt medlem
 
-**DESIGNDOKUMENT — intet af det beskrevne findes endnu.** Beslutningerne
-er truffet 1. september 2026; dette er den besluttede form, ikke en
-bogføring af noget bygget. Samme regel som de øvrige dokumenter: hver
-påstand er enten målt, eller mærket som ikke målt/åben.
+**DESIGNDOKUMENT MED BOGFØRING.** Beslutningerne er truffet 1. september
+2026; §1–25 er den besluttede form, tillæggene (§26–33) bogfører hvad der
+er bygget og bevist. **Status 3/9 formiddag: kæden FØR platformen er
+hel** — «Godkendt» på Monday → virksomhed + betalingsmail → påmindelser
+dag 14 og 25 → dag 31-faktura → betaling → adgang. Det sidste led (dag
+31-fakturaen, §30) er bygget i #559–#561, deployet, bevist i drift og
+tændt: `invoice.paid` er tilmeldt endpointet, og cron-jobbet er
+planlagt. Sammen med `docs/indgangen-overhaling.md` (ruten EFTER
+invitationen, færdig 3/9) er begge halvdele dermed færdige. Samme regel
+som de øvrige dokumenter: hver påstand er enten målt, eller mærket som
+ikke målt/åben.
 
 ## 1. Den bærende skelnen
 
@@ -69,6 +76,13 @@ aldrig. Aftalen bortfalder IKKE. Virksomheden skifter til tilstanden
 tage fat. Fakturaen er altid det FULDE beløb: rater kræver et
 abonnement med et kort, og en faktura er ét beløb. Det skal stå i
 mailen fra dag 0, ikke opdages på dag 31.
+
+**✅ BYGGET, DEPLOYET OG BEVIST I DRIFT 3/9 formiddag (#559, #561; §30):**
+cronen opretter og sender fakturaen via Stripe Invoicing FØR dag
+31-mailen, og `invoice.paid` skriver samme kæde som en checkout-betaling.
+Motoren er `_shared/betalingsfrist.ts` (tilstandene blev `betalt`,
+`afventer_pris`, `klar_til_mail`, `afventer_betaling`,
+`frist_overskredet` — §27), fladen `IndgangsSektion` på /members (§29).
 
 ## 5. Betalingslinket
 
@@ -582,13 +596,15 @@ invitationen på en eksisterende pending invitation for virksomheden.
   Udløser 2 (§19, prisen sættes manuelt): `saet-indgangs-prisniveau`
   (Bucket A, advisor-gate) skriver prisen med null-guard og udløser dag 0
   i samme kald; prisen ændres ikke når den først er sat (409).
-  **Mangler før det kører:** secret'en `RAADGIVER_MAIL_TIL`, og
-  pg_cron-jobbet `indgangs-paamindelser` kl. 10:00 — kommandoen står som
-  kommentar i cronens filhoved og køres i hånden i SQL editoren.
-- **Fakturaen på dag 31 via Stripe Invoicing** (§4): IKKE bygget. Cronen
-  sender dag 31-mailen (som lover en faktura fra Stripe) og logger
-  `FAKTURA I HÅNDEN` med virksomhed og beløb; svaret bærer listen
-  `faktura_i_haanden`. Fakturaen skal sendes manuelt fra Stripe samme dag.
+  **✅ Cron-jobbet PLANLAGT 3/9 formiddag:** `indgangs-paamindelser`,
+  `0 10 * * *`, aktiv — verificeret i `cron.job`. Det var det sidste
+  manglende led. Secret'en `RAADGIVER_MAIL_TIL` (rådgivermailen ved
+  manglende pris) er ikke bekræftet sat i denne bogføring.
+- **✅ LØST 3/9 (#559, #561) — Fakturaen på dag 31 via Stripe Invoicing**
+  (§4, §30): bygget, deployet, bevist i drift og tændt. Cronen kalder
+  `sendIndgangsFaktura` FØR dag 31-mailen; fejler fakturaen, sendes
+  mailen ikke, og virksomheden står i svarets `faktura_i_haanden` med
+  grund. `invoice.paid` er tilmeldt og håndteret. Detaljer i §30.
 - **Merchant Logo på kortudtoget**: **MÅLT 2/9** viser bankappen «THE
   BOARDROOM» uden ikon. Det er et Merchant Logo hos kortnetværkene, ikke
   det logo der er uploadet i Stripes branding. **IKKE UNDERSØGT:** om det
@@ -675,7 +691,115 @@ et klik på «40.000 kr.» satte prisen, sendte dag 0-mailen til den
 rigtige adresse med det rigtige fornavn, og rækken skiftede til
 «Afventer betaling» med frist og dage tilbage.
 
-## 30. Dag 31-fakturaen kan ikke kobles til en virksomhed — endnu
+## 30. Dag 31-fakturaen — LØST 3/9: bygget, deployet, bevist i drift og tændt
+
+### ✅ Løsningen (3/9 formiddag, #559 → #560 → #561)
+
+Målingen nedenfor fra 2/9 står som historik; den viste at grenen ikke
+kunne bygges før fakturaen bar `company_id`. Derfor opretter vi den selv:
+
+- **#559 — motoren** `_shared/indgangsFaktura.ts` (ren parameterdel i
+  `indgangsFakturaParametre.ts`, testet). Rå fetch mod
+  `POST /v1/customers` (kun når virksomheden ingen `stripe_customer_id`
+  har; `metadata[company_id]` på kunden), `POST /v1/invoices`
+  (`collection_method=send_invoice`, `days_until_due=4`, `auto_advance=false`,
+  `automatic_tax[enabled]=true`, `metadata[company_id]`,
+  `metadata[art]=indgang` PÅ SELVE FAKTURAEN), `POST /v1/invoiceitems`
+  (frit beløb fra `prisniveau_oere`, `tax_behavior=exclusive` — IKKE en
+  pris på lookup_key, for nøglerne dækker kun 50.000 og 40.000),
+  `/finalize`, `/send`. Idempotens i tre lag: stemplet
+  `company_betalingslink.faktura_invoice_id` + `faktura_sendt_at`
+  (migration `20260903130000`, **kørt i prod 3/9, begge kolonner
+  verificeret**), opslag hos Stripe på kundens fakturaer (List-API,
+  konsistent), og Idempotency-Key pr. POST. Kaster aldrig.
+- **#560 — adressen** (§33): uden den kunne Stripe Tax ikke placere
+  kunden, og fakturaen gik uden moms.
+- **#561 — kæden**: cronen kalder fakturaen FØR dag 31-mailen (mailens
+  datid «har vi sendt dig en faktura» er så sand); fejler fakturaen,
+  sendes mailen ikke og intet stemples. `invoice.paid`-gren i
+  `stripe-webhook` FØR checkout-tjekket, kun på fakturaer med
+  `metadata.art=indgang` + `metadata.company_id` på selve fakturaen
+  (abonnementernes månedsfakturaer har tom metadata og ack'es som før).
+  Samme kæde som checkout, via udtrukne hjælpere: `company_perioder`
+  (`betalingsmodel='faktura'`, `stripe_reference=invoice-id`,
+  `beloeb_oere = total_excluding_tax` — UDEN moms, som checkoutens
+  `samlet_oere`; regnestykket står i `_shared/indgangsFakturaBetaling.ts`),
+  `companies` (kontraktdatoer fra betalingsdagen, `indgangspris_oere`,
+  `stripe_customer_id`), `nulstilIndgangsSession`, `sikrIndgangsInvitation`.
+  Kaster aldrig; svarer 500 kun på et ufuldført forløb, så Stripe
+  gensender ind i en idempotent kæde.
+- **Endpointet** `we_1UAtaW3CvBmCx5PtL736lAJN` har siden 3/9 FEM events,
+  sendt i samme kald fordi `enabled_events` erstatter listen:
+  `checkout.session.completed`, `customer.subscription.created`,
+  `customer.subscription.deleted`, `customer.subscription.updated`,
+  `invoice.paid`. Verificeret med uafhængig GET bagefter.
+  **`invoice.created` er BEVIDST ikke tilmeldt:** Stripe udsætter
+  finaliseringen af fakturaer i op til 72 timer, hvis webhooken ikke
+  svarer på det event — og det gælder ALLE kontoens fakturaer, ikke kun
+  vores.
+- **Cron-jobbet** `indgangs-paamindelser` (`0 10 * * *`) planlagt og
+  aktivt 3/9 — det sidste manglende led.
+
+**Bevist i drift 3/9 kl. 10:00–10:11 på FLOOR1 (fremkaldt tilstand;
+`docs/indgangen-overhaling.md` §11).** Opstilling: adresse sat
+(Vestergade 41, 1. tv, 8600 Silkeborg), kontraktdatoerne nulstillet, en
+`company_betalingslink`-række med prisniveau 5.000.000 øre,
+`underskrevet_at` og `betalingsmail_sendt_at` 31 dage tilbage,
+`sidste_paamindelse_dag` null.
+
+1. **Tørkørsel** (body `{}`): 200, `fundet 1`, `ville_sende 1`,
+   `pr_trin {14:0, 25:0, 31:1}` — springet virker (den seneste
+   forfaldne, ikke dag 14 først); `faktura.sendt 0`,
+   `faktura.ville_sende 1` — tørkørslen opretter ingen faktura. Kaldet
+   gik gennem `net.http_post` med vault-nøglen
+   `email_queue_service_role_key`, samme vej som cron-jobbet.
+2. **Rigtig kørsel** (`dry_run: false`): faktura TBR-0003 /
+   `in_1UBVaB3CvBmCx5PtAQOPtqVN` oprettet, finaliseret og sendt. 50.000 kr
+   + 25 % moms = 62.500 kr, forfald 7/9. **Momsen BLEV beregnet** —
+   beviser at adressen kom med. Stripe-kunden `cus_VBtMOGBenIfWt4`
+   oprettet og skrevet tilbage til `companies.stripe_customer_id`.
+   Linkrækken stemplet: `faktura_invoice_id`, `faktura_sendt_at 08:01:16`,
+   `sidste_paamindelse_dag 31`. Dag 31-mailen sendt EFTER fakturaen
+   (`email_send_log`: pending → sent).
+3. **Betalingen**: fakturaen markeret betalt uden for Stripe
+   (bankoverførsel — den rigtige arbejdsgang for en dansk B2B-faktura).
+   `invoice.paid` udløst, webhooken skrev kæden: `company_perioder` med
+   `betalingsmodel 'faktura'`, `art 'indgang'`, `beloeb_oere 5.000.000`
+   (uden moms, som en kortbetaling), periode 2026-09-03 → 2027-09-03,
+   `stripe_reference` = invoice-id; `companies` fik `contract_start_date`,
+   `contract_end_date` og `indgangspris_oere`.
+4. **Ryddet op**: kreditnota TBR-0003-CN-01 på hele 62.500 kr, «Credit
+   outside of Stripe» — ikke kundesaldo, som ville have efterladt et
+   tilgodehavende på FLOOR1. Regnskabet er rent.
+
+**Fund fra beviset (bogført, ikke rettet):**
+
+- **`sikrIndgangsInvitation` kender ikke tilstanden «invitationen er
+  allerede ACCEPTERET».** Den leder efter pending; findes der en
+  accepteret række, fejler insert på `UNIQUE(company_id, email)`, og
+  invitationen sendes ikke. Set 3/9 på FLOOR1 (test-brugerne havde
+  allerede accepteret). I drift kan det ikke ske for indgangen — en
+  virksomhed der betaler dag 31-fakturaen, er aldrig kommet ind — men
+  tilstanden er ikke håndteret. Åbent.
+- **Dag 31-mailen siger 50.000 kr, fakturaen lyder på 62.500 kr** —
+  listepris mod beløb inkl. moms. Forsvarligt for en B2B-modtager, der
+  kender aftalens tal, men de to tal er ikke ens. Ikke ændret.
+- **Mailen skrev «Hej,» uden navn**, fordi `contact_person` er tom på
+  FLOOR1 — datahullet fra 2/9 (§32), ikke en kodefejl.
+
+**Besluttet 3/9 (Jonas) — Stripes egne automatiske fakturapåmindelser
+slås IKKE til.** Motoren sætter `auto_advance=false` med vilje. Fakturaen
+har fire dages frist, og medlemmet har allerede fået tre mails i vores
+egen tone; en fjerde stemme på engelsk fra en anden afsender ville
+skurre. Skal der rykkes, hører det hjemme i vores egen kæde. Åbent
+punkt, ikke bygget.
+
+**LØST — det åbne punkt om `'faktura'`** nederst: værdien er nu begrundet
+og skrives af `invoice.paid`-grenen (#561). `Betalingsmodel`-typen for
+Checkout kender stadig kun fuld/rate2/rate12 — det er checkoutens
+modeller, og fakturaen går ikke gennem den.
+
+### Målingen 2/9 — historik
 
 Dag 31-mailen siger «vi har sendt dig en faktura». Rådgiveren opretter
 den i Stripe i hånden. Betaler medlemmet den, sker der INTET: kontrakt,
@@ -746,7 +870,11 @@ Men konsekvensen er utilsigtet: **der findes ingen registrering i
 databasen af at rate 2 til 12 faktisk blev betalt.** Én række i
 company_perioder ved første betaling, og derefter intet. Og et FEJLET
 månedstræk (`invoice.payment_failed`, abonnement `past_due`) når heller
-ikke ind — `invoice.*` er slet ikke tilmeldt endpointet.
+ikke ind. *Note 3/9:* `invoice.paid` ER nu tilmeldt (§30), men grenen
+handler kun på fakturaer med `metadata.art=indgang` på selve fakturaen;
+abonnementernes månedsfakturaer har tom metadata og ack'es uden
+handling. `invoice.payment_failed` er stadig ikke tilmeldt. Afsnittet
+står derfor uændret i substans.
 
 Adgangen hviler alene på `contract_end_date`, sat på betalingsdagen.
 Holder et medlem op med at betale i måned fire, beholder de adgangen
@@ -811,3 +939,48 @@ triggers på `companies` i prod) er bogført i
   felter, over eksisterende).
 - De resterende 32 tomme er ikke rettet. Hvilke af dem der har et navn
   på Monday, er ikke målt.
+
+---
+
+# Tillæg — adressen fra CVR (3. september 2026, formiddag)
+
+## 33. Adressen — to lag var i stykker, rettet i #560
+
+**Hvorfor det haster:** uden `address`, `postal_code` og `city` kan
+Stripe Tax ikke placere kunden, og dag 31-fakturaen (§30) finaliseres
+uden moms — Stripe slår Tax fra med `disabled_reason` frem for at fejle.
+
+**Målt i prod 3/9:** kun 1 af 32 aktive virksomheder havde alle tre
+felter. FLOOR1 I/S, oprettet 2/9 via «Importér ansøgning» MED
+CVR-opslag, havde ingen af dem.
+
+**Afdækket i koden (#560), to lag:**
+1. Rækkebyggeren `byggVirksomhedsRaekke` bar ikke felterne, og
+   `VirksomhedsInput` havde ingen adressefelter. `import-application`s
+   payload havde `address/zip/city` i typen uden at bruge dem.
+   `monday-webhook` satte adressen — men KUN fra Mondays egne kolonner,
+   i en separat opdatering efter oprettelsen, aldrig fra CVR.
+2. `hentCvrData` plukkede kun fire felter ud af cvrapi-svaret (name,
+   startdate, industrycode, industrydesc), og det er DET subset der
+   gemmes som `application_context.raw_cvr_data` — ikke hele svaret.
+   Adressen nåede derfor aldrig databasen ad nogen vej.
+
+**cvrapi.dk-feltnavnene er MÅLT live 3/9** (read-only opslag på CVR
+41772239 med husets User-Agent), ikke husket: `address`
+(«Vestergade 41, 1. tv.»), `zipcode` («8600»), `city` («Silkeborg»);
+desuden `addressco` og `cityname`, som ikke bruges. De stod hverken i
+koden, git-historikken, docs eller reconfilerne.
+
+**Rettelsen:** `hentCvrData` læser de tre felter; rækkebyggeren (begge
+kopier, paritetstestet) bærer `address/postal_code/city` med samme
+forrang som branchen — input vinder felt for felt, CVR er fallback,
+tomme og blanke strenge bliver null. `monday-webhook` og
+`import-application` sender deres adressefelter ind som input. Kun ved
+oprettelse: ved genbrug på CVR kaldes rækkebyggeren ikke. Deployet 3/9;
+bevist indirekte ved §30's faktura, hvor momsen blev beregnet efter at
+FLOOR1 fik adressen sat.
+
+**Åbent:** de 31 eksisterende virksomheder uden adresse er en
+datarettelse (samme formular som branche- og kontakt-email-oprydningen,
+`docs/indgangen-overhaling.md` §10). Enrich-stien i `import-application`
+fylder heller ikke adresse på en eksisterende virksomhed.
