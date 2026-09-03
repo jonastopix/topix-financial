@@ -577,3 +577,158 @@ genskabelse hvis de bruges: `~/Downloads/recon-virksomhedssiden.md`
 
 Først når det er på plads, kan rækkefølgen af ombygningen (§9)
 besluttes.
+
+---
+
+## 11. Rækkefølgen
+
+**Fastlagt 3. september 2026, sen aften**, ud fra tre principper som
+aftenens målinger gav: **motor før flade**, **én kilde før to
+aftagere**, og **de billige forudsætninger før de dyre ombygninger**.
+Hvert punkt står med hvad, hvorfor netop dér, og hvad der er målt om
+det. Målingerne ligger i reconer uden for repoet (henvist ved hvert
+punkt) og i `docs/OVERLEVERING.md` DEL 3.
+
+### 1. Én kilde til tallene
+
+**Hvad:** forsiden (`AdvisorDashboard.tsx`, `queryFn`) regner MoM og
+nøgletal ud af `financial_reports`; resten af huset — NoegletalView og
+virksomhedssiden — ud af `financial_report_facts` gennem
+`useCompanyFacts` og den rene, testede `trendMoM.ts`. Forsiden flyttes
+til facts.
+
+**Hvorfor først:** motoren (#589) fodres allerede med to sandheder —
+`FactPunkt` bygges af rapporter på forsiden og af facts på MemberDetail.
+Dommen blev samlet ét sted 3/9, men får to forskellige input. Alt andet
+i rækkefølgen bygger ovenpå, og bygges virksomhedssiden før flytningen,
+arver den dubletten som en tredje variant.
+
+**Målt 3/9 kl. 23:56** (`~/Downloads/recon-to-kilder.md`): 151 punkter
+over 20 virksomheder ad rapport-vejen mod 314 over 21 ad facts-vejen
+(heraf 144 `estimated`). **Nul uenigheder** hvor begge kilder har en
+værdi — flytningen er ufarlig for tallene selv. Det der ændrer sig er
+hvilke perioder der findes: estimater fra årsrapporter og baselines
+kommer med, ikke-committede rapporter (Brick Works, april 2026) falder
+ud. **Betingelse:** `momErGyldig`-reglen fra NoegletalView skal følge
+med, så et `estimated` punkt ikke udløser et faldsignal mod et
+`measured`. Tages som egen opgave med måling før og efter, ikke som del
+af en fladebygning.
+
+### 2. `notifications` company-først
+
+**Hvad:** `notifications` får en advisor-policy (eller en anden vej), så
+en rådgiver kan læse virksomhedens rækker nøglet på `company_id`.
+
+**Hvorfor her:** syv af de otte kilder motoren bruger kan en rådgiver
+allerede læse company-nøglet; kun `notifications` har udelukkende
+«Users read own notifications» (`user_id = auth.uid()`) — **bekræftet i
+prod 3/9 kl. 22:43** (`~/Downloads/recon-virksomhedsdata.md`). I dag ser
+rådgiveren alerts fordi `detect-financial-alerts` skriver én kopi pr.
+rådgiver; en company-først-læsning ville ramme egne kopier, ikke
+virksomhedens. Blok 1 på virksomhedssiden kan ikke tegnes før det er
+løst. **Bemærk:** alerts er ude af motoren (#595), så det haster kun for
+det blok 1 ellers skal vise fra `notifications`.
+
+### 3. Menuen
+
+**Hvad:** rådgiveren får medlemmets menu; admin bliver en adskilt blok
+med to punkter, Virksomheder og Platform (§3.1).
+
+**Hvorfor her:** det er den eneste ændring der giver Hb-admins otte
+ruter et menupunkt — i dag nås de kun ved at kende URL'en (målt 3/9,
+`~/Downloads/recon-raadgiverfladen-2.md`: nul menupunkter peger på
+`/admin/indhold`). Billig, og alt der bygges bagefter skal alligevel
+ligge i den menu.
+
+### 4. Virksomhedslisten (§3.6)
+
+**Hvad:** ren visning under Virksomheder: søgefelt, én række pr.
+virksomhed med navn, branche, kontaktperson, medlemsstatus, sidste
+kontakt, sidste rapportering, og advarselsmærke ved fejlet træk.
+Handlingerne flytter til virksomhedssiden.
+
+**Hvorfor her:** billigst af de fire flader — hverken vendt datalag
+eller syv blokke — og den første i det nye designsprog. Den giver en
+rådgiverflade i Hjemmebane at stå på, før den dyre bygges.
+
+### 5. Virksomhedssiden (§4)
+
+**Hvad:** `/virksomhed/:companyId` med de syv blokke. Datalaget vendes
+fra `user_id` til `companyId` (§3.3-noten: hele dataindlæsningen
+skrives om), blokken «Aftalen» bygges fra `/members`-listen (den findes
+ikke på MemberDetail, §4 blok 7), chatten flytter ind i fuld højde
+(§3.4), og de sytten hjemløse ting (§8) placeres.
+
+**Hvorfor her:** den dyre. Den forudsætter punkt 1 (én kilde), punkt 2
+(`notifications` for blok 1), punkt 3 (menuen den skal ligge i) og
+punkt 4 (listen der linker til den). Målt 3/9
+(`~/Downloads/recon-byggeomkostning.md`): alene på størrelse med de fire
+tidligere Hjemmebane-flytninger tilsammen, af grunde ingen af dem
+havde.
+
+### 6. Forsiden (§3.5)
+
+**Hvad:** de syv køer, med indgange og fornyelser flyttet fra
+`/members`, og «Ikke hørt fra længe» øverst med den vendte regel.
+
+**Hvorfor her:** køerne linker til virksomhedssiden, så den skal findes
+først. Her hører budgetafvigelse hjemme — den kan ikke komme på
+forsiden i dag, fordi `queryFn` ikke henter `budget_targets`
+(`budgetOmsaetning` står bevidst som null i #597). Punkt 1 har allerede
+flyttet tallene til facts, så forsiden bygges på én kilde.
+
+### 7. Emne-opsamlingen (§5)
+
+**Hvad:** klassificér alle 588 menneskebeskeder mod de ni emner
+(`docs/emneliste.md`) som et idempotent engangsjob (udfyld kun tomt,
+mønster `berig-virksomheder`), **MÅL** om listen rammer, og bestem
+derefter formen (§5.3).
+
+**Hvorfor her:** blok 3 på virksomhedssiden er den flade der viser det,
+men formen må ikke designes før målingen holder. Holder den ikke, står
+opgave-historikken som opsamling og C8 får ret (§5.4). Datamodelkravet
+(§5.5) gælder fra første kørsel.
+
+### 8. Platform-blokken
+
+**Hvad:** de tretten driftsruter (config, mails, log, feedback, legat,
+import, review queue, report-debug og de otte Hb-admin-faner) samles
+under ét menupunkt.
+
+**Hvorfor sidst:** punkt 3 giver dem hjemmet; om de skal konverteres
+til Hjemmebane eller blot have et hjem, er ikke afgjort (§9). Ingen af
+dem er dagligt arbejde.
+
+### Uafhængigt af rækkefølgen — småt, tages når nogen alligevel er i filen
+
+- **«Fjern medlem» har to forskellige gates for samme kald** (§9,
+  `MemberCompanyRow.tsx:347` kræver admin, `MemberDetail.tsx:937–963`
+  kun advisor). Sikkerhed, bør rettes.
+- **Hængende invitationer mangler et sted.** remm. har hængt i 80 dage;
+  de tre nye skjules af pending-gaten sammen med «Har aldrig skrevet»
+  (OVERLEVERING DEL 3, målt 3/9 kl. 23:45). Ingen dom bygges nu; hører
+  på forsiden ved siden af «Indgange der ikke er betalt».
+- **Dødt kød i `AdvisorDashboard`** (`companies`, `legatCompanyIds`,
+  `activityFeed`, `companyMap`, `recentReportsData`,
+  `handleAssignAdvisor`) skal efterprøves før noget slettes — målingen
+  blev taget kl. 23:26 midt i en ombygning.
+
+### Ikke med, og hvorfor
+
+- **1:1-bookingernes registrering** (`calendly_event_uri` sættes aldrig
+  for betalte): bevidst nedprioriteret — medlemmet mærker intet, de
+  booker og mødes.
+- **Restancepolitikken:** rammer nul rækker (`docs/adgangsdomme.md` §6).
+- **De otte CVR-uenigheder:** en samtale, ikke kode
+  (`docs/indgangen-overhaling.md` §10).
+
+### Om omfanget
+
+Designets §1 og OVERLEVERING siger at rådgiverfladen er «på størrelse
+med indgangen (to dage)». **Det tal stammer fra FØR byggeomkostningen
+blev målt 3/9.** De fire tidligere Hjemmebane-flytninger (KPI'er,
+Rapportering, Budget, Handouts) tog omtrent en dag hver, og
+rådgiverfladen er dyrere end dem alle, fordi datalaget skal vendes.
+Punkt 1–4 er hver for sig overskuelige; **punkt 5 er alene på størrelse
+med de fire tilsammen.** To-dages-tallet er ikke efterprøvet og er
+formentlig for lavt.
