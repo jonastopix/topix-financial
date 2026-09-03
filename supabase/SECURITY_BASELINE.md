@@ -252,6 +252,38 @@ Verify: `select tablename, policyname, permissive from pg_policies where
 schemaname = 'public' and permissive = 'RESTRICTIVE';` → the four rows
 above, nothing else.
 
+**Second example of the same failure class (found 2026-09-03 23:02):**
+«Users can update own messages within 15 min» (migration
+`20260317143551`) was added as a NEW permissive policy, but the older
+«Members can update own messages» (`20260310193358:8`, no time limit,
+`sender_id = auth.uid() AND EXISTS (conversation is mine)`) was never
+dropped. Permissive policies OR-stack, so the loose one won: any user
+could edit their own messages without a time limit and regardless of
+`message_type`. «Within 15 min» was never enforced in the database —
+only in the client (`useMessageActions.ts`, `canEditMessage`). Fixed in
+prod 23:03 by dropping the old policy; migration
+`20260903233000_messages_update_15min.sql` is the record. Two UPDATE
+policies remain on `messages`: «Advisors can update messages» and
+«Users can update own messages within 15 min».
+
+**The rule, stated once:** a restriction can NOT be added as a new
+permissive policy. It must either be `AS RESTRICTIVE`, or REPLACE the
+looser policy (drop the old one in the same migration). A migration
+that only adds a tighter permissive policy changes nothing.
+
+Known, open, lower severity — not fixed on 2026-09-03:
+
+- **`messages` DELETE** has no time limit at all, and two overlapping
+  policies exist: «Members can delete own messages» (`20260310193358:29`)
+  and «Users can delete own messages» (`20260317143551:28`,
+  `sender_id OR advisor` — the broadest). No restriction is lost there,
+  since neither has one, but the duplicate stands.
+- **storage «Authenticated users can upload feedback screenshots»** has
+  `WITH CHECK` on `bucket_id` alone, no folder check, so any
+  authenticated user can write to any path in that bucket. Reads are
+  owner-folder or advisor. `chat-attachments` was closed 6/8 and does
+  NOT have this gap.
+
 ### Company-scoped access
 ```sql
 company_id = user_company_id(auth.uid())

@@ -1,8 +1,8 @@
 # Overlevering
 
-**Sidst opdateret: 3. september 2026, aften — efter at adgangsdommene
-blev kortlagt (#583), restancepolitikken udskudt, og rådgiverfladen
-designet (#584, #586, #587).**
+**Sidst opdateret: 3. september 2026, sen aften — efter at et RLS-hul
+blev fundet og lukket (#591) og motoren bag rådgiverens signaler blev
+bygget (#589).**
 
 Læses først i enhver ny samtale. Claude husker intet mellem samtaler;
 denne fil skal kunne bære det. Den fortæller hvordan vi arbejder, hvor
@@ -639,6 +639,74 @@ som opsamling. C8 i `docs/chat-design.md` er delvist omgjort for det.
 **Ingen kode er skrevet endnu.** Det der mangler før kode står i
 designets §10 (DEL 3).
 
+### RLS-hullet — fundet og lukket 3/9 kl. 22:48
+
+`supabase/SECURITY_BASELINE.md` §5 og migration
+`20260903230000_demo_policies_restrictive.sql` (#591). Aftenens
+vigtigste fund.
+
+**Hvad der var galt.** Fire policies med «demo» i navnet («Hide demo
+company/conversations/facts/milestones from non-members») var
+PERMISSIVE, hvor de skulle have været RESTRICTIVE. Permissive policies
+stakker med OR: en række slipper igennem hvis bare én policy siger ja.
+En policy hvis første led er `company_id <> demo` er sand for ALT der
+ikke er demo — den gav adgang til alle andre virksomheders rækker i
+stedet for at nægte adgang til demoens. Der fandtes nul restriktive
+policies i hele `public` (0 af 268), så intet trak adgangen tilbage.
+
+**Målt kl. 22:46** som et almindeligt medlem med én virksomhed (lånt
+identitet via `set_config('request.jwt.claims', …)` + `set local role
+authenticated`):
+
+| kilde | kunne se | ejede selv |
+|---|---|---|
+| companies | 38 | 1 |
+| milestones | 102 | 0 |
+| financial_report_facts | 314 | 0 |
+| conversations | 35 | 1 |
+
+Ethvert logget-ind medlem kunne læse alle virksomheders regnskabstal og
+alle samtaler mellem rådgivere og kunder. Elleve brugere har rollen
+member.
+
+**Rettet kl. 22:48** i Lovable SQL editor: de fire policies droppet og
+genskabt `AS RESTRICTIVE`, samme udtryk. Efter, samme bruger: 1 / 0 /
+0 / 1 — præcis det brugeren ejer. Rådgiveradgangen urørt: målt som
+advisor+admin 38 / 102 / 314 / 35, uændret.
+
+**Demo-virksomheden findes ikke i prod** (hverken `is_demo = true`
+eller id `a0de0000-…0001`). Policyerne bevares som restriktive, så en
+genoprettet demo ikke lækker. Morten (advisor uden admin) ville ikke
+kunne se en demo-virksomhed under dem — det er hensigten, ikke en fejl.
+
+**Migrationen er bogføring af en rettelse der ALLEREDE er kørt — den
+skal IKKE køres igen.** Den er idempotent, så den kan køres efter en
+genskabelse uden at fejle.
+
+**Gennemgang af alle policies i prod bagefter, kl. 22:57:** ingen flere
+af samme slags. Hver tabel i `public` har RLS og mindst én
+SELECT-policy. To policies med `true` (`app_config`,
+`industry_benchmarks`) er bevidst åbne og indeholder ingen persondata.
+To med negation (`advisor_notifications`, `events`) har den AND'et med
+en rolle- eller medlemskabsdom og kan ikke åbne noget.
+
+### Motoren bag rådgiverens signaler (#589)
+
+`src/lib/virksomhedsSignaler.ts` samler de to inline-domme
+(`AdvisorDashboard.tsx` l. 803–851 og `MemberDetail.tsx` l. 726–832) til
+én ren funktion, `afgoerVirksomhedsSignaler`, med 45 tests. Fem af
+forsidens køer afgøres dér; fornyelser og indgange kommer fra egne
+motorer. **«Ikke hørt fra længe» er vendt** (designets §3.5): kravet om
+committede tal er væk, og en virksomhed der aldrig har skrevet er nu det
+stærkeste signal (alvor 95). **Syv valg** står dokumenteret i filhovedet
+hvor de to gamle domme var uenige: friskhedsgate på alle tal-signaler,
+kun fald i MoM, abs-nævner, ulæste alerts 30 dage med dedup mod facts,
+alvorsskala, milestones ude, intet loft. **En reel fejl rettet:** MoM
+blev regnet uden `Math.abs` på nævneren, så et resultat der falder fra
+−100 til −150 stod som en stigning på 50 %. `isFiguresFresh` er flyttet
+ordret. **Ingen flade bruger den endnu** — AdvisorDashboard og
+MemberDetail står uændrede indtil de lægges om (DEL 3).
+
 ### Oprydningen 2/9
 
 Otte udløbne virksomheder markeret `status = 'tidligere'`
@@ -682,6 +750,8 @@ facit og rækkefølge; `docs/chat-design.md` chattens form.
 | åbent | **Velkomstvideoen skal optages** (Morten). Pladsen er bygget; GUID'et sættes i /admin/config. Siden 3/9 (#569) kan fokuskortet åbne videoen via `#velkomst`, så velkomst-punktet ikke længere er en fælde den dag GUID'et sættes — beviset på skærm kommer først da. | recon-velkomstvideo, indgangen-overhaling §10 |
 | åbent | **Rundvisningen** — interaktiv førstegangs-oplevelse efter velkomsten; bygges efter C3-indflytningen; må aldrig eksistere ved siden af Guiden. | BACKLOG [P2·EPIC] Platform-onboarding |
 | EPIC, designet 3/9 aften | **Rådgiverfladens overhaling** — tages SAMLET, på størrelse med indgangen. Designsamtalen ER holdt 3/9 aften: designet er låst i `docs/raadgiverfladen-design.md` (fire flader, syv blokke, `companyId`-nøgling, chat ind på virksomhedssiden, emne-opsamling målt før flade), emnelisten i `docs/emneliste.md` (ni emner, to holdt udenfor). **Det der mangler før kode** (designets §10): emnelisten skal bevises ved klassificering af alle 588 menneskebeskeder i et idempotent engangsjob, og målingen skal holde; buckets' linkmål for `primary: "company"` (`AdvisorDashboard.tsx:1130–1134`) er ikke læst; hvilke `advisor_notifications.type`-værdier der findes; hvad de fire AI-edge-functions (`ai-financial-feedback`, `ai-data-chat`, `generate-ai-forecast`, `run-company-agent`/`agent-forslag-afgoer`) læser og skriver serverside; og den samlede rene funktion bag «hvad stikker ud» (to inline-domme i dag). **Byggeomkostnings-reconen er undervejs 3/9 sen aften**; rækkefølgen af ombygningen kan først besluttes når den ligger. Medlemsskiftet er løst uafhængigt (#573). De tre reconer bag designet ligger uden for repoet (`~/Downloads/recon-raadgiverfladen-2.md`, `recon-virksomhedssiden.md`, `recon-emner.md`) og skal genskabes hvis de bruges. | `docs/raadgiverfladen-design.md` §9–10, `docs/emneliste.md` §7 |
+| LØST 3/9 kl. 22:48 | **RLS-hullet: fire demo-policies var permissive** og gav ethvert medlem læseadgang til alle virksomheders tal og samtaler (38/102/314/35 mod ejede 1/0/0/1). Rettet i prod til `AS RESTRICTIVE`; efter 1/0/0/1, rådgivere uændret. Bogført i migration `20260903230000_demo_policies_restrictive.sql` — kørt, skal ikke køres igen. Gennemgang af alle 268 policies kl. 22:57: ingen flere. | `supabase/SECURITY_BASELINE.md` §5; DEL 2 «RLS-hullet» |
+| bygget 3/9 (#589) — første kode på rådgiverfladen | **Motoren `afgoerVirksomhedsSignaler`** (`src/lib/virksomhedsSignaler.ts`, 45 tests) — de to inline-domme samlet, stale-reglen vendt, syv valg i filhovedet. **Næste skridt:** læg `AdvisorDashboard.tsx` (buckets i `queryFn`) og `MemberDetail.tsx` («Hvad stikker ud») om til at kalde den, i én PR pr. flade, og slet de to inline-domme. Ingen flade bruger den endnu. | DEL 2 «Motoren bag rådgiverens signaler»; `docs/raadgiverfladen-design.md` §4 blok 1 |
 | åbent, sikkerhed | **«Fjern medlem» har to forskellige gates for samme kald** (`manage-advisor`, `action: 'remove-member'`): `MemberCompanyRow.tsx:347` kræver `isAdmin && m.role !== 'owner'`; `MemberDetail.tsx:937–963` kræver kun `isAdvisor` (sidens gate l. 652). Skal afgøres og ensrettes **uafhængigt af ombygningen** — det er ét kald, og det skal have én dom. Fundet 3/9 sen aften. | `docs/raadgiverfladen-design.md` §9 |
 | ved næste oprettelse | **Udestående bevis for trin 4** (branchen): næste rigtige «Godkendt» på Monday eller «Importér ansøgning» skal give en række med `industry_code` sat (SQL editor) og branchesammenligning i NoegletalView. 401 fra de deployede funktioner beviser kun at de svarer. | `docs/indgangen-overhaling.md` §6, §9 trin 4 |
 | LØST 3/9 kl. 11:50–12:00 | **Branchedataene og kontakt-email i prod** (#567): 29 af 30 aktive har kode og label, ingen registerkoder (Two Socks → `food_restaurant`, WESDEX → `construction_craft`, begge med benchmarks nu); 30 af 30 har kontakt-email — 14 fra eget medlem, 3 fra den ventende invitation (Din økonomiafdeling, Two Socks, WESDEX: de har ingen medlemmer). Tilbage: Bastant Design uden kode og label (intet CVR, ingen gemt DB25). | `docs/indgangen-overhaling.md` §10 |
@@ -872,6 +942,29 @@ De konkrete ting der har kostet tid. Led efter dem.
   `git push origin --delete <gren>` fejler når GitHub allerede har
   slettet fjerngrenen ved merge — brug `;` og ikke `&&` mellem
   sletningerne, så den lokale sletning kører alligevel.
+- **Policies kan opstå uden om repoet.** De fire demo-policies og
+  kolonnen `companies.is_demo` stod ALDRIG i en migration — de blev
+  lavet direkte i Lovable (grep på «Hide demo» og «is_demo» i
+  `supabase/migrations/` 3/9: nul træffere). En gennemgang af
+  migrationsfilerne kan derfor ikke svare på hvad RLS tillader.
+  `pg_policies` i prod er den eneste kilde.
+- **Dokumentationen kan være forkert om sikkerhed.** CLAUDE.md og
+  SECURITY_BASELINE.md påstod begge at alle policies i `public` er
+  RESTRICTIVE og stakker med AND. Målt 3/9: 0 restriktive ud af 268.
+  Det er sandsynligvis derfor fejlen overlevede — den der læste
+  dokumentet og tilføjede en «hide»-policy troede den strammede. Begge
+  dokumenter er rettet (#591). Reglen: en policy der skal NÆGTE noget
+  («hide», «skjul», «kun») er forkert hvis den er permissive.
+- **En RLS-ændring skal bevises med en lånt identitet.** Måden er:
+  `set_config('request.jwt.claims', json_build_object('sub', <uuid>)::text, true)`
+  + `set local role authenticated`, derefter tælle hvad brugeren kan se
+  mod hvad brugeren ejer, i ét resultatsæt (`UNION ALL`, SQL editoren
+  eksporterer kun det sidste). Kør den som BÅDE et medlem og en
+  rådgiver — ellers opdages det først i drift, hvis rettelsen lukkede
+  for meget. Migration `20260903230000_demo_policies_restrictive.sql`
+  bærer målingens tal og `pg_policies`-verifikationen; selve
+  lånt-identitets-SQL'en står IKKE i repoet (kørt i SQL editoren 3/9) og
+  skal skrives igen efter opskriften her.
 
 ---
 

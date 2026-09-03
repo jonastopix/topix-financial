@@ -1,0 +1,97 @@
+-- «Members can update own messages» droppes — bogføring af en rettelse der
+-- ALLEREDE ER KØRT i prod 3/9 2026 kl. 23:03 (Lovable SQL editor). Filen
+-- er idempotent (DROP POLICY IF EXISTS) og kan køres igen efter en
+-- genskabelse uden at fejle.
+--
+-- ── BAGGRUND ────────────────────────────────────────────────────────────────
+--
+-- «Users can update own messages within 15 min» blev oprettet 17/3
+-- (20260317143551, kommentaren dér: «UPDATE policy on messages: own
+-- messages only, within 15 minutes»):
+--
+--   USING (sender_id = auth.uid() AND message_type = 'user'
+--          AND created_at > now() - interval '15 minutes')
+--   WITH CHECK (sender_id = auth.uid() AND message_type = 'user')
+--
+-- Men den ældre «Members can update own messages» (20260310193358:8) blev
+-- aldrig droppet, og den har INGEN tidsgrænse:
+--
+--   sender_id = auth.uid() AND EXISTS (samtalen er min)
+--
+-- Permissive policies stakker med OR, så den løse vandt: en bruger kunne
+-- redigere egne beskeder uden tidsgrænse og uanset message_type. Hensigten
+-- «within 15 min» var aldrig håndhævet i databasen. Samme fejlklasse som
+-- demo-policyerne (20260903230000_demo_policies_restrictive.sql): en
+-- indskrænkning tilføjet som en ekstra BEVILLING. En indskrænkning kan
+-- ikke tilføjes som en ny permissive policy — den skal enten være AS
+-- RESTRICTIVE eller ERSTATTE den løsere policy. Her erstatter den.
+--
+-- Triggeren protect_message_immutable_fields låser sender_id,
+-- conversation_id og created_at — men ikke `content`. Klienten håndhæver
+-- grænsen allerede (src/hooks/useMessageActions.ts, canEditMessage,
+-- EDIT_WINDOW_MS = 15 minutter), så redigeringsknappen forsvinder efter et
+-- kvarter; det her lukker vejen udenom (et direkte PostgREST-kald). Ingen
+-- brugerpåvirkning. Rådgivere er urørte: «Advisors can update messages»
+-- (has_role advisor) bærer deres adgang uden tidsgrænse, som klienten
+-- også antager (useMessageActions.ts:70–71).
+--
+-- ── MÅLT I PROD ─────────────────────────────────────────────────────────────
+--
+-- 3/9 kl. 23:02: begge UPDATE-policies fandtes på messages.
+-- 3/9 kl. 23:03: den gamle droppet. Tilbage står præcis to UPDATE-policies:
+--   «Advisors can update messages»              (has_role(auth.uid(), 'advisor'))
+--   «Users can update own messages within 15 min»
+--
+-- ── NOTER — kendte, åbne, lavere alvor, IKKE rørt her ───────────────────────
+--
+-- 1. DELETE på messages har ingen tidsgrænse overhovedet, og der ligger to
+--    overlappende policies: «Members can delete own messages»
+--    (20260310193358:29, sender_id + samtalen er min) og «Users can delete
+--    own messages» (20260317143551:28, sender_id OR advisor — den bredeste).
+--    Ingen indskrænkning tabes dér, for ingen af dem har en, men dubletten
+--    står. Ikke rørt her.
+-- 2. storage «Authenticated users can upload feedback screenshots» har
+--    WITH CHECK uden mappetjek (bucket_id alene), så enhver authenticated
+--    kan skrive til enhver sti i den bucket. Læsning er ejermappe eller
+--    advisor. Lavere alvor, ikke rørt her. chat-attachments blev lukket
+--    6/8 og mangler det IKKE.
+--
+-- Deploy: kørt i prod 3/9 kl. 23:03. Ved genskabelse: kør filen i
+-- Lovable → SQL editor, og verificér med SELECT'en nederst.
+
+drop policy if exists "Members can update own messages" on public.messages;
+
+-- ── ROLLBACK (kun hvis tidsgrænsen skal fjernes igen — det genåbner vejen udenom) ──
+--
+--   create policy "Members can update own messages"
+--   on public.messages for update to public
+--   using (
+--     sender_id = auth.uid()
+--     and exists (
+--       select 1 from conversations
+--       where conversations.id = messages.conversation_id
+--       and (conversations.member_id = auth.uid()
+--            or conversations.company_id = user_company_id(auth.uid()))
+--     )
+--   )
+--   with check (
+--     sender_id = auth.uid()
+--     and exists (
+--       select 1 from conversations
+--       where conversations.id = messages.conversation_id
+--       and (conversations.member_id = auth.uid()
+--            or conversations.company_id = user_company_id(auth.uid()))
+--     )
+--   );
+--
+-- ── VERIFIKATION (kør som SELECT bagefter) ──────────────────────────────────
+--
+--   select policyname, permissive, roles, qual, with_check
+--   from pg_policies
+--   where schemaname = 'public' and tablename = 'messages' and cmd = 'UPDATE'
+--   order by policyname;
+--
+-- Forventet: præcis 2 rækker —
+--   «Advisors can update messages»
+--   «Users can update own messages within 15 min»
+-- og INGEN «Members can update own messages».
