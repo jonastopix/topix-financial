@@ -206,6 +206,14 @@ Deno.serve(async (req) => {
       contact_name: body.contact_name,
       contact_email: email,
       application_date: body.application_date,
+      // Adressen (3/9): payloadens address/zip/city har stået i typen uden
+      // at blive brugt, og CVR-svaret bar den ikke — derfor stod FLOOR1
+      // (oprettet her 2/9 med CVR-opslag) uden adresse. Nu: input vinder,
+      // CVR fylder. Kun her ved oprettelse; enrich-stien ovenfor rører
+      // ikke adressen.
+      address: body.address,
+      postal_code: body.zip,
+      city: body.city,
     }, adminClient);
   } catch (err) {
     const detail = err instanceof Error ? err.message : String(err);
