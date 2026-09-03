@@ -162,6 +162,13 @@ er det ikke.
 selvstændigt spor med sit eget grundlag — ikke en pill-række der
 skriver til lokal state.
 
+*Note 3/9 sen aften:* det selvstændige spor er nu besluttet —
+automatisk klassificering af BEGGE parters beskeder mod en fast
+emneliste, som overblik UDEN FOR tråden på virksomhedssiden. Det er
+ikke den manuelle vælger der fjernes her (den satte emne på
+rådgiverens egne beskeder alene; målt 1/9: elleve ud af 699). C5 står
+ved magt. Se `docs/raadgiverfladen-design.md` §5 og noten under C8.
+
 ### C6 — Nudging bor uden for beskedstrømmen
 
 **Forslag:** et fast felt i chatfladen — ikke en besked — der viser
@@ -212,6 +219,17 @@ Overblikket bor i MCP; chatten er samtalen.
 
 Det er en afvisning af "AI der tematiserer chattens indhold" som
 selvstændig funktion.
+
+*Note 3/9 sen aften — C8 er DELVIST omgjort (Jonas):* automatisk
+klassificering af beskeder mod en fast emneliste er nu tilladt som
+overblik UDEN FOR tråden, på virksomhedssiden. Afvisningen af
+emnefiltre, AI-tematisering og sammenfatninger INDE i tråden står ved
+magt; chatten er stadig samtalen. C8 blev truffet om en manuel vælger
+der kun mærkede rådgiverens egne beskeder (elleve ud af 699, målt 1/9);
+automatisk klassificering af begge parters ord er en anden ting.
+Formen måles før fladen bygges — holder målingen ikke, får C8 ret igen.
+Se `docs/raadgiverfladen-design.md` §5.2–5.3. C8 slettes ikke;
+historikken bevares.
 
 ### C9 — Welcome-beskeder rettes
 

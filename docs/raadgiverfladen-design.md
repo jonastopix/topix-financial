@@ -1,18 +1,20 @@
 # Rådgiverfladen — design
 
-**Besluttet 3. september 2026, aften, af Jonas i samtale med Claude.**
-Dette er en designbeslutning, ikke en recon. Den er skrevet så nogen kan
-bygge fra den om tre uger uden at have været med i samtalen. Hvad den
-IKKE afgør står i §8, og hvad der skal ske før der skrives kode står i
-§9.
+**Besluttet 3. september 2026, aften, af Jonas i samtale med Claude.
+Opdateret samme aften, sent, efter reconen af virksomhedssiden.** Dette
+er en designbeslutning, ikke en recon. Den er skrevet så nogen kan bygge
+fra den om tre uger uden at have været med i samtalen. Hvad den IKKE
+afgør står i §9, og hvad der skal ske før der skrives kode står i §10.
 
-Grundlaget er reconen fra samme aften, `~/Downloads/recon-raadgiverfladen-2.md`.
-Den ligger uden for repoet og skal genskabes hvis den bruges; de tal fra
-den som dokumentet hviler på, står gengivet i §1 med kilde. Den tidligere
-kortlægning (`~/Downloads/recon-raadgiverfladen.md`, 3/9 middag) og
-`docs/hjemmebane/konvergens.md` §2.2 og §2.9 er forhistorien.
-Medlemsskiftet (`HbVisningSom`, #573) er løst uafhængigt og indgår som
-byggesten, ikke som opgave.
+Grundlaget er to reconer fra samme aften, begge uden for repoet og
+begge til genskabelse hvis de bruges: `~/Downloads/recon-raadgiverfladen-2.md`
+(ruter, menuer, skaller) og `~/Downloads/recon-virksomhedssiden.md`
+(hvad MemberDetail og /members-handlingerne læser og skriver, henført
+til blokkene). De tal og linjenumre dokumentet hviler på, står gengivet
+med kilde. Den tidligere kortlægning (`~/Downloads/recon-raadgiverfladen.md`,
+3/9 middag) og `docs/hjemmebane/konvergens.md` §2.2 og §2.9 er
+forhistorien. Medlemsskiftet (`HbVisningSom`, #573) er løst uafhængigt og
+indgår som byggesten, ikke som opgave.
 
 ---
 
@@ -30,13 +32,18 @@ byggesten, ikke som opgave.
 | Dele `/members` består af | 9 | header, `MembersStatsBar`, `MembersOnboardingFunnel`, `IndgangsSektion`, `FornyelsesSektion`, søgebar, virksomhedsliste, `MembersAdminSection`, dialoger (`Members.tsx:1106–1683`) |
 | Tabeller `/members` læser | 12 | `Members.tsx:799–813, 304–309` og otte kald mod `company_invitations` |
 | Buckets på rådgiverforsiden | 5 | `AdvisorDashboard.tsx:1129–1135`: Venter på dit svar · Noget stikker ud i tallene · Friske tal, fortjener sparring · Positive muligheder · Ikke hørt fra længe |
-| Sektioner på `MemberDetail` | 11 | `MemberDetail.tsx:852–1680` (kommentar-markørerne) |
+| Renderede dele på `MemberDetail` | 15 | `MemberDetail.tsx:654–1692` (elleve kommentar-markerede sektioner plus handout-visning, «Rediger»-knap, EditCompanyDialog og hero-headerens underdele) |
+| Ting på MemberDetail/`/members` som ingen af de oprindelige seks blokke dækkede | 17 | recon-virksomhedssiden punkt 6; §8 her |
 | Virksomheder uden medlemmer i prod | 3 | Din økonomiafdeling, Two Socks, WESDEX — målt 3/9 (`docs/indgangen-overhaling.md` §10) |
+| Virksomheder uden ét målt tal / der aldrig har uploadet (1/9) | 14 af 33 / 13 | `docs/status-1-september.md` |
 
 Hele Hb-admin'en nås altså kun ved at kende URL'en. Og funktionerne
-findes allerede: forsidens fem buckets er den rigtige dom, MemberDetail
+findes allerede: forsidens fem buckets er den rigtige idé, MemberDetail
 har det meste af det en rådgiver skal vide om én virksomhed.
-**Problemet er spredning, ikke mangel.**
+**Problemet er spredning, ikke mangel** — med to forbehold som reconen
+af virksomhedssiden fandt (§4-rettelsen og §7): dommen bag «hvad stikker
+ud» findes to gange med forskellige regler, og aftalens betalingsdata
+findes slet ikke på detaljesiden.
 
 ---
 
@@ -112,10 +119,30 @@ De fire veje ind (§1) samles til én adresse. Deep-links fra
 notifikationer, forsidens buckets og listen peger alle på
 `/virksomhed/:companyId`.
 
+**Note, målt 3/9 sen aften (recon-virksomhedssiden punkt 5): at nøgle
+siden på `companyId` er IKKE en URL-ændring.** Ingen kilde på
+MemberDetail kan læses fra `companies.id` alene. Fem af sidens queries
+er nøglet direkte på `user_id` eller `member_id` (`profiles` l. 373,
+`financial_reports` l. 384, `milestones` l. 387, `conversations` l. 388,
+`handouts` l. 389), og virksomheden selv findes gennem
+`company_members.eq("user_id", userId)` (l. 393–398). Alt der er nøglet
+på `company_id` — `budget_targets`, `company_invitations`,
+`pulse_checkins`, `notifications`, `financial_report_facts`,
+`agent_runs` — er først aktiveret NÅR det opslag lykkedes
+(`memberCompanyId`, l. 230; `enabled: !!memberCompanyId` l. 246, 270;
+`if (cm?.companies)` l. 400). Slår opslaget fejl, giver `profiles`-
+opslaget null, siden viser «Medlem ikke fundet» (l. 848–849), og resten
+renderes ikke. **Hele dataindlæsningen skal skrives om**, fra
+`companies.id` udad: virksomheden først, medlemmerne som en liste under
+den, og de brugerbundne tabeller (rapporter, milestones, handouts,
+samtale) slået op pr. medlem eller pr. `company_id` hvor kolonnen
+findes. Beslutningen står ved magt; omfanget er større end da den blev
+truffet.
+
 ### 3.4 Chatten flytter ind på virksomhedssiden — og `/chat` bliver stående
 
 Chatten vises **på virksomhedssiden i fuld højde, med tallene ved
-siden af** (§4, blok 3). Det er dér samtalen hører hjemme: ved siden af
+siden af** (§4, blok 4). Det er dér samtalen hører hjemme: ved siden af
 det den handler om.
 
 `/chat` bliver **stående som ren indbakke** — `CompanyChatPane`s flade
@@ -131,20 +158,44 @@ rækkefølge:
 
 | # | kø | hvorfor dér | findes i dag som |
 |---|---|---|---|
-| 1 | **Ikke hørt fra længe** — med antal dage | ØVERST, fordi det er dér rådgiveren selv tager fat, og den vigtigste regel er at **ingen må glemmes** | bucket `stale`, `AdvisorDashboard.tsx:1135` |
-| 2 | Venter på dit svar | ubesvarede beskeder | bucket `waiting`, l. 1129 |
-| 3 | Noget stikker ud i tallene | afvigelser i seneste rapport | bucket `standsOut`, l. 1130 |
+| 1 | **Ikke hørt fra længe** — med antal dage, ELLER «aldrig skrevet» | ØVERST, fordi det er dér rådgiveren selv tager fat, og den vigtigste regel er at **ingen må glemmes** (se rettelsen nedenfor) | bucket `stale`, `AdvisorDashboard.tsx:814–819` |
+| 2 | Venter på dit svar | ubesvarede beskeder | bucket `waiting`, l. 803–806 |
+| 3 | Noget stikker ud i tallene | afvigelser i seneste rapport | bucket `standsOut`, l. 821–836 |
 | 4 | Fornyelser der skal besluttes | beslutning mangler i vinduet | `FornyelsesSektion` på `/members` |
 | 5 | Indgange der ikke er betalt | betalingsmail sendt, ingen betaling | `IndgangsSektion` på `/members` |
-| 6 | Friske tal | ny rapportering, fortjener sparring | bucket `fresh`, l. 1133 |
+| 6 | Agentforslag der venter på afgørelse | `agent_proposals` uden `decided_at` | `AgentForslagPanel` på MemberDetail (§8) |
+| 7 | Friske tal | ny rapportering, fortjener sparring | bucket `fresh`, l. 808–812 |
 
 **Indgangen og Fornyelsesbeslutninger flytter dermed FRA `/members` TIL
 forsiden**, fordi de er arbejdskøer, ikke virksomhedsdata. Bucket
-`positive` («Positive muligheder», l. 1134) er ikke i rækkefølgen
-ovenfor; om den lever videre som del af 3 eller 6 afgøres ved
+`positive` («Positive muligheder», l. 838–851) er ikke i rækkefølgen
+ovenfor; om den lever videre som del af 3 eller 7 afgøres ved
 implementering (ikke en åben designbeslutning, en detalje).
 
 Hver række i en kø linker til `/virksomhed/:companyId`.
+
+**Rettelse og beslutning om «Ikke hørt fra længe», 3/9 sen aften.**
+Betingelsen i dag (`AdvisorDashboard.tsx:815–817`) er ordret:
+
+```ts
+        const lastContact = conv?.last_message_at;
+        const daysSinceContact = lastContact ? Math.floor((now.getTime() - new Date(lastContact).getTime()) / 86400000) : 999;
+        if (c.has_verified_metrics && lastContact && daysSinceContact > 21) {
+```
+
+Følgen, målt: en virksomhed UDEN samtale har ingen `lastContact` og
+bliver aldrig stale; en virksomhed uden committede tal har ikke
+`has_verified_metrics` (l. 666: `!!latest`) og bliver aldrig stale.
+Målt 1/9 (`docs/status-1-september.md`): fjorten af treogtredive
+virksomheder var uden ét målt tal, tretten havde aldrig uploadet.
+**Halvdelen af porteføljen kan altså ikke optræde i køen** — og det er
+netop den halvdel der er tavs.
+
+**Besluttet (Jonas): reglen vendes.** At have været tavs hele vejen er
+den STÆRKESTE grund til at stå på listen. Køen skal dække både «længe
+siden sidste besked» (med antal dage) og «aldrig skrevet», og skal kunne
+skelne de to i teksten. Kravet om committede tal falder bort. Jonas'
+formulering: «vi må ikke glemme folk i det her.»
 
 ### 3.6 Virksomhedslisten bliver ren
 
@@ -155,10 +206,10 @@ kontakt, sidste rapportering, plus **et advarselsmærke ved fejlet træk**
 
 **Alle handlinger flytter til virksomhedssiden:** omdøb, rediger
 virksomhedsdata, inviter, gensend invitation, tilknyt bruger, berig med
-ansøgning, slet. I dag ligger de som otte callbacks på rækken
-(`MemberCompanyRow.tsx:78–579`) og seks dialoger på listen
-(`Members.tsx:1310–1677`). En liste man leder i skal ikke også være det
-sted man handler.
+ansøgning, slet — og som niende: tilknyt eksisterende bruger (§8). I
+dag ligger de som otte callbacks på rækken (`MemberCompanyRow.tsx:78–579`)
+og seks dialoger på listen (`Members.tsx:1310–1677`). En liste man leder
+i skal ikke også være det sted man handler.
 
 ### 3.7 Nøgletallene og tragten skæres fra listen
 
@@ -172,49 +223,113 @@ hvis det viser sig at et af tallene faktisk bruges.
 
 ---
 
-## 4. Virksomhedssiden — fem blokke i læserækkefølge
+## 4. Virksomhedssiden — syv blokke i læserækkefølge
 
 `/virksomhed/:companyId`, i HbMemberShell (medlemmets skal, med
 rådgiverens menu, §3.1). Fra top til bund:
 
-**1. Hvad skal du vide nu.** Bullets, ikke paneler. Ny rapportering
-siden sidst; hvad stikker ud i tallene; opgaver der venter på svar; hvor
-længe siden I talte sammen. **Samme dom som forsidens buckets, for én
-virksomhed** — ikke en ny beregning. Hvilke bullets der fortjener plads
-afgøres ved at se på rigtige virksomheder (§8).
+**1. Hvad skal du vide nu.** Bullets, ikke paneler. **Ren automatik**
+(besluttet 3/9 sen aften): korte bullets udledt af data, som kan skimmes
+på to sekunder. Ny rapportering siden sidst; hvad stikker ud i tallene;
+opgaver der venter på svar; agentforslag der venter på afgørelse; hvor
+længe siden I talte sammen. Hvilke bullets der fortjener plads afgøres
+ved at se på rigtige virksomheder (§9).
 
-**2. Emnerne I har talt om.** Se §5. «I har talt om likviditet fire
+**Rettelse, målt 3/9 sen aften:** dokumentet påstod at blok 1 bruger
+«samme dom som forsidens buckets, ikke en ny beregning». Det er
+forkert. Der findes i dag **to forskellige domme med samme navn, begge
+inline i en komponent, ingen af dem en ren funktion**:
+
+| hvor | betingelser (ordret fra koden) |
+|---|---|
+| `AdvisorDashboard.tsx:803–851` (inde i `queryFn`, l. 298–891) | bankovertræk (`c.cash < 0`), omsætningsfald (`c.revenueTrendPct <= -15`), ulæste alerts `alert_result_negative` / `alert_revenue_drop` inden for 30 dage (`notifications`, l. 728–740); de to første gated på `isFiguresFresh` (periode inden for tre kalendermåneder — den eneste rene funktion, l. 50–60) |
+| `MemberDetail.tsx:726–832` (IIFE `standsOut` i komponenten) | persisterede alerts 60 dage uanset `read_at` (l. 254–272); MoM-tærskel 15 % på `omsaetning` og `resultat_foer_skat` uden friskhedsgate (l. 756–777); budgetafvigelse over 10 % (l. 780–794); forfaldne milestones og handout-løftestænger som én dæmpet række (l. 799–810); loft på fire signal-rækker (l. 815–831) |
+
+**De skal samles til ÉN ren funktion med tests FØR nogen af fladerne
+bygges — motor før flade.** Funktionen tager virksomhedens facts,
+alerts, budget, samtale og agentforslag som input og giver bullets med
+alvor som output; forsiden bruger den pr. virksomhed til køerne, og
+blok 1 bruger den for én virksomhed. Til den samling hører også den
+vendte stale-regel (§3.5).
+
+**2. Deres ord og din forberedelse** (NY, besluttet 3/9 sen aften).
+Lige under automatikken, adskilt fra den: det der ikke er udledt af
+tal.
+
+- **Refleksionen** fra `pulse_checkins` (seneste: største udfordring,
+  søger hjælp til, hvad gik godt, milestone-fremgang;
+  `MemberDetail.tsx:233–248, 1008–1053`). Sammenfattes IKKE — det er
+  fire korte felter.
+- **Ansøgningskonteksten**, SAMMENFATTET (§3.3-princippet vendt på
+  indhold): `companies.application_context` (`current_situation`,
+  `goals`, `help_needed`; `MemberDetail.tsx:1104–1129`) vises ikke i
+  fuld længde. **Besluttet:** den sammenfattes med AI og GEMMES.
+  Begrundelse: feltet er STATISK, skrevet ved oprettelsen (monday-webhook
+  eller import-application) og uændret siden, så sammenfatningen laves
+  ÉN GANG og persisteres — aldrig ved sidevisning, samme princip som §5's
+  afvisning af det løbende resumé. Gennemførelse: **egen kolonne på
+  `companies`**, så den kan genskabes uden at røre kilden; genereres ved
+  oprettelse i `monday-webhook` og `import-application`; et **idempotent
+  engangsjob** fylder de eksisterende ud (udfyld kun tomt), efter
+  mønstret fra `berig-virksomheder` (#567).
+- **Sessionsforberedelsen**: `ai-financial-feedback` med
+  `request_type: "session_prep"` (`MemberDetail.tsx:321–344, 1152–1174`),
+  udløst af rådgiveren, ikke persisteret i dag.
+
+**3. Emnerne I har talt om.** Se §5. «I har talt om likviditet fire
 gange, senest 12/8. Prissætning to gange, senest i maj.» Sorteret efter
-hvad der er længst siden.
+hvad der er længst siden. Bemærk: MemberDetails nuværende sektion med
+navnet «Samtaleemner» (l. 1344–1394) læser milestones og
+handout-løftestænger, ikke `messages` — den er ikke denne blok, men
+blok 6.
 
-**3. Chatten** i fuld højde, med opgaveoprettelse. Samme tråd som
-`/chat` viser, samme skrivevej.
+**4. Chatten** i fuld højde, med opgaveoprettelse. Samme tråd som
+`/chat` viser, samme skrivevej. Med i tråden: **rapport-kommentarer**
+skrevet med `context_type: "report"` (`MemberDetail.tsx:545–575`) som
+kontekst-beskeder, og **«Tildelt: {rådgiver}»** (`conversations.
+assigned_advisor_id`, l. 481–495, 981–986).
 
-**4. Tallene.** Finansielt snapshot med **afvigelserne fremhævet frem
-for alle tal**. Det MemberDetail i dag viser som «Financial snapshot» og
-«Finansiel udvikling» (`MemberDetail.tsx:1176–1343`), men vendt: det
-der er skævt først.
+**5. Tallene.** Finansielt snapshot med **afvigelserne fremhævet frem
+for alle tal**. Det MemberDetail i dag viser som «Finansielt
+øjebliksbillede» (l. 1176–1235) og «Finansiel udvikling» (l. 1237–1342),
+men vendt: det der er skævt først. Her hører også **AI-sparringen**
+(`AdvisorAIChat` mod `ai-data-chat`, l. 1396–1404) og
+**3-måneders-forecastet** (`generate-ai-forecast`, l. 1317–1339) til.
 
-**5. Aktivitet.** Hvad de faktisk bruger: rapportering, akademi,
-handouts. Kort. **Med accept af at nogle skriver meget og ser lidt
-video, mens andre gør det modsatte. Begge dele er i orden; fladen må
-ikke fremstille det ene som svigt.** Ingen røde tal for «har ikke set
-ugens video».
+**6. Aktivitet.** Hvad de faktisk bruger: rapportering, akademi,
+handouts — og milestones. Kort. **Med accept af at nogle skriver meget
+og ser lidt video, mens andre gør det modsatte. Begge dele er i orden;
+fladen må ikke fremstille det ene som svigt.** Ingen røde tal for «har
+ikke set ugens video». Rapportlisten (l. 1501–1678) med «Se original
+fil» (l. 1607–1616), Delivery Overview (l. 1680–1683), milestones og
+handouts (l. 1406–1496) og quick stats (l. 894–912) hører her.
 
-**6. Aftalen.** Kontrakt (start, slut, pris), betaling (perioder,
+**7. Aftalen.** Kontrakt (start, slut, pris), betaling (perioder,
 træk, fejlede træk), medlemmer (med «Aldrig logget ind»), invitationer
-(afventende, gensend). Her ligger handlingerne fra §3.6. Det er det
-`EditCompanyDialog`, `MembersAdminSection` og rækkens udfoldede del
-bærer i dag.
+(afventende, gensend, og advarslen når invitationens email ikke er
+profilens, `MemberDetail.tsx:417–452, 987–992`). Her ligger
+handlingerne fra §3.6. Det er det `EditCompanyDialog`,
+`MembersAdminSection` og rækkens udfoldede del bærer i dag.
 
-(Seks blokke, hvor listen i samtalen talte fem: emnerne er skilt ud som
-egen blok fordi de er det vigtigste nye — §5.)
+**Konsekvens, målt 3/9 sen aften: blokkens indhold findes IKKE på
+MemberDetail i dag.** `grep -n "company_traek\|company_perioder\|
+company_betalingslink\|indgangspris\|fornyelse" src/pages/MemberDetail.tsx`
+gav NUL træffere. MemberDetail viser kontraktdatoerne (l. 1130–1147) og
+kan redigere dem (`EditCompanyDialog`), men perioder, træk, fejlede
+træk, betalingslink og fornyelsestilstand ligger i `/members`-rækken
+(`MemberCompanyRow.tsx:436–460`, `fejledeTraek`) og i
+`IndgangsSektion`/`FornyelsesSektion`. **Blokken skal BYGGES fra
+listen, ikke flyttes fra detaljesiden.**
 
 ---
 
-## 5. Emne-opsamlingen
+## 5. Emne-opsamlingen — beslutningen står, formen måles først
 
-Jonas' vigtigste ønske, nævnt tre gange i samtalen.
+Jonas' vigtigste ønske, nævnt tre gange i samtalen. **Skrevet om 3/9
+sen aften efter emne-reconen** (`~/Downloads/recon-emner.md`, uden for
+repoet, skal genskabes hvis den bruges). Beslutningen om emner står ved
+magt; formen — hvad der vises, og om det vises — er ikke længere
+besluttet på forhånd.
 
 **Problemet:** chatten er i dag én lang tråd uden hukommelse. Den
 rådgiver der åbner en samtale efter tre uger, må scrolle for at huske
@@ -223,35 +338,108 @@ hvad der blev talt om, og det de talte om i maj er væk.
 **Løsningen er IKKE et resumé.** Et resumé bliver en ny lang tekst
 ingen læser, og det skal genereres igen hver gang tråden vokser.
 
-**Løsningen er emner.** Hver besked klassificeres løbende mod en **fast
-liste** af rådgivningsemner — likviditet, prissætning, salg,
-ansættelser, ejerskab, drift m.fl. (den præcise liste: §8).
-**Fast, ikke frit genereret.** Frie tags driver fra hinanden og bliver
-til tres etiketter der betyder det samme («cash flow», «likviditet»,
-«penge i kassen»). Det er samme lærdom som webhook-hvidlisten, hvor
-hvidliste slog sortliste (#563, `docs/adgangsdomme.md` §1), og som
-branchemotoren, der mapper mod et fast register frem for at gætte
-(`docs/indgangen-overhaling.md` §6).
+**Løsningen er emner** — hver besked klassificeret mod en **fast
+liste** af rådgivningsemner. **Fast, ikke frit genereret.** Frie tags
+driver fra hinanden og bliver til tres etiketter der betyder det samme
+(«cash flow», «likviditet», «penge i kassen»). Det er samme lærdom som
+webhook-hvidlisten, hvor hvidliste slog sortliste (#563,
+`docs/adgangsdomme.md` §1), og som branchemotoren, der mapper mod et
+fast register frem for at gætte (`docs/indgangen-overhaling.md` §6).
+Mønstret i huset er `agent_proposals.decision_category`: fast liste med
+CHECK i databasen, konstant i koden og paritetstest.
 
-**Visningen** på virksomhedssiden (blok 2): ét emne pr. linje med
-antal og seneste dato — «I har talt om likviditet fire gange, senest
-12/8.» — sorteret efter hvad der er **længst siden**, så det glemte står
-øverst. **Klik hopper til beskederne** med det emne.
+### 5.1 Hvad reconen fandt, og som ændrer formen (målt 3/9 sen aften)
 
-**Fra et emne kan der oprettes en opgave** med samtalen som ophav.
-Opgaven bærer referencen til emnet, og emnet bærer referencerne til
-beskederne.
+- **Chattens designdokument har allerede afvist det.**
+  `docs/chat-design.md` C5 fjerner emnevælgeren med begrundelsen: «Den
+  ligner et overblik og er det ikke.» C8 afviser ordret: «Ingen
+  emnefiltre, ingen AI-tematisering, ingen sammenfatninger i tråden.
+  Overblikket bor i MCP; chatten er samtalen.» og: «Det er en afvisning
+  af "AI der tematiserer chattens indhold" som selvstændig funktion.»
+- **Målt 1/9** (`docs/status-1-september.md:430`): **elleve
+  emnemærkede menneskebeskeder ud af 699 i alt.** Under to procent.
+- **`messages.context_type` findes allerede**: TEXT uden CHECK, én værdi
+  ad gangen, otte værdier i omløb (`report`, `handout`, `milestone`,
+  `budget`, `agent`, `feedback`, `opgave_forslag`, `session_prep`) — en
+  blanding af emne og systemkontekst. Kan ikke bære flere emner pr.
+  besked.
+- **`company_actions` bærer INGEN reference til besked eller samtale**:
+  `source_id` er UUID uden FK, og `source_type`-CHECK indeholder hverken
+  `message` eller `conversation`. Referencen går kun den modsatte vej,
+  som `messages.context_meta->>'action_id'` fra
+  `supabase/functions/foreslaa-opgave/index.ts:176`.
+- **`messages` har ingen afsenderrolle**; medlem vs. rådgiver afgøres ved
+  opslag i `user_roles` (triggeren `update_conversation_reply_state`,
+  RPC'en `get_conversation_sender_profiles`).
+- **MemberDetails sektion «Samtaleemner»** (l. 1344–1394) viser
+  overskredne milestones og handout-løftestænger. Den læser ingen
+  beskeder. Navnet er lånt; sektionen hører til blok 6 (Aktivitet), som
+  §4 og §8 allerede siger.
 
-### Krav til datamodellen — fra dag ét
+### 5.2 Omgørelsen af C8 — kun for automatisk klassificering
+
+**Besluttet (Jonas, 3/9 sen aften): C8 omgøres, men KUN for automatisk
+klassificering.** C5 og C8 blev truffet om en MANUEL vælger, hvor
+rådgiveren satte emne på sine egne beskeder og medlemmets beskeder
+aldrig fik et — deraf de elleve ud af 699. Den lignede et overblik og
+var det ikke, fordi den dækkede under to procent af tråden og kun den
+ene parts ord. Automatisk klassificering af BEGGE parters beskeder er
+en anden ting og retter præcis den fejl.
+
+Afvisningen af emnefiltre, AI-tematisering og sammenfatninger INDE i
+tråden står ved magt. Det der åbnes, er et overblik UDEN FOR tråden,
+på virksomhedssiden (blok 3). Noten er skrevet ind under C5 og C8 i
+`docs/chat-design.md`; C5 og C8 selv er ikke slettet.
+
+### 5.3 Mål før flade
+
+Claude foreslog at vise emner som antal og seneste dato («I har talt om
+likviditet fire gange, senest 12/8»). **Det er statistik: det svarer på
+OM, ikke på HVAD**, og rådgiveren skal alligevel klikke ind og læse.
+Formen blev valgt fordi den var nem at bygge, ikke fordi den løser
+problemet. Derfor bestemmes formen ikke nu:
+
+1. **Emnelisten defineres ved at LÆSE** hvad der faktisk tales om i de
+   699 beskeder — ikke fra et skrivebord.
+2. **Klassificeringen køres som et IDEMPOTENT engangsjob** over hele
+   historikken (udfyld kun tomt; mønster: `berig-virksomheder`, #567).
+3. **Derefter MÅLES resultatet:** rammer klassificeringen rigtigt, og er
+   det brugbart — eller bliver det tres etiketter og en tælling der
+   ikke siger noget?
+4. **Først når målingen holder, bygges fladen**, og FORMEN bestemmes af
+   hvad målingen viser. Ingen visning designes på forhånd.
+5. **Holder målingen ikke, står opgave-historikken som opsamling** (5.4),
+   og C8 får ret. Det er det udtrykkelige alternativ, ikke en fodnote.
+
+### 5.4 Alternativet der ikke kræver noget nyt
+
+`company_actions` er allerede en historik over det der blev til
+handling — titel, kontekst, dato, status, oprettet netop når noget
+besluttes i chatten. Ingen AI, ingen ny datamodel, ingen omgørelse af
+C8. Svagheden: en samtale der ikke førte til en opgave, efterlader
+intet spor. Om det er et tab eller en naturlig filtrering, er ikke
+afgjort — det er præcis det målingen i 5.3 skal vise.
+
+### 5.5 Krav til datamodellen — fra dag ét, skærpet af fundene
 
 **Referencen fra opgave til emne til besked skal ligge i datamodellen
 fra den første version. Den kan ikke laves bagud.** Konkret:
 
-- En klassifikation er en række: besked-id, emne (fra den faste
-  liste), tidspunkt, og hvem/hvad der satte den. Én besked kan bære
-  flere emner.
-- En opgave oprettet fra et emne bærer emnets id OG den eller de
-  besked-id'er der var ophavet — ikke kun en fritekst.
+- **Emner kan IKKE bo i `messages.context_type`** — én værdi, blandet
+  betydning (5.1). En klassifikation er en række i en **egen tabel**:
+  besked-id, emne (fra den faste liste, med CHECK som
+  `decision_category`), tidspunkt, og hvem/hvad der satte den. Én
+  besked kan bære flere emner.
+- **Opgavens reference kræver enten en ny kolonne på `company_actions`
+  eller at `source_type`-CHECK'en udvides** med `message`/`conversation`
+  og `source_id` får en FK — i dag peger kun beskeden på opgaven, aldrig
+  opgaven på beskeden (5.1). En opgave oprettet fra et emne bærer emnets
+  id OG den eller de besked-id'er der var ophavet — ikke kun en
+  fritekst.
+- **Afsenderrollen** (medlem/rådgiver) skal kunne læses af
+  klassifikationen uden opslag i `user_roles` pr. besked, hvis begge
+  parters ord skal vægtes — enten som kolonne på klassifikationen eller
+  ved at jobbet slår den op én gang pr. samtale.
 - Emnelisten er data (en tabel eller en enum), ikke strenge spredt i
   koden, så et emne kan omdøbes uden at klassifikationerne mister
   betydning.
@@ -259,7 +447,8 @@ fra den første version. Den kan ikke laves bagud.** Konkret:
 Bygges klassifikationen uden besked-referencen «fordi vi kun skal bruge
 tællingen nu», kan «klik hopper til beskederne» og «opgave med samtalen
 som ophav» ikke bygges bagefter uden at klassificere alt igen. Det er
-et krav, ikke en note.
+et krav, ikke en note — og det gælder også engangsjobbet i 5.3: det
+skriver til den rigtige tabel fra første kørsel.
 
 ---
 
@@ -272,6 +461,7 @@ et krav, ikke en note.
 | menuer | AppSidebar (gammel), HbAdminShell-nav, HbMemberShell (uden rådgiverpunkter) | medlemmets menu + adminblokken |
 | veje ind til én virksomhed | 4 | 1 |
 | steder medlemslisten findes | 3 | 1 (+ forsidens køer, som er noget andet) |
+| domme bag «hvad stikker ud» | 2, begge inline | 1, ren og testet |
 
 Fire rådgiverflader plus platformdriften som egen blok.
 
@@ -282,26 +472,60 @@ Fire rådgiverflader plus platformdriften som egen blok.
 - Override-mekanikken i `useAuth` (`setCompanyOverride`,
   `clearCompanyOverride`) — «Se som medlem» bruger den som i dag.
 - `HbVisningSom` (#573) — bliver den normale vej tilbage.
-- Forsidens buckets som dom (`AdvisorDashboard.tsx`) — flyttes, ikke
-  omskrives.
+- Forsidens buckets som IDÉ (`AdvisorDashboard.tsx`) — betingelserne
+  samles i én ren funktion (§4, blok 1), køerne beholder deres navne.
 - `afgoerFornyelsestilstand` og indgangens betalingsfrist-motor — køerne
   på forsiden bruger de samme domme som `FornyelsesSektion` og
   `IndgangsSektion` i dag.
 - `/chat` som indbakke (bevidst dublet, §3.4).
 - Alle adgangsdomme (`docs/adgangsdomme.md`) — ingen af dem rører
   rådgiverfladen.
+- «Godkend rapport →» som link ud til `/admin/review-queue`
+  (`MemberDetail.tsx:1587–1594`) — godkendelsen bliver hvor den er.
 
 ---
 
-## 8. Hvad dokumentet IKKE afgør
+## 8. Hvad der ikke havde et hjem
 
-- **Hvilke emner der præcis er på den faste liste.** Kræver at man ser
-  på rigtige samtaler — ikke gætter fra et skrivebord. Listen skal være
-  kort nok til at kunne huskes og lang nok til at rumme det der faktisk
-  tales om.
+Reconen af virksomhedssiden (3/9 sen aften) fandt sytten ting i
+MemberDetail og `/members` som ingen af de oprindelige seks blokke
+dækkede. Her er de, med hvor de bor i dag og hvilken blok de nu hører
+til:
+
+| # | hvad | bor i dag | henføres til |
+|---|---|---|---|
+| 1 | Sessionsforberedelse (`ai-financial-feedback`, `request_type: "session_prep"`) | `MemberDetail.tsx:321–344, 916–930, 1152–1174` | **blok 2** |
+| 2 | Refleksion (`pulse_checkins`: største udfordring, søger hjælp til, hvad gik godt) | `MemberDetail.tsx:233–248, 1008–1053` | **blok 2** |
+| 3 | Ansøgningskontekst (`companies.application_context`) | `MemberDetail.tsx:1104–1129` | **blok 2**, sammenfattet og gemt (§4) |
+| 4 | AI Sparring-assistent (`AdvisorAIChat` mod `ai-data-chat`) | `MemberDetail.tsx:1396–1404`; `AdvisorAIChat.tsx:22, 60` | **blok 5** |
+| 5 | 3-måneders forecast (`generate-ai-forecast`) | `MemberDetail.tsx:1317–1339` | **blok 5** |
+| 6 | Agent log og forslag (`agent_runs`, `agent_proposals`; `agent-forslag-afgoer`, `run-company-agent`) | `AgentForslagPanel` via `MemberDetail.tsx:1499`; panelet l. 115–123, 158, 268 | **blok 1** som «afgørelser der venter», OG som kø på forsiden (§3.5, kø 6) |
+| 7 | Milestones (liste, forfaldne, aktive) | `MemberDetail.tsx:1351–1365, 1408–1459` | **blok 6** (§4 nævnte kun rapportering, akademi, handouts) |
+| 8 | Rapport-kommentarer med `context_type: "report"` (læser og skriver `messages`) | `MemberDetail.tsx:516–522, 545–575, 1618–1670` | **blok 4**, som kontekst-beskeder i tråden |
+| 9 | «Godkend rapport →» | `MemberDetail.tsx:1587–1594`, `<a href="/admin/review-queue">` | link ud til review queue, **uændret** |
+| 10 | «Se original fil» (`openReportFile`) | `MemberDetail.tsx:577–579, 1607–1616` | **blok 6** |
+| 11 | Deep-link-ankre `?reportId=`, `?handout=`, `?section=` | `MemberDetail.tsx:207–223, 289–319`; skrives af `AdvisorNotifications.tsx:89, 104` | **skal bevares på den nye rute** (`/virksomhed/:companyId?reportId=…` osv.) |
+| 12 | «Tildelt: {rådgiver}» (`conversations.assigned_advisor_id` → `profiles`) | `MemberDetail.tsx:486–495, 981–986` | **blok 4** |
+| 13 | «Invitation sendt til {email}»-advarslen (invitations-email ≠ profil-email) | `MemberDetail.tsx:417–452, 987–992` | **blok 7** |
+| 14 | Quick stats (rapporter / aktive milestones / handouts) | `MemberDetail.tsx:894–912` | **blok 6** |
+| 15 | Tilknyt eksisterende bruger (`attach-user-to-company`) | `Members.tsx:199–236`, inde i import-dialogen | **blok 7**, tilføjes som **niende handling** (§3.6) |
+| 16 | Automatisk sletning af kildevirksomhed ved «Tilknyt bruger» (merge) | `Members.tsx:807–814`: er kilden tom bagefter, slettes `conversations` og `companies` uden dialog | **blok 7**, bivirkning der **skal være synlig i dialogen** |
+| 17 | Handout-visningen (`HandoutDetail`, erstatter hele siden) | `MemberDetail.tsx:654–664`, via `?handout=` eller klik i handout-kortet | **uafklaret** — se §9 |
+
+---
+
+## 9. Hvad dokumentet IKKE afgør
+
+- **Hvilke emner der præcis er på den faste liste, og hvilken form
+  emnerne vises i.** Listen læses ud af de 699 beskeder (§5.3), og
+  formen bestemmes af målingen — ikke før. Listen skal være kort nok
+  til at kunne huskes og lang nok til at rumme det der faktisk tales om.
 - **Hvilke bullets der fortjener plads i «Hvad skal du vide nu».**
   Kræver at man ser på rigtige virksomheder og spørger hvad rådgiveren
   faktisk havde brug for at vide før mødet.
+- **Handout-visningen:** hører den udfoldede handout (`HandoutDetail`
+  med rådgiverens svar på medlemmets vegne) til virksomhedssiden, eller
+  til `/handouts` med override? I dag erstatter den hele MemberDetail.
 - **Rækkefølgen af selve ombygningen** — hvilken af de fire flader der
   bygges først, og om `/members` lever ved siden af undervejs.
 - **Om AppLayout kan pensioneres helt bagefter.** Ti rådgiverruter
@@ -313,33 +537,43 @@ Fire rådgiverflader plus platformdriften som egen blok.
   der flytter sig. Emne-opsamlingen (§5) er det første, afgrænsede
   skridt, og datamodelkravet i §5 er dét der gør resten muligt senere.
 
+**Åbent punkt, sikkerhed — uafhængigt af ombygningen:** «Fjern medlem»
+har TO forskellige gates for samme kald (`manage-advisor`,
+`action: 'remove-member'`). `MemberCompanyRow.tsx:347` kræver
+`isAdmin && m.role !== 'owner'`; `MemberDetail.tsx:937–963` kræver kun
+`isAdvisor` (sidens gate l. 652). Skal afgøres og ensrettes, før eller
+uafhængigt af flytningen.
+
 ---
 
-## 9. Før der skrives kode
+## 10. Før der skrives kode
 
-**En recon af hvad MemberDetails elleve sektioner og MemberCompanyRows
-handlinger rent faktisk læser og skriver**, så intet tabes i
-flytningen. Konkret, KUN fund:
+**To reconer ER kørt 3/9 sen aften**, begge uden for repoet og til
+genskabelse hvis de bruges: `~/Downloads/recon-virksomhedssiden.md`
+(MemberDetails sektioner og MemberCompanyRows handlinger — indarbejdet i
+§3.3-noten, §3.5-rettelsen, §4-rettelsen og blok 2, blok 7's konsekvens,
+§8 og sikkerhedspunktet i §9) og `~/Downloads/recon-emner.md`
+(emne-opsamlingens grundlag — indarbejdet i §5).
 
-1. `src/pages/MemberDetail.tsx` — for hver af de elleve sektioner
-   (Hero, Refleksion, Hvad stikker ud, Ansøgningskontekst, Session prep,
-   Financial snapshot, Finansiel udvikling, Samtaleemner, AI-sparring,
-   Milestones + Handouts, Agent log, Reports, Delivery Overview): hvilke
-   tabeller og RPC'er den læser, hvilke edge functions den kalder, og
-   hvilken af de seks blokke i §4 den hører til — eller om den ikke hører
-   til nogen.
-2. `src/components/members/MemberCompanyRow.tsx` og `Members.tsx` — for
-   hver af de otte handlinger (omdøb, inviter, tilknyt, fjern medlem,
-   berig, gensend, rediger, slet): hvad den skriver, hvilken edge
-   function eller RPC den går igennem, og hvilke værn (isAdmin/isAdvisor,
-   bekræftelsesdialog, dry-run) den har i dag.
-3. `AdvisorDashboard.tsx` — buckets' præcise betingelser (hvad er
-   «stale», hvor mange dage; hvad er «stands out»), så forsidens køer
-   kan bygges med samme dom.
-4. `AdvisorNotifications.tsx` — hvilke deep-links der findes, og hvilke
-   der skal pege på `/virksomhed/:companyId`.
-5. Hvad de tre virksomheder uden medlemmer bærer af data i dag, så
-   virksomhedssiden kan vises for en virksomhed uden `company_members`.
+**Det der STADIG mangler før kode:**
 
-Først når det kort findes, kan rækkefølgen af ombygningen (§8)
+1. **Emnelisten selv**, læst ud af de 699 beskeder (§5.3, trin 1), og
+   derefter engangsjobbet og målingen (trin 2–3). Formen kommer efter.
+2. **Buckets' linkmål** for `primary: "company"` (`AdvisorDashboard.tsx:
+   1130–1134`): klik-handleren er ikke læst, så det er ikke afgjort om
+   de peger på `/members/:userId` eller sætter override. Skal kendes for
+   at alle deep-links kan flyttes til `/virksomhed/:companyId`.
+3. **Hvilke `advisor_notifications.type`-værdier der findes**, og hvilken
+   edge function der skriver dem — `AdvisorNotifications.tsx` forgrener
+   kun på `reference_type` (l. 86, 95, 111, 127), ikke på `type`.
+4. **Hvad de fire AI-edge-functions læser og skriver serverside:**
+   `ai-financial-feedback` (session_prep), `ai-data-chat`
+   (sparringen), `generate-ai-forecast`, og `run-company-agent` /
+   `agent-forslag-afgoer`. Nødvendigt for at vide hvad blok 2 og blok 5
+   kan persistere, og for sammenfatningen af ansøgningskonteksten.
+5. **Den samlede rene funktion bag blok 1 og forsidens køer** (§4-
+   rettelsen): skrives og testes FØR nogen flade, med den vendte
+   stale-regel (§3.5) og agentforslag som input.
+
+Først når det er på plads, kan rækkefølgen af ombygningen (§9)
 besluttes.
