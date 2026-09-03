@@ -1,6 +1,6 @@
 # Overlevering
 
-**Sidst opdateret: 3. september 2026, morgen.**
+**Sidst opdateret: 3. september 2026, formiddag.**
 
 Læses først i enhver ny samtale. Claude husker intet mellem samtaler;
 denne fil skal kunne bære det. Den fortæller hvordan vi arbejder, hvor
@@ -267,7 +267,7 @@ Recon: `~/Downloads/recon-onboarding-tjekliste.md`, `recon-velkomstvideo.md`.
 ikke-gjorte punkter i stedet for (a)–(i), og hilsenen siger «Velkommen».
 Pillen står stadig ved siden af — ikke afgjort (indgangen-overhaling §10).
 
-### Adgangsrejsen — trin 1–2, 5–9, 11–13 bevist; af ruten mangler kun blindgyden
+### Adgangsrejsen — RUTEN ER FÆRDIG 3/9 formiddag: trin 5–13 bevist i drift, 1–4 bygget
 
 `docs/indgangsfladen-design.md` (design §1–8, 2/9 nat; tillæg §9–13,
 2/9 aften) og `~/Downloads/recon-adgangsrejsen.md` (designet holdt op
@@ -310,32 +310,56 @@ er bevidst overgangen og IKKE `_event === "SIGNED_IN"`, fordi auth-js
 udsender SIGNED_IN ved faneskift, cross-tab broadcast, re-auth ved
 kodeordsskift og hard reload — et `loading = true` dér ville afmontere
 hele rute-træet midt i en handling. Bevist af Jonas 3/9 i alle fire
-scenarier; skelet-grenen i Index er urørt. **Mangler af ruten:** kun
-blindgyden (trin 10, §7.1: grænse på skelettet, `none` = fejl for
-ikke-rådgivere, skelet i Hb-tokens). Uden for ruten: branchen (trin
-2–4, se afsnittet nedenfor), §7.2–7.4 og §7.7, de tre `valueCards` uden
-hjem, pillens rolle i ankomsten, velkomst-punktet uden knap i kortet
-(skal løses før `velkomstvideo_guid` sættes), Google-kobling som
-kontoindstilling.
+scenarier. **Blindgyden er lukket, 3/9 formiddag (trin 10, #557):**
+Index viste `DashboardSkeleton` i `AppLayout` når tier var null for en
+ikke-rådgiver — mørkegrønt, uden grænse, uden besked, uden knap. Nu
+vises `CompanyLinkFailedGate` straks. Ingen timeout, og det er
+besluttet: efter #554 er tier null aldrig en ventetilstand (hænger et
+opslag, holder `loading` porten og HbSpinner vises — Index tegnes
+ikke); tegnes siden med tier null, er opslaget afgjort, og der er intet
+at vente på. Den tredje vej ind i skelettet (PPI-succes satte aldrig
+tier) er lukket i `useAuth` med `afgoerMedlemsTier`, samme regel som
+trin D. Bevist kl. 08:53 med en fremkaldt tilstand: `company_members`-
+rækken for `jonas+test3` slettet → gaten «Vi mangler et led, Jonas»,
+ikke skelettet; rækken rullet tilbage med oprindeligt id. *Metoden er
+værd at huske:* en blindgyde kan fremkaldes billigt på en testbruger
+der alligevel skal slettes. **RUTEN ER FÆRDIG:** trin 5–13 bevist i
+drift, trin 1–4 bygget (udestående bevis for trin 4, se afsnittet
+nedenfor). Fra invitationslink til Dit Boardroom: to skærme, Hjemmebane
+hele vejen, en ankomst der tager imod, og ingen tilstand hvor et medlem
+kan stå fast uden en vej videre. Uden for ruten, stadig åbent: §7.2–7.4
+og §7.7, de tre `valueCards` uden hjem, pillens rolle i ankomsten,
+velkomst-punktet uden knap i kortet (skal løses før `velkomstvideo_guid`
+sættes), Google-kobling som kontoindstilling, `DashboardSkeleton` som
+død kode.
 Målt 2/9 i prod: `handle_new_user` er IKKE fail-closed på
 `email_confirmed_at` og afviser signup uden invitation med P0001;
 rådgivergrenen kommer først. CLAUDE.md er rettet (#537).
 
-### Branchemotoren — trin 1 bygget 3/9, ingen aftager endnu
+### Branchemotoren — trin 1–4 bygget og deployet 3/9; ét bevis udestår
 
 `docs/indgangen-overhaling.md` §6 og §9 trin 1–4. Ren motor
 `udledBranchekode` i `src/lib/branchekode.ts` (#553): opslag seks →
 fire → tre → to cifre, tabel med begrundelse pr. række, 113 tests.
 `INDUSTRY_OPTIONS` er flyttet fra `Settings.tsx` til `src/lib/brancher.ts`,
-så motoren og Settings deler én kilde til labels. Besluttet 3/9 (Jonas):
-motoren sætter `industry_code`; `industry_label` KUN hvis den er tom;
-rammer mappingen ikke, står begge felter tomme, og der sættes ALDRIG
-`other_general`. **Registret er DB25, ikke DB07** — CVR skiftede 1/1
-2025; §6 er rettet 3/9, motoren er bygget mod DB25 (fixture fra
-Danmarks Statistik). Mangler: trin 2's bevis i prod (Settings' select
-uændret efter Update), trin 3 (spejl til Deno + paritetstest), trin 4
-(motoren kaldes ved oprettelsen — ny delt fil ⇒ eksplicit deploy af
-`monday-webhook` og `import-application`).
+så motoren og Settings deler én kilde til labels — **bevist i prod 3/9
+formiddag** (branche-vælgeren virker efter Update-klik, værdien læses
+korrekt). Besluttet 3/9 (Jonas): motoren sætter `industry_code`;
+`industry_label` KUN hvor feltet ellers ville være tomt (input, så
+CVR-tekst, så motorens label); rammer mappingen ikke, står begge felter
+tomme, og der sættes ALDRIG `other_general`. **Registret er DB25, ikke
+DB07** — CVR skiftede 1/1 2025; §6 er rettet 3/9, motoren er bygget mod
+DB25 (fixture fra Danmarks Statistik). **Trin 3–4 (#556):**
+`byggVirksomhedsRaekke` oversætter CVR-koden ved oprettelse (ikke ved
+genbrug på CVR); motor og taksonomi spejlet til `_shared/`, paritetstest
+kører alle 738 underklasser gennem begge kopier; `virksomhedsraekke` har
+nu én import, og importstien er den eneste tilladte forskel mellem
+kopierne. `monday-webhook` og `import-application` deployet 3/9 via
+build-chat (401 uden autorisation, ikke 404). **Udestående bevis:** at
+en ny virksomhed faktisk får `industry_code` sat — 401 beviser kun at
+funktionen svarer. Kommer ved næste rigtige «Godkendt» eller «Importér
+ansøgning». Branchedataene i prod er målt 3/9 og trænger til en
+datarettelse (§10).
 
 ### Oprydningen 2/9
 
@@ -370,10 +394,11 @@ facit og rækkefølge; `docs/chat-design.md` chattens form.
 | åbent | **Velkomstvideoen skal optages** (Morten). Pladsen er bygget; GUID'et sættes i /admin/config. | recon-velkomstvideo |
 | åbent | **Rundvisningen** — interaktiv førstegangs-oplevelse efter velkomsten; bygges efter C3-indflytningen; må aldrig eksistere ved siden af Guiden. | BACKLOG [P2·EPIC] Platform-onboarding |
 | åbent | **Adminfladens overhaling** — rådgiverfladen tages samlet som ét epic, efter medlemsdesignet. /members har i dag IndgangsSektion + FornyelsesSektion i gammelt design. | prioritering §6 |
-| **næste spor** | **Blindgyden** (indgangens overhaling, trin 10): grænse på skelettet efter N sekunder → `CompanyLinkFailedGate`; `companyResolution = "none"` behandles som fejl for ikke-rådgivere; skelettet i Hb-tokens. N er ikke afgjort (§10). Det grønne blink (trin 13) er rettet og bevist 3/9 (#554); trin 11–12 gennemført 2/9 nat. | `docs/indgangen-overhaling.md` §7.1, §9 |
-| næste spor | **Branchemotorens aftager** (trin 2–4): trin 2's bevis i prod efter Update-klik; spejl til `_shared/branchekode.ts` + paritetstest; kaldet ved oprettelsen med eksplicit deploy af `monday-webhook` og `import-application`. Bevis: næste «Godkendt» på Monday giver en række med `industry_code` sat. Uafhængigt af blindgyden. | `docs/indgangen-overhaling.md` §6, §9 |
+| ved næste oprettelse | **Udestående bevis for trin 4** (branchen): næste rigtige «Godkendt» på Monday eller «Importér ansøgning» skal give en række med `industry_code` sat (SQL editor) og branchesammenligning i NoegletalView. 401 fra de deployede funktioner beviser kun at de svarer. | `docs/indgangen-overhaling.md` §6, §9 trin 4 |
+| åbent | **Branchedataene i prod** (målt 3/9): 7 af 32 aktive virksomheder uden `industry_code` (ingen benchmarks); 2 med en registerkode i feltet (WESDEX, Two Socks); 3 med værdier motoren aldrig sætter (`other_general`, `travel_event`, `tech_startup`); flere uenige med CVR (ANLA GLAS, Limo Group, Topix) — hvem der har ret kan ikke afgøres fra data. Datarettelse, ikke kode. **Kontakt-email** er tom på de fleste, herunder Topix; `sikrIndgangsInvitation` kræver feltet. Samme formular, samme oprydning. | `docs/indgangen-overhaling.md` §10 |
+| åbent | **`DashboardSkeleton` er død kode** efter #557 (fire træffere, alle kommentarer). Ryddes i en senere omgang. | `docs/indgangen-overhaling.md` §10 |
 | åbent | Ankomstens løse ender: pillen viser samme punkter som fokuskortet (Claudes dom: den bør trække sig — ikke besluttet); velkomst-punktet kan ikke trykkes i kortet — skal løses FØR `velkomstvideo_guid` sættes; «Dine tal»-kortets tomme tilstand står nederst. | `docs/indgangen-overhaling.md` §10 |
-| når ruten er bevist | **Testvirksomheden FLOOR1 I/S** (`fea24b90-…`, `jonas+test1/2/3@topix.dk`) skal fjernes helt: hardDelete med brugere + storage- og user_id-rester. | `docs/indgangen-overhaling.md` §11, `~/Downloads/recon-testvirksomhed.md` |
+| nu — ruten er bevist 3/9 | **Testvirksomheden FLOOR1 I/S** (`fea24b90-…`, `jonas+test1/2/3@topix.dk`) skal fjernes helt: hardDelete med brugere + storage- og user_id-rester (trin 14). Bemærk: test3 blev brugt 3/9 til at fremkalde blindgyden — en billig metode til at se fejlflader, så længe virksomheden står. | `docs/indgangen-overhaling.md` §11, `~/Downloads/recon-testvirksomhed.md` |
 | åbent | Nudge-formen som designdokument, Community-opdagelse, Events (bekræftelse, kalender, lokation), Milepælene ud — rækkefølgen fra 1/9 står. | prioritering §2–5 |
 | driftsgæld | Fejlovervågning findes ikke; restore er aldrig afprøvet; `run-weekly-agent` står ikke i `cron.job`; 73 uploads bestod validering uden at blive committet; e-conomic-integrationen er død (migration-recon §10). | status-1-sept §6, OVERLEVERING (forrige) §7 |
 

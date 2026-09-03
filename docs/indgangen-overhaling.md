@@ -1,15 +1,15 @@
 # Indgangens overhaling — fra invitationslink til Dit Boardroom på to skærme
 
 **DESIGNDOKUMENT MED BOGFØRING.** Beslutningerne er truffet af Jonas
-2. september 2026 om aftenen. Status 3/9 morgen: trin 5–9 i §9 (mail-
-bekræftelsen, agentens betingelse, porten, ankomstens motor og flade) er
-bygget og bevist i drift; trin 11–12 (hele Auth-fladen til Hjemmebane,
-#549–#551) er gennemført og bekræftet på skærm 2/9 nat; trin 13 (det
-grønne blink efter login, #554) er gennemført og bevist i drift 3/9;
-trin 1 (branchemotoren, #553) er bygget. Af ruten mangler kun 10
-(blindgyden); af branchen mangler 2–4 (aftageren). **Rettelse 3/9:**
-registret bag branchemotoren er DB25, ikke DB07 — §6 er rettet, se
-noten der. Samme regel som
+2. september 2026 om aftenen. **Status 3/9 formiddag: RUTEN ER FÆRDIG.**
+Trin 5–13 i §9 er bevist i drift (5–9 den 2/9, 11–12 den 2/9 nat, 13 og
+10 den 3/9 morgen, #554 og #557); trin 1–4 (branchen, #553 og #556) er
+bygget og deployet, med ét udestående bevis for trin 4 (en rigtig
+oprettelse med `industry_code` sat). Fra invitationslink til Dit
+Boardroom: to skærme, Hjemmebane hele vejen, en ankomst der tager imod,
+og ingen tilstand hvor et medlem kan stå fast uden en vej videre.
+**Rettelse 3/9:** registret bag branchemotoren er DB25, ikke DB07 — §6
+er rettet, se noten der. Samme regel som
 `docs/indgangsfladen-design.md`: hver påstand er enten målt (med kilde),
 eller mærket som ikke målt/forslag/åben. Reconerne bag ligger uden for
 repoet (`~/Downloads/recon-adgangsruten.md`, `recon-branche.md`,
@@ -440,7 +440,8 @@ Ny ren motor, **motor før flade**: `udledBranchekode(db25: string):
 `industry_code` (nøglerne i `INDUSTRY_OPTIONS`/`industry_benchmarks`,
 48 underkategorier, målt `Settings.tsx:25-108` og seed
 `20260329190316:143-268` + `211955`). Kaldes ved oprettelsen (trin 4,
-ikke bygget). Opslag fra det mest specifikke niveau til det groveste:
+bygget og deployet 3/9 i #556 — bevis udestående, se §9). Opslag fra det
+mest specifikke niveau til det groveste:
 seks cifre → fire → tre → to (afdelingen); første niveau der HAR en
 post afgør, også når posten er null.
 
@@ -498,12 +499,29 @@ Motoren lever i `src/lib/branchekode.ts` og har én import: taksonomien i
 `src/lib/brancher.ts`, så Settings og motoren deler én kilde til
 labels. **`INDUSTRY_OPTIONS` er flyttet ordret fra `Settings.tsx` til
 `src/lib/brancher.ts` i #553** (Settings importerer den derfra) — det er
-§9 trin 2's kodedel, gjort sammen med trin 1; trin 2's bevis i prod
-(Settings' branche-select uændret efter Update-klik) er ikke kørt.
-Spejlet til `_shared/branchekode.ts` med paritetstest (mønstret fra
-`betalingsfrist` og `virksomhedsraekke`) er trin 3, ikke bygget; begge
-filer spejles når motoren får en Deno-aftager. Onboarding.tsx' egen
-15-liste døde med porten (trin 7).
+§9 trin 2's kodedel, gjort sammen med trin 1. **Trin 2 bevist i prod
+3/9 formiddag:** branche-vælgeren i Indstillinger virker efter
+Update-klik — grupper og underkategorier står som før, nuværende værdi
+læses korrekt; flytningen brød ingenting.
+
+**Trin 3–4 bygget og deployet 3/9 (#556):** `byggVirksomhedsRaekke`
+oversætter nu CVR-registrets DB25-kode til app-taksonomiens
+`industry_code`. Motoren og taksonomien er spejlet til `_shared/`
+(`branchekode.ts`, `brancher.ts`); paritetstesten
+(`branchekodeParitet.test.ts`) importerer begge kopier, sammenligner alle
+fire tabeller felt for felt og kører hele registret (738 underklasser)
+gennem begge. `industry_label` sættes kun hvor feltet ellers ville være
+tomt: input vinder, så CVR-teksten, og motorens label sidst. Kun ved
+oprettelse — ved genbrug på CVR røres branchefelterne ikke.
+`virksomhedsraekke` havde før nul imports som bevidst egenskab; nu én
+(`./branchekode`), og importstien er den eneste tilladte forskel mellem
+kopierne (som `fornyelse.ts`). `monday-webhook` og `import-application`
+er deployet 3/9 via build-chat; begge svarer 401 uden gyldig
+autorisation, ikke 404. **Ikke bevist:** at en ny virksomhed faktisk får
+`industry_code` sat — 401 beviser kun at funktionen svarer, ikke at det
+er den nye kode (samme forbehold som stripe-webhook 2/9). Beviset kommer
+ved næste rigtige oprettelse gennem «Godkendt» eller «Importér
+ansøgning». Onboarding.tsx' egen 15-liste døde med porten (trin 7).
 
 ### De to felter — målt forskel; `industry_label` BESLUTTET 3/9
 
@@ -565,6 +583,36 @@ tier vises `CompanyLinkFailedGate`-formen (Hjemmebane, findes:
 som «rådgiver uden virksomhed» (useAuth.tsx:308-312 skelner ikke på
 rolle). N er ikke afgjort (§10). Skelettet selv tegnes i Hb-tokens
 (`DashboardSkeleton` er `glass-card` + shadcn `Skeleton`).
+
+**✅ GENNEMFØRT OG BEVIST I DRIFT 3/9 formiddag (PR #557) — blindgyden
+er lukket. Besluttet anderledes end «Skal blive» ovenfor (Jonas 3/9,
+valg B):** INGEN grænse, og det er bevidst. Efter #554 er tier null for
+en ikke-rådgiver ALDRIG en ventetilstand: hænger et opslag ved login,
+holder `loading` porten, og `MemberRoute` viser `HbSpinner` — Index
+tegnes ikke. Tegnes siden med tier null, er opslaget afgjort: svaret var
+«ingen virksomhed» (`companyResolution = "none"`), eller `fetchUserData`
+kastede (`"pending"` med `loading` falsk). Der er intet at vente på, så
+en timeout ville være venten på noget der ikke sker — gaten kommer med
+det samme. Index viser nu `CompanyLinkFailedGate` for enhver
+ikke-rådgiver med tier null, ikke skelettet. Den tredje vej ind i
+skelettet var ikke en fejl og er lukket i `useAuth` i stedet:
+PPI-succesgrenen satte `companyId` men aldrig tier, så et nykoblet
+medlem stod på skelettet til næste auth-event — gaten ville have sagt at
+noget gik galt om noget der gik godt. Grenen sætter nu tier med samme
+regel som trin D, udtrukket til `afgoerMedlemsTier` frem for skrevet af.
+De to grene i Index (`failed` før fornyelses-kvitteringen, tier null
+efter) er bevidst IKKE slået sammen: kvitteringen står imellem dem og
+beholder sin forrang. Skelettet er ikke konverteret til Hb-tokens — det
+tegnes ikke længere (`DashboardSkeleton` har ingen kaldere, §10).
+**Bevist i drift 3/9 kl. 08:53 med en fremkaldt tilstand:**
+`company_members`-rækken for `jonas+test3@topix.dk` blev slettet
+(`cm_id 3f1e4f23-db8a-4e99-a868-4952641038d4`); login gav
+`CompanyLinkFailedGate` — «Vi mangler et led, Jonas» med Prøv igen,
+Skriv til os og Log ud — og IKKE skelettet. Rækken er rullet tilbage med
+sit oprindelige id og tidsstempel; FLOOR1 har igen tre medlemmer. SELECT
+før og efter i begge retninger. *Metoden:* en blindgyde kan fremkaldes
+billigt på en testbruger der alligevel skal slettes. Ingen havde set den
+skærm før.
 
 **✅ GENNEMFØRT OG BEVIST I DRIFT 3/9 morgen (PR #554) — det grønne
 blink efter login er væk.** `useAuth` sætter nu `loading = true` ved
@@ -776,21 +824,29 @@ flader. «Bevis» = hvad der måles før næste trin begynder.
    tabellerne er bygget mod DB25's 87 afdelinger. Beslutninger skrevet
    ind i filhovedet: `industry_code` sættes; `industry_label` kun hvis
    tom; ingen `other_general`. Ingen aftager endnu.
-2. **Taksonomien som ét modul** (`INDUSTRY_OPTIONS` ud af `Settings.tsx`
-   til `src/lib/brancher.ts`; Settings importerer). *Kodedelen er gjort
-   i #553 sammen med trin 1.* Bevis mangler: Settings' branche-select
-   uændret i prod efter Update-klik; `tsc` med de fire kendte fejl
-   (målt grøn lokalt 3/9).
-3. **Spejl til Deno + paritetstest** (`_shared/branchekode.ts`,
-   `branchekodeParitet.test.ts`). Bevis: paritetstest grøn; `deno check`
-   på de funktioner der importerer den.
-4. **Motoren kaldes ved oprettelsen** (i `byggVirksomhedsRaekke` eller
-   umiddelbart efter i `opretEllerGenbrugVirksomhed`; `industry_code` og
-   — hvis §6-forslaget besluttes — `industry_label` fra motoren; ny
-   delt fil ⇒ eksplicit deploy af `monday-webhook` og
-   `import-application`, ikke bare merge). Bevis: næste «Godkendt» på
-   Monday giver en række med `industry_code` sat (SQL editor), og
-   NoegletalView viser branchesammenligning for den.
+2. **✅ BEVIST I PROD 3/9 formiddag — Taksonomien som ét modul**
+   (`INDUSTRY_OPTIONS` ud af `Settings.tsx` til `src/lib/brancher.ts`;
+   Settings importerer; kodedelen i #553). Bevis målt: branche-vælgeren
+   i Indstillinger virker efter Update-klik — grupper og underkategorier
+   står som før, nuværende værdi læses korrekt. Flytningen brød
+   ingenting.
+3. **✅ BYGGET 3/9 (PR #556) — Spejl til Deno + paritetstest**
+   (`_shared/branchekode.ts` + `_shared/brancher.ts`,
+   `branchekodeParitet.test.ts`: importerer begge kopier, sammenligner
+   alle fire tabeller felt for felt og kører alle 738 underklasser
+   gennem begge). Bevis: paritetstest grøn.
+4. **✅ BYGGET OG DEPLOYET 3/9 (PR #556) — Motoren kaldes ved
+   oprettelsen** (i `byggVirksomhedsRaekke`; `industry_code` fra motoren;
+   `industry_label` kun hvor feltet ellers ville være tomt — input, så
+   CVR-tekst, så motorens label; kun ved oprettelse, ikke ved genbrug på
+   CVR). `monday-webhook` og `import-application` deployet 3/9 via
+   build-chat; begge svarer 401 uden gyldig autorisation, ikke 404.
+   **BEVIS UDESTÅENDE:** at en ny virksomhed faktisk får `industry_code`
+   sat — 401 beviser kun at funktionen svarer, ikke at det er den nye
+   kode (samme forbehold som stripe-webhook 2/9). Bevis: næste rigtige
+   oprettelse gennem «Godkendt» eller «Importér ansøgning» giver en
+   række med `industry_code` sat (SQL editor), og NoegletalView viser
+   branchesammenligning for den.
 5. **✅ BEVIST 2/9 kl. 21:56 — Mailbekræftelsen slået fra** (Lovable →
    Cloud → Users → Auth settings → Email → «Auto-confirm email» TIL, kl.
    ca. 21:54; §3). Bevis målt: `confirmation_sent_at = NULL`,
@@ -829,11 +885,15 @@ flader. «Bevis» = hvad der måles før næste trin begynder.
    «Gør det nu», tre punkter som linjer (§5). Pillens rolle er IKKE
    afgjort (§10); «efter alle punkter er gjort»- og GUID-beviserne er
    ikke kørt endnu.
-10. **Blindgyden lukkes** (§7.1: grænse på skelettet, `none` = fejl for
-   ikke-rådgivere, skelet i Hb-tokens). Bevis: fremkald tilstanden
-   (bruger uden `company_members`-række i test) → gaten efter N
-   sekunder, ikke skelettet. *Ikke bygget.* Skelet-grenen er den samme
-   som det grønne blink rammer (trin 13) — men de er to rettelser.
+10. **✅ GENNEMFØRT OG BEVIST I DRIFT 3/9 kl. 08:53 (PR #557) —
+   Blindgyden lukket** (§7.1, valg B: INGEN grænse — tier null er efter
+   #554 aldrig en ventetilstand; `none` og et kastet `fetchUserData` er
+   fejl og viser `CompanyLinkFailedGate` straks; PPI-succes sætter nu
+   selv tier via `afgoerMedlemsTier`; skelettet tegnes ikke længere og
+   er derfor ikke konverteret). Bevis målt: `company_members`-rækken for
+   `jonas+test3` slettet → login gav gaten «Vi mangler et led, Jonas»
+   med Prøv igen, Skriv til os og Log ud, ikke skelettet; rækken rullet
+   tilbage med oprindeligt id og tidsstempel, SELECT før/efter.
 11. **✅ GENNEMFØRT 2/9 nat (#549, #550, #551) — /auth til Hjemmebane**
     (§7.5: alle fem tilstande + spinnerne + `/reset-password`). Bevis
     målt: grep efter gamle tokens i de fire filer = nul; Jonas
@@ -857,11 +917,15 @@ flader. «Bevis» = hvad der måles før næste trin begynder.
     OVERLEVERING DEL 2/3 peger hertil. Testopstillingen (§11) fjernes
     når ruten er bevist.
 
-Trin 1–4 (branchen) er uafhængige af 5–9 (ruten) og kan køre parallelt
-i to grene; **5–9 er bevist 2/9, 11–12 gennemført 2/9 nat, 13 bevist
-3/9 morgen (#554), 1 bygget 3/9 morgen (#553)**. Af ruten mangler nu
-kun 10 (blindgyden). Af branchen mangler 2–4 (aftageren: trin 2's bevis
-i prod, spejlet til Deno, og kaldet ved oprettelsen).
+**RUTEN ER FÆRDIG (3/9 formiddag).** Trin 5–13 er bevist i drift: 5–9
+den 2/9, 11–12 den 2/9 nat, 13 den 3/9 morgen (#554), 10 den 3/9 kl.
+08:53 (#557). Trin 1–4 (branchen) er bygget og deployet: 1 og 2 i #553
+(2 bevist i prod 3/9 formiddag), 3 og 4 i #556 — med ét udestående
+bevis for trin 4 (en rigtig oprettelse med `industry_code` sat). Fra
+invitationslink til Dit Boardroom: to skærme, Hjemmebane hele vejen, en
+ankomst der tager imod, og ingen tilstand hvor et medlem kan stå fast
+uden en vej videre. Det der står tilbage, er ikke ruten: §10's åbne
+punkter og trin 14's oprydning (testopstillingen i §11).
 
 ---
 
@@ -887,6 +951,20 @@ i prod, spejlet til Deno, og kaldet ved oprettelsen).
   før 1/1 2025 bærer en DB07-kode, som motoren ikke forstår; kun
   DB25-koder kan udledes. Er en datarettelse (SELECT før/efter, guard
   `industry_code IS NULL`), ikke en del af trin 4.
+  *Målt 3/9 formiddag — branchedataene i prod:* syv af 32 aktive
+  virksomheder har ingen `industry_code` og dermed ingen benchmarks; to
+  (WESDEX `439100`, Two Socks `563020`) har en REGISTERKODE stående i
+  feltet og får derfor heller ingen; tre har værdier motoren aldrig
+  ville sætte (`other_general`, `travel_event`, `tech_startup`); flere
+  har en kategori der er uenig med CVR-registreringen (ANLA GLAS, Limo
+  Group, Topix) — hvem der har ret kan ikke afgøres fra data, da en
+  virksomhed kan skifte aktivitet uden at rette sin branchekode.
+  Oprydningen er en datarettelse, ikke en kodeopgave.
+- **Kontakt-email er tom på de fleste virksomheder**, herunder Topix
+  (set 3/9 i Indstillinger). `sikrIndgangsInvitation` læser
+  `companies.contact_email` og kræver feltet for at kunne sende
+  invitationen. Hører sammen med branche-oprydningen — samme formular.
+  Åbent.
 - **LØST 2/9 aften — Markøren for «første besøg»** (§5): ankomsten
   varer indtil tjeklisten er færdig (valg A), så markøren er
   `byggTjekliste(...).faerdig` — data pr. medlem, ingen ny kolonne.
@@ -920,9 +998,13 @@ i prod, spejlet til Deno, og kaldet ved oprettelsen).
 - **«Dine tal»-kortets tomme tilstand står nederst på forsiden**, under
   podcast og «Værd at se igen» — langt nede for et medlem hvis eneste
   opgave er at komme i gang. Ikke rørt i trin 9.
-- **N sekunder** før skelettet giver op (§7.1). Uafhængigt af det grønne
-  blink (trin 13, rettet i `useAuth` 3/9) — skelet-grenen selv er
-  urørt og er trin 10.
+- **LØST 3/9 (#557) — N sekunder** før skelettet giver op (§7.1): der
+  er ingen N. Tier null er efter #554 aldrig en ventetilstand, så gaten
+  vises straks; en grænse ville være venten på noget der ikke sker.
+- **`DashboardSkeleton` er død kode** (målt 3/9 efter #557: fire
+  træffere i `src/`, alle kommentarer — Index, useAuth,
+  CompanyLinkFailedGate). Ikke slettet i #557 for at holde rettelsen
+  smal. Ryddes i en senere omgang.
 - **Dødt vs. brugt token** (§7.2): kræver at RPC'en svarer med en grund
   for ikke-pending tokens — ændrer hvad et token afslører (i dag: intet
   for brugte). Ikke besluttet.
