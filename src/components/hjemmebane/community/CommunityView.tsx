@@ -12,12 +12,23 @@ import {
   type CommunityTraad,
 } from "@/lib/hjemmebane/communityApi";
 import { CommunityComposer } from "./CommunityComposer";
+import { CommunityMedlemmer } from "./CommunityMedlemmer";
 import { HbSection } from "../HbSection";
 import { HbTag } from "../HbTag";
 
 /** Fællesskabets feed (/community) — læsning + SKRIVE-leddet: composer
     øverst til nye tråde. Række-udtrykket spejler EventsView: rammeløse
-    hb-line-rækker, ikke HbCard; hele rækken er et link til tråden. */
+    hb-line-rækker, ikke HbCard; hele rækken er et link til tråden.
+
+    TO SPOR (3/9): feedet og medlemmerne (CommunityMedlemmer) står side
+    om side fra lg — sidebar i fladens EGET indhold, ikke i skallen og
+    ikke i HbSection (begge urørte). Ingen anden Hb-medlemsflade har et
+    sidespor (målt: NoegletalView/RapporteringView bruger kun kort-grids;
+    det eneste tokolonne-layout er skallens sidebar/indhold), så formen
+    er skallens egen: fast bredde til sporet, minmax(0,1fr) til feedet,
+    så lange titler ikke kan skubbe sporet ud. Under lg stables sporet
+    UNDER feedet — feedet med composeren er fladens ærinde på en telefon,
+    medlemmerne kommer efter. */
 
 /** Relativ tid på seneste aktivitet — samme ånd som EventsViews
     eventCountdown, blot bagud: "I dag", "I går", "For N dage siden". */
@@ -144,42 +155,48 @@ export const CommunityView = () => {
   const traade = feedQuery.data ?? [];
 
   return (
-    <HbSection eyebrow="Fællesskab" hairline>
-      {/* Composeren vises først når feedet er færdigindlæst, så den ikke
-          hopper ind over skeleton-rækkerne — OG først når brugeren er
-          indlæst: den må ikke montere med et tomt brugerId, for så ville
-          en billed-upload lande på en ulovlig sti, som motoren bagefter
-          kasserer. */}
-      {!feedQuery.isLoading && user && (
-        <div className="mb-8">
-          <CommunityComposer
-            visTitel
-            brugerId={user.id}
-            titel={titel}
-            onTitelChange={setTitel}
-            submitLabel="Del"
-            onSubmit={(indholdJson) =>
-              opretMutation.mutateAsync({ titel, indholdJson }).then(() => undefined)
-            }
-          />
-        </div>
-      )}
+    <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_288px] lg:items-start lg:gap-12">
+      <HbSection eyebrow="Fællesskab" hairline className="min-w-0">
+        {/* Composeren vises først når feedet er færdigindlæst, så den ikke
+            hopper ind over skeleton-rækkerne — OG først når brugeren er
+            indlæst: den må ikke montere med et tomt brugerId, for så ville
+            en billed-upload lande på en ulovlig sti, som motoren bagefter
+            kasserer. */}
+        {!feedQuery.isLoading && user && (
+          <div className="mb-8">
+            <CommunityComposer
+              visTitel
+              brugerId={user.id}
+              titel={titel}
+              onTitelChange={setTitel}
+              submitLabel="Del"
+              onSubmit={(indholdJson) =>
+                opretMutation.mutateAsync({ titel, indholdJson }).then(() => undefined)
+              }
+            />
+          </div>
+        )}
 
-      {feedQuery.isLoading ? (
-        <ul className="list-none">
-          <RowSkeleton />
-          <RowSkeleton />
-          <RowSkeleton />
-        </ul>
-      ) : traade.length === 0 ? (
-        <p className="text-sm text-hb-ink-soft">Der er ikke skrevet noget endnu. Om lidt er der.</p>
-      ) : (
-        <ul className="list-none">
-          {traade.map((traad) => (
-            <TraadRaekke key={traad.id} traad={traad} />
-          ))}
-        </ul>
-      )}
-    </HbSection>
+        {feedQuery.isLoading ? (
+          <ul className="list-none">
+            <RowSkeleton />
+            <RowSkeleton />
+            <RowSkeleton />
+          </ul>
+        ) : traade.length === 0 ? (
+          <p className="text-sm text-hb-ink-soft">Der er ikke skrevet noget endnu. Om lidt er der.</p>
+        ) : (
+          <ul className="list-none">
+            {traade.map((traad) => (
+              <TraadRaekke key={traad.id} traad={traad} />
+            ))}
+          </ul>
+        )}
+      </HbSection>
+
+      <div className="mt-14 lg:mt-0">
+        <CommunityMedlemmer mitUserId={user?.id} />
+      </div>
+    </div>
   );
 };
