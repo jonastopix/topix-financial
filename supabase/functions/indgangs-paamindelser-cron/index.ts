@@ -16,12 +16,16 @@
 // stemples der IKKE, så mailen prøves igen næste dag (samme regel som
 // intro-reminder-cron:220).
 //
-// DAG 31: mailen siger «vi har sendt dig en faktura … i en separat mail
-// fra Stripe». Fakturaen via Stripe Invoicing er IKKE bygget (leddet
-// mangler — docs/indgangen-design.md §4 og §26). Cronen sender mailen og
-// logger TYDELIGT at fakturaen skal sendes i hånden; svaret bærer listen
-// faktura_i_haanden, så den kan ses i cron-loggen. Når Stripe Invoicing-
-// leddet bygges, hører det hjemme lige før dag 31-sendingen herunder.
+// DAG 31 (bygget 3/9): FAKTURAEN FØRST, mailen bagefter. Mailen siger i
+// datid «har vi sendt dig en faktura … i en separat mail fra Stripe», så
+// fakturaen skal findes før mailen går. sendIndgangsFaktura
+// (_shared/indgangsFaktura.ts) opretter og sender den via Stripe
+// Invoicing og er idempotent (stempel faktura_invoice_id + opslag hos
+// Stripe), så «fandtes allerede» tæller som klar. Fejler eller springes
+// fakturaen over, sendes dag 31-mailen IKKE, intet stemples, og
+// virksomheden står i svarets faktura_i_haanden med grund: send fakturaen
+// manuelt, eller ret fejlen — så prøves der igen i morgen. Tørkørslen
+// kalder IKKE motoren: den opretter ingen faktura og skriver intet.
 //
 // PLANLÆGNING — pg_cron, køres MANUELT i SQL editoren, ikke som migration,
 // fordi vault-nøglen (email_queue_service_role_key) slås op live. Slottet
@@ -62,6 +66,7 @@ import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supa
 import { authenticateServiceRole, corsHeaders } from "../_shared/edgeFunctionAuth.ts";
 import { afgoerBetalingsfrist, type Paamindelsesdag } from "../_shared/betalingsfrist.ts";
 import { dag14Mail, dag25Mail, dag31Mail, type IndgangsMail } from "../_shared/indgangsMail.ts";
+import { sendIndgangsFaktura } from "../_shared/indgangsFaktura.ts";
 import {
   betalingsfristDato,
   formatDanskDato,
@@ -96,8 +101,24 @@ interface PaamindelsesResultat {
   fejlet: number;
   /** Fordeling af det der blev sendt / ville sendes, pr. trin. */
   pr_trin: Record<"14" | "25" | "31", number>;
-  /** Dag 31 gik — fakturaen via Stripe Invoicing er IKKE bygget og skal sendes i hånden. */
-  faktura_i_haanden: { company_id: string; virksomhed: string; beloeb_kr: number }[];
+  /** Dag 31: fakturaen via Stripe Invoicing (_shared/indgangsFaktura.ts), sendt FØR mailen. */
+  faktura: {
+    /** Oprettet og sendt i denne kørsel. */
+    sendt: number;
+    /** Fandtes allerede (stempel eller hos Stripe) — mailen sendes alligevel, hvis den ikke er gået. */
+    fandtes_allerede: number;
+    /** Sendt, men Stripe Tax kunne ikke regne moms (typisk manglende adresse) — tjek fakturaen i Stripe. */
+    uden_moms: { company_id: string; virksomhed: string; invoice_id: string }[];
+    /** Kun tørkørsel: ville have oprettet og sendt en faktura. */
+    ville_sende: number;
+  };
+  /**
+   * Dag 31 nået, men fakturaen kunne IKKE sendes (sprunget over eller
+   * fejlet). Dag 31-mailen er så IKKE sendt, og intet er stemplet: send
+   * fakturaen i hånden fra Stripe, eller ret grunden — så prøves der
+   * igen i morgen.
+   */
+  faktura_i_haanden: { company_id: string; virksomhed: string; beloeb_kr: number; grund: string }[];
   error?: string;
 }
 
@@ -145,6 +166,7 @@ async function koerPaamindelser(
     sprunget_over: { ingen_forfalden: 0, betalt: 0, ingen_virksomhed: 0, ingen_email: 0 },
     fejlet: 0,
     pr_trin: { "14": 0, "25": 0, "31": 0 },
+    faktura: { sendt: 0, fandtes_allerede: 0, uden_moms: [], ville_sende: 0 },
     faktura_i_haanden: [],
   };
 
@@ -234,9 +256,37 @@ async function koerPaamindelser(
         resultat.ville_sende++;
         resultat.pr_trin[trinNoegle]++;
         if (trin === 31) {
-          resultat.faktura_i_haanden.push({ company_id: link.company_id, virksomhed: company.name, beloeb_kr: beloebKr });
+          // Ingen faktura i tørkørsel — motoren kaldes ikke, intet oprettes.
+          resultat.faktura.ville_sende++;
         }
         continue;
+      }
+
+      // 3b. DAG 31: FAKTURAEN FØRST. Mailen nedenfor siger i datid «har vi
+      //     sendt dig en faktura … i en separat mail fra Stripe», så den
+      //     må ikke gå før fakturaen findes. Motoren er idempotent, så en
+      //     faktura der allerede er sendt (fx mailen fejlede i går) giver
+      //     «fandtes allerede», og mailen går så nu. Kan fakturaen ikke
+      //     sendes, springes mailen OG stemplet over — næste kørsel prøver
+      //     igen, og svaret bærer virksomheden i faktura_i_haanden.
+      if (trin === 31) {
+        const faktura = await sendIndgangsFaktura(supabase, link.company_id);
+        if (faktura.udfald === "sendt") {
+          resultat.faktura.sendt++;
+          if (!faktura.moms_beregnet) {
+            resultat.faktura.uden_moms.push({ company_id: link.company_id, virksomhed: company.name, invoice_id: faktura.invoice_id });
+          }
+        } else if (faktura.udfald === "fandtes_allerede") {
+          resultat.faktura.fandtes_allerede++;
+        } else {
+          const grund = faktura.udfald === "fejlet" ? faktura.aarsag : faktura.grund;
+          console.error(
+            `[indgangs-paamindelser-cron] FAKTURA I HÅNDEN: ${company.name} (${link.company_id}) er på dag 31, men fakturaen kunne ikke sendes (${grund}). Dag 31-mailen er IKKE sendt og intet stemplet. Send fakturaen manuelt via Stripe Invoicing, eller ret grunden — så prøves der igen i morgen.`,
+          );
+          resultat.faktura_i_haanden.push({ company_id: link.company_id, virksomhed: company.name, beloeb_kr: beloebKr, grund });
+          resultat.fejlet++;
+          continue;
+        }
       }
 
       // 4. Mailen. Fristen er kontraktens: regnes fra underskrevet_at
@@ -280,17 +330,6 @@ async function koerPaamindelser(
       resultat.sendt++;
       resultat.pr_trin[trinNoegle]++;
       console.log(`[indgangs-paamindelser-cron] dag ${trin} sendt til ${til} (${company.name})`);
-
-      if (trin === 31) {
-        // LEDDET MANGLER: fakturaen på det fulde beløb via Stripe Invoicing
-        // (docs/indgangen-design.md §4) er ikke bygget. Mailen lover en
-        // faktura «i en separat mail fra Stripe» — den skal sendes i hånden
-        // fra Stripe-dashboardet, i dag.
-        console.error(
-          `[indgangs-paamindelser-cron] FAKTURA I HÅNDEN: ${company.name} (${link.company_id}) har fået dag 31-mailen. Send fakturaen på ${beloebKr} kr. manuelt via Stripe Invoicing — automatikken er ikke bygget.`,
-        );
-        resultat.faktura_i_haanden.push({ company_id: link.company_id, virksomhed: company.name, beloeb_kr: beloebKr });
-      }
     } catch (err) {
       console.error(`[indgangs-paamindelser-cron] Fejl for company ${link.company_id}:`, err);
       resultat.fejlet++;

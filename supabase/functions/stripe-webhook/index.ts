@@ -1,5 +1,13 @@
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
 import { sikrIndgangsInvitation } from "../_shared/sikrIndgangsInvitation.ts";
+import {
+  beloebFraFaktura,
+  beregnIndgangsPeriode,
+  erIndgangsFaktura,
+  kundeIdFraFaktura,
+  type IndgangsPeriode,
+  type StripeInvoiceBetaling,
+} from "../_shared/indgangsFakturaBetaling.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -140,6 +148,168 @@ async function nulstilIndgangsSession(
   }
 }
 
+// ── Indgangskæden som hjælpere (3/9) — delt af checkout-indgangsgrenen og
+//    invoice.paid-grenen, så en fakturabetaling ender PRÆCIS samme sted som
+//    en checkout-betaling: company_perioder → companies → session-pegeren
+//    → invitationen. Udtrukket ordret fra indgangsgrenen; fejlteksterne er
+//    de samme, og hjælperne KASTER som blokkene gjorde, så kalderen selv
+//    afgør hvad et kast betyder (checkout: 500 → Stripe gensender). ──
+
+interface EksisterendeIndgangsPeriode extends IndgangsPeriode {
+  id: string;
+}
+
+/** Idempotens-opslaget: findes der allerede en periode på denne Stripe-reference? */
+async function findIndgangsPeriode(
+  adminClient: SupabaseClient,
+  stripeReference: string,
+): Promise<EksisterendeIndgangsPeriode | null> {
+  const { data, error } = await adminClient
+    .from("company_perioder")
+    .select("id, periode_start, periode_slut")
+    .eq("stripe_reference", stripeReference)
+    .maybeSingle();
+  if (error) {
+    console.error("[stripe-webhook] idempotens-opslag (indgang) fejlede:", error);
+    throw new Error("Idempotency lookup failed");
+  }
+  return (data as EksisterendeIndgangsPeriode | null) ?? null;
+}
+
+/** Perioden FØRST — fejler det næste trin, findes perioden som spor af hvad der blev betalt. */
+async function opretIndgangsPeriode(
+  adminClient: SupabaseClient,
+  raekke: {
+    company_id: string;
+    periode: IndgangsPeriode;
+    beloeb_oere: number;
+    betalingsmodel: string;
+    stripe_reference: string;
+  },
+): Promise<void> {
+  const { error } = await adminClient.from("company_perioder").insert({
+    company_id: raekke.company_id,
+    periode_start: raekke.periode.periode_start,
+    periode_slut: raekke.periode.periode_slut,
+    beloeb_oere: raekke.beloeb_oere,
+    betalingsmodel: raekke.betalingsmodel,
+    art: "indgang",
+    stripe_reference: raekke.stripe_reference,
+    oprettet_af: null, // betalingen er ikke en rådgiverhandling
+  });
+  if (error) {
+    console.error("[stripe-webhook] periode-indsættelse (indgang) fejlede:", error);
+    throw new Error("Failed to insert company_periode");
+  }
+}
+
+/** Kontrakten på virksomheden: datoerne, listeprisen og (når kendt) Stripe-kunden. */
+async function skrivIndgangsKontrakt(
+  adminClient: SupabaseClient,
+  companyId: string,
+  periode: IndgangsPeriode,
+  listeprisOere: number,
+  stripeCustomerId: string | null,
+  kontekst: "" | " (gensendelse)",
+): Promise<void> {
+  const { error } = await adminClient
+    .from("companies")
+    .update({
+      contract_start_date: periode.periode_start,
+      contract_end_date: periode.periode_slut,
+      indgangspris_oere: listeprisOere,
+      ...(stripeCustomerId ? { stripe_customer_id: stripeCustomerId } : {}),
+    } as any)
+    .eq("id", companyId);
+  if (error) {
+    console.error(`[stripe-webhook] kontrakt-opdatering (indgang) fejlede${kontekst}:`, error);
+    throw new Error("Failed to update contract dates");
+  }
+}
+
+type IndgangsFakturaBetalingResultat =
+  | { udfald: "gennemfoert"; periode: IndgangsPeriode; beloeb_oere: number; genoptaget: boolean }
+  | { udfald: "allerede_behandlet" }
+  | { udfald: "fejlet"; aarsag: string };
+
+/**
+ * invoice.paid for dag 31-fakturaen (docs/indgangen-design.md §30):
+ * samme kæde som checkout-indgangsgrenen, med betalingsmodel 'faktura',
+ * stripe_reference = invoice-id og beløbet fra fakturaen uden moms
+ * (regnestykket i _shared/indgangsFakturaBetaling.ts). Idempotent på
+ * stripe_reference som indgangsgrenen: en gensendelse fuldfører halvt
+ * udført arbejde eller springer over — aldrig to perioder.
+ *
+ * KASTER ALDRIG: resultatet siger hvad der skete, og grenen afgør
+ * svaret. Ingen cancel_at-trin: en faktura er ét beløb, intet abonnement.
+ */
+async function behandlIndgangsFakturaBetaling(
+  adminClient: SupabaseClient,
+  invoice: StripeInvoiceBetaling & { metadata: { art: "indgang"; company_id: string } },
+): Promise<IndgangsFakturaBetalingResultat> {
+  const companyId = invoice.metadata.company_id;
+  const invoiceId = invoice.id;
+  try {
+    const beloeb = beloebFraFaktura(invoice);
+    if (!beloeb) {
+      throw new Error("fakturaen bærer hverken total_excluding_tax eller amount_paid");
+    }
+    if (beloeb.kilde === "amount_paid") {
+      console.warn(
+        `[stripe-webhook] invoice.paid ${invoiceId}: total_excluding_tax mangler — beloeb_oere falder tilbage på amount_paid og kan bære momsen`,
+      );
+    }
+    const stripeCustomerId = kundeIdFraFaktura(invoice);
+
+    const { data: company } = await adminClient
+      .from("companies")
+      .select("contract_end_date")
+      .eq("id", companyId)
+      .maybeSingle();
+
+    // Idempotens FØRST — og som «er ARBEJDET fuldført», ikke «findes
+    // rækken»: præcis som indgangsgrenen.
+    const eksisterende = await findIndgangsPeriode(adminClient, invoiceId);
+    if (eksisterende) {
+      if (company?.contract_end_date === eksisterende.periode_slut) {
+        // Invitationen sikres også her: første forsøg kan være fejlet
+        // EFTER kontrakten var sat og FØR invitationen gik.
+        await sikrIndgangsInvitation(adminClient, companyId, invoiceId);
+        console.log(`[stripe-webhook] invoice.paid ${invoiceId} allerede behandlet, springer over`);
+        return { udfald: "allerede_behandlet" };
+      }
+      await skrivIndgangsKontrakt(adminClient, companyId, eksisterende, beloeb.beloeb_oere, stripeCustomerId, " (gensendelse)");
+      await nulstilIndgangsSession(adminClient, companyId);
+      await sikrIndgangsInvitation(adminClient, companyId, invoiceId);
+      console.log(
+        `[stripe-webhook] invoice.paid ${invoiceId}: gensendelse fuldførte halvt udført arbejde — kontrakt ${eksisterende.periode_start} → ${eksisterende.periode_slut}`,
+      );
+      return { udfald: "gennemfoert", periode: eksisterende, beloeb_oere: beloeb.beloeb_oere, genoptaget: true };
+    }
+
+    const periode = beregnIndgangsPeriode();
+    await opretIndgangsPeriode(adminClient, {
+      company_id: companyId,
+      periode,
+      beloeb_oere: beloeb.beloeb_oere,
+      betalingsmodel: "faktura",
+      stripe_reference: invoiceId,
+    });
+    // Listeprisen = linjebeløbet: en faktura har intet ratetillæg.
+    await skrivIndgangsKontrakt(adminClient, companyId, periode, beloeb.beloeb_oere, stripeCustomerId, "");
+    await nulstilIndgangsSession(adminClient, companyId);
+    // Invitationen — betalingen giver adgang (§21). Kaster aldrig selv.
+    await sikrIndgangsInvitation(adminClient, companyId, invoiceId);
+    return { udfald: "gennemfoert", periode, beloeb_oere: beloeb.beloeb_oere, genoptaget: false };
+  } catch (err) {
+    const aarsag = err instanceof Error ? err.message : String(err);
+    console.error(
+      `[stripe-webhook] KRITISK: invoice.paid ${invoiceId} for company ${companyId} — betalingen er modtaget, men kæden er ikke fuldført: ${aarsag}. Svaret er 500, så Stripe gensender; kæden er idempotent på stripe_reference.`,
+    );
+    return { udfald: "fejlet", aarsag };
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -223,6 +393,43 @@ Deno.serve(async (req) => {
         console.log(`[stripe-webhook] Subscription cancelled for company ${companyId}`);
       }
       return new Response(JSON.stringify({ received: true }), {
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
+    // ── invoice.paid — dag 31-fakturaen (docs/indgangen-design.md §30).
+    //    Kun fakturaer VI har oprettet bærer metadata[art]=indgang og
+    //    metadata[company_id] på selve fakturaen; abonnementernes måneds-
+    //    fakturaer (rate2/rate12, fornyelse, exit) har tom metadata på
+    //    fakturaen og ack'es som før, uden handling. invoice.paid sendes
+    //    både ved Stripe-betaling og ved paid_out_of_band (registreret i
+    //    hånden) — begge giver adgang. Grenen står FØR checkout-tjekket,
+    //    for alt efter det forudsætter en Checkout-session. ──
+    if (event.type === "invoice.paid") {
+      const invoice = event.data.object as StripeInvoiceBetaling;
+      if (!erIndgangsFaktura(invoice)) {
+        console.log(`[stripe-webhook] invoice.paid ${invoice?.id ?? "?"} er ikke en indgangsfaktura, springer over`);
+        return new Response(JSON.stringify({ received: true, skipped: "ikke_indgangsfaktura" }), {
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+      const resultat = await behandlIndgangsFakturaBetaling(adminClient, invoice);
+      if (resultat.udfald === "fejlet") {
+        // Intet kast — men et ufuldført forløb skal gensendes: 500 får
+        // Stripe til at prøve igen, og kæden er idempotent. Et FULDFØRT
+        // forløb svarer altid 200 (gennemfoert/allerede_behandlet), så en
+        // gensendelse af noget der er gennemført, sker ikke.
+        return new Response(JSON.stringify({ received: true, indgang_faktura: "fejlet", error: resultat.aarsag }), {
+          status: 500,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+      if (resultat.udfald === "gennemfoert") {
+        console.log(
+          `[stripe-webhook] Indgang (faktura) for company ${invoice.metadata.company_id}: ${resultat.beloeb_oere} øre ekskl. moms, kontrakt ${resultat.periode.periode_start} → ${resultat.periode.periode_slut}${resultat.genoptaget ? " (genoptaget)" : ""}`,
+        );
+      }
+      return new Response(JSON.stringify({ received: true, indgang_faktura: resultat.udfald }), {
         headers: { "Content-Type": "application/json" },
       });
     }
@@ -423,15 +630,7 @@ Deno.serve(async (req) => {
       // stripe_reference bærer den (jf. kolonnekommentaren på
       // company_perioder). Et gensendt event må ALDRIG give to perioder
       // eller sætte kontrakten to gange.
-      const { data: eksisterende, error: eksisterendeError } = await adminClient
-        .from("company_perioder")
-        .select("id, periode_start, periode_slut")
-        .eq("stripe_reference", session.id)
-        .maybeSingle();
-      if (eksisterendeError) {
-        console.error("[stripe-webhook] idempotens-opslag (indgang) fejlede:", eksisterendeError);
-        throw new Error("Idempotency lookup failed");
-      }
+      const eksisterende = await findIndgangsPeriode(adminClient, session.id);
       if (eksisterende) {
         // Også ved gensendelse: sæt cancel_at hvis abonnementet mangler det
         // — første forsøg kan være fejlet netop dér. Hjælperen springer selv
@@ -452,19 +651,7 @@ Deno.serve(async (req) => {
             headers: { "Content-Type": "application/json" },
           });
         }
-        const { error: fuldfoerError } = await adminClient
-          .from("companies")
-          .update({
-            contract_start_date: eksisterende.periode_start,
-            contract_end_date: eksisterende.periode_slut,
-            indgangspris_oere: grundbeloebOere,
-            ...(stripeCustomerId ? { stripe_customer_id: stripeCustomerId } : {}),
-          } as any)
-          .eq("id", indgangCompanyId);
-        if (fuldfoerError) {
-          console.error("[stripe-webhook] kontrakt-opdatering (indgang) fejlede (gensendelse):", fuldfoerError);
-          throw new Error("Failed to update contract dates");
-        }
+        await skrivIndgangsKontrakt(adminClient, indgangCompanyId, eksisterende, grundbeloebOere, stripeCustomerId, " (gensendelse)");
         await nulstilIndgangsSession(adminClient, indgangCompanyId);
         // Kontrakten er nu fuldført — invitationen sikres før svaret, så
         // en gensendelse aldrig efterlader et betalt medlem uden login.
@@ -480,47 +667,25 @@ Deno.serve(async (req) => {
       // Kontrakten løber fra BETALINGSDAGEN, ikke fra underskriften
       // (docs/indgangen-design.md §1): aftalegrundlaget giver 30 dages
       // frist efter underskrift, og de dage skal ikke tages fra medlemmet.
-      const startDato = new Date();
-      const periode_start = startDato.toISOString().slice(0, 10);
-      const slutDato = new Date(startDato);
-      slutDato.setUTCMonth(slutDato.getUTCMonth() + 12);
-      const periode_slut = slutDato.toISOString().slice(0, 10);
+      // Regnestykket er delt med invoice.paid-grenen (3/9).
+      const periode = beregnIndgangsPeriode();
 
       // Perioden FØRST, virksomheden bagefter: fejler det andet, findes
       // perioden som spor af hvad der blev betalt. Fejler indsættelsen,
       // er intet sket, og Stripe forsøger igen.
-      const { error: periodeError } = await adminClient.from("company_perioder").insert({
+      await opretIndgangsPeriode(adminClient, {
         company_id: indgangCompanyId,
-        periode_start,
-        periode_slut,
+        periode,
         beloeb_oere: beloebOere,
         betalingsmodel,
-        art: "indgang",
         stripe_reference: session.id,
-        oprettet_af: null, // betalingen er ikke en rådgiverhandling
       });
-      if (periodeError) {
-        console.error("[stripe-webhook] periode-indsættelse (indgang) fejlede:", periodeError);
-        throw new Error("Failed to insert company_periode");
-      }
 
       // indgangspris_oere er LISTEPRISEN (grundbeloeb_oere), ikke det
       // betalte: ratetillægget er finansiering, ikke pris (rettelsen 1/9 i
       // docs/fornyelseskaeden-1-september.md). En der betaler 52.500 i tolv
       // rater er kommet ind på 50.000 og fornyer til 25.000.
-      const { error: kontraktError } = await adminClient
-        .from("companies")
-        .update({
-          contract_start_date: periode_start,
-          contract_end_date: periode_slut,
-          indgangspris_oere: grundbeloebOere,
-          ...(stripeCustomerId ? { stripe_customer_id: stripeCustomerId } : {}),
-        } as any)
-        .eq("id", indgangCompanyId);
-      if (kontraktError) {
-        console.error("[stripe-webhook] kontrakt-opdatering (indgang) fejlede:", kontraktError);
-        throw new Error("Failed to update contract dates");
-      }
+      await skrivIndgangsKontrakt(adminClient, indgangCompanyId, periode, grundbeloebOere, stripeCustomerId, "");
 
       // Sessionen er brugt — pegeren på company_betalingslink nulstilles
       // (værnet mod dobbeltbetaling). Feltet bor på linkrækken, ikke på
@@ -556,7 +721,7 @@ Deno.serve(async (req) => {
       // contract_end_date er sat.
 
       console.log(
-        `[stripe-webhook] Indgang for company ${indgangCompanyId}: ${beloebOere} øre (${betalingsmodel}), listepris ${grundbeloebOere} øre, kontrakt ${periode_start} → ${periode_slut}`
+        `[stripe-webhook] Indgang for company ${indgangCompanyId}: ${beloebOere} øre (${betalingsmodel}), listepris ${grundbeloebOere} øre, kontrakt ${periode.periode_start} → ${periode.periode_slut}`
       );
       return new Response(JSON.stringify({ received: true }), {
         headers: { "Content-Type": "application/json" },
