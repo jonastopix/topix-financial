@@ -1085,6 +1085,92 @@ export type Database = {
           },
         ]
       }
+      company_traek: {
+        Row: {
+          art: string | null
+          beloeb_oere: number
+          betalt_at: string | null
+          betalt_oere: number
+          billing_reason: string | null
+          company_id: string
+          created_at: string
+          faktura_nummer: string | null
+          fejl_besked: string | null
+          fejl_decline_code: string | null
+          fejl_kode: string | null
+          fejlet_at: string | null
+          forsoeg: number | null
+          hosted_invoice_url: string | null
+          id: string
+          naeste_forsoeg_at: string | null
+          periode_slut: string | null
+          periode_start: string | null
+          status: string
+          stripe_customer_id: string | null
+          stripe_invoice_id: string
+          stripe_subscription_id: string
+          updated_at: string
+        }
+        Insert: {
+          art?: string | null
+          beloeb_oere: number
+          betalt_at?: string | null
+          betalt_oere?: number
+          billing_reason?: string | null
+          company_id: string
+          created_at?: string
+          faktura_nummer?: string | null
+          fejl_besked?: string | null
+          fejl_decline_code?: string | null
+          fejl_kode?: string | null
+          fejlet_at?: string | null
+          forsoeg?: number | null
+          hosted_invoice_url?: string | null
+          id?: string
+          naeste_forsoeg_at?: string | null
+          periode_slut?: string | null
+          periode_start?: string | null
+          status: string
+          stripe_customer_id?: string | null
+          stripe_invoice_id: string
+          stripe_subscription_id: string
+          updated_at?: string
+        }
+        Update: {
+          art?: string | null
+          beloeb_oere?: number
+          betalt_at?: string | null
+          betalt_oere?: number
+          billing_reason?: string | null
+          company_id?: string
+          created_at?: string
+          faktura_nummer?: string | null
+          fejl_besked?: string | null
+          fejl_decline_code?: string | null
+          fejl_kode?: string | null
+          fejlet_at?: string | null
+          forsoeg?: number | null
+          hosted_invoice_url?: string | null
+          id?: string
+          naeste_forsoeg_at?: string | null
+          periode_slut?: string | null
+          periode_start?: string | null
+          status?: string
+          stripe_customer_id?: string | null
+          stripe_invoice_id?: string
+          stripe_subscription_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "company_traek_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       content_collections: {
         Row: {
           area: string
