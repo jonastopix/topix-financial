@@ -1,6 +1,7 @@
 # Overlevering
 
-**Sidst opdateret: 3. september 2026, formiddag — efter dag 31-kæden.**
+**Sidst opdateret: 3. september 2026, formiddag — efter dag 31-kæden og
+webhook-hvidlisten (#563).**
 
 Læses først i enhver ny samtale. Claude husker intet mellem samtaler;
 denne fil skal kunne bære det. Den fortæller hvordan vi arbejder, hvor
@@ -252,8 +253,19 @@ lovede en faktura ingen sendte — nu sendes fakturaen først (§30).
 Piloten doggybed er flyttet 2/9 (`sub_1UB6wE3CvBmCx5Ptq3hHp2vt`, første
 faktura 13/9 på 4.375 kr.). **Besluttet 2/9: de tretten andre venter til
 trækket 13/9 er bevist gået igennem** — derefter i portioner. YKRG kan
-ikke flyttes før kortet virker (§7). Kobling til `companies.id` er ikke
-lavet (§16).
+ikke flyttes før kortet virker (§7). Piloten bærer `company_id` i
+metadata (§22); listen over UUID'er for de tretten næste er ikke lavet
+(§16, præciseret 3/9). **Fundet 3/9 (§26, #563):** abonnementet bærer
+`art = "migreret"`, og webhookens subscription-grene sprang kun over ved
+indgang/fornyelse — trækket 13/9 ville have skrevet `subscription_status
+= active` på doggybed, og 13/10 kl. 00:00–08:35 UTC ville tier blive
+`subscriber` (usynlig i FornyelsesSektion, intet fornyelsestilbud, 403
+på checkout). Rettet til hvidliste: kun det art-løse selvbetjenings-
+abonnement skriver. Adgangen var aldrig i fare (tier læser
+`contract_end_date` først). **Åbent:** `subscription_status` er NULL på
+ALLE virksomheder — skrivningen fra `customer.subscription.created` den
+2/9 skete aldrig, og årsagen er ikke afdækket (Stripe Dashboard →
+Developers → Events).
 
 ### Onboarding-tjeklisten — bygget 2/9
 
@@ -387,7 +399,8 @@ facit og rækkefølge; `docs/chat-design.md` chattens form.
 | hvornår | hvad | hvor det står |
 |---|---|---|
 | **10/9** | Fornyelsesordningen træder i kraft. Tre udløber inden og falder udenfor. | fornyelsesordningen.md §5, prioritering §1 |
-| **13/9** | doggybeds træk på 4.375 kr. på den nye konto — MÅL at det gik igennem. Derefter flyttes de tretten i portioner. TuaMea (2/9), Floren engros og BR Roset (3/9) venter til efter egne træk. | migration-recon §25 |
+| **13/9** | doggybeds træk på 4.375 kr. på den nye konto — MÅL at det gik igennem. Derefter flyttes de tretten i portioner. TuaMea (2/9), Floren engros og BR Roset (3/9) venter til efter egne træk. **Samme dag, det eneste bevis der tæller for #563:** `companies.subscription_status` skal forblive NULL på doggybed (`382fd787-3141-45c7-8eea-297b7b947fe0`) efter trækket — SQL'en står i migration-recon §26. | migration-recon §25, §26 |
+| før 13/9 | **Hvorfor skrev webhooken ikke på 2/9?** `customer.subscription.created` var tilmeldt, grenen sprang ikke over, og `subscription_status` er alligevel NULL overalt. Se Stripe Dashboard → Developers → Events for endpointet den 2/9. Får webhooken ikke subscription-events, er det større end #563 (exit-abonnementet afhænger af dem). Må ikke antages løst. | migration-recon §26 |
 | **29/9** | PHILBERTs fornyelse — beslutning skal registreres i FornyelsesSektion. Doggybed 13/10. | prioritering §1 |
 | LØST 3/9 | **Cron-jobbet `indgangs-paamindelser` (0 10 \* \* \*)** er planlagt og aktivt, verificeret i `cron.job`. Tørkørsel og rigtig kørsel bevist på FLOOR1. Secret `RAADGIVER_MAIL_TIL` er ikke bekræftet sat i denne bogføring. | indgangen-design §26, §30 |
 | LØST 3/9 | **Dag 31-fakturaen** (#559–#561): motoren opretter kunde + faktura med `metadata[company_id]` på begge, cronen sender den FØR dag 31-mailen, `invoice.paid` er tilmeldt (fem events, `invoice.created` bevidst ikke) og skriver samme kæde som checkout med `betalingsmodel 'faktura'` og beløb uden moms. Bevist i drift 3/9 kl. 10:00–10:11 inkl. betaling og kreditnota. | indgangen-design §30 |
@@ -439,6 +452,15 @@ De konkrete ting der har kostet tid. Led efter dem.
 - **`void invalidateQueries` lukker en dialog før tilstanden er hentet.**
   Await invalideringen (eller refetch) FØR du lukker, ellers viser fladen
   det gamle i et render til.
+- **En sortliste på `metadata.art` fejler stille, når en ny art
+  tilføjes.** Webhookens subscription-grene sprang kun over ved
+  indgang/fornyelse; doggybeds migrerede abonnement (art «migreret», 3/9)
+  faldt igennem og ville have skrevet `subscription_status` på et fuldt
+  medlem. Hvidliste, hvor det er muligt — og især hvor feltet styrer
+  adgang eller tier (#563).
+- **«1 active subscriber» i Stripes Billing overview er et ABONNEMENT,
+  ikke en faktura.** En dag 31-faktura tæller ikke med der; de migrerede
+  rateabonnementer gør.
 - **Migrationshistorik er ikke bevis for produktionens tilstand.**
   Funktioner har kørt i prod uden fil (`hent_betalingsdata_til_checkout`
   indtil #524); cron-jobs var slukket i prod mens repoet schedulerede dem.
