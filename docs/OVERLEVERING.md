@@ -385,6 +385,49 @@ kode og label, ingen registerkoder tilbage; adresse på 26 af 30,
 kontakt-email på 30 af 30 (§10). Otte uenigheder mellem CVR og
 platformen er bevidst ikke rørt — én samtale (§10).
 
+### Rådgiverfladen — medlemsskiftet løst og bevist 3/9; fladen kortlagt, overhalingen er et epic
+
+`docs/hjemmebane/konvergens.md` §2.2-noten 3/9 og §2.9. **Medlemsskiftet
+(#573):** en rådgiver kunne SÆTTE company-override fra fire Hb-flader
+(Rapportering, KPI'er, Budget, Handouts via `HbAdvisorCompanyPrompt`),
+men ikke RYDDE det fra nogen af dem — HbMemberShell kendte hverken
+`isCompanyOverride` eller `clearCompanyOverride`. Værst: «Dit Boardroom»
+viste MEDLEMMETS forside, fordi `companyId` var sat, så Index sprang
+rådgivergrenen over. De eneste veje ud var tilfældige: tre nav-punkter
+til gamle AppLayout-sider hvor banneret dukker op (/milestones, /chat,
+/settings), adresselinjen, eller en genindlæsning der taber valget.
+Rettet med `HbVisningSom`: en sticky linje øverst i indholdskolonnen,
+«Du ser {virksomhed} · Tilbage til dig selv». Dommen er en ren funktion
+i `src/lib/hjemmebane/visningSom.ts` med AppLayout-bannerets betingelse
+ORDRET (`isCompanyOverride && !viewingAsMember && isAdvisor`) — «se som
+medlem» er en anden ting og udelukker linjen, som den altid har gjort.
+Samme adfærd som banneret: `clearCompanyOverride()` + `navigate("/")`.
+Samme komponent løser HbAdminShell, hvis tilbage-link ellers landede på
+medlemmets forside. Override-mekanikken i useAuth er URØRT. **Bevist på
+skærm af Jonas 3/9 kl. 13:26:** «Du ser Booking Innovation · Tilbage til
+dig selv» på Rapportering, og linket virker. *Observation, ikke fejl:*
+sidebaren viser MEDLEMMETS navigation mens man er inde i en anden
+virksomhed — ingen vej til /members herfra ud over linjen; åbent punkt
+hvis det klemmer.
+
+**Fladen er kortlagt 3/9** (`~/Downloads/recon-raadgiverfladen.md` —
+uden for repoet, genskabes hvis den bruges). Jonas' ord: «uoverskueligt
+at være rådgiver fordi data og admin indstillinger ligger hulter til
+bulter», «rådgiverplatformen er simpelthen forfærdelig». Målt: af elleve
+administrative områder er KUN TRE i Hjemmebane — indhold/Akademiet
+(/admin/indhold med ugens-video, redaktionelt, evergreen, boardroom-push),
+events og partnere. Gamle: e-mails, e-mail-log, feedback, legat,
+platformconfig, import (to steder), review queue, agent-forslag,
+rådgiver-notifikationer, rådgiverforvaltning. «Medlemmer» findes BEGGE
+steder (bevidst dobbelthed, konvergens §2.2-noten): /members i gammelt
+design bærer Indgangen, Fornyelsesbeslutninger, virksomhedsrækkerne og
+afventende invitationer; /admin/indhold/fremdrift er Hb. Hele Hb-admin'en
+nås KUN ved at kende URL'en. Det løbende rådgiverarbejde — chat,
+rapport-review, agent-forslag, fornyelser, indgang, medlemsoverblik —
+ligger næsten alt i gammelt design. **Overhalingen er et EPIC, ikke en
+opgaveliste** (DEL 3): på størrelse med indgangen (to dage), og den
+starter med en designsamtale om gruppering, ikke med kode.
+
 ### Oprydningen 2/9
 
 Otte udløbne virksomheder markeret `status = 'tidligere'`
@@ -421,7 +464,7 @@ facit og rækkefølge; `docs/chat-design.md` chattens form.
 | åbent | **1:1-sessionernes Calendly-link efter kontoskiftet** — prisen `session_1on1` og `stripe-webhook`s Calendly-gren (`1to1-session-45`) er ikke efterprøvet på den nye konto. Noteret af Jonas 2/9; ikke målt i repoet. | — |
 | åbent | **Velkomstvideoen skal optages** (Morten). Pladsen er bygget; GUID'et sættes i /admin/config. Siden 3/9 (#569) kan fokuskortet åbne videoen via `#velkomst`, så velkomst-punktet ikke længere er en fælde den dag GUID'et sættes — beviset på skærm kommer først da. | recon-velkomstvideo, indgangen-overhaling §10 |
 | åbent | **Rundvisningen** — interaktiv førstegangs-oplevelse efter velkomsten; bygges efter C3-indflytningen; må aldrig eksistere ved siden af Guiden. | BACKLOG [P2·EPIC] Platform-onboarding |
-| åbent | **Adminfladens overhaling** — rådgiverfladen tages samlet som ét epic, efter medlemsdesignet. /members har i dag IndgangsSektion + FornyelsesSektion i gammelt design. | prioritering §6 |
+| EPIC, efter medlemsdesignet | **Rådgiverfladens overhaling** — tages SAMLET, på størrelse med indgangen (to dage), og starter med en DESIGNSAMTALE om gruppering (hvad hører sammen i en rådgivers dag, hvad er platformdrift), ikke med kode. Grundlag, målt 3/9: tre skaller og fire menuer; kun tre af elleve admin-områder i Hjemmebane; Hb-admin uden menupunkt; «Medlemmer» i to designsprog; det daglige arbejde (chat, review, agent-forslag, fornyelser, indgang, medlemsoverblik) i gammelt design. Medlemsskiftet er løst uafhængigt (#573) og indgår ikke. Reconen `~/Downloads/recon-raadgiverfladen.md` ligger uden for repoet og skal genskabes hvis den bruges. | konvergens §2.9, §2.2-noten 3/9; prioritering §6 |
 | ved næste oprettelse | **Udestående bevis for trin 4** (branchen): næste rigtige «Godkendt» på Monday eller «Importér ansøgning» skal give en række med `industry_code` sat (SQL editor) og branchesammenligning i NoegletalView. 401 fra de deployede funktioner beviser kun at de svarer. | `docs/indgangen-overhaling.md` §6, §9 trin 4 |
 | LØST 3/9 kl. 11:50–12:00 | **Branchedataene og kontakt-email i prod** (#567): 29 af 30 aktive har kode og label, ingen registerkoder (Two Socks → `food_restaurant`, WESDEX → `construction_craft`, begge med benchmarks nu); 30 af 30 har kontakt-email — 14 fra eget medlem, 3 fra den ventende invitation (Din økonomiafdeling, Two Socks, WESDEX: de har ingen medlemmer). Tilbage: Bastant Design uden kode og label (intet CVR, ingen gemt DB25). | `docs/indgangen-overhaling.md` §10 |
 | samtale | **De otte uenigheder mellem CVR og platformen** er ikke rørt: ANLA GLAS, Brick Works, Homie, Limo Group, Studio Mini, TOFT, Topix, TuaMea. Ti af ti målte koder uenige med motoren; Brick Works og TuaMea ville MISTE deres sammenligning (motoren svarer null). Ikke kosmetisk: ANLA GLAS' DB-margin på 50 % flytter fra venstre kant til over midten. Hvem der har ret kan ikke afgøres fra data (Topix: mennesket; Limo Group: registret). Én samtale, ingen kode. | `docs/indgangen-overhaling.md` §10, `~/Downloads/recon-branche-uenighed.md` |
