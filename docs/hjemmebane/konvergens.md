@@ -80,9 +80,9 @@ Skæbner (konservativt — kun det besluttede er markeret besluttet):
 
 | Route | Side | Formål | Sprog | Skæbne |
 |---|---|---|---|---|
-| /members(/:userId) | Members/MemberDetail | Medlemsoversigt + enkeltmedlem | GAMMEL | Konverteres-før-lancering (advisor-dagligdagen, princip 8) |
-| /admin/review-queue | ReportReviewQueue.tsx | Rapport-pipeline-kø | GAMMEL | Konverteres-før-lancering (advisor-dagligdagen, princip 8) |
-| /admin/indhold(/partnere,/events,/fremdrift,/boardroom) | AdminContent.tsx | Hb-admin: indholdsstyring (C1) + fremdriftsværktøj + Dit Boardroom-push-editor (2026-08-05) | HB | Konverteret |
+| /members(/:userId) | Members/MemberDetail | Medlemsoversigt + enkeltmedlem — bærer i dag Indgangen, Fornyelsesbeslutninger, virksomhedsrækkerne og afventende invitationer (målt 3/9) | GAMMEL | Konverteres-før-lancering (advisor-dagligdagen, princip 8) — hører til rådgiverflade-epic'en, §2.9 |
+| /admin/review-queue | ReportReviewQueue.tsx | Rapport-pipeline-kø (læseflade) | GAMMEL | Konverteres-før-lancering (advisor-dagligdagen, princip 8) — §2.9 |
+| /admin/indhold(/partnere,/events,/fremdrift,/boardroom,/ugens-video,/redaktionelt,/evergreen) | AdminContent.tsx | Hb-admin: indholdsstyring (C1) + fremdriftsværktøj + Dit Boardroom-push-editor (2026-08-05) + Ugens video/Redaktionelt/Evergreen (2026-08-09). **Nås KUN ved at kende URL'en** — intet menupunkt i AppSidebar, HbMemberShell eller AdvisorDashboard (målt 3/9, §2.9) | HB | Konverteret |
 
 ### Admin
 
@@ -190,6 +190,30 @@ medlemsliste er forløberen for Hb-udgaven. Samtidig AFVIKLET: Circle-
 eksport-dobbeltheden (BACKLOG [P1] omskrevet — API-sporet probet dødt
 2026-08-05; værktøjet er afløseren).
 
+**NOTE (2026-09-03, medlemsskiftet — LØST OG BEVIST, #573)**: en rådgiver
+kunne SÆTTE company-override fra fire Hb-flader (RapporteringView,
+NoegletalView, BudgetteringView, HandoutsView via HbAdvisorCompanyPrompt),
+men ikke RYDDE det fra nogen af dem — HbMemberShell kendte hverken
+`isCompanyOverride` eller `clearCompanyOverride`. Værst: «Dit Boardroom»
+viste MEDLEMMETS forside, fordi `companyId` var sat, så Index sprang
+rådgivergrenen over. De eneste veje ud var tilfældige: tre nav-punkter
+fører til gamle AppLayout-sider hvor banneret dukker op (/milestones,
+/chat, /settings), adresselinjen, eller en genindlæsning der taber
+valget. Rettet med `HbVisningSom` (`src/components/hjemmebane/
+HbVisningSom.tsx`): en sticky linje øverst i indholdskolonnen, «Du ser
+{virksomhed} · Tilbage til dig selv». Dommen er en ren funktion i
+`src/lib/hjemmebane/visningSom.ts` med AppLayout-bannerets betingelse
+ORDRET (`isCompanyOverride && !viewingAsMember && isAdvisor`) — «se som
+medlem» er en anden ting og udelukker linjen, som den altid har gjort.
+Samme adfærd som banneret: `clearCompanyOverride()` + `navigate("/")`.
+Samme komponent sidder i HbAdminShell, hvis tilbage-link ellers landede
+på medlemmets forside. Override-mekanikken i useAuth er URØRT. **Bevist
+på skærm af Jonas 3/9 kl. 13:26:** «Du ser Booking Innovation · Tilbage
+til dig selv» på Rapportering, og linket virker. *Observation, ikke
+fejl:* sidebaren viser MEDLEMMETS navigation mens man er inde i en anden
+virksomhed — der er ingen vej til /members herfra ud over linjen. Det er
+sådan det er bygget; åbent punkt hvis det klemmer (§2.9).
+
 ### §2.3 Dashboard-forsiden vs. "Dit Boardroom" · afgøres i: FORSIDE-KONVERTERING
 
 **Hvad/hvor**: "/" er det gamle Dashboard (Index.tsx). "Dit Boardroom"
@@ -283,6 +307,54 @@ Circle-plan. GO'et gælder HELHEDEN — ikke Akademiet isoleret: lancering
 forudsætter at hele medlemsrejsen er redesignet (princip 8).
 BACKLOG: [P1] Akademiet-lancering.
 
+### §2.9 Rådgiverfladen — to admin-verdener · afgøres i: RÅDGIVERFLADE-EPIC (designsamtale først)
+
+**Jonas' ord 3/9:** «uoverskueligt at være rådgiver fordi data og admin
+indstillinger ligger hulter til bulter», «rådgiverplatformen er
+simpelthen forfærdelig», «noget nyt admin ligger på den nye platform men
+alt det gamle admin ligger stadigvæk».
+
+**Hvad/hvor (målt 3/9, `~/Downloads/recon-raadgiverfladen.md` — reconen
+ligger UDEN FOR repoet og skal genskabes hvis den bruges senere):**
+
+- Rådgiveren møder TRE skaller og FIRE navigationssandheder: AppSidebar
+  (gammel, den eneste med Medlemmer/Review Queue/Admin/«Se som member»),
+  HbMemberShell-nav (medlemmets menu, uden ét rådgiverpunkt),
+  HbAdminShell-faner (indhold), og mobilens «Mere»/bundfaner (kun
+  medlemmer). Hvilken menu man ser, afhænger af siden, ikke af rollen.
+- Af **elleve administrative områder er KUN TRE i Hjemmebane**:
+  indhold/Akademiet (/admin/indhold med ugens-video, redaktionelt,
+  evergreen, boardroom-push), events og partnere. **Gamle:** e-mails,
+  e-mail-log, feedback, legat, platformconfig, import (to steder:
+  /admin/import uden link, og Members' «Importér ansøgning»), review
+  queue, agent-forslag (AgentForslagPanel i MemberDetail),
+  rådgiver-notifikationer (kun AppSidebar-headeren), rådgiverforvaltning
+  (Settings-blokken + AdminConfig «Rådgivere»).
+- **«Medlemmer» findes BEGGE steder** (bevidst dobbelthed, §2.2-noten
+  2026-08-05): /members i gammelt design bærer Indgangen,
+  Fornyelsesbeslutninger, virksomhedsrækkerne og afventende
+  invitationer; /admin/indhold/fremdrift er Hb (Akademi-fremdrift).
+- **Hele Hb-admin'en er uden menupunkt** — kun URL'en (§1).
+- **Det løbende rådgiverarbejde** — chat-indbakke (CompanyChatPane),
+  rapport-review, agent-forslag, fornyelser, indgang, medlemsoverblik
+  (AdvisorDashboard + Members + MemberDetail) — ligger næsten alt i
+  gammelt design. Konverteret til Hb er kun: indholds-admin, rådgiverens
+  visning af medlemmets tal (/reports, /kpis, /budget, /handouts),
+  book session, forsiden MED valgt virksomhed, og auth-fladerne.
+- Mobil: en rådgiver tvinges til /chat fra alle gamle sider
+  (AppLayout:101-110), men ikke fra Hb-siderne.
+- Forældreløst: `AdvisorCompanyOverview.tsx` importeres af ingen;
+  `AdvisorDashboard.tsx:293` henter `setCompanyOverride` uden at kalde den.
+
+**Retning — ET EPIC, ikke en opgaveliste.** Rådgiverfladens overhaling
+er på størrelse med indgangen (to dage) og tages SAMLET (OVERLEVERING,
+«Beslutninger der står fast»). Den starter med en **DESIGNSAMTALE om
+gruppering** — hvad hører sammen for en rådgiver i løbet af en dag, og
+hvad er platformdrift — ikke med kode. §5(ii)'s beslutning («Fremdrift
+omdøbes/udvides til MEDLEMMER») og §2.3's «advisor-grenen bevares uændret
+— egen konvertering» hører hjemme i den samtale. Medlemsskiftet (§2.2-
+noten 3/9) er løst uafhængigt og indgår ikke i epic'ens omfang.
+
 ---
 
 ## §3 PRINCIPPER (den røde tråd)
@@ -341,6 +413,10 @@ editorens fulde flade).
 Dit Boardroom (let push-editor) · Akademiet (områder/samlinger/items —
 tidl. "Indhold") · Rabataftaler · Events · | · Fremdrift (drift).
 Keys/URL'er er historiske og bevaret — kun labels/rækkefølge spejler.
+*Siden bygget:* Ugens video · Redaktionelt · Evergreen står som faner
+mellem Dit Boardroom og Akademiet (2026-08-09), og skallen bærer
+`HbVisningSom` (2026-09-03, §2.2-noten), så tilbage-linket ikke lander på
+et valgt medlems forside.
 **BESLUTNING (Jonas 2026-08-05): Fremdrift omdøbes/udvides til
 "MEDLEMMER" på sigt**, når advisor-dagligdagen konverteres — den samlede
 drift-fane hvor medlemslisten (jf. §2.2-notens to-medlemslister-retning),
