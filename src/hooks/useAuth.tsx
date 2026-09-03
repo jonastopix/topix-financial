@@ -1,4 +1,4 @@
-import { useState, useEffect, createContext, useContext, useCallback } from "react";
+import { useState, useEffect, useRef, createContext, useContext, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { User, Session } from "@supabase/supabase-js";
 import { useInactivityLogout } from "./useInactivityLogout";
@@ -113,6 +113,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  /** Om auth-handleren SIDST så en session. En ref, ikke `user` fra
+      closure: handleren registreres én gang (deps []), så `user` derinde
+      er altid mount-værdien (null). Se overgangs-logikken i handleren. */
+  const havdeSessionRef = useRef(false);
   const [isAdvisor, setIsAdvisor] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
   const [isLegat, setIsLegat] = useState(false);
@@ -315,6 +319,28 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         setUser(session?.user ?? null);
 
         if (session?.user) {
+          // Det grønne blink efter login (trin 13, docs/indgangen-overhaling.md
+          // §7.1): porten skal lukkes mens fetchUserData afgør tier, ellers
+          // slipper MemberRoute igennem med membershipTier === null og Index
+          // tegner det gamle DashboardSkeleton. Betingelsen er OVERGANGEN
+          // ingen-session → session — IKKE `_event === "SIGNED_IN"`. auth-js
+          // 2.97 udsender SIGNED_IN i fire situationer ud over login
+          // (~/Downloads/recon-loading.md §3):
+          //   1. hvert faneskift tilbage til appen (_onVisibilityChanged →
+          //      _recoverAndRefresh), medmindre token er ≤ 90 s fra udløb;
+          //   2. cross-tab broadcast — et SIGNED_IN i en anden fane
+          //      genudsendes her;
+          //   3. kodeordsskift i Settings (re-auth via signInWithPassword);
+          //   4. hard reload (_initialize → _recoverAndRefresh).
+          // I alle fire findes brugeren allerede, og et loading=true ville
+          // afmontere hele rute-træet under guarden: kodeordsfelter,
+          // upload-tilstand og Tiptap-kladder ville forsvinde midt i en
+          // handling. Kun når handleren sidst så INGEN session (login efter
+          // /auth, login efter udlogning), er der noget at holde porten
+          // lukket for. Ved hard reload er loading allerede sand fra
+          // useState — kaldet er harmløst.
+          if (!havdeSessionRef.current) setLoading(true);
+          havdeSessionRef.current = true;
           // Log login event
           if (_event === "SIGNED_IN") {
             supabase.rpc("log_user_login" as any).then(({ error }) => {
@@ -331,6 +357,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             }
           }, 0);
         } else {
+          // Sessionen er væk (SIGNED_OUT, eller INITIAL_SESSION uden
+          // session). Markøren nulstilles, så det NÆSTE login igen tæller
+          // som overgang og holder porten lukket.
+          havdeSessionRef.current = false;
           setIsAdvisor(false);
           setIsAdmin(false);
           setIsLegat(false);
