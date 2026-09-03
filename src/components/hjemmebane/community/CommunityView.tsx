@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import {
   hentFeed,
   notificerNaevnelser,
+  notificerNytOpslag,
   opretTraad,
   type CommunityTraad,
 } from "@/lib/hjemmebane/communityApi";
@@ -123,6 +124,9 @@ export const CommunityView = () => {
         indholdJson: args.indholdJson,
       });
       await notificerNaevnelser({ traadId: nytId });
+      // Opslagsmailen (3/9): alle øvrige med community-adgang. Samme
+      // placering og samme garanti — kaster aldrig, kan ikke vælte opslaget.
+      await notificerNytOpslag(nytId);
       return nytId;
     },
     onSuccess: (nytId) => {
