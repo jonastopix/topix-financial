@@ -29,9 +29,11 @@ export interface CommunityTraad {
   antal_reaktioner: number;
   jeg_har_reageret: boolean;
   seneste_aktivitet_at: string;
-  /** Tiptap-dokumentet bag indhold-teksten. Valgfrit: læse-RPC'erne
-      (get_community_feed/get_community_traad) returnerer det IKKE endnu —
-      de skal udvides i et senere led, og indtil da er feltet undefined. */
+  /** Tiptap-dokumentet bag indhold-teksten. Returneres af BÅDE
+      get_community_feed og get_community_traad (kolonnesættet siden
+      20260812090000, kroppene i 20260812180000) — forsiden læser det til
+      det fremhævede opslags billede (forsideOpslag.ts). Valgfrit i typen,
+      fordi ældre kald i tests bygger rækker uden det. */
   indhold_json?: unknown | null;
 }
 

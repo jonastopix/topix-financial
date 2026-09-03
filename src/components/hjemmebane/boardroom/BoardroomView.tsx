@@ -25,7 +25,9 @@ import { fristTekst, sorterAktive, vaelgForslag } from "@/lib/hjemmebane/aftaler
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { listUpcomingEvents } from "@/lib/hjemmebane/akademiApi";
-import { hentFeed } from "@/lib/hjemmebane/communityApi";
+import { hentBilledUrl, hentFeed, type CommunityTraad } from "@/lib/hjemmebane/communityApi";
+import { foersteBilledsti, opslagMetaLinje, vaelgForsideOpslag } from "@/lib/hjemmebane/forsideOpslag";
+import { uddrag } from "@/lib/hjemmebane/uddrag";
 import { eventMeetPhase } from "@/lib/hjemmebane/eventPhase";
 import { EventRegisterAction } from "../events/EventRegisterAction";
 import { formatDuration } from "@/components/hjemmebane/admin/editors/shared";
@@ -131,6 +133,98 @@ const TraadForfatterAvatar = ({ navn, avatarUrl }: { navn: string | null; avatar
       {(navn ?? "?").charAt(0)}
     </span>
   );
+
+/** Det fremhævede opslags billede — første hvidlistede billede i
+    dokumentet, signeret ved visning som CommunityBillede (CommunityDokument
+    .tsx): samme query-nøgle ["community","billede",sti], så URL'en deles
+    med trådsiden; samme 50-minutters fornyelse under TTL'en på 3600 s.
+    Ét ekstra kald til get-community-billed-url, kun når det nyeste opslag
+    HAR et billede, og først når feedet er landet — kortets tekst står
+    imens, og cover-pladsen holdes af en pulserende flade i StorySkeletons
+    main-mål, så kortet ikke skifter form når billedet kommer. Fejl eller
+    nej fra adgangsdommen → intet billede, teksten tager bredden (samme
+    valg som CommunityBillede: et billede der ikke kan hentes, må ikke
+    efterlade en brudt firkant). */
+const FremhaevetOpslagBillede = ({ path }: { path: string }) => {
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ["community", "billede", path],
+    queryFn: () => hentBilledUrl(path),
+    staleTime: 50 * 60_000,
+    gcTime: 60 * 60_000,
+    refetchInterval: 50 * 60_000,
+    refetchIntervalInBackground: false,
+  });
+  if (isLoading) {
+    return (
+      <div
+        aria-hidden
+        className="aspect-[3/2] w-full animate-pulse bg-hb-line/40 md:aspect-auto md:w-[42%] md:shrink-0"
+      />
+    );
+  }
+  if (isError || !data?.url) return null;
+  return (
+    <div className="relative aspect-[3/2] md:aspect-auto md:w-[42%] md:shrink-0">
+      <img src={data.url} alt="" loading="lazy" className="absolute inset-0 h-full w-full object-cover" />
+    </div>
+  );
+};
+
+/** Det nyeste opslag som HOVEDHISTORIE — husets mønster fra «Fra os til
+    dig» (MainStoryShell + PushStorys portræt-form): det eneste hvide kort
+    i sektionen, cover i 42 % bredde når opslaget har et billede, portræt
+    72 px, titlen i editorial 30/36 px, uddraget som beskrivelse (samme
+    280-tegns-motor som opslagsmailen), svar og reaktioner i metalinjen,
+    og «Læs opslaget» som RedaktioneltCards sekundære knap. Ingen nye
+    farver eller størrelser — alt er hentet fra båndets kort. */
+const FremhaevetOpslag = ({ traad }: { traad: CommunityTraad }) => {
+  const navn = traad.forfatter_navn ?? "Medlem";
+  const udd = uddrag(traad.indhold);
+  const billedsti = foersteBilledsti(traad.indhold_json);
+  return (
+    <HbCard className="overflow-hidden">
+      <div className={cn(billedsti && "md:flex md:min-h-[280px]")}>
+        {billedsti && <FremhaevetOpslagBillede path={billedsti} />}
+        <div className="min-w-0 md:flex-1">
+          <div className="p-6 md:p-8">
+            <p className="text-xs font-medium uppercase tracking-[0.14em] text-hb-rust">Seneste opslag</p>
+            <div className="mt-4 flex items-start gap-5">
+              {traad.forfatter_avatar_url ? (
+                <img
+                  src={traad.forfatter_avatar_url}
+                  alt={navn}
+                  className="h-[72px] w-[72px] shrink-0 rounded-full border border-hb-line object-cover"
+                />
+              ) : (
+                <span className="flex h-[72px] w-[72px] shrink-0 items-center justify-center rounded-full border border-hb-line bg-hb-sage/40 font-editorial text-2xl text-hb-ink-soft">
+                  {navn.charAt(0)}
+                </span>
+              )}
+              <div className="min-w-0">
+                <h2 className="font-editorial text-3xl font-medium leading-tight text-hb-ink md:text-4xl">
+                  {traad.titel}
+                </h2>
+                <p className="mt-2 text-sm font-medium text-hb-ink">{navn}</p>
+              </div>
+            </div>
+            {udd.tekst && (
+              <p className="mt-4 max-w-2xl text-base leading-relaxed text-hb-ink-soft">{udd.tekst}</p>
+            )}
+            <p className="mt-4 text-sm text-hb-ink-soft">
+              {opslagMetaLinje(traad.antal_svar, traad.antal_reaktioner, traadRelativTid(traad.seneste_aktivitet_at))}
+            </p>
+            <Link to={`/community/${traad.id}`} className="mt-6 inline-block">
+              <HbButton variant="secondary" className="h-9 px-4 text-sm">
+                Læs opslaget
+                <ArrowRight className="h-4 w-4" />
+              </HbButton>
+            </Link>
+          </div>
+        </div>
+      </div>
+    </HbCard>
+  );
+};
 
 /** Sidehovedet: rolig, personlig velkomst — altid til stede (pushet er
     flyttet ned i båndet som hovedhistorie). INGEN eyebrow (polish):
@@ -1870,6 +1964,8 @@ export const BoardroomView = () => {
     queryKey: ["community", "feed"],
     queryFn: () => hentFeed(30),
   });
+  // Nyeste opslag til kortet + de to næste til rækkerne (ren dom).
+  const forsideOpslag = useMemo(() => vaelgForsideOpslag(communityTraade), [communityTraade]);
 
   // ── Tal-strip-afledning (uændret) ───────────────────────────────────────
   const sorted = useMemo(
@@ -2043,8 +2139,12 @@ export const BoardroomView = () => {
           renderes IKKE: en tom sektion på forsiden ser ud som om noget
           er gået i stykker — og et medlem uden community-adgang får
           netop et tomt feed (RPC'en er fail-closed), så sektionen skal
-          forsvinde helt for dem. Fejl → samme som tomt. */}
-      {communityTraade.length > 0 && (
+          forsvinde helt for dem. Fejl → samme som tomt.
+          VÆGT (3/9, Jonas: «den er tam»): det NYESTE opslag får kortet
+          (FremhaevetOpslag) efter båndets mønster — ét hvidt kort, resten
+          rolige rækker. Dommen om hvad der er nyest, og hvilke to der
+          står under, er ren (vaelgForsideOpslag). */}
+      {forsideOpslag.fremhaevet && (
         <HbSection
           eyebrow="Fra fællesskabet"
           linkLabel="Gå til fællesskabet"
@@ -2052,8 +2152,9 @@ export const BoardroomView = () => {
           hairline
           className="mt-14 md:mt-16"
         >
-          <ul>
-            {communityTraade.slice(0, 3).map((traad) => (
+          <FremhaevetOpslag traad={forsideOpslag.fremhaevet} />
+          <ul className={cn(forsideOpslag.resten.length > 0 && "mt-8")}>
+            {forsideOpslag.resten.map((traad) => (
               <li key={traad.id} className="border-t border-hb-line last:border-b">
                 <Link
                   to={`/community/${traad.id}`}
