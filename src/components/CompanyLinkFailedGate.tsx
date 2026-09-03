@@ -10,7 +10,8 @@ import { HbButton } from "@/components/hjemmebane/HbButton";
     kastet fetchUserData ("pending" med loading falsk). Før trin 10
     (docs/indgangen-overhaling.md §7.1) fangede Index kun "failed", og de
     to andre stod på et DashboardSkeleton uden timeout og uden besked
-    (docs/indgangsfladen-design.md §5). Fladen siger hvad der skete,
+    (docs/indgangsfladen-design.md §5; komponenten er fjernet 3/9 som død
+    kode). Fladen siger hvad der skete,
     uden teknik, og giver to veje: prøv igen (genindlæs — useAuth kalder
     process-pending-invitation ved hvert load, så det er et rigtigt nyt
     forsøg) og skriv til os. Samme ydre form som MembershipExpiredGate:
