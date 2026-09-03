@@ -428,6 +428,21 @@ ligger næsten alt i gammelt design. **Overhalingen er et EPIC, ikke en
 opgaveliste** (DEL 3): på størrelse med indgangen (to dage), og den
 starter med en designsamtale om gruppering, ikke med kode.
 
+### Community — opslagsmail, escaping og vægt på forsiden, bygget 3/9 eftermiddag
+
+`docs/community-design.md` (nyt 3/9). Målt i prod 3/9: seks tråde, to
+svar, 26 med adgang; det vigtigste tal er visningerne — det mest sete
+opslag er set af FIRE ud af 26. Folk svarer ikke fordi de aldrig ser
+opslagene.
+
+| led | fil | status |
+|---|---|---|
+| opslagsmail til alle med adgang (#576) | `notify-community-opslag` (Bucket A), gren i `send-notification-email`, `_shared/opslagsMail.ts` | bygget; modtagerdommen genbrugt fra nævnelsen (`get_community_medlemmer`); mailen bygges af tråden via `reference_id` (portræt, navn, virksomhed, uddrag 280 tegn/3 sætninger); skjult tråd → ingen mail; deployet 3/9 (Jonas) |
+| **escaping i mailkæden (#576) — står selv om resten forsvinder** | `_shared/htmlEscape.ts`, `send-notification-email` begge render-stier, guard-test | title/body blev lagt ind som rå HTML; trådtitel, broadcast og aflysningsbegrundelse er brugerskrevet. Rettet for alle typer |
+| «Fra fællesskabet» med vægt (#577) | `forsideOpslag.ts`, `uddrag.ts`, `FremhaevetOpslag` i `BoardroomView` | nyeste OPRETTEDE opslag som hovedhistorie-kort med portræt, uddrag, billede; ingen ny forespørgsel |
+| «Præsentér dig selv» | `member_profiles` (`ask_me_about`, `working_on`), tjeklistens «Din profil» | FINDES allerede — Netværket er præsentationen (community-design §7); et nyt tjeklistepunkt ville være en dublet |
+| medlemmerne som sidebar i Community | — | IKKE BYGGET; kræver nyt layout i indholdskolonnen (community-design §8) |
+
 ### Oprydningen 2/9
 
 Otte udløbne virksomheder markeret `status = 'tidligere'`
@@ -471,7 +486,11 @@ facit og rækkefølge; `docs/chat-design.md` chattens form.
 | åbent | **`DashboardSkeleton` er død kode** efter #557 (fire træffere, alle kommentarer). Ryddes i en senere omgang. | `docs/indgangen-overhaling.md` §10 |
 | LØST 3/9 (#569) | **Ankomstens løse ender**: fokuskortet åbner velkomstvideoen via URL-hashen `#velkomst` (boksen læser, åbner, rydder), og den sammenfoldede pille trækker sig KUN på forsiden og KUN mens kortet viser tjeklisten — Jonas: «Det er vigtigt vi får et nyt medlem godt i gang, så den må ikke forsvinde for dem.» De to hang sammen (pillen var eneste vej tilbage efter «Se senere»). **Bevis udestår:** pillen væk på forsiden/stående på Rapportering kræver en konto med uafsluttet tjekliste (testbrugerne er slettet — næste rigtige medlem); velkomst-punktets knap kræver `velkomstvideo_guid`. «Dine tal»-kortets tomme tilstand står stadig nederst — åbent. | `docs/indgangen-overhaling.md` §5, §10 |
 | LØST 3/9 kl. 10:52–10:57 | **Testopstillingen er ryddet (trin 14).** FLOOR1 I/S med `jonas+test1/2/3` slettet via /members' slet-dialog med brugere; «Jonas legat» (april-testvirksomheden, bar de to annullerede testabonnementer) slettet efter at storage-filerne først var fjernet i Lovables Storage-flade; den forældreløse `jonas+test45login` slettet fra SQL editoren inkl. `auth.users`. Målt efter: 38 virksomheder, 44 auth-brugere, 41 profiler, ingen rester, ingen storage-filer. **Stripe-testkunderne bliver stående (besluttet):** `cus_VBtMOGBenIfWt4` bærer faktura TBR-0003 og kreditnota TBR-0003-CN-01 — bilag skal kunne læses; to kunder fra «Jonas legat» står uden abonnement og uden kort. Ingen af de tre hører til en virksomhed i databasen. | `docs/indgangen-overhaling.md` §11 |
-| åbent | Nudge-formen som designdokument, Community-opdagelse, Events (bekræftelse, kalender, lokation), Milepælene ud — rækkefølgen fra 1/9 står. | prioritering §2–5 |
+| åbent (Community-opdagelse LØST 3/9) | Nudge-formen som designdokument, ~~Community-opdagelse~~ (**LØST 3/9 med #576/#577**: opslagsmail + vægt på forsiden — uden om nudge-formen, fordi mailkæden fandtes), Events (bekræftelse, kalender, lokation), Milepælene ud — rækkefølgen fra 1/9 står for resten. | prioritering §2–5, community-design §4–6 |
+| samtale, IKKE BYGGET | **Medlemmerne i Community som sidebar.** Jonas 3/9: «præsentation af sig selv skal ligge som en sidebar i sig selv inde i Community, så det ikke bare larmer i et langt feed og forsvinder — for så kan man ikke finde tilbage til hinanden.» Præsentationen FINDES (Netværket, `member_profiles`); /community er én kolonne, `HbSection` har ingen side-slot, `ProfileCard` er ikke eksporteret. Nyt layout i indholdskolonnen. | community-design §7, §8 |
+| observation | **Reaktionsknappen findes kun inde i tråden** (`CommunityTraadView:402`) — ingen like fra feed eller forside. Ikke besluttet. | community-design §8 |
+| åbent | **Ingen fravalgsnøgle for Community**: opslagsmailen følger «Opdateringer» (`important`) med alt andet; dagskvoten 5 gælder. | community-design §8 |
+| næste rigtige opslag | **Bevis for opslagsmailen i drift** (portræt, uddrag, knap i en rigtig indbakke) er ikke bogført — kræver et opslag fra en anden end forfatteren selv med et andet medlem som modtager. | community-design §8 |
 | driftsgæld | Fejlovervågning findes ikke; restore er aldrig afprøvet; `run-weekly-agent` står ikke i `cron.job`; 73 uploads bestod validering uden at blive committet; e-conomic-integrationen er død (migration-recon §10). | status-1-sept §6, OVERLEVERING (forrige) §7 |
 
 ---
