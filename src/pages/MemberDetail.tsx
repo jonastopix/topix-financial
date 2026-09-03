@@ -47,7 +47,8 @@ import EditCompanyDialog from "@/components/members/EditCompanyDialog";
 import DeliveryOverview from "@/components/DeliveryOverview";
 import { handoutConfigs, moduleOrder, type HandoutModule, type HandoutConfig } from "@/lib/handoutConfig";
 import { calcHandoutProgress } from "@/lib/handoutUtils";
-import { reportStatusConfig, getEffectiveReportPeriod, getEffectiveKeyFigures, hasManualOverride, REPORT_OVERRIDE_SELECT, pctChange, type ReportData } from "@/lib/financialUtils";
+import { reportStatusConfig, getEffectiveReportPeriod, getEffectiveKeyFigures, hasManualOverride, REPORT_OVERRIDE_SELECT, type ReportData } from "@/lib/financialUtils";
+import { afgoerVirksomhedsSignaler, type FactPunkt, type Signal, type VirksomhedsInput } from "@/lib/virksomhedsSignaler";
 import { openReportFile, isLegacyPath } from "@/lib/reportFileAccess";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
@@ -719,117 +720,81 @@ const MemberDetail = () => {
     });
   })();
 
-  // ── "Hvad stikker ud": saml eksisterende signaler, prioriteret efter alvor.
-  // Kun læsning af allerede hentet data + financialAlerts. Genbruger pctChange
-  // (MoM, 15%-tærskel), budget-variance-formel + 10%-tærskel (jf. varianceColor),
-  // overdue-filter og handout-levers. Ingen ny logik, ingen mutation.
-  const standsOut = (() => {
-    const fmtKr = (n?: number | null) =>
-      n != null ? `${Math.round(n).toLocaleString("da-DK")} kr.` : "—";
-    type Sev = "action_required" | "important" | "muted";
-    type Row = { severity: Sev; kind: "alert" | "mom" | "budget" | "reflection" | "lever"; badge: string; title: string; detail?: string; metric?: string };
-    const rows: Row[] = [];
-
-    // 1) Persisterede alerts (dedup pr. type, nyeste først). Metrik-nøglen
-    //    gør kilde A sammenlignelig m. inline-MoM'en (kilde B) — alerten og
-    //    MoM'en måler SAMME signal (samme tal, samme 15%-tærskel) og må
-    //    ikke stå som to rækker.
-    const ALERT_METRIC: Record<string, string> = {
-      alert_revenue_drop: "omsaetning",
-      alert_result_negative: "resultat",
-      alert_negative_cash: "bank",
+  // ── "Hvad stikker ud" — dommen ligger i src/lib/virksomhedsSignaler.ts
+  //    (afgoerVirksomhedsSignaler, #589). Den inline-IIFE der stod her indtil
+  //    3/9 2026 er slettet; siden bygger KUN inputtet af det den allerede
+  //    henter og viser motorens svar. Ingen ny query, ingen ny logik.
+  //
+  //    FORSKELLE I UDFALD for denne flade efter omlægningen (de syv valg i
+  //    motorens filhoved, truffet mellem to uenige domme):
+  //      1. Friskhedsgate: MoM og budgetafvigelse tæller KUN når seneste
+  //         fact-periode er inden for tre kalendermåneder (isFiguresFresh).
+  //         Før talte de uanset alder. En virksomhed med gamle tal viser nu
+  //         «Ingen tydelige afvigelser» hvor den før viste MoM/Budget.
+  //      2. MoM kun ved FALD: «Omsætning stiger 20 %» og «Resultat stiger»
+  //         vises ikke længere. Før vistes begge retninger.
+  //      3. MoM-nævner er nu Math.abs(prev): et resultat fra −100 til −150
+  //         vises som «faldt 50 %» — før stod det som en stigning.
+  //      4. Bankovertræk fra friske facts er NYT her (bank_balance < 0,
+  //         alvor 90) — før kom det kun via alert_negative_cash.
+  //      5. Alerts: motoren måler 30 dage mod created_at; siden henter 60
+  //         (financialAlerts-queryen ovenfor, uændret) — alerts på 31–60
+  //         dage vises ikke længere. Alert-teksterne er motorens faste
+  //         («Negativt resultat», «Omsætningsfald detekteret», «Negativ
+  //         bankbeholdning detekteret»), ikke alertens egen title/body.
+  //         alert_revenue_drop/alert_negative_cash vises ikke når MoM-fald/
+  //         bankovertræk allerede kommer fra friske facts (dedup, som før).
+  //      6. Løftestangs-rækken (forfaldne milestones + handout-levers) er
+  //         VÆK herfra — motorens valg 6: det er aktivitet, ikke afvigelse.
+  //         Milestones og løftestænger vises stadig i deres egne kort nedenfor.
+  //      7. Alvor: rød (action_required) er nu alvor >= 85 (bankovertræk,
+  //         alert_negative_cash); før var det alertens priority-felt.
+  //    Loftet på fire rækker er BEVARET her i fladen (motoren har intet, valg 7).
+  //
+  //    KUN køen «stikker_ud» vises her. Motoren giver også
+  //    ikke_hoert_fra_laenge, venter_paa_svar, agentforslag_venter og
+  //    friske_tal — om nogen af dem hører til på denne side er en
+  //    designbeslutning (docs/raadgiverfladen-design.md §4 blok 1), ikke
+  //    en omlægning, og træffes ikke her. Bemærk at senesteBeskedAt er
+  //    null nedenfor (siden henter ikke last_message_at), så motoren giver
+  //    «aldrig skrevet» for ALLE — det filtreres væk med køen og må ikke
+  //    vises før siden faktisk henter tidspunktet.
+  const tilFactPunkt = (f: typeof memberFacts[number] | null): FactPunkt | null => {
+    if (!f) return null;
+    const kf = factsToDanishMetrics(f.metrics);
+    return {
+      period_key: f.period_key,
+      period_label: f.period_label,
+      omsaetning: kf.omsaetning ?? null,
+      resultat_foer_skat: kf.resultat_foer_skat ?? null,
+      bank_balance: kf.bank_balance ?? null,
     };
-    const seenTypes = new Set<string>();
-    for (const a of (financialAlerts as any[])) {
-      if (seenTypes.has(a.type)) continue;
-      seenTypes.add(a.type);
-      rows.push({
-        severity: a.priority === "action_required" ? "action_required" : "important",
-        kind: "alert", badge: "Alert", title: a.title, detail: a.body || undefined,
-        metric: ALERT_METRIC[a.type],
-      });
-    }
-
-    // 2) MoM-bevægelse (genbrug pctChange; tærskel 15% begge veje).
-    //    Dækker en alert allerede metrikken, pushes INGEN egen række —
-    //    MoM-tallene lægges i stedet ind som alertens detail.
-    if (latestKf && prevKf) {
-      const mom = (metric: string, label: string, curr?: number, prev?: number) => {
-        const pct = pctChange(curr, prev);
-        if (pct == null || Math.abs(pct) < 15) return;
-        const momDetail = `${fmtKr(prev)} → ${fmtKr(curr)}`;
-        const covering = rows.find(r => r.kind === "alert" && r.metric === metric);
-        if (covering) {
-          // MoM-detaljen er kun FALLBACK når alerten står uden detail —
-          // har den en body, siger den allerede tallene (pilen ville
-          // blot gentage brødteksten).
-          if (!covering.detail) covering.detail = momDetail;
-          return;
-        }
-        rows.push({
-          severity: "important", kind: "mom", badge: "MoM", metric,
-          title: `${label} ${pct < 0 ? "falder" : "stiger"} ${Math.abs(pct).toFixed(0)}% på en måned`,
-          detail: momDetail,
-        });
-      };
-      mom("omsaetning", "Omsætning", latestKf.omsaetning, prevKf.omsaetning);
-      mom("resultat", "Resultat f. skat", latestKf.resultat_foer_skat, prevKf.resultat_foer_skat);
-    }
-
-    // 3) Budgetafvigelse (seneste måneds faktiske omsætning vs budget; tærskel 10%)
-    if (latestFact && latestKf?.omsaetning != null && budgets.length) {
-      const [y, m] = latestFact.period_key.split("-");
-      const baseKey = `${y}-base-${parseInt(m, 10) - 1}`;
-      const budgetRevenue = budgets.find(b => b.period === baseKey && b.category === "omsaetning")?.budget_amount ?? null;
-      if (budgetRevenue != null && budgetRevenue !== 0) {
-        const pct = ((latestKf.omsaetning - budgetRevenue) / Math.abs(budgetRevenue)) * 100;
-        if (Math.abs(pct) > 10) {
-          rows.push({
-            severity: "important", kind: "budget", badge: "Budget",
-            title: `Omsætning ${pct < 0 ? `${Math.abs(pct).toFixed(0)}% under` : `${pct.toFixed(0)}% over`} budgetteret`,
-            detail: `Faktisk ${fmtKr(latestKf.omsaetning)} mod budget ${fmtKr(budgetRevenue)}`,
-          });
-        }
-      }
-    }
-
-    // (Refleksionen vises i sit eget dedikerede kort nedenfor, ikke som en blob her.)
-
-    // 5) Løftestænger: forfaldne milestones (overdue-filter) + handout-levers (dæmpet)
-    const overdue = milestones.filter(m => m.deadline && new Date(m.deadline) < new Date() && m.status !== "completed");
-    const levers = handoutSummaries.flatMap(h => h.levers);
-    if (overdue.length > 0 || levers.length > 0) {
-      const parts: string[] = [];
-      if (overdue.length > 0) parts.push(`${overdue.length} forfalden${overdue.length > 1 ? "e" : ""} milestone${overdue.length > 1 ? "s" : ""}`);
-      if (levers.length > 0) parts.push(levers.length === 1 ? "1 løftestang fra handouts" : `${levers.length} løftestænger fra handouts`);
-      rows.push({
-        severity: "muted", kind: "lever", badge: "Løftestang",
-        title: parts.join(" · "),
-        detail: [...overdue.slice(0, 3).map(m => m.title), ...levers.slice(0, 3)].join(" · ") || undefined,
-      });
-    }
-
-    const rank: Record<Sev, number> = { action_required: 0, important: 1, muted: 2 };
-    const sorted = rows.sort((a, b) => rank[a.severity] - rank[b.severity]);
-
-    // Loft: højst FIRE signal-rækker (action_required/important) —
-    // overskydende droppes EFTER severity-sorteringen, så det er de
-    // mindst alvorlige der ryger. Løftestangs-rækken (muted) tæller
-    // ikke med og bevares altid.
-    const capped: typeof sorted = [];
-    let signalCount = 0;
-    for (const row of sorted) {
-      if (row.severity === "muted") {
-        capped.push(row);
-        continue;
-      }
-      if (signalCount < 4) {
-        capped.push(row);
-        signalCount++;
-      }
-    }
-    return capped;
+  };
+  // Budgetmål for senesteFacts periode — samme opslag som den gamle dom brugte.
+  const budgetOmsaetning = (() => {
+    if (!latestFact || !budgets.length) return null;
+    const [y, m] = latestFact.period_key.split("-");
+    const baseKey = `${y}-base-${parseInt(m, 10) - 1}`;
+    return budgets.find(b => b.period === baseKey && b.category === "omsaetning")?.budget_amount ?? null;
   })();
+  const signalInput: VirksomhedsInput = {
+    senesteFact: tilFactPunkt(latestFact),
+    forrigeFact: tilFactPunkt(prevFact),
+    senesteCommittedAt: latestFact?.committed_at ?? null,
+    // financialAlerts-queryen henter ikke read_at (60 dage, alle). Motoren
+    // forventer ulæste; her gives alle — samme grundlag som den gamle dom.
+    ulaesteAlerts: (financialAlerts as any[]).map(a => ({ type: a.type as string, created_at: a.created_at as string })),
+    budgetOmsaetning,
+    forfaldneMilestones: milestones.filter(m => m.deadline && new Date(m.deadline) < new Date() && m.status !== "completed").length,
+    loeftestaenger: handoutSummaries.flatMap(h => h.levers).length,
+    ulaesteBeskeder: 0, // siden henter kun awaiting_reply_from, ikke et antal
+    senesteBeskedAt: null, // siden henter ikke last_message_at
+    harCommittedeTal: memberFacts.length > 0,
+    agentforslagVenter: 0, // siden henter ikke agent_proposals (AgentForslagPanel gør det selv)
+  };
+  const standsOut: Signal[] = afgoerVirksomhedsSignaler(signalInput)
+    .filter(s => s.koe === "stikker_ud")
+    .slice(0, 4);
 
   return (
     <AppLayout>
@@ -1070,29 +1035,37 @@ const MemberDetail = () => {
               </div>
             ) : (
               <div className="space-y-2">
-                {standsOut.map((row, i) => {
+                {standsOut.map((row) => {
+                  // Samme markup, farver og ikoner som før. Alvor >= 85 er rød
+                  // (bankovertræk 90, alert_negative_cash 85), resten amber.
+                  // Badge og ikon afledes af signalets nøgle: alert_* → Alert,
+                  // *_mom → MoM, budget_* → Budget.
+                  const severity: "action_required" | "important" = row.alvor >= 85 ? "action_required" : "important";
                   const sev = {
                     action_required: { box: "border-destructive/30 bg-destructive/5", icon: "text-destructive", badge: "bg-destructive/10 text-destructive" },
                     important: { box: "border-chart-warning/30 bg-chart-warning/5", icon: "text-chart-warning", badge: "bg-chart-warning/10 text-chart-warning" },
-                    muted: { box: "border-border/50 bg-muted/20", icon: "text-muted-foreground", badge: "bg-muted text-muted-foreground" },
-                  }[row.severity];
+                  }[severity];
+                  const kind =
+                    row.noegle.startsWith("alert_") ? "alert" :
+                    row.noegle.endsWith("_mom") ? "mom" :
+                    row.noegle.startsWith("budget_") ? "budget" :
+                    "alert"; // bankovertraek: samme ikon og badge som en alert
+                  const badge = kind === "alert" ? "Alert" : kind === "mom" ? "MoM" : "Budget";
                   const Icon =
-                    row.kind === "alert" ? AlertCircle :
-                    row.kind === "mom" ? (row.title.includes("falder") ? TrendingDown : TrendingUp) :
-                    row.kind === "budget" ? AlertTriangle :
-                    row.kind === "reflection" ? MessageSquare :
-                    Target;
+                    kind === "alert" ? AlertCircle :
+                    kind === "mom" ? TrendingDown :
+                    AlertTriangle;
                   return (
-                    <div key={i} className={`flex items-start gap-3 rounded-lg border ${sev.box} px-3 py-2.5`}>
+                    <div key={row.noegle} className={`flex items-start gap-3 rounded-lg border ${sev.box} px-3 py-2.5`}>
                       <Icon className={`h-4 w-4 shrink-0 mt-0.5 ${sev.icon}`} />
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <p className="text-sm font-medium text-foreground">{row.title}</p>
+                          <p className="text-sm font-medium text-foreground">{row.tekst}</p>
                           <span className={`text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded-full ${sev.badge}`}>
-                            {row.badge}
+                            {badge}
                           </span>
                         </div>
-                        {row.detail && <p className="text-xs text-muted-foreground mt-0.5 break-words">{row.detail}</p>}
+                        {row.detalje && <p className="text-xs text-muted-foreground mt-0.5 break-words">{row.detalje}</p>}
                       </div>
                     </div>
                   );
