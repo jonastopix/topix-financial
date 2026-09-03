@@ -728,11 +728,13 @@ kunne bygges før fakturaen bar `company_id`. Derfor opretter vi den selv:
   `stripe_customer_id`), `nulstilIndgangsSession`, `sikrIndgangsInvitation`.
   Kaster aldrig; svarer 500 kun på et ufuldført forløb, så Stripe
   gensender ind i en idempotent kæde.
-- **Endpointet** `we_1UAtaW3CvBmCx5PtL736lAJN` har siden 3/9 FEM events,
-  sendt i samme kald fordi `enabled_events` erstatter listen:
+- **Endpointet** `we_1UAtaW3CvBmCx5PtL736lAJN` fik 3/9 formiddag FEM
+  events, sendt i samme kald fordi `enabled_events` erstatter listen:
   `checkout.session.completed`, `customer.subscription.created`,
   `customer.subscription.deleted`, `customer.subscription.updated`,
-  `invoice.paid`. Verificeret med uafhængig GET bagefter.
+  `invoice.paid`. Verificeret med uafhængig GET bagefter. *Samme
+  eftermiddag kom det sjette:* `invoice.payment_failed` (§31, #572) —
+  endpointet har nu SEKS events, igen verificeret med uafhængig GET.
   **`invoice.created` er BEVIDST ikke tilmeldt:** Stripe udsætter
   finaliseringen af fakturaer i op til 72 timer, hvis webhooken ikke
   svarer på det event — og det gælder ALLE kontoens fakturaer, ikke kun
@@ -858,7 +860,67 @@ ingen kode skriver den. `Betalingsmodel`-typen i TypeScript kender kun
 fuld/rate2/rate12. En 'faktura'-række kan i dag kun opstå ved manuel
 indsættelse.
 
-## 31. Månedstrækkene registreres ikke — gælder også fornyelsen
+## 31. Månedstrækkene — LØST 3/9 eftermiddag (#572, #574): registreres nu, adgang urørt
+
+### ✅ Løsningen (3/9, #572 → #574)
+
+Målingen fra 2/9 nedenfor står som historik. Bygget, udrullet og
+verificeret 3/9 eftermiddag; bogført her 3/9 sent eftermiddag, efter at
+det i nogle timer kun stod i PR-bodies.
+
+- **#572 — tabellen `public.company_traek`**, ét spor pr. Stripe-faktura
+  på et abonnement (migration `20260903150000_company_traek.sql`):
+  virksomhed, abonnement, beløb, status (`betalt`/`fejlet`),
+  `betalt_at`/`fejlet_at`, `forsoeg`, `naeste_forsoeg_at`, `fejl_kode`,
+  `fejl_decline_code`, `fejl_besked`, `billing_reason`, `faktura_nummer`,
+  `hosted_invoice_url`. `stripe_invoice_id` er UNIK og bærer
+  idempotensen: senere events opdaterer samme række, så en fejlet rate
+  der betales bliver `betalt` af sig selv. Partielt indeks på
+  `status = 'fejlet'`. Egen tabel, ikke rækker i `company_perioder` — en
+  rate er ikke en periode. **Migrationen ER KØRT i prod 3/9,
+  verificeret:** 23 kolonner, RLS slået til, to policies («Advisors can
+  view company traek» SELECT, «Service role can manage company traek»
+  ALL), tabelkommentar sat. *Bemærk:* første kørsel tog kun `CREATE
+  TABLE`, fordi Claude gav en afkortet udgave af migrationen; RLS og
+  kommentarer kom først da HELE migrationsfilen blev kørt. Lære: kør
+  migrationsfilen, ikke et uddrag.
+- **#572 — grenene i `stripe-webhook`**: `invoice.paid` for
+  abonnementsfakturaer (dem der IKKE er dag 31-indgangsfakturaer, §30)
+  og `invoice.payment_failed`. Koblingen faktura → virksomhed er slået
+  op, ikke gættet: den nye API-form (2025-03-31.basil) bærer
+  `parent.subscription_details` med abonnementets metadata, den ældre
+  bærer `invoice.subscription` — begge håndteres, og mangler
+  `company_id` slås abonnementet op. Fejlgrunden læses fra
+  `PaymentIntent.last_payment_error`. Grenene kaster aldrig — pengene er
+  modtaget eller forsøgt, og et kast ville få Stripe til at gensende.
+  Logikken ligger i `_shared/abonnementstraek.ts`. **`stripe-webhook` ER
+  DEPLOYET 3/9** via build-chat (ny delt fil ruller ikke med merge).
+- **`invoice.payment_failed` ER TILMELDT** endpointet
+  `we_1UAtaW3CvBmCx5PtL736lAJN` 3/9. Endpointet har nu SEKS events:
+  `checkout.session.completed`, `customer.subscription.created`,
+  `customer.subscription.updated`, `customer.subscription.deleted`,
+  `invoice.paid`, `invoice.payment_failed`. Verificeret med uafhængig
+  GET. `invoice.created` er fortsat bevidst IKKE tilmeldt (§30).
+- **#574 — fladen.** Badge på virksomhedsrækken på /members i
+  `chart-warning` (som «Afventer», ikke rød som «Udløbet» — adgangen er
+  intakt), ved siden af den grønne kontraktbadge MED VILJE: den ene siger
+  at kontrakten løber, den anden at et træk er fejlet. Den udfoldede
+  række bærer beløb, tidspunkt, Stripes egen forklaring, forsøg, næste
+  forsøg og link til fakturaen. Kun de fejlede hentes — et tiende kald i
+  Members' eksisterende `Promise.all`. Dommene i `src/lib/traek.ts`
+  (testet). Frontend: krævede Update-klik.
+- **ADGANG ER URØRT.** Restancepolitikken (`past_due` = åben, `unpaid` =
+  lukket) er besluttet, men IKKE bygget. Den rører `computeMembershipTier`
+  i tre spejle plus fornyelsesmotoren, og en fejl dér lukker et
+  betalende medlem ude. Det er den naturlige næste opgave.
+
+**Bevis der udestår:** at der står en række i `company_traek` efter
+doggybeds træk 13/9 (`status = 'betalt'`, `billing_reason`
+`subscription_cycle`). Målt sammen med beviset for #563 samme dag
+(`docs/migration-recon-1-september.md` §26). Fejler trækket, skal rækken
+stå som `fejlet` OG badgen vise sig på /members.
+
+### Målingen 2/9 — historik
 
 **MÅLT 2/9:** de tre subscription-grene i stripe-webhook springer over
 ved `art === "indgang"` og `"fornyelse"`. Det er rigtigt og bevidst —
@@ -878,8 +940,9 @@ månedstræk (`invoice.payment_failed`, abonnement `past_due`) når heller
 ikke ind. *Note 3/9:* `invoice.paid` ER nu tilmeldt (§30), men grenen
 handler kun på fakturaer med `metadata.art=indgang` på selve fakturaen;
 abonnementernes månedsfakturaer har tom metadata og ack'es uden
-handling. `invoice.payment_failed` er stadig ikke tilmeldt. Afsnittet
-står derfor uændret i substans.
+handling. `invoice.payment_failed` var ikke tilmeldt. *(Forældet samme
+eftermiddag — se løsningen øverst i §31: begge dele er bygget og
+tilmeldt med #572.)*
 
 Adgangen hviler alene på `contract_end_date`, sat på betalingsdagen.
 Holder et medlem op med at betale i måned fire, beholder de adgangen
@@ -892,7 +955,8 @@ at et kort fejler»).
 
 **Restancepolitikken er besluttet** (past_due = åben adgang, unpaid =
 lukket) og ikke bygget. Den kræver at `computeMembershipTier` ændres
-fire steder samlet.
+fire steder samlet. *(Stadig ikke bygget efter #572/#574 — se
+løsningen øverst i §31.)*
 
 ---
 

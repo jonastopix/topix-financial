@@ -1,7 +1,8 @@
 # Overlevering
 
-**Sidst opdateret: 3. september 2026, formiddag — efter dag 31-kæden og
-webhook-hvidlisten (#563).**
+**Sidst opdateret: 3. september 2026, sen eftermiddag — efter
+månedstrækkene (#572/#574) blev bogført, og filen rustet op så en ny
+samtale kan starte på den alene.**
 
 Læses først i enhver ny samtale. Claude husker intet mellem samtaler;
 denne fil skal kunne bære det. Den fortæller hvordan vi arbejder, hvor
@@ -11,6 +12,95 @@ på det dokument der bærer detaljen. Detaljen bogføres DÉR, ikke her.
 **Én regel har formet filen:** hver påstand er enten målt (med kilde),
 eller mærket som ikke målt. En tidligere overlevering begyndte med en
 sætning der var forkert, og det kostede en time.
+
+---
+
+## DEL 0 · Start her — det en ny samtale skal vide før alt andet
+
+Du er Claude i chatten (claude.ai). Du taler med Jonas Herlev,
+medstifter af The Boardroom, en finansiel rådgivningsplatform for
+danske SMV'er. Morten er medstifter og rådgiver sammen med Jonas; de
+to er «rådgiverportrætterne» i signup-skærmen. Claude Code er et
+SEPARAT værktøj i Jonas' terminal, som du skriver prompter til.
+
+**START HER:** læs denne fil til ende. Spørg så Jonas hvad han vil tage
+fat på, og foreslå ud fra DEL 3's tabel (de datosatte rækker først).
+Antag intet om tilstanden ud over det der står her, med dato og kilde.
+
+**Sprog.** Alt er på dansk: chat, kode, identifikatorer, kommentarer,
+commit-beskeder, PR-titler og -bodies, dokumenter. Engelsk kun hvor
+tredjepart dikterer det (Stripes feltnavne, biblioteks-API'er).
+
+**Arbejdsdelingen.** Jonas udfører ALT teknisk selv. Du dikterer
+præcise, kopierbare skridt, ét ad gangen: én kodeblok pr. svar, og
+intet andet der ligner kode. Destinationen står som almindelig tekst
+OVER kodeblokken — Terminal, Lovable SQL editor, Lovable build-chat,
+Claude Code, browser-URL — aldrig som `#`-kommentar inde i blokken
+(zsh læser ikke `#` interaktivt). Facit skrives som tekst. Er du i
+tvivl, spørg med A/B-valg; Jonas svarer med bogstaver.
+
+**Claude Code.** Startes med:
+
+    cd ~/topix-financial && claude
+
+og derefter `/model fable` i Claude Code. Den læser selv `CLAUDE.md`
+(stack, RLS-mønstre, deploy-kanaler, FORBIDDEN-listen), så det skal
+ikke gentages i prompten. Recon kommer ALTID før kode: Claude Code
+bruges til at finde hvad der allerede findes, hvilke navne og
+kontrakter ny kode skal stemme med, og hvem der kalder hvad, før nogen
+ny SQL-funktion, edge function, migration eller flade skrives.
+Enhver prompt slutter med at den selv skriver resultatet til
+`~/Downloads` og siger hvilken fil: diffen ved kodeændringer
+(`git add -A && git --no-pager diff --cached > ~/Downloads/diff-<navn>.txt`),
+dokumentet ved recon (`~/Downloads/recon-<navn>.md`). Jonas uploader
+filen til chatten. Recon-prompter beder ALTID om KUN fund — ingen
+forslag, ingen vurdering — og om at STOPPE frem for at gætte.
+
+**AFGJORT 3/9: Claude Code opretter IKKE grene.** Den bliver på `main`
+og committer ikke; chatten dikterer grenen ved commit (`git checkout -b
+<navn>` → commit → push → `gh pr create`). Det fjerner dubletten af
+grene, som hidtil kostede en oprydningsrunde pr. opgave. Skriv det i
+prompten, indtil det sidder.
+
+**To Claude Code-vinduer** er tilladt når HØJST ÉT skriver. To reconer
+samtidig er fint; en recon plus en kodeændring er fint; to skrivninger
+er det ikke — heller ikke når den ene «bare» er dokumentation. Sker det
+alligevel: `git reset` det staged, og `git add` med navngivne stier.
+
+**Rutinen efter merge, som handlinger** (rækkefølgen er den faktiske):
+
+1. **Migration** (`supabase/migrations/…`): Jonas åbner Lovable → SQL
+   editor, indsætter HELE migrationsfilen (ikke et uddrag — 3/9 kostede
+   et uddrag RLS og kommentarer på `company_traek`), kører, og
+   verificerer med en SELECT mod `information_schema`/`pg_policies`.
+2. **Ny edge function eller ny `_shared/`-fil**: ruller IKKE med merge.
+   Jonas beder build-chatten i Lovable om at deploye funktionen ved
+   navn. Build-chattens «deployet ✅» er IKKE bevis — et kald er: kald
+   funktionen uden nøgle og se 401 (eller 400), ikke 404. Ændringer i
+   en eksisterende function uden ny delt fil auto-deployer.
+3. **Frontend** (`src/`): Jonas klikker «Update» i Lovable, når synken
+   har commit'en. Hard reload i browseren før noget bevises.
+4. **Webhook-grene**: kig i Stripe Workbench → Webhooks → Event
+   deliveries bagefter. En 500 fejler stille for os.
+5. **Grene ryddes** med `gh pr list --state merged` — aldrig med `git
+   diff` (GitHub squasher, så diffen lyver). Slet derefter med `git
+   push origin --delete <gren>` og `git branch -D <gren>`.
+
+**Hjemmebane («Hb»)** er platformens nye designsprog: lyst, redaktionelt,
+tokens scoped til `.theme-hjemmebane`; komponenter hedder `Hb…`
+(`HbMemberShell`, `HbSpinner`, `HbSidebarDrawer`), og medlemsfladen
+bæres af `HbMemberShell`. **AppLayout er det gamle design** — mørkt,
+Radix-baseret — som store dele af rådgiverfladen stadig ligger i.
+Designsproget står i `docs/hjemmebane-designsprog.md`; hvad der er
+flyttet og hvad der venter står i `docs/hjemmebane/konvergens.md`.
+
+**Hvad du kan nå herfra, og hvad du ikke kan.** Du har MCP mod Stripe
+(The Boardroom-kontoen) og kan læse og skrive der — hvert kald med
+eksplicit `stripe_context` og `livemode: true`. Du har IKKE adgang til
+Supabase-dashboardet (Supabase-MCP'en rammer ikke Lovable-projektet),
+ikke til Lovable (SQL editor, build-chat, Update, Auth-indstillinger,
+Storage), og ikke til Stripes Event deliveries-log. Dem kigger Jonas i,
+og du dikterer hvad han skal køre eller se efter.
 
 ---
 
@@ -140,15 +230,16 @@ samme kolonneantal og -type.
   sletningstal betyder at grenen MANGLER det `main` har — den er ældre —
   ikke at den ville fjerne noget. En gren der «sletter 3267 linjer» er
   typisk bare lavet før de sidste PR'er blev merget.
-- **Claude Code laver sine egne grene, og de bliver aldrig merget.**
-  Claude Code opretter selv en gren med sit eget navn, mens Claude
-  (chatten) committer på en gren med et andet navn. Resultatet er en
-  dublet efter hver opgave — 3/9 var der fire tilbage ved dagens
-  slutning (`feat/forsidesektion-faellesskab`, `feat/hb-visning-som`,
-  `feat/registrer-traek`, `feat/traek-badge`) plus flere om formiddagen.
-  De bærer intet `main` ikke har, men koster en oprydningsrunde hver
-  gang. **SKAL AFGØRES:** enten beder vi Claude Code om ikke at oprette
-  grene, eller også committer vi på dens.
+- **Claude Code lavede sine egne grene, og de blev aldrig merget.**
+  Claude Code oprettede selv en gren med sit eget navn, mens Claude
+  (chatten) committede på en gren med et andet navn. Resultatet var en
+  dublet efter hver opgave — 3/9 stod der fire tilbage ved
+  eftermiddagens slutning (`feat/forsidesektion-faellesskab`,
+  `feat/hb-visning-som`, `feat/registrer-traek`, `feat/traek-badge`)
+  plus flere om formiddagen; alle ryddet 3/9 (målt: ingen af dem findes
+  lokalt eller på `origin`). **AFGJORT 3/9 (DEL 0):** Claude Code
+  opretter IKKE grene og committer ikke; den bliver på `main`, og
+  chatten dikterer grenen ved commit.
 - **To kodeændringer må ikke køre samtidig i to Claude Code-vinduer.**
   Reglen har hidtil kun stået som CLAUDE.md's «Lovable og Claude Code
   skriver ALDRIG samtidig»; den gælder også to Claude Code-vinduer.
@@ -234,7 +325,7 @@ serveren. Motoren `afgoerFornyelsestilstand` (ti tilstande), fladen
 | udløser 2: rådgiver sætter pris | `saet-indgangs-prisniveau` (Bucket A) + `IndgangsSektion` på /members | bygget og bevist 2/9 |
 | /betal, checkout, webhook | `Betal.tsx`, `hent_betalingstilbud`, `hent_betalingsdata_til_checkout`, `opret-indgangs-checkout`, indgangsgrenen i `stripe-webhook` (kontrakt, indgangspris, ophør, invitation) | bevist 2/9 med en gennemført betaling |
 | påmindelser dag 14/25/31 | `indgangs-paamindelser-cron` (tørkørsel som standard) | bygget; **cron-jobbet `indgangs-paamindelser` planlagt 3/9 (0 10 \* \* \*), aktivt**; springet bevist (dag 31 uden dag 14 først) |
-| dag 31-faktura + betaling | `_shared/indgangsFaktura.ts` (motor, #559), cronen kalder den FØR dag 31-mailen (#561), `invoice.paid`-gren i `stripe-webhook` (#561), migration 20260903130000 (kørt 3/9) | **bevist i drift 3/9 kl. 10:00–10:11 på FLOOR1**: faktura TBR-0003 med moms (adressen fra #560 kom med), markeret betalt uden for Stripe → periode `'faktura'`, kontraktdatoer, invitation; kreditnota bagefter. `invoice.paid` tilmeldt (fem events; `invoice.created` bevidst ikke) |
+| dag 31-faktura + betaling | `_shared/indgangsFaktura.ts` (motor, #559), cronen kalder den FØR dag 31-mailen (#561), `invoice.paid`-gren i `stripe-webhook` (#561), migration 20260903130000 (kørt 3/9) | **bevist i drift 3/9 kl. 10:00–10:11 på FLOOR1**: faktura TBR-0003 med moms (adressen fra #560 kom med), markeret betalt uden for Stripe → periode `'faktura'`, kontraktdatoer, invitation; kreditnota bagefter. `invoice.paid` tilmeldt formiddag (fem events; sjette, `invoice.payment_failed`, kom eftermiddag med #572; `invoice.created` bevidst ikke) |
 | motoren | `src/lib/betalingsfrist.ts` + spejl | fristen er KONTRAKTENS: 30 dage fra underskriften (rettet 2/9, migration 20260902140000) |
 | værn mod dobbeltbetaling | `_shared/checkoutSession.ts` i alle fire checkout-funktioner | bygget: udløb forrige session, 30 min levetid, id gemt |
 
@@ -388,8 +479,8 @@ hele vejen, en ankomst der tager imod, og ingen tilstand hvor et medlem
 kan stå fast uden en vej videre. Uden for ruten, stadig åbent: §7.2–7.4
 og §7.7, de tre `valueCards` uden hjem, pillens rolle i ankomsten,
 velkomst-punktet uden knap i kortet (skal løses før `velkomstvideo_guid`
-sættes), Google-kobling som kontoindstilling, `DashboardSkeleton` som
-død kode.
+sættes), Google-kobling som kontoindstilling. (`DashboardSkeleton` er
+fjernet, #571.)
 Målt 2/9 i prod: `handle_new_user` er IKKE fail-closed på
 `email_confirmed_at` og afviser signup uden invitation med P0001;
 rådgivergrenen kommer først. CLAUDE.md er rettet (#537).
@@ -480,6 +571,34 @@ opslagene.
 | «Præsentér dig selv» | `member_profiles` (`ask_me_about`, `working_on`), tjeklistens «Din profil» | FINDES allerede — Netværket er præsentationen (community-design §7); et nyt tjeklistepunkt ville være en dublet |
 | medlemmerne i Community (#579) | `communityMedlemmer.ts` (rene domme), `CommunityMedlemmer.tsx`, `CommunityView.tsx` | BYGGET OG SET 3/9: alle medlemmer (ikke rådgivere) fra Netværkets data → /medlemmer/{id}; dem med `ask_me_about` først, alfabetisk i hver gruppe, ingen skjules; den indloggede øverst med egen tekst eller opfordringen. Ingen ny datamodel, ingen ny RPC (community-design §8) |
 
+### Månedstrækkene — bygget, udrullet og bogført 3/9 eftermiddag; bevis 13/9
+
+`docs/indgangen-design.md` §31 (løsningen øverst). Indtil 3/9
+eftermiddag fandtes ingen registrering af at rate 2–12 blev betalt, og
+et fejlet træk var usynligt uden for Stripe. **#572:** tabellen
+`company_traek` — ét spor pr. abonnementsfaktura (status
+`betalt`/`fejlet`, beløb, tidspunkter, forsøg, næste forsøg, Stripes
+fejlkode og -besked, fakturanummer og -link); `stripe_invoice_id` er
+UNIK, så et senere event opdaterer samme række og en fejlet rate der
+betales bliver `betalt` af sig selv. Grene i `stripe-webhook` for
+`invoice.paid` (abonnementsfakturaer) og `invoice.payment_failed`;
+faktura → virksomhed via abonnementets metadata i både ny og gammel
+API-form; kaster aldrig. Logik i `_shared/abonnementstraek.ts`.
+**Alle tre manuelle skridt er gjort 3/9:** migration
+`20260903150000` kørt i prod (verificeret: 23 kolonner, RLS, to
+policies, kommentar — men først ved anden kørsel; den første tog kun
+`CREATE TABLE` fra et afkortet uddrag), `stripe-webhook` deployet via
+build-chat, og `invoice.payment_failed` tilmeldt endpointet, som nu
+har SEKS events (uafhængig GET). **#574:** badge i `chart-warning` på
+virksomhedsrækken på /members ved siden af den grønne kontraktbadge
+(med vilje: kontrakten løber, OG et træk er fejlet), udfoldet med
+beløb, tidspunkt, Stripes forklaring, forsøg, næste forsøg og
+fakturalink; kun de fejlede hentes. Update-klik gjort. **Adgang er
+urørt.** Restancepolitikken (`past_due` = åben, `unpaid` = lukket) er
+besluttet og IKKE bygget — den rører `computeMembershipTier` i tre
+spejle plus fornyelsesmotoren, og en fejl dér lukker et betalende
+medlem ude. Naturlig næste opgave. **Bevis udestår 13/9** (DEL 3).
+
 ### Oprydningen 2/9
 
 Otte udløbne virksomheder markeret `status = 'tidligere'`
@@ -492,7 +611,11 @@ migrationen.
 ### Platformen i tal (målt 1/9)
 
 33 rigtige virksomheder, 14 uden ét målt tal, 13 har aldrig uploadet,
-chatten bruges af 88 %, rapportering 56 %, KPI-mål 15 %.
+chatten bruges af 88 %, rapportering 56 %, KPI-mål 15 %. *Om tallene i
+denne fil:* «33 rigtige» er 1/9 før oprydningen; «30 aktive» (3/9) er
+efter at otte blev `'tidligere'` 2/9; «38 virksomheder» (3/9) er alle
+rækker i `companies` inkl. de otte tidligere, efter at testvirksomhederne
+blev slettet.
 `docs/status-1-september.md` og `docs/prioritering-1-september.md` bærer
 facit og rækkefølge; `docs/chat-design.md` chattens form.
 
@@ -503,12 +626,13 @@ facit og rækkefølge; `docs/chat-design.md` chattens form.
 | hvornår | hvad | hvor det står |
 |---|---|---|
 | **10/9** | Fornyelsesordningen træder i kraft. Tre udløber inden og falder udenfor. | fornyelsesordningen.md §5, prioritering §1 |
-| **13/9** | doggybeds træk på 4.375 kr. på den nye konto — MÅL at det gik igennem. Derefter flyttes de tretten i portioner. TuaMea (2/9), Floren engros og BR Roset (3/9) venter til efter egne træk. **Samme dag, beviset for #563 (nu stærkere):** `companies.subscription_status` skal forblive NULL på doggybed (`382fd787-3141-45c7-8eea-297b7b947fe0`) efter trækket — fordi grenen springer over med vilje, ikke fordi noget fejler — og `customer.subscription.updated` skal stå grøn i Stripes Event deliveries. SQL'en står i migration-recon §26. | migration-recon §25, §26 |
+| **13/9** | doggybeds træk på 4.375 kr. på den nye konto — MÅL at det gik igennem. Derefter flyttes de tretten i portioner. TuaMea (2/9), Floren engros og BR Roset (3/9) venter til efter egne træk. **Samme dag, beviset for #563 (nu stærkere):** `companies.subscription_status` skal forblive NULL på doggybed (`382fd787-3141-45c7-8eea-297b7b947fe0`) efter trækket — fordi grenen springer over med vilje, ikke fordi noget fejler — og `customer.subscription.updated` skal stå grøn i Stripes Event deliveries. SQL'en står i migration-recon §26. **Samme dag, beviset for #572:** en række i `company_traek` for doggybeds faktura med `status = 'betalt'` (SQL editor); fejler trækket, skal rækken stå som `fejlet` og badgen vise sig på /members (#574). | migration-recon §25, §26; indgangen-design §31 |
 | LØST 3/9 kl. 10:42 | **Hvorfor skrev webhooken ikke på 2/9?** Eventet BLEV leveret; webhooken svarede 500 i skrivningen (fem gentagelser fra Stripe). Efter #563 gensendt manuelt → 200 `skipped: migreret_subscription`, «Recovered». Webhooken får subscription-events; hvidlisten er bevist på det rigtige event. Hvad der kastede, afdækkes bevidst ikke — men det art-løse selvbetjeningsabonnement går stadig gennem den kode. | migration-recon §26 |
 | **29/9** | PHILBERTs fornyelse — beslutning skal registreres i FornyelsesSektion. Doggybed 13/10. | prioritering §1 |
 | LØST 3/9 | **Cron-jobbet `indgangs-paamindelser` (0 10 \* \* \*)** er planlagt og aktivt, verificeret i `cron.job`. Tørkørsel og rigtig kørsel bevist på FLOOR1. Secret `RAADGIVER_MAIL_TIL` er ikke bekræftet sat i denne bogføring. | indgangen-design §26, §30 |
-| LØST 3/9 | **Dag 31-fakturaen** (#559–#561): motoren opretter kunde + faktura med `metadata[company_id]` på begge, cronen sender den FØR dag 31-mailen, `invoice.paid` er tilmeldt (fem events, `invoice.created` bevidst ikke) og skriver samme kæde som checkout med `betalingsmodel 'faktura'` og beløb uden moms. Bevist i drift 3/9 kl. 10:00–10:11 inkl. betaling og kreditnota. | indgangen-design §30 |
-| snarest | **Månedstrækkene registreres ikke** — hverken rate 2–12 eller fejlede træk. `invoice.paid` er nu tilmeldt, men grenen handler kun på indgangsfakturaer; abonnementernes månedsfakturaer ack'es uden handling, og `invoice.payment_failed` er ikke tilmeldt. Gælder også fornyelsen. Restancepolitikken er besluttet (past_due = åben, unpaid = lukket) og ikke bygget; kræver `computeMembershipTier` ændret fire steder samlet. | indgangen-design §31 |
+| LØST 3/9 | **Dag 31-fakturaen** (#559–#561): motoren opretter kunde + faktura med `metadata[company_id]` på begge, cronen sender den FØR dag 31-mailen, `invoice.paid` er tilmeldt (fem events formiddag, seks efter #572; `invoice.created` bevidst ikke) og skriver samme kæde som checkout med `betalingsmodel 'faktura'` og beløb uden moms. Bevist i drift 3/9 kl. 10:00–10:11 inkl. betaling og kreditnota. | indgangen-design §30 |
+| LØST 3/9 eftermiddag (#572, #574) | **Månedstrækkene registreres** — både betalte og fejlede, i `company_traek`; `invoice.payment_failed` tilmeldt (seks events); fejlet træk ses på /members. Migration kørt, webhook deployet, Update klikket. Bevis 13/9. | indgangen-design §31 |
+| **næste naturlige opgave** | **Restancepolitikken** (`past_due` = åben adgang, `unpaid` = lukket) er besluttet og IKKE bygget. Rører `computeMembershipTier` i tre spejle plus fornyelsesmotoren — en fejl dér lukker et betalende medlem ude. Motor før flade, paritetstest på spejlene. Gælder indgang OG fornyelse. | indgangen-design §31, fornyelseskaeden §9 |
 | åbent | **`sikrIndgangsInvitation` kender ikke «allerede accepteret»**: den leder efter pending; findes en accepteret række, fejler insert på `UNIQUE(company_id, email)`, og invitationen sendes ikke. Set 3/9 på FLOOR1. Kan ikke ske for indgangen i drift, men tilstanden er ikke håndteret. | indgangen-design §30 |
 | åbent, besluttet | **Rykkere på dag 31-fakturaen**: Stripes egne påmindelser slås IKKE til (`auto_advance=false` med vilje — en fjerde stemme på engelsk fra en anden afsender ville skurre). Skal der rykkes, er det vores egen kæde. Ikke bygget. Bemærk også: dag 31-mailen siger 50.000 kr, fakturaen 62.500 kr inkl. moms — ikke ændret. | indgangen-design §30 |
 | LØST 3/9 kl. 11:50–12:00 | **Adressen på de eksisterende virksomheder**: `berig-virksomheder` (#567) hentede den fra CVR for 26 af 30 aktive (før 1 af 30). Uden: tre uden CVR-nummer (Alexander Lund, Martin Larsen, Bastant Design) og YKRG, som registret ingen adresse har for. | indgangen-design §33 |
@@ -520,7 +644,7 @@ facit og rækkefølge; `docs/chat-design.md` chattens form.
 | ved næste oprettelse | **Udestående bevis for trin 4** (branchen): næste rigtige «Godkendt» på Monday eller «Importér ansøgning» skal give en række med `industry_code` sat (SQL editor) og branchesammenligning i NoegletalView. 401 fra de deployede funktioner beviser kun at de svarer. | `docs/indgangen-overhaling.md` §6, §9 trin 4 |
 | LØST 3/9 kl. 11:50–12:00 | **Branchedataene og kontakt-email i prod** (#567): 29 af 30 aktive har kode og label, ingen registerkoder (Two Socks → `food_restaurant`, WESDEX → `construction_craft`, begge med benchmarks nu); 30 af 30 har kontakt-email — 14 fra eget medlem, 3 fra den ventende invitation (Din økonomiafdeling, Two Socks, WESDEX: de har ingen medlemmer). Tilbage: Bastant Design uden kode og label (intet CVR, ingen gemt DB25). | `docs/indgangen-overhaling.md` §10 |
 | samtale | **De otte uenigheder mellem CVR og platformen** er ikke rørt: ANLA GLAS, Brick Works, Homie, Limo Group, Studio Mini, TOFT, Topix, TuaMea. Ti af ti målte koder uenige med motoren; Brick Works og TuaMea ville MISTE deres sammenligning (motoren svarer null). Ikke kosmetisk: ANLA GLAS' DB-margin på 50 % flytter fra venstre kant til over midten. Hvem der har ret kan ikke afgøres fra data (Topix: mennesket; Limo Group: registret). Én samtale, ingen kode. | `docs/indgangen-overhaling.md` §10, `~/Downloads/recon-branche-uenighed.md` |
-| åbent | **`DashboardSkeleton` er død kode** efter #557 (fire træffere, alle kommentarer). Ryddes i en senere omgang. | `docs/indgangen-overhaling.md` §10 |
+| LØST 3/9 (#571) | **`DashboardSkeleton` fjernet** — komponentfilen slettet; de fire træffere tilbage i `src/` er kommentarer der fortæller historien. | `docs/indgangen-overhaling.md` §10 |
 | LØST 3/9 (#569) | **Ankomstens løse ender**: fokuskortet åbner velkomstvideoen via URL-hashen `#velkomst` (boksen læser, åbner, rydder), og den sammenfoldede pille trækker sig KUN på forsiden og KUN mens kortet viser tjeklisten — Jonas: «Det er vigtigt vi får et nyt medlem godt i gang, så den må ikke forsvinde for dem.» De to hang sammen (pillen var eneste vej tilbage efter «Se senere»). **Bevis udestår:** pillen væk på forsiden/stående på Rapportering kræver en konto med uafsluttet tjekliste (testbrugerne er slettet — næste rigtige medlem); velkomst-punktets knap kræver `velkomstvideo_guid`. «Dine tal»-kortets tomme tilstand står stadig nederst — åbent. | `docs/indgangen-overhaling.md` §5, §10 |
 | LØST 3/9 kl. 10:52–10:57 | **Testopstillingen er ryddet (trin 14).** FLOOR1 I/S med `jonas+test1/2/3` slettet via /members' slet-dialog med brugere; «Jonas legat» (april-testvirksomheden, bar de to annullerede testabonnementer) slettet efter at storage-filerne først var fjernet i Lovables Storage-flade; den forældreløse `jonas+test45login` slettet fra SQL editoren inkl. `auth.users`. Målt efter: 38 virksomheder, 44 auth-brugere, 41 profiler, ingen rester, ingen storage-filer. **Stripe-testkunderne bliver stående (besluttet):** `cus_VBtMOGBenIfWt4` bærer faktura TBR-0003 og kreditnota TBR-0003-CN-01 — bilag skal kunne læses; to kunder fra «Jonas legat» står uden abonnement og uden kort. Ingen af de tre hører til en virksomhed i databasen. | `docs/indgangen-overhaling.md` §11 |
 | åbent (Community-opdagelse LØST 3/9) | Nudge-formen som designdokument, ~~Community-opdagelse~~ (**LØST 3/9 med #576/#577**: opslagsmail + vægt på forsiden — uden om nudge-formen, fordi mailkæden fandtes), Events (bekræftelse, kalender, lokation), Milepælene ud — rækkefølgen fra 1/9 står for resten. | prioritering §2–5, community-design §4–6 |
@@ -531,7 +655,7 @@ facit og rækkefølge; `docs/chat-design.md` chattens form.
 | noteret | **Svar udløser ingen mail til andre end de nævnte** (`notify-community-svar` findes, in-app til forfatteren). Ikke afdækket nu. | community-design §9 |
 | ikke afdækket | **Nudging generelt** — Jonas spurgte 3/9; ingen recon lavet. | community-design §9 |
 | epic (rådgiverfladen) | **Rådgiver som medlem.** Jonas 3/9: «jeg som rådgiver også skal have en virksomhed, hvor jeg kan switche imellem, om jeg vil se platformen som rådgiver, eller om jeg vil agere rådgiver eller være inde på min medlemsvirksomhed.» IKKE company-override («se en andens virksomhed»); rådgiveren ER selv medlem et sted og skifter hat. Jonas har i dag TO auth-brugere (rådgiver + medlemskonto på Topix.dk — dén modtog opslagsmailen). | konvergens §2.9, community-design §9 |
-| driftsgæld | Fejlovervågning findes ikke; restore er aldrig afprøvet; `run-weekly-agent` står ikke i `cron.job`; 73 uploads bestod validering uden at blive committet; e-conomic-integrationen er død (migration-recon §10). | status-1-sept §6, OVERLEVERING (forrige) §7 |
+| driftsgæld | Fejlovervågning findes ikke; restore er aldrig afprøvet; `run-weekly-agent` står ikke i `cron.job`; 73 uploads bestod validering uden at blive committet; e-conomic-integrationen er død (migration-recon §10). | status-1-sept §6; den forrige overlevering (§7, før omskrivningen i #538) findes kun i git-historikken |
 
 ---
 
@@ -616,8 +740,9 @@ De konkrete ting der har kostet tid. Led efter dem.
 - **`invoice.created` må IKKE tilmeldes webhook-endpointet.** Stripe
   udsætter finaliseringen af fakturaer i op til 72 timer, hvis webhooken
   ikke svarer på det event — og det gælder ALLE kontoens fakturaer, ikke
-  kun vores. Endpointet har fem events (3/9): checkout.session.completed,
-  customer.subscription.created/updated/deleted, invoice.paid.
+  kun vores. Endpointet har seks events (3/9 eftermiddag):
+  checkout.session.completed, customer.subscription.created/updated/
+  deleted, invoice.paid, invoice.payment_failed.
 - **En kreditnota på en betalt faktura skal være «Credit outside of
   Stripe»**, ikke kundesaldo — ellers efterlader den et tilgodehavende på
   kunden, som næste faktura modregner. Set 3/9 ved oprydningen af
@@ -672,9 +797,14 @@ De konkrete ting der har kostet tid. Led efter dem.
   --state merged`. Og læs diff-retningen: «sletter 3267 linjer» betyder
   at grenen er ÆLDRE end `main`, ikke at den fjerner noget (3/9, to
   fejlslutninger). (DEL 1, «Git og Claude Code»)
-- **Claude Code opretter sin egen gren pr. opgave.** Fire forældreløse
-  grene ved dagens slutning 3/9, som ikke bar noget `main` manglede.
-  Uafgjort: forbyd den at oprette grene, eller commit på dens.
+- **Claude Code oprettede sin egen gren pr. opgave.** Fire forældreløse
+  grene 3/9 eftermiddag, som ikke bar noget `main` manglede. Afgjort
+  3/9: den opretter ikke grene; chatten dikterer grenen ved commit
+  (DEL 0).
+- **Kør HELE migrationsfilen i SQL editoren, ikke et uddrag.** 3/9 gav
+  Claude en afkortet udgave af `20260903150000_company_traek.sql`;
+  første kørsel tog kun `CREATE TABLE`, og RLS, policies og kommentar
+  kom først da filen blev kørt i sin helhed. En tabel uden RLS er åben.
 - **To Claude Code-vinduer må ikke skrive samtidig — heller ikke når
   den ene er dokumentation.** `git add -A` blander dem. Sker det
   alligevel: `git reset` det staged, og `git add` med navngivne stier.
