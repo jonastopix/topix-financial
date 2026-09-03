@@ -864,7 +864,12 @@ indsættelse.
 ved `art === "indgang"` og `"fornyelse"`. Det er rigtigt og bevidst —
 uden det ville `subscription_status` blive skrevet, og virksomheden ville
 fremstå som exit-abonnent (tier «subscriber», uden rådgivning og uden
-netværk) i stedet for fuldt medlem.
+netværk) i stedet for fuldt medlem. *Rettet 3/9 (#563):* sortlisten er
+vendt til en HVIDLISTE — kun det art-løse selvbetjeningsabonnement
+skriver; alt med en art (indgang, fornyelse, migreret, fremtidige)
+springes over. Anledningen var doggybeds migrerede abonnement med art
+`"migreret"`, som faldt igennem sortlisten
+(`docs/migration-recon-1-september.md` §26).
 
 Men konsekvensen er utilsigtet: **der findes ingen registrering i
 databasen af at rate 2 til 12 faktisk blev betalt.** Én række i

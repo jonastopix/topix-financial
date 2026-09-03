@@ -225,7 +225,10 @@ dag.
 - YKRG skal have et kort der virker (§7).
 - Kobling til `companies.id` er IKKE lavet: tabellen ovenfor giver navn
   og mail, men ikke virksomhedens UUID. Det er et opslag på CVR eller
-  mail i `companies` og hører til lige før flytningen.
+  mail i `companies` og hører til lige før flytningen. *Præciseret 3/9
+  (§26):* piloten FIK `company_id` med i metadata (§22) — det der mangler,
+  er listen for de tretten næste. Og `company_id` i metadata er det der
+  får webhookens subscription-grene til at skrive; derfor §26.
 
 ---
 
@@ -400,3 +403,77 @@ Den 13/9: mål at trækket på 4.375 kr. gik igennem på
 
 Bemærk at TuaMea (2/9), Floren engros og BR Roset (3/9) uanset skal
 vente til efter deres egne træk.
+
+---
+
+# Tillæg 3 — det migrerede abonnement og webhooken (3. september 2026, formiddag)
+
+## 26. FUNDET OG RETTET: `subscription_status` kunne forurenes af migrerede abonnementer (#563)
+
+**Anledningen:** Jonas så «1 active subscriber» i Stripes Billing
+overview og spurgte om det var dag 31-fakturaen. Det var det ikke — en
+faktura er ikke et abonnement. Opslaget viste at det eneste aktive
+abonnement på kontoen er doggybeds `sub_1UB6wE3CvBmCx5Ptq3hHp2vt`,
+migreret 2/9 (§22): pris `nyt_40000_rate12` (350.000 øre/md ekskl.
+moms), træk 13/9, `cancel_at` 13/10, og **`metadata.art = "migreret"`**.
+
+**Hullet:** `stripe-webhook`s tre subscription-grene
+(`customer.subscription.created`/`updated`/`deleted`) sprang KUN over ved
+`art === "fornyelse" || art === "indgang"` — en SORTLISTE. `"migreret"`
+faldt igennem til skrivningen af `subscription_status`,
+`stripe_customer_id`, `stripe_subscription_id` og
+`subscription_current_period_end` på `companies` (abonnementet bærer
+`company_id` i metadata — se rettelsen af §16 nedenfor).
+
+**Konsekvens, målt i koden** (`~/Downloads/recon-migreret.md`):
+- `computeMembershipTier` læser IKKE abonnementsfelterne mens
+  `contract_end_date` er i fremtiden (linje 26 returnerer `full` først).
+  Doggybeds ADGANG var aldrig i fare.
+- Men trækket 13/9 ville have skrevet `subscription_status = active`,
+  `stripe_subscription_id` og `subscription_current_period_end =
+  cancel_at` (13/10 kl. 08:35:29 UTC) på doggybeds række.
+- Straks synligt: `MemberCompanyRow.tsx:425-429` viser «Abonnement:
+  Active» på /members for et medlem uden selvbetjeningsabonnement.
+  `har_aktivt_abonnement()` bliver true (additivt; tager ingen adgang).
+- Og **13/10 mellem 00:00 og 08:35 UTC** — mellem kontraktens udløb ved
+  midnat og `cancel_at` — ville tier blive `subscriber` i stedet for
+  `expired`. Netop på fornyelsesdagen: `afgoerFornyelsestilstand` giver
+  `selvbetjener`, som `FornyelsesSektion` SKJULER; `hent-fornyelsestilbud`
+  svarer `tilbud: null`; `opret-fornyelse-checkout` giver 403. Doggybed
+  ville i otte en halv time være usynlig i fornyelseslisten og ude af
+  stand til at forny.
+
+**Rettelsen (#563, deployet 3/9):** vendt til HVIDLISTE.
+`subscription_status` m.fl. er forbeholdt selvbetjeningsabonnementet
+(«dine tal», 399 kr/md), som er det ENESTE abonnement uden
+`metadata.art` — `create-subscription-checkout` sætter kun
+`subscription_data[metadata][company_id]`. Alt med en art springes over,
+uanset navn, så en fremtidig art ikke kan falde igennem stille. Hjælperen
+`erSelvbetjeningsabonnement` afgør det ét sted. 400 uden gyldig signatur
+bekræfter kun at funktionen svarer — samme forbehold som altid.
+
+**MÅLT OG ÅBENT — skrivningen fra 2/9 skete aldrig.**
+`companies.subscription_status` er NULL på ALLE virksomheder, selv om
+`customer.subscription.created` var tilmeldt endpointet den 2/9 og
+grenen ikke sprang over ved `"migreret"`. Årsagen er IKKE afdækket —
+MCP'en har ikke adgang til Stripes event-log. Det skal ses i Stripe
+Dashboard → Developers → Events for `we_1UAtaW3CvBmCx5PtL736lAJN` den
+2/9, og det må ikke antages løst: får webhooken ikke subscription-events,
+er det et større problem end det vi lige rettede (fornyelsens og
+indgangens rater bærer ingen adgang via disse grene, men exit-
+abonnementet gør).
+
+**BEVIS DER UDESTÅR (13/9):** at `subscription_status` forbliver NULL på
+doggybed (`companies.id = 382fd787-3141-45c7-8eea-297b7b947fe0`) efter
+trækket. Det er den eneste måling der tæller:
+
+```sql
+select subscription_status, stripe_subscription_id, subscription_current_period_end, contract_end_date
+from public.companies where id = '382fd787-3141-45c7-8eea-297b7b947fe0';
+```
+
+**Rettelse af §16 og OVERLEVERING:** «Kobling til `companies.id` er IKKE
+lavet» er upræcist. Abonnementet BÆRER `company_id` i metadata (§22, og
+målt hos Stripe 3/9) — det er præcis det felt der får webhookens
+subscription-grene til at skrive. Det der ikke er lavet, er en
+bogført liste over UUID pr. virksomhed for de tretten næste.
