@@ -428,7 +428,7 @@ ligger næsten alt i gammelt design. **Overhalingen er et EPIC, ikke en
 opgaveliste** (DEL 3): på størrelse med indgangen (to dage), og den
 starter med en designsamtale om gruppering, ikke med kode.
 
-### Community — opslagsmail, escaping og vægt på forsiden, bygget 3/9 eftermiddag
+### Community — opslagsmail, escaping, vægt på forsiden og medlemssporet: bygget og bevist 3/9 eftermiddag
 
 `docs/community-design.md` (nyt 3/9). Målt i prod 3/9: seks tråde, to
 svar, 26 med adgang; det vigtigste tal er visningerne — det mest sete
@@ -437,11 +437,11 @@ opslagene.
 
 | led | fil | status |
 |---|---|---|
-| opslagsmail til alle med adgang (#576) | `notify-community-opslag` (Bucket A), gren i `send-notification-email`, `_shared/opslagsMail.ts` | bygget; modtagerdommen genbrugt fra nævnelsen (`get_community_medlemmer`); mailen bygges af tråden via `reference_id` (portræt, navn, virksomhed, uddrag 280 tegn/3 sætninger); skjult tråd → ingen mail; deployet 3/9 (Jonas) |
+| opslagsmail til alle med adgang (#576) | `notify-community-opslag` (Bucket A), gren i `send-notification-email`, `_shared/opslagsMail.ts` | **BEVIST I DRIFT 3/9 kl. 14:39 — ved andet forsøg.** Første forsøg kl. 14:30 gav nul notifikationer og en TOM function-log: browseren kørte den gamle CommunityView (kaldet kom med #576). Efter hard reload: 27 notifikationer, mailen landede i Jonas' medlemskonto med portræt, uddrag og knap. Modtagerdommen genbrugt fra nævnelsen (`get_community_medlemmer`); mailen bygges af tråden via `reference_id`; skjult tråd → ingen mail (community-design §4) |
 | **escaping i mailkæden (#576) — står selv om resten forsvinder** | `_shared/htmlEscape.ts`, `send-notification-email` begge render-stier, guard-test | title/body blev lagt ind som rå HTML; trådtitel, broadcast og aflysningsbegrundelse er brugerskrevet. Rettet for alle typer |
 | «Fra fællesskabet» med vægt (#577) | `forsideOpslag.ts`, `uddrag.ts`, `FremhaevetOpslag` i `BoardroomView` | nyeste OPRETTEDE opslag som hovedhistorie-kort med portræt, uddrag, billede; ingen ny forespørgsel |
 | «Præsentér dig selv» | `member_profiles` (`ask_me_about`, `working_on`), tjeklistens «Din profil» | FINDES allerede — Netværket er præsentationen (community-design §7); et nyt tjeklistepunkt ville være en dublet |
-| medlemmerne som sidebar i Community | — | IKKE BYGGET; kræver nyt layout i indholdskolonnen (community-design §8) |
+| medlemmerne i Community (#579) | `communityMedlemmer.ts` (rene domme), `CommunityMedlemmer.tsx`, `CommunityView.tsx` | BYGGET OG SET 3/9: alle medlemmer (ikke rådgivere) fra Netværkets data → /medlemmer/{id}; dem med `ask_me_about` først, alfabetisk i hver gruppe, ingen skjules; den indloggede øverst med egen tekst eller opfordringen. Ingen ny datamodel, ingen ny RPC (community-design §8) |
 
 ### Oprydningen 2/9
 
@@ -487,10 +487,13 @@ facit og rækkefølge; `docs/chat-design.md` chattens form.
 | LØST 3/9 (#569) | **Ankomstens løse ender**: fokuskortet åbner velkomstvideoen via URL-hashen `#velkomst` (boksen læser, åbner, rydder), og den sammenfoldede pille trækker sig KUN på forsiden og KUN mens kortet viser tjeklisten — Jonas: «Det er vigtigt vi får et nyt medlem godt i gang, så den må ikke forsvinde for dem.» De to hang sammen (pillen var eneste vej tilbage efter «Se senere»). **Bevis udestår:** pillen væk på forsiden/stående på Rapportering kræver en konto med uafsluttet tjekliste (testbrugerne er slettet — næste rigtige medlem); velkomst-punktets knap kræver `velkomstvideo_guid`. «Dine tal»-kortets tomme tilstand står stadig nederst — åbent. | `docs/indgangen-overhaling.md` §5, §10 |
 | LØST 3/9 kl. 10:52–10:57 | **Testopstillingen er ryddet (trin 14).** FLOOR1 I/S med `jonas+test1/2/3` slettet via /members' slet-dialog med brugere; «Jonas legat» (april-testvirksomheden, bar de to annullerede testabonnementer) slettet efter at storage-filerne først var fjernet i Lovables Storage-flade; den forældreløse `jonas+test45login` slettet fra SQL editoren inkl. `auth.users`. Målt efter: 38 virksomheder, 44 auth-brugere, 41 profiler, ingen rester, ingen storage-filer. **Stripe-testkunderne bliver stående (besluttet):** `cus_VBtMOGBenIfWt4` bærer faktura TBR-0003 og kreditnota TBR-0003-CN-01 — bilag skal kunne læses; to kunder fra «Jonas legat» står uden abonnement og uden kort. Ingen af de tre hører til en virksomhed i databasen. | `docs/indgangen-overhaling.md` §11 |
 | åbent (Community-opdagelse LØST 3/9) | Nudge-formen som designdokument, ~~Community-opdagelse~~ (**LØST 3/9 med #576/#577**: opslagsmail + vægt på forsiden — uden om nudge-formen, fordi mailkæden fandtes), Events (bekræftelse, kalender, lokation), Milepælene ud — rækkefølgen fra 1/9 står for resten. | prioritering §2–5, community-design §4–6 |
-| samtale, IKKE BYGGET | **Medlemmerne i Community som sidebar.** Jonas 3/9: «præsentation af sig selv skal ligge som en sidebar i sig selv inde i Community, så det ikke bare larmer i et langt feed og forsvinder — for så kan man ikke finde tilbage til hinanden.» Præsentationen FINDES (Netværket, `member_profiles`); /community er én kolonne, `HbSection` har ingen side-slot, `ProfileCard` er ikke eksporteret. Nyt layout i indholdskolonnen. | community-design §7, §8 |
-| observation | **Reaktionsknappen findes kun inde i tråden** (`CommunityTraadView:402`) — ingen like fra feed eller forside. Ikke besluttet. | community-design §8 |
-| åbent | **Ingen fravalgsnøgle for Community**: opslagsmailen følger «Opdateringer» (`important`) med alt andet; dagskvoten 5 gælder. | community-design §8 |
-| næste rigtige opslag | **Bevis for opslagsmailen i drift** (portræt, uddrag, knap i en rigtig indbakke) er ikke bogført — kræver et opslag fra en anden end forfatteren selv med et andet medlem som modtager. | community-design §8 |
+| LØST 3/9 (#579) | **Medlemmerne i Community.** Bygget som spor på /community: alle medlemmer fra Netværkets data, dem med profiltekst først, ingen skjules, den indloggede øverst. Set på skærm af Jonas. | community-design §8 |
+| LØST 3/9 kl. 14:39 | **Bevis for opslagsmailen i drift.** Første forsøg kl. 14:30 fejlede (nul notifikationer, tom function-log — browseren kørte gammel frontend); andet forsøg efter hard reload gav 27 notifikationer og en rigtig mail med portræt, uddrag og knap i Jonas' medlemskonto. | community-design §4 |
+| observation | **Reaktionsknappen findes kun inde i tråden** (`CommunityTraadView:402`) — ingen like fra feed eller forside; den letteste interaktion kræver et klik ind. Ikke besluttet. | community-design §9 |
+| åbent | **Ingen fravalgsnøgle for Community**: opslagsmailen følger «Opdateringer» (`important`) med alt andet; dagskvoten 5 gælder. | community-design §9 |
+| noteret | **Svar udløser ingen mail til andre end de nævnte** (`notify-community-svar` findes, in-app til forfatteren). Ikke afdækket nu. | community-design §9 |
+| ikke afdækket | **Nudging generelt** — Jonas spurgte 3/9; ingen recon lavet. | community-design §9 |
+| epic (rådgiverfladen) | **Rådgiver som medlem.** Jonas 3/9: «jeg som rådgiver også skal have en virksomhed, hvor jeg kan switche imellem, om jeg vil se platformen som rådgiver, eller om jeg vil agere rådgiver eller være inde på min medlemsvirksomhed.» IKKE company-override («se en andens virksomhed»); rådgiveren ER selv medlem et sted og skifter hat. Jonas har i dag TO auth-brugere (rådgiver + medlemskonto på Topix.dk — dén modtog opslagsmailen). | konvergens §2.9, community-design §9 |
 | driftsgæld | Fejlovervågning findes ikke; restore er aldrig afprøvet; `run-weekly-agent` står ikke i `cron.job`; 73 uploads bestod validering uden at blive committet; e-conomic-integrationen er død (migration-recon §10). | status-1-sept §6, OVERLEVERING (forrige) §7 |
 
 ---
@@ -618,6 +621,14 @@ De konkrete ting der har kostet tid. Led efter dem.
 - **To betydninger af «sendt»:** `betalingsmail_sendt_at` betyder
   enqueued; `email_send_log.status = 'sent'` betyder leveret til Lovable.
   DLQ (TTL 60 min, fem forsøg) efterlader stemplet sat.
+- **En tom edge function-log er et svar.** Er loggen tom, blev
+  funktionen aldrig kaldt, og fejlen ligger i fladen — ikke i
+  funktionen. Opslagsmailen 3/9 kl. 14:30: nul notifikationer, tom log
+  for `notify-community-opslag`; koden var rigtig, browseren kørte den
+  gamle CommunityView.
+- **Et Update-klik er ikke nok, hvis browseren har gammel kode.** Hard
+  reload FØR du beviser noget i frontenden — ellers beviser du det gamle.
+  Andet forsøg efter reload: 27 notifikationer.
 
 ---
 
