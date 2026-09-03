@@ -449,23 +449,49 @@ faldt igennem til skrivningen af `subscription_status`,
 `metadata.art` — `create-subscription-checkout` sætter kun
 `subscription_data[metadata][company_id]`. Alt med en art springes over,
 uanset navn, så en fremtidig art ikke kan falde igennem stille. Hjælperen
-`erSelvbetjeningsabonnement` afgør det ét sted. 400 uden gyldig signatur
-bekræfter kun at funktionen svarer — samme forbehold som altid.
+`erSelvbetjeningsabonnement` afgør det ét sted. **Bevist i drift 3/9 kl.
+10:42:59 på det RIGTIGE event** (se nedenfor) — ikke kun på en
+signaturafvisning.
 
-**MÅLT OG ÅBENT — skrivningen fra 2/9 skete aldrig.**
-`companies.subscription_status` er NULL på ALLE virksomheder, selv om
-`customer.subscription.created` var tilmeldt endpointet den 2/9 og
-grenen ikke sprang over ved `"migreret"`. Årsagen er IKKE afdækket —
-MCP'en har ikke adgang til Stripes event-log. Det skal ses i Stripe
-Dashboard → Developers → Events for `we_1UAtaW3CvBmCx5PtL736lAJN` den
-2/9, og det må ikke antages løst: får webhooken ikke subscription-events,
-er det et større problem end det vi lige rettede (fornyelsens og
-indgangens rater bærer ingen adgang via disse grene, men exit-
-abonnementet gør).
+**LUKKET 3/9 kl. 10:42 — skrivningen fra 2/9 udeblev IKKE fordi
+eventet manglede. Webhooken svarede 500.** Målt i Stripe Dashboard →
+Workbench → Webhooks → `we_1UAtaW3CvBmCx5PtL736lAJN` → Event deliveries:
+
+1. Doggybeds eget event `evt_1UB6wF3CvBmCx5PtfNrtQa4n`
+   (`customer.subscription.created` for `sub_1UB6wE3CvBmCx5Ptq3hHp2vt`,
+   art `"migreret"`, `company_id 382fd787-3141-45c7-8eea-297b7b947fe0`,
+   origin 2/9 kl. 07:42:23 CEST) BLEV leveret — og webhooken svarede
+   **HTTP 500 «Internal server error»**. Grenen sprang ikke over (den
+   gamle sortliste), gik ind i skrivningen, og skrivningen kastede.
+2. De seks røde linjer i listen er Stripes automatiske GENTAGELSER af
+   samme event (07:42:23, 07:42:40, 08:42:16 og 12:45:47 den 2/9, samt
+   02:39:38 den 3/9) — ikke seks forskellige events. Kun det seneste
+   forsøg kan gensendes; de øvrige røde linjer er historik.
+3. Efter #563 blev eventet gensendt manuelt 3/9 kl. 10:42:59 og svarede
+   **HTTP 200** med body `{"received": true, "skipped":
+   "migreret_subscription"}`. Stripe markerer leveringen «Recovered».
+
+**Hvad det betyder — står fast:**
+- #563 er bevist i drift på det rigtige event: hvidlisten virker, grenen
+  springer over ved art `"migreret"` og skriver ikke.
+- Webhooken FÅR subscription-events. Bekymringen om at den ikke gjorde,
+  er afkræftet — det var skrivningen der kastede, ikke leveringen der
+  manglede.
+- Hvad der præcis kastede inde i skrivningen (:354-362 i den gamle kode)
+  er IKKE afdækket, og bliver det ikke — **bevidst beslutning 3/9:**
+  grenen når aldrig derhen igen for et abonnement med en art. Bemærk dog
+  at det art-løse SELVBETJENINGSABONNEMENT stadig går gennem præcis den
+  kode; fejler den dér, er fejlen ikke fundet endnu. Der findes ingen
+  selvbetjeningsabonnenter i dag (alle fire Stripe-kolonner NULL på alle
+  virksomheder), så den ses først den dag en oprettes.
+- Beviset 13/9 står ved magt, men er nu stærkere: `subscription_status`
+  forbliver NULL fordi grenen springer over med vilje, ikke fordi noget
+  fejler.
 
 **BEVIS DER UDESTÅR (13/9):** at `subscription_status` forbliver NULL på
 doggybed (`companies.id = 382fd787-3141-45c7-8eea-297b7b947fe0`) efter
-trækket. Det er den eneste måling der tæller:
+trækket — og at leveringen af `customer.subscription.updated` den dag
+står grøn i Event deliveries, ikke rød:
 
 ```sql
 select subscription_status, stripe_subscription_id, subscription_current_period_end, contract_end_date
