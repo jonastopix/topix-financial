@@ -1,12 +1,15 @@
 # Indgangens overhaling — fra invitationslink til Dit Boardroom på to skærme
 
 **DESIGNDOKUMENT MED BOGFØRING.** Beslutningerne er truffet af Jonas
-2. september 2026 om aftenen. Status 2/9 nat: trin 5–9 i §9 (mail-
+2. september 2026 om aftenen. Status 3/9 morgen: trin 5–9 i §9 (mail-
 bekræftelsen, agentens betingelse, porten, ankomstens motor og flade) er
 bygget og bevist i drift; trin 11–12 (hele Auth-fladen til Hjemmebane,
-#549–#551) er gennemført og bekræftet på skærm 2/9 nat; trin 1–4
-(branchen), 10 (blindgyden) og 13 (det grønne blink efter login, målt
-3/9) er ikke bygget. Samme regel som
+#549–#551) er gennemført og bekræftet på skærm 2/9 nat; trin 13 (det
+grønne blink efter login, #554) er gennemført og bevist i drift 3/9;
+trin 1 (branchemotoren, #553) er bygget. Af ruten mangler kun 10
+(blindgyden); af branchen mangler 2–4 (aftageren). **Rettelse 3/9:**
+registret bag branchemotoren er DB25, ikke DB07 — §6 er rettet, se
+noten der. Samme regel som
 `docs/indgangsfladen-design.md`: hver påstand er enten målt (med kilde),
 eller mærket som ikke målt/forslag/åben. Reconerne bag ligger uden for
 repoet (`~/Downloads/recon-adgangsruten.md`, `recon-branche.md`,
@@ -400,16 +403,51 @@ står uden knap i kortet — overlejringen er tjekliste-boksens egen state
 
 ---
 
-## 6. Branchen udledes af CVR — BESLUTTET
+## 6. Branchen udledes af CVR — BESLUTTET; trin 1 BYGGET 3/9 (#553)
+
+### RETTET 3/9 — registret er DB25, ikke DB07
+
+Afsnittet nedenfor blev skrevet 2/9 med «DB07» som CVR's branchekode, og
+opgaven til trin 1 blev formuleret på samme grundlag. Det var forkert.
+CVR skiftede 1. januar 2025 fra Dansk Branchekode 2007 (DB07) til
+**Dansk Branchekode 2025 (DB25)**. Alle virksomheder har haft en
+DB25-kode siden, og det er DB25-koden cvrapi.dk udstiller — også hvor
+kode og titel er magen til DB07's. DB25 har 738 branchekoder på 87
+afdelinger og er en dansk underopdeling af NACE rev. 2.1. Kilder:
+Danmarks Statistik (dst.dk, «Dansk Branchekode 2025 er gældende») og
+Erhvervsstyrelsen. Målt med stikprøver mod cvrapi.dk 3/9: `478100`
+(detailhandel med motorkøretøjer) og `953190` (reparation af
+motorkøretøjer i.a.n.) findes kun i DB25 — bilområdet er splittet op, og
+DB07's afdeling 45 er nedlagt. Havde motoren fulgt opgaven, ville
+bilbranchen have mappet mod en afdeling der ikke findes.
+
+Motoren er bygget mod DB25 (fixture `src/lib/__fixtures__/
+db25-branchekoder.txt`, hentet fra Danmarks Statistik 3/9). DB07-koder
+fra før 2025 er IKKE understøttet; de findes kun på virksomheder
+oprettet før skiftet, som migration `20260329212047` backfyldte. Hvor
+DB07 nævnes nedenfor og i §10, er det rettet til DB25 — undtagen hvor
+det handler om netop den historik.
+
+**Læren** (bogført i OVERLEVERING DEL 1 og DEL 4): et register vi bygger
+på kan være skiftet ud, uden at noget i repoet siger det. Slå op frem
+for at huske — det gælder ikke kun tredjepartsværktøjer som Stripe, men
+også offentlige registre.
 
 ### Beslutningen
 
-Ny ren motor, **motor før flade**: `udledBranchekode(db07: string):
-string | null` → app-taksonomiens `industry_code` (nøglerne i
-`INDUSTRY_OPTIONS`/`industry_benchmarks`, 48 underkategorier, målt
-`Settings.tsx:25-108` og seed `20260329190316:143-268` + `211955`).
-Kaldes ved oprettelsen. Mapping på DB07-kodens to første cifre
-(afdelingsniveau), med undtagelser hvor to cifre er for groft.
+Ny ren motor, **motor før flade**: `udledBranchekode(db25: string):
+{ industry_code, industry_label } | null` → app-taksonomiens
+`industry_code` (nøglerne i `INDUSTRY_OPTIONS`/`industry_benchmarks`,
+48 underkategorier, målt `Settings.tsx:25-108` og seed
+`20260329190316:143-268` + `211955`). Kaldes ved oprettelsen (trin 4,
+ikke bygget). Opslag fra det mest specifikke niveau til det groveste:
+seks cifre → fire → tre → to (afdelingen); første niveau der HAR en
+post afgør, også når posten er null.
+
+**Besluttet 3/9 (Jonas), skrevet ind i motorens filhoved:** motoren
+sætter `industry_code`; `industry_label` sættes KUN hvis den er tom —
+der overskrives aldrig noget nogen har skrevet. Rammer mappingen ikke,
+står begge felter tomme, og der sættes ALDRIG `other_general`.
 
 **Rammer mappingen ikke, står feltet TOMT, og tjeklisten spørger
 medlemmet.** Der sættes ALDRIG `other_general` som fald tilbage.
@@ -419,19 +457,21 @@ er værre end ingen — fordi ingen opdager den. Et tomt felt er synligt
 viser «Branche» som mangler, `onboardingTjekliste.ts:160`); en forkert
 benchmark ser ud som et tal.
 
-### Hvorfor DB07 ikke bare lægges i `industry_code` — målt
+### Hvorfor CVR-koden (DB25) ikke bare lægges i `industry_code` — målt
 
 - `industry_code` er nøgle til `industry_benchmarks.industry_code`
   (NoegletalView.tsx:431-433, generate-weekly-focus:272-274,
   Settings.tsx:598-602, migration 212047:47). Tabellens koder er
   app-taksonomiens (`retail_other`, `tech_software`, …; 66 seedede
-  koder). En DB07-kode som `620100` matcher ingen række → nul
+  koder). En DB25-kode som `620100` matcher ingen række → nul
   benchmarks, uden fejl.
 - `byggVirksomhedsRaekke` sætter derfor bevidst `industry_code: null`
   (`src/lib/virksomhedsraekke.ts:126-133` og Deno-spejlet), låst af
-  `virksomhedsraekke.test.ts:134`. Kommentaren: «CVR's NACE/DB07-tal må
-  IKKE i industry_code … en NACE-kode giver nul benchmarks.»
-- DB07-koden bevares allerede: `hentCvrData` returnerer `industry_code =
+  `virksomhedsraekke.test.ts:134`. Kommentaren siger ordret «CVR's
+  NACE/DB07-tal må IKKE i industry_code … en NACE-kode giver nul
+  benchmarks» — «DB07» dér er kodens egen ordlyd fra før rettelsen;
+  pointen gælder uændret for DB25.
+- CVR-koden bevares allerede: `hentCvrData` returnerer `industry_code =
   String(data.industrycode)` og `industry_label = data.industrydesc`
   (`_shared/virksomhedsOprettelse.ts:77-82`, kilde cvrapi.dk), og hele
   svaret gemmes i `application_context.raw_cvr_data`
@@ -441,25 +481,37 @@ benchmark ser ud som et tal.
 
 ### Hvad motoren bygger på
 
-DB07 følger NACE Rev. 2's struktur: seks cifre, hvor de to første er
+DB25 følger NACE rev. 2.1's struktur: seks cifre, hvor de to første er
 afdelingen (fx `62` = Computerprogrammering, konsulentbistand mv.).
-NACE Rev. 2 har 88 afdelinger (01–99 med huller) — det er strukturens
-tal, ikke noget der er målt i repoet. Mappingen bliver derfor en tabel
-med op til 88 rækker afdeling → `industry_code | null`, plus en liste
-af undtagelser på fire eller seks cifre hvor afdelingen spænder over
-flere af vores underkategorier (fx afdeling `47` detailhandel dækker
-`retail_grocery` … `retail_other`; her afgør gruppen `47.1x`–`47.9x`).
-Tabellens indhold er IKKE lavet — det er trin 1 i §9, og det skal
-skrives med begrundelse pr. række, ikke i én omgang.
+DB25 har 87 afdelinger og 738 underklasser (Danmarks Statistik; fixture
+`db25-branchekoder.txt`). Mappingen er en tabel afdeling →
+`industry_code | null`, plus undtagelser på tre, fire eller seks cifre
+hvor afdelingen spænder over flere af vores underkategorier (fx
+afdeling `47` detailhandel dækker `retail_grocery` … `retail_other`;
+gruppen `478` — DB25's afløser for DB07's afdeling 45 — giver
+`retail_automotive`). **Tabellens indhold er lavet 3/9 (#553)**, med
+begrundelse pr. række i filen; 113 tests, pr. afdeling der er mappet OG
+pr. afdeling der bevidst giver null. Formidlingsklasserne, som DB25
+indførte, står konsekvent som null.
 
-Motoren er ren (nul imports), lever i `src/lib/branchekode.ts`, spejles
-ordret til `_shared/branchekode.ts`, med paritetstest — mønstret fra
-`betalingsfrist` og `virksomhedsraekke`. Taksonomien selv
-(`INDUSTRY_OPTIONS`) skal flytte fra `Settings.tsx` til et delt modul,
-så motor, Settings og benchmark-seedet har én kilde; Onboarding.tsx'
-egen 15-liste (`:13-29`) dør med porten.
+Motoren lever i `src/lib/branchekode.ts` og har én import: taksonomien i
+`src/lib/brancher.ts`, så Settings og motoren deler én kilde til
+labels. **`INDUSTRY_OPTIONS` er flyttet ordret fra `Settings.tsx` til
+`src/lib/brancher.ts` i #553** (Settings importerer den derfra) — det er
+§9 trin 2's kodedel, gjort sammen med trin 1; trin 2's bevis i prod
+(Settings' branche-select uændret efter Update-klik) er ikke kørt.
+Spejlet til `_shared/branchekode.ts` med paritetstest (mønstret fra
+`betalingsfrist` og `virksomhedsraekke`) er trin 3, ikke bygget; begge
+filer spejles når motoren får en Deno-aftager. Onboarding.tsx' egen
+15-liste døde med porten (trin 7).
 
-### De to felter — målt forskel, og FORSLAG for `industry_label`
+### De to felter — målt forskel; `industry_label` BESLUTTET 3/9
+
+**Besluttet 3/9 (Jonas):** motoren sætter `industry_label` KUN hvis den
+er tom — aldrig overskrive noget nogen har skrevet. Rammer motoren ikke,
+står begge felter tomme. Det er forslaget nedenfor med én ændring: en
+eksisterende label rører motoren ikke. Forslaget står som skrevet 2/9 for
+begrundelsens skyld.
 
 Målt (`recon-branche.md` §5): `industry_code` driver benchmarks
 (NoegletalView, generate-weekly-focus T6, kpi_benchmarks-synk).
@@ -514,8 +566,32 @@ som «rådgiver uden virksomhed» (useAuth.tsx:308-312 skelner ikke på
 rolle). N er ikke afgjort (§10). Skelettet selv tegnes i Hb-tokens
 (`DashboardSkeleton` er `glass-card` + shadcn `Skeleton`).
 
-**Det grønne blink efter login — MÅLT 3/9, IKKE RETTET**
-(`~/Downloads/recon-groent-blink.md`). Jonas ser stadig et stort grønt
+**✅ GENNEMFØRT OG BEVIST I DRIFT 3/9 morgen (PR #554) — det grønne
+blink efter login er væk.** `useAuth` sætter nu `loading = true` ved
+OVERGANGEN ingen-session → session, læst fra en `useRef`
+(`havdeSessionRef`) — ikke fra `user` i closure, fordi handleren
+registreres én gang med tomme deps og derfor altid ser mount-værdien.
+Markøren nulstilles i grenen uden session (SIGNED_OUT, INITIAL_SESSION
+uden session), så et nyt login efter en udlogning igen holder porten.
+Betingelsen er bevidst overgangen og IKKE `_event === "SIGNED_IN"`:
+auth-js 2.97 udsender SIGNED_IN i fire situationer ud over login
+(`~/Downloads/recon-loading.md` §3) — (1) faneskift tilbage til appen
+(`_onVisibilityChanged → _recoverAndRefresh`), (2) cross-tab broadcast
+fra en anden fane, (3) kodeordsskift i Settings (re-auth via
+`signInWithPassword`), (4) hard reload. I alle fire findes brugeren
+allerede, og et `loading = true` ville afmontere hele rute-træet under
+guarden og smide kodeordsfelter, upload-tilstand og Tiptap-kladder væk
+midt i en handling. Kommentaren i koden lister de fire, så betingelsen
+ikke «forenkles» senere. **Bevist af Jonas 3/9, alle fire scenarier:**
+log ud og ind giver ingen mørkegrøn skærm; faneskift midt i en session
+giver ingen spinner; kodeordsskift i Settings gennemføres uden at
+felterne forsvinder; hard reload uændret. Skelet-grenen i `Index.tsx`
+er URØRT — den skal stadig gøres lys og have en udvej, men det er trin
+10 (blindgyden), en anden rettelse. Målingen og retningen fra 3/9 nat
+står nedenfor som historik.
+
+**Det grønne blink efter login — MÅLT 3/9, rettet samme morgen (ovenfor)**
+(`~/Downloads/recon-groent-blink.md`). Jonas så et stort grønt
 blink EFTER login, før forsiden — også efter at spinnerne blev
 `HbSpinner` (#551). Det er ikke en spinner. Det er SAMME gren som
 blindgyden: `Index.tsx:202-208` tegner det gamle `DashboardSkeleton`
@@ -535,7 +611,8 @@ company_members → legat → tier). Ved HARD RELOAD sker det ikke:
 `loading` er sand fra start, `HbSpinner` vises, og tier er sat før
 Index tegnes. Blinket er specifikt for login-overgangen.
 
-*Besluttet retning (Jonas 2/9 nat, ikke bygget):* rettelsen er IKKE at
+*Besluttet retning (Jonas 2/9 nat; bygget og bevist 3/9 morgen, #554,
+se ovenfor):* rettelsen er IKKE at
 konvertere `DashboardSkeleton` — det ville være at gøre ventetiden
 pænere. Rettelsen er at sætte `loading = true` når `SIGNED_IN` fyrer og
 `fetchUserData` går i gang, så `MemberRoute` holder porten lukket til
@@ -691,14 +768,19 @@ tilstande alligevel skrives om.
 Ét trin pr. linje. Hvert trin kan bevises i drift for sig; motorer før
 flader. «Bevis» = hvad der måles før næste trin begynder.
 
-1. **Motor `udledBranchekode`** (`src/lib/branchekode.ts`, ren, tabel
-   afdeling → kode + undtagelser, tests pr. afdeling der er mappet OG
-   pr. afdeling der bevidst giver null). Bevis: `bun run test` grøn,
-   testene læst — tallene, ikke kun assertions.
+1. **✅ BYGGET 3/9 morgen (PR #553) — Motor `udledBranchekode`**
+   (`src/lib/branchekode.ts`, ren, tabel afdeling → kode + undtagelser
+   på tre/fire/seks cifre, tests pr. afdeling der er mappet OG pr.
+   afdeling der bevidst giver null). Bevis: `bun run test` grøn, 113 nye
+   tests. *Rettelse undervejs:* registret er DB25, ikke DB07 (§6) —
+   tabellerne er bygget mod DB25's 87 afdelinger. Beslutninger skrevet
+   ind i filhovedet: `industry_code` sættes; `industry_label` kun hvis
+   tom; ingen `other_general`. Ingen aftager endnu.
 2. **Taksonomien som ét modul** (`INDUSTRY_OPTIONS` ud af `Settings.tsx`
-   til `src/lib/brancher.ts`; Settings importerer). Bevis: Settings'
-   branche-select uændret i prod efter Update-klik; `tsc` med de fire
-   kendte fejl.
+   til `src/lib/brancher.ts`; Settings importerer). *Kodedelen er gjort
+   i #553 sammen med trin 1.* Bevis mangler: Settings' branche-select
+   uændret i prod efter Update-klik; `tsc` med de fire kendte fejl
+   (målt grøn lokalt 3/9).
 3. **Spejl til Deno + paritetstest** (`_shared/branchekode.ts`,
    `branchekodeParitet.test.ts`). Bevis: paritetstest grøn; `deno check`
    på de funktioner der importerer den.
@@ -760,21 +842,26 @@ flader. «Bevis» = hvad der måles før næste trin begynder.
     indlogget browser, §7.4 fejl-parametre, §7.7 invitationsmailens
     tekst — stadig åbne.
 12. **✅ GENNEMFØRT 2/9 nat (#551) — 404 til Hjemmebane** (§7.6).
-13. **Det grønne blink efter login** (§7.1, målt 3/9): sæt `loading =
-    true` når `SIGNED_IN` fyrer og `fetchUserData` går i gang, så
-    `MemberRoute` holder porten lukket til tier er afgjort — som ved
-    hard reload. FØRST recon på hvem der læser `loading` (auth-
-    kontraktens mest brugte felt); en fejl viser sig som en spinner der
-    ikke går væk. Bevis: log ud og ind — ingen mørkegrøn skærm mellem
-    login og forside; hard reload uændret.
+13. **✅ GENNEMFØRT OG BEVIST I DRIFT 3/9 morgen (PR #554) — Det grønne
+    blink efter login** (§7.1). Reconen kom først
+    (`~/Downloads/recon-loading.md`: ti læsere af `loading`, fem guards
+    og fem sider; og auth-js udsender SIGNED_IN ved faneskift, cross-tab
+    broadcast, re-auth og hard reload). Derfor sættes `loading = true`
+    ved OVERGANGEN ingen-session → session via en `useRef`, ikke ved
+    event-typen; markøren nulstilles når sessionen forsvinder. *Bevist
+    af Jonas 3/9, alle fire scenarier:* log ud og ind uden mørkegrøn
+    skærm; faneskift uden spinner; kodeordsskift i Settings uden at
+    felterne forsvinder; hard reload uændret. Skelet-grenen i Index er
+    urørt (trin 10).
 14. **Bogføring**: dette dokument opdateres pr. trin med dato og bevis;
     OVERLEVERING DEL 2/3 peger hertil. Testopstillingen (§11) fjernes
     når ruten er bevist.
 
 Trin 1–4 (branchen) er uafhængige af 5–9 (ruten) og kan køre parallelt
-i to grene; **5–9 er bevist 2/9, 11–12 gennemført 2/9 nat**; af ruten
-mangler 10 (blindgyden) og 13 (det grønne blink), som rører samme gren
-men er to rettelser. Næste opgave er 13 (Jonas 2/9 nat, §7.1).
+i to grene; **5–9 er bevist 2/9, 11–12 gennemført 2/9 nat, 13 bevist
+3/9 morgen (#554), 1 bygget 3/9 morgen (#553)**. Af ruten mangler nu
+kun 10 (blindgyden). Af branchen mangler 2–4 (aftageren: trin 2's bevis
+i prod, spejlet til Deno, og kaldet ved oprettelsen).
 
 ---
 
@@ -788,16 +875,18 @@ men er to rettelser. Næste opgave er 13 (Jonas 2/9 nat, §7.1).
   betyder for en tidligere legat-bruger (bliver `legatActive` falsk,
   bærer stemplet alene at de ikke sendes til `/onboarding` — indtil
   porten dør). Ikke læst i reconen.
-- **`industry_label` når motoren rammer/ikke rammer** (§6-forslag), og
-  hvad der sker med `import-application`s enrich-guard og
-  `EditCompanyDialog`s fritekstfelt. Ikke besluttet.
-- **Mappingtabellens indhold**: hvilke afdelinger giver null, og hvilke
-  undtagelser på fire/seks cifre. Skrives med begrundelse pr. række i
-  trin 1; ikke påbegyndt.
+- **LØST 3/9 — `industry_label` når motoren rammer/ikke rammer** (§6):
+  sættes KUN hvis den er tom; rammer motoren ikke, står begge felter
+  tomme. *Stadig åbent:* hvad der sker med `import-application`s
+  enrich-guard og `EditCompanyDialog`s fritekstfelt — ikke besluttet.
+- **LØST 3/9 (#553) — Mappingtabellens indhold**: skrevet med
+  begrundelse pr. række i `src/lib/branchekode.ts`, mod DB25 (§6).
 - **Backfill af eksisterende virksomheder** uden `industry_code` fra
-  `application_context.raw_cvr_data`: antal og hvor mange der har en
-  DB07-kode gemt — UKLART. Er en datarettelse (SELECT før/efter,
-  guard `industry_code IS NULL`), ikke en del af trin 4.
+  `application_context.raw_cvr_data`: antal, og hvor mange der har en
+  kode gemt — UKLART. Bemærk registerskiftet (§6): virksomheder slået op
+  før 1/1 2025 bærer en DB07-kode, som motoren ikke forstår; kun
+  DB25-koder kan udledes. Er en datarettelse (SELECT før/efter, guard
+  `industry_code IS NULL`), ikke en del af trin 4.
 - **LØST 2/9 aften — Markøren for «første besøg»** (§5): ankomsten
   varer indtil tjeklisten er færdig (valg A), så markøren er
   `byggTjekliste(...).faerdig` — data pr. medlem, ingen ny kolonne.
@@ -832,7 +921,8 @@ men er to rettelser. Næste opgave er 13 (Jonas 2/9 nat, §7.1).
   podcast og «Værd at se igen» — langt nede for et medlem hvis eneste
   opgave er at komme i gang. Ikke rørt i trin 9.
 - **N sekunder** før skelettet giver op (§7.1). Uafhængigt af det grønne
-  blink (trin 13), som rammer samme gren men rettes i `useAuth`.
+  blink (trin 13, rettet i `useAuth` 3/9) — skelet-grenen selv er
+  urørt og er trin 10.
 - **Dødt vs. brugt token** (§7.2): kræver at RPC'en svarer med en grund
   for ikke-pending tokens — ændrer hvad et token afslører (i dag: intet
   for brugte). Ikke besluttet.
