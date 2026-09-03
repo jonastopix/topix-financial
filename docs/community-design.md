@@ -3,10 +3,11 @@
 **DESIGNDOKUMENT MED BOGFØRING.** Oprettet 3. september 2026 eftermiddag,
 mens Community flyttes fra Circle (Jonas 3/9). §1–3 er grundlaget og
 målingen der gav retningen; §4–6 bogfører hvad der er bygget (#576,
-#577); §7 er et fund der ændrer en plan; §8 er det åbne. Samme regel som
+#577) inkl. beviset i drift; §7 er et fund der ændrer en plan; §8 er
+medlemssporet (#579); §9 er status og det åbne. Samme regel som
 `docs/indgangen-design.md`: hver påstand er enten målt med kilde, eller
 mærket som ikke målt/åben. Linjetal er fra `main` efter #577
-(`a0a21bd8`).
+(`a0a21bd8`); §8 og §9 er skrevet efter #579 (`1e3bd232`).
 
 Baggrundsreconerne ligger uden for repoet og skal genskabes hvis de
 bruges: `~/Downloads/recon-community-notifikationer.md`,
@@ -141,6 +142,28 @@ fornemme emnet, kort nok til at knappen stadig har et ærinde. En
 forkortelse som «kr.» tæller som sætningsgrænse — det gør kun uddraget
 kortere.
 
+### Bevist i drift 3/9 kl. 14:39 — ved ANDET forsøg
+
+Det blev prøvet, fejlede, og lykkedes anden gang. Forløbet, så det ikke
+læses som «ikke prøvet»:
+
+- **Første forsøg kl. 14:30:** et rigtigt opslag («Vi flytter
+  fællesskabet herind») gav NUL notifikationer. Edge function-loggen for
+  `notify-community-opslag` var tom — funktionen blev aldrig kaldt.
+- **Årsag:** browseren kørte den gamle `CommunityView`. Kaldet
+  (`notificerNytOpslag`) kom med #576, og frontenden var ikke slået
+  igennem i browseren, da opslaget blev skrevet. Koden var korrekt hele
+  tiden: kaldet står i `mutationFn` efter `opretTraad`, med samme
+  garanti som nævnelsen (kaster aldrig, kan ikke vælte opslaget).
+- **Andet forsøg kl. 14:39** efter hard reload: opslaget slettet og
+  skrevet igen → **27 notifikationer** skrevet. Mailen landede i Jonas'
+  egen medlemskonto (en anden auth-bruger end rådgiverkontoen, se §9)
+  og så ud som den skulle — portræt, uddrag, knap. **BEVIST I DRIFT.**
+- **Læren** (OVERLEVERING DEL 4): en tom edge function-log er et svar —
+  funktionen blev aldrig kaldt, og fejlen ligger i fladen, ikke i
+  funktionen. Og et Update-klik er ikke nok, hvis browseren har gammel
+  kode: hard reload før man beviser noget i frontenden.
+
 ## 5. Escaping-rettelsen — den vigtigste del af #576
 
 **Skal stå selv om resten forsvinder.**
@@ -226,21 +249,50 @@ præsentationen.**
 Så funktionen findes; et nyt tjeklistepunkt ville være en dublet. Det
 der mangler er at gøre præsentationen TIL STEDE i Community (§8).
 
-## 8. Åbent
-
-### Medlemmerne i Community — IKKE BYGGET
+## 8. Medlemssporet i Community — bygget og set 3/9 (#579)
 
 Jonas 3/9, ordret: «præsentation af sig selv skal ligge som en sidebar
 i sig selv inde i Community, så det ikke bare larmer i et langt feed og
 forsvinder — for så kan man ikke finde tilbage til hinanden.»
 
-Målt: `/community` er ÉN kolonne — `HbSection` er fuldbredde uden
-side-slot (`HbSection.tsx:19-42`: eyebrow, titel, link, children); det
-eneste tokolonne-layout i Hjemmebane er skallens egen
-sidebar/indhold-deling (`HbMemberShell.tsx:195-215`). Netværkets data og
-kort findes: `listMemberDirectory` (`memberProfile.ts:39`) og
-`ProfileCard` i `MemberDirectoryView.tsx:40` — den sidste er IKKE
-eksporteret. Kræver et nyt layout i indholdskolonnen.
+Målt før bygningen: `/community` var ÉN kolonne — `HbSection` er
+fuldbredde uden side-slot (`HbSection.tsx:19-42`); det eneste
+tokolonne-layout i Hjemmebane var skallens egen sidebar/indhold-deling
+(`HbMemberShell.tsx:195-215`). Netværkets data fandtes
+(`listMemberDirectory`, `memberProfile.ts:39`).
+
+**Bygget (#579):** `src/lib/hjemmebane/communityMedlemmer.ts` (rene
+domme, testet i `__tests__/communityMedlemmer.test.ts`) og
+`src/components/hjemmebane/community/CommunityMedlemmer.tsx`, koblet ind
+i `CommunityView.tsx`.
+
+- **Hvem:** ALLE medlemmer, ikke rådgivere, fra Netværkets egne data
+  (`listMemberDirectory` → `/medlemmer/{id}`). 26 er få nok til at «alle»
+  er det rigtige — et udvalg (nyeste, tilfældige) ville gøre det umuligt
+  at finde TILBAGE til én bestemt, og det er hele ærindet. Rådgiverne
+  står under egen hårstreg på /medlemmer og hører ikke til i et spor om
+  at medlemmerne finder hinanden.
+- **Rækkefølge:** dem med profiltekst (`ask_me_about`) først, alfabetisk
+  inden for hver gruppe — man skal kunne se hvem man kan SPØRGE, før man
+  ser hvem der endnu ikke har sagt noget. **Ingen skjules** — et skjult
+  medlem kan man ikke finde tilbage til.
+- **Den indloggede** løftes ud og står øverst med egen tekst, eller med
+  opfordringen til at udfylde profilen; nudgen sidder dér, hvor man
+  opdager at de andre har skrevet noget og man selv ikke har.
+- **Ingen ny datamodel, ingen ny RPC** — Netværket ER præsentationen (§7).
+
+**Set på skærm af Jonas 3/9.**
+
+## 9. Status og det åbne
+
+**BYGGET OG BEVIST 3/9:**
+
+- Opslagsmailen (#576) — bevist i drift kl. 14:39 ved andet forsøg
+  (§4), med escaping-rettelsen der gælder alle ti notifikationstyper (§5).
+- Forsidesektionen «Fra fællesskabet» med vægt (#577, §6).
+- Medlemssporet i Community (#579, §8) — set på skærm.
+
+**ÅBENT, IKKE BYGGET:**
 
 ### Reaktionsknappen findes kun inde i tråden
 
@@ -263,11 +315,35 @@ ny AI-analyse klar») nævner den ikke. Dagskvoten på 5 mails gælder.
 - Uddragsmotoren findes to steder (mailens `_shared/opslagsMail.ts` og
   `src/lib/hjemmebane/uddrag.ts`); paritetstesten holder dem ens, men
   mailen skal importere spejlet næste gang den åbnes.
-- Beviset for opslagsmailen i drift (en rigtig mail i en rigtig
-  indbakke med portræt) er ikke bogført her — næste opslag der ikke er
-  Jonas' eget.
+- Beviset for opslagsmailen i drift ER bogført (§4: bevist kl. 14:39
+  ved andet forsøg).
 
-## 9. Mål det igen
+### Svar udløser ingen mail til andre end de nævnte
+
+`notify-community-svar` findes og notificerer kun trådens forfatter
+in-app (`info`, ingen mail); nævnte får mail via nævnelsen. Ingen andre
+i tråden får besked om et svar. Ikke afdækket nu — kun noteret.
+
+### Nudging generelt — ikke afdækket
+
+Jonas spurgte til det 3/9 («kan vi gøre noget der får folk til at
+interagere mere»). Der er ikke lavet recon; intet er besluttet.
+
+### Rådgiver som medlem — nyt åbent punkt (Jonas 3/9, egne ord)
+
+«jeg vil gerne have lavet på et tidspunkt, at jeg som rådgiver også skal
+have en virksomhed, hvor jeg kan switche imellem, om jeg vil se
+platformen som rådgiver, eller om jeg vil agere rådgiver eller være inde
+på min medlemsvirksomhed.»
+
+Det er IKKE company-override (som er «se en ANDENS virksomhed»,
+konvergens §2.2-noten 3/9); det er at rådgiveren selv ER medlem et sted
+og kan skifte hat. Hører til rådgiverflade-epic'en (`docs/hjemmebane/
+konvergens.md` §2.9). Bemærk: Jonas har i dag TO auth-brugere —
+rådgiverkontoen og en almindelig medlemskonto på Topix.dk — og det var
+dén, der modtog opslagsmailen (§4).
+
+## 10. Mål det igen
 
 ```sql
 -- Tråde, svar, forfattere
@@ -309,4 +385,7 @@ select count(*) from public.email_send_log where template_name = 'notification-c
 CommunityView.tsx`, `src/components/hjemmebane/boardroom/BoardroomView.tsx`;
 tests `src/lib/__tests__/opslagsMail.test.ts`,
 `sendNotificationEmail.escaping.guard.test.ts`,
-`src/lib/hjemmebane/__tests__/forsideOpslag.test.ts`, `uddrag.test.ts`.
+`src/lib/hjemmebane/__tests__/forsideOpslag.test.ts`, `uddrag.test.ts`;
+#579: `src/lib/hjemmebane/communityMedlemmer.ts`,
+`src/components/hjemmebane/community/CommunityMedlemmer.tsx`,
+`src/lib/hjemmebane/__tests__/communityMedlemmer.test.ts`.
