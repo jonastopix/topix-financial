@@ -148,6 +148,19 @@ async function nulstilIndgangsSession(
   }
 }
 
+/**
+ * Hvidlisten for subscription-grenene (3/9): kun SELVBETJENINGSABONNEMENTET
+ * må skrive subscription_status m.fl. på companies, og det er det eneste
+ * abonnement uden metadata.art — create-subscription-checkout sætter kun
+ * subscription_data[metadata][company_id]. Alle medlemskabsabonnementer
+ * bærer en art (indgang, fornyelse, migreret, og enhver fremtidig) og
+ * springes over, uanset navn. Se kommentaren ved grenene.
+ */
+function erSelvbetjeningsabonnement(sub: { metadata?: Record<string, string> | null }): boolean {
+  const art = sub.metadata?.art;
+  return typeof art !== "string" || art.trim() === "";
+}
+
 // ── Indgangskæden som hjælpere (3/9) — delt af checkout-indgangsgrenen og
 //    invoice.paid-grenen, så en fakturabetaling ender PRÆCIS samme sted som
 //    en checkout-betaling: company_perioder → companies → session-pegeren
@@ -333,18 +346,33 @@ Deno.serve(async (req) => {
 
   try {
     // ── Subscription lifecycle events ──
+    //
+    // HVIDLISTE, ikke sortliste (rettet 3/9). subscription_status,
+    // stripe_subscription_id og subscription_current_period_end på
+    // companies er forbeholdt SELVBETJENINGSABONNEMENTET («dine tal», exit-
+    // produktet fra create-subscription-checkout) — det eneste abonnement
+    // der bærer INGEN metadata.art (det sætter kun company_id). Et
+    // MEDLEMSKABSABONNEMENT er ikke et selvbetjeningsabonnement: indgangens
+    // og fornyelsens rater (art "indgang"/"fornyelse") bærer adgangen i
+    // contract_end_date, og skrev vi status her, ville virksomheden fremstå
+    // som abonnent (tier "subscriber") i stedet for fuldt medlem.
+    //
+    // Før stod der en SORTLISTE (art === "fornyelse" || art === "indgang"),
+    // og alt andet faldt igennem til skrivningen. Det afslørede doggybeds
+    // migrerede abonnement 3/9 2026: sub_1UB6wE3CvBmCx5Ptq3hHp2vt bærer
+    // art "migreret" (pilotmigrationen 2/9), som ingen gren kendte — så
+    // trækket 13/9 ville have skrevet active + period_end = cancel_at på
+    // companies, /members ville vise «Abonnement: Active», og på
+    // fornyelsesdagen 13/10 mellem 00:00 og cancel_at ville tier blive
+    // "subscriber" i stedet for "expired": væk fra FornyelsesSektion,
+    // tomt fornyelsestilbud, 403 på fornyelses-checkout
+    // (~/Downloads/recon-migreret.md). En ny art må ikke kunne forurene
+    // feltet ved at blive glemt — derfor springes ALT med en art over,
+    // og kun det art-løse selvbetjeningsabonnement skriver.
     if (event.type === "customer.subscription.created" || event.type === "customer.subscription.updated") {
       const sub = event.data.object;
-      // subscription_status på companies er forbeholdt exit-abonnementet
-      // (selvbetjening). En ratebetalt fornyelse er IKKE et selvbetjenings-
-      // abonnement — skrev vi status her, ville virksomheden fremstå som
-      // abonnent (tier "subscriber") i stedet for fuldt medlem; adgangen
-      // ved fornyelse bæres af contract_end_date.
-      // Samme gælder indgangens rate-abonnementer (art "indgang", 2/9): et
-      // indgangs-abonnement er heller ikke et exit-abonnement — adgangen
-      // bæres af contract_end_date, som indgangsgrenen sætter.
-      if (sub.metadata?.art === "fornyelse" || sub.metadata?.art === "indgang") {
-        console.log(`[stripe-webhook] ${event.type} for ${sub.metadata.art}-abonnement ${sub.id}, springer status-skrivning over`);
+      if (!erSelvbetjeningsabonnement(sub)) {
+        console.log(`[stripe-webhook] ${event.type} for ${sub.metadata.art}-abonnement ${sub.id}, springer status-skrivning over (kun selvbetjening skriver)`);
         return new Response(JSON.stringify({ received: true, skipped: `${sub.metadata.art}_subscription` }), {
           headers: { "Content-Type": "application/json" },
         });
@@ -369,14 +397,12 @@ Deno.serve(async (req) => {
 
     if (event.type === "customer.subscription.deleted") {
       const sub = event.data.object;
-      // Et fornyelses-abonnement der udløber (rammer sit cancel_at efter
-      // sidste rate), er et normalt afsluttet betalingsforløb — ikke en
-      // opsagt selvbetjening. subscription_status er forbeholdt
-      // exit-abonnementet og må ikke skrives her. Samme for indgangens
-      // rate-abonnementer (art "indgang", 2/9): et ophør efter tolvte rate
-      // er et normalt afsluttet betalingsforløb, ikke en opsagt selvbetjening.
-      if (sub.metadata?.art === "fornyelse" || sub.metadata?.art === "indgang") {
-        console.log(`[stripe-webhook] ${event.type} for ${sub.metadata.art}-abonnement ${sub.id}, springer status-skrivning over`);
+      // Samme hvidliste som ovenfor: et medlemskabsabonnement der rammer
+      // sit cancel_at efter sidste rate (indgang, fornyelse, migreret), er
+      // et normalt afsluttet betalingsforløb — ikke en opsagt selvbetjening.
+      // Kun det art-løse selvbetjeningsabonnement skriver "cancelled".
+      if (!erSelvbetjeningsabonnement(sub)) {
+        console.log(`[stripe-webhook] ${event.type} for ${sub.metadata.art}-abonnement ${sub.id}, springer status-skrivning over (kun selvbetjening skriver)`);
         return new Response(JSON.stringify({ received: true, skipped: `${sub.metadata.art}_subscription` }), {
           headers: { "Content-Type": "application/json" },
         });
