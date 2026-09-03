@@ -379,8 +379,11 @@ kopierne. `monday-webhook` og `import-application` deployet 3/9 via
 build-chat (401 uden autorisation, ikke 404). **Udestående bevis:** at
 en ny virksomhed faktisk får `industry_code` sat — 401 beviser kun at
 funktionen svarer. Kommer ved næste rigtige «Godkendt» eller «Importér
-ansøgning». Branchedataene i prod er målt 3/9 og trænger til en
-datarettelse (§10).
+ansøgning». Branchedataene i prod er rettet 3/9 kl. 11:50–12:00 med
+engangs-berigelsen `berig-virksomheder` (#567): 29 af 30 aktive har nu
+kode og label, ingen registerkoder tilbage; adresse på 26 af 30,
+kontakt-email på 30 af 30 (§10). Otte uenigheder mellem CVR og
+platformen er bevidst ikke rørt — én samtale (§10).
 
 ### Oprydningen 2/9
 
@@ -413,14 +416,15 @@ facit og rækkefølge; `docs/chat-design.md` chattens form.
 | snarest | **Månedstrækkene registreres ikke** — hverken rate 2–12 eller fejlede træk. `invoice.paid` er nu tilmeldt, men grenen handler kun på indgangsfakturaer; abonnementernes månedsfakturaer ack'es uden handling, og `invoice.payment_failed` er ikke tilmeldt. Gælder også fornyelsen. Restancepolitikken er besluttet (past_due = åben, unpaid = lukket) og ikke bygget; kræver `computeMembershipTier` ændret fire steder samlet. | indgangen-design §31 |
 | åbent | **`sikrIndgangsInvitation` kender ikke «allerede accepteret»**: den leder efter pending; findes en accepteret række, fejler insert på `UNIQUE(company_id, email)`, og invitationen sendes ikke. Set 3/9 på FLOOR1. Kan ikke ske for indgangen i drift, men tilstanden er ikke håndteret. | indgangen-design §30 |
 | åbent, besluttet | **Rykkere på dag 31-fakturaen**: Stripes egne påmindelser slås IKKE til (`auto_advance=false` med vilje — en fjerde stemme på engelsk fra en anden afsender ville skurre). Skal der rykkes, er det vores egen kæde. Ikke bygget. Bemærk også: dag 31-mailen siger 50.000 kr, fakturaen 62.500 kr inkl. moms — ikke ændret. | indgangen-design §30 |
-| åbent | **Adressen på de 31 eksisterende virksomheder** uden `address/postal_code/city` (målt 3/9: 1 af 32 havde alle tre). Nye virksomheder får den fra CVR siden #560; de gamle er en datarettelse, samme formular som branche og kontakt-email. Uden adresse går en dag 31-faktura uden moms. | indgangen-design §33, indgangen-overhaling §10 |
+| LØST 3/9 kl. 11:50–12:00 | **Adressen på de eksisterende virksomheder**: `berig-virksomheder` (#567) hentede den fra CVR for 26 af 30 aktive (før 1 af 30). Uden: tre uden CVR-nummer (Alexander Lund, Martin Larsen, Bastant Design) og YKRG, som registret ingen adresse har for. | indgangen-design §33 |
 | efter 13/9 | Migrationen af de 13 (billing_cycle_anchor, cancel_at, default_payment_method, YKRG's kort, kobling til companies.id). | migration-recon §16, §25 |
 | åbent | **1:1-sessionernes Calendly-link efter kontoskiftet** — prisen `session_1on1` og `stripe-webhook`s Calendly-gren (`1to1-session-45`) er ikke efterprøvet på den nye konto. Noteret af Jonas 2/9; ikke målt i repoet. | — |
 | åbent | **Velkomstvideoen skal optages** (Morten). Pladsen er bygget; GUID'et sættes i /admin/config. | recon-velkomstvideo |
 | åbent | **Rundvisningen** — interaktiv førstegangs-oplevelse efter velkomsten; bygges efter C3-indflytningen; må aldrig eksistere ved siden af Guiden. | BACKLOG [P2·EPIC] Platform-onboarding |
 | åbent | **Adminfladens overhaling** — rådgiverfladen tages samlet som ét epic, efter medlemsdesignet. /members har i dag IndgangsSektion + FornyelsesSektion i gammelt design. | prioritering §6 |
 | ved næste oprettelse | **Udestående bevis for trin 4** (branchen): næste rigtige «Godkendt» på Monday eller «Importér ansøgning» skal give en række med `industry_code` sat (SQL editor) og branchesammenligning i NoegletalView. 401 fra de deployede funktioner beviser kun at de svarer. | `docs/indgangen-overhaling.md` §6, §9 trin 4 |
-| åbent | **Branchedataene i prod** (målt 3/9): 7 af 32 aktive virksomheder uden `industry_code` (ingen benchmarks); 2 med en registerkode i feltet (WESDEX, Two Socks); 3 med værdier motoren aldrig sætter (`other_general`, `travel_event`, `tech_startup`); flere uenige med CVR (ANLA GLAS, Limo Group, Topix) — hvem der har ret kan ikke afgøres fra data. Datarettelse, ikke kode. **Kontakt-email** er tom på de fleste, herunder Topix; `sikrIndgangsInvitation` kræver feltet. Samme formular, samme oprydning. | `docs/indgangen-overhaling.md` §10 |
+| LØST 3/9 kl. 11:50–12:00 | **Branchedataene og kontakt-email i prod** (#567): 29 af 30 aktive har kode og label, ingen registerkoder (Two Socks → `food_restaurant`, WESDEX → `construction_craft`, begge med benchmarks nu); 30 af 30 har kontakt-email — 14 fra eget medlem, 3 fra den ventende invitation (Din økonomiafdeling, Two Socks, WESDEX: de har ingen medlemmer). Tilbage: Bastant Design uden kode og label (intet CVR, ingen gemt DB25). | `docs/indgangen-overhaling.md` §10 |
+| samtale | **De otte uenigheder mellem CVR og platformen** er ikke rørt: ANLA GLAS, Brick Works, Homie, Limo Group, Studio Mini, TOFT, Topix, TuaMea. Ti af ti målte koder uenige med motoren; Brick Works og TuaMea ville MISTE deres sammenligning (motoren svarer null). Ikke kosmetisk: ANLA GLAS' DB-margin på 50 % flytter fra venstre kant til over midten. Hvem der har ret kan ikke afgøres fra data (Topix: mennesket; Limo Group: registret). Én samtale, ingen kode. | `docs/indgangen-overhaling.md` §10, `~/Downloads/recon-branche-uenighed.md` |
 | åbent | **`DashboardSkeleton` er død kode** efter #557 (fire træffere, alle kommentarer). Ryddes i en senere omgang. | `docs/indgangen-overhaling.md` §10 |
 | åbent | Ankomstens løse ender: pillen viser samme punkter som fokuskortet (Claudes dom: den bør trække sig — ikke besluttet); velkomst-punktet kan ikke trykkes i kortet — skal løses FØR `velkomstvideo_guid` sættes; «Dine tal»-kortets tomme tilstand står nederst. | `docs/indgangen-overhaling.md` §10 |
 | LØST 3/9 kl. 10:52–10:57 | **Testopstillingen er ryddet (trin 14).** FLOOR1 I/S med `jonas+test1/2/3` slettet via /members' slet-dialog med brugere; «Jonas legat» (april-testvirksomheden, bar de to annullerede testabonnementer) slettet efter at storage-filerne først var fjernet i Lovables Storage-flade; den forældreløse `jonas+test45login` slettet fra SQL editoren inkl. `auth.users`. Målt efter: 38 virksomheder, 44 auth-brugere, 41 profiler, ingen rester, ingen storage-filer. **Stripe-testkunderne bliver stående (besluttet):** `cus_VBtMOGBenIfWt4` bærer faktura TBR-0003 og kreditnota TBR-0003-CN-01 — bilag skal kunne læses; to kunder fra «Jonas legat» står uden abonnement og uden kort. Ingen af de tre hører til en virksomhed i databasen. | `docs/indgangen-overhaling.md` §11 |
@@ -520,6 +524,20 @@ De konkrete ting der har kostet tid. Led efter dem.
   `hentCvrData` plukker felter ud, og kun dem gemmes. Skal et nyt felt
   bruges (som adressen 3/9), skal det læses ind dér — og feltnavnet
   måles mod cvrapi.dk, ikke huskes (`address`, `zipcode`, `city`).
+- **`net.http_post` har 5 sekunders timeout som standard — og når
+  klienten lukker forbindelsen, AFBRYDES edge-funktionen.** De to første
+  berigelseskørsler 3/9 nåede kun fem CVR-opslag hver, alfabetisk fra A
+  og frem; funktionen kørte ikke videre serverside, som man kunne tro.
+  Løsningen er `timeout_milliseconds := 150000` på kaldet. Gælder
+  ethvert langvarigt edge-kald fra SQL editoren.
+- **Byg engangsjobs idempotent (udfyld kun tomt).** Det var dét, der
+  reddede berigelsen: fire kald i træk fortsatte hvor det forrige slap,
+  uden at røre det allerede satte.
+- **Build-chattens «deployet ✅» er ikke et bevis; et kald er.**
+  `berig-virksomheder` blev meldt deployet, men et kald gav 404
+  NOT_FOUND — funktionen fandtes ikke. Efter et redeploy svarede den 401
+  (auth-værnet), og så virkede den. Kald funktionen uden nøgle og se
+  401, før du tror på deployet.
 - **SQL editoren NÅR `auth`-skemaet.** Bevist 3/9: `DELETE FROM
   auth.users` virkede (efter `notifications` og `user_login_log`;
   `profiles` og `user_roles` fulgte i kaskaden). Det er vejen til en
