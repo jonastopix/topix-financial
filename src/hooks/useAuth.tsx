@@ -9,7 +9,8 @@ import { computeMembershipTier } from "@/lib/membershipTier";
 /** Hvor langt virksomhedsopslaget er nået — så "ved det ikke endnu" kan
     skelnes fra "gik galt". Før denne tilstand var begge `companyId ===
     null`, og en bruger hvis kobling til virksomheden fejlede, stod på
-    forsidens DashboardSkeleton for evigt (docs/indgangsfladen-design.md §5).
+    forsidens DashboardSkeleton for evigt (docs/indgangsfladen-design.md §5;
+    komponenten er fjernet 3/9 — Index viser CompanyLinkFailedGate).
     - pending: opslaget kører (eller ingen session endnu).
     - resolved: brugeren har en virksomhed (company_members eller PPI-succes).
     - none: opslaget SVAREDE, og svaret var "ingen virksomhed" — det normale
@@ -335,7 +336,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           // Det grønne blink efter login (trin 13, docs/indgangen-overhaling.md
           // §7.1): porten skal lukkes mens fetchUserData afgør tier, ellers
           // slipper MemberRoute igennem med membershipTier === null og Index
-          // tegner det gamle DashboardSkeleton. Betingelsen er OVERGANGEN
+          // tegner det gamle DashboardSkeleton (fjernet 3/9; i dag ville det
+          // være CompanyLinkFailedGate). Betingelsen er OVERGANGEN
           // ingen-session → session — IKKE `_event === "SIGNED_IN"`. auth-js
           // 2.97 udsender SIGNED_IN i fire situationer ud over login
           // (~/Downloads/recon-loading.md §3):

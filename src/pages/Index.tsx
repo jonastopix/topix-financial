@@ -200,7 +200,8 @@ const Dashboard = () => {
 
   /* Blindgyden lukket (trin 10, docs/indgangen-overhaling.md §7.1). Her
      stod DashboardSkeleton i AppLayout — mørkegrønt, uden grænse, uden
-     besked, uden knap. Efter #554 er tier null for en ikke-rådgiver
+     besked, uden knap. (Komponenten er fjernet 3/9 som død kode — filen
+     findes ikke længere.) Efter #554 er tier null for en ikke-rådgiver
      ALDRIG en ventetilstand: hænger et opslag ved login, holder `loading`
      porten, og MemberRoute viser HbSpinner — denne side tegnes ikke. Når
      siden tegnes med tier null, er opslaget afgjort og svaret var
