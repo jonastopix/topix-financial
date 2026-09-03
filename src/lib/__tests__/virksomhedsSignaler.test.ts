@@ -79,12 +79,12 @@ describe("Ikke hørt fra længe — den vendte regel (designets §3.5)", () => {
     expect(s.map((x) => x.noegle)).toContain("aldrig_skrevet");
   });
 
-  it("skrevet for 22 dage siden → «Ingen dialog i 22 dage», alvor 61", () => {
+  it("skrevet for 22 dage siden → «Ingen dialog i 22 dage», alvor 61,13", () => {
     const s = afgoerVirksomhedsSignaler(input({ senesteBeskedAt: dageSiden(22) }), NOW);
     const stale = s.find((x) => x.koe === "ikke_hoert_fra_laenge");
     expect(stale?.noegle).toBe("ingen_dialog");
     expect(stale?.tekst).toBe("Ingen dialog i 22 dage");
-    expect(stale?.alvor).toBe(61);
+    expect(stale?.alvor).toBeCloseTo(61.13, 2);
   });
 
   it("skrevet for præcis 21 dage siden → intet signal (tærsklen er > 21)", () => {
@@ -96,12 +96,56 @@ describe("Ikke hørt fra længe — den vendte regel (designets §3.5)", () => {
     expect(noegler(input({ senesteBeskedAt: dageSiden(1) }))).not.toContain("aldrig_skrevet");
   });
 
-  it("alvor for tavshed loftes ved 90 (dag 51 og derover), så aldrig skrevet altid ligger over", () => {
-    const dag51 = afgoerVirksomhedsSignaler(input({ senesteBeskedAt: dageSiden(51) }), NOW)[0];
-    const dag200 = afgoerVirksomhedsSignaler(input({ senesteBeskedAt: dageSiden(200) }), NOW)[0];
-    expect(dag51.alvor).toBe(90);
-    expect(dag200.alvor).toBe(90);
-    expect(dag200.alvor).toBeLessThan(95);
+  // Rettelsen 3/9 kl. 23:36: den første formel loftede ved 90 fra dag 51,
+  // så 126 dage fik samme alvor som 57, og indlæsningsrækkefølgen afgjorde.
+  const alvorVed = (dage: number) => afgoerVirksomhedsSignaler(input({ senesteBeskedAt: dageSiden(dage) }), NOW)[0].alvor;
+
+  it("regnestykket fra filhovedet: dag 30 → 68,08, dag 60 → 79,78, dag 86 → 83,95, dag 126 → 87,22, dag 365 → 92,19", () => {
+    expect(alvorVed(30)).toBeCloseTo(68.08, 2);
+    expect(alvorVed(60)).toBeCloseTo(79.78, 2);
+    expect(alvorVed(86)).toBeCloseTo(83.95, 2);
+    expect(alvorVed(126)).toBeCloseTo(87.22, 2);
+    expect(alvorVed(365)).toBeCloseTo(92.19, 2);
+  });
+
+  it("flest dage øverst: 126 over 86, 86 over 57 — ingen klump", () => {
+    expect(alvorVed(126)).toBeGreaterThan(alvorVed(86));
+    expect(alvorVed(86)).toBeGreaterThan(alvorVed(57));
+    expect(alvorVed(57)).toBeGreaterThan(alvorVed(22));
+  });
+
+  it("aldrig skrevet (95) ligger over enhver tavshed — også 10 år", () => {
+    const aldrig = afgoerVirksomhedsSignaler(input({ senesteBeskedAt: null }), NOW)[0].alvor;
+    expect(aldrig).toBe(95);
+    expect(alvorVed(126)).toBeLessThan(aldrig);
+    expect(alvorVed(3650)).toBeLessThan(aldrig);
+  });
+
+  it("skalaen holder: omsætningsfald (80) overhales ved dag 61, bankovertræk (90) ved dag 201", () => {
+    expect(alvorVed(60)).toBeLessThan(80);
+    expect(alvorVed(61)).toBeCloseTo(80, 6);
+    expect(alvorVed(62)).toBeGreaterThan(80);
+    expect(alvorVed(200)).toBeLessThan(90);
+    expect(alvorVed(201)).toBeCloseTo(90, 6);
+    expect(alvorVed(202)).toBeGreaterThan(90);
+  });
+
+  it("den rækkefølge der var forkert i drift (57, 126, 66, 85, 86, 78, 59, 86, 77, 45) sorteres nu faldende på dage", () => {
+    const dage = [57, 126, 66, 85, 86, 78, 59, 86, 77, 45];
+    const signaler = dage.map((d) => afgoerVirksomhedsSignaler(input({ senesteBeskedAt: dageSiden(d) }), NOW)[0]);
+    const sorteret = [...signaler].sort((a, b) => b.alvor - a.alvor).map((s) => s.tekst);
+    expect(sorteret).toEqual([
+      "Ingen dialog i 126 dage",
+      "Ingen dialog i 86 dage",
+      "Ingen dialog i 86 dage",
+      "Ingen dialog i 85 dage",
+      "Ingen dialog i 78 dage",
+      "Ingen dialog i 77 dage",
+      "Ingen dialog i 66 dage",
+      "Ingen dialog i 59 dage",
+      "Ingen dialog i 57 dage",
+      "Ingen dialog i 45 dage",
+    ]);
   });
 });
 
