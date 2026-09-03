@@ -94,6 +94,9 @@ project_id = "loiavmastgeieqyiwyyr"
   # Samme begrundelse som get-community-billed-url ovenfor.
   [functions.notify-community-naevnelse]
     verify_jwt = true
+  # Samme begrundelse som get-community-billed-url ovenfor.
+  [functions.notify-community-opslag]
+    verify_jwt = true
   [functions.calendly-webhook]
     verify_jwt = false
   [functions.bunny-content-admin]

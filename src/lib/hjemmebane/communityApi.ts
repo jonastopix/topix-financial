@@ -178,6 +178,21 @@ export async function notificerNaevnelser(
   }
 }
 
+/** Nyt opslag → alle med community-adgang (notify-community-opslag,
+    opslagsmail 3/9). Samme form som notificerNaevnelser: bivirkning der
+    aldrig kaster — opslaget ER gemt, og en fejl her må ikke ligne et
+    mislykket opslag. */
+export async function notificerNytOpslag(traadId: string): Promise<void> {
+  try {
+    const { error } = await supabase.functions.invoke("notify-community-opslag", {
+      body: { traadId },
+    });
+    if (error) console.error("notificerNytOpslag fejlede:", error);
+  } catch (fejl) {
+    console.error("notificerNytOpslag fejlede:", fejl);
+  }
+}
+
 /** Ret/slet eget indhold + rådgiver-skjul (20260812120000). Reglerne bor
     i RPC'erne: kun forfatteren kan rette/slette, kun rådgivere kan
     skjule, og alt er soft-delete via status. */

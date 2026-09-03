@@ -16,6 +16,19 @@
  *   (_shared/notificationEmailSelection.ts): slettede/committede rapporter
  *   disposes, dubletter per (company, periode) kollapses, og kvote-udskudte
  *   mails sendes kun kl. 07-20 dansk tid (aldrig ved midnats-kvotereset).
+ * - ESCAPING (3/9): `title` og `body` er tekst, aldrig HTML. Alle skrivere
+ *   i huset bygger dem som skabelon-strenge uden markup (målt 3/9: ingen
+ *   `<` i nogen title/body-streng), men flere bærer brugerskrevet tekst —
+ *   trådtitlen i community_naevnelse, rådgiverens broadcast, aflysnings-
+ *   begrundelsen — og de blev lagt ind råt i HTML'en. Nu går de gennem
+ *   escHtml i BEGGE render-stier (buildEmailHtml og DB-skabelonens
+ *   {{body}}/{{title}}); \n i body bliver <br>. Emnet er en mail-header,
+ *   ikke HTML, og escapes ikke.
+ * - community_opslag (opslagsmail 3/9): mailen bygges ikke af title/body
+ *   men af tråden selv (reference_id → community_traade + forfatterens
+ *   profil + virksomhed) via _shared/opslagsMail.ts — så portræt, navn,
+ *   virksomhed og uddrag kan stå i mailen. Tråd der ikke længere er
+ *   aktiv → dispose (som slettede rapporter), ingen mail.
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
@@ -75,6 +88,11 @@ const NOTIFICATION_TEMPLATE_NAMES: Record<string, string> = {
 const CHAT_NOTIFICATION_TYPES = new Set(["advisor_replied", "chat_reply"]);
 
 import { bulletproofButton, fallbackLinkBlock } from "../_shared/emailButtonHelpers.ts";
+import { escHtml, escHtmlMedLinjeskift } from "../_shared/htmlEscape.ts";
+import { opslagsMail } from "../_shared/opslagsMail.ts";
+
+/** Nyt community-opslag (notify-community-opslag). Mailen bygges af tråden, ikke af body. */
+const COMMUNITY_OPSLAG_TYPE = "community_opslag";
 
 function buildEmailHtml(title: string, body: string, deepLink: string, ctaLabel?: string, eyebrow?: string, highlight?: string): string {
   const fullUrl = `${APP_URL}${deepLink}`;
@@ -98,8 +116,8 @@ function buildEmailHtml(title: string, body: string, deepLink: string, ctaLabel?
   </table>
   <div style="background:#ffffff;border-radius:0 0 10px 10px;padding:28px 28px 0">
     ${eyebrowBlock}
-    <h1 style="color:#0f1117;font-size:22px;font-weight:700;margin:0 0 14px;line-height:1.3;letter-spacing:-.02em">${title}</h1>
-    <p style="color:#4a4a4a;font-size:14px;line-height:24px;margin:0 0 14px">${body}</p>
+    <h1 style="color:#0f1117;font-size:22px;font-weight:700;margin:0 0 14px;line-height:1.3;letter-spacing:-.02em">${escHtml(title)}</h1>
+    <p style="color:#4a4a4a;font-size:14px;line-height:24px;margin:0 0 14px">${escHtmlMedLinjeskift(body)}</p>
     ${highlightBlock}
     ${bulletproofButton({ href: fullUrl, label: ctaLabel || 'Åbn i The Boardroom', bgColor: "#16a34a" })}
     ${fallbackLinkBlock(fullUrl)}
@@ -441,6 +459,55 @@ Deno.serve(async (req) => {
       sent++;
     }
 
+    // ── Community-opslag: tråd + forfatter + virksomhed pr. reference_id ──
+    // Kun aktive tråde; resten disposes i løkken. Virksomheden vælges som
+    // get_community_medlemmer gør det: ældste medlemskab først.
+    const opslagByTraadId = new Map<string, Parameters<typeof opslagsMail>[0]>();
+    const opslagTraadIds = [
+      ...new Set(
+        toEmail
+          .filter((n: any) => n.type === COMMUNITY_OPSLAG_TYPE && n.reference_id)
+          .map((n: any) => n.reference_id as string),
+      ),
+    ];
+    if (opslagTraadIds.length > 0) {
+      const { data: traade } = await admin
+        .from("community_traade")
+        .select("id, titel, indhold, forfatter_id, status")
+        .in("id", opslagTraadIds)
+        .eq("status", "aktiv");
+      const forfatterIds = [...new Set((traade || []).map((t: any) => t.forfatter_id as string))];
+      const profilMap = new Map<string, { full_name: string | null; avatar_url: string | null }>();
+      const virksomhedMap = new Map<string, string>();
+      if (forfatterIds.length > 0) {
+        const { data: profiler } = await admin
+          .from("profiles")
+          .select("user_id, full_name, avatar_url")
+          .in("user_id", forfatterIds);
+        for (const p of profiler || []) profilMap.set(p.user_id, { full_name: p.full_name, avatar_url: p.avatar_url });
+        const { data: medlemskaber } = await admin
+          .from("company_members")
+          .select("user_id, created_at, company_id, companies(name)")
+          .in("user_id", forfatterIds)
+          .order("created_at", { ascending: true });
+        for (const m of (medlemskaber || []) as any[]) {
+          const navn = m.companies?.name;
+          if (typeof navn === "string" && !virksomhedMap.has(m.user_id)) virksomhedMap.set(m.user_id, navn);
+        }
+      }
+      for (const t of (traade || []) as any[]) {
+        const profil = profilMap.get(t.forfatter_id);
+        opslagByTraadId.set(t.id, {
+          traadId: t.id,
+          titel: t.titel,
+          indhold: t.indhold,
+          forfatterNavn: profil?.full_name ?? null,
+          forfatterAvatarUrl: profil?.avatar_url ?? null,
+          forfatterVirksomhed: virksomhedMap.get(t.forfatter_id) ?? null,
+        });
+      }
+    }
+
     // ── Process non-chat notifications (én mail per udvalgt kandidat) ──
     for (const notif of toEmail) {
       const userDailyCount = countMap[notif.user_id] || 0;
@@ -489,7 +556,7 @@ Deno.serve(async (req) => {
       const tpl = tplName ? notifTemplateMap.get(tplName) : undefined;
 
       // Subject: use DB template if available, else hardcoded fallback
-      const subject = tpl?.subject
+      let subject = tpl?.subject
         ? tpl.subject
             .replace("{{title}}", notif.title)
             .replace("{{type}}", notif.type)
@@ -497,14 +564,16 @@ Deno.serve(async (req) => {
 
       // Body: use DB template if available, else buildEmailHtml with hardcoded content
       const deepLink = notif.deep_link || "/";
-      const html = tpl?.body_html
+      // Escaping: body/title er tekst. Funktions-replacer, så «$&»/«$1» i
+      // teksten ikke tolkes som replace-mønstre.
+      let html = tpl?.body_html
         ? tpl.body_html
-            .replace(/\{\{body\}\}/g, notif.body || "")
-            .replace(/\{\{deep_link\}\}/g, notif.deep_link || "/")
+            .replace(/\{\{body\}\}/g, () => escHtmlMedLinjeskift(notif.body || ""))
+            .replace(/\{\{deep_link\}\}/g, () => escHtml(notif.deep_link || "/"))
             .replace(/\{\{cta_label\}\}/g, ctaLabels[notif.type] || "Åbn i The Boardroom →")
             .replace(/\{\{eyebrow\}\}/g, eyebrows[notif.type] || "")
             .replace(/\{\{highlight\}\}/g, highlights[notif.type] || "")
-            .replace(/\{\{title\}\}/g, notif.title)
+            .replace(/\{\{title\}\}/g, () => escHtml(notif.title))
             .replace(/\{\{first_name\}\}/g, "")
         : buildEmailHtml(
             notif.title,
@@ -514,6 +583,27 @@ Deno.serve(async (req) => {
             eyebrows[notif.type],
             highlights[notif.type]
           );
+      let text = subject;
+
+      // Nyt community-opslag: mailen er tråden selv (portræt, navn,
+      // virksomhed, uddrag, knap) — ikke title/body. Manglende/inaktiv
+      // tråd → dispose uden mail.
+      if (notif.type === COMMUNITY_OPSLAG_TYPE) {
+        const opslag = notif.reference_id ? opslagByTraadId.get(notif.reference_id) : undefined;
+        if (!opslag) {
+          await admin
+            .from("notifications")
+            .update({ email_sent_at: new Date().toISOString() })
+            .eq("id", notif.id);
+          console.log(`[dispose] ${notif.type} ${notif.id} (traad=${notif.reference_id}) — tråd mangler/inaktiv, ingen mail`);
+          skipped++;
+          continue;
+        }
+        const mail = opslagsMail(opslag);
+        subject = mail.subject;
+        html = mail.html;
+        text = mail.text;
+      }
 
       const senderFrom = tpl?.sender_name
         ? `${tpl.sender_name} <${VERIFIED_FROM_EMAIL}>`
@@ -540,7 +630,7 @@ Deno.serve(async (req) => {
           sender_domain: SENDER_DOMAIN,
           subject,
           html,
-          text: subject,
+          text,
           purpose: "transactional",
           label: `notification-${notif.type}`,
           queued_at: new Date().toISOString(),
