@@ -399,9 +399,18 @@ hentes i `BoardroomView` med samme hook og query-nøgle som
 Kontraktstarten hentes for sig (én lille query på det viste
 `companyId`; den fandtes ikke i nogen eksisterende query på forsiden).
 `focusLoading` er udvidet med begge, så kortet ikke når at vise (a)–(i)
-først. Pillen er urørt (åbent punkt, §10). Velkomst-punktet (sti «»)
-står uden knap i kortet — overlejringen er tjekliste-boksens egen state
-(§10).
+først. Pillen var urørt, og velkomst-punktet (sti «») stod uden knap i
+kortet — begge lukket 3/9, se nedenfor.
+
+**✅ BYGGET 3/9 (PR #569) — de to løse ender.** Fokuskortet kan åbne
+velkomstvideoen via URL-hashen `#velkomst` (kortet linker, boksen læser
+hashen, åbner overlejringen og rydder hashen), og den sammenfoldede
+pille trækker sig på forsiden — kun dér, og kun mens kortet faktisk
+viser tjeklisten (`tjekliste && !tjekliste.faerdig`, samme dom som
+motoren). De to hang sammen: pillen var den eneste vej tilbage til
+videoen efter «Se senere». Dommene i `src/lib/hjemmebane/ankomst.ts`,
+otte tests; `nextStep.ts` urørt. Beslutning, værn og udestående bevis
+står i §10.
 
 ---
 
@@ -1000,10 +1009,51 @@ ruten: §10's åbne punkter.
   aldrig fylder de fem punkter, ser aldrig den almindelige forside.
   Punkterne skal kunne afsluttes — afvises enkeltvis, eller ankomsten
   giver op efter et stykke tid. Ikke afgjort.
-- **Pillens rolle i ankomsten** (§5): bliver `HbOnboardingTjekliste`
-  stående nederst til højre mens fokuskortet viser samme punkter, eller
-  trækker den sig indtil ankomsten er slut. Ikke afgjort.
-  *Note fra trin 9 (2/9, læst i koden — ikke målt på skærm):* mens
+- **LØST 3/9 (#569) — Pillens rolle i ankomsten og velkomst-punktet
+  uden knap. De to hang sammen.** *Indsigten:* pillen var den ENESTE vej
+  tilbage til videoen efter «Se senere», så pillen kunne ikke trække
+  sig, før kortet kunne åbne videoen. De kunne ikke løses hver for sig.
+  **Besluttet (Jonas 3/9) og bygget:**
+  1. *Fokuskortet kan åbne velkomstvideoen.* Velkomst-punktet har tom
+     sti, fordi videoen lever i tjekliste-boksens egen overlejring, og
+     boksen er et søskende til `<main>` uden context, event eller prop —
+     kortet kunne ikke nå den, og punktet stod som fokus #1 HELT uden
+     knap så snart en velkomstvideo blev sat. Vejen er URL-hashen
+     `#velkomst`, valgt frem for en tredje context (huset har to: auth
+     og viewMode), fordi mønstret findes i forvejen: FocusCards
+     hash-CTA'er, `useScrollToHash`, Guide-kontrakten `/kpis#goals`.
+     Kortet linker, boksen læser hashen med `useLocation`, åbner
+     overlejringen og RYDDER hashen med replace, så den ikke hænger i
+     URL'en og genåbner ved næste navigation.
+  2. *Pillen trækker sig KUN på forsiden, og KUN når fokuskortet faktisk
+     viser tjeklisten* — samme dom som `nextStep.ts:221`: `tjekliste &&
+     !tjekliste.faerdig`. På alle andre sider bliver den stående. Jonas'
+     begrundelse: «Det er vigtigt vi får et nyt medlem godt i gang, så
+     den må ikke forsvinde for dem. Vi skal guide dem rundt de rigtige
+     steder.» Der er intet fokuskort på Rapportering, Handouts, Chat
+     eller Indstillinger, og pillen er det eneste der minder om hvad der
+     mangler. Kun den SAMMENFOLDEDE pille trækker sig; sidebarens «Kom
+     godt i gang» folder stadig boksen ud, og lykønskningen ved færdig
+     tjekliste er som før.
+  **Tre værn i implementeringen:** hashen venter til tjeklisten er
+  landet, ellers ville et koldt `/#velkomst` blive slugt før
+  `harVelkomstvideo` kendes; uden video åbnes intet («vi viser ikke tomt
+  indhold»), men hashen ryddes alligevel; hashen virker SELV OM boksen
+  er lukket med krydset — ellers kunne et medlem der har lukket boksen
+  aldrig nå velkomsten fra kortet — mens den AUTOMATISKE velkomst ikke
+  følger med (den har aldrig vist sig for en lukket boks). Dommene er
+  rene funktioner i `src/lib/hjemmebane/ankomst.ts` (`VELKOMST_HASH`,
+  `erVelkomstHash`, `fokusCtaHref`, `pillenTraekkerSig`), otte nye
+  tests. `nextStep.ts` er URØRT — oversættelsen fra tom sti til hash
+  sker i fladen.
+  **Bevis der udestår:** (a) at pillen faktisk er væk på forsiden og
+  står på Rapportering/Chat — kræver en konto med uafsluttet tjekliste,
+  og alle testbrugere er slettet (§11); kommer ved næste rigtige medlem.
+  (b) at velkomst-punktet kan trykkes — kræver at `velkomstvideo_guid`
+  sættes; indtil da findes punktet ikke (`onboardingTjekliste.ts:228`).
+  Koblingen er der NU, så punktet ikke længere er en fælde den dag
+  Morten optager videoen.
+  *Historik — noten fra trin 9 (2/9, læst i koden):* mens
   ankomsten er aktiv, står de samme ikke-gjorte punkter to steder:
   fokuskortets #1 er den samme titel som pillens første ikke-gjorte
   række, og #2-4 er de samme rækker igen. Kortets knap og pillens række
@@ -1013,16 +1063,14 @@ ruten: §10's åbne punkter.
   viser punktet uden knap. Folder man pillen ud på forsiden, får
   indholdskolonnen bund-margin (skallen), så listen står både øverst i
   kortet og nederst i hjørnet samtidig.
-  *Set på skærm 2/9 kl. 23:20 (test3):* pillen står nu med SAMME
-  punkter som fokuskortet. **Claudes dom efter at have set det:** pillen
-  bør trække sig mens kortet bærer punkterne — to lister med samme
-  indhold på én skærm er støj. **Ikke besluttet af Jonas endnu.**
-- **Velkomst-punktet står uden knap i fokuskortet** (trin 9): sti «»
-  åbner videooverlejringen, som er tjekliste-boksens egen state, og
-  forsiden har ingen kobling til den. Rammer ikke i dag, fordi
-  `velkomstvideo_guid` er tom — men ankomstens FØRSTE punkt bliver
-  noget man ikke kan trykke på, den dag videoen sættes. **Skal løses
-  før GUID'et sættes.**
+  *Set på skærm 2/9 kl. 23:20 (test3):* pillen stod med SAMME punkter
+  som fokuskortet. Claudes dom dengang: pillen bør trække sig mens
+  kortet bærer punkterne. Jonas' beslutning 3/9 (ovenfor) er snævrere
+  og rigtigere: kun på forsiden, kun mens kortet viser tjeklisten.
+- **LØST 3/9 (#569) — Velkomst-punktet stod uden knap i fokuskortet**
+  (trin 9): se punktet ovenfor — hashen `#velkomst` er koblingen, og
+  punktet er ikke længere en fælde den dag `velkomstvideo_guid` sættes.
+  Bevis udestår til videoen findes.
 - **«Dine tal»-kortets tomme tilstand står nederst på forsiden**, under
   podcast og «Værd at se igen» — langt nede for et medlem hvis eneste
   opgave er at komme i gang. Ikke rørt i trin 9.
