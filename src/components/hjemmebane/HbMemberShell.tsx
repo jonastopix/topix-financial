@@ -7,6 +7,7 @@ import { useOnboardingTjekliste } from "@/hooks/useOnboardingTjekliste";
 import { HbOnboardingTjekliste } from "./HbOnboardingTjekliste";
 import { useTjeklisteLukket } from "@/hooks/useTjeklisteLukket";
 import { pillenTraekkerSig } from "@/lib/hjemmebane/ankomst";
+import { HbVisningSom } from "./HbVisningSom";
 
 /** Fælles Hb-medlemsskal for forsiden ("/") og de øvrige medlemsflader
     (generalisering af den tidligere HbAkademiShell): V0-layoutmodellen
@@ -195,6 +196,11 @@ export const HbMemberShell = ({
         <HbSidebar avatarSrc={avatarSrc} userName={userName} nav={nav} homeTo={boardroomTo} onSignOut={signOut} komGodtIGang={komGodtIGang} />
         <div className={`min-w-0 flex-1 ${fuld ? "flex flex-col overflow-hidden" : "lg:overflow-y-auto"}`}>
           <HbNav onMenuClick={() => setDrawerOpen(true)} avatarSrc={avatarSrc} />
+          {/* «Visning som» (3/9, recon-raadgiverfladen §4): en rådgiver med et
+              valgt medlem får linjen øverst i indholdskolonnen — under
+              mobil-topbaren, over <main> — sticky, så vejen tilbage altid er
+              synlig uden at flytte fladen. Renderer null for alle andre. */}
+          <HbVisningSom />
           <HbSidebarDrawer
             open={drawerOpen}
             onClose={() => setDrawerOpen(false)}
