@@ -14,6 +14,7 @@ import {
 import { format } from "date-fns";
 import { da } from "date-fns/locale";
 import type { CompanyData, CompanyMember, LoginInfo } from "./types";
+import { beloebKr, datoOgTid, stripeSagde, traekBadgeTekst } from "@/lib/traek";
 
 interface MemberCompanyRowProps {
   company: CompanyData;
@@ -116,6 +117,16 @@ const MemberCompanyRow = ({
                   );
                   return null;
                 })()}
+                {/* Fejlet månedstræk (3/9, company_traek): står ved siden af den
+                    grønne tier-badge med vilje — den siger at KONTRAKTEN løber,
+                    denne at et TRÆK er fejlet. chart-warning som «Afventer»:
+                    adgangen er intakt, men noget venter på et menneske — ikke
+                    destructive, for det er ikke «Udløbet». */}
+                {traekBadgeTekst(c.fejledeTraek ?? []) && (
+                  <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-chart-warning/15 text-chart-warning font-medium whitespace-nowrap">
+                    {traekBadgeTekst(c.fejledeTraek ?? [])}
+                  </span>
+                )}
               </div>
             </div>
           </div>
@@ -428,6 +439,41 @@ const MemberCompanyRow = ({
                     <p className="text-xs text-foreground mt-0.5 capitalize">{c.subscription_status}</p>
                   </div>
                 )}
+                {/* Fejlede månedstræk (3/9, company_traek) — det rådgiveren skal
+                    bruge for at handle: beløb, hvornår, hvad Stripe sagde, forsøg,
+                    næste forsøg, og fakturaen. Samme label/værdi-form som
+                    kontraktfelterne ovenfor. Forsvinder af sig selv når trækket
+                    betales (webhooken sætter rækken til 'betalt'). */}
+                {(c.fejledeTraek ?? []).map((t) => (
+                  <div key={t.stripe_invoice_id} className="rounded-lg border border-chart-warning/40 bg-chart-warning/5 p-2.5 space-y-1.5">
+                    <p className="text-[10px] text-chart-warning uppercase tracking-wider font-semibold">
+                      Træk fejlede{t.faktura_nummer ? ` · ${t.faktura_nummer}` : ""}
+                    </p>
+                    <p className="text-xs text-foreground">
+                      {beloebKr(t.beloeb_oere)} inkl. moms
+                      {datoOgTid(t.fejlet_at) ? ` · fejlede ${datoOgTid(t.fejlet_at)}` : ""}
+                    </p>
+                    {stripeSagde(t) && (
+                      <p className="text-xs text-muted-foreground">Stripe: {stripeSagde(t)}</p>
+                    )}
+                    <p className="text-xs text-muted-foreground">
+                      {t.forsoeg != null ? `Forsøg ${t.forsoeg}` : "Forsøg ukendt"}
+                      {" · "}
+                      {datoOgTid(t.naeste_forsoeg_at) ? `næste forsøg ${datoOgTid(t.naeste_forsoeg_at)}` : "ingen flere forsøg fra Stripe"}
+                    </p>
+                    {t.hosted_invoice_url && (
+                      <a
+                        href={t.hosted_invoice_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={(e) => e.stopPropagation()}
+                        className="inline-flex items-center gap-1 text-[10px] text-primary hover:text-primary/80 transition-colors"
+                      >
+                        Åbn fakturaen i Stripe <ExternalLink className="h-3 w-3" />
+                      </a>
+                    )}
+                  </div>
+                ))}
                 {!c.contract_start_date && !c.contract_end_date && !c.subscription_status && (
                   <p className="text-xs text-muted-foreground italic">Ingen kontraktdata registreret</p>
                 )}

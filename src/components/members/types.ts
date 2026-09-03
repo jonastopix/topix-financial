@@ -1,3 +1,5 @@
+import type { FejletTraek } from "@/lib/traek";
+
 export interface LoginInfo {
   lastLogin: string | null;
   loginCount: number | null;
@@ -47,6 +49,8 @@ export interface CompanyData {
   subscription_status: string | null;
   subscription_current_period_end: string | null;
   membershipTier: "full" | "subscriber" | "expired" | "no_date";
+  /** Fejlede månedstræk (company_traek, status = 'fejlet'), nyeste først. Tom = ingen. */
+  fejledeTraek: FejletTraek[];
   __pendingInvitations?: any[];
 }
 
