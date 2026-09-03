@@ -873,6 +873,8 @@ export type Database = {
           betalingsmail_sendt_at: string | null
           company_id: string
           created_at: string
+          faktura_invoice_id: string | null
+          faktura_sendt_at: string | null
           monday_item_id: number | null
           prisniveau_oere: number | null
           sidste_checkout_session_id: string | null
@@ -885,6 +887,8 @@ export type Database = {
           betalingsmail_sendt_at?: string | null
           company_id: string
           created_at?: string
+          faktura_invoice_id?: string | null
+          faktura_sendt_at?: string | null
           monday_item_id?: number | null
           prisniveau_oere?: number | null
           sidste_checkout_session_id?: string | null
@@ -897,6 +901,8 @@ export type Database = {
           betalingsmail_sendt_at?: string | null
           company_id?: string
           created_at?: string
+          faktura_invoice_id?: string | null
+          faktura_sendt_at?: string | null
           monday_item_id?: number | null
           prisniveau_oere?: number | null
           sidste_checkout_session_id?: string | null
