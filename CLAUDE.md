@@ -84,6 +84,8 @@ Integrationer: Stripe, Slack, Circle (community), Monday.com webhook, pdfjs-dist
 - `protect_message_immutable_fields` på `messages`: `sender_id`, `conversation_id`, `created_at`.
 - `protect_handout_immutable_fields` på `handouts`: `user_id`, `company_id`, `created_at`.
 
+**Adgangsdomme** (målt 3/9): adgang og tier afgøres FEM steder, ikke tre — `computeMembershipTier` i `src/lib/membershipTier.ts` og `supabase/functions/_shared/membershipTier.ts`, plus SQL-funktionerne `is_membership_active` (fail-open, Netværk/events), `har_aktivt_medlemskab` (fail-closed, community/indhold/events/storage) og `har_aktivt_abonnement` (exit-abonnentens Podcast & Talks). Kun de to TypeScript-kopier er dækket af en paritetstest; de tre SQL-domme rettes i hånden med en migration. Læs `docs/adgangsdomme.md` FØR nogen ændring i tier- eller adgangslogik.
+
 **Signup**: `handle_new_user()` AFTER INSERT på `auth.users` orkestrerer fire grene (målt i prod 2/9 via pg_proc — rækkefølgen er den faktiske):
 1. Advisor-invite (matcher `advisor_invitations.email`) — FØRST, og returnerer før medlemsgrenene. Det er vejen for `mode=signup` uden token.
 2. Token-baseret invite (matcher `company_invitations.token`).
