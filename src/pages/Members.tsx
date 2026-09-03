@@ -28,6 +28,7 @@ import MemberCompanyRow from "@/components/members/MemberCompanyRow";
 import EditCompanyDialog from "@/components/members/EditCompanyDialog";
 import MembersAdminSection from "@/components/members/MembersAdminSection";
 import { computeMembershipTier } from "@/lib/membershipTier";
+import { fejledeTraekPrVirksomhed, type FejletTraek } from "@/lib/traek";
 
 async function parseApplicationExcel(file: File): Promise<Partial<{
   email: string; company_name: string; cvr_number: string; contact_name: string;
@@ -249,7 +250,7 @@ const Members = () => {
 
       const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
 
-      const [companiesRes, membersRes, profilesRes, convsRes, reportsRes, invitationsRes, loginLogsRes, factsRes, pulseRes] = await Promise.all([
+      const [companiesRes, membersRes, profilesRes, convsRes, reportsRes, invitationsRes, loginLogsRes, factsRes, pulseRes, traekRes] = await Promise.all([
         // Kun de 23 kolonner fladen læser — select("*") trak hele rækken
         // inkl. application_context m.fl. (perf/members-nyttelast).
         supabase.from("companies" as any).select(
@@ -292,7 +293,24 @@ const Members = () => {
         // data_basis-undtagelse: rapporteringsdæknings-visning + company-merge-flytning — ingen talberegning
         supabase.from("financial_report_facts" as any).select("company_id, period_key"),
         supabase.from("pulse_checkins").select("company_id, period_key").gte("created_at", monthStart),
+        // Fejlede månedstræk (company_traek, #572) — KUN status = 'fejlet',
+        // filtreret serverside: et embed på companies ville tage ALLE
+        // fakturarækker med (tolv om året pr. rate-abonnement), og der er
+        // formentlig nul fejlede i lang tid. Tabellen er ny og ikke i de
+        // genererede typer — samme `as any` som user_login_log og
+        // financial_report_facts ovenfor. Betales et fejlet træk senere,
+        // bliver rækken 'betalt' af webhooken og forsvinder herfra af sig
+        // selv (stripe_invoice_id er unik).
+        supabase
+          .from("company_traek" as any)
+          .select("company_id, stripe_invoice_id, beloeb_oere, fejlet_at, forsoeg, naeste_forsoeg_at, fejl_kode, fejl_decline_code, fejl_besked, hosted_invoice_url, faktura_nummer, periode_start")
+          .eq("status", "fejlet")
+          .order("fejlet_at", { ascending: false })
+          .limit(500) as any,
       ]);
+
+      // Fejlede træk pr. virksomhed, nyeste først (ren, testet: src/lib/traek.ts).
+      const fejledeTraekByCompany = fejledeTraekPrVirksomhed(((traekRes as any)?.data || []) as FejletTraek[]);
 
       const allCompanies = (companiesRes.data || []) as any[];
       const legatCompanyIds = new Set(allCompanies.filter((c: any) => c.is_legat).map((c: any) => c.id));
@@ -504,6 +522,7 @@ const Members = () => {
               subscription_status: c.subscription_status,
               subscription_current_period_end: c.subscription_current_period_end,
             }),
+            fejledeTraek: fejledeTraekByCompany.get(c.id) || [],
           } as any;
         });
 
