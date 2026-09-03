@@ -248,29 +248,9 @@ const MemberDetail = () => {
     staleTime: 5 * 60_000,
   });
 
-  // Persisterede finansielle alerts for DETTE selskab. RLS scoper til auth.uid()
-  // (advisor har egne kopier, skrevet af detect-financial-alerts til alle advisors);
-  // vi filtrerer STRENGT til memberCompanyId, så vi aldrig viser andre selskabers
-  // alerts. Samme 60-dages vindue og 3 alert-typer som get-advisor-alerts.
-  const { data: financialAlerts = [] } = useQuery({
-    queryKey: ["member-financial-alerts", memberCompanyId],
-    queryFn: async () => {
-      if (!memberCompanyId) return [] as any[];
-      const since = new Date(Date.now() - 60 * 86400000).toISOString();
-      const { data } = await (supabase
-        .from("notifications") as any)
-        .select("id, type, priority, title, body, deep_link, company_id, created_at")
-        .eq("company_id", memberCompanyId)
-        .in("type", ["alert_revenue_drop", "alert_negative_cash", "alert_result_negative"])
-        .gte("created_at", since)
-        .order("created_at", { ascending: false })
-        .limit(50);
-      // Forsvar i dybden: aldrig vis et andet selskabs alert, selv hvis RLS ændres.
-      return ((data as any[]) || []).filter(n => n.company_id === memberCompanyId);
-    },
-    enabled: !!memberCompanyId,
-    staleTime: 5 * 60_000,
-  });
+  // Alerts-queryen (notifications, detect-financial-alerts) er fjernet 3/9
+  // sen aften: motoren dømmer ikke længere på alerts (virksomhedsSignaler.ts,
+  // valg 4), og queryen havde ingen anden aftager på siden.
 
   const refetch = async () => {
     if (!userId) return;
@@ -737,18 +717,16 @@ const MemberDetail = () => {
   //         vises som «faldt 50 %» — før stod det som en stigning.
   //      4. Bankovertræk fra friske facts er NYT her (bank_balance < 0,
   //         alvor 90) — før kom det kun via alert_negative_cash.
-  //      5. Alerts: motoren måler 30 dage mod created_at; siden henter 60
-  //         (financialAlerts-queryen ovenfor, uændret) — alerts på 31–60
-  //         dage vises ikke længere. Alert-teksterne er motorens faste
-  //         («Negativt resultat», «Omsætningsfald detekteret», «Negativ
-  //         bankbeholdning detekteret»), ikke alertens egen title/body.
-  //         alert_revenue_drop/alert_negative_cash vises ikke når MoM-fald/
-  //         bankovertræk allerede kommer fra friske facts (dedup, som før).
+  //      5. Alerts er UDE (beslutning 3/9 sen aften, motorens valg 4):
+  //         notifications fra detect-financial-alerts læses og vises ikke
+  //         længere her; queryen er fjernet. Uden friske facts viser
+  //         sektionen «Ingen tydelige afvigelser» — også for en virksomhed
+  //         der før fik en alert-række.
   //      6. Løftestangs-rækken (forfaldne milestones + handout-levers) er
   //         VÆK herfra — motorens valg 6: det er aktivitet, ikke afvigelse.
   //         Milestones og løftestænger vises stadig i deres egne kort nedenfor.
-  //      7. Alvor: rød (action_required) er nu alvor >= 85 (bankovertræk,
-  //         alert_negative_cash); før var det alertens priority-felt.
+  //      7. Alvor: rød (action_required) er nu alvor >= 85 (kun bankovertræk
+  //         tilbage); før var det alertens priority-felt.
   //    Loftet på fire rækker er BEVARET her i fladen (motoren har intet, valg 7).
   //
   //    KUN køen «stikker_ud» vises her. Motoren giver også
@@ -781,9 +759,6 @@ const MemberDetail = () => {
     senesteFact: tilFactPunkt(latestFact),
     forrigeFact: tilFactPunkt(prevFact),
     senesteCommittedAt: latestFact?.committed_at ?? null,
-    // financialAlerts-queryen henter ikke read_at (60 dage, alle). Motoren
-    // forventer ulæste; her gives alle — samme grundlag som den gamle dom.
-    ulaesteAlerts: (financialAlerts as any[]).map(a => ({ type: a.type as string, created_at: a.created_at as string })),
     budgetOmsaetning,
     forfaldneMilestones: milestones.filter(m => m.deadline && new Date(m.deadline) < new Date() && m.status !== "completed").length,
     loeftestaenger: handoutSummaries.flatMap(h => h.levers).length,
@@ -1037,22 +1012,21 @@ const MemberDetail = () => {
               <div className="space-y-2">
                 {standsOut.map((row) => {
                   // Samme markup, farver og ikoner som før. Alvor >= 85 er rød
-                  // (bankovertræk 90, alert_negative_cash 85), resten amber.
-                  // Badge og ikon afledes af signalets nøgle: alert_* → Alert,
-                  // *_mom → MoM, budget_* → Budget.
+                  // (bankovertræk 90), resten amber. Badge og ikon afledes af
+                  // signalets nøgle: bankovertraek → Bank, *_mom → MoM,
+                  // budget_* → Budget. (Alert-badgen er udgået med alerts, 3/9.)
                   const severity: "action_required" | "important" = row.alvor >= 85 ? "action_required" : "important";
                   const sev = {
                     action_required: { box: "border-destructive/30 bg-destructive/5", icon: "text-destructive", badge: "bg-destructive/10 text-destructive" },
                     important: { box: "border-chart-warning/30 bg-chart-warning/5", icon: "text-chart-warning", badge: "bg-chart-warning/10 text-chart-warning" },
                   }[severity];
                   const kind =
-                    row.noegle.startsWith("alert_") ? "alert" :
                     row.noegle.endsWith("_mom") ? "mom" :
                     row.noegle.startsWith("budget_") ? "budget" :
-                    "alert"; // bankovertraek: samme ikon og badge som en alert
-                  const badge = kind === "alert" ? "Alert" : kind === "mom" ? "MoM" : "Budget";
+                    "bank";
+                  const badge = kind === "bank" ? "Bank" : kind === "mom" ? "MoM" : "Budget";
                   const Icon =
-                    kind === "alert" ? AlertCircle :
+                    kind === "bank" ? AlertCircle :
                     kind === "mom" ? TrendingDown :
                     AlertTriangle;
                   return (
