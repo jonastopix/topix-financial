@@ -1,6 +1,6 @@
 # Overlevering
 
-**Sidst opdateret: 3. september 2026, formiddag.**
+**Sidst opdateret: 3. september 2026, formiddag — efter dag 31-kæden.**
 
 Læses først i enhver ny samtale. Claude husker intet mellem samtaler;
 denne fil skal kunne bære det. Den fortæller hvordan vi arbejder, hvor
@@ -185,7 +185,7 @@ serveren. Motoren `afgoerFornyelsestilstand` (ti tilstande), fladen
 `cancel_at` sat fra abonnementets start. Ordningen træder i kraft 10/9.
 Åbne punkter står i fornyelseskædens §10.
 
-### Indgangen — alle led bygget 2/9
+### Indgangen — kæden FØR platformen er hel 3/9: «Godkendt» → betalingsmail → påmindelser → dag 31-faktura → betaling → adgang
 
 `docs/indgangen-design.md` §1–31 (§22–31 er dagens bogføring).
 
@@ -195,7 +195,8 @@ serveren. Motoren `afgoerFornyelsestilstand` (ti tilstande), fladen
 | dag 0-mail / rådgivermail | `_shared/indgangsBetalingsmail.ts`, `send-indgangs-betalingsmail` (Bucket B, kun manuelle kald) | bygget; kræver secret `RAADGIVER_MAIL_TIL` |
 | udløser 2: rådgiver sætter pris | `saet-indgangs-prisniveau` (Bucket A) + `IndgangsSektion` på /members | bygget og bevist 2/9 |
 | /betal, checkout, webhook | `Betal.tsx`, `hent_betalingstilbud`, `hent_betalingsdata_til_checkout`, `opret-indgangs-checkout`, indgangsgrenen i `stripe-webhook` (kontrakt, indgangspris, ophør, invitation) | bevist 2/9 med en gennemført betaling |
-| påmindelser dag 14/25/31 | `indgangs-paamindelser-cron` (tørkørsel som standard) | bygget; **cron-jobbet er IKKE planlagt** |
+| påmindelser dag 14/25/31 | `indgangs-paamindelser-cron` (tørkørsel som standard) | bygget; **cron-jobbet `indgangs-paamindelser` planlagt 3/9 (0 10 \* \* \*), aktivt**; springet bevist (dag 31 uden dag 14 først) |
+| dag 31-faktura + betaling | `_shared/indgangsFaktura.ts` (motor, #559), cronen kalder den FØR dag 31-mailen (#561), `invoice.paid`-gren i `stripe-webhook` (#561), migration 20260903130000 (kørt 3/9) | **bevist i drift 3/9 kl. 10:00–10:11 på FLOOR1**: faktura TBR-0003 med moms (adressen fra #560 kom med), markeret betalt uden for Stripe → periode `'faktura'`, kontraktdatoer, invitation; kreditnota bagefter. `invoice.paid` tilmeldt (fem events; `invoice.created` bevidst ikke) |
 | motoren | `src/lib/betalingsfrist.ts` + spejl | fristen er KONTRAKTENS: 30 dage fra underskriften (rettet 2/9, migration 20260902140000) |
 | værn mod dobbeltbetaling | `_shared/checkoutSession.ts` i alle fire checkout-funktioner | bygget: udløb forrige session, 30 min levetid, id gemt |
 
@@ -240,8 +241,10 @@ union all select 'hent_betalingstilbud regner fra underskrevet_at',
 Kendte huller (recon-indgangen-fuld 2/9, ikke rettet): /members'
 «Send invitation»-knap kan invitere en ubetalt virksomhed (adgang uden
 betaling); en «tidligere»-virksomhed genbrugt på CVR sidder fast som
-«betalt»; dag 31-mailen lover en faktura ingen sender; «enqueued» stemples
-som «sendt».
+«betalt»; «enqueued» stemples som «sendt». *Løst 3/9:* dag 31-mailen
+lovede en faktura ingen sendte — nu sendes fakturaen først (§30).
+*Nyt 3/9:* `sikrIndgangsInvitation` kender ikke «allerede accepteret»
+(DEL 3).
 
 ### Migrationen af abonnementerne — pilot gennemført, 13 venter
 
@@ -386,9 +389,12 @@ facit og rækkefølge; `docs/chat-design.md` chattens form.
 | **10/9** | Fornyelsesordningen træder i kraft. Tre udløber inden og falder udenfor. | fornyelsesordningen.md §5, prioritering §1 |
 | **13/9** | doggybeds træk på 4.375 kr. på den nye konto — MÅL at det gik igennem. Derefter flyttes de tretten i portioner. TuaMea (2/9), Floren engros og BR Roset (3/9) venter til efter egne træk. | migration-recon §25 |
 | **29/9** | PHILBERTs fornyelse — beslutning skal registreres i FornyelsesSektion. Doggybed 13/10. | prioritering §1 |
-| snarest | **Cron-jobbet `indgangs-paamindelser` (0 10 \* \* \*)** er ikke planlagt. Kommandoen står som kommentar i cronens filhoved; kør en tørkørsel i hånden først. Secret `RAADGIVER_MAIL_TIL` skal sættes. | indgangen-design §26 |
-| snarest | **Dag 31-fakturaen**: ingen gren, og en manuel Stripe-faktura kan ikke kobles til en virksomhed (ingen `stripe_customer_id` før betaling). Skal oprettes af os selv med `metadata[company_id]`; `invoice.paid` skal tilmeldes endpointet (`enabled_events` erstatter hele listen). | indgangen-design §30, `~/Downloads/recon-invoice-paid.md` |
-| snarest | **Månedstrækkene registreres ikke** — hverken rate 2–12 eller fejlede træk (`invoice.*` er ikke tilmeldt). Gælder også fornyelsen. Restancepolitikken er besluttet (past_due = åben, unpaid = lukket) og ikke bygget; kræver `computeMembershipTier` ændret fire steder samlet. | indgangen-design §31 |
+| LØST 3/9 | **Cron-jobbet `indgangs-paamindelser` (0 10 \* \* \*)** er planlagt og aktivt, verificeret i `cron.job`. Tørkørsel og rigtig kørsel bevist på FLOOR1. Secret `RAADGIVER_MAIL_TIL` er ikke bekræftet sat i denne bogføring. | indgangen-design §26, §30 |
+| LØST 3/9 | **Dag 31-fakturaen** (#559–#561): motoren opretter kunde + faktura med `metadata[company_id]` på begge, cronen sender den FØR dag 31-mailen, `invoice.paid` er tilmeldt (fem events, `invoice.created` bevidst ikke) og skriver samme kæde som checkout med `betalingsmodel 'faktura'` og beløb uden moms. Bevist i drift 3/9 kl. 10:00–10:11 inkl. betaling og kreditnota. | indgangen-design §30 |
+| snarest | **Månedstrækkene registreres ikke** — hverken rate 2–12 eller fejlede træk. `invoice.paid` er nu tilmeldt, men grenen handler kun på indgangsfakturaer; abonnementernes månedsfakturaer ack'es uden handling, og `invoice.payment_failed` er ikke tilmeldt. Gælder også fornyelsen. Restancepolitikken er besluttet (past_due = åben, unpaid = lukket) og ikke bygget; kræver `computeMembershipTier` ændret fire steder samlet. | indgangen-design §31 |
+| åbent | **`sikrIndgangsInvitation` kender ikke «allerede accepteret»**: den leder efter pending; findes en accepteret række, fejler insert på `UNIQUE(company_id, email)`, og invitationen sendes ikke. Set 3/9 på FLOOR1. Kan ikke ske for indgangen i drift, men tilstanden er ikke håndteret. | indgangen-design §30 |
+| åbent, besluttet | **Rykkere på dag 31-fakturaen**: Stripes egne påmindelser slås IKKE til (`auto_advance=false` med vilje — en fjerde stemme på engelsk fra en anden afsender ville skurre). Skal der rykkes, er det vores egen kæde. Ikke bygget. Bemærk også: dag 31-mailen siger 50.000 kr, fakturaen 62.500 kr inkl. moms — ikke ændret. | indgangen-design §30 |
+| åbent | **Adressen på de 31 eksisterende virksomheder** uden `address/postal_code/city` (målt 3/9: 1 af 32 havde alle tre). Nye virksomheder får den fra CVR siden #560; de gamle er en datarettelse, samme formular som branche og kontakt-email. Uden adresse går en dag 31-faktura uden moms. | indgangen-design §33, indgangen-overhaling §10 |
 | efter 13/9 | Migrationen af de 13 (billing_cycle_anchor, cancel_at, default_payment_method, YKRG's kort, kobling til companies.id). | migration-recon §16, §25 |
 | åbent | **1:1-sessionernes Calendly-link efter kontoskiftet** — prisen `session_1on1` og `stripe-webhook`s Calendly-gren (`1to1-session-45`) er ikke efterprøvet på den nye konto. Noteret af Jonas 2/9; ikke målt i repoet. | — |
 | åbent | **Velkomstvideoen skal optages** (Morten). Pladsen er bygget; GUID'et sættes i /admin/config. | recon-velkomstvideo |
@@ -398,7 +404,7 @@ facit og rækkefølge; `docs/chat-design.md` chattens form.
 | åbent | **Branchedataene i prod** (målt 3/9): 7 af 32 aktive virksomheder uden `industry_code` (ingen benchmarks); 2 med en registerkode i feltet (WESDEX, Two Socks); 3 med værdier motoren aldrig sætter (`other_general`, `travel_event`, `tech_startup`); flere uenige med CVR (ANLA GLAS, Limo Group, Topix) — hvem der har ret kan ikke afgøres fra data. Datarettelse, ikke kode. **Kontakt-email** er tom på de fleste, herunder Topix; `sikrIndgangsInvitation` kræver feltet. Samme formular, samme oprydning. | `docs/indgangen-overhaling.md` §10 |
 | åbent | **`DashboardSkeleton` er død kode** efter #557 (fire træffere, alle kommentarer). Ryddes i en senere omgang. | `docs/indgangen-overhaling.md` §10 |
 | åbent | Ankomstens løse ender: pillen viser samme punkter som fokuskortet (Claudes dom: den bør trække sig — ikke besluttet); velkomst-punktet kan ikke trykkes i kortet — skal løses FØR `velkomstvideo_guid` sættes; «Dine tal»-kortets tomme tilstand står nederst. | `docs/indgangen-overhaling.md` §10 |
-| nu — ruten er bevist 3/9 | **Testvirksomheden FLOOR1 I/S** (`fea24b90-…`, `jonas+test1/2/3@topix.dk`) skal fjernes helt: hardDelete med brugere + storage- og user_id-rester (trin 14). Bemærk: test3 blev brugt 3/9 til at fremkalde blindgyden — en billig metode til at se fejlflader, så længe virksomheden står. | `docs/indgangen-overhaling.md` §11, `~/Downloads/recon-testvirksomhed.md` |
+| nu — ruten er bevist 3/9 | **Testvirksomheden FLOOR1 I/S** (`fea24b90-…`, `jonas+test1/2/3@topix.dk`) skal fjernes helt: hardDelete med brugere + storage- og user_id-rester (trin 14). **Opstillingen er vokset 3/9:** FLOOR1 har nu en Stripe-kunde (`cus_VBtMOGBenIfWt4`), en faktura (TBR-0003), en kreditnota (TBR-0003-CN-01), en betalingslink-række, en periode og kontraktdatoer — oprydningen skal tage Stripe-siden med, ikke kun databasen. Bemærk: test3 blev brugt 3/9 til at fremkalde blindgyden, og hele virksomheden til dag 31-kæden — en billig metode til at se fejlflader, så længe den står. | `docs/indgangen-overhaling.md` §11, `~/Downloads/recon-testvirksomhed.md` |
 | åbent | Nudge-formen som designdokument, Community-opdagelse, Events (bekræftelse, kalender, lokation), Milepælene ud — rækkefølgen fra 1/9 står. | prioritering §2–5 |
 | driftsgæld | Fejlovervågning findes ikke; restore er aldrig afprøvet; `run-weekly-agent` står ikke i `cron.job`; 73 uploads bestod validering uden at blive committet; e-conomic-integrationen er død (migration-recon §10). | status-1-sept §6, OVERLEVERING (forrige) §7 |
 
@@ -467,6 +473,19 @@ De konkrete ting der har kostet tid. Led efter dem.
   og DB07's afdeling 45 (biler) er nedlagt. Virksomheder slået op før
   2025 bærer stadig DB07-koder i `raw_cvr_data`. Et offentligt register
   kan være skiftet ud uden spor i repoet — slå op.
+- **`invoice.created` må IKKE tilmeldes webhook-endpointet.** Stripe
+  udsætter finaliseringen af fakturaer i op til 72 timer, hvis webhooken
+  ikke svarer på det event — og det gælder ALLE kontoens fakturaer, ikke
+  kun vores. Endpointet har fem events (3/9): checkout.session.completed,
+  customer.subscription.created/updated/deleted, invoice.paid.
+- **En kreditnota på en betalt faktura skal være «Credit outside of
+  Stripe»**, ikke kundesaldo — ellers efterlader den et tilgodehavende på
+  kunden, som næste faktura modregner. Set 3/9 ved oprydningen af
+  FLOOR1's testfaktura.
+- **`application_context.raw_cvr_data` er IKKE hele cvrapi-svaret.**
+  `hentCvrData` plukker felter ud, og kun dem gemmes. Skal et nyt felt
+  bruges (som adressen 3/9), skal det læses ind dér — og feltnavnet
+  måles mod cvrapi.dk, ikke huskes (`address`, `zipcode`, `city`).
 - **`profiles` er nøglet på `user_id`, ikke `id`.**
 - **To betydninger af «sendt»:** `betalingsmail_sendt_at` betyder
   enqueued; `email_send_log.status = 'sent'` betyder leveret til Lovable.
@@ -486,6 +505,9 @@ Skal ikke genforhandles uden ny måling.
 - **Vi viser ikke tomt indhold.** Uden video ingen velkomst, fem punkter.
 - **Prisen ændres ikke når den først er sat** (409). Skal den rettes, er
   det en samtale. (indgangen §28)
+- **Dag 31-fakturaen er det FULDE beløb, sendes FØR dag 31-mailen, og
+  Stripes egne påmindelser slås ikke til** (`auto_advance=false`). Skal
+  der rykkes, er det vores egen kæde. (indgangen §4, §30)
 - **«Gjort» betyder handling, ikke besøg.** (tjeklisten)
 - **Ét forslag ad gangen** i «Dine aftaler». **En opgave er en udgang,
   ikke et mål.** **Medlemmet sætter datoen** ved accept (B6). **Ingen AI
