@@ -262,10 +262,16 @@ indgang/fornyelse — trækket 13/9 ville have skrevet `subscription_status
 `subscriber` (usynlig i FornyelsesSektion, intet fornyelsestilbud, 403
 på checkout). Rettet til hvidliste: kun det art-løse selvbetjenings-
 abonnement skriver. Adgangen var aldrig i fare (tier læser
-`contract_end_date` først). **Åbent:** `subscription_status` er NULL på
-ALLE virksomheder — skrivningen fra `customer.subscription.created` den
-2/9 skete aldrig, og årsagen er ikke afdækket (Stripe Dashboard →
-Developers → Events).
+`contract_end_date` først). **Lukket 3/9 kl. 10:42 (§26):** skrivningen
+fra 2/9 udeblev ikke fordi eventet manglede — `customer.subscription.created`
+BLEV leveret, og webhooken svarede 500 (skrivningen kastede); Stripe
+gentog fem gange. Efter #563 blev eventet gensendt manuelt og svarede
+200 `skipped: migreret_subscription` («Recovered») — hvidlisten er
+dermed bevist på det rigtige event, og webhooken får subscription-
+events. Hvad der kastede i skrivningen, afdækkes bevidst ikke (grenen
+når aldrig derhen igen for et abonnement med en art); det art-løse
+selvbetjeningsabonnement går stadig gennem den kode, og der findes ingen
+i dag.
 
 ### Onboarding-tjeklisten — bygget 2/9
 
@@ -399,8 +405,8 @@ facit og rækkefølge; `docs/chat-design.md` chattens form.
 | hvornår | hvad | hvor det står |
 |---|---|---|
 | **10/9** | Fornyelsesordningen træder i kraft. Tre udløber inden og falder udenfor. | fornyelsesordningen.md §5, prioritering §1 |
-| **13/9** | doggybeds træk på 4.375 kr. på den nye konto — MÅL at det gik igennem. Derefter flyttes de tretten i portioner. TuaMea (2/9), Floren engros og BR Roset (3/9) venter til efter egne træk. **Samme dag, det eneste bevis der tæller for #563:** `companies.subscription_status` skal forblive NULL på doggybed (`382fd787-3141-45c7-8eea-297b7b947fe0`) efter trækket — SQL'en står i migration-recon §26. | migration-recon §25, §26 |
-| før 13/9 | **Hvorfor skrev webhooken ikke på 2/9?** `customer.subscription.created` var tilmeldt, grenen sprang ikke over, og `subscription_status` er alligevel NULL overalt. Se Stripe Dashboard → Developers → Events for endpointet den 2/9. Får webhooken ikke subscription-events, er det større end #563 (exit-abonnementet afhænger af dem). Må ikke antages løst. | migration-recon §26 |
+| **13/9** | doggybeds træk på 4.375 kr. på den nye konto — MÅL at det gik igennem. Derefter flyttes de tretten i portioner. TuaMea (2/9), Floren engros og BR Roset (3/9) venter til efter egne træk. **Samme dag, beviset for #563 (nu stærkere):** `companies.subscription_status` skal forblive NULL på doggybed (`382fd787-3141-45c7-8eea-297b7b947fe0`) efter trækket — fordi grenen springer over med vilje, ikke fordi noget fejler — og `customer.subscription.updated` skal stå grøn i Stripes Event deliveries. SQL'en står i migration-recon §26. | migration-recon §25, §26 |
+| LØST 3/9 kl. 10:42 | **Hvorfor skrev webhooken ikke på 2/9?** Eventet BLEV leveret; webhooken svarede 500 i skrivningen (fem gentagelser fra Stripe). Efter #563 gensendt manuelt → 200 `skipped: migreret_subscription`, «Recovered». Webhooken får subscription-events; hvidlisten er bevist på det rigtige event. Hvad der kastede, afdækkes bevidst ikke — men det art-løse selvbetjeningsabonnement går stadig gennem den kode. | migration-recon §26 |
 | **29/9** | PHILBERTs fornyelse — beslutning skal registreres i FornyelsesSektion. Doggybed 13/10. | prioritering §1 |
 | LØST 3/9 | **Cron-jobbet `indgangs-paamindelser` (0 10 \* \* \*)** er planlagt og aktivt, verificeret i `cron.job`. Tørkørsel og rigtig kørsel bevist på FLOOR1. Secret `RAADGIVER_MAIL_TIL` er ikke bekræftet sat i denne bogføring. | indgangen-design §26, §30 |
 | LØST 3/9 | **Dag 31-fakturaen** (#559–#561): motoren opretter kunde + faktura med `metadata[company_id]` på begge, cronen sender den FØR dag 31-mailen, `invoice.paid` er tilmeldt (fem events, `invoice.created` bevidst ikke) og skriver samme kæde som checkout med `betalingsmodel 'faktura'` og beløb uden moms. Bevist i drift 3/9 kl. 10:00–10:11 inkl. betaling og kreditnota. | indgangen-design §30 |
@@ -452,6 +458,12 @@ De konkrete ting der har kostet tid. Led efter dem.
 - **`void invalidateQueries` lukker en dialog før tilstanden er hentet.**
   Await invalideringen (eller refetch) FØR du lukker, ellers viser fladen
   det gamle i et render til.
+- **En webhook der svarer 500 fejler STILLE for os.** Stripe prøver igen
+  i timevis (doggybeds `customer.subscription.created` 2/9: fem
+  gentagelser over 19 timer), og intet i vores egen flade eller log
+  siger det. Stripes Workbench → Webhooks → Event deliveries er det
+  eneste sted det ses. Kig der efter enhver ændring i en webhook-gren,
+  og efter enhver migration.
 - **En sortliste på `metadata.art` fejler stille, når en ny art
   tilføjes.** Webhookens subscription-grene sprang kun over ved
   indgang/fornyelse; doggybeds migrerede abonnement (art «migreret», 3/9)
