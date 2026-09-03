@@ -80,9 +80,14 @@
  *      - venter på svar 70 + min(antal, 20): ulæste beskeder er altid
  *        handling; flere er mere.
  *      - friske tal 30: godt nyt, skal ses, haster ikke.
- *      - ikke hørt fra længe: se regnestykket ved funktionen. Aldrig
- *        skrevet er 95 — den stærkeste grund til at stå på listen
- *        (designets §3.5, Jonas 3/9: «vi må ikke glemme folk i det her»).
+ *      - ikke hørt fra længe: 60 → 95 som en kurve der nærmer sig 95 uden
+ *        at nå det (regnestykket ved funktionen). Aldrig skrevet er 95 —
+ *        den stærkeste grund til at stå på listen (designets §3.5, Jonas
+ *        3/9: «vi må ikke glemme folk i det her»). Rettet 3/9 kl. 23:36:
+ *        den første udgave loftede ved 90 fra dag 51, så alle med mere end
+ *        51 dages tavshed fik SAMME alvor og indlæsningsrækkefølgen afgjorde
+ *        (set i drift: 57, 126, 66, 85 … dage, ikke faldende). Nu er
+ *        kurven strengt stigende: flere dage er altid højere alvor.
  *
  * 6. MILESTONES OG LØFTESTÆNGER. MemberDetail lagde forfaldne milestones
  *    og handout-løftestænger ind som én dæmpet række. VALGT: ude. De er
@@ -220,16 +225,36 @@ export function afgoerVirksomhedsSignaler(input: VirksomhedsInput, now: Date = n
   // Nu: kravet om committede tal er væk. Aldrig skrevet → MED, som det
   // stærkeste signal. Skrevet → med når hele dage siden > 21.
   //
-  // Regnestykket for alvor:
-  //   aldrig skrevet                     → 95 (fast; over alle tal-signaler
-  //                                        på nær intet — ingen må glemmes)
-  //   skrevet, N hele dage siden, N > 21 → 60 + min(N − 21, 30)
-  //     dag 22 → 61, dag 30 → 69, dag 51 og derover → 90.
-  //     Starter under bankovertræk (90) og når det først efter en måneds
-  //     ekstra tavshed; 30 er loftet så 90 aldrig overskrides og aldrig
-  //     skrevet (95) altid ligger over.
+  // Regnestykket for alvor (rettet 3/9 kl. 23:36 efter fejl set i drift):
+  //   aldrig skrevet                     → 95 (fast; over alle tavse —
+  //                                        ingen må glemmes)
+  //   skrevet, N hele dage siden, N > 21 → 95 − 35 / (1 + (N − 21) / 30)
+  //     En kurve der starter ved 60 (N = 21, som ikke udløser) og nærmer
+  //     sig 95 uden nogensinde at nå det. Strengt stigende i N: flere
+  //     dage er ALTID højere alvor, ingen to dagtal får samme alvor.
+  //     dag 22  → 95 − 35 / 1,033 = 61,13
+  //     dag 30  → 95 − 35 / 1,300 = 68,08
+  //     dag 60  → 95 − 35 / 2,300 = 79,78
+  //     dag 86  → 95 − 35 / 3,167 = 83,95
+  //     dag 126 → 95 − 35 / 4,500 = 87,22
+  //     dag 365 → 95 − 35 / 12,47 = 92,19
+  //     aldrig skrevet → 95, over alle ovenstående uanset N.
   //   skrevet, N <= 21                    → intet signal.
+  // Den første udgave var 60 + min(N − 21, 30): lineær med loft 90 fra dag
+  // 51, så alle over 51 dage fik samme alvor og indlæsningsrækkefølgen
+  // afgjorde (set i drift: 57, 126, 66, 85, 86, 78, 59, 86, 77, 45 dage).
+  // Loftet var sat for at holde 95 øverst; kurven gør det samme uden at
+  // klumpe. Skalaen er bevaret: omsætningsfald (80) overhales ved N = 61
+  // (35 / (1 + 40/30) = 15 → 80,0), bankovertræk (90) ved N = 201
+  // (35 / (1 + 180/30) = 5 → 90,0) — altså efter to hhv. knap syv
+  // måneders tavshed.
   // Hele dage: Math.floor((now − seneste) / 86400000), som før.
+  //
+  // NOTE: «aldrig skrevet» behøver ikke være et fast tal — den kunne
+  // rangordnes efter hvor længe virksomheden har eksisteret uden at
+  // skrive, hvis inputtet bar et tidspunkt at måle fra (fx
+  // companies.created_at eller kontraktstart). Det gør det ikke i dag, og
+  // det ville kræve en ny kilde; derfor fast 95 nu.
   if (input.senesteBeskedAt === null) {
     signaler.push({
       noegle: "aldrig_skrevet",
@@ -244,7 +269,7 @@ export function afgoerVirksomhedsSignaler(input: VirksomhedsInput, now: Date = n
         noegle: "ingen_dialog",
         koe: "ikke_hoert_fra_laenge",
         tekst: `Ingen dialog i ${dage} dage`,
-        alvor: 60 + Math.min(dage - STALE_DAGE, 30),
+        alvor: 95 - 35 / (1 + (dage - STALE_DAGE) / 30),
       });
     }
   }
