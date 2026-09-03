@@ -423,7 +423,7 @@ facit og rækkefølge; `docs/chat-design.md` chattens form.
 | åbent | **Branchedataene i prod** (målt 3/9): 7 af 32 aktive virksomheder uden `industry_code` (ingen benchmarks); 2 med en registerkode i feltet (WESDEX, Two Socks); 3 med værdier motoren aldrig sætter (`other_general`, `travel_event`, `tech_startup`); flere uenige med CVR (ANLA GLAS, Limo Group, Topix) — hvem der har ret kan ikke afgøres fra data. Datarettelse, ikke kode. **Kontakt-email** er tom på de fleste, herunder Topix; `sikrIndgangsInvitation` kræver feltet. Samme formular, samme oprydning. | `docs/indgangen-overhaling.md` §10 |
 | åbent | **`DashboardSkeleton` er død kode** efter #557 (fire træffere, alle kommentarer). Ryddes i en senere omgang. | `docs/indgangen-overhaling.md` §10 |
 | åbent | Ankomstens løse ender: pillen viser samme punkter som fokuskortet (Claudes dom: den bør trække sig — ikke besluttet); velkomst-punktet kan ikke trykkes i kortet — skal løses FØR `velkomstvideo_guid` sættes; «Dine tal»-kortets tomme tilstand står nederst. | `docs/indgangen-overhaling.md` §10 |
-| nu — ruten er bevist 3/9 | **Testvirksomheden FLOOR1 I/S** (`fea24b90-…`, `jonas+test1/2/3@topix.dk`) skal fjernes helt: hardDelete med brugere + storage- og user_id-rester (trin 14). **Opstillingen er vokset 3/9:** FLOOR1 har nu en Stripe-kunde (`cus_VBtMOGBenIfWt4`), en faktura (TBR-0003), en kreditnota (TBR-0003-CN-01), en betalingslink-række, en periode og kontraktdatoer — oprydningen skal tage Stripe-siden med, ikke kun databasen. Bemærk: test3 blev brugt 3/9 til at fremkalde blindgyden, og hele virksomheden til dag 31-kæden — en billig metode til at se fejlflader, så længe den står. | `docs/indgangen-overhaling.md` §11, `~/Downloads/recon-testvirksomhed.md` |
+| LØST 3/9 kl. 10:52–10:57 | **Testopstillingen er ryddet (trin 14).** FLOOR1 I/S med `jonas+test1/2/3` slettet via /members' slet-dialog med brugere; «Jonas legat» (april-testvirksomheden, bar de to annullerede testabonnementer) slettet efter at storage-filerne først var fjernet i Lovables Storage-flade; den forældreløse `jonas+test45login` slettet fra SQL editoren inkl. `auth.users`. Målt efter: 38 virksomheder, 44 auth-brugere, 41 profiler, ingen rester, ingen storage-filer. **Stripe-testkunderne bliver stående (besluttet):** `cus_VBtMOGBenIfWt4` bærer faktura TBR-0003 og kreditnota TBR-0003-CN-01 — bilag skal kunne læses; to kunder fra «Jonas legat» står uden abonnement og uden kort. Ingen af de tre hører til en virksomhed i databasen. | `docs/indgangen-overhaling.md` §11 |
 | åbent | Nudge-formen som designdokument, Community-opdagelse, Events (bekræftelse, kalender, lokation), Milepælene ud — rækkefølgen fra 1/9 står. | prioritering §2–5 |
 | driftsgæld | Fejlovervågning findes ikke; restore er aldrig afprøvet; `run-weekly-agent` står ikke i `cron.job`; 73 uploads bestod validering uden at blive committet; e-conomic-integrationen er død (migration-recon §10). | status-1-sept §6, OVERLEVERING (forrige) §7 |
 
@@ -520,6 +520,20 @@ De konkrete ting der har kostet tid. Led efter dem.
   `hentCvrData` plukker felter ud, og kun dem gemmes. Skal et nyt felt
   bruges (som adressen 3/9), skal det læses ind dér — og feltnavnet
   måles mod cvrapi.dk, ikke huskes (`address`, `zipcode`, `city`).
+- **SQL editoren NÅR `auth`-skemaet.** Bevist 3/9: `DELETE FROM
+  auth.users` virkede (efter `notifications` og `user_login_log`;
+  `profiles` og `user_roles` fulgte i kaskaden). Det er vejen til en
+  forældreløs bruger, når `admin-cleanup-test-data` ikke kan bruges —
+  den funktion autentificerer en BRUGER (`getClaims` → `has_role`
+  admin), ikke service-rollen, så vault-nøglen giver 401/403, og
+  cron-mønstret med `net.http_post` virker IKKE på den. Vejen til
+  `hardDeleteCompany` er /members' slet-dialog (`manage-advisor`
+  `delete-company`), som ikke har dry-run — mål før.
+- **Storage ryddes ALDRIG af koden.** `hardDeleteCompany` og ingen
+  edge function kalder `storage.remove()`. Slet filerne FØR
+  virksomheden, mens stien (`company_id`) er kendt, og gør det i
+  Lovables Storage-flade — direkte `DELETE` på `storage.objects`
+  blokeres af platformens `protect_delete`-trigger.
 - **`profiles` er nøglet på `user_id`, ikke `id`.**
 - **To betydninger af «sendt»:** `betalingsmail_sendt_at` betyder
   enqueued; `email_send_log.status = 'sent'` betyder leveret til Lovable.
@@ -542,6 +556,10 @@ Skal ikke genforhandles uden ny måling.
 - **Dag 31-fakturaen er det FULDE beløb, sendes FØR dag 31-mailen, og
   Stripes egne påmindelser slås ikke til** (`auto_advance=false`). Skal
   der rykkes, er det vores egen kæde. (indgangen §4, §30)
+- **Stripe-testkunderne slettes ikke.** En kunde med faktura og
+  kreditnota er ejer af regnskabsbilag, og bilag skal kunne læses. De
+  tre testkunder er bogført og hører ikke til nogen virksomhed.
+  (indgangen-overhaling §11)
 - **«Gjort» betyder handling, ikke besøg.** (tjeklisten)
 - **Ét forslag ad gangen** i «Dine aftaler». **En opgave er en udgang,
   ikke et mål.** **Medlemmet sætter datoen** ved accept (B6). **Ingen AI
