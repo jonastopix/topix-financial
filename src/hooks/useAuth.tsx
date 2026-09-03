@@ -109,6 +109,26 @@ async function laesInvokeFejl(err: unknown): Promise<string> {
   return err instanceof Error ? err.message : String(err);
 }
 
+/** Medlemmets tier ud fra virksomhedens kontraktdatoer og abonnement —
+    én regel, brugt både når company_members-rækken findes ved opslaget
+    (trin D) og når process-pending-invitation lige har koblet den
+    (trin 10, docs/indgangen-overhaling.md §7.1: PPI-grenen satte før kun
+    companyId, aldrig tier, så det nykoblede medlem stod på skelettet til
+    næste auth-event). Ingen række (RLS/mangler) og no_date giver begge
+    "full": legacy eller manuelt styrede virksomheder ser ud som fulde for
+    deres egne brugere. Members.tsx viser no_date som en særskilt badge —
+    den drift er bevidst, ikke rettet her. */
+async function afgoerMedlemsTier(companyId: string): Promise<"full" | "subscriber" | "expired"> {
+  const { data: companyTierData } = await supabase
+    .from("companies")
+    .select("contract_end_date, subscription_status, subscription_current_period_end")
+    .eq("id", companyId)
+    .maybeSingle();
+  if (!companyTierData) return "full";
+  const tier = computeMembershipTier(companyTierData);
+  return tier === "no_date" ? "full" : tier;
+}
+
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
@@ -198,21 +218,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       if (isAdv) {
         setMembershipTier("full");
       } else {
-        const { data: companyTierData } = await supabase
-          .from("companies")
-          .select("contract_end_date, subscription_status, subscription_current_period_end")
-          .eq("id", cm.company_id)
-          .maybeSingle();
-
-        if (!companyTierData) {
-          setMembershipTier("full");
-        } else {
-          // no_date → "full" preserves pre-existing UX: legacy or manually managed
-          // companies appear as full to their own users. Members.tsx renders no_date
-          // as a distinct badge — that drift is intentional, not fixed here.
-          const tier = computeMembershipTier(companyTierData);
-          setMembershipTier(tier === "no_date" ? "full" : tier);
-        }
+        setMembershipTier(await afgoerMedlemsTier(cm.company_id));
       }
 
       // Trigger onboarding agent if this is first login for an imported company
@@ -281,6 +287,13 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             setOwnCompanyId(invResult.company_id);
             setOwnCompanyName(invResult.company_name);
             setCompanyResolution("resolved");
+            // Koblingen lykkedes — tier afgøres med SAMME regel som når
+            // rækken fandtes ved opslaget ovenfor. Uden denne linje stod
+            // det nykoblede medlem med tier null, og Index viste gaten om
+            // noget der gik godt (trin 10, §7.1). Rækken er lige skrevet
+            // med service role, så user_company_id() finder den, og RLS
+            // på companies slipper opslaget igennem.
+            setMembershipTier(isAdv ? "full" : await afgoerMedlemsTier(invResult.company_id));
           } else if (typeof invResult?.reason === "string" && PPI_NORMALE_SVAR.has(invResult.reason)) {
             setOwnCompanyId(null);
             setOwnCompanyName(null);

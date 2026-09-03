@@ -7,7 +7,6 @@ import AdvisorDashboard from "@/components/AdvisorDashboard";
 import MembershipExpiredGate from "@/components/MembershipExpiredGate";
 import CompanyLinkFailedGate from "@/components/CompanyLinkFailedGate";
 import FornyelseKvittering from "@/components/FornyelseKvittering";
-import { DashboardSkeleton } from "@/components/DashboardSkeleton";
 import { HbMemberShell } from "@/components/hjemmebane/HbMemberShell";
 import { BoardroomView } from "@/components/hjemmebane/boardroom/BoardroomView";
 import { useAuth } from "@/hooks/useAuth";
@@ -182,10 +181,12 @@ const Dashboard = () => {
 
   const firstName = profile?.full_name?.split(" ")[0] || "dig";
 
-  /* Koblingen konto → virksomhed GIK GALT (ikke "ikke hentet endnu" —
-     useAuth skelner nu). Uden denne gren stod medlemmet på skelettet
-     nedenfor for evigt, for tier bliver aldrig sat uden virksomhed
-     (docs/indgangsfladen-design.md §5). Skal stå FØR skelettet. */
+  /* Koblingen konto → virksomhed GIK GALT (process-pending-invitation
+     svarede med fejl). Står FØR fornyelses-kvitteringen, så en fejlet
+     kobling vinder over stemplet. De øvrige tier-null-tilfælde fanges i
+     grenen efter kvitteringen (trin 10, docs/indgangen-overhaling.md
+     §7.1); de to grene kan ikke blive én uden at flytte kvitteringens
+     forrang, som er fornyelses-låsens kontrakt. */
   if (!rawAdvisor && companyResolution === "failed") {
     return <CompanyLinkFailedGate />;
   }
@@ -197,14 +198,20 @@ const Dashboard = () => {
     return <FornyelseKvittering overskredet={fornyelseOverskredet} />;
   }
 
-  /* Spinner mens auth-tieren afgøres — uden dette ville et udløbet
-     medlem nå at se forsiden, før gaten nedenfor kan gribe ind. */
+  /* Blindgyden lukket (trin 10, docs/indgangen-overhaling.md §7.1). Her
+     stod DashboardSkeleton i AppLayout — mørkegrønt, uden grænse, uden
+     besked, uden knap. Efter #554 er tier null for en ikke-rådgiver
+     ALDRIG en ventetilstand: hænger et opslag ved login, holder `loading`
+     porten, og MemberRoute viser HbSpinner — denne side tegnes ikke. Når
+     siden tegnes med tier null, er opslaget afgjort og svaret var
+     «ingen virksomhed» (companyResolution "none") eller fetchUserData
+     kastede ("pending" med loading falsk). Begge er fejl for et medlem:
+     der er intet at vente på, så ingen timeout — gaten med det samme,
+     med Prøv igen og Skriv til os. (Den tredje vej, PPI-succes uden
+     tier, er lukket i useAuth, som nu sætter tier i den gren.) Grenen
+     står EFTER fornyelses-kvitteringen, som beholder sin forrang. */
   if (!rawAdvisor && membershipTier === null) {
-    return (
-      <AppLayout>
-        <DashboardSkeleton />
-      </AppLayout>
-    );
+    return <CompanyLinkFailedGate />;
   }
 
   /* Bevidst bro (BACKLOG.md:495-497): gaten er gammelt udtryk, men et
