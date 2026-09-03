@@ -47,6 +47,10 @@ export interface CvrSvar {
   founded?: string;
   industry_code?: string;
   industry_label?: string;
+  /** cvrapi.dk's egne feltnavne — målt live 3/9 (hentCvrData). */
+  address?: string;
+  zipcode?: string;
+  city?: string;
 }
 
 export interface VirksomhedsInput {
@@ -56,6 +60,11 @@ export interface VirksomhedsInput {
   phone?: string | null;
   industry_label?: string | null;
   start_date?: string | null;
+  // Adressen som ansøgeren/rådgiveren skrev den: Monday («Firma-adresse»,
+  // «Postnummer», «By») eller importformularen (address, zip, city).
+  address?: string | null;
+  postal_code?: string | null;
+  city?: string | null;
   // ansøgningstekst
   current_situation?: string | null;
   goals?: string | null;
@@ -92,6 +101,12 @@ export function parseCvrStiftelsesdato(input: string | null | undefined): string
   }
 
   return null;
+}
+
+/** Trimmet tekst, eller null når feltet er tomt — aldrig en tom streng der ser udfyldt ud. */
+function tekst(v: string | null | undefined): string | null {
+  const t = (v ?? "").trim();
+  return t ? t : null;
 }
 
 /**
@@ -140,6 +155,19 @@ export function byggVirksomhedsRaekke(
     startDate = parseCvrStiftelsesdato(cvrSvar.founded);
   }
 
+  // Adressen (3/9): samme forrang som branchen — det ansøgeren/rådgiveren
+  // skrev vinder, CVR-registret er fallback, ikke en rettelse. Målt i
+  // prod 3/9: kun 1 af 32 aktive virksomheder havde alle tre felter, og
+  // FLOOR1 (oprettet via import med CVR-opslag) ingen af dem, fordi
+  // hverken rækken eller hentCvrData bar adressen. Uden den kan Stripe
+  // Tax ikke bestemme momssatsen, og dag 31-fakturaen finaliseres uden
+  // moms. Tomme og blanke felter bliver null — en tom streng ser udfyldt
+  // ud for enhver der tjekker «er feltet sat». KUN ved oprettelse: ved
+  // genbrug på CVR kaldes rækkebyggeren ikke (se industry_code ovenfor).
+  const address = tekst(input.address) ?? tekst(cvrSvar?.address);
+  const postalCode = tekst(input.postal_code) ?? tekst(cvrSvar?.zipcode);
+  const city = tekst(input.city) ?? tekst(cvrSvar?.city);
+
   return {
     name,
     cvr_number: input.cvr_number || null,
@@ -164,6 +192,9 @@ export function byggVirksomhedsRaekke(
     // companies.contact_email findes, og stripe-webhookens indgangsgren
     // sender invitationen til den. Uden feltet kan der ikke betales.
     contact_email: input.contact_email || null,
+    address,
+    postal_code: postalCode,
+    city,
     start_date: startDate,
     cvr_fetched_at: cvrSvar ? now.toISOString() : null,
     onboarding_completed: false,

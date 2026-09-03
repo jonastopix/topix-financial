@@ -301,6 +301,14 @@ Deno.serve(async (req) => {
         contact_name: kontaktnavn,
         contact_email: felter.email,
         application_date: felter.ansoegningsdato,
+        // Adressen fra Monday som INPUT til rækkebyggeren (3/9), så
+        // forrangen gælder ved oprettelse: Monday vinder, CVR-registret
+        // fylder de felter Monday lod stå tomme. B5 nedenfor skriver stadig
+        // Mondays værdier som før — det er samme værdier, og på en genbrugt
+        // virksomhed er B5 den eneste vej.
+        address: felter.adresse,
+        postal_code: felter.postnummer,
+        city: felter.by,
       },
       adminClient,
     );
@@ -312,10 +320,13 @@ Deno.serve(async (req) => {
     // ── B5. contact_person i en separat opdatering. Målt 2/9: feltet blev
     //        skrevet af INGEN, og dag 0-mailen læser det for fornavnet.
     //        Rækkebyggeren bærer det ikke (låst feltliste), så det sættes
-    //        her. Adressen fra Monday følger med af samme grund: rækken
-    //        har heller ikke address/postal_code/city. Kun ikke-tomme
-    //        felter skrives, så en genbrugt virksomhed ikke får tomme
-    //        værdier over eksisterende. ──
+    //        her. Adressen fra Monday følger med: siden 3/9 bærer rækken
+    //        address/postal_code/city (Monday først, CVR som fallback), så
+    //        for en NY virksomhed er dette de samme værdier igen; for en
+    //        GENBRUGT virksomhed er det som før den eneste vej — kun
+    //        ikke-tomme felter skrives, så eksisterende værdier ikke
+    //        overskrives med tomme. CVR-adressen rører aldrig en genbrugt
+    //        virksomhed (rækkebyggeren kaldes ikke ved genbrug). ──
     const opdatering: Record<string, string> = {};
     if (kontaktnavn) opdatering.contact_person = kontaktnavn;
     if (felter.adresse) opdatering.address = felter.adresse;

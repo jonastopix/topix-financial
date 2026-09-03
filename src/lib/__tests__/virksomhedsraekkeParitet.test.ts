@@ -88,6 +88,11 @@ describe("byggVirksomhedsRaekke — parity between src/lib and supabase/function
     ["registerkode der ikke rammer (551000 hotel)", { company_name: "Kun navn" }, { ...cvr, industry_code: "551000", industry_label: "Hoteller" }],
     ["registerkode uden CVR-tekst → motorens label", { company_name: "Kun navn" }, { name: "Kun kode ApS", industry_code: "620100" }],
     ["registerkode med tabt foranstillet nul (11100)", { company_name: "Kun navn" }, { ...cvr, industry_code: "11100" }],
+    // Adressen (3/9): fra CVR når input mangler, input vinder, tomt er null.
+    ["adresse kun fra CVR", { company_name: "Kun navn" }, { ...cvr, address: "Vestergade 41, 1. tv.", zipcode: "8600", city: "Silkeborg" }],
+    ["adresse fra input vinder over CVR", { ...fuldtInput, address: "Strandvejen 1", postal_code: "2900", city: "Hellerup" }, { ...cvr, address: "Vestergade 41, 1. tv.", zipcode: "8600", city: "Silkeborg" }],
+    ["adresse delvist fra hver", { ...fuldtInput, address: "Strandvejen 1", postal_code: "", city: null }, { ...cvr, zipcode: "8600", city: "Silkeborg" }],
+    ["adresse blank i begge → null", { ...fuldtInput, address: " ", postal_code: "", city: "" }, { ...cvr, address: "", zipcode: " " }],
   ];
 
   for (const [navn, input, svar] of parityCases) {

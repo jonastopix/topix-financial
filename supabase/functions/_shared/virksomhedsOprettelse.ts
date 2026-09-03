@@ -79,6 +79,14 @@ export async function hentCvrData(cvr: string): Promise<CvrSvar | null> {
       founded: data.startdate || undefined,
       industry_code: data.industrycode ? String(data.industrycode) : undefined,
       industry_label: data.industrydesc || undefined,
+      // Adressen (3/9): feltnavnene er MÅLT live mod cvrapi.dk på CVR
+      // 41772239 (FLOOR1 I/S) — `address`, `zipcode`, `city` (og `addressco`,
+      // `cityname`, som ikke bruges). Før læste hjælperen kun de fire felter
+      // ovenfor, så raw_cvr_data bar aldrig adressen, og companies stod
+      // uden — Stripe Tax kan så ikke placere kunden (dag 31-fakturaen).
+      address: data.address ? String(data.address) : undefined,
+      zipcode: data.zipcode ? String(data.zipcode) : undefined,
+      city: data.city ? String(data.city) : undefined,
     };
   } catch (err) {
     console.warn("[virksomhedsOprettelse] CVR lookup failed:", err instanceof Error ? err.message : err);

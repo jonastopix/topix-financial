@@ -72,7 +72,9 @@ describe("byggVirksomhedsRaekke — feltlisten er LÅST", () => {
     const raekke = byggVirksomhedsRaekke(input(), cvr, NU);
     expect(Object.keys(raekke).sort()).toEqual(
       [
+        "address",
         "application_context",
+        "city",
         "contact_email",
         "contact_phone",
         "cvr_fetched_at",
@@ -81,6 +83,7 @@ describe("byggVirksomhedsRaekke — feltlisten er LÅST", () => {
         "industry_label",
         "name",
         "onboarding_completed",
+        "postal_code",
         "start_date",
         "website",
       ].sort(),
@@ -125,6 +128,68 @@ describe("byggVirksomhedsRaekke — feltlisten er LÅST", () => {
     const raekke = byggVirksomhedsRaekke(medDatoer, cvr, NU);
     expect("contract_end_date" in raekke).toBe(false);
     expect("contract_start_date" in raekke).toBe(false);
+  });
+});
+
+describe("byggVirksomhedsRaekke — adressen: input vinder, CVR er fallback, tomt er null (3/9)", () => {
+  // cvrapi.dk's feltnavne er målt live 3/9 på CVR 41772239 (FLOOR1 I/S):
+  // address «Vestergade 41, 1. tv.», zipcode «8600», city «Silkeborg».
+  const cvrMedAdresse: CvrSvar = {
+    ...cvr,
+    address: "Vestergade 41, 1. tv.",
+    zipcode: "8600",
+    city: "Silkeborg",
+  };
+
+  it("adressen fra CVR når input mangler — det er hullet fra FLOOR1", () => {
+    const raekke = byggVirksomhedsRaekke(input(), cvrMedAdresse, NU);
+    expect(raekke.address).toBe("Vestergade 41, 1. tv.");
+    expect(raekke.postal_code).toBe("8600");
+    expect(raekke.city).toBe("Silkeborg");
+  });
+
+  it("input vinder over CVR — felt for felt, ikke som blok", () => {
+    const raekke = byggVirksomhedsRaekke(
+      input({ address: "Strandvejen 1", postal_code: null, city: "Hellerup" }),
+      cvrMedAdresse,
+      NU,
+    );
+    expect(raekke.address).toBe("Strandvejen 1");
+    expect(raekke.postal_code).toBe("8600"); // CVR fylder det ene hul
+    expect(raekke.city).toBe("Hellerup");
+  });
+
+  it("ingen adresse i CVR-svaret og intet input → null, ikke tomme strenge", () => {
+    const raekke = byggVirksomhedsRaekke(input(), cvr, NU);
+    expect(raekke.address).toBeNull();
+    expect(raekke.postal_code).toBeNull();
+    expect(raekke.city).toBeNull();
+    const udenSvar = byggVirksomhedsRaekke(input(), null, NU);
+    expect(udenSvar.address).toBeNull();
+    expect(udenSvar.postal_code).toBeNull();
+    expect(udenSvar.city).toBeNull();
+  });
+
+  it("tomme og blanke strenge tæller som manglende — CVR fylder, ellers null", () => {
+    const blankt = byggVirksomhedsRaekke(input({ address: "", postal_code: "   ", city: " " }), cvrMedAdresse, NU);
+    expect(blankt.address).toBe("Vestergade 41, 1. tv.");
+    expect(blankt.postal_code).toBe("8600");
+    expect(blankt.city).toBe("Silkeborg");
+    const blanktUdenCvr = byggVirksomhedsRaekke(input({ address: "", postal_code: "   ", city: " " }), { ...cvr, address: "", zipcode: " ", city: "" }, NU);
+    expect(blanktUdenCvr.address).toBeNull();
+    expect(blanktUdenCvr.postal_code).toBeNull();
+    expect(blanktUdenCvr.city).toBeNull();
+  });
+
+  it("værdierne trimmes, så « 8600 » bliver «8600»", () => {
+    const raekke = byggVirksomhedsRaekke(input({ postal_code: " 8600 " }), null, NU);
+    expect(raekke.postal_code).toBe("8600");
+  });
+
+  it("raw_cvr_data bærer også adressen — cvrapi's egne feltnavne", () => {
+    const raekke = byggVirksomhedsRaekke(input(), cvrMedAdresse, NU);
+    const ctx = raekke.application_context as { raw_cvr_data: CvrSvar };
+    expect(ctx.raw_cvr_data.zipcode).toBe("8600");
   });
 });
 
