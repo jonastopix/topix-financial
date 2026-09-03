@@ -203,10 +203,54 @@ to the entire access-control model.
 
 ## 5. Key RLS Policy Patterns
 
-All policies on tables in the `public` schema are **RESTRICTIVE** (not
-permissive) — they stack with AND logic. Note: `storage.objects` policies
-are PERMISSIVE (Supabase default for the storage schema) and OR-stack —
-see section 9 for the storage-specific policy map.
+**Corrected 2026-09-03:** policies on tables in the `public` schema are
+**PERMISSIVE** — Postgres' default for `CREATE POLICY` — and OR-stack: a
+row passes if ANY permissive policy for that command passes. The earlier
+statement here («all policies … are RESTRICTIVE … stack with AND») was
+wrong; measured 3/9 there were 0 restrictive policies out of 268 in
+`public`. `storage.objects` policies are also PERMISSIVE — see section 9.
+
+### Restrictive policies — the only way to DENY (added 2026-09-03)
+
+A policy that is meant to **deny** something MUST be created `AS
+RESTRICTIVE`. A restrictive policy is AND-ed with everything else: a row
+must pass ALL restrictive policies AND at least one permissive policy.
+Written as permissive, a «hide X from non-members» policy does the
+opposite of its name: its first clause («`company_id <> demo`») is true
+for every non-demo row, so it GRANTS access to all other companies' rows
+instead of hiding the demo's.
+
+**Rule to remember:** a policy whose name contains «hide», «skjul»,
+«kun», «only», «non-members» or any other negation is WRONG if it is
+permissive. Check `pg_policies.permissive` before trusting the name.
+
+Measured 2026-09-03 22:46 as an ordinary member (one company): the four
+demo policies were permissive, and the member could read 38 companies,
+102 milestones, 314 `financial_report_facts` rows and 35 conversations —
+everything, not the 1 / 0 / 0 / 1 they owned. Fixed in prod 22:48;
+after: 1 / 0 / 0 / 1. Advisor access unchanged (38 / 102 / 314 / 35).
+Migration `20260903230000_demo_policies_restrictive.sql` is the record.
+
+**As of 2026-09-03 there are exactly FOUR restrictive policies in
+`public`**, all `FOR SELECT TO authenticated`, all with the shape
+`<not demo> OR <member of the company> OR has_role(auth.uid(), 'admin')`:
+
+| table | policy |
+|---|---|
+| `companies` | «Hide demo company from non-members» (`is_demo = false OR …`) |
+| `conversations` | «Hide demo conversations from non-members» |
+| `financial_report_facts` | «Hide demo facts from non-members» |
+| `milestones` | «Hide demo milestones from non-members» |
+
+The demo company (`a0de0000-0000-4000-8000-000000000001`, `is_demo =
+true`) did not exist in prod on 2026-09-03; the policies are kept so a
+recreated demo company cannot leak. Note: an advisor WITHOUT admin
+(Morten) would not see a demo company under these policies — that is the
+policies' intent («from non-members», admin exempt), not a defect.
+
+Verify: `select tablename, policyname, permissive from pg_policies where
+schemaname = 'public' and permissive = 'RESTRICTIVE';` → the four rows
+above, nothing else.
 
 ### Company-scoped access
 ```sql
@@ -588,7 +632,7 @@ When squashing migrations into a clean baseline:
 - [ ] `protect_handout_immutable_fields()` trigger
 - [ ] `trg_normalize_invitation_email` trigger
 - [ ] `get_users_last_login()` body's advisor-gate (`has_role(auth.uid(), 'advisor'::app_role)`) — gate must remain in the body, not in the grant
-- [ ] All RESTRICTIVE RLS policies (exact policy names and expressions)
+- [ ] All RLS policies (exact policy names and expressions) — and that `pg_policies.permissive` is `RESTRICTIVE` for exactly the four demo policies in section 5 and `PERMISSIVE` for everything else
 - [ ] All storage.objects PERMISSIVE policies listed in section 9 (in particular the advisor INSERT branch for `financial-documents`, without which advisor uploads false-deny)
 - [ ] `app_role` enum values: `member`, `advisor`, `admin`
 - [ ] UNIQUE constraint on `handouts(user_id, module)`
@@ -600,9 +644,10 @@ When squashing migrations into a clean baseline:
 
 Storage uses **PERMISSIVE** policies (Supabase default for the `storage`
 schema). Multiple INSERT or SELECT policies for the same `cmd` OR-stack:
-a row passes if ANY policy passes. This is the opposite of the public
-schema's RESTRICTIVE/AND model — adding a "stricter" policy alongside a
-loose one does NOT tighten access. The loose one always wins.
+a row passes if ANY policy passes. The `public` schema works the SAME way
+(corrected 2026-09-03, section 5) — adding a "stricter" permissive policy
+alongside a loose one does NOT tighten access. The loose one always wins.
+Only `AS RESTRICTIVE` tightens.
 
 ### Bucket: `financial-documents` (private)
 

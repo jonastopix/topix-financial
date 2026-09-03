@@ -68,7 +68,7 @@ Integrationer: Stripe, Slack, Circle (community), Monday.com webhook, pdfjs-dist
 
 **Roller**: enum `app_role` med værdier `member` | `advisor` | `admin`. Tjekkes via `has_role(uid, role)` (SECURITY DEFINER). Admin arver advisor — `has_role(x, 'advisor')` returnerer true hvis x har `admin`.
 
-**RLS-mønstre** (alle policies er RESTRICTIVE — stacker med AND):
+**RLS-mønstre** (policies er PERMISSIVE som default og stakker med OR — en række slipper igennem hvis BARE ÉN policy siger ja; kun `AS RESTRICTIVE` indskrænker. En policy der skal NÆGTE noget («hide», «skjul», «kun») er forkert hvis den er permissive. Målt 3/9: fire demo-policies var det, og ethvert medlem kunne læse alle virksomheders tal. Se `supabase/SECURITY_BASELINE.md` §5):
 - Company-scoped: `company_id = user_company_id(auth.uid())`.
 - Advisor-bred: `has_role(auth.uid(), 'advisor')` — fuld read, scoped write.
 - Admin-only: `has_role(auth.uid(), 'admin')` — for `app_config`, `user_roles`.
