@@ -8,6 +8,16 @@ import {
   type IndgangsPeriode,
   type StripeInvoiceBetaling,
 } from "../_shared/indgangsFakturaBetaling.ts";
+import {
+  abonnementIdFraFaktura,
+  abonnementsMetadataFraFaktura,
+  bygTraekRaekke,
+  paymentIntentIdFraFaktura,
+  traekFejlFraPaymentIntent,
+  type StripeAbonnementsFaktura,
+  type TraekFejl,
+  type TraekUdfald,
+} from "../_shared/abonnementstraek.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -145,6 +155,102 @@ async function nulstilIndgangsSession(
     .eq("company_id", companyId);
   if (error) {
     console.warn(`[stripe-webhook] kunne ikke nulstille sidste_checkout_session_id for ${companyId}:`, error);
+  }
+}
+
+// ── Månedstrækkene registreres (3/9, docs/indgangen-design.md §31) ──────
+//    Ét spor pr. abonnementsfaktura i company_traek: betalt eller fejlet,
+//    hvor meget, hvornår, og hvad Stripe sagde. Kaldes fra invoice.paid
+//    (for de fakturaer der IKKE er dag 31-indgangsfakturaer) og fra
+//    invoice.payment_failed. Rører IKKE adgang/tier — restancepolitikken
+//    (fornyelseskaeden §9) er besluttet, ikke bygget her.
+//
+//    KOBLINGEN faktura → virksomhed: abonnementets metadata.company_id.
+//    Fakturaen bærer et snapshot af den (parent.subscription_details.
+//    metadata i 2025-03-31.basil; subscription_details.metadata ældre) —
+//    mangler det, slås abonnementet op (GET /v1/subscriptions/{id}).
+//    Fejlgrunden ligger på PaymentIntent.last_payment_error, som slås op
+//    ved fejlet træk. Begge API-former læses i _shared/abonnementstraek.ts.
+//
+//    KASTER ALDRIG: pengene er modtaget eller forsøgt, og et kast ville få
+//    Stripe til at gensende. Alt logges med invoice-id; resultatet bæres i
+//    svaret. Idempotent: upsert på stripe_invoice_id (UNIQUE).
+
+type TraekResultat =
+  | { udfald: "registreret"; status: TraekUdfald; company_id: string; genopslag: boolean }
+  | { udfald: "sprunget_over"; grund: "ingen_abonnement" | "ingen_company_id" }
+  | { udfald: "fejlet"; aarsag: string };
+
+async function stripeGetJson<T>(sti: string): Promise<T> {
+  const res = await fetch(`https://api.stripe.com/v1${sti}`, {
+    headers: { Authorization: `Bearer ${Deno.env.get("STRIPE_SECRET_KEY")!}` },
+  });
+  const tekst = await res.text();
+  if (!res.ok) throw new Error(`Stripe GET ${sti} svarede ${res.status}: ${tekst.slice(0, 200)}`);
+  return JSON.parse(tekst) as T;
+}
+
+async function registrerAbonnementstraek(
+  adminClient: SupabaseClient,
+  invoice: StripeAbonnementsFaktura,
+  udfald: TraekUdfald,
+): Promise<TraekResultat> {
+  const invoiceId = invoice?.id ?? "?";
+  try {
+    const abonnementId = abonnementIdFraFaktura(invoice);
+    if (!abonnementId) {
+      console.log(`[stripe-webhook] træk ${invoiceId}: ingen abonnement på fakturaen (manuel/quote) — ikke registreret`);
+      return { udfald: "sprunget_over", grund: "ingen_abonnement" };
+    }
+
+    // company_id og art: snapshot på fakturaen, ellers abonnementet selv.
+    let meta = abonnementsMetadataFraFaktura(invoice);
+    let genopslag = false;
+    if (!(meta?.company_id ?? "").trim()) {
+      const sub = await stripeGetJson<{ metadata?: Record<string, string> | null }>(`/subscriptions/${encodeURIComponent(abonnementId)}`);
+      meta = sub.metadata ?? null;
+      genopslag = true;
+    }
+    const companyId = (meta?.company_id ?? "").trim();
+    if (!companyId) {
+      console.error(`[stripe-webhook] træk ${invoiceId}: abonnement ${abonnementId} bærer ingen metadata.company_id — ikke registreret`);
+      return { udfald: "sprunget_over", grund: "ingen_company_id" };
+    }
+    const art = (meta?.art ?? "").trim() || null;
+
+    // Fejlgrunden — kun ved fejlet, og kun hvis der er et PaymentIntent.
+    let fejl: TraekFejl | null = null;
+    if (udfald === "fejlet") {
+      const piId = paymentIntentIdFraFaktura(invoice);
+      if (piId) {
+        try {
+          const pi = await stripeGetJson<Parameters<typeof traekFejlFraPaymentIntent>[0]>(`/payment_intents/${encodeURIComponent(piId)}`);
+          fejl = traekFejlFraPaymentIntent(pi);
+        } catch (err) {
+          // Grunden er rar at have, ikke nødvendig: rækken skrives uden.
+          console.warn(`[stripe-webhook] træk ${invoiceId}: kunne ikke læse PaymentIntent ${piId}:`, err instanceof Error ? err.message : err);
+        }
+      }
+    }
+
+    const raekke = bygTraekRaekke(invoice, udfald, companyId, abonnementId, art, fejl);
+    const { error } = await adminClient
+      .from("company_traek")
+      .upsert(raekke as unknown as Record<string, unknown>, { onConflict: "stripe_invoice_id" });
+    if (error) throw new Error(`company_traek-upsert fejlede: ${error.message}`);
+
+    if (udfald === "fejlet") {
+      console.error(
+        `[stripe-webhook] TRÆK FEJLET: company ${companyId}, abonnement ${abonnementId} (${art ?? "selvbetjening"}), faktura ${invoiceId} på ${raekke.beloeb_oere} øre — forsøg ${raekke.forsoeg ?? "?"}, næste ${raekke.naeste_forsoeg_at ?? "ingen"}, grund ${fejl?.decline_code ?? fejl?.kode ?? "ukendt"}${fejl?.besked ? `: ${fejl.besked}` : ""}`,
+      );
+    } else {
+      console.log(`[stripe-webhook] træk betalt: company ${companyId}, abonnement ${abonnementId} (${art ?? "selvbetjening"}), faktura ${invoiceId}, ${raekke.betalt_oere} øre (${raekke.billing_reason ?? "?"})`);
+    }
+    return { udfald: "registreret", status: udfald, company_id: companyId, genopslag };
+  } catch (err) {
+    const aarsag = err instanceof Error ? err.message : String(err);
+    console.error(`[stripe-webhook] KRITISK: træk ${invoiceId} (${udfald}) kunne ikke registreres i company_traek — ${aarsag}. Trækket findes i Stripe; rækken mangler.`);
+    return { udfald: "fejlet", aarsag };
   }
 }
 
@@ -423,19 +529,34 @@ Deno.serve(async (req) => {
       });
     }
 
+    // ── invoice.payment_failed — et FEJLET træk (3/9, §31). Kræver at
+    //    eventet er tilmeldt endpointet (enabled_events erstatter listen:
+    //    de fem + denne). Registreres i company_traek; adgangen røres ikke.
+    //    Aldrig kast, altid 200 — Stripe gensender selv fakturaens næste
+    //    forsøg som nyt event. ──
+    if (event.type === "invoice.payment_failed") {
+      const invoice = event.data.object as StripeAbonnementsFaktura;
+      const traek = await registrerAbonnementstraek(adminClient, invoice, "fejlet");
+      return new Response(JSON.stringify({ received: true, traek }), {
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
     // ── invoice.paid — dag 31-fakturaen (docs/indgangen-design.md §30).
     //    Kun fakturaer VI har oprettet bærer metadata[art]=indgang og
-    //    metadata[company_id] på selve fakturaen; abonnementernes måneds-
-    //    fakturaer (rate2/rate12, fornyelse, exit) har tom metadata på
-    //    fakturaen og ack'es som før, uden handling. invoice.paid sendes
-    //    både ved Stripe-betaling og ved paid_out_of_band (registreret i
-    //    hånden) — begge giver adgang. Grenen står FØR checkout-tjekket,
-    //    for alt efter det forudsætter en Checkout-session. ──
+    //    metadata[company_id] på selve fakturaen — de går indgangsvejen
+    //    nedenfor, uændret. Abonnementernes månedsfakturaer (rate2/rate12,
+    //    fornyelse, migreret, exit) har tom metadata på fakturaen og
+    //    REGISTRERES siden 3/9 som et betalt træk i company_traek (§31) —
+    //    intet andet skrives, adgangen røres ikke. invoice.paid sendes både
+    //    ved Stripe-betaling og ved paid_out_of_band (registreret i hånden).
+    //    Grenen står FØR checkout-tjekket, for alt efter det forudsætter en
+    //    Checkout-session. ──
     if (event.type === "invoice.paid") {
       const invoice = event.data.object as StripeInvoiceBetaling;
       if (!erIndgangsFaktura(invoice)) {
-        console.log(`[stripe-webhook] invoice.paid ${invoice?.id ?? "?"} er ikke en indgangsfaktura, springer over`);
-        return new Response(JSON.stringify({ received: true, skipped: "ikke_indgangsfaktura" }), {
+        const traek = await registrerAbonnementstraek(adminClient, invoice as StripeAbonnementsFaktura, "betalt");
+        return new Response(JSON.stringify({ received: true, skipped: "ikke_indgangsfaktura", traek }), {
           headers: { "Content-Type": "application/json" },
         });
       }
