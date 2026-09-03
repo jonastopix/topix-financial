@@ -1,5 +1,5 @@
 /**
- * src/lib/brancher.ts
+ * supabase/functions/_shared/brancher.ts
  *
  * App-taksonomien for branche: 17 grupper med 48 underkategorier. Flyttet
  * ordret fra src/pages/Settings.tsx (der stod den som lokal konstant, ikke
@@ -12,8 +12,8 @@
  * 20260329211955). `label` er den tekst der lægges i companies.industry_label
  * når koden vælges i Settings (Settings.tsx, branche-select'ens onValueChange).
  *
- * Spejlet ordret i supabase/functions/_shared/brancher.ts — enhver ændring
- * her SKAL også laves der. Pariteten håndhæves af testen i
+ * Spejlet ordret fra src/lib/brancher.ts — enhver ændring her SKAL også
+ * laves der. Pariteten håndhæves af testen i
  * src/lib/__tests__/branchekodeParitet.test.ts (taksonomien sammenlignes
  * felt for felt). Filen har nul imports, så den kan loades af både
  * Vite/Vitest (Node) og Deno uden ændringer.

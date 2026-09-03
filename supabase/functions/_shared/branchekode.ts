@@ -1,5 +1,5 @@
 /**
- * src/lib/branchekode.ts
+ * supabase/functions/_shared/branchekode.ts
  *
  * Ren motor: udleder app-taksonomiens industry_code (+ label) af den
  * branchekode CVR-registret bærer. docs/indgangen-overhaling.md §6 og §9
@@ -7,8 +7,8 @@
  * samme output. Eneste import er taksonomien i ./brancher (labels slås op
  * dér, så Settings og motoren deler én kilde).
  *
- * Spejlet ordret i supabase/functions/_shared/branchekode.ts — enhver
- * ændring her SKAL også laves der. Importstien (./brancher vs.
+ * Spejlet ordret fra src/lib/branchekode.ts — enhver ændring her SKAL
+ * også laves der. Importstien (./brancher vs.
  * ./brancher.ts) er den eneste tilladte forskel, som i fornyelse.ts.
  * Pariteten håndhæves af src/lib/__tests__/branchekodeParitet.test.ts,
  * som kører hele DB25-fixturen gennem begge kopier. Aftageren er
@@ -51,7 +51,7 @@
  * tech_startup (et stadie, ikke en branche), travel_event, other_general.
  */
 
-import { findBranche } from "./brancher";
+import { findBranche } from "./brancher.ts";
 
 export interface Branchekode {
   /** Nøgle i app-taksonomien = companies.industry_code = industry_benchmarks.industry_code. */
