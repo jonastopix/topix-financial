@@ -915,11 +915,13 @@ flader. «Bevis» = hvad der måles før næste trin begynder.
     skærm; faneskift uden spinner; kodeordsskift i Settings uden at
     felterne forsvinder; hard reload uændret. Skelet-grenen i Index er
     urørt (trin 10).
-14. **Bogføring**: dette dokument opdateres pr. trin med dato og bevis;
-    OVERLEVERING DEL 2/3 peger hertil. Testopstillingen (§11) fjernes
-    når ruten er bevist — den ER bevist 3/9, og opstillingen er vokset
-    med en Stripe-side (kunde, faktura, kreditnota) fra dag 31-beviset,
-    som oprydningen skal tage med.
+14. **✅ GENNEMFØRT 3/9 kl. 10:52–10:57 — Bogføring og oprydning**:
+    dette dokument er opdateret pr. trin med dato og bevis; OVERLEVERING
+    DEL 2/3 peger hertil. Testopstillingen (§11) er ryddet: FLOOR1 I/S
+    med tre brugere, «Jonas legat» med storage-filer, og den forældreløse
+    `jonas+test45login`. Målt efter: 38 virksomheder, 44 auth-brugere, 41
+    profiler, ingen rester. Stripe-testkunderne bliver stående (bilag
+    skal kunne læses) — bogført i §11.
 
 **RUTEN ER FÆRDIG (3/9 formiddag).** Trin 5–13 er bevist i drift: 5–9
 den 2/9, 11–12 den 2/9 nat, 13 den 3/9 morgen (#554), 10 den 3/9 kl.
@@ -928,8 +930,9 @@ den 2/9, 11–12 den 2/9 nat, 13 den 3/9 morgen (#554), 10 den 3/9 kl.
 bevis for trin 4 (en rigtig oprettelse med `industry_code` sat). Fra
 invitationslink til Dit Boardroom: to skærme, Hjemmebane hele vejen, en
 ankomst der tager imod, og ingen tilstand hvor et medlem kan stå fast
-uden en vej videre. Det der står tilbage, er ikke ruten: §10's åbne
-punkter og trin 14's oprydning (testopstillingen i §11).
+uden en vej videre. Trin 14 er også gennemført 3/9 kl. 10:52–10:57
+(testopstillingen i §11 er ryddet). Det der står tilbage, er ikke
+ruten: §10's åbne punkter.
 
 ---
 
@@ -1032,10 +1035,12 @@ punkter og trin 14's oprydning (testopstillingen i §11).
 
 ---
 
-## 11. Testopstillingen — bevisernes virksomhed (oprettet 2/9)
+## 11. Testopstillingen — bevisernes virksomhed (oprettet 2/9, RYDDET 3/9 kl. 10:52–10:57)
 
-Bruges til at bevise ruten i drift (trin 5–9 bevist på den 2/9).
-Fjernes helt når ruten er bevist; intet af det er kundedata.
+Blev brugt til at bevise ruten i drift (trin 5–9 den 2/9, trin 10 og
+dag 31-kæden den 3/9). **Ryddet 3/9 — trin 14 er gennemført; se
+bogføringen nederst.** Tabellen står som historik over hvad der fandtes,
+og hvad den beviste; intet af det var kundedata.
 
 | hvad | værdi |
 |---|---|
@@ -1050,19 +1055,56 @@ Fjernes helt når ruten er bevist; intet af det er kundedata.
 | Blindgyden, 3/9 kl. 08:53 | test3's `company_members`-række slettet og rullet tilbage (trin 10, §7.1) |
 | **Dag 31-kæden, 3/9 kl. 10:00–10:11** | Opstillingen er VOKSET (`docs/indgangen-design.md` §30): adresse sat (Vestergade 41, 1. tv, 8600 Silkeborg — CVR-registrets), kontraktdatoerne nulstillet og sat igen af webhooken (2026-09-03 → 2027-09-03), `company_betalingslink`-række (prisniveau 5.000.000 øre, stemplet `faktura_invoice_id`, `faktura_sendt_at`, `sidste_paamindelse_dag 31`), `company_perioder`-række (`betalingsmodel 'faktura'`), **Stripe-siden:** kunde `cus_VBtMOGBenIfWt4` (skrevet i `companies.stripe_customer_id`), faktura TBR-0003 / `in_1UBVaB3CvBmCx5PtAQOPtqVN` (62.500 kr inkl. moms, markeret betalt uden for Stripe), kreditnota TBR-0003-CN-01 («Credit outside of Stripe»). Regnskabet er rent, men objekterne findes. |
 
-**Oprydning når ruten er bevist:** `hardDeleteCompany` med
-`deleteUsers: true` (via `admin-cleanup-test-data` `hard_delete_company`
-med `delete_users: true`, dry-run først), plus de rester
-`recon-testvirksomhed.md` §4–5 nævner: storage-objekter (`financial-
-documents/{company_id}/…`, `company-logos`, `chat-attachments/{user_id}/…`),
-notifikationer uden `company_id`, og `user_id`-tabeller uden FK-cascade
-(`conversation_last_seen`, `message_reactions`, `report_comments`,
-`circle_*`, `group_*`). `group_companies` ville blokere sletningen af
-`companies`-rækken hvis en række findes (FK uden `ON DELETE`). SELECT
-før/efter, og bogfør FØR-værdierne her. **Nyt 3/9: oprydningen skal
-tage Stripe-siden med, ikke kun databasen** — kunden
-`cus_VBtMOGBenIfWt4`, fakturaen `in_1UBVaB3CvBmCx5PtAQOPtqVN` og
-kreditnotaen TBR-0003-CN-01 ligger på The Boardrooms Stripe-konto
-(fakturaer kan ikke slettes i Stripe, kun voides/krediteres — det ER
-gjort; kunden kan slettes). Ruten er bevist 3/9, så oprydningen kan gå
-i gang.
+**Planen for oprydningen (skrevet 2/9, historik):** `hardDeleteCompany`
+med `deleteUsers: true` (via `admin-cleanup-test-data`
+`hard_delete_company`, dry-run først), plus resterne fra
+`recon-testvirksomhed.md` §4–5: storage-objekter, notifikationer uden
+`company_id`, `user_id`-tabeller uden FK-cascade (`conversation_last_seen`,
+`message_reactions`, `report_comments`, `circle_*`, `group_*`);
+`group_companies` ville blokere sletningen hvis en række fandtes. SELECT
+før/efter, og bogfør FØR-værdierne her.
+
+### ✅ RYDDET 3/9 kl. 10:52–10:57 — trin 14 gennemført
+
+**Målt FØR (3/9 kl. 10:50):** FLOOR1 havde 3 `company_members`, 3
+`company_invitations`, 1 `company_betalingslink`, 1 `company_perioder`,
+1 `conversation`, 2 `agent_runs`, 10 `agent_proposals`. Ingen
+storage-objekter, ingen rækker i `_facts_backfill_log`.
+
+**Gjort, i denne rækkefølge:**
+
+1. **FLOOR1 I/S** slettet via /members' slet-dialog med «slet også
+   brugerne» (`manage-advisor` `delete-company` → `hardDeleteCompany`,
+   `deleteUsers: true`). Efter: alle rækker væk, og `jonas+test1/2/3`
+   væk fra `auth.users`. Deres notifikationer forsvandt med, fordi de
+   bar `company_id`. Planens vej gennem `admin-cleanup-test-data` blev
+   IKKE brugt — se lærdommen i OVERLEVERING DEL 4: den funktion
+   autentificerer en bruger, ikke service-rollen, så vault-nøglen giver
+   401/403.
+2. **«Jonas legat»** (`1196c02a-3670-4b4e-a456-84dc70cfda73`) — den
+   ældre testvirksomhed fra april, `is_legat = false`, med 1 medlem, 1
+   samtale, 3 `financial_reports`, 1 `legat_enrollment`, 1 milestone.
+   Det var DEN virksomhed der bar de to annullerede testabonnementer i
+   Stripe (fornyelsestesten 1/9 og indgangstesten). Storage-filerne blev
+   slettet FØRST i Lovables Storage-flade, mens stien var kendt:
+   `financial-documents/1196c02a-…/annual/` med `Arsrapport_2024_25.pdf`
+   og to `Skattebilag_2024_25.pdf` (to af de tre rapporter stod som
+   «error»). Derefter virksomheden via samme slet-dialog med brugere.
+3. **`jonas+test45login@topix.dk`** (`57ead332-a16b-4c99-8018-067278756e55`),
+   forældreløs uden `company_members`: slettet direkte fra SQL editoren
+   — `notifications`, `user_login_log`, derefter `auth.users` (`profiles`
+   og `user_roles` fulgte med i kaskaden).
+
+**Målt EFTER:** ingen testbrugere tilbage, ingen rester på nogen af de
+tre id'er, ingen storage-filer. 38 virksomheder, 44 auth-brugere, 41
+profiler.
+
+**Besluttet 3/9 (Jonas; Claude anbefalede): Stripe-objekterne bliver
+stående.** Tre testkunder findes på kontoen — FLOOR1's
+`cus_VBtMOGBenIfWt4` og to fra «Jonas legat» — uden abonnementer og uden
+betalingsmetoder. FLOOR1's kunde bærer faktura TBR-0003 og kreditnota
+TBR-0003-CN-01; slettes kunden, står de to bilag uden ejer, og
+regnskabsbilag skal kunne læses. Fakturaer kan i forvejen ikke slettes
+i Stripe, kun voides eller krediteres. De tre kunder er bogført her, så
+de ikke forvirrer senere: de hører ikke til nogen virksomhed i
+databasen, og de skal ikke migreres.
