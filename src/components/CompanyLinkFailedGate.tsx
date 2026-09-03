@@ -4,9 +4,12 @@ import { useAuth } from "@/hooks/useAuth";
 import { HbCard } from "@/components/hjemmebane/HbCard";
 import { HbButton } from "@/components/hjemmebane/HbButton";
 
-/** Forsiden når koblingen konto → virksomhed FEJLEDE (useAuth:
-    companyResolution === "failed"). Før stod medlemmet på et
-    DashboardSkeleton uden timeout og uden besked
+/** Forsiden når et medlem står uden virksomhed: koblingen FEJLEDE
+    (useAuth: companyResolution === "failed"), eller tier er null efter
+    et afgjort opslag — svaret «ingen virksomhed» ("none") eller et
+    kastet fetchUserData ("pending" med loading falsk). Før trin 10
+    (docs/indgangen-overhaling.md §7.1) fangede Index kun "failed", og de
+    to andre stod på et DashboardSkeleton uden timeout og uden besked
     (docs/indgangsfladen-design.md §5). Fladen siger hvad der skete,
     uden teknik, og giver to veje: prøv igen (genindlæs — useAuth kalder
     process-pending-invitation ved hvert load, så det er et rigtigt nyt
