@@ -67,7 +67,16 @@ Og mere post er ikke svaret. Målt: 138 mails til tretten virksomheder
 der aldrig har uploadet. Limo Group alene har fået 32 siden juni og
 skriver flittigt i chatten uden at rapportere.
 
-### 3 · Community-opdagelse
+### 3 · Community-opdagelse — LØST 3/9 (#576, #577)
+
+**LØST 3/9 eftermiddag, uden om nudge-formen (punkt 2):** et nyt
+opslag udløser nu en notifikation til alle med adgang (`important`, så
+den eksisterende mailkæde sender efter 15 min med portræt, navn,
+virksomhed og uddrag), og forsidens «Fra fællesskabet» giver det nyeste
+opslag hovedhistorie-vægt. Målingen der gav retningen (seks tråde, det
+mest sete opslag set af fire ud af 26) og det åbne (medlemmerne som
+sidebar, reaktionsknappen, fravalgsnøgle) står i
+`docs/community-design.md`. Teksten nedenfor er tilstanden 1/9.
 
 Billigst værdi på hele listen. Fladen findes, indholdet findes.
 
