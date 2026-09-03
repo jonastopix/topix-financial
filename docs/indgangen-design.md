@@ -985,7 +985,14 @@ oprettelse: ved genbrug på CVR kaldes rækkebyggeren ikke. Deployet 3/9;
 bevist indirekte ved §30's faktura, hvor momsen blev beregnet efter at
 FLOOR1 fik adressen sat.
 
-**Åbent:** de 31 eksisterende virksomheder uden adresse er en
-datarettelse (samme formular som branche- og kontakt-email-oprydningen,
-`docs/indgangen-overhaling.md` §10). Enrich-stien i `import-application`
-fylder heller ikke adresse på en eksisterende virksomhed.
+**LØST 3/9 kl. 11:50–12:00 (#567) — de eksisterende virksomheder:**
+engangs-berigelsen `berig-virksomheder` (Bucket B, tørkørsel som
+standard, udfylder kun tomt) hentede adressen fra CVR for 26 af 30
+aktive virksomheder (før: 1 af 30). De fire uden: Alexander Lunds
+virksomhed, Martin Larsens virksomhed og Bastant Design har intet
+CVR-nummer; YKRG APS (CVR 44891917) blev slået op, men registret har
+ingen adresse for dem — ikke en fejl hos os. Samme kørsel satte
+kontakt-email og branche; detaljerne står i
+`docs/indgangen-overhaling.md` §10. Enrich-stien i `import-application`
+fylder stadig ikke adresse på en eksisterende virksomhed — den er nu
+uden praktisk betydning, fordi felterne er fyldt.

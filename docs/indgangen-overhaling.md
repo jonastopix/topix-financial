@@ -952,26 +952,47 @@ ruten: §10's åbne punkter.
   enrich-guard og `EditCompanyDialog`s fritekstfelt — ikke besluttet.
 - **LØST 3/9 (#553) — Mappingtabellens indhold**: skrevet med
   begrundelse pr. række i `src/lib/branchekode.ts`, mod DB25 (§6).
-- **Backfill af eksisterende virksomheder** uden `industry_code` fra
-  `application_context.raw_cvr_data`: antal, og hvor mange der har en
-  kode gemt — UKLART. Bemærk registerskiftet (§6): virksomheder slået op
-  før 1/1 2025 bærer en DB07-kode, som motoren ikke forstår; kun
-  DB25-koder kan udledes. Er en datarettelse (SELECT før/efter, guard
-  `industry_code IS NULL`), ikke en del af trin 4.
-  *Målt 3/9 formiddag — branchedataene i prod:* syv af 32 aktive
-  virksomheder har ingen `industry_code` og dermed ingen benchmarks; to
-  (WESDEX `439100`, Two Socks `563020`) har en REGISTERKODE stående i
-  feltet og får derfor heller ingen; tre har værdier motoren aldrig
-  ville sætte (`other_general`, `travel_event`, `tech_startup`); flere
-  har en kategori der er uenig med CVR-registreringen (ANLA GLAS, Limo
-  Group, Topix) — hvem der har ret kan ikke afgøres fra data, da en
-  virksomhed kan skifte aktivitet uden at rette sin branchekode.
-  Oprydningen er en datarettelse, ikke en kodeopgave.
-- **Kontakt-email er tom på de fleste virksomheder**, herunder Topix
-  (set 3/9 i Indstillinger). `sikrIndgangsInvitation` læser
-  `companies.contact_email` og kræver feltet for at kunne sende
-  invitationen. Hører sammen med branche-oprydningen — samme formular.
-  Åbent.
+- **LØST 3/9 kl. 11:50–12:00 (#567) — Backfill af eksisterende
+  virksomheder: branche, adresse og kontakt-email.** Kørt som
+  engangs-berigelsen `berig-virksomheder` (udfylder KUN tomt; registerkoder
+  i `industry_code` oversættes af motoren). *Målt FØR (kl. 11:03, 30
+  aktive):* 29 uden adresse, 17 uden kontakt-email, 3 uden
+  `industry_code`, 2 uden label, 2 med en REGISTERKODE (WESDEX `439100`,
+  Two Socks `563020` — uden branchesammenligning overhovedet). *Målt
+  EFTER (kl. 12:00):* 26 af 30 med adresse, 30 af 30 med kontakt-email,
+  29 af 30 med `industry_code` og label, ingen registerkoder tilbage.
+  De to registerkoder blev oversat: Two Socks → `food_restaurant`,
+  WESDEX → `construction_craft`; begge har nu benchmarks (bruttomargin
+  65 [55–75] og 35 [25–45]). Capture IT og Din økonomiafdeling fik kode
+  fra CVR-opslaget. 14 kontaktmails kom fra virksomhedens eget medlem;
+  de sidste tre (Din økonomiafdeling, Two Socks, WESDEX) har INGEN
+  medlemmer — de er netop dem der aldrig kom ind — og fik mailen fra den
+  ventende invitation (`nicolai@okonomi-afdelingen.dk`,
+  `simon@two-socks.com`, `jonas@wesdex.dk`): det er de adresser
+  invitationslinket allerede er sendt til.
+  **De fire huller der bliver (ægte, kan ikke lukkes maskinelt):**
+  Alexander Lunds virksomhed, Martin Larsens virksomhed og Bastant Design
+  har intet CVR-nummer (de to første er gæsterne i Netværket); Bastant
+  Design mangler også kode og label (hverken CVR eller gemt DB25); YKRG
+  APS har CVR (44891917) og opslaget lykkedes, men registret har ingen
+  adresse for dem — ikke en fejl hos os.
+- **ÅBENT — de otte uenigheder mellem CVR og platformen er IKKE rørt**
+  og skal ikke være det uden en samtale
+  (`~/Downloads/recon-branche-uenighed.md`): ANLA GLAS, Brick Works,
+  Homie, Limo Group, Studio Mini, TOFT, Topix, TuaMea. Ti af ti målte
+  koder var uenige med motoren, og for Brick Works og TuaMea ville
+  motoren svare null — de ville MISTE deres branchesammenligning.
+  Forskellen er ikke kosmetisk: ANLA GLAS' DB-margin på 50 % står i dag
+  i venstre kant af bjælken og ville med CVR-koden stå over midten.
+  Hvem der har ret kan ikke afgøres fra data — Topix er registreret som
+  computerprogrammering men er rådgivning (mennesket har ret), Limo
+  Group har varetransport i platformen og passagertransport i CVR
+  (registret har ret). Otte virksomheder, én samtale. De tidligere
+  bemærkede værdier motoren aldrig ville sætte (`other_general`,
+  `travel_event`, `tech_startup`) hører til samme samtale.
+- **LØST 3/9 (#567) — Kontakt-email** er sat på 30 af 30 aktive
+  virksomheder (se ovenfor). `sikrIndgangsInvitation` kræver feltet;
+  det er der nu.
 - **LØST 2/9 aften — Markøren for «første besøg»** (§5): ankomsten
   varer indtil tjeklisten er færdig (valg A), så markøren er
   `byggTjekliste(...).faerdig` — data pr. medlem, ingen ny kolonne.
