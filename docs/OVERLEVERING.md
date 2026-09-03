@@ -1,6 +1,6 @@
 # Overlevering
 
-**Sidst opdateret: 2. september 2026, aften.**
+**Sidst opdateret: 3. september 2026, morgen.**
 
 Læses først i enhver ny samtale. Claude husker intet mellem samtaler;
 denne fil skal kunne bære det. Den fortæller hvordan vi arbejder, hvor
@@ -128,9 +128,14 @@ samme kolonneantal og -type.
 Ved tredjepartsværktøjer: slå op frem for at huske. Stripe især — otte
 opslag på to døgn rettede otte antagelser (`cancel_at` i Checkout,
 mailbekræftelse, kundekopi, moms-id, `proration_behavior`, expire-
-endpointet, idempotency-nøgler, invoice-events). Supabase-MCP'en har
-IKKE adgang til Lovable-projektet (`execute_sql` svarer «You do not have
-permission») — prod måles i SQL editoren.
+endpointet, idempotency-nøgler, invoice-events). **Det gælder også
+offentlige registre** (lærdom 3/9): CVR's branchekode skiftede fra DB07
+til DB25 1/1 2025, og både designdokumentet og opgaven til
+branchemotoren blev skrevet fra hukommelsen mod det gamle register — et
+register vi bygger på kan være skiftet ud, uden at noget i repoet siger
+det. Supabase-MCP'en har IKKE adgang til Lovable-projektet
+(`execute_sql` svarer «You do not have permission») — prod måles i SQL
+editoren.
 
 ### Regnestykker skrives ud
 
@@ -262,7 +267,7 @@ Recon: `~/Downloads/recon-onboarding-tjekliste.md`, `recon-velkomstvideo.md`.
 ikke-gjorte punkter i stedet for (a)–(i), og hilsenen siger «Velkommen».
 Pillen står stadig ved siden af — ikke afgjort (indgangen-overhaling §10).
 
-### Adgangsrejsen — trin 1–2, 5–9 og 11–12 bevist 2/9; af ruten mangler blindgyden og det grønne blink
+### Adgangsrejsen — trin 1–2, 5–9, 11–13 bevist; af ruten mangler kun blindgyden
 
 `docs/indgangsfladen-design.md` (design §1–8, 2/9 nat; tillæg §9–13,
 2/9 aften) og `~/Downloads/recon-adgangsrejsen.md` (designet holdt op
@@ -297,18 +302,40 @@ null, ResetPassword og 404, feltklasser i `hjemmebane/hbFormKlasser.ts`
 (#551). Google er fjernet fra signup og findes kun på login — besluttet,
 fordi Google-vejen ikke bærer invitationstokenet (§3); den rigtige
 løsning er at koble Google på bagefter (§10). Jonas bekræftede login,
-signup og nulstil på skærm. **Mangler af ruten:** blindgyden (trin 10,
-§7.1) og **det grønne blink efter login** (trin 13, målt 3/9:
-`Index.tsx:202-208` tegner det gamle mørkegrønne DashboardSkeleton,
-fordi `useAuth` aldrig sætter `loading` tilbage til true ved SIGNED_IN
-— rettes i useAuth efter recon på hvem der læser `loading`, IKKE ved
-at konvertere skelettet). Uden for ruten: branchen (trin 1–4), §7.2–7.4
-og §7.7, de tre `valueCards` uden hjem, pillens rolle i ankomsten,
-velkomst-punktet uden knap i kortet (skal løses før `velkomstvideo_guid`
-sættes), Google-kobling som kontoindstilling.
+signup og nulstil på skærm. **Det grønne blink efter login er væk, 3/9
+morgen (trin 13, #554):** `useAuth` sætter `loading = true` ved
+overgangen ingen-session → session (en `useRef`, ikke `user` fra
+closure) og nulstiller markøren når sessionen forsvinder. Betingelsen
+er bevidst overgangen og IKKE `_event === "SIGNED_IN"`, fordi auth-js
+udsender SIGNED_IN ved faneskift, cross-tab broadcast, re-auth ved
+kodeordsskift og hard reload — et `loading = true` dér ville afmontere
+hele rute-træet midt i en handling. Bevist af Jonas 3/9 i alle fire
+scenarier; skelet-grenen i Index er urørt. **Mangler af ruten:** kun
+blindgyden (trin 10, §7.1: grænse på skelettet, `none` = fejl for
+ikke-rådgivere, skelet i Hb-tokens). Uden for ruten: branchen (trin
+2–4, se afsnittet nedenfor), §7.2–7.4 og §7.7, de tre `valueCards` uden
+hjem, pillens rolle i ankomsten, velkomst-punktet uden knap i kortet
+(skal løses før `velkomstvideo_guid` sættes), Google-kobling som
+kontoindstilling.
 Målt 2/9 i prod: `handle_new_user` er IKKE fail-closed på
 `email_confirmed_at` og afviser signup uden invitation med P0001;
 rådgivergrenen kommer først. CLAUDE.md er rettet (#537).
+
+### Branchemotoren — trin 1 bygget 3/9, ingen aftager endnu
+
+`docs/indgangen-overhaling.md` §6 og §9 trin 1–4. Ren motor
+`udledBranchekode` i `src/lib/branchekode.ts` (#553): opslag seks →
+fire → tre → to cifre, tabel med begrundelse pr. række, 113 tests.
+`INDUSTRY_OPTIONS` er flyttet fra `Settings.tsx` til `src/lib/brancher.ts`,
+så motoren og Settings deler én kilde til labels. Besluttet 3/9 (Jonas):
+motoren sætter `industry_code`; `industry_label` KUN hvis den er tom;
+rammer mappingen ikke, står begge felter tomme, og der sættes ALDRIG
+`other_general`. **Registret er DB25, ikke DB07** — CVR skiftede 1/1
+2025; §6 er rettet 3/9, motoren er bygget mod DB25 (fixture fra
+Danmarks Statistik). Mangler: trin 2's bevis i prod (Settings' select
+uændret efter Update), trin 3 (spejl til Deno + paritetstest), trin 4
+(motoren kaldes ved oprettelsen — ny delt fil ⇒ eksplicit deploy af
+`monday-webhook` og `import-application`).
 
 ### Oprydningen 2/9
 
@@ -343,7 +370,8 @@ facit og rækkefølge; `docs/chat-design.md` chattens form.
 | åbent | **Velkomstvideoen skal optages** (Morten). Pladsen er bygget; GUID'et sættes i /admin/config. | recon-velkomstvideo |
 | åbent | **Rundvisningen** — interaktiv førstegangs-oplevelse efter velkomsten; bygges efter C3-indflytningen; må aldrig eksistere ved siden af Guiden. | BACKLOG [P2·EPIC] Platform-onboarding |
 | åbent | **Adminfladens overhaling** — rådgiverfladen tages samlet som ét epic, efter medlemsdesignet. /members har i dag IndgangsSektion + FornyelsesSektion i gammelt design. | prioritering §6 |
-| **næste spor** | **Det grønne blink efter login** (indgangens overhaling, trin 13): `loading = true` ved SIGNED_IN i `useAuth`, så MemberRoute holder porten til tier er afgjort. FØRST recon på hvem der læser `loading`. Bevis: log ud og ind — ingen mørkegrøn skærm. Derefter trin 10 (blindgyden: grænse + udvej + lyst skelet). Trin 11–12 (Auth-fladen) er gennemført 2/9 nat; trin 1–4 (branchen) står stadig og er uafhængige. | `docs/indgangen-overhaling.md` §7.1, §9 |
+| **næste spor** | **Blindgyden** (indgangens overhaling, trin 10): grænse på skelettet efter N sekunder → `CompanyLinkFailedGate`; `companyResolution = "none"` behandles som fejl for ikke-rådgivere; skelettet i Hb-tokens. N er ikke afgjort (§10). Det grønne blink (trin 13) er rettet og bevist 3/9 (#554); trin 11–12 gennemført 2/9 nat. | `docs/indgangen-overhaling.md` §7.1, §9 |
+| næste spor | **Branchemotorens aftager** (trin 2–4): trin 2's bevis i prod efter Update-klik; spejl til `_shared/branchekode.ts` + paritetstest; kaldet ved oprettelsen med eksplicit deploy af `monday-webhook` og `import-application`. Bevis: næste «Godkendt» på Monday giver en række med `industry_code` sat. Uafhængigt af blindgyden. | `docs/indgangen-overhaling.md` §6, §9 |
 | åbent | Ankomstens løse ender: pillen viser samme punkter som fokuskortet (Claudes dom: den bør trække sig — ikke besluttet); velkomst-punktet kan ikke trykkes i kortet — skal løses FØR `velkomstvideo_guid` sættes; «Dine tal»-kortets tomme tilstand står nederst. | `docs/indgangen-overhaling.md` §10 |
 | når ruten er bevist | **Testvirksomheden FLOOR1 I/S** (`fea24b90-…`, `jonas+test1/2/3@topix.dk`) skal fjernes helt: hardDelete med brugere + storage- og user_id-rester. | `docs/indgangen-overhaling.md` §11, `~/Downloads/recon-testvirksomhed.md` |
 | åbent | Nudge-formen som designdokument, Community-opdagelse, Events (bekræftelse, kalender, lokation), Milepælene ud — rækkefølgen fra 1/9 står. | prioritering §2–5 |
@@ -407,6 +435,13 @@ De konkrete ting der har kostet tid. Led efter dem.
   ikke i Checkout; Checkout-sessioner lever 24 timer uanset databasen
   (nu 30 min); `enabled_events` på et webhook-endpoint ERSTATTER listen;
   delvis kundekopi kræver CSV uden overskrift.
+- **CVR's branchekode er DB25, ikke DB07** (siden 1/1 2025; 738 koder på
+  87 afdelinger, dansk underopdeling af NACE rev. 2.1). Designdokument
+  og opgave blev skrevet mod DB07 fra hukommelsen; stikprøver mod
+  cvrapi.dk 3/9 (`478100`, `953190`) fandt koder der kun findes i DB25,
+  og DB07's afdeling 45 (biler) er nedlagt. Virksomheder slået op før
+  2025 bærer stadig DB07-koder i `raw_cvr_data`. Et offentligt register
+  kan være skiftet ud uden spor i repoet — slå op.
 - **`profiles` er nøglet på `user_id`, ikke `id`.**
 - **To betydninger af «sendt»:** `betalingsmail_sendt_at` betyder
   enqueued; `email_send_log.status = 'sent'` betyder leveret til Lovable.
