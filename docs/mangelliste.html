@@ -60,7 +60,7 @@
        først, fordi den ramte medlemmerne.
 
     data-spor (præcis én værdi)
-       "1".."7"      trinnet i Rækkefølgen øverst. Live fejl hører til
+       "1".."7"      trinnet i Rækkefølgen nederst på siden. Live fejl hører til
                      det spor de rammer, ikke et eget spor.
        "senere"      hører ikke til et af de syv.
        Spor 6 følger docs/raadgiverfladen-design.md §11: punkt 1, 3, 4
@@ -74,8 +74,55 @@
        tag size      grå («Lille», «Mellem», «Stor»).
        Rammer-mærket sættes af JavaScript ud fra data-rammer.
 
-    Søgningen læser hele kortets tekst. Tælleren og sportællerne regnes
-    ud af JavaScript ved indlæsning — intet skal opdateres i hånden.
+    Søgningen læser hele kortets tekst. Tælleren, tallene på hver
+    filterknap og sportællerne regnes ud af JavaScript — intet skal
+    opdateres i hånden. Rækkefølgen står NEDERST (besluttet 4/9), så
+    filterknapperne og det første kort er synlige uden at scrolle;
+    begrundelsen står i kommentaren ved afsnittet.
+
+  RANGERINGEN — data-vaerdi (Jonas 4/9: «listen viser hvad der udestår,
+  men ikke hvad man tager mandag morgen»)
+    ET FORSLAG, IKKE EN DOM. Listen kender ikke forretningen: Circle-
+    exit, at fornyelsesordningen træder i kraft 10/9, og at nye
+    medlemmer kommer ind — det ændrer rækkefølgen, og kun Jonas og
+    Morten kan afgøre det. Rangeringen sorterer; mennesket overstyrer.
+
+    Feltet skrives af JavaScript ved indlæsning (som Rammer-mærket og
+    tællerne) — intet står i hånden på kortene. Fire kriterier, i den
+    rækkefølge de blev bevist i praksis 4/9, ét ciffer hver, så tallet
+    kan læses ciffer for ciffer, og det forreste ciffer altid slår alt
+    bag det (en medlem-fejl slår enhver rådgiver-ting, uanset pris):
+
+      1. HVEM MÆRKER DET   data-rammer   medlem 2 · raadgiver 1 · ingen 0
+      2. FEJL FØR MANGEL   data-status   fejl 3 · mangler 2 · beslutning 1 · ide 0
+      3. BLOKERER DET      class blocked 1 · ellers 0
+      4. HVAD KOSTER DET   tag size      Lille 3 · Mellem 2 · Stor 1 · intet 0
+
+      værdi = rammer·1000 + status·100 + blokerer·10 + koster
+
+    Eksempler (kortene som de stod 4/9):
+      «Poster kan ikke slettes»            medlem, fejl, blocked, Lille   → 2313  øverst
+      «Fortegnet vender på omkostninger…»  medlem, fejl, blocked, Mellem  → 2312
+      «Dag 31: ingen rykkere …»            medlem, fejl, —, Lille         → 2303  samme fejl-
+                                            klasse og lige så billig, men den låser intet op
+      «Rundvisningen og velkomstvideoen»   medlem, mangler, —, Mellem     → 2202
+      «Sekvensmotoren — nu tre kopier»     ingen, mangler, —, Stor        → 0201
+      «Abonnenter kan ikke opsige selv»    ingen, ide, —, intet size-tag  → 0000  nederst
+
+    HVAD KORTENE IKKE BÆRER — og hvad der IKKE er gættet:
+      «Blokerer» læses af klassen blocked alene, som filhovedet
+      definerer den («blokerer noget andet»). Tag-teksten «Blokerer …»
+      bruges ikke: 22 kort har klassen uden tagget, ingen har tagget
+      uden klassen. Graden («Blokerer meget», «… skala») tælles ikke —
+      den er ikke målt.
+      «Koster» læses af size-tagget alene (Lille/Mellem/Stor). 14 kort
+      har intet size-tag og får 0 — UNDER Stor: det umålte står bagest
+      i sin gruppe, det er ikke skønnet billigt. Beslutning og idé står
+      under mangler, fordi ingen af dem kan bygges mandag morgen før
+      nogen har besluttet — og det er Jonas' og Mortens, ikke listens.
+
+    «Mandag morgen» i værktøjslinjen samler alle kort i én rækkefølge
+    efter værdi (lige værdi: som skrevet). Filtrene virker oveni.
 -->
 <html lang="da">
 <head>
@@ -138,6 +185,12 @@
   .fbtn { font: inherit; font-size: 12px; font-weight: 500; color: var(--soft); background: var(--surface); border: 1px solid var(--line); border-radius: 99px; padding: 5px 12px; cursor: pointer; }
   .fbtn:hover { border-color: var(--evergreen); color: var(--ink); }
   .fbtn.on { background: var(--evergreen); border-color: var(--evergreen); color: #f4f1ea; }
+  .fbtn .n { display: inline-block; margin-left: 6px; min-width: 1.6em; padding: 0 5px; border-radius: 99px; background: #efece5; color: var(--soft); font-size: 11px; font-variant-numeric: tabular-nums; text-align: center; }
+  .fbtn.on .n { background: rgba(255,255,255,0.18); color: #f4f1ea; }
+  .fbtn.zero { opacity: 0.45; }
+  .fbtn.zero:hover { border-color: var(--line); color: var(--soft); }
+  .tlink { color: var(--rust); text-decoration: none; margin-left: 10px; }
+  .tlink:hover { text-decoration: underline; }
   .count { margin-left: auto; font-size: 13px; color: var(--soft); font-variant-numeric: tabular-nums; white-space: nowrap; }
   .count strong { color: var(--ink); font-weight: 500; }
   .hide { display: none !important; }
@@ -190,59 +243,7 @@
       <button class="fbtn" data-spor="7">7</button>
       <button class="fbtn" data-spor="senere">Senere</button>
     </div>
-    <div class="count" id="count">viser <strong>0</strong> af 0</div>
-  </div>
-
-  <p class="eyebrow">Navigationen</p>
-  <h2>Rækkefølgen</h2>
-  <p class="lede">Sorteret efter hvad der spærrer for hvad. Klik på et trin for at se dets kort; klik igen for at se alle. Tallene regnes ud af kortene herunder. Hvad der er sket på hvert spor, står i OVERLEVERING — her står kun hvad der er tilbage.</p>
-
-  <div class="tier" data-spor="1">
-    <h3>1 · Få folk igennem den forreste dør</h3>
-    <p class="cnt"></p>
-    <p class="why">Indgangen er bygget og bevist 2.–3. september. Det der står tilbage: aktiveringen af dem der aldrig uploader, uploadfælderne, migrationen af de tretten abonnementer, og ankomstens løse ender.</p>
-  </div>
-  <div class="tier" data-spor="2">
-    <h3>2 · Ret det der er forkert i tallene</h3>
-    <p class="cnt"></p>
-    <p class="why">Fire fund fra 27. august; ingen af dem er bogført som rettet i OVERLEVERING.</p>
-  </div>
-  <div class="tier" data-spor="3">
-    <h3>3 · Stop det der lækker</h3>
-    <p class="cnt"></p>
-    <p class="why">Små live fejl uden afhængigheder. Rådgiver-gaten <code>erAktivtRaadgiverforhold</code> fra 2/9-listen findes ikke længere under det navn (grep 4/9 i <code>src</code> og <code>supabase</code>: 0 træffere) og står derfor ikke som kort.</p>
-  </div>
-  <div class="tier" data-spor="4">
-    <h3>4 · Fjern uploadproblemet i stedet for at gøre det mindre</h3>
-    <p class="cnt"></p>
-    <p class="why">Direkte integration til regnskabssystemer. Idé, ikke besluttet.</p>
-  </div>
-  <div class="tier" data-spor="5">
-    <h3>5 · Opgave-modellen færdig, og tilstandslaget</h3>
-    <p class="cnt"></p>
-    <p class="why">Ét epic siden 4/9: opgave-modellen, Milestones og refleksionen tages samlet, i én samtale med fire spørgsmål.</p>
-  </div>
-  <div class="tier" data-spor="6">
-    <h3>6 · Rådgiverfladen</h3>
-    <p class="cnt"></p>
-    <p class="why">Rådgiverens hverdag er Hjemmebane hele vejen siden 4/9 aften. Af designets §11 er punkt 1, 3, 4 og 5 løst og punkt 2 udgået; punkt 6 (forsiden — og <code>/members</code>' elleve dele), 7 (emnerne) og 8 (platform-blokken) står. Dertil det der er set på mobil.</p>
-  </div>
-  <div class="tier" data-spor="7">
-    <h3>7 · Fastholdelse</h3>
-    <p class="cnt"></p>
-    <p class="why">Venter bevidst på at aftalerne kan måles ærligt. Fornyelsen bærer siden 1/9 — i tavshed.</p>
-  </div>
-  <div class="tier parked" data-spor="senere">
-    <h3>Senere</h3>
-    <p class="cnt"></p>
-    <p class="why">Rettelser, oprydning og idéer uden plads i rækkefølgen endnu, og det parkerede agentspor.</p>
-  </div>
-
-  <div class="legend" style="margin-top:28px">
-    <span><i class="swatch" style="background:var(--rust)"></i> Blokerer noget andet</span>
-    <span><i class="swatch" style="background:var(--gold)"></i> Kræver en beslutning først</span>
-    <span><i class="swatch" style="background:var(--evergreen)"></i> Nyt siden 2. september</span>
-    <span><i class="swatch" style="background:var(--line)"></i> Kan bygges når som helst</span>
+    <div class="count" id="count"><span id="countTxt">viser <strong>0</strong> af 0</span> <a href="#" id="reset" class="tlink hide">nulstil</a> <a href="#raekkefoelgen" class="tlink">Rækkefølgen ↓</a></div>
   </div>
 
   <!-- ============================================================ -->
@@ -1031,6 +1032,69 @@
   </div>
   </section>
 
+  <!-- RÆKKEFØLGEN STÅR NEDERST — valgt 4/9 (Jonas: «det er træls, at
+       rækkefølgen altid ligger øverst — så får man ikke den interaktive
+       fornemmelse af filteret»). Af de tre muligheder (flyt ned, fold
+       sammen bag en knap, smal linje der foldes ud) er FLYT NED valgt:
+       filterknapperne og det første kort er så synlige uden at scrolle,
+       og der er ingen tilstand at huske og ingen knap der kan stå
+       forkert. Rækkefølgen er stadig navigation: linket «Rækkefølgen ↓»
+       i værktøjslinjen fører herned, et klik på et trin filtrerer og
+       ruller op til det første kort, og spor-knappernes title-tekst
+       bærer trinnets navn, så tallene 1–7 kan læses uden at komme herned. -->
+  <p class="eyebrow" id="raekkefoelgen" style="scroll-margin-top:90px">Navigationen</p>
+  <h2>Rækkefølgen</h2>
+  <p class="lede">Sorteret efter hvad der spærrer for hvad. Klik på et trin for at se dets kort — siden ruller op til det første; klik igen for at se alle. Tallene regnes ud af kortene ovenfor. Hvad der er sket på hvert spor, står i OVERLEVERING — her står kun hvad der er tilbage.</p>
+
+  <div class="tier" data-spor="1">
+    <h3>1 · Få folk igennem den forreste dør</h3>
+    <p class="cnt"></p>
+    <p class="why">Indgangen er bygget og bevist 2.–3. september. Det der står tilbage: aktiveringen af dem der aldrig uploader, uploadfælderne, migrationen af de tretten abonnementer, og ankomstens løse ender.</p>
+  </div>
+  <div class="tier" data-spor="2">
+    <h3>2 · Ret det der er forkert i tallene</h3>
+    <p class="cnt"></p>
+    <p class="why">Fire fund fra 27. august; ingen af dem er bogført som rettet i OVERLEVERING.</p>
+  </div>
+  <div class="tier" data-spor="3">
+    <h3>3 · Stop det der lækker</h3>
+    <p class="cnt"></p>
+    <p class="why">Små live fejl uden afhængigheder. Rådgiver-gaten <code>erAktivtRaadgiverforhold</code> fra 2/9-listen findes ikke længere under det navn (grep 4/9 i <code>src</code> og <code>supabase</code>: 0 træffere) og står derfor ikke som kort.</p>
+  </div>
+  <div class="tier" data-spor="4">
+    <h3>4 · Fjern uploadproblemet i stedet for at gøre det mindre</h3>
+    <p class="cnt"></p>
+    <p class="why">Direkte integration til regnskabssystemer. Idé, ikke besluttet.</p>
+  </div>
+  <div class="tier" data-spor="5">
+    <h3>5 · Opgave-modellen færdig, og tilstandslaget</h3>
+    <p class="cnt"></p>
+    <p class="why">Ét epic siden 4/9: opgave-modellen, Milestones og refleksionen tages samlet, i én samtale med fire spørgsmål.</p>
+  </div>
+  <div class="tier" data-spor="6">
+    <h3>6 · Rådgiverfladen</h3>
+    <p class="cnt"></p>
+    <p class="why">Rådgiverens hverdag er Hjemmebane hele vejen siden 4/9 aften. Af designets §11 er punkt 1, 3, 4 og 5 løst og punkt 2 udgået; punkt 6 (forsiden — og <code>/members</code>' elleve dele), 7 (emnerne) og 8 (platform-blokken) står. Dertil det der er set på mobil.</p>
+  </div>
+  <div class="tier" data-spor="7">
+    <h3>7 · Fastholdelse</h3>
+    <p class="cnt"></p>
+    <p class="why">Venter bevidst på at aftalerne kan måles ærligt. Fornyelsen bærer siden 1/9 — i tavshed.</p>
+  </div>
+  <div class="tier parked" data-spor="senere">
+    <h3>Senere</h3>
+    <p class="cnt"></p>
+    <p class="why">Rettelser, oprydning og idéer uden plads i rækkefølgen endnu, og det parkerede agentspor.</p>
+  </div>
+
+  <div class="legend" style="margin-top:28px">
+    <span><i class="swatch" style="background:var(--rust)"></i> Blokerer noget andet</span>
+    <span><i class="swatch" style="background:var(--gold)"></i> Kræver en beslutning først</span>
+    <span><i class="swatch" style="background:var(--evergreen)"></i> Nyt siden 2. september</span>
+    <span><i class="swatch" style="background:var(--line)"></i> Kan bygges når som helst</span>
+  </div>
+
+
   <footer>
     Mangellisten, flyttet ind i repoet 4. september 2026 fra arbejdsregistret af 2. september · Historikken står i <em>docs/OVERLEVERING.md</em>; rækkefølgen for rådgiverfladen i <em>docs/raadgiverfladen-design.md</em> §11 · Et kort forsvinder herfra når det er løst.
   </footer>
@@ -1043,7 +1107,9 @@
   var sections = Array.prototype.slice.call(document.querySelectorAll('section.topic'));
   var tiers = Array.prototype.slice.call(document.querySelectorAll('.tier[data-spor]'));
   var q = document.getElementById('q');
-  var countEl = document.getElementById('count');
+  var toolbar = document.getElementById('toolbar');
+  var countTxt = document.getElementById('countTxt');
+  var resetEl = document.getElementById('reset');
   var statusBtns = Array.prototype.slice.call(document.querySelectorAll('#statusGroup .fbtn'));
   var rammerBtns = Array.prototype.slice.call(document.querySelectorAll('#rammerGroup .fbtn'));
   var sporBtns = Array.prototype.slice.call(document.querySelectorAll('#sporGroup .fbtn'));
@@ -1070,22 +1136,61 @@
     btns.forEach(function (b) { b.classList.toggle('on', b.dataset[key] === value); });
   }
 
+  function passes(c, term, status, rammer, spor) {
+    return (!term || c._txt.indexOf(term) !== -1)
+      && (status === 'alt' || c.dataset.status === status)
+      && (rammer === 'alle' || c.dataset.rammer === rammer)
+      && (spor === 'alle' || c.dataset.spor === spor);
+  }
+
+  // Tallet på hver knap er hvad ET KLIK PÅ DEN ville vise, givet de to
+  // andre filtre og søgningen — så man kan se hvad klikket giver, før
+  // man klikker. Nul dæmpes; knappen virker stadig.
+  function tael(btns, key, term) {
+    btns.forEach(function (b) {
+      var v = b.dataset[key], n = 0;
+      cards.forEach(function (c) {
+        if (passes(c, term,
+          key === 'status' ? v : state.status,
+          key === 'rammer' ? v : state.rammer,
+          key === 'spor' ? v : state.spor)) n++;
+      });
+      var el = b.querySelector('.n');
+      if (!el) { el = document.createElement('span'); el.className = 'n'; b.appendChild(el); }
+      el.textContent = n;
+      b.classList.toggle('zero', n === 0);
+    });
+  }
+
   function apply() {
     var term = state.term.trim().toLowerCase();
     var shown = 0;
     cards.forEach(function (c) {
-      var ok = (!term || c._txt.indexOf(term) !== -1)
-        && (state.status === 'alt' || c.dataset.status === state.status)
-        && (state.rammer === 'alle' || c.dataset.rammer === state.rammer)
-        && (state.spor === 'alle' || c.dataset.spor === state.spor);
+      var ok = passes(c, term, state.status, state.rammer, state.spor);
       c.classList.toggle('hide', !ok);
       if (ok) shown++;
     });
     sections.forEach(function (s) {
       s.classList.toggle('hide', s.querySelectorAll('.card:not(.hide)').length === 0);
     });
-    countEl.innerHTML = 'viser <strong>' + shown + '</strong> af ' + total;
+    tael(statusBtns, 'status', term);
+    tael(rammerBtns, 'rammer', term);
+    tael(sporBtns, 'spor', term);
+    var filtering = !!term || state.status !== 'alt' || state.rammer !== 'alle' || state.spor !== 'alle';
+    countTxt.innerHTML = 'viser <strong>' + shown + '</strong> af ' + total;
+    resetEl.classList.toggle('hide', !filtering);
     tiers.forEach(function (t) { t.classList.toggle('on', t.dataset.spor === state.spor); });
+  }
+
+  // Umiddelbar respons: efter et klik skal resultatet stå lige under
+  // værktøjslinjen. Er man rullet ned i siden (fx nede ved Rækkefølgen),
+  // rulles op til det første synlige afsnit; står man øverst, sker intet.
+  function visResultat() {
+    var first = document.querySelector('section.topic:not(.hide)');
+    if (!first) return;
+    var top = first.getBoundingClientRect().top;
+    var tb = toolbar.getBoundingClientRect().bottom;
+    if (top < tb || top > window.innerHeight * 0.6) first.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
   // Sportællere i Rækkefølgen: regnes af kortene, uafhængigt af filtre.
@@ -1103,8 +1208,14 @@
       setActive(sporBtns, 'spor', state.spor);
       apply();
       var first = document.querySelector('section.topic:not(.hide)');
-      if (first && state.spor !== 'alle') first.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      if (first) first.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
+  });
+
+  // Spor-knappernes title bærer trinnets navn fra Rækkefølgen nederst.
+  sporBtns.forEach(function (b) {
+    var t = document.querySelector('.tier[data-spor="' + b.dataset.spor + '"] h3');
+    if (t) b.title = t.textContent;
   });
 
   statusBtns.forEach(function (b) {
@@ -1112,6 +1223,7 @@
       state.status = b.dataset.status;
       setActive(statusBtns, 'status', state.status);
       apply();
+      visResultat();
     });
   });
   rammerBtns.forEach(function (b) {
@@ -1119,6 +1231,7 @@
       state.rammer = b.dataset.rammer;
       setActive(rammerBtns, 'rammer', state.rammer);
       apply();
+      visResultat();
     });
   });
   sporBtns.forEach(function (b) {
@@ -1126,15 +1239,98 @@
       state.spor = b.dataset.spor;
       setActive(sporBtns, 'spor', state.spor);
       apply();
+      visResultat();
     });
   });
 
-  q.addEventListener('input', function () { state.term = q.value; apply(); });
+  q.addEventListener('input', function () { state.term = q.value; apply(); visResultat(); });
+  resetEl.addEventListener('click', function (e) {
+    e.preventDefault();
+    q.value = ''; state.term = ''; state.status = 'alt'; state.rammer = 'alle'; state.spor = 'alle';
+    setActive(statusBtns, 'status', 'alt'); setActive(rammerBtns, 'rammer', 'alle'); setActive(sporBtns, 'spor', 'alle');
+    apply();
+  });
   q.addEventListener('keydown', function (e) {
     if (e.key === 'Escape') { q.value = ''; state.term = ''; apply(); }
   });
 
   apply();
+})();
+</script>
+<script>
+// RANGERINGEN — data-vaerdi og «Mandag morgen». Egen blok, rører ikke
+// filterscriptet ovenfor: det læser kortene, dette skriver ét felt på
+// dem og flytter dem. Regnestykket står i filhovedet («RANGERINGEN»);
+// her står kun tallene. Et forslag, ikke en dom — se filhovedet.
+(function () {
+  var RAMMER = { medlem: 2, raadgiver: 1, ingen: 0 };
+  var STATUS = { fejl: 3, mangler: 2, beslutning: 1, ide: 0 };
+  var KOSTER = { Lille: 3, Mellem: 2, Stor: 1 };
+  var cards = Array.prototype.slice.call(document.querySelectorAll('.card'));
+
+  cards.forEach(function (c, i) {
+    var size = null;
+    Array.prototype.forEach.call(c.querySelectorAll('.tag.size'), function (t) {
+      if (KOSTER.hasOwnProperty(t.textContent.trim())) size = t.textContent.trim();
+    });
+    var v = (RAMMER[c.dataset.rammer] || 0) * 1000
+      + (STATUS[c.dataset.status] || 0) * 100
+      + (c.classList.contains('blocked') ? 1 : 0) * 10
+      + (size ? KOSTER[size] : 0);
+    c.dataset.vaerdi = ('000' + v).slice(-4);
+    // Hvor kortet stod, så «Som skrevet» kan sætte det tilbage.
+    c._hjem = { parent: c.parentNode, next: c.nextSibling, index: i };
+    var meta = c.querySelector('.meta');
+    if (meta) {
+      var tag = document.createElement('span');
+      tag.className = 'tag size';
+      tag.title = 'Værdi: rammer · status · blokerer · koster — se filhovedet';
+      tag.textContent = 'Værdi ' + c.dataset.vaerdi;
+      meta.appendChild(tag);
+    }
+  });
+
+  // Samlingen alle kort flyttes til i «Mandag morgen»-tilstand — sat ind
+  // foran første afsnit, så filterlinjen står urørt over.
+  var samling = document.createElement('div');
+  samling.id = 'rangeret';
+  samling.className = 'hide';
+  samling.innerHTML = '<p class="eyebrow">Mandag morgen</p><h2>Rangeret efter værdi</h2>'
+    + '<p class="lede">Et forslag, ikke en dom. Listen kender ikke forretningen — Circle-exit, fornyelsesordningen fra 10/9 og nye medlemmer ændrer rækkefølgen, og kun Jonas og Morten kan afgøre det. Rangeringen sorterer; mennesket overstyrer. Fire cifre pr. kort: hvem mærker det · fejl før mangel · blokerer det · hvad koster det. Regnestykket står i filhovedet.</p>'
+    + '<div class="grid"></div>';
+  var grid = samling.querySelector('.grid');
+  var foerste = document.querySelector('section.topic');
+  if (foerste) foerste.parentNode.insertBefore(samling, foerste);
+
+  var toolbar = document.getElementById('toolbar');
+  var countEl = document.getElementById('count');
+  var group = document.createElement('div');
+  group.className = 'group';
+  group.id = 'sortGroup';
+  group.innerHTML = '<span class="lbl">Orden</span>'
+    + '<button class="fbtn on" data-orden="skrevet">Som skrevet</button>'
+    + '<button class="fbtn" data-orden="vaerdi">Mandag morgen</button>';
+  if (toolbar) toolbar.insertBefore(group, countEl || null);
+  var btns = Array.prototype.slice.call(group.querySelectorAll('.fbtn'));
+
+  function saet(orden) {
+    btns.forEach(function (b) { b.classList.toggle('on', b.dataset.orden === orden); });
+    if (orden === 'vaerdi') {
+      cards.slice().sort(function (a, b) {
+        var d = parseInt(b.dataset.vaerdi, 10) - parseInt(a.dataset.vaerdi, 10);
+        return d !== 0 ? d : a._hjem.index - b._hjem.index;
+      }).forEach(function (c) { grid.appendChild(c); });
+      samling.classList.remove('hide');
+    } else {
+      // Tilbage i ORIGINAL rækkefølge: fra sidst til først, så next-
+      // ankeret altid allerede står på plads.
+      cards.slice().reverse().forEach(function (c) { c._hjem.parent.insertBefore(c, c._hjem.next); });
+      samling.classList.add('hide');
+    }
+  }
+  btns.forEach(function (b) {
+    b.addEventListener('click', function () { saet(b.dataset.orden); });
+  });
 })();
 </script>
 </body>
