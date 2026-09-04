@@ -60,10 +60,24 @@ import {
   type MessageTopic,
 } from "@/lib/chatShared";
 
-const CompanyChatPane = () => {
+/**
+ * `laastTilCompanyId` (VALGFRI, additiv — Jonas 4/9, raadgiverfladen-
+ * design.md §3.4/§4 blok 4): sat af virksomhedssiden, som viser ÉN tråd i
+ * fuld højde. Når den er sat: samtalen findes på virksomhedens company_id
+ * (ikke rådgiverens company-override), samtalelisten hentes IKKE som
+ * indbakke og vises ikke, og links til /members/:userId skjules — man er
+ * allerede på virksomheden. Indbakken er /chat (bevidst dublet, §3.4).
+ * Uden prop'en opfører komponenten sig NØJAGTIG som før: ChatShell giver
+ * ingen props, og hver gren nedenfor er `laast ? … : <som før>`.
+ */
+const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } = {}) => {
+  const laast = !!laastTilCompanyId;
   const { user, isAdvisor: rawAdvisor, companyId, isCompanyOverride, companyName } = useAuth();
   const { viewingAsMember } = useViewMode();
   const isAdvisor = rawAdvisor && !viewingAsMember;
+  // Låst tilstand: er samtalelisten hentet? Uden den ville tom-tilstanden
+  // blinke før første svar.
+  const [samtalerHentet, setSamtalerHentet] = useState(false);
   const isMobile = useIsMobile();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -227,7 +241,11 @@ const CompanyChatPane = () => {
         .select("id, member_id, company_id, last_message_at, created_at, awaiting_reply_from, assigned_advisor_id, last_member_message_at, last_advisor_reply_at, companies:company_id(id, name, logo_url, is_legat, contract_end_date, subscription_status, subscription_current_period_end)")
         .order("last_message_at", { ascending: false });
       
-      if (isCompanyOverride && companyId) {
+      if (laastTilCompanyId) {
+        // Blok 4: virksomhedens egen samtale — nøglet på sidens companyId,
+        // ikke på company-override. Målt 4/9: højst én samtale pr. virksomhed.
+        convsQuery = convsQuery.eq("company_id", laastTilCompanyId);
+      } else if (isCompanyOverride && companyId) {
         convsQuery = convsQuery.eq("company_id", companyId);
       } else if (!isAdvisor && companyId) {
         convsQuery = convsQuery.eq("company_id", companyId);
@@ -345,10 +363,15 @@ const CompanyChatPane = () => {
       }
 
       setConversations(deduped);
+      if (laastTilCompanyId) {
+        // Ingen liste at vælge fra — den ene samtale åbnes direkte.
+        if (deduped.length > 0) setActiveConvId(deduped[0].id);
+        setSamtalerHentet(true);
+      }
     };
 
     loadConversations();
-  }, [user, isAdvisor, companyId, isCompanyOverride]);
+  }, [user, isAdvisor, companyId, isCompanyOverride, laastTilCompanyId]);
 
   // Realtime subscription on conversations for live ops state updates
   useEffect(() => {
@@ -799,8 +822,8 @@ const CompanyChatPane = () => {
   };
 
   // Determine what to show on mobile
-  const showSidebar = isAdvisor && (!isMobile || !showMessages);
-  const showMessageArea = !isMobile || showMessages || !isAdvisor;
+  const showSidebar = !laast && isAdvisor && (!isMobile || !showMessages);
+  const showMessageArea = laast || !isMobile || showMessages || !isAdvisor;
 
   // Get assigned advisor name for display
   const getAdvisorName = (advisorId: string | null | undefined) => {
@@ -875,7 +898,7 @@ const CompanyChatPane = () => {
 
   return (
     <>
-      {isAdvisor && !isFullscreen && !isMobile && (
+      {!laast && isAdvisor && !isFullscreen && !isMobile && (
         <div className="mb-2">
           <h1 className="text-xl font-display font-bold text-foreground tracking-tight flex items-center gap-2">
             <MessageCircle className="h-5 w-5 text-primary" />
@@ -1128,7 +1151,7 @@ const CompanyChatPane = () => {
                   <div className="px-4 py-3 border-b border-border">
                     {/* Row 1: identity + nav */}
                     <div className="flex items-center gap-3">
-                      {isMobile && (
+                      {isMobile && !laast && (
                         <button onClick={handleBackToList} className="p-1.5 -ml-1 rounded-lg text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors">
                           <ArrowLeft className="h-5 w-5" />
                         </button>
@@ -1157,8 +1180,9 @@ const CompanyChatPane = () => {
                             </p>
                           ) : null;
                         })()}
-                        {/* Quick nav links — desktop only, takes too much vertical space on mobile */}
-                        {activeConv?.member_id && !isMobile && (
+                        {/* Quick nav links — desktop only, takes too much vertical space on mobile.
+                            Skjult i blok 4 (laast): man er allerede på virksomheden. */}
+                        {activeConv?.member_id && !isMobile && !laast && (
                           <div className="flex items-center gap-1 mt-0.5">
                             {[
                               { label: "Overblik", path: `/members/${activeConv.member_id}` },
@@ -1402,8 +1426,9 @@ const CompanyChatPane = () => {
                                   længere. Chippen består for milestone-beskederne. */}
                               {contextType && contextMeta?.title && (() => {
                                 const memberId = activeConv?.member_id;
+                                // Intet link i blok 4 (laast) — siden ER virksomheden.
                                 const linkPath =
-                                  contextType === "milestone" && memberId
+                                  contextType === "milestone" && memberId && !laast
                                     ? `/members/${memberId}?section=milestones`
                                     : null;
                                 const chip = (
@@ -1737,10 +1762,22 @@ const CompanyChatPane = () => {
             ) : (
               <div className="flex-1 flex flex-col min-w-0">
                 <div className="flex-1 flex items-center justify-center text-center">
-                  <div>
-                    <MessageCircle className="h-12 w-12 text-muted-foreground/20 mx-auto mb-3" />
-                    <p className="text-sm text-muted-foreground">Vælg en samtale for at starte</p>
-                  </div>
+                  {laast ? (
+                    /* Blok 4 uden samtale (tre virksomheder uden medlemmer,
+                       målt 4/9): en rolig besked, ikke en fejl og ikke
+                       «Vælg en samtale». En samtale opstår først når
+                       virksomheden får et medlem; der er ingen at skrive
+                       til, og ⋯-menuen (foreslå opgave) renderes ikke uden
+                       samtale — så foreslaa-opgaves 404 kan ikke opstå her. */
+                    <p className="text-sm text-muted-foreground px-8">
+                      {samtalerHentet ? "Der er ingen samtale med virksomheden endnu." : "Henter samtalen…"}
+                    </p>
+                  ) : (
+                    <div>
+                      <MessageCircle className="h-12 w-12 text-muted-foreground/20 mx-auto mb-3" />
+                      <p className="text-sm text-muted-foreground">Vælg en samtale for at starte</p>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
