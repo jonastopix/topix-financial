@@ -1,5 +1,6 @@
-import { useMemo, useRef, useState, type ReactNode } from "react";
-import { Link } from "react-router-dom";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { Link, useSearchParams } from "react-router-dom";
+import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useVirksomhed, type VirksomhedsData } from "@/hooks/useVirksomhed";
@@ -7,6 +8,12 @@ import AgentForslagPanel from "@/components/AgentForslagPanel";
 import AdvisorAIChat from "@/components/AdvisorAIChat";
 import CompanyChatPane from "@/components/CompanyChatPane";
 import EditCompanyDialog from "@/components/members/EditCompanyDialog";
+import HandoutDetail from "@/components/HandoutDetail";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { maaFjerneMedlem } from "@/lib/medlemsfjernelse";
 import type { CompanyFact } from "@/hooks/useCompanyFacts";
 import { factsToDanishMetrics } from "@/lib/factsAdapter";
 import { afgoerVirksomhedsSignaler, type FactPunkt, type Signal, type VirksomhedsInput } from "@/lib/virksomhedsSignaler";
@@ -680,7 +687,7 @@ const RapportRaekke = ({
   };
 
   return (
-    <li className="py-2 text-sm">
+    <li id={`report-${r.id}`} className="scroll-mt-24 py-2 text-sm">
       <button type="button" onClick={onToggle} aria-expanded={aaben} className="w-full text-left">
         <div className="flex items-baseline justify-between gap-3">
           <span className="min-w-0 truncate text-hb-ink">{titel}</span>
@@ -756,7 +763,18 @@ const RapportRaekke = ({
   );
 };
 
-const Blok6 = ({ d, facts }: { d: VirksomhedsData; facts: CompanyFact[] }) => {
+const Blok6 = ({
+  d, facts, startAabenRapport, onAabnHandout,
+}: {
+  d: VirksomhedsData;
+  facts: CompanyFact[];
+  /** ?reportId fra URL'en (deep-link, MemberDetail-mønstret): rapporten
+      foldes ud og rulles ind ved første render. */
+  startAabenRapport: string | null;
+  /** Åbn et handout i læse-tilstand; null når der intet medlem er at åbne
+      det for (HandoutDetail er nøglet på user_id). */
+  onAabnHandout: ((modul: HandoutModule) => void) | null;
+}) => {
   /* Designets §4 blok 6: nogle skriver meget og ser lidt video, andre gør
      det modsatte — begge dele er i orden. Derfor: tal og datoer i ink/ink-
      soft, INGEN rust, ingen «mangler». Tomme tilstande siger hvad der er,
@@ -771,8 +789,27 @@ const Blok6 = ({ d, facts }: { d: VirksomhedsData; facts: CompanyFact[] }) => {
      og listen er FOLDET SAMMEN efter de tre nyeste med «Vis alle N». De
      tre kort bliver ved med at være et øjebliks skim; rapportarbejdet
      (udfold, kommentér, godkend) ligger lige under, når man vil det. */
-  const [visAlle, setVisAlle] = useState(false);
-  const [aabenRapport, setAabenRapport] = useState<string | null>(null);
+  // Deep-link ?reportId: start udfoldet, og fold hele listen ud hvis
+  // rapporten ligger under de tre nyeste — ellers kan den ikke rulles til.
+  const dybRapportFindes = !!startAabenRapport && d.rapporter.some((r) => r.id === startAabenRapport);
+  const [visAlle, setVisAlle] = useState(
+    () => dybRapportFindes && d.rapporter.findIndex((r) => r.id === startAabenRapport) >= 3,
+  );
+  const [aabenRapport, setAabenRapport] = useState<string | null>(() => (dybRapportFindes ? startAabenRapport : null));
+  // Rul til og fremhæv den deep-linkede rapport efter første render —
+  // samme greb som MemberDetail:288-300, ring i evergreen frem for primary.
+  useEffect(() => {
+    if (!dybRapportFindes) return;
+    const timer = setTimeout(() => {
+      const el = document.getElementById(`report-${startAabenRapport}`);
+      if (!el) return;
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+      el.classList.add("ring-2", "ring-hb-evergreen", "ring-offset-2", "rounded-hb");
+      setTimeout(() => el.classList.remove("ring-2", "ring-hb-evergreen", "ring-offset-2", "rounded-hb"), 2500);
+    }, 150);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const senesteRapport = d.rapporter[0] ?? null;
   const senesteCommittet = facts[facts.length - 1] ?? null;
   const fulgte = d.handouts.filter((h) => h.status === "completed").length;
@@ -812,7 +849,7 @@ const Blok6 = ({ d, facts }: { d: VirksomhedsData; facts: CompanyFact[] }) => {
           )}
         </HbCard>
 
-        <HbCard className="p-5">
+        <HbCard id="section-handouts" className="scroll-mt-24 p-5">
           <p className="text-xs font-semibold uppercase tracking-[0.14em] text-hb-ink-soft">Handouts</p>
           <p className="mt-3 text-sm text-hb-ink">{fulgte} af {moduleOrder.length} fulgt</p>
           <ul className="mt-3 divide-y divide-hb-line">
@@ -822,14 +859,24 @@ const Blok6 = ({ d, facts }: { d: VirksomhedsData; facts: CompanyFact[] }) => {
               return (
                 <li key={modul} className="flex items-baseline justify-between gap-3 py-1.5 text-sm">
                   <span className="min-w-0 truncate text-hb-ink">{handoutConfigs[modul]?.title ?? modul}</span>
-                  <span className="shrink-0 text-xs text-hb-ink-soft">{tilstand}</span>
+                  <span className="flex shrink-0 items-baseline gap-2 text-xs text-hb-ink-soft">
+                    {tilstand}
+                    {/* «Åbn» i læse-tilstand (MemberDetail:1451 → HandoutDetail
+                        med userId ≠ egen → isOwner=false, alt disabled).
+                        Skjult når der intet medlem er at åbne det for. */}
+                    {onAabnHandout && (
+                      <button type="button" onClick={() => onAabnHandout(modul)} className="text-hb-evergreen underline-offset-4 hover:underline">
+                        Åbn
+                      </button>
+                    )}
+                  </span>
                 </li>
               );
             })}
           </ul>
         </HbCard>
 
-        <HbCard className="p-5">
+        <HbCard id="section-milestones" className="scroll-mt-24 p-5">
           <p className="text-xs font-semibold uppercase tracking-[0.14em] text-hb-ink-soft">Milestones</p>
           {d.milestones.length === 0 ? (
             <p className="mt-3 text-sm text-hb-ink-soft">Ingen milestones endnu.</p>
@@ -860,7 +907,7 @@ const Blok6 = ({ d, facts }: { d: VirksomhedsData; facts: CompanyFact[] }) => {
 
       {/* Rapporterne — eget afsnit under kortene, foldet efter de tre nyeste. */}
       {d.rapporter.length > 0 && (
-        <HbCard className="mt-4 p-5">
+        <HbCard id="section-reports" className="mt-4 scroll-mt-24 p-5">
           <div className="flex items-baseline justify-between gap-3">
             <p className="text-xs font-semibold uppercase tracking-[0.14em] text-hb-ink-soft">Rapporter</p>
             {d.rapporter.length > 3 && (
@@ -890,6 +937,61 @@ const Blok6 = ({ d, facts }: { d: VirksomhedsData; facts: CompanyFact[] }) => {
 };
 
 // ── Blok 7: Aftalen ─────────────────────────────────────────────────────
+
+/** «Fjern medlem» pr. medlem (§3.6-handling, 4/9). Dommen er
+    maaFjerneMedlem (admin OG ikke owner — serveren afviser en owner med
+    403, så knappen vises ikke for en). Kaldet er manage-advisor
+    remove-member, som MemberDetail:331-335. Teksten siger sandheden:
+    kaldet sletter company_members, profiles OG auth-brugeren
+    (manage-advisor:312-328) — mennesket, ikke bare medlemskabet.
+    Efter succes AWAITes hookens invalider FØR dialogen lukkes
+    (EditCompanyDialog-fælden, OVERLEVERING DEL 4). */
+const FjernMedlem = ({ medlem, onFjernet }: { medlem: { user_id: string; full_name: string; email: string | null }; onFjernet: () => Promise<void> }) => {
+  const [aaben, setAaben] = useState(false);
+  const [fjerner, setFjerner] = useState(false);
+  const fjern = async () => {
+    if (fjerner) return;
+    setFjerner(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const { data, error } = await supabase.functions.invoke("manage-advisor", {
+        body: { action: "remove-member", target_user_id: medlem.user_id },
+        headers: { Authorization: `Bearer ${session?.access_token}` },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      await onFjernet();
+      setAaben(false);
+      toast.success("Medlemmet er fjernet", { description: `${medlem.full_name} er slettet fra platformen.` });
+    } catch (err) {
+      toast.error("Kunne ikke fjerne medlemmet", { description: err instanceof Error ? err.message : undefined });
+    } finally {
+      setFjerner(false);
+    }
+  };
+  return (
+    <AlertDialog open={aaben} onOpenChange={(o) => { if (!fjerner) setAaben(o); }}>
+      <button type="button" onClick={() => setAaben(true)} className="shrink-0 text-xs text-hb-rust underline-offset-4 hover:underline">
+        Fjern medlem
+      </button>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Slet {medlem.full_name} fra platformen?</AlertDialogTitle>
+          <AlertDialogDescription>
+            «Fjern medlem» sletter brugeren{medlem.email ? ` (${medlem.email})` : ""} — ikke bare medlemskabet af virksomheden.
+            Kontoen, profilen og adgangen forsvinder, og det kan ikke fortrydes. Virksomheden og dens tal bliver stående.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={fjerner}>Annuller</AlertDialogCancel>
+          <AlertDialogAction onClick={(e) => { e.preventDefault(); void fjern(); }} disabled={fjerner} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+            {fjerner ? "Sletter…" : "Slet brugeren"}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+};
 
 const Blok7 = ({ d, onOpdateret }: { d: VirksomhedsData; onOpdateret: () => Promise<void> }) => {
   const c = d.company;
@@ -1034,10 +1136,11 @@ const Blok7 = ({ d, onOpdateret }: { d: VirksomhedsData; onOpdateret: () => Prom
                   ) : (
                     <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-hb-sage/40 text-sm text-hb-ink-soft">{m.full_name.charAt(0)}</span>
                   )}
-                  <div className="min-w-0">
+                  <div className="min-w-0 flex-1">
                     <p className="truncate text-sm text-hb-ink">{m.full_name}</p>
                     <p className="truncate text-xs text-hb-ink-soft">{[m.email, m.role].filter(Boolean).join(" · ")}</p>
                   </div>
+                  {maaFjerneMedlem(!!isAdmin, m.role) && <FjernMedlem medlem={m} onFjernet={onOpdateret} />}
                 </li>
               ))}
             </ul>
@@ -1077,6 +1180,34 @@ const Blok7 = ({ d, onOpdateret }: { d: VirksomhedsData; onOpdateret: () => Prom
 export const VirksomhedView = ({ companyId }: { companyId: string | undefined }) => {
   const { data, facts, isLoading, isError, findesIkke, invalider } = useVirksomhed(companyId);
 
+  /* DEEP-LINKS (4/9): 604 notifikationer i prod bærer ?reportId, 40 ?handout,
+     6 ?section, og Slack-beskeder med absolutte URL'er er ude af huset.
+     Siden læser derfor de tre parametre som MemberDetail (:201-229,
+     :275-286) — én gang ved mount, derefter ryddes URL'en. Hooks i
+     topblokken, før de betingede returns nedenfor. */
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [dybRapport] = useState<string | null>(() => searchParams.get("reportId"));
+  const [dybSektion] = useState<string | null>(() => searchParams.get("section"));
+  const [aktivtHandout, setAktivtHandout] = useState<HandoutModule | null>(() => {
+    const h = searchParams.get("handout") as HandoutModule | null;
+    return h && moduleOrder.includes(h) ? h : null;
+  });
+  useEffect(() => {
+    if (searchParams.has("handout") || searchParams.has("reportId") || searchParams.has("section")) {
+      setSearchParams({}, { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  // ?section rulles først når blokkene er tegnet (data er inde) — ikke på
+  // et fast tidsstempel som MemberDetails 400 ms.
+  useEffect(() => {
+    if (!dybSektion || !data || aktivtHandout) return;
+    const timer = setTimeout(() => {
+      document.getElementById(`section-${dybSektion}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 150);
+    return () => clearTimeout(timer);
+  }, [dybSektion, data, aktivtHandout]);
+
   if (!companyId || findesIkke) {
     return (
       <section className="max-w-3xl">
@@ -1103,6 +1234,34 @@ export const VirksomhedView = ({ companyId }: { companyId: string | undefined })
 
   const c = data.company;
   const metaLinje = [c.industry_label, c.cvr_number ? `CVR ${c.cvr_number}` : null, c.contact_person, c.contact_email].filter(Boolean).join(" · ");
+
+  /* ÅBN HANDOUT i læse-tilstand — som MemberDetail:648-658 (HandoutDetail
+     med userId ≠ egen → isOwner=false, alle felter disabled). HandoutDetail/
+     loadHandout er nøglet på user_id, ikke company_id: vi giver rækkens
+     egen ejer når handoutet er udfyldt, ellers virksomhedens første medlem
+     (samme dom som foreslaa-opgave: første company_members-række). Uden
+     medlem er der intet userId — så vises knappen ikke (onAabnHandout er
+     null), og en ?handout-deep-link falder stille tilbage til siden. */
+  const handoutUserId = (modul: HandoutModule): string | null =>
+    data.handouts.find((h) => h.module === modul)?.user_id ?? data.medlemmer[0]?.user_id ?? null;
+  const kanAabneHandout = data.medlemmer.length > 0 || data.handouts.length > 0;
+  const aktivtHandoutUserId = aktivtHandout ? handoutUserId(aktivtHandout) : null;
+  if (aktivtHandout && aktivtHandoutUserId) {
+    return (
+      <div>
+        <p className="text-xs font-medium uppercase tracking-[0.14em] text-hb-rust">
+          <Link to="/virksomheder" className="underline-offset-4 hover:underline">Virksomheder</Link>
+          <span className="text-hb-ink-soft"> · </span>
+          <button type="button" onClick={() => setAktivtHandout(null)} className="underline-offset-4 hover:underline">{c.name}</button>
+        </p>
+        {/* HandoutDetail bærer sit gamle udtryk (appens tokens) — konverteringen er ikke denne etape. */}
+        <div className="mt-6">
+          <HandoutDetail config={handoutConfigs[aktivtHandout]} onBack={() => setAktivtHandout(null)} userId={aktivtHandoutUserId} />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div>
       <section className="max-w-3xl">
@@ -1120,7 +1279,12 @@ export const VirksomhedView = ({ companyId }: { companyId: string | undefined })
       {/* Blok 3 kommer i en senere etape — rækkefølgen er designets. */}
       <Blok4 companyId={c.id} />
       <Blok5 d={data} facts={facts} />
-      <Blok6 d={data} facts={facts} />
+      <Blok6
+        d={data}
+        facts={facts}
+        startAabenRapport={dybRapport}
+        onAabnHandout={kanAabneHandout ? setAktivtHandout : null}
+      />
       <Blok7 d={data} onOpdateret={invalider} />
     </div>
   );
