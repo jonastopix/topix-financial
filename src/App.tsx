@@ -62,6 +62,7 @@ const MemberProfile = lazy(() => import("./pages/MemberProfile"));
 const MemberDirectory = lazy(() => import("./pages/MemberDirectory"));
 const Virksomheder = lazy(() => import("./pages/Virksomheder"));
 const Virksomhed = lazy(() => import("./pages/Virksomhed"));
+const Forside = lazy(() => import("./pages/Forside"));
 
 // Lazy — demo routes (no auth)
 const DemoLayout = lazy(() => import("./demo/DemoLayout"));
@@ -239,6 +240,10 @@ const App = () => (
               {/* Virksomhedssiden, etape 1 (§3.3, §4, §11 pkt. 5): nøglet på
                   companies.id — ny flade ved siden af /members/:userId. */}
               <Route path="/virksomhed/:companyId" element={<AdvisorRoute><Virksomhed /></AdvisorRoute>} />
+              {/* Rådgiverens forside i Hjemmebane, etape 1 (§3.5, §11 pkt. 6):
+                  MIDLERTIDIG rute ved siden af "/" (AdvisorDashboard i
+                  AppLayout) til swappet — samme mønster som de to ovenfor. */}
+              <Route path="/forside" element={<AdvisorRoute><Forside /></AdvisorRoute>} />
               <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
               <Route path="/admin/config" element={<AdminRoute><AdminConfig /></AdminRoute>} />
               <Route path="/admin/emails" element={<AdminRoute><EmailTemplates /></AdminRoute>} />
