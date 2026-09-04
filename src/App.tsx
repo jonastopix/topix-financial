@@ -23,12 +23,6 @@ const Settings = lazy(() => import("./pages/Settings"));
 const ChatShell = lazy(() => import("./pages/ChatShell"));
 const BookSession = lazy(() => import("./pages/BookSession"));
 const Members = lazy(() => import("./pages/Members"));
-/* MemberDetail (pages/MemberDetail.tsx) har ingen aftager siden
-   viderestillingen 4/9 (§11 pkt. 4) — /members/:userId peger nu på
-   MedlemTilVirksomhed. Filen er ikke slettet: ruller viderestillingen
-   tilbage, er det denne linje og rutelinjen. Slettes når den er bevist
-   i drift.
-   const MemberDetail = lazy(() => import("./pages/MemberDetail")); */
 const MedlemTilVirksomhed = lazy(() => import("./pages/MedlemTilVirksomhed"));
 const Guide = lazy(() => import("./pages/Guide"));
 const AnnualBaseline = lazy(() => import("./pages/AnnualBaseline"));
@@ -234,8 +228,9 @@ const App = () => (
               {/* VIDERESTILLING (§11 pkt. 4, 4/9): /members/:userId slår
                   virksomheden op og sender videre til /virksomhed/:companyId
                   med bevaret search/hash — 978 notifikationer og Slack-URL'er
-                  ude af huset peger her. Rul tilbage: <MemberDetail /> og
-                  lazy-linjen ovenfor. */}
+                  ude af huset peger her. Bevist i drift 4/9; MemberDetail er
+                  slettet (#626 → sletning), alt den viste findes på
+                  virksomhedssiden. */}
               <Route path="/members/:userId" element={<AdvisorRoute><MedlemTilVirksomhed /></AdvisorRoute>} />
               {/* Virksomhedslisten i Hjemmebane (raadgiverfladen-design.md §3.6,
                   4/9): MIDLERTIDIG rute ved siden af /members til swappet —
