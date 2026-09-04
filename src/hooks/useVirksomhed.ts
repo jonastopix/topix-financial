@@ -2,7 +2,15 @@
  * useVirksomhed — ÉN samlet, company-nøglet datahentning til virksomheds-
  * siden (/virksomhed/:companyId, raadgiverfladen-design.md §3.3, §4, §11
  * pkt. 5). Etape 1: det blok 1 («Hvad skal du vide nu») og blok 7
- * («Aftalen») kræver.
+ * («Aftalen») kræver. Etape 2: blok 5 («Tallene») og blok 6 («Aktivitet»)
+ * — financial_reports og kpi_targets lagt i SAMME Promise.all, milestones
+ * og handouts udvidet fra antal til rækker.
+ *
+ * AKADEMI-FREMDRIFT ER IKKE MED (etape 2, målt 4/9): member_progress har
+ * kun user_id, ingen company_id (types.ts:2379). Den kan ikke hentes
+ * company-nøglet, og §3.3's «pr. medlem»-opslag er ikke besluttet for
+ * den — så den hentes ikke, frem for at gætte. Blok 6 viser rapportering,
+ * handouts og milestones.
  *
  * PRINCIPPET (§3.3): virksomheden er en aftale, medlemmet er en adgang.
  * Alt slås op fra companies.id og udad — INTET er gated på et user_id-
@@ -32,6 +40,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useCompanyFacts, type CompanyFact } from "@/hooks/useCompanyFacts";
 import type { FejletTraek } from "@/lib/traek";
+import { KPI_DEFS } from "@/lib/kpiDefs";
+import { KPI_FALLBACK_TARGETS } from "@/lib/appConfig";
+import type { ResolvedTargets } from "@/hooks/useKpiTargets";
 
 export interface VirksomhedsMedlem {
   user_id: string;
@@ -97,8 +108,24 @@ export interface VirksomhedsData {
   invitationer: VirksomhedsInvitation[];
   samtaler: VirksomhedsSamtale[];
   budgetter: { period: string; category: string; budget_amount: number }[];
-  milestones: { deadline: string | null; status: string }[];
-  handouts: { levers: unknown; status: string; module: string }[];
+  milestones: { id: string; title: string; deadline: string | null; progress: number; status: string }[];
+  handouts: { levers: unknown; status: string; module: string; completed_at: string | null }[];
+  /** financial_reports company-nøglet (BoardroomView:1604-1609), nyeste først, uden slettede. */
+  rapporter: {
+    id: string;
+    file_name: string;
+    file_path: string;
+    report_type: string;
+    status: string;
+    report_period: string | null;
+    uploaded_at: string;
+    processed_at: string | null;
+    manual_override_status: string | null;
+    manual_report_period_key: string | null;
+    manual_report_period_label: string | null;
+  }[];
+  /** KPI-mål pr. nøgle — DB-værdi ellers KPI_FALLBACK_TARGETS, ordret som useKpiTargets:36-47. */
+  kpiMaal: ResolvedTargets;
   /** company_actions der venter: open/proposed/active (BoardroomView:1686). */
   opgaver: { id: string; title: string; status: string; priority: string; due_date: string | null }[];
   /** agent_proposals uden decided_at — motorens definition (virksomhedsSignaler.ts:135). */
@@ -119,6 +146,7 @@ async function hentVirksomhed(companyId: string): Promise<VirksomhedsData | null
   const [
     companyRes, membersRes, invitationsRes, convsRes, budgetRes, milestonesRes,
     handoutsRes, actionsRes, proposalsRes, traekRes, perioderRes, linkRes, fornyelseRes,
+    rapporterRes, kpiMaalRes,
   ] = await Promise.all([
     supabase
       .from("companies")
@@ -136,8 +164,15 @@ async function hentVirksomhed(companyId: string): Promise<VirksomhedsData | null
       .select("id, last_message_at, awaiting_reply_from, assigned_advisor_id")
       .eq("company_id", companyId),
     supabase.from("budget_targets").select("period, category, budget_amount").eq("company_id", companyId),
-    supabase.from("milestones").select("deadline, status").eq("company_id", companyId),
-    supabase.from("handouts").select("levers, status, module").eq("company_id", companyId),
+    supabase
+      .from("milestones")
+      .select("id, title, deadline, progress, status")
+      .eq("company_id", companyId)
+      .order("deadline", { ascending: true })
+      .limit(200),
+    // handouts på company_id — samme nøgle som loadHandoutSummaries bruger
+    // for rådgivere (handoutEngine.ts:68-69).
+    supabase.from("handouts").select("levers, status, module, completed_at").eq("company_id", companyId),
     supabase
       .from("company_actions")
       .select("id, title, status, priority, due_date")
@@ -171,7 +206,29 @@ async function hentVirksomhed(companyId: string): Promise<VirksomhedsData | null
       .select("beslutning, note, besluttet_at")
       .eq("company_id", companyId)
       .maybeSingle(),
+    // Rapportlisten (blok 6): kun de kolonner listen læser — ai_analysis,
+    // raw_extracted_data og blobs hentes ikke (MemberDetail.tsx:370-378-
+    // lærdommen). Loft 50, nyeste først.
+    supabase
+      .from("financial_reports")
+      .select("id, file_name, file_path, report_type, status, report_period, uploaded_at, processed_at, manual_override_status, manual_report_period_key, manual_report_period_label")
+      .eq("company_id", companyId)
+      .is("deleted_at", null)
+      .order("uploaded_at", { ascending: false })
+      .limit(50),
+    supabase.from("kpi_targets").select("kpi_key, target_value, target_label").eq("company_id", companyId),
   ]);
+
+  // KPI-mål: DB-værdi hvis den findes, ellers fallback — ordret som
+  // useKpiTargets:36-47, men i denne hentning frem for en egen useQuery.
+  const dbMaal = new Map((kpiMaalRes.data ?? []).map((t) => [t.kpi_key, t]));
+  const kpiMaal: ResolvedTargets = {};
+  for (const def of KPI_DEFS) {
+    const ut = dbMaal.get(def.key);
+    kpiMaal[def.key] = ut
+      ? { value: Number(ut.target_value), label: ut.target_label }
+      : (KPI_FALLBACK_TARGETS[def.key] || { value: 0, label: "—" });
+  }
 
   if (companyRes.error) throw companyRes.error;
   if (!companyRes.data) return null;
@@ -207,6 +264,8 @@ async function hentVirksomhed(companyId: string): Promise<VirksomhedsData | null
     perioder: perioderRes.data ?? [],
     betalingslink: linkRes.data ?? null,
     fornyelse: fornyelseRes.data ?? null,
+    rapporter: rapporterRes.data ?? [],
+    kpiMaal,
   };
 }
 
