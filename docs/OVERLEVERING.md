@@ -1,13 +1,14 @@
 # Overlevering
 
-**Sidst opdateret: 4. september 2026, middag — efter at
-virksomhedssiden blev hel (#607, #611–#614, #616, #619, #624: alle
-blokke på nær emnerne, alle ni handlinger, deep-links), listen fik
-ejeren som kontaktperson (#615, #621), owner-hullet blev lukket i
-`handle_new_user` (#620, #622, migration kørt i prod kl. 10:33), og M/M
-for marginer blev procentpoint (#623). MemberDetail kan pensioneres;
-swappet DELES: `/members/:userId` viderestiller, `/members` venter på
-§11 punkt 6.**
+**Sidst opdateret: 4. september 2026, eftermiddag — efter at forsiden
+gik fra KØ til OPGAVE: køerne (#630) blev set på skærm og forkastet,
+designet skrevet om fra bunden (#631), opgave-modellen bogført som ét
+epic (#632), `/forside` mærket råmateriale (#633), tærsklen målt til 70
+(#634) og dommen bygget som ren funktion med 36 tests (#635). Fladen på
+dommen er under bygning. Formiddagen: virksomhedssiden hel (#607,
+#611–#624), owner-hullet lukket i `handle_new_user` (#622, i prod
+kl. 10:33), M/M for marginer i procentpoint (#623), MemberDetail
+slettet.**
 
 Læses først i enhver ny samtale. Claude husker intet mellem samtaler;
 denne fil skal kunne bære det. Den fortæller hvordan vi arbejder, hvor
@@ -812,6 +813,58 @@ juni; om de er holdt op med at udløse, eller der bare intet er sket, kan
 ikke afgøres herfra. **KONSEKVENS:** `/members/:userId` kan IKKE bare
 forsvinde — se DEL 3.
 
+### Forsiden — fra KØ til OPGAVE, 4/9 eftermiddag (#630–#635); fladen på dommen er under bygning
+
+- **#630 køerne — bygget, set og forkastet.** `/forside` blev bygget som
+  designets syv køer og set på skærm 4/9 kl. 11:35: **38 rækker, hvoraf
+  16 sagde «ingen dialog i N dage» og intet andet.** Jonas: «ekstremt
+  lang, mega uoverskuelig, tæt på ubrugelig». Fejlen var ikke mængden
+  af data, men at en kø viser alt der matcher en betingelse, mens en
+  rådgiver om morgenen har brug for at vide hvad han skal gøre.
+- **#631 designet skrevet om fra bunden** (`docs/forsiden-design.md`).
+  Skiftet er fra KØ til OPGAVE — **en virksomhed, en grund og en
+  handling.** Otte slags fra fire kilder (aftalen, samtalen, tallene,
+  deres arbejde). **Hændelse, tilstand og pukkel skilles ad** — det var
+  dem der blev blandet i køerne: en hændelse er noget der skete, en
+  tilstand er noget der er, en pukkel er mange af det samme. To porte
+  (alvor og vindue), én sortering, samling pr. virksomhed.
+- **#632 opgave-modellen som ét epic** (DEL 3). 64 proposed, 63 expired,
+  10 done. Årsagen er modellens eget design: tre forslag pr. virksomhed
+  hver mandag, ét vises ad gangen, ingen besked. **VIGTIG RETTELSE:** de
+  63 er arven fra FØR modellen, lukket manuelt 31/8 — cron'en har intet
+  lukket endnu, første bølge udløber 7/9. Beviset for cron'en kommer om
+  tre dage.
+- **#633 `/forside` mærket RÅMATERIALE** i koden (filhovedet i
+  `RaadgiverForsideView.tsx` og `Forside.tsx`), så ingen tror køerne var
+  meningen. Fladen virker stadig og genbruger datalaget; det er
+  visningen der skiftes ud.
+- **#634 tærsklen er 70.** Ikke et nyt tal: både `VirksomhedView` og
+  `RaadgiverForsideView` farver rust ved `alvor >= 70`; fladen sagde
+  «vigtigt» ved 70 før dommen fandtes. **Målt samtidig: motoren har
+  alvor for kun to og en halv af de otte slags** — tavshed og «stikker
+  ud» fuldt, ulæste som et antal; fornyelse og indgang giver tilstand og
+  dagtal uden alvor; rapporteringsfejl, opgave nær deadline og
+  handout/refleksion har intet. Dommen skal derfor tildele alvor til
+  nye slags (`docs/forsiden-design.md` §12).
+- **#635 dommen** — `src/lib/forsidensDom.ts`, 36 tests. Ren funktion,
+  ingen I/O, «nu» som parameter (samme form som motoren #589). Seks af
+  otte slags; de to AI-baserede har plads i typen men ingen
+  implementering, låst af en test, så de ikke kan glide ind uden en
+  beslutning.
+
+**To beslutninger fra designsamtalen, som er principielle:**
+
+- **AI må tilføje, aldrig fjerne.** En analyse kan råbe op om noget
+  harmløst — det ser du og fravælger. Den kan tie om noget alvorligt —
+  det ser du ALDRIG. Derfor giver en ny refleksion ALTID en opgave;
+  AI'en afgør kun om den står øverst. Målt: refleksioner koster 3–7
+  linjer om måneden, så reglen er gratis.
+- **Læring på signaltype, ikke på virksomhed.** «Ikke relevant» gemmes
+  med signaltype, virksomhed og tidspunkt. En signaltype der
+  systematisk fravælges er en fejl i dommen og rettes i KODEN. En motor
+  der lærer at tie om en bestemt virksomhed, bliver blind netop der hvor
+  det er ubehageligt — og reglen fra 3/9 er at ingen må glemmes.
+
 ### RLS-hullet — fundet og lukket 3/9 kl. 22:48
 
 `supabase/SECURITY_BASELINE.md` §5 og migration
@@ -950,6 +1003,7 @@ facit og rækkefølge; `docs/chat-design.md` chattens form.
 | ikke afdækket | **Nudging generelt** — Jonas spurgte 3/9; ingen recon lavet. | community-design §9 |
 | epic (rådgiverfladen) | **Rådgiver som medlem.** Jonas 3/9: «jeg som rådgiver også skal have en virksomhed, hvor jeg kan switche imellem, om jeg vil se platformen som rådgiver, eller om jeg vil agere rådgiver eller være inde på min medlemsvirksomhed.» IKKE company-override («se en andens virksomhed»); rådgiveren ER selv medlem et sted og skifter hat. Jonas har i dag TO auth-brugere (rådgiver + medlemskonto på Topix.dk — dén modtog opslagsmailen). | konvergens §2.9, community-design §9 |
 | EPIC, én samtale (Jonas 4/9) — ikke tre løse tråde | **Opgave-modellen, Milestones og refleksionens form hænger sammen og tages SAMLET.** **Målt i prod 4/9 kl. 11:48:** `company_actions` har 64 `proposed`, 63 `expired`, 10 `done`, 7 `dismissed`, 1 `active`. Modellen kører, men bruges ikke. **ÅRSAGEN, målt i koden samme dag** (`~/Downloads/recon-opgavemodellen.md`, uden for repoet — genskabes hvis den bruges): `generate-weekly-focus` skriver op til TRE forslag pr. virksomhed HVER MANDAG kl. 06 (72 forslag fra 24.–31. august = to kørsler); levetiden er 14 dage (`opgaveEngine.ts`); «Dine aftaler» på medlemmets forside viser ÉT forslag ad gangen (`BoardroomView` + `aftaler.ts`, kilde-rangeret: advisor før reflection før ai_weekly/agent); og der er INGEN besked om et nyt forslag — `weekly_focus_ready` skrives med `priority: "info"` og holdes bevidst ude af mailkæden, `foreslaa-opgave` rører ikke `awaiting_reply_from`, og der findes ingen ulæst-markering nogen steder. Fire kilder opretter opgaver: W1 ugefokus, W2 agenten, W3 rådgiverens «foreslå opgave», W4 en død komponent der aldrig rendres. **KONSEKVENSEN, som skal læses rigtigt: de 63 udløbne opgaver er IKKE tegn på at medlemmerne ikke gider.** De 63 er arven fra før modellen (lukket manuelt 31/8); cron'en har endnu intet lukket, første bølge udløber 7/9. Platformen foreslår langt mere end den viser, og fortæller ingen om det. Modellens eget designdokument forudså det (`docs/opgave-model-design.md`, B8): «uden en udgang vokser bunken med cirka 150 om året pr. aktiv virksomhed». `deferral_count` (udskydelser, højst to) og `week_key` (sporbarhed, uden logik) er bygget, men har formentlig aldrig været i brug — der er ÉN aktiv opgave i prod, og den er den første registrerede aftale i platformens levetid (31/8, Topix, «Afslut handout for bogholderi»). **DET DER SKAL AFGØRES — åbne spørgsmål, ikke besvaret her:** (1) Skal der foreslås færre, eller vises flere? Tre om ugen pr. virksomhed mod ét synligt ad gangen er en ubalance, uanset hvilken vej den rettes. (2) Skal et nyt forslag give besked? I dag gør det ikke. (3) Milestones og `company_actions` er to tabeller for beslægtede ting — hvad er forskellen, og skal de forenes? Menuen har stadig et Milestones-punkt (Jonas 4/9: «den funktion skal vi have fundet ud af hvordan vi gør langt mere nyttig og brugbar»). (4) Refleksionens tre spørgsmål. Målt 4/9: formen er IKKE problemet — 20 af 24 refleksioner har alle tre felter udfyldt, og andelen der reflekterer STIGER (12 % i marts til 67 % i juni). Men antallet der rapporterer FALDER: 17, 14, 12, 9, 8 ud af tredive. Undersøges ikke nu (Circle-exit og nye medlemmer ændrer forudsætningerne), men hører til samme samtale. De samme punkter står som det designet ikke afgør i `docs/forsiden-design.md` §12. | `docs/forsiden-design.md` §12; `docs/opgave-model-design.md` B6–B10; `docs/opgaver-og-chat-31-august.md` §2, §8; `~/Downloads/recon-opgavemodellen.md` |
+| NÆSTE — rækkefølgen for forsiden (4/9 eftermiddag) | **1. Fladen på dommen** (`docs/forsiden-design.md` §13 pkt. 3) — UNDER BYGNING. `/forside` (#633, råmateriale) genbruger datalaget `hentAdvisorDashboard`; det er visningen der skiftes ud, så den viser dommens opgaver (#635) frem for køer. Måles mod 4/9's 38 rækker: hvor mange skulle der have stået? **2. Virksomhedssiden der læser «derfor er du her»** (§6): linjen på forsiden bærer grunden med som parameter, og virksomhedssiden viser den øverst — formen er uafgjort (§12). **3. Først derefter swappet af `/forside` ind på roden** — «/» renderer i dag stadig AdvisorDashboard i AppLayout for rådgiveren. **`/members` venter stadig** på at Indgang, Fornyelse, Legat og admin-sektionen får et hjem (Indgang og Fornyelse på forsiden som slags 1 og 2; Legat og admin-sektionen har intet sted i designet endnu). | `docs/forsiden-design.md` §6, §12, §13; DEL 2 «Forsiden — fra KØ til OPGAVE» |
 | driftsgæld | Fejlovervågning findes ikke; restore er aldrig afprøvet; `run-weekly-agent` står ikke i `cron.job`; 73 uploads bestod validering uden at blive committet; e-conomic-integrationen er død (migration-recon §10). | status-1-sept §6; den forrige overlevering (§7, før omskrivningen i #538) findes kun i git-historikken |
 
 ---
@@ -1198,11 +1252,15 @@ De konkrete ting der har kostet tid. Led efter dem.
   (DEL 3) — og samme formiddag blev det målt hvor rollen skrives:
   hullet lå i `handle_new_user`, og det er lukket (#622, DEL 3).
 - **`gh` kan fejle med «error connecting to api.github.com» selv når
-  GitHub melder alt operationelt og `git push` netop er lykkedes.**
-  Pushen (git-protokollen) og API-kaldet (`gh pr create`) er to
-  forskellige veje, og den ene kan være nede mens den anden virker.
-  Prøv igen; virker det ikke, opret PR'en i browseren fra den pushede
-  gren — koden ER oppe, det er kun PR-oprettelsen der mangler.
+  GitHub melder alt operationelt og `git push` netop er lykkedes — i
+  SAMME kommando.** Ramte fire gange 4/9. **Målt: det er DNS hos
+  udbyderen der falder ud i korte perioder** — `ping github.com` gav
+  «cannot resolve», mens `ping 1.1.1.1` virkede. Pushen var allerede
+  igennem (forbindelsen stod), API-kaldet slog navnet op igen og fik
+  intet svar. Vejen ud er at prøve igen; virker det ikke, opret PR'en i
+  browseren fra den pushede gren — koden ER oppe, det er kun
+  PR-oprettelsen der mangler. Tjek ikke GitHubs status først; den siger
+  intet om udbyderens DNS.
 - **`git checkout main` afvises af ustagede filer — og `;` i kæden
   gemmer fejlen.** I en `&&`-kæde stopper det hele når checkout
   afvises; står der `;` løber kæden videre og laver den nye gren det
@@ -1236,4 +1294,10 @@ Skal ikke genforhandles uden ny måling.
   ikke et mål.** **Medlemmet sætter datoen** ved accept (B6). **Ingen AI
   skriver i et menneskes navn.** **Klokken og feedback-knappen
   genindføres ikke.** **Rådgiverfladen tages samlet.**
+- **Forsiden viser opgaver, ikke køer** — en virksomhed, en grund, en
+  handling (4/9, #631). **AI må tilføje, aldrig fjerne:** en ny
+  refleksion giver ALTID en opgave, AI'en afgør kun om den står øverst.
+  **Læring på signaltype, ikke på virksomhed:** en signaltype der
+  systematisk fravælges rettes i koden; motoren må aldrig lære at tie om
+  én virksomhed. **Alvorstærsklen er 70** (#634).
 - **Vi går ikke på kompromis** — hvert led bliver brugt af det næste.
