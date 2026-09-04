@@ -4,7 +4,12 @@
  * pkt. 5). Etape 1: det blok 1 («Hvad skal du vide nu») og blok 7
  * («Aftalen») kræver. Etape 2: blok 5 («Tallene») og blok 6 («Aktivitet»)
  * — financial_reports og kpi_targets lagt i SAMME Promise.all, milestones
- * og handouts udvidet fra antal til rækker.
+ * og handouts udvidet fra antal til rækker. Etape 3, blok 2 («Deres ord og
+ * din forberedelse»): seneste pulse_checkins-række og
+ * companies.application_context lagt i samme Promise.all.
+ * Sessionsforberedelsen (ai-financial-feedback, request_type
+ * "session_prep") gemmes INGEN steder — den er et AI-kald der kun
+ * returneres — og hentes derfor ikke her; fladen beder om den på en knap.
  *
  * AKADEMI-FREMDRIFT ER IKKE MED (etape 2, målt 4/9): member_progress har
  * kun user_id, ingen company_id (types.ts:2379). Den kan ikke hentes
@@ -19,7 +24,7 @@
  * tegnes. Findes virksomheden ikke, er `findesIkke` sand.
  *
  * MÅLT 4/9: en naiv side laver 18 netværkskald. Her: ét Promise.all med
- * tolv company-nøglede hentninger (én runde), plus profiles til navnene i
+ * seksten company-nøglede hentninger (én runde), plus profiles til navnene i
  * en ANDEN runde (kun når der er medlemmer — der er ingen FK fra
  * company_members til profiles at embedde over, jf. Members.tsx' separate
  * hentning), plus useCompanyFacts (egen query, genbrugt uændret).
@@ -38,6 +43,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import type { Json } from "@/integrations/supabase/types";
 import { useCompanyFacts, type CompanyFact } from "@/hooks/useCompanyFacts";
 import type { FejletTraek } from "@/lib/traek";
 import { KPI_DEFS } from "@/lib/kpiDefs";
@@ -103,7 +109,22 @@ export interface VirksomhedsData {
     indgangspris_oere: number | null;
     fornyelsespris_oere: number | null;
     created_at: string;
+    /** Ansøgningen som den blev skrevet ved oprettelsen (monday-webhook /
+        import-application): current_situation, goals, help_needed m.fl.
+        Statisk — designets §4 blok 2 vil have den SAMMENFATTET og gemt i
+        egen kolonne; den findes ikke endnu, så rå jsonb indtil da. */
+    application_context: Json | null;
   };
+  /** Seneste refleksion (pulse_checkins) — medlemmets egne ord, samme
+      kolonner som MemberDetail.tsx:238-244. null når der ingen er. */
+  refleksion: {
+    went_well: string | null;
+    biggest_challenge: string | null;
+    help_needed: string | null;
+    milestone_progress: number | null;
+    created_at: string;
+    period_key: string;
+  } | null;
   medlemmer: VirksomhedsMedlem[];
   invitationer: VirksomhedsInvitation[];
   samtaler: VirksomhedsSamtale[];
@@ -146,11 +167,11 @@ async function hentVirksomhed(companyId: string): Promise<VirksomhedsData | null
   const [
     companyRes, membersRes, invitationsRes, convsRes, budgetRes, milestonesRes,
     handoutsRes, actionsRes, proposalsRes, traekRes, perioderRes, linkRes, fornyelseRes,
-    rapporterRes, kpiMaalRes,
+    rapporterRes, kpiMaalRes, refleksionRes,
   ] = await Promise.all([
     supabase
       .from("companies")
-      .select("id, name, cvr_number, industry_label, contact_person, contact_email, contact_phone, status, is_legat, contract_start_date, contract_end_date, subscription_status, subscription_current_period_end, indgangspris_oere, fornyelsespris_oere, created_at")
+      .select("id, name, cvr_number, industry_label, contact_person, contact_email, contact_phone, status, is_legat, contract_start_date, contract_end_date, subscription_status, subscription_current_period_end, indgangspris_oere, fornyelsespris_oere, created_at, application_context")
       .eq("id", companyId)
       .maybeSingle(),
     supabase.from("company_members").select("user_id, role").eq("company_id", companyId),
@@ -217,6 +238,15 @@ async function hentVirksomhed(companyId: string): Promise<VirksomhedsData | null
       .order("uploaded_at", { ascending: false })
       .limit(50),
     supabase.from("kpi_targets").select("kpi_key, target_value, target_label").eq("company_id", companyId),
+    // Seneste refleksion (blok 2) — samme select og orden som
+    // MemberDetail.tsx:238-244; company-nøglet, én række.
+    supabase
+      .from("pulse_checkins")
+      .select("went_well, biggest_challenge, help_needed, milestone_progress, created_at, period_key")
+      .eq("company_id", companyId)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
   ]);
 
   // KPI-mål: DB-værdi hvis den findes, ellers fallback — ordret som
@@ -246,6 +276,7 @@ async function hentVirksomhed(companyId: string): Promise<VirksomhedsData | null
 
   return {
     company: companyRes.data,
+    refleksion: refleksionRes.data ?? null,
     medlemmer: memberRows.map((m) => ({
       user_id: m.user_id,
       role: m.role,
