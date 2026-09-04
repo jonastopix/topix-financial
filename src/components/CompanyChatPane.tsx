@@ -230,10 +230,12 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
   const [foreslaarOpgave, setForeslaarOpgave] = useState(false);
 
   // C1-splittet: all-advisor-profiles-query'en var `enabled: !isAdvisor`
-  // og flyttede med til MemberChatPane. For rådgiveren var værdien altid
-  // fallback'en — composer-placeholderen ("Skriv til Dine rådgivere...")
-  // er derfor uændret.
-  const advisorNamesLabel = "Dine rådgivere";
+  // og flyttede med til MemberChatPane. Fallback'en («Dine rådgivere»)
+  // blev hængende her som composer-placeholder — men det er RÅDGIVEREN
+  // der skriver, til virksomheden (set af Jonas 4/9, logget ind som
+  // rådgiver). Modtageren er nu virksomheden: dens navn når panelet er
+  // låst til én virksomhed (blok 4), ellers neutralt «virksomheden».
+  // `modtagerLabel` regnes nedenfor, når activeConv kendes.
 
 
   // Cached advisor list for assignment dropdown (two-step: roles then profiles)
@@ -772,6 +774,11 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
   }, [activeConvId, user, selectedTopic, conversations]);
 
   const activeConv = conversations.find((c) => c.id === activeConvId);
+
+  // Modtageren i skrivefeltet (og den tomme tilstand): rådgiveren skriver
+  // TIL virksomheden. Låst (blok 4): virksomhedens navn, samme tone som
+  // medlemmets «Skriv til Dine rådgivere...». Ellers neutralt.
+  const modtagerLabel = laast && activeConv?.companyName ? activeConv.companyName : "virksomheden";
 
   // "Se tal"-drawer data (advisor-mobil). Hooks cache via react-query og fyrer
   // ogsaa naar drawer er lukket — fint for nu; kan gates paa showCompanyDrawer senere.
@@ -1455,11 +1462,13 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
                       <div className="h-12 w-12 rounded-full bg-hb-sage/40 flex items-center justify-center mb-4">
                         <MessageSquare className="h-6 w-6 text-hb-evergreen" />
                       </div>
+                      {/* Rådgiverens tomme tråd — ikke medlemmets («Din direkte
+                          linje til rådgiverne» var arven fra C1-kopien). */}
                       <p className="text-sm font-medium text-hb-ink mb-1">
-                        Din direkte linje til rådgiverne
+                        Ingen beskeder endnu
                       </p>
                       <p className="text-xs text-hb-ink-soft leading-relaxed max-w-xs">
-                        Skriv hvad du har på hjerte — spørgsmål, opdateringer eller bare hvad der fylder. Dine rådgivere læser dine tal og svarer hurtigt.
+                        Skriv den første besked til {modtagerLabel} — et spørgsmål, en observation i tallene eller bare et tjek ind.
                       </p>
                     </div>
                   )}
@@ -1870,7 +1879,7 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
                       onSubmit={handleSend}
                       onRequestSubmit={(fn) => { chatSubmitRef.current = fn; }}
                       disabled={sending}
-                      placeholder={selectedTopic ? `Skriv om ${MESSAGE_TOPICS.find(t => t.key === selectedTopic)?.label?.toLowerCase()}...` : `Skriv til ${advisorNamesLabel}...`}
+                      placeholder={selectedTopic ? `Skriv om ${MESSAGE_TOPICS.find(t => t.key === selectedTopic)?.label?.toLowerCase()}...` : `Skriv til ${modtagerLabel}...`}
                       maxLength={MAX_MESSAGE_LENGTH}
                       variant="hb"
                     />
