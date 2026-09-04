@@ -29,16 +29,16 @@ import {
 } from "lucide-react";
 import ChatRichInput from "@/components/ChatRichInput";
 import { HbButton } from "@/components/hjemmebane/HbButton";
-import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
+import { HbTag } from "@/components/hjemmebane/HbTag";
+import { hbControlClasses } from "@/components/hjemmebane/admin/HbField";
 import {
   Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerClose,
 } from "@/components/ui/drawer";
-import KPICard from "@/components/KPICard";
 import { useCompanyFacts } from "@/hooks/useCompanyFacts";
 import { factsToDanishMetrics } from "@/lib/factsAdapter";
 import { useKpiTargets } from "@/hooks/useKpiTargets";
 import { useKpiBenchmarks } from "@/hooks/useKpiBenchmarks";
-import { deriveKpiMetrics, getTargetStatus } from "@/lib/kpiDefs";
+import { deriveKpiMetrics, getTargetStatus, type KpiMetric } from "@/lib/kpiDefs";
 import { useCompanyCommentary } from "@/hooks/useCompanyCommentary";
 import type { AnalysisData } from "@/components/AIFinancialAnalysis";
 import { format, formatDistanceToNow, startOfDay } from "date-fns";
@@ -78,18 +78,94 @@ import {
  * steder). Adfærden er uændret — samme handlinger, samme kald, samme
  * tekster; kun udtrykket.
  *
- * IKKE I ETAPE 1 (accepteret, står med gamle tokens): SIDEBAREN
- * («ADVISOR INBOX SIDEBAR», kun på /chat) og «SE TAL»-SKUFFEN (Drawer,
- * mobil) — de hører til /chat og tages i etape 2. Det samme gælder
- * «Indbakke»-overskriften over roden og INDHOLDET i ⋯-menuens Popover
- * (tildel/kræver ikke svar/foreslå opgave), som portalerer til <body>:
- * triggeren er Hb, indholdet er ikke. Roden bærer `theme-hjemmebane`, så
- * hb-tokens også findes på /chat, hvor skallen stadig er AppLayout: dér
- * står beskedområdet som papir ved siden af den mørke sidebar — mixet,
- * men læsbart — indtil etape 2. Emnefarverne (TOPIC_COLORS) er off-token
- * og bruges ikke længere til farve: alle emne-chips er sage/ink, som hos
- * medlemmet.
+ * ETAPE 2 (4/9): resten — det der kun findes på /chat. SIDEBAREN
+ * («ADVISOR INBOX SIDEBAR») er husets listeform: papir, hairlines
+ * (divide/border-hb-line), søgefelt i hbControlClasses, grupperne som
+ * eyebrow-overskrifter, én række pr. samtale med ForfatterAvatar, navn,
+ * tid, status og rådgiver — HbTag til statusser (Legat, Udløbet, tæller).
+ * Ordet siger hvad rækken er; tonen siger kun om noget haster: rust for
+ * «Kræver svar», blæk for «Tjek ind» (før amber — en påmindelse, ikke en
+ * fejl), ink-soft for resten. «SE TAL»-SKUFFEN beholder vaul-Draweren
+ * (samme mekanik: overlay, swipe) med `theme-hjemmebane` på indholdet —
+ * præcis som MobileMessageActionDrawer gør med variant="hb" — og viser
+ * KPI'erne som virksomhedssidens KpiKort (blok 5, VirksomhedView), ikke
+ * KPICard: samme dom (getTargetStatus → mål nået/ikke nået), kun udtrykket
+ * er Hb. ⋯-MENUEN er ikke længere en Radix Popover: den er en simpel
+ * menu i DOM-træet (HbMenu nedenfor), fordi HbOverlejrings HbPopover er
+ * venstre-forankret (bygget til datovælgeren under et felt), og ⋯ står i
+ * headerens højre kant og skal åbne mod venstre; udenfor-klik og Escape
+ * lukker, fokus går tilbage til triggeren — samme regler. Roden bærer
+ * `theme-hjemmebane`, så hb-tokens findes også på /chat, hvor skallen
+ * stadig er AppLayout. Emnefarverne (TOPIC_COLORS) er off-token og bruges
+ * ikke til farve: alle emne-chips er sage/ink, som hos medlemmet.
  */
+
+/** ⋯-menuen i DOM-træet (etape 2): højre-forankret panel under triggeren,
+    lukker ved mousedown udenfor og ved Escape (capture), fokus tilbage til
+    triggeren. Samme regler som HbOverlejring.HbPopover, som er venstre-
+    forankret — en `align`-prop dér er det naturlige næste skridt, så denne
+    kan udgå. Klik INDE i panelet (tildel, foreslå opgave med felter) lukker
+    ikke; kalderen lukker selv efter en handling, som før. */
+const HbMenu = ({
+  open, onOpenChange, trigger, children,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  trigger: (props: { ref: React.RefObject<HTMLButtonElement>; onClick: () => void; "aria-expanded": boolean; "aria-haspopup": "menu" }) => React.ReactNode;
+  children: React.ReactNode;
+}) => {
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const onOpenChangeRef = useRef(onOpenChange);
+  onOpenChangeRef.current = onOpenChange;
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => {
+      if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) onOpenChangeRef.current(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.stopImmediatePropagation();
+        e.preventDefault();
+        onOpenChangeRef.current(false);
+        triggerRef.current?.focus();
+      }
+    };
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey, true);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey, true);
+    };
+  }, [open]);
+  return (
+    <div ref={wrapperRef} className="relative flex-shrink-0">
+      {trigger({ ref: triggerRef, onClick: () => onOpenChange(!open), "aria-expanded": open, "aria-haspopup": "menu" })}
+      {open && (
+        <div role="menu" className="absolute right-0 top-full z-30 mt-2 w-56 rounded-hb border border-hb-line bg-hb-surface p-1 shadow-hb-hover">
+          {children}
+        </div>
+      )}
+    </div>
+  );
+};
+
+/** KPI-kort i skuffen — VirksomhedView.KpiKort (blok 5), uden sparkline
+    («kompakt, ingen sparkline» var skuffens egen regel). afviger = målet er
+    ikke nået (getTargetStatus, som skuffen dømte før med emerald/amber). */
+const SkuffeKpiKort = ({ metric, afviger }: { metric: KpiMetric; afviger: boolean }) => (
+  <div className={`rounded-hb border p-3 ${afviger ? "border-hb-rust/40 bg-hb-rust/5" : "border-hb-line bg-hb-surface"}`}>
+    <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft">{metric.label}</p>
+    <p className={`mt-1 font-editorial text-2xl leading-tight ${afviger ? "text-hb-rust" : "text-hb-ink"}`}>
+      {metric.value}
+      <span className="ml-1 text-sm text-hb-ink-soft">{metric.unit === "%" ? "%" : metric.unit === "DKK" ? "kr" : ""}</span>
+    </p>
+    <p className="mt-1 text-xs text-hb-ink-soft">
+      {metric.change ? `${metric.change} M/M` : "M/M —"}
+      {metric.targetNum > 0 && ` · mål ${metric.target}`}
+    </p>
+  </div>
+);
 
 /** Samme avatar-form som MemberChatPane (:84-95, kopieret derfra — den er
     lokal dér, som den er lokal i CommunityTraadView): rounded-full,
@@ -959,10 +1035,13 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
 
   return (
     <>
+      {/* «Indbakke»-overskriften ligger UDEN FOR roden (over den) og får derfor
+          sin egen theme-hjemmebane + papir, så den er læsbar i AppLayout og
+          papiret løber sammen med roden nedenunder. */}
       {!laast && isAdvisor && !isFullscreen && !isMobile && (
-        <div className="mb-2">
-          <h1 className="text-xl font-display font-bold text-foreground tracking-tight flex items-center gap-2">
-            <MessageCircle className="h-5 w-5 text-primary" />
+        <div className="theme-hjemmebane bg-hb-paper px-4 pt-4 pb-2 font-body text-hb-ink antialiased">
+          <h1 className="font-editorial text-2xl font-medium leading-tight text-hb-ink flex items-center gap-2">
+            <MessageCircle className="h-5 w-5 text-hb-evergreen" />
             Indbakke
           </h1>
         </div>
@@ -973,24 +1052,24 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
           på /chat (AppLayout); i blok 4 er skallen allerede Hb og roden
           gennemsigtig i praksis. */}
       <div className="theme-hjemmebane flex flex-1 min-h-0 overflow-hidden bg-hb-paper font-body text-hb-ink antialiased">
-        {/* ─── ADVISOR INBOX SIDEBAR — ETAPE 2: gamle tokens, urørt ─── */}
+        {/* ─── ADVISOR INBOX SIDEBAR — husets listeform (etape 2) ─── */}
         {showSidebar && (
-          <div className={`${isMobile ? "w-full" : "w-[340px]"} border-r border-border flex flex-col bg-card/50`}>
-            {/* Search */}
-            <div className="px-3 pt-3 pb-2 border-b border-border">
+          <div className={`${isMobile ? "w-full" : "w-[340px]"} border-r border-hb-line flex flex-col bg-hb-paper`}>
+            {/* Search — VirksomhedslisteView:295-301: hbControlClasses, rund */}
+            <div className="px-3 pt-3 pb-2 border-b border-hb-line">
               {isMobile && (
-                <h1 className="text-lg font-display font-bold text-foreground tracking-tight flex items-center gap-2 mb-2">
-                  <MessageCircle className="h-4.5 w-4.5 text-primary" />
+                <h1 className="font-editorial text-2xl font-medium leading-tight text-hb-ink flex items-center gap-2 mb-2">
+                  <MessageCircle className="h-5 w-5 text-hb-evergreen" />
                   Indbakke
                 </h1>
               )}
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-hb-ink-soft" />
                 <input
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Søg virksomhed..."
-                  className="w-full pl-9 pr-3 py-2 rounded-lg bg-secondary border border-border text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
+                  className={`${hbControlClasses} rounded-full py-2 pl-9 pr-4 text-sm`}
                 />
               </div>
             </div>
@@ -1019,11 +1098,14 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
                 if (q && total === 0) {
                   return (
                     <div className="p-6 text-center">
-                      <p className="text-xs text-muted-foreground">Ingen resultater for "{searchQuery}"</p>
+                      <p className="text-xs text-hb-ink-soft">Ingen resultater for "{searchQuery}"</p>
                     </div>
                   );
                 }
 
+                // Én række pr. samtale — LegatViews rækkeform (valgt = sage,
+                // hover = sage/20, hairline under). Tonen: rust kun for
+                // «Kræver svar»; «Tjek ind» er en påmindelse og står i blæk.
                 const renderConvCard = (conv: ConversationWithProfile, urgency: 'reply' | 'checkin' | 'normal') => {
                   const isActive = activeConvId === conv.id;
                   const assignedInitials = getAdvisorInitials(conv.assigned_advisor_id);
@@ -1032,81 +1114,65 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
                     <button
                       key={conv.id}
                       onClick={() => handleSelectConversation(conv.id)}
-                      className={`w-full text-left px-3 py-3 border-b border-border/30 transition-colors ${
-                        isActive
-                          ? "bg-primary/8 border-l-2 border-l-primary"
-                          : urgency === 'reply'
-                          ? "hover:bg-destructive/5"
-                          : urgency === 'checkin'
-                          ? "hover:bg-amber-500/5"
-                          : "hover:bg-secondary/30"
+                      className={`w-full text-left px-3 py-3 border-b border-hb-line/60 transition-colors ${
+                        isActive ? "bg-hb-sage/40" : "hover:bg-hb-sage/20"
                       }`}
                     >
                       <div className="flex items-center gap-2.5">
-                        <div className={`h-9 w-9 rounded-full flex items-center justify-center overflow-hidden flex-shrink-0 ${
-                          urgency === 'reply' ? "bg-destructive/10" : "bg-primary/10"
-                        }`}>
-                          {conv.companyLogoUrl ? (
-                            <img src={conv.companyLogoUrl} alt="" className="h-9 w-9 object-cover" />
-                          ) : (
-                            <span className={`text-xs font-semibold ${urgency === 'reply' ? "text-destructive" : "text-primary"}`}>
-                              {getInitialsLocal(conv.companyName || conv.profile?.full_name || "??")}
-                            </span>
-                          )}
-                        </div>
+                        <ForfatterAvatar navn={conv.companyName || conv.profile?.full_name || null} avatarUrl={conv.companyLogoUrl || null} />
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center justify-between">
-                            <p className={`text-sm truncate ${urgency === 'reply' ? "font-semibold text-foreground" : "font-medium text-foreground"}`}>
+                            <p className={`text-sm truncate text-hb-ink ${urgency === 'reply' ? "font-medium" : ""}`}>
                               {conv.companyName || conv.profile?.full_name || "Ukendt"}
                               {conv.isLegat && (
-                                <span className="ml-1.5 text-[9px] font-semibold text-primary bg-primary/10 px-1.5 py-0.5 rounded-full">Legat</span>
+                                <HbTag className="ml-1.5 bg-hb-sage/60 px-1.5 py-0.5 text-[9px]">Legat</HbTag>
                               )}
                               {conv.membershipTier === "expired" && (
-                                <span className="ml-1.5 text-[9px] font-semibold text-destructive bg-destructive/10 px-1.5 py-0.5 rounded-full">Udløbet</span>
+                                <HbTag className="ml-1.5 bg-hb-line/60 px-1.5 py-0.5 text-[9px] text-hb-ink-soft">Udløbet</HbTag>
                               )}
                             </p>
-                            <span className="text-[10px] text-muted-foreground ml-2 flex-shrink-0">
+                            <span className="text-[10px] text-hb-ink-soft ml-2 flex-shrink-0">
                               {relativeTime(conv.last_message_at)}
                             </span>
                           </div>
                           {conv.companyName && conv.profile?.full_name && (
-                            <p className="text-[10px] text-muted-foreground truncate leading-tight mb-0.5">
+                            <p className="text-[10px] text-hb-ink-soft truncate leading-tight mb-0.5">
                               {conv.profile.full_name}
                             </p>
                           )}
                           <div className="flex items-center gap-1.5 mt-1">
                             {urgency === 'reply' && (
-                              <span className="text-[10px] font-medium text-destructive">
+                              <span className="text-[10px] font-medium text-hb-rust">
                                 {conv.last_member_message_at
                                   ? `Afventer · ${formatDistanceToNow(new Date(conv.last_member_message_at), { locale: da })}`
                                   : "Afventer svar"}
                               </span>
                             )}
                             {urgency === 'checkin' && (
-                              <span className="text-[10px] font-medium text-amber-600 dark:text-amber-400">
+                              <span className="text-[10px] font-medium text-hb-ink">
                                 {conv.last_advisor_reply_at
                                   ? `Ingen kontakt · ${formatDistanceToNow(new Date(conv.last_advisor_reply_at), { locale: da })}`
                                   : "Tjek ind"}
                               </span>
                             )}
                             {urgency === 'normal' && conv.lastMessage && (
-                              <p className="text-xs text-muted-foreground truncate">
+                              <p className="text-xs text-hb-ink-soft truncate">
                                 {conv.lastMessageSenderId === user?.id ? "Du: " : ""}
                                 {conv.lastMessage.replace(/<[^>]+>/g, "").slice(0, 50)}
                               </p>
                             )}
                             {conv.hasRecentReport && (
                               <span className="ml-auto flex-shrink-0">
-                                <FileText className="h-3 w-3 text-primary" />
+                                <FileText className="h-3 w-3 text-hb-evergreen" />
                               </span>
                             )}
                             {assignedInitials && (
-                              <span
-                                className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-muted text-[9px] font-medium text-muted-foreground flex-shrink-0 ml-auto"
+                              <HbTag
+                                className="bg-hb-sage/40 px-1.5 py-0.5 text-[9px] text-hb-ink-soft flex-shrink-0 ml-auto"
                                 title={assignedName || ""}
                               >
                                 {assignedName?.split(" ")[0] || assignedInitials}
-                              </span>
+                              </HbTag>
                             )}
                           </div>
                         </div>
@@ -1115,79 +1181,56 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
                   );
                 };
 
+                // Gruppeoverskrifter som eyebrows; tælleren som HbTag.
+                const gruppeHoved = (label: string, antal: number, tone: "rust" | "ink" | "soft") => (
+                  <div className="flex items-center gap-2 px-3 pt-3 pb-1.5">
+                    <span className={`text-[11px] font-medium uppercase tracking-[0.14em] ${tone === "rust" ? "text-hb-rust" : tone === "ink" ? "text-hb-ink" : "text-hb-ink-soft"}`}>
+                      {label}
+                    </span>
+                    <HbTag className={`px-1.5 py-0 text-[10px] ${tone === "rust" ? "bg-hb-rust/10 text-hb-rust" : "bg-hb-sage/50 text-hb-ink-soft"}`}>
+                      {antal}
+                    </HbTag>
+                  </div>
+                );
+
                 return (
                   <>
                     {/* Section: Kræver svar */}
                     {replyList.length > 0 && (
                       <div>
-                        <div className="flex items-center gap-2 px-3 pt-3 pb-1.5">
-                          <span className="text-[10px] font-semibold text-destructive uppercase tracking-wider">
-                            Kræver svar
-                          </span>
-                          <span className="inline-flex items-center justify-center h-4 min-w-4 px-1 rounded-full bg-destructive text-[9px] font-bold text-destructive-foreground">
-                            {replyList.length}
-                          </span>
-                        </div>
+                        {gruppeHoved("Kræver svar", replyList.length, "rust")}
                         {replyList.map(c => renderConvCard(c, 'reply'))}
                       </div>
                     )}
 
                     {/* Section: Tjek ind */}
                     {checkinList.length > 0 && (
-                      <div className={replyList.length > 0 ? "border-t border-border" : ""}>
-                        <div className="flex items-center gap-2 px-3 pt-3 pb-1.5">
-                          <span className="text-[10px] font-semibold text-amber-600 dark:text-amber-400 uppercase tracking-wider">
-                            Tjek ind
-                          </span>
-                          <span className="inline-flex items-center justify-center h-4 min-w-4 px-1 rounded-full bg-amber-500/20 text-[9px] font-bold text-amber-700 dark:text-amber-300">
-                            {checkinList.length}
-                          </span>
-                        </div>
+                      <div className={replyList.length > 0 ? "border-t border-hb-line" : ""}>
+                        {gruppeHoved("Tjek ind", checkinList.length, "ink")}
                         {checkinList.map(c => renderConvCard(c, 'checkin'))}
                       </div>
                     )}
 
                     {/* Section: Alle andre */}
                     {restList.length > 0 && (
-                      <div className={(replyList.length > 0 || checkinList.length > 0) ? "border-t border-border" : ""}>
-                        <div className="flex items-center gap-2 px-3 pt-3 pb-1.5">
-                          <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
-                            Alle
-                          </span>
-                          <span className="text-[10px] text-muted-foreground">
-                            {restList.length}
-                          </span>
-                        </div>
+                      <div className={(replyList.length > 0 || checkinList.length > 0) ? "border-t border-hb-line" : ""}>
+                        {gruppeHoved("Alle", restList.length, "soft")}
                         {restList.map(c => renderConvCard(c, 'normal'))}
                       </div>
                     )}
 
                     {/* Section: Legat */}
                     {legatList.length > 0 && (
-                      <div className={(replyList.length > 0 || checkinList.length > 0 || restList.length > 0) ? "border-t-2 border-border mt-1" : ""}>
-                        <div className="flex items-center gap-2 px-3 pt-3 pb-1.5">
-                          <span className="text-[10px] font-semibold text-primary uppercase tracking-wider">
-                            Legat
-                          </span>
-                          <span className="text-[10px] text-muted-foreground">
-                            {legatList.length}
-                          </span>
-                        </div>
+                      <div className={(replyList.length > 0 || checkinList.length > 0 || restList.length > 0) ? "border-t border-hb-line mt-1" : ""}>
+                        {gruppeHoved("Legat", legatList.length, "soft")}
                         {legatList.map(c => renderConvCard(c, 'normal'))}
                       </div>
                     )}
 
                     {/* Section: Udløbede (search-reveal only) */}
                     {expiredList.length > 0 && (
-                      <div className={(replyList.length > 0 || checkinList.length > 0 || restList.length > 0 || legatList.length > 0) ? "border-t-2 border-border mt-1" : ""}>
-                        <div className="flex items-center gap-2 px-3 pt-3 pb-1.5">
-                          <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
-                            Udløbede
-                          </span>
-                          <span className="text-[10px] text-muted-foreground">
-                            {expiredList.length}
-                          </span>
-                        </div>
+                      <div className={(replyList.length > 0 || checkinList.length > 0 || restList.length > 0 || legatList.length > 0) ? "border-t border-hb-line mt-1" : ""}>
+                        {gruppeHoved("Udløbede", expiredList.length, "soft")}
                         {expiredList.map(c => renderConvCard(c, 'normal'))}
                       </div>
                     )}
@@ -1195,8 +1238,8 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
                     {/* Empty state */}
                     {replyList.length === 0 && checkinList.length === 0 && restList.length === 0 && legatList.length === 0 && expiredList.length === 0 && !q && (
                       <div className="p-8 text-center">
-                        <CheckCheck className="h-8 w-8 text-muted-foreground/20 mx-auto mb-2" />
-                        <p className="text-xs text-muted-foreground">Alt er i orden 🎉</p>
+                        <CheckCheck className="h-8 w-8 text-hb-evergreen/40 mx-auto mb-2" />
+                        <p className="text-xs text-hb-ink-soft">Alt er i orden 🎉</p>
                       </div>
                     )}
                   </>
@@ -1279,42 +1322,44 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
                           <span className="hidden sm:inline">Afventer dit svar</span>
                         </span>
                       )}
-                      {/* ⋯ secondary actions menu — triggeren er Hb; PopoverContent
-                          portalerer til <body> og står med gamle tokens (etape 2). */}
-                      <Popover open={assignmentPopoverOpen} onOpenChange={setAssignmentPopoverOpen} modal={false}>
-                          <PopoverTrigger asChild>
-                            <button className="p-1.5 rounded-full text-hb-ink-soft hover:text-hb-ink hover:bg-hb-sage/30 transition-colors flex-shrink-0">
-                              <MoreHorizontal className="h-4 w-4" />
-                            </button>
-                          </PopoverTrigger>
-                          <PopoverContent align="end" sideOffset={8} className="w-56 p-1 z-[200]">
+                      {/* ⋯ secondary actions menu — HbMenu i DOM-træet (etape 2),
+                          ingen portal. Samme tre handlinger, samme kald. */}
+                      <HbMenu
+                        open={assignmentPopoverOpen}
+                        onOpenChange={setAssignmentPopoverOpen}
+                        trigger={(p) => (
+                          <button type="button" {...p} className="p-1.5 rounded-full text-hb-ink-soft hover:text-hb-ink hover:bg-hb-sage/30 transition-colors flex-shrink-0">
+                            <MoreHorizontal className="h-4 w-4" />
+                          </button>
+                        )}
+                      >
                             {/* Assign */}
                             <div className="px-2 py-1 mb-1">
-                              <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider mb-1.5">Tildel rådgiver</p>
+                              <p className="text-[10px] text-hb-ink-soft font-medium uppercase tracking-[0.14em] mb-1.5">Tildel rådgiver</p>
                               {(advisorUsers || []).map((a: any) => {
                                 const isCurrent = activeConv?.assigned_advisor_id === a.user_id;
                                 return (
                                   <button
                                     key={a.user_id}
                                     onClick={() => { handleAssignAdvisor(a.user_id); setAssignmentPopoverOpen(false); }}
-                                    className={`flex items-center gap-2 w-full px-2 py-1.5 rounded-md text-xs transition-colors text-foreground ${isCurrent ? "bg-primary/5 font-medium" : "hover:bg-secondary/60"}`}
+                                    className={`flex items-center gap-2 w-full px-2 py-1.5 rounded-md text-xs transition-colors text-hb-ink ${isCurrent ? "bg-hb-sage/40 font-medium" : "hover:bg-hb-sage/30"}`}
                                   >
-                                    <div className="h-5 w-5 rounded-full bg-muted flex items-center justify-center overflow-hidden flex-shrink-0">
+                                    <div className="h-5 w-5 rounded-full border border-hb-line bg-hb-sage/40 flex items-center justify-center overflow-hidden flex-shrink-0">
                                       {a.avatar_url ? (
                                         <img src={a.avatar_url} alt="" className="h-5 w-5 object-cover" />
                                       ) : (
-                                        <span className="text-[8px] font-medium text-muted-foreground">{getInitialsLocal(a.full_name)}</span>
+                                        <span className="text-[8px] font-medium text-hb-ink-soft">{getInitialsLocal(a.full_name)}</span>
                                       )}
                                     </div>
                                     <span className="truncate">{a.full_name}</span>
-                                    {isCurrent && <Check className="h-3 w-3 text-primary ml-auto flex-shrink-0" />}
+                                    {isCurrent && <Check className="h-3 w-3 text-hb-evergreen ml-auto flex-shrink-0" />}
                                   </button>
                                 );
                               })}
                               {activeConv?.assigned_advisor_id && (
                                 <button
                                   onClick={() => { handleAssignAdvisor(null); setAssignmentPopoverOpen(false); }}
-                                  className="flex items-center gap-2 w-full px-2 py-1.5 rounded-md text-xs text-muted-foreground hover:text-destructive hover:bg-destructive/5 transition-colors mt-1"
+                                  className="flex items-center gap-2 w-full px-2 py-1.5 rounded-md text-xs text-hb-ink-soft hover:text-hb-rust hover:bg-hb-rust/5 transition-colors mt-1"
                                 >
                                   Fjern tildeling
                                 </button>
@@ -1322,10 +1367,10 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
                             </div>
                             {activeConv?.awaiting_reply_from === "advisor" && (
                               <>
-                                <div className="border-t border-border my-1" />
+                                <div className="border-t border-hb-line my-1" />
                                 <button
                                   onClick={() => { handleNoReplyNeeded(); setAssignmentPopoverOpen(false); }}
-                                  className="flex items-center gap-2 w-full px-2 py-1.5 rounded-md text-xs text-muted-foreground hover:bg-secondary/60 transition-colors"
+                                  className="flex items-center gap-2 w-full px-2 py-1.5 rounded-md text-xs text-hb-ink-soft hover:text-hb-ink hover:bg-hb-sage/30 transition-colors"
                                 >
                                   <CheckCheck className="h-3.5 w-3.5" />
                                   Kræver ikke svar
@@ -1336,33 +1381,33 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
                                 Forslaget lander i medlemmets "Dine aftaler"
                                 (B1: intet er en opgave før medlemmet siger ja;
                                 B6: medlemmet vælger datoen ved accept). */}
-                            <div className="border-t border-border my-1" />
+                            <div className="border-t border-hb-line my-1" />
                             <div className="px-2 py-1.5">
-                              <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider mb-1.5">Foreslå opgave</p>
+                              <p className="text-[10px] text-hb-ink-soft font-medium uppercase tracking-[0.14em] mb-1.5">Foreslå opgave</p>
                               <input
                                 value={forslagTitel}
                                 onChange={(e) => setForslagTitel(e.target.value)}
                                 maxLength={200}
                                 placeholder="Hvad skal medlemmet gøre?"
-                                className="w-full px-2 py-1.5 mb-1.5 rounded-md border border-border bg-background text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                                className={`${hbControlClasses} mb-1.5 px-2 py-1.5 text-xs`}
                               />
                               <textarea
                                 value={forslagBegrundelse}
                                 onChange={(e) => setForslagBegrundelse(e.target.value)}
                                 placeholder="Hvorfor? (valgfrit)"
                                 rows={2}
-                                className="w-full px-2 py-1.5 mb-1.5 rounded-md border border-border bg-background text-xs text-foreground placeholder:text-muted-foreground resize-none focus:outline-none focus:ring-1 focus:ring-ring"
+                                className={`${hbControlClasses} mb-1.5 resize-none px-2 py-1.5 text-xs`}
                               />
-                              <button
+                              <HbButton
+                                type="button"
                                 onClick={handleForeslaaOpgave}
                                 disabled={foreslaarOpgave || !forslagTitel.trim()}
-                                className="w-full px-2 py-1.5 rounded-md text-xs font-medium bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
+                                className="h-8 w-full px-2 text-xs"
                               >
                                 {foreslaarOpgave ? "Sender…" : "Foreslå opgave"}
-                              </button>
+                              </HbButton>
                             </div>
-                          </PopoverContent>
-                      </Popover>
+                      </HbMenu>
                       {/* Prev/next */}
                       {advisorConvList.length > 1 && (
                         <div className="flex items-center gap-0.5 flex-shrink-0">
@@ -1868,20 +1913,23 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
         )}
       </div>
 
-      {/* Se tal-drawer (mobil-rådgiver) — kerne-tal + KPI-grid (kompakt, ingen sparkline) */}
+      {/* Se tal-drawer (mobil-rådgiver) — kerne-tal + KPI-grid (kompakt, ingen
+          sparkline). vaul-Draweren består (overlay, swipe, samme mekanik);
+          indholdet får theme-hjemmebane som MobileMessageActionDrawer:104,
+          og KPI'erne er SkuffeKpiKort (virksomhedssidens form), ikke KPICard. */}
       <Drawer open={showCompanyDrawer} onOpenChange={setShowCompanyDrawer}>
-        <DrawerContent>
+        <DrawerContent className="theme-hjemmebane border-hb-line bg-hb-paper font-body text-hb-ink antialiased">
           <DrawerHeader>
-            <DrawerTitle>{activeConv?.companyName || "Virksomhed"}</DrawerTitle>
+            <DrawerTitle className="font-editorial text-xl font-medium text-hb-ink">{activeConv?.companyName || "Virksomhed"}</DrawerTitle>
             {latestPeriodLabel && (
-              <p className="text-xs text-muted-foreground">{latestPeriodLabel}</p>
+              <p className="text-xs text-hb-ink-soft">{latestPeriodLabel}</p>
             )}
           </DrawerHeader>
 
           {/* Scroll-wrapper: drawer-indhold kan være højere end skærm */}
           <div className="overflow-y-auto px-4 pb-[max(1rem,env(safe-area-inset-bottom))] max-h-[70vh]">
             {drawerMetrics.length === 0 ? (
-              <div className="py-10 text-center text-sm text-muted-foreground">
+              <div className="py-10 text-center text-sm text-hb-ink-soft">
                 Ingen tal endnu. Når virksomheden har godkendte rapporter, vises tallene her.
               </div>
             ) : (
@@ -1892,35 +1940,17 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
                     const m = drawerMetrics.find((x) => x.key === key);
                     if (!m) return null;
                     const status = getTargetStatus(m);
-                    return (
-                      <KPICard
-                        key={m.key}
-                        title={m.label}
-                        value={`${m.value}${m.unit === "%" ? "%" : ""}${m.unit === "DKK" ? " kr" : ""}`}
-                        change={m.change}
-                        trend={m.trend}
-                        accentColor={status.hit ? "emerald" : "amber"}
-                      />
-                    );
+                    return <SkuffeKpiKort key={m.key} metric={m} afviger={!status.hit} />;
                   })}
                 </div>
 
                 {/* Adskiller + KPI-grid: alle seks */}
-                <div className="border-t pt-4 mb-2">
-                  <h3 className="text-sm font-medium mb-2">Alle KPI'er</h3>
+                <div className="border-t border-hb-line pt-4 mb-2">
+                  <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft mb-2">Alle KPI'er</p>
                   <div className="grid grid-cols-1 gap-2">
                     {drawerMetrics.map((m) => {
                       const status = getTargetStatus(m);
-                      return (
-                        <KPICard
-                          key={m.key}
-                          title={m.label}
-                          value={`${m.value}${m.unit === "%" ? "%" : ""}${m.unit === "DKK" ? " kr" : ""}`}
-                          change={m.change}
-                          trend={m.trend}
-                          accentColor={status.hit ? "emerald" : "amber"}
-                        />
-                      );
+                      return <SkuffeKpiKort key={m.key} metric={m} afviger={!status.hit} />;
                     })}
                   </div>
                 </div>
@@ -1928,11 +1958,11 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
             )}
 
             {/* AI-analyse: kompakt visning (read-only) */}
-            <div className="border-t pt-4 mt-4">
+            <div className="border-t border-hb-line pt-4 mt-4">
               <div className="flex items-center justify-between mb-2">
-                <h3 className="text-sm font-medium">AI-analyse</h3>
+                <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft">AI-analyse</p>
                 {drawerIsStale && (
-                  <span className="inline-flex items-center gap-1 text-xs text-chart-warning">
+                  <span className="inline-flex items-center gap-1 text-xs text-hb-ink-soft">
                     <AlertTriangle className="h-3 w-3" />
                     Muligvis forældet
                   </span>
@@ -1940,32 +1970,34 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
               </div>
 
               {!drawerAnalysis ? (
-                <div className="py-4 text-sm text-muted-foreground">
+                <div className="py-4 text-sm text-hb-ink-soft">
                   Ingen AI-analyse endnu. Generér den fra Reports-siden på desktop.
                 </div>
               ) : (
                 <div className="space-y-3">
                   {drawerAnalysis.overview && (
-                    <p className={`text-sm leading-relaxed ${drawerIsStale ? "opacity-60" : ""}`}>
+                    <p className={`text-sm leading-relaxed text-hb-ink ${drawerIsStale ? "opacity-60" : ""}`}>
                       {drawerAnalysis.overview}
                     </p>
                   )}
 
                   {drawerAnalysis.key_findings && drawerAnalysis.key_findings.length > 0 && (
                     <div className="space-y-2">
-                      <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                      <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft">
                         Nøglefund
-                      </h4>
+                      </p>
                       <div className="space-y-1.5">
                         {drawerAnalysis.key_findings.map((finding, idx) => {
+                          // Tonen siger kun om det haster: rust for kritisk,
+                          // papir/hairline for advarsel, sage for det gode.
                           const severityColor =
-                            finding.severity === "kritisk" ? "bg-destructive/10 text-destructive border-destructive/30" :
-                            finding.severity === "advarsel" ? "bg-chart-warning/10 text-chart-warning border-chart-warning/30" :
-                            "bg-primary/10 text-primary border-primary/30";
+                            finding.severity === "kritisk" ? "bg-hb-rust/5 text-hb-rust border-hb-rust/40" :
+                            finding.severity === "advarsel" ? "bg-hb-paper text-hb-ink border-hb-line" :
+                            "bg-hb-sage/30 text-hb-ink border-hb-line";
                           return (
                             <div
                               key={idx}
-                              className={`text-sm px-3 py-2 rounded-md border ${severityColor} ${drawerIsStale ? "opacity-60" : ""}`}
+                              className={`text-sm px-3 py-2 rounded-hb border ${severityColor} ${drawerIsStale ? "opacity-60" : ""}`}
                             >
                               {finding.title}
                             </div>
@@ -1975,7 +2007,7 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
                     </div>
                   )}
 
-                  <p className="text-xs text-muted-foreground pt-2">
+                  <p className="text-xs text-hb-ink-soft pt-2">
                     Se fuld analyse på Reports-siden.
                   </p>
                 </div>
