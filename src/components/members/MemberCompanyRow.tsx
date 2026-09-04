@@ -15,6 +15,7 @@ import { format } from "date-fns";
 import { da } from "date-fns/locale";
 import type { CompanyData, CompanyMember, LoginInfo } from "./types";
 import { beloebKr, datoOgTid, stripeSagde, traekBadgeTekst } from "@/lib/traek";
+import { maaFjerneMedlem } from "@/lib/medlemsfjernelse";
 
 interface MemberCompanyRowProps {
   company: CompanyData;
@@ -344,7 +345,10 @@ const MemberCompanyRow = ({
                           </div>
                           <span className="text-[10px] text-muted-foreground">{m.role}</span>
                         </Link>
-                        {isAdmin && m.role !== 'owner' && (
+                        {/* Owner-værnet (4/9): samme dom som MemberDetail og som
+                            manage-advisor afviser med 403 — admin OG ikke owner
+                            (src/lib/medlemsfjernelse.ts). */}
+                        {maaFjerneMedlem(isAdmin, m.role) && (
                           <AlertDialog>
                             <AlertDialogTrigger asChild>
                               <button

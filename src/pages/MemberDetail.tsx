@@ -49,6 +49,7 @@ import { handoutConfigs, moduleOrder, type HandoutModule, type HandoutConfig } f
 import { calcHandoutProgress } from "@/lib/handoutUtils";
 import { reportStatusConfig, getEffectiveReportPeriod, getEffectiveKeyFigures, hasManualOverride, REPORT_OVERRIDE_SELECT, type ReportData } from "@/lib/financialUtils";
 import { afgoerVirksomhedsSignaler, type FactPunkt, type Signal, type VirksomhedsInput } from "@/lib/virksomhedsSignaler";
+import { maaFjerneMedlem } from "@/lib/medlemsfjernelse";
 import { openReportFile, isLegacyPath } from "@/lib/reportFileAccess";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
@@ -80,6 +81,9 @@ interface MemberProfile {
 
 interface CompanyContext {
   company_id: string;
+  /** Medlemmets company_members.role ('owner' | 'member') — owner-værnet
+      på «Fjern medlem» (4/9) læser den. null når rækken mangler feltet. */
+  role: string | null;
   name: string;
   industry_label: string | null;
   cvr_number: string | null;
@@ -256,13 +260,13 @@ const MemberDetail = () => {
     if (!userId) return;
     const { data: cmData } = await supabase
       .from("company_members" as any)
-      .select("company_id, companies:company_id(name, industry_label, cvr_number, slack_channel, city, website, logo_url, start_date, application_context, contract_start_date, contract_end_date, onboarding_completed, subscription_status, subscription_current_period_end, intro_session_used_at)" as any)
+      .select("company_id, role, companies:company_id(name, industry_label, cvr_number, slack_channel, city, website, logo_url, start_date, application_context, contract_start_date, contract_end_date, onboarding_completed, subscription_status, subscription_current_period_end, intro_session_used_at)" as any)
       .eq("user_id", userId)
       .limit(1)
       .maybeSingle();
     const cm = cmData as any;
     if (cm?.companies) {
-      setCompanyCtx({ ...cm.companies, company_id: cm.company_id } as CompanyContext);
+      setCompanyCtx({ ...cm.companies, company_id: cm.company_id, role: cm.role ?? null } as CompanyContext);
     }
   };
 
@@ -333,7 +337,16 @@ const MemberDetail = () => {
         body: { action: 'remove-member', target_user_id: userId },
         headers: { Authorization: `Bearer ${session?.access_token}` },
       });
-      if (error) throw error;
+      if (error) {
+        // Ved non-2xx bærer invoke kun en generisk besked; serverens danske
+        // begrundelse (fx owner-værnets 403, 4/9) ligger i svarets body.
+        let serverBesked: string | null = null;
+        try {
+          const body = await (error as { context?: Response }).context?.json?.();
+          if (body && typeof body.error === "string") serverBesked = body.error;
+        } catch { /* body var ikke JSON — den generiske besked er nok */ }
+        throw new Error(serverBesked || error.message);
+      }
       if (data?.error) throw new Error(data.error);
       toast.success("Medlem fjernet", { description: "Brugeren er blevet fjernet fra virksomheden." });
       navigate('/members');
@@ -373,13 +386,13 @@ const MemberDetail = () => {
         // Fetch company context via company_members
         const { data: cmData } = await supabase
           .from("company_members" as any)
-          .select("company_id, companies:company_id(name, industry_label, cvr_number, slack_channel, city, website, logo_url, start_date, application_context, contract_start_date, contract_end_date, onboarding_completed, subscription_status, subscription_current_period_end, intro_session_used_at)" as any)
+          .select("company_id, role, companies:company_id(name, industry_label, cvr_number, slack_channel, city, website, logo_url, start_date, application_context, contract_start_date, contract_end_date, onboarding_completed, subscription_status, subscription_current_period_end, intro_session_used_at)" as any)
           .eq("user_id", userId)
           .limit(1)
           .maybeSingle();
         const cm = cmData as any;
         if (cm?.companies) {
-          const ctx = { ...cm.companies, company_id: cm.company_id } as CompanyContext;
+          const ctx = { ...cm.companies, company_id: cm.company_id, role: cm.role ?? null } as CompanyContext;
           setCompanyCtx(ctx);
           // Fetch budgets by company_id (correct key). Fladen læser KUN
           // omsætnings-rækker i base-scenariet (:716-717, :783) — filteret
@@ -874,33 +887,39 @@ const MemberDetail = () => {
                 >
                   <MessageSquare className="h-3.5 w-3.5" /> Chat
                 </Link>
-                <AlertDialog>
-                  <AlertDialogTrigger asChild>
-                    <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive hover:bg-destructive/10">
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </AlertDialogTrigger>
-                  <AlertDialogContent>
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>Fjern medlem</AlertDialogTitle>
-                      <AlertDialogDescription>
-                        Er du sikker på, at du vil fjerne <strong>{profile.full_name}</strong>
-                        {profile.email ? ` (${profile.email})` : ''}?
-                        Denne handling er permanent og fjerner brugeren fra virksomheden, profilen og kontoen.
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel>Annuller</AlertDialogCancel>
-                      <AlertDialogAction
-                        onClick={handleRemoveMember}
-                        disabled={removing}
-                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                      >
-                        {removing ? "Fjerner..." : "Fjern medlem"}
-                      </AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
+                {/* Owner-værnet (4/9): samme dom som MemberCompanyRow og som
+                    manage-advisor afviser med 403 — admin OG ikke owner
+                    (src/lib/medlemsfjernelse.ts). Før viste knappen sig for
+                    enhver rådgiver, uanset rolle. */}
+                {maaFjerneMedlem(!!isAdmin, companyCtx?.role ?? null) && (
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive hover:bg-destructive/10">
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Fjern medlem</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          Er du sikker på, at du vil fjerne <strong>{profile.full_name}</strong>
+                          {profile.email ? ` (${profile.email})` : ''}?
+                          Denne handling er permanent og fjerner brugeren fra virksomheden, profilen og kontoen.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Annuller</AlertDialogCancel>
+                        <AlertDialogAction
+                          onClick={handleRemoveMember}
+                          disabled={removing}
+                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                        >
+                          {removing ? "Fjerner..." : "Fjern medlem"}
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                )}
               </div>
             </div>
 
