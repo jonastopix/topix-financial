@@ -1,3 +1,12 @@
+/**
+ * UDEN AFTAGER siden 4/9 (raadgiverfladen-design.md §11 pkt. 4): ruten
+ * /members/:userId peger på pages/MedlemTilVirksomhed.tsx, som
+ * viderestiller til /virksomhed/:companyId. Alt denne side viste og kunne,
+ * findes på virksomhedssiden (#607, #611-#616, #619, #624). Filen står
+ * urørt, så viderestillingen kan rulles tilbage med lazy-linjen og
+ * rutelinjen i App.tsx; den kan slettes når viderestillingen er bevist i
+ * drift. Importeres ingen andre steder (grep 4/9: kun App.tsx).
+ */
 import { useState, useEffect } from "react";
 import { useParams, Navigate, Link, useNavigate, useSearchParams } from "react-router-dom";
 import AppLayout from "@/components/AppLayout";
