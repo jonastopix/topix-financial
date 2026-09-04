@@ -130,7 +130,9 @@ export interface VirksomhedsData {
   samtaler: VirksomhedsSamtale[];
   budgetter: { period: string; category: string; budget_amount: number }[];
   milestones: { id: string; title: string; deadline: string | null; progress: number; status: string }[];
-  handouts: { levers: unknown; status: string; module: string; completed_at: string | null }[];
+  /** user_id: ejeren af handout-rækken — HandoutDetail/loadHandout er nøglet
+      på user_id, så «åbn handout» åbner det medlem der faktisk udfyldte det. */
+  handouts: { levers: unknown; status: string; module: string; completed_at: string | null; user_id: string }[];
   /** financial_reports company-nøglet (BoardroomView:1604-1609), nyeste først, uden slettede. */
   rapporter: {
     id: string;
@@ -206,7 +208,7 @@ async function hentVirksomhed(companyId: string): Promise<VirksomhedsData | null
       .limit(200),
     // handouts på company_id — samme nøgle som loadHandoutSummaries bruger
     // for rådgivere (handoutEngine.ts:68-69).
-    supabase.from("handouts").select("levers, status, module, completed_at").eq("company_id", companyId),
+    supabase.from("handouts").select("levers, status, module, completed_at, user_id").eq("company_id", companyId),
     supabase
       .from("company_actions")
       .select("id, title, status, priority, due_date")
