@@ -1,5 +1,6 @@
-import { useMemo, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
 import { useVirksomhed, type VirksomhedsData } from "@/hooks/useVirksomhed";
 import type { CompanyFact } from "@/hooks/useCompanyFacts";
 import { factsToDanishMetrics } from "@/lib/factsAdapter";
@@ -13,7 +14,9 @@ import { deriveKpiTone } from "../noegletal/kpiTone";
 import { momErGyldig } from "@/lib/dataGrundlag";
 import { handoutConfigs, moduleOrder, type HandoutModule } from "@/lib/handoutConfig";
 import { openReportFile, isLegacyPath } from "@/lib/reportFileAccess";
+import { DANISH_MONTHS } from "@/lib/financialUtils";
 import { EstimatMaerke } from "../EstimatMaerke";
+import { HbButton } from "../HbButton";
 import { HbCard } from "../HbCard";
 import { HbSection } from "../HbSection";
 import { HbTag } from "../HbTag";
@@ -22,7 +25,8 @@ import { cn } from "@/lib/utils";
 /**
  * Virksomhedssiden (raadgiverfladen-design.md §4). Etape 1: blok 1 «Hvad
  * skal du vide nu» og blok 7 «Aftalen». Etape 2: blok 5 «Tallene» og blok
- * 6 «Aktivitet». Blokkene 2–4 kommer i senere etaper. Datalaget er
+ * 6 «Aktivitet». Etape 3 (første del): blok 2 «Deres ord og din
+ * forberedelse». Blok 3 og 4 kommer i senere etaper. Datalaget er
  * useVirksomhed (company-nøglet, §3.3); facts går gennem useCompanyFacts
  * og bærer data_basis — intet her læser facts-tabellen direkte.
  *
@@ -182,6 +186,177 @@ const Blok1 = ({ d, facts }: { d: VirksomhedsData; facts: CompanyFact[] }) => {
           )}
         </ul>
       )}
+    </HbSection>
+  );
+};
+
+// ── Blok 2: Deres ord og din forberedelse ───────────────────────────────
+
+/** «September 2026» af en period_key — refleksionens måned, i ord. */
+const periodeIOrd = (periodKey: string | null | undefined): string | null => {
+  if (!periodKey) return null;
+  const [y, m] = periodKey.split("-");
+  const navn = DANISH_MONTHS[parseInt(m, 10) - 1];
+  return navn ? `${navn} ${y}` : periodKey;
+};
+
+/** Ansøgningen er rå jsonb (companies.application_context). Kun de tre
+    tekstfelter designet nævner læses; alt andet (annual_revenue,
+    revenue_interval …) er tal og hører ikke til i «deres ord». */
+const ANSOEGNINGS_FELTER: { noegle: string; label: string }[] = [
+  { noegle: "current_situation", label: "Nuværende situation" },
+  { noegle: "goals", label: "Mål med virksomheden" },
+  { noegle: "help_needed", label: "Hvilken hjælp de søgte" },
+];
+
+function laesAnsoegning(raw: unknown): { label: string; tekst: string }[] {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return [];
+  const obj = raw as Record<string, unknown>;
+  return ANSOEGNINGS_FELTER.flatMap(({ noegle, label }) => {
+    const v = obj[noegle];
+    return typeof v === "string" && v.trim() ? [{ label, tekst: v.trim() }] : [];
+  });
+}
+
+/** Ét felt af medlemmets egne ord — label dæmpet, teksten i ink. */
+const Ord = ({ label, children }: { label: string; children: ReactNode }) => (
+  <div>
+    <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft">{label}</p>
+    <p className="mt-1 whitespace-pre-line text-[15px] leading-relaxed text-hb-ink">{children}</p>
+  </div>
+);
+
+const Blok2 = ({ d }: { d: VirksomhedsData }) => {
+  /* Designets §4 blok 2: det der IKKE er udledt af tal — medlemmets egne
+     ord og rådgiverens forberedelse. TONEN: det er betroet, ikke data.
+     Ingen rust, ingen alarm, ingen «mangler»; er der ingen refleksion,
+     siges det roligt. Tre dele:
+       1. Refleksionen (pulse_checkins) — vises i fuld længde, sammenfattes
+          ikke: fire korte felter, samme indhold som MemberDetail:982-1006.
+       2. Ansøgningen (companies.application_context) — designet vil have
+          den SAMMENFATTET med AI og gemt i egen kolonne (§4 blok 2, §5).
+          Sammenfatningen findes ikke endnu, så feltet vises som det er,
+          men FOLDET SAMMEN bag «Vis», så det ikke fylder blokken.
+          Sammenfatningen erstatter denne udfoldning, når den bygges.
+       3. Sessionsforberedelsen — ai-financial-feedback med request_type
+          "session_prep" (samme kald som MemberDetail:307-313; svaret er
+          `session_prep: string[]`, tre bullets). Den gemmes ingen steder og
+          GENERERES IKKE ved sidevisning — et AI-kald pr. visning er dyrt og
+          uventet. Rådgiveren beder om den på en knap. */
+  const [visAnsoegning, setVisAnsoegning] = useState(false);
+  const [forberedelse, setForberedelse] = useState<string[] | null>(null);
+  const [henter, setHenter] = useState(false);
+  const [forberedelseFejl, setForberedelseFejl] = useState<string | null>(null);
+
+  const r = d.refleksion;
+  const refleksionsFelter = r
+    ? [
+        { label: "Største udfordring", tekst: r.biggest_challenge },
+        { label: "Søger hjælp til", tekst: r.help_needed },
+        { label: "Hvad gik godt", tekst: r.went_well },
+      ].filter((f): f is { label: string; tekst: string } => !!f.tekst && f.tekst.trim().length > 0)
+    : [];
+  const ansoegning = laesAnsoegning(d.company.application_context);
+
+  const hentForberedelse = async () => {
+    if (henter) return;
+    setHenter(true);
+    setForberedelseFejl(null);
+    try {
+      const { data, error } = await supabase.functions.invoke("ai-financial-feedback", {
+        body: { request_type: "session_prep", companyId: d.company.id, companyContext: { name: d.company.name } },
+      });
+      if (!error && Array.isArray(data?.session_prep)) {
+        setForberedelse(data.session_prep.filter((b: unknown): b is string => typeof b === "string"));
+      } else {
+        setForberedelseFejl("Forberedelsen kunne ikke laves lige nu. Prøv igen om lidt.");
+      }
+    } catch {
+      setForberedelseFejl("Forberedelsen kunne ikke laves lige nu. Prøv igen om lidt.");
+    } finally {
+      setHenter(false);
+    }
+  };
+
+  return (
+    <HbSection eyebrow="Deres ord og din forberedelse" hairline className="mt-12">
+      <div className="grid gap-4 md:grid-cols-[3fr_2fr]">
+        {/* 1. Refleksionen — deres egne ord, i fuld længde */}
+        <HbCard className="p-5">
+          <div className="flex items-baseline justify-between gap-3">
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-hb-ink-soft">Refleksionen</p>
+            {r && <p className="text-xs text-hb-ink-soft">{periodeIOrd(r.period_key) ?? formatDato(r.created_at)}</p>}
+          </div>
+          {!r ? (
+            <p className="mt-3 text-sm text-hb-ink-soft">Ingen refleksion endnu — den kommer, når medlemmet skriver sin første.</p>
+          ) : refleksionsFelter.length === 0 && r.milestone_progress == null ? (
+            <p className="mt-3 text-sm text-hb-ink-soft">Refleksionen for {periodeIOrd(r.period_key)} er sendt uden tekst.</p>
+          ) : (
+            <div className="mt-4 space-y-4">
+              {refleksionsFelter.map((f) => (
+                <Ord key={f.label} label={f.label}>{f.tekst}</Ord>
+              ))}
+              {r.milestone_progress != null && (
+                <p className="text-sm text-hb-ink-soft">Milestone-fremgang, som de selv vurderer den: {r.milestone_progress} %</p>
+              )}
+            </div>
+          )}
+        </HbCard>
+
+        <div className="space-y-4">
+          {/* 3. Sessionsforberedelsen — på en knap, aldrig automatisk */}
+          <HbCard className="p-5">
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-hb-ink-soft">Din forberedelse</p>
+            {forberedelse ? (
+              <ul className="mt-3 space-y-2">
+                {forberedelse.map((b, i) => (
+                  <li key={i} className="flex items-baseline gap-3 text-[15px] leading-snug text-hb-ink">
+                    <span aria-hidden className="mt-[0.55em] h-1.5 w-1.5 shrink-0 rounded-full bg-hb-evergreen" />
+                    <span>{b}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="mt-3 text-sm text-hb-ink-soft">Tre ting at tage op i næste session, skrevet ud fra de seneste tal. Laves først når du beder om den.</p>
+            )}
+            {forberedelseFejl && <p className="mt-2 text-sm text-hb-ink-soft">{forberedelseFejl}</p>}
+            <div className="mt-4">
+              <HbButton type="button" variant="secondary" className="h-9 px-4 text-sm" onClick={hentForberedelse} disabled={henter}>
+                {henter ? "Skriver…" : forberedelse ? "Skriv den igen" : "Forbered session"}
+              </HbButton>
+            </div>
+          </HbCard>
+
+          {/* 2. Ansøgningen — foldet sammen; erstattes af den gemte AI-
+              sammenfatning (egen kolonne på companies), når den er bygget. */}
+          <HbCard className="p-5">
+            <div className="flex items-baseline justify-between gap-3">
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-hb-ink-soft">Ansøgningen</p>
+              {ansoegning.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setVisAnsoegning((v) => !v)}
+                  aria-expanded={visAnsoegning}
+                  className="text-sm text-hb-evergreen underline-offset-4 hover:underline"
+                >
+                  {visAnsoegning ? "Skjul" : "Vis"}
+                </button>
+              )}
+            </div>
+            {ansoegning.length === 0 ? (
+              <p className="mt-3 text-sm text-hb-ink-soft">Ingen ansøgningstekst gemt.</p>
+            ) : !visAnsoegning ? (
+              <p className="mt-3 text-sm text-hb-ink-soft">Det de skrev, da de søgte ind — {ansoegning.length} {ansoegning.length === 1 ? "felt" : "felter"}.</p>
+            ) : (
+              <div className="mt-4 space-y-4">
+                {ansoegning.map((f) => (
+                  <Ord key={f.label} label={f.label}>{f.tekst}</Ord>
+                ))}
+              </div>
+            )}
+          </HbCard>
+        </div>
+      </div>
     </HbSection>
   );
 };
@@ -570,7 +745,8 @@ export const VirksomhedView = ({ companyId }: { companyId: string | undefined })
       <div className="mt-10">
         <Blok1 d={data} facts={facts} />
       </div>
-      {/* Blok 2, 3 og 4 kommer i senere etaper — rækkefølgen er designets. */}
+      <Blok2 d={data} />
+      {/* Blok 3 og 4 kommer i senere etaper — rækkefølgen er designets. */}
       <Blok5 d={data} facts={facts} />
       <Blok6 d={data} facts={facts} />
       <Blok7 d={data} />
