@@ -15,6 +15,11 @@ import { MessageCircle, Sparkles } from "lucide-react";
  * Renders the correct chat experience based on user type:
  * - Advisor → flat inbox (CompanyChatPane)
  * - Single-company member → member chat with AI tab (MemberChatPane)
+ *
+ * SKALLEN (4/9): rådgiverens gren bor nu i HbMemberShell layout="fuld",
+ * som medlemmets — AppLayout var det sidste mørke om en chat der selv er
+ * konverteret (#655, #657). Kun loading-grenen står i AppLayout endnu:
+ * den viser en spinner før rollen er kendt, og den er ikke rørt her.
  */
 const ChatShell = () => {
   const { isAdvisor: rawAdvisor, loading, membershipTier } = useAuth();
@@ -85,12 +90,24 @@ const ChatShell = () => {
     );
   }
 
-  // Advisor: flat inbox
+  // Advisor: flat inbox — i Hb-skallens fuld-variant, som medlemmets gren
+  // nedenfor (layout="fuld" = AppLayout fullscreen-præcedensen: skallen
+  // binder højden med h-screen-safe og <main class="flex min-h-0 flex-1
+  // flex-col">, HbMemberShell.tsx:244-265). active="chat": det ER chatten,
+  // også for rådgiveren. HØJDEKÆDEN: wrapperen her er den samme som
+  // medlemmets (:104) — flex-col h-full min-h-0 overflow-hidden — og
+  // CompanyChatPanes rod er `flex flex-1 min-h-0 overflow-hidden`, så
+  // beskedlisten (flex-1 overflow-y-auto) er den ENESTE scrollbare
+  // beholder, præcis som under AppLayout fullscreen. Blok 4's
+  // calc(100dvh-10rem) er side-flowets løsning; en fuld side har
+  // skallens fuld-variant til det samme.
   if (isAdvisor) {
     return (
-      <AppLayout fullscreen>
-        <CompanyChatPane />
-      </AppLayout>
+      <HbMemberShell active="chat" layout="fuld">
+        <div className="flex flex-col h-full min-h-0 overflow-hidden">
+          <CompanyChatPane />
+        </div>
+      </HbMemberShell>
     );
   }
 
