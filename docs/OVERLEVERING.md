@@ -1,8 +1,9 @@
 # Overlevering
 
-**Sidst opdateret: 4. september 2026, formiddag — efter at forsiden fik
-én kilde til tallene (#604) og de første to rådgiverflader i Hjemmebane
-blev bygget (#605, #607).**
+**Sidst opdateret: 4. september 2026, sen formiddag — efter at
+virksomhedssiden fik alle syv blokke (#607, #611–#616), listen linker
+til den (#615), og deep-link-målingen afgjorde at swappet bliver en
+viderestilling, ikke en flytning.**
 
 Læses først i enhver ny samtale. Claude husker intet mellem samtaler;
 denne fil skal kunne bære det. Den fortæller hvordan vi arbejder, hvor
@@ -639,7 +640,7 @@ som opsamling. C8 i `docs/chat-design.md` er delvist omgjort for det.
 **Ingen kode er skrevet endnu.** Det der mangler før kode står i
 designets §10 (DEL 3).
 
-### Rådgiverfladen — de første to flader bygget 4/9 formiddag (#603, #605, #607)
+### Rådgiverfladen — listen og virksomhedssiden med alle syv blokke bygget 4/9 formiddag (#603, #605, #607, #611–#616)
 
 Rækkefølgen fra designets §11 er fulgt: motor før flade, én kilde før
 to aftagere, de billige forudsætninger før de dyre ombygninger. Punkt 1
@@ -667,7 +668,71 @@ to aftagere, de billige forudsætninger før de dyre ombygninger. Punkt 1
   bruger motoren (#589) og kan endelig udfylde `senesteBeskedAt` og
   `agentforslagVenter`, som MemberDetail sendte som null og 0. Blok 7
   bygges fra `/members`-listens data. Visning, ingen handlinger.
-  Blokkene 2–6 kommer i senere etaper.
+
+**Anden halvdel af formiddagen — siden fik resten af blokkene og
+handlingerne:**
+
+- **#611 etape 2:** blok 5 (Tallene) og blok 6 (Aktivitet).
+  data_basis-kontrakten er overholdt: estimater mærkes, og når M/M ikke
+  kan beregnes, FORKLARER fladen hvorfor («en af de to seneste perioder
+  er et estimat»). Akademi er IKKE med: `member_progress` er nøglet på
+  `user_id` alene uden `company_id` — målt, ikke gættet.
+- **#612 blok 2:** refleksionen i rådgiverens rækkefølge (største
+  udfordring først, så «søger hjælp til», så hvad gik godt), ansøgningen
+  foldet sammen bag «Vis» indtil AI-sammenfatningen findes (§4 blok 2),
+  sessionsforberedelsen bag en knap — aldrig ved sidevisning.
+- **#613 fire handlinger monteret**, ingen af komponenterne ændret:
+  `AgentForslagPanel` i blok 1, `AdvisorAIChat` og forecast i blok 5,
+  `EditCompanyDialog` i blok 7 (kun admin). Én fælde løst:
+  `EditCompanyDialog` lukker sig selv FØR den kalder `onSaved`, så
+  lukningen holdes tilbage i en microtask indtil hookens invalidering er
+  færdig (DEL 4-fælden om `void invalidateQueries`).
+- **#614 blok 4:** `CompanyChatPane` fik en VALGFRI prop
+  `laastTilCompanyId`. Målt: komponenten havde ingen props, og den eneste
+  vej til én virksomhed var rådgiverens globale company-override.
+  Prop'en er additiv, så `/chat` er uændret. Målt: alle 35 virksomheder
+  med en samtale har præcis én.
+- **#615 listelinket** skiftet til `/virksomhed/:companyId`. Alle rækker
+  kan nu klikkes — også de tre uden medlemmer, som før var døde. Og
+  `company_members`-hentningen forsvandt fra listen: ét netværkskald
+  mindre.
+- **#616 rapportarbejdet:** hele rapportlisten med badges (Committed,
+  Afventer godkendelse, Indtast manuelt, Behandles, Fejl, «Rettet»),
+  udfoldning med tal fra facts via `source_report_id` (ingen nye
+  talstier hentes), «Godkend rapport →» og rapport-kommentarer med ordret
+  samme `messages`-insert og `notifyChatMessage` som MemberDetail.
+  Kommentarerne hentes i samme `Promise.all` via
+  `conversations!inner(company_id)`. Pilene ▲▼ er ink, ikke rust — et
+  fald er et tal, ikke en afvigelse; afvigelser dømmes i blok 1 og 5.
+
+**BEVIST PÅ SKÆRM 4/9 kl. 09:47–09:50:** `/virksomheder` viser alle 30
+virksomheder med de syv felter. Kontaktperson er tom for 26 af 30 — kun
+Monday-webhookens «Godkendt»-gren skriver `contact_person`; kolonnen er
+rigtig, men næsten tom. `/virksomhed/:companyId` virker for Floren
+Engros (fuld) OG for Two Socks (uden medlemmer, uden samtale, uden tal):
+Two Socks tegner sig helt igennem med rolige tomme tilstande, og «Har
+aldrig skrevet» står øverst i blok 1 — det signal der er uopnåeligt på
+forsiden (pending-gaten). `company_perioder` er tom for begge, også for
+en virksomhed med kontrakt til 2027: tabellen kom med fornyelseskæden
+1/9, så kun de der er gået gennem den nye indgang har rækker. Blokken
+siger sandheden.
+
+**Status på de ni handlinger MemberDetail har** (målt 4/9,
+`~/Downloads/recon-memberdetail-rest.md`): syv er på plads efter #613 og
+#616. Tilbage: «åbn handout» og «fjern medlem» (under bygning). Blok 3
+(emnerne) venter på klassificeringen (§11 punkt 7).
+
+**MÅLT I PROD 4/9 kl. 09:54 — deep-links, og det afgør swappet.**
+`notifications` med `deep_link like '/members/%'`: 978 i alt —
+`report_uploaded` 524, `report_committed` 382, `handout_completed` 40,
+`pulse_checkin_received` 26, `milestone_completed` 6. Formerne: 604 med
+`?reportId`, 40 med `?handout`, 6 med `?section`, 328 uden parameter.
+**Sidste 30 dage: 150** — `report_uploaded` 76, `report_committed` 62,
+`pulse_checkin_received` 12; tre typer sendt så sent som 3/9.
+`handout_completed` og `milestone_completed` er ikke sendt siden 10.–15.
+juni; om de er holdt op med at udløse, eller der bare intet er sket, kan
+ikke afgøres herfra. **KONSEKVENS:** `/members/:userId` kan IKKE bare
+forsvinde — se DEL 3.
 
 ### RLS-hullet — fundet og lukket 3/9 kl. 22:48
 
@@ -785,7 +850,8 @@ facit og rækkefølge; `docs/chat-design.md` chattens form.
 | LØST 3/9 sen aften (#589, #594, #595, #597) | **Motoren `afgoerVirksomhedsSignaler`** (`src/lib/virksomhedsSignaler.ts`) bygget (#589) og begge flader lagt om. **#594:** `MemberDetail.tsx` («Hvad stikker ud») kalder motoren; IIFE'en slettet. **#595:** alerts ud af motoren — Jonas' beslutning: `detect-financial-alerts` udløses kun ved commit fra klienten (ingen upload, ingen alerts) og skriver én kopi pr. rådgiver, så `read_at` er pr. modtager. Konsekvens: uden friske facts giver «stikker ud» nu intet. **#597:** `AdvisorDashboard.tsx` lagt om; fire af fem bunker kommer fra motoren, bunke «positive» står uændret fordi den ikke findes i motoren og ikke er i designets §3.5; `isFiguresFresh` bor nu i motoren og importeres derfra. **Dommen findes nu ÉT sted** — det var tre steder ved aftenens start (to inline-domme plus motoren midlertidigt). **Synlig ændring i drift:** «Ikke hørt fra længe» er vendt, så virksomheder der aldrig har skrevet nu står øverst (alvor 95); målt 1/9 var fjorten af treogtredive uden ét måltal — køen bliver længere med vilje. **ÅBENT:** budgetafvigelse kan ikke komme på forsiden, fordi AdvisorDashboards `queryFn` ikke henter `budget_targets` — `budgetOmsaetning` står bevidst som null. Skal løses når forsiden bygges om. **BEVIST PÅ SKÆRM 3/9 kl. 23:36 — og to fejl fundet samme sted.** Forsiden i drift efter Update-klik og hard reload: «Ikke hørt fra længe» viser 14 virksomheder, hvor køen før var tom for dem uden committede tal. Den vendte regel virker. MEN skærmbilledet afslørede to fejl i motoren, begge i køen `ikke_hoert_fra_laenge`: **(1) Sorteringen er forkert.** Rækkefølgen på skærmen var 57, 126, 66, 85, 86, 78, 59, 86, 77, 45 dage — ikke faldende. Årsagen er alvorsformlen `60 + Math.min(dage - 21, 30)`: alt over 51 dage rammer loftet 90 og får samme alvor, hvorefter indlæsningsrækkefølgen afgør. Bastant Design med 126 dage stod som nummer to. Loftet blev sat for at holde «aldrig skrevet» (95) over de tavse, men det ødelagde rangordenen mellem dem. **RETTET (#599):** alvor er nu en kurve der er strengt stigende — `95 − 35 / (1 + (dage − 21) / 30)` — så to forskellige dagtal aldrig får samme alvor, og «aldrig skrevet» (95) ligger over alle uanset dage. Fem tests låser det, heriblandt præcis den rækkefølge der var forkert på skærmen. **(2) «Har aldrig skrevet» optrådte ikke — og det er IKKE en fejl i motoren.** Alle fjorten rækker viste et dagtal («Ingen dialog i N dage»), ingen viste «Har aldrig skrevet». Målt i prod 3/9 kl. 23:37: alle 35 samtaler har en `last_message_at` — INGEN er null; og tre aktive virksomheder af tredive har slet ingen samtalerække — de samme tre der ingen medlemmer har (Din økonomiafdeling, Two Socks, WESDEX). `senesteBeskedAt` er altså null præcis når den skal være det. Signalet er bygget rigtigt, men er i praksis dødt indtil en virksomhed uden samtale når frem til dommen: de tre eneste mulige kandidater er dem uden medlemmer, og om de overhovedet når frem afhænger af om de indgår i `investorSummaries`-løkken i AdvisorDashboards `queryFn`. **BESVARET 3/9 kl. 23:45:** de ER med — løkken går over `companies` (l. 613), så virksomheder uden `company_members` og uden samtale når frem til motoren. Det er **pending-gaten** (l. 738–746: virksomhed med hængende invitation OG ingen medlemmer skjules fra alle fem bunker) der fjerner dem bagefter. «Har aldrig skrevet» er dermed uopnåeligt på forsiden i dag, men af den grund — se rækken om hængende invitationer nedenfor. | DEL 2 «Motoren bag rådgiverens signaler»; `docs/raadgiverfladen-design.md` §4 blok 1 |
 | åbent, designpunkt — hængende invitationer har intet sted | **Målt i prod 3/9 kl. 23:45–23:46: fire pending invitationer i alt.** TRE af dem (Din økonomiafdeling, Two Socks, WESDEX) er kun to dage gamle (sendt 1/9) og sidder på virksomheder UDEN medlemmer. De er skjult fra ALLE fem bunker på forsiden af pending-gaten i AdvisorDashboard (l. 738–746: skjuler virksomhed med pending invitation OG ingen `company_members`). Det er rimeligt for en invitation på to dage. **Den fjerde, remm. (chatrine@remm.dk), er sendt 15/6 og er 80 DAGE gammel.** Virksomheden HAR medlemmer, så den er ikke skjult — men ingen flade fortæller at invitationen hænger. Det eneste sted den er synlig er `MembersAdminSection` nederst på `/members`. **Konsekvens for motoren:** signalet «Har aldrig skrevet» (alvor 95) er UOPNÅELIGT i dag — de eneste virksomheder uden samtale er netop de tre, og de er filtreret fra. Reglen blev vendt så ingen skulle glemmes, og de tre mest oversete forsvinder stadig — men fordi de er nye, ikke fordi de er glemt. Og selv når en af dem kommer frem, rendres rækken UDEN KNAPPER: både «Åbn chat» og «Se virksomhed» kræver et `convId` hhv. `userId` de ikke har (AdvisorDashboard l. 1191–1206). **BESLUTNING (Jonas, 3/9 sen aften): der bygges IKKE en dom nu** — ét tilfælde retfærdiggør ikke en motor. Men en invitation der er ældre end omkring fjorten dage er ikke på vej, den er strandet, og det er den slags der bliver til fem tilfælde hen over et halvår uden at nogen opdager det. Hører hjemme på forsiden ved siden af «Indgange der ikke er betalt» — samme slags: nogen venter, nogen bør handle. | `~/Downloads/recon-virksomheder-uden-medlemmer.md` (uden for repoet, genskabes hvis den bruges); `docs/raadgiverfladen-design.md` §3.5 |
 | LØST 4/9 (#604) | **Forsiden har nu ÉN kilde til tallene: `financial_report_facts`.** Før regnede AdvisorDashboards `queryFn` MoM og nøgletal ud af `financial_reports` (T15/T16/B2), mens NoegletalView og virksomhedssiden brugte facts gennem `useCompanyFacts` og `trendMoM.ts` — to kilder til de samme tal, og motoren (#589) fik derfor to varianter af sit input (`FactPunkt` af rapporter på forsiden, af facts på MemberDetail). Flytningen blev taget som egen opgave med måling FØR (3/9 kl. 23:56, `~/Downloads/recon-to-kilder.md`: 151 punkter over 20 virksomheder ad rapport-vejen mod 314 over 21 ad facts-vejen, heraf 144 `estimated`; **nul uenigheder** hvor begge kilder har en værdi) og bevis EFTER. **To bevidste forskelle i drift:** (1) estimater fra årsrapporter og baselines (de 144 punkter) kommer med, så `has_verified_metrics` bliver sand for en virksomhed der kun har estimater; (2) rapporter der aldrig blev committet falder ud — Brick Works ApS, «April 2026», 1.349.013 kr. Begge er tilsigtede: estimaterne er tal nogen har godkendt, ikke-committede rapporter er tal ingen har godkendt. **M/M gates nu på `data_basis` via `momErGyldig`** (`src/lib/dataGrundlag.ts`): begge punkter skal være `measured`, så et estimat aldrig udløser et faldsignal mod en måling — samme regel som NoegletalView. **Manuelle overrides falder bort** i forsidens læsning, fordi `resolve_report_commit_candidate` allerede indregner dem ved commit; facts ER det effektive tal. De to facts-hentninger i `queryFn` (aktivitetsfeedets og den nye) er slået sammen til én. **BEVIST PÅ SKÆRM 4/9 kl. 08:34:** forsiden er UÆNDRET — alle fem bunker viser det samme som før flytningen. Det er beviset for at målingen (nul uenigheder) holdt. Det der stod om genbrug (3/9, `~/Downloads/recon-dashboard-queryfn.md`) gælder stadig: én fælles datamotor kan ikke bygges, alle hentninger i `queryFn` er porteføljebrede; det er FORMERNE der genbruges pr. virksomhed — og det er dét #607 gjorde med `useVirksomhed`. | `docs/raadgiverfladen-design.md` §11 punkt 1, §4 blok 1 og 5; `~/Downloads/recon-facts-flytning.md`, `~/Downloads/recon-to-kilder.md` |
-| BYGGET 4/9 formiddag (#603, #605, #607) — etaper udestår | **De første to rådgiverflader i Hjemmebane + admin-blokken.** Designets §11 punkt 3, 4 og første del af 5, i rækkefølge. **#603 admin-blokken i Hb-menuen:** før havde rådgiveren ingen vej til admin fra en Hjemmebane-flade — nul menupunkter pegede på `/admin/indhold`, `/admin/import` havde intet link i `src` overhovedet. Nu Virksomheder og Platform (otte underpunkter) på BEGGE nav-grene; `HbNavEntry` fik et additivt `admin`-felt; punkterne peger på AppLayout-sider, så designsproget skifter ved klik — bevidst. **#605 den rene virksomhedsliste** på `/virksomheder`: præcis syv felter; den gamle `/members` står urørt til swappet. Besluttet 4/9: «sidste kontakt» = `conversations.last_message_at`, «sidste rapportering» = seneste committede periode i facts, ikke seneste upload. Rækken linker til `/members/:userId` indtil virksomhedssiden findes. **#607 virksomhedssiden, etape 1** på `/virksomhed/:companyId`: datalaget er VENDT — `useVirksomhed` slår alt op fra `companies.id` og udad i ét `Promise.all`, intet gated på et `user_id`-opslag; de tre virksomheder uden medlemmer kan åbnes for første gang. Blok 1 bruger motoren og udfylder endelig `senesteBeskedAt` og `agentforslagVenter` (MemberDetail sendte null og 0). Blok 7 fra `/members`-listens data. Visning, ingen handlinger. **UDESTÅR:** blok 2–6 i senere etaper; swappet af `/members` → `/virksomheder`; handlingerne fra §3.6 flytter til virksomhedssiden; listen og køerne skal linke til `/virksomhed/:companyId` når siden er hel. | `docs/raadgiverfladen-design.md` §3.1, §3.6, §4, §11 punkt 3–5; `~/Downloads/recon-virksomhedslisten.md`, `~/Downloads/recon-virksomhedssidens-datalag.md` |
+| BYGGET 4/9 formiddag (#603, #605, #607, #611–#616) — to handlinger og blok 3 udestår | **De første to rådgiverflader i Hjemmebane + admin-blokken — og virksomhedssiden har nu alle syv blokke** (etape 2: #611 blok 5+6; etape 3: #612 blok 2, #614 blok 4; handlinger: #613 fire monteret, #616 rapportarbejdet; #615 listen linker til siden; DEL 2 bærer detaljen). Designets §11 punkt 3, 4 og første del af 5, i rækkefølge. **#603 admin-blokken i Hb-menuen:** før havde rådgiveren ingen vej til admin fra en Hjemmebane-flade — nul menupunkter pegede på `/admin/indhold`, `/admin/import` havde intet link i `src` overhovedet. Nu Virksomheder og Platform (otte underpunkter) på BEGGE nav-grene; `HbNavEntry` fik et additivt `admin`-felt; punkterne peger på AppLayout-sider, så designsproget skifter ved klik — bevidst. **#605 den rene virksomhedsliste** på `/virksomheder`: præcis syv felter; den gamle `/members` står urørt til swappet. Besluttet 4/9: «sidste kontakt» = `conversations.last_message_at`, «sidste rapportering» = seneste committede periode i facts, ikke seneste upload. Rækken linker til `/members/:userId` indtil virksomhedssiden findes. **#607 virksomhedssiden, etape 1** på `/virksomhed/:companyId`: datalaget er VENDT — `useVirksomhed` slår alt op fra `companies.id` og udad i ét `Promise.all`, intet gated på et `user_id`-opslag; de tre virksomheder uden medlemmer kan åbnes for første gang. Blok 1 bruger motoren og udfylder endelig `senesteBeskedAt` og `agentforslagVenter` (MemberDetail sendte null og 0). Blok 7 fra `/members`-listens data. Visning, ingen handlinger. **UDESTÅR:** «åbn handout» og «fjern medlem» (de to sidste af ni handlinger, under bygning); blok 3 (emnerne) efter klassificeringen; swappet af `/members` → `/virksomheder` som VIDERESTILLING (rækken nedenfor); forsidens køer linker stadig til `/members/:userId`. |
+| åbent — FORMEN er afgjort 4/9, bygges | **Swappet af `/members/:userId` bliver en VIDERESTILLING, ikke en flytning.** Målt i prod 4/9 kl. 09:54: 978 `notifications` har `deep_link like '/members/%'` (604 med `?reportId`, 40 med `?handout`, 6 med `?section`, 328 uden parameter), 150 af dem sendt de sidste 30 dage, tre typer så sent som 3/9 — plus Slack-beskedernes absolutte URL'er, som ikke kan ændres bagud (`send-slack-report-notification`, `send-slack-handout-notification`). Ruten `/members/:userId` bliver derfor stående, slår virksomheden op ud fra `user_id` (både `financial_reports` og `handouts` bærer `company_id NOT NULL`, så oversættelsen kan lade sig gøre) og sender videre til `/virksomhed/:companyId` med parametrene bevaret. Så virker alle gamle links og alle fremtidige beskeder, uden at én edge function skal ændres. **Forudsætning:** virksomhedssiden skal FORSTÅ `?reportId` (udfold + scroll til rapporten), `?handout` og `?section` — under bygning. Når den gør, kan MemberDetail pensioneres; til da lever de to sider side om side. | `~/Downloads/recon-memberdetail-rest.md` §4–5; `docs/raadgiverfladen-design.md` §11 punkt 4 | `docs/raadgiverfladen-design.md` §3.1, §3.6, §4, §11 punkt 3–5; `~/Downloads/recon-virksomhedslisten.md`, `~/Downloads/recon-virksomhedssidens-datalag.md` |
 | observation under omlægning — efterprøves før sletning | **Dødt kød i `AdvisorDashboard.tsx`**, målt 3/9 kl. 23:26 midt i omlægningen (ikke en afgjort dødsdom): `companies` og `legatCompanyIds` hentes og læses aldrig; `activityFeed`, `companyMap` og `recentReportsData` læses kun af kode der ikke er nået fra JSX; og `handleAssignAdvisor` (l. 1085–1092) er det eneste sted i filen der SKRIVER (`UPDATE conversations` + `invalidateQueries`), men kaldes ikke fra nogen JSX. Skal efterprøves med grep og en gennemlæsning af JSX'en FØR noget slettes — målingen er taget mens filen var under ombygning. | `~/Downloads/recon-dashboard-queryfn.md` (uden for repoet) |
 | LØST 4/9 (#608) — med en rettelse | **«Fjern medlem» har nu ét værn, serverside.** Fundet 3/9 lød at kaldet havde to gates: `MemberCompanyRow` krævede `isAdmin && role !== 'owner'`, MemberDetail kun `isAdvisor`. **RETTELSE, målt 4/9: det var IKKE et adgangshul.** `manage-advisor` har per-action-autorisation med default-deny — en rådgiver uden admin må kun kalde `list`, alt andet giver 403, og rollen læses fra `user_roles` med service-role-klienten. Det der manglede var **owner-værnet serverside**: `remove-member` læste ikke målets `company_members.role`, og grenen sletter `company_members`, `profiles` OG auth-brugeren — irreversibelt. En admin kunne altså slette en owner fra MemberDetail, hvor listen ville have nægtet det; værnet fandtes kun i fladen, og kun ét sted. **Besluttet 4/9 (Jonas): en owner kan ALDRIG fjernes med `remove-member`.** Skal virksomheden væk, slettes virksomheden (`delete-company`); skal owneren skiftes, er det en anden handling. Dommen ligger i den rene, testede `src/lib/medlemsfjernelse.ts` (`erOwner`, `maaFjerneMedlem` = admin OG ikke owner) og er spejlet ordret i edge-funktionen, som nu slår målets rækker op FØR noget slettes og afviser med 403 og dansk besked. **Værnet afviser hvis målet er owner i NOGEN virksomhed**, fordi sletningen selv er global (`.eq('user_id', …)` rammer alle rækker, ikke én virksomhed) — `company_members` har kun `UNIQUE(company_id, user_id)`. Begge flader bruger samme funktion; MemberDetail kræver nu `isAdmin` som serveren. **NYT ÅBENT PUNKT:** knappen hedder «Fjern medlem», men handlingen er «slet dette menneske fra platformen» — navnet lyver, og det bør rettes. Og: **«skift owner» findes ikke som handling.** **UDESTÅENDE:** `manage-advisor` ruller ikke med merge og skal deployes eksplicit via build-chat; beviset er at et kald uden token svarer 401/400, ikke 404. | `docs/raadgiverfladen-design.md` §9; `src/lib/medlemsfjernelse.ts`; `~/Downloads/diff-owner-vaern.txt` |
 | ved næste oprettelse | **Udestående bevis for trin 4** (branchen): næste rigtige «Godkendt» på Monday eller «Importér ansøgning» skal give en række med `industry_code` sat (SQL editor) og branchesammenligning i NoegletalView. 401 fra de deployede funktioner beviser kun at de svarer. | `docs/indgangen-overhaling.md` §6, §9 trin 4 |
@@ -1028,6 +1094,15 @@ De konkrete ting der har kostet tid. Led efter dem.
   stadig pushens størrelse — 54 KB mod 10 KB for samme ændring. Ser du
   et stort push-tal på en lille ændring, så stop og tjek `git log
   --oneline main..HEAD` FØR du åbner PR'en.
+- **`git add` fjerner IKKE det et andet vindue allerede har staget.**
+  Målt 4/9: `git add <to filer>` gav en commit med TRE, fordi
+  `CompanyChatPane` lå staget fra vindue 2's diff-linje (`git add -A`).
+  Indekset er delt mellem vinduerne; det der ligger der, følger med i
+  næste commit uanset hvem der kører den. Vejen ud er `git restore
+  --staged <fil>` FØR commit — og diff-linjen i prompterne, der navngiver
+  sine egne filer (`git add <fil1> <fil2> && git diff --cached -- <fil1>
+  <fil2>`) i stedet for `git add -A`. Tjek `git status --short` for
+  `M ` (staget, første kolonne) før hver commit.
 
 ---
 

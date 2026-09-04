@@ -702,10 +702,28 @@ login); **«sidste rapportering» = seneste committede periode i
 (`~/Downloads/recon-virksomhedslisten.md`): der findes ingen generisk
 Hb-liste-komponent — fire steder (`HbTreeList`, `MemberDirectoryView`,
 `HbAdvisorCompanyPrompt`, `ProgressView`) bygger hver sin liste og sit
-eget filter inline. Rækken linker til `/members/:userId` indtil
-virksomhedssiden er hel.
+eget filter inline. Rækken linker siden #615 til `/virksomhed/:companyId`
+— alle rækker kan klikkes, også de tre uden medlemmer, og
+`company_members`-hentningen forsvandt fra listen.
 
-### 5. Virksomhedssiden (§4) — etape 1 LØST 4/9 (#607), etape 2–3 udestår
+**Swappet — FORMEN afgjort 4/9, bygges:** en VIDERESTILLING, ikke en
+flytning. **Målt i prod 4/9 kl. 09:54:** 978 `notifications` har
+`deep_link like '/members/%'` (`report_uploaded` 524, `report_committed`
+382, `handout_completed` 40, `pulse_checkin_received` 26,
+`milestone_completed` 6); formerne er 604 med `?reportId`, 40 med
+`?handout`, 6 med `?section`, 328 uden parameter. **150 er sendt de
+sidste 30 dage**, tre typer så sent som 3/9. Dertil Slack-beskedernes
+absolutte URL'er, som ikke kan ændres bagud. `/members/:userId` kan
+derfor ikke bare forsvinde: ruten bliver stående, slår virksomheden op
+ud fra `user_id` (både `financial_reports` og `handouts` bærer
+`company_id NOT NULL`, så oversættelsen kan lade sig gøre) og sender
+videre til `/virksomhed/:companyId` med parametrene bevaret. Så virker
+alle gamle links og alle fremtidige beskeder, uden at én edge function
+skal ændres. Det kræver at virksomhedssiden FORSTÅR `?reportId`,
+`?handout` og `?section` — under bygning. `/members` (listen) swappes
+til `/virksomheder` samme dag.
+
+### 5. Virksomhedssiden (§4) — etape 1–3 LØST 4/9 (#607, #611–#614, #616); to handlinger og blok 3 udestår
 
 **Hvad:** `/virksomhed/:companyId` med de syv blokke. Datalaget vendes
 fra `user_id` til `companyId` (§3.3-noten: hele dataindlæsningen
@@ -731,12 +749,39 @@ havde.
   `senesteBeskedAt` og `agentforslagVenter`, som MemberDetail sendte som
   null og 0. Blok 7 bygges fra `/members`-listens data. Visning, ingen
   handlinger.
-- **Etape 2:** blok 5 (Tallene) og blok 6 (Aktivitet).
-- **Etape 3:** blok 4 (Chatten i fuld højde) og blok 2 (Deres ord og
-  din forberedelse). Chatten er tungest, fordi `CompanyChatPane` er delt
-  mellem medlem og rådgiver.
+- **Etape 2 (#611, LØST 4/9):** blok 5 (Tallene) og blok 6 (Aktivitet).
+  data_basis-kontrakten overholdt: estimater mærkes, og når M/M ikke kan
+  beregnes, forklarer fladen hvorfor. Akademi er IKKE med —
+  `member_progress` er nøglet på `user_id` alene uden `company_id`
+  (målt, ikke gættet).
+- **Etape 3 (LØST 4/9):** blok 2 (#612) — refleksionen i rådgiverens
+  rækkefølge (største udfordring først), ansøgningen foldet sammen indtil
+  AI-sammenfatningen findes, sessionsforberedelsen bag en knap, aldrig
+  ved sidevisning. Blok 4 (#614) — `CompanyChatPane` fik en VALGFRI prop
+  `laastTilCompanyId`; komponenten havde ingen props, og den eneste vej
+  til én virksomhed var rådgiverens globale company-override. Additiv,
+  så `/chat` er uændret. Målt: alle 35 virksomheder med en samtale har
+  præcis én.
+- **Handlingerne (#613, #616, LØST 4/9):** fire eksisterende
+  komponenter monteret uændret — `AgentForslagPanel` i blok 1,
+  `AdvisorAIChat` og forecast i blok 5, `EditCompanyDialog` i blok 7
+  (lukningen holdes tilbage til invalideringen er færdig, fordi dialogen
+  lukker sig selv før `onSaved`). Rapportarbejdet i blok 6: hele listen
+  med badges, udfoldning med tal fra facts via `source_report_id`,
+  «Godkend rapport →», og rapport-kommentarer med samme insert og
+  `notifyChatMessage` som MemberDetail. Syv af MemberDetails ni
+  handlinger er dermed på plads; **«åbn handout» og «fjern medlem»
+  udestår** (under bygning).
 - **Blok 3 (emnerne) kommer sidst** og venter på klassificeringen
   (punkt 7).
+
+**Bevist på skærm 4/9 kl. 09:47–09:50:** siden virker for Floren Engros
+(fuld) og for Two Socks (uden medlemmer, samtale og tal) — Two Socks
+tegner sig helt igennem med rolige tomme tilstande, og «Har aldrig
+skrevet» står øverst i blok 1, det signal forsiden ikke kan nå.
+`company_perioder` er tom for begge (tabellen kom med fornyelseskæden
+1/9); blokken siger sandheden. **Før MemberDetail kan pensioneres** skal
+siden forstå `?reportId`, `?handout` og `?section` (punkt 4, swappet).
 
 **Målt før etape 1** (`~/Downloads/recon-virksomhedssidens-datalag.md`):
 en naiv side med én `useQuery` pr. kilde ville lave 18 netværkskald
