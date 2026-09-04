@@ -8,15 +8,23 @@ import { computeMembershipTier, type MembershipTier } from "@/lib/membershipTier
 import { afgoerFornyelsestilstand, type FornyelseStatus, type Fornyelsesbeslutning } from "@/lib/fornyelse";
 import { afgoerBetalingsfrist, type Betalingsfriststatus } from "@/lib/betalingsfrist";
 import { beloebKr, kortDato, datoOgTid, stripeSagde, traekBadgeTekst } from "@/lib/traek";
+import { KPI_DEFS, deriveKpiMetrics, type KpiMetric } from "@/lib/kpiDefs";
+import { deriveKpiTone } from "../noegletal/kpiTone";
+import { momErGyldig } from "@/lib/dataGrundlag";
+import { handoutConfigs, moduleOrder, type HandoutModule } from "@/lib/handoutConfig";
+import { openReportFile, isLegacyPath } from "@/lib/reportFileAccess";
+import { EstimatMaerke } from "../EstimatMaerke";
 import { HbCard } from "../HbCard";
 import { HbSection } from "../HbSection";
 import { HbTag } from "../HbTag";
 import { cn } from "@/lib/utils";
 
 /**
- * Virksomhedssiden, etape 1 (raadgiverfladen-design.md §4): blok 1 «Hvad
- * skal du vide nu» og blok 7 «Aftalen». Blokkene 2–6 kommer i senere
- * etaper. Datalaget er useVirksomhed (company-nøglet, §3.3).
+ * Virksomhedssiden (raadgiverfladen-design.md §4). Etape 1: blok 1 «Hvad
+ * skal du vide nu» og blok 7 «Aftalen». Etape 2: blok 5 «Tallene» og blok
+ * 6 «Aktivitet». Blokkene 2–4 kommer i senere etaper. Datalaget er
+ * useVirksomhed (company-nøglet, §3.3); facts går gennem useCompanyFacts
+ * og bærer data_basis — intet her læser facts-tabellen direkte.
  *
  * Blok 1 er BULLETS der kan skimmes på to sekunder — ikke paneler. Dommen
  * er motoren (afgoerVirksomhedsSignaler, #589), som ikke røres her.
@@ -174,6 +182,200 @@ const Blok1 = ({ d, facts }: { d: VirksomhedsData; facts: CompanyFact[] }) => {
           )}
         </ul>
       )}
+    </HbSection>
+  );
+};
+
+// ── Blok 5: Tallene — afvigelserne først ────────────────────────────────
+
+/** Ét KPI-kort: de samme domme som NoegletalView (deriveKpiMetrics for
+    tal og M/M, deriveKpiTone for mål) — kun udtrykket er nyt. */
+const KpiKort = ({ metric, afviger }: { metric: KpiMetric; afviger: boolean }) => (
+  <div className={cn("rounded-hb border p-3", afviger ? "border-hb-rust/40 bg-hb-rust/5" : "border-hb-line bg-hb-surface")}>
+    <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft">{metric.label}</p>
+    <p className={cn("mt-1 font-editorial text-2xl leading-tight", afviger ? "text-hb-rust" : "text-hb-ink")}>
+      {metric.value}
+      <span className="ml-1 text-sm text-hb-ink-soft">{metric.unit === "%" ? "%" : ""}</span>
+    </p>
+    <p className="mt-1 text-xs text-hb-ink-soft">
+      {metric.changePct != null ? `${metric.change} M/M` : "M/M —"}
+      {metric.targetNum > 0 && ` · mål ${metric.target}`}
+    </p>
+  </div>
+);
+
+const Blok5 = ({ d, facts }: { d: VirksomhedsData; facts: CompanyFact[] }) => {
+  // deriveKpiMetrics er den rene, testede dom fra /kpis: tal, formatering
+  // og M/M — M/M er allerede gated med momErGyldig INDE i den (kpiDefs:111),
+  // så changePct er null når en af de to seneste er et estimat. Benchmarks
+  // er ikke blok 5's ærinde (ingen brancheprik her) — tom map.
+  const metrics = useMemo(() => deriveKpiMetrics(facts, d.kpiMaal, {}), [facts, d.kpiMaal]);
+  const seneste = facts[facts.length - 1] ?? null;
+  if (!seneste) {
+    return (
+      <HbSection eyebrow="Tallene" hairline className="mt-12">
+        <p className="text-sm text-hb-ink-soft">Ingen committede tal endnu.</p>
+      </HbSection>
+    );
+  }
+  // data_basis-kontrakten: et estimeret punkt SKAL mærkes. Seneste periode
+  // vises med EstimatMaerke når data_basis er 'estimated' (samme mærke som
+  // NoegletalView:1002); M/M-linjen forklarer hvorfor den er tom.
+  const senesteErEstimat = seneste.data_basis === "estimated";
+  const momGyldig = momErGyldig(facts);
+  // «Afviger» = målet er ikke nået (deriveKpiTone: tone attention) ELLER
+  // M/M går den forkerte vej (trend down — kun sat når M/M er gyldig).
+  // Afvigende først, resten i KPI_DEFS' rækkefølge. Ikke en fuld
+  // nøgletalsflade — den findes på /kpis.
+  const sorteret = [...metrics]
+    .map((m) => {
+      const def = KPI_DEFS.find((k) => k.key === m.key)!;
+      const tone = deriveKpiTone({ actual: m.numValue, target: m.targetNum > 0 ? m.targetNum : null, lowerIsBetter: def.lowerIsBetter });
+      return { m, afviger: tone.tone === "attention" || m.trend === "down" };
+    })
+    .sort((a, b) => Number(b.afviger) - Number(a.afviger));
+  const antalAfviger = sorteret.filter((s) => s.afviger).length;
+  const bank = factsToDanishMetrics(seneste.metrics).bank_balance ?? null;
+
+  return (
+    <HbSection eyebrow="Tallene" hairline className="mt-12">
+      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+        <p className="text-sm text-hb-ink">
+          Seneste periode: <span className="font-medium">{seneste.period_label}</span>
+        </p>
+        {senesteErEstimat && <EstimatMaerke />}
+        <p className="text-sm text-hb-ink-soft">
+          {antalAfviger === 0 ? "Ingen afvigelser fra mål eller sidste måned." : `${antalAfviger} ${antalAfviger === 1 ? "afvigelse" : "afvigelser"} fremhævet.`}
+        </p>
+      </div>
+      {facts.length >= 2 && !momGyldig && (
+        <p className="mt-1 text-xs text-hb-ink-soft">M/M er ikke beregnet: en af de to seneste perioder er et estimat.</p>
+      )}
+      <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-3">
+        {sorteret.map(({ m, afviger }) => (
+          <KpiKort key={m.key} metric={m} afviger={afviger} />
+        ))}
+      </div>
+      {bank != null && (
+        <p className={cn("mt-3 text-sm", bank < 0 ? "text-hb-rust" : "text-hb-ink-soft")}>
+          Bank {formatKr(bank * 100)}{senesteErEstimat ? " (estimat)" : ""}
+        </p>
+      )}
+    </HbSection>
+  );
+};
+
+// ── Blok 6: Aktivitet — kort, uden svigt ────────────────────────────────
+
+/** Rapportstatus i ord — samme tilstande som MemberDetails liste, roligere
+    tone (ingen alarm: rapport-error er en tilstand, ikke en dom over dem). */
+const RAPPORT_STATUS: Record<string, string> = {
+  processed: "Behandlet",
+  processing: "Behandles",
+  needs_manual_entry: "Mangler manuel indtastning",
+  error: "Fejl i behandling",
+};
+
+const Blok6 = ({ d, facts }: { d: VirksomhedsData; facts: CompanyFact[] }) => {
+  /* Designets §4 blok 6: nogle skriver meget og ser lidt video, andre gør
+     det modsatte — begge dele er i orden. Derfor: tal og datoer i ink/ink-
+     soft, INGEN rust, ingen «mangler». Tomme tilstande siger hvad der er,
+     ikke hvad der burde være.
+     Akademi er IKKE med: member_progress er nøglet på user_id alene (ingen
+     company_id), og opslaget pr. medlem er ikke besluttet (useVirksomhed,
+     filhovedet). Blokken viser rapportering, handouts og milestones. */
+  const senesteRapport = d.rapporter[0] ?? null;
+  const senesteCommittet = facts[facts.length - 1] ?? null;
+  const fulgte = d.handouts.filter((h) => h.status === "completed").length;
+  const handoutByModule = new Map(d.handouts.map((h) => [h.module, h]));
+  const aktive = d.milestones.filter((m) => m.status !== "completed" && m.status !== "parked");
+  const naaede = d.milestones.filter((m) => m.status === "completed").length;
+
+  return (
+    <HbSection eyebrow="Aktivitet" hairline className="mt-12">
+      <div className="grid gap-4 md:grid-cols-3">
+        <HbCard className="p-5">
+          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-hb-ink-soft">Rapportering</p>
+          {d.rapporter.length === 0 ? (
+            <p className="mt-3 text-sm text-hb-ink-soft">Ingen rapporter uploadet endnu.</p>
+          ) : (
+            <>
+              <p className="mt-3 text-sm text-hb-ink">
+                {d.rapporter.length} {d.rapporter.length === 1 ? "rapport" : "rapporter"}
+                {senesteCommittet && <span className="text-hb-ink-soft"> · seneste godkendte periode {senesteCommittet.period_label}</span>}
+              </p>
+              <ul className="mt-3 divide-y divide-hb-line">
+                {d.rapporter.slice(0, 3).map((r) => (
+                  <li key={r.id} className="py-2 text-sm">
+                    <div className="flex items-baseline justify-between gap-3">
+                      <span className="min-w-0 truncate text-hb-ink">{r.manual_report_period_label ?? r.report_period ?? r.file_name}</span>
+                      <span className="shrink-0 text-xs text-hb-ink-soft">{formatDato(r.uploaded_at)}</span>
+                    </div>
+                    <p className="text-xs text-hb-ink-soft">
+                      {RAPPORT_STATUS[r.status] ?? r.status}
+                      {r.file_path && !isLegacyPath(r.file_path) && (
+                        <>
+                          {" · "}
+                          <button type="button" onClick={() => openReportFile(r.file_path)} className="text-hb-evergreen underline-offset-4 hover:underline">
+                            Se original fil
+                          </button>
+                        </>
+                      )}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+              {d.rapporter.length > 3 && <p className="mt-2 text-xs text-hb-ink-soft">+{d.rapporter.length - 3} ældre</p>}
+            </>
+          )}
+          {senesteRapport && <p className="mt-2 text-xs text-hb-ink-soft">Seneste upload {formatDato(senesteRapport.uploaded_at)}</p>}
+        </HbCard>
+
+        <HbCard className="p-5">
+          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-hb-ink-soft">Handouts</p>
+          <p className="mt-3 text-sm text-hb-ink">{fulgte} af {moduleOrder.length} fulgt</p>
+          <ul className="mt-3 divide-y divide-hb-line">
+            {moduleOrder.map((modul: HandoutModule) => {
+              const h = handoutByModule.get(modul);
+              const tilstand = !h ? "Ikke startet" : h.status === "completed" ? `Fulgt${h.completed_at ? ` ${formatDato(h.completed_at)}` : ""}` : "I gang";
+              return (
+                <li key={modul} className="flex items-baseline justify-between gap-3 py-1.5 text-sm">
+                  <span className="min-w-0 truncate text-hb-ink">{handoutConfigs[modul]?.title ?? modul}</span>
+                  <span className="shrink-0 text-xs text-hb-ink-soft">{tilstand}</span>
+                </li>
+              );
+            })}
+          </ul>
+        </HbCard>
+
+        <HbCard className="p-5">
+          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-hb-ink-soft">Milestones</p>
+          {d.milestones.length === 0 ? (
+            <p className="mt-3 text-sm text-hb-ink-soft">Ingen milestones endnu.</p>
+          ) : (
+            <>
+              <p className="mt-3 text-sm text-hb-ink">
+                {aktive.length} {aktive.length === 1 ? "aktiv" : "aktive"}
+                {naaede > 0 && <span className="text-hb-ink-soft"> · {naaede} nået</span>}
+              </p>
+              <ul className="mt-3 divide-y divide-hb-line">
+                {aktive.slice(0, 4).map((m) => (
+                  <li key={m.id} className="py-1.5 text-sm">
+                    <div className="flex items-baseline justify-between gap-3">
+                      <span className="min-w-0 truncate text-hb-ink">{m.title}</span>
+                      <span className="shrink-0 text-xs text-hb-ink-soft">{m.deadline ? formatDato(m.deadline) : "Ingen frist"}</span>
+                    </div>
+                    <div className="mt-1 h-1 rounded-full bg-hb-sage/60">
+                      <span className="block h-1 rounded-full bg-hb-evergreen" style={{ width: `${Math.max(0, Math.min(100, m.progress ?? 0))}%` }} aria-hidden />
+                    </div>
+                  </li>
+                ))}
+              </ul>
+              {aktive.length > 4 && <p className="mt-2 text-xs text-hb-ink-soft">+{aktive.length - 4} flere</p>}
+            </>
+          )}
+        </HbCard>
+      </div>
     </HbSection>
   );
 };
@@ -368,6 +570,9 @@ export const VirksomhedView = ({ companyId }: { companyId: string | undefined })
       <div className="mt-10">
         <Blok1 d={data} facts={facts} />
       </div>
+      {/* Blok 2, 3 og 4 kommer i senere etaper — rækkefølgen er designets. */}
+      <Blok5 d={data} facts={facts} />
+      <Blok6 d={data} facts={facts} />
       <Blok7 d={data} />
     </div>
   );
