@@ -2,13 +2,12 @@ import { useState, useEffect } from "react";
 import { Navigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import "@/styles/hjemmebane.css";
-import AppLayout from "@/components/AppLayout";
-import AdvisorDashboard from "@/components/AdvisorDashboard";
 import MembershipExpiredGate from "@/components/MembershipExpiredGate";
 import CompanyLinkFailedGate from "@/components/CompanyLinkFailedGate";
 import FornyelseKvittering from "@/components/FornyelseKvittering";
 import { HbMemberShell } from "@/components/hjemmebane/HbMemberShell";
 import { BoardroomView } from "@/components/hjemmebane/boardroom/BoardroomView";
+import { RaadgiverForsideView } from "@/components/hjemmebane/forside/RaadgiverForsideView";
 import { useAuth } from "@/hooks/useAuth";
 import { useViewMode } from "@/hooks/useViewMode";
 import { supabase } from "@/integrations/supabase/client";
@@ -16,17 +15,16 @@ import { supabase } from "@/integrations/supabase/client";
 /** FORSIDE-GO (2026-08-12): "/" bærer nu Hb-forsiden "Dit Boardroom"
     (swap-PR'en bogført i BACKLOG.md "[P1] Forside-GO = swap-PR").
     Medlemsgrenen renderer BoardroomView i HbMemberShell; det gamle
-    dashboard er fjernet. Rådgiver-grenen (AdvisorDashboard) er bevaret
-    ordret — den har sin egen konvertering. Legat dækkes af MemberRoute
-    (App.tsx), som redirecter til /legat før denne side renderes. */
+    dashboard er fjernet. Legat dækkes af MemberRoute (App.tsx), som
+    redirecter til /legat før denne side renderes.
 
-function getGreeting() {
-  const h = new Date().getHours();
-  if (h < 5) return "God nat";
-  if (h < 12) return "Godmorgen";
-  if (h < 18) return "God eftermiddag";
-  return "God aften";
-}
+    RÅDGIVER-SWAPPET (4/9): rådgiver-grenen renderer nu RaadgiverForsideView
+    i HbMemberShell — forsiden på dommen (docs/forsiden-design.md, bevist på
+    skærm 4/9 kl. 13:04: syv linjer mod køernes 38; køerne fjernet #638,
+    «derfor er du her» #641). AdvisorDashboard (AppLayout) er ikke længere
+    nogens landingsside; dens hentAdvisorDashboard er stadig forsidens
+    datalag. /forside viderestiller hertil (Forside.tsx). Hilsenen bor i
+    RaadgiverForsideView, så getGreeting er væk herfra. */
 
 /* ── Fornyelses-låsen ────────────────────────────────────────────────────
    HVORFOR DEN FINDES: opret-fornyelse-checkout sender medlemmet tilbage til
@@ -179,8 +177,6 @@ const Dashboard = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shouldShowTour, tourTriggered]);
 
-  const firstName = profile?.full_name?.split(" ")[0] || "dig";
-
   /* Koblingen konto → virksomhed GIK GALT (process-pending-invitation
      svarede med fejl). Står FØR fornyelses-kvitteringen, så en fejlet
      kobling vinder over stemplet. De øvrige tier-null-tilfælde fanges i
@@ -238,16 +234,16 @@ const Dashboard = () => {
     return <Navigate to="/kpis" replace />;
   }
 
+  /* Rådgiveren uden valgt virksomhed lander på SIN forside — dommen i
+     Hjemmebane (swappet 4/9). Med et valgt medlem (companyId sat via
+     «Visning som») falder rådgiveren igennem til medlemmets Boardroom
+     nedenfor, som før. active="boardroom": det ER Dit Boardroom, for
+     rådgiveren, og menuens punkt peger på "/" (HbMemberShell boardroomTo). */
   if (isAdvisor && !companyId) {
     return (
-      <AppLayout>
-        <div className="mb-6 md:mb-8">
-          <h1 className="text-2xl md:text-3xl font-display font-bold text-foreground tracking-tight">
-            {getGreeting()}, {firstName}
-          </h1>
-        </div>
-        <AdvisorDashboard />
-      </AppLayout>
+      <HbMemberShell active="boardroom">
+        <RaadgiverForsideView />
+      </HbMemberShell>
     );
   }
 

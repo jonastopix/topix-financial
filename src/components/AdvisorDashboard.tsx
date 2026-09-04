@@ -283,9 +283,21 @@ function MemberCard({
 // ── Component ──
 
 /**
+ * HVAD DENNE FIL ER EFTER SWAPPET (4/9): forsidens DATALAG, ikke en
+ * forside. hentAdvisorDashboard nedenfor er den hentning rådgiverens
+ * forside (RaadgiverForsideView, nu på "/" via Index.tsx) bygger på — den
+ * kører motorerne og dommen (afgoerForsidensDom) og returnerer `dom` med
+ * bunkerne ved siden af. Komponenten AdvisorDashboard (default export,
+ * JSX'en fra «Component» og ned) har INGEN AFTAGER længere: Index.tsx
+ * renderede den for rådgiveren indtil swappet, og ingen anden fil gør
+ * (målt 4/9: `grep -rn "<AdvisorDashboard" src` → kun her). Filen
+ * slettes ikke, fordi datalaget bor i den; JSX'en, bunkerne (buckets) og
+ * tabellen er råmateriale, indtil hentningen flyttes til et eget modul
+ * og resten kan pensioneres — det er en egen opgave.
+ *
  * Forsidens datalag — ÉT sted (4/9, raadgiverfladen-design.md §11 pkt. 6):
  * den gamle forside (AdvisorDashboard, AppLayout) og den nye i Hjemmebane
- * (RaadgiverForsideView, /forside) kalder SAMME hentning og deler cache
+ * (RaadgiverForsideView) kalder SAMME hentning og deler cache
  * via ADVISOR_DASHBOARD_QUERY_KEY. Indholdet er queryFn'en som den stod
  * inline i komponenten — flyttet ordret op i modulscope, ikke omskrevet.
  * Den er selvforsynende: ingen closure over user/queryClient (målt 4/9).
