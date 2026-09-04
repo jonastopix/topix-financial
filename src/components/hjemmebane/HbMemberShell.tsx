@@ -1,11 +1,12 @@
 import * as React from "react";
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { HbSidebar, HbSidebarDrawer, type HbNavEntry } from "./HbSidebar";
 import { HbNav } from "./HbNav";
 import { useOnboardingTjekliste } from "@/hooks/useOnboardingTjekliste";
 import { HbOnboardingTjekliste } from "./HbOnboardingTjekliste";
 import { useTjeklisteLukket } from "@/hooks/useTjeklisteLukket";
+import { useHbDokumentGrund } from "@/hooks/useHbDokumentGrund";
 import { pillenTraekkerSig } from "@/lib/hjemmebane/ankomst";
 import { HbVisningSom } from "./HbVisningSom";
 
@@ -46,34 +47,12 @@ export const HbMemberShell = ({
   const [drawerOpen, setDrawerOpen] = useState(false);
   const rodRef = useRef<HTMLDivElement>(null);
 
-  /* Dokument-grunden bag skallen. index.html er hardkodet
-     <html class="dark">, så body under ENHVER flade er .dark's
-     næsten-sorte --background — .theme-hjemmebane maler kun sit eget
-     subtræ. Det gamle AppLayout havde bg-background på wrapperen,
-     SAMME farve som body, så iOS' rubber-band eksponerede noget
-     usynligt. Papir på sort gør ikke: det var aldrig højdekæden der
-     beskyttede den gamle chat — det var farvematchet mellem flade og
-     dokument-grund. Derfor males html-elementet papir-farvet mens
-     skallen er mountet (BEGGE varianter — overscroll rammer også
-     side-flow-fladerne, blot som et kortere glimt), og den tidligere
-     inline-værdi lægges tilbage ved unmount, så en gammel-verdens-
-     flade ikke arver papir. Bevidst IKKE :has() (støtte-forbehold gør
-     et knækket layout værre end problemet) og ikke en global regel
-     (:root/.dark i index.css er fredet — PDF-eksporten læser
-     --background-VARIABLEN, som denne inline-stil ikke rører). */
-  useEffect(() => {
-    const el = document.documentElement;
-    const forrige = el.style.backgroundColor;
-    // Tokenet læses fra det monterede element; fallback-værdien SKAL
-    // følge --hb-paper i src/styles/hjemmebane.css.
-    const token = rodRef.current
-      ? getComputedStyle(rodRef.current).getPropertyValue("--hb-paper").trim()
-      : "";
-    el.style.backgroundColor = token ? `hsl(${token})` : "hsl(40 33% 97%)";
-    return () => {
-      el.style.backgroundColor = forrige;
-    };
-  }, []);
+  /* Dokument-grunden bag skallen: html males papir-farvet mens skallen er
+     mountet (BEGGE varianter — overscroll rammer også side-flow-fladerne,
+     blot som et kortere glimt) og lægges tilbage ved unmount. Hvorfor og
+     hvordan står i hooket — det flyttede dertil 4/9, da login, Betal og
+     admin-skallen skulle gøre det samme (mobilens grønne bundstykke). */
+  useHbDokumentGrund(rodRef);
   const { profile, signOut, membershipTier, isAdvisor } = useAuth();
   const avatarSrc = profile?.avatar_url || undefined;
   const userName = profile?.full_name || "Medlem";
@@ -241,7 +220,7 @@ export const HbMemberShell = ({
   const nav: HbNavEntry[] = [...medlemsNav, ...adminBlok];
 
   return (
-    <div ref={rodRef} className={`theme-hjemmebane ${fuld ? "h-screen-safe" : "min-h-screen"} bg-hb-paper font-body text-hb-ink antialiased`}>
+    <div ref={rodRef} className={`theme-hjemmebane ${fuld ? "h-screen-safe" : "min-h-screen-safe"} bg-hb-paper font-body text-hb-ink antialiased`}>
       <div className={`flex ${fuld ? "h-full overflow-hidden" : "lg:h-screen lg:overflow-hidden"}`}>
         <HbSidebar avatarSrc={avatarSrc} userName={userName} nav={nav} homeTo={boardroomTo} onSignOut={signOut} komGodtIGang={komGodtIGang} />
         <div className={`min-w-0 flex-1 ${fuld ? "flex flex-col overflow-hidden" : "lg:overflow-y-auto"}`}>

@@ -8,6 +8,7 @@ import { HbCard } from "@/components/hjemmebane/HbCard";
 import { HbButton } from "@/components/hjemmebane/HbButton";
 import { HbSpinner } from "@/components/hjemmebane/HbSpinner";
 import { HB_EYEBROW, HB_H1, HB_INPUT, HB_LABEL, HB_RAMME } from "@/components/hjemmebane/hbFormKlasser";
+import { useHbDokumentGrund } from "@/hooks/useHbDokumentGrund";
 
 /* /reset-password — siden Supabases nulstil-mail fører til. Hjemmebane
    (indgangen-overhaling §7.5, sidste del af trin 10-12), samme udtryk som
@@ -23,6 +24,8 @@ const ResetPassword = () => {
   const [isReady, setIsReady] = useState(false);
   const [hasSession, setHasSession] = useState(false);
   const navigate = useNavigate();
+  // Lærredet bag HB_RAMME er papir mens siden er mountet (4/9) — som Auth.
+  useHbDokumentGrund();
 
   useEffect(() => {
     // First restore any session from the URL hash (recovery token)

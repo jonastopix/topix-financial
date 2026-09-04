@@ -3,12 +3,15 @@ import { Link, useLocation } from "react-router-dom";
 import { useEffect } from "react";
 import { HbButton } from "@/components/hjemmebane/HbButton";
 import { HB_EYEBROW, HB_H1, HB_RAMME } from "@/components/hjemmebane/hbFormKlasser";
+import { useHbDokumentGrund } from "@/hooks/useHbDokumentGrund";
 
 /* 404 — Hjemmebane (indgangen-overhaling §7.6). Kort og roligt: hvad der
    skete, og én vej tilbage. Loglinjen er bevaret som før. Er man ikke
    logget ind, sender «Til forsiden» videre til /auth via ruten. */
 const NotFound = () => {
   const location = useLocation();
+  // Lærredet bag HB_RAMME er papir mens siden er mountet (4/9) — som Auth.
+  useHbDokumentGrund();
 
   useEffect(() => {
     console.error("404 Error: User attempted to access non-existent route:", location.pathname);

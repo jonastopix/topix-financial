@@ -6,8 +6,15 @@
  * de samme, frem for at kopiere dem.
  *
  * Radius og hairline er Hb-tokens; fokus-ringen er evergreen som HbButton.
+ *
+ * Rammen er min-h-screen-SAFE (dvh med vh-fallback, index.css), ikke
+ * Tailwinds min-h-screen: 100vh er på mobil STØRRE end det synlige område,
+ * og under rammen lå så bodys mørkegrønne .dark-baggrund som et tomt
+ * bundstykke (målt 4/9). Siderne der bruger rammen kalder desuden
+ * useHbDokumentGrund, så lærredet bag den er papir — samme to greb som
+ * HbMemberShell.
  */
-export const HB_RAMME = "theme-hjemmebane min-h-screen bg-hb-paper font-body text-hb-ink antialiased px-4 py-12";
+export const HB_RAMME = "theme-hjemmebane min-h-screen-safe bg-hb-paper font-body text-hb-ink antialiased px-4 py-12";
 export const HB_EYEBROW = "text-sm font-medium uppercase tracking-widest text-hb-rust";
 export const HB_H1 = "font-editorial text-3xl font-medium leading-tight text-hb-ink md:text-4xl";
 export const HB_LABEL = "mb-1.5 block text-xs font-medium text-hb-ink-soft";
