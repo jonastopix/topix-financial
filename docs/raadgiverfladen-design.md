@@ -682,7 +682,7 @@ overhovedet. Punkterne peger på AppLayout-sider, så designsproget
 skifter ved klik — et bevidst valg, ikke en forglemmelse; om de tretten
 driftsruter skal konverteres, er punkt 8.
 
-### 4. Virksomhedslisten (§3.6) — LØST 4/9 (#605), swappet mangler
+### 4. Virksomhedslisten (§3.6) — LØST 4/9 (#605, #615, #621); swappet DELES
 
 **Hvad:** ren visning under Virksomheder: søgefelt, én række pr.
 virksomhed med navn, branche, kontaktperson, medlemsstatus, sidste
@@ -704,9 +704,25 @@ Hb-liste-komponent — fire steder (`HbTreeList`, `MemberDirectoryView`,
 `HbAdvisorCompanyPrompt`, `ProgressView`) bygger hver sin liste og sit
 eget filter inline. Rækken linker siden #615 til `/virksomhed/:companyId`
 — alle rækker kan klikkes, også de tre uden medlemmer, og
-`company_members`-hentningen forsvandt fra listen.
+`company_members`-hentningen forsvandt fra listen. **Kontaktperson er
+siden #621 OWNEREN, ellers `contact_person`:** målt 4/9 kl. 10:23 var
+`contact_person` udfyldt på 4 af 30, mens en owner med navn fandtes på
+27; de to kilder overlappede ét sted (PHILBERT), og owner-navnet er det
+medlemmet selv har skrevet.
 
-**Swappet — FORMEN afgjort 4/9, bygges:** en VIDERESTILLING, ikke en
+**Swappet DELES (besluttet 4/9):** `/members/:userId` viderestiller
+nu til `/virksomhed/:companyId` — siden forstår `?reportId`, `?handout`
+og `?section` (#619), og MemberDetail er tom for enestående indhold
+(#624). `/members` (listen) venter på punkt 6. **Begrundelsen er målt:**
+`Members.tsx` er ENESTE montering af `IndgangsSektion`,
+`FornyelsesSektion`, Legatforløb-listen og `MembersAdminSection`.
+Fornyelsesordningen træder i kraft 10/9, og FornyelsesSektion er det
+eneste sted en fornyelsesbeslutning registreres — `/members` kan derfor
+ikke swappes, før forsiden (punkt 6) har givet indgange og fornyelser et
+hjem. En rådgivermail (`_shared/indgangsMail.ts:251`) og en test peger
+på `/members` af samme grund og følger med, når sektionen flytter.
+
+**Formen — afgjort 4/9:** en VIDERESTILLING, ikke en
 flytning. **Målt i prod 4/9 kl. 09:54:** 978 `notifications` har
 `deep_link like '/members/%'` (`report_uploaded` 524, `report_committed`
 382, `handout_completed` 40, `pulse_checkin_received` 26,
@@ -719,11 +735,11 @@ ud fra `user_id` (både `financial_reports` og `handouts` bærer
 `company_id NOT NULL`, så oversættelsen kan lade sig gøre) og sender
 videre til `/virksomhed/:companyId` med parametrene bevaret. Så virker
 alle gamle links og alle fremtidige beskeder, uden at én edge function
-skal ændres. Det kræver at virksomhedssiden FORSTÅR `?reportId`,
-`?handout` og `?section` — under bygning. `/members` (listen) swappes
-til `/virksomheder` samme dag.
+skal ændres. Virksomhedssiden FORSTÅR `?reportId`, `?handout` og
+`?section` siden #619. `/members` (listen) swappes til `/virksomheder`
+først efter punkt 6 — se ovenfor.
 
-### 5. Virksomhedssiden (§4) — etape 1–3 LØST 4/9 (#607, #611–#614, #616); to handlinger og blok 3 udestår
+### 5. Virksomhedssiden (§4) — LØST 4/9 (#607, #611–#614, #616, #619, #624); kun blok 3 venter på klassificeringen
 
 **Hvad:** `/virksomhed/:companyId` med de syv blokke. Datalaget vendes
 fra `user_id` til `companyId` (§3.3-noten: hele dataindlæsningen
@@ -770,18 +786,32 @@ havde.
   med badges, udfoldning med tal fra facts via `source_report_id`,
   «Godkend rapport →», og rapport-kommentarer med samme insert og
   `notifyChatMessage` som MemberDetail. Syv af MemberDetails ni
-  handlinger er dermed på plads; **«åbn handout» og «fjern medlem»
-  udestår** (under bygning).
+  handlinger var dermed på plads.
+- **Etape 4 (#619, #624, LØST 4/9) — siden er hel.** #619: de to
+  sidste handlinger — «åbn handout» i læse-tilstand via `HandoutDetail`
+  med rækkens ejer, ellers første medlem (skjult uden medlem; ingen
+  ændring i HandoutDetail/handoutEngine), og «fjern medlem» pr. medlem i
+  blok 7 gated af `maaFjerneMedlem`, med en dialog der siger at brugeren
+  slettes fra platformen, og `invalider` awaitet før lukning. Og
+  deep-links: siden læser `?reportId`, `?handout` og `?section` som
+  MemberDetail, med ankrene `section-reports/-milestones/-handouts` og
+  `report-<id>`. #624: de fem sidste visninger — grafen «Finansiel
+  udvikling» med budget-overlay (estimerede perioder prikket, som
+  NoegletalView), `DeliveryOverview`, samtalestatus med «Tildelt:
+  {rådgiver}», sparklines og `section-session`-ankeret. **Alle ni
+  handlinger og alle visninger fra MemberDetail findes nu på
+  `/virksomhed/:companyId` — MemberDetail kan pensioneres.**
 - **Blok 3 (emnerne) kommer sidst** og venter på klassificeringen
-  (punkt 7).
+  (punkt 7). Det er det eneste der mangler på siden.
 
 **Bevist på skærm 4/9 kl. 09:47–09:50:** siden virker for Floren Engros
 (fuld) og for Two Socks (uden medlemmer, samtale og tal) — Two Socks
 tegner sig helt igennem med rolige tomme tilstande, og «Har aldrig
 skrevet» står øverst i blok 1, det signal forsiden ikke kan nå.
 `company_perioder` er tom for begge (tabellen kom med fornyelseskæden
-1/9); blokken siger sandheden. **Før MemberDetail kan pensioneres** skal
-siden forstå `?reportId`, `?handout` og `?section` (punkt 4, swappet).
+1/9); blokken siger sandheden. Siden forstår `?reportId`, `?handout` og
+`?section` siden #619 — forudsætningen for viderestillingen (punkt 4)
+er opfyldt.
 
 **Målt før etape 1** (`~/Downloads/recon-virksomhedssidens-datalag.md`):
 en naiv side med én `useQuery` pr. kilde ville lave 18 netværkskald
