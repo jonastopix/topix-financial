@@ -542,8 +542,31 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
     };
   }, [activeConvId, user]);
 
+  /* Rul beskedlisten til bunden når `messages` ændrer sig — men KUN
+     listens EGEN scroll-container (messagesContainerRef), aldrig
+     forfædrene. Før stod her `messagesEndRef.current?.scrollIntoView(
+     { behavior: "smooth" })`, og scrollIntoView ruller ALLE scrollbare
+     forfædre indtil elementet er i view. På /chat er der én (listen —
+     AppLayout fullscreen binder resten), så det var usynligt. På
+     virksomhedssiden (blok 4, laastTilCompanyId) er der TO: listen og
+     Hb-skallens indholdskolonne (HbMemberShell.tsx:240 lg:overflow-y-auto),
+     som chatten ligger midt i under blok 1 og 2 — så HELE siden rullede
+     ned til chattens bund ved første indlæsning og ved hver realtime-
+     INSERT/UPDATE/DELETE, pin, redigér og slet (målt 4/9,
+     ~/Downloads/recon-chat-hop.md). `el.scrollTo` rører kun `el`s egen
+     scrollTop; forfædrene står stille. /chat ruller præcis som før
+     (samme udløsere, samme smooth), den ruller bare ikke noget den ikke
+     skulle.
+     FØRSTE indlæsning i låst tilstand (blok 4): rulningen BEHOLDES.
+     Bekymringen var at siden selv rullede ned til chatten, så man
+     mistede blok 1 — det gjorde scrollIntoView; scrollTo på listen kan
+     ikke flytte siden, listen står i sin faste 100dvh-ramme og viser de
+     nyeste beskeder nederst, som en chat skal. Uden rulningen ville
+     tråden åbne ved sin ÆLDSTE besked. */
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    const el = messagesContainerRef.current;
+    if (!el) return;
+    el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
   }, [messages]);
 
   const handleSend = useCallback(async (content: string, files?: File[]) => {
