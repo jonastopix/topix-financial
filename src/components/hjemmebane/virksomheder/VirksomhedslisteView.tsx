@@ -33,6 +33,14 @@ import { cn } from "@/lib/utils";
  *   financial_report_facts (period_label, fald tilbage til period_key).
  *   IKKE seneste upload — en upload der aldrig blev godkendt er ikke en
  *   rapportering.
+ * - «Kontaktperson» = OWNEREN (company_members.role = 'owner' → profilens
+ *   full_name), ellers companies.contact_person. Målt i prod 4/9 kl.
+ *   10:23: contact_person er udfyldt på 4 af 30, en owner med navn findes
+ *   på 27; de tre hvor feltet er eneste kilde er dem uden medlemmer (Din
+ *   økonomiafdeling, Two Socks, WESDEX), hvor navnet kommer fra
+ *   invitationen. Owner-navnet er det medlemmet selv har skrevet og
+ *   følger med når det rettes; feltet er en kopi fra Monday. Ingen
+ *   mister noget. «—» når ingen af dem findes.
  *
  * Der findes ingen generisk Hb-liste-komponent (målt 4/9) — fire steder
  * bygger hver sin inline, så det gør denne også. Rækker, ikke kort: det
@@ -44,7 +52,12 @@ type Raekke = {
   navn: string;
   branche: string;
   cvr: string;
+  /** Ownerens profilnavn; tom når virksomheden ingen owner med navn har. */
+  ownerNavn: string;
+  /** companies.contact_person — fald-tilbage (invitationens navn). */
   kontaktperson: string;
+  /** Det der VISES i kolonnen: owneren, ellers feltet. */
+  visningsnavn: string;
   kontaktEmail: string;
   tier: MembershipTier;
   kontraktSlut: string | null;
@@ -59,7 +72,7 @@ const MS_PER_DOEGN = 86_400_000;
 
 async function hentVirksomhedsliste(): Promise<Raekke[]> {
   const nu = Date.now();
-  const [companiesRes, convsRes, factsRes, traekRes] = await Promise.all([
+  const [companiesRes, membersRes, profilesRes, convsRes, factsRes, traekRes] = await Promise.all([
     // Kun de kolonner de syv felter og søgningen læser.
     // Ét string-literal pr. select: supabase-js' typeparser kan ikke læse
     // en sammenkædet streng (giver GenericStringError) — det er derfor
@@ -68,10 +81,16 @@ async function hentVirksomhedsliste(): Promise<Raekke[]> {
       .from("companies")
       .select("id, name, cvr_number, industry_label, contact_person, contact_email, status, is_legat, contract_end_date, subscription_status, subscription_current_period_end")
       .limit(500),
-    // Ingen company_members og ingen profiles: rækken linker til
-    // /virksomhed/:companyId (virksomhedens eget id, #607), og navnet på
-    // medlemmet vises ikke her. Hentningen af medlemmer røg 4/9 — ét
-    // netværkskald mindre.
+    // company_members er TILBAGE (4/9, samme dag som #615 fjernede den):
+    // #615 fjernede den fordi den kun bar rækkens link, og linket blev
+    // virksomhedens eget id. Nu bærer den noget der VISES — kontaktperson-
+    // kolonnen er owneren (role = 'owner') med profilens navn, ellers
+    // contact_person (filhovedet). profiles hentes ufiltreret i samme
+    // runde (~40 rækker, som Members.tsx:263) frem for en anden runde
+    // nøglet på owner-id'erne; join i kode. Linket er stadig
+    // /virksomhed/:companyId — det er ikke en fortrydelse af #615.
+    supabase.from("company_members").select("company_id, user_id, role").limit(2000),
+    supabase.from("profiles").select("user_id, full_name"),
     supabase.from("conversations").select("company_id, last_message_at"),
     // data_basis-undtagelse: virksomhedslisten viser PERIODEN for seneste committede rapportering (period_label), ikke talværdier — ingen beregning på metrics
     supabase.from("financial_report_facts").select("company_id, period_key, period_label"),
@@ -86,6 +105,21 @@ async function hentVirksomhedsliste(): Promise<Raekke[]> {
   ]);
 
   const fejledeTraekByCompany = fejledeTraekPrVirksomhed(traekRes.data ?? []);
+
+  // Ownerens navn pr. virksomhed: første owner-række med et profilnavn.
+  // Målt 4/9 kl. 10:17: alle aktive virksomheder med medlemmer har præcis
+  // én owner (35 owner / 3 member efter datarettelsen), så «første» er
+  // ikke et valg i praksis.
+  const navnByUser = new Map<string, string>();
+  for (const p of profilesRes.data ?? []) {
+    if (p.user_id && p.full_name?.trim()) navnByUser.set(p.user_id, p.full_name.trim());
+  }
+  const ownerNavnByCompany = new Map<string, string>();
+  for (const m of membersRes.data ?? []) {
+    if (m.role !== "owner" || !m.company_id || ownerNavnByCompany.has(m.company_id)) continue;
+    const navn = navnByUser.get(m.user_id);
+    if (navn) ownerNavnByCompany.set(m.company_id, navn);
+  }
 
   // Seneste besked pr. virksomhed — flere samtaler pr. virksomhed er
   // muligt, så den nyeste vinder.
@@ -114,12 +148,17 @@ async function hentVirksomhedsliste(): Promise<Raekke[]> {
     .filter((c) => !c.is_legat && (c.status === "active" || !c.status))
     .map((c): Raekke => {
       const sidsteBesked = sidsteBeskedByCompany.get(c.id) ?? null;
+      const ownerNavn = ownerNavnByCompany.get(c.id) ?? "";
+      const kontaktperson = c.contact_person?.trim() || "";
       return {
         id: c.id,
         navn: c.name || "",
         branche: c.industry_label || "",
         cvr: c.cvr_number || "",
-        kontaktperson: c.contact_person || "",
+        ownerNavn,
+        kontaktperson,
+        // REGLEN (Jonas 4/9): owneren, ellers contact_person.
+        visningsnavn: ownerNavn || kontaktperson,
         kontaktEmail: c.contact_email || "",
         tier: computeMembershipTier({
           contract_end_date: c.contract_end_date,
@@ -140,11 +179,13 @@ async function hentVirksomhedsliste(): Promise<Raekke[]> {
 }
 
 /** Søgning klientside over det hentede — i navn, branche, CVR,
-    kontaktperson og kontakt-email. Placeholderen lover præcis det. */
+    kontaktperson (BÅDE owner-navnet og contact_person, så «Nille» rammer
+    PHILBERT uanset hvilken kilde der vandt) og kontakt-email.
+    Placeholderen lover præcis det. */
 const matcher = (r: Raekke, query: string): boolean => {
   const q = query.trim().toLocaleLowerCase("da");
   if (!q) return true;
-  return [r.navn, r.branche, r.cvr, r.kontaktperson, r.kontaktEmail].some((felt) =>
+  return [r.navn, r.branche, r.cvr, r.ownerNavn, r.kontaktperson, r.kontaktEmail].some((felt) =>
     felt.toLocaleLowerCase("da").includes(q),
   );
 };
@@ -187,7 +228,7 @@ const RaekkeIndhold = ({ r }: { r: Raekke }) => {
         <p className="truncate text-[15px] font-medium leading-snug text-hb-ink">{r.navn}</p>
         <p className="truncate text-xs text-hb-ink-soft">{r.branche || "—"}</p>
       </div>
-      <p className="truncate text-sm text-hb-ink-soft">{r.kontaktperson || "—"}</p>
+      <p className="truncate text-sm text-hb-ink-soft">{r.visningsnavn || "—"}</p>
       <div className="flex flex-wrap items-center gap-1.5">
         <TierBadge tier={r.tier} kontraktSlut={r.kontraktSlut} />
         {/* Advarselsmærket står ved siden af tier-badgen med vilje (som på
