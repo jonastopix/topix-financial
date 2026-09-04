@@ -6,6 +6,7 @@ import { ArrowRight, ChevronRight, Loader2, RefreshCw } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { HbCard } from "@/components/hjemmebane/HbCard";
 import { HbButton } from "@/components/hjemmebane/HbButton";
+import { useHbDokumentGrund } from "@/hooks/useHbDokumentGrund";
 import {
   alleIndgangsmuligheder,
   type Betalingsmodel,
@@ -93,10 +94,12 @@ function formaterFrist(iso: string): string {
 
 const MAILTO = `mailto:jonas@topix.dk?subject=${encodeURIComponent("The Boardroom — mit betalingslink")}`;
 
-/** Fælles ramme: samme ydre div som MembershipExpiredGate:148. */
+/** Fælles ramme: samme ydre div som MembershipExpiredGate:148 — men
+    min-h-screen-SAFE (dvh), ikke 100vh, som HB_RAMME (4/9, mobilens grønne
+    bundstykke). Lærredet bag rammen males i Betal() nedenfor. */
 function Ramme({ children }: { children: React.ReactNode }) {
   return (
-    <div className="theme-hjemmebane min-h-screen bg-hb-paper font-body text-hb-ink antialiased px-4 py-12">
+    <div className="theme-hjemmebane min-h-screen-safe bg-hb-paper font-body text-hb-ink antialiased px-4 py-12">
       <div className="max-w-2xl mx-auto space-y-10">{children}</div>
     </div>
   );
@@ -133,6 +136,10 @@ export default function Betal() {
   // deaktiveres imens, så ét klik giver én session. Hook i topblokken, før
   // enhver betinget return (React #310-lærdommen).
   const [starter, setStarter] = useState<Betalingsmodel | null>(null);
+  // Lærredet bag rammen er papir mens siden er mountet (4/9) — som Auth og
+  // HbMemberShell. I Betal(), ikke i Ramme: Betal er mountet hele vejen,
+  // Ramme skifter med tilstanden.
+  useHbDokumentGrund();
 
   useEffect(() => {
     // Intet token i URL'en er samme udfald som et ukendt token: linket er

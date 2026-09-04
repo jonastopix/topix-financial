@@ -9,6 +9,7 @@ import { HbCard } from "@/components/hjemmebane/HbCard";
 import { HbButton } from "@/components/hjemmebane/HbButton";
 import { HbRaadgiverPortraetter } from "@/components/hjemmebane/HbRaadgiverPortraetter";
 import { HB_EYEBROW, HB_H1, HB_INPUT, HB_INPUT_LAAST, HB_LABEL, HB_RAMME } from "@/components/hjemmebane/hbFormKlasser";
+import { useHbDokumentGrund } from "@/hooks/useHbDokumentGrund";
 
 /* Rammen, eyebrow, overskrift og felterne deles med ResetPassword og
    NotFound — de bor i hjemmebane/hbFormKlasser.ts (trin 10-12). */
@@ -54,6 +55,10 @@ const Auth = () => {
      (handle_new_user) ingen invitation og afviser signup med P0001. */
   const [emailLaast, setEmailLaast] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
+  /* Lærredet bag HB_RAMME er papir mens siden er mountet (4/9, mobilens
+     grønne bundstykke) — som HbMemberShell. Hook i topblokken, før enhver
+     betinget return. */
+  useHbDokumentGrund();
 
   // Redirect after successful auth
   useEffect(() => {

@@ -4,6 +4,7 @@ import { ArrowLeft } from "lucide-react";
 import topixIcon from "@/assets/topix-icon-green.png";
 import { cn } from "@/lib/utils";
 import { HbVisningSom } from "../HbVisningSom";
+import { useHbDokumentGrund } from "@/hooks/useHbDokumentGrund";
 
 export type AdminSection =
   | "boardroom"
@@ -39,8 +40,13 @@ interface HbAdminShellProps {
     rolig header med tilbage-link og sektions-switcher — store ord, ingen
     tab-bar-støj; drift-fanerne bag en stille divider. Ikke AppLayout:
     appens mørke tema forbliver urørt. */
-export const HbAdminShell = ({ section, children }: HbAdminShellProps) => (
-  <div className="theme-hjemmebane flex h-screen flex-col overflow-hidden bg-hb-paper font-body text-hb-ink antialiased">
+export const HbAdminShell = ({ section, children }: HbAdminShellProps) => {
+  /* Lærredet bag skallen males papir mens den er mountet (4/9, mobilens
+     grønne bundstykke) — samme greb som HbMemberShell. Højden er
+     h-screen-SAFE (dvh), ikke Tailwinds h-screen (100vh), af samme grund. */
+  useHbDokumentGrund();
+  return (
+  <div className="theme-hjemmebane flex h-screen-safe flex-col overflow-hidden bg-hb-paper font-body text-hb-ink antialiased">
     <header className="flex shrink-0 flex-wrap items-center gap-x-6 gap-y-2 border-b border-hb-line bg-hb-paper px-6 py-4">
       <Link
         to="/"
@@ -89,7 +95,8 @@ export const HbAdminShell = ({ section, children }: HbAdminShellProps) => (
 
     <div className="min-h-0 flex-1">{children}</div>
   </div>
-);
+  );
+};
 
 interface HbAdminSplitProps {
   list: React.ReactNode;
