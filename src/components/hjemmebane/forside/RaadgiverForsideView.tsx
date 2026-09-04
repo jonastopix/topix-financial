@@ -1,36 +1,41 @@
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
-import {
-  ADVISOR_DASHBOARD_QUERY_KEY,
-  hentAdvisorDashboard,
-  type AdvisorDashboardData,
-} from "@/components/AdvisorDashboard";
+import { ADVISOR_DASHBOARD_QUERY_KEY, hentAdvisorDashboard } from "@/components/AdvisorDashboard";
 import { TAERSKEL, type Linje, type OpgaveSlags } from "@/lib/forsidensDom";
-import FornyelsesSektion from "@/components/members/FornyelsesSektion";
-import IndgangsSektion from "@/components/members/IndgangsSektion";
-import { HbSection } from "../HbSection";
 import { cn } from "@/lib/utils";
 
 /**
  * Rådgiverens forside på /forside — DOMMEN (docs/forsiden-design.md,
- * src/lib/forsidensDom.ts) øverst, de gamle KØER (#630) nedenunder som
- * råmateriale, så de to kan ses side om side og forskellen måles (4/9).
+ * src/lib/forsidensDom.ts) tegnet som linjer: hvad rådgiveren skal gøre i
+ * dag, én linje pr. virksomhed, tilstande og pukler samlet, og to tal
+ * under stregen. Det er fladen; den er ikke råmateriale.
+ *
+ * HISTORIK — hvorfor den ser sådan ud. Den første udgave (#630, 4/9)
+ * viste syv KØER under hinanden efter raadgiverfladen-design.md §3.5. Set
+ * på skærm kl. 11:35: 38 rækker, hvoraf 16 sagde «ingen dialog i N dage»
+ * og intet andet. Fejlen var ikke mængden af data, men at en KØ viser alt
+ * der matcher en betingelse, mens en rådgiver om morgenen har brug for at
+ * vide hvad han skal gøre. Derfor designet (forsiden-design.md, #631),
+ * dommen som ren funktion (#635), og denne flade oven på den (#637), med
+ * køerne stående nedenunder som sammenligning. Dommen blev BEVIST på
+ * skærm 4/9 kl. 13:04: syv linjer, hvor køerne gav 38 rækker. Køerne blev
+ * fjernet herfra samme dag. hentAdvisorDashboard bygger stadig bunkerne
+ * til den gamle forside (AdvisorDashboard på "/"), som står urørt til
+ * swappet; her læses kun `dom`.
  *
  * MIDLERTIDIG rute: "/" renderer stadig AdvisorDashboard for rådgiveren
- * (Index.tsx) til swappet. Fladen swappes ikke ind før dommen er set på
- * jeres tredive virksomheder og tærsklen (TAERSKEL = 70) er målt mod
- * 4/9's 38 rækker (designets §12/§13). Køerne fjernes når dommen er bevist.
+ * (Index.tsx) til swappet.
  *
- * ÉT DATALAG: hentAdvisorDashboard bygger både bunkerne og dommen; her
- * tegnes de kun. Ingen hentning i denne fil.
+ * ÉT DATALAG: hentAdvisorDashboard kører motorerne og dommen; her tegnes
+ * den kun. Ingen hentning i denne fil.
  *
  * LINJERNE (§1, §6): hver linje er virksomheden, grundene med den
  * vigtigste først, og handlingen — og HELE linjen er ét link til
  * /virksomhed/:companyId?grund=<slags>. Ingen knapper pr. grund, ingen
  * «Åbn chat». Parameteren `grund` bærer den vigtigste grunds slags, så
  * virksomhedssiden kan vise «derfor er du her» øverst i blok 1 (§6) —
- * den LÆSER den ikke endnu; kontrakten findes fra i dag.
+ * den LÆSER den ikke endnu; kontrakten findes.
  *
  * Tilstande og pukler er deres egen samlede linje (§3) og linker til
  * /virksomheder (§5: tallene er links til listen). Én virksomhed i en
@@ -38,10 +43,9 @@ import { cn } from "@/lib/utils";
  *
  * TOPPEN (§10): «N ting kræver dig i dag», ellers «Der er ikke noget der
  * haster i dag.» UNDER STREGEN (§5): tal, ikke lister. FLAGET (§5): når
- * dommen siger usædvanligt mange, står det her.
+ * dommen siger usædvanligt mange, står det her. MÅLINGEN nederst bliver
+ * stående til tærsklen (TAERSKEL) er justeret efter drift (§12).
  */
-
-type BucketItem = AdvisorDashboardData["buckets"]["waiting"][number];
 
 const hilsen = (): string => {
   const h = new Date().getHours();
@@ -51,14 +55,10 @@ const hilsen = (): string => {
   return "God aften";
 };
 
-/** Alvor → tone, som blok 1 på virksomhedssiden: rust kun til det der er
-    galt (>= 70); resten ink/ink-soft. Positive og friske tal er aldrig rust. */
-const tone = (alvor: number, roligt: boolean) =>
-  roligt ? "text-hb-ink" : alvor >= 70 ? "text-hb-rust" : alvor >= 50 ? "text-hb-ink" : "text-hb-ink-soft";
-
 const grundLink = (companyId: string, slags: OpgaveSlags) => `/virksomhed/${companyId}?grund=${slags}`;
 
-/** Én linje fra dommen. Virksomhed: handling + grunde; tilstand/pukkel: tekst. */
+/** Én linje fra dommen. Virksomhed: handling + grunde; tilstand/pukkel: tekst.
+    Rust kun til det der er galt (>= TAERSKEL) eller haster (løftet). */
 const DomLinje = ({ l }: { l: Linje }) => {
   const rust = l.alvor >= TAERSKEL || l.loeftet;
   const prik = <span aria-hidden className={cn("mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-current", rust ? "text-hb-rust" : "text-hb-ink-soft")} />;
@@ -114,44 +114,6 @@ const DomLinje = ({ l }: { l: Linje }) => {
   );
 };
 
-const Koe = ({
-  eyebrow, items, convByCompany, roligt = false,
-}: {
-  eyebrow: string;
-  items: BucketItem[];
-  convByCompany: AdvisorDashboardData["convByCompany"];
-  /** Køer der er godt nyt (friske tal, positive): ingen rust uanset alvor. */
-  roligt?: boolean;
-}) => {
-  if (items.length === 0) return null;
-  return (
-    <HbSection eyebrow={`${eyebrow} · ${items.length}`} hairline className="mt-10">
-      <ul className="divide-y divide-hb-line">
-        {items.map((item) => {
-          const convId = convByCompany.get(item.company.company_id)?.[0]?.id;
-          return (
-            <li key={item.company.company_id} className="flex items-center gap-3 py-2.5">
-              <span aria-hidden className={cn("h-1.5 w-1.5 shrink-0 rounded-full bg-current", tone(item.sortValue, roligt))} />
-              <Link to={`/virksomhed/${item.company.company_id}`} className="min-w-0 flex-1 rounded-hb transition-colors hover:bg-hb-sage/20">
-                <span className="block truncate text-[15px] leading-snug text-hb-ink">{item.company.company_name}</span>
-                <span className={cn("block truncate text-sm leading-snug", tone(item.sortValue, roligt) === "text-hb-rust" ? "text-hb-rust" : "text-hb-ink-soft")}>{item.subtext}</span>
-              </Link>
-              {item.assigned_advisor_name && (
-                <span className="hidden shrink-0 text-xs text-hb-ink-soft sm:inline">{item.assigned_advisor_name.split(" ")[0]}</span>
-              )}
-              {convId && (
-                <Link to={`/chat?conversationId=${convId}`} className="shrink-0 text-xs text-hb-evergreen underline-offset-4 hover:underline">
-                  Åbn chat
-                </Link>
-              )}
-            </li>
-          );
-        })}
-      </ul>
-    </HbSection>
-  );
-};
-
 export const RaadgiverForsideView = () => {
   const { user, profile } = useAuth();
   const { data, isLoading, isError } = useQuery({
@@ -176,26 +138,9 @@ export const RaadgiverForsideView = () => {
   }
 
   const dom = data.dom;
-  const b = data.buckets;
   const linjeNoegle = (l: Linje) => (l.linje === "virksomhed" ? `v:${l.companyId}` : `${l.linje}:${l.slags}`);
   const under = dom.underStregen;
   const antalUnder = under.antalVirksomhederUnderTaersklen;
-
-  // FornyelsesSektion vil have samme udsnit som fra Members.tsx (:317, :464):
-  // ikke legat, status aktiv eller tom. Kun de fem felter den læser.
-  const fornyelsesVirksomheder = (data.companies as unknown as {
-    id: string; name: string; is_legat?: boolean | null; status?: string | null;
-    contract_end_date: string | null; subscription_status: string | null; subscription_current_period_end: string | null;
-  }[])
-    .filter((c) => !c.is_legat && (c.status === "active" || !c.status))
-    .map((c) => ({
-      id: c.id,
-      name: c.name,
-      contract_end_date: c.contract_end_date,
-      subscription_status: c.subscription_status,
-      subscription_current_period_end: c.subscription_current_period_end,
-    }));
-  const antalIKoeer = b.stale.length + b.waiting.length + b.standsOut.length + b.agent.length + b.fresh.length + b.positive.length;
 
   return (
     <div>
@@ -260,49 +205,12 @@ export const RaadgiverForsideView = () => {
             <Link to="/virksomheder" className="text-hb-evergreen underline-offset-4 hover:underline">Se virksomhederne</Link>, hvis du alligevel vil kigge.
           </p>
         )}
-        {/* Måling (§12/§13): tærsklen skal måles mod 4/9's 38 rækker. Tallene står
-            her, indtil køerne nedenfor er fjernet. */}
+        {/* Måling (§12): tærsklen justeres efter drift. Tallene bliver stående
+            til det er sket. Målt 4/9 kl. 13:04: 7 linjer mod køernes 38 rækker. */}
         <p className="pt-2 text-xs">
-          Måling: tærskel {TAERSKEL} · {dom.antalOpgaver} {dom.antalOpgaver === 1 ? "linje" : "linjer"} over stregen · {under.antalTilstandeSamlet} samlet i tilstande · {antalUnder} under tærsklen · køerne nedenfor: {antalIKoeer} rækker.
+          Måling: tærskel {TAERSKEL} · {dom.antalOpgaver} {dom.antalOpgaver === 1 ? "linje" : "linjer"} over stregen · {under.antalTilstandeSamlet} samlet i tilstande · {antalUnder} under tærsklen.
         </p>
       </section>
-
-      {/* ── Råmateriale: de gamle køer (#630). Fjernes når dommen er bevist. ── */}
-      <HbSection
-        eyebrow="Råmateriale — de gamle køer (#630)"
-        title="Det samme, som køer"
-        hairline
-        className="mt-16 border-t border-hb-line pt-10"
-      >
-        <p className="-mt-2 mb-2 text-sm text-hb-ink-soft">
-          Det gamle råmateriale, som det så ud 4/9 (38 rækker, 16 «ingen dialog»). Står her midlertidigt så dommen ovenfor kan måles mod det. Fjernes når dommen er bevist.
-        </p>
-      </HbSection>
-
-      {/* 1 */}
-      <Koe eyebrow="Ikke hørt fra længe" items={b.stale} convByCompany={data.convByCompany} />
-      {/* 2 */}
-      <Koe eyebrow="Venter på dit svar" items={b.waiting} convByCompany={data.convByCompany} />
-      {/* 3 */}
-      <Koe eyebrow="Noget stikker ud i tallene" items={b.standsOut} convByCompany={data.convByCompany} />
-
-      {/* 4 + 5 — monteret uændret; appens tokens. Begge er usynlige når de er
-          tomme, så rækkefølgen holder uden tomme afsnit. */}
-      <div className="mt-10 [&>div]:mb-0 [&>div+div]:mt-4">
-        <FornyelsesSektion companies={fornyelsesVirksomheder} />
-        <IndgangsSektion />
-      </div>
-
-      {/* 6 */}
-      <Koe eyebrow="Agentforslag der venter på afgørelse" items={b.agent} convByCompany={data.convByCompany} roligt />
-      {/* 7 */}
-      <Koe eyebrow="Friske tal, fortjener sparring" items={b.fresh} convByCompany={data.convByCompany} roligt />
-      {/* Ikke i §3.5 — beholdes nederst, godt nyt. */}
-      <Koe eyebrow="Positive muligheder" items={b.positive} convByCompany={data.convByCompany} roligt />
-
-      {antalIKoeer === 0 && (
-        <p className="mt-10 text-sm text-hb-ink-soft">Køerne er tomme.</p>
-      )}
     </div>
   );
 };
