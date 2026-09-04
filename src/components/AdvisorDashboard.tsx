@@ -1049,25 +1049,22 @@ const AdvisorDashboard = () => {
       }
     }
 
-    // Report review reason — navigate to member's specific report
+    // Report review reason — navigate to the company's specific report.
+    // Direkte til virksomhedssiden (4/9, §11 pkt. 4): forsiden kender
+    // company_id, så omvejen over /members/:userId (og kravet om et medlem)
+    // er væk; ?reportId og ?section læses af VirksomhedView (#619).
     if (reason?.includes("godkendelse")) {
-      const userId = data?.companyToUser?.get(companyId);
       const recentReport = (data?.recentReportsData || []).find((r: any) => r.company_id === companyId);
-      if (userId) {
-        navigate(recentReport?.id
-          ? `/members/${userId}?reportId=${recentReport.id}&section=reports`
-          : `/members/${userId}?section=reports`
-        );
-      }
+      navigate(recentReport?.id
+        ? `/virksomhed/${companyId}?reportId=${recentReport.id}&section=reports`
+        : `/virksomhed/${companyId}?section=reports`
+      );
       return;
     }
 
-    // Default: navigate to MemberDetail for full company overview
-    const userId = data?.companyToUser?.get(companyId);
-    if (userId) {
-      navigate(`/members/${userId}`);
-      return;
-    }
+    // Default: virksomhedssiden — også for en virksomhed uden medlemmer.
+    navigate(`/virksomhed/${companyId}`);
+    return;
 
     // Fallback to chat if no user found
     const convId = getCompanyConvId(companyId);
@@ -1200,11 +1197,12 @@ const AdvisorDashboard = () => {
               <div className="divide-y divide-border/30">
                 {b.items.map((item: any) => {
                   const convId = convByCompany.get(item.company.company_id)?.[0]?.id;
-                  const userId = data?.companyToUser?.get(item.company.company_id);
                   // Fremhæv bunkens primære handling; fald tilbage til den anden hvis
                   // den ønskede knap ikke findes, så ingen række står uden primær.
+                  // «Se virksomhed» peger på /virksomhed/:companyId (4/9) og
+                  // findes derfor ALTID — også uden medlem.
                   const chatOK = !!convId;
-                  const companyOK = !!userId;
+                  const companyOK = true;
                   let chatPrimary = false, companyPrimary = false;
                   if (b.primary === "chat") { chatPrimary = chatOK; companyPrimary = !chatOK && companyOK; }
                   else { companyPrimary = companyOK; chatPrimary = !companyOK && chatOK; }
@@ -1236,14 +1234,12 @@ const AdvisorDashboard = () => {
                             Åbn chat
                           </button>
                         )}
-                        {userId && (
-                          <button
-                            onClick={() => navigate(`/members/${userId}`)}
-                            className={companyPrimary ? PRIMARY_CLS : SECONDARY_CLS}
-                          >
-                            Se virksomhed
-                          </button>
-                        )}
+                        <button
+                          onClick={() => navigate(`/virksomhed/${item.company.company_id}`)}
+                          className={companyPrimary ? PRIMARY_CLS : SECONDARY_CLS}
+                        >
+                          Se virksomhed
+                        </button>
                       </div>
                     </div>
                   );
@@ -1303,7 +1299,6 @@ const AdvisorDashboard = () => {
             </thead>
             <tbody className="divide-y divide-border/20">
               {filteredMembers.map(c => {
-                const userId = data?.companyToUser?.get(c.company_id);
                 const conv = allConvsByCompany.get(c.company_id);
                 const assignedName = advisorProfiles.find(a => a.user_id === conv?.assigned_advisor_id)?.full_name;
                 const personName = data?.companyMemberNameMap?.get(c.company_id) || null;
@@ -1323,7 +1318,8 @@ const AdvisorDashboard = () => {
                           return;
                         }
                       }
-                      if (userId) navigate(`/members/${userId}`);
+                      // Direkte til virksomhedssiden (4/9) — kræver intet medlem.
+                      navigate(`/virksomhed/${c.company_id}`);
                     }}
                   >
                     {/* Kolonne 1: Virksomhed + person + advisor-badge */}
