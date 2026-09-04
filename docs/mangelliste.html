@@ -112,7 +112,7 @@
     HVAD KORTENE IKKE BÆRER — og hvad der IKKE er gættet:
       «Blokerer» læses af klassen blocked alene, som filhovedet
       definerer den («blokerer noget andet»). Tag-teksten «Blokerer …»
-      bruges ikke: 22 kort har klassen uden tagget, ingen har tagget
+      bruges ikke: 21 kort har klassen uden tagget, ingen har tagget
       uden klassen. Graden («Blokerer meget», «… skala») tælles ikke —
       den er ikke målt.
       «Koster» læses af size-tagget alene (Lille/Mellem/Stor). 14 kort
@@ -1313,6 +1313,7 @@
   if (toolbar) toolbar.insertBefore(group, countEl || null);
   var btns = Array.prototype.slice.call(group.querySelectorAll('.fbtn'));
 
+  var sections = Array.prototype.slice.call(document.querySelectorAll('section.topic'));
   function saet(orden) {
     btns.forEach(function (b) { b.classList.toggle('on', b.dataset.orden === orden); });
     if (orden === 'vaerdi') {
@@ -1327,6 +1328,11 @@
       cards.slice().reverse().forEach(function (c) { c._hjem.parent.insertBefore(c, c._hjem.next); });
       samling.classList.add('hide');
     }
+    // Afsnittene: samme regel som filterscriptets apply() (tomt afsnit
+    // skjules) — gentaget her, fordi apply() ikke kører ved et ordenskift.
+    sections.forEach(function (sec) {
+      sec.classList.toggle('hide', sec.querySelectorAll('.card:not(.hide)').length === 0);
+    });
   }
   btns.forEach(function (b) {
     b.addEventListener('click', function () { saet(b.dataset.orden); });
