@@ -40,7 +40,7 @@
  * (agent_runs/agent_proposals :112-121). RLS: advisor-policies tillader
  * company-nøglet læsning på alle tolv kilder (målt 4/9).
  */
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import type { Json } from "@/integrations/supabase/types";
@@ -302,6 +302,7 @@ async function hentVirksomhed(companyId: string): Promise<VirksomhedsData | null
 
 export function useVirksomhed(companyId: string | undefined) {
   const { user, isAdvisor } = useAuth();
+  const queryClient = useQueryClient();
   const facts = useCompanyFacts(companyId);
   const query = useQuery({
     queryKey: ["virksomhed", companyId],
@@ -316,5 +317,12 @@ export function useVirksomhed(companyId: string | undefined) {
     isError: query.isError,
     /** Sand når opslaget lykkedes og virksomheden ikke findes (eller RLS skjuler den). */
     findesIkke: query.isSuccess && query.data === null,
+    /** Hent virksomheden igen efter en skrivning (EditCompanyDialog). Løftet
+        er først opfyldt når den aktive query ER hentet igen — AWAIT den før
+        en dialog lukkes (OVERLEVERING DEL 4: `void invalidateQueries` lukker
+        før tilstanden er hentet, og fladen viser det gamle i et render). */
+    invalider: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["virksomhed", companyId] });
+    },
   };
 }

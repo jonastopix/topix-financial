@@ -1,7 +1,12 @@
-import { useMemo, useState, type ReactNode } from "react";
+import { useMemo, useRef, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 import { useVirksomhed, type VirksomhedsData } from "@/hooks/useVirksomhed";
+import AgentForslagPanel from "@/components/AgentForslagPanel";
+import AdvisorAIChat from "@/components/AdvisorAIChat";
+import CompanyChatPane from "@/components/CompanyChatPane";
+import EditCompanyDialog from "@/components/members/EditCompanyDialog";
 import type { CompanyFact } from "@/hooks/useCompanyFacts";
 import { factsToDanishMetrics } from "@/lib/factsAdapter";
 import { afgoerVirksomhedsSignaler, type FactPunkt, type Signal, type VirksomhedsInput } from "@/lib/virksomhedsSignaler";
@@ -34,6 +39,19 @@ import { cn } from "@/lib/utils";
  * er motoren (afgoerVirksomhedsSignaler, #589), som ikke røres her.
  * Blok 7 er en rolig opsummering — VISNING i denne etape, ingen
  * handlinger (omdøb, inviter, slet osv. kommer senere, §3.6).
+ *
+ * MONTERET 4/9 (fire af de ni handlinger MemberDetail har og siden
+ * manglede — komponenterne findes, er company-nøglede og henter selv;
+ * de er IKKE ændret, MemberDetail bruger dem stadig):
+ *   - AgentForslagPanel → blok 1 (agent_runs + agent_proposals, ejer
+ *     kaldet til agent-forslag-afgoer).
+ *   - AdvisorAIChat → blok 5, gated som MemberDetail:1362 (facts > 0,
+ *     tier ≠ expired).
+ *   - Forecast (generate-ai-forecast) → blok 5, på en knap — aldrig ved
+ *     sidevisning.
+ *   - EditCompanyDialog → blok 7, kun admin (MemberDetail:953).
+ * De tre første tegner i appens gamle tokens (bg-card, text-foreground)
+ * inde i Hb-skallen — samme accepterede skift som admin-siderne (#603).
  */
 
 const formatDato = (iso: string | null | undefined): string => {
@@ -186,6 +204,10 @@ const Blok1 = ({ d, facts }: { d: VirksomhedsData; facts: CompanyFact[] }) => {
           )}
         </ul>
       )}
+      {/* Agentforslagene, afgørbare — bullet'en ovenfor siger kun antallet.
+          Panelet henter selv (company-nøglet) og ejer kaldet til
+          agent-forslag-afgoer; monteret som på MemberDetail:1465. */}
+      <AgentForslagPanel companyId={d.company.id} />
     </HbSection>
   );
 };
@@ -379,13 +401,69 @@ const KpiKort = ({ metric, afviger }: { metric: KpiMetric; afviger: boolean }) =
   </div>
 );
 
+/** Svaret fra generate-ai-forecast: tre perioder, lineær trend på facts
+    med data_basis = measured. Eller `insufficient_data` under tre måneder. */
+type ForecastPunkt = { period_key: string; period_label: string; revenue: number | null; ebt: number | null };
+
+// ── Blok 4: Chatten — én tråd i fuld højde ──────────────────────────────
+
+/** §3.4/§4 blok 4: samme tråd og samme skrivevej som /chat, via
+    CompanyChatPanes valgfri `laastTilCompanyId` (Jonas 4/9) — ingen ny
+    chatkomponent. FULD HØJDE uden skal-ændring: siden ligger i Hb-skallens
+    side-variant (indholdskolonnen scroller; `layout="fuld"` ville binde HELE
+    sidens højde og tage scrollet fra blok 1-7). Derfor får blokken selv
+    viewport-højde minus skallens topbar/luft, og CompanyChatPane
+    (`flex flex-1 min-h-0`, ingen egen højde) fylder wrapperen — samme
+    højdekæde som AppLayout fullscreen giver den på /chat. Udtrykket
+    indeni er chattens gamle (glass-card, appens tokens) — konverteringen
+    til Hb er ikke denne etape. */
+const Blok4 = ({ companyId }: { companyId: string }) => (
+  <HbSection eyebrow="Chatten" hairline className="mt-12">
+    <div className="flex h-[calc(100dvh-10rem)] min-h-[520px] flex-col overflow-hidden rounded-hb border border-hb-line">
+      <CompanyChatPane laastTilCompanyId={companyId} />
+    </div>
+  </HbSection>
+);
+
 const Blok5 = ({ d, facts }: { d: VirksomhedsData; facts: CompanyFact[] }) => {
   // deriveKpiMetrics er den rene, testede dom fra /kpis: tal, formatering
   // og M/M — M/M er allerede gated med momErGyldig INDE i den (kpiDefs:111),
   // så changePct er null når en af de to seneste er et estimat. Benchmarks
   // er ikke blok 5's ærinde (ingen brancheprik her) — tom map.
   const metrics = useMemo(() => deriveKpiMetrics(facts, d.kpiMaal, {}), [facts, d.kpiMaal]);
+  // Forecast — på en knap, aldrig ved sidevisning (samme regel som
+  // sessionsforberedelsen i blok 2). Kaldet er MemberDetail:1285-1289.
+  const [forecast, setForecast] = useState<ForecastPunkt[] | null>(null);
+  const [forecastBesked, setForecastBesked] = useState<string | null>(null);
+  const [henterForecast, setHenterForecast] = useState(false);
   const seneste = facts[facts.length - 1] ?? null;
+  const tier = computeMembershipTier({
+    contract_end_date: d.company.contract_end_date,
+    subscription_status: d.company.subscription_status,
+    subscription_current_period_end: d.company.subscription_current_period_end,
+  });
+
+  const hentForecast = async () => {
+    if (henterForecast) return;
+    setHenterForecast(true);
+    setForecastBesked(null);
+    try {
+      const { data, error } = await supabase.functions.invoke("generate-ai-forecast", {
+        body: { company_id: d.company.id },
+      });
+      if (!error && Array.isArray(data?.forecast)) {
+        setForecast(data.forecast as ForecastPunkt[]);
+      } else if (data?.error === "insufficient_data") {
+        setForecastBesked(`Forecastet kræver mindst ${data.months_needed ?? 3} målte måneder.`);
+      } else {
+        setForecastBesked("Forecastet kunne ikke laves lige nu. Prøv igen om lidt.");
+      }
+    } catch {
+      setForecastBesked("Forecastet kunne ikke laves lige nu. Prøv igen om lidt.");
+    } finally {
+      setHenterForecast(false);
+    }
+  };
   if (!seneste) {
     return (
       <HbSection eyebrow="Tallene" hairline className="mt-12">
@@ -435,6 +513,37 @@ const Blok5 = ({ d, facts }: { d: VirksomhedsData; facts: CompanyFact[] }) => {
         <p className={cn("mt-3 text-sm", bank < 0 ? "text-hb-rust" : "text-hb-ink-soft")}>
           Bank {formatKr(bank * 100)}{senesteErEstimat ? " (estimat)" : ""}
         </p>
+      )}
+
+      {/* 3-måneders forecast — kortene som MemberDetail:1294-1305, i Hb-udtryk. */}
+      <div className="mt-6">
+        <div className="flex flex-wrap items-baseline gap-x-4 gap-y-2">
+          <HbButton type="button" variant="secondary" className="h-9 px-4 text-sm" onClick={hentForecast} disabled={henterForecast}>
+            {henterForecast ? "Regner…" : forecast ? "Regn forecastet igen" : "Generer 3-måneders forecast"}
+          </HbButton>
+          {forecastBesked && <p className="text-sm text-hb-ink-soft">{forecastBesked}</p>}
+        </div>
+        {forecast && (
+          <div className="mt-3 grid grid-cols-3 gap-3">
+            {forecast.map((f) => (
+              <div key={f.period_key} className="rounded-hb border border-hb-line bg-hb-paper p-3">
+                <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft">{f.period_label}</p>
+                <p className="mt-1 text-sm text-hb-ink">Omsætning {f.revenue != null ? formatKr(f.revenue * 100) : "—"}</p>
+                <p className="text-sm text-hb-ink">Resultat {f.ebt != null ? formatKr(f.ebt * 100) : "—"}</p>
+              </div>
+            ))}
+            <p className="col-span-3 text-xs text-hb-ink-soft">Lineær trend på de målte måneder — ikke en garanti.</p>
+          </div>
+        )}
+      </div>
+
+      {/* AI-sparring mod ai-data-chat — samme gate som MemberDetail:1362:
+          committede tal findes (vi er forbi `!seneste`-returnen) og tier
+          er ikke udløbet. Komponenten henter og streamer selv. */}
+      {tier !== "expired" && (
+        <div className="mt-6">
+          <AdvisorAIChat companyId={d.company.id} companyName={d.company.name} />
+        </div>
       )}
     </HbSection>
   );
@@ -557,8 +666,35 @@ const Blok6 = ({ d, facts }: { d: VirksomhedsData; facts: CompanyFact[] }) => {
 
 // ── Blok 7: Aftalen ─────────────────────────────────────────────────────
 
-const Blok7 = ({ d }: { d: VirksomhedsData }) => {
+const Blok7 = ({ d, onOpdateret }: { d: VirksomhedsData; onOpdateret: () => Promise<void> }) => {
   const c = d.company;
+  const { isAdmin } = useAuth();
+  // «Rediger virksomhedsdata» — kun admin, som MemberDetail:953. Dialogen
+  // er delt (EditCompanyDialog, urørt) og har én rækkefølge ved gem:
+  // onOpenChange(false) FØRST, derefter onSaved (EditCompanyDialog.tsx:112-113).
+  // Fælden i OVERLEVERING DEL 4: lukkes dialogen før tilstanden er hentet,
+  // viser fladen det gamle i et render. Derfor holdes lukningen tilbage:
+  // onOpenChange(false) sætter kun et ønske og afgør det i en microtask —
+  // når onSaved er kaldt i samme tick, venter vi på hookens invalidering og
+  // lukker først når den er færdig. Annullér/Esc (ingen onSaved) lukker
+  // straks i microtasken.
+  const [redigerer, setRedigerer] = useState(false);
+  const gemmer = useRef(false);
+  const lukDialog = (open: boolean) => {
+    if (open) { setRedigerer(true); return; }
+    queueMicrotask(() => { if (!gemmer.current) setRedigerer(false); });
+  };
+  const efterGem = () => {
+    gemmer.current = true;
+    void (async () => {
+      try {
+        await onOpdateret();
+      } finally {
+        gemmer.current = false;
+        setRedigerer(false);
+      }
+    })();
+  };
   const tier = computeMembershipTier({
     contract_end_date: c.contract_end_date,
     subscription_status: c.subscription_status,
@@ -590,7 +726,14 @@ const Blok7 = ({ d }: { d: VirksomhedsData }) => {
     <HbSection eyebrow="Aftalen" hairline className="mt-12">
       <div className="grid gap-4 md:grid-cols-2">
         <HbCard className="p-5">
-          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-hb-ink-soft">Kontrakt</p>
+          <div className="flex items-baseline justify-between gap-3">
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-hb-ink-soft">Kontrakt</p>
+            {isAdmin && (
+              <button type="button" onClick={() => setRedigerer(true)} className="text-sm text-hb-evergreen underline-offset-4 hover:underline">
+                Rediger virksomhedsdata
+              </button>
+            )}
+          </div>
           <div className="mt-3 flex flex-wrap items-center gap-1.5">
             <TierBadge tier={tier} kontraktSlut={c.contract_end_date} />
             <HbTag className="bg-hb-paper border border-hb-line px-2 py-0.5 text-[11px] text-hb-ink-soft">{FORNYELSE_LABEL[fornyelse.status]}</HbTag>
@@ -697,6 +840,9 @@ const Blok7 = ({ d }: { d: VirksomhedsData }) => {
           )}
         </HbCard>
       </div>
+      {isAdmin && (
+        <EditCompanyDialog open={redigerer} onOpenChange={lukDialog} companyId={c.id} onSaved={efterGem} />
+      )}
     </HbSection>
   );
 };
@@ -704,7 +850,7 @@ const Blok7 = ({ d }: { d: VirksomhedsData }) => {
 // ── Siden ───────────────────────────────────────────────────────────────
 
 export const VirksomhedView = ({ companyId }: { companyId: string | undefined }) => {
-  const { data, facts, isLoading, isError, findesIkke } = useVirksomhed(companyId);
+  const { data, facts, isLoading, isError, findesIkke, invalider } = useVirksomhed(companyId);
 
   if (!companyId || findesIkke) {
     return (
@@ -746,10 +892,11 @@ export const VirksomhedView = ({ companyId }: { companyId: string | undefined })
         <Blok1 d={data} facts={facts} />
       </div>
       <Blok2 d={data} />
-      {/* Blok 3 og 4 kommer i senere etaper — rækkefølgen er designets. */}
+      {/* Blok 3 kommer i en senere etape — rækkefølgen er designets. */}
+      <Blok4 companyId={c.id} />
       <Blok5 d={data} facts={facts} />
       <Blok6 d={data} facts={facts} />
-      <Blok7 d={data} />
+      <Blok7 d={data} onOpdateret={invalider} />
     </div>
   );
 };
