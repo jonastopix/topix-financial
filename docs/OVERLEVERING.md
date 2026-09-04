@@ -1,11 +1,15 @@
 # Overlevering
 
-**Sidst opdateret: 4. september 2026, eftermiddag — efter at forsiden
-gik fra KØ til OPGAVE: køerne (#630) blev set på skærm og forkastet,
-designet skrevet om fra bunden (#631), opgave-modellen bogført som ét
-epic (#632), `/forside` mærket råmateriale (#633), tærsklen målt til 70
-(#634) og dommen bygget som ren funktion med 36 tests (#635). Fladen på
-dommen er under bygning. Formiddagen: virksomhedssiden hel (#607,
+**Sidst opdateret: 4. september 2026, sen eftermiddag — efter at
+forsiden gik fra KØ til OPGAVE og DOMMEN BLEV BEVIST PÅ SKÆRM kl. 13:04:
+syv linjer, hvor køerne gav 38 rækker. Køerne (#630) blev set og
+forkastet, designet skrevet om fra bunden (#631), opgave-modellen
+bogført som ét epic (#632), `/forside` mærket råmateriale (#633),
+tærsklen målt til 70 (#634), dommen bygget som ren funktion med 36 tests
+(#635), fladen lagt på dommen (#637), køerne fjernet (#638) og chattens
+rulning af hele virksomhedssiden rettet (#639). Besluttet samme
+eftermiddag: det gamle design KONVERTERES, ikke flyttes — `/milestones`
+først, `Members` sidst (DEL 3). Formiddagen: virksomhedssiden hel (#607,
 #611–#624), owner-hullet lukket i `handle_new_user` (#622, i prod
 kl. 10:33), M/M for marginer i procentpoint (#623), MemberDetail
 slettet.**
@@ -813,7 +817,7 @@ juni; om de er holdt op med at udløse, eller der bare intet er sket, kan
 ikke afgøres herfra. **KONSEKVENS:** `/members/:userId` kan IKKE bare
 forsvinde — se DEL 3.
 
-### Forsiden — fra KØ til OPGAVE, 4/9 eftermiddag (#630–#635); fladen på dommen er under bygning
+### Forsiden — fra KØ til OPGAVE, 4/9 eftermiddag (#630–#639); dommen BEVIST på skærm kl. 13:04 — syv linjer mod 38 rækker
 
 - **#630 køerne — bygget, set og forkastet.** `/forside` blev bygget som
   designets syv køer og set på skærm 4/9 kl. 11:35: **38 rækker, hvoraf
@@ -851,6 +855,50 @@ forsvinde — se DEL 3.
   otte slags; de to AI-baserede har plads i typen men ingen
   implementering, låst af en test, så de ikke kan glide ind uden en
   beslutning.
+- **#637 forsiden viser dommen.** `/forside` tegner dommens linjer i
+  stedet for køerne. Motorerne køres i `hentAdvisorDashboard`s `queryFn`
+  — fornyelsesbeslutninger, betalingslink og aktive opgaver med frist
+  hentes dér, hvor alt andet hentes — og dommen tager deres UDFALD, ikke
+  deres råstof. Grunden følger med i klikket
+  (`/virksomhed/:companyId?grund=<slags>`), så kontrakten til «derfor er
+  du her» (§6) findes; virksomhedssiden læser den ikke endnu. **En fælde
+  løst undervejs:** `company_actions.due_date` er en date-kolonne og skal
+  læses som LOKAL kalenderdag (`new Date(aar, md - 1, dag)`), ikke som
+  UTC-midnat — ellers skrider fristen en dag vest for Greenwich. **Og en
+  fejl fundet i #630:** de to sidste svar i `queryFn`s `Promise.all` stod
+  byttet om (`goalHandoutRes` fik agent_proposals-rækkerne og omvendt);
+  rettet i samme greb.
+- **BEVIST PÅ SKÆRM 4/9 kl. 13:04 — dagens vigtigste måling.** Dommen gav
+  **syv linjer**, hvor køerne gav 38 rækker. Hver linje bar en
+  virksomhed, en grund og en handling som VERBUM: «Skriv til Topix.dk om
+  Afslut handout for bogholderi», «Send tilbuddet til PHILBERT», «Svar
+  Booking Innovation», «Tag det op med Floren Engros». **Floren Engros
+  stod ÉN gang med tre grunde** (omsætningsfald, ulæst besked, 22 dages
+  tavshed), hvor den før fyldte tre steder. **De femten tavse blev én
+  linje.** Puklen stod under stregen som «8 agentforslag venter på din
+  afgørelse». Målingen på fladen: tærskel 70, syv linjer over stregen,
+  femten samlet i tilstande, **NUL under tærsklen — ingen faldt ud.**
+  Tærsklen 70 var et bud; nu er den målt. **PHILBERT er værd at nævne:**
+  beslutningen ER truffet («tilbyd»), men tilbuddet er ikke sendt — så
+  den står som en opgave med handlingen «Send tilbuddet», ikke som en
+  beslutning der mangler.
+- **#638 køerne fjernet** fra forsiden; 124 linjer væk. Filhovedet siger
+  nu hvad fladen ER og bærer historikken om hvorfor (køerne var første
+  udgave; fejlen var at en kø viser alt der matcher en betingelse).
+  `hentAdvisorDashboard`s `buckets` er urørt — den gamle forside på «/»
+  bruger dem til swappet.
+- **#639 chatten ruller ikke længere hele siden.** Målt: `scrollIntoView`
+  ruller ALLE scrollbare forfædre. På `/chat` er der én container; på
+  virksomhedssiden er der TO — beskedlisten og Hb-skallens
+  indholdskolonne — og blok 4 ligger midt i den. Derfor rullede hele
+  siden sig ned ved hver ændring i `messages`: første indlæsning, hver
+  realtime-besked, pin, redigering, sletning. Rettet med `scrollTop` på
+  listen selv, som per definition ikke kan røre forfædrene. `smooth` er
+  fjernet, fordi en glidende rulning under indlæsning kæmper mod at
+  listen stadig vokser. Billederne var IKKE årsagen — alle fem `<img>`
+  sidder i wrappere med fast højde. Og i låst tilstand rulles der ikke
+  ved første indlæsning: man kommer til virksomhedssiden for at læse
+  blok 1. DEL 4 bærer fælden.
 
 **To beslutninger fra designsamtalen, som er principielle:**
 
@@ -1003,7 +1051,8 @@ facit og rækkefølge; `docs/chat-design.md` chattens form.
 | ikke afdækket | **Nudging generelt** — Jonas spurgte 3/9; ingen recon lavet. | community-design §9 |
 | epic (rådgiverfladen) | **Rådgiver som medlem.** Jonas 3/9: «jeg som rådgiver også skal have en virksomhed, hvor jeg kan switche imellem, om jeg vil se platformen som rådgiver, eller om jeg vil agere rådgiver eller være inde på min medlemsvirksomhed.» IKKE company-override («se en andens virksomhed»); rådgiveren ER selv medlem et sted og skifter hat. Jonas har i dag TO auth-brugere (rådgiver + medlemskonto på Topix.dk — dén modtog opslagsmailen). | konvergens §2.9, community-design §9 |
 | EPIC, én samtale (Jonas 4/9) — ikke tre løse tråde | **Opgave-modellen, Milestones og refleksionens form hænger sammen og tages SAMLET.** **Målt i prod 4/9 kl. 11:48:** `company_actions` har 64 `proposed`, 63 `expired`, 10 `done`, 7 `dismissed`, 1 `active`. Modellen kører, men bruges ikke. **ÅRSAGEN, målt i koden samme dag** (`~/Downloads/recon-opgavemodellen.md`, uden for repoet — genskabes hvis den bruges): `generate-weekly-focus` skriver op til TRE forslag pr. virksomhed HVER MANDAG kl. 06 (72 forslag fra 24.–31. august = to kørsler); levetiden er 14 dage (`opgaveEngine.ts`); «Dine aftaler» på medlemmets forside viser ÉT forslag ad gangen (`BoardroomView` + `aftaler.ts`, kilde-rangeret: advisor før reflection før ai_weekly/agent); og der er INGEN besked om et nyt forslag — `weekly_focus_ready` skrives med `priority: "info"` og holdes bevidst ude af mailkæden, `foreslaa-opgave` rører ikke `awaiting_reply_from`, og der findes ingen ulæst-markering nogen steder. Fire kilder opretter opgaver: W1 ugefokus, W2 agenten, W3 rådgiverens «foreslå opgave», W4 en død komponent der aldrig rendres. **KONSEKVENSEN, som skal læses rigtigt: de 63 udløbne opgaver er IKKE tegn på at medlemmerne ikke gider.** De 63 er arven fra før modellen (lukket manuelt 31/8); cron'en har endnu intet lukket, første bølge udløber 7/9. Platformen foreslår langt mere end den viser, og fortæller ingen om det. Modellens eget designdokument forudså det (`docs/opgave-model-design.md`, B8): «uden en udgang vokser bunken med cirka 150 om året pr. aktiv virksomhed». `deferral_count` (udskydelser, højst to) og `week_key` (sporbarhed, uden logik) er bygget, men har formentlig aldrig været i brug — der er ÉN aktiv opgave i prod, og den er den første registrerede aftale i platformens levetid (31/8, Topix, «Afslut handout for bogholderi»). **DET DER SKAL AFGØRES — åbne spørgsmål, ikke besvaret her:** (1) Skal der foreslås færre, eller vises flere? Tre om ugen pr. virksomhed mod ét synligt ad gangen er en ubalance, uanset hvilken vej den rettes. (2) Skal et nyt forslag give besked? I dag gør det ikke. (3) Milestones og `company_actions` er to tabeller for beslægtede ting — hvad er forskellen, og skal de forenes? Menuen har stadig et Milestones-punkt (Jonas 4/9: «den funktion skal vi have fundet ud af hvordan vi gør langt mere nyttig og brugbar»). (4) Refleksionens tre spørgsmål. Målt 4/9: formen er IKKE problemet — 20 af 24 refleksioner har alle tre felter udfyldt, og andelen der reflekterer STIGER (12 % i marts til 67 % i juni). Men antallet der rapporterer FALDER: 17, 14, 12, 9, 8 ud af tredive. Undersøges ikke nu (Circle-exit og nye medlemmer ændrer forudsætningerne), men hører til samme samtale. De samme punkter står som det designet ikke afgør i `docs/forsiden-design.md` §12. | `docs/forsiden-design.md` §12; `docs/opgave-model-design.md` B6–B10; `docs/opgaver-og-chat-31-august.md` §2, §8; `~/Downloads/recon-opgavemodellen.md` |
-| NÆSTE — rækkefølgen for forsiden (4/9 eftermiddag) | **1. Fladen på dommen** (`docs/forsiden-design.md` §13 pkt. 3) — UNDER BYGNING. `/forside` (#633, råmateriale) genbruger datalaget `hentAdvisorDashboard`; det er visningen der skiftes ud, så den viser dommens opgaver (#635) frem for køer. Måles mod 4/9's 38 rækker: hvor mange skulle der have stået? **2. Virksomhedssiden der læser «derfor er du her»** (§6): linjen på forsiden bærer grunden med som parameter, og virksomhedssiden viser den øverst — formen er uafgjort (§12). **3. Først derefter swappet af `/forside` ind på roden** — «/» renderer i dag stadig AdvisorDashboard i AppLayout for rådgiveren. **`/members` venter stadig** på at Indgang, Fornyelse, Legat og admin-sektionen får et hjem (Indgang og Fornyelse på forsiden som slags 1 og 2; Legat og admin-sektionen har intet sted i designet endnu). | `docs/forsiden-design.md` §6, §12, §13; DEL 2 «Forsiden — fra KØ til OPGAVE» |
+| NÆSTE — rækkefølgen for forsiden (4/9 sen eftermiddag) | **1. Fladen på dommen — GJORT og BEVIST (#637, #638).** `/forside` viser dommen; målt på skærm 4/9 kl. 13:04: syv linjer mod køernes 38 rækker, nul under tærsklen. Køerne er fjernet; DEL 2 bærer detaljen. **2. Virksomhedssiden der læser «derfor er du her»** (§6): linjen bærer allerede grunden som `?grund=<slags>` (#637) — virksomhedssiden viser den ikke endnu; formen (parameterens navn er sat, visningen øverst i blok 1 er ikke) er det næste skridt. **3. Først derefter swappet af `/forside` ind på roden** — «/» renderer i dag stadig AdvisorDashboard i AppLayout for rådgiveren. **`/members` venter stadig** på at Indgang, Fornyelse, Legat og admin-sektionen får et hjem: Indgang og Fornyelse ER på forsiden som slags 1 og 2 gennem dommen, men knapperne (beslut, sæt pris, send mail) findes kun i sektionerne på `/members`; Legat og admin-sektionen har intet sted i designet endnu. Se også rækken om konverteringen nedenfor — `Members` konverteres SIDST. | `docs/forsiden-design.md` §6, §12, §13; DEL 2 «Forsiden — fra KØ til OPGAVE» |
+| BESLUTTET 4/9 eftermiddag — det gamle design KONVERTERES, ikke flyttes; rækkefølgen står | **Det gamle design skal konverteres, ikke flyttes.** Jonas 4/9: «vi springer aldrig over hvor gærdet er lavest — vi bygger det ordentligt.» Anledningen var ønsket om at få den gamle menu væk fra adminfladen («pisseirriterende at flyve frem og tilbage mellem nyt og gammelt design»), og idéen om at skifte SKALLEN uden at røre siderne. **Målt samme dag** (`~/Downloads/recon-admin-skallen.md`, uden for repoet — genskabes hvis den bruges): ingen af de ni admin-sider (`/admin/emails`, `/admin/email-log`, `/admin/review-queue`, `/admin/config`, `/admin/feedback`, `/admin/legat`, `/admin/import`, `/admin/report-debug/:reportId`, `/members`) bruger noget fra `AppLayout` — nul `useContext`/`useOutletContext`, ingen props; de importerer den kun som wrapper, så et skalskifte er teknisk trivielt. **MEN:** `index.html` har hardkodet `class="dark"`, og `hjemmebane.css` definerer kun `--hb-*`-variabler; alle ni har overskrifter med `text-foreground` (lys tekst fra `.dark`), som ville stå direkte på Hjemmebanes lyse papir og blive ulæselige, og indholdet (`glass-card`, `bg-card`, shadcn) ville blive mørke bokse på lys baggrund — præcis det udtryk Jonas afviste på virksomhedssidens chat (blok 4). Et skalskifte flytter altså problemet frem for at løse det. **Valget er A: hver side konverteres rigtigt, én ad gangen, i den rækkefølge de gør skade.** **RÆKKEFØLGEN:** **1. `/milestones` FØRST** — den eneste flade i MEDLEMMETS menu der lander i det gamle design; den rammer kunder, ikke rådgivere. Bemærk: dens FUNKTION afventer opgave-modellen (epic'et fra #632, rækken ovenfor), men dens SKAL er et problem nu. Udtrykket konverteres med den funktion siden har; bliver funktionen lavet om senere, er skallen allerede rigtig. **2. De admin-sider der bruges dagligt** — ikke afgjort hvilke. **3. `Members` SIDST**, fordi den alligevel skal skæres op: Indgang og Fornyelse flytter til forsiden, listen er erstattet af `/virksomheder`, og Legat og admin-sektionen skal have et hjem. At konvertere den nu ville være at gøre en side pæn, som skal deles i fire. Opskriften er den fra byggeomkostnings-reconen (rækken om rådgiverfladens overhaling): motor først, gammel flade fryses på motoren, ny flade på midlertidig route, swap på den gamle URL. | `~/Downloads/recon-admin-skallen.md`; `docs/raadgiverfladen-design.md` §9–10; DEL 2 «Rådgiverfladen — designet er låst» |
 | driftsgæld | Fejlovervågning findes ikke; restore er aldrig afprøvet; `run-weekly-agent` står ikke i `cron.job`; 73 uploads bestod validering uden at blive committet; e-conomic-integrationen er død (migration-recon §10). | status-1-sept §6; den forrige overlevering (§7, før omskrivningen i #538) findes kun i git-historikken |
 
 ---
@@ -1267,6 +1316,18 @@ De konkrete ting der har kostet tid. Led efter dem.
   forkerte sted (oven på den gren man stod på — grenfælden igen). Ramte
   igen 4/9. **REGLEN:** `git stash` FØRST når der er ustaget arbejde,
   og `&&` hele vejen — aldrig `;` mellem checkout og `checkout -b`.
+- **`scrollIntoView` ruller ALLE scrollbare forfædre — i en flade med to
+  scroll-containere flytter den hele siden.** Målt 4/9 (#639): chatten
+  kaldte `scrollIntoView` på den sidste besked ved hver ændring i
+  `messages`. På `/chat` er der én container, så det så rigtigt ud; på
+  virksomhedssiden er der TO (beskedlisten og Hb-skallens
+  indholdskolonne), og blok 4 ligger midt i kolonnen — så hele siden
+  rullede ned ved første indlæsning, hver realtime-besked, pin,
+  redigering og sletning. Billederne var ikke årsagen (alle `<img>`
+  har wrappere med fast højde). **Brug `scrollTop` på den container der
+  skal rulle** — den kan per definition ikke røre forfædrene. Og drop
+  `smooth` under indlæsning: en glidende rulning kæmper mod en liste der
+  stadig vokser.
 
 ---
 
