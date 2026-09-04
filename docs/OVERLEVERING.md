@@ -5,8 +5,10 @@ gamle admin-sider blev konverteret til Hjemmebane på cirka to timer
 (#645 Legat, #646 e-mail-log, #647 Review Queue, #648 Platformconfig,
 #649 Import, #651 Feedback, #653 ReportDebug, #654 EmailTemplates —
 to former der manglede i huset, fold+JSON og faner, blev bygget
-undervejs), rådgiverens chat fik Hjemmebanes udtryk i etape 1 (#655,
-etape 2 under bygning), Milestones' fire Radix-portaler blev bygget om
+undervejs), rådgiverens chat blev Hjemmebane hele vejen (#655 udtrykket,
+#657 sidebar/skuffe/⋯-menu, #658 skallen på `/chat`) — RÅDGIVERENS
+HVERDAG ER NU HJEMMEBANE HELE VEJEN (DEL 2, «Konverteringen»),
+Milestones' fire Radix-portaler blev bygget om
 med den nye primitiv `HbOverlejring` (#644), og forsiden kom ind på
 roden — rådgiveren lander nu i det nye (#650). MÅLT SENT PÅ AFTENEN:
 `/members` KAN IKKE swappes — elleve dele findes kun dér, syv af dem er
@@ -927,7 +929,7 @@ forsvinde — se DEL 3.
   der lærer at tie om en bestemt virksomhed, bliver blind netop der hvor
   det er ubehageligt — og reglen fra 3/9 er at ingen må glemmes.
 
-### Konverteringen — Milestones etape 2 og ALLE OTTE admin-sider, 4/9 eftermiddag og aften (#644–#649, #651, #653, #654); forsiden ind på roden (#650); rådgiverens chat etape 1 (#655)
+### Konverteringen — Milestones etape 2 og ALLE OTTE admin-sider, 4/9 eftermiddag og aften (#644–#649, #651, #653, #654); forsiden ind på roden (#650); rådgiverens chat i tre trin (#655, #657, #658) — RÅDGIVERENS HVERDAG ER HJEMMEBANE HELE VEJEN
 
 Beslutningen fra samme eftermiddag (DEL 3, «det gamle design
 KONVERTERES, ikke flyttes») blev gennemført i ét stræk. Mønsteret er nu
@@ -1014,7 +1016,48 @@ skeletterne er bevidst dublerede, så medlemssiden kunne designes frit.
 Klasserne er kopieret derfra. De seks delte byggesten fik
 `variant="hb"`, som rådgiveren sendte 0 af 8 mulige steder, selv om
 komponenterne allerede kunne det. `TOPIC_COLORS` er off-token og
-droppet. Etape 2 (sidebaren, «Se tal»-skuffen) er under bygning.
+droppet.
+
+**#657 rådgiverens chat, etape 2 — sidebaren, «Se tal»-skuffen og
+⋯-menuen.** Efter etape 2 er der INGEN `glass-card`, `bg-card`,
+`text-foreground` eller `border-border` tilbage i `CompanyChatPane`.
+Samtalelisten er husets listeform: papir, hairlines, søgefelt i
+`hbControlClasses` som virksomhedslisten, grupper som eyebrow med
+tælleren som `HbTag`. «Kræver svar» er rust, **«Tjek ind» er blæk hvor
+den før var amber — en påmindelse er ikke en fejl.** Samme princip som
+Review Queue: tonen siger kun om noget haster. Skuffen beholder
+vaul-Draweren, så overlay og swipe er som før, og får `theme-hjemmebane`
+på indholdet — samme greb som `MobileMessageActionDrawer`; `KPICard` er
+erstattet af en kopi af virksomhedssidens kort uden sparkline, og dommen
+(`getTargetStatus`) er den samme. ⋯-menuen er ikke længere en Radix
+Popover, men en lokal `HbMenu` i DOM-træet: `HbPopover` (i
+`HbOverlejring`) er venstre-forankret og bygget til datovælgeren under
+et felt, mens ⋯ står i headerens højre kant. **En `align`-prop på
+`HbPopover` ville gøre `HbMenu` overflødig** — det står i koden som gæld.
+
+**#658 `/chat` har fået Hjemmebane-skallen.** Chatten var konverteret,
+men siden lå stadig i `AppLayout`, så det papirfarvede panel stod i den
+mørke skal med den gamle menu ved siden. Rådgiverens gren bruger nu
+`HbMemberShell` som de tre andre grene i `ChatShell`; medlemmets og
+abonnentens er urørte. Højden følger virksomhedssidens blok 4, som
+allerede havde løst en chat i bundet højde inde i en skal der selv
+scroller. `scrollTop`-fixet fra #639 holder — det virker netop fordi det
+ikke rører forfædre. Og gælden fra etape 2 er betalt: «Indbakke»-
+overskriftens egen `theme-hjemmebane` er væk, fordi hele siden nu er Hb.
+
+**STATUS VED DAGENS SLUTNING 4/9: rådgiverens hverdag er Hjemmebane hele
+vejen** — forsiden (#650), virksomhedslisten (#605), virksomhedssiden
+(#607–#624), chatten (#655, #657, #658), Milestones (#643, #644) og alle
+otte admin-sider (#645–#649, #651, #653, #654).
+
+**Det der står tilbage, som åbne punkter (DEL 3 bærer hver sin række):**
+
+- `/members` kan ikke swappes — elleve dele findes kun dér.
+- `EmailTemplates` skal designes, ikke konverteres.
+- Milestones' FUNKTION afventer opgave-modellen; kun udtrykket er gjort.
+- Forsidens dom mangler de to AI-baserede slags (§8's AI-læsning).
+- Ingen af de otte admin-sider er set på skærm.
+- `align`-prop på `HbPopover`, så `HbMenu` kan udgå.
 
 **Menuen** er målt samme aften, og `/members` er målt igen sent på
 aftenen — begge står i DEL 3.
@@ -1164,7 +1207,8 @@ facit og rækkefølge; `docs/chat-design.md` chattens form.
 | LØST 4/9 aften — ALLE OTTE admin-sider GJORT på cirka to timer (#645–#649, #651, #653, #654); `EmailTemplates` skal stadig designes (rækken nedenfor) | **Alle otte gamle admin-sider er i Hjemmebane.** Rækkefølgen var den letteste først, målt i `~/Downloads/recon-admin-omkostning.md` (uden for repoet — genskabes hvis den bruges): #645 Legat (377 linjer, nul portaler), #646 e-mail-log (311 → 21 + view), #647 Review Queue, #648 Platformconfig, #649 Import, #651 Feedback (fem portaler, næstdyrest), #653 ReportDebug (fold+JSON — ny form, native `<details>`), #654 EmailTemplates (dyrest: 1140 + 530; faner — ny form på `HbSegmented`; den gamle `RichTextEditor` monteret uændret og markeret, fordi Hb-editoren ville smide CTA-attributterne væk). Begge nye former er markeret så de kan løftes. Mønsteret er bevist syv gange med Milestones og går hurtigere for hver; DEL 2 «Konverteringen» bærer formen og de tre beslutninger der lå i Review Queue (flag-liste, ikke godkendelsessted; «ordet siger hvad flaget er, tonen siger kun om det er en fejl»), Platformconfig (rådgiverlisten øverst — eneste sted rådgivere inviteres; tre dele uden læser BEHOLDT) og Import (`HbReportUploadZone` med `conversationId={null}` er identisk med `adminMode`, afgjort ved ordret sammenligning). **Fælles for alle otte:** siden sender et `active` der ikke matcher noget nav-punkt (Platform-punkterne har bevidst intet), med kommentar — menuen er ikke rørt, for hvad den skal indeholde er målt separat (rækken «MENUEN» nedenfor). **Ikke efterprøvet:** ingen af de otte er set på skærm i denne session; typecheck og tests var grønne for hver. | DEL 2 «Konverteringen»; `~/Downloads/recon-admin-omkostning.md`; rækken «det gamle design KONVERTERES» ovenfor |
 | DESIGNPUNKT, Jonas 4/9 — ikke en konvertering | **E-mails (`/admin/emails`, `EmailTemplates`) skal ikke konverteres — den skal DESIGNES.** Målt 4/9: 1140 linjer plus `RichTextEditor` på 530, fire Select i filen og tre portaler i editoren, og to former findes ikke i Hjemmebane: faner (fem i dag) og HTML/preview. Det er den tungeste af de otte. Jonas 4/9: den skal blive det FULDE overblik over alle mails — transaktionelle, påmindelser og marketing — med hvornår de kører, hvad der udløser dem, og mulighed for at rette dem. Det er en flade der skal designes som indgangen og forsiden blev det: HVAD først, form bagefter. **Udtrykket ER konverteret (#654, samme aften):** den gamle side er væk fra AppLayout; filhovedet i `EmailTemplatesView.tsx` siger hvad fladen skal blive til. Det der står tilbage er gentænkningen — og Hb-editoren uden portaler, som kræver CustomLink + TextAlign + CTA-værktøj (eller kommer med gentænkningen). | `~/Downloads/recon-admin-omkostning.md` §5–6; DEL 2 «Konverteringen» |
 | MENUEN — målt 4/9 aften (`~/Downloads/recon-admin-menuen.md`, uden for repoet — genskabes hvis den bruges); navnene er IKKE afgjort | **Hvad admin-blokken skal indeholde, målt punkt for punkt.** **Review Queue KAN fjernes fra menuen:** godkendelsen bor et andet sted (`ReportReviewDialog`), og Jonas åbner den kun hvis nogen siger at noget mangler. **Platformconfig KAN IKKE fjernes:** eneste sted rådgivere kan inviteres og fjernes og admin-rollen skiftes (`manage-advisor` har ingen anden kalder). **Import hører på VIRKSOMHEDSSIDEN, ikke som eget punkt** — men funktionen skal med: den er eneste vej til upload for en virksomhed uden company-override og uden rådgiver-notifikation. **Legat KAN IKKE fjernes:** de to edge functions (`create-legat-enrollment`, `upgrade-legat-to-member`) har ingen anden kalder. **NAVNENE:** Jonas 4/9: «tingene skal hedde det de er» — Review Queue, Platformconfig og Import er ord ingen har valgt. Ikke afgjort. Menuen (`HbMemberShell.tsx`, admin-blokken) er ikke rørt af konverteringerne; de seks sider markerer bevidst intet nav-punkt, indtil blokken tegnes om efter denne måling. | `~/Downloads/recon-admin-menuen.md`; `HbMemberShell.tsx` admin-blokken; rækken «KONVERTERINGEN» ovenfor |
-| RÅDGIVERENS CHAT — etape 1 GJORT 4/9 aften (#655), etape 2 under bygning | **Rådgiverens chat (`CompanyChatPane`) har fået Hjemmebanes udtryk, etape 1.** Udtrykket skulle ikke opfindes: `MemberChatPane` er 965 linjer ren Hjemmebane og en ORDRET kopi af `CompanyChatPane` med rådgiverdelene slettet — filhovedet siger at skeletterne er bevidst dublerede, så medlemssiden kunne designes frit. Klasserne er kopieret derfra. De seks delte byggesten fik `variant="hb"`, som rådgiveren sendte 0 af 8 mulige steder, selv om komponenterne allerede kunne det. `TOPIC_COLORS` er off-token og droppet. **Etape 2:** sidebaren og «Se tal»-skuffen — under bygning. Chatten i blok 4 på virksomhedssiden (låst til én virksomhed, #614) følger med, for det er samme komponent. | DEL 2 «Konverteringen»; `docs/chat-design.md` |
+| RÅDGIVERENS CHAT — GJORT 4/9 aften i tre trin (#655 etape 1, #657 etape 2, #658 skallen); én gæld står: `align` på `HbPopover` | **Rådgiverens chat (`CompanyChatPane`) er Hjemmebane hele vejen.** **Etape 1 (#655):** udtrykket skulle ikke opfindes: `MemberChatPane` er 965 linjer ren Hjemmebane og en ORDRET kopi af `CompanyChatPane` med rådgiverdelene slettet — filhovedet siger at skeletterne er bevidst dublerede, så medlemssiden kunne designes frit. Klasserne er kopieret derfra. De seks delte byggesten fik `variant="hb"`, som rådgiveren sendte 0 af 8 mulige steder, selv om komponenterne allerede kunne det. `TOPIC_COLORS` er off-token og droppet. Chatten i blok 4 på virksomhedssiden (låst til én virksomhed, #614) fulgte med, for det er samme komponent. **Etape 2 (#657) er GJORT.** Sidebaren, «Se tal»-skuffen og ⋯-menuen. Efter etape 2 er der INGEN `glass-card`, `bg-card`, `text-foreground` eller `border-border` tilbage i `CompanyChatPane`. Samtalelisten er husets listeform: papir, hairlines, søgefelt i `hbControlClasses` som virksomhedslisten, grupper som eyebrow med tælleren som `HbTag`. «Kræver svar» er rust, **«Tjek ind» er blæk hvor den før var amber — en påmindelse er ikke en fejl.** Samme princip som Review Queue: tonen siger kun om noget haster. Skuffen beholder vaul-Draweren, så overlay og swipe er som før, og får `theme-hjemmebane` på indholdet — samme greb som `MobileMessageActionDrawer`. `KPICard` er erstattet af en kopi af virksomhedssidens kort uden sparkline; dommen (`getTargetStatus`) er den samme. ⋯-menuen er ikke længere en Radix Popover, men en lokal `HbMenu` i DOM-træet: `HbPopover` (i `HbOverlejring`) er venstre-forankret og bygget til datovælgeren under et felt, mens ⋯ står i headerens højre kant. **En `align`-prop på `HbPopover` ville gøre `HbMenu` overflødig** — det står i koden som gæld. **#658: `/chat` har fået Hjemmebane-skallen.** Chatten var konverteret, men siden lå stadig i `AppLayout`, så det papirfarvede panel stod i den mørke skal med den gamle menu ved siden. Rådgiverens gren bruger nu `HbMemberShell` som de tre andre grene i `ChatShell`; medlemmets og abonnentens er urørte. Højden følger virksomhedssidens blok 4, som allerede havde løst en chat i bundet højde inde i en skal der selv scroller. `scrollTop`-fixet fra #639 holder — det virker netop fordi det ikke rører forfædre. Og gælden fra etape 2 er betalt: «Indbakke»-overskriftens egen `theme-hjemmebane` er væk, fordi hele siden nu er Hb. | DEL 2 «Konverteringen»; `docs/chat-design.md` |
+| ÅBENT ved dagens slutning 4/9 — det der står tilbage efter at rådgiverens hverdag blev Hjemmebane hele vejen | **Seks punkter, hver med sin egen række eller sit eget sted:** (1) `/members` kan ikke swappes — elleve dele findes kun dér (rækken «MÅLT 4/9 sen aften» ovenfor). (2) `EmailTemplates` skal designes, ikke konverteres (rækken «DESIGNPUNKT»). (3) Milestones' FUNKTION afventer opgave-modellen; kun udtrykket er gjort (rækken «EPIC, én samtale»). (4) Forsidens dom mangler de to AI-baserede slags — §8's AI-læsning (`docs/forsiden-design.md` §8, §12; `src/lib/forsidensDom.ts` har pladsen i typen). (5) Ingen af de otte admin-sider er set på skærm — beviset er Update og et klik på hver. (6) `align`-prop på `HbPopover`, så `HbMenu` i `CompanyChatPane` kan udgå (gælden fra #657). | DEL 2 «Konverteringen» (status ved dagens slutning) |
 | driftsgæld | Fejlovervågning findes ikke; restore er aldrig afprøvet; `run-weekly-agent` står ikke i `cron.job`; 73 uploads bestod validering uden at blive committet; e-conomic-integrationen er død (migration-recon §10). | status-1-sept §6; den forrige overlevering (§7, før omskrivningen i #538) findes kun i git-historikken |
 
 ---
