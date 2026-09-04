@@ -28,11 +28,8 @@ import {
   TrendingUp, TrendingDown, Minus,
 } from "lucide-react";
 import ChatRichInput from "@/components/ChatRichInput";
-import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
+import { HbButton } from "@/components/hjemmebane/HbButton";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
-import { Calendar } from "@/components/ui/calendar";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import {
   Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerClose,
 } from "@/components/ui/drawer";
@@ -69,7 +66,48 @@ import {
  * allerede på virksomheden. Indbakken er /chat (bevidst dublet, §3.4).
  * Uden prop'en opfører komponenten sig NØJAGTIG som før: ChatShell giver
  * ingen props, og hver gren nedenfor er `laast ? … : <som før>`.
+ *
+ * HJEMMEBANE-UDTRYK, ETAPE 1 (4/9): det man ser i blok 4 på virksomheds-
+ * siden — roden, headeren, beskedlisten, boblerne, kontekst-chips, den
+ * tomme tilstand og skrivefeltet — er lagt om til Hjemmebane. Klasserne er
+ * KOPIERET ORDRET fra MemberChatPane (C4), som er den samme komponent med
+ * rådgiverdelene slettet; kun det rådgiver-specifikke (headeren med
+ * virksomhedsnavn og status, pulse-banneret, afsender-navn i bobler,
+ * emnevælgeren) er bygget her, i husets sprog med medlemmets former som
+ * forbillede. De seks delte byggesten får `variant="hb"` (før: 0 af 8
+ * steder). Adfærden er uændret — samme handlinger, samme kald, samme
+ * tekster; kun udtrykket.
+ *
+ * IKKE I ETAPE 1 (accepteret, står med gamle tokens): SIDEBAREN
+ * («ADVISOR INBOX SIDEBAR», kun på /chat) og «SE TAL»-SKUFFEN (Drawer,
+ * mobil) — de hører til /chat og tages i etape 2. Det samme gælder
+ * «Indbakke»-overskriften over roden og INDHOLDET i ⋯-menuens Popover
+ * (tildel/kræver ikke svar/foreslå opgave), som portalerer til <body>:
+ * triggeren er Hb, indholdet er ikke. Roden bærer `theme-hjemmebane`, så
+ * hb-tokens også findes på /chat, hvor skallen stadig er AppLayout: dér
+ * står beskedområdet som papir ved siden af den mørke sidebar — mixet,
+ * men læsbart — indtil etape 2. Emnefarverne (TOPIC_COLORS) er off-token
+ * og bruges ikke længere til farve: alle emne-chips er sage/ink, som hos
+ * medlemmet.
  */
+
+/** Samme avatar-form som MemberChatPane (:84-95, kopieret derfra — den er
+    lokal dér, som den er lokal i CommunityTraadView): rounded-full,
+    hb-line-ramme, sage-initial som fallback. Bruges til afsendere OG til
+    virksomhedens logo i headeren. */
+const ForfatterAvatar = ({ navn, avatarUrl, className = "h-9 w-9" }: { navn: string | null; avatarUrl: string | null; className?: string }) =>
+  avatarUrl ? (
+    <img
+      src={avatarUrl}
+      alt={navn ?? "Medlem"}
+      className={`${className} shrink-0 rounded-full border border-hb-line object-cover`}
+    />
+  ) : (
+    <span className={`${className} flex shrink-0 items-center justify-center rounded-full border border-hb-line bg-hb-sage/40 font-editorial text-sm text-hb-ink-soft`}>
+      {(navn ?? "?").charAt(0)}
+    </span>
+  );
+
 const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } = {}) => {
   const laast = !!laastTilCompanyId;
   const { user, isAdvisor: rawAdvisor, companyId, isCompanyOverride, companyName } = useAuth();
@@ -930,8 +968,12 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
         </div>
       )}
 
-      <div className={`${isMobile ? "bg-card overflow-hidden" : "glass-card overflow-hidden"} flex flex-1 min-h-0 ${isFullscreen || isMobile ? "" : "rounded-xl"}`}>
-        {/* ─── ADVISOR INBOX SIDEBAR ─── */}
+      {/* Roden — MemberChatPane:505-507 (C4/C: kassen er væk — papiret går ud
+          til kanten). theme-hjemmebane + bg-hb-paper så hb-tokens findes også
+          på /chat (AppLayout); i blok 4 er skallen allerede Hb og roden
+          gennemsigtig i praksis. */}
+      <div className="theme-hjemmebane flex flex-1 min-h-0 overflow-hidden bg-hb-paper font-body text-hb-ink antialiased">
+        {/* ─── ADVISOR INBOX SIDEBAR — ETAPE 2: gamle tokens, urørt ─── */}
         {showSidebar && (
           <div className={`${isMobile ? "w-full" : "w-[340px]"} border-r border-border flex flex-col bg-card/50`}>
             {/* Search */}
@@ -1169,27 +1211,21 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
           <div className="flex-1 flex flex-col min-w-0">
             {activeConvId ? (
               <>
-                {/* Header */}
+                {/* Header — rådgiver-specifik (virksomhed, medlemmer, status,
+                    handlinger). Formen er medlemmets header (MemberChatPane:513:
+                    hairline under, samme padding), indholdet er rådgiverens. */}
                 {isAdvisor ? (
-                  <div className="px-4 py-3 border-b border-border">
+                  <div className={`${isMobile ? "px-3 py-2.5" : "px-4 md:px-6 py-3"} border-b border-hb-line`}>
                     {/* Row 1: identity + nav */}
                     <div className="flex items-center gap-3">
                       {isMobile && !laast && (
-                        <button onClick={handleBackToList} className="p-1.5 -ml-1 rounded-lg text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors">
+                        <button onClick={handleBackToList} className="p-1.5 -ml-1 rounded-full text-hb-ink-soft hover:text-hb-ink hover:bg-hb-sage/30 transition-colors">
                           <ArrowLeft className="h-5 w-5" />
                         </button>
                       )}
-                      <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center overflow-hidden flex-shrink-0">
-                        {activeConv?.companyLogoUrl ? (
-                          <img src={activeConv.companyLogoUrl} alt="" className="h-8 w-8 object-cover" />
-                        ) : (
-                          <span className="text-xs font-semibold text-primary">
-                            {getInitialsLocal(activeConv?.companyName || "??")}
-                          </span>
-                        )}
-                      </div>
+                      <ForfatterAvatar navn={activeConv?.companyName || null} avatarUrl={activeConv?.companyLogoUrl || null} className="h-8 w-8" />
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-foreground truncate">
+                        <p className="text-sm font-medium text-hb-ink truncate">
                           {activeConv?.companyName || "Ukendt"}
                         </p>
                         {/* Member names shown directly under company name */}
@@ -1198,7 +1234,7 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
                             ? companyMembers.map(p => p.full_name).join(", ")
                             : activeConv?.profile?.full_name || null;
                           return names ? (
-                            <p className="text-[11px] text-muted-foreground truncate leading-tight">
+                            <p className="text-[11px] text-hb-ink-soft truncate leading-tight">
                               {names}
                             </p>
                           ) : null;
@@ -1215,7 +1251,7 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
                               <button
                                 key={label}
                                 onClick={() => navigate(path)}
-                                className="text-[10px] px-2 py-0.5 rounded-full bg-secondary/60 hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors border border-border/30"
+                                className="text-[10px] px-2 py-0.5 rounded-full bg-hb-sage/40 hover:bg-hb-sage text-hb-ink-soft hover:text-hb-ink transition-colors"
                               >
                                 {label}
                               </button>
@@ -1223,29 +1259,31 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
                           </div>
                         )}
                       </div>
-                      {/* Se tal — mobil-rådgiver: hurtig adgang til virksomhedens nøgletal */}
+                      {/* Se tal — mobil-rådgiver: hurtig adgang til virksomhedens nøgletal.
+                          Triggeren er Hb; skuffen den åbner er etape 2. */}
                       {isMobile && isAdvisor && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
+                        <button
+                          type="button"
                           onClick={() => setShowCompanyDrawer(true)}
-                          className="h-8 px-2 gap-1.5 flex-shrink-0"
+                          className="h-8 px-2 gap-1.5 flex-shrink-0 inline-flex items-center rounded-full text-hb-ink-soft hover:text-hb-ink hover:bg-hb-sage/30 transition-colors"
                         >
                           <BarChart3 className="h-4 w-4" />
                           <span className="text-xs">Se tal</span>
-                        </Button>
+                        </button>
                       )}
-                      {/* Primary contextual action */}
+                      {/* Primary contextual action — status som HbTag; rust bærer
+                          «venter på dig» (en af rusts betydninger: advarsel). */}
                       {activeConv?.awaiting_reply_from === "advisor" && (
-                        <span className="inline-flex items-center gap-1.5 text-[10px] font-semibold px-1.5 sm:px-2.5 py-1.5 rounded-lg bg-destructive/10 text-destructive border border-destructive/20 flex-shrink-0">
+                        <span className="inline-flex items-center gap-1.5 rounded-full bg-hb-rust/10 px-2 py-0.5 text-[11px] font-medium text-hb-rust flex-shrink-0">
                           <Clock className="h-3.5 w-3.5" />
                           <span className="hidden sm:inline">Afventer dit svar</span>
                         </span>
                       )}
-                      {/* ⋯ secondary actions menu */}
+                      {/* ⋯ secondary actions menu — triggeren er Hb; PopoverContent
+                          portalerer til <body> og står med gamle tokens (etape 2). */}
                       <Popover open={assignmentPopoverOpen} onOpenChange={setAssignmentPopoverOpen} modal={false}>
                           <PopoverTrigger asChild>
-                            <button className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors flex-shrink-0">
+                            <button className="p-1.5 rounded-full text-hb-ink-soft hover:text-hb-ink hover:bg-hb-sage/30 transition-colors flex-shrink-0">
                               <MoreHorizontal className="h-4 w-4" />
                             </button>
                           </PopoverTrigger>
@@ -1331,14 +1369,14 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
                           <button
                             onClick={() => prevConv && setActiveConvId(prevConv.id)}
                             disabled={!prevConv}
-                            className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-secondary disabled:opacity-30 transition-colors"
+                            className="p-1.5 rounded-full text-hb-ink-soft hover:text-hb-ink hover:bg-hb-sage/30 disabled:opacity-30 transition-colors"
                           >
                             <ChevronLeft className="h-4 w-4" />
                           </button>
                           <button
                             onClick={() => nextConv && setActiveConvId(nextConv.id)}
                             disabled={!nextConv}
-                            className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-secondary disabled:opacity-30 transition-colors"
+                            className="p-1.5 rounded-full text-hb-ink-soft hover:text-hb-ink hover:bg-hb-sage/30 disabled:opacity-30 transition-colors"
                           >
                             <ChevronRight className="h-4 w-4" />
                           </button>
@@ -1348,26 +1386,28 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
                   </div>
                 ) : null}
 
-                {/* Pulse banner */}
+                {/* Pulse banner — rådgiver-specifik. Før amber (off-token); nu en
+                    stille sage-linje under headeren: medlemmets egne ord er en
+                    oplysning, ikke en advarsel. */}
                 {isAdvisor && activeConv && latestPulse?.help_needed && (
-                  <div className="px-4 py-2 bg-amber-500/5 border-b border-amber-500/10">
-                    <p className="text-[11px] text-amber-700 dark:text-amber-400">
-                      <span className="font-semibold">Brug for hjælp til:</span> {latestPulse.help_needed}
+                  <div className="px-4 py-2 bg-hb-sage/20 border-b border-hb-line">
+                    <p className="text-[11px] text-hb-ink-soft">
+                      <span className="font-medium text-hb-ink">Brug for hjælp til:</span> {latestPulse.help_needed}
                     </p>
                   </div>
                 )}
 
-                {/* Messages list */}
+                {/* Messages list — MemberChatPane:538-551, ordret */}
                 <div ref={messagesContainerRef} className={`flex-1 overflow-y-auto min-w-0 ${isMobile ? "px-3 py-3 space-y-2" : "px-4 md:px-5 py-4 space-y-4"}`}>
                   {messages.length === 0 && (
                     <div className="flex flex-col items-center justify-center h-full py-16 text-center px-8">
-                      <div className="h-12 w-12 rounded-2xl bg-primary/10 flex items-center justify-center mb-4">
-                        <MessageSquare className="h-6 w-6 text-primary" />
+                      <div className="h-12 w-12 rounded-full bg-hb-sage/40 flex items-center justify-center mb-4">
+                        <MessageSquare className="h-6 w-6 text-hb-evergreen" />
                       </div>
-                      <p className="text-sm font-semibold text-foreground mb-1">
+                      <p className="text-sm font-medium text-hb-ink mb-1">
                         Din direkte linje til rådgiverne
                       </p>
-                      <p className="text-xs text-muted-foreground leading-relaxed max-w-xs">
+                      <p className="text-xs text-hb-ink-soft leading-relaxed max-w-xs">
                         Skriv hvad du har på hjerte — spørgsmål, opdateringer eller bare hvad der fylder. Dine rådgivere læser dine tal og svarer hurtigt.
                       </p>
                     </div>
@@ -1391,15 +1431,22 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
                       if (dateKey !== lastDateKey) {
                         lastDateKey = dateKey;
                         dateSep = (
-                          <div className="flex items-center gap-3 py-2">
-                            <div className="flex-1 border-t border-border" />
-                            <span className="text-[11px] text-muted-foreground font-medium">{dateSeparatorLabel(msgDate)}</span>
-                            <div className="flex-1 border-t border-border" />
+                          /* MemberChatPane:574-581: ÉN hairline, labelen står på
+                             papiret over den — ikke to streger om et ord. */
+                          <div className="relative py-3">
+                            <div className="border-t border-hb-line" />
+                            <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-hb-paper px-3 text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft">
+                              {dateSeparatorLabel(msgDate)}
+                            </span>
                           </div>
                         );
                       }
 
-                      // System / AI messages
+                      // System / AI messages — rådgiveren ser MERE end medlemmet her
+                      // (session_prep-dagsordenen, agent-feedback, label), så
+                      // kortet består (medlemmets stille linje ville drukne en
+                      // dagsorden) — men i Hb-kortets form: hvid flade, hairline,
+                      // rounded-hb, evergreen som handlingsfarve.
                       if (msg.message_type === "system" || msg.message_type === "ai") {
                         return (
                           <React.Fragment key={msg.id}>
@@ -1409,35 +1456,35 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
                             className="flex justify-center group/msg transition-all duration-300"
                           >
                             <div
-                              className={`max-w-[90%] md:max-w-[85%] rounded-xl border border-border/50 bg-muted/30 px-4 md:px-5 py-3 md:py-4 relative ${msg.pinned_at ? "ring-1 ring-primary/20" : ""}`}
+                              className={`max-w-[90%] md:max-w-[85%] rounded-hb border border-hb-line bg-hb-surface px-4 md:px-5 py-3 md:py-4 relative ${msg.pinned_at ? "ring-1 ring-hb-evergreen/20" : ""}`}
                             >
                               <button
                                 onClick={() => togglePin(msg)}
                                 className={`absolute top-2 right-2 p-1 rounded-md transition-all ${
                                   msg.pinned_at
-                                    ? "text-primary opacity-100 hover:text-destructive"
-                                    : "text-muted-foreground opacity-0 group-hover/msg:opacity-100 hover:text-primary hover:bg-primary/10"
+                                    ? "text-hb-evergreen opacity-100 hover:text-hb-rust"
+                                    : "text-hb-ink-soft opacity-0 group-hover/msg:opacity-100 hover:text-hb-evergreen hover:bg-hb-evergreen/10"
                                 }`}
                                 title={msg.pinned_at ? "Fjern pin" : "Pin besked"}
                               >
                                 <Pin className="h-3.5 w-3.5" />
                               </button>
                               <div className="flex items-center gap-2 mb-1 flex-wrap">
-                                <Sparkles className="h-3.5 w-3.5 text-primary" />
-                                <span className="text-[10px] font-semibold text-primary uppercase tracking-wider">
+                                <Sparkles className="h-3.5 w-3.5 text-hb-evergreen" />
+                                <span className="text-[10px] font-medium text-hb-ink-soft uppercase tracking-[0.14em]">
                                   {msg.context_type === "session_prep" ? "Session-dagsorden" : msg.message_type === "ai" ? "AI Analyse" : "System"}
                                 </span>
                                 {topicInfo && (
-                                  <span className={`inline-flex items-center gap-1 text-[9px] font-medium px-1.5 py-0.5 rounded-full ${topicInfo.bg} ${topicInfo.text}`}>
+                                  <span className="inline-flex items-center gap-1 text-[9px] font-medium px-1.5 py-0.5 rounded-full bg-hb-sage/50 text-hb-ink">
                                     <topicInfo.icon className="h-2.5 w-2.5" />
                                     {topicInfo.label}
                                   </span>
                                 )}
-                                <span className="text-[10px] text-muted-foreground">
+                                <span className="text-[10px] text-hb-ink-soft">
                                   {format(new Date(msg.created_at), "HH:mm", { locale: da })}
                                 </span>
                               </div>
-                              <div className="text-sm text-foreground leading-relaxed chat-html-content" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(
+                              <div className="text-sm text-hb-ink leading-relaxed chat-html-content" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(
                                 msg.content
                                   .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
                                   .replace(/\n/g, '<br>'),
@@ -1455,7 +1502,7 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
                                     ? `/members/${memberId}?section=milestones`
                                     : null;
                                 const chip = (
-                                  <span className="inline-flex items-center gap-1.5 text-[10px] px-2 py-1 rounded-md bg-secondary text-muted-foreground">
+                                  <span className="inline-flex items-center gap-1.5 text-[10px] px-2 py-1 rounded-full bg-hb-sage/30 text-hb-ink-soft">
                                     {contextType === "milestone" && <Target className="h-3 w-3" />}
                                     {String(contextMeta.title)}
                                     {isAdvisor && linkPath && <ExternalLink className="h-2.5 w-2.5 ml-0.5" />}
@@ -1472,8 +1519,9 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
                                 );
                               })()}
                               {msg.context_type === "agent" && (
-                                <div className="flex items-center gap-2 mt-2 pt-2 border-t border-border/20">
-                                  <span className="text-[10px] text-muted-foreground">Var dette nyttigt?</span>
+                                /* MemberChatPane:632-658: tekstuelle handlinger i evergreen */
+                                <div className="flex items-center gap-3 mt-2 pt-2 border-t border-hb-line text-[11px]">
+                                  <span className="text-hb-ink-soft/70">Var dette nyttigt?</span>
                                   <button
                                     onClick={async () => {
                                       await supabase.from("messages").update({
@@ -1481,7 +1529,7 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
                                       } as any).eq("id", msg.id);
                                       toast.success("Tak for feedback");
                                     }}
-                                    className="text-[11px] px-2 py-0.5 rounded border border-border/40 hover:bg-primary/10 hover:border-primary/30 transition-colors"
+                                    className="text-hb-evergreen transition-colors hover:underline underline-offset-2"
                                   >
                                     Ja
                                   </button>
@@ -1492,16 +1540,16 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
                                       } as any).eq("id", msg.id);
                                       toast("Forstået — vi arbejder på det");
                                     }}
-                                    className="text-[11px] px-2 py-0.5 rounded border border-border/40 hover:bg-destructive/10 hover:border-destructive/30 transition-colors"
+                                    className="text-hb-evergreen transition-colors hover:underline underline-offset-2"
                                   >
                                     Nej
                                   </button>
                                 </div>
                               )}
                               {msg.context_type === "session_prep" && (
-                                <div className="mt-2 pt-2 border-t border-border/20 flex items-center gap-1.5">
-                                  <div className="h-1.5 w-1.5 rounded-full bg-primary/60" />
-                                  <span className="text-[10px] text-muted-foreground">Forberedelse til næste session med founder</span>
+                                <div className="mt-2 pt-2 border-t border-hb-line flex items-center gap-1.5">
+                                  <div className="h-1.5 w-1.5 rounded-full bg-hb-evergreen/60" />
+                                  <span className="text-[10px] text-hb-ink-soft">Forberedelse til næste session med founder</span>
                                 </div>
                               )}
                             </div>
@@ -1530,10 +1578,13 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
                         <React.Fragment key={msg.id}>
                           {dateSep}
                           {showUnreadDivider && (
-                            <div className="flex items-center gap-3 py-2">
-                              <div className="flex-1 border-t border-primary/50" />
-                              <span className="text-[11px] text-primary font-semibold px-2">Nye beskeder</span>
-                              <div className="flex-1 border-t border-primary/50" />
+                            /* MemberChatPane:684-693: evergreen, diskret — samme
+                               én-hairline-form som dags-separatoren. */
+                            <div className="relative py-3">
+                              <div className="border-t border-hb-evergreen/40" />
+                              <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-hb-paper px-3 text-[11px] font-medium text-hb-evergreen">
+                                Nye beskeder
+                              </span>
                             </div>
                           )}
                         <div
@@ -1541,25 +1592,19 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
                           className={`flex group/msg ${isMine ? "justify-end" : "justify-start"} items-end gap-2 transition-all duration-300`}
                         >
                           {!isMine && !isMobile && (
-                            <div className="h-7 w-7 rounded-full bg-muted flex items-center justify-center overflow-hidden flex-shrink-0 mb-1">
-                              {senderAvatar ? (
-                                <img src={senderAvatar} alt="" className="h-7 w-7 object-cover" />
-                              ) : (
-                                <span className="text-[9px] font-semibold text-muted-foreground">
-                                  {getInitialsLocal(senderName)}
-                                </span>
-                              )}
+                            <div className="mb-1">
+                              <ForfatterAvatar navn={senderName} avatarUrl={senderAvatar ?? null} className="h-7 w-7" />
                             </div>
                           )}
                           <div
-                            className={`${isMobile ? "max-w-[88%]" : "max-w-[70%]"} relative ${msg.pinned_at ? "ring-1 ring-primary/20 rounded-2xl" : ""}`}
+                            className={`${isMobile ? "max-w-[88%]" : "max-w-[70%]"} relative ${msg.pinned_at ? "ring-1 ring-hb-evergreen/20 rounded-hb" : ""}`}
                             {...(isMobile ? longPressHandlers(msg.id) : {})}
                           >
                             {longPressedMessageId === msg.id && isMobile && (
-                              <div className="absolute -top-10 left-1/2 -translate-x-1/2 z-50 flex items-center gap-1 bg-card border border-border rounded-full px-2 py-1 shadow-lg">
-                                <button onClick={() => { toggleReaction(msg.id, "👍"); setLongPressedMessageId(null); }} className="p-1.5 hover:bg-secondary rounded-full text-sm">👍</button>
-                                <button onClick={() => { toggleReaction(msg.id, "❤️"); setLongPressedMessageId(null); }} className="p-1.5 hover:bg-secondary rounded-full text-sm">❤️</button>
-                                <button onClick={() => { navigator.clipboard.writeText(msg.content || ""); setLongPressedMessageId(null); }} className="p-1.5 hover:bg-secondary rounded-full text-sm">📋</button>
+                              <div className="absolute -top-10 left-1/2 -translate-x-1/2 z-50 flex items-center gap-1 bg-hb-surface border border-hb-line rounded-full px-2 py-1 shadow-hb-hover">
+                                <button onClick={() => { toggleReaction(msg.id, "👍"); setLongPressedMessageId(null); }} className="p-1.5 hover:bg-hb-sage/30 rounded-full text-sm">👍</button>
+                                <button onClick={() => { toggleReaction(msg.id, "❤️"); setLongPressedMessageId(null); }} className="p-1.5 hover:bg-hb-sage/30 rounded-full text-sm">❤️</button>
+                                <button onClick={() => { navigator.clipboard.writeText(msg.content || ""); setLongPressedMessageId(null); }} className="p-1.5 hover:bg-hb-sage/30 rounded-full text-sm">📋</button>
                               </div>
                             )}
                             {!isMobile && !isEditingThis && (
@@ -1568,8 +1613,8 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
                                   onClick={() => togglePin(msg)}
                                   className={`p-1 rounded-md transition-all ${
                                     msg.pinned_at
-                                      ? "text-primary opacity-100 hover:text-destructive"
-                                      : "text-muted-foreground opacity-0 group-hover/msg:opacity-100 hover:text-primary hover:bg-primary/10"
+                                      ? "text-hb-evergreen opacity-100 hover:text-hb-rust"
+                                      : "text-hb-ink-soft opacity-0 group-hover/msg:opacity-100 hover:text-hb-evergreen hover:bg-hb-evergreen/10"
                                   }`}
                                   title={msg.pinned_at ? "Fjern pin" : "Pin besked"}
                                 >
@@ -1578,6 +1623,7 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
                                 <ReactionPicker
                                   onSelect={(emoji) => toggleReaction(msg.id, emoji)}
                                   isMine={isMine}
+                                  variant="hb"
                                 />
                                 <MessageActionMenu
                                   canEdit={canEditCheck(msg.sender_id, msg.created_at)}
@@ -1585,6 +1631,7 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
                                   onEdit={() => startEdit(msg.id, msg.content)}
                                   onDelete={() => handleDeleteMsg(msg.id)}
                                   isMine={isMine}
+                                  variant="hb"
                                 />
                               </div>
                             )}
@@ -1595,19 +1642,19 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
                                 onEdit={() => startEdit(msg.id, msg.content)}
                                 onDelete={() => handleDeleteMsg(msg.id)}
                                 onReaction={(emoji) => toggleReaction(msg.id, emoji)}
+                                variant="hb"
                               >
-                                {isAdvisor && !isMine && (
-                                  <p className="text-[10px] text-muted-foreground mb-1 ml-1">{senderName}</p>
-                                )}
                                 {topicInfo && (
-                                  <div className={`mb-1 inline-flex items-center gap-1 text-[9px] font-medium px-2 py-0.5 rounded-full ${topicInfo.bg} ${topicInfo.text} ${isMine ? "ml-auto" : ""}`}>
+                                  /* Emnefarverne (inkl. milestone-lilla) er off-token —
+                                     i Hb er alle emne-chips sage/ink (HbTag-formen). */
+                                  <div className={`mb-1 inline-flex items-center gap-1 text-[9px] font-medium px-2 py-0.5 rounded-full bg-hb-sage/50 text-hb-ink ${isMine ? "ml-auto" : ""}`}>
                                     <topicInfo.icon className="h-2.5 w-2.5" />
                                     {topicInfo.label}
                                   </div>
                                 )}
                                 {contextType && contextMeta?.title && (
                                   <div className={`mb-1 inline-flex items-center gap-1.5 text-[10px] px-2.5 py-1 rounded-t-lg ${
-                                    isMine ? "bg-primary/20 text-primary ml-auto" : "bg-secondary text-muted-foreground"
+                                    isMine ? "bg-hb-sage/60 text-hb-ink ml-auto" : "bg-hb-sage/30 text-hb-ink-soft"
                                   }`}>
                                     {contextType === "report" && <FileText className="h-3 w-3" />}
                                     {contextType === "milestone" && <Target className="h-3 w-3" />}
@@ -1615,23 +1662,30 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
                                   </div>
                                 )}
                                 <div
-                                  className={`rounded-2xl px-4 py-2.5 ${
+                                  className={`rounded-hb px-4 py-2.5 ${
                                     isMine
-                                      ? "bg-primary text-primary-foreground rounded-br-md"
-                                      : "bg-secondary text-foreground rounded-bl-md"
+                                      ? "bg-hb-sage text-hb-ink rounded-br-md"
+                                      : "bg-hb-surface border border-hb-line text-hb-ink rounded-bl-md"
                                   } ${contextType ? "rounded-tl-md" : ""}`}
                                 >
+                                  {/* Afsender-navn i boblen — rådgiveren ser navnet på den der
+                                      skrev (samme betingelse som før, medlemmets placering). */}
+                                  {isAdvisor && !isMine && (
+                                    <p className="text-[10px] font-medium text-hb-ink-soft mb-0.5">
+                                      {senderName}
+                                    </p>
+                                  )}
                                   {msg.content !== "📎" && (
                                     <div className="text-sm leading-relaxed chat-html-content" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(msg.content, { ALLOWED_TAGS: ['b','strong','i','em','ul','ol','li','a','p','br'], ALLOWED_ATTR: ['href','target','rel'] }) }} />
                                   )}
-                                  <MessageAttachments attachments={msg.context_meta?.attachments} isMine={isMine} messageId={msg.id} source="messages" />
+                                  <MessageAttachments attachments={msg.context_meta?.attachments} isMine={isMine} messageId={msg.id} source="messages" variant="hb" />
                                   <div className={`flex items-center gap-1 mt-1 ${isMine ? "justify-end" : ""}`}>
                                     {(msg as any).edited_at && (
-                                      <span className={`text-[9px] italic ${isMine ? "text-primary-foreground/50" : "text-muted-foreground/60"}`}>
+                                      <span className="text-[9px] italic text-hb-ink-soft/70">
                                         (redigeret)
                                       </span>
                                     )}
-                                    <span className={`text-[10px] ${isMine ? "text-primary-foreground/60" : "text-muted-foreground"}`}>
+                                    <span className="text-[10px] text-hb-ink-soft">
                                       {format(new Date(msg.created_at), "HH:mm", { locale: da })}
                                     </span>
                                   </div>
@@ -1639,18 +1693,17 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
                               </MobileMessageActionDrawer>
                             ) : (
                               <>
-                                {isAdvisor && !isMine && (
-                                  <p className="text-[10px] text-muted-foreground mb-1 ml-1">{senderName}</p>
-                                )}
                                 {topicInfo && (
-                                  <div className={`mb-1 inline-flex items-center gap-1 text-[9px] font-medium px-2 py-0.5 rounded-full ${topicInfo.bg} ${topicInfo.text} ${isMine ? "ml-auto" : ""}`}>
+                                  /* Emnefarverne (inkl. milestone-lilla) er off-token —
+                                     i Hb er alle emne-chips sage/ink (HbTag-formen). */
+                                  <div className={`mb-1 inline-flex items-center gap-1 text-[9px] font-medium px-2 py-0.5 rounded-full bg-hb-sage/50 text-hb-ink ${isMine ? "ml-auto" : ""}`}>
                                     <topicInfo.icon className="h-2.5 w-2.5" />
                                     {topicInfo.label}
                                   </div>
                                 )}
                                 {contextType && contextMeta?.title && (
                                   <div className={`mb-1 inline-flex items-center gap-1.5 text-[10px] px-2.5 py-1 rounded-t-lg ${
-                                    isMine ? "bg-primary/20 text-primary ml-auto" : "bg-secondary text-muted-foreground"
+                                    isMine ? "bg-hb-sage/60 text-hb-ink ml-auto" : "bg-hb-sage/30 text-hb-ink-soft"
                                   }`}>
                                     {contextType === "report" && <FileText className="h-3 w-3" />}
                                     {contextType === "milestone" && <Target className="h-3 w-3" />}
@@ -1658,23 +1711,28 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
                                   </div>
                                 )}
                                 <div
-                                  className={`rounded-2xl px-4 py-2.5 ${
+                                  className={`rounded-hb px-4 py-2.5 ${
                                     isMine
-                                      ? "bg-primary text-primary-foreground rounded-br-md"
-                                      : "bg-secondary text-foreground rounded-bl-md"
+                                      ? "bg-hb-sage text-hb-ink rounded-br-md"
+                                      : "bg-hb-surface border border-hb-line text-hb-ink rounded-bl-md"
                                   } ${contextType ? "rounded-tl-md" : ""}`}
                                 >
+                                  {isAdvisor && !isMine && (
+                                    <p className="text-[10px] font-medium text-hb-ink-soft mb-0.5">
+                                      {senderName}
+                                    </p>
+                                  )}
                                   {msg.content !== "📎" && (
                                     <div className="text-sm leading-relaxed chat-html-content" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(msg.content, { ALLOWED_TAGS: ['b','strong','i','em','ul','ol','li','a','p','br'], ALLOWED_ATTR: ['href','target','rel'] }) }} />
                                   )}
-                                  <MessageAttachments attachments={msg.context_meta?.attachments} isMine={isMine} messageId={msg.id} source="messages" />
+                                  <MessageAttachments attachments={msg.context_meta?.attachments} isMine={isMine} messageId={msg.id} source="messages" variant="hb" />
                                   <div className={`flex items-center gap-1 mt-1 ${isMine ? "justify-end" : ""}`}>
                                     {(msg as any).edited_at && (
-                                      <span className={`text-[9px] italic ${isMine ? "text-primary-foreground/50" : "text-muted-foreground/60"}`}>
+                                      <span className="text-[9px] italic text-hb-ink-soft/70">
                                         (redigeret)
                                       </span>
                                     )}
-                                    <span className={`text-[10px] ${isMine ? "text-primary-foreground/60" : "text-muted-foreground"}`}>
+                                    <span className="text-[10px] text-hb-ink-soft">
                                       {format(new Date(msg.created_at), "HH:mm", { locale: da })}
                                     </span>
                                   </div>
@@ -1685,6 +1743,7 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
                               reactions={getReactions(msg.id)}
                               onToggle={(emoji) => toggleReaction(msg.id, emoji)}
                               isMine={isMine}
+                              variant="hb"
                               getReactorName={(userId) =>
                                 profilesMap.get(userId)?.full_name ||
                                 participants.find(p => p.user_id === userId)?.full_name ||
@@ -1693,14 +1752,8 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
                             />
                           </div>
                           {isMine && !isMobile && (
-                            <div className="h-7 w-7 rounded-full bg-primary/10 flex items-center justify-center overflow-hidden flex-shrink-0 mb-1">
-                              {senderAvatar ? (
-                                <img src={senderAvatar} alt="" className="h-7 w-7 object-cover" />
-                              ) : (
-                                <span className="text-[9px] font-semibold text-primary">
-                                  {getInitialsLocal(senderName)}
-                                </span>
-                              )}
+                            <div className="mb-1">
+                              <ForfatterAvatar navn={senderName} avatarUrl={senderAvatar ?? null} className="h-7 w-7" />
                             </div>
                           )}
                         </div>
@@ -1711,33 +1764,39 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
                   <div ref={messagesEndRef} />
                 </div>
 
-                {/* Input with topic selector — sticky at bottom of message column */}
+                {/* Input with topic selector — sticky at bottom of message column.
+                    Rammen er MemberChatPane:885-890 (hairline over feltet, papir);
+                    feltet er ChatRichInputs hb-variant. */}
                 <div
-                  className={`${isMobile ? "px-2 pt-2 pb-2" : "p-3 md:p-4"} border-t border-border bg-background shrink-0 z-10`}
+                  className={`${isMobile ? "px-2 pt-2 pb-2" : "p-3 md:p-4"} border-t border-hb-line bg-hb-paper shrink-0 z-10`}
                   style={{
                     paddingBottom: isMobile ? "calc(0.5rem + env(safe-area-inset-bottom))" : undefined,
                   }}
                 >
                   {activeConv?.membershipTier === "expired" ? (
-                    <div className="flex items-center gap-2 px-3 py-3 rounded-lg bg-muted/50 border border-border text-xs text-muted-foreground">
-                      <AlertCircle className="h-4 w-4 text-destructive shrink-0" />
+                    /* MemberChatPane:891-898 — advarsel, rust (en af rusts fire betydninger). */
+                    <div className="flex items-center gap-2 px-3 py-3 rounded-hb bg-hb-sage/20 border border-hb-line text-xs text-hb-ink-soft">
+                      <AlertCircle className="h-4 w-4 text-hb-rust shrink-0" />
                       <span>
-                        Denne virksomhed er <span className="font-semibold text-foreground">udløbet</span> — beskeder kan ikke sendes. Historik er stadig læsbar.
+                        Denne virksomhed er <span className="font-medium text-hb-ink">udløbet</span> — beskeder kan ikke sendes. Historik er stadig læsbar.
                       </span>
                     </div>
                   ) : (
                   <>
+                  {/* Emnevælgeren — rådgiver-specifik (C5 fjernede den hos medlemmet;
+                      hos rådgiveren står den, adfærden er uændret). TOPIC_COLORS er
+                      off-token og bruges ikke til farve: aktiv = sage/ink med
+                      evergreen-ring, inaktiv = ink-soft — samme sprog som chips'ene. */}
                   {isAdvisor && (
                     <div
                       className={`flex items-center gap-1.5 mb-2 overflow-x-auto ${isMobile ? "-mx-2 px-2" : ""}`}
                       style={{ scrollbarWidth: "none", WebkitOverflowScrolling: "touch" }}
                     >
                       {!isMobile && (
-                        <span className="text-[10px] text-muted-foreground mr-1 flex-shrink-0">Emne:</span>
+                        <span className="text-[10px] text-hb-ink-soft mr-1 flex-shrink-0">Emne:</span>
                       )}
                       {MESSAGE_TOPICS.map(t => {
                         const isActive = selectedTopic === t.key;
-                        const topicInfo = t.key ? TOPIC_COLORS[t.key] : null;
                         return (
                           <button
                             key={t.key ?? "general"}
@@ -1745,10 +1804,8 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
                             onClick={() => setSelectedTopic(t.key)}
                             className={`px-2.5 py-1 rounded-full text-[11px] font-medium transition-colors whitespace-nowrap flex-shrink-0 ${
                               isActive
-                                ? topicInfo
-                                  ? `${topicInfo.bg} ${topicInfo.text} ring-1 ring-current/20`
-                                  : "bg-muted text-foreground ring-1 ring-border"
-                                : "text-muted-foreground hover:text-foreground hover:bg-secondary/50"
+                                ? "bg-hb-sage text-hb-ink ring-1 ring-hb-evergreen/30"
+                                : "text-hb-ink-soft hover:text-hb-ink hover:bg-hb-sage/40"
                             }`}
                           >
                             {t.label}
@@ -1764,17 +1821,18 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
                       disabled={sending}
                       placeholder={selectedTopic ? `Skriv om ${MESSAGE_TOPICS.find(t => t.key === selectedTopic)?.label?.toLowerCase()}...` : `Skriv til ${advisorNamesLabel}...`}
                       maxLength={MAX_MESSAGE_LENGTH}
+                      variant="hb"
                     />
                     {!isMobile && (
-                      <button
+                      <HbButton
                         type="button"
                         onClick={() => chatSubmitRef.current()}
                         disabled={sending}
-                        className="flex-shrink-0 h-10 w-10 rounded-xl bg-primary text-primary-foreground flex items-center justify-center hover:bg-primary/90 transition-colors disabled:opacity-50"
+                        className="h-11 w-11 shrink-0 px-0"
                         aria-label="Send besked"
                       >
                         {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                      </button>
+                      </HbButton>
                     )}
                   </div>
                   {!isMobile && <div className="safe-bottom-spacer" />}
@@ -1792,13 +1850,15 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
                        virksomheden får et medlem; der er ingen at skrive
                        til, og ⋯-menuen (foreslå opgave) renderes ikke uden
                        samtale — så foreslaa-opgaves 404 kan ikke opstå her. */
-                    <p className="text-sm text-muted-foreground px-8">
+                    <p className="text-sm text-hb-ink-soft px-8">
                       {samtalerHentet ? "Der er ingen samtale med virksomheden endnu." : "Henter samtalen…"}
                     </p>
                   ) : (
                     <div>
-                      <MessageCircle className="h-12 w-12 text-muted-foreground/20 mx-auto mb-3" />
-                      <p className="text-sm text-muted-foreground">Vælg en samtale for at starte</p>
+                      <div className="mx-auto w-14 h-14 rounded-full bg-hb-sage/40 flex items-center justify-center mb-3">
+                        <MessageCircle className="h-7 w-7 text-hb-evergreen" />
+                      </div>
+                      <p className="text-sm text-hb-ink-soft">Vælg en samtale for at starte</p>
                     </div>
                   )}
                 </div>
@@ -1930,6 +1990,7 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
         onOpenChange={(o) => { if (!o) cancelEdit(); }}
         initialHTML={editContent}
         onSave={handleEditSave}
+        variant="hb"
       />
     </>
   );
