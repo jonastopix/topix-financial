@@ -21,8 +21,10 @@ export const HbMemberShell = ({
   // "medlemmer" = Netværket (/medlemmer). Profilsiderne (/medlemmer/:userId)
   // deler værdien — en profil hører til netværket. "community" deles
   // tilsvarende af feed (/community) og trådsider (/community/:id).
-  // "virksomheder" = rådgiverens virksomhedsliste (/virksomheder, §3.6);
-  // ingen nav-post markerer den endnu — det kommer med admin-blokkens swap.
+  // "virksomheder" = rådgiverens virksomhedsliste (/virksomheder, §3.6).
+  // Virksomhedssiden (/virksomhed/:companyId) og viderestillingen deler
+  // værdien — en virksomhed hører til listen. Markeres af admin-blokkens
+  // «Virksomheder» nedenfor.
   active: "boardroom" | "akademiet" | "rapportering" | "noegletal" | "budget" | "handouts" | "booksession" | "podcast" | "rabataftaler" | "events" | "medlemmer" | "community" | "chat" | "virksomheder";
   /* layout="fuld" (chatten, C4 i docs/chat-design.md): AppLayout-
      præcedensen (fullscreen-prop, AppLayout.tsx:28-31, forgrening :337)
@@ -174,15 +176,18 @@ export const HbMemberShell = ({
      ved at kende URL'en). To punkter: Virksomheder og Platform.
      «Er rådgiver» er `isAdvisor` fra useAuth — samme dom som tjeklisten
      (linje 100, 221) og HbVisningSom bruger; ingen ny kilde.
-     Punkterne peger på AppLayout-sider, så designsproget skifter når man
-     klikker. Det er et bevidst valg (Jonas, 4/9): en synlig skalskifte er
-     bedre end en skjult side — samme begrundelse som /settings-linket i
-     HbSidebar. Ingen `active`: ingen af målsiderne renderer i denne skal,
-     så unionen ovenfor kan ikke få en værdi der nogensinde sendes; den
-     udvides den dag Virksomheder flytter ind i Hjemmebane (§11 pkt. 4). */
+     «Virksomheder» peger på /virksomheder — den rene Hb-liste (#605, #615,
+     #621; da blokken blev bygget i #603 fandtes den ikke, og linket pegede
+     på /members). Den er en Hb-flade i denne skal, så punktet markeres
+     aktivt på listen, virksomhedssiden og viderestillingen (alle giver
+     active="virksomheder"). Platform-punkterne peger stadig på
+     AppLayout-sider, så designsproget skifter når man klikker. Det er et
+     bevidst valg (Jonas, 4/9): en synlig skalskifte er bedre end en skjult
+     side — samme begrundelse som /settings-linket i HbSidebar; de får
+     ingen `active`, for ingen af dem renderer i denne skal. */
   const adminBlok: HbNavEntry[] = isAdvisor
     ? [
-        { label: "Virksomheder", to: "/members", admin: true },
+        { label: "Virksomheder", to: "/virksomheder", active: active === "virksomheder", admin: true },
         {
           label: "Platform",
           admin: true,
