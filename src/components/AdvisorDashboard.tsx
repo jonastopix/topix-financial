@@ -4,7 +4,10 @@ import { supabase } from "@/integrations/supabase/client";
 import * as Sentry from "@sentry/react";
 import { useAuth } from "@/hooks/useAuth";
 import { computeMembershipTier } from "@/lib/membershipTier";
-import { afgoerVirksomhedsSignaler, isFiguresFresh, type FactPunkt, type VirksomhedsInput } from "@/lib/virksomhedsSignaler";
+import { afgoerVirksomhedsSignaler, isFiguresFresh, type FactPunkt, type Signal, type VirksomhedsInput } from "@/lib/virksomhedsSignaler";
+import { afgoerForsidensDom, type OpgaveTilDom, type VirksomhedTilDom } from "@/lib/forsidensDom";
+import { afgoerFornyelsestilstand, type Fornyelsesbeslutning } from "@/lib/fornyelse";
+import { afgoerBetalingsfrist } from "@/lib/betalingsfrist";
 import {
   MessageSquare, Clock, Building2, ChevronRight, CheckCircle2,
   Activity, Target, Search, List, LayoutGrid, UserCheck, Heart, AlertTriangle, Sparkles,
@@ -298,8 +301,16 @@ export const hentAdvisorDashboard = () =>
         convRes, companiesRes, factsRes,
         pulseRes, recentReportsRes,
         milestonesRes, kpiTargetsRes, companyMembersRes, advisorProfilesRes,
-        recentMilestonesRes, recentHandoutsRes, companyInvitationsRes, goalHandoutRes,
-        agentProposalsRes,
+        recentMilestonesRes, recentHandoutsRes, companyInvitationsRes,
+        // RETTET 4/9 (forsidens dom): de to stod byttet om i #630 —
+        // goalHandoutRes fik agent_proposals-rækkerne og omvendt. Navnene
+        // følger nu hentningernes rækkefølge nedenfor.
+        agentProposalsRes, goalHandoutRes,
+        // Forsidens dom (docs/forsiden-design.md, src/lib/forsidensDom.ts):
+        // de tre slags motoren ikke bærer — fornyelse, indgang, opgave nær
+        // deadline — hentes her, hvor alt andet hentes, så dommen får alle
+        // seks slags fra ét datalag.
+        fornyelseRes, betalingslinkRes, aktiveOpgaverRes,
       ] = await Promise.all([
         supabase
           .from("conversations")
@@ -401,6 +412,27 @@ export const hentAdvisorDashboard = () =>
           .select("company_id, status")
           .eq("module", "overordnet")
           .eq("status", "completed")
+          .limit(2000) as any),
+        // Forsidens dom, slags 1: fornyelsesbeslutninger — samme læsning som
+        // FornyelsesSektion (:91-93). Ingen række = ingen beslutning.
+        (supabase
+          .from("company_fornyelse" as any)
+          .select("company_id, beslutning")
+          .limit(2000) as any),
+        // Forsidens dom, slags 2: indgangen — samme læsning som IndgangsSektion
+        // (:128-132), uden companies-join (contract_end_date tages fra
+        // companiesRes). Ingen række = ikke i indgangen.
+        (supabase
+          .from("company_betalingslink")
+          .select("company_id, prisniveau_oere, underskrevet_at, betalingsmail_sendt_at, sidste_paamindelse_dag")
+          .limit(2000) as any),
+        // Forsidens dom, slags 7: aktive opgaver med frist (opgaveEngine B3:
+        // aktive har altid due_date). Advisor-læsning som useVirksomhed (:215).
+        (supabase
+          .from("company_actions")
+          .select("id, company_id, title, status, due_date")
+          .eq("status", "active")
+          .not("due_date", "is", null)
           .limit(2000) as any),
       ]);
 
@@ -804,6 +836,7 @@ export const hentAdvisorDashboard = () =>
       // Kø 6 (§3.5): agentforslag der venter — læses af den nye forside
       // (RaadgiverForsideView); AdvisorDashboards render kender den ikke.
       const bAgent: BucketItem[] = [];
+      const signalerByCompany = new Map<string, { signaler: Signal[]; agentforslagVenter: number }>();
       const agentforslagByCompany = new Map<string, number>();
       for (const p of ((agentProposalsRes as any)?.data || []) as { company_id: string }[]) {
         if (p.company_id) agentforslagByCompany.set(p.company_id, (agentforslagByCompany.get(p.company_id) || 0) + 1);
@@ -886,7 +919,10 @@ export const hentAdvisorDashboard = () =>
           harCommittedeTal: c.has_verified_metrics,
           agentforslagVenter: agentforslagByCompany.get(c.company_id) ?? 0,
         };
-        for (const s of afgoerVirksomhedsSignaler(signalInput, now)) {
+        const signaler = afgoerVirksomhedsSignaler(signalInput, now);
+        // Forsidens dom får motorens udfald uændret (én dom i huset).
+        signalerByCompany.set(c.company_id, { signaler, agentforslagVenter: signalInput.agentforslagVenter });
+        for (const s of signaler) {
           const item: BucketItem = { ...base, subtext: s.tekst, sortValue: s.alvor };
           if (s.koe === "ikke_hoert_fra_laenge") bStale.push(item);
           else if (s.koe === "venter_paa_svar") bWaiting.push(item);
@@ -921,6 +957,67 @@ export const hentAdvisorDashboard = () =>
         agent: bAgent.sort(bySortDesc),
       };
 
+      // ── Forsidens dom (docs/forsiden-design.md; src/lib/forsidensDom.ts) ──
+      // Samme virksomheds-sæt som bunkerne (udløbede og pending sprunget
+      // over, legat allerede ude af investorSummaries). Fornyelse dømmes for
+      // samme udsnit som FornyelsesSektion får (status aktiv eller tom);
+      // indgang kun hvor der er en linkrække; opgaver kun aktive med frist.
+      // Motorerne køres her — dommen tager deres UDFALD, ikke deres råstof.
+      const beslutningByCompany = new Map<string, Fornyelsesbeslutning>();
+      for (const r of (((fornyelseRes as any)?.data || []) as { company_id: string; beslutning: string }[])) {
+        if (r.beslutning === "tilbyd" || r.beslutning === "tilbyd_ikke") beslutningByCompany.set(r.company_id, r.beslutning);
+      }
+      const betalingslinkByCompany = new Map<string, {
+        prisniveau_oere: number | null; underskrevet_at: string; betalingsmail_sendt_at: string | null; sidste_paamindelse_dag: number | null;
+      }>();
+      for (const r of (((betalingslinkRes as any)?.data || []) as any[])) {
+        if (r.company_id) betalingslinkByCompany.set(r.company_id, r);
+      }
+      const opgaverByCompany = new Map<string, OpgaveTilDom[]>();
+      for (const o of (((aktiveOpgaverRes as any)?.data || []) as { id: string; company_id: string; title: string; status: string; due_date: string | null }[])) {
+        if (!o.company_id) continue;
+        const liste = opgaverByCompany.get(o.company_id) ?? [];
+        // due_date er en date-kolonne ("YYYY-MM-DD"); som lokal kalenderdag,
+        // ikke UTC-midnat — ellers skrider den en dag vest for Greenwich.
+        const [aar, md, dag] = (o.due_date ?? "").split("-").map((x) => parseInt(x, 10));
+        liste.push({ id: o.id, title: o.title, status: o.status, due_date: aar && md && dag ? new Date(aar, md - 1, dag) : null });
+        opgaverByCompany.set(o.company_id, liste);
+      }
+      const companyById = new Map<string, any>((companies as any[]).map((c) => [c.id, c]));
+      const virksomhederTilDom: VirksomhedTilDom[] = investorSummaries
+        .filter((c) => !expiredCompanyIds.has(c.company_id) && !pendingCompanyIds.has(c.company_id))
+        .map((c) => {
+          const row = companyById.get(c.company_id);
+          const sig = signalerByCompany.get(c.company_id);
+          const iFornyelsesUdsnit = !!row && (row.status === "active" || !row.status);
+          const link = betalingslinkByCompany.get(c.company_id);
+          return {
+            companyId: c.company_id,
+            navn: c.company_name,
+            signaler: sig?.signaler ?? [],
+            agentforslagVenter: sig?.agentforslagVenter ?? 0,
+            fornyelse: iFornyelsesUdsnit
+              ? afgoerFornyelsestilstand({
+                  contract_end_date: row.contract_end_date ?? null,
+                  subscription_status: row.subscription_status ?? null,
+                  subscription_current_period_end: row.subscription_current_period_end ?? null,
+                  beslutning: beslutningByCompany.get(c.company_id) ?? null,
+                }, now)
+              : null,
+            indgang: link
+              ? afgoerBetalingsfrist({
+                  prisniveau_oere: link.prisniveau_oere,
+                  underskrevet_at: link.underskrevet_at,
+                  betalingsmail_sendt_at: link.betalingsmail_sendt_at,
+                  sidste_paamindelse_dag: link.sidste_paamindelse_dag,
+                  contract_end_date: row?.contract_end_date ?? null,
+                }, now)
+              : null,
+            opgaver: opgaverByCompany.get(c.company_id) ?? [],
+          };
+        });
+      const dom = afgoerForsidensDom(virksomhederTilDom, now);
+
       const svarBytes = [
         convRes, companiesRes, factsRes, pulseRes, recentReportsRes,
         milestonesRes, kpiTargetsRes, companyMembersRes, advisorProfilesRes,
@@ -942,7 +1039,7 @@ export const hentAdvisorDashboard = () =>
 
       return {
         investorSummaries, companyMap, activityFeed, convByCompany, expiredCompanyIds, pendingCompanyIds,
-        buckets, advisorProfiles,
+        buckets, dom, advisorProfiles,
         allConversations, companyToUser, companies, legatCompanyIds,
         companyMemberNameMap,
         recentReportsData: (recentReportsRes.data || []) as { id: string; company_id: string }[],
