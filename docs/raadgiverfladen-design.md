@@ -589,13 +589,13 @@ Hvert punkt står med hvad, hvorfor netop dér, og hvad der er målt om
 det. Målingerne ligger i reconer uden for repoet (henvist ved hvert
 punkt) og i `docs/OVERLEVERING.md` DEL 3.
 
-### 1. Én kilde til tallene
+### 1. Én kilde til tallene — LØST 4/9 (#604)
 
-**Hvad:** forsiden (`AdvisorDashboard.tsx`, `queryFn`) regner MoM og
+**Hvad:** forsiden (`AdvisorDashboard.tsx`, `queryFn`) regnede MoM og
 nøgletal ud af `financial_reports`; resten af huset — NoegletalView og
 virksomhedssiden — ud af `financial_report_facts` gennem
-`useCompanyFacts` og den rene, testede `trendMoM.ts`. Forsiden flyttes
-til facts.
+`useCompanyFacts` og den rene, testede `trendMoM.ts`. Forsiden er nu
+flyttet til facts.
 
 **Hvorfor først:** motoren (#589) fodres allerede med to sandheder —
 `FactPunkt` bygges af rapporter på forsiden og af facts på MemberDetail.
@@ -614,10 +614,29 @@ med, så et `estimated` punkt ikke udløser et faldsignal mod et
 `measured`. Tages som egen opgave med måling før og efter, ikke som del
 af en fladebygning.
 
-### 2. `notifications` company-først
+**Målt undervejs 4/9** (`~/Downloads/recon-facts-flytning.md`):
+manuelle overrides falder bort i forsidens læsning, fordi
+`resolve_report_commit_candidate` allerede indregner dem ved commit
+(migration 20260420190823, gentaget i 20260722130000) og sætter
+`period_key := manual_report_period_key` — facts ER det effektive tal,
+så `getEffectiveKeyFigures`/`getEffectiveReportPeriodKey` har intet at
+gøre på forsiden længere. `momErGyldig` fulgte med som betinget:
+M/M regnes kun når begge punkter er `measured`. De to facts-hentninger i
+`queryFn` (aktivitetsfeedets og nøgletallenes) er slået sammen til én,
+og læse-guardens markør (`// data_basis-undtagelse:`) dækker nu kun
+aktivitetsfeedet — nøgletallene bærer `data_basis` i kode. Bevidste
+forskelle i drift: `has_verified_metrics` bliver sand for en virksomhed
+med kun estimater; Brick Works' april 2026 falder ud.
 
-**Hvad:** `notifications` får en advisor-policy (eller en anden vej), så
-en rådgiver kan læse virksomhedens rækker nøglet på `company_id`.
+**BEVIST PÅ SKÆRM 4/9 kl. 08:34:** forsiden er uændret — alle fem
+bunker viser det samme som før flytningen. Målingens «nul uenigheder»
+holdt i drift.
+
+### 2. `notifications` company-først — UDGÅET 4/9
+
+**Hvad (oprindeligt):** `notifications` får en advisor-policy (eller en
+anden vej), så en rådgiver kan læse virksomhedens rækker nøglet på
+`company_id`.
 
 **Hvorfor her:** syv af de otte kilder motoren bruger kan en rådgiver
 allerede læse company-nøglet; kun `notifications` har udelukkende
@@ -629,7 +648,22 @@ virksomhedens. Blok 1 på virksomhedssiden kan ikke tegnes før det er
 løst. **Bemærk:** alerts er ude af motoren (#595), så det haster kun for
 det blok 1 ellers skal vise fra `notifications`.
 
-### 3. Menuen
+**UDGÅET, målt 4/9** (`~/Downloads/recon-notifications-noedvendig.md`):
+ingen af de syv blokke kræver det. Hver af blok 1's ting bæres af andre
+tabeller — ny rapportering af `financial_report_facts.committed_at`,
+«stikker ud» af facts og `budget_targets`, opgaver af
+`conversations.awaiting_reply_from` og `company_actions`, agentforslag
+af `agent_runs`/`agent_proposals`, sidst talt af
+`conversations.last_message_at`. `VirksomhedsInput` har ikke ét felt
+fra `notifications`. Det er en direkte følge af at alerts røg ud af
+motoren (#595): den eneste grund til at læse tabellen company-først var
+alert-rækkerne, og dem dømmer motoren ikke længere på. Punktet står
+her med sin begrundelse, så historikken bevares — det er ikke glemt,
+det er besluttet væk. **Bemærk:** reconen fandt at blok 1 i §4 har FEM
+ting, ikke fire — «agentforslag der venter på afgørelse» står der også.
+Punkt 5 nedenfor er skrevet efter de fem.
+
+### 3. Menuen — LØST 4/9 (#603)
 
 **Hvad:** rådgiveren får medlemmets menu; admin bliver en adskilt blok
 med to punkter, Virksomheder og Platform (§3.1).
@@ -640,7 +674,15 @@ ruter et menupunkt — i dag nås de kun ved at kende URL'en (målt 3/9,
 `/admin/indhold`). Billig, og alt der bygges bagefter skal alligevel
 ligge i den menu.
 
-### 4. Virksomhedslisten (§3.6)
+**Bygget 4/9 (#603):** admin-blokken med de to punkter, Virksomheder og
+Platform (otte underpunkter), hægtet på BEGGE nav-grene. `HbNavEntry`
+fik et additivt `admin`-felt. Målt før: nul menupunkter pegede på
+`/admin/indhold`, og `/admin/import` havde intet link i `src`
+overhovedet. Punkterne peger på AppLayout-sider, så designsproget
+skifter ved klik — et bevidst valg, ikke en forglemmelse; om de tretten
+driftsruter skal konverteres, er punkt 8.
+
+### 4. Virksomhedslisten (§3.6) — LØST 4/9 (#605), swappet mangler
 
 **Hvad:** ren visning under Virksomheder: søgefelt, én række pr.
 virksomhed med navn, branche, kontaktperson, medlemsstatus, sidste
@@ -651,7 +693,19 @@ Handlingerne flytter til virksomhedssiden.
 eller syv blokke — og den første i det nye designsprog. Den giver en
 rådgiverflade i Hjemmebane at stå på, før den dyre bygges.
 
-### 5. Virksomhedssiden (§4)
+**Bygget 4/9 (#605)** på den MIDLERTIDIGE rute `/virksomheder`; den
+gamle liste på `/members` står urørt, og swappet mangler. To
+definitioner er besluttet 4/9 og står nu fast: **«sidste kontakt» =
+`conversations.last_message_at`** (samme kilde som forsidens køer, ikke
+login); **«sidste rapportering» = seneste committede periode i
+`financial_report_facts`**, ikke seneste upload. Målt før byggeriet
+(`~/Downloads/recon-virksomhedslisten.md`): der findes ingen generisk
+Hb-liste-komponent — fire steder (`HbTreeList`, `MemberDirectoryView`,
+`HbAdvisorCompanyPrompt`, `ProgressView`) bygger hver sin liste og sit
+eget filter inline. Rækken linker til `/members/:userId` indtil
+virksomhedssiden er hel.
+
+### 5. Virksomhedssiden (§4) — etape 1 LØST 4/9 (#607), etape 2–3 udestår
 
 **Hvad:** `/virksomhed/:companyId` med de syv blokke. Datalaget vendes
 fra `user_id` til `companyId` (§3.3-noten: hele dataindlæsningen
@@ -665,6 +719,31 @@ punkt 4 (listen der linker til den). Målt 3/9
 (`~/Downloads/recon-byggeomkostning.md`): alene på størrelse med de fire
 tidligere Hjemmebane-flytninger tilsammen, af grunde ingen af dem
 havde.
+
+**Etape-opdelingen, besluttet 4/9** — siden kan ikke tages i én PR:
+
+- **Etape 1 (#607, LØST 4/9):** ruten `/virksomhed/:companyId`, den
+  samlede company-nøglede hook `useVirksomhed`, blok 1 (hvad skal du
+  vide nu) og blok 7 (aftalen). Datalaget er vendt: alt slås op fra
+  `companies.id` og udad i ét `Promise.all`, intet er gated på et
+  `user_id`-opslag. De tre virksomheder uden medlemmer kan åbnes for
+  første gang. Blok 1 bruger motoren (#589) og udfylder
+  `senesteBeskedAt` og `agentforslagVenter`, som MemberDetail sendte som
+  null og 0. Blok 7 bygges fra `/members`-listens data. Visning, ingen
+  handlinger.
+- **Etape 2:** blok 5 (Tallene) og blok 6 (Aktivitet).
+- **Etape 3:** blok 4 (Chatten i fuld højde) og blok 2 (Deres ord og
+  din forberedelse). Chatten er tungest, fordi `CompanyChatPane` er delt
+  mellem medlem og rådgiver.
+- **Blok 3 (emnerne) kommer sidst** og venter på klassificeringen
+  (punkt 7).
+
+**Målt før etape 1** (`~/Downloads/recon-virksomhedssidens-datalag.md`):
+en naiv side med én `useQuery` pr. kilde ville lave 18 netværkskald
+(19–20 med rådgivernavn og løftestænger). Kun `useCompanyFacts` fandtes
+som company-nøglet hook; de øvrige tolv kilder MemberDetail henter havde
+ingen. Ingen samlet hook eller RPC returnerede flere kilder for ét
+`company_id` — derfor `useVirksomhed`.
 
 ### 6. Forsiden (§3.5)
 
@@ -701,9 +780,24 @@ dem er dagligt arbejde.
 
 ### Uafhængigt af rækkefølgen — småt, tages når nogen alligevel er i filen
 
-- **«Fjern medlem» har to forskellige gates for samme kald** (§9,
-  `MemberCompanyRow.tsx:347` kræver admin, `MemberDetail.tsx:937–963`
-  kun advisor). Sikkerhed, bør rettes.
+- **«Fjern medlem» — LØST 4/9 (#608), med en rettelse.** Fundet 3/9 lød
+  at kaldet havde to gates (`MemberCompanyRow` krævede admin og ikke
+  owner, `MemberDetail` kun advisor). **Det var IKKE et adgangshul:**
+  `manage-advisor` har per-action default-deny, en rådgiver uden admin
+  må kun kalde `list`. Det der manglede var **owner-værnet serverside**
+  — `remove-member` læste ikke målets `company_members.role`, og grenen
+  sletter `company_members`, `profiles` OG auth-brugeren. Besluttet 4/9:
+  en owner kan ALDRIG fjernes med `remove-member`; dommen ligger i
+  `src/lib/medlemsfjernelse.ts` (testet) og er spejlet i
+  edge-funktionen, som afviser med 403 hvis målet er owner i nogen
+  virksomhed. Begge flader bruger samme funktion og kræver admin.
+- **NYT ÅBENT: knappen hedder «Fjern medlem», men handlingen sletter
+  mennesket fra platformen** (auth-brugeren ryger med). Navnet lyver og
+  bør rettes — på begge flader og på virksomhedssiden når blok 7 får
+  handlinger.
+- **NYT ÅBENT: «skift owner» findes ikke som handling.** Skal
+  virksomheden væk, slettes virksomheden; skal ejeren skiftes, er der
+  ingen vej i dag.
 - **Hængende invitationer mangler et sted.** remm. har hængt i 80 dage;
   de tre nye skjules af pending-gaten sammen med «Har aldrig skrevet»
   (OVERLEVERING DEL 3, målt 3/9 kl. 23:45). Ingen dom bygges nu; hører
@@ -732,3 +826,12 @@ rådgiverfladen er dyrere end dem alle, fordi datalaget skal vendes.
 Punkt 1–4 er hver for sig overskuelige; **punkt 5 er alene på størrelse
 med de fire tilsammen.** To-dages-tallet er ikke efterprøvet og er
 formentlig for lavt.
+
+**Hvad formiddagen 4/9 viste:** punkt 1, 3 og 4 plus etape 1 af punkt 5
+blev skrevet på én formiddag med to Claude Code-vinduer (#603, #604,
+#605, #607, plus #608 uafhængigt). To-dages-tallet er stadig ikke
+efterprøvet — etape 2 og 3 af punkt 5, punkt 6, 7 og 8 udestår — men
+**opdelingen i etaper er dét, der gør punkt 5 håndterbart:** hver etape
+er en PR der kan bevises på skærm for sig, og datalaget (`useVirksomhed`)
+er vendt én gang for alle i etape 1, så de næste etaper er blokke, ikke
+ombygning.
