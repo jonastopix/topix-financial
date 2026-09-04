@@ -1233,7 +1233,13 @@ export const VirksomhedView = ({ companyId }: { companyId: string | undefined })
   }
 
   const c = data.company;
-  const metaLinje = [c.industry_label, c.cvr_number ? `CVR ${c.cvr_number}` : null, c.contact_person, c.contact_email].filter(Boolean).join(" · ");
+  // Kontaktperson i underrubrikken: SAMME regel som virksomhedslisten
+  // (Jonas 4/9) — owneren (profilens navn), ellers contact_person. Målt
+  // 4/9 kl. 10:23: feltet er udfyldt på 4 af 30, owneren findes på 27.
+  // Ét navn her, ikke medlemslisten — den står i blok 7 med roller.
+  const ownerNavn = data.medlemmer.find((m) => m.role === "owner")?.full_name?.trim() || null;
+  const kontaktperson = ownerNavn ?? (c.contact_person?.trim() || null);
+  const metaLinje = [c.industry_label, c.cvr_number ? `CVR ${c.cvr_number}` : null, kontaktperson, c.contact_email].filter(Boolean).join(" · ");
 
   /* ÅBN HANDOUT i læse-tilstand — som MemberDetail:648-658 (HandoutDetail
      med userId ≠ egen → isOwner=false, alle felter disabled). HandoutDetail/
