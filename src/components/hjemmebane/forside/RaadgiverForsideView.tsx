@@ -12,6 +12,23 @@ import { HbSection } from "../HbSection";
 import { cn } from "@/lib/utils";
 
 /**
+ * ⚠️ RÅMATERIALE — IKKE DET GÆLDENDE DESIGN (4/9-2026).
+ *
+ * Denne flade viser KØER. Det gældende design, docs/forsiden-design.md
+ * (skrevet om fra bunden 4/9, #631), beskriver OPGAVER. Fejlen var ikke
+ * mængden af data, men at en kø viser alt der matcher en betingelse, mens
+ * en rådgiver om morgenen har brug for at vide hvad han skal gøre.
+ *
+ * Set på skærm 4/9 kl. 11:35 (#630): 38 rækker, hvoraf 16 sagde «ingen
+ * dialog i N dage» og intet andet — samme tilstand vist 16 gange.
+ *
+ * Fladen swappes ALDRIG ind som den er. Næste skridt er dommen som en ren
+ * funktion med tests (designets §13), og derefter en ny flade. Indtil da
+ * står den her som råmateriale; filhovedet nedenfor beskriver hvad koden
+ * gør, og det er stadig sandt.
+ */
+
+/**
  * Rådgiverens Dit Boardroom i Hjemmebane, etape 1 (raadgiverfladen-design.md
  * §3.5, §11 pkt. 6). NY flade på MIDLERTIDIG rute (/forside); den gamle
  * AdvisorDashboard på "/" står urørt til swappet — samme mønster som
