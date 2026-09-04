@@ -24,7 +24,7 @@
  * tegnes. Findes virksomheden ikke, er `findesIkke` sand.
  *
  * MÅLT 4/9: en naiv side laver 18 netværkskald. Her: ét Promise.all med
- * seksten company-nøglede hentninger (én runde), plus profiles til navnene i
+ * sytten company-nøglede hentninger (én runde), plus profiles til navnene i
  * en ANDEN runde (kun når der er medlemmer — der er ingen FK fra
  * company_members til profiles at embedde over, jf. Members.tsx' separate
  * hentning), plus useCompanyFacts (egen query, genbrugt uændret).
@@ -145,6 +145,19 @@ export interface VirksomhedsData {
     manual_report_period_key: string | null;
     manual_report_period_label: string | null;
   }[];
+  /** Rapport-kommentarer (blok 6): messages med context_type = "report" i
+      virksomhedens samtaler, ældste først — samme rækker som
+      MemberDetail.tsx:510-516 læser pr. rapport. Nøglet på context_id
+      (rapport-id). Hentet via conversations!inner(company_id), så de
+      ligger i samme Promise.all uden først at kende samtale-id'erne. */
+  rapportKommentarer: {
+    id: string;
+    conversation_id: string;
+    sender_id: string;
+    content: string;
+    context_id: string | null;
+    created_at: string;
+  }[];
   /** KPI-mål pr. nøgle — DB-værdi ellers KPI_FALLBACK_TARGETS, ordret som useKpiTargets:36-47. */
   kpiMaal: ResolvedTargets;
   /** company_actions der venter: open/proposed/active (BoardroomView:1686). */
@@ -167,7 +180,7 @@ async function hentVirksomhed(companyId: string): Promise<VirksomhedsData | null
   const [
     companyRes, membersRes, invitationsRes, convsRes, budgetRes, milestonesRes,
     handoutsRes, actionsRes, proposalsRes, traekRes, perioderRes, linkRes, fornyelseRes,
-    rapporterRes, kpiMaalRes, refleksionRes,
+    rapporterRes, kpiMaalRes, refleksionRes, kommentarRes,
   ] = await Promise.all([
     supabase
       .from("companies")
@@ -236,7 +249,11 @@ async function hentVirksomhed(companyId: string): Promise<VirksomhedsData | null
       .eq("company_id", companyId)
       .is("deleted_at", null)
       .order("uploaded_at", { ascending: false })
-      .limit(50),
+      // Loft 200 (fra 50, 4/9): blok 6 viser nu HELE listen foldet sammen
+      // efter de nyeste, og MemberDetail viste 200. Tungeste virksomhed
+      // er langt under (målt i /members: reportCount-loftet på 1000 rammes
+      // aldrig); 200 er samme loft som milestones ovenfor.
+      .limit(200),
     supabase.from("kpi_targets").select("kpi_key, target_value, target_label").eq("company_id", companyId),
     // Seneste refleksion (blok 2) — samme select og orden som
     // MemberDetail.tsx:238-244; company-nøglet, én række.
@@ -247,6 +264,19 @@ async function hentVirksomhed(companyId: string): Promise<VirksomhedsData | null
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle(),
+    // Rapport-kommentarer (blok 6). messages har ingen company_id; i stedet
+    // for at vente på samtale-id'erne (som MemberDetail:495-503 gør i en
+    // anden runde) filtreres på den embeddede samtale — FK
+    // messages_conversation_id_fkey, `!inner` gør embeddet til et krav.
+    // RLS: «Advisors can view all messages». Loft 500: kommentarer pr.
+    // virksomhed er få (én pr. rapport-samtale).
+    supabase
+      .from("messages")
+      .select("id, conversation_id, sender_id, content, context_id, created_at, conversations!inner(company_id)")
+      .eq("context_type", "report")
+      .eq("conversations.company_id", companyId)
+      .order("created_at", { ascending: true })
+      .limit(500),
   ]);
 
   // KPI-mål: DB-værdi hvis den findes, ellers fallback — ordret som
@@ -296,6 +326,14 @@ async function hentVirksomhed(companyId: string): Promise<VirksomhedsData | null
     betalingslink: linkRes.data ?? null,
     fornyelse: fornyelseRes.data ?? null,
     rapporter: rapporterRes.data ?? [],
+    rapportKommentarer: (kommentarRes.data ?? []).map((m) => ({
+      id: m.id,
+      conversation_id: m.conversation_id,
+      sender_id: m.sender_id,
+      content: m.content,
+      context_id: m.context_id,
+      created_at: m.created_at,
+    })),
     kpiMaal,
   };
 }
