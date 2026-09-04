@@ -11,6 +11,11 @@ export interface HbNavEntry {
   to?: string;
   active?: boolean;
   children?: { label: string; to?: string; active?: boolean }[];
+  /** Admin-blokken (raadgiverfladen-design.md §3.1): punkter der hører til
+      rådgiverens adskilte blok NEDERST i nav'en. Samme greb som `drift` i
+      HbAdminShell — første admin-punkt får skillelinje og overskrift over
+      sig. Udeladt = medlemsmenuen, tegn-for-tegn som før. */
+  admin?: boolean;
 }
 
 /** Miljø-strukturen som navigation. Døde links i previewen — kun "Dit Boardroom" er reel. */
@@ -107,8 +112,18 @@ const SidebarContent = ({
       </a>
     )}
     <nav className="flex-1 space-y-1">
-      {nav.map((item) => (
+      {nav.map((item, index) => (
         <React.Fragment key={item.label}>
+          {/* Admin-blokken læses som adskilt fra medlemsmenuen, ikke som endnu
+              et punkt i den: samme hairline som profilblokken nederst
+              (border-t hb-line) og en dæmpet overskrift i profilblokkens
+              lille tekst. Padding frem for margin — nav'ens space-y-1 sætter
+              margin-top på hvert barn og ville vinde over en mt-*. */}
+          {item.admin && !nav[index - 1]?.admin && (
+            <div className="pt-5">
+              <p className="border-t border-hb-line pt-4 text-xs text-hb-ink-soft">Admin</p>
+            </div>
+          )}
           <NavItem label={item.label} active={item.active} to={item.to} />
           {item.children && (
             /* Gren-hairline lokalt mørknet: hb-line (L88) drukner som fritstående
