@@ -21,11 +21,11 @@ import { cn } from "@/lib/utils";
  * køerne stående nedenunder som sammenligning. Dommen blev BEVIST på
  * skærm 4/9 kl. 13:04: syv linjer, hvor køerne gav 38 rækker. Køerne blev
  * fjernet herfra samme dag. hentAdvisorDashboard bygger stadig bunkerne
- * til den gamle forside (AdvisorDashboard på "/"), som står urørt til
- * swappet; her læses kun `dom`.
+ * (til AdvisorDashboards JSX, som nu er uden aftager); her læses kun `dom`.
  *
- * MIDLERTIDIG rute: "/" renderer stadig AdvisorDashboard for rådgiveren
- * (Index.tsx) til swappet.
+ * SWAPPET IND PÅ RODEN (4/9): Index.tsx renderer denne flade for
+ * rådgiveren på "/"; /forside viderestiller hertil (Forside.tsx).
+ * AdvisorDashboard (AppLayout) er ikke længere nogens landingsside.
  *
  * ÉT DATALAG: hentAdvisorDashboard kører motorerne og dommen; her tegnes
  * den kun. Ingen hentning i denne fil.
