@@ -61,6 +61,7 @@ const EventDetail = lazy(() => import("./pages/EventDetail"));
 const MemberProfile = lazy(() => import("./pages/MemberProfile"));
 const MemberDirectory = lazy(() => import("./pages/MemberDirectory"));
 const Virksomheder = lazy(() => import("./pages/Virksomheder"));
+const Virksomhed = lazy(() => import("./pages/Virksomhed"));
 
 // Lazy — demo routes (no auth)
 const DemoLayout = lazy(() => import("./demo/DemoLayout"));
@@ -229,6 +230,9 @@ const App = () => (
                   4/9): MIDLERTIDIG rute ved siden af /members til swappet —
                   mønstret fra de fire tidligere Hb-flytninger. */}
               <Route path="/virksomheder" element={<AdvisorRoute><Virksomheder /></AdvisorRoute>} />
+              {/* Virksomhedssiden, etape 1 (§3.3, §4, §11 pkt. 5): nøglet på
+                  companies.id — ny flade ved siden af /members/:userId. */}
+              <Route path="/virksomhed/:companyId" element={<AdvisorRoute><Virksomhed /></AdvisorRoute>} />
               <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
               <Route path="/admin/config" element={<AdminRoute><AdminConfig /></AdminRoute>} />
               <Route path="/admin/emails" element={<AdminRoute><EmailTemplates /></AdminRoute>} />
