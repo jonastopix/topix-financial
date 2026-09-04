@@ -1,4 +1,6 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { ResponsiveContainer, AreaChart, Area, Line, LineChart, XAxis, YAxis, Tooltip as RechartsTooltip, CartesianGrid } from "recharts";
+import DeliveryOverview from "@/components/DeliveryOverview";
 import { Link, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -23,12 +25,12 @@ import { afgoerBetalingsfrist, type Betalingsfriststatus } from "@/lib/betalings
 import { beloebKr, kortDato, datoOgTid, stripeSagde, traekBadgeTekst } from "@/lib/traek";
 import { KPI_DEFS, deriveKpiMetrics, type KpiMetric } from "@/lib/kpiDefs";
 import { deriveKpiTone } from "../noegletal/kpiTone";
-import { momErGyldig } from "@/lib/dataGrundlag";
+import { momErGyldig, delSerieTilTegning, basisNoegle, erEstimatNoegle, ESTIMAT_NOEGLE_SUFFIX } from "@/lib/dataGrundlag";
 import { handoutConfigs, moduleOrder, type HandoutModule } from "@/lib/handoutConfig";
 import { openReportFile, isLegacyPath } from "@/lib/reportFileAccess";
 import { notifyChatMessage } from "@/lib/chatNotify";
-import { DANISH_MONTHS } from "@/lib/financialUtils";
-import { EstimatMaerke } from "../EstimatMaerke";
+import { DANISH_MONTHS, formatCompact, formatDKK } from "@/lib/financialUtils";
+import { EstimatMaerke, ESTIMAT_FORKLARING } from "../EstimatMaerke";
 import { HbButton } from "../HbButton";
 import { HbCard } from "../HbCard";
 import { HbSection } from "../HbSection";
@@ -335,7 +337,9 @@ const Blok2 = ({ d }: { d: VirksomhedsData }) => {
 
         <div className="space-y-4">
           {/* 3. Sessionsforberedelsen — på en knap, aldrig automatisk */}
-          <HbCard className="p-5">
+          {/* id="section-session": MemberDetails deep-link-anker (?section=session,
+              l. 1120) — så gamle links rammer forberedelsen her. */}
+          <HbCard id="section-session" className="scroll-mt-24 p-5">
             <p className="text-xs font-semibold uppercase tracking-[0.14em] text-hb-ink-soft">Din forberedelse</p>
             {forberedelse ? (
               <ul className="mt-3 space-y-2">
@@ -393,6 +397,27 @@ const Blok2 = ({ d }: { d: VirksomhedsData }) => {
 
 // ── Blok 5: Tallene — afvigelserne først ────────────────────────────────
 
+/** Sparkline (MemberDetail:1170-1188, seks punkter) — pynt, men ærlig:
+    serien deles med delSerieTilTegning som NoegletalViews grafer, så et
+    estimeret punkt tegnes prikket, aldrig som en målt linje. Ingen ny
+    afhængighed: recharts er allerede i huset. Én farve (ink-soft), ingen
+    rød/grøn — retningen er ikke en dom, den står i M/M-linjen. */
+const Sparkline = ({ history }: { history: KpiMetric["history"] }) => {
+  const punkter = history.slice(-6);
+  if (punkter.length < 2) return null;
+  const delt = delSerieTilTegning(punkter, ["value"]);
+  return (
+    <div className="mt-2 -mx-1" aria-hidden>
+      <ResponsiveContainer width="100%" height={28}>
+        <LineChart data={delt} margin={{ top: 2, right: 2, left: 2, bottom: 2 }}>
+          <Line type="monotone" dataKey="value" stroke="hsl(var(--hb-ink-soft))" strokeWidth={1.5} dot={false} isAnimationActive={false} />
+          <Line type="monotone" dataKey={`value${ESTIMAT_NOEGLE_SUFFIX}`} stroke="hsl(var(--hb-ink-soft))" strokeWidth={1.5} strokeDasharray="1 4" strokeLinecap="round" dot={false} isAnimationActive={false} />
+        </LineChart>
+      </ResponsiveContainer>
+    </div>
+  );
+};
+
 /** Ét KPI-kort: de samme domme som NoegletalView (deriveKpiMetrics for
     tal og M/M, deriveKpiTone for mål) — kun udtrykket er nyt. */
 const KpiKort = ({ metric, afviger }: { metric: KpiMetric; afviger: boolean }) => (
@@ -406,8 +431,115 @@ const KpiKort = ({ metric, afviger }: { metric: KpiMetric; afviger: boolean }) =
       {metric.changePct != null ? `${metric.change} M/M` : "M/M —"}
       {metric.targetNum > 0 && ` · mål ${metric.target}`}
     </p>
+    <Sparkline history={metric.history} />
   </div>
 );
+
+/** Tooltip til DELTE serier — samme dedup som NoegletalViews DeltSerieTooltip
+    (:92-130, ikke eksporteret): grænsepunktet bærer værdi i både den målte
+    og estimat-nøglen; målt vinder, rene estimatpunkter mærkes. */
+const DeltTooltip = ({
+  active, payload, label, navne,
+}: {
+  active?: boolean;
+  payload?: { dataKey?: string | number; value?: number | null }[];
+  label?: string;
+  navne: Record<string, string>;
+}) => {
+  if (!active || !payload?.length) return null;
+  const raekker = new Map<string, { vaerdi: number; estimat: boolean }>();
+  for (const item of payload) {
+    if (item.value == null) continue;
+    const noegle = String(item.dataKey);
+    const base = basisNoegle(noegle);
+    const erEst = erEstimatNoegle(noegle);
+    const eks = raekker.get(base);
+    if (eks && (erEst || !eks.estimat)) continue;
+    raekker.set(base, { vaerdi: item.value, estimat: erEst });
+  }
+  if (raekker.size === 0) return null;
+  return (
+    <div className="rounded-hb border border-hb-line bg-hb-surface px-3 py-2 text-xs text-hb-ink shadow-hb-hover">
+      <p className="text-hb-ink-soft">{label}</p>
+      {[...raekker.entries()].map(([base, r]) => (
+        <p key={base} className="mt-1">{navne[base] ?? base}: {formatDKK(r.vaerdi)}{r.estimat ? " · estimat" : ""}</p>
+      ))}
+    </div>
+  );
+};
+
+/** «Finansiel udvikling» (MemberDetail:1203-1308): de seneste otte perioder
+    med omsætning og resultat f. skat, plus budget som stiplet overlay.
+    data_basis-KONTRAKTEN: estimerede perioder tegnes prikket i samme farve
+    uden udfyldning — præcis som NoegletalViews trendgraf (:700-776,
+    delSerieTilTegning, ingen connectNulls). Budgettet er en PLAN og deles
+    ikke; det er allerede stiplet. */
+const GRAF_NAVNE: Record<string, string> = { omsaetning: "Omsætning", resultat: "Resultat f. skat", budget: "Budget" };
+
+const FinansielUdvikling = ({ d, facts }: { d: VirksomhedsData; facts: CompanyFact[] }) => {
+  const punkter = useMemo(() => {
+    return facts.slice(-8).map((f) => {
+      const kf = factsToDanishMetrics(f.metrics);
+      // Budget for perioden — samme opslag som MemberDetail:704-715.
+      const [y, m] = f.period_key.split("-");
+      const baseKey = `${y}-base-${parseInt(m, 10) - 1}`;
+      const budget = d.budgetter.find((b) => b.period === baseKey && b.category === "omsaetning")?.budget_amount ?? null;
+      return {
+        label: f.period_label,
+        data_basis: f.data_basis,
+        omsaetning: kf.omsaetning ?? null,
+        resultat: kf.resultat_foer_skat ?? null,
+        budget,
+      };
+    });
+  }, [facts, d.budgetter]);
+  const tegning = useMemo(() => delSerieTilTegning(punkter, ["omsaetning", "resultat"]), [punkter]);
+  const harEstimater = punkter.some((p) => p.data_basis === "estimated");
+  const harBudget = punkter.some((p) => p.budget != null);
+  if (punkter.length < 2) return null;
+
+  return (
+    <div className="mt-6">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-hb-ink-soft">Finansiel udvikling</p>
+        <p className="flex flex-wrap items-center gap-x-4 text-xs text-hb-ink-soft">
+          <span className="inline-flex items-center gap-1.5"><span className="h-2 w-2 rounded-full" style={{ background: "hsl(var(--hb-evergreen))" }} />Omsætning</span>
+          <span className="inline-flex items-center gap-1.5"><span className="h-2 w-2 rounded-full" style={{ background: "hsl(var(--hb-ink))" }} />Resultat f. skat</span>
+          {harBudget && <span className="inline-flex items-center gap-1.5"><span className="inline-block w-5 border-t-2 border-dashed" style={{ borderColor: "hsl(var(--hb-rust))" }} />Budget</span>}
+        </p>
+      </div>
+      <div className="mt-3 h-52">
+        <ResponsiveContainer width="100%" height="100%">
+          <AreaChart data={tegning} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+            <defs>
+              <linearGradient id="vgrad-omsaetning" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor="hsl(var(--hb-evergreen))" stopOpacity={0.2} />
+                <stop offset="95%" stopColor="hsl(var(--hb-evergreen))" stopOpacity={0} />
+              </linearGradient>
+            </defs>
+            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--hb-line))" vertical={false} />
+            <XAxis dataKey="label" tick={{ fontSize: 11, fill: "hsl(var(--hb-ink-soft))" }} axisLine={false} tickLine={false} />
+            <YAxis tickFormatter={formatCompact} width={48} tick={{ fontSize: 11, fill: "hsl(var(--hb-ink-soft))" }} axisLine={false} tickLine={false} />
+            <RechartsTooltip content={<DeltTooltip navne={GRAF_NAVNE} />} />
+            {(["omsaetning", "resultat"] as const).map((k) => {
+              const farve = k === "omsaetning" ? "hsl(var(--hb-evergreen))" : "hsl(var(--hb-ink))";
+              return (
+                <Fragment key={k}>
+                  <Area type="monotone" dataKey={k} stroke={farve} strokeWidth={2} fill={k === "omsaetning" ? "url(#vgrad-omsaetning)" : "none"} dot={false} isAnimationActive={false} />
+                  <Area type="monotone" dataKey={`${k}${ESTIMAT_NOEGLE_SUFFIX}`} stroke={farve} strokeWidth={2} strokeDasharray="1 4" strokeLinecap="round" fill="none" dot={false} isAnimationActive={false} />
+                </Fragment>
+              );
+            })}
+            {harBudget && (
+              <Line type="monotone" dataKey="budget" stroke="hsl(var(--hb-rust))" strokeWidth={1.5} strokeDasharray="4 3" dot={false} connectNulls isAnimationActive={false} />
+            )}
+          </AreaChart>
+        </ResponsiveContainer>
+      </div>
+      {harEstimater && <p className="mt-2 text-xs text-hb-ink-soft">Prikket linje — {ESTIMAT_FORKLARING}</p>}
+    </div>
+  );
+};
 
 /** Svaret fra generate-ai-forecast: tre perioder, lineær trend på facts
     med data_basis = measured. Eller `insufficient_data` under tre måneder. */
@@ -425,13 +557,37 @@ type ForecastPunkt = { period_key: string; period_label: string; revenue: number
     højdekæde som AppLayout fullscreen giver den på /chat. Udtrykket
     indeni er chattens gamle (glass-card, appens tokens) — konverteringen
     til Hb er ikke denne etape. */
-const Blok4 = ({ companyId }: { companyId: string }) => (
-  <HbSection eyebrow="Chatten" hairline className="mt-12">
-    <div className="flex h-[calc(100dvh-10rem)] min-h-[520px] flex-col overflow-hidden rounded-hb border border-hb-line">
-      <CompanyChatPane laastTilCompanyId={companyId} />
-    </div>
-  </HbSection>
-);
+const Blok4 = ({ d }: { d: VirksomhedsData }) => {
+  // Samtalestatus + «Tildelt» over chatten (MemberDetail:924-950, samme fire
+  // tilstande). Samtalen er den med seneste besked; flere pr. virksomhed er
+  // muligt. Rådgiverens navn kommer fra hookens raadgiverNavne — ingen ny
+  // query. Rolig tone: ingen rust; «afventer rådgiver» er en tilstand, og
+  // blok 1 bærer allerede signalet.
+  const samtale = [...d.samtaler].sort((a, b) => (b.last_message_at ?? "").localeCompare(a.last_message_at ?? ""))[0] ?? null;
+  const status = !samtale
+    ? "Ingen samtale"
+    : samtale.awaiting_reply_from === "advisor"
+      ? "Afventer rådgiver"
+      : samtale.awaiting_reply_from === "company"
+        ? "Afventer medlem"
+        : "Åben";
+  const tildelt = samtale?.assigned_advisor_id ? d.raadgiverNavne[samtale.assigned_advisor_id] ?? null : null;
+  return (
+    <HbSection eyebrow="Chatten" hairline className="mt-12">
+      <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm">
+        <HbTag className={cn("px-2 py-0.5 text-[11px]", samtale ? "border border-hb-line bg-hb-paper text-hb-ink" : "bg-hb-line/60 text-hb-ink-soft")}>{status}</HbTag>
+        {samtale && (
+          <span className="text-hb-ink-soft">
+            Tildelt: <span className="text-hb-ink">{tildelt ?? "ingen"}</span>
+          </span>
+        )}
+      </div>
+      <div className="flex h-[calc(100dvh-10rem)] min-h-[520px] flex-col overflow-hidden rounded-hb border border-hb-line">
+        <CompanyChatPane laastTilCompanyId={d.company.id} />
+      </div>
+    </HbSection>
+  );
+};
 
 const Blok5 = ({ d, facts }: { d: VirksomhedsData; facts: CompanyFact[] }) => {
   // deriveKpiMetrics er den rene, testede dom fra /kpis: tal, formatering
@@ -522,6 +678,8 @@ const Blok5 = ({ d, facts }: { d: VirksomhedsData; facts: CompanyFact[] }) => {
           Bank {formatKr(bank * 100)}{senesteErEstimat ? " (estimat)" : ""}
         </p>
       )}
+
+      <FinansielUdvikling d={d} facts={facts} />
 
       {/* 3-måneders forecast — kortene som MemberDetail:1294-1305, i Hb-udtryk. */}
       <div className="mt-6">
@@ -932,6 +1090,17 @@ const Blok6 = ({
           </ul>
         </HbCard>
       )}
+
+      {/* Leveringsoverblik (MemberDetail:1646-1649) — komponenten UÆNDRET,
+          MemberDetail bruger den også. committedReportIds fra facts via
+          source_report_id, så «Afventer godkendelse» skelnes fra leveret.
+          Den tegner i appens tokens (glass-card) — samme accepterede skift
+          som de øvrige monterede komponenter. Returnerer null uden rapporter. */}
+      {d.rapporter.length > 0 && (
+        <div className="mt-4">
+          <DeliveryOverview reports={d.rapporter} committedReportIds={new Set(facts.map((f) => f.source_report_id))} />
+        </div>
+      )}
     </HbSection>
   );
 };
@@ -1283,7 +1452,7 @@ export const VirksomhedView = ({ companyId }: { companyId: string | undefined })
       </div>
       <Blok2 d={data} />
       {/* Blok 3 kommer i en senere etape — rækkefølgen er designets. */}
-      <Blok4 companyId={c.id} />
+      <Blok4 d={data} />
       <Blok5 d={data} facts={facts} />
       <Blok6
         d={data}

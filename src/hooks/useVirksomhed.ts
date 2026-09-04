@@ -160,6 +160,8 @@ export interface VirksomhedsData {
     context_id: string | null;
     created_at: string;
   }[];
+  /** Rådgivernavne pr. user_id (get_all_advisor_profiles) — til «Tildelt» i blok 4. */
+  raadgiverNavne: Record<string, string>;
   /** KPI-mål pr. nøgle — DB-værdi ellers KPI_FALLBACK_TARGETS, ordret som useKpiTargets:36-47. */
   kpiMaal: ResolvedTargets;
   /** company_actions der venter: open/proposed/active (BoardroomView:1686). */
@@ -182,7 +184,7 @@ async function hentVirksomhed(companyId: string): Promise<VirksomhedsData | null
   const [
     companyRes, membersRes, invitationsRes, convsRes, budgetRes, milestonesRes,
     handoutsRes, actionsRes, proposalsRes, traekRes, perioderRes, linkRes, fornyelseRes,
-    rapporterRes, kpiMaalRes, refleksionRes, kommentarRes,
+    rapporterRes, kpiMaalRes, refleksionRes, kommentarRes, raadgivereRes,
   ] = await Promise.all([
     supabase
       .from("companies")
@@ -279,6 +281,12 @@ async function hentVirksomhed(companyId: string): Promise<VirksomhedsData | null
       .eq("conversations.company_id", companyId)
       .order("created_at", { ascending: true })
       .limit(500),
+    // Rådgivernes navne til «Tildelt: {rådgiver}» (blok 4). conversations
+    // har ingen FK på assigned_advisor_id at embedde over, og id'et kendes
+    // først når samtalerne er hentet — så alle rådgivere hentes i SAMME
+    // runde via RPC'en forsiden bruger (AdvisorDashboard:370), og navnet
+    // slås op i kode. Få rækker (rådgivere + admins).
+    supabase.rpc("get_all_advisor_profiles"),
   ]);
 
   // KPI-mål: DB-værdi hvis den findes, ellers fallback — ordret som
@@ -306,8 +314,14 @@ async function hentVirksomhed(companyId: string): Promise<VirksomhedsData | null
     for (const p of profiles ?? []) profileByUser.set(p.user_id, p);
   }
 
+  const raadgiverNavne: Record<string, string> = {};
+  for (const r of ((raadgivereRes.data ?? []) as { user_id: string; full_name: string | null }[])) {
+    if (r.user_id && r.full_name) raadgiverNavne[r.user_id] = r.full_name;
+  }
+
   return {
     company: companyRes.data,
+    raadgiverNavne,
     refleksion: refleksionRes.data ?? null,
     medlemmer: memberRows.map((m) => ({
       user_id: m.user_id,
