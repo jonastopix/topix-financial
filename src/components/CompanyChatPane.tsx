@@ -50,11 +50,9 @@ import {
   dateSeparatorLabel,
   getInitials as getInitialsLocal,
   MAX_MESSAGE_LENGTH,
-  MESSAGE_TOPICS,
   TOPIC_COLORS,
   type ConversationWithProfile,
   type Message,
-  type MessageTopic,
 } from "@/lib/chatShared";
 
 /**
@@ -211,8 +209,18 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
   const [newMessage, setNewMessage] = useState("");
   const [sending, setSending] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  
-  const [selectedTopic, setSelectedTopic] = useState<MessageTopic>(null);
+
+  // INGEN emnevælger (Jonas 4/9): emner klassificeres AUTOMATISK af AI
+  // uden for tråden mod de ni emner i docs/emneliste.md (besluttet 3/9).
+  // At vælge emne manuelt i skrivefeltet er den gamle model — medlemmet
+  // mistede sin med C5, rådgiveren her. `selectedTopic`, chip-rækken og
+  // placeholderens «Skriv om rapport…» er derfor fjernet; handleSend
+  // skriver ikke længere context_type. Sæt den IKKE tilbage. TOPIC_COLORS
+  // (chatShared) bliver, fordi GAMLE beskeder bærer context_type (report,
+  // handout, milestone, budget — migration 20260223160514) og stadig skal
+  // TEGNES med chip; rapport-kommentarer fra virksomhedssidens blok 6
+  // skriver context_type "report" direkte (VirksomhedView), uden om
+  // chatten, og systembeskeder skriver "milestone" via postActivityMessage.
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messageRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const messagesContainerRef = useRef<HTMLDivElement>(null);
@@ -736,10 +744,6 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
         content: trimmed || "📎",
       };
 
-      if (selectedTopic) {
-        insertData.context_type = selectedTopic;
-      }
-
       if (contextMeta) {
         insertData.context_meta = contextMeta;
       }
@@ -771,7 +775,7 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
     }
 
     setSending(false);
-  }, [activeConvId, user, selectedTopic, conversations]);
+  }, [activeConvId, user, conversations]);
 
   const activeConv = conversations.find((c) => c.id === activeConvId);
 
@@ -1824,7 +1828,7 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
                   <div ref={messagesEndRef} />
                 </div>
 
-                {/* Input with topic selector — sticky at bottom of message column.
+                {/* Input — sticky at bottom of message column (emnevælgeren er væk, se ovenfor).
                     Rammen er MemberChatPane:885-890 (hairline over feltet, papir);
                     feltet er ChatRichInputs hb-variant. */}
                 <div
@@ -1843,43 +1847,15 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
                     </div>
                   ) : (
                   <>
-                  {/* Emnevælgeren — rådgiver-specifik (C5 fjernede den hos medlemmet;
-                      hos rådgiveren står den, adfærden er uændret). TOPIC_COLORS er
-                      off-token og bruges ikke til farve: aktiv = sage/ink med
-                      evergreen-ring, inaktiv = ink-soft — samme sprog som chips'ene. */}
-                  {isAdvisor && (
-                    <div
-                      className={`flex items-center gap-1.5 mb-2 overflow-x-auto ${isMobile ? "-mx-2 px-2" : ""}`}
-                      style={{ scrollbarWidth: "none", WebkitOverflowScrolling: "touch" }}
-                    >
-                      {!isMobile && (
-                        <span className="text-[10px] text-hb-ink-soft mr-1 flex-shrink-0">Emne:</span>
-                      )}
-                      {MESSAGE_TOPICS.map(t => {
-                        const isActive = selectedTopic === t.key;
-                        return (
-                          <button
-                            key={t.key ?? "general"}
-                            type="button"
-                            onClick={() => setSelectedTopic(t.key)}
-                            className={`px-2.5 py-1 rounded-full text-[11px] font-medium transition-colors whitespace-nowrap flex-shrink-0 ${
-                              isActive
-                                ? "bg-hb-sage text-hb-ink ring-1 ring-hb-evergreen/30"
-                                : "text-hb-ink-soft hover:text-hb-ink hover:bg-hb-sage/40"
-                            }`}
-                          >
-                            {t.label}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
+                  {/* Ingen emnevælger her længere — se kommentaren ved
+                      messagesEndRef øverst: emner klassificeres automatisk
+                      (docs/emneliste.md), ikke manuelt. */}
                   <div className="flex gap-2 items-end">
                     <ChatRichInput
                       onSubmit={handleSend}
                       onRequestSubmit={(fn) => { chatSubmitRef.current = fn; }}
                       disabled={sending}
-                      placeholder={selectedTopic ? `Skriv om ${MESSAGE_TOPICS.find(t => t.key === selectedTopic)?.label?.toLowerCase()}...` : `Skriv til ${modtagerLabel}...`}
+                      placeholder={`Skriv til ${modtagerLabel}...`}
                       maxLength={MAX_MESSAGE_LENGTH}
                       variant="hb"
                     />
