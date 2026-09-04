@@ -113,11 +113,15 @@ const TierBadge = ({ tier, kontraktSlut }: { tier: MembershipTier; kontraktSlut:
   return null;
 };
 
-/** Én rolig label/værdi-linje til «Aftalen». */
+/** Én rolig label/værdi-linje til «Aftalen». MOBIL (Jonas 4/9, set på
+    telefon: indhold ud over kanten): den faste 9rem-label giver efter
+    under sm — label over værdi, som VirksomhedslisteViews rækker
+    (grid-cols-1 → sm:grid-cols-[…]). break-words: lange tokens (Stripe-
+    tekst, status) må brydes i stedet for at sprænge kolonnen. */
 const Linje = ({ label, children }: { label: string; children: ReactNode }) => (
-  <div className="grid grid-cols-[9rem_1fr] gap-x-4 py-1.5 text-sm">
+  <div className="grid grid-cols-1 gap-x-4 py-1.5 text-sm sm:grid-cols-[9rem_1fr]">
     <span className="text-hb-ink-soft">{label}</span>
-    <span className="min-w-0 text-hb-ink">{children}</span>
+    <span className="min-w-0 break-words text-hb-ink">{children}</span>
   </div>
 );
 
@@ -360,7 +364,7 @@ function laesAnsoegning(raw: unknown): { label: string; tekst: string }[] {
 const Ord = ({ label, children }: { label: string; children: ReactNode }) => (
   <div>
     <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft">{label}</p>
-    <p className="mt-1 whitespace-pre-line text-[15px] leading-relaxed text-hb-ink">{children}</p>
+    <p className="mt-1 whitespace-pre-line break-words text-[15px] leading-relaxed text-hb-ink">{children}</p>
   </div>
 );
 
@@ -527,7 +531,7 @@ const Sparkline = ({ history }: { history: KpiMetric["history"] }) => {
 /** Ét KPI-kort: de samme domme som NoegletalView (deriveKpiMetrics for
     tal og M/M, deriveKpiTone for mål) — kun udtrykket er nyt. */
 const KpiKort = ({ metric, afviger }: { metric: KpiMetric; afviger: boolean }) => (
-  <div className={cn("rounded-hb border p-3", afviger ? "border-hb-rust/40 bg-hb-rust/5" : "border-hb-line bg-hb-surface")}>
+  <div className={cn("min-w-0 rounded-hb border p-3", afviger ? "border-hb-rust/40 bg-hb-rust/5" : "border-hb-line bg-hb-surface")}>
     <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft">{metric.label}</p>
     <p className={cn("mt-1 font-editorial text-2xl leading-tight", afviger ? "text-hb-rust" : "text-hb-ink")}>
       {metric.value}
@@ -776,7 +780,9 @@ const Blok5 = ({ d, facts }: { d: VirksomhedsData; facts: CompanyFact[] }) => {
       {facts.length >= 2 && !momGyldig && (
         <p className="mt-1 text-xs text-hb-ink-soft">M/M er ikke beregnet: en af de to seneste perioder er et estimat.</p>
       )}
-      <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-3">
+      {/* MOBIL: én kolonne under sm — to kolonner à ~140 px rummer ikke et
+          syvcifret text-2xl-tal, og grid-celler vokser med min-content. */}
+      <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {sorteret.map(({ m, afviger }) => (
           <KpiKort key={m.key} metric={m} afviger={afviger} />
         ))}
@@ -798,7 +804,8 @@ const Blok5 = ({ d, facts }: { d: VirksomhedsData; facts: CompanyFact[] }) => {
           {forecastBesked && <p className="text-sm text-hb-ink-soft">{forecastBesked}</p>}
         </div>
         {forecast && (
-          <div className="mt-3 grid grid-cols-3 gap-3">
+          /* MOBIL: tre faste kolonner à ~80 px sprængte bredden (Jonas 4/9). */
+          <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
             {forecast.map((f) => (
               <div key={f.period_key} className="rounded-hb border border-hb-line bg-hb-paper p-3">
                 <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft">{f.period_label}</p>
@@ -806,7 +813,7 @@ const Blok5 = ({ d, facts }: { d: VirksomhedsData; facts: CompanyFact[] }) => {
                 <p className="text-sm text-hb-ink">Resultat {f.ebt != null ? formatKr(f.ebt * 100) : "—"}</p>
               </div>
             ))}
-            <p className="col-span-3 text-xs text-hb-ink-soft">Lineær trend på de målte måneder — ikke en garanti.</p>
+            <p className="text-xs text-hb-ink-soft sm:col-span-3">Lineær trend på de målte måneder — ikke en garanti.</p>
           </div>
         )}
       </div>
@@ -872,7 +879,7 @@ const RapportTal = ({ fact, forrige }: { fact: CompanyFact; forrige: CompanyFact
     return `${pct >= 0 ? "▲" : "▼"} ${Math.abs(pct).toFixed(1)} %`;
   };
   return (
-    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+    <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
       {kort.map((k) => (
         <div key={k.label} className="rounded-hb border border-hb-line bg-hb-paper p-3">
           <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft">{k.label}</p>
@@ -1012,7 +1019,7 @@ const RapportRaekke = ({
                   placeholder="Skriv en kommentar — den lander i chatten"
                   maxLength={2000}
                   rows={1}
-                  className="flex-1 resize-none rounded-hb border border-hb-line bg-hb-surface px-3 py-2 text-sm text-hb-ink placeholder:text-hb-ink-soft/60 focus:outline-none focus:ring-2 focus:ring-hb-evergreen/40"
+                  className="min-w-0 flex-1 resize-none rounded-hb border border-hb-line bg-hb-surface px-3 py-2 text-sm text-hb-ink placeholder:text-hb-ink-soft/60 focus:outline-none focus:ring-2 focus:ring-hb-evergreen/40"
                 />
                 <HbButton type="button" variant="secondary" className="h-9 px-4 text-sm" onClick={() => void sendKommentar()} disabled={sender || !tekst.trim()}>
                   {sender ? "Sender…" : "Send"}
@@ -1574,8 +1581,10 @@ export const VirksomhedView = ({ companyId }: { companyId: string | undefined })
         <p className="text-xs font-medium uppercase tracking-[0.14em] text-hb-rust">
           <Link to="/virksomheder" className="underline-offset-4 hover:underline">Virksomheder</Link>
         </p>
-        <h1 className="mt-3 font-editorial text-4xl font-medium leading-[1.1] tracking-tight text-hb-ink md:text-5xl">{c.name}</h1>
-        {metaLinje && <p className="mt-3 text-sm text-hb-ink-soft">{metaLinje}</p>}
+        {/* MOBIL: navnet er dynamisk (ét langt ord i text-4xl går ud over
+            kanten), og meta-linjen bærer e-mailen — begge må brydes. */}
+        <h1 className="mt-3 break-words font-editorial text-4xl font-medium leading-[1.1] tracking-tight text-hb-ink md:text-5xl">{c.name}</h1>
+        {metaLinje && <p className="mt-3 break-words text-sm text-hb-ink-soft">{metaLinje}</p>}
       </section>
 
       <div className="mt-10">
