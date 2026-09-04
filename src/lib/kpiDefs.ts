@@ -31,12 +31,18 @@ export interface KpiMetric {
   numValue: number;
   target: string;
   targetNum: number;
-  /** "—" når changePct er null — aldrig et opdigtet "+0.0%". */
+  /** "—" når changePct er null — aldrig et opdigtet "+0.0%".
+      Beløb: "+10.0%" (relativ). Procent-KPI'er: "+15.6 pp" (procentpoint). */
   change: string;
-  /** null når M/M-grundlaget er ugyldigt (momErGyldig falsk: under to
-      perioder, eller en af de to seneste er et estimat) eller prev er 0/
-      mangler. Kalderen kan skelne "ingen dom" fra tallet 0. */
+  /** M/M-tallet bag `change`. For beløb (unit "DKK") den relative ændring i
+      procent; for procent-KPI'er (unit "%") ændringen i PROCENTPOINT — se
+      `changeArt`. null når M/M-grundlaget er ugyldigt (momErGyldig falsk:
+      under to perioder, eller en af de to seneste er et estimat), når prev
+      mangler, eller — kun for beløb — når prev er 0 (division). Kalderen kan
+      skelne "ingen dom" fra tallet 0. */
   changePct: number | null;
+  /** Hvad changePct ER: relativ ændring (beløb) eller procentpoint (marginer). */
+  changeArt: "relativ" | "procentpoint";
   trend: "up" | "down" | "neutral";
   unit: string;
   icon: LucideIcon;
@@ -87,6 +93,29 @@ export function getTargetStatus(metric: KpiMetric): { hit: boolean; pct: number 
  * som en måling er en påstand systemet ikke kan indfri. history-punkterne
  * bærer data_basis videre, så visningslaget kan sige det (visnings-PR).
  *
+ * M/M I TO FORMER (rettet 4/9-2026, målt samme dag på virksomhedssiden):
+ * indtil da brugte alle seks nøgler den relative formel
+ *   relativ  = (nu − før) / |før| × 100
+ * — også marginerne, hvor nu og før SELV er procenttal. Det gav «RESULTAT
+ * MARGIN 35,4 % · +7996,4 % M/M» (forrige ≈ 0,44 %) og «DB MARGIN 45,7 % ·
+ * +51,8 % M/M» (forrige ≈ 30,1 %). Nu:
+ *   unit "DKK" (beløb)   → relativ, som før:      100.000 → 110.000 = +10.0%
+ *   unit "%"   (margin)  → procentpoint = nu − før: 30,1 % → 45,7 %  = +15.6 pp
+ * Samme eksempel i begge former: 30,1 → 45,7 er +51,8 % relativt, men
+ * +15,6 procentpoint. Marginer vises i procentpoint. Selve margin-FORMLEN
+ * (gross_profit/revenue, ebt/revenue) er rigtig og urørt. pctChange
+ * (financialUtils) og motorens pctAendring regner på BELØB og er også urørt.
+ * trendIsGood dømmer på fortegnet af changePct i begge former, så en
+ * stigende margin er stadig god (og en faldende lønandel ville være god
+ * med lowerIsBetter) — fortegnet er det samme uanset form.
+ *
+ * ÅBENT PUNKT (4/9, ikke rettet her): «mål 60 %» for db_margin er
+ * KPI_FALLBACK_TARGETS (appConfig.ts), ikke et mål nogen har sat. Ét fælles
+ * fallback-mål dømmer en engrosvirksomhed med 45,7 % som «under» og lader en
+ * konsulentvirksomhed med 96,9 % «ramme» — ingen af dommene siger noget om
+ * branchen. Et branchespecifikt eller fraværende fallback-mål er en
+ * beslutning, ikke en rettelse.
+ *
  * @param facts      committed facts, pre-sorted ascending by period_key
  * @param targets    per-key resolved target (DB value or fallback already applied)
  * @param benchmarks per-key resolved benchmark (DB value or fallback already applied)
@@ -115,8 +144,18 @@ export function deriveKpiMetrics(
     const currentVal = extract(latest);
     if (currentVal == null) return null;
     const prevVal = prev ? extract(prev) : null;
-    const changePct = momGyldig && prevVal != null && prevVal !== 0
-      ? ((currentVal - prevVal) / Math.abs(prevVal)) * 100 : null;
+    // Procent-KPI'er (marginer) i procentpoint: nu − før. Ingen division, så
+    // før = 0 er et gyldigt grundlag (0 % → 12 % er +12 pp). Beløb relativt
+    // med |før| som nævner; før = 0 kan ikke dømmes.
+    const erProcent = def.unit === "%";
+    const changeArt: KpiMetric["changeArt"] = erProcent ? "procentpoint" : "relativ";
+    const changePct = !momGyldig || prevVal == null
+      ? null
+      : erProcent
+        ? currentVal - prevVal
+        : prevVal !== 0
+          ? ((currentVal - prevVal) / Math.abs(prevVal)) * 100
+          : null;
     const trendIsGood = changePct != null && (def.lowerIsBetter ? changePct <= 0 : changePct >= 0);
     const target = targets[def.key] ?? { value: 0, label: "—" };
 
@@ -140,8 +179,11 @@ export function deriveKpiMetrics(
       numValue: currentVal,
       target: target.label,
       targetNum: target.value,
-      change: changePct == null ? "—" : `${changePct >= 0 ? "+" : ""}${changePct.toFixed(1)}%`,
+      change: changePct == null
+        ? "—"
+        : `${changePct >= 0 ? "+" : ""}${changePct.toFixed(1)}${erProcent ? " pp" : "%"}`,
       changePct,
+      changeArt,
       trend: changePct == null ? "neutral" : trendIsGood ? "up" : "down",
       unit: def.unit,
       icon: def.icon,
