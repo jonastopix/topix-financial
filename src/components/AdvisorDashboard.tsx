@@ -11,7 +11,9 @@ import {
   FileText, Sprout,
 } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
-import { DANISH_MONTHS, getEffectiveReportPeriodKey, getEffectiveKeyFigures, formatCompact, type ReportData } from "@/lib/financialUtils";
+import { formatCompact } from "@/lib/financialUtils";
+import { factsToDanishMetrics } from "@/lib/factsAdapter";
+import { momErGyldig, type DataBasis } from "@/lib/dataGrundlag";
 import { formatDistanceToNow } from "date-fns";
 import { da } from "date-fns/locale";
 import KPICard from "@/components/KPICard";
@@ -297,8 +299,8 @@ const AdvisorDashboard = () => {
       const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString();
       const twoWeeksAgo = new Date(Date.now() - 14 * 86400000).toISOString();
       const [
-        convRes, companiesRes, reportsRes,
-        pulseRes, recentReportsRes, recentFactsRes,
+        convRes, companiesRes, factsRes,
+        pulseRes, recentReportsRes,
         milestonesRes, kpiTargetsRes, companyMembersRes, advisorProfilesRes,
         recentMilestonesRes, recentHandoutsRes, companyInvitationsRes, goalHandoutRes,
       ] = await Promise.all([
@@ -310,23 +312,38 @@ const AdvisorDashboard = () => {
           .from("companies")
           .select("id, name, logo_url, is_legat, contract_end_date, subscription_status, subscription_current_period_end, created_at")
           .order("name"),
-        // Slank blob-hentning (perf/advisor-dashboard-nyttelast, målt mod
-        // prod 2026-08-24: 3,1 MB blobs hvoraf kun metrics-nøglerne læses):
-        // PostgREST udtrækker jsonb-stierne SERVERSIDE via alias:kolonne->sti.
-        // Kun det dommene i financialUtils faktisk læser hentes —
-        // normalized_data->metrics, extracted_data->key_figures (legacy-
-        // fallback) og manual_normalized_data->metrics + de to override-
-        // felter der læses. Rækkerne genindpakkes til ReportData-form
-        // nedenfor, så dommene er urørte.
+        // ÉN KILDE TIL TALLENE (raadgiverfladen-design.md §11 pkt. 1, 4/9):
+        // nøgletallene regnes af financial_report_facts, som resten af huset
+        // (NoegletalView, virksomhedssiden via useCompanyFacts) — ikke længere
+        // af financial_reports. Målt 3/9 kl. 23:56: nul uenigheder hvor begge
+        // kilder har en værdi; flytningen ændrer ikke tal, kun hvilke perioder
+        // der findes. FORVENTEDE FORSKELLE i drift, begge bevidste:
+        //   - forsiden BEGYNDER at bruge estimater fra årsrapporter og
+        //     baselines (144 punkter, data_basis = 'estimated') som den ikke
+        //     havde — de tæller med som perioder og som seneste tal, og
+        //     has_verified_metrics bliver sand for en virksomhed med kun
+        //     estimater; M/M gates med momErGyldig nedenfor.
+        //   - forsiden HOLDER OP med at bruge rapporter der aldrig blev
+        //     committet (Brick Works, april 2026, 1.349.013 kr.).
+        // Manuelle overrides (manual_report_period_key/manual_normalized_data)
+        // er indregnet ved commit: resolve_report_commit_candidate (migration
+        // 20260420190823, gentaget i 20260722130000) tager manual-grenen FØRST
+        // og sætter period_key := manual_report_period_key. Derfor er
+        // getEffectiveKeyFigures/getEffectiveReportPeriodKey uden aftager her.
+        // Hentningen spejler den tidligere rapport-hentnings begrænsninger:
+        // alle virksomheder (ingen .eq("company_id") — RLS «Advisors can view
+        // all facts» bærer det), intet loft (rapporterne havde heller intet),
+        // og kun de kolonner dommene læser (perf/advisor-dashboard-nyttelast).
+        // Rapporternes deleted_at/status-filtre har ingen facts-pendant: facts
+        // findes kun for committede, processerede rapporter, og hard-delete
+        // fjerner dem (companyHardDelete.ts).
+        // Aktivitetsfeedets tidligere egen facts-hentning (committed_at >= 14
+        // dage, nyeste først, limit 20) er slået sammen med denne — feedets
+        // filtre lægges ordret på i kode nedenfor (recentFacts).
+        // data_basis-undtagelse: aktivitetsfeedet: viser HVORNÅR der blev committet, ikke talværdier — feed-linjerne er stadig en ufiltreret læser (estimat-markering af feed-linjer hører til visnings-PR'en); nøgletallene fra SAMME hentning læser data_basis og gates med momErGyldig
         (supabase
-          .from("financial_reports")
-          .select(
-            "company_id, report_period, manual_override_status, manual_report_period_key, " +
-              "metrics:normalized_data->metrics, key_figures:extracted_data->key_figures, " +
-              "manual_metrics:manual_normalized_data->metrics",
-          ) as any)
-          .is("deleted_at", null)
-          .eq("status", "processed"),
+          .from("financial_report_facts")
+          .select("company_id, period_key, period_label, metrics, data_basis, committed_at") as any),
         supabase
           .from("pulse_checkins")
           .select("company_id, period_key, went_well, biggest_challenge, help_needed, created_at")
@@ -338,13 +355,6 @@ const AdvisorDashboard = () => {
           .is("deleted_at", null)
           .gte("uploaded_at", weekAgo)
           .order("uploaded_at", { ascending: false })
-          .limit(20) as any),
-        // data_basis-undtagelse: aktivitetsfeed: viser HVORNÅR der blev committet, ikke talværdier — estimat-markering af feed-linjer hører til visnings-PR'en
-        (supabase
-          .from("financial_report_facts")
-          .select("company_id, committed_at, period_key")
-          .gte("committed_at", twoWeeksAgo)
-          .order("committed_at", { ascending: false })
           .limit(20) as any),
         supabase
           .from("milestones")
@@ -390,26 +400,27 @@ const AdvisorDashboard = () => {
 
       const allConversations = (convRes.data || []) as ConversationRow[];
       const companies = (companiesRes.data || []) as CompanyRow[];
-      // Genindpakning af de slanke rækker til ReportData-formen som
-      // getEffectiveKeyFigures/getEffectiveReportPeriodKey forventer.
-      type SlankRapportRaekke = {
+      // Facts-rækkerne som de kommer fra tabellen. metrics er kanoniske
+      // engelske nøgler — factsToDanishMetrics oversætter til de danske
+      // nøgler dommene bruger (omsaetning, resultat_foer_skat, bank_balance),
+      // præcis som NoegletalView og useCompanyFacts' paritets-tjek gør.
+      // period_key/period_label kommer direkte fra rækken (§11 pkt. 1).
+      type FactRaekke = {
         company_id: string;
-        report_period: string | null;
+        period_key: string;
+        period_label: string;
         metrics: Record<string, number | null> | null;
-        key_figures: Record<string, number> | null;
-        manual_override_status: string | null;
-        manual_report_period_key: string | null;
-        manual_metrics: Record<string, number | null> | null;
+        data_basis: DataBasis;
+        committed_at: string;
       };
-      const reports = ((reportsRes.data || []) as SlankRapportRaekke[]).map((r) => ({
-        company_id: r.company_id,
-        report_period: r.report_period,
-        normalized_data: r.metrics != null ? { metrics: r.metrics } : null,
-        extracted_data: r.key_figures != null ? { key_figures: r.key_figures } : null,
-        manual_override_status: r.manual_override_status,
-        manual_report_period_key: r.manual_report_period_key,
-        manual_normalized_data: r.manual_metrics != null ? { metrics: r.manual_metrics } : null,
-      })) as unknown as (ReportData & { company_id: string })[];
+      const facts = (factsRes.data || []) as FactRaekke[];
+      // Aktivitetsfeedets udsnit — den tidligere egen hentnings filtre,
+      // ordret: committed_at >= 14 dage, nyeste først, højst 20.
+      const twoWeeksAgoMs = Date.parse(twoWeeksAgo);
+      const recentFacts = facts
+        .filter((f) => Date.parse(f.committed_at) >= twoWeeksAgoMs)
+        .sort((a, b) => b.committed_at.localeCompare(a.committed_at))
+        .slice(0, 20);
       const advisorProfiles = ((advisorProfilesRes.data || []) as any[]).map((advisor) => ({
         user_id: advisor.user_id,
         full_name: advisor.full_name || "Ukendt",
@@ -511,27 +522,32 @@ const AdvisorDashboard = () => {
         }
       }
 
-      // Build report keys per company + KFs by period
+      // Build report keys per company + KFs by period — af FACTS. Hver
+      // periode bærer sit grundlag (data_basis) og sin label med, så M/M-
+      // gaten og motoren kan læse dem uden nyt opslag. UNIQUE(company_id,
+      // period_key) på facts gør «første vinder»-tjekket fra rapport-vejen
+      // overflødigt.
+      type PeriodeFact = { kf: Record<string, number>; data_basis: DataBasis; period_label: string };
       const reportKeysByCompany = new Map<string, Set<string>>();
-      const kfByCompanyPeriod = new Map<string, Map<string, Record<string, number>>>();
-      const latestKfByCompany = new Map<string, { key: string; kf: Record<string, number> }>();
+      const kfByCompanyPeriod = new Map<string, Map<string, PeriodeFact>>();
+      const latestKfByCompany = new Map<string, { key: string } & PeriodeFact>();
 
-      for (const r of reports) {
-        const key = getEffectiveReportPeriodKey(r);
+      for (const f of facts) {
+        const key = f.period_key;
         if (!key) continue;
-        if (!reportKeysByCompany.has(r.company_id)) reportKeysByCompany.set(r.company_id, new Set());
-        reportKeysByCompany.get(r.company_id)!.add(key);
+        if (!reportKeysByCompany.has(f.company_id)) reportKeysByCompany.set(f.company_id, new Set());
+        reportKeysByCompany.get(f.company_id)!.add(key);
 
-        const kf = getEffectiveKeyFigures(r);
-        if (!kf) continue;
+        const kf = factsToDanishMetrics(f.metrics);
+        if (Object.keys(kf).length === 0) continue;
+        const punkt: PeriodeFact = { kf, data_basis: f.data_basis, period_label: f.period_label };
 
-        if (!kfByCompanyPeriod.has(r.company_id)) kfByCompanyPeriod.set(r.company_id, new Map());
-        const existing = kfByCompanyPeriod.get(r.company_id)!.get(key);
-        if (!existing) kfByCompanyPeriod.get(r.company_id)!.set(key, kf);
+        if (!kfByCompanyPeriod.has(f.company_id)) kfByCompanyPeriod.set(f.company_id, new Map());
+        kfByCompanyPeriod.get(f.company_id)!.set(key, punkt);
 
-        const latestExisting = latestKfByCompany.get(r.company_id);
+        const latestExisting = latestKfByCompany.get(f.company_id);
         if (!latestExisting || key > latestExisting.key) {
-          latestKfByCompany.set(r.company_id, { key, kf });
+          latestKfByCompany.set(f.company_id, { key, ...punkt });
         }
       }
 
@@ -550,15 +566,24 @@ const AdvisorDashboard = () => {
         if (!keys || !keys.has(missingKey)) companiesMissingReport.add(c.id);
       }
 
-      // Revenue trend per company
+      // Revenue trend per company — M/M af facts, gated på data_basis.
+      // momErGyldig (src/lib/dataGrundlag, samme dom som NoegletalView:783)
+      // er sand KUN når begge de to seneste punkter er 'measured'; ellers
+      // intet M/M-tal (null). En M/M mod et /12-estimat måler afstanden til
+      // en regnekonstruktion, ikke en måneds udvikling.
+      // Regnestykket (arvet uændret fra rapport-vejen):
+      //   pct = (seneste.omsaetning − forrige.omsaetning) / forrige.omsaetning × 100
+      //   kun når begge > 0; ellers null. Nævneren er forrige (ikke abs) —
+      //   motoren regner sin egen M/M med abs-nævner (valg 3), det er
+      //   bevidst forskelligt og rører ikke denne.
       const revenueTrendByCompany = new Map<string, number | null>();
       for (const [compId, periodMap] of kfByCompanyPeriod) {
         const sortedKeys = [...periodMap.keys()].sort();
-        if (sortedKeys.length >= 2) {
-          const latest = periodMap.get(sortedKeys[sortedKeys.length - 1]);
-          const prev = periodMap.get(sortedKeys[sortedKeys.length - 2]);
-          const latestRev = latest?.omsaetning;
-          const prevRev = prev?.omsaetning;
+        const latest = periodMap.get(sortedKeys[sortedKeys.length - 1]);
+        const prev = sortedKeys.length >= 2 ? periodMap.get(sortedKeys[sortedKeys.length - 2]) : undefined;
+        if (latest && prev && momErGyldig([prev, latest])) {
+          const latestRev = latest.kf.omsaetning;
+          const prevRev = prev.kf.omsaetning;
           if (latestRev != null && prevRev != null && latestRev > 0 && prevRev > 0) {
             revenueTrendByCompany.set(compId, ((latestRev - prevRev) / prevRev) * 100);
           } else {
@@ -652,7 +677,11 @@ const AdvisorDashboard = () => {
           company_name: c.name,
           logo_url: c.logo_url,
           has_verified_metrics: !!latest,
-          effective_period_label: latestKey ? (() => { const [y, m] = latestKey.split("-"); return `${DANISH_MONTHS[parseInt(m, 10) - 1]} ${y}`; })() : null,
+          // period_label direkte fra facts-rækken (§11 pkt. 1) — samme format
+          // som før («Marts 2026»): commit skriver report_period/manual-label,
+          // estimat-skriverne skriver DANISH_MONTHS[i] + år. Falder tilbage
+          // til nøglen hvis den seneste nøgle ikke har en fact med tal.
+          effective_period_label: latestKey ? (latest?.key === latestKey ? latest.period_label : latestKey) : null,
           effective_period_key: latestKey,
           revenue,
           ebt,
@@ -690,7 +719,7 @@ const AdvisorDashboard = () => {
           timestamp: r.uploaded_at,
         });
       }
-      for (const f of (recentFactsRes.data || []) as any[]) {
+      for (const f of recentFacts) {
         const name = companyMap.get(f.company_id)?.name || "Ukendt";
         activityEvents.push({
           id: `fact-${f.company_id}-${f.period_key}`, type: "report_committed", companyId: f.company_id,
@@ -800,26 +829,37 @@ const AdvisorDashboard = () => {
         //        revenueTrendByCompany; resultatfald ≥ 15 % MoM er NYT (alvor 70).
         //      - Budgetafvigelse kan IKKE komme på forsiden endnu: queryFn henter
         //        ikke budget_targets, så budgetOmsaetning er null (se nedenfor).
-        const facts = kfByCompanyPeriod.get(c.company_id);
-        const factKeys = facts ? [...facts.keys()].sort() : [];
+        const companyFacts = kfByCompanyPeriod.get(c.company_id);
+        const factKeys = companyFacts ? [...companyFacts.keys()].sort() : [];
         const tilFactPunkt = (key: string | undefined): FactPunkt | null => {
-          if (!key || !facts) return null;
-          const kf = facts.get(key);
-          if (!kf) return null;
-          const [y, m] = key.split("-");
+          if (!key || !companyFacts) return null;
+          const f = companyFacts.get(key);
+          if (!f) return null;
           return {
             period_key: key,
-            period_label: `${DANISH_MONTHS[parseInt(m, 10) - 1]} ${y}`,
-            omsaetning: kf.omsaetning ?? null,
-            resultat_foer_skat: kf.resultat_foer_skat ?? null,
-            bank_balance: kf.bank_balance ?? null,
+            period_label: f.period_label,
+            omsaetning: f.kf.omsaetning ?? null,
+            resultat_foer_skat: f.kf.resultat_foer_skat ?? null,
+            bank_balance: f.kf.bank_balance ?? null,
           };
         };
-        const freshFact = (recentFactsRes.data || []).find((f: any) => f.company_id === c.company_id && f.committed_at >= twoWeeksAgo);
+        // Motorens M/M (omsætningsfald/resultatfald i «stikker ud») gates med
+        // SAMME momErGyldig-dom som revenueTrendByCompany: er et af de to
+        // seneste punkter et estimat, får motoren forrigeFact = null, og dens
+        // M/M-gren (`if (frisk && seneste && forrige)`) kører ikke — så et
+        // 'estimated' punkt udløser aldrig et faldsignal mod et 'measured'
+        // (§11 pkt. 1's betingelse). Motoren selv er urørt; FactPunkt bærer
+        // ikke data_basis, så dommen falder her i fodringen.
+        const senesteNoegle = factKeys[factKeys.length - 1];
+        const forrigeNoegle = factKeys[factKeys.length - 2];
+        const momGyldig =
+          !!companyFacts && !!senesteNoegle && !!forrigeNoegle &&
+          momErGyldig([companyFacts.get(forrigeNoegle)!, companyFacts.get(senesteNoegle)!]);
+        const freshFact = recentFacts.find((f) => f.company_id === c.company_id);
         const signalInput: VirksomhedsInput = {
-          senesteFact: tilFactPunkt(factKeys[factKeys.length - 1]),
-          forrigeFact: tilFactPunkt(factKeys[factKeys.length - 2]),
-          // recentFactsRes bærer kun facts committet inden for 14 dage — præcis
+          senesteFact: tilFactPunkt(senesteNoegle),
+          forrigeFact: momGyldig ? tilFactPunkt(forrigeNoegle) : null,
+          // recentFacts bærer kun facts committet inden for 14 dage — præcis
           // det vindue «friske tal» dømmer på. Ældre → null → intet signal.
           senesteCommittedAt: freshFact?.committed_at ?? null,
           // queryFn henter IKKE budget_targets. Budgetafvigelse kan derfor ikke
@@ -868,7 +908,7 @@ const AdvisorDashboard = () => {
       };
 
       const svarBytes = [
-        convRes, companiesRes, reportsRes, pulseRes, recentReportsRes, recentFactsRes,
+        convRes, companiesRes, factsRes, pulseRes, recentReportsRes,
         milestonesRes, kpiTargetsRes, companyMembersRes, advisorProfilesRes,
         recentMilestonesRes, recentHandoutsRes, companyInvitationsRes, goalHandoutRes,
         memberProfilesRes,
