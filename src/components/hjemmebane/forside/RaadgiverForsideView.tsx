@@ -6,69 +6,39 @@ import {
   hentAdvisorDashboard,
   type AdvisorDashboardData,
 } from "@/components/AdvisorDashboard";
+import { TAERSKEL, type Linje, type OpgaveSlags } from "@/lib/forsidensDom";
 import FornyelsesSektion from "@/components/members/FornyelsesSektion";
 import IndgangsSektion from "@/components/members/IndgangsSektion";
 import { HbSection } from "../HbSection";
 import { cn } from "@/lib/utils";
 
 /**
- * ⚠️ RÅMATERIALE — IKKE DET GÆLDENDE DESIGN (4/9-2026).
+ * Rådgiverens forside på /forside — DOMMEN (docs/forsiden-design.md,
+ * src/lib/forsidensDom.ts) øverst, de gamle KØER (#630) nedenunder som
+ * råmateriale, så de to kan ses side om side og forskellen måles (4/9).
  *
- * Denne flade viser KØER. Det gældende design, docs/forsiden-design.md
- * (skrevet om fra bunden 4/9, #631), beskriver OPGAVER. Fejlen var ikke
- * mængden af data, men at en kø viser alt der matcher en betingelse, mens
- * en rådgiver om morgenen har brug for at vide hvad han skal gøre.
+ * MIDLERTIDIG rute: "/" renderer stadig AdvisorDashboard for rådgiveren
+ * (Index.tsx) til swappet. Fladen swappes ikke ind før dommen er set på
+ * jeres tredive virksomheder og tærsklen (TAERSKEL = 70) er målt mod
+ * 4/9's 38 rækker (designets §12/§13). Køerne fjernes når dommen er bevist.
  *
- * Set på skærm 4/9 kl. 11:35 (#630): 38 rækker, hvoraf 16 sagde «ingen
- * dialog i N dage» og intet andet — samme tilstand vist 16 gange.
+ * ÉT DATALAG: hentAdvisorDashboard bygger både bunkerne og dommen; her
+ * tegnes de kun. Ingen hentning i denne fil.
  *
- * Fladen swappes ALDRIG ind som den er. Næste skridt er dommen som en ren
- * funktion med tests (designets §13), og derefter en ny flade. Indtil da
- * står den her som råmateriale; filhovedet nedenfor beskriver hvad koden
- * gør, og det er stadig sandt.
- */
-
-/**
- * Rådgiverens Dit Boardroom i Hjemmebane, etape 1 (raadgiverfladen-design.md
- * §3.5, §11 pkt. 6). NY flade på MIDLERTIDIG rute (/forside); den gamle
- * AdvisorDashboard på "/" står urørt til swappet — samme mønster som
- * listen (#605) og virksomhedssiden (#607).
+ * LINJERNE (§1, §6): hver linje er virksomheden, grundene med den
+ * vigtigste først, og handlingen — og HELE linjen er ét link til
+ * /virksomhed/:companyId?grund=<slags>. Ingen knapper pr. grund, ingen
+ * «Åbn chat». Parameteren `grund` bærer den vigtigste grunds slags, så
+ * virksomhedssiden kan vise «derfor er du her» øverst i blok 1 (§6) —
+ * den LÆSER den ikke endnu; kontrakten findes fra i dag.
  *
- * ÉT DATALAG: siden kalder hentAdvisorDashboard — den gamle forsides
- * queryFn, flyttet ordret til modulscope (4/9) — og deler cache-nøgle med
- * den. Bunkerne og motoren (afgoerVirksomhedsSignaler, #589) bygges dér;
- * her tegnes de kun. Ingen ny hentning.
+ * Tilstande og pukler er deres egen samlede linje (§3) og linker til
+ * /virksomheder (§5: tallene er links til listen). Én virksomhed i en
+ * samlet tilstand linker direkte til den.
  *
- * §3.5's SYV køer i §3.5's rækkefølge — én liste man kan skimme på tredive
- * sekunder om morgenen, ikke kort i to kolonner:
- *   1 Ikke hørt fra længe (ØVERST: ingen må glemmes)  bucket stale
- *   2 Venter på dit svar                              bucket waiting
- *   3 Noget stikker ud i tallene                      bucket standsOut
- *   4 Fornyelser der skal besluttes                   FornyelsesSektion
- *   5 Indgange der ikke er betalt                     IndgangsSektion
- *   6 Agentforslag der venter på afgørelse            bucket agent (NY 4/9)
- *   7 Friske tal                                      bucket fresh
- * plus «Positive muligheder» nederst — ikke i §3.5, men den findes og er
- * godt nyt; skæres ikke uden en beslutning.
- *
- * FORNYELSER OG INDGANGE er monteret UÆNDRET (FornyelsesSektion,
- * IndgangsSektion) og står stadig også på /members, indtil listen swappes.
- * De tegner i appens gamle tokens (glass-card, shadcn Button) inde i
- * Hb-skallen — det samme accepterede skift som admin-siderne (#603) og de
- * monterede komponenter på virksomhedssiden (#613). Fornyelsesordningen
- * træder i kraft 10/9, så FornyelsesSektion skal virke uændret: den får
- * samme companies-udsnit som fra Members.tsx (:317, :464 — ikke legat,
- * status aktiv eller tom; `status` er føjet til forsidens companies-select
- * for netop det).
- *
- * UDELADT, bevidst (målt 4/9, ~/Downloads/recon-forsiden.md):
- *   - «Alle virksomheder»-tabellen: dubletten af /virksomheder (#605).
- *   - activityFeed: bygges i queryFn, men læses ingen steder.
- *   - AdvisorBroadcast: importeres i AdvisorDashboard, rendres ALDRIG —
- *     et selvstændigt åbent punkt, ikke denne etapes.
- *   - Rådgiver-fordelingens chips («Jonas 12 · 3 uden ejer»): ikke i §3.5.
- * Hver række linker til /virksomhed/:companyId; «Åbn chat» som sekundær
- * vej når samtalen findes.
+ * TOPPEN (§10): «N ting kræver dig i dag», ellers «Der er ikke noget der
+ * haster i dag.» UNDER STREGEN (§5): tal, ikke lister. FLAGET (§5): når
+ * dommen siger usædvanligt mange, står det her.
  */
 
 type BucketItem = AdvisorDashboardData["buckets"]["waiting"][number];
@@ -85,6 +55,64 @@ const hilsen = (): string => {
     galt (>= 70); resten ink/ink-soft. Positive og friske tal er aldrig rust. */
 const tone = (alvor: number, roligt: boolean) =>
   roligt ? "text-hb-ink" : alvor >= 70 ? "text-hb-rust" : alvor >= 50 ? "text-hb-ink" : "text-hb-ink-soft";
+
+const grundLink = (companyId: string, slags: OpgaveSlags) => `/virksomhed/${companyId}?grund=${slags}`;
+
+/** Én linje fra dommen. Virksomhed: handling + grunde; tilstand/pukkel: tekst. */
+const DomLinje = ({ l }: { l: Linje }) => {
+  const rust = l.alvor >= TAERSKEL || l.loeftet;
+  const prik = <span aria-hidden className={cn("mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-current", rust ? "text-hb-rust" : "text-hb-ink-soft")} />;
+  const hast = l.lukkerOmDage != null && (
+    <span className="shrink-0 text-xs text-hb-ink-soft">
+      {l.lukkerOmDage === 0 ? "i dag" : l.lukkerOmDage === 1 ? "i morgen" : `om ${l.lukkerOmDage} dage`}
+    </span>
+  );
+
+  if (l.linje === "virksomhed") {
+    const [vigtigste, ...oevrige] = l.grunde;
+    return (
+      <li className="flex items-start gap-3 py-3">
+        {prik}
+        <Link to={grundLink(l.companyId, vigtigste.slags)} className="min-w-0 flex-1 rounded-hb transition-colors hover:bg-hb-sage/20">
+          <span className="block text-[15px] leading-snug text-hb-ink">
+            <span className="font-medium">{l.navn}</span>
+            <span className="text-hb-ink-soft"> · </span>
+            {vigtigste.handling}
+          </span>
+          <span className={cn("block text-sm leading-snug", rust ? "text-hb-rust" : "text-hb-ink-soft")}>
+            {[vigtigste, ...oevrige].map((g) => g.tekst).join(" · ")}
+          </span>
+        </Link>
+        {hast}
+      </li>
+    );
+  }
+
+  // Samlet tilstand eller pukkel: én linje, ét tal. Én virksomhed → direkte til den.
+  const enkelt = l.linje === "tilstand" && l.antal === 1 ? l.virksomheder[0] : null;
+  const to = enkelt ? grundLink(enkelt.companyId, l.slags) : "/virksomheder";
+  return (
+    <li className="flex items-start gap-3 py-3">
+      {prik}
+      <Link to={to} className="min-w-0 flex-1 rounded-hb transition-colors hover:bg-hb-sage/20">
+        <span className="block text-[15px] leading-snug text-hb-ink">
+          {enkelt ? (
+            <>
+              <span className="font-medium">{enkelt.navn}</span>
+              <span className="text-hb-ink-soft"> · </span>
+              {enkelt.grund.handling}
+            </>
+          ) : (
+            l.tekst
+          )}
+        </span>
+        {enkelt && (
+          <span className={cn("block text-sm leading-snug", rust ? "text-hb-rust" : "text-hb-ink-soft")}>{enkelt.grund.tekst}</span>
+        )}
+      </Link>
+    </li>
+  );
+};
 
 const Koe = ({
   eyebrow, items, convByCompany, roligt = false,
@@ -147,7 +175,12 @@ export const RaadgiverForsideView = () => {
     );
   }
 
+  const dom = data.dom;
   const b = data.buckets;
+  const linjeNoegle = (l: Linje) => (l.linje === "virksomhed" ? `v:${l.companyId}` : `${l.linje}:${l.slags}`);
+  const under = dom.underStregen;
+  const antalUnder = under.antalVirksomhederUnderTaersklen;
+
   // FornyelsesSektion vil have samme udsnit som fra Members.tsx (:317, :464):
   // ikke legat, status aktiv eller tom. Kun de fem felter den læser.
   const fornyelsesVirksomheder = (data.companies as unknown as {
@@ -166,17 +199,85 @@ export const RaadgiverForsideView = () => {
 
   return (
     <div>
+      {/* ── Toppen (§10) ── */}
       <section className="max-w-3xl">
         <p className="text-xs font-medium uppercase tracking-[0.14em] text-hb-rust">Dit Boardroom</p>
         <h1 className="mt-3 font-editorial text-4xl font-medium leading-[1.1] tracking-tight text-hb-ink md:text-5xl">
           {hilsen()}, {fornavn}.
         </h1>
-        <p className="mt-3 text-sm text-hb-ink-soft">
-          {antalIKoeer === 0
-            ? "Der venter intet i køerne i dag."
-            : `${antalIKoeer} ${antalIKoeer === 1 ? "ting venter" : "ting venter"} — de tavse øverst.`}
+        <p className="mt-3 text-[15px] text-hb-ink">
+          {dom.antalOpgaver === 0
+            ? "Der er ikke noget der haster i dag."
+            : `${dom.antalOpgaver} ${dom.antalOpgaver === 1 ? "ting kræver" : "ting kræver"} dig i dag.`}
+        </p>
+        {dom.usaedvanligtMange && (
+          <p className="mt-2 text-sm text-hb-rust">
+            Usædvanligt mange kræver noget i dag — så mange linjer betyder at tærsklen er forkert, ikke at dagen er (§5).
+          </p>
+        )}
+      </section>
+
+      {/* ── Dommen (§1–§6) ── */}
+      {dom.linjer.length > 0 && (
+        <section className="mt-10 max-w-3xl">
+          <ul className="divide-y divide-hb-line border-y border-hb-line">
+            {dom.linjer.map((l) => (
+              <DomLinje key={linjeNoegle(l)} l={l} />
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {/* ── Under stregen (§5): tal, ikke lister ── */}
+      <section className="mt-8 max-w-3xl space-y-1 text-sm text-hb-ink-soft">
+        {antalUnder > 0 && (
+          <p>
+            <Link to="/virksomheder" className="text-hb-evergreen underline-offset-4 hover:underline">
+              {antalUnder} {antalUnder === 1 ? "anden virksomhed har" : "andre virksomheder har"} noget mindre presserende
+            </Link>
+          </p>
+        )}
+        {under.tilstande.map((t) => (
+          <p key={`t:${t.slags}`}>
+            <Link
+              to={t.antal === 1 ? grundLink(t.virksomheder[0].companyId, t.slags) : "/virksomheder"}
+              className="text-hb-evergreen underline-offset-4 hover:underline"
+            >
+              {t.tekst}
+            </Link>
+          </p>
+        ))}
+        {under.pukler.map((p) => (
+          <p key={`p:${p.slags}`}>
+            <Link to="/virksomheder" className="text-hb-evergreen underline-offset-4 hover:underline">
+              {p.tekst}
+            </Link>
+          </p>
+        ))}
+        {dom.linjer.length === 0 && antalUnder === 0 && under.tilstande.length === 0 && under.pukler.length === 0 && (
+          <p>
+            Ingen tavse, ingen ubesvarede, intet der stikker ud.{" "}
+            <Link to="/virksomheder" className="text-hb-evergreen underline-offset-4 hover:underline">Se virksomhederne</Link>, hvis du alligevel vil kigge.
+          </p>
+        )}
+        {/* Måling (§12/§13): tærsklen skal måles mod 4/9's 38 rækker. Tallene står
+            her, indtil køerne nedenfor er fjernet. */}
+        <p className="pt-2 text-xs">
+          Måling: tærskel {TAERSKEL} · {dom.antalOpgaver} {dom.antalOpgaver === 1 ? "linje" : "linjer"} over stregen · {under.antalTilstandeSamlet} samlet i tilstande · {antalUnder} under tærsklen · køerne nedenfor: {antalIKoeer} rækker.
         </p>
       </section>
+
+      {/* ── Råmateriale: de gamle køer (#630). Fjernes når dommen er bevist. ── */}
+      <HbSection
+        eyebrow="Råmateriale — de gamle køer (#630)"
+        title="Det samme, som køer"
+        hairline
+        className="mt-16 border-t border-hb-line pt-10"
+      >
+        <p className="-mt-2 mb-2 text-sm text-hb-ink-soft">
+          Det gamle råmateriale, som det så ud 4/9 (38 rækker, 16 «ingen dialog»). Står her midlertidigt så dommen ovenfor kan måles mod det. Fjernes når dommen er bevist.
+        </p>
+      </HbSection>
 
       {/* 1 */}
       <Koe eyebrow="Ikke hørt fra længe" items={b.stale} convByCompany={data.convByCompany} />
@@ -185,8 +286,8 @@ export const RaadgiverForsideView = () => {
       {/* 3 */}
       <Koe eyebrow="Noget stikker ud i tallene" items={b.standsOut} convByCompany={data.convByCompany} />
 
-      {/* 4 + 5 — monteret uændret; appens tokens (se filhovedet). Begge er
-          usynlige når de er tomme, så rækkefølgen holder uden tomme afsnit. */}
+      {/* 4 + 5 — monteret uændret; appens tokens. Begge er usynlige når de er
+          tomme, så rækkefølgen holder uden tomme afsnit. */}
       <div className="mt-10 [&>div]:mb-0 [&>div+div]:mt-4">
         <FornyelsesSektion companies={fornyelsesVirksomheder} />
         <IndgangsSektion />
@@ -200,9 +301,7 @@ export const RaadgiverForsideView = () => {
       <Koe eyebrow="Positive muligheder" items={b.positive} convByCompany={data.convByCompany} roligt />
 
       {antalIKoeer === 0 && (
-        <p className="mt-10 text-sm text-hb-ink-soft">
-          Ingen tavse, ingen ubesvarede, intet der stikker ud. <Link to="/virksomheder" className="text-hb-evergreen underline-offset-4 hover:underline">Se virksomhederne</Link>, hvis du alligevel vil kigge.
-        </p>
+        <p className="mt-10 text-sm text-hb-ink-soft">Køerne er tomme.</p>
       )}
     </div>
   );

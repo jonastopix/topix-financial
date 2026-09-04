@@ -2,11 +2,10 @@ import "@/styles/hjemmebane.css";
 import { HbMemberShell } from "@/components/hjemmebane/HbMemberShell";
 import { RaadgiverForsideView } from "@/components/hjemmebane/forside/RaadgiverForsideView";
 
-/** ⚠️ RÅMATERIALE (4/9): denne rute viser KØER; det gældende design,
-    docs/forsiden-design.md, beskriver OPGAVER. Set på skærm 4/9 kl. 11:35:
-    38 rækker, 16 af dem samme tilstand. Swappes ALDRIG ind som den er —
-    dommen bygges først som ren funktion (designets §13), så en ny flade.
-    Se filhovedet i RaadgiverForsideView.tsx. */
+/** 4/9: denne rute viser nu DOMMEN (src/lib/forsidensDom.ts, designets
+    §13 pkt. 2) øverst, og de gamle KØER (#630) nedenunder som råmateriale,
+    så tærsklen kan måles mod 4/9's 38 rækker før swappet. Swappes ikke ind
+    før dommen er set. Se filhovedet i RaadgiverForsideView.tsx. */
 
 /** /forside — rådgiverens Dit Boardroom i Hjemmebane (raadgiverfladen-
     design.md §3.5, §11 pkt. 6), etape 1, som tynd wrapper i Hb-medlems-
