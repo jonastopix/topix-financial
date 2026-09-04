@@ -53,15 +53,13 @@ type Raekke = {
   /** Seneste committede periode (label, ellers nøgle); null = ingen facts. */
   sidsteRapportering: string | null;
   fejledeTraek: FejletTraek[];
-  /** Første medlems user_id — rækkens link; null = ingen medlem, intet link. */
-  medlemUserId: string | null;
 };
 
 const MS_PER_DOEGN = 86_400_000;
 
 async function hentVirksomhedsliste(): Promise<Raekke[]> {
   const nu = Date.now();
-  const [companiesRes, membersRes, convsRes, factsRes, traekRes] = await Promise.all([
+  const [companiesRes, convsRes, factsRes, traekRes] = await Promise.all([
     // Kun de kolonner de syv felter og søgningen læser.
     // Ét string-literal pr. select: supabase-js' typeparser kan ikke læse
     // en sammenkædet streng (giver GenericStringError) — det er derfor
@@ -70,9 +68,10 @@ async function hentVirksomhedsliste(): Promise<Raekke[]> {
       .from("companies")
       .select("id, name, cvr_number, industry_label, contact_person, contact_email, status, is_legat, contract_end_date, subscription_status, subscription_current_period_end")
       .limit(500),
-    // Til rækkens link (§3.6: klik åbner virksomhedssiden) — ikke til
-    // visning. Ingen profiles: navnet på medlemmet vises ikke her.
-    supabase.from("company_members").select("company_id, user_id").limit(2000),
+    // Ingen company_members og ingen profiles: rækken linker til
+    // /virksomhed/:companyId (virksomhedens eget id, #607), og navnet på
+    // medlemmet vises ikke her. Hentningen af medlemmer røg 4/9 — ét
+    // netværkskald mindre.
     supabase.from("conversations").select("company_id, last_message_at"),
     // data_basis-undtagelse: virksomhedslisten viser PERIODEN for seneste committede rapportering (period_label), ikke talværdier — ingen beregning på metrics
     supabase.from("financial_report_facts").select("company_id, period_key, period_label"),
@@ -87,13 +86,6 @@ async function hentVirksomhedsliste(): Promise<Raekke[]> {
   ]);
 
   const fejledeTraekByCompany = fejledeTraekPrVirksomhed(traekRes.data ?? []);
-
-  const medlemByCompany = new Map<string, string>();
-  for (const m of membersRes.data ?? []) {
-    if (m.company_id && m.user_id && !medlemByCompany.has(m.company_id)) {
-      medlemByCompany.set(m.company_id, m.user_id);
-    }
-  }
 
   // Seneste besked pr. virksomhed — flere samtaler pr. virksomhed er
   // muligt, så den nyeste vinder.
@@ -142,7 +134,6 @@ async function hentVirksomhedsliste(): Promise<Raekke[]> {
           : null,
         sidsteRapportering: sidsteFactByCompany.get(c.id)?.label ?? null,
         fejledeTraek: fejledeTraekByCompany.get(c.id) ?? [],
-        medlemUserId: medlemByCompany.get(c.id) ?? null,
       };
     })
     .sort((a, b) => a.navn.localeCompare(b.navn, "da"));
@@ -290,16 +281,13 @@ export const VirksomhedslisteView = () => {
           <ul className="divide-y divide-hb-line">
             {filtreret.map((r) => (
               <li key={r.id}>
-                {/* Klik åbner virksomheden. Linket skifter til
-                    /virksomhed/:companyId når den side findes (§11 pkt. 5).
-                    Uden medlem: intet link, rækken gør intet. */}
-                {r.medlemUserId ? (
-                  <Link to={`/members/${r.medlemUserId}`} className="block transition-colors hover:bg-hb-sage/20">
-                    <RaekkeIndhold r={r} />
-                  </Link>
-                ) : (
+                {/* Klik åbner virksomhedssiden (#607), nøglet på
+                    virksomhedens eget id — også for en virksomhed uden
+                    medlemmer (§3.3: virksomheden er aftalen). Før linkede
+                    rækken til /members/:userId og var død uden medlem. */}
+                <Link to={`/virksomhed/${r.id}`} className="block transition-colors hover:bg-hb-sage/20">
                   <RaekkeIndhold r={r} />
-                )}
+                </Link>
               </li>
             ))}
           </ul>
