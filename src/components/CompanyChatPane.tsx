@@ -94,10 +94,17 @@ import {
  * menu i DOM-træet (HbMenu nedenfor), fordi HbOverlejrings HbPopover er
  * venstre-forankret (bygget til datovælgeren under et felt), og ⋯ står i
  * headerens højre kant og skal åbne mod venstre; udenfor-klik og Escape
- * lukker, fokus går tilbage til triggeren — samme regler. Roden bærer
- * `theme-hjemmebane`, så hb-tokens findes også på /chat, hvor skallen
- * stadig er AppLayout. Emnefarverne (TOPIC_COLORS) er off-token og bruges
- * ikke til farve: alle emne-chips er sage/ink, som hos medlemmet.
+ * lukker, fokus går tilbage til triggeren — samme regler. Emnefarverne
+ * (TOPIC_COLORS) er off-token og bruges ikke til farve: alle emne-chips er
+ * sage/ink, som hos medlemmet.
+ *
+ * SKALLEN (4/9, sidste trin): /chat bor nu i HbMemberShell layout="fuld"
+ * (ChatShell.tsx) som medlemmets chat, og blok 4 bor i HbMemberShell —
+ * komponenten rendres ikke længere i AppLayout nogen steder. Roden og
+ * «Indbakke»-overskriften bar hver sin `theme-hjemmebane` + papir for at
+ * være læsbare i den mørke skal; det er ryddet: skallen ejer temaet.
+ * Kun «Se tal»-skuffen beholder `theme-hjemmebane`, fordi den portalerer
+ * til <body> uden for skallens subtræ.
  */
 
 /** ⋯-menuen i DOM-træet (etape 2): højre-forankret panel under triggeren,
@@ -661,7 +668,9 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
      forfædrene. Før stod her `messagesEndRef.current?.scrollIntoView(
      { behavior: "smooth" })`, og scrollIntoView ruller ALLE scrollbare
      forfædre indtil elementet er i view. På /chat er der én (listen —
-     AppLayout fullscreen binder resten), så det var usynligt. På
+     AppLayout fullscreen bandt resten; nu gør HbMemberShell layout="fuld"
+     det samme: h-screen-safe + overflow-hidden hele vejen ned), så det var
+     usynligt. På
      virksomhedssiden (blok 4, laastTilCompanyId) er der TO: listen og
      Hb-skallens indholdskolonne (HbMemberShell.tsx:240 lg:overflow-y-auto),
      som chatten ligger midt i under blok 1 og 2 — så HELE siden rullede
@@ -1035,11 +1044,10 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
 
   return (
     <>
-      {/* «Indbakke»-overskriften ligger UDEN FOR roden (over den) og får derfor
-          sin egen theme-hjemmebane + papir, så den er læsbar i AppLayout og
-          papiret løber sammen med roden nedenunder. */}
+      {/* «Indbakke»-overskriften ligger UDEN FOR roden (over den). Skallen
+          (HbMemberShell) ejer temaet og papiret, så den bærer kun sin luft. */}
       {!laast && isAdvisor && !isFullscreen && !isMobile && (
-        <div className="theme-hjemmebane bg-hb-paper px-4 pt-4 pb-2 font-body text-hb-ink antialiased">
+        <div className="px-4 pt-4 pb-2">
           <h1 className="font-editorial text-2xl font-medium leading-tight text-hb-ink flex items-center gap-2">
             <MessageCircle className="h-5 w-5 text-hb-evergreen" />
             Indbakke
@@ -1047,11 +1055,9 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
         </div>
       )}
 
-      {/* Roden — MemberChatPane:505-507 (C4/C: kassen er væk — papiret går ud
-          til kanten). theme-hjemmebane + bg-hb-paper så hb-tokens findes også
-          på /chat (AppLayout); i blok 4 er skallen allerede Hb og roden
-          gennemsigtig i praksis. */}
-      <div className="theme-hjemmebane flex flex-1 min-h-0 overflow-hidden bg-hb-paper font-body text-hb-ink antialiased">
+      {/* Roden — MemberChatPane:505-507, ordret (C4/C: kassen er væk —
+          papiret går ud til kanten). Skallen ejer temaet og papiret. */}
+      <div className="flex flex-1 min-h-0 overflow-hidden">
         {/* ─── ADVISOR INBOX SIDEBAR — husets listeform (etape 2) ─── */}
         {showSidebar && (
           <div className={`${isMobile ? "w-full" : "w-[340px]"} border-r border-hb-line flex flex-col bg-hb-paper`}>
