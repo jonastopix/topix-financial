@@ -165,7 +165,42 @@ export const HbMemberShell = ({
     to: "/rabataftaler",
     active: active === "rabataftaler",
   };
-  const nav: HbNavEntry[] = erAbonnent
+  /* ADMIN-BLOKKEN (raadgiverfladen-design.md §3.1, §11 pkt. 3): en rådgiver
+     på en Hjemmebane-flade havde ingen vej til admin — hverken til de otte
+     /admin/indhold-faner eller til de gamle admin-sider (målt 4/9: nul
+     menupunkter pegede på /admin/indhold, og /admin/import var kun nåelig
+     ved at kende URL'en). To punkter: Virksomheder og Platform.
+     «Er rådgiver» er `isAdvisor` fra useAuth — samme dom som tjeklisten
+     (linje 100, 221) og HbVisningSom bruger; ingen ny kilde.
+     Punkterne peger på AppLayout-sider, så designsproget skifter når man
+     klikker. Det er et bevidst valg (Jonas, 4/9): en synlig skalskifte er
+     bedre end en skjult side — samme begrundelse som /settings-linket i
+     HbSidebar. Ingen `active`: ingen af målsiderne renderer i denne skal,
+     så unionen ovenfor kan ikke få en værdi der nogensinde sendes; den
+     udvides den dag Virksomheder flytter ind i Hjemmebane (§11 pkt. 4). */
+  const adminBlok: HbNavEntry[] = isAdvisor
+    ? [
+        { label: "Virksomheder", to: "/members", admin: true },
+        {
+          label: "Platform",
+          admin: true,
+          children: [
+            { label: "Indhold", to: "/admin/indhold" },
+            { label: "E-mails", to: "/admin/emails" },
+            { label: "E-mail-log", to: "/admin/email-log" },
+            { label: "Review Queue", to: "/admin/review-queue" },
+            { label: "Platformconfig", to: "/admin/config" },
+            { label: "Feedback", to: "/admin/feedback" },
+            { label: "Legat", to: "/admin/legat" },
+            { label: "Import", to: "/admin/import" },
+          ],
+        },
+      ]
+    : [];
+  // Blokken hægtes på BEGGE grene — også abonnentens. Det er ikke afgjort
+  // om en rådgivers egen membershipTier kan være "subscriber"; sker det, må
+  // admin-blokken ikke forsvinde med medlemspunkterne.
+  const medlemsNav: HbNavEntry[] = erAbonnent
     ? [dineTal, podcastTalks, rabataftaler]
     : [
         { label: "Dit Boardroom", to: boardroomTo, active: active === "boardroom" },
@@ -189,6 +224,7 @@ export const HbMemberShell = ({
         { label: "Netværket", to: "/medlemmer", active: active === "medlemmer" },
         { label: "Community", to: "/community", active: active === "community" },
       ];
+  const nav: HbNavEntry[] = [...medlemsNav, ...adminBlok];
 
   return (
     <div ref={rodRef} className={`theme-hjemmebane ${fuld ? "h-screen-safe" : "min-h-screen"} bg-hb-paper font-body text-hb-ink antialiased`}>
