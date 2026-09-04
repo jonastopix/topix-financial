@@ -217,8 +217,9 @@ rækkefølgen alene.
 andre. Derfor to porte (alvor og hast hver sin vej ind), én sortering
 (alvor) med hastundtagelse, og indsats kun som sidste udvej.
 
-**Ikke målt:** alvorstærsklens tal og hvad «lukker inden for syv dage»
-betyder for hver slags (§12).
+**Målt 4/9 (§12):** alvorstærsklen er 70; hvad «lukker inden for syv
+dage» betyder pr. slags er delvist afgjort — tre slags bærer et dagtal,
+resten går gennem alvorsporten alene.
 
 ---
 
@@ -472,17 +473,93 @@ noget mindre presserende» er ikke en opgave, det er et overblik.
   udløbne opgaver og en refleksion der ikke fører til noget er
   formentlig samme problem set fra to sider — medlemmet skriver, og der
   kommer ikke noget tilbage.
-- **Alvorstærsklens konkrete tal**, og hvad «lukker inden for syv
-  dage» dækker for hver af de otte slags (§4). Sættes når dommen
-  bygges, og måles mod de 38 rækker fra 4/9: hvor mange skulle der have
-  stået?
 - **Hvordan «ligner en rapporteringsfejl» afgøres** (§2 slags 6) — en
   tærskel på forholdet mellem to måneder, et fortegnsskift, eller
   AI-læsning (§8). Ikke målt hvor ofte det sker.
+- **Hvad «lukker inden for syv dage» dækker for hver slags** (§4) —
+  DELVIST afgjort, målt 4/9 (`~/Downloads/recon-forsidens-dom.md` §3,
+  uden for repoet — genskabes hvis den bruges). Det de rene funktioner
+  bærer ud i dag:
+  - *Fornyelse:* `afgoerFornyelsestilstand` giver `dage_til_udloeb`
+    (hele UTC-kalenderdage til `contract_end_date`, negativ efter).
+    Vinduet åbner ved ≤ 60 dage (`FORNYELSES_VINDUE_DAGE`); «lukker inden
+    for syv» er ikke en tilstand i funktionen, kun et tal kalderen kan
+    læse. **Kan bruges direkte.**
+  - *Indgang:* `afgoerBetalingsfrist` giver `dage_siden_underskrift`;
+    fristen er `underskrevet_at + 30` (`BETALINGSFRIST_DAGE`), dag 31 er
+    `frist_overskredet`. Dage TILBAGE regnes ikke af motoren —
+    `IndgangsSektion` regner selv `30 − dage_siden`. **Kan bruges, men
+    dommen skal selv vende tallet.**
+  - *Opgave nær deadline:* to ure. `due_date` (date, kun aktive) —
+    `opgaveEngine` kender KUN «forfalden» (dagen efter), ikke «nærmer
+    sig»; ingen funktion svarer på «dage til due_date». `expires_at`
+    (timestamptz, kun forslag) er sat ved oprettelse. **Mangler: et
+    dagtal for aktive opgaver — dommen skal regne det selv af `due_date`.**
+  - *Tavshed:* «vinduet» er `dage > 21` og åbent for evigt derefter;
+    ingen øvre grænse. Ingen «lukker om N dage» — slagsen går kun
+    gennem alvorsporten.
+  - *Noget stikker ud:* friskhedsgaten (`isFiguresFresh`, tre
+    kalendermåneder) er en åbning, ikke en lukning. Kun alvorsporten.
+  - *Ulæst besked:* intet — `ulaeste_beskeder` er et antal uden alder på
+    den ubesvarede besked (`senesteBeskedAt` bruges kun i
+    tavshedsgrenen). **Mangler: alderen på det der venter.**
+  - *Rapporteringsfejl* og *handout/refleksion:* intet vindue, for
+    signalerne findes ikke (nedenfor). Refleksionens `created_at` måles
+    i dag kun mod 30 og 60 dage som «har afleveret puls»; `help_needed`
+    læses ingen steder i en dom.
+  Dommen (§13) skal derfor definere vinduesporten pr. slags ud fra tre
+  eksisterende dagtal (fornyelse, indgang, opgave) og lade de øvrige gå
+  gennem alvorsporten alene.
 - **Samtaletildelingen** (`assigned_advisor_id`) ved siden af
   opgavetildelingen (§9): består, afløses, eller bliver en standard for
   «hvem tager først».
 - **Parameterens form** for «derfor er du her» på virksomhedssiden (§6).
+
+### Afgjort 4/9 — målt i koden (`~/Downloads/recon-forsidens-dom.md`)
+
+- **Alvorstærsklen er 70.** Ikke et nyt tal — huset bruger det
+  allerede: både `VirksomhedView.tsx:176` og
+  `RaadgiverForsideView.tsx:70` farver et signal rust ved `alvor >= 70`
+  og dæmpet under 50. Fladen sagde altså «vigtigt» ved 70, før dommen
+  fandtes; dommen gør den eksisterende visningsgrænse til porten.
+  Regnet på dagens data giver 70 omkring syv til ni linjer: én for de
+  tavse (samlet), fire ulæste, to virksomheder der stikker ud, én
+  opgave nær deadline, én pukkel. Måles mod de 38 rækker fra 4/9 når
+  dommen står (§13 pkt. 2).
+- **Motoren har alvor for kun to og en halv af de otte slags — og det
+  ændrer omfanget.** Tavshed (`aldrig_skrevet` 95, `ingen_dialog` en
+  kurve mod 95) og «stikker ud» (bankovertræk 90, omsætningsfald 80,
+  resultatfald 70, budget 50/40) er fuldt dækket. Ulæste beskeder
+  findes som et ANTAL (70 + antal, loft 20), ikke som «hvad der
+  venter». Fem slags har INGEN alvor: fornyelse og indgang har egne
+  motorer, men de giver en TILSTAND og et DAGTAL —
+  `afgoerFornyelsestilstand` returnerer `{status, dage_til_udloeb,
+  tier}`, `afgoerBetalingsfrist` returnerer `{status,
+  dage_siden_underskrift, paamindelse_forfalden}`. Rapporteringsfejl,
+  opgave nær deadline og handout/refleksion har ingenting overhovedet.
+  **Konsekvens:** dommen kan ikke bare samle det der findes — den skal
+  tildele alvor til nye slags. Første bud står som navngivne konstanter
+  i `src/lib/forsidensDom.ts` med begrundelse, sat mod den eksisterende
+  skala, og justeres når fladen er set.
+- **Afgrænsning, som beslutning:** dommen bygges for SEKS af de otte —
+  tavshed, stikker ud, ulæst besked, fornyelse, indgang, opgave nær
+  deadline. De to AI-baserede (rapporteringsfejl, handout/refleksion)
+  får plads i typen, men ingen implementering; de hægtes på når §8's
+  AI-læsning findes. Grunden: de kan ikke bygges uden en model, og de
+  øvrige seks kan bygges nu.
+
+### Noter, målt 4/9 — skal have et svar før dommen er færdig
+
+- **Motoren har to signaler §2 ikke nævner:** `agentforslag_venter`
+  (alvor 55) og `friske_tal` (30). De skal enten have en plads i §2 —
+  som en slags eller som del af en — eller en begrundelse for at stå
+  udenfor. Uafgjort.
+- **Budget-signalerne kan ikke opstå på forsiden i dag:** på forsiden
+  er `budgetOmsaetning: null`, fordi `hentAdvisorDashboard`s `queryFn`
+  ikke henter `budget_targets`. Det er allerede et åbent punkt i
+  OVERLEVERING, men det rammer §2 slags 5 direkte — «budgetafvigelse»
+  står der som del af slagsen, og dommen får aldrig inputtet, før
+  datalaget henter det.
 
 ---
 
