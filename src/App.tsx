@@ -60,6 +60,7 @@ const Events = lazy(() => import("./pages/Events"));
 const EventDetail = lazy(() => import("./pages/EventDetail"));
 const MemberProfile = lazy(() => import("./pages/MemberProfile"));
 const MemberDirectory = lazy(() => import("./pages/MemberDirectory"));
+const Virksomheder = lazy(() => import("./pages/Virksomheder"));
 
 // Lazy — demo routes (no auth)
 const DemoLayout = lazy(() => import("./demo/DemoLayout"));
@@ -224,6 +225,10 @@ const App = () => (
               
               <Route path="/members" element={<AdvisorRoute><Members /></AdvisorRoute>} />
               <Route path="/members/:userId" element={<AdvisorRoute><MemberDetail /></AdvisorRoute>} />
+              {/* Virksomhedslisten i Hjemmebane (raadgiverfladen-design.md §3.6,
+                  4/9): MIDLERTIDIG rute ved siden af /members til swappet —
+                  mønstret fra de fire tidligere Hb-flytninger. */}
+              <Route path="/virksomheder" element={<AdvisorRoute><Virksomheder /></AdvisorRoute>} />
               <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
               <Route path="/admin/config" element={<AdminRoute><AdminConfig /></AdminRoute>} />
               <Route path="/admin/emails" element={<AdminRoute><EmailTemplates /></AdminRoute>} />

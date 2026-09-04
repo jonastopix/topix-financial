@@ -21,7 +21,9 @@ export const HbMemberShell = ({
   // "medlemmer" = Netværket (/medlemmer). Profilsiderne (/medlemmer/:userId)
   // deler værdien — en profil hører til netværket. "community" deles
   // tilsvarende af feed (/community) og trådsider (/community/:id).
-  active: "boardroom" | "akademiet" | "rapportering" | "noegletal" | "budget" | "handouts" | "booksession" | "podcast" | "rabataftaler" | "events" | "medlemmer" | "community" | "chat";
+  // "virksomheder" = rådgiverens virksomhedsliste (/virksomheder, §3.6);
+  // ingen nav-post markerer den endnu — det kommer med admin-blokkens swap.
+  active: "boardroom" | "akademiet" | "rapportering" | "noegletal" | "budget" | "handouts" | "booksession" | "podcast" | "rabataftaler" | "events" | "medlemmer" | "community" | "chat" | "virksomheder";
   /* layout="fuld" (chatten, C4 i docs/chat-design.md): AppLayout-
      præcedensen (fullscreen-prop, AppLayout.tsx:28-31, forgrening :337)
      oversat til Hb-skallen. Prop'en findes fordi shell'ens lodrette
