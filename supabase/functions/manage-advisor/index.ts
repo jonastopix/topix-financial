@@ -278,6 +278,39 @@ Deno.serve(async (req) => {
         });
       }
 
+      // ── Owner-værn (Jonas, 4. september 2026) ──
+      // En owner kan ALDRIG fjernes med remove-member. Grenen herunder er
+      // irreversibel: company_members, profiles OG auth-brugeren slettes.
+      // Indtil i dag lå værnet kun i fladen (MemberCompanyRow skjulte
+      // knappen for role === 'owner'), og MemberDetail viste den for alle —
+      // så en admin kunne slette en owner afhængigt af hvilken skærm
+      // knappen blev trykket på. Skal virksomheden væk, bruges
+      // delete-company; skal owneren skiftes, er det en anden handling, som
+      // ikke findes endnu.
+      //
+      // Opslaget tager ALLE målets rækker: company_members har kun
+      // UNIQUE(company_id, user_id), så en bruger kan i princippet stå i
+      // flere virksomheder — og sletningen nedenfor rammer alle hans rækker
+      // (.eq('user_id', …)), ikke én virksomhed. Én owner-række er derfor
+      // nok til at afvise. Dommen spejler src/lib/medlemsfjernelse.ts
+      // (erOwner), som fladerne bruger.
+      const { data: targetMemberships, error: roleErr } = await adminSupabase
+        .from('company_members')
+        .select('company_id, role')
+        .eq('user_id', target_user_id);
+      if (roleErr) throw roleErr;
+
+      const ownerRows = (targetMemberships || []).filter((m: { role: string }) => m.role === 'owner');
+      if (ownerRows.length > 0) {
+        console.warn(`[manage-advisor] DENIED remove-member: target=${target_user_id} er owner i ${ownerRows.length} virksomhed(er); caller=${userId}`);
+        return new Response(JSON.stringify({
+          error: 'Ejeren af en virksomhed kan ikke fjernes. Skal virksomheden lukkes, slettes virksomheden i stedet.',
+          reason: 'target_is_owner',
+        }), {
+          status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
       // Reset any invitations accepted by this user back to pending
       const { count: resetByAcceptedBy } = await adminSupabase
         .from('company_invitations')
