@@ -279,22 +279,18 @@ function MemberCard({
 
 // ── Component ──
 
-const AdvisorDashboard = () => {
-  const { user, setCompanyOverride } = useAuth();
-  const navigate = useNavigate();
+/**
+ * Forsidens datalag — ÉT sted (4/9, raadgiverfladen-design.md §11 pkt. 6):
+ * den gamle forside (AdvisorDashboard, AppLayout) og den nye i Hjemmebane
+ * (RaadgiverForsideView, /forside) kalder SAMME hentning og deler cache
+ * via ADVISOR_DASHBOARD_QUERY_KEY. Indholdet er queryFn'en som den stod
+ * inline i komponenten — flyttet ordret op i modulscope, ikke omskrevet.
+ * Den er selvforsynende: ingen closure over user/queryClient (målt 4/9).
+ */
+export const ADVISOR_DASHBOARD_QUERY_KEY = (userId: string | undefined) =>
+  ["advisor-dashboard", userId, "assignment-display-v2"] as const;
 
-  const queryClient = useQueryClient();
-
-  const { data, isLoading } = useQuery({
-    queryKey: ["advisor-dashboard", user?.id, "assignment-display-v2"],
-    // Målingen bor i Sentry (browserTracingIntegration, main.tsx:36-42):
-    // spannet "advisor-dashboard.load" bærer varigheden selv, og
-    // svarstørrelsen sættes som attributten svar_kb. NB: tracesSampleRate
-    // er 0,1 — omkring hver TIENDE indlæsning registreres. Det er nok til
-    // at se en trend i Performance-visningen, ikke til at fejlsøge en
-    // enkelt sag; leder du efter et konkret tal fra en bestemt dag, er det
-    // derfor sandsynligvis ikke der.
-    queryFn: () =>
+export const hentAdvisorDashboard = () =>
       Sentry.startSpan({ name: "advisor-dashboard.load", op: "advisor.query" }, async (span) => {
       const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString();
       const twoWeeksAgo = new Date(Date.now() - 14 * 86400000).toISOString();
@@ -303,6 +299,7 @@ const AdvisorDashboard = () => {
         pulseRes, recentReportsRes,
         milestonesRes, kpiTargetsRes, companyMembersRes, advisorProfilesRes,
         recentMilestonesRes, recentHandoutsRes, companyInvitationsRes, goalHandoutRes,
+        agentProposalsRes,
       ] = await Promise.all([
         supabase
           .from("conversations")
@@ -310,7 +307,7 @@ const AdvisorDashboard = () => {
           .order("last_message_at", { ascending: false }),
         supabase
           .from("companies")
-          .select("id, name, logo_url, is_legat, contract_end_date, subscription_status, subscription_current_period_end, created_at")
+          .select("id, name, logo_url, is_legat, status, contract_end_date, subscription_status, subscription_current_period_end, created_at")
           .order("name"),
         // ÉN KILDE TIL TALLENE (raadgiverfladen-design.md §11 pkt. 1, 4/9):
         // nøgletallene regnes af financial_report_facts, som resten af huset
@@ -388,6 +385,15 @@ const AdvisorDashboard = () => {
           .from("company_invitations")
           .select("company_id, status")
           .eq("status", "pending")
+          .limit(2000) as any),
+        // Agentforslag uden afgørelse (4/9, §3.5 kø 6): samme dom som
+        // useVirksomhed (agent_proposals hvor decided_at er null), men
+        // porteføljebredt — tælles pr. company_id i kode. Advisor-SELECT
+        // findes (20260825200000). Før stod agentforslagVenter fast som 0.
+        (supabase
+          .from("agent_proposals")
+          .select("company_id")
+          .is("decided_at", null)
           .limit(2000) as any),
         // Spor 2: virksomheder der har udfyldt målsætnings-handoutet (modul 'overordnet').
         (supabase
@@ -795,6 +801,13 @@ const AdvisorDashboard = () => {
       const bStale: BucketItem[] = [];
       const bStandsOut: BucketItem[] = [];
       const bPositive: BucketItem[] = [];
+      // Kø 6 (§3.5): agentforslag der venter — læses af den nye forside
+      // (RaadgiverForsideView); AdvisorDashboards render kender den ikke.
+      const bAgent: BucketItem[] = [];
+      const agentforslagByCompany = new Map<string, number>();
+      for (const p of ((agentProposalsRes as any)?.data || []) as { company_id: string }[]) {
+        if (p.company_id) agentforslagByCompany.set(p.company_id, (agentforslagByCompany.get(p.company_id) || 0) + 1);
+      }
 
       for (const c of investorSummaries) {
         // Gates: spring udløbede + pending over (dækker alle fem bunker)
@@ -871,7 +884,7 @@ const AdvisorDashboard = () => {
           // null når der ingen samtale er — det er dét der gør «har aldrig skrevet» muligt.
           senesteBeskedAt: conv?.last_message_at ?? null,
           harCommittedeTal: c.has_verified_metrics,
-          agentforslagVenter: 0, // queryFn henter ikke agent_proposals
+          agentforslagVenter: agentforslagByCompany.get(c.company_id) ?? 0,
         };
         for (const s of afgoerVirksomhedsSignaler(signalInput, now)) {
           const item: BucketItem = { ...base, subtext: s.tekst, sortValue: s.alvor };
@@ -879,7 +892,7 @@ const AdvisorDashboard = () => {
           else if (s.koe === "venter_paa_svar") bWaiting.push(item);
           else if (s.koe === "stikker_ud") bStandsOut.push(item);
           else if (s.koe === "friske_tal") bFresh.push(item);
-          // agentforslag_venter: ingen bunke på forsiden endnu (queryFn giver 0).
+          else if (s.koe === "agentforslag_venter") bAgent.push(item);
         }
 
         // Bunke 5: Positive muligheder (opnået milestone / nyt handout / kraftig vækst)
@@ -905,6 +918,7 @@ const AdvisorDashboard = () => {
         stale: bStale.sort(bySortDesc),
         standsOut: bStandsOut.sort(bySortDesc),
         positive: bPositive.sort(bySortDesc),
+        agent: bAgent.sort(bySortDesc),
       };
 
       const svarBytes = [
@@ -933,7 +947,26 @@ const AdvisorDashboard = () => {
         companyMemberNameMap,
         recentReportsData: (recentReportsRes.data || []) as { id: string; company_id: string }[],
       };
-      }),
+      });
+
+export type AdvisorDashboardData = Awaited<ReturnType<typeof hentAdvisorDashboard>>;
+
+const AdvisorDashboard = () => {
+  const { user, setCompanyOverride } = useAuth();
+  const navigate = useNavigate();
+
+  const queryClient = useQueryClient();
+
+  const { data, isLoading } = useQuery({
+    queryKey: ADVISOR_DASHBOARD_QUERY_KEY(user?.id),
+    // Målingen bor i Sentry (browserTracingIntegration, main.tsx:36-42):
+    // spannet "advisor-dashboard.load" bærer varigheden selv, og
+    // svarstørrelsen sættes som attributten svar_kb. NB: tracesSampleRate
+    // er 0,1 — omkring hver TIENDE indlæsning registreres. Det er nok til
+    // at se en trend i Performance-visningen, ikke til at fejlsøge en
+    // enkelt sag; leder du efter et konkret tal fra en bestemt dag, er det
+    // derfor sandsynligvis ikke der.
+    queryFn: hentAdvisorDashboard,
     enabled: !!user,
     staleTime: 2 * 60_000,
   });
