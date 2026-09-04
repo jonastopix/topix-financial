@@ -25,7 +25,9 @@ export const HbMemberShell = ({
   // Virksomhedssiden (/virksomhed/:companyId) og viderestillingen deler
   // værdien — en virksomhed hører til listen. Markeres af admin-blokkens
   // «Virksomheder» nedenfor.
-  active: "boardroom" | "akademiet" | "rapportering" | "noegletal" | "budget" | "handouts" | "booksession" | "podcast" | "rabataftaler" | "events" | "medlemmer" | "community" | "chat" | "virksomheder";
+  // "milestones" = /milestones i Hb (etape 1, 4/9) — under «Dine tal» som
+  // de fire andre.
+  active: "boardroom" | "akademiet" | "rapportering" | "noegletal" | "budget" | "milestones" | "handouts" | "booksession" | "podcast" | "rabataftaler" | "events" | "medlemmer" | "community" | "chat" | "virksomheder";
   /* layout="fuld" (chatten, C4 i docs/chat-design.md): AppLayout-
      præcedensen (fullscreen-prop, AppLayout.tsx:28-31, forgrening :337)
      oversat til Hb-skallen. Prop'en findes fordi shell'ens lodrette
@@ -144,7 +146,12 @@ export const HbMemberShell = ({
         to: "/budget",
         active: active === "budget",
       },
-      { label: "Milestones", to: "/milestones" },
+      // Milestones i Hb (4/9, etape 1): /milestones bærer Hb-fladen.
+      {
+        label: "Milestones",
+        to: "/milestones",
+        active: active === "milestones",
+      },
       // Handouts-GO 2026-08-06: /handouts bærer fladen for alle roller.
       {
         label: "Handouts",
