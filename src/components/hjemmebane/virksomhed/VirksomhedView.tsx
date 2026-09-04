@@ -22,6 +22,7 @@ import { afgoerVirksomhedsSignaler, type FactPunkt, type Signal, type Virksomhed
 import { computeMembershipTier, type MembershipTier } from "@/lib/membershipTier";
 import { afgoerFornyelsestilstand, type FornyelseStatus, type Fornyelsesbeslutning } from "@/lib/fornyelse";
 import { afgoerBetalingsfrist, type Betalingsfriststatus } from "@/lib/betalingsfrist";
+import { afgoerForsidensDom, FORM, type OpgaveSlags, type VirksomhedTilDom } from "@/lib/forsidensDom";
 import { beloebKr, kortDato, datoOgTid, stripeSagde, traekBadgeTekst } from "@/lib/traek";
 import { KPI_DEFS, deriveKpiMetrics, type KpiMetric } from "@/lib/kpiDefs";
 import { deriveKpiTone } from "../noegletal/kpiTone";
@@ -175,7 +176,94 @@ function bygSignalInput(d: VirksomhedsData, facts: CompanyFact[]): VirksomhedsIn
 /** Alvor → tone. Rust kun til det der er galt (>= 70); resten dæmpet. */
 const signalTone = (alvor: number) => (alvor >= 70 ? "text-hb-rust" : alvor >= 50 ? "text-hb-ink" : "text-hb-ink-soft");
 
-const Blok1 = ({ d, facts }: { d: VirksomhedsData; facts: CompanyFact[] }) => {
+// ── «Derfor er du her» (forsiden-design.md §6) ──────────────────────────
+
+/** Grunden til besøget, som forsiden formulerede den. */
+interface Derfor {
+  slags: OpgaveSlags;
+  handling: string;
+  tekst: string;
+  lukkerOmDage: number | null;
+  alvor: number;
+}
+
+/** ?grund=<slags> er kun gyldig når den er en af dommens slags — alt andet
+    er en ukendt parameter, og så sker der intet. */
+const laesGrund = (raw: string | null): OpgaveSlags | null =>
+  raw && Object.prototype.hasOwnProperty.call(FORM, raw) ? (raw as OpgaveSlags) : null;
+
+/** Hvor en grund peger hen på siden. Ankrene findes fra deep-link-arbejdet
+    (#619) og denne etape. null = intet bestemt sted; man er øverst. */
+const GRUNDENS_ANKER: Record<OpgaveSlags, string | null> = {
+  venter_i_samtalen: "section-chat", // «Svar …» — blok 4
+  tavshed: "section-chat", // «Skriv til …» — blok 4
+  stikker_ud: "section-tal", // et tal — blok 5
+  rapporteringsfejl: "section-tal", // et tal — blok 5 (slags ikke bygget endnu)
+  fornyelse: "section-aftale", // blok 7
+  indgang: "section-aftale", // blok 7
+  opgave_naer_deadline: null, // opgaverne står kun som antal i blok 1
+  medlem_har_skrevet: "section-handouts", // blok 6 (slags ikke bygget endnu)
+  agentforslag: null, // panelet står i blok 1
+};
+
+/** Samme dom som forsiden (afgoerForsidensDom), for denne ene virksomhed,
+    så handlingen står med forsidens ord — «Send tilbuddet til PHILBERT»,
+    ikke en oversættelse. Siden har allerede alle motorernes råstof
+    (useVirksomhed: samtaler, facts, betalingslink, fornyelse, opgaver).
+    Fornyelse dømmes for samme udsnit som forsiden (ikke legat, status
+    aktiv eller tom); indgang kun med linkrække; opgaver kun aktive med
+    frist, due_date som LOKAL kalenderdag (date-kolonne, ikke UTC-midnat).
+    Findes grunden ikke længere — beskeden er besvaret, beslutningen
+    truffet — er der ingen «derfor»: siden er et spejl (§7). */
+function findDerfor(d: VirksomhedsData, facts: CompanyFact[], slags: OpgaveSlags, nu: Date): Derfor | null {
+  const c = d.company;
+  const signaler = afgoerVirksomhedsSignaler(bygSignalInput(d, facts), nu);
+  const iFornyelsesUdsnit = !c.is_legat && (c.status === "active" || !c.status);
+  const beslutning = d.fornyelse?.beslutning;
+  const v: VirksomhedTilDom = {
+    companyId: c.id,
+    navn: c.name,
+    signaler,
+    agentforslagVenter: d.agentforslagVenter,
+    fornyelse: iFornyelsesUdsnit
+      ? afgoerFornyelsestilstand({
+          contract_end_date: c.contract_end_date,
+          subscription_status: c.subscription_status,
+          subscription_current_period_end: c.subscription_current_period_end,
+          beslutning: beslutning === "tilbyd" || beslutning === "tilbyd_ikke" ? beslutning : null,
+        }, nu)
+      : null,
+    indgang: d.betalingslink
+      ? afgoerBetalingsfrist({
+          prisniveau_oere: d.betalingslink.prisniveau_oere,
+          underskrevet_at: d.betalingslink.underskrevet_at,
+          betalingsmail_sendt_at: d.betalingslink.betalingsmail_sendt_at,
+          sidste_paamindelse_dag: d.betalingslink.sidste_paamindelse_dag,
+          contract_end_date: c.contract_end_date,
+        }, nu)
+      : null,
+    opgaver: d.opgaver.map((o) => {
+      const [aar, md, dag] = (o.due_date ?? "").split("-").map((x) => parseInt(x, 10));
+      return { id: o.id, title: o.title, status: o.status, due_date: aar && md && dag ? new Date(aar, md - 1, dag) : null };
+    }),
+  };
+  const dom = afgoerForsidensDom([v], nu);
+  // Grundene ligger tre steder i dommens svar; alle gennemsøges.
+  for (const l of [...dom.linjer, ...dom.underStregen.tilstande, ...dom.underStregen.pukler]) {
+    if (l.linje === "virksomhed") {
+      const g = l.grunde.find((x) => x.slags === slags);
+      if (g) return { slags, handling: g.handling, tekst: g.tekst, lukkerOmDage: g.lukkerOmDage, alvor: g.alvor };
+    } else if (l.linje === "tilstand" && l.slags === slags) {
+      const g = l.virksomheder[0]?.grund;
+      if (g) return { slags, handling: g.handling, tekst: g.tekst, lukkerOmDage: g.lukkerOmDage, alvor: g.alvor };
+    } else if (l.linje === "pukkel" && l.slags === slags) {
+      return { slags, handling: "Afgør agentforslagene", tekst: l.tekst, lukkerOmDage: null, alvor: l.alvor };
+    }
+  }
+  return null;
+}
+
+const Blok1 = ({ d, facts, derfor }: { d: VirksomhedsData; facts: CompanyFact[]; derfor: Derfor | null }) => {
   const signaler: Signal[] = useMemo(() => afgoerVirksomhedsSignaler(bygSignalInput(d, facts)), [d, facts]);
   /* Køer der vises: ALLE fem. §4 blok 1 nævner præcis dem: ny rapportering
      siden sidst (friske_tal), hvad stikker ud i tallene (stikker_ud),
@@ -193,6 +281,24 @@ const Blok1 = ({ d, facts }: { d: VirksomhedsData; facts: CompanyFact[] }) => {
   const tom = signaler.length === 0 && opgaverVenter === 0;
   return (
     <HbSection eyebrow="Hvad skal du vide nu" hairline>
+      {/* «Derfor er du her» (§6): kun når man kom fra forsiden med en grund
+          der stadig findes. Handlingen først, med forsidens ord; grunden
+          under. Resten af blokken er som altid — siden skifter ikke form. */}
+      {derfor && (
+        <div className="mb-5 border-l-2 border-hb-rust pl-4">
+          <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-hb-rust">Derfor er du her</p>
+          <p className="mt-1 text-[15px] font-medium leading-snug text-hb-ink">{derfor.handling}</p>
+          <p className={cn("mt-0.5 text-sm leading-snug", signalTone(derfor.alvor) === "text-hb-rust" ? "text-hb-rust" : "text-hb-ink-soft")}>
+            {derfor.tekst}
+            {derfor.lukkerOmDage != null && (
+              <span className="text-hb-ink-soft">
+                {" · "}
+                {derfor.lukkerOmDage === 0 ? "i dag" : derfor.lukkerOmDage === 1 ? "i morgen" : `om ${derfor.lukkerOmDage} dage`}
+              </span>
+            )}
+          </p>
+        </div>
+      )}
       {tom ? (
         <p className="text-sm text-hb-ink-soft">Intet der stikker ud lige nu.</p>
       ) : (
@@ -573,7 +679,8 @@ const Blok4 = ({ d }: { d: VirksomhedsData }) => {
         : "Åben";
   const tildelt = samtale?.assigned_advisor_id ? d.raadgiverNavne[samtale.assigned_advisor_id] ?? null : null;
   return (
-    <HbSection eyebrow="Chatten" hairline className="mt-12">
+    // id="section-chat": ankeret for «derfor er du her» (§6) — svar og «skriv til» lander her.
+    <HbSection id="section-chat" eyebrow="Chatten" hairline className="mt-12 scroll-mt-24">
       <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm">
         <HbTag className={cn("px-2 py-0.5 text-[11px]", samtale ? "border border-hb-line bg-hb-paper text-hb-ink" : "bg-hb-line/60 text-hb-ink-soft")}>{status}</HbTag>
         {samtale && (
@@ -630,7 +737,7 @@ const Blok5 = ({ d, facts }: { d: VirksomhedsData; facts: CompanyFact[] }) => {
   };
   if (!seneste) {
     return (
-      <HbSection eyebrow="Tallene" hairline className="mt-12">
+      <HbSection id="section-tal" eyebrow="Tallene" hairline className="mt-12 scroll-mt-24">
         <p className="text-sm text-hb-ink-soft">Ingen committede tal endnu.</p>
       </HbSection>
     );
@@ -655,7 +762,8 @@ const Blok5 = ({ d, facts }: { d: VirksomhedsData; facts: CompanyFact[] }) => {
   const bank = factsToDanishMetrics(seneste.metrics).bank_balance ?? null;
 
   return (
-    <HbSection eyebrow="Tallene" hairline className="mt-12">
+    // id="section-tal": ankeret for «derfor er du her» (§6) — et tal der stikker ud lander her.
+    <HbSection id="section-tal" eyebrow="Tallene" hairline className="mt-12 scroll-mt-24">
       <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
         <p className="text-sm text-hb-ink">
           Seneste periode: <span className="font-medium">{seneste.period_label}</span>
@@ -1219,7 +1327,8 @@ const Blok7 = ({ d, onOpdateret }: { d: VirksomhedsData; onOpdateret: () => Prom
   const afventende = d.invitationer.filter((i) => i.status === "pending");
 
   return (
-    <HbSection eyebrow="Aftalen" hairline className="mt-12">
+    // id="section-aftale": ankeret for «derfor er du her» (§6) — fornyelse og indgang lander her.
+    <HbSection id="section-aftale" eyebrow="Aftalen" hairline className="mt-12 scroll-mt-24">
       <div className="grid gap-4 md:grid-cols-2">
         <HbCard className="p-5">
           <div className="flex items-baseline justify-between gap-3">
@@ -1357,16 +1466,38 @@ export const VirksomhedView = ({ companyId }: { companyId: string | undefined })
   const [searchParams, setSearchParams] = useSearchParams();
   const [dybRapport] = useState<string | null>(() => searchParams.get("reportId"));
   const [dybSektion] = useState<string | null>(() => searchParams.get("section"));
+  // ?grund=<slags> fra forsidens linje (#637, designets §6): læst én gang,
+  // ryddet med de andre; ukendt værdi → null → intet sker.
+  const [dybGrund] = useState<OpgaveSlags | null>(() => laesGrund(searchParams.get("grund")));
   const [aktivtHandout, setAktivtHandout] = useState<HandoutModule | null>(() => {
     const h = searchParams.get("handout") as HandoutModule | null;
     return h && moduleOrder.includes(h) ? h : null;
   });
   useEffect(() => {
-    if (searchParams.has("handout") || searchParams.has("reportId") || searchParams.has("section")) {
+    if (searchParams.has("handout") || searchParams.has("reportId") || searchParams.has("section") || searchParams.has("grund")) {
       setSearchParams({}, { replace: true });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+  // «Derfor er du her»: forsidens dom for denne ene virksomhed, når der er
+  // en grund i URL'en og data er inde. null når grunden ikke findes længere.
+  const derfor = useMemo(
+    () => (dybGrund && data ? findDerfor(data, facts, dybGrund, new Date()) : null),
+    [dybGrund, data, facts],
+  );
+  // Rul til det sted grunden peger hen — samme mekanik som ?section: først
+  // når blokkene er tegnet. Peger grunden ingen steder hen (opgaver,
+  // agentforslag), rulles der ikke; man er allerede øverst. Chatten ruller
+  // ikke selv i låst tilstand (#639), så der er ingen kamp om scrollen.
+  useEffect(() => {
+    if (!derfor || !data || aktivtHandout) return;
+    const anker = GRUNDENS_ANKER[derfor.slags];
+    if (!anker) return;
+    const timer = setTimeout(() => {
+      document.getElementById(anker)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 150);
+    return () => clearTimeout(timer);
+  }, [derfor, data, aktivtHandout]);
   // ?section rulles først når blokkene er tegnet (data er inde) — ikke på
   // et fast tidsstempel som MemberDetails 400 ms.
   useEffect(() => {
@@ -1448,7 +1579,7 @@ export const VirksomhedView = ({ companyId }: { companyId: string | undefined })
       </section>
 
       <div className="mt-10">
-        <Blok1 d={data} facts={facts} />
+        <Blok1 d={data} facts={facts} derfor={derfor} />
       </div>
       <Blok2 d={data} />
       {/* Blok 3 kommer i en senere etape — rækkefølgen er designets. */}
