@@ -19,6 +19,7 @@ import { deriveKpiTone } from "../noegletal/kpiTone";
 import { momErGyldig } from "@/lib/dataGrundlag";
 import { handoutConfigs, moduleOrder, type HandoutModule } from "@/lib/handoutConfig";
 import { openReportFile, isLegacyPath } from "@/lib/reportFileAccess";
+import { notifyChatMessage } from "@/lib/chatNotify";
 import { DANISH_MONTHS } from "@/lib/financialUtils";
 import { EstimatMaerke } from "../EstimatMaerke";
 import { HbButton } from "../HbButton";
@@ -560,6 +561,201 @@ const RAPPORT_STATUS: Record<string, string> = {
   error: "Fejl i behandling",
 };
 
+type Rapport = VirksomhedsData["rapporter"][number];
+type Kommentar = VirksomhedsData["rapportKommentarer"][number];
+
+/** Rapportens tilstand som badge — SAMME fem tilstande som MemberDetail:
+    1478-1486 (Committed vinder over status), i Hb-udtryk og rolig tone:
+    intet er rødt, «Fejl i behandling» er en tilstand, ikke en dom. */
+const rapportBadge = (r: Rapport, committed: boolean): { tekst: string; klasse: string } => {
+  if (committed) return { tekst: "Committed", klasse: "bg-hb-sage text-hb-ink" };
+  if (r.status === "needs_manual_entry") return { tekst: "Indtast tal manuelt", klasse: "border border-hb-line bg-hb-paper text-hb-ink-soft" };
+  if (r.status === "processed") return { tekst: "Afventer godkendelse", klasse: "border border-hb-line bg-hb-paper text-hb-ink" };
+  if (r.status === "processing") return { tekst: "Behandles", klasse: "border border-hb-line bg-hb-paper text-hb-ink-soft" };
+  if (r.status === "error") return { tekst: "Fejl i behandling", klasse: "border border-hb-line bg-hb-paper text-hb-ink-soft" };
+  return { tekst: RAPPORT_STATUS[r.status] ?? r.status, klasse: "border border-hb-line bg-hb-paper text-hb-ink-soft" };
+};
+
+/** De seks nøgletal MemberDetails renderExtractedData (575-638) viser,
+    med ▲▼ mod forrige fact. Tallene læses fra FACTS via source_report_id —
+    ikke fra rapportens egne jsonb-stier (useCompanyFacts.ts:53 bærer
+    source_report_id, så hooken henter ingen talstier). Bank og egenkapital
+    kun når de findes. Pilene er ink, ikke rust: et fald er et tal, ikke en
+    afvigelse — afvigelser dømmes i blok 1 og 5. */
+const RapportTal = ({ fact, forrige }: { fact: CompanyFact; forrige: CompanyFact | null }) => {
+  const kf = factsToDanishMetrics(fact.metrics);
+  const pk = forrige ? factsToDanishMetrics(forrige.metrics) : null;
+  const kort: { label: string; v: number | undefined; p: number | undefined }[] = [
+    { label: "Omsætning", v: kf.omsaetning, p: pk?.omsaetning },
+    { label: "Dækningsbidrag", v: kf.daekningsbidrag, p: pk?.daekningsbidrag },
+    { label: "Lønninger", v: kf.loenninger, p: pk?.loenninger },
+    { label: "Resultat f. skat", v: kf.resultat_foer_skat, p: pk?.resultat_foer_skat },
+    ...(kf.bank_balance != null ? [{ label: "Bank", v: kf.bank_balance, p: pk?.bank_balance }] : []),
+    ...(kf.egenkapital != null ? [{ label: "Egenkapital", v: kf.egenkapital, p: pk?.egenkapital }] : []),
+  ];
+  const pil = (v?: number, p?: number) => {
+    if (v == null || p == null || p === 0) return null;
+    const pct = ((v - p) / Math.abs(p)) * 100;
+    return `${pct >= 0 ? "▲" : "▼"} ${Math.abs(pct).toFixed(1)} %`;
+  };
+  return (
+    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+      {kort.map((k) => (
+        <div key={k.label} className="rounded-hb border border-hb-line bg-hb-paper p-3">
+          <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft">{k.label}</p>
+          <p className="mt-1 text-sm text-hb-ink">{k.v != null ? formatKr(k.v * 100) : "—"}</p>
+          {pk && pil(k.v, k.p) && <p className="text-xs text-hb-ink-soft">{pil(k.v, k.p)} mod {forrige!.period_label}</p>}
+        </div>
+      ))}
+    </div>
+  );
+};
+
+/** Én rapport, udfoldelig: badge, «Rettet», tal, godkend-link, original
+    fil og kommentarer. Kommentar-skrivningen er ORDRET MemberDetails
+    handleSubmitComment (539-568): samme messages-insert (message_type
+    "user", context_type "report", context_id, context_meta.title) og
+    samme notifyChatMessage bagefter, så kommentaren lander i chatten og
+    udløser Slack + advisor_notifications som altid. Uden samtale
+    (samtaleId null — de tre virksomheder uden medlemmer) skrives IKKE;
+    det siges roligt, ingen fejl. */
+const RapportRaekke = ({
+  r, facts, kommentarer, samtaleId, medlemsnavne, aaben, onToggle,
+}: {
+  r: Rapport;
+  facts: CompanyFact[];
+  kommentarer: Kommentar[];
+  samtaleId: string | null;
+  medlemsnavne: Map<string, string>;
+  aaben: boolean;
+  onToggle: () => void;
+}) => {
+  const { user } = useAuth();
+  const [tekst, setTekst] = useState("");
+  const [sender, setSender] = useState(false);
+  const [sendeFejl, setSendeFejl] = useState<string | null>(null);
+  const [nye, setNye] = useState<Kommentar[]>([]);
+
+  // Fact'et for denne rapport: source_report_id først (ejerskabet), ellers
+  // samme periode-label — samme to opslag som MemberDetail:577-578.
+  const idx = facts.findIndex((f) => f.source_report_id === r.id);
+  const idx2 = idx >= 0 ? idx : facts.findIndex((f) => f.period_label === r.report_period);
+  const fact = idx2 >= 0 ? facts[idx2] : null;
+  const forrige = idx2 > 0 ? facts[idx2 - 1] : null;
+  const committed = facts.some((f) => f.source_report_id === r.id);
+  const badge = rapportBadge(r, committed);
+  // «Rettet» = manuel override anvendt — hasManualOverride (financialUtils:111-113), inline fordi ReportData er en større type end rækken her.
+  const rettet = r.manual_override_status === "applied";
+  const alle = [...kommentarer, ...nye];
+  const titel = r.manual_report_period_label ?? r.report_period ?? r.file_name;
+
+  const sendKommentar = async () => {
+    const content = tekst.trim();
+    if (!content || !user || !samtaleId || sender) return;
+    if (content.length > 2000) return;
+    setSender(true);
+    setSendeFejl(null);
+    const { data, error } = await supabase
+      .from("messages")
+      .insert({
+        conversation_id: samtaleId,
+        sender_id: user.id,
+        content,
+        message_type: "user",
+        context_type: "report",
+        context_id: r.id,
+        context_meta: { title: r.file_name },
+      } as any)
+      .select("id, conversation_id, sender_id, content, context_id, created_at")
+      .single();
+    if (!error && data) {
+      setNye((prev) => [...prev, data as Kommentar]);
+      setTekst("");
+      // Server-side: Slack + advisor notification — som MemberDetail:566.
+      notifyChatMessage(data.id);
+    } else {
+      setSendeFejl("Kommentaren blev ikke sendt. Prøv igen.");
+    }
+    setSender(false);
+  };
+
+  return (
+    <li className="py-2 text-sm">
+      <button type="button" onClick={onToggle} aria-expanded={aaben} className="w-full text-left">
+        <div className="flex items-baseline justify-between gap-3">
+          <span className="min-w-0 truncate text-hb-ink">{titel}</span>
+          <span className="shrink-0 text-xs text-hb-ink-soft">{formatDato(r.uploaded_at)}</span>
+        </div>
+        <div className="mt-1 flex flex-wrap items-center gap-1.5">
+          <HbTag className={cn("px-2 py-0.5 text-[11px]", badge.klasse)}>{badge.tekst}</HbTag>
+          {rettet && <HbTag className="border border-hb-line bg-hb-paper px-2 py-0.5 text-[11px] text-hb-ink-soft">Rettet</HbTag>}
+          {alle.length > 0 && <span className="text-xs text-hb-ink-soft">{alle.length} {alle.length === 1 ? "kommentar" : "kommentarer"}</span>}
+          <span className="ml-auto text-xs text-hb-ink-soft">{aaben ? "Fold sammen" : "Fold ud"}</span>
+        </div>
+      </button>
+
+      {aaben && (
+        <div className="mt-3 space-y-4 border-t border-hb-line pt-3">
+          {fact ? (
+            <RapportTal fact={fact} forrige={forrige} />
+          ) : (
+            <p className="text-sm text-hb-ink-soft">Ingen godkendte tal for denne rapport endnu.</p>
+          )}
+
+          <p className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-hb-ink-soft">
+            {r.status === "processed" && !committed && (
+              <Link to="/admin/review-queue" className="text-hb-evergreen underline-offset-4 hover:underline">Godkend rapport →</Link>
+            )}
+            {r.file_path && !isLegacyPath(r.file_path) && (
+              <button type="button" onClick={() => openReportFile(r.file_path)} className="text-hb-evergreen underline-offset-4 hover:underline">
+                Se original fil
+              </button>
+            )}
+            {r.processed_at && <span>Behandlet {formatDato(r.processed_at)}</span>}
+          </p>
+
+          <div>
+            <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft">Kommentarer</p>
+            {alle.length > 0 && (
+              <ul className="mt-2 space-y-2">
+                {alle.map((k) => (
+                  <li key={k.id} className="rounded-hb bg-hb-paper p-3">
+                    <p className="whitespace-pre-wrap break-words text-sm text-hb-ink">{k.content}</p>
+                    <p className="mt-1 text-xs text-hb-ink-soft">
+                      {k.sender_id === user?.id ? "Du" : medlemsnavne.get(k.sender_id) ?? "Medlem"} · {formatDato(k.created_at)}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {samtaleId ? (
+              <div className="mt-2 flex gap-2">
+                <textarea
+                  value={tekst}
+                  onChange={(e) => setTekst(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void sendKommentar(); }
+                  }}
+                  placeholder="Skriv en kommentar — den lander i chatten"
+                  maxLength={2000}
+                  rows={1}
+                  className="flex-1 resize-none rounded-hb border border-hb-line bg-hb-surface px-3 py-2 text-sm text-hb-ink placeholder:text-hb-ink-soft/60 focus:outline-none focus:ring-2 focus:ring-hb-evergreen/40"
+                />
+                <HbButton type="button" variant="secondary" className="h-9 px-4 text-sm" onClick={() => void sendKommentar()} disabled={sender || !tekst.trim()}>
+                  {sender ? "Sender…" : "Send"}
+                </HbButton>
+              </div>
+            ) : (
+              <p className="mt-2 text-sm text-hb-ink-soft">Kommentarer kræver en samtale — virksomheden har ingen endnu.</p>
+            )}
+            {sendeFejl && <p className="mt-1 text-xs text-hb-ink-soft">{sendeFejl}</p>}
+          </div>
+        </div>
+      )}
+    </li>
+  );
+};
+
 const Blok6 = ({ d, facts }: { d: VirksomhedsData; facts: CompanyFact[] }) => {
   /* Designets §4 blok 6: nogle skriver meget og ser lidt video, andre gør
      det modsatte — begge dele er i orden. Derfor: tal og datoer i ink/ink-
@@ -567,13 +763,35 @@ const Blok6 = ({ d, facts }: { d: VirksomhedsData; facts: CompanyFact[] }) => {
      ikke hvad der burde være.
      Akademi er IKKE med: member_progress er nøglet på user_id alene (ingen
      company_id), og opslaget pr. medlem er ikke besluttet (useVirksomhed,
-     filhovedet). Blokken viser rapportering, handouts og milestones. */
+     filhovedet). Blokken viser rapportering, handouts og milestones.
+
+     RAPPORTLISTEN (4/9): hele listen med udfoldning, badges og kommentarer
+     kunne gøre blokken til en mur. VALGT: rapporterne får deres eget
+     afsnit UNDER de tre korte kort — ikke inde i «Rapportering»-kortet —
+     og listen er FOLDET SAMMEN efter de tre nyeste med «Vis alle N». De
+     tre kort bliver ved med at være et øjebliks skim; rapportarbejdet
+     (udfold, kommentér, godkend) ligger lige under, når man vil det. */
+  const [visAlle, setVisAlle] = useState(false);
+  const [aabenRapport, setAabenRapport] = useState<string | null>(null);
   const senesteRapport = d.rapporter[0] ?? null;
   const senesteCommittet = facts[facts.length - 1] ?? null;
   const fulgte = d.handouts.filter((h) => h.status === "completed").length;
   const handoutByModule = new Map(d.handouts.map((h) => [h.module, h]));
   const aktive = d.milestones.filter((m) => m.status !== "completed" && m.status !== "parked");
   const naaede = d.milestones.filter((m) => m.status === "completed").length;
+  // Samtalen kommentarer skrives i: den med seneste besked (flere er
+  // muligt pr. virksomhed). null = ingen samtale → der skrives ikke.
+  const samtaleId = [...d.samtaler].sort((a, b) => (b.last_message_at ?? "").localeCompare(a.last_message_at ?? ""))[0]?.id ?? null;
+  const kommentarerByRapport = new Map<string, Kommentar[]>();
+  for (const k of d.rapportKommentarer) {
+    if (!k.context_id) continue;
+    const liste = kommentarerByRapport.get(k.context_id) ?? [];
+    liste.push(k);
+    kommentarerByRapport.set(k.context_id, liste);
+  }
+  const medlemsnavne = new Map(d.medlemmer.map((m) => [m.user_id, m.full_name]));
+  const viste = visAlle ? d.rapporter : d.rapporter.slice(0, 3);
+  const committede = facts.filter((f) => d.rapporter.some((r) => r.id === f.source_report_id)).length;
 
   return (
     <HbSection eyebrow="Aktivitet" hairline className="mt-12">
@@ -586,33 +804,12 @@ const Blok6 = ({ d, facts }: { d: VirksomhedsData; facts: CompanyFact[] }) => {
             <>
               <p className="mt-3 text-sm text-hb-ink">
                 {d.rapporter.length} {d.rapporter.length === 1 ? "rapport" : "rapporter"}
-                {senesteCommittet && <span className="text-hb-ink-soft"> · seneste godkendte periode {senesteCommittet.period_label}</span>}
+                {committede > 0 && <span className="text-hb-ink-soft"> · {committede} godkendt</span>}
               </p>
-              <ul className="mt-3 divide-y divide-hb-line">
-                {d.rapporter.slice(0, 3).map((r) => (
-                  <li key={r.id} className="py-2 text-sm">
-                    <div className="flex items-baseline justify-between gap-3">
-                      <span className="min-w-0 truncate text-hb-ink">{r.manual_report_period_label ?? r.report_period ?? r.file_name}</span>
-                      <span className="shrink-0 text-xs text-hb-ink-soft">{formatDato(r.uploaded_at)}</span>
-                    </div>
-                    <p className="text-xs text-hb-ink-soft">
-                      {RAPPORT_STATUS[r.status] ?? r.status}
-                      {r.file_path && !isLegacyPath(r.file_path) && (
-                        <>
-                          {" · "}
-                          <button type="button" onClick={() => openReportFile(r.file_path)} className="text-hb-evergreen underline-offset-4 hover:underline">
-                            Se original fil
-                          </button>
-                        </>
-                      )}
-                    </p>
-                  </li>
-                ))}
-              </ul>
-              {d.rapporter.length > 3 && <p className="mt-2 text-xs text-hb-ink-soft">+{d.rapporter.length - 3} ældre</p>}
+              {senesteCommittet && <p className="mt-1 text-sm text-hb-ink-soft">Seneste godkendte periode {senesteCommittet.period_label}</p>}
+              {senesteRapport && <p className="mt-1 text-sm text-hb-ink-soft">Seneste upload {formatDato(senesteRapport.uploaded_at)}</p>}
             </>
           )}
-          {senesteRapport && <p className="mt-2 text-xs text-hb-ink-soft">Seneste upload {formatDato(senesteRapport.uploaded_at)}</p>}
         </HbCard>
 
         <HbCard className="p-5">
@@ -660,6 +857,34 @@ const Blok6 = ({ d, facts }: { d: VirksomhedsData; facts: CompanyFact[] }) => {
           )}
         </HbCard>
       </div>
+
+      {/* Rapporterne — eget afsnit under kortene, foldet efter de tre nyeste. */}
+      {d.rapporter.length > 0 && (
+        <HbCard className="mt-4 p-5">
+          <div className="flex items-baseline justify-between gap-3">
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-hb-ink-soft">Rapporter</p>
+            {d.rapporter.length > 3 && (
+              <button type="button" onClick={() => setVisAlle((v) => !v)} className="text-sm text-hb-evergreen underline-offset-4 hover:underline">
+                {visAlle ? "Vis de tre nyeste" : `Vis alle ${d.rapporter.length}`}
+              </button>
+            )}
+          </div>
+          <ul className="mt-2 divide-y divide-hb-line">
+            {viste.map((r) => (
+              <RapportRaekke
+                key={r.id}
+                r={r}
+                facts={facts}
+                kommentarer={kommentarerByRapport.get(r.id) ?? []}
+                samtaleId={samtaleId}
+                medlemsnavne={medlemsnavne}
+                aaben={aabenRapport === r.id}
+                onToggle={() => setAabenRapport(aabenRapport === r.id ? null : r.id)}
+              />
+            ))}
+          </ul>
+        </HbCard>
+      )}
     </HbSection>
   );
 };
