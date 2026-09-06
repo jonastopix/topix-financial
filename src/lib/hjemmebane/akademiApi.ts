@@ -15,14 +15,25 @@ import type {
   Partner,
 } from "./adminContentApi";
 
+/** Medlemmets fremdriftsrække. De fire tilstandsfelter er NULLABLE
+    kolonner, og siden 6/9-2026 udtrykker de genererede typer det som
+    VALGFRIE felter (`seen_at?: string`) frem for `string | null`.
+    PostgREST leverer stadig `null` for en tom kolonne, og husets
+    skriveveje sender `null` for at rydde (ElementView: fortryd
+    «Gennemført»), så typen skal bære begge: valgfrit OG null.
+    REGLEN: et fraværende tidsstempel (undefined) betyder det samme som
+    null — det er ikke sket. Dommen i itemProgressState læser felterne
+    som sandhedsværdi, ikke `!== null`, så en række hentet uden en
+    kolonne dømmes som en række med en tom kolonne. Samme for
+    last_position_seconds: fraværende = ingen gemt position. */
 export type MemberProgress = {
   id: string;
   user_id: string;
   content_item_id: string;
-  seen_at: string | null;
-  acknowledged_at: string | null;
-  skipped_at: string | null;
-  last_position_seconds: number | null;
+  seen_at?: string | null;
+  acknowledged_at?: string | null;
+  skipped_at?: string | null;
+  last_position_seconds?: number | null;
   created_at: string;
   updated_at: string;
 };
@@ -98,7 +109,12 @@ export async function upsertProgress(
 
 /** Tilstandsprikken pr. element — afledt af de uafhængige tidsstempler.
     Accepterer et strukturelt subset, så advisor-værktøjets AdminProgressRow
-    (uden id/positions-felter) kan bruge samme dom. */
+    (uden id/positions-felter) kan bruge samme dom.
+    Hvert tidsstempel læses som SANDHEDSVÆRDI: sat = sket; null eller
+    fraværende (undefined) = ikke sket. Det er reglen fra MemberProgress
+    — et manglende felt er det samme som en tom kolonne — og derfor er
+    tjekkene bevidst ikke `!== null`. Rækkefølgen er dommen: gennemført
+    slår sprunget over, som slår startet. */
 export type ItemProgressState = "done" | "started" | "skipped" | "untouched";
 
 export function itemProgressState(
