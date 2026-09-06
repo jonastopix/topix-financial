@@ -8,9 +8,14 @@
 export interface EventTimes {
   /** ISO-timestamp — NOT NULL i skemaet. */
   starts_at: string;
-  /** ISO-timestamp eller null — kolonnen er nullable (kun et værn:
-      prod har 0 publicerede events uden ends_at). */
-  ends_at: string | null;
+  /** ISO-timestamp, null eller FRAVÆRENDE — kolonnen er nullable (kun
+      et værn: prod har 0 publicerede events uden ends_at). Feltet er
+      valgfrit (6/9-2026), fordi de genererede typer nu udtrykker en
+      nullable kolonne som `ends_at?: string`; PostgREST leverer stadig
+      `null` for en tom kolonne, så begge former skal accepteres.
+      REGLEN: null og undefined betyder det samme — «ingen sluttid» —
+      og begge falder tilbage på starts_at + 90 min i eventEndTime. */
+  ends_at?: string | null;
 }
 
 /** Default-varighed når ends_at mangler: 90 minutter — formatets
@@ -19,6 +24,11 @@ export interface EventTimes {
     er i gang. */
 const FALLBACK_DURATION_MS = 90 * 60 * 1000;
 
+/** Sluttiden: ends_at når den er sat; ellers starts_at + 90 min. Et
+    manglende ends_at (undefined) behandles PRÆCIS som null — tjekket er
+    bevidst en sandhedsværdi, ikke `!== null`, så en række hentet uden
+    kolonnen dømmes som en række med en tom kolonne. Events MED ends_at
+    rammes ikke: deres sluttid vinder altid. */
 export function eventEndTime(event: EventTimes): Date {
   if (event.ends_at) return new Date(event.ends_at);
   return new Date(new Date(event.starts_at).getTime() + FALLBACK_DURATION_MS);
