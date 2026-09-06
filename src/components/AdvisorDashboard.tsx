@@ -8,6 +8,7 @@ import { afgoerVirksomhedsSignaler, isFiguresFresh, type FactPunkt, type Signal,
 import { afgoerForsidensDom, type OpgaveTilDom, type VirksomhedTilDom } from "@/lib/forsidensDom";
 import { afgoerFornyelsestilstand, type Fornyelsesbeslutning } from "@/lib/fornyelse";
 import { afgoerBetalingsfrist } from "@/lib/betalingsfrist";
+import { erKunde } from "@/lib/raadgiverensKunder";
 import {
   MessageSquare, Clock, Building2, ChevronRight, CheckCircle2,
   Activity, Target, Search, List, LayoutGrid, UserCheck, Heart, AlertTriangle, Sparkles,
@@ -67,6 +68,7 @@ interface CompanyRow {
   id: string;
   name: string;
   logo_url: string | null;
+  er_kunde?: boolean | null;
 }
 
 interface MilestoneData {
@@ -330,7 +332,7 @@ export const hentAdvisorDashboard = () =>
           .order("last_message_at", { ascending: false }),
         supabase
           .from("companies")
-          .select("id, name, logo_url, is_legat, status, contract_end_date, subscription_status, subscription_current_period_end, created_at")
+          .select("id, name, logo_url, is_legat, status, contract_end_date, subscription_status, subscription_current_period_end, created_at, er_kunde")
           .order("name"),
         // ÉN KILDE TIL TALLENE (raadgiverfladen-design.md §11 pkt. 1, 4/9):
         // nøgletallene regnes af financial_report_facts, som resten af huset
@@ -685,7 +687,10 @@ export const hentAdvisorDashboard = () =>
       }
 
       // Build InvestorCompanySummary[]
-      const investorSummaries: InvestorCompanySummary[] = companies.filter(c => !legatCompanyIds.has(c.id)).map(c => {
+      // er_kunde læses her fordi dette er forsidens datalag: vores egen
+      // virksomhed (Topix.dk ApS) må ikke stå i rådgiverens køer og tællere
+      // som var den en kunde (src/lib/raadgiverensKunder.ts, fail-open).
+      const investorSummaries: InvestorCompanySummary[] = companies.filter(c => !legatCompanyIds.has(c.id) && erKunde(c)).map(c => {
         const latest = latestKfByCompany.get(c.id);
         const latestKey = latestReportKey.get(c.id) || null;
         const missingReport = companiesMissingReport.has(c.id);

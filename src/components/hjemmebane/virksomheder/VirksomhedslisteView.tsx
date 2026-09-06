@@ -7,6 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { computeMembershipTier, type MembershipTier } from "@/lib/membershipTier";
 import { fejledeTraekPrVirksomhed, traekBadgeTekst, type FejletTraek } from "@/lib/traek";
+import { erKunde } from "@/lib/raadgiverensKunder";
 import { HbTag } from "../HbTag";
 import { hbControlClasses } from "../admin/HbField";
 import { cn } from "@/lib/utils";
@@ -79,7 +80,7 @@ async function hentVirksomhedsliste(): Promise<Raekke[]> {
     // /members bruger `as any`; her holdes typerne i stedet.
     supabase
       .from("companies")
-      .select("id, name, cvr_number, industry_label, contact_person, contact_email, status, is_legat, contract_end_date, subscription_status, subscription_current_period_end")
+      .select("id, name, cvr_number, industry_label, contact_person, contact_email, status, is_legat, contract_end_date, subscription_status, subscription_current_period_end, er_kunde")
       .limit(500),
     // company_members er TILBAGE (4/9, samme dag som #615 fjernede den):
     // #615 fjernede den fordi den kun bar rækkens link, og linket blev
@@ -145,7 +146,9 @@ async function hentVirksomhedsliste(): Promise<Raekke[]> {
   return (companiesRes.data ?? [])
     // Som den gamle liste (Members.tsx:317, :464): legat-virksomheder har
     // deres egen sektion (ikke bygget her), og kun aktive/status-løse vises.
-    .filter((c) => !c.is_legat && (c.status === "active" || !c.status))
+    // er_kunde læses her fordi listen er rådgiverens: vores egen virksomhed
+    // skal ikke stå som en kunde (src/lib/raadgiverensKunder.ts, fail-open).
+    .filter((c) => !c.is_legat && (c.status === "active" || !c.status) && erKunde(c))
     .map((c): Raekke => {
       const sidsteBesked = sidsteBeskedByCompany.get(c.id) ?? null;
       const ownerNavn = ownerNavnByCompany.get(c.id) ?? "";
