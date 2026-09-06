@@ -232,32 +232,68 @@ dommen skal stå ét sted. **Ikke bygget endnu.**
 
 ## 10. Åbne punkter
 
+Status pr. punkt målt 6/9 i koden (`~/Downloads/recon-fornyelsen-10-september.md`,
+uden for repoet); det målte står i kursiv efter hvert punkt. Løste
+punkter står som løst, ikke slettet. De nye åbne punkter fra 6/9 står
+nederst i listen; detaljen bag dem i §13.
+
 - **Prisen for 3.500-kohorten:** oprettes i det nye katalog, eller
   flyttes de tretten først ved fornyelse. Blokerer migrationens trin b.
+  *6/9: ikke afgørligt i repoet. Fornyelseskataloget kender 15.000,
+  20.000 og 25.000 (`fornyelsespris.ts:28`); «3.500» findes kun som
+  kommentar i indgangsprisen (40.000 i tolv rater). Webhooken kender en
+  art «migreret» fra piloten 2/9. Beslutningen står i Stripe og
+  `company_traek`, ikke i koden.*
 - **Circles adgangskobling** ved annullering af et abonnement: ikke
-  målt.
+  målt. *6/9: stadig ikke målt; intet i koden rører Circle.*
 - **Nordic By Hand skal importeres** — startede 1/9, ingen
-  platformrække.
+  platformrække. *6/9: ikke afgjort i denne måling (kræver prod:
+  `select … from companies where name ilike '%nordic%'`).*
 - **Checkout-sidens tekst ved rater:** Stripes standardtekst siger
   «indtil du opsiger» og «faktureres månedligt», men abonnementet
   stopper faktisk af sig selv efter tolv træk. Produktbeskrivelsen bør
-  sige det tydeligere.
-- **`handleSubscribe` i `MembershipExpiredGate`** viser `err.message`
-  direkte til medlemmet — en teknisk fejlbesked på den side hvor nogen
-  lige har mistet sin adgang. Bør erstattes af en menneskelig besked,
-  som `handleFornyelse` allerede gør.
-- **Hjemmebane-konvertering** af `MembershipExpiredGate`.
-- **Betalingslink til nye medlemmer,** så Circles paywall er ude af
-  indgangen.
+  sige det tydeligere. *6/9: åbent — `opret-fornyelse-checkout` sender
+  hverken `custom_text` eller beskrivelse; teksten bor i Stripe.*
+- **LØST 6/9 (#667) — `handleSubscribe` i `MembershipExpiredGate`**
+  viste `err.message` direkte til medlemmet. Nu ordret samme neutrale
+  besked som `handleFornyelse` («Noget gik galt — skriv til os, så
+  hjælper vi dig videre.»), i samme form; fejlen logges med
+  `console.error`.
+- **LØST 1/9 (#492) — Hjemmebane-konvertering** af
+  `MembershipExpiredGate`. *Målt 6/9: `hjemmebane.css`, `HbCard`,
+  `HbButton`, `theme-hjemmebane` på roden.*
+- **LØST 2/9 (#515, #529) — betalingslink til nye medlemmer,** så
+  Circles paywall er ude af indgangen. *Målt 6/9: `/betal` i `App.tsx`,
+  `opret-indgangs-checkout`, `company_betalingslink`, indgangsgrenen i
+  webhooken. Se `docs/indgangen-design.md`.*
 - **`create-subscription-checkout`:** adgangstjekket er rettet og læst
   linje for linje, men ikke bevist i drift — det kræver et
-  medlems-token.
+  medlems-token. *6/9: stadig ubevist. Et kald uden nøgle giver 401
+  (§13.5), men det beviser kun at funktionen findes, ikke at
+  RLS-tjekket på `company_id` holder.*
 - **Den gamle Topix.dk-konto har et forfaldent krav:**
   `person_1Qd8NC…verification.proof_of_liveness`. Det er kontoen med de
-  atten betalende abonnementer.
+  atten betalende abonnementer. *6/9: ikke i koden; afgøres i Stripe.*
 - **e-conomic-kobling:** eget spor efter fornyelseskæden.
   Fallback-fakturaer skal gå gennem Stripe Invoicing, ikke uden om
   Stripe — ellers fyrer webhooken ikke, og kontrakten forlænges ikke.
+  *6/9: åbent; intet i koden ud over regnskabsparseren.*
+
+**Nye åbne punkter, målt 6/9 (§13 bærer detaljen):**
+
+- **Ordningen har ingen afsender.** Ingen mail, ingen skabelon, ingen
+  cron, ingen kode bag §1's «brief før slutdato». Medlemmet hører først
+  om sin fornyelse ved at miste adgangen (§13.1). Retningen er besluttet
+  6/9 — `docs/fornyelsesordningen.md` §7.
+- **Datogaten omgås på tilbuds- og checkout-vejen** (§13.3). Værnet er
+  et menneske, ikke koden. Om gaten skal gælde dér, er en beslutning.
+- **Fjortendagesvinduet findes ikke som tilstand** (ordningens §5 punkt
+  2, uændret). `udloebet_tilbyd` har ingen tidsgrænse.
+- **Studio Minis `tilbyd`-række skal ryddes** — men først når vinduet
+  findes som tilstand, så data siger det der er sandt (Jonas 6/9,
+  §13.4).
+- **To virksomheder uden slutdato** rammer aldrig ordningen, og
+  **Bastant Design** har ingen indgangspris (§13.4).
 
 ## 11. Fornyelses-abonnementer rører ikke subscription_status
 
@@ -292,6 +328,121 @@ Målt serverside:
 
 Al testdata er rullet tilbage, verificeret: nul perioder, nul
 beslutninger, slutdato og indgangspris NULL, legat-status genoprettet.
+
+## 13. Målt 6/9 — kæden mod ikrafttrædelsen
+
+Recon `~/Downloads/recon-fornyelsen-10-september.md` (uden for repoet —
+genskabes hvis den bruges), kørt på `main` `b669ce5c` med de fire
+fornyelsestestfiler grønne (60 tests) og motoren spejlet identisk i
+`src/lib` og `_shared`. Prod-målingerne er Jonas' i SQL editor og
+Stripe-MCP samme aften. Fire ting der skal kendes før 10/9, og en
+kalender.
+
+### 13.1 Ordningen har ingen afsender
+
+Ingen mail, ingen skabelon, ingen cron, ingen kode bag §1's «brief før
+slutdato». Grep på «fornyels» i `supabase/functions/` rammer motoren,
+prisen, de to fornyelsesfunktioner, indgangen og webhooken — ingen af
+dem sender mail; `email-templates/`, `send-notification-email`,
+`notificationWriter` og `templateRegistry` har nul træffere. Kæden er
+to menneskelige klik (rådgiverens «Tilbyd» i `FornyelsesSektion`,
+medlemmets valg i `MembershipExpiredGate`) og ét Stripe-event
+(`checkout.session.completed` med `metadata.art = "fornyelse"`).
+
+Konsekvens: medlemmet hører først om sin fornyelse ved at MISTE
+adgangen og selv opdage tilbuddet i gaten. `klar_til_tilbud` har hverken
+flade eller mail — i vinduet op til slutdatoen er tier `full`, og
+medlemmet er på den normale forside. Retningen er besluttet 6/9:
+`docs/fornyelsesordningen.md` §7.
+
+### 13.2 10/9 er ikke en tændingsdato
+
+`FORNYELSE_IKRAFT_DATO = "2026-09-10"` findes to steder
+(`src/lib/fornyelse.ts:37`, `_shared/fornyelse.ts:40`) og bruges i én
+gate (`slutdag <= FORNYELSE_IKRAFT_DATO` → `uden_for_ordningen`). Den
+sammenlignes med virksomhedens `contract_end_date`, ikke med dags dato,
+og står EFTER udløbsgrenen. Intet i koden kører den dag: ingen cron,
+ingen migration, ingen function læser datoen.
+
+- Før 10/9: en aktiv virksomhed med slutdato ≤ 10/9 er allerede
+  `uden_for_ordningen` i dag.
+- 10/9 kl. 00:00 UTC: en virksomhed med slutdato præcis 10/9 bliver
+  `expired` (`computeMembershipTier`: en ren datostreng parses som
+  UTC-midnat) og rammer udløbsgrenen — datogaten nås ikke.
+- Efter 10/9 kan ingen aktiv virksomhed have slutdato ≤ 10/9, så
+  konstanten bliver virkningsløs.
+
+### 13.3 Datogaten omgås hvor pengene skifter hænder
+
+`hent-fornyelsestilbud` kalder ikke motoren — den tjekker kun tier
+`expired` og `beslutning = 'tilbyd'` (linje 100–114).
+`opret-fornyelse-checkout` kalder motoren, men kræver `udloebet_tilbyd`
+(linje 108–116), som afgøres i udløbsgrenen FØR datogaten. En udløbet
+virksomhed med slutdato før 10/9 og beslutning `tilbyd` får derfor et
+fuldt systemtilbud og kan betale. Datogaten virker altså kun på
+rådgiverens side (visningen «uden for ordningen» i `FornyelsesSektion`);
+værnet mod at give et systemtilbud til én uden for ordningen er
+rådgiverens finger, ikke koden. Om gaten SKAL gælde på tilbuds- og
+checkout-vejen, er ikke besluttet.
+
+### 13.4 Fornyelseskalenderen, målt i prod 6/9
+
+Fem beslutninger i alt:
+
+| virksomhed | slutdato | beslutning | fornyelsespris |
+|---|---|---|---|
+| LineAlmegaard | 1/9 (tidligere) | tilbyd_ikke | 20.000 |
+| Studio Mini | 5/9 | tilbyd | 20.000 |
+| CARMA STUDIO | 7/9 | tilbyd | 20.000 |
+| PHILBERT | 29/9 | tilbyd | 20.000 |
+| Doggybed | 13/10 | tilbyd_ikke | 20.000 |
+
+Alle fem har gyldig fornyelsespris — ingen får et tomt tilbudskort. 25
+af 30 aktive har INGEN beslutning.
+
+**Tempoet:** efter Doggybed 13/10 er der ingen fornyelse før Livja 16/12
+— to måneders hul. Derefter fjorten virksomheder mellem marts og juni
+2027, over halvdelen af porteføljen. Den reelle deadline for en mailkæde
+er derfor midten af november (Livja minus 30 dage), ikke 10/9.
+
+**Uden for kalenderen:** Alexander Lunds virksomhed og Martin Larsens
+virksomhed har ingen slutdato og rammer aldrig ordningen
+(`ingen_slutdato`). Bastant Design (31/12-2027) har ingen indgangspris,
+så fornyelsesprisen er ukendt — et `tilbyd` dér giver `{ tilbud: null }`
+og en `console.error`.
+
+**Besluttet 6/9 (Jonas):** Studio Mini FORLÆNGER IKKE. Deres
+`tilbyd`-række skal ryddes — men først når fjortendagesvinduet findes
+som tilstand, så data siger det der er sandt. CARMA STUDIO håndteres
+manuelt i dialog.
+
+### 13.5 Kædens forudsætninger — alle grønne, målt 6/9
+
+- **Prod-databasen:** alle fire tabeller (`company_fornyelse`,
+  `company_perioder`, `company_betalingslink`, `company_traek`) og alle
+  tre kolonner (`indgangspris_oere`, `fornyelsespris_oere`,
+  `sidste_checkout_session_id`) findes. De seks migrationer ER kørt —
+  også `20260811120000` og `20260903150000`, hvis filhoveder ikke bar
+  en kørt-note.
+- **Stripe** (MCP, livemode, `acct_1U6mzp3CvBmCx5Pt`): alle NI
+  fornyelsespriser findes, aktive, præcis én pr. `lookup_key`
+  (`fornyelse_15000|20000|25000_fuld|rate2|rate12`), produkt
+  `prod_VBBXP0VYDpEtek`, `tax_behavior exclusive`, rate12 med
+  5 %-tillæg. Webhook `we_1UAtaW3CvBmCx5PtL736lAJN` er enabled med
+  præcis de seks events koden håndterer.
+- **Udrulning:** kald uden nøgle giver `hent-fornyelsestilbud` 401,
+  `opret-fornyelse-checkout` 401, `create-subscription-checkout` 401,
+  `stripe-webhook` 400. Alle fire er UDRULLET — men det beviser kun at
+  de findes, ikke hvilken version; driftsbeviset fra 1/9 (§12) ligger
+  før #529, #561, #563, #572 og #583.
+- **`cron.job` i prod har TI jobs:** `agent-runs-opbevaring` 0 5,
+  `cleanup-stale-processing-reports` \*/5, `daily-report-reminder` 0 9,
+  `event-reminders` 0 7, `generate-weekly-focus` 0 6 \* \* 1,
+  `indgangs-paamindelser` 0 10, `intro-session-reminder` 0 9,
+  `opgave-udloeb` 0 4, `process-notification-emails` \*/5,
+  `send-monthly-digest` 0 8 22 \* \*. INGEN fornyelses-job — og ingen
+  `run-weekly-agent` (OVERLEVERING DEL 2 «Agentkæden»). Det lukker også
+  et åbent punkt: `indgangs-paamindelser` STÅR aktivt.
 
 ---
 

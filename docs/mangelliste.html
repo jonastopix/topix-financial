@@ -325,7 +325,7 @@
   <section class="topic" id="betaling">
   <p class="eyebrow">Omsætningen</p>
   <h2>Betaling og fornyelse — inkl. migrationen</h2>
-  <p class="lede">Fornyelseskæden bærer siden 1/9, indgangens betaling siden 2/9, månedstrækkene registreres siden 3/9. Det der står, er migrationen af de tretten, det der stadig sker i tavshed, og det der var dødt uden at nogen vidste det.</p>
+  <p class="lede">Fornyelseskæden bærer siden 1/9, indgangens betaling siden 2/9, månedstrækkene registreres siden 3/9. Målt 6/9 mod 10/9: alle forudsætninger er grønne, men ordningen har ingen afsender, og 10/9 er ikke en tændingsdato (OVERLEVERING DEL 2 «Fornyelseskæden», fornyelseskæden §13). Det der står, er migrationen af de tretten, det der stadig sker i tavshed, og det der var dødt uden at nogen vidste det.</p>
   <div class="grid">
     <div class="card blocked" data-status="fejl" data-spor="senere" data-rammer="raadgiver">
       <h3>Betalingsstigen med e-conomic — integrationen findes og er død</h3>
@@ -333,20 +333,35 @@
       <p>Skal genoplives eller erstattes, ikke bygges fra bunden. Fallback-fakturaer skal gå gennem Stripe Invoicing — ellers fyrer webhooken ikke, og kontrakten forlænges ikke.</p>
       <div class="meta"><span class="tag rust">Død i drift</span><span class="tag size">Stor</span></div>
     </div>
-    <div class="card" data-status="mangler" data-spor="7" data-rammer="medlem">
-      <h3>Udløbsvarsel og afskedsmail</h3>
-      <p>Motoren er bygget og bevist. Der er stadig ingen aftager. Ordningen træder i kraft 10/9, og de fjorten dages rådgiverarbejde før udløb har ingen mail at støtte sig til.</p>
-      <div class="meta"><span class="tag">Rettet 4/9</span><span class="tag">Ikrafttræden 10/9</span><span class="tag size">Mellem</span></div>
+    <div class="card blocked new" data-status="fejl" data-spor="7" data-rammer="medlem">
+      <h3>Fornyelsen har ingen afsender</h3>
+      <p>Ingen mail, ingen skabelon, ingen cron, ingen kode bag ordningens «brief før slutdato» (grep 6/9 i <code>supabase/functions</code>, mailskabelonerne og notifikationskæden: nul træffere). Kæden er to menneskelige klik og ét Stripe-event. Medlemmet hører først om sin fornyelse ved at MISTE adgangen og selv finde tilbuddet i <code>MembershipExpiredGate</code>. <strong>Besluttet 6/9:</strong> medlemmet skal høre det fra systemet — to mails før slutdato, Calendly-snak med Jonas, notifikation til rådgiveren når mail 1 er sendt; formen spejler indgangens kæde (pg_cron → Bucket B → tørkørsel → motor → enqueue → stempel). Første migration skal bære stempel-felter på <code>company_fornyelse</code>. Deadline midten af november (Livja 16/12 minus 30 dage), ikke 10/9. Erstatter kortet «Udløbsvarsel og afskedsmail».</p>
+      <div class="meta"><span class="tag ny">Ny 6/9</span><span class="tag rust">Tavshed</span><span class="tag">Besluttet</span><span class="tag size">Stor</span></div>
+    </div>
+    <div class="card decision new" data-status="beslutning" data-spor="7" data-rammer="raadgiver">
+      <h3>Datogaten omgås på tilbuds- og checkout-vejen</h3>
+      <p><code>hent-fornyelsestilbud</code> kalder ikke motoren (kun tier + beslutning), og <code>opret-fornyelse-checkout</code> kræver <code>udloebet_tilbyd</code>, som afgøres i udløbsgrenen FØR <code>FORNYELSE_IKRAFT_DATO</code>-gaten (målt 6/9, fornyelseskæden §13.3). En virksomhed «uden for ordningen» får derfor et fuldt systemtilbud og kan betale, hvis nogen trykker Tilbyd. Værnet er rådgiverens finger, ikke koden. Om gaten SKAL gælde dér, er en beslutning — efter 10/9 er den alligevel virkningsløs.</p>
+      <div class="meta"><span class="tag ny">Ny 6/9</span><span class="tag gold">Beslutning</span><span class="tag rust">Værnet er et menneske</span><span class="tag size">Lille</span></div>
+    </div>
+    <div class="card blocked new" data-status="mangler" data-spor="7" data-rammer="medlem">
+      <h3>Fjortendagesvinduet findes ikke</h3>
+      <p>Besluttet 27/8, stadig ingen tilstand i motoren (målt 6/9): <code>udloebet_tilbyd</code> har ingen tidsgrænse, så et tilbud står i gaten til nogen fjerner beslutningen (<code>src/lib/fornyelse.ts:131</code>). Blokerer to ting: afsenderen (den kan ikke skelne «tre dage tilbage» fra «vinduet lukket») og oprydningen af Studio Minis række.</p>
+      <div class="meta"><span class="tag ny">Ny 6/9</span><span class="tag rust">Blokerer afsenderen</span><span class="tag size">Mellem</span></div>
+    </div>
+    <div class="card new" data-status="mangler" data-spor="7" data-rammer="ingen">
+      <h3>Studio Minis <code>tilbyd</code>-række skal ryddes når vinduet findes</h3>
+      <p>Studio Mini (slut 5/9) står med beslutning <code>tilbyd</code> og gyldig pris (20.000 kr.), men FORLÆNGER IKKE (Jonas 6/9). Rækken ryddes først når fjortendagesvinduet findes som tilstand, så data siger det der er sandt — ikke før. CARMA STUDIO (7/9, <code>tilbyd</code>) håndteres manuelt i dialog.</p>
+      <div class="meta"><span class="tag ny">Ny 6/9</span><span class="tag">Venter på vinduet</span><span class="tag size">Lille</span></div>
+    </div>
+    <div class="card decision new" data-status="beslutning" data-spor="7" data-rammer="raadgiver">
+      <h3>To virksomheder uden slutdato rammer aldrig fornyelsesordningen</h3>
+      <p>Alexander Lunds virksomhed og Martin Larsens virksomhed har ingen <code>contract_end_date</code> (målt i prod 6/9) og får <code>ingen_slutdato</code> — de står aldrig i <code>FornyelsesSektion</code> og får aldrig et tilbud. Dertil Bastant Design (31/12-2027) uden indgangspris: et <code>tilbyd</code> dér giver et tomt tilbudskort. Hvad de tre skal have, er en samtale, ikke kode.</p>
+      <div class="meta"><span class="tag ny">Ny 6/9</span><span class="tag gold">Beslutning</span><span class="tag size">Lille</span></div>
     </div>
     <div class="card" data-status="mangler" data-spor="3" data-rammer="ingen">
       <h3>Adgangshul i <code>create-subscription-checkout</code> — lukket, ubevist</h3>
       <p><code>company_id</code> blev taget fra request-body og brugt mod service role uden adgangstjek. Lukket 1/9 og læst linje for linje — men ikke bevist i drift, for det kræver et medlems-token.</p>
       <div class="meta"><span class="tag rust">Ubevist</span><span class="tag size">Lille</span></div>
-    </div>
-    <div class="card" data-status="mangler" data-spor="senere" data-rammer="medlem">
-      <h3><code>handleSubscribe</code> viser <code>err.message</code></h3>
-      <p>En teknisk fejlbesked til et medlem der lige har mistet sin adgang (<code>MembershipExpiredGate.tsx:79</code>, grep 4/9). <code>handleFornyelse</code> på samme side gør det rigtige — en menneskelig besked — og <code>handleSubscribe</code> skal bare følge med.</p>
-      <div class="meta"><span class="tag size">Lille</span></div>
     </div>
     <div class="card blocked" data-status="fejl" data-spor="7" data-rammer="medlem">
       <h3>Ingen mail til den der lige har fornyet</h3>
@@ -891,9 +906,29 @@
       <div class="meta"><span class="tag rust">Live fejl</span><span class="tag size">Lille</span></div>
     </div>
     <div class="card new" data-status="fejl" data-spor="3" data-rammer="medlem">
-      <h3><code>legat-reminder-cron</code> har aldrig kørt — og <code>run-weekly-agent</code>s tidsplan er uden historik</h3>
-      <p><code>Deno.cron</code> kører ikke på Supabases edge-runtime (DEL 4); fire funktioner bruger den stadig (grep 4/9): <code>legat-reminder-cron</code>, <code>intro-reminder-cron</code>, <code>indgangs-paamindelser-cron</code>, <code>run-weekly-agent</code>. Intro og indgang har pg_cron-jobs; legat har ikke. Om <code>run-weekly-agent</code> står i <code>cron.job</code> er målt forskelligt (2/9: oprettet direkte i prod udenom migrationerne; driftsgælden: står ikke i <code>cron.job</code>) — mål.</p>
+      <h3><code>legat-reminder-cron</code> har aldrig kørt</h3>
+      <p><code>Deno.cron</code> kører ikke på Supabases edge-runtime (DEL 4); fire funktioner bruger den stadig (grep 4/9): <code>legat-reminder-cron</code>, <code>intro-reminder-cron</code>, <code>indgangs-paamindelser-cron</code>, <code>run-weekly-agent</code>. Intro og indgang har pg_cron-jobs (bekræftet i <code>cron.job</code> 6/9); legat har ikke. <code>run-weekly-agent</code> er målt 6/9 og har sit eget kort nedenfor.</p>
       <div class="meta"><span class="tag ny">Ny 4/9 som kort</span><span class="tag rust">Live</span><span class="tag size">Lille</span></div>
+    </div>
+    <div class="card new" data-status="fejl" data-spor="3" data-rammer="ingen">
+      <h3>Ugeagentens cron findes ikke i prod</h3>
+      <p><code>run-weekly-agent</code> har KUN <code>Deno.cron</code> og står IKKE i prods <code>cron.job</code> (målt 6/9: ti jobs, ingen af dem den). Ugeagenten kører derfor formentlig slet ikke — ikke efterprøvet ud over <code>cron.job</code> (<code>agent_runs.trigger</code> kan svare). Og den kører LIVE når den kaldes (<code>dry_run: false</code> → <code>weekly_focus</code>, <code>company_actions</code>, <code>milestones</code>, som medlemmet ser), så at tænde den er en beslutning i opgave-epic'et, ikke en rettelse. Kun <code>generate-weekly-focus</code> (0 6 * * 1) skriver mandag.</p>
+      <div class="meta"><span class="tag ny">Ny 6/9</span><span class="tag rust">Kører ikke</span><span class="tag size">Lille</span></div>
+    </div>
+    <div class="card new" data-status="fejl" data-spor="senere" data-rammer="ingen">
+      <h3>Elleve nye typefejl efter Lovables regenerering af <code>types.ts</code></h3>
+      <p>Baselinen for <code>bunx tsc --noEmit -p tsconfig.app.json</code> er 15, ikke 4 (målt på ren <code>main</code> 6/9). De elleve kom med commit <code>2cd553e2</code> «Work in progress», som regenererede hele <code>types.ts</code> (1903 linjer skrevet, 1898 slettet) med en anden generatorversion end 3/9: felter blev valgfri (<code>EventTimes.ends_at</code>, <code>MemberProgress.seen_at</code> m.fl.), og husets håndskrevne interfaces kræver dem stadig — EventsView ×2, EventDetailView, BoardroomView, admin/EventsView, <code>akademiApi.ts</code> ×4. Ikke i nogen fil vi rørte.</p>
+      <div class="meta"><span class="tag ny">Ny 6/9</span><span class="tag rust">Baseline 15</span><span class="tag size">Mellem</span></div>
+    </div>
+    <div class="card new" data-status="fejl" data-spor="senere" data-rammer="ingen">
+      <h3>CI kører ikke typecheck</h3>
+      <p>Gaten i <code>.github/workflows/test.yml</code> er <code>bun run test</code> alene. PR #668 var grøn med 15 typefejl på <code>main</code> (målt 6/9). Typefejl fanges kun i hånden. Et <code>tsc</code>-trin ville i dag være rødt, så rækkefølgen er: baselinen ned først (kortet ovenfor), derefter gaten.</p>
+      <div class="meta"><span class="tag ny">Ny 6/9</span><span class="tag size">Lille</span></div>
+    </div>
+    <div class="card new" data-status="mangler" data-spor="senere" data-rammer="ingen">
+      <h3>38 grene på origin ud over <code>main</code></h3>
+      <p>Målt 6/9 med <code>git ls-remote --heads</code>: 38 ud over <code>main</code>. Oprydning udestår; <code>gh pr list --state merged</code> er den eneste der kan afgøre hvilke der må slettes — <code>git diff</code> lyver, fordi GitHub squasher (OVERLEVERING DEL 1). Build-chatten opgav 6/9 en gren og en commit der ikke fandtes; verificér altid med <code>git fetch</code> + <code>git log</code>.</p>
+      <div class="meta"><span class="tag ny">Ny 6/9</span><span class="tag size">Lille</span></div>
     </div>
     <div class="card" data-status="mangler" data-spor="senere" data-rammer="ingen">
       <h3>Vercel-appen hænger check-suites, så <code>gh pr checks</code> lyver</h3>

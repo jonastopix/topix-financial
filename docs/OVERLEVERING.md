@@ -1,6 +1,25 @@
 # Overlevering
 
-**Sidst opdateret: 4. september 2026, sen aften — efter at ALLE OTTE
+**Sidst opdateret: 6. september 2026, aften — VORES EGEN VIRKSOMHED ER
+IKKE LÆNGERE EN KUNDE i rådgiverens billede: nyt felt `companies.er_kunde`
+(#666 migration, #668 flader), ren fail-open-funktion `erKunde`, læst i
+præcis tre læsestier, bevist på skærm af Jonas (DEL 2, «er_kunde»). Tre
+reconer målte kæderne mod 10/9: FORNYELSESORDNINGEN HAR INGEN AFSENDER,
+10/9 er ikke en tændingsdato, datogaten omgås på tilbuds- og
+checkout-vejen, og alle forudsætninger (fire tabeller, ni priser, seks
+webhook-events, fire udrullede funktioner, ti cron-jobs) er grønne —
+detaljen står i fornyelseskædens §10 og §13 og ordningens §5 og §7 (DEL 2,
+«Fornyelseskæden»). BESLUTTET (Jonas): medlemmet skal høre om sin
+fornyelse fra SYSTEMET, i indgangens form; den reelle deadline er midten
+af november, ikke 10/9 (DEL 3). Agentkæden er målt: ugeagenten kører
+LIVE, ikke tørt — og formentlig slet ikke, for dens cron findes ikke i
+prod (DEL 2, «Agentkæden»). Tre værktøjsfund: CI kører ikke typecheck,
+baselinen er 15 fejl efter Lovables regenerering af `types.ts`, og
+build-chatten opgav en gren og en commit der ikke fandtes (DEL 1, DEL 4).
+Gaten viser ikke længere en teknisk fejlbesked (#667). Dagene 4/9 sen
+aften står i DEL 2 «Konverteringen» og i DEL 3.**
+
+**4. september 2026, sen aften — efter at ALLE OTTE
 gamle admin-sider blev konverteret til Hjemmebane på cirka to timer
 (#645 Legat, #646 e-mail-log, #647 Review Queue, #648 Platformconfig,
 #649 Import, #651 Feedback, #653 ReportDebug, #654 EmailTemplates —
@@ -234,8 +253,18 @@ samme kolonneantal og -type.
 - `gh run list --branch`, ikke `gh pr checks` (Vercel-appen hænger check-
   suites i `queued`).
 - `bunx tsc --noEmit -p tsconfig.app.json` (uden `-p` checkes nul filer).
-  Fire baseline-typefejl er kendte: CompanyChatPane, PushView,
-  RapporteringView ×2. `bun run test`, ikke `bun test`. Deno-tests i
+  **Baselinen er 15 typefejl, ikke 4 (målt 6/9 på ren `main`):** de fire
+  kendte (CompanyChatPane, PushView, RapporteringView ×2) plus elleve nye
+  i EventsView ×2, EventDetailView, BoardroomView, admin/EventsView og
+  `akademiApi.ts` ×4. De elleve kom af at Lovable REGENEREREDE HELE
+  `types.ts` (commit `2cd553e2` «Work in progress», 6/9: 1903 linjer
+  skrevet, 1898 slettet) med en anden generatorversion end 3/9 — felter
+  blev valgfri (`EventTimes.ends_at`, `MemberProgress.seen_at` m.fl.),
+  og husets håndskrevne interfaces kræver dem stadig. Ikke i nogen fil
+  vi rørte; egen opgave (DEL 3). **CI KØRER IKKE TYPECHECK** — gaten i
+  `.github/workflows/test.yml` er `bun run test` alene; PR #668 var grøn
+  med 15 typefejl på `main`. Typefejl fanges kun i hånden, så kør tsc
+  FØR diff-filen skrives. `bun run test`, ikke `bun test`. Deno-tests i
   `_shared/*_test.ts` kører kun i hånden; `deno check` er ikke en gate
   i CI. `bun run check:edge-auth` kører i CI; `check:verify-jwt` kun lokalt.
 - CLAUDE.md's «FORBIDDEN»-liste gælder: ingen ændring af
@@ -330,7 +359,7 @@ referrer-låst til `app.theboardroom.dk`.
 
 Kort, med det dokument der bærer detaljen.
 
-### Fornyelseskæden — bevist i drift 1/9
+### Fornyelseskæden — bevist i drift 1/9; målt mod 10/9 den 6/9: kæden er klar, ordningen har ingen afsender
 
 `docs/fornyelseskaeden-1-september.md`, `docs/fornyelsesordningen.md`.
 Indgangsprisen er data (`companies.indgangspris_oere`, `fornyelsespris_oere`),
@@ -341,6 +370,113 @@ serveren. Motoren `afgoerFornyelsestilstand` (ti tilstande), fladen
 `opret-fornyelse-checkout` og fornyelsesgrenen i `stripe-webhook` med
 `cancel_at` sat fra abonnementets start. Ordningen træder i kraft 10/9.
 Åbne punkter står i fornyelseskædens §10.
+
+**Målt 6/9** (`~/Downloads/recon-fornyelsen-10-september.md`, uden for
+repoet — genskabes hvis den bruges; fundene er bogført i
+fornyelseskædens §10 og §13 og ordningens §5 og §7, som bærer detaljen):
+
+- **Ordningen har ingen afsender.** Ingen mail, ingen skabelon, ingen
+  cron, ingen kode bag §1's «brief før slutdato». Kæden er to menneskelige
+  klik (rådgiverens «Tilbyd», medlemmets valg i gaten) og ét
+  Stripe-event. Medlemmet hører først om sin fornyelse ved at MISTE
+  adgangen og selv finde tilbuddet i `MembershipExpiredGate`
+  (fornyelseskæden §13.1; ordningens §5 punkt 5).
+- **10/9 er ikke en tændingsdato.** `FORNYELSE_IKRAFT_DATO` sammenlignes
+  med virksomhedens `contract_end_date`, ikke med dags dato; efter 10/9
+  kan ingen aktiv virksomhed have slutdato ≤ 10/9, så konstanten bliver
+  virkningsløs. Intet kører den dag (§13.2).
+- **Datogaten omgås hvor pengene skifter hænder.** `hent-fornyelsestilbud`
+  kalder ikke motoren (kun tier + beslutning), og `opret-fornyelse-checkout`
+  kræver `udloebet_tilbyd`, som afgøres i udløbsgrenen FØR datogaten. En
+  virksomhed «uden for ordningen» får et fuldt systemtilbud og kan
+  betale, hvis nogen trykker Tilbyd. Værnet er et menneske (§13.3).
+- **Fjortendagesvinduet (besluttet 27/8) findes ikke;** `udloebet_tilbyd`
+  har ingen tidsgrænse, så et tilbud står til nogen fjerner beslutningen
+  (ordningens §5 punkt 2, uændret åbent).
+- **Kalenderen i prod** (fem beslutninger, 25 af 30 uden, to måneders hul
+  efter 13/10, fjorten fornyelser marts–juni 2027) og **forudsætningerne**
+  (seks migrationer kørt, ni priser, seks events, fire udrullede
+  funktioner, ti cron-jobs uden fornyelse) står i §13.4–13.5. Den reelle
+  deadline for en mailkæde er midten af november (Livja 16/12 minus 30
+  dage), ikke 10/9 (DEL 3).
+- **Retningen er besluttet 6/9** (ordningens §7): medlemmet hører om sin
+  fornyelse fra systemet, i indgangens form. DEL 3 bærer rækken.
+
+*Løst 6/9 (#667):* `handleSubscribe` i `MembershipExpiredGate` viste
+`err.message` direkte til et medlem der lige havde mistet sin adgang. Nu
+ordret samme neutrale besked som `handleFornyelse`, i samme form (én
+streng, ingen description); fejlen logges med `console.error`.
+
+### er_kunde — vores egen virksomhed er ikke en kunde (6/9, #666, #668)
+
+**Feltet.** `companies.er_kunde boolean NOT NULL DEFAULT true`
+(migration `20260906210000_companies_er_kunde.sql`). Falsk = vores egen
+virksomhed, ikke en kunde. Topix.dk ApS
+(`3ffccc0f-f6a9-4a23-9515-db2e22e8ad49`) er den eneste med `false`; 37 er
+`true`. **Målt efter kørslen 6/9 kl. 21:18:** kolonne, kommentar, én
+ikke-kunde, 37 kunder.
+
+**Motoren.** `erKunde()` i `src/lib/raadgiverensKunder.ts`, ren funktion
+med fire tests. **FAIL-OPEN:** kun eksplicit `false` betyder ikke-kunde;
+`true`, `null` og `undefined` giver alle `true` — fordi en række hentet
+uden kolonnen aldrig må forsvinde fra rådgiverens billede; et manglende
+felt er ikke en beslutning.
+
+**Læses tre steder, og kun der (#668):** `hentAdvisorDashboard`
+(forsidens datalag), `VirksomhedslisteView` (/virksomheder) og
+`Members.tsx` (/members, begge filtre). Rører IKKE virksomhedssiden (skal
+kunne åbnes på direkte URL), chatten, de tre virksomhedsvælgere, nogen
+edge function, nogen cron, nogen RLS. **Bevist på skærm 6/9 af Jonas:**
+Topix er væk fra rådgiverfladerne.
+
+**Hvorfor et nyt felt** (målt 6/9, `~/Downloads/recon-skjul-topix.md`,
+uden for repoet): `is_legat` tager community, indhold, events og storage
+fra medlemmet (`har_aktivt_medlemskab`); `status <> active` stopper
+rapportpåmindelser, ugeagent og berigelse; `is_demo` filtrerer kun i én
+restriktiv RLS-policy, som UNDTAGER admin — og jonas@topix.dk har både
+advisor OG admin (målt), så den ville kun skjule for Morten. **Hvorfor
+navnet:** en kendsgerning, ikke en virkning; «skjul» kan ikke svare på
+om noget skal tælles som kunde.
+
+**Målt i prod 6/9 kl. 21:00 — lukker fem åbne spørgsmål:**
+
+- `is_demo = false` på ALLE 38 rækker. Den restriktive demo-policy fra
+  3/9 filtrerer derfor INTET i dag; den er et sovende værn.
+- jonas@topix.dk (`23e81de4-…`) har rollerne advisor OG admin.
+  morten@molainvest.dk (`b4dcc529-…`) har advisor uden admin.
+- Topix.dk ApS: `status = active`, `is_legat = false`,
+  `vis_i_netvaerk = true`, kontrakt 2026-04-19 → 2030-04-20,
+  `subscription_status` NULL, INGEN `company_betalingslink`-række (står
+  derfor ikke i `IndgangsSektion`). kontakt@topix.dk (`dff1d372-…`) er
+  owner, og medlemskontoen skal virke NØJAGTIG som i dag.
+
+### Agentkæden — målt 6/9: ugeagenten kører LIVE, ikke tørt — og formentlig slet ikke
+
+`~/Downloads/recon-agentens-skrivninger.md` (uden for repoet — genskabes
+hvis den bruges). Anledningen var `er_kunde`: måtte feltet gate cronen?
+
+- **`run-weekly-agent` sender `dry_run: false`.** `run-company-agent`
+  skriver da LIVE i `weekly_focus`, `company_actions` og `milestones` —
+  alle tre ser MEDLEMMET (Dit Boardroom og /milestones). Agenten kører
+  altså IKKE tørt; kun tre kaldere er tørkørsler (`useAuth` onboarding,
+  `AgentForslagPanel`, `ReportDebugView`), mens ugecronen og alle fire
+  kald ved rapport-commit er live og går uden om godkendelseslaget.
+  **DERFOR gater `er_kunde` ingen cron:** slukkes agenten for en
+  virksomhed, ændres medlemmets hverdag.
+- `run-company-agent` sender ingen mail, skriver ingen
+  `notifications`-række, og `write_chat_message` + `notify_advisor` er
+  blokeret for alle seks triggere. Godkendelseslaget
+  (`agent-forslag-afgoer`) kan KUN godkende `update_weekly_focus`; alt
+  andet kan kun forkastes.
+- **To mandagsjobs skriver begge `company_actions`:**
+  `generate-weekly-focus` 06:00 UTC (`source_type ai_weekly`) og
+  `run-weekly-agent` 07:00 (`source_type agent`). Hører til
+  opgave-model-epic'et (DEL 3).
+- **`run-weekly-agent` har KUN `Deno.cron` og står IKKE i prods
+  `cron.job`** (målt 6/9: ti jobs, ingen af dem den — listen står i
+  fornyelseskædens §13.5). Repoet dokumenterer selv at `Deno.cron` aldrig
+  eksekverer på Supabases edge-runtime (DEL 4). Ugeagenten kører altså
+  formentlig slet ikke. Ikke efterprøvet ud over `cron.job` (DEL 3).
 
 ### Indgangen — kæden FØR platformen er hel 3/9: «Godkendt» → betalingsmail → påmindelser → dag 31-faktura → betaling → adgang
 
@@ -1156,10 +1292,14 @@ facit og rækkefølge; `docs/chat-design.md` chattens form.
 
 | hvornår | hvad | hvor det står |
 |---|---|---|
-| **10/9** | Fornyelsesordningen træder i kraft. Tre udløber inden og falder udenfor. | fornyelsesordningen.md §5, prioritering §1 |
+| **10/9** — MÅLT 6/9: ikke en tændingsdato | Fornyelsesordningen træder i kraft. Tre udløber inden og falder udenfor. **Intet sker i koden den dag:** `FORNYELSE_IKRAFT_DATO` sammenlignes med virksomhedens slutdato, ikke dags dato, og bliver virkningsløs efter 10/9. Kædens forudsætninger er alle grønne (seks migrationer kørt, ni priser, seks events, fire funktioner udrullet — men 401 beviser kun at de findes, ikke hvilken version; driftsbeviset fra 1/9 ligger før #529, #561, #563, #572 og #583). **Det der IKKE er klar: ordningen har ingen afsender** — rækken «BESLUTTET 6/9» nedenfor. | fornyelseskæden §13; fornyelsesordningen §5, §7; DEL 2 «Fornyelseskæden» |
+| BESLUTTET 6/9 (Jonas) — ordningens retning; den reelle deadline er midten af NOVEMBER, ikke 10/9 | **Medlemmet skal høre om sin fornyelse fra SYSTEMET, ikke ved at miste adgangen.** Formen: to mails et antal dage før slutdato (tallene er ikke afgjort), et tilbud om at booke en snak med Jonas via Calendly, og en notifikation til rådgiveren når mail 1 er sendt, så den personlige chatbesked kommer EFTER systemets mail og ikke i stedet for. **Formen SPEJLER INDGANGENS KÆDE** (målt 6/9, `~/Downloads/recon-indgangens-mailkaede.md`, uden for repoet): pg_cron → `net.http_post` med vault-nøglen → Bucket B-funktion med `authenticateServiceRole` → TØRKØRSEL SOM STANDARD → ren motor afgør hvilken dag hver række står på → byg mail → enqueue → stempl KUN når afsendelsen lykkedes. **Datamodellen:** `company_fornyelse` mangler stempel-felter svarende til `company_betalingslink`s `betalingsmail_sendt_at` og `sidste_paamindelse_dag`; uden dem kan en cron ikke vide hvad den allerede har gjort — de skal med i FØRSTE migration, ikke bygges på. **Calendly:** der findes ingen statisk Calendly-URL i huset; alle tre steder bygger engangslinks serverside via API'et. En «snak om fornyelse hos Jonas» kræver en ny event type, som ikke findes endnu. Betalte bookinger registreres i dag aldrig tilbage i platformen (målt 3/9), så linket i mailen skal være et almindeligt link — vi lover ikke en måling vi ikke kan holde. **Tempoet, målt i prod 6/9:** efter Doggybed 13/10 er der ingen fornyelse før Livja 16/12 — to måneders hul; derefter fjorten virksomheder marts–juni 2027, over halvdelen af porteføljen. Deadline for mailkæden: Livja minus 30 dage. | fornyelsesordningen §7; fornyelseskæden §13.4; indgangen-design §26 (formen) |
+| åbent, målt 6/9 — værnet er et menneske | **Datogaten omgås på tilbuds- og checkout-vejen.** `hent-fornyelsestilbud` kalder ikke motoren (kun tier + beslutning); `opret-fornyelse-checkout` kræver `udloebet_tilbyd`, som afgøres FØR datogaten. En virksomhed «uden for ordningen» får et fuldt systemtilbud og kan betale, hvis nogen trykker Tilbyd. Om gaten SKAL gælde der, er en beslutning — i dag er det rådgiverens finger der er værnet. | fornyelseskæden §13.3 |
+| åbent — forudsætning for mailkæden OG for Studio Minis række | **Fjortendagesvinduet (besluttet 27/8) findes ikke som tilstand.** `udloebet_tilbyd` har ingen tidsgrænse; et tilbud står i gaten til nogen fjerner beslutningen. **Jonas 6/9: Studio Mini (slut 5/9, beslutning `tilbyd`) FORLÆNGER IKKE** — deres række skal ryddes, men først når vinduet findes som tilstand, så data siger det der er sandt. CARMA STUDIO (7/9, `tilbyd`) håndteres manuelt i dialog. | fornyelsesordningen §5 punkt 2; fornyelseskæden §13.4 |
+| samtale, målt 6/9 | **To virksomheder uden slutdato rammer aldrig ordningen:** Alexander Lunds virksomhed og Martin Larsens virksomhed (`ingen_slutdato`). Og **Bastant Design** (31/12-2027) har ingen indgangspris, så fornyelsesprisen er ukendt — et `tilbyd` dér ville give et tomt tilbudskort. | fornyelseskæden §13.4 |
 | **13/9** | doggybeds træk på 4.375 kr. på den nye konto — MÅL at det gik igennem. Derefter flyttes de tretten i portioner. TuaMea (2/9), Floren engros og BR Roset (3/9) venter til efter egne træk. **Samme dag, beviset for #563 (nu stærkere):** `companies.subscription_status` skal forblive NULL på doggybed (`382fd787-3141-45c7-8eea-297b7b947fe0`) efter trækket — fordi grenen springer over med vilje, ikke fordi noget fejler — og `customer.subscription.updated` skal stå grøn i Stripes Event deliveries. SQL'en står i migration-recon §26. **Samme dag, beviset for #572:** en række i `company_traek` for doggybeds faktura med `status = 'betalt'` (SQL editor); fejler trækket, skal rækken stå som `fejlet` og badgen vise sig på /members (#574). | migration-recon §25, §26; indgangen-design §31 |
 | LØST 3/9 kl. 10:42 | **Hvorfor skrev webhooken ikke på 2/9?** Eventet BLEV leveret; webhooken svarede 500 i skrivningen (fem gentagelser fra Stripe). Efter #563 gensendt manuelt → 200 `skipped: migreret_subscription`, «Recovered». Webhooken får subscription-events; hvidlisten er bevist på det rigtige event. Hvad der kastede, afdækkes bevidst ikke — men det art-løse selvbetjeningsabonnement går stadig gennem den kode. | migration-recon §26 |
-| **29/9** | PHILBERTs fornyelse — beslutning skal registreres i FornyelsesSektion. Doggybed 13/10. | prioritering §1 |
+| **29/9** — beslutningen ER registreret (målt 6/9) | PHILBERTs fornyelse: `tilbyd` står i `company_fornyelse`, prisen er gyldig (20.000 kr.). Men tilbuddet når kun PHILBERT ved at de mister adgangen 29/9 og selv finder gaten (ingen afsender). Doggybed 13/10 står som `tilbyd_ikke`. | fornyelseskæden §13.4; prioritering §1 |
 | LØST 3/9 | **Cron-jobbet `indgangs-paamindelser` (0 10 \* \* \*)** er planlagt og aktivt, verificeret i `cron.job`. Tørkørsel og rigtig kørsel bevist på FLOOR1. Secret `RAADGIVER_MAIL_TIL` er ikke bekræftet sat i denne bogføring. | indgangen-design §26, §30 |
 | LØST 3/9 | **Dag 31-fakturaen** (#559–#561): motoren opretter kunde + faktura med `metadata[company_id]` på begge, cronen sender den FØR dag 31-mailen, `invoice.paid` er tilmeldt (fem events formiddag, seks efter #572; `invoice.created` bevidst ikke) og skriver samme kæde som checkout med `betalingsmodel 'faktura'` og beløb uden moms. Bevist i drift 3/9 kl. 10:00–10:11 inkl. betaling og kreditnota. | indgangen-design §30 |
 | LØST 3/9 eftermiddag (#572, #574) | **Månedstrækkene registreres** — både betalte og fejlede, i `company_traek`; `invoice.payment_failed` tilmeldt (seks events); fejlet træk ses på /members. Migration kørt, webhook deployet, Update klikket. Bevis 13/9. | indgangen-design §31 |
@@ -1209,7 +1349,11 @@ facit og rækkefølge; `docs/chat-design.md` chattens form.
 | MENUEN — målt 4/9 aften (`~/Downloads/recon-admin-menuen.md`, uden for repoet — genskabes hvis den bruges); navnene er IKKE afgjort | **Hvad admin-blokken skal indeholde, målt punkt for punkt.** **Review Queue KAN fjernes fra menuen:** godkendelsen bor et andet sted (`ReportReviewDialog`), og Jonas åbner den kun hvis nogen siger at noget mangler. **Platformconfig KAN IKKE fjernes:** eneste sted rådgivere kan inviteres og fjernes og admin-rollen skiftes (`manage-advisor` har ingen anden kalder). **Import hører på VIRKSOMHEDSSIDEN, ikke som eget punkt** — men funktionen skal med: den er eneste vej til upload for en virksomhed uden company-override og uden rådgiver-notifikation. **Legat KAN IKKE fjernes:** de to edge functions (`create-legat-enrollment`, `upgrade-legat-to-member`) har ingen anden kalder. **NAVNENE:** Jonas 4/9: «tingene skal hedde det de er» — Review Queue, Platformconfig og Import er ord ingen har valgt. Ikke afgjort. Menuen (`HbMemberShell.tsx`, admin-blokken) er ikke rørt af konverteringerne; de seks sider markerer bevidst intet nav-punkt, indtil blokken tegnes om efter denne måling. | `~/Downloads/recon-admin-menuen.md`; `HbMemberShell.tsx` admin-blokken; rækken «KONVERTERINGEN» ovenfor |
 | RÅDGIVERENS CHAT — GJORT 4/9 aften i tre trin (#655 etape 1, #657 etape 2, #658 skallen); én gæld står: `align` på `HbPopover` | **Rådgiverens chat (`CompanyChatPane`) er Hjemmebane hele vejen.** **Etape 1 (#655):** udtrykket skulle ikke opfindes: `MemberChatPane` er 965 linjer ren Hjemmebane og en ORDRET kopi af `CompanyChatPane` med rådgiverdelene slettet — filhovedet siger at skeletterne er bevidst dublerede, så medlemssiden kunne designes frit. Klasserne er kopieret derfra. De seks delte byggesten fik `variant="hb"`, som rådgiveren sendte 0 af 8 mulige steder, selv om komponenterne allerede kunne det. `TOPIC_COLORS` er off-token og droppet. Chatten i blok 4 på virksomhedssiden (låst til én virksomhed, #614) fulgte med, for det er samme komponent. **Etape 2 (#657) er GJORT.** Sidebaren, «Se tal»-skuffen og ⋯-menuen. Efter etape 2 er der INGEN `glass-card`, `bg-card`, `text-foreground` eller `border-border` tilbage i `CompanyChatPane`. Samtalelisten er husets listeform: papir, hairlines, søgefelt i `hbControlClasses` som virksomhedslisten, grupper som eyebrow med tælleren som `HbTag`. «Kræver svar» er rust, **«Tjek ind» er blæk hvor den før var amber — en påmindelse er ikke en fejl.** Samme princip som Review Queue: tonen siger kun om noget haster. Skuffen beholder vaul-Draweren, så overlay og swipe er som før, og får `theme-hjemmebane` på indholdet — samme greb som `MobileMessageActionDrawer`. `KPICard` er erstattet af en kopi af virksomhedssidens kort uden sparkline; dommen (`getTargetStatus`) er den samme. ⋯-menuen er ikke længere en Radix Popover, men en lokal `HbMenu` i DOM-træet: `HbPopover` (i `HbOverlejring`) er venstre-forankret og bygget til datovælgeren under et felt, mens ⋯ står i headerens højre kant. **En `align`-prop på `HbPopover` ville gøre `HbMenu` overflødig** — det står i koden som gæld. **#658: `/chat` har fået Hjemmebane-skallen.** Chatten var konverteret, men siden lå stadig i `AppLayout`, så det papirfarvede panel stod i den mørke skal med den gamle menu ved siden. Rådgiverens gren bruger nu `HbMemberShell` som de tre andre grene i `ChatShell`; medlemmets og abonnentens er urørte. Højden følger virksomhedssidens blok 4, som allerede havde løst en chat i bundet højde inde i en skal der selv scroller. `scrollTop`-fixet fra #639 holder — det virker netop fordi det ikke rører forfædre. Og gælden fra etape 2 er betalt: «Indbakke»-overskriftens egen `theme-hjemmebane` er væk, fordi hele siden nu er Hb. | DEL 2 «Konverteringen»; `docs/chat-design.md` |
 | ÅBENT ved dagens slutning 4/9 — det der står tilbage efter at rådgiverens hverdag blev Hjemmebane hele vejen | **Seks punkter, hver med sin egen række eller sit eget sted:** (1) `/members` kan ikke swappes — elleve dele findes kun dér (rækken «MÅLT 4/9 sen aften» ovenfor). (2) `EmailTemplates` skal designes, ikke konverteres (rækken «DESIGNPUNKT»). (3) Milestones' FUNKTION afventer opgave-modellen; kun udtrykket er gjort (rækken «EPIC, én samtale»). (4) Forsidens dom mangler de to AI-baserede slags — §8's AI-læsning (`docs/forsiden-design.md` §8, §12; `src/lib/forsidensDom.ts` har pladsen i typen). (5) Ingen af de otte admin-sider er set på skærm — beviset er Update og et klik på hver. (6) `align`-prop på `HbPopover`, så `HbMenu` i `CompanyChatPane` kan udgå (gælden fra #657). | DEL 2 «Konverteringen» (status ved dagens slutning) |
-| driftsgæld | Fejlovervågning findes ikke; restore er aldrig afprøvet; `run-weekly-agent` står ikke i `cron.job`; 73 uploads bestod validering uden at blive committet; e-conomic-integrationen er død (migration-recon §10). | status-1-sept §6; den forrige overlevering (§7, før omskrivningen i #538) findes kun i git-historikken |
+| driftsgæld | Fejlovervågning findes ikke; restore er aldrig afprøvet; `run-weekly-agent` står ikke i `cron.job` (**bekræftet 6/9:** ti jobs i prod, ingen af dem den — ugeagenten kører formentlig slet ikke, DEL 2 «Agentkæden»); 73 uploads bestod validering uden at blive committet; e-conomic-integrationen er død (migration-recon §10). | status-1-sept §6; den forrige overlevering (§7, før omskrivningen i #538) findes kun i git-historikken |
+| MÅLT 6/9 — egen opgave | **Ugeagentens cron findes ikke i prod.** `run-weekly-agent` har kun `Deno.cron` (kører aldrig på edge-runtimen); `cron.job` har ti jobs, ingen kalder den. Kun `generate-weekly-focus` (0 6 \* \* 1) kører mandag. Om agenten NOGENSINDE har kørt fra cron, er ikke efterprøvet (`agent_runs.trigger` kan svare). Skal den køre, er vejen pg_cron + `net.http_post` som `intro-reminder-cron` — men den kører LIVE og skriver det medlemmet ser, så det er en beslutning, ikke en rettelse. | DEL 2 «Agentkæden»; DEL 4 (`Deno.cron`) |
+| egen opgave, målt 6/9 | **Elleve nye typefejl efter Lovables regenerering af `types.ts`** (`2cd553e2`): valgfri felter i de genererede typer mod krævede i husets interfaces (EventsView ×2, EventDetailView, BoardroomView, admin/EventsView, `akademiApi.ts` ×4). Baselinen er 15. Rettes ét sted ad gangen med den genererede type som facit — eller ved at bede Lovable regenerere med samme version som 3/9; ikke afgjort. | DEL 1 «Kodearbejde» |
+| egen opgave, målt 6/9 | **CI kører ikke typecheck.** `test.yml` kører kun `bun run test`; #668 var grøn med 15 typefejl. Et `tsc`-trin i CI ville i dag være rødt på `main`, så rækkefølgen er: baselinen ned først, derefter gaten. | DEL 1 «Kodearbejde» |
+| oprydning, målt 6/9 | **37 grene på origin ud over `main`** (Jonas' måling 6/9; `git ls-remote --heads` gav 38 ved bogføringen samme aften). `gh pr list --state merged` er den eneste der kan afgøre hvilke der må slettes (DEL 1). | DEL 1 «Git og Claude Code» |
 
 ---
 
@@ -1472,6 +1616,22 @@ De konkrete ting der har kostet tid. Led efter dem.
   forkerte sted (oven på den gren man stod på — grenfælden igen). Ramte
   igen 4/9. **REGLEN:** `git stash` FØRST når der er ustaget arbejde,
   og `&&` hele vejen — aldrig `;` mellem checkout og `checkout -b`.
+- **Build-chatten opgav en gren og en commit der ikke fandtes** (6/9:
+  `edit/edt-2b6e495d…`, `0cfda05c`). Substansen blev pushet direkte til
+  `main` under «Changes» og «Work in progress». Verificér ALTID med
+  `git fetch` + `git log`, og læs HVAD commit'en rørte — ikke kun at det
+  den lovede er der: «Work in progress» (`2cd553e2`) regenererede hele
+  `types.ts` og gav elleve typefejl, som ingen bad om (DEL 1).
+- **Lovable kan regenerere `types.ts` med en anden generatorversion.**
+  Felter der var krævede bliver valgfri, og husets håndskrevne
+  interfaces knækker uden at nogen fil vi rørte er nævnt i fejlen. Tjek
+  `git show --stat` på et Lovable-commit før du tror at en typefejl er
+  din (6/9, DEL 1).
+- **CI er grøn uden typecheck.** Gaten er `bun run test`; en PR kan
+  merges med typefejl på `main` (#668, 6/9). Kør
+  `bunx tsc --noEmit -p tsconfig.app.json` FØR diff-filen, og mål
+  baselinen på ren `main` (`git stash` → tsc → `git stash pop`) før du
+  tilskriver en fejl din egen ændring.
 - **`scrollIntoView` ruller ALLE scrollbare forfædre — i en flade med to
   scroll-containere flytter den hele siden.** Målt 4/9 (#639): chatten
   kaldte `scrollIntoView` på den sidste besked ved hver ændring i
@@ -1494,6 +1654,15 @@ Skal ikke genforhandles uden ny måling.
 - **Fristen er kontraktens:** 30 dage fra underskriften. (indgangen §27)
 - **Kommunikation kun ved «tilbyd».** Et medlem der ikke skal tilbydes
   fornyelse, får intet. (fornyelsesordningen §1)
+- **Medlemmet hører om sin fornyelse fra SYSTEMET, ikke ved at miste
+  adgangen** (6/9). Formen spejler indgangens kæde: cron, tørkørsel som
+  standard, ren motor, stempel kun ved lykket afsendelse; rådgiverens
+  personlige besked kommer EFTER systemets mail. (fornyelsesordningen §7)
+- **`er_kunde` læses KUN i rådgiverens læsestier** og gater ingen cron,
+  ingen edge function, ingen RLS (6/9). Slukkes noget for en virksomhed,
+  ændres medlemmets hverdag — og det var netop kravet at den ikke måtte.
+  Reglen er fail-open: kun eksplicit `false` er en beslutning.
+  (DEL 2 «er_kunde»)
 - **To mails i to øjeblikke, aldrig samtidig:** betalingsmail ved
   underskrift, invitation efter betaling. (indgangen §21)
 - **Vi viser ikke tomt indhold.** Uden video ingen velkomst, fem punkter.
