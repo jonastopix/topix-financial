@@ -28,6 +28,7 @@ import MemberCompanyRow from "@/components/members/MemberCompanyRow";
 import EditCompanyDialog from "@/components/members/EditCompanyDialog";
 import MembersAdminSection from "@/components/members/MembersAdminSection";
 import { computeMembershipTier } from "@/lib/membershipTier";
+import { erKunde } from "@/lib/raadgiverensKunder";
 import { fejledeTraekPrVirksomhed, type FejletTraek } from "@/lib/traek";
 
 async function parseApplicationExcel(file: File): Promise<Partial<{
@@ -257,7 +258,7 @@ const Members = () => {
           "id, name, cvr_number, industry_label, contact_person, contact_email, contact_phone, " +
             "website, address, postal_code, city, annual_revenue, start_date, end_date, status, " +
             "slack_channel, created_at, logo_url, contract_start_date, contract_end_date, " +
-            "subscription_status, subscription_current_period_end, is_legat",
+            "subscription_status, subscription_current_period_end, is_legat, er_kunde",
         ).limit(500),
         supabase.from("company_members" as any).select("company_id, user_id, role").limit(2000),
         supabase.from("profiles").select("user_id, full_name, avatar_url"),
@@ -314,7 +315,10 @@ const Members = () => {
 
       const allCompanies = (companiesRes.data || []) as any[];
       const legatCompanyIds = new Set(allCompanies.filter((c: any) => c.is_legat).map((c: any) => c.id));
-      const regularCompanies = allCompanies.filter((c: any) => !c.is_legat);
+      // er_kunde læses her fordi /members er rådgiverens liste og tællere:
+      // vores egen virksomhed skal ikke tælles som en kunde
+      // (src/lib/raadgiverensKunder.ts, fail-open).
+      const regularCompanies = allCompanies.filter((c: any) => !c.is_legat && erKunde(c));
       const allMembers = (membersRes.data || []) as any[];
       const allProfiles = (profilesRes.data || []) as any[];
       const allConvs = (convsRes.data || []) as any[];
