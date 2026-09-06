@@ -636,8 +636,18 @@
     </div>
     <div class="card" data-status="mangler" data-spor="5" data-rammer="raadgiver">
       <h3>Agentens forslagsrum er større end godkendelseslagets</h3>
-      <p>Agenten foreslår opgaver rådgiveren kun kan forkaste — de fem ikke-idempotente værktøjer har ingen besluttet gentagelses-semantik. En revne der vokser: jo bedre agenten bliver, jo flere forslag lander uden for laget.</p>
+      <p>Agenten foreslår opgaver rådgiveren kun kan forkaste — de fem ikke-idempotente værktøjer har ingen besluttet gentagelses-semantik. En revne der vokser: jo bedre agenten bliver, jo flere forslag lander uden for laget. Målt i prod 6/9: kortet «Halvdelen af agentforslagene kan kun forkastes» nedenfor.</p>
       <div class="meta"><span class="tag rust">Vokser</span><span class="tag size">Mellem</span></div>
+    </div>
+    <div class="card new" data-status="fejl" data-spor="5" data-rammer="medlem">
+      <h3>Godkendelse skriver indeværende uges nøgle</h3>
+      <p><code>agent-forslag-afgoer</code> kalder <code>skrivUgensFokus</code>, som upserter <code>weekly_focus</code> på (<code>company_id</code>, <code>getISOWeekKey(new Date())</code>) — <code>_shared/agentSkriveveje.ts:34</code>, målt 6/9. Godkendes et forslag fra 25. august i dag, får medlemmet et «ugens fokus»-kort dateret DENNE uge, skrevet ud fra augusts tal. Forslag har ingen udløbsmekanik; otte fra 25/8 ligger uafgjorte. Hører til opgave-model-epic'et (kortet øverst i afsnittet); indtil da: forkast frem for at godkende, når ugen er passeret (OVERLEVERING DEL 4).</p>
+      <div class="meta"><span class="tag ny">Ny 6/9</span><span class="tag rust">Live fejl</span><span class="tag size">Lille</span></div>
+    </div>
+    <div class="card decision new" data-status="beslutning" data-spor="5" data-rammer="raadgiver">
+      <h3>Halvdelen af agentforslagene kan kun forkastes</h3>
+      <p>Godkendelseslaget understøtter ét værktøj, <code>update_weekly_focus</code>. Målt i prod 6/9 kl. 22:18: otte uafgjorte forslag (Topix 6, remm. 2, alle fra tørkørsler 25/8) — fire <code>update_weekly_focus</code> kan godkendes, fire kan KUN kastes væk: tre <code>write_session_prep</code>, ét <code>write_company_action</code>. Forsidens linje lover «din afgørelse» om noget hvor den ene mulighed ikke findes. Bemærk: <code>write_session_prep</code> stod ikke i SKRIVE_TOOLS-listen i <code>recon-agentens-skrivninger.md</code> — værktøjssættet har ændret sig siden 25/8, eller listen var ufuldstændig; ikke afklaret. Beslutningen er epic'ets: hvilke værktøjer skal kunne godkendes, og hvad linjen må love.</p>
+      <div class="meta"><span class="tag ny">Ny 6/9</span><span class="tag gold">Beslutning</span><span class="tag size">Mellem</span></div>
     </div>
     <div class="card" data-status="mangler" data-spor="5" data-rammer="medlem">
       <h3>Medlemmets opgaveflade — bygget, men ubrugt</h3>
@@ -755,8 +765,18 @@
   <section class="topic" id="raadgiverfladen">
   <p class="eyebrow">Rådgiverens hverdag</p>
   <h2>Rådgiverfladen — det der står tilbage efter 4/9</h2>
-  <p class="lede">Forsiden, virksomhedslisten, virksomhedssiden, chatten, Milestones og alle otte admin-sider er Hjemmebane. Resterne herunder er målt sent 4/9 (OVERLEVERING DEL 3) — og tre ting er set på mobil.</p>
+  <p class="lede">Forsiden, virksomhedslisten, virksomhedssiden, chatten, Milestones og alle otte admin-sider er Hjemmebane. Resterne herunder er målt sent 4/9 (OVERLEVERING DEL 3) — og tre ting er set på mobil. To kort fra 6/9 sen aften: puklen der taber virksomheden, og sorteringen på <code>/virksomheder</code>.</p>
   <div class="grid">
+    <div class="card new" data-status="fejl" data-spor="6" data-rammer="raadgiver">
+      <h3>Forsidens pukkel taber virksomheden</h3>
+      <p>Linjen «N agentforslag venter på din afgørelse» linker til <code>/virksomheder</code> uden filter (<code>RaadgiverForsideView.tsx:197</code>), så rådgiveren selv skal lede. Forslag kan KUN afgøres i <code>AgentForslagPanel</code>, monteret alene på <code>/virksomhed/:companyId</code> (<code>VirksomhedView.tsx:330</code>, målt 6/9). Dommen kender virksomhederne bag puklen og kaster dem væk på vej til fladen. Målt 6/9 kl. 22:18: otte forslag på to virksomheder (Topix 6, remm. 2); forsiden viser 2 efter <code>er_kunde</code>. Dækker puklen én virksomhed, kan linjen pege direkte derhen; dækker den flere, findes der ingen flade der viser forslag på tværs.</p>
+      <div class="meta"><span class="tag ny">Ny 6/9</span><span class="tag rust">Blindt link</span><span class="tag size">Lille</span></div>
+    </div>
+    <div class="card new" data-status="mangler" data-spor="6" data-rammer="raadgiver">
+      <h3>Sortering og branchefilter på <code>/virksomheder</code></h3>
+      <p>Jonas 6/9: listen skal kunne sorteres på Virksomhed, Medlemsstatus og Sidste kontakt. Det er IKKE en løs idé — den gamle <code>/members</code>-liste har sortering og branchefilter, og de står som punkt 11 i de elleve dele der blokerer swappet (OVERLEVERING DEL 3, kortet «<code>/members</code> kan ikke swappes» nedenfor). Hører til dér: bygges det på <code>/virksomheder</code>, er ét af de elleve punkter væk.</p>
+      <div class="meta"><span class="tag ny">Ny 6/9</span><span class="tag">Del af swappet</span><span class="tag size">Lille</span></div>
+    </div>
     <div class="card blocked new" data-status="mangler" data-spor="6" data-rammer="raadgiver">
       <h3><code>/members</code> kan ikke swappes — elleve dele findes kun dér</h3>
       <p>Syv af dem er handlinger ingen anden flade kan udføre: <code>IndgangsSektion</code> (sæt prisniveau → betalingsmail), <code>FornyelsesSektion</code> (eneste sted en fornyelsesbeslutning registreres; ordningen træder i kraft 10/9), <code>MembersAdminSection</code> (afventende invitationer, gensend, slet), «Inviter ny bruger», «Importér/berig med ansøgning», «Tilknyt» (merge over otte tabeller), «Slet virksomhed». Dertil «Omdøb virksomhed» (<code>EditCompanyDialog</code> har intet navnefelt), «Gensend invitation», <code>MembersStatsBar</code>/<code>MembersOnboardingFunnel</code>, og rækkens refleksion/ulæste/Slack-kanal/sortering/branchefilter. Forsiden viser indgang og fornyelse som slags 1 og 2, men kun som links. Det der stadig peger på listen: <code>AppSidebar</code>, <code>Guide</code>, rådgivermailen <code>indgangsMail.ts:251</code>, tre Slack-fallback-links.</p>
@@ -916,14 +936,9 @@
       <div class="meta"><span class="tag ny">Ny 6/9</span><span class="tag rust">Kører ikke</span><span class="tag size">Lille</span></div>
     </div>
     <div class="card new" data-status="fejl" data-spor="senere" data-rammer="ingen">
-      <h3>Elleve nye typefejl efter Lovables regenerering af <code>types.ts</code></h3>
-      <p>Baselinen for <code>bunx tsc --noEmit -p tsconfig.app.json</code> er 15, ikke 4 (målt på ren <code>main</code> 6/9). De elleve kom med commit <code>2cd553e2</code> «Work in progress», som regenererede hele <code>types.ts</code> (1903 linjer skrevet, 1898 slettet) med en anden generatorversion end 3/9: felter blev valgfri (<code>EventTimes.ends_at</code>, <code>MemberProgress.seen_at</code> m.fl.), og husets håndskrevne interfaces kræver dem stadig — EventsView ×2, EventDetailView, BoardroomView, admin/EventsView, <code>akademiApi.ts</code> ×4. Ikke i nogen fil vi rørte.</p>
-      <div class="meta"><span class="tag ny">Ny 6/9</span><span class="tag rust">Baseline 15</span><span class="tag size">Mellem</span></div>
-    </div>
-    <div class="card new" data-status="fejl" data-spor="senere" data-rammer="ingen">
       <h3>CI kører ikke typecheck</h3>
-      <p>Gaten i <code>.github/workflows/test.yml</code> er <code>bun run test</code> alene. PR #668 var grøn med 15 typefejl på <code>main</code> (målt 6/9). Typefejl fanges kun i hånden. Et <code>tsc</code>-trin ville i dag være rødt, så rækkefølgen er: baselinen ned først (kortet ovenfor), derefter gaten.</p>
-      <div class="meta"><span class="tag ny">Ny 6/9</span><span class="tag size">Lille</span></div>
+      <p>Gaten i <code>.github/workflows/test.yml</code> er <code>bun run test</code> alene. PR #668 var grøn med 15 typefejl på <code>main</code> (målt 6/9). Typefejl fanges kun i hånden. <strong>Baselinen er fire igen</strong> (#670, 6/9 sen aften — de elleve fra Lovables regenerering er rettet, OVERLEVERING DEL 1), så rækkefølgen «baselinen ned først» er opfyldt: et <code>tsc</code>-trin i CI er nu det næste skridt. Det ville i dag give præcis de fire kendte fejl (CompanyChatPane, PushView, RapporteringView ×2) — rettes de, eller får trinnet en kendt-liste, er den ene beslutning der står.</p>
+      <div class="meta"><span class="tag ny">Ny 6/9</span><span class="tag">Klar til gaten</span><span class="tag size">Lille</span></div>
     </div>
     <div class="card new" data-status="mangler" data-spor="senere" data-rammer="ingen">
       <h3>38 grene på origin ud over <code>main</code></h3>

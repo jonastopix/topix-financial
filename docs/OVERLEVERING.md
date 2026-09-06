@@ -14,8 +14,13 @@ fornyelse fra SYSTEMET, i indgangens form; den reelle deadline er midten
 af november, ikke 10/9 (DEL 3). Agentkæden er målt: ugeagenten kører
 LIVE, ikke tørt — og formentlig slet ikke, for dens cron findes ikke i
 prod (DEL 2, «Agentkæden»). Tre værktøjsfund: CI kører ikke typecheck,
-baselinen er 15 fejl efter Lovables regenerering af `types.ts`, og
+Lovable regenererede `types.ts` og gav elleve typefejl, og
 build-chatten opgav en gren og en commit der ikke fandtes (DEL 1, DEL 4).
+SEN AFTEN: de elleve er rettet (#670) — baselinen er FIRE igen, og et
+tsc-trin i CI er ikke længere blokeret (DEL 1, DEL 3). Målt kl. 22:18:
+«8 agentforslag venter» var Topix (6) og remm. (2); forsiden siger nu 2
+— et andet bevis for `er_kunde` — og godkendelse skriver INDEVÆRENDE
+uges nøgle på et forslag fra august (DEL 2 «Agentkæden», DEL 4).
 Gaten viser ikke længere en teknisk fejlbesked (#667). Dagene 4/9 sen
 aften står i DEL 2 «Konverteringen» og i DEL 3.**
 
@@ -253,18 +258,24 @@ samme kolonneantal og -type.
 - `gh run list --branch`, ikke `gh pr checks` (Vercel-appen hænger check-
   suites i `queued`).
 - `bunx tsc --noEmit -p tsconfig.app.json` (uden `-p` checkes nul filer).
-  **Baselinen er 15 typefejl, ikke 4 (målt 6/9 på ren `main`):** de fire
-  kendte (CompanyChatPane, PushView, RapporteringView ×2) plus elleve nye
-  i EventsView ×2, EventDetailView, BoardroomView, admin/EventsView og
-  `akademiApi.ts` ×4. De elleve kom af at Lovable REGENEREREDE HELE
-  `types.ts` (commit `2cd553e2` «Work in progress», 6/9: 1903 linjer
-  skrevet, 1898 slettet) med en anden generatorversion end 3/9 — felter
-  blev valgfri (`EventTimes.ends_at`, `MemberProgress.seen_at` m.fl.),
-  og husets håndskrevne interfaces kræver dem stadig. Ikke i nogen fil
-  vi rørte; egen opgave (DEL 3). **CI KØRER IKKE TYPECHECK** — gaten i
+  **Baselinen er FIRE typefejl** (målt 6/9 sen aften efter #670):
+  CompanyChatPane, PushView, RapporteringView ×2. Den var 15 i nogle
+  timer 6/9: Lovable REGENEREREDE HELE `types.ts` (commit `2cd553e2`
+  «Work in progress», 1903 linjer skrevet, 1898 slettet) med en anden
+  generatorversion end 3/9, så nullable kolonner blev valgfri felter
+  (`ends_at?: string` i stedet for `string | null`), og husets
+  håndskrevne interfaces krævede dem stadig. **Rettet efter princippet
+  at de genererede typer er sandheden om databasen (#670):**
+  `EventTimes.ends_at` og de fire felter på `MemberProgress` er nu
+  valgfrie OG nullable, og reglen står skrevet begge steder — null og
+  undefined betyder det samme, «det er ikke sket». Ingen casts, intet
+  non-null, ingen ændring i `types.ts`; tretten nye tests låser reglen,
+  inkl. grænsen ved `starts_at` + 90 min. Sker det igen, er det
+  opskriften. **CI KØRER IKKE TYPECHECK** — gaten i
   `.github/workflows/test.yml` er `bun run test` alene; PR #668 var grøn
   med 15 typefejl på `main`. Typefejl fanges kun i hånden, så kør tsc
-  FØR diff-filen skrives. `bun run test`, ikke `bun test`. Deno-tests i
+  FØR diff-filen skrives. Et tsc-trin i CI er ikke længere blokeret af
+  baselinen (DEL 3). `bun run test`, ikke `bun test`. Deno-tests i
   `_shared/*_test.ts` kører kun i hånden; `deno check` er ikke en gate
   i CI. `bun run check:edge-auth` kører i CI; `check:verify-jwt` kun lokalt.
 - CLAUDE.md's «FORBIDDEN»-liste gælder: ingen ændring af
@@ -477,6 +488,36 @@ hvis den bruges). Anledningen var `er_kunde`: måtte feltet gate cronen?
   fornyelseskædens §13.5). Repoet dokumenterer selv at `Deno.cron` aldrig
   eksekverer på Supabases edge-runtime (DEL 4). Ugeagenten kører altså
   formentlig slet ikke. Ikke efterprøvet ud over `cron.job` (DEL 3).
+
+**Målt 6/9 kl. 22:18 — hvad «N agentforslag venter» dækker over.**
+Otte uafgjorte forslag i prod, på TO virksomheder: Topix.dk ApS (6) og
+remm. (2). Forsiden viser nu 2, fordi `er_kunde` filtrerer Topix fra —
+overleveringen sagde 8 den 4/9 (afsnittet «Forsiden — fra KØ til
+OPGAVE»). Det er et ANDET bevis på skærm for #668, målt på et tal ingen
+kiggede efter. Alle otte er fra 25. august og alle fra TØRKØRSLER
+(`report_committed` og `company_review`). Fordelingen på værktøj: fire
+`update_weekly_focus` (kan godkendes), fire der KUN kan forkastes — tre
+`write_session_prep` og ét `write_company_action`. Bemærk:
+`write_session_prep` optræder i rækkerne, men stod ikke i
+SKRIVE_TOOLS-listen i `recon-agentens-skrivninger.md` — værktøjssættet
+har ændret sig siden 25/8, eller reconens liste var ufuldstændig. Ikke
+afklaret.
+
+**Puklen taber virksomheden på vej til fladen** (målt 6/9): linjen «N
+agentforslag venter på din afgørelse» linker til `/virksomheder` uden
+filter (`RaadgiverForsideView.tsx:197`), så rådgiveren selv skal lede.
+Forslag kan KUN afgøres i `AgentForslagPanel`, monteret alene på
+`/virksomhed/:companyId` (`VirksomhedView.tsx:330`). Dommen kender
+virksomhederne bag puklen og kaster dem væk i linket. Mangellisten
+bærer kortet.
+
+**FÆLDE, målt 6/9: godkendelse skriver INDEVÆRENDE uges nøgle.**
+`agent-forslag-afgoer` kalder `skrivUgensFokus`
+(`_shared/agentSkriveveje.ts:34`), som upserter `weekly_focus` på
+(`company_id`, `getISOWeekKey(new Date())`). Godkendes et forslag fra
+25. august i dag, får medlemmet et «ugens fokus»-kort dateret DENNE uge,
+skrevet ud fra augusts tal. Forslag har ingen udløbsmekanik. Hører til
+opgave-model-epic'et (DEL 3) og står som fælde i DEL 4.
 
 ### Indgangen — kæden FØR platformen er hel 3/9: «Godkendt» → betalingsmail → påmindelser → dag 31-faktura → betaling → adgang
 
@@ -1351,8 +1392,9 @@ facit og rækkefølge; `docs/chat-design.md` chattens form.
 | ÅBENT ved dagens slutning 4/9 — det der står tilbage efter at rådgiverens hverdag blev Hjemmebane hele vejen | **Seks punkter, hver med sin egen række eller sit eget sted:** (1) `/members` kan ikke swappes — elleve dele findes kun dér (rækken «MÅLT 4/9 sen aften» ovenfor). (2) `EmailTemplates` skal designes, ikke konverteres (rækken «DESIGNPUNKT»). (3) Milestones' FUNKTION afventer opgave-modellen; kun udtrykket er gjort (rækken «EPIC, én samtale»). (4) Forsidens dom mangler de to AI-baserede slags — §8's AI-læsning (`docs/forsiden-design.md` §8, §12; `src/lib/forsidensDom.ts` har pladsen i typen). (5) Ingen af de otte admin-sider er set på skærm — beviset er Update og et klik på hver. (6) `align`-prop på `HbPopover`, så `HbMenu` i `CompanyChatPane` kan udgå (gælden fra #657). | DEL 2 «Konverteringen» (status ved dagens slutning) |
 | driftsgæld | Fejlovervågning findes ikke; restore er aldrig afprøvet; `run-weekly-agent` står ikke i `cron.job` (**bekræftet 6/9:** ti jobs i prod, ingen af dem den — ugeagenten kører formentlig slet ikke, DEL 2 «Agentkæden»); 73 uploads bestod validering uden at blive committet; e-conomic-integrationen er død (migration-recon §10). | status-1-sept §6; den forrige overlevering (§7, før omskrivningen i #538) findes kun i git-historikken |
 | MÅLT 6/9 — egen opgave | **Ugeagentens cron findes ikke i prod.** `run-weekly-agent` har kun `Deno.cron` (kører aldrig på edge-runtimen); `cron.job` har ti jobs, ingen kalder den. Kun `generate-weekly-focus` (0 6 \* \* 1) kører mandag. Om agenten NOGENSINDE har kørt fra cron, er ikke efterprøvet (`agent_runs.trigger` kan svare). Skal den køre, er vejen pg_cron + `net.http_post` som `intro-reminder-cron` — men den kører LIVE og skriver det medlemmet ser, så det er en beslutning, ikke en rettelse. | DEL 2 «Agentkæden»; DEL 4 (`Deno.cron`) |
-| egen opgave, målt 6/9 | **Elleve nye typefejl efter Lovables regenerering af `types.ts`** (`2cd553e2`): valgfri felter i de genererede typer mod krævede i husets interfaces (EventsView ×2, EventDetailView, BoardroomView, admin/EventsView, `akademiApi.ts` ×4). Baselinen er 15. Rettes ét sted ad gangen med den genererede type som facit — eller ved at bede Lovable regenerere med samme version som 3/9; ikke afgjort. | DEL 1 «Kodearbejde» |
-| egen opgave, målt 6/9 | **CI kører ikke typecheck.** `test.yml` kører kun `bun run test`; #668 var grøn med 15 typefejl. Et `tsc`-trin i CI ville i dag være rødt på `main`, så rækkefølgen er: baselinen ned først, derefter gaten. | DEL 1 «Kodearbejde» |
+| LØST 6/9 sen aften (#670) | **De elleve typefejl efter Lovables regenerering af `types.ts`** er rettet ved at lade husets egne interfaces sige sandheden om databasen — `EventTimes.ends_at` og de fire felter på `MemberProgress` er valgfrie OG nullable — og ved at skrive reglen ned begge steder: null og undefined betyder det samme, «det er ikke sket». Ingen casts, intet non-null, ingen ændring i `types.ts`. Tretten nye tests låser reglen, inkl. grænsen ved `starts_at` + 90 min. **Målt efter:** tsc giver præcis fire fejl (CompanyChatPane, PushView, RapporteringView ×2), 1656 tests grønne. | DEL 1 «Kodearbejde» |
+| egen opgave — IKKE længere blokeret (6/9 sen aften) | **CI kører ikke typecheck.** `test.yml` kører kun `bun run test`; #668 var grøn med 15 typefejl. Rækkefølgen «baselinen ned først» er opfyldt med #670: et `tsc`-trin i CI ville i dag give de fire kendte fejl og intet andet. Næste skridt er gaten selv — og en beslutning om de fire: rettes de, eller får trinnet en kendt-liste? | DEL 1 «Kodearbejde» |
+| hører til opgave-epic'et, målt 6/9 kl. 22:18 | **Godkendelse skriver indeværende uges nøgle, og halvdelen af de uafgjorte forslag kan kun forkastes.** Otte forslag fra 25/8 (Topix 6, remm. 2, alle tørkørsler); fire `update_weekly_focus` kan godkendes, fire (`write_session_prep` ×3, `write_company_action`) kan kun forkastes — linjen lover «din afgørelse» om noget hvor den ene mulighed ikke findes. Og godkendes et augustforslag i dag, lander det som DENNE uges fokus (`skrivUgensFokus` → `getISOWeekKey(new Date())`). Forslag har ingen udløbsmekanik. Dertil: puklen linker til `/virksomheder` uden filter, mens panelet kun findes på virksomhedssiden. Mangellisten bærer tre kort. | DEL 2 «Agentkæden»; DEL 4; `docs/opgave-model-design.md` |
 | oprydning, målt 6/9 | **37 grene på origin ud over `main`** (Jonas' måling 6/9; `git ls-remote --heads` gav 38 ved bogføringen samme aften). `gh pr list --state merged` er den eneste der kan afgøre hvilke der må slettes (DEL 1). | DEL 1 «Git og Claude Code» |
 
 ---
@@ -1632,6 +1674,19 @@ De konkrete ting der har kostet tid. Led efter dem.
   `bunx tsc --noEmit -p tsconfig.app.json` FØR diff-filen, og mål
   baselinen på ren `main` (`git stash` → tsc → `git stash pop`) før du
   tilskriver en fejl din egen ændring.
+- **Et godkendt agentforslag skriver INDEVÆRENDE uges nøgle, ikke
+  forslagets.** `skrivUgensFokus` upserter på `getISOWeekKey(new
+  Date())` (`_shared/agentSkriveveje.ts:34`). Otte forslag fra 25/8 lå
+  uafgjorte 6/9; godkendes ét i dag, ser medlemmet «ugens fokus» for
+  denne uge, regnet på augusts tal. Afgør gamle forslag med det i
+  baghovedet — og forkast frem for at godkende, hvis ugen er passeret.
+- **En test der importerer et datalags-modul, vælter suiten uden at
+  fejle en test.** `akademiApi` importerer Supabase-klienten på
+  modulniveau; den starter en auto-refresh-timer der kaster
+  `storage.getItem is not a function` i jsdom som «Unhandled Error» —
+  alle tests grønne, exit 1 (6/9, #670). Mock klienten med `vi.mock`
+  som `handoutEngineWritePaths.test.ts`, og læs exit-koden, ikke kun
+  tælleren.
 - **`scrollIntoView` ruller ALLE scrollbare forfædre — i en flade med to
   scroll-containere flytter den hele siden.** Målt 4/9 (#639): chatten
   kaldte `scrollIntoView` på den sidste besked ved hver ændring i
