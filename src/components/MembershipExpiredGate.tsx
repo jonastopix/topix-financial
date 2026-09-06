@@ -76,7 +76,8 @@ export default function MembershipExpiredGate() {
       if (error || !data?.url) throw new Error(error?.message || "Ingen checkout URL");
       window.location.href = data.url;
     } catch (err: any) {
-      toast.error("Noget gik galt", { description: err.message });
+      console.error("[MembershipExpiredGate] create-subscription-checkout fejlede:", err);
+      toast.error("Noget gik galt — skriv til os, så hjælper vi dig videre.");
       setLoadingCheckout(false);
     }
   };
