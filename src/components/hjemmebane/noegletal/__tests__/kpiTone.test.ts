@@ -48,4 +48,31 @@ describe("deriveKpiTone — målopfyldelses-dommen", () => {
     expect(deriveKpiTone({ actual: 50, target: 0, lowerIsBetter: false }).state).toBe("no_target");
     expect(deriveKpiTone({ actual: 50, target: -10, lowerIsBetter: true }).state).toBe("no_target");
   });
+
+  // En dom kræver et aftalt mål (7/9). CARMA: 106.096 mod standard < 80.000
+  // stod i rust — nu stille, uden pct, men målet er der stadig at vise.
+  it("standardmål (kilde «standard»): ingen dom — state standard, quiet, pct null, selv når tallet er langt fra målet", () => {
+    const view = deriveKpiTone({ actual: 106_096, target: 80_000, lowerIsBetter: true, kilde: "standard" });
+    expect(view.state).toBe("standard");
+    expect(view.tone).toBe("quiet");
+    expect(view.pct).toBeNull();
+    expect(deriveKpiTone({ actual: 60, target: 100, lowerIsBetter: false, kilde: "standard" }).tone).toBe("quiet");
+  });
+
+  it("aftalt mål (kilde «aftalt»): dømmer præcis som før", () => {
+    const view = deriveKpiTone({ actual: 106_096, target: 80_000, lowerIsBetter: true, kilde: "aftalt" });
+    expect(view.state).toBe("off");
+    expect(view.tone).toBe("attention");
+    expect(deriveKpiTone({ actual: 120, target: 100, lowerIsBetter: false, kilde: "aftalt" })).toEqual({ state: "hit", tone: "quiet", pct: 120 });
+  });
+
+  it("ukendt kilde (undefined/null — ældre hentning): dømmer som før, ukendt er ikke standard", () => {
+    expect(deriveKpiTone({ actual: 60, target: 100, lowerIsBetter: false }).state).toBe("off");
+    expect(deriveKpiTone({ actual: 60, target: 100, lowerIsBetter: false, kilde: null }).state).toBe("off");
+  });
+
+  it("standardmål uden tal eller uden gyldigt mål er stadig no_target — ikke standard", () => {
+    expect(deriveKpiTone({ actual: null, target: 100, lowerIsBetter: false, kilde: "standard" }).state).toBe("no_target");
+    expect(deriveKpiTone({ actual: 50, target: 0, lowerIsBetter: false, kilde: "standard" }).state).toBe("no_target");
+  });
 });
