@@ -45,6 +45,8 @@ import {
   type DataBasis,
 } from "@/lib/dataGrundlag";
 import { ESTIMAT_FORKLARING, EstimatMaerke } from "../EstimatMaerke";
+import { StandardmaalMaerke } from "../StandardmaalMaerke";
+import { erStandardMaal, type ResolvedTargets } from "@/lib/kpiMaal";
 
 /** Nøgletal (/noegletal → /kpis ved GO) — FULD PARITET + trend/AI
     (klik-valg A): mål-hero, trend-overblik (nyt hjem fra Reports),
@@ -385,8 +387,10 @@ export const NoegletalView = () => {
     if (targetRes.error || benchRes.error) {
       setSaveError((targetRes.error ?? benchRes.error)?.message ?? "Kunne ikke gemme");
     } else {
-      const mergedTargets: Record<string, { value: number; label: string }> = {};
-      targetUpserts.forEach((u) => (mergedTargets[u.kpi_key] = { value: u.target_value, label: u.target_label }));
+      // Gemt = aftalt: cachen får kilden med, så mærket forsvinder i samme
+      // øjeblik målet er virksomhedens eget.
+      const mergedTargets: ResolvedTargets = {};
+      targetUpserts.forEach((u) => (mergedTargets[u.kpi_key] = { value: u.target_value, label: u.target_label, kilde: "aftalt" }));
       setTargets(mergedTargets);
       const mergedBench: Record<string, { value: number; label: string; source: string }> = {};
       benchUpserts.forEach((u) => (mergedBench[u.kpi_key] = { value: u.benchmark_value, label: u.benchmark_label, source: u.source_label }));
@@ -632,6 +636,9 @@ export const NoegletalView = () => {
                               mål {target.label}
                             </span>
                           )}
+                          {/* Standardmål mærkes (Jonas 7/9) — samme form og
+                              plads som EstimatMaerke ved et estimattal. */}
+                          {tone.state !== "no_target" && erStandardMaal(target) && <StandardmaalMaerke className="ml-1.5 align-middle" />}
                         </p>
                       </div>
                     </div>
@@ -851,6 +858,7 @@ export const NoegletalView = () => {
                         (ink-soft), uanset kortets tone. */}
                     <p className="mt-0.5 text-xs">
                       {tone.state !== "no_target" && <span className={toneCls}>{`mål ${metric.target}`}</span>}
+                      {tone.state !== "no_target" && metric.maalKilde === "standard" && <StandardmaalMaerke kompakt className="ml-1" />}
                       {benchLabel && (
                         <span className="text-hb-ink-soft">
                           {tone.state !== "no_target" ? " · " : ""}branche {benchLabel}
@@ -1102,10 +1110,14 @@ export const NoegletalView = () => {
                 // Målet forbliver aktivt valg — INGEN auto-udfyldning fra
                 // benchmark (model C fravalgt, beslutning 2026-08-05).
                 const benchNum = parseFloat(editBenchmarkValues[def.key]?.value || "0") || 0;
-                const benchHelp =
+                const brancheHelp =
                   benchNum > 0
                     ? `branche: ${def.unit === "%" ? `${editBenchmarkValues[def.key].value} %` : formatCompact(benchNum)}`
                     : undefined;
+                // Feltet er forudfyldt med standardmålet når intet er aftalt —
+                // sig det, så rådgiveren ikke tror tallet er virksomhedens.
+                const standardHelp = erStandardMaal(getTarget(def.key)) ? "standardmål — ikke aftalt endnu" : undefined;
+                const benchHelp = [standardHelp, brancheHelp].filter(Boolean).join(" · ") || undefined;
                 return (
                 <div key={def.key} className="grid gap-3 sm:grid-cols-2">
                   <HbField label={`${def.label} · mål`} htmlFor={`target-${def.key}`} help={benchHelp}>

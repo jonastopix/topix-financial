@@ -219,3 +219,23 @@ describe("deriveKpiMetrics — grundlag og formatering", () => {
     expect(metrics.find((m) => m.key === "omsaetning")).toBeDefined();
   });
 });
+
+describe("deriveKpiMetrics — målets oprindelse bæres med (7/9)", () => {
+  const facts = [fact("2026-08", { revenue: 40_000 })];
+  it("standardmål: maalKilde er «standard»", () => {
+    const m = deriveKpiMetrics(facts, { omsaetning: { value: 120_000, label: "120.000", kilde: "standard" } }, ingenBench).find((x) => x.key === "omsaetning")!;
+    expect(m.target).toBe("120.000");
+    expect(m.maalKilde).toBe("standard");
+  });
+  it("aftalt mål: maalKilde er «aftalt»", () => {
+    const m = deriveKpiMetrics(facts, { omsaetning: { value: 40_000, label: "40.000", kilde: "aftalt" } }, ingenBench).find((x) => x.key === "omsaetning")!;
+    expect(m.maalKilde).toBe("aftalt");
+  });
+  it("mål uden kilde (ældre hentning) og intet mål: maalKilde er null — ukendt er ikke standard", () => {
+    const med = deriveKpiMetrics(facts, { omsaetning: { value: 120_000, label: "120.000" } }, ingenBench).find((x) => x.key === "omsaetning")!;
+    expect(med.maalKilde).toBeNull();
+    const uden = deriveKpiMetrics(facts, ingenMaal, ingenBench).find((x) => x.key === "omsaetning")!;
+    expect(uden.maalKilde).toBeNull();
+    expect(uden.targetNum).toBe(0);
+  });
+});

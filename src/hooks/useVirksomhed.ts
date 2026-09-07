@@ -47,11 +47,9 @@ import { useAuth } from "@/hooks/useAuth";
 import type { Json } from "@/integrations/supabase/types";
 import { useCompanyFacts, type CompanyFact } from "@/hooks/useCompanyFacts";
 import type { FejletTraek } from "@/lib/traek";
-import { KPI_DEFS } from "@/lib/kpiDefs";
-import { KPI_FALLBACK_TARGETS } from "@/lib/appConfig";
 import { kraevRaekker } from "@/lib/kraevRaekker";
+import { fletKpiMaal, type ResolvedTargets } from "@/lib/kpiMaal";
 import type { Fornyelsesbeslutning } from "@/lib/fornyelse";
-import type { ResolvedTargets } from "@/hooks/useKpiTargets";
 
 export interface VirksomhedsMedlem {
   user_id: string;
@@ -165,7 +163,7 @@ export interface VirksomhedsData {
   }[];
   /** Rådgivernavne pr. user_id (get_all_advisor_profiles) — til «Tildelt» i blok 4. */
   raadgiverNavne: Record<string, string>;
-  /** KPI-mål pr. nøgle — DB-værdi ellers KPI_FALLBACK_TARGETS, ordret som useKpiTargets:36-47. */
+  /** KPI-mål pr. nøgle med oprindelse (kilde «aftalt»/«standard») — fletKpiMaal (lib/kpiMaal), samme som useKpiTargets. */
   kpiMaal: ResolvedTargets;
   /** company_actions der venter: open/proposed/active (BoardroomView:1686). */
   opgaver: { id: string; title: string; status: string; priority: string; due_date: string | null }[];
@@ -315,19 +313,13 @@ async function hentVirksomhed(companyId: string): Promise<VirksomhedsData | null
     supabase.rpc("get_all_advisor_profiles"),
   ]);
 
-  // KPI-mål: DB-værdi hvis den findes, ellers fallback — ordret som
-  // useKpiTargets, men i denne hentning frem for en egen useQuery. Fejler
-  // kaldet, kaster kraevRaekker (rettet 7/9, recon-fallback-tal.md §4):
-  // før blev `kpiMaalRes.data ?? []` til seks fallback-mål tegnet som
-  // virksomhedens egne i blok 5. Tom liste (ingen mål sat) er stadig fallback.
-  const dbMaal = new Map(kraevRaekker(kpiMaalRes, "kpi_targets").map((t) => [t.kpi_key, t]));
-  const kpiMaal: ResolvedTargets = {};
-  for (const def of KPI_DEFS) {
-    const ut = dbMaal.get(def.key);
-    kpiMaal[def.key] = ut
-      ? { value: Number(ut.target_value), label: ut.target_label }
-      : (KPI_FALLBACK_TARGETS[def.key] || { value: 0, label: "—" });
-  }
+  // KPI-mål: ÉT sted fletter (lib/kpiMaal, 7/9) — DB-værdi hvis den findes
+  // (kilde «aftalt»), ellers husets standard (kilde «standard»), så
+  // virksomhedssiden mærker standardmål præcis som nøgletalssiden. Fejler
+  // kaldet, kaster kraevRaekker (rettet 7/9, recon-fallback-tal.md §4): før
+  // blev `kpiMaalRes.data ?? []` til seks standardmål tegnet som
+  // virksomhedens egne i blok 5. Tom liste (ingen mål sat) er stadig standard.
+  const kpiMaal = fletKpiMaal(kraevRaekker(kpiMaalRes, "kpi_targets"));
 
   if (companyRes.error) throw companyRes.error;
   if (!companyRes.data) return null;

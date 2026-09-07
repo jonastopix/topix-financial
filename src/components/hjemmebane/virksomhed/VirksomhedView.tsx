@@ -33,6 +33,7 @@ import { openReportFile, isLegacyPath } from "@/lib/reportFileAccess";
 import { notifyChatMessage } from "@/lib/chatNotify";
 import { DANISH_MONTHS, formatCompact, formatDKK } from "@/lib/financialUtils";
 import { EstimatMaerke, ESTIMAT_FORKLARING } from "../EstimatMaerke";
+import { StandardmaalMaerke } from "../StandardmaalMaerke";
 import { HbButton } from "../HbButton";
 import { HbCard } from "../HbCard";
 import { HbSection } from "../HbSection";
@@ -549,6 +550,10 @@ const KpiKort = ({ metric, afviger }: { metric: KpiMetric; afviger: boolean }) =
     <p className="mt-1 text-xs text-hb-ink-soft">
       {metric.changePct != null ? `${metric.change} M/M` : "M/M —"}
       {metric.targetNum > 0 && ` · mål ${metric.target}`}
+      {/* Standardmål mærkes (Jonas 7/9). Mærket kommer først når useVirksomhed
+          fletter med fletKpiMaal (lib/kpiMaal) — indtil da er kilden ukendt,
+          og ukendt mærkes ikke. */}
+      {metric.targetNum > 0 && metric.maalKilde === "standard" && <StandardmaalMaerke kompakt className="ml-1" />}
     </p>
     <Sparkline history={metric.history} />
   </div>

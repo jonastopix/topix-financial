@@ -9,6 +9,7 @@
  * caller — useKpiTargets for targets, getBenchmark for benchmarks).
  */
 import { DollarSign, TrendingUp, Users, Target, Flame, BarChart3 } from "lucide-react";
+import type { MaalKilde } from "@/lib/kpiMaal";
 import type { LucideIcon } from "lucide-react";
 import { calcDbMargin, calcResultMargin, calcTotalExpenses, SHORT_MONTHS } from "@/lib/financialUtils";
 import { factsToDanishMetrics } from "@/lib/factsAdapter";
@@ -31,6 +32,10 @@ export interface KpiMetric {
   numValue: number;
   target: string;
   targetNum: number;
+  /** Målets oprindelse (7/9): «aftalt» fra kpi_targets, «standard» fra
+      KPI_FALLBACK_TARGETS, null når hentningen ikke bærer den (ukendt er
+      ikke standard — fladerne mærker kun «standard»). Se lib/kpiMaal. */
+  maalKilde: MaalKilde | null;
   /** "—" når changePct er null — aldrig et opdigtet "+0.0%".
       Beløb: "+10.0%" (relativ). Procent-KPI'er: "+15.6 pp" (procentpoint). */
   change: string;
@@ -122,7 +127,7 @@ export function getTargetStatus(metric: KpiMetric): { hit: boolean; pct: number 
  */
 export function deriveKpiMetrics(
   facts: CompanyFact[],
-  targets: Record<string, { value: number; label: string }>,
+  targets: Record<string, { value: number; label: string; kilde?: MaalKilde }>,
   benchmarks: Record<string, { value: number; label: string; source: string }>,
 ): KpiMetric[] {
   const monthlyData = facts.map((f) => {
@@ -179,6 +184,7 @@ export function deriveKpiMetrics(
       numValue: currentVal,
       target: target.label,
       targetNum: target.value,
+      maalKilde: target.kilde ?? null,
       change: changePct == null
         ? "—"
         : `${changePct >= 0 ? "+" : ""}${changePct.toFixed(1)}${erProcent ? " pp" : "%"}`,
