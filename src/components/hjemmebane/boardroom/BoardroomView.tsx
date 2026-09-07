@@ -4,6 +4,7 @@ import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowRight, ChevronDown, ChevronUp, ExternalLink, Pause, Play } from "lucide-react";
 import { toast } from "sonner";
+import { HentningsFejl, kraevRaekker } from "@/lib/kraevRaekker";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
 import { useOnboardingTjekliste } from "@/hooks/useOnboardingTjekliste";
@@ -1683,9 +1684,13 @@ export const BoardroomView = () => {
       // limit(10) ville nye forslag skubbe netop de aktive opgaver ud,
       // og sektionens vigtigste indhold forsvinde først. Målt i prod
       // 31/8: tungeste virksomhed har 20 rækker; 50 er rigelig margin.
-      const { data } = await supabase.from("company_actions").select("id, title, context, priority, status, created_at, due_date, expires_at, deferral_count, source_type")
-        .eq("company_id", companyId!).in("status", ["open", "proposed", "active"]).order("created_at", { ascending: false }).limit(50) as any;
-      return ((data || []) as any[]).sort((a: any, b: any) => {
+      // KASTER ved fejl (7/9, recon-tavse-fejl.md pkt. 4 — samme greb som
+      // #703/#706): før blev en fejl til `[]`, og «Dine aftaler» forsvandt
+      // tavst — et forslag fra rådgiveren eller en aktiv opgave væk uden
+      // spor. Tom er et gyldigt svar (ingen aftaler); fejl er det ikke.
+      const actionsRes = (await supabase.from("company_actions").select("id, title, context, priority, status, created_at, due_date, expires_at, deferral_count, source_type")
+        .eq("company_id", companyId!).in("status", ["open", "proposed", "active"]).order("created_at", { ascending: false }).limit(50)) as any;
+      return (kraevRaekker(actionsRes, "company_actions") as any[]).sort((a: any, b: any) => {
         const order: Record<string, number> = { high: 0, medium: 1, low: 2 };
         return (order[a.priority] ?? 1) - (order[b.priority] ?? 1) || new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
       });
@@ -1699,13 +1704,21 @@ export const BoardroomView = () => {
   const unreadQuery = useQuery({
     queryKey: ["boardroom", "unread", companyId, user?.id],
     queryFn: async () => {
-      const { data: conv } = await supabase.from("conversations").select("id").eq("company_id", companyId!).maybeSingle();
+      // KASTER ved fejl (7/9): en ulæst besked der bliver til «0» er en
+      // løgn — medlemmet tror der intet venter. Ingen samtale (maybeSingle
+      // → null) er derimod et gyldigt svar. Tællingerne er head-kald uden
+      // rækker, så fejlen kastes som HentningsFejl direkte, med kildens navn.
+      const convRes = await supabase.from("conversations").select("id").eq("company_id", companyId!).maybeSingle();
+      if (convRes.error) throw new HentningsFejl("conversations", convRes.error.message);
+      const conv = convRes.data;
       if (!conv?.id) return { userCount: 0, agentCount: 0 };
-      const { count } = await supabase.from("messages").select("*", { count: "exact", head: true })
+      const userRes = await supabase.from("messages").select("*", { count: "exact", head: true })
         .eq("conversation_id", conv.id).neq("sender_id", user!.id).is("read_at", null).eq("message_type", "user");
-      const { count: agentCount } = await supabase.from("messages").select("*", { count: "exact", head: true })
+      if (userRes.error) throw new HentningsFejl("messages", userRes.error.message);
+      const agentRes = await supabase.from("messages").select("*", { count: "exact", head: true })
         .eq("conversation_id", conv.id).is("read_at", null).eq("message_type", "system").eq("context_type", "agent");
-      return { userCount: count ?? 0, agentCount: agentCount ?? 0 };
+      if (agentRes.error) throw new HentningsFejl("messages", agentRes.error.message);
+      return { userCount: userRes.count ?? 0, agentCount: agentRes.count ?? 0 };
     },
     enabled: !!companyId && !!user,
     staleTime: 60_000,
@@ -2031,6 +2044,12 @@ export const BoardroomView = () => {
           nextEntry={nextEntry}
           journeyLine={journeyLine}
         />
+        {/* Ulæste beskeder fejlede (7/9): fokus-laget får 0 ulæste ind og
+            tier stille — så siger vi det her, under kortet, i stedet for
+            at lade hele forsiden fejle på én tælling. */}
+        {unreadQuery.isError && (
+          <p className="mt-4 text-sm text-hb-rust">Dine ulæste beskeder kunne ikke hentes. Prøv igen.</p>
+        )}
       </HbSection>
 
       {/* ── DINE AFTALER: aktive opgaver øverst, ÉT forslag nederst ──
@@ -2040,8 +2059,17 @@ export const BoardroomView = () => {
           events-sektionen (border-t hb-line); knapperne står som
           SØSKENDE til teksten — en klikbar handling i et anker er
           ugyldig HTML (events-lærdommen). Arve-'open' vises ikke her.
-          Hverken aktive eller forslag → ingen sektion. */}
-      {(aftaleAktive.length > 0 || aftaleForslag) && (
+          Hverken aktive eller forslag → ingen sektion. FEJL er ikke tom
+          (7/9): kunne aftalerne ikke hentes, står sektionen med en
+          fejllinje frem for at forsvinde — KUN sektionen, ikke forsiden;
+          et medlem der mister hele sin forside fordi én hentning fejlede,
+          er en dårligere byttehandel. Formen er RaadgiverForsideViews. */}
+      {actionsQuery.isError && (
+        <HbSection id="dine-aftaler" eyebrow="Dine aftaler" hairline className="mt-14 md:mt-16">
+          <p className="text-sm text-hb-rust">Dine aftaler kunne ikke hentes. Prøv igen.</p>
+        </HbSection>
+      )}
+      {!actionsQuery.isError && (aftaleAktive.length > 0 || aftaleForslag) && (
         <HbSection id="dine-aftaler" eyebrow="Dine aftaler" hairline className="mt-14 md:mt-16">
           <ul>
             {aftaleAktive.map((a) => (

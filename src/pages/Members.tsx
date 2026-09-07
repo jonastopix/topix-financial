@@ -30,6 +30,7 @@ import MembersAdminSection from "@/components/members/MembersAdminSection";
 import { computeMembershipTier } from "@/lib/membershipTier";
 import { erKunde } from "@/lib/raadgiverensKunder";
 import { fejledeTraekPrVirksomhed, type FejletTraek } from "@/lib/traek";
+import { kraevRaekker } from "@/lib/kraevRaekker";
 
 async function parseApplicationExcel(file: File): Promise<Partial<{
   email: string; company_name: string; cvr_number: string; contact_name: string;
@@ -244,7 +245,7 @@ const Members = () => {
     setImportForm({ email: "", company_name: "", cvr_number: "", contact_name: "", annual_revenue: "", revenue_interval: "", industry_label: "", current_situation: "", goals: "", help_needed: "", website: "", phone: "", contract_start_date: "", contract_end_date: "" });
   };
 
-  const { data: membersData, isLoading: loading, refetch: refetchMembers } = useQuery({
+  const { data: membersData, isLoading: loading, isError: listenFejlede, refetch: refetchMembers } = useQuery({
     queryKey: ["members-data", user?.id],
     queryFn: async () => {
       if (!user || !isAdvisor) return null;
@@ -310,20 +311,37 @@ const Members = () => {
           .limit(500) as any,
       ]);
 
-      // Fejlede træk pr. virksomhed, nyeste først (ren, testet: src/lib/traek.ts).
-      const fejledeTraekByCompany = fejledeTraekPrVirksomhed(((traekRes as any)?.data || []) as FejletTraek[]);
+      // DELKALDENE KASTER (7/9, recon-tavse-fejl.md pkt. 3 — samme greb som
+      // forsiden #703 og virksomhedslisten #706): otte kilder læses gennem
+      // kraevRaekker, som kaster med kildens navn når svaret bærer en fejl.
+      // Før blev en fejl til `[]`, TanStack så en succes, listen sagde
+      // «Ingen virksomheder endnu», og FornyelsesSektion/IndgangsSektion
+      // fik en tom companies-liste ind — rådgiveren ville tro der intet var
+      // at beslutte. Tom data er en LØGN for: companies (listen selv),
+      // company_members (medlemmerne og pending-gaten), conversations og
+      // messages («Chat»-kolonnen ville sige ingen dialog/ulæste for alle),
+      // financial_reports og financial_report_facts («Seneste rapport» og
+      // rapporteringsdækningen ville sige ingen for alle), company_invitations
+      // (invitationer og de fritstående pending) og company_traek (fejlede
+      // træk ville forsvinde — penge). BERIGELSER læses som før: profiles
+      // (navne, fald-tilbage findes), user_login_log og get_users_last_login
+      // (sidste login, to kilder der dækker hinanden), email_send_log
+      // («Sendt»-datoen falder tilbage til created_at) og pulse_checkins
+      // (refleksion denne måned — tom er et gyldigt svar den 1.).
+      // Låst af forsidenKaster.guard.test.ts.
+      const fejledeTraekByCompany = fejledeTraekPrVirksomhed(kraevRaekker(traekRes, "company_traek") as FejletTraek[]);
 
-      const allCompanies = (companiesRes.data || []) as any[];
+      const allCompanies = kraevRaekker(companiesRes, "companies") as any[];
       const legatCompanyIds = new Set(allCompanies.filter((c: any) => c.is_legat).map((c: any) => c.id));
       // er_kunde læses her fordi /members er rådgiverens liste og tællere:
       // vores egen virksomhed skal ikke tælles som en kunde
       // (src/lib/raadgiverensKunder.ts, fail-open).
       const regularCompanies = allCompanies.filter((c: any) => !c.is_legat && erKunde(c));
-      const allMembers = (membersRes.data || []) as any[];
+      const allMembers = kraevRaekker(membersRes, "company_members") as any[];
       const allProfiles = (profilesRes.data || []) as any[];
-      const allConvs = (convsRes.data || []) as any[];
-      const allReports = (reportsRes.data || []) as any[];
-      const allInvitations = (invitationsRes.data || []) as any[];
+      const allConvs = kraevRaekker(convsRes, "conversations") as any[];
+      const allReports = kraevRaekker(reportsRes, "financial_reports") as any[];
+      const allInvitations = kraevRaekker(invitationsRes, "company_invitations") as any[];
       const allLoginLogs = (loginLogsRes.data || []) as any[];
       const allMemberUserIds = (allMembers as any[]).map((m: any) => m.user_id);
       const { data: authLoginData } = await supabase.rpc(
@@ -334,7 +352,7 @@ const Members = () => {
       for (const row of (authLoginData || []) as any[]) {
         if (row.last_sign_in_at) authLoginMap.set(row.user_id, row.last_sign_in_at);
       }
-      const allFacts = (factsRes.data || []) as any[];
+      const allFacts = kraevRaekker(factsRes, "financial_report_facts") as any[];
       const pulseThisMonthSet = new Set(
         (pulseRes.data || []).map((p: any) => p.company_id)
       );
@@ -459,17 +477,18 @@ const Members = () => {
       });
 
       const convIds = allConvs.map((c: any) => c.id);
-      const { data: unreadMessages } = convIds.length > 0
+      const unreadRes = convIds.length > 0
         ? await supabase
             .from("messages")
             .select("conversation_id")
             .in("conversation_id", convIds)
             .neq("sender_id", user.id)
             .is("read_at", null)
-        : { data: [] };
+        : { data: [] as { conversation_id: string }[], error: null };
+      const unreadMessages = kraevRaekker(unreadRes, "messages");
 
       const unreadByConv = new Map<string, number>();
-      (unreadMessages || []).forEach((m) => {
+      unreadMessages.forEach((m) => {
         unreadByConv.set(m.conversation_id, (unreadByConv.get(m.conversation_id) || 0) + 1);
       });
 
@@ -551,8 +570,8 @@ const Members = () => {
         standalonePendingInvitations: standalonePending,
         legatCompanies: allCompanies.filter((c: any) => c.is_legat),
         legatCompanyIds,
-        allMembers: membersRes.data || [],
-        allProfiles: profilesRes.data || [],
+        allMembers,
+        allProfiles,
       };
     },
     enabled: !!user && !!isAdvisor,
@@ -1238,6 +1257,13 @@ const Members = () => {
         {loading ? (
           <div className="flex items-center justify-center py-16">
             <Loader2 className="h-6 w-6 animate-spin text-primary" />
+          </div>
+        ) : listenFejlede ? (
+          // Fejl og tom liste er to forskellige ting (7/9): en fejlet
+          // hentning må ikke ligne «Ingen virksomheder endnu». Samme linje
+          // som VirksomhedslisteView, i det gamle designs tokens.
+          <div className="text-center py-16">
+            <p className="text-sm text-destructive">Listen kunne ikke hentes. Prøv igen.</p>
           </div>
         ) : filtered.length === 0 ? (
           <div className="text-center py-16">
