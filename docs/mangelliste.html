@@ -333,12 +333,7 @@
       <p>Skal genoplives eller erstattes, ikke bygges fra bunden. Fallback-fakturaer skal gå gennem Stripe Invoicing — ellers fyrer webhooken ikke, og kontrakten forlænges ikke.</p>
       <div class="meta"><span class="tag rust">Død i drift</span><span class="tag size">Stor</span></div>
     </div>
-    <div class="card blocked new" data-status="fejl" data-spor="7" data-rammer="medlem">
-      <h3>Fornyelsens afsender: motor, cron-rapport og bånd findes — mailene mangler</h3>
-      <p><strong>Rettet 7/9 eftermiddag.</strong> Motoren findes: <code>afgoerForfaldentVarsel</code> (#680) i begge kopier, varsel 1 dag 30 før slutdato, varsel 2 dag 7, og den sene beslutning sender KUN varsel 2 (varsel 1 aldrig bagefter). Cron'en findes: <code>fornyelsesvarsel-cron</code> (#681, Bucket B, tørkørsel som standard) — men i denne version en REN RAPPORT der hverken sender eller stempler, og jobbet er IKKE planlagt (SQL'en står i filhovedet, slot 13:00 dansk). <strong>Tørkørt på rigtige data 7/9 kl. 10:15:</strong> fundet 3, ingen fejl — PHILBERT → varsel 1 (22 dage), CARMA STUDIO → varsel 2 (dag 0, «varsel 1 springes over: sen beslutning»), Studio Mini → intet. Jonas 7/9: ingen nedre grænse for varsel 2. <strong>Båndet findes (#691, bevist kl. 12:45):</strong> et ikke-udløbet medlem SER nu sit tilbud øverst på forsiden — «Dit medlemskab udløber 27. september 2026 — Forny nu til 20.000 kr. ekskl. moms», tre modeller — kun når serveren siger tilbud; formen strammes (undervejs). <strong>Det der mangler:</strong> mailene selv, rådgivernotifikationen når mail 1 er sendt, stemplingen i cron'en (<code>varsel_1_sendt_at</code>/<code>varsel_2_sendt_at</code>, kun når afsendelsen lykkedes), og planlægningen af cron-jobbet. Indtil da hører et medlem der ikke logger ind, stadig først om sin fornyelse ved at MISTE adgangen. Deadline midten af november (fornyelsesordningen §7, fornyelseskæden §15).</p>
-      <div class="meta"><span class="tag ny">Ny 6/9</span><span class="tag">Rettet 7/9</span><span class="tag rust">Tavshed</span><span class="tag">Motor, cron og bånd klar</span><span class="tag size">Mellem</span></div>
-    </div>
-    <div class="card new" data-status="mangler" data-spor="7" data-rammer="ingen">
+        <div class="card new" data-status="mangler" data-spor="7" data-rammer="ingen">
       <h3>Abonnementet ophører før kontrakten for den der betaler tidligt — det er IKKE en fejl</h3>
       <p>Med betaling før slutdatoen (7/9) regnes kontrakten fra den GAMLE slutdato, mens rate-abonnementets <code>cancel_at</code> stadig regnes fra abonnementets <code>start_date</code> + 12 måneder − 1 dag (<code>sikrOphoerPaaFornyelsesAbonnement</code>). Betalt 8/9 mod slutdato 29/9: abonnementet ophører 7/9-2027, kontrakten 29/9-2027. <strong>Det ser forkert ud i Stripe, og det er rigtigt:</strong> abonnementet er BETALINGSPLANEN for prisen, ikke adgangen — adgangen bæres af <code>contract_end_date</code> alene, og fornyelsesabonnementer rører aldrig <code>subscription_status</code> (fornyelseskæden §11). Tolv rater betalt 8/9 falder 8/9 … 8/8; sidste træk er 8/8, ophøret 7/9 ligger en måned efter — alle tolv trækkes. <strong>Ret det ikke:</strong> med <code>cancel_at = periode_slut − 1 dag</code> ville Stripe trække et TRETTENDE træk 8/9 (to rater: et tredje på 25.000 kr.). Det blev foreslået 7/9 og var forkert; rettelsen står i fornyelseskæden §7 ved den tidligere cancel_at-fejl. Kortet står her så ingen retter det i god tro. Det der eventuelt mangler, er en forklaring til den der kigger i Stripe.</p>
       <div class="meta"><span class="tag ny">Ny 7/9</span><span class="tag">Ikke en fejl</span><span class="tag gold">Ret det ikke</span><span class="tag size">Lille</span></div>
@@ -520,6 +515,12 @@
       <h3>«Mål 60 %» for DB-margin er et fallback, ikke et mål</h3>
       <p><code>KPI_FALLBACK_TARGETS</code> dømmer engros (45,7 %) som «under» og lader konsulent (96,9 %) «ramme» uden at sige noget om branchen. Et branchespecifikt eller fraværende fallback er en beslutning. Fundet 4/9 ved #623.</p>
       <div class="meta"><span class="tag ny">Ny 4/9</span><span class="tag gold">Beslutning</span><span class="tag size">Lille</span></div>
+    </div>
+    <div class="card blocked new" data-status="fejl" data-spor="senere" data-rammer="medlem">
+      <h3>Nøgletals-mål tegner fallback som virksomhedens egne</h3>
+      <p><strong>Målt 7/9</strong> (recon-tavse-fejl, punkt 6 på rangeringen): <code>useKpiTargets.ts:27</code> og <code>useKpiBenchmarks.ts:28</code> læser ikke <code>error</code>. Fejler kaldet — RLS, netværk, en kolonne der ikke findes — falder hooken til <code>KPI_FALLBACK_TARGETS</code> og fallback-benchmarks og tegner dem som virksomhedens egne mål, uden markering. <strong>Den eneste af de tavse fejl der giver FORKERTE tal frem for tomme:</strong> et medlem ser «under mål» eller «rammer» mod et tal ingen har sat for dem. Egen alvor — de andre 114 viser for lidt; denne viser noget falsk.</p>
+      <p>Mønstret er det samme som forsiden (#703): kast ved fejl, og lad fladen sige at målene ikke kunne hentes frem for at vise et fallback som sandhed. Fallback-værdiernes egen rimelighed er kortet ovenfor.</p>
+      <div class="meta"><span class="tag ny">Ny 7/9</span><span class="tag rust">Forkerte tal</span><span class="tag size">Lille</span></div>
     </div>
     <div class="card new" data-status="beslutning" data-spor="senere" data-rammer="raadgiver">
       <h3>Otte uenigheder mellem CVR og platformen</h3>
@@ -965,8 +966,14 @@
   <div class="grid">
     <div class="card blocked" data-status="fejl" data-spor="1" data-rammer="raadgiver">
       <h3>Ingen fejlovervågning</h3>
-      <p>Hverken i frontend eller edge functions. Den slags fejl der ikke kaster — en skrivning der lander det forkerte sted, en webhook der svarer 500 — fanges slet ikke. Stripe gentog doggybeds event fem gange over 19 timer uden at noget i huset sagde til.</p>
+      <p>Hverken i frontend eller edge functions. Den slags fejl der ikke kaster — en skrivning der lander det forkerte sted, en webhook der svarer 500 — fanges slet ikke. Stripe gentog doggybeds event fem gange over 19 timer uden at noget i huset sagde til. <em>7/9 (#702):</em> query- og mutationsfejl i frontend logges nu globalt fra QueryClientens caches — et spor, ikke en alarm; edge functions er stadig ubevogtede.</p>
       <div class="meta"><span class="tag rust">Blokerer skala</span><span class="tag size">Mellem</span></div>
+    </div>
+    <div class="card blocked new" data-status="fejl" data-spor="1" data-rammer="ingen">
+      <h3>115 queryFn'er gør en fejl til tom data</h3>
+      <p><strong>Målt 7/9</strong> (<code>~/Downloads/recon-tavse-fejl.md</code>, uden for repoet; tallene står i OVERLEVERING DEL 2 «De tavse fejl»): 139 <code>useQuery</code> i alt, 122 læser KUN <code>data</code> og <code>isLoading</code>. <strong>115 af 139 queryFn'er kaster IKKE</strong> — <code>const { data } = await supabase…</code> uden error-tjek (52 kald) eller <code>res.data || []</code> gør en Supabase-fejl til tom data, og TanStack ser en SUCCES. Der er ingen <code>isError</code> at læse. 65 <code>useMutation</code>, 25 uden <code>onError</code>, 50 mutationFn'er uden throw. Ingen query-fejl var nogensinde blevet logget. Sendt-loggen stod sådan i et halvt år (#701): den så TOM ud, ikke ØDELAGT.</p>
+      <p><strong>Rettet:</strong> global fejllogning (#702) og forsidens ni delkald (#703, <code>kraevRaekker</code> + <code>isError</code>-gren + kildelæsende værn — mønstret for resten). <strong>Rangeringen for de 115:</strong> 1) rådgiverens forside (rettet), 2) <code>/virksomheder</code> («Der er ingen virksomheder endnu» for hele porteføljen), 3) <code>/members</code>, 4) medlemmets «Dine aftaler» og ulæste, 5) Rapportering («Ingen rapporter endnu» til et medlem med 20), 6) nøgletals-mål og benchmarks — FORKERTE tal frem for tomme, eget kort under Dine tal — 7) app-config, 8–11) admin-lister, community, mutationer. Tages i den rækkefølge, ét spor ad gangen.</p>
+      <div class="meta"><span class="tag ny">Ny 7/9</span><span class="tag rust">Tavshed</span><span class="tag">Mønster klar</span><span class="tag size">Stor</span></div>
     </div>
     <div class="card blocked" data-status="fejl" data-spor="3" data-rammer="ingen">
       <h3>Rolletjek-bug i tre edge functions</h3>

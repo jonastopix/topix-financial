@@ -464,7 +464,7 @@ function grundFraFornyelse(v: VirksomhedTilDom): Grund | null {
       : status === "klar_til_tilbud"
         ? varslet
           ? `Varslet er sendt${dageTekst}`
-          : `Fornyelse besluttet: tilbyd${dageTekst}`
+          : `Fornyelse besluttet: vi tilbyder${dageTekst}` // ordet er dansk, ikke databasens (Jonas 7/9; lib/fornyelsesOrd)
         : `Fornyelse: beslutning mangler${dageTekst}`;
   const handling =
     status === "udloebet_tilbyd"

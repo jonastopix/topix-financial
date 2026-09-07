@@ -8,11 +8,17 @@
  *
  * kpiBenchmarksKey is the single source of the queryKey — shared between the
  * useQuery call and setBenchmarks so they always address the same cache entry.
+ *
+ * Fejl er en fejl (rettet 7/9, recon-fallback-tal.md pkt. 1): hentningen
+ * læses gennem kraevRaekker, som kaster med kildens navn — samme rettelse
+ * som useKpiTargets. Fallback-fletningen er urørt: den er rigtig når
+ * rækkerne bare er tomme. Ved fejl er benchmarks {} og isError sand.
  */
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { KPI_DEFS } from "@/lib/kpiDefs";
 import { KPI_DEFAULT_BENCHMARKS } from "@/lib/appConfig";
+import { kraevRaekker } from "@/lib/kraevRaekker";
 
 export type ResolvedBenchmarks = Record<string, { value: number; label: string; source: string }>;
 
@@ -21,20 +27,25 @@ export const kpiBenchmarksKey = (companyId: string | undefined) => ["kpi-benchma
 export function useKpiBenchmarks(companyId: string | undefined): {
   benchmarks: ResolvedBenchmarks;
   isLoading: boolean;
+  /** Hentningen af kpi_benchmarks fejlede — benchmarks er da {} (ingen fallback). */
+  isError: boolean;
   setBenchmarks: (next: ResolvedBenchmarks) => void;
 } {
   const queryClient = useQueryClient();
 
-  const { data: benchmarks = {}, isLoading } = useQuery({
+  const { data: benchmarks = {}, isLoading, isError } = useQuery({
     queryKey: kpiBenchmarksKey(companyId),
     queryFn: async (): Promise<ResolvedBenchmarks> => {
-      const { data } = await supabase
-        .from("kpi_benchmarks")
-        .select("kpi_key, benchmark_value, benchmark_label, source_label")
-        .eq("company_id", companyId!);
+      const raekker = kraevRaekker(
+        await supabase
+          .from("kpi_benchmarks")
+          .select("kpi_key, benchmark_value, benchmark_label, source_label")
+          .eq("company_id", companyId!),
+        "kpi_benchmarks",
+      );
 
       const dbMap: Record<string, { benchmark_value: number; benchmark_label: string; source_label: string }> = {};
-      (data || []).forEach((b) => {
+      raekker.forEach((b) => {
         dbMap[b.kpi_key] = b;
       });
 
@@ -56,5 +67,5 @@ export function useKpiBenchmarks(companyId: string | undefined): {
     queryClient.setQueryData(kpiBenchmarksKey(companyId), next);
   };
 
-  return { benchmarks, isLoading, setBenchmarks };
+  return { benchmarks, isLoading, isError, setBenchmarks };
 }

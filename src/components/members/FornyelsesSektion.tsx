@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { beslutningsOrd } from "@/lib/fornyelsesOrd";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -269,7 +270,7 @@ export default function FornyelsesSektion({ companies }: { companies: Fornyelses
                 </span>
                 {row ? (
                   <span className="text-[11px] text-muted-foreground">
-                    Besluttet: <span className="font-medium text-foreground">{row.beslutning === "tilbyd" ? "tilbyd" : "tilbyd ikke"}</span>
+                    Besluttet: <span className="font-medium text-foreground">{beslutningsOrd(row.beslutning)}</span>
                   </span>
                 ) : (
                   <span className="text-[11px] text-muted-foreground italic">Endnu ikke besluttet</span>

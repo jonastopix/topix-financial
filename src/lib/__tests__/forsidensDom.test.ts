@@ -166,7 +166,7 @@ describe("hver slags alene", () => {
     expect(l.alvor).toBe(75);
     expect(l.virksomheder[0].grund).toMatchObject({
       signaltype: "klar_til_tilbud",
-      tekst: "Fornyelse besluttet: tilbyd — 20 dage til udløb",
+      tekst: "Fornyelse besluttet: vi tilbyder — 20 dage til udløb",
       handling: "Send tilbuddet til Vest",
       lukkerOmDage: 20,
       indsats: 1,
