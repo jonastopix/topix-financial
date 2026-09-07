@@ -88,16 +88,36 @@ export function varsel1Mail(a: FornyelsesMailArgs): IndgangsMail {
 }
 
 /**
- * Varsel 2 — 7 dage før slutdato. Kortere: datoen, prisen, knappen.
- * Ingen ny information — en påmindelse, ikke en gentagelse af varsel 1.
+ * Hvornår slutter det, sagt som man selv ville sige det (besluttet 7/9):
+ *   dag 0  → «i dag»      dag 1 → «i morgen»      dag 2-7 → datoen.
+ * Fundet i tørkørsel 7/9: varsel 2 sendes ved SYV DAGE ELLER FÆRRE — også
+ * på dag 0 — og «Om en uge» var usandt på CARMA STUDIOs sidste dag.
+ * Dagtallet er motorens (afgoerForfaldentVarsel → dage_til_udloeb) og
+ * regnes aldrig her; null (slutdatoen kunne ikke læses — motoren sender
+ * så ikke) og alt uden for 0-1 giver datoformen. På dag 0 og 1 bærer
+ * brødteksten datoen som præcisering («i dag, 7. september 2026»), så
+ * emne og tekst siger det samme, og datoen stadig står ét sted.
  */
-export function varsel2Mail(a: FornyelsesMailArgs): IndgangsMail {
+function slutterHvornaar(dageTilUdloeb: number | null, slutDato: string): { emne: string; tekst: string } {
+  if (dageTilUdloeb === 0) return { emne: "i dag", tekst: `i dag, ${slutDato}` };
+  if (dageTilUdloeb === 1) return { emne: "i morgen", tekst: `i morgen, ${slutDato}` };
+  return { emne: slutDato, tekst: slutDato };
+}
+
+/**
+ * Varsel 2 — 7 dage eller færre før slutdato. Kortere: hvornår, prisen,
+ * knappen. Ingen ny information — en påmindelse, ikke en gentagelse af
+ * varsel 1. dageTilUdloeb er en tilføjelse KUN til varsel 2 (varsel 1
+ * bruger den ikke, og dens signatur er urørt).
+ */
+export function varsel2Mail(a: FornyelsesMailArgs & { dageTilUdloeb: number | null }): IndgangsMail {
+  const slutter = slutterHvornaar(a.dageTilUdloeb, a.slutDato);
   return {
-    subject: "Om en uge slutter dit år med The Boardroom",
+    subject: `Påmindelse: dit medlemskab slutter ${slutter.emne}`,
     html: indgangsMailHtml({
       overskrift: tiltale("Hej", a.fornavn),
       afsnit: [
-        `En kort påmindelse: dit medlemskab slutter ${a.slutDato}, og det kan fornys med et par klik — ${formatKr(a.beloebKr)} kr. ekskl. moms for det næste år.`,
+        `En kort påmindelse: dit medlemskab slutter ${slutter.tekst}, og det kan fornys med et par klik — ${formatKr(a.beloebKr)} kr. ekskl. moms for det næste år.`,
       ],
       knap: KNAP,
       hilsen: HILSEN,

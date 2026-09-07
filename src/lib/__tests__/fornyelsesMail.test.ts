@@ -59,11 +59,11 @@ describe("varsel 1 — 30 dage før", () => {
   });
 });
 
-describe("varsel 2 — 7 dage før", () => {
-  const m = varsel2Mail(PHILBERT);
+describe("varsel 2 — 7 dage eller færre før", () => {
+  const m = varsel2Mail({ ...PHILBERT, dageTilUdloeb: 7 });
 
   it("kortere: datoen, prisen, knappen — ingen Calendly, ingen ny information", () => {
-    expect(m.subject).toBe("Om en uge slutter dit år med The Boardroom");
+    expect(m.subject).toBe("Påmindelse: dit medlemskab slutter 29. september 2026");
     expect(m.html).toContain("Hej Philip,");
     expect(m.html).toContain("slutter 29. september 2026");
     expect(m.html).toContain("20.000 kr. ekskl. moms");
@@ -75,6 +75,38 @@ describe("varsel 2 — 7 dage før", () => {
 
   it("er kortere end varsel 1", () => {
     expect(m.html.length).toBeLessThan(varsel1Mail(PHILBERT).html.length);
+  });
+
+  // Emnet siger det man selv ville sige (besluttet 7/9): dag 0 «i dag»,
+  // dag 1 «i morgen», dag 2-7 datoen. Brødteksten følger med, og bærer
+  // datoen som præcisering på dag 0 og 1. Grænserne låses fra begge sider.
+  const carma = { ...PHILBERT, fornavn: "Carla", virksomhed: "CARMA STUDIO", slutDato: "7. september 2026" };
+
+  it("dag 0: «i dag» i emnet, «i dag, 7. september 2026» i teksten", () => {
+    const d0 = varsel2Mail({ ...carma, dageTilUdloeb: 0 });
+    expect(d0.subject).toBe("Påmindelse: dit medlemskab slutter i dag");
+    expect(d0.html).toContain("slutter i dag, 7. september 2026");
+    expect(d0.subject).not.toContain("Om en uge");
+  });
+
+  it("dag 1: «i morgen» i emnet og i teksten, med datoen", () => {
+    const d1 = varsel2Mail({ ...carma, dageTilUdloeb: 1 });
+    expect(d1.subject).toBe("Påmindelse: dit medlemskab slutter i morgen");
+    expect(d1.html).toContain("slutter i morgen, 7. september 2026");
+  });
+
+  it("dag 2 og dag 7: datoen i emnet og i teksten — ikke «i morgen», ikke «om en uge»", () => {
+    for (const dage of [2, 7]) {
+      const d = varsel2Mail({ ...carma, dageTilUdloeb: dage });
+      expect(d.subject).toBe("Påmindelse: dit medlemskab slutter 7. september 2026");
+      expect(d.html).toContain("slutter 7. september 2026,");
+      expect(d.html).not.toContain("i morgen");
+      expect(d.html).not.toContain("i dag,");
+    }
+  });
+
+  it("dagtal null (motoren kunne ikke læse datoen): datoformen, aldrig et gæt", () => {
+    expect(varsel2Mail({ ...carma, dageTilUdloeb: null }).subject).toBe("Påmindelse: dit medlemskab slutter 7. september 2026");
   });
 });
 
