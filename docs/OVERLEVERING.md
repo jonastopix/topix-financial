@@ -1,6 +1,33 @@
 # Overlevering
 
-**Sidst opdateret: 7. september 2026, sen eftermiddag — FORNYELSEN
+**Sidst opdateret: 7. september 2026, sidst på dagen — FORNYELSESBESLUTNINGEN
+KAN TRÆFFES FRA VIRKSOMHEDSSIDEN (#707): før kunne den KUN træffes i
+`FornyelsesSektion` på /members, som er ude af menuen — hele kæden hang
+på en URL skrevet i hånden. Aftalen-kortet sætter tilbyd, sætter
+tilbyd_ikke og FJERNER; «fjern» er ikke tilbyd_ikke, ingen række betyder
+«endnu ikke besluttet». Samlet samme dag (#709): `company_fornyelse`
+skrives ÉT sted, låst af et værn; `skrivFornyelsesnote` er sin egen
+funktion, fordi en ny note ikke er en ny beslutning. DE TAVSE FEJL,
+PUNKT 1–4 LUKKET: forsiden (#703), virksomhedslisten (#706), /members
+og medlemmets forside (#708) — alle med `kraevRaekker`, alle med en
+isError-gren, alle under det samme værn, som nu også fanger `.data ??
+[]`. Medlemmets forside viser fejlen PR. SEKTION. Tilbage: punkt 5–11 og
+de 115 queryFn'er der slet ikke kaster. STANDARDMÅL MARKERES (Jonas
+7/9): `KPI_FALLBACK_TARGETS` er ét sæt for alle, og fire af de seks er
+absolutte kronebeløb — en virksomhed der omsætter for 40.000 fik «mål
+120.000» som var det deres eget. Oprindelsen bæres nu som et VALGFRIT
+felt på værdien, så ukendt aldrig stemples som standard; tallene selv er
+en åben faglig opgave. INVITATIONEN SIGER «SENDT» KUN NÅR DEN ER SENDT
+(#705). IKKE RETTET, målt hvorfor: `Betal.tsx` siger «vi har sendt en
+faktura» ud fra 30 dage, mens cronen sender kl. 10:00 på dag 31 — i ti
+timer usandt; `faktura_sendt_at` findes, men `hent_betalingstilbud`
+returnerer det ikke, og den er SECURITY DEFINER. OG ET FUND FOR SIG:
+INDGANGENS KÆDE HAR ALDRIG HAFT EN VIRKSOMHED — NUL rækker i
+`company_betalingslink` i prod. Cronen finder ingenting, hver dag. Det
+er ikke det samme som at kæden virker (DEL 2 «Fornyelseskæden», «De
+tavse fejl», «Indgangen», «Rådgiverfladen»; DEL 3).**
+
+**7. september 2026, sen eftermiddag — FORNYELSEN
 SENDER: bevist i produktion kl. 11:57 med rigtige mails til rigtige
 mennesker. PHILBERT fik varsel 1 (22 dage, 20.000 kr.), CARMA STUDIO fik
 varsel 2 på dag 0 — og IKKE varsel 1, præcis som motoren lover om den
@@ -685,6 +712,34 @@ fornyelseskædens §15 og ordningens §7):
   «i dag» i varsel 2 er nu en dag man stadig kan logge ind, og
   tilbudsvinduets 14 dage regnes fra en dag senere.
 
+**Beslutningen kan træffes fra virksomhedssiden (#707) — og skrives ét
+sted (#709), 7/9 sidst på dagen.** Målt først: beslutningen kunne KUN
+træffes i `FornyelsesSektion`, som er monteret ét sted, `Members.tsx` på
+/members — og /members er ude af menuen (ruten lever, `App.tsx`). Hele
+kæden — uden «tilbyd» sender cronen intet — hang på en URL skrevet i
+hånden. Nu:
+
+- **Aftalen-kortet** (VirksomhedView blok 7) kan sætte `tilbyd`, sætte
+  `tilbyd_ikke` og FJERNE beslutningen. «Fjern» er ikke `tilbyd_ikke`:
+  ingen række betyder «endnu ikke besluttet» (tabellens kontrakt,
+  migration 20260811120000). Fornyelse-linjen står nu også UDEN række —
+  «Ikke besluttet» — fordi det er den tilstand kæden hænger på, og
+  handlingerne skal kunne nås dér. Ordene er `beslutningsOrd`; noten
+  bevares ved skift og kan kun redigeres på /members.
+- **Skrivevejen tjekker antal berørte rækker, ikke kun `error`:** en
+  advisor-write der rammer nul rækker pga. RLS returnerer succes med
+  tom data i Supabase. Efter bekræftet skrivning invalideres alle tre
+  læsere af `company_fornyelse` (siden, forsidens dom, /members-listen —
+  `invaliderFornyelsesLaesere`), og invalideringen AWAITES før toasten.
+- **Samlet samme dag (#709):** `FornyelsesSektion` kalder nu de samme
+  tre funktioner — `skrivFornyelsesbeslutning`, `skrivFornyelsesnote`,
+  `sletFornyelsesbeslutning` i `src/hooks/useVirksomhed.ts` — så tabellen
+  skrives ÉT sted, låst af `fornyelseSkrivevej.guard.test.ts` (prøvet
+  ved forfalskning). `skrivFornyelsesnote` blev sin egen funktion: en ny
+  note er ikke en ny beslutning, og `besluttet_af`/`besluttet_at` må
+  ikke stemples om. Listens cache-patch er væk — sandheden hentes igen
+  frem for at hver flade har sin egen udgave af rækken.
+
 **Målt 6/9** (`~/Downloads/recon-fornyelsen-10-september.md`, uden for
 repoet — genskabes hvis den bruges; fundene er bogført i
 fornyelseskædens §10 og §13 og ordningens §5 og §7, som bærer detaljen):
@@ -996,6 +1051,31 @@ betaling); en «tidligere»-virksomhed genbrugt på CVR sidder fast som
 lovede en faktura ingen sendte — nu sendes fakturaen først (§30).
 *Nyt 3/9:* `sikrIndgangsInvitation` kender ikke «allerede accepteret»
 (DEL 3).
+
+**MÅLT I PROD 7/9 — INDGANGENS KÆDE HAR ALDRIG HAFT EN VIRKSOMHED.**
+NUL rækker i `company_betalingslink`. Fem mails,
+`indgangs-paamindelser`-cronen der kører hver dag kl. 10, fakturaen på
+dag 31 — og ingen at sende til. Cronen finder ingenting, hver dag. Det
+er ikke det samme som at kæden virker: FLOOR1-beviset 3/9 var en
+gennemført enkeltkørsel, ikke drift, og rækken er væk. Det står i skarp
+kontrast til fornyelsen, som ER bevist i drift i dag med rigtige mails
+til rigtige mennesker. Konsekvens: fejl i indgangens tekster rammer nul
+mennesker i dag — men de rammer den FØRSTE virksomhed der bruger
+indgangen.
+
+**Fakturateksten er usand i ti timer — IKKE RETTET, og det er målt
+hvorfor (7/9).** `Betal.tsx` siger «Vi har sendt en faktura på det
+fulde beløb» ud fra `status === "frist_overskredet"`, som SQL'en regner
+af DAGE siden underskrift (> 30), mens cronen først sender fakturaen kl.
+10:00 på dag 31 — fra midnat til ti siger vi at vi har sendt noget vi
+ikke har sendt. Stemplet findes: `company_betalingslink.faktura_sendt_at`
+(migration 20260903130000). Men `hent_betalingstilbud` returnerer det
+ikke — målt ordret i prod: `status`, `virksomhed`, `prisniveau_oere`,
+`frist`, `dage_tilbage` — og funktionens kommentar siger udtrykkeligt
+«aldrig andet». At rette teksten kræver en ændring i en SECURITY
+DEFINER-funktion (FORBIDDEN uden grønt lys). Den mindste sande tekst med
+det der ER i svaret: «Fristen udløb {frist}. Du får en faktura på det
+fulde beløb …» — den påstår ingen afsendelse. Kortet står i mangellisten.
 
 ### Migrationen af abonnementerne — pilot gennemført, 13 venter
 
@@ -1420,7 +1500,10 @@ undervejs er rettet:**
   nu seksten. **Åbent, ikke rettet:** «mål 60 %» for DB-margin er
   `KPI_FALLBACK_TARGETS`, ikke et mål nogen har sat — ét fælles
   fallback-mål dømmer engros som «under» uanset branche; et
-  branchespecifikt eller fraværende fallback er en beslutning.
+  branchespecifikt eller fraværende fallback er en beslutning. *Ændret
+  7/9:* standardmål MARKERES nu på skærmen (oprindelsen som valgfrit
+  felt på værdien — DEL 2 «De tavse fejl»); tallene selv står stadig
+  åbne, og fire af de seks er absolutte kronebeløb (DEL 3).
 
 **BEVIST PÅ SKÆRM 4/9 kl. 09:47–09:50:** `/virksomheder` viser alle 30
 virksomheder med de syv felter. Kontaktperson er tom for 26 af 30 — kun
@@ -1444,8 +1527,11 @@ tom for enestående indhold og kan viderestille.**
 montering af `IndgangsSektion`, `FornyelsesSektion`, Legatforløb-listen
 og `MembersAdminSection`. Fornyelsesordningen træder i kraft 10/9, og
 `FornyelsesSektion` er det eneste sted en fornyelsesbeslutning
-registreres. **`/members` kan derfor IKKE swappes, før §11 punkt 6
-(forsiden) har givet indgange og fornyelser et hjem.**
+registreres. *Ændret 7/9 (#707):* Aftalen-kortet på virksomhedssiden
+kan nu sætte og fjerne beslutningen ad samme skrivevej (#709); noten
+kan stadig kun redigeres på /members. **`/members` kan derfor IKKE
+swappes, før §11 punkt 6 (forsiden) har givet indgange og fornyelser et
+hjem.**
 `/members/:userId` kan derimod viderestille nu. En rådgivermail
 (`_shared/indgangsMail.ts:251`) og en test peger på `/members`, fordi
 IndgangsSektion bor der — de følger med, når den flytter.
@@ -1691,7 +1777,7 @@ otte admin-sider (#645–#649, #651, #653, #654).
 **Menuen** er målt samme aften, og `/members` er målt igen sent på
 aftenen — begge står i DEL 3.
 
-### De tavse fejl — målt og rangeret 7/9; sendt-loggen (#701), global fejllogning (#702) og forsidens delkald (#703) rettet
+### De tavse fejl — målt og rangeret 7/9; sendt-loggen (#701), global fejllogning (#702) og punkt 1–4 på rangeringen (#703, #706, #708) rettet
 
 Husets største systematiske hul, målt i `~/Downloads/recon-tavse-fejl.md`
 (uden for repoet — genskabes hvis den bruges; tallene står her, så de
@@ -1722,6 +1808,11 @@ rækker. Den så TOM ud, ikke ØDELAGT — derfor savnede ingen den.
 bygger på seneste `sent`-række med `template_name = 'invitation'`. Et
 guard-værn (`emailSendLogKolonner.guard.test.ts`) scanner hele `src/` og
 låser at ingen læser de døde kolonner; værnet er prøvet ved forfalskning.
+*7/9 sidst på dagen (#705):* teksten skelner nu — «Sendt {dato}» kun når
+`email_send_log` bærer en afsendt invitationsmail, ellers «Oprettet
+{dato}» fra invitationens `created_at`. Det var FALLBACKEN til
+`created_at` der løj, ikke tidspunktet. `VirksomhedView` siger stadig
+«Afventer · sendt» på `created_at` — den henter ikke loggen.
 
 **Rettet i dag:**
 
@@ -1739,21 +1830,41 @@ låser at ingen læser de døde kolonner; værnet er prøvet ved forfalskning.
   pensionerede komponent eller er berigelser og læses som før — et valg,
   låst af `forsidenKaster.guard.test.ts`.
 
-**Rangeringen, som den skal bruges når resten tages** (de 115 står
-tilbage):
+**Punkt 1–4 lukket, 7/9 sidst på dagen.** Virksomhedslisten (#706),
+/members og medlemmets forside (#708) — samme greb som forsiden: alle
+delkald gennem `kraevRaekker`, alle flader med en `isError`-gren, alle
+låst af det samme værn — som nu også fanger `.data ?? []`, ikke kun
+`.data || []`. **Medlemmets forside er særlig:** fejlen vises PR.
+SEKTION, ikke på hele siden. Begrundelsen står i koden — et medlem der
+mister hele sin forside fordi én hentning fejlede, er en dårligere
+byttehandel end en rådgiver der mister sin liste.
+
+**Nøgletals-målene (punkt 6) — hooks kaster, og STANDARDMÅL MARKERES
+(Jonas 7/9).** `useKpiTargets`/`useKpiBenchmarks` læser nu svaret
+gennem `kraevRaekker` og returnerer `isError`; fallback er stadig rigtigt
+når rækkerne bare er tomme. Markeringen: `KPI_FALLBACK_TARGETS` er seks
+tal, ét sæt for alle — og FIRE af dem er absolutte kronebeløb (omsætning
+120.000, lønninger 50.000, resultat 10.000, omkostninger 80.000). En
+virksomhed der omsætter for 40.000 fik «mål 120.000» som var det deres
+eget. Benchmarks har haft princippet siden 5/8 («`source_label` påstår
+aldrig mere end vi kan dokumentere»); målene får det nu. Oprindelsen
+bæres som et felt på værdien, VALGFRIT i typen — så en hentning der ikke
+sætter det, markerer ikke: ukendt er ikke standard, og et aftalt mål kan
+aldrig fejlagtigt stemples. ÅBENT, faglig opgave: tallene selv — de fire
+kronebeløb passer kun til én virksomhedsstørrelse (DEL 3).
+
+**Rangeringen, som den skal bruges når resten tages** (punkt 5–11 og
+de 115 står tilbage — stadig husets største systematiske hul):
 
 1. Rådgiverens forside — RETTET (#703).
-2. `/virksomheder` — «Der er ingen virksomheder endnu» for hele
-   porteføljen.
-3. `/members` — samme, og `FornyelsesSektion`/`IndgangsSektion` får tom
-   liste ind.
-4. Medlemmets «Dine aftaler» og ulæste — et forslag eller en ulæst besked
-   forsvinder tavst.
+2. `/virksomheder` — RETTET (#706).
+3. `/members` — RETTET (#708); `FornyelsesSektion`/`IndgangsSektion` får
+   ikke længere tom liste ind ved fejl.
+4. Medlemmets «Dine aftaler» og ulæste — RETTET (#708), pr. sektion.
 5. Rapportering — «Ingen rapporter endnu — upload din første» til et
    medlem med 20; opfordrer til dubletter.
-6. Nøgletals-mål og benchmarks — tegner FALLBACK-tal som virksomhedens
-   egne, uden markering. **Den eneste der giver FORKERTE tal frem for
-   tomme.** Egen alvor.
+6. Nøgletals-mål og benchmarks — hooks kaster og standardmål markeres
+   (7/9, ovenfor); TALLENE står tilbage som faglig opgave.
 7. App-config — adfærd skifter stille til standard.
 8.–11. Admin-lister, community, events, medlemsliste, mutationer uden
    `onError`.
@@ -1955,7 +2066,11 @@ facit og rækkefølge; `docs/chat-design.md` chattens form.
 | MÅLT 6/9 — egen opgave | **Ugeagentens cron findes ikke i prod.** `run-weekly-agent` har kun `Deno.cron` (kører aldrig på edge-runtimen); `cron.job` har ti jobs, ingen kalder den. Kun `generate-weekly-focus` (0 6 \* \* 1) kører mandag. Om agenten NOGENSINDE har kørt fra cron, er ikke efterprøvet (`agent_runs.trigger` kan svare). Skal den køre, er vejen pg_cron + `net.http_post` som `intro-reminder-cron` — men den kører LIVE og skriver det medlemmet ser, så det er en beslutning, ikke en rettelse. | DEL 2 «Agentkæden»; DEL 4 (`Deno.cron`) |
 | LØST 6/9 sen aften (#670) | **De elleve typefejl efter Lovables regenerering af `types.ts`** er rettet ved at lade husets egne interfaces sige sandheden om databasen — `EventTimes.ends_at` og de fire felter på `MemberProgress` er valgfrie OG nullable — og ved at skrive reglen ned begge steder: null og undefined betyder det samme, «det er ikke sket». Ingen casts, intet non-null, ingen ændring i `types.ts`. Tretten nye tests låser reglen, inkl. grænsen ved `starts_at` + 90 min. **Målt efter:** tsc giver præcis fire fejl (CompanyChatPane, PushView, RapporteringView ×2), 1656 tests grønne. | DEL 1 «Kodearbejde» |
 | **22/9** — PHILBERTs varsel 2; jobbet er IKKE planlagt | **Cron-jobbet for fornyelsesvarsler skal planlægges.** Kæden sender og er bevist i produktion 7/9 kl. 11:57 (DEL 2 «Fornyelseskæden»), men `fornyelsesvarsel-cron` står ikke i `cron.job` — SQL'en står i funktionens filhoved (slot `0 11 * * *` UTC = 13:00 dansk, `net.http_post` med vault-nøglen, som indgangens job). Indtil den er kørt i SQL editoren, sendes varsler kun ved manuelle kald. Første konkrete frist: PHILBERT 22/9. Mangellisten bærer kortet. | fornyelseskæden §15; DEL 2 «Fornyelseskæden» |
-| MÅLT 7/9 — 115 af 139 queryFn'er kaster ikke; forsiden rettet (#703), rangeringen står | **De tavse fejl.** 122 af 139 `useQuery` læser aldrig `isError`; 115 queryFn'er gør en Supabase-fejl til tom data, så TanStack ser en succes; 52 kald med `const { data } = await` uden `error`-tjek; 25 mutationer uden `onError`, 50 uden throw. Global fejllogning findes fra #702; forsidens ni delkald kaster fra #703. **Rækkefølgen for resten:** 2) `/virksomheder`, 3) `/members`, 4) medlemmets «Dine aftaler» og ulæste, 5) Rapportering («Ingen rapporter endnu» til et medlem med 20), 6) nøgletals-mål og benchmarks — FORKERTE tal, ikke tomme, egen alvor — 7) app-config, 8–11) admin-lister, community, mutationer. Mønstret: `kraevRaekker` + `isError`-gren + kildelæsende værn (DEL 1 «Kodearbejde»). | DEL 2 «De tavse fejl»; `~/Downloads/recon-tavse-fejl.md` (uden for repoet) |
+| MÅLT 7/9 — punkt 1–4 LUKKET (#703, #706, #708); 5–11 og de 115 står | **De tavse fejl.** 122 af 139 `useQuery` læser aldrig `isError`; 115 queryFn'er gør en Supabase-fejl til tom data, så TanStack ser en succes; 52 kald med `const { data } = await` uden `error`-tjek; 25 mutationer uden `onError`, 50 uden throw. Global fejllogning findes fra #702; forsidens ni delkald kaster fra #703. **Rækkefølgen for resten:** 2) `/virksomheder`, 3) `/members`, 4) medlemmets «Dine aftaler» og ulæste, 5) Rapportering («Ingen rapporter endnu» til et medlem med 20), 6) nøgletals-mål og benchmarks — FORKERTE tal, ikke tomme, egen alvor — 7) app-config, 8–11) admin-lister, community, mutationer. Mønstret: `kraevRaekker` + `isError`-gren + kildelæsende værn (DEL 1 «Kodearbejde»). *7/9 sidst på dagen:* punkt 1–4 er lukket (#703, #706, #708) og standardmål markeres; punkt 5–11 og de 115 står tilbage — stadig husets største systematiske hul. | DEL 2 «De tavse fejl»; `~/Downloads/recon-tavse-fejl.md` (uden for repoet) |
+| LØST 7/9 sidst på dagen (#707, #709) | **Fornyelsesbeslutningen kan træffes fra virksomhedssiden**, og `company_fornyelse` skrives ét sted, låst af et værn. Livjas beslutning (slut 16/12) skal foreligge senest 16/11 for at varsel 1 kan gå — nu uden at nogen skal skrive /members i hånden. | DEL 2 «Fornyelseskæden» |
+| MÅLT 7/9 — bevis mangler | **Indgangens kæde har aldrig haft en virksomhed.** NUL rækker i `company_betalingslink` i prod; fem mails, den daglige cron og dag 31-fakturaen har ingen at ramme. Kæden er bevist som enkeltkørsel (FLOOR1 3/9), ikke i drift. Første rigtige virksomhed er beviset — og rammer alle indgangens ubeviste tekster. | DEL 2 «Indgangen» |
+| MÅLT 7/9 — kræver DEFINER-ændring | **Fakturateksten i `Betal.tsx` er usand i ti timer** (dag 31 kl. 00–10). `faktura_sendt_at` findes, men `hent_betalingstilbud` returnerer den ikke; ellers den mindste sande tekst («Fristen udløb {frist}. Du får en faktura …»). Rammer nul i dag, den første i morgen. | DEL 2 «Indgangen» |
+| BESLUTNING (Jonas), faglig — 7/9 | **KPI-fallbackens fire kronebeløb passer kun til én virksomhedsstørrelse.** Markeringen er bygget; tallene (omsætning 120.000, lønninger 50.000, resultat 10.000, omkostninger 80.000, plus 60 % / 15 %) er ét sæt for alle. Branchespecifikt, størrelsesafhængigt eller fraværende fallback er en faglig beslutning, ikke en rettelse. | DEL 2 «De tavse fejl», «Rådgiverfladen — listen og virksomhedssiden» (#623) |
 | LØST 7/9 (#701) | **Sendt-loggen var død i et halvt år.** `EmailTemplatesView` og `Members.tsx` læste `sent_at`/`template_id`, som forsvandt ved omdøbningen 19/3; 400-fejlen blev til «Ingen afsendelser endnu» over 1.664 rækker. Rettet til `created_at`/`template_name` som `EmailLogView`, fejllinje ved `isError`, guard over hele `src/`. | DEL 2 «De tavse fejl» |
 | LØST 7/9 (#698, #699, migration kl. 14:26) | **Slutdatoen er den sidste dag MED adgang** — begge TypeScript-kopier og de to SQL-domme, flyttet sammen; målt før/efter: præcis én virksomhed (CARMA) ramt. | DEL 2 «Slutdatoen»; adgangsdomme.md |
 | LØST 7/9 (#675, #676) | **Baselinen er nul, og CI kører typecheck** — `bunx tsc --noEmit -p tsconfig.app.json` FØR testene i jobbet «Tests», uden kendt-liste og uden `continue-on-error`. Beslutningen om de fire blev «rettes» (#675), ingen af dem skjult. Bevist i drift: kørsel 34092921389, trin 6 «Typecheck» → success. Gaten fangede #678's to Record-aftagere samme dag. | DEL 1 «Kodearbejde» |
