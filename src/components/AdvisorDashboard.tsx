@@ -445,11 +445,14 @@ export const hentAdvisorDashboard = () =>
         // FornyelsesSektion (:91-93). Ingen række = ingen beslutning.
         // varsel_1_sendt_at (7/9): stemplet fornyelsesvarsel-cron sætter når
         // varsel 1 er gået — dommen siger så «skriv til» frem for «send
-        // tilbuddet». Samme kolonne hentes i useVirksomhed; de to skal sige
-        // det samme (varselStempel.guard.test.ts).
+        // tilbuddet». varsel_2_sendt_at (7/9 aften): påmindelsen, som VINDER
+        // over varslet (lib/varselTrin) — CARMA havde kun varsel 2, og uden
+        // kolonnen sagde forsiden «Varslet er sendt» mens virksomhedssiden
+        // sagde «Påmindelse sendt». Samme kolonner hentes i useVirksomhed;
+        // de to skal sige det samme (varselStempel.guard.test.ts).
         (supabase
           .from("company_fornyelse" as any)
-          .select("company_id, beslutning, varsel_1_sendt_at")
+          .select("company_id, beslutning, varsel_1_sendt_at, varsel_2_sendt_at")
           .limit(2000) as any),
         // Forsidens dom, slags 2: indgangen — samme læsning som IndgangsSektion
         // (:128-132), uden companies-join (contract_end_date tages fra
@@ -1015,9 +1018,11 @@ export const hentAdvisorDashboard = () =>
       // Motorerne køres her — dommen tager deres UDFALD, ikke deres råstof.
       const beslutningByCompany = new Map<string, Fornyelsesbeslutning>();
       const varsel1ByCompany = new Map<string, string | null>();
-      for (const r of kraevRaekker(fornyelseRes, "company_fornyelse") as { company_id: string; beslutning: string; varsel_1_sendt_at: string | null }[]) {
+      const varsel2ByCompany = new Map<string, string | null>();
+      for (const r of kraevRaekker(fornyelseRes, "company_fornyelse") as { company_id: string; beslutning: string; varsel_1_sendt_at: string | null; varsel_2_sendt_at: string | null }[]) {
         if (r.beslutning === "tilbyd" || r.beslutning === "tilbyd_ikke") beslutningByCompany.set(r.company_id, r.beslutning);
         varsel1ByCompany.set(r.company_id, r.varsel_1_sendt_at ?? null);
+        varsel2ByCompany.set(r.company_id, r.varsel_2_sendt_at ?? null);
       }
       const betalingslinkByCompany = new Map<string, {
         prisniveau_oere: number | null; underskrevet_at: string; betalingsmail_sendt_at: string | null; sidste_paamindelse_dag: number | null;
@@ -1057,6 +1062,7 @@ export const hentAdvisorDashboard = () =>
                 }, now)
               : null,
             varsel1SendtAt: varsel1ByCompany.get(c.company_id) ?? null,
+            varsel2SendtAt: varsel2ByCompany.get(c.company_id) ?? null,
             indgang: link
               ? afgoerBetalingsfrist({
                   prisniveau_oere: link.prisniveau_oere,

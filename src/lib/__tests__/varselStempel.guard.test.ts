@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { afgoerForsidensDom } from "@/lib/forsidensDom";
+import { fornyelsesBadge } from "@/lib/fornyelsesOrd";
 
 // Driftværn for forsidens varsel-linje (7/9): forsidens dom siger «Skriv til
 // X» i stedet for «Send tilbuddet til X», når company_fornyelse.
@@ -53,4 +55,42 @@ describe("forsidens varsel-linje — begge hentninger bærer varsel_1_sendt_at",
       expect(kilde, "feltet varsel1SendtAt sættes ikke — dommen ser altid null").toContain("varsel1SendtAt:");
     });
   }
+});
+
+// VARSEL 2 (7/9 aften, CARMA): påmindelsen vinder over varslet (lib/varselTrin),
+// og dommen læser VirksomhedTilDom.varsel2SendtAt. BEGGE hentninger bærer
+// kolonnen, og BEGGE byggere sætter feltet — samme form som varsel 1 ovenfor.
+// Før AdvisorDashboard fik kolonnen, sagde forsiden «Varslet er sendt» om
+// CARMA mens virksomhedssiden sagde «Påmindelse sendt» — to flader, to svar.
+describe("påmindelsen (varsel 2) — begge hentninger bærer varsel_2_sendt_at", () => {
+  for (const [sti, kilde] of Object.entries(kilder)) {
+    it(`${sti}: select'en på company_fornyelse indeholder varsel_2_sendt_at`, () => {
+      const query = companyFornyelseQuery(kilde);
+      expect(query, "select'en mangler varsel_2_sendt_at — dommen ser aldrig påmindelsen").toContain("varsel_2_sendt_at");
+    });
+  }
+
+  for (const [sti, kilde] of Object.entries(byggere)) {
+    it(`${sti}: stemplet gives videre som VirksomhedTilDom.varsel2SendtAt`, () => {
+      expect(kilde, "feltet varsel2SendtAt sættes ikke — dommen falder tilbage på varsel 1 alene").toContain("varsel2SendtAt:");
+    });
+  }
+
+  // Paritet på CARMA's tilfælde: badget (fornyelsesBadge) og forsidens dom
+  // (grundFraFornyelse) skal give SAMME trin for samme stempler — varsel 2
+  // sat, varsel 1 null. Det er de to steder der drev fra hinanden.
+  it("CARMA ordret: badge og forsidens dom siger begge «påmindet» for varsel 2 uden varsel 1", () => {
+    const v2 = "2026-09-07T11:57:53.000Z";
+    expect(fornyelsesBadge("klar_til_tilbud", null, v2)).toBe("klar_til_tilbud_paamindet");
+    const d = afgoerForsidensDom(
+      [{
+        companyId: "carma", navn: "CARMA STUDIO", signaler: [], agentforslagVenter: 0,
+        fornyelse: { status: "klar_til_tilbud", dage_til_udloeb: 0, tier: "full" },
+        varsel1SendtAt: null, varsel2SendtAt: v2, indgang: null, opgaver: [],
+      }],
+      new Date("2026-09-07T12:00:00.000Z"),
+    );
+    const grund = d.linjer.find((l) => l.linje === "virksomhed")?.grunde[0];
+    expect(grund).toMatchObject({ signaltype: "klar_til_tilbud_paamindet", handling: "Skriv til CARMA STUDIO" });
+  });
 });

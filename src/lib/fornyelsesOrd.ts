@@ -17,6 +17,7 @@
  * motoren røres ikke.
  */
 import type { Fornyelsesbeslutning, FornyelseStatus } from "@/lib/fornyelse";
+import { afgoerVarselTrin } from "@/lib/varselTrin";
 
 export const BESLUTNINGS_ORD: Record<Fornyelsesbeslutning, string> = {
   tilbyd: "vi tilbyder",
@@ -29,12 +30,21 @@ export function beslutningsOrd(beslutning: string | null | undefined): string {
   return beslutning === "tilbyd" ? BESLUTNINGS_ORD.tilbyd : BESLUTNINGS_ORD.tilbyd_ikke;
 }
 
-/** Badgets nøgle: motorens status, plus ét trin motoren ikke kender. */
-export type FornyelseBadge = FornyelseStatus | "klar_til_tilbud_varslet";
+/** Badgets nøgle: motorens status, plus to trin motoren ikke kender —
+    varsel 1 sendt, og påmindelsen (varsel 2) sendt. */
+export type FornyelseBadge = FornyelseStatus | "klar_til_tilbud_varslet" | "klar_til_tilbud_paamindet";
 
-/** Samme regel som forsidens dom: KUN klar_til_tilbud + stempel bliver til
-    «varslet» — for andre statusser siger stemplet intet nyt (udløbet er
+/** Samme regel som forsidens dom (lib/varselTrin, ÉN regel): KUN
+    klar_til_tilbud + stempel bliver til et varslet trin — varsel 2 vinder
+    over varsel 1 (CARMA 7/9: kun varsel 2 sat, badget sagde «Klar til
+    tilbud»). For andre statusser siger stemplerne intet nyt (udløbet er
     udløbet, uanset om der gik et varsel). */
-export function fornyelsesBadge(status: FornyelseStatus, varsel1SendtAt: string | null | undefined): FornyelseBadge {
-  return status === "klar_til_tilbud" && varsel1SendtAt != null ? "klar_til_tilbud_varslet" : status;
+export function fornyelsesBadge(
+  status: FornyelseStatus,
+  varsel1SendtAt: string | null | undefined,
+  varsel2SendtAt: string | null | undefined = null,
+): FornyelseBadge {
+  if (status !== "klar_til_tilbud") return status;
+  const trin = afgoerVarselTrin(varsel1SendtAt, varsel2SendtAt);
+  return trin === "varsel_2" ? "klar_til_tilbud_paamindet" : trin === "varsel_1" ? "klar_til_tilbud_varslet" : status;
 }
