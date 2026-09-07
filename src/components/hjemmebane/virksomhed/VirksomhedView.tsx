@@ -238,6 +238,7 @@ function findDerfor(d: VirksomhedsData, facts: CompanyFact[], slags: OpgaveSlags
           beslutning: beslutning === "tilbyd" || beslutning === "tilbyd_ikke" ? beslutning : null,
         }, nu)
       : null,
+    varsel1SendtAt: d.fornyelse?.varsel_1_sendt_at ?? null,
     indgang: d.betalingslink
       ? afgoerBetalingsfrist({
           prisniveau_oere: d.betalingslink.prisniveau_oere,

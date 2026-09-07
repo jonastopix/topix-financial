@@ -130,10 +130,22 @@ export const USAEDVANLIGT_MANGE = 20;
  *   beslutning_mangler 70  i vinduet uden beslutning. Lige på tærsklen,
  *                          som ulæst besked og resultatfald: det skal ses,
  *                          men vinduet er 60 dage.
+ *   klar_til_tilbud_varslet 65  (7/9) beslutningen er truffet OG systemet
+ *                          har sendt varsel 1 (company_fornyelse.
+ *                          varsel_1_sendt_at). Systemet har gjort sit; det
+ *                          der står tilbage er rådgiverens PERSONLIGE besked
+ *                          — vigtig, men ikke presserende (Jonas 7/9). Under
+ *                          tærsklen (70), så den står blandt «det mindre
+ *                          presserende» frem for på linjen, og over indgangens
+ *                          afventer_betaling (60), hvor rådgiveren intet skal.
+ *                          Vinduesporten løfter den alligevel de sidste
+ *                          VINDUE_DAGE før slutdato — dér går varsel 2, og
+ *                          dér hører den personlige besked hjemme.
  */
 export const ALVOR_FORNYELSE = {
   udloebet_tilbyd: 90,
   klar_til_tilbud: 75,
+  klar_til_tilbud_varslet: 65,
   beslutning_mangler: 70,
 } as const;
 
@@ -264,6 +276,13 @@ export interface VirksomhedTilDom {
   /** afgoerFornyelsestilstand(…, nu); null når kalderen ikke har regnet den
       (fx legat — samme udsnit som FornyelsesSektion). */
   fornyelse: Fornyelsestilstand | null;
+  /** company_fornyelse.varsel_1_sendt_at — null = varsel 1 er ikke sendt (eller
+      ingen række). Ved SIDEN AF motoren, ikke inde i Fornyelsestilstand:
+      stemplet er ikke en del af tilstandsdommen (motoren er spejlet i _shared
+      og paritetstestet; den kender ikke stemplerne). Kun forsidens dom læser
+      det, og kun for klar_til_tilbud. Begge hentninger (AdvisorDashboard og
+      useVirksomhed) SKAL bære det — #682/#689-lærdommen: to hentninger, ét tal. */
+  varsel1SendtAt: string | null;
   /** afgoerBetalingsfrist(…, nu); null når virksomheden ikke er i indgangen
       (ingen række i company_betalingslink — kalderen afgør det, som
       betalingsfrist.ts siger). */
@@ -422,31 +441,48 @@ function grundeFraMotoren(v: VirksomhedTilDom): Grund[] {
 }
 
 /** Fornyelse: kun de tre statusser hvor der er noget at gøre. Vinduet er
-    dage til kontraktens slutdato (dage_til_udloeb); lukket efter udløb. */
+    dage til kontraktens slutdato (dage_til_udloeb); lukket efter udløb.
+
+    VARSLET (7/9): klar_til_tilbud betød «send tilbuddet» — sandt så længe
+    ingen sendte noget. Fra fornyelsesvarsel-cron stempler varsel_1_sendt_at,
+    har SYSTEMET sendt tilbuddet, og forsiden må ikke bede rådgiveren sende
+    det igen. Så siger den «skriv til dem» i stedet (ordningens §7: den
+    personlige besked kommer EFTER systemets mail, ikke i stedet for), med
+    egen signaltype og lavere alvor. Stemplet læses fra VirksomhedTilDom,
+    ikke fra motoren — det er ikke en tilstand, det er et faktum om post. */
 function grundFraFornyelse(v: VirksomhedTilDom): Grund | null {
   const f = v.fornyelse;
   if (!f) return null;
   const status = f.status;
   if (status !== "udloebet_tilbyd" && status !== "klar_til_tilbud" && status !== "beslutning_mangler") return null;
   const dage = f.dage_til_udloeb;
+  const varslet = status === "klar_til_tilbud" && v.varsel1SendtAt != null;
+  const dageTekst = dage != null ? ` — ${flertal(dage, "dag", "dage")} til udløb` : "";
   const tekst =
     status === "udloebet_tilbyd"
       ? `Kontrakten udløb${dage != null ? ` for ${flertal(-dage, "dag", "dage")} siden` : ""} — tilbud givet, intet svar`
       : status === "klar_til_tilbud"
-        ? `Fornyelse besluttet: tilbyd${dage != null ? ` — ${flertal(dage, "dag", "dage")} til udløb` : ""}`
-        : `Fornyelse: beslutning mangler${dage != null ? ` — ${flertal(dage, "dag", "dage")} til udløb` : ""}`;
+        ? varslet
+          ? `Varslet er sendt${dageTekst}`
+          : `Fornyelse besluttet: tilbyd${dageTekst}`
+        : `Fornyelse: beslutning mangler${dageTekst}`;
   const handling =
     status === "udloebet_tilbyd"
       ? `Følg op på tilbuddet til ${v.navn}`
       : status === "klar_til_tilbud"
-        ? `Send tilbuddet til ${v.navn}`
+        ? varslet
+          ? `Skriv til ${v.navn}`
+          : `Send tilbuddet til ${v.navn}`
         : `Beslut fornyelsen for ${v.navn}`;
+  // Egen signaltype, så §7's fravalg og §9's tildeling kan skelne «send» fra
+  // «skriv» — og så alvoren slås op på det rigtige trin.
+  const signaltype: keyof typeof ALVOR_FORNYELSE = varslet ? "klar_til_tilbud_varslet" : status;
   return {
     slags: "fornyelse",
-    signaltype: status,
+    signaltype,
     tekst,
     handling,
-    alvor: ALVOR_FORNYELSE[status],
+    alvor: ALVOR_FORNYELSE[signaltype],
     lukkerOmDage: aabentVindue(dage),
     indsats: INDSATS.fornyelse,
   };

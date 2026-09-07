@@ -178,7 +178,10 @@ export interface VirksomhedsData {
     sidste_paamindelse_dag: number | null;
     faktura_sendt_at: string | null;
   } | null;
-  fornyelse: { beslutning: string; note: string | null; besluttet_at: string } | null;
+  /** varsel_1_sendt_at: stemplet fra fornyelsesvarsel-cron (7/9) — forsidens dom
+      siger «skriv til» frem for «send tilbuddet» når det er sat. Samme kolonne som
+      AdvisorDashboard henter (varselStempel.guard.test.ts). */
+  fornyelse: { beslutning: string; note: string | null; besluttet_at: string; varsel_1_sendt_at: string | null } | null;
 }
 
 async function hentVirksomhed(companyId: string): Promise<VirksomhedsData | null> {
@@ -255,7 +258,7 @@ async function hentVirksomhed(companyId: string): Promise<VirksomhedsData | null
       .maybeSingle(),
     supabase
       .from("company_fornyelse")
-      .select("beslutning, note, besluttet_at")
+      .select("beslutning, note, besluttet_at, varsel_1_sendt_at")
       .eq("company_id", companyId)
       .maybeSingle(),
     // Rapportlisten (blok 6): kun de kolonner listen læser — ai_analysis,
