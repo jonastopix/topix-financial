@@ -40,7 +40,7 @@ import { HbAdvisorCompanyPrompt } from "../HbAdvisorCompanyPrompt";
 import { HbCard } from "../HbCard";
 import { HbButton } from "../HbButton";
 import { hbControlClasses } from "../admin/HbField";
-import { deriveReportCardView, type CardAction } from "./reportCardView";
+import { deriveReportCardView, type CardAction, erForTidligt } from "./reportCardView";
 import { HbReportUploadZone } from "./HbReportUploadZone";
 
 /** Rapportering (/rapportering → /reports ved GO) — LEVERANCEN rendyrket
@@ -297,8 +297,16 @@ export const RapporteringView = () => {
   );
   const currentYearGroup = yearGroups.find((g) => g.year === String(new Date().getFullYear()));
 
+  // Nudge-kortet «N rapporter afventer din godkendelse» må ikke tælle en
+  // rapport for indeværende måned med (7/9): den kan ikke godkendes endnu,
+  // og knappen «Gennemgå og godkend» ville åbne en dialog der siger «ikke
+  // klar». Samme skel som kortets «for tidligt».
   const uncommittedProcessed = dbReports.filter(
-    (r) => r.status === "processed" && !committedReportIds.has(r.id) && r.quality_signals?.needs_manual_entry !== true,
+    (r) =>
+      r.status === "processed" &&
+      !committedReportIds.has(r.id) &&
+      r.quality_signals?.needs_manual_entry !== true &&
+      !erForTidligt(commitStatesQuery.data?.get(r.id)?.period_key ?? getEffectiveReportPeriodKey(r as any)),
   );
   const manualEntryReports = dbReports.filter(
     (r) => r.status === "processed" && r.quality_signals?.needs_manual_entry === true && !committedReportIds.has(r.id),
@@ -461,6 +469,9 @@ export const RapporteringView = () => {
       isCommitted: committedReportIds.has(report.id),
       commitState: commitStatesQuery.data?.get(report.id)?.state as any,
       stateReason: commitStatesQuery.data?.get(report.id)?.state_reason ?? null,
+      // RPC'ens period_key først (SQL'ens egen dom), ellers rapportens
+      // effektive nøgle — «for tidligt» skelnes i klienten (reportCardView).
+      periodKey: commitStatesQuery.data?.get(report.id)?.period_key ?? getEffectiveReportPeriodKey(report as any),
     });
   };
 
