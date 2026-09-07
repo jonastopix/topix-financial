@@ -558,6 +558,40 @@ ordningens §1 og §7):
   abonnementet nogle uger FØR kontrakten udløber. Det er ikke en fejl,
   men det ser forkert ud for den der kigger i Stripe uden at kende
   forskellen. Står som fælde i DEL 4 og som kort på mangellisten.
+- **Kvitteringen løj (#687).** Efter en fornyelsesbetaling stod der «Vi
+  åbner din adgang om et øjeblik». Sandt så længe fornyelse kun kunne
+  betales efter udløb — men siden #684 er den første der betaler
+  tidligt, netop et FULDT medlem, og de fik at vide at vi åbnede en
+  adgang de aldrig mistede. Kvitterings-grenen i `Index` springes over
+  for et fuldt medlem (den kræver tier `expired`), så toasten er hele
+  oplevelsen. Nu to beskeder efter tier: full får «Betalingen er
+  modtaget. Dit medlemskab fortsætter uden afbrydelse — den nye periode
+  begynder hvor den nuværende slutter»; expired får den gamle. Den nye
+  slutdato nævnes bevidst ikke: `useAuth` eksponerer kun tier, og et
+  opslag hører ikke til der. **Målt i samme recon**
+  (`~/Downloads/recon-fornyelse-efter-betaling.md`, uden for repoet):
+  for et fuldt medlem returnerer reload-løkken på første linje, låsen
+  slippes i samme commit, og stemplet ryddes. Intet poller, intet
+  venter, intet kan låse sig fast. **ÅBENT, ikke rettet:** lander
+  webhooken FØR browseren når tilbage, er tier allerede `full` for en
+  der VAR udløbet — så får de «fortsætter uden afbrydelse», selv om
+  adgangen lige er åbnet igen. Tier-dommen skelner ikke «var full hele
+  tiden» fra «blev full for tre sekunder siden». Ikke målt, men
+  uundgåeligt. Mangellisten bærer kortet.
+- **Trappen mangler til den dør vi åbnede.** Serversiden tillader nu
+  betaling fra `klar_til_tilbud` (#684), men den eneste dør til checkout
+  er `MembershipExpiredGate:88`, monteret KUN ved `expired` (målt,
+  reconen §6). Ét kaldested i hele `src/`. Et fuldt medlem kan betale i
+  den forstand at funktionen svarer 200 — men har ingen flade at trykke
+  i. Designbeslutningen er ikke truffet (DEL 3). Reconen kortlagde otte
+  eksisterende mønstre at vælge imellem; chattens udløbsbånd
+  (sage-flade, rust-ikon, gatet på tilstand) er formmæssigt tættest.
+- **Dobbeltbetaling er lukket — ved et held, ikke ved en regel.** Efter
+  en gennemført fornyelse ligger den nye slutdato tolv måneder ude, så
+  motoren siger `i_god_tid` og checkout svarer 403. Værnet er
+  60-dagesvinduet (`FORNYELSES_VINDUE_DAGE`), ikke en eksplicit regel om
+  at man kun kan forny én gang. Værd at vide hvis vinduet nogensinde
+  ændres. Mangellisten bærer kortet.
 
 **Målt 6/9** (`~/Downloads/recon-fornyelsen-10-september.md`, uden for
 repoet — genskabes hvis den bruges; fundene er bogført i
@@ -692,13 +726,14 @@ Forslag kan KUN afgøres i `AgentForslagPanel`, monteret alene på
 virksomhederne bag puklen og kaster dem væk i linket. Mangellisten
 bærer kortet.
 
-**FÆLDE, målt 6/9: godkendelse skriver INDEVÆRENDE uges nøgle.**
-`agent-forslag-afgoer` kalder `skrivUgensFokus`
+**FÆLDE, målt 6/9 — LUKKET 7/9 (#688): godkendelse skriver INDEVÆRENDE
+uges nøgle.** `agent-forslag-afgoer` kalder `skrivUgensFokus`
 (`_shared/agentSkriveveje.ts:34`), som upserter `weekly_focus` på
 (`company_id`, `getISOWeekKey(new Date())`). Godkendes et forslag fra
 25. august i dag, får medlemmet et «ugens fokus»-kort dateret DENNE uge,
-skrevet ud fra augusts tal. Forslag har ingen udløbsmekanik. Hører til
-opgave-model-epic'et (DEL 3) og står som fælde i DEL 4.
+skrevet ud fra augusts tal. Forslag havde ingen udløbsmekanik. *Lukket af
+udløbsdommen nedenfor: et forslag kan kun godkendes i sin egen ISO-uge,
+så det kan ikke længere lande forkert. Mangellistens kort er slettet.*
 
 **Puklen talte døde forslag — rettet 7/9 (#682).** Linjen «N
 agentforslag venter på din afgørelse» filtrerede på `decided_at is
@@ -711,6 +746,48 @@ afgøres. Filtret er nu på `status` begge steder (`AdvisorDashboard` og
 kildeteksten, og værnet er PRØVET: forfalskes filtret, fejler netop den
 fils tests. **Bevist på skærm 7/9:** forsiden siger nu «1 agentforslag
 venter», ikke 2. Fælden står i DEL 4.
+
+**Forslag udløber (#688),** udrullet 7/9 kl. 09:31 UTC fra `f7f77627`.
+**Besluttet af Jonas: et forslag udløber når dets egen ISO-uge er
+passeret.** HVORFOR UGEN og ikke 7×24 timer: den eneste godkendbare
+skrivevej, `update_weekly_focus`, skriver UGENS fokus med GODKENDELSENS
+ugenøgle — et forslag fra en anden uge er ikke bare gammelt, det er om
+en anden uge end den det ville lande i. Med ISO-ugen er «kan det
+godkendes» og «hvor lander det» det samme spørgsmål. Ren funktion
+(`afgoerForslagsgyldighed`) i begge kopier (`src/lib/forslagUdloeb.ts`,
+`_shared/forslagUdloeb.ts`), paritetstestet, grænsen låst fra begge
+sider (søndag 23:59:59 gyldigt, mandag 00:00:00 udløbet). Ulæseligt
+`proposed_at` er fail-closed. `agent-forslag-afgoer` afviser en
+GODKENDELSE med 409; en FORKASTELSE er stadig mulig. Dommen ligger før
+service-rollen, og rækken røres ikke — status `expired` skrives ikke.
+Fladen (`AgentForslagPanel`) bruger SAMME dom. **Bevist på skærm 7/9
+kl. 11:31 hos remm.:** knapperne væk, badget «Udløbet», og grunden
+skrevet ud — «forslaget er fra 2026-W35; en godkendelse ville lande i
+2026-W37 — forslaget kan kun forkastes». **Anledningen, som skal stå:**
+forslaget fra 25/8 handlede om «Budget for Januar 2025 … din reelle
+forventning til den kommende periode». Godkendt i uge 37 ville det være
+blevet medlemmets fokus DENNE uge. **Tidszone, arvet og ikke indført
+her:** `getISOWeekKey` læser LOKALE datokomponenter. Deno kører UTC,
+browseren i brugerens zone — tæt på midnat søndag/mandag kan de være
+uenige med op til to timer. Afgørelsen i Deno er den bindende. Står som
+fælde i DEL 4.
+
+**Puklen tæller ikke udløbne — UNDERVEJS 7/9 (PR-nummer åbent).**
+Besluttet af Jonas 7/9: udløbne forslag skal væk fra forsiden. Puklen
+hedder «venter på din afgørelse», og oprydning er ikke en afgørelse.
+Dommen kan ikke udtrykkes i SQL uden at duplikere ISO-ugen, så den
+filtreres i JS efter hentningen (`AdvisorDashboard`, `useVirksomhed`),
+med samme `afgoerForslagsgyldighed`. Skriv den som merget når PR'en er
+det.
+
+**Ingen cron bogfører `expired`.** Skemaets egen kommentar forudser den
+(`20260825200000_agent_proposals.sql:10`: «expired (cron-dom, ikke
+bygget endnu)»), men ingen kode sætter status. De fire fra 1/9 blev sat
+i hånden. **Konsekvens efter puklen ovenfor:** et udløbet forslag
+forsvinder fra forsiden, men ligger som `proposed` i databasen. Cron'en
+er en selvstændig opgave, og den SKAL bruge `afgoerForslagsgyldighed`,
+så der er én dom — ikke en SQL-kopi af ISO-ugen. Mangellisten bærer
+kortet.
 
 ### Indgangen — kæden FØR platformen er hel 3/9: «Godkendt» → betalingsmail → påmindelser → dag 31-faktura → betaling → adgang
 
@@ -1569,7 +1646,7 @@ facit og rækkefølge; `docs/chat-design.md` chattens form.
 | åbent, målt 6/9, delvist ændret 7/9 — værnet er stadig et menneske | **Datogaten omgås stadig hvor pengene skifter hænder.** `hent-fornyelsestilbud` kalder nu motoren (#678), men både den og `opret-fornyelse-checkout` kræver `udloebet_tilbyd`, som afgøres i udløbsgrenen FØR datogaten. En virksomhed «uden for ordningen» med beslutning `tilbyd` får derfor stadig et systemtilbud og kan betale — nu dog kun de første 14 dage efter udløb. Om gaten SKAL gælde der, er en beslutning — i dag er det rådgiverens finger der er værnet. | fornyelseskæden §13.3 |
 | LØST 7/9 (#678) — vinduet; Studio Minis række er nu en BESLUTNING om timing | **Tilbudsvinduet efter udløb er en tilstand:** `udloebet_vindue_lukket`, kun efter `tilbyd`, fra dag 15 efter slutdato; bevist i drift kl. 09:36–09:38 (DEL 2 «Fornyelseskæden»). **Studio Mini (slut 5/9, `tilbyd`) FORLÆNGER IKKE (Jonas 6/9):** i dag er de dag 2 i vinduet; fra 20/9 lukker vinduet af sig selv, og rækken bliver `udloebet_vindue_lukket` uden at nogen rører den. Beslutningen er om den skal ryddes FØR — indtil da viser gaten dem et tilbud. CARMA STUDIO (7/9, `tilbyd`) håndteres manuelt i dialog. | fornyelsesordningen §3; fornyelseskæden §13.4, §14 |
 | BYGGET 7/9 eftermiddag (#683 motoren, #684 pengevejen), udrullet kl. 08:53 UTC — ændrer beslutningen fra 1/9 | **Fornyelse kan betales FØR slutdatoen.** Før kunne et medlem på dag 22 hverken se eller betale sit tilbud (checkout 403, `hent-fornyelsestilbud` null, gaten kun for udløbne). **Regnestykket, ordret:** betalt FØR eller PÅ slutdatoen → GAMMEL SLUTDATO + 12 måneder; betalt EFTER → BETALINGSDAGEN + 12. Grænsen er kontinuert (28/9 og 29/9 → 2027-09-29; 30/9 → 2027-09-30). `periode_start` er udledt af `company_perioder`s invariant: ny periode begynder hvor den gamle slutter. 29. februar er en synlig gren (→ 1/3 året efter, slutdatoen er eksklusiv). **`cancel_at` er IKKE ændret, og skal ikke ændres** — abonnementet er betalingsplanen, ikke adgangen; en der betaler tidligt får et abonnement der ophører FØR kontrakten, og det er rigtigt (DEL 2 «Fornyelseskæden», rettelsen; DEL 4). | fornyelseskæden §15.3, §7; fornyelsesordningen §1 |
-| ÅBENT — designbeslutning, 7/9 | **Et ikke-udløbet medlem kan betale, men kan ikke SE tilbuddet.** `MembershipExpiredGate` vises kun ved tier `expired` (`Index.tsx`), og ingen anden flade viser fornyelsen til et medlem (målt 7/9). Betalingsvejen er åben fra dag 60 (`klar_til_tilbud`), men den eneste vej til checkout er gaten. Hvor tilbuddet skal vises før slutdatoen — forsiden, en mail, et kort — er ikke besluttet. Mangellisten bærer kortet. | DEL 2 «Fornyelseskæden»; fornyelseskæden §15.3 |
+| ÅBENT — designbeslutning, 7/9 | **Et ikke-udløbet medlem kan betale, men kan ikke SE tilbuddet.** `MembershipExpiredGate` vises kun ved tier `expired` (`Index.tsx`), og ingen anden flade viser fornyelsen til et medlem (målt 7/9). Betalingsvejen er åben fra dag 60 (`klar_til_tilbud`), men den eneste vej til checkout er gaten. Hvor tilbuddet skal vises før slutdatoen — forsiden, en mail, et kort — er ikke besluttet. *Målt 7/9 middag (`~/Downloads/recon-fornyelse-efter-betaling.md` §6, uden for repoet): `MembershipExpiredGate:88` er det ENESTE kaldested i `src/`; reconen kortlagde otte eksisterende mønstre at vælge imellem, og chattens udløbsbånd (sage-flade, rust-ikon, gatet på tilstand) er formmæssigt tættest.* Mangellisten bærer kortet («Trappen mangler til den dør vi åbnede»). | DEL 2 «Fornyelseskæden»; fornyelseskæden §15.3 |
 | samtale, målt 6/9 | **To virksomheder uden slutdato rammer aldrig ordningen:** Alexander Lunds virksomhed og Martin Larsens virksomhed (`ingen_slutdato`). Og **Bastant Design** (31/12-2027) har ingen indgangspris, så fornyelsesprisen er ukendt — et `tilbyd` dér ville give et tomt tilbudskort. | fornyelseskæden §13.4 |
 | **13/9** | doggybeds træk på 4.375 kr. på den nye konto — MÅL at det gik igennem. Derefter flyttes de tretten i portioner. TuaMea (2/9), Floren engros og BR Roset (3/9) venter til efter egne træk. **Samme dag, beviset for #563 (nu stærkere):** `companies.subscription_status` skal forblive NULL på doggybed (`382fd787-3141-45c7-8eea-297b7b947fe0`) efter trækket — fordi grenen springer over med vilje, ikke fordi noget fejler — og `customer.subscription.updated` skal stå grøn i Stripes Event deliveries. SQL'en står i migration-recon §26. **Samme dag, beviset for #572:** en række i `company_traek` for doggybeds faktura med `status = 'betalt'` (SQL editor); fejler trækket, skal rækken stå som `fejlet` og badgen vise sig på /members (#574). | migration-recon §25, §26; indgangen-design §31 |
 | LØST 3/9 kl. 10:42 | **Hvorfor skrev webhooken ikke på 2/9?** Eventet BLEV leveret; webhooken svarede 500 i skrivningen (fem gentagelser fra Stripe). Efter #563 gensendt manuelt → 200 `skipped: migreret_subscription`, «Recovered». Webhooken får subscription-events; hvidlisten er bevist på det rigtige event. Hvad der kastede, afdækkes bevidst ikke — men det art-løse selvbetjeningsabonnement går stadig gennem den kode. | migration-recon §26 |
@@ -1627,7 +1704,7 @@ facit og rækkefølge; `docs/chat-design.md` chattens form.
 | MÅLT 6/9 — egen opgave | **Ugeagentens cron findes ikke i prod.** `run-weekly-agent` har kun `Deno.cron` (kører aldrig på edge-runtimen); `cron.job` har ti jobs, ingen kalder den. Kun `generate-weekly-focus` (0 6 \* \* 1) kører mandag. Om agenten NOGENSINDE har kørt fra cron, er ikke efterprøvet (`agent_runs.trigger` kan svare). Skal den køre, er vejen pg_cron + `net.http_post` som `intro-reminder-cron` — men den kører LIVE og skriver det medlemmet ser, så det er en beslutning, ikke en rettelse. | DEL 2 «Agentkæden»; DEL 4 (`Deno.cron`) |
 | LØST 6/9 sen aften (#670) | **De elleve typefejl efter Lovables regenerering af `types.ts`** er rettet ved at lade husets egne interfaces sige sandheden om databasen — `EventTimes.ends_at` og de fire felter på `MemberProgress` er valgfrie OG nullable — og ved at skrive reglen ned begge steder: null og undefined betyder det samme, «det er ikke sket». Ingen casts, intet non-null, ingen ændring i `types.ts`. Tretten nye tests låser reglen, inkl. grænsen ved `starts_at` + 90 min. **Målt efter:** tsc giver præcis fire fejl (CompanyChatPane, PushView, RapporteringView ×2), 1656 tests grønne. | DEL 1 «Kodearbejde» |
 | LØST 7/9 (#675, #676) | **Baselinen er nul, og CI kører typecheck** — `bunx tsc --noEmit -p tsconfig.app.json` FØR testene i jobbet «Tests», uden kendt-liste og uden `continue-on-error`. Beslutningen om de fire blev «rettes» (#675), ingen af dem skjult. Bevist i drift: kørsel 34092921389, trin 6 «Typecheck» → success. Gaten fangede #678's to Record-aftagere samme dag. | DEL 1 «Kodearbejde» |
-| hører til opgave-epic'et, målt 6/9 kl. 22:18 | **Godkendelse skriver indeværende uges nøgle, og halvdelen af de uafgjorte forslag kan kun forkastes.** Otte forslag fra 25/8 (Topix 6, remm. 2, alle tørkørsler); fire `update_weekly_focus` kan godkendes, fire (`write_session_prep` ×3, `write_company_action`) kan kun forkastes — linjen lover «din afgørelse» om noget hvor den ene mulighed ikke findes. Og godkendes et augustforslag i dag, lander det som DENNE uges fokus (`skrivUgensFokus` → `getISOWeekKey(new Date())`). Forslag har ingen udløbsmekanik. *Puklen peger nu direkte på virksomheden når den dækker én (#672, 7/9); dækker den flere, er det stadig `/virksomheder`, for der findes ingen flade der viser forslag på tværs — kendt, står i koden.* Mangellisten bærer to kort. *Rettet 7/9 (#682): puklen tæller nu kun `proposed` — de fire `expired` session_prep-rækker talte med, fordi filtret var `decided_at is null`; forsiden siger «1 agentforslag venter», ikke 2 (DEL 2 «Agentkæden»).* | DEL 2 «Agentkæden»; DEL 4; `docs/opgave-model-design.md` |
+| hører til opgave-epic'et, målt 6/9 kl. 22:18 | **Godkendelse skriver indeværende uges nøgle, og halvdelen af de uafgjorte forslag kan kun forkastes.** Otte forslag fra 25/8 (Topix 6, remm. 2, alle tørkørsler); fire `update_weekly_focus` kan godkendes, fire (`write_session_prep` ×3, `write_company_action`) kan kun forkastes — linjen lover «din afgørelse» om noget hvor den ene mulighed ikke findes. Og godkendes et augustforslag i dag, lander det som DENNE uges fokus (`skrivUgensFokus` → `getISOWeekKey(new Date())`). Forslag har ingen udløbsmekanik. *Puklen peger nu direkte på virksomheden når den dækker én (#672, 7/9); dækker den flere, er det stadig `/virksomheder`, for der findes ingen flade der viser forslag på tværs — kendt, står i koden.* Mangellisten bærer to kort. *Rettet 7/9 (#682): puklen tæller nu kun `proposed` — de fire `expired` session_prep-rækker talte med, fordi filtret var `decided_at is null`; forsiden siger «1 agentforslag venter», ikke 2 (DEL 2 «Agentkæden»).* *LUKKET 7/9 (#688): et forslag udløber når dets egen ISO-uge er passeret — godkendelse afvises med 409, forkastelse er stadig mulig, og «lander i denne uge»-fælden er dermed væk (bevist på skærm hos remm. kl. 11:31). UNDERVEJS: puklen filtrerer udløbne fra i JS. ÅBENT: ingen cron skriver `expired`; udløbne ligger som `proposed` i databasen (DEL 2 «Agentkæden»).* | DEL 2 «Agentkæden»; DEL 4; `docs/opgave-model-design.md` |
 | oprydning, målt 6/9 | **37 grene på origin ud over `main`** (Jonas' måling 6/9; `git ls-remote --heads` gav 38 ved bogføringen samme aften). `gh pr list --state merged` er den eneste der kan afgøre hvilke der må slettes (DEL 1). | DEL 1 «Git og Claude Code» |
 
 ---
@@ -1919,8 +1996,17 @@ De konkrete ting der har kostet tid. Led efter dem.
   forslagets.** `skrivUgensFokus` upserter på `getISOWeekKey(new
   Date())` (`_shared/agentSkriveveje.ts:34`). Otte forslag fra 25/8 lå
   uafgjorte 6/9; godkendes ét i dag, ser medlemmet «ugens fokus» for
-  denne uge, regnet på augusts tal. Afgør gamle forslag med det i
-  baghovedet — og forkast frem for at godkende, hvis ugen er passeret.
+  denne uge, regnet på augusts tal. *Lukket 7/9 (#688): et forslag kan
+  kun godkendes i sin egen ISO-uge — netop fordi nøglen er
+  godkendelsens. Fælden står som historik; regnestykket bag den er
+  uændret.*
+- **`getISOWeekKey` læser LOKALE datokomponenter — Deno kører UTC,
+  browseren i brugerens zone.** Tæt på midnat søndag/mandag kan de to
+  være uenige om ugen med op til to timer (dansk tid er UTC+1/+2). Det
+  er arvet fra `week.ts`/`isoUge.ts`, ikke indført af udløbsdommen
+  (#688). Afgørelsen i Deno (`agent-forslag-afgoer`) er den bindende;
+  fladen kan i det vindue vise knapper som serveren afviser med 409 —
+  eller omvendt. Ikke set; udledt af koden (DEL 2 «Agentkæden»).
 - **En test der importerer et datalags-modul, vælter suiten uden at
   fejle en test.** `akademiApi` importerer Supabase-klienten på
   modulniveau; den starter en auto-refresh-timer der kaster
@@ -1994,6 +2080,14 @@ Skal ikke genforhandles uden ny måling.
   betalingsdagen + 12 — dagene uden adgang gives ikke tilbage. 29/2 → 1/3
   året efter. `cancel_at` regnes stadig fra abonnementets start.
   (fornyelseskæden §15.3, §7; fornyelsesordningen §1)
+- **Et agentforslag udløber når dets egen ISO-uge er passeret** (Jonas
+  7/9, #688). Ugen, ikke 7×24 timer: den godkendbare skrivevej skriver
+  ugens fokus med godkendelsens nøgle, så «kan det godkendes» og «hvor
+  lander det» er samme spørgsmål. Godkendelse afvises; forkastelse er
+  stadig mulig. **Puklen «venter på din afgørelse» tæller kun det der
+  kan afgøres** — oprydning er ikke en afgørelse. Enhver fremtidig cron
+  der skriver `expired`, SKAL bruge `afgoerForslagsgyldighed`. (DEL 2
+  «Agentkæden»)
 - **`er_kunde` læses KUN i rådgiverens læsestier** og gater ingen cron,
   ingen edge function, ingen RLS (6/9). Slukkes noget for en virksomhed,
   ændres medlemmets hverdag — og det var netop kravet at den ikke måtte.
