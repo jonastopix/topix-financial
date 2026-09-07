@@ -158,7 +158,11 @@ export const RapporteringView = () => {
   // reportId-klik mens fladen er åben re-trigger. Param ryddes efter brug —
   // via navigate frem for setSearchParams, fordi setSearchParams smider
   // hash'en (og #upload/#annual-reports er Guide-kontrakt).
-  const reportCardRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+  // Kortene sidder i <li> (ref'en sættes på listeelementet, ikke HbCard),
+  // og det eneste vi gør med dem er scrollIntoView. REGLEN: ref-mappen
+  // typer det element den faktisk holder — HTMLElement er nok, og
+  // snævrere (HTMLDivElement) var en løgn tsc fangede (baseline-fejl 3, 7/9).
+  const reportCardRefs = useRef<Map<string, HTMLElement>>(new Map());
   useEffect(() => {
     const reportId = searchParams.get("reportId");
     if (reportId && dbReports.length > 0 && dbReports.some((r) => r.id === reportId)) {

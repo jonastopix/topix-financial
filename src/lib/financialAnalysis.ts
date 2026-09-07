@@ -29,6 +29,60 @@ export interface AnalysisData {
   next_steps: string[];
 }
 
+/**
+ * laesAnalysisData — læser en analyse fra basen (financial_commentaries.
+ * analysis er Json) ind i AnalysisData. REGLEN (baseline-fejl 1, 7/9):
+ * Json kan være hvad som helst, så koden der castede den til seks
+ * påkrævede felter var forkert — ikke typen. Læseren er den eksplicitte
+ * indsnævring i stedet for castet:
+ *   - Ikke et objekt (null, array, primitiv) → null: der ER ingen analyse.
+ *   - Et felt med forkert type behandles som MANGLENDE: strenge bliver "",
+ *     lister bliver []. Fladen viser så ikke den del (guards på tomt).
+ *   - Et nøglefund kræver titel (streng) og en kendt alvor; ellers droppes
+ *     det — vi viser ikke et fund uden overskrift eller uden tone. analysis
+ *     og recommendation falder tilbage på "".
+ *   - En tendens kræver titel; description, metric og period falder
+ *     tilbage på "". Spørgsmål og næste skridt beholder kun strenge.
+ * Ingen felt kastes væk stille — det der ikke kan læses, læses som tomt.
+ */
+const SEVERITIES: readonly KeyFinding["severity"][] = ["positiv", "advarsel", "kritisk"];
+
+function erObjekt(v: unknown): v is Record<string, unknown> {
+  return typeof v === "object" && v !== null && !Array.isArray(v);
+}
+
+function streng(v: unknown): string {
+  return typeof v === "string" ? v : "";
+}
+
+function liste(v: unknown): unknown[] {
+  return Array.isArray(v) ? v : [];
+}
+
+function laesFund(v: unknown): KeyFinding | null {
+  if (!erObjekt(v) || typeof v.title !== "string") return null;
+  const severity = SEVERITIES.find((s) => s === v.severity);
+  if (!severity) return null;
+  return { title: v.title, analysis: streng(v.analysis), recommendation: streng(v.recommendation), severity };
+}
+
+function laesTendens(v: unknown): TrendItem | null {
+  if (!erObjekt(v) || typeof v.title !== "string") return null;
+  return { title: v.title, description: streng(v.description), metric: streng(v.metric), period: streng(v.period) };
+}
+
+export function laesAnalysisData(value: unknown): AnalysisData | null {
+  if (!erObjekt(value)) return null;
+  return {
+    overview: streng(value.overview),
+    key_findings: liste(value.key_findings).map(laesFund).filter((f): f is KeyFinding => f !== null),
+    positive_trends: liste(value.positive_trends).map(laesTendens).filter((t): t is TrendItem => t !== null),
+    challenges: liste(value.challenges).map(laesTendens).filter((t): t is TrendItem => t !== null),
+    strategic_questions: liste(value.strategic_questions).filter((q): q is string => typeof q === "string"),
+    next_steps: liste(value.next_steps).filter((n): n is string => typeof n === "string"),
+  };
+}
+
 export interface PeriodOption {
   period_key: string;
   period_label: string;
