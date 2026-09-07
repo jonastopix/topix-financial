@@ -263,6 +263,22 @@
       <p>Ankomsten er bygget 2/9 nat: to skærme, «Velkommen», tjeklisten som fokus. To ting mangler: <strong>velkomstvideoen skal optages</strong> (Morten) — pladsen er bygget, GUID'et sættes i <code>/admin/config</code>, og først da kan «se videoen» bevises på skærm. Og <strong>rundvisningen</strong>, den interaktive førstegangsoplevelse efter velkomsten — bygges efter C3-indflytningen og må aldrig eksistere ved siden af Guiden.</p>
       <div class="meta"><span class="tag">Rettet 4/9</span><span class="tag size">Mellem</span></div>
     </div>
+    <div class="card blocked new" data-status="fejl" data-spor="1" data-rammer="medlem">
+      <h3>«Alt er ajour.» kan stå til en der aldrig har uploadet</h3>
+      <p><strong>Målt 7/9</strong> (recon-den-tomme-platform): fokuskortets tom-tilstand (<code>BoardroomView.tsx:1384-1395</code>) siger «Alt er ajour.» og «Rapport, refleksion og milestones er på plads — brug momentum i dit forløb.» — også for et medlem uden en eneste rapport. Kommentaren i koden siger det udtrykkeligt: «Alle tal nul (nyt medlem) → den hidtidige sætning uændret» (:1810-1814). Det er ikke en forglemmelse, det er en beslutning der er forkert. Nås når tjeklisten er færdig og forrige måned ligger før kontraktstarten (slot (a) tier), eller når intet andet fyrer.</p>
+      <p><code>journeyLine</code> bygges :1815 af committede perioder, gjorte milestones og Akademi-poster og er null når alle er nul — rettelsen er formentlig en gren dér, der siger sandheden for et nyt medlem. Ordlyden er IKKE besluttet. Det vigtigste af de fire fund fra reconen; planen for 8/9 punkt 7a.</p>
+      <div class="meta"><span class="tag ny">Ny 7/9</span><span class="tag rust">Usand tekst</span><span class="tag size">Lille</span></div>
+    </div>
+    <div class="card new" data-status="fejl" data-spor="1" data-rammer="medlem">
+      <h3>Tjeklisten kan lukkes pr. enhed — og er så væk</h3>
+      <p>Lukket-tilstanden er <code>localStorage["tbr.tjekliste-lukket"]</code> (<code>useTjeklisteLukket.ts</code>): pr. enhed, ikke i databasen — bevidst («en visningspræference, ikke data»). Lukker et af de sytten medlemmer uden tal boksen på telefonen, er der intet på skærmen der siger hvad de skal; kun sidebarens «Kom godt i gang» henter den frem, og fokuskortet fortsætter ganske vist med punkterne (tjeklisten er kilden også når boksen er lukket), men kun på forsiden. Om de ti der har logget ind for nylig HAR lukket den, kan ikke måles. Planen for 8/9 punkt 7b.</p>
+      <div class="meta"><span class="tag ny">Ny 7/9</span><span class="tag size">Lille</span></div>
+    </div>
+    <div class="card new" data-status="fejl" data-spor="1" data-rammer="medlem">
+      <h3>«Dine tal» krydses af ved upload, ikke ved godkendelse</h3>
+      <p><code>onboardingTjekliste.ts:163-166</code>: «Uploadet er nok — godkendelsen (financial_report_facts) er rådgiverens skridt, ikke medlemmets.» Men godkendelsen ER medlemmets klik («Gennemgå og godkend» → <code>commit_report_facts</code>; ingen automatik, reconen 7/9) — så medlemmet uploader, tjeklisten siger færdig, fokuskortet går videre til (a)–(i), og rapporten godkendes aldrig. Det forklarer de 73 ventende rapporter (27/8) og PHILBERTs seks. Planen for 8/9 punkt 7c; hører sammen med kortet «Ventende uploads» under Dine tal.</p>
+      <div class="meta"><span class="tag ny">Ny 7/9</span><span class="tag rust">Forklarer de 73</span><span class="tag size">Lille</span></div>
+    </div>
     <div class="card" data-status="fejl" data-spor="1" data-rammer="raadgiver">
       <h3>Ingen klokke når et nyt medlem venter</h3>
       <p>Onboarding-lukningen fjernede også notifikationen til rådgiveren. Velkomsten skal skrives af et menneske — men intet siger at den venter. Forsidens dom (4/9) har ingen slags for «nyt medlem uden velkomst»; dens otte slags kommer fra aftalen, samtalen, tallene og deres arbejde. Informationen findes kun i agent-loggen.</p>
@@ -462,6 +478,12 @@
       <p>Alt der blev rettet 7/9 gør platformen mere korrekt for de otte; det ændrer ikke at de niogtyve ikke er der. De 73 ventende uploads, de under ti procent svar og remm./YKRG's årsrapport-huller var tre symptomer på dette — den fjerde måling viste gruppens størrelse.</p>
       <p><strong>Det åbne spørgsmål er ikke teknisk:</strong> er det et produktproblem (platformen giver ikke nok igen for det den beder om), et onboardingproblem (de sytten kom ind uden at komme i gang), eller et forventningsproblem — og <strong>hvad var aftalen med dem der aldrig har uploadet?</strong> Det er en samtale mellem Jonas og Morten, ikke en kodeopgave. Målingen gentages om en måned med samme kriterium (SQL'en står i OVERLEVERING øverst), så det kan ses om noget virker.</p>
       <div class="meta"><span class="tag ny">Ny 7/9</span><span class="tag gold">Beslutning</span><span class="tag">Samtale, ikke kode</span><span class="tag size">Stor</span></div>
+    </div>
+    <div class="card new" data-status="mangler" data-spor="1" data-rammer="medlem">
+      <h3>Rapporteringen forklarer HVAD, ikke HVOR</h3>
+      <p>Upload-zonen (<code>HbReportUploadZone.tsx:402-404</code>) siger: «Upload din månedsrapport / Saldobalance eller resultatopgørelse — PDF, Excel eller CSV. Klik eller træk hertil.» Det er hele forklaringen. Ikke fra hvilket program, ikke hvordan man eksporterer, ikke hvilken måned. Ordene e-conomic, Dinero og Billy findes kun i FEJLBESKEDER efter en mislykket upload (<code>reportUploadEngine.ts:314-318</code>, report_error-notifikationen). Sytten virksomheder har aldrig uploadet en målt rapport; ti af dem har logget ind inden for tre uger. Planen for 8/9 punkt 7d.</p>
+      <p>Årsrapport-blokken er den eneste der siger hvem dokumentet kommer fra («Upload din årsrapport fra revisor (PDF)»).</p>
+      <div class="meta"><span class="tag ny">Ny 7/9</span><span class="tag size">Lille</span></div>
     </div>
     <div class="card blocked new" data-status="fejl" data-spor="2" data-rammer="medlem">
       <h3>Kun to af elleve årsrapport-udtræk er hele</h3>

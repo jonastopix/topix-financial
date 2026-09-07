@@ -113,6 +113,121 @@
 > aldrig uploadet 17 · aldrig logget ind 3. Mangellisten bærer kortet «29
 > af 37 er faldet ud».
 
+> ## PLANEN FOR 8. SEPTEMBER — godkendt og prioriteret af Jonas 7/9 sen aften
+>
+> Kan læses alene. Lavet efter at HELE mangellisten (167 kort) er læst
+> efter målingen ovenfor, og efter en recon af hvad et medlem uden tal
+> ser (`~/Downloads/recon-den-tomme-platform.md`, uden for repoet —
+> fundene er bogført i mangellisten, se punkt 7).
+>
+> **PRINCIPPET, ét:** otte virksomheder er aktive, og to bruger
+> platformen som tænkt. Det der rammer DEM, og det de sytten uden tal
+> møder, kommer først. Alt om skala, netværkseffekter og en større
+> portefølje måler ingenting ved otte aktive — det tages ikke i morgen.
+>
+> **FORMIDDAG — det der rammer alle otte, hver dag**
+>
+> 1. **Mobilens grønne bundstykke.** Alle otte, hver side, også login.
+>    Rettelsen er kendt: husets dvh-utilities (`min-h-screen-safe`) på
+>    de tre skaller (HbMemberShells side-variant, `HB_RAMME`,
+>    HbAdminShell) plus papirfarvet `html`. Jonas: «kan vi tage hurtigt
+>    nu» — PÅBEGYNDT 7/9 aften. Beviset er skærmen: intet grønt under
+>    login og under en Hb-side, i Safari og Chrome (mangellisten «Mobil:
+>    tomt grønt bundstykke»).
+> 2. **Mailene fra topix.dk.** BESLUTTET af Jonas: de skal sendes fra
+>    `@theboardroom.dk`, ikke `boardroom.topix.dk`. Kræver
+>    domæneopsætning i mailtjenesten (SPF/DKIM/verificeret afsender)
+>    PLUS afsenderkonstanten i koden (`VERIFIED_FROM_EMAIL` =
+>    `noreply@boardroom.topix.dk` i send-invitation-email, stripe-
+>    webhook, send-welcome-message m.fl. — grep 4/9; intro-påmindelsen
+>    underskrives «Morten fra The Boardroom»). **MÅL hvad der skal til
+>    FØR noget ændres** — en afsender der ikke er verificeret, sender
+>    ingenting.
+> 3. **PHILBERTs seks ventende rapporter.** Én aktiv virksomhed, seks
+>    rapporter parset (PASS) og aldrig committet siden januar. Godkend
+>    dem via virksomhedssidens blok 6 → ReportReviewDialog (RPC'en
+>    tillader rådgiveren), eller bed dem — men de skal blive til tal.
+>    Jonas: «super». (Reconen 7/9: `commit_report_facts` kaldes KUN fra
+>    tre klik i src/; ingen automatik.)
+>
+> **EFTERMIDDAG — det der rammer PHILBERT 22. og 29. september**
+>
+> 4. **VIGTIGT: månedsdigesten viser overskredne milepæle som
+>    kommende.** `send-monthly-digest` kører den 22. hver måned — det
+>    er en frist: 22/9 er også dagen for PHILBERTs varsel 2.
+> 5. **VIGTIGT: ingen mail til den der lige har fornyet.** PHILBERT
+>    betaler efter 22/9 (slutdato 29/9), og i det øjeblik pengene
+>    falder, siger platformen ingenting — kun Stripes kvittering.
+>    Fornyelsesgrenen i `stripe-webhook` har ingen mail og ingen
+>    rådgivernotifikation (grep 4/9). Samme mailfamilie som varslerne
+>    (`indgangsMailHtml`/`sendIndgangsMail`).
+> 6. **Toasten der kan ramme forkert den anden vej.** Samme dag, samme
+>    medlem: `Index.tsx` vælger kvitterings-toasten på tier, og lander
+>    webhooken FØR redirectet, får den der VAR udløbet «fortsætter uden
+>    afbrydelse». Jonas: «super».
+>
+> 7. **VIGTIGT — DEN TOMME PLATFORM.** Reconen målte hvad en virksomhed
+>    uden tal ser. Der ER en vej videre næsten overalt: tjeklisten er
+>    fokuskortets eneste kilde til den er færdig, TalStrip linker til
+>    rapportering, og hver tom flade (nøgletal, budget, milestones,
+>    handouts) har et klik. Men FIRE ting er ødelagte — hver sit kort i
+>    mangellisten (Indgangen og Dine tal), «Alt er ajour» er det
+>    vigtigste:
+>    - **a) «ALT ER AJOUR.» KAN STÅ TIL EN DER ALDRIG HAR UPLOADET.**
+>      `BoardroomView.tsx:1384-1395`, med teksten «Rapport, refleksion og
+>      milestones er på plads — brug momentum i dit forløb.» Kommentaren
+>      i koden siger det udtrykkeligt: «Alle tal nul (nyt medlem) → den
+>      hidtidige sætning uændret» (:1810-1814). Det er ikke en
+>      forglemmelse, det er en beslutning der er forkert. `journeyLine`
+>      bygges :1815 og kan allerede sige noget andet — rettelsen er
+>      formentlig en gren dér. Ordlyden er IKKE besluttet.
+>    - **b) Tjeklisten kan lukkes pr. enhed og er så VÆK.** Lukket-
+>      tilstanden er `localStorage["tbr.tjekliste-lukket"]`
+>      (useTjeklisteLukket.ts) — pr. enhed, ikke i databasen. Lukket på
+>      telefonen = intet på skærmen der siger hvad de skal; kun
+>      menupunktet «Kom godt i gang» henter den frem.
+>    - **c) «Dine tal» krydses af ved UPLOAD, ikke ved GODKENDELSE.**
+>      `onboardingTjekliste.ts:163-166`: «Uploadet er nok — godkendelsen
+>      … er rådgiverens skridt, ikke medlemmets.» Det forklarer de 73
+>      ventende rapporter: medlemmet uploader, tjeklisten siger færdig,
+>      rapporten godkendes aldrig — og bliver aldrig til tal.
+>    - **d) Rapporteringen forklarer HVAD, ikke HVOR.** Upload-zonen
+>      (HbReportUploadZone.tsx:402-404): «Upload din månedsrapport /
+>      Saldobalance eller resultatopgørelse — PDF, Excel eller CSV. Klik
+>      eller træk hertil.» Det er alt. Ikke fra hvilket program, ikke
+>      hvordan man eksporterer, ikke hvilken måned. Ordene e-conomic,
+>      Dinero og Billy findes kun i FEJLBESKEDER efter en mislykket
+>      upload.
+>    Dertil: chattens velkomstbesked (`send-welcome-message`, «Hej
+>    {fornavn}! Velkommen til The Boardroom 🎉 …») findes som kode, men
+>    intet i src/ eller supabase/ kalder den. Den tomme samtale siger
+>    «Dine rådgivere læser dine tal og svarer hurtigt» til en uden tal.
+>
+> **DET DER LADES LIGGE — og hvorfor, så ingen tager det op i god tro:**
+>
+> - **De 115 tavse queryFn'er.** Rammer kun ved fejl; punkt 1–5 på
+>   rangeringen er lukket (#703, #706, #708, #712). Resten er
+>   admin-lister og berigelser.
+> - **Alt om skala og ydeevne** (`hentAdvisorDashboard` henter hele
+>   porteføljen, bundle, indeks, sekvensmotorens tre kopier). Måler
+>   ingenting ved 37 virksomheder.
+> - **Netværkseffekter der forudsætter aktivitet** (peer-matching,
+>   anbefalinger, gamification, top posts). Ingen aktivitet at bygge på.
+> - **De ni ufuldstændige årsrapporter** (to til fire af fem felter
+>   mangler). De rammer to FALDNE virksomheder; rimelighedstesten (SQL
+>   i `recon-aarsrapport-labels.md`) står klar til den dag.
+> - **Opgave-model-epic'et** (EPIC, gentagelses-semantik, under ti
+>   procent svarer, aktive opgaver udløber aldrig). Handler om de to
+>   der svarer.
+> - **Indgangens dag 31-fejl** (fakturateksten, beløbet i mailen,
+>   rykkere). Ingen virksomhed er i indgangen: NUL rækker i
+>   `company_betalingslink`.
+>
+> **TO OPRYDNINGER, når der er luft:** badge-kortet «Badget kender kun
+> varsel 1» er LØST i #719, men står stadig i mangellisten (skal slettes
+> efter listens egen regel); og der er 37 grene på origin ud over main
+> (`gh pr list --state merged` afgør hvilke — `git diff` lyver, DEL 1).
+
 **Sidst opdateret: 7. september 2026, aften — EN FEJL VI SELV LAVEDE:
 CARMA-SAGEN. Kl. 11:57 sendte `fornyelsesvarsel-cron` varsel 2 til CARMA
 STUDIO — den første rigtige mail systemet har sendt — MED EN KNAP DER
