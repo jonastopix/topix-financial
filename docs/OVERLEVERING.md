@@ -1,5 +1,118 @@
 # Overlevering
 
+> **MÅLT I PROD 7. SEPTEMBER 2026 KL. 20:42 — DAGENS SIDSTE OG VIGTIGSTE
+> MÅLING. 29 AF 37 VIRKSOMHEDER ER FALDET UD. TO BRUGER PLATFORMEN SOM
+> TÆNKT.** Dette blok kan læses uden resten af filen. Det er en måling,
+> ikke en opgave og ikke en anbefaling — hvad der skal gøres, er Jonas'
+> og Mortens beslutning.
+>
+> **Kriteriet for «faldet ud»:** mere end tre måneder siden seneste
+> MÅLTE rapport (`financial_report_facts.data_basis = 'measured'`) OG nul
+> besvarede opgaveforslag de seneste tre måneder. Mængden: `er_kunde`,
+> ikke legat.
+>
+> | | |
+> |---|---|
+> | I alt | **37** virksomheder |
+> | Faldet ud | **29** |
+> | Aktive | **8** |
+> | Midt imellem | **0** |
+>
+> **Indeni tallet, og det er værre:**
+>
+> - **SYTTEN har ALDRIG uploadet en målt rapport.** Ikke én. Blandt dem
+>   virksomheder der har logget ind for få dage siden: TOFT ADMINISTRATION
+>   4/9, Martin Larsen 1/9, remm. 1/9, Limo Group og LineAlmegaard 31/8,
+>   Alexander Lund 31/8, Fjeldgaardshop 25/8, Friends & Fries 24/8,
+>   Bastant Design 20/8, Coskun 17/8. De KOMMER — de gør bare ikke det
+>   platformen er bygget til.
+> - **Tre har aldrig logget ind:** Din økonomiafdeling, Two Socks, WESDEX.
+> - **Fem har fået forslag men svarer ikke:** Rallysupport 17 forslag / 0
+>   svar, ANLA GLAS 15/0, Capture IT 9/0, remm. 9/0, BRILLEVÆRK 4/0.
+> - **CARMA STUDIO:** seneste målte rapport juni 2025 — femten måneder.
+>
+> **Og af de otte «aktive» svarer kun to på forslag:**
+>
+> | Virksomhed | foreslået | besvaret |
+> |---|---|---|
+> | Floren Engros | 18 | **6** |
+> | Rezycl.com | 12 | **6** |
+> | Booking Innovation | 15 | 0 |
+> | BR Roset | 16 | 0 |
+> | Doggybed | 12 | 0 |
+> | PHILBERT | 7 | 0 |
+> | Warburg | 14 | 0 |
+> | Livja | 0 | 0 |
+>
+> **Det rigtige billede: to virksomheder ud af syvogtredive bruger
+> platformen som tænkt.**
+>
+> **I forhold til dagen.** Alt hvad der er rettet 7/9 — fornyelseskæden
+> der sender, de tavse fejl der nu kaster, fortegnet på omkostningerne,
+> årsrapport-udtrækkets huller, de manglende måneder — gør platformen mere
+> KORREKT for de otte. Det ændrer ikke at de niogtyve ikke er der.
+>
+> **I forhold til de tre målinger tidligere i dag.** De 73 ventende
+> uploads (rapporter der aldrig blev godkendt — `recon-ventende-uploads`),
+> de under ti procent der svarer på opgaveforslag (DEL 2
+> «Opgave-modellen»), og remm./YKRG's årsrapport-huller, der kun ses fordi
+> ingen målt måned overskriver dem (DEL 2 «Årsrapport-udtrækket»). Alle
+> tre var symptomer på DETTE. Hver for sig så det ud som et
+> godkendelsesproblem, et svarproblem og et udtræksproblem. Det var først
+> den fjerde måling der viste hvor stor gruppen er.
+>
+> **Sådan gentages målingen — om en måned, med samme kriterium, så tallene
+> kan sammenlignes.** Formen (kolonnenavne efterprøves i `types.ts` før
+> kørsel — `company_actions`' svartidsstempel er ikke slået op her):
+>
+> ```sql
+> WITH kunder AS (
+>   SELECT id, name FROM public.companies
+>   WHERE er_kunde = true AND is_legat = false
+> ),
+> seneste_maalte AS (
+>   SELECT company_id, max(period_key) AS seneste_periode, max(committed_at) AS seneste_commit
+>   FROM public.financial_report_facts
+>   WHERE data_basis = 'measured'
+>   GROUP BY company_id
+> ),
+> svar AS (
+>   SELECT company_id,
+>          count(*) FILTER (WHERE created_at >= now() - interval '3 months')                              AS foreslaaet_3m,
+>          count(*) FILTER (WHERE status IN ('active','done','not_done','dropped','dismissed')
+>                             AND created_at >= now() - interval '3 months')                              AS besvaret_3m
+>   FROM public.company_actions
+>   WHERE status <> 'expired'
+>   GROUP BY company_id
+> )
+> SELECT k.name,
+>        m.seneste_periode,
+>        m.seneste_commit,
+>        coalesce(s.foreslaaet_3m, 0) AS foreslaaet_3m,
+>        coalesce(s.besvaret_3m, 0)   AS besvaret_3m,
+>        CASE
+>          WHEN (m.seneste_commit IS NULL OR m.seneste_commit < now() - interval '3 months')
+>           AND coalesce(s.besvaret_3m, 0) = 0 THEN 'faldet ud'
+>          WHEN m.seneste_commit >= now() - interval '3 months'
+>           AND coalesce(s.besvaret_3m, 0) > 0 THEN 'aktiv'
+>          ELSE 'midt imellem'
+>        END AS tilstand
+> FROM kunder k
+> LEFT JOIN seneste_maalte m ON m.company_id = k.id
+> LEFT JOIN svar s ON s.company_id = k.id
+> ORDER BY tilstand, m.seneste_commit NULLS FIRST, k.name;
+> ```
+>
+> Og tælleren, til sammenligning måned for måned:
+>
+> ```sql
+> SELECT tilstand, count(*) FROM ( …samme SELECT som ovenfor… ) t GROUP BY tilstand;
+> ```
+>
+> Referencen 7/9 kl. 20:42: faldet ud 29 · aktive 8 · midt imellem 0 ·
+> aldrig uploadet 17 · aldrig logget ind 3. Mangellisten bærer kortet «29
+> af 37 er faldet ud».
+
 **Sidst opdateret: 7. september 2026, aften — EN FEJL VI SELV LAVEDE:
 CARMA-SAGEN. Kl. 11:57 sendte `fornyelsesvarsel-cron` varsel 2 til CARMA
 STUDIO — den første rigtige mail systemet har sendt — MED EN KNAP DER
