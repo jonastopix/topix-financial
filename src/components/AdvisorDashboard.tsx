@@ -6,6 +6,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { computeMembershipTier } from "@/lib/membershipTier";
 import { afgoerVirksomhedsSignaler, isFiguresFresh, type FactPunkt, type Signal, type VirksomhedsInput } from "@/lib/virksomhedsSignaler";
 import { afgoerForsidensDom, type OpgaveTilDom, type VirksomhedTilDom } from "@/lib/forsidensDom";
+import { kraevRaekker } from "@/lib/kraevRaekker";
 import { erForslagGyldigt } from "@/lib/forslagUdloeb";
 import { afgoerFornyelsestilstand, type Fornyelsesbeslutning } from "@/lib/fornyelse";
 import { afgoerBetalingsfrist } from "@/lib/betalingsfrist";
@@ -467,8 +468,17 @@ export const hentAdvisorDashboard = () =>
           .limit(2000) as any),
       ]);
 
-      const allConversations = (convRes.data || []) as ConversationRow[];
-      const companies = (companiesRes.data || []) as CompanyRow[];
+      // DELKALDENE KASTER (7/9, recon-tavse-fejl.md pkt. 1): de ni kilder
+      // dommen hviler på læses gennem kraevRaekker, som kaster med kildens
+      // navn når svaret bærer en fejl. Før blev en fejl til `[]`, TanStack
+      // så en succes, og forsiden sagde «ikke noget der haster» — udløbne
+      // kontrakter og ubetalte indgange forsvandt uden spor. De ti øvrige
+      // delkald (pulse, aktivitetsfeed, milestones, kpi_targets, rådgiver-
+      // profiler, handouts, medlemsnavne, sidste login) føder kun den
+      // pensionerede AdvisorDashboard-komponent eller er berigelser og
+      // læses som før — tom er et gyldigt svar dér (forsidenKaster.guard).
+      const allConversations = kraevRaekker(convRes, "conversations") as ConversationRow[];
+      const companies = kraevRaekker(companiesRes, "companies") as CompanyRow[];
       // Facts-rækkerne som de kommer fra tabellen. metrics er kanoniske
       // engelske nøgler — factsToDanishMetrics oversætter til de danske
       // nøgler dommene bruger (omsaetning, resultat_foer_skat, bank_balance),
@@ -482,7 +492,7 @@ export const hentAdvisorDashboard = () =>
         data_basis: DataBasis;
         committed_at: string;
       };
-      const facts = (factsRes.data || []) as FactRaekke[];
+      const facts = kraevRaekker(factsRes, "financial_report_facts") as FactRaekke[];
       // Aktivitetsfeedets udsnit — den tidligere egen hentnings filtre,
       // ordret: committed_at >= 14 dage, nyeste først, højst 20.
       const twoWeeksAgoMs = Date.parse(twoWeeksAgo);
@@ -497,18 +507,19 @@ export const hentAdvisorDashboard = () =>
 
       const companyMap = new Map(companies.map(c => [c.id, c]));
       const legatCompanyIds = new Set(
-        (companiesRes.data || [])
+        companies
           .filter((c: any) => c.is_legat)
           .map((c: any) => c.id)
       );
+      const companyMembers = kraevRaekker(companyMembersRes, "company_members") as any[];
       // user_id → company_id
       const userToCompany = new Map<string, string>();
-      for (const m of (companyMembersRes.data || []) as any[]) {
+      for (const m of companyMembers) {
         userToCompany.set(m.user_id, m.company_id);
       }
 
       const companyToUser = new Map<string, string>();
-      for (const m of (companyMembersRes.data || []) as any[]) {
+      for (const m of companyMembers) {
         companyToUser.set(m.company_id, m.user_id);
       }
 
@@ -675,7 +686,7 @@ export const hentAdvisorDashboard = () =>
       // (ægte login via get_users_last_login-RPC). Fejl-robust: hvis RPC fejler/tom,
       // forbliver mappet tomt og feltet bliver null; resten af dashboardet braekker ikke.
       const usersByCompany = new Map<string, string[]>();
-      for (const m of ((companyMembersRes.data || []) as any[])) {
+      for (const m of companyMembers) {
         if (!m.company_id || !m.user_id) continue;
         const arr = usersByCompany.get(m.company_id) || [];
         arr.push(m.user_id);
@@ -683,7 +694,7 @@ export const hentAdvisorDashboard = () =>
       }
       const lastActiveByCompany = new Map<string, string>();
       try {
-        const allMemberUserIds = [...new Set(((companyMembersRes.data || []) as any[]).map(m => m.user_id).filter(Boolean))];
+        const allMemberUserIds = [...new Set(companyMembers.map(m => m.user_id).filter(Boolean))];
         if (allMemberUserIds.length > 0) {
           const { data: loginRows } = await supabase.rpc("get_users_last_login" as any, { user_ids: allMemberUserIds });
           const loginByUser = new Map<string, string>();
@@ -837,10 +848,10 @@ export const hentAdvisorDashboard = () =>
       // spejler Members.tsx' invitationStatus === 'pending'). En virksomhed med mindst
       // ét aktivt company_members-medlem er ALDRIG pending (selv med hængende invite).
       const companiesWithActiveMembers = new Set<string>(
-        ((companyMembersRes.data || []) as any[]).map(m => m.company_id)
+        companyMembers.map(m => m.company_id)
       );
       const pendingCompanyIds = new Set<string>();
-      for (const inv of (((companyInvitationsRes as any)?.data || []) as any[])) {
+      for (const inv of kraevRaekker(companyInvitationsRes, "company_invitations") as any[]) {
         if (inv.company_id && !companiesWithActiveMembers.has(inv.company_id)) {
           pendingCompanyIds.add(inv.company_id);
         }
@@ -876,7 +887,7 @@ export const hentAdvisorDashboard = () =>
       // (passeret ISO-uge) kan kun forkastes, og puklen lover en afgørelse.
       // Samme dom som AgentForslagPanel og agent-forslag-afgoer, samme «nu»
       // som resten af queryFn.
-      for (const p of ((agentProposalsRes as any)?.data || []) as { company_id: string; proposed_at: string }[]) {
+      for (const p of kraevRaekker(agentProposalsRes, "agent_proposals") as { company_id: string; proposed_at: string }[]) {
         if (!p.company_id || !erForslagGyldigt(p.proposed_at, now)) continue;
         agentforslagByCompany.set(p.company_id, (agentforslagByCompany.get(p.company_id) || 0) + 1);
       }
@@ -1004,18 +1015,18 @@ export const hentAdvisorDashboard = () =>
       // Motorerne køres her — dommen tager deres UDFALD, ikke deres råstof.
       const beslutningByCompany = new Map<string, Fornyelsesbeslutning>();
       const varsel1ByCompany = new Map<string, string | null>();
-      for (const r of (((fornyelseRes as any)?.data || []) as { company_id: string; beslutning: string; varsel_1_sendt_at: string | null }[])) {
+      for (const r of kraevRaekker(fornyelseRes, "company_fornyelse") as { company_id: string; beslutning: string; varsel_1_sendt_at: string | null }[]) {
         if (r.beslutning === "tilbyd" || r.beslutning === "tilbyd_ikke") beslutningByCompany.set(r.company_id, r.beslutning);
         varsel1ByCompany.set(r.company_id, r.varsel_1_sendt_at ?? null);
       }
       const betalingslinkByCompany = new Map<string, {
         prisniveau_oere: number | null; underskrevet_at: string; betalingsmail_sendt_at: string | null; sidste_paamindelse_dag: number | null;
       }>();
-      for (const r of (((betalingslinkRes as any)?.data || []) as any[])) {
+      for (const r of kraevRaekker(betalingslinkRes, "company_betalingslink") as any[]) {
         if (r.company_id) betalingslinkByCompany.set(r.company_id, r);
       }
       const opgaverByCompany = new Map<string, OpgaveTilDom[]>();
-      for (const o of (((aktiveOpgaverRes as any)?.data || []) as { id: string; company_id: string; title: string; status: string; due_date: string | null }[])) {
+      for (const o of kraevRaekker(aktiveOpgaverRes, "company_actions") as { id: string; company_id: string; title: string; status: string; due_date: string | null }[]) {
         if (!o.company_id) continue;
         const liste = opgaverByCompany.get(o.company_id) ?? [];
         // due_date er en date-kolonne ("YYYY-MM-DD"); som lokal kalenderdag,
