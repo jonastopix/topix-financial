@@ -25,7 +25,12 @@ returnerer det ikke, og den er SECURITY DEFINER. OG ET FUND FOR SIG:
 INDGANGENS KÆDE HAR ALDRIG HAFT EN VIRKSOMHED — NUL rækker i
 `company_betalingslink` i prod. Cronen finder ingenting, hver dag. Det
 er ikke det samme som at kæden virker (DEL 2 «Fornyelseskæden», «De
-tavse fejl», «Indgangen», «Rådgiverfladen»; DEL 3).**
+tavse fejl», «Indgangen», «Rådgiverfladen»; DEL 3). SENT: omdøbningen
+19/3 tog en TREDJE ting — advisor-policyen på `email_send_log` sidder på
+legacy-tabellen, så Morten (kun advisor) kan ikke se e-mail-loggen nogen
+steder. Migration skrevet, IKKE kørt: advisor får SELECT, med
+forudsætningen at advisor betyder «Jonas eller Morten» (DEL 2 «De tavse
+fejl», DEL 3, «Beslutninger»).**
 
 **7. september 2026, sen eftermiddag — FORNYELSEN
 SENDER: bevist i produktion kl. 11:57 med rigtige mails til rigtige
@@ -1808,6 +1813,22 @@ rækker. Den så TOM ud, ikke ØDELAGT — derfor savnede ingen den.
 bygger på seneste `sent`-række med `template_name = 'invitation'`. Et
 guard-værn (`emailSendLogKolonner.guard.test.ts`) scanner hele `src/` og
 låser at ingen læser de døde kolonner; værnet er prøvet ved forfalskning.
+**Den TREDJE ting omdøbningen tog (målt i prod 7/9 sent):** advisor-
+policyen. Den oprindelige tabel (26/2) havde «Advisors can view send
+log»; policies følger tabellen ved omdøbning, så den sidder i dag på
+`email_send_log_legacy`. Den levende tabel har fire policies — tre
+service-role og «Admins can read send log». Jonas har advisor + admin;
+Morten har KUN advisor og kan derfor ikke se e-mail-loggen nogen steder
+(`/admin/email-log` er desuden gatet af `AdminRoute`). Det er også
+derfor `Members.tsx` viser «Oprettet» i stedet for «Sendt» for en ren
+rådgiver, uden fejl — RLS filtrerer til nul rækker. **Besluttet (Jonas
+7/9): advisor skal kunne LÆSE loggen** — migration
+`20260907180000_email_send_log_advisor_read.sql`, KUN SELECT (skriverne
+er service-role), skrevet, IKKE kørt; køres i hånden med SELECT før og
+efter. **Forudsætningen står i migrationen, ordret:** det gælder mens
+advisor betyder «Jonas eller Morten»; kommer der en ekstern rådgiver, er
+advisor ikke længere det samme som huset, og policyen er for bred.
+Mangellisten bærer kortet «Advisor og admin er ikke skilt ad».
 *7/9 sidst på dagen (#705):* teksten skelner nu — «Sendt {dato}» kun når
 `email_send_log` bærer en afsendt invitationsmail, ellers «Oprettet
 {dato}» fra invitationens `created_at`. Det var FALLBACKEN til
@@ -2071,6 +2092,7 @@ facit og rækkefølge; `docs/chat-design.md` chattens form.
 | MÅLT 7/9 — bevis mangler | **Indgangens kæde har aldrig haft en virksomhed.** NUL rækker i `company_betalingslink` i prod; fem mails, den daglige cron og dag 31-fakturaen har ingen at ramme. Kæden er bevist som enkeltkørsel (FLOOR1 3/9), ikke i drift. Første rigtige virksomhed er beviset — og rammer alle indgangens ubeviste tekster. | DEL 2 «Indgangen» |
 | MÅLT 7/9 — kræver DEFINER-ændring | **Fakturateksten i `Betal.tsx` er usand i ti timer** (dag 31 kl. 00–10). `faktura_sendt_at` findes, men `hent_betalingstilbud` returnerer den ikke; ellers den mindste sande tekst («Fristen udløb {frist}. Du får en faktura …»). Rammer nul i dag, den første i morgen. | DEL 2 «Indgangen» |
 | BESLUTNING (Jonas), faglig — 7/9 | **KPI-fallbackens fire kronebeløb passer kun til én virksomhedsstørrelse.** Markeringen er bygget; tallene (omsætning 120.000, lønninger 50.000, resultat 10.000, omkostninger 80.000, plus 60 % / 15 %) er ét sæt for alle. Branchespecifikt, størrelsesafhængigt eller fraværende fallback er en faglig beslutning, ikke en rettelse. | DEL 2 «De tavse fejl», «Rådgiverfladen — listen og virksomhedssiden» (#623) |
+| SKREVET 7/9, IKKE KØRT — dikteres separat med SELECT før/efter | **Advisor kan ikke læse `email_send_log` — den tredje ting omdøbningen 19/3 tog.** Advisor-policyen fra 26/2 sidder på `email_send_log_legacy`; den levende tabel har kun service-role + admin. Morten (kun advisor) ser ingen log. Migration `20260907180000_email_send_log_advisor_read.sql` giver advisor SELECT (kun SELECT), med forudsætningen ordret i filen: gælder mens advisor betyder «Jonas eller Morten». Verifikation: `SELECT policyname, cmd, roles, qual FROM pg_policies WHERE tablename = 'email_send_log'` — fire før, fem efter. Uden den kan en mail-log på virksomhedssiden ikke bygges for rådgivere (recon-mailloggen-pr-virksomhed §6). | DEL 2 «De tavse fejl»; migrationens filhoved |
 | LØST 7/9 (#701) | **Sendt-loggen var død i et halvt år.** `EmailTemplatesView` og `Members.tsx` læste `sent_at`/`template_id`, som forsvandt ved omdøbningen 19/3; 400-fejlen blev til «Ingen afsendelser endnu» over 1.664 rækker. Rettet til `created_at`/`template_name` som `EmailLogView`, fejllinje ved `isError`, guard over hele `src/`. | DEL 2 «De tavse fejl» |
 | LØST 7/9 (#698, #699, migration kl. 14:26) | **Slutdatoen er den sidste dag MED adgang** — begge TypeScript-kopier og de to SQL-domme, flyttet sammen; målt før/efter: præcis én virksomhed (CARMA) ramt. | DEL 2 «Slutdatoen»; adgangsdomme.md |
 | LØST 7/9 (#675, #676) | **Baselinen er nul, og CI kører typecheck** — `bunx tsc --noEmit -p tsconfig.app.json` FØR testene i jobbet «Tests», uden kendt-liste og uden `continue-on-error`. Beslutningen om de fire blev «rettes» (#675), ingen af dem skjult. Bevist i drift: kørsel 34092921389, trin 6 «Typecheck» → success. Gaten fangede #678's to Record-aftagere samme dag. | DEL 1 «Kodearbejde» |
@@ -2444,6 +2466,13 @@ De konkrete ting der har kostet tid. Led efter dem.
   kaldet fejlede (400) og komponenten aldrig læste `isError`. Tom og
   fejlet SKAL se forskellige ud på skærmen — ellers savner ingen den
   (7/9, #701).
+- **Policies følger tabellen ved omdøbning — ikke navnet.** `ALTER TABLE
+  … RENAME` tog `email_send_log`s advisor-policy med over på
+  `email_send_log_legacy`, og den nye tabel med samme navn fik kun
+  service-role. Tre ting forsvandt ved samme omdøbning: `sent_at`,
+  `template_id` og advisor-læsningen — fundet et halvt år senere, hver
+  for sig. Ved omdøbning: læs `pg_policies` for BEGGE navne bagefter
+  (7/9, DEL 2 «De tavse fejl»).
 - **`res.data || []` og `const { data } = await supabase…` gør en fejl
   til et tomt svar.** TanStack ser en succes, `isError` er falsk, og
   «Der er ikke noget der haster i dag» kan betyde at `company_fornyelse`
@@ -2525,4 +2554,8 @@ Skal ikke genforhandles uden ny måling.
 - **En queryFn kaster; tom og fejlet ser forskellige ud** (7/9). En fejl
   bliver aldrig til et tomt svar; fladen viser «kunne ikke hentes» ved
   `isError`. (DEL 1 «Kodearbejde»)
+- **Advisor må læse e-mail-loggen — mens advisor betyder «Jonas eller
+  Morten»** (7/9). Kommer der en ekstern rådgiver, skal skellet mellem
+  advisor og admin bruges, og adgangen genovervejes. (migration
+  `20260907180000`, mangellisten «Advisor og admin er ikke skilt ad»)
 - **Vi går ikke på kompromis** — hvert led bliver brugt af det næste.
