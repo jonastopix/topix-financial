@@ -49,6 +49,7 @@ import { useCompanyFacts, type CompanyFact } from "@/hooks/useCompanyFacts";
 import type { FejletTraek } from "@/lib/traek";
 import { KPI_DEFS } from "@/lib/kpiDefs";
 import { KPI_FALLBACK_TARGETS } from "@/lib/appConfig";
+import { kraevRaekker } from "@/lib/kraevRaekker";
 import type { ResolvedTargets } from "@/hooks/useKpiTargets";
 
 export interface VirksomhedsMedlem {
@@ -314,8 +315,11 @@ async function hentVirksomhed(companyId: string): Promise<VirksomhedsData | null
   ]);
 
   // KPI-mål: DB-værdi hvis den findes, ellers fallback — ordret som
-  // useKpiTargets:36-47, men i denne hentning frem for en egen useQuery.
-  const dbMaal = new Map((kpiMaalRes.data ?? []).map((t) => [t.kpi_key, t]));
+  // useKpiTargets, men i denne hentning frem for en egen useQuery. Fejler
+  // kaldet, kaster kraevRaekker (rettet 7/9, recon-fallback-tal.md §4):
+  // før blev `kpiMaalRes.data ?? []` til seks fallback-mål tegnet som
+  // virksomhedens egne i blok 5. Tom liste (ingen mål sat) er stadig fallback.
+  const dbMaal = new Map(kraevRaekker(kpiMaalRes, "kpi_targets").map((t) => [t.kpi_key, t]));
   const kpiMaal: ResolvedTargets = {};
   for (const def of KPI_DEFS) {
     const ut = dbMaal.get(def.key);
