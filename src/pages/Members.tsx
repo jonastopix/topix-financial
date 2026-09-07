@@ -348,16 +348,25 @@ const Members = () => {
       const pendingEmails = allInvitations
         .filter((inv: any) => inv.status === 'pending')
         .map((inv: any) => inv.email);
+      // «Sendt {dato}» = seneste invitationsmail der faktisk gik af sted til
+      // adressen: rækken med template_name 'invitation' (send-invitation-email
+      // bruger den både første gang og ved gensendelse) og status 'sent'
+      // (process-email-queue skriver den i afsendelsesøjeblikket), nyeste
+      // created_at først. sent_at findes ikke i tabellen (omdøbt 19/3) —
+      // kaldet fejlede tavst, og fallbacken til invitationens created_at
+      // skjulte det (målt i prod 7/9).
       const lastSentMap = new Map<string, string>();
       if (pendingEmails.length > 0) {
         const { data: sendLogs } = await supabase
           .from("email_send_log" as any)
-          .select("recipient_email, sent_at")
+          .select("recipient_email, created_at")
+          .eq("template_name", "invitation")
+          .eq("status", "sent")
           .in("recipient_email", pendingEmails)
-          .order("sent_at", { ascending: false });
+          .order("created_at", { ascending: false });
         (sendLogs || []).forEach((log: any) => {
           if (!lastSentMap.has(log.recipient_email)) {
-            lastSentMap.set(log.recipient_email, log.sent_at);
+            lastSentMap.set(log.recipient_email, log.created_at);
           }
         });
       }

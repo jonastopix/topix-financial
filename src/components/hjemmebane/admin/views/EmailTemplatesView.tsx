@@ -94,15 +94,22 @@ import { EditorBar, EditorShell, type EditorAction, type EditorHandle } from "..
  * (EmailLogView-formen) med de samme fem kolonner.
  */
 
+// Kolonnerne i email_send_log som den har set ud siden omdøbningen 19/3
+// (20260319090407_email_infra.sql): created_at bærer tidspunktet, og
+// template_name er navnet direkte på rækken. sent_at og template_id hørte
+// til den gamle tabel (nu email_send_log_legacy) og findes ikke — loggen
+// her spurgte efter dem i et halvt år og så tom ud (målt i prod 7/9).
+// Formen er LogEntry i EmailLogView, som er facit.
 interface SendLogEntry {
   id: string;
-  template_id: string;
+  message_id: string | null;
+  template_name: string;
   recipient_email: string;
-  subject: string;
+  subject: string | null;
   status: string;
   error_message: string | null;
-  sent_at: string;
   is_test: boolean;
+  created_at: string;
 }
 
 interface EmailTemplate {
@@ -890,13 +897,14 @@ export const EmailTemplatesView = () => {
     });
   }, [templates, isLoading, user, queryClient]);
 
-  const { data: sendLog = [], isLoading: logLoading } = useQuery({
+  const { data: sendLog = [], isLoading: logLoading, isError: logFejlede } = useQuery({
     queryKey: ["email-send-log"],
     queryFn: async () => {
+      // Samme kolonner og samme sortering som EmailLogView (:142-145).
       const { data, error } = await supabase
         .from("email_send_log" as any)
         .select("*")
-        .order("sent_at", { ascending: false })
+        .order("created_at", { ascending: false })
         .limit(50);
       if (error) throw error;
       return (data || []) as unknown as SendLogEntry[];
@@ -1076,16 +1084,20 @@ export const EmailTemplatesView = () => {
                     <LogRaekkeSkelet />
                     <LogRaekkeSkelet />
                   </ul>
+                ) : logFejlede ? (
+                  // Fejl og tom liste er to forskellige ting: en fejlet hentning
+                  // må ikke ligne «ingen afsendelser» (sådan gemte 42703-fejlen
+                  // sig i et halvt år). Formen er RaadgiverForsideViews fejllinje.
+                  <p className="px-4 py-8 text-center text-sm text-hb-rust">Sendt-loggen kunne ikke hentes. Prøv igen.</p>
                 ) : sendLog.length === 0 ? (
                   <p className="px-4 py-8 text-center text-sm text-hb-ink-soft">Ingen afsendelser endnu</p>
                 ) : (
                   <ul className="divide-y divide-hb-line">
                     {sendLog.map((log) => {
-                      const tplName = templates.find((t) => t.id === log.template_id)?.name;
                       return (
                         <li key={log.id} className={cn("grid grid-cols-1 gap-x-4 gap-y-1 px-4 py-3 sm:items-center", LOG_GRID)}>
                           <p className="whitespace-nowrap text-xs text-hb-ink-soft">
-                            {format(new Date(log.sent_at), "d. MMM yyyy HH:mm", { locale: da })}
+                            {format(new Date(log.created_at), "d. MMM yyyy HH:mm", { locale: da })}
                           </p>
                           <p className="truncate text-sm text-hb-ink">{log.recipient_email}</p>
                           <p className="truncate text-sm text-hb-ink-soft">{log.subject}</p>
@@ -1100,7 +1112,7 @@ export const EmailTemplatesView = () => {
                             {log.is_test ? (
                               <HbTag className="border border-hb-line bg-hb-paper px-2 py-0.5 text-[11px] text-hb-ink-soft">Test</HbTag>
                             ) : (
-                              <span className="block truncate text-xs text-hb-ink-soft">{tplName || "Produktion"}</span>
+                              <span className="block truncate text-xs text-hb-ink-soft">{log.template_name}</span>
                             )}
                           </div>
                         </li>
