@@ -298,6 +298,18 @@
       <p>Stripes egne påmindelser er slået fra med vilje (<code>auto_advance=false</code>); skal der rykkes, er det vores egen kæde — og den er ikke bygget. Og dag 31-mailen siger 50.000 kr., hvor fakturaen siger 62.500 kr. inkl. moms. Ikke ændret.</p>
       <div class="meta"><span class="tag ny">Ny 4/9</span><span class="tag rust">Synligt for den der når dag 31</span><span class="tag size">Lille</span></div>
     </div>
+    <div class="card blocked new" data-status="mangler" data-spor="1" data-rammer="ingen">
+      <h3>Indgangens kæde har aldrig haft en virksomhed</h3>
+      <p><strong>Målt i prod 7/9: NUL rækker i <code>company_betalingslink</code>.</strong> Fem mails, <code>indgangs-paamindelser</code>-cronen der kører hver dag kl. 10, fakturaen på dag 31 — og ingen at sende til. Cronen finder ingenting, hver dag. Det er ikke det samme som at kæden virker: FLOOR1 3/9 var én gennemført enkeltkørsel, og rækken er væk. Fornyelsen ER derimod bevist i drift i dag med rigtige mails til rigtige mennesker.</p>
+      <p><strong>Ubevist i drift:</strong> dag 14- og dag 25-påmindelserne fra cron, dag 31-fakturaen fra cron (ikke i hånden), betalingen fra en ægte ansøger, og alle indgangens tekster på et rigtigt menneske. Konsekvens: fejl i kæden rammer nul mennesker i dag — men den FØRSTE virksomhed der bruger indgangen, rammer alle på én gang. Beviset er den første rigtige «Godkendt» i Monday.</p>
+      <div class="meta"><span class="tag ny">Ny 7/9</span><span class="tag rust">Nul rækker</span><span class="tag">Bevis mangler</span></div>
+    </div>
+    <div class="card new" data-status="fejl" data-spor="1" data-rammer="medlem">
+      <h3>Fakturateksten kan ikke rettes uden en DEFINER-ændring</h3>
+      <p><code>Betal.tsx</code> siger «Vi har sendt en faktura på det fulde beløb» ud fra <code>status === "frist_overskredet"</code>, som <code>hent_betalingstilbud</code> regner af DAGE siden underskrift (&gt; 30). Men cronen sender først fakturaen kl. 10:00 på dag 31 — fra midnat til ti siger vi at vi har sendt noget vi ikke har sendt. Stemplet findes (<code>company_betalingslink.faktura_sendt_at</code>), men funktionen returnerer det ikke — målt ordret i prod: <code>status</code>, <code>virksomhed</code>, <code>prisniveau_oere</code>, <code>frist</code>, <code>dage_tilbage</code>. SECURITY DEFINER, FORBIDDEN uden grønt lys.</p>
+      <p>To veje: udvid funktionen med <code>faktura_sendt</code> (migration) og lad teksten skelne «vi har sendt» fra «du får»; eller skriv den mindste sande tekst med det der ER i svaret — «Fristen udløb {frist}. Du får en faktura på det fulde beløb, og pladsen står stadig klar til dig.» Lille, men den rammer den første der bruger indgangen (kortet ovenfor).</p>
+      <div class="meta"><span class="tag ny">Ny 7/9</span><span class="tag rust">Usand i ti timer</span><span class="tag size">Lille</span></div>
+    </div>
     <div class="card new" data-status="mangler" data-spor="1" data-rammer="medlem">
       <h3>Uden for ruten — ankomstens løse ender</h3>
       <p>Ruten er færdig; disse ligger ved siden af den: <code>docs/indgangen-overhaling.md</code> §7.2–7.4 og §7.7, de tre <code>valueCards</code> uden hjem, pillens rolle i ankomsten (står ved siden af tjeklisten, ikke afgjort), Google-kobling som kontoindstilling (Google findes kun på login, fordi vejen ikke bærer invitationstokenet), og «Dine tal»-kortets tomme tilstand nederst.</p>
@@ -516,11 +528,17 @@
       <p><code>KPI_FALLBACK_TARGETS</code> dømmer engros (45,7 %) som «under» og lader konsulent (96,9 %) «ramme» uden at sige noget om branchen. Et branchespecifikt eller fraværende fallback er en beslutning. Fundet 4/9 ved #623.</p>
       <div class="meta"><span class="tag ny">Ny 4/9</span><span class="tag gold">Beslutning</span><span class="tag size">Lille</span></div>
     </div>
-    <div class="card blocked new" data-status="fejl" data-spor="senere" data-rammer="medlem">
-      <h3>Nøgletals-mål tegner fallback som virksomhedens egne</h3>
-      <p><strong>Målt 7/9</strong> (recon-tavse-fejl, punkt 6 på rangeringen): <code>useKpiTargets.ts:27</code> og <code>useKpiBenchmarks.ts:28</code> læser ikke <code>error</code>. Fejler kaldet — RLS, netværk, en kolonne der ikke findes — falder hooken til <code>KPI_FALLBACK_TARGETS</code> og fallback-benchmarks og tegner dem som virksomhedens egne mål, uden markering. <strong>Den eneste af de tavse fejl der giver FORKERTE tal frem for tomme:</strong> et medlem ser «under mål» eller «rammer» mod et tal ingen har sat for dem. Egen alvor — de andre 114 viser for lidt; denne viser noget falsk.</p>
-      <p>Mønstret er det samme som forsiden (#703): kast ved fejl, og lad fladen sige at målene ikke kunne hentes frem for at vise et fallback som sandhed. Fallback-værdiernes egen rimelighed er kortet ovenfor.</p>
-      <div class="meta"><span class="tag ny">Ny 7/9</span><span class="tag rust">Forkerte tal</span><span class="tag size">Lille</span></div>
+    <div class="card new" data-status="beslutning" data-spor="senere" data-rammer="medlem">
+      <h3>Nøgletals-mål: fejlen kaster og standardmål markeres — tallene står tilbage</h3>
+      <p><strong>Rettet 7/9.</strong> <code>useKpiTargets</code>/<code>useKpiBenchmarks</code> læser nu svaret gennem <code>kraevRaekker</code> og returnerer <code>isError</code> — en fejlet hentning tegner ikke længere seks fallback-mål som virksomhedens egne (punkt 6 på tavse-fejl-rangeringen). Og STANDARDMÅL MARKERES (Jonas 7/9): oprindelsen bæres som et VALGFRIT felt på værdien, så en hentning der ikke sætter det, markerer ikke — ukendt er ikke standard, og et aftalt mål kan aldrig fejlagtigt stemples. Benchmarks har haft princippet siden 5/8; målene har det nu.</p>
+      <p><strong>Det der står tilbage er TALLENE</strong> — kortet «KPI-fallbackens fire kronebeløb passer kun én størrelse» nedenfor. Markeringen siger ærligt «standard»; den gør ikke standarden rigtig.</p>
+      <div class="meta"><span class="tag ny">Ny 7/9</span><span class="tag">Rettet 7/9</span><span class="tag gold">Tallene</span><span class="tag size">Lille</span></div>
+    </div>
+    <div class="card decision new" data-status="beslutning" data-spor="senere" data-rammer="medlem">
+      <h3>KPI-fallbackens fire kronebeløb passer kun én størrelse</h3>
+      <p><code>KPI_FALLBACK_TARGETS</code> (<code>appConfig.ts</code>, sat 24/2 i en Lovable-commit uden begrundelse) er seks tal, ét sæt for alle — og FIRE af dem er absolutte kronebeløb: omsætning 120.000, lønninger &lt; 50.000, resultat 10.000, omkostninger &lt; 80.000. En virksomhed der omsætter for 40.000 om måneden fik «mål 120.000» tegnet som sit eget; en der omsætter for 2 mio. «rammer» alt. Marginerne (60 % / 15 %) har samme problem på tværs af brancher (kortet ovenfor). Markeringen er bygget 7/9; det gør ikke tallene rigtige.</p>
+      <p><strong>Faglig opgave, ikke en rettelse:</strong> branchespecifikt, størrelsesafhængigt (fx en andel af seneste omsætning) eller slet intet fallback — så «Sæt mål» faktisk vises for den der ingen har. Kun Jonas og Morten kan afgøre det.</p>
+      <div class="meta"><span class="tag ny">Ny 7/9</span><span class="tag gold">Beslutning</span><span class="tag">Faglig</span><span class="tag size">Lille</span></div>
     </div>
     <div class="card new" data-status="beslutning" data-spor="senere" data-rammer="raadgiver">
       <h3>Otte uenigheder mellem CVR og platformen</h3>
@@ -972,7 +990,7 @@
     <div class="card blocked new" data-status="fejl" data-spor="1" data-rammer="ingen">
       <h3>115 queryFn'er gør en fejl til tom data</h3>
       <p><strong>Målt 7/9</strong> (<code>~/Downloads/recon-tavse-fejl.md</code>, uden for repoet; tallene står i OVERLEVERING DEL 2 «De tavse fejl»): 139 <code>useQuery</code> i alt, 122 læser KUN <code>data</code> og <code>isLoading</code>. <strong>115 af 139 queryFn'er kaster IKKE</strong> — <code>const { data } = await supabase…</code> uden error-tjek (52 kald) eller <code>res.data || []</code> gør en Supabase-fejl til tom data, og TanStack ser en SUCCES. Der er ingen <code>isError</code> at læse. 65 <code>useMutation</code>, 25 uden <code>onError</code>, 50 mutationFn'er uden throw. Ingen query-fejl var nogensinde blevet logget. Sendt-loggen stod sådan i et halvt år (#701): den så TOM ud, ikke ØDELAGT.</p>
-      <p><strong>Rettet:</strong> global fejllogning (#702) og forsidens ni delkald (#703, <code>kraevRaekker</code> + <code>isError</code>-gren + kildelæsende værn — mønstret for resten). <strong>Rangeringen for de 115:</strong> 1) rådgiverens forside (rettet), 2) <code>/virksomheder</code> («Der er ingen virksomheder endnu» for hele porteføljen), 3) <code>/members</code>, 4) medlemmets «Dine aftaler» og ulæste, 5) Rapportering («Ingen rapporter endnu» til et medlem med 20), 6) nøgletals-mål og benchmarks — FORKERTE tal frem for tomme, eget kort under Dine tal — 7) app-config, 8–11) admin-lister, community, mutationer. Tages i den rækkefølge, ét spor ad gangen.</p>
+      <p><strong>Rettet 7/9 — punkt 1–4 er lukket:</strong> global fejllogning (#702); 1) rådgiverens forside (#703); 2) <code>/virksomheder</code> (#706); 3) <code>/members</code> (#708); 4) medlemmets forside — «Dine aftaler» og ulæste (#708), fejlen vises PR. SEKTION, ikke på hele siden. Alle med <code>kraevRaekker</code> + <code>isError</code>-gren, alle under det samme kildelæsende værn, som nu også fanger <code>.data ?? []</code>. Nøgletals-målene (punkt 6) kaster nu og markerer standardmål; tallene har eget kort under Dine tal. <strong>Tilbage:</strong> 5) Rapportering («Ingen rapporter endnu» til et medlem med 20), 7) app-config, 8–11) admin-lister, community, events, medlemsliste, mutationer uden <code>onError</code> — og de 115 queryFn'er der slet ikke kaster. Stadig husets største systematiske hul. Tages i den rækkefølge, ét spor ad gangen.</p>
       <div class="meta"><span class="tag ny">Ny 7/9</span><span class="tag rust">Tavshed</span><span class="tag">Mønster klar</span><span class="tag size">Stor</span></div>
     </div>
     <div class="card blocked" data-status="fejl" data-spor="3" data-rammer="ingen">
