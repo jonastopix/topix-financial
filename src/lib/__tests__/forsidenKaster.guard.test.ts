@@ -254,3 +254,27 @@ describe("rapporteringen kaster — «Ingen rapporter endnu — upload din førs
     expect(rapportKilde).toContain("Dine årsrapporter kunne ikke hentes.");
   });
 });
+
+// ───────── Virksomhedssidens mail-log (7/9) ─────────
+const mailLogSti = "src/components/hjemmebane/virksomhed/VirksomhedMailLog.tsx";
+const mailLogKilde = readFileSync(resolve(process.cwd(), mailLogSti), "utf8");
+
+describe("virksomhedssidens mail-log kaster, hentes først ved klik, og fejl ligner ikke tom", () => {
+  it("email_send_log læses med kraevRaekker og navngiver kilden", () => {
+    expect(mailLogKilde).toContain('from "@/lib/kraevRaekker"');
+    expect(mailLogKilde).toContain('"email_send_log",');
+    expect(mailLogKilde).toContain('.from("email_send_log")');
+    // TanStack-læsningen `logQuery.data ?? []` er fri — den er cachen, ikke Supabase-svaret.
+    expect(mailLogKilde, "en `.data ?? []`-læsning af Supabase-svaret er tilbage").not.toMatch(/(?<!Query)\.data\s*(?:\|\||\?\?)\s*\[\]/);
+  });
+  it("hentes først når nogen kigger (enabled: visLog) og dedup'er med lib/mailLog", () => {
+    expect(mailLogKilde).toContain("enabled: visLog");
+    expect(mailLogKilde).toContain("nyesteRaekkePrMail(");
+  });
+  it("fejl og tom er to forskellige tekster, og RLS-forbeholdet står i koden", () => {
+    expect(mailLogKilde).toContain("logQuery.isError");
+    expect(mailLogKilde).toContain("MAILLOG_FEJL");
+    expect(mailLogKilde).toContain("MAILLOG_TOM");
+    expect(mailLogKilde, "kommentaren om at RLS filtrerer tavst før migrationen mangler").toContain("20260907180000");
+  });
+});
