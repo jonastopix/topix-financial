@@ -375,6 +375,12 @@
       <p>Alexander Lunds virksomhed og Martin Larsens virksomhed har ingen <code>contract_end_date</code> (målt i prod 6/9) og får <code>ingen_slutdato</code> — de står aldrig i <code>FornyelsesSektion</code> og får aldrig et tilbud. Dertil Bastant Design (31/12-2027) uden indgangspris: et <code>tilbyd</code> dér giver et tomt tilbudskort. Hvad de tre skal have, er en samtale, ikke kode.</p>
       <div class="meta"><span class="tag ny">Ny 6/9</span><span class="tag gold">Beslutning</span><span class="tag size">Lille</span></div>
     </div>
+    <div class="card new" data-status="mangler" data-spor="7" data-rammer="ingen">
+      <h3>CARMAs slutdato er flyttet i hånden</h3>
+      <p>7/9 kl. 18:23: <code>companies.contract_end_date</code> for CARMA STUDIO ændret 7/9 → 11/9 i prod, så hendes fornyelseslink kunne virke — varsel 2 var sendt kl. 11:57 til en der lå uden for ordningen (slutdato ≤ 10/9), og Jonas besluttede at hun SKAL kunne bruge det. <strong>FØR-værdien er <code>2026-09-07</code>.</strong> Hun får ingen flere mails (stemplet fra 11:57 lukker begge varselsgrene; tørkørsel 18:26: ville_sende 0). Hun får fire dages adgang mere end hun havde — i hendes favør, ikke en fejl.</p>
+      <p><strong>Skal huskes:</strong> data siger nu noget andet end kontrakten. Afstemmer nogen mod Stripe, e-conomic eller den underskrevne aftale, er 11/9 ikke kontraktens dato. Kortet står til den dag afstemningen sker, eller til fornyelsen er betalt og datoen alligevel er ny.</p>
+      <div class="meta"><span class="tag ny">Ny 7/9</span><span class="tag">Data ≠ kontrakt</span><span class="tag size">Lille</span></div>
+    </div>
     <div class="card" data-status="mangler" data-spor="3" data-rammer="ingen">
       <h3>Adgangshul i <code>create-subscription-checkout</code> — lukket, ubevist</h3>
       <p><code>company_id</code> blev taget fra request-body og brugt mod service role uden adgangstjek. Lukket 1/9 og læst linje for linje — men ikke bevist i drift, for det kræver et medlems-token.</p>
@@ -829,6 +835,12 @@
   <h2>Rådgiverfladen — det der står tilbage efter 4/9</h2>
   <p class="lede">Forsiden, virksomhedslisten, virksomhedssiden, chatten, Milestones og alle otte admin-sider er Hjemmebane. Resterne herunder er målt sent 4/9 (OVERLEVERING DEL 3) — og tre ting er set på mobil. Ét kort fra 6/9 sen aften: sorteringen på <code>/virksomheder</code> (puklen der tabte virksomheden er løst, #672).</p>
   <div class="grid">
+    <div class="card new" data-status="fejl" data-spor="6" data-rammer="raadgiver">
+      <h3>Badget kender kun varsel 1</h3>
+      <p><code>fornyelsesBadge</code> (lib/fornyelsesOrd) skifter til «Varsel sendt» på <code>varsel_1_sendt_at</code> alene. CARMA STUDIO har KUN <code>varsel_2_sendt_at</code> (den sene beslutning sprang varsel 1 over), så badget på virksomhedssiden siger «Klar til tilbud», mens linjen nedenunder siger «Påmindelse sendt · 7. sep.» — set på skærm 7/9 kl. 18:29. Reglen er for smal: en påmindelse ER sendt, og rådgiveren skal ikke tro at der stadig mangler et tilbud at sende.</p>
+      <p>Samme klasse som #696 og #704 (DEL 4: «en ny ting skal spørge de eksisterende»): stemplet for varsel 2 kom til (#674, #695), og badget blev ikke spurgt. Forsidens dom har samme regel (<code>grundFraFornyelse</code> læser kun varsel 1) — tjek den med.</p>
+      <div class="meta"><span class="tag ny">Ny 7/9</span><span class="tag rust">Set på skærm</span><span class="tag size">Lille</span></div>
+    </div>
     <div class="card new" data-status="mangler" data-spor="6" data-rammer="raadgiver">
       <h3>Sortering og branchefilter på <code>/virksomheder</code></h3>
       <p>Jonas 6/9: listen skal kunne sorteres på Virksomhed, Medlemsstatus og Sidste kontakt. Det er IKKE en løs idé — den gamle <code>/members</code>-liste har sortering og branchefilter, og de står som punkt 11 i de elleve dele der blokerer swappet (OVERLEVERING DEL 3, kortet «<code>/members</code> kan ikke swappes» nedenfor). Hører til dér: bygges det på <code>/virksomheder</code>, er ét af de elleve punkter væk.</p>

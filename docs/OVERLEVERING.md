@@ -1,6 +1,26 @@
 # Overlevering
 
-**Sidst opdateret: 7. september 2026, sidst på dagen — FORNYELSESBESLUTNINGEN
+**Sidst opdateret: 7. september 2026, aften — EN FEJL VI SELV LAVEDE:
+CARMA-SAGEN. Kl. 11:57 sendte `fornyelsesvarsel-cron` varsel 2 til CARMA
+STUDIO — den første rigtige mail systemet har sendt — MED EN KNAP DER
+IKKE VIRKEDE. Målt kl. 16:33: CARMAs slutdato var 7/9, ordningen træder
+i kraft 10/9, og `afgoerFornyelsestilstand` siger `uden_for_ordningen`
+FØR beslutningen læses; `hent-fornyelsestilbud` gav `tilbud: null`,
+checkout ville svare 403, båndet ville ikke vises. FEJLEN: varselsmotoren
+dømte på beslutning og dage og spurgte aldrig tilstandsmotoren. Motorens
+grænse var rigtig — «der er ingen dag at sende noget i». RETTET (#716):
+varselsmotoren spørger tilstandsmotoren; KAN_HANDLE er KALDERNES gate
+(klar_til_tilbud, i_god_tid — det hent-fornyelsestilbud og
+opret-fornyelse-checkout siger ja til), ikke et skøn; `blokeret_af`
+bærer grunden. OG CAMILLA: Jonas besluttede at hun SKAL kunne bruge sit
+link — slutdatoen flyttet 7/9 → 11/9 i prod kl. 18:23; hun får ingen
+flere mails (stemplet fra 11:57 lukker begge grene, tørkørsel 18:26:
+ville_sende 0), bevist på skærm 18:29. LÆREN, DEL 4: «en ny ting skal
+spørge de eksisterende hvad de siger» — tre gange 7/9 (#696, #704, #716)
+blev den nye ting reconnet grundigt, og forbindelsen til det den PÅVIRKER
+aldrig undersøgt (DEL 2 «Fornyelseskæden», DEL 4).**
+
+**7. september 2026, sidst på dagen — FORNYELSESBESLUTNINGEN
 KAN TRÆFFES FRA VIRKSOMHEDSSIDEN (#707): før kunne den KUN træffes i
 `FornyelsesSektion` på /members, som er ude af menuen — hele kæden hang
 på en URL skrevet i hånden. Aftalen-kortet sætter tilbyd, sætter
@@ -583,8 +603,9 @@ ordningens §1 og §7):
   `f5c250d6`. Bucket B med `authenticateServiceRole`, tørkørsel som
   standard. I denne version en REN RAPPORT: sender intet, stempler intet.
   Cron-SQL'en står som kommentar i filhovedet (slot `0 11 * * *` UTC =
-  13:00 dansk), men jobbet er IKKE planlagt — en cron der kører en
-  rapport ingen læser, er støj. **Tørkørslen 7/9 kl. 10:15, på rigtige
+  13:00 dansk), men jobbet var IKKE planlagt i den version — en cron der
+  kører en rapport ingen læser, er støj. *(Planlagt 7/9 kl. 14:51, da
+  kæden sendte: `fornyelsesvarsler`, `0 11 * * *`, aktivt.)* **Tørkørslen 7/9 kl. 10:15, på rigtige
   data:** fundet 3, ingen fejl. PHILBERT → varsel 1, 22 dage til
   slutdato. CARMA STUDIO → varsel 2, NUL dage, med grunden «varsel 1
   springes over: sen beslutning». Studio Mini → intet, slutdatoen er
@@ -716,6 +737,55 @@ fornyelseskædens §15 og ordningens §7):
   (slutdatoen er nu den sidste dag MED adgang — DEL 2 «Slutdatoen»):
   «i dag» i varsel 2 er nu en dag man stadig kan logge ind, og
   tilbudsvinduets 14 dage regnes fra en dag senere.
+
+**CARMA-SAGEN, 7/9 — en fejl vi selv lavede, rettet samme aften (#716).**
+Skrevet som en fejl, ikke som en note, fordi den er den første rigtige
+mail systemet har sendt, og den var forkert.
+
+- **11:57** — `fornyelsesvarsel-cron` sendte varsel 2 til CARMA STUDIO
+  (camilla@carmastudio.dk). Dag 0, sen beslutning, varsel 1 sprunget
+  over. Vi fejrede det ovenfor som «kæden er hel».
+- **16:33, målt:** CARMAs slutdato var 7/9. Ordningen træder i kraft
+  10/9, og `afgoerFornyelsestilstand` returnerer `uden_for_ordningen`
+  FØR beslutningen overhovedet læses (grænsen er «på eller før»,
+  besluttet med #698: slutdatoen er den sidste dag med adgang, så
+  præcis 10/9 har ingen dag at sende noget i). Konsekvens hele vejen
+  ned: `hent-fornyelsestilbud` gav `{ tilbud: null }`,
+  `opret-fornyelse-checkout` ville have svaret 403, og
+  fornyelsesbåndet ville ikke være vist. **Vi sendte hende en mail med
+  en knap der ikke virkede.**
+- **Fejlen:** `afgoerForfaldentVarsel` dømte på beslutning og dage til
+  slutdato. Den kaldte tilstandsmotoren — for at få dagene — men læste
+  aldrig `status`. Den kendte ikke grænsen og spurgte aldrig. Motorens
+  grænse var RIGTIG; dens egen kommentar siger hvorfor: «der er ingen
+  dag at sende noget i». Det var afsenderen der ikke spurgte.
+- **Rettet (#716):** varselsmotoren spørger nu tilstandsmotoren og tier
+  når medlemmet ikke kan handle. KAN_HANDLE er valgt på KALDERNES gate
+  frem for et skøn: `klar_til_tilbud` og `i_god_tid`, fordi det er dem
+  `hent-fornyelsestilbud` (:122) og `opret-fornyelse-checkout` (:125)
+  siger ja til før slutdatoen (`udloebet_tilbyd` ligger efter og fanges
+  af «passeret»). `blokeret_af` bærer tilstanden i svaret, og cronen
+  tæller `kan_ikke_handle` for sig med grunden i `sprunget_over_liste` —
+  så «uden for ordningen» ikke drukner i «intet forfaldent».
+  Abonnementsfelterne sendes stadig som null, og det er bevist rigtigt:
+  til og med slutdagen er tier `full` uanset abonnement, og et varsel
+  kan kun være forfaldent til og med slutdagen. Begge kopier identiske;
+  CARMAs øjeblik (slutdato 7/9, nu 7/9 kl. 11:57) er låst som test og
+  giver nu intet. Testankeret flyttede fra 1/9 til 1/10 — med grænsen
+  ville slutdatoer 0–9 dage efter 1/9 aldrig få et varsel.
+- **Og Camilla — besluttet af Jonas 7/9: hun SKAL kunne bruge sit
+  link.** Slutdatoen flyttet 7/9 → 11/9 i prod kl. 18:23 (FØR-værdi:
+  `2026-09-07`). Fire dage, over ikrafttrædelsen, så hun er i ordningen
+  og linket virker. Hun får INGEN flere mails: begge varselsgrene kræver
+  `varsel_2_sendt_at = null`, og hendes stempel fra 11:57 lukker dem
+  begge — bevist i tørkørsel 18:26: `ville_sende 0`, `kan_ikke_handle
+  0`. Konsekvens: hun får fire dages adgang mere end hun havde. Det er i
+  hendes favør og ikke en fejl. Data siger nu noget andet end
+  kontrakten — mangellisten bærer kortet.
+- **Bevist på skærm 18:29:** «Fuldt til 11. sep. 2026», «Besluttet: vi
+  tilbyder», «Påmindelse sendt · 7. sep.». Og set i samme billede:
+  badget siger «Klar til tilbud», fordi `fornyelsesBadge` kun kender
+  `varsel_1_sendt_at` — CARMA har kun varsel 2. Mangellisten.
 
 **Beslutningen kan træffes fra virksomhedssiden (#707) — og skrives ét
 sted (#709), 7/9 sidst på dagen.** Målt først: beslutningen kunne KUN
@@ -2086,9 +2156,10 @@ facit og rækkefølge; `docs/chat-design.md` chattens form.
 | driftsgæld | Fejlovervågning: query- og mutationsfejl i frontend logges globalt fra 7/9 (#702) — men ingen alarm, og edge functions er ubevogtede; restore er aldrig afprøvet; `run-weekly-agent` står ikke i `cron.job` (**bekræftet 6/9:** ti jobs i prod, ingen af dem den — ugeagenten kører formentlig slet ikke, DEL 2 «Agentkæden»); 73 uploads bestod validering uden at blive committet; e-conomic-integrationen er død (migration-recon §10). | status-1-sept §6; den forrige overlevering (§7, før omskrivningen i #538) findes kun i git-historikken |
 | MÅLT 6/9 — egen opgave | **Ugeagentens cron findes ikke i prod.** `run-weekly-agent` har kun `Deno.cron` (kører aldrig på edge-runtimen); `cron.job` har ti jobs, ingen kalder den. Kun `generate-weekly-focus` (0 6 \* \* 1) kører mandag. Om agenten NOGENSINDE har kørt fra cron, er ikke efterprøvet (`agent_runs.trigger` kan svare). Skal den køre, er vejen pg_cron + `net.http_post` som `intro-reminder-cron` — men den kører LIVE og skriver det medlemmet ser, så det er en beslutning, ikke en rettelse. | DEL 2 «Agentkæden»; DEL 4 (`Deno.cron`) |
 | LØST 6/9 sen aften (#670) | **De elleve typefejl efter Lovables regenerering af `types.ts`** er rettet ved at lade husets egne interfaces sige sandheden om databasen — `EventTimes.ends_at` og de fire felter på `MemberProgress` er valgfrie OG nullable — og ved at skrive reglen ned begge steder: null og undefined betyder det samme, «det er ikke sket». Ingen casts, intet non-null, ingen ændring i `types.ts`. Tretten nye tests låser reglen, inkl. grænsen ved `starts_at` + 90 min. **Målt efter:** tsc giver præcis fire fejl (CompanyChatPane, PushView, RapporteringView ×2), 1656 tests grønne. | DEL 1 «Kodearbejde» |
-| **22/9** — PHILBERTs varsel 2; jobbet er IKKE planlagt | **Cron-jobbet for fornyelsesvarsler skal planlægges.** Kæden sender og er bevist i produktion 7/9 kl. 11:57 (DEL 2 «Fornyelseskæden»), men `fornyelsesvarsel-cron` står ikke i `cron.job` — SQL'en står i funktionens filhoved (slot `0 11 * * *` UTC = 13:00 dansk, `net.http_post` med vault-nøglen, som indgangens job). Indtil den er kørt i SQL editoren, sendes varsler kun ved manuelle kald. Første konkrete frist: PHILBERT 22/9. Mangellisten bærer kortet. | fornyelseskæden §15; DEL 2 «Fornyelseskæden» |
+| LØST 7/9 kl. 14:51 — jobbet er planlagt; **22/9** er PHILBERTs varsel 2 | **Cron-jobbet for fornyelsesvarsler skal planlægges.** Kæden sender og er bevist i produktion 7/9 kl. 11:57 (DEL 2 «Fornyelseskæden»), og jobbet ER planlagt 7/9 kl. 14:51: `fornyelsesvarsler`, `0 11 * * *` UTC (13:00 dansk), aktivt — målt i `cron.job`, ellevte job, alene på klokkeslættet. Kæden kører af sig selv. Første rigtige afsendelse er PHILBERTs varsel 2 den 22/9. | fornyelseskæden §15; DEL 2 «Fornyelseskæden» |
 | MÅLT 7/9 — punkt 1–4 LUKKET (#703, #706, #708); 5–11 og de 115 står | **De tavse fejl.** 122 af 139 `useQuery` læser aldrig `isError`; 115 queryFn'er gør en Supabase-fejl til tom data, så TanStack ser en succes; 52 kald med `const { data } = await` uden `error`-tjek; 25 mutationer uden `onError`, 50 uden throw. Global fejllogning findes fra #702; forsidens ni delkald kaster fra #703. **Rækkefølgen for resten:** 2) `/virksomheder`, 3) `/members`, 4) medlemmets «Dine aftaler» og ulæste, 5) Rapportering («Ingen rapporter endnu» til et medlem med 20), 6) nøgletals-mål og benchmarks — FORKERTE tal, ikke tomme, egen alvor — 7) app-config, 8–11) admin-lister, community, mutationer. Mønstret: `kraevRaekker` + `isError`-gren + kildelæsende værn (DEL 1 «Kodearbejde»). *7/9 sidst på dagen:* punkt 1–4 er lukket (#703, #706, #708) og standardmål markeres; punkt 5–11 og de 115 står tilbage — stadig husets største systematiske hul. | DEL 2 «De tavse fejl»; `~/Downloads/recon-tavse-fejl.md` (uden for repoet) |
 | LØST 7/9 sidst på dagen (#707, #709) | **Fornyelsesbeslutningen kan træffes fra virksomhedssiden**, og `company_fornyelse` skrives ét sted, låst af et værn. Livjas beslutning (slut 16/12) skal foreligge senest 16/11 for at varsel 1 kan gå — nu uden at nogen skal skrive /members i hånden. | DEL 2 «Fornyelseskæden» |
+| RETTET 7/9 aften (#716); CARMAs slutdato flyttet i hånden kl. 18:23 | **Varselsmotoren sendte til en der ikke kunne betale.** CARMA STUDIO fik varsel 2 kl. 11:57 med en knap der ikke virkede (slutdato 7/9 ≤ ikrafttrædelsen 10/9 → `uden_for_ordningen`). Nu spørger `afgoerForfaldentVarsel` tilstandsmotoren og tier med `blokeret_af`; cronen tæller `kan_ikke_handle`. Camillas slutdato er 11/9 (før: 2026-09-07), så linket virker; ingen flere mails. Åbent: badget kender kun varsel 1 (mangellisten). | DEL 2 «Fornyelseskæden — CARMA-sagen»; DEL 4 |
 | MÅLT 7/9 — bevis mangler | **Indgangens kæde har aldrig haft en virksomhed.** NUL rækker i `company_betalingslink` i prod; fem mails, den daglige cron og dag 31-fakturaen har ingen at ramme. Kæden er bevist som enkeltkørsel (FLOOR1 3/9), ikke i drift. Første rigtige virksomhed er beviset — og rammer alle indgangens ubeviste tekster. | DEL 2 «Indgangen» |
 | MÅLT 7/9 — kræver DEFINER-ændring | **Fakturateksten i `Betal.tsx` er usand i ti timer** (dag 31 kl. 00–10). `faktura_sendt_at` findes, men `hent_betalingstilbud` returnerer den ikke; ellers den mindste sande tekst («Fristen udløb {frist}. Du får en faktura …»). Rammer nul i dag, den første i morgen. | DEL 2 «Indgangen» |
 | BESLUTNING (Jonas), faglig — 7/9 | **KPI-fallbackens fire kronebeløb passer kun til én virksomhedsstørrelse.** Markeringen er bygget; tallene (omsætning 120.000, lønninger 50.000, resultat 10.000, omkostninger 80.000, plus 60 % / 15 %) er ét sæt for alle. Branchespecifikt, størrelsesafhængigt eller fraværende fallback er en faglig beslutning, ikke en rettelse. | DEL 2 «De tavse fejl», «Rådgiverfladen — listen og virksomhedssiden» (#623) |
@@ -2484,6 +2555,20 @@ De konkrete ting der har kostet tid. Led efter dem.
   enhedstest fangede det; det blev set ved at læse den mail der faktisk
   ville gå ud, mod en rigtig række i tørkørslen. Tørkør ALTID mod rigtige
   data og læs teksten som modtageren (7/9, #697).
+- **EN NY TING SKAL SPØRGE DE EKSISTERENDE HVAD DE SIGER.** Tre gange
+  7/9 ramte samme klasse: (1) forsidens dom sagde «Send tilbuddet til X»
+  efter systemet HAVDE sendt det (#696); (2) virksomhedssidens badge
+  sagde «Klar til tilbud» efter varslet var gået (#704); (3)
+  varselsmotoren sendte til en der ikke kunne betale — CARMA STUDIO,
+  varsel 2 kl. 11:57 med en knap der ikke virkede (#716). Hver gang blev
+  den nye ting reconnet grundigt — og forbindelsen til det den PÅVIRKER
+  blev aldrig undersøgt, fordi den lå uden for det der blev bygget.
+  REGLEN: bygger vi noget der fører et menneske videre — en mail med et
+  link, en knap, et bånd — skal reconen svare på «hvad møder de i den
+  anden ende, og siger den ja?». Ikke som en tilføjelse; som en del af
+  recon. Konkret: find gaten i den anden ende (tilbud, checkout, bånd,
+  badge) og kald den med den SAMME række, før noget sendes (7/9, DEL 2
+  «Fornyelseskæden — CARMA-sagen»).
 
 ---
 
