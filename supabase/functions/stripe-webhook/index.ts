@@ -18,6 +18,7 @@ import {
   type TraekFejl,
   type TraekUdfald,
 } from "../_shared/abonnementstraek.ts";
+import { beregnFornyelsesperiode } from "../_shared/fornyelsesperiode.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -672,13 +673,19 @@ Deno.serve(async (req) => {
         });
       }
 
-      // Kontrakten løber fra BETALINGSDATOEN, ikke fra den gamle slutdato
-      // (besluttet 1/9 — medlemmet skal ikke snydes for dage).
-      const startDato = new Date();
-      const periode_start = startDato.toISOString().slice(0, 10);
-      const slutDato = new Date(startDato);
-      slutDato.setUTCMonth(slutDato.getUTCMonth() + 12);
-      const periode_slut = slutDato.toISOString().slice(0, 10);
+      // Perioden regnes af MOTOREN (_shared/fornyelsesperiode.ts, spejl af
+      // src/lib) — det eneste regnestykke i huset for en fornyelses
+      // slutdato. BESLUTTET 7/9 (Jonas): fornyelse kan betales FØR
+      // slutdatoen. Betalt før eller på den gamle slutdato → perioden
+      // begynder hvor den gamle slutter og løber 12 måneder derfra, så
+      // den der handler tidligt ikke mister dage. Betalt efter → som
+      // hidtil (1/9): fra BETALINGSDATOEN, dagene uden adgang gives ikke
+      // tilbage. Webhookens «nu» injiceres; motoren kalder aldrig
+      // new Date() selv. 29/2 håndteres i motoren, ikke her.
+      const { periode_start, periode_slut, gren } = beregnFornyelsesperiode(
+        fornyelseCompany?.contract_end_date ?? null,
+        new Date(),
+      );
 
       // Perioden FØRST, datoen bagefter: fejler opdateringen, findes
       // perioden som spor af hvad der blev betalt. Fejler indsættelsen,
@@ -722,7 +729,7 @@ Deno.serve(async (req) => {
       }
 
       console.log(
-        `[stripe-webhook] Fornyelse for company ${fornyelseCompanyId}: ${beloebOere} øre (${betalingsmodel}), kontrakt ${fornyelseCompany?.contract_end_date ?? "ukendt"} → ${periode_slut}`
+        `[stripe-webhook] Fornyelse for company ${fornyelseCompanyId}: ${beloebOere} øre (${betalingsmodel}), kontrakt ${fornyelseCompany?.contract_end_date ?? "ukendt"} → ${periode_slut} (${gren}, periode fra ${periode_start})`
       );
       return new Response(JSON.stringify({ received: true }), {
         headers: { "Content-Type": "application/json" },

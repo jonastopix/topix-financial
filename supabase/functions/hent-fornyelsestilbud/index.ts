@@ -104,19 +104,22 @@ Deno.serve(async (req) => {
       throw new Error("Fornyelse lookup failed");
     }
 
-    // ── 4+5. Motoren afgør om der er et tilbud: KUN udloebet_tilbyd
-    //       (udløbet, beslutning tilbyd, højst 14 dage efter slutdato).
-    //       Ikke-udløbet, tilbyd_ikke, "ingen række" (ophoert) og lukket
-    //       vindue (udloebet_vindue_lukket) giver samme svar — de må ikke
-    //       kunne skelnes. Samme dom som opret-fornyelse-checkout, så
-    //       tilbud og betaling aldrig er uenige ──
+    // ── 4+5. Motoren afgør om der er et tilbud — de samme TO tilstande
+    //       som opret-fornyelse-checkout lader betale, så tilbud og
+    //       betaling aldrig er uenige: "klar_til_tilbud" (før slutdatoen,
+    //       beslutning tilbyd — betaling før udløb besluttet 7/9) og
+    //       "udloebet_tilbyd" (efter slutdatoen, inden for tilbudsvinduet
+    //       på 14 dage). Alt andet — beslutning_mangler, i_god_tid,
+    //       tilbyd_ikke, "ingen række" (ophoert), lukket vindue
+    //       (udloebet_vindue_lukket), selvbetjener — giver samme svar; de
+    //       må ikke kunne skelnes ──
     const tilstand = afgoerFornyelsestilstand({
       contract_end_date: company.contract_end_date ?? null,
       subscription_status: company.subscription_status ?? null,
       subscription_current_period_end: company.subscription_current_period_end ?? null,
       beslutning: fornyelse?.beslutning ?? null,
     });
-    if (tilstand.status !== "udloebet_tilbyd") {
+    if (tilstand.status !== "udloebet_tilbyd" && tilstand.status !== "klar_til_tilbud") {
       return jsonResponse({ tilbud: null });
     }
 
