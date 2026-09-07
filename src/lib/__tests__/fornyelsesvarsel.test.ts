@@ -6,14 +6,16 @@ import {
   type FornyelsesvarselInput,
 } from "@/lib/fornyelsesvarsel";
 
-// Fast «nu»: 1. september 2026 kl. 12:00 UTC. Dagene regnes i hele
+// Fast «nu»: 1. oktober 2026 kl. 12:00 UTC (flyttet fra 1. september 7/9:
+// med ordningen i kraft 10/9 ville slutdatoer 0–9 dage efter 1/9 ligge
+// UDEN FOR ORDNINGEN og aldrig få et varsel — grænsen har sin egen blok). Dagene regnes i hele
 // UTC-kalenderdage (fornyelse.ts), så resultatet er ens lokalt og under
 // TZ=UTC.
-const NU = new Date("2026-09-01T12:00:00.000Z");
+const NU = new Date("2026-10-01T12:00:00.000Z");
 
 /** Slutdato som «YYYY-MM-DD» præcis n kalenderdage efter NU (negativt = før). */
 function slutdatoOmDage(n: number): string {
-  return new Date(Date.UTC(2026, 8, 1) + n * 86_400_000).toISOString().slice(0, 10);
+  return new Date(Date.UTC(2026, 9, 1) + n * 86_400_000).toISOString().slice(0, 10);
 }
 
 const SENDT = "2026-08-20T09:00:00.000Z";
@@ -180,7 +182,83 @@ describe("formen", () => {
   });
 
   it("nu tæt på UTC-midnat ændrer ikke dagtallet", () => {
-    const sent = new Date("2026-09-01T23:30:00.000Z");
+    const sent = new Date("2026-10-01T23:30:00.000Z");
     expect(afgoerForfaldentVarsel(input(30), sent).dage_til_udloeb).toBe(30);
+  });
+});
+
+// ── Ordningens grænse: ingen varsler til nogen der ikke kan handle (7/9) ──
+//
+// CARMA STUDIO fik varsel 2 den 7/9 kl. 11:57 med en knap der ikke
+// virkede: slutdato 7/9, ordningen i kraft 10/9 → afgoerFornyelsestilstand
+// siger uden_for_ordningen, hent-fornyelsestilbud giver { tilbud: null },
+// checkout 403, båndet vises ikke. Motoren her læste kun dagene af
+// tilstanden, aldrig status. Nu spørger den — og tier med grund.
+describe("uden for ordningen: slutdato på eller før 2026-09-10 får ALDRIG et varsel, uanset dage", () => {
+  const paaEllerFoer = ["2026-09-10", "2026-09-09", "2026-09-07", "2026-08-31"];
+  const nuer = [
+    new Date("2026-08-01T12:00:00.000Z"), // 30–40 dage før: varsel 1-vinduet
+    new Date("2026-09-01T12:00:00.000Z"), // 0–9 dage før: varsel 2-vinduet
+    new Date("2026-09-07T11:57:00.000Z"), // CARMAs faktiske øjeblik
+  ];
+  for (const slutdato of paaEllerFoer) {
+    for (const nu of nuer) {
+      it(`slutdato ${slutdato}, nu ${nu.toISOString().slice(0, 10)}: intet, blokeret_af uden_for_ordningen`, () => {
+        const ud = afgoerForfaldentVarsel({ contract_end_date: slutdato, beslutning: "tilbyd", varsel_1_sendt_at: null, varsel_2_sendt_at: null }, nu);
+        // Efter slutdatoen vinder gren 4 (passeret) — den er også «intet».
+        expect(ud.varsel).toBeNull();
+        if (ud.dage_til_udloeb !== null && ud.dage_til_udloeb >= 0) {
+          expect(ud.blokeret_af).toBe("uden_for_ordningen");
+          expect(ud.grund).toBe(`intet: uden for ordningen — slutdatoen ${slutdato} er på eller før 2026-09-10, og medlemmet kan ikke forny`);
+        }
+      });
+    }
+  }
+
+  it("CARMA STUDIO 7/9 kl. 11:57: slutdato 7/9, tilbyd, intet sendt → INTET (dag 0, som før gav varsel 2)", () => {
+    const ud = afgoerForfaldentVarsel(
+      { contract_end_date: "2026-09-07", beslutning: "tilbyd", varsel_1_sendt_at: null, varsel_2_sendt_at: null },
+      new Date("2026-09-07T11:57:00.000Z"),
+    );
+    expect(ud).toEqual({
+      varsel: null,
+      grund: "intet: uden for ordningen — slutdatoen 2026-09-07 er på eller før 2026-09-10, og medlemmet kan ikke forny",
+      dage_til_udloeb: 0,
+      blokeret_af: "uden_for_ordningen",
+    });
+  });
+
+  it("gren 1-4 vinder stadig før gren 5: tilbyd_ikke, ingen slutdato og passeret slutdato bærer IKKE blokeret_af", () => {
+    const nu = new Date("2026-09-05T12:00:00.000Z");
+    expect(afgoerForfaldentVarsel({ contract_end_date: "2026-09-07", beslutning: "tilbyd_ikke", varsel_1_sendt_at: null, varsel_2_sendt_at: null }, nu).blokeret_af).toBeUndefined();
+    expect(afgoerForfaldentVarsel({ contract_end_date: "2026-09-01", beslutning: "tilbyd", varsel_1_sendt_at: null, varsel_2_sendt_at: null }, nu).blokeret_af).toBeUndefined();
+  });
+});
+
+describe("grænsen fra den anden side: slutdato 2026-09-11 med tilbyd FÅR sit varsel", () => {
+  const SLUT = "2026-09-11";
+  const uden = { contract_end_date: SLUT, beslutning: "tilbyd" as const, varsel_1_sendt_at: null, varsel_2_sendt_at: null };
+
+  it("30 dage før (12/8): varsel 1", () => {
+    const ud = afgoerForfaldentVarsel(uden, new Date("2026-08-12T12:00:00.000Z"));
+    expect(ud).toEqual({ varsel: 1, grund: "varsel 1 forfaldent: 30 dage til slutdato", dage_til_udloeb: 30 });
+  });
+
+  it("7 dage før (4/9), varsel 1 sendt: varsel 2", () => {
+    const ud = afgoerForfaldentVarsel({ ...uden, varsel_1_sendt_at: SENDT }, new Date("2026-09-04T12:00:00.000Z"));
+    expect(ud).toEqual({ varsel: 2, grund: "varsel 2 forfaldent: 7 dage til slutdato", dage_til_udloeb: 7 });
+  });
+
+  it("på selve slutdagen (11/9), varsel 1 sendt: varsel 2 — dagen efter ordningen begyndte", () => {
+    const ud = afgoerForfaldentVarsel({ ...uden, varsel_1_sendt_at: SENDT }, new Date("2026-09-11T12:00:00.000Z"));
+    expect(ud.varsel).toBe(2);
+    expect(ud.blokeret_af).toBeUndefined();
+  });
+
+  it("i god tid (60+ dage før) bærer ikke blokeret_af — for tidligt, ikke blokeret", () => {
+    const ud = afgoerForfaldentVarsel(uden, new Date("2026-06-01T12:00:00.000Z"));
+    expect(ud.varsel).toBeNull();
+    expect(ud.blokeret_af).toBeUndefined();
+    expect(ud.grund).toMatch(/^intet: \d+ dage til slutdato; varsel 1 forfalder om/);
   });
 });
