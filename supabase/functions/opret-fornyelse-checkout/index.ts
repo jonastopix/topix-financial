@@ -99,19 +99,30 @@ Deno.serve(async (req) => {
       throw new Error("Fornyelse lookup failed");
     }
 
-    // ── 5. Kun "udloebet_tilbyd" må betale. klar_til_tilbud er bevidst
-    //       udelukket: fornyelse betales EFTER udløb, ikke før (ordningens
-    //       §1, besluttet 1/9) — tilbuddet kommunikeres i vinduet op til
-    //       udløb, men betalingen hører til efter slutdatoen. Alt andet
-    //       (ophoert, tilbyd_ikke, selvbetjener, aktive medlemmer) afvises
-    //       med samme neutrale besked, så svaret ikke røber kategorien ──
+    // ── 5. To tilstande må betale: "klar_til_tilbud" (FØR slutdatoen,
+    //       inden for beslutningsvinduet, beslutning tilbyd) og
+    //       "udloebet_tilbyd" (EFTER slutdatoen, inden for tilbudsvinduet
+    //       på 14 dage). BESLUTTET 7/9 (Jonas): fornyelse kan betales FØR
+    //       slutdatoen — det ændrer beslutningen fra 1/9 («fornyelse
+    //       betales EFTER udløb»), som stod her til 7/9. HVORFOR: den der
+    //       handler tidligt må ikke miste dage. Den nye slutdato regnes
+    //       derfor af beregnFornyelsesperiode (_shared/fornyelsesperiode.ts)
+    //       i stripe-webhook: betalt før eller på slutdatoen → gammel
+    //       slutdato + 12 måneder; betalt efter → betalingsdagen + 12.
+    //       De to ændringer hører SAMMEN: må man betale tidligt uden det
+    //       regnestykke, mister medlemmet netop de dage.
+    //       hent-fornyelsestilbud dømmer på samme to tilstande, så tilbud
+    //       og betaling aldrig er uenige. Alt andet (ophoert, tilbyd_ikke,
+    //       udloebet_vindue_lukket, selvbetjener, beslutning_mangler,
+    //       i_god_tid) afvises med samme neutrale besked, så svaret ikke
+    //       røber kategorien ──
     const tilstand = afgoerFornyelsestilstand({
       contract_end_date: company.contract_end_date ?? null,
       subscription_status: company.subscription_status ?? null,
       subscription_current_period_end: company.subscription_current_period_end ?? null,
       beslutning: fornyelse?.beslutning ?? null,
     });
-    if (tilstand.status !== "udloebet_tilbyd") {
+    if (tilstand.status !== "udloebet_tilbyd" && tilstand.status !== "klar_til_tilbud") {
       return jsonResponse({ error: "Fornyelse er ikke tilgængelig." }, 403);
     }
 
