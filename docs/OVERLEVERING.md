@@ -426,7 +426,7 @@ referrer-låst til `app.theboardroom.dk`.
 
 Kort, med det dokument der bærer detaljen.
 
-### Fornyelseskæden — bevist i drift 1/9; tilbudsvinduet, varselsmotoren, cron-rapporten og betaling FØR slutdatoen bygget 7/9; mailene er næste stykke
+### Fornyelseskæden — bevist i drift 1/9; tilbudsvinduet, varselsmotoren, cron-rapporten, betaling FØR slutdatoen og fornyelsesbåndet bygget 7/9; mailene er næste stykke
 
 `docs/fornyelseskaeden-1-september.md`, `docs/fornyelsesordningen.md`.
 Indgangsprisen er data (`companies.indgangspris_oere`, `fornyelsespris_oere`),
@@ -578,14 +578,34 @@ ordningens §1 og §7):
   adgangen lige er åbnet igen. Tier-dommen skelner ikke «var full hele
   tiden» fra «blev full for tre sekunder siden». Ikke målt, men
   uundgåeligt. Mangellisten bærer kortet.
-- **Trappen mangler til den dør vi åbnede.** Serversiden tillader nu
-  betaling fra `klar_til_tilbud` (#684), men den eneste dør til checkout
-  er `MembershipExpiredGate:88`, monteret KUN ved `expired` (målt,
-  reconen §6). Ét kaldested i hele `src/`. Et fuldt medlem kan betale i
-  den forstand at funktionen svarer 200 — men har ingen flade at trykke
-  i. Designbeslutningen er ikke truffet (DEL 3). Reconen kortlagde otte
-  eksisterende mønstre at vælge imellem; chattens udløbsbånd
-  (sage-flade, rust-ikon, gatet på tilstand) er formmæssigt tættest.
+- **Trappen mangler til den dør vi åbnede — LØST 7/9 (#691), bevist på
+  skærm kl. 12:45.** Serversiden tillod betaling fra `klar_til_tilbud`
+  (#684), men den eneste dør til checkout var `MembershipExpiredGate:88`,
+  monteret KUN ved `expired` (målt, reconen §6): ét kaldested i hele
+  `src/`. Reconen kortlagde otte eksisterende mønstre; chattens
+  udløbsbånd (sage-flade, rust-ikon, gatet på tilstand) var formmæssigt
+  tættest, og det blev formen. **Fornyelsesbåndet** (`FornyelsesBaand`,
+  ren tekstfunktion i `lib/hjemmebane/fornyelsesbaand.ts` med fem tests)
+  står øverst på medlemmets forside, mellem hilsenen og «Dit næste
+  skridt», KUN når `hent-fornyelsestilbud` siger der er et tilbud. Dommen
+  er serverens — motoren — så klienten læser hverken tier eller tilstand,
+  og svaret røber ingen kategori (ordningens §2 holder). `kr()` bevarer
+  ører; en ulæselig slutdato udelader datoen frem for at vise noget
+  forkert. `enabled` er `!isAdvisor`: en rådgiver i «Visning som» ville
+  ellers kalde funktionen for sin egen ikke-eksisterende virksomhed.
+  **Målt frem for antaget:** forsiden laver i forvejen 19 `useQuery`-kald,
+  så ét mere ændrer ikke billedet. **Bevist på Topix** (slutdato sat 20
+  dage ude): «Dit medlemskab udløber 27. september 2026 — Forny nu til
+  20.000 kr. ekskl. moms», tre betalingsmodeller, 12 rater à 1.750 kr. i
+  alt 21.000 — 5 %-tillægget som i Stripe. **ÅBENT:** `kr()` findes nu i
+  TRE kopier (gaten, `Betal.tsx`, båndet), identiske i dag; at samle dem
+  rører pengevejen — mangellisten bærer kortet. **UNDERVEJS (Jonas 7/9):**
+  formen strammes — større tekst, ÉN primær knap der folder de tre
+  modeller ud, og luft. Mangellistens kort «Trappen mangler» er slettet.
+- **Kvitteringen (#687) og de to åbne punkter fra samme recon** —
+  toasten der kan ramme forkert den anden vej, og dobbeltbetaling der er
+  lukket ved et held — står som kort på mangellisten siden #689 og
+  gentages ikke her.
 - **Dobbeltbetaling er lukket — ved et held, ikke ved en regel.** Efter
   en gennemført fornyelse ligger den nye slutdato tolv måneder ude, så
   motoren siger `i_god_tid` og checkout svarer 403. Værnet er
@@ -772,13 +792,15 @@ browseren i brugerens zone — tæt på midnat søndag/mandag kan de være
 uenige med op til to timer. Afgørelsen i Deno er den bindende. Står som
 fælde i DEL 4.
 
-**Puklen tæller ikke udløbne — UNDERVEJS 7/9 (PR-nummer åbent).**
-Besluttet af Jonas 7/9: udløbne forslag skal væk fra forsiden. Puklen
-hedder «venter på din afgørelse», og oprydning er ikke en afgørelse.
-Dommen kan ikke udtrykkes i SQL uden at duplikere ISO-ugen, så den
-filtreres i JS efter hentningen (`AdvisorDashboard`, `useVirksomhed`),
-med samme `afgoerForslagsgyldighed`. Skriv den som merget når PR'en er
-det.
+**Puklen tæller ikke udløbne — LØST 7/9 (#689).** Besluttet af Jonas
+7/9: udløbne forslag skal væk fra forsiden. Puklen hedder «venter på din
+afgørelse», og oprydning er ikke en afgørelse. Dommen kan ikke udtrykkes
+i SQL uden at duplikere ISO-ugen, så den filtreres i JS efter hentningen
+— forsidens pukkel (`AdvisorDashboard`) og virksomhedssidens signal
+(`useVirksomhed`), begge med samme `afgoerForslagsgyldighed`. **Hele
+kæden er dermed bevist:** motoren, afgørelsen og fladen (#688), puklen og
+signalet (#689) — på skærm 7/9 kl. 11:31 hos remm.: knapper væk, badge
+«Udløbet», grunden skrevet ud.
 
 **Ingen cron bogfører `expired`.** Skemaets egen kommentar forudser den
 (`20260825200000_agent_proposals.sql:10`: «expired (cron-dom, ikke
@@ -788,6 +810,56 @@ forsvinder fra forsiden, men ligger som `proposed` i databasen. Cron'en
 er en selvstændig opgave, og den SKAL bruge `afgoerForslagsgyldighed`,
 så der er én dom — ikke en SQL-kopi af ISO-ugen. Mangellisten bærer
 kortet.
+
+### Opgave-modellen — målt 7/9: cronen virker, aktive opgaver udløber aldrig, under ti procent svarer
+
+`~/Downloads/recon-opgavers-udloeb.md` (uden for repoet — genskabes hvis
+den bruges). Anledningen var forsiden: en opgave med «Fristen var 4.
+september», tre dage forfalden, med knapperne Gjort / Ikke endnu / Drop
+den — lige efter at vi havde bygget en udløbsdom for agentforslag (#688).
+
+**Opgave-udløbs-cronen VIRKER — og det var værd at måle.** Målt i prod
+7/9 kl. 12:40: 31 forslag stod som `proposed` med `expires_at` i
+fortiden, og `opgave-udloeb` havde kørt kl. 04:00 med `UPDATE 0` seks
+dage i træk. Det lignede en fejl. **Det var det ikke.** Prods kommando er
+ORDRET migrationens (`20260901090000`), og alle 31 udløb ligger mellem
+06:00:05 og 06:02:05 SAMME dag — alle `ai_weekly`, altså mandagens
+ugefokus-forslag født 24/8 kl. 06:00 (`generate-weekly-focus`, 0 6 \* \*
+1) med fjorten dages levetid. Cronen kører kl. 04:00, to timer FØR de
+udløber, og rydder dem i nat. **Konsekvensen der skal stå:** et
+`ai_weekly`-forslag lever altid fjorten dage PLUS tyve timer, fordi det
+fødes kl. 06 og ryddes kl. 04. Ikke skadeligt — men «forslag lever
+fjorten dage» er ikke sandt, hvis det nogensinde skrives på en flade
+eller i en mail. Står som fælde i DEL 4.
+
+**Aktive opgaver udløber ALDRIG.** «Fristen var …» er KUN en tekst
+(`lib/hjemmebane/aftaler.ts`, `fristTekst`: `due_date < i dag`). Der er
+ingen cron, ingen status, ingen kolonne der siger forfalden — opgaven
+bliver stående på forsiden til nogen trykker Gjort, Ikke endnu eller Drop
+den, uden øvre grænse. Migrationen 22/8 forudså det selv
+(`20260822220000_opgave_model_kolonner.sql:52-53`): «de to kommende
+cron-job: udløb af forslag (B8) og forfald af aktive opgaver (B2)». Det
+første blev bygget 1/9; det andet findes ikke, og indekset
+`idx_company_actions_due` står ubrugt. Rådgiveren SER det: forsidens dom
+giver «Opgaven «…» forfaldt for N dage siden» (alvor 75), men
+virksomhedssidens bullet «N opgaver venter på svar» tæller kun `proposed`
+og `open`. **I dag rammer det præcis ÉN virksomhed i hele produktionen —
+Topix' egen,** tre dage forfalden. Det er en beslutning, ikke en brand.
+Mangellisten bærer kortet.
+
+**Tre udløbsformer i huset, som fund:** agentforslag på en KALENDERUGE
+(dømt i kode, `afgoerForslagsgyldighed`, ikke bogført i databasen);
+opgaveforslag på et TIDSSTEMPEL 14–30 dage efter oprettelsen
+(`beregnUdloeb`, dømt både i kode — `erUdloebet`, `filtrerUdloebneForslag`
+— og af cronen, bogført som `expired`); aktive opgaver på INGENTING.
+Tidszonen følger med: uge og dag dømmes på lokale komponenter,
+tidsstemplet i UTC. Hører til opgave-model-epic'et (DEL 3). Mangellisten
+bærer kortet.
+
+**Tallet der siger mest om opgave-modellen som produkt, målt 7/9:** 97
+forslag i alt — 10 gjorte, 63 udløbne, 7 afviste, 1 aktiv. Medlemmerne
+svarer på under ti procent af det systemet foreslår. Ikke en fejl i koden
+— et produktspørgsmål, og det hører i epic'et. Mangellisten bærer kortet.
 
 ### Indgangen — kæden FØR platformen er hel 3/9: «Godkendt» → betalingsmail → påmindelser → dag 31-faktura → betaling → adgang
 
@@ -1646,7 +1718,7 @@ facit og rækkefølge; `docs/chat-design.md` chattens form.
 | åbent, målt 6/9, delvist ændret 7/9 — værnet er stadig et menneske | **Datogaten omgås stadig hvor pengene skifter hænder.** `hent-fornyelsestilbud` kalder nu motoren (#678), men både den og `opret-fornyelse-checkout` kræver `udloebet_tilbyd`, som afgøres i udløbsgrenen FØR datogaten. En virksomhed «uden for ordningen» med beslutning `tilbyd` får derfor stadig et systemtilbud og kan betale — nu dog kun de første 14 dage efter udløb. Om gaten SKAL gælde der, er en beslutning — i dag er det rådgiverens finger der er værnet. | fornyelseskæden §13.3 |
 | LØST 7/9 (#678) — vinduet; Studio Minis række er nu en BESLUTNING om timing | **Tilbudsvinduet efter udløb er en tilstand:** `udloebet_vindue_lukket`, kun efter `tilbyd`, fra dag 15 efter slutdato; bevist i drift kl. 09:36–09:38 (DEL 2 «Fornyelseskæden»). **Studio Mini (slut 5/9, `tilbyd`) FORLÆNGER IKKE (Jonas 6/9):** i dag er de dag 2 i vinduet; fra 20/9 lukker vinduet af sig selv, og rækken bliver `udloebet_vindue_lukket` uden at nogen rører den. Beslutningen er om den skal ryddes FØR — indtil da viser gaten dem et tilbud. CARMA STUDIO (7/9, `tilbyd`) håndteres manuelt i dialog. | fornyelsesordningen §3; fornyelseskæden §13.4, §14 |
 | BYGGET 7/9 eftermiddag (#683 motoren, #684 pengevejen), udrullet kl. 08:53 UTC — ændrer beslutningen fra 1/9 | **Fornyelse kan betales FØR slutdatoen.** Før kunne et medlem på dag 22 hverken se eller betale sit tilbud (checkout 403, `hent-fornyelsestilbud` null, gaten kun for udløbne). **Regnestykket, ordret:** betalt FØR eller PÅ slutdatoen → GAMMEL SLUTDATO + 12 måneder; betalt EFTER → BETALINGSDAGEN + 12. Grænsen er kontinuert (28/9 og 29/9 → 2027-09-29; 30/9 → 2027-09-30). `periode_start` er udledt af `company_perioder`s invariant: ny periode begynder hvor den gamle slutter. 29. februar er en synlig gren (→ 1/3 året efter, slutdatoen er eksklusiv). **`cancel_at` er IKKE ændret, og skal ikke ændres** — abonnementet er betalingsplanen, ikke adgangen; en der betaler tidligt får et abonnement der ophører FØR kontrakten, og det er rigtigt (DEL 2 «Fornyelseskæden», rettelsen; DEL 4). | fornyelseskæden §15.3, §7; fornyelsesordningen §1 |
-| ÅBENT — designbeslutning, 7/9 | **Et ikke-udløbet medlem kan betale, men kan ikke SE tilbuddet.** `MembershipExpiredGate` vises kun ved tier `expired` (`Index.tsx`), og ingen anden flade viser fornyelsen til et medlem (målt 7/9). Betalingsvejen er åben fra dag 60 (`klar_til_tilbud`), men den eneste vej til checkout er gaten. Hvor tilbuddet skal vises før slutdatoen — forsiden, en mail, et kort — er ikke besluttet. *Målt 7/9 middag (`~/Downloads/recon-fornyelse-efter-betaling.md` §6, uden for repoet): `MembershipExpiredGate:88` er det ENESTE kaldested i `src/`; reconen kortlagde otte eksisterende mønstre at vælge imellem, og chattens udløbsbånd (sage-flade, rust-ikon, gatet på tilstand) er formmæssigt tættest.* Mangellisten bærer kortet («Trappen mangler til den dør vi åbnede»). | DEL 2 «Fornyelseskæden»; fornyelseskæden §15.3 |
+| LØST 7/9 (#691) — fornyelsesbåndet, bevist kl. 12:45; formen strammes (UNDERVEJS, Jonas 7/9) | **Et ikke-udløbet medlem kan betale, men kan ikke SE tilbuddet — LØST: båndet på forsiden.** `MembershipExpiredGate` vises kun ved tier `expired` (`Index.tsx`), og ingen anden flade viser fornyelsen til et medlem (målt 7/9). Betalingsvejen er åben fra dag 60 (`klar_til_tilbud`), men den eneste vej til checkout er gaten. Hvor tilbuddet skal vises før slutdatoen — forsiden, en mail, et kort — er ikke besluttet. *Målt 7/9 middag (`~/Downloads/recon-fornyelse-efter-betaling.md` §6, uden for repoet): `MembershipExpiredGate:88` er det ENESTE kaldested i `src/`; reconen kortlagde otte eksisterende mønstre at vælge imellem, og chattens udløbsbånd (sage-flade, rust-ikon, gatet på tilstand) er formmæssigt tættest — og det blev formen.* *LØST 7/9 kl. 12:45 (#691): `FornyelsesBaand` øverst på forsiden, kun når serveren siger tilbud; bevist på Topix med 20.000 kr. og tre modeller (DEL 2 «Fornyelseskæden»). Kortet er slettet fra mangellisten. Undervejs: større tekst, én primær knap, luft.* | DEL 2 «Fornyelseskæden»; fornyelseskæden §15.3 |
 | samtale, målt 6/9 | **To virksomheder uden slutdato rammer aldrig ordningen:** Alexander Lunds virksomhed og Martin Larsens virksomhed (`ingen_slutdato`). Og **Bastant Design** (31/12-2027) har ingen indgangspris, så fornyelsesprisen er ukendt — et `tilbyd` dér ville give et tomt tilbudskort. | fornyelseskæden §13.4 |
 | **13/9** | doggybeds træk på 4.375 kr. på den nye konto — MÅL at det gik igennem. Derefter flyttes de tretten i portioner. TuaMea (2/9), Floren engros og BR Roset (3/9) venter til efter egne træk. **Samme dag, beviset for #563 (nu stærkere):** `companies.subscription_status` skal forblive NULL på doggybed (`382fd787-3141-45c7-8eea-297b7b947fe0`) efter trækket — fordi grenen springer over med vilje, ikke fordi noget fejler — og `customer.subscription.updated` skal stå grøn i Stripes Event deliveries. SQL'en står i migration-recon §26. **Samme dag, beviset for #572:** en række i `company_traek` for doggybeds faktura med `status = 'betalt'` (SQL editor); fejler trækket, skal rækken stå som `fejlet` og badgen vise sig på /members (#574). | migration-recon §25, §26; indgangen-design §31 |
 | LØST 3/9 kl. 10:42 | **Hvorfor skrev webhooken ikke på 2/9?** Eventet BLEV leveret; webhooken svarede 500 i skrivningen (fem gentagelser fra Stripe). Efter #563 gensendt manuelt → 200 `skipped: migreret_subscription`, «Recovered». Webhooken får subscription-events; hvidlisten er bevist på det rigtige event. Hvad der kastede, afdækkes bevidst ikke — men det art-løse selvbetjeningsabonnement går stadig gennem den kode. | migration-recon §26 |
@@ -1691,7 +1763,7 @@ facit og rækkefølge; `docs/chat-design.md` chattens form.
 | noteret | **Svar udløser ingen mail til andre end de nævnte** (`notify-community-svar` findes, in-app til forfatteren). Ikke afdækket nu. | community-design §9 |
 | ikke afdækket | **Nudging generelt** — Jonas spurgte 3/9; ingen recon lavet. | community-design §9 |
 | epic (rådgiverfladen) | **Rådgiver som medlem.** Jonas 3/9: «jeg som rådgiver også skal have en virksomhed, hvor jeg kan switche imellem, om jeg vil se platformen som rådgiver, eller om jeg vil agere rådgiver eller være inde på min medlemsvirksomhed.» IKKE company-override («se en andens virksomhed»); rådgiveren ER selv medlem et sted og skifter hat. Jonas har i dag TO auth-brugere (rådgiver + medlemskonto på Topix.dk — dén modtog opslagsmailen). | konvergens §2.9, community-design §9 |
-| EPIC, én samtale (Jonas 4/9) — ikke tre løse tråde | **Opgave-modellen, Milestones og refleksionens form hænger sammen og tages SAMLET.** **Målt i prod 4/9 kl. 11:48:** `company_actions` har 64 `proposed`, 63 `expired`, 10 `done`, 7 `dismissed`, 1 `active`. Modellen kører, men bruges ikke. **ÅRSAGEN, målt i koden samme dag** (`~/Downloads/recon-opgavemodellen.md`, uden for repoet — genskabes hvis den bruges): `generate-weekly-focus` skriver op til TRE forslag pr. virksomhed HVER MANDAG kl. 06 (72 forslag fra 24.–31. august = to kørsler); levetiden er 14 dage (`opgaveEngine.ts`); «Dine aftaler» på medlemmets forside viser ÉT forslag ad gangen (`BoardroomView` + `aftaler.ts`, kilde-rangeret: advisor før reflection før ai_weekly/agent); og der er INGEN besked om et nyt forslag — `weekly_focus_ready` skrives med `priority: "info"` og holdes bevidst ude af mailkæden, `foreslaa-opgave` rører ikke `awaiting_reply_from`, og der findes ingen ulæst-markering nogen steder. Fire kilder opretter opgaver: W1 ugefokus, W2 agenten, W3 rådgiverens «foreslå opgave», W4 en død komponent der aldrig rendres. **KONSEKVENSEN, som skal læses rigtigt: de 63 udløbne opgaver er IKKE tegn på at medlemmerne ikke gider.** De 63 er arven fra før modellen (lukket manuelt 31/8); cron'en har endnu intet lukket, første bølge udløber 7/9. Platformen foreslår langt mere end den viser, og fortæller ingen om det. Modellens eget designdokument forudså det (`docs/opgave-model-design.md`, B8): «uden en udgang vokser bunken med cirka 150 om året pr. aktiv virksomhed». `deferral_count` (udskydelser, højst to) og `week_key` (sporbarhed, uden logik) er bygget, men har formentlig aldrig været i brug — der er ÉN aktiv opgave i prod, og den er den første registrerede aftale i platformens levetid (31/8, Topix, «Afslut handout for bogholderi»). **DET DER SKAL AFGØRES — åbne spørgsmål, ikke besvaret her:** (1) Skal der foreslås færre, eller vises flere? Tre om ugen pr. virksomhed mod ét synligt ad gangen er en ubalance, uanset hvilken vej den rettes. (2) Skal et nyt forslag give besked? I dag gør det ikke. (3) Milestones og `company_actions` er to tabeller for beslægtede ting — hvad er forskellen, og skal de forenes? Menuen har stadig et Milestones-punkt (Jonas 4/9: «den funktion skal vi have fundet ud af hvordan vi gør langt mere nyttig og brugbar»). (4) Refleksionens tre spørgsmål. Målt 4/9: formen er IKKE problemet — 20 af 24 refleksioner har alle tre felter udfyldt, og andelen der reflekterer STIGER (12 % i marts til 67 % i juni). Men antallet der rapporterer FALDER: 17, 14, 12, 9, 8 ud af tredive. Undersøges ikke nu (Circle-exit og nye medlemmer ændrer forudsætningerne), men hører til samme samtale. De samme punkter står som det designet ikke afgør i `docs/forsiden-design.md` §12. | `docs/forsiden-design.md` §12; `docs/opgave-model-design.md` B6–B10; `docs/opgaver-og-chat-31-august.md` §2, §8; `~/Downloads/recon-opgavemodellen.md` |
+| EPIC, én samtale (Jonas 4/9) — ikke tre løse tråde | **Opgave-modellen, Milestones og refleksionens form hænger sammen og tages SAMLET.** **Målt i prod 4/9 kl. 11:48:** `company_actions` har 64 `proposed`, 63 `expired`, 10 `done`, 7 `dismissed`, 1 `active`. Modellen kører, men bruges ikke. **ÅRSAGEN, målt i koden samme dag** (`~/Downloads/recon-opgavemodellen.md`, uden for repoet — genskabes hvis den bruges): `generate-weekly-focus` skriver op til TRE forslag pr. virksomhed HVER MANDAG kl. 06 (72 forslag fra 24.–31. august = to kørsler); levetiden er 14 dage (`opgaveEngine.ts`); «Dine aftaler» på medlemmets forside viser ÉT forslag ad gangen (`BoardroomView` + `aftaler.ts`, kilde-rangeret: advisor før reflection før ai_weekly/agent); og der er INGEN besked om et nyt forslag — `weekly_focus_ready` skrives med `priority: "info"` og holdes bevidst ude af mailkæden, `foreslaa-opgave` rører ikke `awaiting_reply_from`, og der findes ingen ulæst-markering nogen steder. Fire kilder opretter opgaver: W1 ugefokus, W2 agenten, W3 rådgiverens «foreslå opgave», W4 en død komponent der aldrig rendres. **KONSEKVENSEN, som skal læses rigtigt: de 63 udløbne opgaver er IKKE tegn på at medlemmerne ikke gider.** De 63 er arven fra før modellen (lukket manuelt 31/8); cron'en har endnu intet lukket, første bølge udløber 7/9. Platformen foreslår langt mere end den viser, og fortæller ingen om det. Modellens eget designdokument forudså det (`docs/opgave-model-design.md`, B8): «uden en udgang vokser bunken med cirka 150 om året pr. aktiv virksomhed». `deferral_count` (udskydelser, højst to) og `week_key` (sporbarhed, uden logik) er bygget, men har formentlig aldrig været i brug — der er ÉN aktiv opgave i prod, og den er den første registrerede aftale i platformens levetid (31/8, Topix, «Afslut handout for bogholderi»). **DET DER SKAL AFGØRES — åbne spørgsmål, ikke besvaret her:** (1) Skal der foreslås færre, eller vises flere? Tre om ugen pr. virksomhed mod ét synligt ad gangen er en ubalance, uanset hvilken vej den rettes. (2) Skal et nyt forslag give besked? I dag gør det ikke. (3) Milestones og `company_actions` er to tabeller for beslægtede ting — hvad er forskellen, og skal de forenes? Menuen har stadig et Milestones-punkt (Jonas 4/9: «den funktion skal vi have fundet ud af hvordan vi gør langt mere nyttig og brugbar»). (4) Refleksionens tre spørgsmål. Målt 4/9: formen er IKKE problemet — 20 af 24 refleksioner har alle tre felter udfyldt, og andelen der reflekterer STIGER (12 % i marts til 67 % i juni). Men antallet der rapporterer FALDER: 17, 14, 12, 9, 8 ud af tredive. Undersøges ikke nu (Circle-exit og nye medlemmer ændrer forudsætningerne), men hører til samme samtale. De samme punkter står som det designet ikke afgør i `docs/forsiden-design.md` §12. *Målt 7/9 kl. 12:40: 97 forslag i alt — 10 gjorte, 63 udløbne, 7 afviste, 1 aktiv; medlemmerne svarer på under ti procent. Aktive opgaver udløber aldrig (B2-cronen forudset 22/8, aldrig bygget; rammer i dag én virksomhed, Topix' egen). Tre udløbsformer i huset. Detaljen i DEL 2 «Opgave-modellen»; mangellisten bærer tre kort.* | `docs/forsiden-design.md` §12; `docs/opgave-model-design.md` B6–B10; `docs/opgaver-og-chat-31-august.md` §2, §8; `~/Downloads/recon-opgavemodellen.md` |
 | NÆSTE — rækkefølgen for forsiden (4/9 sen eftermiddag) | **1. Fladen på dommen — GJORT og BEVIST (#637, #638).** `/forside` viser dommen; målt på skærm 4/9 kl. 13:04: syv linjer mod køernes 38 rækker, nul under tærsklen. Køerne er fjernet; DEL 2 bærer detaljen. **2. Virksomhedssiden der læser «derfor er du her»** (§6): linjen bærer allerede grunden som `?grund=<slags>` (#637) — virksomhedssiden viser den ikke endnu; formen (parameterens navn er sat, visningen øverst i blok 1 er ikke) er det næste skridt. **3. Swappet ind på roden — GJORT 4/9 aften (#650).** `/forside` viderestiller til `/`; rådgiveren lander i det nye. `AdvisorDashboard` bliver stående, fordi `hentAdvisorDashboard` bor der — dens JSX er uden aftager, og det står i filhovedet. **`/members` venter stadig** på at Indgang, Fornyelse, Legat og admin-sektionen får et hjem: Indgang og Fornyelse ER på forsiden som slags 1 og 2 gennem dommen, men knapperne (beslut, sæt pris, send mail) findes kun i sektionerne på `/members`; Legat og admin-sektionen har intet sted i designet endnu. Se også rækken om konverteringen nedenfor — `Members` konverteres SIDST. | `docs/forsiden-design.md` §6, §12, §13; DEL 2 «Forsiden — fra KØ til OPGAVE» |
 | BESLUTTET 4/9 eftermiddag — det gamle design KONVERTERES, ikke flyttes; rækkefølgen står | **Det gamle design skal konverteres, ikke flyttes.** Jonas 4/9: «vi springer aldrig over hvor gærdet er lavest — vi bygger det ordentligt.» Anledningen var ønsket om at få den gamle menu væk fra adminfladen («pisseirriterende at flyve frem og tilbage mellem nyt og gammelt design»), og idéen om at skifte SKALLEN uden at røre siderne. **Målt samme dag** (`~/Downloads/recon-admin-skallen.md`, uden for repoet — genskabes hvis den bruges): ingen af de ni admin-sider (`/admin/emails`, `/admin/email-log`, `/admin/review-queue`, `/admin/config`, `/admin/feedback`, `/admin/legat`, `/admin/import`, `/admin/report-debug/:reportId`, `/members`) bruger noget fra `AppLayout` — nul `useContext`/`useOutletContext`, ingen props; de importerer den kun som wrapper, så et skalskifte er teknisk trivielt. **MEN:** `index.html` har hardkodet `class="dark"`, og `hjemmebane.css` definerer kun `--hb-*`-variabler; alle ni har overskrifter med `text-foreground` (lys tekst fra `.dark`), som ville stå direkte på Hjemmebanes lyse papir og blive ulæselige, og indholdet (`glass-card`, `bg-card`, shadcn) ville blive mørke bokse på lys baggrund — præcis det udtryk Jonas afviste på virksomhedssidens chat (blok 4). Et skalskifte flytter altså problemet frem for at løse det. **Valget er A: hver side konverteres rigtigt, én ad gangen, i den rækkefølge de gør skade.** **RÆKKEFØLGEN:** **1. `/milestones` FØRST** — den eneste flade i MEDLEMMETS menu der lander i det gamle design; den rammer kunder, ikke rådgivere. Bemærk: dens FUNKTION afventer opgave-modellen (epic'et fra #632, rækken ovenfor), men dens SKAL er et problem nu. Udtrykket konverteres med den funktion siden har; bliver funktionen lavet om senere, er skallen allerede rigtig. **2. Admin-siderne — SEKS af otte GJORT samme eftermiddag** (#645 Legat, #646 e-mail-log, #647 Review Queue, #648 Platformconfig, #649 Import, #651 Feedback; rækken «KONVERTERINGEN» nedenfor og DEL 2). `ReportDebug` er under konvertering; `EmailTemplates` konverteres IKKE, den designes (egen række). **3. `Members` SIDST**, fordi den alligevel skal skæres op: Indgang og Fornyelse flytter til forsiden, listen er erstattet af `/virksomheder`, og Legat og admin-sektionen skal have et hjem. At konvertere den nu ville være at gøre en side pæn, som skal deles i fire. Opskriften er den fra byggeomkostnings-reconen (rækken om rådgiverfladens overhaling): motor først, gammel flade fryses på motoren, ny flade på midlertidig route, swap på den gamle URL. | `~/Downloads/recon-admin-skallen.md`; `docs/raadgiverfladen-design.md` §9–10; DEL 2 «Rådgiverfladen — designet er låst» |
 | LØST 4/9 aften — begge etaper GJORT (etape 2: #644); målingen står, så den kan læses bagud | **`/milestones` er konverteret til Hjemmebane i to etaper.** **HVORFOR DEN KOMMER FØRST:** det er den ENESTE flade i MEDLEMMETS menu der lander i det gamle mørke design (`HbMemberShell.tsx:147` → `ProtectedRoute` + `AppLayout`, `App.tsx:197`). Jonas 4/9: «rigtig dårlig oplevelse». Den rammer kunder, ikke rådgivere — de øvrige ni gamle sider er admin (rækken ovenfor). **FORMEN FINDES — konverteringen følger et mønster frem for at opfinde et:** `HbProgressBar` (`hjemmebane/akademi/HbProgressBar.tsx`: «3 af 8» + hairline-bar, ingen procenter, ingen badges); `HbItemRow` (`hjemmebane/akademi/HbItemRow.tsx`: række med tilstandsprik i fire tilstande, titel, meta, hele rækken som link); `HbHandoutCard` (`hjemmebane/handouts/HbHandoutCard.tsx`: kort med status, fremdriftsbar og klik som handling); `HbOnboardingTjekliste` (afkrydsningsrække med gjort-tilstand); virksomhedssidens milestones-blok i læse-tilstand (`hjemmebane/virksomhed/VirksomhedView.tsx:1037–1063`); og `hjemmebane/handouts/HbHandoutLeverRow.tsx:75–84` — den ENESTE Hb-flade der i dag viser en milestone med fremgang. **MÅLT 4/9, omfanget** (`~/Downloads/recon-milestones.md`, uden for repoet — genskabes hvis den bruges): `pages/Milestones.tsx` 18 `text-foreground`, 14 `text-muted-foreground`, 2 `glass-card`, 5 shadcn-imports; `MilestonesList.tsx` 13, 29, 4, 6; `DashboardMilestones.tsx` 2, 5, 1, 0. Dertil rå tailwind-farver for kategorierne (`emerald/blue/indigo/pink-500/15`, `dark:text-…-400`) fra `lib/milestoneCategories.ts`. Tekst DIREKTE på skallens baggrund, som bliver ulæselig på lyst papir: `Milestones.tsx:137, 140, 156, 159`. `MilestonesList.tsx` har INGEN — alt ligger i `glass-card` eller i portaler. Data: ingen `useQuery`; læsning på `company_id` (`select("*")`), alle skrivninger direkte i tabellen, ingen edge function i skrivevejen (de tre `functions.invoke` er Slack-notifikationer bagefter). **DET DER GØR DEN DYR — de fire RADIX-PORTALER:** `Dialog`, `AlertDialog`, `Popover` og `Select` portalerer til `<body>`, uden for `.theme-hjemmebane`, og arver appens mørke tokens. Huset har lært det før: `HbOnboardingTjekliste.tsx:31–34` («IKKE EN RADIX-DIALOG») og `HbSidebar.tsx:168–170` («bevidst IKKE shadcn Sheet»). De skal derfor BYGGES OM, ikke omfarves — det er datovælgeren (`Popover`+`Calendar`), kategorivælgeren (`Select`), detalje-dialogen (`Dialog`) og slet-bekræftelsen (`AlertDialog`). **ETAPEDELINGEN, besluttet 4/9:** **Etape 1 (GJORT 4/9):** siden, listen og rækkerne i Hjemmebane, monteret i `HbMemberShell`; handlinger der krævede en portal åbnede ind til den gamle komponent uændret. **Etape 2 (GJORT 4/9 aften, #644):** de fire portaler bygget om med den nye primitiv `HbOverlejring` — fokusfangst, Escape i capture-fasen, overlay-klik der ikke lukker advarselsdialogen, fokus tilbage; scroll-låsen på body bevidst ikke genskabt (DEL 2 «Konverteringen»). Om #644 også afgjorde de to punkter nedenfor er ikke efterprøvet i denne bogføring. **TO TING DER SKAL AFGØRES i etape 2 eller før:** (1) Kategorifarverne er rå tailwind i mange kulører; Hjemmebane bruger få farver med vilje. Skal de oversættes eller erstattes af noget roligere? (2) «Nået» dømmes forskelligt: `/milestones` bruger `progress >= 100` (`Milestones.tsx:60`, `MilestonesList.tsx:52`), mens virksomhedssidens blok bruger `status === "completed"` (`VirksomhedView.tsx:976`). To domme for det samme — samme slags dublet som dem vi fjernede 3/9. **OG BEMÆRK,** som allerede står i epic'et fra #632: Milestones' FUNKTION afventer opgave-modellen. Det her er dens UDTRYK. Bliver funktionen lavet om senere, er skallen allerede rigtig. | `~/Downloads/recon-milestones.md`; rækken «det gamle design KONVERTERES» ovenfor; epic-rækken fra #632; `docs/opgave-model-design.md` §3.1 |
@@ -1704,7 +1776,7 @@ facit og rækkefølge; `docs/chat-design.md` chattens form.
 | MÅLT 6/9 — egen opgave | **Ugeagentens cron findes ikke i prod.** `run-weekly-agent` har kun `Deno.cron` (kører aldrig på edge-runtimen); `cron.job` har ti jobs, ingen kalder den. Kun `generate-weekly-focus` (0 6 \* \* 1) kører mandag. Om agenten NOGENSINDE har kørt fra cron, er ikke efterprøvet (`agent_runs.trigger` kan svare). Skal den køre, er vejen pg_cron + `net.http_post` som `intro-reminder-cron` — men den kører LIVE og skriver det medlemmet ser, så det er en beslutning, ikke en rettelse. | DEL 2 «Agentkæden»; DEL 4 (`Deno.cron`) |
 | LØST 6/9 sen aften (#670) | **De elleve typefejl efter Lovables regenerering af `types.ts`** er rettet ved at lade husets egne interfaces sige sandheden om databasen — `EventTimes.ends_at` og de fire felter på `MemberProgress` er valgfrie OG nullable — og ved at skrive reglen ned begge steder: null og undefined betyder det samme, «det er ikke sket». Ingen casts, intet non-null, ingen ændring i `types.ts`. Tretten nye tests låser reglen, inkl. grænsen ved `starts_at` + 90 min. **Målt efter:** tsc giver præcis fire fejl (CompanyChatPane, PushView, RapporteringView ×2), 1656 tests grønne. | DEL 1 «Kodearbejde» |
 | LØST 7/9 (#675, #676) | **Baselinen er nul, og CI kører typecheck** — `bunx tsc --noEmit -p tsconfig.app.json` FØR testene i jobbet «Tests», uden kendt-liste og uden `continue-on-error`. Beslutningen om de fire blev «rettes» (#675), ingen af dem skjult. Bevist i drift: kørsel 34092921389, trin 6 «Typecheck» → success. Gaten fangede #678's to Record-aftagere samme dag. | DEL 1 «Kodearbejde» |
-| hører til opgave-epic'et, målt 6/9 kl. 22:18 | **Godkendelse skriver indeværende uges nøgle, og halvdelen af de uafgjorte forslag kan kun forkastes.** Otte forslag fra 25/8 (Topix 6, remm. 2, alle tørkørsler); fire `update_weekly_focus` kan godkendes, fire (`write_session_prep` ×3, `write_company_action`) kan kun forkastes — linjen lover «din afgørelse» om noget hvor den ene mulighed ikke findes. Og godkendes et augustforslag i dag, lander det som DENNE uges fokus (`skrivUgensFokus` → `getISOWeekKey(new Date())`). Forslag har ingen udløbsmekanik. *Puklen peger nu direkte på virksomheden når den dækker én (#672, 7/9); dækker den flere, er det stadig `/virksomheder`, for der findes ingen flade der viser forslag på tværs — kendt, står i koden.* Mangellisten bærer to kort. *Rettet 7/9 (#682): puklen tæller nu kun `proposed` — de fire `expired` session_prep-rækker talte med, fordi filtret var `decided_at is null`; forsiden siger «1 agentforslag venter», ikke 2 (DEL 2 «Agentkæden»).* *LUKKET 7/9 (#688): et forslag udløber når dets egen ISO-uge er passeret — godkendelse afvises med 409, forkastelse er stadig mulig, og «lander i denne uge»-fælden er dermed væk (bevist på skærm hos remm. kl. 11:31). UNDERVEJS: puklen filtrerer udløbne fra i JS. ÅBENT: ingen cron skriver `expired`; udløbne ligger som `proposed` i databasen (DEL 2 «Agentkæden»).* | DEL 2 «Agentkæden»; DEL 4; `docs/opgave-model-design.md` |
+| hører til opgave-epic'et, målt 6/9 kl. 22:18 | **Godkendelse skriver indeværende uges nøgle, og halvdelen af de uafgjorte forslag kan kun forkastes.** Otte forslag fra 25/8 (Topix 6, remm. 2, alle tørkørsler); fire `update_weekly_focus` kan godkendes, fire (`write_session_prep` ×3, `write_company_action`) kan kun forkastes — linjen lover «din afgørelse» om noget hvor den ene mulighed ikke findes. Og godkendes et augustforslag i dag, lander det som DENNE uges fokus (`skrivUgensFokus` → `getISOWeekKey(new Date())`). Forslag har ingen udløbsmekanik. *Puklen peger nu direkte på virksomheden når den dækker én (#672, 7/9); dækker den flere, er det stadig `/virksomheder`, for der findes ingen flade der viser forslag på tværs — kendt, står i koden.* Mangellisten bærer to kort. *Rettet 7/9 (#682): puklen tæller nu kun `proposed` — de fire `expired` session_prep-rækker talte med, fordi filtret var `decided_at is null`; forsiden siger «1 agentforslag venter», ikke 2 (DEL 2 «Agentkæden»).* *LUKKET 7/9 (#688): et forslag udløber når dets egen ISO-uge er passeret — godkendelse afvises med 409, forkastelse er stadig mulig, og «lander i denne uge»-fælden er dermed væk (bevist på skærm hos remm. kl. 11:31). LØST (#689): puklen og virksomhedssidens signal filtrerer udløbne fra i JS. ÅBENT: ingen cron skriver `expired`; udløbne ligger som `proposed` i databasen (DEL 2 «Agentkæden»).* | DEL 2 «Agentkæden»; DEL 4; `docs/opgave-model-design.md` |
 | oprydning, målt 6/9 | **37 grene på origin ud over `main`** (Jonas' måling 6/9; `git ls-remote --heads` gav 38 ved bogføringen samme aften). `gh pr list --state merged` er den eneste der kan afgøre hvilke der må slettes (DEL 1). | DEL 1 «Git og Claude Code» |
 
 ---
@@ -2051,6 +2123,17 @@ De konkrete ting der har kostet tid. Led efter dem.
   (#685, 7/9). Konvertér, eller sæt tekstfarven eksplicit på roden — og
   sæt ikke baggrunden med, før du har set panelet på skærm: det var
   lyst, ikke mørkt (DEL 2 «Mørke tokens på lyst papir»).
+- **`UPDATE 0` seks dage i træk er ikke en død cron.** `opgave-udloeb`
+  (04:00) så ud til at overse 31 udløbne forslag; de udløb alle kl. 06:00
+  samme dag — mandagens `ai_weekly`-forslag født kl. 06:00 med 14 dages
+  levetid. Et `ai_weekly`-forslag lever derfor 14 dage PLUS 20 timer.
+  Læs `cron.job.command` og forslagenes `expires_at` før du kalder en
+  cron død (7/9, DEL 2 «Opgave-modellen»).
+- **«Fristen var …» er en tekst, ikke en tilstand.** En aktiv opgave med
+  passeret `due_date` er «forfalden» i motoren (`erForfalden`), men ingen
+  cron, status eller kolonne bogfører det, og den udløber aldrig — den
+  står til medlemmet trykker. Forveksl den ikke med «udløbet», som kun
+  gælder `proposed` via `expires_at` (DEL 2 «Opgave-modellen»).
 
 ---
 
