@@ -10,6 +10,7 @@ import {
   Pencil,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { afgoerForslagsgyldighed } from "@/lib/forslagUdloeb";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
@@ -245,6 +246,11 @@ export default function AgentForslagPanel({ companyId }: AgentForslagPanelProps)
     });
   };
 
+  // ÉT «nu» for hele renderen (samme greb som PushView:329 og
+  // RedaktioneltView:249): udløbsdommen skal svare det samme for alle
+  // forslag i samme tegning — ikke new Date() pr. række.
+  const now = new Date();
+
   return (
     /* Virksomhedsniveau: knappen bor HER (ikke på rapportrækken —
        beslutningen 2026-08-25: agenten er et blik på virksomheden,
@@ -344,8 +350,18 @@ export default function AgentForslagPanel({ companyId }: AgentForslagPanelProps)
                 ) : (
                   <div className="space-y-1.5 mt-1.5">
                     {runProposals.map((p) => {
-                      const kanGodkendes = p.status === "proposed" && UNDERSTOETTEDE_SKRIVEVEJE_FLADE.has(p.tool);
-                      const badge = STATUS_BADGES[p.status];
+                      // Udløbsdommen (besluttet 7/9, @/lib/forslagUdloeb): SAMME dom
+                      // som agent-forslag-afgoer — et forslag fra en passeret ISO-uge
+                      // kan ikke godkendes (det ville lande i en anden uges fokus),
+                      // men kan stadig forkastes. Rækken står som 'proposed' i
+                      // databasen; dommen er fladens, ikke statusens.
+                      const gyldighed = p.status === "proposed" ? afgoerForslagsgyldighed(p.proposed_at, now) : null;
+                      const udloebet = gyldighed !== null && !gyldighed.gyldigt;
+                      const kanGodkendes = p.status === "proposed" && !udloebet && UNDERSTOETTEDE_SKRIVEVEJE_FLADE.has(p.tool);
+                      // «Udløbet»-badget kommer her fra DOMMEN, ikke fra status i
+                      // databasen (rækken er stadig 'proposed' — ingen cron skriver
+                      // 'expired' endnu). Samme form som de afgjorte statussers badge.
+                      const badge = udloebet ? STATUS_BADGES.expired : STATUS_BADGES[p.status];
                       const foldUd = aaben?.proposalId === p.id ? aaben.tilstand : null;
                       return (
                         <div key={p.id} className="rounded-md bg-background/60 border border-border/30 px-2.5 py-1.5">
@@ -401,7 +417,9 @@ export default function AgentForslagPanel({ companyId }: AgentForslagPanelProps)
                                 </Button>
                                 {!kanGodkendes && (
                                   <span className="text-[10px] text-muted-foreground">
-                                    Kan endnu ikke godkendes herfra — kun forkastes
+                                    {udloebet && gyldighed
+                                      ? gyldighed.grund
+                                      : "Kan endnu ikke godkendes herfra — kun forkastes"}
                                   </span>
                                 )}
                               </div>
