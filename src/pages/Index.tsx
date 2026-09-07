@@ -112,8 +112,21 @@ const Dashboard = () => {
       const nu = Date.now();
       skrivFornyelseStempel(nu);
       setFornyelseStempel(nu);
+      /* Beskeden afhænger af om medlemmet HAVDE adgang, da de betalte (#684:
+         fornyelse kan betales FØR slutdatoen, og den første der gør det, er
+         netop et fuldt medlem). For en der er "full" er der ingen adgang at
+         åbne — den blev aldrig mistet, låsen ovenfor slippes øjeblikkeligt,
+         og kvitteringen nedenfor vises aldrig; denne toast er det eneste de
+         får. Den nye periode begynder hvor den nuværende slutter
+         (fornyelseskæden §15.3), så «fortsætter uden afbrydelse» er sandt
+         uanset om webhooken er landet. Den nye slutdato nævnes IKKE: useAuth
+         eksponerer kun tier, og et opslag hører ikke til her. For "expired"
+         (eller uafgjort) er teksten uændret — dér åbnes adgangen faktisk. */
       toast.success("Tak — vi glæder os til et år mere", {
-        description: "Vi åbner din adgang om et øjeblik…",
+        description:
+          membershipTier === "full"
+            ? "Betalingen er modtaget. Dit medlemskab fortsætter uden afbrydelse — den nye periode begynder hvor den nuværende slutter."
+            : "Vi åbner din adgang om et øjeblik…",
       });
     } else if (fornyelseResult === "cancelled") {
       // En der fortrød, skal ikke mødes med noget.
