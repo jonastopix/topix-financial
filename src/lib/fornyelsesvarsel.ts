@@ -36,7 +36,7 @@
  * hjælperen en dag blive eksporteret (i begge kopier), er det ét kald at
  * bytte — reglen «én dagberegning i huset» holder allerede nu.
  */
-import { afgoerFornyelsestilstand, type Fornyelsesbeslutning } from "./fornyelse";
+import { afgoerFornyelsestilstand, FORNYELSE_IKRAFT_DATO, type Fornyelsesbeslutning, type FornyelseStatus } from "./fornyelse";
 
 /**
  * Varsel 1 sendes når der er så mange dage ELLER FÆRRE til slutdatoen
@@ -84,7 +84,27 @@ export interface Fornyelsesvarsel {
    * dage_siden_underskrift: loggen og rådgiveren skal kunne se uret.
    */
   dage_til_udloeb: number | null;
+  /**
+   * Sat KUN når varslet springes over fordi medlemmet ikke kan handle på
+   * det (gren 5): tilstandsmotorens status — i praksis uden_for_ordningen.
+   * Kalderen tæller den for sig i tørkørslen, så «uden for ordningen» ikke
+   * drukner i «intet forfaldent». Udeladt i alle andre svar.
+   */
+  blokeret_af?: FornyelseStatus;
 }
+
+/**
+ * De tilstande hvor et varsel giver mening: klar_til_tilbud er den ENESTE
+ * tilstand FØR slutdatoen hvor hent-fornyelsestilbud og
+ * opret-fornyelse-checkout siger ja (begge gater på klar_til_tilbud eller
+ * udloebet_tilbyd; den sidste ligger efter slutdatoen og fanges af gren 4).
+ * i_god_tid er «kan endnu ikke, men bliver klar_til_tilbud på dag 60» —
+ * den når aldrig gren 5-6 (dag 30/7), men må ikke få en falsk grund i
+ * tørkørslen. Alt andet — uden_for_ordningen, selvbetjener, ingen_slutdato
+ * — kan ikke betale, og et varsel med en knap der ikke virker er værre end
+ * tavshed (CARMA STUDIO, 7/9 kl. 11:57).
+ */
+const KAN_HANDLE: ReadonlySet<FornyelseStatus> = new Set<FornyelseStatus>(["klar_til_tilbud", "i_god_tid"]);
 
 /** Stemplets UTC-kalenderdag til loggen; «ukendt dato» hvis stemplet ikke kan læses. */
 function stempeldato(s: string): string {
@@ -117,12 +137,23 @@ function dageTekst(n: number): string {
  *                           dage», og det er ikke sandt længere. Hvad
  *                           medlemmet får EFTER slutdatoen, er gatens og
  *                           tilbudsvinduets sag, ikke varslernes.
- *   5. varsel 2 forfaldent  dage_til_udloeb <= 7 og varsel_2_sendt_at null.
- *   6. varsel 1 forfaldent  dage_til_udloeb <= 30 og varsel_1_sendt_at null
- *                           — men KUN når varsel 2 ikke er forfaldent (5 vandt
+ *   5. kan ikke handle      intet, med tilstanden som grund (blokeret_af).
+ *                           Tilstandsmotoren (afgoerFornyelsestilstand) er
+ *                           den samme dom som hent-fornyelsestilbud og
+ *                           opret-fornyelse-checkout gater på; siger den
+ *                           andet end klar_til_tilbud/i_god_tid, virker
+ *                           hverken tilbud, checkout eller bånd — og så
+ *                           sendes der ikke. Rettet 7/9: CARMA STUDIO
+ *                           (slutdato 7/9, ordningen i kraft 10/9 → uden_
+ *                           for_ordningen) fik varsel 2 kl. 11:57 med en
+ *                           knap der ikke virkede, fordi motoren her kun
+ *                           læste dagene af tilstanden, aldrig status.
+ *   6. varsel 2 forfaldent  dage_til_udloeb <= 7 og varsel_2_sendt_at null.
+ *   7. varsel 1 forfaldent  dage_til_udloeb <= 30 og varsel_1_sendt_at null
+ *                           — men KUN når varsel 2 ikke er forfaldent (6 vandt
  *                           ellers), og KUN når varsel 2 ikke allerede er
  *                           sendt (se reglen om den sene beslutning).
- *   7. ellers               intet — for tidligt, eller allerede sendt.
+ *   8. ellers               intet — for tidligt, eller allerede sendt.
  *
  * Regnestykket, i hele UTC-kalenderdage (dage_til_udloeb fra fornyelse.ts;
  * slutdatoen selv er dag 0, dagen før er 1):
@@ -138,7 +169,7 @@ function dageTekst(n: number): string {
  * fx 5 dage før slutdato, er både varsel 1 (5 <= 30) og varsel 2 (5 <= 7)
  * forfaldne, og ingen af dem sendt. Så sendes varsel 2 — det er den
  * rigtige besked på det tidspunkt — og varsel 1 sendes IKKE bagefter:
- * gren 6 kræver at varsel_2_sendt_at er null. Ellers ville den sene
+ * gren 7 kræver at varsel_2_sendt_at er null. Ellers ville den sene
  * beslutning udløse to mails på to dage («om 5 dage» i dag, «om 4 dage» i
  * morgen), og den anden ville være forældet i samme øjeblik den blev
  * sendt. Det er også derfor stemplerne er to kolonner: varsel_2_sendt_at
@@ -164,9 +195,13 @@ export function afgoerForfaldentVarsel(
     return { varsel: null, grund: "intet: ingen slutdato", dage_til_udloeb: null };
   }
 
-  // Dagene fra fornyelse.ts (se filhovedet): abonnementsfelterne påvirker
-  // kun tier, ikke dage_til_udloeb, og sendes som null.
-  const { dage_til_udloeb } = afgoerFornyelsestilstand(
+  // Dagene OG TILSTANDEN fra fornyelse.ts (se filhovedet). Abonnements-
+  // felterne sendes som null: et varsel kan kun være forfaldent på eller
+  // før slutdagen (gren 4), og til og med slutdagen er tier «full» uanset
+  // abonnement (computeMembershipTier) — så status kan ikke afhænge af dem
+  // på nogen dag hvor der sendes. Derfor kan motoren her svare rigtigt
+  // uden at kalderen bærer flere felter.
+  const { dage_til_udloeb, status } = afgoerFornyelsestilstand(
     {
       contract_end_date: input.contract_end_date,
       subscription_status: null,
@@ -190,9 +225,18 @@ export function afgoerForfaldentVarsel(
     };
   }
 
+  // 5. KAN MEDLEMMET HANDLE? Samme dom som tilbud, checkout og bånd.
+  if (!KAN_HANDLE.has(status)) {
+    const grund =
+      status === "uden_for_ordningen"
+        ? `intet: uden for ordningen — slutdatoen ${input.contract_end_date} er på eller før ${FORNYELSE_IKRAFT_DATO}, og medlemmet kan ikke forny`
+        : `intet: tilstanden er ${status}, og medlemmet kan ikke forny`;
+    return { varsel: null, grund, dage_til_udloeb, blokeret_af: status };
+  }
+
   const dage = dageTekst(dage_til_udloeb);
 
-  // 5. VARSEL 2 — det højeste forfaldne trin vinder.
+  // 6. VARSEL 2 — det højeste forfaldne trin vinder.
   if (dage_til_udloeb <= VARSEL_2_DAGE_FOER) {
     if (input.varsel_2_sendt_at === null) {
       const spring = input.varsel_1_sendt_at === null ? " (varsel 1 springes over: sen beslutning)" : "";
@@ -205,7 +249,7 @@ export function afgoerForfaldentVarsel(
     };
   }
 
-  // 6. VARSEL 1 — kun når varsel 2 hverken er forfaldent (5) eller sendt.
+  // 7. VARSEL 1 — kun når varsel 2 hverken er forfaldent (6) eller sendt.
   if (dage_til_udloeb <= VARSEL_1_DAGE_FOER) {
     if (input.varsel_1_sendt_at === null && input.varsel_2_sendt_at === null) {
       return { varsel: 1, grund: `varsel 1 forfaldent: ${dage} til slutdato`, dage_til_udloeb };
@@ -221,7 +265,7 @@ export function afgoerForfaldentVarsel(
     };
   }
 
-  // 7. FOR TIDLIGT.
+  // 8. FOR TIDLIGT.
   return {
     varsel: null,
     grund: `intet: ${dage} til slutdato; varsel 1 forfalder om ${dageTekst(dage_til_udloeb - VARSEL_1_DAGE_FOER)}`,

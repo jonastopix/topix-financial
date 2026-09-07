@@ -36,6 +36,11 @@
 // spejl af src/lib/fornyelsesvarsel.ts) siger hvilket varsel der er
 // forfaldent NU — højst ét, det højeste forfaldne (den sene beslutning:
 // 5 dage før slutdato giver varsel 2, og varsel 1 sendes aldrig bagefter).
+// Og siden 7/9 spørger den TILSTANDSMOTOREN (afgoerFornyelsestilstand) om
+// medlemmet overhovedet kan handle: CARMA STUDIO (slutdato 7/9, ordningen
+// i kraft 10/9 → uden_for_ordningen) fik varsel 2 kl. 11:57 med en knap
+// der ikke virkede. Nu svarer motoren «intet, blokeret_af», og cronen
+// tæller det som kan_ikke_handle med grunden i sprunget_over_liste.
 // SQL filtrerer kun på det der er billigt og sikkert (beslutning =
 // 'tilbyd', slutdato ikke null); dagene dømmes IKKE i SQL — den dom hører
 // hjemme i motoren, som også bærer grunden i læsbar form.
@@ -103,6 +108,10 @@ interface VarselsResultat {
   sprunget_over: {
     /** Motoren siger intet varsel (for tidligt, allerede sendt, slutdato passeret). */
     ingen_forfalden: number;
+    /** Motoren siger at medlemmet ikke kan handle på varslet (blokeret_af —
+        i praksis uden_for_ordningen: slutdato på eller før 10/9). Talt for
+        sig og listet med grund, så tørkørslen siger HVORFOR (rettet 7/9). */
+    kan_ikke_handle: number;
     /** companies-rækken mangler, har ingen slutdato, eller kunne ikke læses. */
     ingen_virksomhed: number;
     /** contact_email er tom — kan ikke sendes, stemples ikke. */
@@ -111,7 +120,8 @@ interface VarselsResultat {
     ingen_pris: number;
   };
   /** De sprungne over med grund, så en tørkørsel viser HVEM der mangler HVAD. */
-  sprunget_over_liste: { company_id: string; virksomhed: string; varsel: Varselsnummer; grund: string }[];
+  /** varsel er null når det er tilstanden (kan_ikke_handle) der stopper, ikke modtager/pris. */
+  sprunget_over_liste: { company_id: string; virksomhed: string; varsel: Varselsnummer | null; grund: string }[];
   /** Sendingen eller stemplet fejlede — prøves igen i morgen (uventet fejl tæller også her). */
   fejlet: number;
   /** Én post pr. virksomhed med et forfaldent varsel — grunden er motorens, skrevet til at blive læst. */
@@ -157,7 +167,7 @@ async function koerVarsler(
     ville_sende: 0,
     varsel_1: 0,
     varsel_2: 0,
-    sprunget_over: { ingen_forfalden: 0, ingen_virksomhed: 0, ingen_email: 0, ingen_pris: 0 },
+    sprunget_over: { ingen_forfalden: 0, kan_ikke_handle: 0, ingen_virksomhed: 0, ingen_email: 0, ingen_pris: 0 },
     sprunget_over_liste: [],
     fejlet: 0,
     forfaldne: [],
@@ -229,6 +239,14 @@ async function koerVarsler(
       );
 
       if (varsel.varsel === null) {
+        if (varsel.blokeret_af) {
+          // Tilstanden stopper varslet (motoren, gren 5): tælles for sig og
+          // listes med grund — «uden for ordningen» må ikke drukne i
+          // «intet forfaldent».
+          resultat.sprunget_over.kan_ikke_handle++;
+          resultat.sprunget_over_liste.push({ company_id: fornyelse.company_id, virksomhed: company.name, varsel: null, grund: varsel.grund });
+          continue;
+        }
         resultat.sprunget_over.ingen_forfalden++;
         continue;
       }
