@@ -389,18 +389,56 @@ describe("de tre former (§3)", () => {
 
   it("en pukkel: agentforslag samles til én linje pr. slags på tværs af virksomheder, under stregen ved 55", () => {
     const d = afgoerForsidensDom([
-      virksomhed({ signaler: [agentforslag], agentforslagVenter: 3 }),
-      virksomhed({ signaler: [agentforslag, bankovertraek], agentforslagVenter: 5 }),
+      virksomhed({ companyId: "lille", navn: "Lille", signaler: [agentforslag], agentforslagVenter: 3 }),
+      virksomhed({ companyId: "stor", navn: "Stor", signaler: [agentforslag, bankovertraek], agentforslagVenter: 5 }),
     ], NU);
     expect(d.linjer).toHaveLength(1); // kun bankovertrækket
     expect(d.underStregen.pukler).toEqual([
       {
         linje: "pukkel", slags: "agentforslag", antal: 8, tekst: "8 agentforslag venter på din afgørelse",
+        virksomheder: [
+          { companyId: "stor", navn: "Stor", antal: 5 },
+          { companyId: "lille", navn: "Lille", antal: 3 },
+        ],
         alvor: 55, lukkerOmDage: null, loeftet: false, indsats: 1,
       },
     ]);
     // Puklen giver ingen virksomhed en linje og tæller ikke som «anden virksomhed».
     expect(d.underStregen.antalVirksomhederUnderTaersklen).toBe(0);
+  });
+
+  // Puklens virksomheder (6/9): forslag afgøres kun på /virksomhed/:companyId,
+  // så dommen bærer virksomhederne med, og fladen peger direkte når der
+  // er præcis én.
+  it("puklen hos ÉN virksomhed: virksomheden bæres med og nævnes ved navn i teksten", () => {
+    const d = afgoerForsidensDom([
+      virksomhed({ companyId: "carma", navn: "CARMA", signaler: [agentforslag], agentforslagVenter: 3 }),
+      virksomhed({ navn: "Uden forslag", signaler: [bankovertraek] }),
+    ], NU);
+    const [p] = d.underStregen.pukler;
+    expect(p).toMatchObject({
+      slags: "agentforslag",
+      antal: 3,
+      tekst: "3 agentforslag hos CARMA venter på din afgørelse",
+      virksomheder: [{ companyId: "carma", navn: "CARMA", antal: 3 }],
+    });
+  });
+
+  it("puklen hos FLERE virksomheder: alle bæres med, flest forslag først, teksten nævner ingen ved navn", () => {
+    const d = afgoerForsidensDom([
+      virksomhed({ companyId: "b", navn: "Bravo", signaler: [agentforslag], agentforslagVenter: 1 }),
+      virksomhed({ companyId: "a", navn: "Alfa", signaler: [agentforslag], agentforslagVenter: 1 }),
+      virksomhed({ companyId: "c", navn: "Charlie", signaler: [agentforslag], agentforslagVenter: 4 }),
+      virksomhed({ navn: "Nul", signaler: [agentforslag], agentforslagVenter: 0 }), // signal uden antal: ikke med
+    ], NU);
+    const [p] = d.underStregen.pukler;
+    expect(p.antal).toBe(6);
+    expect(p.tekst).toBe("6 agentforslag venter på din afgørelse");
+    expect(p.virksomheder).toEqual([
+      { companyId: "c", navn: "Charlie", antal: 4 },
+      { companyId: "a", navn: "Alfa", antal: 1 },
+      { companyId: "b", navn: "Bravo", antal: 1 },
+    ]);
   });
 
   it("friske tal (§11) og AI-udsagn (§8, ikke implementeret) giver ingen grunde", () => {

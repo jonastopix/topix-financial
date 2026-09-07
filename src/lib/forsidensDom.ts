@@ -327,6 +327,11 @@ export interface Pukkellinje {
   slags: OpgaveSlags;
   antal: number;
   tekst: string;
+  /** Hvem puklen ligger hos (6/9): dommen kender virksomhederne der hvor
+      den tæller, og fladen skal kunne pege på dem — agentforslag afgøres
+      kun på /virksomhed/:companyId. Flest forslag først, så navn. Er der
+      præcis én, nævner `tekst` den ved navn. */
+  virksomheder: { companyId: string; navn: string; antal: number }[];
   alvor: number;
   lukkerOmDage: null;
   loeftet: false;
@@ -575,13 +580,16 @@ export function afgoerForsidensDom(virksomheder: readonly VirksomhedTilDom[], nu
   let antalVirksomhederUnderTaersklen = 0;
   let agentforslagAntal = 0;
   let agentforslagAlvor: number | null = null;
+  const agentforslagHos: Pukkellinje["virksomheder"] = [];
 
   for (const v of virksomheder) {
-    // Puklen tælles på tværs af alle — også dem der får en linje.
+    // Puklen tælles på tværs af alle — også dem der får en linje. Virksomheden
+    // bæres med, så fladen kan pege på den (6/9).
     const pukkelSignal = v.signaler.find((s) => s.koe === "agentforslag_venter");
     if (pukkelSignal && v.agentforslagVenter > 0) {
       agentforslagAntal += v.agentforslagVenter;
       agentforslagAlvor = Math.max(agentforslagAlvor ?? 0, pukkelSignal.alvor);
+      agentforslagHos.push({ companyId: v.companyId, navn: v.navn, antal: v.agentforslagVenter });
     }
 
     const grunde = grundeFor(v, nu);
@@ -653,11 +661,16 @@ export function afgoerForsidensDom(virksomheder: readonly VirksomhedTilDom[], nu
 
   const pukler: Pukkellinje[] = [];
   if (agentforslagAntal > 0 && agentforslagAlvor != null) {
+    agentforslagHos.sort((a, b) => b.antal - a.antal || a.navn.localeCompare(b.navn, "da"));
+    // Ligger hele puklen hos ÉN virksomhed, nævnes den ved navn — linjen på
+    // forsiden peger så direkte på den (6/9).
+    const hos = agentforslagHos.length === 1 ? ` hos ${agentforslagHos[0].navn}` : "";
     pukler.push({
       linje: "pukkel",
       slags: "agentforslag",
       antal: agentforslagAntal,
-      tekst: `${agentforslagAntal} agentforslag venter på din afgørelse`,
+      tekst: `${agentforslagAntal} agentforslag${hos} venter på din afgørelse`,
+      virksomheder: agentforslagHos,
       alvor: agentforslagAlvor,
       lukkerOmDage: null,
       loeftet: false,
