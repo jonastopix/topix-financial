@@ -22,6 +22,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
 import { authenticateUser, corsHeaders } from "../_shared/edgeFunctionAuth.ts";
 import { skrivUgensFokus } from "../_shared/agentSkriveveje.ts";
+import { afgoerForslagsgyldighed } from "../_shared/forslagUdloeb.ts";
 import {
   afgoerelsesPatch,
   kanAfgoeres,
@@ -95,7 +96,7 @@ Deno.serve(async (req) => {
   // ── 5. Forslaget + kørslen, med KALDERENS klient (RLS: advisor-SELECT) ──
   const { data: forslag, error: forslagErr } = await callerClient
     .from("agent_proposals")
-    .select("id, run_id, company_id, position, tool, args, status")
+    .select("id, run_id, company_id, position, tool, args, status, proposed_at")
     .eq("id", proposal_id)
     .maybeSingle();
   if (forslagErr) {
@@ -110,6 +111,28 @@ Deno.serve(async (req) => {
   const tilstandsDom = kanAfgoeres(forslag.status);
   if (!tilstandsDom.ok) {
     return jsonResponse({ error: tilstandsDom.grund, status: forslag.status }, 409);
+  }
+
+  // ── 6b. Udløbsdommen (besluttet 7/9): et forslag kan kun GODKENDES i
+  //       sin egen ISO-uge, fordi update_weekly_focus skriver UGENS fokus
+  //       med godkendelsens ugenøgle — et forslag fra en anden uge ville
+  //       lande i en uge det ikke handler om (_shared/forslagUdloeb.ts).
+  //       En FORKASTELSE er stadig mulig, så gamle forslag kan ryddes op.
+  //       Dømmes her, med samme «nu» som skrivningen bruger, FØR service
+  //       role — rækken røres ikke; status = 'expired' skrives ikke her ──
+  if (afgoerelse !== "reject") {
+    const gyldighed = afgoerForslagsgyldighed(forslag.proposed_at, new Date());
+    if (!gyldighed.gyldigt) {
+      return jsonResponse(
+        {
+          error: `proposal_expired: ${gyldighed.grund}`,
+          status: forslag.status,
+          forslagets_uge: gyldighed.forslagets_uge,
+          nu_uge: gyldighed.nu_uge,
+        },
+        409,
+      );
+    }
   }
 
   // Kørslen bærer trigger + period_key, som skrivevejene skal bruge.
