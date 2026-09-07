@@ -105,13 +105,24 @@ Konsekvens: tilbudslinket udløber ikke. Og derfor må prisen ikke ligge
 i linket: checkout oprettes serverside og slår virksomhedens gemte pris
 op, så et videresendt link ikke kan give en anden kohortes pris.
 
+**Ændret 7/9 (§14):** vinduet ER nu også en betalingsspærre. Fra dag 15
+efter slutdato er tilstanden `udloebet_vindue_lukket`, og både
+`hent-fornyelsestilbud` og `opret-fornyelse-checkout` kræver
+`udloebet_tilbyd` — gaten viser intet tilbud, og checkout svarer 403.
+Det der står ovenfor om at prisen ikke må ligge i linket, gælder stadig.
+En sen betaling efter dag 14 er fra 7/9 en menneskelig samtale, ikke en
+knap.
+
 ## 6. Beslutningen forlader aldrig serveren
 
 `company_fornyelse` er advisor-only i RLS. Edge-funktionen
 `hent-fornyelsestilbud` afgør serverside og returnerer enten
-`{ tilbud: null }` eller prismulighederne. `tilbyd_ikke` og «ingen
-beslutning» giver **byte-identisk svar** — de to grupper kan ikke
-skelnes, heller ikke af den der ser på netværkstrafikken.
+`{ tilbud: null }` eller prismulighederne. `tilbyd_ikke`, «ingen
+beslutning» og — fra 7/9 — et lukket tilbudsvindue giver
+**byte-identisk svar** — grupperne kan ikke skelnes, heller ikke af den
+der ser på netværkstrafikken. Fra 7/9 kalder funktionen MOTOREN
+(`afgoerFornyelsestilstand`) og giver kun tilbud ved `udloebet_tilbyd`;
+før tjekkede den selv tier og beslutning (§14).
 
 Fladen (`MembershipExpiredGate`) har bevidst **ingen
 indlæsningstilstand**: en pladsholder der foldede ud for den ene gruppe
@@ -285,13 +296,23 @@ nederst i listen; detaljen bag dem i §13.
   cron, ingen kode bag §1's «brief før slutdato». Medlemmet hører først
   om sin fornyelse ved at miste adgangen (§13.1). Retningen er besluttet
   6/9 — `docs/fornyelsesordningen.md` §7.
-- **Datogaten omgås på tilbuds- og checkout-vejen** (§13.3). Værnet er
-  et menneske, ikke koden. Om gaten skal gælde dér, er en beslutning.
-- **Fjortendagesvinduet findes ikke som tilstand** (ordningens §5 punkt
-  2, uændret). `udloebet_tilbyd` har ingen tidsgrænse.
-- **Studio Minis `tilbyd`-række skal ryddes** — men først når vinduet
-  findes som tilstand, så data siger det der er sandt (Jonas 6/9,
-  §13.4).
+- **Datogaten omgås stadig på tilbuds- og checkout-vejen** (§13.3).
+  *7/9: `hent-fornyelsestilbud` kalder nu motoren, men udløbsgrenen
+  afgøres FØR datogaten, så `uden_for_ordningen` håndhæves stadig ikke
+  hvor pengene skifter hænder.* Værnet er et menneske. Om gaten skal
+  gælde dér, er en beslutning.
+- **LØST 7/9 (#678) — Fjortendagesvinduet som tilstand:**
+  `udloebet_vindue_lukket`, kun efter `tilbyd`, fra dag 15. Bevist i
+  drift samme formiddag (§14).
+- **LØST 7/9 (#674) — varselsstempler på `company_fornyelse`:**
+  `varsel_1_sendt_at`, `varsel_2_sendt_at` (§14).
+- **Studio Minis `tilbyd`-række:** vinduet findes nu. Studio Mini (slut
+  5/9) er 7/9 dag 2 i vinduet; fra 20/9 lukker det af sig selv, og
+  rækken bliver `udloebet_vindue_lukket` uden at nogen rører den.
+  Beslutningen er om den skal ryddes FØR (§13.4).
+- **Afsenderen mangler stadig:** stemplerne findes, motoren og
+  tilstanden findes, tallene er besluttet (ordningens §7) — men der er
+  ingen mail, ingen skabelon og ingen cron. Det er næste stykke.
 - **To virksomheder uden slutdato** rammer aldrig ordningen, og
   **Bastant Design** har ingen indgangspris (§13.4).
 
@@ -385,6 +406,12 @@ værnet mod at give et systemtilbud til én uden for ordningen er
 rådgiverens finger, ikke koden. Om gaten SKAL gælde på tilbuds- og
 checkout-vejen, er ikke besluttet.
 
+*7/9:* `hent-fornyelsestilbud` kalder nu motoren (§14), så den første
+halvdel af fundet er ændret — men rækkefølgen af grenene er den samme:
+udløbsgrenen først, datogaten efter. En udløbet virksomhed med slutdato
+før 10/9 og beslutning `tilbyd` får stadig et systemtilbud, nu i 14
+dage. Punktet er ÅBENT, ikke lukket.
+
 ### 13.4 Fornyelseskalenderen, målt i prod 6/9
 
 Fem beslutninger i alt:
@@ -416,6 +443,11 @@ og en `console.error`.
 som tilstand, så data siger det der er sandt. CARMA STUDIO håndteres
 manuelt i dialog.
 
+*7/9:* vinduet findes (§14). Studio Mini er dag 2 i det; fra 20/9 bliver
+rækken `udloebet_vindue_lukket` af sig selv. Indtil da viser gaten dem
+et tilbud på 20.000 kr., hvis de logger ind. Om rækken skal ryddes FØR,
+er beslutningen der står.
+
 ### 13.5 Kædens forudsætninger — alle grønne, målt 6/9
 
 - **Prod-databasen:** alle fire tabeller (`company_fornyelse`,
@@ -443,6 +475,87 @@ manuelt i dialog.
   `send-monthly-digest` 0 8 22 \* \*. INGEN fornyelses-job — og ingen
   `run-weekly-agent` (OVERLEVERING DEL 2 «Agentkæden»). Det lukker også
   et åbent punkt: `indgangs-paamindelser` STÅR aktivt.
+
+## 14. Bygget 7/9 — tilbudsvinduet, stemplerne, beviset
+
+Samme regel som resten af filen: målt eller mærket som ikke målt.
+
+### 14.1 Tilbudsvinduet efter udløb som tilstand (#678)
+
+Besluttet 27/8 (ordningens §3), bygget 7/9 som ÉN ny tilstand,
+`udloebet_vindue_lukket`, KUN efter beslutningen `tilbyd`: `tilbyd_ikke`
+har aldrig haft et tilbud og derfor intet vindue at lukke;
+`udloebet_tilbyd_ikke` er uændret. Elleve statusser i alt.
+
+Grænsen, i hele UTC-kalenderdage (`dage_til_udloeb` er negativ efter
+slutdato): dag 0–14 efter slutdato → `dage_til_udloeb` 0…−14 →
+`udloebet_tilbyd`; dag 15 og senere → ≤ −15 → `udloebet_vindue_lukket`.
+Slutdato 1/10 giver sidste tilbudsdag 15/10, lukket 16/10. Konstanten
+hedder `FORNYELSE_TILBUDSVINDUE_EFTER_UDLOEB_DAGE` (14) — bevidst ikke
+til at forveksle med `FORNYELSES_VINDUE_DAGE` (60), som er rådgiverens
+beslutningsvindue FØR udløb. Er `dage_til_udloeb` null (slutdatoen kan
+ikke læses), bevares tilbuddet frem for at lukke på et tal vi ikke har.
+
+**Rækkefølgen af grenene er urørt:** udløbsgrenen afgøres stadig FØR
+datogaten. Derfor får en virksomhed med slutdato før 10/9 og beslutning
+`tilbyd` stadig et tilbud de første 14 dage (§13.3, åbent).
+
+**Alle seks aftagere er med.** De to `Record<FornyelseStatus, …>`
+(`STATUS_VISNING` i `FornyelsesSektion`, `FORNYELSE_LABEL` i
+`VirksomhedView`) — tsc fangede dem, det var hele pointen med at få
+baselinen på nul og typecheck i CI samme morgen (OVERLEVERING DEL 1).
+`SKJULTE_STATUSSER` — skjult som `ophoert`: ingen beslutning kan åbne
+vinduet igen, så rækken kræver ingen opmærksomhed; historikken står i
+`company_fornyelse`. `forsidensDom` — ingen grund: forsiden er
+handlinger, ikke status. `hent-fornyelsestilbud` — kalder nu MOTOREN
+frem for selv at tjekke tier og beslutning; kun `udloebet_tilbyd` giver
+tilbud, alt andet giver `{ tilbud: null }` som hidtil. Tilbud og
+betaling dømmer dermed på samme kilde; det lukker hullet «et tilbud der
+aldrig udløber». `opret-fornyelse-checkout` — uændret; den krævede
+allerede `udloebet_tilbyd` og afviser den nye tilstand med samme
+neutrale 403. `MembershipExpiredGate` er IKKE rørt — hvad medlemmet ser
+når vinduet er lukket, er næste PR; i dag er det kortet uden tilbud.
+
+**Paritetstesten blev styrket FØRST (#677),** fordi den ellers var
+blevet grøn uden at røre den nye gren: dens udløbs-cases lå 11 dage
+efter slutdato, altså INDE i vinduet. Nu fejer den dag −100…+60 × tre
+beslutninger × med/uden abonnement × to now-datoer, sammenligner
+konstanterne mellem kopierne, og holder `ALLE_STATUSSER` som `Record`
+over unionen — så tsc fejler den dag en status tilføjes uden case.
+
+**Udrulning:** `hent-fornyelsestilbud` er udrullet eksplicit fra
+`36204422` inkl. `_shared/fornyelse.ts` — den trak en NY delt fil ind,
+og dem ruller merge ikke (OVERLEVERING DEL 0).
+
+### 14.2 Bevist i drift 7/9 kl. 09:36–09:38
+
+På Topix.dk ApS (`er_kunde = false` — ingen rigtig kunde blev rørt):
+
+- Slutdato sat 10 dage tilbage, beslutning `tilbyd`, indgangspris
+  40.000 → gaten viste tilbud på **20.000 kr. ekskl. moms** med alle tre
+  betalingsmodeller; 12 rater à 1.750 kr., altså 5 %-tillægget fra
+  `fornyelse_20000_rate12`.
+- Slutdato flyttet til 15 dage tilbage → tilbudskortet FORSVANDT, og
+  gaten faldt tilbage til «Vil du fortsætte? Skriv til os».
+
+Grænsen holder fra begge sider. Topix rullet tilbage bagefter og målt:
+`contract_end_date = 2030-04-20`, `indgangspris_oere = NULL`, ingen
+fornyelsesrække; fem rækker i alt i `company_fornyelse` (§13.4's fem).
+
+### 14.3 Varselsstemplerne på `company_fornyelse` (#674)
+
+Kørt i prod 7/9 kl. 08:51: `varsel_1_sendt_at` og `varsel_2_sendt_at`,
+begge nullable, plus en eksplicit service-role-policy. To navngivne
+kolonner frem for et dag-nummer som `company_betalingslink.
+sidste_paamindelse_dag`, fordi de to varsler kan sendes uafhængigt: en
+sen beslutning skal kunne give varsel 2 uden varsel 1. Tabellen har
+INGEN trigger (målt), så skrivestien — også cron'en — skal selv sætte
+`updated_at`.
+
+Tallene bag stemplerne er besluttet 7/9 og står i ordningens §7: mail 1
+dag 30 før, mail 2 dag 7 før, tilbud 14 dage efter; beslutningen skal
+foreligge senest dag 30, ellers sendes intet. Afsenderen selv — mail,
+skabelon, cron — findes ikke (§13.1).
 
 ---
 
