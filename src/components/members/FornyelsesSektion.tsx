@@ -2,6 +2,12 @@ import { useState } from "react";
 import { beslutningsOrd } from "@/lib/fornyelsesOrd";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import {
+  invaliderFornyelsesLaesere,
+  skrivFornyelsesbeslutning,
+  skrivFornyelsesnote,
+  sletFornyelsesbeslutning,
+} from "@/hooks/useVirksomhed";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -22,10 +28,18 @@ import {
  * ingen række i company_fornyelse betyder "endnu ikke besluttet", og at
  * FJERNE en beslutning er derfor ikke det samme som tilbyd_ikke.
  *
- * Skrivevejen er direkte klient-upsert mod advisor-RLS'en
- * (ProgressView-mønstret) — men med eksplicit tjek af BÅDE error OG
- * antal berørte rækker: advisor-writes der rammer nul rækker tavst er
- * husets kendte fælde. Cachen patches først EFTER bekræftet skrivning.
+ * Skrivevejen er IKKE længere listens egen (samlet 7/9): de tre kald går
+ * gennem skrivFornyelsesbeslutning / skrivFornyelsesnote /
+ * sletFornyelsesbeslutning i src/hooks/useVirksomhed.ts — samme funktioner
+ * som Aftalen-kortet på virksomhedssiden, så tabellen skrives ét sted
+ * (værn: src/hooks/__tests__/fornyelseSkrivevej.guard.test.ts). De tjekker
+ * BÅDE error OG antal berørte rækker (advisor-writes der rammer nul rækker
+ * tavst er husets kendte fælde). Det der bliver her, er listens eget:
+ * note-kladderne, saving-tilstanden og toasts. Cache-patchen af Map'et er
+ * væk: efter bekræftet skrivning AWAITES invaliderFornyelsesLaesere — de
+ * samme tre læsere som virksomhedssiden invaliderer — og listen står
+ * først frit igen når dens egen query ER hentet igen. Ingen flade har sin
+ * egen udgave af rækken.
  */
 
 interface FornyelsesCompany {
@@ -107,41 +121,14 @@ export default function FornyelsesSektion({ companies }: { companies: Fornyelses
   });
   const beslutninger = beslutningerQuery.data ?? new Map<string, BeslutningsRow>();
 
-  const patchCache = (companyId: string, row: BeslutningsRow | null) => {
-    queryClient.setQueryData<Map<string, BeslutningsRow>>(["company-fornyelse"], (old) => {
-      const next = new Map(old ?? []);
-      if (row) next.set(companyId, row);
-      else next.delete(companyId);
-      return next;
-    });
-  };
-
   const gemBeslutning = async (companyId: string, beslutning: Fornyelsesbeslutning) => {
     if (!user) return;
     setSaving(companyId);
     try {
       const eksisterende = beslutninger.get(companyId);
       const note = (noteDrafts[companyId] ?? eksisterende?.note ?? "").trim() || null;
-      const { data, error } = await (supabase
-        .from("company_fornyelse" as any)
-        .upsert(
-          {
-            company_id: companyId,
-            beslutning,
-            besluttet_af: user.id,
-            besluttet_at: new Date().toISOString(),
-            note,
-            updated_at: new Date().toISOString(),
-          } as any,
-          { onConflict: "company_id" },
-        )
-        .select("company_id, beslutning, note, besluttet_at") as any);
-      if (error) throw new Error(error.message);
-      if (!data || data.length === 0) {
-        // Nul rækker uden fejl = RLS-filtreret skrivning — husets kendte fælde.
-        throw new Error("Skrivningen ramte nul rækker — beslutningen er IKKE gemt (RLS).");
-      }
-      patchCache(companyId, data[0] as BeslutningsRow);
+      await skrivFornyelsesbeslutning({ companyId, beslutning, note, besluttetAf: user.id });
+      await invaliderFornyelsesLaesere(queryClient, companyId);
       toast.success(beslutning === "tilbyd" ? "Registreret: tilbyd forlængelse" : "Registreret: tilbyd ikke");
     } catch (err: any) {
       toast.error("Beslutningen blev ikke gemt", { description: err.message });
@@ -156,16 +143,8 @@ export default function FornyelsesSektion({ companies }: { companies: Fornyelses
     setSaving(companyId);
     try {
       const note = (noteDrafts[companyId] ?? eksisterende.note ?? "").trim() || null;
-      const { data, error } = await (supabase
-        .from("company_fornyelse" as any)
-        .update({ note, updated_at: new Date().toISOString() } as any)
-        .eq("company_id", companyId)
-        .select("company_id, beslutning, note, besluttet_at") as any);
-      if (error) throw new Error(error.message);
-      if (!data || data.length === 0) {
-        throw new Error("Skrivningen ramte nul rækker — noten er IKKE gemt (RLS).");
-      }
-      patchCache(companyId, data[0] as BeslutningsRow);
+      await skrivFornyelsesnote(companyId, note);
+      await invaliderFornyelsesLaesere(queryClient, companyId);
       toast.success("Note gemt");
     } catch (err: any) {
       toast.error("Noten blev ikke gemt", { description: err.message });
@@ -177,17 +156,9 @@ export default function FornyelsesSektion({ companies }: { companies: Fornyelses
   const fjernBeslutning = async (companyId: string) => {
     setSaving(companyId);
     try {
-      const { data, error } = await (supabase
-        .from("company_fornyelse" as any)
-        .delete()
-        .eq("company_id", companyId)
-        .select("company_id") as any);
-      if (error) throw new Error(error.message);
-      if (!data || data.length === 0) {
-        throw new Error("Sletningen ramte nul rækker — beslutningen står stadig (RLS).");
-      }
-      patchCache(companyId, null);
+      await sletFornyelsesbeslutning(companyId);
       setNoteDrafts((d) => ({ ...d, [companyId]: "" }));
+      await invaliderFornyelsesLaesere(queryClient, companyId);
       toast.success("Beslutning fjernet", {
         description: "Virksomheden står nu som 'endnu ikke besluttet' — ikke som 'tilbyd ikke'.",
       });
