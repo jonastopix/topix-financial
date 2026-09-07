@@ -1,5 +1,6 @@
 import { useState } from "react";
 import "@/styles/hjemmebane.css";
+import { useHbDokumentGrund } from "@/hooks/useHbDokumentGrund";
 import { HbSidebar, HbSidebarDrawer } from "@/components/hjemmebane/HbSidebar";
 import { HbNav } from "@/components/hjemmebane/HbNav";
 import { HbSection } from "@/components/hjemmebane/HbSection";
@@ -16,9 +17,12 @@ import { HbTag } from "@/components/hjemmebane/HbTag";
     er upåvirket. Mobil-rækkefølgen = DOM-rækkefølgen (ingen CSS-order). */
 const PreviewHjemmebane = () => {
   const [drawerOpen, setDrawerOpen] = useState(false);
+  // Ruten er pensioneret (App.tsx); rettet alligevel, så fuldhøjde-værnet
+  // (hbFuldhoejde.guard) gælder alle Hb-rødder uden undtagelsesliste.
+  useHbDokumentGrund();
 
   return (
-    <div className="theme-hjemmebane min-h-screen bg-hb-paper font-body text-hb-ink antialiased">
+    <div className="theme-hjemmebane min-h-screen-safe bg-hb-paper font-body text-hb-ink antialiased">
       {/* lg: previewen er sin egen scroll-container (indholdskolonnen scroller) —
           #root's globale overflow-x-regel gør sticky virkningsløs, så sidebaren
           står i stedet fast som fuldhøjde-flexkolonne. Mobil: normal dokument-scroll. */}
