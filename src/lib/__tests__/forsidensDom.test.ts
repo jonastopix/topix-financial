@@ -88,7 +88,7 @@ describe("konstanterne", () => {
   });
 
   it("de nye alvorstal passer ind i motorens skala (95/90/80/70/55/50/40/30)", () => {
-    expect(ALVOR_FORNYELSE).toEqual({ udloebet_tilbyd: 90, klar_til_tilbud: 75, klar_til_tilbud_varslet: 65, beslutning_mangler: 70 });
+    expect(ALVOR_FORNYELSE).toEqual({ udloebet_tilbyd: 90, klar_til_tilbud: 75, klar_til_tilbud_varslet: 65, klar_til_tilbud_paamindet: 65, beslutning_mangler: 70 });
     expect(ALVOR_INDGANG).toEqual({ frist_overskredet: 90, afventer_pris: 85, klar_til_mail: 65, afventer_betaling: 60 });
     expect(ALVOR_OPGAVE).toEqual({ forfalden: 75, inden_for_3_dage: 70, inden_for_14_dage: 55 });
   });
@@ -199,6 +199,38 @@ describe("hver slags alene", () => {
     );
     expect(d.linjer).toHaveLength(1);
     expect(virksomhedslinjer(d)[0].grunde[0]).toMatchObject({ signaltype: "klar_til_tilbud_varslet", handling: "Skriv til Vest" });
+  });
+
+  it("fornyelse: CARMA STUDIO ordret — varsel 2 sat, varsel 1 null, dag 0 → «Påmindelsen er sendt», «Skriv til», egen signaltype, løftet af vinduesporten (7/9 aften)", () => {
+    const d = afgoerForsidensDom(
+      [virksomhed({ navn: "CARMA STUDIO", fornyelse: fornyelse("klar_til_tilbud", 0), varsel1SendtAt: null, varsel2SendtAt: "2026-09-07T11:57:53.000Z" })],
+      NU,
+    );
+    expect(d.linjer).toHaveLength(1);
+    expect(virksomhedslinjer(d)[0].grunde[0]).toMatchObject({
+      signaltype: "klar_til_tilbud_paamindet",
+      tekst: "Påmindelsen er sendt — 0 dage til udløb",
+      handling: "Skriv til CARMA STUDIO",
+      alvor: 65,
+      lukkerOmDage: 0,
+    });
+  });
+
+  it("fornyelse: begge stempler sat → varsel 2 vinder (påmindet, ikke varslet)", () => {
+    const d = afgoerForsidensDom(
+      [virksomhed({ navn: "Vest", fornyelse: fornyelse("klar_til_tilbud", 20), varsel1SendtAt: "2026-08-20T11:00:00.000Z", varsel2SendtAt: "2026-09-07T11:00:00.000Z" })],
+      NU,
+    );
+    // Uden for vinduesporten og under tærsklen: under stregen, som varslet.
+    expect(d.linjer).toHaveLength(0);
+    const [t] = d.underStregen.tilstande;
+    expect(t).toMatchObject({ slags: "fornyelse", alvor: 65, antal: 1 });
+    expect(t.virksomheder[0].grund).toMatchObject({ signaltype: "klar_til_tilbud_paamindet", tekst: "Påmindelsen er sendt — 20 dage til udløb", handling: "Skriv til Vest" });
+  });
+
+  it("fornyelse: varsel2SendtAt udeladt (AdvisorDashboards hentning i dag) → dommen falder tilbage på varsel 1 alene", () => {
+    const d = afgoerForsidensDom([virksomhed({ navn: "Vest", fornyelse: fornyelse("klar_til_tilbud", 20), varsel1SendtAt: "2026-09-07T11:00:00.000Z" })], NU);
+    expect(d.underStregen.tilstande[0].virksomheder[0].grund).toMatchObject({ signaltype: "klar_til_tilbud_varslet" });
   });
 
   it("fornyelse: stemplet ændrer INTET for andre statusser — udloebet_tilbyd siger stadig «Følg op»", () => {

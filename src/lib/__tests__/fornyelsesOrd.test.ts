@@ -37,12 +37,20 @@ describe("fornyelsesBadge — stemplet ligger ved siden af motoren, som i forsid
   it("klar_til_tilbud uden stempel → klar_til_tilbud", () => {
     expect(fornyelsesBadge("klar_til_tilbud", null)).toBe("klar_til_tilbud");
     expect(fornyelsesBadge("klar_til_tilbud", undefined)).toBe("klar_til_tilbud");
+    expect(fornyelsesBadge("klar_til_tilbud", null, null)).toBe("klar_til_tilbud");
+  });
+  it("klar_til_tilbud + varsel 2 (påmindelsen) → klar_til_tilbud_paamindet — også med varsel 1 (varsel 2 vinder)", () => {
+    expect(fornyelsesBadge("klar_til_tilbud", "2026-08-30T11:00:00Z", "2026-09-07T11:57:53Z")).toBe("klar_til_tilbud_paamindet");
+  });
+  it("CARMA STUDIO ordret (7/9 kl. 18:29): varsel 2 sat, varsel 1 null → «Påmindelse sendt», ikke «Klar til tilbud»", () => {
+    expect(fornyelsesBadge("klar_til_tilbud", null, "2026-09-07T11:57:53Z")).toBe("klar_til_tilbud_paamindet");
   });
   it("alle andre statusser er uændrede, med eller uden stempel", () => {
     for (const status of ALLE_STATUSSER) {
       if (status === "klar_til_tilbud") continue;
       expect(fornyelsesBadge(status, "2026-09-07T11:57:53Z")).toBe(status);
       expect(fornyelsesBadge(status, null)).toBe(status);
+      expect(fornyelsesBadge(status, null, "2026-09-07T11:57:53Z")).toBe(status);
     }
   });
 });
@@ -72,6 +80,8 @@ describe("fladerne siger «vi tilbyder», aldrig databasens «tilbyd» råt", ()
     const k = kilder["src/components/hjemmebane/virksomhed/VirksomhedView.tsx"];
     expect(k).toContain("fornyelsesBadge(");
     expect(k, "badget for det varslede trin mangler").toMatch(/klar_til_tilbud_varslet:\s*"/);
+    expect(k, "badget for påmindelsen mangler").toMatch(/klar_til_tilbud_paamindet:\s*"Påmindelse sendt"/);
+    expect(k, "badget slås op uden varsel_2_sendt_at — CARMA-fejlen").toMatch(/fornyelsesBadge\([^)]*varsel_2_sendt_at/);
   });
   it("forsidens dom siger «Fornyelse besluttet: vi tilbyder»", () => {
     const k = kilder["src/lib/forsidensDom.ts"];

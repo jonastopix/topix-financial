@@ -84,6 +84,7 @@
  * (indsats 1–3, se INDSATS).
  */
 import type { Signal } from "./virksomhedsSignaler";
+import { afgoerVarselTrin } from "@/lib/varselTrin";
 import type { Fornyelsestilstand } from "./fornyelse";
 import { BETALINGSFRIST_DAGE, type Betalingsfristtilstand } from "./betalingsfrist";
 
@@ -141,11 +142,23 @@ export const USAEDVANLIGT_MANGE = 20;
  *                          Vinduesporten løfter den alligevel de sidste
  *                          VINDUE_DAGE før slutdato — dér går varsel 2, og
  *                          dér hører den personlige besked hjemme.
+ *   klar_til_tilbud_paamindet 65  (7/9 aften) varsel 2 — påmindelsen — er
+ *                          sendt, med eller uden varsel 1 (CARMA: den sene
+ *                          beslutning sprang varsel 1 over). SAMME alvor som
+ *                          varslet, af samme grund: systemet har gjort sit,
+ *                          det der står tilbage er rådgiverens personlige
+ *                          besked. Hasten bæres ikke af alvoren men af
+ *                          vinduesporten: varsel 2 går ved ≤ 7 dage, og dér
+ *                          løfter porten linjen uanset alvor. En højere
+ *                          alvor ville sige «det haster mere at skrive» —
+ *                          det gør det ikke; det haster at vinduet lukker,
+ *                          og det siger dagene allerede.
  */
 export const ALVOR_FORNYELSE = {
   udloebet_tilbyd: 90,
   klar_til_tilbud: 75,
   klar_til_tilbud_varslet: 65,
+  klar_til_tilbud_paamindet: 65,
   beslutning_mangler: 70,
 } as const;
 
@@ -283,6 +296,12 @@ export interface VirksomhedTilDom {
       det, og kun for klar_til_tilbud. Begge hentninger (AdvisorDashboard og
       useVirksomhed) SKAL bære det — #682/#689-lærdommen: to hentninger, ét tal. */
   varsel1SendtAt: string | null;
+  /** company_fornyelse.varsel_2_sendt_at — påmindelsen (7/9 aften). Vinder
+      over varsel 1 (lib/varselTrin). VALGFRI, fordi AdvisorDashboards
+      hentning ikke bærer kolonnen endnu (den ligger uden for #-PR'ens
+      stier); indtil den gør, ser forsiden CARMA-tilfældet (kun varsel 2)
+      som «ikke varslet». useVirksomhed/VirksomhedView bærer den. */
+  varsel2SendtAt?: string | null;
   /** afgoerBetalingsfrist(…, nu); null når virksomheden ikke er i indgangen
       (ingen række i company_betalingslink — kalderen afgør det, som
       betalingsfrist.ts siger). */
@@ -456,15 +475,19 @@ function grundFraFornyelse(v: VirksomhedTilDom): Grund | null {
   const status = f.status;
   if (status !== "udloebet_tilbyd" && status !== "klar_til_tilbud" && status !== "beslutning_mangler") return null;
   const dage = f.dage_til_udloeb;
-  const varslet = status === "klar_til_tilbud" && v.varsel1SendtAt != null;
+  // Begge stempler, ÉN regel (lib/varselTrin): varsel 2 vinder over varsel 1.
+  const trin = status === "klar_til_tilbud" ? afgoerVarselTrin(v.varsel1SendtAt, v.varsel2SendtAt ?? null) : "ingen";
+  const varslet = trin !== "ingen";
   const dageTekst = dage != null ? ` — ${flertal(dage, "dag", "dage")} til udløb` : "";
   const tekst =
     status === "udloebet_tilbyd"
       ? `Kontrakten udløb${dage != null ? ` for ${flertal(-dage, "dag", "dage")} siden` : ""} — tilbud givet, intet svar`
       : status === "klar_til_tilbud"
-        ? varslet
-          ? `Varslet er sendt${dageTekst}`
-          : `Fornyelse besluttet: vi tilbyder${dageTekst}` // ordet er dansk, ikke databasens (Jonas 7/9; lib/fornyelsesOrd)
+        ? trin === "varsel_2"
+          ? `Påmindelsen er sendt${dageTekst}`
+          : trin === "varsel_1"
+            ? `Varslet er sendt${dageTekst}`
+            : `Fornyelse besluttet: vi tilbyder${dageTekst}` // ordet er dansk, ikke databasens (Jonas 7/9; lib/fornyelsesOrd)
         : `Fornyelse: beslutning mangler${dageTekst}`;
   const handling =
     status === "udloebet_tilbyd"
@@ -474,9 +497,10 @@ function grundFraFornyelse(v: VirksomhedTilDom): Grund | null {
           ? `Skriv til ${v.navn}`
           : `Send tilbuddet til ${v.navn}`
         : `Beslut fornyelsen for ${v.navn}`;
-  // Egen signaltype, så §7's fravalg og §9's tildeling kan skelne «send» fra
-  // «skriv» — og så alvoren slås op på det rigtige trin.
-  const signaltype: keyof typeof ALVOR_FORNYELSE = varslet ? "klar_til_tilbud_varslet" : status;
+  // Egen signaltype pr. trin, så §7's fravalg og §9's tildeling kan skelne
+  // «send» fra «skriv» — og så alvoren slås op på det rigtige trin.
+  const signaltype: keyof typeof ALVOR_FORNYELSE =
+    trin === "varsel_2" ? "klar_til_tilbud_paamindet" : trin === "varsel_1" ? "klar_til_tilbud_varslet" : status;
   return {
     slags: "fornyelse",
     signaltype,

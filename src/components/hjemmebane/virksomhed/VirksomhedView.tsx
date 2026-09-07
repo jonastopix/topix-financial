@@ -86,11 +86,14 @@ const BETALINGSMODEL_LABEL: Record<string, string> = {
 };
 
 /** Samme tekster som FornyelsesSektion.tsx:45-59 — kun udtrykket er Hb.
-    Plus ét trin motoren ikke kender (7/9): klar_til_tilbud_varslet, når
-    fornyelsesvarsel-cron har stemplet varsel_1_sendt_at. Nøglen slås op
-    med fornyelsesBadge (lib/fornyelsesOrd) — stemplet ved siden af
-    motoren, som forsidens dom. FornyelsesSektion henter ikke stemplet og
-    viser derfor stadig «Klar til tilbud» efter varslet. */
+    Plus TO trin motoren ikke kender (7/9): klar_til_tilbud_varslet, når
+    fornyelsesvarsel-cron har stemplet varsel_1_sendt_at, og
+    klar_til_tilbud_paamindet, når varsel_2_sendt_at er sat (vinder — CARMA
+    7/9 aften havde KUN varsel 2 og badget sagde «Klar til tilbud»). Nøglen
+    slås op med fornyelsesBadge (lib/fornyelsesOrd → lib/varselTrin, samme
+    regel som forsidens dom) — stemplerne ved siden af motoren.
+    FornyelsesSektion henter ikke stemplerne og viser derfor stadig «Klar
+    til tilbud» efter varslet. */
 const FORNYELSE_LABEL: Record<FornyelseBadge, string> = {
   ophoert: "Ophørt",
   udloebet_tilbyd: "Udløbet — tilbyd",
@@ -99,6 +102,7 @@ const FORNYELSE_LABEL: Record<FornyelseBadge, string> = {
   beslutning_mangler: "Beslutning mangler",
   klar_til_tilbud: "Klar til tilbud",
   klar_til_tilbud_varslet: "Varsel sendt", // systemet har sendt tilbuddet (varsel 1); det der står tilbage er rådgiverens personlige besked
+  klar_til_tilbud_paamindet: "Påmindelse sendt", // varsel 2 er gået (samme ord som Aftalen-linjen «Påmindelse sendt»); vinder over varsel 1
   klar_til_afsked: "Klar til afsked",
   uden_for_ordningen: "Uden for ordningen",
   i_god_tid: "I god tid",
@@ -249,6 +253,7 @@ function findDerfor(d: VirksomhedsData, facts: CompanyFact[], slags: OpgaveSlags
         }, nu)
       : null,
     varsel1SendtAt: d.fornyelse?.varsel_1_sendt_at ?? null,
+    varsel2SendtAt: d.fornyelse?.varsel_2_sendt_at ?? null,
     indgang: d.betalingslink
       ? afgoerBetalingsfrist({
           prisniveau_oere: d.betalingslink.prisniveau_oere,
@@ -1436,7 +1441,7 @@ const Blok7 = ({ d, onOpdateret, onFornyelseAendret }: { d: VirksomhedsData; onO
           </div>
           <div className="mt-3 flex flex-wrap items-center gap-1.5">
             <TierBadge tier={tier} kontraktSlut={c.contract_end_date} />
-            <HbTag className="bg-hb-paper border border-hb-line px-2 py-0.5 text-[11px] text-hb-ink-soft">{FORNYELSE_LABEL[fornyelsesBadge(fornyelse.status, d.fornyelse?.varsel_1_sendt_at)]}</HbTag>
+            <HbTag className="bg-hb-paper border border-hb-line px-2 py-0.5 text-[11px] text-hb-ink-soft">{FORNYELSE_LABEL[fornyelsesBadge(fornyelse.status, d.fornyelse?.varsel_1_sendt_at, d.fornyelse?.varsel_2_sendt_at)]}</HbTag>
             {indgang && indgang.status !== "betalt" && (
               <HbTag className="bg-hb-rust/10 px-2 py-0.5 text-[11px] text-hb-rust">{INDGANG_LABEL[indgang.status]}</HbTag>
             )}
