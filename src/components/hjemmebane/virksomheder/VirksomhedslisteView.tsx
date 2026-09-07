@@ -4,6 +4,7 @@ import { Link } from "react-router-dom";
 import { format } from "date-fns";
 import { da } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
+import { kraevRaekker } from "@/lib/kraevRaekker";
 import { useAuth } from "@/hooks/useAuth";
 import { computeMembershipTier, type MembershipTier } from "@/lib/membershipTier";
 import { fejledeTraekPrVirksomhed, traekBadgeTekst, type FejletTraek } from "@/lib/traek";
@@ -105,7 +106,22 @@ async function hentVirksomhedsliste(): Promise<Raekke[]> {
       .limit(500),
   ]);
 
-  const fejledeTraekByCompany = fejledeTraekPrVirksomhed(traekRes.data ?? []);
+  // DELKALDENE KASTER (7/9, recon-tavse-fejl.md pkt. 2 — samme greb som
+  // forsiden, #703): fire af de seks kilder læses gennem kraevRaekker, som
+  // kaster med kildens navn når svaret bærer en fejl. Før blev en fejl til
+  // `[]`, TanStack så en succes, og fladen sagde «Der er ingen virksomheder
+  // endnu» — for hele porteføljen. Tom data er en LØGN for: companies
+  // (listen selv), conversations («Sidste kontakt» ville sige aldrig for
+  // alle), financial_report_facts («Sidste rapportering» ville sige
+  // ingen for alle) og company_traek (fejlede træk ville forsvinde uden
+  // spor — penge). company_members og profiles er BERIGELSER: de bærer
+  // ownerens navn i kontaktperson-kolonnen, og filhovedets fald-tilbage
+  // til contact_person er bygget netop til «ingen owner» — de læses som
+  // før. Låst af forsidenKaster.guard.test.ts.
+  const companies = kraevRaekker(companiesRes, "companies");
+  const conversations = kraevRaekker(convsRes, "conversations");
+  const facts = kraevRaekker(factsRes, "financial_report_facts");
+  const fejledeTraekByCompany = fejledeTraekPrVirksomhed(kraevRaekker(traekRes, "company_traek"));
 
   // Ownerens navn pr. virksomhed: første owner-række med et profilnavn.
   // Målt 4/9 kl. 10:17: alle aktive virksomheder med medlemmer har præcis
@@ -125,7 +141,7 @@ async function hentVirksomhedsliste(): Promise<Raekke[]> {
   // Seneste besked pr. virksomhed — flere samtaler pr. virksomhed er
   // muligt, så den nyeste vinder.
   const sidsteBeskedByCompany = new Map<string, string>();
-  for (const c of convsRes.data ?? []) {
+  for (const c of conversations) {
     if (!c.company_id || !c.last_message_at) continue;
     const eksisterende = sidsteBeskedByCompany.get(c.company_id);
     if (!eksisterende || c.last_message_at > eksisterende) {
@@ -136,14 +152,14 @@ async function hentVirksomhedsliste(): Promise<Raekke[]> {
   // Seneste committede periode pr. virksomhed: højeste period_key
   // ("YYYY-MM", sorterer leksikalt).
   const sidsteFactByCompany = new Map<string, { key: string; label: string }>();
-  for (const f of factsRes.data ?? []) {
+  for (const f of facts) {
     const eksisterende = sidsteFactByCompany.get(f.company_id);
     if (!eksisterende || f.period_key > eksisterende.key) {
       sidsteFactByCompany.set(f.company_id, { key: f.period_key, label: f.period_label || f.period_key });
     }
   }
 
-  return (companiesRes.data ?? [])
+  return companies
     // Som den gamle liste (Members.tsx:317, :464): legat-virksomheder har
     // deres egen sektion (ikke bygget her), og kun aktive/status-løse vises.
     // er_kunde læses her fordi listen er rådgiverens: vores egen virksomhed
@@ -317,6 +333,11 @@ export const VirksomhedslisteView = () => {
             <RaekkeSkelet />
             <RaekkeSkelet />
           </ul>
+        ) : listeQuery.isError ? (
+          // Fejl og tom liste er to forskellige ting (7/9): en fejlet
+          // hentning må ikke ligne «ingen virksomheder». Formen er
+          // RaadgiverForsideViews fejllinje.
+          <p className="px-4 py-10 text-center text-sm text-hb-rust">Listen kunne ikke hentes. Prøv igen.</p>
         ) : filtreret.length === 0 ? (
           <p className="px-4 py-10 text-center text-sm text-hb-ink-soft">
             {soeger ? `Ingen virksomheder matcher "${query.trim()}"` : "Der er ingen virksomheder endnu"}
