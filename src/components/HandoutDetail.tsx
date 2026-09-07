@@ -164,6 +164,19 @@ const HandoutDetail = ({ config, onBack, userId, onModuleSelect }: HandoutDetail
   }
 
   return (
+    <div className="text-foreground">
+      {/* APP-TEMA-TEKST (7/9, recon-moerke-tokens-paa-papir.md): komponenten er
+          IKKE konverteret til Hjemmebane og tegner i appens tokens (.dark, sat
+          permanent i index.html). Monteret i en Hb-flade ARVER den tekstfarven
+          fra Hb-skallen (HbMemberShell: text-hb-ink, 12 % lyshed) oven på
+          .dark-baggrunde (bg-background 9 %, bg-input 18 %) — outline-knapper og
+          indtastet tekst i Input/Textarea bliver mørkt på mørkt. Wrapperen sætter
+          derfor appens TEKSTFARVE eksplicit, så intet arves fra skallen — og
+          BEVIDST IKKE baggrunden: målt på skærm 7/9 er panelet i praksis lyst
+          (bg-muted/20 blandet over papiret), og bg-background ville ændre
+          udtrykket frem for at rette fejlen. Intet indeni er ændret. FJERNES når
+          komponenten konverteres til Hjemmebane — den bor på roden, så
+          konverteringen tager den med i samme fil. */}
     <div className="space-y-6 animate-fade-in">
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
@@ -374,6 +387,7 @@ const HandoutDetail = ({ config, onBack, userId, onModuleSelect }: HandoutDetail
           />
         </div>
       )}
+    </div>
     </div>
   );
 };
