@@ -325,7 +325,7 @@
   <section class="topic" id="betaling">
   <p class="eyebrow">Omsætningen</p>
   <h2>Betaling og fornyelse — inkl. migrationen</h2>
-  <p class="lede">Fornyelseskæden bærer siden 1/9, indgangens betaling siden 2/9, månedstrækkene registreres siden 3/9. Målt 6/9 mod 10/9: alle forudsætninger er grønne, men ordningen har ingen afsender, og 10/9 er ikke en tændingsdato (OVERLEVERING DEL 2 «Fornyelseskæden», fornyelseskæden §13). Det der står, er migrationen af de tretten, det der stadig sker i tavshed, og det der var dødt uden at nogen vidste det.</p>
+  <p class="lede">Fornyelseskæden bærer siden 1/9, indgangens betaling siden 2/9, månedstrækkene registreres siden 3/9. Målt 6/9 mod 10/9: alle forudsætninger er grønne, men ordningen har ingen afsender, og 10/9 er ikke en tændingsdato (OVERLEVERING DEL 2 «Fornyelseskæden», fornyelseskæden §13). 7/9: tilbudsvinduet er bygget og bevist, stemplerne er i prod, tallene er besluttet — afsenderen selv er det der står (fornyelseskæden §14). Det der står, er migrationen af de tretten, det der stadig sker i tavshed, og det der var dødt uden at nogen vidste det.</p>
   <div class="grid">
     <div class="card blocked" data-status="fejl" data-spor="senere" data-rammer="raadgiver">
       <h3>Betalingsstigen med e-conomic — integrationen findes og er død</h3>
@@ -334,24 +334,19 @@
       <div class="meta"><span class="tag rust">Død i drift</span><span class="tag size">Stor</span></div>
     </div>
     <div class="card blocked new" data-status="fejl" data-spor="7" data-rammer="medlem">
-      <h3>Fornyelsen har ingen afsender</h3>
-      <p>Ingen mail, ingen skabelon, ingen cron, ingen kode bag ordningens «brief før slutdato» (grep 6/9 i <code>supabase/functions</code>, mailskabelonerne og notifikationskæden: nul træffere). Kæden er to menneskelige klik og ét Stripe-event. Medlemmet hører først om sin fornyelse ved at MISTE adgangen og selv finde tilbuddet i <code>MembershipExpiredGate</code>. <strong>Besluttet 6/9:</strong> medlemmet skal høre det fra systemet — to mails før slutdato, Calendly-snak med Jonas, notifikation til rådgiveren når mail 1 er sendt; formen spejler indgangens kæde (pg_cron → Bucket B → tørkørsel → motor → enqueue → stempel). Første migration skal bære stempel-felter på <code>company_fornyelse</code>. Deadline midten af november (Livja 16/12 minus 30 dage), ikke 10/9. Erstatter kortet «Udløbsvarsel og afskedsmail».</p>
-      <div class="meta"><span class="tag ny">Ny 6/9</span><span class="tag rust">Tavshed</span><span class="tag">Besluttet</span><span class="tag size">Stor</span></div>
+      <h3>Fornyelsens afsender mangler stadig</h3>
+      <p>Forudsætningerne er på plads 7/9: stemplerne findes (<code>varsel_1_sendt_at</code>, <code>varsel_2_sendt_at</code> på <code>company_fornyelse</code>, #674, i prod kl. 08:51 — ingen trigger, skrivestien sætter selv <code>updated_at</code>), motoren og tilstanden findes (<code>udloebet_vindue_lukket</code>, #678), og tallene er besluttet: mail 1 dag 30 før slutdato, mail 2 dag 7, tilbuddet lever 14 dage efter; Calendly-linket er <code>calendly.com/topix-jonas/fornyelse</code> (almindeligt link). Men der er INGEN mail, INGEN skabelon og INGEN cron — kæden er stadig to menneskelige klik og ét Stripe-event, og medlemmet hører først om sin fornyelse ved at MISTE adgangen (målt 6/9). Formen spejler indgangens kæde (pg_cron → Bucket B → tørkørsel → motor → enqueue → stempel). <strong>Konsekvens af dag 30:</strong> rådgiverbeslutningen skal foreligge senest dag 30, ellers sendes intet — en glemt beslutning aflyser mailen. Deadline midten af november (Livja 16/12 minus 30 dage). Det er næste stykke (fornyelsesordningen §7, fornyelseskæden §14).</p>
+      <div class="meta"><span class="tag ny">Ny 6/9</span><span class="tag rust">Tavshed</span><span class="tag">Tal besluttet 7/9</span><span class="tag size">Stor</span></div>
     </div>
     <div class="card decision new" data-status="beslutning" data-spor="7" data-rammer="raadgiver">
-      <h3>Datogaten omgås på tilbuds- og checkout-vejen</h3>
-      <p><code>hent-fornyelsestilbud</code> kalder ikke motoren (kun tier + beslutning), og <code>opret-fornyelse-checkout</code> kræver <code>udloebet_tilbyd</code>, som afgøres i udløbsgrenen FØR <code>FORNYELSE_IKRAFT_DATO</code>-gaten (målt 6/9, fornyelseskæden §13.3). En virksomhed «uden for ordningen» får derfor et fuldt systemtilbud og kan betale, hvis nogen trykker Tilbyd. Værnet er rådgiverens finger, ikke koden. Om gaten SKAL gælde dér, er en beslutning — efter 10/9 er den alligevel virkningsløs.</p>
+      <h3>Datogaten omgås stadig hvor pengene skifter hænder</h3>
+      <p><code>hent-fornyelsestilbud</code> kalder nu MOTOREN (#678, 7/9) — den første halvdel af fundet fra 6/9 er væk. Men udløbsgrenen afgøres stadig FØR <code>FORNYELSE_IKRAFT_DATO</code>-gaten, og både tilbud og checkout kræver <code>udloebet_tilbyd</code> (fornyelseskæden §13.3, §14.1). En virksomhed «uden for ordningen» med beslutning <code>tilbyd</code> får derfor stadig et systemtilbud og kan betale — nu i 14 dage efter udløb, ikke for evigt. <code>uden_for_ordningen</code>-reglen håndhæves altså kun på rådgiverens side; værnet er rådgiverens finger. Om gaten SKAL gælde dér, er en beslutning — efter 10/9 er den alligevel virkningsløs.</p>
       <div class="meta"><span class="tag ny">Ny 6/9</span><span class="tag gold">Beslutning</span><span class="tag rust">Værnet er et menneske</span><span class="tag size">Lille</span></div>
     </div>
-    <div class="card blocked new" data-status="mangler" data-spor="7" data-rammer="medlem">
-      <h3>Fjortendagesvinduet findes ikke</h3>
-      <p>Besluttet 27/8, stadig ingen tilstand i motoren (målt 6/9): <code>udloebet_tilbyd</code> har ingen tidsgrænse, så et tilbud står i gaten til nogen fjerner beslutningen (<code>src/lib/fornyelse.ts:131</code>). Blokerer to ting: afsenderen (den kan ikke skelne «tre dage tilbage» fra «vinduet lukket») og oprydningen af Studio Minis række.</p>
-      <div class="meta"><span class="tag ny">Ny 6/9</span><span class="tag rust">Blokerer afsenderen</span><span class="tag size">Mellem</span></div>
-    </div>
-    <div class="card new" data-status="mangler" data-spor="7" data-rammer="ingen">
-      <h3>Studio Minis <code>tilbyd</code>-række skal ryddes når vinduet findes</h3>
-      <p>Studio Mini (slut 5/9) står med beslutning <code>tilbyd</code> og gyldig pris (20.000 kr.), men FORLÆNGER IKKE (Jonas 6/9). Rækken ryddes først når fjortendagesvinduet findes som tilstand, så data siger det der er sandt — ikke før. CARMA STUDIO (7/9, <code>tilbyd</code>) håndteres manuelt i dialog.</p>
-      <div class="meta"><span class="tag ny">Ny 6/9</span><span class="tag">Venter på vinduet</span><span class="tag size">Lille</span></div>
+    <div class="card decision new" data-status="beslutning" data-spor="7" data-rammer="ingen">
+      <h3>Studio Minis <code>tilbyd</code>-række: ryddes før 20/9, eller lukkes af sig selv</h3>
+      <p>Studio Mini (slut 5/9) står med beslutning <code>tilbyd</code> og gyldig pris (20.000 kr.), men FORLÆNGER IKKE (Jonas 6/9). Tilstanden findes nu (#678, 7/9), så rækken KAN ryddes. I dag (7/9) er de dag 2 i vinduet; fra 20/9 lukker vinduet af sig selv, og rækken bliver <code>udloebet_vindue_lukket</code> uden at nogen rører den. Indtil da viser gaten dem et tilbud, hvis de logger ind. Beslutningen er om rækken skal ryddes FØR. CARMA STUDIO (7/9, <code>tilbyd</code>) håndteres manuelt i dialog.</p>
+      <div class="meta"><span class="tag ny">Ny 6/9</span><span class="tag gold">Beslutning</span><span class="tag">Lukker selv 20/9</span><span class="tag size">Lille</span></div>
     </div>
     <div class="card decision new" data-status="beslutning" data-spor="7" data-rammer="raadgiver">
       <h3>To virksomheder uden slutdato rammer aldrig fornyelsesordningen</h3>
@@ -765,13 +760,8 @@
   <section class="topic" id="raadgiverfladen">
   <p class="eyebrow">Rådgiverens hverdag</p>
   <h2>Rådgiverfladen — det der står tilbage efter 4/9</h2>
-  <p class="lede">Forsiden, virksomhedslisten, virksomhedssiden, chatten, Milestones og alle otte admin-sider er Hjemmebane. Resterne herunder er målt sent 4/9 (OVERLEVERING DEL 3) — og tre ting er set på mobil. To kort fra 6/9 sen aften: puklen der taber virksomheden, og sorteringen på <code>/virksomheder</code>.</p>
+  <p class="lede">Forsiden, virksomhedslisten, virksomhedssiden, chatten, Milestones og alle otte admin-sider er Hjemmebane. Resterne herunder er målt sent 4/9 (OVERLEVERING DEL 3) — og tre ting er set på mobil. Ét kort fra 6/9 sen aften: sorteringen på <code>/virksomheder</code> (puklen der tabte virksomheden er løst, #672).</p>
   <div class="grid">
-    <div class="card new" data-status="fejl" data-spor="6" data-rammer="raadgiver">
-      <h3>Forsidens pukkel taber virksomheden</h3>
-      <p>Linjen «N agentforslag venter på din afgørelse» linker til <code>/virksomheder</code> uden filter (<code>RaadgiverForsideView.tsx:197</code>), så rådgiveren selv skal lede. Forslag kan KUN afgøres i <code>AgentForslagPanel</code>, monteret alene på <code>/virksomhed/:companyId</code> (<code>VirksomhedView.tsx:330</code>, målt 6/9). Dommen kender virksomhederne bag puklen og kaster dem væk på vej til fladen. Målt 6/9 kl. 22:18: otte forslag på to virksomheder (Topix 6, remm. 2); forsiden viser 2 efter <code>er_kunde</code>. Dækker puklen én virksomhed, kan linjen pege direkte derhen; dækker den flere, findes der ingen flade der viser forslag på tværs.</p>
-      <div class="meta"><span class="tag ny">Ny 6/9</span><span class="tag rust">Blindt link</span><span class="tag size">Lille</span></div>
-    </div>
     <div class="card new" data-status="mangler" data-spor="6" data-rammer="raadgiver">
       <h3>Sortering og branchefilter på <code>/virksomheder</code></h3>
       <p>Jonas 6/9: listen skal kunne sorteres på Virksomhed, Medlemsstatus og Sidste kontakt. Det er IKKE en løs idé — den gamle <code>/members</code>-liste har sortering og branchefilter, og de står som punkt 11 i de elleve dele der blokerer swappet (OVERLEVERING DEL 3, kortet «<code>/members</code> kan ikke swappes» nedenfor). Hører til dér: bygges det på <code>/virksomheder</code>, er ét af de elleve punkter væk.</p>
@@ -934,11 +924,6 @@
       <h3>Ugeagentens cron findes ikke i prod</h3>
       <p><code>run-weekly-agent</code> har KUN <code>Deno.cron</code> og står IKKE i prods <code>cron.job</code> (målt 6/9: ti jobs, ingen af dem den). Ugeagenten kører derfor formentlig slet ikke — ikke efterprøvet ud over <code>cron.job</code> (<code>agent_runs.trigger</code> kan svare). Og den kører LIVE når den kaldes (<code>dry_run: false</code> → <code>weekly_focus</code>, <code>company_actions</code>, <code>milestones</code>, som medlemmet ser), så at tænde den er en beslutning i opgave-epic'et, ikke en rettelse. Kun <code>generate-weekly-focus</code> (0 6 * * 1) skriver mandag.</p>
       <div class="meta"><span class="tag ny">Ny 6/9</span><span class="tag rust">Kører ikke</span><span class="tag size">Lille</span></div>
-    </div>
-    <div class="card new" data-status="fejl" data-spor="senere" data-rammer="ingen">
-      <h3>CI kører ikke typecheck</h3>
-      <p>Gaten i <code>.github/workflows/test.yml</code> er <code>bun run test</code> alene. PR #668 var grøn med 15 typefejl på <code>main</code> (målt 6/9). Typefejl fanges kun i hånden. <strong>Baselinen er fire igen</strong> (#670, 6/9 sen aften — de elleve fra Lovables regenerering er rettet, OVERLEVERING DEL 1), så rækkefølgen «baselinen ned først» er opfyldt: et <code>tsc</code>-trin i CI er nu det næste skridt. Det ville i dag give præcis de fire kendte fejl (CompanyChatPane, PushView, RapporteringView ×2) — rettes de, eller får trinnet en kendt-liste, er den ene beslutning der står.</p>
-      <div class="meta"><span class="tag ny">Ny 6/9</span><span class="tag">Klar til gaten</span><span class="tag size">Lille</span></div>
     </div>
     <div class="card new" data-status="mangler" data-spor="senere" data-rammer="ingen">
       <h3>38 grene på origin ud over <code>main</code></h3>

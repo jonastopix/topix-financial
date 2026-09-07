@@ -2,9 +2,10 @@
 
 Besluttet 27. august 2026. Motoren `src/lib/fornyelse.ts` og
 rådgiverfladen `FornyelsesSektion` er i drift. Fornyelsessiden og
-betalingsvejen er bygget og bevist 1/9 (§5). Ingen mails — målt 6/9:
-ordningen har ingen afsender (§5 punkt 5), og retningen er besluttet
-(§7).
+betalingsvejen er bygget og bevist 1/9 (§5). Fjortendagesvinduet er
+bygget som tilstand og bevist 7/9 (§3). Ingen mails — målt 6/9:
+ordningen har ingen afsender (§5 punkt 5); retningen er besluttet 6/9
+og tallene 7/9 (§7).
 
 ## 1. Den bærende regel
 
@@ -53,18 +54,40 @@ I vinduet har medlemmet **ikke adgang** til platformen. De lander på
 fornyelsessiden. `computeMembershipTier` ændres derfor ikke — de er
 `expired`, og gaten er det der skal gøres indbydende.
 
-Vinduet findes endnu ikke som tilstand i motoren. I dag bevarer en
-truffet beslutning sin status uanset afstanden til slutdatoen; det er
-den rigtige grænse, men den skelner ikke dag 3 fra dag 40.
+**BYGGET 7/9 (#678).** Vinduet er tilstanden `udloebet_vindue_lukket`
+i motoren — den ellevte status — og findes KUN efter beslutningen
+`tilbyd`: `tilbyd_ikke` har aldrig haft et tilbud og har derfor intet
+vindue at lukke; `udloebet_tilbyd_ikke` er uændret. Grænsen er 14 hele
+UTC-kalenderdage efter slutdatoen (`FORNYELSE_TILBUDSVINDUE_EFTER_UDLOEB_DAGE`,
+ikke at forveksle med beslutningsvinduet på 60 dage før udløb):
+slutdato 1/10 giver sidste tilbudsdag 15/10, lukket 16/10. Kan dagene
+ikke regnes (`dage_til_udloeb` null), bevares tilbuddet frem for at
+lukke på et tal vi ikke har.
+
+Betydningen, som alle aftagere følger: vinduet er lukket, der er intet
+tilbud mere, kundeforholdet er slut, og enhver videre samtale er
+menneskelig. Historikken bevares i `company_fornyelse` (beslutningen og
+varselsstemplerne bliver stående) — tilstanden bærer den ikke. Derfor
+er den skjult på rådgiverlisten som `ophoert`, giver ingen grund på
+forsiden, og giver `{ tilbud: null }` i gaten — samme svar som
+`tilbyd_ikke`, så kategorien ikke lækker.
+
+`hent-fornyelsestilbud` kalder fra 7/9 MOTOREN frem for selv at tjekke
+tier og beslutning; tilbud og betaling dømmer dermed på samme kilde.
+Det lukkede hullet «et tilbud der aldrig udløber». Bevist i drift 7/9
+kl. 09:36–09:38: dag 10 gav tilbud, dag 15 tog det væk — detaljen i
+`docs/fornyelseskaeden-1-september.md` §14.
 
 ## 4. Hvad motoren afgør i dag
 
-Statusser efter PR #451:
+Elleve statusser efter PR #451 og #678:
 
 - `ophoert` — udløbet uden truffet beslutning. Afsluttet kundeforhold,
   vises ikke på rådgiverlisten. Afgøres FØR ikrafttrædelses-reglen.
 - `udloebet_tilbyd` / `udloebet_tilbyd_ikke` — udløbet MED beslutning.
   Beslutningen har forrang og bevares.
+- `udloebet_vindue_lukket` — udløbet med beslutning `tilbyd`, og mere
+  end 14 dage siden slutdatoen (§3). Vises ikke på rådgiverlisten.
 - `uden_for_ordningen` — slutdato på eller før `FORNYELSE_IKRAFT_DATO`
   (2026-09-10), stadig aktiv. Personlig dialog, ordningen rører dem ikke.
 - `beslutning_mangler` / `klar_til_tilbud` / `klar_til_afsked` — inden
@@ -94,12 +117,10 @@ Fire led, i rækkefølge:
 2. **Fjortendagesvinduet som tilstand** i motoren, så en aftager kan
    skelne «tilbudt, tre dage tilbage» fra «tilbudt, vinduet lukket».
 
-   **STADIG ÅBENT, målt 6/9.** `FornyelseStatus` har ingen
-   fjortendages-tilstand; `udloebet_tilbyd` gælder «uanset hvor længe
-   siden slutdatoen er» (`src/lib/fornyelse.ts:131`), så et tilbud står
-   i gaten til nogen fjerner beslutningen. Punktet er nu forudsætning
-   for to ting: mailkæden (§7) og Studio Minis række
-   (fornyelseskæden §13.4).
+   **LØST 7/9 (#678).** Tilstanden hedder `udloebet_vindue_lukket`;
+   reglen og beviset står i §3. Studio Minis række (fornyelseskæden
+   §13.4) lukker af sig selv 20/9 — om den skal ryddes før, er en
+   beslutning.
 
 3. **Fornyelsessiden.** `MembershipExpiredGate` er i dag en gate med tre
    udveje, hvoraf den ene er en mailto. Den skal kunne bære et konkret
@@ -137,9 +158,11 @@ Fire led, i rækkefølge:
 **Om ikrafttrædelsen, målt 6/9:** 10/9 er ikke en tændingsdato. Intet
 kører i koden den dag; `FORNYELSE_IKRAFT_DATO` sammenlignes med
 virksomhedens slutdato og bliver virkningsløs efter 10/9. Og datogaten
-omgås på tilbuds- og checkout-vejen — en virksomhed «uden for
-ordningen» får et fuldt systemtilbud, hvis nogen trykker Tilbyd
-(fornyelseskæden §13.2–13.3). Den reelle deadline for afsenderen er
+omgås stadig på tilbuds- og checkout-vejen — `hent-fornyelsestilbud`
+kalder fra 7/9 motoren, men udløbsgrenen afgøres FØR datogaten, så en
+virksomhed «uden for ordningen» med beslutning `tilbyd` får et
+systemtilbud de første 14 dage efter udløb (fornyelseskæden
+§13.2–13.3). Den reelle deadline for afsenderen er
 midten af november: efter Doggybed 13/10 er der ingen fornyelse før
 Livja 16/12, og derefter fjorten mellem marts og juni 2027
 (fornyelseskæden §13.4).
@@ -166,12 +189,20 @@ efter udløb. §1 står ved magt — kun `tilbyd` udløser noget — men
 «tilbyd» skal betyde at systemet siger det, ikke at vi håber medlemmet
 logger ind.
 
-**Formen:**
+**Formen, tallene besluttet 7/9:**
 
-- To mails et antal dage før slutdato. Tallene er ikke afgjort.
-- Et tilbud om at booke en snak med Jonas via Calendly.
+- Mail 1 ved 30 dage før slutdato, mail 2 ved 7 dage før. Tilbuddet
+  lever 14 dage efter slutdato (§3).
+- Et tilbud om at booke «En snak om din fornyelse» hos Jonas:
+  https://calendly.com/topix-jonas/fornyelse — et almindeligt link, ikke
+  et engangslink (se Calendly nedenfor).
 - En notifikation til rådgiveren når mail 1 er sendt, så den personlige
   chatbesked kommer EFTER systemets mail og ikke i stedet for.
+
+**Konsekvens af dag 30:** rådgiverbeslutningen skal foreligge senest
+dag 30 før slutdato, ellers sendes intet. En glemt beslutning forsinker
+ikke mailen — den aflyser den. Det er §1's regel set fra kalenderen:
+kun `tilbyd` udløser noget, og kun hvis det står der når cron'en kigger.
 
 **Formen SPEJLER INDGANGENS KÆDE** (målt 6/9,
 `~/Downloads/recon-indgangens-mailkaede.md`, uden for repoet;
@@ -180,22 +211,26 @@ med vault-nøglen → Bucket B-funktion med `authenticateServiceRole` →
 TØRKØRSEL SOM STANDARD → ren motor afgør hvilken dag hver række står på
 → byg mail → enqueue → stempl KUN når afsendelsen lykkedes.
 
-**Konsekvens for datamodellen:** `company_fornyelse` mangler
-stempel-felter svarende til `company_betalingslink`s
-`betalingsmail_sendt_at` og `sidste_paamindelse_dag`. Uden dem kan en
-cron ikke vide hvad den allerede har gjort. De skal med i FØRSTE
-migration, ikke bygges på.
+**Datamodellen — LØST 7/9 (#674, i prod kl. 08:51):** `company_fornyelse`
+har `varsel_1_sendt_at` og `varsel_2_sendt_at`, begge nullable, plus en
+eksplicit service-role-policy. To navngivne kolonner frem for et
+dag-nummer som `company_betalingslink.sidste_paamindelse_dag`, fordi de
+to varsler kan sendes uafhængigt: en sen beslutning skal kunne give
+varsel 2 uden varsel 1. Tabellen har INGEN trigger (målt), så
+skrivestien — også cron'en — skal selv sætte `updated_at`.
 
-**Forudsætning i motoren:** fjortendagesvinduet som tilstand (§5 punkt
-2). En afsender der ikke kan skelne «tilbudt, tre dage tilbage» fra
-«tilbudt, vinduet lukket», sender forkert.
+**Forudsætning i motoren — LØST 7/9 (#678):** fjortendagesvinduet er
+tilstanden `udloebet_vindue_lukket` (§3). Afsenderen kan skelne
+«tilbudt, tre dage tilbage» fra «tilbudt, vinduet lukket».
 
-**Calendly:** der findes ingen statisk Calendly-URL i huset; alle tre
-steder bygger engangslinks serverside via API'et. En «snak om fornyelse
-hos Jonas» kræver en ny event type, som ikke findes endnu. Og betalte
-bookinger registreres i dag aldrig tilbage i platformen (målt 3/9,
-OVERLEVERING DEL 3), så linket i mailen skal være et almindeligt link —
-vi lover ikke en måling vi ikke kan holde.
+**Calendly — LØST 7/9:** event-typen «En snak om din fornyelse» findes,
+https://calendly.com/topix-jonas/fornyelse. Det er et almindeligt link,
+ikke et engangslink: betalte bookinger registreres aldrig tilbage i
+platformen (målt 3/9, OVERLEVERING DEL 3), så vi lover ikke en måling
+vi ikke kan holde.
+
+**Det der mangler nu:** afsenderen selv — mail, skabelon, cron. Intet
+af det findes (§5 punkt 5).
 
 **Deadline:** midten af november 2026 (Livja 16/12 minus 30 dage), ikke
 10/9 — se §5's note om ikrafttrædelsen og fornyelseskæden §13.4.

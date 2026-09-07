@@ -1,6 +1,30 @@
 # Overlevering
 
-**Sidst opdateret: 6. september 2026, aften — VORES EGEN VIRKSOMHED ER
+**Sidst opdateret: 7. september 2026 — BASELINEN ER NUL, OG CI HÅNDHÆVER
+DEN: de fire sidste typefejl er rettet uden at skjule nogen (#675), og
+`test.yml` kører nu `tsc` FØR testene, uden kendt-liste og uden
+`continue-on-error` — bevist i drift, kørsel 34092921389 (#676; DEL 1
+«Kodearbejde»). Gaten virkede første gang samme dag: TILBUDSVINDUET
+EFTER UDLØB er bygget som tilstanden `udloebet_vindue_lukket` (#678,
+besluttet 27/8), og tsc fangede de to Record-aftagere den nye status
+manglede i. Elleve statusser; `hent-fornyelsestilbud` kalder nu MOTOREN,
+så tilbud og betaling dømmer på samme kilde — hullet «et tilbud der
+aldrig udløber» er lukket. Bevist i drift kl. 09:36–09:38 på Topix.dk
+ApS: dag 10 gav tilbud, dag 15 tog det væk (DEL 2 «Fornyelseskæden»).
+Før tilstanden blev paritetstesten styrket (#677), fordi den ellers var
+blevet grøn uden at røre den nye gren. Varselsstemplerne på
+`company_fornyelse` er i prod (#674, kl. 08:51), og AFSENDERENS TAL ER
+BESLUTTET: mail 1 dag 30 før slutdato, mail 2 dag 7, tilbuddet lever 14
+dage efter; rådgiverbeslutningen skal foreligge senest dag 30, ellers
+sendes intet (fornyelsesordningen §7). Forsidens pukkel peger nu på
+virksomheden når den dækker én (#672). En fejl jeg selv lavede: `git
+checkout -b` BÆRER uncommitted arbejde med — #673 fik to vinduers
+arbejde i én commit og blev splittet i #674 og #675; ny regel i DEL 1
+«Git» og DEL 4. Det åbne: datogaten omgås stadig (udløbsgrenen afgøres
+FØR den), og afsenderen selv — mail, skabelon, cron — er næste stykke
+(DEL 3).**
+
+**6. september 2026, aften — VORES EGEN VIRKSOMHED ER
 IKKE LÆNGERE EN KUNDE i rådgiverens billede: nyt felt `companies.er_kunde`
 (#666 migration, #668 flader), ren fail-open-funktion `erKunde`, læst i
 præcis tre læsestier, bevist på skærm af Jonas (DEL 2, «er_kunde»). Tre
@@ -118,6 +142,9 @@ er det ikke — heller ikke når den ene «bare» er dokumentation. Sker det
 alligevel: `git reset` det staged, og `git add` med navngivne stier.
 Bekræftet 3/9 aften: to vinduer kørte hele aftenen (recon i det ene,
 bogføring i det andet) uden problemer, fordi højst ét skrev ad gangen.
+**Og FØR `git checkout -b`, når to vinduer kører: `git status --short`.**
+`checkout -b` bærer uncommitted arbejde fra det andet vindue med over på
+den nye gren (7/9, #673 — DEL 1 «Git», DEL 4).
 
 **Rutinen efter merge, som handlinger** (rækkefølgen er den faktiske):
 
@@ -258,8 +285,29 @@ samme kolonneantal og -type.
 - `gh run list --branch`, ikke `gh pr checks` (Vercel-appen hænger check-
   suites i `queued`).
 - `bunx tsc --noEmit -p tsconfig.app.json` (uden `-p` checkes nul filer).
-  **Baselinen er FIRE typefejl** (målt 6/9 sen aften efter #670):
-  CompanyChatPane, PushView, RapporteringView ×2. Den var 15 i nogle
+  **Baselinen er NUL (#675, 7/9), og CI HÅNDHÆVER DEN (#676).**
+  `test.yml` kører tsc FØR `bun run test` i jobbet «Tests» — ingen
+  kendt-liste, ingen `continue-on-error`: baselinen var nul da trinnet
+  blev indført, så gaten har aldrig haft undtagelser. KUN i det ene job:
+  «MCP Tests» kører samme kodebase, og et typecheck dér ville betale for
+  samme svar to gange (står i workflow-filen). **Bevist i drift:**
+  kørsel 34092921389, jobbet «Tests», trin 6 «Typecheck» → success, før
+  «Run tests». Gaten virkede første gang samme dag: #678's nye status
+  fik tsc til at fejle på præcis de to Records der manglede den. **De
+  fire sidste blev rettet uden at skjule nogen** (#675, princippet fra
+  #670 — de genererede typer er sandheden): `analysis`-castet i
+  CompanyChatPane erstattet af `laesAnalysisData` (eksplicit indsnævring
+  i `src/lib/financialAnalysis.ts`, 11 tests); PushViews `metadata`
+  bygget med husets eget udtryk (samme som Evergreen/Redaktionelt/
+  UgensVideo); `reportCardRefs` typet som `HTMLElement` (`HTMLDivElement`
+  var en løgn — ref'en sidder på et `<li>`); og `period_label`, som
+  ALDRIG har eksisteret på `financial_commentaries` — «`period_label ??
+  period_key`» var død kode siden den blev skrevet, og listen «Analyser
+  uden tilknyttet rapport» har hele tiden vist `period_key`. Nu står
+  der `period_key` med kommentar. **Én adfærdsændring:**
+  `laesAnalysisData` dropper et nøglefund med ukendt `severity`; før
+  blev det vist. Reglen står i læserens filhoved. Baselinen var FIRE
+  fra 6/9 sen aften (#670) og 15 i nogle
   timer 6/9: Lovable REGENEREREDE HELE `types.ts` (commit `2cd553e2`
   «Work in progress», 1903 linjer skrevet, 1898 slettet) med en anden
   generatorversion end 3/9, så nullable kolonner blev valgfri felter
@@ -271,11 +319,9 @@ samme kolonneantal og -type.
   undefined betyder det samme, «det er ikke sket». Ingen casts, intet
   non-null, ingen ændring i `types.ts`; tretten nye tests låser reglen,
   inkl. grænsen ved `starts_at` + 90 min. Sker det igen, er det
-  opskriften. **CI KØRER IKKE TYPECHECK** — gaten i
-  `.github/workflows/test.yml` er `bun run test` alene; PR #668 var grøn
-  med 15 typefejl på `main`. Typefejl fanges kun i hånden, så kør tsc
-  FØR diff-filen skrives. Et tsc-trin i CI er ikke længere blokeret af
-  baselinen (DEL 3). `bun run test`, ikke `bun test`. Deno-tests i
+  opskriften — og nu fanger CI det (#668 var grøn med 15 typefejl; det
+  kan ikke ske igen). Kør stadig tsc FØR diff-filen skrives: CI er
+  sidste værn, ikke første. `bun run test`, ikke `bun test`. Deno-tests i
   `_shared/*_test.ts` kører kun i hånden; `deno check` er ikke en gate
   i CI. `bun run check:edge-auth` kører i CI; `check:verify-jwt` kun lokalt.
 - CLAUDE.md's «FORBIDDEN»-liste gælder: ingen ændring af
@@ -319,6 +365,16 @@ samme kolonneantal og -type.
   allerede er staged. Reglen står ved magt: to reconer samtidig er
   fint, en recon plus en kodeændring er fint, to skrivninger er det
   ikke — heller ikke når den ene «bare» er dokumentation.
+- **`git checkout -b` BÆRER uncommitted arbejde med over på den nye
+  gren** (7/9, en fejl jeg selv lavede). Vindue 2 stod med en
+  typerettelse staged på `main`; vindue 1 lavede gren og committede sin
+  migration med navngiven `git add` — og fik typerettelsen med, fordi
+  den allerede lå i indekset og fulgte med over på grenen (#673, lukket
+  og splittet i #674 og #675). Navngiven `git add` beskytter mod at
+  committe forkerte filer — den beskytter IKKE mod at bære dem med.
+  **NY REGEL:** kør `git status --short` FØR `git checkout -b` når to
+  vinduer kører; står der noget, så afklar hvis det er, før grenen
+  laves.
 
 ### Dokumentation slås op
 
@@ -370,17 +426,73 @@ referrer-låst til `app.theboardroom.dk`.
 
 Kort, med det dokument der bærer detaljen.
 
-### Fornyelseskæden — bevist i drift 1/9; målt mod 10/9 den 6/9: kæden er klar, ordningen har ingen afsender
+### Fornyelseskæden — bevist i drift 1/9; tilbudsvinduet bygget og bevist 7/9; afsenderen er næste stykke
 
 `docs/fornyelseskaeden-1-september.md`, `docs/fornyelsesordningen.md`.
 Indgangsprisen er data (`companies.indgangspris_oere`, `fornyelsespris_oere`),
 perioder er rækker (`company_perioder`), kontrakten løber fra
 betalingsdagen, beslutningen (`company_fornyelse`) forlader aldrig
-serveren. Motoren `afgoerFornyelsestilstand` (ti tilstande), fladen
-`FornyelsesSektion` på /members, gaten `MembershipExpiredGate`,
-`opret-fornyelse-checkout` og fornyelsesgrenen i `stripe-webhook` med
+serveren. Motoren `afgoerFornyelsestilstand` (ELLEVE tilstande fra 7/9),
+fladen `FornyelsesSektion` på /members, gaten `MembershipExpiredGate`,
+`hent-fornyelsestilbud` og `opret-fornyelse-checkout` — begge på
+motoren fra 7/9 — og fornyelsesgrenen i `stripe-webhook` med
 `cancel_at` sat fra abonnementets start. Ordningen træder i kraft 10/9.
-Åbne punkter står i fornyelseskædens §10.
+Åbne punkter står i fornyelseskædens §10; det der blev bygget 7/9 i §14.
+
+**Bygget 7/9** (detaljen i fornyelseskædens §14 og ordningens §3 og §7):
+
+- **Tilbudsvinduet efter udløb er en tilstand (#678):**
+  `udloebet_vindue_lukket`, KUN efter beslutningen `tilbyd` — `tilbyd_ikke`
+  har aldrig haft et tilbud og har derfor intet vindue at lukke. Grænsen
+  er 14 hele UTC-kalenderdage efter slutdato
+  (`FORNYELSE_TILBUDSVINDUE_EFTER_UDLOEB_DAGE`, ikke at forveksle med
+  beslutningsvinduet på 60 dage før): slutdato 1/10 giver sidste
+  tilbudsdag 15/10, lukket 16/10. Er `dage_til_udloeb` null, bevares
+  tilbuddet frem for at lukke på et tal vi ikke har. Alle seks aftagere
+  er med: de to Records (tsc fangede dem — DEL 1), `SKJULTE_STATUSSER`
+  (som `ophoert`: intet at gøre, rækken kræver ikke opmærksomhed),
+  forsidensDom (ingen grund — forsiden er handlinger, ikke status),
+  `hent-fornyelsestilbud` og `opret-fornyelse-checkout` (uændret; den
+  krævede allerede `udloebet_tilbyd`). **Vigtigst:** `hent-fornyelsestilbud`
+  kalder nu MOTOREN frem for selv at tjekke tier og beslutning, så tilbud
+  og betaling dømmer på samme kilde. Det lukker hullet «et tilbud der
+  aldrig udløber». Udrullet eksplicit fra `36204422` inkl.
+  `_shared/fornyelse.ts` (den trak en NY delt fil ind).
+- **Bevist i drift 7/9 kl. 09:36–09:38** på Topix.dk ApS (`er_kunde =
+  false`, så ingen rigtig kunde blev rørt): slutdato sat 10 dage tilbage
+  med beslutning `tilbyd` og indgangspris 40.000 → gaten viste tilbud på
+  20.000 kr. ekskl. moms med alle tre betalingsmodeller (12 rater à
+  1.750 kr., altså 5 %-tillægget fra `fornyelse_20000_rate12`). Slutdato
+  flyttet til 15 dage → tilbudskortet FORSVANDT, og gaten faldt tilbage
+  til «Vil du fortsætte? Skriv til os». Grænsen holder fra begge sider.
+  Topix rullet tilbage og målt: slut = 2030-04-20, indgangspris = NULL,
+  ingen fornyelsesrække, fem rækker i alt i `company_fornyelse`.
+- **Paritetstesten blev styrket FØRST (#677).** Den var svagere end
+  betalingsfristens: én now-dato, ti cases, ingen bred fejning, ingen
+  sammenligning af konstanterne — og dens udløbs-cases lå 11 dage efter
+  slutdato, altså INDE i vinduet; den ville være blevet grøn uden at
+  røre den nye gren. Nu: fejning over dag −100…+60 × tre beslutninger ×
+  med/uden abonnement × to now-datoer, en konstant-blok, og
+  `ALLE_STATUSSER` som `Record` over unionen — som virker nu hvor CI
+  kører tsc.
+- **Varselsstemplerne på `company_fornyelse` er i prod (#674, kørt
+  kl. 08:51):** `varsel_1_sendt_at` og `varsel_2_sendt_at`, begge
+  nullable, plus en eksplicit service-role-policy. To navngivne kolonner
+  frem for et dag-nummer, fordi de to varsler kan sendes uafhængigt: en
+  sen beslutning skal kunne give varsel 2 uden varsel 1. Tabellen har
+  INGEN trigger (målt), så skrivestien — også cron'en — skal selv sætte
+  `updated_at`.
+- **Afsenderens tal er besluttet (Jonas 7/9):** mail 1 ved 30 dage før
+  slutdato, mail 2 ved 7 dage, og tilbuddet lever 14 dage efter.
+  Calendly-linket til «En snak om din fornyelse» er
+  https://calendly.com/topix-jonas/fornyelse — et almindeligt link, ikke
+  et engangslink (betalte bookinger registreres aldrig tilbage, målt
+  3/9). **Konsekvens:** rådgiverbeslutningen skal foreligge senest dag
+  30, ellers sendes intet. En glemt beslutning forsinker ikke mailen —
+  den aflyser den. Ordningens §7 bærer reglen.
+- **ÅBENT, IKKE LUKKET:** udløbsgrenen afgøres stadig FØR datogaten, så
+  en virksomhed med slutdato før 10/9 og beslutning `tilbyd` får stadig
+  et tilbud de første 14 dage. Uændret adfærd (fornyelseskæden §13.3).
 
 **Målt 6/9** (`~/Downloads/recon-fornyelsen-10-september.md`, uden for
 repoet — genskabes hvis den bruges; fundene er bogført i
@@ -396,14 +508,15 @@ fornyelseskædens §10 og §13 og ordningens §5 og §7, som bærer detaljen):
   med virksomhedens `contract_end_date`, ikke med dags dato; efter 10/9
   kan ingen aktiv virksomhed have slutdato ≤ 10/9, så konstanten bliver
   virkningsløs. Intet kører den dag (§13.2).
-- **Datogaten omgås hvor pengene skifter hænder.** `hent-fornyelsestilbud`
-  kalder ikke motoren (kun tier + beslutning), og `opret-fornyelse-checkout`
-  kræver `udloebet_tilbyd`, som afgøres i udløbsgrenen FØR datogaten. En
-  virksomhed «uden for ordningen» får et fuldt systemtilbud og kan
-  betale, hvis nogen trykker Tilbyd. Værnet er et menneske (§13.3).
-- **Fjortendagesvinduet (besluttet 27/8) findes ikke;** `udloebet_tilbyd`
-  har ingen tidsgrænse, så et tilbud står til nogen fjerner beslutningen
-  (ordningens §5 punkt 2, uændret åbent).
+- **Datogaten omgås hvor pengene skifter hænder.** *Delvist ændret 7/9:*
+  `hent-fornyelsestilbud` kalder nu motoren (#678), men både den og
+  `opret-fornyelse-checkout` kræver `udloebet_tilbyd`, som afgøres i
+  udløbsgrenen FØR datogaten. En virksomhed «uden for ordningen» med
+  beslutning `tilbyd` får stadig et systemtilbud de første 14 dage efter
+  udløb. Værnet er et menneske (§13.3). Åbent.
+- **Fjortendagesvinduet (besluttet 27/8) — BYGGET 7/9 (#678),** se
+  «Bygget 7/9» ovenfor. Det tidligere fund («`udloebet_tilbyd` har ingen
+  tidsgrænse») gælder ikke længere.
 - **Kalenderen i prod** (fem beslutninger, 25 af 30 uden, to måneders hul
   efter 13/10, fjorten fornyelser marts–juni 2027) og **forudsætningerne**
   (seks migrationer kørt, ni priser, seks events, fire udrullede
@@ -1334,9 +1447,9 @@ facit og rækkefølge; `docs/chat-design.md` chattens form.
 | hvornår | hvad | hvor det står |
 |---|---|---|
 | **10/9** — MÅLT 6/9: ikke en tændingsdato | Fornyelsesordningen træder i kraft. Tre udløber inden og falder udenfor. **Intet sker i koden den dag:** `FORNYELSE_IKRAFT_DATO` sammenlignes med virksomhedens slutdato, ikke dags dato, og bliver virkningsløs efter 10/9. Kædens forudsætninger er alle grønne (seks migrationer kørt, ni priser, seks events, fire funktioner udrullet — men 401 beviser kun at de findes, ikke hvilken version; driftsbeviset fra 1/9 ligger før #529, #561, #563, #572 og #583). **Det der IKKE er klar: ordningen har ingen afsender** — rækken «BESLUTTET 6/9» nedenfor. | fornyelseskæden §13; fornyelsesordningen §5, §7; DEL 2 «Fornyelseskæden» |
-| BESLUTTET 6/9 (Jonas) — ordningens retning; den reelle deadline er midten af NOVEMBER, ikke 10/9 | **Medlemmet skal høre om sin fornyelse fra SYSTEMET, ikke ved at miste adgangen.** Formen: to mails et antal dage før slutdato (tallene er ikke afgjort), et tilbud om at booke en snak med Jonas via Calendly, og en notifikation til rådgiveren når mail 1 er sendt, så den personlige chatbesked kommer EFTER systemets mail og ikke i stedet for. **Formen SPEJLER INDGANGENS KÆDE** (målt 6/9, `~/Downloads/recon-indgangens-mailkaede.md`, uden for repoet): pg_cron → `net.http_post` med vault-nøglen → Bucket B-funktion med `authenticateServiceRole` → TØRKØRSEL SOM STANDARD → ren motor afgør hvilken dag hver række står på → byg mail → enqueue → stempl KUN når afsendelsen lykkedes. **Datamodellen:** `company_fornyelse` mangler stempel-felter svarende til `company_betalingslink`s `betalingsmail_sendt_at` og `sidste_paamindelse_dag`; uden dem kan en cron ikke vide hvad den allerede har gjort — de skal med i FØRSTE migration, ikke bygges på. **Calendly:** der findes ingen statisk Calendly-URL i huset; alle tre steder bygger engangslinks serverside via API'et. En «snak om fornyelse hos Jonas» kræver en ny event type, som ikke findes endnu. Betalte bookinger registreres i dag aldrig tilbage i platformen (målt 3/9), så linket i mailen skal være et almindeligt link — vi lover ikke en måling vi ikke kan holde. **Tempoet, målt i prod 6/9:** efter Doggybed 13/10 er der ingen fornyelse før Livja 16/12 — to måneders hul; derefter fjorten virksomheder marts–juni 2027, over halvdelen af porteføljen. Deadline for mailkæden: Livja minus 30 dage. | fornyelsesordningen §7; fornyelseskæden §13.4; indgangen-design §26 (formen) |
-| åbent, målt 6/9 — værnet er et menneske | **Datogaten omgås på tilbuds- og checkout-vejen.** `hent-fornyelsestilbud` kalder ikke motoren (kun tier + beslutning); `opret-fornyelse-checkout` kræver `udloebet_tilbyd`, som afgøres FØR datogaten. En virksomhed «uden for ordningen» får et fuldt systemtilbud og kan betale, hvis nogen trykker Tilbyd. Om gaten SKAL gælde der, er en beslutning — i dag er det rådgiverens finger der er værnet. | fornyelseskæden §13.3 |
-| åbent — forudsætning for mailkæden OG for Studio Minis række | **Fjortendagesvinduet (besluttet 27/8) findes ikke som tilstand.** `udloebet_tilbyd` har ingen tidsgrænse; et tilbud står i gaten til nogen fjerner beslutningen. **Jonas 6/9: Studio Mini (slut 5/9, beslutning `tilbyd`) FORLÆNGER IKKE** — deres række skal ryddes, men først når vinduet findes som tilstand, så data siger det der er sandt. CARMA STUDIO (7/9, `tilbyd`) håndteres manuelt i dialog. | fornyelsesordningen §5 punkt 2; fornyelseskæden §13.4 |
+| BESLUTTET 6/9 (Jonas), TALLENE 7/9 — forudsætningerne er bygget (#674 stempler, #678 vinduet); AFSENDEREN SELV er næste stykke; deadline midten af NOVEMBER | **Medlemmet skal høre om sin fornyelse fra SYSTEMET, ikke ved at miste adgangen.** Formen, med tal fra 7/9: mail 1 ved 30 dage før slutdato, mail 2 ved 7 dage, tilbuddet lever 14 dage efter slutdato (bygget som tilstand, #678); et tilbud om at booke «En snak om din fornyelse» via https://calendly.com/topix-jonas/fornyelse (almindeligt link, ikke engangslink); og en notifikation til rådgiveren når mail 1 er sendt, så den personlige chatbesked kommer EFTER systemets mail og ikke i stedet for. **Konsekvens:** rådgiverbeslutningen skal foreligge senest dag 30, ellers sendes intet — en glemt beslutning aflyser mailen, den forsinker den ikke. **Det der mangler:** mail, skabelon, cron. Stemplerne findes (`varsel_1_sendt_at`, `varsel_2_sendt_at`, #674, i prod 7/9 kl. 08:51; ingen trigger — skrivestien sætter selv `updated_at`). **Formen SPEJLER INDGANGENS KÆDE** (målt 6/9, `~/Downloads/recon-indgangens-mailkaede.md`, uden for repoet): pg_cron → `net.http_post` med vault-nøglen → Bucket B-funktion med `authenticateServiceRole` → TØRKØRSEL SOM STANDARD → ren motor afgør hvilken dag hver række står på → byg mail → enqueue → stempl KUN når afsendelsen lykkedes. **Datamodellen (LØST 7/9, #674):** stempel-felterne findes nu — to navngivne kolonner frem for et dag-nummer, fordi de to varsler kan sendes uafhængigt. **Calendly (LØST 7/9):** event-typen findes, linket står ovenfor. Betalte bookinger registreres i dag aldrig tilbage i platformen (målt 3/9), så linket i mailen skal være et almindeligt link — vi lover ikke en måling vi ikke kan holde. **Tempoet, målt i prod 6/9:** efter Doggybed 13/10 er der ingen fornyelse før Livja 16/12 — to måneders hul; derefter fjorten virksomheder marts–juni 2027, over halvdelen af porteføljen. Deadline for mailkæden: Livja minus 30 dage. | fornyelsesordningen §7; fornyelseskæden §13.4; indgangen-design §26 (formen) |
+| åbent, målt 6/9, delvist ændret 7/9 — værnet er stadig et menneske | **Datogaten omgås stadig hvor pengene skifter hænder.** `hent-fornyelsestilbud` kalder nu motoren (#678), men både den og `opret-fornyelse-checkout` kræver `udloebet_tilbyd`, som afgøres i udløbsgrenen FØR datogaten. En virksomhed «uden for ordningen» med beslutning `tilbyd` får derfor stadig et systemtilbud og kan betale — nu dog kun de første 14 dage efter udløb. Om gaten SKAL gælde der, er en beslutning — i dag er det rådgiverens finger der er værnet. | fornyelseskæden §13.3 |
+| LØST 7/9 (#678) — vinduet; Studio Minis række er nu en BESLUTNING om timing | **Tilbudsvinduet efter udløb er en tilstand:** `udloebet_vindue_lukket`, kun efter `tilbyd`, fra dag 15 efter slutdato; bevist i drift kl. 09:36–09:38 (DEL 2 «Fornyelseskæden»). **Studio Mini (slut 5/9, `tilbyd`) FORLÆNGER IKKE (Jonas 6/9):** i dag er de dag 2 i vinduet; fra 20/9 lukker vinduet af sig selv, og rækken bliver `udloebet_vindue_lukket` uden at nogen rører den. Beslutningen er om den skal ryddes FØR — indtil da viser gaten dem et tilbud. CARMA STUDIO (7/9, `tilbyd`) håndteres manuelt i dialog. | fornyelsesordningen §3; fornyelseskæden §13.4, §14 |
 | samtale, målt 6/9 | **To virksomheder uden slutdato rammer aldrig ordningen:** Alexander Lunds virksomhed og Martin Larsens virksomhed (`ingen_slutdato`). Og **Bastant Design** (31/12-2027) har ingen indgangspris, så fornyelsesprisen er ukendt — et `tilbyd` dér ville give et tomt tilbudskort. | fornyelseskæden §13.4 |
 | **13/9** | doggybeds træk på 4.375 kr. på den nye konto — MÅL at det gik igennem. Derefter flyttes de tretten i portioner. TuaMea (2/9), Floren engros og BR Roset (3/9) venter til efter egne træk. **Samme dag, beviset for #563 (nu stærkere):** `companies.subscription_status` skal forblive NULL på doggybed (`382fd787-3141-45c7-8eea-297b7b947fe0`) efter trækket — fordi grenen springer over med vilje, ikke fordi noget fejler — og `customer.subscription.updated` skal stå grøn i Stripes Event deliveries. SQL'en står i migration-recon §26. **Samme dag, beviset for #572:** en række i `company_traek` for doggybeds faktura med `status = 'betalt'` (SQL editor); fejler trækket, skal rækken stå som `fejlet` og badgen vise sig på /members (#574). | migration-recon §25, §26; indgangen-design §31 |
 | LØST 3/9 kl. 10:42 | **Hvorfor skrev webhooken ikke på 2/9?** Eventet BLEV leveret; webhooken svarede 500 i skrivningen (fem gentagelser fra Stripe). Efter #563 gensendt manuelt → 200 `skipped: migreret_subscription`, «Recovered». Webhooken får subscription-events; hvidlisten er bevist på det rigtige event. Hvad der kastede, afdækkes bevidst ikke — men det art-løse selvbetjeningsabonnement går stadig gennem den kode. | migration-recon §26 |
@@ -1393,8 +1506,8 @@ facit og rækkefølge; `docs/chat-design.md` chattens form.
 | driftsgæld | Fejlovervågning findes ikke; restore er aldrig afprøvet; `run-weekly-agent` står ikke i `cron.job` (**bekræftet 6/9:** ti jobs i prod, ingen af dem den — ugeagenten kører formentlig slet ikke, DEL 2 «Agentkæden»); 73 uploads bestod validering uden at blive committet; e-conomic-integrationen er død (migration-recon §10). | status-1-sept §6; den forrige overlevering (§7, før omskrivningen i #538) findes kun i git-historikken |
 | MÅLT 6/9 — egen opgave | **Ugeagentens cron findes ikke i prod.** `run-weekly-agent` har kun `Deno.cron` (kører aldrig på edge-runtimen); `cron.job` har ti jobs, ingen kalder den. Kun `generate-weekly-focus` (0 6 \* \* 1) kører mandag. Om agenten NOGENSINDE har kørt fra cron, er ikke efterprøvet (`agent_runs.trigger` kan svare). Skal den køre, er vejen pg_cron + `net.http_post` som `intro-reminder-cron` — men den kører LIVE og skriver det medlemmet ser, så det er en beslutning, ikke en rettelse. | DEL 2 «Agentkæden»; DEL 4 (`Deno.cron`) |
 | LØST 6/9 sen aften (#670) | **De elleve typefejl efter Lovables regenerering af `types.ts`** er rettet ved at lade husets egne interfaces sige sandheden om databasen — `EventTimes.ends_at` og de fire felter på `MemberProgress` er valgfrie OG nullable — og ved at skrive reglen ned begge steder: null og undefined betyder det samme, «det er ikke sket». Ingen casts, intet non-null, ingen ændring i `types.ts`. Tretten nye tests låser reglen, inkl. grænsen ved `starts_at` + 90 min. **Målt efter:** tsc giver præcis fire fejl (CompanyChatPane, PushView, RapporteringView ×2), 1656 tests grønne. | DEL 1 «Kodearbejde» |
-| egen opgave — IKKE længere blokeret (6/9 sen aften) | **CI kører ikke typecheck.** `test.yml` kører kun `bun run test`; #668 var grøn med 15 typefejl. Rækkefølgen «baselinen ned først» er opfyldt med #670: et `tsc`-trin i CI ville i dag give de fire kendte fejl og intet andet. Næste skridt er gaten selv — og en beslutning om de fire: rettes de, eller får trinnet en kendt-liste? | DEL 1 «Kodearbejde» |
-| hører til opgave-epic'et, målt 6/9 kl. 22:18 | **Godkendelse skriver indeværende uges nøgle, og halvdelen af de uafgjorte forslag kan kun forkastes.** Otte forslag fra 25/8 (Topix 6, remm. 2, alle tørkørsler); fire `update_weekly_focus` kan godkendes, fire (`write_session_prep` ×3, `write_company_action`) kan kun forkastes — linjen lover «din afgørelse» om noget hvor den ene mulighed ikke findes. Og godkendes et augustforslag i dag, lander det som DENNE uges fokus (`skrivUgensFokus` → `getISOWeekKey(new Date())`). Forslag har ingen udløbsmekanik. Dertil: puklen linker til `/virksomheder` uden filter, mens panelet kun findes på virksomhedssiden. Mangellisten bærer tre kort. | DEL 2 «Agentkæden»; DEL 4; `docs/opgave-model-design.md` |
+| LØST 7/9 (#675, #676) | **Baselinen er nul, og CI kører typecheck** — `bunx tsc --noEmit -p tsconfig.app.json` FØR testene i jobbet «Tests», uden kendt-liste og uden `continue-on-error`. Beslutningen om de fire blev «rettes» (#675), ingen af dem skjult. Bevist i drift: kørsel 34092921389, trin 6 «Typecheck» → success. Gaten fangede #678's to Record-aftagere samme dag. | DEL 1 «Kodearbejde» |
+| hører til opgave-epic'et, målt 6/9 kl. 22:18 | **Godkendelse skriver indeværende uges nøgle, og halvdelen af de uafgjorte forslag kan kun forkastes.** Otte forslag fra 25/8 (Topix 6, remm. 2, alle tørkørsler); fire `update_weekly_focus` kan godkendes, fire (`write_session_prep` ×3, `write_company_action`) kan kun forkastes — linjen lover «din afgørelse» om noget hvor den ene mulighed ikke findes. Og godkendes et augustforslag i dag, lander det som DENNE uges fokus (`skrivUgensFokus` → `getISOWeekKey(new Date())`). Forslag har ingen udløbsmekanik. *Puklen peger nu direkte på virksomheden når den dækker én (#672, 7/9); dækker den flere, er det stadig `/virksomheder`, for der findes ingen flade der viser forslag på tværs — kendt, står i koden.* Mangellisten bærer to kort. | DEL 2 «Agentkæden»; DEL 4; `docs/opgave-model-design.md` |
 | oprydning, målt 6/9 | **37 grene på origin ud over `main`** (Jonas' måling 6/9; `git ls-remote --heads` gav 38 ved bogføringen samme aften). `gh pr list --state merged` er den eneste der kan afgøre hvilke der må slettes (DEL 1). | DEL 1 «Git og Claude Code» |
 
 ---
@@ -1669,11 +1782,19 @@ De konkrete ting der har kostet tid. Led efter dem.
   interfaces knækker uden at nogen fil vi rørte er nævnt i fejlen. Tjek
   `git show --stat` på et Lovable-commit før du tror at en typefejl er
   din (6/9, DEL 1).
-- **CI er grøn uden typecheck.** Gaten er `bun run test`; en PR kan
-  merges med typefejl på `main` (#668, 6/9). Kør
-  `bunx tsc --noEmit -p tsconfig.app.json` FØR diff-filen, og mål
-  baselinen på ren `main` (`git stash` → tsc → `git stash pop`) før du
-  tilskriver en fejl din egen ændring.
+- **CI VAR grøn uden typecheck til 7/9** (#668 blev merget med 15
+  typefejl, 6/9). Fra #676 kører `test.yml` tsc FØR testene, og nul
+  betyder nul. Kør stadig `bunx tsc --noEmit -p tsconfig.app.json` FØR
+  diff-filen — CI er sidste værn, ikke første — og husk `-p`: uden den
+  checkes nul filer, og kommandoen er grøn uanset hvad.
+- **`git checkout -b` bærer uncommitted arbejde med — også det andet
+  vindues.** 7/9: vindue 2 havde en typerettelse staged på `main`;
+  vindue 1 lavede gren og committede sin migration med navngiven `git
+  add`, og typerettelsen fulgte med, fordi den allerede lå i indekset
+  (#673 → splittet i #674 og #675). Navngiven `git add` beskytter mod at
+  committe forkerte filer, IKKE mod at bære dem med over. **REGLEN:**
+  `git status --short` FØR `git checkout -b`, når to vinduer kører
+  (DEL 1 «Git»).
 - **Et godkendt agentforslag skriver INDEVÆRENDE uges nøgle, ikke
   forslagets.** `skrivUgensFokus` upserter på `getISOWeekKey(new
   Date())` (`_shared/agentSkriveveje.ts:34`). Otte forslag fra 25/8 lå
@@ -1713,6 +1834,10 @@ Skal ikke genforhandles uden ny måling.
   adgangen** (6/9). Formen spejler indgangens kæde: cron, tørkørsel som
   standard, ren motor, stempel kun ved lykket afsendelse; rådgiverens
   personlige besked kommer EFTER systemets mail. (fornyelsesordningen §7)
+- **Tallene i fornyelsen (7/9):** mail 1 dag 30 før slutdato, mail 2 dag
+  7, tilbuddet lever 14 dage efter slutdato — og KUN efter `tilbyd`;
+  `tilbyd_ikke` har intet vindue. Rådgiverbeslutningen skal foreligge
+  senest dag 30, ellers sendes intet. (fornyelsesordningen §3, §7)
 - **`er_kunde` læses KUN i rådgiverens læsestier** og gater ingen cron,
   ingen edge function, ingen RLS (6/9). Slukkes noget for en virksomhed,
   ændres medlemmets hverdag — og det var netop kravet at den ikke måtte.
