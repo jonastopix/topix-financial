@@ -94,6 +94,12 @@ E-skilte, Wesdex, Din økonomiafdeling, Two socks). De havde betalt for
 et år uden at få adgang, og ingen opdagede det — fordi et medlem der
 ikke findes, heller ikke mangler noget.
 
+**Ændret 7/9 for FORNYELSER (§15.3):** betales en fornyelse FØR eller PÅ
+slutdatoen, løber den nye periode fra den GAMLE slutdato, ikke fra
+betalingsdagen — ellers ville den der handler tidligt miste dage.
+Betales den efter, gælder det ovenstående uændret. Indgangen er ikke
+rørt: dér findes ingen gammel slutdato at regne fra.
+
 ## 5. Fjortendagesvinduet er en rådgivertilstand, ikke en betalingsspærre
 
 Besluttet 1/9: **en sen betaling tages imod, også efter 30 dage.**
@@ -112,6 +118,13 @@ efter slutdato er tilstanden `udloebet_vindue_lukket`, og både
 Det der står ovenfor om at prisen ikke må ligge i linket, gælder stadig.
 En sen betaling efter dag 14 er fra 7/9 en menneskelig samtale, ikke en
 knap.
+
+**Ændret 7/9 eftermiddag (§15.3): betaling FØR slutdatoen tages imod.**
+Beslutningen fra 1/9 — «fornyelse betales EFTER udløb, ikke før» — er
+ophævet af Jonas 7/9. Fra `klar_til_tilbud` og gennem hele tilbudsvinduet
+kan der betales; kun `udloebet_vindue_lukket` og alt uden `tilbyd`
+afvises. Vinduet er stadig en betalingsspærre i den ENE ende (dag 15
+efter), ikke længere i den anden.
 
 ## 6. Beslutningen forlader aldrig serveren
 
@@ -170,6 +183,34 @@ To beslutninger i opsætningen der skal forstås, ikke bare kendes:
   start + 12 måneder MINUS 1 dag rammer efter sidste aftalte træk og
   før det næste. En tidligere version brugte PLUS 1 dag — den ville
   have givet rate12 et trettende træk.
+
+  **Rettelse 7/9 — og den hører sammen med fejlen ovenfor.** Da
+  betaling før slutdatoen blev bygget (§15.3), påstod jeg (Claude) at
+  `sikrOphoerPaaFornyelsesAbonnement` ville lade det sidste rate-træk
+  falde bort, når kontrakten nu regnes fra den gamle slutdato, og
+  foreslog `cancel_at = periode_slut − 1 dag`. **Det var forkert, og
+  målingen viser hvorfor:** tolv rater betalt 8/9-2026 falder 8/9, 8/10
+  … 8/8-2027. Sidste træk er 8/8; `cancel_at` 7/9-2027 (start + 12
+  måneder − 1 dag) ligger en måned efter. Alle tolv trækkes. **Min
+  rettelse ville have kostet medlemmet penge:** med `cancel_at` =
+  28/9-2027 ville Stripe trække et TRETTENDE træk 8/9. For to rater et
+  tredje træk på 25.000 kr. — præcis den fejl afsnittet ovenfor
+  beskriver, med minus én dag i stedet for plus.
+
+  **Fejlen i tænkningen:** abonnementet måler ikke adgang. Det er
+  betalingsplanen for prisen; adgangen bæres af `contract_end_date`
+  alene, og fornyelsesabonnementer rører aldrig `subscription_status`
+  (§11). To ure, to forskellige ting. Den eneste betingelse de skal
+  overholde, er at alle aftalte træk falder før ophøret — og det gør de,
+  fordi `cancel_at` regnes fra abonnementets `start_date`, som er
+  betalingsdagen, uanset hvad kontrakten regnes fra.
+
+  **Konsekvens, som ikke er en fejl:** for en der betaler tidligt,
+  ophører abonnementet nogle uger FØR kontrakten udløber (betalt 8/9 mod
+  slutdato 29/9: abonnementet ophører 7/9-2027, kontrakten 29/9-2027).
+  Det ser forkert ud for den der kigger i Stripe uden at kende
+  forskellen. Ret det ikke. Mangellisten bærer kortet, så ingen gør det
+  i god tro.
 
 ## 8. Migrationen af de eksisterende — besluttet 1/9
 
@@ -310,9 +351,15 @@ nederst i listen; detaljen bag dem i §13.
   5/9) er 7/9 dag 2 i vinduet; fra 20/9 lukker det af sig selv, og
   rækken bliver `udloebet_vindue_lukket` uden at nogen rører den.
   Beslutningen er om den skal ryddes FØR (§13.4).
-- **Afsenderen mangler stadig:** stemplerne findes, motoren og
-  tilstanden findes, tallene er besluttet (ordningens §7) — men der er
-  ingen mail, ingen skabelon og ingen cron. Det er næste stykke.
+- **Afsenderen mangler stadig — delvist løst 7/9 eftermiddag:**
+  varselsmotoren (#680) og cron-rapporten (#681) findes og er tørkørt på
+  rigtige data (§15.1–15.2). Det der mangler: mailene selv,
+  rådgivernotifikationen, stemplingen i cron'en og planlægningen af
+  jobbet. Det er næste stykke.
+- **Et ikke-udløbet medlem kan betale, men kan ikke SE tilbuddet**
+  (nyt 7/9, §15.3): betalingsvejen er åben fra `klar_til_tilbud`, men
+  gaten vises kun ved `expired`, og ingen anden flade viser fornyelsen
+  til et medlem. Designbeslutning, ikke truffet.
 - **To virksomheder uden slutdato** rammer aldrig ordningen, og
   **Bastant Design** har ingen indgangspris (§13.4).
 
@@ -555,7 +602,113 @@ INGEN trigger (målt), så skrivestien — også cron'en — skal selv sætte
 Tallene bag stemplerne er besluttet 7/9 og står i ordningens §7: mail 1
 dag 30 før, mail 2 dag 7 før, tilbud 14 dage efter; beslutningen skal
 foreligge senest dag 30, ellers sendes intet. Afsenderen selv — mail,
-skabelon, cron — findes ikke (§13.1).
+skabelon, cron — findes ikke (§13.1). *7/9 eftermiddag: motoren og
+cron-rapporten findes nu (§15); mailene ikke.*
+
+## 15. Bygget 7/9 eftermiddag — varselsmotoren, cron-rapporten, betaling før slutdatoen
+
+Samme regel: målt, eller mærket som ikke målt. Bogført efter #679.
+
+### 15.1 Varselsmotoren (#680)
+
+`afgoerForfaldentVarsel` i `src/lib/fornyelsesvarsel.ts` og
+`_shared/fornyelsesvarsel.ts`, paritetstestet som de andre motorer.
+Varsel 1 ved 30 dage før slutdato, varsel 2 ved 7 — tallene fra
+ordningens §7.
+
+**Den sene beslutning er reglen der betyder noget.** Træffes `tilbyd`
+først fem dage før slutdato, er begge varsler forfaldne — og så sendes
+KUN varsel 2. Varsel 1 sendes aldrig bagefter, fordi den anden mail ville
+være forældet i samme øjeblik den blev sendt: «om 30 dage» er ikke sandt,
+og medlemmet skal have den besked der passer til hvor de er nu. Det er
+også derfor stemplerne er to kolonner (§14.3) og ikke et dag-nummer: et
+dag-nummer kan ikke udtrykke «2 sendt, 1 aldrig».
+
+Fail-closed på ulæselig slutdato: kan dagene ikke regnes, sendes intet.
+Efter slutdatoen sendes intet: tilbuddet lever stadig 14 dage (§14.1),
+men et varsel om noget der allerede er sket, er forkert.
+
+### 15.2 Fornyelsesvarsel-cron (#681) — en ren rapport
+
+Udrullet 7/9 kl. 08:15 UTC fra `f5c250d6`. Bucket B med
+`authenticateServiceRole` bag `verify_jwt = true`, tørkørsel som
+standard — samme form som `indgangs-paamindelser-cron`. I denne version
+en REN RAPPORT: den finder kandidaterne og siger hvad motoren ville
+sende; den sender intet og stempler intet. Cron-SQL'en står som
+kommentar i filhovedet (slot `0 11 * * *` UTC = 13:00 dansk, ledigt),
+men jobbet er IKKE planlagt: en cron der kører en rapport ingen læser,
+er støj.
+
+**Tørkørslen 7/9 kl. 10:15, på rigtige data:** fundet 3, ingen fejl.
+
+| virksomhed | udfald | dage til slutdato | grund |
+|---|---|---|---|
+| PHILBERT | varsel 1 | 22 | — |
+| CARMA STUDIO | varsel 2 | 0 | «varsel 1 springes over: sen beslutning» |
+| Studio Mini | intet | passeret | slutdatoen er passeret |
+
+Den sene beslutning virkede i drift, første gang, på rigtige data.
+
+**Besluttet af Jonas 7/9: ingen nedre grænse for varsel 2.** Dag 0 er en
+påmindelse, ikke en advarsel, og det er dér man handler. CARMA får sin
+påmindelse.
+
+**Det der mangler før noget sendes:** mailene, rådgivernotifikationen
+(ordningens §7), stemplingen i cron'en (KUN når afsendelsen lykkedes,
+som indgangen), og planlægningen af jobbet.
+
+### 15.3 Betaling FØR slutdatoen (#683 motoren, #684 pengevejen)
+
+Udrullet 7/9 kl. 08:53 UTC fra `85a0753e` — alle tre funktioner
+(`hent-fornyelsestilbud`, `opret-fornyelse-checkout`, `stripe-webhook`),
+webhooken med den NYE delte fil `_shared/fornyelsesperiode.ts` (og dem
+ruller merge ikke — OVERLEVERING DEL 0).
+
+**Før i dag** kunne et medlem på dag 22 hverken se eller betale sit
+tilbud: checkout svarede 403 (krævede `udloebet_tilbyd`),
+`hent-fornyelsestilbud` gav `null`, og gaten vises kun for udløbne. Vi
+fortalte dem det en måned før og bad dem vente på at blive lukket ude.
+Det var beslutningen fra 1/9 (§5, ordningens §1) — ophævet af Jonas 7/9.
+
+**Regnestykket, som skal stå ordret** (`beregnFornyelsesperiode`,
+spejlet i begge kopier, paritetstestet):
+
+- Betalt FØR eller PÅ slutdatoen (`foer_udloeb`): ny slutdato = GAMMEL
+  SLUTDATO + 12 måneder. Gammel 2026-09-29, betalt 2026-09-07 → ny
+  2027-09-29. Den der handler tidligt må ikke miste dage.
+- Betalt EFTER slutdatoen (`efter_udloeb`): ny slutdato = BETALINGSDAGEN
+  + 12 måneder — som §4 altid har sagt. Gammel 2026-09-29, betalt
+  2026-10-05 → ny 2027-10-05. Dagene uden adgang gives ikke tilbage; de
+  var ikke medlemmer i dem.
+- Grænsen er «før eller på» når betalingsdagen ≤ slutdatoen, i hele
+  UTC-kalenderdage — samme dagbegreb som resten af huset. Kontinuert,
+  målt: 28/9 og 29/9 giver begge 2027-09-29; 30/9 giver 2027-09-30.
+
+**`periode_start` er udledt, ikke valgt.** Begge eksisterende skrivere
+(fornyelsesgrenen og `beregnIndgangsPeriode`) holder invarianten
+`periode_slut = periode_start + 12 måneder`, og `company_perioder` er
+append-only historik med CHECK `slut > start` (§3). Med ny slutdato =
+gammel + 12 er den eneste `periode_start` der bevarer invarianten den
+GAMLE slutdato: den nye periode begynder hvor den gamle slutter, uden
+overlap og uden hul (slutdatoen er eksklusiv). I efter-grenen er
+`periode_start` betalingsdagen, som før.
+
+**29. februar er nu en synlig gren.** Reconen 7/9 fandt at
+`setUTCMonth(+12)` rullede 29/2 tavst til 1/3, og at ingen kode
+håndterede det. Reglen er skrevet ud og låst med test: «12 måneder frem»
+er samme kalenderdag året efter; findes dagen ikke, er slutdatoen 1/3
+året efter, fordi slutdatoen er eksklusiv og 28/2 ville give én dag
+mindre end et kalenderår. Samme resultat som JavaScripts rul — nu en
+gren i koden, ikke Date-objektets adfærd.
+
+**`cancel_at` er IKKE ændret — og skal ikke ændres.** Jeg foreslog det
+og tog fejl; rettelsen står i §7, hvor den tidligere cancel_at-fejl
+allerede er dokumenteret.
+
+**ÅBENT — designbeslutning:** et ikke-udløbet medlem har intet sted at
+SE tilbuddet. Gaten vises kun ved `expired`, og ingen anden flade viser
+fornyelsen til et medlem (målt 7/9). Betalingsvejen er åben fra dag 60,
+men den eneste vej til checkout er gaten. Ikke truffet.
 
 ---
 

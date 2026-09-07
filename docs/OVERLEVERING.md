@@ -426,18 +426,20 @@ referrer-låst til `app.theboardroom.dk`.
 
 Kort, med det dokument der bærer detaljen.
 
-### Fornyelseskæden — bevist i drift 1/9; tilbudsvinduet bygget og bevist 7/9; afsenderen er næste stykke
+### Fornyelseskæden — bevist i drift 1/9; tilbudsvinduet, varselsmotoren, cron-rapporten og betaling FØR slutdatoen bygget 7/9; mailene er næste stykke
 
 `docs/fornyelseskaeden-1-september.md`, `docs/fornyelsesordningen.md`.
 Indgangsprisen er data (`companies.indgangspris_oere`, `fornyelsespris_oere`),
 perioder er rækker (`company_perioder`), kontrakten løber fra
-betalingsdagen, beslutningen (`company_fornyelse`) forlader aldrig
-serveren. Motoren `afgoerFornyelsestilstand` (ELLEVE tilstande fra 7/9),
+betalingsdagen — og fra 7/9 fra den GAMLE slutdato, når der betales før
+den (fornyelseskæden §15.3) — beslutningen (`company_fornyelse`) forlader
+aldrig serveren. Motoren `afgoerFornyelsestilstand` (ELLEVE tilstande fra 7/9),
 fladen `FornyelsesSektion` på /members, gaten `MembershipExpiredGate`,
 `hent-fornyelsestilbud` og `opret-fornyelse-checkout` — begge på
 motoren fra 7/9 — og fornyelsesgrenen i `stripe-webhook` med
 `cancel_at` sat fra abonnementets start. Ordningen træder i kraft 10/9.
-Åbne punkter står i fornyelseskædens §10; det der blev bygget 7/9 i §14.
+Åbne punkter står i fornyelseskædens §10; det der blev bygget 7/9
+formiddag i §14, eftermiddag i §15.
 
 **Bygget 7/9** (detaljen i fornyelseskædens §14 og ordningens §3 og §7):
 
@@ -494,6 +496,69 @@ motoren fra 7/9 — og fornyelsesgrenen i `stripe-webhook` med
   en virksomhed med slutdato før 10/9 og beslutning `tilbyd` får stadig
   et tilbud de første 14 dage. Uændret adfærd (fornyelseskæden §13.3).
 
+**Bygget 7/9 eftermiddag** (detaljen i fornyelseskædens §15 og
+ordningens §1 og §7):
+
+- **Varselsmotoren (#680):** `afgoerForfaldentVarsel` i begge kopier,
+  paritetstestet. Varsel 1 ved 30 dage før slutdato, varsel 2 ved 7.
+  **Den sene beslutning er reglen der betyder noget:** træffes `tilbyd`
+  først fem dage før, er begge forfaldne, og så sendes KUN varsel 2 —
+  varsel 1 sendes aldrig bagefter, fordi den anden mail ville være
+  forældet i samme øjeblik den blev sendt. Det er også derfor stemplerne
+  er to kolonner (#674) og ikke et dag-nummer. Fail-closed på ulæselig
+  slutdato. Efter slutdatoen sendes intet: tilbuddet lever stadig 14
+  dage, men et varsel om noget der allerede er sket, er forkert.
+- **Fornyelsesvarsel-cron (#681),** udrullet 7/9 kl. 08:15 UTC fra
+  `f5c250d6`. Bucket B med `authenticateServiceRole`, tørkørsel som
+  standard. I denne version en REN RAPPORT: sender intet, stempler intet.
+  Cron-SQL'en står som kommentar i filhovedet (slot `0 11 * * *` UTC =
+  13:00 dansk), men jobbet er IKKE planlagt — en cron der kører en
+  rapport ingen læser, er støj. **Tørkørslen 7/9 kl. 10:15, på rigtige
+  data:** fundet 3, ingen fejl. PHILBERT → varsel 1, 22 dage til
+  slutdato. CARMA STUDIO → varsel 2, NUL dage, med grunden «varsel 1
+  springes over: sen beslutning». Studio Mini → intet, slutdatoen er
+  passeret. Den sene beslutning virkede i drift, første gang, på rigtige
+  data. **Besluttet af Jonas: ingen nedre grænse for varsel 2** — dag 0
+  er en påmindelse, ikke en advarsel, og det er dér man handler. CARMA
+  får sin påmindelse.
+- **Betaling FØR slutdatoen (#683 motoren, #684 pengevejen),** udrullet
+  7/9 kl. 08:53 UTC fra `85a0753e` — alle tre funktioner, `stripe-webhook`
+  med den nye delte fil `_shared/fornyelsesperiode.ts`. Før i dag kunne
+  et medlem på dag 22 hverken se eller betale sit tilbud: checkout
+  svarede 403, `hent-fornyelsestilbud` gav null, og gaten vises kun for
+  udløbne. Vi fortalte dem det en måned før og bad dem vente på at blive
+  lukket ude. Det ændrer beslutningen fra 1/9 («fornyelse betales EFTER
+  udløb»). **Regnestykket, ordret:** betalt FØR eller PÅ slutdatoen →
+  GAMMEL SLUTDATO + 12 måneder. Betalt EFTER → BETALINGSDAGEN + 12.
+  Grænsen er kontinuert, målt: 28/9 og 29/9 giver begge 2027-09-29, 30/9
+  giver 2027-09-30. `periode_start` er UDLEDT af invarianten i
+  `company_perioder`, ikke valgt: den nye periode begynder hvor den gamle
+  slutter, uden overlap og uden hul. **29. februar er nu en synlig
+  gren:** «12 måneder frem» er samme kalenderdag året efter; findes dagen
+  ikke, er slutdatoen 1/3 året efter, fordi slutdatoen er eksklusiv og
+  28/2 ville give én dag mindre end et kalenderår. **ÅBENT:** et
+  ikke-udløbet medlem har intet sted at SE tilbuddet — gaten vises kun
+  ved `expired`. Designbeslutning, ikke truffet endnu (DEL 3).
+- **RETTELSE — jeg tog fejl om `cancel_at`.** Jeg påstod at
+  `sikrOphoerPaaFornyelsesAbonnement` ville lade det sidste rate-træk
+  falde bort, når kontrakten regnes fra den gamle slutdato. Det er
+  FORKERT, og målingen viser hvorfor: tolv rater betalt 8/9-2026 falder
+  8/9, 8/10 … 8/8-2027. Sidste træk er 8/8; `cancel_at` 7/9-2027 ligger
+  en måned efter. Alle tolv trækkes. **Min foreslåede rettelse ville have
+  kostet medlemmet penge:** med `cancel_at = periode_slut − 1 dag`
+  (28/9-2027) ville Stripe trække et TRETTENDE træk 8/9. For to rater et
+  tredje træk på 25.000 kr. Fornyelseskædens §7 dokumenterer at en
+  tidligere version havde præcis den fejl, med plus én dag i stedet for
+  minus. **Fejlen i tænkningen:** abonnementet måler ikke adgang. Det er
+  betalingsplanen for prisen; adgangen bæres af `contract_end_date`
+  alene, og fornyelsesabonnementer rører aldrig `subscription_status`
+  (§11). To ure, to forskellige ting. Den eneste betingelse de skal
+  overholde, er at alle aftalte træk falder før ophøret — og det gør de.
+  **Konsekvens der skal kendes:** for en der betaler tidligt, ophører
+  abonnementet nogle uger FØR kontrakten udløber. Det er ikke en fejl,
+  men det ser forkert ud for den der kigger i Stripe uden at kende
+  forskellen. Står som fælde i DEL 4 og som kort på mangellisten.
+
 **Målt 6/9** (`~/Downloads/recon-fornyelsen-10-september.md`, uden for
 repoet — genskabes hvis den bruges; fundene er bogført i
 fornyelseskædens §10 og §13 og ordningens §5 og §7, som bærer detaljen):
@@ -503,7 +568,10 @@ fornyelseskædens §10 og §13 og ordningens §5 og §7, som bærer detaljen):
   klik (rådgiverens «Tilbyd», medlemmets valg i gaten) og ét
   Stripe-event. Medlemmet hører først om sin fornyelse ved at MISTE
   adgangen og selv finde tilbuddet i `MembershipExpiredGate`
-  (fornyelseskæden §13.1; ordningens §5 punkt 5).
+  (fornyelseskæden §13.1; ordningens §5 punkt 5). *Delvist ændret 7/9
+  eftermiddag:* motoren (#680) og cron-rapporten (#681) findes og er
+  tørkørt på rigtige data; mailene, rådgivernotifikationen, stemplingen
+  og planlægningen af jobbet mangler («Bygget 7/9 eftermiddag» ovenfor).
 - **10/9 er ikke en tændingsdato.** `FORNYELSE_IKRAFT_DATO` sammenlignes
   med virksomhedens `contract_end_date`, ikke med dags dato; efter 10/9
   kan ingen aktiv virksomhed have slutdato ≤ 10/9, så konstanten bliver
@@ -631,6 +699,18 @@ bærer kortet.
 25. august i dag, får medlemmet et «ugens fokus»-kort dateret DENNE uge,
 skrevet ud fra augusts tal. Forslag har ingen udløbsmekanik. Hører til
 opgave-model-epic'et (DEL 3) og står som fælde i DEL 4.
+
+**Puklen talte døde forslag — rettet 7/9 (#682).** Linjen «N
+agentforslag venter på din afgørelse» filtrerede på `decided_at is
+null`. Men en `expired`-række har OGSÅ `decided_at = NULL` — fire
+`write_session_prep`-forslag blev sat i hånden 1/9, da evnen blev fjernet
+(`docs/status-1-september.md`) — og `AgentForslagPanel` viser kun
+knapper for `proposed`. Rådgiveren klikkede ind på noget der ikke kunne
+afgøres. Filtret er nu på `status` begge steder (`AdvisorDashboard` og
+`useVirksomhed`; det andet havde samme fejl). Et driftværn låser
+kildeteksten, og værnet er PRØVET: forfalskes filtret, fejler netop den
+fils tests. **Bevist på skærm 7/9:** forsiden siger nu «1 agentforslag
+venter», ikke 2. Fælden står i DEL 4.
 
 ### Indgangen — kæden FØR platformen er hel 3/9: «Godkendt» → betalingsmail → påmindelser → dag 31-faktura → betaling → adgang
 
@@ -1352,6 +1432,44 @@ otte admin-sider (#645–#649, #651, #653, #654).
 **Menuen** er målt samme aften, og `/members` er målt igen sent på
 aftenen — begge står i DEL 3.
 
+### Mørke tokens på lyst papir — målt og rettet 7/9 (#685)
+
+`~/Downloads/recon-moerke-tokens-paa-papir.md` (uden for repoet —
+genskabes hvis den bruges). Anledningen var knappen «Redigér og godkend»
+i `AgentForslagPanel`, som var ulæselig på virksomhedssiden.
+
+**Årsagen er strukturel:** `index.html` bærer `class="dark"` permanent,
+og `.theme-hjemmebane` definerer KUN `--hb-*`-tokens — den overstyrer
+ikke shadcns. Enhver rå shadcn-komponent i en Hb-flade får derfor
+mørke-temaets værdier på lyst papir. Fem komponenter var bogført som
+bevidst ukonverterede, «tegner i appens gamle tokens» (`VirksomhedView`
+ved `AgentForslagPanel`, `AdvisorAIChat`, `DeliveryOverview`,
+`HandoutDetail`; `EmailTemplatesView` ved `RichTextEditor`). **Men det
+var ikke det der skete:** de arvede TEKSTFARVEN fra Hjemmebane-skallen
+(`HbMemberShell`: `text-hb-ink`, 12 % lyshed) oven på `.dark`-baggrunde
+(`bg-background`, 9 %) — en hybrid af to temaer på ét element. Knappen
+var 12 % på 9 %; indtastet tekst i `Input`/`Textarea` var usynlig, mens
+placeholderen på 55 % så fin ud. Ikke det gamle udtryk bevaret — noget
+tredje.
+
+**Rettelsen (#685):** en wrapper på hver af de fem komponenters rod
+sætter nu appens tekstfarve eksplicit (`text-foreground`), så intet arves
+fra skallen — og BEVIDST IKKE baggrunden. Første forsøg satte
+`bg-background` med, men skærmen viste at panelet i praksis er LYST
+(`bg-muted/20` blandet over papiret), så baggrunden ville have ændret
+udtrykket frem for at rette fejlen. En rettelse truffet på et billede
+frem for på tokens. Wrapperen ligger på komponentens rod, ikke på
+kaldestedet, så en konvertering fjerner den i samme fil frem for at
+efterlade en mørk wrapper om en lys komponent. Den er markeret til
+fjernelse. Kun agentpanelet er set på skærm efter rettelsen.
+
+**Konverteringen af de fem paneler er sin egen opgave** — mangellisten
+bærer kortet. Andre rå shadcn-steder på papir, som IKKE er bogført som
+ukonverterede og derfor ikke rørt: `EditCompanyDialog`,
+`ReportManualOverride`, de to `AlertDialogContent` i `VirksomhedView` og
+`RapporteringView`, kalenderen i `BoardroomView`, og `FinancialAIChat`
+(mangellisten). Reconen bærer listen med lysheder.
+
 ### RLS-hullet — fundet og lukket 3/9 kl. 22:48
 
 `supabase/SECURITY_BASELINE.md` §5 og migration
@@ -1447,13 +1565,15 @@ facit og rækkefølge; `docs/chat-design.md` chattens form.
 | hvornår | hvad | hvor det står |
 |---|---|---|
 | **10/9** — MÅLT 6/9: ikke en tændingsdato | Fornyelsesordningen træder i kraft. Tre udløber inden og falder udenfor. **Intet sker i koden den dag:** `FORNYELSE_IKRAFT_DATO` sammenlignes med virksomhedens slutdato, ikke dags dato, og bliver virkningsløs efter 10/9. Kædens forudsætninger er alle grønne (seks migrationer kørt, ni priser, seks events, fire funktioner udrullet — men 401 beviser kun at de findes, ikke hvilken version; driftsbeviset fra 1/9 ligger før #529, #561, #563, #572 og #583). **Det der IKKE er klar: ordningen har ingen afsender** — rækken «BESLUTTET 6/9» nedenfor. | fornyelseskæden §13; fornyelsesordningen §5, §7; DEL 2 «Fornyelseskæden» |
-| BESLUTTET 6/9 (Jonas), TALLENE 7/9 — forudsætningerne er bygget (#674 stempler, #678 vinduet); AFSENDEREN SELV er næste stykke; deadline midten af NOVEMBER | **Medlemmet skal høre om sin fornyelse fra SYSTEMET, ikke ved at miste adgangen.** Formen, med tal fra 7/9: mail 1 ved 30 dage før slutdato, mail 2 ved 7 dage, tilbuddet lever 14 dage efter slutdato (bygget som tilstand, #678); et tilbud om at booke «En snak om din fornyelse» via https://calendly.com/topix-jonas/fornyelse (almindeligt link, ikke engangslink); og en notifikation til rådgiveren når mail 1 er sendt, så den personlige chatbesked kommer EFTER systemets mail og ikke i stedet for. **Konsekvens:** rådgiverbeslutningen skal foreligge senest dag 30, ellers sendes intet — en glemt beslutning aflyser mailen, den forsinker den ikke. **Det der mangler:** mail, skabelon, cron. Stemplerne findes (`varsel_1_sendt_at`, `varsel_2_sendt_at`, #674, i prod 7/9 kl. 08:51; ingen trigger — skrivestien sætter selv `updated_at`). **Formen SPEJLER INDGANGENS KÆDE** (målt 6/9, `~/Downloads/recon-indgangens-mailkaede.md`, uden for repoet): pg_cron → `net.http_post` med vault-nøglen → Bucket B-funktion med `authenticateServiceRole` → TØRKØRSEL SOM STANDARD → ren motor afgør hvilken dag hver række står på → byg mail → enqueue → stempl KUN når afsendelsen lykkedes. **Datamodellen (LØST 7/9, #674):** stempel-felterne findes nu — to navngivne kolonner frem for et dag-nummer, fordi de to varsler kan sendes uafhængigt. **Calendly (LØST 7/9):** event-typen findes, linket står ovenfor. Betalte bookinger registreres i dag aldrig tilbage i platformen (målt 3/9), så linket i mailen skal være et almindeligt link — vi lover ikke en måling vi ikke kan holde. **Tempoet, målt i prod 6/9:** efter Doggybed 13/10 er der ingen fornyelse før Livja 16/12 — to måneders hul; derefter fjorten virksomheder marts–juni 2027, over halvdelen af porteføljen. Deadline for mailkæden: Livja minus 30 dage. | fornyelsesordningen §7; fornyelseskæden §13.4; indgangen-design §26 (formen) |
+| BESLUTTET 6/9 (Jonas), TALLENE 7/9 — forudsætningerne er bygget (#674 stempler, #678 vinduet); MOTOREN og CRON-RAPPORTEN bygget 7/9 eftermiddag (#680, #681), tørkørt på rigtige data; MAILENE er næste stykke; deadline midten af NOVEMBER | **Medlemmet skal høre om sin fornyelse fra SYSTEMET, ikke ved at miste adgangen.** Formen, med tal fra 7/9: mail 1 ved 30 dage før slutdato, mail 2 ved 7 dage, tilbuddet lever 14 dage efter slutdato (bygget som tilstand, #678); et tilbud om at booke «En snak om din fornyelse» via https://calendly.com/topix-jonas/fornyelse (almindeligt link, ikke engangslink); og en notifikation til rådgiveren når mail 1 er sendt, så den personlige chatbesked kommer EFTER systemets mail og ikke i stedet for. **Konsekvens:** rådgiverbeslutningen skal foreligge senest dag 30, ellers sendes intet — en glemt beslutning aflyser mailen, den forsinker den ikke. **Det der mangler (målt 7/9 eftermiddag):** mailene selv, rådgivernotifikationen, stemplingen og planlægningen af jobbet. Motoren `afgoerForfaldentVarsel` (#680) og `fornyelsesvarsel-cron` (#681, ren rapport, ikke planlagt) FINDES; tørkørslen kl. 10:15 fandt PHILBERT → varsel 1 og CARMA → varsel 2 med «varsel 1 springes over: sen beslutning» (DEL 2 «Fornyelseskæden», fornyelseskæden §15). Stemplerne findes (`varsel_1_sendt_at`, `varsel_2_sendt_at`, #674, i prod 7/9 kl. 08:51; ingen trigger — skrivestien sætter selv `updated_at`). **Formen SPEJLER INDGANGENS KÆDE** (målt 6/9, `~/Downloads/recon-indgangens-mailkaede.md`, uden for repoet): pg_cron → `net.http_post` med vault-nøglen → Bucket B-funktion med `authenticateServiceRole` → TØRKØRSEL SOM STANDARD → ren motor afgør hvilken dag hver række står på → byg mail → enqueue → stempl KUN når afsendelsen lykkedes. **Datamodellen (LØST 7/9, #674):** stempel-felterne findes nu — to navngivne kolonner frem for et dag-nummer, fordi de to varsler kan sendes uafhængigt. **Calendly (LØST 7/9):** event-typen findes, linket står ovenfor. Betalte bookinger registreres i dag aldrig tilbage i platformen (målt 3/9), så linket i mailen skal være et almindeligt link — vi lover ikke en måling vi ikke kan holde. **Tempoet, målt i prod 6/9:** efter Doggybed 13/10 er der ingen fornyelse før Livja 16/12 — to måneders hul; derefter fjorten virksomheder marts–juni 2027, over halvdelen af porteføljen. Deadline for mailkæden: Livja minus 30 dage. | fornyelsesordningen §7; fornyelseskæden §13.4; indgangen-design §26 (formen) |
 | åbent, målt 6/9, delvist ændret 7/9 — værnet er stadig et menneske | **Datogaten omgås stadig hvor pengene skifter hænder.** `hent-fornyelsestilbud` kalder nu motoren (#678), men både den og `opret-fornyelse-checkout` kræver `udloebet_tilbyd`, som afgøres i udløbsgrenen FØR datogaten. En virksomhed «uden for ordningen» med beslutning `tilbyd` får derfor stadig et systemtilbud og kan betale — nu dog kun de første 14 dage efter udløb. Om gaten SKAL gælde der, er en beslutning — i dag er det rådgiverens finger der er værnet. | fornyelseskæden §13.3 |
 | LØST 7/9 (#678) — vinduet; Studio Minis række er nu en BESLUTNING om timing | **Tilbudsvinduet efter udløb er en tilstand:** `udloebet_vindue_lukket`, kun efter `tilbyd`, fra dag 15 efter slutdato; bevist i drift kl. 09:36–09:38 (DEL 2 «Fornyelseskæden»). **Studio Mini (slut 5/9, `tilbyd`) FORLÆNGER IKKE (Jonas 6/9):** i dag er de dag 2 i vinduet; fra 20/9 lukker vinduet af sig selv, og rækken bliver `udloebet_vindue_lukket` uden at nogen rører den. Beslutningen er om den skal ryddes FØR — indtil da viser gaten dem et tilbud. CARMA STUDIO (7/9, `tilbyd`) håndteres manuelt i dialog. | fornyelsesordningen §3; fornyelseskæden §13.4, §14 |
+| BYGGET 7/9 eftermiddag (#683 motoren, #684 pengevejen), udrullet kl. 08:53 UTC — ændrer beslutningen fra 1/9 | **Fornyelse kan betales FØR slutdatoen.** Før kunne et medlem på dag 22 hverken se eller betale sit tilbud (checkout 403, `hent-fornyelsestilbud` null, gaten kun for udløbne). **Regnestykket, ordret:** betalt FØR eller PÅ slutdatoen → GAMMEL SLUTDATO + 12 måneder; betalt EFTER → BETALINGSDAGEN + 12. Grænsen er kontinuert (28/9 og 29/9 → 2027-09-29; 30/9 → 2027-09-30). `periode_start` er udledt af `company_perioder`s invariant: ny periode begynder hvor den gamle slutter. 29. februar er en synlig gren (→ 1/3 året efter, slutdatoen er eksklusiv). **`cancel_at` er IKKE ændret, og skal ikke ændres** — abonnementet er betalingsplanen, ikke adgangen; en der betaler tidligt får et abonnement der ophører FØR kontrakten, og det er rigtigt (DEL 2 «Fornyelseskæden», rettelsen; DEL 4). | fornyelseskæden §15.3, §7; fornyelsesordningen §1 |
+| ÅBENT — designbeslutning, 7/9 | **Et ikke-udløbet medlem kan betale, men kan ikke SE tilbuddet.** `MembershipExpiredGate` vises kun ved tier `expired` (`Index.tsx`), og ingen anden flade viser fornyelsen til et medlem (målt 7/9). Betalingsvejen er åben fra dag 60 (`klar_til_tilbud`), men den eneste vej til checkout er gaten. Hvor tilbuddet skal vises før slutdatoen — forsiden, en mail, et kort — er ikke besluttet. Mangellisten bærer kortet. | DEL 2 «Fornyelseskæden»; fornyelseskæden §15.3 |
 | samtale, målt 6/9 | **To virksomheder uden slutdato rammer aldrig ordningen:** Alexander Lunds virksomhed og Martin Larsens virksomhed (`ingen_slutdato`). Og **Bastant Design** (31/12-2027) har ingen indgangspris, så fornyelsesprisen er ukendt — et `tilbyd` dér ville give et tomt tilbudskort. | fornyelseskæden §13.4 |
 | **13/9** | doggybeds træk på 4.375 kr. på den nye konto — MÅL at det gik igennem. Derefter flyttes de tretten i portioner. TuaMea (2/9), Floren engros og BR Roset (3/9) venter til efter egne træk. **Samme dag, beviset for #563 (nu stærkere):** `companies.subscription_status` skal forblive NULL på doggybed (`382fd787-3141-45c7-8eea-297b7b947fe0`) efter trækket — fordi grenen springer over med vilje, ikke fordi noget fejler — og `customer.subscription.updated` skal stå grøn i Stripes Event deliveries. SQL'en står i migration-recon §26. **Samme dag, beviset for #572:** en række i `company_traek` for doggybeds faktura med `status = 'betalt'` (SQL editor); fejler trækket, skal rækken stå som `fejlet` og badgen vise sig på /members (#574). | migration-recon §25, §26; indgangen-design §31 |
 | LØST 3/9 kl. 10:42 | **Hvorfor skrev webhooken ikke på 2/9?** Eventet BLEV leveret; webhooken svarede 500 i skrivningen (fem gentagelser fra Stripe). Efter #563 gensendt manuelt → 200 `skipped: migreret_subscription`, «Recovered». Webhooken får subscription-events; hvidlisten er bevist på det rigtige event. Hvad der kastede, afdækkes bevidst ikke — men det art-løse selvbetjeningsabonnement går stadig gennem den kode. | migration-recon §26 |
-| **29/9** — beslutningen ER registreret (målt 6/9) | PHILBERTs fornyelse: `tilbyd` står i `company_fornyelse`, prisen er gyldig (20.000 kr.). Men tilbuddet når kun PHILBERT ved at de mister adgangen 29/9 og selv finder gaten (ingen afsender). Doggybed 13/10 står som `tilbyd_ikke`. | fornyelseskæden §13.4; prioritering §1 |
+| **29/9** — beslutningen ER registreret (målt 6/9) | PHILBERTs fornyelse: `tilbyd` står i `company_fornyelse`, prisen er gyldig (20.000 kr.). Men tilbuddet når kun PHILBERT ved at de mister adgangen 29/9 og selv finder gaten (ingen afsender). *7/9 eftermiddag:* cron-rapportens tørkørsel fandt PHILBERT → varsel 1, 22 dage til slutdato (fornyelseskæden §15.2) — men mailen findes ikke. Og fra 7/9 KAN PHILBERT betale før 29/9 (#684), men har intet sted at se tilbuddet (rækken «ÅBENT — designbeslutning» ovenfor). Doggybed 13/10 står som `tilbyd_ikke`. | fornyelseskæden §13.4; prioritering §1 |
 | LØST 3/9 | **Cron-jobbet `indgangs-paamindelser` (0 10 \* \* \*)** er planlagt og aktivt, verificeret i `cron.job`. Tørkørsel og rigtig kørsel bevist på FLOOR1. Secret `RAADGIVER_MAIL_TIL` er ikke bekræftet sat i denne bogføring. | indgangen-design §26, §30 |
 | LØST 3/9 | **Dag 31-fakturaen** (#559–#561): motoren opretter kunde + faktura med `metadata[company_id]` på begge, cronen sender den FØR dag 31-mailen, `invoice.paid` er tilmeldt (fem events formiddag, seks efter #572; `invoice.created` bevidst ikke) og skriver samme kæde som checkout med `betalingsmodel 'faktura'` og beløb uden moms. Bevist i drift 3/9 kl. 10:00–10:11 inkl. betaling og kreditnota. | indgangen-design §30 |
 | LØST 3/9 eftermiddag (#572, #574) | **Månedstrækkene registreres** — både betalte og fejlede, i `company_traek`; `invoice.payment_failed` tilmeldt (seks events); fejlet træk ses på /members. Migration kørt, webhook deployet, Update klikket. Bevis 13/9. | indgangen-design §31 |
@@ -1507,7 +1627,7 @@ facit og rækkefølge; `docs/chat-design.md` chattens form.
 | MÅLT 6/9 — egen opgave | **Ugeagentens cron findes ikke i prod.** `run-weekly-agent` har kun `Deno.cron` (kører aldrig på edge-runtimen); `cron.job` har ti jobs, ingen kalder den. Kun `generate-weekly-focus` (0 6 \* \* 1) kører mandag. Om agenten NOGENSINDE har kørt fra cron, er ikke efterprøvet (`agent_runs.trigger` kan svare). Skal den køre, er vejen pg_cron + `net.http_post` som `intro-reminder-cron` — men den kører LIVE og skriver det medlemmet ser, så det er en beslutning, ikke en rettelse. | DEL 2 «Agentkæden»; DEL 4 (`Deno.cron`) |
 | LØST 6/9 sen aften (#670) | **De elleve typefejl efter Lovables regenerering af `types.ts`** er rettet ved at lade husets egne interfaces sige sandheden om databasen — `EventTimes.ends_at` og de fire felter på `MemberProgress` er valgfrie OG nullable — og ved at skrive reglen ned begge steder: null og undefined betyder det samme, «det er ikke sket». Ingen casts, intet non-null, ingen ændring i `types.ts`. Tretten nye tests låser reglen, inkl. grænsen ved `starts_at` + 90 min. **Målt efter:** tsc giver præcis fire fejl (CompanyChatPane, PushView, RapporteringView ×2), 1656 tests grønne. | DEL 1 «Kodearbejde» |
 | LØST 7/9 (#675, #676) | **Baselinen er nul, og CI kører typecheck** — `bunx tsc --noEmit -p tsconfig.app.json` FØR testene i jobbet «Tests», uden kendt-liste og uden `continue-on-error`. Beslutningen om de fire blev «rettes» (#675), ingen af dem skjult. Bevist i drift: kørsel 34092921389, trin 6 «Typecheck» → success. Gaten fangede #678's to Record-aftagere samme dag. | DEL 1 «Kodearbejde» |
-| hører til opgave-epic'et, målt 6/9 kl. 22:18 | **Godkendelse skriver indeværende uges nøgle, og halvdelen af de uafgjorte forslag kan kun forkastes.** Otte forslag fra 25/8 (Topix 6, remm. 2, alle tørkørsler); fire `update_weekly_focus` kan godkendes, fire (`write_session_prep` ×3, `write_company_action`) kan kun forkastes — linjen lover «din afgørelse» om noget hvor den ene mulighed ikke findes. Og godkendes et augustforslag i dag, lander det som DENNE uges fokus (`skrivUgensFokus` → `getISOWeekKey(new Date())`). Forslag har ingen udløbsmekanik. *Puklen peger nu direkte på virksomheden når den dækker én (#672, 7/9); dækker den flere, er det stadig `/virksomheder`, for der findes ingen flade der viser forslag på tværs — kendt, står i koden.* Mangellisten bærer to kort. | DEL 2 «Agentkæden»; DEL 4; `docs/opgave-model-design.md` |
+| hører til opgave-epic'et, målt 6/9 kl. 22:18 | **Godkendelse skriver indeværende uges nøgle, og halvdelen af de uafgjorte forslag kan kun forkastes.** Otte forslag fra 25/8 (Topix 6, remm. 2, alle tørkørsler); fire `update_weekly_focus` kan godkendes, fire (`write_session_prep` ×3, `write_company_action`) kan kun forkastes — linjen lover «din afgørelse» om noget hvor den ene mulighed ikke findes. Og godkendes et augustforslag i dag, lander det som DENNE uges fokus (`skrivUgensFokus` → `getISOWeekKey(new Date())`). Forslag har ingen udløbsmekanik. *Puklen peger nu direkte på virksomheden når den dækker én (#672, 7/9); dækker den flere, er det stadig `/virksomheder`, for der findes ingen flade der viser forslag på tværs — kendt, står i koden.* Mangellisten bærer to kort. *Rettet 7/9 (#682): puklen tæller nu kun `proposed` — de fire `expired` session_prep-rækker talte med, fordi filtret var `decided_at is null`; forsiden siger «1 agentforslag venter», ikke 2 (DEL 2 «Agentkæden»).* | DEL 2 «Agentkæden»; DEL 4; `docs/opgave-model-design.md` |
 | oprydning, målt 6/9 | **37 grene på origin ud over `main`** (Jonas' måling 6/9; `git ls-remote --heads` gav 38 ved bogføringen samme aften). `gh pr list --state merged` er den eneste der kan afgøre hvilke der må slettes (DEL 1). | DEL 1 «Git og Claude Code» |
 
 ---
@@ -1820,6 +1940,31 @@ De konkrete ting der har kostet tid. Led efter dem.
   skal rulle** — den kan per definition ikke røre forfædrene. Og drop
   `smooth` under indlæsning: en glidende rulning kæmper mod en liste der
   stadig vokser.
+- **`decided_at IS NULL` betyder ikke «venter».** En `expired`-række på
+  `agent_proposals` har også tom `decided_at` (constrainten kræver den
+  ikke), og fladen viser ingen knapper for den. Puklen talte fire døde
+  session_prep-forslag som ventende (#682, 7/9). Døm «venter» på
+  `status = 'proposed'`, aldrig på fraværet af en afgørelse — og lås
+  filtret med et driftværn der læser kildeteksten (DEL 2 «Agentkæden»).
+- **Abonnementets `cancel_at` måler ikke adgang — det er
+  betalingsplanen.** `contract_end_date` bærer adgangen alene; et
+  fornyelsesabonnement rører aldrig `subscription_status`
+  (fornyelseskæden §11). De to ure SKAL være forskellige: `cancel_at` =
+  start + 12 måneder − 1 dag ligger efter sidste aftalte træk og før det
+  næste, uanset hvad kontrakten siger. Regn dem aldrig sammen: med
+  `cancel_at = periode_slut − 1 dag` ville en der betalte 12 rater fra
+  8/9 få et TRETTENDE træk 8/9 året efter — jeg foreslog præcis det 7/9
+  og tog fejl (DEL 2 «Fornyelseskæden», rettelsen; fornyelseskæden §7).
+  For en der betaler tidligt, ophører abonnementet derfor nogle uger FØR
+  kontrakten udløber. Det er rigtigt. Ret det ikke.
+- **`<html class="dark">` er permanent, og `.theme-hjemmebane` overstyrer
+  IKKE shadcn-tokens.** En rå shadcn-komponent i en Hb-flade får
+  mørke-temaets baggrunde (9 %) og arver Hb-skallens tekstfarve
+  (`text-hb-ink`, 12 %) — mørkt på mørkt. «Tegner i appens gamle tokens»
+  var ikke sandt for de fem bogførte paneler; de tegnede i en hybrid
+  (#685, 7/9). Konvertér, eller sæt tekstfarven eksplicit på roden — og
+  sæt ikke baggrunden med, før du har set panelet på skærm: det var
+  lyst, ikke mørkt (DEL 2 «Mørke tokens på lyst papir»).
 
 ---
 
@@ -1838,6 +1983,17 @@ Skal ikke genforhandles uden ny måling.
   7, tilbuddet lever 14 dage efter slutdato — og KUN efter `tilbyd`;
   `tilbyd_ikke` har intet vindue. Rådgiverbeslutningen skal foreligge
   senest dag 30, ellers sendes intet. (fornyelsesordningen §3, §7)
+- **Den sene beslutning sender KUN varsel 2** (7/9): er begge varsler
+  forfaldne når `tilbyd` træffes, sendes varsel 2 alene — varsel 1 sendes
+  aldrig bagefter. **Ingen nedre grænse for varsel 2:** dag 0 er en
+  påmindelse, ikke en advarsel. Efter slutdatoen sendes intet.
+  (fornyelseskæden §15.1)
+- **Fornyelse kan betales FØR slutdatoen** (Jonas 7/9, ændrer 1/9).
+  Betalt før eller på slutdatoen: ny slutdato = gammel slutdato + 12
+  måneder — den der handler tidligt mister ingen dage. Betalt efter:
+  betalingsdagen + 12 — dagene uden adgang gives ikke tilbage. 29/2 → 1/3
+  året efter. `cancel_at` regnes stadig fra abonnementets start.
+  (fornyelseskæden §15.3, §7; fornyelsesordningen §1)
 - **`er_kunde` læses KUN i rådgiverens læsestier** og gater ingen cron,
   ingen edge function, ingen RLS (6/9). Slukkes noget for en virksomhed,
   ændres medlemmets hverdag — og det var netop kravet at den ikke måtte.
