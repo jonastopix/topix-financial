@@ -158,7 +158,11 @@ export const RapporteringView = () => {
   // reportId-klik mens fladen er åben re-trigger. Param ryddes efter brug —
   // via navigate frem for setSearchParams, fordi setSearchParams smider
   // hash'en (og #upload/#annual-reports er Guide-kontrakt).
-  const reportCardRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+  // Kortene sidder i <li> (ref'en sættes på listeelementet, ikke HbCard),
+  // og det eneste vi gør med dem er scrollIntoView. REGLEN: ref-mappen
+  // typer det element den faktisk holder — HTMLElement er nok, og
+  // snævrere (HTMLDivElement) var en løgn tsc fangede (baseline-fejl 3, 7/9).
+  const reportCardRefs = useRef<Map<string, HTMLElement>>(new Map());
   useEffect(() => {
     const reportId = searchParams.get("reportId");
     if (reportId && dbReports.length > 0 && dbReports.some((r) => r.id === reportId)) {
@@ -715,7 +719,13 @@ export const RapporteringView = () => {
             <ul className="mt-2 space-y-1">
               {orphanAnalyses.map((c) => (
                 <li key={c.period_key} className="flex items-center gap-3 text-sm">
-                  <span className="min-w-0 flex-1 text-hb-ink">{c.period_label ?? c.period_key}</span>
+                  {/* period_label har ALDRIG eksisteret på financial_commentaries
+                      (types.ts; Commentary i useCompanyCommentary spejler rækken).
+                      Udtrykket `period_label ?? period_key` viste derfor altid
+                      period_key — venstresiden var død kode (baseline-fejl 4, 7/9).
+                      Nu vises period_key («2026-08») direkte; huset har ingen
+                      funktion der laver en nøgle om til dansk etiket. */}
+                  <span className="min-w-0 flex-1 text-hb-ink">{c.period_key}</span>
                   <Link to="/kpis" className="shrink-0 text-hb-rust underline-offset-4 hover:underline">
                     Se analyse
                   </Link>

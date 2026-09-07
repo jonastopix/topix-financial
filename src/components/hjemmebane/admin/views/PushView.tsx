@@ -162,9 +162,14 @@ const PushEditor = forwardRef<
             { label: "Arkivér", onClick: () => persist({ status: "archived" }), variant: "link" },
           ];
 
+  // metadata er Json i skemaet (content_items.metadata). Vi skriver kun
+  // strenge ind, og tom værdi = undefined, som JSON dropper. REGLEN er
+  // husets — samme udtryk som setMeta i EvergreenView, RedaktioneltView og
+  // UgensVideoView: den byggede værdi erklæres som ContentItem["metadata"],
+  // fordi det er den kolonne den skrives til (baseline-fejl 2, 7/9).
   const setMeta = (key: string, value: string) =>
     onDraftChange({
-      metadata: { ...((form.metadata as Record<string, unknown>) ?? {}), [key]: value || undefined },
+      metadata: { ...((form.metadata as Record<string, unknown>) ?? {}), [key]: value || undefined } as ContentItem["metadata"],
     });
 
   return (

@@ -40,7 +40,7 @@ import { useKpiTargets } from "@/hooks/useKpiTargets";
 import { useKpiBenchmarks } from "@/hooks/useKpiBenchmarks";
 import { deriveKpiMetrics, getTargetStatus, type KpiMetric } from "@/lib/kpiDefs";
 import { useCompanyCommentary } from "@/hooks/useCompanyCommentary";
-import type { AnalysisData } from "@/components/AIFinancialAnalysis";
+import { laesAnalysisData } from "@/lib/financialAnalysis";
 import { format, formatDistanceToNow, startOfDay } from "date-fns";
 import { da } from "date-fns/locale";
 // Delt med MemberChatPane efter C1-splittet (docs/chat-design.md):
@@ -797,7 +797,9 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
   const latestPeriodLabel = drawerFacts.at(-1)?.period_label ?? "";
   const { data: drawerCommentaries = [] } = useCompanyCommentary(companyIdForDrawer);
   const latestCommentary = drawerCommentaries[0]; // nyeste, sorteret descending
-  const drawerAnalysis = latestCommentary?.analysis as AnalysisData | undefined;
+  // analysis er Json fra basen — læses ind, ikke castet (laesAnalysisData
+  // bærer reglen). null = ingen analyse; drawer'en viser så «Ingen AI-analyse endnu».
+  const drawerAnalysis = latestCommentary ? laesAnalysisData(latestCommentary.analysis) : null;
   const drawerIsStale = latestCommentary?.is_stale ?? false;
 
   // Pulse context for advisor chat banner — only show if from last 30 days
