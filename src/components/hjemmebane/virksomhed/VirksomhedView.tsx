@@ -769,12 +769,13 @@ const Blok5 = ({ d, facts }: { d: VirksomhedsData; facts: CompanyFact[] }) => {
   const momGyldig = momErGyldig(facts);
   // «Afviger» = målet er ikke nået (deriveKpiTone: tone attention) ELLER
   // M/M går den forkerte vej (trend down — kun sat når M/M er gyldig).
-  // Afvigende først, resten i KPI_DEFS' rækkefølge. Ikke en fuld
-  // nøgletalsflade — den findes på /kpis.
+  // Et STANDARDMÅL dømmer ikke (kilde med, 7/9): rust kræver et aftalt
+  // mål — eller et fald. Afvigende først, resten i KPI_DEFS' rækkefølge.
+  // Ikke en fuld nøgletalsflade — den findes på /kpis.
   const sorteret = [...metrics]
     .map((m) => {
       const def = KPI_DEFS.find((k) => k.key === m.key)!;
-      const tone = deriveKpiTone({ actual: m.numValue, target: m.targetNum > 0 ? m.targetNum : null, lowerIsBetter: def.lowerIsBetter });
+      const tone = deriveKpiTone({ actual: m.numValue, target: m.targetNum > 0 ? m.targetNum : null, lowerIsBetter: def.lowerIsBetter, kilde: m.maalKilde });
       return { m, afviger: tone.tone === "attention" || m.trend === "down" };
     })
     .sort((a, b) => Number(b.afviger) - Number(a.afviger));

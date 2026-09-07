@@ -204,13 +204,17 @@ export const NoegletalView = () => {
   const heroEntries = KPI_DEFS.map((def) => {
     const actual = latestKF ? (VALUE_EXTRACTORS[def.key]?.(latestKF.kf) ?? null) : null;
     const target = getTarget(def.key);
-    const tone = deriveKpiTone({ actual, target: target.value > 0 ? target.value : null, lowerIsBetter: def.lowerIsBetter });
+    // kilde med: et standardmål vises, men dømmer ikke (kpiTone, 7/9).
+    const tone = deriveKpiTone({ actual, target: target.value > 0 ? target.value : null, lowerIsBetter: def.lowerIsBetter, kilde: target.kilde ?? null });
     return { def, actual, target, tone };
   });
   const withTargets = heroEntries.filter((e) => e.tone.state !== "no_target");
+  // Samlet målopfyldelse regnes KUN over aftalte mål (pct findes kun dér);
+  // standardmål tæller hverken med eller imod.
+  const aftalte = withTargets.filter((e) => e.tone.pct != null);
   const avgProgress =
-    withTargets.length > 0
-      ? withTargets.reduce((s, e) => s + Math.min(100, e.tone.pct ?? 0), 0) / withTargets.length
+    aftalte.length > 0
+      ? aftalte.reduce((s, e) => s + Math.min(100, e.tone.pct ?? 0), 0) / aftalte.length
       : null;
 
   // Trend (porteret fra Reports — facts-laget, usePeriodFilter-hooken)
@@ -614,7 +618,7 @@ export const NoegletalView = () => {
                     onClick={() => (showAdvanced ? setShowAdvanced(false) : openAdvanced())}
                     className="text-sm text-hb-rust underline-offset-4 hover:underline"
                   >
-                    {showAdvanced ? "Skjul" : withTargets.length === 0 ? "Sæt mål" : "Ret mål"}
+                    {showAdvanced ? "Skjul" : aftalte.length === 0 ? "Sæt mål" : "Ret mål"}
                   </button>
                 </div>
               </div>
@@ -827,6 +831,7 @@ export const NoegletalView = () => {
                   actual: metric.numValue,
                   target: metric.targetNum > 0 ? metric.targetNum : null,
                   lowerIsBetter: def.lowerIsBetter,
+                  kilde: metric.maalKilde, // standardmål dømmer ikke (7/9)
                 });
                 const selected = metric.key === selectedKPI;
                 const toneCls = tone.tone === "quiet" ? "text-hb-ink-soft" : "text-hb-rust";
