@@ -23,6 +23,15 @@ import { resolve } from "node:path";
 // conversations, financial_report_facts, company_traek); company_members
 // og profiles er berigelser med indbygget fald-tilbage og læses som før.
 // Fladen SKAL desuden have en isError-gren, så fejl ikke ligner tom.
+//
+// /members OG MEDLEMMETS FORSIDE (7/9, pkt. 3 og 4): Members.tsx' hentning
+// fodrer også FornyelsesSektion og IndgangsSektion med rækkerne — en fejl
+// blev til «Ingen virksomheder endnu» og «intet at beslutte». Otte kilder
+// kaster; profiles, user_login_log, get_users_last_login, email_send_log og
+// pulse_checkins er berigelser med fald-tilbage og læses som før.
+// BoardroomView: «Dine aftaler» (company_actions) og de ulæste
+// (conversations + messages, head-tællinger → HentningsFejl direkte)
+// kaster; fejlen vises PR. SEKTION, ikke for hele forsiden.
 
 const sti = "src/components/AdvisorDashboard.tsx";
 const kilde = readFileSync(resolve(process.cwd(), sti), "utf8");
@@ -106,5 +115,87 @@ describe("virksomhedslistens delkald kaster — fire kilder gennem kraevRaekker,
   it("fladen har en isError-gren der siger «kunne ikke hentes» — ikke «ingen virksomheder»", () => {
     expect(listeKilde).toContain("listeQuery.isError");
     expect(listeKilde).toContain("Listen kunne ikke hentes. Prøv igen.");
+  });
+});
+
+// ───────── /members ─────────
+const membersSti = "src/pages/Members.tsx";
+const membersKilde = readFileSync(resolve(process.cwd(), membersSti), "utf8");
+
+/** Fra `queryKey: ["members-data"` til `enabled: !!user && !!isAdvisor` — selve queryFn'en. */
+const membersHentning = (() => {
+  const start = membersKilde.indexOf('queryKey: ["members-data"');
+  const slut = membersKilde.indexOf("enabled: !!user && !!isAdvisor", start);
+  expect(start, "members-data-hentningen mangler").toBeGreaterThan(-1);
+  expect(slut, "enabled-linjen mangler").toBeGreaterThan(start);
+  return membersKilde.slice(start, slut);
+})();
+
+const MEMBERS_SKAL_KASTE: Array<[variabel: string, kildenavn: string]> = [
+  ["companiesRes", "companies"],
+  ["membersRes", "company_members"],
+  ["convsRes", "conversations"],
+  ["reportsRes", "financial_reports"],
+  ["invitationsRes", "company_invitations"],
+  ["factsRes", "financial_report_facts"],
+  ["traekRes", "company_traek"],
+  ["unreadRes", "messages"],
+];
+
+describe("/members' delkald kaster — otte kilder gennem kraevRaekker, og fejl ligner ikke tom", () => {
+  it(`${membersSti}: importerer kraevRaekker fra @/lib/kraevRaekker`, () => {
+    expect(membersKilde).toContain('from "@/lib/kraevRaekker"');
+  });
+
+  for (const [variabel, kildenavn] of MEMBERS_SKAL_KASTE) {
+    it(`${variabel} (${kildenavn}): læses med kraevRaekker og navngiver kilden`, () => {
+      expect(membersHentning, `kraevRaekker(${variabel}, "${kildenavn}") mangler`).toContain(`kraevRaekker(${variabel}, "${kildenavn}")`);
+    });
+
+    it(`${variabel}: læses IKKE som \`.data || []\``, () => {
+      expect(membersHentning, `${variabel}.data || [] findes stadig`).not.toMatch(dataFallback(variabel));
+    });
+  }
+
+  it("fladen har en isError-gren der siger «kunne ikke hentes» — ikke «Ingen virksomheder endnu»", () => {
+    expect(membersKilde).toContain("isError: listenFejlede");
+    expect(membersKilde).toContain("Listen kunne ikke hentes. Prøv igen.");
+  });
+});
+
+// ───────── Medlemmets forside ─────────
+const boardroomSti = "src/components/hjemmebane/boardroom/BoardroomView.tsx";
+const boardroomKilde = readFileSync(resolve(process.cwd(), boardroomSti), "utf8");
+
+/** Fra `const actionsQuery = useQuery` til `const leversQuery = useQuery` — aftaler og ulæste. */
+const boardroomHentning = (() => {
+  const start = boardroomKilde.indexOf("const actionsQuery = useQuery");
+  const slut = boardroomKilde.indexOf("const leversQuery = useQuery", start);
+  expect(start, "actionsQuery mangler").toBeGreaterThan(-1);
+  expect(slut, "leversQuery mangler").toBeGreaterThan(start);
+  return boardroomKilde.slice(start, slut);
+})();
+
+describe("medlemmets forside — «Dine aftaler» og de ulæste kaster, og fejlen vises pr. sektion", () => {
+  it(`${boardroomSti}: importerer HentningsFejl og kraevRaekker`, () => {
+    expect(boardroomKilde).toContain('from "@/lib/kraevRaekker"');
+  });
+
+  it("company_actions læses med kraevRaekker og navngiver kilden", () => {
+    expect(boardroomHentning).toContain('kraevRaekker(actionsRes, "company_actions")');
+    expect(boardroomHentning, "det gamle `(data || [])` er tilbage").not.toMatch(/\(data \|\| \[\]\)/);
+    expect(boardroomHentning, "det gamle `const { data } = await` er tilbage").not.toMatch(/const \{ data(?::\s*\w+)? \} = await supabase/);
+  });
+
+  it("de ulæste kaster HentningsFejl for conversations og messages — head-tællinger har ingen rækker", () => {
+    expect(boardroomHentning).toContain('new HentningsFejl("conversations"');
+    expect(boardroomHentning).toContain('new HentningsFejl("messages"');
+  });
+
+  it("fejlen vises pr. sektion — «Dine aftaler» og de ulæste — ikke for hele forsiden", () => {
+    expect(boardroomKilde).toContain("actionsQuery.isError");
+    expect(boardroomKilde).toContain("Dine aftaler kunne ikke hentes. Prøv igen.");
+    expect(boardroomKilde).toContain("unreadQuery.isError");
+    expect(boardroomKilde).toContain("Dine ulæste beskeder kunne ikke hentes. Prøv igen.");
   });
 });
