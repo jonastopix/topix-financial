@@ -169,7 +169,8 @@ describe("hver slags alene", () => {
   });
 
   it("fornyelse: statusser uden noget at gøre giver ingen grund", () => {
-    for (const status of ["klar_til_afsked", "udloebet_tilbyd_ikke", "uden_for_ordningen", "selvbetjener", "i_god_tid", "ingen_slutdato", "ophoert"] as const) {
+    // udloebet_vindue_lukket (7/9): tilbudsvinduet er lukket — ingen handling, ingen grund.
+    for (const status of ["klar_til_afsked", "udloebet_tilbyd_ikke", "udloebet_vindue_lukket", "uden_for_ordningen", "selvbetjener", "i_god_tid", "ingen_slutdato", "ophoert"] as const) {
       const d = afgoerForsidensDom([virksomhed({ fornyelse: fornyelse(status, 5) })], NU);
       expect(d.linjer).toHaveLength(0);
       expect(d.underStregen.antalTilstandeSamlet).toBe(0);

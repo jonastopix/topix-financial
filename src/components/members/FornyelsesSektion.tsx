@@ -48,6 +48,10 @@ const STATUS_VISNING: Record<FornyelseStatus, { label: string; className: string
   ophoert: { label: "Ophørt", className: "bg-muted text-muted-foreground" },
   udloebet_tilbyd: { label: "Udløbet — tilbyd", className: "bg-primary/10 text-primary" },
   udloebet_tilbyd_ikke: { label: "Udløbet — tilbyd ikke", className: "bg-muted text-muted-foreground" },
+  // Tilbudsvinduet efter udløb er lukket (dag 15+ efter slutdato, kun efter
+  // tilbyd): der er intet tilbud mere og intet at gøre — samme slags som
+  // ophoert, et afsluttet forhold, derfor samme dæmpede farve og frafiltreret.
+  udloebet_vindue_lukket: { label: "Udløbet — vindue lukket", className: "bg-muted text-muted-foreground" },
   beslutning_mangler: { label: "Beslutning mangler", className: "bg-chart-warning/15 text-chart-warning" },
   klar_til_tilbud: { label: "Klar til tilbud", className: "bg-primary/10 text-primary" },
   klar_til_afsked: { label: "Klar til afsked", className: "bg-muted text-muted-foreground" },
@@ -63,6 +67,9 @@ const SKJULTE_STATUSSER: ReadonlySet<FornyelseStatus> = new Set([
   "ingen_slutdato",
   "selvbetjener",
   "ophoert",
+  // Som ophoert: ingen beslutning kan åbne vinduet igen, så rækken kræver
+  // ingen opmærksomhed; historikken står i company_fornyelse.
+  "udloebet_vindue_lukket",
 ]);
 
 function formatDage(dage: number | null): string {

@@ -36,6 +36,17 @@ export const FORNYELSES_VINDUE_DAGE = 60;
  */
 export const FORNYELSE_IKRAFT_DATO = "2026-09-10";
 
+/**
+ * TILBUDSVINDUET EFTER UDLØB: så mange hele dage efter slutdatoen kan et
+ * medlem der HAR fået et tilbud (beslutning = tilbyd) stadig tage imod det.
+ *
+ * MÅ IKKE forveksles med FORNYELSES_VINDUE_DAGE (60). De to betyder noget
+ * forskelligt: FORNYELSES_VINDUE_DAGE er BESLUTNINGSVINDUET FØR udløb, hvor
+ * RÅDGIVEREN skal beslutte. Denne er TILBUDDETS LEVETID EFTER udløb, hvor
+ * MEDLEMMET skal svare. Besluttet 27/8, bygget som tilstand 7/9.
+ */
+export const FORNYELSE_TILBUDSVINDUE_EFTER_UDLOEB_DAGE = 14;
+
 export type Fornyelsesbeslutning = "tilbyd" | "tilbyd_ikke";
 
 export interface FornyelseInput {
@@ -52,6 +63,7 @@ export type FornyelseStatus =
   | "ophoert"
   | "udloebet_tilbyd"
   | "udloebet_tilbyd_ikke"
+  | "udloebet_vindue_lukket"
   | "beslutning_mangler"
   | "klar_til_tilbud"
   | "klar_til_afsked"
@@ -129,13 +141,27 @@ export function afgoerFornyelsestilstand(
   // vej findes (computeMembershipTier giver "subscriber" i det tilfælde).
   //
   // En TRUFFET beslutning har forrang og bevares uanset hvor længe siden
-  // slutdatoen er: fjortendagesvinduet efter slutdato (besluttet 27/8:
-  // et medlem der HAR fået tilbud kan forlænge til 50 % af indgangsprisen
-  // i 14 dage efter udløb, UDEN adgang til platformen — de lander på en
-  // fornyelsesside) bygges som selvstændig tilstand i en senere PR, men
-  // grænsen er rigtig allerede nu: kun FRAVÆR af beslutning giver ophoert.
+  // slutdatoen er: kun FRAVÆR af beslutning giver ophoert.
+  //
+  // TILBUDSVINDUET EFTER UDLØB (besluttet 27/8, bygget 7/9): et medlem der
+  // HAR fået tilbud kan forlænge til 50 % af indgangsprisen i 14 dage efter
+  // udløb, UDEN adgang til platformen — de lander på en fornyelsesside.
+  // Vinduet findes KUN efter beslutningen tilbyd: tilbyd_ikke har aldrig
+  // haft et tilbud og har derfor intet vindue at lukke — udloebet_tilbyd_ikke
+  // er uændret. Regnestykket, i hele UTC-kalenderdage (dage_til_udloeb er
+  // negativ efter slutdatoen):
+  //   dag 0 (slutdatoen selv) … dag 14 efter  → dage_til_udloeb 0 … -14 → INDE, udloebet_tilbyd
+  //   dag 15 efter og senere                  → dage_til_udloeb <= -15  → LUKKET, udloebet_vindue_lukket
+  //   Eksempel: slutdato 1/10 + 14 dage = 15/10 er sidste dag med tilbud;
+  //   16/10 er lukket.
+  // dage_til_udloeb er null når slutdatoen ikke kan læses; så kan vinduet
+  // ikke dømmes, og tilbuddet bevares (udloebet_tilbyd) frem for at lukkes
+  // på et tal vi ikke har.
   if (tier === "expired") {
     if (input.beslutning === "tilbyd") {
+      if (dage_til_udloeb !== null && dage_til_udloeb < -FORNYELSE_TILBUDSVINDUE_EFTER_UDLOEB_DAGE) {
+        return { status: "udloebet_vindue_lukket", dage_til_udloeb, tier };
+      }
       return { status: "udloebet_tilbyd", dage_til_udloeb, tier };
     }
     if (input.beslutning === "tilbyd_ikke") {

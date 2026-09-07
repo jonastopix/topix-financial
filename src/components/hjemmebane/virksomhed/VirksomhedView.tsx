@@ -86,6 +86,7 @@ const FORNYELSE_LABEL: Record<FornyelseStatus, string> = {
   ophoert: "Ophørt",
   udloebet_tilbyd: "Udløbet — tilbyd",
   udloebet_tilbyd_ikke: "Udløbet — tilbyd ikke",
+  udloebet_vindue_lukket: "Udløbet — vindue lukket", // tilbudsvinduet er lukket; intet tilbud, samme sprog som FornyelsesSektion
   beslutning_mangler: "Beslutning mangler",
   klar_til_tilbud: "Klar til tilbud",
   klar_til_afsked: "Klar til afsked",

@@ -9,8 +9,15 @@
 // i en UI-skærm (BookSession.tsx:28), som enhver kunne gå uden om ved at
 // kalde funktionen direkte. Klient-filter som eneste beskyttelse tæller
 // derfor ikke. Svaret indeholder KUN resultatet: { tilbud: null } eller
-// prismulighederne — aldrig beslutning, note eller indgangspris. 'tilbyd_ikke'
-// og "ingen beslutning truffet" giver samme svar og kan ikke skelnes.
+// prismulighederne — aldrig beslutning, note eller indgangspris. 'tilbyd_ikke',
+// "ingen beslutning truffet" og et lukket tilbudsvindue giver samme svar og
+// kan ikke skelnes.
+//
+// HVEM der får et tilbud afgøres af MOTOREN (afgoerFornyelsestilstand, spejlet
+// fra src/lib/fornyelse.ts): kun status udloebet_tilbyd. Før 7/9 tjekkede
+// funktionen selv tier og beslutning og gav derfor et tilbud uanset hvor
+// længe siden slutdatoen var — det hul lukker tilbudsvinduet (14 dage efter
+// udløb, kun efter tilbyd; derefter udloebet_vindue_lukket).
 //
 // Bucket A: authenticateUser → virksomhed udledes via callerClient (RLS)
 // → service-role KUN til companies/company_fornyelse-læsningen, som er
@@ -18,7 +25,7 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
 import { authenticateUser, corsHeaders } from "../_shared/edgeFunctionAuth.ts";
-import { computeMembershipTier } from "../_shared/membershipTier.ts";
+import { afgoerFornyelsestilstand } from "../_shared/fornyelse.ts";
 import {
   beregnFornyelsespris,
   erFejl,
@@ -97,19 +104,19 @@ Deno.serve(async (req) => {
       throw new Error("Fornyelse lookup failed");
     }
 
-    // ── 4. Kun udløbne medlemmer har et fornyelsestilbud ──
-    const tier = computeMembershipTier({
+    // ── 4+5. Motoren afgør om der er et tilbud: KUN udloebet_tilbyd
+    //       (udløbet, beslutning tilbyd, højst 14 dage efter slutdato).
+    //       Ikke-udløbet, tilbyd_ikke, "ingen række" (ophoert) og lukket
+    //       vindue (udloebet_vindue_lukket) giver samme svar — de må ikke
+    //       kunne skelnes. Samme dom som opret-fornyelse-checkout, så
+    //       tilbud og betaling aldrig er uenige ──
+    const tilstand = afgoerFornyelsestilstand({
       contract_end_date: company.contract_end_date ?? null,
       subscription_status: company.subscription_status ?? null,
       subscription_current_period_end: company.subscription_current_period_end ?? null,
+      beslutning: fornyelse?.beslutning ?? null,
     });
-    if (tier !== "expired") {
-      return jsonResponse({ tilbud: null });
-    }
-
-    // ── 5. Kun en eksplicit 'tilbyd' giver et tilbud. 'tilbyd_ikke' og
-    //       "ingen række" giver samme svar — de må ikke kunne skelnes ──
-    if (fornyelse?.beslutning !== "tilbyd") {
+    if (tilstand.status !== "udloebet_tilbyd") {
       return jsonResponse({ tilbud: null });
     }
 
