@@ -6,6 +6,7 @@ import { Archive, ChevronDown, ChevronRight, ChevronUp, FileText, Loader2, Rotat
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
+import { kraevRaekker } from "@/lib/kraevRaekker";
 import { useAuth } from "@/hooks/useAuth";
 import { useViewMode } from "@/hooks/useViewMode";
 import { useCompanyFacts } from "@/hooks/useCompanyFacts";
@@ -113,10 +114,14 @@ export const RapporteringView = () => {
     staleTime: 10 * 60_000,
   });
 
+  // Kaster ved fejl (rettet 7/9, recon-tavse-fejl punkt 5): før blev
+  // `data ?? []` til «Ingen rapporter endnu — upload din første» for et
+  // medlem med tyve — den eneste tavse fejl der OPFORDREDE til en dublet.
+  // kraevRaekker kaster med kildens navn; fladen har en isError-gren.
   const reportsQuery = useQuery({
     queryKey: ["rapportering", "reports", companyId, refreshKey],
     queryFn: async () => {
-      const { data } = await (supabase
+      const reportsRes = await (supabase
         .from("financial_reports")
         .select(
           "id, file_name, file_path, report_type, report_period, company_name, uploaded_at, status, extracted_data, normalized_data, manual_report_period_label, manual_report_period_key, manual_report_type, manual_normalized_data, manual_override_status, manual_override_note, manual_override_by, manual_override_at, manual_override_source, quality_signals",
@@ -125,7 +130,7 @@ export const RapporteringView = () => {
         .is("deleted_at", null)
         .neq("report_type", "aarsrapport")
         .order("uploaded_at", { ascending: false });
-      return (data ?? []) as DbReport[];
+      return kraevRaekker(reportsRes, "financial_reports") as DbReport[];
     },
     enabled: !!user && !!companyId,
   });
@@ -600,6 +605,14 @@ export const RapporteringView = () => {
           <p className="mt-6 flex items-center gap-2 text-sm text-hb-ink-soft">
             <Loader2 className="h-4 w-4 animate-spin" /> Henter…
           </p>
+        ) : reportsQuery.isError ? (
+          // Fejl er ikke tom (7/9): kun LISTEN bærer fejlen — upload-zonen
+          // og årsrapporterne ovenfor/nedenfor har egne hentninger. Men
+          // teksten må ikke opfordre til upload: vi ved ikke om rapporten
+          // allerede ligger der.
+          <p className="mt-6 text-sm text-hb-rust">
+            Dine rapporter kunne ikke hentes. Prøv igen — og vent med at uploade, til listen er tilbage; vi kan ikke se om rapporten allerede ligger her.
+          </p>
         ) : displayedReports.length === 0 ? (
           <p className="mt-6 text-sm text-hb-ink-soft">
             Ingen rapporter endnu — upload din første ovenfor, så fylder vi historikken ud.
@@ -890,17 +903,20 @@ const AnnualSection = ({
   // annualQuery er refetchet på sæt-tidspunktet.
   const [askRevenueYear, setAskRevenueYear] = useState<string | null>(null);
 
+  // Kaster ved fejl (rettet 7/9, som reportsQuery): en tom annualReports
+  // efter fejl ville lade handleUpload OPRETTE en dublet i stedet for at
+  // erstatte årets rapport (existingReportId slås op i listen).
   const annualQuery = useQuery({
     queryKey: ["rapportering", "annual", companyId, refreshKey],
     queryFn: async () => {
-      const { data } = await supabase
+      const annualRes = await supabase
         .from("financial_reports")
         .select("id, report_period, status, extracted_data")
         .eq("company_id", companyId!)
         .eq("report_type", "aarsrapport")
         .is("deleted_at", null)
         .order("uploaded_at", { ascending: false });
-      return (data ?? []).map((r: any) => ({
+      return kraevRaekker(annualRes, "financial_reports").map((r: any) => ({
         id: r.id,
         year: r.report_period?.replace("Årsrapport ", "") || "?",
         status: r.status,
@@ -913,6 +929,12 @@ const AnnualSection = ({
 
   const handleUpload = async (file: File) => {
     if (!companyId || !userId) return;
+    // Uden listen kender vi ikke årets eksisterende rapport — en upload nu
+    // ville blive en dublet, ikke en erstatning. Samme regel som teksten.
+    if (annualQuery.isError) {
+      toast.error("Dine årsrapporter kunne ikke hentes", { description: "Prøv igen, før du uploader — ellers kan årsrapporten blive gemt to gange." });
+      return;
+    }
     setUploading(true);
     try {
       const safeFileName = file.name
@@ -1108,6 +1130,9 @@ const AnnualSection = ({
         />
       </div>
 
+      {annualQuery.isError && (
+        <p className="mt-4 text-sm text-hb-rust">Dine årsrapporter kunne ikke hentes. Prøv igen, før du uploader.</p>
+      )}
       {annualReports.length > 0 && (
         <ul className="mt-5 space-y-2">
           {annualReports.map((report) => (
