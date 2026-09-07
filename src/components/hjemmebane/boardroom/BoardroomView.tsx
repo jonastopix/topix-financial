@@ -33,6 +33,7 @@ import { EventRegisterAction } from "../events/EventRegisterAction";
 import { formatDuration } from "@/components/hjemmebane/admin/editors/shared";
 import { handoutConfigs, moduleOrder, type HandoutModule } from "@/lib/handoutConfig";
 import { HbButton } from "../HbButton";
+import { FornyelsesBaand } from "./FornyelsesBaand";
 import { HbCard } from "../HbCard";
 import { EstimatMaerke } from "../EstimatMaerke";
 import { HbSection } from "../HbSection";
@@ -2015,6 +2016,11 @@ export const BoardroomView = () => {
   return (
     <div>
       <PageHeader firstName={firstName} velkomst={Boolean(tjeklisteData.tjekliste && !tjeklisteData.tjekliste.faerdig)} />
+
+      {/* ── FORNYELSEN (7/9): båndet står mellem hilsenen og lag 1, KUN når
+          hent-fornyelsestilbud siger at der er et tilbud — ellers null og
+          ingen plads. Dommen er serverens (motoren); se FornyelsesBaand. ── */}
+      <FornyelsesBaand />
 
       {/* ── LAG 1: Dit næste skridt (fuld bredde, øverst) ── */}
       <HbSection eyebrow="Dit næste skridt" hairline className="mt-10 md:mt-12">
