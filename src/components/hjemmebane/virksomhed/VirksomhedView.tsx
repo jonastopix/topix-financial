@@ -34,6 +34,8 @@ import { notifyChatMessage } from "@/lib/chatNotify";
 import { DANISH_MONTHS, formatCompact, formatDKK } from "@/lib/financialUtils";
 import { EstimatMaerke, ESTIMAT_FORKLARING } from "../EstimatMaerke";
 import { StandardmaalMaerke } from "../StandardmaalMaerke";
+import { VirksomhedMailLog } from "./VirksomhedMailLog";
+import { virksomhedensAdresser } from "@/lib/mailLog";
 import { HbButton } from "../HbButton";
 import { HbCard } from "../HbCard";
 import { HbSection } from "../HbSection";
@@ -1711,6 +1713,12 @@ export const VirksomhedView = ({ companyId }: { companyId: string | undefined })
         onAabnHandout={kanAabneHandout ? setAktivtHandout : null}
       />
       <Blok7 d={data} onOpdateret={invalider} onFornyelseAendret={invaliderFornyelse} />
+      {/* Blok 8 (7/9): mails til virksomheden — EFTER Aftalen, som sidste
+          blok. Designets syv blokke beholder deres rækkefølge; en log er
+          opslag, ikke et signal, og den står lige under de stempler i
+          Aftalen («Varsel sendt», «Påmindelse sendt») den er beviset for.
+          Nøglen er adresserne hooken allerede bærer (lib/mailLog). */}
+      <VirksomhedMailLog companyId={data.company.id} adresser={virksomhedensAdresser(data.medlemmer, data.invitationer)} />
     </div>
   );
 };
