@@ -50,6 +50,21 @@ jobs:
         # --frozen-lockfile honors bun.lockb verbatim. Deterministic install.
         run: bun install --frozen-lockfile
 
+      - name: Typecheck
+        # Kører FØR testene: en typefejl fanges før ti sekunders testkørsel.
+        # `-p tsconfig.app.json` er IKKE valgfri — rodens tsconfig.json er
+        # solution-style (kun references), så `tsc --noEmit` uden -p checker
+        # NUL filer og er grøn uanset hvad. Forenkl den ikke væk.
+        # Baselinen var NUL fejl da trinnet blev indført (7/9-2026, #675).
+        # Trinnet har aldrig haft undtagelser: ingen kendt-liste, ingen
+        # `|| true`, ingen continue-on-error. Nul betyder nul. Fangnettet er
+        # bl.a. Record-udtømmelighed (fx FornyelseStatus), som KUN tsc
+        # håndhæver — vitest ser den ikke (elleve typefejl landede på main 6/9).
+        # KUN i dette job: jobbet «MCP Tests» kører samme kodebase, og et
+        # typecheck dér ville betale for samme svar to gange. Fejler typerne,
+        # er PR'en rød herfra. Det er en beslutning, ikke en forglemmelse.
+        run: bunx tsc --noEmit -p tsconfig.app.json
+
       - name: Run tests
         # `bun run test` invokes the package.json `test` script (vitest run).
         # NOT `bun test` — that runs Bun's built-in test runner, which does
