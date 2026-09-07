@@ -18,11 +18,12 @@
  */
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { KPI_DEFS } from "@/lib/kpiDefs";
-import { KPI_FALLBACK_TARGETS } from "@/lib/appConfig";
 import { kraevRaekker } from "@/lib/kraevRaekker";
+import { fletKpiMaal, type ResolvedTargets } from "@/lib/kpiMaal";
 
-export type ResolvedTargets = Record<string, { value: number; label: string }>;
+/** Re-eksport: fletningen og typen bor i lib/kpiMaal (7/9) — én ren
+    funktion for begge hentninger. useVirksomhed importerer typen herfra. */
+export type { ResolvedTargets };
 
 export const kpiTargetsKey = (companyId: string | undefined) => ["kpi-targets", companyId] as const;
 
@@ -46,21 +47,10 @@ export function useKpiTargets(companyId: string | undefined): {
         "kpi_targets",
       );
 
-      const dbMap: Record<string, { target_value: number; target_label: string }> = {};
-      raekker.forEach((t) => {
-        dbMap[t.kpi_key] = t;
-      });
-
-      // Resolve every KPI_DEFS key: DB value if present, else fallback.
-      // Mirrors the previous getTarget() in KPIs.tsx exactly.
-      const merged: ResolvedTargets = {};
-      KPI_DEFS.forEach((def) => {
-        const ut = dbMap[def.key];
-        merged[def.key] = ut
-          ? { value: Number(ut.target_value), label: ut.target_label }
-          : (KPI_FALLBACK_TARGETS[def.key] || { value: 0, label: "—" });
-      });
-      return merged;
+      // DB-værdi hvis den findes (kilde «aftalt»), ellers fallback (kilde
+      // «standard») — fletningen er én ren funktion (lib/kpiMaal, 7/9), så
+      // oprindelsen følger med til fladerne, som mærker standardmål.
+      return fletKpiMaal(raekker);
     },
     enabled: !!companyId,
   });
