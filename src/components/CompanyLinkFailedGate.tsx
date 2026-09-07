@@ -1,6 +1,7 @@
 import "@/styles/hjemmebane.css";
 import { ArrowRight, RefreshCw } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
+import { useHbDokumentGrund } from "@/hooks/useHbDokumentGrund";
 import { HbCard } from "@/components/hjemmebane/HbCard";
 import { HbButton } from "@/components/hjemmebane/HbButton";
 
@@ -19,10 +20,14 @@ import { HbButton } from "@/components/hjemmebane/HbButton";
     tegne en skal for. */
 export default function CompanyLinkFailedGate() {
   const { profile, signOut } = useAuth();
+  /* Mobilens grønne bundstykke (kortet fra 4/9, rettet her 7/9): rammen er
+     min-h-screen-SAFE (dvh) og lærredet bag den males papir mens fladen er
+     mountet — samme to greb som HbMemberShell, HB_RAMME og Betal. */
+  useHbDokumentGrund();
   const firstName = profile?.full_name?.split(" ")[0] || null;
 
   return (
-    <div className="theme-hjemmebane min-h-screen bg-hb-paper font-body text-hb-ink antialiased px-4 py-12">
+    <div className="theme-hjemmebane min-h-screen-safe bg-hb-paper font-body text-hb-ink antialiased px-4 py-12">
       <div className="max-w-xl mx-auto space-y-8">
         <div className="text-center space-y-3">
           <p className="text-sm uppercase tracking-widest text-hb-rust font-medium">

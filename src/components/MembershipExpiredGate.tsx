@@ -3,6 +3,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useHbDokumentGrund } from "@/hooks/useHbDokumentGrund";
 import type { Betalingsmodel } from "@/lib/fornyelsespris";
 import { HbCard } from "@/components/hjemmebane/HbCard";
 import { HbButton } from "@/components/hjemmebane/HbButton";
@@ -45,6 +46,10 @@ function beskrivMulighed(m: FornyelsesMulighed): string {
 
 export default function MembershipExpiredGate() {
   const { companyId, profile, signOut } = useAuth();
+  /* Mobilens grønne bundstykke (kortet fra 4/9, rettet her 7/9): rammen er
+     min-h-screen-SAFE (dvh) og lærredet bag den males papir mens fladen er
+     mountet — samme to greb som HbMemberShell, HB_RAMME og Betal. */
+  useHbDokumentGrund();
   const [loadingCheckout, setLoadingCheckout] = useState(false);
   const [loadingFornyelse, setLoadingFornyelse] = useState<Betalingsmodel | null>(null);
   const [offboardingDone, setOffboardingDone] = useState(false);
@@ -128,7 +133,7 @@ export default function MembershipExpiredGate() {
 
   if (offboardingDone) {
     return (
-      <div className="theme-hjemmebane min-h-screen flex items-center justify-center bg-hb-paper font-body text-hb-ink antialiased px-4">
+      <div className="theme-hjemmebane min-h-screen-safe flex items-center justify-center bg-hb-paper font-body text-hb-ink antialiased px-4">
         <div className="max-w-md w-full text-center space-y-6">
           <h1 className="font-editorial text-2xl font-medium text-hb-ink">
             Tak for din tid hos The Boardroom
@@ -146,7 +151,7 @@ export default function MembershipExpiredGate() {
   }
 
   return (
-    <div className="theme-hjemmebane min-h-screen bg-hb-paper font-body text-hb-ink antialiased px-4 py-12">
+    <div className="theme-hjemmebane min-h-screen-safe bg-hb-paper font-body text-hb-ink antialiased px-4 py-12">
       <div className="max-w-2xl mx-auto space-y-10">
         {/* Header */}
         <div className="text-center space-y-3">
