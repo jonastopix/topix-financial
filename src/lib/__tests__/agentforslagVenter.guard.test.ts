@@ -44,5 +44,21 @@ describe("puklen tæller kun det der kan afgøres — status = 'proposed', aldri
       const query = agentProposalsQuery(kilde);
       expect(query, "decided_at er ikke et svar på «kan det afgøres»").not.toContain("decided_at");
     });
+
+    // Udløbsdommen (besluttet 7/9): et forslag fra en passeret ISO-uge kan
+    // kun forkastes og må ikke tælles. Dommen er en ren funktion på
+    // proposed_at og et «nu» (@/lib/forslagUdloeb) og kan ikke stå i SQL
+    // uden at kopiere ISO-uge-beregningen — så hentningen SKAL bære
+    // proposed_at, og optællingen SKAL kalde erForslagGyldigt.
+    it(`${sti}: henter proposed_at, så udløbsdommen kan regnes i kode`, () => {
+      const query = agentProposalsQuery(kilde);
+      expect(query, "select'en mangler proposed_at — dommen kan ikke regnes").toContain("proposed_at");
+      expect(query, "count/head kan ikke bære rækker — dommen kræver proposed_at pr. række").not.toContain("head: true");
+    });
+
+    it(`${sti}: tæller med udløbsdommen erForslagGyldigt fra @/lib/forslagUdloeb`, () => {
+      expect(kilde, "importen af dommen mangler").toContain('from "@/lib/forslagUdloeb"');
+      expect(kilde, "optællingen kalder ikke dommen").toContain("erForslagGyldigt(p.proposed_at");
+    });
   }
 });

@@ -41,6 +41,7 @@
  * company-nøglet læsning på alle tolv kilder (målt 4/9).
  */
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { erForslagGyldigt } from "@/lib/forslagUdloeb";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import type { Json } from "@/integrations/supabase/types";
@@ -181,6 +182,8 @@ export interface VirksomhedsData {
 }
 
 async function hentVirksomhed(companyId: string): Promise<VirksomhedsData | null> {
+  // Ét «nu» for hele hentningen — udløbsdommen bruger det nedenfor.
+  const nu = new Date();
   const [
     companyRes, membersRes, invitationsRes, convsRes, budgetRes, milestonesRes,
     handoutsRes, actionsRes, proposalsRes, traekRes, perioderRes, linkRes, fornyelseRes,
@@ -222,11 +225,18 @@ async function hentVirksomhed(companyId: string): Promise<VirksomhedsData | null
     // decided_at = NULL, fordi ingen afgjorde den — evnen blev fjernet.
     // Kun 'proposed' kan afgøres i AgentForslagPanel; samme filter som
     // AdvisorDashboard, så forsiden og virksomhedssiden siger samme tal.
+    // UDLØBSDOMMEN LIGGER IKKE I SQL (besluttet 7/9): et forslag udløber
+    // når dets ISO-uge er passeret (@/lib/forslagUdloeb) — en ren funktion
+    // på proposed_at og et «nu», som ikke kan udtrykkes som Supabase-filter
+    // uden at kopiere ISO-uge-beregningen til SQL (to domme). Derfor er
+    // count/head erstattet af rækker med proposed_at, og tallet regnes i
+    // kode nedenfor med samme funktion som panelet og afgørelsen.
     supabase
       .from("agent_proposals")
-      .select("id", { count: "exact", head: true })
+      .select("proposed_at")
       .eq("company_id", companyId)
-      .eq("status", "proposed"),
+      .eq("status", "proposed")
+      .limit(500),
     supabase
       .from("company_traek")
       .select("company_id, stripe_invoice_id, beloeb_oere, fejlet_at, forsoeg, naeste_forsoeg_at, fejl_kode, fejl_decline_code, fejl_besked, hosted_invoice_url, faktura_nummer, periode_start, periode_slut, status, art, betalt_at")
@@ -340,7 +350,10 @@ async function hentVirksomhed(companyId: string): Promise<VirksomhedsData | null
     milestones: milestonesRes.data ?? [],
     handouts: handoutsRes.data ?? [],
     opgaver: actionsRes.data ?? [],
-    agentforslagVenter: proposalsRes.count ?? 0,
+    // Kun forslag der stadig kan afgøres (udløbsdommen, se hentningen).
+    agentforslagVenter: ((proposalsRes.data ?? []) as { proposed_at: string }[]).filter((p) =>
+      erForslagGyldigt(p.proposed_at, nu),
+    ).length,
     traek: (traekRes.data ?? []) as VirksomhedsTraek[],
     perioder: perioderRes.data ?? [],
     betalingslink: linkRes.data ?? null,

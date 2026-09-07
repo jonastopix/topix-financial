@@ -6,6 +6,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { computeMembershipTier } from "@/lib/membershipTier";
 import { afgoerVirksomhedsSignaler, isFiguresFresh, type FactPunkt, type Signal, type VirksomhedsInput } from "@/lib/virksomhedsSignaler";
 import { afgoerForsidensDom, type OpgaveTilDom, type VirksomhedTilDom } from "@/lib/forsidensDom";
+import { erForslagGyldigt } from "@/lib/forslagUdloeb";
 import { afgoerFornyelsestilstand, type Fornyelsesbeslutning } from "@/lib/fornyelse";
 import { afgoerBetalingsfrist } from "@/lib/betalingsfrist";
 import { erKunde } from "@/lib/raadgiverensKunder";
@@ -421,9 +422,15 @@ export const hentAdvisorDashboard = () =>
         // det er status. AgentForslagPanel viser kun knapper for
         // 'proposed', så kun dem må puklen tælle — ellers klikker
         // rådgiveren ind på noget der ikke kan afgøres.
+        // UDLØBSDOMMEN LIGGER IKKE I SQL (besluttet 7/9): et forslag udløber
+        // når dets ISO-uge er passeret (@/lib/forslagUdloeb), og den dom er
+        // en ren funktion på proposed_at og et «nu». At udtrykke den som et
+        // Supabase-filter ville kræve en kopi af ISO-uge-beregningen i SQL —
+        // to domme. Derfor hentes proposed_at med, og optællingen nedenfor
+        // filtrerer i kode med samme funktion som panelet og afgørelsen.
         (supabase
           .from("agent_proposals")
-          .select("company_id")
+          .select("company_id, proposed_at")
           .eq("status", "proposed")
           .limit(2000) as any),
         // Spor 2: virksomheder der har udfyldt målsætnings-handoutet (modul 'overordnet').
@@ -861,8 +868,13 @@ export const hentAdvisorDashboard = () =>
       const bAgent: BucketItem[] = [];
       const signalerByCompany = new Map<string, { signaler: Signal[]; agentforslagVenter: number }>();
       const agentforslagByCompany = new Map<string, number>();
-      for (const p of ((agentProposalsRes as any)?.data || []) as { company_id: string }[]) {
-        if (p.company_id) agentforslagByCompany.set(p.company_id, (agentforslagByCompany.get(p.company_id) || 0) + 1);
+      // Kun forslag der stadig kan AFGØRES tælles (besluttet 7/9): udløbne
+      // (passeret ISO-uge) kan kun forkastes, og puklen lover en afgørelse.
+      // Samme dom som AgentForslagPanel og agent-forslag-afgoer, samme «nu»
+      // som resten af queryFn.
+      for (const p of ((agentProposalsRes as any)?.data || []) as { company_id: string; proposed_at: string }[]) {
+        if (!p.company_id || !erForslagGyldigt(p.proposed_at, now)) continue;
+        agentforslagByCompany.set(p.company_id, (agentforslagByCompany.get(p.company_id) || 0) + 1);
       }
 
       for (const c of investorSummaries) {

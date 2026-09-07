@@ -339,8 +339,8 @@
       <div class="meta"><span class="tag ny">Ny 6/9</span><span class="tag">Rettet 7/9</span><span class="tag rust">Tavshed</span><span class="tag">Motor og cron klar</span><span class="tag size">Mellem</span></div>
     </div>
     <div class="card decision new" data-status="beslutning" data-spor="7" data-rammer="medlem">
-      <h3>Et ikke-udløbet medlem kan betale, men kan ikke se tilbuddet</h3>
-      <p>Fra 7/9 (#683, #684) tages fornyelsesbetaling imod FØR slutdatoen — fra <code>klar_til_tilbud</code> og hele vejen gennem tilbudsvinduet — og den nye slutdato regnes fra den gamle, så ingen dage tabes (fornyelseskæden §15.3). Men <code>MembershipExpiredGate</code> vises kun ved tier <code>expired</code> (<code>Index.tsx</code>), og ingen anden flade viser fornyelsen til et medlem (målt 7/9). Betalingsvejen er åben; den eneste dør til den er gaten, og den er lukket for aktive. PHILBERT (29/9) rammes først: de kan betale nu, og har intet sted at gøre det. Hvor tilbuddet skal vises før slutdatoen — forsiden, mailen, et kort — er en designbeslutning, ikke truffet.</p>
+      <h3>Trappen mangler til den dør vi åbnede — et ikke-udløbet medlem kan betale, men kan ikke se tilbuddet</h3>
+      <p>Fra 7/9 (#683, #684) tages fornyelsesbetaling imod FØR slutdatoen — fra <code>klar_til_tilbud</code> og hele vejen gennem tilbudsvinduet — og den nye slutdato regnes fra den gamle, så ingen dage tabes (fornyelseskæden §15.3). Men den eneste dør til checkout er <code>MembershipExpiredGate:88</code>, monteret KUN ved tier <code>expired</code> (<code>Index.tsx</code>) — <strong>ét kaldested i hele <code>src/</code></strong> (målt 7/9 middag, <code>~/Downloads/recon-fornyelse-efter-betaling.md</code> §6, uden for repoet). Et fuldt medlem kan betale i den forstand at funktionen svarer 200, men har ingen flade at trykke i. PHILBERT (29/9) rammes først. Designbeslutningen er ikke truffet: hvor tilbuddet skal vises før slutdatoen. Reconen kortlagde otte eksisterende mønstre at vælge imellem; chattens udløbsbånd (sage-flade, rust-ikon, gatet på tilstand) er formmæssigt tættest.</p>
       <div class="meta"><span class="tag ny">Ny 7/9</span><span class="tag gold">Beslutning</span><span class="tag rust">Vejen er åben, døren er lukket</span><span class="tag size">Mellem</span></div>
     </div>
     <div class="card new" data-status="mangler" data-spor="7" data-rammer="ingen">
@@ -352,6 +352,16 @@
       <h3>Datogaten omgås stadig hvor pengene skifter hænder</h3>
       <p><code>hent-fornyelsestilbud</code> kalder nu MOTOREN (#678, 7/9) — den første halvdel af fundet fra 6/9 er væk. Men udløbsgrenen afgøres stadig FØR <code>FORNYELSE_IKRAFT_DATO</code>-gaten, og både tilbud og checkout kræver <code>udloebet_tilbyd</code> (fornyelseskæden §13.3, §14.1). En virksomhed «uden for ordningen» med beslutning <code>tilbyd</code> får derfor stadig et systemtilbud og kan betale — nu i 14 dage efter udløb, ikke for evigt. <code>uden_for_ordningen</code>-reglen håndhæves altså kun på rådgiverens side; værnet er rådgiverens finger. Om gaten SKAL gælde dér, er en beslutning — efter 10/9 er den alligevel virkningsløs.</p>
       <div class="meta"><span class="tag ny">Ny 6/9</span><span class="tag gold">Beslutning</span><span class="tag rust">Værnet er et menneske</span><span class="tag size">Lille</span></div>
+    </div>
+    <div class="card new" data-status="fejl" data-spor="7" data-rammer="medlem">
+      <h3>Toasten kan ramme forkert den anden vej</h3>
+      <p>Efter #687 vælger <code>Index.tsx</code> kvitterings-toasten på tier: full får «fortsætter uden afbrydelse», expired får «Vi åbner din adgang om et øjeblik». Men tier afgøres af <code>useAuth</code> mod databasen i det øjeblik browseren kommer tilbage fra Stripe — og webhooken og redirectet er uafhængige. Lander webhooken FØRST, er <code>contract_end_date</code> allerede flyttet, tier er allerede <code>full</code> for en der VAR udløbet, og de får «fortsætter uden afbrydelse», selv om adgangen lige er åbnet igen. Tier-dommen skelner ikke «var full hele tiden» fra «blev full for tre sekunder siden». Ikke målt, men uundgåeligt (<code>~/Downloads/recon-fornyelse-efter-betaling.md</code> §5.4, uden for repoet). Kvitteringssiden springes så også over, hvilket er rigtigt for dem — kun toastens ord er forkerte.</p>
+      <div class="meta"><span class="tag ny">Ny 7/9</span><span class="tag rust">Kapløb</span><span class="tag size">Lille</span></div>
+    </div>
+    <div class="card new" data-status="mangler" data-spor="7" data-rammer="ingen">
+      <h3>Dobbeltbetaling er lukket ved et held, ikke ved en regel</h3>
+      <p>Efter en gennemført fornyelse ligger den nye slutdato tolv måneder ude, så motoren (<code>afgoerFornyelsestilstand</code>) siger <code>i_god_tid</code>, og <code>opret-fornyelse-checkout</code> svarer 403. Det er det der forhindrer en fornyelse nummer to. Men værnet er 60-dagesvinduet (<code>FORNYELSES_VINDUE_DAGE</code>), ikke en eksplicit regel om at man kun kan forny én gang pr. periode — <code>company_fornyelse</code>-rækken står stadig som <code>tilbyd</code>, og intet stempler «fornyet». Ændres vinduet nogensinde (eller bliver det længere end tolv måneder), åbner døren igen uden at nogen har besluttet det. Klientens lås (<code>tbr.fornyelse_betalt_at</code>) dækker kun de første 24 timer og kun expired (OVERLEVERING DEL 2 «Fornyelseskæden»).</p>
+      <div class="meta"><span class="tag ny">Ny 7/9</span><span class="tag">Værn ved et held</span><span class="tag size">Lille</span></div>
     </div>
     <div class="card decision new" data-status="beslutning" data-spor="7" data-rammer="ingen">
       <h3>Studio Minis <code>tilbyd</code>-række: ryddes før 20/9, eller lukkes af sig selv</h3>
@@ -644,10 +654,10 @@
       <p>Agenten foreslår opgaver rådgiveren kun kan forkaste — de fem ikke-idempotente værktøjer har ingen besluttet gentagelses-semantik. En revne der vokser: jo bedre agenten bliver, jo flere forslag lander uden for laget. Målt i prod 6/9: kortet «Halvdelen af agentforslagene kan kun forkastes» nedenfor.</p>
       <div class="meta"><span class="tag rust">Vokser</span><span class="tag size">Mellem</span></div>
     </div>
-    <div class="card new" data-status="fejl" data-spor="5" data-rammer="medlem">
-      <h3>Godkendelse skriver indeværende uges nøgle</h3>
-      <p><code>agent-forslag-afgoer</code> kalder <code>skrivUgensFokus</code>, som upserter <code>weekly_focus</code> på (<code>company_id</code>, <code>getISOWeekKey(new Date())</code>) — <code>_shared/agentSkriveveje.ts:34</code>, målt 6/9. Godkendes et forslag fra 25. august i dag, får medlemmet et «ugens fokus»-kort dateret DENNE uge, skrevet ud fra augusts tal. Forslag har ingen udløbsmekanik; otte fra 25/8 ligger uafgjorte. Hører til opgave-model-epic'et (kortet øverst i afsnittet); indtil da: forkast frem for at godkende, når ugen er passeret (OVERLEVERING DEL 4).</p>
-      <div class="meta"><span class="tag ny">Ny 6/9</span><span class="tag rust">Live fejl</span><span class="tag size">Lille</span></div>
+    <div class="card new" data-status="mangler" data-spor="5" data-rammer="ingen">
+      <h3>Ingen cron bogfører <code>expired</code> — udløbne forslag ligger som <code>proposed</code></h3>
+      <p>Et forslag udløber nu når dets egen ISO-uge er passeret (#688, 7/9): godkendelse afvises med 409, fladen viser «Udløbet», og puklen filtrerer dem fra (PR undervejs). Men dommen ligger i koden, ikke i databasen: skemaets egen kommentar forudser cron'en (<code>20260825200000_agent_proposals.sql:10</code>, «expired (cron-dom, ikke bygget endnu)»), og ingen kode sætter status — de fire fra 1/9 blev sat i hånden. Konsekvens: et udløbet forslag forsvinder fra forsiden, men står som <code>proposed</code> i <code>agent_proposals</code>, og enhver SQL-tælling på status tæller det med. Cron'en er en selvstændig opgave, og den SKAL bruge <code>afgoerForslagsgyldighed</code> (<code>_shared/forslagUdloeb.ts</code>), så der er én dom og ikke en SQL-kopi af ISO-ugen. Dertil <code>agent-runs-opbevaring</code>, som sletter kørsler efter 12 måneder uden approved/rejected — udløbne følger med ud (OVERLEVERING DEL 2 «Agentkæden»).</p>
+      <div class="meta"><span class="tag ny">Ny 7/9</span><span class="tag">Én dom, ikke to</span><span class="tag size">Lille</span></div>
     </div>
     <div class="card decision new" data-status="beslutning" data-spor="5" data-rammer="raadgiver">
       <h3>Halvdelen af agentforslagene kan kun forkastes</h3>
