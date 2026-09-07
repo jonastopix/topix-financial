@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   afgoerFornyelsestilstand,
   FORNYELSE_IKRAFT_DATO,
+  FORNYELSE_TILBUDSVINDUE_EFTER_UDLOEB_DAGE,
   FORNYELSES_VINDUE_DAGE,
   type Fornyelsesbeslutning,
   type FornyelseInput,
@@ -13,6 +14,7 @@ import {
 import {
   afgoerFornyelsestilstand as afgoerFornyelsestilstandDeno,
   FORNYELSE_IKRAFT_DATO as FORNYELSE_IKRAFT_DATO_DENO,
+  FORNYELSE_TILBUDSVINDUE_EFTER_UDLOEB_DAGE as FORNYELSE_TILBUDSVINDUE_EFTER_UDLOEB_DAGE_DENO,
   FORNYELSES_VINDUE_DAGE as FORNYELSES_VINDUE_DAGE_DENO,
 } from "../../../supabase/functions/_shared/fornyelse.ts";
 
@@ -48,6 +50,7 @@ const ALLE_STATUSSER: Record<FornyelseStatus, true> = {
   ophoert: true,
   udloebet_tilbyd: true,
   udloebet_tilbyd_ikke: true,
+  udloebet_vindue_lukket: true,
   beslutning_mangler: true,
   klar_til_tilbud: true,
   klar_til_afsked: true,
@@ -56,7 +59,7 @@ const ALLE_STATUSSER: Record<FornyelseStatus, true> = {
 
 // Parity gate — the Deno copy at supabase/functions/_shared/fornyelse.ts
 // must produce an identical Fornyelsestilstand (status, dage_til_udloeb,
-// tier) for every input the frontend copy handles. All ten statuses are
+// tier) for every input the frontend copy handles. All eleven statuses are
 // covered, and each case asserts the intended status so no branch is
 // silently missed. If this block fails, the two files have drifted and
 // must be re-synced.
@@ -106,26 +109,25 @@ describe("afgoerFornyelsestilstand — parity between src/lib and supabase/funct
       status: "i_god_tid",
       input: { contract_end_date: "2027-06-01", ...INGEN_SUB, beslutning: null },
     },
-    // ── Dag 15, 20 og 45 EFTER slutdato (7/9, recon-fornyelsens-tilstande §2.3) ──
-    // De ti cases ovenfor ligger 11 dage efter slutdato, altså INDE i det
-    // fjortendagesvindue der er besluttet 27/8 (fornyelse.ts:131-136) men
-    // endnu ikke bygget. Disse tre par ligger UDEN FOR vinduet og asserter
-    // den NUVÆRENDE adfærd: en truffet beslutning giver udloebet_* uanset
-    // hvor længe siden slutdatoen er. Netop disse cases FORVENTES at ændre
-    // status den dag vinduet indføres som selvstændig tilstand — det er
-    // meningen: så bliver den nye gren synlig i diffen i stedet for at
-    // testen bliver grøn uden at røre den.
-    { navn: "udloebet_tilbyd dag 15 efter slutdato", status: "udloebet_tilbyd", input: { contract_end_date: slutdatoOmDage(-15), ...INGEN_SUB, beslutning: "tilbyd" } },
+    // ── Tilbudsvinduet efter slutdato (recon-fornyelsens-tilstande §2.3) ──
+    // Disse cases blev tilføjet 7/9 med den DAVÆRENDE adfærd (udloebet_tilbyd
+    // uanset dage) netop for at skiftet skulle blive synligt i diffen.
+    // Skiftet ER sket 7/9 (samme dag): tilbudsvinduet efter udløb er bygget
+    // som tilstanden udloebet_vindue_lukket, KUN efter beslutningen tilbyd.
+    // Grænsen (FORNYELSE_TILBUDSVINDUE_EFTER_UDLOEB_DAGE = 14) låses fra
+    // begge sider: dag 14 er sidste dag med tilbud, dag 15 er første lukkede.
+    // tilbyd_ikke har aldrig haft et tilbud og intet vindue: UÆNDRET.
+    { navn: "udloebet_tilbyd dag 14 efter slutdato (sidste dag med tilbud)", status: "udloebet_tilbyd", input: { contract_end_date: slutdatoOmDage(-14), ...INGEN_SUB, beslutning: "tilbyd" } },
+    { navn: "udloebet_vindue_lukket dag 15 efter slutdato (første lukkede)", status: "udloebet_vindue_lukket", input: { contract_end_date: slutdatoOmDage(-15), ...INGEN_SUB, beslutning: "tilbyd" } },
     { navn: "udloebet_tilbyd_ikke dag 15 efter slutdato", status: "udloebet_tilbyd_ikke", input: { contract_end_date: slutdatoOmDage(-15), ...INGEN_SUB, beslutning: "tilbyd_ikke" } },
-    { navn: "udloebet_tilbyd dag 20 efter slutdato", status: "udloebet_tilbyd", input: { contract_end_date: slutdatoOmDage(-20), ...INGEN_SUB, beslutning: "tilbyd" } },
+    { navn: "udloebet_vindue_lukket dag 20 efter slutdato", status: "udloebet_vindue_lukket", input: { contract_end_date: slutdatoOmDage(-20), ...INGEN_SUB, beslutning: "tilbyd" } },
     { navn: "udloebet_tilbyd_ikke dag 20 efter slutdato", status: "udloebet_tilbyd_ikke", input: { contract_end_date: slutdatoOmDage(-20), ...INGEN_SUB, beslutning: "tilbyd_ikke" } },
-    // Dag 45 er IKKE en vindues-case. Med NOW = 1/10 bliver slutdatoen 17/8,
-    // altså FØR ikrafttrædelsen 10/9, så den låser noget andet: RÆKKEFØLGEN
-    // af grenene. Udløbsgrenen afgøres før ikrafttrædelses-reglen, og derfor
-    // er den stadig udloebet_* frem for uden_for_ordningen. De rene
-    // vindues-cases er dag 15 og 20 (slutdato 16/9 og 11/9, begge efter 10/9)
-    // — det er DEM der forventes at skifte status når vinduet bygges.
-    { navn: "udloebet_tilbyd dag 45 efter slutdato", status: "udloebet_tilbyd", input: { contract_end_date: slutdatoOmDage(-45), ...INGEN_SUB, beslutning: "tilbyd" } },
+    // Dag 45 låser RÆKKEFØLGEN af grenene, ikke vinduet. Med NOW = 1/10 er
+    // slutdatoen 17/8, altså FØR ikrafttrædelsen 10/9. Udløbsgrenen afgøres
+    // før ikrafttrædelses-reglen, så den nye gren rammer først: dag 45 med
+    // tilbyd giver udloebet_vindue_lukket, ikke uden_for_ordningen — og
+    // tilbyd_ikke giver stadig udloebet_tilbyd_ikke.
+    { navn: "udloebet_vindue_lukket dag 45 efter slutdato (slutdato før ikrafttrædelsen)", status: "udloebet_vindue_lukket", input: { contract_end_date: slutdatoOmDage(-45), ...INGEN_SUB, beslutning: "tilbyd" } },
     { navn: "udloebet_tilbyd_ikke dag 45 efter slutdato", status: "udloebet_tilbyd_ikke", input: { contract_end_date: slutdatoOmDage(-45), ...INGEN_SUB, beslutning: "tilbyd_ikke" } },
   ];
 
@@ -138,8 +140,8 @@ describe("afgoerFornyelsestilstand — parity between src/lib and supabase/funct
     });
   }
 
-  it("dag 15, 20 og 45 efter slutdato: dage_til_udloeb er præcis −15, −20, −45", () => {
-    for (const dage of [15, 20, 45]) {
+  it("dag 14, 15, 20 og 45 efter slutdato: dage_til_udloeb er præcis −14, −15, −20, −45", () => {
+    for (const dage of [14, 15, 20, 45]) {
       for (const beslutning of ["tilbyd", "tilbyd_ikke"] as const) {
         const t = afgoerFornyelsestilstand({ contract_end_date: slutdatoOmDage(-dage), ...INGEN_SUB, beslutning }, NOW);
         expect(t.dage_til_udloeb).toBe(-dage);
@@ -175,8 +177,9 @@ describe("afgoerFornyelsestilstand — parity between src/lib and supabase/funct
 });
 
 describe("låsene er ens i begge kopier", () => {
-  it("beslutningsvinduet og ikrafttrædelsesdatoen", () => {
+  it("beslutningsvinduet, ikrafttrædelsesdatoen og tilbudsvinduet efter udløb", () => {
     expect(FORNYELSES_VINDUE_DAGE_DENO).toBe(FORNYELSES_VINDUE_DAGE);
     expect(FORNYELSE_IKRAFT_DATO_DENO).toBe(FORNYELSE_IKRAFT_DATO);
+    expect(FORNYELSE_TILBUDSVINDUE_EFTER_UDLOEB_DAGE_DENO).toBe(FORNYELSE_TILBUDSVINDUE_EFTER_UDLOEB_DAGE);
   });
 });

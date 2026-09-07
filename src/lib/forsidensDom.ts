@@ -41,7 +41,9 @@
  *   - Motorens friske_tal (30): godt nyt, ikke en opgave (§11). Ignoreres.
  *   - Fornyelse klar_til_afsked, udloebet_tilbyd_ikke, uden_for_ordningen,
  *     selvbetjener, i_god_tid, ingen_slutdato, ophoert: beslutningen er
- *     truffet, eller der er ingen at træffe. Ingen grund.
+ *     truffet, eller der er ingen at træffe. Ingen grund. Det samme gælder
+ *     udloebet_vindue_lukket (7/9): tilbudsvinduet er lukket, der er ingen
+ *     handling tilbage, og forsiden er handlinger, ikke status.
  *   - Indgang betalt: ingen grund.
  *   - Opgaver der ikke er aktive, uden due_date, eller med frist mere end
  *     NAER_DEADLINE_DAGE ude: ikke «nær deadline».

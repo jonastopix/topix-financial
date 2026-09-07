@@ -63,12 +63,24 @@ describe("afgoerFornyelsestilstand — de ti statusværdier", () => {
     expect(ud).toEqual({ status: "ophoert", dage_til_udloeb: -25, tier: "expired" });
   });
 
-  it("udloebet_tilbyd: tier expired og beslutning tilbyd", () => {
+  // Tilbudsvinduet efter udløb (bygget 7/9): udloebet_tilbyd kræver nu at
+  // der er gået højst 14 dage siden slutdatoen. Slutdato 5/10 mod nu 15/10
+  // er dag 10 — inde. Den gamle fixture (20/9, dag 25) er nu lukket og
+  // står som egen test nedenfor.
+  it("udloebet_tilbyd: tier expired, beslutning tilbyd, inden for tilbudsvinduet", () => {
+    const ud = afgoerFornyelsestilstand(
+      input({ contract_end_date: "2026-10-05", beslutning: "tilbyd" }),
+      EFTER_IKRAFT_NU,
+    );
+    expect(ud).toEqual({ status: "udloebet_tilbyd", dage_til_udloeb: -10, tier: "expired" });
+  });
+
+  it("udloebet_vindue_lukket: tier expired, beslutning tilbyd, tilbudsvinduet er lukket", () => {
     const ud = afgoerFornyelsestilstand(
       input({ contract_end_date: "2026-09-20", beslutning: "tilbyd" }),
       EFTER_IKRAFT_NU,
     );
-    expect(ud).toEqual({ status: "udloebet_tilbyd", dage_til_udloeb: -25, tier: "expired" });
+    expect(ud).toEqual({ status: "udloebet_vindue_lukket", dage_til_udloeb: -25, tier: "expired" });
   });
 
   it("udloebet_tilbyd_ikke: tier expired og beslutning tilbyd_ikke", () => {
@@ -157,8 +169,8 @@ describe("afgoerFornyelsestilstand — uden_for_ordningen (ikrafttrædelse 2026-
 describe("afgoerFornyelsestilstand — ophoert (besluttet 27/8, målte fixtures)", () => {
   // En udløbet kontrakt uden truffet beslutning er et afsluttet
   // kundeforhold — ikke en manglende beslutning. En TRUFFET beslutning
-  // har forrang og bevares uanset afstanden til slutdatoen
-  // (fjortendagesvinduet bygges som selvstændig tilstand i senere PR).
+  // har forrang og bevares uanset afstanden til slutdatoen. Tilbudsvinduet
+  // efter udløb er bygget 7/9 som udloebet_vindue_lukket (kun efter tilbyd).
 
   it("Stadio: slutdato 2026-05-06, ingen beslutning → ophoert", () => {
     const ud = afgoerFornyelsestilstand(input({ contract_end_date: "2026-05-06" }), NU);
@@ -176,12 +188,12 @@ describe("afgoerFornyelsestilstand — ophoert (besluttet 27/8, målte fixtures)
     expect(ud.dage_til_udloeb).toBe(-54);
   });
 
-  it("Friends & Fries med beslutning tilbyd → udloebet_tilbyd (beslutning har forrang)", () => {
+  it("Friends & Fries med beslutning tilbyd → udloebet_vindue_lukket (beslutning har forrang; dag 54 er uden for tilbudsvinduet)", () => {
     const ud = afgoerFornyelsestilstand(
       input({ contract_end_date: "2026-08-22", beslutning: "tilbyd" }),
       EFTER_IKRAFT_NU,
     );
-    expect(ud.status).toBe("udloebet_tilbyd");
+    expect(ud.status).toBe("udloebet_vindue_lukket");
   });
 
   it("Friends & Fries med beslutning tilbyd_ikke → udloebet_tilbyd_ikke", () => {
