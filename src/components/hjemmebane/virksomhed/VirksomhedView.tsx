@@ -5,7 +5,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { useVirksomhed, type VirksomhedsData } from "@/hooks/useVirksomhed";
+import { useVirksomhed, skrivFornyelsesbeslutning, sletFornyelsesbeslutning, type VirksomhedsData } from "@/hooks/useVirksomhed";
 import AgentForslagPanel from "@/components/AgentForslagPanel";
 import AdvisorAIChat from "@/components/AdvisorAIChat";
 import CompanyChatPane from "@/components/CompanyChatPane";
@@ -1286,7 +1286,78 @@ const FjernMedlem = ({ medlem, onFjernet }: { medlem: { user_id: string; full_na
   );
 };
 
-const Blok7 = ({ d, onOpdateret }: { d: VirksomhedsData; onOpdateret: () => Promise<void> }) => {
+/** Fornyelsesbeslutningen fra Aftalen-kortet (7/9). Før kunne den KUN
+    træffes i FornyelsesSektion på /members, som er ude af menuen — og uden
+    «tilbyd» sender fornyelsesvarsel-cron intet. Tre handlinger, samme
+    skrivevej som /members (useVirksomhed: skriv-/sletFornyelsesbeslutning):
+    sæt tilbyd, sæt tilbyd_ikke, fjern beslutningen igen («ingen række =
+    endnu ikke besluttet», ikke tilbyd_ikke). Noten bevares ved skift og
+    kan kun redigeres på /members — kortet skal blive let. Husets form:
+    link-knapper som «Rediger virksomhedsdata», og efter succes AWAITes
+    invalideringen (siden, forsidens dom og /members-listen) FØR toasten,
+    så fladen aldrig viser det gamle (EditCompanyDialog-fælden). */
+const FornyelsesHandlinger = ({
+  companyId,
+  nuvaerende,
+  efterSkrivning,
+}: {
+  companyId: string;
+  nuvaerende: { beslutning: string; note: string | null } | null;
+  efterSkrivning: () => Promise<void>;
+}) => {
+  const { user } = useAuth();
+  const [gemmer, setGemmer] = useState(false);
+  const koer = async (handling: () => Promise<void>, succes: { titel: string; beskrivelse?: string }, fejl: string) => {
+    if (gemmer) return;
+    setGemmer(true);
+    try {
+      await handling();
+      await efterSkrivning();
+      toast.success(succes.titel, succes.beskrivelse ? { description: succes.beskrivelse } : undefined);
+    } catch (err) {
+      toast.error(fejl, { description: err instanceof Error ? err.message : undefined });
+    } finally {
+      setGemmer(false);
+    }
+  };
+  const saet = (beslutning: Fornyelsesbeslutning) => {
+    if (!user) return;
+    void koer(
+      () => skrivFornyelsesbeslutning({ companyId, beslutning, note: nuvaerende?.note ?? null, besluttetAf: user.id }),
+      { titel: `Registreret: ${beslutningsOrd(beslutning)}` },
+      "Beslutningen blev ikke gemt",
+    );
+  };
+  const fjern = () =>
+    void koer(
+      () => sletFornyelsesbeslutning(companyId),
+      { titel: "Beslutning fjernet", beskrivelse: "Virksomheden står nu som «endnu ikke besluttet» — ikke som «vi tilbyder ikke»." },
+      "Kunne ikke fjerne beslutningen",
+    );
+  const knap = "text-xs underline-offset-4 hover:underline disabled:opacity-50";
+  return (
+    <span className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1">
+      {nuvaerende?.beslutning !== "tilbyd" && (
+        <button type="button" disabled={gemmer || !user} onClick={() => saet("tilbyd")} className={cn(knap, "text-hb-evergreen")}>
+          Tilbyd forlængelse
+        </button>
+      )}
+      {nuvaerende?.beslutning !== "tilbyd_ikke" && (
+        <button type="button" disabled={gemmer || !user} onClick={() => saet("tilbyd_ikke")} className={cn(knap, "text-hb-evergreen")}>
+          Tilbyd ikke
+        </button>
+      )}
+      {nuvaerende && (
+        <button type="button" disabled={gemmer} onClick={fjern} className={cn(knap, "text-hb-ink-soft")}>
+          Fjern beslutning
+        </button>
+      )}
+      {gemmer && <span className="text-xs text-hb-ink-soft">Gemmer…</span>}
+    </span>
+  );
+};
+
+const Blok7 = ({ d, onOpdateret, onFornyelseAendret }: { d: VirksomhedsData; onOpdateret: () => Promise<void>; onFornyelseAendret: () => Promise<void> }) => {
   const c = d.company;
   const { isAdmin } = useAuth();
   // «Rediger virksomhedsdata» — kun admin, som MemberDetail:953. Dialogen
@@ -1381,10 +1452,22 @@ const Blok7 = ({ d, onOpdateret }: { d: VirksomhedsData; onOpdateret: () => Prom
                 ikke databasens instruks (Jonas 7/9): «vi tilbyder» / «vi
                 tilbyder ikke» — samme ordbog som FornyelsesSektion og
                 forsidens dom (lib/fornyelsesOrd). */}
-            {d.fornyelse && (
+            {/* Linjen står også UDEN række (7/9): «Ikke besluttet» er den
+                tilstand kæden hænger på, og handlingerne skal kunne nås her.
+                Uden slutdato er der intet at beslutte om — så ingen linje. */}
+            {(d.fornyelse || fornyelse.status !== "ingen_slutdato") && (
               <Linje label="Fornyelse">
-                Besluttet: {beslutningsOrd(d.fornyelse.beslutning)} · {formatDato(d.fornyelse.besluttet_at)}
-                {d.fornyelse.note && <span className="block text-xs text-hb-ink-soft">{d.fornyelse.note}</span>}
+                {d.fornyelse ? (
+                  <>Besluttet: {beslutningsOrd(d.fornyelse.beslutning)} · {formatDato(d.fornyelse.besluttet_at)}</>
+                ) : (
+                  <span className="text-hb-ink-soft">Ikke besluttet</span>
+                )}
+                {d.fornyelse?.note && <span className="block text-xs text-hb-ink-soft">{d.fornyelse.note}</span>}
+                <FornyelsesHandlinger
+                  companyId={c.id}
+                  nuvaerende={d.fornyelse ? { beslutning: d.fornyelse.beslutning, note: d.fornyelse.note } : null}
+                  efterSkrivning={onFornyelseAendret}
+                />
               </Linje>
             )}
             {d.fornyelse?.varsel_1_sendt_at && <Linje label="Varsel sendt">{formatDato(d.fornyelse.varsel_1_sendt_at)}</Linje>}
@@ -1485,7 +1568,7 @@ const Blok7 = ({ d, onOpdateret }: { d: VirksomhedsData; onOpdateret: () => Prom
 // ── Siden ───────────────────────────────────────────────────────────────
 
 export const VirksomhedView = ({ companyId }: { companyId: string | undefined }) => {
-  const { data, facts, isLoading, isError, findesIkke, invalider } = useVirksomhed(companyId);
+  const { data, facts, isLoading, isError, findesIkke, invalider, invaliderFornyelse } = useVirksomhed(companyId);
 
   /* DEEP-LINKS (4/9): 604 notifikationer i prod bærer ?reportId, 40 ?handout,
      6 ?section, og Slack-beskeder med absolutte URL'er er ude af huset.
@@ -1622,7 +1705,7 @@ export const VirksomhedView = ({ companyId }: { companyId: string | undefined })
         startAabenRapport={dybRapport}
         onAabnHandout={kanAabneHandout ? setAktivtHandout : null}
       />
-      <Blok7 d={data} onOpdateret={invalider} />
+      <Blok7 d={data} onOpdateret={invalider} onFornyelseAendret={invaliderFornyelse} />
     </div>
   );
 };
