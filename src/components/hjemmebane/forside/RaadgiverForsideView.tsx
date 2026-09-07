@@ -2,7 +2,7 @@ import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import { ADVISOR_DASHBOARD_QUERY_KEY, hentAdvisorDashboard } from "@/components/AdvisorDashboard";
-import { TAERSKEL, type Linje, type OpgaveSlags } from "@/lib/forsidensDom";
+import { TAERSKEL, type Linje, type OpgaveSlags, type Pukkellinje } from "@/lib/forsidensDom";
 import { cn } from "@/lib/utils";
 
 /**
@@ -39,7 +39,7 @@ import { cn } from "@/lib/utils";
  *
  * Tilstande og pukler er deres egen samlede linje (§3) og linker til
  * /virksomheder (§5: tallene er links til listen). Én virksomhed i en
- * samlet tilstand linker direkte til den.
+ * samlet tilstand eller pukkel linker direkte til den (se pukkelLink).
  *
  * TOPPEN (§10): «N ting kræver dig i dag», ellers «Der er ikke noget der
  * haster i dag.» UNDER STREGEN (§5): tal, ikke lister. FLAGET (§5): når
@@ -56,6 +56,17 @@ const hilsen = (): string => {
 };
 
 const grundLink = (companyId: string, slags: OpgaveSlags) => `/virksomhed/${companyId}?grund=${slags}`;
+
+/** Puklen (agentforslag). Forslag kan KUN afgøres i AgentForslagPanel, som
+    er monteret alene på /virksomhed/:companyId (VirksomhedView). Dækker
+    puklen præcis ÉN virksomhed, peger linjen derfor direkte på den — dommen
+    bærer virksomhederne med netop til det (Pukkellinje.virksomheder, 6/9).
+    Dækker den FLERE, peger den på /virksomheder som hidtil: der findes
+    ingen flade der viser forslag på tværs af virksomheder, så listen er det
+    nærmeste rådgiveren kan komme. KENDT begrænsning, ikke en forglemmelse.
+    Ingen ny rute, ingen ny parameter. */
+const pukkelLink = (p: Pukkellinje) =>
+  p.virksomheder.length === 1 ? grundLink(p.virksomheder[0].companyId, p.slags) : "/virksomheder";
 
 /** Én linje fra dommen. Virksomhed: handling + grunde; tilstand/pukkel: tekst.
     Rust kun til det der er galt (>= TAERSKEL) eller haster (løftet). */
@@ -90,7 +101,7 @@ const DomLinje = ({ l }: { l: Linje }) => {
 
   // Samlet tilstand eller pukkel: én linje, ét tal. Én virksomhed → direkte til den.
   const enkelt = l.linje === "tilstand" && l.antal === 1 ? l.virksomheder[0] : null;
-  const to = enkelt ? grundLink(enkelt.companyId, l.slags) : "/virksomheder";
+  const to = enkelt ? grundLink(enkelt.companyId, l.slags) : l.linje === "pukkel" ? pukkelLink(l) : "/virksomheder";
   return (
     <li className="flex items-start gap-3 py-3">
       {prik}
@@ -194,7 +205,7 @@ export const RaadgiverForsideView = () => {
         ))}
         {under.pukler.map((p) => (
           <p key={`p:${p.slags}`}>
-            <Link to="/virksomheder" className="text-hb-evergreen underline-offset-4 hover:underline">
+            <Link to={pukkelLink(p)} className="text-hb-evergreen underline-offset-4 hover:underline">
               {p.tekst}
             </Link>
           </p>
