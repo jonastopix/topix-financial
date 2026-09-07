@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { CalendarCheck, ChevronRight, Loader2 } from "lucide-react";
+import { ChevronRight, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -15,10 +15,17 @@ import { HbButton } from "../HbButton";
  * checkout var MembershipExpiredGate, som kun vises ved tier expired.
  * PHILBERT (slut 29/9) kunne betale og havde intet sted at gøre det.
  *
- * FORMEN er chattens udløbsbånd (MemberChatPane: «flex items-center gap-2
- * px-3 py-3 rounded-hb bg-hb-sage/20 border border-hb-line text-xs
- * text-hb-ink-soft») — men i invitationens tone: evergreen-ikon, ikke
- * rust; medlemmet har fuld adgang og mister ingen dage ved at handle nu.
+ * FORMEN (rettet 7/9 efter skærm): første udgave spejlede chattens
+ * udløbsbånd (text-xs grå, tre knapper på samme linje) og læstes som en
+ * notifikation. Nu er det en invitation i FocusCards typografi — samme
+ * sage-flade og hairline som før, men overskriften (dato) i font-editorial
+ * som noget man læser først, linjen (beløb) dæmpet under, og ÉN primær
+ * knap, «Forny medlemskabet». Klik folder de tre betalingsmodeller ud PÅ
+ * STEDET, som OpgaveKnapper gør med datovalget (én knap afløses af
+ * valgmulighederne på samme plads) — husets eget mønster på forsiden;
+ * HbDialog bruges til bekræftelser og formularer, ikke til et valg mellem
+ * tre. Luften over og under er sektionernes rytme (mt-10 md:mt-12), så
+ * båndet ikke klistrer op under hilsenen.
  *
  * DOMMEN er serverens: hent-fornyelsestilbud kalder motoren
  * (afgoerFornyelsestilstand) og svarer { tilbud: null } for alle uden
@@ -44,6 +51,8 @@ import { HbButton } from "../HbButton";
 export const FornyelsesBaand = () => {
   const { user, companyId, isAdvisor } = useAuth();
   const [loadingFornyelse, setLoadingFornyelse] = useState<Betalingsmodel | null>(null);
+  /** false = den ene knap; true = de tre betalingsmodeller er foldet ud på stedet. */
+  const [valgAabent, setValgAabent] = useState(false);
 
   const { data: tilbud = null } = useQuery({
     queryKey: ["fornyelsestilbud"],
@@ -109,36 +118,42 @@ export const FornyelsesBaand = () => {
   const tekst = fornyelsesbaandTekst({ contract_end_date: slutdato, grundbeloeb_oere: tilbud.grundbeloeb_oere });
 
   return (
-    <div
-      role="status"
-      className="mt-6 flex flex-col gap-3 rounded-hb border border-hb-line bg-hb-sage/20 px-3 py-3 text-xs text-hb-ink-soft md:flex-row md:items-center md:gap-4"
-    >
-      <div className="flex items-start gap-2">
-        <CalendarCheck className="mt-0.5 h-4 w-4 shrink-0 text-hb-evergreen" />
-        <span>
-          <span className="font-medium text-hb-ink">{tekst.overskrift}</span>
-          {" — "}
-          {tekst.linje}
-        </span>
-      </div>
-      <div className="flex flex-wrap gap-2 md:ml-auto md:shrink-0">
-        {tilbud.muligheder.map((m) => (
-          <HbButton
-            key={m.lookup_key}
-            variant="secondary"
-            onClick={() => handleFornyelse(m.betalingsmodel)}
-            disabled={loadingFornyelse !== null}
-            className="h-9 px-3 text-xs"
-          >
-            {beskrivMulighed(m)}
-            {loadingFornyelse === m.betalingsmodel ? (
-              <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-hb-ink-soft" />
-            ) : (
-              <ChevronRight className="h-3.5 w-3.5 shrink-0 text-hb-evergreen" />
-            )}
+    <section aria-label="Fornyelse" className="mt-10 md:mt-12">
+      <div className="rounded-hb border border-hb-line bg-hb-sage/20 p-7 md:p-9">
+        <h3 className="font-editorial text-2xl font-medium leading-tight text-hb-ink md:text-3xl">{tekst.overskrift}</h3>
+        <p className="mt-3 max-w-2xl text-base leading-relaxed text-hb-ink-soft">{tekst.linje}</p>
+
+        {valgAabent ? (
+          /* Foldet ud på stedet (OpgaveKnapper-mønstret): de tre modeller
+             med gatens ordlyd, på den plads knappen stod. */
+          <div className="mt-7 flex flex-wrap items-center gap-2">
+            <span className="mr-1 text-sm text-hb-ink-soft">Hvordan vil du betale?</span>
+            {tilbud.muligheder.map((m) => (
+              <HbButton
+                key={m.lookup_key}
+                variant="secondary"
+                onClick={() => handleFornyelse(m.betalingsmodel)}
+                disabled={loadingFornyelse !== null}
+                className="h-11 px-4"
+              >
+                {beskrivMulighed(m)}
+                {loadingFornyelse === m.betalingsmodel ? (
+                  <Loader2 className="h-4 w-4 shrink-0 animate-spin text-hb-ink-soft" />
+                ) : (
+                  <ChevronRight className="h-4 w-4 shrink-0 text-hb-evergreen" />
+                )}
+              </HbButton>
+            ))}
+            <HbButton variant="link" onClick={() => setValgAabent(false)} disabled={loadingFornyelse !== null}>
+              Ikke nu
+            </HbButton>
+          </div>
+        ) : (
+          <HbButton className="mt-7" onClick={() => setValgAabent(true)}>
+            Forny medlemskabet
           </HbButton>
-        ))}
+        )}
       </div>
-    </div>
+    </section>
   );
 };
