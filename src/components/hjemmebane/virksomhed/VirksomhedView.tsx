@@ -20,7 +20,8 @@ import type { CompanyFact } from "@/hooks/useCompanyFacts";
 import { factsToDanishMetrics } from "@/lib/factsAdapter";
 import { afgoerVirksomhedsSignaler, type FactPunkt, type Signal, type VirksomhedsInput } from "@/lib/virksomhedsSignaler";
 import { computeMembershipTier, type MembershipTier } from "@/lib/membershipTier";
-import { afgoerFornyelsestilstand, type FornyelseStatus, type Fornyelsesbeslutning } from "@/lib/fornyelse";
+import { afgoerFornyelsestilstand, type Fornyelsesbeslutning } from "@/lib/fornyelse";
+import { beslutningsOrd, fornyelsesBadge, type FornyelseBadge } from "@/lib/fornyelsesOrd";
 import { afgoerBetalingsfrist, type Betalingsfriststatus } from "@/lib/betalingsfrist";
 import { afgoerForsidensDom, FORM, type OpgaveSlags, type VirksomhedTilDom } from "@/lib/forsidensDom";
 import { beloebKr, kortDato, datoOgTid, stripeSagde, traekBadgeTekst } from "@/lib/traek";
@@ -81,14 +82,20 @@ const BETALINGSMODEL_LABEL: Record<string, string> = {
   rate12: "12 rater",
 };
 
-/** Samme tekster som FornyelsesSektion.tsx:45-59 — kun udtrykket er Hb. */
-const FORNYELSE_LABEL: Record<FornyelseStatus, string> = {
+/** Samme tekster som FornyelsesSektion.tsx:45-59 — kun udtrykket er Hb.
+    Plus ét trin motoren ikke kender (7/9): klar_til_tilbud_varslet, når
+    fornyelsesvarsel-cron har stemplet varsel_1_sendt_at. Nøglen slås op
+    med fornyelsesBadge (lib/fornyelsesOrd) — stemplet ved siden af
+    motoren, som forsidens dom. FornyelsesSektion henter ikke stemplet og
+    viser derfor stadig «Klar til tilbud» efter varslet. */
+const FORNYELSE_LABEL: Record<FornyelseBadge, string> = {
   ophoert: "Ophørt",
   udloebet_tilbyd: "Udløbet — tilbyd",
   udloebet_tilbyd_ikke: "Udløbet — tilbyd ikke",
   udloebet_vindue_lukket: "Udløbet — vindue lukket", // tilbudsvinduet er lukket; intet tilbud, samme sprog som FornyelsesSektion
   beslutning_mangler: "Beslutning mangler",
   klar_til_tilbud: "Klar til tilbud",
+  klar_til_tilbud_varslet: "Varsel sendt", // systemet har sendt tilbuddet (varsel 1); det der står tilbage er rådgiverens personlige besked
   klar_til_afsked: "Klar til afsked",
   uden_for_ordningen: "Uden for ordningen",
   i_god_tid: "I god tid",
@@ -1350,7 +1357,7 @@ const Blok7 = ({ d, onOpdateret }: { d: VirksomhedsData; onOpdateret: () => Prom
           </div>
           <div className="mt-3 flex flex-wrap items-center gap-1.5">
             <TierBadge tier={tier} kontraktSlut={c.contract_end_date} />
-            <HbTag className="bg-hb-paper border border-hb-line px-2 py-0.5 text-[11px] text-hb-ink-soft">{FORNYELSE_LABEL[fornyelse.status]}</HbTag>
+            <HbTag className="bg-hb-paper border border-hb-line px-2 py-0.5 text-[11px] text-hb-ink-soft">{FORNYELSE_LABEL[fornyelsesBadge(fornyelse.status, d.fornyelse?.varsel_1_sendt_at)]}</HbTag>
             {indgang && indgang.status !== "betalt" && (
               <HbTag className="bg-hb-rust/10 px-2 py-0.5 text-[11px] text-hb-rust">{INDGANG_LABEL[indgang.status]}</HbTag>
             )}
@@ -1370,10 +1377,13 @@ const Blok7 = ({ d, onOpdateret }: { d: VirksomhedsData; onOpdateret: () => Prom
                 besluttet; stemplerne varsel_1_sendt_at og varsel_2_sendt_at
                 (sat af fornyelsesvarsel-cron KUN når mailen kom i køen) siger
                 hvad der er sket. Linjerne kommer til efterhånden, så rådgiveren
-                ser hele forløbet — ikke kun det seneste. */}
+                ser hele forløbet — ikke kun det seneste. Værdien er DANSK,
+                ikke databasens instruks (Jonas 7/9): «vi tilbyder» / «vi
+                tilbyder ikke» — samme ordbog som FornyelsesSektion og
+                forsidens dom (lib/fornyelsesOrd). */}
             {d.fornyelse && (
               <Linje label="Fornyelse">
-                Besluttet: {d.fornyelse.beslutning === "tilbyd" ? "tilbyd" : "tilbyd ikke"} · {formatDato(d.fornyelse.besluttet_at)}
+                Besluttet: {beslutningsOrd(d.fornyelse.beslutning)} · {formatDato(d.fornyelse.besluttet_at)}
                 {d.fornyelse.note && <span className="block text-xs text-hb-ink-soft">{d.fornyelse.note}</span>}
               </Linje>
             )}
