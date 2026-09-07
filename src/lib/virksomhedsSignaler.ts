@@ -132,7 +132,8 @@ export interface VirksomhedsInput {
   senesteBeskedAt: string | null;
   /** Om virksomheden har mindst én committet fact. Modtages; stale-reglen bruger den ikke længere (designets §3.5). */
   harCommittedeTal: boolean;
-  /** Agentforslag uden afgørelse (agent_proposals uden decided_at). */
+  /** Agentforslag der venter på afgørelse (agent_proposals med status 'proposed' —
+      ikke «uden decided_at»: 'expired' har også null dér, men kan ikke afgøres; rettet 7/9). */
   agentforslagVenter: number;
 }
 

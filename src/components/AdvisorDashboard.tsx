@@ -411,14 +411,20 @@ export const hentAdvisorDashboard = () =>
           .select("company_id, status")
           .eq("status", "pending")
           .limit(2000) as any),
-        // Agentforslag uden afgørelse (4/9, §3.5 kø 6): samme dom som
-        // useVirksomhed (agent_proposals hvor decided_at er null), men
-        // porteføljebredt — tælles pr. company_id i kode. Advisor-SELECT
-        // findes (20260825200000). Før stod agentforslagVenter fast som 0.
+        // Agentforslag der VENTER PÅ AFGØRELSE (4/9, §3.5 kø 6): samme dom
+        // som useVirksomhed, men porteføljebredt — tælles pr. company_id i
+        // kode. Advisor-SELECT findes (20260825200000).
+        // FILTRET ER PÅ status, IKKE PÅ decided_at (rettet 7/9): en
+        // 'expired'-række har decided_at = NULL, fordi ingen afgjorde den —
+        // evnen blev fjernet (fire write_session_prep-forslag sat i hånden
+        // 1/9). decided_at er derfor ikke et svar på «kan det afgøres»;
+        // det er status. AgentForslagPanel viser kun knapper for
+        // 'proposed', så kun dem må puklen tælle — ellers klikker
+        // rådgiveren ind på noget der ikke kan afgøres.
         (supabase
           .from("agent_proposals")
           .select("company_id")
-          .is("decided_at", null)
+          .eq("status", "proposed")
           .limit(2000) as any),
         // Spor 2: virksomheder der har udfyldt målsætnings-handoutet (modul 'overordnet').
         (supabase
