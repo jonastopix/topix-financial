@@ -3,9 +3,10 @@
 Besluttet 27. august 2026. Motoren `src/lib/fornyelse.ts` og
 rådgiverfladen `FornyelsesSektion` er i drift. Fornyelsessiden og
 betalingsvejen er bygget og bevist 1/9 (§5). Fjortendagesvinduet er
-bygget som tilstand og bevist 7/9 (§3). Ingen mails — målt 6/9:
-ordningen har ingen afsender (§5 punkt 5); retningen er besluttet 6/9
-og tallene 7/9 (§7).
+bygget som tilstand og bevist 7/9 (§3). Fornyelse kan betales FØR
+slutdatoen — besluttet og bygget 7/9 (§1). Varselsmotoren og en
+cron-rapport findes fra 7/9 eftermiddag og er tørkørt på rigtige data;
+mailene findes ikke (§7). Retningen er besluttet 6/9 og tallene 7/9 (§7).
 
 ## 1. Den bærende regel
 
@@ -17,7 +18,7 @@ Statussen `klar_til_afsked` er en intern dom, ikke en besked.
 
 | beslutning | hvad medlemmet får |
 |---|---|
-| `tilbyd` | brief før slutdato + tilbud om 50 % af indgangsprisen + fjorten dages vindue efter udløb |
+| `tilbyd` | varsel 30 og 7 dage før slutdato + tilbud om 50 % af indgangsprisen, som kan betales FØR slutdatoen (7/9) + fjorten dages vindue efter udløb |
 | `tilbyd_ikke` | **intet**. Kontrakten udløber som aftalt |
 | ingen række | **intet**. Tavshed er standarden |
 
@@ -36,6 +37,22 @@ uden beslutning.
 Statusnavnet lyder som en handling. Det er det ikke. «Afsked» beskriver
 hvad der sker med kontrakten, ikke hvad der siges til mennesket.
 
+**Rettet 7/9 — fornyelse kan betales FØR slutdatoen.** Den 1/9 blev det
+besluttet at fornyelse betales EFTER udløb, ikke før: tilbuddet
+kommunikeres i vinduet op til slutdatoen, men betalingen hører til efter
+den. Sådan var koden til 7/9 — `opret-fornyelse-checkout` krævede
+`udloebet_tilbyd`, `hent-fornyelsestilbud` gav `null` før udløb, og gaten
+vises kun for udløbne. Et medlem på dag 22 kunne hverken se eller betale
+sit tilbud: vi fortalte dem det en måned før og bad dem vente på at
+blive lukket ude. **Besluttet af Jonas 7/9, bygget samme dag (#683,
+#684):** betaling tages imod fra beslutningsvinduet (`klar_til_tilbud`)
+og hele vejen gennem tilbudsvinduet. Den nye slutdato regnes så
+kontrakten aldrig taber dage: betalt FØR eller PÅ slutdatoen → gammel
+slutdato + 12 måneder; betalt EFTER → betalingsdagen + 12 (dagene uden
+adgang gives ikke tilbage). Regnestykket står i
+`docs/fornyelseskaeden-1-september.md` §15.3. **Det der ikke er løst:**
+et ikke-udløbet medlem har i dag intet sted at SE tilbuddet (§7).
+
 ## 2. Én side til alle uden tilbud
 
 Siden som en udløbet uden beslutning møder, skal være **nøjagtig den
@@ -53,6 +70,11 @@ dage EFTER slutdatoen til 50 % af sin indgangspris.
 I vinduet har medlemmet **ikke adgang** til platformen. De lander på
 fornyelsessiden. `computeMembershipTier` ændres derfor ikke — de er
 `expired`, og gaten er det der skal gøres indbydende.
+
+**Og FØR slutdatoen (7/9):** tilbuddet kan nu også betales før den —
+§1's rettelse — med den gamle slutdato som anker. Men gaten er stadig
+det eneste sted et medlem ser tilbuddet, og den vises kun ved udløb.
+Hvor det skal vises før, er ikke besluttet (§7).
 
 **BYGGET 7/9 (#678).** Vinduet er tilstanden `udloebet_vindue_lukket`
 i motoren — den ellevte status — og findes KUN efter beslutningen
@@ -146,7 +168,10 @@ Fire led, i rækkefølge:
    betalingsdagen, idempotent på sessionens id, og sætter `cancel_at` på
    rate-abonnementet. Se fornyelseskæden §7, §11 og §12. *Målt 6/9:*
    alle forudsætninger i prod og Stripe er grønne (fornyelseskæden
-   §13.5).
+   §13.5). *Ændret 7/9 (#683, #684):* betaling tages imod FØR
+   slutdatoen, og den nye slutdato regnes fra den gamle når der betales
+   før eller på den — §1's rettelse og fornyelseskæden §15.3.
+   `cancel_at` er uændret, med vilje (fornyelseskæden §7, rettelsen).
 
 5. **Afsenderen.** *Nyt punkt, målt 6/9.* Der findes ingen: ingen mail,
    ingen skabelon, ingen cron, ingen kode bag §1's «brief før slutdato».
@@ -154,6 +179,10 @@ Fire led, i rækkefølge:
    først om sin fornyelse ved at MISTE adgangen og selv finde tilbuddet
    i gaten (fornyelseskæden §13.1). Det er det led der mangler før §1's
    løfte til `tilbyd`-gruppen kan holdes. Retningen står i §7.
+
+   **Delvist løst 7/9 eftermiddag (#680, #681):** motoren og en
+   cron-rapport findes og er tørkørt på rigtige data; mailene,
+   rådgivernotifikationen, stemplingen og planlægningen mangler (§7).
 
 **Om ikrafttrædelsen, målt 6/9:** 10/9 er ikke en tændingsdato. Intet
 kører i koden den dag; `FORNYELSE_IKRAFT_DATO` sammenlignes med
@@ -229,8 +258,35 @@ ikke et engangslink: betalte bookinger registreres aldrig tilbage i
 platformen (målt 3/9, OVERLEVERING DEL 3), så vi lover ikke en måling
 vi ikke kan holde.
 
-**Det der mangler nu:** afsenderen selv — mail, skabelon, cron. Intet
-af det findes (§5 punkt 5).
+**Varselsmotoren — LØST 7/9 (#680):** `afgoerForfaldentVarsel` i begge
+kopier, paritetstestet. Varsel 1 ved 30 dage før slutdato, varsel 2 ved
+7. **Den sene beslutning er reglen der betyder noget:** træffes `tilbyd`
+først fem dage før, er begge forfaldne, og så sendes KUN varsel 2 —
+varsel 1 sendes aldrig bagefter, fordi den anden mail ville være forældet
+i samme øjeblik den blev sendt. Det er også derfor stemplerne er to
+kolonner. Fail-closed på ulæselig slutdato. Efter slutdatoen sendes
+intet: tilbuddet lever stadig 14 dage (§3), men et varsel om noget der
+allerede er sket, er forkert. Detaljen i fornyelseskæden §15.1.
+
+**Cron-rapporten — BYGGET 7/9 (#681), IKKE planlagt:**
+`fornyelsesvarsel-cron`, Bucket B, tørkørsel som standard, udrullet kl.
+08:15 UTC. I denne version en REN RAPPORT: sender intet, stempler intet.
+Cron-SQL'en står som kommentar i filhovedet (slot 13:00 dansk), men
+jobbet er ikke planlagt — en cron der kører en rapport ingen læser, er
+støj. **Tørkørslen 7/9 kl. 10:15, på rigtige data:** fundet 3, ingen
+fejl. PHILBERT → varsel 1, 22 dage til slutdato. CARMA STUDIO → varsel
+2, NUL dage, med grunden «varsel 1 springes over: sen beslutning».
+Studio Mini → intet, slutdatoen er passeret. Den sene beslutning virkede
+i drift, første gang, på rigtige data (fornyelseskæden §15.2).
+
+**Besluttet af Jonas 7/9: ingen nedre grænse for varsel 2.** Dag 0 er en
+påmindelse, ikke en advarsel, og det er dér man handler. CARMA får sin
+påmindelse.
+
+**Det der mangler nu:** mailene selv, rådgivernotifikationen, stemplingen
+i cron'en, og planlægningen af jobbet. Og — efter §1's rettelse 7/9 — et
+sted hvor et ikke-udløbet medlem kan SE tilbuddet, for gaten vises kun
+ved udløb. Det sidste er en designbeslutning, ikke truffet endnu.
 
 **Deadline:** midten af november 2026 (Livja 16/12 minus 30 dage), ikke
 10/9 — se §5's note om ikrafttrædelsen og fornyelseskæden §13.4.
