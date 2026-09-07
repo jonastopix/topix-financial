@@ -10,6 +10,7 @@
 
 import { supabase } from "@/integrations/supabase/client";
 import { DANISH_MONTHS, type ReportData, hasManualOverride, getEffectiveMetrics, getEffectiveReportPeriodKey, isCompletedMonth } from "@/lib/financialUtils";
+import { positiveOmkostninger } from "@/lib/omkostningsFortegn";
 
 // ── Report types ──
 export const REPORT_TYPES = [
@@ -319,14 +320,23 @@ export async function saveManualOverride(params: SaveManualOverrideParams): Prom
   const periodKey = `${year}-${String(month).padStart(2, "0")}`;
   const periodLabel = `${DANISH_MONTHS[month - 1]} ${year}`;
 
-  const metricsObj: Record<string, number | null> = {};
+  const raa: Record<string, number | null> = {};
   for (const f of ALL_FIELDS) {
     const parsed = parseMetricValue(metricInputs[f] ?? "");
-    metricsObj[f] = parsed === undefined ? null : parsed;
+    raa[f] = parsed === undefined ? null : parsed;
   }
 
+  // FORTEGN (7/9): omkostningsposter gemmes POSITIVE — husets konvention,
+  // samme som månedsvejen (lib/omkostningsFortegn). Formularen har foreslået
+  // regnskabets minus («Eks. -320000»), og SQL-branchen i
+  // resolve_report_commit_candidate kopierer råt, så den manuelle vej skrev
+  // 16 af 67 rækker negativt (målt i prod 7/9). Resultat, bruttoresultat og
+  // balancen røres ikke — de kan være ægte negative.
+  const metricsObj = positiveOmkostninger(raa);
+
   // Afledte nøgler beregnes fra grundfelterne (aldrig round-trippet); udelades
-  // når komponent-guarden i computeDerivedMetrics ikke er opfyldt.
+  // når komponent-guarden i computeDerivedMetrics ikke er opfyldt. Med
+  // positive omkostninger opfyldes guarden også for tal tastet med minus.
   const derived = computeDerivedMetrics(metricsObj);
 
   const manualNormalizedData = {
