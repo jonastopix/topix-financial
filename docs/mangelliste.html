@@ -456,11 +456,17 @@
   <h2>Dine tal — rapportering, KPI, budget, handouts, parsing</h2>
   <p class="lede">Fungerer teknisk, bruges ikke nok. To mails fra betalende medlemmer, modtaget 22. august, står stadig åbne: «den har ikke taget alle mine omkostningsposter med … jeg kan ikke slette poster den allerede har lavet … jeg skal manuelt indtaste tal i hvert felt» og «den vil ikke uploade. Den skriver, at jeg skal indtaste tallene manuelt — kan det passe?»</p>
   <div class="grid">
-    <div class="card blocked" data-status="fejl" data-spor="2" data-rammer="medlem">
-      <h3>Fortegnet vender på omkostninger fra årsrapporten</h3>
-      <p><code>personale</code> og <code>afskrivninger</code> gemmes negativt fra årsrapport-vejen og positivt fra månedsvejen. Bekræftet mod Topix' rigtige årsrapport: personaleomkostninger −235.050, afskrivninger −71.061. Rammer elleve virksomheder.</p>
-      <p>Pas på ved rettelsen: <code>bruttoresultat</code> og <code>egenkapital</code> kan være ægte negative tal. Fejlen sidder kun på omkostningsposterne.</p>
-      <div class="meta"><span class="tag rust">Live data</span><span class="tag size">Mellem</span></div>
+    <div class="card blocked new" data-status="fejl" data-spor="2" data-rammer="medlem">
+      <h3>Floren Engros' 2025-tal er hundrede gange for små</h3>
+      <p><strong>Målt i prod 7/9 kl. 19:58</strong> ved datarettelsen af fortegnet (#721): Florens direkte omkostninger står som <strong>4.335 kr. om måneden i 2025 mod 248.112 i 2024</strong> — tolv rækker, <code>source_type = annual_report</code>. Fortegnet er nu rigtigt (det var negativt), men det løser ikke dette: TALLET er læst forkert af årsrapport-udtrækket, formentlig en tusindtalsfejl i parsingen. Alt Floren ser af nøgletal for 2025 bygger på det — dækningsbidrag, EBITDA, omkostningsandel, og forsidens «stikker ud».</p>
+      <p>Kan ikke rettes fra koden: nogen skal se på selve rapporten (<code>financial_reports</code> for Floren 2025, <code>extracted_data</code> mod PDF'en) og afgøre om det er 433.500 eller noget tredje. Til da er 2025 et forkert år for dem (OVERLEVERING DEL 2 «Omkostningernes fortegn»).</p>
+      <div class="meta"><span class="tag ny">Ny 7/9</span><span class="tag rust">Forkerte tal</span><span class="tag size">Lille</span></div>
+    </div>
+    <div class="card new" data-status="fejl" data-spor="2" data-rammer="medlem">
+      <h3>En rapport for indeværende måned får aldrig sin «gennemgå dine tal»-mail</h3>
+      <p><strong>Løst 7/9 (#720):</strong> en rapport for indeværende måned er ikke længere «forkert» på skærmen — den er «for tidlig», med datoen for hvornår den kan godkendes (regel 6 i <code>resolve_report_commit_candidate</code>: <code>not_ready</code> med en <code>period_key</code> på eller efter denne måned), og nudge-kortet «N rapporter afventer din godkendelse» tæller den ikke længere med.</p>
+      <p><strong>Det ÅBNE:</strong> review-notifikationen skrives kun når kandidaten er <code>eligible</code> ved parsingen (<code>extract-financial-data/index.ts:1741-1761</code>, <code>report_review_ready</code>, «{periode} — gennemgå dine tal»). En rapport i regel 6 er ikke eligible i det øjeblik — så notifikationen og mailen skrives ALDRIG, heller ikke når måneden er omme og rapporten kan godkendes. Intet kører igen efter månedsskiftet; medlemmet skal selv opdage at knappen er kommet. Løsningen er ikke besluttet: en cron der genprøver regel 6-rapporter den 1., eller at parsingen selv lægger notifikationen med en dato.</p>
+      <div class="meta"><span class="tag ny">Ny 7/9</span><span class="tag rust">Tavshed</span><span class="tag size">Lille</span></div>
     </div>
     <div class="card new" data-status="fejl" data-spor="2" data-rammer="medlem">
       <h3><code>equity</code> mod <code>equity_total</code></h3>

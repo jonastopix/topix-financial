@@ -18,7 +18,13 @@ flere mails (stemplet fra 11:57 lukker begge grene, tørkørsel 18:26:
 ville_sende 0), bevist på skærm 18:29. LÆREN, DEL 4: «en ny ting skal
 spørge de eksisterende hvad de siger» — tre gange 7/9 (#696, #704, #716)
 blev den nye ting reconnet grundigt, og forbindelsen til det den PÅVIRKER
-aldrig undersøgt (DEL 2 «Fornyelseskæden», DEL 4).**
+aldrig undersøgt (DEL 2 «Fornyelseskæden», DEL 4). SENT: OMKOSTNINGERNES
+FORTEGN — to af fire skriveveje skrev omkostninger negativt (annual_report
+24 af 132 rækker, manual 16 af 67); alle fire skriver nu positivt (#721),
+og de 40 rækker er rettet i prod kl. 19:58 med SELECT før og efter. Et
+fund der IKKE er rettet: Floren Engros' 2025-tal er hundrede gange for
+små — 4.335 mod 248.112 — og kræver at nogen ser på rapporten (DEL 2
+«Omkostningernes fortegn», DEL 3, DEL 4).**
 
 **7. september 2026, sidst på dagen — FORNYELSESBESLUTNINGEN
 KAN TRÆFFES FRA VIRKSOMHEDSSIDEN (#707): før kunne den KUN træffes i
@@ -1962,6 +1968,66 @@ de 115 står tilbage — stadig husets største systematiske hul):
 
 Reglen står i DEL 1 «Kodearbejde»; fælderne i DEL 4.
 
+### Omkostningernes fortegn — rettet i alle fire skriveveje 7/9 (#721), data rettet i prod kl. 19:58
+
+Målt i prod 7/9 kl. 19:00: **to af fire skriveveje skrev omkostninger
+NEGATIVT** (regnskabets fortegn) — `annual_report` 24 af 132 rækker med
+negativ personaleudgift (9 virksomheder), `manual` 16 af 67 med negativ
+personale OG 16 med negativ afskrivning (10 virksomheder). Månedsvejen
+(`canonical`/`canonical_v2`, 118 rækker) skrev positivt, nul negative.
+Mangellistens tal (elleve virksomheder) var 9 + 10 med overlap. Fejlen
+var IKKE kun arv: den manuelle vej bruges hver gang nogen retter data i
+hånden.
+
+- **Hvorfor positivt er rigtigt — læst, ikke antaget.** Månedsvejen er
+  flertallet og den kanoniske: `normalizationProfiles` ender i positiv
+  konvention i alle syv profiler (`cost_like: ABS` i fem, `NEGATE` af
+  negative kilder i én, `KEEP` i én hvis kilde allerede er positiv),
+  `canonicalEngine` regner `ebitda = gross_profit − opex` med `opex > 0`,
+  og hver læser der summerer — `calcTotalExpenses`, BVA, ugefokus,
+  `budgetAktualer`, Dinero-skabelonen — tager `abs` selv. **Ingen læser
+  lægger en negativ omkostning til.** Et negativt fortegn var derfor
+  aldrig «rigtigt» nogen steder; det var en glidning fra formularens
+  placeholders («Eks. -320000») og fra AI'ens råtal på årsrapport-vejen
+  (den blev rettet 27/8, #440/#444, men rækkerne fra før stod).
+- **En TREDJE skrivevej fundet undervejs:** `save-annual-baseline` gemte
+  `payroll` som tastet. Også rettet. Nu: den manuelle vej kører
+  `positiveOmkostninger` (`src/lib/omkostningsFortegn.ts`) FØR
+  afledningen; årsrapport-vejen går gennem `normaliserAarsrapport` regel
+  1; baseline-vejen tager `Math.abs`; månedsvejen var rigtig. Et
+  kildelæsende værn (`omkostningsFortegn.guard.test.ts`) låser alle
+  fire — og navngiver den ene `KEEP`-profil som eksplicit undtagelse, så
+  en ny `KEEP` fejler. Læserne er ikke rørt.
+- **Sidegevinst:** EBITDA og EBIT afledes nu også for tal tastet med
+  minus. Før udelod `opex > 0`-guarden dem, så en manuel rettelse med
+  regnskabets fortegn tabte to nøgletal uden at sige det.
+- **Datarettelsen — kørt i prod 7/9 kl. 19:58 med SELECT før og efter.**
+  FØR: `payroll` 40, `depreciation` 16, `cogs` 28, `admin_costs` 28
+  negative. EFTER: nul i alle fire. Stikprøve ANLA GLAS 2026-05 →
+  448.780 / 208.687 / 897.547. **Rollback er ikke triviel:** de gamle
+  værdier er ikke gemt; de kan genskabes ved at vende fortegnet på de
+  samme rækker (`UPDATE … SET metrics = metrics || jsonb_build_object(k,
+  -(metrics->>k)::numeric)` for de fire nøgler, afgrænset til
+  `source_type IN ('annual_report','manual')` og `committed_at` før
+  19:58).
+- **De to mønstre, værd at kende.** ANLA GLAS havde seksten måneder med
+  ALLE fire poster negative — konsekvent regnskabskonvention, tastet i
+  hånden. Floren Engros havde fireogtyve måneder kopieret fra to
+  årsrapporter, hvor 2024 havde POSITIVE `cogs` og `admin_costs` men
+  negativ `payroll`, mens 2025 havde alle tre negative. Samme virksomhed,
+  samme vej, to udtræk, to fortegn — AI'ens råtal er ikke en konvention.
+
+**ÅBENT, IKKE RETTET — FLOREN ENGROS' 2025-TAL ER HUNDREDE GANGE FOR
+SMÅ.** Deres direkte omkostninger står som **4.335 kr. om måneden i 2025
+mod 248.112 i 2024** (`source_type = 'annual_report'`, tolv rækker).
+Fortegnet er nu rigtigt; TALLET er det ikke. Det er en årsrapport læst
+forkert af udtrækket — formentlig en tusindtalsfejl i parsingen — og det
+påvirker alt Floren ser af nøgletal for 2025: dækningsbidrag, EBITDA,
+omkostningsandel, og forsidens «stikker ud». Kan ikke rettes uden at
+nogen ser på selve rapporten (`financial_reports` for Floren 2025,
+`extracted_data` mod PDF'en). Mangellisten bærer kortet; DEL 3 bærer
+rækken.
+
 ### Mørke tokens på lyst papir — målt og rettet 7/9 (#685)
 
 `~/Downloads/recon-moerke-tokens-paa-papir.md` (uden for repoet —
@@ -2168,6 +2234,8 @@ facit og rækkefølge; `docs/chat-design.md` chattens form.
 | LØST 7/9 (#698, #699, migration kl. 14:26) | **Slutdatoen er den sidste dag MED adgang** — begge TypeScript-kopier og de to SQL-domme, flyttet sammen; målt før/efter: præcis én virksomhed (CARMA) ramt. | DEL 2 «Slutdatoen»; adgangsdomme.md |
 | LØST 7/9 (#675, #676) | **Baselinen er nul, og CI kører typecheck** — `bunx tsc --noEmit -p tsconfig.app.json` FØR testene i jobbet «Tests», uden kendt-liste og uden `continue-on-error`. Beslutningen om de fire blev «rettes» (#675), ingen af dem skjult. Bevist i drift: kørsel 34092921389, trin 6 «Typecheck» → success. Gaten fangede #678's to Record-aftagere samme dag. | DEL 1 «Kodearbejde» |
 | hører til opgave-epic'et, målt 6/9 kl. 22:18 | **Godkendelse skriver indeværende uges nøgle, og halvdelen af de uafgjorte forslag kan kun forkastes.** Otte forslag fra 25/8 (Topix 6, remm. 2, alle tørkørsler); fire `update_weekly_focus` kan godkendes, fire (`write_session_prep` ×3, `write_company_action`) kan kun forkastes — linjen lover «din afgørelse» om noget hvor den ene mulighed ikke findes. Og godkendes et augustforslag i dag, lander det som DENNE uges fokus (`skrivUgensFokus` → `getISOWeekKey(new Date())`). Forslag har ingen udløbsmekanik. *Puklen peger nu direkte på virksomheden når den dækker én (#672, 7/9); dækker den flere, er det stadig `/virksomheder`, for der findes ingen flade der viser forslag på tværs — kendt, står i koden.* Mangellisten bærer to kort. *Rettet 7/9 (#682): puklen tæller nu kun `proposed` — de fire `expired` session_prep-rækker talte med, fordi filtret var `decided_at is null`; forsiden siger «1 agentforslag venter», ikke 2 (DEL 2 «Agentkæden»).* *LUKKET 7/9 (#688): et forslag udløber når dets egen ISO-uge er passeret — godkendelse afvises med 409, forkastelse er stadig mulig, og «lander i denne uge»-fælden er dermed væk (bevist på skærm hos remm. kl. 11:31). LØST (#689): puklen og virksomhedssidens signal filtrerer udløbne fra i JS. ÅBENT: ingen cron skriver `expired`; udløbne ligger som `proposed` i databasen (DEL 2 «Agentkæden»).* | DEL 2 «Agentkæden»; DEL 4; `docs/opgave-model-design.md` |
+| LØST 7/9 (#721 + data kl. 19:58) | **Omkostningernes fortegn:** alle fire skriveveje skriver positivt; 40 rækker (payroll 40, depreciation 16, cogs 28, admin_costs 28) rettet i prod med SELECT før/efter, EFTER nul. Rollback = vend fortegnet på samme rækker. | DEL 2 «Omkostningernes fortegn» |
+| ÅBENT, målt 7/9 — kræver et menneske ved rapporten | **Floren Engros' 2025-tal er hundrede gange for små:** `cogs` 4.335 kr./md i 2025 mod 248.112 i 2024, `annual_report`. Fortegnet er rettet; tallet er forkert læst af udtrækket. Alle deres 2025-nøgletal bygger på det. Skal ses mod selve PDF'en før noget rettes. | DEL 2 «Omkostningernes fortegn»; mangellisten |
 | oprydning, målt 6/9 | **37 grene på origin ud over `main`** (Jonas' måling 6/9; `git ls-remote --heads` gav 38 ved bogføringen samme aften). `gh pr list --state merged` er den eneste der kan afgøre hvilke der må slettes (DEL 1). | DEL 1 «Git og Claude Code» |
 
 ---
@@ -2569,6 +2637,20 @@ De konkrete ting der har kostet tid. Led efter dem.
   recon. Konkret: find gaten i den anden ende (tilbud, checkout, bånd,
   badge) og kald den med den SAMME række, før noget sendes (7/9, DEL 2
   «Fornyelseskæden — CARMA-sagen»).
+- **Ét felt, fire skriveveje — spørg dem alle, og spørg DATA.** Fortegnet
+  på omkostninger stod som «årsrapport-vejens» fejl (kort #38, 27/8),
+  vejen blev rettet samme dag, og sagen lå. Målt i prod 7/9: den manuelle
+  vej skrev stadig negativt (16 af 67), og en tredje vej
+  (`save-annual-baseline`) gjorde det også. Én kode-rettelse retter ikke
+  rækkerne, og én vej er sjældent den eneste. Når et felt kan skrives
+  fra flere steder: tæl pr. `source_type` i prod FØR og EFTER, og lås
+  alle vejene med ét værn (7/9, #721 — DEL 2 «Omkostningernes fortegn»).
+- **Et rigtigt fortegn er ikke et rigtigt tal.** Da fortegnet var vendt,
+  stod Floren Engros' 2025-omkostninger som 4.335 om måneden mod
+  248.112 året før — hundrede gange for små, korrekt fortegn. En
+  datarettelse der kun rører det den er sat til, afslører det næste lag.
+  Se på stikprøven som et menneske ville: er størrelsen sandsynlig?
+  (7/9, DEL 2 «Omkostningernes fortegn»).
 
 ---
 
@@ -2643,4 +2725,9 @@ Skal ikke genforhandles uden ny måling.
   Morten»** (7/9). Kommer der en ekstern rådgiver, skal skellet mellem
   advisor og admin bruges, og adgangen genovervejes. (migration
   `20260907180000`, mangellisten «Advisor og admin er ikke skilt ad»)
+- **Omkostninger er POSITIVE tal i `financial_report_facts.metrics`**
+  (7/9, #721). Regnskabets minus vendes ved skrivning, i alle fire veje;
+  resultat, bruttoresultat og balance beholder deres fortegn. Læserne
+  må stadig tage `abs` — de er værnet mod arv. (DEL 2 «Omkostningernes
+  fortegn», `omkostningsFortegn.guard.test.ts`)
 - **Vi går ikke på kompromis** — hvert led bliver brugt af det næste.
