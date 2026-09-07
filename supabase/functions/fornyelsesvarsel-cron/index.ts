@@ -298,7 +298,9 @@ async function koerVarsler(
         slutDato: formatDanskDato(new Date(company.contract_end_date!)),
         beloebKr,
       };
-      const mail = varsel.varsel === 1 ? varsel1Mail(args) : varsel2Mail(args);
+      // Varsel 2 bærer dagtallet (emne «i dag» / «i morgen» / dato) — det er
+      // motorens tal, ikke et nyt regnestykke.
+      const mail = varsel.varsel === 1 ? varsel1Mail(args) : varsel2Mail({ ...args, dageTilUdloeb: varsel.dage_til_udloeb });
       const label = varsel.varsel === 1 ? LABEL_VARSEL_1 : LABEL_VARSEL_2;
 
       const ok = await sendIndgangsMail({
