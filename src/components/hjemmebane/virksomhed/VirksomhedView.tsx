@@ -1363,12 +1363,22 @@ const Blok7 = ({ d, onOpdateret }: { d: VirksomhedsData; onOpdateret: () => Prom
             {c.fornyelsespris_oere != null && <Linje label="Fornyelsespris">{formatKr(c.fornyelsespris_oere)}</Linje>}
             {c.subscription_status && <Linje label="Abonnement">{c.subscription_status}{c.subscription_current_period_end ? ` · til ${formatDato(c.subscription_current_period_end)}` : ""}</Linje>}
             {d.betalingslink && <Linje label="Underskrevet">{formatDato(d.betalingslink.underskrevet_at)}</Linje>}
+            {/* Fornyelsen som FORLØB, ikke som ét ord (rettet 7/9, set på skærm:
+                «Fornyelse: Tilbyd · dato» lød som en afsendelse, men besluttet_at
+                er RÅDGIVERENS beslutning — PHILBERT havde ikke hørt et ord).
+                Tre linjer, tre begivenheder: beslutningen siger hvad der er
+                besluttet; stemplerne varsel_1_sendt_at og varsel_2_sendt_at
+                (sat af fornyelsesvarsel-cron KUN når mailen kom i køen) siger
+                hvad der er sket. Linjerne kommer til efterhånden, så rådgiveren
+                ser hele forløbet — ikke kun det seneste. */}
             {d.fornyelse && (
               <Linje label="Fornyelse">
-                {d.fornyelse.beslutning === "tilbyd" ? "Tilbyd" : "Tilbyd ikke"} · {formatDato(d.fornyelse.besluttet_at)}
+                Besluttet: {d.fornyelse.beslutning === "tilbyd" ? "tilbyd" : "tilbyd ikke"} · {formatDato(d.fornyelse.besluttet_at)}
                 {d.fornyelse.note && <span className="block text-xs text-hb-ink-soft">{d.fornyelse.note}</span>}
               </Linje>
             )}
+            {d.fornyelse?.varsel_1_sendt_at && <Linje label="Varsel sendt">{formatDato(d.fornyelse.varsel_1_sendt_at)}</Linje>}
+            {d.fornyelse?.varsel_2_sendt_at && <Linje label="Påmindelse sendt">{formatDato(d.fornyelse.varsel_2_sendt_at)}</Linje>}
           </div>
         </HbCard>
 
