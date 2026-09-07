@@ -199,3 +199,58 @@ describe("medlemmets forside — «Dine aftaler» og de ulæste kaster, og fejle
     expect(boardroomKilde).toContain("Dine ulæste beskeder kunne ikke hentes. Prøv igen.");
   });
 });
+
+// ───────── Rapportering (medlemmets rapportliste og årsrapporter) ─────────
+const rapportSti = "src/components/hjemmebane/rapportering/RapporteringView.tsx";
+const rapportKilde = readFileSync(resolve(process.cwd(), rapportSti), "utf8");
+
+/** Fra `const reportsQuery = useQuery` til `const dbReports = useMemo` — månedsrapporterne. */
+const rapportHentning = (() => {
+  const start = rapportKilde.indexOf("const reportsQuery = useQuery");
+  const slut = rapportKilde.indexOf("const dbReports = useMemo", start);
+  expect(start, "reportsQuery mangler").toBeGreaterThan(-1);
+  expect(slut, "dbReports mangler").toBeGreaterThan(start);
+  return rapportKilde.slice(start, slut);
+})();
+
+/** Fra `const annualQuery = useQuery` til `const annualReports =` — årsrapporterne. */
+const aarsHentning = (() => {
+  const start = rapportKilde.indexOf("const annualQuery = useQuery");
+  const slut = rapportKilde.indexOf("const annualReports =", start);
+  expect(start, "annualQuery mangler").toBeGreaterThan(-1);
+  expect(slut, "annualReports mangler").toBeGreaterThan(start);
+  return rapportKilde.slice(start, slut);
+})();
+
+const RAPPORT_SKAL_KASTE: Array<[hentning: string, variabel: string, kildenavn: string, navn: string]> = [
+  [rapportHentning, "reportsRes", "financial_reports", "månedsrapporterne"],
+  [aarsHentning, "annualRes", "financial_reports", "årsrapporterne"],
+];
+
+describe("rapporteringen kaster — «Ingen rapporter endnu — upload din første» må aldrig være en fejl", () => {
+  it(`${rapportSti}: importerer kraevRaekker fra @/lib/kraevRaekker`, () => {
+    expect(rapportKilde).toContain('from "@/lib/kraevRaekker"');
+  });
+
+  for (const [hentning, variabel, kildenavn, navn] of RAPPORT_SKAL_KASTE) {
+    it(`${navn}: ${variabel} (${kildenavn}) læses med kraevRaekker og navngiver kilden`, () => {
+      expect(hentning, `kraevRaekker(${variabel}, "${kildenavn}") mangler`).toContain(`kraevRaekker(${variabel}, "${kildenavn}")`);
+    });
+
+    it(`${navn}: læses IKKE som \`.data ?? []\` eller \`const { data } = await\``, () => {
+      expect(hentning, `${variabel}.data ?? [] findes stadig`).not.toMatch(dataFallback(variabel));
+      expect(hentning, "det gamle `(data ?? [])` er tilbage").not.toMatch(/\(data \?\? \[\]\)/);
+      expect(hentning, "det gamle `const { data } = await` er tilbage").not.toMatch(/const \{ data(?::\s*\w+)? \} = await supabase/);
+    });
+  }
+
+  it("listen har en isError-gren der siger «kunne ikke hentes» — og IKKE opfordrer til upload", () => {
+    expect(rapportKilde).toContain("reportsQuery.isError");
+    expect(rapportKilde).toContain("Dine rapporter kunne ikke hentes.");
+  });
+
+  it("årsrapporterne har en isError-gren, og upload er gated på den (ellers en dublet)", () => {
+    expect(rapportKilde).toContain("annualQuery.isError");
+    expect(rapportKilde).toContain("Dine årsrapporter kunne ikke hentes.");
+  });
+});
