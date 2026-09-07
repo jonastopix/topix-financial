@@ -29,9 +29,24 @@ omkostninger» (52.018) til cogs og tabt «Vareforbrug» (3.155.034) — et
 match på ORDET, ikke på betydningen. Bruttoresultat, resultat, omsætning
 og personale var rigtige hele tiden; kun fordelingen mellem posterne var
 gal. Rettet i prod kl. 20:15, tolv rækker. Det åbne er større end
-Floren: hvor mange andre årsrapporter har to linjer der begge hedder
-noget med omkostninger? Ikke målt (DEL 2 «Omkostningernes fortegn»,
-DEL 3, DEL 4).**
+Floren — MÅLT kl. 20:24 på ALLE ELLEVE årsrapporter: rimelighedstesten
+ledte efter flere Floren-tilfælde og fandt noget andet og større. KUN TO
+AF ELLEVE UDTRÆK ER HELE — men målt igen kl. 20:32: hullerne BLIVER
+OVERSKREVET når virksomheden rapporterer månedligt, og ingen af de seks
+mangler omsætning i de seneste tolv rækker. Det rammer dem der IKKE
+rapporterer: remm. (0 af 12 målte, ni måneder uden rapport) og YKRG (2 af
+12, og ti rækker med omsætning NUL — ikke manglende, nul, som dommene
+ikke er beskyttet mod). DAGENS VIGTIGSTE SAMMENHÆNG: det er SAMME GRUPPE
+som de 73 ventende uploads og de under ti procent der svarer på
+opgaveforslag — tre målinger, tre sider af det samme: de medlemmer der
+ikke bruger platformen, får en platform der bliver forkert, og ingen af
+de tre målinger så det alene. Testen kunne kun prøve fire af elleve,
+fordi et felt der ikke findes har ingen andel. De tre værste:
+YKRG 2024 med omsætning NUL og 1,4 mio. i lønninger, Topix 2025 med
+negativt bruttoresultat uden vareforbrug, Booking Innovation 2025 med
+fire af fem felter manglende — og Booking 2024 med personale 46 kr. om
+måneden, læst tusind gange for lille (DEL 2 «Årsrapport-udtrækket», DEL
+3, DEL 4).**
 
 **7. september 2026, sidst på dagen — FORNYELSESBESLUTNINGEN
 KAN TRÆFFES FRA VIRKSOMHEDSSIDEN (#707): før kunne den KUN træffes i
@@ -2055,10 +2070,160 @@ tusindtalsfejl og ikke «alle nøgletal».
   rollback: `cogs = 4335`.
 - **Det åbne er større end Floren.** Floren blev fundet ved et TILFÆLDE —
   under en fortegnsrettelse, fordi et tal så forkert ud ved siden af året
-  før. Hvor mange andre `annual_report`-udtræk har taget den mindste af to
-  omkostningslinjer? Ikke målt; det kræver en gennemgang af alle
-  årsrapport-udtræk mod deres PDF'er. Mangellisten bærer kortet
-  «Udtrækket matcher på ordet, ikke på betydningen»; DEL 3 bærer rækken.
+  før. *Målt kl. 20:24 på alle elleve årsrapporter — afsnittet nedenfor:*
+  det er ikke linjevalget der er problemet; det er at kun to af elleve
+  udtræk er hele. Mangellisten bærer kortet «Kun to af elleve
+  årsrapport-udtræk er hele»; DEL 3 bærer rækken.
+
+### Årsrapport-udtrækket — målt 7/9 kl. 20:24 og 20:32: kun to af elleve udtræk er hele, og det rammer dem der IKKE rapporterer månedligt
+
+Rimelighedstesten fra Floren-sagen (vareforbrug som andel af omsætning)
+blev kørt på ALLE årsrapporter i prod kl. 20:24. Den ledte efter flere
+tilfælde af det forkerte linjevalg. **Den fandt noget andet og større** —
+og en måling kl. 20:32 nuancerede det afgørende: hvem der faktisk SER
+hullerne. Første måling, elleve
+årsrapporter, felter pr. måned (`financial_report_facts`, `source_type =
+'annual_report'`, `/12`-fordelt), ordret som målt:
+
+| Rapport | oms | cogs | payroll | gross | admin | |
+|---|---|---|---|---|---|---|
+| Alina Beauty & Skincare 2025 | 150.691 | 38.601 | 46.796 | 112.090 | 29.892 | **HEL** |
+| Floren Engros 2024 | 357.266 | 248.112 | 61.042 | 62.551 | 46.603 | **HEL** |
+| Floren Engros 2025 | 413.013 | 262.919 | 91.761 | 92.290 | 53.468 | **HEL** (rettet kl. 20:15) |
+| ANLA GLAS A/S 2024 | MANGLER | MANGLER | 310.629 | 376.753 | MANGLER | |
+| Booking Innovation 2024 | 83.665 | MANGLER | **46** | 17.047 | MANGLER | |
+| Booking Innovation 2025 | 62.493 | MANGLER | MANGLER | MANGLER | MANGLER | |
+| Doggybed 2025 | 15.836 | 5.066 | MANGLER | 10.770 | 13.925 | |
+| Livja 2025 | MANGLER | MANGLER | 34.547 | 34.615 | MANGLER | |
+| remm. 2025 | 109.671 | MANGLER | MANGLER | 34.199 | MANGLER | |
+| Topix.dk ApS 2025 | 48.930 | MANGLER | 19.587 | **−14.966** | MANGLER | |
+| YKRG APS 2024 | **0** | MANGLER | 117.444 | 45.565 | MANGLER | |
+
+(«To af elleve» er Alina og Floren 2024; Floren 2025 er hel fordi den
+blev rettet i hånden samme aften.)
+
+- **Rimelighedstesten, vareforbrug som andel af omsætning — kun FIRE
+  rapporter kan prøves,** fordi resten mangler det ene eller det andet:
+  Alina 25,6 % · Doggybed 32,0 % · Floren 2024 69,4 % · Floren 2025
+  63,7 %. Alle plausible. Florens spring fra 1 % til 64 % bekræfter
+  rettelsen kl. 20:15.
+- **Personale som andel:** Alina 31,1 % · Floren 17,1 og 22,2 % · Topix
+  40,0 % · **Booking Innovation 2024: 0,1 % — 46 kr. om måneden.** Det er
+  ikke en manglende linje, det er et tal læst tusind gange for lille.
+- **De tre værste, hver på sin måde:**
+  - **YKRG 2024:** omsætning NUL, men bruttoresultat 45.565 og personale
+    117.444 om måneden. En virksomhed med nul omsætning og 1,4 mio. i
+    lønninger. (Regel 2 i `normaliserAarsrapport` gør revenue 0 til
+    null — for NYE udtræk; denne række er fra før.)
+  - **Topix.dk 2025:** bruttoresultat MINUS 14.966 med omsætning 48.930
+    og intet vareforbrug — vores egen virksomhed.
+  - **Booking Innovation 2025:** kun omsætning. Fire af fem felter
+    mangler.
+
+**Konklusionen, skarpt:** det er IKKE enkeltfejl i linjevalget. **Kun to
+af elleve udtræk er hele.** Men de 108 ufuldstændige månedsrækker er
+IKKE alle det medlemmerne ser — det afgør målingen kl. 20:32.
+
+**Målt kl. 20:32 — hullerne BLIVER OVERSKREVET når virksomheden
+rapporterer månedligt.** De seneste tolv rækker pr. virksomhed (dem
+grafer, KPI'er og domme læser), ordret som målt:
+
+| Virksomhed | seneste række | målte af 12 | årsrapport af 12 | |
+|---|---|---|---|---|
+| ANLA GLAS A/S | 2026-05, manual | **12/12** | 0 | |
+| Booking Innovation | 2026-08, frisk | 8/12 | 4 | |
+| Livja | 2026-07, frisk | 7/12 | 5 | |
+| Topix.dk ApS | 2026-07, frisk | 7/12 | 5 | |
+| remm. | 2025-12, **IKKE frisk** | **0/12** | **12/12 ÅRSRAPPORT** | ramt NU |
+| YKRG APS | 2026-04, **IKKE frisk** | 2/12 | 10 | ramt NU — **og TI AF TOLV RÆKKER HAR OMSÆTNING NUL** |
+
+Ingen af de seks mangler omsætning i de seneste tolv — hullerne er
+overskrevet af målte måneder. Årsrapport-udtrækkets huller er derfor et
+problem for dem der IKKE rapporterer månedligt, ikke for alle ni. **To er
+ramt nu:**
+
+- **remm.:** alt hvad de ser er fordelte årstal — tolv af tolv rækker er
+  årsrapport, og de har ikke rapporteret i ni måneder (seneste 2025-12).
+  Deres graf, KPI'er og «Omk. total» er ét årstal delt med tolv, uden
+  vareforbrug og uden personale (tabellen ovenfor).
+- **YKRG — nul er ikke manglende, og det er værre.** Ti af tolv rækker
+  har omsætning **NUL** — ikke manglende, nul. Dommene er beskyttet mod
+  MANGLENDE værdier: `virksomhedsSignaler` kræver `!= null`,
+  `pctAendring` returnerer null når `prev === 0`, `calcDbMargin`/
+  `calcResultMargin` returnerer null når `rev === 0`. De er beskyttet i
+  NÆVNEREN — ikke mod nul i TÆLLEREN: en målt måned fulgt af en
+  årsrapport-måned med 0 giver «omsætningsfald −100 %» (`stikker_ud`),
+  KPI «Omsætning» viser 0, grafen ligger på nullinjen, BVA siger −100 %
+  mod budget, og «Omk. total» er 1,4 mio. i løn uden omsætning. (Regel 2
+  i `normaliserAarsrapport` gør revenue 0 til null — for NYE udtræk;
+  YKRGs rækker er fra før.) **Det skal måles hvad YKRG faktisk ser, før
+  nogen retter noget** — kræver prod:
+
+```sql
+-- YKRGs seneste tolv rækker: hvad står der, og hvor kommer det fra
+SELECT f.period_key, f.source_type, f.data_basis,
+       (f.metrics->>'revenue')::numeric      AS revenue,
+       (f.metrics->>'gross_profit')::numeric AS gross_profit,
+       (f.metrics->>'payroll')::numeric      AS payroll,
+       (f.metrics->>'ebt')::numeric          AS ebt,
+       f.committed_at
+FROM public.financial_report_facts f
+JOIN public.companies c ON c.id = f.company_id
+WHERE c.name ILIKE 'YKRG%'
+ORDER BY f.period_key DESC
+LIMIT 12;
+
+-- Hvilke domme og tal bygger på nullerne: de to seneste rækker (M/M),
+-- og om de to seneste begge er målte (momErGyldig) eller én er estimat
+SELECT f.period_key, f.data_basis, (f.metrics->>'revenue')::numeric AS revenue
+FROM public.financial_report_facts f
+JOIN public.companies c ON c.id = f.company_id
+WHERE c.name ILIKE 'YKRG%'
+ORDER BY f.period_key DESC
+LIMIT 2;
+
+-- Alle virksomheder: rækker med omsætning præcis 0 (ikke null) — hvem
+-- ellers har nuller som tal
+SELECT c.name, f.source_type, count(*) AS raekker_med_nul
+FROM public.financial_report_facts f
+JOIN public.companies c ON c.id = f.company_id
+WHERE (f.metrics->>'revenue')::numeric = 0
+GROUP BY c.name, f.source_type ORDER BY raekker_med_nul DESC;
+```
+
+**DAGENS VIGTIGSTE SAMMENHÆNG — tre målinger, tre sider af det samme.**
+Det er SAMME GRUPPE som de 73 ventende uploads
+(`~/Downloads/recon-ventende-uploads.md`: «PASS er ikke enden på flowet»
+— rapporter der aldrig blev godkendt, så medlemmet uploadede igen) og de
+under ti procent der svarer på opgaveforslag (DEL 2 «Opgave-modellen»).
+remm. har en invitation der har hængt i 80 dage og ingen rapport i ni
+måneder; YKRG rapporterede sidst i april. **De medlemmer der ikke bruger
+platformen, får en platform der bliver forkert** — årstal delt med tolv
+i stedet for måneder, nuller i stedet for tal, forslag der udløber
+usvarede — og ingen af de tre målinger så det alene. Hver for sig så det
+ud som et udtræksproblem, et godkendelsesproblem og et svarproblem. Det
+er ét problem: fravær, og en platform der ikke siger fravær men viser
+noget andet i stedet.
+
+Det ændrer hvor alvorligt årsrapport-sporet er — ikke til «ni af elleve
+er forkerte», men til: **udtrækket fylder huller ind som ingen ser, indtil
+en virksomhed holder op med at rapportere — og så er hullerne alt hvad
+de ser.**
+
+**Det næste skridt — kortlagt, ikke anbefalet:** elleve PDF'er
+(`financial_reports` bag de elleve `source_report_id`), én tabel over
+hvad hver rapport FAKTISK indeholder — hvilke linjer den har, med hvilke
+navne, og hvilket tal udtrækket tog eller tabte for hver af de fem
+felter — og derefter én beslutning: skal årsrapport-udtrækket bygges om
+(betydning frem for ord; skattebilag og årsregnskab som to forskellige
+dokumenttyper), eller erstattes af manuel indtastning for de felter det
+ikke kan finde (`save-annual-baseline` findes allerede som vej, med fem
+felter). Indtil beslutningen er truffet, er hullerne det remm. og YKRG ser
+— og det enhver virksomhed vil se, den dag den holder op med at
+rapportere og de målte måneder glider ud af de seneste tolv. Mangellisten
+bærer tre kort: «Kun to af elleve årsrapport-udtræk er hele», «Booking
+Innovations personale er 46 kr. om måneden» og «remm. og YKRG ser kun
+årstal — og YKRG ser nuller».
 
 ### Mørke tokens på lyst papir — målt og rettet 7/9 (#685)
 
@@ -2267,7 +2432,8 @@ facit og rækkefølge; `docs/chat-design.md` chattens form.
 | LØST 7/9 (#675, #676) | **Baselinen er nul, og CI kører typecheck** — `bunx tsc --noEmit -p tsconfig.app.json` FØR testene i jobbet «Tests», uden kendt-liste og uden `continue-on-error`. Beslutningen om de fire blev «rettes» (#675), ingen af dem skjult. Bevist i drift: kørsel 34092921389, trin 6 «Typecheck» → success. Gaten fangede #678's to Record-aftagere samme dag. | DEL 1 «Kodearbejde» |
 | hører til opgave-epic'et, målt 6/9 kl. 22:18 | **Godkendelse skriver indeværende uges nøgle, og halvdelen af de uafgjorte forslag kan kun forkastes.** Otte forslag fra 25/8 (Topix 6, remm. 2, alle tørkørsler); fire `update_weekly_focus` kan godkendes, fire (`write_session_prep` ×3, `write_company_action`) kan kun forkastes — linjen lover «din afgørelse» om noget hvor den ene mulighed ikke findes. Og godkendes et augustforslag i dag, lander det som DENNE uges fokus (`skrivUgensFokus` → `getISOWeekKey(new Date())`). Forslag har ingen udløbsmekanik. *Puklen peger nu direkte på virksomheden når den dækker én (#672, 7/9); dækker den flere, er det stadig `/virksomheder`, for der findes ingen flade der viser forslag på tværs — kendt, står i koden.* Mangellisten bærer to kort. *Rettet 7/9 (#682): puklen tæller nu kun `proposed` — de fire `expired` session_prep-rækker talte med, fordi filtret var `decided_at is null`; forsiden siger «1 agentforslag venter», ikke 2 (DEL 2 «Agentkæden»).* *LUKKET 7/9 (#688): et forslag udløber når dets egen ISO-uge er passeret — godkendelse afvises med 409, forkastelse er stadig mulig, og «lander i denne uge»-fælden er dermed væk (bevist på skærm hos remm. kl. 11:31). LØST (#689): puklen og virksomhedssidens signal filtrerer udløbne fra i JS. ÅBENT: ingen cron skriver `expired`; udløbne ligger som `proposed` i databasen (DEL 2 «Agentkæden»).* | DEL 2 «Agentkæden»; DEL 4; `docs/opgave-model-design.md` |
 | LØST 7/9 (#721 + data kl. 19:58) | **Omkostningernes fortegn:** alle fire skriveveje skriver positivt; 40 rækker (payroll 40, depreciation 16, cogs 28, admin_costs 28) rettet i prod med SELECT før/efter, EFTER nul. Rollback = vend fortegnet på samme rækker. | DEL 2 «Omkostningernes fortegn» |
-| LØST 7/9 kl. 20:15 for Floren — ÅBENT for resten: alle `annual_report`-udtræk mod deres PDF'er, ikke målt | **Udtrækket matcher på ordet, ikke på betydningen.** Floren 2025: rapporten havde «Vareforbrug» 3.155.034 og «Direkte omkostninger» 52.018; udtrækket tog den lille til `cogs`. Den første diagnose («hundrede gange for små», alle nøgletal) var for hård — bruttoresultat, resultat, omsætning og personale var rigtige; kun fordelingen mellem posterne. Rettet: tolv rækker, cogs 4.335 → 262.919. Hvor mange andre årsrapporter har to omkostningslinjer? Kræver gennemgang mod PDF'erne. | DEL 2 «Omkostningernes fortegn»; mangellisten «Udtrækket matcher på ordet» |
+| MÅLT 7/9 kl. 20:24 og 20:32 — KUN TO AF ELLEVE udtræk er hele, men hullerne overskrives af månedsrapporter; ramt NU: remm. og YKRG | **Årsrapport-udtrækket finder for ni af elleve rapporter ikke det det skal — og det rammer dem der ikke rapporterer.** Floren (linjevalg, rettet kl. 20:15) var ét symptom. Kl. 20:32: ingen af de seks mangler omsætning i de seneste tolv rækker; ANLA 12/12 målte, Booking/Livja/Topix 7–8/12. remm. 0/12 målte (ni måneder uden rapport), YKRG 2/12 — og ti rækker med omsætning NUL, som dommene ikke er beskyttet mod i tælleren. SAMME GRUPPE som de 73 ventende uploads og de under ti procent der svarer: fravær, og en platform der viser noget andet i stedet. **Det næste:** elleve PDF'er, én tabel over hvad hver rapport faktisk indeholder, beslutningen byg om / manuel indtastning — og FØRST: mål hvad YKRG ser (SQL i DEL 2). | DEL 2 «Årsrapport-udtrækket»; mangellisten «Kun to af elleve …», «remm. og YKRG …», «Booking Innovations personale …» |
+| ÅBENT, målt 7/9 kl. 20:24 — rettes når nogen ser rapporten | **Booking Innovations personale er 46 kr. om måneden** (2024, `annual_report`), 0,1 % af omsætningen — læst tusind gange for lille, ikke en manglende linje. Konkret og målbar: én PDF, ét tal. | DEL 2 «Årsrapport-udtrækket»; mangellisten |
 | oprydning, målt 6/9 | **37 grene på origin ud over `main`** (Jonas' måling 6/9; `git ls-remote --heads` gav 38 ved bogføringen samme aften). `gh pr list --state merged` er den eneste der kan afgøre hvilke der må slettes (DEL 1). | DEL 1 «Git og Claude Code» |
 
 ---
@@ -2689,6 +2855,14 @@ De konkrete ting der har kostet tid. Led efter dem.
   læst. En datarettelse der kun rører det den er sat til, afslører det
   næste lag; det næste lag skal også læses før det får en overskrift
   (7/9, #722 rettet samme aften — DEL 2 «Omkostningernes fortegn»).
+  **Og en rimelighedstest ser kun det der findes.** Testen (vareforbrug
+  som andel af omsætning) fandt Floren, men kunne kun prøve FIRE af
+  elleve rapporter — fordi en MANGLENDE post er usynlig for en test der
+  regner en andel. Et felt der ikke findes, har ingen andel; det giver
+  ingen alarm, det giver ingenting. Testen skal derfor stilles som TO
+  spørgsmål: er tallet sandsynligt, OG findes tallet overhovedet. Det
+  andet spørgsmål fandt ni af elleve (7/9 kl. 20:24, DEL 2
+  «Årsrapport-udtrækket»).
 
 ---
 
