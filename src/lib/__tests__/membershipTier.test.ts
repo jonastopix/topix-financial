@@ -73,9 +73,17 @@ describe("computeMembershipTier", () => {
       expected: "expired",
     },
     {
-      name: "boundary: contract_end_date exactly at now → expired (strict >)",
+      // Rettet 7/9: slutdatoen er den SIDSTE dag med adgang. Et tidsstempel
+      // læses som sin UTC-dag (22/5), og kl. 12 den dag er der stadig adgang.
+      // Før gav strengt '>' expired her.
+      name: "boundary: contract_end_date exactly at now → full (slutdagen tæller med)",
       input: { contract_end_date: NOW.toISOString(), subscription_status: null, subscription_current_period_end: null },
-      expected: "expired",
+      expected: "full",
+    },
+    {
+      name: "boundary: slutdato = i dag (date-only), sidste øjeblik på slutdagen → full",
+      input: { contract_end_date: "2026-05-22", subscription_status: null, subscription_current_period_end: null },
+      expected: "full",
     },
     {
       name: "boundary: subscription_current_period_end exactly at now with active sub → expired (strict >)",
@@ -100,6 +108,33 @@ describe("computeMembershipTier", () => {
     });
   }
 
+  // Grænsen fra begge sider (besluttet 7/9): slutdato 7/9 → adgang til og
+  // med 7/9, expired fra 8/9 kl. 00:00 UTC. CARMA STUDIO-tilfældet.
+  it("sidste øjeblik på slutdagen (23:59:59.999 UTC) er full", () => {
+    const input = { contract_end_date: "2026-09-07", subscription_status: null, subscription_current_period_end: null };
+    expect(computeMembershipTier(input, new Date("2026-09-07T23:59:59.999Z"))).toBe("full");
+    expect(computeMembershipTier(input, new Date("2026-09-07T00:00:00.000Z"))).toBe("full");
+    // Natten før slutdagen (02:00 dansk sommertid = 00:00 UTC) — det der før
+    // gav expired.
+    expect(computeMembershipTier(input, new Date("2026-09-07T00:00:00.001Z"))).toBe("full");
+  });
+
+  it("første øjeblik dagen efter slutdagen (00:00:00.000 UTC) er expired", () => {
+    const input = { contract_end_date: "2026-09-07", subscription_status: null, subscription_current_period_end: null };
+    expect(computeMembershipTier(input, new Date("2026-09-08T00:00:00.000Z"))).toBe("expired");
+    expect(computeMembershipTier(input, new Date("2026-09-09T12:00:00.000Z"))).toBe("expired");
+  });
+
+  it("et tidsstempel som slutdato læses som sin UTC-dag — ikke som tidspunkt", () => {
+    const input = { contract_end_date: "2026-09-07T10:00:00.000Z", subscription_status: null, subscription_current_period_end: null };
+    expect(computeMembershipTier(input, new Date("2026-09-07T18:00:00.000Z"))).toBe("full");
+    expect(computeMembershipTier(input, new Date("2026-09-08T00:00:00.000Z"))).toBe("expired");
+  });
+
+  it("ulæselig slutdato giver ikke full (fail-closed, som før)", () => {
+    expect(computeMembershipTier({ contract_end_date: "ikke-en-dato", subscription_status: null, subscription_current_period_end: null }, NOW)).toBe("expired");
+  });
+
   it("defaults to new Date() when now is omitted", () => {
     const farPast = "2020-01-01";
     expect(computeMembershipTier({
@@ -120,6 +155,9 @@ describe("computeMembershipTier — parity between src/lib and supabase/function
     { input: { contract_end_date: PAST_CONTRACT, subscription_status: "active", subscription_current_period_end: FUTURE_SUB_END }, now: NOW },
     { input: { contract_end_date: PAST_CONTRACT, subscription_status: null, subscription_current_period_end: null }, now: NOW },
     { input: { contract_end_date: NOW.toISOString(), subscription_status: null, subscription_current_period_end: null }, now: NOW },
+    { input: { contract_end_date: "2026-09-07", subscription_status: null, subscription_current_period_end: null }, now: new Date("2026-09-07T23:59:59.999Z") },
+    { input: { contract_end_date: "2026-09-07", subscription_status: null, subscription_current_period_end: null }, now: new Date("2026-09-08T00:00:00.000Z") },
+    { input: { contract_end_date: "ikke-en-dato", subscription_status: null, subscription_current_period_end: null }, now: NOW },
   ];
 
   for (const { input, now } of parityCases) {
