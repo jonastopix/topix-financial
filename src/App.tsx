@@ -2,7 +2,8 @@ import React, { lazy, Suspense } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { MutationCache, QueryCache, QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { logMutationFejl, logQueryFejl } from "@/lib/fejllogning";
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import { ViewModeProvider } from "@/hooks/useViewMode";
@@ -74,7 +75,19 @@ const DemoKPIs = lazy(() => import("./demo/DemoKPIs"));
 const DemoChat = lazy(() => import("./demo/DemoChat"));
 const DemoHandouts = lazy(() => import("./demo/DemoHandouts"));
 
-const queryClient = new QueryClient();
+// GLOBAL FEJLLOGNING (7/9, recon-tavse-fejl.md): før var dette
+// `new QueryClient()` uden caches, og ingen query- eller mutationsfejl
+// blev nogensinde logget. onError her sender fejlen til konsollen og til
+// Sentry med nøglen som kontekst (src/lib/fejllogning.ts). Adfærden er i
+// øvrigt UÆNDRET: ingen throwOnError, ingen ændret retry, ingen toasts.
+const queryClient = new QueryClient({
+  queryCache: new QueryCache({
+    onError: (error, query) => logQueryFejl(error, query.queryKey),
+  }),
+  mutationCache: new MutationCache({
+    onError: (error, _variables, _context, mutation) => logMutationFejl(error, mutation.options.mutationKey),
+  }),
+});
 
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { user, loading, isAdvisor, membershipTier } = useAuth();
