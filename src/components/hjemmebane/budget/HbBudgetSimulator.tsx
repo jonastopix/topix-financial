@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
 import { useCompanyFacts } from "@/hooks/useCompanyFacts";
-import { factsToDanishMetrics } from "@/lib/factsAdapter";
+import { aktualerFraFacts, forecastSerie } from "@/lib/budgetAktualer";
 import { formatDKK } from "@/lib/financialUtils";
 import {
   deriveGrowthFactor,
@@ -55,27 +55,11 @@ export const HbBudgetSimulator = ({ rows, year, companyId, userId }: Props) => {
   const [newEventMonth, setNewEventMonth] = useState(0);
   const [newEventIsRevenue, setNewEventIsRevenue] = useState(false);
 
-  // Aktuals pr. måned — spejler BudgetForecastTab.tsx:40-58.
-  const actualsMap = useMemo(() => {
-    const map: Record<number, { omsaetning: number; totalCosts: number }> = {};
-    for (const fact of facts) {
-      const [factYear, monthStr] = fact.period_key.split("-");
-      if (factYear !== year) continue;
-      const monthIdx = parseInt(monthStr, 10) - 1;
-      if (monthIdx < 0 || monthIdx > 11) continue;
-      const kf = factsToDanishMetrics(fact.metrics);
-      const omsaetning = kf.omsaetning ?? 0;
-      const totalCosts =
-        Math.abs(kf.loenninger ?? 0) +
-        Math.abs(kf.salgsomkostninger ?? 0) +
-        Math.abs(kf.lokaleomkostninger ?? 0) +
-        Math.abs(kf.administrationsomkostninger ?? 0) +
-        Math.abs(kf.direkte_omkostninger ?? 0) +
-        Math.abs(kf.afskrivninger ?? 0);
-      map[monthIdx] = { omsaetning, totalCosts };
-    }
-    return map;
-  }, [facts, year]);
+  // Aktuals pr. måned — gennem budgetAktualer (7/9): en umålt metric er
+  // null, ikke 0. Før stod `kf.omsaetning ?? 0` her, og en rapport uden
+  // omsætningslinje (25 af 314 facts i prod) blev til en nul-måned, der
+  // trak vækstfaktoren — og hele resten af årets forecast — ned mod 0,1.
+  const aktualer = useMemo(() => aktualerFraFacts(facts, year, { medAfskrivninger: true }), [facts, year]);
 
   const revenueRows = rows.filter((r) => r.group === "indtaegter");
   const costRows = rows.filter((r) => r.group !== "indtaegter");
@@ -84,33 +68,26 @@ export const HbBudgetSimulator = ({ rows, year, companyId, userId }: Props) => {
   const budgetCosts = MONTHS.map((_, i) => costRows.reduce((s, r) => s + Math.abs(r.values[i]), 0));
   const budgetEbitda = MONTHS.map((_, i) => budgetRevenue[i] - budgetCosts[i]);
 
-  const lastActualIdx = useMemo(() => {
-    let last = -1;
-    for (let i = 0; i < 12; i++) {
-      if (actualsMap[i] !== undefined) last = i;
-    }
-    return last;
-  }, [actualsMap]);
+  // Forecast pr. serie: målte måneder står som målt (en målt 0 er en 0),
+  // ukendte — huller og rapporter uden tallet — udfyldes med budget × faktor
+  // og holdes ude af faktoren (forecastSerie).
+  const omsSerie = forecastSerie(MONTHS.map((_, i) => aktualer[i]?.omsaetning ?? null), budgetRevenue);
+  const omkSerie = forecastSerie(MONTHS.map((_, i) => aktualer[i]?.omkostninger ?? null), budgetCosts);
+  const forecastRevenue = omsSerie.vaerdier;
+  const forecastCosts = omkSerie.vaerdier;
+  const lastActualIdx = Math.max(omsSerie.sidsteRealiseret, omkSerie.sidsteRealiseret);
 
-  const forecastRevenue = useMemo(() => {
-    if (lastActualIdx < 0) return budgetRevenue;
-    const actuals = Array.from({ length: lastActualIdx + 1 }, (_, i) => actualsMap[i]?.omsaetning ?? 0);
-    const factor = deriveGrowthFactor(actuals, budgetRevenue);
-    return MONTHS.map((_, i) => {
-      if (i <= lastActualIdx) return actualsMap[i]?.omsaetning ?? 0;
-      return Math.round(budgetRevenue[i] * factor);
-    });
-  }, [actualsMap, lastActualIdx, budgetRevenue]);
-
-  const forecastCosts = useMemo(() => {
-    if (lastActualIdx < 0) return budgetCosts;
-    const actuals = Array.from({ length: lastActualIdx + 1 }, (_, i) => actualsMap[i]?.totalCosts ?? 0);
-    const factor = deriveGrowthFactor(actuals, budgetCosts);
-    return MONTHS.map((_, i) => {
-      if (i <= lastActualIdx) return actualsMap[i]?.totalCosts ?? 0;
-      return Math.round(budgetCosts[i] * factor);
-    });
-  }, [actualsMap, lastActualIdx, budgetCosts]);
+  // Månedens status til prikken: begge serier målt = realiseret; én = delvis;
+  // rapport uden nogen af dem, eller ingen rapport før sidste målte = uden tal.
+  type MaanedsStatus = "realiseret" | "delvis" | "uden_tal" | "forecast";
+  const maanedsStatus: MaanedsStatus[] = MONTHS.map((_, i) => {
+    const oms = omsSerie.realiseret[i];
+    const omk = omkSerie.realiseret[i];
+    if (oms && omk) return "realiseret";
+    if (oms || omk) return "delvis";
+    return aktualer[i] !== undefined || i <= lastActualIdx ? "uden_tal" : "forecast";
+  });
+  const maanederUdenTal = MONTHS.filter((_, i) => maanedsStatus[i] === "uden_tal" || maanedsStatus[i] === "delvis");
 
   const forecastEbitda = MONTHS.map((_, i) => forecastRevenue[i] - forecastCosts[i]);
 
@@ -196,6 +173,8 @@ export const HbBudgetSimulator = ({ rows, year, companyId, userId }: Props) => {
             {lastActualIdx >= 0
               ? `Realiseret jan–${MONTHS[lastActualIdx].toLowerCase()} · forecast ${MONTHS[lastActualIdx + 1]?.toLowerCase() ?? ""}–dec`
               : "Ingen rapporter endnu — budgettet vises som forecast"}
+            {/* Hullet SIGES (7/9): en måned uden tal er forecastet, ikke nul. */}
+            {maanederUdenTal.length > 0 && ` · uden tal: ${maanederUdenTal.map((m) => m.toLowerCase()).join(", ")} — forecastet i stedet`}
           </p>
         </div>
         <div className="mt-4 grid grid-cols-1 gap-5 sm:grid-cols-3">
@@ -238,12 +217,26 @@ export const HbBudgetSimulator = ({ rows, year, companyId, userId }: Props) => {
                 {MONTHS.map((m, i) => (
                   <th key={m} className="min-w-[56px] px-1 py-2 text-center">
                     <span className="flex flex-col items-center gap-1">
+                      {/* Leveringsbåndets prikker (RapporteringView SLOT_DOT): fyldt =
+                          målt, halv = rapport med kun ét af tallene, grå-fyldt = rapport
+                          uden tal / hul før sidste målte (som «Mangler»), tom = forecast. */}
                       <span
                         className={cn(
                           "h-2.5 w-2.5 rounded-full border",
-                          i <= lastActualIdx ? "border-hb-evergreen bg-hb-evergreen" : "border-hb-line",
+                          maanedsStatus[i] === "realiseret" && "border-hb-evergreen bg-hb-evergreen",
+                          maanedsStatus[i] === "delvis" && "border-hb-evergreen [background:linear-gradient(90deg,hsl(var(--hb-evergreen))_50%,transparent_50%)]",
+                          maanedsStatus[i] === "uden_tal" && "border-hb-line bg-hb-line/40",
+                          maanedsStatus[i] === "forecast" && "border-hb-line",
                         )}
-                        title={i <= lastActualIdx ? "Realiseret måned" : "Forecast"}
+                        title={
+                          maanedsStatus[i] === "realiseret"
+                            ? "Realiseret måned"
+                            : maanedsStatus[i] === "delvis"
+                              ? "Rapport med kun ét af tallene — resten forecastet"
+                              : maanedsStatus[i] === "uden_tal"
+                                ? "Ingen tal for måneden — forecastet"
+                                : "Forecast"
+                        }
                       />
                       <span className="text-[10px] font-medium text-hb-ink-soft">{m}</span>
                     </span>
@@ -284,7 +277,7 @@ export const HbBudgetSimulator = ({ rows, year, companyId, userId }: Props) => {
           </table>
         </div>
         <p className="mt-2 text-[11px] text-hb-ink-soft">
-          Alle beløb i kr. · fyldt prik = måned med rapport-tal.
+          Alle beløb i kr. · fyldt prik = måned med rapport-tal · halv = kun ét af tallene · grå = uden tal, forecastet.
         </p>
       </HbCard>
 
