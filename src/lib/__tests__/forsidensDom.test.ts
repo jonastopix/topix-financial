@@ -60,6 +60,7 @@ function virksomhed(over: Partial<VirksomhedTilDom> = {}): VirksomhedTilDom {
     signaler: [],
     agentforslagVenter: 0,
     fornyelse: null,
+    varsel1SendtAt: null,
     indgang: null,
     opgaver: [],
     ...over,
@@ -87,7 +88,7 @@ describe("konstanterne", () => {
   });
 
   it("de nye alvorstal passer ind i motorens skala (95/90/80/70/55/50/40/30)", () => {
-    expect(ALVOR_FORNYELSE).toEqual({ udloebet_tilbyd: 90, klar_til_tilbud: 75, beslutning_mangler: 70 });
+    expect(ALVOR_FORNYELSE).toEqual({ udloebet_tilbyd: 90, klar_til_tilbud: 75, klar_til_tilbud_varslet: 65, beslutning_mangler: 70 });
     expect(ALVOR_INDGANG).toEqual({ frist_overskredet: 90, afventer_pris: 85, klar_til_mail: 65, afventer_betaling: 60 });
     expect(ALVOR_OPGAVE).toEqual({ forfalden: 75, inden_for_3_dage: 70, inden_for_14_dage: 55 });
   });
@@ -157,6 +158,57 @@ describe("hver slags alene", () => {
     expect(l.virksomheder[0].grund).toMatchObject({
       signaltype: "beslutning_mangler", lukkerOmDage: 40, handling: "Beslut fornyelsen for Syd", indsats: 1,
     });
+  });
+
+  it("fornyelse: klar_til_tilbud UDEN varsel (75) siger «Send tilbuddet» — systemet har ikke sendt noget", () => {
+    const d = afgoerForsidensDom([virksomhed({ navn: "Vest", fornyelse: fornyelse("klar_til_tilbud", 20), varsel1SendtAt: null })], NU);
+    const [l] = tilstandslinjer(d);
+    expect(l.alvor).toBe(75);
+    expect(l.virksomheder[0].grund).toMatchObject({
+      signaltype: "klar_til_tilbud",
+      tekst: "Fornyelse besluttet: tilbyd — 20 dage til udløb",
+      handling: "Send tilbuddet til Vest",
+      lukkerOmDage: 20,
+      indsats: 1,
+    });
+  });
+
+  it("fornyelse: klar_til_tilbud MED varsel 1 sendt (65) siger «Skriv til» — systemet har sendt tilbuddet (7/9)", () => {
+    const d = afgoerForsidensDom(
+      [virksomhed({ navn: "Vest", fornyelse: fornyelse("klar_til_tilbud", 20), varsel1SendtAt: "2026-09-07T11:00:00.000Z" })],
+      NU,
+    );
+    // Under tærsklen (70) og uden for vinduesporten: ingen linje — den står
+    // blandt «det mindre presserende», som alvor 65 skal.
+    expect(d.linjer).toHaveLength(0);
+    const [t] = d.underStregen.tilstande;
+    expect(t).toMatchObject({ slags: "fornyelse", alvor: 65, antal: 1 });
+    expect(t.virksomheder[0].grund).toMatchObject({
+      signaltype: "klar_til_tilbud_varslet",
+      tekst: "Varslet er sendt — 20 dage til udløb",
+      handling: "Skriv til Vest",
+      lukkerOmDage: 20,
+      indsats: 1,
+    });
+  });
+
+  it("fornyelse: varslet + vinduet lukker inden for 7 dage → løftes til linjen trods alvor 65 (dér går varsel 2)", () => {
+    const d = afgoerForsidensDom(
+      [virksomhed({ navn: "Vest", fornyelse: fornyelse("klar_til_tilbud", 5), varsel1SendtAt: "2026-09-07T11:00:00.000Z" })],
+      NU,
+    );
+    expect(d.linjer).toHaveLength(1);
+    expect(virksomhedslinjer(d)[0].grunde[0]).toMatchObject({ signaltype: "klar_til_tilbud_varslet", handling: "Skriv til Vest" });
+  });
+
+  it("fornyelse: stemplet ændrer INTET for andre statusser — udloebet_tilbyd siger stadig «Følg op»", () => {
+    const d = afgoerForsidensDom(
+      [virksomhed({ navn: "Øst", fornyelse: fornyelse("udloebet_tilbyd", -3), varsel1SendtAt: "2026-08-20T11:00:00.000Z" })],
+      NU,
+    );
+    const [l] = tilstandslinjer(d);
+    expect(l.alvor).toBe(90);
+    expect(l.virksomheder[0].grund).toMatchObject({ signaltype: "udloebet_tilbyd", handling: "Følg op på tilbuddet til Øst" });
   });
 
   it("fornyelse: udloebet_tilbyd (90) har et lukket vindue — alvor bærer den, ikke hast", () => {

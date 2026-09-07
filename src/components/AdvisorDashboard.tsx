@@ -442,9 +442,13 @@ export const hentAdvisorDashboard = () =>
           .limit(2000) as any),
         // Forsidens dom, slags 1: fornyelsesbeslutninger — samme læsning som
         // FornyelsesSektion (:91-93). Ingen række = ingen beslutning.
+        // varsel_1_sendt_at (7/9): stemplet fornyelsesvarsel-cron sætter når
+        // varsel 1 er gået — dommen siger så «skriv til» frem for «send
+        // tilbuddet». Samme kolonne hentes i useVirksomhed; de to skal sige
+        // det samme (varselStempel.guard.test.ts).
         (supabase
           .from("company_fornyelse" as any)
-          .select("company_id, beslutning")
+          .select("company_id, beslutning, varsel_1_sendt_at")
           .limit(2000) as any),
         // Forsidens dom, slags 2: indgangen — samme læsning som IndgangsSektion
         // (:128-132), uden companies-join (contract_end_date tages fra
@@ -999,8 +1003,10 @@ export const hentAdvisorDashboard = () =>
       // indgang kun hvor der er en linkrække; opgaver kun aktive med frist.
       // Motorerne køres her — dommen tager deres UDFALD, ikke deres råstof.
       const beslutningByCompany = new Map<string, Fornyelsesbeslutning>();
-      for (const r of (((fornyelseRes as any)?.data || []) as { company_id: string; beslutning: string }[])) {
+      const varsel1ByCompany = new Map<string, string | null>();
+      for (const r of (((fornyelseRes as any)?.data || []) as { company_id: string; beslutning: string; varsel_1_sendt_at: string | null }[])) {
         if (r.beslutning === "tilbyd" || r.beslutning === "tilbyd_ikke") beslutningByCompany.set(r.company_id, r.beslutning);
+        varsel1ByCompany.set(r.company_id, r.varsel_1_sendt_at ?? null);
       }
       const betalingslinkByCompany = new Map<string, {
         prisniveau_oere: number | null; underskrevet_at: string; betalingsmail_sendt_at: string | null; sidste_paamindelse_dag: number | null;
@@ -1039,6 +1045,7 @@ export const hentAdvisorDashboard = () =>
                   beslutning: beslutningByCompany.get(c.company_id) ?? null,
                 }, now)
               : null,
+            varsel1SendtAt: varsel1ByCompany.get(c.company_id) ?? null,
             indgang: link
               ? afgoerBetalingsfrist({
                   prisniveau_oere: link.prisniveau_oere,
