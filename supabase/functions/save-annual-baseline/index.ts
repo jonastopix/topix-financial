@@ -88,7 +88,11 @@ Deno.serve(async (req) => {
     // ── Build 12 monthly rows ──
     const rev = Number(revenue) || 0;
     const gp = gross_profit != null && gross_profit !== "" ? Number(gross_profit) : null;
-    const pay = payroll != null && payroll !== "" ? Number(payroll) : null;
+    // FORTEGN (7/9): omkostninger gemmes POSITIVE — husets konvention, samme
+    // som månedsvejen (normalizationProfiles cost_like: ABS) og årsrapport-
+    // vejen (normaliserAarsrapport, regel 1). Denne vej skrev tallet som
+    // tastet; målt i prod 7/9 stod 16 manual-rækker med negativ personale.
+    const pay = payroll != null && payroll !== "" ? Math.abs(Number(payroll)) : null;
     const ebtVal = Number(ebt) || 0;
     const cashVal = cash != null && cash !== "" ? Number(cash) : null;
 
