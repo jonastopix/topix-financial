@@ -40,7 +40,7 @@
  * (agent_runs/agent_proposals :112-121). RLS: advisor-policies tillader
  * company-nøglet læsning på alle tolv kilder (målt 4/9).
  */
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { erForslagGyldigt } from "@/lib/forslagUdloeb";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -386,27 +386,29 @@ async function hentVirksomhed(companyId: string): Promise<VirksomhedsData | null
   };
 }
 
-// ── Fornyelsesbeslutningen: skrivevejen fra virksomhedssiden (7/9) ──────
+// ── Fornyelsesbeslutningen: DEN ENE skrivevej til company_fornyelse ────
 //
 // Beslutningen kunne før KUN træffes i FornyelsesSektion på /members — og
 // /members er ude af menuen, så kæden (varsel 1 → tilbud) hang på en URL
-// skrevet i hånden. Aftalen-kortet (VirksomhedView blok 7) kan nu sætte og
-// fjerne den. Skrivevejen står HER, i sidens datalag, og ikke i komponenten:
-// samme upsert/delete som FornyelsesSektion.gemBeslutning/fjernBeslutning
-// (kolonne for kolonne, samme onConflict), med husets to tjek — error OG
-// antal berørte rækker; en advisor-write der rammer nul rækker tavst er den
-// kendte RLS-fælde. FornyelsesSektion er ikke rettet til at kalde disse i
-// denne omgang (Jonas 7/9: rør den ikke) — det er den oplagte opfølgning,
-// så der bliver ÉN skrivevej. Indtil da er dette en kopi af tre statements,
-// ikke af logik: motoren og ordene bor i lib (fornyelse.ts, fornyelsesOrd.ts).
+// skrevet i hånden. Aftalen-kortet (VirksomhedView blok 7, #707) kan nu
+// sætte og fjerne den. Samlet 7/9: FornyelsesSektion kalder de samme tre
+// funktioner, så tabellen skrives ÉT sted (værn:
+// src/hooks/__tests__/fornyelseSkrivevej.guard.test.ts). Alle tre har
+// husets to tjek — error OG antal berørte rækker; en advisor-write der
+// rammer nul rækker tavst er den kendte RLS-fælde. De returnerer void:
+// sandheden hentes igen af invaliderFornyelsesLaesere, som kalderen
+// awaiter — ingen flade patcher sin cache med sin egen udgave af rækken.
+// Motoren og ordene bor i lib (fornyelse.ts, fornyelsesOrd.ts).
 //
 // «Ingen række = endnu ikke besluttet»: at FJERNE en beslutning er derfor
 // ikke det samme som tilbyd_ikke (tabellens kontrakt, migration 20260811120000).
 
+/** Sæt beslutningen (upsert på company_id). Stempler besluttet_af og
+    besluttet_at — det ER en ny beslutning, også når værdien er den samme.
+    Noten gives med: kortet bevarer den eksisterende, listen sender sin kladde. */
 export async function skrivFornyelsesbeslutning(input: {
   companyId: string;
   beslutning: Fornyelsesbeslutning;
-  /** Bevares fra den eksisterende række — kortet redigerer ikke noten (kun /members gør). */
   note: string | null;
   besluttetAf: string;
 }): Promise<void> {
@@ -431,6 +433,22 @@ export async function skrivFornyelsesbeslutning(input: {
   }
 }
 
+/** Ret KUN noten på en eksisterende beslutning. Egen funktion, ikke en
+    gren i skrivFornyelsesbeslutning: noten skal kunne ændres uden at
+    beslutningen, besluttet_af og besluttet_at røres — en ny note er ikke
+    en ny beslutning. Uden række rammes nul rækker og der kastes. */
+export async function skrivFornyelsesnote(companyId: string, note: string | null): Promise<void> {
+  const { data, error } = await supabase
+    .from("company_fornyelse")
+    .update({ note, updated_at: new Date().toISOString() })
+    .eq("company_id", companyId)
+    .select("company_id");
+  if (error) throw new Error(error.message);
+  if (!data || data.length === 0) {
+    throw new Error("Skrivningen ramte nul rækker — noten er IKKE gemt (RLS).");
+  }
+}
+
 export async function sletFornyelsesbeslutning(companyId: string): Promise<void> {
   const { data, error } = await supabase
     .from("company_fornyelse")
@@ -450,6 +468,17 @@ export async function sletFornyelsesbeslutning(companyId: string): Promise<void>
     FornyelsesSektions egen liste på /members (["company-fornyelse"]).
     Ingen andre læsere i src (grep company_fornyelse). */
 export const FORNYELSE_LAESER_KEYS = [["advisor-dashboard"], ["company-fornyelse"]] as const;
+
+/** Efter en skrivning: alle tre læsere, uanset hvilken flade der skrev.
+    Awaites — løftet er først opfyldt når de AKTIVE queries er hentet igen
+    (den flade der står åben); de inaktive markeres forældede og hentes
+    når de mountes. */
+export async function invaliderFornyelsesLaesere(queryClient: QueryClient, companyId: string): Promise<void> {
+  await Promise.all([
+    queryClient.invalidateQueries({ queryKey: ["virksomhed", companyId] }),
+    ...FORNYELSE_LAESER_KEYS.map((queryKey) => queryClient.invalidateQueries({ queryKey: [...queryKey] })),
+  ]);
+}
 
 export function useVirksomhed(companyId: string | undefined) {
   const { user, isAdvisor } = useAuth();
@@ -480,10 +509,7 @@ export function useVirksomhed(companyId: string | undefined) {
         løftet er først opfyldt når siden ER hentet igen; de inaktive
         cacher markeres blot forældede og hentes når de mountes. */
     invaliderFornyelse: async () => {
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ["virksomhed", companyId] }),
-        ...FORNYELSE_LAESER_KEYS.map((queryKey) => queryClient.invalidateQueries({ queryKey: [...queryKey] })),
-      ]);
+      if (companyId) await invaliderFornyelsesLaesere(queryClient, companyId);
     },
   };
 }
