@@ -22,9 +22,16 @@ aldrig undersøgt (DEL 2 «Fornyelseskæden», DEL 4). SENT: OMKOSTNINGERNES
 FORTEGN — to af fire skriveveje skrev omkostninger negativt (annual_report
 24 af 132 rækker, manual 16 af 67); alle fire skriver nu positivt (#721),
 og de 40 rækker er rettet i prod kl. 19:58 med SELECT før og efter. Et
-fund der IKKE er rettet: Floren Engros' 2025-tal er hundrede gange for
-små — 4.335 mod 248.112 — og kræver at nogen ser på rapporten (DEL 2
-«Omkostningernes fortegn», DEL 3, DEL 4).**
+fund der IKKE var rettet: Floren Engros' 2025-tal så hundrede gange for
+små ud — 4.335 mod 248.112. RAPPORTEN ER LÆST, kl. 20:15, og diagnosen
+var for hård: udtrækket havde taget rapportens LILLE linje «Direkte
+omkostninger» (52.018) til cogs og tabt «Vareforbrug» (3.155.034) — et
+match på ORDET, ikke på betydningen. Bruttoresultat, resultat, omsætning
+og personale var rigtige hele tiden; kun fordelingen mellem posterne var
+gal. Rettet i prod kl. 20:15, tolv rækker. Det åbne er større end
+Floren: hvor mange andre årsrapporter har to linjer der begge hedder
+noget med omkostninger? Ikke målt (DEL 2 «Omkostningernes fortegn»,
+DEL 3, DEL 4).**
 
 **7. september 2026, sidst på dagen — FORNYELSESBESLUTNINGEN
 KAN TRÆFFES FRA VIRKSOMHEDSSIDEN (#707): før kunne den KUN træffes i
@@ -2017,16 +2024,41 @@ hånden.
   negativ `payroll`, mens 2025 havde alle tre negative. Samme virksomhed,
   samme vej, to udtræk, to fortegn — AI'ens råtal er ikke en konvention.
 
-**ÅBENT, IKKE RETTET — FLOREN ENGROS' 2025-TAL ER HUNDREDE GANGE FOR
-SMÅ.** Deres direkte omkostninger står som **4.335 kr. om måneden i 2025
-mod 248.112 i 2024** (`source_type = 'annual_report'`, tolv rækker).
-Fortegnet er nu rigtigt; TALLET er det ikke. Det er en årsrapport læst
-forkert af udtrækket — formentlig en tusindtalsfejl i parsingen — og det
-påvirker alt Floren ser af nøgletal for 2025: dækningsbidrag, EBITDA,
-omkostningsandel, og forsidens «stikker ud». Kan ikke rettes uden at
-nogen ser på selve rapporten (`financial_reports` for Floren 2025,
-`extracted_data` mod PDF'en). Mangellisten bærer kortet; DEL 3 bærer
-rækken.
+**FLOREN ENGROS 2025 — først skrevet kl. 19:58 som «HUNDREDE GANGE FOR
+SMÅ … påvirker alt Floren ser af nøgletal for 2025: dækningsbidrag,
+EBITDA, omkostningsandel» (#722). RETTELSE kl. 20:15, efter at rapporten
+var læst: DEN DIAGNOSE VAR FOR HÅRD.** Det så sådan ud — `cogs` 4.335
+kr. om måneden i 2025 mod 248.112 i 2024 — men det var ikke en
+tusindtalsfejl og ikke «alle nøgletal».
+
+- **Hvad der VAR galt: linjevalget.** Årsregnskab 2025 (Dansk Regnskab,
+  underskrevet af Mette Skov 23/03/2026) har TO linjer: «Vareforbrug»
+  3.155.034 (note 1: varekøb minus lagerregulering) og «Direkte
+  omkostninger» 52.018 (note 2: KM-penge og arbejdstøj). Udtrækket tog
+  «Direkte omkostninger» til `cogs` og TABTE vareforbruget — **et match på
+  ORDET, ikke på betydningen.** 2024 blev læst rigtigt (2.977.338 = note
+  1's 2024-tal), men det er ikke udtrækkets kvalitet der svinger: 2024 er
+  et SKATTEBILAG («Bilag til oplysningsskema») med én linje, 2025 et
+  rigtigt årsregnskab med begge.
+- **Hvad der IKKE var galt.** Bruttoresultat og resultat var korrekte
+  hele tiden — 92.290 og −1.674 om måneden, præcis rapportens tal.
+  Omsætning og personale også. `admin_costs` 53.468 er summen af salg,
+  bil, ejendom, admin og andre personaleomkostninger (5.631 + 16.168 +
+  15.874 + 12.727 + 3.070) — korrekt sammenlagt. Florens dækningsgrad så
+  rigtig ud (22,3 %, som rapporten). Fejlen var FORDELINGEN mellem
+  omkostningsposterne — vareforbruget manglede, omkostningsstrukturen var
+  ubrugelig — ikke totalerne.
+- **Rettet i prod 7/9 kl. 20:15:** tolv rækker, `cogs` fra 4.335 til
+  262.919, guardet på 4335 så en allerede rettet række rammer nul. Året i
+  alt 3.155.028 mod rapportens 3.155.034 — seks kroner i afrunding, fordi
+  tallet ikke går op i tolv. Omsætningen stemmer på kronen. FØR-værdi til
+  rollback: `cogs = 4335`.
+- **Det åbne er større end Floren.** Floren blev fundet ved et TILFÆLDE —
+  under en fortegnsrettelse, fordi et tal så forkert ud ved siden af året
+  før. Hvor mange andre `annual_report`-udtræk har taget den mindste af to
+  omkostningslinjer? Ikke målt; det kræver en gennemgang af alle
+  årsrapport-udtræk mod deres PDF'er. Mangellisten bærer kortet
+  «Udtrækket matcher på ordet, ikke på betydningen»; DEL 3 bærer rækken.
 
 ### Mørke tokens på lyst papir — målt og rettet 7/9 (#685)
 
@@ -2235,7 +2267,7 @@ facit og rækkefølge; `docs/chat-design.md` chattens form.
 | LØST 7/9 (#675, #676) | **Baselinen er nul, og CI kører typecheck** — `bunx tsc --noEmit -p tsconfig.app.json` FØR testene i jobbet «Tests», uden kendt-liste og uden `continue-on-error`. Beslutningen om de fire blev «rettes» (#675), ingen af dem skjult. Bevist i drift: kørsel 34092921389, trin 6 «Typecheck» → success. Gaten fangede #678's to Record-aftagere samme dag. | DEL 1 «Kodearbejde» |
 | hører til opgave-epic'et, målt 6/9 kl. 22:18 | **Godkendelse skriver indeværende uges nøgle, og halvdelen af de uafgjorte forslag kan kun forkastes.** Otte forslag fra 25/8 (Topix 6, remm. 2, alle tørkørsler); fire `update_weekly_focus` kan godkendes, fire (`write_session_prep` ×3, `write_company_action`) kan kun forkastes — linjen lover «din afgørelse» om noget hvor den ene mulighed ikke findes. Og godkendes et augustforslag i dag, lander det som DENNE uges fokus (`skrivUgensFokus` → `getISOWeekKey(new Date())`). Forslag har ingen udløbsmekanik. *Puklen peger nu direkte på virksomheden når den dækker én (#672, 7/9); dækker den flere, er det stadig `/virksomheder`, for der findes ingen flade der viser forslag på tværs — kendt, står i koden.* Mangellisten bærer to kort. *Rettet 7/9 (#682): puklen tæller nu kun `proposed` — de fire `expired` session_prep-rækker talte med, fordi filtret var `decided_at is null`; forsiden siger «1 agentforslag venter», ikke 2 (DEL 2 «Agentkæden»).* *LUKKET 7/9 (#688): et forslag udløber når dets egen ISO-uge er passeret — godkendelse afvises med 409, forkastelse er stadig mulig, og «lander i denne uge»-fælden er dermed væk (bevist på skærm hos remm. kl. 11:31). LØST (#689): puklen og virksomhedssidens signal filtrerer udløbne fra i JS. ÅBENT: ingen cron skriver `expired`; udløbne ligger som `proposed` i databasen (DEL 2 «Agentkæden»).* | DEL 2 «Agentkæden»; DEL 4; `docs/opgave-model-design.md` |
 | LØST 7/9 (#721 + data kl. 19:58) | **Omkostningernes fortegn:** alle fire skriveveje skriver positivt; 40 rækker (payroll 40, depreciation 16, cogs 28, admin_costs 28) rettet i prod med SELECT før/efter, EFTER nul. Rollback = vend fortegnet på samme rækker. | DEL 2 «Omkostningernes fortegn» |
-| ÅBENT, målt 7/9 — kræver et menneske ved rapporten | **Floren Engros' 2025-tal er hundrede gange for små:** `cogs` 4.335 kr./md i 2025 mod 248.112 i 2024, `annual_report`. Fortegnet er rettet; tallet er forkert læst af udtrækket. Alle deres 2025-nøgletal bygger på det. Skal ses mod selve PDF'en før noget rettes. | DEL 2 «Omkostningernes fortegn»; mangellisten |
+| LØST 7/9 kl. 20:15 for Floren — ÅBENT for resten: alle `annual_report`-udtræk mod deres PDF'er, ikke målt | **Udtrækket matcher på ordet, ikke på betydningen.** Floren 2025: rapporten havde «Vareforbrug» 3.155.034 og «Direkte omkostninger» 52.018; udtrækket tog den lille til `cogs`. Den første diagnose («hundrede gange for små», alle nøgletal) var for hård — bruttoresultat, resultat, omsætning og personale var rigtige; kun fordelingen mellem posterne. Rettet: tolv rækker, cogs 4.335 → 262.919. Hvor mange andre årsrapporter har to omkostningslinjer? Kræver gennemgang mod PDF'erne. | DEL 2 «Omkostningernes fortegn»; mangellisten «Udtrækket matcher på ordet» |
 | oprydning, målt 6/9 | **37 grene på origin ud over `main`** (Jonas' måling 6/9; `git ls-remote --heads` gav 38 ved bogføringen samme aften). `gh pr list --state merged` er den eneste der kan afgøre hvilke der må slettes (DEL 1). | DEL 1 «Git og Claude Code» |
 
 ---
@@ -2645,12 +2677,18 @@ De konkrete ting der har kostet tid. Led efter dem.
   rækkerne, og én vej er sjældent den eneste. Når et felt kan skrives
   fra flere steder: tæl pr. `source_type` i prod FØR og EFTER, og lås
   alle vejene med ét værn (7/9, #721 — DEL 2 «Omkostningernes fortegn»).
-- **Et rigtigt fortegn er ikke et rigtigt tal.** Da fortegnet var vendt,
-  stod Floren Engros' 2025-omkostninger som 4.335 om måneden mod
-  248.112 året før — hundrede gange for små, korrekt fortegn. En
-  datarettelse der kun rører det den er sat til, afslører det næste lag.
-  Se på stikprøven som et menneske ville: er størrelsen sandsynlig?
-  (7/9, DEL 2 «Omkostningernes fortegn»).
+- **Et rigtigt fortegn er ikke et rigtigt tal — og en genkendt fejl er
+  ikke en læst fejl.** Da fortegnet var vendt, stod Floren Engros'
+  2025-omkostninger som 4.335 om måneden mod 248.112 året før. Stikprøven
+  afslørede fejlen, men den FØRSTE diagnose var forkert: «hundrede gange
+  for lille» var et mønster jeg genkendte (tusindtalsfejl), og jeg skrev
+  «alle nøgletal for 2025» ud fra det. Sandheden var en ANDEN LINJE i
+  samme rapport — udtrækket havde taget «Direkte omkostninger» 52.018 og
+  tabt «Vareforbrug» 3.155.034; totalerne var rigtige hele tiden. Læs
+  KILDEN, ikke kun tallet — og skriv først konklusionen når kilden er
+  læst. En datarettelse der kun rører det den er sat til, afslører det
+  næste lag; det næste lag skal også læses før det får en overskrift
+  (7/9, #722 rettet samme aften — DEL 2 «Omkostningernes fortegn»).
 
 ---
 
