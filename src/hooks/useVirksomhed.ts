@@ -166,7 +166,7 @@ export interface VirksomhedsData {
   kpiMaal: ResolvedTargets;
   /** company_actions der venter: open/proposed/active (BoardroomView:1686). */
   opgaver: { id: string; title: string; status: string; priority: string; due_date: string | null }[];
-  /** agent_proposals uden decided_at — motorens definition (virksomhedsSignaler.ts:135). */
+  /** agent_proposals med status 'proposed' — det der kan afgøres (virksomhedsSignaler.ts:135). */
   agentforslagVenter: number;
   traek: VirksomhedsTraek[];
   perioder: VirksomhedsPeriode[];
@@ -218,11 +218,15 @@ async function hentVirksomhed(companyId: string): Promise<VirksomhedsData | null
       .in("status", ["open", "proposed", "active"])
       .order("created_at", { ascending: false })
       .limit(50),
+    // Filtret er på status, ikke decided_at (rettet 7/9): 'expired' har
+    // decided_at = NULL, fordi ingen afgjorde den — evnen blev fjernet.
+    // Kun 'proposed' kan afgøres i AgentForslagPanel; samme filter som
+    // AdvisorDashboard, så forsiden og virksomhedssiden siger samme tal.
     supabase
       .from("agent_proposals")
       .select("id", { count: "exact", head: true })
       .eq("company_id", companyId)
-      .is("decided_at", null),
+      .eq("status", "proposed"),
     supabase
       .from("company_traek")
       .select("company_id, stripe_invoice_id, beloeb_oere, fejlet_at, forsoeg, naeste_forsoeg_at, fejl_kode, fejl_decline_code, fejl_besked, hosted_invoice_url, faktura_nummer, periode_start, periode_slut, status, art, betalt_at")
