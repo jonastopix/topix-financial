@@ -236,14 +236,27 @@ describe("afgoerFornyelsestilstand — grænser", () => {
     expect(ud.status).toBe("i_god_tid");
   });
 
-  it("præcis udløbsdagen: dage = 0, tier er expired (date-only midnat er passeret)", () => {
-    // computeMembershipTier bruger strengt '>' mod kl. 00:00 UTC på dagen,
-    // så på selve udløbsdagen kl. 10 er medlemskabet allerede udløbet.
+  it("præcis slutdagen: dage = 0, tier er stadig full — slutdatoen er den sidste dag med adgang (rettet 7/9)", () => {
+    // computeMembershipTier (rettet 7/9): slutdatoen er den SIDSTE dag med
+    // adgang, expired først kl. 00:00 UTC dagen efter. På selve slutdagen
+    // kl. 10 er medlemmet derfor full og uden beslutning stadig i
+    // beslutningsvinduet — ikke ophoert. Før 7/9 gav strengt '>' mod
+    // UTC-midnat på dagen expired og ophoert her.
     const ud = afgoerFornyelsestilstand(
       input({ contract_end_date: "2026-10-15" }),
       EFTER_IKRAFT_NU,
     );
     expect(ud.dage_til_udloeb).toBe(0);
+    expect(ud.status).toBe("beslutning_mangler");
+    expect(ud.tier).toBe("full");
+  });
+
+  it("dagen efter slutdagen: dage = -1, tier er expired, og uden beslutning er det ophoert — grænsen låst fra begge sider", () => {
+    const ud = afgoerFornyelsestilstand(
+      input({ contract_end_date: "2026-10-14" }),
+      EFTER_IKRAFT_NU,
+    );
+    expect(ud.dage_til_udloeb).toBe(-1);
     expect(ud.status).toBe("ophoert");
     expect(ud.tier).toBe("expired");
   });

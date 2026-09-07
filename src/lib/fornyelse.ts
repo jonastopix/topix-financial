@@ -29,10 +29,11 @@ export const FORNYELSES_VINDUE_DAGE = 60;
  * Ordningens ikrafttrædelsesdato. Virksomheder med slutdato PÅ ELLER FØR
  * denne dato er uden for ordningen: de er håndteret i personlig dialog uden
  * for systemet. Ordningen træder i kraft 10. september 2026 og må ikke sende
- * noget på bagkant. Grænsen er "på eller før", ikke "før", fordi adgangen
- * forsvinder kl. 00:00 UTC på selve slutdagen — et medlem med slutdato
- * præcis 10. september har mistet adgangen i samme øjeblik, ordningen
- * begynder.
+ * noget på bagkant. Grænsen er "på eller før", ikke "før": slutdatoen er
+ * den SIDSTE dag med adgang (membershipTier.ts, rettet 7/9 — før
+ * forsvandt adgangen kl. 00:00 UTC på selve slutdagen), så et medlem med
+ * slutdato præcis 10. september har sin sidste dag samme dag ordningen
+ * begynder, og der er ingen dag at sende noget i.
  */
 export const FORNYELSE_IKRAFT_DATO = "2026-09-10";
 
@@ -174,11 +175,12 @@ export function afgoerFornyelsestilstand(
   // status må kunne returneres for disse (ikke-udløbne) virksomheder.
   // Disse virksomheder er håndteret i personlig dialog uden
   // for systemet. Ordningen træder i kraft 10. september 2026 og må ikke
-  // sende noget på bagkant. Grænsen er "på eller før", ikke "før", fordi
-  // adgangen forsvinder kl. 00:00 UTC på selve slutdagen — et medlem med
-  // slutdato præcis 10. september har mistet adgangen i samme øjeblik,
-  // ordningen begynder. Sammenligningen sker på kalenderdato (UTC), ikke
-  // tidsstempel, og afhænger ikke af maskinens tidszone.
+  // sende noget på bagkant. Grænsen er "på eller før", ikke "før":
+  // slutdatoen er den SIDSTE dag med adgang (membershipTier.ts, rettet
+  // 7/9), så et medlem med slutdato præcis 10. september har sin sidste
+  // dag samme dag ordningen begynder — der er ingen dag at sende noget i.
+  // Sammenligningen sker på kalenderdato (UTC), ikke tidsstempel, og
+  // afhænger ikke af maskinens tidszone.
   const slutdag = utcKalenderdato(input.contract_end_date);
   if (slutdag !== null && slutdag <= FORNYELSE_IKRAFT_DATO) {
     return { status: "uden_for_ordningen", dage_til_udloeb, tier };
