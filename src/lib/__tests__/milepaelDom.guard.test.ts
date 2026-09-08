@@ -26,6 +26,9 @@ const DAEKKEDE = [
   "src/components/hjemmebane/virksomhed/VirksomhedView.tsx",
   "src/hooks/useVirksomhed.ts",
   "src/lib/virksomhedsSignaler.ts",
+  // Digesten (8/9, efter #741): dømmer gennem _shared/digestMilepaele → milepaelDom.
+  "supabase/functions/_shared/digestMilepaele.ts",
+  "supabase/functions/send-monthly-digest/index.ts",
 ];
 
 /** Motoren selv er den ENESTE der må skrive reglen — og kun disse to linjer. */
@@ -38,8 +41,7 @@ const AFVIGERE: Array<{ sti: string; regel: string; hvorfor: string }> = [
   // frist inden 14 dage) — en tekstlig påmindelse, ikke en tilstand.
   { sti: "supabase/functions/generate-weekly-focus/index.ts", regel: '.lt("progress", 50)', hvorfor: "T3 MILESTONE_DUE_SOON: bevidst tærskel < 50" },
   { sti: "supabase/functions/generate-weekly-focus/index.ts", regel: '.lt("progress", 100)', hvorfor: "T4 MILESTONE_STALLED: bør kalde afgoerMilepael(…).aktiv" },
-  // Uden for denne omgangs stier (8/9): digesten røres ikke; boardroom er det andet vindue.
-  { sti: "supabase/functions/send-monthly-digest/index.ts", regel: '.lt("progress", 100)', hvorfor: "digesten: bør kalde afgoerMilepael fra _shared/milepaelDom.ts og skille forfaldne fra kommende" },
+  // Uden for 8/9-omgangens stier: boardroom er det andet vindue.
   { sti: "src/components/hjemmebane/boardroom/nextStep.ts", regel: 'm.progress < 100 && m.status !== "parked"', hvorfor: "forsidens «Dit næste skridt»: bør kalde afgoerMilepael (boardroom-mappen, andet vindue)" },
   { sti: "src/components/hjemmebane/boardroom/BoardroomView.tsx", regel: "m.progress >= 100", hvorfor: "milestonesDone-tællingen (boardroom-mappen, andet vindue)" },
   { sti: "supabase/functions/run-company-agent/index.ts", regel: 'progress >= 100 ? "completed" : "active"', hvorfor: "agentens skrivevej: bør kalde statusEfterFremgang" },
