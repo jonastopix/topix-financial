@@ -175,42 +175,18 @@ Deno.serve(async (req) => {
     const subject = replaceVars(subjectTpl, vars);
     const html = replaceVars(bodyTpl, vars);
 
-    const messageId = crypto.randomUUID();
-
-    await adminSupabase.from('email_send_log').insert({
-      message_id: messageId,
-      template_name: 'invitation',
-      recipient_email: email,
-      status: 'pending',
+    const resultat = await sendManagedEmail({
+      adminClient: adminSupabase,
+      to: email,
+      from: senderFrom,
+      subject,
+      html,
+      text: `${subject}\n\n${company_name}\n\n${signup_url}`,
+      label: 'invitation',
     });
 
-    const { error: enqueueError } = await adminSupabase.rpc('enqueue_email', {
-      queue_name: 'transactional_emails',
-      payload: {
-        message_id: messageId,
-        idempotency_key: messageId,
-        to: email,
-        from: senderFrom,
-        sender_domain: SENDER_DOMAIN,
-        subject,
-        html,
-        text: `${subject}\n\n${company_name}\n\n${signup_url}`,
-        purpose: 'transactional',
-        label: 'invitation',
-        queued_at: new Date().toISOString(),
-      },
-    });
-
-    if (enqueueError) {
-      console.error('[send-invitation-email] Enqueue failed:', enqueueError);
-      await adminSupabase.from('email_send_log').insert({
-        message_id: messageId,
-        template_name: 'invitation',
-        recipient_email: email,
-        status: 'failed',
-        error_message: 'Failed to enqueue email',
-      });
-      throw new Error(`Failed to enqueue email: ${JSON.stringify(enqueueError)}`);
+    if (!resultat.sent && resultat.reason === 'failed') {
+      throw new Error(`Failed to send invitation email: ${resultat.error}`);
     }
 
     console.log(`[send-invitation-email] Enqueued invitation for: ${email} (company: ${company_name})`);
