@@ -309,36 +309,20 @@ Deno.serve(async (req) => {
       highlight || undefined,
     );
 
-    // Enqueue via email queue for retry safety
-    const messageId = crypto.randomUUID();
     const subject = `Dit ${currentMonthLabel}-overblik`;
 
-    await adminClient.from("email_send_log").insert({
-      message_id: messageId,
-      template_name: "monthly-digest",
-      recipient_email: email,
-      status: "pending",
+    const resultat = await sendManagedEmail({
+      adminClient: adminClient,
+      to: email,
+      from: FROM,
+      subject,
+      html,
+      text: subject,
+      label: "monthly-digest",
     });
 
-    const { error: enqueueErr } = await adminClient.rpc("enqueue_email", {
-      queue_name: "transactional_emails",
-      payload: {
-        message_id: messageId,
-        idempotency_key: messageId,
-        to: email,
-        from: FROM,
-        sender_domain: SENDER_DOMAIN,
-        subject,
-        html,
-        text: subject,
-        purpose: "transactional",
-        label: "monthly-digest",
-        queued_at: new Date().toISOString(),
-      },
-    });
-
-    if (enqueueErr) {
-      console.error(`[digest] Enqueue failed for ${email}:`, enqueueErr);
+    if (!resultat.sent) {
+      console.error(`[digest] Mail ikke sendt (${resultat.reason}) for modtager`);
       continue;
     }
 

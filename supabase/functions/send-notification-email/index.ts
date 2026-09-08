@@ -418,34 +418,18 @@ Deno.serve(async (req) => {
         undefined
       );
 
-      const messageId = crypto.randomUUID();
-
-      await admin.from("email_send_log").insert({
-        message_id: messageId,
-        template_name: `notification-chat_aggregated`,
-        recipient_email: userEmail,
-        status: "pending",
+      const resultat = await sendManagedEmail({
+        adminClient: admin,
+        to: userEmail,
+        from: SENDER_FROM,
+        subject,
+        html,
+        text: subject,
+        label: `notification-chat_aggregated`,
       });
 
-      const { error: enqueueErr } = await admin.rpc("enqueue_email", {
-        queue_name: "transactional_emails",
-        payload: {
-          message_id: messageId,
-          idempotency_key: messageId,
-          to: userEmail,
-          from: SENDER_FROM,
-          sender_domain: SENDER_DOMAIN,
-          subject,
-          html,
-          text: subject,
-          purpose: "transactional",
-          label: `notification-chat_aggregated`,
-          queued_at: new Date().toISOString(),
-        },
-      });
-
-      if (enqueueErr) {
-        console.error(`Enqueue failed for aggregated chat notifs user ${userId}:`, enqueueErr);
+      if (!resultat.sent) {
+        console.error(`Mail ikke sendt (${resultat.reason}) for aggregated chat notifs user ${userId}`);
         skipped += chatNotifs.length;
         continue;
       }
@@ -609,36 +593,19 @@ Deno.serve(async (req) => {
         ? `${tpl.sender_name} <${VERIFIED_FROM_EMAIL}>`
         : SENDER_FROM;
 
-      const messageId = crypto.randomUUID();
-
-      // Log pending
-      await admin.from("email_send_log").insert({
-        message_id: messageId,
-        template_name: `notification-${notif.type}`,
-        recipient_email: userEmail,
-        status: "pending",
+      const resultat = await sendManagedEmail({
+        adminClient: admin,
+        to: userEmail,
+        from: senderFrom,
+        subject,
+        html,
+        text,
+        label: `notification-${notif.type}`,
+        idempotencyKey: `notification-${notif.id}`,
       });
 
-      // Enqueue via existing email queue
-      const { error: enqueueErr } = await admin.rpc("enqueue_email", {
-        queue_name: "transactional_emails",
-        payload: {
-          message_id: messageId,
-          idempotency_key: messageId,
-          to: userEmail,
-          from: senderFrom,
-          sender_domain: SENDER_DOMAIN,
-          subject,
-          html,
-          text,
-          purpose: "transactional",
-          label: `notification-${notif.type}`,
-          queued_at: new Date().toISOString(),
-        },
-      });
-
-      if (enqueueErr) {
-        console.error(`Enqueue failed for ${notif.id}:`, enqueueErr);
+      if (!resultat.sent) {
+        console.error(`Mail ikke sendt (${resultat.reason}) for ${notif.id}`);
         skipped++;
         continue;
       }
