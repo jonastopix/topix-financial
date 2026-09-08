@@ -5,6 +5,8 @@ import { beregnUdloeb } from "../_shared/opgaveUdloeb.ts";
 // Uge-nøglen: den kanoniske ISO-formel — flyttet ORDRET herfra til
 // _shared/isoUge.ts (hændelsen 2026-08-25), adfærd uændret (paritetstest).
 import { getISOWeekKey } from "../_shared/isoUge.ts";
+import { computeMembershipTier } from "../_shared/membershipTier.ts";
+import { maaSkriveForslag, skalHaveUgensFokus } from "./ugensFokusGate.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -59,19 +61,41 @@ Deno.serve(async (req) => {
   const singleCompanyId = body?.company_id ?? null;
 
   try {
-    // Fetch companies to process
+    // Fetch companies to process. GATEN (Jonas 8/9, ugensFokusGate.ts):
+    // flaget alene var ikke nok — Rallysupport og ANLA GLAS, begge faldet
+    // ud, fik seks forslag hver. Tier og status læses med, og dommen
+    // er den samme som run-weekly-agent har brugt for agentens ugekørsel:
+    // status active (eller null) og tier ≠ expired. Gælder OGSÅ
+    // single-company-kaldet ved rapport-godkendelse — en rådgiver der
+    // godkender en gammel rapport for en falden virksomhed, skal ikke
+    // udløse forslag til den.
     let query = admin
       .from("companies")
-      .select("id, name, industry_code, industry_label")
+      .select("id, name, industry_code, industry_label, status, contract_end_date, subscription_status, subscription_current_period_end")
       .eq("weekly_focus_enabled", true);
     if (singleCompanyId) query = query.eq("id", singleCompanyId);
     const { data: companies, error: compErr } = await query;
     if (compErr) throw compErr;
 
-    const weekKey = getISOWeekKey(new Date());
-    const results = { processed: 0, skipped: 0, errors: 0 };
+    const gateNu = new Date();
+    const weekKey = getISOWeekKey(gateNu);
+    const results = { processed: 0, skipped: 0, gated: 0, errors: 0 };
 
     for (const company of (companies || [])) {
+      const gate = skalHaveUgensFokus({
+        status: company.status,
+        tier: computeMembershipTier({
+          contract_end_date: company.contract_end_date,
+          subscription_status: company.subscription_status,
+          subscription_current_period_end: company.subscription_current_period_end,
+        }, gateNu),
+      });
+      if (!gate.ok) {
+        console.log(`[weekly-focus] Gate: ${company.name} (${company.id}) springes over — ${gate.grund}`);
+        results.gated++;
+        continue;
+      }
+
       // Rate limiting: 2s between companies
       if (results.processed + results.skipped + results.errors > 0) await delay(2000);
 
@@ -531,7 +555,22 @@ Generer en ugentlig fokusanalyse. Svar med dette JSON-format:
     expires_at: new Date(now.getTime() + 8 * 24 * 60 * 60 * 1000).toISOString(),
   }, { onConflict: "company_id,week_key" });
 
-  // Persist actions
+  // Persist actions — men KUN hvis intet ligger ubesvaret (Jonas 8/9,
+  // ugensFokusGate.maaSkriveForslag): seks ubesvarede plus seks nye er
+  // ikke et nudge. Tæller ventende forslag af ENHVER kilde — også
+  // rådgiverens — der ikke er udløbet endnu. Kortet ovenfor er skrevet;
+  // kun forslagene holdes tilbage.
+  const { count: antalVentende } = await admin
+    .from("company_actions")
+    .select("id", { count: "exact", head: true })
+    .eq("company_id", company.id)
+    .eq("status", "proposed")
+    .gt("expires_at", now.toISOString());
+  if (actions.length > 0 && !maaSkriveForslag(antalVentende ?? 0)) {
+    console.log(`[weekly-focus] ${company.name}: ${antalVentende} forslag venter ubesvaret — skriver ikke ${actions.length} nye`);
+    actions.length = 0;
+  }
+
   if (actions.length > 0) {
     // Get company user_id (first member)
     const { data: members } = await admin

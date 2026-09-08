@@ -20,6 +20,7 @@ import { maaFjerneMedlem } from "@/lib/medlemsfjernelse";
 import type { CompanyFact } from "@/hooks/useCompanyFacts";
 import { factsToDanishMetrics } from "@/lib/factsAdapter";
 import { afgoerVirksomhedsSignaler, type FactPunkt, type Signal, type VirksomhedsInput } from "@/lib/virksomhedsSignaler";
+import { udloebneForslagTekst } from "@/lib/forslagTab";
 import { afgoerMilepael } from "@/lib/milepaelDom";
 import { afgoerIntroSession, introSessionTekst, type IntroBooking } from "@/lib/introSession";
 import { computeMembershipTier, type MembershipTier } from "@/lib/membershipTier";
@@ -305,7 +306,10 @@ const Blok1 = ({ d, facts, derfor }: { d: VirksomhedsData; facts: CompanyFact[];
   // aktivitet). Den er en data-linje herunder, ikke et signal — bevidst
   // adskilt, så motorens dom og fladens tælling ikke blandes.
   const opgaverVenter = d.opgaver.filter((o) => o.status === "proposed" || o.status === "open").length;
-  const tom = signaler.length === 0 && opgaverVenter === 0;
+  // Forslag der udløb uden svar (8/9): 63 i prod, og ingen flade viste dem.
+  // Samme form som linjen ovenfor — en data-linje, ikke et signal.
+  const udloebneTekst = udloebneForslagTekst(d.udloebneForslag);
+  const tom = signaler.length === 0 && opgaverVenter === 0 && !udloebneTekst;
   return (
     <HbSection eyebrow="Hvad skal du vide nu" hairline>
       {/* «Derfor er du her» (§6): kun når man kom fra forsiden med en grund
@@ -343,6 +347,12 @@ const Blok1 = ({ d, facts, derfor }: { d: VirksomhedsData; facts: CompanyFact[];
             <li className="flex items-baseline gap-3 text-[15px] leading-snug text-hb-ink">
               <span aria-hidden className="mt-[0.55em] h-1.5 w-1.5 shrink-0 rounded-full bg-current" />
               <span>{opgaverVenter} {opgaverVenter === 1 ? "opgave venter" : "opgaver venter"} på svar</span>
+            </li>
+          )}
+          {udloebneTekst && (
+            <li className="flex items-baseline gap-3 text-[15px] leading-snug text-hb-ink-soft">
+              <span aria-hidden className="mt-[0.55em] h-1.5 w-1.5 shrink-0 rounded-full bg-current" />
+              <span>{udloebneTekst}</span>
             </li>
           )}
         </ul>
