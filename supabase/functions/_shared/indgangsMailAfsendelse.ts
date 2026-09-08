@@ -7,13 +7,9 @@
  * på den samme måde. Send-vejen er kopieret fra send-invitation-email og
  * intro-reminder-cron (målt 2/9, recon af mailsystemet):
  *
- *   1. email_send_log får en række med status 'pending' FØR enqueue.
- *   2. enqueue_email(queue_name, payload) — service-role-only, tager kun
- *      et JSONB-objekt og kender ingen bruger. Det er netop derfor køen
- *      kan bruges her: modtageren har ikke en konto endnu.
- *   3. message_id = crypto.randomUUID(), som også er idempotency_key.
- *      DB-værnet er unique index på email_send_log(message_id) WHERE
- *      status = 'sent'.
+ *   1. Mailen sendes gennem Lovables mail-API (sendManagedEmail).
+ *   2. email_send_log får ÉN række med udfaldet: sent, suppressed eller
+ *      failed. Levering, genforsøg og spærring ligger hos platformen.
  *
  * KASTER ALDRIG. Fejler noget, logges det med company_id, og der
  * returneres false. Kalderen afgør hvad det betyder: dag 0-kalderen
