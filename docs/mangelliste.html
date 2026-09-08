@@ -463,6 +463,11 @@
       <p>0 af 12 betalte har <code>calendly_event_uri</code>, mod 2 af 3 gratis. <code>stripe-webhook</code> skriver Calendlys URL råt, hvor den gratis vej indlejrer bookingens id; <code>calendly-webhook</code> matcher desuden kun på <code>advisor = 'morten'</code>. Kæden virker for medlemmet (de booker og mødes); reparationen kræver Calendly-abonnement på premium. Bevidst nedprioriteret, ikke glemt.</p>
       <div class="meta"><span class="tag ny">Ny 4/9</span><span class="tag">Prioritet lav</span><span class="tag size">Mellem</span></div>
     </div>
+    <div class="card blocked new" data-status="fejl" data-spor="1" data-rammer="medlem">
+      <h3>Sletteknappen lover noget ingen hører</h3>
+      <p>«Ja, slet min data» i <code>MembershipExpiredGate</code> skriver <code>companies.offboarding_requested_at</code> og siger «Jonas kontakter dig inden for 2 hverdage». Kolonnen læses af ingen — ingen notifikation, ingen cron, ingen flade. Alina Beauty & Skincare trykkede 2/6; det blev fundet 8/9, 103 dage senere, ved et tilfælde. GDPR-fristen er én måned. Det der skal til: enten en besked til Jonas i det øjeblik der trykkes — eller, bedre, at knappen sletter selv efter en frist på 7-30 dage, med en kvittering der siger hvornår, og med samme liste som «Der findes ingen slettefunktion». Sagen står i OVERLEVERING DEL 2 «Alina-sagen».</p>
+      <div class="meta"><span class="tag ny">Ny 8/9</span><span class="tag rust">Live fejl</span><span class="tag size">Stor</span></div>
+    </div>
   </div>
   </section>
 
@@ -1225,6 +1230,16 @@
       <p>Bogført i <code>supabase/SECURITY_BASELINE.md</code> §5, ikke rettet: (1) <code>messages</code> DELETE har ingen tidsgrænse, og to overlappende policies ligger der («Members can delete own messages» og «Users can delete own messages», den sidste bredest). (2) Storage-policyen «Authenticated users can upload feedback screenshots» har <code>WITH CHECK</code> på <code>bucket_id</code> alene uden mappetjek — enhver authenticated kan skrive til enhver sti i den bucket.</p>
       <div class="meta"><span class="tag ny">Ny 4/9</span><span class="tag size">Lille</span></div>
     </div>
+    <div class="card new" data-status="mangler" data-spor="1" data-rammer="ingen">
+      <h3>Der findes ingen slettefunktion</h3>
+      <p>Alinas sletning 8/9 tog en formiddag i hånden. <code>hardDeleteCompany</code> kan ikke bruges: den sletter <code>companies</code>-rækken til sidst, og <code>company_perioder</code>, <code>company_traek</code> og <code>company_betalingslink</code> er ON DELETE CASCADE mod den — vores eget bilag ville ryge. Kaskaden fra <code>auth.users</code> tager ikke alt: 198 loginposter med IP, 5 handouts, 1 pulse-checkin og 1 conversation_last_seen stod tilbage efter kontoen var slettet. Specifikationen ER listen fra Alinas sletning (<code>~/Downloads/recon-alinas-sletning.md</code> + OVERLEVERING DEL 2 «Alina-sagen»): hver tabel med user_id og company_id, rækkefølgen, storage, arkivsporet der bliver (navn, CVR, kontraktperiode, status, offboarding_requested_at) og bilaget der aldrig røres. Næste sletning skal tage fem sekunder.</p>
+      <div class="meta"><span class="tag ny">Ny 8/9</span><span class="tag size">Stor</span></div>
+    </div>
+    <div class="card decision new" data-status="beslutning" data-spor="senere" data-rammer="ingen">
+      <h3>Ingen opbevaringspolitik</h3>
+      <p>Nul træffere på gdpr, retention og anonymisering i hele kodebasen (kode, migrationer, CLAUDE.md, SECURITY_BASELINE). Én cron sletter noget efter tid: <code>agent-runs-opbevaring</code> (reasoning efter 90 dage, kørsler efter 12 måneder). <code>purge_old_email_log</code> findes som handling i <code>admin-cleanup-test-data</code> (14 dage) men kaldes af ingen. Syv virksomheder står som «tidligere» med alle deres data — rapporter, chat, IP-log, profiler. Hvad vi beholder, hvor længe, og hvad der er bilag (fem år) mod persondata, er en beslutning før det er kode (<code>~/Downloads/recon-tidligere-medlemmers-data.md</code> §1, §5).</p>
+      <div class="meta"><span class="tag ny">Ny 8/9</span><span class="tag gold">Beslutning</span></div>
+    </div>
   </div>
   </section>
 
@@ -1238,11 +1253,6 @@
       <h3>To rådgivere til hundrede virksomheder</h3>
       <p>Femogtyve gange mere pr. person end i dag. Et produktspørgsmål før et værktøjsspørgsmål. Bliver svaret at I skal være flere, skal rådgiver-onboarding og rettigheder tænkes ind nu — Platformconfig er i dag det eneste sted en rådgiver inviteres.</p>
       <div class="meta"><span class="tag gold">Beslutning</span></div>
-    </div>
-    <div class="card" data-status="ide" data-spor="senere" data-rammer="ingen">
-      <h3>Offboarding findes ikke</h3>
-      <p>Der er ingen livscyklus når en virksomhed forlader platformen — kun hard delete, og storage ryddes aldrig af koden (DEL 4).</p>
-      <div class="meta"><span class="tag size">Mellem</span></div>
     </div>
   </div>
   </section>

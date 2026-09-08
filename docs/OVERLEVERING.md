@@ -272,7 +272,24 @@
 > efter listens egen regel); og der er 37 grene på origin ud over main
 > (`gh pr list --state merged` afgør hvilke — `git diff` lyver, DEL 1).
 
-**Sidst opdateret: 7. september 2026, aften — EN FEJL VI SELV LAVEDE:
+**Sidst opdateret: 8. september 2026, formiddag — ALINA-SAGEN: EN
+SLETTEANMODNING LÅ 103 DAGE, FORDI KNAPPEN LOVEDE NOGET INGEN HØRTE.**
+2. juni kl. 19:28 trykkede Alina Beauty & Skincare «Ja, slet min data» i
+`MembershipExpiredGate`. Knappen skrev `companies.offboarding_requested_at`
+og sagde «Jonas kontakter dig inden for 2 hverdage». Kolonnen læses ingen
+steder — ingen notifikation, ingen cron, ingen flade. Anmodningen blev
+fundet 8/9 kl. 08:33 under en recon om tidligere medlemmers data;
+GDPR-fristen for at svare er én måned. Slettet i prod 8/9 kl. 09:57-10:08,
+tabel for tabel, med FØR-tal — 13 rapporter, 13 filer, 30 beskeder, 198
+loginposter med IP, én konto — og virksomhedsrækken beholdt som arkivspor
+(navn, CVR, kontraktperiode, `status = 'tidligere'`,
+`offboarding_requested_at`). Fire lærer, DEL 4: knappen lovede noget ingen
+hørte; kaskaden tager ikke alt; `hardDeleteCompany` kan ikke bruges til en
+kunde med bilag; det tog en formiddag i hånden. Sagen står i DEL 2
+«Alina-sagen». Tre kort i mangellisten: sletteknappen, slettefunktionen,
+opbevaringspolitikken.**
+
+**7. september 2026, aften — EN FEJL VI SELV LAVEDE:
 CARMA-SAGEN. Kl. 11:57 sendte `fornyelsesvarsel-cron` varsel 2 til CARMA
 STUDIO — den første rigtige mail systemet har sendt — MED EN KNAP DER
 IKKE VIRKEDE. Målt kl. 16:33: CARMAs slutdato var 7/9, ordningen træder
@@ -2156,6 +2173,102 @@ otte admin-sider (#645–#649, #651, #653, #654).
 **Menuen** er målt samme aften, og `/members` er målt igen sent på
 aftenen — begge står i DEL 3.
 
+### Alina-sagen — en sletteanmodning der lå 103 dage; slettet i prod 8/9 kl. 09:57-10:08
+
+**Forløbet.** 2. juni 2026 kl. 19:28 trykkede Alina Beauty & Skincare
+(kontrakt 29/5-2025 til 29/5-2026, `status = 'tidligere'` siden 2/9) «Ja,
+slet min data» i `MembershipExpiredGate`. Knappen gjorde to ting: den
+skrev `companies.offboarding_requested_at` (`src/components/MembershipExpiredGate.tsx:123-131`),
+og den viste hende teksten «Vi har modtaget din anmodning om sletning af
+data. Jonas kontakter dig inden for 2 hverdage for at bekræfte.»
+(`:141-144`). Kolonnen læses INGEN steder — grep i `src` og
+`supabase/functions` uden `types.ts` finder kun den ene skrivning. Ingen
+notifikation, ingen cron, ingen rådgiverflade. Samme dag var hendes
+sidste login.
+
+Anmodningen blev fundet 8/9 kl. 08:33, 103 dage senere, under reconen om
+tidligere medlemmers data (`~/Downloads/recon-tidligere-medlemmers-data.md`
+§4, SQL 7d — «Offboarding-anmodninger — hele basen»). GDPR-fristen for at
+svare på en sletteanmodning er én måned. Sletningen blev planlagt linje
+for linje (`~/Downloads/recon-alinas-sletning.md`, uden for repoet) og
+udført i Lovables SQL editor 8/9 kl. 09:57-10:08, tabel for tabel, med
+SELECT før og efter.
+
+**Hvad der blev slettet — FØR-tallene.** Rollback-referencen findes ikke
+(ingen backup vi selv styrer, og en sletning kan ikke fortrydes); derfor
+står tallene her, så det kan ses hvad der fandtes:
+
+| tabel / sted | rækker |
+|---|---|
+| `budget_targets` | 240 |
+| `user_login_log` (med IP-adresse) | 198 |
+| `messages` | 30 |
+| `advisor_notifications` | 27 |
+| `email_send_log` | 21 |
+| `financial_report_facts` | 15 |
+| `financial_reports` | 13 |
+| filer i `financial-documents` | 13 |
+| `notifications` | 12 |
+| `slack_report_notification_log` | 10 |
+| `financial_commentaries` | 8 |
+| `weekly_focus` | 6 |
+| `handouts` | 5 |
+| `milestones` | 3 |
+| `kpi_benchmarks` | 2 |
+| `conversations` | 1 |
+| `company_invitations` | 1 |
+| `company_members` | 1 |
+| `user_roles` | 1 |
+| `pulse_checkins` | 1 |
+| `conversation_last_seen` | 1 |
+| `auth.users` (anjahojgaard@gmail.com) | 1 konto |
+
+Plus persondata på selve `companies`-rækken, sat til NULL: kontaktperson,
+mail, telefon, adresse, postnummer, by, hjemmeside, årsomsætning.
+
+**Hvad der blev stående, og hvorfor.** Virksomhedsrækken: navn, CVR,
+kontraktperiode (29/5-2025 til 29/5-2026), `status = 'tidligere'` og
+`offboarding_requested_at`. Rækken er ARKIVSPORET — beviset på at hun
+bad, og at det blev efterkommet. Slettes rækken, findes der intet spor af
+at anmodningen nogensinde blev håndteret. `er_kunde` er sat til false.
+Der var INTET bilag at beskytte: nul `company_perioder`, nul
+`company_traek`, nul `company_betalingslink`, nul `session_bookings`, og
+`stripe_customer_id` var null — hun har aldrig betalt gennem platformen.
+Skellet, som Jonas satte det 8/9: kundens eget materiale og alt personligt
+slettes; vores eget bilag bliver; virksomhedens navn og CVR arkiveres.
+
+**Fire lærer** (også i DEL 4):
+
+1. **Knappen lovede noget ingen hørte.** `offboarding_requested_at`
+   skrives af medlemmet og læses af ingen. Det er ikke en manglende
+   notifikation — det er et løfte i en tekst, uden en modtager.
+2. **Kaskaden tager ikke alt.** Efter at brugerkontoen var slettet, stod
+   198 loginposter med IP-adresser, 5 handouts, 1 pulse-checkin og 1
+   `conversation_last_seen` tilbage (tabellerne har `user_id` uden FK,
+   DEL 2 «recon-tidligere-medlemmers-data» §6). Havde vi stoppet ved
+   kontoen — hvilket var det oplagte — ville hendes IP-historik have
+   ligget tilbage efter en sletteanmodning. Det blev kun fanget fordi
+   hver tabel med `user_id` og `company_id` blev listet fra
+   `information_schema` og målt ÉN FOR ÉN.
+3. **`hardDeleteCompany` kunne ikke bruges.** Den sletter
+   `companies`-rækken til sidst (`_shared/companyHardDelete.ts:110`), og
+   tre bilagstabeller — `company_perioder`, `company_traek`,
+   `company_betalingslink` — er `ON DELETE CASCADE` mod den, så den
+   ville have taget salgshistorikken med. For Alina var der intet bilag,
+   men for et betalende medlem ville den slette vores eget
+   regnskabsmateriale.
+4. **Det tog en formiddag i hånden.** Listen over hver tabel, hver
+   rækkefølge og hver kontrol står i `~/Downloads/recon-alinas-sletning.md`
+   (uden for repoet) og i denne bogføring. Næste sletning skal tage fem
+   sekunder, ikke en formiddag — kortet «Der findes ingen slettefunktion»
+   i mangellisten bærer specifikationen.
+
+Syv andre virksomheder står stadig som `tidligere` med alle deres data
+(Coskun, Regnskabsvikar, Sebastian & Amalie, Stadio, Startkørekort,
+Friends & Fries, LineAlmegaard); ingen af dem har trykket på knappen
+(målt 8/9, SQL 7d). Hvad der skal ske med dem, er en beslutning — kortet
+«Ingen opbevaringspolitik».
+
 ### De tavse fejl — målt og rangeret 7/9; sendt-loggen (#701), global fejllogning (#702) og punkt 1–4 på rangeringen (#703, #706, #708) rettet
 
 Husets største systematiske hul, målt i `~/Downloads/recon-tavse-fejl.md`
@@ -3157,6 +3270,34 @@ De konkrete ting der har kostet tid. Led efter dem.
   bogføringen selv bar advarslen: DEL 2 «Platformen i tal» skelnede
   allerede «30 aktive» fra «38 rækker inkl. de otte tidligere» (3/9) —
   målingen 7/9 læste den ikke (8/9, øverst «Rettelsen»).
+
+- **En knap der skriver en kolonne ingen læser, er et løfte uden
+  modtager.** «Ja, slet min data» skrev `offboarding_requested_at` og
+  sagde «Jonas kontakter dig inden for 2 hverdage». Ingen hørte det i
+  103 dage (Alina, 2/6 → 8/9). Når en flade lover en handling, så find
+  den der udfører handlingen FØR knappen bygges — grep efter kolonnen:
+  én skriver og nul læsere er alarmen (DEL 2 «Alina-sagen»).
+- **Kaskaden fra `auth.users` tager ikke alt.** `user_login_log` (med
+  IP), `handouts`, `pulse_checkins`, `conversation_last_seen`,
+  `notifications`, `feedback`, `kpi_*`, `budget_targets`, `milestones`
+  har `user_id` uden FK og bliver stående når kontoen slettes. En
+  sletning der stopper ved `auth.admin.deleteUser` efterlader
+  IP-historik efter en sletteanmodning. List HVER tabel med `user_id`
+  og `company_id` fra `information_schema` og mål én for én, før og
+  efter (8/9, Alina: 198 loginposter stod tilbage).
+- **`hardDeleteCompany` sletter vores eget bilag.** Den ender med
+  `companies`-rækken, og `company_perioder`, `company_traek` og
+  `company_betalingslink` er `ON DELETE CASCADE` mod den. Brug den
+  aldrig på en virksomhed der har betalt — og aldrig uden at vide om
+  den har (SELECT på de tre tabeller + `stripe_customer_id` først).
+  Arkivsporet (navn, CVR, kontraktperiode, status,
+  `offboarding_requested_at`) skal blive stående som bevis på at
+  anmodningen blev efterkommet (8/9).
+- **En sletning i hånden tager en formiddag — og skal gøres én gang.**
+  Rækkefølgen, tabellerne og kontrollerne fra Alinas sletning
+  (`~/Downloads/recon-alinas-sletning.md`) er specifikationen for
+  slettefunktionen. Gentag ikke formiddagen; byg den (mangellisten «Der
+  findes ingen slettefunktion»).
 
 ---
 
