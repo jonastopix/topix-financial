@@ -116,39 +116,6 @@ Deno.serve(async (req) => {
       continue;
     }
 
-    const firstName = profile?.full_name?.split(" ")[0] || "dig";
-    const subject = `Husk dit pulse check-in for ${company.name}`;
-    const html = buildPulseHtml(firstName, company.name, pulseUrl);
-    const messageId = crypto.randomUUID();
-
-    await supabase.from("email_send_log").insert({
-      message_id: messageId,
-      template_name: "pulse-reminder",
-      recipient_email: email,
-      status: "pending",
-    });
-
-    const { error: enqueueError } = await supabase.rpc("enqueue_email", {
-      queue_name: "transactional_emails",
-      payload: {
-        message_id: messageId,
-        idempotency_key: messageId,
-        to: email,
-        from: SENDER,
-        sender_domain: SENDER_DOMAIN,
-        subject,
-        html,
-        text: subject,
-        purpose: "transactional",
-        label: "pulse-reminder",
-        queued_at: new Date().toISOString(),
-      },
-    });
-
-    if (enqueueError) {
-      console.error(`[send-pulse-reminder] Enqueue failed for ${email}:`, enqueueError);
-      continue;
-    }
 
     console.log(`[send-pulse-reminder] Enqueued for: ${email} (${company.name})`);
     sent++;
