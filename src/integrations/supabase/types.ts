@@ -3178,15 +3178,6 @@ export type Database = {
       }
       community_json_til_tekst: { Args: { p_doc: Json }; Returns: string }
       compute_facts_metrics_hash: { Args: { _metrics: Json }; Returns: string }
-      delete_email: {
-        Args: { message_id: number; queue_name: string }
-        Returns: boolean
-      }
-      email_queue_dispatch: { Args: never; Returns: undefined }
-      enqueue_email: {
-        Args: { payload: Json; queue_name: string }
-        Returns: number
-      }
       get_all_advisor_profiles: {
         Args: never
         Returns: {
@@ -3410,15 +3401,6 @@ export type Database = {
         Returns: boolean
       }
       mark_notifications_seen: { Args: never; Returns: number }
-      move_to_dlq: {
-        Args: {
-          dlq_name: string
-          message_id: number
-          payload: Json
-          source_queue: string
-        }
-        Returns: number
-      }
       opret_community_svar: {
         Args: { p_indhold: string; p_indhold_json?: Json; p_traad_id: string }
         Returns: string
@@ -3435,14 +3417,6 @@ export type Database = {
         Returns: string
       }
       parse_dk_report_period_key: { Args: { _period: string }; Returns: string }
-      read_email_batch: {
-        Args: { batch_size: number; queue_name: string; vt: number }
-        Returns: {
-          message: Json
-          msg_id: number
-          read_ct: number
-        }[]
-      }
       registrer_community_visning: {
         Args: { p_traad_id: string }
         Returns: undefined
