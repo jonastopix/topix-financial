@@ -1,10 +1,11 @@
 import "@/styles/hjemmebane.css";
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useHbDokumentGrund } from "@/hooks/useHbDokumentGrund";
 import type { Betalingsmodel } from "@/lib/fornyelsespris";
+import { kvittering, sletteknapTekst } from "@/lib/sletteKvittering";
 import { HbCard } from "@/components/hjemmebane/HbCard";
 import { HbButton } from "@/components/hjemmebane/HbButton";
 import { toast } from "sonner";
@@ -52,8 +53,30 @@ export default function MembershipExpiredGate() {
   useHbDokumentGrund();
   const [loadingCheckout, setLoadingCheckout] = useState(false);
   const [loadingFornyelse, setLoadingFornyelse] = useState<Betalingsmodel | null>(null);
-  const [offboardingDone, setOffboardingDone] = useState(false);
   const [showOffboardConfirm, setShowOffboardConfirm] = useState(false);
+  const [offboardArbejder, setOffboardArbejder] = useState(false);
+  const queryClient = useQueryClient();
+
+  // Anmodningen læses fra RÆKKEN, ikke fra lokal tilstand (Alina-sagen,
+  // 8/9): før var «modtaget» en useState, som forsvandt ved genindlæsning —
+  // så medlemmet kunne trykke igen, og UPDATE'en flyttede fristen syv dage
+  // frem hver gang. Nu er rækken sandheden: står der en anmodning, vises
+  // kvitteringen med datoen, uanset hvor mange gange siden åbnes. RLS:
+  // «Members can view own company» (20260224222456).
+  const { data: anmodning = null, isLoading: anmodningIndlaeses } = useQuery({
+    queryKey: ["offboarding", companyId],
+    queryFn: async (): Promise<{ offboarding_requested_at: string | null; data_slettet_at: string | null } | null> => {
+      const { data, error } = await (supabase
+        .from("companies")
+        .select("offboarding_requested_at, data_slettet_at")
+        .eq("id", companyId!)
+        .maybeSingle() as any);
+      if (error) throw error;
+      return data ?? null;
+    },
+    enabled: !!companyId,
+  });
+  const kvit = kvittering(anmodning?.offboarding_requested_at ?? null);
 
   // Serverside afgørelse: hent-fornyelsestilbud tager ingen parametre —
   // virksomheden udledes af kalderen, og beslutningen (company_fornyelse,
@@ -119,19 +142,54 @@ export default function MembershipExpiredGate() {
     }
   };
 
+  // Skriver anmodningen ÉN gang: .is(null) gør et andet tryk til et no-op
+  // frem for at flytte fristen. Fejlen læses fra svaret ({ error }), ikke
+  // kun fra et kast — før viste «modtaget» sig også når intet var skrevet.
   const handleOffboard = async () => {
+    setOffboardArbejder(true);
     try {
-      await supabase
+      const { error } = await (supabase
         .from("companies")
         .update({ offboarding_requested_at: new Date().toISOString() } as any)
-        .eq("id", companyId!);
-      setOffboardingDone(true);
+        .eq("id", companyId!)
+        .is("offboarding_requested_at", null) as any);
+      if (error) throw error;
+      await queryClient.invalidateQueries({ queryKey: ["offboarding", companyId] });
+      setShowOffboardConfirm(false);
     } catch {
-      toast.error("Noget gik galt — kontakt os direkte.");
+      toast.error("Noget gik galt — skriv til os, så hjælper vi dig.");
+    } finally {
+      setOffboardArbejder(false);
     }
   };
 
-  if (offboardingDone) {
+  // Fortrydelsen: anmodningen nulstilles, og motoren (slet-medlemsdata-cron)
+  // finder så ingen kandidat. Kun mens kvitteringen siger at der kan
+  // fortrydes — på selve slettedagen er fristen udløbet, og knappen vises
+  // ikke. RLS: «Members can update own company» (samme policy som anmodningen).
+  const handleFortryd = async () => {
+    setOffboardArbejder(true);
+    try {
+      const { error } = await (supabase
+        .from("companies")
+        .update({ offboarding_requested_at: null } as any)
+        .eq("id", companyId!)
+        .not("offboarding_requested_at", "is", null) as any);
+      if (error) throw error;
+      await queryClient.invalidateQueries({ queryKey: ["offboarding", companyId] });
+      toast.success("Sletningen er fortrudt — din data bliver.");
+    } catch {
+      toast.error("Noget gik galt — skriv til os, så hjælper vi dig.");
+    } finally {
+      setOffboardArbejder(false);
+    }
+  };
+
+  // Kvitteringen — vises så længe rækken bærer en anmodning (og ikke er
+  // slettet; en slettet virksomhed har ingen konto der kan se siden).
+  // Teksten siger DATOEN (motorens frist), at ingen kontakter dem, og
+  // fortrydelsesretten — aldrig «2 hverdage» igen.
+  if (kvit) {
     return (
       <div className="theme-hjemmebane min-h-screen-safe flex items-center justify-center bg-hb-paper font-body text-hb-ink antialiased px-4">
         <div className="max-w-md w-full text-center space-y-6">
@@ -139,12 +197,27 @@ export default function MembershipExpiredGate() {
             Tak for din tid hos The Boardroom
           </h1>
           <p className="text-hb-ink-soft">
-            Vi har modtaget din anmodning om sletning af data. Jonas kontakter dig
-            inden for 2 hverdage for at bekræfte.
+            {kvit.tekst}
           </p>
-          <HbButton variant="primary" onClick={() => signOut()}>
-            Log ud
-          </HbButton>
+          <p className="text-sm text-hb-ink-soft" title={kvit.slettesDenIso}>
+            {kvit.fortrydelse}
+          </p>
+          <div className="flex flex-col gap-2 sm:flex-row sm:justify-center">
+            {kvit.kanFortryde && (
+              <HbButton variant="secondary" onClick={handleFortryd} disabled={offboardArbejder}>
+                Fortryd sletningen
+              </HbButton>
+            )}
+            <HbButton variant="primary" onClick={() => signOut()}>
+              Log ud
+            </HbButton>
+          </div>
+          <p className="text-sm text-hb-ink-soft">
+            Spørgsmål? Skriv til{" "}
+            <a href="mailto:jonas@topix.dk" className="text-hb-evergreen hover:underline">
+              jonas@topix.dk
+            </a>
+          </p>
         </div>
       </div>
     );
@@ -317,8 +390,7 @@ export default function MembershipExpiredGate() {
                       Farvel og tak
                     </h3>
                     <p className="text-sm text-hb-ink-soft">
-                      Slet din data og luk din konto. Vi sender en bekræftelse og
-                      håndterer det inden for 2 hverdage.
+                      {sletteknapTekst()}
                     </p>
                   </div>
                   <ArrowRight className="h-5 w-5 text-hb-ink-soft mt-1 group-hover:translate-x-1 transition-transform" />
@@ -328,12 +400,13 @@ export default function MembershipExpiredGate() {
           ) : (
             <HbCard className="p-5 space-y-3 border-destructive/30 bg-destructive/5">
               <p className="text-sm font-medium text-hb-ink">
-                Er du sikker? Din data kan ikke gendannes.
+                Er du sikker? Du får en dato, og indtil den kan du fortryde. Derefter kan intet gendannes.
               </p>
               <div className="flex gap-2">
                 <button
                   onClick={handleOffboard}
-                  className="flex-1 rounded-full bg-destructive text-destructive-foreground text-sm font-medium py-2 hover:bg-destructive/90 transition-colors"
+                  disabled={offboardArbejder || anmodningIndlaeses}
+                  className="flex-1 rounded-full bg-destructive text-destructive-foreground text-sm font-medium py-2 hover:bg-destructive/90 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
                 >
                   Ja, slet min data
                 </button>
