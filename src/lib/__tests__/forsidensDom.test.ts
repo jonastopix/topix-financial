@@ -589,3 +589,82 @@ describe("tom liste og tallene under stregen", () => {
     expect(JSON.stringify(input)).toBe(foer);
   });
 });
+
+// ─── Lukningen (Jonas 8/9, lib/opgaveLukning) ────────────────────────────
+// En lukket grund giver hverken egen linje, en plads i en tilstandstælling
+// eller et tal under tærsklen; noget NYT (andet grundlag) gør den levende.
+
+describe("lukningen — lukkede grunde er ude før porterne", () => {
+  const kv = (grundlag: Record<string, string>) => ({ udfald: "faerdiggjort" as const, grundlag, lukketAt: "2026-09-08T10:00:00Z" });
+
+  it("linjen bærer grundlaget for alle sine grunde (nøgle → grundlag)", () => {
+    const d = afgoerForsidensDom([virksomhed({ navn: "Doggybed", signaler: [omsaetningsfald, ingenDialog(30, 68)], senestePeriode: "2026-08", senesteBeskedAt: "2026-08-09T08:00:00Z" })], NU);
+    const l = virksomhedslinjer(d)[0];
+    expect(l.grundlag).toEqual({ "stikker_ud:omsaetningsfald_mom": "2026-08", tavshed: "2026-08-09T08:00:00Z" });
+  });
+
+  it("talsignal lukket på samme periode → ingen linje; nyere periode → linjen er tilbage", () => {
+    const lukket = afgoerForsidensDom([virksomhed({ signaler: [omsaetningsfald], senestePeriode: "2026-08", kvittering: kv({ "stikker_ud:omsaetningsfald_mom": "2026-08" }) })], NU);
+    expect(lukket.linjer).toEqual([]);
+    expect(lukket.underStregen.antalVirksomhederUnderTaersklen).toBe(0);
+    const nyt = afgoerForsidensDom([virksomhed({ signaler: [omsaetningsfald], senestePeriode: "2026-09", kvittering: kv({ "stikker_ud:omsaetningsfald_mom": "2026-08" }) })], NU);
+    expect(virksomhedslinjer(nyt)).toHaveLength(1);
+  });
+
+  it("tavshed lukket → tæller ikke i «N virksomheder har du ikke hørt fra længe»; en ny besked er noget nyt", () => {
+    const lukket = afgoerForsidensDom([virksomhed({ signaler: [ingenDialog(40, 74)], senesteBeskedAt: "2026-07-26T08:00:00Z", kvittering: kv({ tavshed: "2026-07-26T08:00:00Z" }) })], NU);
+    expect(tilstandslinjer(lukket)).toEqual([]);
+    expect(lukket.underStregen.antalTilstandeSamlet).toBe(0);
+    const ny = afgoerForsidensDom([virksomhed({ signaler: [ingenDialog(40, 74)], senesteBeskedAt: "2026-08-01T08:00:00Z", kvittering: kv({ tavshed: "2026-07-26T08:00:00Z" }) })], NU);
+    expect(ny.underStregen.antalTilstandeSamlet).toBe(1);
+  });
+
+  it("aldrig skrevet: grundlaget er «aldrig» — lukket holder", () => {
+    const d = afgoerForsidensDom([virksomhed({ signaler: [aldrigSkrevet], kvittering: kv({ tavshed: "aldrig" }) })], NU);
+    expect(d.linjer).toEqual([]);
+  });
+
+  it("CARMA-tilfældet: linjen med to grunde lukkes som helhed; sendes varsel 2 bagefter, er fornyelsen levende igen, tavsheden stadig lukket", () => {
+    const carma = (over: Partial<VirksomhedTilDom>) => virksomhed({
+      navn: "CARMA STUDIO",
+      signaler: [ingenDialog(91, 85)],
+      senesteBeskedAt: "2026-06-05T08:00:00Z",
+      fornyelse: fornyelse("klar_til_tilbud", 3),
+      fornyelseBeslutning: "tilbyd",
+      varsel1SendtAt: "2026-08-20T00:00:00Z",
+      ...over,
+    });
+    const aaben = afgoerForsidensDom([carma({})], NU);
+    const linje = virksomhedslinjer(aaben)[0];
+    expect(Object.keys(linje.grundlag).sort()).toEqual(["fornyelse", "tavshed"]);
+    const lukket = afgoerForsidensDom([carma({ kvittering: kv(linje.grundlag) })], NU);
+    expect(lukket.linjer).toEqual([]);
+    expect(lukket.underStregen.antalTilstandeSamlet).toBe(0);
+    const paamindet = afgoerForsidensDom([carma({ varsel2SendtAt: "2026-09-04T00:00:00Z", kvittering: kv(linje.grundlag) })], NU);
+    const igen = virksomhedslinjer(paamindet)[0];
+    expect(igen.grunde.map((g) => g.slags)).toEqual(["fornyelse"]);
+    expect(igen.grunde[0].signaltype).toBe("klar_til_tilbud_paamindet");
+  });
+
+  it("opgave nær deadline: nøglet på opgavens id, grundlag = fristen; en flyttet frist er noget nyt, en passeret er det ikke", () => {
+    const o = aktivOpgave("Send budget", 5);
+    const d = afgoerForsidensDom([virksomhed({ opgaver: [o] })], NU);
+    const l = virksomhedslinjer(d)[0];
+    expect(l.grundlag).toEqual({ "opgave:o-Send budget": "2026-09-09" });
+    const lukket = afgoerForsidensDom([virksomhed({ opgaver: [o], kvittering: kv(l.grundlag) })], NU);
+    expect(lukket.linjer).toEqual([]);
+    // Fristen passerer (samme opgave, syv dage senere): stadig lukket.
+    const senere = afgoerForsidensDom([virksomhed({ opgaver: [o], kvittering: kv(l.grundlag) })], new Date(2026, 8, 16, 12));
+    expect(senere.linjer).toEqual([]);
+    // Fristen flyttes (til om 2 dage — inden for vinduet, så den ville stå): levende.
+    const flyttet = afgoerForsidensDom([virksomhed({ opgaver: [{ ...o, due_date: omDage(2) }], kvittering: kv(l.grundlag) })], NU);
+    expect(virksomhedslinjer(flyttet)).toHaveLength(1);
+    expect(virksomhedslinjer(flyttet)[0].grundlag).toEqual({ "opgave:o-Send budget": "2026-09-06" });
+  });
+
+  it("uden grundlag-felter (VirksomhedViews kalder) lukkes intet — kvitteringen kan ikke matche", () => {
+    const d = afgoerForsidensDom([virksomhed({ signaler: [omsaetningsfald], kvittering: kv({ "stikker_ud:omsaetningsfald_mom": "2026-08" }) })], NU);
+    expect(virksomhedslinjer(d)).toHaveLength(1);
+    expect(virksomhedslinjer(d)[0].grundlag).toEqual({ "stikker_ud:omsaetningsfald_mom": "" });
+  });
+});

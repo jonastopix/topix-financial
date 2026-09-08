@@ -7,6 +7,7 @@ import { computeMembershipTier } from "@/lib/membershipTier";
 import { afgoerVirksomhedsSignaler, isFiguresFresh, type FactPunkt, type Signal, type VirksomhedsInput } from "@/lib/virksomhedsSignaler";
 import { afgoerForsidensDom, type OpgaveTilDom, type VirksomhedTilDom } from "@/lib/forsidensDom";
 import { kraevRaekker } from "@/lib/kraevRaekker";
+import { laesKvittering, type Kvittering } from "@/lib/opgaveLukning";
 import { erForslagGyldigt } from "@/lib/forslagUdloeb";
 import { afgoerFornyelsestilstand, type Fornyelsesbeslutning } from "@/lib/fornyelse";
 import { afgoerBetalingsfrist } from "@/lib/betalingsfrist";
@@ -327,6 +328,9 @@ export const hentAdvisorDashboard = () =>
         // deadline — hentes her, hvor alt andet hentes, så dommen får alle
         // seks slags fra ét datalag.
         fornyelseRes, betalingslinkRes, aktiveOpgaverRes,
+        // Lukningen (Jonas 8/9, lib/opgaveLukning): den nyeste kvittering
+        // med grundlag pr. virksomhed — «Færdiggjort»/«Ikke relevant».
+        kvitteringerRes,
       ] = await Promise.all([
         supabase
           .from("conversations")
@@ -468,6 +472,18 @@ export const hentAdvisorDashboard = () =>
           .select("id, company_id, title, status, due_date")
           .eq("status", "active")
           .not("due_date", "is", null)
+          .limit(2000) as any),
+        // Lukningen: alle rækker med grundlag, nyeste først; den nyeste pr.
+        // virksomhed vinder i kode. Kolonnerne udfald/grundlag er fra
+        // 20260908150000 og står ikke i de genererede typer endnu (Lovable
+        // regenererer) — derfor `as any`, som company_fornyelse ovenfor.
+        // Læses på tværs af rådgivere (SELECT-policy, samme migration):
+        // opgaven er virksomhedens.
+        (supabase
+          .from("advisor_company_acknowledgments" as any)
+          .select("company_id, udfald, grundlag, acknowledged_at")
+          .not("grundlag", "is", null)
+          .order("acknowledged_at", { ascending: false })
           .limit(2000) as any),
       ]);
 
@@ -884,7 +900,7 @@ export const hentAdvisorDashboard = () =>
       // Kø 6 (§3.5): agentforslag der venter — læses af den nye forside
       // (RaadgiverForsideView); AdvisorDashboards render kender den ikke.
       const bAgent: BucketItem[] = [];
-      const signalerByCompany = new Map<string, { signaler: Signal[]; agentforslagVenter: number }>();
+      const signalerByCompany = new Map<string, { signaler: Signal[]; agentforslagVenter: number; senestePeriode: string | null }>();
       const agentforslagByCompany = new Map<string, number>();
       // Kun forslag der stadig kan AFGØRES tælles (besluttet 7/9): udløbne
       // (passeret ISO-uge) kan kun forkastes, og puklen lover en afgørelse.
@@ -974,7 +990,8 @@ export const hentAdvisorDashboard = () =>
         };
         const signaler = afgoerVirksomhedsSignaler(signalInput, now);
         // Forsidens dom får motorens udfald uændret (én dom i huset).
-        signalerByCompany.set(c.company_id, { signaler, agentforslagVenter: signalInput.agentforslagVenter });
+        // senestePeriode: talsignalernes grundlag (lukningen) — perioden de er regnet af.
+        signalerByCompany.set(c.company_id, { signaler, agentforslagVenter: signalInput.agentforslagVenter, senestePeriode: senesteNoegle ?? null });
         for (const s of signaler) {
           const item: BucketItem = { ...base, subtext: s.tekst, sortValue: s.alvor };
           if (s.koe === "ikke_hoert_fra_laenge") bStale.push(item);
@@ -1040,6 +1057,22 @@ export const hentAdvisorDashboard = () =>
         liste.push({ id: o.id, title: o.title, status: o.status, due_date: aar && md && dag ? new Date(aar, md - 1, dag) : null });
         opgaverByCompany.set(o.company_id, liste);
       }
+      // Lukningen: nyeste kvittering med grundlag pr. virksomhed (rækkerne er
+      // sorteret nyeste først, så den første pr. company_id vinder). Gamle
+      // snooze-rækker læses som null af laesKvittering og lukker intet.
+      const kvitteringByCompany = new Map<string, Kvittering>();
+      for (const r of kraevRaekker(kvitteringerRes, "advisor_company_acknowledgments") as { company_id: string; udfald: string | null; grundlag: unknown; acknowledged_at: string | null }[]) {
+        if (!r.company_id || kvitteringByCompany.has(r.company_id)) continue;
+        const k = laesKvittering(r);
+        if (k) kvitteringByCompany.set(r.company_id, k);
+      }
+      // Den ulæstes grundlag: seneste medlemsbesked på tværs af virksomhedens samtaler.
+      const senesteMedlemsbeskedByCompany = new Map<string, string>();
+      for (const c of allConversations) {
+        if (!c.company_id || !c.last_member_message_at) continue;
+        const eks = senesteMedlemsbeskedByCompany.get(c.company_id);
+        if (!eks || c.last_member_message_at > eks) senesteMedlemsbeskedByCompany.set(c.company_id, c.last_member_message_at);
+      }
       const companyById = new Map<string, any>((companies as any[]).map((c) => [c.id, c]));
       const virksomhederTilDom: VirksomhedTilDom[] = investorSummaries
         .filter((c) => !expiredCompanyIds.has(c.company_id) && !pendingCompanyIds.has(c.company_id))
@@ -1073,6 +1106,13 @@ export const hentAdvisorDashboard = () =>
                 }, now)
               : null,
             opgaver: opgaverByCompany.get(c.company_id) ?? [],
+            // Lukningen (lib/opgaveLukning): grundlagene dommen sammenligner
+            // kvitteringen med — samme kilder som signalerne selv.
+            senestePeriode: sig?.senestePeriode ?? null,
+            senesteBeskedAt: convByCompany.get(c.company_id)?.[0]?.last_message_at ?? null,
+            senesteMedlemsbeskedAt: senesteMedlemsbeskedByCompany.get(c.company_id) ?? null,
+            fornyelseBeslutning: beslutningByCompany.get(c.company_id) ?? null,
+            kvittering: kvitteringByCompany.get(c.company_id) ?? null,
           };
         });
       const dom = afgoerForsidensDom(virksomhederTilDom, now);

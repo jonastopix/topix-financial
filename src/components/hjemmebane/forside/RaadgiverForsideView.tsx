@@ -1,8 +1,11 @@
 import { Link } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import { ADVISOR_DASHBOARD_QUERY_KEY, hentAdvisorDashboard } from "@/components/AdvisorDashboard";
-import { TAERSKEL, type Linje, type OpgaveSlags, type Pukkellinje } from "@/lib/forsidensDom";
+import { invaliderForsiden, lukOpgave } from "@/hooks/opgaveLukning";
+import { TAERSKEL, type Linje, type OpgaveSlags, type Pukkellinje, type Virksomhedslinje } from "@/lib/forsidensDom";
+import { LUKNINGS_UDFALD, UDFALD_TEKST, type LukningsUdfald } from "@/lib/opgaveLukning";
 import { cn } from "@/lib/utils";
 
 /**
@@ -45,6 +48,15 @@ import { cn } from "@/lib/utils";
  * haster i dag.» UNDER STREGEN (§5): tal, ikke lister. FLAGET (§5): når
  * dommen siger usædvanligt mange, står det her. MÅLINGEN nederst bliver
  * stående til tærsklen (TAERSKEL) er justeret efter drift (§12).
+ *
+ * LUKNINGEN (Jonas 8/9, lib/opgaveLukning): hver virksomhedslinje har to
+ * handlinger, «Færdiggjort» og «Ikke relevant». Ingen «Udsæt». Fladen
+ * gemmer det grundlag dommen selv gav linjen (Virksomhedslinje.grundlag)
+ * gennem den ene skrivevej (hooks/opgaveLukning), invaliderer forsiden og
+ * lader dommen afgøre hvad der står — ingen optimistisk patch. Linjen
+ * kommer igen når noget NYT er sket (andet grundlag). Tilstandslinjerne
+ * («N virksomheder har du ikke hørt fra længe») har ingen knapper —
+ * de er næste PR.
  */
 
 const hilsen = (): string => {
@@ -70,7 +82,7 @@ const pukkelLink = (p: Pukkellinje) =>
 
 /** Én linje fra dommen. Virksomhed: handling + grunde; tilstand/pukkel: tekst.
     Rust kun til det der er galt (>= TAERSKEL) eller haster (løftet). */
-const DomLinje = ({ l }: { l: Linje }) => {
+const DomLinje = ({ l, onLuk, lukker }: { l: Linje; onLuk: (linje: Virksomhedslinje, udfald: LukningsUdfald) => void; lukker: boolean }) => {
   const rust = l.alvor >= TAERSKEL || l.loeftet;
   const prik = <span aria-hidden className={cn("mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-current", rust ? "text-hb-rust" : "text-hb-ink-soft")} />;
   const hast = l.lukkerOmDage != null && (
@@ -94,7 +106,23 @@ const DomLinje = ({ l }: { l: Linje }) => {
             {[vigtigste, ...oevrige].map((g) => g.tekst).join(" · ")}
           </span>
         </Link>
-        {hast}
+        <span className="flex shrink-0 flex-col items-end gap-1">
+          {hast}
+          {/* Lukningen: to ord, evergreen (husets handlingsfarve), ingen knapflade. */}
+          <span className="flex items-center gap-2 text-xs">
+            {LUKNINGS_UDFALD.map((udfald) => (
+              <button
+                key={udfald}
+                type="button"
+                disabled={lukker}
+                onClick={() => onLuk(l, udfald)}
+                className="text-hb-evergreen underline-offset-4 hover:underline disabled:opacity-50"
+              >
+                {UDFALD_TEKST[udfald]}
+              </button>
+            ))}
+          </span>
+        </span>
       </li>
     );
   }
@@ -127,11 +155,27 @@ const DomLinje = ({ l }: { l: Linje }) => {
 
 export const RaadgiverForsideView = () => {
   const { user, profile } = useAuth();
+  const queryClient = useQueryClient();
   const { data, isLoading, isError } = useQuery({
     queryKey: ADVISOR_DASHBOARD_QUERY_KEY(user?.id),
     queryFn: hentAdvisorDashboard,
     enabled: !!user,
     staleTime: 2 * 60_000,
+  });
+  // Lukningen — hook i TOPBLOKKEN, før nogen betinget return (React #310).
+  // Skriv, så hent igen: dommen afgør hvad der står; ingen lokal patch.
+  const lukning = useMutation({
+    mutationFn: async (input: { linje: Virksomhedslinje; udfald: LukningsUdfald }) => {
+      if (!user) throw new Error("Ikke logget ind");
+      await lukOpgave({ companyId: input.linje.companyId, advisorId: user.id, udfald: input.udfald, grundlag: input.linje.grundlag });
+      await invaliderForsiden(queryClient);
+    },
+    onSuccess: (_d, input) => {
+      toast.success(`${input.linje.navn} · ${UDFALD_TEKST[input.udfald]}`, { description: "Linjen kommer igen, når der er sket noget nyt." });
+    },
+    onError: (e: Error) => {
+      toast.error("Kunne ikke lukke linjen", { description: e.message });
+    },
   });
   const fornavn = profile?.full_name?.split(" ")[0] || "dig";
 
@@ -178,7 +222,12 @@ export const RaadgiverForsideView = () => {
         <section className="mt-10 max-w-3xl">
           <ul className="divide-y divide-hb-line border-y border-hb-line">
             {dom.linjer.map((l) => (
-              <DomLinje key={linjeNoegle(l)} l={l} />
+              <DomLinje
+                key={linjeNoegle(l)}
+                l={l}
+                lukker={lukning.isPending}
+                onLuk={(linje, udfald) => lukning.mutate({ linje, udfald })}
+              />
             ))}
           </ul>
         </section>

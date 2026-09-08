@@ -87,6 +87,7 @@ import type { Signal } from "./virksomhedsSignaler";
 import { afgoerVarselTrin } from "@/lib/varselTrin";
 import type { Fornyelsestilstand } from "./fornyelse";
 import { BETALINGSFRIST_DAGE, type Betalingsfristtilstand } from "./betalingsfrist";
+import { erLukket, type Kvittering } from "./opgaveLukning";
 
 // ─── Konstanter — alle tal dommen bruger, ét sted ────────────────────────
 
@@ -310,6 +311,22 @@ export interface VirksomhedTilDom {
   opgaver: readonly OpgaveTilDom[];
   /** §8 — ignoreres i dag, se AiUdsagn. */
   aiUdsagn?: readonly AiUdsagn[];
+
+  // ── Lukningen (Jonas 8/9, lib/opgaveLukning) ──────────────────────────
+  // Grundlaget pr. slags — det dommen byggede på — så en lukket opgave
+  // kan skelnes fra en ny. Alle valgfrie: en kalder uden dem (VirksomhedView
+  // «derfor er du her») får tomme grundlag og ingen kvittering, og dommen
+  // lukker så intet.
+  /** period_key for den seneste committede periode talsignalerne er regnet af. */
+  senestePeriode?: string | null;
+  /** conversations.last_message_at — tavshedens grundlag; null = aldrig. */
+  senesteBeskedAt?: string | null;
+  /** Seneste conversations.last_member_message_at — den ulæstes grundlag. */
+  senesteMedlemsbeskedAt?: string | null;
+  /** company_fornyelse.beslutning — en del af fornyelsens grundlag. */
+  fornyelseBeslutning?: string | null;
+  /** Den nyeste kvittering med grundlag for virksomheden; null = ingen. */
+  kvittering?: Kvittering | null;
 }
 
 /** Én grund: hvorfor virksomheden står der, og hvad man gør (§1). */
@@ -319,6 +336,13 @@ export interface Grund {
       signaltype. Signaltypen er den fine nøgle — motorens noegle,
       fornyelsens status, indgangens status, opgavens trin. */
   signaltype: string;
+  /** Lukningens identitet (lib/opgaveLukning): slags, evt. med signaltype
+      eller opgave-id — stabil på tværs af trin, så en fornyelse der går
+      fra varslet til påmindet er SAMME grund med NYT grundlag. */
+  noegle: string;
+  /** Det dommen byggede på — én tekst; ændrer den sig, er grunden levende
+      igen selvom den var lukket. */
+  grundlag: string;
   /** Kort dansk tekst — hvad der er set. */
   tekst: string;
   /** Handlingen (§1): «skriv til», «tag fat i», aldrig «ring». */
@@ -345,6 +369,9 @@ export interface Virksomhedslinje {
   loeftet: boolean;
   /** Indsatsen for den vigtigste grund — det er den man tager først. */
   indsats: Indsats;
+  /** Det fladen gemmer når linjen lukkes: nøgle → grundlag for alle
+      linjens grunde (lib/opgaveLukning.grundlagForLinje). */
+  grundlag: Record<string, string>;
 }
 
 /** Én tilstand samlet på tværs af virksomheder (§3). */
@@ -445,9 +472,19 @@ function grundeFraMotoren(v: VirksomhedTilDom): Grund[] {
     } else {
       continue; // friske_tal (§11), agentforslag_venter (puklen)
     }
+    // Grundlaget (lukningen): tavshed = sidste besked («aldrig» uden),
+    // ulæst = sidste medlemsbesked, talsignal = perioden det er regnet af.
+    const grundlag =
+      slags === "tavshed"
+        ? (v.senesteBeskedAt ?? "aldrig")
+        : slags === "venter_i_samtalen"
+          ? (v.senesteMedlemsbeskedAt ?? "")
+          : (v.senestePeriode ?? "");
     grunde.push({
       slags,
       signaltype: s.noegle,
+      noegle: slags === "stikker_ud" ? `stikker_ud:${s.noegle}` : slags,
+      grundlag,
       tekst: s.tekst,
       handling,
       alvor: s.alvor,
@@ -504,6 +541,9 @@ function grundFraFornyelse(v: VirksomhedTilDom): Grund | null {
   return {
     slags: "fornyelse",
     signaltype,
+    noegle: "fornyelse",
+    // Enhver ændring i status, beslutning eller stempel er noget nyt (8/9).
+    grundlag: [status, v.fornyelseBeslutning ?? "", v.varsel1SendtAt ?? "", v.varsel2SendtAt ?? ""].join("|"),
     tekst,
     handling,
     alvor: ALVOR_FORNYELSE[signaltype],
@@ -541,6 +581,8 @@ function grundFraIndgang(v: VirksomhedTilDom): Grund | null {
   return {
     slags: "indgang",
     signaltype: status,
+    noegle: "indgang",
+    grundlag: status,
     tekst,
     handling,
     alvor: ALVOR_INDGANG[status],
@@ -568,6 +610,10 @@ function grundeFraOpgaver(v: VirksomhedTilDom, nu: Date): Grund[] {
     grunde.push({
       slags: "opgave_naer_deadline",
       signaltype: `opgave_${trin}`,
+      noegle: `opgave:${o.id}`,
+      // Fristen som kalenderdag: flyttes den, er det noget nyt; at den
+      // passerer er det ikke (lukket er lukket, Jonas 8/9).
+      grundlag: `${o.due_date.getFullYear()}-${String(o.due_date.getMonth() + 1).padStart(2, "0")}-${String(o.due_date.getDate()).padStart(2, "0")}`,
       tekst,
       handling: `Skriv til ${v.navn} om «${o.title}»`,
       alvor: ALVOR_OPGAVE[trin],
@@ -578,7 +624,11 @@ function grundeFraOpgaver(v: VirksomhedTilDom, nu: Date): Grund[] {
   return grunde;
 }
 
-/** Alle grunde for én virksomhed. aiUdsagn ignoreres bevidst (§8 mangler). */
+/** Alle grunde for én virksomhed. aiUdsagn ignoreres bevidst (§8 mangler).
+    LUKKEDE grunde (lib/opgaveLukning: kvitteringen gemte præcis dette
+    grundlag) tages ud HER, før porterne — så en lukket grund hverken giver
+    egen linje, en plads i en tilstandstælling eller tæller «under
+    tærsklen» (Jonas 8/9). */
 function grundeFor(v: VirksomhedTilDom, nu: Date): Grund[] {
   const grunde = grundeFraMotoren(v);
   const f = grundFraFornyelse(v);
@@ -586,7 +636,7 @@ function grundeFor(v: VirksomhedTilDom, nu: Date): Grund[] {
   const i = grundFraIndgang(v);
   if (i) grunde.push(i);
   grunde.push(...grundeFraOpgaver(v, nu));
-  return grunde;
+  return grunde.filter((g) => !erLukket(g, v.kvittering));
 }
 
 // ─── Portene og sorteringen ───────────────────────────────────────────────
@@ -682,6 +732,7 @@ export function afgoerForsidensDom(virksomheder: readonly VirksomhedTilDom[], nu
         lukkerOmDage,
         loeftet: lukkerOmDage != null && lukkerOmDage <= LOEFT_DAGE,
         indsats: sorteret[0].indsats,
+        grundlag: Object.fromEntries(sorteret.map((g) => [g.noegle, g.grundlag])),
       });
       continue;
     }
