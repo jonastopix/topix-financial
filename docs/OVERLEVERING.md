@@ -3622,6 +3622,36 @@ De konkrete ting der har kostet tid. Led efter dem.
   recon. Konkret: find gaten i den anden ende (tilbud, checkout, bånd,
   badge) og kald den med den SAMME række, før noget sendes (7/9, DEL 2
   «Fornyelseskæden — CARMA-sagen»).
+- **MEDLEMMERNE NAVIGERER FORSKELLIGT — TÆNK DET IND HVER GANG.** Jonas
+  8/9, ordret: «Vi er nødt til altid at have for øje, at når man har så
+  mange medlemmer, navigerer de forskelligt. Nogle ser videoer, nogle
+  laver rapportering, nogle chatter vi med, nogle bruger overhovedet ikke
+  tingene. Og det skal tænkes ind hver eneste gang vi bygger noget.»
+  DET KONKRETE EKSEMPEL: ugens fokus. Bygget til en der arbejder med
+  platformen — rapporterer, sætter milepæle, udfylder handouts — og fyrer
+  HÅRDEST på dem der ikke gør: tre af ni triggers er stilstand (milepæl
+  uden bevægelse i 30 dage, ingen rapport i 60, handout ubesvaret i 30),
+  virksomhedsvalget var ét flag (`weekly_focus_enabled`, default true),
+  og ingen skriver læste svarene. Målt 8/9: Rallysupport og ANLA GLAS,
+  begge faldet ud, fik seks forslag hver; tolv virksomheder havde 61
+  ventende, 97 forslag i alt gav 10 gjorte. Maskinen sagde mest til dem
+  der lyttede mindst — og for dem var det ikke et nudge, det var støj
+  til en de allerede havde forladt. Jonas: «Maskinen skal selvfølgelig
+  ikke foreslå noget, hvis der ikke er noget at foreslå på.» REGLEN, når
+  noget bygges der HENVENDER sig til et medlem (mail, forslag, fokus,
+  påmindelse, digest): spørg FØR det sendes (1) er medlemmet der — tier,
+  status (husets dom, `computeMembershipTier`, samme regel som
+  `run-weekly-agent` havde); (2) bruger de den del af platformen det
+  handler om — en der aldrig har rapporteret skal ikke nudges om tal, en
+  der aldrig har åbnet et handout skal ikke høre om løftestænger; (3)
+  ligger der allerede noget ubesvaret fra os — så er svaret ikke mere.
+  Bygget 8/9 aften i `generate-weekly-focus` (`ugensFokusGate.ts`: tier
+  og status som gate, ingen nye forslag mens ét ligger ubesvaret) og de
+  tabte forslag gjort synlige på virksomhedssiden («N forslag udløb uden
+  svar»). Det der IKKE er gjort: (2) — triggerne fyrer stadig på
+  stilstand for dem der er der, og om det er rigtigt for en der aldrig
+  rapporterer, er en beslutning (mangellisten «Agenten laver seks forslag
+  om ugen som ingen svarer på»).
 - **Ét felt, fire skriveveje — spørg dem alle, og spørg DATA.** Fortegnet
   på omkostninger stod som «årsrapport-vejens» fejl (kort #38, 27/8),
   vejen blev rettet samme dag, og sagen lå. Målt i prod 7/9: den manuelle

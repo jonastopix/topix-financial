@@ -169,6 +169,8 @@ export interface VirksomhedsData {
   opgaver: { id: string; title: string; status: string; priority: string; due_date: string | null }[];
   /** agent_proposals med status 'proposed' — det der kan afgøres (virksomhedsSignaler.ts:135). */
   agentforslagVenter: number;
+  /** company_actions med status 'expired' — forslag der udløb uden svar (8/9: 63 i prod, ingen flade viste dem). */
+  udloebneForslag: number;
   traek: VirksomhedsTraek[];
   perioder: VirksomhedsPeriode[];
   betalingslink: {
@@ -197,7 +199,7 @@ async function hentVirksomhed(companyId: string): Promise<VirksomhedsData | null
   const [
     companyRes, membersRes, invitationsRes, convsRes, budgetRes, milestonesRes,
     handoutsRes, actionsRes, proposalsRes, traekRes, perioderRes, linkRes, fornyelseRes,
-    rapporterRes, kpiMaalRes, refleksionRes, kommentarRes, raadgivereRes,
+    rapporterRes, kpiMaalRes, refleksionRes, kommentarRes, raadgivereRes, udloebneRes,
   ] = await Promise.all([
     supabase
       .from("companies")
@@ -311,6 +313,13 @@ async function hentVirksomhed(companyId: string): Promise<VirksomhedsData | null
     // runde via RPC'en forsiden bruger (AdvisorDashboard:370), og navnet
     // slås op i kode. Få rækker (rådgivere + admins).
     supabase.rpc("get_all_advisor_profiles"),
+    // Forslag der udløb uden svar — kun tallet (head/count). Udløb er
+    // bogført af cronen opgave-udloeb som status 'expired' (20260901090000).
+    supabase
+      .from("company_actions")
+      .select("id", { count: "exact", head: true })
+      .eq("company_id", companyId)
+      .eq("status", "expired"),
   ]);
 
   // KPI-mål: ÉT sted fletter (lib/kpiMaal, 7/9) — DB-værdi hvis den findes
@@ -361,6 +370,7 @@ async function hentVirksomhed(companyId: string): Promise<VirksomhedsData | null
     agentforslagVenter: ((proposalsRes.data ?? []) as { proposed_at: string }[]).filter((p) =>
       erForslagGyldigt(p.proposed_at, nu),
     ).length,
+    udloebneForslag: udloebneRes.count ?? 0,
     traek: (traekRes.data ?? []) as VirksomhedsTraek[],
     perioder: perioderRes.data ?? [],
     betalingslink: linkRes.data ?? null,
