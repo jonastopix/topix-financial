@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
+import { afsenderMedNavn, sendManagedEmail } from "../_shared/managedEmail.ts";
 import { authenticateServiceRole, corsHeaders } from "../_shared/edgeFunctionAuth.ts";
 import { bulletproofButton, fallbackLinkBlock } from "../_shared/emailButtonHelpers.ts";
 
@@ -23,9 +24,7 @@ import { bulletproofButton, fallbackLinkBlock } from "../_shared/emailButtonHelp
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
 const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-const SENDER_DOMAIN = "boardroom.topix.dk";
-const VERIFIED_FROM_EMAIL = `noreply@${SENDER_DOMAIN}`;
-const SENDER = `Morten fra The Boardroom <${VERIFIED_FROM_EMAIL}>`;
+const SENDER = afsenderMedNavn("Morten fra The Boardroom");
 const APP_URL = "https://app.theboardroom.dk";
 
 // Teksten vises for medlemmer og skrives med danske tegn. Filen er UTF-8, og
@@ -189,36 +188,20 @@ async function koerIntroPaamindelser(
       const firstName = profile?.full_name?.split(" ")[0] || "dig";
       const subject = "Du har en sparring med mig til gode";
       const html = buildIntroReminderHtml(firstName, bookingUrl);
-      const messageId = crypto.randomUUID();
-
-      // 5. Send-vej (verbatim fra send-pulse-reminder): log pending -> enqueue.
-      await supabase.from("email_send_log").insert({
-        message_id: messageId,
-        template_name: "intro-reminder",
-        recipient_email: email,
-        status: "pending",
+      // 5. Send-vej: mailen sendes med det samme og bogfoeres i email_send_log.
+      const mailResultat = await sendManagedEmail({
+        adminClient: supabase,
+        to: email,
+        from: SENDER,
+        subject,
+        html,
+        text: subject,
+        label: "intro-reminder",
       });
 
-      const { error: enqueueError } = await supabase.rpc("enqueue_email", {
-        queue_name: "transactional_emails",
-        payload: {
-          message_id: messageId,
-          idempotency_key: messageId,
-          to: email,
-          from: SENDER,
-          sender_domain: SENDER_DOMAIN,
-          subject,
-          html,
-          text: subject,
-          purpose: "transactional",
-          label: "intro-reminder",
-          queued_at: new Date().toISOString(),
-        },
-      });
-
-      if (enqueueError) {
-        // Fejlet enqueue: last_sent opdateres IKKE, saa den proeves igen i morgen (ikke om en maaned).
-        console.error(`[intro-reminder-cron] Enqueue failed for ${email}:`, enqueueError);
+      if (!mailResultat.sent) {
+        // Ikke sendt: last_sent opdateres IKKE, saa den proeves igen i morgen (ikke om en maaned).
+        console.error(`[intro-reminder-cron] Mail ikke sendt (${mailResultat.reason}) for company ${company.id}`);
         resultat.sprunget_over.enqueue_fejl++;
         continue;
       }
