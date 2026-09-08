@@ -1,13 +1,16 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
+// Afsenderen kommer fra husets ene kilde (managedEmail.ts) — ikke en lokal
+// literal. Funktionen sender ingen mail selv, men skriver værdien ind i
+// email_templates ved auto-oprettelse, og den række læses siden af
+// resolveSenderFromTemplate. Før 8/9 stod her «noreply@boardroom.topix.dk».
+import { VERIFIED_FROM_EMAIL } from "../_shared/managedEmail.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type",
 };
-
-const VERIFIED_FROM_EMAIL = "noreply@boardroom.topix.dk";
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
