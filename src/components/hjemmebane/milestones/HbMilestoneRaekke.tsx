@@ -30,21 +30,34 @@ import type { Milestone } from "./useMilestones";
  * parkering/genaktivering, navigation til handoutet. Rediger og slet
  * kræver Dialog/AlertDialog og åbner ind til portalerne i
  * MilestoneDialoger.tsx (ETAPE 2) — se onAabn/onSlet.
+ *
+ * TILSTANDEN dømmes IKKE her (8/9): rækken læser ms.dom fra
+ * src/lib/milepaelDom.ts — faerdig, parkeret, paabegyndt, forfalden.
+ * FORFALDEN «stikker ud» som forsidens dom gør det: prik og dato i rust
+ * (ingen ny farve — rust er husets «kræver dig»), og fristen siger
+ * «Fristen var …» som «Dine aftaler» (aftaler.fristTekst) i stedet for en
+ * neutral dato. Ingen flade, ingen alarm.
  */
 
 const formatDeadline = (d: Date | null): string =>
   d ? d.toLocaleDateString("da-DK", { day: "numeric", month: "short", year: "numeric" }) : "Ingen deadline";
 
-/** Tilstandsprik: ● gennemført · ◐ i gang · ○ ikke startet · ▢ parkeret.
+/** Fristens ord: «Fristen var 8. maj 2026» når dommen siger forfalden,
+    ellers datoen som før. Ordvalget er «Dine aftaler»s (aftaler.fristTekst). */
+const fristTekst = (ms: Milestone): string =>
+  ms.dom.forfalden ? `Fristen var ${formatDeadline(ms.deadline)}` : formatDeadline(ms.deadline);
+
+/** Tilstandsprik: ● gennemført · ◐ i gang · ○ ikke startet · ▢ parkeret —
+    forfalden tegnes som i gang/ikke startet, men i rust.
     Klik skifter fuldført/aktiv (MilestonesList.tsx:162-168). */
 const Tilstandsprik = ({ ms, onToggle }: { ms: Milestone; onToggle: () => void }) => {
-  const titel = ms.status === "done" ? "Marker som aktiv" : "Marker som færdig";
+  const titel = ms.dom.faerdig ? "Marker som aktiv" : "Marker som færdig";
   const inner =
-    ms.status === "done" ? (
+    ms.dom.faerdig ? (
       <span className="flex h-5 w-5 items-center justify-center rounded-full bg-hb-evergreen">
         <Check className="h-3 w-3 text-white" />
       </span>
-    ) : ms.status === "parked" ? (
+    ) : ms.dom.parkeret ? (
       <span className="flex h-5 w-5 items-center justify-center rounded-full border border-hb-line">
         <Archive className="h-3 w-3 text-hb-ink-soft" />
       </span>
@@ -52,9 +65,13 @@ const Tilstandsprik = ({ ms, onToggle }: { ms: Milestone; onToggle: () => void }
       <span
         className={cn(
           "block h-5 w-5 rounded-full border",
-          ms.status === "in-progress"
-            ? "border-hb-evergreen [background:linear-gradient(90deg,hsl(var(--hb-evergreen))_50%,transparent_50%)]"
-            : "border-hb-line",
+          ms.dom.forfalden
+            ? ms.dom.paabegyndt
+              ? "border-hb-rust [background:linear-gradient(90deg,hsl(var(--hb-rust))_50%,transparent_50%)]"
+              : "border-hb-rust"
+            : ms.dom.paabegyndt
+              ? "border-hb-evergreen [background:linear-gradient(90deg,hsl(var(--hb-evergreen))_50%,transparent_50%)]"
+              : "border-hb-line",
         )}
       />
     );
@@ -64,7 +81,7 @@ const Tilstandsprik = ({ ms, onToggle }: { ms: Milestone; onToggle: () => void }
       onClick={(e) => { e.stopPropagation(); onToggle(); }}
       title={titel}
       aria-label={titel}
-      disabled={ms.status === "parked"}
+      disabled={ms.dom.parkeret}
       className="shrink-0 rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-hb-evergreen focus-visible:ring-offset-2 disabled:cursor-default"
     >
       {inner}
@@ -75,11 +92,11 @@ const Tilstandsprik = ({ ms, onToggle }: { ms: Milestone; onToggle: () => void }
 /** Fremdriften i ord — HbHandoutCards sprog, ordret; målbare i «af». */
 const fremdriftTekst = (ms: Milestone): string => {
   if (ms.target_value && ms.unit) {
-    return ms.progress >= 100 ? "Gennemført" : `${ms.current_value ?? 0} af ${ms.target_value} ${ms.unit}`;
+    return ms.dom.faerdig ? "Gennemført" : `${ms.current_value ?? 0} af ${ms.target_value} ${ms.unit}`;
   }
-  if (ms.status === "done") return "Gennemført";
-  if (ms.status === "in-progress") return `I gang · ${ms.progress} %`;
-  if (ms.status === "parked") return "Parkeret";
+  if (ms.dom.faerdig) return "Gennemført";
+  if (ms.dom.parkeret) return "Parkeret";
+  if (ms.dom.paabegyndt) return `I gang · ${ms.progress} %`;
   return "Ikke startet";
 };
 
@@ -100,7 +117,7 @@ export const HbMilestoneRaekke = ({
   const cfg = MILESTONE_CATEGORIES[ms.category] || MILESTONE_CATEGORIES.other;
   const Ikon = cfg.icon;
   const maalbar = !!(ms.target_value && ms.unit);
-  const parkeret = ms.status === "parked";
+  const parkeret = ms.dom.parkeret;
   const klikbarBar = !maalbar && !parkeret;
 
   // MilestonesList.tsx:90-95, ordret: klik-position → 5 %-trin.
@@ -120,9 +137,9 @@ export const HbMilestoneRaekke = ({
         <div className="min-w-0 flex-1">
           {/* Titlen åbner detaljen (som hele kortet gjorde før). */}
           <button type="button" onClick={onAabn} className="block w-full text-left">
-            <p className={cn("text-[15px] leading-snug", ms.status === "done" ? "text-hb-ink-soft line-through" : "text-hb-ink")}>{ms.title}</p>
+            <p className={cn("text-[15px] leading-snug", ms.dom.faerdig ? "text-hb-ink-soft line-through" : "text-hb-ink")}>{ms.title}</p>
             <p className="mt-0.5 text-xs text-hb-ink-soft">
-              {formatDeadline(ms.deadline)}
+              <span className={cn(ms.dom.forfalden && "font-medium text-hb-rust")}>{fristTekst(ms)}</span>
               {ms.baseline && <span> · {ms.baseline}</span>}
             </p>
           </button>
@@ -136,7 +153,7 @@ export const HbMilestoneRaekke = ({
             >
               <div className="h-[3px] overflow-hidden rounded-full bg-hb-line">
                 <div
-                  className={ms.progress >= 100 ? "h-full rounded-full bg-hb-evergreen" : "h-full rounded-full bg-hb-evergreen/70"}
+                  className={ms.dom.faerdig ? "h-full rounded-full bg-hb-evergreen" : "h-full rounded-full bg-hb-evergreen/70"}
                   style={{ width: `${Math.min(100, Math.max(0, ms.progress))}%` }}
                 />
               </div>

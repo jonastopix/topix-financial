@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { postActivityMessage } from "@/lib/chatActivity";
 import type { MilestoneCategory } from "@/lib/milestoneCategories";
+import { afgoerMilepael, sammenlignAktive, statusEfterFremgang, type MilepaelDom, type MilepaelTilstand } from "@/lib/milepaelDom";
 
 /**
  * Datalaget for Hb-milestonefladen — en ren FLYTNING af logikken i
@@ -14,15 +15,26 @@ import type { MilestoneCategory } from "@/lib/milestoneCategories";
  * gamle liste står urørt; denne fil er dens spejl uden JSX, så fladen
  * kun tegner. Etape 1 af konverteringen (4/9): siden, listen og
  * rækkerne — ikke portalerne.
+ *
+ * DOMMEN (8/9): tilstanden (færdig / i gang / ikke startet / parkeret /
+ * FORFALDEN) dømmes IKKE her længere. Den gamle deriveStatus (progress
+ * >= 100 → done) og sorteringens egen «hastende» (deadline > now) er
+ * erstattet af src/lib/milepaelDom.ts — én sandhed for alle flader.
+ * Hver række bærer sin dom (Milestone.dom), og status er dommens
+ * overskrift. Skrivereglen ved fremgang (100 % → 'completed') bor også
+ * i motoren (statusEfterFremgang).
  */
 
-export type MilestoneStatus = "done" | "in-progress" | "pending" | "parked";
+export type MilestoneStatus = MilepaelTilstand;
 
 export interface Milestone {
   id: string;
   title: string;
   deadline: Date | null;
+  /** Dommens overskrift — se dom for de enkelte sandheder. */
   status: MilestoneStatus;
+  /** Én sandhed: afgoerMilepael(rå række, nu). */
+  dom: MilepaelDom;
   description: string | null;
   source: string;
   source_report: string | null;
@@ -35,33 +47,21 @@ export interface Milestone {
   unit: string | null;
 }
 
-/** MilestonesList.tsx:50-55, ordret. */
-export function deriveStatus(progress: number, currentStatus?: string): MilestoneStatus {
-  if (currentStatus === "parked") return "parked";
-  if (progress >= 100) return "done";
-  if (progress > 0) return "in-progress";
-  return "pending";
+/** Dommen for én række — kaldes ved hentning og efter hver lokal
+    ændring, så Milestone.dom/status aldrig er ældre end felterne. */
+function doem(m: Pick<Milestone, "dbStatus" | "progress" | "deadline">, nu: Date = new Date()): Pick<Milestone, "dom" | "status"> {
+  const dom = afgoerMilepael({ status: m.dbStatus, progress: m.progress, deadline: m.deadline }, nu);
+  return { dom, status: dom.tilstand };
 }
 
-/** Sorteringen af aktive milestones — MilestonesList.tsx:590-611, ordret:
-    hastende (deadline inden for 7 dage, ikke passeret) først efter dato,
-    så i gang, så dem med deadline efter dato, så resten. */
-export function sorterAktive(items: Milestone[]): Milestone[] {
-  const now = new Date().getTime();
-  const URGENT_MS = 7 * 24 * 60 * 60 * 1000;
-  return [...items].sort((a, b) => {
-    const aUrgent = a.deadline && (a.deadline.getTime() - now) <= URGENT_MS && a.deadline.getTime() > now;
-    const bUrgent = b.deadline && (b.deadline.getTime() - now) <= URGENT_MS && b.deadline.getTime() > now;
-    if (aUrgent && bUrgent) return a.deadline!.getTime() - b.deadline!.getTime();
-    if (aUrgent) return -1;
-    if (bUrgent) return 1;
-    if (a.status === "in-progress" && b.status !== "in-progress") return -1;
-    if (b.status === "in-progress" && a.status !== "in-progress") return 1;
-    if (a.deadline && !b.deadline) return -1;
-    if (!a.deadline && b.deadline) return 1;
-    if (a.deadline && b.deadline) return a.deadline.getTime() - b.deadline.getTime();
-    return 0;
-  });
+/** Sorteringen af aktive milestones — motorens sammenlignAktive:
+    forfaldne først (ældst først), så hastende (frist inden for 7 dage,
+    fristdagen medregnet), så påbegyndte, så efter frist, så uden frist.
+    Før (MilestonesList.tsx:590-611) var «hastende» deadline > now, så
+    fristdagen selv hverken var hastende eller forfalden. */
+export function sorterAktive(items: Milestone[], nu: Date = new Date()): Milestone[] {
+  const raa = (m: Milestone) => ({ status: m.dbStatus, progress: m.progress, deadline: m.deadline });
+  return [...items].sort((a, b) => sammenlignAktive(raa(a), raa(b), nu));
 }
 
 export interface NyMilestone {
@@ -109,12 +109,13 @@ export function useMilestones({ userId, companyId, isAdvisor }: Args) {
         source: string; source_report: string | null; progress: number | null; category: string | null;
         baseline: string | null; target_value: number | null; current_value: number | null; unit: string | null;
       };
+      const nu = new Date();
       const mapped: Milestone[] = ((data || []) as unknown as Raekke[]).map((m) => ({
         id: m.id,
         title: m.title,
         deadline: m.deadline ? new Date(m.deadline) : null,
         dbStatus: m.status as string,
-        status: m.status === "parked" ? ("parked" as const) : deriveStatus(m.progress ?? 0, m.status),
+        ...doem({ dbStatus: m.status, progress: m.progress ?? 0, deadline: m.deadline ? new Date(m.deadline) : null }, nu),
         description: m.description,
         source: m.source,
         source_report: m.source_report,
@@ -135,14 +136,16 @@ export function useMilestones({ userId, companyId, isAdvisor }: Args) {
     };
   }, [userId, companyId, refreshKey]);
 
-  // Deadline-påmindelser (Slack) 3 og 7 dage før — MilestonesList.tsx:558-585, ordret.
+  // Deadline-påmindelser (Slack) 3 og 7 dage før — MilestonesList.tsx:558-585.
+  // Kun AKTIVE (dommen): før sprang den kun færdige (progress >= 100) over,
+  // så parkerede med frist fik påmindelser om noget de havde lagt fra sig.
   useEffect(() => {
     if (isAdvisor) return;
     if (!milestones || !userId || !companyId) return;
     const now = new Date();
     const checkDays = [3, 7];
     for (const ms of milestones) {
-      if (!ms.deadline || ms.progress >= 100) continue;
+      if (!ms.deadline || !ms.dom.aktiv) continue;
       const deadline = new Date(ms.deadline);
       const daysUntil = Math.ceil((deadline.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
       if (checkDays.includes(daysUntil)) {
@@ -171,16 +174,17 @@ export function useMilestones({ userId, companyId, isAdvisor }: Args) {
   const saetFremgang = useCallback(async (id: string, newProgress: number) => {
     const oldMs = milestones.find((m) => m.id === id);
     if (!oldMs) return;
-    if (oldMs.dbStatus === "parked") return;
-    const wasNotDone = oldMs.progress < 100;
-    const newStatus = deriveStatus(newProgress);
-    setMilestones((prev) => prev.map((m) => (m.id === id ? { ...m, progress: newProgress, status: newStatus } : m)));
+    if (oldMs.dom.parkeret) return;
+    const wasNotDone = !oldMs.dom.faerdig;
+    const dbStatus = statusEfterFremgang(newProgress);
+    const ny = doem({ dbStatus, progress: newProgress, deadline: oldMs.deadline });
+    setMilestones((prev) => prev.map((m) => (m.id === id ? { ...m, progress: newProgress, dbStatus, ...ny } : m)));
     const { error } = await supabase.from("milestones").update({
       progress: newProgress,
-      status: newStatus === "done" ? "completed" : "active",
+      status: dbStatus,
     }).eq("id", id);
     if (error) { toast.error("Kunne ikke opdatere fremgang"); return; }
-    if (wasNotDone && newProgress >= 100) fejr(oldMs.title);
+    if (wasNotDone && ny.dom.faerdig) fejr(oldMs.title);
   }, [milestones, fejr]);
 
   /** MilestonesList.tsx:656-689. */
@@ -188,22 +192,23 @@ export function useMilestones({ userId, companyId, isAdvisor }: Args) {
     const ms = milestones.find((m) => m.id === id);
     if (!ms || !ms.target_value) return;
     const newProgress = Math.min(100, Math.round((newCurrentValue / ms.target_value) * 100));
-    const newStatus = deriveStatus(newProgress);
-    const wasNotDone = ms.progress < 100;
-    setMilestones((prev) => prev.map((m) => (m.id === id ? { ...m, current_value: newCurrentValue, progress: newProgress, status: newStatus } : m)));
+    const dbStatus = statusEfterFremgang(newProgress);
+    const wasNotDone = !ms.dom.faerdig;
+    const ny = doem({ dbStatus, progress: newProgress, deadline: ms.deadline });
+    setMilestones((prev) => prev.map((m) => (m.id === id ? { ...m, current_value: newCurrentValue, progress: newProgress, dbStatus, ...ny } : m)));
     // current_value står ikke i de genererede typer (samme cast som MilestonesList.tsx:672).
-    const payload = { current_value: newCurrentValue, progress: newProgress, status: newStatus === "done" ? "completed" : "active" };
+    const payload = { current_value: newCurrentValue, progress: newProgress, status: dbStatus };
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { error } = await supabase.from("milestones").update(payload as any).eq("id", id);
     if (error) { toast.error("Kunne ikke opdatere fremgang"); return; }
-    if (wasNotDone && newProgress >= 100) fejr(ms.title);
+    if (wasNotDone && ny.dom.faerdig) fejr(ms.title);
   }, [milestones, fejr]);
 
   /** MilestonesList.tsx:691-696. */
   const skiftFuldfoert = useCallback(async (id: string) => {
     const ms = milestones.find((m) => m.id === id);
     if (!ms) return;
-    await saetFremgang(id, ms.progress >= 100 ? 0 : 100);
+    await saetFremgang(id, ms.dom.faerdig ? 0 : 100);
   }, [milestones, saetFremgang]);
 
   /** MilestonesList.tsx:698-703. */
@@ -230,12 +235,16 @@ export function useMilestones({ userId, companyId, isAdvisor }: Args) {
     }
     if ("status" in fields) {
       dbFields.status = fields.status;
-      localFields.status = fields.status === "parked" ? "parked" : deriveStatus(milestones.find((m) => m.id === id)?.progress ?? 0, fields.status as string);
       localFields.dbStatus = fields.status;
     }
     const { error } = await supabase.from("milestones").update(dbFields).eq("id", id);
     if (error) { toast.error("Kunne ikke gemme"); return; }
-    setMilestones((prev) => prev.map((m) => (m.id === id ? { ...m, ...localFields } : m)));
+    // Dommen regnes om på den samlede række — status OG deadline kan være ændret.
+    setMilestones((prev) => prev.map((m) => {
+      if (m.id !== id) return m;
+      const ny = { ...m, ...localFields } as Milestone;
+      return { ...ny, ...doem(ny) };
+    }));
     toast.success("Gemt");
   }, [milestones]);
 

@@ -287,7 +287,7 @@ export const MilestoneDetaljeDialog = ({
 
   if (!ms) return null;
   const luk = () => onOpenChange(false);
-  const fremdriftFarve = ms.status === "done" ? "text-hb-evergreen" : "text-hb-ink";
+  const fremdriftFarve = ms.dom.faerdig ? "text-hb-evergreen" : "text-hb-ink";
 
   const titel = editingTitle ? (
     <div className="space-y-2">
@@ -376,7 +376,7 @@ export const MilestoneDetaljeDialog = ({
                 </span>
               </div>
               <div className="mb-3 h-[3px] w-full overflow-hidden rounded-full bg-hb-line">
-                <div className={ms.progress >= 100 ? "h-full rounded-full bg-hb-evergreen" : "h-full rounded-full bg-hb-evergreen/70"} style={{ width: `${ms.progress}%` }} />
+                <div className={ms.dom.faerdig ? "h-full rounded-full bg-hb-evergreen" : "h-full rounded-full bg-hb-evergreen/70"} style={{ width: `${ms.progress}%` }} />
               </div>
               <div className="flex items-center gap-2">
                 <span className="shrink-0 text-xs text-hb-ink-soft">Nuværende:</span>
