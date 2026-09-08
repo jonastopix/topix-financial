@@ -36,6 +36,7 @@
  * Virksomhedens navn escapes af layoutet.
  */
 import { formatKr, indgangsMailHtml, tiltale, type IndgangsMail } from "./indgangsMail.ts";
+import type { Betalingsmodel } from "./fornyelsespris.ts";
 
 const APP_URL = "https://app.theboardroom.dk";
 
@@ -48,6 +49,8 @@ export const FORNYELSE_CALENDLY_URL = "https://calendly.com/topix-jonas/fornyels
 /** template_name i email_send_log og label i køen — til næste PR's afsendelse. */
 export const LABEL_VARSEL_1 = "fornyelse-varsel1";
 export const LABEL_VARSEL_2 = "fornyelse-varsel2";
+/** Kvitteringen efter betalingen (8/9) — template_name i email_send_log og label hos Lovable. */
+export const LABEL_KVITTERING = "fornyelse-kvittering";
 
 const HILSEN = "Venlig hilsen\nJonas Herlev";
 const KNAP = { tekst: "Forny medlemskabet", url: FORNYELSE_FORSIDE_URL };
@@ -120,6 +123,81 @@ export function varsel2Mail(a: FornyelsesMailArgs & { dageTilUdloeb: number | nu
         `En kort påmindelse: dit medlemskab slutter ${slutter.tekst}, og det kan fornys med et par klik — ${formatKr(a.beloebKr)} kr. ekskl. moms for det næste år.`,
       ],
       knap: KNAP,
+      hilsen: HILSEN,
+    }),
+  };
+}
+
+// ── Kvitteringen — efter betalingen (8/9) ────────────────────────────────
+//
+// HVORFOR: medlemmet betalte for et helt år og fik en toast der
+// forsvandt (recon-efter-fornyelsen.md §2). Ingen mail, intet skriftligt
+// spor fra os — kun Stripes egen kvittering. Denne mail siger tak, HVAD de
+// har købt (beløbet og betalingsmodellen, ved rater hvad der trækkes
+// hvornår), HVOR LÆNGE (den nye slutdato, skrevet ud) og et link ind.
+// Sendes af stripe-webhookens fornyelsesgren EFTER at perioden er skrevet
+// og contract_end_date er sat — aldrig før — og fejler den, rulles intet
+// tilbage (webhooken fanger og logger).
+//
+// REN som varslerne: kalderen formaterer slutdatoen som tekst
+// (formatDanskDato) og sender beløbene i ØRE, som Stripe og
+// company_perioder bærer dem; raterne kan have ører (2.187,50), og de må
+// ikke forsvinde i formateringen (samme regel som MembershipExpiredGate.kr).
+
+/** Øre → dansk kronestreng: hele beløb uden decimaler («2.000»), skæve med to («2.187,50»). */
+export function formatKrOere(oere: number): string {
+  const kroner = oere / 100;
+  const hel = Math.trunc(kroner);
+  const rest = Math.round(Math.abs(kroner - hel) * 100);
+  const helTekst = formatKr(hel);
+  return rest === 0 ? helTekst : `${helTekst},${String(rest).padStart(2, "0")}`;
+}
+
+/** Hvor mange træk hver model giver — samme tal som fornyelsespris.ts' TRAEK. */
+const ANTAL_TRAEK: Record<Betalingsmodel, number> = { fuld: 1, rate2: 2, rate12: 12 };
+
+export interface FornyelsesKvitteringArgs {
+  fornavn: string | null | undefined;
+  /** companies.name — escapes af layoutet. */
+  virksomhed: string;
+  /** Den NYE slutdato som tekst («29. september 2027»). */
+  nySlutDato: string;
+  betalingsmodel: Betalingsmodel;
+  /** Det samlede beløb for perioden i øre (metadata.samlet_oere — rate12 bærer 5 %-tillægget). */
+  samletOere: number;
+}
+
+/**
+ * Sætningen om hvad der er købt — én pr. betalingsmodel. Datoer for
+ * raterne skrives ikke ud: Stripe afgør trækdagen ud fra abonnementets
+ * start, og et forkert tal er værre end «om seks måneder».
+ */
+function koebsSaetning(a: FornyelsesKvitteringArgs): string {
+  const samlet = formatKrOere(a.samletOere);
+  const rate = formatKrOere(a.samletOere / ANTAL_TRAEK[a.betalingsmodel]);
+  switch (a.betalingsmodel) {
+    case "fuld":
+      return `Du har fornyet medlemskabet for ${a.virksomhed} med et år: ${samlet} kr. ekskl. moms, betalt på én gang.`;
+    case "rate2":
+      return `Du har fornyet medlemskabet for ${a.virksomhed} med et år: ${samlet} kr. ekskl. moms i to rater à ${rate} kr. — den første er trukket nu, den anden om seks måneder.`;
+    case "rate12":
+      return `Du har fornyet medlemskabet for ${a.virksomhed} med et år: ${samlet} kr. ekskl. moms i tolv rater à ${rate} kr. — den første er trukket nu, derefter én gang om måneden i elleve måneder.`;
+  }
+}
+
+/** Kvitteringen. Emnet bærer den nye slutdato, så mailen kan findes igen. */
+export function kvitteringMail(a: FornyelsesKvitteringArgs): IndgangsMail {
+  return {
+    subject: `Tak — dit medlemskab er fornyet til ${a.nySlutDato}`,
+    html: indgangsMailHtml({
+      overskrift: tiltale("Kære", a.fornavn),
+      afsnit: [
+        "Tak for fornyelsen — vi glæder os til et år mere sammen.",
+        koebsSaetning(a),
+        `Din adgang løber til og med ${a.nySlutDato}. Kvitteringen for selve betalingen kommer fra Stripe i en separat mail.`,
+      ],
+      knap: { tekst: "Gå til The Boardroom", url: FORNYELSE_FORSIDE_URL },
+      efterKnap: ["Har du spørgsmål til fornyelsen, så svar på denne mail eller skriv til jonas@topix.dk."],
       hilsen: HILSEN,
     }),
   };

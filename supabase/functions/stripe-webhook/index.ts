@@ -20,6 +20,9 @@ import {
   type TraekUdfald,
 } from "../_shared/abonnementstraek.ts";
 import { beregnFornyelsesperiode } from "../_shared/fornyelsesperiode.ts";
+import { kvitteringMail, LABEL_KVITTERING } from "../_shared/fornyelsesMail.ts";
+import { formatDanskDato } from "../_shared/indgangsMailAfsendelse.ts";
+import type { Betalingsmodel } from "../_shared/fornyelsespris.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -157,6 +160,102 @@ async function nulstilIndgangsSession(
     .eq("company_id", companyId);
   if (error) {
     console.warn(`[stripe-webhook] kunne ikke nulstille sidste_checkout_session_id for ${companyId}:`, error);
+  }
+}
+
+
+/**
+ * Kvitteringen for en fornyelse (8/9) — sendes EFTER at perioden er
+ * skrevet og contract_end_date er sat, aldrig før. KASTER ALDRIG: en
+ * betaling der registreres uden en mail er langt bedre end en mail der
+ * koster en registrering; alt fanges, logges og fortsætter.
+ *
+ * IDEMPOTENS: Stripe kan sende samme event to gange, og gensendelses-
+ * grenene kalder også hertil (så en mail der fejlede første gang får et
+ * forsøg til). Nøglen er checkout-sessionens id — samme som perioden
+ * (stripe_reference). To lag: (1) email_send_log spørges om en 'sent'-
+ * række med nøglen som message_id (managedEmail skriver den med
+ * idempotencyKey som message_id), (2) nøglen sendes som idempotency_key
+ * til Lovable, som dedup'er på sin side. Medlemmet får aldrig to.
+ *
+ * MODTAGEREN er kontoen der betalte (metadata.user_id → auth.users), som
+ * booking-mailen gør det; falder tilbage på companies.contact_email hvis
+ * kontoen ikke kan læses. Fornavn fra profiles.
+ */
+async function sendFornyelseskvittering(
+  adminClient: SupabaseClient,
+  args: {
+    sessionId: string;
+    companyId: string;
+    userId: string | null;
+    betalingsmodel: string;
+    samletOere: number;
+    periodeSlut: string;
+  },
+): Promise<void> {
+  const noegle = `fornyelse-kvittering-${args.sessionId}`;
+  const praefiks = `[stripe-webhook] fornyelseskvittering ${args.sessionId}`;
+  try {
+    const { data: alleredeSendt } = await adminClient
+      .from("email_send_log")
+      .select("id")
+      .eq("message_id", noegle)
+      .eq("status", "sent")
+      .maybeSingle();
+    if (alleredeSendt) {
+      console.log(`${praefiks}: allerede sendt, springer over`);
+      return;
+    }
+
+    const { data: company } = await adminClient
+      .from("companies")
+      .select("name, contact_email")
+      .eq("id", args.companyId)
+      .maybeSingle();
+
+    let til: string | null = null;
+    let fornavn: string | null = null;
+    if (args.userId) {
+      const { data: userData } = await adminClient.auth.admin.getUserById(args.userId);
+      til = userData?.user?.email ?? null;
+      const { data: profile } = await adminClient
+        .from("profiles")
+        .select("full_name")
+        .eq("user_id", args.userId)
+        .maybeSingle();
+      fornavn = profile?.full_name?.split(" ")[0] || null;
+    }
+    if (!til) til = company?.contact_email?.trim() || null;
+    if (!til) {
+      console.error(`${praefiks}: ingen modtager (hverken konto eller contact_email) — kvittering ikke sendt`);
+      return;
+    }
+
+    const mail = kvitteringMail({
+      fornavn,
+      virksomhed: company?.name ?? "The Boardroom",
+      nySlutDato: formatDanskDato(new Date(args.periodeSlut)),
+      betalingsmodel: args.betalingsmodel as Betalingsmodel,
+      samletOere: args.samletOere,
+    });
+    const resultat = await sendManagedEmail({
+      adminClient,
+      to: til,
+      subject: mail.subject,
+      html: mail.html,
+      label: LABEL_KVITTERING,
+      idempotencyKey: noegle,
+      metadata: { company_id: args.companyId, session_id: args.sessionId, betalingsmodel: args.betalingsmodel },
+    });
+    if (!resultat.sent) {
+      console.error(`${praefiks}: ikke sendt (${resultat.reason}) — betalingen er registreret, kvitteringen mangler`);
+      return;
+    }
+    console.log(`${praefiks}: sendt til ${til} (${args.betalingsmodel}, ${args.samletOere} øre, til ${args.periodeSlut})`);
+  } catch (err) {
+    // Aldrig videre: betalingen er registreret, og et kast ville få Stripe
+    // til at gensende hele eventet.
+    console.error(`${praefiks}: uventet fejl — betalingen er registreret, kvitteringen mangler:`, err);
   }
 }
 
@@ -620,7 +719,7 @@ Deno.serve(async (req) => {
 
       const { data: fornyelseCompany } = await adminClient
         .from("companies")
-        .select("contract_end_date")
+        .select("contract_end_date, name")
         .eq("id", fornyelseCompanyId)
         .maybeSingle();
 
@@ -651,6 +750,17 @@ Deno.serve(async (req) => {
           );
         }
         if (fornyelseCompany?.contract_end_date === eksisterende.periode_slut) {
+          // Kvitteringen sikres også her: første forsøg kan være fejlet
+          // EFTER kontrakten var sat og FØR mailen gik. Idempotent (nøglen
+          // er sessionens id), og kaster aldrig.
+          await sendFornyelseskvittering(adminClient, {
+            sessionId: session.id,
+            companyId: fornyelseCompanyId,
+            userId: session.metadata?.user_id ?? null,
+            betalingsmodel,
+            samletOere: beloebOere,
+            periodeSlut: eksisterende.periode_slut,
+          });
           console.log(`[stripe-webhook] Fornyelse ${session.id} allerede behandlet, springer over`);
           return new Response(JSON.stringify({ received: true, skipped: "already_processed" }), {
             headers: { "Content-Type": "application/json" },
@@ -666,6 +776,15 @@ Deno.serve(async (req) => {
           console.error("[stripe-webhook] contract_end_date-opdatering fejlede (gensendelse):", fuldfoerError);
           throw new Error("Failed to update contract_end_date");
         }
+        // Kontrakten er nu fuldført — kvitteringen sikres før svaret.
+        await sendFornyelseskvittering(adminClient, {
+          sessionId: session.id,
+          companyId: fornyelseCompanyId,
+          userId: session.metadata?.user_id ?? null,
+          betalingsmodel,
+          samletOere: beloebOere,
+          periodeSlut: eksisterende.periode_slut,
+        });
         console.log(
           `[stripe-webhook] Fornyelse ${session.id}: gensendelse fuldførte halvt udført arbejde — contract_end_date sat til ${eksisterende.periode_slut} for company ${fornyelseCompanyId}`
         );
@@ -728,6 +847,18 @@ Deno.serve(async (req) => {
           Deno.env.get("STRIPE_SECRET_KEY")!
         );
       }
+
+      // ── KVITTERINGEN (8/9) — EFTER perioden, datoen og ophøret. Fejler
+      //    den, er betalingen stadig registreret: hjælperen kaster aldrig.
+      //    Idempotent på sessionens id, så en gensendelse ikke giver to. ──
+      await sendFornyelseskvittering(adminClient, {
+        sessionId: session.id,
+        companyId: fornyelseCompanyId,
+        userId: session.metadata?.user_id ?? null,
+        betalingsmodel,
+        samletOere: beloebOere,
+        periodeSlut: periode_slut,
+      });
 
       console.log(
         `[stripe-webhook] Fornyelse for company ${fornyelseCompanyId}: ${beloebOere} øre (${betalingsmodel}), kontrakt ${fornyelseCompany?.contract_end_date ?? "ukendt"} → ${periode_slut} (${gren}, periode fra ${periode_start})`
