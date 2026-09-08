@@ -2,25 +2,55 @@
 
 > **MÅLT I PROD 7. SEPTEMBER 2026 KL. 20:42 — DAGENS SIDSTE OG VIGTIGSTE
 > MÅLING. 29 AF 37 VIRKSOMHEDER ER FALDET UD. TO BRUGER PLATFORMEN SOM
-> TÆNKT.** Dette blok kan læses uden resten af filen. Det er en måling,
+> TÆNKT.** **RETTET 8/9 KL. 08:49: 19 AF 27.** Tallet var forkert —
+> filtret manglede `status`, og to gæster var mærket som kunder (se
+> «Rettelsen» under tabellen). Konklusionen var ikke forkert: de otte
+> aktive er de samme, og kun to af dem svarer på forslag. Dette blok kan
+> læses uden resten af filen. Det er en måling,
 > ikke en opgave og ikke en anbefaling — hvad der skal gøres, er Jonas'
 > og Mortens beslutning.
 >
 > **Kriteriet for «faldet ud»:** mere end tre måneder siden seneste
 > MÅLTE rapport (`financial_report_facts.data_basis = 'measured'`) OG nul
-> besvarede opgaveforslag de seneste tre måneder. Mængden: `er_kunde`,
-> ikke legat.
+> besvarede opgaveforslag de seneste tre måneder. Mængden, ordret
+> (rettet 8/9): `er_kunde = true AND is_legat = false AND status = 'active'`.
+> Målingen 7/9 brugte kun de to første led.
 >
-> | | |
-> |---|---|
-> | I alt | **37** virksomheder |
-> | Faldet ud | **29** |
-> | Aktive | **8** |
-> | Midt imellem | **0** |
+> | | 7/9 kl. 20:42 (forkert filter) | **8/9 kl. 08:49 (rettet)** |
+> |---|---|---|
+> | I alt | 37 virksomheder | **27** |
+> | Faldet ud | 29 | **19** |
+> | Aktive | 8 | **8** |
+> | Midt imellem | 0 | **0** (27 = 19 + 8) |
+> | Aldrig uploadet en målt rapport | 17 | **10** |
 >
-> **Indeni tallet, og det er værre:**
+> **Rettelsen, 8/9.** Målingen 7/9 var forkert på to punkter, opdaget om
+> morgenen 8/9 — tolv timer efter tallet blev skrevet øverst i denne fil:
 >
-> - **SYTTEN har ALDRIG uploadet en målt rapport.** Ikke én. Blandt dem
+> 1. **Filtret manglede `status`.** De OTTE virksomheder med
+>    `status = 'tidligere'` (sat 2/9, migration 20260902113000) blev talt
+>    med som medlemmer: Alina Beauty & Skincare (slut 29/5), Coskun,
+>    Regnskabsvikar, Sebastian & Amalie og Stadio (alle 6/5), Startkørekort
+>    (21/5), Friends & Fries (22/8), LineAlmegaard (1/9).
+> 2. **To GÆSTER var mærket som kunder.** Alexander Lunds virksomhed
+>    (oprettet 31/8) og Martin Larsens virksomhed (1/9). Jonas 8/9: «de er
+>    nogle gæster der bare lige har fået lov til at komme ind og kigge. De
+>    er ikke en del af netværket.» Ingen slutdato, ingen pris, ingen
+>    betaling, ingen rapporter. RETTET i prod 8/9 kl. 08:48: `er_kunde`
+>    sat til `false` på begge (FØR-værdi: `true`). Nu er tre skjulte for
+>    rådgiveren: Topix.dk ApS, Alexander Lund, Martin Larsen.
+>
+> Med det rette filter, målt i prod 8/9 kl. 08:49: i alt 27, faldet ud
+> 19, aktive 8, aldrig uploadet 10. Kriteriet er uændret. Læren står i
+> DEL 4 («Et filter er en del af målingen»).
+>
+> **Indeni tallet, og det er værre** (tal fra 7/9 — de fem af navnene
+> nedenfor der er gæster eller tidligere, er ikke længere i mængden;
+> aldrig uploadet er 10, ikke 17, målt 8/9):
+>
+> - **SYTTEN har ALDRIG uploadet en målt rapport** (rettet 8/9: TI —
+>   Martin Larsen og Alexander Lund er gæster, LineAlmegaard, Friends &
+>   Fries og Coskun er tidligere). Ikke én. Blandt dem
 >   virksomheder der har logget ind for få dage siden: TOFT ADMINISTRATION
 >   4/9, Martin Larsen 1/9, remm. 1/9, Limo Group og LineAlmegaard 31/8,
 >   Alexander Lund 31/8, Fjeldgaardshop 25/8, Friends & Fries 24/8,
@@ -44,13 +74,19 @@
 > | Warburg | 14 | 0 |
 > | Livja | 0 | 0 |
 >
+> Målt igen 8/9 kl. 08:49 med det rette filter: de otte aktive er DE SAMME,
+> og stadig kun to svarer — Floren Engros 6 af 12, Rezycl.com 6 af 9
+> (tre-måneders-vinduet er flyttet én dag, derfor andre tællere).
+>
 > **Det rigtige billede: to virksomheder ud af syvogtredive bruger
-> platformen som tænkt.**
+> platformen som tænkt** — rettet 8/9: ud af **syvogtyve**. Tallet var
+> forkert, konklusionen var ikke.
 >
 > **I forhold til dagen.** Alt hvad der er rettet 7/9 — fornyelseskæden
 > der sender, de tavse fejl der nu kaster, fortegnet på omkostningerne,
 > årsrapport-udtrækkets huller, de manglende måneder — gør platformen mere
-> KORREKT for de otte. Det ændrer ikke at de niogtyve ikke er der.
+> KORREKT for de otte. Det ændrer ikke at de niogtyve (rettet 8/9:
+> nitten) ikke er der.
 >
 > **I forhold til de tre målinger tidligere i dag.** De 73 ventende
 > uploads (rapporter der aldrig blev godkendt — `recon-ventende-uploads`),
@@ -63,12 +99,16 @@
 >
 > **Sådan gentages målingen — om en måned, med samme kriterium, så tallene
 > kan sammenlignes.** Formen (kolonnenavne efterprøves i `types.ts` før
-> kørsel — `company_actions`' svartidsstempel er ikke slået op her):
+> kørsel — `company_actions`' svartidsstempel er ikke slået op her).
+> Filtret er rettet 8/9: `status = 'active'` er det tredje led — uden det
+> tælles de otte «tidligere» med. Sammenlign mod 8/9-tallene, ikke 7/9:
 >
 > ```sql
 > WITH kunder AS (
 >   SELECT id, name FROM public.companies
->   WHERE er_kunde = true AND is_legat = false
+>   -- Filtret ORDRET (rettet 8/9): kunde, ikke legat, aktiv.
+>   -- 7/9 manglede status, og de otte 'tidligere' blev talt med.
+>   WHERE er_kunde = true AND is_legat = false AND status = 'active'
 > ),
 > seneste_maalte AS (
 >   SELECT company_id, max(period_key) AS seneste_periode, max(committed_at) AS seneste_commit
@@ -109,9 +149,13 @@
 > SELECT tilstand, count(*) FROM ( …samme SELECT som ovenfor… ) t GROUP BY tilstand;
 > ```
 >
-> Referencen 7/9 kl. 20:42: faldet ud 29 · aktive 8 · midt imellem 0 ·
-> aldrig uploadet 17 · aldrig logget ind 3. Mangellisten bærer kortet «29
-> af 37 er faldet ud».
+> Referencen 7/9 kl. 20:42 (FORKERT filter, uden `status`): faldet ud 29 ·
+> aktive 8 · midt imellem 0 · aldrig uploadet 17 · aldrig logget ind 3.
+> **Referencen 8/9 kl. 08:49 (rettet filter, `er_kunde = true AND is_legat
+> = false AND status = 'active'`): i alt 27 · faldet ud 19 · aktive 8 ·
+> midt imellem 0 · aldrig uploadet 10.** Det er 8/9-tallene der
+> sammenlignes mod. Mangellisten bærer kortet «19 af 27 er faldet ud»
+> (før: «29 af 37»).
 
 > ## PLANEN FOR 8. SEPTEMBER — godkendt og prioriteret af Jonas 7/9 sen aften
 >
@@ -3091,6 +3135,24 @@ De konkrete ting der har kostet tid. Led efter dem.
   spørgsmål: er tallet sandsynligt, OG findes tallet overhovedet. Det
   andet spørgsmål fandt ni af elleve (7/9 kl. 20:24, DEL 2
   «Årsrapport-udtrækket»).
+- **ET FILTER ER EN DEL AF MÅLINGEN.** «29 af 37 er faldet ud» blev
+  skrevet som dagens vigtigste tal 7/9 kl. 20:42 og stod øverst i denne
+  overlevering i tolv timer, før nogen spurgte om de tidligere medlemmer
+  var talt med. Det var de: filtret var `er_kunde = true AND is_legat =
+  false` og manglede `status = 'active'`, så de otte `'tidligere'` fra
+  2/9 stod som medlemmer — og to gæster (Alexander Lund, Martin Larsen)
+  stod som kunder, fordi ingen havde sat `er_kunde` på dem. Rettet 8/9
+  kl. 08:48-08:49: `er_kunde = false` på de to, og målingen kørt igen med
+  tre led: 19 af 27, ikke 29 af 37. Konklusionen holdt (samme otte
+  aktive, samme to der svarer); tallet gjorde ikke. REGLEN: når en
+  måling tæller mennesker eller virksomheder, skal filtret stå ORDRET i
+  bogføringen — ikke som «blandt kunder» eller «ikke legat», men som den
+  præcise where-sætning (`WHERE er_kunde = true AND is_legat = false AND
+  status = 'active'`). Ellers kan ingen se hvad der er talt med, og
+  ingen kan gentage målingen og få et sammenligneligt tal. Og
+  bogføringen selv bar advarslen: DEL 2 «Platformen i tal» skelnede
+  allerede «30 aktive» fra «38 rækker inkl. de otte tidligere» (3/9) —
+  målingen 7/9 læste den ikke (8/9, øverst «Rettelsen»).
 
 ---
 
