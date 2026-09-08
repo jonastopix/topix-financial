@@ -4,21 +4,23 @@ import * as React from 'npm:react@18.3.1'
 
 import {
   Body,
+  Button,
   Container,
   Head,
   Heading,
   Html,
   Link,
   Preview,
-  Section,
   Text,
 } from 'npm:@react-email/components@0.0.22'
 
-import { EmailBanner } from './EmailBanner.tsx'
-import { BulletproofButton } from './BulletproofButton.tsx'
-
 interface EmailChangeEmailProps {
   siteName: string
+  // oldEmail is the user's current address (HookData.OldEmail). For the
+  // NEW-recipient half of a secure email_change fanout, `email` equals the
+  // recipient (NEW), so the "from" line must render oldEmail to read
+  // "from OLD to NEW" instead of "from NEW to NEW".
+  oldEmail: string
   email: string
   newEmail: string
   confirmationUrl: string
@@ -26,37 +28,39 @@ interface EmailChangeEmailProps {
 
 export const EmailChangeEmail = ({
   siteName,
-  email,
+  oldEmail,
   newEmail,
   confirmationUrl,
 }: EmailChangeEmailProps) => (
-  <Html lang="da" dir="ltr">
-    <Head />
-    <Preview>Bekræft din nye email for {siteName}</Preview>
+  <Html lang="en" dir="ltr">
+    <Head>
+      <style>{darkModeCss}</style>
+    </Head>
+    <Preview>Confirm your email change for {siteName}</Preview>
     <Body style={main}>
       <Container style={container}>
-        <EmailBanner />
-        <Section style={content}>
-          <Heading style={h1}>Bekræft din nye email</Heading>
-          <Text style={text}>
-            Du har anmodet om at ændre din email for {siteName} fra{' '}
-            <strong>{email}</strong> til <strong>{newEmail}</strong>.
-          </Text>
-          <Text style={text}>
-            Klik på knappen herunder for at bekræfte ændringen:
-          </Text>
-          <BulletproofButton href={confirmationUrl} label="Bekræft email-ændring" />
-          <Text style={fallbackIntro}>
-            Virker knappen ikke? Kopiér dette link ind i din browser:
-          </Text>
-          <Text style={fallbackUrl}>
-            <Link href={confirmationUrl} style={link}>{confirmationUrl}</Link>
-          </Text>
-          <Text style={footer}>
-            Hvis du ikke har anmodet om denne ændring, bør du sikre din konto
-            øjeblikkeligt.
-          </Text>
-        </Section>
+        <Heading style={h1}>Confirm your email change</Heading>
+        <Text style={text}>
+          You requested to change your email address for {siteName} from{' '}
+          <Link href={`mailto:${oldEmail}`} style={link}>
+            {oldEmail}
+          </Link>{' '}
+          to{' '}
+          <Link href={`mailto:${newEmail}`} style={link}>
+            {newEmail}
+          </Link>
+          .
+        </Text>
+        <Text style={text}>
+          Click the button below to confirm this change:
+        </Text>
+        <Button className="dm-btn" style={button} href={confirmationUrl}>
+          Confirm Email Change
+        </Button>
+        <Text style={footer}>
+          If you didn't request this change, please secure your account
+          immediately.
+        </Text>
       </Container>
     </Body>
   </Html>
@@ -64,12 +68,36 @@ export const EmailChangeEmail = ({
 
 export default EmailChangeEmail
 
-const main = { backgroundColor: '#f4f4f5', fontFamily: "'Manrope', Arial, sans-serif" }
-const container = { maxWidth: '520px', margin: '32px auto', backgroundColor: '#ffffff', borderRadius: '10px', overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.08)' }
-const content = { padding: '28px 32px 32px' }
-const h1 = { fontSize: '20px', fontWeight: 'bold' as const, color: '#133332', margin: '0 0 16px' }
-const text = { fontSize: '14px', color: '#4D6663', lineHeight: '1.6', margin: '0 0 20px' }
-const link = { color: '#20916C', textDecoration: 'underline' }
-const fallbackIntro = { fontSize: '13px', color: '#4D6663', lineHeight: '1.6', margin: '8px 0 6px' }
-const fallbackUrl = { fontSize: '12px', color: '#20916C', lineHeight: '1.5', margin: '0 0 20px', wordBreak: 'break-all' as const }
-const footer = { fontSize: '12px', color: '#999999', margin: '24px 0 0', lineHeight: '1.5' }
+const main = { backgroundColor: '#ffffff', fontFamily: 'Arial, sans-serif' }
+const container = { padding: '20px 25px' }
+const h1 = {
+  fontSize: '22px',
+  fontWeight: 'bold' as const,
+  color: '#000000',
+  margin: '0 0 20px',
+}
+const text = {
+  fontSize: '14px',
+  color: '#55575d',
+  lineHeight: '1.5',
+  margin: '0 0 25px',
+}
+const link = { color: 'inherit', textDecoration: 'underline' }
+const button = {
+  backgroundColor: '#000000',
+  color: '#ffffff',
+  fontSize: '14px',
+  border: '1px solid #000000',
+  borderRadius: '8px',
+  padding: '12px 20px',
+  textDecoration: 'none',
+}
+const footer = { fontSize: '12px', color: '#999999', margin: '30px 0 0' }
+// Rendered as a text child, which React may HTML-escape: keep this CSS free of >, &, and quotes.
+const darkModeCss = `
+  @media (prefers-color-scheme: dark) {
+    .dm-btn { background-color: #ffffff !important; color: #000000 !important; }
+  }
+  [data-ogsc] .dm-btn { background-color: #ffffff !important; color: #000000 !important; }
+  [data-ogsb] .dm-btn { background-color: #ffffff !important; color: #000000 !important; }
+`

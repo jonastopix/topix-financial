@@ -4,18 +4,15 @@ import * as React from 'npm:react@18.3.1'
 
 import {
   Body,
+  Button,
   Container,
   Head,
   Heading,
   Html,
   Link,
   Preview,
-  Section,
   Text,
 } from 'npm:@react-email/components@0.0.22'
-
-import { EmailBanner } from './EmailBanner.tsx'
-import { BulletproofButton } from './BulletproofButton.tsx'
 
 interface InviteEmailProps {
   siteName: string
@@ -28,32 +25,29 @@ export const InviteEmail = ({
   siteUrl,
   confirmationUrl,
 }: InviteEmailProps) => (
-  <Html lang="da" dir="ltr">
-    <Head />
-    <Preview>Du er blevet inviteret til {siteName}</Preview>
+  <Html lang="en" dir="ltr">
+    <Head>
+      <style>{darkModeCss}</style>
+    </Head>
+    <Preview>You've been invited to join {siteName}</Preview>
     <Body style={main}>
       <Container style={container}>
-        <EmailBanner />
-        <Section style={content}>
-          <Heading style={h1}>Du er blevet inviteret</Heading>
-          <Text style={text}>
-            Du er blevet inviteret til{' '}
-            <Link href={siteUrl} style={link}>
-              <strong>{siteName}</strong>
-            </Link>
-            . Klik på knappen herunder for at acceptere invitationen og oprette din konto.
-          </Text>
-          <BulletproofButton href={confirmationUrl} label="Acceptér invitation" />
-          <Text style={fallbackIntro}>
-            Virker knappen ikke? Kopiér dette link ind i din browser:
-          </Text>
-          <Text style={fallbackUrl}>
-            <Link href={confirmationUrl} style={link}>{confirmationUrl}</Link>
-          </Text>
-          <Text style={footer}>
-            Hvis du ikke forventede denne invitation, kan du blot ignorere denne email.
-          </Text>
-        </Section>
+        <Heading style={h1}>You've been invited</Heading>
+        <Text style={text}>
+          You've been invited to join{' '}
+          <Link href={siteUrl} style={link}>
+            <strong>{siteName}</strong>
+          </Link>
+          . Click the button below to accept the invitation and create your
+          account.
+        </Text>
+        <Button className="dm-btn" style={button} href={confirmationUrl}>
+          Accept Invitation
+        </Button>
+        <Text style={footer}>
+          If you weren't expecting this invitation, you can safely ignore this
+          email.
+        </Text>
       </Container>
     </Body>
   </Html>
@@ -61,12 +55,36 @@ export const InviteEmail = ({
 
 export default InviteEmail
 
-const main = { backgroundColor: '#f4f4f5', fontFamily: "'Manrope', Arial, sans-serif" }
-const container = { maxWidth: '520px', margin: '32px auto', backgroundColor: '#ffffff', borderRadius: '10px', overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.08)' }
-const content = { padding: '28px 32px 32px' }
-const h1 = { fontSize: '20px', fontWeight: 'bold' as const, color: '#133332', margin: '0 0 16px' }
-const text = { fontSize: '14px', color: '#4D6663', lineHeight: '1.6', margin: '0 0 20px' }
-const link = { color: '#20916C', textDecoration: 'underline' }
-const fallbackIntro = { fontSize: '13px', color: '#4D6663', lineHeight: '1.6', margin: '8px 0 6px' }
-const fallbackUrl = { fontSize: '12px', color: '#20916C', lineHeight: '1.5', margin: '0 0 20px', wordBreak: 'break-all' as const }
-const footer = { fontSize: '12px', color: '#999999', margin: '24px 0 0', lineHeight: '1.5' }
+const main = { backgroundColor: '#ffffff', fontFamily: 'Arial, sans-serif' }
+const container = { padding: '20px 25px' }
+const h1 = {
+  fontSize: '22px',
+  fontWeight: 'bold' as const,
+  color: '#000000',
+  margin: '0 0 20px',
+}
+const text = {
+  fontSize: '14px',
+  color: '#55575d',
+  lineHeight: '1.5',
+  margin: '0 0 25px',
+}
+const link = { color: 'inherit', textDecoration: 'underline' }
+const button = {
+  backgroundColor: '#000000',
+  color: '#ffffff',
+  fontSize: '14px',
+  border: '1px solid #000000',
+  borderRadius: '8px',
+  padding: '12px 20px',
+  textDecoration: 'none',
+}
+const footer = { fontSize: '12px', color: '#999999', margin: '30px 0 0' }
+// Rendered as a text child, which React may HTML-escape: keep this CSS free of >, &, and quotes.
+const darkModeCss = `
+  @media (prefers-color-scheme: dark) {
+    .dm-btn { background-color: #ffffff !important; color: #000000 !important; }
+  }
+  [data-ogsc] .dm-btn { background-color: #ffffff !important; color: #000000 !important; }
+  [data-ogsb] .dm-btn { background-color: #ffffff !important; color: #000000 !important; }
+`
