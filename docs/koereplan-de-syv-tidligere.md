@@ -1,33 +1,37 @@
-# Køreplan: sletning af de syv tidligere medlemmer — som Alina, i ÉN kørsel
+# Sletningen af de syv tidligere medlemmer — KØRT 8/9-2026 kl. 12:14–12:26 (køreplanen som den blev fulgt)
 
-> **IKKE KØRT — 8. september 2026, dagens slut.** Planen er skrevet og
-> efterprøvet mod skemaet, men ingen af skridtene er udført i prod. Den
-> følges mod produktionsdata der ikke kan komme tilbage; FØR-målingen i
-> skridt 1 er den eneste rollback-reference.
+> **KØRT — 8. september 2026 kl. 12:14–12:26, i Lovables SQL editor.**
+> Denne fil er ikke længere en plan; den er historikken over hvordan
+> sletningen blev gjort. Skridtene nedenfor er dem der blev fulgt — i fire
+> hold, med FØR-måling (skridt 1), STOP-kriterier (skridt 2), storage FØR
+> SQL (skridt 3), sletnings-scriptet (skridt 4), EFTER-måling (skridt 5),
+> kontiene sidst (skridt 6) og sweep (skridt 7) for HVERT hold. Resultatet
+> og lærerne står i `docs/OVERLEVERING.md` DEL 2 «De otte tidligere» og
+> DEL 4; kortformen her:
 >
-> **BESLUTTET af Jonas 8/9: kør den på ÉN virksomhed først — Coskun
-> Holding ApS (`8929ee5f-5e6c-4326-965a-a261b71d74f5`, slut 6/5, den
-> ældste) — og se at tallene stemmer FØR de seks andre.** Syv på én gang
-> er hurtigere, men en fejl midtvejs bliver til syv sager i stedet for
-> én. Konkret: i skridt 4's `insert into _syv` beholdes kun Coskuns
-> linje i første kørsel; FØR/EFTER-målingerne (skridt 1 og 5) læses for
-> hende alene; derefter køres de seks som én kørsel med samme script.
+> | kl. | hold | slettet (FØR-tal) |
+> |---|---|---|
+> | 12:16 | Coskun Holding — først, alene, som besluttet | 30 loginposter · 6 mails · 5 weekly_focus · 2 beskeder · 1 samtale · 1 advisor-notifikation · 1 notifikation · 1 last_seen · 1 message_reaction (sweepet) · 1 konto (sidste login 17/8, tre måneder efter slutdatoen 6/5) |
+> | 12:18 | Regnskabsvikar · Sebastian & Amalie | 5 weekly_focus · 2 benchmarks · 2 loginposter · 1 samtale — og 26 loginposter · 5 weekly_focus · 1 samtale |
+> | 12:20 | Stadio · Startkørekort · Friends & Fries | 6 loginposter — 4 loginposter · 4 mails · 2 benchmarks · 2 notifikationer · 2 konti — 41 loginposter · 18 mails · 8 notifikationer · 3 beskeder · 2 konti |
+> | 12:25 | LineAlmegaard — den største | 328 loginposter · 93 beskeder · 60 mails · 51 advisor-notifikationer · 35 notifikationer · 12 fact-rækker · 10 reaktioner (sweepet) · 5 weekly_focus · 4 benchmarks · 2 KPI-mål · 1 rapport · 1 milepæl · 1 handout · 18 filer i tre buckets (logo, avatar, seksten chat-vedhæftninger, seneste 31/8) |
 >
-> **Slettefunktionen (#734, `slet-medlemsdata-cron`) tager IKKE de syv.**
-> Dens vej 2 og 3 («tilbud ubesvaret», «aldrig tilbudt») er afgrænset til
-> virksomheder inden for ordningen — slutdato efter 10/9, samme skel som
-> fornyelsesmotorens `uden_for_ordningen` — og de syv (slutdato 6/5–1/9)
-> falder udenfor med vilje (`src/lib/sletning.ts:34-37`). De er en
-> beslutning, ikke en regel; derfor denne køreplan med eksplicitte id'er.
+> **Resultat:** 8 af 8 tidligere (Alina + de syv) har `data_slettet_at`
+> (`'i_haanden'`, FØR-tallene i `data_slettet_raekker` — migrationen
+> `20260908120000_data_slettet.sql` var kørt kl. 11:57). Sidste sweep over
+> alle otte: ingen rester i sytten tabeller, ingen filer i storage. Otte
+> arkivspor med navn, CVR og kontraktperiode. Intet bilag rørt.
 >
-> **Arkivsporet:** migrationen `20260908120000_data_slettet.sql` (#734,
-> IKKE kørt i prod) tilføjer `data_slettet_at`, `data_slettet_vej`
-> (`'i_haanden'` er en tilladt værdi) og `data_slettet_raekker` (jsonb med
-> FØR-tallene) på `companies`. Køres migrationen FØR de syv, sættes de tre
-> kolonner i skridt 4's UPDATE i stedet for kun at stå i bogføringen —
-> `data_slettet_vej = 'i_haanden'`, `data_slettet_raekker` = tallene fra
-> skridt 1. Køres den ikke først, bogføres FØR-tallene som for Alina, i
-> OVERLEVERING DEL 2 og i en migrationsfil.
+> **Det planen ikke vidste, og sweepet fandt:** `message_reactions` (Coskun
+> 1, LineAlmegaard 10) — en tabel Alina intet havde i; og at skridt 3's
+> «den ene fil» var atten filer i TRE buckets (`company-logos`, `avatars`,
+> `chat-attachments`), fordi den første måling kun talte
+> `financial-documents`. Begge er bogført som fælder i DEL 4.
+>
+> **Slettefunktionen (#734, i drift fra 8/9 kl. 12:01) tog IKKE de syv** —
+> med vilje: dens vej 2 og 3 er afgrænset til slutdato efter 10/9
+> (`src/lib/sletning.ts:34-37`). De syv var en beslutning; derfor denne
+> kørsel med eksplicitte id'er.
 
 Skrevet 8. september 2026, main (`## main...origin/main`, ren arbejdskopi ved
 start og slut; intet ændret i repoet, ingen gren, ingen commit; intet
@@ -609,6 +613,11 @@ andet navn. Kolonnenavne der IKKE tælles, fordi de er rådgiverens uid:
 ---
 
 ## 9. Bogføringen bagefter (uden for denne fil)
+
+**GJORT 8/9:** kørslen er bogført i `docs/OVERLEVERING.md` (top-blokken
+og DEL 2 «De otte tidligere»), lærerne i DEL 4, og FØR-tallene står på
+hver virksomheds egen række i `data_slettet_raekker`. Resten af dette
+afsnit er planens ordlyd.
 
 Husets form for en manuel prod-handling er en migrationsfil med kommentar
 og FØR-værdier, kørt i hånden (`20260902113000_status_tidligere.sql:1-2`),

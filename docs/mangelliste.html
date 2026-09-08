@@ -463,11 +463,6 @@
       <p>0 af 12 betalte har <code>calendly_event_uri</code>, mod 2 af 3 gratis. <code>stripe-webhook</code> skriver Calendlys URL råt, hvor den gratis vej indlejrer bookingens id; <code>calendly-webhook</code> matcher desuden kun på <code>advisor = 'morten'</code>. Kæden virker for medlemmet (de booker og mødes); reparationen kræver Calendly-abonnement på premium. Bevidst nedprioriteret, ikke glemt.</p>
       <div class="meta"><span class="tag ny">Ny 4/9</span><span class="tag">Prioritet lav</span><span class="tag size">Mellem</span></div>
     </div>
-    <div class="card new" data-status="fejl" data-spor="1" data-rammer="medlem">
-      <h3>Sletteknappen lover en kontakt — den skal love en dato</h3>
-      <p><strong>Funktionen findes nu og er i drift</strong> (#734, kørt 8/9 kl. 11:57–12:01, OVERLEVERING DEL 2 «Slettefunktionen»): <code>slet-medlemsdata-cron</code> læser <code>offboarding_requested_at</code> hver dag kl. 14 dansk og sletter syv dage efter trykket — kæden er hel, Alina-fejlen (103 dage uden læser) kan ikke gentage sig. <strong>Det der er tilbage er TEKSTEN.</strong> <code>MembershipExpiredGate.tsx:141-144</code> siger stadig «Vi har modtaget din anmodning om sletning af data. Jonas kontakter dig inden for 2 hverdage for at bekræfte.», og <code>:320-321</code> «Vi sender en bekræftelse og håndterer det inden for 2 hverdage.» Ingen kontakter, ingen bekræftelse sendes — og medlemmet får ikke at vide at de syv dage er DERES fortrydelsesret. Kvitteringen skal sige en dato: «din data slettes den 15. september», regnet som anmodning + 7 dage, samme regel som motoren (<code>SLETTEFRIST_ANMODNING_DAGE</code> i <code>src/lib/sletning.ts</code>).</p>
-      <div class="meta"><span class="tag ny">Ny 8/9</span><span class="tag rust">Forkert løfte</span><span class="tag">Motor klar</span><span class="tag size">Lille</span></div>
-    </div>
   </div>
   </section>
 
@@ -1232,7 +1227,7 @@
     </div>
     <div class="card decision new" data-status="beslutning" data-spor="senere" data-rammer="ingen">
       <h3>Ingen opbevaringspolitik</h3>
-      <p>Nul træffere på gdpr, retention og anonymisering i hele kodebasen (kode, migrationer, CLAUDE.md, SECURITY_BASELINE). Én cron sletter noget efter tid: <code>agent-runs-opbevaring</code> (reasoning efter 90 dage, kørsler efter 12 måneder). <code>purge_old_email_log</code> findes som handling i <code>admin-cleanup-test-data</code> (14 dage) men kaldes af ingen. Syv virksomheder står som «tidligere» med alle deres data — rapporter, chat, IP-log, profiler; BESLUTTET 8/9: de slettes i hånden efter <code>docs/koereplan-de-syv-tidligere.md</code>, Coskun først. Slettefunktionen (#734, i drift 8/9) dækker fremover: anmodning → 7 dage; ubesvaret/aldrig tilbudt → dag 45, kun inden for ordningen. Hvad vi beholder af BILAG (fem år) mod persondata for dem der har betalt, er stadig en beslutning før det er kode (<code>~/Downloads/recon-tidligere-medlemmers-data.md</code> §1, §5).</p>
+      <p>Nul træffere på gdpr, retention og anonymisering i hele kodebasen (kode, migrationer, CLAUDE.md, SECURITY_BASELINE). Én cron sletter noget efter tid: <code>agent-runs-opbevaring</code> (reasoning efter 90 dage, kørsler efter 12 måneder). <code>purge_old_email_log</code> findes som handling i <code>admin-cleanup-test-data</code> (14 dage) men kaldes af ingen. <strong>Rettet 8/9:</strong> de otte tidligere er slettet (OVERLEVERING DEL 2 «De otte tidligere»), og slettefunktionen dømmer fremadrettet — anmodning efter 7 dage, udløbet inden for ordningen dag 45. Det der er tilbage er REGLEN for alt det andet: hvor længe beholder vi loginposter med IP, chat, rapporter og filer for et AKTIVT medlem, hvad er bilag (fem år) mod persondata, og hvad gælder imellem slutdato og dag 45, hvor et udløbet medlem stadig kan logge ind på sine gamle data (Coskun 17/8, tre måneder efter slut). Beslutning før kode (<code>~/Downloads/recon-tidligere-medlemmers-data.md</code> §1, §5).</p>
       <div class="meta"><span class="tag ny">Ny 8/9</span><span class="tag gold">Beslutning</span></div>
     </div>
   </div>
