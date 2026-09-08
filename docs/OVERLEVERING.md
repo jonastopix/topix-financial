@@ -817,6 +817,10 @@ referrer-låst til `app.theboardroom.dk`.
 
 Kort, med det dokument der bærer detaljen.
 
+**Mailene — alle mails huset kan sende, hvornår og til hvem:**
+`docs/mailfortegnelsen.md` (8/9, efter Lovables mailopdatering; fem fund
+øverst). Opdateres hver gang en mail tilføjes eller en cron ændres.
+
 ### Fornyelseskæden — bevist i drift 1/9; tilbudsvinduet, varselsmotoren, cron-rapporten, betaling FØR slutdatoen og fornyelsesbåndet bygget 7/9; MAILENE SENDER, bevist i produktion 7/9 kl. 11:57 — cron-jobbet er PLANLAGT 7/9 kl. 14:51
 
 `docs/fornyelseskaeden-1-september.md`, `docs/fornyelsesordningen.md`.
