@@ -4,8 +4,9 @@ const corsHeaders = {
     'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
 }
 
-const SENDER_DOMAIN = 'boardroom.topix.dk'
-const VERIFIED_FROM_EMAIL = `noreply@${SENDER_DOMAIN}`
+import { FROM_DOMAIN, VERIFIED_FROM_EMAIL, sendManagedEmail } from '../_shared/managedEmail.ts'
+
+const SENDER_DOMAIN = FROM_DOMAIN
 
 function resolveSenderFromTemplate(
   senderName: string | null | undefined,
@@ -83,50 +84,22 @@ Deno.serve(async (req) => {
 
     const finalSubject = `[TEST] ${subject}`
     const senderFrom = resolveSenderFromTemplate(template.sender_name, template.sender_email)
-    const messageId = crypto.randomUUID()
-
-    await adminSupabase.from('email_send_log').insert({
-      message_id: messageId,
-      template_name: 'template-test',
-      recipient_email: test_email,
+    const resultat = await sendManagedEmail({
+      adminClient: adminSupabase,
+      to: test_email,
+      from: senderFrom,
       subject: finalSubject,
-      status: 'pending',
-      is_test: true,
+      html: bodyHtml,
+      text: finalSubject,
+      label: 'template-test',
+      isTest: true,
     })
 
-    const { error: enqueueError } = await adminSupabase.rpc('enqueue_email', {
-      queue_name: 'transactional_emails',
-      payload: {
-        message_id: messageId,
-        idempotency_key: messageId,
-        to: test_email,
-        from: senderFrom,
-        sender_domain: SENDER_DOMAIN,
-        subject: finalSubject,
-        html: bodyHtml,
-        text: finalSubject,
-        purpose: 'transactional',
-        label: 'template-test',
-        is_test: true,
-        queued_at: new Date().toISOString(),
-      },
-    })
-
-    if (enqueueError) {
-      console.error('[send-template-email] Enqueue failed:', enqueueError)
-      await adminSupabase.from('email_send_log').insert({
-        message_id: messageId,
-        template_name: 'template-test',
-        recipient_email: test_email,
-        subject: finalSubject,
-        status: 'failed',
-        is_test: true,
-        error_message: 'Failed to enqueue email',
-      })
-      throw new Error(`Failed to enqueue: ${JSON.stringify(enqueueError)}`)
+    if (!resultat.sent && resultat.reason === 'failed') {
+      throw new Error(`Failed to send test email: ${resultat.error}`)
     }
 
-    console.log(`[send-template-email] Test enqueued to ${test_email} (template: ${template.name})`)
+    console.log(`[send-template-email] Test sendt til ${test_email} (template: ${template.name})`)
     return new Response(
       JSON.stringify({ success: true, sent_to: test_email, template: template.name }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

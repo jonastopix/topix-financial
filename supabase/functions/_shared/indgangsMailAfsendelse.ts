@@ -37,97 +37,46 @@
  */
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
 import { BETALINGSFRIST_DAGE } from "./betalingsfrist.ts";
+import { SENDER_FROM, VERIFIED_FROM_EMAIL, SENDER_DOMAIN, sendManagedEmail } from "./managedEmail.ts";
 
-export const SENDER_DOMAIN = "boardroom.topix.dk";
-export const VERIFIED_FROM_EMAIL = `noreply@${SENDER_DOMAIN}`;
-export const SENDER_FROM = `The Boardroom <${VERIFIED_FROM_EMAIL}>`;
-
-const QUEUE_NAME = "transactional_emails";
+export { SENDER_DOMAIN, VERIFIED_FROM_EMAIL, SENDER_FROM };
 
 export interface SendIndgangsMailArgs {
   adminClient: SupabaseClient;
   til: string;
   subject: string;
   html: string;
-  /** fx "indgang-dag0" — bliver template_name i email_send_log og label i køen. */
+  /** fx "indgang-dag0" — bliver template_name i email_send_log og label hos Lovable. */
   label: string;
   /** Til logning og til email_send_log.metadata, så en række kan spores til virksomheden. */
   companyId: string;
 }
 
 /**
- * Sender én af indgangens mails gennem transactional_emails.
- * true = enqueued (ikke leveret — leveringen er process-email-queue's sag).
- * false = noget fejlede; det er logget, intet er sendt.
+ * Sender én af indgangens mails gennem Lovable's mail-API.
+ * true = sendt. false = spærret modtager eller fejl; det er logget.
  */
 export async function sendIndgangsMail(args: SendIndgangsMailArgs): Promise<boolean> {
   const { adminClient, til, subject, html, label, companyId } = args;
-  const praefiks = `[indgangsMail:${label}]`;
 
-  const modtager = til.trim().toLowerCase();
-  if (!modtager) {
-    console.error(`${praefiks} tom modtager for company ${companyId} — intet sendt`);
+  const resultat = await sendManagedEmail({
+    adminClient,
+    to: til,
+    from: SENDER_FROM,
+    subject,
+    html,
+    text: htmlTilTekst(html),
+    label,
+    metadata: { company_id: companyId, label },
+  });
+
+  if (!resultat.sent) {
+    console.error(`[indgangsMail:${label}] ikke sendt (${resultat.reason}) for company ${companyId}`);
     return false;
   }
 
-  const messageId = crypto.randomUUID();
-
-  try {
-    // 1. pending-rækken FØR enqueue, så en mail der ender i køen altid har
-    //    et spor i loggen. Fejler indsættelsen, sendes der ikke: en mail
-    //    uden logrække kan ikke afstemmes, og kalderen prøver igen.
-    const { error: logError } = await adminClient.from("email_send_log").insert({
-      message_id: messageId,
-      template_name: label,
-      recipient_email: modtager,
-      status: "pending",
-      metadata: { company_id: companyId, label },
-    });
-    if (logError) {
-      console.error(`${praefiks} email_send_log insert fejlede for company ${companyId}:`, logError);
-      return false;
-    }
-
-    // 2. Køen. Payload-formen er den samme som send-invitation-email og
-    //    intro-reminder-cron bruger; process-email-queue læser den.
-    const { error: enqueueError } = await adminClient.rpc("enqueue_email", {
-      queue_name: QUEUE_NAME,
-      payload: {
-        message_id: messageId,
-        idempotency_key: messageId,
-        to: modtager,
-        from: SENDER_FROM,
-        sender_domain: SENDER_DOMAIN,
-        subject,
-        html,
-        text: htmlTilTekst(html),
-        purpose: "transactional",
-        label,
-        queued_at: new Date().toISOString(),
-      },
-    });
-
-    if (enqueueError) {
-      console.error(`${praefiks} enqueue_email fejlede for company ${companyId}:`, enqueueError);
-      // Samme bogføring som send-invitation-email: en 'failed'-række ved
-      // siden af pending-rækken, så loggen viser hvad der skete.
-      await adminClient.from("email_send_log").insert({
-        message_id: messageId,
-        template_name: label,
-        recipient_email: modtager,
-        status: "failed",
-        error_message: "Failed to enqueue email",
-        metadata: { company_id: companyId, label },
-      });
-      return false;
-    }
-
-    console.log(`${praefiks} enqueued til ${modtager} for company ${companyId} (message_id ${messageId})`);
-    return true;
-  } catch (err) {
-    console.error(`${praefiks} uventet fejl for company ${companyId}:`, err);
-    return false;
-  }
+  console.log(`[indgangsMail:${label}] sendt for company ${companyId} (message_id ${resultat.messageId})`);
+  return true;
 }
 
 /**
