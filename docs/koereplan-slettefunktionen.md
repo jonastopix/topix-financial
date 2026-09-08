@@ -1,15 +1,38 @@
-# Køreplan: slettefunktionen i drift — migration, deploy, tørkørsel, cron
+# Slettefunktionen i drift — migration, deploy, tørkørsel, cron (KØRT 8/9 kl. 11:57–12:01)
 
-Skrevet 8. september 2026, aften, til i morgen. KUN FUND. Intet i repoet
-er ændret; ingen gren, ingen commit. `git status --short --branch` ved
-start: `## main...origin/main` (rent træ), HEAD `ff548d1e` (#734).
+> **DETTE ER HISTORIK, IKKE EN PLAN.** Alle skridt nedenfor ER kørt i prod
+> 8. september 2026 mellem kl. 11:57 og 12:01, i den rækkefølge planen
+> foreskrev. Resultaterne står under hvert skridt som «KØRT». SQL'en er
+> bevaret ordret, så kørslen kan efterprøves og gentages som kontrol.
+>
+> | kl. | skridt | målt |
+> |---|---|---|
+> | 11:57 | 2–3 Migration `20260908120000_data_slettet.sql` | tre kolonner oprettet (`data_slettet_at`, `data_slettet_vej` med CHECK på fire værdier, `data_slettet_raekker` jsonb); Alina stemplet `i_haanden` med 22 bogførte tabeller som JSON — 240 budgetmål, 198 loginposter og resten står nu på hendes række. Bevist: hun er ikke længere kandidat (3d = 0 rækker) |
+> | 11:59 | 4 Deploy | `slet-medlemsdata-cron` udrullet fra commit `ff548d1e` sammen med `_shared/sletning.ts`; svarer **401** uden JWT, ikke 404 |
+> | 12:00 | 5–7 Tørkørsel på rigtige data | `undersoegt 35 · fundet 0 · slettet 0 · fejlet 0`, tomme kandidatlister. Forventet og rigtigt: Alina er stemplet ude, og ingen med slutdato efter 10/9 er nået til dag 45. En tom rapport er beviset på at afgrænsningen holder |
+> | 12:01 | 8 Cron | jobbet `slet-medlemsdata` planlagt, `0 12 * * *` UTC (14:00 dansk), aktivt, `dry_run: false`. Tolvte job, alene på klokkeslættet; lagt EFTER `fornyelsesvarsler` kl. 11, så en virksomhed der lige har fået sit varsel, ikke slettes i samme time |
+>
+> **Kæden er hel:** en anmodning bliver til en sletning efter syv dage,
+> uden at nogen skal huske det. Alina ventede 103 dage fordi feltet ingen
+> læste; nu er der en læser. Første rigtige kandidat kommer af sig selv
+> (CARMA STUDIO, tidligst 26/10, hvis de ikke fornyer).
+>
+> **Udestår:** (1) cron-planlægningen er ikke bogført i en migrationsfil
+> endnu (formen fra `20260901112000_prod_cron_bogfoert.sql`; kun
+> `20260908120000_data_slettet.sql` nævner jobbet). (2) Kvitteringen til
+> medlemmet siger stadig «Jonas kontakter dig inden for 2 hverdage»
+> (`MembershipExpiredGate.tsx:142-143`, `:320-321`) — den skal sige en DATO.
+> Se OVERLEVERING DEL 2 «Slettefunktionen».
 
-**Tilstanden i aften:** #734 er merget. Migrationen
-`20260908120000_data_slettet.sql` er IKKE kørt, edge-funktionen
-`slet-medlemsdata-cron` er IKKE bevist deployet, cron-jobbet er IKKE
-planlagt. Al SQL herunder er SELECT — undtagen migrationen (skridt 2),
-som gengives ordret og køres ÉN gang i skridt 2, og cron-planlægningen
-(skridt 8), som køres når skridt 6 er læst.
+Skrevet 8. september 2026 som plan (HEAD `ff548d1e`, #734); kørt samme dag
+kl. 11:57–12:01 og omskrevet til historik bagefter. Teksten under
+skridtene er planens ordlyd; «KØRT»-linjerne er det målte.
+
+**Tilstanden før kørslen:** #734 var merget. Migrationen var IKKE kørt,
+edge-funktionen IKKE bevist deployet, cron-jobbet IKKE planlagt. Al SQL
+herunder er SELECT — undtagen migrationen (skridt 2), som blev kørt ÉN
+gang, og cron-planlægningen (skridt 8), som blev kørt efter at skridt 6
+var læst.
 
 Rækkefølgen er bindende: **migration FØR deploy-bevis FØR tørkørsel FØR
 cron.** Funktionen læser `data_slettet_at` i sin allerførste SELECT
@@ -18,7 +41,9 @@ med «column companies.data_slettet_at does not exist» — og intet andet.
 
 ---
 
-## Skridt 1 — FØR-tilstand (Lovable → SQL editor, SELECT)
+## Skridt 1 — FØR-tilstand (Lovable → SQL editor, SELECT) — KØRT 8/9
+
+**KØRT:** forudsætningen for skridt 2. 1c gav kun Alina — det følger også af tørkørslens `fundet 0` ad vej 1 (skridt 6).
 
 ```sql
 -- 1a. Kolonnerne findes ikke endnu: forventet 0 rækker
@@ -45,7 +70,9 @@ notér den, den bliver kandidat i skridt 6 hvis den er over syv dage.
 
 ---
 
-## Skridt 2 — Migrationen (Lovable → SQL editor, HELE filen, én gang)
+## Skridt 2 — Migrationen (Lovable → SQL editor, HELE filen, én gang) — KØRT 8/9 kl. 11:57
+
+**KØRT kl. 11:57:** hele filen i én kørsel. Tre kolonner oprettet, CHECK-constrainten på fire værdier, Alina stemplet `i_haanden` med 22 bogførte tabeller.
 
 Kør HELE filen — ikke et uddrag (DEL 4: «Kør HELE migrationsfilen i SQL
 editoren, ikke et uddrag»). Editoren kører den i én transaktion; fejler
@@ -131,7 +158,9 @@ på id, navn, anmodning og tomt stempel. Facit for UPDATE'en: **1 række**
 
 ---
 
-## Skridt 3 — Bevis at migrationen er kørt (SELECT)
+## Skridt 3 — Bevis at migrationen er kørt (SELECT) — KØRT 8/9
+
+**KØRT:** 3a tre kolonner, 3c Alina med `i_haanden`, 3d **0 rækker** — hun er ikke længere kandidat.
 
 ```sql
 -- 3a. Kolonnerne: forventet 3 rækker
@@ -167,7 +196,9 @@ Facit: 3a tre rækker, 3b én constraint, 3c Alina med `i_haanden`, 3d
 
 ---
 
-## Skridt 4 — Deploy af funktionen (Lovable build-chat + «View code»)
+## Skridt 4 — Deploy af funktionen (Lovable build-chat + «View code») — KØRT 8/9 kl. 11:59
+
+**KØRT kl. 11:59:** udrullet fra commit `ff548d1e` sammen med `_shared/sletning.ts`. Kald uden JWT svarede **401**, ikke 404.
 
 Hvad funktionen trækker ind (`index.ts:47-50`):
 
@@ -224,7 +255,9 @@ Facit: `status_code = 401`, `svar` = `{"error":"Unauthorized — service-role ke
 
 ---
 
-## Skridt 5 — Tørkørslen: sådan kaldes den (SQL editor, SELECT + pg_net)
+## Skridt 5 — Tørkørslen: sådan kaldes den (SQL editor, SELECT + pg_net) — KØRT 8/9 kl. 12:00
+
+**KØRT kl. 12:00** på rigtige data: `undersoegt 35 · fundet 0 · slettet 0 · fejlet 0`, tomme kandidatlister.
 
 Samme form som `fornyelsesvarsel-cron` kaldes (`fornyelsesvarsel-cron/index.ts:63-77`,
 `indgangs-paamindelser-cron:44-58`), men UDEN body — tom body er tørkørsel
@@ -324,7 +357,9 @@ interface KandidatRapport {
 
 ---
 
-## Skridt 6 — Hvad vi forventer at se, og SELECT'en der siger det samme
+## Skridt 6 — Hvad vi forventede at se, og SELECT'en der siger det samme — KØRT 8/9
+
+**KØRT:** tørkørslen og SQL'en var enige: `fundet 0`, `ikke_nu []`. `undersoegt` blev **35** (planens skøn var ~37 — tallet er det målte). Nul er rigtigt: Alina er stemplet ude, og ingen med slutdato efter 10/9 er nået til dag 45.
 
 Motorens regel (`_shared/sletning.ts`), i SQL, så tørkørslen kan
 sammenlignes med noget der ikke er den selv:
@@ -386,7 +421,7 @@ where status = 'tidligere' and data_slettet_at is null
 order by contract_end_date;
 ```
 
-**Facit for tørkørslen i morgen (9/9):**
+**Facit for tørkørslen — som planlagt, og som det blev (8/9 kl. 12:00):**
 
 | felt | forventet | hvorfor |
 |---|---|---|
@@ -412,7 +447,9 @@ læst.
 
 ---
 
-## Skridt 7 — Læs tørkørslen som den der skal slettes
+## Skridt 7 — Læs tørkørslen som den der skal slettes — KØRT 8/9
+
+**KØRT:** rapporten læst, ingen kandidater, ingen `VILLE SLETTE`-linjer.
 
 Selv med `fundet: 0` er der to ting at læse:
 
@@ -425,7 +462,9 @@ Selv med `fundet: 0` er der to ting at læse:
 
 ---
 
-## Skridt 8 — Cron-jobbet (SQL editor, KUN efter skridt 6 er læst)
+## Skridt 8 — Cron-jobbet (SQL editor, KUN efter skridt 6 er læst) — KØRT 8/9 kl. 12:01
+
+**KØRT kl. 12:01:** `slet-medlemsdata`, `0 12 * * *` UTC (14:00 dansk), aktivt, `dry_run: false`. Tolvte job i `cron.job`, alene på klokkeslættet, efter `fornyelsesvarsler` kl. 11. **Udestår:** migrationsfilen der bogfører planlægningen (se bunden af skridtet).
 
 **Slottet.** Optaget i UTC (målt 2/9 + fornyelsen 7/9): 04:00
 `opgave-udloeb` · 05:00 `agent-runs-opbevaring` · 06:00
@@ -492,7 +531,7 @@ repoet — det andet vindues opgave.
 
 ---
 
-## Skridt 9 — Hvad kan gå galt den første gang, og hvordan ses det
+## Skridt 9 — Hvad kan gå galt den første gang, og hvordan ses det (gælder fra nu — første rigtige kandidat tidligst 26/10)
 
 | # | fejl | hvordan den ser ud | hvor |
 |---|---|---|---|
@@ -541,7 +580,7 @@ union all select 'pulse_checkins', count(*) from public.pulse_checkins where use
 
 ---
 
-## Rækkefølgen, kort — det Jonas følger uden at tænke
+## Rækkefølgen, kort — som den blev fulgt 8/9
 
 1. SQL editor: **skridt 1** (SELECT, FØR-tilstand). Facit: 0 kolonner, Alina med anmodning, kun hende.
 2. SQL editor: **skridt 2** (HELE migrationen). Facit: `UPDATE 1`.
