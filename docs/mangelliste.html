@@ -402,11 +402,6 @@
       <p><code>company_id</code> blev taget fra request-body og brugt mod service role uden adgangstjek. Lukket 1/9 og læst linje for linje — men ikke bevist i drift, for det kræver et medlems-token.</p>
       <div class="meta"><span class="tag rust">Ubevist</span><span class="tag size">Lille</span></div>
     </div>
-    <div class="card blocked" data-status="fejl" data-spor="7" data-rammer="medlem">
-      <h3>Ingen mail til den der lige har fornyet</h3>
-      <p>Kvitteringen <em>i platformen</em> findes siden 2/9 (<code>FornyelseKvittering</code>, vist af Index mens webhooken er på vej). Men ingen mail fra os — de får kun Stripes kvittering. Det er det øjeblik hvor nogen har valgt jer igen, og det passerer i tavshed.</p>
-      <div class="meta"><span class="tag">Rettet 4/9</span><span class="tag rust">Tavshed</span><span class="tag size">Lille</span></div>
-    </div>
     <div class="card blocked" data-status="fejl" data-spor="7" data-rammer="raadgiver">
       <h3>Rådgiveren får ikke besked når nogen fornyer</h3>
       <p>Samme sag fra den anden side. Ingen Slack, ingen notifikation — fornyelsesgrenen i <code>stripe-webhook</code> har ingen (grep 4/9). Det er den bedste nyhed I får i en uge, og ingen ved det før nogen tilfældigt kigger i Stripe.</p>
@@ -459,9 +454,9 @@
       <div class="meta"><span class="tag ny">Ny 4/9</span><span class="tag">Bevis</span><span class="tag size">Lille</span></div>
     </div>
     <div class="card new" data-status="mangler" data-spor="senere" data-rammer="ingen">
-      <h3>Betalte 1:1-bookinger registreres aldrig som <code>booked</code></h3>
-      <p>0 af 12 betalte har <code>calendly_event_uri</code>, mod 2 af 3 gratis. <code>stripe-webhook</code> skriver Calendlys URL råt, hvor den gratis vej indlejrer bookingens id; <code>calendly-webhook</code> matcher desuden kun på <code>advisor = 'morten'</code>. Kæden virker for medlemmet (de booker og mødes); reparationen kræver Calendly-abonnement på premium. Bevidst nedprioriteret, ikke glemt.</p>
-      <div class="meta"><span class="tag ny">Ny 4/9</span><span class="tag">Prioritet lav</span><span class="tag size">Mellem</span></div>
+      <h3>De betalte 1:1-sessioner stopper ved <code>booking_sent</code></h3>
+      <p>Målt 3/9: 0 af 12 betalte har <code>calendly_event_uri</code>, mod 2 af 3 gratis. Bekræftet i koden 8/9 (<code>~/Downloads/recon-sessionerne.md</code>): <code>stripe-webhook</code> indlejrer intet booking-id i Calendly-linket, <code>calendly-webhook</code> matcher kun <code>advisor = 'morten'</code>, og abonnementet er Mortens konto. En betalt session når derfor aldrig <code>booked</code>, får ingen tid og ingen URI — Jonas ser den kun i sin Calendly. Ingen rådgiverflade viser sessioner; RLS giver kun ejer og admin læsning. Kæden virker for medlemmet; reparationen kræver Calendly premium. Bevidst nedprioriteret, ikke glemt. (Intro-sessionens tid bygges 8/9 — den gratis vej.)</p>
+      <div class="meta"><span class="tag">Rettet 8/9</span><span class="tag">Prioritet lav</span><span class="tag size">Mellem</span></div>
     </div>
   </div>
   </section>
@@ -735,7 +730,7 @@
     </div>
     <div class="card" data-status="mangler" data-spor="5" data-rammer="medlem">
       <h3>Medlemmets opgaveflade — bygget, men ubrugt</h3>
-      <p>«Dine aftaler» på forsiden findes: ét forslag ad gangen, accept hvor medlemmet sætter datoen (B6). Udskydelse (<code>deferral_count</code>, højst to) og lukning med udfald er bygget, men har formentlig aldrig været i brug — der er ÉN aktiv opgave i prod (Topix, 31/8). Hvad fladen skal vise og hvor mange, afgøres i epic'et.</p>
+      <p>«Dine aftaler» på forsiden findes: ét forslag ad gangen — siden #740 (8/9) med afsender, dato, «1 af N» og udløb ved syv dage — accept hvor medlemmet sætter datoen (B6). Udskydelse (<code>deferral_count</code>, højst to) og lukning med udfald er bygget, men har formentlig aldrig været i brug — der er ÉN aktiv opgave i prod (Topix, 31/8). Hvad fladen skal vise og hvor mange, afgøres i epic'et.</p>
       <div class="meta"><span class="tag">Rettet 4/9</span><span class="tag size">Stor</span></div>
     </div>
     <div class="card" data-status="mangler" data-spor="5" data-rammer="medlem">
@@ -753,11 +748,6 @@
       <p>«Milepæle» passer ikke — 102 stykker, 8 fuldført, ingen ny i 53 dage. «Dine skridt» var forslaget. Ikke afgjort.</p>
       <div class="meta"><span class="tag gold">Beslutning</span></div>
     </div>
-    <div class="card blocked" data-status="fejl" data-spor="3" data-rammer="medlem">
-      <h3>Månedsdigesten viser overskredne som kommende</h3>
-      <p>Eneste kanal hvor en overskredet milepæl når et medlem — og den præsenterer den forkert. Kører den 22. hver måned.</p>
-      <div class="meta"><span class="tag rust">Live fejl</span><span class="tag size">Lille</span></div>
-    </div>
     <div class="card" data-status="mangler" data-spor="5" data-rammer="medlem">
       <h3>Fokuskortet fører ingen steder</h3>
       <p>Ugefokus har <code>ctaHref: "/"</code> (<code>nextStep.ts:313</code>, grep 4/9). Opgave-modellens flade er aftageren.</p>
@@ -769,23 +759,14 @@
       <div class="meta"><span class="tag ny">Ny 4/9</span><span class="tag">Bevis</span><span class="tag size">Lille</span></div>
     </div>
     <div class="card new" data-status="mangler" data-spor="senere" data-rammer="ingen">
-      <h3>Milestones: «nået» dømmes to steder, og kategorifarverne er rå</h3>
-      <p><code>/milestones</code> dømmer på <code>progress &gt;= 100</code> (<code>useMilestones.ts:41</code>), virksomhedssidens blok på <code>status === "completed"</code> — to domme for det samme, samme slags dublet som dem der blev fjernet 3/9. Og <code>lib/milestoneCategories.ts</code> bærer stadig rå tailwind-farver (<code>emerald/indigo/pink</code>) hvor Hjemmebane bruger få farver med vilje.</p>
+      <h3>Milestones: kategorifarverne er rå</h3>
+      <p>«Nået» dømmes nu ét sted (milepælsdommen, #741 — OVERLEVERING DEL 2 «Eftermiddagen 8/9»). Tilbage står farverne: <code>lib/milestoneCategories.ts</code> bærer rå tailwind-farver (<code>emerald/indigo/pink</code>) hvor Hjemmebane bruger få farver med vilje.</p>
       <div class="meta"><span class="tag ny">Ny 4/9</span><span class="tag size">Lille</span></div>
     </div>
     <div class="card decision new" data-status="beslutning" data-spor="senere" data-rammer="raadgiver">
       <h3>Agentsporet: tre beslutninger, ingen kode</h3>
       <p>Parkeret. Hvad udløser præcist en kørsel? Rytmen skal være hændelsesdrevet, ikke kalenderdrevet. Hvor længe er tavshed — tavshed er også en hændelse. Hvor gammelt må et forslag være før det ikke længere bør kunne godkendes? Sporet må ikke trække arbejdstid fra spor 1.</p>
       <div class="meta"><span class="tag ny">Ny 4/9 som kort</span><span class="tag gold">Beslutning</span></div>
-    </div>
-    <div class="card new" data-status="mangler" data-spor="5" data-rammer="raadgiver">
-      <h3>Rådgiverens egen to-do — og de tre der allerede er prøvet</h3>
-      <p><strong>Jonas 7/9:</strong> en rådgiver skal kunne lave en opgave til et MEDLEM direkte fra chatten, og hver rådgiver skal have sin egen to-do. Målt 7/9 (recon uden for repoet): det er TO spor, ikke ét.</p>
-      <p><strong>Spor 1 — opgave til et medlem fra chatten — findes allerede på samtale-niveau.</strong> ⋯-menuen i rådgiverens chat har «Foreslå opgave» (<code>CompanyChatPane.tsx:1399-1428</code>), som kalder <code>foreslaa-opgave</code> og skriver en <code>company_actions</code>-række med <code>source_type 'advisor'</code>, <code>status 'proposed'</code>, 30 dages udløb og <code>proposed_by</code> = rådgiveren, plus en systembesked i samtalen. Det er et FORSLAG (B1) — medlemmet siger ja og sætter dato i «Dine aftaler». Det der mangler er besked-niveauet (ingen chat-handling tager én besked som kilde; de fire pr. besked er reaktion, redigér, slet, fastgør) og opfølgningen (rådgiveren ser kun «N opgaver venter på svar», aldrig svaret). Kan formentlig bygges på <code>company_actions</code> som den er.</p>
-      <p><strong>Spor 2 — rådgiverens egen to-do — kræver et nyt sted, og DET er blevet prøvet tre gange før.</strong> Fire snooze-/kvitteringstabeller findes med <code>snoozed_until</code> + <code>note</code>: <code>advisor_financial_actions</code> (pr. notifikation; læses af <code>get-advisor-alerts</code> og <code>AdvisorAlertsPanel</code>), <code>advisor_milestone_actions</code> (pr. milestone; kun AdvisorAlertsPanel), <code>advisor_company_acknowledgments</code> (pr. rådgiver + virksomhed, «Klaret indtil noget nyt» / «Påmind om N dage»; INGEN læser i koden). Dertil de døde notetabeller <code>advisor_session_notes</code> og <code>conversation_notes</code> (ingen læser eller skriver). Og <code>AdvisorAlertsPanel</code> importeres i <code>AdvisorDashboard.tsx:26</code> men RENDERES ALDRIG — så to af de tre snooze-tabeller har heller ingen levende flade. Risikoen er ikke at bygge det; det er at bygge den fjerde.</p>
-      <p><strong>Den hårde begrænsning:</strong> <code>company_actions.company_id</code> er NOT NULL og <code>user_id</code> er medlemmet, så en fri rådgiveropgave kan ikke ligge der. <code>advisor_notifications</code> kan heller ikke bruges: ingen frist, intet «gjort» (kun <code>read_at</code>), <code>advisor_id</code> nullable mens <code>company_id</code> er påkrævet — og klokken der læser den findes kun i det gamle design. <code>notifications</code> er pr. bruger med <code>priority</code> og <code>deep_link</code>, men mangler frist, egen tekst og «gjort» — og ligger bag flaget <code>useNewNotifications</code> i AppSidebar.</p>
-      <p><strong>Sekvens:</strong> hører til opgave-model-epic'et (kortet øverst; OVERLEVERING DEL 3 «EPIC, én samtale»), ikke ved siden af. Bygges det ved siden af, får vi to opgavesystemer der ikke kender hinanden. <strong>Åbent spørgsmål der skal besvares FØR noget bygges:</strong> skal en rådgiveropgave kunne stå UDEN virksomhed, eller er alt rådgiverne laver, knyttet til en kunde? Det afgør om der skal en ny tabel til.</p>
-      <div class="meta"><span class="tag ny">Ny 7/9</span><span class="tag gold">Beslutning først</span><span class="tag rust">Tre forsøg ligger allerede</span><span class="tag size">Stor</span></div>
     </div>
     <div class="card new" data-status="mangler" data-spor="5" data-rammer="medlem">
       <h3>Aktive opgaver forfalder, men udløber aldrig</h3>
@@ -796,6 +777,11 @@
       <h3>Under ti procent af opgaveforslagene bliver besvaret</h3>
       <p>Målt i prod 7/9 kl. 12:40: <strong>97 forslag i alt, 10 gjorte, 63 udløbne, 7 afviste, 1 aktiv.</strong> Medlemmerne svarer på under ti procent af det systemet foreslår. Ikke en fejl i koden — udløbs-cron'en virker (de 31 «hængende» 7/9 udløb kl. 06:00 og ryddes kl. 04:00 næste nat) — men et produktspørgsmål: skal der foreslås færre, vises flere, gives besked, eller er formen forkert? Hører i epic'et øverst i afsnittet, ikke ved siden af (OVERLEVERING DEL 2 «Opgave-modellen», DEL 3 «EPIC, én samtale»).</p>
       <div class="meta"><span class="tag ny">Ny 7/9</span><span class="tag gold">Beslutning</span><span class="tag rust">Under 10 %</span><span class="tag size">Stor</span></div>
+    </div>
+    <div class="card decision new" data-status="beslutning" data-spor="5" data-rammer="medlem">
+      <h3>Agenten laver seks forslag om ugen som ingen svarer på</h3>
+      <p>Målt 8/9 kl. 13:05: tolv virksomheder har 61 ventende forslag, 29 udløber inden for syv dage, næsten alle oprettet 31/8, seks til hver. Reconen (<code>~/Downloads/recon-agentens-forslag.md</code>): to AI-skrivere — ugens fokus skriver op til TRE pr. virksomhed hver mandag kl. 06 UTC for ALLE virksomheder med <code>weekly_focus_enabled</code> (default true), plus ved hver rapport-godkendelse; agenten ét pr. rapport-godkendelse og anomali. Ingen gate på friske tal — stilstands-triggers (milepæl uden bevægelse, ingen rapport i 60 dage, handout ubesvaret) udløser forslag i sig selv. <strong>Ingen af dem læser svarene</strong> (hverken ugefokus eller agenten har et tool der læser <code>company_actions</code>), og ingen dedup på titel: et afvist forslag kan komme igen næste mandag. «Seks på én dag» kan koden ikke forklare (3 pr. uge pr. kilde) — kræver prod. Udløbne bliver <code>expired</code> uden besked til nogen. Skal der foreslås færre, læses svar, eller slukkes for virksomheder uden tal? Hører i epic'et øverst.</p>
+      <div class="meta"><span class="tag ny">Ny 8/9</span><span class="tag gold">Beslutning</span><span class="tag rust">61 venter</span><span class="tag size">Mellem</span></div>
     </div>
     <div class="card new" data-status="mangler" data-spor="5" data-rammer="ingen">
       <h3>Tre udløbsformer i huset</h3>
