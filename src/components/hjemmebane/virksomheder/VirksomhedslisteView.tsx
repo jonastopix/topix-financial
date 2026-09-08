@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { format } from "date-fns";
 import { da } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
@@ -9,6 +9,8 @@ import { useAuth } from "@/hooks/useAuth";
 import { computeMembershipTier, type MembershipTier } from "@/lib/membershipTier";
 import { fejledeTraekPrVirksomhed, traekBadgeTekst, type FejletTraek } from "@/lib/traek";
 import { erKunde } from "@/lib/raadgiverensKunder";
+import { ADVISOR_DASHBOARD_QUERY_KEY, hentAdvisorDashboard } from "@/components/AdvisorDashboard";
+import { GRUND_PARAM, VIRKSOMHEDER_STI, filterOverskrift, laesGrundParam, virksomhederForGrund } from "@/lib/hjemmebane/forsideLinks";
 import { HbTag } from "../HbTag";
 import { hbControlClasses } from "../admin/HbField";
 import { cn } from "@/lib/utils";
@@ -47,6 +49,14 @@ import { cn } from "@/lib/utils";
  * Der findes ingen generisk Hb-liste-komponent (målt 4/9) — fire steder
  * bygger hver sin inline, så det gør denne også. Rækker, ikke kort: det
  * er en liste man skimmer.
+ *
+ * ?grund=<slags> (8/9, Mortens fejl 1): kommer man fra forsidens samlede
+ * linje («12 virksomheder har du ikke hørt fra længe»), viser listen DE
+ * TOLV — ikke alle 27. Listen regner ikke tavshed selv (universerne er
+ * ikke ens, se lib/hjemmebane/forsideLinks.ts); den spørger forsidens
+ * dom via samme hentning og cache-nøgle og filtrerer på de id'er
+ * tilstandslinjen bærer. Overskriften siger hvad der vises, og «Vis alle»
+ * er vejen tilbage. Ukendt eller manglende parameter → listen som før.
  */
 
 type Raekke = {
@@ -279,6 +289,10 @@ const RaekkeSkelet = () => (
 export const VirksomhedslisteView = () => {
   const { user, isAdvisor } = useAuth();
   const [query, setQuery] = useState("");
+  const [searchParams] = useSearchParams();
+  // Forsidens grund (?grund=tavshed …) — kun de slags der kan blive en
+  // samlet linje; alt andet ignoreres stille (laesGrundParam).
+  const grund = laesGrundParam(searchParams.get(GRUND_PARAM));
 
   const listeQuery = useQuery({
     queryKey: ["virksomhedsliste"],
@@ -287,17 +301,38 @@ export const VirksomhedslisteView = () => {
     staleTime: 2 * 60_000,
   });
 
-  const alle = listeQuery.data ?? [];
+  // Forsidens dom — SAMME hentning og cache-nøgle som RaadgiverForsideView,
+  // så de tolv her er de tolv dér. Hentes kun når der ER en grund i URL'en.
+  const domQuery = useQuery({
+    queryKey: ADVISOR_DASHBOARD_QUERY_KEY(user?.id),
+    queryFn: hentAdvisorDashboard,
+    enabled: !!user && !!isAdvisor && grund !== null,
+    staleTime: 2 * 60_000,
+  });
+  const grundUdsnit = grund && domQuery.data ? virksomhederForGrund(domQuery.data.dom, grund) : null;
+
+  const alle = useMemo(() => listeQuery.data ?? [], [listeQuery.data]);
   const soeger = query.trim().length > 0;
   const filtreret = useMemo(() => {
     let resultat = alle;
-    if (!soeger) {
+    if (grund && grundUdsnit) {
+      // Forsidens udsnit: præcis de virksomheder dommen samlede. Dommen
+      // har allerede udelukket udløbede, så expired-skjulet nedenfor er
+      // overflødigt her — og søgning søger INDEN FOR udsnittet.
+      const ids = new Set(grundUdsnit.ids);
+      resultat = resultat.filter((r) => ids.has(r.id));
+    } else if (!soeger) {
       // Skjul udløbede («tidligere») fra den u-søgte default-liste; aktiv
       // søgning afslører dem (Members.tsx:1002-1005, spejlet).
       resultat = resultat.filter((r) => r.tier !== "expired");
     }
     return resultat.filter((r) => matcher(r, query));
-  }, [alle, query, soeger]);
+  }, [alle, query, soeger, grund, grundUdsnit]);
+  // Venter listen på dommen (grund i URL'en, dom ikke hentet endnu), vises
+  // skelettet — ikke alle 27 et øjeblik før de tolv.
+  const venterPaaDom = grund !== null && domQuery.isLoading;
+  // Antal i udsnittet FØR søgning — det er det overskriften taler om.
+  const vistIUdsnit = grund && grundUdsnit ? alle.filter((r) => grundUdsnit.ids.includes(r.id)).length : 0;
 
   return (
     <div>
@@ -308,6 +343,26 @@ export const VirksomhedslisteView = () => {
         <h1 className="mt-3 font-editorial text-4xl font-medium leading-[1.1] tracking-tight text-hb-ink md:text-5xl">
           Alle virksomheder, ét sted.
         </h1>
+        {/* Forsidens udsnit (8/9): listen SIGER hvad den viser, med forsidens
+            ord, og «Vis alle» er vejen tilbage. Findes grunden ikke længere i
+            dommen (tilstanden er væk siden klikket), siges det — og listen
+            viser alle, ikke ingenting. */}
+        {grund && domQuery.isError && (
+          <p className="mt-4 text-sm text-hb-rust">Forsidens udsnit kunne ikke hentes — listen viser alle virksomheder.</p>
+        )}
+        {grund && domQuery.data && !grundUdsnit && (
+          <p className="mt-4 text-sm text-hb-ink-soft">
+            Forsiden har ikke længere en samlet linje for det, du klikkede på — listen viser alle virksomheder.
+          </p>
+        )}
+        {grund && grundUdsnit && (
+          <p className="mt-4 flex flex-wrap items-baseline gap-x-3 gap-y-1 text-[15px] text-hb-ink">
+            <span className="font-medium">{filterOverskrift(grund, vistIUdsnit, grundUdsnit.antalIDommen)}</span>
+            <Link to={VIRKSOMHEDER_STI} className="text-sm text-hb-evergreen underline-offset-4 hover:underline">
+              Vis alle
+            </Link>
+          </p>
+        )}
       </section>
 
       <div className="mt-10">
@@ -327,7 +382,7 @@ export const VirksomhedslisteView = () => {
           <span>Sidste kontakt</span>
           <span>Sidste rapportering</span>
         </div>
-        {listeQuery.isLoading ? (
+        {listeQuery.isLoading || venterPaaDom ? (
           <ul className="divide-y divide-hb-line">
             <RaekkeSkelet />
             <RaekkeSkelet />
@@ -340,7 +395,11 @@ export const VirksomhedslisteView = () => {
           <p className="px-4 py-10 text-center text-sm text-hb-rust">Listen kunne ikke hentes. Prøv igen.</p>
         ) : filtreret.length === 0 ? (
           <p className="px-4 py-10 text-center text-sm text-hb-ink-soft">
-            {soeger ? `Ingen virksomheder matcher "${query.trim()}"` : "Der er ingen virksomheder endnu"}
+            {soeger
+              ? `Ingen virksomheder matcher "${query.trim()}"`
+              : grund && grundUdsnit
+                ? "Ingen af forsidens virksomheder er på listen"
+                : "Der er ingen virksomheder endnu"}
           </p>
         ) : (
           <ul className="divide-y divide-hb-line">
@@ -357,7 +416,7 @@ export const VirksomhedslisteView = () => {
             ))}
           </ul>
         )}
-        {!listeQuery.isLoading && filtreret.length > 0 && (
+        {!listeQuery.isLoading && !venterPaaDom && filtreret.length > 0 && (
           <p className="border-t border-hb-line px-4 py-2 text-xs text-hb-ink-soft">
             Viser {filtreret.length} af {alle.length} virksomheder
           </p>
