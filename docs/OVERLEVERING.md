@@ -277,9 +277,32 @@
 > efter listens egen regel); og der er 37 grene på origin ud over main
 > (`gh pr list --state merged` afgør hvilke — `git diff` lyver, DEL 1).
 
-**Sidst opdateret: 8. september 2026, dagens slut — LOVABLE BYGGEDE
-MAILPLATFORMEN OM UNDER OS, SLETTEFUNKTIONEN ER BYGGET MEN IKKE KØRT, OG
-DE SYV TIDLIGERE SLETTES I MORGEN — COSKUN FØRST.** Kl. 06:52-06:58 lagde
+**Sidst opdateret: 8. september 2026, aften — SLETTEFUNKTIONEN ER I
+DRIFT.** Kørt i prod kl. 11:57–12:01 efter `docs/koereplan-slettefunktionen.md`
+(nu historik): migrationen `20260908120000_data_slettet.sql` kørt kl. 11:57
+— tre kolonner, Alina stemplet `i_haanden` med 22 bogførte tabeller som
+JSON på sin egen række (rollback findes ikke; tallene gør), bevist ikke
+længere kandidat. `slet-medlemsdata-cron` udrullet kl. 11:59 fra
+`ff548d1e` med `_shared/sletning.ts`, svarer 401 uden JWT. TØRKØRSEL på
+rigtige data kl. 12:00: undersøgt 35, fundet 0, slettet 0, fejlet 0 —
+det forventede og det rigtige: Alina er stemplet ude, og ingen med
+slutdato efter 10/9 er nået til dag 45; en tom rapport er beviset på at
+afgrænsningen holder. Cron-jobbet `slet-medlemsdata` planlagt kl. 12:01,
+`0 12 * * *` UTC (14:00 dansk), aktivt, `dry_run: false`, tolvte job,
+alene på klokkeslættet, EFTER fornyelsesvarslerne kl. 11. **Kæden er
+hel: en anmodning bliver til en sletning efter syv dage, uden at nogen
+skal huske det.** Alina ventede 103 dage fordi feltet ingen læste; nu er
+der en læser. DET DER MANGLER: kvitteringen i `MembershipExpiredGate`
+siger stadig «Jonas kontakter dig inden for 2 hverdage» — den skal sige
+en DATO, ellers ved medlemmet ikke at fristen er deres fortrydelsesret
+(DEL 2 «Slettefunktionen», DEL 3). Mangellisten: kortet «Der findes
+ingen slettefunktion» er slettet som løst; sletteknappens kort handler
+nu kun om teksten.**
+
+**8. september 2026, dagens slut (skrevet før driften blev bogført) —
+LOVABLE BYGGEDE MAILPLATFORMEN OM UNDER OS, SLETTEFUNKTIONEN ER BYGGET
+(sat i drift kl. 11:57–12:01, blokken ovenfor), OG DE SYV TIDLIGERE
+SLETTES I MORGEN — COSKUN FØRST.** Kl. 06:52-06:58 lagde
 Lovable 19 commits direkte på main, alle kaldt «Changes»: køen og
 `process-email-queue` slettet, migrationen `20260319090407_email_infra.sql`
 slettet, transporten flyttet til `_shared/managedEmail.ts`, tretten
@@ -292,8 +315,8 @@ en webhook-indpakning værnet ikke kendte — gaten fandtes, værnet gjorde
 ikke. MÅLINGEN ØVERST ER RETTET (#728): 19 af 27, ikke 29 af 37 — filtret
 manglede `status`, og to gæster var mærket som kunder. SLETTEFUNKTIONEN
 (#734): tre veje, tørkørsel som standard, bilagsværn, motor først med
-paritetstest — IKKE KØRT, migrationen mangler og cron-jobbet er ikke
-planlagt. BESLUTTET af Jonas 8/9: de syv tidligere slettes som Alina, i
+paritetstest — sat i drift samme dag kl. 11:57–12:01 (blokken ovenfor).
+BESLUTTET af Jonas 8/9: de syv tidligere slettes som Alina, i
 hånden efter `docs/koereplan-de-syv-tidligere.md` — Coskun Holding først,
 så de seks. LÆREN, DEL 4: Lovable kan bygge om under os; efter en
 Lovable-opdatering køres typecheck, tests OG guardrail på main før noget
@@ -313,8 +336,8 @@ loginposter med IP, én konto — og virksomhedsrækken beholdt som arkivspor
 `offboarding_requested_at`). Fire lærer, DEL 4: knappen lovede noget ingen
 hørte; kaskaden tager ikke alt; `hardDeleteCompany` kan ikke bruges til en
 kunde med bilag; det tog en formiddag i hånden. Sagen står i DEL 2
-«Alina-sagen». Tre kort i mangellisten: sletteknappen, slettefunktionen,
-opbevaringspolitikken.**
+«Alina-sagen». Kort i mangellisten: sletteknappen (nu kun teksten) og
+opbevaringspolitikken; slettefunktionens kort er løst og slettet 8/9.**
 
 **7. september 2026, aften — EN FEJL VI SELV LAVEDE:
 CARMA-SAGEN. Kl. 11:57 sendte `fornyelsesvarsel-cron` varsel 2 til CARMA
@@ -2287,8 +2310,9 @@ slettes; vores eget bilag bliver; virksomhedens navn og CVR arkiveres.
 4. **Det tog en formiddag i hånden.** Listen over hver tabel, hver
    rækkefølge og hver kontrol står i `~/Downloads/recon-alinas-sletning.md`
    (uden for repoet) og i denne bogføring. Næste sletning skal tage fem
-   sekunder, ikke en formiddag — kortet «Der findes ingen slettefunktion»
-   i mangellisten bærer specifikationen.
+   sekunder, ikke en formiddag — bygget (#734) og i drift samme dag kl.
+   12:01; kortet «Der findes ingen slettefunktion» er slettet som løst
+   (næste afsnit «Slettefunktionen»).
 
 Syv andre virksomheder står stadig som `tidligere` med alle deres data
 (Coskun, Regnskabsvikar, Sebastian & Amalie, Stadio, Startkørekort,
@@ -2307,7 +2331,7 @@ først (ældst, slut 6/5), så de seks** — syv på én gang er hurtigere, men
 en fejl midtvejs bliver til syv sager. Slettefunktionen (#734, næste
 afsnit) tager dem IKKE: de falder uden for ordningen med vilje.
 
-### Slettefunktionen — tre veje, tørkørsel som standard; bygget 8/9 (#734), IKKE KØRT
+### Slettefunktionen — tre veje, tørkørsel som standard; bygget 8/9 (#734), I DRIFT 8/9 kl. 11:57–12:01
 
 **Den ene læser af `offboarding_requested_at`.** Bygget på Alina-sagens
 specifikation (`~/Downloads/recon-alinas-sletning.md`, spec-slettefunktionen)
@@ -2363,11 +2387,39 @@ og `data_slettet_raekker` (jsonb med FØR-tallene pr. tabel og bucket) på
 med hendes FØR-tal, så hun ikke bliver kandidat igen (vej 1 er ikke
 datogatet).
 
-**IKKE KØRT:** migrationen er ikke kørt i prod, cron-jobbet er ikke
-planlagt. Rækkefølgen i morgen: migrationen i SQL editoren → en tørkørsel
-læses (hvem er kandidat, hvorfor, hvad ville forsvinde) → først derefter
-planlægges jobbet. Målt ved merge: tsc nul fejl, 2053 tests grønne,
-guardrail PASS.
+**I DRIFT — kørt og målt 8/9, efter `docs/koereplan-slettefunktionen.md`
+(nu historik med resultater under hvert skridt):**
+
+| kl. | hvad | målt |
+|---|---|---|
+| 11:57 | migrationen `20260908120000_data_slettet.sql` i SQL editoren | tre kolonner oprettet: `data_slettet_at`, `data_slettet_vej` (CHECK på fire værdier), `data_slettet_raekker` (jsonb). Alina stemplet med vej `i_haanden` og 22 bogførte tabeller — de 240 budgetmål, 198 loginposter og resten står nu på hendes række som JSON. Rollback findes ikke; tallene gør. Bevist: hun er ikke længere kandidat |
+| 11:59 | `slet-medlemsdata-cron` udrullet fra commit `ff548d1e` sammen med `_shared/sletning.ts` | svarer 401 uden JWT, ikke 404 |
+| 12:00 | tørkørsel på rigtige data | `undersoegt 35 · fundet 0 · slettet 0 · fejlet 0`, tomme kandidatlister. Det FORVENTEDE og det RIGTIGE: Alina er stemplet ude, og ingen med slutdato efter ordningens ikrafttrædelse (10/9) er nået til dag 45. En tom rapport er beviset på at afgrænsningen holder |
+| 12:01 | cron-jobbet `slet-medlemsdata` planlagt | `0 12 * * *` UTC (14:00 dansk), aktivt, `dry_run: false`. Tolvte job, alene på klokkeslættet. Lagt EFTER `fornyelsesvarsler` kl. 11, så en virksomhed der lige har fået sit varsel, ikke slettes i samme time |
+
+**Kæden er nu hel.** En anmodning bliver til en sletning efter syv dage,
+uden at nogen skal huske det. Alina ventede 103 dage fordi feltet ingen
+læste; nu er der en læser. Første rigtige kandidat kommer af sig selv:
+CARMA STUDIO (slutdato 11/9, `tilbyd`) bliver `ikke_nu` fra 12/9 og
+kandidat tidligst 26/10 ad vej `tilbud_ubesvaret` — medmindre de fornyer.
+
+**Et fund fra samme tørkørsel:** `indgangs-paamindelser` kørte kl. 10:00
+med fundet 0 på alle trin. Kæden er live og har aldrig haft en
+virksomhed at arbejde med — nul rækker i `company_betalingslink`. Det
+står i `docs/mailfortegnelsen.md` (M15–M16); gentages ikke her.
+
+**HVAD DER MANGLER — næste skridt:** kvitteringen til medlemmet siger
+stadig «Vi har modtaget din anmodning om sletning af data. Jonas
+kontakter dig inden for 2 hverdage for at bekræfte.»
+(`src/components/MembershipExpiredGate.tsx:141-144`) og før klikket
+«Slet din data og luk din konto. Vi sender en bekræftelse og håndterer
+det inden for 2 hverdage.» (`:320-321`). Den skal sige en DATO — «din
+data slettes den 15. september» — regnet som `offboarding_requested_at`
++ 7 dage, samme regel som motoren (`SLETTEFRIST_ANMODNING_DAGE`). Uden
+datoen ved medlemmet ikke at fristen er deres fortrydelsesret. Dertil
+udestår migrationsfilen der bogfører cron-planlægningen (formen fra
+`20260901112000_prod_cron_bogfoert.sql`). Målt ved merge af #734: tsc nul
+fejl, 2053 tests grønne, guardrail PASS.
 
 ### Mailplatformen — bygget om af Lovable 8/9 kl. 06:52-06:58; afsenderne, fortegnelsen og værnet (#728, #730, #731, #732)
 
@@ -2908,7 +2960,7 @@ facit og rækkefølge; `docs/chat-design.md` chattens form.
 
 | hvornår | hvad | hvor det står |
 |---|---|---|
-| **9/9 — I MORGEN**, i denne orden | **1) Køreplanen for de syv tidligere — Coskun Holding FØRST**, så de seks: FØR-måling, værn, én transaktion i FK-orden, EFTER-måling, kontoen sidst, sidste sweep over `information_schema`. **2) Migrationen til slettefunktionen** (`20260908120000_data_slettet.sql`) i SQL editoren — stempler Alina og giver de syv et sted til FØR-tallene. **3) En TØRKØRSEL af `slet-medlemsdata-cron`** læses (kandidater, veje, hvad ville forsvinde) FØR cron-jobbet planlægges. **4) Planen for 8/9, punkt 4–7**, som ikke blev færdig: månedsdigestens overskredne milepæle (frist 22/9), ingen mail til den der lige har fornyet, toasten i `Index.tsx`, og den tomme platform (a–d). | `docs/koereplan-de-syv-tidligere.md`; DEL 2 «Slettefunktionen»; øverst «PLANEN FOR 8. SEPTEMBER» |
+| **9/9 — I MORGEN**, i denne orden (punkt 2 og 3 fra aftenens plan er KØRT 8/9 kl. 11:57–12:01, DEL 2 «Slettefunktionen») | **1) Køreplanen for de syv tidligere — Coskun Holding FØRST**, så de seks: FØR-måling, værn, én transaktion i FK-orden, EFTER-måling, kontoen sidst, sidste sweep over `information_schema`. Migrationen er kørt, så de tre `data_slettet_*`-kolonner findes: sæt `data_slettet_vej = 'i_haanden'` og FØR-tallene i `data_slettet_raekker` i skridt 4's UPDATE. **2) Kvitteringen med en DATO:** `MembershipExpiredGate.tsx:141-144` og `:320-321` siger «inden for 2 hverdage»; skal sige «din data slettes den …» = anmodning + 7 dage. **3) Cron-migrationsfilen** der bogfører `slet-medlemsdata` (`0 12 * * *`), formen fra `20260901112000_prod_cron_bogfoert.sql`. **4) Planen for 8/9, punkt 4–7**, som ikke blev færdig: månedsdigestens overskredne milepæle (frist 22/9), ingen mail til den der lige har fornyet, toasten i `Index.tsx`, og den tomme platform (a–d). | `docs/koereplan-de-syv-tidligere.md`; `docs/koereplan-slettefunktionen.md`; DEL 2 «Slettefunktionen»; øverst «PLANEN FOR 8. SEPTEMBER» |
 | **10/9** — MÅLT 6/9: ikke en tændingsdato | Fornyelsesordningen træder i kraft. Tre udløber inden og falder udenfor. **Intet sker i koden den dag:** `FORNYELSE_IKRAFT_DATO` sammenlignes med virksomhedens slutdato, ikke dags dato, og bliver virkningsløs efter 10/9. Kædens forudsætninger er alle grønne (seks migrationer kørt, ni priser, seks events, fire funktioner udrullet — men 401 beviser kun at de findes, ikke hvilken version; driftsbeviset fra 1/9 ligger før #529, #561, #563, #572 og #583). **Det der IKKE er klar: ordningen har ingen afsender** — rækken «BESLUTTET 6/9» nedenfor. | fornyelseskæden §13; fornyelsesordningen §5, §7; DEL 2 «Fornyelseskæden» |
 | BESLUTTET 6/9 (Jonas), TALLENE 7/9 — KÆDEN ER HEL og BEVIST I PRODUKTION 7/9 kl. 11:57 (#680, #681, #691, #692, #694–#697); LØST 7/9 kl. 14:51: cron-jobbet er PLANLAGT (0 11 * * *, aktivt) — **22/9** er PHILBERTs varsel 2 | **Medlemmet skal høre om sin fornyelse fra SYSTEMET, ikke ved at miste adgangen.** Formen, med tal fra 7/9: mail 1 ved 30 dage før slutdato, mail 2 ved 7 dage, tilbuddet lever 14 dage efter slutdato (bygget som tilstand, #678); et tilbud om at booke «En snak om din fornyelse» via https://calendly.com/topix-jonas/fornyelse (almindeligt link, ikke engangslink); og en notifikation til rådgiveren når mail 1 er sendt, så den personlige chatbesked kommer EFTER systemets mail og ikke i stedet for. **Konsekvens:** rådgiverbeslutningen skal foreligge senest dag 30, ellers sendes intet — en glemt beslutning aflyser mailen, den forsinker den ikke. **LØST 7/9 kl. 14:51:** jobbet er planlagt — `fornyelsesvarsler`, `0 11 * * *` UTC (13:00 dansk), aktivt, målt i `cron.job`. Første kørsel 8/9 finder ingen forfaldne (PHILBERT og CARMA er stemplet); næste rigtige afsendelse er PHILBERTs varsel 2 den 22/9, og den sker af sig selv. Rådgiveren ser stemplet på forsiden («Varslet er sendt — N dage», #696); en egen notifikation til rådgiveren er ikke bygget. *Bevist i produktion 7/9 kl. 11:57:* PHILBERT fik varsel 1, CARMA fik varsel 2 på dag 0 uden varsel 1, begge stemplet (DEL 2 «Fornyelseskæden»). Motoren `afgoerForfaldentVarsel` (#680) og `fornyelsesvarsel-cron` (#681) FINDES; tørkørslen kl. 10:15 fandt PHILBERT → varsel 1 og CARMA → varsel 2 med «varsel 1 springes over: sen beslutning» (DEL 2 «Fornyelseskæden», fornyelseskæden §15). Stemplerne findes (`varsel_1_sendt_at`, `varsel_2_sendt_at`, #674, i prod 7/9 kl. 08:51; ingen trigger — skrivestien sætter selv `updated_at`). **Formen SPEJLER INDGANGENS KÆDE** (målt 6/9, `~/Downloads/recon-indgangens-mailkaede.md`, uden for repoet): pg_cron → `net.http_post` med vault-nøglen → Bucket B-funktion med `authenticateServiceRole` → TØRKØRSEL SOM STANDARD → ren motor afgør hvilken dag hver række står på → byg mail → enqueue → stempl KUN når afsendelsen lykkedes. **Datamodellen (LØST 7/9, #674):** stempel-felterne findes nu — to navngivne kolonner frem for et dag-nummer, fordi de to varsler kan sendes uafhængigt. **Calendly (LØST 7/9):** event-typen findes, linket står ovenfor. Betalte bookinger registreres i dag aldrig tilbage i platformen (målt 3/9), så linket i mailen skal være et almindeligt link — vi lover ikke en måling vi ikke kan holde. **Tempoet, målt i prod 6/9:** efter Doggybed 13/10 er der ingen fornyelse før Livja 16/12 — to måneders hul; derefter fjorten virksomheder marts–juni 2027, over halvdelen af porteføljen. Deadline for mailkæden: Livja minus 30 dage. | fornyelsesordningen §7; fornyelseskæden §13.4; indgangen-design §26 (formen) |
 | åbent, målt 6/9, delvist ændret 7/9 — værnet er stadig et menneske | **Datogaten omgås stadig hvor pengene skifter hænder.** `hent-fornyelsestilbud` kalder nu motoren (#678), men både den og `opret-fornyelse-checkout` kræver `udloebet_tilbyd`, som afgøres i udløbsgrenen FØR datogaten. En virksomhed «uden for ordningen» med beslutning `tilbyd` får derfor stadig et systemtilbud og kan betale — nu dog kun de første 14 dage efter udløb. Om gaten SKAL gælde der, er en beslutning — i dag er det rådgiverens finger der er værnet. | fornyelseskæden §13.3 |
@@ -3459,8 +3511,8 @@ De konkrete ting der har kostet tid. Led efter dem.
 - **En sletning i hånden tager en formiddag — og skal gøres én gang.**
   Rækkefølgen, tabellerne og kontrollerne fra Alinas sletning
   (`~/Downloads/recon-alinas-sletning.md`) er specifikationen for
-  slettefunktionen. Gentag ikke formiddagen; byg den (mangellisten «Der
-  findes ingen slettefunktion»).
+  slettefunktionen. Gentag ikke formiddagen; byg den — bygget (#734) og i
+  drift 8/9 kl. 12:01 (DEL 2 «Slettefunktionen»).
 - **LOVABLE KAN BYGGE OM UNDER OS.** 8/9 kl. 06:52-06:58: 19 commits
   direkte på main på seks minutter, alle kaldt «Changes», som slettede en
   edge function (`process-email-queue`) og en migration
