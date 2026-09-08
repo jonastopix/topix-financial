@@ -982,28 +982,14 @@ Deno.serve(async (req) => {
   </div>
 </div>`;
 
-      const messageId = crypto.randomUUID();
-      await adminClient.from("email_send_log").insert({
-        message_id: messageId,
-        template_name: "session-booking-confirmation",
-        recipient_email: userEmail,
-        status: "pending",
-      });
-
-      await adminClient.rpc("enqueue_email", {
-        queue_name: "transactional_emails",
-        payload: {
-          message_id: messageId,
-          to: userEmail,
-          from: "The Boardroom <noreply@boardroom.topix.dk>",
-          sender_domain: "boardroom.topix.dk",
-          subject,
-          html,
-          text: `Hej ${firstName} — tak for din betaling. Book din session her: ${bookingUrl}`,
-          purpose: "transactional",
-          label: "session-booking-confirmation",
-          queued_at: new Date().toISOString(),
-        },
+      await sendManagedEmail({
+        adminClient,
+        to: userEmail,
+        subject,
+        html,
+        text: `Hej ${firstName} — tak for din betaling. Book din session her: ${bookingUrl}`,
+        label: "session-booking-confirmation",
+        idempotencyKey: `session-booking-confirmation-${userId}-${bookingUrl}`,
       });
     }
 
