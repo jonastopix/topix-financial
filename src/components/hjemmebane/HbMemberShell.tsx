@@ -28,7 +28,7 @@ export const HbMemberShell = ({
   // «Virksomheder» nedenfor.
   // "milestones" = /milestones i Hb (etape 1, 4/9) — under «Dine tal» som
   // de fire andre.
-  active: "boardroom" | "akademiet" | "rapportering" | "noegletal" | "budget" | "milestones" | "handouts" | "booksession" | "podcast" | "rabataftaler" | "events" | "medlemmer" | "community" | "chat" | "virksomheder";
+  active: "boardroom" | "akademiet" | "rapportering" | "noegletal" | "budget" | "milestones" | "handouts" | "booksession" | "podcast" | "rabataftaler" | "events" | "medlemmer" | "community" | "chat" | "virksomheder" | "opgaver";
   /* layout="fuld" (chatten, C4 i docs/chat-design.md): AppLayout-
      præcedensen (fullscreen-prop, AppLayout.tsx:28-31, forgrening :337)
      oversat til Hb-skallen. Prop'en findes fordi shell'ens lodrette
@@ -174,6 +174,7 @@ export const HbMemberShell = ({
   const adminBlok: HbNavEntry[] = isAdvisor
     ? [
         { label: "Virksomheder", to: "/virksomheder", active: active === "virksomheder", admin: true },
+        { label: "Opgaver", to: "/opgaver", active: active === "opgaver", admin: true },
         {
           label: "Platform",
           admin: true,
