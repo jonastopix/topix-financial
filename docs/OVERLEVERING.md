@@ -159,6 +159,11 @@
 
 > ## PLANEN FOR 8. SEPTEMBER — godkendt og prioriteret af Jonas 7/9 sen aften
 >
+> **Status ved dagens slut 8/9:** dagen blev taget af Lovables
+> mailopdatering, Alina-sagen og slettefunktionen (øverst, «Sidst
+> opdateret»). Punkt 4–7 nedenfor står stadig og er flyttet til DEL 3
+> som morgendagens arbejde.
+>
 > Kan læses alene. Lavet efter at HELE mangellisten (167 kort) er læst
 > efter målingen ovenfor, og efter en recon af hvad et medlem uden tal
 > ser (`~/Downloads/recon-den-tomme-platform.md`, uden for repoet —
@@ -272,7 +277,29 @@
 > efter listens egen regel); og der er 37 grene på origin ud over main
 > (`gh pr list --state merged` afgør hvilke — `git diff` lyver, DEL 1).
 
-**Sidst opdateret: 8. september 2026, formiddag — ALINA-SAGEN: EN
+**Sidst opdateret: 8. september 2026, dagens slut — LOVABLE BYGGEDE
+MAILPLATFORMEN OM UNDER OS, SLETTEFUNKTIONEN ER BYGGET MEN IKKE KØRT, OG
+DE SYV TIDLIGERE SLETTES I MORGEN — COSKUN FØRST.** Kl. 06:52-06:58 lagde
+Lovable 19 commits direkte på main, alle kaldt «Changes»: køen og
+`process-email-queue` slettet, migrationen `20260319090407_email_infra.sql`
+slettet, transporten flyttet til `_shared/managedEmail.ts`, tretten
+afsendere flyttet til `theboardroom.dk`. Vores eget afsenderarbejde fra
+samme formiddag blev overflødigt; tre literaler stod tilbage og er rettet
+(#731), de fjorten skabelonrækker er rettet i prod kl. 09:31, og
+mailfortegnelsen over 38 mails ligger i `docs/mailfortegnelsen.md` (#730).
+Auth-guardrailen fejlede på main indtil #732: `handle-email-events` bruger
+en webhook-indpakning værnet ikke kendte — gaten fandtes, værnet gjorde
+ikke. MÅLINGEN ØVERST ER RETTET (#728): 19 af 27, ikke 29 af 37 — filtret
+manglede `status`, og to gæster var mærket som kunder. SLETTEFUNKTIONEN
+(#734): tre veje, tørkørsel som standard, bilagsværn, motor først med
+paritetstest — IKKE KØRT, migrationen mangler og cron-jobbet er ikke
+planlagt. BESLUTTET af Jonas 8/9: de syv tidligere slettes som Alina, i
+hånden efter `docs/koereplan-de-syv-tidligere.md` — Coskun Holding først,
+så de seks. LÆREN, DEL 4: Lovable kan bygge om under os; efter en
+Lovable-opdatering køres typecheck, tests OG guardrail på main før noget
+bygges ovenpå. I MORGEN: DEL 3 øverst.**
+
+**8. september 2026, formiddag — ALINA-SAGEN: EN
 SLETTEANMODNING LÅ 103 DAGE, FORDI KNAPPEN LOVEDE NOGET INGEN HØRTE.**
 2. juni kl. 19:28 trykkede Alina Beauty & Skincare «Ja, slet min data» i
 `MembershipExpiredGate`. Knappen skrev `companies.offboarding_requested_at`
@@ -2266,8 +2293,143 @@ slettes; vores eget bilag bliver; virksomhedens navn og CVR arkiveres.
 Syv andre virksomheder står stadig som `tidligere` med alle deres data
 (Coskun, Regnskabsvikar, Sebastian & Amalie, Stadio, Startkørekort,
 Friends & Fries, LineAlmegaard); ingen af dem har trykket på knappen
-(målt 8/9, SQL 7d). Hvad der skal ske med dem, er en beslutning — kortet
-«Ingen opbevaringspolitik».
+(målt 8/9, SQL 7d). **BESLUTTET af Jonas 8/9, dagens slut: de slettes som
+Alina.** De fik et tilbud om at forlænge manuelt, uden for systemet, og
+sagde nej — men de er aldrig blevet spurgt om deres data; formålet er
+ophørt. Målt 8/9 kl. 10:27: ingen af dem har perioder, træk, betalingslink,
+bookinger eller `stripe_customer_id`; ni brugerkonti i alt (Friends &
+Fries og Startkørekort har to hver); én fil i storage, hos LineAlmegaard —
+identiske sager med Alina. Køreplanen står i
+`docs/koereplan-de-syv-tidligere.md`: FØR-måling, værn, én transaktion i
+FK-orden, EFTER-måling, kontoen sidst, og den sidste sweep over
+`information_schema` der fangede Alinas 198 loginposter. **Coskun Holding
+først (ældst, slut 6/5), så de seks** — syv på én gang er hurtigere, men
+en fejl midtvejs bliver til syv sager. Slettefunktionen (#734, næste
+afsnit) tager dem IKKE: de falder uden for ordningen med vilje.
+
+### Slettefunktionen — tre veje, tørkørsel som standard; bygget 8/9 (#734), IKKE KØRT
+
+**Den ene læser af `offboarding_requested_at`.** Bygget på Alina-sagens
+specifikation (`~/Downloads/recon-alinas-sletning.md`, spec-slettefunktionen)
+og merget som #734 8/9 kl. 08:45 UTC: `src/lib/sletning.ts` (motoren,
+`afgoerSletning`), `supabase/functions/_shared/sletning.ts` (Deno-spejl,
+paritetstestet i `sletningParitet.test.ts`),
+`supabase/functions/slet-medlemsdata-cron/index.ts` (edge function),
+`supabase/migrations/20260908120000_data_slettet.sql` (sporet), og
+værnet `sletningRoererIkkeBilag.guard.test.ts`.
+
+**Tre veje, besluttet af Jonas 8/9** (`sletning.ts:18-29`, konstanterne
+`:54-64`): (1) **anmodning** — medlemmet trykkede «slet min data»:
+sletning **7 dage** efter trykket; fristen er medlemmets fortrydelsesret,
+ikke vores betænkningstid, og kvitteringen skal sige datoen. (2) **tilbud
+ubesvaret** — 30 dage efter at tilbudsvinduet lukkede (dag 15), altså
+**dag 45** efter slutdatoen. (3) **aldrig tilbudt** — samme dag 45;
+ellers ligger de for evigt, som de otte gjorde.
+
+**Afgrænsningen er den bedste del:** vej 2 og 3 gælder KUN virksomheder
+inden for ordningen — slutdato efter `FORNYELSE_IKRAFT_DATO` (10/9),
+samme skel som fornyelsesmotorens `uden_for_ordningen` — så der findes ÉT
+skel og ikke to (`sletning.ts:34-37`). De syv med slutdato maj–september
+falder udenfor og bliver ikke kandidater; de er en beslutning, ikke en
+regel, og køres som engangssag med eksplicitte id'er (køreplanen
+ovenfor). **Vej 1 er derimod IKKE gated på ikrafttrædelsen: en anmodning
+er en anmodning**, uanset hvornår kontrakten udløb.
+
+**Formen er husets:** motoren først — ren funktion i begge kopier,
+paritetstestet, grænserne låst fra begge sider (dag 44 sletter ikke, dag
+45 gør). Edge function i **Bucket B** med `authenticateServiceRole` bag
+`verify_jwt = true` (`config.toml:159-163`), HTTP-indgang (ikke
+`Deno.cron`), og **TØRKØRSEL SOM STANDARD**: uden body findes kandidaterne
+og rapporteres pr. virksomhed, pr. tabel, pr. bucket, pr. bruger — intet
+slettes, intet skrives; kun et eksplicit `{ "dry_run": false }` sletter.
+Det var tørkørslen der fangede CARMA-fejlen 7/9. Funktionen tager ingen
+`company_id` i body — gaten er på rækken, ikke på kalderen. **Et værn
+låser at (b) aldrig røres**: `company_perioder`, `company_traek`,
+`company_betalingslink`, `session_bookings` og Stripe-felterne står i
+`ROERES_ALDRIG` og har ingen delete-kæde; `companies` slettes aldrig, kun
+UPDATE, og den rører hverken Stripe eller kontraktperioden
+(`sletningRoererIkkeBilag.guard.test.ts:44-76`). Rækkefølgen er FK-ordenen
+fra Alina-sagen (15 trin): storage først, analyser før facts før
+rapporter, de FK-løse persontabeller eksplicit (de 198 loginposter),
+koblingen, kontoen, og til sidst UPDATE af virksomhedsrækken med
+stemplet. STOP for en virksomhed uden at slette noget af den, hvis en af
+dens brugere bærer en anden virksomhed eller har `session_bookings`.
+
+**Sporet:** migrationen tilføjer `data_slettet_at` (idempotens-nøglen —
+sat sidst; kaldes funktionen igen, er kandidaten væk), `data_slettet_vej`
+(CHECK: `anmodning`, `tilbud_ubesvaret`, `aldrig_tilbudt`, `i_haanden`)
+og `data_slettet_raekker` (jsonb med FØR-tallene pr. tabel og bucket) på
+`companies` — rækken ER arkivsporet. Migrationen stempler Alinas række
+med hendes FØR-tal, så hun ikke bliver kandidat igen (vej 1 er ikke
+datogatet).
+
+**IKKE KØRT:** migrationen er ikke kørt i prod, cron-jobbet er ikke
+planlagt. Rækkefølgen i morgen: migrationen i SQL editoren → en tørkørsel
+læses (hvem er kandidat, hvorfor, hvad ville forsvinde) → først derefter
+planlægges jobbet. Målt ved merge: tsc nul fejl, 2053 tests grønne,
+guardrail PASS.
+
+### Mailplatformen — bygget om af Lovable 8/9 kl. 06:52-06:58; afsenderne, fortegnelsen og værnet (#728, #730, #731, #732)
+
+**Hvad Lovable gjorde.** 19 commits direkte til main mellem kl. 06:52 og
+06:58, alle med beskeden «Changes» (`b45007eb`…`68d86a46`, 32 filer):
+`process-email-queue` slettet (364 linjer), migrationen
+`20260319090407_email_infra.sql` slettet (292 linjer — den bar DDL'en for
+den nuværende `email_send_log`, `suppressed_emails`,
+`email_unsubscribe_tokens` og `email_send_state`; tabellerne findes
+stadig i prod, deres definition findes ikke længere i repoet), `_shared/managedEmail.ts`
+og `_shared/transactional-email-templates/` tilføjet, `handle-email-events`
+og `preview-transactional-email` tilføjet, `auth-email-hook` skrevet om til
+`createAuthEmailHandler`, og tretten afsendere flyttet til
+`FROM_DOMAIN = "theboardroom.dk"` / `SENDER_DOMAIN = "notify.theboardroom.dk"`
+(`managedEmail.ts:17-22`). Alt uden PR. Det blev fanget fordi et push på
+~900 objekter så forkert ud for en ændring på 84 linjer.
+
+**Vores afsenderarbejde blev overflødigt** — punkt 2 i planen for 8/9
+var netop at flytte afsenderen fra `boardroom.topix.dk`. Tilbage stod tre
+literaler med de gamle domæner (`send-welcome-message:10`,
+`EmailTemplatesView:288, :892`), rettet i #731 sammen med et kildelæsende
+værn (`src/test/afsenderDomaeneGuard.test.ts`: ingen kode nævner
+`boardroom.topix.dk`/`mail.topix.dk`, kun `managedEmail.ts` tildeler
+`VERIFIED_FROM_EMAIL`, editorens default er lig managedEmail's). De
+fjorten skabelonrækker i `email_templates` bar stadig det gamle domæne
+(13 `boardroom.topix.dk`, 1 `mail.topix.dk`) — rettet i prod kl. 09:31. Om
+feltet betød noget: tre functions har hver sin kopi af
+`resolveSenderFromTemplate`, som erstatter alt uden for `theboardroom.dk`
+med `noreply@theboardroom.dk`; den fjerde (`send-notification-email`)
+læser aldrig feltet. Så det sendte var allerede rigtigt — feltet løj, og
+advarslen i loggen forsvandt med rettelsen (`~/Downloads/recon-skabelonernes-afsender.md`).
+
+**Mailfortegnelsen** (#730, `docs/mailfortegnelsen.md`, Jonas: «vi skal
+virkelig have skabt os et fuldt overblik over alle mails der er opsat»):
+38 mails fra tre kilder — de 14 skabeloner, mailene bygget i kode, og
+auth-mailene — med udløser, modtager, kilde, gate og sidst sendt. Fem fund
+øverst i filen; det vigtigste: ni ting findes som kode og har aldrig
+sendt en mail, og `monthly-digest`s admin-knap sender til alle founders
+når som helst. Fortegnelsen opdateres i samme PR som enhver mailændring.
+
+**Auth-guardrailen fejlede på main** fra 06:58 til #732:
+`handle-email-events/index.ts:9` konstruerer en service-role-klient, og
+værnet fandt ingen gate. Gaten FINDES — målt, ikke antaget: pakken
+`@lovable.dev/email-js@0.1.0` blev hentet som npm-tarball og læst;
+`createEmailWebhookHandler` kalder `verifyWebhookRequest` fra
+`@lovable.dev/webhooks-js@0.0.1` som første handling efter metode-tjekket,
+HMAC-SHA256 over tidsstempel og body med `LOVABLE_API_KEY`, fem minutters
+tolerance — præcis samme funktion `auth-email-hook` kaldte direkte før.
+Værnet matcher på navn med regex, og navnet stod ikke længere i filen.
+#732 sætter `createEmailWebhookHandler` på listen med begrundelse og
+låser importen til `@0.1.0`, så en opgradering fejler i stedet for
+stiltiende at ændre hvad der verificeres (`~/Downloads/recon-webhook-vaernet.md`).
+Ét fund undervejs, bogført i fortegnelsen: ingen kode læser
+`suppressed_emails` — en spærring forurener loggen, men stopper ingen
+afsendelse.
+
+**Målingen øverst blev rettet** (#728): «29 af 37» manglede `status` i
+filtret, så de otte `'tidligere'` blev talt med, og Alexander Lunds og
+Martin Larsens virksomheder var mærket som kunder (gæster; `er_kunde`
+sat til false i prod kl. 08:48). Rettet tal med filtret ordret: **19 af
+27**, aktive 8, aldrig uploadet 10. Konklusionen holdt. Læren står i DEL
+4: et filter er en del af målingen.
 
 ### De tavse fejl — målt og rangeret 7/9; sendt-loggen (#701), global fejllogning (#702) og punkt 1–4 på rangeringen (#703, #706, #708) rettet
 
@@ -2746,6 +2908,7 @@ facit og rækkefølge; `docs/chat-design.md` chattens form.
 
 | hvornår | hvad | hvor det står |
 |---|---|---|
+| **9/9 — I MORGEN**, i denne orden | **1) Køreplanen for de syv tidligere — Coskun Holding FØRST**, så de seks: FØR-måling, værn, én transaktion i FK-orden, EFTER-måling, kontoen sidst, sidste sweep over `information_schema`. **2) Migrationen til slettefunktionen** (`20260908120000_data_slettet.sql`) i SQL editoren — stempler Alina og giver de syv et sted til FØR-tallene. **3) En TØRKØRSEL af `slet-medlemsdata-cron`** læses (kandidater, veje, hvad ville forsvinde) FØR cron-jobbet planlægges. **4) Planen for 8/9, punkt 4–7**, som ikke blev færdig: månedsdigestens overskredne milepæle (frist 22/9), ingen mail til den der lige har fornyet, toasten i `Index.tsx`, og den tomme platform (a–d). | `docs/koereplan-de-syv-tidligere.md`; DEL 2 «Slettefunktionen»; øverst «PLANEN FOR 8. SEPTEMBER» |
 | **10/9** — MÅLT 6/9: ikke en tændingsdato | Fornyelsesordningen træder i kraft. Tre udløber inden og falder udenfor. **Intet sker i koden den dag:** `FORNYELSE_IKRAFT_DATO` sammenlignes med virksomhedens slutdato, ikke dags dato, og bliver virkningsløs efter 10/9. Kædens forudsætninger er alle grønne (seks migrationer kørt, ni priser, seks events, fire funktioner udrullet — men 401 beviser kun at de findes, ikke hvilken version; driftsbeviset fra 1/9 ligger før #529, #561, #563, #572 og #583). **Det der IKKE er klar: ordningen har ingen afsender** — rækken «BESLUTTET 6/9» nedenfor. | fornyelseskæden §13; fornyelsesordningen §5, §7; DEL 2 «Fornyelseskæden» |
 | BESLUTTET 6/9 (Jonas), TALLENE 7/9 — KÆDEN ER HEL og BEVIST I PRODUKTION 7/9 kl. 11:57 (#680, #681, #691, #692, #694–#697); LØST 7/9 kl. 14:51: cron-jobbet er PLANLAGT (0 11 * * *, aktivt) — **22/9** er PHILBERTs varsel 2 | **Medlemmet skal høre om sin fornyelse fra SYSTEMET, ikke ved at miste adgangen.** Formen, med tal fra 7/9: mail 1 ved 30 dage før slutdato, mail 2 ved 7 dage, tilbuddet lever 14 dage efter slutdato (bygget som tilstand, #678); et tilbud om at booke «En snak om din fornyelse» via https://calendly.com/topix-jonas/fornyelse (almindeligt link, ikke engangslink); og en notifikation til rådgiveren når mail 1 er sendt, så den personlige chatbesked kommer EFTER systemets mail og ikke i stedet for. **Konsekvens:** rådgiverbeslutningen skal foreligge senest dag 30, ellers sendes intet — en glemt beslutning aflyser mailen, den forsinker den ikke. **LØST 7/9 kl. 14:51:** jobbet er planlagt — `fornyelsesvarsler`, `0 11 * * *` UTC (13:00 dansk), aktivt, målt i `cron.job`. Første kørsel 8/9 finder ingen forfaldne (PHILBERT og CARMA er stemplet); næste rigtige afsendelse er PHILBERTs varsel 2 den 22/9, og den sker af sig selv. Rådgiveren ser stemplet på forsiden («Varslet er sendt — N dage», #696); en egen notifikation til rådgiveren er ikke bygget. *Bevist i produktion 7/9 kl. 11:57:* PHILBERT fik varsel 1, CARMA fik varsel 2 på dag 0 uden varsel 1, begge stemplet (DEL 2 «Fornyelseskæden»). Motoren `afgoerForfaldentVarsel` (#680) og `fornyelsesvarsel-cron` (#681) FINDES; tørkørslen kl. 10:15 fandt PHILBERT → varsel 1 og CARMA → varsel 2 med «varsel 1 springes over: sen beslutning» (DEL 2 «Fornyelseskæden», fornyelseskæden §15). Stemplerne findes (`varsel_1_sendt_at`, `varsel_2_sendt_at`, #674, i prod 7/9 kl. 08:51; ingen trigger — skrivestien sætter selv `updated_at`). **Formen SPEJLER INDGANGENS KÆDE** (målt 6/9, `~/Downloads/recon-indgangens-mailkaede.md`, uden for repoet): pg_cron → `net.http_post` med vault-nøglen → Bucket B-funktion med `authenticateServiceRole` → TØRKØRSEL SOM STANDARD → ren motor afgør hvilken dag hver række står på → byg mail → enqueue → stempl KUN når afsendelsen lykkedes. **Datamodellen (LØST 7/9, #674):** stempel-felterne findes nu — to navngivne kolonner frem for et dag-nummer, fordi de to varsler kan sendes uafhængigt. **Calendly (LØST 7/9):** event-typen findes, linket står ovenfor. Betalte bookinger registreres i dag aldrig tilbage i platformen (målt 3/9), så linket i mailen skal være et almindeligt link — vi lover ikke en måling vi ikke kan holde. **Tempoet, målt i prod 6/9:** efter Doggybed 13/10 er der ingen fornyelse før Livja 16/12 — to måneders hul; derefter fjorten virksomheder marts–juni 2027, over halvdelen af porteføljen. Deadline for mailkæden: Livja minus 30 dage. | fornyelsesordningen §7; fornyelseskæden §13.4; indgangen-design §26 (formen) |
 | åbent, målt 6/9, delvist ændret 7/9 — værnet er stadig et menneske | **Datogaten omgås stadig hvor pengene skifter hænder.** `hent-fornyelsestilbud` kalder nu motoren (#678), men både den og `opret-fornyelse-checkout` kræver `udloebet_tilbyd`, som afgøres i udløbsgrenen FØR datogaten. En virksomhed «uden for ordningen» med beslutning `tilbyd` får derfor stadig et systemtilbud og kan betale — nu dog kun de første 14 dage efter udløb. Om gaten SKAL gælde der, er en beslutning — i dag er det rådgiverens finger der er værnet. | fornyelseskæden §13.3 |
@@ -3298,6 +3461,24 @@ De konkrete ting der har kostet tid. Led efter dem.
   (`~/Downloads/recon-alinas-sletning.md`) er specifikationen for
   slettefunktionen. Gentag ikke formiddagen; byg den (mangellisten «Der
   findes ingen slettefunktion»).
+- **LOVABLE KAN BYGGE OM UNDER OS.** 8/9 kl. 06:52-06:58: 19 commits
+  direkte på main på seks minutter, alle kaldt «Changes», som slettede en
+  edge function (`process-email-queue`) og en migration
+  (`20260319090407_email_infra.sql` — DDL'en for fire levende tabeller),
+  skrev `auth-email-hook` om og flyttede tretten afsendere. Ingen PR,
+  ingen CI før det lå på main. Det blev kun fanget fordi et push på ~900
+  objekter så forkert ud for en ændring på 84 linjer — ikke fordi noget
+  sagde til. Konsekvensen samme formiddag: auth-guardrailen fejlede på
+  main (en gate værnet ikke kendte), vores eget afsenderarbejde var
+  overflødigt, og tabeller i prod har ikke længere deres definition i
+  repoet. REGLEN: **efter en Lovable-opdatering køres typecheck
+  (`bunx tsc --noEmit -p tsconfig.app.json`), `bun run test` OG
+  `bun run check:edge-auth` på main, FØR noget bygges ovenpå** — 19
+  bot-commits har aldrig været gennem en PR, og CI's gate på PR'er ser dem
+  ikke. Læs `git log` og `git show --stat` på hvert «Changes»-commit; læs
+  HVAD det rørte, ikke kun at det virker (DEL 1 «Git», 6/9-lærdommen om
+  `types.ts`, gentaget 8/9 i større format). Og skriv fortegnelsen over
+  det der forsvandt, mens det stadig kan læses i `git show <før>:<sti>`.
 
 ---
 
