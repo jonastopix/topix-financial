@@ -459,6 +459,20 @@ row, because a closed task is the company's, not the advisor's. Members have
 no access (no policy matches them). Contains no member PII, only `advisor_id`,
 `company_id`, timestamps, the outcome and reason keys/period keys.
 
+### Session bookings — advisor read (`session_bookings`)
+```sql
+has_role(auth.uid(), 'advisor'::app_role)
+```
+SELECT-only policy added 8/9-2026 (migration `20260908190000_session_tid.sql`)
+next to the original owner-only SELECT (`auth.uid() = user_id`), admin SELECT
+and service-role FOR ALL. Reason: the company page (`/virksomhed/:id`) shows
+whether the free intro session is booked or held, and the advisor holding it
+is not necessarily an admin. Advisors get no write access; writes stay with
+service role (edge functions `create-stripe-checkout`, `stripe-webhook`,
+`create-free-intro-booking`, `calendly-webhook`). Rows carry `user_id`,
+`company_id`, Stripe ids, Calendly URIs and, from 8/9, `start_tid`/`slut_tid`
+— no member PII beyond the ids.
+
 ### Shared member-profile layer (`member_profiles`)
 - Purpose: the PERSONAL layer of the member profile — `linkedin_url`,
   `expertise`, `bio`. Industry and website live on `companies` (so two

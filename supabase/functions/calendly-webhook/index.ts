@@ -87,9 +87,37 @@ Deno.serve(async (req: Request) => {
       // advisor='morten' = sikkerhedsnet (denne webhook er Mortens konto).
       // neq cancelled lader en flytning opdatere det nye tidspunkt paa en allerede-booket
       // raekke, mens en aflyst booking ikke genoplives af en forsinket created.
+      //
+      // TIDEN (8/9): payload.scheduled_event.start_time / end_time (UTC, Calendlys
+      // dokumenterede felter — ikke maalt mod en faktisk payload) gemmes i SAMME
+      // update som status = 'booked' (migration 20260908190000). Laeses DEFENSIVT:
+      // mangler scheduled_event, eller er feltet ikke en dato, gemmes ingen tid —
+      // en booking uden tid er bedre end en webhook der kaster. Null-kolonnerne
+      // roeres saa ikke (spread'et er tomt), saa en tidligere gemt tid ikke
+      // overskrives med null af en ufuldstaendig payload.
+      //
+      // FLYTNING: Calendly sender invitee.canceled (rescheduled=true) — som grenen
+      // nedenfor lader ligge — og derefter en ny invitee.created med det NYE
+      // scheduled_event. Den rammer denne update (raekken er 'booked', ikke
+      // 'cancelled'), saa status, URI og start_tid/slut_tid overskrives: den nye
+      // tid foelger med af sig selv. En retry af samme created skriver de samme
+      // vaerdier og er harmloes.
+      const scheduledEvent = event?.payload?.scheduled_event;
+      const somTid = (v: unknown): string | null =>
+        typeof v === "string" && !Number.isNaN(Date.parse(v)) ? new Date(v).toISOString() : null;
+      const startTid = somTid(scheduledEvent?.start_time);
+      const slutTid = somTid(scheduledEvent?.end_time);
+      if (!startTid) {
+        console.log("[calendly-webhook] invitee.created uden laeselig scheduled_event.start_time — booking gemmes uden tid.");
+      }
       const { data: updated, error } = await admin
         .from("session_bookings")
-        .update({ status: "booked", calendly_event_uri: event.payload.event })
+        .update({
+          status: "booked",
+          calendly_event_uri: event.payload.event,
+          ...(startTid ? { start_tid: startTid } : {}),
+          ...(slutTid ? { slut_tid: slutTid } : {}),
+        })
         .eq("id", bookingId)
         .eq("advisor", "morten")
         .neq("status", "cancelled")
@@ -105,7 +133,7 @@ Deno.serve(async (req: Request) => {
         console.log("[calendly-webhook] invitee.created: ukendt id eller aflyst.");
         return json(200, { received: true, skipped: "ukendt id eller aflyst" });
       }
-      console.log(`[calendly-webhook] invitee.created: booking ${bookingId} -> booked.`);
+      console.log(`[calendly-webhook] invitee.created: booking ${bookingId} -> booked${startTid ? ` (${startTid} – ${slutTid ?? "?"})` : " (uden tid)"}.`);
       return json(200, { received: true });
     }
 

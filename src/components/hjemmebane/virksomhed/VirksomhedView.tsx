@@ -2,6 +2,7 @@ import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from "
 import { ResponsiveContainer, AreaChart, Area, Line, LineChart, XAxis, YAxis, Tooltip as RechartsTooltip, CartesianGrid } from "recharts";
 import DeliveryOverview from "@/components/DeliveryOverview";
 import { Link, useSearchParams } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -20,6 +21,7 @@ import type { CompanyFact } from "@/hooks/useCompanyFacts";
 import { factsToDanishMetrics } from "@/lib/factsAdapter";
 import { afgoerVirksomhedsSignaler, type FactPunkt, type Signal, type VirksomhedsInput } from "@/lib/virksomhedsSignaler";
 import { afgoerMilepael } from "@/lib/milepaelDom";
+import { afgoerIntroSession, introSessionTekst, type IntroBooking } from "@/lib/introSession";
 import { computeMembershipTier, type MembershipTier } from "@/lib/membershipTier";
 import { afgoerFornyelsestilstand, type Fornyelsesbeslutning } from "@/lib/fornyelse";
 import { beslutningsOrd, fornyelsesBadge, type FornyelseBadge } from "@/lib/fornyelsesOrd";
@@ -1261,6 +1263,57 @@ const Blok6 = ({
   );
 };
 
+/** Intro-sessionen med Morten som én linje i Aftalen (8/9): «Afholdt 3.
+    september» / «Booket til 15. september kl. 11.00». Dommen er
+    lib/introSession (booked OG slut_tid passeret = afholdt; «udeblev» kan
+    ikke vides). HER, i Kontrakt-kortet, fordi den gratis intro er en del af
+    AFTALEN — retten (companies.intro_session_used_at) sidder ved siden af
+    kontraktfelterne, gates af tier og genåbnes ved host-aflysning — og
+    fordi kortet allerede læses som et forløb af daterede begivenheder
+    (Underskrevet, Varsel sendt, Påmindelse sendt). Ikke blok 2 «Din
+    forberedelse» (det er AI-forberedelsen, på en knap) og ikke blok 6
+    «Aktivitet» (det er medlemmets arbejde). Egen hentning — useVirksomhed
+    ligger uden for denne omgangs stier; rådgiver-SELECT på session_bookings
+    er fra 20260908190000. Nyeste Morten-række vinder (som BookSessionView). */
+const IntroSessionLinje = ({ companyId }: { companyId: string }) => {
+  const { data } = useQuery({
+    queryKey: ["intro-session", companyId],
+    queryFn: async (): Promise<{ booking: IntroBooking | null; retBrugtAt: string | null }> => {
+      const [bookingRes, companyRes] = await Promise.all([
+        // start_tid/slut_tid er nye kolonner (20260908190000) og står ikke i
+        // de genererede typer endnu — derfor `as any`, som andre nye kolonner.
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (supabase.from("session_bookings") as any)
+          .select("status, start_tid, slut_tid, created_at")
+          .eq("company_id", companyId)
+          .eq("advisor", "morten")
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+        supabase.from("companies").select("intro_session_used_at").eq("id", companyId).maybeSingle(),
+      ]);
+      if (bookingRes.error) throw new Error(bookingRes.error.message);
+      return { booking: (bookingRes.data as IntroBooking | null) ?? null, retBrugtAt: companyRes.data?.intro_session_used_at ?? null };
+    },
+    staleTime: 60_000,
+  });
+  if (!data) return null;
+  const dom = afgoerIntroSession(data.booking, new Date());
+  const tekst = introSessionTekst(dom, data.booking);
+  if (tekst) {
+    return (
+      <Linje label="Intro-session">
+        <span className={dom.tilstand === "afholdt" ? "text-hb-evergreen" : undefined}>{tekst}</span>
+      </Linje>
+    );
+  }
+  // Ingen booking, men retten er brugt: sat i hånden (admin) eller klik uden link.
+  if (data.retBrugtAt) {
+    return <Linje label="Intro-session"><span className="text-hb-ink-soft">Retten er brugt {formatDato(data.retBrugtAt)} — ingen booking registreret</span></Linje>;
+  }
+  return null;
+};
+
 // ── Blok 7: Aftalen ─────────────────────────────────────────────────────
 
 /** «Fjern medlem» pr. medlem (§3.6-handling, 4/9). Dommen er
@@ -1473,6 +1526,7 @@ const Blok7 = ({ d, onOpdateret, onFornyelseAendret }: { d: VirksomhedsData; onO
             {c.fornyelsespris_oere != null && <Linje label="Fornyelsespris">{formatKr(c.fornyelsespris_oere)}</Linje>}
             {c.subscription_status && <Linje label="Abonnement">{c.subscription_status}{c.subscription_current_period_end ? ` · til ${formatDato(c.subscription_current_period_end)}` : ""}</Linje>}
             {d.betalingslink && <Linje label="Underskrevet">{formatDato(d.betalingslink.underskrevet_at)}</Linje>}
+            <IntroSessionLinje companyId={c.id} />
             {/* Fornyelsen som FORLØB, ikke som ét ord (rettet 7/9, set på skærm:
                 «Fornyelse: Tilbyd · dato» lød som en afsendelse, men besluttet_at
                 er RÅDGIVERENS beslutning — PHILBERT havde ikke hørt et ord).
