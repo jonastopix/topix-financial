@@ -446,13 +446,18 @@ content_items policies).
 ```sql
 advisor_id = auth.uid() AND has_role(auth.uid(), 'advisor'::app_role)
 ```
-Applied to: `advisor_company_acknowledgments`. Durable, company-wide advisor
-"Kvitter" state for the dashboard action queues: `snoozed_until` null means
-cleared until a newer signal appears, a future value is a remind window, and
-`basis_at` snapshots the newest signal timestamp at acknowledgement time. Each
-advisor sees and writes only their own rows (owner-scoped); members have no
-access (no policy matches them). Contains no member PII, only `advisor_id`,
-`company_id` and timestamps.
+Applied to: `advisor_company_acknowledgments` (writes). Since 8/9-2026
+(migration `20260908150000_luk_opgaven.sql`) the table is a LOG of closed
+front-page tasks («Færdiggjort» / «Ikke relevant»): `udfald` and `grundlag`
+(jsonb, reason-key → basis the judgement was built on). Rows from the earlier
+snooze model (`snoozed_until`/`basis_at`, `udfald` NULL) are ignored by the
+judgement (`src/lib/opgaveLukning.ts`). The UNIQUE (advisor_id, company_id)
+constraint is dropped: one row per closing. Writes stay owner-scoped through
+the FOR ALL policy above; a second, SELECT-only policy
+`has_role(auth.uid(), 'advisor'::app_role)` lets every advisor READ every
+row, because a closed task is the company's, not the advisor's. Members have
+no access (no policy matches them). Contains no member PII, only `advisor_id`,
+`company_id`, timestamps, the outcome and reason keys/period keys.
 
 ### Shared member-profile layer (`member_profiles`)
 - Purpose: the PERSONAL layer of the member profile — `linkedin_url`,
