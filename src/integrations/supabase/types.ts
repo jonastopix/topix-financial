@@ -57,9 +57,11 @@ export type Database = {
           basis_at: string
           company_id: string
           created_at: string
+          grundlag: Json | null
           id: string
           note: string | null
           snoozed_until: string | null
+          udfald: string | null
         }
         Insert: {
           acknowledged_at?: string
@@ -67,9 +69,11 @@ export type Database = {
           basis_at: string
           company_id: string
           created_at?: string
+          grundlag?: Json | null
           id?: string
           note?: string | null
           snoozed_until?: string | null
+          udfald?: string | null
         }
         Update: {
           acknowledged_at?: string
@@ -77,9 +81,11 @@ export type Database = {
           basis_at?: string
           company_id?: string
           created_at?: string
+          grundlag?: Json | null
           id?: string
           note?: string | null
           snoozed_until?: string | null
+          udfald?: string | null
         }
         Relationships: [
           {
@@ -2795,6 +2801,53 @@ export type Database = {
           },
         ]
       }
+      raadgiver_opgaver: {
+        Row: {
+          company_id: string | null
+          created_at: string
+          ejer_id: string
+          frist: string | null
+          gjort_at: string | null
+          id: string
+          oprettet_af: string
+          status: string
+          tekst: string
+          updated_at: string
+        }
+        Insert: {
+          company_id?: string | null
+          created_at?: string
+          ejer_id: string
+          frist?: string | null
+          gjort_at?: string | null
+          id?: string
+          oprettet_af: string
+          status?: string
+          tekst: string
+          updated_at?: string
+        }
+        Update: {
+          company_id?: string | null
+          created_at?: string
+          ejer_id?: string
+          frist?: string | null
+          gjort_at?: string | null
+          id?: string
+          oprettet_af?: string
+          status?: string
+          tekst?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "raadgiver_opgaver_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       session_bookings: {
         Row: {
           advisor: string
@@ -2804,6 +2857,8 @@ export type Database = {
           company_id: string | null
           created_at: string
           id: string
+          slut_tid: string | null
+          start_tid: string | null
           status: string
           stripe_payment_intent_id: string | null
           stripe_session_id: string | null
@@ -2818,6 +2873,8 @@ export type Database = {
           company_id?: string | null
           created_at?: string
           id?: string
+          slut_tid?: string | null
+          start_tid?: string | null
           status?: string
           stripe_payment_intent_id?: string | null
           stripe_session_id?: string | null
@@ -2832,6 +2889,8 @@ export type Database = {
           company_id?: string | null
           created_at?: string
           id?: string
+          slut_tid?: string | null
+          start_tid?: string | null
           status?: string
           stripe_payment_intent_id?: string | null
           stripe_session_id?: string | null
