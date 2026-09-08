@@ -3,6 +3,8 @@
  *
  * Admin/advisor only (browser or cron trigger).
  * Sends each founder a summary: KPI movement, upcoming milestones, unread advisor messages.
+ * Milepæle (8/9): kommende OG forfaldne, dømt af _shared/milepaelDom gennem
+ * _shared/digestMilepaele — se dennes filhoved for beslutningerne.
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
@@ -19,6 +21,7 @@ const DANISH_MONTHS = [
 import { bulletproofButton, fallbackLinkBlock } from "../_shared/emailButtonHelpers.ts";
 import { computeMembershipTier } from "../_shared/membershipTier.ts";
 import { sendManagedEmail, SENDER_FROM } from "../_shared/managedEmail.ts";
+import { digestMilepaeleTekst, udvaelgDigestMilepaele, type DigestMilepael } from "../_shared/digestMilepaele.ts";
 
 function buildEmailHtml(title: string, body: string, deepLink: string, ctaLabel?: string, eyebrow?: string, highlight?: string): string {
   const fullUrl = `${APP_URL}${deepLink}`;
@@ -55,6 +58,13 @@ function buildEmailHtml(title: string, body: string, deepLink: string, ctaLabel?
 </div>
 </body>
 </html>`;
+}
+
+/** Svaret til cron/admin. Fandtes ikke før 8/9: `json` var aldrig defineret
+    (siden 009fd482), så funktionen kastede ReferenceError EFTER at mails var
+    sendt — cronen så en fejl, medlemmerne fik mailen. */
+function json(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), { status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 }
 
 function formatDKK(n: number): string {
@@ -198,18 +208,19 @@ Deno.serve(async (req) => {
       .order("period_key", { ascending: false })
       .limit(2);
 
-    // Active milestones with deadlines in next 30 days
-    const in30Days = new Date(now.getTime() + 30 * 86400000).toISOString().split("T")[0];
-    const { data: milestones } = await adminClient
+    // Milepæle med frist — dommen (kommende / forfalden / færdig / parkeret)
+    // er motorens (_shared/milepaelDom via digestMilepaele), ikke et
+    // datofilter. Før (8/9): progress < 100 og KUN en øvre grænse
+    // (deadline <= +30 dage), så april-fristerne stod som «deadline snart».
+    const { data: milepaelRaekker } = await adminClient
       .from("milestones")
-      .select("title, deadline, progress, target_value, current_value, unit")
+      .select("title, deadline, progress, status, target_value, current_value, unit")
       .eq("company_id", companyId)
-      .lt("progress", 100)
-      .neq("status", "parked")
       .not("deadline", "is", null)
-      .lte("deadline", in30Days)
       .order("deadline", { ascending: true })
-      .limit(3);
+      .limit(100);
+    const milepaele = udvaelgDigestMilepaele((milepaelRaekker ?? []) as DigestMilepael[], now);
+    const milepaeleTekst = digestMilepaeleTekst(milepaele);
 
     // Unread advisor messages
     const { data: conv } = await adminClient
@@ -256,31 +267,20 @@ Deno.serve(async (req) => {
 
     // Build body
     const bodyLines = [`Her er dit overblik for ${currentMonthLabel}, ${firstName}.`];
-    if (milestones?.length) {
-      const msLines = milestones.map((m: { title: string; deadline: string | null; progress: number; target_value: number | null; current_value: number | null; unit: string | null }) => {
-        const d = m.deadline
-          ? new Date(m.deadline).toLocaleDateString("da-DK", { day: "numeric", month: "short" })
-          : "";
-        const målInfo = m.target_value && m.unit
-          ? `: ${m.current_value ?? 0}/${m.target_value} ${m.unit}`
-          : ` (${m.progress}%)`;
-        return `• ${m.title}${målInfo}${d ? `, deadline ${d}` : ""}`;
-      });
-      bodyLines.push(`\nMilestones med deadline snart:\n${msLines.join("\n")}`);
-    }
+    if (milepaeleTekst) bodyLines.push(milepaeleTekst);
     if (unreadCount > 0) {
       bodyLines.push(`\nDu har ${unreadCount} ulæst${unreadCount > 1 ? "e" : ""} besked${unreadCount > 1 ? "er" : ""} fra din rådgiver.`);
     }
     if (latestAgentInsight) {
       bodyLines.push(`\n${`<div style="background:#f0fdf4;border-left:3px solid #16a34a;border-radius:0 6px 6px 0;padding:12px 14px;margin:16px 0"><p style="color:#166534;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;margin:0 0 6px">AI-indsigt denne måned</p><p style="color:#4a4a4a;font-size:13px;line-height:20px;margin:0">${latestAgentInsight}</p></div>`}`);
     }
-    if (!milestones?.length && unreadCount === 0 && !highlight && !latestAgentInsight) {
+    if (!milepaeleTekst && unreadCount === 0 && !highlight && !latestAgentInsight) {
       console.log(`[digest] Skipping ${email} — no relevant content this month`);
       continue;
     }
 
     // Add secondary action links when multiple content types are present
-    if ((milestones?.length ?? 0) > 0 && unreadCount > 0) {
+    if (milepaeleTekst && unreadCount > 0) {
       bodyLines.push(`\nGå direkte til: <a href="${APP_URL}/chat" style="color:#16a34a">Beskeder</a> · <a href="${APP_URL}/milestones" style="color:#16a34a">Milestones</a> · <a href="${APP_URL}/kpis" style="color:#16a34a">Nøgletal</a>`);
     }
 
@@ -291,7 +291,7 @@ Deno.serve(async (req) => {
     if (unreadCount > 0) {
       deepLink = "/chat";
       ctaLabel = "Læs beskeder fra din rådgiver";
-    } else if (milestones?.length) {
+    } else if (milepaeleTekst) {
       deepLink = "/milestones";
       ctaLabel = "Se dine milestones";
     } else if (revenue != null) {
