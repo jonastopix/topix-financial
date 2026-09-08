@@ -101,6 +101,25 @@ Deno.serve(async (req) => {
     const firstName = profile?.full_name?.split(" ")[0] || "dig";
     const subject = `Husk dit pulse check-in for ${company.name}`;
     const html = buildPulseHtml(firstName, company.name, pulseUrl);
+    const resultat = await sendManagedEmail({
+      adminClient: supabase,
+      to: email,
+      from: SENDER,
+      subject,
+      html,
+      text: subject,
+      label: "pulse-reminder",
+      idempotencyKey: `pulse-reminder-${company.id}-${periodKey}-${email}`,
+    });
+
+    if (!resultat.sent) {
+      console.error(`[send-pulse-reminder] Ikke sendt (${resultat.reason})`);
+      continue;
+    }
+
+    const firstName = profile?.full_name?.split(" ")[0] || "dig";
+    const subject = `Husk dit pulse check-in for ${company.name}`;
+    const html = buildPulseHtml(firstName, company.name, pulseUrl);
     const messageId = crypto.randomUUID();
 
     await supabase.from("email_send_log").insert({

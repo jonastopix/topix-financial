@@ -243,44 +243,22 @@ Deno.serve(async (req) => {
     // Helper to enqueue a reminder email
     async function enqueueReminder(recipientEmail: string, companyName: string, period: string, isTest: boolean, firstName?: string | null, urgency: Urgency = "gentle", variant: ReminderVariant = "upload", targetUrl: string = reportUrl) {
       const { subject, html, sender } = buildEmail(companyName, period, isTest, firstName, urgency, variant, targetUrl);
-      const messageId = crypto.randomUUID();
-
-      await supabase.from('email_send_log').insert({
-        message_id: messageId,
-        template_name: 'report-reminder',
-        recipient_email: recipientEmail,
-        status: 'pending',
+      const resultat = await sendManagedEmail({
+        adminClient: supabase,
+        to: recipientEmail,
+        from: sender,
+        subject,
+        html,
+        text: subject,
+        label: 'report-reminder',
+        isTest,
       });
 
-      const { error: enqueueError } = await supabase.rpc('enqueue_email', {
-        queue_name: 'transactional_emails',
-        payload: {
-          message_id: messageId,
-          idempotency_key: messageId,
-          to: recipientEmail,
-          from: sender,
-          sender_domain: SENDER_DOMAIN,
-          subject,
-          html,
-          text: subject,
-          purpose: 'transactional',
-          label: 'report-reminder',
-          queued_at: new Date().toISOString(),
-        },
-      });
-
-      if (enqueueError) {
-        await supabase.from('email_send_log').insert({
-          message_id: messageId,
-          template_name: 'report-reminder',
-          recipient_email: recipientEmail,
-          status: 'failed',
-          error_message: 'Failed to enqueue email',
-        });
-        throw new Error(`Failed to enqueue: ${JSON.stringify(enqueueError)}`);
+      if (!resultat.sent && resultat.reason === 'failed') {
+        throw new Error(`Failed to send reminder: ${resultat.error}`);
       }
 
-      return messageId;
+      return resultat.messageId;
     }
 
     // --- Test mode ---
