@@ -22,7 +22,7 @@ import { bunnyThumbnailUrl } from "@/lib/hjemmebane/bunnyMedia";
 import { parsePodcastFeed, type PodcastEpisode } from "@/lib/hjemmebane/podcastRss";
 import { getISOWeekKey } from "@/lib/hjemmebane/week";
 import { denneUgesFredag, naesteUgesFredag, omEnMaaned, tilDatoStreng } from "@/lib/hjemmebane/opgaveDato";
-import { fristTekst, sorterAktive, vaelgForslag } from "@/lib/hjemmebane/aftaler";
+import { flereForslagTekst, forslagMetaLinje, forslagOverlinje, fristTekst, sorterAktive, vaelgForslag } from "@/lib/hjemmebane/aftaler";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { listUpcomingEvents } from "@/lib/hjemmebane/akademiApi";
@@ -1999,9 +1999,14 @@ export const BoardroomView = () => {
   // vises eller optage pladsen.
   const aftaleRaekker = (actionsQuery.data ?? []) as any[];
   const aftaleAktive = sorterAktive(aftaleRaekker.filter((a) => a.status === "active"));
-  const aftaleForslag = vaelgForslag(
-    filtrerUdloebneForslag(aftaleRaekker.filter((a) => a.status === "proposed"), new Date()),
-  );
+  // Alle ventende forslag tælles (8/9) — fladen viser stadig ÉT, men
+  // siger nu hvor mange der venter (forslagOverlinje / flereForslagTekst,
+  // begrundelsen står i aftaler.ts). Samme «nu» til udvalg og meta-linje.
+  const aftaleNu = new Date();
+  const aftaleVentende = filtrerUdloebneForslag(aftaleRaekker.filter((a) => a.status === "proposed"), aftaleNu);
+  const aftaleForslag = vaelgForslag(aftaleVentende);
+  const aftaleForslagMeta = aftaleForslag ? forslagMetaLinje(aftaleForslag, aftaleNu) : null;
+  const aftaleFlereTekst = flereForslagTekst(aftaleVentende.length);
 
   if (akademi.loading || factsLoading) {
     return <p className="text-sm text-hb-ink-soft">Henter dit Boardroom…</p>;
@@ -2094,14 +2099,36 @@ export const BoardroomView = () => {
                  forslag er et spørgsmål, ikke en forpligtelse — det har
                  ingen dato før medlemmet vælger en (B6). Evergreen er
                  Hjemmebanes handlingsfarve; rust bærer allerede fire
-                 betydninger og eyebrow'en. */
+                 betydninger og eyebrow'en.
+                 8/9: forslaget siger nu HVEM og HVORNÅR (meta-linjen:
+                 «Fra din rådgiver · foreslået i går»), HVOR MANGE der
+                 venter («· 1 af 3» i overlinjen + linjen under) og
+                 HVORNÅR DET UDLØBER når der er ≤ 7 dage («udløber om 3
+                 dage», rust ved i dag/i morgen — rådgiverforsidens regel
+                 for det der haster). Stadig ét forslag med knapper;
+                 hvorfor står i aftaler.ts. Ordene er husets: milestone-
+                 sidens tælling, eventCountdown, chattens datoskille. */
               <li key={aftaleForslag.id} className="border-t border-hb-line first:border-t-0 last:border-b">
                 <div className="flex flex-wrap items-center gap-x-6 gap-y-3 py-4">
                   <div className="min-w-0 flex-1 basis-64">
-                    <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-hb-evergreen">Forslag til dig</p>
+                    <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-hb-evergreen">{forslagOverlinje(aftaleVentende.length)}</p>
                     <p className="mt-1 text-[15px] font-medium leading-snug text-hb-ink">{aftaleForslag.title}</p>
+                    {aftaleForslagMeta && (
+                      <p className="mt-1 text-sm text-hb-ink-soft">
+                        {aftaleForslagMeta.dele.join(" · ")}
+                        {aftaleForslagMeta.udloeb && (
+                          <>
+                            {" · "}
+                            <span className={aftaleForslagMeta.haster ? "text-hb-rust" : undefined}>{aftaleForslagMeta.udloeb}</span>
+                          </>
+                        )}
+                      </p>
+                    )}
                     {aftaleForslag.context?.trim() && (
                       <p className="mt-1 text-sm leading-relaxed text-hb-ink-soft">{aftaleForslag.context.trim()}</p>
+                    )}
+                    {aftaleFlereTekst && (
+                      <p className="mt-1 text-sm text-hb-ink-soft">{aftaleFlereTekst}</p>
                     )}
                   </div>
                   <OpgaveKnapper
