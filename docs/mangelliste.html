@@ -999,10 +999,35 @@
       <p>Milestones og chatten er konverteret; <code>/settings</code> lander stadig i <code>AppLayout</code> (grep 4/9: Settings, Guide, PulseCheckin, AnnualBaseline, LegatDashboard og Members importerer den). To opgaver: konvertér udtrykket, og gentænk hvad der hører sammen med hvad. Med indgangsdesignet får siden en tredje rolle: det er dér onboardingens dataindsamling skal bo — billede, branche, netværksprofil findes der allerede.</p>
       <div class="meta"><span class="tag">Rettet 4/9</span><span class="tag gold">Design først</span><span class="tag size">Mellem</span></div>
     </div>
-    <div class="card" data-status="fejl" data-spor="senere" data-rammer="medlem">
-      <h3>Mailene kommer stadig fra topix.dk</h3>
-      <p>Afsender er <code>noreply@boardroom.topix.dk</code> (<code>send-invitation-email</code>, <code>stripe-webhook</code>, grep 4/9), og intro-påmindelsen underskrives «Morten fra The Boardroom». Efter 1/9 hedder Stripe-kontoen, betalingssiden og fakturaerne The Boardroom. Mailene er det sidste sted Topix står.</p>
-      <div class="meta"><span class="tag rust">Synligt for alle</span><span class="tag size">Lille</span></div>
+    <div class="card" data-status="mangler" data-spor="senere" data-rammer="ingen">
+      <h3>Afsenderen er skiftet — to rester bærer stadig topix.dk</h3>
+      <p>Alle afsendere går fra 8/9 gennem <code>_shared/managedEmail.ts</code> (Lovables opdatering 06:52-06:58) og sender som <code>noreply@theboardroom.dk</code>; de 14 skabeloner er rettet i prod 8/9 kl. 09:31. Tilbage: <code>send-welcome-message/index.ts:10</code> (sender ingen mail) og <code>EmailTemplatesView.tsx:288/892</code> (<code>noreply@mail.topix.dk</code> som default for nye skabeloner), plus kolonnens DEFAULT i migration <code>20260226223456:8</code>. Fortegnelsen: <code>docs/mailfortegnelsen.md</code>.</p>
+      <div class="meta"><span class="tag ny">Ny 8/9</span><span class="tag size">Lille</span></div>
+    </div>
+    <div class="card new" data-status="fejl" data-spor="senere" data-rammer="medlem">
+      <h3>To mails for samme 1:1-betaling</h3>
+      <p>En betalt session giver både <code>session-booking-confirmation</code> direkte fra <code>stripe-webhook:986</code> og en notifikation <code>session_booked</code> (<code>:950-960</code>, important), som mail-motoren sender efter 15 min hvis den ikke er set. Samme person, samme betaling, to mails — det er koden, ikke et uheld i kørslen (mailfortegnelsen M9/M10, D1).</p>
+      <div class="meta"><span class="tag ny">Ny 8/9</span><span class="tag size">Lille</span></div>
+    </div>
+    <div class="card new" data-status="fejl" data-spor="senere" data-rammer="medlem">
+      <h3>monthly-digest har ingen dag-gate</h3>
+      <p>Cronen kører den 22. kl. 08:00 UTC, men <code>send-monthly-digest</code> tjekker ikke datoen (grep <code>getDate</code>: 0), og admin-knappen «Send digest» (<code>EmailTemplatesView.tsx:754-766</code>) sender til alle founders med aktivt medlemskab når som helst den trykkes — uden idempotency-nøgle (mailfortegnelsen M12, D4).</p>
+      <div class="meta"><span class="tag ny">Ny 8/9</span><span class="tag size">Lille</span></div>
+    </div>
+    <div class="card new" data-status="mangler" data-spor="senere" data-rammer="raadgiver">
+      <h3>Auth-mails står ikke i vores egen log</h3>
+      <p>Signup, invite, magic-link, recovery, email-change og reauthentication sendes af Lovables <code>createAuthEmailHandler</code> (<code>auth-email-hook:123-185</code>) og skriver ikke i <code>email_send_log</code>. Seks mails er usynlige i sendt-loggen og virksomhedens mail-log; deres historik findes kun hos Lovable (Cloud → Emails). Om hook'en overhovedet er koblet på, kræver opslag under Auth settings (mailfortegnelsen M20).</p>
+      <div class="meta"><span class="tag ny">Ny 8/9</span><span class="tag rust">Tavshed</span><span class="tag size">Lille</span></div>
+    </div>
+    <div class="card new" data-status="mangler" data-spor="senere" data-rammer="ingen">
+      <h3>Ni døde mails og skabeloner — én oprydning</h3>
+      <p>Findes som kode og har aldrig sendt (mailfortegnelsen K1-K9): Velkomstbeskeden (chat, ingen kalder), «Ugens fokus» (prioritet info, mailes aldrig), fire skabeloner for typer der kun går til rådgivere (rådgiver-mail er slået fra i koden), <code>advisor_replied</code> og <code>report_manual_entry</code> uden writer, Lovables tomme template-registry, og <code>pulse-reminder</code> (cron fjernet 12/6, funktionen lever). Dertil «Advisor invitation» og «Rapport-påmindelse» (uden suffix) i <code>email_templates</code>, som ingen kode læser.</p>
+      <div class="meta"><span class="tag ny">Ny 8/9</span><span class="tag size">Mellem</span></div>
+    </div>
+    <div class="card new" data-status="mangler" data-spor="senere" data-rammer="medlem">
+      <h3>Tre crons sender kun med dry_run: false — prod-body ukendt</h3>
+      <p><code>intro-reminder-cron</code>, <code>indgangs-paamindelser-cron</code> og <code>fornyelsesvarsel-cron</code> tørkører uden body. Om jobbene i <code>cron.job</code> bærer <code>{"dry_run": false}</code>, er ikke målt for intro og indgang (fornyelse bevist 7/9). SQL 4c i mailfortegnelsen afgør det.</p>
+      <div class="meta"><span class="tag ny">Ny 8/9</span><span class="tag rust">Ubevist</span><span class="tag size">Lille</span></div>
     </div>
     <div class="card" data-status="mangler" data-spor="senere" data-rammer="medlem">
       <h3>Pulse check-in og Guide</h3>
