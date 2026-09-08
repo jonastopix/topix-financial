@@ -1,4 +1,5 @@
 import { hardDeleteCompany } from "../_shared/companyHardDelete.ts";
+import { sendManagedEmail } from "../_shared/managedEmail.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -23,45 +24,20 @@ async function sendAdvisorInvitationEmail(normalizedEmail: string, adminSupabase
   const subject = 'Du er inviteret som rådgiver på The Boardroom';
   const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="background-color:#f4f4f5;font-family:'Manrope',Arial,sans-serif;margin:0;padding:24px 0"><div style="max-width:520px;margin:0 auto;background:#ffffff;border-radius:10px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.08)"><table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="border-collapse:collapse"><tr><td style="background-color:#133332;padding:18px 24px"><span style="font-size:18px;font-weight:700;color:#ffffff;letter-spacing:-0.3px">The Boardroom</span><span style="font-size:13px;color:#8FA3A1">&nbsp;by Topix</span></td></tr><tr><td style="height:3px;background-color:#27AE82"></td></tr></table><div style="padding:28px 32px 32px"><h1 style="color:#133332;font-size:20px;font-weight:700;margin:0 0 16px;line-height:1.3">Velkommen til The Boardroom</h1><p style="color:#4D6663;font-size:14px;line-height:1.6;margin:0 0 14px">Du er blevet inviteret som <strong>rådgiver</strong> på The Boardroom — en platform der hjælper virksomheder med at få overblik over økonomi, milepæle og strategi.</p><p style="color:#4D6663;font-size:14px;line-height:1.6;margin:0 0 14px">Som rådgiver får du adgang til alle virksomheders data, rapporter og chat — og kan følge deres fremskridt tæt.</p>${bulletproofButton({ href: signupUrl, label: 'Opret din konto', bgColor: '#133332' })}${fallbackLinkBlock(signupUrl)}<p style="color:#4D6663;font-size:13px;line-height:1.6;margin:0 0 14px">Opret dig med den e-mailadresse, denne invitation er sendt til — din rådgiverrolle aktiveres automatisk.</p><p style="color:#9ca3af;font-size:12px;line-height:1.5;margin-top:24px;border-top:1px solid #eee;padding-top:16px">Denne invitation er sendt fra The Boardroom. Har du spørgsmål, er du velkommen til at svare på denne mail.</p></div></div></body></html>`;
 
-  // Enqueue email via Lovable Email queue
-  const messageId = crypto.randomUUID();
-
-  await adminSupabase.from('email_send_log').insert({
-    message_id: messageId,
-    template_name: 'advisor-invitation',
-    recipient_email: normalizedEmail,
-    status: 'pending',
+  const resultat = await sendManagedEmail({
+    adminClient: adminSupabase,
+    to: normalizedEmail,
+    subject,
+    html,
+    text: subject,
+    label: 'advisor-invitation',
   });
 
-  const { error: enqueueError } = await adminSupabase.rpc('enqueue_email', {
-    queue_name: 'transactional_emails',
-    payload: {
-      message_id: messageId,
-      idempotency_key: messageId,
-      to: normalizedEmail,
-      from: 'The Boardroom <noreply@boardroom.topix.dk>',
-      sender_domain: 'boardroom.topix.dk',
-      subject,
-      html,
-      text: subject,
-      purpose: 'transactional',
-      label: 'advisor-invitation',
-      queued_at: new Date().toISOString(),
-    },
-  });
-
-  if (enqueueError) {
-    await adminSupabase.from('email_send_log').insert({
-      message_id: messageId,
-      template_name: 'advisor-invitation',
-      recipient_email: normalizedEmail,
-      status: 'failed',
-      error_message: 'Failed to enqueue email',
-    });
-    throw new Error(`Kunne ikke sende invitation: ${JSON.stringify(enqueueError)}`);
+  if (!resultat.sent && resultat.reason === 'failed') {
+    throw new Error(`Kunne ikke sende invitation: ${resultat.error}`);
   }
 
-  console.log(`[manage-advisor] Invitation email enqueued for: ${normalizedEmail}`);
+  console.log(`[manage-advisor] Invitation email sendt til: ${normalizedEmail}`);
 }
 
 Deno.serve(async (req) => {

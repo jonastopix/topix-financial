@@ -245,33 +245,6 @@ Deno.serve(async (req) => {
 
     // 8. Send welcome email via email queue
     const firstName = full_name.split(" ")[0];
-    const messageId = crypto.randomUUID();
-    await adminClient.from("email_send_log").insert({
-      message_id: messageId,
-      template_name: "legat-welcome",
-      recipient_email: email,
-      status: "pending",
-    });
-
-    // Generate or retrieve unsubscribe token for this recipient
-    const recipientEmail = email.trim().toLowerCase();
-    const { data: existingToken } = await adminClient
-      .from("email_unsubscribe_tokens")
-      .select("token")
-      .eq("email", recipientEmail)
-      .maybeSingle();
-
-    let unsubscribeToken: string;
-    if (existingToken?.token) {
-      unsubscribeToken = existingToken.token;
-    } else {
-      unsubscribeToken = crypto.randomUUID();
-      await adminClient.from("email_unsubscribe_tokens").insert({
-        email: recipientEmail,
-        token: unsubscribeToken,
-      });
-    }
-
     const html = `<div style="font-family:'Segoe UI',Roboto,sans-serif;max-width:560px;margin:0 auto;padding:32px 24px;background:#fff;color:#1a1a1a">
     <div style="text-align:center;margin-bottom:24px">
       <h2 style="margin:0;font-size:18px;font-weight:700;color:#1a1a1a">The Boardroom</h2>
@@ -292,22 +265,14 @@ Deno.serve(async (req) => {
     </p>
 </div>`;
 
-    await adminClient.rpc("enqueue_email", {
-      queue_name: "transactional_emails",
-      payload: {
-        message_id: messageId,
-        idempotency_key: messageId,
-        to: email,
-        from: `The Boardroom <noreply@boardroom.topix.dk>`,
-        sender_domain: "boardroom.topix.dk",
-        subject: `Velkommen til The Boardroom Legat, ${firstName}`,
-        html,
-        text: `Hej ${firstName} — du er udvalgt til The Boardroom Legat. Log ind her: ${legatAccessUrl}`,
-        purpose: "transactional",
-        label: "legat-welcome",
-        unsubscribe_token: unsubscribeToken,
-        queued_at: new Date().toISOString(),
-      },
+    await sendManagedEmail({
+      adminClient,
+      to: email,
+      subject: `Velkommen til The Boardroom Legat, ${firstName}`,
+      html,
+      text: `Hej ${firstName} — du er udvalgt til The Boardroom Legat. Log ind her: ${legatAccessUrl}`,
+      label: "legat-welcome",
+      idempotencyKey: `legat-welcome-${userId}`,
     });
 
     console.log(`[create-legat-enrollment] Created legat user ${userId} for ${email}`);
