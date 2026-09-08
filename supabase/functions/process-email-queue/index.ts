@@ -1,5 +1,5 @@
-import { sendLovableEmail } from 'npm:@lovable.dev/email-js@0.0.4'
-import { createClient } from 'npm:@supabase/supabase-js@2.97.0'
+import { sendLovableEmail } from 'npm:@lovable.dev/email-js'
+import { createClient } from 'npm:@supabase/supabase-js@2'
 
 const MAX_RETRIES = 5
 const DEFAULT_BATCH_SIZE = 10
@@ -17,8 +17,8 @@ function isRateLimited(error: unknown): boolean {
   return error instanceof Error && error.message.includes('429')
 }
 
-// Check if an error is a forbidden (403) response, which means emails are
-// disabled for this project. Retrying won't help — move straight to DLQ.
+// Check if an error is a forbidden (403) response. Retrying won't help.
+// Move straight to DLQ.
 function isForbidden(error: unknown): boolean {
   if (error && typeof error === 'object' && 'status' in error) {
     return (error as { status: number }).status === 403
@@ -74,7 +74,7 @@ async function moveToDlq(
     payload,
   })
   if (error) {
-    console.error('Failed to move message to DLQ', { queue, msg_id: msg.msg_id, reason, error })
+    console.error('Failed to move message to DLQ', { queue, msg_id: msg.msg_id, reason, code: error.code, message: error.message })
   }
 }
 
@@ -144,7 +144,7 @@ Deno.serve(async (req) => {
     })
 
     if (readError) {
-      console.error('Failed to read email batch', { queue, error: readError })
+      console.error('Failed to read email batch', { queue, code: readError.code, message: readError.message })
       continue
     }
 
@@ -175,7 +175,8 @@ Deno.serve(async (req) => {
       if (failedRowsError) {
         console.error('Failed to load failed-attempt counters', {
           queue,
-          error: failedRowsError,
+          code: failedRowsError.code,
+          message: failedRowsError.message,
         })
       } else {
         for (const row of failedRows ?? []) {
@@ -195,17 +196,20 @@ Deno.serve(async (req) => {
       const failedAttempts =
         payload?.message_id && typeof payload.message_id === 'string'
           ? (failedAttemptsByMessageId.get(payload.message_id) ?? 0)
-          : 0
+          : msg.read_ct ?? 0
 
-      // Drop expired messages (TTL exceeded)
-      if (payload.queued_at) {
-        const ageMs = Date.now() - new Date(payload.queued_at).getTime()
+      // Drop expired messages (TTL exceeded).
+      // Prefer payload.queued_at when present; fall back to PGMQ's enqueued_at
+      // which is always set by the queue.
+      const queuedAt = payload.queued_at ?? msg.enqueued_at
+      if (queuedAt) {
+        const ageMs = Date.now() - new Date(queuedAt).getTime()
         const maxAgeMs = ttlMinutes[queue] * 60 * 1000
         if (ageMs > maxAgeMs) {
           console.warn('Email expired (TTL exceeded)', {
             queue,
             msg_id: msg.msg_id,
-            queued_at: payload.queued_at,
+            queued_at: queuedAt,
             ttl_minutes: ttlMinutes[queue],
           })
           await moveToDlq(supabase, queue, msg, `TTL exceeded (${ttlMinutes[queue]} minutes)`)
@@ -239,80 +243,13 @@ Deno.serve(async (req) => {
             message_id: msg.msg_id,
           })
           if (dupDelError) {
-            console.error('Failed to delete duplicate message from queue', { queue, msg_id: msg.msg_id, error: dupDelError })
+            console.error('Failed to delete duplicate message from queue', { queue, msg_id: msg.msg_id, code: dupDelError.code, message: dupDelError.message })
           }
           continue
         }
       }
 
       try {
-        const purpose = 'transactional'
-        const idempotencyKey =
-          typeof payload.idempotency_key === 'string' && payload.idempotency_key.trim().length > 0
-            ? payload.idempotency_key
-            : queue === 'transactional_emails' && typeof payload.message_id === 'string' && payload.message_id.trim().length > 0
-              ? payload.message_id
-              : undefined
-        const unsubscribeToken =
-          purpose === 'transactional' && typeof payload.to === 'string' && payload.to.trim().length > 0
-            ? typeof payload.unsubscribe_token === 'string' && payload.unsubscribe_token.trim().length > 0
-              ? payload.unsubscribe_token
-              : await (async () => {
-                  const normalizedEmail = payload.to.trim().toLowerCase()
-                  const { data: existingToken, error: existingTokenError } = await supabase
-                    .from('email_unsubscribe_tokens')
-                    .select('token')
-                    .eq('email', normalizedEmail)
-                    .maybeSingle()
-
-                  if (existingTokenError) {
-                    throw new Error(`Failed to load unsubscribe token: ${existingTokenError.message}`)
-                  }
-
-                  if (existingToken?.token) {
-                    return existingToken.token
-                  }
-
-                  const generatedToken = crypto.randomUUID()
-                  const { error: insertTokenError } = await supabase
-                    .from('email_unsubscribe_tokens')
-                    .insert({
-                      email: normalizedEmail,
-                      token: generatedToken,
-                    })
-
-                  if (insertTokenError) {
-                    if (insertTokenError.code === '23505') {
-                      const { data: retryToken, error: retryTokenError } = await supabase
-                        .from('email_unsubscribe_tokens')
-                        .select('token')
-                        .eq('email', normalizedEmail)
-                        .maybeSingle()
-
-                      if (retryTokenError) {
-                        throw new Error(`Failed to reload unsubscribe token: ${retryTokenError.message}`)
-                      }
-
-                      if (retryToken?.token) {
-                        return retryToken.token
-                      }
-                    }
-
-                    throw new Error(`Failed to create unsubscribe token: ${insertTokenError.message}`)
-                  }
-
-                  console.log('Auto-created unsubscribe token for queued app email', {
-                    queue,
-                    msg_id: msg.msg_id,
-                    message_id: payload.message_id,
-                    recipient: normalizedEmail,
-                  })
-
-                  return generatedToken
-                })()
-            : undefined
-
-        // Send all emails via Lovable Email API
         await sendLovableEmail(
           {
             run_id: payload.run_id,
@@ -322,12 +259,15 @@ Deno.serve(async (req) => {
             subject: payload.subject,
             html: payload.html,
             text: payload.text,
-            purpose,
+            purpose: payload.purpose,
             label: payload.label,
-            idempotency_key: idempotencyKey,
-            unsubscribe_token: unsubscribeToken,
+            idempotency_key: payload.idempotency_key,
+            unsubscribe_token: payload.unsubscribe_token,
             message_id: payload.message_id,
           },
+          // sendUrl is optional — when LOVABLE_SEND_URL is not set, the library
+          // falls back to the default Lovable API endpoint (https://api.lovable.dev).
+          // Set LOVABLE_SEND_URL as a Supabase secret to override (e.g. for local dev).
           { apiKey, sendUrl: Deno.env.get('LOVABLE_SEND_URL') }
         )
 
@@ -337,8 +277,6 @@ Deno.serve(async (req) => {
           template_name: payload.label || queue,
           recipient_email: payload.to,
           status: 'sent',
-          subject: payload.subject ?? null,
-          is_test: payload.is_test === true,
         })
 
         // Delete from queue
@@ -347,7 +285,7 @@ Deno.serve(async (req) => {
           message_id: msg.msg_id,
         })
         if (delError) {
-          console.error('Failed to delete sent message from queue', { queue, msg_id: msg.msg_id, error: delError })
+          console.error('Failed to delete sent message from queue', { queue, msg_id: msg.msg_id, code: delError.code, message: delError.message })
         }
         totalProcessed++
       } catch (error) {
@@ -373,25 +311,31 @@ Deno.serve(async (req) => {
           await supabase
             .from('email_send_state')
             .update({
-              retry_after_until: new Date(Date.now() + retryAfterSecs * 1000).toISOString(),
+              retry_after_until: new Date(
+                Date.now() + retryAfterSecs * 1000
+              ).toISOString(),
               updated_at: new Date().toISOString(),
             })
             .eq('id', 1)
 
+          // Stop processing — remaining messages stay in queue (VT expires, retried next cycle)
           return new Response(
             JSON.stringify({ processed: totalProcessed, stopped: 'rate_limited' }),
             { headers: { 'Content-Type': 'application/json' } }
           )
         }
 
+        // 403s are permanent configuration or authorization failures for this
+        // message, so move straight to DLQ and stop processing the rest of the batch.
         if (isForbidden(error)) {
-          await moveToDlq(supabase, queue, msg, 'Emails disabled for this project')
+          await moveToDlq(supabase, queue, msg, errorMsg.slice(0, 1000))
           return new Response(
-            JSON.stringify({ processed: totalProcessed, stopped: 'emails_disabled' }),
+            JSON.stringify({ processed: totalProcessed, stopped: 'forbidden' }),
             { headers: { 'Content-Type': 'application/json' } }
           )
         }
 
+        // Log non-429 failures to track real retry attempts.
         await supabase.from('email_send_log').insert({
           message_id: payload.message_id,
           template_name: payload.label || queue,
@@ -402,6 +346,8 @@ Deno.serve(async (req) => {
         if (payload?.message_id && typeof payload.message_id === 'string') {
           failedAttemptsByMessageId.set(payload.message_id, failedAttempts + 1)
         }
+
+        // Non-429 errors: message stays invisible until VT expires, then retried
       }
 
       // Small delay between sends to smooth bursts
