@@ -19,6 +19,7 @@ import { maaFjerneMedlem } from "@/lib/medlemsfjernelse";
 import type { CompanyFact } from "@/hooks/useCompanyFacts";
 import { factsToDanishMetrics } from "@/lib/factsAdapter";
 import { afgoerVirksomhedsSignaler, type FactPunkt, type Signal, type VirksomhedsInput } from "@/lib/virksomhedsSignaler";
+import { afgoerMilepael } from "@/lib/milepaelDom";
 import { computeMembershipTier, type MembershipTier } from "@/lib/membershipTier";
 import { afgoerFornyelsestilstand, type Fornyelsesbeslutning } from "@/lib/fornyelse";
 import { beslutningsOrd, fornyelsesBadge, type FornyelseBadge } from "@/lib/fornyelsesOrd";
@@ -180,7 +181,10 @@ function bygSignalInput(d: VirksomhedsData, facts: CompanyFact[]): VirksomhedsIn
     forrigeFact: tilFactPunkt(forrige),
     senesteCommittedAt: seneste?.committed_at ?? null,
     budgetOmsaetning,
-    forfaldneMilestones: d.milestones.filter((m) => m.deadline && new Date(m.deadline).getTime() < nu && m.status !== "completed").length,
+    // Dommen (milepaelDom): forfalden = aktiv (hverken færdig eller parkeret)
+    // med passeret kalenderdag. Før: deadline < nu (tidspunkt, så fristdagen
+    // selv talte) og status ≠ completed (så parkerede talte med).
+    forfaldneMilestones: d.milestones.filter((m) => afgoerMilepael(m, new Date(nu)).forfalden).length,
     loeftestaenger: d.handouts.reduce((n, h) => n + (Array.isArray(h.levers) ? h.levers.length : 0), 0),
     ulaesteBeskeder,
     // Nu udfyldt RIGTIGT — MemberDetail sendte null (siden hentede ikke
@@ -1109,8 +1113,15 @@ const Blok6 = ({
   const senesteCommittet = facts[facts.length - 1] ?? null;
   const fulgte = d.handouts.filter((h) => h.status === "completed").length;
   const handoutByModule = new Map(d.handouts.map((h) => [h.module, h]));
-  const aktive = d.milestones.filter((m) => m.status !== "completed" && m.status !== "parked");
-  const naaede = d.milestones.filter((m) => m.status === "completed").length;
+  // Milepælenes tilstand fra dommen (milepaelDom) — samme sandhed som
+  // /milestones. Før: status ≠ completed/parked og status = completed, så
+  // en række med progress 100 men status 'active' hverken var nået eller
+  // færdig her, mens /milestones talte den som nået.
+  const nuMilepaele = new Date();
+  const milepaeleDomme = new Map(d.milestones.map((m) => [m.id, afgoerMilepael(m, nuMilepaele)]));
+  const aktive = d.milestones.filter((m) => milepaeleDomme.get(m.id)?.aktiv);
+  const naaede = d.milestones.filter((m) => milepaeleDomme.get(m.id)?.faerdig).length;
+  const forfaldne = d.milestones.filter((m) => milepaeleDomme.get(m.id)?.forfalden).length;
   // Samtalen kommentarer skrives i: den med seneste besked (flere er
   // muligt pr. virksomhed). null = ingen samtale → der skrives ikke.
   const samtaleId = [...d.samtaler].sort((a, b) => (b.last_message_at ?? "").localeCompare(a.last_message_at ?? ""))[0]?.id ?? null;
@@ -1180,13 +1191,21 @@ const Blok6 = ({
               <p className="mt-3 text-sm text-hb-ink">
                 {aktive.length} {aktive.length === 1 ? "aktiv" : "aktive"}
                 {naaede > 0 && <span className="text-hb-ink-soft"> · {naaede} nået</span>}
+                {forfaldne > 0 && <span className="font-medium text-hb-rust"> · {forfaldne} {forfaldne === 1 ? "forfalden" : "forfaldne"}</span>}
               </p>
+              {/* Forfaldne står forrest af sig selv (hentningen sorterer på deadline
+                  stigende, uden frist sidst) og stikker ud i rust med «Fristen var …»
+                  — samme ord som «Dine aftaler» og /milestones. */}
               <ul className="mt-3 divide-y divide-hb-line">
                 {aktive.slice(0, 4).map((m) => (
                   <li key={m.id} className="py-1.5 text-sm">
                     <div className="flex items-baseline justify-between gap-3">
                       <span className="min-w-0 truncate text-hb-ink">{m.title}</span>
-                      <span className="shrink-0 text-xs text-hb-ink-soft">{m.deadline ? formatDato(m.deadline) : "Ingen frist"}</span>
+                      {milepaeleDomme.get(m.id)?.forfalden ? (
+                        <span className="shrink-0 text-xs font-medium text-hb-rust">Fristen var {formatDato(m.deadline)}</span>
+                      ) : (
+                        <span className="shrink-0 text-xs text-hb-ink-soft">{m.deadline ? formatDato(m.deadline) : "Ingen frist"}</span>
+                      )}
                     </div>
                     <div className="mt-1 h-1 rounded-full bg-hb-sage/60">
                       <span className="block h-1 rounded-full bg-hb-evergreen" style={{ width: `${Math.max(0, Math.min(100, m.progress ?? 0))}%` }} aria-hidden />

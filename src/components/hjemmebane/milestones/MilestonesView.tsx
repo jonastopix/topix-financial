@@ -73,14 +73,18 @@ export const MilestonesView = () => {
   const [aabenId, setAabenId] = useState<string | null>(null);
   const [sletId, setSletId] = useState<string | null>(null);
 
-  // Tællinger og filtre — Milestones.tsx:59-64.
+  // Tællinger og filtre — Milestones.tsx:59-64. Tilstanden læses fra
+  // dommen (milepaelDom via useMilestones); før talte «nået» progress >= 100
+  // og «Gennemført» status = done — to regler for én ting.
   const total = milestones.length;
-  const fuldfoert = milestones.filter((m) => m.progress >= 100).length;
+  const fuldfoert = milestones.filter((m) => m.dom.faerdig).length;
+  const forfaldne = milestones.filter((m) => m.dom.forfalden).length;
   const brugteKategorier = useMemo(() => new Set(milestones.map((m) => m.category)), [milestones]);
   const filtreret = kategoriFilter === "all" ? milestones : milestones.filter((m) => m.category === kategoriFilter);
-  const aktive = useMemo(() => sorterAktive(filtreret.filter((m) => m.status !== "done" && m.status !== "parked")), [filtreret]);
-  const gennemfoert = filtreret.filter((m) => m.status === "done");
-  const parkeret = filtreret.filter((m) => m.status === "parked");
+  // Aktive rummer de forfaldne — sorteringen lægger dem øverst.
+  const aktive = useMemo(() => sorterAktive(filtreret.filter((m) => m.dom.aktiv)), [filtreret]);
+  const gennemfoert = filtreret.filter((m) => m.dom.faerdig);
+  const parkeret = filtreret.filter((m) => m.dom.parkeret);
   const aaben: Milestone | null = milestones.find((m) => m.id === aabenId) ?? null;
   const tilSletning: Milestone | null = milestones.find((m) => m.id === sletId) ?? null;
 
@@ -108,7 +112,7 @@ export const MilestonesView = () => {
           onAabn={() => setAabenId(ms.id)}
           onToggle={() => skiftFuldfoert(ms.id)}
           onFremgang={(p) => saetFremgang(ms.id, p)}
-          onParker={() => opdaterFelt(ms.id, { status: ms.status === "parked" ? "active" : "parked" })}
+          onParker={() => opdaterFelt(ms.id, { status: ms.dom.parkeret ? "active" : "parked" })}
           onSlet={() => setSletId(ms.id)}
         />
       ))}
@@ -193,6 +197,7 @@ export const MilestonesView = () => {
                   {total} i alt
                   {fuldfoert > 0 && <span> · {fuldfoert} fuldført</span>}
                   {total - fuldfoert > 0 && <span> · {total - fuldfoert} aktive</span>}
+                  {forfaldne > 0 && <span className="font-medium text-hb-rust"> · {forfaldne} {forfaldne === 1 ? "forfalden" : "forfaldne"}</span>}
                 </p>
               </div>
               <HbProgressBar done={fuldfoert} total={total} className="mt-3" />
