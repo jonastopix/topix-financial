@@ -37,6 +37,7 @@ const FORVENTEDE_UNDTAGELSER = [
   "supabase/functions/send-monthly-digest/index.ts",
   "supabase/functions/send-notification-email/index.ts",
   "supabase/functions/send-report-reminder/index.ts",
+  "supabase/functions/slet-medlemsdata-cron/index.ts",
   "supabase/functions/update-annual-report-revenue/index.ts",
   "supabase/functions/validate-facts-parity/index.ts",
 ].sort();
