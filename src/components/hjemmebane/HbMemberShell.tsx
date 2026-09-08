@@ -9,6 +9,7 @@ import { useTjeklisteLukket } from "@/hooks/useTjeklisteLukket";
 import { useHbDokumentGrund } from "@/hooks/useHbDokumentGrund";
 import { pillenTraekkerSig } from "@/lib/hjemmebane/ankomst";
 import { HbVisningSom } from "./HbVisningSom";
+import { bygHbNav, type HbAktiv } from "@/lib/hjemmebane/hbNav";
 
 /** Fælles Hb-medlemsskal for forsiden ("/") og de øvrige medlemsflader
     (generalisering af den tidligere HbAkademiShell): V0-layoutmodellen
@@ -28,7 +29,7 @@ export const HbMemberShell = ({
   // «Virksomheder» nedenfor.
   // "milestones" = /milestones i Hb (etape 1, 4/9) — under «Dine tal» som
   // de fire andre.
-  active: "boardroom" | "akademiet" | "rapportering" | "noegletal" | "budget" | "milestones" | "handouts" | "booksession" | "podcast" | "rabataftaler" | "events" | "medlemmer" | "community" | "chat" | "virksomheder" | "opgaver";
+  active: HbAktiv;
   /* layout="fuld" (chatten, C4 i docs/chat-design.md): AppLayout-
      præcedensen (fullscreen-prop, AppLayout.tsx:28-31, forgrening :337)
      oversat til Hb-skallen. Prop'en findes fordi shell'ens lodrette
@@ -104,121 +105,15 @@ export const HbMemberShell = ({
   // Logo-hjemlinket må ikke sende abonnenten tilbage til en flade de
   // bliver redirigeret væk fra.
   const boardroomTo = erAbonnent ? "/kpis" : "/";
-  const dineTal: HbNavEntry = {
-    label: "Dine tal",
-    children: [
-      // Rapportering-GO 2026-08-06: /reports bærer fladen for alle roller.
-      {
-        label: "Rapportering",
-        to: "/reports",
-        active: active === "rapportering",
-      },
-      // KPI-GO 2026-08-06: /kpis bærer fladen for alle roller.
-      {
-        label: "KPI'er",
-        to: "/kpis",
-        active: active === "noegletal",
-      },
-      // Budget-GO 2026-08-06: /budget bærer fladen for alle roller.
-      {
-        label: "Budget",
-        to: "/budget",
-        active: active === "budget",
-      },
-      // Milestones i Hb (4/9, etape 1): /milestones bærer Hb-fladen.
-      {
-        label: "Milestones",
-        to: "/milestones",
-        active: active === "milestones",
-      },
-      // Handouts-GO 2026-08-06: /handouts bærer fladen for alle roller.
-      {
-        label: "Handouts",
-        to: "/handouts",
-        active: active === "handouts",
-      },
-    ],
-  };
-  // Podcast & Talks-GO 2026-08-13: /podcast bærer fladen. ÉT objekt delt
-  // af begge nav-grene (dineTal-mønstret), så abonnentens og medlemmets
-  // punkt ikke kan skride fra hinanden.
-  const podcastTalks: HbNavEntry = {
-    label: "Podcast & Talks",
-    to: "/podcast",
-    active: active === "podcast",
-  };
-  // Rabataftaler (13-08-2026): ét delt objekt i begge nav-grene
-  // (dineTal-/podcastTalks-mønstret) — abonnenter må bevidst gerne se
-  // aftalerne.
-  const rabataftaler: HbNavEntry = {
-    label: "Rabataftaler",
-    to: "/rabataftaler",
-    active: active === "rabataftaler",
-  };
-  /* ADMIN-BLOKKEN (raadgiverfladen-design.md §3.1, §11 pkt. 3): en rådgiver
-     på en Hjemmebane-flade havde ingen vej til admin — hverken til de otte
-     /admin/indhold-faner eller til de gamle admin-sider (målt 4/9: nul
-     menupunkter pegede på /admin/indhold, og /admin/import var kun nåelig
-     ved at kende URL'en). To punkter: Virksomheder og Platform.
-     «Er rådgiver» er `isAdvisor` fra useAuth — samme dom som tjeklisten
-     (linje 100, 221) og HbVisningSom bruger; ingen ny kilde.
-     «Virksomheder» peger på /virksomheder — den rene Hb-liste (#605, #615,
-     #621; da blokken blev bygget i #603 fandtes den ikke, og linket pegede
-     på /members). Den er en Hb-flade i denne skal, så punktet markeres
-     aktivt på listen, virksomhedssiden og viderestillingen (alle giver
-     active="virksomheder"). Platform-punkterne peger stadig på
-     AppLayout-sider, så designsproget skifter når man klikker. Det er et
-     bevidst valg (Jonas, 4/9): en synlig skalskifte er bedre end en skjult
-     side — samme begrundelse som /settings-linket i HbSidebar; de får
-     ingen `active`, for ingen af dem renderer i denne skal. */
-  const adminBlok: HbNavEntry[] = isAdvisor
-    ? [
-        { label: "Virksomheder", to: "/virksomheder", active: active === "virksomheder", admin: true },
-        { label: "Opgaver", to: "/opgaver", active: active === "opgaver", admin: true },
-        {
-          label: "Platform",
-          admin: true,
-          children: [
-            { label: "Indhold", to: "/admin/indhold" },
-            { label: "E-mails", to: "/admin/emails" },
-            { label: "E-mail-log", to: "/admin/email-log" },
-            { label: "Review Queue", to: "/admin/review-queue" },
-            { label: "Platformconfig", to: "/admin/config" },
-            { label: "Feedback", to: "/admin/feedback" },
-            { label: "Legat", to: "/admin/legat" },
-            { label: "Import", to: "/admin/import" },
-          ],
-        },
-      ]
-    : [];
-  // Blokken hægtes på BEGGE grene — også abonnentens. Det er ikke afgjort
-  // om en rådgivers egen membershipTier kan være "subscriber"; sker det, må
-  // admin-blokken ikke forsvinde med medlemspunkterne.
-  const medlemsNav: HbNavEntry[] = erAbonnent
-    ? [dineTal, podcastTalks, rabataftaler]
-    : [
-        { label: "Dit Boardroom", to: boardroomTo, active: active === "boardroom" },
-        dineTal,
-        {
-          label: "Din rådgiver",
-          children: [
-            { label: "Chat", to: "/chat", active: active === "chat" },
-            // BookSession-GO 2026-08-13: /book-session bærer Hb-fladen.
-            {
-              label: "Book session",
-              to: "/book-session",
-              active: active === "booksession",
-            },
-          ],
-        },
-        { label: "Akademiet", to: "/akademiet", active: active === "akademiet" },
-        podcastTalks,
-        rabataftaler,
-        { label: "Events", to: "/events", active: active === "events" },
-        { label: "Netværket", to: "/medlemmer", active: active === "medlemmer" },
-        { label: "Community", to: "/community", active: active === "community" },
-      ];
-  const nav: HbNavEntry[] = [...medlemsNav, ...adminBlok];
+  /* MENUEN bygges i src/lib/hjemmebane/hbNav.ts (8/9) — én ren funktion,
+     låst af tests: medlemmets menu ORDRET som den var her (fuldt medlem og
+     abonnent), og rådgiverens egen (Jonas 8/9: det I bruger øverst —
+     Forside, Virksomheder, Indbakke, Community, Indhold — medlemmets flader
+     under en overskrift, Platform nederst). Før stod medlemmets ni punkter
+     først og admin-blokken (§3.1) sidst for rådgiveren; «Opgaver» er ude
+     (listen hører på forsiden). Samme array til desktop-sidebaren og
+     mobil-draweren nedenfor. */
+  const nav: HbNavEntry[] = bygHbNav({ isAdvisor, erAbonnent, active });
 
   return (
     <div ref={rodRef} className={`theme-hjemmebane ${fuld ? "h-screen-safe" : "min-h-screen-safe"} bg-hb-paper font-body text-hb-ink antialiased`}>

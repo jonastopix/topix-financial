@@ -11,11 +11,13 @@ export interface HbNavEntry {
   to?: string;
   active?: boolean;
   children?: { label: string; to?: string; active?: boolean }[];
-  /** Admin-blokken (raadgiverfladen-design.md §3.1): punkter der hører til
-      rådgiverens adskilte blok NEDERST i nav'en. Samme greb som `drift` i
-      HbAdminShell — første admin-punkt får skillelinje og overskrift over
-      sig. Udeladt = medlemsmenuen, tegn-for-tegn som før. */
-  admin?: boolean;
+  /** Blok-overskrift (8/9, før: `admin: true` med den faste overskrift
+      «Admin»): punkter med samme `blok` læses som én adskilt blok — det
+      FØRSTE punkt i blokken får skillelinje og overskriften over sig
+      (samme greb som `drift` i HbAdminShell). Udeladt = uden overskrift,
+      tegn-for-tegn som medlemsmenuen altid har været. Rådgiverens menu
+      bruger to: «Medlemmets flader» og «Platform» (lib/hjemmebane/hbNav). */
+  blok?: string;
 }
 
 /** Miljø-strukturen som navigation. Døde links i previewen — kun "Dit Boardroom" er reel. */
@@ -114,14 +116,14 @@ const SidebarContent = ({
     <nav className="flex-1 space-y-1">
       {nav.map((item, index) => (
         <React.Fragment key={item.label}>
-          {/* Admin-blokken læses som adskilt fra medlemsmenuen, ikke som endnu
-              et punkt i den: samme hairline som profilblokken nederst
-              (border-t hb-line) og en dæmpet overskrift i profilblokkens
-              lille tekst. Padding frem for margin — nav'ens space-y-1 sætter
-              margin-top på hvert barn og ville vinde over en mt-*. */}
-          {item.admin && !nav[index - 1]?.admin && (
+          {/* En blok læses som adskilt fra det ovenover, ikke som endnu et
+              punkt: samme hairline som profilblokken nederst (border-t
+              hb-line) og en dæmpet overskrift i profilblokkens lille tekst.
+              Padding frem for margin — nav'ens space-y-1 sætter margin-top
+              på hvert barn og ville vinde over en mt-*. */}
+          {item.blok && nav[index - 1]?.blok !== item.blok && (
             <div className="pt-5">
-              <p className="border-t border-hb-line pt-4 text-xs text-hb-ink-soft">Admin</p>
+              <p className="border-t border-hb-line pt-4 text-xs text-hb-ink-soft">{item.blok}</p>
             </div>
           )}
           <NavItem label={item.label} active={item.active} to={item.to} />
