@@ -74,6 +74,34 @@ function hasBearerCompare(text: string): boolean {
   return false;
 }
 
+/**
+ * createEmailWebhookHandler() — Lovables indpakning af verifyWebhookRequest().
+ *
+ * Ikke en undtagelse, en indpakning: pakken @lovable.dev/email-js er LÆST
+ * (npm-tarball, dist/index.js, 8/9-2026). createEmailWebhookHandler
+ * kalder verifyWebhookRequest fra @lovable.dev/webhooks-js@0.0.1 som
+ * FØRSTE handling efter metode-tjekket, med LOVABLE_API_KEY som
+ * HMAC-hemmelighed — samme funktion som auth-email-hook kaldte direkte,
+ * før Lovable pakkede den ind (8/9). Navnet verifyWebhookRequest står
+ * derfor ikke længere i den kaldende fil, og et rent navnemønster ville
+ * fejle handle-email-events uden grund.
+ *
+ * VERSIONEN ER EN DEL AF ARGUMENTET. Beviset gælder den læste version,
+ * så prædikatet kræver BÅDE kaldet OG at importen er pinnet til præcis
+ * EMAIL_JS_VERIFIED_VERSION. En opgradering får værnet til at fejle,
+ * indtil den nye version er læst og konstanten bumpet — en stiltiende
+ * ændring af hvad der verificeres, kan ikke slippe igennem.
+ */
+const EMAIL_JS_VERIFIED_VERSION = "0.1.0";
+
+function hasVerifiedEmailWebhookHandler(text: string): boolean {
+  const calls = /\bcreateEmailWebhookHandler\s*\(/.test(text);
+  const importedPinned = new RegExp(
+    `\\bcreateEmailWebhookHandler\\b[^\\n]*from\\s*["']npm:@lovable\\.dev/email-js@${EMAIL_JS_VERIFIED_VERSION.replace(/\./g, "\\.")}["']`,
+  ).test(text);
+  return calls && importedPinned;
+}
+
 type Predicate =
   | { name: string; pattern: RegExp }
   | { name: string; check: (text: string) => boolean };
@@ -105,6 +133,10 @@ const AUTH_PREDICATES: Predicate[] = [
   { name: "verifyMondayJwt()",            pattern: /\bverifyMondayJwt\s*\(/ },
   { name: "verifyWebhookRequest()",       pattern: /\bverifyWebhookRequest\s*\(/ },
   { name: "verifyCalendlySignature()",    pattern: /\bverifyCalendlySignature\s*\(/ },
+
+  // Lovables e-mail-webhook: verifikationen sker INDE i pakken (se
+  // hasVerifiedEmailWebhookHandler ovenfor — kald + pinnet version).
+  { name: `createEmailWebhookHandler() fra email-js@${EMAIL_JS_VERIFIED_VERSION}`, check: hasVerifiedEmailWebhookHandler },
 
   // Betalingstoken (indgangen, 2/9): kalderen er en besøgende UDEN session
   // — personen har ikke en konto endnu — så et JWT-prædikat er umuligt.
