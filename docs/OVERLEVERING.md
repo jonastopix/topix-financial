@@ -277,7 +277,29 @@
 > efter listens egen regel); og der er 37 grene på origin ud over main
 > (`gh pr list --state merged` afgør hvilke — `git diff` lyver, DEL 1).
 
-**Sidst opdateret: 8. september 2026, aften — SLETTEFUNKTIONEN ER I
+**Sidst opdateret: 8. september 2026, eftermiddag — DE OTTE ER SLETTET.**
+Kørt i prod kl. 12:14–12:26, i fire hold, med FØR-måling og sweep hver
+gang, efter `docs/koereplan-de-syv-tidligere.md` (nu historik): 12:16
+Coskun Holding (30 loginposter, én konto med sidste login 17/8 — tre
+måneder EFTER de stoppede 6/5); 12:18 Regnskabsvikar og Sebastian &
+Amalie; 12:20 Stadio, Startkørekort og Friends & Fries; 12:25
+LineAlmegaard — den største: 328 loginposter, 93 beskeder, 60 mails, 51
+rådgivernotifikationer, 12 fact-rækker, og ATTEN filer i TRE buckets
+(logo, avatar, seksten chat-vedhæftninger — præsentationer og
+produktfotos, den seneste fra 31/8, dagen før de stoppede). Resultat:
+**8 af 8 tidligere har `data_slettet_at`** (Alina fra formiddagen plus de
+syv); sidste sweep over alle otte: ingen rester i sytten tabeller, ingen
+filer i storage; otte arkivspor tilbage med navn, CVR og kontraktperiode.
+TRE LÆRER, DEL 4: sweepet fandt noget HVER gang (en `message_reaction`
+hos Coskun — en tabel Alina intet havde i; ti hos LineAlmegaard) — en
+sletning er færdig når sweepet er tomt, ikke når planen er kørt; filerne
+lå TRE steder, ikke ét — den første måling talte kun `financial-documents`
+og fandt én fil, der var atten; og folk kommer tilbage efter de er holdt
+op — indtil i dag kunne de logge ind på deres gamle data. Sagen står i
+DEL 2 «De otte tidligere». Mangellisten: sletteknappens kort er slettet
+som løst (#736); «Ingen opbevaringspolitik» står tilbage som beslutning.**
+
+**8. september 2026, aften — SLETTEFUNKTIONEN ER I
 DRIFT.** Kørt i prod kl. 11:57–12:01 efter `docs/koereplan-slettefunktionen.md`
 (nu historik): migrationen `20260908120000_data_slettet.sql` kørt kl. 11:57
 — tre kolonner, Alina stemplet `i_haanden` med 22 bogførte tabeller som
@@ -2421,6 +2443,63 @@ udestår migrationsfilen der bogfører cron-planlægningen (formen fra
 `20260901112000_prod_cron_bogfoert.sql`). Målt ved merge af #734: tsc nul
 fejl, 2053 tests grønne, guardrail PASS.
 
+### De otte tidligere — slettet 8/9 kl. 12:14–12:26, i fire hold, med FØR-måling og sweep hver gang
+
+**Beslutningen** (Jonas 8/9): de syv der stod som `tidligere` med slutdato
+maj–september (uden anmodning, og med vilje uden for slettefunktionens
+regel — `sletning.ts:34-37`, «de gamle er en beslutning, ikke en regel»)
+slettes som Alina: kundens materiale og alt personligt væk, virksomhedens
+navn, CVR, kontraktperiode og `status` bliver som arkivspor. Coskun først,
+så de seks. Kørt i Lovables SQL editor efter
+`docs/koereplan-de-syv-tidligere.md` (nu historik) — FØR-måling, værn i
+scriptet, én transaktion i FK-orden, EFTER-måling, kontoen sidst, og et
+sweep over `information_schema` bagefter — for HVERT hold.
+
+**Holdene, med FØR-tallene (rollback-referencen findes ikke — derfor står tallene):**
+
+| kl. | virksomhed | slettet |
+|---|---|---|
+| 12:16 | **Coskun Holding** (slut 6/5) | 30 loginposter · 6 mails · 5 weekly_focus · 2 beskeder · 1 samtale · 1 advisor-notifikation · 1 notifikation · 1 last_seen · **1 message_reaction (fundet af sweepet)** · 1 konto (office@coskunholding.dk, **sidste login 17/8** — tre måneder efter de stoppede) |
+| 12:18 | **Regnskabsvikar** (6/5) | 5 weekly_focus · 2 benchmarks · 2 loginposter · 1 samtale |
+| 12:18 | **Sebastian & Amalie** (6/5) | 26 loginposter · 5 weekly_focus · 1 samtale |
+| 12:20 | **Stadio** (6/5) | 6 loginposter |
+| 12:20 | **Startkørekort** (21/5) | 4 loginposter · 4 mails · 2 benchmarks · 2 notifikationer · 2 konti |
+| 12:20 | **Friends & Fries** (22/8) | 41 loginposter · 18 mails · 8 notifikationer · 3 beskeder · 2 konti |
+| 12:25 | **LineAlmegaard** (1/9) — den største | 328 loginposter · 93 beskeder · 60 mails · 51 advisor-notifikationer · 35 notifikationer · 12 fact-rækker · **10 reaktioner (fundet af sweepet)** · 5 weekly_focus · 4 benchmarks · 2 KPI-mål · 1 rapport · 1 milepæl · 1 handout · **18 filer i tre buckets**: logo (`company-logos`), avatar (`avatars`) og seksten chat-vedhæftninger (`chat-attachments` — præsentationer og produktfotos, den seneste fra 31/8, dagen før de stoppede) |
+
+Plus `companies`-rækkerne: personfelterne sat til NULL, `er_kunde = false`,
+`data_slettet_at` sat, `data_slettet_vej = 'i_haanden'`, FØR-tallene i
+`data_slettet_raekker` (migrationen var kørt kl. 11:57, så sporet er på
+rækken og ikke kun her).
+
+**Resultatet:** 8 af 8 tidligere (Alina + de syv) har `data_slettet_at`.
+Sidste sweep over alle otte: **ingen rester i sytten tabeller, ingen filer
+i storage.** Otte arkivspor tilbage med navn, CVR og kontraktperiode.
+Intet bilag rørt — ingen af de otte havde perioder, træk, betalingslink,
+bookinger eller `stripe_customer_id` (målt 8/9 kl. 10:27).
+
+**Tre lærer** (også i DEL 4):
+
+1. **Sweepet fandt noget hver gang.** Hos Alina 198 loginposter, 5
+   handouts, pulse og last_seen. Hos Coskun én `message_reaction` — en
+   tabel Alina ikke havde noget i. Uden sweepet ville ti reaktioner have
+   ligget tilbage hos LineAlmegaard. REGLEN: en sletning er ikke færdig
+   når planen er kørt; den er færdig når sweepet er tomt.
+2. **Filerne lå tre steder, ikke ét.** Den første måling talte kun
+   `financial-documents` og fandt én fil hos LineAlmegaard. Der var atten:
+   `company-logos`, `avatars` og `chat-attachments`. En måling der kun
+   kigger ét sted, giver et tal der ser rigtigt ud.
+3. **Coskun loggede ind 17. august** — tre måneder efter de stoppede 6.
+   maj. LineAlmegaard uploadede materiale 31. august, dagen før de
+   stoppede. Folk kommer tilbage til platformen efter de er holdt op, og
+   indtil i dag kunne de logge ind på deres gamle data.
+
+Det der venter efter dette: ikke flere tidligere med data. Fra nu af er
+det slettefunktionens regel (DEL 2 «Slettefunktionen») der afgør hvornår
+en udløbet virksomhed slettes — første kandidat tidligst 26/10 — og en
+opbevaringspolitik for det der ligger imellem er stadig en beslutning
+(mangellisten «Ingen opbevaringspolitik»).
+
 ### Mailplatformen — bygget om af Lovable 8/9 kl. 06:52-06:58; afsenderne, fortegnelsen og værnet (#728, #730, #731, #732)
 
 **Hvad Lovable gjorde.** 19 commits direkte til main mellem kl. 06:52 og
@@ -2960,7 +3039,7 @@ facit og rækkefølge; `docs/chat-design.md` chattens form.
 
 | hvornår | hvad | hvor det står |
 |---|---|---|
-| **9/9 — I MORGEN**, i denne orden (punkt 2 og 3 fra aftenens plan er KØRT 8/9 kl. 11:57–12:01, DEL 2 «Slettefunktionen») | **1) Køreplanen for de syv tidligere — Coskun Holding FØRST**, så de seks: FØR-måling, værn, én transaktion i FK-orden, EFTER-måling, kontoen sidst, sidste sweep over `information_schema`. Migrationen er kørt, så de tre `data_slettet_*`-kolonner findes: sæt `data_slettet_vej = 'i_haanden'` og FØR-tallene i `data_slettet_raekker` i skridt 4's UPDATE. **2) Kvitteringen med en DATO:** `MembershipExpiredGate.tsx:141-144` og `:320-321` siger «inden for 2 hverdage»; skal sige «din data slettes den …» = anmodning + 7 dage. **3) Cron-migrationsfilen** der bogfører `slet-medlemsdata` (`0 12 * * *`), formen fra `20260901112000_prod_cron_bogfoert.sql`. **4) Planen for 8/9, punkt 4–7**, som ikke blev færdig: månedsdigestens overskredne milepæle (frist 22/9), ingen mail til den der lige har fornyet, toasten i `Index.tsx`, og den tomme platform (a–d). | `docs/koereplan-de-syv-tidligere.md`; `docs/koereplan-slettefunktionen.md`; DEL 2 «Slettefunktionen»; øverst «PLANEN FOR 8. SEPTEMBER» |
+| **9/9 — I MORGEN** (punkt 1 og 2 er KØRT 8/9: de syv slettet kl. 12:14–12:26, DEL 2 «De otte tidligere»; kvitteringen siger en dato og kan fortrydes, #736) | **1) KØRT 8/9 kl. 12:14–12:26** — de syv tidligere slettet i fire hold efter `docs/koereplan-de-syv-tidligere.md` (nu historik); 8 af 8 stemplet, sweep tomt. **2) KØRT (#736)** — kvitteringen siger «Din data slettes den …» (motorens frist) og kan fortrydes til dagen før. **3) Cron-migrationsfilen** der bogfører `slet-medlemsdata` (`0 12 * * *`), formen fra `20260901112000_prod_cron_bogfoert.sql`. **4) Planen for 8/9, punkt 4–7**, som ikke blev færdig: månedsdigestens overskredne milepæle (frist 22/9), ingen mail til den der lige har fornyet, toasten i `Index.tsx`, og den tomme platform (a–d). | `docs/koereplan-de-syv-tidligere.md`; `docs/koereplan-slettefunktionen.md`; DEL 2 «Slettefunktionen»; øverst «PLANEN FOR 8. SEPTEMBER» |
 | **10/9** — MÅLT 6/9: ikke en tændingsdato | Fornyelsesordningen træder i kraft. Tre udløber inden og falder udenfor. **Intet sker i koden den dag:** `FORNYELSE_IKRAFT_DATO` sammenlignes med virksomhedens slutdato, ikke dags dato, og bliver virkningsløs efter 10/9. Kædens forudsætninger er alle grønne (seks migrationer kørt, ni priser, seks events, fire funktioner udrullet — men 401 beviser kun at de findes, ikke hvilken version; driftsbeviset fra 1/9 ligger før #529, #561, #563, #572 og #583). **Det der IKKE er klar: ordningen har ingen afsender** — rækken «BESLUTTET 6/9» nedenfor. | fornyelseskæden §13; fornyelsesordningen §5, §7; DEL 2 «Fornyelseskæden» |
 | BESLUTTET 6/9 (Jonas), TALLENE 7/9 — KÆDEN ER HEL og BEVIST I PRODUKTION 7/9 kl. 11:57 (#680, #681, #691, #692, #694–#697); LØST 7/9 kl. 14:51: cron-jobbet er PLANLAGT (0 11 * * *, aktivt) — **22/9** er PHILBERTs varsel 2 | **Medlemmet skal høre om sin fornyelse fra SYSTEMET, ikke ved at miste adgangen.** Formen, med tal fra 7/9: mail 1 ved 30 dage før slutdato, mail 2 ved 7 dage, tilbuddet lever 14 dage efter slutdato (bygget som tilstand, #678); et tilbud om at booke «En snak om din fornyelse» via https://calendly.com/topix-jonas/fornyelse (almindeligt link, ikke engangslink); og en notifikation til rådgiveren når mail 1 er sendt, så den personlige chatbesked kommer EFTER systemets mail og ikke i stedet for. **Konsekvens:** rådgiverbeslutningen skal foreligge senest dag 30, ellers sendes intet — en glemt beslutning aflyser mailen, den forsinker den ikke. **LØST 7/9 kl. 14:51:** jobbet er planlagt — `fornyelsesvarsler`, `0 11 * * *` UTC (13:00 dansk), aktivt, målt i `cron.job`. Første kørsel 8/9 finder ingen forfaldne (PHILBERT og CARMA er stemplet); næste rigtige afsendelse er PHILBERTs varsel 2 den 22/9, og den sker af sig selv. Rådgiveren ser stemplet på forsiden («Varslet er sendt — N dage», #696); en egen notifikation til rådgiveren er ikke bygget. *Bevist i produktion 7/9 kl. 11:57:* PHILBERT fik varsel 1, CARMA fik varsel 2 på dag 0 uden varsel 1, begge stemplet (DEL 2 «Fornyelseskæden»). Motoren `afgoerForfaldentVarsel` (#680) og `fornyelsesvarsel-cron` (#681) FINDES; tørkørslen kl. 10:15 fandt PHILBERT → varsel 1 og CARMA → varsel 2 med «varsel 1 springes over: sen beslutning» (DEL 2 «Fornyelseskæden», fornyelseskæden §15). Stemplerne findes (`varsel_1_sendt_at`, `varsel_2_sendt_at`, #674, i prod 7/9 kl. 08:51; ingen trigger — skrivestien sætter selv `updated_at`). **Formen SPEJLER INDGANGENS KÆDE** (målt 6/9, `~/Downloads/recon-indgangens-mailkaede.md`, uden for repoet): pg_cron → `net.http_post` med vault-nøglen → Bucket B-funktion med `authenticateServiceRole` → TØRKØRSEL SOM STANDARD → ren motor afgør hvilken dag hver række står på → byg mail → enqueue → stempl KUN når afsendelsen lykkedes. **Datamodellen (LØST 7/9, #674):** stempel-felterne findes nu — to navngivne kolonner frem for et dag-nummer, fordi de to varsler kan sendes uafhængigt. **Calendly (LØST 7/9):** event-typen findes, linket står ovenfor. Betalte bookinger registreres i dag aldrig tilbage i platformen (målt 3/9), så linket i mailen skal være et almindeligt link — vi lover ikke en måling vi ikke kan holde. **Tempoet, målt i prod 6/9:** efter Doggybed 13/10 er der ingen fornyelse før Livja 16/12 — to måneders hul; derefter fjorten virksomheder marts–juni 2027, over halvdelen af porteføljen. Deadline for mailkæden: Livja minus 30 dage. | fornyelsesordningen §7; fornyelseskæden §13.4; indgangen-design §26 (formen) |
 | åbent, målt 6/9, delvist ændret 7/9 — værnet er stadig et menneske | **Datogaten omgås stadig hvor pengene skifter hænder.** `hent-fornyelsestilbud` kalder nu motoren (#678), men både den og `opret-fornyelse-checkout` kræver `udloebet_tilbyd`, som afgøres i udløbsgrenen FØR datogaten. En virksomhed «uden for ordningen» med beslutning `tilbyd` får derfor stadig et systemtilbud og kan betale — nu dog kun de første 14 dage efter udløb. Om gaten SKAL gælde der, er en beslutning — i dag er det rådgiverens finger der er værnet. | fornyelseskæden §13.3 |
@@ -3531,6 +3610,29 @@ De konkrete ting der har kostet tid. Led efter dem.
   HVAD det rørte, ikke kun at det virker (DEL 1 «Git», 6/9-lærdommen om
   `types.ts`, gentaget 8/9 i større format). Og skriv fortegnelsen over
   det der forsvandt, mens det stadig kan læses i `git show <før>:<sti>`.
+
+- **En sletning er færdig når sweepet er tomt — ikke når planen er
+  kørt.** Alle otte (8/9): sweepet over `information_schema` fandt noget
+  HVER gang. Hos Alina 198 loginposter, 5 handouts, pulse og last_seen;
+  hos Coskun én `message_reaction` — en tabel Alina intet havde i, og
+  som derfor ikke stod i planen; hos LineAlmegaard ti. Planen er skrevet
+  ud fra den forrige sag; den næste sag har rækker i en tabel den forrige
+  ikke havde. Kør sweepet med de slettede id'er og adresser som
+  literaler, og læs det til nul (DEL 2 «De otte tidligere»).
+- **Filerne ligger tre steder, ikke ét — en måling der kun kigger ét
+  sted, giver et tal der ser rigtigt ud.** Den første måling af
+  LineAlmegaard talte kun `financial-documents` og fandt én fil. Der var
+  atten: `company-logos` (virksomheds-nøglet), `avatars` og
+  `chat-attachments` (bruger-nøglede). Storage-tælleren skal gå over ALLE
+  syv buckets med begge nøgler (`recon-alinas-sletning.md` §2), og
+  bruger-nøglede stier skal læses FØR kontoen slettes (8/9).
+- **Folk kommer tilbage efter de er holdt op.** Coskun loggede ind
+  17/8, tre måneder efter slutdatoen 6/5; LineAlmegaard uploadede
+  præsentationer og produktfotos 31/8, dagen før de stoppede. Indtil 8/9
+  kunne en udløbet virksomhed logge ind på alle sine gamle data i
+  månedsvis — udløbsgaten lukker fladen, ikke kontoen. Det er
+  slettefunktionens dag 45 der lukker den nu; hvad der skal gælde
+  imellem, er opbevaringspolitikkens beslutning.
 
 ---
 
