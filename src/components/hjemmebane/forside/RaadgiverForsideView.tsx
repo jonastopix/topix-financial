@@ -4,6 +4,8 @@ import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import { ADVISOR_DASHBOARD_QUERY_KEY, hentAdvisorDashboard } from "@/components/AdvisorDashboard";
 import { invaliderForsiden, lukOpgave } from "@/hooks/opgaveLukning";
+import { RAADGIVER_OPGAVER_KEY, hentRaadgiverOpgaver } from "@/hooks/raadgiverOpgaver";
+import { delListe } from "@/lib/raadgiverOpgaver";
 import { TAERSKEL, type Linje, type OpgaveSlags, type Pukkellinje, type Virksomhedslinje } from "@/lib/forsidensDom";
 import { LUKNINGS_UDFALD, UDFALD_TEKST, type LukningsUdfald } from "@/lib/opgaveLukning";
 import { cn } from "@/lib/utils";
@@ -162,6 +164,15 @@ export const RaadgiverForsideView = () => {
     enabled: !!user,
     staleTime: 2 * 60_000,
   });
+  // Jeres liste (8/9, /opgaver): ÉN linje under stregen — tal, ikke listen.
+  // Hook i topblokken, før nogen betinget return (React #310).
+  const opgaverQuery = useQuery({
+    queryKey: [...RAADGIVER_OPGAVER_KEY],
+    queryFn: hentRaadgiverOpgaver,
+    enabled: !!user,
+    staleTime: 60_000,
+  });
+  const jeresListe = delListe(opgaverQuery.data ?? [], new Date());
   // Lukningen — hook i TOPBLOKKEN, før nogen betinget return (React #310).
   // Skriv, så hent igen: dommen afgør hvad der står; ingen lokal patch.
   const lukning = useMutation({
@@ -235,6 +246,18 @@ export const RaadgiverForsideView = () => {
 
       {/* ── Under stregen (§5): tal, ikke lister ── */}
       <section className="mt-8 max-w-3xl space-y-1 text-sm text-hb-ink-soft">
+        {/* Jeres liste (/opgaver) — én linje, som §5's tal. Ikke listen selv:
+            forsiden er dommen; listen er det I selv skrev. */}
+        {jeresListe.aabne.length > 0 && (
+          <p>
+            <Link to="/opgaver" className="text-hb-evergreen underline-offset-4 hover:underline">
+              {jeresListe.aabne.length} {jeresListe.aabne.length === 1 ? "punkt" : "punkter"} på jeres liste
+            </Link>
+            {jeresListe.forfaldne > 0 && (
+              <span className="font-medium text-hb-rust"> · {jeresListe.forfaldne} {jeresListe.forfaldne === 1 ? "forfalden" : "forfaldne"}</span>
+            )}
+          </p>
+        )}
         {antalUnder > 0 && (
           <p>
             <Link to="/virksomheder" className="text-hb-evergreen underline-offset-4 hover:underline">
