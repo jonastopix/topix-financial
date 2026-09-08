@@ -279,13 +279,20 @@ function extractBodyContent(fullHtml: string): string {
 
 const NY = "ny";
 
+/** Standardafsender for NYE skabeloner. Spejler VERIFIED_FROM_EMAIL i
+    supabase/functions/_shared/managedEmail.ts (frontend kan ikke importere
+    fra functions); pariteten låses af src/test/afsenderDomaeneGuard.test.ts.
+    Før 8/9 stod her «noreply@mail.topix.dk» — et tredje domæne ingen sendte
+    fra; koden erstatter alligevel alt uden for theboardroom.dk ved afsendelse. */
+const STANDARD_AFSENDER_EMAIL = "noreply@theboardroom.dk";
+
 const newTemplate = (): EmailTemplate => ({
   id: "",
   name: "",
   subject: "",
   body_html: "",
   sender_name: "The Boardroom",
-  sender_email: "noreply@mail.topix.dk",
+  sender_email: STANDARD_AFSENDER_EMAIL,
   trigger_type: "manual",
   trigger_config: {},
   enabled: true,
@@ -889,7 +896,7 @@ export const EmailTemplatesView = () => {
         (supabase.from("email_templates" as any).insert({
           ...tpl,
           sender_name: "The Boardroom",
-          sender_email: "noreply@mail.topix.dk",
+          sender_email: STANDARD_AFSENDER_EMAIL,
         } as any))
       )
     ).then(() => {
