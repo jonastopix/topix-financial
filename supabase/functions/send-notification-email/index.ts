@@ -54,9 +54,7 @@ function parseJwtClaims(token: string): Record<string, unknown> | null {
   }
 }
 
-const SENDER_DOMAIN = "boardroom.topix.dk";
-const VERIFIED_FROM_EMAIL = `noreply@${SENDER_DOMAIN}`;
-const SENDER_FROM = `The Boardroom <${VERIFIED_FROM_EMAIL}>`;
+
 const APP_URL = "https://app.theboardroom.dk";
 const MAX_EMAILS_PER_DAY = 5;
 
@@ -90,6 +88,7 @@ const CHAT_NOTIFICATION_TYPES = new Set(["advisor_replied", "chat_reply"]);
 import { bulletproofButton, fallbackLinkBlock } from "../_shared/emailButtonHelpers.ts";
 import { escHtml, escHtmlMedLinjeskift } from "../_shared/htmlEscape.ts";
 import { opslagsMail } from "../_shared/opslagsMail.ts";
+import { sendManagedEmail, SENDER_FROM, VERIFIED_FROM_EMAIL } from "../_shared/managedEmail.ts";
 
 /** Nyt community-opslag (notify-community-opslag). Mailen bygges af tråden, ikke af body. */
 const COMMUNITY_OPSLAG_TYPE = "community_opslag";

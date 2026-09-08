@@ -2,12 +2,11 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
 
 const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-const SENDER_DOMAIN = "boardroom.topix.dk";
-const VERIFIED_FROM_EMAIL = `noreply@${SENDER_DOMAIN}`;
-const SENDER = `The Boardroom <${VERIFIED_FROM_EMAIL}>`;
+const SENDER = SENDER_FROM;
 const APP_URL = "https://app.theboardroom.dk";
 
 import { bulletproofButton, fallbackLinkBlock } from "../_shared/emailButtonHelpers.ts";
+import { sendManagedEmail, SENDER_FROM } from "../_shared/managedEmail.ts";
 
 function buildPulseHtml(firstName: string, companyName: string, pulseUrl: string): string {
   return `<!DOCTYPE html>

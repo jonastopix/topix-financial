@@ -1,12 +1,12 @@
+import { VERIFIED_FROM_EMAIL, FROM_DOMAIN, SENDER_FROM, sendManagedEmail } from '../_shared/managedEmail.ts';
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-const SENDER = 'The Boardroom <noreply@boardroom.topix.dk>';
-const SENDER_DOMAIN = 'boardroom.topix.dk';
-const VERIFIED_FROM_EMAIL = 'noreply@boardroom.topix.dk';
+const SENDER = SENDER_FROM;
+const SENDER_DOMAIN = FROM_DOMAIN;
 
 const FALLBACK_SUBJECT = 'Du er inviteret til The Boardroom';
 const FALLBACK_HTML = `<!DOCTYPE html>

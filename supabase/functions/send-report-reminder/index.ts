@@ -9,8 +9,7 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-const SENDER_DOMAIN = 'boardroom.topix.dk';
-const VERIFIED_FROM_EMAIL = 'noreply@boardroom.topix.dk';
+const SENDER_DOMAIN = FROM_DOMAIN;
 const SENDER = `The Boardroom <${VERIFIED_FROM_EMAIL}>`;
 
 function resolveSenderFromTemplate(
@@ -37,6 +36,7 @@ const FALLBACK_SUBJECT = 'Påmindelse: Din rapport for {{period}} mangler';
 import { bulletproofButton, fallbackLinkBlock } from "../_shared/emailButtonHelpers.ts";
 import { computeMembershipTier } from "../_shared/membershipTier.ts";
 import { authenticateServiceRole } from "../_shared/edgeFunctionAuth.ts";
+import { sendManagedEmail, FROM_DOMAIN, VERIFIED_FROM_EMAIL } from "../_shared/managedEmail.ts";
 
 const FALLBACK_HTML = `<!DOCTYPE html>
 <html>

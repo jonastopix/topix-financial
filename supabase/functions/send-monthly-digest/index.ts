@@ -8,8 +8,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
 import { authenticateUser, parseJwtClaims, corsHeaders } from "../_shared/edgeFunctionAuth.ts";
 
-const SENDER_DOMAIN = "boardroom.topix.dk";
-const FROM = `The Boardroom <noreply@${SENDER_DOMAIN}>`;
+const FROM = SENDER_FROM;
 const APP_URL = "https://app.theboardroom.dk";
 
 const DANISH_MONTHS = [
@@ -19,6 +18,7 @@ const DANISH_MONTHS = [
 
 import { bulletproofButton, fallbackLinkBlock } from "../_shared/emailButtonHelpers.ts";
 import { computeMembershipTier } from "../_shared/membershipTier.ts";
+import { sendManagedEmail, SENDER_FROM } from "../_shared/managedEmail.ts";
 
 function buildEmailHtml(title: string, body: string, deepLink: string, ctaLabel?: string, eyebrow?: string, highlight?: string): string {
   const fullUrl = `${APP_URL}${deepLink}`;
