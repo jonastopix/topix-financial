@@ -156,6 +156,11 @@ project_id = "loiavmastgeieqyiwyyr"
   # Tørkørsel som standard; ren rapport indtil afsendelsen bygges (7/9).
   [functions.fornyelsesvarsel-cron]
     verify_jwt = true
+  # Slettefunktionen (Alina-sagen, 8/9): Bucket B, authenticateServiceRole,
+  # tørkørsel som standard; pg_cron planlægges FØRST når en tørkørsel er
+  # læst. Gaten er på rækken (motoren i _shared/sletning.ts), ikke kun auth.
+  [functions.slet-medlemsdata-cron]
+    verify_jwt = true
   # Bucket B, samme form som cronen: engangs-berigelse kaldt fra SQL
   # editoren med vault-nøglen. Tørkørsel som standard.
   [functions.berig-virksomheder]
