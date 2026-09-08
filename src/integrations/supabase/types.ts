@@ -673,6 +673,9 @@ export type Database = {
           created_at: string
           cvr_fetched_at: string | null
           cvr_number: string | null
+          data_slettet_at: string | null
+          data_slettet_raekker: Json | null
+          data_slettet_vej: string | null
           description: string | null
           end_date: string | null
           er_kunde: boolean
@@ -716,6 +719,9 @@ export type Database = {
           created_at?: string
           cvr_fetched_at?: string | null
           cvr_number?: string | null
+          data_slettet_at?: string | null
+          data_slettet_raekker?: Json | null
+          data_slettet_vej?: string | null
           description?: string | null
           end_date?: string | null
           er_kunde?: boolean
@@ -759,6 +765,9 @@ export type Database = {
           created_at?: string
           cvr_fetched_at?: string | null
           cvr_number?: string | null
+          data_slettet_at?: string | null
+          data_slettet_raekker?: Json | null
+          data_slettet_vej?: string | null
           description?: string | null
           end_date?: string | null
           er_kunde?: boolean
