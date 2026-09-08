@@ -90,27 +90,14 @@ Deno.serve(async (req) => {
     </p>
 </div>`;
 
-      const messageId = crypto.randomUUID();
-      await adminClient.from("email_send_log").insert({
-        message_id: messageId,
-        template_name: "legat-upgrade",
-        recipient_email: userEmail,
-        status: "pending",
-      });
-      await adminClient.rpc("enqueue_email", {
-        queue_name: "transactional_emails",
-        payload: {
-          message_id: messageId,
-          to: userEmail,
-          from: "The Boardroom <noreply@boardroom.topix.dk>",
-          sender_domain: "boardroom.topix.dk",
-          subject,
-          html,
-          text: `Hej ${firstName} — du er nu medlem af The Boardroom. Log ind her: https://app.theboardroom.dk`,
-          purpose: "transactional",
-          label: "legat-upgrade",
-          queued_at: new Date().toISOString(),
-        },
+      await sendManagedEmail({
+        adminClient,
+        to: userEmail,
+        subject,
+        html,
+        text: `Hej ${firstName} — du er nu medlem af The Boardroom. Log ind her: https://app.theboardroom.dk`,
+        label: "legat-upgrade",
+        idempotencyKey: `legat-upgrade-${user_id}`,
       });
     }
 
