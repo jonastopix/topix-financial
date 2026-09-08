@@ -1,5 +1,6 @@
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
 import { sikrIndgangsInvitation } from "../_shared/sikrIndgangsInvitation.ts";
+import { sendManagedEmail } from "../_shared/managedEmail.ts";
 import {
   beloebFraFaktura,
   beregnIndgangsPeriode,
