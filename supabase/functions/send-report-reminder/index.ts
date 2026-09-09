@@ -1,3 +1,5 @@
+import { skalSpringesOverIPaamindelse } from "../_shared/ikkeIGang.ts";
+
 const DANISH_MONTHS = [
   "Januar", "Februar", "Marts", "April", "Maj", "Juni",
   "Juli", "August", "September", "Oktober", "November", "December",
@@ -90,9 +92,13 @@ Deno.serve(async (req) => {
 
     // Parse body only after auth is confirmed
     let testEmail: string | null = null;
+    let dryRun = false;
     try {
       const body = await req.clone().json();
       if (body?.test_email) testEmail = body.test_email;
+      // Tørkørsel (9/9): regn udvælgelsen og svar med hvem der ville få
+      // hvad og hvem der springes over — send og skriv intet.
+      if (body?.dry_run === true) dryRun = true;
     } catch { /* no body — normal cron flow */ }
 
     const { createClient } = await import("https://esm.sh/@supabase/supabase-js@2.97.0");
@@ -308,17 +314,56 @@ Deno.serve(async (req) => {
       (committedFacts || []).map((f: any) => f.company_id)
     );
     const _nowR = new Date();
+
+    // ── NY OG IKKE BEGYNDT RYKKES IKKE (9/9, _shared/ikkeIGang — spejl af
+    //    src/lib/ikkeIGang, paritetstestet). En ny uden nogen upload skal
+    //    bedes om HISTORIK af et menneske (rytmens dag 1 og 7), ikke rykkes
+    //    for august tre gange af en maskine. Har de uploadet uden at
+    //    godkende, er de tæt på — så rykkes de, med godkend-varianten
+    //    nedenfor. Efter 90 dage rykkes de som alle andre.
+    //    Start = første company_members-række («de fik adgang», som forsiden);
+    //    bevis = en MÅLT facts-række; uploads = financial_reports uden deleted_at.
+    const [medlemmerRes, maalteRes, uploadsRes] = await Promise.all([
+      supabase.from("company_members").select("company_id, created_at").limit(5000),
+      // data_basis-undtagelse: filtreret på measured — eksistens-check, ingen talværdier læses
+      supabase.from("financial_report_facts").select("company_id").eq("data_basis", "measured").limit(10000),
+      supabase.from("financial_reports").select("company_id").is("deleted_at", null).limit(10000),
+    ]);
+    const medlemSidenByCompany = new Map<string, string>();
+    for (const m of (medlemmerRes.data || []) as { company_id: string; created_at: string }[]) {
+      const hidtil = medlemSidenByCompany.get(m.company_id);
+      if (!hidtil || m.created_at < hidtil) medlemSidenByCompany.set(m.company_id, m.created_at);
+    }
+    const maaltByCompany = new Set(((maalteRes.data || []) as { company_id: string }[]).map((f) => f.company_id));
+    const uploadsByCompany = new Map<string, number>();
+    for (const r of (uploadsRes.data || []) as { company_id: string | null }[]) {
+      if (r.company_id) uploadsByCompany.set(r.company_id, (uploadsByCompany.get(r.company_id) ?? 0) + 1);
+    }
+
+    // Hvem der blev sprunget over, og hvorfor — som fornyelsesvarslernes
+    // sprunget_over_liste, så tørkørslen (dry_run) og loggen kan læses.
+    const sprungetOver = { rapporteret: 0, foer_start: 0, udloebet: 0, ny_uden_upload: 0 } as Record<string, number>;
+    const sprungetOverListe: { company_id: string; virksomhed: string; grund: string }[] = [];
     const missingCompanies = companies.filter((c: any) => {
-      if (reportedIds.has(c.id)) return false;
+      if (reportedIds.has(c.id)) { sprungetOver.rapporteret++; return false; }
       const start = new Date(c.start_date || c.created_at);
       const earliest = new Date(start.getFullYear(), start.getMonth() - 1, 1);
-      if (prevMonth.getTime() < earliest.getTime()) return false;
-      if (computeMembershipTier(c, _nowR) === "expired") return false;
+      if (prevMonth.getTime() < earliest.getTime()) { sprungetOver.foer_start++; return false; }
+      if (computeMembershipTier(c, _nowR) === "expired") { sprungetOver.udloebet++; return false; }
+      const ny = skalSpringesOverIPaamindelse(
+        { medlemSiden: medlemSidenByCompany.get(c.id) ?? null, harMaaltRapport: maaltByCompany.has(c.id), antalUploads: uploadsByCompany.get(c.id) ?? 0 },
+        _nowR,
+      );
+      if (ny.spring) {
+        sprungetOver.ny_uden_upload++;
+        sprungetOverListe.push({ company_id: c.id, virksomhed: c.name, grund: ny.grund as string });
+        return false;
+      }
       return true;
     });
 
     if (!missingCompanies.length) {
-      return new Response(JSON.stringify({ sent: 0, skipped: companies.length }), {
+      return new Response(JSON.stringify({ sent: 0, skipped: companies.length, sprunget_over: sprungetOver, sprunget_over_liste: sprungetOverListe, dry_run: dryRun }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
@@ -326,6 +371,7 @@ Deno.serve(async (req) => {
     const emailEnabled = true;
 
     let sent = 0, skipped = 0;
+    const villeSende: { company_id: string; virksomhed: string; variant: string; urgency: string }[] = [];
 
     for (const company of missingCompanies) {
       const { data: members } = await supabase
@@ -386,6 +432,11 @@ Deno.serve(async (req) => {
         }
         const targetUrl = `${APP_URL}${targetPath}`;
 
+        if (dryRun) {
+          villeSende.push({ company_id: company.id, virksomhed: company.name, variant, urgency: urgencyLevel });
+          continue;
+        }
+
         // ── Phase 2: Write report_reminder notification (with email_sent_at to prevent double email) ──
         // Dedup-nøglen bærer varianten for approve/manual — kolliderer ikke
         // m. eksisterende `report_reminder:`-mønster.
@@ -442,7 +493,13 @@ Deno.serve(async (req) => {
         }
     }
 
-    const summary = { sent, skipped, period: expectedPeriod, test_mode: !emailEnabled };
+    const summary = {
+      sent, skipped, period: expectedPeriod, test_mode: !emailEnabled,
+      dry_run: dryRun,
+      ...(dryRun ? { ville_sende: villeSende } : {}),
+      sprunget_over: sprungetOver,
+      sprunget_over_liste: sprungetOverListe,
+    };
     console.log("[send-report-reminder] Summary:", JSON.stringify(summary));
     return new Response(JSON.stringify(summary), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },

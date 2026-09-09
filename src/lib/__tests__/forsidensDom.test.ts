@@ -679,17 +679,21 @@ describe("ikke_i_gang — linjen fra dag 21", () => {
   const ny = (dageSiden: number, over: Partial<VirksomhedTilDom> = {}) =>
     virksomhed({ navn: "Bastant Design", medlemSiden: start(dageSiden), harMaaltRapport: false, antalUploads: 0, ...over });
 
-  it("dag 20: ingen linje; dag 21: egen linje med handling «Hjælp … i gang» og teksten «Medlem i 21 dage, har ikke uploadet»", () => {
-    expect(afgoerForsidensDom([ny(20)], NU).linjer).toEqual([]);
+  it("dag 6: ingen linje; dag 7: trin 1 — «Spørg … hvilket system de bruger», alvor 70; dag 21: trin 2 — «Hjælp … i gang», alvor 75", () => {
+    expect(afgoerForsidensDom([ny(6)], NU).linjer).toEqual([]);
+    const t1 = virksomhedslinjer(afgoerForsidensDom([ny(7)], NU))[0];
+    expect(t1.grunde[0]).toMatchObject({ slags: "ikke_i_gang", signaltype: "ikke_begyndt", handling: "Spørg Bastant Design hvilket system de bruger", tekst: "Medlem i 7 dage, ikke kommet i gang endnu — historik kan sendes fra dag ét", alvor: 70, indsats: 2 });
     const d = afgoerForsidensDom([ny(21)], NU);
     const l = virksomhedslinjer(d)[0];
     expect(l.navn).toBe("Bastant Design");
-    expect(l.grunde[0]).toMatchObject({ slags: "ikke_i_gang", handling: "Hjælp Bastant Design i gang", tekst: "Medlem i 21 dage, har ikke uploadet — heller ikke historik", alvor: 75, indsats: 2 });
+    expect(l.grunde[0]).toMatchObject({ slags: "ikke_i_gang", signaltype: "ikke_i_gang", handling: "Hjælp Bastant Design i gang", tekst: "Medlem i 21 dage, gået i stå — har ikke uploadet, heller ikke historik", alvor: 75, indsats: 2 });
     expect(FORM.ikke_i_gang).toBe("haendelse");
   });
-  it("uploadet men ikke godkendt: linjen står med andre ord; målt rapport: ingen linje", () => {
+  it("uploadet men ikke godkendt: linjen står med andre ord på begge trin; målt rapport: ingen linje", () => {
+    const u7 = virksomhedslinjer(afgoerForsidensDom([ny(9, { antalUploads: 1 })], NU))[0];
+    expect(u7.grunde[0]).toMatchObject({ signaltype: "ikke_begyndt_uploadet", tekst: "Medlem i 9 dage, har uploadet — tallene venter på godkendelse" });
     const u = virksomhedslinjer(afgoerForsidensDom([ny(30, { antalUploads: 1 })], NU))[0];
-    expect(u.grunde[0].tekst).toBe("Medlem i 30 dage, har uploadet — tallene er ikke godkendt");
+    expect(u.grunde[0].tekst).toBe("Medlem i 30 dage, gået i stå — har uploadet, tallene er ikke godkendt");
     expect(u.grunde[0].signaltype).toBe("ikke_i_gang_uploadet");
     expect(afgoerForsidensDom([ny(30, { harMaaltRapport: true })], NU).linjer).toEqual([]);
   });
@@ -697,7 +701,12 @@ describe("ikke_i_gang — linjen fra dag 21", () => {
     expect(afgoerForsidensDom([ny(91)], NU).linjer).toEqual([]);
     expect(afgoerForsidensDom([virksomhed({ harMaaltRapport: false, antalUploads: 0 })], NU).linjer).toEqual([]);
   });
-  it("lukningen: grundlag = startdag|uploads — lukket holder når dagene går, en ny upload gør den levende", () => {
+  it("lukningen: grundlag = startdag|uploads|trin — lukket holder inden for trinnet, en ny upload eller trin 2 gør den levende", () => {
+    // Lukket på dag 7 (trin 1) → dag 21 (trin 2) er noget nyt: linjen kommer igen, som varsel 2 efter varsel 1.
+    const l7 = virksomhedslinjer(afgoerForsidensDom([ny(7)], NU))[0];
+    const kv7 = { udfald: "faerdiggjort" as const, grundlag: l7.grundlag, lukketAt: "2026-09-09T10:00:00Z" };
+    expect(afgoerForsidensDom([ny(7, { kvittering: kv7 })], NU).linjer).toEqual([]);
+    expect(virksomhedslinjer(afgoerForsidensDom([ny(7, { kvittering: kv7 })], new Date(NU.getFullYear(), NU.getMonth(), NU.getDate() + 14, 12)))).toHaveLength(1);
     const l = virksomhedslinjer(afgoerForsidensDom([ny(21)], NU))[0];
     expect(Object.keys(l.grundlag)).toEqual(["ikke_i_gang"]);
     const kv = { udfald: "faerdiggjort" as const, grundlag: l.grundlag, lukketAt: "2026-09-04T10:00:00Z" };

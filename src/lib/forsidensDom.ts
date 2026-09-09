@@ -88,7 +88,7 @@ import { afgoerVarselTrin } from "@/lib/varselTrin";
 import type { Fornyelsestilstand } from "./fornyelse";
 import { BETALINGSFRIST_DAGE, type Betalingsfristtilstand } from "./betalingsfrist";
 import { erLukket, type Kvittering } from "./opgaveLukning";
-import { afgoerIkkeIGang, ikkeIGangGrundlag, ikkeIGangTekst } from "./ikkeIGang";
+import { afgoerIkkeIGang, ikkeIGangGrundlag, ikkeIGangHandling, ikkeIGangTekst } from "./ikkeIGang";
 
 // ─── Konstanter — alle tal dommen bruger, ét sted ────────────────────────
 
@@ -203,6 +203,14 @@ export const ALVOR_INDGANG = {
  * alvorsporten (TAERSKEL 70) alene, så linjen står fra dag 21.
  */
 export const ALVOR_IKKE_I_GANG = 75;
+/**
+ * Trin 1 (dag 7–20, lib/ikkeIGang): «ikke kommet i gang endnu» — en
+ * påmindelse til rådgiveren om at spørge, ikke en alarm. 70: præcis på
+ * tærsklen, så linjen står ved navn, på linje med en ulæst besked (70) og
+ * beslutning_mangler (70), under trin 2 (75) og langt under en forfalden
+ * fornyelse (udloebet_tilbyd 90).
+ */
+export const ALVOR_IKKE_BEGYNDT = 70;
 
 export const ALVOR_OPGAVE = {
   forfalden: 75,
@@ -665,14 +673,17 @@ function grundFraIkkeIGang(v: VirksomhedTilDom, nu: Date): Grund | null {
   const input = { medlemSiden: v.medlemSiden ?? null, harMaaltRapport: v.harMaaltRapport ?? false, antalUploads: v.antalUploads ?? 0 };
   const dom = afgoerIkkeIGang(input, nu);
   if (!dom.signal) return null;
+  // To trin, én dom (som fornyelsens varsel 1/2): signaltypen bærer trinnet
+  // og upload-varianten; nøglen er den samme, grundlaget skifter med trinnet.
+  const trin = dom.trin === 1 ? "ikke_begyndt" : "ikke_i_gang";
   return {
     slags: "ikke_i_gang",
-    signaltype: dom.harUploadetUdenGodkendelse ? "ikke_i_gang_uploadet" : "ikke_i_gang",
+    signaltype: dom.harUploadetUdenGodkendelse ? `${trin}_uploadet` : trin,
     noegle: "ikke_i_gang",
-    grundlag: ikkeIGangGrundlag(input),
+    grundlag: ikkeIGangGrundlag(input, dom),
     tekst: ikkeIGangTekst(dom),
-    handling: `Hjælp ${v.navn} i gang`,
-    alvor: ALVOR_IKKE_I_GANG,
+    handling: ikkeIGangHandling(dom, v.navn),
+    alvor: dom.trin === 1 ? ALVOR_IKKE_BEGYNDT : ALVOR_IKKE_I_GANG,
     lukkerOmDage: null,
     indsats: INDSATS.ikke_i_gang,
   };
