@@ -124,6 +124,23 @@ export function delListe(opgaver: readonly RaadgiverOpgave[], nu: Date): OpgaveL
   };
 }
 
+/** Forsiden viser højst så mange åbne punkter — men forfaldne og dagens
+    skæres ALDRIG væk (Jonas 8/9: forfaldne skal ses, ikke skjules). Er der
+    flere, står «vis alle» med link til /opgaver. */
+export const FORSIDE_LOFT = 8;
+
+/** Forsidens udsnit af de åbne (allerede sorteret af delListe): alle
+    forfaldne og dagens, derefter resten op til FORSIDE_LOFT i alt. Er der
+    flere forfaldne end loftet, vises de alle — loftet gælder kun resten. */
+export function forsideUdsnit<T extends Pick<RaadgiverOpgave, "frist" | "status" | "created_at">>(aabne: readonly T[], nu: Date): T[] {
+  const skalMed = aabne.filter((o) => {
+    const t = afgoerOpgave(o, nu).tilstand;
+    return t === "forfalden" || t === "i_dag";
+  });
+  const resten = aabne.filter((o) => !skalMed.includes(o));
+  return [...skalMed, ...resten.slice(0, Math.max(0, FORSIDE_LOFT - skalMed.length))];
+}
+
 function flertal(n: number, ental: string, flertal: string): string {
   return `${n} ${n === 1 ? ental : flertal}`;
 }

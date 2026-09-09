@@ -4,8 +4,7 @@ import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import { ADVISOR_DASHBOARD_QUERY_KEY, hentAdvisorDashboard } from "@/components/AdvisorDashboard";
 import { invaliderForsiden, lukOpgave } from "@/hooks/opgaveLukning";
-import { RAADGIVER_OPGAVER_KEY, hentRaadgiverOpgaver } from "@/hooks/raadgiverOpgaver";
-import { delListe } from "@/lib/raadgiverOpgaver";
+import { OpgavelisteView } from "@/components/hjemmebane/opgaver/OpgavelisteView";
 import { TAERSKEL, type Linje, type OpgaveSlags, type Pukkellinje, type Virksomhedslinje } from "@/lib/forsidensDom";
 import { LUKNINGS_UDFALD, UDFALD_TEKST, type LukningsUdfald } from "@/lib/opgaveLukning";
 import { cn } from "@/lib/utils";
@@ -50,6 +49,14 @@ import { cn } from "@/lib/utils";
  * haster i dag.» UNDER STREGEN (§5): tal, ikke lister. FLAGET (§5): når
  * dommen siger usædvanligt mange, står det her. MÅLINGEN nederst bliver
  * stående til tærsklen (TAERSKEL) er justeret efter drift (§12).
+ *
+ * TO KOLONNER (Jonas 8/9): på desktop står dommen og jeres to-do-liste i
+ * venstre kolonne (to tredjedele) — det man læser først og handler på —
+ * og det der orienterer i højre (en tredjedel, smallere): tallene under
+ * stregen nu, pulsen og «siden sidst» senere. På mobil én kolonne: dom,
+ * liste, højre. Listen står HER med skrivefelt — ikke bag et menupunkt
+ * («et menupunkt vi aldrig nogensinde kommer til at arbejde med»). Se
+ * OpgavelisteViews filhoved.
  *
  * LUKNINGEN (Jonas 8/9, lib/opgaveLukning): hver virksomhedslinje har to
  * handlinger, «Færdiggjort» og «Ikke relevant». Ingen «Udsæt». Fladen
@@ -164,15 +171,6 @@ export const RaadgiverForsideView = () => {
     enabled: !!user,
     staleTime: 2 * 60_000,
   });
-  // Jeres liste (8/9, /opgaver): ÉN linje under stregen — tal, ikke listen.
-  // Hook i topblokken, før nogen betinget return (React #310).
-  const opgaverQuery = useQuery({
-    queryKey: [...RAADGIVER_OPGAVER_KEY],
-    queryFn: hentRaadgiverOpgaver,
-    enabled: !!user,
-    staleTime: 60_000,
-  });
-  const jeresListe = delListe(opgaverQuery.data ?? [], new Date());
   // Lukningen — hook i TOPBLOKKEN, før nogen betinget return (React #310).
   // Skriv, så hent igen: dommen afgør hvad der står; ingen lokal patch.
   const lukning = useMutation({
@@ -228,36 +226,44 @@ export const RaadgiverForsideView = () => {
         )}
       </section>
 
-      {/* ── Dommen (§1–§6) ── */}
-      {dom.linjer.length > 0 && (
-        <section className="mt-10 max-w-3xl">
-          <ul className="divide-y divide-hb-line border-y border-hb-line">
-            {dom.linjer.map((l) => (
-              <DomLinje
-                key={linjeNoegle(l)}
-                l={l}
-                lukker={lukning.isPending}
-                onLuk={(linje, udfald) => lukning.mutate({ linje, udfald })}
-              />
-            ))}
-          </ul>
-        </section>
-      )}
+      {/* ── TO KOLONNER (Jonas 8/9): venstre to tredjedele — dommen øverst,
+          jeres liste under den; højre en tredjedel — det der ORIENTERER
+          frem for at kræve (tallene under stregen nu; pulsen og «siden
+          sidst» kommer i en senere PR). Højre er smallere med vilje: er de
+          lige brede, ved man ikke hvor man skal starte. Formen er husets
+          (CommunityView:158: lg:grid + minmax(0, …) + lg:items-start +
+          lg:gap-12); under lg falder det til én kolonne i DOM-rækkefølgen
+          dom → liste → højre. Fuldhøjde og papir-grunden ejes af
+          HbMemberShell (hbFuldhoejde.guard), ikke af denne flade. */}
+      <div className="mt-10 lg:grid lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] lg:items-start lg:gap-12">
+        <div className="min-w-0">
+          {/* ── Dommen (§1–§6) ── */}
+          {dom.linjer.length > 0 && (
+            <section className="max-w-3xl">
+              <ul className="divide-y divide-hb-line border-y border-hb-line">
+                {dom.linjer.map((l) => (
+                  <DomLinje
+                    key={linjeNoegle(l)}
+                    l={l}
+                    lukker={lukning.isPending}
+                    onLuk={(linje, udfald) => lukning.mutate({ linje, udfald })}
+                  />
+                ))}
+              </ul>
+            </section>
+          )}
 
-      {/* ── Under stregen (§5): tal, ikke lister ── */}
-      <section className="mt-8 max-w-3xl space-y-1 text-sm text-hb-ink-soft">
-        {/* Jeres liste (/opgaver) — én linje, som §5's tal. Ikke listen selv:
-            forsiden er dommen; listen er det I selv skrev. */}
-        {jeresListe.aabne.length > 0 && (
-          <p>
-            <Link to="/opgaver" className="text-hb-evergreen underline-offset-4 hover:underline">
-              {jeresListe.aabne.length} {jeresListe.aabne.length === 1 ? "punkt" : "punkter"} på jeres liste
-            </Link>
-            {jeresListe.forfaldne > 0 && (
-              <span className="font-medium text-hb-rust"> · {jeresListe.forfaldne} {jeresListe.forfaldne === 1 ? "forfalden" : "forfaldne"}</span>
-            )}
-          </p>
-        )}
+          {/* ── Jeres liste (Jonas 8/9): UNDER DOMMEN, i venstre kolonne, med
+              skrivefeltet synligt — dommen er stadig det første man læser, og
+              listen er det man skriver i, når man kommer fra en chat. Samme
+              komponent som /opgaver, i forsidens udgave: skrivefeltet først,
+              forfaldne og dagens altid, resten op til et loft, «vis alle» til
+              siden. */}
+          <OpgavelisteView paaForsiden />
+        </div>
+
+        {/* ── Højre: det der orienterer. Under stregen (§5): tal, ikke lister ── */}
+        <aside className="mt-10 min-w-0 space-y-1 text-sm text-hb-ink-soft lg:mt-0 lg:border-l lg:border-hb-line lg:pl-8">
         {antalUnder > 0 && (
           <p>
             <Link to="/virksomheder" className="text-hb-evergreen underline-offset-4 hover:underline">
@@ -293,7 +299,8 @@ export const RaadgiverForsideView = () => {
         <p className="pt-2 text-xs">
           Måling: tærskel {TAERSKEL} · {dom.antalOpgaver} {dom.antalOpgaver === 1 ? "linje" : "linjer"} over stregen · {under.antalTilstandeSamlet} samlet i tilstande · {antalUnder} under tærsklen.
         </p>
-      </section>
+        </aside>
+      </div>
     </div>
   );
 };
