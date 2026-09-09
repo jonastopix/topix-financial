@@ -263,12 +263,6 @@
       <p>Ankomsten er bygget 2/9 nat: to skærme, «Velkommen», tjeklisten som fokus. To ting mangler: <strong>velkomstvideoen skal optages</strong> (Morten) — pladsen er bygget, GUID'et sættes i <code>/admin/config</code>, og først da kan «se videoen» bevises på skærm. Og <strong>rundvisningen</strong>, den interaktive førstegangsoplevelse efter velkomsten — bygges efter C3-indflytningen og må aldrig eksistere ved siden af Guiden.</p>
       <div class="meta"><span class="tag">Rettet 4/9</span><span class="tag size">Mellem</span></div>
     </div>
-    <div class="card blocked new" data-status="fejl" data-spor="1" data-rammer="medlem">
-      <h3>«Alt er ajour.» kan stå til en der aldrig har uploadet</h3>
-      <p><strong>Målt 7/9</strong> (recon-den-tomme-platform): fokuskortets tom-tilstand (<code>BoardroomView.tsx:1384-1395</code>) siger «Alt er ajour.» og «Rapport, refleksion og milestones er på plads — brug momentum i dit forløb.» — også for et medlem uden en eneste rapport. Kommentaren i koden siger det udtrykkeligt: «Alle tal nul (nyt medlem) → den hidtidige sætning uændret» (:1810-1814). Det er ikke en forglemmelse, det er en beslutning der er forkert. Nås når tjeklisten er færdig og forrige måned ligger før kontraktstarten (slot (a) tier), eller når intet andet fyrer.</p>
-      <p><code>journeyLine</code> bygges :1815 af committede perioder, gjorte milestones og Akademi-poster og er null når alle er nul — rettelsen er formentlig en gren dér, der siger sandheden for et nyt medlem. Ordlyden er IKKE besluttet. Det vigtigste af de fire fund fra reconen; planen for 8/9 punkt 7a.</p>
-      <div class="meta"><span class="tag ny">Ny 7/9</span><span class="tag rust">Usand tekst</span><span class="tag size">Lille</span></div>
-    </div>
     <div class="card new" data-status="fejl" data-spor="1" data-rammer="medlem">
       <h3>Tjeklisten kan lukkes pr. enhed — og er så væk</h3>
       <p>Lukket-tilstanden er <code>localStorage["tbr.tjekliste-lukket"]</code> (<code>useTjeklisteLukket.ts</code>): pr. enhed, ikke i databasen — bevidst («en visningspræference, ikke data»). Lukker et af de sytten medlemmer uden tal boksen på telefonen, er der intet på skærmen der siger hvad de skal; kun sidebarens «Kom godt i gang» henter den frem, og fokuskortet fortsætter ganske vist med punkterne (tjeklisten er kilden også når boksen er lukket), men kun på forsiden. Om de ti der har logget ind for nylig HAR lukket den, kan ikke måles. Planen for 8/9 punkt 7b.</p>
@@ -355,6 +349,11 @@
   <h2>Betaling og fornyelse — inkl. migrationen</h2>
   <p class="lede">Fornyelseskæden bærer siden 1/9, indgangens betaling siden 2/9, månedstrækkene registreres siden 3/9. Målt 6/9 mod 10/9: alle forudsætninger er grønne, men ordningen har ingen afsender, og 10/9 er ikke en tændingsdato (OVERLEVERING DEL 2 «Fornyelseskæden», fornyelseskæden §13). 7/9: tilbudsvinduet er bygget og bevist, stemplerne er i prod, tallene er besluttet — afsenderen selv er det der står (fornyelseskæden §14). 7/9 eftermiddag: varselsmotoren og en cron-rapport findes og er tørkørt på rigtige data, og fornyelsen kan betales FØR slutdatoen (fornyelseskæden §15) — mailene og et sted at se tilbuddet før udløb er det der står. Dertil migrationen af de tretten, det der stadig sker i tavshed, og det der var dødt uden at nogen vidste det.</p>
   <div class="grid">
+    <div class="card new" data-status="mangler" data-spor="senere" data-rammer="medlem">
+      <h3>Medlemmets aftale-kort venter på perioder — 27 af 27 har nul</h3>
+      <p>Læseadgangen er givet (#756: SELECT for medlemmet på <code>company_perioder</code> og <code>company_traek</code>, migration kørt 9/9). Kortet er ikke bygget, for der er intet at vise: målt 9/9 har ingen aktiv virksomhed en række i <code>company_perioder</code>. Perioderne kommer med migrationen af de 13 og med de næste fornyelser — kortet bygges når den første række findes, ellers viser det tomhed til alle.</p>
+      <div class="meta"><span class="tag ny">Ny 9/9</span><span class="tag">Nul rækker</span><span class="tag size">Lille</span></div>
+    </div>
     <div class="card blocked" data-status="fejl" data-spor="senere" data-rammer="raadgiver">
       <h3>Betalingsstigen med e-conomic — integrationen findes og er død</h3>
       <p>Der findes allerede en Stripe-til-e-conomic-integration via Cloudify (Visma eco). Målt 1/9 på fakturametadata: «Your free trial has expired». Fakturaerne når ikke bogholderiet, og hvor længe det har stået på, er ikke målt.</p>
@@ -467,6 +466,11 @@
   <h2>Dine tal — rapportering, KPI, budget, handouts, parsing</h2>
   <p class="lede">Fungerer teknisk, bruges ikke nok. To mails fra betalende medlemmer, modtaget 22. august, står stadig åbne: «den har ikke taget alle mine omkostningsposter med … jeg kan ikke slette poster den allerede har lavet … jeg skal manuelt indtaste tal i hvert felt» og «den vil ikke uploade. Den skriver, at jeg skal indtaste tallene manuelt — kan det passe?»</p>
   <div class="grid">
+    <div class="card decision new" data-status="beslutning" data-spor="senere" data-rammer="medlem">
+      <h3>Rapportpåmindelsen rykker stadig de faldet-ud — tre mails om måneden, i månedsvis</h3>
+      <p>Siden 9/9 (#761) springer <code>send-report-reminder</code> en ny uden nogen upload over (under 90 dage). Over 90 dage rykkes som før: dag 7, 15 og 20 hver måned, til de 19 der er faldet ud, uanset hvor længe de har været tavse. Bastant og TuaMea har fået dem i fem måneder. Om de skal blive ved, stoppe, eller afløses af et menneske, er en beslutning — tørkørslen (<code>dry_run: true</code>) viser listen før den træffes.</p>
+      <div class="meta"><span class="tag ny">Ny 9/9</span><span class="tag gold">Beslutning</span><span class="tag size">Lille</span></div>
+    </div>
     <div class="card decision new" data-status="beslutning" data-spor="senere" data-rammer="medlem">
       <h3>19 af 27 er faldet ud (målt «29 af 37» 7/9 — rettet 8/9)</h3>
       <p><strong>Målt i prod 7/9 kl. 20:42</strong> — dagens sidste og vigtigste måling (OVERLEVERING, øverst). Kriterium: mere end tre måneder siden seneste MÅLTE rapport OG nul besvarede opgaveforslag de seneste tre måneder. <strong>RETTET 8/9 kl. 08:49:</strong> filtret 7/9 var <code>er_kunde = true AND is_legat = false</code> og manglede <code>status = 'active'</code> — de otte <code>'tidligere'</code> (Alina, Coskun, Regnskabsvikar, Sebastian &amp; Amalie, Stadio, Startkørekort, Friends &amp; Fries, LineAlmegaard) blev talt med, og to gæster (Alexander Lund, Martin Larsen) stod som kunder; <code>er_kunde</code> sat til <code>false</code> på de to i prod 8/9 kl. 08:48 (FØR: <code>true</code>). Med filtret ordret <code>er_kunde = true AND is_legat = false AND status = 'active'</code>: <strong>I alt 27 · faldet ud 19 · aktive 8 · midt imellem 0 · aldrig uploadet 10.</strong> Det forkerte tal 7/9: <s>I alt 37 · faldet ud 29 · aktive 8 · midt imellem 0</s>. Indeni (tal fra 7/9): SYTTEN — rettet 8/9: TI — har aldrig uploadet en målt rapport — og ti af dem har logget ind inden for de sidste tre uger (TOFT 4/9, Martin Larsen 1/9, remm. 1/9, Limo Group, LineAlmegaard og Alexander Lund 31/8, Fjeldgaardshop 25/8, Friends &amp; Fries 24/8, Bastant Design 20/8, Coskun 17/8): de kommer, de gør bare ikke det platformen er bygget til. Tre har aldrig logget ind (Din økonomiafdeling, Two Socks, WESDEX). Fem får forslag og svarer aldrig (Rallysupport 17/0, ANLA GLAS 15/0, Capture IT 9/0, remm. 9/0, BRILLEVÆRK 4/0). CARMA STUDIO: seneste målte rapport juni 2025. Af de otte aktive svarer kun <strong>to</strong> på forslag — Floren Engros 6 af 18, Rezycl.com 6 af 12 (målt igen 8/9: 6 af 12 og 6 af 9; samme otte, samme to). <strong>To ud af syvogtredive — rettet 8/9: ud af syvogtyve — bruger platformen som tænkt.</strong> Tallet var forkert, konklusionen var ikke. Læren står i OVERLEVERING DEL 4: et filter er en del af målingen — where-sætningen skal stå ordret i bogføringen.</p>
@@ -881,10 +885,10 @@
       <p>Jonas 6/9: listen skal kunne sorteres på Virksomhed, Medlemsstatus og Sidste kontakt. Det er IKKE en løs idé — den gamle <code>/members</code>-liste har sortering og branchefilter, og de står som punkt 11 i de elleve dele der blokerer swappet (OVERLEVERING DEL 3, kortet «<code>/members</code> kan ikke swappes» nedenfor). Hører til dér: bygges det på <code>/virksomheder</code>, er ét af de elleve punkter væk.</p>
       <div class="meta"><span class="tag ny">Ny 6/9</span><span class="tag">Del af swappet</span><span class="tag size">Lille</span></div>
     </div>
-    <div class="card blocked new" data-status="mangler" data-spor="6" data-rammer="raadgiver">
-      <h3><code>/members</code> kan ikke swappes — elleve dele findes kun dér</h3>
-      <p>Syv af dem er handlinger ingen anden flade kan udføre: <code>IndgangsSektion</code> (sæt prisniveau → betalingsmail), <code>FornyelsesSektion</code> (eneste sted en fornyelsesbeslutning registreres; ordningen træder i kraft 10/9), <code>MembersAdminSection</code> (afventende invitationer, gensend, slet), «Inviter ny bruger», «Importér/berig med ansøgning», «Tilknyt» (merge over otte tabeller), «Slet virksomhed». Dertil «Omdøb virksomhed» (<code>EditCompanyDialog</code> har intet navnefelt), «Gensend invitation», <code>MembersStatsBar</code>/<code>MembersOnboardingFunnel</code>, og rækkens refleksion/ulæste/Slack-kanal/sortering/branchefilter. Forsiden viser indgang og fornyelse som slags 1 og 2, men kun som links. Det der stadig peger på listen: <code>AppSidebar</code>, <code>Guide</code>, rådgivermailen <code>indgangsMail.ts:251</code>, tre Slack-fallback-links.</p>
-      <div class="meta"><span class="tag ny">Ny 4/9</span><span class="tag rust">Blokerer swappet</span><span class="tag size">Stor</span></div>
+    <div class="card blocked" data-status="mangler" data-spor="6" data-rammer="raadgiver">
+      <h3><code>/members</code> kan ikke swappes — otte dele findes kun dér</h3>
+      <p><strong>Rettet 9/9:</strong> fornyelsesbeslutningen bor på virksomhedssiden (#707/#709), invitationerne på <code>/virksomheder</code> og virksomhedssiden (#754), sidst online er tilbage (#751). Tilbage: <code>IndgangsSektion</code> (sæt prisniveau → betalingsmail), «Omdøb virksomhed» (<code>EditCompanyDialog</code> har intet navnefelt), «Tilknyt» (merge over otte tabeller), «Importér/berig med ansøgning», «Slet virksomhed», <code>MembersOnboardingFunnel</code> og branchefiltret. Det der stadig peger på listen: <code>Guide</code>, rådgivermailen <code>indgangsMail.ts</code>, Slack-fallback-links.</p>
+      <div class="meta"><span class="tag">Rettet 9/9</span><span class="tag rust">Blokerer swappet</span><span class="tag size">Mellem</span></div>
     </div>
     <div class="card decision new" data-status="beslutning" data-spor="6" data-rammer="raadgiver">
       <h3>Designets §11 punkt 6 er ufuldstændigt</h3>
@@ -916,10 +920,10 @@
       <p><code>hentAdvisorDashboard</code>s <code>queryFn</code> henter ikke <code>budget_targets</code>, så <code>budgetOmsaetning</code> står bevidst som null (<code>AdvisorDashboard.tsx:923–925</code>). Motoren kan dømme «stikker ud» mod budget, men får aldrig tallet.</p>
       <div class="meta"><span class="tag ny">Ny 4/9</span><span class="tag size">Lille</span></div>
     </div>
-    <div class="card decision new" data-status="beslutning" data-spor="6" data-rammer="raadgiver">
-      <h3>Hængende invitationer har intet sted</h3>
-      <p>remm. (sendt 15/6) har hængt i 80 dage; virksomheden har medlemmer, så den er ikke skjult — men ingen flade fortæller det, ud over <code>MembersAdminSection</code> nederst på <code>/members</code>. De tre nye (Din økonomiafdeling, Two Socks, WESDEX) skjules af pending-gaten. Besluttet 3/9: ingen dom bygges nu — ét tilfælde retfærdiggør ikke en motor. Men en invitation ældre end cirka fjorten dage er strandet, og det hører på forsiden ved siden af «Indgange der ikke er betalt».</p>
-      <div class="meta"><span class="tag ny">Ny 4/9</span><span class="tag gold">Designpunkt</span></div>
+    <div class="card decision" data-status="beslutning" data-spor="6" data-rammer="raadgiver">
+      <h3>Strandede invitationer står, men ingen dom siger «strandet»</h3>
+      <p><strong>Rettet 9/9:</strong> invitationerne har fået et sted — <code>HbInvitationer</code> på <code>/virksomheder</code> og på virksomhedssiden (#754), med alder, gensend og slet. Besluttet 3/9: ingen dom bygges nu. Men en invitation ældre end cirka fjorten dage er strandet, og det hører på forsiden ved siden af «Indgange der ikke er betalt» — den slags findes ikke i <code>forsidensDom.ts</code>.</p>
+      <div class="meta"><span class="tag">Rettet 9/9</span><span class="tag gold">Designpunkt</span><span class="tag size">Lille</span></div>
     </div>
     <div class="card decision new" data-status="beslutning" data-spor="6" data-rammer="raadgiver">
       <h3>Platformconfig: tre dele uden læser</h3>
@@ -981,9 +985,9 @@
   <p class="lede">Konvergensen sker ved beslutninger, ikke ved drift — hver flade har en bogført skæbne i <code>docs/hjemmebane/konvergens.md</code>. Det der står, er de sidste gamle flader, mailene og mobilen som mønster. Og fra 7/9: den strukturelle årsag til mørke tokens på lyst papir (kortet nederst i afsnittet).</p>
   <div class="grid">
     <div class="card decision" data-status="beslutning" data-spor="1" data-rammer="medlem">
-      <h3>Indstillinger — nu den eneste flade i medlemmets menu i det gamle design</h3>
-      <p>Milestones og chatten er konverteret; <code>/settings</code> lander stadig i <code>AppLayout</code> (grep 4/9: Settings, Guide, PulseCheckin, AnnualBaseline, LegatDashboard og Members importerer den). To opgaver: konvertér udtrykket, og gentænk hvad der hører sammen med hvad. Med indgangsdesignet får siden en tredje rolle: det er dér onboardingens dataindsamling skal bo — billede, branche, netværksprofil findes der allerede.</p>
-      <div class="meta"><span class="tag">Rettet 4/9</span><span class="tag gold">Design først</span><span class="tag size">Mellem</span></div>
+      <h3><code>/settings</code> — tre rester efter at kontoen flyttede</h3>
+      <p><strong>Rettet 9/9:</strong> kontoen bor på <code>/konto</code> for alle roller (#757) — e-mail kan ikke ændres, login-metoderne vises; rådgivere sendes videre fra <code>/settings</code>. Tilbage i det gamle design: netværksprofilen (hører til Netværket), virksomheden (mangler «Aftalen» — perioder og træk, som medlemmet nu må læse, #756) og notifikationsfanen (en tekst uden knapper). Hvad der hører sammen med hvad, er ikke afgjort.</p>
+      <div class="meta"><span class="tag">Rettet 9/9</span><span class="tag gold">Design først</span><span class="tag size">Mellem</span></div>
     </div>
     <div class="card" data-status="mangler" data-spor="senere" data-rammer="ingen">
       <h3>Afsenderen er skiftet — to rester bærer stadig topix.dk</h3>
