@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  FORSIDE_LOFT,
+  forsideUdsnit,
   GAMMEL_DAGE,
   GJORT_SYNLIG_DAGE,
   afgoerOpgave,
@@ -99,5 +101,30 @@ describe("fristTekst", () => {
     expect(fristTekst(afgoerOpgave(o("a", { frist: "2026-09-13" }), NU))).toBe("Om 5 dage");
     expect(fristTekst(afgoerOpgave(o("a"), NU))).toBe("Ingen frist");
     expect(fristTekst(afgoerOpgave(o("a", { created_at: lokal(2026, 7, 1) }), NU))).toBe("Ingen frist · ligger 69 dage");
+  });
+});
+
+describe("forsideUdsnit — forfaldne og dagens altid, resten op til loftet", () => {
+  it("loftet er 8; forfaldne skæres aldrig væk, selv når de alene er flere end loftet", () => {
+    expect(FORSIDE_LOFT).toBe(8);
+    const forfaldne = Array.from({ length: 10 }, (_, i) => o(`f${i}`, { frist: `2026-08-${String(10 + i).padStart(2, "0")}` }));
+    const kommende = Array.from({ length: 5 }, (_, i) => o(`k${i}`, { frist: `2026-09-${String(10 + i).padStart(2, "0")}` }));
+    const sorteret = delListe([...kommende, ...forfaldne], NU).aabne;
+    const udsnit = forsideUdsnit(sorteret, NU);
+    expect(udsnit).toHaveLength(10);
+    expect(udsnit.every((x) => x.tekst.startsWith("f"))).toBe(true);
+  });
+  it("to forfaldne + én i dag + ti kommende → 8 i alt, de tre først", () => {
+    const liste = [
+      ...Array.from({ length: 10 }, (_, i) => o(`k${i}`, { frist: `2026-09-${String(10 + i).padStart(2, "0")}` })),
+      o("idag", { frist: "2026-09-08" }),
+      o("f1", { frist: "2026-09-01" }),
+      o("f2", { frist: "2026-09-05" }),
+    ];
+    const udsnit = forsideUdsnit(delListe(liste, NU).aabne, NU);
+    expect(udsnit.map((x) => x.tekst)).toEqual(["f1", "f2", "idag", "k0", "k1", "k2", "k3", "k4"]);
+  });
+  it("færre end loftet: alle med", () => {
+    expect(forsideUdsnit(delListe([o("a"), o("b", { frist: "2026-09-20" })], NU).aabne, NU)).toHaveLength(2);
   });
 });

@@ -7,7 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { kraevRaekker } from "@/lib/kraevRaekker";
 import { cn } from "@/lib/utils";
-import { afgoerOpgave, delListe, fristTekst, type RaadgiverOpgave } from "@/lib/raadgiverOpgaver";
+import { afgoerOpgave, delListe, forsideUdsnit, fristTekst, type RaadgiverOpgave } from "@/lib/raadgiverOpgaver";
 import {
   RAADGIVER_OPGAVER_KEY, hentRaadgiverOpgaver, invaliderOpgaver, opretOpgave, retOpgave, saetGjort, sletOpgave,
 } from "@/hooks/raadgiverOpgaver";
@@ -18,18 +18,24 @@ import { HbTag } from "../HbTag";
 import { HbInput, HbSelect } from "../admin/HbField";
 
 /**
- * /opgaver — rådgivernes fælles to-do-liste (Jonas 8/9, analyse-todo-
- * listen.md): «et sted at få skrevet ned hvad vi snakker om i chatten».
- * En liste VED SIDEN AF forsiden: forsiden regner, listen husker. Intet
- * lander her automatisk; rådgiveren skriver selv.
+ * Rådgivernes fælles to-do-liste (Jonas 8/9, analyse-todo-listen.md): «et
+ * sted at få skrevet ned hvad vi snakker om i chatten». En liste VED SIDEN
+ * AF forsidens dom: forsiden regner, listen husker. Intet lander her
+ * automatisk; rådgiveren skriver selv.
  *
- * EGEN SIDE, ikke forsiden (besluttet 8/9): forsiden er dommen — det data
- * siger lige nu, uden knapper man kan skrive i (forsiden-design §10: en
- * forside der aldrig kan være tom, bliver aldrig troet). En liste man
- * skriver i, redigerer og krydser af, ville gøre den til noget andet. Til
- * gengæld står der én linje under stregen på forsiden («N punkter på
- * jeres liste · M forfaldne») med link hertil, så listen SES hver morgen
- * uden at fylde. Menupunktet «Opgaver» i rådgiverblokken er den anden vej.
+ * PÅ FORSIDEN (Jonas 8/9, rettet samme dag): første udgave (#745) lagde
+ * listen på sin egen side med et menupunkt, på et teoretisk argument om at
+ * forsiden er dommen. Jonas: «Det her bliver et menupunkt vi aldrig
+ * nogensinde kommer til at arbejde med.» Listen skal være dér man kigger
+ * hver morgen — og man skal kunne skrive et punkt ned direkte, når man
+ * kommer fra en chat med en aftale. Derfor renderes SAMME komponent to
+ * steder med `paaForsiden`:
+ *   - forsiden (RaadgiverForsideView), nederst efter dommen og tallene
+ *     under stregen: skrivefeltet først, så de åbne punkter — forfaldne
+ *     og dagens ALTID, resten op til FORSIDE_LOFT — og et «vis alle»-link.
+ *     Ingen gjorte, intet Alle/Mine-filter: forsiden er morgenens udgave.
+ *   - /opgaver (uden menupunkt): det hele — alle åbne, filteret, de gjorte.
+ *     Ruten er «vis alle», ikke et sted man skal huske at gå hen.
  *
  * ÉN liste med ejerskab pr. punkt, ikke to: alle ser alt; «Mine» er et
  * filter, ikke en anden liste. Ejeren kan skiftes i rækken («giv den til
@@ -65,7 +71,7 @@ async function hentOpslag(): Promise<{ raadgivere: Raadgiver[]; virksomheder: Vi
 
 const fornavn = (navn: string | undefined): string => (navn ?? "").split(" ")[0] || "?";
 
-export const OpgavelisteView = () => {
+export const OpgavelisteView = ({ paaForsiden = false }: { paaForsiden?: boolean }) => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [visning, setVisning] = useState<"alle" | "mine">("alle");
@@ -110,8 +116,10 @@ export const OpgavelisteView = () => {
   const virksomheder = opslagQuery.data?.virksomheder ?? [];
   const navnAf = (id: string) => fornavn(raadgivere.find((r) => r.user_id === id)?.full_name);
   const virksomhedAf = (id: string | null) => (id ? virksomheder.find((v) => v.id === id) ?? null : null);
-  const filtrer = (o: RaadgiverOpgave) => visning === "alle" || o.ejer_id === user?.id;
-  const aabne = liste.aabne.filter(filtrer);
+  const filtrer = (o: RaadgiverOpgave) => paaForsiden || visning === "alle" || o.ejer_id === user?.id;
+  const alleAabne = liste.aabne.filter(filtrer);
+  const aabne = paaForsiden ? forsideUdsnit(alleAabne, nu) : alleAabne;
+  const skjulteAabne = alleAabne.length - aabne.length;
   const gjorte = liste.gjorte.filter(filtrer);
 
   const opret = () => {
@@ -221,13 +229,72 @@ export const OpgavelisteView = () => {
     );
   };
 
+  const skrivefelt = (
+    <HbCard className="p-5">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+        <HbInput
+          value={tekst}
+          onChange={(e) => setTekst(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter" && tekst.trim()) opret(); }}
+          placeholder="F.eks. Følg op på strategien med BR Roset"
+          className="flex-1"
+        />
+        <HbInput type="date" value={frist} min={idag()} onChange={(e) => setFrist(e.target.value)} aria-label="Frist" className="w-auto" />
+      </div>
+      <div className="mt-3 flex flex-wrap items-center gap-3">
+        <HbSelect value={companyId} onChange={(e) => setCompanyId(e.target.value)} aria-label="Virksomhed" className="w-auto">
+          <option value="">Ingen virksomhed</option>
+          {virksomheder.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+        </HbSelect>
+        <HbSelect value={ejerId || user?.id || ""} onChange={(e) => setEjerId(e.target.value)} aria-label="Til hvem" className="w-auto">
+          {raadgivere.map((r) => <option key={r.user_id} value={r.user_id}>{r.user_id === user?.id ? "Mig" : fornavn(r.full_name)}</option>)}
+        </HbSelect>
+        <HbButton onClick={opret} disabled={!tekst.trim() || skriv.isPending} className="h-10 px-5">Skriv ned</HbButton>
+      </div>
+    </HbCard>
+  );
+
+  const aabneKort = (
+    <HbCard className="px-5 py-2">
+      {opgaverQuery.isLoading ? (
+        <div aria-hidden className="py-3"><div className="h-4 w-1/3 animate-pulse rounded bg-hb-line/60" /></div>
+      ) : aabne.length > 0 ? (
+        <ul className="divide-y divide-hb-line">{aabne.map((o) => <Raekke key={o.id} o={o} />)}</ul>
+      ) : (
+        <p className="py-3 text-sm text-hb-ink-soft">{!paaForsiden && visning === "mine" ? "Intet på din del af listen." : "Listen er tom. Det er et gyldigt svar."}</p>
+      )}
+    </HbCard>
+  );
+
+  const aabneEyebrow = `${paaForsiden ? "Jeres liste" : "Åbne"} · ${alleAabne.length}${liste.forfaldne > 0 && (paaForsiden || visning === "alle") ? ` · ${liste.forfaldne} ${liste.forfaldne === 1 ? "forfalden" : "forfaldne"}` : ""}`;
+
+  if (paaForsiden) {
+    // Forsidens udgave: skrivefeltet først (man kommer fra en chat med en
+    // aftale), så de åbne, så «vis alle». Dommen står over — den er stadig
+    // det første man læser.
+    return (
+      <HbSection eyebrow={aabneEyebrow} hairline linkLabel="Vis alle" linkTo="/opgaver" className="mt-12 max-w-3xl">
+        <div className="space-y-4">
+          {skrivefelt}
+          {aabneKort}
+          {(skjulteAabne > 0 || liste.gjorte.length > 0 || liste.gjorteSkjult > 0) && (
+            <p className="text-sm text-hb-ink-soft">
+              {skjulteAabne > 0 && <span>{skjulteAabne} {skjulteAabne === 1 ? "punkt" : "punkter"} mere uden frist · </span>}
+              <Link to="/opgaver" className="text-hb-evergreen underline-offset-4 hover:underline">Vis alle{liste.gjorte.length > 0 ? ", også de gjorte" : ""}</Link>
+            </p>
+          )}
+        </div>
+      </HbSection>
+    );
+  }
+
   return (
     <div>
       <section className="flex flex-wrap items-end justify-between gap-4">
         <div className="max-w-3xl">
           <p className="text-xs font-medium uppercase tracking-[0.14em] text-hb-rust">Jeres liste</p>
           <h1 className="mt-3 font-editorial text-4xl font-medium leading-[1.1] tracking-tight text-hb-ink md:text-5xl">Opgaver</h1>
-          <p className="mt-3 text-sm text-hb-ink-soft">Det I aftaler i chatten, skrevet ned. Fristen sorterer; forfaldne står øverst.</p>
+          <p className="mt-3 text-sm text-hb-ink-soft">Det hele: det I aftaler i chatten, skrevet ned. Fristen sorterer; forfaldne står øverst. Forsiden viser morgenens udsnit.</p>
         </div>
         <div className="flex items-center gap-2">
           {(["alle", "mine"] as const).map((v) => (
@@ -245,41 +312,12 @@ export const OpgavelisteView = () => {
 
       {/* ── Nyt punkt ── */}
       <HbSection eyebrow="Skriv ned" hairline className="mt-10">
-        <HbCard className="p-5">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-            <HbInput
-              value={tekst}
-              onChange={(e) => setTekst(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter" && tekst.trim()) opret(); }}
-              placeholder="F.eks. Følg op på strategien med BR Roset"
-              className="flex-1"
-            />
-            <HbInput type="date" value={frist} min={idag()} onChange={(e) => setFrist(e.target.value)} aria-label="Frist" className="w-auto" />
-          </div>
-          <div className="mt-3 flex flex-wrap items-center gap-3">
-            <HbSelect value={companyId} onChange={(e) => setCompanyId(e.target.value)} aria-label="Virksomhed" className="w-auto">
-              <option value="">Ingen virksomhed</option>
-              {virksomheder.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </HbSelect>
-            <HbSelect value={ejerId || user?.id || ""} onChange={(e) => setEjerId(e.target.value)} aria-label="Til hvem" className="w-auto">
-              {raadgivere.map((r) => <option key={r.user_id} value={r.user_id}>{r.user_id === user?.id ? "Mig" : fornavn(r.full_name)}</option>)}
-            </HbSelect>
-            <HbButton onClick={opret} disabled={!tekst.trim() || skriv.isPending} className="h-10 px-5">Skriv ned</HbButton>
-          </div>
-        </HbCard>
+        {skrivefelt}
       </HbSection>
 
-      {/* ── Åbne ── */}
-      <HbSection eyebrow={`Åbne · ${aabne.length}${liste.forfaldne > 0 && visning === "alle" ? ` · ${liste.forfaldne} ${liste.forfaldne === 1 ? "forfalden" : "forfaldne"}` : ""}`} hairline className="mt-12">
-        <HbCard className="px-5 py-2">
-          {opgaverQuery.isLoading ? (
-            <div aria-hidden className="py-3"><div className="h-4 w-1/3 animate-pulse rounded bg-hb-line/60" /></div>
-          ) : aabne.length > 0 ? (
-            <ul className="divide-y divide-hb-line">{aabne.map((o) => <Raekke key={o.id} o={o} />)}</ul>
-          ) : (
-            <p className="py-3 text-sm text-hb-ink-soft">{visning === "mine" ? "Intet på din del af listen." : "Listen er tom. Det er et gyldigt svar."}</p>
-          )}
-        </HbCard>
+      {/* ── Åbne — alle ── */}
+      <HbSection eyebrow={aabneEyebrow} hairline className="mt-12">
+        {aabneKort}
       </HbSection>
 
       {/* ── Gjorte: de seneste 30 dage, foldet sammen ── */}
