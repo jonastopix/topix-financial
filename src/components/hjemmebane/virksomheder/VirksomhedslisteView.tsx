@@ -13,6 +13,7 @@ import { dageSiden, erLaengeSiden, senesteAf, sidstOnlineTekst } from "@/lib/sid
 import { ADVISOR_DASHBOARD_QUERY_KEY, hentAdvisorDashboard } from "@/components/AdvisorDashboard";
 import { GRUND_PARAM, VIRKSOMHEDER_STI, filterOverskrift, laesGrundParam, virksomhederForGrund } from "@/lib/hjemmebane/forsideLinks";
 import { HbTag } from "../HbTag";
+import { HbInvitationer } from "./HbInvitationer";
 import { hbControlClasses } from "../admin/HbField";
 import { cn } from "@/lib/utils";
 
@@ -414,6 +415,12 @@ export const VirksomhedslisteView = () => {
           className={cn(hbControlClasses, "max-w-md rounded-full px-5")}
         />
       </div>
+
+      {/* Invitationerne (Jonas 9/9): de åbne på tværs, med gensend, slet og
+          «Inviter» — her, fordi listen er virksomhedernes sted. Ikke i
+          forsidens udsnit (?grund=): dér viser listen præcis dommens
+          virksomheder og intet andet. */}
+      {!grund && <HbInvitationer />}
 
       <div className="mt-8 overflow-hidden rounded-hb border border-hb-line bg-hb-surface">
         <div className="hidden border-b border-hb-line px-4 py-2 text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft sm:grid sm:grid-cols-[2fr_1.2fr_1fr_1fr_1fr] sm:gap-x-4">

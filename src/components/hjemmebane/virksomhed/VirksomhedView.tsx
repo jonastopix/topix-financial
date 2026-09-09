@@ -24,6 +24,7 @@ import { udloebneForslagTekst } from "@/lib/forslagTab";
 import { dageSiden, erLaengeSiden, sidstOnlineTekst } from "@/lib/sidstOnline";
 import { afgoerMilepael } from "@/lib/milepaelDom";
 import { afgoerIntroSession, introSessionTekst, type IntroBooking } from "@/lib/introSession";
+import { InvitationHandlinger, InviterKnap } from "../virksomheder/HbInvitationer";
 import { computeMembershipTier, type MembershipTier } from "@/lib/membershipTier";
 import { afgoerFornyelsestilstand, type Fornyelsesbeslutning } from "@/lib/fornyelse";
 import { beslutningsOrd, fornyelsesBadge, type FornyelseBadge } from "@/lib/fornyelsesOrd";
@@ -1646,17 +1647,24 @@ const Blok7 = ({ d, onOpdateret, onFornyelseAendret }: { d: VirksomhedsData; onO
         </HbCard>
 
         <HbCard className="p-5">
-          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-hb-ink-soft">Invitationer</p>
+          {/* Invitationerne (9/9): blokken fandtes (kun visning); nu med de
+              samme handlinger som /virksomheder — gensend, slet, inviter til
+              netop denne virksomhed. Skrivevej: hooks/invitationer. */}
+          <div className="flex items-baseline justify-between gap-3">
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-hb-ink-soft">Invitationer</p>
+            <InviterKnap companyId={c.id} label="Inviter til virksomheden" />
+          </div>
           {d.invitationer.length === 0 ? (
             <p className="mt-3 text-sm text-hb-ink-soft">Ingen invitationer.</p>
           ) : (
             <ul className="mt-3 divide-y divide-hb-line">
               {d.invitationer.map((i) => (
-                <li key={i.id} className="flex items-center justify-between gap-3 py-2 text-sm">
-                  <span className="min-w-0 truncate text-hb-ink">{i.email}</span>
+                <li key={i.id} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 py-2 text-sm">
+                  <span className="min-w-0 flex-1 truncate text-hb-ink">{i.email}</span>
                   <span className="shrink-0 text-xs text-hb-ink-soft">
-                    {i.status === "pending" ? `Afventer · sendt ${formatDato(i.created_at)}` : i.status === "accepted" ? `Accepteret ${formatDato(i.accepted_at)}` : i.status}
+                    {i.status === "pending" ? `Afventer · oprettet ${formatDato(i.created_at)}` : i.status === "accepted" ? `Accepteret ${formatDato(i.accepted_at)}` : i.status}
                   </span>
+                  {i.status === "pending" && <InvitationHandlinger inv={i} companyId={c.id} />}
                 </li>
               ))}
             </ul>
