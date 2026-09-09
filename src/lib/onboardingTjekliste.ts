@@ -59,11 +59,24 @@ export interface TjeklisteInput {
   industry_label: string | null;
   cvr_number: string | null;
   /**
-   * Antal financial_reports med deleted_at IS NULL for virksomheden.
-   * Uploadet er nok — godkendelsen (financial_report_facts) er
-   * rådgiverens skridt, ikke medlemmets.
+   * Antal financial_reports med deleted_at IS NULL for virksomheden —
+   * uploads, uanset status. Bruges til at skelne «uploadet, ikke godkendt»
+   * fra «aldrig uploadet» i teksten; afgør IKKE længere om punktet er gjort.
    */
   antal_rapporter: number;
+  /**
+   * Antal financial_report_facts-rækker for virksomheden — godkendte tal.
+   * RETTET 9/9: første udgave (2/9) sagde «uploadet er nok — godkendelsen
+   * er rådgiverens skridt». Det var forkert: godkendelsen ER medlemmets
+   * klik («Gennemgå og godkend» → commit_report_facts, ingen automatik).
+   * Så medlemmet uploadede, tjeklisten sagde færdig, fokuskortet gik
+   * videre, og rapporten blev aldrig godkendt — 73 ventende rapporter,
+   * PHILBERTs seks. Punktet er først gjort når der findes en facts-række.
+   * «Findes der en række» (ikke data_basis = measured): tjeklisten spørger
+   * om medlemmet har gjort handlingen, ikke om tallet er målt — det er
+   * pulsens spørgsmål.
+   */
+  antal_godkendte: number;
   /** Antal handouts med status 'completed' for brugeren (handoutEngine.toggleHandoutCompleted). */
   antal_udfyldte_handouts: number;
   /**
@@ -84,9 +97,10 @@ export interface TjeklistePunkt {
   /** Hvor punktet føres hen. Relativ sti. Tom streng = åbnes i boksen, ikke en side. */
   sti: string;
   /**
-   * Kun for punkter der kan være DELVIST gjort (profil, virksomhed): hvad
-   * der mangler, så medlemmet ved hvorfor det ikke er krydset af. Tom
-   * liste når punktet er gjort.
+   * Kun for punkter der kan være DELVIST gjort (profil, virksomhed — og
+   * rapport, når den er uploadet men ikke godkendt, 9/9): hvad der
+   * mangler, så medlemmet ved hvorfor det ikke er krydset af. Tom liste
+   * når punktet er gjort.
    */
   mangler?: string[];
 }
@@ -128,6 +142,7 @@ export const MANGLER_TEKST = {
   website: "virksomhedens website",
   branche: "branchen",
   cvr: "CVR-nummeret",
+  godkendelse: "at godkende tallene",
 } as const;
 
 /** Sat = ikke null OG ikke kun mellemrum. Et website på « » er ikke et website. */
@@ -160,10 +175,13 @@ export function byggTjekliste(input: TjeklisteInput): Tjekliste {
   if (!erSat(input.industry_label)) virksomhedMangler.push(MANGLER_TEKST.branche);
   if (!erSat(input.cvr_number)) virksomhedMangler.push(MANGLER_TEKST.cvr);
 
-  // RAPPORT — uploadet er nok. Godkendelsen (facts-laget) sker i
-  // rådgiverens rytme og er ikke medlemmets at vente på; medlemmets
-  // handling er uploaden.
-  const rapportGjort = input.antal_rapporter > 0;
+  // RAPPORT — GODKENDT, ikke bare uploadet (rettet 9/9, se TjeklisteInput).
+  // Er der uploadet men ikke godkendt, siger punktet præcis det: «Mangler:
+  // at godkende tallene» — og stien fører til rapporteringen, hvor knappen
+  // står.
+  const rapportGjort = input.antal_godkendte > 0;
+  const rapportUploadetIkkeGodkendt = !rapportGjort && input.antal_rapporter > 0;
+  const rapportMangler: string[] = rapportUploadetIkkeGodkendt ? [MANGLER_TEKST.godkendelse] : [];
 
   // HANDOUT — udfyldt, ikke startet. En påbegyndt række (in_progress)
   // findes så snart et enkelt felt er gemt; «Markér udfyldt» er den
@@ -201,9 +219,12 @@ export function byggTjekliste(input: TjeklisteInput): Tjekliste {
     rapport: {
       id: "rapport",
       titel: "Dine tal",
-      beskrivelse: "Upload din første rapport, så tallene kommer i spil.",
+      beskrivelse: rapportUploadetIkkeGodkendt
+        ? "Rapporten er uploadet — godkend tallene, så de kommer i spil."
+        : "Upload din første rapport, så tallene kommer i spil.",
       gjort: rapportGjort,
       sti: TJEKLISTE_STIER.rapport,
+      mangler: rapportMangler,
     },
     handout: {
       id: "handout",

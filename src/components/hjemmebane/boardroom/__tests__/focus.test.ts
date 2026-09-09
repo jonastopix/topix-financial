@@ -355,6 +355,7 @@ const tjeklisteAltGjort = (overrides: Partial<TjeklisteInput> = {}): TjeklisteIn
   industry_label: "Håndværk",
   cvr_number: "12345678",
   antal_rapporter: 1,
+  antal_godkendte: 1,
   antal_udfyldte_handouts: 1,
   last_member_message_at: "2026-08-02T10:00:00Z",
   ...overrides,
@@ -450,7 +451,7 @@ describe("slot (a) og kontraktstarten", () => {
 
 describe("slot (0) — tjeklisten som fokuskortets kilde", () => {
   it("uafsluttet tjekliste → KUN ikke-gjorte punkter, i tjeklistens rækkefølge, med titel/beskrivelse/sti", () => {
-    const tjekliste = byggTjekliste(tjeklisteAltGjort({ avatar_url: null, antal_rapporter: 0, last_member_message_at: null }));
+    const tjekliste = byggTjekliste(tjeklisteAltGjort({ avatar_url: null, antal_rapporter: 0, antal_godkendte: 0, last_member_message_at: null }));
     const items = deriveFocus(nulData({ tjekliste, contractStartDate: "2025-01-01" }));
     expect(items.map((i) => i.kind)).toEqual(["tjekliste", "tjekliste", "tjekliste"]);
     expect(items.map((i) => i.sourceId)).toEqual(["profil", "rapport", "besked"]);
@@ -476,6 +477,7 @@ describe("slot (0) — tjeklisten som fokuskortets kilde", () => {
       industry_label: null,
       cvr_number: null,
       antal_rapporter: 0,
+      antal_godkendte: 0,
       antal_udfyldte_handouts: 0,
       last_member_message_at: null,
     });
@@ -518,7 +520,7 @@ describe("slot (0) — tjeklisten som fokuskortets kilde", () => {
   });
 
   it("stabile, unikke keys på tværs af tjekliste-punkter", () => {
-    const tjekliste = byggTjekliste(tjeklisteAltGjort({ avatar_url: null, website: null, antal_rapporter: 0 }));
+    const tjekliste = byggTjekliste(tjeklisteAltGjort({ avatar_url: null, website: null, antal_rapporter: 0, antal_godkendte: 0 }));
     const keys = deriveFocus(base({ tjekliste })).map((i) => i.key);
     expect(new Set(keys).size).toBe(keys.length);
     expect(keys).toEqual(["tjekliste:profil", "tjekliste:virksomhed", "tjekliste:rapport"]);
