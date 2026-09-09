@@ -232,6 +232,7 @@ const GRUNDENS_ANKER: Record<OpgaveSlags, string | null> = {
   opgave_naer_deadline: null, // opgaverne står kun som antal i blok 1
   medlem_har_skrevet: "section-handouts", // blok 6 (slags ikke bygget endnu)
   agentforslag: null, // panelet står i blok 1
+  ikke_i_gang: "section-tal", // «Hjælp … i gang» — tallene mangler, blok 5
 };
 
 /** Samme dom som forsiden (afgoerForsidensDom), for denne ene virksomhed,

@@ -336,6 +336,9 @@ export const hentAdvisorDashboard = () =>
         // Pulsen (9/9, lib/pulsen): svar på forslag — det eneste af de fire
         // tal forsiden ikke allerede havde data til.
         svarRes,
+        // Ny og ikke i gang (9/9, lib/ikkeIGang): uploads pr. virksomhed —
+        // ændrer ordene («har uploadet — ikke godkendt»), ikke dommen.
+        uploadsRes,
       ] = await Promise.all([
         supabase
           .from("conversations")
@@ -399,7 +402,7 @@ export const hentAdvisorDashboard = () =>
           .select("company_id, kpi_key, target_value, target_label") as any),
         (supabase
           .from("company_members")
-          .select("user_id, company_id") as any),
+          .select("user_id, company_id, created_at") as any),
         supabase.rpc("get_all_advisor_profiles"),
         supabase
           .from("milestones")
@@ -500,6 +503,11 @@ export const hentAdvisorDashboard = () =>
           .from("company_actions")
           .select("company_id, status, accepted_at, closed_at, completed_at")
           .or(`accepted_at.gte.${svarGraense},closed_at.gte.${svarGraense},completed_at.gte.${svarGraense}`)
+          .limit(5000) as any),
+        (supabase
+          .from("financial_reports")
+          .select("company_id")
+          .is("deleted_at", null)
           .limit(5000) as any),
       ]);
 
@@ -1095,6 +1103,20 @@ export const hentAdvisorDashboard = () =>
         const eks = senesteMedlemsbeskedByCompany.get(c.company_id);
         if (!eks || c.last_member_message_at > eks) senesteMedlemsbeskedByCompany.set(c.company_id, c.last_member_message_at);
       }
+      // Ny og ikke i gang (lib/ikkeIGang): medlemskabets begyndelse = første
+      // company_members-række; bevis = en MÅLT facts-række; uploads til ordene.
+      const medlemSidenByCompany = new Map<string, string>();
+      for (const m of companyMembers as { company_id: string; created_at?: string | null }[]) {
+        if (!m.company_id || !m.created_at) continue;
+        const hidtil = medlemSidenByCompany.get(m.company_id);
+        if (!hidtil || m.created_at < hidtil) medlemSidenByCompany.set(m.company_id, m.created_at);
+      }
+      const maaltByCompany = new Set<string>();
+      for (const f of facts) if (f.data_basis === "measured") maaltByCompany.add(f.company_id);
+      const uploadsByCompany = new Map<string, number>();
+      for (const r of ((uploadsRes?.data ?? []) as { company_id: string | null }[])) {
+        if (r.company_id) uploadsByCompany.set(r.company_id, (uploadsByCompany.get(r.company_id) ?? 0) + 1);
+      }
       const companyById = new Map<string, any>((companies as any[]).map((c) => [c.id, c]));
       // Ét motor-udfald pr. virksomhed — to universer (9/9): dommen får
       // fladens (uden pending), pulsen får porteføljens (listens 27: status
@@ -1137,6 +1159,10 @@ export const hentAdvisorDashboard = () =>
             senesteMedlemsbeskedAt: senesteMedlemsbeskedByCompany.get(c.company_id) ?? null,
             fornyelseBeslutning: beslutningByCompany.get(c.company_id) ?? null,
             kvittering: kvitteringByCompany.get(c.company_id) ?? null,
+            // Ny og ikke i gang (lib/ikkeIGang, 9/9).
+            medlemSiden: medlemSidenByCompany.get(c.company_id) ?? null,
+            harMaaltRapport: maaltByCompany.has(c.company_id),
+            antalUploads: uploadsByCompany.get(c.company_id) ?? 0,
           };
         };
       const virksomhederTilDom: VirksomhedTilDom[] = investorSummaries
