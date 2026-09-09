@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { Link, Navigate, useNavigate, useSearchParams } from "react-router-dom";
 import { FANE_PARAM, laesFaneParam, type SettingsFane } from "@/lib/hjemmebane/profilUdfyldt";
+import { PROFIL_FELTER, klipTilGraense, tilGemmevaerdi, type ProfilFeltNoegle } from "@/lib/hjemmebane/netvaerksprofil";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel,
   AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
@@ -19,6 +21,7 @@ import CompanyInvitations from "@/components/CompanyInvitations";
 import {
   getMyMemberProfile,
   listExistingExpertise,
+  saveMyCompanyDescription,
   saveMyMemberProfile,
 } from "@/lib/hjemmebane/memberProfile";
 import { INDUSTRY_OPTIONS } from "@/lib/brancher";
@@ -35,6 +38,8 @@ interface CompanyData {
   cvr_number: string | null;
   contact_email: string | null;
   website: string | null;
+  /** «Det laver vi» (9/9) — redigeres i netværksprofilen, ikke i virksomhedsfanen. */
+  description?: string | null;
   contact_phone: string | null;
   logo_url: string | null;
   industry: string | null;
@@ -61,8 +66,14 @@ const Settings = () => {
   const [expertiseTags, setExpertiseTags] = useState<string[]>([]);
   const [expertiseInput, setExpertiseInput] = useState("");
   const [expertiseSuggestions, setExpertiseSuggestions] = useState<string[]>([]);
+  // Profilen forfra (9/9, netvaerksprofil.ts): tre felter — «Det laver vi»
+  // (companies.description), «Det har jeg været igennem» (ask_me_about) og
+  // «Det leder jeg efter» (working_on, omdøbt). Etiketter, hjælpetekster og
+  // grænser bor i motoren; her kun tilstanden.
+  const [detLaverVi, setDetLaverVi] = useState("");
   const [askMeAbout, setAskMeAbout] = useState("");
   const [workingOn, setWorkingOn] = useState("");
+  const queryClient = useQueryClient();
   // Senest GEMTE working_on — sammenligningsgrundlaget for
   // working_on_updated_at-stemplet (kun ægte ændringer stemples).
   const [savedWorkingOn, setSavedWorkingOn] = useState<string | null>(null);
@@ -134,7 +145,7 @@ const Settings = () => {
 
       const { data } = await supabase
         .from("companies")
-        .select("id, name, cvr_number, contact_email, website, contact_phone, logo_url, industry, industry_code, industry_label, weekly_focus_enabled")
+        .select("id, name, cvr_number, contact_email, website, contact_phone, logo_url, industry, industry_code, industry_label, weekly_focus_enabled, description")
         .eq("id", cm.company_id)
         .single();
 
@@ -151,6 +162,7 @@ const Settings = () => {
           industry_label: (data as any).industry_label || "",
         });
         setLogoUrl(data.logo_url || null);
+        setDetLaverVi(data.description || "");
         setWeeklyFocusEnabled((data as any).weekly_focus_enabled ?? false);
         // Derive main category from stored industry_code
         const mainCat = findMainCategoryBySubValue((data as any).industry_code || "");
@@ -251,6 +263,14 @@ const Settings = () => {
     setExpertiseTags((tags) => tags.filter((t) => t !== tag));
   };
 
+  /** De tre felters tilstand under ét — indekseret med motorens nøgler. */
+  const tekster: Record<ProfilFeltNoegle, string> = { det_laver_vi: detLaverVi, vaeret_igennem: askMeAbout, leder_efter: workingOn };
+  const saetTekst = (noegle: ProfilFeltNoegle, v: string) => {
+    if (noegle === "det_laver_vi") setDetLaverVi(v);
+    else if (noegle === "vaeret_igennem") setAskMeAbout(v);
+    else setWorkingOn(v);
+  };
+
   const handleSaveMemberProfile = async () => {
     if (!user) return;
     // Gem-fælden: en ufærdig indtastning i feltet tæller med som tag.
@@ -273,9 +293,23 @@ const Settings = () => {
         savedWorkingOn,
       );
       setSavedWorkingOn(nextWorkingOn);
+      // «Det laver vi» bor på virksomheden — samme knap, egen skrivevej med
+      // nul-række-værn. Uden virksomhed (kan ikke ske for et medlem, men
+      // typen tillader det) springes den over.
+      if (company) {
+        const next = tilGemmevaerdi(detLaverVi);
+        if (next !== (company.description ?? null)) {
+          await saveMyCompanyDescription(company.id, next);
+          setCompany({ ...company, description: next });
+        }
+      }
+      // Profilsiden og Netværket læser gennem RPC'erne med 1–5 min cache —
+      // uden dette viste de den gamle tekst efter et gem.
+      queryClient.invalidateQueries({ queryKey: ["member-profile"] });
+      queryClient.invalidateQueries({ queryKey: ["member-directory"] });
       toast.success("Netværksprofil opdateret");
-    } catch {
-      toast.error("Kunne ikke gemme netværksprofilen");
+    } catch (e) {
+      toast.error("Kunne ikke gemme netværksprofilen", { description: e instanceof Error ? e.message : undefined });
     }
     setSavingMemberProfile(false);
   };
@@ -723,9 +757,35 @@ const Settings = () => {
                 Din profil i netværket
               </h2>
               <p className="text-sm text-muted-foreground mb-4">
-                Det her ser de andre medlemmer. Branche og website henter vi fra din virksomhed.
+                Det her ser de andre medlemmer. Branche, by, stiftelsesår og website henter vi fra din virksomhed — tal viser vi aldrig.
               </p>
-              <div className="space-y-4">
+              <div className="space-y-5">
+                {PROFIL_FELTER.map((f) => {
+                  const vaerdi = tekster[f.noegle];
+                  const rows = f.noegle === "det_laver_vi" ? 2 : 3;
+                  return (
+                    <div key={f.noegle}>
+                      <label htmlFor={`profil-${f.noegle}`} className="block text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1.5">
+                        {f.label}
+                      </label>
+                      <p className="text-xs text-muted-foreground mb-1.5">{f.hjaelp}</p>
+                      <textarea
+                        id={`profil-${f.noegle}`}
+                        value={vaerdi}
+                        onChange={(e) => saetTekst(f.noegle, klipTilGraense(e.target.value, f.noegle))}
+                        maxLength={f.graense}
+                        rows={rows}
+                        placeholder={f.eksempel}
+                        className="w-full px-4 py-2.5 rounded-lg bg-secondary border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 resize-none"
+                      />
+                      <p className="text-xs text-muted-foreground mt-1 text-right">{vaerdi.length}/{f.graense}</p>
+                    </div>
+                  );
+                })}
+                {/* Links og nøgleord — under de tre felter: de bærer ikke
+                    profilen, og ingen skal forbi dem for at komme til det
+                    der gør (9/9). */}
+                <p className="pt-2 text-xs font-medium text-muted-foreground uppercase tracking-wider">Links og nøgleord</p>
                 <div>
                   <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1.5">
                     LinkedIn
@@ -796,40 +856,6 @@ const Settings = () => {
                         ))}
                     </div>
                   )}
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1.5">
-                    Det kan du spørge mig om
-                  </label>
-                  <p className="text-xs text-muted-foreground mb-1.5">
-                    Skriv det, du har prøvet — ikke det, du tilbyder. Konkret erfaring er det, andre husker og skriver til dig om.
-                  </p>
-                  <textarea
-                    value={askMeAbout}
-                    onChange={(e) => setAskMeAbout(e.target.value.slice(0, 400))}
-                    maxLength={400}
-                    rows={3}
-                    placeholder="Fx: Jeg har flyttet en webshop fra 2 til 12 mio. på tre år og taget alle de dyre fejl undervejs med lager og retur."
-                    className="w-full px-4 py-2.5 rounded-lg bg-secondary border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 resize-none"
-                  />
-                  <p className="text-xs text-muted-foreground mt-1 text-right">{askMeAbout.length}/400</p>
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1.5">
-                    Det arbejder jeg med lige nu
-                  </label>
-                  <p className="text-xs text-muted-foreground mb-1.5">
-                    En samtalestart, ikke en statuslinje. Hvad fylder hos dig i denne måned?
-                  </p>
-                  <textarea
-                    value={workingOn}
-                    onChange={(e) => setWorkingOn(e.target.value.slice(0, 200))}
-                    maxLength={200}
-                    rows={2}
-                    placeholder="Fx: Vi skal vælge nyt lagersystem inden nytår, og jeg er ved at drukne i tilbud."
-                    className="w-full px-4 py-2.5 rounded-lg bg-secondary border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 resize-none"
-                  />
-                  <p className="text-xs text-muted-foreground mt-1 text-right">{workingOn.length}/200</p>
                 </div>
               </div>
               <button

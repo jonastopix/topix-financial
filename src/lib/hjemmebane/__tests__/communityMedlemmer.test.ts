@@ -80,15 +80,18 @@ describe("medlemMetaLinje", () => {
 });
 
 describe("medlemTeaser — én sætning om hvad man kan spørge om", () => {
-  it("ask_me_about først, working_on som fallback, ellers null", () => {
-    expect(medlemTeaser({ ask_me_about: "Spørg om moms. Og om told.", working_on: "x" })).toBe("Spørg om moms.");
-    expect(medlemTeaser({ ask_me_about: "  ", working_on: "Bygger en ny webshop" })).toBe("Bygger en ny webshop");
-    expect(medlemTeaser({ ask_me_about: null, working_on: null })).toBeNull();
+  it("ask_me_about først, «det laver vi» som fallback — aldrig «det leder jeg efter» — ellers null", () => {
+    expect(medlemTeaser({ ask_me_about: "Spørg om moms. Og om told.", company_description: "x" })).toBe("Spørg om moms.");
+    expect(medlemTeaser({ ask_me_about: "  ", company_description: "Møbler til hoteller i Norden" })).toBe("Møbler til hoteller i Norden");
+    expect(medlemTeaser({ ask_me_about: null, company_description: null })).toBeNull();
+    // «Det leder jeg efter» (working_on) er en bøn, ikke en præsentation — læses ikke.
+    const medBoen: SporMedlem = m({ user_id: "b", full_name: "B", ask_me_about: null, company_description: undefined, working_on: "Nogen der har ansat en sælger" });
+    expect(medlemTeaser(medBoen)).toBeNull();
   });
 
   it("holder sig under grænsen og klipper ved ord", () => {
     const lang = Array.from({ length: 40 }, (_, i) => `ord${i}`).join(" ");
-    const t = medlemTeaser({ ask_me_about: lang, working_on: null })!;
+    const t = medlemTeaser({ ask_me_about: lang, company_description: null })!;
     expect(t.length).toBeLessThanOrEqual(TEASER_MAKS_TEGN);
     expect(t.endsWith("…")).toBe(true);
     expect(lang.startsWith(t.slice(0, -1))).toBe(true);
