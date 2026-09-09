@@ -8,6 +8,8 @@ import { OpgavelisteView } from "@/components/hjemmebane/opgaver/OpgavelisteView
 import { TAERSKEL, type Linje, type OpgaveSlags, type Pukkellinje, type Virksomhedslinje } from "@/lib/forsidensDom";
 import { LUKNINGS_UDFALD, UDFALD_TEKST, type LukningsUdfald } from "@/lib/opgaveLukning";
 import { pulsLinjer } from "@/lib/pulsen";
+import { SIDEN_SIDST_KEY, hentSidenSidst } from "@/hooks/sidenSidst";
+import { intetNytTekst, sidenSidstLinjer, sidenTekst } from "@/lib/sidenSidst";
 import { cn } from "@/lib/utils";
 
 /**
@@ -172,6 +174,15 @@ export const RaadgiverForsideView = () => {
     enabled: !!user,
     staleTime: 2 * 60_000,
   });
+  // Siden sidst (9/9, hooks/sidenSidst): egen hentning — stemplet og RPC'en —
+  // adskilt fra forsidens datalag, så en fejl her ikke vælter dommen.
+  // Hook i topblokken, før nogen betinget return (React #310).
+  const sidenSidstQuery = useQuery({
+    queryKey: SIDEN_SIDST_KEY(user?.id),
+    queryFn: () => hentSidenSidst(user!.id),
+    enabled: !!user,
+    staleTime: 5 * 60_000,
+  });
   // Lukningen — hook i TOPBLOKKEN, før nogen betinget return (React #310).
   // Skriv, så hent igen: dommen afgør hvad der står; ingen lokal patch.
   const lukning = useMutation({
@@ -284,9 +295,28 @@ export const RaadgiverForsideView = () => {
             </li>
           ))}
         </ul>
-        {/* SIDEN SIDST (Jonas 8/9): pr. rådgiver, syv dages loft — kommer i en
-            senere PR og står HER, mellem pulsen og tallene under stregen.
-            Pladsen er reserveret; intet fabrikeres. */}
+        {/* SIDEN SIDST (Jonas 8/9, lib/sidenSidst + hooks/sidenSidst): hvad der
+            har flyttet sig siden du sidst åbnede — pr. rådgiver, syv dages
+            loft. Fem-seks linjer med tal og navne; tom tilstand er rolig. */}
+        <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft">
+          Siden sidst{sidenSidstQuery.data ? ` · ${sidenTekst(sidenSidstQuery.data.siden, new Date())}` : ""}
+        </p>
+        {sidenSidstQuery.isLoading ? (
+          <div aria-hidden className="pb-4"><div className="h-3 w-2/3 animate-pulse rounded bg-hb-line/60" /></div>
+        ) : sidenSidstQuery.isError ? (
+          <p className="pb-4 text-xs">Kunne ikke hente hvad der er sket siden sidst.</p>
+        ) : sidenSidstQuery.data ? (
+          (() => {
+            const linjer = sidenSidstLinjer(sidenSidstQuery.data.raekker);
+            return linjer.length > 0 ? (
+              <ul className="space-y-1 pb-4">
+                {linjer.map((l) => <li key={l.slags}>{l.tekst}</li>)}
+              </ul>
+            ) : (
+              <p className="pb-4">{intetNytTekst(sidenSidstQuery.data.siden, new Date())}</p>
+            );
+          })()
+        ) : null}
         <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft">Under stregen</p>
         {antalUnder > 0 && (
           <p>
