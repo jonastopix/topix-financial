@@ -1058,6 +1058,11 @@
   <h2>Drift og fundament — ydeevne, overvågning, RLS, døde felter</h2>
   <p class="lede">Ingen fejlovervågning. Hændelser findes ved manuel måling, ikke af nogen alarm — RLS-hullet 3/9 blev fundet med en lånt identitet, ikke af et værn.</p>
   <div class="grid">
+    <div class="card blocked new" data-status="fejl" data-spor="1" data-rammer="ingen">
+      <h3>Cron-jobbene fejler tavst</h3>
+      <p><strong>Målt i prod 9/9 kl. 23:39:</strong> <code>vault.secrets</code> har nul rækker — <code>email_queue_service_role_key</code> er slettet. Alle ni cron-jobs sender <code>Bearer </code> uden nøgle og får 401: <strong>77 kald med 401, nul med 200</strong> så langt <code>net._http_response</code> rækker (kl. 15:20). Ingen mails siden mindst kl. 15:20. Og <code>cron.job_run_details</code> sagde «succeeded» for dem alle hele dagen — det betyder kun at kaldet blev afsendt. Nøglen genskabes i morgen (OVERLEVERING, øverst). <strong>Det der mangler:</strong> et dagligt job der læser <code>net._http_response</code> og siger til når noget svarer andet end 200 — en cron der fejler tavst i otte timer må ikke kunne ske igen.</p>
+      <div class="meta"><span class="tag ny">Ny 9/9</span><span class="tag rust">Kører lige nu</span><span class="tag size">Stor</span></div>
+    </div>
     <div class="card blocked" data-status="fejl" data-spor="1" data-rammer="raadgiver">
       <h3>Ingen fejlovervågning</h3>
       <p>Hverken i frontend eller edge functions. Den slags fejl der ikke kaster — en skrivning der lander det forkerte sted, en webhook der svarer 500 — fanges slet ikke. Stripe gentog doggybeds event fem gange over 19 timer uden at noget i huset sagde til. <em>7/9 (#702):</em> query- og mutationsfejl i frontend logges nu globalt fra QueryClientens caches — et spor, ikke en alarm; edge functions er stadig ubevogtede.</p>
