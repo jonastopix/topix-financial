@@ -21,6 +21,7 @@ import type { CompanyFact } from "@/hooks/useCompanyFacts";
 import { factsToDanishMetrics } from "@/lib/factsAdapter";
 import { afgoerVirksomhedsSignaler, type FactPunkt, type Signal, type VirksomhedsInput } from "@/lib/virksomhedsSignaler";
 import { udloebneForslagTekst } from "@/lib/forslagTab";
+import { dageSiden, erLaengeSiden, sidstOnlineTekst } from "@/lib/sidstOnline";
 import { afgoerMilepael } from "@/lib/milepaelDom";
 import { afgoerIntroSession, introSessionTekst, type IntroBooking } from "@/lib/introSession";
 import { computeMembershipTier, type MembershipTier } from "@/lib/membershipTier";
@@ -1625,6 +1626,17 @@ const Blok7 = ({ d, onOpdateret, onFornyelseAendret }: { d: VirksomhedsData; onO
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm text-hb-ink">{m.full_name}</p>
                     <p className="truncate text-xs text-hb-ink-soft">{[m.email, m.role].filter(Boolean).join(" · ")}</p>
+                    {/* Sidst online pr. person (9/9) — designets løfte for blok 7
+                        («medlemmer med Aldrig logget ind», §4). Pr. person her,
+                        hvor listen siger virksomhedens seneste. Rust fra 90 dage. */}
+                    {(() => {
+                      const dage = dageSiden(m.sidst_online, new Date());
+                      return (
+                        <p className={cn("truncate text-xs", erLaengeSiden(dage) ? "text-hb-rust" : "text-hb-ink-soft")}>
+                          {sidstOnlineTekst(dage)}
+                        </p>
+                      );
+                    })()}
                   </div>
                   {maaFjerneMedlem(!!isAdmin, m.role) && <FjernMedlem medlem={m} onFjernet={onOpdateret} />}
                 </li>

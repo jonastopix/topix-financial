@@ -57,6 +57,9 @@ export interface VirksomhedsMedlem {
   full_name: string;
   email: string | null;
   avatar_url: string | null;
+  /** auth.users.last_sign_in_at via get_users_last_login (9/9); null = aldrig
+      logget ind, eller kaldet fejlede (berigelse). lib/sidstOnline.ts. */
+  sidst_online: string | null;
 }
 
 export interface VirksomhedsInvitation {
@@ -336,12 +339,22 @@ async function hentVirksomhed(companyId: string): Promise<VirksomhedsData | null
   // Anden runde — kun navnene. Tom medlemsliste → ingen kald, tom liste.
   const memberRows = membersRes.data ?? [];
   const profileByUser = new Map<string, { full_name: string; email: string | null; avatar_url: string | null }>();
+  // Sidst online pr. person (9/9, blok 7's løfte «Aldrig logget ind»,
+  // raadgiverfladen-design.md:308): auth.users.last_sign_in_at via RPC'en
+  // (advisor-gated), i samme anden runde som profilerne. Berigelse: fejler
+  // den, er feltet null og fladen skriver «Aldrig logget ind» for ingen.
+  const sidstOnlineByUser = new Map<string, string>();
   if (memberRows.length > 0) {
-    const { data: profiles } = await supabase
-      .from("profiles")
-      .select("user_id, full_name, email, avatar_url")
-      .in("user_id", memberRows.map((m) => m.user_id));
+    const ids = memberRows.map((m) => m.user_id);
+    const [{ data: profiles }, { data: loginRows, error: loginErr }] = await Promise.all([
+      supabase.from("profiles").select("user_id, full_name, email, avatar_url").in("user_id", ids),
+      supabase.rpc("get_users_last_login", { user_ids: ids }),
+    ]);
     for (const p of profiles ?? []) profileByUser.set(p.user_id, p);
+    if (loginErr) console.warn("[useVirksomhed] get_users_last_login fejlede — «sidst online» udelades:", loginErr.message);
+    for (const r of loginRows ?? []) {
+      if (r.user_id && r.last_sign_in_at) sidstOnlineByUser.set(r.user_id, r.last_sign_in_at);
+    }
   }
 
   const raadgiverNavne: Record<string, string> = {};
@@ -359,6 +372,7 @@ async function hentVirksomhed(companyId: string): Promise<VirksomhedsData | null
       full_name: profileByUser.get(m.user_id)?.full_name || "Ukendt",
       email: profileByUser.get(m.user_id)?.email ?? null,
       avatar_url: profileByUser.get(m.user_id)?.avatar_url ?? null,
+      sidst_online: sidstOnlineByUser.get(m.user_id) ?? null,
     })),
     invitationer: invitationsRes.data ?? [],
     samtaler: convsRes.data ?? [],
