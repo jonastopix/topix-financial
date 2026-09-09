@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
-import { afsenderMedNavn, sendManagedEmail } from "../_shared/managedEmail.ts";
+import { SENDER_FROM, sendManagedEmail } from "../_shared/managedEmail.ts";
+import { introPaamindelseModen, introPaamindelseTekst, type RytmeTekst } from "../_shared/onboardingRytme.ts";
 import { authenticateServiceRole, corsHeaders } from "../_shared/edgeFunctionAuth.ts";
 import { bulletproofButton, fallbackLinkBlock } from "../_shared/emailButtonHelpers.ts";
 
@@ -13,9 +14,26 @@ import { bulletproofButton, fallbackLinkBlock } from "../_shared/emailButtonHelp
 // email_queue_service_role_key).
 //
 // Dagligt pg_cron-mål: paaminder fulde medlemmer der endnu ikke har booket deres
-// inkluderede intro-session hos Morten. Foerste mail 2 dage efter
-// medlemskabsstart, derefter maanedligt indtil de booker (intro_session_used_at
-// saettes) eller kontrakten udloeber.
+// inkluderede intro-session hos Morten. Foerste mail INTRO_PAAMINDELSE_FRA_DAG
+// (10) dage efter medlemskabsstart, derefter maanedligt indtil de booker
+// (intro_session_used_at saettes) eller kontrakten udloeber.
+//
+// DAG 10, IKKE DAG 2 — BESLUTTET af Jonas 9/9 («God idé»): dag 2 er FØR de
+// har uploadet noget, så samtalen med Morten har intet grundlag; dag 10 er
+// efter de har haft tid til at lægge tal ind. Det er mail B i onboardingens
+// rytme (analyse-onboardingens-rytme.md §5; dommen og teksten bor i
+// _shared/onboardingRytme.ts, spejl af src/lib/onboardingRytme.ts).
+//
+// SYSTEMETS STEMME (9/9): mailen sendes af en cron, så den siger ikke
+// længere «Du har en sparring med MIG til gode … Morten» — den siger «Din
+// sparring med Morten er inkluderet», afsender «The Boardroom». En maskine
+// der skriver som Morten er en løgn; en maskine der fortæller om Morten er
+// ærlig (analyse §4).
+//
+// ANKERET er første company_members.created_at («de fik adgang»), som
+// forsidens dom, ikkeIGang og onboarding-rytme — ikke contract_start_date
+// (kan ligge før adgangen) og ikke companies.created_at (kan være en
+// importeret ansøgning måneder før). Rækken hentes alligevel i trin 3.
 // HTTP-indgang (Bucket B): samme form som event-reminders —
 // authenticateServiceRole fra _shared/edgeFunctionAuth.ts bag verify_jwt = true.
 // Send-vej, bruger-opslag og opt-out-tjek er genbrugt verbatim fra
@@ -24,12 +42,17 @@ import { bulletproofButton, fallbackLinkBlock } from "../_shared/emailButtonHelp
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
 const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-const SENDER = afsenderMedNavn("Morten fra The Boardroom");
 const APP_URL = "https://app.theboardroom.dk";
 
 // Teksten vises for medlemmer og skrives med danske tegn. Filen er UTF-8, og
 // resten af huset skriver æøå — translitterationen var unødvendig forsigtighed.
-function buildIntroReminderHtml(firstName: string, bookingUrl: string): string {
+const esc = (t: string) => t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+/** Systemets mailramme — ingen underskrift; teksten kommer fra onboardingRytme.introPaamindelseTekst. */
+function buildIntroReminderHtml(t: RytmeTekst): string {
+  const href = `${APP_URL}${t.knap.sti}`;
+  const P = "color:#4a4a4a;font-size:14px;line-height:24px;margin:0 0 14px";
+  const afsnit = t.afsnit.map((a) => `<p style="${P}">${esc(a)}</p>`).join("\n");
   return `<!DOCTYPE html>
 <html>
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
@@ -42,16 +65,14 @@ function buildIntroReminderHtml(firstName: string, bookingUrl: string): string {
   </table>
   <div style="background:#ffffff;border-radius:0 0 10px 10px;padding:28px 28px 0">
     <p style="font-size:11px;font-weight:600;color:#16a34a;text-transform:uppercase;letter-spacing:.08em;margin:0 0 10px">Din sparring med Morten</p>
-    <h1 style="color:#0f1117;font-size:22px;font-weight:700;margin:0 0 14px;line-height:1.3;letter-spacing:-.02em">Du har en sparring med mig til gode</h1>
-    <p style="color:#4a4a4a;font-size:14px;line-height:24px;margin:0 0 14px">Hej ${firstName},</p>
-    <p style="color:#4a4a4a;font-size:14px;line-height:24px;margin:0 0 14px">Du har en sparring med mig på 30 minutter inkluderet i dit medlemskab, og den har du ikke booket endnu.</p>
-    <p style="color:#4a4a4a;font-size:14px;line-height:24px;margin:0 0 14px">Den er der, når du har brug for den. Du vælger selv tidspunktet.</p>
-    ${bulletproofButton({ href: bookingUrl, label: "Book din session", bgColor: "#16a34a" })}
-    ${fallbackLinkBlock(bookingUrl)}
-    <p style="color:#4a4a4a;font-size:14px;line-height:24px;margin:0 0 14px">Morten</p>
+    <h1 style="color:#0f1117;font-size:22px;font-weight:700;margin:0 0 14px;line-height:1.3;letter-spacing:-.02em">${esc(t.emne)}</h1>
+    <p style="${P}">${esc(t.overskrift)}</p>
+${afsnit}
+    ${bulletproofButton({ href, label: t.knap.tekst, bgColor: "#16a34a" })}
+    ${fallbackLinkBlock(href)}
     <div style="height:0.5px;background:#e5e7eb;margin:0"></div>
     <div style="padding:16px 0">
-      <span style="font-size:12px;color:#9ca3af">The Boardroom · theboardroom.dk &nbsp;·&nbsp; <a href="${APP_URL}/settings" style="font-size:12px;color:#9ca3af;text-decoration:underline">Administrer notifikationer</a></span>
+      <span style="font-size:12px;color:#9ca3af">The Boardroom · theboardroom.dk &nbsp;·&nbsp; <a href="${APP_URL}/settings" style="font-size:12px;color:#9ca3af;text-decoration:underline">Indstillinger</a></span>
     </div>
   </div>
 </div>
@@ -69,7 +90,8 @@ interface IntroPaamindelsesResultat {
   /** Kun toerkoersel: passerede alle filtre og VILLE have faaet en mail. */
   ville_sende: number;
   sprunget_over: {
-    under_2_dage: number;
+    /** Medlemskabet er under INTRO_PAAMINDELSE_FRA_DAG (10) dage gammelt. */
+    for_tidligt: number;
     ingen_medlemsbruger: number;
     ingen_email: number;
     opt_out: number;
@@ -90,7 +112,7 @@ async function koerIntroPaamindelser(
     sendte: 0,
     ville_sende: 0,
     sprunget_over: {
-      under_2_dage: 0,
+      for_tidligt: 0,
       ingen_medlemsbruger: 0,
       ingen_email: 0,
       opt_out: 0,
@@ -101,7 +123,6 @@ async function koerIntroPaamindelser(
 
   const nowIso = new Date().toISOString();
   const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000).toISOString();
-  const bookingUrl = `${APP_URL}/book-session`;
 
   // 1. Maalgruppe: fulde medlemmer (aktiv kontrakt) der ikke har booket, og hvor der enten
   //    aldrig er sendt en paamindelse eller der er gaaet over 30 dage siden sidst.
@@ -126,17 +147,7 @@ async function koerIntroPaamindelser(
 
   for (const company of companies) {
     try {
-      // 2. Mindst 2 dage medlem. Start = contract_start_date hvis sat, ellers created_at.
-      const start = company.contract_start_date ?? company.created_at;
-      const daysSinceStart = Math.floor(
-        (Date.now() - new Date(start).getTime()) / 86400000
-      );
-      if (daysSinceStart < 2) {
-        resultat.sprunget_over.under_2_dage++;
-        continue;
-      }
-
-      // 3. Find medlemsbrugeren. Rollefilteret .eq("role", "member") er FJERNET
+      // 2+3. Find medlemsbrugeren FØRST — rækkens created_at er ankeret (dag 0). Rollefilteret .eq("role", "member") er FJERNET
       //    (13-08-2026): en intro-sparring er inkluderet i medlemskabet, ikke i en
       //    rolle — ejeren er typisk netop den, sessionen er til. I prod-toerkoerslen
       //    var 8 af 12 kandidater role='owner' og blev fejlagtigt talt som
@@ -147,14 +158,21 @@ async function koerIntroPaamindelser(
       //    faelde som user_company_id), derfor deterministisk aeldste raekke foerst.
       const { data: members } = await supabase
         .from("company_members")
-        .select("user_id")
+        .select("user_id, created_at")
         .eq("company_id", company.id)
         .order("created_at", { ascending: true })
         .limit(1);
 
-      const member = members?.[0] as any;
+      const member = members?.[0] as { user_id?: string; created_at?: string } | undefined;
       if (!member?.user_id) {
         resultat.sprunget_over.ingen_medlemsbruger++;
+        continue;
+      }
+
+      // Dag 10 (motoren: introPaamindelseModen) — regnet fra første
+      // medlemsrække, ikke fra kontrakten. Se filhovedet.
+      if (!introPaamindelseModen(member.created_at ?? company.created_at, new Date())) {
+        resultat.sprunget_over.for_tidligt++;
         continue;
       }
 
@@ -185,14 +203,15 @@ async function koerIntroPaamindelser(
         continue;
       }
 
-      const firstName = profile?.full_name?.split(" ")[0] || "dig";
-      const subject = "Du har en sparring med mig til gode";
-      const html = buildIntroReminderHtml(firstName, bookingUrl);
+      const firstName = profile?.full_name?.trim().split(" ")[0] || null;
+      const tekst = introPaamindelseTekst(firstName);
+      const subject = tekst.emne;
+      const html = buildIntroReminderHtml(tekst);
       // 5. Send-vej: mailen sendes med det samme og bogfoeres i email_send_log.
       const mailResultat = await sendManagedEmail({
         adminClient: supabase,
         to: email,
-        from: SENDER,
+        from: SENDER_FROM,
         subject,
         html,
         text: subject,

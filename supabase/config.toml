@@ -151,6 +151,11 @@ project_id = "loiavmastgeieqyiwyyr"
   # passerer gaten i prod. Tørkørsel som standard.
   [functions.indgangs-paamindelser-cron]
     verify_jwt = true
+  # Onboardingens rytme (9/9): samme form som indgangs-paamindelser-cron —
+  # Bucket B, authenticateServiceRole, pg_cron-job med vault-nøglen passerer
+  # gaten. Tørkørsel som standard. Mail A (dag 0–1) og C (dag 14–20).
+  [functions.onboarding-rytme]
+    verify_jwt = true
   # Samme begrundelse som indgangs-paamindelser-cron: Bucket B,
   # authenticateServiceRole, pg_cron-job med vault-nøglen passerer gaten.
   # Tørkørsel som standard; ren rapport indtil afsendelsen bygges (7/9).
