@@ -473,6 +473,19 @@ service role (edge functions `create-stripe-checkout`, `stripe-webhook`,
 `company_id`, Stripe ids, Calendly URIs and, from 8/9, `start_tid`/`slut_tid`
 — no member PII beyond the ids.
 
+### Front-page «siden sidst» (`forside_sidst_set`, `get_siden_sidst`)
+Migration `20260909100000_siden_sidst.sql`. `forside_sidst_set` holds one
+row per user (`user_id` PK, `set_at`) — when the advisor last opened the
+front page; self-only SELECT/INSERT/UPDATE (`user_id = auth.uid()`), same
+pattern as `conversation_last_seen`. `get_siden_sidst(siden timestamptz)` is
+a `STABLE SECURITY DEFINER` sql function, EXECUTE to authenticated, with
+`has_role(auth.uid(), 'advisor')` in the WHERE — zero rows for non-advisors
+(the `get_users_last_login` pattern). It reads `financial_report_facts`,
+`messages`/`conversations`, `company_actions`, `company_traek`,
+`company_perioder`, `company_members` and `companies` across all companies
+and returns only counts and up to six company names per kind. No message
+content, no amounts, no member ids leave the function.
+
 ### Shared member-profile layer (`member_profiles`)
 - Purpose: the PERSONAL layer of the member profile — `linkedin_url`,
   `expertise`, `bio`. Industry and website live on `companies` (so two
