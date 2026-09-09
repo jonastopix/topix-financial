@@ -3356,6 +3356,7 @@ export type Database = {
         Returns: {
           ask_me_about: string
           avatar_url: string
+          city: string
           company_description: string
           company_name: string
           expertise: string[]
@@ -3364,6 +3365,7 @@ export type Database = {
           is_advisor: boolean
           linkedin_url: string
           member_since: string
+          stiftet_aar: number
           user_id: string
           website: string
           working_on: string
@@ -3375,6 +3377,7 @@ export type Database = {
         Returns: {
           ask_me_about: string
           avatar_url: string
+          city: string
           company_description: string
           company_name: string
           expertise: string[]
@@ -3383,6 +3386,7 @@ export type Database = {
           is_advisor: boolean
           linkedin_url: string
           member_since: string
+          stiftet_aar: number
           user_id: string
           website: string
           working_on: string
@@ -3394,6 +3398,7 @@ export type Database = {
         Returns: {
           ask_me_about: string
           avatar_url: string
+          city: string
           company_description: string
           company_name: string
           expertise: string[]
@@ -3402,6 +3407,7 @@ export type Database = {
           is_advisor: boolean
           linkedin_url: string
           member_since: string
+          stiftet_aar: number
           user_id: string
           website: string
           working_on: string
