@@ -1,5 +1,53 @@
 # Overlevering
 
+> ## 🔴 DRIFTSFEJL DER KØRER LIGE NU — MÅLT I PROD 9/9 KL. 23:39
+>
+> **`vault.secrets` HAR NUL RÆKKER.** Ikke bare `vault.decrypted_secrets` — den
+> rå tabel er tom. Hemmeligheden **`email_queue_service_role_key` er SLETTET.**
+>
+> **Konsekvensen:** alle NI cron-jobs sender `Bearer ` uden nøgle og får
+> **401 UNAUTHORIZED_NO_AUTH_HEADER**. Målt: **77 kald med 401, NUL med 200**,
+> så langt `net._http_response` rækker tilbage (kl. 15:20 i dag — tabellen
+> ryddes løbende). De ni: `daily-report-reminder` · `fornyelsesvarsler` ·
+> `indgangs-paamindelser` · `intro-session-reminder` · `event-reminders` ·
+> `generate-weekly-focus` · `send-monthly-digest` ·
+> `process-notification-emails` · `slet-medlemsdata`. **INGEN AF DEM VIRKER.
+> Ingen mails er sendt siden mindst kl. 15:20.**
+>
+> **FÆLDEN, som skal stå skarpt:** `cron.job_run_details` siger «succeeded»
+> for dem alle. Det betyder KUN at `net.http_post` blev afsendt — ikke at
+> kaldet lykkedes. Vi har læst «succeeded» hele dagen og troet det var bevis.
+> **Det rigtige bevis er `status_code` i `net._http_response`.** (DEL 4.)
+>
+> **Hvornår:** fornyelsesvarslerne sendte rigtige mails 8/9 kl. 11:57, så det
+> er sket inden for et døgn. Mest sandsynlige årsag: Lovables mailopdatering
+> 9/9 kl. 06:52–06:58, hvor `process-email-queue` blev slettet — og
+> `email_queue_service_role_key` var netop den funktions nøgle. **IKKE
+> bevist**; `net._http_response` rækker ikke langt nok tilbage.
+>
+> **I MORGEN, SOM DET FØRSTE:**
+> 1. **Genskab hemmeligheden i vault** med projektets service role key. Den
+>    kan IKKE hentes fra Lovables Secrets-flade (de kan ikke genvises) — den
+>    skal hentes fra Supabase-projektets egne API-indstillinger. Bogført
+>    tidligere: **41 tegn, starter med `sb_secret_`**, ikke den gamle
+>    219-tegns JWT.
+> 2. **Kald `fornyelsesvarsel-cron` tørt og bekræft 200** — i
+>    `net._http_response`, ikke i `cron.job_run_details`.
+> 3. **Kontrollér hvad der er gået tabt:** hvilke mails SKULLE være sendt i
+>    dag — rapportpåmindelser kl. 9, indgangens kl. 10, fornyelsens kl. 11 —
+>    og om nogen skal sendes manuelt.
+> 4. **Overvej et værn:** et dagligt job der læser `net._http_response` og
+>    siger til hvis noget svarer andet end 200. En cron der fejler tavst i
+>    otte timer må ikke kunne ske igen. (Mangellisten: «Cron-jobbene fejler
+>    tavst».)
+>
+> **Måling der viser om det er rettet:**
+> ```sql
+> SELECT count(*) FROM vault.secrets WHERE name = 'email_queue_service_role_key';  -- 1
+> SELECT status_code, count(*) FROM net._http_response
+> WHERE created > now() - interval '2 hours' GROUP BY 1;                          -- kun 200
+> ```
+
 > **MÅLT I PROD 7. SEPTEMBER 2026 KL. 20:42 — DAGENS SIDSTE OG VIGTIGSTE
 > MÅLING. 29 AF 37 VIRKSOMHEDER ER FALDET UD. TO BRUGER PLATFORMEN SOM
 > TÆNKT.** **RETTET 8/9 KL. 08:49: 19 AF 27.** Tallet var forkert —
@@ -3283,6 +3331,12 @@ facit og rækkefølge; `docs/chat-design.md` chattens form.
 
 De konkrete ting der har kostet tid. Led efter dem.
 
+- **«succeeded» i `cron.job_run_details` er IKKE bevis for at kaldet
+  lykkedes.** Det betyder kun at `net.http_post` blev afsendt. 9/9 stod
+  alle ni jobs som «succeeded» mens hvert kald fik 401, fordi vault-nøglen
+  var slettet — otte timer, 77 kald, nul mails. Beviset er `status_code`
+  i `net._http_response` (som ryddes løbende — mål samme dag). Øverst i
+  denne fil.
 - **`Deno.cron` kører ikke på Supabases edge-runtime.** En funktion med
   kun `Deno.cron` kører aldrig. Påmindelser skal have en HTTP-indgang og
   planlægges med pg_cron (net.http_post + vault-nøglen
