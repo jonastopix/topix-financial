@@ -8,6 +8,7 @@ import { afgoerVirksomhedsSignaler, isFiguresFresh, type FactPunkt, type Signal,
 import { afgoerForsidensDom, type OpgaveTilDom, type VirksomhedTilDom } from "@/lib/forsidensDom";
 import { kraevRaekker } from "@/lib/kraevRaekker";
 import { laesKvittering, type Kvittering } from "@/lib/opgaveLukning";
+import { afgoerPulsen, SVAR_VINDUE_DAGE, type PulsSvar } from "@/lib/pulsen";
 import { erForslagGyldigt } from "@/lib/forslagUdloeb";
 import { afgoerFornyelsestilstand, type Fornyelsesbeslutning } from "@/lib/fornyelse";
 import { afgoerBetalingsfrist } from "@/lib/betalingsfrist";
@@ -313,6 +314,7 @@ export const ADVISOR_DASHBOARD_QUERY_KEY = (userId: string | undefined) =>
 export const hentAdvisorDashboard = () =>
       Sentry.startSpan({ name: "advisor-dashboard.load", op: "advisor.query" }, async (span) => {
       const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString();
+      const svarGraense = new Date(Date.now() - SVAR_VINDUE_DAGE * 86400000).toISOString();
       const twoWeeksAgo = new Date(Date.now() - 14 * 86400000).toISOString();
       const [
         convRes, companiesRes, factsRes,
@@ -331,6 +333,9 @@ export const hentAdvisorDashboard = () =>
         // Lukningen (Jonas 8/9, lib/opgaveLukning): den nyeste kvittering
         // med grundlag pr. virksomhed — «Færdiggjort»/«Ikke relevant».
         kvitteringerRes,
+        // Pulsen (9/9, lib/pulsen): svar på forslag — det eneste af de fire
+        // tal forsiden ikke allerede havde data til.
+        svarRes,
       ] = await Promise.all([
         supabase
           .from("conversations")
@@ -485,6 +490,15 @@ export const hentAdvisorDashboard = () =>
           .not("grundlag", "is", null)
           .order("acknowledged_at", { ascending: false })
           .limit(2000) as any),
+        // Pulsen, tal 2: forslag der er SVARET på inden for SVAR_VINDUE_DAGE —
+        // accepteret (accepted_at) eller lukket (closed_at; status afgør i
+        // motoren om lukningen var et svar). Uden status = active-filtret,
+        // som opgave-hentningen ovenfor har; ét lille kald, ingen RPC.
+        (supabase
+          .from("company_actions")
+          .select("company_id, status, accepted_at, closed_at")
+          .or(`accepted_at.gte.${svarGraense},closed_at.gte.${svarGraense}`)
+          .limit(5000) as any),
       ]);
 
       // DELKALDENE KASTER (7/9, recon-tavse-fejl.md pkt. 1): de ni kilder
@@ -1116,6 +1130,16 @@ export const hentAdvisorDashboard = () =>
           };
         });
       const dom = afgoerForsidensDom(virksomhederTilDom, now);
+      // Pulsen (lib/pulsen): samme univers og samme motor-udfald som dommen,
+      // facts som de er hentet (data_basis afgør «målt»), seneste afsluttede
+      // måned = missingKey (getMissingReportKey), svarene fra svarRes.
+      const pulsen = afgoerPulsen({
+        virksomheder: virksomhederTilDom,
+        facts: facts.map((f) => ({ company_id: f.company_id, period_key: f.period_key, data_basis: f.data_basis ?? null })),
+        maanedNoegle: missingKey,
+        svar: ((svarRes?.data ?? []) as PulsSvar[]),
+        nu: now,
+      });
 
       const svarBytes = [
         convRes, companiesRes, factsRes, pulseRes, recentReportsRes,
@@ -1138,7 +1162,7 @@ export const hentAdvisorDashboard = () =>
 
       return {
         investorSummaries, companyMap, activityFeed, convByCompany, expiredCompanyIds, pendingCompanyIds,
-        buckets, dom, advisorProfiles,
+        buckets, dom, pulsen, advisorProfiles,
         allConversations, companyToUser, companies, legatCompanyIds,
         companyMemberNameMap,
         recentReportsData: (recentReportsRes.data || []) as { id: string; company_id: string }[],
