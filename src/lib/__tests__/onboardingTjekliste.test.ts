@@ -11,7 +11,6 @@ import {
 const TOM: TjeklisteInput = {
   har_velkomstvideo: true,
   velkomstvideo_set_at: null,
-  avatar_url: null,
   ask_me_about: null,
   website: null,
   industry_label: null,
@@ -25,7 +24,6 @@ const TOM: TjeklisteInput = {
 const FULD: TjeklisteInput = {
   har_velkomstvideo: true,
   velkomstvideo_set_at: "2026-09-02T10:00:00.000Z",
-  avatar_url: "https://x/storage/v1/object/public/avatars/u1/avatar",
   ask_me_about: "Likviditet og prissætning i håndværk.",
   website: "https://firma.dk",
   industry_label: "Håndværk",
@@ -70,7 +68,7 @@ describe("byggTjekliste — yderpunkterne", () => {
 describe("byggTjekliste — hvert punkt for sig: kun det ene felt sat, kun det punkt bliver true", () => {
   const kunEt: { id: TjeklistePunktId; input: Partial<TjeklisteInput> }[] = [
     { id: "velkomst", input: { velkomstvideo_set_at: FULD.velkomstvideo_set_at } },
-    { id: "profil", input: { avatar_url: FULD.avatar_url, ask_me_about: FULD.ask_me_about } },
+    { id: "profil", input: { ask_me_about: FULD.ask_me_about } },
     { id: "virksomhed", input: { website: FULD.website, industry_label: FULD.industry_label, cvr_number: FULD.cvr_number } },
     { id: "rapport", input: { antal_rapporter: 1, antal_godkendte: 1 } },
     { id: "handout", input: { antal_udfyldte_handouts: 1 } },
@@ -89,19 +87,20 @@ describe("byggTjekliste — hvert punkt for sig: kun det ene felt sat, kun det p
 });
 
 describe("byggTjekliste — delvist gjort", () => {
-  it("profil: avatar men ikke ask_me_about → gjort=false, mangler nævner ask_me_about og IKKE billedet", () => {
-    const ud = byggTjekliste({ ...TOM, avatar_url: FULD.avatar_url });
+  it("profil: ask_me_about mangler → gjort=false, mangler er præcis det ene — intet om billedet (9/9)", () => {
+    const ud = byggTjekliste(TOM);
     const profil = ud.punkter.find((p) => p.id === "profil")!;
     expect(profil.gjort).toBe(false);
-    expect(profil.mangler).toContain(MANGLER_TEKST.ask_me_about);
-    expect(profil.mangler).not.toContain(MANGLER_TEKST.billede);
+    expect(profil.mangler).toEqual([MANGLER_TEKST.ask_me_about]);
+    expect(profil.mangler!.join(" ")).not.toMatch(/billede/);
+    expect(profil.beskrivelse).toBe("Hvad de andre kan spørge dig om.");
   });
 
-  it("profil: ask_me_about men ikke avatar → mangler nævner billedet og IKKE ask_me_about", () => {
+  it("profil: ask_me_about alene er nok — billedet indgår ikke (bor på /konto)", () => {
     const ud = byggTjekliste({ ...TOM, ask_me_about: FULD.ask_me_about });
     const profil = ud.punkter.find((p) => p.id === "profil")!;
-    expect(profil.gjort).toBe(false);
-    expect(profil.mangler).toEqual([MANGLER_TEKST.billede]);
+    expect(profil.gjort).toBe(true);
+    expect(profil.mangler).toEqual([]);
   });
 
   it("virksomhed: website og CVR men ikke branche → mangler er præcis branchen", () => {
@@ -126,11 +125,11 @@ describe("byggTjekliste — delvist gjort", () => {
 });
 
 describe("byggTjekliste — tomme strenge og mellemrum tæller ikke som udfyldt", () => {
-  it("profil: avatar_url og ask_me_about som tomme strenge / mellemrum", () => {
-    const gjort = gjortAf({ ...TOM, avatar_url: "", ask_me_about: "   " });
+  it("profil: ask_me_about som tom streng / mellemrum", () => {
+    const gjort = gjortAf({ ...TOM, ask_me_about: "   " });
     expect(gjort.profil).toBe(false);
-    const profil = byggTjekliste({ ...TOM, avatar_url: "", ask_me_about: "   " }).punkter.find((p) => p.id === "profil")!;
-    expect(profil.mangler).toEqual([MANGLER_TEKST.billede, MANGLER_TEKST.ask_me_about]);
+    const profil = byggTjekliste({ ...TOM, ask_me_about: "   " }).punkter.find((p) => p.id === "profil")!;
+    expect(profil.mangler).toEqual([MANGLER_TEKST.ask_me_about]);
   });
 
   it("virksomhed: et website på « » er ikke et website", () => {
@@ -201,11 +200,11 @@ describe("byggTjekliste — rækkefølge og stier er LÅST", () => {
     expect(byggTjekliste(FULD).punkter.map((p) => p.id)).toEqual(byggTjekliste(TOM).punkter.map((p) => p.id));
   });
 
-  it("stierne: profil og virksomhed → /settings, rapport → /rapportering, handout → /handouts, besked → /chat, velkomst → tom", () => {
+  it("stierne: profil → /settings?fane=profil (fanen, ikke siden — 9/9), virksomhed → /settings, rapport → /rapportering, handout → /handouts, besked → /chat, velkomst → tom", () => {
     const stier = Object.fromEntries(byggTjekliste(TOM).punkter.map((p) => [p.id, p.sti]));
     expect(stier).toEqual({
       velkomst: "",
-      profil: "/settings",
+      profil: "/settings?fane=profil",
       virksomhed: "/settings",
       rapport: "/rapportering",
       handout: "/handouts",

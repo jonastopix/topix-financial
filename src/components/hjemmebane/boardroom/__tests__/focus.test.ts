@@ -265,7 +265,7 @@ describe("deriveFocus — hver kilde for sig", () => {
       kind: "empty-profile",
       priority: 9,
       title: "Fortæl de andre hvad du er god til",
-      ctaHref: "/settings",
+      ctaHref: "/settings?fane=profil",
     });
   });
 
@@ -349,7 +349,6 @@ describe("deriveFocus — rækkefølge og tom-tilstand", () => {
 const tjeklisteAltGjort = (overrides: Partial<TjeklisteInput> = {}): TjeklisteInput => ({
   har_velkomstvideo: true,
   velkomstvideo_set_at: "2026-08-01T10:00:00Z",
-  avatar_url: "https://x/avatar.png",
   ask_me_about: "Likviditet",
   website: "https://firma.dk",
   industry_label: "Håndværk",
@@ -451,7 +450,7 @@ describe("slot (a) og kontraktstarten", () => {
 
 describe("slot (0) — tjeklisten som fokuskortets kilde", () => {
   it("uafsluttet tjekliste → KUN ikke-gjorte punkter, i tjeklistens rækkefølge, med titel/beskrivelse/sti", () => {
-    const tjekliste = byggTjekliste(tjeklisteAltGjort({ avatar_url: null, antal_rapporter: 0, antal_godkendte: 0, last_member_message_at: null }));
+    const tjekliste = byggTjekliste(tjeklisteAltGjort({ ask_me_about: null, antal_rapporter: 0, antal_godkendte: 0, last_member_message_at: null }));
     const items = deriveFocus(nulData({ tjekliste, contractStartDate: "2025-01-01" }));
     expect(items.map((i) => i.kind)).toEqual(["tjekliste", "tjekliste", "tjekliste"]);
     expect(items.map((i) => i.sourceId)).toEqual(["profil", "rapport", "besked"]);
@@ -459,8 +458,8 @@ describe("slot (0) — tjeklisten som fokuskortets kilde", () => {
     expect(items[0]).toMatchObject({
       key: "tjekliste:profil",
       title: "Din profil",
-      description: "Et billede, og hvad de andre kan spørge dig om.",
-      ctaHref: "/settings",
+      description: "Hvad de andre kan spørge dig om.",
+      ctaHref: "/settings?fane=profil",
       ctaLabel: "Gør det nu",
     });
     expect(items[1].ctaHref).toBe("/rapportering");
@@ -471,7 +470,6 @@ describe("slot (0) — tjeklisten som fokuskortets kilde", () => {
     const tjekliste = byggTjekliste({
       har_velkomstvideo: true,
       velkomstvideo_set_at: null,
-      avatar_url: null,
       ask_me_about: null,
       website: null,
       industry_label: null,
@@ -520,7 +518,7 @@ describe("slot (0) — tjeklisten som fokuskortets kilde", () => {
   });
 
   it("stabile, unikke keys på tværs af tjekliste-punkter", () => {
-    const tjekliste = byggTjekliste(tjeklisteAltGjort({ avatar_url: null, website: null, antal_rapporter: 0, antal_godkendte: 0 }));
+    const tjekliste = byggTjekliste(tjeklisteAltGjort({ ask_me_about: null, website: null, antal_rapporter: 0, antal_godkendte: 0 }));
     const keys = deriveFocus(base({ tjekliste })).map((i) => i.key);
     expect(new Set(keys).size).toBe(keys.length);
     expect(keys).toEqual(["tjekliste:profil", "tjekliste:virksomhed", "tjekliste:rapport"]);

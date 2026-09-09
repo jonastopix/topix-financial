@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { PROFIL_OPFORDRING, PROFIL_OPFORDRING_LINK, PROFIL_STI } from "@/lib/hjemmebane/profilUdfyldt";
 import { Link } from "react-router-dom";
 import { listMemberDirectory, type MemberProfile } from "@/lib/hjemmebane/memberProfile";
 import {
@@ -62,8 +63,8 @@ const MedlemRaekke = ({ profile }: { profile: MemberProfile }) => {
 };
 
 /** Dit eget kort øverst: din tekst — eller opfordringen til at skrive
-    den (MemberProfileViews formulering, samme link til /settings).
-    Rolig, aldrig en fejltilstand. */
+    den (MemberProfileViews formulering, samme link til fanen —
+    profilUdfyldt.ts). Rolig, aldrig en fejltilstand. */
 const MitKort = ({ profile }: { profile: MemberProfile }) => {
   const teaser = medlemTeaser(profile);
   return (
@@ -79,9 +80,9 @@ const MitKort = ({ profile }: { profile: MemberProfile }) => {
         <p className="mt-3 text-xs leading-relaxed text-hb-ink-soft">{teaser}</p>
       ) : (
         <p className="mt-3 text-xs leading-relaxed text-hb-ink-soft">
-          Fortæl de andre hvad du er god til —{" "}
-          <Link to="/settings" className="text-hb-evergreen underline-offset-4 hover:underline">
-            udfyld din profil
+          {PROFIL_OPFORDRING} —{" "}
+          <Link to={PROFIL_STI} className="text-hb-evergreen underline-offset-4 hover:underline">
+            {PROFIL_OPFORDRING_LINK}
           </Link>
         </p>
       )}
