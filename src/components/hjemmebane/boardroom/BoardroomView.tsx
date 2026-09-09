@@ -23,6 +23,7 @@ import { parsePodcastFeed, type PodcastEpisode } from "@/lib/hjemmebane/podcastR
 import { getISOWeekKey } from "@/lib/hjemmebane/week";
 import { denneUgesFredag, naesteUgesFredag, omEnMaaned, tilDatoStreng } from "@/lib/hjemmebane/opgaveDato";
 import { flereForslagTekst, forslagMetaLinje, forslagOverlinje, fristTekst, sorterAktive, vaelgForslag } from "@/lib/hjemmebane/aftaler";
+import { afgoerFokusTom, type FokusTom } from "@/lib/hjemmebane/fokusTom";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { listUpcomingEvents } from "@/lib/hjemmebane/akademiApi";
@@ -1253,14 +1254,16 @@ const FocusCard = ({
   items,
   weeklySummary,
   nextEntry,
-  journeyLine,
+  tom,
 }: {
   loading: boolean;
   items: FocusItem[];
   weeklySummary: string | null;
   nextEntry: AkademiItem | undefined;
-  /** Anerkendelses-linjen (bølge 3) — null når alle tal er 0. */
-  journeyLine: string | null;
+  /** Den tomme tilstand (lib/hjemmebane/fokusTom, 9/9): tre tilstande —
+      aldrig uploadet, uploadet men ikke godkendt, godkendt (med
+      anerkendelseslinjen). Aldrig «Alt er ajour» til en uden tal. */
+  tom: FokusTom;
 }) => {
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
   const displayed = items.slice(0, 4);
@@ -1381,15 +1384,22 @@ const FocusCard = ({
       ) : (
         <div>
           <h3 className="font-editorial text-3xl font-medium leading-tight text-hb-ink md:text-4xl">
-            Alt er ajour.
+            {tom.overskrift}
           </h3>
           {/* Anerkendelse frem for tomhed (bølge 3): samme typografiske
               vægt som den aktive tilstand — overskrift + linje i læsbar
-              grad. Alle tal nul (nyt medlem) → den hidtidige sætning
-              uændret. */}
-          <p className="mt-4 max-w-2xl text-base leading-relaxed text-hb-ink-soft">
-            {journeyLine ?? "Rapport, refleksion og milestones er på plads — brug momentum i dit forløb."}
-          </p>
+              grad. RETTET 9/9: før stod «Alt er ajour / … er på plads» til
+              alle uden punkter, også til seks virksomheder der aldrig har
+              uploadet. Nu afgør lib/hjemmebane/fokusTom tilstanden: aldrig
+              uploadet → «Kom i gang med dine tal»; uploadet, ikke godkendt →
+              «Dine tal venter på dig»; godkendt → «Alt er ajour» + rejsen.
+              CTA'en er det ene næste skridt, samme knap som punkterne. */}
+          <p className="mt-4 max-w-2xl text-base leading-relaxed text-hb-ink-soft">{tom.linje}</p>
+          {tom.cta && (
+            <Link to={tom.cta.to} className="mt-6 inline-block">
+              <HbButton className="h-11 px-5">{tom.cta.label}</HbButton>
+            </Link>
+          )}
         </div>
       )}
       {!loading && nextEntry && (
@@ -1803,6 +1813,24 @@ export const BoardroomView = () => {
 
   const committedKeys = useMemo(() => new Set(facts.map((f) => f.period_key)), [facts]);
 
+  // Uploads (uanset status) — til fokuskortets tomme tilstand (9/9): skelner
+  // «aldrig uploadet» fra «uploadet, ikke godkendt». processedQuery tæller
+  // kun status = processed, så én lille head-tælling her.
+  const uploadsQuery = useQuery({
+    queryKey: ["boardroom", "uploads-antal", companyId],
+    queryFn: async () => {
+      const { count, error } = await supabase
+        .from("financial_reports")
+        .select("id", { count: "exact", head: true })
+        .eq("company_id", companyId!)
+        .is("deleted_at", null);
+      if (error) throw new HentningsFejl("financial_reports", error.message);
+      return count ?? 0;
+    },
+    enabled: !!companyId,
+    staleTime: 3 * 60_000,
+  });
+
   // ── Anerkendelses-linjen til fokus-kortets tom-tilstand (bølge 3) ───────
   // RENT afledt af hånd-data — INGEN nye queries: committedKeys (godkendte
   // facts-perioder, "YYYY-MM"), milestonesQuery (progress >= 100 er SAMME
@@ -1832,6 +1860,13 @@ export const BoardroomView = () => {
       );
     return parts.length > 0 ? `Og rejsen kan ses: ${parts.join(" · ")}.` : null;
   }, [committedKeys, milestonesQuery.data, akademi.orderedByArea]);
+
+  // Den tomme tilstand (lib/hjemmebane/fokusTom): tre tilstande af det
+  // forsiden allerede ved — uploads, godkendte facts, anerkendelseslinjen.
+  const fokusTom = useMemo(
+    () => afgoerFokusTom({ harUploads: (uploadsQuery.data ?? 0) > 0, harGodkendte: committedKeys.size > 0, journeyLine }),
+    [uploadsQuery.data, committedKeys, journeyLine],
+  );
 
   const focus = useMemo(() => {
     if (!companyId) return []; // advisor uden company-override i byggeperioden
@@ -2047,7 +2082,7 @@ export const BoardroomView = () => {
           items={focus}
           weeklySummary={weeklyFocusQuery.data?.summary ?? null}
           nextEntry={nextEntry}
-          journeyLine={journeyLine}
+          tom={fokusTom}
         />
         {/* Ulæste beskeder fejlede (7/9): fokus-laget får 0 ulæste ind og
             tier stille — så siger vi det her, under kortet, i stedet for

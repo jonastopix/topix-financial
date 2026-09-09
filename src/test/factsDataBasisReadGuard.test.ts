@@ -26,6 +26,7 @@ const FORVENTEDE_UNDTAGELSER = [
   "src/components/AdvisorDashboard.tsx",
   "src/components/hjemmebane/rapportering/RapporteringView.tsx",
   "src/components/hjemmebane/virksomheder/VirksomhedslisteView.tsx",
+  "src/hooks/useOnboardingTjekliste.ts",
   "src/pages/Members.tsx",
   "supabase/functions/_shared/companyHardDelete.ts",
   "supabase/functions/ai-data-chat/index.ts",

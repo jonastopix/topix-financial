@@ -22,7 +22,9 @@ import { harVelkomstvideo as doemVelkomstvideo } from "@/lib/appConfig";
  *   profiles.velkomstvideo_set_at, avatar_url   — self-only RLS
  *   member_profiles.ask_me_about                — rækken findes ikke før første gem → null
  *   companies.website, industry_label, cvr_number — brugerens egen virksomhed (companyId)
- *   financial_reports: count, deleted_at is null — virksomhedens
+ *   financial_reports: count, deleted_at is null — virksomhedens uploads
+ *   financial_report_facts: count — virksomhedens GODKENDTE tal (9/9: punktet
+ *     «Dine tal» er først gjort ved godkendelse, ikke ved upload)
  *   handouts: count, status = 'completed', user_id = mig
  *   conversations.last_member_message_at, member_id = mig — sat af triggeren
  *     på messages KUN for ikke-rådgivere (migration 20260311043341)
@@ -51,7 +53,7 @@ export interface OnboardingTjeklisteResultat {
 }
 
 async function hentInput(userId: string, companyId: string): Promise<{ input: TjeklisteInput; velkomstvideoSetAt: string | null }> {
-  const [profilRes, memberProfilRes, companyRes, rapporterRes, handoutsRes, samtaleRes, velkomstRes] = await Promise.all([
+  const [profilRes, memberProfilRes, companyRes, rapporterRes, godkendteRes, handoutsRes, samtaleRes, velkomstRes] = await Promise.all([
     // velkomstvideo_set_at er ikke i de genererede typer endnu (se filhovedet).
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (supabase.from("profiles") as any)
@@ -65,6 +67,13 @@ async function hentInput(userId: string, companyId: string): Promise<{ input: Tj
       .select("id", { count: "exact", head: true })
       .eq("company_id", companyId)
       .is("deleted_at", null),
+    // Godkendte tal: én facts-række er nok — handlingen er medlemmets klik
+    // «Gennemgå og godkend» (commit_report_facts). Company-scoped RLS.
+    // data_basis-undtagelse: eksistens-tælling (head/count) — tjeklisten spørger om medlemmet HAR godkendt, ikke om tallet er målt; ingen talværdi læses
+    supabase
+      .from("financial_report_facts")
+      .select("id", { count: "exact", head: true })
+      .eq("company_id", companyId),
     supabase
       .from("handouts")
       .select("id", { count: "exact", head: true })
@@ -83,7 +92,7 @@ async function hentInput(userId: string, companyId: string): Promise<{ input: Tj
 
   // Fejl i ét opslag vælter hele hentningen — en tjekliste med et gættet
   // punkt er værre end ingen tjekliste (samme holdning som FornyelsesSektion).
-  const fejl = [profilRes, memberProfilRes, companyRes, rapporterRes, handoutsRes, samtaleRes, velkomstRes].find((r) => r.error);
+  const fejl = [profilRes, memberProfilRes, companyRes, rapporterRes, godkendteRes, handoutsRes, samtaleRes, velkomstRes].find((r) => r.error);
   if (fejl?.error) throw new Error(fejl.error.message);
 
   const profil = (profilRes.data ?? null) as { avatar_url: string | null; velkomstvideo_set_at: string | null } | null;
@@ -105,6 +114,7 @@ async function hentInput(userId: string, companyId: string): Promise<{ input: Tj
       industry_label: companyRes.data?.industry_label ?? null,
       cvr_number: companyRes.data?.cvr_number ?? null,
       antal_rapporter: rapporterRes.count ?? 0,
+      antal_godkendte: godkendteRes.count ?? 0,
       antal_udfyldte_handouts: handoutsRes.count ?? 0,
       last_member_message_at: samtaleRes.data?.last_member_message_at ?? null,
     },

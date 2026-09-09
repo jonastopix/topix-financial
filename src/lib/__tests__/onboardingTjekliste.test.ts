@@ -17,6 +17,7 @@ const TOM: TjeklisteInput = {
   industry_label: null,
   cvr_number: null,
   antal_rapporter: 0,
+  antal_godkendte: 0,
   antal_udfyldte_handouts: 0,
   last_member_message_at: null,
 };
@@ -30,6 +31,7 @@ const FULD: TjeklisteInput = {
   industry_label: "Håndværk",
   cvr_number: "12345678",
   antal_rapporter: 1,
+  antal_godkendte: 1,
   antal_udfyldte_handouts: 1,
   last_member_message_at: "2026-09-02T11:00:00.000Z",
 };
@@ -70,7 +72,7 @@ describe("byggTjekliste — hvert punkt for sig: kun det ene felt sat, kun det p
     { id: "velkomst", input: { velkomstvideo_set_at: FULD.velkomstvideo_set_at } },
     { id: "profil", input: { avatar_url: FULD.avatar_url, ask_me_about: FULD.ask_me_about } },
     { id: "virksomhed", input: { website: FULD.website, industry_label: FULD.industry_label, cvr_number: FULD.cvr_number } },
-    { id: "rapport", input: { antal_rapporter: 1 } },
+    { id: "rapport", input: { antal_rapporter: 1, antal_godkendte: 1 } },
     { id: "handout", input: { antal_udfyldte_handouts: 1 } },
     { id: "besked", input: { last_member_message_at: FULD.last_member_message_at } },
   ];
@@ -114,11 +116,12 @@ describe("byggTjekliste — delvist gjort", () => {
     expect(v.mangler).toEqual([MANGLER_TEKST.website, MANGLER_TEKST.branche, MANGLER_TEKST.cvr]);
   });
 
-  it("punkter uden delvis tilstand har ingen mangler-liste", () => {
+  it("punkter uden delvis tilstand har ingen mangler-liste (rapport har en siden 9/9 — tom når intet er uploadet)", () => {
     const ud = byggTjekliste(TOM);
-    for (const id of ["velkomst", "rapport", "handout", "besked"] as TjeklistePunktId[]) {
+    for (const id of ["velkomst", "handout", "besked"] as TjeklistePunktId[]) {
       expect(ud.punkter.find((p) => p.id === id)?.mangler).toBeUndefined();
     }
+    expect(ud.punkter.find((p) => p.id === "rapport")?.mangler).toEqual([]);
   });
 });
 
@@ -145,6 +148,42 @@ describe("byggTjekliste — tomme strenge og mellemrum tæller ikke som udfyldt"
   it("tællinger: 0 er ikke gjort, negative tal er heller ikke gjort", () => {
     expect(gjortAf({ ...TOM, antal_rapporter: 0 }).rapport).toBe(false);
     expect(gjortAf({ ...TOM, antal_udfyldte_handouts: -1 }).handout).toBe(false);
+  });
+});
+
+describe("byggTjekliste — «Dine tal» er gjort ved GODKENDELSE, ikke ved upload (rettet 9/9)", () => {
+  const rapport = (input: TjeklisteInput) => byggTjekliste(input).punkter.find((p) => p.id === "rapport")!;
+
+  it("nul rapporter: ikke gjort, ingen mangler-linje, upload-teksten", () => {
+    const p = rapport({ ...TOM, antal_rapporter: 0, antal_godkendte: 0 });
+    expect(p.gjort).toBe(false);
+    expect(p.mangler).toEqual([]);
+    expect(p.beskrivelse).toBe("Upload din første rapport, så tallene kommer i spil.");
+  });
+
+  it("uploadet men ikke godkendt: IKKE gjort — «Mangler: at godkende tallene», stien er rapporteringen", () => {
+    const p = rapport({ ...TOM, antal_rapporter: 3, antal_godkendte: 0 });
+    expect(p.gjort).toBe(false);
+    expect(p.mangler).toEqual([MANGLER_TEKST.godkendelse]);
+    expect(MANGLER_TEKST.godkendelse).toBe("at godkende tallene");
+    expect(p.beskrivelse).toContain("godkend tallene");
+    expect(p.sti).toBe("/rapportering");
+  });
+
+  it("godkendt: gjort, ingen mangler", () => {
+    const p = rapport({ ...TOM, antal_rapporter: 1, antal_godkendte: 1 });
+    expect(p.gjort).toBe(true);
+    expect(p.mangler).toEqual([]);
+  });
+
+  it("godkendt uden upload-tælling (rapporten slettet efter godkendelse): stadig gjort — facts-rækken er handlingen", () => {
+    expect(rapport({ ...TOM, antal_rapporter: 0, antal_godkendte: 1 }).gjort).toBe(true);
+  });
+
+  it("uploadet-ikke-godkendt holder tjeklisten åben — fokuskortet går ikke videre", () => {
+    const t = byggTjekliste({ ...FULD, antal_godkendte: 0 });
+    expect(t.faerdig).toBe(false);
+    expect(t.antal_gjort).toBe(t.antal_i_alt - 1);
   });
 });
 
