@@ -19,7 +19,7 @@ import { harVelkomstvideo as doemVelkomstvideo } from "@/lib/appConfig";
  * egen profil. `enabled` er false for dem, og hooken svarer null.
  *
  * Kilderne (målt 2/9, recon-onboarding-tjekliste.md §1):
- *   profiles.velkomstvideo_set_at, avatar_url   — self-only RLS
+ *   profiles.velkomstvideo_set_at               — self-only RLS
  *   member_profiles.ask_me_about                — rækken findes ikke før første gem → null
  *   companies.website, industry_label, cvr_number — brugerens egen virksomhed (companyId)
  *   financial_reports: count, deleted_at is null — virksomhedens uploads
@@ -57,7 +57,7 @@ async function hentInput(userId: string, companyId: string): Promise<{ input: Tj
     // velkomstvideo_set_at er ikke i de genererede typer endnu (se filhovedet).
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (supabase.from("profiles") as any)
-      .select("avatar_url, velkomstvideo_set_at")
+      .select("velkomstvideo_set_at")
       .eq("user_id", userId)
       .maybeSingle(),
     supabase.from("member_profiles").select("ask_me_about").eq("user_id", userId).maybeSingle(),
@@ -95,7 +95,7 @@ async function hentInput(userId: string, companyId: string): Promise<{ input: Tj
   const fejl = [profilRes, memberProfilRes, companyRes, rapporterRes, godkendteRes, handoutsRes, samtaleRes, velkomstRes].find((r) => r.error);
   if (fejl?.error) throw new Error(fejl.error.message);
 
-  const profil = (profilRes.data ?? null) as { avatar_url: string | null; velkomstvideo_set_at: string | null } | null;
+  const profil = (profilRes.data ?? null) as { velkomstvideo_set_at: string | null } | null;
   const velkomstvideoSetAt = profil?.velkomstvideo_set_at ?? null;
   // config_value er JSON (jsonb), ikke text: '""'::json er en TOM streng —
   // parset "" (nul tegn), rå «""» (to tegn). Begge skal give «ingen video»,
@@ -108,7 +108,6 @@ async function hentInput(userId: string, companyId: string): Promise<{ input: Tj
     input: {
       har_velkomstvideo: harVelkomstvideo,
       velkomstvideo_set_at: velkomstvideoSetAt,
-      avatar_url: profil?.avatar_url ?? null,
       ask_me_about: memberProfilRes.data?.ask_me_about ?? null,
       website: companyRes.data?.website ?? null,
       industry_label: companyRes.data?.industry_label ?? null,

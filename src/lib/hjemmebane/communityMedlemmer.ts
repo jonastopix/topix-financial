@@ -29,10 +29,11 @@
  *
  * DIG SELV: den indloggede løftes ud af listen og vises øverst som eget
  * kort — med egen tekst, eller med opfordringen til at udfylde
- * (MemberProfileViews formulering, link til /settings).
+ * (MemberProfileViews formulering, link til fanen: profilUdfyldt.PROFIL_STI).
  */
 
 import { uddrag } from "./uddrag";
+import { profilUdfyldt } from "./profilUdfyldt";
 
 /** Det sporet læser af en MemberProfile — et snit, så testene kan bygge rækker uden hele typen. */
 export interface SporMedlem {
@@ -55,9 +56,10 @@ export interface MedlemsSpor<T extends SporMedlem> {
 /** Teaserens øvre længde: én linje-og-lidt i en 288 px kolonne ved 12 px. */
 export const TEASER_MAKS_TEGN = 80;
 
-/** Har medlemmet sagt noget om sig selv — ask_me_about er det bærende felt. */
+/** Har medlemmet sagt noget om sig selv — ask_me_about er det bærende felt.
+    Samme dom som tjeklisten, forsiden og profilsiden (profilUdfyldt.ts, 9/9). */
 export function harProfiltekst(m: Pick<SporMedlem, "ask_me_about">): boolean {
-  return (m.ask_me_about ?? "").trim() !== "";
+  return profilUdfyldt(m);
 }
 
 const sammenlignNavn = (a: SporMedlem, b: SporMedlem): number =>

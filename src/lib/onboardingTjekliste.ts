@@ -3,8 +3,9 @@
  *
  * Onboarding-tjeklisten som ren funktion: hvilke af de seks punkter et nyt
  * medlem HAR gjort. Samme form som betalingsfrist.ts og indgangspris.ts —
- * nul imports, ingen IO, ingen Supabase, ingen React; samme input giver
- * altid samme output. Bruges KUN i fronten; spejles bevidst ikke til Deno.
+ * ingen IO, ingen Supabase, ingen React; eneste import er den rene
+ * profildom (hjemmebane/profilUdfyldt.ts). Samme input giver altid samme
+ * output. Bruges KUN i fronten; spejles bevidst ikke til Deno.
  *
  * HVORFOR: tjeklisten skal krydse af AUTOMATISK efterhånden som medlemmet
  * gør tingene — ikke ved at de markerer noget selv. «Gjort» betyder
@@ -14,7 +15,7 @@
  *
  * DE SEKS PUNKTER (besluttet med Jonas 2/9) i FAST rækkefølge:
  *   1. velkomst    Se velkomsten (video) — først, fordi den forklarer resten.
- *   2. profil      Din profil — billede OG oplysninger      ┐ det platformen
+ *   2. profil      Din profil — hvad man kan spørge dig om ┐ det platformen
  *   3. virksomhed  Din virksomhed — data platformen bruger  ┘ har brug for
  *   4. rapport     Dine tal — den første rapport            ┐ det de får
  *   5. handout     Dit første handout                       ┘ noget ud af
@@ -34,6 +35,8 @@
  * «N af 5». Fladen viser heller ikke overlejringen. Med video: seks.
  */
 
+import { PROFIL_MANGLER_TEKST, PROFIL_STI, profilMangler as profilManglerDom } from "./hjemmebane/profilUdfyldt";
+
 export type TjeklistePunktId = "velkomst" | "profil" | "virksomhed" | "rapport" | "handout" | "besked";
 
 export interface TjeklisteInput {
@@ -42,12 +45,12 @@ export interface TjeklisteInput {
   har_velkomstvideo: boolean;
   /** profiles.velkomstvideo_set_at — nyt felt, se migrationen. Sættes af fladen når videoen er set. */
   velkomstvideo_set_at: string | null;
-  /** profiles.avatar_url. Sættes af Settings (bucket `avatars`, sti {user_id}/avatar). */
-  avatar_url: string | null;
   /**
    * member_profiles.ask_me_about — profilens BÆRENDE felt («Det kan du
    * spørge mig om», migration 20260810200000). Rækken findes ikke før
    * medlemmet gemmer første gang; kalderen sender null når den mangler.
+   * Billedet (profiles.avatar_url) indgik indtil 9/9 — det bor nu på /konto
+   * (#757) og er ikke en del af punktet: dommen er profilUdfyldt.ts.
    */
   ask_me_about: string | null;
   /**
@@ -125,10 +128,11 @@ export const TJEKLISTE_RAEKKEFOELGE: readonly TjeklistePunktId[] = [
   "besked",
 ];
 
-/** Stierne (besluttet 2/9). velkomst er tom: videoen åbner i boksen, ikke på en side. */
+/** Stierne (besluttet 2/9; profil rettet 9/9 til fanen, ikke siden — profilUdfyldt.ts).
+    velkomst er tom: videoen åbner i boksen, ikke på en side. */
 export const TJEKLISTE_STIER: Readonly<Record<TjeklistePunktId, string>> = {
   velkomst: "",
-  profil: "/settings",
+  profil: PROFIL_STI,
   virksomhed: "/settings",
   rapport: "/rapportering",
   handout: "/handouts",
@@ -137,8 +141,7 @@ export const TJEKLISTE_STIER: Readonly<Record<TjeklistePunktId, string>> = {
 
 /** Teksterne for det der kan mangle — eksporteret så fladen og testen bruger samme ord. */
 export const MANGLER_TEKST = {
-  billede: "et profilbillede",
-  ask_me_about: "hvad man kan spørge dig om",
+  ask_me_about: PROFIL_MANGLER_TEKST,
   website: "virksomhedens website",
   branche: "branchen",
   cvr: "CVR-nummeret",
@@ -156,15 +159,14 @@ export function byggTjekliste(input: TjeklisteInput): Tjekliste {
   // besøg på forsiden og bruges bevidst ikke.
   const velkomstGjort = input.velkomstvideo_set_at !== null;
 
-  // PROFIL — billede OG oplysninger. ask_me_about er valgt frem for
+  // PROFIL — ÉT felt: ask_me_about (dommen i profilUdfyldt.ts, 9/9 — målt
+  // nul af 25; gamle medlemmer skal udfylde en NY funktion, så ét felt der
+  // bliver udfyldt slår fire tomme). ask_me_about er valgt frem for
   // full_name, fordi full_name ALTID findes (sættes af handle_new_user ved
   // signup, med fallback til mail-præfikset) og derfor ikke siger om
-  // medlemmet har gjort noget. ask_me_about findes kun når medlemmet selv
-  // har skrevet noget — det er profilens bærende felt, og det er det
-  // forsidens fokusmotor allerede regner som «tom profil».
-  const profilMangler: string[] = [];
-  if (!erSat(input.avatar_url)) profilMangler.push(MANGLER_TEKST.billede);
-  if (!erSat(input.ask_me_about)) profilMangler.push(MANGLER_TEKST.ask_me_about);
+  // medlemmet har gjort noget. Samme dom som forsidens fokusmotor,
+  // profilsiden og Community.
+  const profilMangler = profilManglerDom(input);
 
   // VIRKSOMHED — website OG branche OG CVR. Tre felter, ikke alle:
   // adresse, telefon og logo bruges ikke af noget der regner. Branchen er
@@ -203,7 +205,7 @@ export function byggTjekliste(input: TjeklisteInput): Tjekliste {
     profil: {
       id: "profil",
       titel: "Din profil",
-      beskrivelse: "Et billede, og hvad de andre kan spørge dig om.",
+      beskrivelse: "Hvad de andre kan spørge dig om.",
       gjort: profilMangler.length === 0,
       sti: TJEKLISTE_STIER.profil,
       mangler: profilMangler,

@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { PROFIL_OPFORDRING, PROFIL_OPFORDRING_LINK, PROFIL_STI, profilUdfyldt } from "@/lib/hjemmebane/profilUdfyldt";
 import { Link } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
@@ -48,11 +49,10 @@ export const MemberProfileView = ({ userId }: { userId: string }) => {
   // Rådgiver-markeringen er et TILLÆG i rubrikken — aldrig en erstatning:
   // en rådgiver der også er medlem beholder virksomhed og branche.
   const metaLine = [profile.company_name, profile.industry_label].filter(Boolean).join(" · ");
-  const hasPersonalContent =
-    !!profile.ask_me_about ||
-    !!profile.working_on ||
-    profile.expertise.length > 0 ||
-    !!profile.linkedin_url;
+  // ÉN dom (9/9): udfyldt = ask_me_about. Før så denne side på alle fire
+  // felter, Community og forsiden kun på ask_me_about — så en med LinkedIn
+  // uden tekst fik opfordringen ét sted og ikke det andet. profilUdfyldt.ts.
+  const hasPersonalContent = profilUdfyldt(profile);
   const workingOnDate = profile.working_on_updated_at
     ? new Date(profile.working_on_updated_at).toLocaleDateString("da-DK", {
         day: "numeric",
@@ -173,9 +173,9 @@ export const MemberProfileView = ({ userId }: { userId: string }) => {
       {/* Egen, tom profil: rolig opfordring — aldrig en fejltilstand. */}
       {isOwn && !hasPersonalContent && (
         <p className="mt-8 text-sm text-hb-ink-soft">
-          Fortæl de andre hvad du er god til —{" "}
-          <Link to="/settings" className="text-hb-evergreen underline-offset-4 hover:underline">
-            udfyld din profil
+          {PROFIL_OPFORDRING} —{" "}
+          <Link to={PROFIL_STI} className="text-hb-evergreen underline-offset-4 hover:underline">
+            {PROFIL_OPFORDRING_LINK}
           </Link>
         </p>
       )}

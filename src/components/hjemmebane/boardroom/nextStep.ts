@@ -1,4 +1,5 @@
 import { DANISH_MONTHS } from "@/lib/financialUtils";
+import { PROFIL_STI } from "@/lib/hjemmebane/profilUdfyldt";
 import type { Tjekliste } from "@/lib/onboardingTjekliste";
 
 /** FOKUS-MOTOREN (forside PR 1, hb-forside-recon §D/§G): ÉN samlet,
@@ -419,7 +420,9 @@ export function deriveFocus(inputs: FocusInputs): FocusItem[] {
       title: "Fortæl de andre hvad du er god til",
       description: "Netværket kan kun bruge dig, hvis de ved hvad du har prøvet.",
       ctaLabel: "Udfyld din profil",
-      ctaHref: "/settings",
+      // Fanen, ikke siden (9/9): /settings forvalgte «Virksomhed», og
+      // medlemmet skulle selv finde kortet. Dommen: profilUdfyldt.ts.
+      ctaHref: PROFIL_STI,
     });
   }
 

@@ -1,4 +1,5 @@
 import * as React from "react";
+import { profilUdfyldt } from "@/lib/hjemmebane/profilUdfyldt";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -1780,7 +1781,7 @@ export const BoardroomView = () => {
         .select("ask_me_about")
         .eq("user_id", user!.id)
         .maybeSingle();
-      return !((data as any)?.ask_me_about ?? "").trim();
+      return !profilUdfyldt(data as unknown as { ask_me_about: string | null } | null); // én dom: profilUdfyldt.ts
     },
     enabled: !!user && !isAdvisor,
     staleTime: 5 * 60_000,

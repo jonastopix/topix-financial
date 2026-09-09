@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from "react";
-import { Link, Navigate, useNavigate } from "react-router-dom";
+import { Link, Navigate, useNavigate, useSearchParams } from "react-router-dom";
+import { FANE_PARAM, laesFaneParam, type SettingsFane } from "@/lib/hjemmebane/profilUdfyldt";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel,
   AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
@@ -433,7 +434,19 @@ const Settings = () => {
 
   // Settings is available to all authenticated users (personal profile settings)
 
-  const [activeTab, setActiveTab] = useState<"virksomhed" | "profil" | "notifikationer">("virksomhed");
+  // Fanen forvælges af URL'en (?fane=profil) — de tre nudges til
+  // netværksprofilen (tjeklisten, forsidens fokuskort, den tomme profil)
+  // skal lande i FELTERNE, ikke på en side med faner man skal gætte
+  // (målt 9/9: nul af 25 havde udfyldt; se profilUdfyldt.ts). Ukendt eller
+  // manglende værdi → «virksomhed» som før. Et klik på en fane skriver
+  // parameteren tilbage, så tilbage-knappen og deling holder.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab: SettingsFane = laesFaneParam(searchParams.get(FANE_PARAM));
+  const setActiveTab = (fane: SettingsFane) => {
+    const next = new URLSearchParams(searchParams);
+    if (fane === "virksomhed") next.delete(FANE_PARAM); else next.set(FANE_PARAM, fane);
+    setSearchParams(next, { replace: true });
+  };
 
   /* KONTOEN ER FLYTTET til /konto (Hjemmebane, 9/9): navn, billede,
      adgangskode, login-metoder og log ud. Her bliver virksomheden,
