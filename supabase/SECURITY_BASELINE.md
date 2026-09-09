@@ -473,6 +473,18 @@ service role (edge functions `create-stripe-checkout`, `stripe-webhook`,
 `company_id`, Stripe ids, Calendly URIs and, from 8/9, `start_tid`/`slut_tid`
 — no member PII beyond the ids.
 
+### Member read on own agreement (`company_perioder`, `company_traek`)
+```sql
+company_id = public.user_company_id(auth.uid())
+```
+Migration `20260909120000_medlemmets_adgang_til_aftalen.sql`: one SELECT-only
+policy per table for `authenticated`, next to the existing advisor SELECT and
+service-role FOR ALL. Members get no INSERT/UPDATE/DELETE — periods and
+charges are written by `stripe-webhook` (service role) and periods by
+advisors. `company_fornyelse` deliberately gets no member policy: the
+decision, note and warning stamps are the advisors' notes, not the member's
+agreement.
+
 ### Front-page «siden sidst» (`forside_sidst_set`, `get_siden_sidst`)
 Migration `20260909100000_siden_sidst.sql`. `forside_sidst_set` holds one
 row per user (`user_id` PK, `set_at`) — when the advisor last opened the
