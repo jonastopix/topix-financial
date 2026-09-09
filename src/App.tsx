@@ -21,6 +21,7 @@ import NotFound from "./pages/NotFound";
 // Lazy — member/advisor routes
 const Milestones = lazy(() => import("./pages/Milestones"));
 const Settings = lazy(() => import("./pages/Settings"));
+const Konto = lazy(() => import("./pages/Konto"));
 const ChatShell = lazy(() => import("./pages/ChatShell"));
 const BookSession = lazy(() => import("./pages/BookSession"));
 const Members = lazy(() => import("./pages/Members"));
@@ -260,6 +261,8 @@ const App = () => (
                   MIDLERTIDIG rute ved siden af "/" (AdvisorDashboard i
                   AppLayout) til swappet — samme mønster som de to ovenfor. */}
               <Route path="/forside" element={<AdvisorRoute><Forside /></AdvisorRoute>} />
+              {/* Kontoen i Hjemmebane (9/9): navn, adgangskode, login, log ud — for alle roller. */}
+              <Route path="/konto" element={<ProtectedRoute><Konto /></ProtectedRoute>} />
               <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
               <Route path="/admin/config" element={<AdminRoute><AdminConfig /></AdminRoute>} />
               <Route path="/admin/emails" element={<AdminRoute><EmailTemplates /></AdminRoute>} />

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from "react";
-import { Navigate, useNavigate } from "react-router-dom";
+import { Link, Navigate, useNavigate } from "react-router-dom";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel,
   AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
@@ -11,7 +11,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { Settings as SettingsIcon, User, Users, Building2, Save, Loader2, Globe, Phone, Hash, Upload, ImageIcon, Briefcase, Trash2, Send, Mail, Clock, Lock, Link2, AlertTriangle, LogOut, Sparkles } from "lucide-react";
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import PasswordStrengthIndicator, { getPasswordScore } from "@/components/PasswordStrengthIndicator";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { da } from "date-fns/locale";
@@ -48,8 +47,6 @@ const Settings = () => {
   const [leaveDialogOpen, setLeaveDialogOpen] = useState(false);
   const [leaveConfirmName, setLeaveConfirmName] = useState("");
   const [leaving, setLeaving] = useState(false);
-  const [fullName, setFullName] = useState("");
-  const [companyName, setCompanyName] = useState("");
   const [emailPrefs, setEmailPrefs] = useState({
     action_required: true,
     important: true,
@@ -58,14 +55,6 @@ const Settings = () => {
     pulse_reminders: true,
   });
   const [savingPrefs, setSavingPrefs] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [currentPassword, setCurrentPassword] = useState("");
-  const [newPassword, setNewPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [savingPassword, setSavingPassword] = useState(false);
-  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
-  const [uploadingAvatar, setUploadingAvatar] = useState(false);
-  const avatarInputRef = useRef<HTMLInputElement>(null);
   // Netværksprofilen (member_profiles) — branche/website bor på companies.
   const [linkedinUrl, setLinkedinUrl] = useState("");
   const [expertiseTags, setExpertiseTags] = useState<string[]>([]);
@@ -98,9 +87,6 @@ const Settings = () => {
 
   useEffect(() => {
     if (profile) {
-      setFullName(profile.full_name || "");
-      setCompanyName(profile.company_name || "");
-      setAvatarUrl(profile.avatar_url || null);
       const prefs = (profile as any)?.notification_email_prefs;
       if (prefs) {
         setEmailPrefs({
@@ -243,105 +229,6 @@ const Settings = () => {
     setUploadingLogo(false);
   };
 
-  const getInitials = (name: string) =>
-    name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2);
-
-  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !user) return;
-
-    if (!file.type.startsWith("image/")) {
-      toast.error("Vælg venligst en billedfil");
-      return;
-    }
-    if (file.size > 2 * 1024 * 1024) {
-      toast.error("Billede må max være 2 MB");
-      return;
-    }
-
-    setUploadingAvatar(true);
-    const filePath = `${user.id}/avatar`;
-
-    const { error: uploadError } = await supabase.storage
-      .from("avatars")
-      .upload(filePath, file, { upsert: true, contentType: file.type });
-
-    if (uploadError) {
-      toast.error("Kunne ikke uploade billede");
-      setUploadingAvatar(false);
-      return;
-    }
-
-    const { data: urlData } = supabase.storage
-      .from("avatars")
-      .getPublicUrl(filePath);
-
-    const cleanUrl = urlData.publicUrl;
-    const bustUrl = `${cleanUrl}?t=${Date.now()}`;
-
-    const { error: updateError } = await supabase
-      .from("profiles")
-      .update({ avatar_url: cleanUrl })
-      .eq("user_id", user.id);
-
-    if (updateError) {
-      toast.error("Kunne ikke gemme billede-URL");
-    } else {
-      setAvatarUrl(bustUrl);
-      await refreshProfile();
-      toast.success("Profilbillede opdateret");
-    }
-    setUploadingAvatar(false);
-    if (avatarInputRef.current) avatarInputRef.current.value = "";
-  };
-
-  const handleRemoveAvatar = async () => {
-    if (!user) return;
-    setUploadingAvatar(true);
-
-    const { error: deleteError } = await supabase.storage
-      .from("avatars")
-      .remove([`${user.id}/avatar`]);
-
-    if (deleteError) {
-      toast.error("Kunne ikke slette billede");
-      setUploadingAvatar(false);
-      return;
-    }
-
-    const { error: updateError } = await supabase
-      .from("profiles")
-      .update({ avatar_url: null })
-      .eq("user_id", user.id);
-
-    if (updateError) {
-      toast.error("Kunne ikke opdatere profil");
-    } else {
-      setAvatarUrl(null);
-      await refreshProfile();
-      toast.success("Profilbillede fjernet");
-    }
-    setUploadingAvatar(false);
-  };
-
-  const handleSave = async () => {
-    if (!user) return;
-    setSaving(true);
-
-    const { error } = await supabase
-      .from("profiles")
-      .update({ full_name: fullName.trim(), company_name: companyName.trim() })
-      .eq("user_id", user.id);
-
-    if (error) {
-      toast.error("Kunne ikke gemme ændringer");
-    } else {
-      await refreshProfile();
-      toast.success("Profil opdateret");
-    }
-    setSaving(false);
-  };
-
   /** Ren fletning: splitter på komma ("Ledelse, Salg, Drift" → tre tags),
       trimmer og dropper tomme/dubletter. Deles af tilføj OG gem, så gem
       aldrig behøver læse state efter et setState-kald. */
@@ -390,44 +277,6 @@ const Settings = () => {
       toast.error("Kunne ikke gemme netværksprofilen");
     }
     setSavingMemberProfile(false);
-  };
-
-  const handleChangePassword = async () => {
-    if (!currentPassword) {
-      toast.error("Indtast din nuværende adgangskode");
-      return;
-    }
-    if (getPasswordScore(newPassword) < 2) {
-      toast.error("Vælg en stærkere adgangskode");
-      return;
-    }
-    if (newPassword !== confirmPassword) {
-      toast.error("De to adgangskoder matcher ikke");
-      return;
-    }
-    setSavingPassword(true);
-
-    // Verify current password by re-authenticating
-    const { error: signInError } = await supabase.auth.signInWithPassword({
-      email: user?.email || "",
-      password: currentPassword,
-    });
-    if (signInError) {
-      toast.error(signInError.message.includes("Invalid") ? "Nuværende adgangskode er forkert" : "Kunne ikke verificere adgangskode — prøv igen");
-      setSavingPassword(false);
-      return;
-    }
-
-    const { error } = await supabase.auth.updateUser({ password: newPassword });
-    if (error) {
-      toast.error(error.message);
-    } else {
-      toast.success("Adgangskode opdateret");
-      setCurrentPassword("");
-      setNewPassword("");
-      setConfirmPassword("");
-    }
-    setSavingPassword(false);
   };
 
   const handleLeaveCompany = async () => {
@@ -586,6 +435,16 @@ const Settings = () => {
 
   const [activeTab, setActiveTab] = useState<"virksomhed" | "profil" | "notifikationer">("virksomhed");
 
+  /* KONTOEN ER FLYTTET til /konto (Hjemmebane, 9/9): navn, billede,
+     adgangskode, login-metoder og log ud. Her bliver virksomheden,
+     netværksprofilen og notifikationerne, indtil de tages hver for sig
+     (analyse-settings.md). En rådgiver har ingen af de tre — før viste
+     «Virksomhed» kun Konto-kortet for dem — så de sendes direkte til
+     kontoen: ingen tomme faner. Efter hooks, før render (React #310). */
+  if (isAdvisor || isAdmin) {
+    return <Navigate to="/konto" replace />;
+  }
+
   return (
     <AppLayout>
       <div className="mb-6">
@@ -594,14 +453,15 @@ const Settings = () => {
           Indstillinger
         </h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Administrér din konto og profil
+          Virksomhed, netværksprofil og notifikationer. Navn, adgangskode og login står under{" "}
+          <Link to="/konto" className="text-primary underline-offset-4 hover:underline">Konto</Link>.
         </p>
       </div>
 
       <div className="flex gap-1 border-b border-border mb-6 overflow-x-auto">
         {([
           { key: "virksomhed", label: "Virksomhed" },
-          { key: "profil", label: "Profil & adgangskode" },
+          { key: "profil", label: "Profil i netværket" },
           { key: "notifikationer", label: "Notifikationer" },
         ] as const).map(tab => (
           <button
@@ -811,21 +671,6 @@ const Settings = () => {
               </div>
             )}
 
-            {/* Konto */}
-            <div className="glass-card rounded-xl p-6 animate-fade-in">
-              <h2 className="font-display font-semibold text-foreground mb-3">Konto</h2>
-              <p className="text-xs text-muted-foreground mb-4">
-                Logget ind som <span className="font-medium text-foreground">{user?.email}</span>
-              </p>
-              <button
-                onClick={async () => { await supabase.auth.signOut(); navigate("/auth?force=true", { replace: true }); }}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-border text-sm font-medium text-foreground hover:bg-secondary transition-colors"
-              >
-                <LogOut className="h-4 w-4" />
-                Log ud
-              </button>
-            </div>
-
             {/* Danger zone — members only */}
             {!isAdvisor && !isAdmin && company && (
               <div className="glass-card rounded-xl overflow-hidden animate-fade-in border border-destructive/20">
@@ -857,86 +702,6 @@ const Settings = () => {
         {/* ── Tab 2: Profil & adgangskode ── */}
         {activeTab === "profil" && (
           <>
-            {/* Profile section */}
-            <div className="glass-card rounded-xl p-6 animate-fade-in">
-              <h2 className="font-display font-semibold text-foreground mb-4 flex items-center gap-2">
-                <User className="h-4 w-4 text-primary" />
-                Profil
-              </h2>
-              {/* Avatar upload */}
-              <div className="flex items-center gap-4 mb-5">
-                <div className="h-16 w-16 rounded-full bg-secondary border border-border flex items-center justify-center overflow-hidden shrink-0">
-                  {avatarUrl ? (
-                    <img src={avatarUrl} alt="Profilbillede" className="h-full w-full object-cover" />
-                  ) : (
-                    <span className="text-lg font-semibold text-muted-foreground">
-                      {getInitials(fullName || user?.email || "?")}
-                    </span>
-                  )}
-                </div>
-                <div>
-                  <input
-                    ref={avatarInputRef}
-                    type="file"
-                    accept="image/*"
-                    onChange={handleAvatarUpload}
-                    className="hidden"
-                  />
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => avatarInputRef.current?.click()}
-                      disabled={uploadingAvatar}
-                      className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-secondary border border-border text-sm text-foreground hover:bg-accent transition-colors disabled:opacity-50"
-                    >
-                      {uploadingAvatar ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-                      {avatarUrl ? "Skift billede" : "Upload billede"}
-                    </button>
-                    {avatarUrl && (
-                      <button
-                        onClick={handleRemoveAvatar}
-                        disabled={uploadingAvatar}
-                        className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-secondary border border-border text-sm text-destructive hover:bg-destructive/10 transition-colors disabled:opacity-50"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                        Fjern
-                      </button>
-                    )}
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-1">PNG, JPG – max 2 MB</p>
-                </div>
-              </div>
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1.5">
-                    Fuldt navn
-                  </label>
-                  <input
-                    value={fullName}
-                    onChange={(e) => setFullName(e.target.value)}
-                    className="w-full px-4 py-2.5 rounded-lg bg-secondary border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1.5">
-                    E-mail
-                  </label>
-                  <input
-                    value={user?.email || ""}
-                    disabled
-                    className="w-full px-4 py-2.5 rounded-lg bg-muted border border-border text-sm text-muted-foreground cursor-not-allowed"
-                  />
-                </div>
-              </div>
-              <button
-                onClick={handleSave}
-                disabled={saving}
-                className="mt-5 inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
-              >
-                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                Gem profil
-              </button>
-            </div>
-
             {/* Netværksprofil (member_profiles) — det DELTE lag; alt her
                 er synligt for andre medlemmer via visnings-RPC'erne. */}
             <div className="glass-card rounded-xl p-6 animate-fade-in">
@@ -1064,66 +829,6 @@ const Settings = () => {
               </button>
             </div>
 
-            {/* Change password */}
-            <div className="glass-card rounded-xl p-6 animate-fade-in">
-              <h2 className="font-display font-semibold text-foreground mb-4 flex items-center gap-2">
-                <Lock className="h-4 w-4 text-primary" />
-                Skift adgangskode
-              </h2>
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1.5">
-                    Nuværende adgangskode
-                  </label>
-                  <input
-                    type="password"
-                    value={currentPassword}
-                    onChange={(e) => setCurrentPassword(e.target.value)}
-                    className="w-full px-4 py-2.5 rounded-lg bg-secondary border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
-                    placeholder="••••••••"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1.5">
-                    Ny adgangskode
-                  </label>
-                  <input
-                    type="password"
-                    value={newPassword}
-                    onChange={(e) => setNewPassword(e.target.value)}
-                    className="w-full px-4 py-2.5 rounded-lg bg-secondary border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
-                    placeholder="••••••••"
-                  />
-                </div>
-                <PasswordStrengthIndicator password={newPassword} />
-                <div>
-                  <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1.5">
-                    Bekræft ny adgangskode
-                  </label>
-                  <input
-                    type="password"
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    className="w-full px-4 py-2.5 rounded-lg bg-secondary border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
-                    placeholder="••••••••"
-                  />
-                  {confirmPassword && newPassword !== confirmPassword && (
-                    <p className="text-xs text-destructive mt-1">Adgangskoderne matcher ikke</p>
-                  )}
-                </div>
-              </div>
-              <button
-                onClick={handleChangePassword}
-                disabled={savingPassword || !currentPassword || !newPassword || !confirmPassword}
-                className="mt-5 inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
-              >
-                {savingPassword ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                Opdater adgangskode
-              </button>
-            </div>
-
-            {/* Linked login methods */}
-            <LinkedLoginMethods />
           </>
         )}
 
@@ -1235,71 +940,5 @@ const Settings = () => {
     </AppLayout>
   );
 };
-
-// Linked login methods section (info only — manual linking not available)
-const LinkedLoginMethods = () => {
-  const { user } = useAuth();
-
-  const identities = user?.identities || [];
-  const googleIdentity = identities.find((i) => i.provider === "google");
-  const hasPassword = identities.some((i) => i.provider === "email");
-
-  return (
-    <div className="glass-card rounded-xl p-6 animate-fade-in">
-      <h2 className="font-display font-semibold text-foreground mb-4 flex items-center gap-2">
-        <Link2 className="h-4 w-4 text-primary" />
-        Login-metoder
-      </h2>
-
-      <div className="space-y-3">
-        {/* Email/password */}
-        {hasPassword && (
-          <div className="flex items-center justify-between py-2">
-            <div className="flex items-center gap-3">
-              <Mail className="h-4 w-4 text-muted-foreground" />
-              <div>
-                <p className="text-sm font-medium text-foreground">E-mail & adgangskode</p>
-                <p className="text-xs text-muted-foreground">{user?.email}</p>
-              </div>
-            </div>
-            <span className="text-xs text-primary bg-primary/10 px-2 py-1 rounded">Aktiv</span>
-          </div>
-        )}
-
-        {/* Google */}
-        <div className={`flex items-center justify-between py-2 ${hasPassword ? "border-t border-border pt-3" : ""}`}>
-          <div className="flex items-center gap-3">
-            <svg className="h-4 w-4" viewBox="0 0 24 24">
-              <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4"/>
-              <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
-              <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
-              <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
-            </svg>
-            <div>
-              <p className="text-sm font-medium text-foreground">Google</p>
-              {googleIdentity ? (
-                <p className="text-xs text-muted-foreground">{(googleIdentity as any).identity_data?.email || "Tilknyttet"}</p>
-              ) : (
-                <p className="text-xs text-muted-foreground">Ikke tilknyttet</p>
-              )}
-            </div>
-          </div>
-          {googleIdentity ? (
-            <span className="text-xs text-primary bg-primary/10 px-2 py-1 rounded">Aktiv</span>
-          ) : (
-            <span className="text-xs text-muted-foreground bg-secondary px-2 py-1 rounded">Inaktiv</span>
-          )}
-        </div>
-      </div>
-
-      {!googleIdentity && (
-        <p className="text-xs text-muted-foreground mt-3">
-          Log ind med Google på login-siden for at tilknytte din Google-konto.
-        </p>
-      )}
-    </div>
-  );
-};
-
 
 export default Settings;

@@ -54,6 +54,10 @@ interface HbSidebarProps {
   /** «Kom godt i gang» — henter onboarding-tjeklisten frem igen. Udeladt =
       intet punkt (rådgivere, færdig liste der ikke er lukket, preview). */
   komGodtIGang?: { onClick: () => void };
+  /** Profilblokkens links (9/9): «Konto» (/konto) altid; «Indstillinger»
+      (/settings — virksomhed, netværksprofil, notifikationer) kun for
+      medlemmer, som skallen afgør. Udeladt = kun «Konto». */
+  visIndstillinger?: boolean;
 }
 
 const NavItem = ({ label, active, to }: { label: string; active?: boolean; to?: string }) => {
@@ -100,6 +104,7 @@ const SidebarContent = ({
   homeTo,
   onSignOut,
   komGodtIGang,
+  visIndstillinger = false,
 }: HbSidebarProps) => (
   <>
     {homeTo ? (
@@ -160,12 +165,19 @@ const SidebarContent = ({
       )}
       <div className="min-w-0 text-sm leading-tight">
         <div className="truncate font-medium text-hb-ink">{userName}</div>
-        {/* /settings er en AppLayout-side (gammelt design) — det er
-            bevidst: en vej til indstillinger i gammelt udtryk er bedre
-            end ingen vej. */}
-        <Link to="/settings" className="text-xs text-hb-ink-soft transition-colors hover:text-hb-ink">
-          Indstillinger
-        </Link>
+        {/* «Konto» (/konto, Hb, 9/9) for alle. «Indstillinger» (/settings,
+            AppLayout, gammelt design) kun for medlemmer — dér bor
+            virksomheden, netværksprofilen og notifikationerne indtil de
+            konverteres; en vej i gammelt udtryk er bedre end ingen vej. */}
+        <span className="flex flex-wrap gap-x-2 text-xs text-hb-ink-soft">
+          <Link to="/konto" className="transition-colors hover:text-hb-ink">Konto</Link>
+          {visIndstillinger && (
+            <>
+              <span aria-hidden>·</span>
+              <Link to="/settings" className="transition-colors hover:text-hb-ink">Indstillinger</Link>
+            </>
+          )}
+        </span>
       </div>
       {onSignOut && (
         <button

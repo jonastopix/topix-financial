@@ -118,7 +118,7 @@ export const HbMemberShell = ({
   return (
     <div ref={rodRef} className={`theme-hjemmebane ${fuld ? "h-screen-safe" : "min-h-screen-safe"} bg-hb-paper font-body text-hb-ink antialiased`}>
       <div className={`flex ${fuld ? "h-full overflow-hidden" : "lg:h-screen lg:overflow-hidden"}`}>
-        <HbSidebar avatarSrc={avatarSrc} userName={userName} nav={nav} homeTo={boardroomTo} onSignOut={signOut} komGodtIGang={komGodtIGang} />
+        <HbSidebar avatarSrc={avatarSrc} userName={userName} nav={nav} homeTo={boardroomTo} onSignOut={signOut} komGodtIGang={komGodtIGang} visIndstillinger={!isAdvisor} />
         <div className={`min-w-0 flex-1 ${fuld ? "flex flex-col overflow-hidden" : "lg:overflow-y-auto"}`}>
           <HbNav onMenuClick={() => setDrawerOpen(true)} avatarSrc={avatarSrc} />
           {/* «Visning som» (3/9, recon-raadgiverfladen §4): en rådgiver med et
@@ -135,6 +135,7 @@ export const HbMemberShell = ({
             homeTo={boardroomTo}
             onSignOut={signOut}
             komGodtIGang={komGodtIGang}
+            visIndstillinger={!isAdvisor}
           />
           {fuld ? (
             <main className={`flex min-h-0 flex-1 flex-col ${tjeklisteBundluft}`}>{children}</main>

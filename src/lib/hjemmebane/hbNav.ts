@@ -65,7 +65,7 @@ import type { HbNavEntry } from "@/components/hjemmebane/HbSidebar";
 export type HbAktiv =
   | "boardroom" | "akademiet" | "rapportering" | "noegletal" | "budget" | "milestones" | "handouts"
   | "booksession" | "podcast" | "rabataftaler" | "events" | "medlemmer" | "community" | "chat"
-  | "virksomheder" | "opgaver";
+  | "virksomheder" | "opgaver" | "konto";
 
 export interface HbNavInput {
   isAdvisor: boolean;
