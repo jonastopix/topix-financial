@@ -1,85 +1,11 @@
 /**
- * src/lib/ikkeIGang.ts
+ * supabase/functions/_shared/ikkeIGang.ts
  *
- * Spejlet i supabase/functions/_shared/ikkeIGang.ts — enhver ændring her
- * SKAL også laves der. Pariteten håndhæves af testen i
+ * Spejlet fra src/lib/ikkeIGang.ts — enhver ændring her SKAL også laves
+ * der. Pariteten håndhæves af testen i
  * src/lib/__tests__/ikkeIGangParitet.test.ts. Filen har ingen imports, så
- * de to kopier er ordret ens ud over filhovederne.
- *
- * Spejlet i supabase/functions/_shared/ikkeIGang.ts — enhver ændring her
- * SKAL også laves der. Pariteten håndhæves af testen i
- * src/lib/__tests__/ikkeIGangParitet.test.ts. Filen har ingen imports, så
- * de to kopier er ordret ens ud over filhovederne.
- *
- * «NY OG IKKE KOMMET I GANG» — dommen som ren funktion, testet
- * (src/lib/__tests__/ikkeIGang.test.ts). Forsidens dom (forsidensDom.
- * grundFraIkkeIGang) kalder den og laver en linje af den.
- *
- * BAGGRUND (9/9): seks virksomheder havde medlemmer og havde ALDRIG
- * uploadet — Bastant nåede 165 dage før nogen så det. Motoren og dommen
- * kendte ingen alder (recon-i-gang §3-4): tavsheden er 21 dage siden
- * sidste besked, uanset om der er tal. Jonas 9/9: «Rådgiverforsiden skal
- * sige det på dag 21, ikke på dag 165.»
- *
- * TÆRSKLEN 21 DAGE — målt i prod 9/9 kl. 12:44: af dem der kom til i 2026
- * og NÅEDE en målt rapport, gjorde de det inden for cirka tre uger (Livja
- * 0, YKRG 4, Floren 15, Brick Works 16, Booking Innovation 21,
- * Fjeldgaardshop 27). De langsomme (198–332 dage) er alle fra 2025, før
- * platformen var klar — historik, ikke onboarding.
- *
- * BEVISET er ÉT: den første MÅLTE committede facts-række (data_basis =
- * 'measured'). En upload der ikke er godkendt er ikke tal i drift (73 lå
- * sådan 7/9) — den ændrer ordene, ikke dommen. Svar på forslag er det
- * andet bevis huset kender, men en ny uden tal får ingen forslag
- * (generate-weekly-focus: no_data), så det tæller ikke her.
- *
- * MEDLEMSKABET BEGYNDER ved første company_members-række (signup —
- * «de fik adgang»). Ikke companies.created_at (kan være en importeret
- * ansøgning måneder før), ikke contract_start_date (betalingsdagen for
- * nye, men rådgiverens håndskrevne tal for de gamle, og den kan ligge
- * FØR adgangen: man kan ikke uploade før man er inde). Uden medlem: intet
- * signal — det er invitationens problem (åbne invitationer på
- * /virksomheder), ikke onboardingens.
- *
- * INGEN VENTEN PÅ FØRSTE MÅNEDSSKIFTE (Jonas 9/9): «De kan jo godt
- * rapportere fra FØR medlemsstart. Det vil vi faktisk gerne opfordre dem
- * til, så vi kan få et grundigt grundlag at komme i gang med.» Et nyt
- * medlem har altid noget at uploade fra dag ét — historikken. Tallene
- * bekræfter det: BR Roset og Warburg uploadede FØR kontrakten formelt
- * startede (−49 og −106 dage), Livja nåede en målt rapport på dag 0, YKRG
- * på dag 4. De 21 dage tæller derfor fra medlemskabets start, uden
- * undtagelse for «de har ikke haft en afsluttet måned endnu». RET DET
- * IKKE til at vente på første månedsskifte — det ville gøre signalet
- * blindt i præcis de tre uger det skal virke i. Linjen siger det selv:
- * «har ikke uploadet — heller ikke historik».
- *
- * TO TRIN, ÉN DOM (Jonas 9/9, som fornyelsens varsel 1 og 2): to signaler
- * for det samme med hver sit tal er den fejl huset har rettet hele dagen.
- * Derfor samme dom, to trin:
- *   trin 1  dag TRIN_1_DAGE (7) … 20: «ikke kommet i gang endnu» — en
- *           påmindelse til rådgiveren om at spørge (rytmens dag 7: «Skal
- *           jeg hjælpe med eksporten? Hvilket system bruger I?»).
- *   trin 2  dag NY_FRA_DAGE (21) … NY_TIL_DAGE (90): «gået i stå».
- * Trinnet står i grundlaget (lukningen): en der er lukket på dag 7 kommer
- * igen på dag 21 — det ER noget nyt at de nu er gået i stå.
- *
- * TO TRIN, ÉN DOM (Jonas 9/9, som fornyelsens varsel 1 og 2): to signaler
- * for det samme med hver sit tal er den fejl huset har rettet hele dagen.
- * Derfor samme dom, to trin:
- *   trin 1  dag TRIN_1_DAGE (7) … 20: «ikke kommet i gang endnu» — en
- *           påmindelse til rådgiveren om at spørge (rytmens dag 7: «Skal
- *           jeg hjælpe med eksporten? Hvilket system bruger I?»).
- *   trin 2  dag NY_FRA_DAGE (21) … NY_TIL_DAGE (90): «gået i stå».
- * Trinnet står i grundlaget (lukningen): en der er lukket på dag 7 kommer
- * igen på dag 21 — det ER noget nyt at de nu er gået i stå.
- *
- * ØVRE GRÆNSE: NY_TIL_DAGE = 90. Efter tre måneder uden målt rapport er
- * man ikke «ny» længere — man er faldet ud (mangellistens kriterium er
- * netop tre måneder uden målt rapport), og det er et andet spor. Signalet
- * forsvinder, så Bastants 165 dage ikke står for evigt; «faldet ud» har
- * ikke sin egen linje i dommen i dag (åbent). Grænserne er hele
- * kalenderdage på læserens dag: dag 20 er for tidligt, dag 21 er signalet,
- * dag 90 er sidste dag med, dag 91 er faldet ud.
+ * de to kopier er ordret ens ud over filhovederne. Begrundelserne (21 dage,
+ * to trin, ingen venten på månedsskifte) står i src-udgavens filhoved.
  */
 
 /** Trin 1: rådgiveren spørger. */
