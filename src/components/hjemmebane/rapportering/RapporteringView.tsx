@@ -42,6 +42,7 @@ import { HbButton } from "../HbButton";
 import { hbControlClasses } from "../admin/HbField";
 import { deriveReportCardView, type CardAction, erForTidligt } from "./reportCardView";
 import { HbReportUploadZone } from "./HbReportUploadZone";
+import { tomListeTekst } from "@/lib/hjemmebane/rapporteringTekst";
 
 /** Rapportering (/rapportering → /reports ved GO) — LEVERANCEN rendyrket
     (klik-valg B): upload, status/nudges, godkendelse, historik (inkl.
@@ -156,6 +157,10 @@ export const RapporteringView = () => {
   }, [dbReports]);
 
   const committedReportIds = useMemo(() => new Set(facts.map((f) => f.source_report_id)), [facts]);
+  // Første gang (9/9): aldrig uploadet = ingen rækker i listen. Mens listen
+  // hentes, regnes man som vant — introduktionen må ikke blinke for en der
+  // har uploadet tolv gange. Ét bit, listens egen længde (rapporteringTekst).
+  const foersteGang = !reportsQuery.isLoading && !reportsQuery.isError && dbReports.length === 0;
   const latestCommittedLabel = facts.length > 0 ? facts[facts.length - 1].period_label : null;
 
   // ── Deep link: ?reportId= → expand + scroll + highlight (arvet 1:1) ──────
@@ -576,6 +581,7 @@ export const RapporteringView = () => {
           companyName={companyName ?? null}
           conversationId={conversationId}
           onPipelineComplete={handlePipelineComplete}
+          foersteGang={foersteGang}
         />
       </div>
 
@@ -625,9 +631,7 @@ export const RapporteringView = () => {
             Dine rapporter kunne ikke hentes. Prøv igen — og vent med at uploade, til listen er tilbage; vi kan ikke se om rapporten allerede ligger her.
           </p>
         ) : displayedReports.length === 0 ? (
-          <p className="mt-6 text-sm text-hb-ink-soft">
-            Ingen rapporter endnu — upload din første ovenfor, så fylder vi historikken ud.
-          </p>
+          <p className="mt-6 text-sm text-hb-ink-soft">{tomListeTekst(foersteGang)}</p>
         ) : (
           <ul className="mt-5 space-y-3">
             {displayedReports.map((report) => {

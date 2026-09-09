@@ -17,6 +17,7 @@ import {
   runPostExtractionPipeline,
   type UploadedFile,
 } from "@/lib/reportUploadEngine";
+import { EKSPORT_VEJE, uploadZoneTekst, vejledningAaben } from "@/lib/hjemmebane/rapporteringTekst";
 import { HbCard } from "../HbCard";
 
 /** Hb-upload-zonen (rapportering-design §a4): NYT roligt UI over det
@@ -34,6 +35,10 @@ interface HbReportUploadZoneProps {
   companyName: string | null;
   conversationId: string | null;
   onPipelineComplete?: (reportId?: string) => void;
+  /** Ny (aldrig uploadet) → introduktion og vejledning foldet ud; vant →
+      den korte linje og vejledningen foldet sammen (lib/hjemmebane/
+      rapporteringTekst, 9/9). Udeladt = vant. */
+  foersteGang?: boolean;
 }
 
 const MAX_FILE_SIZE = 25 * 1024 * 1024; // 25 MB
@@ -60,7 +65,9 @@ export const HbReportUploadZone = ({
   companyName,
   conversationId,
   onPipelineComplete,
+  foersteGang = false,
 }: HbReportUploadZoneProps) => {
+  const tekst = uploadZoneTekst(foersteGang);
   const queryClient = useQueryClient();
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);
@@ -399,12 +406,24 @@ export const HbReportUploadZone = ({
       >
         <FileUp className="h-5 w-5 shrink-0 text-hb-ink-soft" />
         <span className="min-w-0 flex-1">
-          <span className="block text-[15px] text-hb-ink">Upload din månedsrapport</span>
-          <span className="block text-sm text-hb-ink-soft">
-            Saldobalance eller resultatopgørelse — PDF, Excel eller CSV. Klik eller træk hertil.
-          </span>
+          <span className="block text-[15px] text-hb-ink">{tekst.overskrift}</span>
+          <span className="block text-sm text-hb-ink-soft">{tekst.linje}</span>
         </span>
       </button>
+      {/* «Sådan henter du den» (9/9): systemerne stod kun i fejlbeskederne
+          EFTER en mislykket upload — nu står de FØR. Native details, ingen
+          portal (HbOnboardingTjekliste-lærdommen); foldet ud for den nye,
+          sammen for den vante. Én linje pr. system — ikke tolv trin. */}
+      <details className="mt-3 rounded-hb border border-hb-line bg-hb-surface px-4 py-3" open={vejledningAaben(foersteGang)}>
+        <summary className="cursor-pointer text-sm text-hb-ink-soft">Sådan henter du den i dit regnskabsprogram</summary>
+        <ul className="mt-2 space-y-1 text-sm text-hb-ink-soft">
+          {EKSPORT_VEJE.map((v) => (
+            <li key={v.system}>
+              <span className="font-medium text-hb-ink">{v.system}:</span> {v.vej}
+            </li>
+          ))}
+        </ul>
+      </details>
       <input
         ref={inputRef}
         type="file"
