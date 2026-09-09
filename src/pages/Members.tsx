@@ -31,6 +31,7 @@ import { computeMembershipTier } from "@/lib/membershipTier";
 import { erKunde } from "@/lib/raadgiverensKunder";
 import { fejledeTraekPrVirksomhed, type FejletTraek } from "@/lib/traek";
 import { kraevRaekker } from "@/lib/kraevRaekker";
+import { importAdvarsel } from "@/lib/importensAdvarsel";
 
 async function parseApplicationExcel(file: File): Promise<Partial<{
   email: string; company_name: string; cvr_number: string; contact_name: string;
@@ -1663,6 +1664,25 @@ const Members = () => {
                   </button>
                 </div>
               )}
+
+              {/* Det der sker når man klikker — står FØR knappen, ikke som
+                  bekræftelse bagefter. Kun ved ny import; berig sender ingen
+                  invitation. Teksten: src/lib/importensAdvarsel.ts. */}
+              {(() => {
+                const advarsel = importAdvarsel(enrichCompanyId);
+                if (!advarsel) return null;
+                return (
+                  <div className="mt-6 rounded-lg border border-border bg-accent/30 px-4 py-3 text-sm text-foreground">
+                    <p className="font-medium">{advarsel.overskrift}</p>
+                    <ul className="mt-1.5 space-y-1 text-muted-foreground">
+                      {advarsel.linjer.map((linje) => (
+                        <li key={linje}>{linje}</li>
+                      ))}
+                    </ul>
+                    <p className="mt-2 text-xs text-muted-foreground">{advarsel.andenVej}</p>
+                  </div>
+                );
+              })()}
 
               <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-border">
                 <button onClick={resetImportDialog} className="px-4 py-2 text-sm text-muted-foreground hover:text-foreground">Annullér</button>
