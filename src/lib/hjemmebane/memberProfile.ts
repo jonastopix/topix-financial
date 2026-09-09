@@ -24,6 +24,11 @@ export type MemberProfile = {
   working_on_updated_at: string | null;
   member_since: string | null;
   is_advisor: boolean;
+  /** Faktalinjen (9/9, migration 20260909150000): companies.city og
+      EXTRACT(year FROM start_date). Undefined fra en RPC der endnu ikke er
+      genskabt — læserne behandler undefined som null. */
+  city?: string | null;
+  stiftet_aar?: number | null;
 };
 
 export type MemberProfileFields = {
@@ -104,6 +109,21 @@ export async function saveMyMemberProfile(
       { onConflict: "user_id" },
     );
   if (error) throw new Error(error.message);
+}
+
+/** «Det laver vi» (9/9) skriver til companies.description — den ene
+    kolonne der vises først på kortet og indtil nu kun kunne sættes med SQL.
+    RLS: «Members can update own company» (USING id = user_company_id) —
+    samme policy som Settings' «Gem virksomhed». Nul rækker = RLS sagde nej
+    (#709-mønstret): kastes, aldrig en stille succes. */
+export async function saveMyCompanyDescription(companyId: string, description: string | null): Promise<void> {
+  const { data, error } = await supabase
+    .from("companies")
+    .update({ description })
+    .eq("id", companyId)
+    .select("id");
+  if (error) throw new Error(error.message);
+  if (!data || data.length === 0) throw new Error("Skrivningen ramte nul rækker — virksomheden er ikke din (RLS).");
 }
 
 /** Alle unikke expertise-værdier på tværs af netværket, alfabetisk —

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { listMemberDirectory, type MemberProfile } from "@/lib/hjemmebane/memberProfile";
+import { kortLinje } from "@/lib/hjemmebane/netvaerksprofil";
 import { HbCard } from "../HbCard";
 
 /** Medlemsoversigten (/medlemmer): hele netværket som kort-grid med
@@ -16,6 +17,7 @@ const matchesQuery = (profile: MemberProfile, query: string): boolean => {
     profile.full_name,
     profile.company_name ?? "",
     profile.industry_label ?? "",
+    profile.city ?? "",
     profile.company_description ?? "",
     profile.ask_me_about ?? "",
     profile.working_on ?? "",
@@ -38,12 +40,14 @@ const CardAvatar = ({ profile }: { profile: MemberProfile }) =>
   );
 
 const ProfileCard = ({ profile }: { profile: MemberProfile }) => {
-  // Virksomhed/branche vises uanset rolle (#252-lærdommen: rolle må aldrig
+  // Virksomhed/branche/by vises uanset rolle (#252-lærdommen: rolle må aldrig
   // fortrænge virksomheden). Ingen "Rådgiver"-tekst på kortet — rådgiverne
-  // står allerede under overskriften "Dine rådgivere".
-  const metaLine = [profile.company_name, profile.industry_label].filter(Boolean).join(" · ");
-  // Kortets undertekst: virksomhedens ene sætning, ellers starten af
-  // erfaringsteksten — kortet skal bære nok til at man ved hvem man ser på.
+  // står allerede under overskriften "Dine rådgivere". Faktalinjen uden
+  // årstal — kortet har én linje (netvaerksprofil.kortLinje, 9/9).
+  const metaLine = kortLinje({ company_name: profile.company_name, industry_label: profile.industry_label, city: profile.city ?? null });
+  // Kortets undertekst: «Det laver vi» (virksomhedens ene sætning), ellers
+  // starten af «Det har jeg været igennem» — kortet skal bære nok til at man
+  // ved hvem man ser på.
   const teaser =
     profile.company_description ??
     (profile.ask_me_about
@@ -117,7 +121,7 @@ export const MemberDirectoryView = () => {
           Folk der står, hvor du står.
         </h1>
         <p className="mt-3 text-sm text-hb-ink-soft">
-          Find de andre medlemmer — se hvad de er gode til, og tag fat i dem der ved noget, du mangler.
+          Find de andre medlemmer — se hvad de laver og har været igennem, og tag fat i dem der har prøvet det, du står i.
         </p>
       </section>
 
@@ -125,7 +129,7 @@ export const MemberDirectoryView = () => {
         <input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Søg på navn, virksomhed, branche eller kompetence…"
+          placeholder="Søg på navn, virksomhed, branche, by eller det de har været igennem…"
           className="w-full max-w-md rounded-full border border-hb-line bg-hb-surface px-5 py-2.5 text-sm text-hb-ink placeholder:text-hb-ink-soft focus:outline-none focus:ring-2 focus:ring-hb-evergreen/40"
         />
       </div>

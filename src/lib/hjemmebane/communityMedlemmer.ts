@@ -42,7 +42,10 @@ export interface SporMedlem {
   company_name: string | null;
   industry_label: string | null;
   ask_me_about: string | null;
+  /** «Det leder jeg efter» (9/9) — læses ikke af teaseren; feltet er en bøn, ikke en præsentation. */
   working_on: string | null;
+  /** «Det laver vi» (companies.description) — teaserens fallback (9/9). */
+  company_description?: string | null;
   is_advisor: boolean;
 }
 
@@ -88,13 +91,15 @@ export function medlemMetaLinje(m: Pick<SporMedlem, "company_name" | "industry_l
 }
 
 /**
- * Rækkens undertekst: hvad man kan spørge om (ask_me_about), ellers hvad
- * vedkommende arbejder med lige nu (working_on) — ÉN sætning, højst
+ * Rækkens undertekst: det man har været igennem (ask_me_about), ellers
+ * hvad virksomheden laver (company_description) — ÉN sætning, højst
  * TEASER_MAKS_TEGN, aldrig klippet midt i et ord (uddrag-motoren).
- * Null når begge er tomme: rækken bærer så kun navn og virksomhed.
+ * «Det leder jeg efter» (working_on) er IKKE en teaser: man præsenterer
+ * sig ikke med en bøn (9/9). Null når begge er tomme: rækken bærer så kun
+ * navn og virksomhed.
  */
-export function medlemTeaser(m: Pick<SporMedlem, "ask_me_about" | "working_on">): string | null {
-  const kilde = (m.ask_me_about ?? "").trim() || (m.working_on ?? "").trim();
+export function medlemTeaser(m: Pick<SporMedlem, "ask_me_about" | "company_description">): string | null {
+  const kilde = (m.ask_me_about ?? "").trim() || (m.company_description ?? "").trim();
   if (kilde === "") return null;
   const u = uddrag(kilde, TEASER_MAKS_TEGN, 1);
   return u.tekst === "" ? null : u.tekst;

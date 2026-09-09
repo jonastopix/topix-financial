@@ -1,15 +1,34 @@
 import { useQuery } from "@tanstack/react-query";
-import { PROFIL_OPFORDRING, PROFIL_OPFORDRING_LINK, PROFIL_STI, profilUdfyldt } from "@/lib/hjemmebane/profilUdfyldt";
 import { Link } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { externalHref, getMemberProfile } from "@/lib/hjemmebane/memberProfile";
+import { PROFIL_STI } from "@/lib/hjemmebane/profilUdfyldt";
+import {
+  PROFIL_FELTER,
+  PROFIL_OPFORDRING_LINKTEKST,
+  PROFIL_OPFORDRING_TEKST,
+  faktalinje,
+  manglerSaetning,
+  profilensDele,
+} from "@/lib/hjemmebane/netvaerksprofil";
 
-/** Medlemsprofilens visningsflade (/medlemmer/:userId). Tom-tilstanden
-    er bærende: en uudfyldt profil må ALDRIG ligne en fejl — vis kun det
-    der findes, ingen tomme etiketter, ingen tællere, ingen procenter.
-    Navn + virksomhed er altid nok til en hel side. Egen tomme profil får
-    en rolig opfordring med link til Indstillinger. */
+/** Medlemsprofilens visningsflade (/medlemmer/:userId) — profilen forfra
+    (Jonas 9/9). En side man LÆSER, ikke et skema: husets læse-mønstre
+    (analyse-profilen-forfra.md §7) — EventDetails rubrik (eyebrow i rust,
+    Fraunces-H1, metalinje), virksomhedssidens «Ord»-blokke (dæmpet
+    mikrolabel, teksten i ink, «det er betroet, ikke data»), og portrættet i
+    forsidens afsender-udtryk.
+
+    FAKTALINJEN står altid: branche · by · stiftet · medlem siden — uden tal
+    («Vi skal IKKE vise tal mellem medlemmer, som de ikke selv har valgt at
+    skrive»). Den er automatisk, så en profil aldrig er tom.
+
+    DE TRE FELTER kan være tomme. Andres tomme felter er TAVSE — ingen tomme
+    etiketter, ingen tællere, ingen procenter (tom-tilstanden fra 10/8 er
+    stadig bærende). Kun EGEN profil får sætningen «Du har ikke skrevet …»
+    med link til felterne. Dommen om hvad der mangler bor i
+    lib/hjemmebane/netvaerksprofil.ts. */
 
 /** Tilbage-link efter EventDetailViews BackLink-mønster — oversigten
     (/medlemmer) er profilens naturlige "op". */
@@ -20,6 +39,15 @@ const BackLink = () => (
   >
     <ArrowLeft className="h-4 w-4" /> Tilbage til netværket
   </Link>
+);
+
+/** Ét felt af medlemmets egne ord — virksomhedssidens «Ord»-form
+    (VirksomhedView.tsx): label dæmpet, teksten i ink, linjeskift bevaret. */
+const Ord = ({ label, children }: { label: string; children: string }) => (
+  <div>
+    <h2 className="text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft">{label}</h2>
+    <p className="mt-2 max-w-2xl whitespace-pre-line break-words text-[15px] leading-relaxed text-hb-ink">{children}</p>
+  </div>
 );
 
 export const MemberProfileView = ({ userId }: { userId: string }) => {
@@ -35,6 +63,15 @@ export const MemberProfileView = ({ userId }: { userId: string }) => {
     return <p className="text-sm text-hb-ink-soft">Henter…</p>;
   }
 
+  if (profileQuery.isError) {
+    return (
+      <div>
+        <BackLink />
+        <p className="mt-8 text-sm text-hb-ink-soft">Profilen kunne ikke hentes lige nu.</p>
+      </div>
+    );
+  }
+
   const profile = profileQuery.data;
   if (!profile) {
     return (
@@ -46,26 +83,17 @@ export const MemberProfileView = ({ userId }: { userId: string }) => {
   }
 
   const isOwn = user?.id === profile.user_id;
-  // Rådgiver-markeringen er et TILLÆG i rubrikken — aldrig en erstatning:
-  // en rådgiver der også er medlem beholder virksomhed og branche.
-  const metaLine = [profile.company_name, profile.industry_label].filter(Boolean).join(" · ");
-  // ÉN dom (9/9): udfyldt = ask_me_about. Før så denne side på alle fire
-  // felter, Community og forsiden kun på ask_me_about — så en med LinkedIn
-  // uden tekst fik opfordringen ét sted og ikke det andet. profilUdfyldt.ts.
-  const hasPersonalContent = profilUdfyldt(profile);
-  const workingOnDate = profile.working_on_updated_at
-    ? new Date(profile.working_on_updated_at).toLocaleDateString("da-DK", {
-        day: "numeric",
-        month: "long",
-        year: "numeric",
-      })
-    : null;
-  const memberSince = profile.member_since
-    ? new Date(profile.member_since).toLocaleDateString("da-DK", {
-        month: "long",
-        year: "numeric",
-      })
-    : null;
+  // Faktalinjen: automatisk, uden tal. city/stiftet_aar er undefined indtil
+  // migration 20260909150000 er kørt — så står linjen uden de to led.
+  const fakta = faktalinje({
+    industry_label: profile.industry_label,
+    city: profile.city ?? null,
+    stiftet_aar: profile.stiftet_aar ?? null,
+    member_since: profile.member_since,
+  });
+  const dele = profilensDele(profile);
+  const mangler = isOwn ? manglerSaetning(profile) : null;
+  const harNoget = PROFIL_FELTER.some((f) => dele[f.noegle] !== null);
   // externalHref: prod-data mangler ofte protokol (www.brroset.dk), og et
   // <a href="www.brroset.dk"> er en RELATIV sti — klikket ville blive på
   // app.theboardroom.dk i stedet for at føre ud af siden.
@@ -82,9 +110,11 @@ export const MemberProfileView = ({ userId }: { userId: string }) => {
         <BackLink />
       </div>
 
-      {/* Portrættet: forsidens afsender-udtryk (BoardroomView) i fuld
-          størrelse — samme ramme, samme sage-fallback med initial. */}
-      <div className="flex items-start gap-6">
+      {/* ── Rubrikken (Events-mønstret): eyebrow, portræt + navn, faktalinjen ── */}
+      <p className="text-xs font-medium uppercase tracking-[0.14em] text-hb-rust">
+        Netværket{profile.company_name ? ` · ${profile.company_name}` : ""}
+      </p>
+      <div className="mt-4 flex items-start gap-6">
         {profile.avatar_url ? (
           <img
             src={profile.avatar_url}
@@ -105,47 +135,41 @@ export const MemberProfileView = ({ userId }: { userId: string }) => {
               </span>
             )}
           </h1>
-          {metaLine && <p className="mt-3 text-sm text-hb-ink-soft">{metaLine}</p>}
-          {profile.company_description && (
-            <p className="mt-1.5 text-sm text-hb-ink-soft">{profile.company_description}</p>
-          )}
+          {/* Rådgiver-markeringen er et TILLÆG i rubrikken — aldrig en
+              erstatning: en rådgiver der også er medlem beholder sin faktalinje. */}
+          {fakta && <p className="mt-3 text-sm text-hb-ink-soft">{fakta}</p>}
         </div>
       </div>
 
-      {/* Profilens tyngdepunkt: erfaringen — det man kan spørge om. */}
-      {profile.ask_me_about && (
-        <p className="mt-8 max-w-2xl text-[15px] leading-relaxed text-hb-ink">
-          {profile.ask_me_about}
-        </p>
+      {/* ── De tre felter som «Ord»-blokke — kun de der er skrevet ── */}
+      {harNoget && (
+        <div className="mt-10 space-y-8">
+          {PROFIL_FELTER.map((f) => {
+            const tekst = dele[f.noegle];
+            return tekst ? (
+              <Ord key={f.noegle} label={f.label}>
+                {tekst}
+              </Ord>
+            ) : null;
+          })}
+        </div>
       )}
 
-      {profile.working_on && (
-        <div className="mt-8">
-          {/* Datoen bor PÅ overskriftslinjen efter et skilletegn — ikke
-              højre-stillet: over den brede spalte ville et højre-anker give
-              datoen sin egen position og et stort tomrum; her bliver den en
-              del af overskriftens rolige metadata-linje. */}
-          <h2 className="text-xs font-semibold uppercase tracking-[0.14em] text-hb-ink-soft">
-            Lige nu
-            {workingOnDate && (
-              <span className="ml-2 text-[11px] font-normal normal-case tracking-normal">
-                · {workingOnDate}
-              </span>
-            )}
-          </h2>
-          <p className="mt-2 max-w-2xl text-[15px] leading-relaxed text-hb-ink">
-            {profile.working_on}
-          </p>
-        </div>
+      {/* Egen profil: det der mangler — én rolig sætning, aldrig en
+          fejltilstand. Andres tomme felter siger ingenting. */}
+      {mangler && (
+        <p className={`${harNoget ? "mt-8" : "mt-10"} text-sm text-hb-ink-soft`}>
+          {mangler}{" "}
+          <Link to={PROFIL_STI} className="text-hb-evergreen underline-offset-4 hover:underline">
+            {harNoget ? "Skriv resten" : `${PROFIL_OPFORDRING_TEKST} — ${PROFIL_OPFORDRING_LINKTEKST}`}
+          </Link>
+        </p>
       )}
 
       {profile.expertise.length > 0 && (
         <div className="mt-8 flex flex-wrap gap-1.5">
           {profile.expertise.map((tag) => (
-            <span
-              key={tag}
-              className="rounded-full bg-hb-sage/30 px-3 py-1 text-xs text-hb-ink"
-            >
+            <span key={tag} className="rounded-full bg-hb-sage/30 px-3 py-1 text-xs text-hb-ink">
               {tag}
             </span>
           ))}
@@ -168,20 +192,6 @@ export const MemberProfileView = ({ userId }: { userId: string }) => {
             </span>
           ))}
         </p>
-      )}
-
-      {/* Egen, tom profil: rolig opfordring — aldrig en fejltilstand. */}
-      {isOwn && !hasPersonalContent && (
-        <p className="mt-8 text-sm text-hb-ink-soft">
-          {PROFIL_OPFORDRING} —{" "}
-          <Link to={PROFIL_STI} className="text-hb-evergreen underline-offset-4 hover:underline">
-            {PROFIL_OPFORDRING_LINK}
-          </Link>
-        </p>
-      )}
-
-      {memberSince && (
-        <p className="mt-10 text-sm text-hb-ink-soft">Medlem siden {memberSince}</p>
       )}
     </section>
   );
