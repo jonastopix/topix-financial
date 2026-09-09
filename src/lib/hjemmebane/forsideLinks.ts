@@ -31,6 +31,7 @@
  * tælles som «andre virksomheder» uden slags, og har derfor ingen vej her.
  */
 import { FORM, type Forsidensdom, type OpgaveSlags, type Pukkellinje, type Tilstandslinje } from "@/lib/forsidensDom";
+import { PULS_NOEGLER, SVAR_VINDUE_DAGE, fornyelserTekst, tavseTekst, type PulsNoegle, type Pulsen } from "@/lib/pulsen";
 
 export const GRUND_PARAM = "grund";
 export const VIRKSOMHEDER_STI = "/virksomheder";
@@ -111,4 +112,54 @@ export function filterOverskrift(slags: OpgaveSlags, vist: number, antalIDommen:
       tekst = `${v} med ${slags}`;
   }
   return vist === antalIDommen ? tekst : `${tekst} (forsiden talte ${antalIDommen})`;
+}
+
+// ── Pulsens tal → listen (9/9) ───────────────────────────────────────────
+// Pulsen måler porteføljen (27), dommen fordeler fladen (23 minus egne
+// linjer og lukninger). Klikker man et pulstal, skal listen vise PULSENS
+// virksomheder — ikke dommens tilstandslinje, som giver 12 for et tal der
+// sagde 14. Derfor sin egen parameter (?puls=tavse) og sit eget opslag
+// (data.pulsen.<tal>.companyIds), samme cache som forsiden.
+
+/** ?puls=<nøgle> er kun gyldig når den er en af pulsens fire. */
+export function laesPulsParam(vaerdi: string | null | undefined): PulsNoegle | null {
+  if (!vaerdi) return null;
+  return (PULS_NOEGLER as readonly string[]).includes(vaerdi) ? (vaerdi as PulsNoegle) : null;
+}
+
+/** De virksomheder pulsen talte under nøglen; null når tallet er nul. */
+export function virksomhederForPuls(
+  pulsen: Pick<Pulsen, PulsNoegle>,
+  noegle: PulsNoegle,
+): { ids: string[]; antalIPulsen: number } | null {
+  const ids = pulsen[noegle].companyIds;
+  if (ids.length === 0) return null;
+  return { ids: [...ids], antalIPulsen: ids.length };
+}
+
+/** Overskriften på listen filtreret fra pulsen — pulsens egne ord, med det
+    VISTE tal; afviger det fra pulsens (listens univers er det samme, så det
+    bør det ikke — men siges hvis det sker). */
+export function pulsOverskrift(
+  noegle: PulsNoegle,
+  vist: number,
+  antalIPulsen: number,
+  puls: Pick<Pulsen, "iAlt" | "maanedNavn">,
+): string {
+  let tekst: string;
+  switch (noegle) {
+    case "rapporterer":
+      tekst = `${vist} af ${puls.iAlt} har rapporteret ${puls.maanedNavn}`;
+      break;
+    case "svarer":
+      tekst = `${vist} af ${puls.iAlt} har svaret på et forslag de seneste ${SVAR_VINDUE_DAGE} dage`;
+      break;
+    case "tavse":
+      tekst = `${tavseTekst(vist)} — ikke hørt fra længe`;
+      break;
+    case "fornyelser":
+      tekst = fornyelserTekst(vist);
+      break;
+  }
+  return vist === antalIPulsen ? tekst : `${tekst} (pulsen talte ${antalIPulsen})`;
 }
