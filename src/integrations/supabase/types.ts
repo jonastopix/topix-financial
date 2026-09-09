@@ -2051,6 +2051,21 @@ export type Database = {
           },
         ]
       }
+      forside_sidst_set: {
+        Row: {
+          set_at: string
+          user_id: string
+        }
+        Insert: {
+          set_at?: string
+          user_id: string
+        }
+        Update: {
+          set_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       handout_lever_milestones: {
         Row: {
           created_at: string
@@ -3409,6 +3424,14 @@ export type Database = {
           state: string
           state_reason: string
           validation_status: string
+        }[]
+      }
+      get_siden_sidst: {
+        Args: { siden: string }
+        Returns: {
+          antal: number
+          navne: string[]
+          slags: string
         }[]
       }
       get_users_last_login: {
