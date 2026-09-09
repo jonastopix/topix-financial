@@ -104,6 +104,7 @@ describe("konstanterne", () => {
       opgave_naer_deadline: "haendelse",
       medlem_har_skrevet: "haendelse",
       agentforslag: "pukkel",
+      ikke_i_gang: "haendelse",
     });
     for (const slags of Object.keys(FORM) as (keyof typeof INDSATS)[]) {
       expect([1, 2, 3]).toContain(INDSATS[slags]);
@@ -666,5 +667,49 @@ describe("lukningen — lukkede grunde er ude før porterne", () => {
     const d = afgoerForsidensDom([virksomhed({ signaler: [omsaetningsfald], kvittering: kv({ "stikker_ud:omsaetningsfald_mom": "2026-08" }) })], NU);
     expect(virksomhedslinjer(d)).toHaveLength(1);
     expect(virksomhedslinjer(d)[0].grundlag).toEqual({ "stikker_ud:omsaetningsfald_mom": "" });
+  });
+});
+
+// ─── Ny og ikke kommet i gang (Jonas 9/9, lib/ikkeIGang) ─────────────────
+// Tiende slags: nyt medlem uden målt rapport efter 21 dage. Egen linje ved
+// navn (hændelse, alvor 75 ≥ tærsklen), egen handling, lukbar.
+
+describe("ikke_i_gang — linjen fra dag 21", () => {
+  const start = (dageSiden: number) => new Date(NU.getFullYear(), NU.getMonth(), NU.getDate() - dageSiden, 14, 0).toISOString();
+  const ny = (dageSiden: number, over: Partial<VirksomhedTilDom> = {}) =>
+    virksomhed({ navn: "Bastant Design", medlemSiden: start(dageSiden), harMaaltRapport: false, antalUploads: 0, ...over });
+
+  it("dag 20: ingen linje; dag 21: egen linje med handling «Hjælp … i gang» og teksten «Medlem i 21 dage, har ikke uploadet»", () => {
+    expect(afgoerForsidensDom([ny(20)], NU).linjer).toEqual([]);
+    const d = afgoerForsidensDom([ny(21)], NU);
+    const l = virksomhedslinjer(d)[0];
+    expect(l.navn).toBe("Bastant Design");
+    expect(l.grunde[0]).toMatchObject({ slags: "ikke_i_gang", handling: "Hjælp Bastant Design i gang", tekst: "Medlem i 21 dage, har ikke uploadet — heller ikke historik", alvor: 75, indsats: 2 });
+    expect(FORM.ikke_i_gang).toBe("haendelse");
+  });
+  it("uploadet men ikke godkendt: linjen står med andre ord; målt rapport: ingen linje", () => {
+    const u = virksomhedslinjer(afgoerForsidensDom([ny(30, { antalUploads: 1 })], NU))[0];
+    expect(u.grunde[0].tekst).toBe("Medlem i 30 dage, har uploadet — tallene er ikke godkendt");
+    expect(u.grunde[0].signaltype).toBe("ikke_i_gang_uploadet");
+    expect(afgoerForsidensDom([ny(30, { harMaaltRapport: true })], NU).linjer).toEqual([]);
+  });
+  it("dag 91: faldet ud — linjen forsvinder igen; uden medlemSiden (VirksomhedViews kalder): intet", () => {
+    expect(afgoerForsidensDom([ny(91)], NU).linjer).toEqual([]);
+    expect(afgoerForsidensDom([virksomhed({ harMaaltRapport: false, antalUploads: 0 })], NU).linjer).toEqual([]);
+  });
+  it("lukningen: grundlag = startdag|uploads — lukket holder når dagene går, en ny upload gør den levende", () => {
+    const l = virksomhedslinjer(afgoerForsidensDom([ny(21)], NU))[0];
+    expect(Object.keys(l.grundlag)).toEqual(["ikke_i_gang"]);
+    const kv = { udfald: "faerdiggjort" as const, grundlag: l.grundlag, lukketAt: "2026-09-04T10:00:00Z" };
+    expect(afgoerForsidensDom([ny(21, { kvittering: kv })], NU).linjer).toEqual([]);
+    // Samme virksomhed, 19 dage senere (dag 40): stadig lukket — dagene er ikke noget nyt.
+    expect(afgoerForsidensDom([ny(21, { kvittering: kv })], new Date(NU.getFullYear(), NU.getMonth(), NU.getDate() + 19, 12)).linjer).toEqual([]);
+    expect(virksomhedslinjer(afgoerForsidensDom([ny(21, { antalUploads: 1, kvittering: kv })], NU))).toHaveLength(1);
+  });
+  it("står ved navn sammen med tavshed: én linje, to grunde, ikke_i_gang først (75 mod tavshedens 61 på dag 22)", () => {
+    const d = afgoerForsidensDom([ny(22, { signaler: [ingenDialog(22, 61.13)], senesteBeskedAt: start(22) })], NU);
+    const l = virksomhedslinjer(d)[0];
+    expect(l.grunde.map((g) => g.slags)).toEqual(["ikke_i_gang", "tavshed"]);
+    expect(d.underStregen.antalTilstandeSamlet).toBe(0);
   });
 });

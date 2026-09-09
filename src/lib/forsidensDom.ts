@@ -88,6 +88,7 @@ import { afgoerVarselTrin } from "@/lib/varselTrin";
 import type { Fornyelsestilstand } from "./fornyelse";
 import { BETALINGSFRIST_DAGE, type Betalingsfristtilstand } from "./betalingsfrist";
 import { erLukket, type Kvittering } from "./opgaveLukning";
+import { afgoerIkkeIGang, ikkeIGangGrundlag, ikkeIGangTekst } from "./ikkeIGang";
 
 // ─── Konstanter — alle tal dommen bruger, ét sted ────────────────────────
 
@@ -193,6 +194,16 @@ export const ALVOR_INDGANG = {
  *   inden_for_14_dage  55  fristen er inden for to uger. Under tærsklen
  *                          alene — vinduesporten tager den ved 7 dage.
  */
+/**
+ * Ny og ikke kommet i gang (lib/ikkeIGang, 9/9): et nyt medlem uden målt
+ * rapport efter NY_FRA_DAGE. Ikke en krise som en forfalden fornyelse
+ * (90), men tidskritisk — vinduet lukker. 75: over ulæst besked (70) og
+ * beslutning_mangler (70), på linje med klar_til_tilbud (75) og en
+ * forfalden opgave (75), under omsætningsfald (80). Den går gennem
+ * alvorsporten (TAERSKEL 70) alene, så linjen står fra dag 21.
+ */
+export const ALVOR_IKKE_I_GANG = 75;
+
 export const ALVOR_OPGAVE = {
   forfalden: 75,
   inden_for_3_dage: 70,
@@ -212,7 +223,8 @@ export type OpgaveSlags =
   | "rapporteringsfejl" // §2 slags 6 — AI (§8). IKKE IMPLEMENTERET.
   | "opgave_naer_deadline" // §2 slags 7 — company_actions.due_date
   | "medlem_har_skrevet" // §2 slags 8 — handout/refleksion, AI (§8). IKKE IMPLEMENTERET.
-  | "agentforslag"; // §3's pukkel — ikke en af de otte, men besluttet vist som én linje
+  | "agentforslag" // §3's pukkel — ikke en af de otte, men besluttet vist som én linje
+  | "ikke_i_gang"; // TIENDE slags (Jonas 9/9, en designændring som §2 varsler): ny uden målt rapport — lib/ikkeIGang
 
 /** §3's tre former. */
 export type Form = "haendelse" | "tilstand" | "pukkel";
@@ -229,6 +241,7 @@ export const FORM: Record<OpgaveSlags, Form> = {
   opgave_naer_deadline: "haendelse", // en frist passerer én gang
   medlem_har_skrevet: "haendelse", // en ny refleksion, et gemt handout
   agentforslag: "pukkel", // §3: «otte agentforslag venter» er én linje
+  ikke_i_gang: "haendelse", // dag 21 uden tal er noget der SKER én gang — og linjen skal stå ved navn, ikke samles
 };
 
 /** Indsats — «hvor stort» (§4). Bryder KUN uafgjort på alvor; bærer aldrig
@@ -253,6 +266,7 @@ export const INDSATS: Record<OpgaveSlags, Indsats> = {
   medlem_har_skrevet: 2,
   stikker_ud: 3,
   rapporteringsfejl: 3,
+  ikke_i_gang: 2, // én besked: hjælp dem i gang
 };
 
 /** company_actions-rækken som dommen ser den: kun det den læser. Kun
@@ -327,6 +341,15 @@ export interface VirksomhedTilDom {
   fornyelseBeslutning?: string | null;
   /** Den nyeste kvittering med grundlag for virksomheden; null = ingen. */
   kvittering?: Kvittering | null;
+
+  // ── Ny og ikke i gang (lib/ikkeIGang, 9/9) ─────────────────────────────
+  /** Første company_members.created_at — medlemskabets begyndelse («de fik
+      adgang»). null/udeladt = ingen medlemmer, intet signal. */
+  medlemSiden?: string | null;
+  /** Findes mindst én facts-række med data_basis = 'measured'? */
+  harMaaltRapport?: boolean;
+  /** Uploadede (ikke slettede) rapporter — ændrer ordene, ikke dommen. */
+  antalUploads?: number;
 }
 
 /** Én grund: hvorfor virksomheden står der, og hvad man gør (§1). */
@@ -634,6 +657,27 @@ function grundeFraOpgaver(v: VirksomhedTilDom, nu: Date): Grund[] {
   return grunde;
 }
 
+/** Ny og ikke kommet i gang (lib/ikkeIGang): egen slags, egen handling —
+    «Hjælp X i gang» er hverken «skriv til» (tavshed) eller «tag det op»
+    (tal); det er onboarding. Uden medlemSiden (kalderen bærer den ikke,
+    fx VirksomhedView) giver dommen ingen_start og ingen grund. */
+function grundFraIkkeIGang(v: VirksomhedTilDom, nu: Date): Grund | null {
+  const input = { medlemSiden: v.medlemSiden ?? null, harMaaltRapport: v.harMaaltRapport ?? false, antalUploads: v.antalUploads ?? 0 };
+  const dom = afgoerIkkeIGang(input, nu);
+  if (!dom.signal) return null;
+  return {
+    slags: "ikke_i_gang",
+    signaltype: dom.harUploadetUdenGodkendelse ? "ikke_i_gang_uploadet" : "ikke_i_gang",
+    noegle: "ikke_i_gang",
+    grundlag: ikkeIGangGrundlag(input),
+    tekst: ikkeIGangTekst(dom),
+    handling: `Hjælp ${v.navn} i gang`,
+    alvor: ALVOR_IKKE_I_GANG,
+    lukkerOmDage: null,
+    indsats: INDSATS.ikke_i_gang,
+  };
+}
+
 /** Alle grunde for én virksomhed. aiUdsagn ignoreres bevidst (§8 mangler).
     LUKKEDE grunde (lib/opgaveLukning: kvitteringen gemte præcis dette
     grundlag) tages ud HER, før porterne — så en lukket grund hverken giver
@@ -646,6 +690,8 @@ function grundeFor(v: VirksomhedTilDom, nu: Date): Grund[] {
   const i = grundFraIndgang(v);
   if (i) grunde.push(i);
   grunde.push(...grundeFraOpgaver(v, nu));
+  const n = grundFraIkkeIGang(v, nu);
+  if (n) grunde.push(n);
   return grunde.filter((g) => !erLukket(g, v.kvittering));
 }
 
