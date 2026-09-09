@@ -9,6 +9,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { computeMembershipTier, type MembershipTier } from "@/lib/membershipTier";
 import { fejledeTraekPrVirksomhed, traekBadgeTekst, type FejletTraek } from "@/lib/traek";
 import { erKunde } from "@/lib/raadgiverensKunder";
+import { dageSiden, erLaengeSiden, senesteAf, sidstOnlineTekst } from "@/lib/sidstOnline";
 import { ADVISOR_DASHBOARD_QUERY_KEY, hentAdvisorDashboard } from "@/components/AdvisorDashboard";
 import { GRUND_PARAM, VIRKSOMHEDER_STI, filterOverskrift, laesGrundParam, virksomhederForGrund } from "@/lib/hjemmebane/forsideLinks";
 import { HbTag } from "../HbTag";
@@ -75,6 +76,10 @@ type Raekke = {
   kontraktSlut: string | null;
   /** Hele dage siden sidste besked; null = ingen samtale/ingen besked. */
   sidsteKontaktDage: number | null;
+  /** Hele dage siden NOGEN fra virksomheden sidst loggede ind (seneste af
+      alle medlemmer, auth.users.last_sign_in_at via get_users_last_login);
+      null = aldrig, eller ingen medlemmer. lib/sidstOnline.ts. */
+  sidstOnlineDage: number | null;
   /** Seneste committede periode (label, ellers nøgle); null = ingen facts. */
   sidsteRapportering: string | null;
   fejledeTraek: FejletTraek[];
@@ -148,6 +153,31 @@ async function hentVirksomhedsliste(): Promise<Raekke[]> {
     if (navn) ownerNavnByCompany.set(m.company_id, navn);
   }
 
+  // Sidst online pr. virksomhed (9/9): auth.users.last_sign_in_at for alle
+  // medlemmer via get_users_last_login (advisor-gated i kroppen; RLS fra
+  // marts, ingen ny rettighed), og den SENESTE pr. virksomhed — samme
+  // definition som den gamle forside. BERIGELSE som ownerNavn: fejler
+  // kaldet, står der «Aldrig logget ind» for ingen — feltet bliver null og
+  // fladen siger det ikke forkert. IKKE user_login_log: dens rækker tæller
+  // faneskift og reloads (målt 9/9: 618 for én bruger), kun datoen duer,
+  // og den er ens i de to kilder (24 af 24).
+  const memberIds = [...new Set((membersRes.data ?? []).map((m) => m.user_id).filter(Boolean))];
+  const sidstOnlineByUser = new Map<string, string>();
+  if (memberIds.length > 0) {
+    const { data: loginRows, error: loginErr } = await supabase.rpc("get_users_last_login", { user_ids: memberIds });
+    if (loginErr) console.warn("[virksomhedsliste] get_users_last_login fejlede — «sidst online» udelades:", loginErr.message);
+    for (const r of loginRows ?? []) {
+      if (r.user_id && r.last_sign_in_at) sidstOnlineByUser.set(r.user_id, r.last_sign_in_at);
+    }
+  }
+  const sidstOnlineByCompany = new Map<string, string | null>();
+  for (const m of membersRes.data ?? []) {
+    if (!m.company_id) continue;
+    const hidtil = sidstOnlineByCompany.get(m.company_id) ?? null;
+    sidstOnlineByCompany.set(m.company_id, senesteAf([hidtil, sidstOnlineByUser.get(m.user_id)]));
+  }
+  const nuDato = new Date(nu);
+
   // Seneste besked pr. virksomhed — flere samtaler pr. virksomhed er
   // muligt, så den nyeste vinder.
   const sidsteBeskedByCompany = new Map<string, string>();
@@ -201,6 +231,7 @@ async function hentVirksomhedsliste(): Promise<Raekke[]> {
           ? Math.floor((nu - new Date(sidsteBesked).getTime()) / MS_PER_DOEGN)
           : null,
         sidsteRapportering: sidsteFactByCompany.get(c.id)?.label ?? null,
+        sidstOnlineDage: dageSiden(sidstOnlineByCompany.get(c.id) ?? null, nuDato),
         fejledeTraek: fejledeTraekByCompany.get(c.id) ?? [],
       };
     })
@@ -267,10 +298,20 @@ const RaekkeIndhold = ({ r }: { r: Raekke }) => {
           <HbTag className="bg-hb-rust/10 px-2 py-0.5 text-[11px] text-hb-rust">{traekTekst}</HbTag>
         )}
       </div>
-      <p className="text-sm text-hb-ink-soft">
-        <span className="sm:hidden">Sidste kontakt: </span>
-        {sidsteKontaktTekst(r.sidsteKontaktDage)}
-      </p>
+      {/* Sidste kontakt + sidst online i SAMME kolonne (9/9): begge svarer
+          på «hvor længe siden» og taler i «N dage siden». Kontakten er
+          chatten (designets definition, ikke login); linjen under er
+          loginet — én kolonne, to linjer, ingen ny gitterkolonne og intet
+          der viger. Rust kun når det er længe siden (lib/sidstOnline.ts). */}
+      <div className="min-w-0">
+        <p className="text-sm text-hb-ink-soft">
+          <span className="sm:hidden">Sidste kontakt: </span>
+          {sidsteKontaktTekst(r.sidsteKontaktDage)}
+        </p>
+        <p className={cn("truncate text-xs", erLaengeSiden(r.sidstOnlineDage) ? "text-hb-rust" : "text-hb-ink-soft")}>
+          {sidstOnlineTekst(r.sidstOnlineDage)}
+        </p>
+      </div>
       <p className="text-sm text-hb-ink-soft">
         <span className="sm:hidden">Sidste rapportering: </span>
         {r.sidsteRapportering ?? "Ingen rapportering"}
