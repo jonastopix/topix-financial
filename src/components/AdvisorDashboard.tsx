@@ -494,10 +494,12 @@ export const hentAdvisorDashboard = () =>
         // accepteret (accepted_at) eller lukket (closed_at; status afgør i
         // motoren om lukningen var et svar). Uden status = active-filtret,
         // som opgave-hentningen ovenfor har; ét lille kald, ingen RPC.
+        // completed_at er ARVENS stempel (opgaveEngine §7): «done» fra før
+        // modellen har kun det. Et svar er et svar, også et gammelt (9/9).
         (supabase
           .from("company_actions")
-          .select("company_id, status, accepted_at, closed_at")
-          .or(`accepted_at.gte.${svarGraense},closed_at.gte.${svarGraense}`)
+          .select("company_id, status, accepted_at, closed_at, completed_at")
+          .or(`accepted_at.gte.${svarGraense},closed_at.gte.${svarGraense},completed_at.gte.${svarGraense}`)
           .limit(5000) as any),
       ]);
 
@@ -926,8 +928,12 @@ export const hentAdvisorDashboard = () =>
       }
 
       for (const c of investorSummaries) {
-        // Gates: spring udløbede + pending over (dækker alle fem bunker)
-        if (expiredCompanyIds.has(c.company_id) || pendingCompanyIds.has(c.company_id)) continue;
+        // Gates: udløbede springes helt over. Pending (invitation uden
+        // medlemmer) får MOTORENS signaler regnet (pulsen tæller dem som
+        // porteføljen, 9/9 — en inviteret der ikke er kommet ind, er tavs),
+        // men kommer ikke i bunkerne og ikke i dommen (gaten nedenfor).
+        if (expiredCompanyIds.has(c.company_id)) continue;
+        const erPending = pendingCompanyIds.has(c.company_id);
 
         const conv = convByCompany.get(c.company_id)?.[0];
         const base = {
@@ -1006,6 +1012,8 @@ export const hentAdvisorDashboard = () =>
         // Forsidens dom får motorens udfald uændret (én dom i huset).
         // senestePeriode: talsignalernes grundlag (lukningen) — perioden de er regnet af.
         signalerByCompany.set(c.company_id, { signaler, agentforslagVenter: signalInput.agentforslagVenter, senestePeriode: senesteNoegle ?? null });
+        // Pending: signalerne er regnet (til pulsen); bunkerne er fladens.
+        if (erPending) continue;
         for (const s of signaler) {
           const item: BucketItem = { ...base, subtext: s.tekst, sortValue: s.alvor };
           if (s.koe === "ikke_hoert_fra_laenge") bStale.push(item);
@@ -1088,9 +1096,11 @@ export const hentAdvisorDashboard = () =>
         if (!eks || c.last_member_message_at > eks) senesteMedlemsbeskedByCompany.set(c.company_id, c.last_member_message_at);
       }
       const companyById = new Map<string, any>((companies as any[]).map((c) => [c.id, c]));
-      const virksomhederTilDom: VirksomhedTilDom[] = investorSummaries
-        .filter((c) => !expiredCompanyIds.has(c.company_id) && !pendingCompanyIds.has(c.company_id))
-        .map((c) => {
+      // Ét motor-udfald pr. virksomhed — to universer (9/9): dommen får
+      // fladens (uden pending), pulsen får porteføljens (listens 27: status
+      // aktiv/tom, ikke udløbet; pending MED). Samme funktion, så tallene
+      // er regnet af det samme.
+      const tilDom = (c: (typeof investorSummaries)[number]): VirksomhedTilDom => {
           const row = companyById.get(c.company_id);
           const sig = signalerByCompany.get(c.company_id);
           const iFornyelsesUdsnit = !!row && (row.status === "active" || !row.status);
@@ -1128,17 +1138,29 @@ export const hentAdvisorDashboard = () =>
             fornyelseBeslutning: beslutningByCompany.get(c.company_id) ?? null,
             kvittering: kvitteringByCompany.get(c.company_id) ?? null,
           };
-        });
+        };
+      const virksomhederTilDom: VirksomhedTilDom[] = investorSummaries
+        .filter((c) => !expiredCompanyIds.has(c.company_id) && !pendingCompanyIds.has(c.company_id))
+        .map(tilDom);
       const dom = afgoerForsidensDom(virksomhederTilDom, now);
-      // Pulsen (lib/pulsen): samme univers og samme motor-udfald som dommen,
-      // facts som de er hentet (data_basis afgør «målt»), seneste afsluttede
-      // måned = missingKey (getMissingReportKey), svarene fra svarRes.
+      // Pulsen (lib/pulsen): PORTEFØLJENS univers = listens (VirksomhedslisteView:
+      // kunde, ikke legat, status aktiv/tom, ikke udløbet) — pending er MED.
+      // Facts som de er hentet (data_basis afgør «målt»), seneste afsluttede
+      // måned = missingKey, svarene fra svarRes, dommen til «står øverst».
+      const virksomhederTilPuls: VirksomhedTilDom[] = investorSummaries
+        .filter((c) => {
+          if (expiredCompanyIds.has(c.company_id)) return false;
+          const row = companyById.get(c.company_id);
+          return !!row && (row.status === "active" || !row.status);
+        })
+        .map(tilDom);
       const pulsen = afgoerPulsen({
-        virksomheder: virksomhederTilDom,
+        virksomheder: virksomhederTilPuls,
         facts: facts.map((f) => ({ company_id: f.company_id, period_key: f.period_key, data_basis: f.data_basis ?? null })),
         maanedNoegle: missingKey,
         svar: ((svarRes?.data ?? []) as PulsSvar[]),
         nu: now,
+        dom,
       });
 
       const svarBytes = [

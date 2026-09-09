@@ -11,7 +11,8 @@ import { fejledeTraekPrVirksomhed, traekBadgeTekst, type FejletTraek } from "@/l
 import { erKunde } from "@/lib/raadgiverensKunder";
 import { dageSiden, erLaengeSiden, senesteAf, sidstOnlineTekst } from "@/lib/sidstOnline";
 import { ADVISOR_DASHBOARD_QUERY_KEY, hentAdvisorDashboard } from "@/components/AdvisorDashboard";
-import { GRUND_PARAM, VIRKSOMHEDER_STI, filterOverskrift, laesGrundParam, virksomhederForGrund } from "@/lib/hjemmebane/forsideLinks";
+import { GRUND_PARAM, VIRKSOMHEDER_STI, filterOverskrift, laesGrundParam, laesPulsParam, pulsOverskrift, virksomhederForGrund, virksomhederForPuls } from "@/lib/hjemmebane/forsideLinks";
+import { PULS_PARAM } from "@/lib/pulsen";
 import { HbTag } from "../HbTag";
 import { HbInvitationer } from "./HbInvitationer";
 import { hbControlClasses } from "../admin/HbField";
@@ -335,6 +336,10 @@ export const VirksomhedslisteView = () => {
   // Forsidens grund (?grund=tavshed …) — kun de slags der kan blive en
   // samlet linje; alt andet ignoreres stille (laesGrundParam).
   const grund = laesGrundParam(searchParams.get(GRUND_PARAM));
+  // Pulsens tal (?puls=tavse …, 9/9): opslaget sker i PULSEN, ikke i dommens
+  // tilstandslinje — pulsen måler porteføljen (14), dommen fladen (12).
+  const puls = grund ? null : laesPulsParam(searchParams.get(PULS_PARAM));
+  const harUdsnit = grund !== null || puls !== null;
 
   const listeQuery = useQuery({
     queryKey: ["virksomhedsliste"],
@@ -348,20 +353,32 @@ export const VirksomhedslisteView = () => {
   const domQuery = useQuery({
     queryKey: ADVISOR_DASHBOARD_QUERY_KEY(user?.id),
     queryFn: hentAdvisorDashboard,
-    enabled: !!user && !!isAdvisor && grund !== null,
+    enabled: !!user && !!isAdvisor && harUdsnit,
     staleTime: 2 * 60_000,
   });
-  const grundUdsnit = grund && domQuery.data ? virksomhederForGrund(domQuery.data.dom, grund) : null;
+  // Ét udsnit, to kilder: dommens tilstandslinje (grund) eller pulsens tal (puls).
+  const udsnit = useMemo(() => {
+    if (!domQuery.data) return null;
+    if (grund) {
+      const g = virksomhederForGrund(domQuery.data.dom, grund);
+      return g ? { ids: g.ids, antal: g.antalIDommen, overskrift: (vist: number) => filterOverskrift(grund, vist, g.antalIDommen) } : null;
+    }
+    if (puls) {
+      const p = virksomhederForPuls(domQuery.data.pulsen, puls);
+      return p ? { ids: p.ids, antal: p.antalIPulsen, overskrift: (vist: number) => pulsOverskrift(puls, vist, p.antalIPulsen, domQuery.data!.pulsen) } : null;
+    }
+    return null;
+  }, [domQuery.data, grund, puls]);
 
   const alle = useMemo(() => listeQuery.data ?? [], [listeQuery.data]);
   const soeger = query.trim().length > 0;
   const filtreret = useMemo(() => {
     let resultat = alle;
-    if (grund && grundUdsnit) {
-      // Forsidens udsnit: præcis de virksomheder dommen samlede. Dommen
-      // har allerede udelukket udløbede, så expired-skjulet nedenfor er
-      // overflødigt her — og søgning søger INDEN FOR udsnittet.
-      const ids = new Set(grundUdsnit.ids);
+    if (harUdsnit && udsnit) {
+      // Forsidens udsnit: præcis de virksomheder dommen samlede / pulsen
+      // talte. Begge har allerede udelukket udløbede, så expired-skjulet
+      // nedenfor er overflødigt her — og søgning søger INDEN FOR udsnittet.
+      const ids = new Set(udsnit.ids);
       resultat = resultat.filter((r) => ids.has(r.id));
     } else if (!soeger) {
       // Skjul udløbede («tidligere») fra den u-søgte default-liste; aktiv
@@ -369,12 +386,12 @@ export const VirksomhedslisteView = () => {
       resultat = resultat.filter((r) => r.tier !== "expired");
     }
     return resultat.filter((r) => matcher(r, query));
-  }, [alle, query, soeger, grund, grundUdsnit]);
-  // Venter listen på dommen (grund i URL'en, dom ikke hentet endnu), vises
+  }, [alle, query, soeger, harUdsnit, udsnit]);
+  // Venter listen på dommen (grund/puls i URL'en, dom ikke hentet endnu), vises
   // skelettet — ikke alle 27 et øjeblik før de tolv.
-  const venterPaaDom = grund !== null && domQuery.isLoading;
+  const venterPaaDom = harUdsnit && domQuery.isLoading;
   // Antal i udsnittet FØR søgning — det er det overskriften taler om.
-  const vistIUdsnit = grund && grundUdsnit ? alle.filter((r) => grundUdsnit.ids.includes(r.id)).length : 0;
+  const vistIUdsnit = harUdsnit && udsnit ? alle.filter((r) => udsnit.ids.includes(r.id)).length : 0;
 
   return (
     <div>
@@ -389,17 +406,17 @@ export const VirksomhedslisteView = () => {
             ord, og «Vis alle» er vejen tilbage. Findes grunden ikke længere i
             dommen (tilstanden er væk siden klikket), siges det — og listen
             viser alle, ikke ingenting. */}
-        {grund && domQuery.isError && (
+        {harUdsnit && domQuery.isError && (
           <p className="mt-4 text-sm text-hb-rust">Forsidens udsnit kunne ikke hentes — listen viser alle virksomheder.</p>
         )}
-        {grund && domQuery.data && !grundUdsnit && (
+        {harUdsnit && domQuery.data && !udsnit && (
           <p className="mt-4 text-sm text-hb-ink-soft">
-            Forsiden har ikke længere en samlet linje for det, du klikkede på — listen viser alle virksomheder.
+            Forsiden har ikke længere det tal, du klikkede på — listen viser alle virksomheder.
           </p>
         )}
-        {grund && grundUdsnit && (
+        {harUdsnit && udsnit && (
           <p className="mt-4 flex flex-wrap items-baseline gap-x-3 gap-y-1 text-[15px] text-hb-ink">
-            <span className="font-medium">{filterOverskrift(grund, vistIUdsnit, grundUdsnit.antalIDommen)}</span>
+            <span className="font-medium">{udsnit.overskrift(vistIUdsnit)}</span>
             <Link to={VIRKSOMHEDER_STI} className="text-sm text-hb-evergreen underline-offset-4 hover:underline">
               Vis alle
             </Link>
@@ -420,7 +437,7 @@ export const VirksomhedslisteView = () => {
           «Inviter» — her, fordi listen er virksomhedernes sted. Ikke i
           forsidens udsnit (?grund=): dér viser listen præcis dommens
           virksomheder og intet andet. */}
-      {!grund && <HbInvitationer />}
+      {!harUdsnit && <HbInvitationer />}
 
       <div className="mt-8 overflow-hidden rounded-hb border border-hb-line bg-hb-surface">
         <div className="hidden border-b border-hb-line px-4 py-2 text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft sm:grid sm:grid-cols-[2fr_1.2fr_1fr_1fr_1fr] sm:gap-x-4">
@@ -445,7 +462,7 @@ export const VirksomhedslisteView = () => {
           <p className="px-4 py-10 text-center text-sm text-hb-ink-soft">
             {soeger
               ? `Ingen virksomheder matcher "${query.trim()}"`
-              : grund && grundUdsnit
+              : harUdsnit && udsnit
                 ? "Ingen af forsidens virksomheder er på listen"
                 : "Der er ingen virksomheder endnu"}
           </p>

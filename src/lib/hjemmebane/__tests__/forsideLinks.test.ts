@@ -3,9 +3,12 @@ import type { Forsidensdom, Grund, Pukkellinje, Tilstandslinje } from "@/lib/for
 import {
   filterOverskrift,
   laesGrundParam,
+  laesPulsParam,
   listeLink,
+  pulsOverskrift,
   samletLinjeLink,
   virksomhederForGrund,
+  virksomhederForPuls,
   virksomhedsLink,
 } from "../forsideLinks";
 
@@ -125,5 +128,47 @@ describe("filterOverskrift — listen siger hvad den viser, med forsidens ord", 
   it("afviger listens tal fra dommens, står begge tal — aldrig ét tal alene og forkert", () => {
     expect(filterOverskrift("tavshed", 11, 12)).toBe("11 virksomheder du ikke har hørt fra længe (forsiden talte 12)");
     expect(filterOverskrift("tavshed", 0, 12)).toBe("0 virksomheder du ikke har hørt fra længe (forsiden talte 12)");
+  });
+});
+
+// ── Pulsens tal → listen (9/9) ───────────────────────────────────────────
+describe("laesPulsParam — kun pulsens fire nøgler", () => {
+  it("de fire læses; alt andet → null", () => {
+    expect(laesPulsParam("rapporterer")).toBe("rapporterer");
+    expect(laesPulsParam("svarer")).toBe("svarer");
+    expect(laesPulsParam("tavse")).toBe("tavse");
+    expect(laesPulsParam("fornyelser")).toBe("fornyelser");
+    expect(laesPulsParam("tavshed")).toBeNull(); // dommens slags er ikke pulsens nøgle
+    expect(laesPulsParam("")).toBeNull();
+    expect(laesPulsParam(null)).toBeNull();
+  });
+});
+
+describe("virksomhederForPuls — pulsens egne id'er, ikke dommens", () => {
+  const pulsen = {
+    rapporterer: { antal: 2, companyIds: ["a", "b"] },
+    svarer: { antal: 0, companyIds: [] },
+    tavse: { antal: 3, companyIds: ["a", "c", "d"] },
+    fornyelser: { antal: 1, companyIds: ["e"] },
+  };
+  it("tavse: de tre pulsen talte — også dem dommen gav egen linje", () => {
+    expect(virksomhederForPuls(pulsen, "tavse")).toEqual({ ids: ["a", "c", "d"], antalIPulsen: 3 });
+  });
+  it("nul → null (listen viser alle og siger det)", () => {
+    expect(virksomhederForPuls(pulsen, "svarer")).toBeNull();
+  });
+});
+
+describe("pulsOverskrift — pulsens ord med det viste tal", () => {
+  const puls = { iAlt: 27, maanedNavn: "august" };
+  it("de fire former", () => {
+    expect(pulsOverskrift("rapporterer", 3, 3, puls)).toBe("3 af 27 har rapporteret august");
+    expect(pulsOverskrift("svarer", 2, 2, puls)).toBe("2 af 27 har svaret på et forslag de seneste 90 dage");
+    expect(pulsOverskrift("tavse", 14, 14, puls)).toBe("14 tavse — ikke hørt fra længe");
+    expect(pulsOverskrift("tavse", 1, 1, puls)).toBe("1 tavs — ikke hørt fra længe");
+    expect(pulsOverskrift("fornyelser", 2, 2, puls)).toBe("2 fornyelser venter");
+  });
+  it("afviger det viste fra pulsens, står begge tal", () => {
+    expect(pulsOverskrift("tavse", 13, 14, puls)).toBe("13 tavse — ikke hørt fra længe (pulsen talte 14)");
   });
 });
