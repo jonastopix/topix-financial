@@ -7,6 +7,7 @@ import { invaliderForsiden, lukOpgave } from "@/hooks/opgaveLukning";
 import { OpgavelisteView } from "@/components/hjemmebane/opgaver/OpgavelisteView";
 import { TAERSKEL, type Linje, type OpgaveSlags, type Pukkellinje, type Virksomhedslinje } from "@/lib/forsidensDom";
 import { LUKNINGS_UDFALD, UDFALD_TEKST, type LukningsUdfald } from "@/lib/opgaveLukning";
+import { pulsLinjer } from "@/lib/pulsen";
 import { cn } from "@/lib/utils";
 
 /**
@@ -264,6 +265,29 @@ export const RaadgiverForsideView = () => {
 
         {/* ── Højre: det der orienterer. Under stregen (§5): tal, ikke lister ── */}
         <aside className="mt-10 min-w-0 space-y-1 text-sm text-hb-ink-soft lg:mt-0 lg:border-l lg:border-hb-line lg:pl-8">
+        {/* PULSEN (Jonas 8/9, lib/pulsen): fire tal for hele porteføljen, læses
+            hver morgen. Tallene er MOTORERNES — tavshed er virksomhedsSignalers
+            21 dage, fornyelser er dommens FORNYELSE_VENTER_STATUSSER, «har
+            rapporteret» er seneste afsluttede måned med målte tal. Ingen
+            grafer; klik hvor der er nogen at klikke på. */}
+        <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft">Pulsen</p>
+        <ul className="space-y-1 pb-4">
+          {pulsLinjer(data.pulsen).map((l) => (
+            <li key={l.noegle} className={cn(l.noegle === "tavse" && data.pulsen.tavse.antal > 0 && "text-hb-rust")}>
+              {l.to ? (
+                <Link to={l.to} className={cn("underline-offset-4 hover:underline", l.noegle === "tavse" && data.pulsen.tavse.antal > 0 ? "text-hb-rust" : "text-hb-evergreen")}>
+                  {l.tekst}
+                </Link>
+              ) : (
+                l.tekst
+              )}
+            </li>
+          ))}
+        </ul>
+        {/* SIDEN SIDST (Jonas 8/9): pr. rådgiver, syv dages loft — kommer i en
+            senere PR og står HER, mellem pulsen og tallene under stregen.
+            Pladsen er reserveret; intet fabrikeres. */}
+        <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft">Under stregen</p>
         {antalUnder > 0 && (
           <p>
             <Link to="/virksomheder" className="text-hb-evergreen underline-offset-4 hover:underline">

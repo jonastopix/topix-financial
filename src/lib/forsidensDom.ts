@@ -506,11 +506,21 @@ function grundeFraMotoren(v: VirksomhedTilDom): Grund[] {
     personlige besked kommer EFTER systemets mail, ikke i stedet for), med
     egen signaltype og lavere alvor. Stemplet læses fra VirksomhedTilDom,
     ikke fra motoren — det er ikke en tilstand, det er et faktum om post. */
+/** De fornyelsestilstande hvor der er noget at gøre — «N fornyelser venter
+    på dig». ÉT sted: dommen (grundFraFornyelse) og pulsen (lib/pulsen)
+    læser samme liste, så forsidens linje og højre spaltes tal aldrig
+    kan sige to forskellige mængder. */
+export const FORNYELSE_VENTER_STATUSSER = ["udloebet_tilbyd", "klar_til_tilbud", "beslutning_mangler"] as const;
+export type FornyelseVenterStatus = (typeof FORNYELSE_VENTER_STATUSSER)[number];
+export function venterPaaFornyelse(status: string | null | undefined): status is FornyelseVenterStatus {
+  return typeof status === "string" && (FORNYELSE_VENTER_STATUSSER as readonly string[]).includes(status);
+}
+
 function grundFraFornyelse(v: VirksomhedTilDom): Grund | null {
   const f = v.fornyelse;
   if (!f) return null;
   const status = f.status;
-  if (status !== "udloebet_tilbyd" && status !== "klar_til_tilbud" && status !== "beslutning_mangler") return null;
+  if (!venterPaaFornyelse(status)) return null;
   const dage = f.dage_til_udloeb;
   // Begge stempler, ÉN regel (lib/varselTrin): varsel 2 vinder over varsel 1.
   const trin = status === "klar_til_tilbud" ? afgoerVarselTrin(v.varsel1SendtAt, v.varsel2SendtAt ?? null) : "ingen";
