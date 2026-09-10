@@ -1058,10 +1058,10 @@
   <h2>Drift og fundament — ydeevne, overvågning, RLS, døde felter</h2>
   <p class="lede">Ingen fejlovervågning. Hændelser findes ved manuel måling, ikke af nogen alarm — RLS-hullet 3/9 blev fundet med en lånt identitet, ikke af et værn.</p>
   <div class="grid">
-    <div class="card new" data-status="mangler" data-spor="1" data-rammer="ingen">
-      <h3>Cron-jobbene fejler tavst — vagten er bygget, men virkede ikke første gang</h3>
-      <p><strong>Udfaldet er løst:</strong> <code>email_queue_service_role_key</code> genskabt 9/9 kl. 23:50, 200 fra <code>fornyelsesvarsel-cron</code>. Otte timer med 401 og «succeeded» i <code>cron.job_run_details</code> (OVERLEVERING øverst, nu historik). <strong>Vagten</strong> (#768, #770) er bygget og migrationen kørt — og den fejlede to gange: en plpgsql-variabel <code>r</code> delte navn med tabelaliasset (rettet), og derefter timede den ud på <code>cron.job_run_details</code> med 1.895.419 rækker uden indeks på <code>start_time</code> — tabellen ejes af systemet og kan ikke indekseres. Årsagen: den gamle <code>email_queue_dispatch</code> planlagde ét engangs-job pr. afsendelse. Lovable ryddede 1.892.693 rækker 10/9; 2.734 tilbage. <strong>Det der står:</strong> bevis at vagten svarer på de 2.734, og afgræns på tid FØR join (DEL 4).</p>
-      <div class="meta"><span class="tag ny">Ny 9/9</span><span class="tag">Udfald løst 9/9</span><span class="tag rust">Vagten ubevist</span><span class="tag size">Mellem</span></div>
+    <div class="card decision new" data-status="beslutning" data-spor="1" data-rammer="ingen">
+      <h3>Ét job der klippes hvert femte minut er ikke en grund i vagten</h3>
+      <p><strong>Målt 10/9:</strong> fem af tretten kald til <code>process-notification-emails</code> timede ud efter pg_nets fem sekunder — og en timeout KLIPPER funktionen midt i arbejdet (målt 3/9). Vagten (ottende version, <code>20260910170000</code>) tæller dem nu rigtigt (<code>timeouts_60m</code>, koden <code>timeout</code>), men dommen kræver ikke-200 fra TO jobs — ét job der klippes ni gange i timen bliver ikke rødt. Timeouten på kaldene er hævet til 30 s via <code>public.kald_edge</code> (ti HTTP-jobs genplanlagt), så tallet bør falde til nul. Beslutningen: skal gentagne timeouts på ét job være gul, rød eller kun et tal?</p>
+      <div class="meta"><span class="tag ny">Ny 10/9</span><span class="tag gold">Beslutning</span><span class="tag size">Lille</span></div>
     </div>
     <div class="card blocked" data-status="fejl" data-spor="1" data-rammer="raadgiver">
       <h3>Ingen fejlovervågning</h3>

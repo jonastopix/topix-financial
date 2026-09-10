@@ -2741,6 +2741,50 @@ gang», dag 10 intro-påmindelsen i systemets stemme, dag 14–20 «Historikken
 først»; migrationen skrevet, IKKE kørt), profilens nudge (#764/#765) og
 importens advarsel (#763).
 
+**8. Vagten tog OTTE versioner, alle fejl kun fundet i prod.** Ingen af
+husets 2459 tests kører en linje plpgsql. (1) alias-kollision: variablen
+`r` mod tabelaliasset `r`. (2) timeout uden indeks: 1,9 mio. rækker i
+`cron.job_run_details`, som IKKE kan indekseres («must be owner») — læses
+nu KUN gennem primærnøglen, `ORDER BY runid DESC LIMIT 2000`, aldrig
+`WHERE start_time`. (3) array-konkatenering: `text[] || 'literal'` er
+tvetydig, Postgres læser literalen som et array — `array_append`. (4)
+`advisor_notifications.company_id` NOT NULL — læst i historikken, ikke
+målt; nu nullable, en driftsbesked handler ikke om en virksomhed. (5)
+vagtens egen tærskel (30 min) mod motorens 240 minutters ventetid — nu
+motorens tal + margin, kun 07–20. (6) «intet svar» talt som fejl: pg_net
+skriver rækken FØR svaret kommer; nu «undervejs» i to minutter. (7)
+startup-timeout og SQL-fejl slået sammen — nu SQL-fejl rød, pg_crons
+forbindelsesfejl gul ved tre på en time. (8) timeouts talt på `timed_out`,
+som pg_net aldrig sætter i prod — teksten står i `error_msg`; nu kolonnen
+ELLER `~* '(timeout|timed out)'`, og `error_msg` dømmes FØR alderen.
+Migrationerne `20260909234500` … `20260910170000`; forsidens linje
+«Driften» læser loggen (`cron_vagt_log`).
+
+**9. Og den fandt noget på første fungerende kørsel.** Kl. 08:40 kunne to
+jobs ikke starte — pg_crons hårdkodede ti sekunder til at få en
+forbindelse (`CronTaskStartTimeout`, ingen indstilling), mens oprydningen
+kørte. Og fem af tretten kald til notifikationsjobbet timede ud efter fem
+sekunder (`recon-job-startup-timeout.md`, `recon-timeoutens-pris.md`).
+
+**10. Timeouten.** pg_nets standard er 5.000 ms, og den er en
+KLIENT-timeout: målt 3/9, edge-funktionen AFBRYDES når pg_net lukker —
+kaldet tabes ikke, det KLIPPES midt i arbejdet. Målt i dag: DNS 203 ms,
+handshake 60 ms, request/response 473 ms — resten af de fem sekunder er
+funktionen selv. `public.kald_edge` samler nu URL, nøgle og timeout ét
+sted: standard 30 sekunder, loft 150. Alle TI HTTP-jobs er genplanlagt,
+ét ad gangen med bevis imellem, notifikationsjobbet sidst. De tre øvrige
+(`agent-runs-opbevaring`, `opgave-udloeb`, `vagt-cron`) er ren SQL og har
+intet at time ud. **Åbent:** ét job der klippes hvert femte minut er ikke
+en grund i vagten (reglen kræver to jobs) — tallet står i `timeouts_60m`.
+
+**11. Tællerne (#776).** `{processed: 1, sent: 0, skipped: 0}` så ud som
+en fejl og var det ikke — en række der VENTER (for ung for sin types 240
+minutter, eller uden for vinduet 07–20) stod i ingen tæller. Det kostede
+en times fejlsøgning. Nu `venter_paa_tid` og `venter_paa_vindue`, og
+`sent` tæller rækker så regnestykket går op; `mails_sendt` tæller mails.
+Hentningens 15-minutters net forbliver bredt med vilje: dublet- og
+rapport-væk-reglerne skal se hele familien i samme kørsel.
+
 ### Mailplatformen — bygget om af Lovable 8/9 kl. 06:52-06:58; afsenderne, fortegnelsen og værnet (#728, #730, #731, #732)
 
 **Hvad Lovable gjorde.** 19 commits direkte til main mellem kl. 06:52 og
@@ -3381,9 +3425,26 @@ De konkrete ting der har kostet tid. Led efter dem.
   `cron.job_run_details` havde 1.895.419 rækker (10/9) — mailkøens gamle
   afsender planlagde ét engangs-cron-job pr. afsendelse — og vagtens
   korrelerede underforespørgsel timede ud. **Tabellen kan IKKE indekseres:**
-  «must be owner of table job_run_details», den ejes af systemet. Afgræns
-  ALTID på tid FØR du joiner, og ryd tabellen (Lovable ryddede 1.892.693
-  rækker 10/9; 2.734 tilbage).
+  «must be owner of table job_run_details», den ejes af systemet. Læs den
+  KUN gennem primærnøglen — `ORDER BY runid DESC LIMIT n` er en
+  indeks-skanning baglæns; `WHERE start_time > …` er et fuldt gennemløb
+  uanset vinduet (rettet 10/9, ottende version). Og ryd tabellen: pg_cron
+  rydder aldrig selv (Lovable ryddede 1.892.693 rækker 10/9; 2.734 tilbage).
+- **Læs ikke en kolonnes constraints i migrationshistorikken — mål dem.**
+  `advisor_notifications.company_id` stod som «nullable» i en recon 9/9 og
+  var NOT NULL fra oprettelsen: `NOT NULL` stod SIDST på linjen, efter
+  FK-klausulen, og blev overset. Vagten faldt på det i prod (fejl 4 af 8).
+  Ét `SELECT is_nullable FROM information_schema.columns` afgør det.
+- **plpgsql testes af ingen — kør SELECT'en efter migrationen.** Otte
+  versioner af vagten på to dage, alle otte fejl kun fundet i prod; tre af
+  dem var SQL der svarede forkert uden en lyd (undervejs, timeouts). Det
+  der ville have fanget dem alle: `SELECT * FROM public.vagt_cron()` lige
+  efter kørslen — den står i hvert filhoved og blev sprunget over hver gang.
+- **`text[] || 'literal'` er tvetydig i plpgsql.** Literalen er `unknown`,
+  Postgres vælger `anyarray || anyarray` og læser strengen som et array
+  («malformed array literal»). `array_append(arr, 'x'::text)`. Og
+  `net.http_post`s 5 sekunder er en KLIENT-timeout der AFBRYDER
+  funktionen — sæt `timeout_milliseconds` (nu samlet i `public.kald_edge`).
 - **`Deno.cron` kører ikke på Supabases edge-runtime.** En funktion med
   kun `Deno.cron` kører aldrig. Påmindelser skal have en HTTP-indgang og
   planlægges med pg_cron (net.http_post + vault-nøglen
