@@ -1345,10 +1345,13 @@ hvis den bruges). Anledningen var `er_kunde`: måtte feltet gate cronen?
   blokeret for alle seks triggere. Godkendelseslaget
   (`agent-forslag-afgoer`) kan KUN godkende `update_weekly_focus`; alt
   andet kan kun forkastes.
-- **To mandagsjobs skriver begge `company_actions`:**
-  `generate-weekly-focus` 06:00 UTC (`source_type ai_weekly`) og
-  `run-weekly-agent` 07:00 (`source_type agent`). Hører til
-  opgave-model-epic'et (DEL 3).
+- **~~To mandagsjobs skriver begge `company_actions`~~ — RETTET 10/9: kun
+  ét gør.** `generate-weekly-focus` 06:00 UTC (`source_type ai_weekly`)
+  kører og har kørt seks uger i træk. `run-weekly-agent` 07:00
+  (`source_type agent`) har aldrig kørt — kun `Deno.cron`, ingen
+  `Deno.serve`, nul `weekly_cron` i `agent_runs` (målt i prod 10/9
+  kl. 21:08). Valget om den står som ÅBENT PUNKT i afsnittet «Ugefokus
+  og ugeagenten» nedenfor.
 - **`run-weekly-agent` har KUN `Deno.cron` og står IKKE i prods
   `cron.job`** (målt 6/9: ti jobs, ingen af dem den — listen står i
   fornyelseskædens §13.5). Repoet dokumenterer selv at `Deno.cron` aldrig
@@ -3109,6 +3112,133 @@ se forskel på «afsluttet efter tolv rater via cancel_at» og «annulleret
 efter fejl» — begge er `skipped`; med past-due sker det sidste ikke
 længere automatisk, men en manuel annullering i Dashboard er stadig tavs.
 
+### Ugefokus og ugeagenten — to funktioner, to pipelines; ÅBENT PUNKT til Jonas og Morten (10/9, nat)
+
+Jonas 10/9 kl. 22: «Jeg ved ikke om jeg er skarp nok til at vælge.» Det er
+den rigtige grund til at vente. `run-weekly-agent` har ALDRIG kørt, så den
+kan vente en dag mere uden at nogen mærker det. Grundlaget står her
+(`~/Downloads/recon-ugeagenten.md` og `recon-ugefokus-vaerdien.md`, uden
+for repoet — det væsentlige er gengivet nedenfor), så valget kan træffes på
+fem minutter.
+
+**1. Hvad der er målt — to funktioner med overlappende navne, to pipelines,
+ét delt bord.**
+
+- **`generate-weekly-focus`** (632 linjer) HAR `Deno.serve`, `verify_jwt =
+  true`, kaldes af pg_cron `generate-weekly-focus` mandag kl. 06 UTC via
+  `kald_edge` (150 s). Det er en **regelmotor**: ti deterministiske
+  triggers (REPORT_UPLOADED, BUDGET_DEVIATION > 15 %, MILESTONE_DUE_SOON,
+  MILESTONE_STALLED, KPI_OFF_TARGET, BENCHMARK_BELOW, NO_REPORT_60_DAYS,
+  HANDOUT_OVERDUE, POSITIVE_MOMENTUM) regnes i kode; AI (Gemini 2.5 Flash)
+  bruges KUN til at formulere headline + 2–3 sætninger, og kun når en
+  trigger fyrer. Ingen trigger → `quiet`, ingen tekst. Ingen tal på 90
+  dage → `no_data`, ingen tekst. Én række pr. virksomhed der passerer
+  gaten (status active/null + tier ≠ expired, `ugensFokusGate.ts`) pr.
+  uge — derfor **133 rækker over W32–W37, 25–30 om ugen**. Den skriver
+  ALDRIG `agent_runs`. Den er ikke agenten.
+- **`run-weekly-agent`** (90 linjer) er KUN et `Deno.cron("weekly-company-
+  agent", "0 7 * * 1", …)` — ingen `Deno.serve`, ingen kalder. `Deno.cron`
+  eksekverer ikke på Supabases edge-runtime (DEL 4; samme fejl som
+  legat-cronen, lagt om i #797). Den skulle mandag kl. 07 kalde
+  `run-company-agent` med `trigger: "weekly_cron"` og **`dry_run: false`**
+  for hver aktiv virksomhed med godkendte tal. **Nul `weekly_cron`-rækker i
+  `agent_runs`** (prod 10/9 kl. 21:08) — den har aldrig kørt.
+- **De tre triggers der FAKTISK kører agenten:** `report_committed` (16,
+  live ved hver rapportgodkendelse — `reportCommit.ts`, `ReportReviewDialog`),
+  `anomaly_detected` (7, live når `detect-financial-alerts` finder noget;
+  må ikke røre kortet med negativt), `company_review` (3, seneste 25/8 —
+  rådgiverens knap i `AgentForslagPanel`, altid tør; ikke slået fra, bare
+  ikke trykket på siden testene 25/8, samme dag #433 gjorde tør til
+  standard og onboardingens chat-velkomst blev lukket).
+- **Det delte bord:** begge skriver `weekly_focus` på `(company_id,
+  week_key)` — regelmotoren direkte, agenten via værktøjet
+  `update_weekly_focus` (`_shared/agentSkriveveje.ts`). Sidst skrevne
+  vinder. Ved en rapportgodkendelse kaldes BEGGE inden for sekunder
+  (`reportCommit.ts:12-36`); rækkefølgen er ikke styret. I prod kan de
+  skelnes: agentens rækker har `trigger_data ? 'trigger'`.
+
+**2. De tre valg for `run-weekly-agent` — vælg ét.**
+
+| valg | for medlemmet | kræver | koster |
+|---|---|---|---|
+| **A. Slet** | Ingen ændring — den har aldrig kørt. Medlemmet får fortsat ugefokus (regelmotoren) hver mandag og agentens nøglefund ved hver rapportgodkendelse. Mandagen får ingen «anden stemme». | Slet filen og `config.toml:33-34`; ret kommentaren i `ugensFokusGate.ts:18`. En time. | Intet. |
+| **B. Omlæg** (Bucket B som #797: `Deno.serve` + `authenticateServiceRole` + tørkørsel default + `kald_edge`) | **Tørt:** intet for medlemmet — 13–20 forslag lander i Agent-loggen hver mandag til rådgiverens godkendelse (i dag afgøres 0; de otte fra 25/8 lå til 6/9). **Live:** agenten overskriver ugefokus' kort med sit eget og lægger forslag (`source_type agent`) og milepæle direkte hos medlemmet, uden godkendelse — «slukkes agenten, ændres medlemmets hverdag» (Agentkæden 6/9). | Omlægning ½ dag; beslutning tørt/live; og en rådgiver der afgør forslag mandag morgen. Kl. 07 EFTER ugefokus kl. 06 → to skrivere til samme række. | 13–20 kald pr. mandag × op til 12 Gemini-iterationer ≈ 100–200 gateway-kald og 10–20 min kørsel om ugen, ud over ugefokus' egne 15–25 kald. Kroner: kræver Lovable-gatewayens forbrug for én `report_committed`-kørsel som målestok. |
+| **C. Byg færdig** (omlæg OG afklar mod ugefokus: ÉN motor pr. mandag) | Ét mandagskort med én stemme — enten regelmotoren alene (som i dag) eller agenten alene med ugefokus' triggers som input; men så skal «tal kun når en trigger fyrer» bygges ind i agenten. | Design: hvem ejer mandagens kort, og hvad må skrives uden godkendelse? Det er opgave-epic'et (DEL 3), ikke en rettelse. | Dage. |
+
+**Spørgsmålet bag valget:** vil I have en AI-agent der hver mandag, uden
+menneske, ændrer medlemmets forside og lægger opgaver — ud over det
+agenten allerede gør ved rapportgodkendelse? Nej → A. Kun med godkendelse
+→ B tørt, og nogen skal afgøre forslagene mandag morgen. Ja → C.
+
+**3. Spørgsmålet bag DET: giver ugefokus «overhovedet værdi», og larmer
+den?** Jonas 10/9: «Hvornår giver det mening, fordi det kun er for dem der
+sker noget ved … Vi vil jo ikke larme unødigt.» Fund:
+
+- Motoren er ALLEREDE bygget efter det princip: `quiet` uden trigger,
+  `no_data` uden tal, og forslag (`ai_weekly`) holdes tilbage når ét
+  forslag venter ubesvaret (`maaSkriveForslag`, Jonas 8/9). Kun
+  `active`-rækker bliver til tekst for et menneske. **Hvor mange af de 133
+  der var `active`, er ikke målt** — det er tallet «larmer den?» handler
+  om (SQL nedenfor).
+- Det medlemmet ser er tre linjer i fokuskortet «Dit næste skridt»:
+  overskriften **«Ugens fokus er klar»** (fast, `nextStep.ts:310`),
+  manchetten = `weekly_focus.headline` (AI, ≤ 8 ord), brødteksten =
+  `weekly_focus.summary` (AI, 2–3 sætninger med tal). Knappen «Se ugens
+  fokus» peger på `/` — siden man står på — og **vises derfor aldrig**
+  (`BoardroomView:1285`). Punktet har prioritet 4: under manglende
+  rapport, rapport der venter, puls og ulæste beskeder; over milepæle og
+  forslag. Er intet over det, ER det forsidens overskrift den uge.
+- **`seen_at` er en død skrivevej** (0 af 133): `weekly_focus` har ingen
+  UPDATE-policy for medlemmer (kun SELECT + service role, `20260329190316`),
+  så forsidens `markSeen` rammer nul rækker uden fejl. Det er matematik,
+  ikke adfærd — det siger intet om hvor mange der læser. **Rettes nu i det
+  andet vindue.** Når skrivevejen virker, forsvinder punktet efter første
+  visning — så spørgsmålet om værdi handler om **de tre LINJER** (er
+  headline og summary noget medlemmet handler på, eller AI-tekst om det
+  samme hver uge?), ikke om at kortet fylder.
+- Recon-de-tre §1 pegede på et alternativ til at åbne skrivevejen: tage
+  slot (d) ud og vise resuméet som tekst i kortet uden at optage en
+  handlingsplads. Det er en designbeslutning; med skrivevejen rettet er
+  den ikke længere nødvendig for at lukke fejlen.
+
+**4. Hvad der skal måles FØR beslutningen — kræver prod.** `weekly_focus.
+seen_at` kan ikke svare. Det der faktisk skrives, er notifikationen
+`weekly_focus_ready` (prioritet `info`, én pr. medlem pr. uge), som klokken
+(#790) stempler `seen_at` på ved åbning og `read_at` ved klik:
+
+```sql
+-- Læser nogen ugefokus? (klokken stempler seen_at/read_at — det eneste «set» der skrives i dag)
+SELECT count(*) AS alle, count(seen_at) AS set_i_klokken, count(read_at) AS laest,
+       count(DISTINCT user_id) AS medlemmer,
+       count(DISTINCT user_id) FILTER (WHERE seen_at IS NOT NULL) AS medlemmer_der_saa
+FROM public.notifications WHERE type = 'weekly_focus_ready' AND created_at > now() - interval '6 weeks';
+
+-- Hvor tit taler den? active = der stod tre linjer for et menneske
+SELECT week_key, count(*) AS raekker,
+       count(*) FILTER (WHERE status = 'active') AS active,
+       count(*) FILTER (WHERE status = 'quiet') AS quiet,
+       count(*) FILTER (WHERE status = 'no_data') AS no_data,
+       sum(actions_generated) AS forslag
+FROM public.weekly_focus GROUP BY week_key ORDER BY week_key DESC;
+
+-- Gentager den sig? Samme trigger uge efter uge for samme virksomhed = larm
+SELECT company_id, count(*) AS uger_med_fokus, array_agg(DISTINCT t) AS triggers
+FROM public.weekly_focus, jsonb_array_elements_text(triggers_fired) t
+WHERE status = 'active' GROUP BY company_id ORDER BY uger_med_fokus DESC;
+
+-- Svarer nogen på ugefokus' forslag? (ai_weekly mod agent mod rådgiver)
+SELECT source_type, status, count(*) FROM public.company_actions GROUP BY source_type, status ORDER BY 1, 2;
+
+-- Agentens kørsler pr. trigger (weekly_cron forventet 0)
+SELECT trigger, mode, count(*), max(started_at) FROM public.agent_runs GROUP BY trigger, mode ORDER BY 1, 2;
+```
+
+Læses den (set_i_klokken og medlemmer_der_saa > 0) og taler den kun når
+noget fyrer (active en brøkdel af raekker, få gentagelser), er ugefokus
+værdien, og A er det rigtige for ugeagenten. Læser ingen den, er
+spørgsmålet ikke A/B/C, men om de tre linjer skal skrives anderledes — og
+det er en samtale med Morten om hvad et medlem skal møde mandag morgen.
+
 ### Mailplatformen — bygget om af Lovable 8/9 kl. 06:52-06:58; afsenderne, fortegnelsen og værnet (#728, #730, #731, #732)
 
 **Hvad Lovable gjorde.** 19 commits direkte til main mellem kl. 06:52 og
@@ -3648,6 +3778,7 @@ facit og rækkefølge; `docs/chat-design.md` chattens form.
 
 | hvornår | hvad | hvor det står |
 |---|---|---|
+| **ÅBENT — Jonas og Morten, ikke i aften** (10/9 kl. 22: «Jeg ved ikke om jeg er skarp nok til at vælge») | **`run-weekly-agent`: slet (A), omlæg tørt/live (B) eller byg færdig som én mandagsmotor (C).** Den har aldrig kørt (kun `Deno.cron`, 0 `weekly_cron` i `agent_runs`), så intet haster. Mål FØRST om nogen læser ugefokus: `notifications` type `weekly_focus_ready` → `seen_at`/`read_at` (SQL i DEL 2). `weekly_focus.seen_at` kan ikke bruges (død skrivevej, rettes i det andet vindue). | DEL 2 «Ugefokus og ugeagenten» |
 | **FØR 13/9** — Stripe er sat op 10/9 kl. 20:50–21:05 (past-due, mails til, dansk); koden mangler | **Restancen:** (1) rådgivernes klokke ved fejlet træk (`skrivRaadgiverBesked` i `payment_failed`, dedup `company_traek.id`); (2) retries opbrugt → `invoices.send` når `next_payment_attempt` er null. Bevis: doggybeds træk 13/9 — går det igennem, skrives intet; fejler det, skal klokken ringe og badgen stå. | DEL 2 «Restancen»; fornyelseskæden §9; mangellisten (Betaling) |
 | **SKREVET 10/9 (#801), IKKE BEKRÆFTET KØRT** | **Tre migrationer:** `20260911020000_messages_delete_15min.sql` (to DELETE-policies erstattes af «within 15 min» + advisor), `20260911030000_feedback_bucket_mappetjek.sql` (mappetjek, 5 MB, image/*), `20260911040000_companies_status_check.sql` (CHECK + NOT NULL; prod målt 30/8, 0 NULL). Bevis: SELECT'en nederst i hver fil — indtil da gælder de gamle policies. | DEL 2 «10. september, sen aften»; `SECURITY_BASELINE.md` §5 |
 | **RETTET 10/9** (#771–#773): `/members` er tømt — kun importen og onboarding-tragten står; `/settings` er konverteret med aftalen og en rigtig notifikationsfane. **EFTER 9/9** — det der stod tilbage efter rådgiverfladen og de to trin | ~~Otte ting kun på `/members`~~ → **10/9: importen bliver til ansøgningsflowet flytter; onboarding-tragten skal IKKE flyttes.** ~~`/settings`' tre rester~~ → **10/9: konverteret (#773).** **Aftale-kortet** er bygget med slutdato og pris; perioderne vises når nogen har nogen — 27 af 27 har nul. **Bevis:** `_shared/ikkeIGang.ts` i «View code» efter merge, Update for forsiden. **Ikke kode:** skriv til de seks der aldrig har uploadet — bed om historikken. | DEL 2 «9. september», mangellisten «Rådgiverfladen» |
