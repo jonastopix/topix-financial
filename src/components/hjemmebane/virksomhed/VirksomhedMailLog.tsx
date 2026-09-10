@@ -153,13 +153,17 @@ export const VirksomhedMailLog = ({ companyId, adresser }: { companyId: string; 
                         {erUdfoldet ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                       </span>
                     </button>
+                    {/* Mobil (10/9, målt på 390 px = 310 px indre): Message-ID er ÉT
+                        token på ~60 tegn (~390 px i text-xs) og en Resend-fejl kan
+                        være lige så lang — uden break-all/break-words skæres de af
+                        #root's overflow-x: hidden i stedet for at ombryde. */}
                     {erUdfoldet && (
                       <div className="space-y-1.5 border-t border-hb-line/60 bg-hb-sage/10 px-4 py-3 text-xs text-hb-ink">
-                        <p><span className="font-medium text-hb-ink-soft">Emne:</span> {row.subject || "—"}</p>
+                        <p className="break-words"><span className="font-medium text-hb-ink-soft">Emne:</span> {row.subject || "—"}</p>
                         <p><span className="font-medium text-hb-ink-soft">Tidspunkt:</span> {format(new Date(row.created_at), "d. MMMM yyyy HH:mm:ss", { locale: da })}</p>
-                        <p><span className="font-medium text-hb-ink-soft">Message-ID:</span> {row.message_id || "—"}</p>
+                        <p className="break-all"><span className="font-medium text-hb-ink-soft">Message-ID:</span> {row.message_id || "—"}</p>
                         {row.error_message && (
-                          <p><span className="font-medium text-hb-rust">Fejl:</span> {row.error_message}</p>
+                          <p className="break-words"><span className="font-medium text-hb-rust">Fejl:</span> {row.error_message}</p>
                         )}
                       </div>
                     )}
