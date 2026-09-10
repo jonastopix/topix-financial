@@ -41,7 +41,7 @@ import { HbAdvisorCompanyPrompt } from "../HbAdvisorCompanyPrompt";
 import { HbCard } from "../HbCard";
 import { HbButton } from "../HbButton";
 import { hbControlClasses } from "../admin/HbField";
-import { deriveReportCardView, type CardAction, erForTidligt, godkendSpaerret } from "./reportCardView";
+import { deriveReportCardView, type CardAction, erForTidligt, godkendSpaerret, rapportFejlgrund } from "./reportCardView";
 import { HbReportUploadZone } from "./HbReportUploadZone";
 import { tomListeTekst } from "@/lib/hjemmebane/rapporteringTekst";
 
@@ -136,7 +136,7 @@ export const RapporteringView = () => {
       const reportsRes = await (supabase
         .from("financial_reports")
         .select(
-          "id, file_name, file_path, report_type, report_period, company_name, uploaded_at, status, extracted_data, normalized_data, manual_report_period_label, manual_report_period_key, manual_report_type, manual_normalized_data, manual_override_status, manual_override_note, manual_override_by, manual_override_at, manual_override_source, quality_signals",
+          "id, file_name, file_path, report_type, report_period, company_name, uploaded_at, status, extracted_data, normalized_data, manual_report_period_label, manual_report_period_key, manual_report_type, manual_normalized_data, manual_override_status, manual_override_note, manual_override_by, manual_override_at, manual_override_source, quality_signals, validation_errors",
         ) as any)
         .eq("company_id", companyId!)
         .is("deleted_at", null)
@@ -493,6 +493,13 @@ export const RapporteringView = () => {
       // RPC'ens period_key først (SQL'ens egen dom), ellers rapportens
       // effektive nøgle — «for tidligt» skelnes i klienten (reportCardView).
       periodKey: commitStatesQuery.data?.get(report.id)?.period_key ?? getEffectiveReportPeriodKey(report as any),
+      // Grunden på kortet (10/9): serverens egne ord, forkortet — aldrig teknik.
+      fejlgrund: rapportFejlgrund({
+        status: report.status,
+        validationErrors: report.validation_errors ?? null,
+        qualityValidationErrors: report.quality_signals?.validation_errors ?? null,
+        routingBranch: report.quality_signals?.routing_branch ?? null,
+      }),
     });
   };
 

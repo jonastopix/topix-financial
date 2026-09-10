@@ -333,10 +333,10 @@ export interface VirksomhedTilDom {
       useVirksomhed) SKAL bære det — #682/#689-lærdommen: to hentninger, ét tal. */
   varsel1SendtAt: string | null;
   /** company_fornyelse.varsel_2_sendt_at — påmindelsen (7/9 aften). Vinder
-      over varsel 1 (lib/varselTrin). VALGFRI, fordi AdvisorDashboards
-      hentning ikke bærer kolonnen endnu (den ligger uden for #-PR'ens
-      stier); indtil den gør, ser forsiden CARMA-tilfældet (kun varsel 2)
-      som «ikke varslet». useVirksomhed/VirksomhedView bærer den. */
+      over varsel 1 (lib/varselTrin, ÉN regel for badge og dom). Begge
+      hentninger bærer den (AdvisorDashboard og useVirksomhed — låst af
+      varselStempel.guard.test.ts). Stadig valgfri i typen for ældre kaldere
+      og tests; udeladt = ingen påmindelse. */
   varsel2SendtAt?: string | null;
   /** afgoerBetalingsfrist(…, nu); null når virksomheden ikke er i indgangen
       (ingen række i company_betalingslink — kalderen afgør det, som
