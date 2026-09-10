@@ -1188,11 +1188,13 @@ const AnnualSection = ({
               <span className="min-w-0 flex-1">
                 <span className="block text-[15px] text-hb-ink">Årsrapport {report.year}</span>
                 <span className="block text-sm text-hb-ink-soft">
+                  {/* 0 er ikke en omsætning (YKRG 2024: «Omsætning: 0 kr.» i listen) —
+                      et nul fra udtrækket er «ikke læst», og indtast-vejen står åben. */}
                   {report.status === "error"
                     ? "Kunne ikke behandles"
-                    : report.revenue != null
-                      ? `Omsætning: ${formatDKK(report.revenue)}`
-                      : "Importeret"}
+                    : report.revenue != null && report.revenue !== 0
+                      ? `Omsætning: ${formatDKK(report.revenue)} · fordelt over 12 måneder som estimat`
+                      : "Importeret · omsætning ikke læst — brug «Ret omsætning»"}
                 </span>
               </span>
               {confirmDelete === report.id ? (

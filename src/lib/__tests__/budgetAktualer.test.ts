@@ -6,6 +6,7 @@ vi.mock("@/integrations/supabase/client", () => ({ supabase: {} }));
 
 import {
   aktualerFraFacts,
+  estimeredeMaaneder,
   forecastSerie,
   nettoFlow,
   saldoKurve,
@@ -136,5 +137,51 @@ describe("nettoFlow og saldoKurve — en rapport uden tal er forecast, aldrig et
     expect(k.map((p) => p.actual ?? p.forecast).slice(0, 3)).toEqual([10000, 20000, -20000]);
     expect(k.map((p) => p.isActual).slice(0, 3)).toEqual([true, false, true]);
     expect(k[1].rapportUdenTal).toBe(true);
+  });
+});
+
+describe("estimater er ikke realiserede (data_basis-kontrakten, 10/9)", () => {
+  const est = (period_key: string, metrics: Record<string, number | null>) => ({ period_key, metrics, data_basis: "estimated" as const });
+  const maalt = (period_key: string, metrics: Record<string, number | null>) => ({ period_key, metrics, data_basis: "measured" as const });
+
+  it("en estimeret række (årsrapport /12) kommer ikke i aktualerne — før talte den som realiseret", () => {
+    const a = aktualerFraFacts([est("2025-03", { revenue: 9_139, payroll: -9_787, cash: 50_000 })], "2025", { medAfskrivninger: true });
+    expect(a[2]).toBeUndefined();
+    expect(Object.keys(a)).toEqual([]);
+  });
+
+  it("en målt række kommer i aktualerne som før; en fact UDEN data_basis regnes som målt (ældre kaldere)", () => {
+    const a = aktualerFraFacts([maalt("2026-03", { revenue: 100_000, payroll: -40_000 }), fact("2026-04", { revenue: 110_000 })], "2026", { medAfskrivninger: true });
+    expect(a[2]).toEqual({ omsaetning: 100_000, omkostninger: 40_000, bank: null });
+    expect(a[3]).toEqual({ omsaetning: 110_000, omkostninger: null, bank: null });
+  });
+
+  it("blandet år (YKRG-formen: 2 målte, 10 estimerede): kun de estimerede måneder mærkes, kun de målte er aktualer", () => {
+    const facts = [
+      ...Array.from({ length: 12 }, (_, i) => est(`2024-${String(i + 1).padStart(2, "0")}`, { revenue: 0, gross_profit: 45_565, payroll: 117_444 })),
+      maalt("2024-11", { revenue: 80_000, payroll: -30_000 }),
+      maalt("2024-12", { revenue: 90_000, payroll: -30_000 }),
+    ];
+    expect(estimeredeMaaneder(facts, "2024")).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
+    const a = aktualerFraFacts(facts, "2024", { medAfskrivninger: false });
+    expect(Object.keys(a).map(Number)).toEqual([10, 11]);
+  });
+
+  it("en virksomhed der kun rapporterer månedligt ser intet nyt: ingen estimerede måneder, aktualerne uændrede", () => {
+    const facts = Array.from({ length: 8 }, (_, i) => maalt(`2026-${String(i + 1).padStart(2, "0")}`, { revenue: 100_000 + i, payroll: -40_000 }));
+    expect(estimeredeMaaneder(facts, "2026")).toEqual([]);
+    expect(Object.keys(aktualerFraFacts(facts, "2026", { medAfskrivninger: true })).length).toBe(8);
+  });
+
+  it("estimeredeMaaneder filtrerer på år og ignorerer ulæselige nøgler", () => {
+    expect(estimeredeMaaneder([est("2025-01", {}), est("2026-13", {}), est("2026-02", {})], "2026")).toEqual([1]);
+  });
+
+  it("forecastet regner kun på målinger: et estimatår giver ingen realiserede måneder og faktor fra budgettet alene", () => {
+    const facts = Array.from({ length: 12 }, (_, i) => est(`2025-${String(i + 1).padStart(2, "0")}`, { revenue: 9_139 }));
+    const a = aktualerFraFacts(facts, "2025", { medAfskrivninger: true });
+    const serie = forecastSerie(Array.from({ length: 12 }, (_, i) => a[i]?.omsaetning ?? null), budget12(10_000));
+    expect(serie.realiseret.every((r) => r === false)).toBe(true);
+    expect(serie.sidsteRealiseret).toBe(-1);
   });
 });

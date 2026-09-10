@@ -12,7 +12,8 @@ import {
 import { cn } from "@/lib/utils";
 import { useCompanyFacts } from "@/hooks/useCompanyFacts";
 import { factsToDanishMetrics } from "@/lib/factsAdapter";
-import { aktualerFraFacts, saldoKurve } from "@/lib/budgetAktualer";
+import { aktualerFraFacts, estimeredeMaaneder, saldoKurve } from "@/lib/budgetAktualer";
+import { ESTIMAT_FORKLARING } from "../EstimatMaerke";
 import { formatCompact, formatDKK } from "@/lib/financialUtils";
 import { MONTHS, type BudgetRow } from "@/components/budget/types";
 import { HbCard } from "../HbCard";
@@ -71,6 +72,10 @@ export const HbBudgetCashflow = ({ rows, year, companyId }: Props) => {
   // lønpost men uden omsætningslinje blev til et stort negativt nettoflow,
   // tegnet som realiseret og læst af goesNegative/criticalMonth.
   const aktualer = useMemo(() => aktualerFraFacts(facts, year, { medAfskrivninger: false }), [facts, year]);
+  // Årsrapport-estimater (10/9): holdes ude af aktualerne (kontrakten) og
+  // mærkes i tabellen — før løb saldoen med dem som «Realiseret saldo».
+  const estimerede = useMemo(() => estimeredeMaaneder(facts, year), [facts, year]);
+  const estimatMaaneder = estimerede.map((i) => MONTHS[i]);
 
   const revenueRows = rows.filter((r) => r.group === "indtaegter");
   const costRows = rows.filter((r) => r.group !== "indtaegter");
@@ -91,6 +96,7 @@ export const HbBudgetCashflow = ({ rows, year, companyId }: Props) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [startingCash, aktualer, rows]);
   const rapporterUdenTal = (chartData ?? []).filter((p) => p.rapportUdenTal).map((p) => p.month);
+  const erEstimatMaaned = (month: string) => estimatMaaneder.includes(month);
 
   // Indsigter — spejler BudgetCashflowTab.tsx:110-135.
   const cashInsights = useMemo(() => {
@@ -195,6 +201,11 @@ export const HbBudgetCashflow = ({ rows, year, companyId }: Props) => {
             <p className="text-xs text-hb-ink-soft">Solid = realiseret · stiplet = forecast · tynd = budget</p>
           </div>
           {/* Hullet SIGES (7/9): en rapport uden tal er projiceret, ikke nul. */}
+          {estimatMaaneder.length > 0 && (
+            <p className="mt-2 text-xs text-hb-ink-soft">
+              Årsrapport-estimat: {estimatMaaneder.join(", ")} — tælles ikke som realiseret, projiceret fra budgettet i stedet. {ESTIMAT_FORKLARING}
+            </p>
+          )}
           {rapporterUdenTal.length > 0 && (
             <p className="mt-1 text-xs text-hb-ink-soft">
               Rapport uden omsætning eller omkostninger: {rapporterUdenTal.join(", ")} — projiceret fra budgettet i stedet.
@@ -324,9 +335,19 @@ export const HbBudgetCashflow = ({ rows, year, companyId }: Props) => {
                                 ? "border-hb-evergreen bg-hb-evergreen"
                                 : row.rapportUdenTal
                                   ? "border-hb-line bg-hb-line/40"
-                                  : "border-hb-line",
+                                  : erEstimatMaaned(row.month)
+                                    ? "border-dashed border-hb-ink-soft/70"
+                                    : "border-hb-line",
                             )}
-                            title={row.isActual ? "Realiseret måned" : row.rapportUdenTal ? "Rapport uden omsætning eller omkostninger — projiceret" : "Projektion"}
+                            title={
+                              row.isActual
+                                ? "Realiseret måned"
+                                : row.rapportUdenTal
+                                  ? "Rapport uden omsætning eller omkostninger — projiceret"
+                                  : erEstimatMaaned(row.month)
+                                    ? `${ESTIMAT_FORKLARING} Tælles ikke som realiseret — projiceret.`
+                                    : "Projektion"
+                            }
                           />
                           {row.month}
                         </span>
