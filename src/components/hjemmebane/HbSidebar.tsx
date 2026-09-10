@@ -63,6 +63,9 @@ interface HbSidebarProps {
       (/settings — virksomhed, netværksprofil, notifikationer) kun for
       medlemmer, som skallen afgør. Udeladt = kun «Konto». */
   visIndstillinger?: boolean;
+  /** Klokken (10/9, HbKlokke): renderes over menuen, i både kolonnen og
+      draweren. Udeladt = ingen klokke (preview, skaller uden bruger). */
+  klokke?: React.ReactNode;
 }
 
 const NavItem = ({ label, active, to, maerke }: { label: string; active?: boolean; to?: string; maerke?: HbNavEntry["maerke"] }) => {
@@ -127,6 +130,7 @@ const SidebarContent = ({
   onSignOut,
   komGodtIGang,
   visIndstillinger = false,
+  klokke,
 }: HbSidebarProps) => (
   <>
     {homeTo ? (
@@ -140,6 +144,7 @@ const SidebarContent = ({
         <span className="font-editorial text-lg font-medium text-hb-ink">The Boardroom</span>
       </a>
     )}
+    {klokke}
     <nav className="flex-1 space-y-1">
       {nav.map((item, index) => (
         <React.Fragment key={item.label}>
