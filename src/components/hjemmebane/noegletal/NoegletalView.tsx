@@ -30,6 +30,7 @@ import { INDUSTRY_TEMPLATES, type BenchmarkTemplate } from "@/lib/appConfig";
 import { HbFinancialAnalysis } from "./HbFinancialAnalysis";
 import { usePeriodFilter } from "@/components/PeriodSelector";
 import { bygPeriodeTotaler, estimatTekst, ufuldstaendigTekst } from "@/lib/periodeTotaler";
+import { bygFactsCsv, csvFilnavn } from "@/lib/factsCsv";
 import { HbAdvisorCompanyPrompt } from "../HbAdvisorCompanyPrompt";
 import { HbButton } from "../HbButton";
 import { HbCard } from "../HbCard";
@@ -342,6 +343,26 @@ export const NoegletalView = () => {
       .catch(() => {});
   };
 
+  // ── CSV (#68, 10/9): tallene som regneark — én række pr. måned, kolonner
+  //    som månedstabellen, estimater i egen kolonne, tomme celler for
+  //    manglende tal (lib/factsCsv). Blob + <a download>, som kalenderfilen. ──
+  const handleCsv = async () => {
+    try {
+      const { data: companyRow } = await supabase.from("companies").select("name").eq("id", companyId!).maybeSingle();
+      const blob = new Blob([bygFactsCsv(facts)], { type: "text/csv;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = csvFilnavn(companyRow?.name || "virksomhed", new Date());
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch {
+      setSaveError("CSV-eksport fejlede. Prøv igen.");
+    }
+  };
+
   // ── PDF (strategi b: fladens egen papir-baggrund, færdig rgb-værdi) ─────
   const handleExport = async () => {
     setExporting(true);
@@ -616,6 +637,14 @@ export const NoegletalView = () => {
           >
             {exporting && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
             {exporting ? "Eksporterer…" : "Download PDF"}
+          </button>
+          <button
+            type="button"
+            onClick={() => void handleCsv()}
+            disabled={monthlyData.length === 0}
+            className="text-sm text-hb-ink-soft underline-offset-4 transition-colors hover:text-hb-ink hover:underline disabled:opacity-40"
+          >
+            Download CSV
           </button>
         </div>
       </section>
