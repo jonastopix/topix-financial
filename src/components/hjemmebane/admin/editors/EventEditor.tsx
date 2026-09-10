@@ -6,6 +6,7 @@ import {
   type EventRow,
   cancelEvent,
   deleteEvent,
+  publishEvent,
   updateEvent,
 } from "@/lib/hjemmebane/adminContentApi";
 import { HbField, HbInput, HbSelect, HbTextarea } from "../HbField";
@@ -74,9 +75,42 @@ export const EventEditor = forwardRef<EditorHandle, EventEditorProps>(
       mutation.mutate(patch);
     };
 
+    // PUBLICERING (10/9): foerst gemmes kladden (persist-validering, uden
+    // statuspatch), derefter publish-event, som saetter status OG giver alle
+    // aktive medlemmer besked i samme kald. Gem foerst, saa beskeden baerer
+    // den nye titel/tid. Den gamle vej (persist({ status: "published" }))
+    // sendte intet.
+    const publishMutation = useMutation({
+      mutationFn: async () => {
+        if (dirty) await updateEvent(event.id, draft);
+        return publishEvent(event.id);
+      },
+      onSuccess: () => {
+        void queryClient.invalidateQueries({ queryKey: ["admin-events"] });
+        setSavedAt(new Date());
+        setError(null);
+        onSaved();
+      },
+      onError: (err: Error) => setError(err.message),
+    });
+    const publicer = () => {
+      if (mutation.isPending || publishMutation.isPending) return;
+      const next = { ...event, ...draft } as EventRow;
+      const problem =
+        (!next.title.trim() && "Titel mangler") ||
+        (!next.starts_at && "Starttidspunkt mangler") ||
+        (next.meet_url && !/^https:\/\/.+/.test(next.meet_url) && "Meet-linket skal være https://") ||
+        null;
+      if (problem) {
+        setError(problem);
+        return;
+      }
+      setError(null);
+      publishMutation.mutate();
+    };
     useImperativeHandle(ref, () => ({
       save: () => persist(),
-      publish: () => persist({ status: "published" }),
+      publish: () => publicer(),
     }));
 
     const deleteMutation = useMutation({
@@ -113,7 +147,7 @@ export const EventEditor = forwardRef<EditorHandle, EventEditorProps>(
 
     const actions: EditorAction[] =
       form.status === "draft"
-        ? [{ label: "Publicér", onClick: () => persist({ status: "published" }), variant: "primary" }]
+        ? [{ label: publishMutation.isPending ? "Publicerer…" : "Publicér — medlemmerne får besked", onClick: publicer, variant: "primary" }]
         : form.status === "published"
           ? confirmingCancel
             ? [
@@ -124,7 +158,7 @@ export const EventEditor = forwardRef<EditorHandle, EventEditorProps>(
                 { label: "Markér afholdt", onClick: () => persist({ status: "completed" }), variant: "secondary" },
                 { label: "Aflys", onClick: () => setConfirmingCancel(true), variant: "link" },
               ]
-          : [{ label: "Genåbn som publiceret", onClick: () => persist({ status: "published" }), variant: "secondary" }];
+          : [{ label: publishMutation.isPending ? "Publicerer…" : "Genåbn som publiceret", onClick: publicer, variant: "secondary" }];
 
     return (
       <EditorShell

@@ -71,6 +71,7 @@ const EMAIL_SUBJECTS: Record<string, string> = {
   milestone_completed: "Milestone fuldført",
   pulse_checkin_received: "Nyt pulse check-in modtaget",
   weekly_focus_ready: "Ugens fokus er klar",
+  event_published: "Nyt event i The Boardroom",
 };
 
 const NOTIFICATION_TEMPLATE_NAMES: Record<string, string> = {
@@ -302,6 +303,8 @@ Deno.serve(async (req) => {
       chat_reply: "Læs beskeden →",
       report_committed: "Se virksomhedens tal →",
       weekly_focus_ready: "Se ugens fokus",
+      // Kalender-linket bor paa eventsiden (#788): mailen kan ikke baere en fil, knappen siger hvor den er.
+      event_published: "Se eventet og føj til kalender →",
     };
     const eyebrows: Record<string, string> = {
       report_review_ready: "Dine tal er klar",
@@ -309,6 +312,7 @@ Deno.serve(async (req) => {
       advisor_replied: "Ny besked",
       chat_reply: "Ny besked",
       weekly_focus_ready: "Ugens fokus",
+      event_published: "Nyt event",
     };
     const highlights: Record<string, string> = {
       report_review_ready: "Omsætning, dækningsbidrag og resultat er klar til verifikation.",

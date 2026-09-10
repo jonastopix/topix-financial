@@ -24,10 +24,17 @@
  * user_id: notifications har UNIQUE (user_id, dedup_key)
  * (20260323112326), så nøglen er allerede scoped pr. modtager.
  * Daglig/hyppigere genkørsel dobbelt-sender derfor aldrig.
+ *
+ *   C) Om en time (10/9-2026, Jonas: «starter om en time») → tilmeldte,
+ *      mødelink med. Kører IKKE i den daglige kørsel: sin egen cron hvert
+ *      kvarter kalder med body { "vindue": "time" }, og så køres KUN C —
+ *      A og B er urørte og kører stadig dagligt kl. 07 med tom body
+ *      (_shared/eventMails.ts: erOmEnTime, vinduerFraBody). Dedup-suffiks c.
  */
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
 import { authenticateServiceRole, corsHeaders } from "../_shared/edgeFunctionAuth.ts";
 import { writeNotificationToMany } from "../_shared/notificationWriter.ts";
+import { erOmEnTime, omEnTimeBesked, vinduerFraBody } from "../_shared/eventMails.ts";
 
 const TZ = "Europe/Copenhagen";
 
@@ -60,8 +67,12 @@ Deno.serve(async (req) => {
   const admin = createClient(supabaseUrl, serviceKey);
 
   const now = new Date();
-  const tomorrowKey = dayKey(new Date(now.getTime() + 1 * 86400000));
-  const weekKey = dayKey(new Date(now.getTime() + 7 * 86400000));
+  // Tom body = A+B som altid. { vindue: "time" } = kun C: dagsnoeglerne saettes
+  // til en umulig vaerdi, saa A's og B's betingelser aldrig matcher — deres
+  // kode nedenfor er uroert.
+  const vinduer = vinduerFraBody(await req.json().catch(() => ({})));
+  const tomorrowKey = vinduer.ab ? dayKey(new Date(now.getTime() + 1 * 86400000)) : "";
+  const weekKey = vinduer.ab ? dayKey(new Date(now.getTime() + 7 * 86400000)) : "";
 
   // Published events fra i dag og en uge frem (lidt slæk i begge ender —
   // bucket-afgørelsen er kalenderdags-nøglerne, ikke intervallet).
@@ -82,6 +93,7 @@ Deno.serve(async (req) => {
 
   let notifiedA = 0;
   let notifiedB = 0;
+  let notifiedC = 0;
 
   for (const event of events ?? []) {
     const eventDay = dayKey(new Date(event.starts_at));
@@ -134,15 +146,29 @@ Deno.serve(async (req) => {
         dedup_key: `event_reminder:${event.id}:b`,
       });
     }
+
+    // C) Om en time — tilmeldte, moedelink med. Kun i kvarters-koerslen.
+    if (vinduer.c && erOmEnTime(event.starts_at, now)) {
+      const { data: regs } = await admin
+        .from("event_registrations")
+        .select("user_id")
+        .eq("event_id", event.id)
+        .eq("response", "attending")
+        .is("cancelled_at", null);
+      const recipients = [...new Set((regs ?? []).map((r: { user_id: string }) => r.user_id))];
+      notifiedC += await writeNotificationToMany(admin, recipients, omEnTimeBesked(event));
+    }
   }
 
   console.log("[event-reminders] done", {
     events: (events ?? []).length,
+    vinduer,
     window_a: notifiedA,
     window_b: notifiedB,
+    window_c: notifiedC,
   });
 
-  return new Response(JSON.stringify({ ok: true, window_a: notifiedA, window_b: notifiedB }), {
+  return new Response(JSON.stringify({ ok: true, vinduer, window_a: notifiedA, window_b: notifiedB, window_c: notifiedC }), {
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
 });
