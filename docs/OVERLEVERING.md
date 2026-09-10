@@ -2772,9 +2772,10 @@ kaldet tabes ikke, det KLIPPES midt i arbejdet. Målt i dag: DNS 203 ms,
 handshake 60 ms, request/response 473 ms — resten af de fem sekunder er
 funktionen selv. `public.kald_edge` samler nu URL, nøgle og timeout ét
 sted: standard 30 sekunder, loft 150. Alle TI HTTP-jobs er genplanlagt,
-ét ad gangen med bevis imellem, notifikationsjobbet sidst. De tre øvrige
-(`agent-runs-opbevaring`, `opgave-udloeb`, `vagt-cron`) er ren SQL og har
-intet at time ud. **Åbent:** ét job der klippes hvert femte minut er ikke
+ét ad gangen med bevis imellem, notifikationsjobbet sidst. De FIRE øvrige
+(`agent-runs-opbevaring`, `cleanup-stale-processing-reports`, `opgave-udloeb`,
+`vagt-cron`) er ren SQL og har intet at time ud — se punkt 13 om hvorfor
+det står med fire og ikke tre. **Åbent:** ét job der klippes hvert femte minut er ikke
 en grund i vagten (reglen kræver to jobs) — tallet står i `timeouts_60m`.
 
 **11. Tællerne (#776).** `{processed: 1, sent: 0, skipped: 0}` så ud som
@@ -2784,6 +2785,30 @@ en times fejlsøgning. Nu `venter_paa_tid` og `venter_paa_vindue`, og
 `sent` tæller rækker så regnestykket går op; `mails_sendt` tæller mails.
 Hentningens 15-minutters net forbliver bredt med vilje: dublet- og
 rapport-væk-reglerne skal se hele familien i samme kørsel.
+
+**12. Omlægningen til `kald_edge` — kl. 12:42–12:44, ét job ad gangen,
+bevis imellem.** Rækkefølgen var planens (`plan-timeouten.md` §5):
+`indgangs-paamindelser` først (den var bevist i hånden med et tørt kald),
+`process-notification-emails` sidst. Alle ti HTTP-jobs kalder nu
+`public.kald_edge('<funktion>', <body>)` — URL, nøgle og timeout ét sted,
+standard 30 sekunder. `generate-weekly-focus` fik 150 sekunder: den kører
+ugentligt og gør mest arbejde (ét AI-kald pr. virksomhed), og 150 er
+platformens eget loft. **Bevist kl. 12:50:** notifikationsjobbet svarer
+200 med `{processed: 1, sent: 0, venter_paa_tid: 1}` — ingen timeouts
+siden omlægningen, hvor fem af tretten kald timede ud før.
+
+**13. En fejl der skal stå, fordi den er min egen og blev fanget på fem
+minutter.** `cleanup-stale-processing-reports` blev lagt ind i
+`kald_edge` sammen med de andre. Men det job kalder IKKE en edge function
+— det kalder en SQL-funktion: `SELECT public.cleanup_stale_processing_reports();`
+Resultatet var 404 «Requested function was not found» hvert femte minut,
+indtil det blev rullet tilbage kl. 12:52. **Årsagen:** jeg antog at
+jobNAVNET var funktionsNAVNET. `20260901112000_prod_cron_bogfoert.sql:46`
+sagde det tydeligt, og jeg så det ikke efter. **Og vagten ville have
+fanget det:** 404 hvert femte minut er «ikke 200», og den ville have sagt
+rødt inden for en time. Fire jobs er ren SQL og har intet at time ud:
+`agent-runs-opbevaring`, `cleanup-stale-processing-reports`,
+`opgave-udloeb` og `vagt-cron`. Læren står i DEL 4.
 
 ### Mailplatformen — bygget om af Lovable 8/9 kl. 06:52-06:58; afsenderne, fortegnelsen og værnet (#728, #730, #731, #732)
 
@@ -3461,6 +3486,10 @@ De konkrete ting der har kostet tid. Led efter dem.
 - **Et cron-job kan hedde noget andet end funktionen det kalder.** Søg på
   URL'en i `cron.job.command`, ikke kun på jobnavnet
   (`intro-session-reminder` → `intro-reminder-cron`).
+- **Et cron-jobs NAVN er ikke det den kalder. Læs kommandoen, ikke navnet.**
+  10/9 kl. 12:44 blev `cleanup-stale-processing-reports` lagt om til
+  `kald_edge` som en edge function — den kalder en SQL-funktion. 404 hvert
+  femte minut i otte minutter (DEL 2 «10. september», punkt 13).
 - **`app_config.config_value` er JSON, ikke text.** `'""'::json` er en
   tom streng — parset `""`, rå `""` på to tegn. Dommen ligger i
   `laesVelkomstvideoGuid` (testet); brug den, gæt ikke.

@@ -1170,12 +1170,13 @@ export const hentAdvisorDashboard = () =>
         .map(tilDom);
       const dom = afgoerForsidensDom(virksomhederTilDom, now);
       // Pulsen (lib/pulsen): PORTEFØLJENS univers = listens (VirksomhedslisteView:
-      // kunde, ikke legat, status aktiv/tom, ikke udløbet) — pending er MED.
-      // Facts som de er hentet (data_basis afgør «målt»), seneste afsluttede
-      // måned = missingKey, svarene fra svarRes, dommen til «står øverst».
+      // kunde, ikke legat, status aktiv/tom) — pending OG udløbne er MED
+      // (10/9: «af 26» mod listens 27 var den udløbne; en udløbet er i
+      // porteføljen til den bliver «tidligere», og udloebet_tilbyd kan kun
+      // tælles hvis den er med). Dommens to gates gives videre som
+      // udenForDommen, så pulsens tekst kan gøre rede for hver tavs.
       const virksomhederTilPuls: VirksomhedTilDom[] = investorSummaries
         .filter((c) => {
-          if (expiredCompanyIds.has(c.company_id)) return false;
           const row = companyById.get(c.company_id);
           return !!row && (row.status === "active" || !row.status);
         })
@@ -1187,6 +1188,7 @@ export const hentAdvisorDashboard = () =>
         svar: ((svarRes?.data ?? []) as PulsSvar[]),
         nu: now,
         dom,
+        udenForDommen: { ikkeKommetInd: pendingCompanyIds, udloebet: expiredCompanyIds },
       });
 
       const svarBytes = [
