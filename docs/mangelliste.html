@@ -333,6 +333,21 @@
         dobbeltlogin afskaffes (kortet «Rådgiver som medlem»).
     OVERLEVERING-bogføringen af de 14 byggede ligger i det første vindues
     fil.
+  DE SIDSTE FEM 10/9 NAT (~/Downloads/de-tabte-ideer-2.md — jagten uden for
+  repoet: Claude Codes sessionslogge, 1.457 prompter fra 11/8)
+    Fem idéer der hverken stod i docs/, på listen eller i første søgning,
+    skrevet ind som kort: sessioners synlighed for begge rådgivere
+    (Rådgiverfladen), handout → lektion (Fællesskabet), «Fra budget» som
+    målkilde (Dine tal), self-hostede fonte og data-drevne områder
+    (Drift). Før: 122 (121 + skabelonen). Efter: 127 (126 + skabelonen) —
+    fejl 11 · mangler 59 · beslutninger 24 · idéer 32.
+    Idé 1–7 (BACKLOG.md:1790) FINDES IKKE på maskinen — noten står synligt
+    øverst i Idébanken, så ingen leder igen.
+    Tre idéer fra Boardroom 2.0 (sessionen 23/4: onboarding-agent,
+    workspace med eget e-conomic-token fra frontend, opgradering 1.0 → 2.0
+    med historik) er IKKE skrevet ind — andet produkt, anden liste.
+    Supabase-projektet tmhjionsbtgrwuzwjbgb («boardroom-2-prod, uafklaret
+    formål» i fem uger) er 2.0's; det står nu i OVERLEVERING, ikke her.
   SÅDAN TILFØJER MAN ET KORT
     1. Find afsnittet (<section class="topic">). Ét emne, ét sted:
        Indgangen · Betaling og fornyelse · Dine tal · Chat og
@@ -737,6 +752,12 @@
   <h2>Dine tal — rapportering, KPI, budget, handouts, parsing</h2>
   <p class="lede">Fungerer teknisk, bruges ikke nok. To mails fra betalende medlemmer, modtaget 22. august, står stadig åbne: «den har ikke taget alle mine omkostningsposter med … jeg kan ikke slette poster den allerede har lavet … jeg skal manuelt indtaste tal i hvert felt» og «den vil ikke uploade. Den skriver, at jeg skal indtaste tallene manuelt — kan det passe?»</p>
   <div class="grid">
+    <div class="card new" data-status="ide" data-spor="senere" data-rammer="medlem">
+      <h3>«Fra budget» som målkilde på Nøgletal — én dør til mål</h3>
+      <p><code>BACKLOG.md:991-1003</code> [P3], 5/8: budgettets månedsgennemsnit som KPI-mål, så medlemmet ikke sætter det samme tal to steder. <strong>Bygget: nej</strong> — <code>src/lib/kpiMaal.ts:27-53</code> kender to kilder, «aftalt» (medlemmets/rådgiverens mål) og «standard» (fallbacken); ingen «budget». Det gamle <code>KPIs.tsx</code> hentede budgetgennemsnittet (frosset).</p>
+      <p><strong>Præmis flyttet til fordel for idéen:</strong> beslutningskortet om KPI-fallbacken vil droppe kronebeløbene, så «Sæt mål» vises for den der intet har. Findes der et budget, er «Fra budget» det ærlige mellemled: ikke gættet, ikke sat i hånden, men medlemmets eget tal. Budgettet er allerede på rådgiverens forside som afvigelse (#795). Lille–Mellem: en tredje <code>MaalKilde</code>, en læsning af <code>budget_targets</code> pr. nøgle, ét mærke i panelet.</p>
+      <div class="meta"><span class="tag ny">Ny 11/9</span><span class="tag">Fra BACKLOG 5/8</span><span class="tag">Passer med KPI-beslutningen</span><span class="tag size">Mellem</span></div>
+    </div>
     <div class="card new" data-status="mangler" data-spor="1" data-rammer="medlem">
       <h3>Når en upload strander, siger kortet HVORFOR — ikke HVAD man skal gøre</h3>
       <p><strong>Løst:</strong> rapportkortet siger grunden (#793: no_match, to måneder, forkert layout). <strong>Står tilbage:</strong> den næste handling. Strander en fil på layout, er svaret næsten altid «eksportér som Saldobalance fra e-conomic» eller «CSV fra Dinero» — de formater skabelonerne kender (<code>_shared/templates/</code>). Kortet bør sige det, pr. kilde (<code>sourceFingerprint</code> ved hvilket system filen kom fra), i stedet for at lade medlemmet gætte. Fra <code>~/Downloads/kendt-kilde-recon.md:169</code>; aldrig et kort. Lille — én tekst pr. kendt kilde.</p>
@@ -912,6 +933,11 @@
   <h2>Fællesskabet — community, netværk, events, akademiet</h2>
   <p class="lede">Konverteret og i drift; opslagsmailen bærer siden 3/9. Det der mangler, er indhold, søgning, events' små led og idéerne der først giver mening når fundamentet bærer.</p>
   <div class="grid">
+    <div class="card new" data-status="ide" data-spor="senere" data-rammer="medlem">
+      <h3>Handout → lektion: det omvendte link («Hører til …»)</h3>
+      <p><code>BACKLOG.md:467-479</code> [P3], 5/8: koblingen lektion→handout findes envejs i <code>content_items.handout_module</code> (læses af <code>ElementView.tsx</code> og <code>ItemEditor.tsx</code>); fra handout-siden er der intet «hører til lektionen …»-link tilbage. Bygget: nej — <code>HbHandoutDetail.tsx</code> kender ikke <code>content_items</code> (grep 10/9: 0). Lille: ingen skemaændring, én query på <code>handout_module = {modul}</code> og et link. Hører sammen med «Måske relevant for dig» — samme kobling, set fra agenten.</p>
+      <div class="meta"><span class="tag ny">Ny 11/9</span><span class="tag">Fra BACKLOG 5/8</span><span class="tag size">Lille</span></div>
+    </div>
     <div class="card new" data-status="ide" data-spor="7" data-rammer="medlem">
       <h3>Video-rating med ét tryk i Akademiet</h3>
       <p>Ét tryk efter en lektion («var den noget værd?») giver Jonas og Morten det signal Akademiet ikke har i dag: nul træffere på rating/bedøm/stjerne under <code>hjemmebane/akademi/</code>; kun <code>seen_at</code> og fremdrift (<code>ElementView.tsx:132</code>). Stod som ordet «rating efter modul» i <code>RAEKKEFOELGE.md:76</code> og som ét ord i Community-kortet — aldrig som Akademi-idé. Lille: én tabel (<code>content_ratings</code>: item, user, 1–5, unik), én knap, ét tal på admin-siden.</p>
@@ -1020,6 +1046,12 @@
   <h2>Rådgiverfladen — det der står tilbage efter 4/9</h2>
   <p class="lede">Forsiden, virksomhedslisten, virksomhedssiden, chatten, Milestones og alle otte admin-sider er Hjemmebane. Resterne herunder er målt sent 4/9 (OVERLEVERING DEL 3) — og tre ting er set på mobil. Ét kort fra 6/9 sen aften: sorteringen på <code>/virksomheder</code> (puklen der tabte virksomheden er løst, #672).</p>
   <div class="grid">
+    <div class="card new" data-status="mangler" data-spor="6" data-rammer="raadgiver">
+      <h3>Jonas ser Mortens sessioner og omvendt — de betalte 1:1-sessioner har intet sted på virksomhedssiden</h3>
+      <p><strong>Jonas 8/9:</strong> «Det bør egentlig være inde på en virksomhedsside hvor der står om der har været booket session, og om den har været afholdt.» <strong>Løst for intro-sessionen:</strong> <code>IntroSessionLinje</code> på virksomhedssiden (<code>VirksomhedView.tsx:1310-1338, 1579</code>) med afholdt-dom (booked OG slut_tid passeret), og tiden gemmes fra Calendly (<code>20260908190000_session_tid</code>).</p>
+      <p><strong>Står tilbage:</strong> de betalte 1:1-sessioner (<code>session_bookings</code> med <code>amount_dkk</code>) vises ingen steder for rådgiveren — linjen læser kun intro-sessionen, og RLS giver kun ejer og admin læsning (<code>:1308</code>). Så Jonas ser ikke Mortens, Morten ikke Jonas', og ingen af dem ser en betalt session fra en virksomhedsside. Hvor: pr. virksomhed (samme linje, alle sessioner), som kolonne på listen, eller et tredje sted — ikke afgjort. Kortet «De betalte 1:1-sessioner stopper ved booking_sent» dækker Calendly-delen (tiden mangler for de betalte); dette er synligheden. Lille: udvid linjen til alle rækker + advisor-SELECT på tabellen (<code>~/Downloads/recon-sessionerne.md:232</code>).</p>
+      <div class="meta"><span class="tag ny">Ny 11/9</span><span class="tag">Jonas 8/9</span><span class="tag">Delvist bygget 8/9</span><span class="tag size">Lille</span></div>
+    </div>
     <div class="card new" data-status="mangler" data-spor="6" data-rammer="raadgiver">
       <h3>Adresse, by og postnummer kan ikke rettes af nogen i Hjemmebane</h3>
       <p><code>~/Downloads/analyse-settings.md:104</code>: kolonnerne findes på <code>companies</code>, men ingen flade i Hjemmebane har felterne — heller ikke rådgiverens <code>EditCompanyDialog</code> (otte felter, adresse ikke iblandt, <code>EditCompanyDialog.tsx:61</code>). Stamdata på virksomhedssiden (#771) VISER dem. Ét felt-sæt i den dialog der alligevel skal lægges om (kortet om de seks gamle komponenter), eller i medlemmets /konto. Lille.</p>
@@ -1153,6 +1185,16 @@
   <h2>Drift og fundament — ydeevne, overvågning, RLS, døde felter</h2>
   <p class="lede">Ingen fejlovervågning. Hændelser findes ved manuel måling, ikke af nogen alarm — RLS-hullet 3/9 blev fundet med en lånt identitet, ikke af et værn.</p>
   <div class="grid">
+    <div class="card new" data-status="mangler" data-spor="senere" data-rammer="ingen">
+      <h3>Self-host fonte i stedet for Google Fonts-@import</h3>
+      <p><code>BACKLOG.md:370-375</code> [P3], 4/8: alle fonte loades fra Google — <code>src/index.css:1-2</code> (Manrope, Space Grotesk, Inter, Parkinsans) og <code>src/styles/hjemmebane.css:6</code> (Fraunces), tre <code>@import url</code> i alt (målt 10/9). Hver sidevisning kalder fonts.googleapis.com/fonts.gstatic.com: en ekstra DNS + TLS før tekst tegnes, og et tredjepartskald med IP for hver besøgende (GDPR — Google Fonts-dommen fra München 2022). Bygget: nej. Lille: fem woff2-filer i <code>public/fonts/</code>, fem <code>@font-face</code>, <code>font-display: swap</code>; gamle skals fonte (Space Grotesk, Inter) dør med konvergensen og skal ikke flyttes.</p>
+      <div class="meta"><span class="tag ny">Ny 11/9</span><span class="tag">Fra BACKLOG 4/8</span><span class="tag">Ydeevne + GDPR</span><span class="tag size">Lille</span></div>
+    </div>
+    <div class="card new" data-status="mangler" data-spor="senere" data-rammer="ingen">
+      <h3>Data-drevne Akademi-områder og handout-definitioner — bevidst udskudt 4/8, stadig kode</h3>
+      <p><code>BACKLOG.md:408-432</code> og <code>:480-496</code> [P3]: de seks områder (Start her, Grundforløbet, Kurser, Skabeloner, Talks, Rabataftaler) er en hardcoded konstant <code>AREAS</code> (<code>src/lib/hjemmebane/adminContentApi.ts:37-123</code>) spejlet af CHECK-constraints i databasen (<code>20260804120000_hjemmebane_content_layer.sql:23, 156</code>), og handouts er kode, ikke rækker. Et nyt område eller et nyt handout kræver en PR og en migration. Bygget: nej — «bevidst udskudt» 4/8 fordi seks områder ikke ændrer sig. Det holder stadig; det der har ændret sig, er at Rabataftaler kom til som område (migrationen :156) og krævede netop en migration. Mellem; forudsætning for «handouts som data-drevet fane» i konvergensen (<code>docs/hjemmebane/konvergens.md</code>). Ikke før nogen vil oprette et område uden en udvikler.</p>
+      <div class="meta"><span class="tag ny">Ny 11/9</span><span class="tag">Fra BACKLOG 4/8</span><span class="tag">Udskudt med vilje</span><span class="tag size">Mellem</span></div>
+    </div>
     <div class="card decision new" data-status="beslutning" data-spor="senere" data-rammer="raadgiver">
       <h3>Boardroom-MCP fase 1 er bygget og frosset siden 4/8 — udvid, tilslut til chatten, eller pensionér</h3>
       <p><strong>Det der findes:</strong> <code>mcp/</code> i repoet — en selvstændig Bun-pakke (<code>@boardroom/mcp</code> 0.1.0), stdio-transport, fire læse-tools: <code>ping</code>, <code>get_company_overview</code>, <code>get_parse_status</code>, <code>get_financial_metrics</code> (<code>mcp/src/tools/</code>), advisor-login med RLS som håndhævelse, fem testfiler, eget CI-job («MCP Tests», <code>.github/workflows/test.yml:79</code>), registreret i Claude Code for dette projekt og tilsluttet i sessionerne. Reconen bag: <code>docs/mcp/RECON.md</code> (21/7). Fase 1 = read-only; fase 2 skrivende tools; fase 3 Streamable HTTP + OAuth i stedet for stdio (<code>mcp/README.md:1-8</code>, <code>mcp/src/server.ts:11-12</code>).</p>
@@ -1298,6 +1340,9 @@
   <p class="eyebrow">Idébank</p>
   <h2>Idéer — ikke sekvenseret endnu</h2>
   <p class="lede">Det der endnu ikke har et oplagt emne. Idéer der hører til et emne, står under emnet — filtret «Idéer» øverst finder dem alle.</p>
+  <!-- NOTE 11/9: idé 1–7 findes ikke. Står som tekst, ikke som kort, så
+       tælleren ikke tæller en note — og så ingen leder efter dem igen. -->
+  <p class="lede"><strong>Idé 1–7 findes ikke på maskinen.</strong> <code>BACKLOG.md:1790</code> (skrevet 19/8, da idé 8 blev tilføjet) siger «Idé 1-7 er endnu ikke bogført i dette dokument — de lever pt. uden for repoet». De er nu eftersøgt 10/9 nat i <code>docs/</code>, i backloggen, i alle filer i <code>~/Downloads</code> og i Claude Codes egne sessionslogge tilbage til 11/8 (1.457 prompter) — uden resultat. Claude-appen gemmer ikke samtalerne lokalt; de findes kun hos Anthropic. Det nærmeste spor er de fire «Ønske (Jonas)»-poster fra 13/8 (MCP-server, gamification, kalenderlink, podcast-afspiller — alle på listen nu), som sandsynligvis var blandt de syv, men det er en slutning, ikke et fund. <strong>Er de vigtige, skal de siges igen.</strong> Ingen leder efter dem mere.</p>
   <div class="grid">
     <div class="card new" data-status="ide" data-spor="6" data-rammer="raadgiver">
       <h3>Rådgiver-MCP: samlet medlemskontekst + draft_reply (kun udkast)</h3>
@@ -1427,7 +1472,7 @@
   <section class="topic" id="status">
   <p class="eyebrow">Til i morgen tidlig</p>
   <h2>Status 11. september</h2>
-  <p class="lede">Efter aftenens tre rydninger (#806, #808 og den sidste) OG idéerne ind: <strong>121 kort</strong> — 11 fejl · 56 mangler · 24 beslutninger · <strong>30 idéer</strong> (var 10 kl. 22; 28 idéer fra BACKLOG, RAEKKEFOELGE, designdokumenterne og Jonas' egne udsagn var aldrig blevet kort — nu er de det, hver med kilde, «bygget: ja/nej» og størrelse). MCP har to kort: pakken der er bygget og frosset (Drift), og rådgiver-MCP'en der blev ønsket 13/8 (Idébank). Alt er prøvet mod HEAD til og med #809.</p>
+  <p class="lede">Efter aftenens tre rydninger (#806, #808 og den sidste) OG idéerne ind: <strong>126 kort</strong> — 11 fejl · 59 mangler · 24 beslutninger · <strong>32 idéer</strong> (var 10 kl. 22; 33 idéer fra BACKLOG, RAEKKEFOELGE, designdokumenterne og Jonas' egne udsagn var aldrig blevet kort — nu er de det, hver med kilde, «bygget: ja/nej» og størrelse). MCP har to kort: pakken der er bygget og frosset (Drift), og rådgiver-MCP'en der blev ønsket 13/8 (Idébank). Idé 1–7 fra den fælles idéliste findes ikke på maskinen (noten i Idébanken). Alt er prøvet mod HEAD til og med #810.</p>
     <div class="tier">
       <h3>De tre der giver mest først</h3>
       <p class="why"><strong>1. Én prod-session i SQL-editoren (én time).</strong> Kør de seks ventende migrationer i rækkefølge — døren (#807) og seen_at (#809) først — og ét <code>SELECT … FROM cron.job</code>. Det lukker eller afgør syv kort på én gang; indtil da lyver prod om døren og om «næste skridt».</p>
