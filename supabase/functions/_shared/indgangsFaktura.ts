@@ -55,6 +55,7 @@
  * Hver fejl logges med company_id, og resultatet siger hvad der skete.
  */
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
+import { erGaeldendeSlutdato } from "./betalingsfrist.ts";
 import {
   bygFakturalinjeParametre,
   bygFakturaParametre,
@@ -275,9 +276,11 @@ export async function sendIndgangsFaktura(
     }
     const virksomhed = company as Virksomhed;
 
-    // Betalt vinder altid — samme regel som motoren (betalingsfrist.ts:195-201).
-    if (virksomhed.contract_end_date) {
-      console.log(`${LOG} company ${companyId}: contract_end_date er sat — betalt, ingen faktura`);
+    // Betalt vinder altid — samme dom som motoren (erGaeldendeSlutdato,
+    // 11/9): en slutdato der GÆLDER. En tidligere kundes passerede dato er
+    // ikke en betaling — de skal have deres faktura som alle andre.
+    if (erGaeldendeSlutdato(virksomhed.contract_end_date, new Date())) {
+      console.log(`${LOG} company ${companyId}: contract_end_date gælder — betalt, ingen faktura`);
       return { udfald: "sprunget_over", grund: "allerede_betalt" };
     }
     if (linkRaekke.prisniveau_oere === null || linkRaekke.prisniveau_oere <= 0) {

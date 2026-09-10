@@ -81,7 +81,7 @@ const APP_URL = "https://app.theboardroom.dk";
 interface PaamindelsesResultat {
   ok: boolean;
   dry_run: boolean;
-  /** Linkrækker med betalingsmail_sendt_at sat og virksomhed uden contract_end_date. */
+  /** Linkrækker med betalingsmail_sendt_at sat (betalt sorteres fra af motoren, ikke af opslaget — 11/9). */
   fundet: number;
   /** Enqueuede mails (altid 0 i tørkørsel). */
   sendt: number;
@@ -199,12 +199,15 @@ async function koerPaamindelser(
     return resultat;
   }
 
-  // 2. Virksomhederne — kun dem uden contract_end_date er i indgangen.
+  // 2. Virksomhederne — ALLE med en linkrække. Før (til 11/9) filtrerede
+  //    opslaget på «contract_end_date er null»: «betalt» dømt på at datoen
+  //    fandtes, så en tidligere kunde med en passeret slutdato fik aldrig
+  //    en påmindelse. Nu dømmer motoren i trin 3 (erGaeldendeSlutdato) — én
+  //    dom, ikke et filter og en dom der kan glide fra hinanden.
   const { data: companies, error: companyErr } = await supabase
     .from("companies")
     .select("id, name, contact_person, contact_email, contract_end_date")
-    .in("id", linkRaekker.map((l) => l.company_id))
-    .is("contract_end_date", null);
+    .in("id", linkRaekker.map((l) => l.company_id));
   if (companyErr) {
     console.error("[indgangs-paamindelser-cron] companies-opslag fejlede:", companyErr.message);
     return { ...resultat, ok: false, error: companyErr.message };
@@ -224,8 +227,8 @@ async function koerPaamindelser(
     }
 
     try {
-      // 3. Motoren afgør — betalt vinder altid, også her, selvom filtret
-      //    i trin 2 allerede har sorteret betalte fra.
+      // 3. Motoren afgør — betalt vinder altid (en slutdato der GÆLDER),
+      //    og det er her og kun her det dømmes (11/9).
       const tilstand = afgoerBetalingsfrist(
         {
           prisniveau_oere: link.prisniveau_oere,

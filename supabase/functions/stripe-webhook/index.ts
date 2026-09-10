@@ -28,6 +28,13 @@ import {
   TYPE_FORNYELSE_BETALT,
   TYPE_FORNYELSE_DUBLET,
 } from "../_shared/raadgiverBesked.ts";
+import {
+  erGenindtraeden,
+  forrigeKontraktErArkiveret,
+  genindtraedelsesBesked,
+  genindtraedelsesNote,
+  type ForrigeKontrakt,
+} from "../_shared/genindtraeden.ts";
 import { kvitteringMail, LABEL_KVITTERING } from "../_shared/fornyelsesMail.ts";
 import { formatDanskDato } from "../_shared/indgangsMailAfsendelse.ts";
 import type { Betalingsmodel } from "../_shared/fornyelsespris.ts";
@@ -413,6 +420,8 @@ async function opretIndgangsPeriode(
     beloeb_oere: number;
     betalingsmodel: string;
     stripe_reference: string;
+    /** Arkivnoten ved genindtræden (_shared/genindtraeden.ts) — ellers null. */
+    note?: string | null;
   },
 ): Promise<void> {
   const { error } = await adminClient.from("company_perioder").insert({
@@ -424,11 +433,77 @@ async function opretIndgangsPeriode(
     art: "indgang",
     stripe_reference: raekke.stripe_reference,
     oprettet_af: null, // betalingen er ikke en rådgiverhandling
+    note: raekke.note ?? null,
   });
   if (error) {
     console.error("[stripe-webhook] periode-indsættelse (indgang) fejlede:", error);
     throw new Error("Failed to insert company_periode");
   }
+}
+
+/**
+ * Genindtræden (11/9): hvad virksomheden HAVDE før denne betaling, og om
+ * den gamle kontrakt allerede står i company_perioder. Læses FØR perioden
+ * indsættes og kontrakten overskrives — bagefter er den gamle dato væk.
+ * Kaster aldrig: fejler opslaget, behandles betalingen som en første
+ * indgang (ingen note, ingen besked) og fejlen står i loggen.
+ */
+async function laesForrigeKontrakt(
+  adminClient: SupabaseClient,
+  companyId: string,
+): Promise<{ navn: string; forrige: ForrigeKontrakt; periodeSlutdatoer: string[] } | null> {
+  try {
+    const { data: c, error } = await adminClient
+      .from("companies")
+      .select("name, contract_start_date, contract_end_date, status")
+      .eq("id", companyId)
+      .maybeSingle();
+    if (error || !c) {
+      if (error) console.error(`[stripe-webhook] genindtræden: companies-opslag fejlede for ${companyId}:`, error.message);
+      return null;
+    }
+    const { data: perioder, error: pErr } = await adminClient
+      .from("company_perioder")
+      .select("periode_slut")
+      .eq("company_id", companyId);
+    if (pErr) console.error(`[stripe-webhook] genindtræden: company_perioder-opslag fejlede for ${companyId}:`, pErr.message);
+    const raekke = c as { name: string | null; contract_start_date: string | null; contract_end_date: string | null; status: string | null };
+    return {
+      navn: raekke.name ?? "Virksomheden",
+      forrige: { contract_start_date: raekke.contract_start_date, contract_end_date: raekke.contract_end_date, status: raekke.status },
+      periodeSlutdatoer: ((perioder ?? []) as { periode_slut: string }[]).map((p) => p.periode_slut),
+    };
+  } catch (err) {
+    console.error(`[stripe-webhook] genindtræden: opslag kastede for ${companyId}:`, err instanceof Error ? err.message : err);
+    return null;
+  }
+}
+
+/** Arkivnoten til den nye periode, når betalingen er en genindtræden og den gamle kontrakt ellers ville forsvinde. */
+function genindtraedelsesNoteHvisNoedvendig(laest: Awaited<ReturnType<typeof laesForrigeKontrakt>>, now: Date): string | null {
+  if (!laest || !erGenindtraeden(laest.forrige, now)) return null;
+  return forrigeKontraktErArkiveret(laest.forrige, laest.periodeSlutdatoer) ? null : genindtraedelsesNote(laest.forrige);
+}
+
+/** Rådgiverbeskeden ved genindtræden — efter kontrakten er skrevet. Kaster aldrig (skrivRaadgiverBesked). */
+async function meldGenindtraeden(
+  adminClient: SupabaseClient,
+  companyId: string,
+  laest: Awaited<ReturnType<typeof laesForrigeKontrakt>>,
+  periode: IndgangsPeriode,
+  now: Date,
+): Promise<void> {
+  if (!laest || !erGenindtraeden(laest.forrige, now)) return;
+  const ord = genindtraedelsesBesked(laest.navn, laest.forrige, periode.periode_start, periode.periode_slut);
+  console.log(`[stripe-webhook] GENINDTRÆDEN: company ${companyId} (${laest.navn}) — forrige kontrakt ${laest.forrige.contract_start_date ?? "?"} → ${laest.forrige.contract_end_date}, status var ${laest.forrige.status}; ny ${periode.periode_start} → ${periode.periode_slut}`);
+  await skrivRaadgiverBesked(adminClient, {
+    type: "genindtraeden",
+    title: ord.title,
+    body: ord.body,
+    company_id: companyId,
+    reference_type: "company",
+    reference_id: null,
+  });
 }
 
 /** Kontrakten på virksomheden: datoerne, listeprisen og (når kendt) Stripe-kunden. */
@@ -446,6 +521,13 @@ async function skrivIndgangsKontrakt(
       contract_start_date: periode.periode_start,
       contract_end_date: periode.periode_slut,
       indgangspris_oere: listeprisOere,
+      // status 'active' (11/9, recon-doeren.md §5c): en betaling er den ene
+      // hændelse der gør en tidligere kunde aktiv igen. Før stod de som
+      // 'tidligere' EFTER at have betalt — usynlige på rådgiverlisten, uden
+      // ugefokus og rapportpåmindelser, og kandidat til sletning. Skrives
+      // med samme pen som datoen, så de to aldrig glider fra hinanden.
+      // CHECK (20260911040000): 'active' | 'tidligere'.
+      status: "active",
       ...(stripeCustomerId ? { stripe_customer_id: stripeCustomerId } : {}),
     } as any)
     .eq("id", companyId);
@@ -516,15 +598,20 @@ async function behandlIndgangsFakturaBetaling(
     }
 
     const periode = beregnIndgangsPeriode();
+    // Genindtræden (11/9): læses FØR kontrakten overskrives.
+    const nu = new Date();
+    const forrigeLaest = await laesForrigeKontrakt(adminClient, companyId);
     await opretIndgangsPeriode(adminClient, {
       company_id: companyId,
       periode,
       beloeb_oere: beloeb.beloeb_oere,
       betalingsmodel: "faktura",
       stripe_reference: invoiceId,
+      note: genindtraedelsesNoteHvisNoedvendig(forrigeLaest, nu),
     });
     // Listeprisen = linjebeløbet: en faktura har intet ratetillæg.
     await skrivIndgangsKontrakt(adminClient, companyId, periode, beloeb.beloeb_oere, stripeCustomerId, "");
+    await meldGenindtraeden(adminClient, companyId, forrigeLaest, periode, nu);
     await nulstilIndgangsSession(adminClient, companyId);
     // Invitationen — betalingen giver adgang (§21). Kaster aldrig selv.
     await sikrIndgangsInvitation(adminClient, companyId, invoiceId);
@@ -778,7 +865,8 @@ Deno.serve(async (req) => {
           .from("companies")
           // sidste_checkout_session_id nulstilles: sessionen er brugt
           // (værnet mod dobbeltbetaling, _shared/checkoutSession.ts).
-          .update({ contract_end_date: eksisterende.periode_slut, sidste_checkout_session_id: null } as any)
+          // status 'active' (11/9): en betaling gør en tidligere kunde aktiv — samme pen som datoen.
+          .update({ contract_end_date: eksisterende.periode_slut, status: "active", sidste_checkout_session_id: null } as any)
           .eq("id", fornyelseCompanyId);
         if (fuldfoerError) {
           console.error("[stripe-webhook] contract_end_date-opdatering fejlede (gensendelse):", fuldfoerError);
@@ -897,7 +985,8 @@ Deno.serve(async (req) => {
         .from("companies")
         // sidste_checkout_session_id nulstilles: sessionen er brugt
         // (værnet mod dobbeltbetaling, _shared/checkoutSession.ts).
-        .update({ contract_end_date: periode_slut, sidste_checkout_session_id: null } as any)
+        // status 'active' (11/9): en betaling gør en tidligere kunde aktiv — samme pen som datoen.
+        .update({ contract_end_date: periode_slut, status: "active", sidste_checkout_session_id: null } as any)
         .eq("id", fornyelseCompanyId);
       if (datoError) {
         console.error("[stripe-webhook] contract_end_date-opdatering fejlede:", datoError);
@@ -1042,6 +1131,9 @@ Deno.serve(async (req) => {
       // frist efter underskrift, og de dage skal ikke tages fra medlemmet.
       // Regnestykket er delt med invoice.paid-grenen (3/9).
       const periode = beregnIndgangsPeriode();
+      // Genindtræden (11/9): læses FØR kontrakten overskrives.
+      const nu = new Date();
+      const forrigeLaest = await laesForrigeKontrakt(adminClient, indgangCompanyId);
 
       // Perioden FØRST, virksomheden bagefter: fejler det andet, findes
       // perioden som spor af hvad der blev betalt. Fejler indsættelsen,
@@ -1052,6 +1144,7 @@ Deno.serve(async (req) => {
         beloeb_oere: beloebOere,
         betalingsmodel,
         stripe_reference: session.id,
+        note: genindtraedelsesNoteHvisNoedvendig(forrigeLaest, nu),
       });
 
       // indgangspris_oere er LISTEPRISEN (grundbeloeb_oere), ikke det
@@ -1059,6 +1152,7 @@ Deno.serve(async (req) => {
       // docs/fornyelseskaeden-1-september.md). En der betaler 52.500 i tolv
       // rater er kommet ind på 50.000 og fornyer til 25.000.
       await skrivIndgangsKontrakt(adminClient, indgangCompanyId, periode, grundbeloebOere, stripeCustomerId, "");
+      await meldGenindtraeden(adminClient, indgangCompanyId, forrigeLaest, periode, nu);
 
       // Sessionen er brugt — pegeren på company_betalingslink nulstilles
       // (værnet mod dobbeltbetaling). Feltet bor på linkrækken, ikke på

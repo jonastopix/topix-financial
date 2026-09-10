@@ -32,6 +32,20 @@
  * Dage regnes i hele kalenderdage på UTC-komponenter af begge datoer, så
  * tallet er det samme uanset maskinens tidszone (testene skal bestå både
  * lokalt og under TZ=UTC). Samme funktioner som i fornyelse.ts.
+ *
+ * DØREN — RETTET 11/9 (recon-doeren.md). «Betalt» blev dømt på at
+ * contract_end_date FANDTES, ikke at den GJALDT — her, i indgangsFaktura,
+ * i påmindelsescronens filter og i de to SQL-funktioner bag /betal
+ * (hent_betalingstilbud, hent_betalingsdata_til_checkout). En tidligere
+ * kunde bærer sin gamle slutdato med sig; genbruges virksomheden på CVR ved
+ * «Godkendt», sagde alle seks døre «betalt»: ingen dag 0-mail, ingen
+ * påmindelse, ingen faktura, «Tak — du er inde» på siden, og checkout
+ * afvist tavst. DET RAMMER INGEN I DAG — indgangen har aldrig haft en
+ * kunde, og de otte tidligere er slettet 8/9 — men det rammer den FØRSTE
+ * der kommer tilbage. Nu dømmer erGaeldendeSlutdato med husets egen
+ * grænse (computeMembershipTier, har_aktivt_medlemskab: slutdagen tæller
+ * med, lukket fra kl. 00:00 UTC dagen efter): en slutdato i fremtiden er
+ * betalt, en passeret er «var medlem», en manglende er ikke betalt.
  */
 
 /**
@@ -111,6 +125,21 @@ function utcMidnat(d: Date): number {
 }
 
 /**
+ * Gælder slutdatoen — er virksomheden medlem LIGE NU? Samme grænse som
+ * computeMembershipTier (src/lib/membershipTier.ts) og
+ * har_aktivt_medlemskab (SQL: contract_end_date + 1 > now()): slutdagen
+ * tæller med, adgangen lukker kl. 00:00 UTC dagen efter. Null, tom og
+ * ulæselig dato er «ikke betalt» — fail-closed: der gives ikke «betalt» på
+ * et tal vi ikke har. Det er den ENE dom bag alle seks døre (11/9).
+ */
+export function erGaeldendeSlutdato(contractEndDate: string | null | undefined, now: Date): boolean {
+  if (!contractEndDate) return false;
+  const d = new Date(contractEndDate);
+  if (Number.isNaN(d.getTime())) return false;
+  return now.getTime() < utcMidnat(d) + MS_PER_DOEGN;
+}
+
+/**
  * Hele kalenderdage fra underskriften til nu. Underskrevet kl. 09:00 UTC
  * den 2/9 og nu kl. 08:00 UTC den 3/9 er én dag — kalenderdage, ikke
  * 24-timers-perioder, fordi mailene taler om dage og datoer (§9: «Fristen
@@ -164,9 +193,12 @@ function findForfaldenPaamindelse(
  * Afgør betalingstilstanden for en virksomhed i indgangen.
  *
  * Fem tilstande i PRIORITERET rækkefølge — den første der matcher, vinder:
- *   1. betalt             contract_end_date er sat. Afgøres FØRST, så en
- *                         betalt virksomhed aldrig får en påmindelse,
- *                         uanset hvad linkrækken siger.
+ *   1. betalt             contract_end_date GÆLDER (erGaeldendeSlutdato:
+ *                         i dag eller senere — rettet 11/9, før: «er sat»).
+ *                         Afgøres FØRST, så en betalt virksomhed aldrig får
+ *                         en påmindelse, uanset hvad linkrækken siger. En
+ *                         passeret slutdato er «var medlem» og falder
+ *                         igennem til de fire betalingstilstande.
  *   2. afventer_pris      prisniveau_oere er null (§17). Ingen mail er sendt
  *                         og må ikke sendes; rådgiveren har fået besked.
  *                         Fristen LØBER imens — dage_siden_underskrift
@@ -195,8 +227,9 @@ export function afgoerBetalingsfrist(
   // BETALT — afgøres før alt andet. contract_end_date skrives af
   // stripe-webhook når betalingen er gået igennem, og det er det eneste
   // signal der tæller. En betalt virksomhed med en gammel linkrække må
-  // aldrig ende i en påmindelsesgren.
-  if (input.contract_end_date) {
+  // aldrig ende i en påmindelsesgren. Men kun en slutdato der GÆLDER er
+  // betalt (11/9): en tidligere kundes passerede dato er ikke en betaling.
+  if (erGaeldendeSlutdato(input.contract_end_date, now)) {
     return { status: "betalt", dage_siden_underskrift: null, paamindelse_forfalden: null };
   }
 
