@@ -1,6 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
 import { authenticateUser, corsHeaders } from "../_shared/edgeFunctionAuth.ts";
 import { manglerOmsaetning, normaliserAarsrapport } from "../_shared/aarsrapportNormalisering.ts";
+import { metricsForMaaned } from "../_shared/aarsrapportRaekker.ts";
 
 const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY")!;
 const DANISH_MONTHS = ["Januar","Februar","Marts","April","Maj","Juni","Juli","August","September","Oktober","November","December"];
@@ -267,6 +268,7 @@ NETTOOMSÆTNING — VIGTIGT: Nettoomsætning kan stå under mange navne i danske
   for (const [k, v] of Object.entries(baseMetrics)) {
     if (v != null) metrics[k] = v;
   }
+  // Ultimo-tal — udelt; skrives kun på decemberrækken i STEP 6 (metricsForMaaned).
   if (vaerdier.cash != null) metrics.cash = vaerdier.cash;
   if (vaerdier.equity != null) metrics.equity = vaerdier.equity;
 
@@ -313,7 +315,9 @@ NETTOOMSÆTNING — VIGTIGT: Nettoomsætning kan stå under mange navne i danske
       // Årstal fordelt /12 — aldrig en måling af måneden (data_basis-kontrakten,
       // migration 20260826120000). Sættes eksplicit; default'en er kun et værn.
       data_basis: "estimated",
-      metrics,
+      // Balanceposter (cash, equity) kun på decemberrækken (10/9, _shared/aarsrapportRaekker):
+      // en beholdning hører til 31/12, ikke til hver måned. De elleve andre er UDEN nøglen.
+      metrics: metricsForMaaned(metrics, i),
       committed_by: user_id || null,
       committed_at: new Date().toISOString(),
     });

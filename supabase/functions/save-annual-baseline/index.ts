@@ -104,7 +104,8 @@ Deno.serve(async (req) => {
       const metrics: Record<string, number> = { revenue: rev / 12, ebt: ebtVal / 12 };
       if (gp != null) metrics.gross_profit = gp / 12;
       if (pay != null) metrics.payroll = pay / 12;
-      if (cashVal != null) metrics.cash = cashVal;
+      // Bank er et ultimo-tal — kun på decemberrækken (10/9, samme regel som extract-annual-report).
+      if (cashVal != null && i === 11) metrics.cash = cashVal;
 
       return {
         company_id,

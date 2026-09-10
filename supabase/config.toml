@@ -109,6 +109,10 @@ project_id = "loiavmastgeieqyiwyyr"
     verify_jwt = true
   [functions.event-reminders]
     verify_jwt = true
+  # Bucket B (10/9): authenticateServiceRole bag gatewayen, kaldt af pg_cron via
+  # kald_edge med vault-nøglen — samme værdi som event-reminders.
+  [functions.report-review-cron]
+    verify_jwt = true
   # Bucket A (10/9): authenticateUser + advisor-gate, kaldes fra editorens
   # «Publicér» med brugerens JWT — samme form som saet-indgangs-prisniveau.
   [functions.publish-event]
