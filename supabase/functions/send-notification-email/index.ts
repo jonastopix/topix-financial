@@ -34,6 +34,8 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
 import { corsHeaders } from "../_shared/edgeFunctionAuth.ts";
 import {
+  BEGIVENHED_MAKS_ALDER_MS,
+  COMMUNITY_TRAAD_TYPES,
   REPORT_NOTIFICATION_TYPES,
   parseDkReportPeriodKey,
   selectNotificationEmails,
@@ -339,26 +341,65 @@ Deno.serve(async (req) => {
       }
     }
 
+    // ── «Set i appen» for community (Jonas 10/9): community_visninger har
+    //    én række pr. bruger pr. tråd, skrevet når tråden åbnes
+    //    (registrer_community_visning). reference_id er tråd-id for både
+    //    opslag og nævnelser (notify-community-opslag:113,
+    //    notify-community-naevnelse:185). Har modtageren set tråden, får
+    //    kandidaten set_i_app = true og disposes i udvælgelsen — de der
+    //    læste opslaget i går, skal ikke have mailen i morges. ──
+    const communityKandidater = nonChatNotifs.filter(
+      (n: any) => COMMUNITY_TRAAD_TYPES.has(n.type) && n.reference_id,
+    );
+    const setTraadeAf = new Set<string>(); // `${user_id}|${traad_id}`
+    if (communityKandidater.length > 0) {
+      const traadIds = [...new Set(communityKandidater.map((n: any) => n.reference_id as string))];
+      const brugerIds = [...new Set(communityKandidater.map((n: any) => n.user_id as string))];
+      const { data: visninger, error: visningFejl } = await admin
+        .from("community_visninger")
+        .select("traad_id, bruger_id")
+        .in("traad_id", traadIds)
+        .in("bruger_id", brugerIds);
+      if (visningFejl) {
+        // Fejler opslaget, dømmes ingen som set — hellere en mail for meget
+        // end en tavs fejl; det skal ses i loggen.
+        console.error("[set-i-app] community_visninger-opslag fejlede:", visningFejl.message);
+      }
+      for (const v of (visninger ?? []) as { traad_id: string; bruger_id: string }[]) {
+        setTraadeAf.add(`${v.bruger_id}|${v.traad_id}`);
+      }
+    }
+
     const candidates = nonChatNotifs.map((n: any) => ({
       ...n,
       report:
         REPORT_NOTIFICATION_TYPES.has(n.type) && n.reference_id
           ? reportJoinMap.get(n.reference_id) ?? null // null = rapport findes ikke længere
           : undefined,
+      set_i_app:
+        COMMUNITY_TRAAD_TYPES.has(n.type) && n.reference_id
+          ? setTraadeAf.has(`${n.user_id}|${n.reference_id}`)
+          : undefined,
     }));
 
-    const { toEmail, toDispose } = selectNotificationEmails(candidates);
+    const { toEmail, toDispose, disposeGrund } = selectNotificationEmails(candidates);
 
     // Dispose: marker email_sent_at UDEN at sende — samme mekanisme som
-    // commit-suppress. Rapporten er slettet/committet eller mailen er en
-    // dublet for samme (company, periode).
+    // commit-suppress. Kolonnen betyder «behandlet», ikke «sendt». Grunden
+    // står i loggen, så en senere læser ikke tror mailen gik ud:
+    //   set_i_app    — modtageren har set tråden i appen (community_visninger)
+    //   foraeldet    — begivenhed ældre end 12 t (BEGIVENHED_MAKS_ALDER_MS)
+    //   rapport_vaek — rapporten er slettet/committet
+    //   dublet       — samme (company, periode), nyeste vandt
     for (const notif of toDispose) {
       await admin
         .from("notifications")
         .update({ email_sent_at: new Date().toISOString() })
         .eq("id", notif.id);
+      const grund = disposeGrund.get(notif.id) ?? "ukendt";
+      const alderTimer = Math.round((Date.now() - new Date(notif.created_at).getTime()) / 3_600_000);
       console.log(
-        `[dispose] ${notif.type} ${notif.id} (report=${notif.reference_id}) — slettet/committet/dublet, ingen mail`,
+        `[dispose] IKKE SENDT — ${grund}: ${notif.type} ${notif.id} (ref=${notif.reference_id}, ${alderTimer} t gammel, grænse ${BEGIVENHED_MAKS_ALDER_MS / 3_600_000} t for begivenheder)`,
       );
       skipped++;
     }
