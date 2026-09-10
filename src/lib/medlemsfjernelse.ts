@@ -31,8 +31,12 @@ export function erOwner(role: string | null | undefined): boolean {
   return role === OWNER_ROLLE;
 }
 
-/** Må knappen «Fjern medlem» vises, og må kaldet sendes?
-    Kræver admin (serverens per-action-gate) OG at målet ikke er owner. */
+/** Må knappen vises, og må kaldet sendes? Kræver admin (serverens
+    per-action-gate) OG at målet ikke er owner. Siden 10/9 er knappen på
+    virksomhedssiden «Fjern fra virksomheden» (manage-advisor
+    fjern-fra-virksomhed, dommen i _shared/fjernFraVirksomhed.ts): kun
+    company_members-rækken slettes. remove-member (sletning af personen)
+    kaldes stadig fra det gamle /members — samme dom, anden handling. */
 export function maaFjerneMedlem(erAdmin: boolean, role: string | null | undefined): boolean {
   return erAdmin && !erOwner(role);
 }
