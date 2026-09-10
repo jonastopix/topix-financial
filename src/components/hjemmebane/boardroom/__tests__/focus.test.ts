@@ -62,11 +62,27 @@ describe("deriveFocus — hver kilde for sig", () => {
     expect(items[1].description).toBe("Der er en ny analyse af dine tal klar i chatten");
   });
 
-  it("(d) weekly_focus vises kun når IKKE set; headline bæres i beskrivelsen", () => {
+  it("(d) weekly_focus IKKE set: forrest med «Ugens fokus er klar»; headline bæres i beskrivelsen", () => {
     const unseen = deriveFocus(base({ weeklyFocus: { headline: "Stram likviditeten", seen: false } }));
-    expect(unseen[0]).toMatchObject({ kind: "weekly-focus", title: "Ugens fokus er klar", description: "Stram likviditeten" });
-    const seen = deriveFocus(base({ weeklyFocus: { headline: "Stram likviditeten", seen: true } }));
-    expect(seen).toHaveLength(0);
+    expect(unseen[0]).toMatchObject({ kind: "weekly-focus", title: "Ugens fokus er klar", description: "Stram likviditeten", priority: 4 });
+  });
+
+  it("(d/j) weekly_focus SET (11/9): punktet forsvinder ikke — det rykker BAGERST, roligere ord, samme headline", () => {
+    // Alene: stadig ét punkt, men det er ikke længere «klar», og prioriteten er sidst.
+    const alene = deriveFocus(base({ weeklyFocus: { headline: "Stram likviditeten", seen: true } }));
+    expect(alene).toHaveLength(1);
+    expect(alene[0]).toMatchObject({ kind: "weekly-focus", title: "Ugens fokus", ctaLabel: "Læs igen", description: "Stram likviditeten", priority: 10 });
+    // Med andet der kalder: set står bagerst, ikke-set står foran beskederne det ville stå bag som set.
+    const medBesked = deriveFocus(base({ unreadUserMessages: 1, weeklyFocus: { headline: "Stram likviditeten", seen: true } }));
+    expect(medBesked.map((i) => i.kind)).toEqual(["unread-messages", "weekly-focus"]);
+    expect(medBesked[medBesked.length - 1].kind).toBe("weekly-focus");
+    // Grænsen fra den anden side: ikke-set står FORAN milepæle (prioritet 4 < 5).
+    const ikkeSet = deriveFocus(base({ weeklyFocus: { headline: "x", seen: false }, milestones: [{ title: "Ny hjemmeside", deadline: "2026-09-05", progress: 10, status: "active" }] }));
+    expect(ikkeSet[0].kind).toBe("weekly-focus");
+    const set = deriveFocus(base({ weeklyFocus: { headline: "x", seen: true }, milestones: [{ title: "Ny hjemmeside", deadline: "2026-09-05", progress: 10, status: "active" }] }));
+    expect(set[set.length - 1].kind).toBe("weekly-focus");
+    // Uden ugefokus: intet punkt, hverken forrest eller bagerst.
+    expect(deriveFocus(base({ weeklyFocus: null })).some((i) => i.kind === "weekly-focus")).toBe(false);
   });
 
   it("(e) milestone-deadlines: ≤14-dages-tærsklen ordret (14 med, 15 ikke), ALLE kandidater, nærmeste først + titel-tie-break", () => {
