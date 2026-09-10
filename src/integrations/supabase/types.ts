@@ -201,7 +201,7 @@ export type Database = {
         Row: {
           advisor_id: string | null
           body: string | null
-          company_id: string
+          company_id: string | null
           created_at: string
           id: string
           member_id: string
@@ -214,7 +214,7 @@ export type Database = {
         Insert: {
           advisor_id?: string | null
           body?: string | null
-          company_id: string
+          company_id?: string | null
           created_at?: string
           id?: string
           member_id: string
@@ -227,7 +227,7 @@ export type Database = {
         Update: {
           advisor_id?: string | null
           body?: string | null
-          company_id?: string
+          company_id?: string | null
           created_at?: string
           id?: string
           member_id?: string
