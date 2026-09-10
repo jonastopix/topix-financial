@@ -27,6 +27,15 @@
  * Omkostningssummen er en GRÆNSE, ikke rettet her: kendes én af posterne,
  * summeres de kendte (samme form som calcTotalExpenses). Ukendt er den kun
  * når ingen post er målt.
+ *
+ * ESTIMATER (10/9, data_basis-kontrakten: «Beregninger udelukker estimater.
+ * Visninger må vise dem, men skal sige det»): en årsrapport-række er årets
+ * tal delt med tolv — tolv identiske måneder, ingen af dem målt. Før talte
+ * de som realiserede: fyldt prik «Realiseret måned», med i vækstfaktoren,
+ * saldoen løb med dem. Nu holdes de ude af aktualerne som BVA'en gør det
+ * (HbBudgetBva, 26/8), og `estimeredeMaaneder` siger hvilke måneder det
+ * gælder, så fladen kan mærke dem. En fact uden data_basis regnes som målt
+ * (ældre kaldere og tests).
  */
 import { factsToDanishMetricsNullable } from "@/lib/factsAdapter";
 import { deriveGrowthFactor } from "@/lib/budgetEngine";
@@ -35,6 +44,29 @@ import { deriveGrowthFactor } from "@/lib/budgetEngine";
 export interface FactTilAktual {
   period_key: string;
   metrics: Record<string, number | null> | null | undefined;
+  /** 'estimated' = årsrapport /12 — tælles ikke som realiseret. Udeladt = målt. */
+  data_basis?: "measured" | "estimated";
+}
+
+/** Månedsindeks (0–11) for måneden i period_key, eller null. */
+function maanedsIndeks(fact: FactTilAktual, year: string): number | null {
+  const [factYear, monthStr] = fact.period_key.split("-");
+  if (factYear !== year) return null;
+  const monthIdx = parseInt(monthStr, 10) - 1;
+  if (Number.isNaN(monthIdx) || monthIdx < 0 || monthIdx > 11) return null;
+  return monthIdx;
+}
+
+/** Årets måneder (0–11) der KUN bæres af en estimatrække — til mærkning, sorteret. */
+export function estimeredeMaaneder(facts: readonly FactTilAktual[], year: string): number[] {
+  const estimerede = new Set<number>();
+  const maalte = new Set<number>();
+  for (const fact of facts) {
+    const i = maanedsIndeks(fact, year);
+    if (i == null) continue;
+    (fact.data_basis === "estimated" ? estimerede : maalte).add(i);
+  }
+  return [...estimerede].filter((i) => !maalte.has(i)).sort((a, b) => a - b);
 }
 
 export interface MaanedsAktual {
@@ -84,10 +116,10 @@ export function aktualerFraFacts(
 ): Record<number, MaanedsAktual> {
   const map: Record<number, MaanedsAktual> = {};
   for (const fact of facts) {
-    const [factYear, monthStr] = fact.period_key.split("-");
-    if (factYear !== year) continue;
-    const monthIdx = parseInt(monthStr, 10) - 1;
-    if (Number.isNaN(monthIdx) || monthIdx < 0 || monthIdx > 11) continue;
+    // Et estimat er ikke realiseret (data_basis-kontrakten) — springes over.
+    if (fact.data_basis === "estimated") continue;
+    const monthIdx = maanedsIndeks(fact, year);
+    if (monthIdx == null) continue;
     const kf = factsToDanishMetricsNullable(fact.metrics);
     map[monthIdx] = {
       omsaetning: kf.omsaetning ?? null,

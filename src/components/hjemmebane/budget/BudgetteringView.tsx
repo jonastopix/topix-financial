@@ -406,7 +406,9 @@ export const BudgetteringView = () => {
                   attention={totalEbitda < 0}
                 />
               </div>
-              {facts.length > 0 && (
+              {/* Kun MÅLTE tal er «rapport-tal» (10/9): årsrapportens /12-estimater
+                  indgår ikke i sammenligningen (HbBudgetBva springer dem over). */}
+              {facts.some((f) => f.data_basis === "measured") ? (
                 <p className="mt-4 border-t border-hb-line pt-3 text-sm text-hb-ink-soft">
                   Der er rapport-tal for {year} —{" "}
                   <a href="#sammenlign" className="text-hb-rust underline-offset-4 hover:underline">
@@ -414,7 +416,11 @@ export const BudgetteringView = () => {
                   </a>
                   .
                 </p>
-              )}
+              ) : facts.length > 0 ? (
+                <p className="mt-4 border-t border-hb-line pt-3 text-sm text-hb-ink-soft">
+                  Dine tal er årsrapport-estimater (årets tal fordelt over 12 måneder) — de indgår ikke i sammenligningen med budgettet. Månedlige rapporter gør.
+                </p>
+              ) : null}
             </HbCard>
 
             <HbCard className="mt-4 p-5">

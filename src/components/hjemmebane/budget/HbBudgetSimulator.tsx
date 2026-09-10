@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
 import { useCompanyFacts } from "@/hooks/useCompanyFacts";
-import { aktualerFraFacts, forecastSerie } from "@/lib/budgetAktualer";
+import { aktualerFraFacts, estimeredeMaaneder, forecastSerie } from "@/lib/budgetAktualer";
+import { ESTIMAT_FORKLARING } from "../EstimatMaerke";
 import { formatDKK } from "@/lib/financialUtils";
 import {
   deriveGrowthFactor,
@@ -60,6 +61,9 @@ export const HbBudgetSimulator = ({ rows, year, companyId, userId }: Props) => {
   // omsætningslinje (25 af 314 facts i prod) blev til en nul-måned, der
   // trak vækstfaktoren — og hele resten af årets forecast — ned mod 0,1.
   const aktualer = useMemo(() => aktualerFraFacts(facts, year, { medAfskrivninger: true }), [facts, year]);
+  // Årsrapport-estimater (10/9): tolv identiske /12-måneder er ikke tolv
+  // målinger. De holdes ude af aktualerne (kontrakten) og mærkes i stedet.
+  const estimerede = useMemo(() => estimeredeMaaneder(facts, year), [facts, year]);
 
   const revenueRows = rows.filter((r) => r.group === "indtaegter");
   const costRows = rows.filter((r) => r.group !== "indtaegter");
@@ -79,14 +83,17 @@ export const HbBudgetSimulator = ({ rows, year, companyId, userId }: Props) => {
 
   // Månedens status til prikken: begge serier målt = realiseret; én = delvis;
   // rapport uden nogen af dem, eller ingen rapport før sidste målte = uden tal.
-  type MaanedsStatus = "realiseret" | "delvis" | "uden_tal" | "forecast";
+  type MaanedsStatus = "realiseret" | "delvis" | "uden_tal" | "estimat" | "forecast";
   const maanedsStatus: MaanedsStatus[] = MONTHS.map((_, i) => {
     const oms = omsSerie.realiseret[i];
     const omk = omkSerie.realiseret[i];
     if (oms && omk) return "realiseret";
     if (oms || omk) return "delvis";
+    // Et estimat er hverken målt eller et hul — det siges som det det er.
+    if (estimerede.includes(i)) return "estimat";
     return aktualer[i] !== undefined || i <= lastActualIdx ? "uden_tal" : "forecast";
   });
+  const estimatMaaneder = MONTHS.filter((_, i) => maanedsStatus[i] === "estimat");
   const maanederUdenTal = MONTHS.filter((_, i) => maanedsStatus[i] === "uden_tal" || maanedsStatus[i] === "delvis");
 
   const forecastEbitda = MONTHS.map((_, i) => forecastRevenue[i] - forecastCosts[i]);
@@ -175,7 +182,12 @@ export const HbBudgetSimulator = ({ rows, year, companyId, userId }: Props) => {
               : "Ingen rapporter endnu — budgettet vises som forecast"}
             {/* Hullet SIGES (7/9): en måned uden tal er forecastet, ikke nul. */}
             {maanederUdenTal.length > 0 && ` · uden tal: ${maanederUdenTal.map((m) => m.toLowerCase()).join(", ")} — forecastet i stedet`}
+            {/* Estimatet SIGES (10/9): årsrapportens /12-måneder tælles ikke som realiserede. */}
+            {estimatMaaneder.length > 0 && ` · årsrapport-estimat: ${estimatMaaneder.map((m) => m.toLowerCase()).join(", ")} — tælles ikke som realiseret, forecastet i stedet`}
           </p>
+          {estimatMaaneder.length > 0 && (
+            <p className="mt-1 max-w-xl text-xs leading-relaxed text-hb-ink-soft">{ESTIMAT_FORKLARING}</p>
+          )}
         </div>
         <div className="mt-4 grid grid-cols-1 gap-5 sm:grid-cols-3">
           <TalStat
@@ -226,6 +238,8 @@ export const HbBudgetSimulator = ({ rows, year, companyId, userId }: Props) => {
                           maanedsStatus[i] === "realiseret" && "border-hb-evergreen bg-hb-evergreen",
                           maanedsStatus[i] === "delvis" && "border-hb-evergreen [background:linear-gradient(90deg,hsl(var(--hb-evergreen))_50%,transparent_50%)]",
                           maanedsStatus[i] === "uden_tal" && "border-hb-line bg-hb-line/40",
+                          // Prikket kant = estimat (Nøgletals prikkede linje, samme sprog).
+                          maanedsStatus[i] === "estimat" && "border-dashed border-hb-ink-soft/70",
                           maanedsStatus[i] === "forecast" && "border-hb-line",
                         )}
                         title={
@@ -235,7 +249,9 @@ export const HbBudgetSimulator = ({ rows, year, companyId, userId }: Props) => {
                               ? "Rapport med kun ét af tallene — resten forecastet"
                               : maanedsStatus[i] === "uden_tal"
                                 ? "Ingen tal for måneden — forecastet"
-                                : "Forecast"
+                                : maanedsStatus[i] === "estimat"
+                                  ? `${ESTIMAT_FORKLARING} Tælles ikke som realiseret — forecastet i stedet.`
+                                  : "Forecast"
                         }
                       />
                       <span className="text-[10px] font-medium text-hb-ink-soft">{m}</span>
