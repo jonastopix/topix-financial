@@ -27,6 +27,11 @@ interface CompanyEditForm {
   website: string;
   slack_channel: string;
   intro_session_used: boolean;
+  /** Gæst (kort #174, 10/9): companies.vis_i_netvaerk = false. Feltet blev
+      før kun sat med SQL (migration 20260902110000). Vendt i formularen:
+      «gæst» = ikke i Netværket. RLS: «Advisors can update all companies»
+      (has_role advisor — admin arver) dækker kolonnen; ingen kolonne-trigger. */
+  gaest: boolean;
 }
 
 const EMPTY_FORM: CompanyEditForm = {
@@ -38,6 +43,7 @@ const EMPTY_FORM: CompanyEditForm = {
   website: "",
   slack_channel: "",
   intro_session_used: false,
+  gaest: false,
 };
 
 // Delt, selv-fetchende dialog. Aabnes baade fra MemberDetail og fra medlemsoversigten
@@ -58,7 +64,7 @@ const EditCompanyDialog = ({ open, onOpenChange, companyId, onSaved }: EditCompa
     (async () => {
       const { data, error } = await supabase
         .from("companies")
-        .select("contract_start_date, contract_end_date, subscription_status, cvr_number, industry_label, website, slack_channel, intro_session_used_at")
+        .select("contract_start_date, contract_end_date, subscription_status, cvr_number, industry_label, website, slack_channel, intro_session_used_at, vis_i_netvaerk")
         .eq("id", companyId)
         .maybeSingle();
       if (cancelled) return;
@@ -78,6 +84,7 @@ const EditCompanyDialog = ({ open, onOpenChange, companyId, onSaved }: EditCompa
         website: c.website || "",
         slack_channel: c.slack_channel || "",
         intro_session_used: !!c.intro_session_used_at,
+        gaest: c.vis_i_netvaerk === false,
       });
       setLoading(false);
     })();
@@ -98,6 +105,7 @@ const EditCompanyDialog = ({ open, onOpenChange, companyId, onSaved }: EditCompa
         industry_label: form.industry_label || null,
         website: form.website || null,
         slack_channel: form.slack_channel || null,
+        vis_i_netvaerk: !form.gaest,
       };
       // Gratis intro-session: map afkrydsning til timestamp, men bevar et eksisterende
       // tidspunkt saa en almindelig gem aldrig overskriver "hvornaar brugt".
@@ -205,6 +213,17 @@ const EditCompanyDialog = ({ open, onOpenChange, companyId, onSaved }: EditCompa
                 className="h-4 w-4 rounded border-border"
               />
               Gratis intro-session brugt
+            </label>
+          </div>
+          <div>
+            <label className="flex items-center gap-2 text-xs font-medium text-foreground">
+              <input
+                type="checkbox"
+                checked={form.gaest}
+                onChange={(e) => setForm(f => ({ ...f, gaest: e.target.checked }))}
+                className="h-4 w-4 rounded border-border"
+              />
+              Gæst — har adgang til platformen, men vises ikke i Netværket
             </label>
           </div>
         </div>

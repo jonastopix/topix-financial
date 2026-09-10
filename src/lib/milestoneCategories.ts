@@ -13,79 +13,89 @@ export type MilestoneCategory =
 export interface CategoryConfig {
   label: string;
   icon: LucideIcon;
+  /** Pillens klasser — husets palet, ÉN farve for alle (10/9, kort #93).
+      Før bar hver kategori sin egen rå Tailwind-farve (emerald/blue/indigo/
+      pink/cyan/violet/purple/amber/orange/slate/teal/rose/zinc) — en regnbue
+      hvor Hjemmebane bruger få farver med vilje. Ikonet bærer forskellen:
+      fjorten kategorier, fjorten forskellige ikoner (låst af test). */
   badgeClass: string;
 }
+
+/** Samme pille som HbTag/EstimatMaerke: sage-flade, blæk-tekst. */
+export const PILLE = "bg-hb-sage/70 text-hb-ink";
+/** «Andet» er den ene der må være stillere end de andre. */
+export const PILLE_ANDET = "bg-hb-line/40 text-hb-ink-soft";
 
 export const MILESTONE_CATEGORIES: Record<MilestoneCategory, CategoryConfig> = {
   vaekst: {
     label: "Vækst",
     icon: TrendingUp,
-    badgeClass: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400",
+    badgeClass: PILLE,
   },
   profit: {
     label: "Profit",
     icon: Coins,
-    badgeClass: "bg-blue-500/15 text-blue-600 dark:text-blue-400",
+    badgeClass: PILLE,
   },
   salg: {
     label: "Salg",
     icon: ShoppingCart,
-    badgeClass: "bg-indigo-500/15 text-indigo-600 dark:text-indigo-400",
+    badgeClass: PILLE,
   },
   kunder: {
     label: "Kunder",
     icon: Heart,
-    badgeClass: "bg-pink-500/15 text-pink-600 dark:text-pink-400",
+    badgeClass: PILLE,
   },
   produkt: {
     label: "Produkt",
     icon: Package,
-    badgeClass: "bg-cyan-500/15 text-cyan-600 dark:text-cyan-400",
+    badgeClass: PILLE,
   },
   marketing: {
     label: "Marketing",
     icon: Megaphone,
-    badgeClass: "bg-violet-500/15 text-violet-600 dark:text-violet-400",
+    badgeClass: PILLE,
   },
   medarbejdere: {
     label: "Medarbejdere",
     icon: Users,
-    badgeClass: "bg-purple-500/15 text-purple-600 dark:text-purple-400",
+    badgeClass: PILLE,
   },
   timer: {
     label: "Timer",
     icon: Clock,
-    badgeClass: "bg-amber-500/15 text-amber-600 dark:text-amber-400",
+    badgeClass: PILLE,
   },
   db: {
     label: "Dækningsbidrag",
     icon: BarChart3,
-    badgeClass: "bg-orange-500/15 text-orange-600 dark:text-orange-400",
+    badgeClass: PILLE,
   },
   juridisk: {
     label: "Juridisk",
     icon: Scale,
-    badgeClass: "bg-slate-500/15 text-slate-600 dark:text-slate-400",
+    badgeClass: PILLE,
   },
   funding: {
     label: "Funding",
     icon: Landmark,
-    badgeClass: "bg-teal-500/15 text-teal-600 dark:text-teal-400",
+    badgeClass: PILLE,
   },
   regnskab: {
     label: "Regnskab",
     icon: Calculator,
-    badgeClass: "bg-rose-500/15 text-rose-600 dark:text-rose-400",
+    badgeClass: PILLE,
   },
   administration: {
     label: "Administration",
     icon: ClipboardList,
-    badgeClass: "bg-zinc-500/15 text-zinc-600 dark:text-zinc-400",
+    badgeClass: PILLE,
   },
   other: {
     label: "Andet",
     icon: Target,
-    badgeClass: "bg-muted text-muted-foreground",
+    badgeClass: PILLE_ANDET,
   },
 };
 
