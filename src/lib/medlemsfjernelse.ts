@@ -17,6 +17,14 @@
  * (per-action default-deny), så fladen må heller ikke vise knappen for en
  * rådgiver uden admin — ellers lover den noget serveren afviser.
  *
+ * TO DOMME SIDEN 10/9 NAT, én pr. server-handling: maaFjerneMedlem gælder
+ * remove-member (sletning af personen, admin-only) og maaFjerneFraVirksomhed
+ * gælder fjern-fra-virksomhed (kun company_members-rækken, advisor ELLER
+ * admin). #803 byggede den nye handling admin-only samme aften — Morten
+ * kunne ikke bruge knappen (Morten-gaten, mangellistens kort 109). Fladen og
+ * serveren (ADVISOR_ALLOWED_ACTIONS i manage-advisor) skal sige det samme;
+ * kildeværnet i testen læser begge filer.
+ *
  * Ren funktion, ingen imports, testet i __tests__/medlemsfjernelse.test.ts.
  */
 
@@ -31,12 +39,17 @@ export function erOwner(role: string | null | undefined): boolean {
   return role === OWNER_ROLLE;
 }
 
-/** Må knappen vises, og må kaldet sendes? Kræver admin (serverens
-    per-action-gate) OG at målet ikke er owner. Siden 10/9 er knappen på
-    virksomhedssiden «Fjern fra virksomheden» (manage-advisor
-    fjern-fra-virksomhed, dommen i _shared/fjernFraVirksomhed.ts): kun
-    company_members-rækken slettes. remove-member (sletning af personen)
-    kaldes stadig fra det gamle /members — samme dom, anden handling. */
+/** remove-member (sletning af PERSONEN, det gamle /members): kræver admin
+    (serverens per-action-gate) OG at målet ikke er owner. */
 export function maaFjerneMedlem(erAdmin: boolean, role: string | null | undefined): boolean {
   return erAdmin && !erOwner(role);
+}
+
+/** fjern-fra-virksomhed (virksomhedssidens «Fjern fra virksomheden», 10/9,
+    dommen i _shared/fjernFraVirksomhed.ts — kun company_members-rækken):
+    kræver rådgiver (advisor ELLER admin — useAuth.isAdvisor er begge) OG at
+    målet ikke er owner. Jonas og Morten er de to; en gate der kun slipper
+    den ene igennem, er ikke en gate. */
+export function maaFjerneFraVirksomhed(erRaadgiver: boolean, role: string | null | undefined): boolean {
+  return erRaadgiver && !erOwner(role);
 }

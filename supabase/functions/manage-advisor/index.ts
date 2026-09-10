@@ -94,7 +94,13 @@ Deno.serve(async (req) => {
     const { action, email, target_user_id } = body;
 
     // --- Per-action authorization: default-deny for non-admins ---
-    const ADVISOR_ALLOWED_ACTIONS = ['list'];
+    // Rådgiverhandlinger (advisor ELLER admin — husets mønster, has_role
+    // arver): list, og fra 10/9 nat fjern-fra-virksomhed. Den blev bygget
+    // admin-only i #803 samme aften — en gate der kun slipper Jonas igennem,
+    // er ikke en gate (mangellistens kort 109, Morten-gaten). Sletning af
+    // en PERSON (remove-member), virksomheder, rådgiverroller og oprydning
+    // forbliver admin. Kildeværn: src/lib/__tests__/medlemsfjernelse.test.ts.
+    const ADVISOR_ALLOWED_ACTIONS = ['list', 'fjern-fra-virksomhed'];
     if (!callerIsAdmin) {
       if (!action || !ADVISOR_ALLOWED_ACTIONS.includes(action)) {
         console.warn(`[manage-advisor] DENIED action='${action || '(none)'}' caller=${userId} role=advisor`);

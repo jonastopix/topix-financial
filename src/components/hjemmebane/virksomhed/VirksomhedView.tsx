@@ -16,7 +16,7 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { maaFjerneMedlem } from "@/lib/medlemsfjernelse";
+import { maaFjerneFraVirksomhed } from "@/lib/medlemsfjernelse";
 import type { CompanyFact } from "@/hooks/useCompanyFacts";
 import { factsToDanishMetrics } from "@/lib/factsAdapter";
 import { afgoerVirksomhedsSignaler, type FactPunkt, type Signal, type VirksomhedsInput } from "@/lib/virksomhedsSignaler";
@@ -1349,7 +1349,7 @@ const IntroSessionLinje = ({ companyId }: { companyId: string }) => {
 // ── Blok 7: Aftalen ─────────────────────────────────────────────────────
 
 /** «Fjern fra virksomheden» pr. medlem (§3.6-handling; omlagt 10/9,
-    recon-de-tre-paa-ny.md §5). Dommen i fladen er maaFjerneMedlem (admin OG
+    recon-de-tre-paa-ny.md §5). Dommen i fladen er maaFjerneFraVirksomhed (rådgiver OG
     ikke owner); serverens dom er _shared/fjernFraVirksomhed.ts. Kaldet er
     manage-advisor fjern-fra-virksomhed: KUN company_members-rækken for
     (virksomhed, person) slettes — kontoen, profilen, beskederne og uploads
@@ -1478,7 +1478,9 @@ const FornyelsesHandlinger = ({
 
 const Blok7 = ({ d, onOpdateret, onFornyelseAendret }: { d: VirksomhedsData; onOpdateret: () => Promise<void>; onFornyelseAendret: () => Promise<void> }) => {
   const c = d.company;
-  const { isAdmin } = useAuth();
+  // isAdvisor er advisor ELLER admin (useAuth); «Fjern fra virksomheden» er
+  // en rådgiverhandling (10/9 nat — #803 gjorde den admin-only ved en fejl).
+  const { isAdmin, isAdvisor } = useAuth();
   // «Rediger virksomhedsdata» — kun admin, som MemberDetail:953. Dialogen
   // er delt (EditCompanyDialog, urørt) og har én rækkefølge ved gem:
   // onOpenChange(false) FØRST, derefter onSaved (EditCompanyDialog.tsx:112-113).
@@ -1675,7 +1677,7 @@ const Blok7 = ({ d, onOpdateret, onFornyelseAendret }: { d: VirksomhedsData; onO
                       );
                     })()}
                   </div>
-                  {maaFjerneMedlem(!!isAdmin, m.role) && <FjernMedlem medlem={m} companyId={c.id} virksomhed={c.name} onFjernet={onOpdateret} />}
+                  {maaFjerneFraVirksomhed(!!isAdvisor, m.role) && <FjernMedlem medlem={m} companyId={c.id} virksomhed={c.name} onFjernet={onOpdateret} />}
                 </li>
               ))}
             </ul>
