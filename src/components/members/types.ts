@@ -57,9 +57,3 @@ export interface CompanyData {
 export type SortKey = "name" | "reportCount" | "latest_report";
 export type SortDir = "asc" | "desc";
 
-export interface UnassignedUser {
-  user_id: string;
-  full_name: string;
-  company_id: string;
-  company_name: string;
-}

@@ -7,18 +7,11 @@ import {
 } from "../importensAdvarsel";
 
 describe("importAdvarsel — teksten før «Importér og send invitation»", () => {
-  it("vises ved ny import", () => {
-    const a = importAdvarsel(null);
-    expect(a).not.toBeNull();
-    expect(a!.overskrift).toBe(IMPORT_ADVARSEL_OVERSKRIFT);
-    expect(a!.linjer).toBe(IMPORT_ADVARSEL_LINJER);
-    expect(a!.andenVej).toBe(IMPORT_ADVARSEL_ANDEN_VEJ);
-    expect(importAdvarsel(undefined)).not.toBeNull();
-    expect(importAdvarsel("")).not.toBeNull();
-  });
-
-  it("vises IKKE i berig-tilstand — der sendes ingen invitation", () => {
-    expect(importAdvarsel("company-id")).toBeNull();
+  it("vises altid — dialogen har kun én tilstand siden berig blev fjernet 10/9", () => {
+    const a = importAdvarsel();
+    expect(a.overskrift).toBe(IMPORT_ADVARSEL_OVERSKRIFT);
+    expect(a.linjer).toBe(IMPORT_ADVARSEL_LINJER);
+    expect(a.andenVej).toBe(IMPORT_ADVARSEL_ANDEN_VEJ);
   });
 
   it("siger de tre ting der adskiller import fra Monday-vejen", () => {

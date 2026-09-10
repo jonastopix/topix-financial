@@ -19,7 +19,7 @@ import {
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
 
-import type { CompanyData, CompanyMember, LoginInfo, UnassignedUser, SortKey, SortDir } from "@/components/members/types";
+import type { CompanyData, CompanyMember, LoginInfo, SortKey, SortDir } from "@/components/members/types";
 import MembersStatsBar from "@/components/members/MembersStatsBar";
 import MembersOnboardingFunnel from "@/components/members/MembersOnboardingFunnel";
 import FornyelsesSektion from "@/components/members/FornyelsesSektion";
@@ -151,13 +151,6 @@ const Members = () => {
   const [filterIndustry, setFilterIndustry] = useState<string>("all");
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
-  // Merge state
-  const [mergeDialogOpen, setMergeDialogOpen] = useState(false);
-  const [mergeTargetCompany, setMergeTargetCompany] = useState<CompanyData | null>(null);
-  const [unassignedUsers, setUnassignedUsers] = useState<UnassignedUser[]>([]);
-  const [mergeSearch, setMergeSearch] = useState("");
-  const [merging, setMerging] = useState(false);
-
   // Delete state
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<CompanyData | null>(null);
@@ -197,7 +190,6 @@ const Members = () => {
   const [showAttachUser, setShowAttachUser] = useState(false);
   const [attachEmail, setAttachEmail] = useState("");
   const [attaching, setAttaching] = useState(false);
-  const [enrichCompanyId, setEnrichCompanyId] = useState<string | null>(null);
 
   const handleAttachExistingUser = async () => {
     if (!attachEmail) return;
@@ -242,7 +234,6 @@ const Members = () => {
     setShowImportDialog(false);
     setParsed(false);
     setParsing(false);
-    setEnrichCompanyId(null);
     setImportForm({ email: "", company_name: "", cvr_number: "", contact_name: "", annual_revenue: "", revenue_interval: "", industry_label: "", current_situation: "", goals: "", help_needed: "", website: "", phone: "", contract_start_date: "", contract_end_date: "" });
   };
 
@@ -293,7 +284,7 @@ const Members = () => {
           .gte("logged_in_at", new Date(Date.now() - 90 * 86400000).toISOString())
           .order("logged_in_at", { ascending: false })
           .limit(5000) as any,
-        // data_basis-undtagelse: rapporteringsdæknings-visning + company-merge-flytning — ingen talberegning
+        // data_basis-undtagelse: rapporteringsdæknings-visning — ingen talberegning
         supabase.from("financial_report_facts" as any).select("company_id, period_key"),
         supabase.from("pulse_checkins").select("company_id, period_key").gte("created_at", monthStart),
         // Fejlede månedstræk (company_traek, #572) — KUN status = 'fejlet',
@@ -596,8 +587,7 @@ const Members = () => {
       toast.error("CVR-nummer skal være præcis 8 cifre");
       return;
     }
-    // Contract end date is required for new imports, optional in enrich mode
-    if (!enrichCompanyId && !importForm.contract_end_date) {
+    if (!importForm.contract_end_date) {
       toast.error("Kontraktslut er påkrævet");
       return;
     }
@@ -640,18 +630,9 @@ const Members = () => {
           revenue_interval: importForm.revenue_interval || undefined,
           contract_start_date: importForm.contract_start_date || undefined,
           contract_end_date: importForm.contract_end_date || undefined,
-          enrich_company_id: enrichCompanyId || undefined,
         },
       });
       if (error) throw new Error(error.message || "Import fejlede");
-      if (data?.enriched) {
-        toast.success("Virksomhed beriget ✓", {
-          description: `Opdaterede: ${data.fields_updated?.join(", ") || "kontekst"}`,
-        });
-        resetImportDialog();
-        refetchMembers();
-        return;
-      }
       if (!data?.ok) {
         if (data?.reason === "invitation_already_exists") {
           toast.warning("Der er allerede en aktiv invitation på denne email", {
@@ -783,76 +764,6 @@ const Members = () => {
       toast.error("Kunne ikke gensende invitation: " + (err.message || "Ukendt fejl"));
     } finally {
       setResendingInvitation(null);
-    }
-  };
-
-  const openMergeDialog = async (company: CompanyData) => {
-    setMergeTargetCompany(company);
-    setMergeSearch("");
-    setMergeDialogOpen(true);
-    const { data: allMemberships } = await supabase
-      .from("company_members" as any)
-      .select("user_id, company_id") as any;
-    const { data: allProfiles } = await supabase
-      .from("profiles")
-      .select("user_id, full_name");
-    const { data: allCompanies } = await supabase
-      .from("companies" as any)
-      .select("id, name") as any;
-    const companyNameMap = new Map((allCompanies || []).map((c: any) => [c.id, c.name]));
-    const profileMapLocal = new Map((allProfiles || []).map((p: any) => [p.user_id, p.full_name]));
-    const users: UnassignedUser[] = (allMemberships || [])
-      .filter((m: any) => m.company_id !== company.id)
-      .map((m: any) => ({
-        user_id: m.user_id,
-        full_name: profileMapLocal.get(m.user_id) || "Ukendt",
-        company_id: m.company_id,
-        company_name: companyNameMap.get(m.company_id) || "Ukendt",
-      }));
-    setUnassignedUsers(users);
-  };
-
-  const handleMergeUser = async (targetUser: UnassignedUser) => {
-    if (!mergeTargetCompany || !user) return;
-    setMerging(true);
-    try {
-      const { error: updateErr } = await supabase
-        .from("company_members" as any)
-        .update({ company_id: mergeTargetCompany.id } as any)
-        .eq("user_id", targetUser.user_id)
-        .eq("company_id", targetUser.company_id) as any;
-      if (updateErr) throw updateErr;
-      await supabase
-        .from("conversations")
-        .update({ company_id: mergeTargetCompany.id })
-        .eq("member_id", targetUser.user_id)
-        .eq("company_id", targetUser.company_id);
-      await Promise.all([
-        supabase.from("financial_reports").update({ company_id: mergeTargetCompany.id } as any).eq("company_id", targetUser.company_id).eq("user_id", targetUser.user_id),
-        supabase.from("handouts").update({ company_id: mergeTargetCompany.id } as any).eq("company_id", targetUser.company_id).eq("user_id", targetUser.user_id),
-        supabase.from("milestones").update({ company_id: mergeTargetCompany.id } as any).eq("company_id", targetUser.company_id).eq("user_id", targetUser.user_id),
-        supabase.from("budget_targets").update({ company_id: mergeTargetCompany.id } as any).eq("company_id", targetUser.company_id).eq("user_id", targetUser.user_id),
-        supabase.from("kpi_targets").update({ company_id: mergeTargetCompany.id } as any).eq("company_id", targetUser.company_id).eq("user_id", targetUser.user_id),
-        supabase.from("kpi_benchmarks").update({ company_id: mergeTargetCompany.id } as any).eq("company_id", targetUser.company_id).eq("user_id", targetUser.user_id),
-        supabase.from("financial_report_facts").update({ company_id: mergeTargetCompany.id } as any).eq("company_id", targetUser.company_id),
-        supabase.from("pulse_checkins").update({ company_id: mergeTargetCompany.id } as any).eq("company_id", targetUser.company_id).eq("user_id", targetUser.user_id),
-      ]);
-      const { data: remaining } = await supabase
-        .from("company_members" as any)
-        .select("id")
-        .eq("company_id", targetUser.company_id) as any;
-      if (!remaining || remaining.length === 0) {
-        await supabase.from("conversations").delete().eq("company_id", targetUser.company_id);
-        await supabase.from("companies" as any).delete().eq("id", targetUser.company_id) as any;
-      }
-      toast.success(`${targetUser.full_name} tilknyttet ${mergeTargetCompany.name}`);
-      setMergeDialogOpen(false);
-      refetchMembers();
-    } catch (err: any) {
-      console.error("Merge error:", err);
-      toast.error("Kunne ikke flytte brugeren: " + (err.message || "Ukendt fejl"));
-    } finally {
-      setMerging(false);
     }
   };
 
@@ -1126,12 +1037,6 @@ const Members = () => {
     return { notInvited, invitedPending, activatedNoReport, reportedNotCommitted, fullyOnboarded };
   }, [companies, standalonePendingInvitations]);
 
-  const filteredMergeUsers = unassignedUsers.filter((u) => {
-    if (!mergeSearch.trim()) return true;
-    const q = mergeSearch.toLowerCase();
-    return u.full_name.toLowerCase().includes(q) || u.company_name.toLowerCase().includes(q);
-  });
-
   if (authLoading) return null;
   if (!isAdvisor) return <Navigate to="/" replace />;
 
@@ -1287,12 +1192,10 @@ const Members = () => {
                 removingMember={removingMember}
                 onRename={(id, name) => { setRenamingCompany({ id, currentName: name }); setRenameValue(name); }}
                 onInvite={(companyId, email) => { setStandaloneCompanyId(companyId); setStandaloneEmail(email); setStandaloneName(""); setStandaloneInviteOpen(true); }}
-                onOpenMerge={openMergeDialog}
                 onResendInvitation={handleResendInvitation}
                 onRemoveMember={handleRemoveMember}
                 onDelete={(c) => { setDeleteTarget(c); setDeleteDialogOpen(true); }}
                 onEditCompany={(id) => { setEditCompanyId(id); setEditCompanyOpen(true); }}
-                onEnrich={(companyId) => { setEnrichCompanyId(companyId); setShowImportDialog(true); }}
                 getDisplayRevenue={getDisplayRevenue}
                 getInitials={getInitials}
               />
@@ -1345,53 +1248,6 @@ const Members = () => {
         onResendStandaloneInvitation={handleResendStandaloneInvitation}
         onReload={() => refetchMembers()}
       />
-
-      {/* Merge dialog */}
-      <Dialog open={mergeDialogOpen} onOpenChange={setMergeDialogOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Tilknyt bruger til {mergeTargetCompany?.name}</DialogTitle>
-            <DialogDescription>
-              Søg efter en bruger og flyt dem til denne virksomhed. Eventuelle data flyttes automatisk med.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <input
-              value={mergeSearch}
-              onChange={(e) => setMergeSearch(e.target.value)}
-              placeholder="Søg på brugernavn eller virksomhed..."
-              className="w-full pl-10 pr-3 py-2 rounded-lg bg-background border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
-              autoFocus
-            />
-          </div>
-          <div className="max-h-64 overflow-y-auto space-y-1">
-            {filteredMergeUsers.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-4">
-                {mergeSearch ? "Ingen brugere matcher" : "Ingen brugere at tilknytte"}
-              </p>
-            ) : (
-              filteredMergeUsers.map((u) => (
-                <button
-                  key={u.user_id}
-                  onClick={() => handleMergeUser(u)}
-                  disabled={merging}
-                  className="w-full flex items-center gap-3 p-2.5 rounded-lg hover:bg-secondary/50 transition-colors text-left disabled:opacity-50"
-                >
-                  <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-                    <span className="text-[10px] font-semibold text-primary">{getInitials(u.full_name)}</span>
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium text-foreground truncate">{u.full_name}</p>
-                    <p className="text-[10px] text-muted-foreground truncate">Fra: {u.company_name}</p>
-                  </div>
-                  <UserPlus className="h-4 w-4 text-primary flex-shrink-0" />
-                </button>
-              ))
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
 
       {/* Delete dialog */}
       <Dialog open={deleteDialogOpen} onOpenChange={(open) => { setDeleteDialogOpen(open); if (!open) setDeleteAlsoUsers(false); }}>
@@ -1534,13 +1390,9 @@ const Members = () => {
             <div className="p-6">
               <div className="flex items-start justify-between mb-4">
                 <div>
-                  <h2 className="text-lg font-semibold text-foreground">
-                    {enrichCompanyId ? "Berig virksomhed med ansøgning" : "Importér ansøgning"}
-                  </h2>
+                  <h2 className="text-lg font-semibold text-foreground">Importér ansøgning</h2>
                   <p className="text-sm text-muted-foreground mt-1">
-                    {enrichCompanyId
-                      ? "Udfylder kun manglende felter på den eksisterende virksomhed — ingen invitation sendes"
-                      : "Opretter virksomhed, slår CVR op og sender invitationsmail automatisk"}
+                    Opretter virksomhed, slår CVR op og sender invitationsmail automatisk
                   </p>
                 </div>
                 <button onClick={resetImportDialog} className="text-muted-foreground hover:text-foreground">✕</button>
@@ -1666,11 +1518,9 @@ const Members = () => {
               )}
 
               {/* Det der sker når man klikker — står FØR knappen, ikke som
-                  bekræftelse bagefter. Kun ved ny import; berig sender ingen
-                  invitation. Teksten: src/lib/importensAdvarsel.ts. */}
+                  bekræftelse bagefter. Teksten: src/lib/importensAdvarsel.ts. */}
               {(() => {
-                const advarsel = importAdvarsel(enrichCompanyId);
-                if (!advarsel) return null;
+                const advarsel = importAdvarsel();
                 return (
                   <div className="mt-6 rounded-lg border border-border bg-accent/30 px-4 py-3 text-sm text-foreground">
                     <p className="font-medium">{advarsel.overskrift}</p>
@@ -1691,9 +1541,7 @@ const Members = () => {
                   disabled={importing || !parsed || !importForm.email || !importForm.company_name}
                   className="inline-flex items-center gap-2 rounded-lg bg-primary px-5 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
                 >
-                  {importing
-                    ? (enrichCompanyId ? "Beriger..." : "Importerer...")
-                    : (enrichCompanyId ? "Berig virksomhed" : "Importér og send invitation")}
+                  {importing ? "Importerer..." : "Importér og send invitation"}
                 </button>
               </div>
             </div>
