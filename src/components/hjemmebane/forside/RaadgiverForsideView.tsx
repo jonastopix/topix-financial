@@ -9,6 +9,8 @@ import { TAERSKEL, type Linje, type OpgaveSlags, type Pukkellinje, type Virksomh
 import { LUKNINGS_UDFALD, UDFALD_TEKST, type LukningsUdfald } from "@/lib/opgaveLukning";
 import { pulsLinjer } from "@/lib/pulsen";
 import { SIDEN_SIDST_KEY, hentSidenSidst } from "@/hooks/sidenSidst";
+import { CRON_VAGT_KEY, hentCronVagt } from "@/hooks/cronVagt";
+import { vagtLinje } from "@/lib/cronVagt";
 import { intetNytTekst, sidenSidstLinjer, sidenTekst } from "@/lib/sidenSidst";
 import { cn } from "@/lib/utils";
 
@@ -174,6 +176,14 @@ export const RaadgiverForsideView = () => {
     enabled: !!user,
     staleTime: 2 * 60_000,
   });
+  // Driften (9/9, hooks/cronVagt + lib/cronVagt): cron-vagtens dom fra det
+  // sidste døgn — ren SQL i databasen, uafhængig af vault og edge functions.
+  // Én linje under pulsen; fejler hentningen, siges det roligt.
+  const vagtQuery = useQuery({
+    queryKey: CRON_VAGT_KEY,
+    queryFn: hentCronVagt,
+    staleTime: 60_000,
+  });
   // Siden sidst (9/9, hooks/sidenSidst): egen hentning — stemplet og RPC'en —
   // adskilt fra forsidens datalag, så en fejl her ikke vælter dommen.
   // Hook i topblokken, før nogen betinget return (React #310).
@@ -295,6 +305,17 @@ export const RaadgiverForsideView = () => {
             </li>
           ))}
         </ul>
+        {/* DRIFTEN (9/9, lib/cronVagt): vagten i databasen dømmer hver time —
+            vault, cron-svarene, mailkøen — og skriver til cron_vagt_log. Her
+            står kun én linje: grøn er ink-soft, rød er rust med hvad der er
+            galt og siden hvornår. 9/9 fik alle ni jobs 401 i 17 timer uden
+            at nogen så det; denne linje er dét der skal ses. */}
+        {vagtQuery.isLoading ? null : vagtQuery.isError ? (
+          <p className="pb-4">Driften: vagten kunne ikke hentes lige nu.</p>
+        ) : (() => {
+          const v = vagtLinje(vagtQuery.data ?? [], new Date());
+          return <p className={cn("pb-4", v.tone === "rust" && "text-hb-rust")}>{v.tekst}</p>;
+        })()}
         {/* SIDEN SIDST (Jonas 8/9, lib/sidenSidst + hooks/sidenSidst): hvad der
             har flyttet sig siden du sidst åbnede — pr. rådgiver, syv dages
             loft. Fem-seks linjer med tal og navne; tom tilstand er rolig. */}
