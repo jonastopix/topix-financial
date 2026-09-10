@@ -1,5 +1,28 @@
 # Overlevering
 
+> ## I MORGEN 11/9 — START HER (skrevet 10/9 nat, efter #809)
+>
+> **Dagens tal:** 40 PR'er merget (#770–#809). Fem nye cron-jobs i drift
+> (onboarding-rytme, legat-reminder, report-review, agentforslag-udloeb,
+> opgave-forfald). Restancen sat op i Stripe på begge konti. Parseren
+> bevist i drift på ANLA GLAS. Mangellisten: 178 i morges → 99 i nat.
+>
+> **Det der venter, i rækkefølge:**
+> 1. **`run-weekly-agent`: tre valg, bogført i aften** — Jonas og Morten
+>    vælger (DEL 2 «Ugefokus og ugeagenten», DEL 3 øverste række). Den har
+>    aldrig kørt; en dag til koster ingenting.
+> 2. **Digesten:** reconen (`~/Downloads/recon-digesten.md`) fandt at INTET i
+>    mailen findes kun dér — tal, milepæle, ulæste og AI-indsigt står alle på
+>    forsiden eller milepælesiden. Skal den findes? Slukkes den, følger
+>    indstillingsfanens «Månedsoverblik» med.
+> 3. **De 48 omskrevne kort** er nu læsbare og kan bygges som de står
+>    (`docs/mangelliste.html`, #808).
+> 4. **Stripe-migrationen 13/9** — og 27 aktive har NUL `stripe_customer_id`,
+>    så migrationen løser det ikke af sig selv; koblingen skal laves før
+>    eller i samme greb.
+>
+> Detaljen for #805–#809 står i DEL 2 «10. september, nat, sidste».
+
 > ## ✅ LØST — VAULT VAR TOM I OTTE TIMER 9/9 (historik, ikke en opgave)
 >
 > **Hvad der skete:** `vault.secrets` havde nul rækker — hemmeligheden
@@ -3238,6 +3261,67 @@ noget fyrer (active en brøkdel af raekker, få gentagelser), er ugefokus
 værdien, og A er det rigtige for ugeagenten. Læser ingen den, er
 spørgsmålet ikke A/B/C, men om de tre linjer skal skrives anderledes — og
 det er en samtale med Morten om hvad et medlem skal møde mandag morgen.
+
+### 10. september, nat, sidste — Morten-gaten, døren, ugefokus og kortgennemgangen (#805–#809)
+
+Fem PR'er efter klokken ni. Tre er fejl vi selv lavede eller arvede, fundet af
+det tredje vindues kortgennemgang samme aften; to er selve gennemgangen.
+
+**1. Morten-gaten (#805).** #803s nye «Fjern fra virksomheden» blev bygget
+ADMIN-ONLY: `manage-advisor` havde `ADVISOR_ALLOWED_ACTIONS = ['list']`, og
+fladen dømte på `isAdmin` — Morten kunne hverken se eller bruge knappen, en
+time efter vi byggede den. Det er kort 109's mønster («hver ny admin-gate er
+en Morten-gate»), bygget ind igen. Nu gated på `isAdvisor` (advisor ELLER
+admin) begge steder, med et kildeværn der læser server og flade
+(`medlemsfjernelse.test.ts`). Fundet bredt, IKKE rettet: `generate-weekly-focus`
+manuelt (admin), «Rediger virksomhedsdata» og «Slet virksomheden» (admin),
+`session_bookings` (kun admin-SELECT), `get_admin_group_list` — samme mønster,
+egen beslutning.
+
+**2. Døren (#807).** «Betalt» blev dømt SEKS steder på at `contract_end_date`
+FINDES, ikke at den GÆLDER — fire døre i indgangen, to af dem SQL
+(`hent_betalingstilbud`, `hent_betalingsdata_til_checkout`), plus
+`afgoerBetalingsfrist` i begge spejle, `indgangsFaktura` og påmindelsescronens
+filter. Et tidligere medlem bærer sin gamle slutdato med sig: genbrugt på CVR
+ved «Godkendt» sagde alle døre «betalt» — ingen dag 0-mail, ingen faktura,
+«Tak — du er inde» på siden, checkout afvist tavst. Og fejlen bag: den der
+alligevel betalte, stod som `tidligere` bagefter — usynlig på rådgiverlisten,
+uden ugefokus og påmindelser, sletningskandidat. Nu: én dom
+(`erGaeldendeSlutdato`, samme grænse som `computeMembershipTier`: slutdagen
+tæller med), en betaling sætter `status = 'active'` (indgang OG fornyelse, samme
+pen som datoen), den gamle kontrakt bevares som `note` på den nye periode når
+ingen periode dækker den, rådgiverne får «X er tilbage», og
+`doeren.guard.test.ts` låser alle seks. **Migrationen
+`20260911050000` er KØRT; begge SQL-døre bekræftet i prod.** Rammer ingen i
+dag — men den første der kommer tilbage.
+
+**3. Ugefokus (#809).** `seen_at` var NUL i 133 rækker over seks uger — ikke
+fordi ingen læser, men fordi `weekly_focus` manglede en UPDATE-policy. RLS
+gjorde UPDATE'en til «0 rows» uden fejl, og `markSeen` læste ikke svaret —
+samme fejl som `const { data }` i rolletjekket (#797). Nu: policy for egen
+virksomheds række, trigger der låser alle andre kolonner for andre end
+service role, `markSeen` kaster ved fejl OG nul rækker (MutationCache logger).
+Punktet «Ugens fokus er klar» sad før på en af fire pladser hele ugen og pegede
+på den side man stod på; et set punkt rykker nu bagerst (prioritet 10, «Ugens
+fokus · Læs igen») frem for at forsvinde — kortet er resuméets eneste hjem på
+forsiden, og stemplet sættes ved første RENDER, også som stille linje nr. 4.
+**Migrationen `20260911060000` er KØRT.** **ÅBENT:** kolonne-grants dækker ALLE
+kolonner, ikke kun `seen_at`, så et medlem kan teknisk ændre sin egen headline
+og summary. Ikke farligt (kun egen række, fladen tilbyder det ikke), men bredere
+end nødvendigt — en `GRANT UPDATE (seen_at)` ville lukke det.
+
+**4. Kortgennemgangen (#806, #808).** Et tredje Claude Code-vindue gik hele
+mangellisten igennem kort for kort — 1.141 linjer
+(`~/Downloads/kortgennemgang.md`). Dommen over 135 kort: **43 står, 48
+omskrives, 36 ud, 8 udsat, 2 løst** — under en tredjedel kunne bygges som de
+stod. Elleve af de 36 «ud» viste sig at skulle blive, da dommene blev prøvet
+en gang til. Listen er faldet fra 178 (i morges) til **99**. Det er dagens
+egentlige fund: en liste bygget over uger beskriver en platform der ikke
+findes længere, og det billigste arbejde var at PRØVE kortene, ikke bygge dem.
+
+**Dagens tal:** 40 PR'er merget. Fem nye cron-jobs i drift (onboarding-rytme,
+legat-reminder, report-review, agentforslag-udloeb, opgave-forfald). Restancen
+sat op i Stripe på begge konti. Parseren bevist i drift på ANLA GLAS.
 
 ### Mailplatformen — bygget om af Lovable 8/9 kl. 06:52-06:58; afsenderne, fortegnelsen og værnet (#728, #730, #731, #732)
 
