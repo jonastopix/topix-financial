@@ -3052,6 +3052,63 @@ mangler stadig.
 sted, 3 omskrevet, 6 lukket, 1 titel rettet (140 → 135). Tælleren i listens
 værktøjslinje regner selv.
 
+### Restancen — sat op i Stripe 10/9 kl. 20:50–21:05: ingen bliver lukket ned i tavshed
+
+**Hvad vi fandt** (målt i Dashboard 10/9 kl. 20:43, ny konto
+`acct_1U6mzp3CvBmCx5Pt`): «Send emails when card payments fail» var
+SLÅET FRA, og «If all retries for a payment fail» stod på **CANCEL THE
+SUBSCRIPTION**. Et medlem hvis kort fejlede, mistede sit abonnement efter
+to ugers forsøg — uden at nogen fik besked, hverken medlemmet eller
+rådgiveren. Og vores webhook havde ikke set det: alle subscription-events
+for abonnementer med en `art` springes over (hvidlisten #563), så `canceled`
+skrev intet i databasen; resten af årets rater kom aldrig, `contract_end_date`
+stod, og adgangen løb året ud på en delvist betalt kontrakt. Det eneste spor
+ville være en `fejlet`-række i `company_traek` og en badge på listen.
+
+**Aftalen var ikke skrevet ned.** `docs/` havde to beslutninger — §9 i
+fornyelseskæden (1/9: «Stripe skal ende i unpaid») og adgangsdomme §6
+(3/9: udskudt; «en fejlet rate er en inddrivelsessag, ikke en adgangssag»)
+— og ingen af dem sagde det Jonas husker: «I stedet for bare at lukke
+deres abonnement ned, så sørger vi for at blive ved med at gøre opmærksom
+på det og sender en invoice.» Reconen (`~/Downloads/recon-restance.md`)
+slog Stripes regler op i dokumentationen frem for at huske dem — vi har
+bogført at Stripes parametre ikke er til at gætte.
+
+**Besluttet og sat op 10/9 — Stripe ender i `past_due`, ikke `unpaid` og
+ikke `canceled`.** Slået op: `unpaid` stopper alle forsøg, lægger nye rater
+som kladder og **invaliderer linket i Stripes fejl-mail**; `canceled` er
+terminal og dræber schedulen; `past_due` holder fakturaerne åbne, nye
+rater kommer og forsøges, og linket lever. Adgangen afgøres alligevel af
+`contract_end_date`. Ændret på den nye konto: Smart Retries 8 over 2 uger →
+**8 over 1 måned**; slutvalg → **leave past-due** (både for retries og for
+«incomplete for 15 days»); kortfejl-mails og udløbende-kort-mails **TIL**;
+«Payment method updates» fra fire URL'er på `www.theboardroom.dk` (forkert
+vært, platformen er `app.`) → **Stripe-hosted page**; kundeportal-link
+**TIL**; sprog **dansk**. «Upcoming renewals» **blev FRA med vilje** —
+huset sender egne fornyelsesvarsler. Gammel konto (`acct_1QP3Js4DoYItGRbI`,
+Circle, 13 abonnementer + YKRG): mails og portal var allerede til;
+«incomplete» rettet til past-due; **retry-planen kan ikke ændres — Circle
+ejer kontoen**, endnu en grund til at flytte de fjorten. §9 i
+`fornyelseskaeden-1-september.md` er rettet i denne bogføring.
+
+**Det der stadig skal bygges — to kort på mangellisten (Betaling):**
+(1) rådgivernes klokke ved fejlet træk: ét kald til `skrivRaadgiverBesked`
+(#799) i `invoice.payment_failed`-grenen, dedup på `company_traek.id`;
+ingen mail til medlemmet fra os, Stripe sender den nu. (2) Retries opbrugt
+→ fakturaen sendes automatisk (Jonas' aftale): når `next_payment_attempt`
+er null, kald `invoices.send` — Stripe har ingen indstilling der gør det
+(slået op: slutvalg, collection method, Automations). Begge før 13/9 hvis
+det kan nås: doggybeds første træk på den nye konto er beviset.
+
+**Fund ved siden af, ikke rettet:** `computeMembershipTier` gør `past_due`
+til `expired` STRAKS for selvbetjeningsabonnementet (kender kun `"active"`)
+— strengere end politikken «past_due = åben». Rammer nul i dag (ingen
+selvbetjenere); rettes med de fem domme den dag den første findes
+(adgangsdomme §6). Og webhookens `customer.subscription.deleted` kan ikke
+se forskel på «afsluttet efter tolv rater via cancel_at» og «annulleret
+efter fejl» — begge er `skipped`; med past-due sker det sidste ikke
+længere automatisk, men en manuel annullering i Dashboard er stadig tavs.
+
 ### Mailplatformen — bygget om af Lovable 8/9 kl. 06:52-06:58; afsenderne, fortegnelsen og værnet (#728, #730, #731, #732)
 
 **Hvad Lovable gjorde.** 19 commits direkte til main mellem kl. 06:52 og
@@ -3591,6 +3648,7 @@ facit og rækkefølge; `docs/chat-design.md` chattens form.
 
 | hvornår | hvad | hvor det står |
 |---|---|---|
+| **FØR 13/9** — Stripe er sat op 10/9 kl. 20:50–21:05 (past-due, mails til, dansk); koden mangler | **Restancen:** (1) rådgivernes klokke ved fejlet træk (`skrivRaadgiverBesked` i `payment_failed`, dedup `company_traek.id`); (2) retries opbrugt → `invoices.send` når `next_payment_attempt` er null. Bevis: doggybeds træk 13/9 — går det igennem, skrives intet; fejler det, skal klokken ringe og badgen stå. | DEL 2 «Restancen»; fornyelseskæden §9; mangellisten (Betaling) |
 | **SKREVET 10/9 (#801), IKKE BEKRÆFTET KØRT** | **Tre migrationer:** `20260911020000_messages_delete_15min.sql` (to DELETE-policies erstattes af «within 15 min» + advisor), `20260911030000_feedback_bucket_mappetjek.sql` (mappetjek, 5 MB, image/*), `20260911040000_companies_status_check.sql` (CHECK + NOT NULL; prod målt 30/8, 0 NULL). Bevis: SELECT'en nederst i hver fil — indtil da gælder de gamle policies. | DEL 2 «10. september, sen aften»; `SECURITY_BASELINE.md` §5 |
 | **RETTET 10/9** (#771–#773): `/members` er tømt — kun importen og onboarding-tragten står; `/settings` er konverteret med aftalen og en rigtig notifikationsfane. **EFTER 9/9** — det der stod tilbage efter rådgiverfladen og de to trin | ~~Otte ting kun på `/members`~~ → **10/9: importen bliver til ansøgningsflowet flytter; onboarding-tragten skal IKKE flyttes.** ~~`/settings`' tre rester~~ → **10/9: konverteret (#773).** **Aftale-kortet** er bygget med slutdato og pris; perioderne vises når nogen har nogen — 27 af 27 har nul. **Bevis:** `_shared/ikkeIGang.ts` i «View code» efter merge, Update for forsiden. **Ikke kode:** skriv til de seks der aldrig har uploadet — bed om historikken. | DEL 2 «9. september», mangellisten «Rådgiverfladen» |
 | **9/9 — I MORGEN** (punkt 1 og 2 er KØRT 8/9: de syv slettet kl. 12:14–12:26, DEL 2 «De otte tidligere»; kvitteringen siger en dato og kan fortrydes, #736) | **1) KØRT 8/9 kl. 12:14–12:26** — de syv tidligere slettet i fire hold efter `docs/koereplan-de-syv-tidligere.md` (nu historik); 8 af 8 stemplet, sweep tomt. **2) KØRT (#736)** — kvitteringen siger «Din data slettes den …» (motorens frist) og kan fortrydes til dagen før. **3) Cron-migrationsfilen** der bogfører `slet-medlemsdata` (`0 12 * * *`), formen fra `20260901112000_prod_cron_bogfoert.sql`. **4) Planen for 8/9, punkt 6–7** (punkt 4 og 5 er GJORT 8/9 eftermiddag: digesten kalder milepælsdommen #741/#742, kvitteringsmailen #739 — DEL 2 «Eftermiddagen 8/9»): toasten i `Index.tsx`, og den tomme platform (a–d). **5) Intro-sessionens tid** — starttiden ankommer i `calendly-webhook` og kastes væk; bygges (det andet vindue 8/9 aften). **6) Åbne fund uden beslutning:** de betalte 1:1-sessioner der stopper ved `booking_sent`; agentens forslag (op til tre pr. virksomhed pr. mandag + ét pr. rapport, ingen læser svarene) — mangellisten bærer begge. | `docs/koereplan-de-syv-tidligere.md`; `docs/koereplan-slettefunktionen.md`; DEL 2 «Slettefunktionen»; øverst «PLANEN FOR 8. SEPTEMBER» |
@@ -4270,6 +4328,7 @@ De konkrete ting der har kostet tid. Led efter dem.
 
 Skal ikke genforhandles uden ny måling.
 
+- **En fejlet rate lukker aldrig et abonnement (10/9).** Stripe ender i `past_due` — ikke `unpaid`, ikke `canceled` — og bliver ved med at forsøge og fortælle det (kortfejl-mails TIL). Adgangen afgøres af `contract_end_date`, ikke af Stripes tilstand; en fejlet rate er en inddrivelsessag. (fornyelseskæden §9, adgangsdomme §6)
 - **Fristen er kontraktens:** 30 dage fra underskriften. (indgangen §27)
 - **Kommunikation kun ved «tilbyd».** Et medlem der ikke skal tilbydes
   fornyelse, får intet. (fornyelsesordningen §1)
