@@ -348,6 +348,29 @@
     med historik) er IKKE skrevet ind — andet produkt, anden liste.
     Supabase-projektet tmhjionsbtgrwuzwjbgb («boardroom-2-prod, uafklaret
     formål» i fem uger) er 2.0's; det står nu i OVERLEVERING, ikke her.
+  DE SIDSTE TRE 10/9 NAT — OG JAGTEN ER FÆRDIG (~/Downloads/de-tabte-ideer-3.md)
+    Tre idéer fra HJEMMESIDENS prompter (theboardroom.dk 17/8, topix.dk
+    18/8), hvor salgsteksten fungerede som kravspecifikation til
+    platformen — og to gange blev en sætning fjernet fra sitet, fordi
+    platformen ikke kunne holde den. Et løfte der bliver taget tilbage
+    frem for bygget, hører på en mangelliste: «Medlemmer kan ikke skrive
+    til hinanden» (Fællesskabet, idé), «Du møder aldrig din konkurrent —
+    niche-eksklusiviteten findes kun som løfte» (Indgangen, mangler) og
+    «Et frit udvalg af Boardroom-lektioner på topix.dk» (Fællesskabet,
+    beslutning). Før: 127 (126 + skabelonen). Efter: 130 (129 +
+    skabelonen) — fejl 11 · mangler 60 · beslutninger 25 · idéer 33.
+    JAGTEN ER FÆRDIG. Alle kilder er søgt: hele docs/, BACKLOG.md, alle
+    ~/Downloads-filer, Claude Codes sessionslogge i alle syv projektmapper
+    tilbage til 23/4 (1.457 prompter) og de to memory-arkiver.
+    Transskripterne af samtalerne findes ikke lokalt — de ligger kun hos
+    Anthropic. Der er ikke flere steder at lede. Samlet: 39 idéer der
+    ikke stod på listen (31 + 5 + 3), plus 3 fra Boardroom 2.0 til dets
+    egen idébank. Det der stadig kan mangle — idé 1–7 og alt der blev
+    sagt i chatten uden at blive en prompt — skal siges igen.
+    Biprodukt (de-tabte-ideer-3.md §3): salgssidens ti løfter krydset mod
+    koden — otte holder, to gør ikke (de to kort ovenfor). Den liste hører
+    i OVERLEVERING som den eneste samlede opgørelse af hvad kunden er
+    lovet.
   SÅDAN TILFØJER MAN ET KORT
     1. Find afsnittet (<section class="topic">). Ét emne, ét sted:
        Indgangen · Betaling og fornyelse · Dine tal · Chat og
@@ -576,6 +599,13 @@
   <h2>Indgangen — fra ansøgning til aktivt medlem</h2>
   <p class="lede">Kæden fra «Godkendt» til adgang er hel og bevist (OVERLEVERING DEL 2). Det der står, er hullerne omkring den, ankomstens løse ender og beviserne der udestår.</p>
   <div class="grid">
+    <div class="card new" data-status="mangler" data-spor="1" data-rammer="raadgiver">
+      <h3>«Du møder aldrig din konkurrent» — niche-eksklusiviteten findes kun som løfte på sitet</h3>
+      <p><strong>Hvad der står på theboardroom.dk (17/8):</strong> «Du møder aldrig din konkurrent i The Boardroom» og «Vi optager kun ét medlem fra hvert konkurrentfelt» — skrevet frem som DET løfte netværket hviler på, og det kunden betaler 50.000 for. Sætningen står der stadig.</p>
+      <p><strong>Hvad platformen har:</strong> ingenting. <code>companies</code> har <code>industry</code>, <code>industry_code</code> og <code>industry_label</code> (CVR-branchen, som kortet «CVR-branche og faktisk branche» handler om) — men intet «konkurrentfelt», intet felt og intet tjek ved «Godkendt» eller «Importér ansøgning» (grep «niche», «konkurrentfelt» i <code>src/</code>, <code>supabase/</code> og <code>docs/</code>: 0). Løftet afgøres i dag i hovedet på Jonas og Morten ved ansøgningen, og ingen flade kan vise om det holder.</p>
+      <p><strong>Mindste form der gør løftet sandt i data:</strong> ét felt på virksomheden («konkurrentfelt», rådgiversat, fri tekst eller valgt fra de eksisterende felter), og en advarsel i Monday-webhookens og importens virksomhedsoprettelse når feltet allerede er besat af et aktivt medlem — ikke en spærring, for dommen er stadig menneskelig. Så kan sætningen på sitet bevises, ikke bare loves. Hører sammen med branche-kortet: «faktisk branche» og «konkurrentfelt» kan være samme felt. Fundet i hjemmesidens prompter (<code>~/Downloads/de-tabte-ideer-3.md</code> §2.2).</p>
+      <div class="meta"><span class="tag ny">Ny 11/9</span><span class="tag rust">Løfte på sitet uden dækning</span><span class="tag">Fra theboardroom.dk 17/8</span><span class="tag size">Mellem</span></div>
+    </div>
     <div class="card new" data-status="mangler" data-spor="1" data-rammer="raadgiver">
       <h3>Hængende invitationer har intet hjem</h3>
       <p>En invitation der er sendt og aldrig accepteret, står i <code>company_invitations</code> som <code>pending</code> uden at nogen flade viser den samlet: /members bar listen, og /members er tømt (#771, #772); <code>HbInvitationer</code> (#754) viser og gensender pr. virksomhed, men der er ingen «hvem har ikke svaret»-oversigt. OVERLEVERING §3909 kaldte det «åbent, designpunkt» — det blev aldrig et kort.</p>
@@ -933,6 +963,20 @@
   <h2>Fællesskabet — community, netværk, events, akademiet</h2>
   <p class="lede">Konverteret og i drift; opslagsmailen bærer siden 3/9. Det der mangler, er indhold, søgning, events' små led og idéerne der først giver mening når fundamentet bærer.</p>
   <div class="grid">
+    <div class="card new" data-status="ide" data-spor="senere" data-rammer="medlem">
+      <h3>Medlemmer kan ikke skrive til hinanden — sætningen blev fjernet fra sitet 17/8</h3>
+      <p><strong>Hvad der stod på theboardroom.dk 17/8, i én dag:</strong> «Du kan skrive direkte til de {tal} andre medlemmer, når du står med noget, en af dem har prøvet før.» <strong>Hvorfor den blev fjernet samme dag:</strong> «medlemmer kan ikke skrive til hinanden gennem platformen. Sætningen lovede en funktion, der ikke findes» (hjemmesidens prompter, 17/8). Et løfte der blev taget tilbage frem for bygget.</p>
+      <p><strong>Bygget siden?</strong> Nej. Chatten er medlem↔rådgiver (<code>conversations.member_id</code>/<code>company_id</code> mod <code>assigned_advisor_id</code>); Community (3/9) er opslag og svar, ikke beskeder; netværksprofilen (#757) viser folk uden en vej til dem. Nul træffere på «skrive til hinanden», «direkte besked», «medlem til medlem» i <code>src/</code> og <code>docs/</code>. Det stod hverken i docs, på listen eller i de to første søgninger.</p>
+      <p><strong>Hvorfor det hører på listen:</strong> «Peer-matching i Netværket» og «Affiliate: medlemmer der anbefaler medlemmer» forudsætter begge at to medlemmer kan tale sammen — og «Du burde tale med X» er tomt uden en vej. Bygges det (en samtale med to <code>member_id</code> og ingen rådgiver, samme <code>messages</code>-tabel, egen RLS), kan sætningen komme tilbage på sitet. Mellem; og det er en beslutning om tonen først — et netværk med DM'er er et andet netværk.</p>
+      <div class="meta"><span class="tag ny">Ny 11/9</span><span class="tag rust">Løfte trukket tilbage 17/8</span><span class="tag">Fra theboardroom.dk</span><span class="tag size">Mellem</span></div>
+    </div>
+    <div class="card decision new" data-status="beslutning" data-spor="senere" data-rammer="medlem">
+      <h3>Et frit udvalg af Boardroom-lektioner på topix.dk — «motoren til det er ikke bygget»</h3>
+      <p><strong>Hvad der blev sagt (topix.dk-prompterne 18/8):</strong> «de 26 lektioner … er IKKE frit tilgængelige. Kun et mindre udvalg bliver det på sigt, og motoren til det er ikke bygget.» Samme dag fik topix.dk sit eget videofundament — tabellen <code>topix_videos</code>, egen admin, Bunny, «udvalgte videolektioner fra Morten og fageksperter — frit tilgængeligt uden login» — bygget med platformens <code>get-video-embed</code> som forlæg (læst, ikke kopieret).</p>
+      <p><strong>Bygget?</strong> Delvist og KUN på topix.dk-siden. Motoren — at vælge en publiceret lektion i platformens <code>content_items</code> og lade den gå fri på topix.dk — findes ikke; de to systemer deler intet. Platformens <code>tier_visibility</code> styrer kun tiers bag login. Nul træffere på topix.dk + lektion/video/frit i <code>docs/</code>.</p>
+      <p><strong>Beslutningen:</strong> er topix.dk et UDSTILLINGSVINDUE for Akademiet (så skal indholdet komme fra <code>content_items</code> med et «frit»-flag og et offentligt endpoint — Mellem), eller et SELVSTÆNDIGT bibliotek (så er det færdigt som det er, og dette kort lukkes)? Indtil det er afgjort, vedligeholdes to videosystemer i hånden. Hører sammen med «Ugens push»/marketing-siden af Community-idéerne.</p>
+      <div class="meta"><span class="tag ny">Ny 11/9</span><span class="tag gold">Beslutning</span><span class="tag">Fra topix.dk 18/8</span><span class="tag size">Mellem</span></div>
+    </div>
     <div class="card new" data-status="ide" data-spor="senere" data-rammer="medlem">
       <h3>Handout → lektion: det omvendte link («Hører til …»)</h3>
       <p><code>BACKLOG.md:467-479</code> [P3], 5/8: koblingen lektion→handout findes envejs i <code>content_items.handout_module</code> (læses af <code>ElementView.tsx</code> og <code>ItemEditor.tsx</code>); fra handout-siden er der intet «hører til lektionen …»-link tilbage. Bygget: nej — <code>HbHandoutDetail.tsx</code> kender ikke <code>content_items</code> (grep 10/9: 0). Lille: ingen skemaændring, én query på <code>handout_module = {modul}</code> og et link. Hører sammen med «Måske relevant for dig» — samme kobling, set fra agenten.</p>
@@ -1472,7 +1516,7 @@
   <section class="topic" id="status">
   <p class="eyebrow">Til i morgen tidlig</p>
   <h2>Status 11. september</h2>
-  <p class="lede">Efter aftenens tre rydninger (#806, #808 og den sidste) OG idéerne ind: <strong>126 kort</strong> — 11 fejl · 59 mangler · 24 beslutninger · <strong>32 idéer</strong> (var 10 kl. 22; 33 idéer fra BACKLOG, RAEKKEFOELGE, designdokumenterne og Jonas' egne udsagn var aldrig blevet kort — nu er de det, hver med kilde, «bygget: ja/nej» og størrelse). MCP har to kort: pakken der er bygget og frosset (Drift), og rådgiver-MCP'en der blev ønsket 13/8 (Idébank). Idé 1–7 fra den fælles idéliste findes ikke på maskinen (noten i Idébanken). Alt er prøvet mod HEAD til og med #810.</p>
+  <p class="lede">Efter aftenens tre rydninger (#806, #808 og den sidste) OG idéerne ind: <strong>129 kort — det endelige tal for 10/9</strong> — 11 fejl · 60 mangler · 25 beslutninger · <strong>33 idéer</strong> (var 10 kl. 22; 39 idéer fra BACKLOG, RAEKKEFOELGE, designdokumenterne og Jonas' egne udsagn var aldrig blevet kort — nu er de det, hver med kilde, «bygget: ja/nej» og størrelse). MCP har to kort: pakken der er bygget og frosset (Drift), og rådgiver-MCP'en der blev ønsket 13/8 (Idébank). Idé 1–7 fra den fælles idéliste findes ikke på maskinen (noten i Idébanken), og jagten er færdig: alle kilder på maskinen er søgt. Alt er prøvet mod HEAD til og med #811.</p>
     <div class="tier">
       <h3>De tre der giver mest først</h3>
       <p class="why"><strong>1. Én prod-session i SQL-editoren (én time).</strong> Kør de seks ventende migrationer i rækkefølge — døren (#807) og seen_at (#809) først — og ét <code>SELECT … FROM cron.job</code>. Det lukker eller afgør syv kort på én gang; indtil da lyver prod om døren og om «næste skridt».</p>
@@ -1483,6 +1527,7 @@
       <h3>Beslutninger der venter på Jonas og Morten</h3>
       <p class="why"><strong>Blokerer arbejde nu:</strong> «19 af 27 er faldet ud» (produkt, onboarding eller forventning — samtalen bag alt andet); epic'et om opgave-modellen (fire spørgsmål; dedup-reglen, klokkens type og tekstrettelsen kan bygges uden); årsrapporten (skabelon for klasse B + skattebilag, eller manuel indtastning); PASS uden advarsler — auto-commit eller vagt; opbevaringspolitikken (blokerer tre kort: personsletning, forældreløse filer, den sjette adgangsdom).</p>
       <p class="why"><strong>Små, kan tages på fem minutter hver:</strong> KPI-fallback trin 1 (drop kronebeløbene — kræver ingen faglighed; trin 2 er den faglige); CVR-branche vs. faktisk branche som to felter; efter dag 31 — klokke til Jonas, Stripe eller mail; rundvisning ud over tjeklisten — ja eller nej; run-weekly-agent — slet eller læg om; Platformconfigs navn; rapportpåmindelsen til de faldet-ud — stop, fortsæt eller et menneske.</p>
+      <p class="why"><strong>To løfter på sitet uden dækning (nyt i nat):</strong> «Du møder aldrig din konkurrent» står på theboardroom.dk og har intet felt og intet tjek bag sig — ét rådgiversat felt og en advarsel i importen gør det sandt i data. Og «skriv direkte til de andre medlemmer» blev fjernet fra sitet 17/8, fordi platformen ikke kunne holde det; peer-matching og affiliate forudsætter det. Begge er kort nu.</p>
       <p class="why"><strong>Nyt i nat, kræver et svar:</strong> Boardroom-MCP — udvid, behold som Jonas' talværktøj, eller pensionér (fem uger frosset). Og feedback-knappen forsvandt med konvergensen — den er halvt en fejl og bør tilbage i skallen før idébanken diskuteres.</p>
       <p class="why"><strong>Samtaler, ikke kode:</strong> de to virksomheder uden slutdato og Bastant; e-conomic-integrationen (genopliv eller erstat); video på Community — huset eller ethvert medlem (efter Circle-exit); advisor/admin før den tredje rådgiver; to rådgivere til hundrede virksomheder. <strong>Udløber selv:</strong> datogaten (24/9), Studio Minis tilbyd-række (20/9), community-nøglen (mål igen 10/10).</p>
     </div>
