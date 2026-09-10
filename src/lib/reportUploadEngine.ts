@@ -308,8 +308,9 @@ export function getFriendlyErrorMessage(data: any): string {
     : s === "dinero" ? "Dinero"
     : s === "combined_dk" ? "e-conomic"
     : s || "dit regnskabsprogram";
-  // Periode-gate fra server: vis den klare besked uændret i stedet for den generiske default
-  if (status === "period_not_completed" && err) {
+  // Periode-gate og spænd-gate fra server: vis den klare besked uændret i
+  // stedet for den generiske default (spænd: recon-to-maaneder §2b, 10/9).
+  if ((status === "period_not_completed" || status === "period_span_rejected") && err) {
     return err;
   }
   if (err.includes("Known source without supported template") || status === "error" && source) {

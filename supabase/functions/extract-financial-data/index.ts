@@ -6,6 +6,7 @@ import { detectSourceSystem, isAiAllowed, type SourceFingerprint } from "../_sha
 import { validatePdfStructuralPayload, computeSha256Deno } from "../_shared/pdfStructuralValidator.ts";
 import type { PdfStructuralPayload } from "../_shared/pdfStructuralTypes.ts";
 import { aiGatewayFetch } from "../_shared/aiGatewayFetch.ts";
+import { afgoerPeriodeSpaend, findPeriodeITekst, spaendAfvisningTekst, spaendKendtKildeTekst } from "../_shared/periodeSpaend.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -874,9 +875,21 @@ serve(async (req) => {
               combined_dk: "dit regnskabssystem",
             };
             const kildeNavn = KILDENAVNE[sourceFingerprint.source_system] ?? sourceFingerprint.source_system;
+            // Spændet FØR svaret (recon-to-maaneder §5, 10/9): ingen skabelon har
+            // matchet, så perioden er ikke parset endnu — læs den af råteksten
+            // (samme mønstre som pdfTextParser). Dækker filen flere måneder, er
+            // DET grunden medlemmet skal have, ikke «formatet understøttes ikke».
+            // Kan perioden ikke læses, står den hidtidige besked.
+            const periodeITekst = findPeriodeITekst(fileContent);
+            const spaendVedNoMatch = afgoerPeriodeSpaend(periodeITekst ?? {});
+            routingTrace.period_span = periodeITekst
+              ? { ...periodeITekst, dom: spaendVedNoMatch.dom, maaneder: spaendVedNoMatch.maaneder }
+              : null;
             // Vises for medlemmet i ReportReviewDialog (PR #448) — skal kunne
             // læses af et menneske. Den tekniske grund står i routing_trace.
-            const besked = `Filen er genkendt som en rapport fra ${kildeNavn}, men netop dette format understøttes ikke automatisk endnu. Du kan indtaste tallene manuelt på rapportkortet.`;
+            const besked = spaendVedNoMatch.dom === "flere_maaneder"
+              ? spaendKendtKildeTekst(kildeNavn, spaendVedNoMatch)
+              : `Filen er genkendt som en rapport fra ${kildeNavn}, men netop dette format understøttes ikke automatisk endnu. Du kan indtaste tallene manuelt på rapportkortet.`;
 
             if (reportId) {
               await supabase
@@ -1575,6 +1588,58 @@ Hvis du er i tvivl om et tal eller en kolonne → sæt validation.status = "UNSU
       const dbCvrNumber = isSemanticCanonical
         ? canonical.cvr
         : extractedData.cvr_number;
+
+      // ── Spænd-gate: en fil der dækker mere end én måned må ikke bogføres som én ──
+      // (recon-to-maaneder §2b, 10/9-2026). Resolveren ovenfor reducerer perioden
+      // til SLUTMÅNEDEN; en eksport for 01.05–30.06 blev «Juni» med to måneders
+      // beløb — og så rigtig ud. Dommen læser period_start/period_end som
+      // skabelonerne selv skrev dem (canonical bærer begge veje, legacy og
+      // semantisk). Kan datoerne ikke læses (AI-stien sætter dem ikke), sker
+      // der det samme som før: ingen dom. AFVISES, ikke deles: at dele en fil
+      // i to perioder er en større beslutning, og en forkert opdeling er lige
+      // så slem som en forkert sammenlægning (Jonas 10/9). Samme udtryk som
+      // periode-gaten nedenfor: status error, teksten i validation_errors,
+      // svaret bærer teksten uændret til zonen (getFriendlyErrorMessage).
+      const periodeSpaend = afgoerPeriodeSpaend({
+        period_start: canonical.period_start ?? extractedData?.period_start ?? null,
+        period_end: canonical.period_end ?? extractedData?.period_end ?? null,
+      });
+      routingTrace.period_span = { dom: periodeSpaend.dom, maaneder: periodeSpaend.maaneder };
+      if (periodeSpaend.dom === "flere_maaneder") {
+        const spaendTekst = spaendAfvisningTekst(periodeSpaend);
+        console.log(`[PeriodSpan] Rejecting multi-month file: ${periodeSpaend.maaneder} months (${canonical.period_start} – ${canonical.period_end})`);
+        await supabase
+          .from("financial_reports")
+          .update({
+            status: "error",
+            processed_at: new Date().toISOString(),
+            report_period: dbReportPeriod,
+            validation_status: "FAIL",
+            validation_errors: [spaendTekst],
+            quality_signals: {
+              needs_manual_entry: false,
+              validation_status: "FAIL",
+              validation_errors: [spaendTekst],
+              routing_branch: "period_span_rejected",
+              period_span_months: periodeSpaend.maaneder,
+              period_start: canonical.period_start ?? null,
+              period_end: canonical.period_end ?? null,
+            },
+          })
+          .eq("id", reportId);
+
+        return new Response(
+          JSON.stringify({
+            error: spaendTekst,
+            status: "period_span_rejected",
+            period_start: canonical.period_start ?? null,
+            period_end: canonical.period_end ?? null,
+            period_span_months: periodeSpaend.maaneder,
+            report_period: dbReportPeriod,
+          }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
 
       // ── Periode-gate: afvis igangværende/fremtidig måned FØR rapporten markeres processed ──
       // En måned er kun rapporterbar når den er HELT afsluttet (period_key strengt før indeværende måned).
