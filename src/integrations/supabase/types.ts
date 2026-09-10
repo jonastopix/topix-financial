@@ -703,7 +703,7 @@ export type Database = {
           sidste_checkout_session_id: string | null
           slack_channel: string | null
           start_date: string | null
-          status: string | null
+          status: string
           stripe_customer_id: string | null
           stripe_subscription_id: string | null
           subscription_current_period_end: string | null
@@ -749,7 +749,7 @@ export type Database = {
           sidste_checkout_session_id?: string | null
           slack_channel?: string | null
           start_date?: string | null
-          status?: string | null
+          status?: string
           stripe_customer_id?: string | null
           stripe_subscription_id?: string | null
           subscription_current_period_end?: string | null
@@ -795,7 +795,7 @@ export type Database = {
           sidste_checkout_session_id?: string | null
           slack_channel?: string | null
           start_date?: string | null
-          status?: string | null
+          status?: string
           stripe_customer_id?: string | null
           stripe_subscription_id?: string | null
           subscription_current_period_end?: string | null
