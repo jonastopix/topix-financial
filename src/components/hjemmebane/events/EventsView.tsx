@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { listAllUpcomingEvents, listPastEvents } from "@/lib/hjemmebane/akademiApi";
 import type { EventRow } from "@/lib/hjemmebane/adminContentApi";
-import { eventMeetPhase, isEventPast } from "@/lib/hjemmebane/eventPhase";
+import { eventMeetPhase, eventNedtaelling, isEventPast } from "@/lib/hjemmebane/eventPhase";
 import { HbSection } from "../HbSection";
 import { EventRegisterAction } from "./EventRegisterAction";
 
@@ -16,14 +16,6 @@ import { EventRegisterAction } from "./EventRegisterAction";
     Events er platform-globale (ingen companyId) — ingen advisor-prompt.
     Række-udtrykket spejler forsidens "Kommende"-sektion: rammeløse
     hb-line-rækker m. dato-blok, titel og meta (inkl. nedtælling). */
-
-/** Nedtællingssproget — samme som forsidens (BoardroomView:86-93). */
-const eventCountdown = (startsAt: string): string => {
-  const days = Math.ceil((new Date(startsAt).getTime() - Date.now()) / 86400000);
-  if (days <= 0) return "I dag";
-  if (days === 1) return "I morgen";
-  return `Om ${days} dage`;
-};
 
 const kindLabel = (kind: string): string =>
   kind === "live_sparring" ? "Live sparring" : kind === "workshop" ? "Workshop" : "Event";
@@ -192,7 +184,7 @@ export const EventsView = () => {
                     <div className="min-w-0 flex-1">
                       <p className="text-[15px] font-medium leading-snug text-hb-ink">{event.title}</p>
                       <p className="mt-1 text-sm text-hb-ink-soft">
-                        {`${metaLine(event)} · ${eventCountdown(event.starts_at)}`}
+                        {[metaLine(event), eventNedtaelling(event)].filter(Boolean).join(" · ")}
                       </p>
                     </div>
                   </Link>

@@ -126,8 +126,10 @@ function dagVaerdi(d: Date): number {
 }
 
 /** Hele kalenderdage fra nu til d (negativ = fortid). Ikke timer: et
-    forslag der udløber kl. 06 i morgen er «i morgen», ikke «om 0 dage». */
-function kalenderdageTil(d: Date, nu: Date): number {
+    forslag der udløber kl. 06 i morgen er «i morgen», ikke «om 0 dage».
+    Eksporteret 10/9: eventPhase.eventNedtaelling bruger samme greb —
+    et event kl. 11 set kl. 08.49 samme dag er «I dag», ikke «I morgen». */
+export function kalenderdageTil(d: Date, nu: Date): number {
   const start = new Date(nu.getFullYear(), nu.getMonth(), nu.getDate());
   const slut = new Date(d.getFullYear(), d.getMonth(), d.getDate());
   return Math.round((slut.getTime() - start.getTime()) / 86400000);

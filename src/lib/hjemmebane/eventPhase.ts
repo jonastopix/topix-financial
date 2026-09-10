@@ -5,6 +5,8 @@
     Strukturel type (ikke EventRow-import) — filen skal være fri af
     adminContentApi og testbar uden React/Supabase. */
 
+import { kalenderdageTil } from "./aftaler";
+
 export interface EventTimes {
   /** ISO-timestamp — NOT NULL i skemaet. */
   starts_at: string;
@@ -51,4 +53,37 @@ export function eventMeetPhase(event: EventTimes, now: Date = new Date()): Event
   if (t > eventEndTime(event).getTime()) return "after";
   if (t >= new Date(event.starts_at).getTime() - LIVE_LEAD_MS) return "live";
   return "before";
+}
+
+/**
+ * Nedtællingen på events-fladen og forsiden — KALENDERDAGE, ikke timer.
+ *
+ * FEJL SET 10/9 kl. 08.49 på /events: et event samme dag kl. 11 stod som
+ * «I morgen», og et event 14 dage frem stod som «Om 15 dage». Begge flader
+ * havde hver sin lokale `Math.ceil((starts − now) / døgn)`: to timer og
+ * elleve minutter rundes op til én dag, fjorten dage og to timer til
+ * femten. Husets greb er lokale kalenderdage (fornyelsesbåndet, «sidst
+ * online» #751, forslagets udløb #740, venterPaaVelkomst.kalenderdageSiden)
+ * — her aftaler.kalenderdageTil, som forslagets udløb allerede bruger.
+ * Påmindelsesmailen (event-reminders, dayKey i Europe/Copenhagen) regnede
+ * i forvejen kalenderdage, så mail og flade sagde to forskellige ting om
+ * samme dag. Nu siger de det samme.
+ *
+ * «I DAG» fandtes før kun som «days <= 0», dvs. FØRST når starttiden var
+ * passeret — et event senere i dag hed altid «I morgen». Nu er «I dag»
+ * kalenderdagen, uanset klokken.
+ *
+ * PASSERET STARTTID: fra 15 min før start til og med sluttiden er eventet
+ * «I gang» (eventMeetPhase = live — samme dom som Meet-knappen). Efter
+ * sluttiden er det afholdt (isEventPast) og hører til i «Afholdte»;
+ * listAllUpcomingEvents filtrerer det ud, så nedtællingen kaldes ikke —
+ * returnerer null hvis den alligevel gør.
+ */
+export function eventNedtaelling(event: EventTimes, now: Date = new Date()): string | null {
+  if (isEventPast(event, now)) return null;
+  if (eventMeetPhase(event, now) === "live") return "I gang";
+  const dage = kalenderdageTil(new Date(event.starts_at), now);
+  if (dage <= 0) return "I dag";
+  if (dage === 1) return "I morgen";
+  return `Om ${dage} dage`;
 }
