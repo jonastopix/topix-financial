@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { eventEndTime, eventMeetPhase, isEventPast } from "../eventPhase";
+import { eventEndTime, eventMeetPhase, isEventPast, eventNedtaelling } from "../eventPhase";
 
 /** Fast "nu" + RELATIVE offsets (absolutte epoch-beregninger — aldrig
     kalenderdatoer; CI kører UTC, lokalt Europe/Copenhagen). */
@@ -128,5 +128,44 @@ describe("eventMeetPhase — Meet-knappens tre faser", () => {
     const start = minutesFromNow(-90);
     expect(eventMeetPhase({ starts_at: start }, NOW)).toBe("live");
     expect(eventMeetPhase({ starts_at: start }, new Date(NOW.getTime() + 1))).toBe("after");
+  });
+});
+
+describe("eventNedtaelling — kalenderdage, ikke timer (fejlen set 10/9 kl. 08.49)", () => {
+  // Lokale datoer: læserens døgn, som husets øvrige domme.
+  const kl = (y: number, m: number, d: number, h: number, min = 0) => new Date(y, m - 1, d, h, min);
+  const event = (starts: Date, ends?: Date) => ({ starts_at: starts.toISOString(), ends_at: ends?.toISOString() ?? null });
+
+  it("i dag FØR tidspunktet: event kl. 11 set kl. 08.49 → «I dag» (var «I morgen»)", () => {
+    expect(eventNedtaelling(event(kl(2026, 9, 10, 11), kl(2026, 9, 10, 12)), kl(2026, 9, 10, 8, 49))).toBe("I dag");
+  });
+
+  it("i dag EFTER starttidspunktet, før sluttiden → «I gang» (samme dom som Meet-knappen)", () => {
+    expect(eventNedtaelling(event(kl(2026, 9, 10, 11), kl(2026, 9, 10, 12)), kl(2026, 9, 10, 11, 30))).toBe("I gang");
+    // 15 min før start er også live
+    expect(eventNedtaelling(event(kl(2026, 9, 10, 11), kl(2026, 9, 10, 12)), kl(2026, 9, 10, 10, 50))).toBe("I gang");
+  });
+
+  it("i dag efter sluttiden → null: eventet er afholdt og hører til i «Afholdte»", () => {
+    expect(eventNedtaelling(event(kl(2026, 9, 10, 11), kl(2026, 9, 10, 12)), kl(2026, 9, 10, 12, 1))).toBeNull();
+    // uden ends_at: 90 min-fallback
+    expect(eventNedtaelling(event(kl(2026, 9, 10, 11)), kl(2026, 9, 10, 12, 31))).toBeNull();
+    expect(eventNedtaelling(event(kl(2026, 9, 10, 11)), kl(2026, 9, 10, 12, 29))).toBe("I gang");
+  });
+
+  it("i morgen → «I morgen», også når der er under et døgn til (kl. 00.30 set kl. 23.00)", () => {
+    expect(eventNedtaelling(event(kl(2026, 9, 11, 11)), kl(2026, 9, 10, 8, 49))).toBe("I morgen");
+    expect(eventNedtaelling(event(kl(2026, 9, 11, 0, 30)), kl(2026, 9, 10, 23))).toBe("I morgen");
+  });
+
+  it("14 dage frem: 24/9 kl. 11 set 10/9 kl. 08.49 → «Om 14 dage» (var «Om 15 dage»)", () => {
+    expect(eventNedtaelling(event(kl(2026, 9, 24, 11)), kl(2026, 9, 10, 8, 49))).toBe("Om 14 dage");
+    // og uanset klokkeslæt på dagen
+    expect(eventNedtaelling(event(kl(2026, 9, 24, 11)), kl(2026, 9, 10, 23, 59))).toBe("Om 14 dage");
+    expect(eventNedtaelling(event(kl(2026, 9, 24, 11)), kl(2026, 9, 10, 0, 1))).toBe("Om 14 dage");
+  });
+
+  it("to dage frem → «Om 2 dage»", () => {
+    expect(eventNedtaelling(event(kl(2026, 9, 12, 9)), kl(2026, 9, 10, 20))).toBe("Om 2 dage");
   });
 });

@@ -31,7 +31,7 @@ import { listUpcomingEvents } from "@/lib/hjemmebane/akademiApi";
 import { hentBilledUrl, hentFeed, type CommunityTraad } from "@/lib/hjemmebane/communityApi";
 import { foersteBilledsti, opslagMetaLinje, vaelgForsideOpslag } from "@/lib/hjemmebane/forsideOpslag";
 import { uddrag } from "@/lib/hjemmebane/uddrag";
-import { eventMeetPhase } from "@/lib/hjemmebane/eventPhase";
+import { eventMeetPhase, eventNedtaelling } from "@/lib/hjemmebane/eventPhase";
 import { EventRegisterAction } from "../events/EventRegisterAction";
 import { formatDuration } from "@/components/hjemmebane/admin/editors/shared";
 import { handoutConfigs, moduleOrder, type HandoutModule } from "@/lib/handoutConfig";
@@ -103,13 +103,6 @@ const publishedMarker = (iso: string | null): string | null => {
   const days = (Date.now() - published) / 86400000;
   if (days <= 7) return "Ny i denne uge";
   return new Date(iso).toLocaleDateString("da-DK", { day: "numeric", month: "long" });
-};
-
-const eventCountdown = (startsAt: string): string => {
-  const days = Math.ceil((new Date(startsAt).getTime() - Date.now()) / 86400000);
-  if (days <= 0) return "I dag";
-  if (days === 1) return "I morgen";
-  return `Om ${days} dage`;
 };
 
 /** Community-sektionens relative tid — LOKAL pendant til CommunityViews
@@ -2213,7 +2206,7 @@ export const BoardroomView = () => {
                           event.kind === "live_sparring" ? "Live sparring" : event.kind === "workshop" ? "Workshop" : "Event",
                           event.meet_url ? "Online" : null,
                           new Date(event.starts_at).toLocaleTimeString("da-DK", { hour: "2-digit", minute: "2-digit" }),
-                          eventCountdown(event.starts_at),
+                          eventNedtaelling(event),
                         ]
                           .filter(Boolean)
                           .join(" · ")}
