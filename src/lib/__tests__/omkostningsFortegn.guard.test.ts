@@ -11,7 +11,11 @@ import { resolve } from "node:path";
 //   1) manuel vej: saveManualOverride → positiveOmkostninger FØR afledning
 //   2) årsrapport-vej: extract-annual-report → normaliserAarsrapport (regel 1: abs)
 //   3) baseline-vej: save-annual-baseline → Math.abs på payroll
-//   4) månedsvej: normalizationProfiles → cost_like er ABS i hver profil
+//   4) månedsvej: normalizationProfiles → cost_like er ABS eller NEGATE i hver
+//      profil — INGEN undtagelse. economic_pnl_business_v1 havde KEEP og en
+//      beskrivelse der modsagde detektoren (rettet 10/9: business = omkostninger
+//      negative i kilden → ABS). En test der låser en modsigelse, er værre end
+//      ingen test.
 
 const laes = (sti: string) => readFileSync(resolve(process.cwd(), sti), "utf8");
 const udenKommentarer = (k: string) => k.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, "");
@@ -54,10 +58,9 @@ describe("omkostningernes fortegn — alle fire skriveveje skriver positivt", ()
   // (economic_pnl_business_v1: «values already positive-means-positive»).
   // KEEP er den eneste regel der IKKE selv sikrer fortegnet — derfor står
   // den som navngiven undtagelse: en NY profil med KEEP fejler her.
-  it("månedsvej: cost_like er ABS eller NEGATE i hver profil — KEEP kun i den ene navngivne", () => {
+  it("månedsvej: cost_like er ABS eller NEGATE i HVER profil — ingen KEEP", () => {
     const raa = laes("supabase/functions/_shared/normalizationProfiles.ts");
     const k = udenKommentarer(raa);
-    const KEEP_UNDTAGELSE = "economic_pnl_business_v1";
     // Hver cost_like-regel parres med den NÆRMESTE foregående profile_id —
     // uafhængigt af hvordan filen ellers er delt op.
     const regler = [...k.matchAll(/cost_like:\s*([A-Z_]+)/g)];
@@ -67,12 +70,9 @@ describe("omkostningernes fortegn — alle fire skriveveje skriver positivt", ()
       const ider = [...foer.matchAll(/profile_id:\s*"([^"]+)"/g)];
       const id = ider.at(-1)?.[1] ?? "?";
       const regel = m[1];
-      if (id === KEEP_UNDTAGELSE) {
-        expect(regel, `${id}: undtagelsen forudsætter KEEP`).toBe("KEEP");
-        expect(raa, `${id}: beskrivelsen skal sige at kilden allerede er positiv`).toMatch(/economic_pnl_business_v1[\s\S]{0,300}already positive/);
-      } else {
-        expect(["ABS", "NEGATE"], `${id}: cost_like er ${regel} — skriver omkostninger med et andet fortegn`).toContain(regel);
-      }
+      expect(["ABS", "NEGATE"], `${id}: cost_like er ${regel} — skriver omkostninger med et andet fortegn`).toContain(regel);
     }
+    // Business-profilen: beskrivelsen må ikke igen påstå at kilden er positiv (10/9).
+    expect(raa).not.toMatch(/economic_pnl_business_v1[\s\S]{0,300}already positive/);
   });
 });

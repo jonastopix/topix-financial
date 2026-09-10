@@ -271,7 +271,7 @@ Deno.serve(async (req) => {
         // Sandheden er rækken, ikke svaret: læs den igen. Mangler den, tog dublet-gaten den.
         const { data: efter } = await admin
           .from("financial_reports")
-          .select("id, status, validation_status, extraction_method, report_period, quality_signals, deleted_at")
+          .select("id, status, validation_status, validation_errors, extraction_method, report_period, quality_signals, deleted_at")
           .eq("id", raekke.id)
           .maybeSingle();
 
@@ -292,6 +292,9 @@ Deno.serve(async (req) => {
             status: svar?.status ?? null,
             error: svar?.error ?? null,
             message: svar?.message ?? null,
+            // Den fulde vej svarer med hele udtrækket — grunden står i validation.errors,
+            // ikke i error/message (10/9: «Serveren gav ingen fejlgrund» var opsummeringens fejl).
+            validation_errors: Array.isArray(svar?.validation?.errors) ? svar.validation.errors : null,
             duplicate: svar?.duplicate ?? null,
             existing_report_id: svar?.existing_report_id ?? null,
             needs_manual_entry: svar?.needs_manual_entry ?? null,
@@ -301,6 +304,8 @@ Deno.serve(async (req) => {
             ? {
                 status: efter.status,
                 validation_status: efter.validation_status,
+                // Rækkens egen fejlgrund — det kortet viser som «Fejlede: …».
+                validation_errors: Array.isArray(efter.validation_errors) ? efter.validation_errors : null,
                 extraction_method: efter.extraction_method,
                 report_period: efter.report_period,
                 routing_branch: (efter.quality_signals as Record<string, unknown> | null)?.routing_branch ?? null,
