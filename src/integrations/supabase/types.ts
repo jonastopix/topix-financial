@@ -3498,6 +3498,17 @@ export type Database = {
       hent_betalingstilbud: { Args: { betalingstoken: string }; Returns: Json }
       is_legat_user: { Args: { _user_id: string }; Returns: boolean }
       is_membership_active: { Args: { p_company_id: string }; Returns: boolean }
+      kald_edge: {
+        Args: {
+          body?: Json
+          funktion: string
+          interval_ms?: number
+          timeout_ms?: number
+        }
+        Returns: number
+      }
+      kald_edge_loft_ms: { Args: never; Returns: number }
+      kald_edge_standard_ms: { Args: never; Returns: number }
       legat_day: { Args: { _user_id: string }; Returns: number }
       legat_unlocked_modules: { Args: { _user_id: string }; Returns: string[] }
       log_user_login: { Args: never; Returns: undefined }
