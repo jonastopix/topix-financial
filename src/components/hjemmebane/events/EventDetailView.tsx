@@ -14,6 +14,7 @@ import {
   type EventParticipant,
 } from "@/lib/hjemmebane/akademiApi";
 import { eventMeetPhase } from "@/lib/hjemmebane/eventPhase";
+import { bygKalenderfil, kalenderfilnavn, kanFoejeTilKalender } from "@/lib/kalenderfil";
 import { HbButton, hbButtonVariants } from "../HbButton";
 import { HbVideoEmbed } from "../akademi/HbVideoEmbed";
 import { hentetilstand, sektionsfejlTekst } from "@/lib/hjemmebane/hentefejl";
@@ -28,6 +29,21 @@ import { hentetilstand, sektionsfejlTekst } from "@/lib/hjemmebane/hentefejl";
 /** Samme art-ordbog som listefladen — lille nok til en lokal kopi. */
 const kindLabel = (kind: string): string =>
   kind === "live_sparring" ? "Live sparring" : kind === "workshop" ? "Workshop" : "Event";
+
+/** «Føj til kalender» (#103, 10/9): .ics-filen bygges i lib/kalenderfil og
+    hentes som fil — Blob + <a download>, samme greb som reportFileAccess'
+    blob-fallback. Ingen tredjepart, intet valg mellem kalendere. */
+const hentKalenderfil = (ics: string, filnavn: string) => {
+  const blob = new Blob([ics], { type: "text/calendar;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filnavn;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+};
 
 const fmtTime = (iso: string): string =>
   new Date(iso).toLocaleTimeString("da-DK", { hour: "2-digit", minute: "2-digit" });
@@ -195,6 +211,23 @@ export const EventDetailView = ({ eventId }: { eventId: string }) => {
           {dateLine} · {timeSpan}
           {event.meet_url ? " · Online" : ""}
         </p>
+        {/* «Føj til kalender» — kommende og igangværende, aldrig afholdt eller
+            aflyst (kanFoejeTilKalender). Evergreen som husets øvrige Hb-
+            handlinger («Se original fil»). Filen bærer Meet-linket i både
+            LOCATION og beskrivelsen, og altid vejen til denne side; uden
+            Meet-link tilbydes den alligevel (lib/kalenderfil, filhovedet). */}
+        {kanFoejeTilKalender(event) && (
+          <p className="mt-2 text-sm">
+            <button
+              type="button"
+              onClick={() => hentKalenderfil(bygKalenderfil(event, window.location.origin), kalenderfilnavn(event.title))}
+              className="text-hb-evergreen underline-offset-4 hover:underline"
+            >
+              Føj til kalender
+            </button>
+            {!event.meet_url && <span className="ml-2 text-xs text-hb-ink-soft">Mødelinket kommer på denne side, når det er klar.</span>}
+          </p>
+        )}
 
         {event.description && (
           <p className="mt-6 max-w-2xl text-[15px] leading-relaxed text-hb-ink">

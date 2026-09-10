@@ -29,6 +29,7 @@ import { KPI_DEFS, VALUE_EXTRACTORS, deriveKpiMetrics, type KpiMetric } from "@/
 import { INDUSTRY_TEMPLATES, type BenchmarkTemplate } from "@/lib/appConfig";
 import { HbFinancialAnalysis } from "./HbFinancialAnalysis";
 import { usePeriodFilter } from "@/components/PeriodSelector";
+import { bygPeriodeTotaler, estimatTekst, ufuldstaendigTekst } from "@/lib/periodeTotaler";
 import { HbAdvisorCompanyPrompt } from "../HbAdvisorCompanyPrompt";
 import { HbButton } from "../HbButton";
 import { HbCard } from "../HbCard";
@@ -264,6 +265,12 @@ export const NoegletalView = () => {
     [trendData],
   );
   const trendHarEstimater = trendData.some((d) => d.data_basis === "estimated");
+  // «Perioden samlet» (#59): motoren får PRÆCIS de rækker grafen tegner —
+  // samme nøgler som trendData — så graf og total aldrig divergerer.
+  const periodeTotaler = useMemo(() => {
+    const noegler = new Set(trendData.map((d) => d.key as string));
+    return bygPeriodeTotaler(facts.filter((f) => noegler.has(f.period_key)));
+  }, [facts, trendData]);
 
   // Samtale-id til AI-analysens beskedkobling (arvet fra Reports.loadData).
   // Kaster ved fejl (de nitten, 10/9) — berigelse, fladen viser den ikke,
@@ -845,6 +852,39 @@ export const NoegletalView = () => {
                     })}
                   </div>
                 )}
+
+                {/* ── Perioden samlet (#59, 10/9) — deler trendsektionens periode.
+                    Flows summeres, forhold regnes på summerne, bank er ultimo;
+                    Omk. total, M/M og mål vises ikke samlet (lib/periodeTotaler,
+                    filhovedet). Huller siges (#786): «ufuldstændig · 9 af 12
+                    måneder» frem for en lavere sum der ligner en sandhed.
+                    Estimater tælles med (motorens undtagelse) og mærkes. Står
+                    inde i kortet, så PDF-eksporten tager den med. ── */}
+                <div className="mt-4 border-t border-hb-line pt-4">
+                  <div className="flex flex-wrap items-baseline justify-between gap-2">
+                    <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft">Perioden samlet</p>
+                    <p className="text-xs text-hb-ink-soft">{periodeTotaler.tekst}</p>
+                  </div>
+                  <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-3 lg:grid-cols-4">
+                    {periodeTotaler.linjer.map((l) => {
+                      const ufuld = ufuldstaendigTekst(l);
+                      const est = estimatTekst(periodeTotaler, l, formatDKK);
+                      return (
+                        <div key={l.key} className="min-w-0">
+                          <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft">{l.label}</p>
+                          <p className="mt-0.5 truncate">
+                            <span className="font-editorial text-lg font-medium text-hb-ink">
+                              {l.total == null ? "—" : l.enhed === "%" ? `${l.total.toFixed(1)} %` : formatDKK(l.total)}
+                            </span>
+                            {est && l.total != null && <EstimatMaerke className="ml-1.5 align-middle" />}
+                          </p>
+                          {ufuld && <p className="text-xs text-hb-ink-soft">{ufuld}</p>}
+                          {est && l.total != null && <p className="text-xs text-hb-ink-soft">{est}</p>}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
               </HbCard>
             )}
           </HbSection>
