@@ -268,11 +268,6 @@
       <p>Ankomsten er bygget 2/9 nat: to skærme, «Velkommen», tjeklisten som fokus. To ting mangler: <strong>velkomstvideoen skal optages</strong> (Morten) — pladsen er bygget, GUID'et sættes i <code>/admin/config</code>, og først da kan «se videoen» bevises på skærm. Og <strong>rundvisningen</strong>, den interaktive førstegangsoplevelse efter velkomsten — bygges efter C3-indflytningen og må aldrig eksistere ved siden af Guiden.</p>
       <div class="meta"><span class="tag">Rettet 4/9</span><span class="tag size">Mellem</span></div>
     </div>
-    <div class="card new" data-status="fejl" data-spor="1" data-rammer="medlem">
-      <h3>Tjeklisten kan lukkes pr. enhed — og er så væk</h3>
-      <p>Lukket-tilstanden er <code>localStorage["tbr.tjekliste-lukket"]</code> (<code>useTjeklisteLukket.ts</code>): pr. enhed, ikke i databasen — bevidst («en visningspræference, ikke data»). Lukker et af de sytten medlemmer uden tal boksen på telefonen, er der intet på skærmen der siger hvad de skal; kun sidebarens «Kom godt i gang» henter den frem, og fokuskortet fortsætter ganske vist med punkterne (tjeklisten er kilden også når boksen er lukket), men kun på forsiden. Om de ti der har logget ind for nylig HAR lukket den, kan ikke måles. Planen for 8/9 punkt 7b.</p>
-      <div class="meta"><span class="tag ny">Ny 7/9</span><span class="tag size">Lille</span></div>
-    </div>
     <div class="card" data-status="mangler" data-spor="1" data-rammer="ingen">
       <h3><code>profiles.company_name</code> er død</h3>
       <p>Auth sender altid tom streng (<code>Auth.tsx:151</code>), triggeren skriver den ikke, og Settings gemmer feltet uden at have et input bundet til det. NULL for altid for inviterede medlemmer. Netværket bruger <code>companies.name</code> i stedet.</p>
@@ -300,7 +295,7 @@
     </div>
     <div class="card new" data-status="fejl" data-spor="1" data-rammer="medlem">
       <h3>Dag 31: ingen rykkere, og mailen siger et andet beløb end fakturaen</h3>
-      <p>Stripes egne påmindelser er slået fra med vilje (<code>auto_advance=false</code>); skal der rykkes, er det vores egen kæde — og den er ikke bygget. Og dag 31-mailen siger 50.000 kr., hvor fakturaen siger 62.500 kr. inkl. moms. Ikke ændret.</p>
+      <p>Stripes egne påmindelser er slået fra med vilje (<code>auto_advance=false</code>); skal der rykkes, er det vores egen kæde — og den er ikke bygget. Dag 25 siger nu «50.000 kr. ekskl. moms», og dag 31 skriver FAKTURAENS beløb («62.500 kr. inkl. moms», eller totalen uden moms når Stripe Tax var slået fra) — rettet 10/9 (#799).</p>
       <div class="meta"><span class="tag ny">Ny 4/9</span><span class="tag rust">Synligt for den der når dag 31</span><span class="tag size">Lille</span></div>
     </div>
     <div class="card blocked new" data-status="mangler" data-spor="1" data-rammer="ingen">
@@ -324,11 +319,6 @@
       <h3>Tre beviser der udestår</h3>
       <p><strong>Owner-rollen</strong> (#622, i prod 4/9 kl. 10:33): en rigtig signup på en invitation med <code>company_id</code> på en tom virksomhed skal give <code>owner</code> — fire pending ligger klar. <strong>Branchen, trin 4:</strong> næste rigtige «Godkendt» eller «Importér ansøgning» skal give en række med <code>industry_code</code> sat; 401 fra de deployede funktioner beviser kun at de svarer. <strong><code>manage-advisor</code></strong> ruller ikke med merge og skal deployes via build-chat; beviset er 401/400 uden token, ikke 404 — ikke bogført som gjort.</p>
       <div class="meta"><span class="tag ny">Ny 4/9</span><span class="tag">Bevis</span><span class="tag size">Lille</span></div>
-    </div>
-    <div class="card new" data-status="mangler" data-spor="senere" data-rammer="ingen">
-      <h3>Tre veje giver stadig «member» til en virksomheds første bruger</h3>
-      <p><code>handle_new_user</code> er rettet (#622). <code>process-pending-invitation</code>, <code>attach-user-to-company</code> og legat-vejene (<code>create-legat-enrollment</code>, <code>upgrade-legat-to-member</code>) skriver stadig <code>member</code> — sjældne, menneskekaldte, ikke på FORBIDDEN-listen; rettes med samme betingelse. Står i migrationens kommentar.</p>
-      <div class="meta"><span class="tag ny">Ny 4/9</span><span class="tag size">Lille</span></div>
     </div>
     <div class="card new" data-status="mangler" data-spor="senere" data-rammer="medlem">
       <h3><code>send-pulse-reminder</code> sender kun til rollen <code>member</code></h3>
@@ -360,16 +350,6 @@
       <p><code>hent-fornyelsestilbud</code> kalder nu MOTOREN (#678, 7/9) — den første halvdel af fundet fra 6/9 er væk. Men udløbsgrenen afgøres stadig FØR <code>FORNYELSE_IKRAFT_DATO</code>-gaten, og både tilbud og checkout kræver <code>udloebet_tilbyd</code> (fornyelseskæden §13.3, §14.1). En virksomhed «uden for ordningen» med beslutning <code>tilbyd</code> får derfor stadig et systemtilbud og kan betale — nu i 14 dage efter udløb, ikke for evigt. <code>uden_for_ordningen</code>-reglen håndhæves altså kun på rådgiverens side; værnet er rådgiverens finger. Om gaten SKAL gælde dér, er en beslutning — efter 10/9 er den alligevel virkningsløs.</p>
       <div class="meta"><span class="tag ny">Ny 6/9</span><span class="tag gold">Beslutning</span><span class="tag rust">Værnet er et menneske</span><span class="tag size">Lille</span></div>
     </div>
-    <div class="card new" data-status="fejl" data-spor="7" data-rammer="medlem">
-      <h3>Toasten kan ramme forkert den anden vej</h3>
-      <p>Efter #687 vælger <code>Index.tsx</code> kvitterings-toasten på tier: full får «fortsætter uden afbrydelse», expired får «Vi åbner din adgang om et øjeblik». Men tier afgøres af <code>useAuth</code> mod databasen i det øjeblik browseren kommer tilbage fra Stripe — og webhooken og redirectet er uafhængige. Lander webhooken FØRST, er <code>contract_end_date</code> allerede flyttet, tier er allerede <code>full</code> for en der VAR udløbet, og de får «fortsætter uden afbrydelse», selv om adgangen lige er åbnet igen. Tier-dommen skelner ikke «var full hele tiden» fra «blev full for tre sekunder siden». Ikke målt, men uundgåeligt (<code>~/Downloads/recon-fornyelse-efter-betaling.md</code> §5.4, uden for repoet). Kvitteringssiden springes så også over, hvilket er rigtigt for dem — kun toastens ord er forkerte.</p>
-      <div class="meta"><span class="tag ny">Ny 7/9</span><span class="tag rust">Kapløb</span><span class="tag size">Lille</span></div>
-    </div>
-    <div class="card new" data-status="mangler" data-spor="7" data-rammer="ingen">
-      <h3>Dobbeltbetaling er lukket ved et held, ikke ved en regel</h3>
-      <p>Efter en gennemført fornyelse ligger den nye slutdato tolv måneder ude, så motoren (<code>afgoerFornyelsestilstand</code>) siger <code>i_god_tid</code>, og <code>opret-fornyelse-checkout</code> svarer 403. Det er det der forhindrer en fornyelse nummer to. Men værnet er 60-dagesvinduet (<code>FORNYELSES_VINDUE_DAGE</code>), ikke en eksplicit regel om at man kun kan forny én gang pr. periode — <code>company_fornyelse</code>-rækken står stadig som <code>tilbyd</code>, og intet stempler «fornyet». Ændres vinduet nogensinde (eller bliver det længere end tolv måneder), åbner døren igen uden at nogen har besluttet det. Klientens lås (<code>tbr.fornyelse_betalt_at</code>) dækker kun de første 24 timer og kun expired (OVERLEVERING DEL 2 «Fornyelseskæden»).</p>
-      <div class="meta"><span class="tag ny">Ny 7/9</span><span class="tag">Værn ved et held</span><span class="tag size">Lille</span></div>
-    </div>
     <div class="card decision new" data-status="beslutning" data-spor="7" data-rammer="ingen">
       <h3>Studio Minis <code>tilbyd</code>-række: ryddes før 20/9, eller lukkes af sig selv</h3>
       <p>Studio Mini (slut 5/9) står med beslutning <code>tilbyd</code> og gyldig pris (20.000 kr.), men FORLÆNGER IKKE (Jonas 6/9). Tilstanden findes nu (#678, 7/9), så rækken KAN ryddes. I dag (7/9) er de dag 2 i vinduet; fra 20/9 lukker vinduet af sig selv, og rækken bliver <code>udloebet_vindue_lukket</code> uden at nogen rører den. Indtil da viser gaten dem et tilbud, hvis de logger ind. Beslutningen er om rækken skal ryddes FØR. CARMA STUDIO (7/9, <code>tilbyd</code>) håndteres manuelt i dialog.</p>
@@ -390,11 +370,6 @@
       <h3>Adgangshul i <code>create-subscription-checkout</code> — lukket, ubevist</h3>
       <p><code>company_id</code> blev taget fra request-body og brugt mod service role uden adgangstjek. Lukket 1/9 og læst linje for linje — men ikke bevist i drift, for det kræver et medlems-token.</p>
       <div class="meta"><span class="tag rust">Ubevist</span><span class="tag size">Lille</span></div>
-    </div>
-    <div class="card blocked" data-status="fejl" data-spor="7" data-rammer="raadgiver">
-      <h3>Rådgiveren får ikke besked når nogen fornyer</h3>
-      <p>Samme sag fra den anden side. Ingen Slack, ingen notifikation — fornyelsesgrenen i <code>stripe-webhook</code> har ingen (grep 4/9). Det er den bedste nyhed I får i en uge, og ingen ved det før nogen tilfældigt kigger i Stripe.</p>
-      <div class="meta"><span class="tag rust">Tavshed</span><span class="tag size">Lille</span></div>
     </div>
     <div class="card" data-status="mangler" data-spor="3" data-rammer="raadgiver">
       <h3>Et fejlet kort ses kun på <code>/members</code></h3>
@@ -479,22 +454,6 @@
       <p><strong>Målt i prod 7/9 kl. 20:24:</strong> Booking Innovation 2024 (<code>annual_report</code>, tolv rækker) har <code>payroll</code> = 46 kr. om måneden mod en omsætning på 83.665 — 0,1 %. Det er ikke en manglende linje, det er et tal læst tusind gange for lille (formentlig «46» for 46.000 eller en tusindtalsseparator). Alina ligger på 31 %, Floren på 17–22 %, Topix på 40 %.</p>
       <p>Konkret og målbar: én PDF, ét tal. Rettes i hånden når nogen ser rapporten — samme form som Floren (SELECT før, UPDATE guardet på 46, SELECT efter). Indtil da er Bookings lønandel, EBITDA og «Omk. total» for 2024 forkerte i alt hvad de ser (OVERLEVERING DEL 2 «Årsrapport-udtrækket»).</p>
       <div class="meta"><span class="tag ny">Ny 7/9</span><span class="tag rust">Forkerte tal</span><span class="tag size">Lille</span></div>
-    </div>
-    <div class="card new" data-status="fejl" data-spor="2" data-rammer="medlem">
-      <h3>En rapport for indeværende måned får aldrig sin «gennemgå dine tal»-mail</h3>
-      <p><strong>Løst 7/9 (#720):</strong> en rapport for indeværende måned er ikke længere «forkert» på skærmen — den er «for tidlig», med datoen for hvornår den kan godkendes (regel 6 i <code>resolve_report_commit_candidate</code>: <code>not_ready</code> med en <code>period_key</code> på eller efter denne måned), og nudge-kortet «N rapporter afventer din godkendelse» tæller den ikke længere med.</p>
-      <p><strong>Det ÅBNE:</strong> review-notifikationen skrives kun når kandidaten er <code>eligible</code> ved parsingen (<code>extract-financial-data/index.ts:1741-1761</code>, <code>report_review_ready</code>, «{periode} — gennemgå dine tal»). En rapport i regel 6 er ikke eligible i det øjeblik — så notifikationen og mailen skrives ALDRIG, heller ikke når måneden er omme og rapporten kan godkendes. Intet kører igen efter månedsskiftet; medlemmet skal selv opdage at knappen er kommet. Løsningen er ikke besluttet: en cron der genprøver regel 6-rapporter den 1., eller at parsingen selv lægger notifikationen med en dato.</p>
-      <div class="meta"><span class="tag ny">Ny 7/9</span><span class="tag rust">Tavshed</span><span class="tag size">Lille</span></div>
-    </div>
-    <div class="card new" data-status="fejl" data-spor="2" data-rammer="medlem">
-      <h3><code>equity</code> mod <code>equity_total</code></h3>
-      <p><code>factsAdapter</code> dropper ukendte nøgler, så årsrapportens egenkapital er usynlig i hele UI'et — kun AI'en ser den. Fra Rækkefølgen 27/8; ikke efterprøvet siden. <code>reportOverrideHelpers.ts:94</code> kender <code>equity_total</code> som «egenkapital» (grep 4/9) — om det er hele vejen, er ikke målt.</p>
-      <div class="meta"><span class="tag ny">Ny 4/9 som kort</span><span class="tag size">Lille</span></div>
-    </div>
-    <div class="card new" data-status="fejl" data-spor="2" data-rammer="medlem">
-      <h3>Balanceposter i alle tolv måneder</h3>
-      <p><code>cash</code> og <code>equity</code> er ultimo-tal kopieret ind i januar til november af årsrapport-udtrækket. En beholdning hører kun til i december. Fra Rækkefølgen 27/8.</p>
-      <div class="meta"><span class="tag ny">Ny 4/9 som kort</span><span class="tag size">Lille</span></div>
     </div>
     <div class="card new" data-status="mangler" data-spor="2" data-rammer="raadgiver">
       <h3>Topix' egne tal står på et skattebilag</h3>
@@ -588,11 +547,6 @@
   <h2>Chat og rådgiverforløbet</h2>
   <p class="lede">Rådgiverens chat er Hjemmebane hele vejen siden 4/9 aften, og emnevælgeren er ude (emner klassificeres automatisk, besluttet 4/9). Det der står, er lækagerne, ulæst-begrebet, emnerne og de sidste gamle rester.</p>
   <div class="grid">
-    <div class="card new" data-status="mangler" data-spor="3" data-rammer="medlem">
-      <h3>Chat-mails ved ikke om beskeden er læst i appen</h3>
-      <p>Fund 10/9 (<code>~/Downloads/recon-gamle-notifikationer.md</code>): mail-motoren springer notifikationer med <code>seen_at</code> over, og klokken (#790) sætter nu <code>seen_at</code> når den åbnes. Men chat-mailen læser ikke <code>messages.read_at</code> — en besked medlemmet har læst i chatten, mailes stadig efter ventetiden, hvis klokken ikke blev åbnet. Community er dækket af <code>community_visninger</code> (#770); chatten mangler samme kobling.</p>
-      <div class="meta"><span class="tag ny">Ny 10/9</span><span class="tag size">Lille</span></div>
-    </div>
     <div class="card blocked" data-status="mangler" data-spor="5" data-rammer="raadgiver">
       <h3>Tilstandslaget</h3>
       <p>Ét sted der svarer «hvor er vi med den her virksomhed», læst fra opgaver, tal, aktivitet og stilhed. Siden 3.–4. september findes to af byggestenene: motoren <code>afgoerVirksomhedsSignaler</code> (#589) og forsidens dom <code>afgoerForsidensDom</code> (#635), som virksomhedssidens blok 1 og forsiden deler. Laget som begreb — ét svar, ikke to motorer — er ikke afgjort.</p>
@@ -602,11 +556,6 @@
       <h3>Session-forberedelsen skjules af et rent UI-filter</h3>
       <p>Rådgiverens forberedelse ligger i medlemmets egen samtale med medlemmets afsender-id og skjules af <code>MemberChatPane.tsx:561</code> (<code>context_type === "session_prep"</code>). Knækker filteret, læser medlemmet forberedelsen. #612 satte den bag en knap på virksomhedssiden; lagringen er uændret.</p>
       <div class="meta"><span class="tag">Rettet 4/9</span><span class="tag rust">Læk-risiko</span><span class="tag size">Mellem</span></div>
-    </div>
-    <div class="card blocked" data-status="fejl" data-spor="3" data-rammer="raadgiver">
-      <h3>Delt ulæst-markering mellem rådgivere</h3>
-      <p><code>mark_messages_read</code> filtrerer kun på afsender, ikke på læser. Åbner Jonas en samtale, forsvinder Mortens ulæst-markering.</p>
-      <div class="meta"><span class="tag rust">Live fejl</span><span class="tag size">Mellem</span></div>
     </div>
     <div class="card blocked" data-status="fejl" data-spor="3" data-rammer="ingen">
       <h3>Velkomstbesked skriver ugyldig værdi</h3>
@@ -677,11 +626,6 @@
       <p>Agenten foreslår opgaver rådgiveren kun kan forkaste — de fem ikke-idempotente værktøjer har ingen besluttet gentagelses-semantik. En revne der vokser: jo bedre agenten bliver, jo flere forslag lander uden for laget. Målt i prod 6/9: kortet «Halvdelen af agentforslagene kan kun forkastes» nedenfor.</p>
       <div class="meta"><span class="tag rust">Vokser</span><span class="tag size">Mellem</span></div>
     </div>
-    <div class="card new" data-status="mangler" data-spor="5" data-rammer="ingen">
-      <h3>Ingen cron bogfører <code>expired</code> — udløbne forslag ligger som <code>proposed</code></h3>
-      <p>Et forslag udløber nu når dets egen ISO-uge er passeret (#688, 7/9): godkendelse afvises med 409, fladen viser «Udløbet», og puklen og virksomhedssidens signal filtrerer dem fra (#689). Men dommen ligger i koden, ikke i databasen: skemaets egen kommentar forudser cron'en (<code>20260825200000_agent_proposals.sql:10</code>, «expired (cron-dom, ikke bygget endnu)»), og ingen kode sætter status — de fire fra 1/9 blev sat i hånden. Konsekvens: et udløbet forslag forsvinder fra forsiden, men står som <code>proposed</code> i <code>agent_proposals</code>, og enhver SQL-tælling på status tæller det med. Cron'en er en selvstændig opgave, og den SKAL bruge <code>afgoerForslagsgyldighed</code> (<code>_shared/forslagUdloeb.ts</code>), så der er én dom og ikke en SQL-kopi af ISO-ugen. Dertil <code>agent-runs-opbevaring</code>, som sletter kørsler efter 12 måneder uden approved/rejected — udløbne følger med ud (OVERLEVERING DEL 2 «Agentkæden»).</p>
-      <div class="meta"><span class="tag ny">Ny 7/9</span><span class="tag">Én dom, ikke to</span><span class="tag size">Lille</span></div>
-    </div>
     <div class="card decision new" data-status="beslutning" data-spor="5" data-rammer="raadgiver">
       <h3>Halvdelen af agentforslagene kan kun forkastes</h3>
       <p>Godkendelseslaget understøtter ét værktøj, <code>update_weekly_focus</code>. Målt i prod 6/9 kl. 22:18: otte uafgjorte forslag (Topix 6, remm. 2, alle fra tørkørsler 25/8) — fire <code>update_weekly_focus</code> kan godkendes, fire kan KUN kastes væk: tre <code>write_session_prep</code>, ét <code>write_company_action</code>. Forsidens linje lover «din afgørelse» om noget hvor den ene mulighed ikke findes. Bemærk: <code>write_session_prep</code> stod ikke i SKRIVE_TOOLS-listen i <code>recon-agentens-skrivninger.md</code> — værktøjssættet har ændret sig siden 25/8, eller listen var ufuldstændig; ikke afklaret. Beslutningen er epic'ets: hvilke værktøjer skal kunne godkendes, og hvad linjen må love.</p>
@@ -716,11 +660,6 @@
       <h3>Agentsporet: tre beslutninger, ingen kode</h3>
       <p>Parkeret. Hvad udløser præcist en kørsel? Rytmen skal være hændelsesdrevet, ikke kalenderdrevet. Hvor længe er tavshed — tavshed er også en hændelse. Hvor gammelt må et forslag være før det ikke længere bør kunne godkendes? Sporet må ikke trække arbejdstid fra spor 1.</p>
       <div class="meta"><span class="tag ny">Ny 4/9 som kort</span><span class="tag gold">Beslutning</span></div>
-    </div>
-    <div class="card new" data-status="mangler" data-spor="5" data-rammer="medlem">
-      <h3>Aktive opgaver forfalder, men udløber aldrig</h3>
-      <p>Set på skærm 7/9: en opgave med «Fristen var 4. september», tre dage forfalden, med Gjort / Ikke endnu / Drop den. Teksten er KUN en tekst (<code>lib/hjemmebane/aftaler.ts</code>, <code>fristTekst</code>: <code>due_date &lt; i dag</code>). Ingen cron, ingen status, ingen kolonne siger forfalden — opgaven står på forsiden til medlemmet trykker, uden øvre grænse; «Ikke endnu» kan bruges to gange, derefter svarer motoren 409, og opgaven bliver stående alligevel. Cron'en <code>opgave-udloeb</code> rører kun <code>proposed</code> via <code>expires_at</code>. <strong>B2-cronen var forudset og aldrig bygget:</strong> migrationen 22/8 (<code>20260822220000:52-53</code>) nævner «de to kommende cron-job: udløb af forslag (B8) og forfald af aktive opgaver (B2)» og lagde indekset <code>idx_company_actions_due</code> klar — det står ubrugt. Rådgiveren ser forfaldet på forsidens dom («forfaldt for N dage siden», alvor 75), men virksomhedssidens «N opgaver venter på svar» tæller kun <code>proposed</code>/<code>open</code>. <strong>I dag rammer det ÉN virksomhed</strong> i hele produktionen (målt 7/9): Topix' egen. En beslutning, ikke en brand — hører til epic'et (<code>~/Downloads/recon-opgavers-udloeb.md</code>, uden for repoet; OVERLEVERING DEL 2 «Opgave-modellen»).</p>
-      <div class="meta"><span class="tag ny">Ny 7/9</span><span class="tag">B2 forudset 22/8</span><span class="tag size">Lille</span></div>
     </div>
     <div class="card decision new" data-status="beslutning" data-spor="5" data-rammer="medlem">
       <h3>Under ti procent af opgaveforslagene bliver besvaret</h3>
@@ -844,11 +783,6 @@
       <p><code>src/lib/forsidensDom.ts</code> dømmer seks af otte slags. «Rapporteringsfejl» og «refleksion der beder om akut hjælp» (§8's AI-læsning i <code>docs/forsiden-design.md</code>) har plads i typen, men ingen implementering — låst af en test, så de ikke glider ind uden en beslutning. Alvor for de nye slags skal tildeles (§12).</p>
       <div class="meta"><span class="tag ny">Ny 4/9</span><span class="tag size">Mellem</span></div>
     </div>
-    <div class="card new" data-status="mangler" data-spor="6" data-rammer="raadgiver">
-      <h3>Budgetafvigelse kan ikke komme på forsiden</h3>
-      <p><code>hentAdvisorDashboard</code>s <code>queryFn</code> henter ikke <code>budget_targets</code>, så <code>budgetOmsaetning</code> står bevidst som null (<code>AdvisorDashboard.tsx:923–925</code>). Motoren kan dømme «stikker ud» mod budget, men får aldrig tallet.</p>
-      <div class="meta"><span class="tag ny">Ny 4/9</span><span class="tag size">Lille</span></div>
-    </div>
     <div class="card decision new" data-status="beslutning" data-spor="6" data-rammer="raadgiver">
       <h3>Platformconfig: tre dele uden læser</h3>
       <p>Branding-navn, Performance Score og Møde er markeret som uden læser i drift, men BEHOLDT ved konverteringen (#648) — om de skal væk er en beslutning, ikke en konvertering.</p>
@@ -906,11 +840,6 @@
     <div class="card new" data-status="fejl" data-spor="senere" data-rammer="medlem">
       <h3>To mails for samme 1:1-betaling</h3>
       <p>En betalt session giver både <code>session-booking-confirmation</code> direkte fra <code>stripe-webhook:986</code> og en notifikation <code>session_booked</code> (<code>:950-960</code>, important), som mail-motoren sender efter 15 min hvis den ikke er set. Samme person, samme betaling, to mails — det er koden, ikke et uheld i kørslen (mailfortegnelsen M9/M10, D1).</p>
-      <div class="meta"><span class="tag ny">Ny 8/9</span><span class="tag size">Lille</span></div>
-    </div>
-    <div class="card new" data-status="fejl" data-spor="senere" data-rammer="medlem">
-      <h3>monthly-digest har ingen dag-gate</h3>
-      <p>Cronen kører den 22. kl. 08:00 UTC, men <code>send-monthly-digest</code> tjekker ikke datoen (grep <code>getDate</code>: 0), og admin-knappen «Send digest» (<code>EmailTemplatesView.tsx:754-766</code>) sender til alle founders med aktivt medlemskab når som helst den trykkes — uden idempotency-nøgle (mailfortegnelsen M12, D4).</p>
       <div class="meta"><span class="tag ny">Ny 8/9</span><span class="tag size">Lille</span></div>
     </div>
     <div class="card new" data-status="mangler" data-spor="senere" data-rammer="raadgiver">
@@ -977,16 +906,6 @@
       <p>Rollerne findes (<code>app_role</code>: member, advisor, admin; admin arver advisor i <code>has_role</code>), men de bruges ikke konsekvent til at skelne HUSET fra en tredjepart. I dag betyder advisor «Jonas eller Morten», og admin er Jonas alene — så hver gang en flade eller policy vælger admin frem for advisor, er det Morten der falder udenfor, ikke en ekstern. <strong>Det konkrete eksempel, målt i prod 7/9:</strong> <code>email_send_log</code> havde advisor-læsning fra 26/2, men omdøbningen 19/3 tog policyen med over på legacy-tabellen; den levende tabel fik kun service-role + admin, og Morten kan ikke se e-mail-loggen nogen steder. Beslutningen 7/9 (migration <code>20260907180000</code>, ikke kørt endnu) giver advisor SELECT — med forudsætningen ordret i filen: det gælder mens advisor er huset. <code>/admin/email-log</code> er stadig <code>AdminRoute</code>.</p>
       <p><strong>Skal afklares FØR der kommer en tredje rådgiver:</strong> hvad advisor må se på tværs af virksomheder (alle mails? kun egne virksomheders?), hvad kun admin må (config, roller, sletning), og hvilke af de eksisterende admin-only-gates der reelt er «huset» og skal være advisor. Indtil da er hver ny admin-gate en Morten-gate.</p>
       <div class="meta"><span class="tag ny">Ny 7/9</span><span class="tag gold">Beslutning</span><span class="tag size">Mellem</span></div>
-    </div>
-    <div class="card blocked" data-status="fejl" data-spor="3" data-rammer="ingen">
-      <h3>Rolletjek-bug i tre edge functions</h3>
-      <p><code>advisor-broadcast</code>, <code>send-monthly-digest</code>, <code>send-slack-feedback-notification</code>.</p>
-      <div class="meta"><span class="tag rust">Live fejl</span><span class="tag size">Lille</span></div>
-    </div>
-    <div class="card new" data-status="fejl" data-spor="3" data-rammer="medlem">
-      <h3><code>legat-reminder-cron</code> har aldrig kørt</h3>
-      <p><code>Deno.cron</code> kører ikke på Supabases edge-runtime (DEL 4); fire funktioner bruger den stadig (grep 4/9): <code>legat-reminder-cron</code>, <code>intro-reminder-cron</code>, <code>indgangs-paamindelser-cron</code>, <code>run-weekly-agent</code>. Intro og indgang har pg_cron-jobs (bekræftet i <code>cron.job</code> 6/9); legat har ikke. <code>run-weekly-agent</code> er målt 6/9 og har sit eget kort nedenfor.</p>
-      <div class="meta"><span class="tag ny">Ny 4/9 som kort</span><span class="tag rust">Live</span><span class="tag size">Lille</span></div>
     </div>
     <div class="card new" data-status="fejl" data-spor="3" data-rammer="ingen">
       <h3>Ugeagentens cron findes ikke i prod</h3>
@@ -1103,20 +1022,15 @@
       <p>Ellers slår medlemmet det hele fra, og så mister I kanalen. Opslagsmailen følger «Opdateringer» (<code>important</code>) med alt andet; dagskvoten 5 gælder. Ingen fravalgsnøgle for Community alene.</p>
       <div class="meta"><span class="tag">Rettet 4/9</span><span class="tag size">Lille</span></div>
     </div>
-    <div class="card" data-status="mangler" data-spor="senere" data-rammer="ingen">
-      <h3><code>companies.status</code> har ingen constraint</h3>
-      <p>Feltet styrer fire ting (rådgiverliste, rapport-påmindelser, ugeagent, branche-sammenligning), men har ingen CHECK. <code>'tidligere'</code> blev defineret 2/9; næste gang kan nogen skrive <code>'Tidligere'</code> eller <code>'inaktiv'</code>, og filtrene virker tilfældigt. Og default <code>'active'</code> gør enhver ny (ubetalt) virksomhed «aktiv».</p>
-      <div class="meta"><span class="tag size">Lille</span></div>
-    </div>
     <div class="card blocked" data-status="fejl" data-spor="senere" data-rammer="ingen">
       <h3>Ingen hastighedsbegrænsning målt på <code>opret-indgangs-checkout</code></h3>
       <p>Funktionen har <code>verify_jwt = false</code> og kan nås af hvem som helst. Tokenet er 122 bits og kan ikke gættes, men hvert forsøg koster et databasekald. Om Supabase begrænser edge-funktioner er IKKE undersøgt.</p>
       <div class="meta"><span class="tag rust">Ikke målt</span><span class="tag size">Lille</span></div>
     </div>
-    <div class="card new" data-status="mangler" data-spor="senere" data-rammer="ingen">
-      <h3>To kendte sikkerhedspunkter med lavere alvor</h3>
-      <p>Bogført i <code>supabase/SECURITY_BASELINE.md</code> §5, ikke rettet: (1) <code>messages</code> DELETE har ingen tidsgrænse, og to overlappende policies ligger der («Members can delete own messages» og «Users can delete own messages», den sidste bredest). (2) Storage-policyen «Authenticated users can upload feedback screenshots» har <code>WITH CHECK</code> på <code>bucket_id</code> alene uden mappetjek — enhver authenticated kan skrive til enhver sti i den bucket.</p>
-      <div class="meta"><span class="tag ny">Ny 4/9</span><span class="tag size">Lille</span></div>
+    <div class="card" data-status="mangler" data-spor="senere" data-rammer="ingen">
+      <h3>Tre migrationer fra #801 skal køres i prod</h3>
+      <p><strong>Rettet 10/9 i kode (#801), kørsel udestår:</strong> <code>20260911020000_messages_delete_15min.sql</code> (sletning får samme grænse som redigering — ERSTATTER de to overlappende DELETE-policies), <code>20260911030000_feedback_bucket_mappetjek.sql</code> (mappetjek på <code>auth.uid()</code>, 5 MB, <code>image/*</code>) og <code>20260911040000_companies_status_check.sql</code> (<code>CHECK (status IN ('active','tidligere'))</code> + <code>NOT NULL</code>; målt 10/9 kl. 19:40: 30/8, ingen NULL). Klienten spejler sletteregelen allerede (<code>src/lib/beskedRegler.ts</code>), så knappen forsvinder før databasen siger nej. Beviset er hver fils SELECT nederst — indtil da står de gamle policies i prod.</p>
+      <div class="meta"><span class="tag">Rettet 10/9</span><span class="tag size">Lille</span></div>
     </div>
     <div class="card decision new" data-status="beslutning" data-spor="senere" data-rammer="ingen">
       <h3>Ingen opbevaringspolitik</h3>

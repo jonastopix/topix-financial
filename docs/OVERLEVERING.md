@@ -2886,6 +2886,92 @@ event publiceres), #781/#782 (fladerne siger fra — se kortet om tavse
 queryFn'er), og de fire små i #791 (chattens skrivefelt: tre linjer at starte
 på, en tredjedel af skærmen før det ruller).
 
+### 10. september, sen aften — de ti synlige er alle bygget, parseren er bevist, ni af de nitten er lukket, fem crons i drift (#795–#801)
+
+Tolv PR'er blev merget mellem den forrige bogføring og midnat (#789–#801). To
+ruder byggede parallelt fra to lister: `~/Downloads/de-ti-naeste.md` (det man
+kan pege på bagefter) og `~/Downloads/de-tyve.md` (stor impact for lille
+indsats, grupperet i fire ad gangen, ingen fælles filer).
+
+**1. De ti synlige forbedringer — alle bygget.** Kalenderknap på events med
+Meet-linket i både LOCATION og beskrivelsen (#788/#792), samlede tal for
+perioden (#788), estimat-mærkets trykflade og overløbet på mobil (#789), begge
+klokker (#790), større skrivefelt, milepælenes farver, budgettets procenter og
+gæst-flueben (#791), rapportkortets grund og badget der kender varsel 2 (#793),
+agentpanelet der endelig kan læses (#794), CSV-download af egne tal og
+budgetafvigelse på forsiden (#795).
+
+**2. Parseren er bevist i drift.** Filnavnsreglen (#783), fortegnsdommen (#784),
+gulvet på tre felter og profilernes fortegn (#796) og genkørslen (#785, #786).
+Jonas klikkede knappen på ANLA GLAS' `2026-6.xlsx` kl. 18:53 — den gik fra «Fejl
+i behandling» til «Afventer godkendelse».
+
+**3. Ni af de nitten «stor impact» er bygget** — i praksis flere: rolletjek-buggen
+(`.in("role",[…]).maybeSingle()` fejlede på en bruger med begge roller, tre
+functions, #797), digestens gate (cron kun den 22., admin-knappen tester som
+standard, «send til alle» bag bekræftelse, nøgle pr. modtager pr. måned, #797),
+chat-mails der læser `messages.read_at` (#797), legat-cronen som Bucket B med
+tørkørsel (#797), momsen i dag 0/25/31 (#799 — se nedenfor), dobbeltbetalings-
+værnet i checkout OG webhook (`_shared/fornyelsesVaern.ts`, #799),
+fornyelsesbeskeden i rådgiverens klokke i vagtens form (én række pr. rådgiver,
+#799), owner-rollen i de tre edge-veje (`_shared/medlemsrolle.ts`, #799),
+egenkapitalen (`equity` → «egenkapital»), balanceposterne kun i december og
+regel 6 i dansk tid (#798), review-cronen (#798), forslagenes og opgavernes
+udløb og tjeklisten i profilen (`profiles.notification_email_prefs.tjekliste_lukket`,
+localStorage som cache, #800), sletningens grænse, status-CHECK'en og toasten
+(#801). **#801's tre migrationer er SKREVET, ikke bekræftet kørt** — kortet
+står på mangellisten med SELECT'erne.
+
+**Momsen (#799) — reconen reddede nummer 6 fra en forkert rettelse.** Løsningen
+lignede «skriv 62.500». Men mangler kundens adresse, slår Stripe Tax fra og
+fakturaen lyder på 50.000; en EU-kunde med gyldigt momsnummer betaler 0 %. Og
+TO mails havde problemet, ikke én. Så dag 0 og dag 25 siger «50.000 kr. ekskl.
+moms» (som `/betal`, gaten og kvitteringen), og dag 31 skriver FAKTURAENS
+faktiske total — cronen sender fakturaen før mailen og har `total` og
+`moms_beregnet` i hånden. Dag 0 fik beløbet med (design §9: «beløbet konkret»;
+parameteren blev sendt men aldrig brugt).
+
+**4. Fem nye cron-jobs i drift** (Jonas 10/9): onboarding-rytme (kl. 10 dansk),
+legat-reminder (11:30), report-review (07:20), agentforslag-udløb og
+opgave-forfald (06:05 og 06:10). Alle gennem `kald_edge`. NB: migrationen
+`20260909180000` siger `15 9 * * *` UTC (= 11:15 dansk) for onboarding-rytme;
+står jobbet kl. 10, er det ændret i hånden — afgøres med
+`SELECT jobname, schedule FROM cron.job WHERE jobname = 'onboarding-rytme';`.
+
+**5. Tre lærer, alle fra i dag:**
+
+- **Mål før du bygger.** Fortegnsdommen blev rettet uden at måle hvad der stod i
+  ANLA GLAS' filer; det kostede tre ekstra rettelser (#784 → #796). Jonas: «hvis
+  ikke man gør sit fodarbejde ordentligt, bygger man i blinde.»
+- **Et grep er ikke en måling.** `role.*member` matchede en linje i
+  `upgrade-legat-to-member`, men tabellen var `user_roles`, ikke
+  `company_members` — og `owner` findes ikke i den enum. Rettelsen ville have
+  fejlet i databasen. Læs linjen i sin sammenhæng, ikke i grep-udskriften.
+- **Et kort kan bygge på en antagelse der ikke holder.** «Ulæst pr. læser»
+  (delt ulæst-markering mellem rådgivere) antog fordelte virksomheder. Jonas 10/9:
+  «Vi tildeler jo ikke virksomheder mere.» Kortet skal UD, ikke bygges — slettet
+  fra mangellisten i denne bogføring.
+
+**6. ÅBENT PUNKT til Jonas og Morten — digesten.** Reconen
+(`~/Downloads/recon-digesten.md`) fandt: intet i månedsdigesten findes KUN dér
+— alt er visning af det fladen viser. Den ene unikke rolle (overskredne milepæle
+nåede kun medlemmet via mailen) forsvandt med #741, hvor milepæle-siden fik
+«Fristen var …». Og der findes ingen beslutning i `docs/` om at digesten skal
+findes eller hvad den skal være — kun fire om at få den til at virke (dag-gate,
+dedup, dublet, «d. 5.»-teksten). Hvem den når og om nogen klikker, kræver prod
+(ingen sporing). Det er ikke en anbefaling om at slukke den; det er
+spørgsmålet: skal den findes, og hvad skal den så sige, som fladen ikke siger?
+Slukkes den, er det én linje (`cron.unschedule('send-monthly-digest')`), og
+indstillingsfanens «Månedsoverblik» skal så følge med.
+
+**Mangellisten efter denne bogføring:** 17 kort slettet som løst eller trukket
+(toasten, dobbeltbetaling, fornyelsesbesked, tre veje → member, «gennemgå dine
+tal»-mailen, equity, balanceposter, chat-read_at, delt ulæst-markering,
+expired-cron, opgavers udløb, budgetafvigelse, digest-gate, rolletjek,
+legat-cron, tjekliste pr. enhed, status-constraint), 1 omskrevet (de tre
+migrationer fra #801 der skal køres), og moms-sætningen i rykker-kortet rettet.
+Tælleren i listens værktøjslinje regner selv.
+
 ### Mailplatformen — bygget om af Lovable 8/9 kl. 06:52-06:58; afsenderne, fortegnelsen og værnet (#728, #730, #731, #732)
 
 **Hvad Lovable gjorde.** 19 commits direkte til main mellem kl. 06:52 og
@@ -3425,6 +3511,7 @@ facit og rækkefølge; `docs/chat-design.md` chattens form.
 
 | hvornår | hvad | hvor det står |
 |---|---|---|
+| **SKREVET 10/9 (#801), IKKE BEKRÆFTET KØRT** | **Tre migrationer:** `20260911020000_messages_delete_15min.sql` (to DELETE-policies erstattes af «within 15 min» + advisor), `20260911030000_feedback_bucket_mappetjek.sql` (mappetjek, 5 MB, image/*), `20260911040000_companies_status_check.sql` (CHECK + NOT NULL; prod målt 30/8, 0 NULL). Bevis: SELECT'en nederst i hver fil — indtil da gælder de gamle policies. | DEL 2 «10. september, sen aften»; `SECURITY_BASELINE.md` §5 |
 | **RETTET 10/9** (#771–#773): `/members` er tømt — kun importen og onboarding-tragten står; `/settings` er konverteret med aftalen og en rigtig notifikationsfane. **EFTER 9/9** — det der stod tilbage efter rådgiverfladen og de to trin | ~~Otte ting kun på `/members`~~ → **10/9: importen bliver til ansøgningsflowet flytter; onboarding-tragten skal IKKE flyttes.** ~~`/settings`' tre rester~~ → **10/9: konverteret (#773).** **Aftale-kortet** er bygget med slutdato og pris; perioderne vises når nogen har nogen — 27 af 27 har nul. **Bevis:** `_shared/ikkeIGang.ts` i «View code» efter merge, Update for forsiden. **Ikke kode:** skriv til de seks der aldrig har uploadet — bed om historikken. | DEL 2 «9. september», mangellisten «Rådgiverfladen» |
 | **9/9 — I MORGEN** (punkt 1 og 2 er KØRT 8/9: de syv slettet kl. 12:14–12:26, DEL 2 «De otte tidligere»; kvitteringen siger en dato og kan fortrydes, #736) | **1) KØRT 8/9 kl. 12:14–12:26** — de syv tidligere slettet i fire hold efter `docs/koereplan-de-syv-tidligere.md` (nu historik); 8 af 8 stemplet, sweep tomt. **2) KØRT (#736)** — kvitteringen siger «Din data slettes den …» (motorens frist) og kan fortrydes til dagen før. **3) Cron-migrationsfilen** der bogfører `slet-medlemsdata` (`0 12 * * *`), formen fra `20260901112000_prod_cron_bogfoert.sql`. **4) Planen for 8/9, punkt 6–7** (punkt 4 og 5 er GJORT 8/9 eftermiddag: digesten kalder milepælsdommen #741/#742, kvitteringsmailen #739 — DEL 2 «Eftermiddagen 8/9»): toasten i `Index.tsx`, og den tomme platform (a–d). **5) Intro-sessionens tid** — starttiden ankommer i `calendly-webhook` og kastes væk; bygges (det andet vindue 8/9 aften). **6) Åbne fund uden beslutning:** de betalte 1:1-sessioner der stopper ved `booking_sent`; agentens forslag (op til tre pr. virksomhed pr. mandag + ét pr. rapport, ingen læser svarene) — mangellisten bærer begge. | `docs/koereplan-de-syv-tidligere.md`; `docs/koereplan-slettefunktionen.md`; DEL 2 «Slettefunktionen»; øverst «PLANEN FOR 8. SEPTEMBER» |
 | **22/9 — BEVIS** (kortene «aftale-kortet» og «betalingshistorik» er slettet fra mangellisten 10/9; beviset står her) | **Første rigtige periode på `/settings`.** #773 viser aftalen (slutdato, start, pris fra `companies`) og «Betaling» (perioder og fakturaer) — men målt 9/9 har 27 af 27 nul rækker i `company_traek`/perioder. PHILBERTs varsel 2 går 22/9 og bliver den første række. Bevis: kortet viser perioden og fakturaen på skærmen, og `company_fornyelse` læses ikke (låst med test). | DEL 2 «10. september» (#773) |
