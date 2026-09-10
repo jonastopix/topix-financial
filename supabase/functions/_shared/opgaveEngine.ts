@@ -91,8 +91,10 @@ function laegDageTil(d: Date, dage: number): Date {
 
 const OVERGANGE: Record<OpgaveStatus, OpgaveStatus[]> = {
   proposed: ["active", "dismissed", "expired"],
-  // active -> active er udskydelsen (B11).
-  active: ["done", "not_done", "dropped", "active"],
+  // active -> active er udskydelsen (B11). active -> expired er
+  // forfalds-cronens dom (20260911010000, erUdloebetEfterForfald) — aldrig
+  // et klient-udfald (opgave-luk KLIENT_UDFALD).
+  active: ["done", "not_done", "dropped", "active", "expired"],
   done: [],
   not_done: [],
   dropped: [],
@@ -181,4 +183,22 @@ export function erForfalden(opgave: Opgave, nu: Date): boolean {
     timestamptz, så her sammenlignes på tidspunkt, ikke kalenderdag. */
 export function erUdloebet(opgave: Opgave, nu: Date): boolean {
   return opgave.status === "proposed" && opgave.expires_at != null && nu.getTime() > opgave.expires_at.getTime();
+}
+
+/** Henstand efter forfald (afgjort 11/9): en aktiv opgave udløber når
+    fristen har været passeret i MERE end 14 dage — B11's egen tid: den
+    der svarer «Ikke endnu» får 14 dage, den der intet svarer får det samme
+    vindue. Spejlet i SQL-cronen opgave-forfald (20260911010000), paritet
+    i __tests__/opgaveForfaldsCron.paritet.test.ts. */
+export const FORFALDSHENSTAND_DAGE = 14;
+
+/** Aktiv opgave hvis kalenderdag er mere end FORFALDSHENSTAND_DAGE efter
+    due_date. Frist 4/9: 18/9 er dag 14 og IKKE udløbet; 19/9 er udløbet —
+    samme skarpe grænse som erForfalden, én henstand længere. */
+export function erUdloebetEfterForfald(opgave: Opgave, nu: Date): boolean {
+  return (
+    opgave.status === "active" &&
+    opgave.due_date != null &&
+    dagVaerdi(nu) > dagVaerdi(laegDageTil(opgave.due_date, FORFALDSHENSTAND_DAGE))
+  );
 }

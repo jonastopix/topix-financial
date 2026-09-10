@@ -33,11 +33,12 @@ import {
  * 168-170 «bevidst IKKE shadcn Sheet»). Både boksen og video-overlejringen
  * ligger i skallens eget DOM-træ.
  *
- * LUKKET TILSTAND gemmes i localStorage (`tbr.tjekliste-lukket`,
- * src/hooks/useTjeklisteLukket.ts), som AddToHomescreenPrompt gør med
- * `a2hs-dismissed-v1`. Det er PR. ENHED og bevidst: det er en
- * visningspræference, ikke data — hvad medlemmet HAR gjort ligger i
- * databasen og krydses af på alle enheder.
+ * LUKKET TILSTAND følger medlemmet (11/9, de-tyve nr. 14): sandheden bor i
+ * profiles.notification_email_prefs.tjekliste_lukket, localStorage
+ * (`tbr.tjekliste-lukket`) er cache — src/hooks/useTjeklisteLukket.ts.
+ * Før 11/9 var den pr. enhed; målt 10/9 fik et medlem der lukkede boksen
+ * på telefonen den igen på laptoppen. Hvad medlemmet HAR gjort ligger
+ * stadig i databasen og krydses af på alle enheder — nu gør «lukket» også.
  *
  * SETTINGS ER IKKE MED: profil og virksomhed redigeres på /settings, som
  * stadig er en AppLayout-side (gammelt design, ligesom Milestones og

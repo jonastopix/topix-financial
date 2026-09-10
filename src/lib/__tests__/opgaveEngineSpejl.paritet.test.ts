@@ -141,11 +141,12 @@ describe("opgaveEngine-spejl — paritet mellem src/lib og supabase/functions/_s
       for (const status of ALLE_STATUSSER) {
         for (const udfald of ALLE_UDFALD) {
           const res = paritet((impl) => impl.luk(opgave({ status }), udfald, NU));
-          // Retningen (én gang, mod motoren): dismissed/expired kun fra
-          // proposed, done/not_done/dropped kun fra active.
+          // Retningen (én gang, mod motoren): dismissed kun fra proposed,
+          // expired fra proposed (udløbs-cronen) OG active (forfalds-cronen,
+          // 11/9), done/not_done/dropped kun fra active.
           const forventetLovlig =
             (status === "proposed" && (udfald === "dismissed" || udfald === "expired")) ||
-            (status === "active" && (udfald === "done" || udfald === "not_done" || udfald === "dropped"));
+            (status === "active" && (udfald === "done" || udfald === "not_done" || udfald === "dropped" || udfald === "expired"));
           expect(res.ok).toBe(forventetLovlig);
           if (res.ok) expect(res.opgave.closed_at?.toISOString()).toBe(NU.toISOString());
         }
@@ -169,6 +170,21 @@ describe("opgaveEngine-spejl — paritet mellem src/lib og supabase/functions/_s
         paritet((impl) => impl.erForfalden(opgave(felter), NU));
         paritet((impl) => impl.erUdloebet(opgave(felter), NU));
       }
+    });
+  });
+
+  describe("erUdloebetEfterForfald (forfalds-cronen, 11/9)", () => {
+    it("henstanden er den samme konstant i begge spejle", () => {
+      expect(deno.FORFALDSHENSTAND_DAGE).toBe(motor.FORFALDSHENSTAND_DAGE);
+    });
+
+    it("grænsen dømmes identisk fra begge sider — frist 4/9, nu 18/9 og 19/9 (lokal dag)", () => {
+      const frist = new Date(2026, 8, 4, 12, 0, 0);
+      const aktiv = opgave({ status: "active", due_date: frist, accepted_at: NU });
+      expect(paritet((impl) => impl.erUdloebetEfterForfald(aktiv, new Date(2026, 8, 18, 23, 59, 59)))).toBe(false);
+      expect(paritet((impl) => impl.erUdloebetEfterForfald(aktiv, new Date(2026, 8, 19, 0, 0, 0)))).toBe(true);
+      expect(paritet((impl) => impl.erUdloebetEfterForfald(opgave({ status: "active", due_date: null }), NU))).toBe(false);
+      expect(paritet((impl) => impl.erUdloebetEfterForfald(opgave({ status: "proposed", due_date: frist }), new Date(2027, 0, 1)))).toBe(false);
     });
   });
 

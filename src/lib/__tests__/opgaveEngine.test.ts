@@ -4,6 +4,8 @@ import {
   beregnUdloeb,
   erForfalden,
   erUdloebet,
+  erUdloebetEfterForfald,
+  FORFALDSHENSTAND_DAGE,
   lovligeOvergange,
   luk,
   opgoerTilstand,
@@ -63,8 +65,8 @@ describe("lovligeOvergange", () => {
     expect(lovligeOvergange("proposed").sort()).toEqual(["active", "dismissed", "expired"]);
   });
 
-  it("active kan gå til done, not_done, dropped og active (udskydelse)", () => {
-    expect(lovligeOvergange("active").sort()).toEqual(["active", "done", "dropped", "not_done"].sort());
+  it("active kan gå til done, not_done, dropped, active (udskydelse) og expired (forfalds-cronen)", () => {
+    expect(lovligeOvergange("active").sort()).toEqual(["active", "done", "dropped", "expired", "not_done"].sort());
   });
 
   it("sluttilstande har ingen lovlige overgange", () => {
@@ -275,6 +277,50 @@ describe("erUdloebet (B8)", () => {
   });
 });
 
+describe("erUdloebetEfterForfald — 14 dages henstand, grænsen fra begge sider", () => {
+  const frist = d(2026, 9, 4);
+  const aktiv = (due_date: Date | null = frist) => opgave({ status: "active", due_date, accepted_at: d(2026, 8, 20) });
+
+  it("henstanden er 14 dage", () => {
+    expect(FORFALDSHENSTAND_DAGE).toBe(14);
+  });
+
+  it("frist 4/9: 18/9 (dag 14) er IKKE udløbet, 19/9 er — uanset klokkeslæt", () => {
+    expect(erUdloebetEfterForfald(aktiv(), d(2026, 9, 18, 23, 59))).toBe(false);
+    expect(erUdloebetEfterForfald(aktiv(), d(2026, 9, 19, 0, 0))).toBe(true);
+  });
+
+  it("forfalden er ikke udløbet: 5/9 (dagen efter fristen) og fristdagen selv er begge nej", () => {
+    expect(erForfalden(aktiv(), d(2026, 9, 5))).toBe(true);
+    expect(erUdloebetEfterForfald(aktiv(), d(2026, 9, 5))).toBe(false);
+    expect(erUdloebetEfterForfald(aktiv(), d(2026, 9, 4))).toBe(false);
+  });
+
+  it("henstanden regner over månedsskifte og årsskifte", () => {
+    // frist 20/12: dag 14 er 3/1, udløbet 4/1
+    const nytaar = opgave({ status: "active", due_date: d(2026, 12, 20), accepted_at: d(2026, 12, 1) });
+    expect(erUdloebetEfterForfald(nytaar, d(2027, 1, 3))).toBe(false);
+    expect(erUdloebetEfterForfald(nytaar, d(2027, 1, 4))).toBe(true);
+    // frist 31/1: dag 14 er 14/2
+    const skudaar = opgave({ status: "active", due_date: d(2028, 1, 31), accepted_at: d(2028, 1, 1) });
+    expect(erUdloebetEfterForfald(skudaar, d(2028, 2, 14))).toBe(false);
+    expect(erUdloebetEfterForfald(skudaar, d(2028, 2, 15))).toBe(true);
+  });
+
+  it("uden due_date eller uden for active: aldrig udløbet", () => {
+    expect(erUdloebetEfterForfald(aktiv(null), d(2027, 1, 1))).toBe(false);
+    for (const status of ["proposed", "done", "not_done", "dropped", "dismissed", "expired", "open", "parked"] as const) {
+      expect(erUdloebetEfterForfald(opgave({ status, due_date: frist }), d(2027, 1, 1))).toBe(false);
+    }
+  });
+
+  it("luk(active, 'expired') er lovlig (cronens overgang); dismissed fra active er det stadig ikke", () => {
+    const resultat = luk(aktiv(), "expired", d(2026, 9, 19));
+    expect(resultat.ok).toBe(true);
+    expect(luk(aktiv(), "dismissed", d(2026, 9, 19)).ok).toBe(false);
+  });
+});
+
 describe("opgoerTilstand", () => {
   const nu = d(2026, 8, 22);
 
@@ -293,6 +339,9 @@ describe("opgoerTilstand", () => {
       opgave({ id: "dropped", status: "dropped", closed_at: d(2026, 8, 18) }),
       opgave({ id: "dismissed", status: "dismissed", closed_at: d(2026, 8, 18) }),
       opgave({ id: "expired", status: "expired", closed_at: d(2026, 8, 18) }),
+      // En AKTIV opgave forfalds-cronen lukkede (accepted_at sat): lukket
+      // som expired, men IKKE et udløbet forslag.
+      opgave({ id: "forfaldet", status: "expired", accepted_at: d(2026, 7, 1), due_date: d(2026, 7, 20), closed_at: d(2026, 8, 4) }),
       // Overgangsværdi — skal ikke tælles nogen steder.
       opgave({ id: "gammel-open", status: "open" }),
     ];
@@ -303,7 +352,7 @@ describe("opgoerTilstand", () => {
       antalUbesvaredeForslag: 2,
       antalUdloebneForslag: 2,
       aeldsteUbesvaredeForslag: d(2026, 8, 2),
-      lukkede: { done: 1, not_done: 0, dropped: 1, dismissed: 1, expired: 1 },
+      lukkede: { done: 1, not_done: 0, dropped: 1, dismissed: 1, expired: 2 },
     });
   });
 
