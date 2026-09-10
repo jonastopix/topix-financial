@@ -36,6 +36,134 @@
     omskrevet til det bedste i dag (500-vinduet, fejlet træk, community-nøgle
     udsat), 3 nye i deres sted. Dertil 6 lukket som løst uden at være lukket.
     Bogført i OVERLEVERING DEL 2 «10. september, nat».
+  RYDDET 10/9 SENT AFTEN (Jonas: «Det kræver vel også at vi får opdateret
+  mangellisten rigtig grundigt?»)
+    Grundlag: ~/Downloads/kortgennemgang.md — en kritisk recon af alle
+    135 kort (43 står, 48 omskrives, 36 ud, 8 udsat, 2 løst), dømt mod
+    koden i HEAD (#803/#805) og mod ni prod-målinger fra samme aften.
+    Denne runde tager KUN de 36 «ud»; omskrivningerne kommer bagefter.
+    Før: 137 kort. Efter: 109. 28 fjernet; 7 af de 36 viste sig at
+    skulle blive (se nederst); 1 («Poster kan ikke slettes») var
+    allerede fjernet i #803.
+    OVERLEVERING-bogføringen udestår — kun denne fil måtte røres i
+    runden. Historikken står derfor HER indtil den er flyttet:
+
+    A. FJERNET FORDI DET ER LØST (1)
+      «Tre udløbsformer i huset» — #800 gav agentforslag udløb i SQL-cron
+        på ISO-uge (20260911000000) og aktive opgaver udløb på due_date
+        + 14 dage (20260911010000); den tredje form («på ingenting») er
+        væk. Målt i prod 10/9 aften: aktive opgaver over frist = 0. At
+        forslag udløber på uge og opgaver på dage er to begreber, ikke
+        én model der mangler.
+
+    B. FJERNET FORDI PRÆMISSEN IKKE HOLDT (5)
+      «Fokuskortet fører ingen steder» — samme fund som «Ugens fokus
+        optager en plads … slot (d)», som er bedre stillet (målt 10/9
+        aften: seen_at på 0 af 133 rækker). Stien nextStep.ts:313 lå i
+        components/hjemmebane/boardroom/, ikke src/lib.
+      «Sidebaren viser medlemmets navigation inde i en virksomhed» —
+        kortet sagde selv «observation, ikke fejl — åbent punkt hvis det
+        klemmer». Ingen ask, intet at bygge. Vejen tilbage findes
+        (HbVisningSom, «Tilbage til dig selv», #573).
+      «notifications har ingen advisor-policy» — besluttet væk 4/9 (§11
+        punkt 2); klokken (#790) lever med det via advisor_notifications.
+        Faktum til baseline: notifications har KUN «Users read own» og
+        «Users update own» (20260323112326:36-43) — en rådgiver kan ikke
+        se medlemmets set/læst-tilstand eller alert-historik. Ikke i
+        SECURITY_BASELINE endnu; bør ind dér, ikke her.
+      «Sekvensmotoren — nu tre kopier» — «kritisk ved 100 virksomheder»
+        holdt ikke: #766 slog intro-påmindelsen ind under onboardings-
+        rytmen (intro-reminder-cron:3 importerer _shared/onboardingRytme),
+        så der er tre motorer (legat, onboarding, indgang) i SAMME form
+        (Bucket B + tørkørsel + kald_edge). Tre rene funktioner med
+        paritetstest skalerer; en generisk sekvensmotor er over-
+        engineering for tre sekvenser. Bliver et kort ved den fjerde.
+      «Ingen hastighedsbegrænsning målt på opret-indgangs-checkout» —
+        Supabase har ingen per-funktion rate limit på edge functions
+        (dokumenteret, ikke noget der skal måles). Tokenet er 122 bits;
+        hvert forsøg er ét indekseret opslag via hent_betalingsdata_til_
+        checkout — og det samme gælder hent_betalingstilbud, som anon
+        kalder direkte via PostgREST. Checkout er ikke det svage punkt,
+        og med et GYLDIGT token laver man kun sin egen faktura.
+
+    C. FJERNET SOM SELVSTÆNDIGT KORT — INDHOLDET STÅR NU I ET ANDET (22)
+      Hver linje: fjernet kort → det kort der bærer det nu.
+      «profiles.company_name er død» → «Døde DB-kolonner fra to spor»
+      «Gruppechat-laget er ubrugt» → «Døde DB-kolonner fra to spor»
+        (målt 10/9: 0 læsere i src/ uden for types.ts)
+      «YKRG kan ikke flyttes» → «Migrationen: tretten venter på 13/9»
+      «Elleve af fjorten har intet betalingsmiddel …» → «Migrationen:
+        tretten venter på 13/9» (et trin i proceduren, ikke et kort)
+      «Topix' egne tal står på et skattebilag» → «Ni af elleve
+        årsrapport-udtræk mangler felter»
+      «Aktivering: 15 reelle sager» (26/8) → «19 af 27 er faldet ud»
+      «Rapporteringen falder: 17, 14, 12, 9, 8 …» (4/9) → «19 af 27 er
+        faldet ud» (samme population, nyere tal; næste måling 8/10)
+      ««Mål 60 %» for DB-margin er et fallback» → «KPI-fallbackens fire
+        kronebeløb» (samme spørgsmål, ét kort)
+      «Handouts-skrivevejene er ubeviste» → «Tre beviser der udestår»
+      «Ingen af de otte admin-sider er set på skærm» → «Tre beviser der
+        udestår»
+      «align-prop på HbPopover, så HbMenu kan udgå» → «Former der skal
+        løftes til hjemmebane/»
+      «Fire kopier af samme komponent» → «Former der skal løftes til
+        hjemmebane/» (målt igen 10/9: stadig fire)
+      «Agentens forslagsrum er større end godkendelseslagets» →
+        «Halvdelen af agentforslagene kan kun forkastes» («vokser» holdt
+        ikke: ugeagenten har aldrig kørt — agent_runs målt 10/9 aften)
+      «Medlemmets opgaveflade — bygget, men ubrugt» → «EPIC: opgave-
+        modellen …» (spørgsmål 1)
+      «Navnet «Milepæle» passer ikke» → «EPIC …» (spørgsmål 3; menuen
+        siger i øvrigt «Milestones», HbSidebar.tsx:37)
+      «Under ti procent af opgaveforslagene bliver besvaret» → «EPIC …»
+        (kortet sagde selv «hører i epic'et, ikke ved siden af»)
+      «Forældreløse billeder og filer» → «Ingen opbevaringspolitik»
+      «Nudge-formen som designdokument» → «Community: tre løse ender»
+      «Top posts, rating efter modul, ugens nyheder» → «Community: tre
+        løse ender»
+      ««Skift owner» findes ikke som handling» → «Sletning af en person
+        har ingen vej» (kortet sagde selv «samme familie»)
+      «Dødt kød i AdvisorDashboard.tsx» → «Amputeret beregning — et
+        mønster» (grep'en kortet bad om er lavet: JSX'en renderes ingen
+        steder)
+      «Ingen struktureret logning» → «Fejlovervågning: vagten ser cron
+        og kø …» (vagten OG #702 logger struktureret; det der mangler er
+        edge functions' fejl, som det kort bærer)
+
+    D. DE 7 DER SKULLE UD, MEN BLIVER — og hvorfor
+      «Betalingsstigen med e-conomic — integrationen findes og er død»
+        — reconen ville flytte den til driftslisten; men en død
+        integration i pengevejen er en BESLUTNING (genopliv eller
+        erstat), og listen bærer allerede «Revisor»- og «Jonas &
+        Morten»-kort. Bliver; omskrives til status beslutning i næste
+        runde.
+      «Fakturanummer-serien starter forfra» — samme: listen har mærket
+        «Revisor» netop til dette. Bliver.
+      «Beskrivelser på de 13 kurser» — mærket «Jonas & Morten» viser at
+        listen bærer indholdsopgaver. Bliver.
+      «Studio Minis tilbyd-række …» — lukker af sig selv 20/9, men er
+        ikke lukket i dag; et kort forsvinder den dag det er løst. Slet
+        21/9 hvis ingen har ryddet den før.
+      «To virksomheder uden slutdato …» — venter på Jonas' samtale;
+        beslutningskort er præcis dét listen er til. Bliver.
+      «CARMAs slutdato er flyttet i hånden» — lukker når fornyelsen er
+        betalt; det kunne ikke måles i aften. Bliver til ét SELECT siger
+        betalt.
+      «Rallysupport og KJ AUTO» — reconen tog «faldet ud» (ugensFokus-
+        Gate.ts, 8/9) for «status tidligere». Det er forkert: Rallysupport
+        står ikke blandt de otte tidligere (målt 10/9 aften: 30 active,
+        8 tidligere) — de er kunde, får forslag (17) og svarer aldrig.
+        Kortet er stadig umåleligt som det står (ingen fil, ingen linje),
+        men det bliver til det er omskrevet med en konkret fil.
+
+    NI PROD-MÅLINGER FRA SAMME AFTEN er skrevet ind i de kort de
+    afgør (søg «Målt i prod 10/9 aften»): ventende uploads (3, ikke 73),
+    ugefokus seen_at (0 af 133), ugeagenten (aldrig kørt), #801's
+    migrationer (status active 30 / tidligere 8; to DELETE-policies med
+    15-minutters-reglen), stripe-id'er (27 aktive, NUL), FK'erne på
+    financial_report_facts (NO ACTION — sletningen fejler, halv sletning
+    er mulig), agentforslag (4 ville lukkes, ikke 63) og aktive opgaver
+    over frist (0).
   SÅDAN TILFØJER MAN ET KORT
     1. Find afsnittet (<section class="topic">). Ét emne, ét sted:
        Indgangen · Betaling og fornyelse · Dine tal · Chat og
@@ -275,11 +403,6 @@
       <p>Ankomsten er bygget 2/9 nat: to skærme, «Velkommen», tjeklisten som fokus. To ting mangler: <strong>velkomstvideoen skal optages</strong> (Morten) — pladsen er bygget, GUID'et sættes i <code>/admin/config</code>, og først da kan «se videoen» bevises på skærm. Og <strong>rundvisningen</strong>, den interaktive førstegangsoplevelse efter velkomsten — bygges efter C3-indflytningen og må aldrig eksistere ved siden af Guiden.</p>
       <div class="meta"><span class="tag">Rettet 4/9</span><span class="tag size">Mellem</span></div>
     </div>
-    <div class="card" data-status="mangler" data-spor="1" data-rammer="ingen">
-      <h3><code>profiles.company_name</code> er død</h3>
-      <p>Auth sender altid tom streng (<code>Auth.tsx:151</code>), triggeren skriver den ikke, og Settings gemmer feltet uden at have et input bundet til det. NULL for altid for inviterede medlemmer. Netværket bruger <code>companies.name</code> i stedet.</p>
-      <div class="meta"><span class="tag size">Lille</span></div>
-    </div>
     <div class="card" data-status="mangler" data-spor="senere" data-rammer="ingen">
       <h3><code>process-pending-invitation</code> kaldes ved hvert load</h3>
       <p>For enhver bruger uden række i <code>company_members</code> — det vil sige alle rådgivere. Et edge-function-kald pr. rådgiver-load, der altid svarer <code>no_pending_invitation</code>.</p>
@@ -325,6 +448,7 @@
     <div class="card new" data-status="mangler" data-spor="1" data-rammer="ingen">
       <h3>Tre beviser der udestår</h3>
       <p><strong>Owner-rollen</strong> (#622, i prod 4/9 kl. 10:33): en rigtig signup på en invitation med <code>company_id</code> på en tom virksomhed skal give <code>owner</code> — fire pending ligger klar. <strong>Branchen, trin 4:</strong> næste rigtige «Godkendt» eller «Importér ansøgning» skal give en række med <code>industry_code</code> sat; 401 fra de deployede funktioner beviser kun at de svarer. <strong><code>manage-advisor</code></strong> ruller ikke med merge og skal deployes via build-chat; beviset er 401/400 uden token, ikke 404 — ikke bogført som gjort.</p>
+      <p>To beviser mere ind fra egne kort (10/9 sent): <strong>Handouts-skrivevejene</strong> — autosave (1500 ms debounce, <code>HbHandoutDetail.tsx:96-120</code>), løftestang til milepæl og AI-sparring er aldrig afprøvet af en ægte ejer. Og <strong>de otte admin-sider</strong> (#645–#654) er i prod efter mange Update-klik siden 4/9, men ingen har bogført at have åbnet hver. Bevis = ét klik pr. side.</p>
       <div class="meta"><span class="tag ny">Ny 4/9</span><span class="tag">Bevis</span><span class="tag size">Lille</span></div>
     </div>
   </div>
@@ -386,12 +510,8 @@
     <div class="card" data-status="mangler" data-spor="1" data-rammer="raadgiver">
       <h3>Migrationen: tretten venter på 13/9</h3>
       <p>Fjorten skal flyttes, ikke atten — fire er i sidste periode og skal fornys (Studio Mini, CARMA STUDIO, Pro-Vision, PHILBERT). Piloten doggybed er flyttet 2/9; <strong>de tretten andre venter til trækket 13/9 er bevist</strong>, derefter i portioner. TuaMea, Floren Engros og BR Roset venter til efter egne træk. Ingen får ændret sit beløb (momsen opfører sig ens — bevist på faktura); 83 rater, 301.000 kr. ekskl. moms udestående. Listen over UUID'er for de tretten er ikke lavet.</p>
+      <p>To fælder ind fra egne kort (10/9 sent): <strong>YKRG</strong> står <code>past_due</code> — kortet fejler, anden gang; en restance kan ikke migreres, den skal betales eller afskrives først, og kortet skal virke, ellers fejler første træk på den nye konto på samme måde. Og <strong>elleve af fjorten har intet betalingsmiddel på abonnementet</strong>: <code>default_payment_method</code> er NULL, kortet ligger på kunden — kundekopien flytter kortet, ikke hvilket abonnement der bruger det; ved genskabelse sættes det eksplicit, ellers fejler første træk. UUID-listen laves med: <code>SELECT id, name, contract_end_date, stripe_customer_id, stripe_subscription_id FROM companies WHERE contract_end_date &gt; current_date AND is_legat IS NOT TRUE ORDER BY contract_end_date;</code></p>
       <div class="meta"><span class="tag">Rettet 4/9</span><span class="tag">Målt</span><span class="tag size">Mellem</span></div>
-    </div>
-    <div class="card blocked" data-status="fejl" data-spor="1" data-rammer="raadgiver">
-      <h3>YKRG kan ikke flyttes</h3>
-      <p>Står <code>past_due</code> — kortet fejler, anden gang. En restance kan ikke migreres; den skal betales eller afskrives først, og kortet skal virke, ellers fejler første træk på den nye konto på samme måde.</p>
-      <div class="meta"><span class="tag rust">Restance</span></div>
     </div>
     <div class="card new" data-status="mangler" data-spor="1" data-rammer="raadgiver">
       <h3>Rådgivernes klokke ringer ikke ved et fejlet træk</h3>
@@ -404,13 +524,9 @@
       <div class="meta"><span class="tag ny">Ny 10/9</span><span class="tag size">Lille</span></div>
     </div>
     <div class="card blocked" data-status="mangler" data-spor="1" data-rammer="ingen">
-      <h3>Elleve af fjorten har intet betalingsmiddel på abonnementet</h3>
-      <p><code>default_payment_method</code> er NULL — kortet ligger på kunden. Kundekopien flytter kortet, men ikke hvilket abonnement der bruger det. Ved genskabelse skal det sættes eksplicit, ellers fejler første træk.</p>
-      <div class="meta"><span class="tag rust">Fælde</span></div>
-    </div>
-    <div class="card blocked" data-status="mangler" data-spor="1" data-rammer="ingen">
       <h3>Platformen kan ikke se hvem der betaler</h3>
       <p><code>companies.stripe_customer_id</code> er NULL for de atten betalende medlemmer fra før 2/9. Koblingen mellem Stripe-kunde og virksomhed blev lavet i hånden 1/9 ved at læse navne og CVR ud af fakturaer. Siden 2/9 gemmer webhookens indgangsgren feltet — kun for nye. Piloten bærer <code>company_id</code> i abonnementets metadata.</p>
+      <p><strong>Målt i prod 10/9 aften:</strong> 27 aktive — NUL med <code>stripe_customer_id</code>, NUL med <code>stripe_subscription_id</code>. Datarbejde, ikke kode; skal gøres før 13/9.</p>
       <div class="meta"><span class="tag rust">Blokerer migrationen</span><span class="tag size">Mellem</span></div>
     </div>
     <div class="card" data-status="ide" data-spor="senere" data-rammer="ingen">
@@ -453,12 +569,14 @@
       <p><strong>Målt i prod 7/9 kl. 20:42</strong> — dagens sidste og vigtigste måling (OVERLEVERING, øverst). Kriterium: mere end tre måneder siden seneste MÅLTE rapport OG nul besvarede opgaveforslag de seneste tre måneder. <strong>RETTET 8/9 kl. 08:49:</strong> filtret 7/9 var <code>er_kunde = true AND is_legat = false</code> og manglede <code>status = 'active'</code> — de otte <code>'tidligere'</code> (Alina, Coskun, Regnskabsvikar, Sebastian &amp; Amalie, Stadio, Startkørekort, Friends &amp; Fries, LineAlmegaard) blev talt med, og to gæster (Alexander Lund, Martin Larsen) stod som kunder; <code>er_kunde</code> sat til <code>false</code> på de to i prod 8/9 kl. 08:48 (FØR: <code>true</code>). Med filtret ordret <code>er_kunde = true AND is_legat = false AND status = 'active'</code>: <strong>I alt 27 · faldet ud 19 · aktive 8 · midt imellem 0 · aldrig uploadet 10.</strong> Det forkerte tal 7/9: <s>I alt 37 · faldet ud 29 · aktive 8 · midt imellem 0</s>. Indeni (tal fra 7/9): SYTTEN — rettet 8/9: TI — har aldrig uploadet en målt rapport — og ti af dem har logget ind inden for de sidste tre uger (TOFT 4/9, Martin Larsen 1/9, remm. 1/9, Limo Group, LineAlmegaard og Alexander Lund 31/8, Fjeldgaardshop 25/8, Friends &amp; Fries 24/8, Bastant Design 20/8, Coskun 17/8): de kommer, de gør bare ikke det platformen er bygget til. Tre har aldrig logget ind (Din økonomiafdeling, Two Socks, WESDEX). Fem får forslag og svarer aldrig (Rallysupport 17/0, ANLA GLAS 15/0, Capture IT 9/0, remm. 9/0, BRILLEVÆRK 4/0). CARMA STUDIO: seneste målte rapport juni 2025. Af de otte aktive svarer kun <strong>to</strong> på forslag — Floren Engros 6 af 18, Rezycl.com 6 af 12 (målt igen 8/9: 6 af 12 og 6 af 9; samme otte, samme to). <strong>To ud af syvogtredive — rettet 8/9: ud af syvogtyve — bruger platformen som tænkt.</strong> Tallet var forkert, konklusionen var ikke. Læren står i OVERLEVERING DEL 4: et filter er en del af målingen — where-sætningen skal stå ordret i bogføringen.</p>
       <p>Alt der blev rettet 7/9 gør platformen mere korrekt for de otte; det ændrer ikke at de niogtyve (rettet 8/9: nitten) ikke er der. De 73 ventende uploads, de under ti procent svar og remm./YKRG's årsrapport-huller var tre symptomer på dette — den fjerde måling viste gruppens størrelse.</p>
       <p><strong>Det åbne spørgsmål er ikke teknisk:</strong> er det et produktproblem (platformen giver ikke nok igen for det den beder om), et onboardingproblem (de sytten kom ind uden at komme i gang), eller et forventningsproblem — og <strong>hvad var aftalen med dem der aldrig har uploadet?</strong> Det er en samtale mellem Jonas og Morten, ikke en kodeopgave. Målingen gentages om en måned med samme kriterium (SQL'en står i OVERLEVERING øverst), så det kan ses om noget virker.</p>
+      <p>To ældre målinger af det samme spørgsmål er lagt herind (10/9 sent): <strong>«Aktivering: 15 reelle sager»</strong> (26/8: 13 havde aldrig uploadet, alle havde logget ind; de fem forsideændringer #758–#761/#780 er bygget siden — resten er samtaler) og <strong>«Rapporteringen falder: 17, 14, 12, 9, 8 ud af tredive»</strong> (4/9 over fire måneder; andelen der reflekterer STEG fra 12 % til 67 %, antallet der rapporterer faldt). Begge er samme population som ovenfor; næste måling 8/10 med samme SQL afløser dem.</p>
       <div class="meta"><span class="tag ny">Ny 7/9</span><span class="tag">Tal rettet 8/9</span><span class="tag gold">Beslutning</span><span class="tag">Samtale, ikke kode</span><span class="tag size">Stor</span></div>
     </div>
     <div class="card decision" data-status="beslutning" data-spor="2" data-rammer="medlem">
       <h3>Ni af elleve årsrapport-udtræk mangler felter — fladen lyver ikke længere, tallene er stadig hullede</h3>
       <p>Målt 7/9 kl. 20:24 på alle elleve årsrapporter (tabellen i OVERLEVERING DEL 2 «Årsrapport-udtrækket»): kun Alina 2025 og Floren 2024 er hele; de ni andre mangler ét til fire af de fem resultatfelter (ANLA og Livja uden omsætning og vareforbrug; Booking 2025 med KUN omsætning; remm. uden vareforbrug og personale; Doggybed uden personale; Topix uden vareforbrug). Det rammer dem der IKKE rapporterer månedligt — remm. 0/12 målte, YKRG 2/12 — fordi målte måneder skubber årsrapport-rækkerne ud af de seneste tolv.</p>
       <p><strong>Rettet 10/9 (#786, #787) — fladen:</strong> et manglende felt vises som hul, ikke som nul (<code>aarsrapportHuller.ts</code>); YKRG's omsætning 0 ved siden af et bruttoresultat læses som «ikke læst»; Nøgletal siger hvilke felter årsrapporten ikke indeholdt; budgettets forecast og cashflow tæller ikke længere /12-estimater som realiserede. <strong>Ikke rettet — udtrækket:</strong> <code>extract-annual-report</code> er én AI-læsning der matcher på ord, ikke betydning (Floren: «Direkte omkostninger» 52.018 taget for vareforbrug 3.155.034). Beslutningen står: byg udtrækket om (betydning frem for ord; skattebilag og årsregnskab som to dokumenttyper), eller manuel indtastning for de felter det ikke finder (<code>save-annual-baseline</code> har fem felter). SQL der viser hvem det rammer: <code>~/Downloads/recon-aarsrapporten.md</code> §3c og PR #786.</p>
+      <p>Ind fra eget kort (10/9 sent): <strong>Topix' egne tal står på et skattebilag</strong> — aftenens prøve 27/8 erstattede årsrapport-rækkerne; uploades igen med den rigtige fil, omsætningen indtastes manuelt bagefter. Én datalinje under samme beslutning.</p>
       <div class="meta"><span class="tag ny">Ny 7/9</span><span class="tag">Rettet 10/9</span><span class="tag rust">Forkerte tal</span><span class="tag gold">Beslutning</span><span class="tag size">Stor</span></div>
     </div>
     <div class="card new" data-status="fejl" data-spor="2" data-rammer="medlem">
@@ -466,11 +584,6 @@
       <p><strong>Målt i prod 7/9 kl. 20:24:</strong> Booking Innovation 2024 (<code>annual_report</code>, tolv rækker) har <code>payroll</code> = 46 kr. om måneden mod en omsætning på 83.665 — 0,1 %. Det er ikke en manglende linje, det er et tal læst tusind gange for lille (formentlig «46» for 46.000 eller en tusindtalsseparator). Alina ligger på 31 %, Floren på 17–22 %, Topix på 40 %.</p>
       <p>Konkret og målbar: én PDF, ét tal. Rettes i hånden når nogen ser rapporten — samme form som Floren (SELECT før, UPDATE guardet på 46, SELECT efter). Indtil da er Bookings lønandel, EBITDA og «Omk. total» for 2024 forkerte i alt hvad de ser (OVERLEVERING DEL 2 «Årsrapport-udtrækket»).</p>
       <div class="meta"><span class="tag ny">Ny 7/9</span><span class="tag rust">Forkerte tal</span><span class="tag size">Lille</span></div>
-    </div>
-    <div class="card new" data-status="mangler" data-spor="2" data-rammer="raadgiver">
-      <h3>Topix' egne tal står på et skattebilag</h3>
-      <p>Aftenens prøve 27/8 erstattede årsrapport-rækkerne. Skal uploades igen med den rigtige fil, og omsætningen indtastes manuelt bagefter.</p>
-      <div class="meta"><span class="tag ny">Ny 4/9 som kort</span><span class="tag size">Lille</span></div>
     </div>
     <div class="card blocked" data-status="beslutning" data-spor="1" data-rammer="medlem">
       <h3>Ingen af de to dokumenter kan fylde årsrapport-funktionen ud</h3>
@@ -497,6 +610,7 @@
     <div class="card" data-status="fejl" data-spor="1" data-rammer="medlem">
       <h3>Ventende uploads — PHILBERTs seks, og 73 i alt</h3>
       <p>PHILBERTs seks er parsede, validerede med PASS, aldrig committede; januar, marts og april 2026 har ligget siden foråret. Driftsgælden i OVERLEVERING tæller 73 uploads der bestod validering uden at blive committet. Review Queue er nu Hjemmebane (#647) og en flag-liste; godkendelsen bor i <code>ReportReviewDialog</code>, som nås fra virksomhedssidens blok 6.</p>
+      <p><strong>Målt i prod 10/9 aften:</strong> 3 PASS-uploads uden facts — ikke 73. Køen er tømt; tallet i overskriften er historie.</p>
       <div class="meta"><span class="tag">Rettet 4/9</span><span class="tag rust">Live</span><span class="tag size">Lille</span></div>
     </div>
     <div class="card" data-status="fejl" data-spor="1" data-rammer="medlem">
@@ -504,36 +618,17 @@
       <p>Parseren klassificerer på ét ord. KJ AUTO har i øvrigt kun to målte måneder og rammes nu af forecast-gaten.</p>
       <div class="meta"><span class="tag size">Mellem</span></div>
     </div>
-    <div class="card" data-status="mangler" data-spor="1" data-rammer="raadgiver">
-      <h3>Aktivering: 15 reelle sager</h3>
-      <p>Otte har aldrig committet et tal, syv er faldet fra undervejs. Målingen 26/8: 13 har aldrig uploadet, og alle har logget ind. Halvdelen af løsningen er kode — den anden halvdel er tolv samtaler I allerede har åbne; fem af dem når ingen forsideændring, de har ikke været inde siden marts og juni.</p>
-      <div class="meta"><span class="tag rust">Omsætning</span><span class="tag size">Mellem</span></div>
-    </div>
-    <div class="card new" data-status="beslutning" data-spor="1" data-rammer="raadgiver">
-      <h3>Rapporteringen falder: 17, 14, 12, 9, 8 ud af tredive</h3>
-      <p>Målt 4/9 over fire måneder. Andelen der reflekterer STIGER (12 % i marts til 67 % i juni) — men antallet der rapporterer falder. Undersøges ikke nu (Circle-exit og nye medlemmer ændrer forudsætningerne), men hører til samme samtale som opgave-modellen.</p>
-      <div class="meta"><span class="tag ny">Ny 4/9</span><span class="tag gold">Samtale</span></div>
-    </div>
-    <div class="card new" data-status="beslutning" data-spor="senere" data-rammer="medlem">
-      <h3>«Mål 60 %» for DB-margin er et fallback, ikke et mål</h3>
-      <p><code>KPI_FALLBACK_TARGETS</code> dømmer engros (45,7 %) som «under» og lader konsulent (96,9 %) «ramme» uden at sige noget om branchen. Et branchespecifikt eller fraværende fallback er en beslutning. Fundet 4/9 ved #623.</p>
-      <div class="meta"><span class="tag ny">Ny 4/9</span><span class="tag gold">Beslutning</span><span class="tag size">Lille</span></div>
-    </div>
     <div class="card decision new" data-status="beslutning" data-spor="senere" data-rammer="medlem">
       <h3>KPI-fallbackens fire kronebeløb passer kun én størrelse</h3>
       <p><code>KPI_FALLBACK_TARGETS</code> (<code>appConfig.ts</code>, sat 24/2 i en Lovable-commit uden begrundelse) er seks tal, ét sæt for alle — og FIRE af dem er absolutte kronebeløb: omsætning 120.000, lønninger &lt; 50.000, resultat 10.000, omkostninger &lt; 80.000. En virksomhed der omsætter for 40.000 om måneden fik «mål 120.000» tegnet som sit eget; en der omsætter for 2 mio. «rammer» alt. Marginerne (60 % / 15 %) har samme problem på tværs af brancher (kortet ovenfor). Markeringen er bygget 7/9; det gør ikke tallene rigtige.</p>
       <p><strong>Faglig opgave, ikke en rettelse:</strong> branchespecifikt, størrelsesafhængigt (fx en andel af seneste omsætning) eller slet intet fallback — så «Sæt mål» faktisk vises for den der ingen har. Kun Jonas og Morten kan afgøre det.</p>
+      <p>Marginerne er samme fejl (ind fra eget kort 10/9 sent): <code>db_margin: 60</code> dømmer engros (45,7 %) som «under» og lader konsulent (96,9 %) «ramme» uden at sige noget om branchen; fundet 4/9 ved #623. Ét spørgsmål, ét kort: trin 1 fjern kronebeløbene (Lille, ingen faglighed — «Sæt mål» vises), trin 2 branchemarginer (faglig beslutning).</p>
       <div class="meta"><span class="tag ny">Ny 7/9</span><span class="tag gold">Beslutning</span><span class="tag">Faglig</span><span class="tag size">Lille</span></div>
     </div>
     <div class="card new" data-status="beslutning" data-spor="senere" data-rammer="raadgiver">
       <h3>Otte uenigheder mellem CVR og platformen</h3>
       <p>ANLA GLAS, Brick Works, Homie, Limo Group, Studio Mini, TOFT, Topix, TuaMea. Ti af ti målte koder uenige med motoren; Brick Works og TuaMea ville MISTE deres sammenligning. Ikke kosmetisk: ANLA GLAS' DB-margin på 50 % flytter fra venstre kant til over midten. Hvem der har ret kan ikke afgøres fra data. Én samtale, ingen kode. Dertil Bastant Design uden kode og label (intet CVR).</p>
       <div class="meta"><span class="tag ny">Ny 4/9</span><span class="tag gold">Samtale</span></div>
-    </div>
-    <div class="card" data-status="mangler" data-spor="senere" data-rammer="ingen">
-      <h3>Handouts-skrivevejene er ubeviste</h3>
-      <p>Autosave, løftestang til milepæl og AI-sparring er aldrig afprøvet af en ægte ejer på den nye flade.</p>
-      <div class="meta"><span class="tag rust">Ubevist</span><span class="tag size">Lille</span></div>
     </div>
     <div class="card new" data-status="ide" data-spor="4" data-rammer="medlem">
       <h3>Direkte integration til regnskabssystemer</h3>
@@ -579,11 +674,6 @@
       <p>44 % af beskederne er systembeskeder i samme strøm som menneskelig samtale.</p>
       <div class="meta"><span class="tag size">Mellem</span></div>
     </div>
-    <div class="card new" data-status="mangler" data-spor="senere" data-rammer="ingen">
-      <h3><code>align</code>-prop på <code>HbPopover</code>, så <code>HbMenu</code> kan udgå</h3>
-      <p><code>HbPopover</code> (i <code>HbOverlejring</code>) er venstre-forankret og bygget til datovælgeren under et felt; ⋯-menuen i chattens header står i højre kant og fik derfor sin egen lokale <code>HbMenu</code> (#657). Gælden står i koden.</p>
-      <div class="meta"><span class="tag ny">Ny 4/9</span><span class="tag size">Lille</span></div>
-    </div>
     <div class="card" data-status="ide" data-spor="6" data-rammer="raadgiver">
       <h3>Rådgiver som medlem</h3>
       <p>Jonas 3/9: «jeg som rådgiver også skal have en virksomhed, hvor jeg kan switche imellem, om jeg vil se platformen som rådgiver … eller være inde på min medlemsvirksomhed.» IKKE company-override («se en andens virksomhed»); rådgiveren ER selv medlem et sted og skifter hat. I dag kræver det to auth-brugere, fordi rollen udledes af datastrukturen.</p>
@@ -606,6 +696,7 @@
     <div class="card decision new" data-status="beslutning" data-spor="5" data-rammer="medlem">
       <h3>EPIC: opgave-modellen, Milestones og refleksionen — én samtale</h3>
       <p>Årsagen er modellens eget design: <code>generate-weekly-focus</code> skriver op til TRE forslag pr. virksomhed hver mandag; «Dine aftaler» viser ÉT ad gangen; ingen får besked om et nyt forslag. <strong>Fire spørgsmål:</strong> (1) Skal der foreslås færre, eller vises flere? (2) Skal et nyt forslag give besked? (3) Milestones og <code>company_actions</code> er to tabeller for beslægtede ting — hvad er forskellen, og skal de forenes? (4) Refleksionens tre spørgsmål — formen er ikke problemet (20 af 24 udfylder alle tre). Menuen har stadig et Milestones-punkt; Jonas 4/9: «den funktion skal vi have fundet ud af hvordan vi gør langt mere nyttig og brugbar».</p>
+      <p>Tre fodnoter lagt herind fra egne kort (10/9 sent): <strong>Medlemmets opgaveflade</strong> findes («Dine aftaler», ét forslag ad gangen siden #740, udskydelse og lukning bygget, tjeklisten følger medlemmet #800) — ÉN aktiv opgave i prod 7/9; hvad den skal vise og hvor mange, er spørgsmål 1. <strong>Navnet «Milepæle»</strong>: 102 stykker, 8 fuldført, ingen ny i 53 dage; menuen siger i øvrigt «Milestones» (<code>HbSidebar.tsx:37</code>); «Dine skridt» var forslaget — følger spørgsmål 3. <strong>Under ti procent svarer</strong> (målt 7/9: 97 forslag, 10 gjorte, 63 udløbne, 7 afviste, 1 aktiv) — produktspørgsmålet bag 1 og 2. Målt 10/9 aften: aktive opgaver over frist = 0.</p>
       <div class="meta"><span class="tag ny">Ny 4/9</span><span class="tag gold">Beslutning</span><span class="tag size">Stor</span></div>
     </div>
     <div class="card blocked" data-status="beslutning" data-spor="5" data-rammer="raadgiver">
@@ -613,20 +704,11 @@
       <p>Hvad sker der når den samme opgave foreslås to gange? Uden svar kan hverken agenten eller rådgiveren oprette en opgave gennem godkendelseslaget. Hører til epic'et ovenfor.</p>
       <div class="meta"><span class="tag">Rettet 4/9</span><span class="tag gold">Beslutning</span><span class="tag rust">Blokerer agenten</span></div>
     </div>
-    <div class="card" data-status="mangler" data-spor="5" data-rammer="raadgiver">
-      <h3>Agentens forslagsrum er større end godkendelseslagets</h3>
-      <p>Agenten foreslår opgaver rådgiveren kun kan forkaste — de fem ikke-idempotente værktøjer har ingen besluttet gentagelses-semantik. En revne der vokser: jo bedre agenten bliver, jo flere forslag lander uden for laget. Målt i prod 6/9: kortet «Halvdelen af agentforslagene kan kun forkastes» nedenfor.</p>
-      <div class="meta"><span class="tag rust">Vokser</span><span class="tag size">Mellem</span></div>
-    </div>
     <div class="card decision new" data-status="beslutning" data-spor="5" data-rammer="raadgiver">
       <h3>Halvdelen af agentforslagene kan kun forkastes</h3>
       <p>Godkendelseslaget understøtter ét værktøj, <code>update_weekly_focus</code>. Målt i prod 6/9 kl. 22:18: otte uafgjorte forslag (Topix 6, remm. 2, alle fra tørkørsler 25/8) — fire <code>update_weekly_focus</code> kan godkendes, fire kan KUN kastes væk: tre <code>write_session_prep</code>, ét <code>write_company_action</code>. Forsidens linje lover «din afgørelse» om noget hvor den ene mulighed ikke findes. Bemærk: <code>write_session_prep</code> stod ikke i SKRIVE_TOOLS-listen i <code>recon-agentens-skrivninger.md</code> — værktøjssættet har ændret sig siden 25/8, eller listen var ufuldstændig; ikke afklaret. Beslutningen er epic'ets: hvilke værktøjer skal kunne godkendes, og hvad linjen må love.</p>
+      <p>Ind fra eget kort (10/9 sent): «revnen vokser» holdt ikke — <code>run-weekly-agent</code> har ALDRIG kørt (agent_runs målt 10/9 aften: kun report_committed, anomaly_detected og company_review, sidstnævnte stoppet 25/8), og <code>run-company-agent</code> kører kun ved onboarding/rapport med <code>dry_run: true</code>. Forslagsrummet er større end laget (<code>forslagFlade.ts:12-17</code>, kun <code>update_weekly_focus</code> kan godkendes), men det vokser ikke af sig selv.</p>
       <div class="meta"><span class="tag ny">Ny 6/9</span><span class="tag gold">Beslutning</span><span class="tag size">Mellem</span></div>
-    </div>
-    <div class="card" data-status="mangler" data-spor="5" data-rammer="medlem">
-      <h3>Medlemmets opgaveflade — bygget, men ubrugt</h3>
-      <p>«Dine aftaler» på forsiden findes: ét forslag ad gangen — siden #740 (8/9) med afsender, dato, «1 af N» og udløb ved syv dage — accept hvor medlemmet sætter datoen (B6). Udskydelse (<code>deferral_count</code>, højst to) og lukning med udfald er bygget, men har formentlig aldrig været i brug — der er ÉN aktiv opgave i prod (Topix, 31/8). Hvad fladen skal vise og hvor mange, afgøres i epic'et.</p>
-      <div class="meta"><span class="tag">Rettet 4/9</span><span class="tag size">Stor</span></div>
     </div>
     <div class="card" data-status="mangler" data-spor="5" data-rammer="medlem">
       <h3>Refleksionens udgang</h3>
@@ -638,19 +720,10 @@
       <p>Engangsflade hvor hver virksomhed får sine aktive milepæle præsenteret som forslag, plus datamigrering af 70 rækker. Afhænger af epic'ets spørgsmål 3: skal Milestones og <code>company_actions</code> forenes? Udtrykket på <code>/milestones</code> er Hjemmebane siden 4/9; det er funktionen der venter.</p>
       <div class="meta"><span class="tag">Rettet 4/9</span><span class="tag size">Mellem</span></div>
     </div>
-    <div class="card decision" data-status="beslutning" data-spor="5" data-rammer="medlem">
-      <h3>Navnet</h3>
-      <p>«Milepæle» passer ikke — 102 stykker, 8 fuldført, ingen ny i 53 dage. «Dine skridt» var forslaget. Ikke afgjort.</p>
-      <div class="meta"><span class="tag gold">Beslutning</span></div>
-    </div>
-    <div class="card" data-status="mangler" data-spor="5" data-rammer="medlem">
-      <h3>Fokuskortet fører ingen steder</h3>
-      <p>Ugefokus har <code>ctaHref: "/"</code> (<code>nextStep.ts:313</code>, grep 4/9). Opgave-modellens flade er aftageren.</p>
-      <div class="meta"><span class="tag size">Mellem</span></div>
-    </div>
     <div class="card decision new" data-status="beslutning" data-spor="5" data-rammer="medlem">
       <h3>Ugens fokus optager en plads i «næste skridt» og peger på sig selv — afgør om slot (d) skal findes</h3>
       <p>Punktet «Ugens fokus er klar» (<code>nextStep.ts:306-315</code>, prioritet 4, href <code>/</code>) står blandt kortets fire pladser så længe <code>!seen</code> — og <code>seen</code> kan aldrig blive sandt: <code>weekly_focus</code> har ingen UPDATE-policy for nogen bruger (<code>20260329190316:121-132</code>), forsidens <code>markSeen</code> (<code>BoardroomView:1953</code>) rammer nul rækker uden at læse fejlen, 144 rækker med <code>seen_at</code> null. Det gamle kort («dødt felt») ville gøre feltet skrivbart. <strong>Det bedste i dag er en beslutning:</strong> resuméet vises i kortet under alle omstændigheder, så punktet peger på sig selv og bruger en plads det der faktisk kræver noget (rapport, puls, besked, milepæl) kunne have haft. Slot (d) UD og et lille «nyt denne uge»-mærke på resuméet (én gren i <code>nextStep.ts</code>, ét mærke, én test) gør både RPC og policy unødvendige. Kræver prod før dommen: <code>SELECT week_key, count(*), count(seen_at) FROM weekly_focus GROUP BY 1 ORDER BY 1 DESC LIMIT 6;</code></p>
+      <p><strong>Målt i prod 10/9 aften:</strong> <code>seen_at</code> er sat på 0 af 133 rækker over seks uger — mekanikken er død, dommen står.</p>
       <div class="meta"><span class="tag ny">Ny 10/9</span><span class="tag gold">Beslutning</span><span class="tag size">Lille</span></div>
     </div>
     <div class="card decision new" data-status="beslutning" data-spor="senere" data-rammer="raadgiver">
@@ -659,19 +732,10 @@
       <div class="meta"><span class="tag ny">Ny 4/9 som kort</span><span class="tag gold">Beslutning</span></div>
     </div>
     <div class="card decision new" data-status="beslutning" data-spor="5" data-rammer="medlem">
-      <h3>Under ti procent af opgaveforslagene bliver besvaret</h3>
-      <p>Målt i prod 7/9 kl. 12:40: <strong>97 forslag i alt, 10 gjorte, 63 udløbne, 7 afviste, 1 aktiv.</strong> Medlemmerne svarer på under ti procent af det systemet foreslår. Ikke en fejl i koden — udløbs-cron'en virker (de 31 «hængende» 7/9 udløb kl. 06:00 og ryddes kl. 04:00 næste nat) — men et produktspørgsmål: skal der foreslås færre, vises flere, gives besked, eller er formen forkert? Hører i epic'et øverst i afsnittet, ikke ved siden af (OVERLEVERING DEL 2 «Opgave-modellen», DEL 3 «EPIC, én samtale»).</p>
-      <div class="meta"><span class="tag ny">Ny 7/9</span><span class="tag gold">Beslutning</span><span class="tag rust">Under 10 %</span><span class="tag size">Stor</span></div>
-    </div>
-    <div class="card decision new" data-status="beslutning" data-spor="5" data-rammer="medlem">
       <h3>Agenten laver seks forslag om ugen som ingen svarer på</h3>
       <p>Målt 8/9 kl. 13:05: tolv virksomheder har 61 ventende forslag, 29 udløber inden for syv dage, næsten alle oprettet 31/8, seks til hver. Reconen (<code>~/Downloads/recon-agentens-forslag.md</code>): to AI-skrivere — ugens fokus skriver op til TRE pr. virksomhed hver mandag kl. 06 UTC for ALLE virksomheder med <code>weekly_focus_enabled</code> (default true), plus ved hver rapport-godkendelse; agenten ét pr. rapport-godkendelse og anomali. Ingen gate på friske tal — stilstands-triggers (milepæl uden bevægelse, ingen rapport i 60 dage, handout ubesvaret) udløser forslag i sig selv. <strong>Ingen af dem læser svarene</strong> (hverken ugefokus eller agenten har et tool der læser <code>company_actions</code>), og ingen dedup på titel: et afvist forslag kan komme igen næste mandag. «Seks på én dag» kan koden ikke forklare (3 pr. uge pr. kilde) — kræver prod. Udløbne bliver <code>expired</code> uden besked til nogen. Skal der foreslås færre, læses svar, eller slukkes for virksomheder uden tal? Hører i epic'et øverst.</p>
+      <p><strong>Målt i prod 10/9 aften:</strong> udløbs-cronen (#800) ville lukke 4 agentforslag, ikke 63 — ophobningen er stoppet af gaten 8/9 (ét ventende forslag holder maskinen tilbage); resten er dedup (gentagelses-semantikken) og læsning af svar.</p>
       <div class="meta"><span class="tag ny">Ny 8/9</span><span class="tag gold">Beslutning</span><span class="tag rust">61 venter</span><span class="tag size">Mellem</span></div>
-    </div>
-    <div class="card new" data-status="mangler" data-spor="5" data-rammer="ingen">
-      <h3>Tre udløbsformer i huset</h3>
-      <p>Målt 7/9, som fund: <strong>agentforslag</strong> udløber på en KALENDERUGE (#688, <code>afgoerForslagsgyldighed</code>: samme ISO-uge som nu) — dømt i kode, ikke bogført i databasen. <strong>Opgaveforslag</strong> (<code>company_actions</code>, <code>proposed</code>) udløber på et TIDSSTEMPEL 14–30 dage efter oprettelsen alt efter kilde (<code>beregnUdloeb</code>: advisor 30, reflection 21, ai_weekly/agent 14) — dømt både i kode (<code>erUdloebet</code>, <code>filtrerUdloebneForslag</code>) og af cron'en <code>opgave-udloeb</code> kl. 04:00, bogført som <code>expired</code>. <strong>Aktive opgaver</strong> udløber på INGENTING (kortet ovenfor). Tidszonen følger med: uge og dag dømmes på lokale komponenter, tidsstemplet i UTC. Dertil en skævhed i den midterste: et <code>ai_weekly</code>-forslag fødes kl. 06 og ryddes kl. 04, så det lever 14 dage plus 20 timer — «forslag lever fjorten dage» er ikke sandt, hvis det nogensinde skrives på en flade. Hører til epic'et (OVERLEVERING DEL 2 «Opgave-modellen», DEL 4).</p>
-      <div class="meta"><span class="tag ny">Ny 7/9</span><span class="tag">Tre former, én model</span><span class="tag size">Mellem</span></div>
     </div>
   </div>
   </section>
@@ -697,11 +761,6 @@
       <p>Episoder kommer fra RSS og har hverken intern rute eller stabil nøgle.</p>
       <div class="meta"><span class="tag size">Mellem</span></div>
     </div>
-    <div class="card" data-status="mangler" data-spor="senere" data-rammer="ingen">
-      <h3>Forældreløse billeder og filer</h3>
-      <p>Uploades noget uden at opslaget sendes, bliver filen liggende.</p>
-      <div class="meta"><span class="tag size">Lille</span></div>
-    </div>
     <div class="card new" data-status="mangler" data-spor="4" data-rammer="medlem">
       <h3>Events har ingen lokation</h3>
       <p><code>events</code> har ingen lokationskolonne (capacity, description, ends_at, kind, meet_url, recording_item_id, starts_at, status, title); i dag står der kun «Online» når der er et Meet-link. Et fysisk event kan ikke sige hvor. Kræver kolonne, editorfelt, eventsiden og kalenderfilens LOCATION (<code>lib/kalenderfil.ts</code>, #788). <strong>Bekræftelsesmailen ved tilmelding er taget ud 10/9</strong> — se OVERLEVERING «10. september, nat».</p>
@@ -710,12 +769,8 @@
     <div class="card new" data-status="ide" data-spor="senere" data-rammer="medlem">
       <h3>Community: tre løse ender</h3>
       <p>Reaktionsknappen findes kun inde i tråden (<code>CommunityTraadView:402</code>) — ingen like fra feed eller forside; den letteste interaktion kræver et klik ind. Svar udløser ingen mail til andre end de nævnte (<code>notify-community-svar</code> findes, in-app til forfatteren). Og nudging generelt er ikke afdækket — Jonas spurgte 3/9. Ingen af de tre er besluttet.</p>
+      <p>To idéer mere samlet her (10/9 sent): <strong>nudge-formen som designdokument</strong> — hvornår platformen skubber og hvordan; bemærk at klokken (#790), mailmotorens 15-minutters-regel og aldersgrænsen (12 t) ER formen i praksis nu, så dokumentet ville beskrive noget der findes. Og <strong>top posts, rating efter modul, ugens nyheder</strong> — <code>community_reaktioner</code> og <code>community_visninger</code> findes, så «top posts» er én query; rating i Akademiet og auto-tråd er nye ting. Ingen af de fem er besluttet.</p>
       <div class="meta"><span class="tag ny">Ny 4/9</span><span class="tag size">Lille</span></div>
-    </div>
-    <div class="card new" data-status="ide" data-spor="senere" data-rammer="medlem">
-      <h3>Nudge-formen som designdokument</h3>
-      <p>Community-opdagelsen blev løst 3/9 uden om nudge-formen, fordi mailkæden fandtes. Formen selv — hvornår platformen skubber, og hvordan — har intet dokument.</p>
-      <div class="meta"><span class="tag ny">Ny 4/9 som kort</span></div>
     </div>
     <div class="card" data-status="ide" data-spor="7" data-rammer="ingen">
       <h3>Medlemmer der anbefaler medlemmer</h3>
@@ -726,11 +781,6 @@
       <h3>Gamification</h3>
       <p>Selv-rettet progression, dig mod gennemsnittet, aggregeret social proof. Kræver et ærligt grundlag: først når opgave-modellen kan fortælle forskel på gjort, droppet og ikke nået, er der noget rigtigt at måle.</p>
       <div class="meta"><span class="tag ny">Ny 4/9 som kort</span><span class="tag size">Stor</span></div>
-    </div>
-    <div class="card new" data-status="ide" data-spor="7" data-rammer="medlem">
-      <h3>Top posts, rating efter modul, ugens nyheder</h3>
-      <p>Top posts og highlights i Community. Rating efter modul i Akademiet. Ugens nyheder med auto-tråd.</p>
-      <div class="meta"><span class="tag ny">Ny 4/9 som kort</span><span class="tag size">Mellem</span></div>
     </div>
     <div class="card" data-status="ide" data-spor="senere" data-rammer="ingen">
       <h3>Peer-matching i Netværket</h3>
@@ -771,11 +821,6 @@
       <div class="meta"><span class="tag ny">Ny 4/9</span><span class="tag gold">Beslutning</span><span class="tag size">Lille</span></div>
     </div>
     <div class="card new" data-status="mangler" data-spor="6" data-rammer="raadgiver">
-      <h3>Ingen af de otte admin-sider er set på skærm</h3>
-      <p>#645 Legat, #646 e-mail-log, #647 Review Queue, #648 Platformconfig, #649 Import, #651 Feedback, #653 ReportDebug, #654 EmailTemplates — typecheck og tests var grønne for hver. Beviset er Update og et klik på hver.</p>
-      <div class="meta"><span class="tag ny">Ny 4/9</span><span class="tag">Bevis</span><span class="tag size">Lille</span></div>
-    </div>
-    <div class="card new" data-status="mangler" data-spor="6" data-rammer="raadgiver">
       <h3>Forsidens dom mangler de to AI-baserede slags</h3>
       <p><code>src/lib/forsidensDom.ts</code> dømmer seks af otte slags. «Rapporteringsfejl» og «refleksion der beder om akut hjælp» (§8's AI-læsning i <code>docs/forsiden-design.md</code>) har plads i typen, men ingen implementering — låst af en test, så de ikke glider ind uden en beslutning. Alvor for de nye slags skal tildeles (§12).</p>
       <div class="meta"><span class="tag ny">Ny 4/9</span><span class="tag size">Mellem</span></div>
@@ -788,37 +833,19 @@
     <div class="card blocked new" data-status="fejl" data-spor="6" data-rammer="raadgiver">
       <h3>«Fjern medlem» sletter mennesket — skil fjernelse fra sletning</h3>
       <p>Knappen (<code>VirksomhedView:1385</code>, og <code>Members.tsx:687</code>) kalder <code>manage-advisor</code> remove-member: DELETE <code>company_members</code>, DELETE <code>profiles</code>, <code>auth.admin.deleteUser</code> — og auth-sletningen KASKADERER: personens beskeder forsvinder, er personen den samtalen er hængt op på (<code>conversations.member_id</code>) forsvinder hele samtalen med rådgiverens svar, og findes der godkendte tal fra personens rapporter, fejler <code>auth.users</code>-sletningen på FK (<code>financial_report_facts.source_report_id</code> uden ON DELETE) — EFTER <code>company_members</code> og <code>profiles</code> er væk: en halv sletning og et 500. Det rådgiveren vil 9 af 10 gange er «fjern fra virksomheden»: slet <code>company_members</code>-rækken, nulstil invitationen, personen beholder kontoen og lander på <code>CompanyLinkFailedGate</code>; reversibelt med en ny invitation. Knappen gør KUN det, og hedder det. Måling af halve sletninger: <code>~/Downloads/recon-de-tre-paa-ny.md</code> §5d.</p>
+      <p><strong>Målt i prod 10/9 aften:</strong> begge FK'er på <code>financial_report_facts</code> er NO ACTION (<code>confdeltype = 'a'</code>) — sletningen FEJLER frem for at kaskadere, så halvdelen er allerede sket når den fejler. #805: Morten kan også fjerne (gaten i <code>manage-advisor</code> var admin-only efter #803).</p>
       <div class="meta"><span class="tag ny">Ny 10/9</span><span class="tag">Bygges nu</span><span class="tag rust">Halv sletning mulig</span><span class="tag size">Lille</span></div>
     </div>
     <div class="card new" data-status="mangler" data-spor="senere" data-rammer="raadgiver">
       <h3>Sletning af en person har ingen vej</h3>
       <p>GDPR-anmodning eller oprydning af en konto. Skal gå den vej huset har for virksomheder (#734, <code>sletning.ts</code>): en markering, en dom med frist (7 dage), en cron med tørkørsel, og en sletning der løser kaskaderne FØRST (rapporter med godkendte tal får <code>user_id</code> flyttet til owneren eller NULL), bogført med stempel — ikke et synkront <code>auth.admin.deleteUser</code> bag en knap. <code>cleanup-shells</code> i <code>manage-advisor</code> sletter allerede forældreløse konti uden regel og uden frist. «Skift owner» hører til samme familie.</p>
+      <p>Samme familie, ind fra eget kort (10/9 sent): <strong>«Skift owner» findes ikke</strong> — <code>manage-advisor</code> har bulk-remove-members, cleanup-shells, delete-company, fjern-fra-virksomhed, remove-member, invite, remove, list, toggle-admin; intet owner-skift. #799 gav owner ved FØRSTE medlem, ikke skift. Én UPDATE på to <code>company_members</code>-rækker i samme transaktion, admin-only. Lille.</p>
       <div class="meta"><span class="tag ny">Ny 10/9</span><span class="tag size">Mellem</span></div>
-    </div>
-    <div class="card new" data-status="mangler" data-spor="6" data-rammer="raadgiver">
-      <h3>«Skift owner» findes ikke som handling</h3>
-      <p>En owner kan aldrig fjernes med <code>remove-member</code> (besluttet 4/9). Skal virksomheden væk, slettes virksomheden; skal ejeren skiftes, er der ingen vej i dag.</p>
-      <div class="meta"><span class="tag ny">Ny 4/9</span><span class="tag size">Lille</span></div>
     </div>
     <div class="card" data-status="mangler" data-spor="6" data-rammer="raadgiver">
       <h3>Gamle komponenter monteret uændret på virksomhedssiden</h3>
       <p><code>AgentForslagPanel</code> (blok 1), <code>AdvisorAIChat</code> og forecast (blok 5), <code>EditCompanyDialog</code> (blok 7) og <code>HandoutDetail</code> er monteret som de var (#613, #619). <code>EditCompanyDialog</code> er en Radix-dialog og portalerer til <code>body</code> uden for <code>.theme-hjemmebane</code> (DEL 4-fælden); de tre andres udtryk er ikke målt. Det er resten af «rådgiverens redigeringsflader er urørte af Hjemmebane».</p>
       <div class="meta"><span class="tag">Rettet 4/9</span><span class="tag size">Mellem</span></div>
-    </div>
-    <div class="card new" data-status="ide" data-spor="6" data-rammer="raadgiver">
-      <h3>Sidebaren viser medlemmets navigation inde i en virksomhed</h3>
-      <p>Med et valgt medlem (company-override) viser skallen medlemmets menu; eneste vej tilbage er linjen «Du ser {virksomhed} · Tilbage til dig selv» (#573). Observation, ikke fejl — åbent punkt hvis det klemmer.</p>
-      <div class="meta"><span class="tag ny">Ny 4/9</span><span class="tag size">Lille</span></div>
-    </div>
-    <div class="card new" data-status="mangler" data-spor="senere" data-rammer="ingen">
-      <h3>Dødt kød i <code>AdvisorDashboard.tsx</code></h3>
-      <p>Filen bærer <code>hentAdvisorDashboard</code>, som forsiden bruger; dens JSX er uden aftager siden #650 (står i filhovedet). Målt 3/9 midt i en ombygning: <code>companies</code>, <code>legatCompanyIds</code>, <code>activityFeed</code>, <code>companyMap</code>, <code>recentReportsData</code> og <code>handleAssignAdvisor</code> læses ikke fra JSX. Skal efterprøves med grep FØR noget slettes.</p>
-      <div class="meta"><span class="tag ny">Ny 4/9</span><span class="tag size">Lille</span></div>
-    </div>
-    <div class="card new" data-status="ide" data-spor="senere" data-rammer="ingen">
-      <h3><code>notifications</code> har ingen advisor-policy</h3>
-      <p>Kun «Users read own notifications» (<code>user_id = auth.uid()</code>, bekræftet i prod 3/9). Afklaret 4/9 som IKKE nødvendigt for virksomhedssidens syv blokke — alle bæres af andre tabeller — og besluttet væk (§11 punkt 2). Men det er stadig sandt: medlemmets set/læst-tilstand på systembeskeder og alert-historikken med kvitteringer kan en rådgiver ikke se.</p>
-      <div class="meta"><span class="tag ny">Ny 4/9</span><span class="tag">Besluttet væk, står som sandhed</span></div>
     </div>
     <div class="card new" data-status="fejl" data-spor="6" data-rammer="raadgiver">
       <h3>Mobil: virksomhedssiden virker «uskarp»</h3>
@@ -872,6 +899,7 @@
     <div class="card new" data-status="mangler" data-spor="senere" data-rammer="ingen">
       <h3>Former der skal løftes til <code>hjemmebane/</code></h3>
       <p>Bygget undervejs 4/9 og markeret til løft: <code>HbOverlejring</code> (dialog, popover, kalender) ligger i <code>milestones/</code> fordi etape 2 ikke måtte røre andet; foldbare sektioner med JSON-blokke (ReportDebug, native <code>&lt;details&gt;</code>); faner på <code>HbSegmented</code> (EmailTemplates). Og Hb-editoren uden portaler kræver CustomLink + TextAlign + CTA-værktøj, før den gamle <code>RichTextEditor</code> kan ud.</p>
+      <p>Samme klasse, ind fra to kort (10/9 sent): <strong>align-prop på HbPopover</strong> — HbPopover er venstre-forankret til datovælgeren, så chattens ⋯-menu fik sin egen lokale HbMenu (#657, stadig i <code>CompanyChatPane.tsx</code>). Og <strong>ForfatterAvatar defineres fire steder</strong> (målt igen 10/9: MemberChatPane, CompanyChatPane, CommunityTraadView, CommunityView), relativ tid ligeså. Én PR uden funktionsændring.</p>
       <div class="meta"><span class="tag ny">Ny 4/9</span><span class="tag size">Mellem</span></div>
     </div>
     <div class="card new" data-status="fejl" data-spor="6" data-rammer="raadgiver">
@@ -891,6 +919,7 @@
     <div class="card blocked" data-status="fejl" data-spor="7" data-rammer="raadgiver">
       <h3>Fejlovervågning: vagten ser cron og kø — edge functions og webhooks er stadig ubevogtede</h3>
       <p><strong>Bygget 10/9 (#768–#777, otte versioner):</strong> <code>vagt_cron</code> er ren SQL og bruger intet af det den vagter (ingen vault-nøgle, ingen <code>net.http_post</code>). Den ser tavse cron-fejl (9/9 var vault tom i otte timer uden at nogen så det), ikke-200-svar, timeouts (også pg_nets 5-sekunders klip, som kun står i <code>error_msg</code>), en notifikationskø der er ældre end motorens længste ventetid, og «intet svar». Den skriver til <code>advisor_notifications</code>, som klokken (#790) viser med et Drift-mærke. Frontend: query- og mutationsfejl logges globalt (#702), og fladerne siger fra (#780–#782). <strong>Står:</strong> edge functions' egne fejl (en skrivning der lander forkert, en webhook der svarer 500 — Stripe gentog doggybeds event fem gange over 19 timer uden at noget sagde til) fanges stadig ikke; ingen Sentry i <code>extract-financial-data</code>.</p>
+      <p>Ind fra eget kort (10/9 sent): «ingen struktureret logning» er nu delvist falsk — vagten logger cron-udfald i <code>cron_vagt_log</code>, frontend logger fejl globalt (#702); det der mangler, er præcis edge functions' egne fejl, som dette kort bærer. Ingen edge function har Sentry (grep 10/9: 0 filer); to veje uden SDK: et try/catch-hylster der skriver til en <code>edge_fejl_log</code> vagten læser, og Stripes egen «failed webhook»-mail (dashboard-indstilling, nul kode).</p>
       <div class="meta"><span class="tag">Rettet 10/9</span><span class="tag rust">Blokerer skala</span><span class="tag size">Mellem</span></div>
     </div>
     <div class="card new" data-status="fejl" data-spor="7" data-rammer="ingen">
@@ -907,6 +936,7 @@
     <div class="card new" data-status="fejl" data-spor="3" data-rammer="ingen">
       <h3>Ugeagentens cron findes ikke i prod</h3>
       <p><code>run-weekly-agent</code> har KUN <code>Deno.cron</code> og står IKKE i prods <code>cron.job</code> (målt 6/9: ti jobs, ingen af dem den). Ugeagenten kører derfor formentlig slet ikke — ikke efterprøvet ud over <code>cron.job</code> (<code>agent_runs.trigger</code> kan svare). Og den kører LIVE når den kaldes (<code>dry_run: false</code> → <code>weekly_focus</code>, <code>company_actions</code>, <code>milestones</code>, som medlemmet ser), så at tænde den er en beslutning i opgave-epic'et, ikke en rettelse. Kun <code>generate-weekly-focus</code> (0 6 * * 1) skriver mandag.</p>
+      <p><strong>Målt i prod 10/9 aften (agent_runs.trigger):</strong> ugeagenten har ALDRIG kørt — kun report_committed, anomaly_detected og company_review, og sidstnævnte stoppede 25/8. Filen har heller ingen <code>Deno.serve</code> (grep 10/9), så den kan hverken køres af cron eller kaldes. «Kører ikke» → «har aldrig kørt»; slet eller omlæg er beslutningen.</p>
       <div class="meta"><span class="tag ny">Ny 6/9</span><span class="tag rust">Kører ikke</span><span class="tag size">Lille</span></div>
     </div>
     <div class="card new" data-status="mangler" data-spor="senere" data-rammer="ingen">
@@ -950,11 +980,6 @@
       <div class="meta"><span class="tag size">Lille</span></div>
     </div>
     <div class="card" data-status="mangler" data-spor="senere" data-rammer="ingen">
-      <h3>Ingen struktureret logning</h3>
-      <p>Supabase-loggen findes, men der er ingen fast praksis for hvad der logges, og ingen der kigger.</p>
-      <div class="meta"><span class="tag size">Lille</span></div>
-    </div>
-    <div class="card" data-status="mangler" data-spor="senere" data-rammer="ingen">
       <h3>Restore er aldrig afprøvet</h3>
       <p>En backup man ikke har prøvet at bruge, er en antagelse.</p>
       <div class="meta"><span class="tag size">Lille</span></div>
@@ -963,11 +988,6 @@
       <h3>To skrivere på ugekortet, ingen markør</h3>
       <p><code>weekly_focus</code> skrives både af mandagens cron og af et godkendt agentforslag, med samme konfliktnøgle. Rækken bærer ingen oplysning om hvem der skrev den.</p>
       <div class="meta"><span class="tag size">Lille</span></div>
-    </div>
-    <div class="card" data-status="mangler" data-spor="senere" data-rammer="ingen">
-      <h3>Fire kopier af samme komponent</h3>
-      <p><code>ForfatterAvatar</code> defineres nu fire steder (grep 4/9): <code>MemberChatPane</code>, <code>CompanyChatPane</code>, <code>CommunityTraadView</code>, <code>CommunityView</code>. Relativ tid ligeså.</p>
-      <div class="meta"><span class="tag">Rettet 4/9</span><span class="tag size">Lille</span></div>
     </div>
     <div class="card" data-status="mangler" data-spor="senere" data-rammer="ingen">
       <h3>RLS kender <code>contract_end_date</code> kun for indholdet</h3>
@@ -979,11 +999,6 @@
       <p>De nyeste er født med <code>true</code>. De ældre migreres én ad gangen.</p>
       <div class="meta"><span class="tag size">Mellem</span></div>
     </div>
-    <div class="card" data-status="mangler" data-spor="senere" data-rammer="ingen">
-      <h3>Sekvensmotoren — nu tre kopier</h3>
-      <p>Legat 14 dage, onboarding 30 dage, og siden 3/9 indgangens påmindelser dag 14/25/31 som egen pg_cron (<code>indgangs-paamindelser-cron</code>). Tre sekvenser, tre motorer. Bliver kritisk ved 100 virksomheder.</p>
-      <div class="meta"><span class="tag">Rettet 4/9</span><span class="tag size">Stor</span></div>
-    </div>
     <div class="card new" data-status="mangler" data-spor="senere" data-rammer="ingen">
       <h3><code>kr()</code> findes i tre kopier</h3>
       <p>Øre-til-kronestreng-formatteren (hele beløb uden decimaler, skæve med to — ører må ikke forsvinde) ligger i <code>MembershipExpiredGate</code>, <code>Betal.tsx</code> og fra 7/9 i fornyelsesbåndet (#691). Identiske i dag. At samle dem rører pengevejen (gaten og betalingssiden), så det er en egen lille PR, ikke et sidespring (OVERLEVERING DEL 2 «Fornyelseskæden»).</p>
@@ -992,17 +1007,14 @@
     <div class="card blocked" data-status="mangler" data-spor="senere" data-rammer="ingen">
       <h3>Amputeret beregning — et mønster</h3>
       <p>Beregnet eller bygget færdigt, aldrig koblet til en flade. <code>DashboardActionCenter</code> findes stadig i <code>src</code> og renderes ingen steder (opgave-modellens «W4»); <code>AdvisorDashboard</code>s JSX er uden aftager siden #650; <code>MembersStatsBar</code> lever kun på <code>/members</code>. Kontrollér at en beregning har en aftager, før den bygges.</p>
+      <p>Efterprøvet med grep 10/9 sent (ind fra eget kort): <code>&lt;AdvisorDashboard</code> renderes ingen steder i <code>src/</code>; kun <code>hentAdvisorDashboard</code> og <code>ADVISOR_DASHBOARD_QUERY_KEY</code> importeres (<code>RaadgiverForsideView.tsx:5</code>, <code>VirksomhedslisteView.tsx:14</code>). <code>&lt;DashboardActionCenter</code>: 0. <code>GuidedTour</code>: 0 importører. Sletteliste: DashboardActionCenter.tsx, GuidedTour.tsx, AdvisorDashboards JSX (hent-funktionen flyttes til <code>src/lib</code>) — én PR, nul risiko.</p>
       <div class="meta"><span class="tag">Rettet 4/9</span><span class="tag size">Lille</span></div>
     </div>
     <div class="card" data-status="mangler" data-spor="senere" data-rammer="ingen">
       <h3>Døde DB-kolonner fra to spor</h3>
       <p>Fra fase 0 og fra opgave-modellen. Droppes hver som sit eget spor med bevis.</p>
+      <p>Listen begynder her (ind fra tre kort 10/9 sent): <code>profiles.company_name</code> — Auth sender kun feltet ved signup uden invitation (<code>Auth.tsx:154-156</code>), som <code>handle_new_user</code> afviser; det nye indstillingsdesign (#757) har intet input; otte filer nævner navnet og skal greppes én for én før drop. <code>group_conversations</code>/<code>group_messages</code> med RLS — nul læsere i <code>src/</code> uden for <code>types.ts</code>. Og <code>app_config</code>-nøglerne branding/performance/meeting (kortet «Platformconfig: tre dele uden læser»). Beviset pr. kolonne: grep i <code>src/</code> + <code>supabase/functions/</code> = 0.</p>
       <div class="meta"><span class="tag size">Lille</span></div>
-    </div>
-    <div class="card" data-status="mangler" data-spor="senere" data-rammer="ingen">
-      <h3>Gruppechat-laget er ubrugt</h3>
-      <p><code>group_conversations</code> og <code>group_messages</code> med tilhørende RLS.</p>
-      <div class="meta"><span class="tag size">Mellem</span></div>
     </div>
     <div class="card new" data-status="mangler" data-spor="1" data-rammer="medlem">
       <h3>Onboardingens rytme er bygget — cron-jobbet er ikke planlagt</h3>
@@ -1014,19 +1026,16 @@
       <p>Fanen har fem nøgler (#773, «det koden læser», <code>indstillinger.ts:188-203</code>); Community er inde i «Opdateringer» (<code>important</code>) sammen med rådgiverens svar og event-påmindelserne — <code>send-notification-email:492-500</code> slår hele gruppen fra på én gang. <strong>Målt 10/9 kl. 20:18:</strong> NUL af 31 profiler har slået noget fra; 102 community-mails på tredive dage til 26 modtagere, cirka fire opslag om ugen til alle. Aldersgrænsen (12 t) og «set i appen» (#770) dæmper allerede. <strong>Udsat:</strong> fanen blev først brugbar i dag. Slår nogen «Opdateringer» fra, ved vi at de vil have færre mails — så er en sjette nøgle svaret (1–2 timer: nøgle + tekst i <code>EMAIL_INDSTILLINGER</code>, ét filter for <code>COMMUNITY_TRAAD_TYPES</code>). Indtil da er det en løsning på et problem ingen har. Mål igen: <code>SELECT count(*) FILTER (WHERE (notification_email_prefs-&gt;&gt;'important') = 'false') FROM profiles;</code></p>
       <div class="meta"><span class="tag">Målt 10/9</span><span class="tag gold">Udsat 10/9</span><span class="tag size">Lille</span></div>
     </div>
-    <div class="card blocked" data-status="fejl" data-spor="senere" data-rammer="ingen">
-      <h3>Ingen hastighedsbegrænsning målt på <code>opret-indgangs-checkout</code></h3>
-      <p>Funktionen har <code>verify_jwt = false</code> og kan nås af hvem som helst. Tokenet er 122 bits og kan ikke gættes, men hvert forsøg koster et databasekald. Om Supabase begrænser edge-funktioner er IKKE undersøgt.</p>
-      <div class="meta"><span class="tag rust">Ikke målt</span><span class="tag size">Lille</span></div>
-    </div>
     <div class="card" data-status="mangler" data-spor="senere" data-rammer="ingen">
       <h3>Tre migrationer fra #801 skal køres i prod</h3>
       <p><strong>Rettet 10/9 i kode (#801), kørsel udestår:</strong> <code>20260911020000_messages_delete_15min.sql</code> (sletning får samme grænse som redigering — ERSTATTER de to overlappende DELETE-policies), <code>20260911030000_feedback_bucket_mappetjek.sql</code> (mappetjek på <code>auth.uid()</code>, 5 MB, <code>image/*</code>) og <code>20260911040000_companies_status_check.sql</code> (<code>CHECK (status IN ('active','tidligere'))</code> + <code>NOT NULL</code>; målt 10/9 kl. 19:40: 30/8, ingen NULL). Klienten spejler sletteregelen allerede (<code>src/lib/beskedRegler.ts</code>), så knappen forsvinder før databasen siger nej. Beviset er hver fils SELECT nederst — indtil da står de gamle policies i prod.</p>
+      <p><strong>Målt i prod 10/9 aften:</strong> <code>companies.status</code> er kun active (30) og tidligere (8), ingen NULL; <code>messages</code> har to DELETE-policies med 15-minutters-reglen.</p>
       <div class="meta"><span class="tag">Rettet 10/9</span><span class="tag size">Lille</span></div>
     </div>
     <div class="card decision new" data-status="beslutning" data-spor="senere" data-rammer="ingen">
       <h3>Ingen opbevaringspolitik</h3>
       <p>Nul træffere på gdpr, retention og anonymisering i hele kodebasen (kode, migrationer, CLAUDE.md, SECURITY_BASELINE). Én cron sletter noget efter tid: <code>agent-runs-opbevaring</code> (reasoning efter 90 dage, kørsler efter 12 måneder). <code>purge_old_email_log</code> findes som handling i <code>admin-cleanup-test-data</code> (14 dage) men kaldes af ingen. <strong>Rettet 8/9:</strong> de otte tidligere er slettet (OVERLEVERING DEL 2 «De otte tidligere»), og slettefunktionen dømmer fremadrettet — anmodning efter 7 dage, udløbet inden for ordningen dag 45. Det der er tilbage er REGLEN for alt det andet: hvor længe beholder vi loginposter med IP, chat, rapporter og filer for et AKTIVT medlem, hvad er bilag (fem år) mod persondata, og hvad gælder imellem slutdato og dag 45, hvor et udløbet medlem stadig kan logge ind på sine gamle data (Coskun 17/8, tre måneder efter slut). Beslutning før kode (<code>~/Downloads/recon-tidligere-medlemmers-data.md</code> §1, §5).</p>
+      <p>Én række mere til politikken (ind fra eget kort 10/9 sent): <strong>forældreløse billeder og filer</strong> — uploades noget i Community uden at opslaget sendes, bliver filen liggende (<code>communityUpload.ts</code>, ingen oprydning); «filer uden opslag slettes efter N dage» er en linje her og en cron af samme form som <code>slet-medlemsdata-cron</code>.</p>
       <div class="meta"><span class="tag ny">Ny 8/9</span><span class="tag gold">Beslutning</span></div>
     </div>
   </div>
