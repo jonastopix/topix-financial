@@ -5,6 +5,12 @@
  * Sends each founder a summary: KPI movement, upcoming milestones, unread advisor messages.
  * Milepæle (8/9): kommende OG forfaldne, dømt af _shared/milepaelDom gennem
  * _shared/digestMilepaele — se dennes filhoved for beslutningerne.
+ *
+ * Gaten (10/9, _shared/digestGate.ts): cronen sender kun på DIGEST_DAG (22.);
+ * admin-knappen tester til én adresse som standard og sender kun til alle
+ * ved eksplicit { send_til_alle: true }. Hver rigtig mail bærer nøglen
+ * monthly-digest:<YYYY-MM>:<userId>, og dedup'en i email_send_log er pr.
+ * MÅNED (ikke pr. dag) og ser bort fra testmails.
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
@@ -22,6 +28,7 @@ import { bulletproofButton, fallbackLinkBlock } from "../_shared/emailButtonHelp
 import { computeMembershipTier } from "../_shared/membershipTier.ts";
 import { sendManagedEmail, SENDER_FROM } from "../_shared/managedEmail.ts";
 import { digestMilepaeleTekst, udvaelgDigestMilepaele, type DigestMilepael } from "../_shared/digestMilepaele.ts";
+import { afgoerDigestKald, digestNoegle, digestPeriode, maanedensStart } from "../_shared/digestGate.ts";
 
 function buildEmailHtml(title: string, body: string, deepLink: string, ctaLabel?: string, eyebrow?: string, highlight?: string): string {
   const fullUrl = `${APP_URL}${deepLink}`;
@@ -89,19 +96,23 @@ Deno.serve(async (req) => {
     if (auth instanceof Response) return auth;
     const { callerId, callerClient } = auth;
 
-    // Verify caller is admin or advisor
-    const { data: roleRow } = await callerClient
+    // Verify caller is admin or advisor.
+    // Rettet 10/9 (rolletjek-buggen): en bruger med BÅDE admin og advisor gav
+    // to rækker, .maybeSingle() fejlede og `const { data }` slugte det — en
+    // admin fik 403 af sin egen rolle. Højst én række; opslagsfejl er 500.
+    const { data: roleRows, error: roleError } = await callerClient
       .from("user_roles")
       .select("role")
       .eq("user_id", callerId)
       .in("role", ["admin", "advisor"])
-      .maybeSingle();
+      .limit(1);
 
-    if (!roleRow) {
-      return new Response(JSON.stringify({ error: "Forbidden" }), {
-        status: 403,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+    if (roleError) {
+      console.error("[send-monthly-digest] rolleopslag fejlede:", roleError.message);
+      return json({ error: "Rolleopslag fejlede" }, 500);
+    }
+    if (!roleRows?.length) {
+      return json({ error: "Forbidden" }, 403);
     }
   }
 
@@ -109,14 +120,31 @@ Deno.serve(async (req) => {
   const svcKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   const adminClient = createClient(supabaseUrl, svcKey);
 
-  // Allow manual override: POST body may contain { company_ids: string[] }
-  let targetCompanyIds: string[] | null = null;
+  // Body: { company_ids?: string[], test_email?: string, send_til_alle?: true }
+  let body: Record<string, unknown> = {};
   try {
-    const body = await req.json().catch(() => ({}));
-    if (Array.isArray(body?.company_ids) && body.company_ids.length > 0) {
-      targetCompanyIds = body.company_ids;
-    }
-  } catch { /* ignore */ }
+    const parsed = await req.json().catch(() => ({}));
+    if (parsed && typeof parsed === "object") body = parsed as Record<string, unknown>;
+  } catch { /* ingen body */ }
+
+  let targetCompanyIds: string[] | null = null;
+  if (Array.isArray(body.company_ids) && body.company_ids.length > 0) {
+    targetCompanyIds = body.company_ids as string[];
+  }
+
+  // ── Gaten (10/9): hvem kalder, hvilken dag, til hvem ──
+  const now = new Date();
+  const dom = afgoerDigestKald({ kaldtAf: isServiceRole ? "cron" : "admin", body, now });
+  if (dom.tilstand === "cron_ikke_digestdag") {
+    console.log(`[digest] cron kaldt den ${dom.dag}. — ikke digestdag, intet sendt`);
+    return json({ ok: true, tilstand: dom.tilstand, dag: dom.dag, sent: 0 });
+  }
+  if (dom.tilstand === "admin_afvist") {
+    return json({ error: dom.grund, tilstand: dom.tilstand }, 400);
+  }
+  const testEmail = dom.tilstand === "admin_test" ? dom.testEmail : null;
+  const periode = digestPeriode(now);
+  console.log(`[digest] tilstand=${dom.tilstand} periode=${periode}${testEmail ? " (test)" : ""}`);
 
   // Fetch all company members
   const { data: members } = await adminClient
@@ -137,7 +165,7 @@ Deno.serve(async (req) => {
   );
 
   if (!members?.length) {
-    return json({ ok: true, sent: 0 });
+    return json({ ok: true, tilstand: dom.tilstand, sent: 0, skipped_dedup: 0 });
   }
 
   // Deduplicate: one digest per company (first member = owner)
@@ -156,7 +184,7 @@ Deno.serve(async (req) => {
   const advisorIds = new Set((roleRows || []).map((r: { user_id: string }) => r.user_id));
 
   let sent = 0;
-  const now = new Date();
+  let skippedDedup = 0;
   const currentMonthLabel = `${DANISH_MONTHS[now.getMonth()]} ${now.getFullYear()}`;
 
   for (const [companyId, userId] of companyToUser) {
@@ -169,19 +197,32 @@ Deno.serve(async (req) => {
     const email = userData?.user?.email;
     if (!email) continue;
 
-    // Dedup: skip if we already sent a digest to this email today
-    const todayStart = new Date();
-    todayStart.setHours(0, 0, 0, 0);
-    const { data: alreadySent } = await adminClient
-      .from("email_send_log")
-      .select("id")
-      .eq("recipient_email", email)
-      .eq("template_name", "monthly-digest")
-      .gte("created_at", todayStart.toISOString())
-      .maybeSingle();
-    if (alreadySent) {
-      console.log(`[digest] Already sent to ${email} today, skipping`);
-      continue;
+    // Dedup pr. MÅNED (10/9): før var vinduet «i dag», så et klik på
+    // admin-knappen den 23. sendte alle en dublet af den 22.'s digest.
+    // Testmails (is_test) tæller ikke — de går til admin selv. Og
+    // .maybeSingle() er væk: to rækker gav en fejl, `data` null, og
+    // dedup'en sagde «ikke sendt» netop når der var sendt mest.
+    if (!testEmail) {
+      const { data: alreadySent, error: dedupError } = await adminClient
+        .from("email_send_log")
+        .select("id")
+        .eq("recipient_email", email)
+        .eq("template_name", "monthly-digest")
+        .not("is_test", "is", true)
+        .gte("created_at", maanedensStart(now).toISOString())
+        .limit(1);
+      if (dedupError) {
+        // Kan vi ikke læse loggen, sender vi ikke — hellere en manglende
+        // digest end en dublet til hele medlemsbasen.
+        console.error(`[digest] dedup-opslag fejlede for ${userId}: ${dedupError.message} — springer over`);
+        skippedDedup++;
+        continue;
+      }
+      if (alreadySent?.length) {
+        console.log(`[digest] Already sent to user ${userId} in ${periode}, skipping`);
+        skippedDedup++;
+        continue;
+      }
     }
 
     const { data: profile } = await adminClient
@@ -311,14 +352,19 @@ Deno.serve(async (req) => {
 
     const subject = `Dit ${currentMonthLabel}-overblik`;
 
+    // Test: mailen går til admin selv, mærket is_test, uden månedsnøgle —
+    // så testen hverken bruger medlemmets nøgle eller tæller i dedup'en.
     const resultat = await sendManagedEmail({
       adminClient: adminClient,
-      to: email,
+      to: testEmail ?? email,
       from: FROM,
-      subject,
+      subject: testEmail ? `[TEST] ${subject}` : subject,
       html,
       text: subject,
       label: "monthly-digest",
+      idempotencyKey: testEmail ? undefined : digestNoegle(periode, userId),
+      isTest: Boolean(testEmail),
+      metadata: { periode, company_id: companyId, test: Boolean(testEmail) },
     });
 
     if (!resultat.sent) {
@@ -327,8 +373,10 @@ Deno.serve(async (req) => {
     }
 
     sent++;
+    // Én test er nok: første virksomhed med indhold, så stopper vi.
+    if (testEmail) break;
   }
 
-  console.log(`[send-monthly-digest] Sent: ${sent}`);
-  return json({ ok: true, sent });
+  console.log(`[send-monthly-digest] tilstand=${dom.tilstand} sent=${sent} skipped_dedup=${skippedDedup}`);
+  return json({ ok: true, tilstand: dom.tilstand, periode, sent, skipped_dedup: skippedDedup, test_email: testEmail ?? undefined });
 });
