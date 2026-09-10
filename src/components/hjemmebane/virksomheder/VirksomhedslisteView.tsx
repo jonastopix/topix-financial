@@ -13,6 +13,9 @@ import { dageSiden, erLaengeSiden, senesteAf, sidstOnlineTekst } from "@/lib/sid
 import { ADVISOR_DASHBOARD_QUERY_KEY, hentAdvisorDashboard } from "@/components/AdvisorDashboard";
 import { GRUND_PARAM, VIRKSOMHEDER_STI, filterOverskrift, laesGrundParam, laesPulsParam, pulsOverskrift, virksomhederForGrund, virksomhederForPuls } from "@/lib/hjemmebane/forsideLinks";
 import { PULS_PARAM } from "@/lib/pulsen";
+import {
+  BRANCHE_PARAM, brancheOverskrift, brancherAf, filtrerPaaBranche, findSortering, laesBrancheParam, listeSti, SORTERINGER, sorterRaekker, STANDARD_SORTERING, tomBrancheTekst,
+} from "@/lib/hjemmebane/branchefilter";
 import { HbTag } from "../HbTag";
 import { HbInvitationer } from "./HbInvitationer";
 import { hbControlClasses } from "../admin/HbField";
@@ -60,6 +63,12 @@ import { cn } from "@/lib/utils";
  * dom via samme hentning og cache-nøgle og filtrerer på de id'er
  * tilstandslinjen bærer. Overskriften siger hvad der vises, og «Vis alle»
  * er vejen tilbage. Ukendt eller manglende parameter → listen som før.
+ *
+ * ?branche=<label> (10/9, flyttet fra /members): listens eget filter, ved
+ * SIDEN af grund/puls og søgningen — «tavse virksomheder inden for
+ * detailhandel» er ?grund=tavshed&branche=Detailhandel. Værdierne er de
+ * brancher der faktisk står på listen (lib/hjemmebane/branchefilter.ts).
+ * Sortering på navn, sidste kontakt og sidste rapportering er lokal state.
  */
 
 type Raekke = {
@@ -84,6 +93,8 @@ type Raekke = {
   sidstOnlineDage: number | null;
   /** Seneste committede periode (label, ellers nøgle); null = ingen facts. */
   sidsteRapportering: string | null;
+  /** Samme periode som nøgle ("YYYY-MM", sorterer leksikalt) — til sorteringen. */
+  sidsteRapporteringKey: string | null;
   fejledeTraek: FejletTraek[];
 };
 
@@ -233,6 +244,7 @@ async function hentVirksomhedsliste(): Promise<Raekke[]> {
           ? Math.floor((nu - new Date(sidsteBesked).getTime()) / MS_PER_DOEGN)
           : null,
         sidsteRapportering: sidsteFactByCompany.get(c.id)?.label ?? null,
+        sidsteRapporteringKey: sidsteFactByCompany.get(c.id)?.key ?? null,
         sidstOnlineDage: dageSiden(sidstOnlineByCompany.get(c.id) ?? null, nuDato),
         fejledeTraek: fejledeTraekByCompany.get(c.id) ?? [],
       };
@@ -332,7 +344,7 @@ const RaekkeSkelet = () => (
 export const VirksomhedslisteView = () => {
   const { user, isAdvisor } = useAuth();
   const [query, setQuery] = useState("");
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   // Forsidens grund (?grund=tavshed …) — kun de slags der kan blive en
   // samlet linje; alt andet ignoreres stille (laesGrundParam).
   const grund = laesGrundParam(searchParams.get(GRUND_PARAM));
@@ -340,6 +352,18 @@ export const VirksomhedslisteView = () => {
   // tilstandslinje — pulsen måler porteføljen (14), dommen fladen (12).
   const puls = grund ? null : laesPulsParam(searchParams.get(PULS_PARAM));
   const harUdsnit = grund !== null || puls !== null;
+  // Branchen (?branche=, 10/9) — ved siden af de andre, ikke ovenpå: den
+  // filtrerer det udsnittet/søgningen har givet. Skrives med replace, så et
+  // klik i filtret ikke bliver en historik-post; «Fjern branche» beholder
+  // grund/puls (listeSti), «Vis alle» rydder alt.
+  const branche = laesBrancheParam(searchParams.get(BRANCHE_PARAM));
+  const saetBranche = (ny: string | null) => {
+    const next = new URLSearchParams(searchParams);
+    if (ny) next.set(BRANCHE_PARAM, ny); else next.delete(BRANCHE_PARAM);
+    setSearchParams(next, { replace: true });
+  };
+  const [sorteringId, setSorteringId] = useState(STANDARD_SORTERING.id);
+  const sortering = findSortering(sorteringId);
 
   const listeQuery = useQuery({
     queryKey: ["virksomhedsliste"],
@@ -387,6 +411,18 @@ export const VirksomhedslisteView = () => {
     }
     return resultat.filter((r) => matcher(r, query));
   }, [alle, query, soeger, harUdsnit, udsnit]);
+  // Brancherne tælles på det der er synligt FØR branchefiltret (udsnit +
+  // søgning), så «Detailhandel (4)» er de fire man får ved at vælge den.
+  // Den valgte branche står med, også når den giver nul — ellers kan
+  // select'en ikke vise hvad der er valgt.
+  const brancher = useMemo(() => {
+    const b = brancherAf(filtreret);
+    return branche && !b.some((x) => x.branche === branche) ? [{ branche, antal: 0 }, ...b] : b;
+  }, [filtreret, branche]);
+  const viste = useMemo(
+    () => sorterRaekker(filtrerPaaBranche(filtreret, branche), sortering),
+    [filtreret, branche, sortering],
+  );
   // Venter listen på dommen (grund/puls i URL'en, dom ikke hentet endnu), vises
   // skelettet — ikke alle 27 et øjeblik før de tolv.
   const venterPaaDom = harUdsnit && domQuery.isLoading;
@@ -422,15 +458,58 @@ export const VirksomhedslisteView = () => {
             </Link>
           </p>
         )}
+        {/* Branchen (10/9): listen SIGER hvad den viser, som med forsidens
+            udsnit. «Fjern branche» beholder grund/puls; «Vis alle» rydder alt. */}
+        {branche && (
+          <p className="mt-2 flex flex-wrap items-baseline gap-x-3 gap-y-1 text-[15px] text-hb-ink">
+            <span className="font-medium">{brancheOverskrift(branche, viste.length)}</span>
+            <Link to={listeSti({ grund, puls, branche: null })} replace className="text-sm text-hb-evergreen underline-offset-4 hover:underline">
+              Fjern branche
+            </Link>
+            {harUdsnit && (
+              <Link to={VIRKSOMHEDER_STI} className="text-sm text-hb-evergreen underline-offset-4 hover:underline">
+                Vis alle
+              </Link>
+            )}
+          </p>
+        )}
       </section>
 
-      <div className="mt-10">
+      <div className="mt-10 flex flex-wrap items-center gap-3">
         <input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Søg på virksomhed, branche, CVR, kontaktperson eller e-mail…"
-          className={cn(hbControlClasses, "max-w-md rounded-full px-5")}
+          className={cn(hbControlClasses, "max-w-md flex-1 rounded-full px-5")}
         />
+        {/* Branchefiltret (flyttet fra /members 10/9): kun brancher nogen på
+            listen har, med antal. Én select, ikke fem chips + «Flere
+            brancher…» — de fem første alfabetisk var et tilfældigt udvalg. */}
+        <select
+          aria-label="Branche"
+          value={branche ?? ""}
+          onChange={(e) => saetBranche(e.target.value || null)}
+          className={cn(hbControlClasses, "w-auto rounded-full px-4")}
+        >
+          <option value="">Alle brancher</option>
+          {brancher.map((b) => (
+            <option key={b.branche} value={b.branche}>
+              {b.branche} ({b.antal})
+            </option>
+          ))}
+        </select>
+        <select
+          aria-label="Sortering"
+          value={sortering.id}
+          onChange={(e) => setSorteringId(e.target.value)}
+          className={cn(hbControlClasses, "w-auto rounded-full px-4")}
+        >
+          {SORTERINGER.map((s) => (
+            <option key={s.id} value={s.id}>
+              {s.label}
+            </option>
+          ))}
+        </select>
       </div>
 
       {/* Invitationerne (Jonas 9/9): de åbne på tværs, med gensend, slet og
@@ -458,17 +537,32 @@ export const VirksomhedslisteView = () => {
           // hentning må ikke ligne «ingen virksomheder». Formen er
           // RaadgiverForsideViews fejllinje.
           <p className="px-4 py-10 text-center text-sm text-hb-rust">Listen kunne ikke hentes. Prøv igen.</p>
-        ) : filtreret.length === 0 ? (
-          <p className="px-4 py-10 text-center text-sm text-hb-ink-soft">
-            {soeger
-              ? `Ingen virksomheder matcher "${query.trim()}"`
-              : harUdsnit && udsnit
-                ? "Ingen af forsidens virksomheder er på listen"
-                : "Der er ingen virksomheder endnu"}
-          </p>
+        ) : viste.length === 0 ? (
+          <div className="px-4 py-10 text-center text-sm text-hb-ink-soft">
+            {branche ? (
+              <>
+                <p>{tomBrancheTekst(branche, { iUdsnit: harUdsnit && !!udsnit, soegning: query })}</p>
+                {/* Vejen tilbage — samme mønster som forsidens «Vis alle» (#743). */}
+                <p className="mt-2 flex flex-wrap justify-center gap-x-3">
+                  <Link to={listeSti({ grund, puls, branche: null })} replace className="text-hb-evergreen underline-offset-4 hover:underline">
+                    Fjern branche
+                  </Link>
+                  <Link to={VIRKSOMHEDER_STI} className="text-hb-evergreen underline-offset-4 hover:underline">
+                    Vis alle
+                  </Link>
+                </p>
+              </>
+            ) : soeger ? (
+              `Ingen virksomheder matcher "${query.trim()}"`
+            ) : harUdsnit && udsnit ? (
+              "Ingen af forsidens virksomheder er på listen"
+            ) : (
+              "Der er ingen virksomheder endnu"
+            )}
+          </div>
         ) : (
           <ul className="divide-y divide-hb-line">
-            {filtreret.map((r) => (
+            {viste.map((r) => (
               <li key={r.id}>
                 {/* Klik åbner virksomhedssiden (#607), nøglet på
                     virksomhedens eget id — også for en virksomhed uden
@@ -481,9 +575,9 @@ export const VirksomhedslisteView = () => {
             ))}
           </ul>
         )}
-        {!listeQuery.isLoading && !venterPaaDom && filtreret.length > 0 && (
+        {!listeQuery.isLoading && !venterPaaDom && viste.length > 0 && (
           <p className="border-t border-hb-line px-4 py-2 text-xs text-hb-ink-soft">
-            Viser {filtreret.length} af {alle.length} virksomheder
+            Viser {viste.length} af {alle.length} virksomheder
           </p>
         )}
       </div>

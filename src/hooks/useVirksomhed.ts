@@ -113,6 +113,10 @@ export interface VirksomhedsData {
     indgangspris_oere: number | null;
     fornyelsespris_oere: number | null;
     created_at: string;
+    /** Sletningens spor (10/9, farlig zone): vej 1-stemplet og slettefunktionens stempel. */
+    offboarding_requested_at?: string | null;
+    data_slettet_at?: string | null;
+    data_slettet_vej?: string | null;
     /** Ansøgningen som den blev skrevet ved oprettelsen (monday-webhook /
         import-application): current_situation, goals, help_needed m.fl.
         Statisk — designets §4 blok 2 vil have den SAMMENFATTET og gemt i
@@ -206,7 +210,7 @@ async function hentVirksomhed(companyId: string): Promise<VirksomhedsData | null
   ] = await Promise.all([
     supabase
       .from("companies")
-      .select("id, name, cvr_number, industry_label, contact_person, contact_email, contact_phone, status, is_legat, contract_start_date, contract_end_date, subscription_status, subscription_current_period_end, indgangspris_oere, fornyelsespris_oere, created_at, application_context")
+      .select("id, name, cvr_number, industry_label, contact_person, contact_email, contact_phone, status, is_legat, contract_start_date, contract_end_date, subscription_status, subscription_current_period_end, indgangspris_oere, fornyelsespris_oere, created_at, application_context, offboarding_requested_at, data_slettet_at, data_slettet_vej")
       .eq("id", companyId)
       .maybeSingle(),
     supabase.from("company_members").select("user_id, role").eq("company_id", companyId),
@@ -494,6 +498,44 @@ export async function invaliderFornyelsesLaesere(queryClient: QueryClient, compa
     queryClient.invalidateQueries({ queryKey: ["virksomhed", companyId] }),
     ...FORNYELSE_LAESER_KEYS.map((queryKey) => queryClient.invalidateQueries({ queryKey: [...queryKey] })),
   ]);
+}
+
+// ── Stamdata (10/9): omdøb og slet — flyttet fra /members ──────────────
+// Samme form som fornyelsens skriveveje: error + nul-række-tjek (RLS siger
+// nej stille), kalderen awaiter invalider bagefter.
+
+/** Omdøb: ét felt. RLS «Advisors can update all companies». */
+export async function omdoebVirksomhed(companyId: string, navn: string): Promise<void> {
+  const { data, error } = await supabase.from("companies").update({ name: navn }).eq("id", companyId).select("id");
+  if (error) throw new Error(error.message);
+  if (!data || data.length === 0) throw new Error("Skrivningen ramte nul rækker — virksomheden findes ikke, eller du må ikke rette den (RLS).");
+}
+
+/** Slet ad vej 1 (sletning.ts): stempler offboarding_requested_at ÉN gang —
+    .is(null) gør et andet tryk til et no-op frem for at flytte fristen
+    (MembershipExpiredGate:148-153). Slettefunktionen (cron slet-medlemsdata)
+    sletter på dag 7 og lader rækken stå som arkivspor. */
+export async function bedOmSletning(companyId: string): Promise<void> {
+  const { data, error } = await supabase
+    .from("companies")
+    .update({ offboarding_requested_at: new Date().toISOString() })
+    .eq("id", companyId)
+    .is("offboarding_requested_at", null)
+    .select("id");
+  if (error) throw new Error(error.message);
+  if (!data || data.length === 0) throw new Error("Der er allerede bedt om sletning, eller du må ikke rette virksomheden (RLS).");
+}
+
+/** Fortryd: nulstiller stemplet, så motoren ingen kandidat finder (MembershipExpiredGate:169-175). */
+export async function fortrydSletning(companyId: string): Promise<void> {
+  const { data, error } = await supabase
+    .from("companies")
+    .update({ offboarding_requested_at: null })
+    .eq("id", companyId)
+    .not("offboarding_requested_at", "is", null)
+    .select("id");
+  if (error) throw new Error(error.message);
+  if (!data || data.length === 0) throw new Error("Der var ikke bedt om sletning — intet at fortryde.");
 }
 
 export function useVirksomhed(companyId: string | undefined) {
