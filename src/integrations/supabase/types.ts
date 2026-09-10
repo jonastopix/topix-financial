@@ -1509,6 +1509,30 @@ export type Database = {
           },
         ]
       }
+      cron_vagt_log: {
+        Row: {
+          dom: string
+          grunde: string[]
+          id: number
+          tal: Json
+          tid: string
+        }
+        Insert: {
+          dom: string
+          grunde?: string[]
+          id?: number
+          tal: Json
+          tid?: string
+        }
+        Update: {
+          dom?: string
+          grunde?: string[]
+          id?: number
+          tal?: Json
+          tid?: string
+        }
+        Relationships: []
+      }
       email_send_log: {
         Row: {
           created_at: string
@@ -3345,6 +3369,16 @@ export type Database = {
           user_id: string
         }[]
       }
+      get_cron_vagt: {
+        Args: never
+        Returns: {
+          dom: string
+          grunde: string[]
+          id: number
+          tal: Json
+          tid: string
+        }[]
+      }
       get_event_non_responders: {
         Args: { p_event_id: string }
         Returns: {
@@ -3538,6 +3572,22 @@ export type Database = {
       slet_community_svar: { Args: { p_svar_id: string }; Returns: undefined }
       slet_community_traad: { Args: { p_traad_id: string }; Returns: undefined }
       user_company_id: { Args: { _user_id: string }; Returns: string }
+      vagt_cron: {
+        Args: never
+        Returns: {
+          dom: string
+          grunde: string[]
+          id: number
+          tal: Json
+          tid: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "cron_vagt_log"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
     }
     Enums: {
       app_role: "member" | "advisor" | "admin"
