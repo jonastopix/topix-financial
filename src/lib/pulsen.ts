@@ -29,12 +29,29 @@
  *   «SKAL sige det samme som linjerne»; det var den forkerte ambition, og
  *   den gjorde Jonas' skærm til tre modsigelser.
  *
- * UNIVERSET er LISTENS (/virksomheder): kunde, ikke legat, status aktiv
- * eller tom, ikke udløbet — 27, ikke dommens 23. Dommens pending-gate
- * (invitation uden medlemmer) hører til fladens linjer: en virksomhed der
- * er inviteret men ikke kommet ind, ER en del af porteføljen, og er netop
- * derfor interessant at tælle som tavs. Kalderen bygger to arrays af samme
- * motor-udfald: ét til dommen (uden pending), ét til pulsen (med).
+ * UNIVERSET er PORTEFØLJEN (/virksomheder): kunde, ikke legat, status aktiv
+ * eller tom — 27, ikke dommens 23. UDLØBNE ER MED (afgjort 10/9, Jonas):
+ * en udløbet virksomhed er i porteføljen indtil den bliver «tidligere» —
+ * og en fornyelse i tilstanden udloebet_tilbyd KAN kun tælles hvis den
+ * udløbne er med. Dommens to gates hører til fladens linjer, ikke til
+ * pulsen: pending (invitation uden medlemmer) og udløbet (tier). Kalderen
+ * bygger to arrays af samme motor-udfald: ét til dommen (uden begge), ét
+ * til pulsen (med begge) — og fortæller pulsen hvem der er hvad
+ * (udenForDommen), så teksten kan gøre rede for forskellen.
+ *
+ * TEKSTEN GØR REDE FOR ALLE (10/9, set på skærm: «10 … ikke hørt fra
+ * længe» mod «15 tavse · 1 står øverst» — 10 + 1 ≠ 15). Pulsens tavse
+ * falder i præcis fem grupper, og hver gruppe der ikke er nul, nævnes:
+ *   i linjen         — dommens samlede tilstandslinje («N … ikke hørt fra»)
+ *   står øverst      — egen virksomhedslinje i dommen
+ *   ikke kommet ind  — inviteret, ingen medlemmer: dommen ser dem ikke
+ *   udløbet          — tier expired: dommen ser dem ikke
+ *   lukket           — grunden lukket med «Færdiggjort»/«Ikke relevant»
+ *                      (#744) — taget ud af dommen før porterne
+ * «15 tavse · 1 står øverst · 3 ikke kommet ind · 1 lukket» — så er linjens
+ * 10 det der er tilbage, og tallene kan læses side om side. Invarianten
+ * (tavse = i linjen + øverst + ikke kommet ind + udløbet + lukket) er låst
+ * af testen i pulsen.test.ts.
  *
  * INGEN RPC (besluttet 9/9): tre af de fire tal regnes af det forsiden
  * allerede henter, og det fjerde af ét lille kald. En SECURITY DEFINER-
@@ -90,9 +107,16 @@ export interface PulsInput {
   maanedNoegle: string;
   svar: readonly PulsSvar[];
   nu: Date;
-  /** Forsidens dom over SIT univers — bruges kun til «står øverst». Valgfri:
-      uden dom er tallet 0 og teksten nævner det ikke. */
-  dom?: Pick<Forsidensdom, "linjer"> | null;
+  /** Forsidens dom over SIT univers — til «står øverst» og «i linjen».
+      underStregen er med, for en samlet tilstand kan ligge under stregen.
+      Valgfri: uden dom er tallene 0 og teksten nævner dem ikke. */
+  dom?: (Pick<Forsidensdom, "linjer"> & Partial<Pick<Forsidensdom, "underStregen">>) | null;
+  /** Dem i pulsens univers som dommen IKKE dømte, og hvorfor (10/9). Uden
+      dette regnes alle som dømt af dommen. */
+  udenForDommen?: {
+    ikkeKommetInd?: ReadonlySet<string>;
+    udloebet?: ReadonlySet<string>;
+  } | null;
 }
 
 export interface PulsTal {
@@ -112,6 +136,21 @@ export interface Pulsen {
   fornyelser: PulsTal;
   /** Hvor mange af de tavse / fornyelserne der står med EGEN linje i dommen. */
   oeverst: { tavse: number; fornyelser: number };
+  /** De tavse fordelt på de fem grupper (10/9) — summen er tavse.antal. */
+  tavseFordeling: TavseFordeling;
+}
+
+export interface TavseFordeling {
+  /** I dommens samlede tilstandslinje «N virksomheder har du ikke hørt fra længe» (over eller under stregen). */
+  iLinjen: number;
+  /** Egen virksomhedslinje i dommen (= oeverst.tavse). */
+  oeverst: number;
+  /** Inviteret, ingen medlemmer — dommen ser dem ikke. */
+  ikkeKommetInd: number;
+  /** Udløbet (tier) — dommen ser dem ikke. */
+  udloebet: number;
+  /** Grunden lukket (#744) — taget ud af dommen. */
+  lukket: number;
 }
 
 export type PulsNoegle = "rapporterer" | "svarer" | "tavse" | "fornyelser";
@@ -173,6 +212,25 @@ export function afgoerPulsen(input: PulsInput): Pulsen {
     (input.dom?.linjer ?? []).flatMap((l) => (l.linje === "virksomhed" ? [l.companyId] : [])),
   );
   const oeverst = (ids: string[]) => ids.filter((id) => medEgenLinje.has(id)).length;
+  // Fordelingen af de tavse (10/9): i linjen = dommens samlede tavsheds-
+  // tilstand, over ELLER under stregen; ikke kommet ind / udløbet = det
+  // kalderen siger dommen ikke så; resten = lukket (en tavsheds-grund er en
+  // tilstand: den står altid samlet eller øverst, medmindre den er lukket).
+  const iTavshedslinje = new Set(
+    [...(input.dom?.linjer ?? []), ...(input.dom?.underStregen?.tilstande ?? [])]
+      .flatMap((l) => (l.linje === "tilstand" && l.slags === "tavshed" ? l.virksomheder.map((x) => x.companyId) : [])),
+  );
+  const ikkeKommetInd = input.udenForDommen?.ikkeKommetInd ?? new Set<string>();
+  const udloebet = input.udenForDommen?.udloebet ?? new Set<string>();
+  const tavseFordeling: TavseFordeling = { iLinjen: 0, oeverst: 0, ikkeKommetInd: 0, udloebet: 0, lukket: 0 };
+  for (const id of tavse) {
+    if (medEgenLinje.has(id)) tavseFordeling.oeverst += 1;
+    else if (iTavshedslinje.has(id)) tavseFordeling.iLinjen += 1;
+    else if (ikkeKommetInd.has(id)) tavseFordeling.ikkeKommetInd += 1;
+    else if (udloebet.has(id)) tavseFordeling.udloebet += 1;
+    else if (input.dom) tavseFordeling.lukket += 1;
+    else tavseFordeling.iLinjen += 1; // uden dom: intet at fordele efter — alt regnes som «i linjen»
+  }
   return {
     iAlt: univers.size,
     maanedNoegle: input.maanedNoegle,
@@ -182,6 +240,7 @@ export function afgoerPulsen(input: PulsInput): Pulsen {
     tavse: tal(tavse),
     fornyelser: tal(fornyelser),
     oeverst: { tavse: oeverst(tavse), fornyelser: oeverst(fornyelser) },
+    tavseFordeling,
   };
 }
 
@@ -205,6 +264,20 @@ export function tavseTekst(antal: number): string {
   return antal === 1 ? "1 tavs" : `${antal} tavse`;
 }
 
+/** Tavshedens hele linje (10/9): «15 tavse · 1 står øverst · 3 ikke kommet
+    ind · 1 udløbet · 1 lukket» — kun de grupper der ikke er nul, og ALDRIG
+    linjens eget tal: det er dét der står deroppe, og resten forklarer
+    afstanden. Læses på to sekunder: 15 − 1 − 3 − 1 − 1 = linjens 9. */
+export function tavseLinjeTekst(antal: number, f: TavseFordeling): string {
+  const dele = [
+    staarOeverstTekst(f.oeverst),
+    f.ikkeKommetInd > 0 ? ` · ${f.ikkeKommetInd} ikke kommet ind` : "",
+    f.udloebet > 0 ? ` · ${f.udloebet} ${f.udloebet === 1 ? "udløbet" : "udløbne"}` : "",
+    f.lukket > 0 ? ` · ${f.lukket} ${f.lukket === 1 ? "lukket" : "lukkede"}` : "",
+  ];
+  return `${tavseTekst(antal)}${dele.join("")}`;
+}
+
 /** Fornyelsernes ord: «2 fornyelser venter» / «1 fornyelse venter». */
 export function fornyelserTekst(antal: number): string {
   return `${antal} ${antal === 1 ? "fornyelse venter" : "fornyelser venter"}`;
@@ -224,7 +297,7 @@ export function pulsLinjer(p: Pulsen): PulsLinje[] {
   return [
     { noegle: "rapporterer", tekst: `${af(p.rapporterer.antal)} har rapporteret ${p.maanedNavn}`, to: link(p.rapporterer, "rapporterer") },
     { noegle: "svarer", tekst: `${af(p.svarer.antal)} har svaret på et forslag de seneste ${SVAR_VINDUE_DAGE} dage`, to: link(p.svarer, "svarer") },
-    { noegle: "tavse", tekst: `${tavseTekst(p.tavse.antal)}${staarOeverstTekst(p.oeverst.tavse)}`, to: link(p.tavse, "tavse", "tavshed") },
+    { noegle: "tavse", tekst: tavseLinjeTekst(p.tavse.antal, p.tavseFordeling), to: link(p.tavse, "tavse", "tavshed") },
     { noegle: "fornyelser", tekst: `${fornyelserTekst(p.fornyelser.antal)}${staarOeverstTekst(p.oeverst.fornyelser)}`, to: link(p.fornyelser, "fornyelser", "fornyelse") },
   ];
 }
