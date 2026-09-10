@@ -14,8 +14,8 @@
  *
  * Teksten nævner præcis de tre ting der adskiller import fra den normale
  * vej, og peger på den anden vej. Det er en oplysning, ikke en fejlbesked.
- * Den vises IKKE i berig-tilstand: berig sender ingen invitation og
- * opretter ingen virksomhed (import-application, enrich mode).
+ * (Berig-tilstanden, som ikke viste advarslen, blev fjernet 10/9 — «bruges
+ * ikke», Jonas. Dialogen har nu kun én tilstand.)
  *
  * Ingen bekræftelse ud over dialogen selv (afgjort 9/9): huset bekræfter
  * sletninger (slet virksomhed, slet invitation, fjern teammedlem), ikke
@@ -41,12 +41,8 @@ export interface ImportAdvarsel {
   andenVej: string;
 }
 
-/**
- * Advarslen for dialogens tilstand. `null` i berig-tilstand — der oprettes
- * ingen virksomhed og sendes ingen invitation, så der er intet at advare om.
- */
-export function importAdvarsel(enrichCompanyId: string | null | undefined): ImportAdvarsel | null {
-  if (enrichCompanyId) return null;
+/** Advarslen — dialogen har én tilstand, så den vises altid. */
+export function importAdvarsel(): ImportAdvarsel {
   return {
     overskrift: IMPORT_ADVARSEL_OVERSKRIFT,
     linjer: IMPORT_ADVARSEL_LINJER,

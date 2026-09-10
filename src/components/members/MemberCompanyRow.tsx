@@ -3,7 +3,7 @@ import {
   Building2, MessageCircle, MessageSquare, FileText,
   ChevronDown, ChevronUp, Users, Globe, MapPin, User,
   Mail, Phone, Wallet, ExternalLink, Hash, Trash2,
-  UserPlus, X, Activity, Send, RotateCcw, CheckCircle2,
+  X, Activity, Send, RotateCcw, CheckCircle2,
   Loader2, Pencil, CalendarDays,
 } from "lucide-react";
 import {
@@ -27,12 +27,10 @@ interface MemberCompanyRowProps {
   removingMember: string | null;
   onRename: (id: string, currentName: string) => void;
   onInvite: (companyId: string, email: string) => void;
-  onOpenMerge: (company: CompanyData) => void;
   onResendInvitation: (company: CompanyData) => void;
   onRemoveMember: (company: CompanyData, member: CompanyMember) => void;
   onDelete: (company: CompanyData) => void;
   onEditCompany: (companyId: string) => void;
-  onEnrich?: (companyId: string) => void;
   getDisplayRevenue: (c: CompanyData) => { value: number; source: string } | null;
   getInitials: (name: string) => string;
 }
@@ -47,12 +45,10 @@ const MemberCompanyRow = ({
   removingMember,
   onRename,
   onInvite,
-  onOpenMerge,
   onResendInvitation,
   onRemoveMember,
   onDelete,
   onEditCompany,
-  onEnrich,
   getDisplayRevenue,
   getInitials,
 }: MemberCompanyRowProps) => {
@@ -305,14 +301,6 @@ const MemberCompanyRow = ({
                     >
                       <Send className="h-3 w-3" /> Inviter
                     </button>
-                    {isAdmin && (
-                      <button
-                        onClick={(e) => { e.stopPropagation(); onOpenMerge(c); }}
-                        className="text-[10px] text-primary hover:text-primary/80 flex items-center gap-0.5 transition-colors"
-                      >
-                        <UserPlus className="h-3 w-3" /> Tilknyt
-                      </button>
-                    )}
                   </div>
                 </div>
                 {c.members.length === 0 ? (
@@ -482,17 +470,6 @@ const MemberCompanyRow = ({
                   <p className="text-xs text-muted-foreground italic">Ingen kontraktdata registreret</p>
                 )}
               </div>
-              {/* Enrich button */}
-              {onEnrich && (
-                <div className="mt-3 pt-3 border-t border-border/30">
-                  <button
-                    onClick={(e) => { e.stopPropagation(); onEnrich(c.id); }}
-                    className="text-[10px] text-primary hover:text-primary/80 flex items-center gap-1 transition-colors"
-                  >
-                    <FileText className="h-3 w-3" /> Berig med ansøgning
-                  </button>
-                </div>
-              )}
             </div>
             {/* ── KOLONNE 3: Aktivitet & Handlinger ── */}
             <div className="rounded-lg bg-background/50 border border-border/50 p-3 flex flex-col justify-between h-fit">

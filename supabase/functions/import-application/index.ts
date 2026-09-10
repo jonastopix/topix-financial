@@ -1,8 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
 import { authenticateUser, corsHeaders } from "../_shared/edgeFunctionAuth.ts";
-import { parseCvrStiftelsesdato, type CvrSvar } from "../_shared/virksomhedsraekke.ts";
 import {
-  hentCvrData,
   opretEllerGenbrugVirksomhed,
   type OpretResultat,
 } from "../_shared/virksomhedsOprettelse.ts";
@@ -32,7 +30,6 @@ interface ApplicationPayload {
   start_date?: string;
   contract_start_date?: string;
   contract_end_date?: string;
-  enrich_company_id?: string; // If set, enrich this existing company instead of creating new
 }
 
 Deno.serve(async (req) => {
@@ -70,74 +67,7 @@ Deno.serve(async (req) => {
 
   const email = body.email.trim().toLowerCase();
 
-  // 1c. Enrich mode: update existing company with application context (no invitation, no signup)
-  // This must run BEFORE the auth user check — enrich is for existing companies and shouldn't
-  // be blocked by an existing auth user.
-  if (body.enrich_company_id) {
-    const { data: existingCo, error: coErr } = await adminClient
-      .from("companies")
-      .select("id, name, cvr_number, industry_label, application_context, contract_end_date, start_date")
-      .eq("id", body.enrich_company_id)
-      .maybeSingle();
-    if (coErr || !existingCo) {
-      return new Response(JSON.stringify({ ok: false, error: "Company not found" }), {
-        status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    // CVR lookup if CVR provided and not already fetched
-    let cvrEnrich: CvrSvar | null = null;
-    if (body.cvr_number && /^\d{8}$/.test(body.cvr_number) && !existingCo.cvr_number) {
-      cvrEnrich = await hentCvrData(body.cvr_number);
-    }
-
-    // Merge: only fill in fields that are currently null/empty
-    const updates: Record<string, any> = {};
-    if (!existingCo.cvr_number && body.cvr_number) updates.cvr_number = body.cvr_number;
-    if (!existingCo.industry_label && (body.industry_label || cvrEnrich?.industry_label))
-      updates.industry_label = body.industry_label || cvrEnrich?.industry_label;
-    if (!existingCo.start_date && cvrEnrich?.founded) {
-      const parsed = parseCvrStiftelsesdato(cvrEnrich.founded);
-      if (parsed) updates.start_date = parsed;
-    }
-    if (!existingCo.contract_end_date && body.contract_end_date)
-      updates.contract_end_date = body.contract_end_date.slice(0, 10);
-    if (body.contract_start_date)
-      updates.contract_start_date = body.contract_start_date.slice(0, 10);
-    if (cvrEnrich) updates.cvr_fetched_at = new Date().toISOString();
-
-    // Merge application_context — combine existing with new, never overwrite
-    const existingCtx = (existingCo.application_context as Record<string, any>) || {};
-    const newCtx: Record<string, any> = {};
-    if (!existingCtx.current_situation && body.current_situation) newCtx.current_situation = body.current_situation;
-    if (!existingCtx.goals && body.goals) newCtx.goals = body.goals;
-    if (!existingCtx.help_needed && body.help_needed) newCtx.help_needed = body.help_needed;
-    if (!existingCtx.annual_revenue && body.annual_revenue) newCtx.annual_revenue = body.annual_revenue;
-    if (!existingCtx.revenue_interval && body.revenue_interval) newCtx.revenue_interval = body.revenue_interval;
-    if (!existingCtx.contact_name && body.contact_name) newCtx.contact_name = body.contact_name;
-    if (body.application_date) newCtx.application_date = body.application_date;
-    if (cvrEnrich) newCtx.raw_cvr_data = cvrEnrich;
-
-    if (Object.keys(newCtx).length > 0) {
-      updates.application_context = { ...existingCtx, ...newCtx };
-    }
-
-    if (Object.keys(updates).length > 0) {
-      await adminClient.from("companies").update(updates).eq("id", body.enrich_company_id);
-    }
-
-    console.log(`[import-application] Enriched company ${body.enrich_company_id} with ${Object.keys(updates).join(", ")}`);
-
-    return new Response(JSON.stringify({
-      ok: true,
-      enriched: true,
-      company_id: body.enrich_company_id,
-      fields_updated: Object.keys(updates),
-    }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
-  }
-
   // 1a. Check if a Supabase Auth user already exists with this email.
-  // Only relevant for new imports (enrich already returned above).
   // If so, the standard signup flow won't work (Supabase suppresses the
   // confirmation email on user_repeated_signup), and the handle_new_user
   // trigger only runs on first signup. Fail fast with a clear reason so
@@ -209,8 +139,8 @@ Deno.serve(async (req) => {
       // Adressen (3/9): payloadens address/zip/city har stået i typen uden
       // at blive brugt, og CVR-svaret bar den ikke — derfor stod FLOOR1
       // (oprettet her 2/9 med CVR-opslag) uden adresse. Nu: input vinder,
-      // CVR fylder. Kun her ved oprettelse; enrich-stien ovenfor rører
-      // ikke adressen.
+      // CVR fylder. (Berig-stien, som ikke rørte adressen, blev fjernet
+      // 10/9 — «bruges ikke», Jonas.)
       address: body.address,
       postal_code: body.zip,
       city: body.city,
@@ -244,8 +174,8 @@ Deno.serve(async (req) => {
       .eq("id", companyId);
     if (datoErr) {
       // Virksomheden findes nu uden datoer. Fejl højt frem for at invitere
-      // ind i en kontrakt uden løbetid — rådgiveren kan sætte datoerne via
-      // enrich-stien bagefter.
+      // ind i en kontrakt uden løbetid — rådgiveren kan sætte datoerne i
+      // «Rediger virksomhedsdata» på virksomhedssiden bagefter.
       console.error("[import-application] Failed to set contract dates:", datoErr, "company_id:", companyId);
       return new Response(JSON.stringify({ error: "Failed to set contract dates", detail: datoErr.message }), {
         status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
