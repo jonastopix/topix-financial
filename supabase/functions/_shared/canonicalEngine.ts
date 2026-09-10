@@ -99,6 +99,14 @@ export function detectStatementType(extractedData: any): StatementType {
   return "unknown";
 }
 
+/** Er en ÅTD-værdi aflæst? null er fravær; 0 mod en periode ≠ 0 er også fravær
+    (et rigtigt ÅTD er aldrig 0 når perioden ikke er det). Alt andet er en aflæsning. */
+export function ytdErAflaest(period: unknown, ytd: unknown): boolean {
+  if (ytd == null || typeof ytd !== "number") return false;
+  if (ytd === 0 && typeof period === "number" && period !== 0) return false;
+  return true;
+}
+
 // ── Infer period basis from multiple core fields ──
 export function inferPeriodBasis(kf: Record<string, any>): PeriodBasis {
   const coreFields = [
@@ -114,9 +122,14 @@ export function inferPeriodBasis(kf: Record<string, any>): PeriodBasis {
 
   for (const { period, ytd } of coreFields) {
     if (period != null) periodCount++;
-    if (ytd != null) ytdCount++;
+    // ÅTD 0 mod en periode ≠ 0 kan ikke forekomme i et regnskab (ÅTD ≥ periode,
+    // januar giver lighed) — det er et udtræk der skrev 0 hvor kolonnen ikke
+    // fandtes (AI-skemaet har ingen null; prompten nudger mod 0). Læses som
+    // «ikke aflæst», ikke som et tal (Warburg 8/7-2026, recon-fortegnsdommen §5).
+    const ytdRead = ytdErAflaest(period, ytd);
+    if (ytdRead) ytdCount++;
     // YTD < period is impossible (for positive revenue/margin)
-    if (period != null && ytd != null && Math.abs(ytd) < Math.abs(period) - TOLERANCE) {
+    if (period != null && ytdRead && Math.abs(ytd) < Math.abs(period) - TOLERANCE) {
       inconsistentCount++;
     }
   }
@@ -560,7 +573,15 @@ export function buildProvenance(
   return provenance;
 }
 
-// ── Extended Validation (12 checks) ──
+/** Felter der aldrig lovligt er negative efter normalisering — ankre: én negativ = vendt fil. */
+export const SIGN_LOCKED_ANCHORS: readonly (keyof CanonicalMetrics)[] = ["revenue", "assets_total", "liabilities_total"];
+/** Rene omkostningsposter — flertal negative = vendt omkostningssæt. cogs er udeladt (contra-cost). */
+export const SIGN_LOCKED_COSTS: readonly (keyof CanonicalMetrics)[] = [
+  "payroll", "payroll_related", "other_staff_costs", "sales_costs", "facility_costs",
+  "admin_costs", "vehicle_costs", "depreciation", "financial_costs",
+];
+
+// ── Extended Validation (13 checks) ──
 export function runExtendedValidation(
   extractedData: any,
   metrics: CanonicalMetrics,
@@ -665,7 +686,9 @@ export function runExtendedValidation(
   }
 
   // 8. period_consistency
-  if (kf.omsaetning != null && kf.omsaetning_aar != null) {
+  // ÅTD 0 mod en periode ≠ 0 er ingen aflæsning (ytdErAflaest) — før fældede
+  // «YTD (0) < period (1631529.45)» en fil uden ÅTD-kolonne (Warburg 8/7-2026).
+  if (kf.omsaetning != null && ytdErAflaest(kf.omsaetning, kf.omsaetning_aar)) {
     const consistent = kf.omsaetning_aar >= kf.omsaetning - TOLERANCE;
     checks.push({
       name: "period_consistency", result: consistent ? "PASS" : "FAIL",
@@ -673,6 +696,8 @@ export function runExtendedValidation(
         `YTD (${kf.omsaetning_aar}) < period (${kf.omsaetning})`,
     });
     if (!consistent) errors.push("Period consistency: YTD < period");
+  } else if (kf.omsaetning != null && kf.omsaetning_aar === 0 && kf.omsaetning !== 0) {
+    checks.push({ name: "period_consistency", result: "SKIP", details: `YTD 0 with period ${kf.omsaetning} — YTD column not read, treated as absent` });
   } else {
     checks.push({ name: "period_consistency", result: "SKIP", details: "Only one set of figures" });
   }
@@ -685,16 +710,39 @@ export function runExtendedValidation(
     checks.push({ name: "mixed_period_columns_detected", result: "PASS", details: `Period basis: ${periodBasis}` });
   }
 
-  // 10. suspicious_sign_pattern
-  const metricValues = Object.values(metrics).filter((v): v is number => v != null && typeof v === "number");
-  const negativeCount = metricValues.filter(v => v < 0).length;
-  if (metricValues.length > 0 && negativeCount / metricValues.length > 0.5) {
-    checks.push({ name: "suspicious_sign_pattern", result: "FAIL", details: `${negativeCount}/${metricValues.length} metrics negative (>50%)` });
-    errors.push("Suspicious sign pattern: majority of metrics negative");
+  // 10. suspicious_sign_pattern — kun de felter der IKKE lovligt kan være negative.
+  //
+  // Før talte den ALLE udfyldte nøgler og fældede ved > 50 % negative. Men den
+  // kører efter normaliseringen, hvor omsætning, omkostninger, aktiver og
+  // passiver allerede er tvunget positive — så det der kunne stå negativt var
+  // resultatkæden (gross_profit, gross_margin_pct, ebitda, ebit, ebt,
+  // net_result), som er negativ ved ethvert underskud med negativt
+  // dækningsbidrag. «5/9 metrics negative» var et tab, ikke en vendt fil
+  // (ANLA GLAS 7/7-2026, tre filer; recon-fortegnsdommen §2). Dommen straffede
+  // dem der havde det svært.
+  //
+  // Nu: ANKRE (omsætning, aktiver i alt, passiver i alt) må aldrig være
+  // negative — én er nok til FAIL; det er en vendt fil. OMKOSTNINGER (de ni
+  // rene omkostningsposter) fælder når flertallet er negative — et vendt
+  // omkostningssæt; én enkelt negativ post er en tilbageførsel og passerer.
+  // Resultatkæden, cash (overtræk), equity (negativ egenkapital), cogs
+  // (contra), tilgodehavender/mellemregning/moms (retning) og de afledte
+  // procenter tælles ikke — de kan lovligt være negative.
+  const negativeAnchors = SIGN_LOCKED_ANCHORS.filter(f => typeof metrics[f] === "number" && (metrics[f] as number) < 0);
+  const costValues = SIGN_LOCKED_COSTS.map(f => metrics[f]).filter((v): v is number => typeof v === "number");
+  const negativeCosts = costValues.filter(v => v < 0).length;
+  const costsFlipped = costValues.length > 0 && negativeCosts / costValues.length > 0.5;
+  if (negativeAnchors.length > 0 || costsFlipped) {
+    const parts: string[] = [];
+    if (negativeAnchors.length > 0) parts.push(`${negativeAnchors.map(f => `${f}=${metrics[f]}`).join(", ")} negative`);
+    if (costsFlipped) parts.push(`${negativeCosts}/${costValues.length} cost fields negative`);
+    checks.push({ name: "suspicious_sign_pattern", result: "FAIL", details: parts.join("; ") });
+    errors.push(`Suspicious sign pattern: ${parts.join("; ")}`);
   } else {
+    const lockedCount = SIGN_LOCKED_ANCHORS.filter(f => typeof metrics[f] === "number").length + costValues.length;
     checks.push({
       name: "suspicious_sign_pattern", result: "PASS",
-      details: metricValues.length > 0 ? `${negativeCount}/${metricValues.length} negative` : "No metrics",
+      details: lockedCount > 0 ? `${negativeCosts}/${lockedCount} sign-locked fields negative (result chain not counted)` : "No sign-locked metrics",
     });
   }
 
