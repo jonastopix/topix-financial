@@ -153,7 +153,7 @@ export const HbDialog = ({
     wrapper. Lukker ved mousedown udenfor og ved Escape (capture, stoppet så
     dialogen bag ikke lukker); fokus går tilbage til triggeren. */
 export const HbPopover = ({
-  open, onOpenChange, trigger, children, className,
+  open, onOpenChange, trigger, children, className, inline = false, panelClassName,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
@@ -161,6 +161,12 @@ export const HbPopover = ({
   trigger: (props: { ref: React.RefObject<HTMLButtonElement>; onClick: () => void; "aria-expanded": boolean; "aria-haspopup": "dialog" }) => ReactNode;
   children: ReactNode;
   className?: string;
+  /** Inline (10/9, EstimatMaerke): wrapper og panel som <span>, så popoveren
+      kan stå inde i et <p> uden ugyldig DOM (div i p). Default div, som før. */
+  inline?: boolean;
+  /** Erstatter panelets placeringsklasser (default: absolut under triggeren).
+      Rammen (kant, flade, skygge) bevares. */
+  panelClassName?: string;
 }) => {
   const wrapperRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -188,15 +194,24 @@ export const HbPopover = ({
     };
   }, [open]);
 
+  const Wrapper = inline ? "span" : "div";
+  const Panel = inline ? "span" : "div";
   return (
-    <div ref={wrapperRef} className={cn("relative inline-block", className)}>
+    <Wrapper ref={wrapperRef as React.RefObject<HTMLDivElement & HTMLSpanElement>} className={cn("relative inline-block", className)}>
       {trigger({ ref: triggerRef, onClick: () => onOpenChange(!open), "aria-expanded": open, "aria-haspopup": "dialog" })}
       {open && (
-        <div role="dialog" className="absolute left-0 top-full z-30 mt-2 rounded-hb border border-hb-line bg-hb-surface shadow-hb-hover">
+        <Panel
+          role="dialog"
+          className={cn(
+            "z-30 rounded-hb border border-hb-line bg-hb-surface shadow-hb-hover",
+            inline && "block",
+            panelClassName ?? "absolute left-0 top-full mt-2",
+          )}
+        >
           {children}
-        </div>
+        </Panel>
       )}
-    </div>
+    </Wrapper>
   );
 };
 
