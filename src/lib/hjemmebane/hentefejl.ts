@@ -40,6 +40,17 @@ export const KILDE_ORD: Readonly<Record<string, string>> = {
   weekly_focus: "ugens fokus",
   events: "kommende events",
   community: "fællesskabet",
+  // De nitten (10/9): resten af medlemmets flader efter #780.
+  events_afholdte: "afholdte events",
+  events_detalje: "eventet",
+  event_registrations: "deltagerne",
+  community_traade: "opslaget",
+  community_svar: "svarene",
+  community_forslag: "forslagene til @ og #",
+  akademiet: "Akademiet",
+  content_item_attachments: "materialet",
+  financial_reports_papirkurv: "papirkurven",
+  kpi_chart_comments: "kommentarerne",
 };
 
 /** Kilden af en kastet fejl: HentningsFejl bærer `kilde`; alt andet er «ukendt». */
@@ -75,4 +86,32 @@ export function hentefejlTekst(kilder: readonly string[]): string | null {
 export function sektionsfejlTekst(kilde: string): string {
   const ord = kildeOrd(kilde);
   return `${ord.charAt(0).toUpperCase()}${ord.slice(1)} kunne ikke hentes lige nu.`;
+}
+
+/**
+ * Rapporteringens spærring (punkt 4, 10/9): når listen ikke kunne hentes,
+ * lukkes upload-zonen med denne linje. Den siger HVORFOR (vi kan ikke se
+ * om rapporten allerede ligger her) og hvad medlemmet gør (prøver igen) —
+ * ikke «fejl», ikke skyld.
+ */
+export function uploadSpaerretTekst(): string {
+  return "Dine rapporter kunne ikke hentes lige nu, så vi kan ikke se om rapporten allerede ligger her. Prøv igen om lidt — så åbner upload igen.";
+}
+
+/**
+ * Dommen tom-mod-fejlet for én hentning (de nitten, 10/9). Fladen spørger
+ * ÉT sted og får ÉT svar: henter · fejlet · tom · data. «tom» dækker både
+ * en tom liste og «findes ikke» (opslag, event, kursus) — og den må først
+ * afsiges når hentningen er lykkedes. Før stod `data ?? []` og `!data`
+ * alene, så en fejl blev til «Ingen svar endnu» eller «Eventet findes ikke».
+ */
+export type Hentetilstand = "henter" | "fejlet" | "tom" | "data";
+
+export function hentetilstand(
+  hentning: { isLoading: boolean; isError: boolean },
+  tom: boolean,
+): Hentetilstand {
+  if (hentning.isLoading) return "henter";
+  if (hentning.isError) return "fejlet";
+  return tom ? "tom" : "data";
 }

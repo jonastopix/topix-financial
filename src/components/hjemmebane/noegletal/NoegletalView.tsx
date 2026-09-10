@@ -18,6 +18,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useViewMode } from "@/hooks/useViewMode";
 import { useCompanyFacts } from "@/hooks/useCompanyFacts";
+import { HentningsFejl } from "@/lib/kraevRaekker";
+import { hentefejlTekst, kildeAf } from "@/lib/hjemmebane/hentefejl";
 import { useKpiTargets } from "@/hooks/useKpiTargets";
 import { useKpiBenchmarks } from "@/hooks/useKpiBenchmarks";
 import { useScrollToHash } from "@/hooks/useScrollToHash";
@@ -158,7 +160,9 @@ export const NoegletalView = () => {
   const { viewingAsMember } = useViewMode();
   const isAdvisor = rawAdvisor && !viewingAsMember;
 
-  const { data: facts = [], isLoading: factsLoading } = useCompanyFacts();
+  // isError læses (de nitten, 10/9): før stod en fejlet hentning som
+  // tomme grafer — «Kom i gang med dine tal» til et medlem med to års tal.
+  const { data: facts = [], isLoading: factsLoading, isError: factsFejlede, error: factsFejl } = useCompanyFacts();
   const { targets, isLoading: targetsLoading, setTargets } = useKpiTargets(companyId ?? undefined);
   const { benchmarks: benchmarksResolved, isLoading: benchmarksLoading, setBenchmarks } = useKpiBenchmarks(companyId ?? undefined);
 
@@ -255,10 +259,13 @@ export const NoegletalView = () => {
   const trendHarEstimater = trendData.some((d) => d.data_basis === "estimated");
 
   // Samtale-id til AI-analysens beskedkobling (arvet fra Reports.loadData).
+  // Kaster ved fejl (de nitten, 10/9) — berigelse, fladen viser den ikke,
+  // men Sentry får den af QueryCache.onError i stedet for et stille null.
   const { data: conversationId = null } = useQuery({
     queryKey: ["noegletal", "conversation", companyId],
     queryFn: async () => {
-      const { data } = await supabase.from("conversations").select("id").eq("company_id", companyId!).maybeSingle();
+      const { data, error } = await supabase.from("conversations").select("id").eq("company_id", companyId!).maybeSingle();
+      if (error) throw new HentningsFejl("conversations", error.message);
       return data?.id ?? null;
     },
     enabled: !!companyId,
@@ -273,7 +280,7 @@ export const NoegletalView = () => {
         .from("kpi_chart_comments" as any)
         .select("id, period_key, period_label, kpi_key, content, author_id, created_at") as any)
         .eq("company_id", companyId!);
-      if (error) throw error;
+      if (error) throw new HentningsFejl("kpi_chart_comments", error.message);
       return (data || []) as { id: string; period_key: string; period_label: string; kpi_key: string; content: string; author_id: string; created_at: string }[];
     },
     enabled: !!companyId,
@@ -480,6 +487,16 @@ export const NoegletalView = () => {
 
   if (factsLoading || targetsLoading || benchmarksLoading) {
     return <p className="text-sm text-hb-ink-soft">Henter dine nøgletal…</p>;
+  }
+
+  // Tom graf og fejlet graf ser ens ud (de nitten, 10/9) — så fejlen får sin
+  // egen linje FØR grafen tegnes. Rolig: det er ikke noget medlemmet har gjort.
+  if (factsFejlede) {
+    return (
+      <p className="text-sm text-hb-ink-soft">
+        {hentefejlTekst([kildeAf(factsFejl)])} Det er ikke noget du har gjort.
+      </p>
+    );
   }
 
   const activeMetric = kpiMetrics.find((m) => m.key === selectedKPI) ?? kpiMetrics[0];

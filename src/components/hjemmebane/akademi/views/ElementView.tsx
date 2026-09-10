@@ -13,6 +13,7 @@ import { formatDuration } from "@/components/hjemmebane/admin/editors/shared";
 import { HbButton } from "@/components/hjemmebane/HbButton";
 import { HbVideoEmbed } from "../HbVideoEmbed";
 import { isTrackedEntry, useAkademiData } from "../useAkademiData";
+import { sektionsfejlTekst } from "@/lib/hjemmebane/hentefejl";
 
 /** Materialer-listen (c3-vedhaeftninger-design.md §6): rolig sektion under
     medie + body, kun når der ER materialer. Storage-bilag åbnes via signeret
@@ -24,6 +25,16 @@ const MaterialsSection = ({ itemId, unlocked }: { itemId: string; unlocked: bool
     enabled: unlocked,
   });
   const attachments = query.data ?? [];
+  // Fejlet er ikke «ingen materialer» (de nitten, 10/9): før forsvandt
+  // sektionen stille når hentningen fejlede. listItemAttachments kaster.
+  if (query.isError) {
+    return (
+      <section className="mt-8">
+        <p className="text-xs font-medium uppercase tracking-[0.14em] text-hb-rust">Materialer</p>
+        <p className="mt-3 text-sm text-hb-ink-soft">{sektionsfejlTekst("content_item_attachments")}</p>
+      </section>
+    );
+  }
   if (attachments.length === 0) return null;
 
   const openStorage = async (path: string) => {
@@ -130,6 +141,17 @@ export const ElementView = ({ areaKey, slug }: { areaKey: string; slug: string }
   if (data.loading) return <p className="text-sm text-hb-ink-soft">Henter…</p>;
 
   const areaLabel = AREAS.find((a) => a.key === areaKey)?.label ?? areaKey;
+
+  // Fejlet FØR «findes ikke» (de nitten, 10/9): et element der ikke kunne
+  // hentes er ikke et element der ikke er publiceret.
+  if (data.fejlede) {
+    return (
+      <div>
+        <BackLink areaKey={areaKey} label={areaLabel} />
+        <p className="mt-8 text-sm text-hb-ink-soft">{sektionsfejlTekst("akademiet")} Prøv igen om lidt.</p>
+      </div>
+    );
+  }
 
   // Ikke-akademi-områder (push) må aldrig ses her — bySlug-mappet rummer
   // dem, så guarden er nødvendig (push'ens hjem er forsidens hero).

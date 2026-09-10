@@ -5,6 +5,7 @@ import { listAllUpcomingEvents, listPastEvents } from "@/lib/hjemmebane/akademiA
 import type { EventRow } from "@/lib/hjemmebane/adminContentApi";
 import { eventMeetPhase, eventNedtaelling, isEventPast } from "@/lib/hjemmebane/eventPhase";
 import { HbSection } from "../HbSection";
+import { hentetilstand, sektionsfejlTekst } from "@/lib/hjemmebane/hentefejl";
 import { EventRegisterAction } from "./EventRegisterAction";
 
 /** Events-miljøet: medlemmets eventliste (/events) m. inline-tilmelding
@@ -132,6 +133,10 @@ export const EventsView = () => {
 
   const upcoming = upcomingQuery.data ?? [];
   const past = pastQuery.data ?? [];
+  // Tom mod fejlet (de nitten, 10/9): «Ingen planlagte events lige nu» er
+  // NORMALT og må aldrig stå for en fejl — det er præcis den sætning et
+  // medlem tror på. Begge queryFns kaster (throwIfError); her læses dommen.
+  const upcomingTilstand = hentetilstand(upcomingQuery, upcoming.length === 0);
 
   // Arkivet deles i to: "Afholdte" må kun bære det der faktisk blev
   // afholdt (completed, eller published med sluttid i fortiden) —
@@ -159,12 +164,14 @@ export const EventsView = () => {
 
       {/* ── Kommende ── */}
       <HbSection eyebrow="Kommende" hairline className="mt-12 md:mt-14">
-        {upcomingQuery.isLoading ? (
+        {upcomingTilstand === "henter" ? (
           <ul>
             <RowSkeleton />
             <RowSkeleton />
           </ul>
-        ) : upcoming.length === 0 ? (
+        ) : upcomingTilstand === "fejlet" ? (
+          <p className="text-sm text-hb-ink-soft">{sektionsfejlTekst("events")} Prøv igen om lidt.</p>
+        ) : upcomingTilstand === "tom" ? (
           <p className="text-sm text-hb-ink-soft">
             Ingen planlagte events lige nu — nye datoer lander her, så snart de er sat.
           </p>
@@ -201,13 +208,16 @@ export const EventsView = () => {
           udelades helt (ingen tom-tekst pr. sektion), og kun når BEGGE
           er tomme, står én "Afholdte"-overskrift med den kendte linje —
           samme udtryk som før opdelingen. Loading bor samme sted. */}
-      {pastQuery.isLoading || (held.length === 0 && cancelledEvents.length === 0) ? (
+      {pastQuery.isLoading || pastQuery.isError || (held.length === 0 && cancelledEvents.length === 0) ? (
         <HbSection eyebrow="Afholdte" hairline className="mt-14 md:mt-16">
           {pastQuery.isLoading ? (
             <ul>
               <RowSkeleton />
               <RowSkeleton />
             </ul>
+          ) : pastQuery.isError ? (
+            // Fejlet er ikke «ingen afholdte endnu» (de nitten, 10/9).
+            <p className="text-sm text-hb-ink-soft">{sektionsfejlTekst("events_afholdte")}</p>
           ) : (
             <p className="text-sm text-hb-ink-soft">Ingen afholdte events endnu.</p>
           )}

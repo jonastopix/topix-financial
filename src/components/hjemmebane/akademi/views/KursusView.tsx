@@ -4,6 +4,7 @@ import { AREAS } from "@/lib/hjemmebane/adminContentApi";
 import { HbItemRow } from "../HbItemRow";
 import { HbProgressBar } from "../HbProgressBar";
 import { progressSummary, useAkademiData } from "../useAkademiData";
+import { sektionsfejlTekst } from "@/lib/hjemmebane/hentefejl";
 
 /** Kursussiden (/akademiet/{area}/{collection-slug}) — samlingen som
     DESTINATION frem for en sektion i områdets rulle. Bygget af
@@ -32,6 +33,17 @@ export const KursusView = ({ areaKey, slug }: { areaKey: string; slug: string })
   const collection = data.collectionBySlug.get(slug);
 
   if (data.loading) return <p className="text-sm text-hb-ink-soft">Henter…</p>;
+
+  // Fejlet FØR «findes ikke» (de nitten, 10/9): et kursus der ikke kunne
+  // hentes er ikke et kursus der ikke er publiceret.
+  if (data.fejlede) {
+    return (
+      <div>
+        <BackLink areaKey={areaKey} label={areaLabel} />
+        <p className="mt-8 text-sm text-hb-ink-soft">{sektionsfejlTekst("akademiet")} Prøv igen om lidt.</p>
+      </div>
+    );
+  }
 
   // Area-tjekket forhindrer, at et kursus kan nås via et forkert område
   // i URL'en — samlingens hjem er dens eget område. akademi-gaten holder

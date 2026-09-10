@@ -7,6 +7,7 @@ import { HbCard } from "@/components/hjemmebane/HbCard";
 import { HbButton } from "@/components/hjemmebane/HbButton";
 import { HbProgressBar } from "../HbProgressBar";
 import { isTrackedEntry, progressSummary, useAkademiData, type AkademiItem } from "../useAkademiData";
+import { sektionsfejlTekst } from "@/lib/hjemmebane/hentefejl";
 
 /** Forsidens store genoptagelses-kort — forsiden ER genoptagelsen. */
 const ContinueCard = ({ entry }: { entry: AkademiItem }) => {
@@ -71,6 +72,11 @@ export const ForsideView = () => {
 
   if (data.loading) {
     return <p className="text-sm text-hb-ink-soft">Henter Akademiet…</p>;
+  }
+  // Fejlet er ikke tomt (de nitten, 10/9): før stod forsiden med tomme
+  // områder og uden «fortsæt», som om intet var publiceret.
+  if (data.fejlede) {
+    return <p className="text-sm text-hb-ink-soft">{sektionsfejlTekst("akademiet")} Prøv igen om lidt.</p>;
   }
 
   // Kun forløbsområder — et push-item m. bunny-medie må aldrig blive

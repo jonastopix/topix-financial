@@ -163,3 +163,15 @@ export function deriveReportCardView(input: ReportCardInput): ReportCardView {
   // Defensivt: ukendt tilstand dømmes stille og handlingsløst.
   return { key: "unknown", label: "Ukendt tilstand", tone: "quiet" };
 }
+
+/**
+ * Godkend-vejens spærring (de nitten, punkt 4, 10/9). «Godkendt» aflæses af
+ * facts (committedReportIds) — en ANDEN hentning end listen. Fejler den,
+ * står alle godkendte rapporter som ugodkendte med «Gennemgå og godkend»,
+ * og en ny godkendelse oveni er et klik væk. Så når facts ikke kunne
+ * hentes, holdes de handlinger der kan ende i commit (review, override)
+ * tilbage; upload/none rører ikke godkendelsen og lades stå.
+ */
+export function godkendSpaerret(action: CardAction, godkendelseUkendt: boolean): boolean {
+  return godkendelseUkendt && (action === "review" || action === "override");
+}
