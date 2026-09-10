@@ -274,6 +274,58 @@ describe("selectNotificationEmails — ventetid pr. type (handlingsudløste mail
   });
 });
 
+describe("venter-tællerne (10/9) — det der hverken sendes eller disposes, tælles", () => {
+  // 10/9 kostede {processed: 1, sent: 0, skipped: 0} en times fejlsøgning:
+  // rækken ventede med vilje, men stod i ingen mængde. Nu står den i én.
+
+  it("for ung for sin types ventetid → venterPaaTid (alert_financial_summary, 2 timer af 240 min)", () => {
+    const ung = candidate({ type: "alert_financial_summary", report: undefined, created_at: "2026-07-21T14:00:00.000Z" });
+    const r = selectNotificationEmails([ung], { now: NOW });
+    expect(r.venterPaaTid.map((n) => n.id)).toEqual([ung.id]);
+    expect(r.venterPaaVindue).toEqual([]);
+    expect(r.toEmail).toEqual([]);
+    expect(r.toDispose).toEqual([]);
+  });
+
+  it("gammel nok, men kl. 22 dansk → venterPaaVindue", () => {
+    const moden = candidate({ created_at: "2026-07-21T15:00:00.000Z" }); // 5 t gammel ved 20:00Z = 22 dansk
+    const r = selectNotificationEmails([moden], { now: new Date("2026-07-21T20:00:00.000Z") });
+    expect(r.venterPaaVindue.map((n) => n.id)).toEqual([moden.id]);
+    expect(r.venterPaaTid).toEqual([]);
+    expect(r.toEmail).toEqual([]);
+  });
+
+  it("for ung OG uden for vinduet → kun venterPaaTid (tiden dømmes først)", () => {
+    const ung = candidate({ created_at: "2026-07-21T19:30:00.000Z" }); // 30 min ved 20:00Z
+    const r = selectNotificationEmails([ung], { now: new Date("2026-07-21T20:00:00.000Z") });
+    expect(r.venterPaaTid.map((n) => n.id)).toEqual([ung.id]);
+    expect(r.venterPaaVindue).toEqual([]);
+  });
+
+  it("regnestykket går op: toEmail + toDispose + venterPaaTid + venterPaaVindue = alle kandidater", () => {
+    const alle = [
+      candidate(),                                                                            // moden, i vinduet → mail
+      candidate({ created_at: "2026-07-21T15:30:00.000Z" }),                                  // 30 min → venter på tid
+      candidate({ report: { deleted_at: "2026-07-21T14:00:00.000Z", committed: false, period_key: "2026-05" } }), // slettet → dispose
+      candidate({ type: "chat_reply", report: undefined, created_at: "2026-07-21T15:30:00.000Z" }), // default 15 min → mail
+      candidate({ company_id: "company-9", report: { deleted_at: null, committed: false, period_key: "2026-06" } }),
+      candidate({ company_id: "company-9", created_at: "2026-07-21T10:30:00.000Z", report: { deleted_at: null, committed: false, period_key: "2026-06" } }), // dublet: nyeste vinder
+    ];
+    const r = selectNotificationEmails(alle, { now: NOW });
+    const talt = r.toEmail.length + r.toDispose.length + r.venterPaaTid.length + r.venterPaaVindue.length;
+    expect(talt).toBe(alle.length);
+    const ids = [...r.toEmail, ...r.toDispose, ...r.venterPaaTid, ...r.venterPaaVindue].map((n) => n.id).sort();
+    expect(ids).toEqual(alle.map((n) => n.id).sort());
+  });
+
+  it("uden for vinduet: kun de udskudte venter — en frisk chat_reply sendes stadig kl. 22", () => {
+    const frisk = candidate({ type: "chat_reply", report: undefined, created_at: "2026-07-21T19:30:00.000Z" });
+    const r = selectNotificationEmails([frisk], { now: new Date("2026-07-21T20:00:00.000Z") });
+    expect(r.toEmail.map((n) => n.id)).toEqual([frisk.id]);
+    expect(r.venterPaaVindue).toEqual([]);
+  });
+});
+
 describe("parseDkReportPeriodKey — TS-spejl af parse_dk_report_period_key", () => {
   it("parser 'Juni 2026' → '2026-06' (case-insensitivt, trim)", () => {
     expect(parseDkReportPeriodKey("Juni 2026")).toBe("2026-06");

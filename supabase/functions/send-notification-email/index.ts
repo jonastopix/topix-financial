@@ -37,6 +37,7 @@ import {
   BEGIVENHED_MAKS_ALDER_MS,
   COMMUNITY_TRAAD_TYPES,
   REPORT_NOTIFICATION_TYPES,
+  emailDelayMinutes,
   parseDkReportPeriodKey,
   selectNotificationEmails,
   type ReportJoin,
@@ -159,6 +160,18 @@ Deno.serve(async (req) => {
     // ventetid). Den faktiske ventetid pr. type afgøres i
     // selectNotificationEmails (emailDelayMinutes — handlingsudløste typer
     // som report_review_ready venter længere).
+    //
+    // AFGJORT 10/9 — nettet forbliver bredt, med vilje: udvælgelsen skal se
+    // HELE familien for en rapport i samme kørsel. Dublet-reglen (nyeste
+    // report_review_ready pr. company+periode vinder, den ældre disposes)
+    // og rapport_vaek (rapporten committet/slettet → dispose) virker kun når
+    // den unge søskende også er hentet. Hentede vi først når typens 240 min
+    // var gået, ville den ældre blive sendt alene, og den nyere sendes 200
+    // min senere som en mail nr. to. Prisen for det brede net er én række
+    // hentet ~45 gange over fire timer — og den pris var usynlig, fordi
+    // svaret ikke sagde «venter». Det gør det nu (venter_paa_tid /
+    // venter_paa_vindue), så {processed: 1, sent: 0, skipped: 0} ikke
+    // igen kan ligne en fejl.
     // Fetch unseen notifications eligible for email
     const { data: pending, error: fetchErr } = await admin
       .from("notifications")
@@ -177,7 +190,7 @@ Deno.serve(async (req) => {
     }
 
     if (!pending?.length) {
-      return json({ processed: 0 });
+      return json({ processed: 0, sent: 0, skipped: 0, venter_paa_tid: 0, venter_paa_vindue: 0, mails_sendt: 0 });
     }
 
     // Load notification email templates (one query for all types)
@@ -217,8 +230,14 @@ Deno.serve(async (req) => {
       }
     }
 
+    // TÆLLERNE (10/9) tæller RÆKKER, så regnestykket går op:
+    //   processed = sent + skipped + venter_paa_tid + venter_paa_vindue.
+    // sent er rækker stemplet efter en afsendt mail (en chat-samlemail
+    // dækker N rækker → N); mails_sendt er antal mails. Før talte sent
+    // mails, og de ventende talte ingen steder.
     let sent = 0;
     let skipped = 0;
+    let mailsSendt = 0;
 
     // Group by user for anti-spam check
     const userIds = [...new Set(pending.map((n: any) => n.user_id))];
@@ -382,7 +401,14 @@ Deno.serve(async (req) => {
           : undefined,
     }));
 
-    const { toEmail, toDispose, disposeGrund } = selectNotificationEmails(candidates);
+    const { toEmail, toDispose, disposeGrund, venterPaaTid, venterPaaVindue } = selectNotificationEmails(candidates);
+    for (const notif of venterPaaTid) {
+      const alderMin = Math.round((Date.now() - new Date(notif.created_at).getTime()) / 60_000);
+      console.log(`[venter] for ung — ${notif.type} ${notif.id}: ${alderMin} af ${emailDelayMinutes(notif.type)} min`);
+    }
+    for (const notif of venterPaaVindue) {
+      console.log(`[venter] uden for vinduet 07–20 — ${notif.type} ${notif.id}`);
+    }
 
     // Dispose: marker email_sent_at UDEN at sende — samme mekanisme som
     // commit-suppress. Kolonnen betyder «behandlet», ikke «sendt». Grunden
@@ -480,7 +506,8 @@ Deno.serve(async (req) => {
       }
 
       countMap[userId] = (countMap[userId] || 0) + 1;
-      sent++;
+      sent += chatNotifs.length;
+      mailsSendt++;
     }
 
     // ── Community-opslag: tråd + forfatter + virksomhed pr. reference_id ──
@@ -658,9 +685,17 @@ Deno.serve(async (req) => {
 
       countMap[notif.user_id] = (countMap[notif.user_id] || 0) + 1;
       sent++;
+      mailsSendt++;
     }
 
-    const summary = { processed: pending.length, sent, skipped };
+    const summary = {
+      processed: pending.length,
+      sent,
+      skipped,
+      venter_paa_tid: venterPaaTid.length,
+      venter_paa_vindue: venterPaaVindue.length,
+      mails_sendt: mailsSendt,
+    };
     console.log("[send-notification-email] Summary:", JSON.stringify(summary));
     return json(summary);
   } catch (err) {

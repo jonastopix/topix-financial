@@ -185,8 +185,20 @@ export interface SelectionResult<T extends EmailCandidate> {
   toDispose: T[];
   /** Grunden pr. disposed kandidat-id — til loggen («IKKE SENDT: forældet»). */
   disposeGrund: Map<string, DisposeGrund>;
-  // Kandidater i hverken toEmail eller toDispose venter (uden for
-  // afsendelsesvinduet) og samles op af en senere cron-kørsel.
+  /**
+   * VENTER (10/9): kandidater der hverken mailes eller disposes NU, men
+   * samles op af en senere kørsel. Før stod de i ingen mængde, og
+   * kalderens svar {processed: 1, sent: 0, skipped: 0} lignede en fejl —
+   * det kostede en times fejlsøgning 10/9 (Livjas alert_financial_summary,
+   * fem kørsler i træk, ventede med vilje til 240 min). Nu tælles de, hver
+   * for sig, så svaret siger hvad der skete:
+   *   venterPaaTid    — for ung for sin types ventetid (emailDelayMinutes)
+   *   venterPaaVindue — gammel nok, men uden for afsendelsesvinduet 07–20
+   * Invariant: toEmail + toDispose + venterPaaTid + venterPaaVindue = alle
+   * kandidater (låst af testen «regnestykket går op»).
+   */
+  venterPaaTid: T[];
+  venterPaaVindue: T[];
 }
 
 /**
@@ -307,16 +319,24 @@ export function selectNotificationEmails<T extends EmailCandidate>(
   const hour = copenhagenHour(now);
   const inWindow = hour >= SEND_WINDOW_START_HOUR && hour < SEND_WINDOW_END_HOUR;
   const toEmail: T[] = [];
+  const venterPaaTid: T[] = [];
+  const venterPaaVindue: T[] = [];
   for (const c of [...passthrough, ...winners.values()]) {
     const ageMs = now.getTime() - new Date(c.created_at).getTime();
     const delayMs = emailDelayMinutes(c.type) * 60 * 1000;
-    if (ageMs < delayMs) continue; // for ung — vent, hverken mail eller dispose
+    if (ageMs < delayMs) {
+      venterPaaTid.push(c); // for ung — vent, hverken mail eller dispose
+      continue;
+    }
 
     const hasCustomDelay = c.type in EMAIL_DELAY_MINUTES_BY_TYPE;
     const deferred = hasCustomDelay || ageMs > DEFER_THRESHOLD_MS;
-    if (deferred && !inWindow) continue; // vent — samles op i vinduet
+    if (deferred && !inWindow) {
+      venterPaaVindue.push(c); // vent — samles op i vinduet
+      continue;
+    }
     toEmail.push(c);
   }
 
-  return { toEmail, toDispose, disposeGrund };
+  return { toEmail, toDispose, disposeGrund, venterPaaTid, venterPaaVindue };
 }
