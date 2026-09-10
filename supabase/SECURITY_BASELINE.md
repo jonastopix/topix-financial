@@ -152,6 +152,13 @@ to the entire access-control model.
   `FROM anon`
 - Introduced in migration `20260812150000_community_naevnelse_rpc.sql`
 
+### Cron-vagten: `vagt_cron()`, `get_cron_vagt()`, table `cron_vagt_log` (migration `20260909234500_cron_vagten.sql`)
+- Background (9/9): `vault.secrets` was emptied (~06:52, Lovable's mail update); all nine cron jobs sent `Bearer ` with no key and got 401 for ~17 hours while `cron.job_run_details` said "succeeded" (that only means `net.http_post` was enqueued). Nobody noticed until 23:39.
+- `vagt_cron()`: SECURITY DEFINER, `search_path = public`, run hourly by pg_cron (`vagt-cron`, `7 * * * *`) as `postgres`. **Pure SQL — no `net.http_post`, no decryption of any secret** (it only `count(*)`s `vault.secrets` by name), so it works precisely when everything else is down. Reads `vault.secrets`, `net._http_response`, `cron.job_run_details`, `cron.job`, `notifications`; writes `cron_vagt_log` and, when red, one `advisor_notifications` row per advisor (`type = 'drift'`, deduped on unread same title within 24 h). EXECUTE revoked from PUBLIC, anon and authenticated — only the cron runner calls it.
+- `get_cron_vagt()`: STABLE SECURITY DEFINER, advisor-only via `has_role` in WHERE (nul rows otherwise), `GRANT EXECUTE TO authenticated`; returns the last 24 h of `cron_vagt_log`. Read by the advisor front page ("Driften: …").
+- `cron_vagt_log`: RLS enabled; SELECT for advisors only; no client write policies (only the function writes).
+- Rules and thresholds are documented in the migration header; the paused-queue case is yellow, not red, by decision 9/9.
+
 ### Member-visibility RPCs: `get_member_profile(p_user_id uuid)`, `get_event_participants(p_event_id uuid)`, `get_member_directory()`
 - All three: STABLE, SECURITY DEFINER with `search_path = public`
 - Grants: `EXECUTE TO authenticated` only — `REVOKE ALL FROM PUBLIC` and `FROM anon`
