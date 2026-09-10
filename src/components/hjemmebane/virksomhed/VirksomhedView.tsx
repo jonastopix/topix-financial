@@ -48,6 +48,7 @@ import { HbCard } from "../HbCard";
 import { HbSection } from "../HbSection";
 import { HbTag } from "../HbTag";
 import { cn } from "@/lib/utils";
+import { raadgiverHentefejlTekst } from "@/lib/raadgiverHentefejl";
 
 /**
  * Virksomhedssiden (raadgiverfladen-design.md §4). Etape 1: blok 1 «Hvad
@@ -1701,7 +1702,7 @@ const Blok7 = ({ d, onOpdateret, onFornyelseAendret }: { d: VirksomhedsData; onO
 // ── Siden ───────────────────────────────────────────────────────────────
 
 export const VirksomhedView = ({ companyId }: { companyId: string | undefined }) => {
-  const { data, facts, isLoading, isError, findesIkke, invalider, invaliderFornyelse } = useVirksomhed(companyId);
+  const { data, facts, isLoading, isError, error, findesIkke, invalider, invaliderFornyelse } = useVirksomhed(companyId);
 
   /* DEEP-LINKS (4/9): 604 notifikationer i prod bærer ?reportId, 40 ?handout,
      6 ?section, og Slack-beskeder med absolutte URL'er er ude af huset.
@@ -1765,7 +1766,7 @@ export const VirksomhedView = ({ companyId }: { companyId: string | undefined })
     );
   }
   if (isError) {
-    return <p className="text-sm text-hb-rust">Virksomheden kunne ikke hentes. Prøv igen.</p>;
+    return <p className="text-sm text-hb-rust">{raadgiverHentefejlTekst(error, "virksomheden")}</p>;
   }
   if (isLoading || !data) {
     return (

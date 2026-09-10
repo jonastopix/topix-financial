@@ -5,6 +5,7 @@ import { format } from "date-fns";
 import { da } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
 import { kraevRaekker } from "@/lib/kraevRaekker";
+import { raadgiverHentefejlTekst } from "@/lib/raadgiverHentefejl";
 import { useAuth } from "@/hooks/useAuth";
 import { computeMembershipTier, type MembershipTier } from "@/lib/membershipTier";
 import { fejledeTraekPrVirksomhed, traekBadgeTekst, type FejletTraek } from "@/lib/traek";
@@ -155,12 +156,16 @@ async function hentVirksomhedsliste(): Promise<Raekke[]> {
   // Målt 4/9 kl. 10:17: alle aktive virksomheder med medlemmer har præcis
   // én owner (35 owner / 3 member efter datarettelsen), så «første» er
   // ikke et valg i praksis.
+  // 10/9: også navne og medlemmer kaster — en liste uden ejere er en fejl,
+  // ikke en tilstand (lib/raadgiverHentefejl siger hvad der manglede).
+  const profiler = kraevRaekker(profilesRes, "profiles");
+  const medlemmer = kraevRaekker(membersRes, "company_members");
   const navnByUser = new Map<string, string>();
-  for (const p of profilesRes.data ?? []) {
+  for (const p of profiler) {
     if (p.user_id && p.full_name?.trim()) navnByUser.set(p.user_id, p.full_name.trim());
   }
   const ownerNavnByCompany = new Map<string, string>();
-  for (const m of membersRes.data ?? []) {
+  for (const m of medlemmer) {
     if (m.role !== "owner" || !m.company_id || ownerNavnByCompany.has(m.company_id)) continue;
     const navn = navnByUser.get(m.user_id);
     if (navn) ownerNavnByCompany.set(m.company_id, navn);
@@ -174,7 +179,7 @@ async function hentVirksomhedsliste(): Promise<Raekke[]> {
   // fladen siger det ikke forkert. IKKE user_login_log: dens rækker tæller
   // faneskift og reloads (målt 9/9: 618 for én bruger), kun datoen duer,
   // og den er ens i de to kilder (24 af 24).
-  const memberIds = [...new Set((membersRes.data ?? []).map((m) => m.user_id).filter(Boolean))];
+  const memberIds = [...new Set(medlemmer.map((m) => m.user_id).filter(Boolean))];
   const sidstOnlineByUser = new Map<string, string>();
   if (memberIds.length > 0) {
     const { data: loginRows, error: loginErr } = await supabase.rpc("get_users_last_login", { user_ids: memberIds });
@@ -184,7 +189,7 @@ async function hentVirksomhedsliste(): Promise<Raekke[]> {
     }
   }
   const sidstOnlineByCompany = new Map<string, string | null>();
-  for (const m of membersRes.data ?? []) {
+  for (const m of medlemmer) {
     if (!m.company_id) continue;
     const hidtil = sidstOnlineByCompany.get(m.company_id) ?? null;
     sidstOnlineByCompany.set(m.company_id, senesteAf([hidtil, sidstOnlineByUser.get(m.user_id)]));
@@ -536,7 +541,7 @@ export const VirksomhedslisteView = () => {
           // Fejl og tom liste er to forskellige ting (7/9): en fejlet
           // hentning må ikke ligne «ingen virksomheder». Formen er
           // RaadgiverForsideViews fejllinje.
-          <p className="px-4 py-10 text-center text-sm text-hb-rust">Listen kunne ikke hentes. Prøv igen.</p>
+          <p className="px-4 py-10 text-center text-sm text-hb-rust">{raadgiverHentefejlTekst(listeQuery.error, "listen")}</p>
         ) : viste.length === 0 ? (
           <div className="px-4 py-10 text-center text-sm text-hb-ink-soft">
             {branche ? (

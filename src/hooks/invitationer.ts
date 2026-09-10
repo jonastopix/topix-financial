@@ -49,14 +49,14 @@ export async function hentInvitationer(): Promise<Invitationsdata> {
     .map((c) => ({ id: c.id, name: c.name as string }));
   const navnAf = new Map(virksomheder.map((c) => [c.id, c.name]));
   const medlemmerPrVirksomhed = new Map<string, number>();
-  for (const m of (memRes.data ?? []) as { company_id: string }[]) {
+  for (const m of kraevRaekker(memRes, "company_members") as { company_id: string }[]) {
     medlemmerPrVirksomhed.set(m.company_id, (medlemmerPrVirksomhed.get(m.company_id) ?? 0) + 1);
   }
   const aabne = aabneInvitationer(alle);
   // «Sendt {dato}» kun med spor i mailloggen (Members.tsx:363-385, 7/9).
   const sidstSendt = new Map<string, string>();
   if (aabne.length > 0) {
-    const { data: logs } = await supabase
+    const logRes = await supabase
       .from("email_send_log")
       .select("recipient_email, created_at")
       .eq("template_name", "invitation")
@@ -64,7 +64,7 @@ export async function hentInvitationer(): Promise<Invitationsdata> {
       .in("recipient_email", aabne.map((i) => i.email))
       .order("created_at", { ascending: false })
       .limit(1000);
-    for (const l of (logs ?? []) as { recipient_email: string; created_at: string }[]) {
+    for (const l of kraevRaekker(logRes, "email_send_log") as { recipient_email: string; created_at: string }[]) {
       if (!sidstSendt.has(l.recipient_email)) sidstSendt.set(l.recipient_email, l.created_at);
     }
   }

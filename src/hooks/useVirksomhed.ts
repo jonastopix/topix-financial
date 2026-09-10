@@ -47,7 +47,7 @@ import { useAuth } from "@/hooks/useAuth";
 import type { Json } from "@/integrations/supabase/types";
 import { useCompanyFacts, type CompanyFact } from "@/hooks/useCompanyFacts";
 import type { FejletTraek } from "@/lib/traek";
-import { kraevRaekker } from "@/lib/kraevRaekker";
+import { HentningsFejl, kraevRaekke, kraevRaekker } from "@/lib/kraevRaekker";
 import { fletKpiMaal, type ResolvedTargets } from "@/lib/kpiMaal";
 import type { Fornyelsesbeslutning } from "@/lib/fornyelse";
 
@@ -340,8 +340,12 @@ async function hentVirksomhed(companyId: string): Promise<VirksomhedsData | null
   if (companyRes.error) throw companyRes.error;
   if (!companyRes.data) return null;
 
+  // 10/9: ingen af de nitten hentninger må fejle stille — en tom liste
+  // («Ingen medlemmer endnu», «Ingen perioder eller træk») må aldrig være
+  // en skjult fejl. Alle går gennem kraevRaekker/kraevRaekke med kildens
+  // navn; fladen siger hvad der manglede (lib/raadgiverHentefejl).
   // Anden runde — kun navnene. Tom medlemsliste → ingen kald, tom liste.
-  const memberRows = membersRes.data ?? [];
+  const memberRows = kraevRaekker(membersRes, "company_members");
   const profileByUser = new Map<string, { full_name: string; email: string | null; avatar_url: string | null }>();
   // Sidst online pr. person (9/9, blok 7's løfte «Aldrig logget ind»,
   // raadgiverfladen-design.md:308): auth.users.last_sign_in_at via RPC'en
@@ -350,11 +354,11 @@ async function hentVirksomhed(companyId: string): Promise<VirksomhedsData | null
   const sidstOnlineByUser = new Map<string, string>();
   if (memberRows.length > 0) {
     const ids = memberRows.map((m) => m.user_id);
-    const [{ data: profiles }, { data: loginRows, error: loginErr }] = await Promise.all([
+    const [profilesRes, { data: loginRows, error: loginErr }] = await Promise.all([
       supabase.from("profiles").select("user_id, full_name, email, avatar_url").in("user_id", ids),
       supabase.rpc("get_users_last_login", { user_ids: ids }),
     ]);
-    for (const p of profiles ?? []) profileByUser.set(p.user_id, p);
+    for (const p of kraevRaekker(profilesRes, "profiles")) profileByUser.set(p.user_id, p);
     if (loginErr) console.warn("[useVirksomhed] get_users_last_login fejlede — «sidst online» udelades:", loginErr.message);
     for (const r of loginRows ?? []) {
       if (r.user_id && r.last_sign_in_at) sidstOnlineByUser.set(r.user_id, r.last_sign_in_at);
@@ -362,14 +366,14 @@ async function hentVirksomhed(companyId: string): Promise<VirksomhedsData | null
   }
 
   const raadgiverNavne: Record<string, string> = {};
-  for (const r of ((raadgivereRes.data ?? []) as { user_id: string; full_name: string | null }[])) {
+  for (const r of (kraevRaekker(raadgivereRes, "get_all_advisor_profiles") as { user_id: string; full_name: string | null }[])) {
     if (r.user_id && r.full_name) raadgiverNavne[r.user_id] = r.full_name;
   }
 
   return {
     company: companyRes.data,
     raadgiverNavne,
-    refleksion: refleksionRes.data ?? null,
+    refleksion: kraevRaekke(refleksionRes, "pulse_checkins"),
     medlemmer: memberRows.map((m) => ({
       user_id: m.user_id,
       role: m.role,
@@ -378,23 +382,23 @@ async function hentVirksomhed(companyId: string): Promise<VirksomhedsData | null
       avatar_url: profileByUser.get(m.user_id)?.avatar_url ?? null,
       sidst_online: sidstOnlineByUser.get(m.user_id) ?? null,
     })),
-    invitationer: invitationsRes.data ?? [],
-    samtaler: convsRes.data ?? [],
-    budgetter: budgetRes.data ?? [],
-    milestones: milestonesRes.data ?? [],
-    handouts: handoutsRes.data ?? [],
-    opgaver: actionsRes.data ?? [],
+    invitationer: kraevRaekker(invitationsRes, "company_invitations"),
+    samtaler: kraevRaekker(convsRes, "conversations"),
+    budgetter: kraevRaekker(budgetRes, "budget_targets"),
+    milestones: kraevRaekker(milestonesRes, "milestones"),
+    handouts: kraevRaekker(handoutsRes, "handouts"),
+    opgaver: kraevRaekker(actionsRes, "company_actions"),
     // Kun forslag der stadig kan afgøres (udløbsdommen, se hentningen).
-    agentforslagVenter: ((proposalsRes.data ?? []) as { proposed_at: string }[]).filter((p) =>
+    agentforslagVenter: (kraevRaekker(proposalsRes, "agent_proposals") as { proposed_at: string }[]).filter((p) =>
       erForslagGyldigt(p.proposed_at, nu),
     ).length,
-    udloebneForslag: udloebneRes.count ?? 0,
-    traek: (traekRes.data ?? []) as VirksomhedsTraek[],
-    perioder: perioderRes.data ?? [],
-    betalingslink: linkRes.data ?? null,
-    fornyelse: fornyelseRes.data ?? null,
-    rapporter: rapporterRes.data ?? [],
-    rapportKommentarer: (kommentarRes.data ?? []).map((m) => ({
+    udloebneForslag: (() => { if (udloebneRes.error) throw new HentningsFejl("agent_proposals", udloebneRes.error.message); return udloebneRes.count ?? 0; })(),
+    traek: kraevRaekker(traekRes, "company_traek") as VirksomhedsTraek[],
+    perioder: kraevRaekker(perioderRes, "company_perioder"),
+    betalingslink: kraevRaekke(linkRes, "company_betalingslink"),
+    fornyelse: kraevRaekke(fornyelseRes, "company_fornyelse"),
+    rapporter: kraevRaekker(rapporterRes, "financial_reports"),
+    rapportKommentarer: kraevRaekker(kommentarRes, "messages").map((m) => ({
       id: m.id,
       conversation_id: m.conversation_id,
       sender_id: m.sender_id,
@@ -553,6 +557,8 @@ export function useVirksomhed(companyId: string | undefined) {
     facts: (facts.data ?? []) as CompanyFact[],
     isLoading: query.isLoading || facts.isLoading,
     isError: query.isError,
+    /** Den kastede fejl (HentningsFejl med kilde) — til fladens tekst (10/9). */
+    error: query.error,
     /** Sand når opslaget lykkedes og virksomheden ikke findes (eller RLS skjuler den). */
     findesIkke: query.isSuccess && query.data === null,
     /** Hent virksomheden igen efter en skrivning (EditCompanyDialog). Løftet

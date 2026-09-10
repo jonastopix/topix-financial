@@ -545,7 +545,9 @@ export const hentAdvisorDashboard = () =>
         .filter((f) => Date.parse(f.committed_at) >= twoWeeksAgoMs)
         .sort((a, b) => b.committed_at.localeCompare(a.committed_at))
         .slice(0, 20);
-      const advisorProfiles = ((advisorProfilesRes.data || []) as any[]).map((advisor) => ({
+      // 10/9: ingen af forsidens hentninger må fejle stille — dommen får
+      // færre linjer, og forsiden ser normal ud. Alt går gennem kraevRaekker.
+      const advisorProfiles = (kraevRaekker(advisorProfilesRes, "get_all_advisor_profiles") as any[]).map((advisor) => ({
         user_id: advisor.user_id,
         full_name: advisor.full_name || "Ukendt",
       }));
@@ -572,16 +574,16 @@ export const hentAdvisorDashboard = () =>
       const memberUserIds = [...companyToUser.values()].filter(Boolean);
       const memberProfilesRes = memberUserIds.length > 0
         ? await supabase.from("profiles").select("user_id, full_name").in("user_id", memberUserIds)
-        : { data: [] as { user_id: string; full_name: string | null }[] };
+        : { data: [] as { user_id: string; full_name: string | null }[], error: null };
       const companyMemberNameMap = new Map<string, string>();
       for (const [companyId, userId] of companyToUser.entries()) {
-        const profile = (memberProfilesRes.data || []).find(p => p.user_id === userId);
+        const profile = (kraevRaekker(memberProfilesRes, "profiles") as any[]).find(p => p.user_id === userId);
         if (profile?.full_name) companyMemberNameMap.set(companyId, profile.full_name);
       }
 
       // company_id → active milestones[]
       const milestonesByCompany = new Map<string, MilestoneData[]>();
-      for (const m of (milestonesRes.data || []) as any[]) {
+      for (const m of kraevRaekker(milestonesRes, "milestones") as any[]) {
         const cid = m.company_id;
         if (!cid) continue;
         if (!milestonesByCompany.has(cid)) milestonesByCompany.set(cid, []);
@@ -590,14 +592,14 @@ export const hentAdvisorDashboard = () =>
 
       // company_id → kpi targets[]
       const kpiByCompany = new Map<string, KpiTargetData[]>();
-      for (const k of (kpiTargetsRes.data || []) as any[]) {
+      for (const k of kraevRaekker(kpiTargetsRes, "kpi_targets") as any[]) {
         if (!kpiByCompany.has(k.company_id)) kpiByCompany.set(k.company_id, []);
         kpiByCompany.get(k.company_id)!.push({ kpi_key: k.kpi_key, target_value: k.target_value, target_label: k.target_label });
       }
 
       // Latest pulse by company
       const latestPulseByCompany = new Map<string, { went_well: string; biggest_challenge: string; help_needed?: string | null; created_at: string; period_key: string | null }>();
-      for (const p of (pulseRes.data || []) as any[]) {
+      for (const p of kraevRaekker(pulseRes, "pulse_checkins") as any[]) {
         if (!latestPulseByCompany.has(p.company_id)) {
           latestPulseByCompany.set(p.company_id, {
             went_well: p.went_well || "",
@@ -613,7 +615,7 @@ export const hentAdvisorDashboard = () =>
       // reflectionStatus kan spørge "findes en refleksion for RAPPORTENS periode",
       // uafhængigt af hvilken pulse der er nyest (rapport/refleksion er forskudt i takt).
       const pulsePeriodsByCompany = new Map<string, Set<string>>();
-      for (const p of (pulseRes.data || []) as any[]) {
+      for (const p of kraevRaekker(pulseRes, "pulse_checkins") as any[]) {
         if (!p.company_id || !p.period_key) continue;
         let set = pulsePeriodsByCompany.get(p.company_id);
         if (!set) { set = new Set<string>(); pulsePeriodsByCompany.set(p.company_id, set); }
@@ -622,7 +624,7 @@ export const hentAdvisorDashboard = () =>
 
       // Recently completed milestones (last 7 days)
       const recentlyCompletedMilestones = new Map<string, string>();
-      for (const m of (recentMilestonesRes.data || []) as any[]) {
+      for (const m of kraevRaekker(recentMilestonesRes, "milestones") as any[]) {
         const companyId = m.company_id;
         if (companyId && !recentlyCompletedMilestones.has(companyId)) {
           recentlyCompletedMilestones.set(companyId, m.title);
@@ -632,7 +634,7 @@ export const hentAdvisorDashboard = () =>
       // Recently completed handouts (last 14 days) by company. Handouts er user-nøglede,
       // så vi mapper user_id -> company_id via det eksisterende userToCompany. Nyeste pr. company.
       const recentlyCompletedHandoutsByCompany = new Map<string, { module: string; completed_at: string }>();
-      for (const h of ((recentHandoutsRes as any)?.data || []) as any[]) {
+      for (const h of kraevRaekker(recentHandoutsRes, "handouts") as any[]) {
         const companyId = userToCompany.get(h.user_id);
         if (companyId && !recentlyCompletedHandoutsByCompany.has(companyId)) {
           recentlyCompletedHandoutsByCompany.set(companyId, { module: h.module, completed_at: h.completed_at });
@@ -724,7 +726,7 @@ export const hentAdvisorDashboard = () =>
       // ── Spor 2-datalag (additivt) ──
       // Målsætnings-handout udfyldt pr. virksomhed (modul 'overordnet', completed).
       const goalHandoutDoneCompanyIds = new Set<string>(
-        (((goalHandoutRes as any)?.data || []) as any[]).map(h => h.company_id).filter(Boolean)
+        (kraevRaekker(goalHandoutRes, "handouts") as any[]).map(h => h.company_id).filter(Boolean)
       );
 
       // Sidst aktiv pr. virksomhed = MAX(last_sign_in_at) over virksomhedens medlemmer
@@ -839,7 +841,7 @@ export const hentAdvisorDashboard = () =>
         timestamp: string;
       }
       const activityEvents: ActivityEvent[] = [];
-      for (const r of (recentReportsRes.data || []) as any[]) {
+      for (const r of kraevRaekker(recentReportsRes, "financial_reports") as any[]) {
         const name = companyMap.get(r.company_id)?.name || "Ukendt";
         activityEvents.push({
           id: `report-${r.id}`, type: "report_uploaded", companyId: r.company_id,
@@ -1124,7 +1126,7 @@ export const hentAdvisorDashboard = () =>
       const maaltByCompany = new Set<string>();
       for (const f of facts) if (f.data_basis === "measured") maaltByCompany.add(f.company_id);
       const uploadsByCompany = new Map<string, number>();
-      for (const r of ((uploadsRes?.data ?? []) as { company_id: string | null }[])) {
+      for (const r of (kraevRaekker(uploadsRes, "uploads") as { company_id: string | null }[])) {
         if (r.company_id) uploadsByCompany.set(r.company_id, (uploadsByCompany.get(r.company_id) ?? 0) + 1);
       }
       const companyById = new Map<string, any>((companies as any[]).map((c) => [c.id, c]));
@@ -1196,7 +1198,7 @@ export const hentAdvisorDashboard = () =>
         virksomheder: virksomhederTilPuls,
         facts: facts.map((f) => ({ company_id: f.company_id, period_key: f.period_key, data_basis: f.data_basis ?? null })),
         maanedNoegle: missingKey,
-        svar: ((svarRes?.data ?? []) as PulsSvar[]),
+        svar: (kraevRaekker(svarRes, "company_actions") as PulsSvar[]),
         nu: now,
         dom,
         udenForDommen: { ikkeKommetInd: pendingCompanyIds, udloebet: expiredCompanyIds },
@@ -1226,7 +1228,7 @@ export const hentAdvisorDashboard = () =>
         buckets, dom, pulsen, advisorProfiles,
         allConversations, companyToUser, companies, legatCompanyIds,
         companyMemberNameMap,
-        recentReportsData: (recentReportsRes.data || []) as { id: string; company_id: string }[],
+        recentReportsData: kraevRaekker(recentReportsRes, "financial_reports") as { id: string; company_id: string }[],
       };
       });
 

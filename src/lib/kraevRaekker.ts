@@ -33,3 +33,16 @@ export function kraevRaekker<T>(svar: SupabaseSvar<T> | null | undefined, kilde:
   if (svar.error) throw new HentningsFejl(kilde, svar.error.message || "ukendt fejl");
   return svar.data ?? [];
 }
+
+type SupabaseEnkeltSvar<T> = {
+  data: T | null;
+  error: { message: string } | null;
+};
+
+/** Som kraevRaekker, for maybeSingle()/count-svar: fejl kaster med kildens
+    navn; «ingen række» er null og ingen fejl (10/9, rådgiverens flader). */
+export function kraevRaekke<T>(svar: SupabaseEnkeltSvar<T> | null | undefined, kilde: string): T | null {
+  if (!svar) throw new HentningsFejl(kilde, "intet svar");
+  if (svar.error) throw new HentningsFejl(kilde, svar.error.message || "ukendt fejl");
+  return svar.data ?? null;
+}

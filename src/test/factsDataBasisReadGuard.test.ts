@@ -35,6 +35,7 @@ const FORVENTEDE_UNDTAGELSER = [
   "supabase/functions/nudge-report-no-reflection/index.ts",
   "supabase/functions/onboarding-rytme/index.ts",
   "src/lib/hjemmebane/hentefejl.ts",
+  "src/lib/raadgiverHentefejl.ts",
   "supabase/functions/run-company-agent/index.ts",
   "supabase/functions/run-weekly-agent/index.ts",
   "supabase/functions/send-monthly-digest/index.ts",
