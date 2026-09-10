@@ -18,6 +18,46 @@
  * rapporten via source_report_id). financial_reports.reviewed_at er advisorens
  * "markér som læst"-flag i chatten og må IKKE undertrykke medlemmets
  * review-mail — advisor-læsning er ikke medlems-godkendelse.
+ *
+ * ALDERSGRÆNSE PÅ BEGIVENHEDER (Jonas 10/9): køen havde ingen aldersgrænse.
+ * Da vault var tom i otte timer og jobbet blev tændt kl. 08.57, gik 26
+ * community-mails ud om et opslag fra dagen før — «Det er sådan lidt
+ * træls.» Fejlen var timingen, ikke antallet. Næste gang noget er nede i
+ * et døgn, gentager det sig — medmindre køen ved hvad der er for gammelt.
+ *
+ * PRINCIPPET: jo mere beskeden er en BEGIVENHED, jo hurtigere forældes
+ * den; jo mere den er en OPGAVE, jo længere holder den.
+ *   - Et community-opslag, et svar, en nævnelse er en invitation til en
+ *     samtale. Kommer den et døgn efter, er samtalen i gang uden dig, og
+ *     der er ingen værdi tilbage → 12 timer (BEGIVENHED_MAKS_ALDER_MS).
+ *   - En event-påmindelse («I morgen», «Om en uge») er bundet til en dag;
+ *     dagen efter er ordene forkerte → 12 timer.
+ *   - En besked fra rådgiveren VENTER på dig og er relevant tre dage efter
+ *     → ingen grænse (chat_reply, advisor_replied går desuden uden om
+ *     denne funktion, samlet pr. bruger).
+ *   - «Rapport klar til gennemsyn» og «rapport fejl» venter også — og har
+ *     allerede deres grænse som TILSTAND: godkendt eller slettet rapport
+ *     disposes i trin 1. Ingen tidsgrænse oveni.
+ *   - Alerts (alert_*) er tal om en periode — de venter, indtil en nyere
+ *     periode afløser dem (ikke bygget; ingen tidsgrænse her).
+ *   - «Event aflyst» (event_cancelled) er en begivenhed, men også en
+ *     opgave: du skal vide at det IKKE sker, også et døgn efter → ingen
+ *     grænse.
+ *   - session_booked, milestone_deadline_reminder m.fl. er opgaver → ingen.
+ *
+ * «SET I APPEN» DÆKKER NU COMMUNITY (Jonas 10/9): DB-forfilteret
+ * `seen_at IS NULL` fanger kun klokken (NotificationCenter i den gamle
+ * skal — Hjemmebane-skallen har ingen klokke), og rapporter fanges af
+ * tilstanden. For community er kilden community_visninger (én række pr.
+ * bruger pr. tråd, skrevet af registrer_community_visning når tråden
+ * åbnes, CommunityTraadView). Har modtageren set tråden, får kandidaten
+ * `set_i_app: true` af kalderen, og den disposes: de der læste Mortens
+ * opslag i går, skulle ikke have haft mailen i morges.
+ *
+ * DISPOSE = email_sent_at stemples UDEN at der sendes. Kolonnen betyder
+ * «behandlet», ikke «sendt» — det har den gjort siden commit-suppress
+ * (10/8). Kalderen logger grunden (disposeGrund), så en senere læser ikke
+ * tror mailen gik ud.
  */
 
 /** Rapport-typer hvor notifikationen refererer en financial_reports-række. */
@@ -25,6 +65,34 @@ export const REPORT_NOTIFICATION_TYPES = new Set([
   "report_review_ready",
   "report_error",
 ]);
+
+/**
+ * Begivenheds-typer: forældes efter BEGIVENHED_MAKS_ALDER_MS (12 timer).
+ * Se filhovedet for hvorfor hver af de øvrige typer IKKE står her.
+ * community_svar har priority info og hentes aldrig af mail-motoren — den
+ * står her for princippets skyld, så en fremtidig prioritetsændring ikke
+ * gør den til en mail uden aldersgrænse.
+ */
+export const BEGIVENHED_TYPES = new Set([
+  "community_opslag",
+  "community_svar",
+  "community_naevnelse",
+  "event_reminder",
+]);
+export const BEGIVENHED_MAKS_ALDER_MS = 12 * 60 * 60 * 1000;
+
+/** Typer hvor «set i appen» afgøres af community_visninger (tråden åbnet). Kalderen udfylder set_i_app. */
+export const COMMUNITY_TRAAD_TYPES = new Set(["community_opslag", "community_svar", "community_naevnelse"]);
+
+/** Hvorfor en kandidat disposes — logges af kalderen, så «behandlet» ikke læses som «sendt». */
+export type DisposeGrund = "set_i_app" | "foraeldet" | "rapport_vaek" | "dublet";
+
+/** En begivenhed er forældet når den er ÆLDRE end grænsen (præcis 12 t er ikke forældet). */
+export function erForaeldet(c: { type: string; created_at: string }, now: Date): boolean {
+  if (!BEGIVENHED_TYPES.has(c.type)) return false;
+  const age = now.getTime() - new Date(c.created_at).getTime();
+  return age > BEGIVENHED_MAKS_ALDER_MS;
+}
 
 /** Udskudte mails sendes kun i dette vindue (dansk tid, DST-sikkert via Intl). */
 const SEND_WINDOW_START_HOUR = 7; // inklusiv
@@ -99,6 +167,12 @@ export interface EmailCandidate {
    * null = join forsøgt men rapporten findes ikke længere (hard delete).
    */
   report?: ReportJoin | null;
+  /**
+   * Set i appen — for COMMUNITY_TRAAD_TYPES: findes der en
+   * community_visninger-række (traad_id = reference_id, bruger_id = user_id)?
+   * Kalderen slår op; undefined = ikke slået op (ingen dom).
+   */
+  set_i_app?: boolean;
 }
 
 export interface SelectionResult<T extends EmailCandidate> {
@@ -109,6 +183,8 @@ export interface SelectionResult<T extends EmailCandidate> {
    * så de aldrig flusher senere — samme dispose-mekanisme som commit-stien.
    */
   toDispose: T[];
+  /** Grunden pr. disposed kandidat-id — til loggen («IKKE SENDT: forældet»). */
+  disposeGrund: Map<string, DisposeGrund>;
   // Kandidater i hverken toEmail eller toDispose venter (uden for
   // afsendelsesvinduet) og samles op af en senere cron-kørsel.
 }
@@ -147,6 +223,10 @@ function copenhagenHour(d: Date): number {
  * Afgør for hver pending notifikation om der skal sendes mail, disposes
  * eller ventes. Rene data ind, ren beslutning ud — ingen I/O.
  *
+ * 0) Set i appen (set_i_app, community_visninger) → dispose. Forældet
+ *    begivenhed (BEGIVENHED_TYPES ældre end 12 t) → dispose. Begge FØR
+ *    rapport- og ventetidsreglerne: det der er set eller forældet, skal
+ *    hverken vente eller sendes.
  * 1) Rapport-tilstandsfilter: slettet/godkendt/forsvundet rapport → dispose.
  * 2) Dedup: report_review_ready per (company_id, period_key) — nyeste vinder,
  *    taberne disposes.
@@ -164,14 +244,34 @@ export function selectNotificationEmails<T extends EmailCandidate>(
 ): SelectionResult<T> {
   const now = opts.now ?? new Date();
   const toDispose: T[] = [];
+  const disposeGrund = new Map<string, DisposeGrund>();
+  const dispose = (c: T, grund: DisposeGrund) => {
+    toDispose.push(c);
+    disposeGrund.set(c.id, grund);
+  };
+
+  // 0) Set i appen og forældede begivenheder (Jonas 10/9, se filhovedet).
+  //    IKKE SENDT — kalderen stempler email_sent_at som «behandlet».
+  const friske: T[] = [];
+  for (const c of candidates) {
+    if (c.set_i_app === true) {
+      dispose(c, "set_i_app");
+      continue;
+    }
+    if (erForaeldet(c, now)) {
+      dispose(c, "foraeldet");
+      continue;
+    }
+    friske.push(c);
+  }
 
   // 1) Rapport-tilstandsfilter
   const alive: T[] = [];
-  for (const c of candidates) {
+  for (const c of friske) {
     if (REPORT_NOTIFICATION_TYPES.has(c.type) && c.report !== undefined) {
       const r = c.report;
       if (r === null || r.deleted_at !== null || r.committed) {
-        toDispose.push(c);
+        dispose(c, "rapport_vaek");
         continue;
       }
     }
@@ -194,10 +294,10 @@ export function selectNotificationEmails<T extends EmailCandidate>(
     if (!prev) {
       winners.set(key, c);
     } else if (new Date(c.created_at) > new Date(prev.created_at)) {
-      toDispose.push(prev);
+      dispose(prev, "dublet");
       winners.set(key, c);
     } else {
-      toDispose.push(c);
+      dispose(c, "dublet");
     }
   }
 
@@ -218,5 +318,5 @@ export function selectNotificationEmails<T extends EmailCandidate>(
     toEmail.push(c);
   }
 
-  return { toEmail, toDispose };
+  return { toEmail, toDispose, disposeGrund };
 }

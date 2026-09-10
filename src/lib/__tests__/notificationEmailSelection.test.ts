@@ -288,3 +288,116 @@ describe("parseDkReportPeriodKey — TS-spejl af parse_dk_report_period_key", ()
     expect(parseDkReportPeriodKey(null)).toBeNull();
   });
 });
+
+/**
+ * Jonas 10/9: aldersgrænse på BEGIVENHEDER (12 t) og «set i appen» for
+ * community. Baggrund: vault tom i otte timer; da jobbet blev tændt kl.
+ * 08.57, gik 26 community-mails ud om et opslag fra dagen før.
+ */
+import {
+  BEGIVENHED_MAKS_ALDER_MS,
+  BEGIVENHED_TYPES,
+  COMMUNITY_TRAAD_TYPES,
+  erForaeldet,
+} from "../../../supabase/functions/_shared/notificationEmailSelection.ts";
+
+describe("aldersgrænse på begivenheder — 12 timer", () => {
+  // Kl. 10 dansk sommertid = 08:00Z: inde i afsendelsesvinduet, så kun alderen afgør.
+  const NU = new Date("2026-09-10T08:00:00Z");
+  const timerGammel = (t: number) => new Date(NU.getTime() - t * 3_600_000).toISOString();
+  const kandidat = (type: string, timer: number, ekstra: Partial<EmailCandidate> = {}): EmailCandidate => ({
+    id: `${type}-${timer}`,
+    user_id: "u1",
+    type,
+    company_id: null,
+    reference_id: "traad-1",
+    created_at: timerGammel(timer),
+    ...ekstra,
+  });
+
+  it("grænsen er 12 timer, og typerne er community (opslag, svar, nævnelse) og event-påmindelsen", () => {
+    expect(BEGIVENHED_MAKS_ALDER_MS).toBe(12 * 60 * 60 * 1000);
+    expect([...BEGIVENHED_TYPES].sort()).toEqual(["community_naevnelse", "community_opslag", "community_svar", "event_reminder"]);
+  });
+
+  it("community_opslag 11 timer gammel → mail", () => {
+    const r = selectNotificationEmails([kandidat("community_opslag", 11)], { now: NU });
+    expect(r.toEmail.map((c) => c.id)).toEqual(["community_opslag-11"]);
+    expect(r.toDispose).toEqual([]);
+  });
+
+  it("community_opslag 13 timer gammel → dispose med grund «foraeldet», IKKE mail", () => {
+    const r = selectNotificationEmails([kandidat("community_opslag", 13)], { now: NU });
+    expect(r.toEmail).toEqual([]);
+    expect(r.toDispose.map((c) => c.id)).toEqual(["community_opslag-13"]);
+    expect(r.disposeGrund.get("community_opslag-13")).toBe("foraeldet");
+  });
+
+  it("præcis 12 timer er IKKE forældet; ét minut over er", () => {
+    expect(erForaeldet({ type: "community_opslag", created_at: timerGammel(12) }, NU)).toBe(false);
+    expect(erForaeldet({ type: "community_opslag", created_at: new Date(NU.getTime() - BEGIVENHED_MAKS_ALDER_MS - 60_000).toISOString() }, NU)).toBe(true);
+  });
+
+  it("event_reminder og community_naevnelse 13 timer → forældet; event_cancelled 13 timer → mail (du skal vide det ikke sker)", () => {
+    const r = selectNotificationEmails(
+      [kandidat("event_reminder", 13, { reference_id: "ev-1" }), kandidat("community_naevnelse", 13), kandidat("event_cancelled", 13, { reference_id: "ev-1" })],
+      { now: NU },
+    );
+    expect(r.toDispose.map((c) => c.type).sort()).toEqual(["community_naevnelse", "event_reminder"]);
+    expect(r.toEmail.map((c) => c.type)).toEqual(["event_cancelled"]);
+  });
+
+  it("OPGAVER holder: chat_reply og report_review_ready (ikke godkendt) 3 dage gamle → stadig mail", () => {
+    const r = selectNotificationEmails(
+      [
+        kandidat("chat_reply", 72, { reference_id: null }),
+        kandidat("report_review_ready", 72, { reference_id: "rep-1", company_id: "c1", report: { deleted_at: null, committed: false, period_key: "2026-08" } }),
+      ],
+      { now: NU },
+    );
+    expect(r.toEmail.map((c) => c.type).sort()).toEqual(["chat_reply", "report_review_ready"]);
+    expect(r.toDispose).toEqual([]);
+  });
+
+  it("report_review_ready 3 dage gammel OG godkendt → dispose med grund «rapport_vaek» (tilstanden er dens grænse)", () => {
+    const r = selectNotificationEmails(
+      [kandidat("report_review_ready", 72, { reference_id: "rep-1", company_id: "c1", report: { deleted_at: null, committed: true, period_key: "2026-08" } })],
+      { now: NU },
+    );
+    expect(r.disposeGrund.get("report_review_ready-72")).toBe("rapport_vaek");
+  });
+});
+
+describe("«set i appen» dækker community — community_visninger", () => {
+  const NU = new Date("2026-09-10T08:00:00Z");
+  const kandidat = (type: string, set_i_app: boolean | undefined): EmailCandidate => ({
+    id: `${type}-${String(set_i_app)}`,
+    user_id: "u1",
+    type,
+    company_id: null,
+    reference_id: "traad-1",
+    created_at: new Date(NU.getTime() - 2 * 3_600_000).toISOString(),
+    set_i_app,
+  });
+
+  it("de tre community-typer er dem kalderen slår op i community_visninger", () => {
+    expect([...COMMUNITY_TRAAD_TYPES].sort()).toEqual(["community_naevnelse", "community_opslag", "community_svar"]);
+  });
+
+  it("tråden er set (set_i_app true) → dispose med grund «set_i_app», ingen mail — også når den er frisk", () => {
+    const r = selectNotificationEmails([kandidat("community_opslag", true)], { now: NU });
+    expect(r.toEmail).toEqual([]);
+    expect(r.disposeGrund.get("community_opslag-true")).toBe("set_i_app");
+  });
+
+  it("ikke set (false) eller ikke slået op (undefined) → mail som før", () => {
+    const r = selectNotificationEmails([kandidat("community_opslag", false), kandidat("community_naevnelse", undefined)], { now: NU });
+    expect(r.toEmail.map((c) => c.id).sort()).toEqual(["community_naevnelse-undefined", "community_opslag-false"]);
+  });
+
+  it("set vinder over alder: set OG forældet → grunden er set_i_app", () => {
+    const gammel: EmailCandidate = { ...kandidat("community_opslag", true), created_at: new Date(NU.getTime() - 20 * 3_600_000).toISOString() };
+    const r = selectNotificationEmails([gammel], { now: NU });
+    expect(r.disposeGrund.get(gammel.id)).toBe("set_i_app");
+  });
+});
