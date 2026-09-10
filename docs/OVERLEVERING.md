@@ -2972,6 +2972,86 @@ legat-cron, tjekliste pr. enhed, status-constraint), 1 omskrevet (de tre
 migrationer fra #801 der skal køres), og moms-sætningen i rykker-kortet rettet.
 Tælleren i listens værktøjslinje regner selv.
 
+### 10. september, nat — seks kort afgjort uden at bygge; listen bliver PRØVET, ikke bare afviklet
+
+Jonas 10/9: «Hele den her mangelliste er opbygget over flere uger, så der kan
+godt være nogle af tingene som ser anderledes ud, fordi vi har bygget meget
+på platformen. Nogle ting som var en god idé, men ikke længere er det. Nogle
+ting som kan blive endnu bedre, hvis man tør tænke dem lidt anderledes. Vi
+sigter efter det absolut bedste, i stedet for bare at se os tilfredse med det
+vi engang har noteret ned.» Præcedensen fra i eftermiddag: «ulæst pr. læser»
+var korrekt om koden og byggede på en arbejdsform der ikke findes (Jonas:
+«Vi tildeler jo ikke virksomheder mere») — taget af listen, ikke bygget.
+
+To recons tog seks kort fra `~/Downloads/de-naeste-ti.md` og spurgte ikke «er
+det sandt» men «er løsningen stadig den bedste, efter det der er bygget i
+dag» (`recon-de-tre-andre.md` og `recon-de-tre-paa-ny.md`). **Ingen af de seks
+skal bygges som de stod.** Det er et lige så godt udfald som en rettelse: seks
+gange blev der ikke brugt en halv dag på noget der var rigtigt for tre uger
+siden.
+
+**Tre ud:**
+- **Bekræftelsesmail ved event-tilmelding** — en tilmeldt får i dag fire
+  kontaktpunkter: tilstanden på siden («Du er tilmeldt. Afmeld»,
+  `EventDetailView:325`; «✓ Tilmeldt» på kortet), kalenderfilen (#788), mailen
+  dagen før og mailen en time før (#792). En bekræftelsesmail ville være den
+  femte og sige noget medlemmet lige har set på skærmen — og koste en edge
+  function eller trigger, fordi tilmeldingen er en klient-INSERT. Kortet er
+  omskrevet til det der står tilbage: events har ingen lokation.
+- **`seen_at` på ugekortet er et dødt felt** — sandt (ingen UPDATE-policy på
+  `weekly_focus`, `markSeen` rammer nul rækker tavst, 144 rækker null), men
+  løsningen «gør feltet skrivbart» er ikke den bedste: punktet «Ugens fokus er
+  klar» i næste-skridt-kortet peger på forsiden selv, hvor resuméet allerede
+  vises. Erstattet af en beslutning: skal slot (d) findes overhovedet, eller
+  er et «nyt denne uge»-mærke på resuméet nok (én gren i `nextStep.ts`).
+- **«Fjern medlem» hedder forkert** — sandt OG værre: knappen kalder
+  `auth.admin.deleteUser`, som kaskaderer ind i beskeder og samtaler (er
+  personen samtalens `member_id`, forsvinder hele samtalen med rådgiverens
+  svar), og fejler på FK hvis der findes godkendte tal fra personens
+  rapporter — EFTER `company_members` og `profiles` er slettet: en halv
+  sletning. Omdøbning løser intet. Erstattet af to kort: «fjern fra
+  virksomheden» (kun `company_members`-rækken, reversibelt — bygges nu i det
+  andet vindue) og «sletning af en person har ingen vej» (en vej som #734, med
+  dom, frist og tørkørsel — senere).
+
+**Tre omskrevet:**
+- **500-vinduet** — `CompanyChatPane:389-395` henter 500 beskeder uden
+  samtalefilter og regner både ulæst-tal og «seneste besked» af dem. Sandt;
+  om vinduet er ramt kræver prod. Men løsningen er ikke at rette badgen:
+  rådgiveren har siden fået forsidens `awaiting_reply_from` og klokken (#790)
+  som svar på «hvem venter». Det bedste er at listen ikke henter løse beskeder
+  overhovedet — tekst fra `conversations`, tal fra én smal hentning uden loft.
+- **Fejlet træk** — «ingen besked til nogen» er sandt, men kortets løsning
+  (ét kald til rådgivernes klokke) er kun halvdelen. To modtagere: medlemmet
+  (klokke + mail, `action_required`, deep link til aftalen og fakturaen — det
+  er deres kort) og rådgiverne (klokke, dedup pr. FAKTURA — Stripe sender
+  `invoice.payment_failed` pr. forsøg, op til fire for én regning). Og Stripes
+  egen kunde-mail skal afgøres FØRST, så vi ikke sender to. Kræver Stripe.
+- **Community-fravalgsnøgle** — udsat, ikke løst. Fanen fik fem nøgler i dag
+  (#773, «det koden læser»); community er inde i «Opdateringer». **Målt 10/9
+  kl. 20:18: NUL af 31 profiler har slået noget fra** — men 102 community-mails
+  på tredive dage til 26 modtagere, cirka fire opslag om ugen til alle. Fanen
+  blev først brugbar i dag. Slår nogen «Opdateringer» fra, ved vi at de vil
+  have færre mails, og så er en sjette nøgle svaret. Indtil da er det en
+  løsning på et problem ingen har.
+
+**Seks lukket som løst uden at være lukket** (`de-naeste-ti.md` §0, bekræftet
+ved grep 10/9 aften): «Poster kan ikke slettes» (`HbBudgetEditTable:660-669`:
+enhver række kan fjernes og hentes tilbage); «Session-forberedelsen skjules af
+et rent UI-filter» (RLS-carve-out siden 31/8, `20260831131200:20`, «44 → 26
+synlige, 18 → 0 session_prep» — ikke kun UI); «Velkomstbesked skriver ugyldig
+værdi» (`send-welcome-message` har ingen kaldere — kortet var om en funktion
+der ikke kører; den står i «Ni døde mails»); «to rester bærer stadig topix.dk»
+(grep: kun to kommentarer tilbage); «send-pulse-reminder sender kun til
+member» (cronen fjernet 12/6; kortet sagde selv «Ikke målt»); «Fantom-ulæste
+beskeder» (samme kort som «delt ulæst-markering» — taget af listen af Jonas i
+eftermiddag). Rykker-kortets titel rettet: beløbet er rettet (#799), rykkerne
+mangler stadig.
+
+**Mangellisten efter denne bogføring: 135 kort** — 3 slettet og 3 nye i deres
+sted, 3 omskrevet, 6 lukket, 1 titel rettet (140 → 135). Tælleren i listens
+værktøjslinje regner selv.
+
 ### Mailplatformen — bygget om af Lovable 8/9 kl. 06:52-06:58; afsenderne, fortegnelsen og værnet (#728, #730, #731, #732)
 
 **Hvad Lovable gjorde.** 19 commits direkte til main mellem kl. 06:52 og

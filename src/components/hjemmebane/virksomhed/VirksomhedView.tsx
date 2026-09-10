@@ -1348,15 +1348,17 @@ const IntroSessionLinje = ({ companyId }: { companyId: string }) => {
 
 // ── Blok 7: Aftalen ─────────────────────────────────────────────────────
 
-/** «Fjern medlem» pr. medlem (§3.6-handling, 4/9). Dommen er
-    maaFjerneMedlem (admin OG ikke owner — serveren afviser en owner med
-    403, så knappen vises ikke for en). Kaldet er manage-advisor
-    remove-member, som MemberDetail:331-335. Teksten siger sandheden:
-    kaldet sletter company_members, profiles OG auth-brugeren
-    (manage-advisor:312-328) — mennesket, ikke bare medlemskabet.
-    Efter succes AWAITes hookens invalider FØR dialogen lukkes
-    (EditCompanyDialog-fælden, OVERLEVERING DEL 4). */
-const FjernMedlem = ({ medlem, onFjernet }: { medlem: { user_id: string; full_name: string; email: string | null }; onFjernet: () => Promise<void> }) => {
+/** «Fjern fra virksomheden» pr. medlem (§3.6-handling; omlagt 10/9,
+    recon-de-tre-paa-ny.md §5). Dommen i fladen er maaFjerneMedlem (admin OG
+    ikke owner); serverens dom er _shared/fjernFraVirksomhed.ts. Kaldet er
+    manage-advisor fjern-fra-virksomhed: KUN company_members-rækken for
+    (virksomhed, person) slettes — kontoen, profilen, beskederne og uploads
+    bliver, og personen kan inviteres igen. Før kaldte knappen remove-member,
+    som sletter mennesket (profiles + auth-bruger, med kaskader og mulig halv
+    sletning); den vej findes stadig, men ikke herfra — sletning af en
+    person er en anden beslutning. Efter succes AWAITes hookens invalider
+    FØR dialogen lukkes (EditCompanyDialog-fælden, OVERLEVERING DEL 4). */
+const FjernMedlem = ({ medlem, companyId, virksomhed, onFjernet }: { medlem: { user_id: string; full_name: string; email: string | null }; companyId: string; virksomhed: string; onFjernet: () => Promise<void> }) => {
   const [aaben, setAaben] = useState(false);
   const [fjerner, setFjerner] = useState(false);
   const fjern = async () => {
@@ -1365,16 +1367,16 @@ const FjernMedlem = ({ medlem, onFjernet }: { medlem: { user_id: string; full_na
     try {
       const { data: { session } } = await supabase.auth.getSession();
       const { data, error } = await supabase.functions.invoke("manage-advisor", {
-        body: { action: "remove-member", target_user_id: medlem.user_id },
+        body: { action: "fjern-fra-virksomhed", target_user_id: medlem.user_id, company_id: companyId },
         headers: { Authorization: `Bearer ${session?.access_token}` },
       });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
       await onFjernet();
       setAaben(false);
-      toast.success("Medlemmet er fjernet", { description: `${medlem.full_name} er slettet fra platformen.` });
+      toast.success("Fjernet fra virksomheden", { description: `${medlem.full_name} har ikke længere adgang til ${virksomhed}. Kontoen findes stadig.` });
     } catch (err) {
-      toast.error("Kunne ikke fjerne medlemmet", { description: err instanceof Error ? err.message : undefined });
+      toast.error("Kunne ikke fjerne personen fra virksomheden", { description: err instanceof Error ? err.message : undefined });
     } finally {
       setFjerner(false);
     }
@@ -1382,20 +1384,20 @@ const FjernMedlem = ({ medlem, onFjernet }: { medlem: { user_id: string; full_na
   return (
     <AlertDialog open={aaben} onOpenChange={(o) => { if (!fjerner) setAaben(o); }}>
       <button type="button" onClick={() => setAaben(true)} className="shrink-0 text-xs text-hb-rust underline-offset-4 hover:underline">
-        Fjern medlem
+        Fjern fra virksomheden
       </button>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Slet {medlem.full_name} fra platformen?</AlertDialogTitle>
+          <AlertDialogTitle>Fjern {medlem.full_name} fra {virksomhed}?</AlertDialogTitle>
           <AlertDialogDescription>
-            «Fjern medlem» sletter brugeren{medlem.email ? ` (${medlem.email})` : ""} — ikke bare medlemskabet af virksomheden.
-            Kontoen, profilen og adgangen forsvinder, og det kan ikke fortrydes. Virksomheden og dens tal bliver stående.
+            {medlem.full_name}{medlem.email ? ` (${medlem.email})` : ""} mister adgangen til virksomheden — forsiden, tallene, chatten og dokumenterne.
+            Kontoen, profilen og beskederne bliver stående, og personen kan inviteres igen. Ingen bliver slettet.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel disabled={fjerner}>Annuller</AlertDialogCancel>
           <AlertDialogAction onClick={(e) => { e.preventDefault(); void fjern(); }} disabled={fjerner} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-            {fjerner ? "Sletter…" : "Slet brugeren"}
+            {fjerner ? "Fjerner…" : "Fjern fra virksomheden"}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
@@ -1673,7 +1675,7 @@ const Blok7 = ({ d, onOpdateret, onFornyelseAendret }: { d: VirksomhedsData; onO
                       );
                     })()}
                   </div>
-                  {maaFjerneMedlem(!!isAdmin, m.role) && <FjernMedlem medlem={m} onFjernet={onOpdateret} />}
+                  {maaFjerneMedlem(!!isAdmin, m.role) && <FjernMedlem medlem={m} companyId={c.id} virksomhed={c.name} onFjernet={onOpdateret} />}
                 </li>
               ))}
             </ul>

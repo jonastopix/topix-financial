@@ -1,4 +1,5 @@
 import { hardDeleteCompany } from "../_shared/companyHardDelete.ts";
+import { doemFjernFraVirksomhed } from "../_shared/fjernFraVirksomhed.ts";
 import { sendManagedEmail } from "../_shared/managedEmail.ts";
 
 const corsHeaders = {
@@ -243,6 +244,89 @@ Deno.serve(async (req) => {
         company_id,
         deleted_user_count: delete_users === true ? userIds.length : 0,
       }), {
+        status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
+    // ── FJERN FRA VIRKSOMHEDEN (10/9, _shared/fjernFraVirksomhed.ts) ──
+    // Fjerner personens ADGANG til én virksomhed og intet andet: rækken i
+    // company_members slettes. Mennesket, kontoen, profilen, beskederne og
+    // uploads bliver. Invitationen nulstilles IKKE (den er arkivsporet, og
+    // en pending invitation ville koble personen på igen ved næste load).
+    // Hænger samtalen på personen, flyttes den til owneren FØRST — fejler
+    // det, er intet sket. Owner afvises (403). Sletning af en person er
+    // remove-member nedenfor — en anden handling, en anden beslutning.
+    if (action === 'fjern-fra-virksomhed') {
+      const companyId = typeof body.company_id === 'string' ? body.company_id : null;
+      if (!target_user_id || !companyId) {
+        return new Response(JSON.stringify({ error: 'Missing target_user_id or company_id' }), {
+          status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
+      const { data: medlemsRaekker, error: medlemErr } = await adminSupabase
+        .from('company_members')
+        .select('id, role')
+        .eq('company_id', companyId)
+        .eq('user_id', target_user_id)
+        .limit(1);
+      if (medlemErr) throw medlemErr;
+
+      const { data: samtale, error: samtaleErr } = await adminSupabase
+        .from('conversations')
+        .select('id')
+        .eq('company_id', companyId)
+        .eq('member_id', target_user_id)
+        .limit(1)
+        .maybeSingle();
+      if (samtaleErr) throw samtaleErr;
+
+      const { data: owners, error: ownerErr } = await adminSupabase
+        .from('company_members')
+        .select('user_id')
+        .eq('company_id', companyId)
+        .eq('role', 'owner')
+        .neq('user_id', target_user_id)
+        .limit(1);
+      if (ownerErr) throw ownerErr;
+      const andenOwner = owners?.[0]?.user_id ?? null;
+
+      const dom = doemFjernFraVirksomhed({
+        medlemskab: medlemsRaekker?.[0] ? { role: medlemsRaekker[0].role ?? null } : null,
+        samtaleHaengerPaaPerson: !!samtale,
+        andenOwnerFindes: !!andenOwner,
+      });
+      if (!dom.ok) {
+        console.warn(`[manage-advisor] DENIED fjern-fra-virksomhed (${dom.grund}): target=${target_user_id} company=${companyId} caller=${userId}`);
+        return new Response(JSON.stringify({ error: dom.besked, reason: dom.grund }), {
+          status: dom.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
+      // 1. Samtalen først — fejler flytningen, er intet sket.
+      if (dom.flytSamtale && samtale && andenOwner) {
+        const { error: flytErr } = await adminSupabase
+          .from('conversations')
+          .update({ member_id: andenOwner })
+          .eq('id', samtale.id);
+        if (flytErr) {
+          console.error(`[manage-advisor] fjern-fra-virksomhed: samtalen ${samtale.id} kunne ikke flyttes til owner ${andenOwner}:`, flytErr.message);
+          return new Response(JSON.stringify({ error: 'Virksomhedens samtale kunne ikke flyttes til ejeren. Intet er ændret.', reason: 'samtale_flytning_fejlede' }), {
+            status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          });
+        }
+      }
+
+      // 2. Adgangen: rækken for (virksomhed, person).
+      const { error: sletErr } = await adminSupabase
+        .from('company_members')
+        .delete()
+        .eq('company_id', companyId)
+        .eq('user_id', target_user_id);
+      if (sletErr) throw sletErr;
+
+      console.log(`[manage-advisor] fjern-fra-virksomhed: user=${target_user_id} fjernet fra company=${companyId} af ${userId}${dom.flytSamtale ? ` (samtalen flyttet til ${andenOwner})` : ''}`);
+      return new Response(JSON.stringify({ success: true, samtale_flyttet: dom.flytSamtale }), {
         status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     }
