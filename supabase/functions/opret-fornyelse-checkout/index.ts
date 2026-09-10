@@ -21,6 +21,8 @@ import {
   type Betalingsmodel,
 } from "../_shared/fornyelsespris.ts";
 import { hentPrisId } from "../_shared/stripePris.ts";
+import { beregnFornyelsesperiode } from "../_shared/fornyelsesperiode.ts";
+import { doemFornyelsesdublet } from "../_shared/fornyelsesVaern.ts";
 import { udloebTidligereSession, udloebsTidspunkt } from "../_shared/checkoutSession.ts";
 
 function jsonResponse(body: unknown, status = 200): Response {
@@ -123,6 +125,35 @@ Deno.serve(async (req) => {
       beslutning: fornyelse?.beslutning ?? null,
     });
     if (tilstand.status !== "udloebet_tilbyd" && tilstand.status !== "klar_til_tilbud") {
+      return jsonResponse({ error: "Fornyelse er ikke tilgængelig." }, 403);
+    }
+
+    // ── 5b. Værnet mod dobbeltbetaling (_shared/fornyelsesVaern.ts, 10/9):
+    //        ligger der allerede en periode hen over den start denne
+    //        betaling ville få, er fornyelsen betalt — uanset hvad
+    //        contract_end_date siger (webhook halvt udført, dato rullet
+    //        tilbage i hånden). Tilstanden ovenfor fanger kun det
+    //        webhooken har nået at skrive. Samme neutrale svar som de
+    //        øvrige afvisninger; grunden står i loggen ──
+    const { data: perioder, error: perioderError } = await adminClient
+      .from("company_perioder")
+      .select("periode_start, periode_slut, stripe_reference, art")
+      .eq("company_id", company_id);
+    if (perioderError) {
+      console.error("[opret-fornyelse-checkout] perioder lookup failed:", perioderError);
+      throw new Error("Perioder lookup failed");
+    }
+    const nyPeriode = beregnFornyelsesperiode(company.contract_end_date ?? null, new Date());
+    const dublet = doemFornyelsesdublet({
+      perioder: perioder ?? [],
+      nyPeriodeStart: nyPeriode.periode_start,
+      contractEndDate: company.contract_end_date ?? null,
+      now: new Date(),
+    });
+    if (dublet.dublet) {
+      console.error(
+        `[opret-fornyelse-checkout] AFVIST (${dublet.grund}) for company ${company_id}: ${dublet.detalje}`
+      );
       return jsonResponse({ error: "Fornyelse er ikke tilgængelig." }, 403);
     }
 

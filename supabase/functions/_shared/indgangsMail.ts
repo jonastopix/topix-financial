@@ -72,6 +72,32 @@ export function formatKr(beloebKr: number): string {
 }
 
 /**
+ * Beløbet i dag 31-mailen — det der RENT FAKTISK står på fakturaen (10/9,
+ * recon-penge-og-roller.md §1). Før stod der listeprisen «50.000 kr.» uden
+ * moms-ord, mens fakturaen lød på 62.500 inkl. moms. «Skriv 62.500» ville
+ * lyve: mangler kundens adresse, slår Stripe Tax fra og fakturaen lyder på
+ * 50.000; en EU-kunde med gyldigt momsnummer betaler 0 % moms. Cronen
+ * sender fakturaen FØR mailen og har totalen i hånden — så mailen tager
+ * fakturaens tal:
+ *   total kendt + moms beregnet → «62.500 kr. inkl. moms»
+ *   total kendt + moms IKKE beregnet → «50.000 kr.» (det er totalen; der er
+ *                                        ingen moms på fakturaen)
+ *   total ukendt (opslag fejlede) → «50.000 kr. ekskl. moms» — listeprisen,
+ *                                        mærket som resten af huset gør det
+ */
+export function fakturaBeloebTekst(a: {
+  totalOere: number | null | undefined;
+  momsBeregnet: boolean | null | undefined;
+  listeprisKr: number;
+}): string {
+  if (typeof a.totalOere === "number" && Number.isFinite(a.totalOere) && a.totalOere > 0) {
+    const kr = formatKr(a.totalOere / 100);
+    return a.momsBeregnet === true ? `${kr} kr. inkl. moms` : `${kr} kr.`;
+  }
+  return `${formatKr(a.listeprisKr)} kr. ekskl. moms`;
+}
+
+/**
  * Tiltalen: «Kære Lisbeth,» — eller «Kære,» når fornavnet mangler.
  * Aldrig «Kære ,» og aldrig to mellemrum.
  */
@@ -132,7 +158,7 @@ export function dag0Mail(a: {
       ],
       knap: { tekst: "Gå til betaling", url: a.betalingsUrl },
       efterKnap: [
-        `Din aftale gælder i 30 dage fra underskriften. Har du ikke betalt inden ${a.fristDato}, sender vi automatisk en faktura på det fulde beløb.`,
+        `Din aftale gælder i 30 dage fra underskriften. Har du ikke betalt inden ${a.fristDato}, sender vi automatisk en faktura på det fulde beløb, ${formatKr(a.beloebKr)} kr. ekskl. moms.`,
         "Skulle noget gå i vejen med betalingen, så skriv til mig — så finder vi ud af det.",
         "Jeg glæder mig til at komme i gang sammen med dig.",
       ],
@@ -175,7 +201,7 @@ export function dag25Mail(a: {
       ],
       knap: { tekst: "Gå til betaling", url: a.betalingsUrl },
       efterKnap: [
-        `Betaler du ikke inden da, sender vi automatisk en faktura på det fulde beløb, ${formatKr(a.beloebKr)} kr. Vil du betale i rater, skal du bruge linket ovenfor inden fristen.`,
+        `Betaler du ikke inden da, sender vi automatisk en faktura på det fulde beløb, ${formatKr(a.beloebKr)} kr. ekskl. moms. Vil du betale i rater, skal du bruge linket ovenfor inden fristen.`,
         "Er der noget i vejen, så sig til. Jeg vil hellere høre fra dig end sende en faktura.",
       ],
       hilsen: HILSEN,
@@ -183,17 +209,26 @@ export function dag25Mail(a: {
   };
 }
 
-/** Dag 31 har INGEN knap — betalingslinket er passeret, fakturaen er sendt. */
+/**
+ * Dag 31 har INGEN knap — betalingslinket er passeret, fakturaen er sendt.
+ * Beløbet er FAKTURAENS (fakturaBeloebTekst): kalderen sender totalen og om
+ * momsen blev beregnet; beloebKr (listeprisen) er kun faldback.
+ */
 export function dag31Mail(a: {
   fornavn: string | null | undefined;
   beloebKr: number;
+  fakturaTotalOere?: number | null;
+  momsBeregnet?: boolean | null;
 }): IndgangsMail {
+  const beloeb = fakturaBeloebTekst({ totalOere: a.fakturaTotalOere, momsBeregnet: a.momsBeregnet, listeprisKr: a.beloebKr });
+  // «50.000 kr.» ender allerede med punktum (forkortelsen); «… inkl. moms» gør ikke.
+  const beloebSaetning = beloeb.endsWith(".") ? beloeb : `${beloeb}.`;
   return {
     subject: "Din faktura til The Boardroom",
     html: indgangsMailHtml({
       overskrift: tiltale("Hej", a.fornavn),
       afsnit: [
-        `Fristen for at aktivere dit medlemskab via betalingslinket er passeret, og derfor har vi sendt dig en faktura på ${formatKr(a.beloebKr)} kr. Du finder den i en separat mail fra Stripe.`,
+        `Fristen for at aktivere dit medlemskab via betalingslinket er passeret, og derfor har vi sendt dig en faktura på ${beloebSaetning} Du finder den i en separat mail fra Stripe.`,
         "Din plads står stadig klar — betal fakturaen, så åbner vi din adgang.",
         "Er der noget vi skal tale om, så ring eller skriv. Vi tager den gerne.",
       ],

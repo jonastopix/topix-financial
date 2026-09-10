@@ -66,7 +66,7 @@ import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supa
 import { authenticateServiceRole, corsHeaders } from "../_shared/edgeFunctionAuth.ts";
 import { afgoerBetalingsfrist, type Paamindelsesdag } from "../_shared/betalingsfrist.ts";
 import { dag14Mail, dag25Mail, dag31Mail, type IndgangsMail } from "../_shared/indgangsMail.ts";
-import { sendIndgangsFaktura } from "../_shared/indgangsFaktura.ts";
+import { hentFakturaBeloeb, sendIndgangsFaktura } from "../_shared/indgangsFaktura.ts";
 import {
   betalingsfristDato,
   formatDanskDato,
@@ -139,9 +139,15 @@ interface VirksomhedsRaekke {
   contract_end_date: string | null;
 }
 
+/** Fakturaens tal til dag 31 — total og om momsen blev beregnet (10/9). */
+interface FakturaBeloeb {
+  totalOere: number | null;
+  momsBeregnet: boolean | null;
+}
+
 function bygPaamindelse(
   trin: Paamindelsesdag,
-  a: { fornavn: string | null; betalingsUrl: string; fristDato: string; beloebKr: number },
+  a: { fornavn: string | null; betalingsUrl: string; fristDato: string; beloebKr: number; faktura?: FakturaBeloeb | null },
 ): IndgangsMail {
   switch (trin) {
     case 14:
@@ -149,7 +155,12 @@ function bygPaamindelse(
     case 25:
       return dag25Mail({ fornavn: a.fornavn, betalingsUrl: a.betalingsUrl, fristDato: a.fristDato, beloebKr: a.beloebKr });
     case 31:
-      return dag31Mail({ fornavn: a.fornavn, beloebKr: a.beloebKr });
+      return dag31Mail({
+        fornavn: a.fornavn,
+        beloebKr: a.beloebKr,
+        fakturaTotalOere: a.faktura?.totalOere ?? null,
+        momsBeregnet: a.faktura?.momsBeregnet ?? null,
+      });
   }
 }
 
@@ -269,15 +280,27 @@ async function koerPaamindelser(
       //     «fandtes allerede», og mailen går så nu. Kan fakturaen ikke
       //     sendes, springes mailen OG stemplet over — næste kørsel prøver
       //     igen, og svaret bærer virksomheden i faktura_i_haanden.
+      // Dag 31-mailen skriver FAKTURAENS beløb (10/9): totalen og om momsen
+      // blev beregnet. Ved «sendt» står det i resultatet; fandtes fakturaen
+      // i forvejen, slås den op — og fejler det, falder mailen tilbage på
+      // listeprisen mærket «ekskl. moms» (fakturaBeloebTekst).
+      let fakturaBeloeb: FakturaBeloeb | null = null;
       if (trin === 31) {
         const faktura = await sendIndgangsFaktura(supabase, link.company_id);
         if (faktura.udfald === "sendt") {
           resultat.faktura.sendt++;
+          fakturaBeloeb = { totalOere: faktura.total_oere, momsBeregnet: faktura.moms_beregnet };
           if (!faktura.moms_beregnet) {
             resultat.faktura.uden_moms.push({ company_id: link.company_id, virksomhed: company.name, invoice_id: faktura.invoice_id });
           }
         } else if (faktura.udfald === "fandtes_allerede") {
           resultat.faktura.fandtes_allerede++;
+          if (typeof faktura.total_oere === "number") {
+            fakturaBeloeb = { totalOere: faktura.total_oere, momsBeregnet: faktura.moms_beregnet ?? null };
+          } else {
+            const hentet = await hentFakturaBeloeb(faktura.invoice_id);
+            fakturaBeloeb = hentet ? { totalOere: hentet.total_oere, momsBeregnet: hentet.moms_beregnet } : null;
+          }
         } else {
           const grund = faktura.udfald === "fejlet" ? faktura.aarsag : faktura.grund;
           console.error(
@@ -296,6 +319,7 @@ async function koerPaamindelser(
         betalingsUrl: `${APP_URL}/betal?token=${encodeURIComponent(link.token)}`,
         fristDato: formatDanskDato(betalingsfristDato(link.underskrevet_at)),
         beloebKr,
+        faktura: fakturaBeloeb,
       });
 
       const ok = await sendIndgangsMail({

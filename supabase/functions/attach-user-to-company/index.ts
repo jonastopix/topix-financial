@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
 import { authenticateUser, corsHeaders } from "../_shared/edgeFunctionAuth.ts";
+import { foersteMedlemsRolle } from "../_shared/medlemsrolle.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -111,10 +112,25 @@ Deno.serve(async (req) => {
     });
   }
 
-  // Attach to company
+  // Attach to company. Rollen (10/9, _shared/medlemsrolle.ts): ingen
+  // medlemmer i virksomheden i forvejen → owner, ellers member — samme regel
+  // som handle_new_user (#622). Rådgiveren hæfter typisk en ANDEN bruger på
+  // en virksomhed der allerede har en owner; så er member rigtigt. Kan vi
+  // ikke tælle, gætter vi ikke.
+  const { count: antalMedlemmer, error: taelleFejl } = await adminClient
+    .from("company_members")
+    .select("id", { count: "exact", head: true })
+    .eq("company_id", company_id);
+  if (taelleFejl) {
+    console.error("[attach-user-to-company] member count failed:", taelleFejl);
+    return new Response(JSON.stringify({ ok: false, error: "Member count failed" }), {
+      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+  const rolle = foersteMedlemsRolle(antalMedlemmer);
   const { error: memberErr } = await adminClient
     .from("company_members")
-    .insert({ company_id, user_id: userId, role: "member" });
+    .insert({ company_id, user_id: userId, role: rolle });
 
   if (memberErr) {
     return new Response(JSON.stringify({ ok: false, error: memberErr.message }), {

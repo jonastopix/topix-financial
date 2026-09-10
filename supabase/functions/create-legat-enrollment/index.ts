@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
 import { authenticateUser, corsHeaders } from "../_shared/edgeFunctionAuth.ts";
+import { foersteMedlemsRolle } from "../_shared/medlemsrolle.ts";
 import { sendManagedEmail } from "../_shared/managedEmail.ts";
 
 Deno.serve(async (req) => {
@@ -116,10 +117,12 @@ Deno.serve(async (req) => {
         if (companyError) throw new Error(`Company creation failed: ${companyError.message}`);
         companyId = company.id;
 
+        // Virksomheden er lige oprettet og har ingen medlemmer → owner
+        // (10/9, _shared/medlemsrolle.ts; samme regel som handle_new_user #622).
         await adminClient.from("company_members").insert({
           company_id: companyId,
           user_id: userId,
-          role: "member",
+          role: foersteMedlemsRolle(0),
         });
       }
     } else {
@@ -143,10 +146,12 @@ Deno.serve(async (req) => {
         if (companyError) throw new Error(`Company creation failed: ${companyError.message}`);
         companyId = company.id;
 
+        // Virksomheden er lige oprettet og har ingen medlemmer → owner
+        // (10/9, _shared/medlemsrolle.ts; samme regel som handle_new_user #622).
         await adminClient.from("company_members").insert({
           company_id: companyId,
           user_id: userId,
-          role: "member",
+          role: foersteMedlemsRolle(0),
         });
       }
     }

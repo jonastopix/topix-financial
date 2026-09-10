@@ -81,7 +81,13 @@ export type IndgangsFakturaResultat =
       /** false = fakturaen ER sendt, men stemplet på linkrækken kunne ikke skrives (logget KRITISK). */
       stemplet: boolean;
     }
-  | { udfald: "fandtes_allerede"; invoice_id: string }
+  | {
+      udfald: "fandtes_allerede";
+      invoice_id: string;
+      /** Kun sat når fakturaen blev slået op hos Stripe (lag 2) — ikke ved stemplet (lag 1). */
+      total_oere?: number | null;
+      moms_beregnet?: boolean;
+    }
   | {
       udfald: "sprunget_over";
       grund:
@@ -201,6 +207,29 @@ async function finaliserOgSend(
 }
 
 /**
+ * Fakturaens faktiske total og om momsen blev beregnet — til dag 31-mailen
+ * (10/9), når fakturaen fandtes i forvejen (stemplet) og cronen derfor ikke
+ * har objektet i hånden. KASTER ALDRIG: null når nøglen mangler eller Stripe
+ * ikke svarer; mailen falder så tilbage på listeprisen «ekskl. moms».
+ */
+export async function hentFakturaBeloeb(
+  invoiceId: string,
+): Promise<{ total_oere: number | null; moms_beregnet: boolean } | null> {
+  const secretKey = Deno.env.get("STRIPE_SECRET_KEY")?.trim() || null;
+  if (!secretKey || !invoiceId) return null;
+  try {
+    const f = await stripeGet<StripeFaktura>(`/invoices/${encodeURIComponent(invoiceId)}`, secretKey);
+    return {
+      total_oere: typeof f.total === "number" ? f.total : null,
+      moms_beregnet: momsBeregnet(f),
+    };
+  } catch (err) {
+    console.error(`${LOG} faktura ${invoiceId}: beløbsopslag fejlede — mailen bruger listeprisen:`, err instanceof Error ? err.message : err);
+    return null;
+  }
+}
+
+/**
  * Opretter og sender dag 31-fakturaen for én virksomhed i indgangen.
  * Se filhovedet for rækkefølge, idempotens og moms. Kaster aldrig.
  */
@@ -311,7 +340,12 @@ export async function sendIndgangsFaktura(
       // sidst). Stempl nu, og tæl som fandtes.
       console.log(`${LOG} company ${companyId}: faktura ${eksisterende.id} (${eksisterende.status}) findes allerede hos Stripe, sender ikke igen`);
       await stemplFaktura(adminClient, companyId, eksisterende);
-      return { udfald: "fandtes_allerede", invoice_id: eksisterende.id };
+      return {
+        udfald: "fandtes_allerede",
+        invoice_id: eksisterende.id,
+        total_oere: typeof eksisterende.total === "number" ? eksisterende.total : null,
+        moms_beregnet: momsBeregnet(eksisterende),
+      };
     }
 
     // ── 4. Fakturaen: genoptag kladden, eller opret kladde + linje ──
