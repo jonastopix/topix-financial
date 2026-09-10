@@ -40,6 +40,10 @@ const CANONICAL_TO_DANISH: Record<string, string> = {
   debt_total: "gaeld_i_alt",
   assets_total: "aktiver_i_alt",
   equity_total: "egenkapital",
+  // Årsrapport-vejen skriver `equity` (rå ultimo-egenkapital, extract-annual-report:271) — canonical
+  // kender kun equity_total. Uden linjen var egenkapitalen fra årsrapporter usynlig (de-tyve nr. 8, 10/9).
+  // Findes begge nøgler i samme række, vinder equity_total (se factsToDanishMetrics).
+  equity: "egenkapital",
   cash: "bank_balance",
   trade_receivables: "debitorer",
   current_liabilities: "kreditorer",
@@ -58,6 +62,8 @@ export function factsToDanishMetrics(
     if (value == null) continue;
     const danishKey = CANONICAL_TO_DANISH[canonicalKey];
     if (danishKey) {
+      // equity (årsrapportens rå tal) må ikke overskrive equity_total (canonical) i samme række.
+      if (canonicalKey === "equity" && metrics.equity_total != null) continue;
       out[danishKey] = value;
     }
   }
