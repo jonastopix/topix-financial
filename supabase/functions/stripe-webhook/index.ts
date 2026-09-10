@@ -20,6 +20,14 @@ import {
   type TraekUdfald,
 } from "../_shared/abonnementstraek.ts";
 import { beregnFornyelsesperiode } from "../_shared/fornyelsesperiode.ts";
+import { doemFornyelsesdublet } from "../_shared/fornyelsesVaern.ts";
+import {
+  dubletBeskedTekst,
+  fornyelsesBeskedTekst,
+  skrivRaadgiverBesked,
+  TYPE_FORNYELSE_BETALT,
+  TYPE_FORNYELSE_DUBLET,
+} from "../_shared/raadgiverBesked.ts";
 import { kvitteringMail, LABEL_KVITTERING } from "../_shared/fornyelsesMail.ts";
 import { formatDanskDato } from "../_shared/indgangsMailAfsendelse.ts";
 import type { Betalingsmodel } from "../_shared/fornyelsespris.ts";
@@ -776,6 +784,21 @@ Deno.serve(async (req) => {
           console.error("[stripe-webhook] contract_end_date-opdatering fejlede (gensendelse):", fuldfoerError);
           throw new Error("Failed to update contract_end_date");
         }
+        // Rådgiverbeskeden (10/9) — også her, for kontrakten blev først
+        // fuldført nu. Dedup på periodens id, kaster aldrig.
+        await skrivRaadgiverBesked(adminClient, {
+          type: TYPE_FORNYELSE_BETALT,
+          ...fornyelsesBeskedTekst({
+            virksomhed: fornyelseCompany?.name ?? "En virksomhed",
+            samletOere: beloebOere,
+            betalingsmodel,
+            nySlutDatoTekst: formatDanskDato(new Date(eksisterende.periode_slut)),
+          }),
+          company_id: fornyelseCompanyId,
+          member_id: session.metadata?.user_id ?? null,
+          reference_type: "periode",
+          reference_id: eksisterende.id,
+        });
         // Kontrakten er nu fuldført — kvitteringen sikres før svaret.
         await sendFornyelseskvittering(adminClient, {
           sessionId: session.id,
@@ -807,10 +830,55 @@ Deno.serve(async (req) => {
         new Date(),
       );
 
+      // ── VÆRNET MOD DOBBELTBETALING (_shared/fornyelsesVaern.ts, 10/9):
+      //    en ANDEN session har allerede betalt den periode denne ville
+      //    starte (to sessioner inden for 30 min, eller kontrakten er
+      //    allerede forlænget). Så skrives HVERKEN periode eller dato:
+      //    pengene er taget og skal refunderes i hånden. Svaret er 200 —
+      //    en gensendelse ændrer intet. Rådgiverne får det i klokken;
+      //    console alene er usynligt. Fejler opslaget, kastes der (500 →
+      //    Stripe gensender) — vi indsætter ikke i blinde. ──
+      const { data: perioderFoer, error: perioderFoerError } = await adminClient
+        .from("company_perioder")
+        .select("periode_start, periode_slut, stripe_reference, art")
+        .eq("company_id", fornyelseCompanyId);
+      if (perioderFoerError) {
+        console.error("[stripe-webhook] perioder-opslag (værn) fejlede:", perioderFoerError);
+        throw new Error("Perioder lookup failed");
+      }
+      const dublet = doemFornyelsesdublet({
+        perioder: perioderFoer ?? [],
+        nyPeriodeStart: periode_start,
+        contractEndDate: fornyelseCompany?.contract_end_date ?? null,
+        now: new Date(),
+        egenReference: session.id,
+      });
+      if (dublet.dublet) {
+        console.error(
+          `[stripe-webhook] KRITISK — DOBBELTBETALING (${dublet.grund}): session ${session.id}, ${beloebOere} øre (${betalingsmodel}), company ${fornyelseCompanyId}: ${dublet.detalje}. Ingen periode skrevet, ingen dato ændret. Refundér i Stripe.`
+        );
+        await skrivRaadgiverBesked(adminClient, {
+          type: TYPE_FORNYELSE_DUBLET,
+          ...dubletBeskedTekst({
+            virksomhed: fornyelseCompany?.name ?? "En virksomhed",
+            samletOere: beloebOere,
+            sessionId: session.id,
+            detalje: dublet.detalje,
+          }),
+          company_id: fornyelseCompanyId,
+          member_id: session.metadata?.user_id ?? null,
+          reference_type: "checkout_session",
+          reference_id: null,
+        });
+        return new Response(JSON.stringify({ received: true, skipped: "dublet_fornyelse", grund: dublet.grund }), {
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+
       // Perioden FØRST, datoen bagefter: fejler opdateringen, findes
       // perioden som spor af hvad der blev betalt. Fejler indsættelsen,
       // er intet sket, og Stripe forsøger igen.
-      const { error: periodeError } = await adminClient.from("company_perioder").insert({
+      const { data: nyPeriodeRaekke, error: periodeError } = await adminClient.from("company_perioder").insert({
         company_id: fornyelseCompanyId,
         periode_start,
         periode_slut,
@@ -819,7 +887,7 @@ Deno.serve(async (req) => {
         art: "fornyelse",
         stripe_reference: session.id,
         oprettet_af: null, // betalingen er ikke en rådgiverhandling
-      });
+      }).select("id").maybeSingle();
       if (periodeError) {
         console.error("[stripe-webhook] periode-indsættelse fejlede:", periodeError);
         throw new Error("Failed to insert company_periode");
@@ -835,6 +903,25 @@ Deno.serve(async (req) => {
         console.error("[stripe-webhook] contract_end_date-opdatering fejlede:", datoError);
         throw new Error("Failed to update contract_end_date");
       }
+
+      // ── RÅDGIVERBESKEDEN (10/9, recon-penge-og-roller.md §3) — EFTER
+      //    datoen, FØR cancel_at: kaster cancel_at, går gensendelsen ind i
+      //    «contract_end_date === periode_slut» og springer over — beskeden
+      //    er skrevet én gang. Dedup på periodens id; kaster aldrig. Én
+      //    række pr. rådgiver (vagtens form), så «læst» er den enkeltes. ──
+      await skrivRaadgiverBesked(adminClient, {
+        type: TYPE_FORNYELSE_BETALT,
+        ...fornyelsesBeskedTekst({
+          virksomhed: fornyelseCompany?.name ?? "En virksomhed",
+          samletOere: beloebOere,
+          betalingsmodel,
+          nySlutDatoTekst: formatDanskDato(new Date(periode_slut)),
+        }),
+        company_id: fornyelseCompanyId,
+        member_id: session.metadata?.user_id ?? null,
+        reference_type: "periode",
+        reference_id: nyPeriodeRaekke?.id ?? null,
+      });
 
       // Ophør på rate-abonnementet — sættes her fordi Checkout ikke kan
       // (subscription_data[cancel_at] afvises med parameter_unknown), og

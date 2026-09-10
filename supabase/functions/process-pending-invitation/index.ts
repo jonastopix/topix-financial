@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
+import { foersteMedlemsRolle } from "../_shared/medlemsrolle.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -121,10 +122,27 @@ Deno.serve(async (req) => {
       );
     }
 
-    // 3. Insert company_members row
+    // 3. Insert company_members row.
+    //    Rollen (10/9, _shared/medlemsrolle.ts): ingen medlemmer i
+    //    virksomheden i forvejen → owner, ellers member — samme regel som
+    //    handle_new_user (#622). Før stod der 'member' ubetinget, og en
+    //    virksomheds første bruger endte uden owner. Kan vi ikke tælle,
+    //    gætter vi ikke: fejlen returneres, og næste load prøver igen.
+    const { count: antalMedlemmer, error: taelleFejl } = await supabase
+      .from("company_members")
+      .select("id", { count: "exact", head: true })
+      .eq("company_id", invitation.company_id);
+    if (taelleFejl) {
+      console.error("Failed to count company_members:", taelleFejl);
+      return new Response(
+        JSON.stringify({ error: "Failed to create membership", detail: taelleFejl.message }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+    const rolle = foersteMedlemsRolle(antalMedlemmer);
     const { error: memberError } = await supabase
       .from("company_members")
-      .insert({ company_id: invitation.company_id, user_id, role: "member" });
+      .insert({ company_id: invitation.company_id, user_id, role: rolle });
 
     if (memberError) {
       console.error("Failed to insert company_member:", memberError);
