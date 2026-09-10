@@ -41,6 +41,7 @@ import { DANISH_MONTHS, formatCompact, formatDKK } from "@/lib/financialUtils";
 import { EstimatMaerke, ESTIMAT_FORKLARING } from "../EstimatMaerke";
 import { StandardmaalMaerke } from "../StandardmaalMaerke";
 import { VirksomhedMailLog } from "./VirksomhedMailLog";
+import { FarligZone, OmdoebVirksomhed, SaetPrisniveau } from "./VirksomhedStamdata";
 import { virksomhedensAdresser } from "@/lib/mailLog";
 import { HbButton } from "../HbButton";
 import { HbCard } from "../HbCard";
@@ -1533,9 +1534,23 @@ const Blok7 = ({ d, onOpdateret, onFornyelseAendret }: { d: VirksomhedsData; onO
             {fejletBadge && <HbTag className="bg-hb-rust/10 px-2 py-0.5 text-[11px] text-hb-rust">{fejletBadge}</HbTag>}
           </div>
           <div className="mt-3 divide-y divide-hb-line">
+            {/* Navn (10/9, fra /members' blyant): stamdata hører her, sammen
+                med resten. Dialog og validering i VirksomhedStamdata. */}
+            <Linje label="Navn">
+              <span className="inline-flex flex-wrap items-baseline gap-x-3">
+                {c.name}
+                <OmdoebVirksomhed companyId={c.id} navn={c.name} onOpdateret={onOpdateret} />
+              </span>
+            </Linje>
             <Linje label="Start">{formatDato(c.contract_start_date)}</Linje>
             <Linje label="Slut">{formatDato(c.contract_end_date)}</Linje>
-            <Linje label="Prisniveau">{formatKr(prisniveau)}</Linje>
+            {/* Prisniveau (10/9, fra IndgangsSektion): mangler prisen, står
+                de to prispunkter her — skrivningen går stadig gennem
+                saet-indgangs-prisniveau, som også sender dag 0-mailen. */}
+            <Linje label="Prisniveau">
+              {formatKr(prisniveau)}
+              {indgang?.status === "afventer_pris" && <SaetPrisniveau companyId={c.id} onOpdateret={onOpdateret} />}
+            </Linje>
             {c.fornyelsespris_oere != null && <Linje label="Fornyelsespris">{formatKr(c.fornyelsespris_oere)}</Linje>}
             {c.subscription_status && <Linje label="Abonnement">{c.subscription_status}{c.subscription_current_period_end ? ` · til ${formatDato(c.subscription_current_period_end)}` : ""}</Linje>}
             {d.betalingslink && <Linje label="Underskrevet">{formatDato(d.betalingslink.underskrevet_at)}</Linje>}
@@ -1829,6 +1844,10 @@ export const VirksomhedView = ({ companyId }: { companyId: string | undefined })
           Aftalen («Varsel sendt», «Påmindelse sendt») den er beviset for.
           Nøglen er adresserne hooken allerede bærer (lib/mailLog). */}
       <VirksomhedMailLog companyId={data.company.id} adresser={virksomhedensAdresser(data.medlemmer, data.invitationer)} />
+      {/* Farlig zone (10/9): «Slet virksomheden» — som medlemmets «Forlad
+          virksomhed»: nederst, rød ramme, bekræft ved at skrive navnet. Går
+          ad slettefunktionens vej 1, aldrig hardDeleteCompany (bilaget). */}
+      <FarligZone d={data} onOpdateret={invalider} />
     </div>
   );
 };
