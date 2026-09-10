@@ -2,10 +2,11 @@ import { useCallback, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
-const EDIT_WINDOW_MS = 15 * 60 * 1000; // 15 minutes
+import { indenForVinduet, kanRedigereBesked, kanSletteBesked } from "@/lib/beskedRegler";
 
+/** 15 minutter — reglen bor i src/lib/beskedRegler.ts (delt af redigering og sletning, 10/9). */
 export function canEditMessage(createdAt: string): boolean {
-  return Date.now() - new Date(createdAt).getTime() < EDIT_WINDOW_MS;
+  return indenForVinduet(createdAt);
 }
 
 export function useMessageActions(
@@ -66,14 +67,15 @@ export function useMessageActions(
   }, [messageTable]);
 
   const canEdit = useCallback((senderId: string, createdAt: string) => {
-    if (senderId !== currentUserId) return false;
     // Advisors can edit own messages without time limit; members have 15-min window
-    return isAdvisor || canEditMessage(createdAt);
+    return kanRedigereBesked({ senderId, currentUserId, isAdvisor, createdAt });
   }, [currentUserId, isAdvisor]);
 
-  const canDelete = useCallback((senderId: string) => {
-    return senderId === currentUserId;
-  }, [currentUserId]);
+  // Sletning har SAMME grænse som redigering (10/9, beskedRegler.ts) — før
+  // var det sender alene, uden tidsgrænse, og databasen var enig.
+  const canDelete = useCallback((senderId: string, createdAt: string) => {
+    return kanSletteBesked({ senderId, currentUserId, isAdvisor, createdAt });
+  }, [currentUserId, isAdvisor]);
 
   return {
     editingId,

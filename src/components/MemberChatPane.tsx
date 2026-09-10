@@ -731,7 +731,7 @@ const MemberChatPane = () => {
                               />
                               <MessageActionMenu
                                 canEdit={canEditCheck(msg.sender_id, msg.created_at)}
-                                canDelete={canDeleteCheck(msg.sender_id)}
+                                canDelete={canDeleteCheck(msg.sender_id, msg.created_at)}
                                 onEdit={() => startEdit(msg.id, msg.content)}
                                 onDelete={() => handleDeleteMsg(msg.id)}
                                 isMine={isMine}
@@ -742,7 +742,7 @@ const MemberChatPane = () => {
                           {isMobile ? (
                             <MobileMessageActionDrawer
                               canEdit={canEditCheck(msg.sender_id, msg.created_at)}
-                              canDelete={canDeleteCheck(msg.sender_id)}
+                              canDelete={canDeleteCheck(msg.sender_id, msg.created_at)}
                               onEdit={() => startEdit(msg.id, msg.content)}
                               onDelete={() => handleDeleteMsg(msg.id)}
                               onReaction={(emoji) => toggleReaction(msg.id, emoji)}

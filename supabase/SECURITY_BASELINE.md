@@ -280,18 +280,26 @@ permissive policy. It must either be `AS RESTRICTIVE`, or REPLACE the
 looser policy (drop the old one in the same migration). A migration
 that only adds a tighter permissive policy changes nothing.
 
-Known, open, lower severity — not fixed on 2026-09-03:
+Known, open, lower severity — found 2026-09-03, migrations WRITTEN
+2026-09-10 (not yet run in prod; verify with each file's SELECT):
 
-- **`messages` DELETE** has no time limit at all, and two overlapping
-  policies exist: «Members can delete own messages» (`20260310193358:29`)
-  and «Users can delete own messages» (`20260317143551:28`,
-  `sender_id OR advisor` — the broadest). No restriction is lost there,
-  since neither has one, but the duplicate stands.
-- **storage «Authenticated users can upload feedback screenshots»** has
-  `WITH CHECK` on `bucket_id` alone, no folder check, so any
-  authenticated user can write to any path in that bucket. Reads are
-  owner-folder or advisor. `chat-attachments` was closed 6/8 and does
-  NOT have this gap.
+- **`messages` DELETE** had no time limit and two overlapping policies
+  («Members can delete own messages» `20260310193358:29`, «Users can
+  delete own messages» `20260317143551:28`, `sender_id OR advisor` — the
+  broadest won). Decided 10/9: deletion gets the SAME rule as editing.
+  `20260911020000_messages_delete_15min.sql` REPLACES both with «Users can
+  delete own messages within 15 min» (`sender_id = auth.uid() AND
+  message_type = 'user' AND created_at > now() - 15 min`) and «Advisors
+  can delete messages» (`has_role advisor`). The client mirrors the rule
+  in `src/lib/beskedRegler.ts` (`kanSletteBesked`). Expected after run:
+  exactly 2 DELETE policies on `messages`.
+- **storage «Authenticated users can upload feedback screenshots»** had
+  `WITH CHECK` on `bucket_id` alone. `20260911030000_feedback_bucket_mappetjek.sql`
+  REPLACES it with «Users can upload own feedback screenshots»
+  (`bucket_id = 'feedback-screenshots' AND (storage.foldername(name))[1]
+  = auth.uid()::text`) and sets the bucket to 5 MB / `image/*` — the same
+  limits the client enforces. Reads unchanged (owner-folder or advisor);
+  still no UPDATE/DELETE policies on the bucket.
 
 ### Company-scoped access
 ```sql
