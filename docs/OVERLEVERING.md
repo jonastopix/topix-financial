@@ -1,52 +1,28 @@
 # Overlevering
 
-> ## 🔴 DRIFTSFEJL DER KØRER LIGE NU — MÅLT I PROD 9/9 KL. 23:39
+> ## ✅ LØST — VAULT VAR TOM I OTTE TIMER 9/9 (historik, ikke en opgave)
 >
-> **`vault.secrets` HAR NUL RÆKKER.** Ikke bare `vault.decrypted_secrets` — den
-> rå tabel er tom. Hemmeligheden **`email_queue_service_role_key` er SLETTET.**
+> **Hvad der skete:** `vault.secrets` havde nul rækker — hemmeligheden
+> `email_queue_service_role_key` var slettet, formentlig med Lovables
+> mailopdatering 9/9 kl. 06:52–06:58 (`process-email-queue` slettet, og
+> nøglen var dens). Alle ni cron-jobs sendte `Bearer ` uden nøgle og fik
+> **401**; målt kl. 23:39: 77 kald med 401, nul med 200, så langt
+> `net._http_response` rakte (kl. 15:20). `cron.job_run_details` sagde
+> «succeeded» for dem alle — det betyder kun at `net.http_post` blev
+> afsendt (DEL 4).
 >
-> **Konsekvensen:** alle NI cron-jobs sender `Bearer ` uden nøgle og får
-> **401 UNAUTHORIZED_NO_AUTH_HEADER**. Målt: **77 kald med 401, NUL med 200**,
-> så langt `net._http_response` rækker tilbage (kl. 15:20 i dag — tabellen
-> ryddes løbende). De ni: `daily-report-reminder` · `fornyelsesvarsler` ·
-> `indgangs-paamindelser` · `intro-session-reminder` · `event-reminders` ·
-> `generate-weekly-focus` · `send-monthly-digest` ·
-> `process-notification-emails` · `slet-medlemsdata`. **INGEN AF DEM VIRKER.
-> Ingen mails er sendt siden mindst kl. 15:20.**
+> **Løst 9/9 kl. 23:50:** Lovable genskabte `email_queue_service_role_key`,
+> og `fornyelsesvarsel-cron` svarede **200**. Mails går igen.
 >
-> **FÆLDEN, som skal stå skarpt:** `cron.job_run_details` siger «succeeded»
-> for dem alle. Det betyder KUN at `net.http_post` blev afsendt — ikke at
-> kaldet lykkedes. Vi har læst «succeeded» hele dagen og troet det var bevis.
-> **Det rigtige bevis er `status_code` i `net._http_response`.** (DEL 4.)
+> **Det der gik tabt** (`~/Downloads/recon-hvad-gik-tabt.md`): kun dagsdomme
+> kan tabes — rapportpåmindelsen d. 7/9 hvis nøglen allerede var væk, og
+> event-påmindelser med T−7/T−1 i udfaldet. Køerne hentede sig selv: da
+> `process-notification-emails` blev tændt igen 10/9 kl. 08:57, gik **26
+> community-mails ud om et opslag fra dagen før** — det gav aldersgrænsen
+> (#770, DEL 2 «10. september»).
 >
-> **Hvornår:** fornyelsesvarslerne sendte rigtige mails 8/9 kl. 11:57, så det
-> er sket inden for et døgn. Mest sandsynlige årsag: Lovables mailopdatering
-> 9/9 kl. 06:52–06:58, hvor `process-email-queue` blev slettet — og
-> `email_queue_service_role_key` var netop den funktions nøgle. **IKKE
-> bevist**; `net._http_response` rækker ikke langt nok tilbage.
->
-> **I MORGEN, SOM DET FØRSTE:**
-> 1. **Genskab hemmeligheden i vault** med projektets service role key. Den
->    kan IKKE hentes fra Lovables Secrets-flade (de kan ikke genvises) — den
->    skal hentes fra Supabase-projektets egne API-indstillinger. Bogført
->    tidligere: **41 tegn, starter med `sb_secret_`**, ikke den gamle
->    219-tegns JWT.
-> 2. **Kald `fornyelsesvarsel-cron` tørt og bekræft 200** — i
->    `net._http_response`, ikke i `cron.job_run_details`.
-> 3. **Kontrollér hvad der er gået tabt:** hvilke mails SKULLE være sendt i
->    dag — rapportpåmindelser kl. 9, indgangens kl. 10, fornyelsens kl. 11 —
->    og om nogen skal sendes manuelt.
-> 4. **Overvej et værn:** et dagligt job der læser `net._http_response` og
->    siger til hvis noget svarer andet end 200. En cron der fejler tavst i
->    otte timer må ikke kunne ske igen. (Mangellisten: «Cron-jobbene fejler
->    tavst».)
->
-> **Måling der viser om det er rettet:**
-> ```sql
-> SELECT count(*) FROM vault.secrets WHERE name = 'email_queue_service_role_key';  -- 1
-> SELECT status_code, count(*) FROM net._http_response
-> WHERE created > now() - interval '2 hours' GROUP BY 1;                          -- kun 200
-> ```
+> **Værnet** er vagten (#768, #770) — som ikke virkede første gang, se
+> DEL 2 «10. september» og DEL 4.
 
 > **MÅLT I PROD 7. SEPTEMBER 2026 KL. 20:42 — DAGENS SIDSTE OG VIGTIGSTE
 > MÅLING. 29 AF 37 VIRKSOMHEDER ER FALDET UD. TO BRUGER PLATFORMEN SOM
@@ -328,7 +304,10 @@
 > efter listens egen regel); og der er 37 grene på origin ud over main
 > (`gh pr list --state merged` afgør hvilke — `git diff` lyver, DEL 1).
 
-**Sidst opdateret: 8. september 2026, aften — SYV PR'ER PÅ EN EFTERMIDDAG:
+**Sidst opdateret: 10. september 2026 — vault-udfaldet er historik, vagten
+byggede og fejlede to gange, `/members` er tømt, `/settings` er
+konverteret (DEL 2 «10. september», #763–#773).** Før det: 8. september,
+aften — SYV PR'ER PÅ EN EFTERMIDDAG:
 milepælenes dom (#741, #742), forslaget kan ses (#740), Mortens to fejl
 (#743, #744), to-do-listen (#745), fornyelseskvitteringen (#739). DEL 2
 «Eftermiddagen 8/9». Middag: DE OTTE ER SLETTET.**
@@ -2705,6 +2684,63 @@ notifikationsfanen er en tekst uden knapper); medlemmets aftale-kort,
 som venter på at nogen har en periode at vise — 27 af 27 har nul
 (#756 gav kun læseadgangen). Mangellisten er rettet.
 
+### 10. september — vagten der ikke virkede, `/members` tømt, `/settings` konverteret, notifikationernes alder (#763–#773)
+
+Reconerne ligger i `~/Downloads/` (uden for repoet): `recon-vejen-ind.md`,
+`analyse-onboardingens-rytme.md`, `recon-hvad-gik-tabt.md`,
+`recon-gamle-notifikationer.md`.
+
+**1. Vault-udfaldet er løst** (blokken øverst): nøglen genskabt 9/9 kl.
+23:50, 200 fra `fornyelsesvarsel-cron`.
+
+**2. Vagten (#768, #770) — bygget, merget, migrationen kørt, og den
+VIRKEDE IKKE.** To fejl efter hinanden. **(a)** plpgsql-variablen `r` delte
+navn med tabelaliasset `r`, så `r.created` blev læst som variablen. Rettet.
+**(b)** Derefter timede den ud: `cron.job_run_details` havde **1.895.419
+rækker** og intet indeks på `start_time`, og trin 2's korrelerede
+underforespørgsel kørte én gang pr. svar-række. Et indeks kan IKKE oprettes
+— «must be owner of table job_run_details», tabellen ejes af systemet.
+**Årsagen til de 1,9 mio.:** næsten alle var `SELECT
+public.email_queue_dispatch();` — mailkøens gamle afsender, planlagt som et
+NYT engangs-cron-job pr. afsendelse i stedet for ét gentagende. Hver
+efterlod en række; jobbene er væk. Lovable ryddede **1.892.693** rækker
+10/9; 2.734 tilbage. Lærerne står i DEL 4.
+
+**3. `/members` er tømt (#771, #772).** Invitationerne (#754), stamdata og
+branchefiltret (#771), importens advarsel (#763) — flyttet. Tilknyt og
+berig — fjernet, 284 linjer. Tilbage: importen, som bliver til
+ansøgningsflowet flytter, og onboarding-tragten, som IKKE skal flyttes.
+**Slet-knappen er den vigtige:** den kalder ikke `hardDeleteCompany` (den
+tager bilaget), men stempler `offboarding_requested_at`, så
+slettefunktionen gør arbejdet på dag syv — med syv dages fortrydelsesfrist.
+
+**4. `/settings` er konverteret (#773).** Notifikationsfanen var en tekst
+uden knapper; nu fem mailtyper (dem koden læser) plus
+`weekly_focus_enabled`. **Fund:** den gamle fane læste præferencerne fra
+`useAuth` via en `as any`-cast i stedet for fra `profiles` — kolonnen
+hentes ikke dér, så kontakterne stod altid på «til». Formentlig grunden til
+at den aldrig virkede. Aftalen for medlemmet viser slutdato og pris fra
+egen række; perioderne kommer når nogen har nogen (27 af 27 har nul).
+`company_fornyelse` læses aldrig — testen låser det.
+
+**5. Notifikationernes alder (#770).** Da jobbet blev tændt igen kl. 08:57
+efter otte timers nedbrud, sendte det 26 community-mails om et opslag fra
+dagen før. Nu **tolv timer på begivenheder** (community-opslag, -svar,
+-nævnelser, event-påmindelser) og «set i appen» dækker community via
+`community_visninger`. Princippet står i koden: jo mere beskeden er en
+BEGIVENHED, jo hurtigere forældes den; jo mere den er en OPGAVE, jo længere
+holder den. Forældede disposes med `email_sent_at` og logges «IKKE SENDT».
+
+**6. Event-dagene (#769).** Et event samme dag stod som «I morgen», fordi
+dagene blev regnet som timer (`Math.ceil` af millisekunder) frem for
+kalenderdage. Nu husets `kalenderdageTil`; «I dag» findes, «I gang» fra
+15 minutter før start.
+
+**7. Også i dag:** onboardingens rytme (#766: dag 0–1 «Sådan kommer du i
+gang», dag 10 intro-påmindelsen i systemets stemme, dag 14–20 «Historikken
+først»; migrationen skrevet, IKKE kørt), profilens nudge (#764/#765) og
+importens advarsel (#763).
+
 ### Mailplatformen — bygget om af Lovable 8/9 kl. 06:52-06:58; afsenderne, fortegnelsen og værnet (#728, #730, #731, #732)
 
 **Hvad Lovable gjorde.** 19 commits direkte til main mellem kl. 06:52 og
@@ -3244,7 +3280,7 @@ facit og rækkefølge; `docs/chat-design.md` chattens form.
 
 | hvornår | hvad | hvor det står |
 |---|---|---|
-| **EFTER 9/9** — det der står tilbage efter rådgiverfladen og de to trin | **Otte ting kun på `/members`** (prisniveau i indgangen, omdøb, merge, berig med ansøgning, importér, slet virksomhed, onboarding-tragten, branchefilter) — fornyelsen (#707/#709) og invitationerne (#754) er flyttet. **`/settings`' tre rester** (netværksprofil → Netværket, «Aftalen» på virksomheden, notifikationsfanen uden knapper). **Aftale-kortet** venter på perioder — 27 af 27 har nul. **Bevis:** `_shared/ikkeIGang.ts` i «View code» efter merge, Update for forsiden. **Ikke kode:** skriv til de seks der aldrig har uploadet — bed om historikken. | DEL 2 «9. september», mangellisten «Rådgiverfladen» |
+| **RETTET 10/9** (#771–#773): `/members` er tømt — kun importen og onboarding-tragten står; `/settings` er konverteret med aftalen og en rigtig notifikationsfane. **EFTER 9/9** — det der stod tilbage efter rådgiverfladen og de to trin | ~~Otte ting kun på `/members`~~ → **10/9: importen bliver til ansøgningsflowet flytter; onboarding-tragten skal IKKE flyttes.** ~~`/settings`' tre rester~~ → **10/9: konverteret (#773).** **Aftale-kortet** er bygget med slutdato og pris; perioderne vises når nogen har nogen — 27 af 27 har nul. **Bevis:** `_shared/ikkeIGang.ts` i «View code» efter merge, Update for forsiden. **Ikke kode:** skriv til de seks der aldrig har uploadet — bed om historikken. | DEL 2 «9. september», mangellisten «Rådgiverfladen» |
 | **9/9 — I MORGEN** (punkt 1 og 2 er KØRT 8/9: de syv slettet kl. 12:14–12:26, DEL 2 «De otte tidligere»; kvitteringen siger en dato og kan fortrydes, #736) | **1) KØRT 8/9 kl. 12:14–12:26** — de syv tidligere slettet i fire hold efter `docs/koereplan-de-syv-tidligere.md` (nu historik); 8 af 8 stemplet, sweep tomt. **2) KØRT (#736)** — kvitteringen siger «Din data slettes den …» (motorens frist) og kan fortrydes til dagen før. **3) Cron-migrationsfilen** der bogfører `slet-medlemsdata` (`0 12 * * *`), formen fra `20260901112000_prod_cron_bogfoert.sql`. **4) Planen for 8/9, punkt 6–7** (punkt 4 og 5 er GJORT 8/9 eftermiddag: digesten kalder milepælsdommen #741/#742, kvitteringsmailen #739 — DEL 2 «Eftermiddagen 8/9»): toasten i `Index.tsx`, og den tomme platform (a–d). **5) Intro-sessionens tid** — starttiden ankommer i `calendly-webhook` og kastes væk; bygges (det andet vindue 8/9 aften). **6) Åbne fund uden beslutning:** de betalte 1:1-sessioner der stopper ved `booking_sent`; agentens forslag (op til tre pr. virksomhed pr. mandag + ét pr. rapport, ingen læser svarene) — mangellisten bærer begge. | `docs/koereplan-de-syv-tidligere.md`; `docs/koereplan-slettefunktionen.md`; DEL 2 «Slettefunktionen»; øverst «PLANEN FOR 8. SEPTEMBER» |
 | **10/9** — MÅLT 6/9: ikke en tændingsdato | Fornyelsesordningen træder i kraft. Tre udløber inden og falder udenfor. **Intet sker i koden den dag:** `FORNYELSE_IKRAFT_DATO` sammenlignes med virksomhedens slutdato, ikke dags dato, og bliver virkningsløs efter 10/9. Kædens forudsætninger er alle grønne (seks migrationer kørt, ni priser, seks events, fire funktioner udrullet — men 401 beviser kun at de findes, ikke hvilken version; driftsbeviset fra 1/9 ligger før #529, #561, #563, #572 og #583). **Det der IKKE er klar: ordningen har ingen afsender** — rækken «BESLUTTET 6/9» nedenfor. | fornyelseskæden §13; fornyelsesordningen §5, §7; DEL 2 «Fornyelseskæden» |
 | BESLUTTET 6/9 (Jonas), TALLENE 7/9 — KÆDEN ER HEL og BEVIST I PRODUKTION 7/9 kl. 11:57 (#680, #681, #691, #692, #694–#697); LØST 7/9 kl. 14:51: cron-jobbet er PLANLAGT (0 11 * * *, aktivt) — **22/9** er PHILBERTs varsel 2 | **Medlemmet skal høre om sin fornyelse fra SYSTEMET, ikke ved at miste adgangen.** Formen, med tal fra 7/9: mail 1 ved 30 dage før slutdato, mail 2 ved 7 dage, tilbuddet lever 14 dage efter slutdato (bygget som tilstand, #678); et tilbud om at booke «En snak om din fornyelse» via https://calendly.com/topix-jonas/fornyelse (almindeligt link, ikke engangslink); og en notifikation til rådgiveren når mail 1 er sendt, så den personlige chatbesked kommer EFTER systemets mail og ikke i stedet for. **Konsekvens:** rådgiverbeslutningen skal foreligge senest dag 30, ellers sendes intet — en glemt beslutning aflyser mailen, den forsinker den ikke. **LØST 7/9 kl. 14:51:** jobbet er planlagt — `fornyelsesvarsler`, `0 11 * * *` UTC (13:00 dansk), aktivt, målt i `cron.job`. Første kørsel 8/9 finder ingen forfaldne (PHILBERT og CARMA er stemplet); næste rigtige afsendelse er PHILBERTs varsel 2 den 22/9, og den sker af sig selv. Rådgiveren ser stemplet på forsiden («Varslet er sendt — N dage», #696); en egen notifikation til rådgiveren er ikke bygget. *Bevist i produktion 7/9 kl. 11:57:* PHILBERT fik varsel 1, CARMA fik varsel 2 på dag 0 uden varsel 1, begge stemplet (DEL 2 «Fornyelseskæden»). Motoren `afgoerForfaldentVarsel` (#680) og `fornyelsesvarsel-cron` (#681) FINDES; tørkørslen kl. 10:15 fandt PHILBERT → varsel 1 og CARMA → varsel 2 med «varsel 1 springes over: sen beslutning» (DEL 2 «Fornyelseskæden», fornyelseskæden §15). Stemplerne findes (`varsel_1_sendt_at`, `varsel_2_sendt_at`, #674, i prod 7/9 kl. 08:51; ingen trigger — skrivestien sætter selv `updated_at`). **Formen SPEJLER INDGANGENS KÆDE** (målt 6/9, `~/Downloads/recon-indgangens-mailkaede.md`, uden for repoet): pg_cron → `net.http_post` med vault-nøglen → Bucket B-funktion med `authenticateServiceRole` → TØRKØRSEL SOM STANDARD → ren motor afgør hvilken dag hver række står på → byg mail → enqueue → stempl KUN når afsendelsen lykkedes. **Datamodellen (LØST 7/9, #674):** stempel-felterne findes nu — to navngivne kolonner frem for et dag-nummer, fordi de to varsler kan sendes uafhængigt. **Calendly (LØST 7/9):** event-typen findes, linket står ovenfor. Betalte bookinger registreres i dag aldrig tilbage i platformen (målt 3/9), så linket i mailen skal være et almindeligt link — vi lover ikke en måling vi ikke kan holde. **Tempoet, målt i prod 6/9:** efter Doggybed 13/10 er der ingen fornyelse før Livja 16/12 — to måneders hul; derefter fjorten virksomheder marts–juni 2027, over halvdelen af porteføljen. Deadline for mailkæden: Livja minus 30 dage. | fornyelsesordningen §7; fornyelseskæden §13.4; indgangen-design §26 (formen) |
@@ -3335,8 +3371,19 @@ De konkrete ting der har kostet tid. Led efter dem.
   lykkedes.** Det betyder kun at `net.http_post` blev afsendt. 9/9 stod
   alle ni jobs som «succeeded» mens hvert kald fik 401, fordi vault-nøglen
   var slettet — otte timer, 77 kald, nul mails. Beviset er `status_code`
-  i `net._http_response` (som ryddes løbende — mål samme dag). Øverst i
-  denne fil.
+  i `net._http_response` (som ryddes løbende — mål samme dag). Løst 9/9
+  kl. 23:50 (blokken øverst er historik).
+- **En plpgsql-variabel må ALDRIG dele navn med et tabelalias.** Vagten
+  (#768) havde `r` som variabel OG som alias; `r.created` blev læst som
+  variablen, og funktionen var stille forkert. Kald variablen noget andet
+  end noget der kan stå efter FROM.
+- **EN VAGT MÅ ALDRIG AFHÆNGE AF AT DET DEN VAGTER, ER LILLE.**
+  `cron.job_run_details` havde 1.895.419 rækker (10/9) — mailkøens gamle
+  afsender planlagde ét engangs-cron-job pr. afsendelse — og vagtens
+  korrelerede underforespørgsel timede ud. **Tabellen kan IKKE indekseres:**
+  «must be owner of table job_run_details», den ejes af systemet. Afgræns
+  ALTID på tid FØR du joiner, og ryd tabellen (Lovable ryddede 1.892.693
+  rækker 10/9; 2.734 tilbage).
 - **`Deno.cron` kører ikke på Supabases edge-runtime.** En funktion med
   kun `Deno.cron` kører aldrig. Påmindelser skal have en HTTP-indgang og
   planlægges med pg_cron (net.http_post + vault-nøglen

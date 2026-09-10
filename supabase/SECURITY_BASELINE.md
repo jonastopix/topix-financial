@@ -158,6 +158,7 @@ to the entire access-control model.
 - `get_cron_vagt()`: STABLE SECURITY DEFINER, advisor-only via `has_role` in WHERE (nul rows otherwise), `GRANT EXECUTE TO authenticated`; returns the last 24 h of `cron_vagt_log`. Read by the advisor front page ("Driften: …").
 - `cron_vagt_log`: RLS enabled; SELECT for advisors only; no client write policies (only the function writes).
 - Rules and thresholds are documented in the migration header; the paused-queue case is yellow, not red, by decision 9/9.
+- Five versions 9–10/9 (`20260910100000` alias, `20260910120000` join + PK-only read of `cron.job_run_details`, `20260910130000` `array_append`, `20260910140000` messenger): `advisor_notifications.company_id` is now **nullable** — a drift message is not about a company (previously `NOT NULL` since `20260226070216`; every other writer still sets it). The notification insert runs in its own EXCEPTION block so a messenger failure never rolls back the log row.
 
 ### Member-visibility RPCs: `get_member_profile(p_user_id uuid)`, `get_event_participants(p_event_id uuid)`, `get_member_directory()`
 - All three: STABLE, SECURITY DEFINER with `search_path = public`
