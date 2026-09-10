@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   afgoerBetalingsfrist,
+  erGaeldendeSlutdato,
   BETALINGSFRIST_DAGE,
   PAAMINDELSESDAGE,
   type BetalingsfristInput,
@@ -9,6 +10,7 @@ import {
 // frontend copy. We import it here so vitest fails loudly if the two drift.
 import {
   afgoerBetalingsfrist as afgoerBetalingsfristDeno,
+  erGaeldendeSlutdato as erGaeldendeSlutdatoDeno,
   BETALINGSFRIST_DAGE as BETALINGSFRIST_DAGE_DENO,
   PAAMINDELSESDAGE as PAAMINDELSESDAGE_DENO,
 } from "../../../supabase/functions/_shared/betalingsfrist.ts";
@@ -52,6 +54,9 @@ describe("afgoerBetalingsfrist — parity between src/lib and supabase/functions
     { navn: "klar_til_mail efter 35 dage", input: input(35, { betalingsmail_sendt_at: null }), now: NU },
     // Prioriteten
     { navn: "betalt uden pris", input: input(8, { prisniveau_oere: null, contract_end_date: "2027-09-01" }), now: NU },
+    { navn: "passeret slutdato — ikke betalt (11/9)", input: input(8, { contract_end_date: "2026-05-06" }), now: NU },
+    { navn: "slutdato i går — ikke betalt", input: input(8, { contract_end_date: "2026-09-01" }), now: NU },
+    { navn: "slutdato i dag — betalt", input: input(8, { contract_end_date: "2026-09-02" }), now: NU },
     { navn: "afventer_pris med mail=null", input: input(8, { prisniveau_oere: null, betalingsmail_sendt_at: null }), now: NU },
     // Grænserne
     { navn: "13 dage", input: input(13), now: NU },
@@ -102,5 +107,14 @@ describe("låsene er ens i begge kopier", () => {
   it("fristen og påmindelsesdagene", () => {
     expect(BETALINGSFRIST_DAGE_DENO).toBe(BETALINGSFRIST_DAGE);
     expect([...PAAMINDELSESDAGE_DENO]).toEqual([...PAAMINDELSESDAGE]);
+  });
+});
+
+describe("erGaeldendeSlutdato — paritet mellem de to spejle", () => {
+  it("samme svar for i morgen, i dag, i går, null, tom og ulæselig", () => {
+    const nu = new Date("2026-09-11T10:00:00.000Z");
+    for (const d of ["2026-09-12", "2026-09-11", "2026-09-10", null, "", "ikke-en-dato", "2026-09-11T23:59:59Z"]) {
+      expect(erGaeldendeSlutdatoDeno(d, nu)).toBe(erGaeldendeSlutdato(d, nu));
+    }
   });
 });

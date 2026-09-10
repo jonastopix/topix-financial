@@ -117,6 +117,16 @@ describe("afgoerBetalingsfrist — prioriteten", () => {
     expect(ud.status).toBe("betalt");
   });
 
+  it("en PASSERET slutdato er ikke betalt (11/9): en tidligere kunde falder igennem til betalingstilstandene", () => {
+    // NU er 2/9 2026 — slutdato 6/5 2026 er «var medlem», ikke «har betalt».
+    expect(afgoerBetalingsfrist(input(8, { contract_end_date: "2026-05-06" }), NU).status).toBe("afventer_betaling");
+    expect(afgoerBetalingsfrist(input(60, { contract_end_date: "2026-05-06" }), NU).status).toBe("frist_overskredet");
+    expect(afgoerBetalingsfrist(input(8, { contract_end_date: "2026-05-06", prisniveau_oere: null }), NU).status).toBe("afventer_pris");
+    // Grænsen fra begge sider: slutdato i går → ikke betalt; i dag → betalt.
+    expect(afgoerBetalingsfrist(input(8, { contract_end_date: "2026-09-01" }), NU).status).toBe("afventer_betaling");
+    expect(afgoerBetalingsfrist(input(8, { contract_end_date: "2026-09-02" }), NU).status).toBe("betalt");
+  });
+
   it("betalt vinder over frist_overskredet: en betalt virksomhed får aldrig en påmindelse", () => {
     const ud = afgoerBetalingsfrist(input(60, { contract_end_date: "2027-09-01" }), NU);
     expect(ud.status).toBe("betalt");
