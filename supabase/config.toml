@@ -160,6 +160,11 @@ project_id = "loiavmastgeieqyiwyyr"
   # gaten. Tørkørsel som standard. Mail A (dag 0–1) og C (dag 14–20).
   [functions.onboarding-rytme]
     verify_jwt = true
+  # legat-reminder-cron (10/9): var kun Deno.cron og har aldrig kørt. Nu
+  # Bucket B — authenticateServiceRole, pg_cron via kald_edge passerer gaten.
+  # Tørkørsel som standard.
+  [functions.legat-reminder-cron]
+    verify_jwt = true
   # Samme begrundelse som indgangs-paamindelser-cron: Bucket B,
   # authenticateServiceRole, pg_cron-job med vault-nøglen passerer gaten.
   # Tørkørsel som standard; ren rapport indtil afsendelsen bygges (7/9).

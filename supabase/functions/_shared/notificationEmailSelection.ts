@@ -87,6 +87,48 @@ export const COMMUNITY_TRAAD_TYPES = new Set(["community_opslag", "community_sva
 /** Hvorfor en kandidat disposes — logges af kalderen, så «behandlet» ikke læses som «sendt». */
 export type DisposeGrund = "set_i_app" | "foraeldet" | "rapport_vaek" | "dublet";
 
+/**
+ * «Set i appen» for CHATTEN (10/9): chat_reply skrives af notify-chat-reply
+ * med reference_type "message" og reference_id = beskedens id. Læser
+ * modtageren beskeden i chatten, sætter mark_messages_read messages.read_at
+ * — men mail-motoren læste kun notifications.seen_at (klokken) og mailede
+ * alligevel. Kalderen slår read_at op for disse kandidater og kalder
+ * delChatKandidater; de læste disposes med grund «set_i_app».
+ */
+export const CHAT_LAEST_TYPES = new Set(["chat_reply"]);
+
+export interface ChatKandidat {
+  id: string;
+  type: string;
+  reference_id: string | null;
+  reference_type?: string | null;
+}
+
+/** Peger kandidaten på en besked i messages? (typen, eller eksplicit reference_type) */
+export function erChatBeskedRef(c: ChatKandidat): c is ChatKandidat & { reference_id: string } {
+  if (!c.reference_id) return false;
+  return CHAT_LAEST_TYPES.has(c.type) || c.reference_type === "message";
+}
+
+/**
+ * Deler én brugers chat-kandidater i dem der stadig skal med i den samlede
+ * mail (send) og dem hvis besked allerede er læst i chatten (disposed).
+ * Rækkefølgen bevares — kalderen bruger den sidste i `send` som deep link.
+ * En kandidat uden besked-reference kan ikke dømmes og sendes som før.
+ */
+export function delChatKandidater<T extends ChatKandidat>(
+  chatNotifs: readonly T[],
+  laesteBeskedIds: ReadonlySet<string>,
+): { send: T[]; disposed: T[] } {
+  const send: T[] = [];
+  const disposed: T[] = [];
+  for (const n of chatNotifs) {
+    if (erChatBeskedRef(n) && laesteBeskedIds.has(n.reference_id)) disposed.push(n);
+    else send.push(n);
+  }
+  return { send, disposed };
+}
+
 /** En begivenhed er forældet når den er ÆLDRE end grænsen (præcis 12 t er ikke forældet). */
 export function erForaeldet(c: { type: string; created_at: string }, now: Date): boolean {
   if (!BEGIVENHED_TYPES.has(c.type)) return false;

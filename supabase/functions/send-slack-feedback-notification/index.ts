@@ -68,14 +68,20 @@ Deno.serve(async (req) => {
     const admin = createClient(supabaseUrl, serviceRoleKey);
 
     // ── Guard: skip if sender is advisor/admin ──
-    const { data: senderRole } = await admin
+    // Rettet 10/9 (rolletjek-buggen): en bruger med BÅDE advisor og admin gav
+    // to rækker, .maybeSingle() fejlede, `data` blev null — og Slack fik
+    // besked om rådgiverens egen feedback. Højst én række, fejlen logges.
+    const { data: senderRoles, error: senderRoleError } = await admin
       .from("user_roles")
       .select("role")
       .eq("user_id", callerId)
       .in("role", ["advisor", "admin"])
-      .maybeSingle();
+      .limit(1);
 
-    if (senderRole) {
+    if (senderRoleError) {
+      console.error("[send-slack-feedback-notification] rolleopslag fejlede:", senderRoleError.message);
+    }
+    if (senderRoles?.length) {
       return json({ ok: true, skipped: "sender_is_advisor" });
     }
 

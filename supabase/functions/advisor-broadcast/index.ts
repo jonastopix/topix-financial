@@ -9,15 +9,27 @@ Deno.serve(async (req) => {
   if (auth instanceof Response) return auth;
   const { callerId, callerClient } = auth;
 
-  // Verify caller is advisor via user_roles (not profiles)
-  const { data: roleRow } = await callerClient
+  // Verify caller is advisor via user_roles (not profiles).
+  // Rettet 10/9 (rolletjek-buggen): én bruger kan have BÅDE advisor og admin
+  // — to rækker — og .maybeSingle() uden .limit(1) fejler så («multiple
+  // rows»); `const { data }` slugte fejlen, og en admin fik 403 af sin egen
+  // rolle. Nu læses højst én række, og en fejl i opslaget er en fejl (500),
+  // ikke et nej.
+  const { data: roleRows, error: roleError } = await callerClient
     .from("user_roles")
     .select("role")
     .eq("user_id", callerId)
     .in("role", ["advisor", "admin"])
-    .maybeSingle();
+    .limit(1);
 
-  if (!roleRow) {
+  if (roleError) {
+    console.error("[advisor-broadcast] rolleopslag fejlede:", roleError.message);
+    return new Response(JSON.stringify({ error: "Rolleopslag fejlede" }), {
+      status: 500,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+  if (!roleRows?.length) {
     return new Response(JSON.stringify({ error: "Forbidden" }), {
       status: 403,
       headers: { ...corsHeaders, "Content-Type": "application/json" },

@@ -37,7 +37,9 @@ import {
   BEGIVENHED_MAKS_ALDER_MS,
   COMMUNITY_TRAAD_TYPES,
   REPORT_NOTIFICATION_TYPES,
+  delChatKandidater,
   emailDelayMinutes,
+  erChatBeskedRef,
   parseDkReportPeriodKey,
   selectNotificationEmails,
   type ReportJoin,
@@ -432,6 +434,41 @@ Deno.serve(async (req) => {
         `[dispose] IKKE SENDT — ${grund}: ${notif.type} ${notif.id} (ref=${notif.reference_id}, ${alderTimer} t gammel, grænse ${BEGIVENHED_MAKS_ALDER_MS / 3_600_000} t for begivenheder)`,
       );
       skipped++;
+    }
+
+    // ── «Set i appen» for chatten (10/9): messages.read_at ──
+    //    chat_reply peger på beskeden (reference_type "message"). Er den
+    //    læst i chatten (mark_messages_read → read_at), disposes den her —
+    //    før aggregeringen — så en samlet mail hverken sendes for eller
+    //    tæller læste beskeder. Fejler opslaget, dømmes ingen som læst:
+    //    hellere en mail for meget end en tavs fejl, og det står i loggen.
+    {
+      const alleChat = [...chatNotifsByUser.values()].flat();
+      const beskedIds = [...new Set(alleChat.filter(erChatBeskedRef).map((n) => n.reference_id as string))];
+      const laesteBeskedIds = new Set<string>();
+      if (beskedIds.length > 0) {
+        const { data: laeste, error: laestFejl } = await admin
+          .from("messages")
+          .select("id")
+          .in("id", beskedIds)
+          .not("read_at", "is", null);
+        if (laestFejl) {
+          console.error("[set-i-app] messages.read_at-opslag fejlede:", laestFejl.message);
+        }
+        for (const m of (laeste ?? []) as { id: string }[]) laesteBeskedIds.add(m.id);
+      }
+      if (laesteBeskedIds.size > 0) {
+        for (const [userId, chatNotifs] of [...chatNotifsByUser.entries()]) {
+          const { send: tilbage, disposed } = delChatKandidater(chatNotifs, laesteBeskedIds);
+          for (const n of disposed) {
+            await admin.from("notifications").update({ email_sent_at: new Date().toISOString() }).eq("id", n.id);
+            console.log(`[dispose] IKKE SENDT — set_i_app: ${n.type} ${n.id} (besked ${n.reference_id} læst i chatten)`);
+            skipped++;
+          }
+          if (tilbage.length === 0) chatNotifsByUser.delete(userId);
+          else if (disposed.length > 0) chatNotifsByUser.set(userId, tilbage);
+        }
+      }
     }
 
     // ── Process aggregated chat notifications (one email per user) ──
