@@ -393,6 +393,16 @@
       <p>Står <code>past_due</code> — kortet fejler, anden gang. En restance kan ikke migreres; den skal betales eller afskrives først, og kortet skal virke, ellers fejler første træk på den nye konto på samme måde.</p>
       <div class="meta"><span class="tag rust">Restance</span></div>
     </div>
+    <div class="card new" data-status="mangler" data-spor="1" data-rammer="raadgiver">
+      <h3>Rådgivernes klokke ringer ikke ved et fejlet træk</h3>
+      <p><code>stripe-webhook</code>s <code>invoice.payment_failed</code>-gren upserter <code>company_traek</code> og skriver <code>console.error</code> — intet andet. Badgen på virksomhedslisten og virksomhedssiden ses kun af den der kigger. Rettelsen er ét kald til <code>skrivRaadgiverBesked</code> (#799, vagtens form: én række pr. rådgiver) efter upsertet, dedup på <code>company_traek.id</code> (uuid — <code>stripe_invoice_id</code> er det ikke), så fire forsøg ikke bliver fire beskeder; deep link til virksomhedssiden. <strong>Ingen mail til medlemmet fra os</strong> — Stripe sender den nu (sat op 10/9, «Send emails when card payments fail» TIL) med link til kortskift og betaling. Forebyggende: <code>company_traek</code> har 0 fejlede før 13/9 (webhooken sidder på den nye konto). Bevis: doggybeds træk 13/9.</p>
+      <div class="meta"><span class="tag ny">Ny 10/9</span><span class="tag size">Lille</span></div>
+    </div>
+    <div class="card new" data-status="mangler" data-spor="1" data-rammer="medlem">
+      <h3>Retries opbrugt → fakturaen sendes automatisk</h3>
+      <p>Jonas' aftale (10/9): «i stedet for bare at lukke deres abonnement ned … sender vi en invoice.» Stripe kan IKKE selv (slået op: slutvalgene er cancel/unpaid/past-due, collection method rammer kun næste rate, Automations har ingen «send invoice»). Bygges i <code>payment_failed</code>-grenen: når <code>next_payment_attempt</code> er null (Stripe sætter det på hvert event; null = opgivet), kald <code>POST /v1/invoices/{id}/send</code> på den fejlede faktura — den bærer allerede <code>hosted_invoice_url</code>, hvor kunden kan betale med et andet kort — og skriv en tydeligere klokke-besked («Stripe har opgivet kortet — fakturaen er sendt; følg op»). Beslutning der hører til: skal resten af raterne skifte til <code>collection_method = send_invoice</code> med <code>days_until_due</code>? Forudsætter slutvalget past-due (sat 10/9) — en annulleret faktura kan ikke sendes videre.</p>
+      <div class="meta"><span class="tag ny">Ny 10/9</span><span class="tag size">Lille</span></div>
+    </div>
     <div class="card blocked" data-status="mangler" data-spor="1" data-rammer="ingen">
       <h3>Elleve af fjorten har intet betalingsmiddel på abonnementet</h3>
       <p><code>default_payment_method</code> er NULL — kortet ligger på kunden. Kundekopien flytter kortet, men ikke hvilket abonnement der bruger det. Ved genskabelse skal det sættes eksplicit, ellers fejler første træk.</p>

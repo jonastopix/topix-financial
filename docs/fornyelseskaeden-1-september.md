@@ -267,20 +267,64 @@ fornyelse. Beslutningen udestår og skal træffes før trin b.
 kan fjerne medlemmets adgang til Circles community. Konsekvensen
 afhænger af hvor langt Circle-exit'en er, og det er ikke undersøgt.
 
-## 9. Restance
+## 9. Restance — RETTET 10/9: Stripe ender i `past_due`, ikke `unpaid`
 
-Adgangen bindes til Stripes egen tilstand, ikke til en tæller vi selv
-fører:
+**Besluttet 10/9 (Jonas) og sat op i Stripe kl. 20:50–21:05** efter
+`~/Downloads/recon-restance.md` (Stripes regler slået op i
+dokumentationen, ikke husket). Jonas: «I stedet for bare at lukke deres
+abonnement ned, så sørger vi for at blive ved med at gøre opmærksom på det
+og sender en invoice. Så vi hele tiden sikrer os at vi har styr på vores
+medlemmer.»
 
-- **`past_due`** — åben adgang, mens Stripe genforsøger i ca. tre uger.
-- **`unpaid`** — adgang lukket; abonnementet lever videre og kan
-  genoplives ved betaling.
+**Princippet** (adgangsdomme §6, 3/9): en fejlet rate er en
+INDDRIVELSESsag, ikke en adgangssag. Kontrakten er betalt ved underskrift,
+og adgangen afgøres af `contract_end_date` — ikke af Stripes tilstand.
+Stripes tilstand styrer kun én ting: bliver Stripe ved med at forsøge og
+fortælle det, eller stopper den.
 
-Stripe skal sættes til at ende i `unpaid`, **ikke** `canceled`.
+**Slutvalget er «Leave the subscription past-due»** — hverken `canceled`
+(som kontoen stod på; terminal, stopper alle fremtidige rater og dræber
+schedulen) eller `unpaid` (som denne paragraf sagde 1/9). Begrundelsen fra
+Stripes dokumentation:
 
-Kræver ændring i `computeMembershipTier`, som findes fire steder
-(TypeScript, Deno, SQL og fornyelsesmotoren) og skal ændres samlet —
-dommen skal stå ét sted. **Ikke bygget endnu.**
+- `unpaid`: «Invoices continue to be generated and stay in a draft state
+  … payments aren't attempted» — og linket i Stripes fejl-mail
+  **invalideres** når status bliver `unpaid`. Ingen forsøg, intet link,
+  fakturaer der ligger som kladder.
+- `past_due`: «Invoices continue to be generated and charge the customer
+  based on retry settings» — fakturaerne står åbne, nye rater kommer og
+  forsøges, mail-linket lever, og «To reactivate the subscription, have
+  your customer pay the most recent invoice.»
+
+**Opsætningen på den nye konto (`acct_1U6mzp3CvBmCx5Pt`), ændret 10/9:**
+Smart Retries 8 forsøg over 2 uger → **8 over 1 måned**; efter sidste
+forsøg cancel → **leave past-due**; «incomplete for 15 days» (betalinger
+der kræver bekræftelse) cancel → **leave past-due**; «Send emails when
+card payments fail» **TIL**; «Send emails about expiring cards» **TIL**;
+«Payment method updates» fra «mix (Legacy)» med fire URL'er på
+`www.theboardroom.dk` (forkert vært) → **Link to a Stripe-hosted page**;
+kundeportal-link **TIL**; sprog **dansk**. «Send emails about upcoming
+renewals» **blev FRA med vilje**: huset sender egne fornyelsesvarsler
+(§7), og to stemmer om det samme er værre end én.
+
+**Den gamle konto (`acct_1QP3Js4DoYItGRbI`, «Topix.dk · Circle.so», 13
+abonnementer + YKRG):** kortfejl-mails, udløbende kort, Stripe-hosted page
+og kundeportal var allerede til; «incomplete for 15 days» er rettet til
+past-due. **Retry-planen kan IKKE ændres — Circle ejer kontoen.** Endnu en
+grund til at få de fjorten migreret.
+
+**`computeMembershipTier` rettes IKKE for rater** — adgangen kommer af
+`contract_end_date`, og webhooken springer alle abonnementer med en `art`
+over (hvidlisten #563). For selvbetjeningsabonnementet («Dine tal», uden
+art) gør motoren `past_due` til `expired` straks — strengere end
+politikken «past_due = åben»; rettes den dag det første
+selvbetjeningsabonnement findes, sammen med de fem domme (adgangsdomme §6).
+
+**Det der stadig skal bygges** (kort på mangellisten, afsnittet Betaling):
+rådgivernes klokke ved fejlet træk, og «retries opbrugt → fakturaen
+sendes» (`next_payment_attempt` null → `invoices.send`), som er Jonas'
+aftale i kode. Stripe har ingen indstilling der sender fakturaen selv —
+slået op: slutvalgene, collection method og Automations kan det ikke.
 
 ## 10. Åbne punkter
 
