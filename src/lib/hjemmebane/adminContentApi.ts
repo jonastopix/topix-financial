@@ -277,6 +277,16 @@ export async function updateEvent(
 /** Aflysning går gennem cancel-event-funktionen (Bucket A) — den sætter
     status OG giver alle aktive tilmeldte besked. En ren status-UPDATE
     ville aflyse i stilhed; brug ALDRIG updateEvent til aflysning. */
+/** Publicér = statusskift OG besked til alle aktive medlemmer i samme kald
+    (publish-event, 10/9) — en kladde sender aldrig, et publiceret event er no-op. */
+export async function publishEvent(
+  eventId: string,
+): Promise<{ ok: boolean; published?: boolean; already_published?: boolean; recipients?: number; notified?: number; notify_error?: string }> {
+  const { data, error } = await supabase.functions.invoke("publish-event", { body: { event_id: eventId } });
+  if (error) throw new Error(error.message);
+  return data as { ok: boolean; published?: boolean; already_published?: boolean; recipients?: number; notified?: number; notify_error?: string };
+}
+
 export async function cancelEvent(
   eventId: string,
   reason?: string,
