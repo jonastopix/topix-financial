@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { deriveReportCardView, erForTidligt, foersteDagEfterPeriode, godkendSpaerret, nuSomPeriodeNoegle } from "../reportCardView";
+import { deriveReportCardView, erForTidligt, foersteDagEfterPeriode, godkendSpaerret, kortGrund, nuSomPeriodeNoegle, rapportFejlgrund } from "../reportCardView";
 
 describe("deriveReportCardView — mapping-tabellen række for række", () => {
   it("1) processing → Behandles…, quiet, ingen handling", () => {
@@ -161,5 +161,76 @@ describe("godkendSpaerret — punkt 4 (10/9): en fejlet facts-hentning må ikke 
   });
   it("spærrer intet når facts er hentet", () => {
     for (const a of ["review", "override", "upload", "none"] as const) expect(godkendSpaerret(a, false)).toBe(false);
+  });
+});
+
+// ── Grunden på kortet (10/9, recon-parseren §5f) ──
+describe("rapportFejlgrund — grunden står på kortet, kort og i medlemmets ord", () => {
+  const SPAEND = "Filen dækker 2 måneder (maj–juni 2026). Vi kan kun læse én måned ad gangen — eksportér én måned pr. fil og upload dem hver for sig.";
+  const KENDT_KILDE = "Filen er genkendt som en rapport fra e-conomic, men netop dette format understøttes ikke automatisk endnu. Du kan indtaste tallene manuelt på rapportkortet.";
+
+  it("to måneder i én fil (#785): serverens tekst, klippet til to hele sætninger uden halen", () => {
+    const g = rapportFejlgrund({ status: "error", validationErrors: [SPAEND], routingBranch: "period_span_rejected" });
+    expect(g).toBe("Filen dækker 2 måneder (maj–juni 2026). Vi kan kun læse én måned ad gangen.");
+    // grenen alene (ældre række uden tekst) giver stadig en grund
+    expect(rapportFejlgrund({ status: "error", routingBranch: "period_span_rejected" })).toMatch(/flere måneder/);
+  });
+
+  it("periode ikke afsluttet (periode-gaten): dansk sætning i stedet for kolonnens «Periode ikke afsluttet»", () => {
+    expect(rapportFejlgrund({ status: "error", validationErrors: ["Periode ikke afsluttet"] })).toBe("Måneden er ikke afsluttet endnu — upload rapporten, når den er omme.");
+    expect(rapportFejlgrund({ status: "error", routingBranch: "period_not_completed" })).toMatch(/ikke afsluttet/);
+  });
+
+  it("kendt kilde uden skabelon (#449): første sætning, på needs_manual_entry-kortet", () => {
+    const g = rapportFejlgrund({ status: "processed", qualityValidationErrors: [KENDT_KILDE], routingBranch: "known_source_unsupported_variant" });
+    expect(g).toBe("Filen er genkendt som en rapport fra e-conomic, men netop dette format understøttes ikke automatisk endnu.");
+    const view = deriveReportCardView({ status: "needs_manual_entry", isCommitted: false, fejlgrund: g });
+    expect(view.detail).toBe(g);
+  });
+
+  it("klientens egne: flere ark, kodeord, PDF-struktur, afbrudt behandling", () => {
+    expect(rapportFejlgrund({ status: "error", validationErrors: ["Denne filtype (multi-sheet regnskabsrapport med DATA + P&L Top Line ark) understøttes ikke endnu. Upload venligst en enkelt-sheet saldobalance/resultatopgørelse."] })).toMatch(/^Filen har flere ark/);
+    expect(rapportFejlgrund({ status: "error", validationErrors: ["PDF is password protected"] })).toMatch(/adgangskode/);
+    expect(rapportFejlgrund({ status: "processed", validationErrors: ["PDF structural extraction failed: pdfjs_worker_loading"] })).toMatch(/Excel i stedet/);
+    expect(rapportFejlgrund({ status: "processed", validationErrors: ["Extraction timed out or crashed without updating DB"] })).toBe("Behandlingen blev ikke færdig — prøv igen.");
+  });
+
+  it("cron-oprydningen: error uden gemt grund → «Behandlingen blev ikke færdig — prøv igen.»", () => {
+    expect(rapportFejlgrund({ status: "error", validationErrors: null, qualityValidationErrors: null })).toBe("Behandlingen blev ikke færdig — prøv igen.");
+  });
+
+  it("tekniske strenge kommer ALDRIG på kortet: checknavne, engelsk, «Unknown error»", () => {
+    for (const teknisk of [
+      "suspicious_sign_pattern: 5/9 metrics negative (>50%)",
+      "gross_profit_sum: MISMATCH: 95829.05 ≠ 96220.67",
+      "Kontrol af dokumentet — deterministic_parser_status: Parser reported: FAIL",
+      "AI returned no tool call",
+      "Unknown error",
+      "Known source economic detected but no supported template matched. AI fallback is forbidden for known sources.",
+    ]) {
+      expect(rapportFejlgrund({ status: "processed", validationErrors: [teknisk] }), teknisk).toBeNull();
+    }
+  });
+
+  it("kolonnen validation_errors går forud for quality_signals; ingen kilder → null (ikke error)", () => {
+    expect(rapportFejlgrund({ status: "processed", validationErrors: ["Periode ikke afsluttet"], qualityValidationErrors: [SPAEND] })).toMatch(/ikke afsluttet/);
+    expect(rapportFejlgrund({ status: "processed" })).toBeNull();
+  });
+
+  it("kortGrund: højst to sætninger, aldrig over 120 tegn, og en hale efter tankestreg klippes til en hel sætning", () => {
+    expect(kortGrund("A. B. C.")).toBe("A. B.");
+    expect(kortGrund(SPAEND).length).toBeLessThanOrEqual(120);
+    expect(kortGrund(SPAEND)).toMatch(/\.$/);
+    const lang = `${"x".repeat(200)}.`;
+    expect(kortGrund(lang).length).toBeLessThanOrEqual(120);
+    expect(kortGrund(lang)).toMatch(/…$/);
+  });
+
+  it("error-kortet bærer grunden som detail; uden grund står label'en alene", () => {
+    const med = deriveReportCardView({ status: "error", isCommitted: false, fejlgrund: "Filen dækker 2 måneder (maj–juni 2026). Vi kan kun læse én måned ad gangen." });
+    expect(med.label).toBe("Kunne ikke behandles");
+    expect(med.detail).toMatch(/^Filen dækker/);
+    const uden = deriveReportCardView({ status: "error", isCommitted: false, fejlgrund: null });
+    expect(uden.detail).toBeUndefined();
   });
 });

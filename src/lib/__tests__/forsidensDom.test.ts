@@ -230,7 +230,7 @@ describe("hver slags alene", () => {
     expect(t.virksomheder[0].grund).toMatchObject({ signaltype: "klar_til_tilbud_paamindet", tekst: "Påmindelsen er sendt — 20 dage til udløb", handling: "Skriv til Vest" });
   });
 
-  it("fornyelse: varsel2SendtAt udeladt (AdvisorDashboards hentning i dag) → dommen falder tilbage på varsel 1 alene", () => {
+  it("fornyelse: varsel2SendtAt udeladt (ældre kaldere) → dommen falder tilbage på varsel 1 alene", () => {
     const d = afgoerForsidensDom([virksomhed({ navn: "Vest", fornyelse: fornyelse("klar_til_tilbud", 20), varsel1SendtAt: "2026-09-07T11:00:00.000Z" })], NU);
     expect(d.underStregen.tilstande[0].virksomheder[0].grund).toMatchObject({ signaltype: "klar_til_tilbud_varslet" });
   });

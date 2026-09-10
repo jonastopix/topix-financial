@@ -21,6 +21,87 @@ export interface ReportCardInput {
   periodKey?: string | null;
   /** «Nu» som «YYYY-MM» — injiceres af tests; default er dags dato (lokal). */
   nowKey?: string;
+  /** Grunden i medlemmets ord (rapportFejlgrund) — står på kortet efter
+      label'en for error- og needs_manual_entry-kortene. null = ingen kendt grund. */
+  fejlgrund?: string | null;
+}
+
+/**
+ * Rapportkortets GRUND (10/9, recon-parseren §5f): «Kunne ikke behandles» stod
+ * alene på kortet, og grunden lå i validation_errors — synlig først når
+ * dialogen blev åbnet. Teksterne findes på serveren (danske siden #449, og
+ * spænd-afvisningen fra #785); her vælges KUN de grunde der er skrevet til et
+ * menneske, og de holdes korte: højst to sætninger, aldrig en tredje linje.
+ * Tekniske strenge (checknavne, engelske fejl, «Unknown error») kommer aldrig
+ * på kortet — der står label'en alene, og dialogen har detaljen som før.
+ *
+ * Kilderne i prioriteret orden: quality_signals.routing_branch (serverens egen
+ * gren), så validation_errors (kolonnen; klienten skriver kun den), så
+ * quality_signals.validation_errors (early-exit-veje skriver begge).
+ */
+export interface FejlgrundKilde {
+  status?: string | null;
+  validationErrors?: readonly string[] | null;
+  qualityValidationErrors?: readonly string[] | null;
+  routingBranch?: string | null;
+}
+
+const GRUND_MAKS = 120;
+
+/** Højst `maksSaetninger` sætninger (default to), højst GRUND_MAKS tegn — en
+    grund der fylder tre linjer på et kort er ikke bedre end ingen. Sætninger
+    deles kun ved punktum/udråb/spørgsmål fulgt af STORT bogstav, så «pr. fil»
+    og «fx.» ikke tæller. Serverens «— gør sådan»-hale efter en tankestreg
+    klippes af hver sætning, så det der står, er hele sætninger:
+    «Filen dækker 2 måneder (maj–juni 2026). Vi kan kun læse én måned ad gangen.» */
+export function kortGrund(tekst: string, maksSaetninger = 2): string {
+  const saetninger = tekst.trim().split(/(?<=[.!?])\s+(?=[A-ZÆØÅ])/u).filter(Boolean);
+  const valgte = saetninger
+    .slice(0, maksSaetninger)
+    .map((sætning) => sætning.replace(/\s+[—–]\s+.*([.!?])$/u, "$1"));
+  let ud = valgte.join(" ");
+  if (ud.length > GRUND_MAKS) ud = `${ud.slice(0, GRUND_MAKS - 1).trimEnd()}…`;
+  return ud;
+}
+
+export function rapportFejlgrund(kilde: FejlgrundKilde): string | null {
+  const foerste = kilde.validationErrors?.[0] ?? kilde.qualityValidationErrors?.[0] ?? null;
+  const gren = kilde.routingBranch ?? null;
+
+  // 1) Filen dækker flere måneder (#785) — serverens danske tekst, forkortet.
+  if (gren === "period_span_rejected" || (foerste && /^Filen dækker \d+ måneder/.test(foerste))) {
+    return foerste ? kortGrund(foerste) : "Filen dækker flere måneder — vi kan kun læse én måned ad gangen.";
+  }
+  // 2) Perioden er ikke afsluttet (periode-gaten).
+  if (gren === "period_not_completed" || foerste === "Periode ikke afsluttet") {
+    return "Måneden er ikke afsluttet endnu — upload rapporten, når den er omme.";
+  }
+  // 3) Kendt kilde uden skabelon (#449) — «Filen er genkendt som en rapport fra …».
+  if (gren === "known_source_unsupported_variant" || (foerste && /^Filen er genkendt som en rapport fra/.test(foerste))) {
+    // Kun første sætning: den anden («Du kan indtaste tallene manuelt på
+    // rapportkortet») siger det knappen «Indtast tallene» allerede siger.
+    return foerste ? kortGrund(foerste, 1) : "Formatet understøttes ikke automatisk endnu — indtast tallene på kortet.";
+  }
+  // 4) Klientens egne, skrevet til et menneske eller med kendt betydning.
+  if (foerste && /multi-sheet/i.test(foerste)) {
+    return "Filen har flere ark (DATA + P&L Top Line) — upload ét ark med saldobalance eller resultatopgørelse.";
+  }
+  if (foerste && /password protected/i.test(foerste)) {
+    return "PDF'en er beskyttet med adgangskode — eksportér den igen uden kode, eller upload en Excel-version.";
+  }
+  if (foerste && /^PDF structural extraction failed/.test(foerste)) {
+    return "PDF'en kunne ikke læses — prøv at eksportere som Excel i stedet.";
+  }
+  if (foerste && /^Extraction timed out/.test(foerste)) {
+    return "Behandlingen blev ikke færdig — prøv igen.";
+  }
+  // 5) Ingen grund gemt: cron-oprydningen (status error uden fejl) — det ENESTE
+  //    tilfælde hvor kortet siger noget uden en gemt grund.
+  if (kilde.status === "error" && !foerste) {
+    return "Behandlingen blev ikke færdig — prøv igen.";
+  }
+  // 6) Alt andet (checknavne, engelske/tekniske strenge): ingen grund på kortet.
+  return null;
 }
 
 /** Dags dato som «YYYY-MM» (lokal tid — samme dagbegreb som SQL'ens
@@ -75,7 +156,7 @@ export interface ReportCardView {
 }
 
 export function deriveReportCardView(input: ReportCardInput): ReportCardView {
-  const { status, isCommitted, commitState, stateReason, periodKey, nowKey } = input;
+  const { status, isCommitted, commitState, stateReason, periodKey, nowKey, fejlgrund } = input;
 
   // Rå status-tilstande dømmer først (error slår commitState — prioritet).
   if (status === "processing") {
@@ -86,6 +167,8 @@ export function deriveReportCardView(input: ReportCardInput): ReportCardView {
       key: "error",
       label: "Kunne ikke behandles",
       tone: "alert",
+      // Grunden PÅ kortet (10/9) — «Kunne ikke behandles — Filen dækker 2 måneder …».
+      detail: fejlgrund ?? undefined,
       primary: { label: "Prøv igen", action: "upload" },
       secondary: { label: "Indtast manuelt", action: "override" },
     };
@@ -103,6 +186,7 @@ export function deriveReportCardView(input: ReportCardInput): ReportCardView {
       key: "manual",
       label: "Kræver manuel indtastning",
       tone: "attention",
+      detail: fejlgrund ?? undefined,
       primary: { label: "Indtast tallene", action: "override" },
     };
   }
