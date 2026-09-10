@@ -28,11 +28,14 @@
  *   Ulæseligt proposed_at → udløbet (fail-closed: kan ikke godkendes; kan
  *   forkastes, så det kan ryddes op).
  *
- * HVAD DOMMEN IKKE ER: den skriver ikke status = 'expired'. Rækken står
- * som 'proposed' i databasen, indtil en cron en dag bogfører det
- * (skemaets egen kommentar: «expired (cron-dom, ikke bygget endnu)»).
- * Dommen her er sand med det samme, uden at vente på en natlig kørsel —
- * og en cron der bygges, SKAL bruge denne funktion, så der er én dom.
+ * HVAD DOMMEN IKKE ER: den skriver ikke status = 'expired'. Det gør
+ * SQL-cronen agentforslag-udloeb (20260911000000, 04:05 UTC) med samme
+ * regel udtrykt som to_char(proposed_at, 'IYYY-"W"IW') <> to_char(now(),
+ * 'IYYY-"W"IW') i dansk tid — pariteten låses af
+ * __tests__/agentforslagUdloebsCron.paritet.test.ts, som læser
+ * migrationsfilen. Dommen her er sand med det samme, uden at vente på
+ * den natlige kørsel; en 'proposed'-række fra en passeret uge er udløbet
+ * fra midnat, bogført fra 04:05.
  *
  * TIDSZONE: getISOWeekKey læser LOKALE datokomponenter. Edge-funktionen
  * (Deno) kører i UTC; browseren i medlemmets/rådgiverens zone. Tæt på

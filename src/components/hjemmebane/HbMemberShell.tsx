@@ -64,8 +64,9 @@ export const HbMemberShell = ({
 
   /* ONBOARDING-TJEKLISTEN følger med på alle 17 Hb-sider herfra — ikke fra
      hver side. Hooken henter intet for rådgivere (tjekliste = null), så de
-     ser hverken boksen eller menupunktet. Lukket-tilstanden er pr. enhed
-     (localStorage) og deles mellem sidebarens punkt og boksen; tælleren
+     ser hverken boksen eller menupunktet. Lukket-tilstanden følger medlemmet
+     (profilen, localStorage som cache — useTjeklisteLukket, 11/9) og deles
+     mellem sidebarens punkt og boksen; tælleren
      genaabnTick er menuens «hent den frem»-signal til boksen. Hooks i
      topblokken, før enhver betinget return. */
   const tjeklisteData = useOnboardingTjekliste();

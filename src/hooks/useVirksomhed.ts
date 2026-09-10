@@ -326,11 +326,14 @@ async function hentVirksomhed(companyId: string): Promise<VirksomhedsData | null
     supabase.rpc("get_all_advisor_profiles"),
     // Forslag der udløb uden svar — kun tallet (head/count). Udløb er
     // bogført af cronen opgave-udloeb som status 'expired' (20260901090000).
+    // accepted_at IS NULL: forfalds-cronen (20260911010000) lukker også
+    // AKTIVE opgaver som 'expired' — de har accepted_at og er ikke forslag.
     supabase
       .from("company_actions")
       .select("id", { count: "exact", head: true })
       .eq("company_id", companyId)
-      .eq("status", "expired"),
+      .eq("status", "expired")
+      .is("accepted_at", null),
   ]);
 
   // KPI-mål: ÉT sted fletter (lib/kpiMaal, 7/9) — DB-værdi hvis den findes

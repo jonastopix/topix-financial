@@ -83,8 +83,10 @@ function laegDageTil(d: Date, dage: number): Date {
 
 const OVERGANGE: Record<OpgaveStatus, OpgaveStatus[]> = {
   proposed: ["active", "dismissed", "expired"],
-  // active -> active er udskydelsen (B11).
-  active: ["done", "not_done", "dropped", "active"],
+  // active -> active er udskydelsen (B11). active -> expired er
+  // forfalds-cronens dom (20260911010000, erUdloebetEfterForfald) — aldrig
+  // et klient-udfald (opgave-luk KLIENT_UDFALD).
+  active: ["done", "not_done", "dropped", "active", "expired"],
   done: [],
   not_done: [],
   dropped: [],
@@ -171,7 +173,7 @@ export function udskyd(opgave: Opgave, nu: Date, nyDato?: Date): OpgaveResultat 
 
 /** Lukker opgaven med et af de fem udfald og stempler closed_at.
     Lovligheden afgøres af lovligeOvergange — done/not_done/dropped kræver
-    active, dismissed/expired kræver proposed. */
+    active, dismissed kræver proposed, expired kræver proposed eller active. */
 export function luk(opgave: Opgave, udfald: SlutUdfald, nu: Date): OpgaveResultat {
   if (!lovligeOvergange(opgave.status).includes(udfald)) {
     return { ok: false, grund: `overgangen '${opgave.status}' -> '${udfald}' er ikke lovlig` };
@@ -191,13 +193,34 @@ export function erUdloebet(opgave: Opgave, nu: Date): boolean {
   return opgave.status === "proposed" && opgave.expires_at != null && nu.getTime() > opgave.expires_at.getTime();
 }
 
+/** Henstand efter forfald (afgjort 11/9): en aktiv opgave udløber når
+    fristen har været passeret i MERE end 14 dage — B11's egen tid: den
+    der svarer «Ikke endnu» får 14 dage, den der intet svarer får det samme
+    vindue. Spejlet i SQL-cronen opgave-forfald (20260911010000), paritet
+    i __tests__/opgaveForfaldsCron.paritet.test.ts. */
+export const FORFALDSHENSTAND_DAGE = 14;
+
+/** Aktiv opgave hvis kalenderdag er mere end FORFALDSHENSTAND_DAGE efter
+    due_date. Frist 4/9: 18/9 er dag 14 og IKKE udløbet; 19/9 er udløbet —
+    samme skarpe grænse som erForfalden, én henstand længere. */
+export function erUdloebetEfterForfald(opgave: Opgave, nu: Date): boolean {
+  return (
+    opgave.status === "active" &&
+    opgave.due_date != null &&
+    dagVaerdi(nu) > dagVaerdi(laegDageTil(opgave.due_date, FORFALDSHENSTAND_DAGE))
+  );
+}
+
 export interface Tilstandssammenfatning {
   antalAktive: number;
   antalForfaldne: number;
   /** Forslag der stadig venter på svar (proposed, ikke udløbet endnu). */
   antalUbesvaredeForslag: number;
-  /** Forslag der aldrig blev besvaret: status expired plus proposed hvor
-      expires_at er passeret men cron endnu ikke har lukket rækken. */
+  /** Forslag der aldrig blev besvaret: status expired UDEN accepted_at
+      (en expired-række MED accepted_at er en aktiv opgave forfalds-cronen
+      lukkede, 20260911010000 — den tælles i lukkede.expired, ikke her)
+      plus proposed hvor expires_at er passeret men cron endnu ikke har
+      lukket rækken. */
   antalUdloebneForslag: number;
   /** created_at for det ældste forslag der stadig venter på svar. */
   aeldsteUbesvaredeForslag: Date | null;
@@ -234,7 +257,7 @@ export function opgoerTilstand(opgaver: Opgave[], nu: Date): Tilstandssammenfatn
       }
     } else if (opgave.status in sammenfatning.lukkede) {
       sammenfatning.lukkede[opgave.status as SlutUdfald] += 1;
-      if (opgave.status === "expired") sammenfatning.antalUdloebneForslag += 1;
+      if (opgave.status === "expired" && opgave.accepted_at == null) sammenfatning.antalUdloebneForslag += 1;
     }
     // open/parked tælles bevidst ikke med — de oversættes i spor 2.
   }
