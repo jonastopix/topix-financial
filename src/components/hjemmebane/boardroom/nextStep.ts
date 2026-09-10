@@ -300,9 +300,16 @@ export function deriveFocus(inputs: FocusInputs): FocusItem[] {
     });
   }
 
-  // (d) Ugens fokus — indeværende uge, ikke set. Titlen matcher
+  // (d) Ugens fokus — indeværende uge, IKKE set. Titlen matcher
   // notifikations-kontrakten ("Ugens fokus er klar"). Href er forsiden
   // selv — visningen afgør formen (indlejret/scroll), motoren er UI-agnostisk.
+  // SET (afgjort 11/9): punktet rykker BAGERST (prioritet 10, efter alt
+  // andet) i stedet for at forsvinde. Kortet er resuméets ENESTE hjem på
+  // forsiden (FocusCard læser summary INLINE i dette punkt; der er intet
+  // resumé nedenunder), og markSeen stempler ved første RENDER — også som
+  // stille linje nr. 4 — så «forsvinder efter første visning» ville gøre
+  // ugens fokus ulæseligt resten af ugen efter ét blik. Bagerst: aldrig
+  // forrest igen, men stadig at finde, til ugen er omme. Se (j) nederst.
   if (inputs.weeklyFocus && !inputs.weeklyFocus.seen) {
     items.push({
       key: "weekly-focus",
@@ -423,6 +430,20 @@ export function deriveFocus(inputs: FocusInputs): FocusItem[] {
       // Fanen, ikke siden (9/9): /settings forvalgte «Virksomhed», og
       // medlemmet skulle selv finde kortet. Dommen: profilUdfyldt.ts.
       ctaHref: PROFIL_STI,
+    });
+  }
+
+  // (j) Ugens fokus, SET — bagerst (se (d)): samme punkt, roligere ord,
+  // aldrig forrest igen. Falder ud af de fire viste når andet kalder.
+  if (inputs.weeklyFocus && inputs.weeklyFocus.seen) {
+    items.push({
+      key: "weekly-focus",
+      kind: "weekly-focus",
+      priority: 10,
+      title: "Ugens fokus",
+      description: inputs.weeklyFocus.headline ?? "Din AI-chef har lagt ugens fokus klar til dig.",
+      ctaLabel: "Læs igen",
+      ctaHref: "/",
     });
   }
 

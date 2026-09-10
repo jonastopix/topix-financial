@@ -1948,10 +1948,25 @@ export const BoardroomView = () => {
 
   // Markér ugens fokus som SET når punktet faktisk vises — samme mekanik
   // som DashboardActionCenter:87-98 (mutation + engangs-ref).
+  // LÆSER SVARET (11/9): skrivevejen var død i seks uger — weekly_focus
+  // havde ingen UPDATE-policy, RLS gav «0 rows» uden fejl, og `await
+  // update()` uden at se på svaret slugte det (samme fejl som rolletjekket,
+  // #797). Nu: fejl kaster, og nul rækker kaster — MutationCache.onError
+  // (App.tsx) logger det til Sentry med mutationKey. Policyen og
+  // kolonnelåsen: 20260911060000_weekly_focus_seen_at.sql. Cachen
+  // invalideres IKKE: punktet skal ikke springe mens man ser på det;
+  // næste indlæsning viser det bagerst (nextStep.ts slot (d), set).
   const seenMarked = useRef(false);
   const markSeen = useMutation({
+    mutationKey: ["boardroom", "weekly-focus", "seen"],
     mutationFn: async (id: string) => {
-      await supabase.from("weekly_focus").update({ seen_at: new Date().toISOString() } as any).eq("id", id);
+      const { data, error } = await supabase
+        .from("weekly_focus")
+        .update({ seen_at: new Date().toISOString() })
+        .eq("id", id)
+        .select("id");
+      if (error) throw new Error(`weekly_focus.seen_at kunne ikke sættes: ${error.message}`);
+      if (!data || data.length === 0) throw new Error("weekly_focus.seen_at: opdateringen ramte nul rækker — RLS eller rækken er væk");
     },
   });
   const weeklyDisplayed = focus.slice(0, 4).some((i) => i.kind === "weekly-focus");
