@@ -89,6 +89,7 @@ import type { Fornyelsestilstand } from "./fornyelse";
 import { BETALINGSFRIST_DAGE, type Betalingsfristtilstand } from "./betalingsfrist";
 import { erLukket, type Kvittering } from "./opgaveLukning";
 import { afgoerIkkeIGang, ikkeIGangGrundlag, ikkeIGangHandling, ikkeIGangTekst } from "./ikkeIGang";
+import { ALVOR_VENTER_PAA_VELKOMST, afgoerVenterPaaVelkomst, venterPaaVelkomstGrundlag, venterPaaVelkomstTekst } from "./venterPaaVelkomst";
 
 // ─── Konstanter — alle tal dommen bruger, ét sted ────────────────────────
 
@@ -211,6 +212,15 @@ export const ALVOR_IKKE_I_GANG = 75;
  * fornyelse (udloebet_tilbyd 90).
  */
 export const ALVOR_IKKE_BEGYNDT = 70;
+/**
+ * Venter på velkomst (lib/venterPaaVelkomst, ALVOR_VENTER_PAA_VELKOMST = 80,
+ * besluttet 9/9, koblet 10/9): et menneske er lige kommet ind og har ikke
+ * hørt fra os. Højt: på linje med omsætningsfald (80), over ikke_i_gang
+ * (75) og ulæst besked (70), under en forfalden fornyelse (udloebet_tilbyd
+ * 90) og en ubetalt indgang der er forfalden. Den går gennem alvorsporten
+ * alene og står ved navn fra dag 1 — før ikke_i_gang overhovedet begynder
+ * (dag 7), så rækkefølgen på en ny er: velkomst, så tallene.
+ */
 
 export const ALVOR_OPGAVE = {
   forfalden: 75,
@@ -232,7 +242,8 @@ export type OpgaveSlags =
   | "opgave_naer_deadline" // §2 slags 7 — company_actions.due_date
   | "medlem_har_skrevet" // §2 slags 8 — handout/refleksion, AI (§8). IKKE IMPLEMENTERET.
   | "agentforslag" // §3's pukkel — ikke en af de otte, men besluttet vist som én linje
-  | "ikke_i_gang"; // TIENDE slags (Jonas 9/9, en designændring som §2 varsler): ny uden målt rapport — lib/ikkeIGang
+  | "ikke_i_gang" // TIENDE slags (Jonas 9/9, en designændring som §2 varsler): ny uden målt rapport — lib/ikkeIGang
+  | "venter_paa_velkomst"; // ELLEVTE slags (bygget 9/9, koblet 10/9): et medlem kom ind, ingen rådgiver har skrevet — lib/venterPaaVelkomst
 
 /** §3's tre former. */
 export type Form = "haendelse" | "tilstand" | "pukkel";
@@ -250,6 +261,7 @@ export const FORM: Record<OpgaveSlags, Form> = {
   medlem_har_skrevet: "haendelse", // en ny refleksion, et gemt handout
   agentforslag: "pukkel", // §3: «otte agentforslag venter» er én linje
   ikke_i_gang: "haendelse", // dag 21 uden tal er noget der SKER én gang — og linjen skal stå ved navn, ikke samles
+  venter_paa_velkomst: "haendelse", // et menneske kom ind én gang — linjen står ved navn, og forsvinder når nogen skriver
 };
 
 /** Indsats — «hvor stort» (§4). Bryder KUN uafgjort på alvor; bærer aldrig
@@ -275,6 +287,7 @@ export const INDSATS: Record<OpgaveSlags, Indsats> = {
   stikker_ud: 3,
   rapporteringsfejl: 3,
   ikke_i_gang: 2, // én besked: hjælp dem i gang
+  venter_paa_velkomst: 2, // én besked: sig hej
 };
 
 /** company_actions-rækken som dommen ser den: kun det den læser. Kun
@@ -354,6 +367,10 @@ export interface VirksomhedTilDom {
   /** Første company_members.created_at — medlemskabets begyndelse («de fik
       adgang»). null/udeladt = ingen medlemmer, intet signal. */
   medlemSiden?: string | null;
+  /** conversations.last_advisor_reply_at — seneste MENNESKEBESKED fra en
+      rådgiver (trigger'en sætter den kun for message_type 'user'); null =
+      ingen rådgiver har skrevet. Til «venter på velkomst» (10/9). */
+  sidsteRaadgiverBeskedAt?: string | null;
   /** Findes mindst én facts-række med data_basis = 'measured'? */
   harMaaltRapport?: boolean;
   /** Uploadede (ikke slettede) rapporter — ændrer ordene, ikke dommen. */
@@ -689,6 +706,28 @@ function grundFraIkkeIGang(v: VirksomhedTilDom, nu: Date): Grund | null {
   };
 }
 
+/** Venter på velkomst (lib/venterPaaVelkomst): et medlem kom ind, og ingen
+    rådgiver har skrevet en menneskebesked — fra dag 1. Bygget 9/9, koblet
+    HER 10/9 (den lå uden læser, som send-welcome-message gjorde). Uden
+    medlemSiden (kalderen bærer den ikke) er der intet signal. Handlingen
+    er rytmens dag 1: et menneske siger hej og beder om historikken. */
+function grundFraVenterPaaVelkomst(v: VirksomhedTilDom, nu: Date): Grund | null {
+  const input = { medlemSiden: v.medlemSiden ?? null, sidsteRaadgiverBeskedAt: v.sidsteRaadgiverBeskedAt ?? null };
+  const dom = afgoerVenterPaaVelkomst(input, nu);
+  if (!dom.signal) return null;
+  return {
+    slags: "venter_paa_velkomst",
+    signaltype: "venter_paa_velkomst",
+    noegle: "venter_paa_velkomst",
+    grundlag: venterPaaVelkomstGrundlag(input),
+    tekst: venterPaaVelkomstTekst(dom),
+    handling: `Skriv til ${v.navn}`,
+    alvor: ALVOR_VENTER_PAA_VELKOMST,
+    lukkerOmDage: null,
+    indsats: INDSATS.venter_paa_velkomst,
+  };
+}
+
 /** Alle grunde for én virksomhed. aiUdsagn ignoreres bevidst (§8 mangler).
     LUKKEDE grunde (lib/opgaveLukning: kvitteringen gemte præcis dette
     grundlag) tages ud HER, før porterne — så en lukket grund hverken giver
@@ -703,6 +742,8 @@ function grundeFor(v: VirksomhedTilDom, nu: Date): Grund[] {
   grunde.push(...grundeFraOpgaver(v, nu));
   const n = grundFraIkkeIGang(v, nu);
   if (n) grunde.push(n);
+  const w = grundFraVenterPaaVelkomst(v, nu);
+  if (w) grunde.push(w);
   return grunde.filter((g) => !erLukket(g, v.kvittering));
 }
 

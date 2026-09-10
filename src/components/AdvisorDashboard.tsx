@@ -66,6 +66,8 @@ interface ConversationRow {
   assigned_advisor_id: string | null;
   last_member_message_at: string | null;
   last_message_at: string | null;
+  /** Seneste menneskebesked fra en rådgiver (trigger, kun message_type 'user') — «venter på velkomst» (10/9). */
+  last_advisor_reply_at?: string | null;
 }
 
 interface CompanyRow {
@@ -342,7 +344,7 @@ export const hentAdvisorDashboard = () =>
       ] = await Promise.all([
         supabase
           .from("conversations")
-          .select("id, company_id, awaiting_reply_from, assigned_advisor_id, last_member_message_at, last_message_at")
+          .select("id, company_id, awaiting_reply_from, assigned_advisor_id, last_member_message_at, last_message_at, last_advisor_reply_at")
           .order("last_message_at", { ascending: false }),
         supabase
           .from("companies")
@@ -1097,6 +1099,14 @@ export const hentAdvisorDashboard = () =>
         if (k) kvitteringByCompany.set(r.company_id, k);
       }
       // Den ulæstes grundlag: seneste medlemsbesked på tværs af virksomhedens samtaler.
+      // Seneste rådgiverbesked pr. virksomhed — «venter på velkomst» (10/9):
+      // null = ingen rådgiver har nogensinde skrevet en menneskebesked.
+      const sidsteRaadgiverBeskedByCompany = new Map<string, string>();
+      for (const c of allConversations) {
+        if (!c.company_id || !c.last_advisor_reply_at) continue;
+        const eks = sidsteRaadgiverBeskedByCompany.get(c.company_id);
+        if (!eks || c.last_advisor_reply_at > eks) sidsteRaadgiverBeskedByCompany.set(c.company_id, c.last_advisor_reply_at);
+      }
       const senesteMedlemsbeskedByCompany = new Map<string, string>();
       for (const c of allConversations) {
         if (!c.company_id || !c.last_member_message_at) continue;
@@ -1161,6 +1171,7 @@ export const hentAdvisorDashboard = () =>
             kvittering: kvitteringByCompany.get(c.company_id) ?? null,
             // Ny og ikke i gang (lib/ikkeIGang, 9/9).
             medlemSiden: medlemSidenByCompany.get(c.company_id) ?? null,
+            sidsteRaadgiverBeskedAt: sidsteRaadgiverBeskedByCompany.get(c.company_id) ?? null,
             harMaaltRapport: maaltByCompany.has(c.company_id),
             antalUploads: uploadsByCompany.get(c.company_id) ?? 0,
           };

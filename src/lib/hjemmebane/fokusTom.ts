@@ -24,6 +24,14 @@
  *      (journeyLine) når der er noget at anerkende; ellers en rolig sætning
  *      der ikke påstår noget om milestones og refleksion.
  *
+ * DEN FJERDE TILSTAND (10/9, recon-fejlovervaagningen §2): KUNNE IKKE
+ * HENTE. Fejler hentningen af uploads eller godkendte tal, må kortet ikke
+ * sige «Kom i gang med dine tal» — det er præcis den løgn 9/9 rettede, bare
+ * fra en fejl frem for fra en beslutning. Tom er en tilstand; fejlet er en
+ * fejl. Kortet siger roligt at vi ikke kunne hente det, at det ikke er noget
+ * medlemmet har gjort, og hvad man kan gøre. Dommen om det er en fejl er
+ * kalderens (isError på kildernes queries); ordene er her.
+ *
  * SPROGET er husets: roligt, ingen udråb, ét næste skridt. Fornyelsesbåndet
  * («Dit medlemskab udløber 29. september 2026 / Forny nu til …») og
  * tjeklisten («Upload din første rapport, så tallene kommer i spil») er
@@ -32,6 +40,8 @@
  */
 
 export interface FokusTomInput {
+  /** Fejlede hentningen af det kortet dømmer på (uploads eller godkendte tal)? Vinder over alt andet. */
+  hentningFejlede?: boolean;
   /** Findes der mindst én ikke-slettet upload (financial_reports)? */
   harUploads: boolean;
   /** Findes der mindst én godkendt facts-række (financial_report_facts)? */
@@ -40,7 +50,7 @@ export interface FokusTomInput {
   journeyLine: string | null;
 }
 
-export type FokusTomTilstand = "aldrig" | "uploadet_ikke_godkendt" | "godkendt";
+export type FokusTomTilstand = "kunne_ikke_hente" | "aldrig" | "uploadet_ikke_godkendt" | "godkendt";
 
 export interface FokusTom {
   tilstand: FokusTomTilstand;
@@ -52,7 +62,21 @@ export interface FokusTom {
 
 export const RAPPORTERING_STI = "/rapportering";
 
+export const KUNNE_IKKE_HENTE_OVERSKRIFT = "Vi kunne ikke hente dine tal lige nu.";
+export const KUNNE_IKKE_HENTE_LINJE =
+  "Det er ikke noget du har gjort. Prøv at indlæse siden igen — og skriv til os i chatten, hvis det bliver ved.";
+
 export function afgoerFokusTom(input: FokusTomInput): FokusTom {
+  if (input.hentningFejlede) {
+    return {
+      tilstand: "kunne_ikke_hente",
+      overskrift: KUNNE_IKKE_HENTE_OVERSKRIFT,
+      linje: KUNNE_IKKE_HENTE_LINJE,
+      // Ingen «Upload din første rapport»: vi ved ikke om de har en. CTA'en er
+      // fladens «Prøv igen», som kalderen ejer.
+      cta: null,
+    };
+  }
   if (input.harGodkendte) {
     return {
       tilstand: "godkendt",
