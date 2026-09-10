@@ -23,3 +23,11 @@
   --hb-line: 40 12% 88%;       /* hairline-borders — varm taupe */
   --hb-radius: 1rem;
 }
+
+/* Markeret tekst (10/9, #143): Hjemmebane satte aldrig ::selection, så
+   markering var browserens blå på papiret. Sage-baggrund, ink-tekst —
+   samme farver som HbTag. */
+.theme-hjemmebane ::selection {
+  background: hsl(var(--hb-sage));
+  color: hsl(var(--hb-ink));
+}
