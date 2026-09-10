@@ -9,6 +9,24 @@
  * - Conservative metric derivation (no sum-all-lines shortcuts)
  *
  * Phase 7: Added extractSemanticFromCsv() — structural-first semantic path.
+ *
+ * FILNAVNET VEJER IKKE (10/9-2026, Jonas). Fra 9/3 til 10/9 afgjorde detect()
+ * på filnavnet: «resultat» gav +20 og «balance» gav 0 — uden begrundelse i
+ * kode eller commit. Fingerprintet (sourceFingerprint.ts) genkender Dinero
+ * på INDHOLDET (overskriften Konto;Kontonavn;Beløb), og skabelonen afviste
+ * derefter på NAVNET. Målt i prod 10/9: tre strandinger (Rezycl 23/8,
+ * Booking Innovation 9/7 og 9/8) hed «Saldobalance.csv» / «Saldobalance maj
+ * 26.csv» og bar præcis den overskrift skabelonen kræver. Nu afgør
+ * indholdet: rækker med et FIRECIFRET kontonummer og et beløb er
+ * resultatlinjer — det er skabelonens egen model (RANGE_CLASSES 1000–9999),
+ * og præcis den regel extract() og extractSemanticFromCsv() allerede brugte
+ * (`/^\d{4}$/`) til at springe balancekonti over. En saldobalance med både
+ * resultat- og balancekonti læses derfor som sin resultatopgørelse, og
+ * antallet af oversprungne balancelinjer står i parser_validation. En fil
+ * UDEN firecifrede konti (ren balance) når ikke 80 og går til manuel
+ * indtastning som før. GRÆNSEN: en kontoplan hvor balancekonti er firecifrede
+ * ville blive læst som resultatkonti — det var også tilfældet før, for alle
+ * filer der ikke hed «balance».
  */
 
 import type {
@@ -166,6 +184,30 @@ function classifyLine(kontonavn: string, kontonr: number | null): {
   return { cls: "unclassified", method: "unclassified", ambiguous: false };
 }
 
+// ── Indholdsreglen (10/9-2026): hvad der er en resultatlinje ──
+
+/**
+ * Skabelonens egen model for en resultatlinje: firecifret kontonummer
+ * (RANGE_CLASSES dækker 1000–9999) og et beløb der kan læses. Samme regel som
+ * extract() og extractSemanticFromCsv() bruger til at springe balancekonti over.
+ */
+function erResultatRaekke(kontonr: unknown, beloeb: unknown): boolean {
+  const nr = String(kontonr ?? "").trim();
+  return /^\d{4}$/.test(nr) && parseDanishAmount(String(beloeb ?? "")) != null;
+}
+
+/** Kontonavnet rammer mindst én af LABEL_CLASSES. */
+function harKendtLabel(kontonavn: unknown): boolean {
+  const label = String(kontonavn ?? "").toLowerCase().trim();
+  if (!label) return false;
+  return Object.values(LABEL_CLASSES).some((patterns) => patterns.some((p) => label.includes(p)));
+}
+
+/** «Balancelinje»: et kontonummer der ikke er firecifret, men et beløb der kan læses. */
+function erBalanceRaekke(kontonrStr: string, rawAmount: number | null): boolean {
+  return kontonrStr !== "" && !/^\d{4}$/.test(kontonrStr) && rawAmount != null;
+}
+
 // ── Template ──
 
 export const dkDineroResultatopgoerelseCsvV1: SemanticCsvTemplateEntry = {
@@ -193,27 +235,18 @@ export const dkDineroResultatopgoerelseCsvV1: SemanticCsvTemplateEntry = {
       // Delimiter evidence
       if (ctx.csvDelimiter === ";") score += 10;
 
-      // Filename
-      const fn = ctx.fileName.toLowerCase();
-      if (fn.includes("resultat")) score += 20;
-      if (fn.includes("balance")) return 0;
-      score += 10; // Passed anti-match
+      // INDHOLDET afgør, ikke filnavnet (10/9-2026, filhovedet): mindst tre
+      // resultatlinjer — firecifret kontonummer og et beløb. headerRows er
+      // CSV'ens datarækker (buildCsvDetectionContext).
+      const pnlRows = (ctx.headerRows || []).filter((row) => erResultatRaekke(row?.[0], row?.[2]));
+      if (pnlRows.length >= 3) score += 20;
 
-      // Label recognition from structural headerRows (built from CsvParseResult rows)
-      let recognizedCount = 0;
-      for (const row of (ctx.headerRows || [])) {
-        const kontonavn = ((row[1] ?? "") as string).toLowerCase().trim();
-        if (!kontonavn) continue;
-        for (const patterns of Object.values(LABEL_CLASSES)) {
-          if (patterns.some((p) => kontonavn.includes(p))) {
-            recognizedCount++;
-            break;
-          }
-        }
-      }
+      // Label recognition — kun blandt resultatlinjerne, så balancekonti
+      // (fx «Skyldig A-skat») ikke tæller som løn.
+      const recognizedCount = pnlRows.filter((row) => harKendtLabel(row?.[1])).length;
       if (recognizedCount >= 5) score += 15;
 
-      return score;
+      return score; // loft 85: 40 + 10 + 20 + 15
     }
 
     // ── Legacy raw-text detection (for non-migrated callers) ──
@@ -231,30 +264,19 @@ export const dkDineroResultatopgoerelseCsvV1: SemanticCsvTemplateEntry = {
     const semiLines = lines.slice(1).filter((l) => l.includes(";")).length;
     if (semiLines >= 3) score += 10;
 
-    // Filename: must contain "resultat" (case-insensitive)
-    const fn = ctx.fileName.toLowerCase();
-    if (fn.includes("resultat")) score += 20;
+    // INDHOLDET afgør, ikke filnavnet (10/9-2026, filhovedet): samme regel
+    // som den strukturelle vej ovenfor.
+    const pnlLines = lines
+      .slice(1)
+      .map((l) => l.split(";"))
+      .filter((parts) => parts.length >= 3 && erResultatRaekke(parts[0], parts[2]));
+    if (pnlLines.length >= 3) score += 20;
 
-    // Filename: must NOT contain "balance" or "saldobalance" (anti-match)
-    if (fn.includes("balance")) return 0;
-    score += 10; // Passed anti-match
-
-    // Label recognition: 5+ lines with known Danish accounting labels
-    let recognizedCount = 0;
-    for (const line of lines.slice(1)) {
-      const parts = line.split(";");
-      if (parts.length < 3) continue;
-      const kontonavn = parts[1]?.toLowerCase().trim() || "";
-      for (const patterns of Object.values(LABEL_CLASSES)) {
-        if (patterns.some((p) => kontonavn.includes(p))) {
-          recognizedCount++;
-          break;
-        }
-      }
-    }
+    // Label recognition — kun blandt resultatlinjerne
+    const recognizedCount = pnlLines.filter((parts) => harKendtLabel(parts[1])).length;
     if (recognizedCount >= 5) score += 15;
 
-    return score;
+    return score; // loft 85: 40 + 10 + 20 + 15
   },
 
   extract(
@@ -271,6 +293,7 @@ export const dkDineroResultatopgoerelseCsvV1: SemanticCsvTemplateEntry = {
     // Parse and classify each line
     const classified: ClassifiedLine[] = [];
     let ambiguousCount = 0;
+    let balanceSkipped = 0; // balancekonti (ikke-firecifret kontonr) — springes over
 
     for (const line of dataLines) {
       const parts = line.split(";");
@@ -283,6 +306,7 @@ export const dkDineroResultatopgoerelseCsvV1: SemanticCsvTemplateEntry = {
       const kontonr = /^\d{4}$/.test(kontonrStr) ? parseInt(kontonrStr) : null;
       const rawAmount = parseDanishAmount(amountStr);
 
+      if (erBalanceRaekke(kontonrStr, rawAmount)) balanceSkipped++;
       if (kontonr == null || rawAmount == null) continue;
 
       const classification = classifyLine(kontonavn, kontonr);
@@ -297,7 +321,7 @@ export const dkDineroResultatopgoerelseCsvV1: SemanticCsvTemplateEntry = {
     }
 
     console.log(
-      `[Dinero] Parsed ${classified.length} lines, ${ambiguousCount} ambiguous`
+      `[Dinero] Parsed ${classified.length} lines, ${ambiguousCount} ambiguous, ${balanceSkipped} balance lines skipped`
     );
 
     // Structural fail: less than 3 valid account lines
@@ -518,6 +542,15 @@ export const dkDineroResultatopgoerelseCsvV1: SemanticCsvTemplateEntry = {
             : `${ambiguousCount} ambiguous lines (non-core only) → accepted`,
     });
 
+    // 9. Balancelinjer sprunget over (saldobalance læst som sin resultatopgørelse) — kun når der var nogen
+    if (balanceSkipped > 0) {
+      checks.push({
+        name: "balance_lines_skipped",
+        result: "PASS",
+        details: `${balanceSkipped} linjer med ikke-firecifret kontonummer sprunget over (balancekonti)`,
+      });
+    }
+
     // 8. Defaulted fields summary
     if (defaultedFields.length > 0) {
       checks.push({
@@ -578,6 +611,7 @@ export const dkDineroResultatopgoerelseCsvV1: SemanticCsvTemplateEntry = {
     // ── Parse and classify each row from structural model ──
     const classified: ClassifiedLine[] = [];
     let ambiguousCount = 0;
+    let balanceSkipped = 0; // balancekonti (ikke-firecifret kontonr) — springes over
 
     for (const row of csvResult.rows) {
       if (row.cells.length < 3) continue;
@@ -589,6 +623,7 @@ export const dkDineroResultatopgoerelseCsvV1: SemanticCsvTemplateEntry = {
       const kontonr = /^\d{4}$/.test(kontonrStr) ? parseInt(kontonrStr) : null;
       const rawAmount = parseDanishAmount(amountStr);
 
+      if (erBalanceRaekke(kontonrStr, rawAmount)) balanceSkipped++;
       if (kontonr == null || rawAmount == null) continue;
 
       const classification = classifyLine(kontonavn, kontonr);
@@ -602,7 +637,7 @@ export const dkDineroResultatopgoerelseCsvV1: SemanticCsvTemplateEntry = {
       });
     }
 
-    console.log(`[Dinero Semantic CSV] Parsed ${classified.length} lines, ${ambiguousCount} ambiguous`);
+    console.log(`[Dinero Semantic CSV] Parsed ${classified.length} lines, ${ambiguousCount} ambiguous, ${balanceSkipped} balance lines skipped`);
 
     if (classified.length < 3) {
       console.log("[Dinero Semantic CSV] Insufficient valid lines → reject");
@@ -720,6 +755,14 @@ export const dkDineroResultatopgoerelseCsvV1: SemanticCsvTemplateEntry = {
       result: Object.keys(sums).length >= 3 ? "PASS" : "FAIL",
       details: `${Object.keys(sums).length} classes found`,
     });
+
+    if (balanceSkipped > 0) {
+      checks.push({
+        name: "balance_lines_skipped",
+        result: "PASS",
+        details: `${balanceSkipped} linjer med ikke-firecifret kontonummer sprunget over (balancekonti)`,
+      });
+    }
 
     const parserStatus = checks.some(c => c.result === "FAIL") ? "FAIL" as const : "PASS" as const;
 

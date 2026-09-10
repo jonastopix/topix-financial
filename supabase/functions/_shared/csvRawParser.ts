@@ -154,8 +154,11 @@ export function buildCsvDetectionContext(
   csvResult: CsvParseResult,
   fileName: string
 ): DetectionContext {
-  // Build headerRows from structural cells for backward-compatible detection
-  const headerRows: any[][] = csvResult.rows.slice(0, 10).map(row =>
+  // Build headerRows from structural cells for backward-compatible detection.
+  // 200 rækker, ikke 10 (10/9-2026): Dinero-skabelonen afgør nu på INDHOLDET
+  // (≥ 3 resultatlinjer, ≥ 5 kendte labels), og en saldobalance kan have
+  // balancekonti først. Ti rækker var nok da filnavnet afgjorde.
+  const headerRows: any[][] = csvResult.rows.slice(0, 200).map(row =>
     row.cells.map(cell => cell.raw_value)
   );
 

@@ -1627,9 +1627,12 @@ Deno.test("Phase5 Dinero — T2. Anti-match: XLSX → Dinero score = 0", () => {
 });
 
 // ═══════════════════════════════════════════════════════
-// TEST T3: Anti-match — CSV without "resultat" in filename
+// TEST T3: Filnavnet vejer ikke — CSV uden "resultat" i navnet matcher alligevel
+// (10/9-2026: indholdet afgør; før krævede skabelonen «resultat» i filnavnet
+// og afviste «balance» — se dkDineroResultatopgoerelseCsvV1.ts filhovedet
+// og dinero_filnavn_test.ts)
 // ═══════════════════════════════════════════════════════
-Deno.test("Phase5 Dinero — T3. Anti-match: CSV without 'resultat' in filename → no_match", () => {
+Deno.test("Phase5 Dinero — T3. Filnavnet vejer ikke: CSV uden 'resultat' i navnet matcher på indholdet", () => {
   const ctx: DetectionContext = {
     fileName: "data_export.csv",
     fileType: "csv",
@@ -1639,13 +1642,10 @@ Deno.test("Phase5 Dinero — T3. Anti-match: CSV without 'resultat' in filename 
   };
 
   const match = detectTemplate(ctx);
-  console.log(`\n══ T3. ANTI-MATCH FILENAME ══`);
-  if (match) {
-    console.log(`Score: ${match.score} (should be < 80 without 'resultat' in filename)`);
-    assertEquals(match.score < 80, true, "Score should be < 80 without 'resultat' in filename");
-  } else {
-    console.log("No match — correct, filename lacks 'resultat'");
-  }
+  console.log(`\n══ T3. FILNAVNET VEJER IKKE ══`);
+  assertExists(match, "Indholdet (overskrift + firecifrede konti + labels) skal matche uanset filnavn");
+  assertEquals(match!.template.template_id, "DK_DINERO_RESULTATOPGOERELSE_V1");
+  assertEquals(match!.score >= 80, true, `Score ${match!.score} should be >= 80 regardless of filename`);
 });
 
 // ═══════════════════════════════════════════════════════
