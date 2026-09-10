@@ -17,6 +17,7 @@ import { describe, expect, it } from "vitest";
 import {
   SIGN_LOCKED_ANCHORS,
   SIGN_LOCKED_COSTS,
+  SIGN_LOCKED_COSTS_MIN,
   buildCanonicalOutput,
   inferPeriodBasis,
   runExtendedValidation,
@@ -102,6 +103,23 @@ describe("suspicious_sign_pattern — et underskud er ikke en vendt fil", () => 
 
     const tilbagefoersel = metrics({ revenue: 500_000, payroll: 100_000, admin_costs: 50_000, facility_costs: 20_000, depreciation: -10_000 });
     expect(signCheck(tilbagefoersel).result).toBe("PASS");
+  });
+
+  it("GULVET (10/9, ANLA «1/1»): under tre omkostningsfelter dømmes omkostningerne ikke — 1/1, 1/2 og 2/2 passerer", () => {
+    expect(SIGN_LOCKED_COSTS_MIN).toBe(3);
+    const enAfEn = signCheck(metrics({ revenue: 500_000, admin_costs: -14_082 }));
+    expect(enAfEn.result).toBe("PASS");
+    expect(enAfEn.details).toMatch(/1\/1 cost fields negative, under floor of 3: not judged/);
+    expect(signCheck(metrics({ revenue: 500_000, payroll: 100_000, admin_costs: -14_082 })).result).toBe("PASS");
+    expect(signCheck(metrics({ revenue: 500_000, payroll: -100_000, admin_costs: -14_082 })).result).toBe("PASS");
+  });
+  it("fra tre felter gælder flertallet: 2/3 og 3/3 fælder, 1/3 passerer", () => {
+    expect(signCheck(metrics({ revenue: 500_000, payroll: -100_000, admin_costs: -14_082, depreciation: 10_000 })).result).toBe("FAIL");
+    expect(signCheck(metrics({ revenue: 500_000, payroll: -100_000, admin_costs: -14_082, depreciation: -10_000 })).result).toBe("FAIL");
+    expect(signCheck(metrics({ revenue: 500_000, payroll: 100_000, admin_costs: 14_082, depreciation: -10_000 })).result).toBe("PASS");
+  });
+  it("gulvet gælder kun omkostningerne — én negativ anker fælder stadig alene", () => {
+    expect(signCheck(metrics({ revenue: -500_000, admin_costs: -14_082 })).result).toBe("FAIL");
   });
 
   it("cogs er contra-cost og tæller ikke med i omkostningssættet", () => {

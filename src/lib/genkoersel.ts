@@ -185,7 +185,16 @@ export function tolkGenkoerselSvar(body: unknown, reportId: string): GenkoerselB
   const svar = (koert.svar ?? {}) as Record<string, unknown>;
   const efter = (koert.raekke_efter ?? null) as Record<string, unknown> | null;
   const udfald = String(koert.udfald ?? "");
-  const serverOrd = [svar.message, svar.error].find((v): v is string => typeof v === "string" && v.trim().length > 0);
+  // Grunden i prioriteret orden (10/9, «Serveren gav ingen fejlgrund» var vores egen
+  // udeladelse): serverens ord (message/error) → rækkens validation_errors → svarets
+  // validation.errors. Rækken er sandheden; den bærer præcis det kortet viser som «Fejlede: …».
+  const foersteTekst = (liste: unknown): string | null =>
+    Array.isArray(liste) ? ((liste as unknown[]).find((v) => typeof v === "string" && v.trim().length > 0) as string | undefined) ?? null : null;
+  const serverOrd =
+    [svar.message, svar.error].find((v): v is string => typeof v === "string" && v.trim().length > 0)
+    ?? foersteTekst(efter?.validation_errors)
+    ?? foersteTekst((svar.validation_errors as unknown) ?? null)
+    ?? undefined;
   switch (udfald) {
     case "behandlet_pass":
       return { tone: "success", tekst: "Filen blev læst — afventer godkendelse", beskrivelse: efter?.report_period ? `Periode: ${String(efter.report_period)}` : undefined, genhent: true };

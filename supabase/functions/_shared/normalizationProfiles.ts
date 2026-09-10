@@ -184,14 +184,24 @@ const combined_balance_pnl_credit_v1: NormalizationProfile = {
 
 // ── Profile: e-conomic Resultatopgørelse (business convention, P&L only) ──
 
+// BUSINESS-KONVENTIONEN (rettet 10/9-2026): detectSignConvention i XLSX-skabelonen
+// definerer «business» som omsætning > 0 og enkeltkontolinjer for omkostninger
+// < 0 — omkostningerne står altså NEGATIVT i kilden (Topix dec 2025, målt:
+// «Lønninger i alt» −86.673,29). Profilen sagde det modsatte («values already
+// positive») og beholdt rå fortegn (KEEP), så canonical fik payroll −86.673,
+// ebitda kunne ikke afledes (opexSum > 0-gaten) og fortegnsdommen fældede
+// «4/5 cost fields negative» — og for ANLA GLAS «1/1». Legacy-vejen abs'er de
+// samme subtotaler (signRule "abs"). Nu gør profilen det samme: cost_like ABS,
+// som hver anden profil. Nogle business-filer viser subtotaler som absolutte
+// tal i forvejen (skabelonens kommentar) — ABS er rigtig for begge.
 const economic_pnl_business_v1: NormalizationProfile = {
   profile_id: "economic_pnl_business_v1",
-  description: "e-conomic Resultatopgørelse — business convention, values already positive-means-positive",
+  description: "e-conomic Resultatopgørelse — business convention: revenue positive, costs negative in the source (made positive here)",
   sign_convention: "business",
   statement_type: "pnl",
   family_defaults: {
     revenue_like:            KEEP,
-    cost_like:               KEEP,
+    cost_like:               ABS,      // Business: costs are negative in the source → positive bucket
     profit_like:             KEEP,
     asset_like:              KEEP,
     liability_like:          KEEP,

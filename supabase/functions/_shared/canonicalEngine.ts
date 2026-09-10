@@ -580,6 +580,16 @@ export const SIGN_LOCKED_COSTS: readonly (keyof CanonicalMetrics)[] = [
   "payroll", "payroll_related", "other_staff_costs", "sales_costs", "facility_costs",
   "admin_costs", "vehicle_costs", "depreciation", "financial_costs",
 ];
+/**
+ * GULVET (10/9-2026, «1/1 cost fields negative», ANLA GLAS 2026-6.xlsx): et
+ * flertal betyder først noget når der er noget at være flertal af. Med ét
+ * felt er én negativ 100 %, med to er én negativ halvdelen og to er 100 % —
+ * ingen af delene siger noget om en VENDT FIL, kun om det ene tal. Fra tre
+ * felter kan to negative være et vendt sæt, og én negativ er den
+ * tilbageførsel kommentaren nedenfor lover at lade passere. Under gulvet
+ * dømmes omkostningerne ikke (ankrene dømmes stadig alene).
+ */
+export const SIGN_LOCKED_COSTS_MIN = 3;
 
 // ── Extended Validation (13 checks) ──
 export function runExtendedValidation(
@@ -731,7 +741,8 @@ export function runExtendedValidation(
   const negativeAnchors = SIGN_LOCKED_ANCHORS.filter(f => typeof metrics[f] === "number" && (metrics[f] as number) < 0);
   const costValues = SIGN_LOCKED_COSTS.map(f => metrics[f]).filter((v): v is number => typeof v === "number");
   const negativeCosts = costValues.filter(v => v < 0).length;
-  const costsFlipped = costValues.length > 0 && negativeCosts / costValues.length > 0.5;
+  // Flertalsreglen kræver mindst SIGN_LOCKED_COSTS_MIN felter (gulvet ovenfor).
+  const costsFlipped = costValues.length >= SIGN_LOCKED_COSTS_MIN && negativeCosts / costValues.length > 0.5;
   if (negativeAnchors.length > 0 || costsFlipped) {
     const parts: string[] = [];
     if (negativeAnchors.length > 0) parts.push(`${negativeAnchors.map(f => `${f}=${metrics[f]}`).join(", ")} negative`);
@@ -740,9 +751,12 @@ export function runExtendedValidation(
     errors.push(`Suspicious sign pattern: ${parts.join("; ")}`);
   } else {
     const lockedCount = SIGN_LOCKED_ANCHORS.filter(f => typeof metrics[f] === "number").length + costValues.length;
+    const underGulv = negativeCosts > 0 && costValues.length < SIGN_LOCKED_COSTS_MIN
+      ? ` — ${negativeCosts}/${costValues.length} cost fields negative, under floor of ${SIGN_LOCKED_COSTS_MIN}: not judged`
+      : "";
     checks.push({
       name: "suspicious_sign_pattern", result: "PASS",
-      details: lockedCount > 0 ? `${negativeCosts}/${lockedCount} sign-locked fields negative (result chain not counted)` : "No sign-locked metrics",
+      details: lockedCount > 0 ? `${negativeCosts}/${lockedCount} sign-locked fields negative (result chain not counted)${underGulv}` : "No sign-locked metrics",
     });
   }
 

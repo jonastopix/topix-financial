@@ -125,6 +125,16 @@ describe("ordene — fejlgrund, knap, tørkørsel og kørsel", () => {
     const fejletTom = tolkGenkoerselSvar({ koert: [{ report_id: ID, udfald: "fejlet", svar: {}, raekke_efter: null }] }, ID);
     expect(fejletTom.beskrivelse).toBe("Serveren gav ingen fejlgrund.");
   });
+  it("grunden hentes fra rækkens validation_errors når svaret ingen ord bærer (ANLA 10/9: «1/1 cost fields negative»)", () => {
+    const fraRaekken = tolkGenkoerselSvar({ koert: [{ report_id: ID, udfald: "fejlet", svar: { status: null, error: null, message: null },
+      raekke_efter: { status: "error", validation_errors: ["suspicious_sign_pattern: 1/1 cost fields negative"] } }] }, ID);
+    expect(fraRaekken).toMatchObject({ tone: "error", beskrivelse: "suspicious_sign_pattern: 1/1 cost fields negative" });
+    const fraSvaret = tolkGenkoerselSvar({ koert: [{ report_id: ID, udfald: "fejlet", svar: { validation_errors: ["gross_profit_sum: MISMATCH"] }, raekke_efter: { status: "error", validation_errors: [] } }] }, ID);
+    expect(fraSvaret.beskrivelse).toBe("gross_profit_sum: MISMATCH");
+    const failManuel = tolkGenkoerselSvar({ koert: [{ report_id: ID, udfald: "behandlet_fail_eller_manuel", svar: {},
+      raekke_efter: { status: "processed", validation_errors: ["period_consistency: YTD (0) < period (1631529.45)"], routing_branch: "deterministic_success" } }] }, ID);
+    expect(failManuel.beskrivelse).toBe("period_consistency: YTD (0) < period (1631529.45)");
+  });
   it("kørslen: dublet-gaten, fil ikke hentet, kastede, intet resultat", () => {
     expect(tolkGenkoerselSvar({ koert: [{ report_id: ID, udfald: "raekke_slettet_af_dubletgaten", svar: { duplicate: true, existing_report_id: "abc" } }] }, ID)).toMatchObject({ tone: "error", beskrivelse: expect.stringContaining("abc"), genhent: true });
     expect(tolkGenkoerselSvar({ koert: [{ report_id: ID, udfald: "fil_kunne_ikke_hentes", fejl: "Object not found" }] }, ID)).toMatchObject({ tone: "error", beskrivelse: "Object not found", genhent: false });
