@@ -114,7 +114,8 @@ describe("virksomhedslistens delkald kaster — fire kilder gennem kraevRaekker,
 
   it("fladen har en isError-gren der siger «kunne ikke hentes» — ikke «ingen virksomheder»", () => {
     expect(listeKilde).toContain("listeQuery.isError");
-    expect(listeKilde).toContain("Listen kunne ikke hentes. Prøv igen.");
+    // 10/9: teksten navngiver kilden og siger at listen kan mangle noget (lib/raadgiverHentefejl).
+    expect(listeKilde).toContain('raadgiverHentefejlTekst(listeQuery.error, "listen")');
   });
 });
 

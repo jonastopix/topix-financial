@@ -13,6 +13,7 @@ import { CRON_VAGT_KEY, hentCronVagt } from "@/hooks/cronVagt";
 import { vagtLinje } from "@/lib/cronVagt";
 import { intetNytTekst, sidenSidstLinjer, sidenTekst } from "@/lib/sidenSidst";
 import { cn } from "@/lib/utils";
+import { raadgiverHentefejlTekst } from "@/lib/raadgiverHentefejl";
 
 /**
  * Rådgiverens forside på /forside — DOMMEN (docs/forsiden-design.md,
@@ -170,7 +171,7 @@ const DomLinje = ({ l, onLuk, lukker }: { l: Linje; onLuk: (linje: Virksomhedsli
 export const RaadgiverForsideView = () => {
   const { user, profile } = useAuth();
   const queryClient = useQueryClient();
-  const { data, isLoading, isError } = useQuery({
+  const { data, isLoading, isError, error } = useQuery({
     queryKey: ADVISOR_DASHBOARD_QUERY_KEY(user?.id),
     queryFn: hentAdvisorDashboard,
     enabled: !!user,
@@ -211,7 +212,10 @@ export const RaadgiverForsideView = () => {
   const fornavn = profile?.full_name?.split(" ")[0] || "dig";
 
   if (isError) {
-    return <p className="text-sm text-hb-rust">Forsiden kunne ikke hentes. Prøv igen.</p>;
+    // 10/9: siger HVAD der ikke kunne hentes — rådgiveren skal vide at
+    // dommen ikke er hel (lib/raadgiverHentefejl). Alle forsidens
+    // hentninger kaster nu med kildens navn.
+    return <p className="text-sm text-hb-rust">{raadgiverHentefejlTekst(error, "forsiden")}</p>;
   }
   if (isLoading || !data) {
     return (

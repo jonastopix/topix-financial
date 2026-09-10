@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { RotateCcw, Trash2, UserPlus } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
+import { raadgiverHentefejlTekst } from "@/lib/raadgiverHentefejl";
 import { erGyldigEmail, invitationTekst, invitationsTal, invitationsTalTekst } from "@/lib/invitationer";
 import {
   INVITATIONER_KEY, gensendInvitation, hentInvitationer, invaliderInvitationer, opretInvitation, sletInvitation, type AabenInvitation,
@@ -167,7 +168,7 @@ export const HbInvitationer = () => {
     <HbSection eyebrow={`Åbne invitationer${d ? ` · ${d.aabne.length}` : ""}`} hairline className="mt-10">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm text-hb-ink-soft">
-          {query.isError ? "Invitationerne kunne ikke hentes." : tal ? invitationsTalTekst(tal) : "Henter…"}
+          {query.isError ? raadgiverHentefejlTekst(query.error, "invitationerne") : tal ? invitationsTalTekst(tal) : "Henter…"}
         </p>
         <InviterKnap virksomheder={d?.virksomheder} />
       </div>

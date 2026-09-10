@@ -6,6 +6,7 @@ import { Check, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { kraevRaekker } from "@/lib/kraevRaekker";
+import { raadgiverHentefejlTekst } from "@/lib/raadgiverHentefejl";
 import { cn } from "@/lib/utils";
 import { afgoerOpgave, delListe, forsideUdsnit, fristTekst, type RaadgiverOpgave } from "@/lib/raadgiverOpgaver";
 import {
@@ -62,7 +63,7 @@ async function hentOpslag(): Promise<{ raadgivere: Raadgiver[]; virksomheder: Vi
     // Alle virksomheder, også de faldne: et punkt kan handle om Rallysupport.
     supabase.from("companies").select("id, name, is_legat").order("name").limit(500),
   ]);
-  const raadgivere = ((raadgiverRes.data ?? []) as Raadgiver[]).filter((r) => r.user_id).sort((a, b) => (a.full_name ?? "").localeCompare(b.full_name ?? "", "da"));
+  const raadgivere = (kraevRaekker(raadgiverRes as never, "get_all_advisor_profiles") as Raadgiver[]).filter((r) => r.user_id).sort((a, b) => (a.full_name ?? "").localeCompare(b.full_name ?? "", "da"));
   const virksomheder = (kraevRaekker(virksomhedRes, "companies") as { id: string; name: string | null; is_legat: boolean | null }[])
     .filter((c) => !c.is_legat && c.name)
     .map((c) => ({ id: c.id, name: c.name as string }));
@@ -146,7 +147,7 @@ export const OpgavelisteView = ({ paaForsiden = false }: { paaForsiden?: boolean
   };
 
   if (opgaverQuery.isError) {
-    return <p className="text-sm text-hb-rust">Listen kunne ikke hentes. Prøv igen.</p>;
+    return <p className="text-sm text-hb-rust">{raadgiverHentefejlTekst(opgaverQuery.error, "opgaverne")}</p>;
   }
 
   const Raekke = ({ o }: { o: RaadgiverOpgave }) => {
