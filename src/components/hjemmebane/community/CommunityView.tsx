@@ -14,6 +14,7 @@ import {
 import { CommunityComposer } from "./CommunityComposer";
 import { CommunityMedlemmer } from "./CommunityMedlemmer";
 import { HbSection } from "../HbSection";
+import { hentetilstand, sektionsfejlTekst } from "@/lib/hjemmebane/hentefejl";
 import { HbTag } from "../HbTag";
 
 /** Fællesskabets feed (/community) — læsning + SKRIVE-leddet: composer
@@ -153,6 +154,11 @@ export const CommunityView = () => {
   });
 
   const traade = feedQuery.data ?? [];
+  // Tom mod fejlet (de nitten, 10/9): «ikke skrevet noget endnu» er en
+  // tilstand; «fællesskabet kunne ikke hentes» er en fejl. Før viste et
+  // fejlet feed den tomme sætning. hentFeed kaster (throwIfError), så
+  // Sentry får fejlen af QueryCache.onError — her læses kun dommen.
+  const feedTilstand = hentetilstand(feedQuery, traade.length === 0);
 
   return (
     <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_288px] lg:items-start lg:gap-12">
@@ -177,13 +183,15 @@ export const CommunityView = () => {
           </div>
         )}
 
-        {feedQuery.isLoading ? (
+        {feedTilstand === "henter" ? (
           <ul className="list-none">
             <RowSkeleton />
             <RowSkeleton />
             <RowSkeleton />
           </ul>
-        ) : traade.length === 0 ? (
+        ) : feedTilstand === "fejlet" ? (
+          <p className="text-sm text-hb-ink-soft">{sektionsfejlTekst("community")} Prøv igen om lidt.</p>
+        ) : feedTilstand === "tom" ? (
           <p className="text-sm text-hb-ink-soft">Der er ikke skrevet noget endnu. Om lidt er der.</p>
         ) : (
           <ul className="list-none">

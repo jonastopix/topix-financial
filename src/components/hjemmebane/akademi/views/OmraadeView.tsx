@@ -5,6 +5,7 @@ import { HbItemRow } from "../HbItemRow";
 import { HbKursusKort } from "../HbKursusKort";
 import { HbProgressBar } from "../HbProgressBar";
 import { progressSummary, useAkademiData } from "../useAkademiData";
+import { sektionsfejlTekst } from "@/lib/hjemmebane/hentefejl";
 
 /** Områdesiden: løse elementer som rækker, kurser som KORT der linker
     til kursussiden (KursusView) — en destination frem for en sektion i
@@ -15,6 +16,11 @@ export const OmraadeView = ({ areaKey }: { areaKey: string }) => {
   const entries = data.orderedByArea.get(areaKey) ?? [];
 
   if (data.loading) return <p className="text-sm text-hb-ink-soft">Henter…</p>;
+  // Fejlet FØR «findes ikke» (de nitten, 10/9): et område hvis katalog
+  // ikke kunne hentes er ikke et tomt område.
+  if (data.fejlede) {
+    return <p className="text-sm text-hb-ink-soft">{sektionsfejlTekst("akademiet")} Prøv igen om lidt.</p>;
+  }
   // Ikke-akademi-områder (push) må aldrig ses her — samme dom som ukendt.
   if (!area || !area.akademi) {
     return <p className="text-sm text-hb-ink-soft">Området findes ikke.</p>;

@@ -6,7 +6,8 @@ import { Archive, ChevronDown, ChevronRight, ChevronUp, FileText, Loader2, Rotat
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
-import { kraevRaekker } from "@/lib/kraevRaekker";
+import { HentningsFejl, kraevRaekker } from "@/lib/kraevRaekker";
+import { sektionsfejlTekst, uploadSpaerretTekst } from "@/lib/hjemmebane/hentefejl";
 import { useAuth } from "@/hooks/useAuth";
 import { useViewMode } from "@/hooks/useViewMode";
 import { useCompanyFacts } from "@/hooks/useCompanyFacts";
@@ -40,7 +41,7 @@ import { HbAdvisorCompanyPrompt } from "../HbAdvisorCompanyPrompt";
 import { HbCard } from "../HbCard";
 import { HbButton } from "../HbButton";
 import { hbControlClasses } from "../admin/HbField";
-import { deriveReportCardView, type CardAction, erForTidligt } from "./reportCardView";
+import { deriveReportCardView, type CardAction, erForTidligt, godkendSpaerret } from "./reportCardView";
 import { HbReportUploadZone } from "./HbReportUploadZone";
 import { tomListeTekst } from "@/lib/hjemmebane/rapporteringTekst";
 
@@ -100,15 +101,25 @@ export const RapporteringView = () => {
   });
   const [pendingReviewReportId, setPendingReviewReportId] = useState<string | null>(null);
 
-  const { data: facts = [] } = useCompanyFacts();
+  // Godkendelsen aflæses af facts (de nitten, punkt 4, 10/9): fejler DEN
+  // hentning, ville `facts = []` gøre alle godkendte rapporter ugodkendte
+  // — «Ingen godkendte tal endnu», «12 rapporter afventer din godkendelse»
+  // og en godkend-knap på hver. isError læses, og godkend-vejen holdes
+  // tilbage (godkendSpaerret) til tallene er tilbage.
+  const { data: facts = [], isError: godkendelseUkendt } = useCompanyFacts();
   const { data: commentaries = [] } = useCompanyCommentary();
   const commitStatesQuery = useReportCommitStates(companyId || undefined);
 
   // Samtale-id til advisor-upload-notifikationen (arvet fra Reports.loadData).
+  // Kaster ved fejl (de nitten, 10/9): før blev en fejl til null, og
+  // rådgiverens besked om en ny upload blev stille sprunget over. Fladen
+  // viser ikke fejlen — den er en berigelse, uploaden går igennem uden —
+  // men Sentry får den nu af QueryCache.onError.
   const { data: conversationId = null } = useQuery({
     queryKey: ["rapportering", "conversation", companyId],
     queryFn: async () => {
-      const { data } = await supabase.from("conversations").select("id").eq("company_id", companyId!).maybeSingle();
+      const { data, error } = await supabase.from("conversations").select("id").eq("company_id", companyId!).maybeSingle();
+      if (error) throw new HentningsFejl("conversations", error.message);
       return data?.id ?? null;
     },
     enabled: !!companyId,
@@ -375,31 +386,36 @@ export const RapporteringView = () => {
   // ── Papirkurv (advisor) — portet 1:1 fra gamle Reports før Rapportering-GO.
   //    Oprydningskæden i handlePermanentDelete er kopieret ordret. ──────────
   const [showTrash, setShowTrash] = useState(false);
-  const [trashedReports, setTrashedReports] = useState<DbReport[]>([]);
   const [restoring, setRestoring] = useState<string | null>(null);
   const [permanentDeleting, setPermanentDeleting] = useState<string | null>(null);
 
-  const loadTrashedReports = useCallback(async () => {
-    if (!isAdvisor || !companyId) return;
-    const { data } = await (supabase
-      .from("financial_reports")
-      .select("id, file_name, file_path, report_type, report_period, company_name, uploaded_at, status, extracted_data, normalized_data") as any)
-      .eq("company_id", companyId)
-      .not("deleted_at", "is", null)
-      .order("uploaded_at", { ascending: false });
-    setTrashedReports(data || []);
-  }, [isAdvisor, companyId]);
-
-  useEffect(() => {
-    if (showTrash) loadTrashedReports();
-  }, [showTrash, loadTrashedReports]);
+  // Papirkurven som query (de nitten, 10/9): før `const { data } = …;
+  // setTrashedReports(data || [])` — en fejl blev til «Papirkurven er tom»,
+  // og en rådgiver der ledte efter en slettet rapport troede den var væk
+  // for altid. Nu kaster kraevRaekker, fladen læser isError, og gendan/
+  // slet-permanent invaliderer nøglen i stedet for at filtrere lokal state.
+  const papirkurvQuery = useQuery({
+    queryKey: ["rapportering", "papirkurv", companyId],
+    queryFn: async () => {
+      const res = await (supabase
+        .from("financial_reports")
+        .select("id, file_name, file_path, report_type, report_period, company_name, uploaded_at, status, extracted_data, normalized_data") as any)
+        .eq("company_id", companyId!)
+        .not("deleted_at", "is", null)
+        .order("uploaded_at", { ascending: false });
+      return kraevRaekker(res, "financial_reports_papirkurv") as DbReport[];
+    },
+    enabled: isAdvisor && !!companyId && showTrash,
+  });
+  const trashedReports = papirkurvQuery.data ?? [];
+  const invaliderPapirkurv = () => queryClient.invalidateQueries({ queryKey: ["rapportering", "papirkurv"] });
 
   const handleRestoreReport = async (report: DbReport) => {
     setRestoring(report.id);
     try {
       const { error } = await (supabase.from("financial_reports").update({ deleted_at: null, status: "processed" } as any).eq("id", report.id) as any);
       if (error) throw error;
-      setTrashedReports((prev) => prev.filter((r) => r.id !== report.id));
+      invaliderPapirkurv();
       setRefreshKey((k) => k + 1);
       queryClient.invalidateQueries({ queryKey: ["company-facts"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard-kpis"] });
@@ -444,7 +460,7 @@ export const RapporteringView = () => {
       }
       const { error } = await supabase.from("financial_reports").delete().eq("id", report.id);
       if (error) throw error;
-      setTrashedReports((prev) => prev.filter((r) => r.id !== report.id));
+      invaliderPapirkurv();
       queryClient.invalidateQueries({ queryKey: ["company-facts"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard-kpis"] });
       queryClient.invalidateQueries({ queryKey: ["company-commentaries"] });
@@ -489,12 +505,17 @@ export const RapporteringView = () => {
           Rapportering
         </h1>
         <p className="mt-3 text-sm text-hb-ink-soft">
-          {latestCommittedLabel ? `Senest godkendt: ${latestCommittedLabel}` : "Ingen godkendte tal endnu"}
+          {godkendelseUkendt
+            ? "Vi kan ikke se hvilke tal der er godkendt lige nu. Godkendelse venter, til de er tilbage — prøv igen om lidt."
+            : latestCommittedLabel
+              ? `Senest godkendt: ${latestCommittedLabel}`
+              : "Ingen godkendte tal endnu"}
         </p>
       </section>
 
-      {/* ── Leveringsbånd (indeværende år) ── */}
-      {currentYearGroup && (
+      {/* ── Leveringsbånd (indeværende år) — udelades når godkendelsen er
+          ukendt: «0 af 9 måneder godkendt» ville være en løgn. ── */}
+      {currentYearGroup && !godkendelseUkendt && (
         <HbCard className="mt-8 p-5">
           <div className="flex flex-wrap items-baseline justify-between gap-2">
             <p className="text-xs font-medium uppercase tracking-[0.14em] text-hb-ink-soft">
@@ -518,8 +539,9 @@ export const RapporteringView = () => {
         </HbCard>
       )}
 
-      {/* ── Nudges (dæmpede kort) ── */}
-      {uncommittedProcessed.length > 0 && (
+      {/* ── Nudges (dæmpede kort) — ikke når godkendelsen er ukendt: listen
+          ville rumme de allerede godkendte. ── */}
+      {uncommittedProcessed.length > 0 && !godkendelseUkendt && (
         <HbCard className="mt-4 p-5">
           <p className="text-sm font-medium text-hb-ink">
             {uncommittedProcessed.length === 1
@@ -551,7 +573,7 @@ export const RapporteringView = () => {
           </ul>
         </HbCard>
       )}
-      {manualEntryReports.length > 0 && (
+      {manualEntryReports.length > 0 && !godkendelseUkendt && (
         <HbCard className="mt-4 p-5">
           <p className="text-sm font-medium text-hb-ink">Rapporter der kræver manuel indtastning</p>
           <ul className="mt-2 space-y-1.5">
@@ -573,7 +595,12 @@ export const RapporteringView = () => {
         </HbCard>
       )}
 
-      {/* ── Upload (anker bevaret; tour-anker bevidst udeladt) ── */}
+      {/* ── Upload (anker bevaret; tour-anker bevidst udeladt) ──
+          Spærret når listen ikke kunne hentes (de nitten, punkt 4, 10/9):
+          7/9 rettede TEKSTEN i listen («vent med at uploade»), men zonen
+          stod åben lige over den. En fejlet hentning må ikke lade som om
+          der ingen rapporter er — og slet ikke lade nogen uploade oveni.
+          Årsrapporterne har egen spærring (handleUpload, annualQuery). ── */}
       <div id="upload" className="mt-10 scroll-mt-24">
         <HbReportUploadZone
           userId={user?.id ?? null}
@@ -582,6 +609,7 @@ export const RapporteringView = () => {
           conversationId={conversationId}
           onPipelineComplete={handlePipelineComplete}
           foersteGang={foersteGang}
+          spaerret={reportsQuery.isError ? uploadSpaerretTekst() : null}
         />
       </div>
 
@@ -674,7 +702,7 @@ export const RapporteringView = () => {
                         </span>
                       </button>
                       <div className="flex shrink-0 items-center gap-2">
-                        {view.secondary && (
+                        {view.secondary && !godkendSpaerret(view.secondary.action, godkendelseUkendt) && (
                           <button
                             type="button"
                             onClick={() => runAction(view.secondary!.action, report, commitStatesQuery.data?.get(report.id)?.state)}
@@ -683,7 +711,7 @@ export const RapporteringView = () => {
                             {view.secondary.label}
                           </button>
                         )}
-                        {view.primary && (
+                        {view.primary && !godkendSpaerret(view.primary.action, godkendelseUkendt) && (
                           <HbButton
                             variant="secondary"
                             className="h-9 px-4 text-sm"
@@ -781,7 +809,12 @@ export const RapporteringView = () => {
 
           {showTrash && (
             <div className="mt-4 space-y-3">
-              {trashedReports.length === 0 ? (
+              {papirkurvQuery.isLoading ? (
+                <p className="text-sm text-hb-ink-soft">Henter…</p>
+              ) : papirkurvQuery.isError ? (
+                // Fejlet er ikke «Papirkurven er tom» (de nitten, 10/9).
+                <p className="text-sm text-hb-ink-soft">{sektionsfejlTekst("financial_reports_papirkurv")}</p>
+              ) : trashedReports.length === 0 ? (
                 <HbCard className="p-8 text-center">
                   <Trash2 className="mx-auto mb-2 h-8 w-8 text-hb-ink-soft/30" />
                   <p className="text-sm text-hb-ink-soft">Papirkurven er tom</p>

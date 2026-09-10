@@ -10,6 +10,7 @@
  */
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { HentningsFejl } from "@/lib/kraevRaekker";
 import { useAuth } from "@/hooks/useAuth";
 import type { Json } from "@/integrations/supabase/types";
 
@@ -54,7 +55,9 @@ export function useCompanyFacts(overrideCompanyId?: string) {
         )
         .eq("company_id", companyId!)
         .order("period_key", { ascending: true });
-      if (error) throw error;
+      // Kaster med kildens navn (de nitten, 10/9), så fladerne kan sige
+      // «dine tal» via kildeAf/hentefejl frem for «noget af det du ser her».
+      if (error) throw new HentningsFejl("financial_report_facts", error.message);
 
       return (data || []).map((row) => ({
         ...row,

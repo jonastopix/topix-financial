@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { deriveReportCardView, erForTidligt, foersteDagEfterPeriode, nuSomPeriodeNoegle } from "../reportCardView";
+import { deriveReportCardView, erForTidligt, foersteDagEfterPeriode, godkendSpaerret, nuSomPeriodeNoegle } from "../reportCardView";
 
 describe("deriveReportCardView — mapping-tabellen række for række", () => {
   it("1) processing → Behandles…, quiet, ingen handling", () => {
@@ -147,5 +147,19 @@ describe("for tidligt — perioden fejler ikke, den er ikke omme", () => {
   it("committed vinder over for tidligt (kan ikke ske i SQL, men dommen skal være stabil)", () => {
     const view = deriveReportCardView({ status: "processed", isCommitted: true, commitState: "not_ready", periodKey: "2026-09", nowKey: "2026-09" });
     expect(view.key).toBe("committed");
+  });
+});
+
+describe("godkendSpaerret — punkt 4 (10/9): en fejlet facts-hentning må ikke åbne for godkend oveni", () => {
+  it("spærrer review og override når godkendelsen er ukendt", () => {
+    expect(godkendSpaerret("review", true)).toBe(true);
+    expect(godkendSpaerret("override", true)).toBe(true);
+  });
+  it("lader upload og none stå — de rører ikke godkendelsen", () => {
+    expect(godkendSpaerret("upload", true)).toBe(false);
+    expect(godkendSpaerret("none", true)).toBe(false);
+  });
+  it("spærrer intet når facts er hentet", () => {
+    for (const a of ["review", "override", "upload", "none"] as const) expect(godkendSpaerret(a, false)).toBe(false);
   });
 });

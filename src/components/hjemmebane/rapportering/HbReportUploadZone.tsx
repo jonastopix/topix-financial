@@ -39,6 +39,12 @@ interface HbReportUploadZoneProps {
       den korte linje og vejledningen foldet sammen (lib/hjemmebane/
       rapporteringTekst, 9/9). Udeladt = vant. */
   foersteGang?: boolean;
+  /** Spærret (de nitten, 10/9): når LISTEN af rapporter ikke kunne hentes,
+      må ingen uploade oveni — vi kan ikke se om rapporten allerede ligger
+      der, og dublet-tjekket i motoren læser samme tabel. Teksten er rolig
+      og står i zonen; knap, drop og filvalg er alle lukkede, ikke kun
+      knappen. null/udeladt = åben. */
+  spaerret?: string | null;
 }
 
 const MAX_FILE_SIZE = 25 * 1024 * 1024; // 25 MB
@@ -66,6 +72,7 @@ export const HbReportUploadZone = ({
   conversationId,
   onPipelineComplete,
   foersteGang = false,
+  spaerret = null,
 }: HbReportUploadZoneProps) => {
   const tekst = uploadZoneTekst(foersteGang);
   const queryClient = useQueryClient();
@@ -364,6 +371,8 @@ export const HbReportUploadZone = ({
   };
 
   const handleFiles = (list: FileList | File[]) => {
+    // Spærringen holder også dropvejen og filvalget — ikke kun knappen.
+    if (spaerret) return;
     for (const file of Array.from(list)) {
       const ext = `.${file.name.toLowerCase().split(".").pop()}`;
       if (!ALLOWED_EXTENSIONS.includes(ext)) {
@@ -388,10 +397,14 @@ export const HbReportUploadZone = ({
     <div>
       <button
         type="button"
-        onClick={() => inputRef.current?.click()}
+        disabled={Boolean(spaerret)}
+        aria-disabled={Boolean(spaerret)}
+        onClick={() => {
+          if (!spaerret) inputRef.current?.click();
+        }}
         onDragOver={(e) => {
           e.preventDefault();
-          setDragOver(true);
+          if (!spaerret) setDragOver(true);
         }}
         onDragLeave={() => setDragOver(false)}
         onDrop={(e) => {
@@ -401,13 +414,26 @@ export const HbReportUploadZone = ({
         }}
         className={cn(
           "flex w-full items-center gap-4 rounded-hb border border-dashed px-6 py-6 text-left transition-colors",
-          dragOver ? "border-hb-evergreen bg-hb-sage/40" : "border-hb-line bg-hb-surface hover:bg-hb-sage/20",
+          spaerret
+            ? "cursor-not-allowed border-hb-line bg-hb-surface/60"
+            : dragOver
+              ? "border-hb-evergreen bg-hb-sage/40"
+              : "border-hb-line bg-hb-surface hover:bg-hb-sage/20",
         )}
       >
         <FileUp className="h-5 w-5 shrink-0 text-hb-ink-soft" />
         <span className="min-w-0 flex-1">
-          <span className="block text-[15px] text-hb-ink">{tekst.overskrift}</span>
-          <span className="block text-sm text-hb-ink-soft">{tekst.linje}</span>
+          {spaerret ? (
+            <>
+              <span className="block text-[15px] text-hb-ink">Upload venter</span>
+              <span className="block text-sm text-hb-ink-soft">{spaerret}</span>
+            </>
+          ) : (
+            <>
+              <span className="block text-[15px] text-hb-ink">{tekst.overskrift}</span>
+              <span className="block text-sm text-hb-ink-soft">{tekst.linje}</span>
+            </>
+          )}
         </span>
       </button>
       {/* «Sådan henter du den» (9/9): systemerne stod kun i fejlbeskederne

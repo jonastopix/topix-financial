@@ -22,6 +22,7 @@ import {
 } from "@/lib/hjemmebane/communityApi";
 import { CommunityComposer } from "./CommunityComposer";
 import { CommunityDokument } from "./CommunityDokument";
+import { hentetilstand, sektionsfejlTekst } from "@/lib/hjemmebane/hentefejl";
 
 /** Trådsiden (/community/:id) — læsning, svar, reaktioner og ret/slet af
     eget indhold (RPC'erne 20260812120000).
@@ -325,7 +326,20 @@ export const CommunityTraadView = ({ traadId }: { traadId: string }) => {
     );
   }
 
+  // Fejlet er ikke «findes ikke» (de nitten, 10/9): hentTraad giver null
+  // når opslaget ikke findes og KASTER ved fejl — før faldt begge i samme
+  // sætning, så et medlem med en død forbindelse fik at vide at opslaget
+  // var lukket. Dommen afsiges ét sted (hentetilstand).
   const traad = traadQuery.data;
+  const traadTilstand = hentetilstand(traadQuery, !traad);
+  if (traadTilstand === "fejlet") {
+    return (
+      <div>
+        <BackLink />
+        <p className="mt-8 text-sm text-hb-ink-soft">{sektionsfejlTekst("community_traade")} Prøv igen om lidt.</p>
+      </div>
+    );
+  }
   if (!traad) {
     return (
       <div>
@@ -338,6 +352,7 @@ export const CommunityTraadView = ({ traadId }: { traadId: string }) => {
   }
 
   const svar = svarQuery.data ?? [];
+  const svarTilstand = hentetilstand(svarQuery, svar.length === 0);
   const erTraadForfatter = user !== null && user.id === traad.forfatter_id;
   const erSkjult = traad.status === "skjult";
 
@@ -460,9 +475,12 @@ export const CommunityTraadView = ({ traadId }: { traadId: string }) => {
 
       <section className="mt-10">
         <p className="text-xs font-medium uppercase tracking-[0.14em] text-hb-rust">Svar</p>
-        {svarQuery.isLoading ? (
+        {svarTilstand === "henter" ? (
           <div className="mt-4 h-4 w-1/3 animate-pulse rounded bg-hb-line/40" />
-        ) : svar.length === 0 ? (
+        ) : svarTilstand === "fejlet" ? (
+          // «Ingen svar endnu» er en tilstand; en fejlet hentning er ikke.
+          <p className="mt-4 text-sm text-hb-ink-soft">{sektionsfejlTekst("community_svar")}</p>
+        ) : svarTilstand === "tom" ? (
           <p className="mt-4 text-sm text-hb-ink-soft">Ingen svar endnu.</p>
         ) : (
           <ul className="mt-4 list-none">

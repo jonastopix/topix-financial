@@ -154,6 +154,16 @@ export function useAkademiData() {
     },
   });
 
+  // Fejlede (de nitten, 10/9): alle fire queryFns kaster, men de afledte
+  // kort brugte `?? []`, så et fejlet katalog blev til et tomt Akademi —
+  // «Kurset findes ikke», «Området findes ikke». Et modul der ikke kunne
+  // hentes er ikke et modul der ikke findes; fladerne læser `fejlede` FØR
+  // de dømmer «findes ikke». Katalog og progress vejer lige: uden progress
+  // ville hvert element stå som urørt og ulåst-dryp regnes fra en falsk
+  // joinedAt — også en løgn, bare en pænere.
+  const fejlede =
+    collectionsQuery.isError || itemsQuery.isError || joinedQuery.isError || progressQuery.isError;
+
   return {
     userId,
     isAdvisor,
@@ -162,6 +172,7 @@ export function useAkademiData() {
       itemsQuery.isLoading ||
       joinedQuery.isLoading ||
       progressQuery.isLoading,
+    fejlede,
     progressRows: progressQuery.data ?? [],
     writeProgress: (itemId: string, patch: ProgressPatch) =>
       progressMutation.mutate({ itemId, patch }),

@@ -40,6 +40,7 @@ import {
 } from "@/lib/hjemmebane/akademiApi";
 import type { ContentItem, EventRow } from "@/lib/hjemmebane/adminContentApi";
 import { HbCard } from "@/components/hjemmebane/HbCard";
+import { sektionsfejlTekst } from "@/lib/hjemmebane/hentefejl";
 import { HbButton } from "@/components/hjemmebane/HbButton";
 
 /** Billed-noden bærer `path` og `alt` som ENESTE attributter — ingen
@@ -689,6 +690,18 @@ export function CommunityComposer({
   });
   const eventsRef = useRef<EventRow[]>([]);
   eventsRef.current = eventsQuery.data ?? [];
+
+  /* De fire opslagskilder til @ og # (de nitten, 10/9). hentefejl-mønstret
+     kan IKKE anvendes pr. picker: Tiptaps suggestion.items læser refs
+     inde i en extension der bygges én gang ved mount, og pickeren er en
+     popup uden egen tilstand — der er intet sted at sige «kunne ikke
+     hentes» i selve listen. Så fladen siger det ÉT sted, under editoren:
+     én rolig linje når nogen af kilderne fejlede. Før tilbød pickeren
+     bare ingenting, som om ingen medlemmer/kurser/events fandtes. Alle
+     fire queryFns kaster (throwIfError), så Sentry får fejlen af
+     QueryCache.onError. Medlemmet kan stadig skrive og dele. */
+  const forslagFejlede =
+    medlemmerQuery.isError || itemsQuery.isError || samlingerQuery.isError || eventsQuery.isError;
   const sendRef = useRef<() => void>(() => {});
   const billedInputRef = useRef<HTMLInputElement>(null);
   const filInputRef = useRef<HTMLInputElement>(null);
@@ -996,6 +1009,12 @@ export function CommunityComposer({
       >
         <EditorContent editor={editor} />
       </div>
+
+      {forslagFejlede && (
+        <p className="px-5 pt-2 text-xs text-hb-ink-soft">
+          {sektionsfejlTekst("community_forslag")} Du kan stadig skrive og dele.
+        </p>
+      )}
 
       {/* Diskret værktøjslinje NEDERST — formatering til venstre,
           afsendelse til højre. */}

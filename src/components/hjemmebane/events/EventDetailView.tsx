@@ -16,6 +16,7 @@ import {
 import { eventMeetPhase } from "@/lib/hjemmebane/eventPhase";
 import { HbButton, hbButtonVariants } from "../HbButton";
 import { HbVideoEmbed } from "../akademi/HbVideoEmbed";
+import { hentetilstand, sektionsfejlTekst } from "@/lib/hjemmebane/hentefejl";
 
 /** Events-miljøet, trin 3: eventsiden (/events/:id) med tilmelding og
     deltagerliste. Ikke-fundet håndteres blødt (ElementView-mønstret:
@@ -120,7 +121,19 @@ export const EventDetailView = ({ eventId }: { eventId: string }) => {
     return <p className="text-sm text-hb-ink-soft">Henter…</p>;
   }
 
+  // Fejlet er ikke «findes ikke» (de nitten, 10/9): getEvent giver null når
+  // eventet ikke findes/ikke er publiceret og KASTER ved fejl — før fik
+  // begge samme sætning, og et medlem med et link fra mailen troede at
+  // eventet var pillet ned.
   const event = eventQuery.data;
+  if (hentetilstand(eventQuery, !event) === "fejlet") {
+    return (
+      <div>
+        <BackLink />
+        <p className="mt-8 text-sm text-hb-ink-soft">{sektionsfejlTekst("events_detalje")} Prøv igen om lidt.</p>
+      </div>
+    );
+  }
   if (!event) {
     return (
       <div>
@@ -331,7 +344,11 @@ export const EventDetailView = ({ eventId }: { eventId: string }) => {
           {/* Hele rækken linker til medlemsprofilen (eventrække-mønstret:
               Link + stille hover-tone; negativ margen giver hover-fladen
               luft uden at rykke indholdet). */}
-          {participants.length === 0 ? (
+          {participantsQuery.isError ? (
+            // «Ingen tilmeldte endnu» er en tilstand; en fejlet hentning er
+            // ikke (de nitten, 10/9). listEventParticipants kaster.
+            <p className="mt-4 text-sm text-hb-ink-soft">{sektionsfejlTekst("event_registrations")}</p>
+          ) : participants.length === 0 ? (
             <p className="mt-4 text-sm text-hb-ink-soft">Ingen tilmeldte endnu</p>
           ) : (
             <ul className="mt-4 space-y-1">
