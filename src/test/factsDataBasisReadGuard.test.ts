@@ -32,6 +32,7 @@ const FORVENTEDE_UNDTAGELSER = [
   "supabase/functions/ai-data-chat/index.ts",
   "supabase/functions/detect-financial-alerts/index.ts",
   "supabase/functions/generate-weekly-focus/index.ts",
+  "supabase/functions/genkoer-rapport/index.ts",
   "supabase/functions/nudge-report-no-reflection/index.ts",
   "supabase/functions/onboarding-rytme/index.ts",
   "src/lib/hjemmebane/hentefejl.ts",

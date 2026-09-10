@@ -175,5 +175,10 @@ project_id = "loiavmastgeieqyiwyyr"
   # Kaldes fra rådgiverfladen med brugerens JWT.
   [functions.saet-indgangs-prisniveau]
     verify_jwt = true
+  # Bucket A (10/9): authenticateUser + advisor-gate. Genkører en strandet
+  # CSV/XLSX-rapport fra storage på det eksisterende reportId; tørkørsel
+  # som standard. Kaldes fra rådgiverfladen med brugerens JWT.
+  [functions.genkoer-rapport]
+    verify_jwt = true
   [functions.preview-transactional-email]
     verify_jwt = false
