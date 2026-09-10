@@ -371,6 +371,31 @@
     koden — otte holder, to gør ikke (de to kort ovenfor). Den liste hører
     i OVERLEVERING som den eneste samlede opgørelse af hvad kunden er
     lovet.
+  IDÉERNE SKARPT 10/9 NAT (Jonas kl. 22:50: «nogle af de nye idéer er
+  dårligt formuleret … der er fandeme mange gode idéer som kan være en
+  GAME CHANGER for platformen»)
+    Alle 33 idé-kort har fået et afsnit «Skærpet 11/9» (kilde:
+    ~/Downloads/ideerne-skarpt.md): hvad idéen LØSER og for HVEM, den
+    bedre form med det huset har fået siden (klokken #790, vagten,
+    dommene, opgave-udfaldene #800, Hjemmebane, fornyelsesprisen,
+    invited_by), og en størrelse i tid. Ingen kort er fjernet: 129 kort,
+    33 idéer. Fire kort er mærket «Parkeret»/«Drop anbefalet» (push-kanal,
+    sekvensmotoren, mærke-formen, kalenderlinkets fravalg) — de står, så
+    beslutningen om at lade dem ligge kan ses.
+    FEM GAME CHANGERS, mærket på kortene (rust-tag «Game changer n/5»),
+    ærligt: fire ændrer noget for alvor, den femte er en mulighed.
+      1 Tallene kommer af sig selv (integration; pilot Floren en uge)
+      2 Rådgiver-MCP + søgning (to kort; en uge)
+      3 Netværket bliver et netværk (fire kort; fire dage, intet
+        beskedsystem)
+      4 Medlemmer som kanal (affiliate som fornyelsesrabat + delingsbillede;
+        to dage)
+      5 «Din måned» — mulig, ikke bevist; byg den lille og mål.
+    FIRE PÅ EN TIME HVER, mærket «En time — gør det i morgen»: Customer
+    Portal (tre kort for én knap), handout → lektion, tom-tilstande på
+    skærm, like fra feedet.
+    ÉN DER AFGØRES SAMMEN: «Ugens nyheder med auto-tråd» + «Ugens push med
+    kommentarer» + månedsdigesten = én ugentlig post/mail, ikke to.
   SÅDAN TILFØJER MAN ET KORT
     1. Find afsnittet (<section class="topic">). Ét emne, ét sted:
        Indgangen · Betaling og fornyelse · Dine tal · Chat og
@@ -635,7 +660,8 @@
       <p><strong>Målt belæg:</strong> fem virksomheder loggede ind én gang, den dag de blev oprettet, og kom aldrig igen.</p>
       <p><strong>Løst siden kortet:</strong> dag 0–21 har en rytme — «Sådan kommer du i gang» dag 0–1, intro-påmindelsen dag 10, «Historikken først» dag 14–20 (#766); forsiden ser et nyt medlem der ikke kommer i gang (#759); dag 7 og ingen rykkere til en der ikke er begyndt (#761); velkomstsignalet på forsiden og i klokken (#780, #790). Men cron-jobbet er ikke planlagt (eget kort «Onboardingens rytme er bygget — cron-jobbet er ikke planlagt»), så intet af det har ramt et rigtigt menneske endnu.</p>
       <p><strong>Står tilbage:</strong> «interaktiv» er ikke defineret — det der findes er mails og forsidens dom. Rækkefølgen er: tænd rytmen, mål om de næste fem nye logger ind igen (samme SQL som belægget), og først hvis svaret er nej, tegn noget interaktivt. Idéen står ikke i vejen for noget; den skal bare ikke bygges før målingen.</p>
-      <div class="meta"><span class="tag rust">Målt belæg</span><span class="tag">Omskrevet 10/9</span><span class="tag size">Stor</span></div>
+      <p><strong>Skærpet 11/9 (<code>~/Downloads/ideerne-skarpt.md</code>):</strong> <em>Løser:</em> at ingen ved om nye medlemmer kommer igen — for Jonas og Morten. <em>Idéen i én sætning:</em> tænd rytmen, mål om de næste fem nye kommer igen inden dag 7, og tegn intet «interaktivt» før svaret er nej. <em>Bedre form nu:</em> rytmen er tændt (onboarding-rytme i drift 10/9 nat ifølge analysen — bekræft i <code>cron.job</code>); gør kohorten til en linje i «Siden sidst» eller vagten («nye medlemmer sidste 30 dage: N, logget ind igen: M»), så måles det hver uge uden at nogen spørger. <em>Størrelse:</em> målingen en time; noget interaktivt er et epic, og kun hvis M er lavt.</p>
+      <div class="meta"><span class="tag rust">Målt belæg</span><span class="tag">Skærpet 11/9</span><span class="tag size">Lille (målingen)</span></div>
     </div>
     <div class="card new" data-status="mangler" data-spor="1" data-rammer="raadgiver">
       <h3>Indgangens huller: døren er rettet i kode (#807) og venter på prod — tilbage er en advarsel og en secret</h3>
@@ -761,7 +787,8 @@
       <h3>Abonnenter kan ikke opsige selv</h3>
       <p>Exit-abonnementet «dine tal» til 399 kr./md. er løbende og opsiges når som helst — men der findes ingen vej. Stripes Customer Portal løser det som en indstilling, ikke som kode, og giver også kortopdatering og kvitteringer.</p>
       <p>Ingen har købt produktet endnu, så det haster ikke — men det skal være der før den første gør.</p>
-      <div class="meta"><span class="tag">Indstilling, ikke kode</span></div>
+      <p><strong>Skærpet 11/9 (<code>~/Downloads/ideerne-skarpt.md</code>):</strong> <em>Løser:</em> at medlemmet ikke selv kan opsige, skifte kort eller hente kvittering — for medlemmet, og for de tre kort det lukker. <em>Idéen:</em> ét link til Stripes Customer Portal under aftalen på /settings. <em>Bedre form nu — tænk den større end opsigelse:</em> portalen er også svaret på «et fejlet træk siger det ikke til medlemmet» (kortopdatering er handlingen bag Stripes mail) og på «elleve af fjorten har intet betalingsmiddel» (kunden lægger selv kortet på). Én knap, tre kort. <em>Størrelse:</em> en time (Stripe-indstilling + ét link). Gør det før 13/9.</p>
+      <div class="meta"><span class="tag">Indstilling, ikke kode</span><span class="tag">Skærpet 11/9</span><span class="tag rust">En time — gør det i morgen</span><span class="tag size">Lille</span></div>
     </div>
     <div class="card new" data-status="mangler" data-spor="1" data-rammer="raadgiver">
       <h3>13/9: beviset for trækket</h3>
@@ -786,7 +813,8 @@
       <h3>«Fra budget» som målkilde på Nøgletal — én dør til mål</h3>
       <p><code>BACKLOG.md:991-1003</code> [P3], 5/8: budgettets månedsgennemsnit som KPI-mål, så medlemmet ikke sætter det samme tal to steder. <strong>Bygget: nej</strong> — <code>src/lib/kpiMaal.ts:27-53</code> kender to kilder, «aftalt» (medlemmets/rådgiverens mål) og «standard» (fallbacken); ingen «budget». Det gamle <code>KPIs.tsx</code> hentede budgetgennemsnittet (frosset).</p>
       <p><strong>Præmis flyttet til fordel for idéen:</strong> beslutningskortet om KPI-fallbacken vil droppe kronebeløbene, så «Sæt mål» vises for den der intet har. Findes der et budget, er «Fra budget» det ærlige mellemled: ikke gættet, ikke sat i hånden, men medlemmets eget tal. Budgettet er allerede på rådgiverens forside som afvigelse (#795). Lille–Mellem: en tredje <code>MaalKilde</code>, en læsning af <code>budget_targets</code> pr. nøgle, ét mærke i panelet.</p>
-      <div class="meta"><span class="tag ny">Ny 11/9</span><span class="tag">Fra BACKLOG 5/8</span><span class="tag">Passer med KPI-beslutningen</span><span class="tag size">Mellem</span></div>
+      <p><strong>Skærpet 11/9 (<code>~/Downloads/ideerne-skarpt.md</code>):</strong> <em>Løser:</em> at medlem og rådgiver ser to forskellige mål for samme tal — for begge. <em>Idéen:</em> har medlemmet et budget, ER budgettet målet. <em>Bedre form nu:</em> ikke en tredje kilde-etiket, men en RANGORDEN: budget &gt; aftalt &gt; standard — og afvigelsen vises på Nøgletal med samme motor som forsiden bruger (#795, <code>budgetSignalInput.ts</code>). Reglen der skal afgøres: månedens budgettal eller 12-måneders-gennemsnit. <em>Størrelse:</em> en dag.</p>
+      <div class="meta"><span class="tag ny">Ny 11/9</span><span class="tag">Skærpet 11/9</span><span class="tag">Passer med KPI-beslutningen</span><span class="tag size">Mellem</span></div>
     </div>
     <div class="card new" data-status="mangler" data-spor="1" data-rammer="medlem">
       <h3>Når en upload strander, siger kortet HVORFOR — ikke HVAD man skal gøre</h3>
@@ -796,7 +824,8 @@
     <div class="card new" data-status="ide" data-spor="senere" data-rammer="medlem">
       <h3>Linje-mod-linje: budget mod bogføring</h3>
       <p><code>financial_reports.normalized_data.normalized_lines</code> bærer bogføringens linjer, og budgettet har sine; i dag sammenlignes de kun på kanoniske sumfelter. En linje-mod-linje-visning («du budgetterede 40.000 til marketing, bogførte 62.000») er det medlemmet faktisk spørger om. <code>docs/spor3-design.md:105</code>: materialet findes, men linjenavne matcher sjældent ordret på tværs — matcheren er opgaven, ikke fladen. Idé; ikke før kanoniske tal er stabile (kortene om fortegn og årsrapport).</p>
-      <div class="meta"><span class="tag ny">Ny 11/9</span><span class="tag">Fra spor3-design</span><span class="tag size">Stor</span></div>
+      <p><strong>Skærpet 11/9 (<code>~/Downloads/ideerne-skarpt.md</code>):</strong> <em>Løser:</em> «hvorfor afveg vi?» — for medlemmet, der kun ser kategori-summen. <em>Bedre form nu:</em> kategori-niveauet findes (<code>HbBudgetBva</code>). Byg IKKE linjeniveauet før kanoniske tal er stabile; byg i stedet at afvigelsen på kategori får en forklaring («hvilke linjer trak?») som fold-ud fra <code>normalized_lines</code> — det er 80 % af værdien, og matcheren mellem linjenavne kan vente. <em>Størrelse:</em> fold-ud to dage; ægte linjematch et epic.</p>
+      <div class="meta"><span class="tag ny">Ny 11/9</span><span class="tag">Skærpet 11/9</span><span class="tag">Fold-ud først</span><span class="tag size">Mellem (fold-ud)</span></div>
     </div>
     <div class="card blocked new" data-status="fejl" data-spor="1" data-rammer="medlem">
       <h3>PHILBERT: to filer strander stadig — PDF i layoutet «Almindelig» uden skabelon, og XLSX med 391,62 kr. i gross_profit_sum</h3>
@@ -868,7 +897,8 @@
     <div class="card new" data-status="ide" data-spor="4" data-rammer="medlem">
       <h3>Direkte integration til regnskabssystemer</h3>
       <p>e-conomic, Dinero, Billy. Tallene hentes automatisk hver måned. Målingen gør argumentet stærkere: tretten har aldrig uploadet, og fem af dem har ikke været inde siden foråret. En integration fjerner handlingen frem for at minde om den.</p>
-      <div class="meta"><span class="tag ny">Ny 4/9 som kort</span><span class="tag size">Stor</span></div>
+      <p><strong>Skærpet 11/9 (<code>~/Downloads/ideerne-skarpt.md</code>):</strong> <em>Løser:</em> DEN handling de 19 af 27 ikke gør — upload. Alt andet på platformen (dommene, ugefokus, rådgiverens forside, budgettet) starter med tal; fjernes uploaden, forsvinder den ene årsag de andre kort kredser om. <em>Idéen:</em> tallene kommer af sig selv hver måned fra e-conomic (først). <em>Tre ting gør den billigere end den ser ud:</em> (a) review-cronen (#798) beder allerede om godkendelse når måneden er omme — integrationen fylder bare kandidaten; (b) e-conomics resultatopgørelse er PRÆCIS den rapport parseren allerede læser (fingerprint findes), så API-eksporten kan gå gennem samme extract → facts-kæde uden ny validering; (c) Boardroom 2.0 har en fuld e-conomic-læseintegration i drift (<code>theboardroom-2</code>, juli-reconen: «e-conomic full read+financial-write») — koden findes hos jer selv. <em>Der skal afgøres:</em> hvilket system først, en OAuth-app, og hvad «godkend» betyder når ingen uploader. <em>Størrelse:</em> pilot på ÉN virksomhed (Floren, aktiv, e-conomic) en uge; alle tre systemer et epic.</p>
+      <div class="meta"><span class="tag ny">Ny 4/9 som kort</span><span class="tag rust">Game changer 1/5 — tallene kommer af sig selv</span><span class="tag">Skærpet 11/9</span><span class="tag size">Stor (pilot: en uge)</span></div>
     </div>
   </div>
   </section>
@@ -882,7 +912,8 @@
     <div class="card new" data-status="ide" data-spor="senere" data-rammer="medlem">
       <h3>Henvis til et tal i chatten (C12) — levende eller frosset</h3>
       <p>Jonas 31/8 (<code>docs/chat-design.md:272-286</code>): en besked skal kunne pege på et tal («din DB-margin i juli») så modtageren ser tallet i konteksten — enten LEVENDE (opdateres når tallet rettes) eller FROSSET (som det så ud da beskeden blev skrevet). Bygget: nej — nul træffere. Hører sammen med «Systembeskeder ud af chatstrømmen» (samme strøm skal bære færre ting, men rigere). Idé, Mellem; frosset er det billige (et snapshot i <code>context_meta</code>), levende kræver en nøgle.</p>
-      <div class="meta"><span class="tag ny">Ny 11/9</span><span class="tag">C12 fra chat-design</span><span class="tag size">Mellem</span></div>
+      <p><strong>Skærpet 11/9 (<code>~/Downloads/ideerne-skarpt.md</code>):</strong> <em>Løser:</em> at medlemmet ikke har en grund til at skrive, og rådgiveren skal spørge om konteksten — for begge. <em>Bedre form nu — vend retningen:</em> ikke «indsæt et tal i chatten» men «spørg din rådgiver om det her» som knap på hvert nøgletal; beskeden bærer tallet som en chip, frosset som det så ud (<code>context_meta</code>). Levende henvisning kan vente. <em>Størrelse:</em> en dag.</p>
+      <div class="meta"><span class="tag ny">Ny 11/9</span><span class="tag">Skærpet 11/9</span><span class="tag">Vend retningen</span><span class="tag size">Lille</span></div>
     </div>
     <div class="card decision new" data-status="beslutning" data-spor="senere" data-rammer="medlem">
       <h3>AI-fanen hører ved tallene, ikke ved rådgiverchatten — mål brugen først</h3>
@@ -922,7 +953,8 @@
     <div class="card" data-status="ide" data-spor="6" data-rammer="raadgiver">
       <h3>Rådgiver som medlem</h3>
       <p>Jonas 3/9: «jeg som rådgiver også skal have en virksomhed, hvor jeg kan switche imellem, om jeg vil se platformen som rådgiver … eller være inde på min medlemsvirksomhed.» IKKE company-override («se en andens virksomhed»); rådgiveren ER selv medlem et sted og skifter hat. I dag kræver det to auth-brugere, fordi rollen udledes af datastrukturen.</p>
-      <div class="meta"><span class="tag">Idé</span><span class="tag size">Mellem</span></div>
+      <p><strong>Skærpet 11/9 (<code>~/Downloads/ideerne-skarpt.md</code>):</strong> <em>Løser:</em> to logins for Jonas — for rådgiverne. <em>Bedre form nu:</em> det mindste skridt findes — giv rådgiverkontoen en <code>company_members</code>-række, og lad skallen vælge medlemsvisning når man står i egen virksomhed; company-override (<code>HbVisningSom</code>) gør allerede det omvendte. Rollen som tilstand, ikke udledt af data. <em>Størrelse:</em> to dage.</p>
+      <div class="meta"><span class="tag">Idé</span><span class="tag">Skærpet 11/9</span><span class="tag size">Mellem</span></div>
     </div>
   </div>
   </section>
@@ -968,7 +1000,8 @@
       <p><strong>Hvad der stod på theboardroom.dk 17/8, i én dag:</strong> «Du kan skrive direkte til de {tal} andre medlemmer, når du står med noget, en af dem har prøvet før.» <strong>Hvorfor den blev fjernet samme dag:</strong> «medlemmer kan ikke skrive til hinanden gennem platformen. Sætningen lovede en funktion, der ikke findes» (hjemmesidens prompter, 17/8). Et løfte der blev taget tilbage frem for bygget.</p>
       <p><strong>Bygget siden?</strong> Nej. Chatten er medlem↔rådgiver (<code>conversations.member_id</code>/<code>company_id</code> mod <code>assigned_advisor_id</code>); Community (3/9) er opslag og svar, ikke beskeder; netværksprofilen (#757) viser folk uden en vej til dem. Nul træffere på «skrive til hinanden», «direkte besked», «medlem til medlem» i <code>src/</code> og <code>docs/</code>. Det stod hverken i docs, på listen eller i de to første søgninger.</p>
       <p><strong>Hvorfor det hører på listen:</strong> «Peer-matching i Netværket» og «Affiliate: medlemmer der anbefaler medlemmer» forudsætter begge at to medlemmer kan tale sammen — og «Du burde tale med X» er tomt uden en vej. Bygges det (en samtale med to <code>member_id</code> og ingen rådgiver, samme <code>messages</code>-tabel, egen RLS), kan sætningen komme tilbage på sitet. Mellem; og det er en beslutning om tonen først — et netværk med DM'er er et andet netværk.</p>
-      <div class="meta"><span class="tag ny">Ny 11/9</span><span class="tag rust">Løfte trukket tilbage 17/8</span><span class="tag">Fra theboardroom.dk</span><span class="tag size">Mellem</span></div>
+      <p><strong>Skærpet 11/9 (<code>~/Downloads/ideerne-skarpt.md</code>):</strong> <em>Løser:</em> at profilsiden viser folk uden en vej til dem — for medlemmet, og for det løfte sitet sælger («ejerledere der står hvor du står»). <em>Bedre form nu — byg ikke et beskedsystem:</em> (a) «Bed om kontakt» — platformen laver introen: en notifikation + mail til X med Y's navn og profil, og X svarer selv, som i et rigtigt netværk; (b) skal der VÆRE samtale: en privat tråd i Community (to deltagere), for Community har allerede tråde, svar, set-i-app, aldersgrænse og mailregler. Ingen af dem rører chatten. <em>Størrelse:</em> intro-knappen en dag; privat tråd en uge. Del af game changer 3 sammen med præsentationen dag 1–3, profilen forfra og «foreslå intro».</p>
+      <div class="meta"><span class="tag ny">Ny 11/9</span><span class="tag rust">Game changer 3/5 — netværket bliver et netværk</span><span class="tag rust">Løfte trukket tilbage 17/8</span><span class="tag">Skærpet 11/9</span><span class="tag size">Lille (intro-knap)</span></div>
     </div>
     <div class="card decision new" data-status="beslutning" data-spor="senere" data-rammer="medlem">
       <h3>Et frit udvalg af Boardroom-lektioner på topix.dk — «motoren til det er ikke bygget»</h3>
@@ -980,32 +1013,38 @@
     <div class="card new" data-status="ide" data-spor="senere" data-rammer="medlem">
       <h3>Handout → lektion: det omvendte link («Hører til …»)</h3>
       <p><code>BACKLOG.md:467-479</code> [P3], 5/8: koblingen lektion→handout findes envejs i <code>content_items.handout_module</code> (læses af <code>ElementView.tsx</code> og <code>ItemEditor.tsx</code>); fra handout-siden er der intet «hører til lektionen …»-link tilbage. Bygget: nej — <code>HbHandoutDetail.tsx</code> kender ikke <code>content_items</code> (grep 10/9: 0). Lille: ingen skemaændring, én query på <code>handout_module = {modul}</code> og et link. Hører sammen med «Måske relevant for dig» — samme kobling, set fra agenten.</p>
-      <div class="meta"><span class="tag ny">Ny 11/9</span><span class="tag">Fra BACKLOG 5/8</span><span class="tag size">Lille</span></div>
+      <p><strong>Skærpet 11/9 (<code>~/Downloads/ideerne-skarpt.md</code>):</strong> <em>Løser:</em> at et handout står uden sin sammenhæng — for medlemmet. <em>Bedre form nu:</em> lav opslaget som en DELT funktion, for «Måske relevant for dig» skal bruge præcis samme mapping (<code>handout_module</code>). <em>Størrelse:</em> to timer.</p>
+      <div class="meta"><span class="tag ny">Ny 11/9</span><span class="tag">Skærpet 11/9</span><span class="tag rust">En time — gør det i morgen</span><span class="tag size">Lille</span></div>
     </div>
     <div class="card new" data-status="ide" data-spor="7" data-rammer="medlem">
       <h3>Video-rating med ét tryk i Akademiet</h3>
       <p>Ét tryk efter en lektion («var den noget værd?») giver Jonas og Morten det signal Akademiet ikke har i dag: nul træffere på rating/bedøm/stjerne under <code>hjemmebane/akademi/</code>; kun <code>seen_at</code> og fremdrift (<code>ElementView.tsx:132</code>). Stod som ordet «rating efter modul» i <code>RAEKKEFOELGE.md:76</code> og som ét ord i Community-kortet — aldrig som Akademi-idé. Lille: én tabel (<code>content_ratings</code>: item, user, 1–5, unik), én knap, ét tal på admin-siden.</p>
-      <div class="meta"><span class="tag ny">Ny 11/9</span><span class="tag">Fra RAEKKEFOELGE</span><span class="tag size">Lille</span></div>
+      <p><strong>Skærpet 11/9 (<code>~/Downloads/ideerne-skarpt.md</code>):</strong> <em>Løser:</em> at Jonas og Morten ikke ved hvilke lektioner der hjælper — for dem, og som signal til «Måske relevant for dig». <em>Bedre form nu:</em> ja/nej («Hjalp den dig?»), ikke 1–5 — ingen svarer på fem stjerner; spørg NÅR lektionen er set færdig (stemplet findes); vis tallet på admin-siden ved siden af «set af N». <em>Størrelse:</em> en dag.</p>
+      <div class="meta"><span class="tag ny">Ny 11/9</span><span class="tag">Skærpet 11/9</span><span class="tag size">Lille</span></div>
     </div>
     <div class="card new" data-status="ide" data-spor="7" data-rammer="medlem">
       <h3>Ugens nyheder med auto-tråd</h3>
       <p>En ugentlig «nyheder»-post der oprettes automatisk som tråd i Community (fra ugens push, nye lektioner, kommende events), så der altid er ét sted at svare. <code>RAEKKEFOELGE.md:76</code>; bygget: nej. Relevant når Community har aktivitet — i dag cirka fire opslag om ugen til alle (målt 10/9). Lille–Mellem: skriveren findes (<code>notify-community-opslag</code>-kæden), det nye er en cron der sammensætter.</p>
-      <div class="meta"><span class="tag ny">Ny 11/9</span><span class="tag">Fra RAEKKEFOELGE</span><span class="tag size">Mellem</span></div>
+      <p><strong>Skærpet 11/9 (<code>~/Downloads/ideerne-skarpt.md</code>):</strong> <em>Løser:</em> at ugens push, nye lektioner og events har hvert sit sted og ingen samtale — for medlemmet. <em>Bedre form nu — den er digesten i ny form:</em> Community-opslag mailer allerede alle (opslagsmailen), så en ugentlig auto-tråd = en ugentlig mail til alle. <strong>Afgør derfor dette kort, «Ugens push med kommentarer» og månedsdigesten SAMMEN:</strong> én ugentlig samlet post/mail der erstatter digesten — ikke to. <em>Størrelse:</em> en dag, hvis digesten slukkes samtidig.</p>
+      <div class="meta"><span class="tag ny">Ny 11/9</span><span class="tag gold">Afgør sammen: 11 + 12 + digesten</span><span class="tag">Skærpet 11/9</span><span class="tag size">Lille</span></div>
     </div>
     <div class="card new" data-status="ide" data-spor="senere" data-rammer="medlem">
       <h3>«Ugens push» med kommentarer</h3>
       <p>Jonas' idé, aldrig skrevet ned: kommentarer VED ugens push. I dag er «Ugens push» et mærkat på feedet (<code>BoardroomView.tsx:289, 306</code>, <code>CommunityView.tsx</code> «Fra ugens push»); et push kan afføde en community-tråd med svar, men pushet selv har intet felt. Beslutningen er om kommentarerne skal ligge ved pushet (ét nyt sted) eller i en tråd der oprettes med pushet (kortet «Ugens nyheder med auto-tråd» — samme mekanik). Anbefaling: tråden, så der ikke bliver to samtalesteder. Lille hvis tråden, Mellem hvis eget felt.</p>
-      <div class="meta"><span class="tag ny">Ny 11/9</span><span class="tag">Jonas 10/9</span><span class="tag size">Lille</span></div>
+      <p><strong>Skærpet 11/9 (<code>~/Downloads/ideerne-skarpt.md</code>):</strong> <em>Løser:</em> at pushet er en envejs-udsendelse — for medlemmet. <em>Bedre form nu:</em> tråden («Ugens nyheder med auto-tråd») — så er der ét samtalested, og pushet får «3 kommentarer» som link. Afgøres sammen med det kort og digesten som én ugentlig post/mail. <em>Størrelse:</em> Lille, med det kort.</p>
+      <div class="meta"><span class="tag ny">Ny 11/9</span><span class="tag gold">Afgør sammen: 11 + 12 + digesten</span><span class="tag">Skærpet 11/9</span><span class="tag size">Lille</span></div>
     </div>
     <div class="card new" data-status="ide" data-spor="1" data-rammer="medlem">
       <h3>Præsentation af sig selv i Community som onboarding-ritual, dag 1–3</h3>
       <p><code>RAEKKEFOELGE.md:151</code>: det første et nyt medlem gør i fællesskabet er at præsentere sig — og det skal tjeklisten bede om, dag 1–3. Bygget: nej; stemplet «har præsenteret sig» findes ikke (<code>~/Downloads/recon-community-360.md:328</code>). Tjeklisten følger medlemmet (#800) og kan bære punktet; onboardingens rytme (#766) kan minde om det dag 3. Lille: ét tjeklistepunkt + én tråd-skabelon («Hej, jeg er …»).</p>
-      <div class="meta"><span class="tag ny">Ny 11/9</span><span class="tag">Fra RAEKKEFOELGE</span><span class="tag size">Lille</span></div>
+      <p><strong>Skærpet 11/9 (<code>~/Downloads/ideerne-skarpt.md</code>):</strong> <em>Løser:</em> at et nyt medlem er usynligt for de andre — for medlemmet og netværket. <em>Bedre form nu:</em> stemplet er bare «har en tråd med kilde præsentation»; skabelonen er TRE spørgsmål der matcher profilens tre felter («Det laver vi», «Det har jeg været igennem», «Det leder jeg efter»), så præsentationen OG profilen udfyldes i ét — og «bed om kontakt» bliver naturlig: man svarer på en præsentation. <em>Størrelse:</em> en dag. Del af game changer 3.</p>
+      <div class="meta"><span class="tag ny">Ny 11/9</span><span class="tag rust">Game changer 3/5 — netværket bliver et netværk</span><span class="tag">Skærpet 11/9</span><span class="tag size">Lille</span></div>
     </div>
     <div class="card new" data-status="ide" data-spor="senere" data-rammer="medlem">
       <h3>Global podcast-afspiller der overlever navigation</h3>
       <p><code>BACKLOG.md:1527</code> [P3], ønsket 13/8. Bygget: delvist — ét <code>&lt;audio&gt;</code> i en klæbende bjælke INDEN FOR podcast-sektionen (<code>PodcastTalksView.tsx:105-120</code>, sticky bottom); forlader man /podcast, stopper afspilningen. Det der mangler er afspilleren i skallen (<code>HbMemberShell</code>) med tilstand uden for ruten. Mellem; og bemærk kortet «Podcast: ankre pr. episode» — samme fil, samme PR kan tage begge.</p>
-      <div class="meta"><span class="tag ny">Ny 11/9</span><span class="tag">Fra BACKLOG 13/8</span><span class="tag size">Mellem</span></div>
+      <p><strong>Skærpet 11/9 (<code>~/Downloads/ideerne-skarpt.md</code>):</strong> <em>Løser:</em> at lyden stopper når man skifter side — for lytteren, hvis der er nogen. <em>Bedre form nu:</em> samme PR som ankrene pr. episode — men MÅL FØRST om nogen lytter (kortet «Podcast-forbrugsregistrering findes ikke»): en afspiller til nul lyttere er formen før indholdet. <em>Størrelse:</em> en dag; målingen først.</p>
+      <div class="meta"><span class="tag ny">Ny 11/9</span><span class="tag">Skærpet 11/9</span><span class="tag">Mål lytning først</span><span class="tag size">Mellem</span></div>
     </div>
     <div class="card new" data-status="mangler" data-spor="senere" data-rammer="ingen">
       <h3>Podcast-forbrugsregistrering findes ikke</h3>
@@ -1015,17 +1054,20 @@
     <div class="card new" data-status="ide" data-spor="senere" data-rammer="medlem">
       <h3>«Ugens push» der fremhæver en partneraftale</h3>
       <p><code>docs/hjemmebane/c0-datamodel.md:74, 131</code>: <code>rabataftaler</code>/<code>partners</code> er fremtidssikret til netop det — en aftale kan surfaces i indholdsflows. Bygget: nej. Lille: et valgfrit partner-felt på pushet og et kort i feedet. Bør vente på at aftalerne har indhold (kortet om kursusbeskrivelser viser mønstret: formen før indholdet giver tomme flader).</p>
-      <div class="meta"><span class="tag ny">Ny 11/9</span><span class="tag">Fra c0-datamodel</span><span class="tag size">Lille</span></div>
+      <p><strong>Skærpet 11/9 (<code>~/Downloads/ideerne-skarpt.md</code>):</strong> <em>Løser:</em> at rabataftalerne ikke ses — for partnerne og medlemmet. <em>Bedre form nu:</em> vent til aftalerne har tekst; feltet er allerede fremtidssikret. <em>Størrelse:</em> Lille, senere.</p>
+      <div class="meta"><span class="tag ny">Ny 11/9</span><span class="tag">Skærpet 11/9</span><span class="tag">Vent på indhold</span><span class="tag size">Lille</span></div>
     </div>
     <div class="card new" data-status="ide" data-spor="senere" data-rammer="medlem">
       <h3>Kalender-LINK direkte i eventmailen (Google/Outlook «tilføj»)</h3>
       <p>Resten af Jonas' kalender-ønske: .ics på eventsiden findes (#788), og mailen linker til siden (#792) — vedhæftning er umulig, mail-API'et har intet attachments-felt (<code>~/Downloads/recon-eventmails.md:155</code>). Et Google/Outlook-«tilføj»-link med titel, tid og beskrivelse i selve mailen (<code>:161</code>) blev fravalgt 10/9 til fordel for eventsiden (bag login, ét sted). Står her som idé så fravalget kan ses; Lille hvis det ombestemmes (én URL-bygger i <code>eventMails.ts</code>).</p>
-      <div class="meta"><span class="tag ny">Ny 11/9</span><span class="tag">Fravalgt 10/9</span><span class="tag size">Lille</span></div>
+      <p><strong>Skærpet 11/9 (<code>~/Downloads/ideerne-skarpt.md</code>):</strong> <em>Skærpet:</em> hold fravalget — eventsiden har .ics og er ét sted. Kortet står kun så fravalget kan ses. <em>Størrelse:</em> en time, hvis I ombestemmer jer.</p>
+      <div class="meta"><span class="tag ny">Ny 11/9</span><span class="tag">Fravalgt 10/9 — hold det</span><span class="tag">Skærpet 11/9</span><span class="tag size">Lille</span></div>
     </div>
     <div class="card new" data-status="ide" data-spor="1" data-rammer="medlem">
       <h3>Profilen forfra: faktalinje + tre felter, forudfyldt fra ansøgningen, spurgt i tjeklisten</h3>
       <p><code>~/Downloads/analyse-profilen-forfra.md:171-201</code> og <code>analyse-profilens-indhold.md:164-184</code>: en faktalinje («Bastant Design · Design · Aarhus · stiftet 2019 · medlem siden marts 2026» — alle felter findes i <code>companies</code>/RPC'en undtagen <code>city</code> og <code>start_date</code>) og tre felter der kan besvares: «Det laver vi», «Det har jeg været igennem», «Det leder jeg efter» — forudfyldt fra ansøgningen, spurgt i tjeklisten. Bygget: nej — nul træffere på felttitlerne i <code>src/</code>; #765 («profilen forfra — tre spørgsmål der kan besvares») byggede formen med andre felter, og <code>help_needed</code> læses kun af pulsen. Mellem; hører sammen med præsentationen dag 1–3 og «Måske relevant for dig».</p>
-      <div class="meta"><span class="tag ny">Ny 11/9</span><span class="tag">Fra analyserne 9/9</span><span class="tag size">Mellem</span></div>
+      <p><strong>Skærpet 11/9 (<code>~/Downloads/ideerne-skarpt.md</code>):</strong> <em>Løser:</em> at et medlems kort er tomt — for den der leder efter nogen at tale med. <em>Idéen:</em> aldrig et tomt kort: en faktalinje af det vi ved, plus tre felter man KAN svare på, forudfyldt fra ansøgningen. <em>Bedre form nu:</em> byg den sammen med præsentationen dag 1–3 og «bed om kontakt» — profilen er det man ser FØR man beder om kontakt. Faktalinjen kan bygges i morgen (<code>city</code>/<code>start_date</code> mangler i RPC'en); de tre felter ER præsentationens tre spørgsmål. <em>Størrelse:</em> to dage samlet med præsentationen. Del af game changer 3.</p>
+      <div class="meta"><span class="tag ny">Ny 11/9</span><span class="tag rust">Game changer 3/5 — netværket bliver et netværk</span><span class="tag">Skærpet 11/9</span><span class="tag size">Mellem</span></div>
     </div>
     <div class="card new" data-status="mangler" data-spor="senere" data-rammer="raadgiver">
       <h3>Profilredigering på ens egen profilside — og rådgivere kan ikke rette deres egen siden #757</h3>
@@ -1057,23 +1099,27 @@
       <h3>Community-idéerne, samlet: like fra feed, svar-mails, top posts, nudge-form — ingen besluttet</h3>
       <p><strong>Fem idéer i ét kort (samlet 10/9 fra tre):</strong> (1) Reaktion kun inde i tråden (<code>CommunityTraadView.tsx:83</code>; feedet <code>CommunityView.tsx</code> har ingen — grep 10/9: 0) — den letteste interaktion kræver et klik ind. (2) Et svar mailer kun de nævnte (<code>notify-community-svar</code> giver in-app til forfatteren); #773 gav præferencerne, ikke dette. (3) Top posts og highlights — <code>community_reaktioner</code> og <code>community_visninger</code> findes, så det er én query. (4) Rating i Akademiet og ugens nyheder med auto-tråd har fået egne kort 11/9. (5) Nudge-formen som designdokument (Jonas spurgte 3/9) — bemærk at klokken (#790), mailmotorens 15-minutters-regel og aldersgrænsen (12 t, #770) ER formen i praksis nu; dokumentet ville beskrive noget der findes.</p>
       <p><strong>Intet af det er besluttet</strong>, og intet blokerer. Sekvens: efter Circle-exit, sammen med video-kortet nedenfor — samme datamodel.</p>
-      <div class="meta"><span class="tag ny">Ny 4/9</span><span class="tag">Samlet 10/9</span><span class="tag size">Lille</span></div>
+      <p><strong>Skærpet 11/9 (<code>~/Downloads/ideerne-skarpt.md</code>):</strong> <em>Split dem:</em> <strong>like fra feedet — to timer, byg i morgen.</strong> Top posts — en dag, én query (<code>community_reaktioner</code>, <code>community_visninger</code>), men kun når der er reaktioner at sortere på. Svar mailer alle i tråden — en beslutning (opt-in pr. tråd ELLER alle deltagere; mailmotoren har allerede kvoten). Nudge-formen som dokument — DROP: klokken + 15 min + 12 timer ER formen.</p>
+      <div class="meta"><span class="tag ny">Ny 4/9</span><span class="tag">Samlet 10/9</span><span class="tag">Skærpet 11/9</span><span class="tag rust">En time — gør det i morgen</span><span class="tag size">Lille</span></div>
     </div>
     <div class="card new" data-status="ide" data-spor="7" data-rammer="medlem">
       <h3>Affiliate: medlemmer der anbefaler medlemmer — reglerne er besluttet 22/8, intet er bygget</h3>
       <p>Invitation-only, mål på hundrede virksomheder, og ingen vej for et tilfreds medlem til at pege på nogen. <strong>Besluttet retning 22/8</strong> (<code>docs/RAEKKEFOELGE.md:125-137</code>): 5.000–10.000 kr. pr. medlem der OPTAGES på et lead fra et eksisterende medlem — ikke pr. ansøger, der skal stadig være et match. Fire ting før noget bygges: attributionen skal overleve Monday (lead → ansøgning → samtale → optaget → betalt krydser to systemer); udbetaling på FØRSTE BETALING, ikke på optagelse; kredit som alternativ til kontant (fx 10.000 i rabat på egen fornyelse — binder henviseren et år mere); skat og fakturering afklares med revisor før første udbetaling.</p>
       <p><strong>Bygget:</strong> nej. Datamodellen bærer allerede halvdelen: <code>company_invitations.invited_by</code> er henvisningen, hvis invitationen må sendes af et medlem (i dag kun rådgivere). Delings-miljøet (eget kort) er kanalen; dette er belønningen. Mellem.</p>
-      <div class="meta"><span class="tag ny">Ny 11/9 som kort</span><span class="tag">Besluttet 22/8</span><span class="tag size">Mellem</span></div>
+      <p><strong>Skærpet 11/9 (<code>~/Downloads/ideerne-skarpt.md</code>):</strong> <em>Løser:</em> 21 pladser der skal sælges, uden en kanal — for huset. <em>Idéen i én sætning:</em> henviser et medlem én der optages OG betaler, får henviseren 10.000 kr. i rabat på sin fornyelse. <em>Bedre form nu — kredit, ikke kontant, og den er allerede modelleret:</em> <code>companies.fornyelsespris_oere</code> findes («kun udfyldt ved bevidst afvigelse fra 50 %-reglen»). Ét felt «henvist af» på ansøgningen → <code>companies.henvist_af</code>; ved første betaling (webhooken kender virksomheden) slås det op, henviserens <code>fornyelsespris_oere</code> sættes ned, og rådgiverne får besked i klokken. Ingen udbetaling, ingen faktura, ingen revisor. <em>Størrelse:</em> en dag for attribution + kredit; kontant kræver samtalen først. Del af game changer 4 sammen med delingsbilledet.</p>
+      <div class="meta"><span class="tag ny">Ny 11/9 som kort</span><span class="tag rust">Game changer 4/5 — medlemmer som kanal</span><span class="tag">Besluttet 22/8</span><span class="tag">Skærpet 11/9</span><span class="tag size">Lille (kredit)</span></div>
     </div>
     <div class="card new" data-status="ide" data-spor="7" data-rammer="medlem">
       <h3>Gamification</h3>
       <p>Selv-rettet progression, dig mod gennemsnittet, aggregeret social proof. Kræver et ærligt grundlag: først når opgave-modellen kan fortælle forskel på gjort, droppet og ikke nået, er der noget rigtigt at måle.</p>
-      <div class="meta"><span class="tag ny">Ny 4/9 som kort</span><span class="tag size">Stor</span></div>
+      <p><strong>Skærpet 11/9 (<code>~/Downloads/ideerne-skarpt.md</code>):</strong> <em>Løser — muligvis:</em> den ugentlige tilbagevenden Jonas kaldte northstar — for medlemmet. <em>Idéen i én sætning:</em> medlemmet ser sin egen måned (rapporteret, opgaver gjort, lektioner set) og sig mod gennemsnittet — uden ranglister. <em>Grundlaget findes fra 10/9 nat:</em> opgave-modellen skelner done/not_done/dropped/expired (#800), rapporteringen er målt pr. måned (facts), Akademiet har fremdrift. <em>Bedre form nu:</em> første form er «Din måned» på forsiden — fire tal om dig selv, og «gennemsnittet» kun med N ≥ 5 (2.0's egen regel). Ingen point, ingen niveauer. <em>Ærligt:</em> mulig, ikke bevist — ingen har målt at det virker her; byg den lille, og mål «De første 30 dage»-kohorten før og efter. <em>Størrelse:</em> en uge for «Din måned»; resten et epic.</p>
+      <div class="meta"><span class="tag ny">Ny 4/9 som kort</span><span class="tag rust">Game changer 5/5 — «Din måned» — mulig, ikke bevist</span><span class="tag">Skærpet 11/9</span><span class="tag size">Mellem («Din måned»)</span></div>
     </div>
     <div class="card" data-status="ide" data-spor="senere" data-rammer="ingen">
       <h3>Peer-matching i Netværket</h3>
       <p>«Du burde tale med X» er den slags værdi et netværk kan levere som ingen enkelt rådgiver kan skalere.</p>
-      <div class="meta"><span class="tag size">Mellem</span></div>
+      <p><strong>Skærpet 11/9 (<code>~/Downloads/ideerne-skarpt.md</code>):</strong> <em>Løser:</em> «du burde tale med X» — for medlemmet, og for løftet om et netværk. <em>Bedre form nu — manuelt først:</em> Morten kender alle 27. «Foreslå intro» som rådgiverhandling på virksomhedssiden — vælg to medlemmer, begge får beskeden i klokken og på mail. Ingen algoritme før der er 100; forudsætter branche-kortet (CVR mod faktisk) og en vej til kontakt («bed om kontakt»). <em>Størrelse:</em> en dag. Del af game changer 3.</p>
+      <div class="meta"><span class="tag rust">Game changer 3/5 — netværket bliver et netværk</span><span class="tag">Skærpet 11/9</span><span class="tag size">Lille (manuelt)</span></div>
     </div>
     <div class="card decision new" data-status="beslutning" data-spor="7" data-rammer="medlem">
       <h3>Video på et Community-opslag: hvem må optage — huset, eller ethvert medlem?</h3>
@@ -1162,7 +1208,8 @@
     <div class="card new" data-status="ide" data-spor="senere" data-rammer="medlem">
       <h3>Mærke-formen i menuen generaliseres — «Dit Boardroom 3», «Din rådgiver 1»</h3>
       <p>Formen findes: <code>HbNavEntry.maerke</code>, brugt af Events alene («Live nu», <code>HbMemberShell.tsx:147</code>, #774). <code>~/Downloads/recon-onboardingens-sidste-led.md:106</code>: samme mærke kunne bære et tal ved «Dit Boardroom» (nye ting siden sidst) og «Din rådgiver» (ulæste). Bemærk at klokken (#790) allerede bærer tallet ét sted — to tællere er ikke bedre end én. Idé, Lille; afgør først om menuen eller klokken er stedet.</p>
-      <div class="meta"><span class="tag ny">Ny 11/9</span><span class="tag">Formen findes</span><span class="tag size">Lille</span></div>
+      <p><strong>Skærpet 11/9 (<code>~/Downloads/ideerne-skarpt.md</code>):</strong> <em>Skærpet:</em> klokken bærer tallet — DROP kortet som tal-mærke, eller behold formen kun til TILSTANDE («Live nu», «Åben nu» fra office-hours-kortet). Ingen selvstændig handling.</p>
+      <div class="meta"><span class="tag ny">Ny 11/9</span><span class="tag">Drop anbefalet</span><span class="tag">Skærpet 11/9</span></div>
     </div>
     <div class="card new" data-status="fejl" data-spor="senere" data-rammer="medlem">
       <h3>To mails for samme 1:1-betaling</h3>
@@ -1204,7 +1251,8 @@
       <p><strong>Præmis:</strong> med to tredjedele uden friske tal (19 af 27, målt 8/9) ser de fleste medlemmer flader der ikke kan vise dem noget. Tom-tilstanden er ikke problemet — fraværet af tal er (eget beslutningskort) — men fladen må ikke lyve imens.</p>
       <p><strong>Løst siden 4/9:</strong> forsiden lyver ikke til en der aldrig har uploadet (#758); fokuskortets fjerde tilstand (#780); tom og fejlet er to forskellige beskeder på alle medlemmets flader (<code>hentefejl.ts</code>, #782). «Rettet 4/9» stod på kortet før noget af det var bygget.</p>
       <p><strong>Står tilbage, kun bevis:</strong> «Dine tal»-kortets tomme tilstand nederst på forsiden (åbent fra ankomsten) og Nøgletal/Budget/Rapportering set med et medlem UDEN committede facts — kan kun dømmes på skærm. Én gennemgang med Jonas' testvirksomhed uden tal; det der lyver, bliver nye Lille-kort.</p>
-      <div class="meta"><span class="tag">Omskrevet 10/9</span><span class="tag">Kræver skærm</span><span class="tag size">Lille</span></div>
+      <p><strong>Skærpet 11/9 (<code>~/Downloads/ideerne-skarpt.md</code>):</strong> <em>Skærpet:</em> gør skærmgennemgangen i SAMME seance som «De første 30 dage»-målingen — det er de samme medlemmer (uden tal). <em>Størrelse:</em> en time.</p>
+      <div class="meta"><span class="tag">Omskrevet 10/9</span><span class="tag">Skærpet 11/9</span><span class="tag rust">En time — gør det i morgen</span><span class="tag size">Lille</span></div>
     </div>
     <div class="card new" data-status="mangler" data-spor="senere" data-rammer="ingen">
       <h3>Former der skal løftes til <code>hjemmebane/</code></h3>
@@ -1392,52 +1440,62 @@
       <h3>Rådgiver-MCP: samlet medlemskontekst + draft_reply (kun udkast)</h3>
       <p><code>BACKLOG.md:1458-1495</code> [P3], ønsket 13/8 (Jonas): «en MCP-server der samler ALT data og AL chathistorik pr. medlem, så rådgivere hurtigt kan søge, få svar, få udkast til besvarelser og bruge den til sparring» — tools <code>get_pending_conversations</code>, <code>get_conversation_context</code>, <code>draft_reply</code>, og reglen <code>:1478</code>: «UFRAVIGELIGT: draft_reply skriver kun UDKAST — aldrig auto-send.» Designet peger på den fire steder (<code>chat-design.md:213, 218</code>; <code>raadgiverfladen-design.md:357</code> «Overblikket bor i MCP; chatten er samtalen»; <code>RAEKKEFOELGE.md:58, 68</code> «MCP-serveren oven på tilstandslaget»).</p>
       <p><strong>Bygget:</strong> nej — fase 1 (kortet under Drift) læser kun tal. <strong>Blokeringen bør prøves igen:</strong> RAEKKEFOELGE gjorde tilstandslaget til forudsætningen, og tilstandslagets to motorer findes nu (<code>virksomhedsSignaler.ts</code>, <code>forsidensDom.ts</code>). Det åbne designspørgsmål (<code>BACKLOG.md:1475-1480</code>): en rådgiver-MCP på tværs af medlemmer går uden om RLS og skal bære sin egen gate — samme spørgsmål som «advisor og admin er ikke skilt ad». Hører sammen med «semantisk hukommelse». Stor.</p>
-      <div class="meta"><span class="tag ny">Ny 11/9</span><span class="tag">Fra BACKLOG 13/8</span><span class="tag">Blokering: tilstandslaget — findes nu</span><span class="tag size">Stor</span></div>
+      <p><strong>Skærpet 11/9 (<code>~/Downloads/ideerne-skarpt.md</code>):</strong> <em>Løser:</em> «to rådgivere til hundrede virksomheder» — umuligt med klik, muligt hvis Claude bærer konteksten. For Jonas og Morten. <em>Idéen i én sætning:</em> spørg Claude om enhver virksomhed og få hele billedet — tal, chat, opgaver, community — og et udkast til svar, aldrig sendt. <em>Blokeringen er væk, og RLS-spørgsmålet også:</em> fase 1 (<code>mcp/</code>) logger ind som RÅDGIVER, og rådgiverrollen læser allerede alle virksomheder via <code>has_role</code> — der skal ikke gås uden om noget. Tilstandslagets to motorer findes. Så: <code>get_member_context</code> (facts, signaler, opgaver, seneste beskeder), <code>search_messages</code> (den semantiske hukommelses motor), <code>draft_reply</code> (skriver til en kladde-kolonne eller returnerer tekst — aldrig <code>messages</code>). Den er tilsluttet Claude Code i dag og kan bruges fra i morgen uden UI. <em>Størrelse:</em> et tool pr. dag; sættet på en uge. Game changer 2 sammen med søgningen.</p>
+      <div class="meta"><span class="tag ny">Ny 11/9</span><span class="tag rust">Game changer 2/5 — rådgiver-MCP + søgning</span><span class="tag">Skærpet 11/9</span><span class="tag size">Stor (en uge)</span></div>
     </div>
     <div class="card new" data-status="ide" data-spor="senere" data-rammer="raadgiver">
       <h3>Semantisk hukommelse på tværs af chat, tal, handouts og opgaver</h3>
       <p><code>docs/raadgiverfladen-design.md:534</code>: «et eget epic» — at rådgiveren (og agenten) kan spørge «hvad har vi sagt om likviditet til Floren» og få svar på tværs af beskeder, facts, handouts og company_actions. Bygget: nej. Det er rådgiver-MCP'ens datalag (kortet ovenfor): embeddings eller Postgres <code>tsvector</code> over de fire kilder bag RLS. Idé, Stor — og «Der findes ingen søgning» (medlemmets) er den samme motor set fra den anden side.</p>
-      <div class="meta"><span class="tag ny">Ny 11/9</span><span class="tag">Fra raadgiverfladen-design</span><span class="tag size">Stor</span></div>
+      <p><strong>Skærpet 11/9 (<code>~/Downloads/ideerne-skarpt.md</code>):</strong> <em>Løser:</em> «hvad har vi sagt til Floren om likviditet?» — for rådgiverne, og medlemmets «der findes ingen søgning» er samme motor fra den anden side. <em>Bedre form nu:</em> begynd med Postgres <code>tsvector</code> over <code>messages</code> + opgavetitler + handout-noter bag en advisor-RPC — en eftermiddag, og det ER rådgiver-MCP'ens <code>search_messages</code>. Embeddings når søgningen viser hvad der mangler. <em>Størrelse:</em> første version en dag; embeddings en uge. Game changer 2.</p>
+      <div class="meta"><span class="tag ny">Ny 11/9</span><span class="tag rust">Game changer 2/5 — rådgiver-MCP + søgning</span><span class="tag">Skærpet 11/9</span><span class="tag size">Lille (tsvector)</span></div>
     </div>
     <div class="card new" data-status="ide" data-spor="senere" data-rammer="medlem">
       <h3>À la carte-tilkøb ved siden af medlemskabet</h3>
       <p>Jonas' idé, aldrig skrevet ned: ekstra produkter og ydelser der kan købes oven på medlemskabet (fx ekstra 1:1-sessioner, et forløb, en workshop). Nul træffere på «tilkøb», «à la carte», «add-on» i docs/, BACKLOG og alle recons. Bygget: nej — checkout er ét line item (<code>create-subscription-checkout/index.ts:73-74</code>). Sporene findes: Stripe har produkterne, huset har <code>company_perioder.art</code> og <code>company_traek</code> til at bogføre det, og 1:1-sessionerne er allerede et tilkøb med egen webhook-gren. Mellem: et produktkatalog i <code>app_config</code> eller en tabel, en checkout-gren pr. art, og en linje under aftalen på /settings.</p>
-      <div class="meta"><span class="tag ny">Ny 11/9</span><span class="tag">Jonas, aldrig skrevet ned</span><span class="tag size">Mellem</span></div>
+      <p><strong>Skærpet 11/9 (<code>~/Downloads/ideerne-skarpt.md</code>):</strong> <em>Løser:</em> mere omsætning pr. medlem uden ny kontrakt — for huset og det medlem der vil have mere. <em>Bedre form nu:</em> 1:1-sessionen er allerede et tilkøb med egen webhook-gren og Stripe-pris — GENERALISÉR DEN: et katalog af Stripe-produkter med <code>metadata.art</code>, én checkout-gren, én linje under aftalen på /settings, <code>company_traek</code> som bogføring. <em>Der skal afgøres først:</em> HVAD der sælges og til hvilken pris — Jonas' og Mortens. <em>Størrelse:</em> to dage efter kataloget er besluttet.</p>
+      <div class="meta"><span class="tag ny">Ny 11/9</span><span class="tag">Skærpet 11/9</span><span class="tag gold">Kataloget først</span><span class="tag size">Mellem</span></div>
     </div>
     <div class="card new" data-status="ide" data-spor="senere" data-rammer="medlem">
       <h3>«Åben for office hours»-knap — rådgiveren signalerer at hun er ledig nu</h3>
       <p>Jonas' idé, aldrig skrevet ned: rådgiveren trykker «jeg er åben nu», og medlemmerne ser det og kan hoppe ind. Bygget: nej — booking er et statisk Calendly-link (<code>hjemmebane/booksession/BookSessionView.tsx</code>), og huset har ingen presence. Hører sammen med kortet «Online nu» (samme spørgsmål: hvem må se hvem, og hvad er «nu»). Lille som første version: en kontakt (<code>app_config</code> eller en række pr. rådgiver med <code>aaben_til</code>), et mærke i menuen af samme form som «Live nu» (#774), og et Meet-link. Ingen Realtime nødvendig for det.</p>
-      <div class="meta"><span class="tag ny">Ny 11/9</span><span class="tag">Jonas, aldrig skrevet ned</span><span class="tag size">Lille</span></div>
+      <p><strong>Skærpet 11/9 (<code>~/Downloads/ideerne-skarpt.md</code>):</strong> <em>Løser:</em> at medlemmet ikke ved hvornår rådgiveren er til at få fat i — for medlemmet. <em>Bedre form nu — slå den sammen med «Online nu»:</em> én TILGÆNGELIGHED pr. rådgiver — åben nu (med Meet-link) / i dag / ikke — sat manuelt, vist som mærke i menuen af samme form som «Live nu» (#774). Ingen presence, ingen Realtime; 80 % af værdien. <em>Størrelse:</em> en dag for begge kort.</p>
+      <div class="meta"><span class="tag ny">Ny 11/9</span><span class="tag">Skærpet 11/9</span><span class="tag">Sammen med «Online nu»</span><span class="tag size">Lille</span></div>
     </div>
     <div class="card new" data-status="ide" data-spor="7" data-rammer="medlem">
       <h3>Delings-/SoMe-miljø med skabeloner — retning besluttet 20/8, aldrig et kort</h3>
       <p><code>BACKLOG.md:1792-1820</code>: tre skabelontyper («medlem af», «mit tal», «citat»), 1:1 og 9:16, klientside canvas, crop, download-tællere — teknisk retning BESLUTTET 20/8, og BACKLOG kalder det «det billigste miljø på idélisten». Bygget: nej. Det stod som ét ord i kortet «Medlemmer der anbefaler medlemmer» («Delings-miljøet hører til her»), men specifikationen og beslutningen var væk. Mellem; hører sammen med affiliate-kortet (deling er kanalen, affiliate er belønningen).</p>
-      <div class="meta"><span class="tag ny">Ny 11/9</span><span class="tag">Fra BACKLOG 20/8</span><span class="tag size">Mellem</span></div>
+      <p><strong>Skærpet 11/9 (<code>~/Downloads/ideerne-skarpt.md</code>):</strong> <em>Løser:</em> at et tilfreds medlem ikke kan vise det — kanalen for affiliate. <em>Bedre form nu:</em> første version KUN «medlem af The Boardroom» uden crop og uden eget billede — én skabelon, to formater (1:1, 9:16), en download-tæller. «Mit tal» kommer når dataeksporten (#795) er brugt. <em>Størrelse:</em> en dag for V1. Del af game changer 4.</p>
+      <div class="meta"><span class="tag ny">Ny 11/9</span><span class="tag rust">Game changer 4/5 — medlemmer som kanal</span><span class="tag">Fra BACKLOG 20/8</span><span class="tag">Skærpet 11/9</span><span class="tag size">Lille (V1)</span></div>
     </div>
     <div class="card new" data-status="ide" data-spor="senere" data-rammer="medlem">
       <h3>Én bruger med flere virksomheder, skift imellem</h3>
       <p><code>BACKLOG.md:1394</code>, ønske 13/8 — ikke det samme som «Rådgiver som medlem»: en EJER med to selskaber. Bygget: nej — <code>useAuth.tsx:183-187</code> henter <code>company_members</code> med <code>.limit(1).maybeSingle()</code>; den anden virksomhed er usynlig. Relevant KUN hvis det findes i drift — kræver prod: <code>SELECT user_id, count(*) FROM company_members GROUP BY 1 HAVING count(*) &gt; 1;</code> Er svaret 0 rækker, er det en idé til den dag; er det &gt; 0, er det en fejl (den ene virksomhed ses aldrig). Mellem.</p>
-      <div class="meta"><span class="tag ny">Ny 11/9</span><span class="tag">Fra BACKLOG 13/8</span><span class="tag">Kræver prod</span><span class="tag size">Mellem</span></div>
+      <p><strong>Skærpet 11/9 (<code>~/Downloads/ideerne-skarpt.md</code>):</strong> <em>Skærpet:</em> kør SQL'en først. Er svaret 0, parkér; er det &gt; 0, er det en FEJL (den ene virksomhed ses aldrig), ikke en idé — og så flytter kortet til fejl.</p>
+      <div class="meta"><span class="tag ny">Ny 11/9</span><span class="tag">Kræver prod</span><span class="tag">Skærpet 11/9</span><span class="tag size">Mellem</span></div>
     </div>
     <div class="card new" data-status="ide" data-spor="senere" data-rammer="medlem">
       <h3>«Måske relevant for dig» — agenten ser indholdslaget</h3>
       <p><code>docs/indhold-recon.md:294, 319</code>: agenten kender tal, opgaver og chat, men ikke Akademiet, podcasten og rabataftalerne — den kan ikke sige «der er en lektion om præcis det her». Bygget: nej. Forudsætter at indholdet har nøgler (podcast-forbrugsregistrering, kortet i Fællesskabet) og hører til «semantisk hukommelse». Mellem; første version er regelbaseret (emne på lektionen mod triggeren i ugens fokus), ikke AI.</p>
-      <div class="meta"><span class="tag ny">Ny 11/9</span><span class="tag">Fra indhold-recon</span><span class="tag size">Mellem</span></div>
+      <p><strong>Skærpet 11/9 (<code>~/Downloads/ideerne-skarpt.md</code>):</strong> <em>Løser:</em> at Akademiet og ugens fokus ikke kender hinanden — for medlemmet. <em>Bedre form nu — regelbaseret V1, ikke AI:</em> samme mapping som handout → lektion (<code>handout_module</code>) + video-ratingens «hjalp den?» som vægt. Når ugens fokus handler om X, peger platformen på lektionen om X. <em>Størrelse:</em> to dage.</p>
+      <div class="meta"><span class="tag ny">Ny 11/9</span><span class="tag">Skærpet 11/9</span><span class="tag">Regel, ikke AI</span><span class="tag size">Mellem</span></div>
     </div>
     <div class="card new" data-status="ide" data-spor="senere" data-rammer="medlem">
       <h3>Push-kanal (service worker) findes ikke</h3>
       <p><code>~/Downloads/nudge-recon.md:302</code>: alt nudging går på mail og klokken; der er ingen web push. Bygget: nej. Relevant kun hvis push-laget skal være andet end mail — og med klokken (#790), 15-minutters-reglen og aldersgrænsen (12 t) er mail + klokke formen i dag. Mellem (service worker, VAPID-nøgler, en <code>push_subscriptions</code>-tabel, og en gren i mailmotoren). Ikke før nogen har bedt om det.</p>
-      <div class="meta"><span class="tag ny">Ny 11/9</span><span class="tag">Fra nudge-recon</span><span class="tag size">Mellem</span></div>
+      <p><strong>Skærpet 11/9 (<code>~/Downloads/ideerne-skarpt.md</code>):</strong> <em>Skærpet:</em> PARKÉR. Mail + klokke er formen; ingen har bedt om push.</p>
+      <div class="meta"><span class="tag ny">Ny 11/9</span><span class="tag">Parkeret 11/9</span><span class="tag">Skærpet 11/9</span><span class="tag size">Mellem</span></div>
     </div>
     <div class="card new" data-status="ide" data-spor="senere" data-rammer="ingen">
       <h3>Sekvensmotoren — tre kopier (legat, onboarding, indgang)</h3>
       <p>Tre sekvenser, tre motorer: legat 14 dage (<code>legat-reminder-cron</code>), onboarding (<code>_shared/onboardingRytme.ts</code>, delt af <code>onboarding-rytme</code> og <code>intro-reminder-cron</code> siden #766) og indgangens dag 14/25/31 (<code>_shared/betalingsfrist.ts</code>). Samme FORM (Bucket B + tørkørsel + <code>kald_edge</code>), tre dommere. Kortet blev taget ud 10/9 som «over-engineering for tre sekvenser — bliver et kort ved den fjerde»; <code>nudge-recon.md:126, 305</code> og RAEKKEFOELGE holder det som idé, så det står her igen som idé, ikke som mangel. Den fjerde sekvens (fx fornyelsens varsler er allerede en) er signalet. Stor.</p>
-      <div class="meta"><span class="tag ny">Ny 11/9</span><span class="tag">Genindsat 11/9 som idé</span><span class="tag size">Stor</span></div>
+      <p><strong>Skærpet 11/9 (<code>~/Downloads/ideerne-skarpt.md</code>):</strong> <em>Skærpet:</em> PARKÉR til den fjerde sekvens. Tre rene funktioner i samme form skalerer.</p>
+      <div class="meta"><span class="tag ny">Ny 11/9</span><span class="tag">Parkeret 11/9</span><span class="tag">Skærpet 11/9</span><span class="tag size">Stor</span></div>
     </div>
     <div class="card new" data-status="ide" data-spor="senere" data-rammer="medlem">
       <h3>«Online nu» — hvem er på platformen lige nu</h3>
       <p>Jonas 10/9: et grønt badge ved rådgiverne, så medlemmet kan se hvem der er på. Ikke afgjort. Huset har ingen presence — kun <code>auth.users.last_sign_in_at</code> pr. dag via <code>get_users_last_login</code>, som rådgiveren ser som «Online i dag» om medlemmer (<code>sidstOnline.ts</code>, #751). For medlemmet om rådgiverne vises intet. «Nu» kræver Realtime presence eller et hjerteslag — en til to dage — og en beslutning om hvem der må se hvem.</p>
-      <div class="meta"><span class="tag ny">Ny 10/9</span><span class="tag size">Mellem</span></div>
+      <p><strong>Skærpet 11/9 (<code>~/Downloads/ideerne-skarpt.md</code>):</strong> <em>Skærpet:</em> se «Åben for office hours» — manuel tilgængelighed pr. rådgiver nu (åben/i dag/ikke, som mærke i menuen), presence senere hvis nogen savner det. Realtime-noten står: tilføjes presence, skal Realtime-autorisationen vurderes igen. <em>Størrelse:</em> med office-hours-kortet, en dag for begge.</p>
+      <div class="meta"><span class="tag ny">Ny 10/9</span><span class="tag">Skærpet 11/9</span><span class="tag">Sammen med office hours</span><span class="tag size">Lille</span></div>
     </div>
     <div class="card decision" data-status="beslutning" data-spor="senere" data-rammer="raadgiver">
       <h3>To rådgivere til hundrede virksomheder</h3>
@@ -1516,9 +1574,18 @@
   <section class="topic" id="status">
   <p class="eyebrow">Til i morgen tidlig</p>
   <h2>Status 11. september</h2>
-  <p class="lede">Efter aftenens tre rydninger (#806, #808 og den sidste) OG idéerne ind: <strong>129 kort — det endelige tal for 10/9</strong> — 11 fejl · 60 mangler · 25 beslutninger · <strong>33 idéer</strong> (var 10 kl. 22; 39 idéer fra BACKLOG, RAEKKEFOELGE, designdokumenterne og Jonas' egne udsagn var aldrig blevet kort — nu er de det, hver med kilde, «bygget: ja/nej» og størrelse). MCP har to kort: pakken der er bygget og frosset (Drift), og rådgiver-MCP'en der blev ønsket 13/8 (Idébank). Idé 1–7 fra den fælles idéliste findes ikke på maskinen (noten i Idébanken), og jagten er færdig: alle kilder på maskinen er søgt. Alt er prøvet mod HEAD til og med #811.</p>
+  <p class="lede">Efter aftenens tre rydninger (#806, #808 og den sidste) OG idéerne ind: <strong>129 kort — det endelige tal for 10/9</strong> — 11 fejl · 60 mangler · 25 beslutninger · <strong>33 idéer</strong> (var 10 kl. 22; alle 33 er skærpet med «løser / for hvem / bedre form nu / størrelse»; 39 idéer fra BACKLOG, RAEKKEFOELGE, designdokumenterne og Jonas' egne udsagn var aldrig blevet kort — nu er de det, hver med kilde, «bygget: ja/nej» og størrelse). MCP har to kort: pakken der er bygget og frosset (Drift), og rådgiver-MCP'en der blev ønsket 13/8 (Idébank). Idé 1–7 fra den fælles idéliste findes ikke på maskinen (noten i Idébanken), og jagten er færdig: alle kilder på maskinen er søgt. Alt er prøvet mod HEAD til og med #811.</p>
+    <div class="tier" style="border-color:var(--rust)">
+      <h3>Fem game changers — fire for alvor, én mulighed</h3>
+      <p class="why"><strong>1. Tallene kommer af sig selv</strong> (integration til regnskabssystemer). 19 af 27 er faldet ud, og den handling de ikke gør, er upload; alt andet starter med tal. Review-cronen, parseren og 2.0's e-conomic-læser findes allerede — pilot på Floren på en uge.</p>
+      <p class="why"><strong>2. Rådgiver-MCP + søgning</strong> (to kort). To rådgivere til hundrede virksomheder er umuligt med klik, muligt hvis Claude bærer konteksten. Fase 1 kører i Claude Code, RLS-spørgsmålet er væk. En uge.</p>
+      <p class="why"><strong>3. Netværket bliver et netværk</strong> (bed om kontakt · præsentation dag 1–3 · profilen forfra · foreslå intro). Sitet sælger «ejerledere der står hvor du står», og profilsiden har ingen vej til nogen. Fire dage, intet beskedsystem, og løftet holder.</p>
+      <p class="why"><strong>4. Medlemmer som kanal</strong> (affiliate som fornyelsesrabat + delingsbillede). 21 pladser skal sælges; <code>fornyelsespris_oere</code> og <code>invited_by</code> er allerede modelleret. To dage.</p>
+      <p class="why"><strong>5. «Din måned» — mulig, ikke bevist.</strong> Fire tal om én selv, aldrig om andre; grundlaget blev ærligt i nat. Byg den lille, mål kohorten før og efter.</p>
+      <p class="why"><strong>Fire på en time hver, i morgen:</strong> Customer Portal-linket (lukker tre kort med én knap, før 13/9) · handout → lektion · tom-tilstande på skærm · like fra feedet. <strong>Én der afgøres sammen:</strong> ugens auto-tråd + push-kommentarer + månedsdigesten = én ugentlig post eller mail.</p>
+    </div>
     <div class="tier">
-      <h3>De tre der giver mest først</h3>
+      <h3>De tre der giver mest først — drift og penge</h3>
       <p class="why"><strong>1. Én prod-session i SQL-editoren (én time).</strong> Kør de seks ventende migrationer i rækkefølge — døren (#807) og seen_at (#809) først — og ét <code>SELECT … FROM cron.job</code>. Det lukker eller afgør syv kort på én gang; indtil da lyver prod om døren og om «næste skridt».</p>
       <p class="why"><strong>2. Før 13/9: datarbejdet bag migrationen.</strong> 27 aktive, NUL med <code>stripe_customer_id</code> — UUID-listen (SQL på migrationskortet), Stripe-kunde-id pr. virksomhed, YKRG afklaret. Ingen kode; uden det kan trækket 13/9 hverken bevises eller flyttes.</p>
       <p class="why"><strong>3. Ét kald i webhooken + én Stripe-indstilling.</strong> <code>skrivRaadgiverBesked</code> ved fejlet træk, og Stripes «failed webhook»-mail slået til — så doggybeds træk 13/9 ikke fejler tavst, hvis det fejler.</p>
