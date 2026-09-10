@@ -40,3 +40,29 @@ describe("afgoerFokusTom — de tre tilstande", () => {
     expect(afgoerFokusTom({ harUploads: false, harGodkendte: true, journeyLine: null }).tilstand).toBe("godkendt");
   });
 });
+
+describe("afgoerFokusTom — den fjerde tilstand: kunne ikke hente (10/9)", () => {
+  it("fejlet hentning vinder over alt — også over godkendte tal og en anerkendelseslinje", () => {
+    const t = afgoerFokusTom({ hentningFejlede: true, harUploads: true, harGodkendte: true, journeyLine: "Og rejsen kan ses: 3 godkendte rapporter i år." });
+    expect(t.tilstand).toBe("kunne_ikke_hente");
+    expect(t.overskrift).toBe("Vi kunne ikke hente dine tal lige nu.");
+    expect(t.linje).toContain("ikke noget du har gjort");
+    expect(t.cta).toBeNull();
+  });
+
+  it("siger ALDRIG «Kom i gang med dine tal» når hentningen fejlede — det er 9/9-løgnen fra en fejl", () => {
+    const t = afgoerFokusTom({ hentningFejlede: true, harUploads: false, harGodkendte: false, journeyLine: null });
+    expect(t.overskrift).not.toBe("Kom i gang med dine tal.");
+    expect(t.linje).not.toContain("Der er ikke uploadet");
+  });
+
+  it("uden flag (undefined/false) er dommen som før", () => {
+    expect(afgoerFokusTom({ harUploads: false, harGodkendte: false, journeyLine: null }).tilstand).toBe("aldrig");
+    expect(afgoerFokusTom({ hentningFejlede: false, harUploads: true, harGodkendte: false, journeyLine: null }).tilstand).toBe("uploadet_ikke_godkendt");
+  });
+
+  it("roligt sprog: ingen udråb, ingen teknik", () => {
+    const t = afgoerFokusTom({ hentningFejlede: true, harUploads: false, harGodkendte: false, journeyLine: null });
+    expect(`${t.overskrift} ${t.linje}`).not.toMatch(/!|fejl|error/i);
+  });
+});

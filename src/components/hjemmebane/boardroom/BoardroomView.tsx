@@ -25,6 +25,7 @@ import { getISOWeekKey } from "@/lib/hjemmebane/week";
 import { denneUgesFredag, naesteUgesFredag, omEnMaaned, tilDatoStreng } from "@/lib/hjemmebane/opgaveDato";
 import { flereForslagTekst, forslagMetaLinje, forslagOverlinje, fristTekst, sorterAktive, vaelgForslag } from "@/lib/hjemmebane/aftaler";
 import { afgoerFokusTom, type FokusTom } from "@/lib/hjemmebane/fokusTom";
+import { hentefejlTekst, kildeAf, sektionsfejlTekst } from "@/lib/hjemmebane/hentefejl";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { listUpcomingEvents } from "@/lib/hjemmebane/akademiApi";
@@ -1249,6 +1250,7 @@ const FocusCard = ({
   weeklySummary,
   nextEntry,
   tom,
+  onProevIgen,
 }: {
   loading: boolean;
   items: FocusItem[];
@@ -1256,8 +1258,12 @@ const FocusCard = ({
   nextEntry: AkademiItem | undefined;
   /** Den tomme tilstand (lib/hjemmebane/fokusTom, 9/9): tre tilstande —
       aldrig uploadet, uploadet men ikke godkendt, godkendt (med
-      anerkendelseslinjen). Aldrig «Alt er ajour» til en uden tal. */
+      anerkendelseslinjen). Aldrig «Alt er ajour» til en uden tal.
+      FJERDE tilstand (10/9): kunne ikke hente — kortet siger det, ikke
+      «Kom i gang». */
   tom: FokusTom;
+  /** «Prøv igen» i den fjerde tilstand — henter kortets kilder igen. */
+  onProevIgen?: () => void;
 }) => {
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
   const displayed = items.slice(0, 4);
@@ -1394,6 +1400,11 @@ const FocusCard = ({
               <HbButton className="h-11 px-5">{tom.cta.label}</HbButton>
             </Link>
           )}
+          {tom.tilstand === "kunne_ikke_hente" && onProevIgen && (
+            <HbButton type="button" variant="secondary" className="mt-6 h-11 px-5" onClick={onProevIgen}>
+              Prøv igen
+            </HbButton>
+          )}
         </div>
       )}
       {!loading && nextEntry && (
@@ -1411,7 +1422,7 @@ const FocusCard = ({
 export const BoardroomView = () => {
   const { user, profile, companyId, isAdvisor } = useAuth();
   const akademi = useAkademiData();
-  const { data: facts = [], isLoading: factsLoading } = useCompanyFacts();
+  const { data: facts = [], isLoading: factsLoading, isError: factsError } = useCompanyFacts();
 
   // ── Katalog-afledninger (deler cache med Akademiet) ─────────────────────
   const items = akademi.orderedByArea;
@@ -1607,13 +1618,16 @@ export const BoardroomView = () => {
     queryKey: ["boardroom", "processed-reports", companyId],
     queryFn: async () => {
       // Samme select-form som DashboardActionCenter (110-113).
-      const { data } = await (supabase
+      // KASTER ved fejl (10/9, recon-fejlovervaagningen §2 eks. 2): før blev
+      // en fejl til en tom mængde → fokusmotoren dømte «ingen rapporter» →
+      // «Upload dine august-tal» til en med tyve. Tom er et svar; fejl er ikke.
+      const res = (await (supabase
         .from("financial_reports")
         .select(`report_period, ${REPORT_OVERRIDE_SELECT}`) as any)
         .eq("company_id", companyId!)
         .is("deleted_at", null)
-        .eq("status", "processed");
-      const keys = ((data ?? []) as ReportData[])
+        .eq("status", "processed")) as { data: ReportData[] | null; error: { message: string } | null };
+      const keys = (kraevRaekker(res, "financial_reports") as ReportData[])
         .map((r) => getEffectiveReportPeriodKey(r))
         .filter(Boolean) as string[];
       return new Set(keys);
@@ -1625,11 +1639,13 @@ export const BoardroomView = () => {
   const milestonesQuery = useQuery({
     queryKey: ["boardroom", "milestones", companyId],
     queryFn: async () => {
-      const { data } = await supabase
+      // KASTER ved fejl (10/9): tomme milepæle er et svar, en fejl er ikke —
+      // anerkendelseslinjen og motoren læser begge listen.
+      const res = await supabase
         .from("milestones")
         .select("title, deadline, progress, status")
         .eq("company_id", companyId!);
-      return data ?? [];
+      return kraevRaekker(res, "milestones");
     },
     enabled: !!companyId,
     staleTime: 3 * 60_000,
@@ -1641,12 +1657,15 @@ export const BoardroomView = () => {
       const prev = new Date();
       prev.setMonth(prev.getMonth() - 1);
       const periodKey = `${prev.getFullYear()}-${String(prev.getMonth() + 1).padStart(2, "0")}`;
-      const { data } = await supabase
+      // KASTER ved fejl (10/9): «ingen refleksion» (null) er et svar — en fejl
+      // ville ellers give kortet «lav din refleksion» til en der har.
+      const { data, error } = await supabase
         .from("pulse_checkins")
         .select("id")
         .eq("company_id", companyId!)
         .eq("period_key", periodKey)
         .maybeSingle();
+      if (error) throw new HentningsFejl("pulse_checkins", error.message);
       return data;
     },
     enabled: !!companyId,
@@ -1733,17 +1752,19 @@ export const BoardroomView = () => {
   const leversQuery = useQuery({
     queryKey: ["boardroom", "unlinked-levers", companyId],
     queryFn: async () => {
-      const { data: handoutRows } = await supabase
+      // KASTER ved fejl (10/9) — begge kald: fejler junction-tabellen, ville
+      // ALLE løftestænger stå som «uden milestone».
+      const handoutRes = await supabase
         .from("handouts")
         .select("id, module, levers")
         .eq("company_id", companyId!);
-      const rows = (handoutRows ?? []) as { id: string; module: string; levers: unknown }[];
+      const rows = kraevRaekker(handoutRes, "handouts") as { id: string; module: string; levers: unknown }[];
       if (rows.length === 0) return [];
-      const { data: links } = await supabase
+      const linksRes = (await supabase
         .from("handout_lever_milestones" as any)
         .select("handout_id, lever_index")
-        .in("handout_id", rows.map((r) => r.id));
-      const linked = new Set(((links ?? []) as any[]).map((l) => `${l.handout_id}:${l.lever_index}`));
+        .in("handout_id", rows.map((r) => r.id))) as { data: any[] | null; error: { message: string } | null };
+      const linked = new Set((kraevRaekker(linksRes, "handout_lever_milestones") as any[]).map((l) => `${l.handout_id}:${l.lever_index}`));
       const result: { lever: string; moduleTitle: string }[] = [];
       for (const module of moduleOrder) {
         const row = rows.find((r) => r.module === module);
@@ -1769,11 +1790,14 @@ export const BoardroomView = () => {
   const ownProfileQuery = useQuery({
     queryKey: ["boardroom", "own-profile-empty", user?.id],
     queryFn: async () => {
-      const { data } = await supabase
+      // KASTER ved fejl (10/9): en fejl må ikke blive «profilen er tom» og et
+      // nudge til en der har udfyldt den.
+      const { data, error } = await supabase
         .from("member_profiles" as any)
         .select("ask_me_about")
         .eq("user_id", user!.id)
         .maybeSingle();
+      if (error) throw new HentningsFejl("member_profiles", error.message);
       return !profilUdfyldt(data as unknown as { ask_me_about: string | null } | null); // én dom: profilUdfyldt.ts
     },
     enabled: !!user && !isAdvisor,
@@ -1794,11 +1818,14 @@ export const BoardroomView = () => {
   const contractStartQuery = useQuery({
     queryKey: ["boardroom", "contract-start", companyId],
     queryFn: async () => {
-      const { data } = await supabase
+      // KASTER ved fejl (10/9): null betyder «ingen kontraktstart» (legacy) og
+      // slår et værn fra i motoren — en fejl må ikke ligne det.
+      const { data, error } = await supabase
         .from("companies")
         .select("contract_start_date")
         .eq("id", companyId!)
         .maybeSingle();
+      if (error) throw new HentningsFejl("companies", error.message);
       return ((data as { contract_start_date?: string | null } | null)?.contract_start_date ?? null) as string | null;
     },
     enabled: !!companyId,
@@ -1857,10 +1884,27 @@ export const BoardroomView = () => {
 
   // Den tomme tilstand (lib/hjemmebane/fokusTom): tre tilstande af det
   // forsiden allerede ved — uploads, godkendte facts, anerkendelseslinjen.
+  // Den FJERDE tilstand (10/9): fejler hentningen af det kortet dømmer på
+  // (uploads eller godkendte tal), siger kortet det — ikke «Kom i gang».
   const fokusTom = useMemo(
-    () => afgoerFokusTom({ harUploads: (uploadsQuery.data ?? 0) > 0, harGodkendte: committedKeys.size > 0, journeyLine }),
-    [uploadsQuery.data, committedKeys, journeyLine],
+    () =>
+      afgoerFokusTom({
+        hentningFejlede: uploadsQuery.isError || factsError,
+        harUploads: (uploadsQuery.data ?? 0) > 0,
+        harGodkendte: committedKeys.size > 0,
+        journeyLine,
+      }),
+    [uploadsQuery.data, uploadsQuery.isError, factsError, committedKeys, journeyLine],
   );
+  // De øvrige kilder motoren læser (10/9): fejler en af dem, står kortet
+  // stadig — men med en rolig linje under om hvad der manglede, så et
+  // manglende punkt ikke bliver læst som «der er intet». Ordene i
+  // lib/hjemmebane/hentefejl; kilden bæres af HentningsFejl.
+  const fejledeKilder = [processedQuery, milestonesQuery, pulseQuery, leversQuery, ownProfileQuery, contractStartQuery]
+    .filter((q) => q.isError)
+    .map((q) => kildeAf(q.error));
+  const hentefejlLinje = hentefejlTekst(fejledeKilder);
+  const proevIgen = () => void queryClient.invalidateQueries({ queryKey: ["boardroom"] });
 
   const focus = useMemo(() => {
     if (!companyId) return []; // advisor uden company-override i byggeperioden
@@ -1992,23 +2036,29 @@ export const BoardroomView = () => {
   // status='published', gte(starts_at, nu), order ascending) — kun
   // limit er udvidet fra 1 til 3: live-sessions er en kerneydelse og
   // fortjener de næste 2-3 pladser, ikke én tile i det redaktionelle bånd.
-  const { data: events = [] } = useQuery({
+  // listUpcomingEvents KASTER (throwIfError) — men fladen læste kun data, så
+  // en fejl blev «ingen kommende events» (sektionen udeladt). Nu siges det.
+  const eventsQuery = useQuery({
     queryKey: ["boardroom", "events"],
     queryFn: () => listUpcomingEvents(3),
     staleTime: 5 * 60_000,
   });
+  const events = eventsQuery.data ?? [];
 
   // ── Community-sektionen: SAMME nøgle OG samme kald som CommunityView
   // (["community","feed"] + hentFeed(30)) — cachen deles begge veje.
   // hentFeed(3) under den delte nøgle ville forgifte fælles-cachen med
   // et 3-rækkers subset (listEvents-lærdommen); visningen skærer selv
   // til 3. Fejl → data undefined → sektionen udelades (samme som tom).
-  const { data: communityTraade = [] } = useQuery({
+  // hentFeed KASTER (throwIfError). TOMT feed (medlem uden adgang, RPC'en
+  // er fail-closed) → ingen sektion, som før. FEJL → én rolig linje (10/9):
+  // «Fejl → samme som tomt» var netop det der gjorde fejlen usynlig.
+  const communityQuery = useQuery({
     queryKey: ["community", "feed"],
     queryFn: () => hentFeed(30),
   });
   // Nyeste opslag til kortet + de to næste til rækkerne (ren dom).
-  const forsideOpslag = useMemo(() => vaelgForsideOpslag(communityTraade), [communityTraade]);
+  const forsideOpslag = useMemo(() => vaelgForsideOpslag(communityQuery.data ?? []), [communityQuery.data]);
 
   // ── Tal-strip-afledning (uændret) ───────────────────────────────────────
   const sorted = useMemo(
@@ -2077,7 +2127,14 @@ export const BoardroomView = () => {
           weeklySummary={weeklyFocusQuery.data?.summary ?? null}
           nextEntry={nextEntry}
           tom={fokusTom}
+          onProevIgen={proevIgen}
         />
+        {hentefejlLinje && (
+          <p className="mt-4 text-sm text-hb-rust">
+            {hentefejlLinje}{" "}
+            <button type="button" onClick={proevIgen} className="underline-offset-4 hover:underline">Prøv igen</button>
+          </p>
+        )}
         {/* Ulæste beskeder fejlede (7/9): fokus-laget får 0 ulæste ind og
             tier stille — så siger vi det her, under kortet, i stedet for
             at lade hele forsiden fejle på én tælling. */}
@@ -2180,6 +2237,9 @@ export const BoardroomView = () => {
           Højrekolonnen bærer inline-tilmeldingen (Events trin 3b);
           nedtællingen bor i meta-linjen. Ingen kommende events → ingen
           sektion. */}
+      {eventsQuery.isError && (
+        <p className="mt-14 text-sm text-hb-rust md:mt-16">{sektionsfejlTekst("events")}</p>
+      )}
       {events.length > 0 && (
         <HbSection eyebrow="Kommende" hairline className="mt-14 md:mt-16">
           {/* Link'et dækker KUN dato+titel+meta — tilmeldingshandlingen
@@ -2234,6 +2294,9 @@ export const BoardroomView = () => {
           (FremhaevetOpslag) efter båndets mønster — ét hvidt kort, resten
           rolige rækker. Dommen om hvad der er nyest, og hvilke to der
           står under, er ren (vaelgForsideOpslag). */}
+      {communityQuery.isError && (
+        <p className="mt-14 text-sm text-hb-rust md:mt-16">{sektionsfejlTekst("community")}</p>
+      )}
       {forsideOpslag.fremhaevet && (
         <HbSection
           eyebrow="Fra fællesskabet"

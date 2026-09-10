@@ -105,6 +105,7 @@ describe("konstanterne", () => {
       medlem_har_skrevet: "haendelse",
       agentforslag: "pukkel",
       ikke_i_gang: "haendelse",
+      venter_paa_velkomst: "haendelse",
     });
     for (const slags of Object.keys(FORM) as (keyof typeof INDSATS)[]) {
       expect([1, 2, 3]).toContain(INDSATS[slags]);
@@ -674,10 +675,51 @@ describe("lukningen — lukkede grunde er ude før porterne", () => {
 // Tiende slags: nyt medlem uden målt rapport efter 21 dage. Egen linje ved
 // navn (hændelse, alvor 75 ≥ tærsklen), egen handling, lukbar.
 
+describe("venter_paa_velkomst — linjen fra dag 1 (bygget 9/9, koblet 10/9)", () => {
+  const start = (dageSiden: number) => new Date(NU.getFullYear(), NU.getMonth(), NU.getDate() - dageSiden, 14, 0).toISOString();
+  const ny = (dageSiden: number, over: Partial<VirksomhedTilDom> = {}) =>
+    virksomhed({ navn: "Bastant Design", medlemSiden: start(dageSiden), sidsteRaadgiverBeskedAt: null, harMaaltRapport: true, ...over });
+
+  it("dag 0: for tidligt, ingen linje; dag 1: linjen står ved navn — «Kom ind i går, har ikke hørt fra os», «Skriv til …», alvor 80", () => {
+    expect(afgoerForsidensDom([ny(0)], NU).linjer).toEqual([]);
+    const l = virksomhedslinjer(afgoerForsidensDom([ny(1)], NU))[0];
+    expect(l.navn).toBe("Bastant Design");
+    expect(l.grunde[0]).toMatchObject({
+      slags: "venter_paa_velkomst", signaltype: "venter_paa_velkomst", tekst: "Kom ind i går, har ikke hørt fra os",
+      handling: "Skriv til Bastant Design", alvor: 80, indsats: 2,
+    });
+    expect(FORM.venter_paa_velkomst).toBe("haendelse");
+  });
+  it("dag 3: «Kom ind for 3 dage siden, har ikke hørt fra os»", () => {
+    expect(virksomhedslinjer(afgoerForsidensDom([ny(3)], NU))[0].grunde[0].tekst).toBe("Kom ind for 3 dage siden, har ikke hørt fra os");
+  });
+  it("forsvinder når en rådgiver har skrevet — uanset hvornår", () => {
+    expect(afgoerForsidensDom([ny(3, { sidsteRaadgiverBeskedAt: "2026-09-02T09:00:00Z" })], NU).linjer).toEqual([]);
+    expect(afgoerForsidensDom([ny(40, { sidsteRaadgiverBeskedAt: "2026-07-01T09:00:00Z" })], NU).linjer).toEqual([]);
+  });
+  it("uden medlemSiden (kalderen bærer den ikke): intet signal", () => {
+    expect(afgoerForsidensDom([virksomhed({ medlemSiden: null, sidsteRaadgiverBeskedAt: null })], NU).linjer).toEqual([]);
+  });
+  it("alvoren: velkomst (80) står over ikke_i_gang (75) — på en ny der venter på begge, kommer «sig hej» først", () => {
+    const l = virksomhedslinjer(afgoerForsidensDom([ny(21, { harMaaltRapport: false, antalUploads: 0 })], NU))[0];
+    expect(l.grunde.map((g) => g.slags)).toEqual(["venter_paa_velkomst", "ikke_i_gang"]);
+    expect(l.grunde[0].alvor).toBeGreaterThan(l.grunde[1].alvor);
+  });
+  it("lukningen: grundlag = startdagen — lukket holder mens de venter, et nyt medlemskab (ny startdag) er noget nyt", () => {
+    const l = virksomhedslinjer(afgoerForsidensDom([ny(2)], NU))[0];
+    expect(Object.keys(l.grundlag)).toEqual(["venter_paa_velkomst"]);
+    const kv = { udfald: "faerdiggjort" as const, grundlag: l.grundlag, lukketAt: "2026-09-04T10:00:00Z" };
+    expect(afgoerForsidensDom([ny(2, { kvittering: kv })], NU).linjer).toEqual([]);
+    // Samme virksomhed (samme startdag), tre dage senere: stadig lukket — dagene tæller ikke.
+    expect(afgoerForsidensDom([ny(2, { kvittering: kv })], new Date(NU.getTime() + 3 * 86_400_000)).linjer).toEqual([]);
+    expect(virksomhedslinjer(afgoerForsidensDom([ny(1, { kvittering: kv })], NU))).toHaveLength(1);
+  });
+});
+
 describe("ikke_i_gang — linjen fra dag 21", () => {
   const start = (dageSiden: number) => new Date(NU.getFullYear(), NU.getMonth(), NU.getDate() - dageSiden, 14, 0).toISOString();
   const ny = (dageSiden: number, over: Partial<VirksomhedTilDom> = {}) =>
-    virksomhed({ navn: "Bastant Design", medlemSiden: start(dageSiden), harMaaltRapport: false, antalUploads: 0, ...over });
+    virksomhed({ navn: "Bastant Design", medlemSiden: start(dageSiden), harMaaltRapport: false, antalUploads: 0, sidsteRaadgiverBeskedAt: "2026-08-01T09:00:00Z", ...over });
 
   it("dag 6: ingen linje; dag 7: trin 1 — «Spørg … hvilket system de bruger», alvor 70; dag 21: trin 2 — «Hjælp … i gang», alvor 75", () => {
     expect(afgoerForsidensDom([ny(6)], NU).linjer).toEqual([]);
