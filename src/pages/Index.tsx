@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Navigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
+import { fornyelsesToastTekst, laesFoer, TOAST_TITEL } from "@/lib/fornyelsesToast";
 import "@/styles/hjemmebane.css";
 import MembershipExpiredGate from "@/components/MembershipExpiredGate";
 import CompanyLinkFailedGate from "@/components/CompanyLinkFailedGate";
@@ -105,6 +106,7 @@ const Dashboard = () => {
      kommentaren ved FORNYELSE_STEMPEL_KEY): genindlæsningen styres af
      stemplet og gentages, indtil tier ikke længere er "expired". */
   const fornyelseResult = searchParams.get("fornyelse");
+  const fornyelseFoer = laesFoer(searchParams.get("foer"));
   const [fornyelseStempel, setFornyelseStempel] = useState<number | null>(() => laesFornyelseStempel());
   useEffect(() => {
     if (fornyelseResult === "success") {
@@ -113,20 +115,16 @@ const Dashboard = () => {
       skrivFornyelseStempel(nu);
       setFornyelseStempel(nu);
       /* Beskeden afhænger af om medlemmet HAVDE adgang, da de betalte (#684:
-         fornyelse kan betales FØR slutdatoen, og den første der gør det, er
-         netop et fuldt medlem). For en der er "full" er der ingen adgang at
-         åbne — den blev aldrig mistet, låsen ovenfor slippes øjeblikkeligt,
-         og kvitteringen nedenfor vises aldrig; denne toast er det eneste de
-         får. Den nye periode begynder hvor den nuværende slutter
-         (fornyelseskæden §15.3), så «fortsætter uden afbrydelse» er sandt
-         uanset om webhooken er landet. Den nye slutdato nævnes IKKE: useAuth
-         eksponerer kun tier, og et opslag hører ikke til her. For "expired"
-         (eller uafgjort) er teksten uændret — dér åbnes adgangen faktisk. */
-      toast.success("Tak — vi glæder os til et år mere", {
-        description:
-          membershipTier === "full"
-            ? "Betalingen er modtaget. Dit medlemskab fortsætter uden afbrydelse — den nye periode begynder hvor den nuværende slutter."
-            : "Vi åbner din adgang om et øjeblik…",
+         fornyelse kan betales FØR slutdatoen). Rettet 10/9: FØR-tilstanden
+         kommer med fra opret-fornyelse-checkout (?foer=aktiv|udloebet) og
+         afgør sætningen — ikke tier EFTER hjemkomsten. Webhooken og returen
+         er et kapløb, og webhooken vinder normalt, så en genåbnet kom hjem
+         med tier "full" og fik «fortsætter uden afbrydelse», som var falsk
+         to gange (adgangen var afbrudt; perioden løber fra betalingsdagen).
+         Reglen er ren i src/lib/fornyelsesToast.ts. Den nye slutdato nævnes
+         IKKE: useAuth eksponerer kun tier, og et opslag hører ikke til her. */
+      toast.success(TOAST_TITEL, {
+        description: fornyelsesToastTekst({ foer: fornyelseFoer, tier: membershipTier }),
       });
     } else if (fornyelseResult === "cancelled") {
       // En der fortrød, skal ikke mødes med noget.

@@ -187,7 +187,10 @@ Deno.serve(async (req) => {
       "expires_at": String(udloebsTidspunkt()),
       "line_items[0][price]": priceId,
       "line_items[0][quantity]": "1",
-      "success_url": `${APP_URL}/?fornyelse=success`,
+      // FØR-tilstanden med hjem (10/9, src/lib/fornyelsesToast.ts): toasten
+      // vælges på om medlemmet HAVDE adgang da de betalte — ikke på tier
+      // efter hjemkomsten, som webhooken normalt allerede har ændret.
+      "success_url": `${APP_URL}/?fornyelse=success&foer=${tilstand.status === "udloebet_tilbyd" ? "udloebet" : "aktiv"}`,
       "cancel_url": `${APP_URL}/?fornyelse=cancelled`,
       "automatic_tax[enabled]": "true",
       "tax_id_collection[enabled]": "true",
