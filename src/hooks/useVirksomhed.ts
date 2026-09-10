@@ -154,6 +154,10 @@ export interface VirksomhedsData {
     manual_override_status: string | null;
     manual_report_period_key: string | null;
     manual_report_period_label: string | null;
+    /** Til genkørslen (10/9): dommen om strandet + «hvad der fejlede». Ingen blobs. */
+    validation_status: string | null;
+    validation_errors: string[] | null;
+    quality_signals: unknown;
   }[];
   /** Rapport-kommentarer (blok 6): messages med context_type = "report" i
       virksomhedens samtaler, ældste først — samme rækker som
@@ -282,7 +286,7 @@ async function hentVirksomhed(companyId: string): Promise<VirksomhedsData | null
     // lærdommen). Loft 50, nyeste først.
     supabase
       .from("financial_reports")
-      .select("id, file_name, file_path, report_type, status, report_period, uploaded_at, processed_at, manual_override_status, manual_report_period_key, manual_report_period_label")
+      .select("id, file_name, file_path, report_type, status, report_period, uploaded_at, processed_at, manual_override_status, manual_report_period_key, manual_report_period_label, validation_status, validation_errors, quality_signals")
       .eq("company_id", companyId)
       .is("deleted_at", null)
       .order("uploaded_at", { ascending: false })

@@ -42,6 +42,8 @@ import { EstimatMaerke, ESTIMAT_FORKLARING } from "../EstimatMaerke";
 import { StandardmaalMaerke } from "../StandardmaalMaerke";
 import { VirksomhedMailLog } from "./VirksomhedMailLog";
 import { FarligZone, OmdoebVirksomhed, SaetPrisniveau } from "./VirksomhedStamdata";
+import { GenkoerRapport } from "./VirksomhedGenkoersel";
+import { erStrandet, needsManualEntryAf } from "@/lib/genkoersel";
 import { virksomhedensAdresser } from "@/lib/mailLog";
 import { HbButton } from "../HbButton";
 import { HbCard } from "../HbCard";
@@ -944,7 +946,7 @@ const RapportTal = ({ fact, forrige }: { fact: CompanyFact; forrige: CompanyFact
     (samtaleId null — de tre virksomheder uden medlemmer) skrives IKKE;
     det siges roligt, ingen fejl. */
 const RapportRaekke = ({
-  r, facts, kommentarer, samtaleId, medlemsnavne, aaben, onToggle,
+  r, facts, kommentarer, samtaleId, medlemsnavne, aaben, onToggle, companyId, onOpdateret,
 }: {
   r: Rapport;
   facts: CompanyFact[];
@@ -953,6 +955,9 @@ const RapportRaekke = ({
   medlemsnavne: Map<string, string>;
   aaben: boolean;
   onToggle: () => void;
+  companyId: string;
+  /** Efter en genkørsel: hent virksomheden igen (invalider), så badge og tal skifter. */
+  onOpdateret: () => Promise<void>;
 }) => {
   const { user } = useAuth();
   const [tekst, setTekst] = useState("");
@@ -1026,6 +1031,13 @@ const RapportRaekke = ({
             <p className="text-sm text-hb-ink-soft">Ingen godkendte tal for denne rapport endnu.</p>
           )}
 
+          {/* Strandet rapport (10/9): filnavn, hvad der fejlede, og «Prøv at
+              læse filen igen» — eller grunden til at den ikke kan (PDF). Kun
+              når rækken ER strandet; en behandlet rapport får ingen boks. */}
+          {!committed && erStrandet({ status: r.status, validation_status: r.validation_status, needs_manual_entry: needsManualEntryAf(r.quality_signals) }) && (
+            <GenkoerRapport r={r} harFacts={committed} companyId={companyId} onOpdateret={onOpdateret} />
+          )}
+
           <p className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-hb-ink-soft">
             {r.status === "processed" && !committed && (
               <Link to="/admin/review-queue" className="text-hb-evergreen underline-offset-4 hover:underline">Godkend rapport →</Link>
@@ -1081,10 +1093,12 @@ const RapportRaekke = ({
 };
 
 const Blok6 = ({
-  d, facts, startAabenRapport, onAabnHandout,
+  d, facts, startAabenRapport, onAabnHandout, onOpdateret,
 }: {
   d: VirksomhedsData;
   facts: CompanyFact[];
+  /** Efter en genkørsel af en strandet rapport (VirksomhedGenkoersel). */
+  onOpdateret: () => Promise<void>;
   /** ?reportId fra URL'en (deep-link, MemberDetail-mønstret): rapporten
       foldes ud og rulles ind ved første render. */
   startAabenRapport: string | null;
@@ -1259,6 +1273,8 @@ const Blok6 = ({
                 medlemsnavne={medlemsnavne}
                 aaben={aabenRapport === r.id}
                 onToggle={() => setAabenRapport(aabenRapport === r.id ? null : r.id)}
+                companyId={d.company.id}
+                onOpdateret={onOpdateret}
               />
             ))}
           </ul>
@@ -1838,6 +1854,7 @@ export const VirksomhedView = ({ companyId }: { companyId: string | undefined })
         facts={facts}
         startAabenRapport={dybRapport}
         onAabnHandout={kanAabneHandout ? setAktivtHandout : null}
+        onOpdateret={invalider}
       />
       <Blok7 d={data} onOpdateret={invalider} onFornyelseAendret={invaliderFornyelse} />
       {/* Blok 8 (7/9): mails til virksomheden — EFTER Aftalen, som sidste

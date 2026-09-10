@@ -23,7 +23,7 @@ import { hentefejlTekst, kildeAf } from "@/lib/hjemmebane/hentefejl";
 import { useKpiTargets } from "@/hooks/useKpiTargets";
 import { useKpiBenchmarks } from "@/hooks/useKpiBenchmarks";
 import { useScrollToHash } from "@/hooks/useScrollToHash";
-import { factsToDanishMetrics } from "@/lib/factsAdapter";
+import { aarsrapportHulTekst, faktaTilKf, manglendeAarsrapportFelter } from "@/lib/aarsrapportHuller";
 import { formatCompact, formatDKK, SHORT_MONTHS } from "@/lib/financialUtils";
 import { KPI_DEFS, VALUE_EXTRACTORS, deriveKpiMetrics, type KpiMetric } from "@/lib/kpiDefs";
 import { INDUSTRY_TEMPLATES, type BenchmarkTemplate } from "@/lib/appConfig";
@@ -185,11 +185,13 @@ export const NoegletalView = () => {
   const monthlyData = useMemo(
     () =>
       facts.map((f) => {
-        const kf = factsToDanishMetrics(f.metrics);
+        // faktaTilKf (10/9): estimerede rækker renses for nuller der ikke er
+        // tal — YKRG's omsætning 0 ved siden af et bruttoresultat er «ikke
+        // læst», ikke nul kroner (aarsrapportHuller).
+        const kf = faktaTilKf(f);
         const [, monthStr] = f.period_key.split("-");
         const monthIdx = parseInt(monthStr, 10) - 1;
-        // data_basis bæres med på hvert punkt (dataGrundlag-kontrakten) —
-        // ingen komponent læser det endnu; visnings-PR'en gør.
+        // data_basis bæres med på hvert punkt (dataGrundlag-kontrakten).
         return { sortKey: f.period_key, month: SHORT_MONTHS[monthIdx] || monthStr, kf, data_basis: f.data_basis };
       }),
     [facts],
@@ -205,8 +207,13 @@ export const NoegletalView = () => {
   // til branchesammenligningen (facts er sorteret stigende på period_key).
   const grundlag = opgoerGrundlag(facts);
   const senesteErEstimat = facts.length > 0 && facts[facts.length - 1].data_basis === "estimated";
+  // Hullerne i årsrapporten (10/9): når den seneste række er et estimat, siges
+  // det hvilke af de fem felter udtrækket ikke kunne læse — for den der aldrig
+  // har uploadet andet, er årsrapporten alt, og et tomt felt må ikke ligne 0.
+  const aarsrapportHuller = latestKF && senesteErEstimat ? manglendeAarsrapportFelter(latestKF.kf) : [];
+  const hulTekst = aarsrapportHulTekst(aarsrapportHuller);
   const heroEntries = KPI_DEFS.map((def) => {
-    const actual = latestKF ? (VALUE_EXTRACTORS[def.key]?.(latestKF.kf) ?? null) : null;
+    const actual = latestKF ? (VALUE_EXTRACTORS[def.key]?.(latestKF.kf, latestKF.data_basis) ?? null) : null;
     const target = getTarget(def.key);
     // kilde med: et standardmål vises, men dømmer ikke (kpiTone, 7/9).
     const tone = deriveKpiTone({ actual, target: target.value > 0 ? target.value : null, lowerIsBetter: def.lowerIsBetter, kilde: target.kilde ?? null });
@@ -229,7 +236,7 @@ export const NoegletalView = () => {
       .map((key) => {
         const fact = facts.find((f) => f.period_key === key);
         if (!fact) return null;
-        const kf = factsToDanishMetrics(fact.metrics);
+        const kf = faktaTilKf(fact);
         const [year, monthStr] = key.split("-");
         const monthIdx = parseInt(monthStr, 10) - 1;
         return {
@@ -588,6 +595,9 @@ export const NoegletalView = () => {
             <p className="mt-1 max-w-xl text-xs leading-relaxed text-hb-ink-soft">
               {ESTIMAT_FORKLARING}
             </p>
+          )}
+          {hulTekst && (
+            <p className="mt-1 max-w-xl text-xs leading-relaxed text-hb-ink-soft">{hulTekst}</p>
           )}
         </div>
         <div className="flex items-center gap-3">
@@ -1065,7 +1075,7 @@ export const NoegletalView = () => {
                       <tr key={def.key} className="border-b border-hb-line/60 last:border-b-0">
                         <td className="px-4 py-2.5 text-hb-ink">{def.label}</td>
                         {monthlyData.slice(-6).map((m) => {
-                          const v = VALUE_EXTRACTORS[def.key]?.(m.kf) ?? null;
+                          const v = VALUE_EXTRACTORS[def.key]?.(m.kf, m.data_basis) ?? null;
                           return (
                             <td key={m.sortKey} className="px-4 py-2.5 text-right font-editorial text-hb-ink">
                               {v != null ? (def.unit === "%" ? `${v.toFixed(1)} %` : formatCompact(v)) : "—"}

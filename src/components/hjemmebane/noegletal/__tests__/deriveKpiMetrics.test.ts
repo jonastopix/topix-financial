@@ -239,3 +239,39 @@ describe("deriveKpiMetrics — målets oprindelse bæres med (7/9)", () => {
     expect(uden.targetNum).toBe(0);
   });
 });
+
+describe("deriveKpiMetrics — et manglende tal er ikke nul (aarsrapportHuller, 10/9)", () => {
+  it("historikken bærer null for et manglende felt — ikke 0 på nullinjen", () => {
+    const m = find(
+      [fact("2026-06", { revenue: 100_000, payroll: 20_000 }), fact("2026-07", { revenue: 110_000 }), fact("2026-08", { revenue: 120_000, payroll: 22_000 })],
+      "loenninger",
+    );
+    expect(m.history.map((h) => h.value)).toEqual([20_000, null, 22_000]);
+  });
+
+  it("«Omk. total» i en estimeret række med et manglende omkostningsfelt er ukendt (KPI'en udelades), ikke summen af resten", () => {
+    // remm.-formen: payroll læst, cogs og admin mangler — før: 117.444 «Samlede omkostninger»
+    const estimeret = [fact("2025-12", { revenue: 109_671, gross_profit: 34_199, payroll: 117_444, depreciation: 1_000 }, "estimated")];
+    expect(deriveKpiMetrics(estimeret, ingenMaal, ingenBench).find((m) => m.key === "omkostninger")).toBeUndefined();
+    // …men en MÅLT måned med samme huller regner som før (manglende post = post rapporten ikke har)
+    const maalt = [fact("2026-08", { revenue: 109_671, gross_profit: 34_199, payroll: 117_444, depreciation: 1_000 })];
+    expect(find(maalt, "omkostninger").numValue).toBe(118_444);
+  });
+
+  it("YKRG-formen: omsætning 0 i en estimeret række ved siden af et bruttoresultat er «ikke læst» — KPI'en udelades, historikken får et hul", () => {
+    const facts = [
+      fact("2024-11", { revenue: 0, gross_profit: 45_565, payroll: 117_444 }, "estimated"),
+      fact("2024-12", { revenue: 0, gross_profit: 45_565, payroll: 117_444 }, "estimated"),
+    ];
+    const metrics = deriveKpiMetrics(facts, ingenMaal, ingenBench);
+    expect(metrics.find((m) => m.key === "omsaetning")).toBeUndefined();
+    expect(metrics.find((m) => m.key === "db_margin")).toBeUndefined();
+    // lønninger findes stadig, og dens historik er hel
+    expect(find(facts, "loenninger").history.map((h) => h.value)).toEqual([117_444, 117_444]);
+  });
+
+  it("en MÅLT måned med omsætning 0 er stadig 0 — nul er et tal når det er målt", () => {
+    const m = find([fact("2026-08", { revenue: 0, gross_profit: 0, payroll: 5_000 })], "omsaetning");
+    expect(m.numValue).toBe(0);
+  });
+});

@@ -11,9 +11,9 @@
 import { DollarSign, TrendingUp, Users, Target, Flame, BarChart3 } from "lucide-react";
 import type { MaalKilde } from "@/lib/kpiMaal";
 import type { LucideIcon } from "lucide-react";
-import { calcDbMargin, calcResultMargin, calcTotalExpenses, SHORT_MONTHS } from "@/lib/financialUtils";
-import { factsToDanishMetrics } from "@/lib/factsAdapter";
+import { calcDbMargin, calcResultMargin, SHORT_MONTHS } from "@/lib/financialUtils";
 import { momErGyldig, type DataBasis } from "@/lib/dataGrundlag";
+import { faktaTilKf, omkostningerKendte } from "@/lib/aarsrapportHuller";
 import type { CompanyFact } from "@/hooks/useCompanyFacts";
 
 export interface KpiDef {
@@ -53,7 +53,10 @@ export interface KpiMetric {
   icon: LucideIcon;
   description: string;
   lowerIsBetter: boolean;
-  history: { month: string; periodKey: string; value: number; data_basis: DataBasis }[];
+  /** value er null når tallet ikke findes i perioden — et hul i grafen, ikke et
+      0 (aarsrapportHuller, 10/9). Før stod `?? 0`, og et manglende felt lå på
+      nullinjen. */
+  history: { month: string; periodKey: string; value: number | null; data_basis: DataBasis }[];
   benchmark: { value: number; label: string; source: string };
 }
 
@@ -66,12 +69,15 @@ export const KPI_DEFS: KpiDef[] = [
   { key: "ebitda_margin", label: "Resultat Margin", unit: "%", icon: BarChart3, description: "Resultat før skat i % af omsætning", lowerIsBetter: false },
 ];
 
-export const VALUE_EXTRACTORS: Record<string, (kf: Record<string, number>) => number | null> = {
+/** Anden parameter er rækkens grundlag: «Omk. total» kræver i en estimeret
+    række at alle omkostningsfelter er læst (omkostningerKendte) — for en
+    målt måned er en manglende post 0 som før. Udeladt basis = målt. */
+export const VALUE_EXTRACTORS: Record<string, (kf: Record<string, number>, basis?: DataBasis) => number | null> = {
   omsaetning: (kf) => kf.omsaetning ?? null,
   db_margin: (kf) => calcDbMargin(kf) ?? null,
   loenninger: (kf) => kf.loenninger != null ? Math.abs(kf.loenninger) : null,
   resultat: (kf) => kf.resultat_foer_skat ?? null,
-  omkostninger: (kf) => { const v = calcTotalExpenses(kf); return v > 0 ? v : null; },
+  omkostninger: (kf, basis) => omkostningerKendte(kf, basis),
   ebitda_margin: (kf) => calcResultMargin(kf) ?? null,
 };
 
@@ -131,7 +137,9 @@ export function deriveKpiMetrics(
   benchmarks: Record<string, { value: number; label: string; source: string }>,
 ): KpiMetric[] {
   const monthlyData = facts.map((f) => {
-    const kf = factsToDanishMetrics(f.metrics);
+    // faktaTilKf (10/9): estimerede rækker renses for nuller der ikke er tal
+    // (omsætning 0 ved siden af et bruttoresultat er «ikke læst», ikke 0 kr.).
+    const kf = faktaTilKf(f);
     const [, monthStr] = f.period_key.split("-");
     const monthIdx = parseInt(monthStr, 10) - 1;
     const monthLabel = SHORT_MONTHS[monthIdx] || monthStr;
@@ -139,16 +147,18 @@ export function deriveKpiMetrics(
   });
 
   if (monthlyData.length === 0) return [];
-  const latest = monthlyData[monthlyData.length - 1].kf;
-  const prev = monthlyData.length > 1 ? monthlyData[monthlyData.length - 2].kf : null;
+  const latestRow = monthlyData[monthlyData.length - 1];
+  const prevRow = monthlyData.length > 1 ? monthlyData[monthlyData.length - 2] : null;
+  const latest = latestRow.kf;
+  const prev = prevRow ? prevRow.kf : null;
   // M/M-gaten: begge de to seneste perioder skal være målinger.
   const momGyldig = momErGyldig(facts);
 
   return KPI_DEFS.map((def) => {
     const extract = VALUE_EXTRACTORS[def.key];
-    const currentVal = extract(latest);
+    const currentVal = extract(latest, latestRow.data_basis);
     if (currentVal == null) return null;
-    const prevVal = prev ? extract(prev) : null;
+    const prevVal = prev && prevRow ? extract(prev, prevRow.data_basis) : null;
     // Procent-KPI'er (marginer) i procentpoint: nu − før. Ingen division, så
     // før = 0 er et gyldigt grundlag (0 % → 12 % er +12 pp). Beløb relativt
     // med |før| som nævner; før = 0 kan ikke dømmes.
@@ -164,12 +174,16 @@ export function deriveKpiMetrics(
     const trendIsGood = changePct != null && (def.lowerIsBetter ? changePct <= 0 : changePct >= 0);
     const target = targets[def.key] ?? { value: 0, label: "—" };
 
-    const history = monthlyData.map((d) => ({
-      month: d.month,
-      periodKey: d.sortKey,
-      value: Math.round(extract(d.kf) ?? 0),
-      data_basis: d.data_basis,
-    }));
+    // Et manglende tal er et hul (null), ikke 0 — før `?? 0` (aarsrapportHuller).
+    const history = monthlyData.map((d) => {
+      const v = extract(d.kf, d.data_basis);
+      return {
+        month: d.month,
+        periodKey: d.sortKey,
+        value: v == null ? null : Math.round(v),
+        data_basis: d.data_basis,
+      };
+    });
 
     const formatted = Math.abs(currentVal) >= 1000
       ? currentVal.toLocaleString("da-DK", { maximumFractionDigits: 0 })
