@@ -2810,6 +2810,82 @@ rødt inden for en time. Fire jobs er ren SQL og har intet at time ud:
 `agent-runs-opbevaring`, `cleanup-stale-processing-reports`,
 `opgave-udloeb` og `vagt-cron`. Læren står i DEL 4.
 
+### 10. september, aften — de synlige ting, parseren, estimaterne, klokken (#774–#794) — og mangellisten ryddet
+
+Jonas 10/9: «Bør vi ikke lige få opdateret mangellisten med alt det nye og få
+sat flueben ved de ting der er klaret?» Listen viste 178 kort; omkring tyve
+var lukket i dag uden at listen blev rørt, og overblikket
+(`~/Downloads/overblik.md` §1) fandt tretten der var løst FØR i dag og
+stadig stod åbne. Husets regel (listens filhoved, besluttet 4/9): et løst
+kort SLETTES, og beviset står her. Kriteriet var strengt — et kort er lukket
+når det der stod på det, ikke længere er sandt.
+
+**Efter rydningen: 157 kort** — fejl 34 · mangler 81 · beslutninger 25 · idéer 17
+(tælleren i listens værktøjslinje regner dem selv). 24 slettet, 8 omskrevet
+til det der står tilbage (tag «Rettet 10/9»), 3 nye. Kortnumrene i dagens
+recon-filer (`~/Downloads`) er positionen FØR rydningen.
+
+**Slettet som løst — lukket i dag (#758–#794):**
+
+| kort | lukket af |
+|---|---|
+| Ingen klokke når et nyt medlem venter | #759/#780 (venter-på-velkomst på forsidens dom), #790 (klokken viser det) |
+| Rapporteringen forklarer HVAD, ikke HVOR | #760 — eksportvejene står FØR uploaden |
+| Ingen samlede tal for en periode | #788 — ÅTD, seneste 12, frit interval på Nøgletal |
+| Estimat-mærkets forklaring findes ikke på mobil | #789 — mærket er en knap med HbPopover, 44 × 44 punkter |
+| Mobil: indhold går ud over kanten på virksomhedssiden | #663 (4/9) rettede de fire målte steder; #789 det sidste (mail-loggens Message-ID) |
+| Budget-tabellen brækker procenterne | #791 — nowrap, kolonner 100/112 px, tabellen ruller |
+| Milestones: kategorifarverne er rå | #791 — husets palet; Hb-fladerne læste allerede aldrig farverne |
+| Gæst-flueben i rådgiverfladen | #791 — i EditCompanyDialog, `vis_i_netvaerk` |
+| Medlemmets AI-fane og chattens loading-gren står i det gamle | #794 |
+| To ting mere i agentpanelet (Godkend redigeret, ::selection) | #794 |
+| Hjemmebane har ingen klokke — «set i appen» virker kun for community | #790 — `mark_notifications_seen` kaldes når klokken åbnes |
+| Sortering og branchefilter på /virksomheder | #771 |
+| /members er tømt — to dele står | #771/#772 — det der stadig peger på listen (Guide, indgangsMail, Slack-links) står nu på kortet «Pulse check-in og Guide» |
+| Medlemmets aftale-kort er bygget — perioderne kommer når nogen har nogen | #773 — beviset (første rigtige periode, PHILBERT efter 22/9) står i DEL 3 |
+| Medlemmet kan ikke se sin egen betalingshistorik | #773 — samme bevis |
+| /settings er Hjemmebane — notifikationsfanen læste aldrig det gemte | #773 |
+| Ét job der klippes hvert femte minut er ikke en grund i vagten | `kald_edge` (#779): timeouten hævet fra pg_nets 5 s til 30 s; vagtens ottende version tæller timeouts; tallet skal falde til nul |
+
+**Slettet som løst — var løst før i dag, stod stadig åbent (overblikket §1):**
+
+| kort | løst af |
+|---|---|
+| «Dine tal» krydses af ved upload, ikke ved godkendelse | 9/9 (`onboardingTjekliste.ts`: «RETTET 9/9 … godkendelsen ER medlemmets klik») |
+| Nøgletals-mål: fejlen kaster og standardmål markeres | 7/9; tallene har eget kort («KPI-fallbackens fire kronebeløb») |
+| De 63 udløbne er arv — beviset for cron'en kommer 7/9 | bevist 7/9 |
+| Badget kender kun varsel 1 | #719 (7/9): `lib/varselTrin.ts`, ÉN regel for badge og dom, CARMA-tilfældet testet i begge |
+| Strandede invitationer står, men ingen dom siger «strandet» | #754 (9/9) gav dem et sted med alder; dommen blev besluttet VÆK 3/9 |
+| Mobil: tomt grønt bundstykke | #726 (8/9), låst af `hbFuldhoejde.guard` |
+| remm. og YKRG ser kun årstal — og YKRG ser nuller | nullerne: #786 (et manglende tal er et hul, ikke nul); «kun årstal» er udtrækkets sag og står nu på kortet om de ni af elleve |
+
+**Omskrevet — det der står tilbage:** årsrapport-udtrækket (fladen lyver ikke
+længere, ni af elleve mangler stadig felter — beslutning: byg udtrækket om
+eller manuel indtastning); rapport-uploaden (16 strandinger på 90 dage målt
+10/9; fire domme rettet #783–#786; PHILBERTs PDF-layout og XLSX-mismatch står);
+events (kalender, publiceringsmail og «om en time» bygget; bekræftelse og
+lokation står); mørke tokens (agentpanelet konverteret; fire paneler bærer
+stadig wrapperen); fejlovervågning (vagten ser cron og kø; edge functions og
+webhooks er ubevogtede); tavse queryFn'er (medlemmets og rådgiverens flader
+rettet; app-config, admin og mutationer står); onboardingens rytme (cron
+skal planlægges gennem `kald_edge`); Pulse/Guide (de løse links til
+`/members`).
+
+**Nye kort:** PHILBERTs e-conomic-PDF'er rammer ingen skabelon — og to
+måneder i én fil var usynlige før #785 (fejl, medlem); chat-mails ved ikke om
+beskeden er læst i appen — `messages.read_at` læses ikke af mail-motoren
+(mangler, medlem); «Online nu» — hvem er på platformen (idé, Jonas 10/9, ikke
+afgjort; huset har ingen presence).
+
+**Dagens PR'er der ikke lukkede et kort, men er bogført her:** #784 (et
+underskud er ikke en vendt fil — `suspicious_sign_pattern` tæller nu kun
+felter der ikke lovligt kan være negative; ÅTD 0 er ingen aflæsning), #785
+(to måneder i én fil afvises med grund), #787 (et estimat tæller ikke som
+realiseret i budgettet), #793 (rapportkortet siger hvorfor), #792 (mail når et
+event publiceres), #781/#782 (fladerne siger fra — se kortet om tavse
+queryFn'er), og de fire små i #791 (chattens skrivefelt: tre linjer at starte
+på, en tredjedel af skærmen før det ruller).
+
 ### Mailplatformen — bygget om af Lovable 8/9 kl. 06:52-06:58; afsenderne, fortegnelsen og værnet (#728, #730, #731, #732)
 
 **Hvad Lovable gjorde.** 19 commits direkte til main mellem kl. 06:52 og
@@ -3351,6 +3427,7 @@ facit og rækkefølge; `docs/chat-design.md` chattens form.
 |---|---|---|
 | **RETTET 10/9** (#771–#773): `/members` er tømt — kun importen og onboarding-tragten står; `/settings` er konverteret med aftalen og en rigtig notifikationsfane. **EFTER 9/9** — det der stod tilbage efter rådgiverfladen og de to trin | ~~Otte ting kun på `/members`~~ → **10/9: importen bliver til ansøgningsflowet flytter; onboarding-tragten skal IKKE flyttes.** ~~`/settings`' tre rester~~ → **10/9: konverteret (#773).** **Aftale-kortet** er bygget med slutdato og pris; perioderne vises når nogen har nogen — 27 af 27 har nul. **Bevis:** `_shared/ikkeIGang.ts` i «View code» efter merge, Update for forsiden. **Ikke kode:** skriv til de seks der aldrig har uploadet — bed om historikken. | DEL 2 «9. september», mangellisten «Rådgiverfladen» |
 | **9/9 — I MORGEN** (punkt 1 og 2 er KØRT 8/9: de syv slettet kl. 12:14–12:26, DEL 2 «De otte tidligere»; kvitteringen siger en dato og kan fortrydes, #736) | **1) KØRT 8/9 kl. 12:14–12:26** — de syv tidligere slettet i fire hold efter `docs/koereplan-de-syv-tidligere.md` (nu historik); 8 af 8 stemplet, sweep tomt. **2) KØRT (#736)** — kvitteringen siger «Din data slettes den …» (motorens frist) og kan fortrydes til dagen før. **3) Cron-migrationsfilen** der bogfører `slet-medlemsdata` (`0 12 * * *`), formen fra `20260901112000_prod_cron_bogfoert.sql`. **4) Planen for 8/9, punkt 6–7** (punkt 4 og 5 er GJORT 8/9 eftermiddag: digesten kalder milepælsdommen #741/#742, kvitteringsmailen #739 — DEL 2 «Eftermiddagen 8/9»): toasten i `Index.tsx`, og den tomme platform (a–d). **5) Intro-sessionens tid** — starttiden ankommer i `calendly-webhook` og kastes væk; bygges (det andet vindue 8/9 aften). **6) Åbne fund uden beslutning:** de betalte 1:1-sessioner der stopper ved `booking_sent`; agentens forslag (op til tre pr. virksomhed pr. mandag + ét pr. rapport, ingen læser svarene) — mangellisten bærer begge. | `docs/koereplan-de-syv-tidligere.md`; `docs/koereplan-slettefunktionen.md`; DEL 2 «Slettefunktionen»; øverst «PLANEN FOR 8. SEPTEMBER» |
+| **22/9 — BEVIS** (kortene «aftale-kortet» og «betalingshistorik» er slettet fra mangellisten 10/9; beviset står her) | **Første rigtige periode på `/settings`.** #773 viser aftalen (slutdato, start, pris fra `companies`) og «Betaling» (perioder og fakturaer) — men målt 9/9 har 27 af 27 nul rækker i `company_traek`/perioder. PHILBERTs varsel 2 går 22/9 og bliver den første række. Bevis: kortet viser perioden og fakturaen på skærmen, og `company_fornyelse` læses ikke (låst med test). | DEL 2 «10. september» (#773) |
 | **10/9** — MÅLT 6/9: ikke en tændingsdato | Fornyelsesordningen træder i kraft. Tre udløber inden og falder udenfor. **Intet sker i koden den dag:** `FORNYELSE_IKRAFT_DATO` sammenlignes med virksomhedens slutdato, ikke dags dato, og bliver virkningsløs efter 10/9. Kædens forudsætninger er alle grønne (seks migrationer kørt, ni priser, seks events, fire funktioner udrullet — men 401 beviser kun at de findes, ikke hvilken version; driftsbeviset fra 1/9 ligger før #529, #561, #563, #572 og #583). **Det der IKKE er klar: ordningen har ingen afsender** — rækken «BESLUTTET 6/9» nedenfor. | fornyelseskæden §13; fornyelsesordningen §5, §7; DEL 2 «Fornyelseskæden» |
 | BESLUTTET 6/9 (Jonas), TALLENE 7/9 — KÆDEN ER HEL og BEVIST I PRODUKTION 7/9 kl. 11:57 (#680, #681, #691, #692, #694–#697); LØST 7/9 kl. 14:51: cron-jobbet er PLANLAGT (0 11 * * *, aktivt) — **22/9** er PHILBERTs varsel 2 | **Medlemmet skal høre om sin fornyelse fra SYSTEMET, ikke ved at miste adgangen.** Formen, med tal fra 7/9: mail 1 ved 30 dage før slutdato, mail 2 ved 7 dage, tilbuddet lever 14 dage efter slutdato (bygget som tilstand, #678); et tilbud om at booke «En snak om din fornyelse» via https://calendly.com/topix-jonas/fornyelse (almindeligt link, ikke engangslink); og en notifikation til rådgiveren når mail 1 er sendt, så den personlige chatbesked kommer EFTER systemets mail og ikke i stedet for. **Konsekvens:** rådgiverbeslutningen skal foreligge senest dag 30, ellers sendes intet — en glemt beslutning aflyser mailen, den forsinker den ikke. **LØST 7/9 kl. 14:51:** jobbet er planlagt — `fornyelsesvarsler`, `0 11 * * *` UTC (13:00 dansk), aktivt, målt i `cron.job`. Første kørsel 8/9 finder ingen forfaldne (PHILBERT og CARMA er stemplet); næste rigtige afsendelse er PHILBERTs varsel 2 den 22/9, og den sker af sig selv. Rådgiveren ser stemplet på forsiden («Varslet er sendt — N dage», #696); en egen notifikation til rådgiveren er ikke bygget. *Bevist i produktion 7/9 kl. 11:57:* PHILBERT fik varsel 1, CARMA fik varsel 2 på dag 0 uden varsel 1, begge stemplet (DEL 2 «Fornyelseskæden»). Motoren `afgoerForfaldentVarsel` (#680) og `fornyelsesvarsel-cron` (#681) FINDES; tørkørslen kl. 10:15 fandt PHILBERT → varsel 1 og CARMA → varsel 2 med «varsel 1 springes over: sen beslutning» (DEL 2 «Fornyelseskæden», fornyelseskæden §15). Stemplerne findes (`varsel_1_sendt_at`, `varsel_2_sendt_at`, #674, i prod 7/9 kl. 08:51; ingen trigger — skrivestien sætter selv `updated_at`). **Formen SPEJLER INDGANGENS KÆDE** (målt 6/9, `~/Downloads/recon-indgangens-mailkaede.md`, uden for repoet): pg_cron → `net.http_post` med vault-nøglen → Bucket B-funktion med `authenticateServiceRole` → TØRKØRSEL SOM STANDARD → ren motor afgør hvilken dag hver række står på → byg mail → enqueue → stempl KUN når afsendelsen lykkedes. **Datamodellen (LØST 7/9, #674):** stempel-felterne findes nu — to navngivne kolonner frem for et dag-nummer, fordi de to varsler kan sendes uafhængigt. **Calendly (LØST 7/9):** event-typen findes, linket står ovenfor. Betalte bookinger registreres i dag aldrig tilbage i platformen (målt 3/9), så linket i mailen skal være et almindeligt link — vi lover ikke en måling vi ikke kan holde. **Tempoet, målt i prod 6/9:** efter Doggybed 13/10 er der ingen fornyelse før Livja 16/12 — to måneders hul; derefter fjorten virksomheder marts–juni 2027, over halvdelen af porteføljen. Deadline for mailkæden: Livja minus 30 dage. | fornyelsesordningen §7; fornyelseskæden §13.4; indgangen-design §26 (formen) |
 | åbent, målt 6/9, delvist ændret 7/9 — værnet er stadig et menneske | **Datogaten omgås stadig hvor pengene skifter hænder.** `hent-fornyelsestilbud` kalder nu motoren (#678), men både den og `opret-fornyelse-checkout` kræver `udloebet_tilbyd`, som afgøres i udløbsgrenen FØR datogaten. En virksomhed «uden for ordningen» med beslutning `tilbyd` får derfor stadig et systemtilbud og kan betale — nu dog kun de første 14 dage efter udløb. Om gaten SKAL gælde der, er en beslutning — i dag er det rådgiverens finger der er værnet. | fornyelseskæden §13.3 |

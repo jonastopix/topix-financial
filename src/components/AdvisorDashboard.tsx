@@ -5,6 +5,7 @@ import * as Sentry from "@sentry/react";
 import { useAuth } from "@/hooks/useAuth";
 import { computeMembershipTier } from "@/lib/membershipTier";
 import { afgoerVirksomhedsSignaler, isFiguresFresh, type FactPunkt, type Signal, type VirksomhedsInput } from "@/lib/virksomhedsSignaler";
+import { budgetOmsaetningFor, type BudgetRaekke } from "@/lib/budgetSignalInput";
 import { afgoerForsidensDom, type OpgaveTilDom, type VirksomhedTilDom } from "@/lib/forsidensDom";
 import { kraevRaekker } from "@/lib/kraevRaekker";
 import { laesKvittering, type Kvittering } from "@/lib/opgaveLukning";
@@ -341,6 +342,9 @@ export const hentAdvisorDashboard = () =>
         // Ny og ikke i gang (9/9, lib/ikkeIGang): uploads pr. virksomhed —
         // ændrer ordene («har uploadet — ikke godkendt»), ikke dommen.
         uploadsRes,
+        // Budgetafvigelse (#119, 10/9, lib/budgetSignalInput): budgetteret
+        // omsætning i base-scenariet — dommen læste feltet, men fik aldrig tallet.
+        budgetRes,
       ] = await Promise.all([
         supabase
           .from("conversations")
@@ -511,6 +515,15 @@ export const hentAdvisorDashboard = () =>
           .select("company_id")
           .is("deleted_at", null)
           .limit(5000) as any),
+        // Budgetafvigelse (#119): alle virksomheders base-budget for omsætning —
+        // RLS «Advisors can view all budget targets» bærer det; kun de kolonner
+        // opslaget læser. Kategorien filtreres i DB, perioden i kode (base-nøglen
+        // udledes af hver virksomheds seneste facts-periode).
+        supabase
+          .from("budget_targets")
+          .select("company_id, period, category, budget_amount")
+          .eq("category", "omsaetning")
+          .like("period", "%-base-%"),
       ]);
 
       // DELKALDENE KASTER (7/9, recon-tavse-fejl.md pkt. 1): de ni kilder
@@ -538,6 +551,8 @@ export const hentAdvisorDashboard = () =>
         committed_at: string;
       };
       const facts = kraevRaekker(factsRes, "financial_report_facts") as FactRaekke[];
+      // Budgetafvigelse (#119): rækkerne til opslaget pr. virksomhed nedenfor.
+      const budgetRaekker = kraevRaekker(budgetRes, "budget_targets") as BudgetRaekke[];
       // Aktivitetsfeedets udsnit — den tidligere egen hentnings filtre,
       // ordret: committed_at >= 14 dage, nyeste først, højst 20.
       const twoWeeksAgoMs = Date.parse(twoWeeksAgo);
@@ -974,8 +989,8 @@ export const hentAdvisorDashboard = () =>
         //      - «Stikker ud»: alerts er UDE (motorens valg 4); MoM regnes med
         //        Math.abs(prev) og uden kravet latestRev > 0 && prevRev > 0 fra
         //        revenueTrendByCompany; resultatfald ≥ 15 % MoM er NYT (alvor 70).
-        //      - Budgetafvigelse kan IKKE komme på forsiden endnu: queryFn henter
-        //        ikke budget_targets, så budgetOmsaetning er null (se nedenfor).
+        //      - Budgetafvigelse (#119, 10/9): queryFn henter nu budget_targets
+        //        (base-scenariet, omsaetning); opslaget i lib/budgetSignalInput.
         const companyFacts = kfByCompanyPeriod.get(c.company_id);
         const factKeys = companyFacts ? [...companyFacts.keys()].sort() : [];
         const tilFactPunkt = (key: string | undefined): FactPunkt | null => {
@@ -1009,9 +1024,10 @@ export const hentAdvisorDashboard = () =>
           // recentFacts bærer kun facts committet inden for 14 dage — præcis
           // det vindue «friske tal» dømmer på. Ældre → null → intet signal.
           senesteCommittedAt: freshFact?.committed_at ?? null,
-          // queryFn henter IKKE budget_targets. Budgetafvigelse kan derfor ikke
-          // komme på forsiden før den gør — bevidst null, ingen ny query her.
-          budgetOmsaetning: null,
+          // Budgetafvigelse (#119, 10/9): base-budgettet for senestes periode —
+          // kun når seneste række er MÅLT (data_basis-kontrakten); intet budget
+          // → null → motoren giver intet signal (aldrig et signal om nul).
+          budgetOmsaetning: budgetOmsaetningFor(budgetRaekker, c.company_id, senesteNoegle, senesteNoegle ? companyFacts?.get(senesteNoegle)?.data_basis : null),
           forfaldneMilestones: 0, // motoren bruger dem ikke (valg 6); queryFn har kun aktive milestones
           loeftestaenger: 0, // queryFn henter ikke levers
           ulaesteBeskeder: c.unreadMessages,
