@@ -18,6 +18,11 @@ export interface HbNavEntry {
       tegn-for-tegn som medlemsmenuen altid har været. Rådgiverens menu
       bruger to: «Medlemmets flader» og «Platform» (lib/hjemmebane/hbNav). */
   blok?: string;
+  /** Et roligt mærke efter labelen (10/9, «Live nu» ved Events): husets
+      pille i sage/evergreen — aldrig rust, aldrig blinkende. `to` er
+      mærkets eget link (eventets side); `titel` er skærmlæserens tekst.
+      Udeladt = ingen ændring. Der fandtes intet mærke-mønster før dette. */
+  maerke?: { tekst: string; to: string; titel?: string };
 }
 
 /** Miljø-strukturen som navigation. Døde links i previewen — kun "Dit Boardroom" er reel. */
@@ -60,14 +65,14 @@ interface HbSidebarProps {
   visIndstillinger?: boolean;
 }
 
-const NavItem = ({ label, active, to }: { label: string; active?: boolean; to?: string }) => {
+const NavItem = ({ label, active, to, maerke }: { label: string; active?: boolean; to?: string; maerke?: HbNavEntry["maerke"] }) => {
   const className = cn(
     "relative flex h-10 items-center rounded-full px-4 text-[15px] transition-colors",
     active ? "font-medium text-hb-ink" : "text-hb-ink-soft hover:bg-hb-sage/30 hover:text-hb-ink",
   );
   const marker = active && <span className="absolute left-0 h-5 w-[3px] rounded-full bg-hb-evergreen" />;
-  return to ? (
-    <Link to={to} className={className}>
+  const link = to ? (
+    <Link to={to} className={cn(className, maerke && "min-w-0 flex-1")}>
       {marker}
       {label}
     </Link>
@@ -76,6 +81,23 @@ const NavItem = ({ label, active, to }: { label: string; active?: boolean; to?: 
       {marker}
       {label}
     </a>
+  );
+  if (!maerke) return link;
+  // Mærket er sit eget link (eventets side) ved siden af punktet — et
+  // roligt sage-felt med evergreen tekst, uden animation.
+  return (
+    <div className="flex items-center gap-2">
+      {link}
+      <Link
+        to={maerke.to}
+        title={maerke.titel}
+        aria-label={maerke.titel ?? maerke.tekst}
+        className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-hb-sage px-2.5 py-1 text-[11px] font-medium text-hb-evergreen transition-colors hover:bg-hb-sage/70"
+      >
+        <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-hb-evergreen" />
+        {maerke.tekst}
+      </Link>
+    </div>
   );
 };
 
@@ -131,7 +153,7 @@ const SidebarContent = ({
               <p className="border-t border-hb-line pt-4 text-xs text-hb-ink-soft">{item.blok}</p>
             </div>
           )}
-          <NavItem label={item.label} active={item.active} to={item.to} />
+          <NavItem label={item.label} active={item.active} to={item.to} maerke={item.maerke} />
           {item.children && (
             /* Gren-hairline lokalt mørknet: hb-line (L88) drukner som fritstående
                1px-streg direkte på papiret (L97). Tokenen er urørt. */

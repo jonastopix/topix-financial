@@ -1,5 +1,5 @@
 import * as React from "react";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { HbSidebar, HbSidebarDrawer, type HbNavEntry } from "./HbSidebar";
 import { HbNav } from "./HbNav";
@@ -10,6 +10,9 @@ import { useHbDokumentGrund } from "@/hooks/useHbDokumentGrund";
 import { pillenTraekkerSig } from "@/lib/hjemmebane/ankomst";
 import { HbVisningSom } from "./HbVisningSom";
 import { bygHbNav, type HbAktiv } from "@/lib/hjemmebane/hbNav";
+import { useQuery } from "@tanstack/react-query";
+import { listAllUpcomingEvents } from "@/lib/hjemmebane/akademiApi";
+import { LIVE_MAERKE, liveEvent, liveEventSti, liveEventTitel } from "@/lib/hjemmebane/liveEvent";
 
 /** Fælles Hb-medlemsskal for forsiden ("/") og de øvrige medlemsflader
     (generalisering af den tidligere HbAkademiShell): V0-layoutmodellen
@@ -113,7 +116,35 @@ export const HbMemberShell = ({
      først og admin-blokken (§3.1) sidst for rådgiveren; «Opgaver» er ude
      (listen hører på forsiden). Samme array til desktop-sidebaren og
      mobil-draweren nedenfor. */
-  const nav: HbNavEntry[] = bygHbNav({ isAdvisor, erAbonnent, active });
+  const navUdenMaerke: HbNavEntry[] = bygHbNav({ isAdvisor, erAbonnent, active });
+
+  /* «LIVE NU» VED EVENTS (Jonas 10/9). Hentningen deler cache-nøgle med
+     /events og Community-composeren (["events", "upcoming-all"]), så
+     skallen koster intet ekstra kald på en side der alligevel henter
+     events, og ellers ét kald pr. fem minutter pr. session — ikke ét pr.
+     side. Live-tilstanden regnes af den cachede liste mod et ur der
+     tikker hvert minut (eventMeetPhase), så mærket kommer og går uden
+     refetch. Abonnenter har ikke Events i menuen og får derfor intet
+     mærke (dekorationen rammer kun et punkt der findes). Hooks i
+     topblokken, før enhver betinget return. */
+  const eventsQuery = useQuery({
+    queryKey: ["events", "upcoming-all"],
+    queryFn: listAllUpcomingEvents,
+    enabled: !erAbonnent,
+    staleTime: 5 * 60_000,
+    refetchOnWindowFocus: true,
+  });
+  const [nu, setNu] = useState(() => new Date());
+  useEffect(() => {
+    const id = window.setInterval(() => setNu(new Date()), 60_000);
+    return () => window.clearInterval(id);
+  }, []);
+  const live = liveEvent(eventsQuery.data ?? [], nu);
+  const nav: HbNavEntry[] = live
+    ? navUdenMaerke.map((e) =>
+        e.to === "/events" ? { ...e, maerke: { tekst: LIVE_MAERKE, to: liveEventSti(live), titel: liveEventTitel(live) } } : e,
+      )
+    : navUdenMaerke;
 
   return (
     <div ref={rodRef} className={`theme-hjemmebane ${fuld ? "h-screen-safe" : "min-h-screen-safe"} bg-hb-paper font-body text-hb-ink antialiased`}>

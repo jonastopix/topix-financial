@@ -350,9 +350,9 @@
   <p class="lede">Fornyelseskæden bærer siden 1/9, indgangens betaling siden 2/9, månedstrækkene registreres siden 3/9. Målt 6/9 mod 10/9: alle forudsætninger er grønne, men ordningen har ingen afsender, og 10/9 er ikke en tændingsdato (OVERLEVERING DEL 2 «Fornyelseskæden», fornyelseskæden §13). 7/9: tilbudsvinduet er bygget og bevist, stemplerne er i prod, tallene er besluttet — afsenderen selv er det der står (fornyelseskæden §14). 7/9 eftermiddag: varselsmotoren og en cron-rapport findes og er tørkørt på rigtige data, og fornyelsen kan betales FØR slutdatoen (fornyelseskæden §15) — mailene og et sted at se tilbuddet før udløb er det der står. Dertil migrationen af de tretten, det der stadig sker i tavshed, og det der var dødt uden at nogen vidste det.</p>
   <div class="grid">
     <div class="card new" data-status="mangler" data-spor="senere" data-rammer="medlem">
-      <h3>Medlemmets aftale-kort venter på perioder — 27 af 27 har nul</h3>
-      <p>Læseadgangen er givet (#756: SELECT for medlemmet på <code>company_perioder</code> og <code>company_traek</code>, migration kørt 9/9). Kortet er ikke bygget, for der er intet at vise: målt 9/9 har ingen aktiv virksomhed en række i <code>company_perioder</code>. Perioderne kommer med migrationen af de 13 og med de næste fornyelser — kortet bygges når den første række findes, ellers viser det tomhed til alle.</p>
-      <div class="meta"><span class="tag ny">Ny 9/9</span><span class="tag">Nul rækker</span><span class="tag size">Lille</span></div>
+      <h3>Medlemmets aftale-kort er bygget — perioderne kommer når nogen har nogen</h3>
+      <p><strong>Rettet 10/9 (#773):</strong> kortet på <code>/settings</code> viser det medlemmet KAN se i dag — slutdato («Gælder til 22. september 2026 — 12 dage endnu»), start og pris fra egen <code>companies</code>-række. Perioder og træk (#756) vises kun når der er rækker; målt 9/9 har 27 af 27 nul, PHILBERT bliver den første efter 22/9. <code>company_fornyelse</code> læses aldrig — vores noter er ikke deres aftale (låst med test). <strong>Bevis udestår:</strong> første rigtige periode på skærmen.</p>
+      <div class="meta"><span class="tag ny">Ny 9/9</span><span class="tag">Rettet 10/9</span><span class="tag">Bevis 22/9</span><span class="tag size">Lille</span></div>
     </div>
     <div class="card blocked" data-status="fejl" data-spor="senere" data-rammer="raadgiver">
       <h3>Betalingsstigen med e-conomic — integrationen findes og er død</h3>
@@ -438,8 +438,8 @@
     </div>
     <div class="card" data-status="ide" data-spor="senere" data-rammer="medlem">
       <h3>Medlemmet kan ikke se sin egen betalingshistorik</h3>
-      <p>Hvad har jeg betalt, hvornår, og hvad dækker det? Intet sted i platformen. For en virksomhed der bogfører er det en rimelig forventning — og <code>company_perioder</code> og <code>company_traek</code> bærer allerede tallene.</p>
-      <div class="meta"><span class="tag">Motor klar</span></div>
+      <p><strong>Rettet 10/9 (#773):</strong> kortet «Betaling» på <code>/settings</code> viser perioder og fakturaer (beløb, status i medlemmets ord, dato, link til Stripes faktura) — så snart der er rækker. I dag har ingen nogen; historikken før 1/9 ligger kun i Stripe.</p>
+      <div class="meta"><span class="tag">Rettet 10/9</span><span class="tag">Bevis 22/9</span></div>
     </div>
     <div class="card" data-status="ide" data-spor="senere" data-rammer="ingen">
       <h3>Abonnenter kan ikke opsige selv</h3>
@@ -885,10 +885,10 @@
       <p>Jonas 6/9: listen skal kunne sorteres på Virksomhed, Medlemsstatus og Sidste kontakt. Det er IKKE en løs idé — den gamle <code>/members</code>-liste har sortering og branchefilter, og de står som punkt 11 i de elleve dele der blokerer swappet (OVERLEVERING DEL 3, kortet «<code>/members</code> kan ikke swappes» nedenfor). Hører til dér: bygges det på <code>/virksomheder</code>, er ét af de elleve punkter væk.</p>
       <div class="meta"><span class="tag ny">Ny 6/9</span><span class="tag">Del af swappet</span><span class="tag size">Lille</span></div>
     </div>
-    <div class="card blocked" data-status="mangler" data-spor="6" data-rammer="raadgiver">
-      <h3><code>/members</code> kan ikke swappes — otte dele findes kun dér</h3>
-      <p><strong>Rettet 9/9:</strong> fornyelsesbeslutningen bor på virksomhedssiden (#707/#709), invitationerne på <code>/virksomheder</code> og virksomhedssiden (#754), sidst online er tilbage (#751). Tilbage: <code>IndgangsSektion</code> (sæt prisniveau → betalingsmail), «Omdøb virksomhed» (<code>EditCompanyDialog</code> har intet navnefelt), «Tilknyt» (merge over otte tabeller), «Importér/berig med ansøgning», «Slet virksomhed», <code>MembersOnboardingFunnel</code> og branchefiltret. Det der stadig peger på listen: <code>Guide</code>, rådgivermailen <code>indgangsMail.ts</code>, Slack-fallback-links.</p>
-      <div class="meta"><span class="tag">Rettet 9/9</span><span class="tag rust">Blokerer swappet</span><span class="tag size">Mellem</span></div>
+    <div class="card" data-status="mangler" data-spor="6" data-rammer="raadgiver">
+      <h3><code>/members</code> er tømt — to dele står, og kun én skal flytte</h3>
+      <p><strong>Rettet 10/9 (#771, #772):</strong> invitationerne (#754), stamdata og branchefiltret (#771) og importens advarsel (#763) er flyttet; tilknyt og berig er fjernet (284 linjer). <strong>Slet</strong> kalder ikke længere <code>hardDeleteCompany</code>, men stempler <code>offboarding_requested_at</code> — slettefunktionen gør arbejdet på dag syv, med syv dages fortrydelsesfrist. <strong>Tilbage:</strong> importen, som bliver til ansøgningsflowet flytter til platformen (kortet «Ansøgningsflowet»), og <code>MembersOnboardingFunnel</code>, som IKKE skal flyttes. Det der stadig peger på listen: <code>Guide</code>, rådgivermailen <code>indgangsMail.ts</code>, Slack-fallback-links.</p>
+      <div class="meta"><span class="tag">Rettet 10/9</span><span class="tag size">Lille</span></div>
     </div>
     <div class="card decision new" data-status="beslutning" data-spor="6" data-rammer="raadgiver">
       <h3>Designets §11 punkt 6 er ufuldstændigt</h3>
@@ -984,10 +984,10 @@
   <h2>Design og konvergens</h2>
   <p class="lede">Konvergensen sker ved beslutninger, ikke ved drift — hver flade har en bogført skæbne i <code>docs/hjemmebane/konvergens.md</code>. Det der står, er de sidste gamle flader, mailene og mobilen som mønster. Og fra 7/9: den strukturelle årsag til mørke tokens på lyst papir (kortet nederst i afsnittet).</p>
   <div class="grid">
-    <div class="card decision" data-status="beslutning" data-spor="1" data-rammer="medlem">
-      <h3><code>/settings</code> — tre rester efter at kontoen flyttede</h3>
-      <p><strong>Rettet 9/9:</strong> kontoen bor på <code>/konto</code> for alle roller (#757) — e-mail kan ikke ændres, login-metoderne vises; rådgivere sendes videre fra <code>/settings</code>. Tilbage i det gamle design: netværksprofilen (hører til Netværket), virksomheden (mangler «Aftalen» — perioder og træk, som medlemmet nu må læse, #756) og notifikationsfanen (en tekst uden knapper). Hvad der hører sammen med hvad, er ikke afgjort.</p>
-      <div class="meta"><span class="tag">Rettet 9/9</span><span class="tag gold">Design først</span><span class="tag size">Mellem</span></div>
+    <div class="card" data-status="mangler" data-spor="1" data-rammer="medlem">
+      <h3><code>/settings</code> er Hjemmebane — notifikationsfanen læste aldrig det gemte</h3>
+      <p><strong>Rettet 10/9 (#773):</strong> hele siden i Hb som kontoen (#757). Notifikationsfanen var en tekst uden knapper for rådgivere og fem kontakter der altid stod på «til» for medlemmer — den læste præferencerne fra <code>useAuth</code> via en <code>as any</code>-cast, og <code>useAuth</code> henter ikke kolonnen. Nu læses <code>profiles.notification_email_prefs</code> direkte: fem mailtyper koden faktisk læser (<code>pulse_reminders</code> er væk — mailen blev unscheduleret 12/6) plus <code>weekly_focus_enabled</code>. Aftalen viser slutdato og pris; perioder og træk kun når der er rækker. <strong>Står:</strong> netværksprofilen hører stadig til Netværket, ikke til en indstillingsside.</p>
+      <div class="meta"><span class="tag">Rettet 10/9</span><span class="tag size">Lille</span></div>
     </div>
     <div class="card" data-status="mangler" data-spor="senere" data-rammer="ingen">
       <h3>Afsenderen er skiftet — to rester bærer stadig topix.dk</h3>
@@ -1058,10 +1058,10 @@
   <h2>Drift og fundament — ydeevne, overvågning, RLS, døde felter</h2>
   <p class="lede">Ingen fejlovervågning. Hændelser findes ved manuel måling, ikke af nogen alarm — RLS-hullet 3/9 blev fundet med en lånt identitet, ikke af et værn.</p>
   <div class="grid">
-    <div class="card blocked new" data-status="fejl" data-spor="1" data-rammer="ingen">
-      <h3>Cron-jobbene fejler tavst</h3>
-      <p><strong>Målt i prod 9/9 kl. 23:39:</strong> <code>vault.secrets</code> har nul rækker — <code>email_queue_service_role_key</code> er slettet. Alle ni cron-jobs sender <code>Bearer </code> uden nøgle og får 401: <strong>77 kald med 401, nul med 200</strong> så langt <code>net._http_response</code> rækker (kl. 15:20). Ingen mails siden mindst kl. 15:20. Og <code>cron.job_run_details</code> sagde «succeeded» for dem alle hele dagen — det betyder kun at kaldet blev afsendt. Nøglen genskabes i morgen (OVERLEVERING, øverst). <strong>Det der mangler:</strong> et dagligt job der læser <code>net._http_response</code> og siger til når noget svarer andet end 200 — en cron der fejler tavst i otte timer må ikke kunne ske igen.</p>
-      <div class="meta"><span class="tag ny">Ny 9/9</span><span class="tag rust">Kører lige nu</span><span class="tag size">Stor</span></div>
+    <div class="card new" data-status="mangler" data-spor="1" data-rammer="ingen">
+      <h3>Cron-jobbene fejler tavst — vagten er bygget, men virkede ikke første gang</h3>
+      <p><strong>Udfaldet er løst:</strong> <code>email_queue_service_role_key</code> genskabt 9/9 kl. 23:50, 200 fra <code>fornyelsesvarsel-cron</code>. Otte timer med 401 og «succeeded» i <code>cron.job_run_details</code> (OVERLEVERING øverst, nu historik). <strong>Vagten</strong> (#768, #770) er bygget og migrationen kørt — og den fejlede to gange: en plpgsql-variabel <code>r</code> delte navn med tabelaliasset (rettet), og derefter timede den ud på <code>cron.job_run_details</code> med 1.895.419 rækker uden indeks på <code>start_time</code> — tabellen ejes af systemet og kan ikke indekseres. Årsagen: den gamle <code>email_queue_dispatch</code> planlagde ét engangs-job pr. afsendelse. Lovable ryddede 1.892.693 rækker 10/9; 2.734 tilbage. <strong>Det der står:</strong> bevis at vagten svarer på de 2.734, og afgræns på tid FØR join (DEL 4).</p>
+      <div class="meta"><span class="tag ny">Ny 9/9</span><span class="tag">Udfald løst 9/9</span><span class="tag rust">Vagten ubevist</span><span class="tag size">Mellem</span></div>
     </div>
     <div class="card blocked" data-status="fejl" data-spor="1" data-rammer="raadgiver">
       <h3>Ingen fejlovervågning</h3>
@@ -1194,6 +1194,16 @@
       <h3>Gruppechat-laget er ubrugt</h3>
       <p><code>group_conversations</code> og <code>group_messages</code> med tilhørende RLS.</p>
       <div class="meta"><span class="tag size">Mellem</span></div>
+    </div>
+    <div class="card new" data-status="mangler" data-spor="senere" data-rammer="medlem">
+      <h3>Hjemmebane har ingen klokke — «set i appen» virker kun for community</h3>
+      <p><strong>Fund 10/9</strong> (<code>~/Downloads/recon-gamle-notifikationer.md</code>): mail-motoren springer notifikationer med <code>seen_at</code> over, men <code>seen_at</code> sættes kun når klokken åbnes (<code>NotificationCenter</code>) — og den findes kun i den gamle skal. Et medlem i Hjemmebane får aldrig <code>seen_at</code>. Community er dækket siden #770 (<code>community_visninger</code>); chat-mails læser stadig ikke <code>messages.read_at</code>, og event-påmindelser ikke om man har svaret. Enten en klokke i Hb, eller flere kilder til «set».</p>
+      <div class="meta"><span class="tag ny">Ny 10/9</span><span class="tag size">Mellem</span></div>
+    </div>
+    <div class="card new" data-status="mangler" data-spor="senere" data-rammer="medlem">
+      <h3>Onboardingens rytme er bygget — cron-jobbet er ikke planlagt</h3>
+      <p>#766: <code>onboarding-rytme</code> (dag 0–1 «Sådan kommer du i gang», dag 14–20 «Historikken først», kun uden upload) og intro-påmindelsen flyttet til dag 10 i systemets stemme. Migrationen <code>20260910…_onboarding_rytme_cron</code> er skrevet, IKKE kørt. Kør funktionen tørt først og læs <code>ville_sende</code> (A rammer kun medlemmer der er højst én dag gamle — låst med test), så migrationen.</p>
+      <div class="meta"><span class="tag ny">Ny 10/9</span><span class="tag rust">Ikke planlagt</span><span class="tag size">Lille</span></div>
     </div>
     <div class="card" data-status="ide" data-spor="senere" data-rammer="medlem">
       <h3>Notifikationspræferencer — og en fravalgsnøgle for Community</h3>
