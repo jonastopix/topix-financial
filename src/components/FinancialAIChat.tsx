@@ -21,6 +21,10 @@ interface FinancialAIChatProps {
   initialMessage?: string;
 }
 
+/* HJEMMEBANE (10/9, #78): fanen tegner i husets tokens — papir, hairlines,
+   sage/evergreen. Før stod tretten af appens .dark-tokens inde i Hb-skallen
+   og gav mørke felter på papir.
+   Streaming-logikken er urørt. */
 export default function FinancialAIChat({ initialMessage }: FinancialAIChatProps) {
   const { companyId } = useAuth();
   const [messages, setMessages] = useState<Message[]>([]);
@@ -144,15 +148,15 @@ export default function FinancialAIChat({ initialMessage }: FinancialAIChatProps
   };
 
   return (
-    <div className="flex flex-col h-full bg-background">
+    <div className="flex flex-col h-full bg-hb-paper text-hb-ink">
       {/* Header */}
-      <div className="flex items-center gap-3 px-4 py-3 border-b border-border bg-card">
-        <div className="h-9 w-9 rounded-lg bg-primary/10 flex items-center justify-center">
-          <Sparkles className="h-4 w-4 text-primary" />
+      <div className="flex items-center gap-3 px-4 py-3 border-b border-hb-line bg-hb-surface">
+        <div className="h-9 w-9 rounded-lg bg-hb-sage flex items-center justify-center">
+          <Sparkles className="h-4 w-4 text-hb-evergreen" />
         </div>
         <div>
-          <p className="text-sm font-semibold text-foreground">Finansiel AI</p>
-          <p className="text-xs text-muted-foreground">Stil spørgsmål til dine egne tal</p>
+          <p className="text-sm font-medium text-hb-ink">Finansiel AI</p>
+          <p className="text-xs text-hb-ink-soft">Stil spørgsmål til dine egne tal</p>
         </div>
       </div>
 
@@ -160,7 +164,7 @@ export default function FinancialAIChat({ initialMessage }: FinancialAIChatProps
       <div className="flex-1 overflow-y-auto p-4 space-y-3">
         {messages.length === 0 && (
           <div className="flex flex-col items-center justify-center h-full gap-4 text-center">
-            <p className="text-sm text-muted-foreground max-w-xs">
+            <p className="text-sm text-hb-ink-soft max-w-xs">
               Hvad vil du vide om din virksomheds økonomi?
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-w-md w-full">
@@ -168,7 +172,7 @@ export default function FinancialAIChat({ initialMessage }: FinancialAIChatProps
                 <button
                   key={s}
                   onClick={() => send(s)}
-                  className="text-left text-xs px-3 py-2.5 rounded-lg border border-border bg-secondary hover:bg-secondary/80 text-foreground transition-colors"
+                  className="text-left text-xs px-3 py-2.5 rounded-lg border border-hb-line bg-hb-surface hover:bg-hb-sage/40 text-hb-ink transition-colors"
                 >
                   {s}
                 </button>
@@ -181,8 +185,8 @@ export default function FinancialAIChat({ initialMessage }: FinancialAIChatProps
             <div
               className={`max-w-[80%] rounded-xl px-3.5 py-2.5 text-sm whitespace-pre-wrap [overflow-wrap:anywhere] ${
                 m.role === "user"
-                  ? "bg-primary text-primary-foreground"
-                  : "bg-secondary text-foreground"
+                  ? "bg-hb-evergreen text-white"
+                  : "border border-hb-line bg-hb-surface text-hb-ink"
               }`}
             >
               {m.content}
@@ -191,8 +195,8 @@ export default function FinancialAIChat({ initialMessage }: FinancialAIChatProps
         ))}
         {loading && !messages.some((m, i) => i === messages.length - 1 && m.role === "assistant") && (
           <div className="flex justify-start">
-            <div className="bg-secondary rounded-xl px-3.5 py-2.5">
-              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+            <div className="rounded-xl border border-hb-line bg-hb-surface px-3.5 py-2.5">
+              <Loader2 className="h-4 w-4 animate-spin text-hb-ink-soft" />
             </div>
           </div>
         )}
@@ -200,20 +204,20 @@ export default function FinancialAIChat({ initialMessage }: FinancialAIChatProps
       </div>
 
       {/* Input */}
-      <div className="p-3 border-t border-border bg-card">
+      <div className="p-3 border-t border-hb-line bg-hb-surface">
         <div className="flex items-center gap-2">
           <input
             value={input}
             onChange={e => setInput(e.target.value)}
             onKeyDown={e => e.key === "Enter" && !e.shiftKey && (e.preventDefault(), send(input))}
             placeholder="Stil et spørgsmål om dine tal..."
-            className="flex-1 text-sm bg-secondary border border-border rounded-xl px-3.5 py-2.5 focus:outline-none focus:ring-2 focus:ring-primary/50 text-foreground placeholder:text-muted-foreground"
+            className="flex-1 rounded-xl border border-hb-line bg-hb-surface px-3.5 py-2.5 text-sm text-hb-ink placeholder:text-hb-ink-soft/60 focus:outline-none focus:ring-2 focus:ring-hb-evergreen/30"
             disabled={loading}
           />
           <button
             onClick={() => send(input)}
             disabled={!input.trim() || loading}
-            className="h-10 w-10 rounded-xl bg-primary text-primary-foreground flex items-center justify-center disabled:opacity-50 hover:bg-primary/90 transition-colors flex-shrink-0"
+            className="h-10 w-10 rounded-xl bg-hb-evergreen text-white flex items-center justify-center disabled:opacity-50 hover:bg-hb-evergreen/90 transition-colors flex-shrink-0"
           >
             <Send className="h-4 w-4" />
           </button>

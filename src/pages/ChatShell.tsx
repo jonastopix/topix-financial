@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import AppLayout from "@/components/AppLayout";
+import { HbSpinner } from "@/components/hjemmebane/HbSpinner";
 import { HbMemberShell } from "@/components/hjemmebane/HbMemberShell";
 import { useAuth } from "@/hooks/useAuth";
 import { useViewMode } from "@/hooks/useViewMode";
@@ -81,13 +81,9 @@ const ChatShell = () => {
   }
 
   if (loading) {
-    return (
-      <AppLayout fullscreen>
-        <div className="flex-1 flex items-center justify-center">
-          <div className="h-8 w-8 rounded-full border-2 border-primary border-t-transparent animate-spin" />
-        </div>
-      </AppLayout>
-    );
+    // Før rollen er kendt (10/9, #78): husets route-spinner — papir og en
+    // rolig ring — frem for AppLayouts mørke lag, der gav et mørkt glimt.
+    return <HbSpinner />;
   }
 
   // Advisor: flat inbox — i Hb-skallens fuld-variant, som medlemmets gren

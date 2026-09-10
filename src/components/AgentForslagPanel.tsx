@@ -9,10 +9,10 @@ import {
   XCircle,
   Pencil,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { HbButton, hbButtonVariants } from "@/components/hjemmebane/HbButton";
+import { cn } from "@/lib/utils";
 import { afgoerForslagsgyldighed } from "@/lib/forslagUdloeb";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
+import { HbInput, HbTextarea } from "@/components/hjemmebane/admin/HbField";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { da } from "date-fns/locale";
@@ -46,9 +46,9 @@ const AGENT_TRIGGER_LABELS: Record<string, string> = {
 };
 
 const STATUS_BADGES: Record<string, { label: string; className: string }> = {
-  approved: { label: "Godkendt", className: "bg-primary/10 text-primary" },
-  rejected: { label: "Forkastet", className: "bg-destructive/10 text-destructive" },
-  expired: { label: "Udløbet", className: "bg-secondary text-muted-foreground" },
+  approved: { label: "Godkendt", className: "bg-hb-sage text-hb-evergreen" },
+  rejected: { label: "Forkastet", className: "border border-hb-line bg-hb-paper text-hb-rust" },
+  expired: { label: "Udløbet", className: "border border-hb-line bg-hb-paper text-hb-ink-soft" },
 };
 
 function agentProposalText(tool: string, args: Record<string, unknown> | null | undefined): string {
@@ -256,29 +256,21 @@ export default function AgentForslagPanel({ companyId }: AgentForslagPanelProps)
        beslutningen 2026-08-25: agenten er et blik på virksomheden,
        ikke på et dokument). company_review finder selv nyeste
        periode; tør-kørslens forslag lander i agent_runs nedenfor. */
-    <div className="text-foreground">
-      {/* APP-TEMA-TEKST (7/9, recon-moerke-tokens-paa-papir.md): komponenten er
-          IKKE konverteret til Hjemmebane og tegner i appens tokens (.dark, sat
-          permanent i index.html). Monteret i en Hb-flade ARVER den tekstfarven
-          fra Hb-skallen (HbMemberShell: text-hb-ink, 12 % lyshed) oven på
-          .dark-baggrunde (bg-background 9 %, bg-input 18 %) — outline-knapper og
-          indtastet tekst i Input/Textarea bliver mørkt på mørkt. Wrapperen sætter
-          derfor appens TEKSTFARVE eksplicit, så intet arves fra skallen — og
-          BEVIDST IKKE baggrunden: målt på skærm 7/9 er panelet i praksis lyst
-          (bg-muted/20 blandet over papiret), og bg-background ville ændre
-          udtrykket frem for at rette fejlen. Intet indeni er ændret. FJERNES når
-          komponenten konverteres til Hjemmebane — den bor på roden, så
-          konverteringen tager den med i samme fil. */}
-    <div className="mt-6 mb-6">
+    /* HJEMMEBANE (10/9, #142/#143): panelet tegner nu i husets tokens — papir,
+       hairlines, sage/evergreen, rust kun til forkastelse. Den .dark-wrapper
+       der stod her fra 7/9 («text-hb-ink», markeret til fjernelse) er
+       væk. Logikken er urørt: de tre afgørelser gennem agent-forslag-afgoer og
+       tørkørslen gennem run-company-agent står som før. */
+    <div className="mt-6 mb-6 text-hb-ink">
       <div className="flex items-center gap-2 mb-3">
         <button
           onClick={() => setShowAgentLog(v => !v)}
-          className="flex items-center gap-2 text-sm font-medium text-foreground"
+          className="flex items-center gap-2 text-sm font-medium text-hb-ink"
         >
-          <Sparkles className="h-4 w-4 text-primary" />
+          <Sparkles className="h-4 w-4 text-hb-evergreen" />
           Agent-log
-          <span className="text-xs font-normal text-muted-foreground ml-1">({agentRuns.length})</span>
-          {showAgentLog ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
+          <span className="text-xs font-normal text-hb-ink-soft ml-1">({agentRuns.length})</span>
+          {showAgentLog ? <ChevronDown className="h-4 w-4 text-hb-ink-soft" /> : <ChevronRight className="h-4 w-4 text-hb-ink-soft" />}
         </button>
         <button
           onClick={async () => {
@@ -312,7 +304,7 @@ export default function AgentForslagPanel({ companyId }: AgentForslagPanelProps)
             }
           }}
           disabled={agentRunning === "company"}
-          className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
+          className={cn(hbButtonVariants({ variant: "secondary" }), "h-8 gap-1.5 px-3 text-xs")}
         >
           <Sparkles className="h-3 w-3" />
           {agentRunning === "company" ? "Kører..." : "Kør agent (tørt)"}
@@ -321,30 +313,30 @@ export default function AgentForslagPanel({ companyId }: AgentForslagPanelProps)
       {showAgentLog && (
         <div className="space-y-2">
           {agentRuns.length === 0 ? (
-            <p className="text-xs text-muted-foreground">Agenten har ikke kørt endnu for denne virksomhed.</p>
+            <p className="text-xs text-hb-ink-soft">Agenten har ikke kørt endnu for denne virksomhed.</p>
           ) : agentRuns.map((run: any) => {
             const runProposals = ([...(run.agent_proposals || [])] as ProposalRow[])
               .sort((a, b) => a.position - b.position);
             return (
-              <div key={run.id} className="rounded-lg border border-border/40 bg-muted/20 p-3">
+              <div key={run.id} className="rounded-hb border border-hb-line bg-hb-paper p-3">
                 <div className="flex items-center justify-between gap-2 mb-1 flex-wrap">
                   <div className="flex items-center gap-1.5">
-                    <span className="text-[10px] font-medium text-primary uppercase tracking-wider">
+                    <span className="text-[10px] font-medium text-hb-evergreen uppercase tracking-wider">
                       {AGENT_TRIGGER_LABELS[run.trigger] ?? run.trigger}
                     </span>
-                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${run.mode === "dry_run" ? "bg-secondary text-muted-foreground" : "bg-primary/10 text-primary"}`}>
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${run.mode === "dry_run" ? "border border-hb-line bg-hb-surface text-hb-ink-soft" : "bg-hb-sage text-hb-evergreen"}`}>
                       {run.mode === "dry_run" ? "Tør" : "Live"}
                     </span>
-                    <span className="text-[10px] text-muted-foreground">
+                    <span className="text-[10px] text-hb-ink-soft">
                       {run.period_label || run.period_key} · {runProposals.length} forslag
                     </span>
                   </div>
-                  <span className="text-[10px] text-muted-foreground">
+                  <span className="text-[10px] text-hb-ink-soft">
                     {format(new Date(run.started_at), "d. MMM yyyy HH:mm", { locale: da })}
                   </span>
                 </div>
                 {runProposals.length === 0 ? (
-                  <p className="text-xs text-muted-foreground">
+                  <p className="text-xs text-hb-ink-soft">
                     {run.error ? `Fejl: ${run.error}` : "Ingen forslag i denne kørsel."}
                   </p>
                 ) : (
@@ -364,9 +356,9 @@ export default function AgentForslagPanel({ companyId }: AgentForslagPanelProps)
                       const badge = udloebet ? STATUS_BADGES.expired : STATUS_BADGES[p.status];
                       const foldUd = aaben?.proposalId === p.id ? aaben.tilstand : null;
                       return (
-                        <div key={p.id} className="rounded-md bg-background/60 border border-border/30 px-2.5 py-1.5">
+                        <div key={p.id} className="rounded-hb border border-hb-line bg-hb-surface px-2.5 py-1.5">
                           <div className="flex items-center justify-between gap-2">
-                            <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
+                            <span className="text-[10px] font-medium text-hb-ink-soft uppercase tracking-wider">
                               {AGENT_TOOL_LABELS[p.tool] ?? p.tool}
                             </span>
                             {badge && (
@@ -375,7 +367,7 @@ export default function AgentForslagPanel({ companyId }: AgentForslagPanelProps)
                               </span>
                             )}
                           </div>
-                          <p className="text-xs text-foreground whitespace-pre-line">
+                          <p className="text-xs text-hb-ink whitespace-pre-line">
                             {agentProposalText(p.tool, p.args)}
                           </p>
 
@@ -384,39 +376,38 @@ export default function AgentForslagPanel({ companyId }: AgentForslagPanelProps)
                               <div className="mt-2 flex items-center gap-1.5 flex-wrap">
                                 {kanGodkendes && (
                                   <>
-                                    <Button
-                                      size="sm"
-                                      className="h-6 text-[11px] px-2"
+                                    <HbButton
+                                      type="button"
+                                      className="h-7 gap-1 px-3 text-[11px]"
                                       onClick={() => afgoerMutation.mutate({ proposalId: p.id, decision: "approve" })}
                                       disabled={afgoerMutation.isPending}
                                     >
-                                      <CheckCircle2 className="h-3 w-3 mr-1" />
+                                      <CheckCircle2 className="h-3 w-3" />
                                       Godkend
-                                    </Button>
-                                    <Button
-                                      size="sm"
-                                      variant="outline"
-                                      className="h-6 text-[11px] px-2"
+                                    </HbButton>
+                                    <HbButton
+                                      type="button"
+                                      variant="secondary"
+                                      className="h-7 gap-1 px-3 text-[11px]"
                                       onClick={() => aabnRediger(p)}
                                       disabled={afgoerMutation.isPending}
                                     >
-                                      <Pencil className="h-3 w-3 mr-1" />
+                                      <Pencil className="h-3 w-3" />
                                       Redigér og godkend
-                                    </Button>
+                                    </HbButton>
                                   </>
                                 )}
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  className="h-6 text-[11px] px-2 text-muted-foreground hover:text-destructive"
+                                <button
+                                  type="button"
+                                  className="inline-flex h-7 items-center gap-1 px-2 text-[11px] text-hb-ink-soft underline-offset-4 transition-colors hover:text-hb-rust hover:underline disabled:opacity-50"
                                   onClick={() => aabnForkast(p)}
                                   disabled={afgoerMutation.isPending}
                                 >
-                                  <XCircle className="h-3 w-3 mr-1" />
+                                  <XCircle className="h-3 w-3" />
                                   Forkast
-                                </Button>
+                                </button>
                                 {!kanGodkendes && (
-                                  <span className="text-[10px] text-muted-foreground">
+                                  <span className="text-[10px] text-hb-ink-soft">
                                     {udloebet && gyldighed
                                       ? gyldighed.grund
                                       : "Kan endnu ikke godkendes herfra — kun forkastes"}
@@ -424,7 +415,7 @@ export default function AgentForslagPanel({ companyId }: AgentForslagPanelProps)
                                 )}
                               </div>
                               {p.tool === "update_weekly_focus" && kanGodkendes && (
-                                <p className="text-[10px] text-muted-foreground mt-1">
+                                <p className="text-[10px] text-hb-ink-soft mt-1">
                                   Godkend erstatter medlemmets fokuskort for indeværende uge med det samme.
                                 </p>
                               )}
@@ -436,31 +427,31 @@ export default function AgentForslagPanel({ companyId }: AgentForslagPanelProps)
                                       <button
                                         key={slug}
                                         onClick={() => setValgtKategori(slug)}
-                                        className={`text-xs px-2 py-0.5 rounded-full border transition-colors ${valgtKategori === slug ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground hover:border-primary/50"}`}
+                                        className={`text-xs px-2.5 py-0.5 rounded-full border transition-colors ${valgtKategori === slug ? "border-hb-evergreen bg-hb-sage text-hb-evergreen" : "border-hb-line bg-hb-surface text-hb-ink-soft hover:border-hb-ink/30 hover:text-hb-ink"}`}
                                       >
                                         {FORKAST_KATEGORI_LABELS[slug]}
                                       </button>
                                     ))}
                                   </div>
-                                  <Textarea
+                                  <HbTextarea
                                     placeholder="Uddyb grunden (valgfrit)..."
                                     value={fritekst}
                                     onChange={(e) => setFritekst(e.target.value)}
-                                    className="text-xs min-h-[60px] resize-none"
+                                    className="min-h-[60px] resize-none text-xs"
                                   />
                                   <div className="flex items-center gap-2">
-                                    <p className="text-[10px] text-muted-foreground">
+                                    <p className="text-[10px] text-hb-ink-soft">
                                       Kategorien er dommen — fritekst er tilvalg
                                     </p>
-                                    <Button
-                                      size="sm"
-                                      variant="destructive"
-                                      className="ml-auto h-7 text-xs"
+                                    <HbButton
+                                      type="button"
+                                      variant="secondary"
+                                      className="ml-auto h-8 px-3 text-xs text-hb-rust hover:bg-hb-rust/10"
                                       onClick={() => forkast(p)}
                                       disabled={!valgtKategori || afgoerMutation.isPending}
                                     >
                                       {afgoerMutation.isPending ? "Gemmer..." : "Forkast forslag"}
-                                    </Button>
+                                    </HbButton>
                                   </div>
                                 </div>
                               )}
@@ -469,41 +460,41 @@ export default function AgentForslagPanel({ companyId }: AgentForslagPanelProps)
                                 <div className="mt-2 space-y-2">
                                   {p.tool === "update_weekly_focus" ? (
                                     <>
-                                      <Input
+                                      <HbInput
                                         placeholder="Overskrift"
                                         value={redigering.headline ?? ""}
                                         onChange={(e) => setRedigering((r) => ({ ...r, headline: e.target.value }))}
-                                        className="h-7 text-xs"
+                                        className="py-1.5 text-xs"
                                       />
-                                      <Textarea
+                                      <HbTextarea
                                         placeholder="Opsummering"
                                         value={redigering.summary ?? ""}
                                         onChange={(e) => setRedigering((r) => ({ ...r, summary: e.target.value }))}
-                                        className="text-xs min-h-[60px] resize-none"
+                                        className="min-h-[60px] resize-none text-xs"
                                       />
                                     </>
                                   ) : (
-                                    <Textarea
+                                    <HbTextarea
                                       placeholder="Ét punkt pr. linje (højst 3)"
                                       value={redigering.points ?? ""}
                                       onChange={(e) => setRedigering((r) => ({ ...r, points: e.target.value }))}
-                                      className="text-xs min-h-[60px] resize-none"
+                                      className="min-h-[60px] resize-none text-xs"
                                     />
                                   )}
                                   <div className="flex items-center gap-2">
                                     {p.tool === "update_weekly_focus" && (
-                                      <p className="text-[10px] text-muted-foreground">
+                                      <p className="text-[10px] text-hb-ink-soft">
                                         Erstatter medlemmets fokuskort for indeværende uge med det samme
                                       </p>
                                     )}
-                                    <Button
-                                      size="sm"
-                                      className="ml-auto h-7 text-xs"
+                                    <HbButton
+                                      type="button"
+                                      className="ml-auto h-8 px-3 text-xs"
                                       onClick={() => godkendRedigeret(p)}
                                       disabled={redigeretErTom || afgoerMutation.isPending}
                                     >
                                       {afgoerMutation.isPending ? "Gemmer..." : "Godkend redigeret"}
-                                    </Button>
+                                    </HbButton>
                                   </div>
                                 </div>
                               )}
@@ -511,8 +502,8 @@ export default function AgentForslagPanel({ companyId }: AgentForslagPanelProps)
                           )}
 
                           {p.status !== "proposed" && p.decided_at && (
-                            <div className="mt-1.5 pt-1.5 border-t border-border/30 text-[10px] text-muted-foreground">
-                              <span className="font-medium text-foreground">
+                            <div className="mt-1.5 pt-1.5 border-t border-hb-line text-[10px] text-hb-ink-soft">
+                              <span className="font-medium text-hb-ink">
                                 {(p.decided_by && beslutterNavne[p.decided_by]) || "En rådgiver"}
                               </span>
                               {p.status === "approved"
@@ -538,7 +529,6 @@ export default function AgentForslagPanel({ companyId }: AgentForslagPanelProps)
           })}
         </div>
       )}
-    </div>
     </div>
   );
 }
