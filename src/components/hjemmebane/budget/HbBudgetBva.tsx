@@ -177,7 +177,7 @@ export const HbBudgetBva = ({ baseRows, year, companyId }: Props) => {
                     <>
                       Realiseret {formatDKK(card.actual)}
                       {tone.pct != null && (
-                        <span className={cn("ml-2", toneClass(tone.tone))}>{pctLabel(tone.pct)}</span>
+                        <span className={cn("ml-2 whitespace-nowrap", toneClass(tone.tone))}>{pctLabel(tone.pct)}</span>
                       )}
                     </>
                   ) : (
@@ -252,14 +252,18 @@ export const HbBudgetBva = ({ baseRows, year, companyId }: Props) => {
                     Kategori
                   </th>
                   {hasAnyActuals && (
-                    <th className="min-w-[90px] border-r border-hb-line px-2 py-2.5 text-right text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft">
+                    <th className="min-w-[112px] border-r border-hb-line px-2 py-2.5 text-right text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft">
                       ÅTD
                     </th>
                   )}
                   {MONTHS.map((m) => (
                     <th
                       key={m}
-                      className="min-w-[76px] px-2 py-2.5 text-right text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft"
+                      // Bredden (10/9, kort #65): «1.234.567 +12 %» i 11 px er ~90 px;
+                      // 76 px knækkede procenten over to linjer i næsten hver celle.
+                      // Cellerne er nowrap, og tabellen ruller sidelæns i sin
+                      // overflow-x-auto-wrapper med den klæbende kategorikolonne.
+                      className="min-w-[100px] px-2 py-2.5 text-right text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft"
                     >
                       {m}
                     </th>
@@ -294,7 +298,7 @@ export const HbBudgetBva = ({ baseRows, year, companyId }: Props) => {
                             <span className="block text-[11px] tabular-nums text-hb-ink-soft">
                               {fmtNumber(ytdBudget)}
                             </span>
-                            <span className="block text-[11px] font-medium tabular-nums text-hb-ink">
+                            <span className="block whitespace-nowrap text-[11px] font-medium tabular-nums text-hb-ink">
                               {fmtNumber(ytdActual)}
                               {ytdTone.pct != null && (
                                 <span className={cn("ml-1", toneClass(ytdTone.tone))}>
@@ -318,7 +322,7 @@ export const HbBudgetBva = ({ baseRows, year, companyId }: Props) => {
                               <span className="block text-[11px] tabular-nums text-hb-ink-soft">
                                 {budgetVal === 0 ? "—" : fmtNumber(budgetVal)}
                               </span>
-                              <span className="block text-[11px] font-medium tabular-nums text-hb-ink">
+                              <span className="block whitespace-nowrap text-[11px] font-medium tabular-nums text-hb-ink">
                                 {actualVal != null ? fmtNumber(actualVal) : ""}
                                 {actualVal != null && budgetVal !== 0 && tone.pct != null && (
                                   <span className={cn("ml-1 font-normal", toneClass(tone.tone))}>

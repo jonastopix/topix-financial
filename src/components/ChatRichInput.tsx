@@ -220,7 +220,14 @@ const ChatRichInput: React.FC<ChatRichInputProps> = ({
         class: cn(
           "px-3 text-sm focus:outline-none overflow-y-auto",
           hb ? "text-hb-ink" : "text-foreground",
-          isCompact ? "py-2.5 min-h-[40px] max-h-[120px]" : "py-2 min-h-[38px] max-h-[120px]"
+          // Størrelsen (Jonas 10/9): tre linjer at starte på — text-sm har
+          // linjehøjde 20 px, så 3 × 20 + lodret padding (16/20) = 76/80 px —
+          // og omkring en tredjedel af skærmen før feltet ruller (33vh, som
+          // følger tastaturets viewport på mobil: interactive-widget=
+          // resizes-content). Før: én linje (38/40 px), rul efter ~4 (120 px).
+          // Samme felt for medlem og rådgiver; rådgiverens smallere spalte
+          // ændrer bredden, ikke højden.
+          isCompact ? "py-2.5 min-h-[80px] max-h-[33vh]" : "py-2 min-h-[76px] max-h-[33vh]"
         ),
         inputmode: "text",
         enterkeyhint: "send",
