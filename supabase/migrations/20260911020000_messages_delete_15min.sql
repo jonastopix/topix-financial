@@ -1,3 +1,4 @@
+-- KØRT i prod — målt 11/9 kl. 09:20 (pg_policies på messages: «Advisors can delete messages», «Users can delete own messages within 15 min»).
 -- Sletning af chatbeskeder får samme grænse som redigering (10/9-2026,
 -- recon-sikkerhed-og-toast.md §1). SKREVET, IKKE KØRT. Deploy manuelt i
 -- Lovable → SQL editor efter merge (CLAUDE.md). Idempotent (DROP IF EXISTS).

@@ -1,3 +1,4 @@
+-- KØRT i prod — målt 11/9 kl. 11:18 (session_bookings: kolonnerne start_tid og slut_tid timestamptz; policyen «Advisors read all session bookings» SELECT has_role(auth.uid(), 'advisor')).
 -- Intro-sessionens tidspunkt (Jonas 8/9-2026, ~/Downloads/recon-introsessionen.md):
 -- «hvem har afholdt deres intro-session med Morten — uden manuel markering.»
 --

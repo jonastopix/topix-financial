@@ -1,27 +1,54 @@
 # Overlevering
 
-> ## I MORGEN 11/9 — START HER (skrevet 10/9 nat, efter #809)
+> ## 11/9 FORMIDDAG — START HER (skrevet 11/9 formiddag, efter #816 og målingerne 11:18, 11:27 og 11:28)
 >
-> **Dagens tal:** 40 PR'er merget (#770–#809). Fem nye cron-jobs i drift
-> (onboarding-rytme, legat-reminder, report-review, agentforslag-udloeb,
-> opgave-forfald). Restancen sat op i Stripe på begge konti. Parseren
-> bevist i drift på ANLA GLAS. Mangellisten: 178 i morges → 99 i nat.
+> **Prod målt fire gange FØR noget blev kørt — 09:20, 11:18, 11:27, 11:28.**
+> Kl. 09:20: alle seks migrationer stod allerede i prod, onboarding-rytmen
+> var planlagt i hånden («0 8 * * *», `dry_run false`) — §0A havde intet
+> at køre; kilderne var uenige, og denne fil havde ret. Kl. 11:18:
+> `20260908190000_session_tid` er også kørt; samtalelistens 500-vindue er
+> ikke ramt (604 beskeder, 25 samtaler); fantomen er tre welcome-rækker;
+> 163 af 251 `new_message`-rækker i klokken har HTML-tags; 3 invitationer
+> afventer (ældste 1/9); ingen bruger har to virksomheder; begge FK'er på
+> `financial_report_facts` er NO ACTION. **Kl. 11:27: checkout-døren er
+> LUKKET** — prods `hent_betalingsdata_til_checkout` er tegn for tegn
+> filens (md5 `76178b0711e70b02ea86a6fe8a2ed8b9`); forbeholdet fra 09:20
+> var chattens fejl: den blev målt med tilbuddets mønster, og de to
+> skriver hinandens modsætning. `20260911050000` er helt i prod. Kl. 11:28:
+> kort 60's udgangspunkt — de to CHECK'er på `community_traade`, RPC'en
+> sender `p_kilde_type` uændret, 10 tråde uden kilde.
+>
+> **Bygget og i drift:** #815 (rådgivernes klokke ved fejlet træk, klokkens
+> virksomhedslink i ental) og #816 (feedback i Hb-skallen) er merget;
+> Update klikket kl. 11:12. **Beviser ført:** klokkens link (Jonas ca.
+> 11:15, «Ny resultatopgørelse fra remm.» → virksomhedssiden); feedbackens
+> skrivevej i prod (række, fil med mappetjek, klokke — Jonas' test 09:15
+> UTC (11:15 dansk), «TEST 11/9 — ignorér»). **Udestående bevis:**
+> stripe-webhooks version — doggybeds event 13/9 (søndag), svaret bærer
+> `traek.id` eller `klokke`. **Stripe:** opsigelse i kundeportalen slået
+> FRA kl. 10:01; login-linket er ikke aktiveret på nogen konto.
+> **Onboarding-rytmens afsendelsesgren er ubevist** (tørkørsel
+> `ville_sende 0`, kl. 10 sendte intet). **Feedet (beslutning 17):** alle
+> 18 episoder har guid — forudsætningen fra beslutning 8 er opfyldt — men
+> podcasten har ikke udgivet siden 17/9 2025; kort 69 og 62 venter til Jonas
+> og Morten har afgjort om podcasten fortsætter. B2 er dermed 56 og 57.
 >
 > **Det der venter, i rækkefølge:**
-> 1. **`run-weekly-agent`: tre valg, bogført i aften** — Jonas og Morten
->    vælger (DEL 2 «Ugefokus og ugeagenten», DEL 3 øverste række). Den har
->    aldrig kørt; en dag til koster ingenting.
-> 2. **Digesten:** reconen (`~/Downloads/recon-digesten.md`) fandt at INTET i
->    mailen findes kun dér — tal, milepæle, ulæste og AI-indsigt står alle på
->    forsiden eller milepælesiden. Skal den findes? Slukkes den, følger
->    indstillingsfanens «Månedsoverblik» med.
-> 3. **De 48 omskrevne kort** er nu læsbare og kan bygges som de står
->    (`docs/mangelliste.html`, #808).
-> 4. **Stripe-migrationen 13/9** — og 27 aktive har NUL `stripe_customer_id`,
->    så migrationen løser det ikke af sig selv; koblingen skal laves før
->    eller i samme greb.
+> 1. **Kort 60 er næste bygning** — præsentationen dag 1–3 med de fire
+>    beslutninger på kortet; prod-udgangspunktet (CHECK'erne ordret, RPC'en,
+>    de fire funktioner der nævner `kilde_type`) står på kortet og i DEL 2
+>    §9.
+> 2. **B2 (56, 57), B3 (40, 29, 82) og A2 (76, 83) har recon og
+>    beslutninger** på kortene — kan bygges som de står. Kort 3 er løst, 46
+>    er ud af A2, 69 og 62 venter på podcast-beslutningen.
+> 3. **§0B er IKKE besluttet** — `run-weekly-agent` (A/B/C) og digesten;
+>    ugefokus-tallene fra 09:32 står i DEL 2 §3.
+> 4. **Kort 24** (retries opbrugt → `/send`) — fem forudsætninger på
+>    kortet; haster ikke før 13/9.
+> 5. **13/9 (søndag):** doggybeds træk og beviset for #563, #572 og #815;
+>    Stripe-migrationen — 27 aktive har NUL `stripe_customer_id`.
 >
-> Detaljen for #805–#809 står i DEL 2 «10. september, nat, sidste».
+> Detaljen står i DEL 2 «11. september, formiddag» (§1–§9).
 
 > ## ✅ LØST — VAULT VAR TOM I OTTE TIMER 9/9 (historik, ikke en opgave)
 >
@@ -3323,6 +3350,364 @@ findes længere, og det billigste arbejde var at PRØVE kortene, ikke bygge dem.
 legat-reminder, report-review, agentforslag-udloeb, opgave-forfald). Restancen
 sat op i Stripe på begge konti. Parseren bevist i drift på ANLA GLAS.
 
+### 11. september, formiddag — prod målt før noget blev kørt; kort 23 og 85 bygget; portalen; fire recons (#815, #816)
+
+Kilder: `~/Downloads/query-results-export-2026-09-11_09-20-04.csv` (prod),
+`…_09-26-05.csv` og `…_09-28-31.csv` (rytmens tørkørsel), `…_09-32-31.csv`
+(ugefokus), `recon-a1-restance.md`, `recon-b1-medlemmets-foerste-dage.md`,
+`recon-b2-indholdslaget.md`, `recon-b3-tallene.md`,
+`verifikation-a1-klokke.txt`, `verifikation-b1-feedback.txt`,
+`diff-a1-klokke-fejlet-traek.txt`, `-2.txt`, `-3.txt`. Tal herfra er
+citeret ordret; konklusioner fra chatten står som konklusioner.
+
+**1. Prod-målingen 09:20 — kilderne var uenige, og prod gav denne fil ret.**
+OVERLEVERING sagde `20260911050000` og `060000` KØRT og onboarding-rytmen i
+drift gennem `kald_edge`; kortene «Migrationer der venter på prod» og
+«Onboardingens rytme …», plan §0A og A1 sagde det modsatte. §0A havde intet
+at køre. Per migration, fra CSV'en (sektion → værdi):
+
+- `050000` (døren): `hent_betalingstilbud(betalingstoken uuid)` — «har
+  «+ 1 > now()»: true | md5 3529d05e158a71873a6791f5cd08b0c5»;
+  `hent_betalingsdata_til_checkout(betalingstoken uuid)` — «har «+ 1 >
+  now()»: false | md5 76178b0711e70b02ea86a6fe8a2ed8b9». **LUKKET kl.
+  11:27** (§9): prods krop er tegn for tegn filens (`20260911050000:83-
+  114`), samme md5, «har_repoets_betingelse true | har_tilbuddets_moenster
+  false». «false» kl. 09:20 var præcis hvad den kørte fil ville give:
+  checkout skriver bevidst det modsatte af tilbuddets mønster —
+  `contract_end_date is null or … + 1 <= now()` — fordi checkout skal lade
+  dem uden gældende slutdato betale. Fejlen var chattens: funktionen blev
+  målt med søsterfunktionens betingelse. Migrationen er helt i prod.
+- `060000` (ugefokus): fire policies — «Advisors can view all weekly focus»
+  SELECT, «Members can view own weekly focus» SELECT, «Members set seen_at
+  on own weekly focus» UPDATE roller {authenticated}, «Service role can
+  manage weekly focus» ALL; trigger `protect_weekly_focus_seen_only`
+  BEFORE UPDATE; «rækker / med seen_at: 171 / 2».
+- `040000` (status): `companies_status_check` CHECK status IN ('active',
+  'tidligere'); `companies_data_slettet_vej_check` med de fire veje; «status
+  not null: true».
+- `030000` (feedback-bucket): «feedback-screenshots: grænse 5242880 | typer
+  {image/*}»; tre policies — «Advisors can read feedback screenshots»
+  SELECT foldername false, «Users can read own feedback screenshots» SELECT
+  foldername true, «Users can upload own feedback screenshots» INSERT
+  foldername true.
+- `20260907180000` (mailloggen): fem policies på `email_send_log` — «Admins
+  can read send log», «Advisors can read send log» (SELECT, authenticated,
+  `has_role(auth.uid(), 'advisor')`), tre service-role.
+- `20260911020000` (sletning 15 min): «Advisors can delete messages»
+  `has_role(… 'advisor')`; «Users can delete own messages within 15 min»
+  `sender_id = auth.uid() AND message_type = 'user' AND created_at > now()
+  - '00:15:00'`.
+
+`cron.job`: **19 jobs** = 14 fra kald_edge-omlægningen + 5 nye.
+`onboarding-rytme` står «0 8 * * *» gennem `kald_edge('onboarding-rytme',
+'{"dry_run": false}')` — planlagt i hånden; filen `20260909180000` siger rå
+`net.http_post` og «15 9 * * *». `intro-session-reminder` («0 9 * * *») og
+`indgangs-paamindelser` («0 10 * * *») bærer `{"dry_run": false}`;
+`fornyelsesvarsler` («0 11 * * *») ligeså. `run-weekly-agent` står der ikke.
+`send-monthly-digest` «0 8 22 * *». Filhovederne i de syv migrationer har
+fået én linje hver («KØRT i prod — målt 11/9 kl. 09:20»; `20260909180000`
+en ADVARSEL: kør ikke filen).
+
+**2. Onboarding-rytmens tørkørsel 09:26:05 dansk** (`kald_edge` → id 9035;
+svar «status 200 | timed_out false»): `{"ok":true,"dry_run":true,
+"virksomheder":27,"kandidater":2,"sendt":0,"ville_sende":0,"pr_mail":
+{"kom_i_gang":0,"historik":0},"sprunget_over":{"ingen_start":0,"legat":0,
+"allerede_sendt":0,"har_uploadet":0,"uden_for_vindue":2,"ingen_email":0,
+"opt_out":0},"fejlet":0}`. Kørslen kl. 10 sendte intet. **Afsendelsesgrenen
+er ubevist.**
+
+**3. Ugefokus 09:32 — grundlaget for §0B, som IKKE er besluttet.** Klokken
+har stemplet siden 26/3 (sektion a: «første seen_at 2026-03-26
+13:43:53.336926+00 | første read_at 2026-03-26 13:44:04.776193+00»).
+
+- b) klokkens ugefokus pr. uge (alle | set | læst | medlemmer | medlemmer
+  der så): W37 13 | 2 | 1 | 13 | 2 · W36 13 | 2 | 1 | 13 | 2 · W35 14 |
+  4 | 1 | 14 | 4 · W34 11 | 3 | 0 | 11 | 3 · W33 10 | 3 | 1 | 10 | 3 ·
+  W32 1 | 1 | 1 | 1 | 1.
+- c) `weekly_focus` pr. uge (rækker | active | quiet | no_data | forslag |
+  seen_at): W37 30 | 13 | 1 | 16 | 30 | 2 · W36 25 | 13 | 1 | 11 | 31 | 0 ·
+  W35 25 | 13 | 1 | 11 | 33 | 0 · W34 25 | 10 | 2 | 13 | 25 | 0 · W33 24 |
+  10 | 2 | 12 | 22 | 0 · W32 4 | 4 | 0 | 0 | 6 | 0 · W31 2 · W30 1 · W29 1
+  · W27 4 · W26 1 · W25 1 · W24 5 · W23 4 (active 3, quiet 1) · W22 3 ·
+  W21 2 · W20 3 · W19 3 · W18 3 · W17 3 · W16 2 (alle active, seen_at 0).
+- d) gentagelse i `active`: Topix.dk ApS «uger active 13 | kombinationer
+  5»; Doggybed 10 | 4; Floren Engros 9 | 3; Booking Innovation 9 | 4;
+  Warburg VVS & Kloak Ekspres ApS 8 | 4; Rallysupport 7 | 5; BR Roset 7 |
+  2; ANLA GLAS A/S 7 | 3; Capture IT A/S 6 | 2; Rezycl.com 4 | 3; remm. 4
+  | 3; PHILBERT ApS 4 | 2; BRILLEVÆRK 4 | 2; Livja 2 | 1; Brick Works ApS
+  2 | 1; YKRG APS, TOFT ADMINISTRATION ApS, Limo Group – Viborg Limousine
+  Service, Homie Håndværkerservice ApS 1 | 1 (`["onboarding"]`).
+- e) forslag og svar: ai_weekly · expired 90, proposed 56, dismissed 11,
+  done 7, dropped 2; agent · expired 5, proposed 4, done 1; manual · done
+  3, expired 1; advisor · dismissed 1.
+- f) agentkørsler: report_committed · live «antal 13 | seneste 2026-09-10
+  07:06:06.44+00»; anomaly_detected · live 7 | 2026-09-10 07:06:07.476+00;
+  report_committed · dry_run 3 | 2026-08-25 08:56:03.357+00;
+  company_review · dry_run 3 | 2026-08-25 12:46:18.582+00.
+
+Konklusion fra chatten 11/9 (ikke en måling): ingen af DEL 2 «Ugefokus og
+ugeagenten»s to grene passer rent på tallene; begge læsninger peger på A
+(slet) for `run-weekly-agent`; hvad ugefokus skal sige er samtalen med
+Morten; forsidens `seen_at` (060000 kørt) har sin første hele uge efter
+mandag 14/9. **§0B er ikke besluttet.**
+
+**4. Stripe 11/9.**
+- **Kundeportalen:** login-linket er IKKE aktiveret på nogen af kontiene.
+  Rettelse fra chatten: «kundeportal-link TIL» fra 10/9 (DEL 2 «Restancen»)
+  er en anden indstilling, som ikke er identificeret.
+- **Ny konto:** «Cancel subscriptions» stod TIL (cancel at end of billing
+  period, cancellation reason TIL) og blev slået FRA kl. 10:01.
+  Konfigurationen gemt som Default (`bpc_1UEPNp3CvBmCx5PtUR…`, afkortet på
+  skærmen). Begrundelse: et medlem kunne stoppe sine rater, og webhooken
+  springer `subscription.deleted` over for abonnementer med art. **ÅBENT:**
+  om gemningen skrev standardværdier for de øvrige sektioner (preview'et
+  viste bagefter moms-id og fakturahistorik).
+- **Gammel konto:** konfiguration `bpc_1QmwE84DoYItGRbI78…` med opdatering
+  og opsigelse i preview'et. Ikke rørt — Circle ejer kontoen.
+- **Doggybeds abonnement:** art `migreret`, `company_id`
+  `382fd787-3141-45c7-8eea-297b7b947fe0`, `migreret_fra`
+  `sub_1SHhE54DoYItGRbIRxusRUjG`, kort ••••8134, 13/9 = 3.500 + 875 moms =
+  4.375 kr., ophører 13/10 kl. 10:35, ingen fakturaer endnu. Kun ét træk på
+  den nye konto.
+- **Slået op i Stripes dokumentation:** `next_payment_attempt` er null ved
+  manuel opkrævning, lukkede fakturaer og maksimale forsøg; API-referencen
+  for `/send` siger intet om `charge_automatically`; events kommer ikke
+  garanteret i rækkefølge og kan leveres igen; portalens opsigelse er slået
+  til som standard.
+
+**5. Bygget.**
+- **#815 merget — kort 23 og klokkens virksomhedslink.** Reconen
+  (`recon-a1-restance.md`) fandt at `payment_failed`-grenen upsertede
+  `company_traek` og skrev `console.error` — intet andet; at upsertet ikke
+  gav rækkens id tilbage; at webhooken ingen dedup har på event-id; og at
+  `klokke.ts:109` byggede `/virksomheder/{id}` (flertal) mens ruten er
+  `/virksomhed/:companyId` (`App.tsx:259`) — flertalsformen ramte NotFound,
+  og testen låste kun strengen. Bygget: `maaRegistrereFejlet`,
+  `TYPE_TRAEK_FEJLET`, `traekFejletBeskedTekst`, `beskedVedFejletTraek`
+  (rene, testet), upsertet med `.select("id").single()`, `meldFejletTraek`
+  (læser rækken tilbage, slår navnet op som fornyelsesgrenen, kalder
+  `skrivRaadgiverBesked`; kaster aldrig, svaret er 200 som før med
+  `klokke` i kroppen), `reference_type "traek"` → `/virksomhed/{id}?section=
+  aftale`, linket i ental, kildeværn i `klokke.test.ts` der læser `App.tsx`.
+  Dedup-regnestykket står i kommentaren: UNIQUE `stripe_invoice_id` → én
+  række pr. faktura → ét `reference_id` → `skrivRaadgiverBesked` slår op
+  på type + advisor_id + reference_id → otte forsøg giver én besked pr.
+  rådgiver. **To rettelser efter diff-læsning:** (1) et betalt træk kunne
+  vendes til fejlet af et forsinket event — `registrerAbonnementstraek`
+  upsertede «fejlet» uden at se hvad rækken stod som; kommentaren over
+  `meldFejletTraek` lovede et værn genlæsningen ikke gav; loglinjen ved
+  «intet id tilbage» sagde «rækken mangler» om en skrevet række (diff-2:
+  ren dom `maaRegistrereFejlet`, opslag før upsertet, `allerede_betalt`,
+  egen loglinje). (2) Værnets kommentar lovede selvhelbredelse («et betalt
+  event der kommer bagefter retter rækken») — men lander `invoice.paid`
+  MELLEM opslag og upsert, er det allerede leveret; rækken står som
+  `fejlet` med `betalt_at` sat, intet retter den, accepteret fordi vinduet
+  er millisekunderne mellem to kald (diff-3). Tests 2841 → 2856; tsc exit
+  0; `deno check --no-lock` nåede ikke typetjekket: «Could not find a
+  matching package for 'npm:@lovable.dev/email-js@0.1.0'» i
+  `managedEmail.ts:15`. **Update i Lovable klikket kl. 11:12** (dækker
+  #815 og #816). **Skærmbeviset for linket er FØRT:** Jonas klikkede på
+  «Ny resultatopgørelse fra remm.» i rådgiverens klokke og landede på
+  virksomhedssiden — «Det virker umiddelbart» (chat 11/9 ca. 11:15, uden
+  skærmbillede). **UDESTÅR:** stripe-webhooks version bevises stadig af
+  doggybeds event 13/9 (svaret bærer `traek.id` eller `klokke`).
+- **#816 merget kl. ca. 11:05 — kort 85, feedback i Hb-skallen.** Motoren
+  `src/lib/feedback.ts` (validering image/* og 5 MB, stien `{userId}/…`
+  med kommentaren om storage-policyens mappetjek, grænser 120/2000, én
+  IO-funktion i samme rækkefølge som før); `FeedbackDialog` bruger den
+  («Bug» → «Fejl»); `HbFeedbackDialog` som HbDialog uden Radix; «Giv
+  feedback» i sidebarens profilblok ved Indstillinger (`!isAdvisor`), i
+  kolonnen og skuffen. Tests 2841 → 2853 (kildeværn mod migrationen
+  20260911030000); tsc exit 0. Update kl. 11:12. **Bevis i prod
+  (CSV 11:18, sektion a–c, ordret):** rækken i `feedback`
+  «9dbf73b3-dc85-4e61-8a32-630fb55a602e | oprettet 2026-09-11
+  09:15:59.737443+00 | titel TEST 11/9 — ignorér | kategori suggestion |
+  virksomhed 3ffccc0f-f6a9-4a23-9515-db2e22e8ad49 | sti
+  dff1d372-40f5-43fe-af8d-59e4e78b4119/1789118158396.png»; filen i
+  `feedback-screenshots` «oprettet 2026-09-11 09:15:58.947622+00 | størrelse
+  95723 | type image/png | første mappe = feedbackens user_id true»; én
+  `advisor_notifications`-række «feedback_submitted | 1 siden 2026-09-11
+  09:16:02.24866+00». **Rækken kl. 09:15 UTC (11:15 dansk) med titlen
+  «TEST 11/9 — ignorér» er Jonas' test — ikke et medlem.**
+
+**6. Recon-fund og beslutninger — skrevet ind i kortene** (mangellisten,
+«RYDDET 11/9 FORMIDDAG»). Beslutninger er «besluttet 11/9 — forslag fra
+chatten, stående uden indsigelse»: kort 24 ud af A1 med fem
+forudsætninger; kort 26 ud af B1 (portalen er en indstilling, opsigelse
+slået fra); præsentationen og profilen (kilde_type «praesentation» som
+migration, mailen som ethvert opslag, skabelonen forudfyldes FRA profilen
+uden at skrive tilbage, intet tidsvindue — de tre felter FINDES, #765);
+57 bliver kolonnerne `hjalp`/`hjalp_at` på `member_progress`; 69 og 62
+måler feedet for guid før bygning, episoder uden guid registreres ikke, 62
+registrerer i begge afspillere; 40 retter chattens skuffe i samme bygning
+(`afviger = !hit` dømmer uden mål); 29 bruger månedens budgettal, kun
+omsætning og lønninger, rangorden budget > aftalt > standard, «Fra
+budget» i panelet; 82 beholder `APP_BRANDING` til det gamle design er væk,
+sletter de to umonterede komponenter, rækkerne først efter prod-måling.
+Fem nye kort: rå HTML i klokkens chatbeskeder; driftlinjen dumper rå JSON;
+en chatbesked i klokken åbner indbakken, ikke samtalen (set på skærm
+10:49); slettefunktionens liste nævner ikke `community_reaktioner`,
+`community_visninger`, `forside_sidst_set`, `raadgiver_opgaver`; «aftalt»
+mål er ikke altid aftalt (tomt felt → 0, `NoegletalView.tsx:405`;
+brancheskift skriver branchetal, `IndstillingerView.tsx:273`).
+
+**7. Målingen 11:18** (`~/Downloads/query-results-export-2026-09-11_11-18-24.csv`,
+sektion d–k ordret; læsningerne er chattens 11/9 og `recon-a2-raadgiverfladen.md`):
+
+- **d — `session_bookings`** (`d_session_policy`, `d_session_skema`): «Admins
+  can view all session bookings | SELECT | has_role(auth.uid(),
+  'admin'::app_role)», «Advisors read all session bookings | SELECT |
+  has_role(auth.uid(), 'advisor'::app_role)», «Service role can manage
+  session bookings | ALL | (auth.role() = 'service_role'::text)», «Users can
+  view own session bookings | SELECT | (auth.uid() = user_id)»; kolonner
+  «advisor | text», «slut_tid | timestamp with time zone», «start_tid |
+  timestamp with time zone». **Læsning: `20260908190000_session_tid` ER
+  kørt** — `start_tid`, `slut_tid` og policyen «Advisors read all session
+  bookings» findes. Filhovedet har fået linjen «KØRT i prod — målt 11/9 kl.
+  11:18».
+- **e — sessioner** (`e_sessioner`): «jonas · booking_sent · betalt | 3 |
+  med calendly_event_uri 0», «jonas · pending · betalt | 9 | med
+  calendly_event_uri 0», «morten · booked · gratis | 2 | med
+  calendly_event_uri 2», «morten · booking_sent · gratis | 1 | med
+  calendly_event_uri 0». **Læsning:** `amount_dkk > 0` betyder at sessionen
+  koster penge, ikke at den er betalt. «pending» er en checkout der ikke
+  blev gennemført; «booking_sent» er betalt (stripe-webhook ved
+  `checkout.session.completed`, recon-a2 kort 76 §2).
+- **f — samtalelistens vindue** (`f_vindue`, `f_vindue_ulaeste`): «beskeder
+  i alt / samtaler med beskeder / samtaler hvis nyeste besked er ældre end
+  nr. 500 | 604 / 25 / 0»; «ulæste medlemsbeskeder (user) ældre end nr. 500
+  | 0». **Læsning: vinduet er ikke ramt i dag.**
+- **g — beskedtyper** (`g_beskedtyper`): «system | 120 | ulæste 0», «user |
+  481 | ulæste 8», «welcome | 3 | ulæste 3». **Læsning:** fantomen er de tre
+  welcome-rækker; `legat-momentum-reminder` og `reflection-nudge` har ingen
+  rækker i prod.
+- **h — FK'erne på `financial_report_facts`** (`h_fk_facts`):
+  «financial_report_facts_company_id_fkey | FOREIGN KEY (company_id)
+  REFERENCES companies(id) | confdeltype a»,
+  «financial_report_facts_source_report_id_fkey | FOREIGN KEY
+  (source_report_id) REFERENCES financial_reports(id) | confdeltype a» —
+  begge NO ACTION.
+- **i — flere virksomheder** (`i_flere_virksomheder`): «brugere med mere end
+  én company_members-række | 0».
+- **j — invitationer** (`j_invitationer`, `j_invitationer_skema`): «accepted
+  | 40 | ældste 2026-02-27 13:33:53.302158+00 | uden virksomhed 30»,
+  «pending | 3 | ældste 2026-09-01 11:32:58.761229+00 | uden virksomhed 0»;
+  «company_id nullable | YES». **Læsning: drift mellem repo og prod** —
+  `company_invitations.company_id` er nullable i prod, men ingen migration
+  i repoet fjerner NOT NULL (`20260225103844:3-13` opretter den NOT NULL;
+  recon-a2 kort 3 §1).
+- **k — HTML i klokken** (`k_klokke_html`, `advisor_notifications` pr.
+  type, «antal | tekst med html-tags»): «agent_insight | 105 | 0», «drift |
+  18 | 0», «feedback_submitted | 13 | 0», «handout_completed | 54 | 0»,
+  «new_message | 251 | 163», «report_uploaded | 313 | 0». **Læsning: 163 af
+  251 `new_message`-rækker har HTML-tags; alle andre typer 0.**
+
+**8. A2-reconen og beslutningerne** (`~/Downloads/recon-a2-raadgiverfladen.md`;
+skrevet ind i kortene, mangellisten «RYDDET 11/9 FORMIDDAG», del 2):
+
+- **Kort 3 «Hængende invitationer har intet hjem» — FJERNET som løst.**
+  Kortets påstande holdt ikke: `HbInvitationer` (#754) viser ALLE åbne
+  invitationer på tværs på `/virksomheder` (`VirksomhedslisteView.tsx:524`),
+  ældste først (`lib/invitationer.ts:41-43`), med alder, rust over 30 dage
+  (`GAMMEL_DAGE = 30`), gensend og slet pr. række (`:36-72`); og
+  `MembersAdminSection` viser «Afventende invitationer» for admin. Prod
+  11:18: 3 afventer, ældste 1/9. Beviset står her.
+- **Kort 83 «Fjern fra virksomheden … /members' knap sletter stadig
+  mennesket»:** knappen ses kun af admin (`MemberCompanyRow.tsx:339
+  maaFjerneMedlem(isAdmin, …)`); en admin kan stadig kalde `remove-member`
+  direkte via API (gaten er `callerIsAdmin`, `manage-advisor/index.ts:104-
+  109`); handlingen sletter i tre skridt uden transaktion (`:411-426`);
+  begge FK'er på `financial_report_facts` er NO ACTION (målt 11:18, h);
+  kildeværnet `medlemsfjernelse.test.ts:70-89` læser ikke `Members.tsx`.
+  **Besluttet 11/9 — forslag fra chatten, stående uden indsigelse:** knappen,
+  serverens `remove-member`-gren og `maaFjerneMedlem` fjernes i samme
+  bygning. Rigtig sletning af en person har sit eget kort.
+- **Kort 76 «Jonas ser Mortens sessioner og omvendt»:** påstanden om RLS
+  holdt ikke — rådgiver-SELECT findes (`20260908190000:54-58`) og er kørt i
+  prod (d). Betalte sessioner stopper ved `booking_sent` (recon-a2 kort 76
+  §2: ingen booking-id i Calendly-linket, webhooken filtrerer `advisor =
+  'morten'`). Prod: 3 `booking_sent`, 9 `pending`. **Besluttet 11/9 —
+  forslag fra chatten, stående uden indsigelse:** `booking_sent`-rækker
+  vises som «betalt {dato} · booking-link sendt» uden afholdt-dom; `pending`
+  vises ikke.
+- **Kort 46 «Rådgiverens samtaleliste regner tal … af 500 løse beskeder»:**
+  ikke ramt 11:18 (f); `conversations` har ingen tekstkolonne (kun
+  tidsstempler, recon-a2 kort 46 §1); der findes ingen RPC der tæller
+  ulæste pr. samtale (§3) — begge kræver en migration. **Ud af A2 11/9.**
+- **Kort «Én bruger med flere virksomheder»:** målt 0 (i) — parkeres som idé
+  efter kortets egen regel.
+- **Klokkefund (a) og (c):** (a) `send-slack-chat-notification/index.ts:126
+  preview = (message.content || "").slice(0, 250)` — rå Tiptap-HTML, ingen
+  strip — skrives til `advisor_notifications.body` (`:275-283`); ingen delt
+  `stripHtml` findes i `src/lib` eller `_shared`; prod k: 163 af 251. (c)
+  rækkens `reference_id` er `message.id`, ikke samtalens (`:275-283`);
+  `/chat?conversationId=…&messageId=…` FORSTÅS af `CompanyChatPane.tsx:278-
+  297`, og `notifications`-dual-write bærer allerede det link (`:293`) —
+  `klokke.ts` kan ikke bygge det uden opslag, fordi samtale-id'et ikke
+  står på rækken.
+- **DEL 3-rækken «/members er tømt» holdt ikke:** header, «Importér
+  ansøgning», «Inviter ny bruger», `MembersStatsBar`, listen med
+  `MemberCompanyRow` og `MembersAdminSection` er stadig monteret
+  (`Members.tsx:1044-1075, :1184-1200, :1239-1249`; recon-a2 kort 3 og 83
+  §4). Rækken er rettet.
+
+**9. Målingerne 11:27 og 11:28, og feedet** (`~/Downloads/query-results-
+export-2026-09-11_11-27-14.csv`, `…_11-28-49.csv`,
+`recon-feed-og-checkoutdoeren.md`).
+
+- **Checkout-døren er lukket (11:27).** Prods krop af
+  `hent_betalingsdata_til_checkout(betalingstoken uuid)` er tegn for tegn
+  identisk med filens (`20260911050000:83-114`, citeret i reconens måling
+  B); md5 uændret `76178b0711e70b02ea86a6fe8a2ed8b9`;
+  «har_repoets_betingelse true | har_tilbuddets_moenster false». Linjen der
+  dømmer: `and (c.contract_end_date is null or c.contract_end_date + 1 <=
+  now())`. Målingen 09:20 ledte efter tilbuddets mønster «+ 1 > now()»;
+  checkout skriver bevidst det modsatte, fordi checkout skal lade dem uden
+  gældende slutdato betale (tilbuddet `:60-61` og checkout `:104` er
+  hinandens komplement). «false» kl. 09:20 var præcis hvad den kørte fil
+  ville give — fejlen var chattens, og punktet stod åbent i to timer.
+  Migrationen `20260911050000` er dermed helt i prod; filhovedets linje 1
+  siger det nu; kortet «Migrationer der venter på prod» er fjernet som
+  løst; DEL 4 har fælden.
+- **Feedet — beslutning 17** (reconens måling A, `curl` mod
+  `podcast-rss/index.ts:19`, HTTP 200, 88021 bytes): 18 items; 18 med
+  ikke-tom `<guid>`; 18 forskellige; 14 i UUID-form og 4 som
+  `https://api.spreaker.com/episode/<tal>`; alle 18 med
+  `isPermaLink="false"`; `<itunes:episode>` og `<itunes:season>` på alle 18,
+  sæson 1 på alle, episodenummer unikt; parserens reserve
+  (`PodcastTalksView.tsx:76`, `:93`) bruges ikke. Nyeste episode «Wed, 17
+  Sep 2025 07:10:31 GMT», ældste «Fri, 14 Feb 2025 11:56:08 GMT».
+  *Læsning fra chatten 11/9:* guid-forudsætningen i beslutning 8 er
+  opfyldt; et anker kan ikke bruge guid direkte, fordi URL-formen har kolon
+  og skråstreg — `itunes:episode` kan; podcasten har ikke udgivet i næsten
+  et år. **Besluttet 11/9 — forslag fra chatten, stående uden indsigelse:**
+  kort 69 og 62 venter til Jonas og Morten har afgjort om podcasten
+  fortsætter. B2 er dermed kort 56 og 57.
+- **Kort 60 — prod før bygning (11:28, ordret).** a) De to CHECK'er
+  migrationen skal skrive om: `community_traade_kilde_type_check` = «CHECK
+  ((kilde_type = ANY (ARRAY['content_item'::text, 'event'::text])))»;
+  `community_traade_kilde_check` = «CHECK ((((kilde_type IS NULL) AND
+  (kilde_item_id IS NULL) AND (kilde_event_id IS NULL)) OR ((kilde_type =
+  'content_item'::text) AND (kilde_item_id IS NOT NULL) AND (kilde_event_id
+  IS NULL)) OR ((kilde_type = 'event'::text) AND (kilde_event_id IS NOT
+  NULL) AND (kilde_item_id IS NULL))))». b) `opret_community_traad(p_titel,
+  p_indhold, p_kilde_type, p_kilde_item_id, p_kilde_event_id,
+  p_indhold_json)` er «security definer true | md5
+  b938754b9cab7ab28405b1a293dfe303» og sender `p_kilde_type` uændret til
+  `INSERT INTO public.community_traade (…, kilde_type, kilde_item_id,
+  kilde_event_id) VALUES (…, p_kilde_type, p_kilde_item_id,
+  p_kilde_event_id)` uden egen kontrol — CHECK'en er vagten; kort 60 skal
+  ikke ændre funktionen. c) Tråde: «null | 10 | status aktiv, slettet» —
+  10 tråde, alle uden kilde. d) Kolonner: `kilde_type text`,
+  `kilde_item_id uuid`, `kilde_event_id uuid`, alle «nullable YES». e)
+  Funktioner der nævner `kilde_type`: `get_community_feed(p_limit,
+  p_offset)` (security definer, md5 `cebb8f9b713156d0556451feb949f4e8`),
+  `get_community_traad(p_traad_id)` (security definer, md5
+  `7ff983c83dc8a42adfff69b545617390`), `opret_community_traad` (ovenfor),
+  `protect_community_traad_immutable_fields()` (security definer false,
+  md5 `fa746e7d4c6f540d0a636f1f30e9f3d9`) — deres linjer læses før
+  bygningen.
+
 ### Mailplatformen — bygget om af Lovable 8/9 kl. 06:52-06:58; afsenderne, fortegnelsen og værnet (#728, #730, #731, #732)
 
 **Hvad Lovable gjorde.** 19 commits direkte til main mellem kl. 06:52 og
@@ -3863,9 +4248,9 @@ facit og rækkefølge; `docs/chat-design.md` chattens form.
 | hvornår | hvad | hvor det står |
 |---|---|---|
 | **ÅBENT — Jonas og Morten, ikke i aften** (10/9 kl. 22: «Jeg ved ikke om jeg er skarp nok til at vælge») | **`run-weekly-agent`: slet (A), omlæg tørt/live (B) eller byg færdig som én mandagsmotor (C).** Den har aldrig kørt (kun `Deno.cron`, 0 `weekly_cron` i `agent_runs`), så intet haster. Mål FØRST om nogen læser ugefokus: `notifications` type `weekly_focus_ready` → `seen_at`/`read_at` (SQL i DEL 2). `weekly_focus.seen_at` kan ikke bruges (død skrivevej, rettes i det andet vindue). | DEL 2 «Ugefokus og ugeagenten» |
-| **FØR 13/9** — Stripe er sat op 10/9 kl. 20:50–21:05 (past-due, mails til, dansk); koden mangler | **Restancen:** (1) rådgivernes klokke ved fejlet træk (`skrivRaadgiverBesked` i `payment_failed`, dedup `company_traek.id`); (2) retries opbrugt → `invoices.send` når `next_payment_attempt` er null. Bevis: doggybeds træk 13/9 — går det igennem, skrives intet; fejler det, skal klokken ringe og badgen stå. | DEL 2 «Restancen»; fornyelseskæden §9; mangellisten (Betaling) |
-| **SKREVET 10/9 (#801), IKKE BEKRÆFTET KØRT** | **Tre migrationer:** `20260911020000_messages_delete_15min.sql` (to DELETE-policies erstattes af «within 15 min» + advisor), `20260911030000_feedback_bucket_mappetjek.sql` (mappetjek, 5 MB, image/*), `20260911040000_companies_status_check.sql` (CHECK + NOT NULL; prod målt 30/8, 0 NULL). Bevis: SELECT'en nederst i hver fil — indtil da gælder de gamle policies. | DEL 2 «10. september, sen aften»; `SECURITY_BASELINE.md` §5 |
-| **RETTET 10/9** (#771–#773): `/members` er tømt — kun importen og onboarding-tragten står; `/settings` er konverteret med aftalen og en rigtig notifikationsfane. **EFTER 9/9** — det der stod tilbage efter rådgiverfladen og de to trin | ~~Otte ting kun på `/members`~~ → **10/9: importen bliver til ansøgningsflowet flytter; onboarding-tragten skal IKKE flyttes.** ~~`/settings`' tre rester~~ → **10/9: konverteret (#773).** **Aftale-kortet** er bygget med slutdato og pris; perioderne vises når nogen har nogen — 27 af 27 har nul. **Bevis:** `_shared/ikkeIGang.ts` i «View code» efter merge, Update for forsiden. **Ikke kode:** skriv til de seks der aldrig har uploadet — bed om historikken. | DEL 2 «9. september», mangellisten «Rådgiverfladen» |
+| **FØR 13/9** — Stripe er sat op 10/9 kl. 20:50–21:05 (past-due, mails til, dansk); **(1) BYGGET 11/9 (#815)**, (2) ikke bygget | **Restancen:** (1) ~~rådgivernes klokke ved fejlet træk~~ → **bygget 11/9 (#815)**: `skrivRaadgiverBesked` i `payment_failed`, dedup `company_traek.id`, værn mod at et betalt træk vendes til fejlet; udestår Update og bevis på skærm. (2) retries opbrugt → `invoices.send` når `next_payment_attempt` er null — **ud af A1 11/9**, forudsætningerne står på kortet; haster ikke før 13/9 (otte forsøg). Bevis: doggybeds træk 13/9 (søndag) — går det igennem, skrives `betalt`; fejler det, skal klokken ringe og badgen stå, og svaret bærer `traek.id` eller `klokke`. | DEL 2 «11. september, formiddag»; fornyelseskæden §9; mangellisten (Betaling) |
+| **LØST — MÅLT KØRT 11/9 kl. 09:20** (alle tre stod i prod; `query-results-export-2026-09-11_09-20-04.csv`). Var: SKREVET 10/9 (#801), IKKE BEKRÆFTET KØRT | **Tre migrationer:** `20260911020000_messages_delete_15min.sql` (to DELETE-policies erstattes af «within 15 min» + advisor), `20260911030000_feedback_bucket_mappetjek.sql` (mappetjek, 5 MB, image/*), `20260911040000_companies_status_check.sql` (CHECK + NOT NULL; prod målt 30/8, 0 NULL). Bevis: SELECT'en nederst i hver fil — indtil da gælder de gamle policies. | DEL 2 «10. september, sen aften»; `SECURITY_BASELINE.md` §5 |
+| **RETTET 11/9 — «/members er tømt» holdt ikke** (recon-a2 kort 3 og 83 §4): `Members.tsx` renderer stadig header «Virksomheder», «Importér ansøgning» (`:1058-1065`), «Inviter ny bruger» (`:1066-1070`), `MembersStatsBar` (`:1074`), listen med `MemberCompanyRow` (`:1184-1200`: omdøb, invitér, gensend, fjern, slet, redigér virksomhed), «Slet virksomhed / + brugere» (`:1316`) og `MembersAdminSection` (`:1239-1249`); ruten `App.tsx:243` kræver advisor. Var: «RETTET 10/9 (#771–#773): `/members` er tømt — kun importen og onboarding-tragten står». `/settings` ER konverteret (#773). **EFTER 9/9** — det der stod tilbage efter rådgiverfladen og de to trin | ~~Otte ting kun på `/members`~~ → **10/9: importen bliver til ansøgningsflowet flytter; onboarding-tragten skal IKKE flyttes.** 11/9: siden er ikke tømt — se rækkens første celle; «Fjern»-knappen og `remove-member` fjernes i samme bygning (besluttet 11/9, kortet «Fjern fra virksomheden»). ~~`/settings`' tre rester~~ → **10/9: konverteret (#773).** **Aftale-kortet** er bygget med slutdato og pris; perioderne vises når nogen har nogen — 27 af 27 har nul. **Bevis:** `_shared/ikkeIGang.ts` i «View code» efter merge, Update for forsiden. **Ikke kode:** skriv til de seks der aldrig har uploadet — bed om historikken. | DEL 2 «9. september», mangellisten «Rådgiverfladen» |
 | **9/9 — I MORGEN** (punkt 1 og 2 er KØRT 8/9: de syv slettet kl. 12:14–12:26, DEL 2 «De otte tidligere»; kvitteringen siger en dato og kan fortrydes, #736) | **1) KØRT 8/9 kl. 12:14–12:26** — de syv tidligere slettet i fire hold efter `docs/koereplan-de-syv-tidligere.md` (nu historik); 8 af 8 stemplet, sweep tomt. **2) KØRT (#736)** — kvitteringen siger «Din data slettes den …» (motorens frist) og kan fortrydes til dagen før. **3) Cron-migrationsfilen** der bogfører `slet-medlemsdata` (`0 12 * * *`), formen fra `20260901112000_prod_cron_bogfoert.sql`. **4) Planen for 8/9, punkt 6–7** (punkt 4 og 5 er GJORT 8/9 eftermiddag: digesten kalder milepælsdommen #741/#742, kvitteringsmailen #739 — DEL 2 «Eftermiddagen 8/9»): toasten i `Index.tsx`, og den tomme platform (a–d). **5) Intro-sessionens tid** — starttiden ankommer i `calendly-webhook` og kastes væk; bygges (det andet vindue 8/9 aften). **6) Åbne fund uden beslutning:** de betalte 1:1-sessioner der stopper ved `booking_sent`; agentens forslag (op til tre pr. virksomhed pr. mandag + ét pr. rapport, ingen læser svarene) — mangellisten bærer begge. | `docs/koereplan-de-syv-tidligere.md`; `docs/koereplan-slettefunktionen.md`; DEL 2 «Slettefunktionen»; øverst «PLANEN FOR 8. SEPTEMBER» |
 | **22/9 — BEVIS** (kortene «aftale-kortet» og «betalingshistorik» er slettet fra mangellisten 10/9; beviset står her) | **Første rigtige periode på `/settings`.** #773 viser aftalen (slutdato, start, pris fra `companies`) og «Betaling» (perioder og fakturaer) — men målt 9/9 har 27 af 27 nul rækker i `company_traek`/perioder. PHILBERTs varsel 2 går 22/9 og bliver den første række. Bevis: kortet viser perioden og fakturaen på skærmen, og `company_fornyelse` læses ikke (låst med test). | DEL 2 «10. september» (#773) |
 | **10/9** — MÅLT 6/9: ikke en tændingsdato | Fornyelsesordningen træder i kraft. Tre udløber inden og falder udenfor. **Intet sker i koden den dag:** `FORNYELSE_IKRAFT_DATO` sammenlignes med virksomhedens slutdato, ikke dags dato, og bliver virkningsløs efter 10/9. Kædens forudsætninger er alle grønne (seks migrationer kørt, ni priser, seks events, fire funktioner udrullet — men 401 beviser kun at de findes, ikke hvilken version; driftsbeviset fra 1/9 ligger før #529, #561, #563, #572 og #583). **Det der IKKE er klar: ordningen har ingen afsender** — rækken «BESLUTTET 6/9» nedenfor. | fornyelseskæden §13; fornyelsesordningen §5, §7; DEL 2 «Fornyelseskæden» |
@@ -3875,9 +4260,9 @@ facit og rækkefølge; `docs/chat-design.md` chattens form.
 | BYGGET 7/9 eftermiddag (#683 motoren, #684 pengevejen), udrullet kl. 08:53 UTC — ændrer beslutningen fra 1/9 | **Fornyelse kan betales FØR slutdatoen.** Før kunne et medlem på dag 22 hverken se eller betale sit tilbud (checkout 403, `hent-fornyelsestilbud` null, gaten kun for udløbne). **Regnestykket, ordret:** betalt FØR eller PÅ slutdatoen → GAMMEL SLUTDATO + 12 måneder; betalt EFTER → BETALINGSDAGEN + 12. Grænsen er kontinuert (28/9 og 29/9 → 2027-09-29; 30/9 → 2027-09-30). `periode_start` er udledt af `company_perioder`s invariant: ny periode begynder hvor den gamle slutter. 29. februar er en synlig gren (→ 1/3 året efter, slutdatoen er eksklusiv). **`cancel_at` er IKKE ændret, og skal ikke ændres** — abonnementet er betalingsplanen, ikke adgangen; en der betaler tidligt får et abonnement der ophører FØR kontrakten, og det er rigtigt (DEL 2 «Fornyelseskæden», rettelsen; DEL 4). | fornyelseskæden §15.3, §7; fornyelsesordningen §1 |
 | LØST 7/9 (#691) — fornyelsesbåndet, bevist kl. 12:45; formen strammes (UNDERVEJS, Jonas 7/9) | **Et ikke-udløbet medlem kan betale, men kan ikke SE tilbuddet — LØST: båndet på forsiden.** `MembershipExpiredGate` vises kun ved tier `expired` (`Index.tsx`), og ingen anden flade viser fornyelsen til et medlem (målt 7/9). Betalingsvejen er åben fra dag 60 (`klar_til_tilbud`), men den eneste vej til checkout er gaten. Hvor tilbuddet skal vises før slutdatoen — forsiden, en mail, et kort — er ikke besluttet. *Målt 7/9 middag (`~/Downloads/recon-fornyelse-efter-betaling.md` §6, uden for repoet): `MembershipExpiredGate:88` er det ENESTE kaldested i `src/`; reconen kortlagde otte eksisterende mønstre at vælge imellem, og chattens udløbsbånd (sage-flade, rust-ikon, gatet på tilstand) er formmæssigt tættest — og det blev formen.* *LØST 7/9 kl. 12:45 (#691): `FornyelsesBaand` øverst på forsiden, kun når serveren siger tilbud; bevist på Topix med 20.000 kr. og tre modeller (DEL 2 «Fornyelseskæden»). Kortet er slettet fra mangellisten. Undervejs: større tekst, én primær knap, luft.* | DEL 2 «Fornyelseskæden»; fornyelseskæden §15.3 |
 | samtale, målt 6/9 | **To virksomheder uden slutdato rammer aldrig ordningen:** Alexander Lunds virksomhed og Martin Larsens virksomhed (`ingen_slutdato`). Og **Bastant Design** (31/12-2027) har ingen indgangspris, så fornyelsesprisen er ukendt — et `tilbyd` dér ville give et tomt tilbudskort. | fornyelseskæden §13.4 |
-| **13/9** | doggybeds træk på 4.375 kr. på den nye konto — MÅL at det gik igennem. Derefter flyttes de tretten i portioner. TuaMea (2/9), Floren engros og BR Roset (3/9) venter til efter egne træk. **Samme dag, beviset for #563 (nu stærkere):** `companies.subscription_status` skal forblive NULL på doggybed (`382fd787-3141-45c7-8eea-297b7b947fe0`) efter trækket — fordi grenen springer over med vilje, ikke fordi noget fejler — og `customer.subscription.updated` skal stå grøn i Stripes Event deliveries. SQL'en står i migration-recon §26. **Samme dag, beviset for #572:** en række i `company_traek` for doggybeds faktura med `status = 'betalt'` (SQL editor); fejler trækket, skal rækken stå som `fejlet` og badgen vise sig på /members (#574). | migration-recon §25, §26; indgangen-design §31 |
+| **13/9** | doggybeds træk på 4.375 kr. på den nye konto — MÅL at det gik igennem. Derefter flyttes de tretten i portioner. TuaMea (2/9), Floren engros og BR Roset (3/9) venter til efter egne træk. **Samme dag, beviset for #563 (nu stærkere):** `companies.subscription_status` skal forblive NULL på doggybed (`382fd787-3141-45c7-8eea-297b7b947fe0`) efter trækket — fordi grenen springer over med vilje, ikke fordi noget fejler — og `customer.subscription.updated` skal stå grøn i Stripes Event deliveries. SQL'en står i migration-recon §26. **Samme dag, beviset for #572:** en række i `company_traek` for doggybeds faktura med `status = 'betalt'` (SQL editor); fejler trækket, skal rækken stå som `fejlet` og badgen vise sig på /members (#574). **Beviset for #815 (11/9):** svaret på `invoice.payment_failed` bærer `traek.id` og `klokke` (skrevet/fandtes pr. rådgiver); en række pr. rådgiver i `advisor_notifications` med `type = 'traek_fejlet'`, `reference_type = 'traek'`, `reference_id = company_traek.id`; klokkens link er `/virksomhed/382fd787-…?section=aftale`. Går trækket igennem, skrives ingen besked, og et senere `payment_failed` for samme faktura svarer `sprunget_over: allerede_betalt`. 13/9 er søndag. **Skærmbeviset for klokkens link er FØRT 11/9 ca. 11:15** («Ny resultatopgørelse fra remm.» → virksomhedssiden, Jonas: «Det virker umiddelbart», uden skærmbillede; Update klikket 11:12); det der står tilbage her er stripe-webhooks version, som doggybeds event beviser. | migration-recon §25, §26; indgangen-design §31; DEL 2 «11. september, formiddag» |
 | LØST 3/9 kl. 10:42 | **Hvorfor skrev webhooken ikke på 2/9?** Eventet BLEV leveret; webhooken svarede 500 i skrivningen (fem gentagelser fra Stripe). Efter #563 gensendt manuelt → 200 `skipped: migreret_subscription`, «Recovered». Webhooken får subscription-events; hvidlisten er bevist på det rigtige event. Hvad der kastede, afdækkes bevidst ikke — men det art-løse selvbetjeningsabonnement går stadig gennem den kode. | migration-recon §26 |
-| **22/9** varsel 2 — kræver et MANUELT kald af `fornyelsesvarsel-cron`, jobbet er ikke planlagt; **29/9** er PHILBERTs sidste dag MED adgang (#698) | PHILBERTs fornyelse: `tilbyd` står i `company_fornyelse`, prisen er gyldig (20.000 kr.). *7/9 kl. 11:57:* **varsel 1 ER SENDT** (nille@…, 22 dage, 20.000 kr.) og stemplet `varsel_1_sendt_at`; båndet på forsiden viser tilbuddet (#691), så PHILBERT kan både se og betale før 29/9 (#684). **Varsel 2 forfalder 22/9** — og sendes KUN hvis nogen kører funktionen i hånden den dag, for cron-jobbet er ikke planlagt (rækken ovenfor). Doggybed 13/10 står som `tilbyd_ikke`. | fornyelseskæden §13.4; prioritering §1 |
+| **22/9** varsel 2 — jobbet ER planlagt (RETTET 11/9: `cron.job` målt kl. 09:20 har `fornyelsesvarsler` «0 11 * * *» gennem `kald_edge('fornyelsesvarsel-cron', '{"dry_run": false}')`; «jobbet er ikke planlagt» var forældet siden 7/9 kl. 14:51); **29/9** er PHILBERTs sidste dag MED adgang (#698) | PHILBERTs fornyelse: `tilbyd` står i `company_fornyelse`, prisen er gyldig (20.000 kr.). *7/9 kl. 11:57:* **varsel 1 ER SENDT** (nille@…, 22 dage, 20.000 kr.) og stemplet `varsel_1_sendt_at`; båndet på forsiden viser tilbuddet (#691), så PHILBERT kan både se og betale før 29/9 (#684). **Varsel 2 forfalder 22/9** — og sendes af jobbet kl. 11 UTC (målt 11/9); intet manuelt kald. Doggybed 13/10 står som `tilbyd_ikke`. | fornyelseskæden §13.4; prioritering §1 |
 | LØST 3/9 | **Cron-jobbet `indgangs-paamindelser` (0 10 \* \* \*)** er planlagt og aktivt, verificeret i `cron.job`. Tørkørsel og rigtig kørsel bevist på FLOOR1. Secret `RAADGIVER_MAIL_TIL` er ikke bekræftet sat i denne bogføring. | indgangen-design §26, §30 |
 | LØST 3/9 | **Dag 31-fakturaen** (#559–#561): motoren opretter kunde + faktura med `metadata[company_id]` på begge, cronen sender den FØR dag 31-mailen, `invoice.paid` er tilmeldt (fem events formiddag, seks efter #572; `invoice.created` bevidst ikke) og skriver samme kæde som checkout med `betalingsmodel 'faktura'` og beløb uden moms. Bevist i drift 3/9 kl. 10:00–10:11 inkl. betaling og kreditnota. | indgangen-design §30 |
 | LØST 3/9 eftermiddag (#572, #574) | **Månedstrækkene registreres** — både betalte og fejlede, i `company_traek`; `invoice.payment_failed` tilmeldt (seks events); fejlet træk ses på /members. Migration kørt, webhook deployet, Update klikket. Bevis 13/9. | indgangen-design §31 |
@@ -3937,7 +4322,7 @@ facit og rækkefølge; `docs/chat-design.md` chattens form.
 | MÅLT 7/9 — bevis mangler | **Indgangens kæde har aldrig haft en virksomhed.** NUL rækker i `company_betalingslink` i prod; fem mails, den daglige cron og dag 31-fakturaen har ingen at ramme. Kæden er bevist som enkeltkørsel (FLOOR1 3/9), ikke i drift. Første rigtige virksomhed er beviset — og rammer alle indgangens ubeviste tekster. | DEL 2 «Indgangen» |
 | MÅLT 7/9 — kræver DEFINER-ændring | **Fakturateksten i `Betal.tsx` er usand i ti timer** (dag 31 kl. 00–10). `faktura_sendt_at` findes, men `hent_betalingstilbud` returnerer den ikke; ellers den mindste sande tekst («Fristen udløb {frist}. Du får en faktura …»). Rammer nul i dag, den første i morgen. | DEL 2 «Indgangen» |
 | BESLUTNING (Jonas), faglig — 7/9 | **KPI-fallbackens fire kronebeløb passer kun til én virksomhedsstørrelse.** Markeringen er bygget; tallene (omsætning 120.000, lønninger 50.000, resultat 10.000, omkostninger 80.000, plus 60 % / 15 %) er ét sæt for alle. Branchespecifikt, størrelsesafhængigt eller fraværende fallback er en faglig beslutning, ikke en rettelse. | DEL 2 «De tavse fejl», «Rådgiverfladen — listen og virksomhedssiden» (#623) |
-| SKREVET 7/9, IKKE KØRT — dikteres separat med SELECT før/efter | **Advisor kan ikke læse `email_send_log` — den tredje ting omdøbningen 19/3 tog.** Advisor-policyen fra 26/2 sidder på `email_send_log_legacy`; den levende tabel har kun service-role + admin. Morten (kun advisor) ser ingen log. Migration `20260907180000_email_send_log_advisor_read.sql` giver advisor SELECT (kun SELECT), med forudsætningen ordret i filen: gælder mens advisor betyder «Jonas eller Morten». Verifikation: `SELECT policyname, cmd, roles, qual FROM pg_policies WHERE tablename = 'email_send_log'` — fire før, fem efter. Uden den kan en mail-log på virksomhedssiden ikke bygges for rådgivere (recon-mailloggen-pr-virksomhed §6). | DEL 2 «De tavse fejl»; migrationens filhoved |
+| **LØST — MÅLT KØRT 11/9 kl. 09:20** (fem policies på `email_send_log`, «Advisors can read send log» med; `query-results-export-2026-09-11_09-20-04.csv`). Var: SKREVET 7/9, IKKE KØRT | **Advisor kan ikke læse `email_send_log` — den tredje ting omdøbningen 19/3 tog.** Advisor-policyen fra 26/2 sidder på `email_send_log_legacy`; den levende tabel har kun service-role + admin. Morten (kun advisor) ser ingen log. Migration `20260907180000_email_send_log_advisor_read.sql` giver advisor SELECT (kun SELECT), med forudsætningen ordret i filen: gælder mens advisor betyder «Jonas eller Morten». Verifikation: `SELECT policyname, cmd, roles, qual FROM pg_policies WHERE tablename = 'email_send_log'` — fire før, fem efter. Uden den kan en mail-log på virksomhedssiden ikke bygges for rådgivere (recon-mailloggen-pr-virksomhed §6). | DEL 2 «De tavse fejl»; migrationens filhoved |
 | LØST 7/9 (#701) | **Sendt-loggen var død i et halvt år.** `EmailTemplatesView` og `Members.tsx` læste `sent_at`/`template_id`, som forsvandt ved omdøbningen 19/3; 400-fejlen blev til «Ingen afsendelser endnu» over 1.664 rækker. Rettet til `created_at`/`template_name` som `EmailLogView`, fejllinje ved `isError`, guard over hele `src/`. | DEL 2 «De tavse fejl» |
 | LØST 7/9 (#698, #699, migration kl. 14:26) | **Slutdatoen er den sidste dag MED adgang** — begge TypeScript-kopier og de to SQL-domme, flyttet sammen; målt før/efter: præcis én virksomhed (CARMA) ramt. | DEL 2 «Slutdatoen»; adgangsdomme.md |
 | LØST 7/9 (#675, #676) | **Baselinen er nul, og CI kører typecheck** — `bunx tsc --noEmit -p tsconfig.app.json` FØR testene i jobbet «Tests», uden kendt-liste og uden `continue-on-error`. Beslutningen om de fire blev «rettes» (#675), ingen af dem skjult. Bevist i drift: kørsel 34092921389, trin 6 «Typecheck» → success. Gaten fangede #678's to Record-aftagere samme dag. | DEL 1 «Kodearbejde» |
@@ -4536,6 +4921,57 @@ De konkrete ting der har kostet tid. Led efter dem.
   bygger noget.» Ugens fokus var eksemplet: bygget til en der arbejder
   med platformen, og fyrede hårdest på dem der ikke gør (#749). Spørg
   ved hver flade: hvad ser den der aldrig har uploadet?
+- **Dokumenter der er uenige om prod, skal måles FØR noget køres.** 11/9
+  kl. 09:20: OVERLEVERING sagde KØRT, mangellisten og planen sagde IKKE
+  KØRT om de samme seks migrationer. Prod havde dem alle. Var §0A blevet
+  kørt som skrevet, var seks migrationer kørt oven i sig selv. Ét SELECT
+  (pg_policies, pg_constraint, pg_get_functiondef, cron.job) før
+  SQL-editoren — hver gang to kilder siger noget forskelligt.
+- **Et job planlagt i hånden er ikke migrationsfilen.** `onboarding-rytme`
+  står i prod som `kald_edge` «0 8 * * *»; filen `20260909180000` siger rå
+  `net.http_post` og «15 9 * * *». Køres filen, overskriver den formentlig
+  prod-jobbet med filens rå `net.http_post` og «15 9 * * *», og
+  `kald_edge`s timeout forsvinder — pg_cron's dokumentation viser at
+  `cron.schedule` med et navn der findes, ændrer det eksisterende job og
+  beholder dets jobid. Kun hvis filen køres som en anden databasebruger
+  kan navnet findes to gange — det er ikke målt. Bogfør prod i filen
+  (formen fra `20260901112000`), og sæt en ADVARSEL i filhovedet indtil da
+  (gjort 11/9).
+- **`deno check` lokalt kræver npm-opløsning.** `managedEmail.ts:15`
+  importerer `npm:@lovable.dev/email-js@0.1.0`; uden `deno install` eller
+  `nodeModulesDir` standser typetjekket der, før det når filen man ville
+  tjekke (11/9, stripe-webhook). Tjek det rene modul alene, og skriv i
+  verifikationen at helheden IKKE blev typetjekket.
+- **Et upsert uden værn kan vende en slutstatus.** `company_traek` upsertede
+  «fejlet» oven på «betalt» hvis `invoice.payment_failed` kom efter
+  `invoice.paid` — Stripe garanterer ikke rækkefølgen, og events leveres
+  igen. Værnet er en ren dom FØR upsertet (`maaRegistrereFejlet`, #815),
+  ikke en genlæsning bagefter. Og skriv ærligt at opslag og upsert er to
+  kald: lander det betalte event imellem, står rækken forkert og intet
+  retter den.
+- **En test der kun låser en streng, så ikke NotFound.** Klokken byggede
+  `/virksomheder/{id}` i to dage; testen forventede præcis den streng, og
+  ruten hed `/virksomhed/:companyId`. Kildeværn: testen læser `App.tsx` og
+  fejler hvis ruten klokken bygger ikke står der som `path="…"` (#815).
+- **Stripes kundeportal har opsigelse slået til som standard.** På den nye
+  konto stod «Cancel subscriptions» TIL uden at nogen havde valgt det;
+  med et portal-link kunne et rateabonnement opsiges af medlemmet, og
+  webhooken springer `subscription.deleted` over for abonnementer med
+  art. Slået FRA 11/9 kl. 10:01. Tjek portalens sektioner FØR et link
+  sættes op.
+- **`gh run list --branch <navn>` viser også kørsler fra ældre grene med
+  samme navn.** 11/9 stod #651 («Feedback i Hjemmebane», admin-fladen fra
+  4/9) under `feat/feedback-hjemmebane` ved siden af #816 — samme grennavn,
+  fem måneder imellem. Læs titel og alder på hver kørsel, ikke kun
+  grennavnet, før en status tilskrives den PR man venter på.
+- **En funktion måles med sin egen betingelse, ikke med søsterfunktionens.**
+  11/9 blev checkout-døren holdt åben i to timer, fordi
+  `hent_betalingsdata_til_checkout` blev målt med tilbuddets mønster
+  «+ 1 > now()» — og de to skriver hinandens modsætning: tilbuddet dømmer
+  «betalt» på `+ 1 > now()`, checkout tillader betaling på `is null or
+  + 1 <= now()`. «false» var det rigtige svar for en kørt fil. Mål mod
+  funktionens egen linje i filen (eller mod md5 af hele kroppen), aldrig
+  mod et mønster lånt fra en anden funktion.
 
 ---
 

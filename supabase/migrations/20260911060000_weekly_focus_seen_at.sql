@@ -1,3 +1,4 @@
+-- KØRT i prod — målt 11/9 kl. 09:20 (fire policies på weekly_focus, heraf UPDATE «Members set seen_at on own weekly focus» for authenticated; trigger protect_weekly_focus_seen_only; rækker / med seen_at: 171 / 2).
 -- Migration: weekly_focus.seen_at får en skrivevej — medlemmet må stemple
 -- SIN EGEN virksomheds række, og KUN den kolonne. Rettet 11/9 2026
 -- (recon-ugefokus-vaerdien.md §4, det andet vindue).

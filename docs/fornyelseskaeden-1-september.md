@@ -320,11 +320,46 @@ art) gør motoren `past_due` til `expired` straks — strengere end
 politikken «past_due = åben»; rettes den dag det første
 selvbetjeningsabonnement findes, sammen med de fem domme (adgangsdomme §6).
 
-**Det der stadig skal bygges** (kort på mangellisten, afsnittet Betaling):
-rådgivernes klokke ved fejlet træk, og «retries opbrugt → fakturaen
-sendes» (`next_payment_attempt` null → `invoices.send`), som er Jonas'
-aftale i kode. Stripe har ingen indstilling der sender fakturaen selv —
-slået op: slutvalgene, collection method og Automations kan det ikke.
+**Rådgivernes klokke ved fejlet træk — BYGGET 11/9 (#815).** Grenen
+`invoice.payment_failed` kalder `skrivRaadgiverBesked` efter upsertet,
+dedup på `company_traek.id` (UNIQUE `stripe_invoice_id` → én række pr.
+faktura → ét `reference_id`), deep link `/virksomhed/{id}?section=aftale`.
+To rettelser efter diff-læsning: et betalt træk kan ikke vendes til fejlet
+af et forsinket event (`maaRegistrereFejlet` før upsertet), og klokkens
+virksomhedslink var `/virksomheder/{id}` (flertal, NotFound) — nu ental
+med kildeværn mod `App.tsx`. Bevis: doggybeds event 13/9 (svaret bærer
+`traek.id` eller `klokke`). Detaljen i OVERLEVERING DEL 2 «11. september,
+formiddag».
+
+**«Retries opbrugt → fakturaen sendes» — IKKE bygget; forudsætningerne
+skærpet 11/9** (recon-a1-restance.md; besluttet 11/9 — forslag fra
+chatten, stående uden indsigelse): haster ikke før 13/9 (otte forsøg over
+en måned). Før det bygges: `/send` på en `charge_automatically`-faktura
+afprøves i testtilstand; et stempel mod dobbelt afsendelse (migration —
+`company_traek`s CHECK tillader kun `betalt`/`fejlet`); ingen dedup på
+event-id findes i webhooken; betingelsen snævres ind (`collection_method`,
+`status`); og det nye spørgsmål: hvad sker med forsøgene når abonnementet
+når `cancel_at` (doggybeds vindue slutter omtrent 13/10). Slået op i
+Stripes dokumentation 11/9: `next_payment_attempt` er null ved manuel
+opkrævning, lukkede fakturaer og maksimale forsøg; API-referencen for
+`/send` siger intet om `charge_automatically`; events kommer ikke
+garanteret i rækkefølge og kan leveres igen. Stripe har ingen indstilling
+der sender fakturaen selv — slået op 10/9: slutvalgene, collection method
+og Automations kan det ikke.
+
+**Kundeportalen (11/9):** login-linket er IKKE aktiveret på nogen af
+kontiene — «kundeportal-link TIL» fra 10/9 ovenfor er en anden
+indstilling, som ikke er identificeret (rettelse fra chatten 11/9). På den
+nye konto stod «Cancel subscriptions» TIL (cancel at end of billing
+period, cancellation reason TIL) og blev slået FRA kl. 10:01; gemt som
+Default (`bpc_1UEPNp3CvBmCx5PtUR…`, afkortet på skærmen). Begrundelse: et
+medlem kunne stoppe sine rater, og webhooken springer
+`subscription.deleted` over for abonnementer med art. ÅBENT: om
+gemningen skrev standardværdier for de øvrige sektioner (preview'et viste
+bagefter moms-id og fakturahistorik). Gammel konto: konfiguration
+`bpc_1QmwE84DoYItGRbI78…` med opdatering og opsigelse i preview'et — ikke
+rørt, Circle ejer kontoen. Slået op: portalens opsigelse er slået til som
+standard.
 
 ## 10. Åbne punkter
 

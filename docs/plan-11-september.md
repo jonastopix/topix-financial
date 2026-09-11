@@ -1,5 +1,14 @@
 # Plan for 11. september — tredive kort, to vinduer, i rækkefølge
 
+> **RETTET 11/9 formiddag** (prod målt kl. 09:20, `~/Downloads/query-results-export-2026-09-11_09-20-04.csv`; bogført i OVERLEVERING DEL 2 «11. september, formiddag»):
+> - **§0A havde intet at køre.** Alle seks migrationer stod allerede i prod (020000, 030000, 040000, 050000, 060000, 20260907180000), og `onboarding-rytme` var planlagt i hånden gennem `kald_edge` med «0 8 * * *». Planen og kortene sagde det modsatte; OVERLEVERING havde ret. Forbeholdet om `hent_betalingsdata_til_checkout` er LUKKET kl. 11:27: prods krop er tegn for tegn filens (md5 `76178b0711e70b02ea86a6fe8a2ed8b9`); «false» kl. 09:20 var det rigtige svar, fordi checkout bevidst skriver modsætningen af tilbuddets mønster (`is null or … + 1 <= now()`). Fejlen var chattens (OVERLEVERING DEL 2 §9, DEL 4).
+> - **13/9 er søndag, ikke lørdag** (11/9 er fredag). §2 punkt 2 står som skrevet.
+> - **A1 mistede kort 116 og kort 24.** 116 (rytmens migration) var overhalet af prod; 24 (retries opbrugt → `/send`) er taget ud af bunken — det haster ikke før 13/9, og forudsætningerne står nu på kortet. Kort 23 er bygget (#815).
+> - **B1 mistede kort 26 og blev delt i 85 og 60.** 26 (portalen) blev en Stripe-indstilling, ikke kode: opsigelse slået FRA 11/9 kl. 10:01, og login-linket er ikke aktiveret. 85 er bygget — **#816 merget kl. ca. 11:05, Update klikket 11:12** (dækker #815 og #816); beviset i prod fra målingen 11:18 (OVERLEVERING DEL 2 §5).
+> - **A2 efter reconen (`~/Downloads/recon-a2-raadgiverfladen.md`, prod 11:18):** kort 3 (hængende invitationer) er LØST — `HbInvitationer` viser alle åbne på tværs med alder, rust, gensend og slet; 3 afventer, ældste 1/9. Kort 46 (samtalelistens 500-vindue) er ud af A2 — vinduet er ikke ramt (604 beskeder, 25 samtaler), og både tekst fra `conversations` og en ulæst-RPC kræver en migration. Beslutninger for 76 (booking_sent vises som «betalt {dato} · booking-link sendt», pending vises ikke) og 83 (knappen, `remove-member`-grenen og `maaFjerneMedlem` fjernes i samme bygning) står på kortene.
+> - **B2 er kort 56 og 57 — beslutning 17 (feedet målt, `~/Downloads/recon-feed-og-checkoutdoeren.md`):** alle 18 episoder har guid, så forudsætningen fra beslutning 8 er opfyldt — men podcasten har ikke udgivet siden 17/9 2025. Besluttet 11/9 — forslag fra chatten, stående uden indsigelse: kort 69 og 62 venter til Jonas og Morten har afgjort om podcasten fortsætter.
+> - **Kort 60's udgangspunkt i prod er målt kl. 11:28** (CHECK'erne ordret, RPC'en sender `p_kilde_type` uændret, 10 tråde uden kilde) og står på kortet og i OVERLEVERING DEL 2 §9.
+
 Skrevet 10/9 2026 nat på `main` (`## main...origin/main`, rent træ) mod mangellisten som den står efter #810–#812:
 130 kort. KUN FUND OG RÆKKEFØLGE. Kortnumrene er positionen i listen i aften (1 = skabelonen).
 
