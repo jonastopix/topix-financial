@@ -4,11 +4,15 @@
  */
 import { describe, expect, it } from "vitest";
 import {
+  beskedVedFejletTraek,
   dubletBeskedTekst,
   fornyelsesBeskedTekst,
   raadgivereUdenRaekke,
+  traekFejletBeskedTekst,
   TYPE_FORNYELSE_BETALT,
   TYPE_FORNYELSE_DUBLET,
+  TYPE_TRAEK_FEJLET,
+  type FejletTraekRaekke,
 } from "../../../supabase/functions/_shared/raadgiverBeskedTekst.ts";
 
 describe("raadgivereUdenRaekke", () => {
@@ -50,5 +54,69 @@ describe("teksterne", () => {
     expect(t.body).toContain("20.000 kr. ekskl. moms");
     expect(t.body).toContain("IKKE skrevet en periode");
     expect(t.body).toContain("Refundér i Stripe");
+  });
+});
+
+describe("det fejlede træk (kort 23)", () => {
+  const raekke = (over: Partial<FejletTraekRaekke> = {}): FejletTraekRaekke => ({
+    id: "11111111-1111-4111-8111-111111111111",
+    status: "fejlet",
+    company_id: "c1",
+    beloeb_oere: 437_500,
+    fejl_besked: "Your card has insufficient funds.",
+    fejl_decline_code: "insufficient_funds",
+    faktura_nummer: "DZ7BZXM5-0012",
+    ...over,
+  });
+
+  it("teksten: virksomhed og beløb inkl. moms i titlen; grund, næste forsøg og faktura i teksten", () => {
+    expect(TYPE_TRAEK_FEJLET).toBe("traek_fejlet");
+    expect(traekFejletBeskedTekst({
+      virksomhed: "doggybed", beloebOere: 437_500, fejlBesked: "Your card has insufficient funds.", declineCode: "insufficient_funds",
+      naesteForsoegTekst: "17. september 2026", fakturaNummer: "DZ7BZXM5-0012",
+    })).toEqual({
+      title: "doggybed: et træk på 4.375 kr. fejlede",
+      body: "Stripe: Your card has insufficient funds. (insufficient_funds) · prøver igen 17. september 2026 · faktura DZ7BZXM5-0012",
+    });
+  });
+  it("uden fejlgrund: «Stripe gav ingen grund»; kun kode eller kun besked står alene", () => {
+    const grund = (fejlBesked: string | null, declineCode: string | null) =>
+      traekFejletBeskedTekst({ virksomhed: "X", beloebOere: 100, fejlBesked, declineCode, naesteForsoegTekst: null, fakturaNummer: null }).body;
+    expect(grund(null, null)).toBe("Stripe gav ingen grund · ingen flere forsøg fra Stripe");
+    expect(grund("  ", "")).toBe("Stripe gav ingen grund · ingen flere forsøg fra Stripe");
+    expect(grund(null, "card_declined")).toBe("Stripe: card_declined · ingen flere forsøg fra Stripe");
+    expect(grund("Kortet blev afvist.", null)).toBe("Stripe: Kortet blev afvist. · ingen flere forsøg fra Stripe");
+  });
+  it("uden næste forsøg: «ingen flere forsøg fra Stripe»; uden fakturanummer udelades leddet", () => {
+    const t = traekFejletBeskedTekst({ virksomhed: "X", beloebOere: 250_000, fejlBesked: null, declineCode: "expired_card", naesteForsoegTekst: null, fakturaNummer: null });
+    expect(t.title).toBe("X: et træk på 2.500 kr. fejlede");
+    expect(t.body).toBe("Stripe: expired_card · ingen flere forsøg fra Stripe");
+    expect(t.body).not.toContain("faktura");
+  });
+
+  it("dommen: en fejlet række med id og virksomhed giver beskeden med reference_id = company_traek.id", () => {
+    expect(beskedVedFejletTraek({ traek: raekke(), virksomhed: "doggybed", naesteForsoegTekst: "17. september 2026" })).toEqual({
+      type: "traek_fejlet",
+      title: "doggybed: et træk på 4.375 kr. fejlede",
+      body: "Stripe: Your card has insufficient funds. (insufficient_funds) · prøver igen 17. september 2026 · faktura DZ7BZXM5-0012",
+      company_id: "c1",
+      reference_type: "traek",
+      reference_id: "11111111-1111-4111-8111-111111111111",
+    });
+  });
+  it("dommen uden grund og uden næste forsøg", () => {
+    const b = beskedVedFejletTraek({ traek: raekke({ fejl_besked: null, fejl_decline_code: null, faktura_nummer: null }), virksomhed: "X", naesteForsoegTekst: null });
+    expect(b?.body).toBe("Stripe gav ingen grund · ingen flere forsøg fra Stripe");
+  });
+  it("null når id mangler — intet at dedup'e på", () => {
+    expect(beskedVedFejletTraek({ traek: raekke({ id: null }), virksomhed: "X", naesteForsoegTekst: null })).toBeNull();
+    expect(beskedVedFejletTraek({ traek: raekke({ id: "  " }), virksomhed: "X", naesteForsoegTekst: null })).toBeNull();
+  });
+  it("null når rækken ikke står som fejlet (trækket er betalt siden)", () => {
+    expect(beskedVedFejletTraek({ traek: raekke({ status: "betalt" }), virksomhed: "X", naesteForsoegTekst: null })).toBeNull();
+  });
+  it("null når company_id mangler", () => {
+    expect(beskedVedFejletTraek({ traek: raekke({ company_id: null }), virksomhed: "X", naesteForsoegTekst: null })).toBeNull();
+    expect(beskedVedFejletTraek({ traek: raekke({ company_id: "" }), virksomhed: "X", naesteForsoegTekst: null })).toBeNull();
   });
 });

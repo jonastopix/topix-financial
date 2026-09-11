@@ -101,15 +101,22 @@ export function medlemsLinje(n: MedlemsNotifikation): KlokkeLinje {
 }
 
 /** Rådgiverens vej fra en besked — Hjemmebanes ruter, ikke det gamle /members.
+    Virksomhedssiden er /virksomhed/:companyId (App.tsx, ental) — /virksomheder
+    er LISTEN, og /virksomheder/{id} ramte NotFound (rettet 11/9, låst med
+    kildeværn i __tests__/klokke.test.ts).
     Rapport: virksomhedssiden med rapporten foldet ud (?reportId, blok 6).
+    Træk: virksomhedssiden rullet til «Aftalen» (?section=aftale), hvor
+    «Betaling» med det fejlede træk står.
     Handout og chat: virksomhedssiden / indbakken uden opslag (den gamle
     klokke slog modul og samtale op i databasen — det er ikke en ren funktion). */
 export function raadgiverSti(n: Pick<RaadgiverNotifikation, "type" | "reference_type" | "reference_id" | "company_id">): string | null {
   if (n.type === "drift") return "/";
-  const virksomhed = n.company_id ? `/virksomheder/${n.company_id}` : null;
+  const virksomhed = n.company_id ? `/virksomhed/${n.company_id}` : null;
   switch (n.reference_type) {
     case "report":
       return virksomhed ? (n.reference_id ? `${virksomhed}?reportId=${n.reference_id}` : virksomhed) : "/virksomheder";
+    case "traek":
+      return virksomhed ? `${virksomhed}?section=aftale` : "/virksomheder";
     case "handout":
       return virksomhed ?? "/virksomheder";
     case "chat":

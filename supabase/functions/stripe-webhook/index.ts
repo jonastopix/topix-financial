@@ -13,6 +13,7 @@ import {
   abonnementIdFraFaktura,
   abonnementsMetadataFraFaktura,
   bygTraekRaekke,
+  maaRegistrereFejlet,
   paymentIntentIdFraFaktura,
   traekFejlFraPaymentIntent,
   type StripeAbonnementsFaktura,
@@ -27,7 +28,9 @@ import {
   skrivRaadgiverBesked,
   TYPE_FORNYELSE_BETALT,
   TYPE_FORNYELSE_DUBLET,
+  type RaadgiverBeskedResultat,
 } from "../_shared/raadgiverBesked.ts";
+import { beskedVedFejletTraek, type FejletTraekRaekke } from "../_shared/raadgiverBeskedTekst.ts";
 import {
   erGenindtraeden,
   forrigeKontraktErArkiveret,
@@ -290,11 +293,12 @@ async function sendFornyelseskvittering(
 //
 //    KASTER ALDRIG: pengene er modtaget eller forsøgt, og et kast ville få
 //    Stripe til at gensende. Alt logges med invoice-id; resultatet bæres i
-//    svaret. Idempotent: upsert på stripe_invoice_id (UNIQUE).
+//    svaret. Idempotent: upsert på stripe_invoice_id (UNIQUE). Rækkens id
+//    kommer tilbage (11/9) — det er klokkens dedup-nøgle ved fejlet træk.
 
 type TraekResultat =
-  | { udfald: "registreret"; status: TraekUdfald; company_id: string; genopslag: boolean }
-  | { udfald: "sprunget_over"; grund: "ingen_abonnement" | "ingen_company_id" }
+  | { udfald: "registreret"; id: string; status: TraekUdfald; company_id: string; genopslag: boolean }
+  | { udfald: "sprunget_over"; grund: "ingen_abonnement" | "ingen_company_id" | "allerede_betalt" }
   | { udfald: "fejlet"; aarsag: string };
 
 async function stripeGetJson<T>(sti: string): Promise<T> {
@@ -349,11 +353,46 @@ async function registrerAbonnementstraek(
       }
     }
 
+    // VÆRNET (11/9): et BETALT træk bliver aldrig til fejlet. Stripe
+    // garanterer ikke rækkefølgen på events, og de kan leveres igen — et
+    // payment_failed efter paid for samme faktura er et ældre forsøg.
+    // Rækken slås op FØR upsertet; dommen er ren (maaRegistrereFejlet).
+    // Opslag og upsert er to kald, ikke ét: lander invoice.paid MELLEM
+    // dem, er det betalte event allerede leveret, og upsertet skriver
+    // «fejlet» bagefter — rækken står så som «fejlet» med betalt_at sat,
+    // og intet retter den af sig selv. Accepteret: vinduet er
+    // millisekunderne mellem to kald.
+    if (udfald === "fejlet") {
+      const { data: staaende, error: opslagFejl } = await adminClient
+        .from("company_traek")
+        .select("id, status")
+        .eq("stripe_invoice_id", invoice.id)
+        .maybeSingle();
+      if (opslagFejl) throw new Error(`company_traek-opslag før fejlet fejlede: ${opslagFejl.message}`);
+      const status = (staaende as { id: string; status: string } | null)?.status ?? null;
+      if (!maaRegistrereFejlet(status)) {
+        console.log(`[stripe-webhook] træk ${invoiceId}: rækken står som betalt — fejlet-eventet er et ældre forsøg og skrives ikke`);
+        return { udfald: "sprunget_over", grund: "allerede_betalt" };
+      }
+    }
+
     const raekke = bygTraekRaekke(invoice, udfald, companyId, abonnementId, art, fejl);
-    const { error } = await adminClient
+    const { data: skrevet, error } = await adminClient
       .from("company_traek")
-      .upsert(raekke as unknown as Record<string, unknown>, { onConflict: "stripe_invoice_id" });
+      .upsert(raekke as unknown as Record<string, unknown>, { onConflict: "stripe_invoice_id" })
+      .select("id")
+      .single();
     if (error) throw new Error(`company_traek-upsert fejlede: ${error.message}`);
+    const traekId = (skrevet as { id?: string } | null)?.id;
+    if (!traekId) {
+      // Rækken ER skrevet (upsertet svarede uden fejl) — det er id'et der
+      // mangler. Ikke gennem catch'en: dens loglinje siger «rækken
+      // mangler», og det ville være usandt. Klokken springes over
+      // (meldFejletTraek kræver id); badgen viser trækket.
+      const aarsag = "company_traek-upsert gav intet id tilbage";
+      console.error(`[stripe-webhook] træk ${invoiceId} (${udfald}): rækken er skrevet i company_traek, men ${aarsag} — klokken kan ikke dedup'e og springes over.`);
+      return { udfald: "fejlet", aarsag };
+    }
 
     if (udfald === "fejlet") {
       console.error(
@@ -362,10 +401,84 @@ async function registrerAbonnementstraek(
     } else {
       console.log(`[stripe-webhook] træk betalt: company ${companyId}, abonnement ${abonnementId} (${art ?? "selvbetjening"}), faktura ${invoiceId}, ${raekke.betalt_oere} øre (${raekke.billing_reason ?? "?"})`);
     }
-    return { udfald: "registreret", status: udfald, company_id: companyId, genopslag };
+    return { udfald: "registreret", id: traekId, status: udfald, company_id: companyId, genopslag };
   } catch (err) {
     const aarsag = err instanceof Error ? err.message : String(err);
     console.error(`[stripe-webhook] KRITISK: træk ${invoiceId} (${udfald}) kunne ikke registreres i company_traek — ${aarsag}. Trækket findes i Stripe; rækken mangler.`);
+    return { udfald: "fejlet", aarsag };
+  }
+}
+
+// ── Rådgivernes klokke ved fejlet træk (11/9, mangellistens kort 23) ──
+//    Før: rækken i company_traek, en badge på listen og virksomhedssiden
+//    (ses kun af den der kigger) og console.error. Nu ringer klokken hos
+//    hver rådgiver, i vagtens form (skrivRaadgiverBesked). Medlemmet får
+//    Stripes egen kortfejl-mail (indstilling, #804) — ikke vores.
+//
+//    DEDUP — regnestykket: UNIQUE stripe_invoice_id → én company_traek-
+//    række pr. faktura → ét id → ét reference_id → skrivRaadgiverBesked
+//    slår op på type + advisor_id + reference_id før insert → otte forsøg
+//    (Smart Retries) på samme faktura giver ÉN besked pr. rådgiver, ikke
+//    otte. Et Stripe-id kan ikke bære det: reference_id er uuid.
+//
+//    KASTER ALDRIG, og svaret til Stripe afhænger ikke af klokken: rækken
+//    er skrevet, og grenen svarer 200 som før — fejler navneopslag eller
+//    skrivning, logges det, og resultatet står i svarkroppen ved siden af
+//    traek.
+//
+//    VÆRNET mod at et betalt træk bliver til fejlet sidder IKKE her, men i
+//    registrerAbonnementstraek FØR upsertet (maaRegistrereFejlet): et
+//    payment_failed efter paid springes over som "allerede_betalt", og så
+//    når vi aldrig hertil. Genlæsningen nedenfor beskytter ikke mod det —
+//    upsertet i samme kald har allerede skrevet — den giver kun dommen
+//    (beskedVedFejletTraek) rækken som den står i databasen, med de felter
+//    upsertet lod stå. Opslag og upsert er ikke atomare (to kald); se
+//    kommentaren ved værnet.
+
+type KlokkeResultat =
+  | ({ udfald: "skrevet" } & RaadgiverBeskedResultat)
+  | { udfald: "sprunget_over"; grund: "traek_ikke_registreret" | "ingen_besked" }
+  | { udfald: "fejlet"; aarsag: string };
+
+async function meldFejletTraek(
+  adminClient: SupabaseClient,
+  traek: TraekResultat,
+): Promise<KlokkeResultat> {
+  if (traek.udfald !== "registreret") return { udfald: "sprunget_over", grund: "traek_ikke_registreret" };
+  const praefiks = `[stripe-webhook] klokke ved fejlet træk ${traek.id}`;
+  try {
+    const { data: raekke, error: raekkeFejl } = await adminClient
+      .from("company_traek")
+      .select("id, status, company_id, beloeb_oere, fejl_besked, fejl_decline_code, faktura_nummer, naeste_forsoeg_at")
+      .eq("id", traek.id)
+      .maybeSingle();
+    if (raekkeFejl) throw new Error(`company_traek-opslag fejlede: ${raekkeFejl.message}`);
+    if (!raekke) throw new Error("company_traek-rækken findes ikke");
+    const r = raekke as FejletTraekRaekke & { naeste_forsoeg_at: string | null };
+
+    // Navnet som fornyelsesgrenen slår det op — «En virksomhed» når det mangler.
+    const { data: company, error: companyFejl } = await adminClient
+      .from("companies")
+      .select("name")
+      .eq("id", traek.company_id)
+      .maybeSingle();
+    if (companyFejl) console.error(`${praefiks}: companies-opslag fejlede — beskeden får «En virksomhed»:`, companyFejl.message);
+
+    const besked = beskedVedFejletTraek({
+      traek: r,
+      virksomhed: (company as { name?: string | null } | null)?.name ?? "En virksomhed",
+      naesteForsoegTekst: r.naeste_forsoeg_at ? formatDanskDato(new Date(r.naeste_forsoeg_at)) : null,
+    });
+    if (!besked) {
+      console.log(`${praefiks}: ingen besked (status ${r.status}, company ${r.company_id ?? "ingen"})`);
+      return { udfald: "sprunget_over", grund: "ingen_besked" };
+    }
+    const resultat = await skrivRaadgiverBesked(adminClient, besked);
+    console.log(`${praefiks}: ${resultat.skrevet} skrevet, ${resultat.fandtes} fandtes, ${resultat.raadgivere} rådgivere${resultat.fejl.length ? ` — fejl: ${resultat.fejl.join("; ")}` : ""}`);
+    return { udfald: "skrevet", ...resultat };
+  } catch (err) {
+    const aarsag = err instanceof Error ? err.message : String(err);
+    console.error(`${praefiks}: klokken ringede ikke — ${aarsag}. Rækken i company_traek står; badgen viser trækket.`);
     return { udfald: "fejlet", aarsag };
   }
 }
@@ -729,11 +842,13 @@ Deno.serve(async (req) => {
     //    eventet er tilmeldt endpointet (enabled_events erstatter listen:
     //    de fem + denne). Registreres i company_traek; adgangen røres ikke.
     //    Aldrig kast, altid 200 — Stripe gensender selv fakturaens næste
-    //    forsøg som nyt event. ──
+    //    forsøg som nyt event. Derefter rådgivernes klokke (11/9, kort 23):
+    //    dedup på company_traek.id, se meldFejletTraek. ──
     if (event.type === "invoice.payment_failed") {
       const invoice = event.data.object as StripeAbonnementsFaktura;
       const traek = await registrerAbonnementstraek(adminClient, invoice, "fejlet");
-      return new Response(JSON.stringify({ received: true, traek }), {
+      const klokke = await meldFejletTraek(adminClient, traek);
+      return new Response(JSON.stringify({ received: true, traek, klokke }), {
         headers: { "Content-Type": "application/json" },
       });
     }

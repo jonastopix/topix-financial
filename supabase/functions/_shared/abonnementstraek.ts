@@ -157,6 +157,20 @@ export function traekFejlFraPaymentIntent(pi: {
 }
 
 /**
+ * Ren dom (11/9): må et FEJLET træk skrives oven på det rækken står som?
+ * False kun når rækken står som «betalt». «betalt» er slutstatus for en
+ * faktura: Stripe garanterer ikke rækkefølgen på events, og events kan
+ * leveres igen — et invoice.payment_failed der kommer EFTER invoice.paid
+ * for samme faktura er et ældre forsøg, ikke en ny tilstand, og må ikke
+ * vende rækken tilbage til «fejlet». Null (ingen række endnu) og «fejlet»
+ * (et forsøg til) skrives som hidtil. Et BETALT træk spørger ikke: betalt
+ * vinder altid.
+ */
+export function maaRegistrereFejlet(eksisterendeStatus: string | null): boolean {
+  return eksisterendeStatus !== "betalt";
+}
+
+/**
  * Rækken til company_traek. beloeb_oere er fakturaens TOTAL inkl. moms —
  * dette er en betaling, ikke en pris (company_perioder er uden moms).
  * Ved betalt sættes betalt_at fra status_transitions.paid_at (ellers nu)

@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import {
   erDrift,
   erUlaest,
@@ -67,14 +69,19 @@ describe("linjerne", () => {
     expect(erDrift(d)).toBe(true);
     expect(raadgiverLinje(d)).toMatchObject({ maerke: "Drift", til: "/", ny: true });
   });
-  it("rådgiverens veje er Hjemmebanes ruter", () => {
-    expect(raadgiverSti(r())).toBe("/virksomheder/c1?reportId=r1");
-    expect(raadgiverSti(r({ reference_id: null }))).toBe("/virksomheder/c1");
+  it("rådgiverens veje er Hjemmebanes ruter — virksomhedssiden i ental (/virksomheder er listen)", () => {
+    expect(raadgiverSti(r())).toBe("/virksomhed/c1?reportId=r1");
+    expect(raadgiverSti(r({ reference_id: null }))).toBe("/virksomhed/c1");
     expect(raadgiverSti(r({ company_id: null }))).toBe("/virksomheder");
-    expect(raadgiverSti(r({ reference_type: "handout" }))).toBe("/virksomheder/c1");
+    expect(raadgiverSti(r({ reference_type: "handout" }))).toBe("/virksomhed/c1");
+    expect(raadgiverSti(r({ reference_type: "ukendt_type", reference_id: null }))).toBe("/virksomhed/c1");
     expect(raadgiverSti(r({ reference_type: "chat", type: "new_message" }))).toBe("/chat");
     expect(raadgiverSti(r({ reference_type: "feedback", reference_id: "f9", type: "feedback_submitted" }))).toBe("/admin/feedback?feedbackId=f9");
     expect(raadgiverSti(r({ reference_type: null, company_id: null, type: "agent_insight" }))).toBeNull();
+  });
+  it("et fejlet træk fører til virksomhedssidens «Aftalen», hvor «Betaling» står", () => {
+    expect(raadgiverSti(r({ type: "traek_fejlet", reference_type: "traek", reference_id: "t1" }))).toBe("/virksomhed/c1?section=aftale");
+    expect(raadgiverSti(r({ type: "traek_fejlet", reference_type: "traek", reference_id: "t1", company_id: null }))).toBe("/virksomheder");
   });
   it("nyeste først, højst ti", () => {
     const liste = Array.from({ length: 14 }, (_, i) => r({ id: `a${i}`, created_at: `2026-09-${String(i + 1).padStart(2, "0")}T10:00:00Z` }));
@@ -82,5 +89,32 @@ describe("linjerne", () => {
     expect(ud).toHaveLength(KLOKKE_LOFT);
     expect(ud[0].id).toBe("a13");
     expect(ud[9].id).toBe("a4");
+  });
+});
+
+/* KILDEVÆRN (11/9): klokken byggede /virksomheder/{id} i to dage, og ruten
+   hedder /virksomhed/:companyId — flertalsformen ramte NotFound uden at
+   nogen test kunne se det, for testen låste kun strengen. Ruten klokken
+   bygger, skal findes i App.tsx som en <Route path="…">; listen og
+   virksomhedssidens ankre ligeså. */
+describe("kildeværn: klokkens veje findes som ruter", () => {
+  const app = readFileSync(resolve(process.cwd(), "src/App.tsx"), "utf8");
+  const virksomhedView = readFileSync(resolve(process.cwd(), "src/components/hjemmebane/virksomhed/VirksomhedView.tsx"), "utf8");
+  const ruteFor = (sti: string) => `path="${sti.replace(/\/c1(\?.*)?$/, "/:companyId")}"`;
+
+  it("virksomhedssiden: den rute klokken bygger står i App.tsx", () => {
+    const sti = raadgiverSti(r({ reference_id: null }));
+    expect(sti).toBe("/virksomhed/c1");
+    expect(app).toContain(ruteFor(sti!)); // path="/virksomhed/:companyId"
+  });
+  it("listen: /virksomheder står i App.tsx", () => {
+    expect(app).toContain('path="/virksomheder"');
+  });
+  it("trækket: ruten findes, og ?section=aftale peger på et anker der findes", () => {
+    const sti = raadgiverSti(r({ reference_type: "traek", reference_id: "t1" }))!;
+    expect(app).toContain(ruteFor(sti));
+    const sektion = new URL(sti, "http://x").searchParams.get("section");
+    expect(sektion).toBe("aftale");
+    expect(virksomhedView).toContain(`id="section-${sektion}"`);
   });
 });
