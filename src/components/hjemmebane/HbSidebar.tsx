@@ -63,6 +63,12 @@ interface HbSidebarProps {
       (/settings — virksomhed, netværksprofil, notifikationer) kun for
       medlemmer, som skallen afgør. Udeladt = kun «Konto». */
   visIndstillinger?: boolean;
+  /** «Giv feedback» (11/9, kort 85): et punkt i profilblokken ved siden af
+      «Indstillinger», ikke en flydende knap (den ville kollidere med
+      tjekliste-boksen). Skallen giver det kun til medlemmer og abonnenter
+      (samme gate som Indstillinger) og åbner HbFeedbackDialog i sit eget
+      DOM-træ. Udeladt = intet punkt (rådgivere, preview). */
+  givFeedback?: { onClick: () => void };
   /** Klokken (10/9, HbKlokke): renderes over menuen, i både kolonnen og
       draweren. Udeladt = ingen klokke (preview, skaller uden bruger). */
   klokke?: React.ReactNode;
@@ -130,6 +136,7 @@ const SidebarContent = ({
   onSignOut,
   komGodtIGang,
   visIndstillinger = false,
+  givFeedback,
   klokke,
 }: HbSidebarProps) => (
   <>
@@ -202,6 +209,13 @@ const SidebarContent = ({
             <>
               <span aria-hidden>·</span>
               <Link to="/settings" className="transition-colors hover:text-hb-ink">Indstillinger</Link>
+            </>
+          )}
+          {givFeedback && (
+            <>
+              <span aria-hidden>·</span>
+              {/* En knap, ikke et link: den navigerer ikke, den åbner dialogen. */}
+              <button type="button" onClick={givFeedback.onClick} className="transition-colors hover:text-hb-ink">Giv feedback</button>
             </>
           )}
         </span>

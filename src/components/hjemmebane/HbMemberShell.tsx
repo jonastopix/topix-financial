@@ -10,6 +10,7 @@ import { useTjeklisteLukket } from "@/hooks/useTjeklisteLukket";
 import { useHbDokumentGrund } from "@/hooks/useHbDokumentGrund";
 import { pillenTraekkerSig } from "@/lib/hjemmebane/ankomst";
 import { HbVisningSom } from "./HbVisningSom";
+import { HbFeedbackDialog } from "./HbFeedbackDialog";
 import { bygHbNav, type HbAktiv } from "@/lib/hjemmebane/hbNav";
 import { useQuery } from "@tanstack/react-query";
 import { listAllUpcomingEvents } from "@/lib/hjemmebane/akademiApi";
@@ -51,6 +52,12 @@ export const HbMemberShell = ({
   const fuld = layout === "fuld";
   const [drawerOpen, setDrawerOpen] = useState(false);
   const rodRef = useRef<HTMLDivElement>(null);
+  /* FEEDBACK (11/9, kort 85): dialogen monteres HER, i skallens eget
+     DOM-træ (.theme-hjemmebane), og åbnes fra «Giv feedback» i sidebarens
+     profilblok — i kolonnen og i skuffen (samme prop). Fra skuffen lukkes
+     skuffen først, så dialogen ikke står bag den. Kun for medlemmer og
+     abonnenter (!isAdvisor), samme gate som «Indstillinger». */
+  const [feedbackAaben, setFeedbackAaben] = useState(false);
 
   /* Dokument-grunden bag skallen: html males papir-farvet mens skallen er
      mountet (BEGGE varianter — overscroll rammer også side-flow-fladerne,
@@ -105,6 +112,14 @@ export const HbMemberShell = ({
      behandles null som abonnent, flimrer nav'en for alle medlemmer ved hver
      sideindlæsning. */
   const erAbonnent = membershipTier === "subscriber";
+  const givFeedback = !isAdvisor
+    ? {
+        onClick: () => {
+          setDrawerOpen(false);
+          setFeedbackAaben(true);
+        },
+      }
+    : undefined;
 
   // Forside-GO (2026-08-12): "Dit Boardroom" ér forsiden — "/" for alle.
   // Logo-hjemlinket må ikke sende abonnenten tilbage til en flade de
@@ -151,7 +166,7 @@ export const HbMemberShell = ({
   return (
     <div ref={rodRef} className={`theme-hjemmebane ${fuld ? "h-screen-safe" : "min-h-screen-safe"} bg-hb-paper font-body text-hb-ink antialiased`}>
       <div className={`flex ${fuld ? "h-full overflow-hidden" : "lg:h-screen lg:overflow-hidden"}`}>
-        <HbSidebar avatarSrc={avatarSrc} userName={userName} nav={nav} homeTo={boardroomTo} onSignOut={signOut} komGodtIGang={komGodtIGang} visIndstillinger={!isAdvisor} klokke={<HbKlokke />} />
+        <HbSidebar avatarSrc={avatarSrc} userName={userName} nav={nav} homeTo={boardroomTo} onSignOut={signOut} komGodtIGang={komGodtIGang} visIndstillinger={!isAdvisor} givFeedback={givFeedback} klokke={<HbKlokke />} />
         <div className={`min-w-0 flex-1 ${fuld ? "flex flex-col overflow-hidden" : "lg:overflow-y-auto"}`}>
           <HbNav onMenuClick={() => setDrawerOpen(true)} avatarSrc={avatarSrc} />
           {/* «Visning som» (3/9, recon-raadgiverfladen §4): en rådgiver med et
@@ -169,6 +184,7 @@ export const HbMemberShell = ({
             onSignOut={signOut}
             komGodtIGang={komGodtIGang}
             visIndstillinger={!isAdvisor}
+            givFeedback={givFeedback}
             klokke={<HbKlokke />}
           />
           {fuld ? (
@@ -192,6 +208,7 @@ export const HbMemberShell = ({
           pilleTraekkerSig={tjeklistePilleTraekkerSig}
         />
       )}
+      {!isAdvisor && <HbFeedbackDialog open={feedbackAaben} onClose={() => setFeedbackAaben(false)} />}
     </div>
   );
 };
