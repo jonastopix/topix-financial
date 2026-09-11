@@ -365,6 +365,10 @@ describe("deriveFocus — rækkefølge og tom-tilstand", () => {
 const tjeklisteAltGjort = (overrides: Partial<TjeklisteInput> = {}): TjeklisteInput => ({
   har_velkomstvideo: true,
   velkomstvideo_set_at: "2026-08-01T10:00:00Z",
+  // Præsentationen (11/9, kort 60): et fuldt medlem kan oprette tråde, og
+  // «alt gjort» har også præsenteret sig.
+  kan_oprette_traad: true,
+  har_praesentation: true,
   ask_me_about: "Likviditet",
   website: "https://firma.dk",
   industry_label: "Håndværk",
@@ -486,6 +490,10 @@ describe("slot (0) — tjeklisten som fokuskortets kilde", () => {
     const tjekliste = byggTjekliste({
       har_velkomstvideo: true,
       velkomstvideo_set_at: null,
+      // Præsentationen (11/9, kort 60): nyt fuldt medlem kan oprette tråde,
+      // har ikke præsenteret sig endnu — så alle syv punkter er ikke-gjorte.
+      kan_oprette_traad: true,
+      har_praesentation: false,
       ask_me_about: null,
       website: null,
       industry_label: null,

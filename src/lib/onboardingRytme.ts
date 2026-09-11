@@ -187,13 +187,17 @@ export const LOEFTET = "Jonas eller Morten skriver til dig i chatten i løbet af
 
 /**
  * A — tjeklistens punkter i tjeklistens rækkefølge (onboardingTjekliste.ts:
- * velkomst, profil, virksomhed, tal, handout, besked). Velkomsten er kun
- * med når der er en video (Jonas 2/9: «Vi viser ikke tomt indhold»).
+ * velkomst, profil, praesentation, virksomhed, tal, handout, besked).
+ * Velkomsten er kun med når der er en video (Jonas 2/9: «Vi viser ikke
+ * tomt indhold»). Præsentationen (11/9, kort 60) følger med — mailen
+ * følger tjeklisten (besluttet 11/9); onboardingRytme.test.ts låser
+ * pariteten med startsWith på hvert punkts titel.
  */
 export function komIGangTekst(fornavn: string | null | undefined, harVelkomstvideo: boolean): RytmeTekst {
   const punkter = [
     ...(harVelkomstvideo ? ["Se velkomsten — en kort video om hvordan du får mest ud af The Boardroom."] : []),
     "Din profil — hvad de andre i netværket kan spørge dig om.",
+    "Præsentér dig i fællesskabet — et opslag om hvem du er, med et udkast ud fra din profil.",
     "Din virksomhed — website, branche og CVR, det platformen regner på.",
     `Dine tal — ${HISTORIK_SAETNING}`,
     "Dit første handout — start med Overordnet.",

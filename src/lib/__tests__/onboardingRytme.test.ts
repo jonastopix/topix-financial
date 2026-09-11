@@ -120,6 +120,8 @@ describe("teksterne — systemets stemme", () => {
     const tjekliste = byggTjekliste({
       har_velkomstvideo: true, velkomstvideo_set_at: null, ask_me_about: null, website: null, industry_label: null,
       cvr_number: null, antal_rapporter: 0, antal_godkendte: 0, antal_udfyldte_handouts: 0, last_member_message_at: null,
+      // Præsentationen (11/9, kort 60): et nyt fuldt medlem kan oprette tråde og har ikke præsenteret sig.
+      kan_oprette_traad: true, har_praesentation: false,
     });
     const medVideo = komIGangTekst("Mette", true).punkter;
     expect(medVideo).toHaveLength(TJEKLISTE_RAEKKEFOELGE.length);

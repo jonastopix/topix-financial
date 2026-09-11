@@ -13,14 +13,27 @@
  * derfor ligge ét sted, være testet, og være uafhængig af fladen (boksen
  * der ligger på alle sider). Fladen henter data og viser; motoren afgør.
  *
- * DE SEKS PUNKTER (besluttet med Jonas 2/9) i FAST rækkefølge:
- *   1. velkomst    Se velkomsten (video) — først, fordi den forklarer resten.
- *   2. profil      Din profil — hvad man kan spørge dig om ┐ det platformen
- *   3. virksomhed  Din virksomhed — data platformen bruger  ┘ har brug for
- *   4. rapport     Dine tal — den første rapport            ┐ det de får
- *   5. handout     Dit første handout                       ┘ noget ud af
- *   6. besked      Skriv til din rådgiver                   — mennesket
+ * DE SYV PUNKTER (seks besluttet med Jonas 2/9; præsentationen 11/9) i
+ * FAST rækkefølge:
+ *   1. velkomst       Se velkomsten (video) — først, fordi den forklarer resten.
+ *   2. profil         Din profil — hvad man kan spørge dig om ┐ det platformen
+ *   3. praesentation  Præsentér dig i fællesskabet (kort 60)  │ har brug for
+ *   4. virksomhed     Din virksomhed — data platformen bruger  ┘
+ *   5. rapport        Dine tal — den første rapport            ┐ det de får
+ *   6. handout        Dit første handout                       ┘ noget ud af
+ *   7. besked         Skriv til din rådgiver                   — mennesket
  * Rækkefølgen er låst af testen i src/lib/__tests__/onboardingTjekliste.test.ts.
+ *
+ * PRÆSENTATIONEN (11/9, kort 60) står lige efter profilen, fordi skabelonen
+ * bygges AF profilens tre felter (hjemmebane/praesentation.ts). Gjort = en
+ * community-tråd med kilde_type 'praesentation' og status = 'aktiv'
+ * (kalderen tæller). AKTIV, fordi punktets formål er at medlemmet bliver
+ * set af de andre: en tråd skjult af en rådgiver ses ikke, og medlemmets
+ * SELECT-policy viser i forvejen kun aktive (20260811160000:66-69) — dommen
+ * lover ikke mere end RLS giver. Punktet findes KUN for dem der kan oprette en
+ * tråd (kan_oprette_traad) — for en legatmodtager eller abonnent ville
+ * stien føre til en dør der er lukket i datalaget (har_aktivt_medlemskab).
+ * Uden ret til at oprette udgår punktet HELT, som velkomst uden video.
  *
  * DATAGRUNDLAG (målt 2/9, recon-onboarding-tjekliste.md §1): hvert felt i
  * TjeklisteInput har en kommentar om hvor det kommer fra. Kalderen henter
@@ -36,8 +49,9 @@
  */
 
 import { PROFIL_MANGLER_TEKST, PROFIL_STI, profilMangler as profilManglerDom } from "./hjemmebane/profilUdfyldt";
+import { PRAESENTATION_STI } from "./hjemmebane/praesentation";
 
-export type TjeklistePunktId = "velkomst" | "profil" | "virksomhed" | "rapport" | "handout" | "besked";
+export type TjeklistePunktId = "velkomst" | "profil" | "praesentation" | "virksomhed" | "rapport" | "handout" | "besked";
 
 export interface TjeklisteInput {
   /** Er der sat en velkomstvideo i platformconfig (app_config.velkomstvideo_guid)?
@@ -45,6 +59,20 @@ export interface TjeklisteInput {
   har_velkomstvideo: boolean;
   /** profiles.velkomstvideo_set_at — nyt felt, se migrationen. Sættes af fladen når videoen er set. */
   velkomstvideo_set_at: string | null;
+  /**
+   * Må medlemmet oprette en community-tråd? Klientens sammensatte dom
+   * (useOnboardingTjekliste.ts): !isLegat && membershipTier === "full" —
+   * MemberRoute (App.tsx:102) plus abonnent-udelukkelsen (hbNav.ts:97).
+   * false → punktet «praesentation» udgår helt.
+   */
+  kan_oprette_traad: boolean;
+  /**
+   * Findes der en community_traade-række med forfatter_id = medlemmet,
+   * kilde_type = 'praesentation' og status = 'aktiv'? Kalderen tæller.
+   * Aktiv, ikke blot «ikke slettet»: en skjult tråd ses ikke af de andre,
+   * og medlemmets SELECT-policy viser kun aktive.
+   */
+  har_praesentation: boolean;
   /**
    * member_profiles.ask_me_about — profilens BÆRENDE felt («Det kan du
    * spørge mig om», migration 20260810200000). Rækken findes ikke før
@@ -109,10 +137,11 @@ export interface TjeklistePunkt {
 }
 
 export interface Tjekliste {
-  /** Seks i fast rækkefølge — fem uden velkomstvideo (velkomst udgår). */
+  /** Syv i fast rækkefølge — velkomst udgår uden video, praesentation udgår
+      uden ret til at oprette en tråd. */
   punkter: TjeklistePunkt[];
   antal_gjort: number;
-  /** 6 med video, 5 uden. */
+  /** 7 med video og trådret; 6 eller 5 når et eller begge punkter udgår. */
   antal_i_alt: number;
   /** true når alle punkter er gjort. */
   faerdig: boolean;
@@ -122,17 +151,20 @@ export interface Tjekliste {
 export const TJEKLISTE_RAEKKEFOELGE: readonly TjeklistePunktId[] = [
   "velkomst",
   "profil",
+  "praesentation",
   "virksomhed",
   "rapport",
   "handout",
   "besked",
 ];
 
-/** Stierne (besluttet 2/9; profil rettet 9/9 til fanen, ikke siden — profilUdfyldt.ts).
+/** Stierne (besluttet 2/9; profil rettet 9/9 til fanen, ikke siden — profilUdfyldt.ts;
+    praesentation 11/9: composeren forudfyldt, hjemmebane/praesentation.ts).
     velkomst er tom: videoen åbner i boksen, ikke på en side. */
 export const TJEKLISTE_STIER: Readonly<Record<TjeklistePunktId, string>> = {
   velkomst: "",
   profil: PROFIL_STI,
+  praesentation: PRAESENTATION_STI,
   virksomhed: "/settings",
   rapport: "/rapportering",
   handout: "/handouts",
@@ -210,6 +242,13 @@ export function byggTjekliste(input: TjeklisteInput): Tjekliste {
       sti: TJEKLISTE_STIER.profil,
       mangler: profilMangler,
     },
+    praesentation: {
+      id: "praesentation",
+      titel: "Præsentér dig i fællesskabet",
+      beskrivelse: "Et opslag om hvem du er — vi har skrevet et udkast ud fra din profil.",
+      gjort: input.har_praesentation,
+      sti: TJEKLISTE_STIER.praesentation,
+    },
     virksomhed: {
       id: "virksomhed",
       titel: "Din virksomhed",
@@ -246,9 +285,11 @@ export function byggTjekliste(input: TjeklisteInput): Tjekliste {
 
   // Rækkefølgen kommer fra TJEKLISTE_RAEKKEFOELGE, ikke fra objektets
   // nøgleorden — så den er låst ét sted. Uden video filtreres velkomst
-  // fra; de fem andre beholder deres indbyrdes orden.
+  // fra, uden trådret filtreres praesentation fra; resten beholder deres
+  // indbyrdes orden.
   const punkter = TJEKLISTE_RAEKKEFOELGE
     .filter((id) => id !== "velkomst" || input.har_velkomstvideo)
+    .filter((id) => id !== "praesentation" || input.kan_oprette_traad)
     .map((id) => punkterEfterId[id]);
   const antal_gjort = punkter.filter((p) => p.gjort).length;
 
