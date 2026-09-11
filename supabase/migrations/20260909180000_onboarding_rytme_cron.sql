@@ -1,3 +1,4 @@
+-- ADVARSEL (målt 11/9 kl. 09:20): KØR IKKE DENNE FIL. Jobbet 'onboarding-rytme' er planlagt i hånden i prod gennem public.kald_edge med «0 8 * * *» og {"dry_run": false} — ikke rå net.http_post og ikke «15 9 * * *» som filen siger. Filen skal skrives om til at bogføre prod i formen fra 20260901112000_prod_cron_bogfoert.sql.
 -- Onboardingens rytme (9/9): planlægger cron-jobbet 'onboarding-rytme', som
 -- kalder edge-funktionen onboarding-rytme dagligt kl. 09:15 UTC — mail A
 -- «Sådan kommer du i gang» (dag 0–1) og mail C «Historikken først» (dag

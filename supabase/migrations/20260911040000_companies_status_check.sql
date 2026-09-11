@@ -1,3 +1,4 @@
+-- KØRT i prod — målt 11/9 kl. 09:20 (companies_status_check: status IN ('active','tidligere'); status NOT NULL).
 -- companies.status bindes fast (10/9-2026, recon-sikkerhed-og-toast.md §2).
 -- SKREVET, IKKE KØRT. Deploy manuelt i Lovable → SQL editor efter merge.
 --

@@ -1,3 +1,4 @@
+-- KØRT i prod — målt 11/9 kl. 09:20 og 11:27: hent_betalingstilbud har «+ 1 > now()» (md5 3529d05e158a71873a6791f5cd08b0c5); hent_betalingsdata_til_checkout er tegn for tegn denne fils krop (:83-114), md5 76178b0711e70b02ea86a6fe8a2ed8b9, har_repoets_betingelse true — checkout skriver bevidst «is null or … + 1 <= now()», modsætningen af tilbuddets mønster. Migrationen er helt i prod.
 -- Migration: døren — «betalt» dømmes på at contract_end_date GÆLDER, ikke
 -- at den FINDES. Rettet 11/9 2026 (recon-doeren.md; fundet af det tredje
 -- vindues kortgennemgang 10/9).

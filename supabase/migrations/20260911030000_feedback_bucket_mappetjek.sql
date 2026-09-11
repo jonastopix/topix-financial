@@ -1,3 +1,4 @@
+-- KØRT i prod — målt 11/9 kl. 09:20 (bucket feedback-screenshots: grænse 5242880, typer {image/*}; INSERT-policyen «Users can upload own feedback screenshots» med foldername-tjek).
 -- Feedback-bucketen får mappetjek (10/9-2026, recon-sikkerhed-og-toast.md
 -- §1c). SKREVET, IKKE KØRT. Deploy manuelt i Lovable → SQL editor efter
 -- merge (CLAUDE.md). Idempotent.

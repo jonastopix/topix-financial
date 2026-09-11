@@ -1,3 +1,4 @@
+-- KØRT i prod — målt 11/9 kl. 09:20 (fem policies på email_send_log, «Advisors can read send log» SELECT for authenticated med).
 -- Advisor må LÆSE email_send_log — den tredje ting omdøbningen 19/3 tog med sig.
 --
 -- HVORFOR POLICYEN MANGLEDE
