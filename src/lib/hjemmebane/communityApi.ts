@@ -20,7 +20,7 @@ export interface CommunityTraad {
   sidste_svar_at: string | null;
   created_at: string;
   updated_at: string;
-  kilde_type: "content_item" | "event" | null;
+  kilde_type: "content_item" | "event" | "praesentation" | null;
   kilde_item_id: string | null;
   kilde_event_id: string | null;
   forfatter_id: string;
@@ -99,7 +99,7 @@ export async function opretTraad(input: {
   titel: string;
   indhold: string;
   indholdJson?: unknown;
-  kildeType?: "content_item" | "event";
+  kildeType?: "content_item" | "event" | "praesentation";
   kildeItemId?: string;
   kildeEventId?: string;
 }): Promise<string> {

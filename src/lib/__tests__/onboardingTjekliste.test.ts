@@ -11,6 +11,8 @@ import {
 const TOM: TjeklisteInput = {
   har_velkomstvideo: true,
   velkomstvideo_set_at: null,
+  kan_oprette_traad: true,
+  har_praesentation: false,
   ask_me_about: null,
   website: null,
   industry_label: null,
@@ -24,6 +26,8 @@ const TOM: TjeklisteInput = {
 const FULD: TjeklisteInput = {
   har_velkomstvideo: true,
   velkomstvideo_set_at: "2026-09-02T10:00:00.000Z",
+  kan_oprette_traad: true,
+  har_praesentation: true,
   ask_me_about: "Likviditet og prissætning i håndværk.",
   website: "https://firma.dk",
   industry_label: "Håndværk",
@@ -34,7 +38,7 @@ const FULD: TjeklisteInput = {
   last_member_message_at: "2026-09-02T11:00:00.000Z",
 };
 
-const ALLE_ID: TjeklistePunktId[] = ["velkomst", "profil", "virksomhed", "rapport", "handout", "besked"];
+const ALLE_ID: TjeklistePunktId[] = ["velkomst", "profil", "praesentation", "virksomhed", "rapport", "handout", "besked"];
 
 function gjortAf(input: TjeklisteInput): Record<TjeklistePunktId, boolean> {
   const ud = byggTjekliste(input);
@@ -42,19 +46,19 @@ function gjortAf(input: TjeklisteInput): Record<TjeklistePunktId, boolean> {
 }
 
 describe("byggTjekliste — yderpunkterne", () => {
-  it("alt tomt → seks punkter, alle gjort=false, antal_gjort 0, faerdig false", () => {
+  it("alt tomt → syv punkter, alle gjort=false, antal_gjort 0, faerdig false", () => {
     const ud = byggTjekliste(TOM);
-    expect(ud.punkter).toHaveLength(6);
+    expect(ud.punkter).toHaveLength(7);
     expect(ud.punkter.every((p) => p.gjort === false)).toBe(true);
     expect(ud.antal_gjort).toBe(0);
-    expect(ud.antal_i_alt).toBe(6);
+    expect(ud.antal_i_alt).toBe(7);
     expect(ud.faerdig).toBe(false);
   });
 
-  it("alt udfyldt → alle true, antal_gjort 6, faerdig true", () => {
+  it("alt udfyldt → alle true, antal_gjort 7, faerdig true", () => {
     const ud = byggTjekliste(FULD);
     expect(ud.punkter.every((p) => p.gjort === true)).toBe(true);
-    expect(ud.antal_gjort).toBe(6);
+    expect(ud.antal_gjort).toBe(7);
     expect(ud.faerdig).toBe(true);
   });
 
@@ -69,6 +73,7 @@ describe("byggTjekliste — hvert punkt for sig: kun det ene felt sat, kun det p
   const kunEt: { id: TjeklistePunktId; input: Partial<TjeklisteInput> }[] = [
     { id: "velkomst", input: { velkomstvideo_set_at: FULD.velkomstvideo_set_at } },
     { id: "profil", input: { ask_me_about: FULD.ask_me_about } },
+    { id: "praesentation", input: { har_praesentation: true } },
     { id: "virksomhed", input: { website: FULD.website, industry_label: FULD.industry_label, cvr_number: FULD.cvr_number } },
     { id: "rapport", input: { antal_rapporter: 1, antal_godkendte: 1 } },
     { id: "handout", input: { antal_udfyldte_handouts: 1 } },
@@ -117,7 +122,7 @@ describe("byggTjekliste — delvist gjort", () => {
 
   it("punkter uden delvis tilstand har ingen mangler-liste (rapport har en siden 9/9 — tom når intet er uploadet)", () => {
     const ud = byggTjekliste(TOM);
-    for (const id of ["velkomst", "handout", "besked"] as TjeklistePunktId[]) {
+    for (const id of ["velkomst", "praesentation", "handout", "besked"] as TjeklistePunktId[]) {
       expect(ud.punkter.find((p) => p.id === id)?.mangler).toBeUndefined();
     }
     expect(ud.punkter.find((p) => p.id === "rapport")?.mangler).toEqual([]);
@@ -188,23 +193,31 @@ describe("byggTjekliste — «Dine tal» er gjort ved GODKENDELSE, ikke ved uplo
 
 describe("byggTjekliste — rækkefølge og stier er LÅST", () => {
   // Ændres rækkefølgen, ændres oplevelsen: først det platformen har brug
-  // for (profil, virksomhed), så det de får noget ud af (rapport, handout),
-  // så mennesket (besked). Videoen først, fordi den forklarer resten.
+  // for (profil, præsentation, virksomhed), så det de får noget ud af
+  // (rapport, handout), så mennesket (besked). Videoen først, fordi den
+  // forklarer resten.
+  //
+  // ÆNDRET BEVIDST 11/9 (kort 60): «praesentation» står lige efter «profil»
+  // — skabelonen bygges af profilens tre felter, så profilen kommer først
+  // og præsentationen lige efter. Stien er composeren forudfyldt
+  // (/community?praesentation=1). Seks blev syv; de seks gamle beholder
+  // deres indbyrdes orden og deres stier.
   it("punkternes id'er i den faste rækkefølge", () => {
     const ud = byggTjekliste(TOM);
-    expect(ud.punkter.map((p) => p.id)).toEqual(["velkomst", "profil", "virksomhed", "rapport", "handout", "besked"]);
-    expect([...TJEKLISTE_RAEKKEFOELGE]).toEqual(["velkomst", "profil", "virksomhed", "rapport", "handout", "besked"]);
+    expect(ud.punkter.map((p) => p.id)).toEqual(["velkomst", "profil", "praesentation", "virksomhed", "rapport", "handout", "besked"]);
+    expect([...TJEKLISTE_RAEKKEFOELGE]).toEqual(["velkomst", "profil", "praesentation", "virksomhed", "rapport", "handout", "besked"]);
   });
 
   it("rækkefølgen er den samme uanset input", () => {
     expect(byggTjekliste(FULD).punkter.map((p) => p.id)).toEqual(byggTjekliste(TOM).punkter.map((p) => p.id));
   });
 
-  it("stierne: profil → /settings?fane=profil (fanen, ikke siden — 9/9), virksomhed → /settings, rapport → /rapportering, handout → /handouts, besked → /chat, velkomst → tom", () => {
+  it("stierne: profil → /settings?fane=profil (fanen, ikke siden — 9/9), praesentation → /community?praesentation=1 (11/9), virksomhed → /settings, rapport → /rapportering, handout → /handouts, besked → /chat, velkomst → tom", () => {
     const stier = Object.fromEntries(byggTjekliste(TOM).punkter.map((p) => [p.id, p.sti]));
     expect(stier).toEqual({
       velkomst: "",
       profil: "/settings?fane=profil",
+      praesentation: "/community?praesentation=1",
       virksomhed: "/settings",
       rapport: "/rapportering",
       handout: "/handouts",
@@ -222,29 +235,65 @@ describe("byggTjekliste — rækkefølge og stier er LÅST", () => {
 });
 
 describe("byggTjekliste — uden velkomstvideo udgår velkomsten (vi viser ikke tomt indhold)", () => {
-  it("uden video: fem punkter, velkomst er ikke iblandt, antal_i_alt 5", () => {
+  it("uden video: seks punkter, velkomst er ikke iblandt, antal_i_alt 6", () => {
     const ud = byggTjekliste({ ...TOM, har_velkomstvideo: false });
-    expect(ud.punkter).toHaveLength(5);
-    expect(ud.punkter.map((p) => p.id)).toEqual(["profil", "virksomhed", "rapport", "handout", "besked"]);
+    expect(ud.punkter).toHaveLength(6);
+    expect(ud.punkter.map((p) => p.id)).toEqual(["profil", "praesentation", "virksomhed", "rapport", "handout", "besked"]);
     expect(ud.punkter.some((p) => p.id === "velkomst")).toBe(false);
-    expect(ud.antal_i_alt).toBe(5);
+    expect(ud.antal_i_alt).toBe(6);
   });
 
   it("uden video tæller velkomstvideo_set_at ikke med — hverken som gjort eller ikke gjort", () => {
     const ud = byggTjekliste({ ...TOM, har_velkomstvideo: false, velkomstvideo_set_at: FULD.velkomstvideo_set_at });
     expect(ud.antal_gjort).toBe(0);
-    expect(ud.antal_i_alt).toBe(5);
+    expect(ud.antal_i_alt).toBe(6);
   });
 
-  it("uden video er listen færdig når de fem er gjort", () => {
+  it("uden video er listen færdig når de seks er gjort", () => {
     const ud = byggTjekliste({ ...FULD, har_velkomstvideo: false, velkomstvideo_set_at: null });
-    expect(ud.antal_gjort).toBe(5);
+    expect(ud.antal_gjort).toBe(6);
     expect(ud.faerdig).toBe(true);
   });
 
-  it("med video: seks, i den kendte rækkefølge", () => {
+  it("med video: syv, i den kendte rækkefølge", () => {
     const ud = byggTjekliste({ ...TOM, har_velkomstvideo: true });
+    expect(ud.punkter.map((p) => p.id)).toEqual(["velkomst", "profil", "praesentation", "virksomhed", "rapport", "handout", "besked"]);
+    expect(ud.antal_i_alt).toBe(7);
+  });
+});
+
+describe("byggTjekliste — præsentationen findes kun for dem der kan oprette en tråd (11/9, kort 60)", () => {
+  it("uden trådret: seks punkter, praesentation er ikke iblandt, resten i kendt orden", () => {
+    const ud = byggTjekliste({ ...TOM, kan_oprette_traad: false });
+    expect(ud.punkter).toHaveLength(6);
     expect(ud.punkter.map((p) => p.id)).toEqual(["velkomst", "profil", "virksomhed", "rapport", "handout", "besked"]);
     expect(ud.antal_i_alt).toBe(6);
+  });
+
+  it("uden trådret tæller har_praesentation ikke med — hverken som gjort eller ikke gjort", () => {
+    const ud = byggTjekliste({ ...TOM, kan_oprette_traad: false, har_praesentation: true });
+    expect(ud.antal_gjort).toBe(0);
+    expect(ud.antal_i_alt).toBe(6);
+  });
+
+  it("uden trådret er listen færdig når de seks er gjort", () => {
+    const ud = byggTjekliste({ ...FULD, kan_oprette_traad: false, har_praesentation: false });
+    expect(ud.antal_gjort).toBe(6);
+    expect(ud.faerdig).toBe(true);
+  });
+
+  it("uden video OG uden trådret: fem — de fem oprindelige", () => {
+    const ud = byggTjekliste({ ...TOM, har_velkomstvideo: false, kan_oprette_traad: false });
+    expect(ud.punkter.map((p) => p.id)).toEqual(["profil", "virksomhed", "rapport", "handout", "besked"]);
+    expect(ud.antal_i_alt).toBe(5);
+  });
+
+  it("med trådret: gjort = har_praesentation, ingen mangler-liste, titel og sti", () => {
+    const p = byggTjekliste({ ...TOM, har_praesentation: true }).punkter.find((x) => x.id === "praesentation")!;
+    expect(p.gjort).toBe(true);
+    expect(p.mangler).toBeUndefined();
+    expect(p.titel).toBe("Præsentér dig i fællesskabet");
+    expect(p.sti).toBe("/community?praesentation=1");
+    expect(byggTjekliste(TOM).punkter.find((x) => x.id === "praesentation")!.gjort).toBe(false);
   });
 });

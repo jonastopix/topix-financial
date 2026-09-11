@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { byggTjekliste, type Tjekliste, type TjeklisteInput } from "@/lib/onboardingTjekliste";
 import { harVelkomstvideo as doemVelkomstvideo } from "@/lib/appConfig";
+import { KILDE_PRAESENTATION } from "@/lib/hjemmebane/praesentation";
 
 /**
  * Datalaget for onboarding-tjeklisten: henter de seks datastykker for den
@@ -30,6 +31,20 @@ import { harVelkomstvideo as doemVelkomstvideo } from "@/lib/appConfig";
  *     på messages KUN for ikke-rådgivere (migration 20260311043341)
  *   app_config.velkomstvideo_guid — «Anyone authenticated can read config»
  *     (RLS USING true); tom/manglende = ingen video = velkomst udgår
+ *   community_traade: count, forfatter_id = mig, kilde_type =
+ *     'praesentation', status = 'aktiv' (11/9, kort 60). AKTIV, ikke blot
+ *     «ikke slettet»: punktets formål er at medlemmet bliver set af de
+ *     andre, og en tråd skjult af en rådgiver ses ikke. Medlemmets
+ *     SELECT-policy viser i forvejen kun status = 'aktiv'
+ *     (20260811160000:66-69), så dommen og RLS siger det samme. Fejl
+ *     kaster (kraevRaekker-ånden).
+ *
+ * TRÅDRETTEN (kan_oprette_traad) er klientens sammensatte Community-dom:
+ * !isLegat && membershipTier === "full" — MemberRoute (App.tsx:102-109)
+ * plus abonnent-udelukkelsen (hbNav.ts:97). Der findes ingen klient-
+ * funktion der svarer 1:1 til har_aktivt_medlemskab (målt 11/9). Hooken
+ * venter på at tier er afgjort (null = uafgjort, useAuth henter den en
+ * runde efter companyId), så punktet ikke dukker op midt i listen.
  *
  * velkomstvideo_set_at er ikke i de genererede typer endnu (kolonnen er
  * kørt 2/9, migration 20260902170000) — derfor `as any` på det ene opslag,
@@ -52,8 +67,12 @@ export interface OnboardingTjeklisteResultat {
   refetch: () => Promise<unknown>;
 }
 
-async function hentInput(userId: string, companyId: string): Promise<{ input: TjeklisteInput; velkomstvideoSetAt: string | null }> {
-  const [profilRes, memberProfilRes, companyRes, rapporterRes, godkendteRes, handoutsRes, samtaleRes, velkomstRes] = await Promise.all([
+async function hentInput(
+  userId: string,
+  companyId: string,
+  kanOpretteTraad: boolean,
+): Promise<{ input: TjeklisteInput; velkomstvideoSetAt: string | null }> {
+  const [profilRes, memberProfilRes, companyRes, rapporterRes, godkendteRes, handoutsRes, samtaleRes, velkomstRes, praesentationRes] = await Promise.all([
     // velkomstvideo_set_at er ikke i de genererede typer endnu (se filhovedet).
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (supabase.from("profiles") as any)
@@ -88,11 +107,20 @@ async function hentInput(userId: string, companyId: string): Promise<{ input: Tj
       .limit(1)
       .maybeSingle(),
     supabase.from("app_config").select("config_value").eq("config_key", "velkomstvideo_guid").maybeSingle(),
+    // Præsentationen (11/9): én eksistens-tælling. status = 'aktiv' — en
+    // skjult tråd ses ikke af de andre, og det er det punktet handler om
+    // (se filhovedet). Samme dom som medlemmets SELECT-policy.
+    supabase
+      .from("community_traade")
+      .select("id", { count: "exact", head: true })
+      .eq("forfatter_id", userId)
+      .eq("kilde_type", KILDE_PRAESENTATION)
+      .eq("status", "aktiv"),
   ]);
 
   // Fejl i ét opslag vælter hele hentningen — en tjekliste med et gættet
   // punkt er værre end ingen tjekliste (samme holdning som FornyelsesSektion).
-  const fejl = [profilRes, memberProfilRes, companyRes, rapporterRes, godkendteRes, handoutsRes, samtaleRes, velkomstRes].find((r) => r.error);
+  const fejl = [profilRes, memberProfilRes, companyRes, rapporterRes, godkendteRes, handoutsRes, samtaleRes, velkomstRes, praesentationRes].find((r) => r.error);
   if (fejl?.error) throw new Error(fejl.error.message);
 
   const profil = (profilRes.data ?? null) as { velkomstvideo_set_at: string | null } | null;
@@ -108,6 +136,8 @@ async function hentInput(userId: string, companyId: string): Promise<{ input: Tj
     input: {
       har_velkomstvideo: harVelkomstvideo,
       velkomstvideo_set_at: velkomstvideoSetAt,
+      kan_oprette_traad: kanOpretteTraad,
+      har_praesentation: (praesentationRes.count ?? 0) > 0,
       ask_me_about: memberProfilRes.data?.ask_me_about ?? null,
       website: companyRes.data?.website ?? null,
       industry_label: companyRes.data?.industry_label ?? null,
@@ -121,14 +151,18 @@ async function hentInput(userId: string, companyId: string): Promise<{ input: Tj
 }
 
 export function useOnboardingTjekliste(): OnboardingTjeklisteResultat {
-  const { user, isAdvisor, companyId } = useAuth();
+  const { user, isAdvisor, isLegat, membershipTier, companyId } = useAuth();
   const queryClient = useQueryClient();
   const userId = user?.id ?? "";
-  const aktiv = Boolean(userId) && !isAdvisor && Boolean(companyId);
+  // Trådretten — klientens sammensatte Community-dom (se filhovedet).
+  const kanOpretteTraad = !isLegat && membershipTier === "full";
+  // Tier null = uafgjort (useAuth henter den en runde efter companyId):
+  // ventes på, så præsentations-punktet ikke dukker op midt i listen.
+  const aktiv = Boolean(userId) && !isAdvisor && Boolean(companyId) && membershipTier !== null;
 
   const query = useQuery({
-    queryKey: [TJEKLISTE_QUERY_KEY, userId, companyId],
-    queryFn: () => hentInput(userId, companyId as string),
+    queryKey: [TJEKLISTE_QUERY_KEY, userId, companyId, kanOpretteTraad],
+    queryFn: () => hentInput(userId, companyId as string, kanOpretteTraad),
     enabled: aktiv,
     staleTime: 60_000,
   });
