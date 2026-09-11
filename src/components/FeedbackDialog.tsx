@@ -11,18 +11,31 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
-import { notifyFeedbackSubmitted } from "@/lib/feedbackNotify";
+import {
+  doemSkaermbillede,
+  FEEDBACK_BESKRIVELSE_MAX,
+  FEEDBACK_KATEGORIER,
+  FEEDBACK_STANDARD_KATEGORI,
+  FEEDBACK_TITEL_MAX,
+  kanSendeFeedback,
+  sendFeedback,
+  type FeedbackKategori,
+} from "@/lib/feedback";
 
-const categories = [
-  { key: "bug", label: "Bug", icon: Bug, color: "text-destructive" },
-  { key: "suggestion", label: "Forslag", icon: Lightbulb, color: "text-amber-500" },
-  { key: "other", label: "Andet", icon: MessageSquare, color: "text-primary" },
-] as const;
+/* Validering, sti, grænser og skrivevejen bor i src/lib/feedback.ts (11/9,
+   kort 85) — én motor for denne dialog og HbFeedbackDialog i Hb-skallen.
+   Kategoriernes værdier og etiketter kommer derfra («Bug» blev «Fejl»);
+   ikonerne er denne dialogs egne. */
+const IKONER: Record<FeedbackKategori, { icon: typeof Bug; color: string }> = {
+  bug: { icon: Bug, color: "text-destructive" },
+  suggestion: { icon: Lightbulb, color: "text-amber-500" },
+  other: { icon: MessageSquare, color: "text-primary" },
+};
+const categories = FEEDBACK_KATEGORIER.map((k) => ({ ...k, ...IKONER[k.key] }));
 
-type Category = (typeof categories)[number]["key"];
+type Category = FeedbackKategori;
 
 interface FeedbackDialogProps {
   open: boolean;
@@ -30,7 +43,7 @@ interface FeedbackDialogProps {
 }
 
 const FeedbackDialog = ({ open, onOpenChange }: FeedbackDialogProps) => {
-  const [category, setCategory] = useState<Category>("suggestion");
+  const [category, setCategory] = useState<Category>(FEEDBACK_STANDARD_KATEGORI);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [screenshot, setScreenshot] = useState<File | null>(null);
@@ -41,7 +54,7 @@ const FeedbackDialog = ({ open, onOpenChange }: FeedbackDialogProps) => {
   const { user } = useAuth();
 
   const reset = () => {
-    setCategory("suggestion");
+    setCategory(FEEDBACK_STANDARD_KATEGORI);
     setTitle("");
     setDescription("");
     setScreenshot(null);
@@ -51,12 +64,9 @@ const FeedbackDialog = ({ open, onOpenChange }: FeedbackDialogProps) => {
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (!file.type.startsWith("image/")) {
-      toast.error("Kun billeder", { description: "Upload venligst et billede (PNG, JPG, etc.)." });
-      return;
-    }
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error("For stort", { description: "Billedet må max fylde 5 MB." });
+    const dom = doemSkaermbillede(file);
+    if (dom.ok === false) {
+      toast.error(dom.titel, { description: dom.tekst });
       return;
     }
     setScreenshot(file);
@@ -71,48 +81,19 @@ const FeedbackDialog = ({ open, onOpenChange }: FeedbackDialogProps) => {
   };
 
   const handleSubmit = async () => {
-    if (!title.trim() || !user) return;
+    if (!kanSendeFeedback(title) || !user) return;
     setSubmitting(true);
 
-    let screenshotPath: string | null = null;
-
-    // Upload screenshot if present
-    if (screenshot) {
-      const ext = screenshot.name.split(".").pop() || "png";
-      const path = `${user.id}/${Date.now()}.${ext}`;
-      const { error: uploadError } = await supabase.storage
-        .from("feedback-screenshots")
-        .upload(path, screenshot, { contentType: screenshot.type });
-      if (uploadError) {
-        toast.error("Upload fejlede", { description: "Kunne ikke uploade billedet. Prøv igen." });
-        setSubmitting(false);
-        return;
-      }
-      screenshotPath = path;
-    }
-
-    // Get company_id (may be null for advisors)
-    const { data: companyData } = await supabase
-      .rpc("user_company_id", { _user_id: user.id });
-
-    const { data: insertedFeedback, error } = await supabase.from("feedback").insert({
-      user_id: user.id,
-      company_id: companyData || null,
-      category,
-      title: title.trim(),
-      description: description.trim(),
-      screenshot_path: screenshotPath,
-    }).select("id").single();
+    // Upload → user_company_id → insert → notify, i motoren (src/lib/feedback.ts).
+    const r = await sendFeedback({ userId: user.id, category, title, description, screenshot });
 
     setSubmitting(false);
 
-    if (error || !insertedFeedback) {
-      toast.error("Fejl", { description: "Kunne ikke sende feedback. Prøv igen." });
+    if (r.ok === false) {
+      if (r.trin === "upload") toast.error("Upload fejlede", { description: "Kunne ikke uploade billedet. Prøv igen." });
+      else toast.error("Fejl", { description: "Kunne ikke sende feedback. Prøv igen." });
       return;
     }
-
-    // Fire-and-forget Slack + advisor notification
-    notifyFeedbackSubmitted(insertedFeedback.id);
 
     toast.success("Tak for din feedback!", { description: "Vi har modtaget din besked og vender tilbage." });
     reset();
@@ -155,7 +136,7 @@ const FeedbackDialog = ({ open, onOpenChange }: FeedbackDialogProps) => {
             placeholder="Kort titel…"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            maxLength={120}
+            maxLength={FEEDBACK_TITEL_MAX}
             autoFocus
           />
 
@@ -164,7 +145,7 @@ const FeedbackDialog = ({ open, onOpenChange }: FeedbackDialogProps) => {
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             rows={3}
-            maxLength={2000}
+            maxLength={FEEDBACK_BESKRIVELSE_MAX}
           />
 
           {/* Screenshot upload */}
@@ -206,7 +187,7 @@ const FeedbackDialog = ({ open, onOpenChange }: FeedbackDialogProps) => {
             <Button variant="ghost" onClick={() => onOpenChange(false)}>
               Annullér
             </Button>
-            <Button onClick={handleSubmit} disabled={!title.trim() || submitting}>
+            <Button onClick={handleSubmit} disabled={!kanSendeFeedback(title) || submitting}>
               {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Send feedback
             </Button>
