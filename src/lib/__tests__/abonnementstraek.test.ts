@@ -3,6 +3,7 @@ import {
   abonnementIdFraFaktura,
   abonnementsMetadataFraFaktura,
   bygTraekRaekke,
+  maaRegistrereFejlet,
   paymentIntentIdFraFaktura,
   traekFejlFraPaymentIntent,
   type StripeAbonnementsFaktura,
@@ -168,5 +169,17 @@ describe("bygTraekRaekke", () => {
     const r = bygTraekRaekke({ ...basil, status_transitions: null }, "betalt", COMPANY, "sub_x", "  ", null, NU);
     expect(r.betalt_at).toBe(NU.toISOString());
     expect(r.art).toBeNull();
+  });
+});
+
+describe("maaRegistrereFejlet — et betalt træk bliver aldrig til fejlet (11/9)", () => {
+  it("ingen række endnu → skriv", () => {
+    expect(maaRegistrereFejlet(null)).toBe(true);
+  });
+  it("rækken står som fejlet → skriv (et forsøg til)", () => {
+    expect(maaRegistrereFejlet("fejlet")).toBe(true);
+  });
+  it("rækken står som betalt → skriv IKKE: betalt er slutstatus, og et senere fejlet-event er et ældre forsøg", () => {
+    expect(maaRegistrereFejlet("betalt")).toBe(false);
   });
 });
