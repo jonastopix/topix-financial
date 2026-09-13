@@ -695,6 +695,7 @@ export type Database = {
           intro_session_used_at: string | null
           is_demo: boolean | null
           is_legat: boolean
+          jonas_session_used_at: string | null
           logo_url: string | null
           name: string
           offboarding_requested_at: string | null
@@ -741,6 +742,7 @@ export type Database = {
           intro_session_used_at?: string | null
           is_demo?: boolean | null
           is_legat?: boolean
+          jonas_session_used_at?: string | null
           logo_url?: string | null
           name?: string
           offboarding_requested_at?: string | null
@@ -787,6 +789,7 @@ export type Database = {
           intro_session_used_at?: string | null
           is_demo?: boolean | null
           is_legat?: boolean
+          jonas_session_used_at?: string | null
           logo_url?: string | null
           name?: string
           offboarding_requested_at?: string | null
