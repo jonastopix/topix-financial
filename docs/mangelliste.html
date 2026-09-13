@@ -965,6 +965,25 @@
       manglende abonnement, ikke planen; signaturen er ingen hindring.
     Før: 134. Fjernet: 0. Tilføjet: 0. Efter: 134 — målt med grep på
       kortenes div-tag (class card).
+  RYDDET 13/9 SEN AFTEN, DEL 9 — CALENDLY-KÆDEN LUKKET (bogføring, ingen
+  kode. #842 «feat: Calendly-kaeden lukkes for Jonas' spor», merget
+  20:04:19 UTC, mergeCommit 4bf3d405; elleve filer +382/−136; tests 2992
+  → 3002; check:edge-auth PASS, check:verify-jwt PASS. Tre functions
+  udrullet 20:05 UTC; secret CALENDLY_WEBHOOK_SIGNING_KEY_JONAS sat og
+  bevist læst (signeret kald → 200 «fremmed event»); abonnementet på
+  Jonas' organisation oprettet 20:16:47 UTC, state active,
+  9bca1b66-7ce2-466f-aa5b-47770c0dbec2. Rækkefølgen kode → secret →
+  bevis → abonnement holdt. UBEVIST: en rigtig booking efter 22:05 dansk.
+  Bogført i OVERLEVERING DEL 2 «13. september» §19, START HER 13/9, DEL 3
+  (rækken lukket), DEL 4 (ny fælde «Udklipsholderen er ét felt»; URL-fælden
+  udvidet til skalsyntaks) og «Beslutninger der står fast» (abonnement
+  sidst, én nøgle pr. abonnement).
+    FJERNET SOM LØST (1): «De betalte 1:1-sessioner stopper ved
+      booking_sent» — løst for fremtiden; de to Rallysupport-rækker
+      forbliver håndsatte (noten står på kort 76's kort «Jonas ser Mortens
+      sessioner og omvendt …», som også fik tag «Calendly lukket 13/9»).
+    Før: 134. Fjernet: 1. Tilføjet: 0. Efter: 133 — målt med grep på
+      kortenes div-tag (class card).
 -->
 <html lang="da">
 <head>
@@ -1260,13 +1279,6 @@
       <p><strong>Ført 13/9 (to af tre):</strong> doggybeds træk gik igennem — <code>company_traek</code> «betalt» kl. 09:36:24 UTC, 437.500 øre, én række (#572); <code>subscription_status</code> forblev NULL (#563). Prod ordret i OVERLEVERING DEL 2 «13. september» §1. <code>customer.subscription.updated</code> i Stripes Event deliveries: ikke målt.</p>
       <p><strong>Det der står tilbage:</strong> #815 (rådgivernes klokke ved fejlet træk, <code>skrivRaadgiverBesked</code> i <code>payment_failed</code>) kan IKKE bevises af et vellykket træk — Stripe sender aldrig <code>invoice.payment_failed</code> for det. Målt 13/9 kl. 14:01: 0 rækker med <code>type = 'traek_fejlet'</code>, som forventet. Koden er udrullet (<code>stripe-webhook</code>, 13/9 kl. 12:04 UTC) men ubevist i drift. Beviset når det kommer: svaret bærer <code>traek.id</code> og <code>klokke</code>; en række pr. rådgiver i <code>advisor_notifications</code>; rækken i <code>company_traek</code> står som <code>fejlet</code> og badgen på <code>/members</code>. Hvornår et træk fejler, er ukendt — næste kandidater er de tretten der migreres (åben beslutning).</p>
       <div class="meta"><span class="tag ny">Ny 4/9</span><span class="tag">Omskrevet 13/9</span><span class="tag">Bevis</span><span class="tag size">Lille</span></div>
-    </div>
-    <div class="card new" data-status="mangler" data-spor="senere" data-rammer="ingen">
-      <h3>De betalte 1:1-sessioner stopper ved <code>booking_sent</code></h3>
-      <p>Målt 3/9: 0 af 12 betalte har <code>calendly_event_uri</code>, mod 2 af 3 gratis. Bekræftet i koden 8/9 (<code>~/Downloads/recon-sessionerne.md</code>): <code>stripe-webhook</code> indlejrer intet booking-id i Calendly-linket, <code>calendly-webhook</code> matcher kun <code>advisor = 'morten'</code>, og abonnementet er Mortens konto. En betalt session når derfor aldrig <code>booked</code>, får ingen tid og ingen URI. Kæden virker for medlemmet; reparationen <em>var</em> «kræver Calendly premium» — bevidst nedprioriteret 3/9 på den begrundelse. (Intro-sessionens tid bygges 8/9 — den gratis vej.)</p>
-      <p><strong>Begrundelsen er FALSIFICERET — målt 13/9 kl. 21:30</strong> (OVERLEVERING DEL 2 «13. september» §18): <code>GET /webhook_subscriptions?organization=…28fc12fd…&amp;scope=organization</code> med Jonas' personal access token → HTTP 200, ordret <code>{"collection":[],"pagination":{"count":0,…}}</code>. Planen (standard, paid, ét medlem — <code>recon-de-tre-sessioner.md</code> F5) TILLADER webhooks; der findes bare INTET abonnement på Jonas' organisation. Mortens abonnement ligger på hans organisation og dækker kun den. Påstanden stod her, i DEL 3 og i <code>betaltSession.ts:15</code> i ti dage uden at kaldet var sendt, og er grunden til at Rallysupports mødedatoer blev sat i hånden 13/9 kl. 20:48. Kodekommentaren rettes i A's næste ændring af filen.</p>
-      <p><strong>Blokeringen er koden plus et manglende abonnement:</strong> (1) <code>calendly-webhook</code> filtrerer <code>advisor = 'morten'</code> (<code>:122</code>, <code>:157</code>); (2) den matcher via det booking-id som <code>create-free-intro-booking</code> lægger i URL'en (<code>salesforce_uuid</code>/<code>utm_content</code>, <code>:162-163</code>) — <code>stripe-webhook</code> skriver linket råt uden det (<code>:1351-1356</code>); (3) abonnementet på Jonas' organisation er ikke oprettet (<code>POST /webhook_subscriptions</code>). Signaturen er IKKE en hindring: <code>signing_key</code> vælges af den der opretter abonnementet (<code>maaling-calendly-webhook.md</code>), så Jonas' abonnement kan bruge samme nøgle som Mortens, og funktionen behøver hverken ny secret eller ændret verifikation — men Mortens nøgle kendes ikke i klartekst (Supabase-secret hos Lovable): åbent punkt. A reconer reparationen (<code>~/Downloads/recon-calendly-reparationen.md</code>, ikke læst). Rækkerne vises på virksomhedssiden siden #839/#840 (kort 76, bogføres for sig). <strong>Sikkerhed:</strong> tokenet (<code>webhooks:write</code>, <code>organizations:write</code>) blev delt i chatten i klartekst 13/9 og skal revokeres — Jonas er bedt om det.</p>
-      <div class="meta"><span class="tag">Rettet 8/9</span><span class="tag rust">Begrundelsen falsificeret 13/9</span><span class="tag">Målt 21:30</span><span class="tag">Prioritet: genvurderes</span><span class="tag size">Mellem</span></div>
     </div>
   </div>
   </section>
@@ -1648,8 +1660,9 @@
       <h3>Jonas ser Mortens sessioner og omvendt — de betalte 1:1-sessioner har intet sted på virksomhedssiden</h3>
       <p><strong>Jonas 8/9:</strong> «Det bør egentlig være inde på en virksomhedsside hvor der står om der har været booket session, og om den har været afholdt.» <strong>Løst for intro-sessionen:</strong> <code>IntroSessionLinje</code> på virksomhedssiden (<code>VirksomhedView.tsx:1310-1338, 1579</code>) med afholdt-dom (booked OG slut_tid passeret), og tiden gemmes fra Calendly (<code>20260908190000_session_tid</code>).</p>
       <p><strong>Rettet 11/9 (<code>~/Downloads/recon-a2-raadgiverfladen.md</code> kort 76):</strong> påstanden om RLS holdt ikke — rådgiver-SELECT findes (<code>20260908190000:54-58</code> «Advisors read all session bookings») og er KØRT i prod (målt 11:18, sammen med <code>start_tid</code>/<code>slut_tid</code>). Det der står tilbage er synligheden: linjen læser kun Mortens intro-session (<code>VirksomhedView.tsx:1318 .eq("advisor", "morten")</code>), og de betalte rækker læses ingen steder. Betalte sessioner STOPPER ved <code>booking_sent</code>: Jonas' Calendly-link bærer intet booking-id (<code>stripe-webhook:1352</code>), og <code>calendly-webhook</code> filtrerer <code>advisor = 'morten'</code> (<code>:117, :157</code>) — der kommer aldrig <code>booked</code> eller en tid. Prod 11:18: jonas · booking_sent · betalt 3, jonas · pending · betalt 9 (ingen med <code>calendly_event_uri</code>); morten · booked · gratis 2, morten · booking_sent · gratis 1. <code>amount_dkk &gt; 0</code> betyder at sessionen koster penge, ikke at den er betalt; <code>pending</code> er en checkout der ikke blev gennemført.</p>
-      <p><strong>Besluttet 11/9 — forslag fra chatten, stående uden indsigelse:</strong> <code>booking_sent</code>-rækker vises på virksomhedssiden som «betalt {dato} · booking-link sendt» uden afholdt-dom; <code>pending</code> vises ikke. Kortet «De betalte 1:1-sessioner stopper ved booking_sent» bærer Calendly-delen. Lille.</p>
-      <div class="meta"><span class="tag ny">Ny 11/9</span><span class="tag">Jonas 8/9</span><span class="tag">Rettet 11/9</span><span class="tag">Besluttet 11/9</span><span class="tag size">Lille</span></div>
+      <p><strong>Besluttet 11/9 — forslag fra chatten, stående uden indsigelse:</strong> <code>booking_sent</code>-rækker vises på virksomhedssiden som «betalt {dato} · booking-link sendt» uden afholdt-dom; <code>pending</code> vises ikke. Kortet «De betalte 1:1-sessioner stopper ved booking_sent» bar Calendly-delen. Lille.</p>
+      <p><strong>Calendly-delen er LUKKET 13/9 sen aften (#842, merget 20:04:19 UTC — OVERLEVERING DEL 2 «13. september» §19):</strong> kortet «De betalte 1:1-sessioner stopper ved <code>booking_sent</code>» er FJERNET SOM LØST for fremtiden. <code>stripe-webhook</code> indlejrer nu rækkens id i bookinglinket (som Mortens vej), <code>calendly-webhook</code> matcher begge spor på id alene og gater genåbningen af den gratis intro på rækkens advisor, dommen er en ren, testet funktion, der er to signing keys (én pr. abonnement), og abonnementet på Jonas' organisation er oprettet 20:16:47 UTC (<code>state: active</code>). <strong>Ubevist i drift</strong> indtil et køb gennem et id-bærende link (findes fra 22:05 dansk) kommer tilbage som <code>booked</code> med tid. <strong>De to eksisterende Rallysupport-rækker forbliver håndsatte</strong> (13/9 kl. 20:48): deres links fra juni bærer intet id, og <code>stripe-webhook</code>s idempotens udsteder aldrig et nyt — webhooken kan ikke ramme dem.</p>
+      <div class="meta"><span class="tag ny">Ny 11/9</span><span class="tag">Jonas 8/9</span><span class="tag">Rettet 11/9</span><span class="tag">Besluttet 11/9</span><span class="tag">Calendly lukket 13/9</span><span class="tag size">Lille</span></div>
     </div>
     <div class="card new" data-status="mangler" data-spor="6" data-rammer="raadgiver">
       <h3>Adresse, by og postnummer kan ikke rettes af nogen i Hjemmebane</h3>

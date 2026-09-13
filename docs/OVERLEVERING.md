@@ -1,6 +1,6 @@
 # Overlevering
 
-> ## 13/9 — START HER (skrevet 13/9 eftermiddag; opdateret 13/9 sen eftermiddag efter #826 og igen efter udrulningen kl. 14:20 UTC — og igen 13/9 aften efter bygning 3, og igen efter kort 40 og #833, og igen 13/9 aften efter oprydningen del 1 (#836), og igen 13/9 sen aften efter kort 56 (#837) og bogføringen af oprydningen (#838) — HEAD `32c7eb32` = #838, merget 13/9 kl. 17:35:45 UTC; prod målt kl. 14:01, `~/Downloads/query-results-export-2026-09-13_14-01-42.csv`)
+> ## 13/9 — START HER (skrevet 13/9 eftermiddag; opdateret 13/9 sen eftermiddag efter #826 og igen efter udrulningen kl. 14:20 UTC — og igen 13/9 aften efter bygning 3, og igen efter kort 40 og #833, og igen 13/9 aften efter oprydningen del 1 (#836), og igen 13/9 sen aften efter kort 56 (#837) og bogføringen af oprydningen (#838), og igen 13/9 sen aften efter Calendly-kæden (#842) — HEAD `4bf3d405` = #842, merget 13/9 kl. 20:04:19 UTC; prod målt kl. 14:01, `~/Downloads/query-results-export-2026-09-13_14-01-42.csv`)
 >
 > **Bevist i dag — doggybeds træk gik igennem.** Sektion `a_doggybed_traek`,
 > ordret: «betalt · in_1UF8tR3CvBmCx5PthFjFOjFc;a_doggybed_traek;2026-09-13T09:36:24.309794+00:00
@@ -324,14 +324,46 @@
 > **Sikkerhed:** tokenet (`webhooks:write`, `organizations:write`) blev
 > delt i chatten i klartekst og skal REVOKERES — Jonas er bedt om det.
 > Ny fælde i DEL 4: «En begrundelse for ikke at bygge skal måles som alt
-> andet.» **HEAD er nu `d31726e6`:** #839 og #840 (kort 76) er merget og
-> IKKE bogført her — de bogføres for sig.
+> andet.» **HEAD var da `d31726e6`:** #839 og #840 (kort 76) — bogført for
+> sig i #841.
+>
+> **CALENDLY-KÆDEN ER LUKKET I DRIFT — PR #842 merget 13/9 kl. 20:04:19
+> UTC (§19).** Elleve filer, +382/−136; tests 2992 → 3002;
+> check:edge-auth PASS, check:verify-jwt PASS. Det der var galt, målt i
+> A's recon: `stripe-webhook` gemte det single-use bookinglink RÅT uden
+> rækkens id, så `calendly-webhook` havde intet at matche på — og den
+> filtrerede desuden på `advisor='morten'`. Mortens vej lægger id'et på
+> præcis samme slags link; der var ingen teknisk forskel, kun en
+> manglende linje. Nu bærer hvert nyt link id'et, funktionen matcher på
+> id alene, genåbningen af den gratis intro gates på RÆKKENS advisor (en
+> host-aflyst BETALT session giver ikke virksomheden en ekstra gratis),
+> dommen er en ren, testet funktion (`_shared/calendlyWebhookDom.ts`, ti
+> tests — webhooken havde ingen), og der er TO signing keys, én pr.
+> abonnement, så en rotation ét sted ikke dræber begge. Udrullet 20:05
+> UTC — Lovable ordret: «calendly-webhook ✅ live, svarer HTTP 401 invalid
+> signature; stripe-webhook ✅ live, svarer HTTP 400 Invalid signature;
+> create-free-intro-booking ✅ live, svarer HTTP 401 Missing or invalid
+> authorization.» Secret `CALENDLY_WEBHOOK_SIGNING_KEY_JONAS` sat og
+> BEVIST læst (signeret kald uden booking-id → HTTP 200 «fremmed event»);
+> abonnementet oprettet 20:16:47 UTC, `state: active`, uri
+> `…/webhook_subscriptions/9bca1b66-7ce2-466f-aa5b-47770c0dbec2`.
+> Rækkefølgen kode → secret → bevis → abonnement blev holdt; omvendt
+> ville hver event give 401, og abonnementet være `disabled` efter 24
+> timer — uden vej tilbage. Reglen står i «Beslutninger der står fast».
+> **UBEVIST I DRIFT:** at en rigtig booking kommer tilbage — kræver et køb
+> gennem et id-bærende link, og de findes først fra 22:05 dansk.
+> Rallysupports to rækker kan aldrig rammes og forbliver håndsatte
+> (20:48). Værtsidentiteten (`created_by`, `event_memberships[].user`)
+> logges, håndhæves ikke — måles først i function-logs. To fejl af
+> chatten samme aften (udklipsholderen; bash-syntaks i zsh) — DEL 4.
+> Tokenet skal stadig revokeres. Mangellisten 134 → 133. **HEAD er
+> `4bf3d405` = #842.** Vindue A bygger nu den INKLUDEREDE Jonas-session.
 >
 > **12/9:** i repoet skete der INTET — #819 blev merget 11/9 kl. 10:55:26
 > UTC, og næste commit er ikke kommet. Om der skete noget i prod, Stripe
 > eller Lovable den 12/9: ikke målt, ikke bogført.
 >
-> Detaljen står i DEL 2 «13. september» (§1–§18).
+> Detaljen står i DEL 2 «13. september» (§1–§19).
 
 > ## 11/9 EFTERMIDDAG — START HER (dagen lukket; skrevet 11/9 eftermiddag efter #817, digestens slukning kl. 12:07 og målingerne 11:33, 11:43, 12:07 og 12:18)
 >
@@ -4471,7 +4503,7 @@ Kilde `recon-a4-forsidens-dom.md`.
   oprydningen (run-weekly-agent, digestens kode, podcasten ud) → 56 → 76 →
   82 → 57 → 29. A4: recon af hvordan linjen for en ny refleksion lukkes.
 
-### 13. september — doggybeds træk gik igennem (#563 og #572 bevist, #815 ubevist); stripe-webhook i ental og udrullet 12:04 UTC; kort 83 bygget og i drift (#820, merget 12:17:29 UTC, manage-advisor udrullet 12:18 UTC); /members bygning 1 FÆRDIG (#823, #824, #825 — merget 13:08:25, 13:33:58 og 13:54:51 UTC; panelet på skærm 15:38); bygning 2 LØST (#826, merget 14:13:00 UTC; fire funktioner udrullet 14:20 UTC); Guiden AFGJORT — dør i bygning 3, ankrene bliver; bygning 3 GJORT — /members og Guiden slettet (#828, merget 14:47:38 UTC; Update klikket; /members og /guide NotFound på skærm; manage-advisor udrullet 14:50 UTC); målt kl. 16:53 — sletningen fjernede intet i brug, NOTEN BEVIST I DRIFT, efterladenskaber fra tidligere sletninger fundet; kilderne fundet i A's recon; lækagen LUKKET (#830, merget 15:31:14 UTC) og udrullet 15:33 UTC; kort 40 GJORT — KPI-fallbacken fjernet helt (#832, merget 15:57:43 UTC; Update og skærmbevis åbne); branchelinjen på KPI-kortet fundet på skærmen kl. 18:00 — BESLUTTET: estimatet væk, forrige måneds eget tal i stedet — BYGGET (#833, merget 16:21:03 UTC) og BEVIST PÅ SKÆRM 18:26:57, som også beviser kort 40; brancheafsnittet MÅLT 18:28 (3 af 36 domme indenfor) og BESLUTTET: det dør — #833's værn låste afsnittet (1 af 2982 fejlede kl. 18:40), værnet omskrevet, og #834 MERGET 16:52:02 UTC (bar også del 3 af denne bogføring — index'et bar begge); Update klikket og BEVIST PÅ SKÆRM 18:58:00 — afsnittet er væk, siden går fra «MÅNED FOR MÅNED» direkte til «AI-ANALYSE»; oprydningen DEL 1 GJORT — run-weekly-agent slettet og digestens kode fjernet (#836, merget 17:08:09 UTC; run-company-agent udrullet 17:09 UTC; migrationen kørt; BEVIST PÅ SKÆRM 19:13:00 og 19:16:58) — «weekly_cron» i hvidlisten var en åben dør, ikke død kode; kort 56 GJORT — handout-siden linker til de lektioner der hører til (#837, merget 17:29:00 UTC; committen bar også §16 — index-fælden igen; Update klikket; Jonas: «Det virker»); bogføringen af oprydningen i mål som #838 (merget 17:35:45 UTC); CALENDLY-PÅSTANDEN FALSIFICERET kl. 21:30 — ét GET-kald, HTTP 200: planen rækker, nul abonnementer på Jonas' organisation; «kræver premium» stod tre steder i ti dage uden at nogen havde sendt kaldet
+### 13. september — doggybeds træk gik igennem (#563 og #572 bevist, #815 ubevist); stripe-webhook i ental og udrullet 12:04 UTC; kort 83 bygget og i drift (#820, merget 12:17:29 UTC, manage-advisor udrullet 12:18 UTC); /members bygning 1 FÆRDIG (#823, #824, #825 — merget 13:08:25, 13:33:58 og 13:54:51 UTC; panelet på skærm 15:38); bygning 2 LØST (#826, merget 14:13:00 UTC; fire funktioner udrullet 14:20 UTC); Guiden AFGJORT — dør i bygning 3, ankrene bliver; bygning 3 GJORT — /members og Guiden slettet (#828, merget 14:47:38 UTC; Update klikket; /members og /guide NotFound på skærm; manage-advisor udrullet 14:50 UTC); målt kl. 16:53 — sletningen fjernede intet i brug, NOTEN BEVIST I DRIFT, efterladenskaber fra tidligere sletninger fundet; kilderne fundet i A's recon; lækagen LUKKET (#830, merget 15:31:14 UTC) og udrullet 15:33 UTC; kort 40 GJORT — KPI-fallbacken fjernet helt (#832, merget 15:57:43 UTC; Update og skærmbevis åbne); branchelinjen på KPI-kortet fundet på skærmen kl. 18:00 — BESLUTTET: estimatet væk, forrige måneds eget tal i stedet — BYGGET (#833, merget 16:21:03 UTC) og BEVIST PÅ SKÆRM 18:26:57, som også beviser kort 40; brancheafsnittet MÅLT 18:28 (3 af 36 domme indenfor) og BESLUTTET: det dør — #833's værn låste afsnittet (1 af 2982 fejlede kl. 18:40), værnet omskrevet, og #834 MERGET 16:52:02 UTC (bar også del 3 af denne bogføring — index'et bar begge); Update klikket og BEVIST PÅ SKÆRM 18:58:00 — afsnittet er væk, siden går fra «MÅNED FOR MÅNED» direkte til «AI-ANALYSE»; oprydningen DEL 1 GJORT — run-weekly-agent slettet og digestens kode fjernet (#836, merget 17:08:09 UTC; run-company-agent udrullet 17:09 UTC; migrationen kørt; BEVIST PÅ SKÆRM 19:13:00 og 19:16:58) — «weekly_cron» i hvidlisten var en åben dør, ikke død kode; kort 56 GJORT — handout-siden linker til de lektioner der hører til (#837, merget 17:29:00 UTC; committen bar også §16 — index-fælden igen; Update klikket; Jonas: «Det virker»); bogføringen af oprydningen i mål som #838 (merget 17:35:45 UTC); CALENDLY-PÅSTANDEN FALSIFICERET kl. 21:30 — ét GET-kald, HTTP 200: planen rækker, nul abonnementer på Jonas' organisation; «kræver premium» stod tre steder i ti dage uden at nogen havde sendt kaldet; CALENDLY-KÆDEN LUKKET — #842 merget 20:04:19 UTC, tre functions udrullet 20:05 UTC, secret sat og bevist læst, Jonas' abonnement oprettet 20:16:47 UTC (`state: active`); en rigtig booking er UBEVIST, og Rallysupports to rækker forbliver håndsatte
 
 Kilder: `~/Downloads/query-results-export-2026-09-13_14-01-42.csv` (prod,
 målt kl. 14:01, kolonner `noegle;sektion;vaerdi`, ordret),
@@ -6496,6 +6528,173 @@ læst og lå ikke i ~/Downloads da dette blev skrevet.
   Calendlys URI» (commit-tider 17:52:16 og 18:33:55 UTC; `gh pr view`
   ikke kørt) er merget og IKKE bogført her. Kort 76 bogføres for sig.
 
+**19. CALENDLY-KÆDEN LUKKET — PR #842 merget 13/9 kl. 20:04:19 UTC, tre
+functions udrullet 20:05 UTC, secret sat og bevist læst, Jonas'
+webhook-abonnement oprettet 20:16:47 UTC. En rigtig booking er UBEVIST.**
+Kilder: `~/Downloads/recon-calendly-reparationen.md` (A's recon — nu
+læst; det er den §18 ventede på), `~/Downloads/verifikation-calendly-kaeden.txt`
+(baseline og slutlinjer, målt FØR og EFTER), `~/Downloads/diff-calendly-kaeden.txt`
+(diffen, 677 linjer), `gh pr view 842`, Lovables build-chat og Calendlys
+svar (ordret, chatten 13/9 sen aften).
+
+- **PR'EN.** #842 «feat: Calendly-kaeden lukkes for Jonas' spor».
+  `gh pr view 842 --json mergedAt,mergeCommit`, ordret: mergedAt
+  «2026-09-13T20:04:19Z», mergeCommit
+  «4bf3d40586ee64c49be153918903551bdac76d01» (22:04:19 dansk). Elleve
+  filer, +382/−136: `stripe-webhook/index.ts`,
+  `calendly-webhook/index.ts`, `create-free-intro-booking/index.ts`, den
+  nye `_shared/calendlyWebhookDom.ts` og dens test
+  `src/lib/__tests__/calendlyWebhookDom.test.ts`, `betaltSession.ts`
+  (filhovedet — premium-linjen fra §18, nu det målte), `introSession.ts`
+  og `VirksomhedView.tsx` (kommentarer), de to betaltSession-tests og
+  `SECURITY_BASELINE.md` (Bucket C med to nøgler). Verifikationen: FØR
+  195 filer / 2992 tests, tsc nul fejl; EFTER tsc nul fejl, `bun run test`
+  196 filer / **3002 tests** (+1 fil, +10 tests = den nye dom-test: 4
+  routing + 6 genåbnings-gate; alle 2992 gamle grønne, incl.
+  `betaltSession.guard`), `bun run check:edge-auth` PASS (68 af 68),
+  `bun run check:verify-jwt` PASS (15 af 15). `deno check` rent på
+  `calendly-webhook` og `create-free-intro-booking`; på `stripe-webhook`
+  fejler den FØR den nye kode nås («Could not find a matching package for
+  'npm:@lovable.dev/email-js@0.1.0'», `_shared/managedEmail.ts:15`) —
+  lokal npm-opløsning, ikke ændringen.
+- **HVAD DER VAR GALT — målt i reconen, ikke gættet.** `stripe-webhook`
+  gemte det single-use bookinglink RÅT (`:1355-1362`): idempotens-select'en
+  (`:1338`) hentede `status, calendly_booking_url` men IKKE rækkens `id`,
+  og ingen linje satte det på linket. Så bar intet betalt link et id — og
+  `calendly-webhook` matcher UDELUKKENDE på `payload.tracking.salesforce_uuid
+  || utm_content` (`:77-82`), så den havde intet at matche på; hver event
+  fra Jonas' spor ville være endt som 200 «fremmed event» før nogen
+  DB-adgang. Oven i det filtrerede begge UPDATE'er på
+  `.eq("advisor","morten")` (`:122`, `:157`). Mortens vej
+  (`create-free-intro-booking:161-164`) indlejrer id'et som
+  `salesforce_uuid` + `utm_content` på PRÆCIS samme slags link — begge
+  veje er `POST /scheduling_links` med `max_event_count: 1` (recon F1),
+  og pass-through på single-use links er bevist i prod (2 af 3
+  Morten-rækker har `calendly_event_uri`, F3). Den eneste strukturelle
+  forskel er HVORNÅR id'et findes: Morten genererer det før linket,
+  Jonas' række er oprettet af `create-stripe-checkout` før betalingen med
+  DB-default id (F2). Der var ingen teknisk forskel mellem sporene, kun
+  en manglende linje. Reparationen: `id` med i select'en, og de fire
+  linjer fra Mortens vej dubleret efter `createCalendlySingleUseLink`
+  (anden gang Calendly-hjælperne står i begge filer; en samling i
+  `_shared/calendly.ts` er et eget run). Mangler rækken
+  (`create-stripe-checkout` logger og fortsætter ved insert-fejl), gemmes
+  linket råt som før og der logges en `warn` — ingen regression, kun en
+  booking webhooken ikke kan ramme.
+- **TRE BESLUTNINGER (chatten 13/9).** *(a)* **TO signing keys frem for
+  én delt.** `calendly-webhook` læser nu `CALENDLY_WEBHOOK_SIGNING_KEY`
+  (Mortens abonnement — navnet er arv) og
+  `CALENDLY_WEBHOOK_SIGNING_KEY_JONAS`, filtrerer de manglende fra og
+  prøver hver nøgle mod signaturen; den der matchede, logges. En delt
+  nøgle kobler sporene: roteres den ét sted, svarer funktionen 401 til
+  BEGGE abonnementer, Calendly retry'er i 24 timer med back-off og sætter
+  derefter begge `disabled` — og en `disabled` subscription kan ikke
+  genaktiveres, den skal slettes og oprettes igen (recon §5a, F9). Med to
+  nøgler er rotation uafhængig pr. abonnement. Og funktionen tåler at den
+  anden secret MANGLER: én nøgle i listen er præcis som før 13/9, ingen
+  nøgle er 503 som hidtil — derfor kunne koden udrulles FØR secret og
+  abonnement fandtes, uden regression for Morten. Vej (a) i reconen
+  (genbrug Mortens nøgle) blev fravalgt af samme grund, og fordi Mortens
+  værdi kun findes som secret hos Lovable. *(b)* **Advisor-filteret er
+  FLYTTET, ikke fjernet.** `.eq("advisor","morten")` gjorde ikke matchet
+  mere entydigt — `id` er PRIMARY KEY — det afskar bare Jonas' spor. Men i
+  aflysningsgrenen bar det én skjult sideeffekt: `:166-177` genåbnede
+  `companies.intro_session_used_at` ved `canceler_type === "host"` uden
+  at se på rækkens advisor. Var filteret bare slettet, ville en
+  host-aflysning af en BETALT Jonas-session have givet virksomheden en
+  ekstra gratis intro (recon F4). Nu matcher begge grene på `id` alene,
+  select'en tager `advisor` med, og genåbningen gates på RÆKKENS advisor:
+  kun `(host, morten)` er sand. *(c)* **Webhookens beslutning blev en
+  ren, testet funktion.** Funktionen havde INGEN test overhovedet (recon
+  F8: tre værn læser `stripe-webhook`-kilden, intet læser
+  `calendly-webhook`). Nu ligger «hvad gør vi ved denne event» i
+  `_shared/calendlyWebhookDom.ts`: `doemCalendlyEvent` (event-type +
+  `rescheduled` → book / aflys / ignorer med grund) og `genaabnerGratis`
+  (canceler_type + advisor → bool), kaldt FØR nogen DB-adgang og testet i
+  ti tests — hele matricen, kun host/morten genåbner; strengen `"true"`
+  er ikke en flytning (feltet er boolean); no-show, recap, routing-form
+  og ukendte typer ignoreres med grund.
+- **VÆRTSIDENTITETEN LOGGES, IKKE HÅNDHÆVES.** Calendlys OpenAPI-spec
+  lover top-level `created_by` («The user who created the webhook» —
+  abonnementets opretter) og
+  `payload.scheduled_event.event_memberships[].user`/`user_email`
+  (værten). Ingen har set felterne i en FAKTISK payload — samme forbehold
+  som funktionens egen note om `scheduled_event` fra 8/9. Funktionen
+  logger dem nu ved HVER event, også fremmede, sammen med hvilken nøgle
+  der verificerede (`[calendly-webhook] <event> verificeret med '<spor>'.
+  created_by=… vaert.user=… vaert.user_email=…`). De måles først i
+  function-logs; indtil da styrer rækkens advisor sideeffekterne. To
+  strukturelle signaler bærer imens: et abonnement ser kun sin egen
+  organisations events (ét medlem i Jonas'), og nøglen der verificerede,
+  er i sig selv beviset for hvilket abonnement beskeden kom fra.
+- **UDRULNING OG BEVISER, i rækkefølge med tidspunkter.**
+  1. **Tre functions udrullet 13/9 kl. 20:05 UTC (22:05 dansk)**, auto
+     fra merge. Lovable ordret: «calendly-webhook ✅ live, svarer HTTP 401
+     invalid signature; stripe-webhook ✅ live, svarer HTTP 400 Invalid
+     signature; create-free-intro-booking ✅ live, svarer HTTP 401 Missing
+     or invalid authorization.» At `calendly-webhook` svarede 401 og ikke
+     503 beviste allerede dér at Mortens nøgle stadig læses gennem det
+     nye loop — listen var ikke tom.
+  2. **Secret `CALENDLY_WEBHOOK_SIGNING_KEY_JONAS` sat i Lovable** — 64
+     hex-tegn, genereret lokalt og båret i en fil med umask 077, ikke i
+     udklipsholderen (se fejl (a) nedenfor).
+  3. **BEVIST at funktionen læser den:** et kald signeret lokalt med den
+     nye nøgle, UDEN gyldigt booking-id, svarede HTTP 200
+     «{"received":true,"skipped":"fremmed event"}» — signaturen godkendt
+     af den nye nøgle, og funktionen stoppede før nogen DB-adgang, som
+     den skal. Reconens trin 3 («bekræft med ét test-kald før POST'et»)
+     fulgt.
+  4. **Abonnementet oprettet 13/9 kl. 20:16:47 UTC (22:16:47 dansk)**
+     med `POST /webhook_subscriptions` (Jonas' personal access token i
+     shellen, aldrig i repoet). Svaret ordret: state «active», scope
+     «organization», events [invitee.created, invitee.canceled], uri
+     «https://api.calendly.com/webhook_subscriptions/9bca1b66-7ce2-466f-aa5b-47770c0dbec2»,
+     organization «…/28fc12fd-844f-4051-988e-9f60089f3aa0», creator
+     «…/users/f3e23f1c-cc7c-4f4d-a6b8-8220e35e58f5» (Jonas' user-URI,
+     målt 13/9 kl. 20:57). Målingen kl. 21:30 (§18) sagde `count: 0`; nu
+     er der ét.
+  5. **Nøglefilen slettet lokalt; tokenet bedt revokeret** (samme token
+     som §18's sikkerhedspunkt — det blev brugt igen til POST'et og skal
+     stadig væk; ikke bevist revokeret).
+- **RÆKKEFØLGEN VAR KRITISK og blev holdt: kode → secret → bevis på at
+  nøglen læses → abonnement.** Omvendt — abonnement før nøglen kan læses
+  — ville hver event have givet 401, Calendly ville retry'e i 24 timer
+  med back-off og derefter sætte abonnementet `disabled`, som ikke kan
+  genaktiveres (recon F9 og §8 «den eneste farlige rækkefølge»). Rettes
+  fejlen inden 24 timer, leveres de kø'ede events; efter 24 timer er
+  abonnementet dødt og events tabt. Det står nu som regel for ETHVERT
+  fremtidigt webhook-abonnement i «Beslutninger der står fast».
+- **UBEVIST I DRIFT — åbent bevis: at en rigtig booking faktisk kommer
+  tilbage.** Det kræver et køb gennem et id-bærende link, og de findes
+  først fra kl. 22:05 dansk (udrulningen). Beviset når det kommer: rækken
+  i `session_bookings` får `booked`, `calendly_event_uri`, `start_tid` og
+  `slut_tid`, og function-loggen viser «invitee.created: booking <id>
+  (jonas) -> booked (…)» plus værts-linjen. Rallysupports to gamle rækker
+  kan ALDRIG rammes: deres links (juni) bærer intet id, og
+  `stripe-webhook`s idempotens (`calendly_booking_url` sat →
+  `already_processed`) udsteder aldrig et nyt — deres tider blev håndsat
+  13/9 kl. 20:48 og forbliver håndsatte (recon F6, §4). Åbent fra reconen
+  stadig: om Calendly kopierer `tracking` til den nye invitee ved
+  flytning (antaget siden 23/6; en flytning uden tracking efterlader
+  rækken `booked` med den gamle tid).
+- **TO FEJL AF CHATTEN samme aften.** *(a)* Nøglen blev lagt i
+  udklipsholderen, og chatten bad derefter Jonas kopiere et secret-NAVN —
+  så var nøglen væk: det der blev gemt i Lovable, var ikke det der blev
+  signeret med, og testkaldet fejlede med 401. Anden gang i træk den
+  fælde. Løsningen blev en fil skrevet med umask 077, læst af begge trin,
+  slettet bagefter. Ny fælde i DEL 4: «Udklipsholderen er ét felt — læg
+  aldrig en hemmelighed der, hvis brugeren skal kopiere noget andet
+  undervejs.» *(b)* Chatten dikterede `read -rs -p` (bash-syntaks) til en
+  zsh-terminal og fik «no coprocess». Fælden om URL'er i DEL 4 gælder
+  også skalsyntaks: mål miljøet, gæt ikke — udvidet dér.
+- **Mangellisten 134 → 133:** kortet «De betalte 1:1-sessioner stopper
+  ved `booking_sent`» FJERNET SOM LØST for fremtiden; noten om at de to
+  Rallysupport-rækker forbliver håndsatte står på kort 76's kort («Jonas
+  ser Mortens sessioner og omvendt …»). Kortet om Calendly premium var
+  allerede rettet i #841. DEL 3-rækken markeret lukket.
+- **Uden for denne bogføring:** vindue A bygger nu den INKLUDEREDE
+  Jonas-session (rører `src/` og `supabase/`). Bogføres for sig.
+
 ### Mailplatformen — bygget om af Lovable 8/9 kl. 06:52-06:58; afsenderne, fortegnelsen og værnet (#728, #730, #731, #732)
 
 **Hvad Lovable gjorde.** 19 commits direkte til main mellem kl. 06:52 og
@@ -7061,7 +7260,7 @@ facit og rækkefølge; `docs/chat-design.md` chattens form.
 | LØST 3/9 kl. 11:50–12:00 | **Adressen på de eksisterende virksomheder**: `berig-virksomheder` (#567) hentede den fra CVR for 26 af 30 aktive (før 1 af 30). Uden: tre uden CVR-nummer (Alexander Lund, Martin Larsen, Bastant Design) og YKRG, som registret ingen adresse har for. | indgangen-design §33 |
 | **ÅBEN BESLUTNING — betingelsen er opfyldt 13/9** (doggybeds træk gik igennem, `betalt` kl. 09:36:24 UTC); hvornår og i hvilke portioner er IKKE besluttet | **Migrationen af de 13** (billing_cycle_anchor, cancel_at, default_payment_method, YKRG's kort, kobling til companies.id). Var «efter 13/9»: de tretten ventede på trækket 13/9 (betingelsen fra 2/9). Ikke længere blokeret — en beslutning, ikke en bygning. Datarbejdet står (mangellisten «Platformen kan ikke se hvem der betaler»: 27 aktive med NUL `stripe_customer_id`, målt 10/9 aften; doggybed stadig NULL 13/9). | migration-recon §16, §25; DEL 2 «13. september» §1 |
 | målt 3/9 aften — VIRKER for medlemmet | **1:1-sessionernes Calendly-kæde efter kontoskiftet.** Målt i Stripe (MCP, livemode): `session_1on1` findes som præcis én aktiv pris på den nye konto (`price_1UApFg3CvBmCx5PtyGkNPRmm`, 500 kr. ekskl. moms; kunden betaler 625 kr. med `automatic_tax`); `abonnement_maanedlig` findes ligeledes (`price_1UApQx3CvBmCx5Pt8GxtQsze`, 399 kr.). Webhook-endpointet `we_1UAtaW3CvBmCx5PtL736lAJN` er enabled med seks events inkl. `checkout.session.completed` og peger på `loiavmastgeieqyiwyyr`. **Kæden virker for medlemmet:** to betalte 1:1-sessioner er booket OG afholdt (23/6 og 30/6, målt i Calendly 3/9 aften). Det der fejler, er registreringen — rækken nedenfor. | — |
-| nedprioriteret 3/9 aften — **BEGRUNDELSEN FALSIFICERET 13/9 kl. 21:30** (ét GET-kald, HTTP 200: planen rækker, nul abonnementer på Jonas' organisation) | **Betalte 1:1-bookinger registreres aldrig som `booked`.** Målt 3/9 aften: **0 af 12 betalte bookinger har `calendly_event_uri`, mod 2 af 3 gratis.** Årsagen er tredelt: (1) `stripe-webhook` (linje 917 og 925) skriver Calendlys `booking_url` RÅT i `session_bookings.calendly_booking_url`, mens `create-free-intro-booking` (161–162) indlejrer bookingens id i URL'en (`salesforce_uuid` + `utm_content`), og `calendly-webhook` (75–80) matcher kun på dem; (2) `calendly-webhook` matcher desuden på `advisor = 'morten'` (l. 94, 129), og de betalte rækker er `'jonas'` (default, migration 20260621120000); (3) Jonas' Calendly-organisation har kun ét medlem, så Mortens webhook-abonnement kan ikke dække Jonas' events — et abonnement dækker kun sin egen organisation, og Morten er ikke medlem af Jonas'. **Prioritet LAV, besluttet 3/9:** det koster ikke medlemmet noget — de booker og mødes — og reparationen *var* «kræver Calendly-abonnement på premium». **Det holdt ikke — MÅLT 13/9 kl. 21:30** (DEL 2 «13. september» §18): `GET /webhook_subscriptions?organization=…28fc12fd…&scope=organization` med Jonas' token → HTTP 200, `"collection":[]`, `"count":0`. Planen (standard, paid) TILLADER webhooks; der findes bare INTET abonnement på Jonas' organisation. Blokeringen er kode plus et manglende abonnement: `calendly-webhook` filtrerer `advisor = 'morten'` (`:122`, `:157`) og matcher via det id som `create-free-intro-booking` lægger i URL'en (`:162-163`), som `stripe-webhook` ikke lægger (`:1351-1356`); signaturen er IKKE en hindring (`signing_key` vælges af den der opretter abonnementet). Abonnementet på Jonas' organisation er ikke oprettet. Påstanden begrundede nedprioriteringen i ti dage og er grunden til at Rallysupports mødedatoer blev sat i hånden 13/9 kl. 20:48. Ikke en følge af kontoskiftet; det har været sådan hele tiden. | `~/Downloads/recon-kontoskifte.md`, `recon-1til1-link.md` (uden for repoet) |
+| **LUKKET 13/9 sen aften — #842 merget 20:04:19 UTC, abonnementet oprettet 20:16:47 UTC (`active`); UBEVIST I DRIFT indtil et køb efter 22:05 dansk kommer tilbage** (var: nedprioriteret 3/9 aften; begrundelsen falsificeret 13/9 kl. 21:30) | **Betalte 1:1-bookinger registreres aldrig som `booked`.** Målt 3/9 aften: **0 af 12 betalte bookinger har `calendly_event_uri`, mod 2 af 3 gratis.** Årsagen er tredelt: (1) `stripe-webhook` (linje 917 og 925) skriver Calendlys `booking_url` RÅT i `session_bookings.calendly_booking_url`, mens `create-free-intro-booking` (161–162) indlejrer bookingens id i URL'en (`salesforce_uuid` + `utm_content`), og `calendly-webhook` (75–80) matcher kun på dem; (2) `calendly-webhook` matcher desuden på `advisor = 'morten'` (l. 94, 129), og de betalte rækker er `'jonas'` (default, migration 20260621120000); (3) Jonas' Calendly-organisation har kun ét medlem, så Mortens webhook-abonnement kan ikke dække Jonas' events — et abonnement dækker kun sin egen organisation, og Morten er ikke medlem af Jonas'. **Prioritet LAV, besluttet 3/9:** det koster ikke medlemmet noget — de booker og mødes — og reparationen *var* «kræver Calendly-abonnement på premium». **Det holdt ikke — MÅLT 13/9 kl. 21:30** (DEL 2 «13. september» §18): `GET /webhook_subscriptions?organization=…28fc12fd…&scope=organization` med Jonas' token → HTTP 200, `"collection":[]`, `"count":0`. Planen (standard, paid) TILLADER webhooks; der findes bare INTET abonnement på Jonas' organisation. Blokeringen er kode plus et manglende abonnement: `calendly-webhook` filtrerer `advisor = 'morten'` (`:122`, `:157`) og matcher via det id som `create-free-intro-booking` lægger i URL'en (`:162-163`), som `stripe-webhook` ikke lægger (`:1351-1356`); signaturen er IKKE en hindring (`signing_key` vælges af den der opretter abonnementet). Abonnementet på Jonas' organisation er ikke oprettet. Påstanden begrundede nedprioriteringen i ti dage og er grunden til at Rallysupports mødedatoer blev sat i hånden 13/9 kl. 20:48. Ikke en følge af kontoskiftet; det har været sådan hele tiden. **LUKKET 13/9 (#842, DEL 2 «13. september» §19):** `stripe-webhook` indlejrer nu rækkens id i linket (som Mortens vej), `calendly-webhook` matcher begge spor på id alene og gater genåbningen af den gratis på rækkens advisor, to signing keys (én pr. abonnement), og abonnementet på Jonas' organisation er oprettet 20:16:47 UTC (`state: active`, `9bca1b66-…`). Rækkefølgen kode → secret → bevis → abonnement blev holdt. Åbent bevis: en rigtig booking der kommer tilbage som `booked` med tid. Rallysupports to rækker forbliver håndsatte for altid — deres links bærer intet id. | `~/Downloads/recon-calendly-reparationen.md`, `verifikation-calendly-kaeden.txt`, `diff-calendly-kaeden.txt` (uden for repoet) |
 | åbent | **Velkomstvideoen skal optages** (Morten). Pladsen er bygget; GUID'et sættes i /admin/config. Siden 3/9 (#569) kan fokuskortet åbne videoen via `#velkomst`, så velkomst-punktet ikke længere er en fælde den dag GUID'et sættes — beviset på skærm kommer først da. | recon-velkomstvideo, indgangen-overhaling §10 |
 | åbent | **Rundvisningen** — interaktiv førstegangs-oplevelse efter velkomsten; bygges efter C3-indflytningen; må aldrig eksistere ved siden af Guiden. | BACKLOG [P2·EPIC] Platform-onboarding |
 | EPIC, designet 3/9 aften | **Rådgiverfladens overhaling** — tages SAMLET, på størrelse med indgangen. Designsamtalen ER holdt 3/9 aften: designet er låst i `docs/raadgiverfladen-design.md` (fire flader, syv blokke, `companyId`-nøgling, chat ind på virksomhedssiden, emne-opsamling målt før flade), emnelisten i `docs/emneliste.md` (ni emner, to holdt udenfor). **Det der mangler før kode** (designets §10): emnelisten skal bevises ved klassificering af alle 588 menneskebeskeder i et idempotent engangsjob, og målingen skal holde; buckets' linkmål for `primary: "company"` (`AdvisorDashboard.tsx:1130–1134`) er ikke læst; hvilke `advisor_notifications.type`-værdier der findes; hvad de fire AI-edge-functions (`ai-financial-feedback`, `ai-data-chat`, `generate-ai-forecast`, `run-company-agent`/`agent-forslag-afgoer`) læser og skriver serverside; og den samlede rene funktion bag «hvad stikker ud» — det sidste er gjort (#589). **Byggeomkostnings-reconen er kørt 3/9 sen aften** (`~/Downloads/recon-byggeomkostning.md`, uden for repoet — genskabes hvis den bruges). Den viste: (1) en flytning er **tre skridt i fast rækkefølge**, målt på de fire der allerede er sket (KPI'er, Rapportering, Budget, Handouts): motoren udskilles først som ren flytning med tests; den gamle flade lægges om til motoren og fryses; derefter bygges den nye flade på en midlertidig route — og swappes til sidst ind på den GAMLE URL, fordi URL'er er kontrakter i mails og notifikationer. (2) **Handouts er det reneste facit**: `HandoutDetail` 381 linjer → `HbHandoutDetail` 385; `HandoutLeverItem` 89 → 89. Samme motor, UI-primitiver byttet — når datalaget er delt på forhånd, koster en flytning næsten intet i logik. (3) **Rådgiverfladen er dyrere end alle fire**, af grunde ingen af dem havde: datalaget skal vendes fra `user_id` til `company_id`, blokken «Aftalen» skal bygges fra `/members`-listen (findes ikke på MemberDetail), og to inline-domme skulle samles til én — det sidste er gjort (#589). (4) Der findes **ingen opskrift som dokument**; BACKLOG's fire GO-punkter er den de facto-tjekliste, med samme skabelon hver gang. (5) **Ombygningen betaler gæld tilbage**: `HandoutDetail`-trioen, `PeriodSelector`, `AIFinancialAnalysis` og `FileUploadZone` kan først pensioneres når MemberDetail konverteres; ni komponenter i `src/components/` har allerede nul importører. Medlemsskiftet er løst uafhængigt (#573). De tre reconer bag designet ligger uden for repoet (`~/Downloads/recon-raadgiverfladen-2.md`, `recon-virksomhedssiden.md`, `recon-emner.md`) og skal genskabes hvis de bruges. | `docs/raadgiverfladen-design.md` §9–10, `docs/emneliste.md` §7 |
@@ -7943,7 +8142,11 @@ De konkrete ting der har kostet tid. Led efter dem.
   fejlede. Mål ruten i `App.tsx` (`path="…"`) FØR du beder om et
   skærmbevis, og skriv stien fra filen, ikke fra komponentens navn. Samme
   klasse som «Et funktionsnavn i overleveringen skal være mappens navn»
-  (DEL 2 «13. september» §16).
+  (DEL 2 «13. september» §16). *Gælder også SKALSYNTAKS (13/9 sen aften,
+  §19): chatten dikterede `read -rs -p` — bash — til en zsh-terminal og
+  fik «no coprocess». Terminalen står i miljøbeskrivelsen (Shell: zsh);
+  mål miljøet før du dikterer en kommando, gæt ikke ud fra hvad der
+  plejer at virke.*
 - **En begrundelse for ikke at bygge skal måles som alt andet.**
   Påstanden «reparationen kræver Calendly premium» stod tre steder
   (DEL 3-rækken, mangellistens kort, `betaltSession.ts:15`) i ti dage,
@@ -7960,6 +8163,17 @@ De konkrete ting der har kostet tid. Led efter dem.
   have samme bevis som en bygning — et kald, en række, et skærmbillede —
   og en kilde der kan slås op. Står der «kræver X» uden måling, er det en
   hypotese og skal stå som en. (DEL 2 «13. september» §18)
+- **Udklipsholderen er ét felt — læg aldrig en hemmelighed der, hvis
+  brugeren skal kopiere noget andet undervejs.** 13/9 sen aften
+  genererede chatten Jonas' Calendly signing key, lagde den i
+  udklipsholderen, og bad i NÆSTE trin Jonas kopiere secret'ens NAVN
+  (`CALENDLY_WEBHOOK_SIGNING_KEY_JONAS`) ind i Lovable. Navnet overskrev
+  nøglen: det der blev gemt som secret, var ikke det der blev signeret
+  med, og testkaldet fejlede med 401 — og fejlen blev først søgt i koden.
+  Anden gang i træk. En hemmelighed der skal bruges to steder (sættes i
+  Lovable, signeres med lokalt) skal ligge i en FIL skrevet med umask
+  077, som begge trin læser, og som slettes bagefter — ikke i et felt som
+  næste kopiering tømmer. (DEL 2 «13. september» §19)
 
 ---
 
@@ -7969,6 +8183,14 @@ Skal ikke genforhandles uden ny måling.
 
 - **En fejlet rate lukker aldrig et abonnement (10/9).** Stripe ender i `past_due` — ikke `unpaid`, ikke `canceled` — og bliver ved med at forsøge og fortælle det (kortfejl-mails TIL). Adgangen afgøres af `contract_end_date`, ikke af Stripes tilstand; en fejlet rate er en inddrivelsessag. (fornyelseskæden §9, adgangsdomme §6)
 - **Fristen er kontraktens:** 30 dage fra underskriften. (indgangen §27)
+- **Et webhook-abonnement oprettes SIDST, og hvert abonnement har sin
+  egen signing key (13/9).** Rækkefølgen er kode → secret → bevis på at
+  funktionen læser nøglen (et signeret kald svarer på indholdet, ikke
+  503) → abonnement. Oprettes abonnementet før nøglen kan læses, svarer
+  funktionen 401 på hver event, Calendly retry'er i 24 timer og sætter
+  abonnementet `disabled` — som ikke kan genaktiveres, kun slettes og
+  oprettes igen. Og aldrig én delt nøgle på to abonnementer: en rotation
+  ét sted dræber begge. (DEL 2 «13. september» §19)
 - **Kommunikation kun ved «tilbyd».** Et medlem der ikke skal tilbydes
   fornyelse, får intet. (fornyelsesordningen §1)
 - **Medlemmet hører om sin fornyelse fra SYSTEMET, ikke ved at miste
