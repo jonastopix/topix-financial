@@ -75,25 +75,37 @@
 > `weekly_focus.seen_at` på forsiden. **Åbne beslutninger:** 20, 21 og 22
 > (forslag fra chatten, stående uden indsigelse) samt migrationen af de
 > 13 — betingelsen fra 2/9 (at trækket 13/9 gik igennem) er opfyldt;
-> hvornår og i hvilke portioner er IKKE besluttet (DEL 3). **Og
-> `/members`** — Jonas 13/9, ordret: «Hvornår fanden bliver /members lavet
-> om og konverteret til hjemmebane design? Det er en lorteside.» Chattens
-> læsning 13/9 (ikke en måling): der findes ingen dato; planen er at siden
-> LUKKES, ikke konverteres; det der spærrer er ÉN designbeslutning — hvor
-> import, merge og omdøb bor (mangellisten «Tre handlinger uden hjem før
-> /members kan lukkes», åbent siden 4/9). Elleve dele er flyttet siden 4/9
-> (invitationer #754, stamdata #771, tilknyt og berig #772, sidst online
-> #751, fjern fra virksomheden #803/#805, slet virksomheden 10/9, krydset
-> i dag #820); «/members er tømt» holdt ikke (rettet 11/9) —
-> skærmbilledet 14:22:53 viser header, «Importér ansøgning», «Inviter ny
-> bruger», statsbjælken, aktive/inaktive, onboarding-tragten,
-> fornyelsesbeslutningerne (4), branchefilteret, listen med 27
-> virksomheder og invitationsblokken. Ingen har talt op hvad der faktisk
-> står tilbage, og hvor hver del hører hjemme. NÆSTE SKRIDT (forslag fra
-> chatten, stående uden indsigelse): en recon af hver del på siden —
-> findes den allerede i Hjemmebane, hvor hører den hjemme, hvad spærrer —
-> så beslutningen kan tages på fakta; derefter kan siden lukkes i én eller
-> to bygninger. Reconen er IKKE kørt.
+> hvornår og i hvilke portioner er IKKE besluttet (DEL 3).
+>
+> **`/members` — besluttet 13/9, bygges nu.** Jonas 13/9, ordret:
+> «Hvornår fanden bliver /members lavet om og konverteret til hjemmebane
+> design? Det er en lorteside.» Reconen ER kørt
+> (`~/Downloads/recon-members-hvad-staar-tilbage.md`, linjenumre fra HEAD
+> `0b3cb67a`) og prod målt kl. 14:45
+> (`~/Downloads/query-results-export-2026-09-13_14-45-10.csv`) — DEL 2
+> «13. september» §5. **Kortet der spærrede siden 4/9 («Tre handlinger
+> uden hjem»), havde to af tre præmisser der ikke holdt:** omdøb er
+> flyttet (#771), «merge» findes ikke som kode (#772 fjernede
+> bivirkningen), og «ImportView» er rapport-upload, ikke
+> ansøgningsimport. Det der KUN findes på /members, er større end tre
+> handlinger (§5). **Jonas' fire beslutninger 13/9** (efter chattens
+> anbefalinger; Jonas 13/9: «Jeg er helt enig i dine anbefalinger»):
+> (1) importen flyttes til `/virksomheder` ved siden af «Inviter» —
+> tilknyt-grenen (`attach-user-to-company`) følger med; (2) den
+> øjeblikkelige sletning (`delete-company` med «slet også
+> brugerkonti») dør — Hb's `bedOmSletning` (7 dages frist) er vejen; (3)
+> «Nulstil & gensend» på en ACCEPTERET invitation dør; (4)
+> Legatforløb-listen dør, `/admin/legat` bliver (prod 14:45: ingen
+> virksomhed har `is_legat = true`). **Planen, tre bygninger** (forslag
+> fra chatten, stående uden indsigelse): (1) flyt — importen + tilknyt
+> til `/virksomheder`, fornyelsesnoten til virksomhedssiden,
+> fornyelseslisten og Indgangen som udsnit på `/virksomheder`; (2) ret
+> de syv veje ind (AppSidebar, Guide, `indgangsMail.ts:286`, tre
+> Slack-fallbacks); (3) slet siden, de otte filer der kun importeres af
+> den, og ret de fem tests der læser den. **Status ved skrivetidspunktet:
+> bygning 1 er i gang i vindue A — TRIN 1, motoren
+> `src/lib/ansoegningsimport.ts`, ingen flade.** Ikke merget, ikke
+> færdigt. Det der venter: bygning 1's flade, bygning 2 og 3.
 >
 > **12/9:** i repoet skete der INTET — #819 blev merget 11/9 kl. 10:55:26
 > UTC, og næste commit er ikke kommet. Om der skete noget i prod, Stripe
@@ -4404,8 +4416,156 @@ tests 188 filer / 2891 tests, alle grønne. De fem filer: `src/pages/Members.tsx
 Kortet ««Fjern fra virksomheden» findes og virker for begge rådgivere —
 /members' knap sletter stadig mennesket» er FJERNET SOM LØST fra
 mangellisten (RYDDET 13/9). Det der står tilbage om `/members`, står i
-START HER 13/9 (åbne beslutninger) og på kortet «Tre handlinger uden hjem
-før /members kan lukkes».
+§5 nedenfor, i START HER 13/9 og på kortet «/members lukkes i tre
+bygninger» (omskrevet 13/9 fra «Tre handlinger uden hjem før /members kan
+lukkes»).
+
+**5. `/members` — reconen, målingen 14:45, Jonas' fire beslutninger og
+planen.** Kilder: `~/Downloads/recon-members-hvad-staar-tilbage.md` (kun
+fund; alle linjenumre fra HEAD `0b3cb67a` = #820's src — HEAD flyttede sig
+to gange under reconen, og begge filer blev genlæst) og
+`~/Downloads/query-results-export-2026-09-13_14-45-10.csv` (prod, målt
+kl. 14:45, kolonner `noegle;sektion;vaerdi`, ordret). Reconen skelner
+(K) hvad koden siger, (P) hvad kun prod kan afgøre, (S) hvad kun skærmen
+kan afgøre.
+
+- **Kortet der spærrede — to af tre præmisser holder ikke (reconen
+  afsnit 0).** *Omdøb* er flyttet: `VirksomhedStamdata.tsx:56-103`
+  (`OmdoebVirksomhed`), `VirksomhedView.tsx:1559-1565`,
+  `useVirksomhed.ts:514-522` — #771; kortets «kun `Members.tsx:680`» er
+  overhalet, og `VirksomhedView.tsx:66` («omdøb, inviter, slet osv.
+  kommer senere, §3.6») er en forældet filhoved-kommentar, ikke en
+  tilstand. *«Merge»* findes ikke som handling: `grep -rn -i merge src
+  supabase/functions` giver 19 filer, ingen er en virksomheds-merge;
+  ordet kom fra `raadgiverfladen-design.md:512` (nr. 16, «Automatisk
+  sletning af kildevirksomhed ved «Tilknyt bruger» (merge)»), og den
+  bivirkning blev fjernet med #772 (`afe13a56`, 284 slettede linjer);
+  `attach-user-to-company` sletter ingen kildevirksomhed. *Import* står —
+  men kortets «findes som admin-side ImportView» er forkert:
+  `ImportView.tsx:16-18` er rapport-upload for en valgt virksomhed, ikke
+  ansøgningsimport; ingen Hb-flade har «Importér ansøgning» (grep i
+  `src/components/hjemmebane`: 0).
+- **Det der KUN findes på /members i dag (K, reconens sammenfatning):**
+  ansøgningsimport (Excel → `import-application`, `Members.tsx:36-146`,
+  dialogen `:1363-1527`, handler `:580-666`, kald `:625`), tilknyt
+  eksisterende bruger (`attach-user-to-company`, grenen `:641-644`,
+  handler `:193-230`), øjeblikkelig `delete-company` med «slet også
+  brugerkonti» (`:748-780`, dialogen `:1228-1296`), «Nulstil & gensend»
+  på accepteret invitation (`MemberCompanyRow.tsx:493-501`, skrivning
+  `Members.tsx:686-725`), fornyelses-NOTEN (`skrivFornyelsesnote` kaldes
+  kun fra `FornyelsesSektion.tsx:146`; `VirksomhedView.tsx:1413-1414`
+  «kan kun redigeres på /members») og fornyelseslisten på tværs
+  (`FornyelsesSektion.tsx:172-185`), Indgangen som liste på tværs
+  (`IndgangsSektion.tsx`), onboarding-tragten
+  (`MembersOnboardingFunnel.tsx`, regler `Members.tsx:999-1016`),
+  statsbjælkens seks tal + login-spandene (`MembersStatsBar.tsx`,
+  `Members.tsx:967-997`), Legatforløb-listen (`companies.is_legat`,
+  `Members.tsx:1188-1212`), rækkens Refleksion/Chat-kolonner og
+  status-prik, «Ret navn»-mærket, omsætning fra ansøgningen.
+- **Dubleret (samme tabel/skrivevej i Hb):** omdøb, prisniveau
+  (`saet-indgangs-prisniveau` fra `VirksomhedStamdata.tsx:113`),
+  fornyelsesbeslutning uden note (`useVirksomhed.ts:434-480`, «DEN ENE
+  skrivevej»), invitationer opret/gensend/slet (`HbInvitationer.tsx`,
+  `hooks/invitationer.ts`), rediger virksomhedsdata (samme
+  `EditCompanyDialog`, `VirksomhedView.tsx:13, 1716`),
+  søg/branchefilter/sortering (`VirksomhedslisteView.tsx:487-503`),
+  tier-badges, fejlede træk, sidst online.
+- **Veje ind — planens «syv veje», fire filer, elleve linjer (K):**
+  gammel `AppSidebar.tsx:65` («Medlemmer», path `/members`), `:530` og
+  `:590` (`navigate("/members")` fra virksomhedsvælgeren); `Guide.tsx:105,
+  :114, :123, :139` (routet `App.tsx:240`, ikke i Hb-menuen; teksterne
+  beskriver funktioner der ikke findes på siden, fx broadcast);
+  `_shared/indgangsMail.ts:286` «knap: { tekst: "Åbn i platformen", url:
+  `${APP_URL}/members` }» — låst af `_shared/indgangsMail_test.ts:173`
+  («assertStringIncludes(m.html,
+  'href="https://app.theboardroom.dk/members"')»);
+  `send-slack-report-notification/index.ts:189, :273, :292`
+  (`/members?companyId=…` som fallback — formen læses ingen steder i
+  `Members.tsx`, den lander på listen uden filter). Hb-menuen har INTET
+  punkt til /members (`hbNav.ts:118-146`). `AdvisorDashboard.tsx` har NUL
+  /members-links i dag — de fire fra bogføringen forsvandt med `6e97bd67`
+  (#626). `GuidedTour.tsx` importeres ingen steder OG indeholder ikke
+  ordet «members».
+- **Det der dør med siden (K, reconen afsnit 3):** otte filer der kun
+  importeres af `Members.tsx` — `MembersStatsBar.tsx` (90 linjer),
+  `MembersOnboardingFunnel.tsx` (116), `MembersAdminSection.tsx` (182),
+  `IndgangsSektion.tsx` (317), `MemberCompanyRow.tsx` (526),
+  `FornyelsesSektion.tsx` (309, + to tests), `types.ts`,
+  `src/lib/importensAdvarsel.ts` (+ egen test). Edge functions der mister
+  eneste kalder: `import-application`, `attach-user-to-company`,
+  `manage-advisor` action `delete-company`. **Fem tests der læser
+  filen:** `src/test/factsDataBasisReadGuard.test.ts:30`,
+  `src/lib/__tests__/forsidenKaster.guard.test.ts:123` og `:146`,
+  `src/lib/__tests__/emailSendLogKolonner.guard.test.ts:68`,
+  `src/hooks/__tests__/fornyelseSkrivevej.guard.test.ts:46`,
+  `src/lib/__tests__/fornyelsesOrd.test.ts:64` og `:73`. `scripts/`:
+  ingen læser Members.
+- **Målingen 14:45 — ordret, og hvad den afgjorde.** Sektion
+  `a_nye_virksomheder` (90 dage, uden legat): «2026-06 · intet
+  betalingslink · slutdato sat;a_nye_virksomheder;1 | Limo Group - Viborg
+  Limousine Service»; «2026-08 · intet betalingslink · ingen
+  slutdato;a_nye_virksomheder;1 | Alexander Lunds virksomhed»; «2026-08
+  · intet betalingslink · slutdato sat;a_nye_virksomheder;1 | Livja»;
+  «2026-09 · intet betalingslink · ingen slutdato;a_nye_virksomheder;1 |
+  Martin Larsens virksomhed»; «2026-09 · intet betalingslink · slutdato
+  sat;a_nye_virksomheder;3 | Two Socks ApS, Din økonomiafdeling Danmark
+  ApS, WESDEX ApS». Læsning (chat 13/9): «intet betalingslink · slutdato
+  sat» er importens signatur (reconen 2.1: `company_betalingslink` findes
+  KUN for Monday-vejen, `monday-webhook/index.ts:41-42`) — fem på 90
+  dage, tre i september; de tre er de samme som skærmbilledets tre
+  afventende invitationer (sendt 1/9 og 9/9). Importen er i brug og skal
+  flyttes, ikke dø. Forbehold: signaturen er et indicium, ikke et bevis
+  — `companies` har ingen kilde-kolonne. Sektion `b_legat_kilder`: INGEN
+  rækker i resultatet — ingen virksomhed har `companies.is_legat = true`,
+  og ingen har en `legat_enrollments`-række; Legatforløb-listen viser
+  altså ingenting i prod i dag. Sektion `c_legat_forael`, ordret:
+  «legat_enrollments-raekker uden en companies-raekke;c_legat_forael;0».
+- **Jonas' fire beslutninger 13/9** (efter chattens anbefalinger; Jonas
+  13/9, ordret: «Jeg er helt enig i dine anbefalinger»):
+  1. IMPORTEN flyttes til `/virksomheder` ved siden af «Inviter» — den
+     opretter en virksomhed og kan derfor ikke bo på en virksomhedsside.
+     Tilknyt-grenen (`attach-user-to-company`) følger med, fordi den er
+     en gren af importen.
+  2. Den ØJEBLIKKELIGE SLETNING (`manage-advisor` `delete-company` med
+     «slet også brugerkonti») dør. Begrundelse: samme fejl som
+     `remove-member` — synkron `auth.admin.deleteUser` med FK'er som NO
+     ACTION giver en halv sletning. Hb's `bedOmSletning` (7 dages frist,
+     `useVirksomhed.ts:530-540`) er den rigtige vej.
+  3. «NULSTIL & GENSEND» på en ACCEPTERET invitation dør. Begrundelse:
+     brugeren findes allerede, så et nyt signup-link hjælper ikke; og den
+     efterlader en tilstand hvor personen er medlem mens invitationen
+     siger pending, så onboarding-tragtens tal bliver forkerte. Ikke målt
+     om Jonas bruger den.
+  4. LEGATFORLØB-LISTEN dør. `/admin/legat` bliver.
+- **Planen — tre bygninger** (forslag fra chatten, stående uden
+  indsigelse): **(1) Flyt:** importen + tilknyt til `/virksomheder`;
+  fornyelsesnoten til virksomhedssiden; fornyelseslisten og Indgangen som
+  udsnit på `/virksomheder`. **(2) Ret de syv veje ind:**
+  `AppSidebar.tsx:65, :530, :590`; `Guide.tsx:105, :114, :123, :139`;
+  `_shared/indgangsMail.ts:286` (låst af
+  `_shared/indgangsMail_test.ts:173`);
+  `send-slack-report-notification/index.ts:189, :273, :292`. **(3) Slet
+  siden** og de otte filer der kun importeres af den (`MembersStatsBar`,
+  `MembersOnboardingFunnel`, `MembersAdminSection`, `IndgangsSektion`,
+  `MemberCompanyRow`, `FornyelsesSektion`, `types.ts`,
+  `importensAdvarsel.ts`) samt de fem tests der læser `Members.tsx`
+  (ovenfor). **Status ved skrivetidspunktet 13/9: bygning 1 er i gang i
+  vindue A — TRIN 1 (motoren `src/lib/ansoegningsimport.ts`, ingen
+  flade).** Ikke merget, ikke færdigt; forventede ændringer i
+  `src/lib/ansoegningsimport.ts`, `src/lib/__tests__/ansoegningsimport.test.ts`
+  og `src/pages/Members.tsx` (ingen af dem stod i arbejdstræet da dette
+  blev skrevet).
+- **To fejl i mangellisten, som reconen fandt — rettet 13/9.** (a) Kortet
+  «Guiden er død kode, pulsen er flyttet — og Slack-fallback peger stadig
+  på en tømt /members» sagde «Rådgivermailen `indgangsMail.ts` gør det
+  IKKE (grep 10/9: 0)» — det holder ikke: `_shared/indgangsMail.ts:286`
+  linker til `/members`, låst af `indgangsMail_test.ts:173`. (b) Samme
+  kort sagde at `GuidedTour.tsx`'s «fire /members-links dør med den» —
+  de fire links er i `Guide.tsx`, ikke `GuidedTour.tsx`, som ikke
+  indeholder ordet «members». Dertil er «`AdvisorDashboard.tsx`' fire
+  links» forældet (nul i dag, forsvandt med #626) — rettet på kortet
+  «Sletteliste: fem ting der er bygget og aldrig kobles til en flade».
+  Historikken står på kortene.
 
 ### Mailplatformen — bygget om af Lovable 8/9 kl. 06:52-06:58; afsenderne, fortegnelsen og værnet (#728, #730, #731, #732)
 
@@ -5725,6 +5885,13 @@ De konkrete ting der har kostet tid. Led efter dem.
   skal lege udvikler». Når et bevis kun kan hentes af den der bygger,
   skal værnet i koden bære det i stedet — kildeværnet i testen plus den
   eksplicitte udrulning fra main (DEL 2 «13. september» §4).
+- **Et kort der spærrer, skal efterprøves før det bruges som
+  begrundelse.** Kortet «Tre handlinger uden hjem før /members kan
+  lukkes» har spærret /members siden 4/9; reconen 13/9 viste at omdøb
+  blev flyttet 10/9 (#771) og merge fjernet 10/9 (#772) — kortet blev
+  aldrig rettet, og beslutningen ventede på en præmis der var faldet bort
+  for tre dage siden. Når et kort er begrundelsen for at vente, læs dets
+  præmisser mod koden i HEAD først (DEL 2 «13. september» §5).
 
 ---
 
