@@ -1,7 +1,15 @@
 /**
  * Centralized application configuration.
- * All branding, scoring weights, fallback targets, gamification levels,
- * and industry benchmarks live here — no more hardcoded magic numbers.
+ * Branding, velkomstvideo-dommen og industry benchmarks bor her.
+ *
+ * SLETTET 13/9 (kort 82): PERFORMANCE_SCORE, GAMIFICATION og MEETINGS.
+ * Målt 4/9, bekræftet 10/9 og 11/9, besluttet 11/9: deres eneste læsere
+ * var PerformanceScore.tsx og CommunityProgress.tsx (importeret ingen
+ * steder) og ConfigViews formularer; «meetings» havde ingen læser
+ * overhovedet. Komponenterne og formularerne er slettet samme dag;
+ * app_config-rækkerne slettes af 20260913231500_platformconfig_doede_raekker.
+ * (KPI_FALLBACK_TARGETS og KPI_DEFAULT_BENCHMARKS gik tidligere 13/9,
+ * kort 40 — #832/#833.)
  */
 
 // ─── Branding ────────────────────────────────────────────────────────────────
@@ -11,59 +19,6 @@ export const APP_BRANDING = {
   shortName: "BR",
   advisorLabel: "dine rådgivere",
   chatPlaceholder: "Skriv direkte til dine rådgivere",
-} as const;
-
-// ─── Performance Score Weights & Formulas ────────────────────────────────────
-
-export const PERFORMANCE_SCORE = {
-  /** Ordered weights for [Vækstrate, Bruttomargin, Nettoresultat, Likviditet] */
-  weights: [0.3, 0.25, 0.25, 0.2] as readonly number[],
-
-  /** Scoring formula multipliers */
-  growthMultiplier: 2,
-  marginMultiplier: 2,
-  profitMultiplier: 3,
-
-  /** Liquidity: months of salary reserves to consider "100%" */
-  liquidityMonths: 6,
-
-  /** Default salary fallback when unknown */
-  defaultSalaryFallback: 50000,
-
-  /** Score thresholds → labels */
-  labels: [
-    { min: 80, label: "Stærk" },
-    { min: 65, label: "Sund" },
-    { min: 50, label: "OK" },
-    { min: 35, label: "Svag" },
-    { min: 0, label: "Kritisk" },
-  ] as readonly { min: number; label: string }[],
-} as const;
-
-// ─── Gamification / Community Progress ───────────────────────────────────────
-
-export const GAMIFICATION = {
-  /** Points awarded per completed financial report */
-  pointsPerReport: 10,
-  /** Points awarded per completed milestone */
-  pointsPerMilestone: 25,
-  /** Points awarded per completed handout module */
-  pointsPerHandout: 50,
-
-  /** Member progress levels */
-  levels: [
-    { threshold: 0, label: "Starter", emoji: "🌱" },
-    { threshold: 25, label: "Aktiv", emoji: "⚡" },
-    { threshold: 75, label: "Dedikeret", emoji: "🔥" },
-    { threshold: 150, label: "Stjerneelev", emoji: "⭐" },
-    { threshold: 300, label: "Mester", emoji: "🏆" },
-  ] as readonly { threshold: number; label: string; emoji: string }[],
-} as const;
-
-// ─── Meetings ────────────────────────────────────────────────────────────────
-
-export const MEETINGS = {
-  next_meeting_date: null as string | null,
 } as const;
 
 // ─── Velkomstvideo (onboarding-tjeklisten) ───────────────────────────────────
