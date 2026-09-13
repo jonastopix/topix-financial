@@ -111,17 +111,50 @@
 > står på forsiden). **NOTEN ER BEVIST I DRIFT:** PHILBERT ApS' note gemt
 > 13:57 UTC — tre minutter efter #825 blev merget. **Åbne beviser:**
 > rådgivermailens knap i drift (§8), forsidelinkene på skærm (§6), #815's
-> fejl-gren (§1). **Nyt fund, ikke om /members:** efterladenskaber fra
-> tidligere sletninger (129 filer uden ejer, 30 frakoblede invitationer,
-> 4 forældreløse konti, ti FK'er med «no action») — nyt kort; vindue A
-> reconer det nu (§10). Mangellisten 132 → 131 (to kort fjernet som løst,
-> to omskrevet, ét nyt). Tests: 2892 → 2978 → 2955 (191 filer).
+> fejl-gren (§1).
+> **Det der venter — EFTERLADENSKABERNE (§10–§11):** målt 16:53: 129 filer
+> uden ejer i `financial-documents` (+2 logoer, +1 screenshot), 30
+> frakoblede invitationer, 4 forældreløse konti, 98 mails til 22 adresser.
+> Kilderne fundet (A's recon, `recon-efterladenskaberne.md`):
+> `hardDeleteCompany` rører ALDRIG storage (nul `storage.from(` i
+> `companyHardDelete.ts`) og sluger fejl fra `deleteUser` med `console.warn`
+> (`:103-106`) — det er filerne og kontiene; de 30 er `cleanup-shells`'
+> bevidste arkivspor (`accepted` + `preserveInvitations`), ikke en fejl; de
+> 98 mails har ingen FK. De ti «no action»-FK'er blokerer IKKE de to
+> rigtige veje (begge sletter alle ti eksplicit) — kun SQL i hånden og
+> kaskaden fra `auth.users`. Slettefunktionen har aldrig slettet selv (8 ×
+> `i_haanden`; første kandidat 26/10). **LÆKAGEN ER LUKKET OG UDRULLET
+> (§12):** PR #830 «fix: hardDeleteCompany sletter filerne og melder fejlet
+> kontosletning», `gh pr view` ordret: mergedAt «2026-09-13T15:31:14Z»,
+> mergeCommit «72d10566110948a02b63115efdd4dd2b9603b405»; fire filer,
+> +427/−32; tsc 0, tests 2955 → 2967 (192 filer), check:edge-auth PASS 69.
+> Udrullet kl. 15:33 UTC (17:33 dansk), Lovable ordret: «Begge edge-funktioner er udrullet fra nuværende main kl. 2026-09-13 15:33 UTC: manage-advisor ✅ live, svarer HTTP 401 Unauthorized; admin-cleanup-test-data ✅ live, svarer HTTP 401 Unauthorized. Ingen filer, andre funktioner eller migrationer blev rørt.»
+> Ingen Update nødvendig (kun server). Skarpere end reconen:
+> `auth.admin.deleteUser` KASTER ikke — den returnerer `{ error }`, så
+> try/catch fangede ingenting, og returværdien blev ignoreret TRE steder
+> (companyHardDelete, bulk-remove-members, cleanup-shells trin 0); og
+> rækkefølgen (profil før konto) var kilden til de halve. Nu: kontoen
+> FØRST, filerne listes rekursivt og tømmes, svarene er kun ok når intet
+> fejlede. **Ubevist i drift** (åbent bevis, venter på en hændelse): at
+> filerne slettes og en fejlet kontosletning står i svaret — ingen af de
+> to veje har en kalder i src. **Åbent:** oprydningen af de eksisterende
+> 129 + 2 + 1 filer og fire konti (måling først); bruger-bucket-spørgsmålet
+> (skal `hardDeleteCompany` med `deleteUsers` også tømme avatars,
+> feedback-screenshots, chat-attachments, community-* — ikke afgjort); og
+> om de to admin-veje uden frist og spor (`bulk-remove-members`,
+> `cleanup-shells`, `admin-cleanup-test-data` — admin-JWT, ingen kalder i
+> src) skal lægges om til slettefunktionens mønster, gates strammere eller
+> blive som driftsværktøj — beslutningskortet. Ny fælde i DEL 4: «En fanget
+> fejl uden en modtager er en tavs halv sletning» — værre end den så ud:
+> catch'en var tomt teater tre steder. Mangellisten 132 → 131 (to kort
+> fjernet som løst, to omskrevet, ét nyt — siden omskrevet til
+> beslutningskortet). Tests: 2892 → 2978 → 2955 → 2967 (192 filer).
 >
 > **12/9:** i repoet skete der INTET — #819 blev merget 11/9 kl. 10:55:26
 > UTC, og næste commit er ikke kommet. Om der skete noget i prod, Stripe
 > eller Lovable den 12/9: ikke målt, ikke bogført.
 >
-> Detaljen står i DEL 2 «13. september» (§1–§10).
+> Detaljen står i DEL 2 «13. september» (§1–§12).
 
 > ## 11/9 EFTERMIDDAG — START HER (dagen lukket; skrevet 11/9 eftermiddag efter #817, digestens slukning kl. 12:07 og målingerne 11:33, 11:43, 12:07 og 12:18)
 >
@@ -4251,7 +4284,7 @@ Kilde `recon-a4-forsidens-dom.md`.
   oprydningen (run-weekly-agent, digestens kode, podcasten ud) → 56 → 76 →
   82 → 57 → 29. A4: recon af hvordan linjen for en ny refleksion lukkes.
 
-### 13. september — doggybeds træk gik igennem (#563 og #572 bevist, #815 ubevist); stripe-webhook i ental og udrullet 12:04 UTC; kort 83 bygget og i drift (#820, merget 12:17:29 UTC, manage-advisor udrullet 12:18 UTC); /members bygning 1 FÆRDIG (#823, #824, #825 — merget 13:08:25, 13:33:58 og 13:54:51 UTC; panelet på skærm 15:38); bygning 2 LØST (#826, merget 14:13:00 UTC; fire funktioner udrullet 14:20 UTC); Guiden AFGJORT — dør i bygning 3, ankrene bliver; bygning 3 GJORT — /members og Guiden slettet (#828, merget 14:47:38 UTC; Update klikket; /members og /guide NotFound på skærm; manage-advisor udrullet 14:50 UTC); målt kl. 16:53 — sletningen fjernede intet i brug, NOTEN BEVIST I DRIFT, efterladenskaber fra tidligere sletninger fundet
+### 13. september — doggybeds træk gik igennem (#563 og #572 bevist, #815 ubevist); stripe-webhook i ental og udrullet 12:04 UTC; kort 83 bygget og i drift (#820, merget 12:17:29 UTC, manage-advisor udrullet 12:18 UTC); /members bygning 1 FÆRDIG (#823, #824, #825 — merget 13:08:25, 13:33:58 og 13:54:51 UTC; panelet på skærm 15:38); bygning 2 LØST (#826, merget 14:13:00 UTC; fire funktioner udrullet 14:20 UTC); Guiden AFGJORT — dør i bygning 3, ankrene bliver; bygning 3 GJORT — /members og Guiden slettet (#828, merget 14:47:38 UTC; Update klikket; /members og /guide NotFound på skærm; manage-advisor udrullet 14:50 UTC); målt kl. 16:53 — sletningen fjernede intet i brug, NOTEN BEVIST I DRIFT, efterladenskaber fra tidligere sletninger fundet; kilderne fundet i A's recon; lækagen LUKKET (#830, merget 15:31:14 UTC) og udrullet 15:33 UTC
 
 Kilder: `~/Downloads/query-results-export-2026-09-13_14-01-42.csv` (prod,
 målt kl. 14:01, kolonner `noegle;sektion;vaerdi`, ordret),
@@ -5294,7 +5327,10 @@ SQL editor), chat 13/9.
   «slack_handout_notification_log.company_id=no action»; «set null» på
   `raadgiver_opgaver` og `session_bookings`; resten cascade. **Læsning
   (chat 13/9, ikke en måling):** de ti «no action»-tabeller hænger ikke
-  ved når en virksomhed forsvinder — de bliver liggende. `hardDeleteCompany`
+  ved når en virksomhed forsvinder — de bliver liggende. *RETTET i §11
+  (A's recon): for bredt — både slettefunktionen og `hardDeleteCompany`
+  sletter alle ti eksplicit før `companies`-rækken; de ti blokerer kun SQL
+  i hånden og kaskaden fra `auth.users`.* `hardDeleteCompany`
   sletter dem rækkevis før `companies`-rækken, men rører ikke storage
   (grep `storage` i `companyHardDelete.ts` → 0), og en sletning i
   SQL-editoren (de otte 8/9 og Alina, stemplet `i_haanden`) gør heller
@@ -5313,6 +5349,210 @@ SQL editor), chat 13/9.
   sletninger …» (Drift); person-kortet omskrevet (udrulningen gjort,
   henvisning). START HER's åbne beviser: rådgivermailens knap (§8),
   forsidelinkene på skærm (§6), #815 (§1).
+
+**11. Efterladenskaberne og deres kilder — A's recon læst; lækagen lukkes
+i vindue A.** Kilder: `~/Downloads/recon-efterladenskaberne.md` (A's recon,
+KUN FUND, målt på `d9080ad5`; fil og linje herfra), målingen 16:53 (§10,
+sektion `3_sletning`), chat 13/9. Reconens mærker gælder: (K) kode, (P) kun
+prod.
+
+- **ÉN vej har regel, frist og spor** — slettefunktionen
+  (`slet-medlemsdata-cron`, vej 1–3 i `src/lib/sletning.ts`: anmodning 7
+  dage `:52`, tilbud_ubesvaret/aldrig_tilbudt dag 45 `:55-63`). Den har
+  ALDRIG slettet noget selv: alle 8 stemplede rækker er `i_haanden` (Alina
+  8/9 kl. 09:57–10:08, de syv 8/9 kl. 12:14–12:26). Første rigtige
+  kandidat tidligst 26/10 (`docs/koereplan-slettefunktionen.md:534`).
+  Cron-jobbet er planlagt i hånden 8/9 og har ingen migrationsfil (kun
+  kommentaren `20260910180000_kald_edge.sql:83`) — DEL 3's punkt står.
+- **TO admin-veje kan stadig kaldes med et admin-JWT, uden frist og uden
+  spor:** `manage-advisor` `bulk-remove-members` (`:118-176` — for alle
+  medlemmer minus advisor/admin: company_members, profiles, user_roles,
+  `deleteUser` i try/catch pr. bruger `:148-155`, derefter DELETE af ALLE
+  invitationer `:158-162`) og `cleanup-shells` (`:178-231` — trin 0
+  `deleteUser` pr. id, trin 1 stempler `accepted` `:196-203`, trin 2
+  `hardDeleteCompany(…, { deleteUsers: true, preserveInvitations: true })`
+  `:208-213`), plus `admin-cleanup-test-data` (`hard_delete_company`
+  `:75-115`, `delete_orphan_user` `:117-171`, `delete_dangling_invitations`
+  `:173-200`, `purge_old_email_log` `:202-228`). Ingen af dem har en kalder
+  i `src/` (grep 13/9 → 0). `delete-company` og `remove-member` er væk
+  (#820, #828). Nyt beslutningskort — en beslutning, ikke en fejl.
+- **Kilderne til de fire efterladenskaber** (K; (P) for de konkrete rækker):
+  - (a) **129 filer i `financial-documents`** (+2 `company-logos`, +1
+    `feedback-screenshots`): `hardDeleteCompany` rører ALDRIG storage — nul
+    forekomster af `storage.from(` i `_shared/companyHardDelete.ts`; den
+    sletter `financial_reports`-rækkerne (`:72`) og lader filerne ligge.
+    Samme for kaskaden fra `auth.users` (`financial_reports.user_id`
+    CASCADE, `20260223141214:21`). Slettefunktionen sletter i syv buckets,
+    men `financial-documents` kun ad `financial_reports.file_path`
+    (`:285-289`) — aldrig ved at liste mappen `<company_id>/` (det gør den
+    for `company-logos`, `:290`) — så filer uden rapportrække overlever
+    også den. Grep `.remove(` i `supabase/functions` → kun
+    `slet-medlemsdata-cron/index.ts:194`.
+  - (b) **4 forældreløse konti** (23/2 ×3, 27/2): `companyHardDelete.ts:103-106`
+    fanger fejl fra `auth.admin.deleteUser` med `console.warn` og går videre
+    — virksomhed, medlemskab og profil forsvinder, kontoen bliver. *RETTET
+    i §12: `deleteUser` kaster ikke — den returnerer `{ error }`; catch'en
+    fangede ingenting, og returværdien blev ignoreret TRE steder, ikke ét
+    (også `bulk-remove-members` og `cleanup-shells` trin 0).* Tre af
+    de fire har ingen profil, skønt triggeren altid opretter én
+    (`profiles.user_id` CASCADE, `20260223152943:30-38`): profilen er
+    slettet uden at kontoen blev det — mønstret i `hardDeleteCompany:100-106`,
+    `bulk-remove-members:149-155` og den gamle `remove-member`. (P) hvilken
+    hændelse for netop de fire; kontiene er fra før invitationsgaten
+    (`handle_new_user` 23/2 lagde kun profil + samtale,
+    `20260223152943:91-103`; 24/2 fik hver profil en virksomhed,
+    `20260224222456:88-93`). `d_foraeldreloese_profiler: 1` er en konto der
+    findes uden medlemskab og rolle — en af de fire.
+  - (c) **30 frakoblede invitationer:** IKKE en fejl — `cleanup-shells`'
+    bevidste aftryk. Trin 1 stempler `accepted`
+    (`manage-advisor/index.ts:196-203`), trin 2 kalder `hardDeleteCompany`
+    med `preserveInvitations: true`, som sætter `company_id = null`
+    (`companyHardDelete.ts:82-86`) fordi FK'en ellers ville tage rækkerne
+    med (`20260225103844:5`). Aktionen kom 3/3 (commit `f0e4c2f7`). Det
+    ser mærkeligt ud i en måling, men er arkivsporet: adressen HAR haft en
+    invitation. Usynlige for alle gates og flader (alle filtrerer på
+    `pending`), men to skriveveje kan vække dem: `opretInvitation` med
+    `companyId: null` genbruger rækken (`hooks/invitationer.ts:93-110`), og
+    `send-invitation-email` har intet statusfilter (`:120-124`).
+  - (d) **98 mails til 22 adresser:** `email_send_log` har ingen FK og
+    røres ikke af `hardDeleteCompany`; kun slettefunktionen sletter
+    (a)-labels for den virksomhed den behandler (`:375-382`). (P) hvilke
+    labels — `indgang-*`/`fornyelse-*` er (b)-bilag og bliver med vilje;
+    målingen skelner ikke (reconen §4b bærer SQL'en).
+- **De ti «no action»-FK'er BLOKERER IKKE de to rigtige veje — §10's
+  billede er rettet.** Både slettefunktionen (`:314-350`) og
+  `hardDeleteCompany` (`:61, :72-78, :65, :95`) sletter alle ti eksplicit
+  før `companies`-rækken. De blokerer SQL i hånden og kaskaden fra
+  `auth.users` (`financial_reports.user_id` CASCADE →
+  `financial_report_facts.source_report_id` UDEN ON DELETE,
+  `20260316210844:13`). §10 stillede dem op som en generel fare; det var
+  for bredt.
+- **Sletning af en PERSON har stadig ingen vej** (mangellisten :1470).
+  `fjern-fra-virksomhed` fjerner kun adgangen med vilje
+  (`_shared/fjernFraVirksomhed.ts:13-16`). Kaskaden fra `auth.users` tager
+  samtale, beskeder og rapporter, men blokeres af
+  `financial_report_facts.source_report_id` — halve sletninger.
+- **Lækagen lukkes — bygget 13/9 i vindue A; LUKKET og udrullet, se §12:**
+  `hardDeleteCompany` skal slette filerne og må ikke sluge fejl fra
+  `deleteUser` (rører `_shared/companyHardDelete.ts`,
+  `manage-advisor/index.ts`, `admin-cleanup-test-data/index.ts` og en
+  test). **Oprydningen af de EKSISTERENDE 129 filer er en anden opgave:**
+  kræver en måling af hvilke virksomheder filerne tilhører (reconen §2c
+  bærer SQL'en pr. mappe; nogle kan være aktive, og mapper fra 23–25/2 kan
+  være nøglet på `auth.uid()`, `20260223141214:10-16`) og en beslutning om
+  hvad der slettes. Direkte `DELETE` på `storage.objects` blokeres af
+  platformens `protect_delete`-trigger (DEL 4) — det skal gå gennem
+  Storage-API'et. Selvstændigt åbent punkt på person-kortet.
+- **Ny fælde i DEL 4:** «En fanget fejl uden en modtager er en tavs halv
+  sletning.»
+- **Tallene.** Mangellisten 131 → 131: efterladenskabs-kortet OMSKREVET til
+  «To admin-veje kan slette uden frist og uden spor …» (beslutning;
+  tallene flyttet til person-kortet, så ét kort bærer målingen og ét
+  bærer beslutningen); person-kortet OMSKREVET (kilderne, lækagen lukkes,
+  oprydningen som åbent punkt). Ingen nye kort.
+
+**12. Lækagen er LUKKET og udrullet — PR #830, merget 15:31:14 UTC,
+udrullet 15:33 UTC.** Kilder: `gh pr view 830`,
+`~/Downloads/verifikation-laekagen.txt` (A's verifikation), Lovables
+build-chat (ordret), chat 13/9.
+
+- **PR #830 «fix: hardDeleteCompany sletter filerne og melder fejlet
+  kontosletning».** `gh pr view 830 --json mergedAt,mergeCommit`, ordret:
+  «"mergeCommit":{"oid":"72d10566110948a02b63115efdd4dd2b9603b405"},"mergedAt":"2026-09-13T15:31:14Z"»
+  (17:31:14 dansk). Fire filer, +427/−32:
+  `src/lib/__tests__/companyHardDelete.test.ts` (ny, 232 linjer, 12 tests),
+  `supabase/functions/_shared/companyHardDelete.ts` (+126),
+  `admin-cleanup-test-data/index.ts` (+9), `manage-advisor/index.ts` (+92).
+  tsc 0 fejl, tests 2955 → 2967 (191 → 192 filer), `check:edge-auth` PASS
+  (69). `deno check` grøn på companyHardDelete og admin-cleanup-test-data;
+  manage-advisor bærer to forud-eksisterende fejl (advisors-listens
+  email-type, de samme på urørt HEAD).
+- **Hvad der faktisk var galt — reconens billede blev skarpere under
+  bygningen.** (1) **`auth.admin.deleteUser` KASTER ikke** — den returnerer
+  `{ error }` (auth-js `GoTrueAdminApi.deleteUser:260-280`: `_request`
+  pakkes i try/catch, en AuthError kommer tilbage som `{ data: { user:
+  null }, error }`; kun netværksfejl kastes). Derfor fangede try/catch
+  ingenting, og returværdien blev ignoreret TRE steder, ikke ét:
+  `companyHardDelete.ts:103-106`, `bulk-remove-members` (løkken `:144-156`
+  — `deleted++` uanset) og `cleanup-shells` trin 0 (`:183-190`). §11 sagde
+  ét sted — rettet dér. (2) **Rækkefølgen var kilden til de halve
+  sletninger:** profil og loginlog blev slettet FØR kontoen (`:100-101` før
+  `:103`); fejlede kontoen, stod den tilbage uden noget omkring sig. (3)
+  `.delete()`-kaldene i `bulk-remove-members` (`:148-150`) tjekkede heller
+  ikke `{ error }`. (4) Svarene sagde altid `success: true` / `ok: true`
+  (`manage-advisor:167-172`, `:223-229`; `admin-cleanup-test-data:112`) —
+  en virksomhed talte som `deleted` selv om `deleteUser` fejlede for alle
+  dens brugere.
+- **Hvad der er bygget.** *Kontoen FØRST:* pr. bruger slettes `auth.users`
+  før profil, loginlog og medlemskab; fejler den (≠ «not found»), røres de
+  tre ikke — kontoen står hel, brugeren samles i `brugereIkkeSlettet`,
+  løkken fortsætter, og fejlen går med i svaret. «not found» tolereres som
+  allerede slettet (idempotent, samme regel som cronens trin 14). *Storage
+  FØRST* (cronens trin 1): `COMPANY_BUCKETS = ['financial-documents',
+  'company-logos']` listes under `<company_id>/` og tømmes efter husets
+  mønster fra `slet-medlemsdata-cron:182-196` — men REKURSIVT, fordi
+  `financial-documents` har to niveauer (`<company_id>/<report_id>/<fil>`
+  og `<company_id>/annual/<fil>`) og rækkerne lige er slettet, så der er
+  intet at gå ad. Storage-fejl afbryder intet (filerne er ikke kilden til
+  sandheden), men samles i `fejl[]`. *Svarene lyver ikke længere:*
+  returtypen `HardDeleteResultat { ok, userIds, conversationIds, handoutIds,
+  storage, fejl, brugereIkkeSlettet }`; `ok` er kun sand når intet fejlede.
+  `cleanup-shells` melder `deleted_with_leftovers` pr. virksomhed med
+  storage-fejl og brugere der ikke blev slettet, og trin 0 læser `{ error }`
+  → `auth_users_not_deleted`; `bulk-remove-members` sletter kontoen først,
+  læser `{ error }`, melder `not_deleted`, `success` kun når listen er tom;
+  `hard_delete_company` svarer `ok = result.ok`. Ingen `console.warn`
+  tilbage — alt logges med `console.error` OG står i svaret. *Testen* (12,
+  mod en mock-klient — `companyHardDelete.ts` har ingen imports og kan
+  importeres af vitest, samme mønster som `sletningParitet`): rekursiv
+  listning i financial-documents + ét niveau i company-logos, remove med
+  de rigtige stier, kun de to buckets, tom mappe → ingen remove,
+  storage-fejl afbryder ikke, fejlet deleteUser → `brugereIkkeSlettet` +
+  `ok: false` + løkken fortsætter + profil/loginlog urørt for den fejlede,
+  «not found» tolereres, uden `deleteUsers` røres ingen konto — plus
+  kildeværn: ingen `console.warn` i filen, ingen hårdkodet `success: true`
+  i manage-advisor, `{ error }` læses ved hvert `deleteUser`, `result.ok`
+  bruges i admin-cleanup-test-data, bucket-valget matcher policyerne
+  (`20260226070216`, `20260225124103`, `20260911030000`).
+  `data_basis`-markøren (`:60` før) står uændret — `factsDataBasisReadGuard`
+  kræver den.
+- **Valget RETURNERE frem for KASTE** — begrundet i filhovedet: begge
+  kaldesteder er bulk (cleanup-shells' løkke over virksomheder;
+  hardDeleteCompanys egen løkke over brugere). Et kast midt i brugerløkken
+  ville stoppe de øvrige brugere og efterlade `companies`-rækken (`:110`
+  kommer efter) — og et gen-kald ville finde nul medlemmer og slette
+  virksomheden alligevel, med kontoen stadig tilbage.
+- **IKKE RØRT — meldt som beslutninger, ikke som glemt.** (1)
+  `feedback-screenshots` er BRUGER-præfikset (`auth.uid()`,
+  `feedback.ts:60-63`; policy `20260911030000:24-30`), ikke
+  company-præfikset — mappen `<company_id>/` findes ikke dér, og den ene
+  forældreløse fil hører til en slettet KONTO. Om `hardDeleteCompany` med
+  `deleteUsers` også skal tømme bruger-buckets (`avatars`,
+  `feedback-screenshots`, `chat-attachments`, `community-*`) for de konti
+  den sletter: IKKE afgjort — punkt på person-kortet. (2)
+  `slet-medlemsdata-cron` er urørt: den går ad `financial_reports.file_path`,
+  så filer uden rapportrække overlever også den (reconens hul i 1a
+  består). (3) Den kendte fejlårsag for `deleteUser` —
+  `financial_report_facts.source_report_id` UDEN ON DELETE
+  (`20260316210844:13`) — er uændret; den ender nu i svaret frem for i en
+  konsol.
+- **UDRULLET kl. 15:33 UTC (17:33 dansk).** Lovable ordret: «Begge edge-funktioner er udrullet fra nuværende main kl. 2026-09-13 15:33 UTC: manage-advisor ✅ live, svarer HTTP 401 Unauthorized; admin-cleanup-test-data ✅ live, svarer HTTP 401 Unauthorized. Ingen filer, andre funktioner eller migrationer blev rørt.»
+  Ingen Update nødvendig — ændringen er kun på serveren. Udrulningen bedt
+  om eksplicit (DEL 4's fælde om delte filer — `_shared/companyHardDelete.ts`
+  er delt).
+- **UBEVIST I DRIFT — et åbent bevis der venter på en hændelse, ikke en
+  mangel:** at filerne faktisk slettes, og at en fejlet kontosletning står
+  i svaret. Det kræver at en af de to veje kaldes (`cleanup-shells`,
+  `hard_delete_company`), og ingen af dem har en kalder i `src/`. Testen
+  låser adfærden mod en mock-klient; prod-beviset kommer den dag en af
+  vejene bruges.
+- **Fælden i DEL 4 fik en linje:** den var værre end den så ud —
+  funktionen kastede slet ikke, så catch'en var tomt teater tre steder.
+- **Tilbage på person-kortet:** oprydningen af de eksisterende 129 + 2 + 1
+  filer og fire konti (måling først — reconen §2c og §3c bærer SQL'en),
+  bruger-bucket-spørgsmålet, og de to admin-veje uden frist og spor
+  (beslutningskortet). Mangellisten 131 → 131 (person-kortet og
+  beslutningskortet omskrevet; intet nyt).
 
 ### Mailplatformen — bygget om af Lovable 8/9 kl. 06:52-06:58; afsenderne, fortegnelsen og værnet (#728, #730, #731, #732)
 
@@ -6673,6 +6913,23 @@ De konkrete ting der har kostet tid. Led efter dem.
   læs hvert fund for om det står på modulniveau (vælter filen) eller inde
   i et it (vælter én test); og lad hver rettelse bære hvorfor værnet blev
   smallere (DEL 2 «13. september» §9).
+- **En fanget fejl uden en modtager er en tavs halv sletning.**
+  `companyHardDelete.ts:103-106` har siden 3/3 fanget fejl fra
+  `auth.admin.deleteUser` med `console.warn` og ladet kæden fortsætte;
+  `bulk-remove-members:152-155` gør det samme pr. bruger. Resultatet, målt
+  13/9 kl. 16:53: fire konti hvis virksomhed, medlemskab og profil er væk
+  — og ingen fik det at vide, for svaret til kalderen sagde success.
+  Lovables logs opbevares kort og læses af ingen. En catch der kun logger,
+  skal have en modtager: svaret til kalderen — fejlen i responsen, kæden
+  stoppet, eller sletningen bogført som halv — ikke kun konsollen. Samme
+  klasse som Alina-sagen (knappen lovede noget ingen hørte). Lukket 13/9
+  (#830, udrullet 15:33 UTC — DEL 2 «13. september» §12). *Den var værre
+  end den så ud: funktionen kastede slet ikke — `auth.admin.deleteUser`
+  returnerer `{ error }` (auth-js `GoTrueAdminApi.deleteUser`), så
+  catch'en var tomt teater tre steder (companyHardDelete,
+  bulk-remove-members, cleanup-shells trin 0). Når en klient-SDK
+  returnerer `{ error }` frem for at kaste, fanger try/catch ingenting; læs
+  signaturen frem for at antage.*
 
 ---
 
