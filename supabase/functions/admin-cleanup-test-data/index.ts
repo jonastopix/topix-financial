@@ -105,11 +105,16 @@ Deno.serve(async (req) => {
       });
 
       console.log(
-        `[admin-cleanup-test-data] hard_delete_company done: ${company.name} — users=${result.userIds.length} conversations=${result.conversationIds.length} handouts=${result.handoutIds.length}`,
+        `[admin-cleanup-test-data] hard_delete_company done: ${company.name} — ok=${result.ok} users=${result.userIds.length} conversations=${result.conversationIds.length} handouts=${result.handoutIds.length} storage=${JSON.stringify(result.storage)}`,
       );
+      // Det der IKKE lykkedes skal stå i loggen OG i svaret (13/9): filer
+      // der ligger stadig, og konti der ikke blev slettet. ok er resultatets
+      // eget — aldrig true når noget mislykkedes.
+      for (const f of result.fejl) console.error(`[admin-cleanup-test-data] ${company.name}: ${f}`);
+      for (const b of result.brugereIkkeSlettet) console.error(`[admin-cleanup-test-data] ${company.name}: auth user ${b.user_id} IKKE slettet: ${b.fejl}`);
 
       return new Response(
-        JSON.stringify({ ok: true, deleted: company, ...result }),
+        JSON.stringify({ ...result, ok: result.ok, deleted: company }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
