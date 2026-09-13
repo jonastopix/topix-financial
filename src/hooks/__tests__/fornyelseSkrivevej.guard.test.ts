@@ -40,10 +40,12 @@ function fornyelsesKaeder(kilde: string): string[] {
 const filer = alleKildefiler(ROD).map((sti) => relative(process.cwd(), sti));
 
 describe("company_fornyelse skrives ét sted", () => {
+  // 13/9: FornyelsesSektion (den tidligere anden skrivevej) er slettet med
+  // /members (bygning 3); sentinellen for den er fjernet, ikke glemt. Den
+  // ene skrivevej står tilbage som bevis på at træ-gangen ser kildefilerne.
   it("værnet ser kildefilerne (ikke et tomt træ)", () => {
     expect(filer.length).toBeGreaterThan(100);
     expect(filer).toContain(DEN_ENE_SKRIVEVEJ);
-    expect(filer).toContain("src/components/members/FornyelsesSektion.tsx");
   });
 
   it(`${DEN_ENE_SKRIVEVEJ}: bærer alle tre skrivekald (upsert, update, delete)`, () => {

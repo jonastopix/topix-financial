@@ -74,16 +74,15 @@ describe("kildeværn: serveren og fladen siger det samme om hvem der må", () =>
    financial_report_facts er NO ACTION (målt i prod 11/9 kl. 11:18), så
    auth-sletningen fejlede EFTER de to første, og personen stod halvt
    slettet. Knappen på /members, dommen maaFjerneMedlem og serverens gren
-   blev fjernet sammen. Dukker navnet op igen i én af de fire filer, er
-   det en bevidst genindførelse — og så skal denne test ændres med vilje,
+   blev fjernet sammen; /members selv blev slettet 13/9 (bygning 3), så
+   værnet låser de to filer der lever: serveren og dommen. Dukker navnet
+   op igen i én af de to filer, er det en bevidst genindførelse — og så skal denne test ændres med vilje,
    ikke bare grønnes. Den rigtige handling er fjern-fra-virksomhed. */
 describe("kildeværn (kort 83): remove-member og maaFjerneMedlem findes ikke længere", () => {
   const laes = (sti: string) => readFileSync(resolve(process.cwd(), sti), "utf8");
   const filer = [
     "supabase/functions/manage-advisor/index.ts",
     "src/lib/medlemsfjernelse.ts",
-    "src/components/members/MemberCompanyRow.tsx",
-    "src/pages/Members.tsx",
   ];
 
   // Hele ordet: 'bulk-remove-members' er en anden action, der bliver.

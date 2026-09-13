@@ -24,9 +24,7 @@ const Settings = lazy(() => import("./pages/Settings"));
 const Konto = lazy(() => import("./pages/Konto"));
 const ChatShell = lazy(() => import("./pages/ChatShell"));
 const BookSession = lazy(() => import("./pages/BookSession"));
-const Members = lazy(() => import("./pages/Members"));
 const MedlemTilVirksomhed = lazy(() => import("./pages/MedlemTilVirksomhed"));
-const Guide = lazy(() => import("./pages/Guide"));
 const AnnualBaseline = lazy(() => import("./pages/AnnualBaseline"));
 const Community = lazy(() => import("./pages/Community"));
 const CommunityTraad = lazy(() => import("./pages/CommunityTraad"));
@@ -109,7 +107,9 @@ const MemberRoute = ({ children }: { children: React.ReactNode }) => {
 };
 
 /* KPI-GO (2026-08-06): /noegletal → /kpis. Hash/query bevares —
-   #goals er Guide-kontrakt og skal overleve redirectet. */
+   #goals er Guide-kontrakt og skal overleve redirectet.
+   13/9: Guiden er slettet; #goals er stadig et dyb-link-anker på /kpis,
+   som NoegletalView holder i DOM, og redirectet bevarer det fortsat. */
 const NoegletalRedirect = () => {
   const { search, hash } = useLocation();
   return <Navigate to={{ pathname: "/kpis", search, hash }} replace />;
@@ -126,7 +126,9 @@ const OnboardingRedirect = () => {
 
 /* Rapportering-GO (2026-08-06): /rapportering → /reports. Hash/query
    bevares — ?reportId= er email-kontrakt og #upload/#annual-reports er
-   Guide-kontrakt; begge skal overleve redirectet. */
+   Guide-kontrakt; begge skal overleve redirectet.
+   13/9: Guiden er slettet; ?reportId= er stadig email-kontrakt, og
+   #upload/#annual-reports er dyb-link-ankre RapporteringView bevarer. */
 const RapporteringRedirect = () => {
   const { search, hash } = useLocation();
   return <Navigate to={{ pathname: "/reports", search, hash }} replace />;
@@ -134,7 +136,10 @@ const RapporteringRedirect = () => {
 
 /* Budget-GO (2026-08-06): /budgettering → /budget. Hash/query bevares —
    #forecast er Guide-kontrakt og detect-financial-alerts' deep_link
-   "/budget" er notifikations-kontrakt; begge skal overleve redirectet. */
+   "/budget" er notifikations-kontrakt; begge skal overleve redirectet.
+   13/9: Guiden er slettet; notifikations-kontrakten er STIEN /budget
+   (deep_link uden hash), og #forecast er et dyb-link-anker
+   BudgetteringView altid holder i DOM. */
 const BudgetteringRedirect = () => {
   const { search, hash } = useLocation();
   return <Navigate to={{ pathname: "/budget", search, hash }} replace />;
@@ -237,10 +242,8 @@ const App = () => (
                   er skrevet noget, de må bare ikke se det. */}
               <Route path="/community" element={<MemberRoute><Community /></MemberRoute>} />
               <Route path="/community/:id" element={<MemberRoute><CommunityTraad /></MemberRoute>} />
-              <Route path="/guide" element={<ProtectedRoute><Guide /></ProtectedRoute>} />
               <Route path="/annual-baseline" element={<ProtectedRoute><AnnualBaseline /></ProtectedRoute>} />
               
-              <Route path="/members" element={<AdvisorRoute><Members /></AdvisorRoute>} />
               {/* VIDERESTILLING (§11 pkt. 4, 4/9): /members/:userId slår
                   virksomheden op og sender videre til /virksomhed/:companyId
                   med bevaret search/hash — 978 notifikationer og Slack-URL'er
@@ -306,7 +309,9 @@ const App = () => (
               <Route path="/noegletal" element={<NoegletalRedirect />} />
               {/* Budget-GO gennemført 2026-08-06: /budget bærer fladen
                   (notifikations-deep_link + Guide-hash er kontrakt);
-                  /budgettering redirecter m. bevaret hash/query. */}
+                  /budgettering redirecter m. bevaret hash/query.
+                  13/9: Guiden er slettet; stien er notifikations-kontrakt,
+                  og #forecast bevares som dyb-link-anker. */}
               <Route path="/budgettering" element={<BudgetteringRedirect />} />
               {/* Handouts-GO gennemført 2026-08-06: /handouts bærer fladen
                   (?module= er Akademi-broens kontrakt); /handout redirecter

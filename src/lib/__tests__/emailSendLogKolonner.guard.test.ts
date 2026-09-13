@@ -61,11 +61,12 @@ const laesere = alleKildefiler(ROD)
   .filter(({ sti, kilde }) => !UNDTAGET.has(sti) && FROM_EMAIL_SEND_LOG.test(kilde) && (FROM_EMAIL_SEND_LOG.lastIndex = 0) === 0);
 
 describe("email_send_log læses med de kolonner der findes — created_at og template_name", () => {
-  it("finder mindst de tre kendte læsere (ellers måler værnet ingenting)", () => {
+  // 13/9: Members.tsx var den tredje kendte læser; den blev slettet med /members
+  // (bygning 3), så sentinellen er to filer — ikke en forglemmelse.
+  it("finder mindst de to kendte læsere (ellers måler værnet ingenting)", () => {
     const stier = laesere.map((l) => l.sti);
     expect(stier).toContain("src/components/hjemmebane/admin/views/EmailLogView.tsx");
     expect(stier).toContain("src/components/hjemmebane/admin/views/EmailTemplatesView.tsx");
-    expect(stier).toContain("src/pages/Members.tsx");
   });
 
   for (const { sti, kilde } of laesere) {

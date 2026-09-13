@@ -27,7 +27,7 @@ to the entire access-control model.
 - **Advisor-only**: body enforces `has_role(auth.uid(), 'advisor'::app_role)` — returns 0 rows when caller is not an advisor
 - Grant: `EXECUTE TO authenticated` (security lives in the body, not the grant)
 - STABLE, SECURITY DEFINER with `search_path = public`
-- Only known caller: `src/pages/Members.tsx` (advisor-route)
+- Known callers (målt med grep 13/9, efter /members blev slettet): `src/components/hjemmebane/virksomheder/VirksomhedslisteView.tsx`, `src/hooks/useVirksomhed.ts`, `src/components/AdvisorDashboard.tsx` — alle advisor-flader
 - Hardened in migration `20260507120000_harden_get_users_last_login.sql` (BACKLOG.md punkt #1)
 
 ### `is_membership_active(p_company_id uuid) → boolean`
