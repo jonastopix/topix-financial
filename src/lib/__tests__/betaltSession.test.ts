@@ -2,8 +2,16 @@ import { describe, expect, it } from "vitest";
 import { afgoerBetaltSession, betaltSessionTekst, erBetalt, type BetaltBooking } from "@/lib/betaltSession";
 
 // De betalte 1:1-sessioner (kort 76, 13/9): fladen siger det rækken VED —
-// betalt og link sendt — og påstår aldrig «afholdt» uden calendly_event_uri.
-// Prod 11/9: tre booking_sent uden URI, ni pending, ingen paid/refunded.
+// betalt og link sendt — og påstår aldrig «afholdt» uden en tid der er
+// passeret. Tiden er beviset, ikke calendly_event_uri (ændret 13/9 aften):
+// de to Rallysupport-rækker får start_tid sat i hånden fra Calendly, fordi
+// webhooken filtrerer Jonas' spor fra. Prod 11/9: tre booking_sent uden
+// URI, ni pending, ingen paid/refunded.
+//
+// Betalingsdatoen er created_at (rettet 13/9 aften): updated_at stemples af
+// trigger update_session_bookings_updated_at ved ENHVER update, også en
+// admins rettelse i SQL editoren. Fixturen har derfor bevidst en updated_at
+// der ligger en dag EFTER created_at — dommen må aldrig vælge den.
 
 const NU = new Date("2026-09-13T12:00:00Z");
 const b = (over: Partial<BetaltBooking> = {}): BetaltBooking => ({
@@ -37,7 +45,7 @@ describe("afgoerBetaltSession — tilstanden", () => {
   it("booking_sent (prods tre rækker): betalt og link sendt, ingen afholdt-dom", () => {
     const dom = afgoerBetaltSession(b(), NU);
     expect(dom.tilstand).toBe("betalt_link_sendt");
-    expect(dom.betalt?.toISOString()).toBe("2026-09-02T08:30:00.000Z");
+    expect(dom.betalt?.toISOString()).toBe("2026-09-01T10:00:00.000Z");
   });
   it("pending (prods ni rækker): ikke gennemført, ingen linje", () => {
     const dom = afgoerBetaltSession(b({ status: "pending" }), NU);
@@ -52,17 +60,33 @@ describe("afgoerBetaltSession — tilstanden", () => {
   it("paid (skrives ikke i dag): betalt uden link", () => {
     expect(afgoerBetaltSession(b({ status: "paid" }), NU).tilstand).toBe("betalt_uden_link");
   });
-  it("booked UDEN calendly_event_uri: ordet alene beviser intet — behandles som link sendt, aldrig afholdt", () => {
-    const passeret = b({ status: "booked", calendly_event_uri: null, start_tid: "2026-09-03T09:00:00Z", slut_tid: "2026-09-03T09:45:00Z" });
-    expect(afgoerBetaltSession(passeret, NU).tilstand).toBe("betalt_link_sendt");
-  });
-  it("booked MED URI: afholdt når sluttiden er nået, booket når den ligger forude, uden tid = booket_uden_tid", () => {
+  it("booked UDEN nogen tid: ordet alene beviser intet — link sendt, uanset URI", () => {
     const uri = "https://api.calendly.com/scheduled_events/abc";
-    expect(afgoerBetaltSession(b({ status: "booked", calendly_event_uri: uri, start_tid: "2026-09-03T09:00:00Z", slut_tid: "2026-09-03T09:45:00Z" }), NU).tilstand).toBe("afholdt");
-    expect(afgoerBetaltSession(b({ status: "booked", calendly_event_uri: uri, start_tid: "2026-09-13T11:15:00Z", slut_tid: "2026-09-13T12:00:00Z" }), NU).tilstand).toBe("afholdt");
-    expect(afgoerBetaltSession(b({ status: "booked", calendly_event_uri: uri, start_tid: "2026-09-13T11:20:00Z", slut_tid: "2026-09-13T12:05:00Z" }), NU).tilstand).toBe("booket");
-    expect(afgoerBetaltSession(b({ status: "booked", calendly_event_uri: uri, start_tid: "2026-09-20T09:00:00Z", slut_tid: "2026-09-20T09:45:00Z" }), NU).tilstand).toBe("booket");
-    expect(afgoerBetaltSession(b({ status: "booked", calendly_event_uri: uri }), NU).tilstand).toBe("booket_uden_tid");
+    expect(afgoerBetaltSession(b({ status: "booked", calendly_event_uri: null }), NU).tilstand).toBe("betalt_link_sendt");
+    expect(afgoerBetaltSession(b({ status: "booked", calendly_event_uri: uri }), NU).tilstand).toBe("betalt_link_sendt");
+    expect(afgoerBetaltSession(b({ status: "booked", calendly_event_uri: uri, start_tid: "ikke en dato" }), NU).tilstand).toBe("betalt_link_sendt");
+  });
+  it("booked MED tid: tiden er beviset — URI'en er ligegyldig (håndsatte rækker har ingen)", () => {
+    const uri = "https://api.calendly.com/scheduled_events/abc";
+    const passeret = { status: "booked", start_tid: "2026-09-03T09:00:00Z", slut_tid: "2026-09-03T09:45:00Z" };
+    expect(afgoerBetaltSession(b({ ...passeret, calendly_event_uri: null }), NU).tilstand).toBe("afholdt");
+    expect(afgoerBetaltSession(b({ ...passeret, calendly_event_uri: uri }), NU).tilstand).toBe("afholdt");
+    const forude = { status: "booked", start_tid: "2026-09-20T09:00:00Z", slut_tid: "2026-09-20T09:45:00Z" };
+    expect(afgoerBetaltSession(b({ ...forude, calendly_event_uri: null }), NU).tilstand).toBe("booket");
+    expect(afgoerBetaltSession(b({ ...forude, calendly_event_uri: uri }), NU).tilstand).toBe("booket");
+  });
+  it("grænsen er slut_tid når den findes: nu >= slut er afholdt (som introSession.erAfholdt), start passeret men slut forude er booket", () => {
+    expect(afgoerBetaltSession(b({ status: "booked", start_tid: "2026-09-13T11:15:00Z", slut_tid: "2026-09-13T12:00:00Z" }), NU).tilstand).toBe("afholdt");
+    expect(afgoerBetaltSession(b({ status: "booked", start_tid: "2026-09-13T11:20:00Z", slut_tid: "2026-09-13T12:05:00Z" }), NU).tilstand).toBe("booket");
+    expect(afgoerBetaltSession(b({ status: "booked", start_tid: null, slut_tid: "2026-09-13T12:00:00Z" }), NU).tilstand).toBe("afholdt");
+  });
+  it("afholdt UDEN slut_tid: start_tid er grænsen — en session der er startet, er begyndt; ingen opfundet varighed", () => {
+    expect(afgoerBetaltSession(b({ status: "booked", start_tid: "2026-09-13T12:00:00Z", slut_tid: null }), NU).tilstand).toBe("afholdt");
+    expect(afgoerBetaltSession(b({ status: "booked", start_tid: "2026-09-13T12:00:01Z", slut_tid: null }), NU).tilstand).toBe("booket");
+    expect(afgoerBetaltSession(b({ status: "booked", start_tid: "2026-06-25T07:45:00Z", slut_tid: null }), NU).tilstand).toBe("afholdt");
+  });
+  it("booked med tid men status-ordet mangler: tiden alene flytter ikke booking_sent til afholdt", () => {
+    expect(afgoerBetaltSession(b({ status: "booking_sent", start_tid: "2026-06-25T07:45:00Z" }), NU).tilstand).toBe("betalt_link_sendt");
   });
   it("cancelled / refunded / ukendt / null", () => {
     expect(afgoerBetaltSession(b({ status: "cancelled" }), NU).tilstand).toBe("aflyst");
@@ -70,34 +94,67 @@ describe("afgoerBetaltSession — tilstanden", () => {
     expect(afgoerBetaltSession(b({ status: "noget_nyt" }), NU).tilstand).toBe("ukendt");
     expect(afgoerBetaltSession(null, NU).tilstand).toBe("ukendt");
   });
-  it("betalt-datoen er updated_at (webhookens skrivning); uden updated_at bruges created_at", () => {
-    expect(afgoerBetaltSession(b({ updated_at: null }), NU).betalt?.toISOString()).toBe("2026-09-01T10:00:00.000Z");
-    expect(afgoerBetaltSession(b({ updated_at: "ikke en dato" }), NU).betalt?.toISOString()).toBe("2026-09-01T10:00:00.000Z");
+  it("betalt-datoen er created_at — i alle betalte tilstande, og null når ikke betalt", () => {
+    for (const status of ["paid", "booking_sent", "booked", "cancelled", "refunded"]) {
+      expect(afgoerBetaltSession(b({ status }), NU).betalt?.toISOString()).toBe("2026-09-01T10:00:00.000Z");
+    }
     expect(afgoerBetaltSession(b({ status: "pending" }), NU).betalt).toBeNull();
+    expect(afgoerBetaltSession(b({ created_at: "ikke en dato" }), NU).betalt).toBeNull();
+  });
+  it("updated_at påvirker IKKE dommen — triggeren flytter den ved enhver admin-rettelse (Rallysupport 13/9)", () => {
+    // Prod 13/9: køb fra 23. juni, company_id rettet i SQL editoren 13/9 →
+    // triggeren satte updated_at = 2026-09-13 18:13:36. Fladen sagde
+    // «Betalt 13. september». Datoen skal være købets.
+    const rally = b({ created_at: "2026-06-23T10:25:43Z", updated_at: "2026-09-13T18:13:36Z" });
+    expect(afgoerBetaltSession(rally, NU).betalt?.toISOString()).toBe("2026-06-23T10:25:43.000Z");
+    expect(betaltSessionTekst(afgoerBetaltSession(rally, NU))).toBe("Betalt 23. juni · booking-link sendt");
+    // Samme dom uanset om updated_at er sat, null, mangler eller er ugyldig.
+    const forventet = "2026-09-01T10:00:00.000Z";
+    expect(afgoerBetaltSession(b({ updated_at: "2026-12-31T23:59:59Z" }), NU).betalt?.toISOString()).toBe(forventet);
+    expect(afgoerBetaltSession(b({ updated_at: null }), NU).betalt?.toISOString()).toBe(forventet);
+    expect(afgoerBetaltSession(b({ updated_at: undefined }), NU).betalt?.toISOString()).toBe(forventet);
+    expect(afgoerBetaltSession(b({ updated_at: "ikke en dato" }), NU).betalt?.toISOString()).toBe(forventet);
   });
 });
 
 describe("ordene — dansk tid, siger kun det rækken ved", () => {
-  it("booking_sent: «Betalt 2. september · booking-link sendt»", () => {
-    expect(betaltSessionTekst(afgoerBetaltSession(b(), NU))).toBe("Betalt 2. september · booking-link sendt");
+  it("booking_sent: «Betalt 1. september · booking-link sendt» — created_at, ikke updated_at (2/9)", () => {
+    expect(betaltSessionTekst(afgoerBetaltSession(b(), NU))).toBe("Betalt 1. september · booking-link sendt");
   });
   it("paid: «Betalt … · booking-link ikke sendt»", () => {
-    expect(betaltSessionTekst(afgoerBetaltSession(b({ status: "paid" }), NU))).toBe("Betalt 2. september · booking-link ikke sendt");
+    expect(betaltSessionTekst(afgoerBetaltSession(b({ status: "paid" }), NU))).toBe("Betalt 1. september · booking-link ikke sendt");
   });
-  it("booked med URI: Afholdt / Booket til / uden tid", () => {
-    const uri = "https://api.calendly.com/scheduled_events/abc";
-    expect(betaltSessionTekst(afgoerBetaltSession(b({ status: "booked", calendly_event_uri: uri, start_tid: "2026-09-03T09:00:00Z", slut_tid: "2026-09-03T09:45:00Z" }), NU))).toBe("Afholdt 3. september");
-    expect(betaltSessionTekst(afgoerBetaltSession(b({ status: "booked", calendly_event_uri: uri, start_tid: "2026-09-20T09:00:00Z", slut_tid: "2026-09-20T09:45:00Z" }), NU))).toBe("Booket til 20. september kl. 11.00");
-    expect(betaltSessionTekst(afgoerBetaltSession(b({ status: "booked", calendly_event_uri: uri }), NU))).toBe("Booket — tidspunktet er ikke registreret");
+  it("booked med tid: begge datoer, pengene først — «Betalt … · afholdt …» / «Betalt … · booket til …»", () => {
+    expect(betaltSessionTekst(afgoerBetaltSession(b({ status: "booked", start_tid: "2026-09-03T09:00:00Z", slut_tid: "2026-09-03T09:45:00Z" }), NU))).toBe("Betalt 1. september · afholdt 3. september");
+    expect(betaltSessionTekst(afgoerBetaltSession(b({ status: "booked", start_tid: "2026-09-20T09:00:00Z", slut_tid: "2026-09-20T09:45:00Z" }), NU))).toBe("Betalt 1. september · booket til 20. september kl. 11.00");
+    expect(betaltSessionTekst(afgoerBetaltSession(b({ status: "booked", start_tid: null, slut_tid: "2026-09-03T09:45:00Z" }), NU))).toBe("Betalt 1. september · afholdt 3. september");
+    expect(betaltSessionTekst(afgoerBetaltSession(b({ status: "booked" }), NU))).toBe("Betalt 1. september · booking-link sendt");
+  });
+  it("Rallysupport (Calendly 13/9, dansk tid): «Betalt 23. juni · afholdt 25. juni» og «Betalt 30. juni · afholdt 1. juli»", () => {
+    // Betaling 23/6 14:18 CEST → created_at 12:18:15Z; «Event started 25 June at 09:45 (CEST)» → 07:45Z.
+    const et = b({ status: "booked", calendly_event_uri: null, created_at: "2026-06-23T12:18:15Z", updated_at: "2026-09-13T18:13:36Z", start_tid: "2026-06-25T07:45:00Z", slut_tid: null });
+    expect(betaltSessionTekst(afgoerBetaltSession(et, NU))).toBe("Betalt 23. juni · afholdt 25. juni");
+    // Betaling 30/6 12:25 CEST → 10:25:43Z; «Event started 1 July at 08:30 (CEST)» → 06:30Z.
+    const to = b({ status: "booked", calendly_event_uri: null, created_at: "2026-06-30T10:25:43Z", updated_at: "2026-09-13T18:13:36Z", start_tid: "2026-07-01T06:30:00Z", slut_tid: null });
+    expect(betaltSessionTekst(afgoerBetaltSession(to, NU))).toBe("Betalt 30. juni · afholdt 1. juli");
   });
   it("aflyst / refunderet", () => {
     expect(betaltSessionTekst(afgoerBetaltSession(b({ status: "cancelled" }), NU))).toBe("Betalt · aflyst");
     expect(betaltSessionTekst(afgoerBetaltSession(b({ status: "refunded" }), NU))).toBe("Betalt · refunderet");
   });
-  it("ordet «afholdt» forekommer KUN med calendly_event_uri", () => {
-    const uden = ["pending", "paid", "booking_sent", "booked", "cancelled", "refunded"].map((status) =>
-      betaltSessionTekst(afgoerBetaltSession(b({ status, calendly_event_uri: null, start_tid: "2026-01-05T09:00:00Z", slut_tid: "2026-01-05T09:45:00Z" }), NU)),
-    );
-    for (const tekst of uden) expect(tekst ?? "").not.toMatch(/afholdt/i);
+  it("ordet «afholdt» forekommer KUN for booked med en tid der er passeret", () => {
+    const alle = ["pending", "paid", "booking_sent", "booked", "cancelled", "refunded"];
+    const uri = "https://api.calendly.com/scheduled_events/abc";
+    // Ingen tid — uanset URI og status.
+    for (const status of alle) {
+      expect(betaltSessionTekst(afgoerBetaltSession(b({ status, calendly_event_uri: uri }), NU)) ?? "").not.toMatch(/afholdt/i);
+    }
+    // Tid forude.
+    expect(betaltSessionTekst(afgoerBetaltSession(b({ status: "booked", start_tid: "2026-09-20T09:00:00Z" }), NU)) ?? "").not.toMatch(/afholdt/i);
+    // Tid passeret, men status er ikke booked.
+    for (const status of alle.filter((x) => x !== "booked")) {
+      expect(betaltSessionTekst(afgoerBetaltSession(b({ status, start_tid: "2026-01-05T09:00:00Z", slut_tid: "2026-01-05T09:45:00Z" }), NU)) ?? "").not.toMatch(/afholdt/i);
+    }
+    expect(betaltSessionTekst(afgoerBetaltSession(b({ status: "booked", start_tid: "2026-01-05T09:00:00Z" }), NU))).toMatch(/afholdt/);
   });
 });

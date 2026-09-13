@@ -11,8 +11,13 @@
  * registreres aldrig tilbage i platformen: stripe-webhook (index.ts:1356)
  * skriver Calendlys link råt uden booking-id, calendly-webhook matcher kun
  * advisor = 'morten' (:122, :157), og Jonas' Calendly-organisation har ét
- * medlem. Der kommer derfor aldrig booked, tid eller URI på dette spor.
- * Reparationen kræver Calendly premium — nedprioriteret 3/9.
+ * medlem. Der kommer derfor aldrig booked, tid eller URI på dette spor
+ * AF SIG SELV. Reparationen kræver Calendly premium — nedprioriteret 3/9.
+ * De to Rallysupport-rækker (køb 23/6 og 30/6) får derfor status booked og
+ * start_tid sat i HÅNDEN fra Calendly (målt 13/9: «Event started 25 June
+ * at 09:45 (CEST)» og «1 July at 08:30 (CEST)»), fordi calendly-webhook
+ * filtrerer Jonas' spor fra (:122, :157). Sluttiden kender Calendly-siden
+ * ikke, og en booking-dato har rækken ingen kolonne til.
  *
  * BESLUTTET 11/9: fladen siger det den VED — at pengene er betalt og
  * linket er sendt — og lader ikke som om den ved, om sessionen blev holdt.
@@ -33,14 +38,20 @@
  *                 checkout.session.completed (mode = payment). Det er
  *                 «betalt» → «Betalt {dato} · booking-link sendt». Ingen
  *                 afholdt-dom: rækken ved ikke om linket blev brugt.
- *   booked        Kan kun sættes af calendly-webhook, som i dag filtrerer
- *                 Morten væk. KUN med calendly_event_uri tror vi på ordet:
- *                 med URI og slut_tid passeret → «Afholdt {dato}» (samme
- *                 grænse som introSession.erAfholdt: nu >= slut); med URI og
- *                 tid forude → «Booket til {tid}»; med URI uden tid →
- *                 «Booket — tidspunktet er ikke registreret». UDEN URI
- *                 behandles booked som booking_sent — ordet alene beviser
- *                 ingen tid, og «afholdt» må ikke påstås uden Calendlys URI.
+ *   booked        Sættes af calendly-webhook (som filtrerer Jonas' spor
+ *                 fra) eller i hånden. TIDEN ER BEVISET, IKKE URI'EN
+ *                 (ændret 13/9): ordet booked alene beviser ingen tid, men
+ *                 HAR rækken en start_tid eller slut_tid, ER der en tid.
+ *                 URI'en var kun porten fordi webhooken plejede at sætte
+ *                 begge — for håndsatte rækker findes den ikke, og den
+ *                 beviser intet tiden ikke allerede beviser. Grænsen er
+ *                 slut_tid når den findes, ellers start_tid: Calendly viser
+ *                 kun «Event started», og at opfinde en varighed for at
+ *                 kunne bruge slut_tid ville være at digte. En session der
+ *                 er startet, er begyndt. Grænse passeret → «Betalt {dato}
+ *                 · afholdt {mødedato}»; grænse forude → «Betalt {dato} ·
+ *                 booket til {tid}». UDEN nogen tid behandles booked som
+ *                 booking_sent — uanset URI.
  *   cancelled     Aflyst efter betaling. Om pengene kom tilbage, ved rækken
  *                 ikke (det ville være refunded) → «Betalt · aflyst».
  *   refunded      Ingen kode skriver den; står den der, er pengene sendt
@@ -53,13 +64,37 @@
  * kun efter Stripes checkout.session.completed. amount_dkk > 0 alene
  * betyder kun at sessionen KOSTER, ikke at den er betalt.
  *
- * DATOEN på «Betalt {dato}» er updated_at: den eneste update på dette spor
- * er webhookens (calendly-webhook filtrerer advisor = 'morten' i begge
- * grene; slet-medlemsdata-cron sletter kun), og trigger
- * update_session_bookings_updated_at (20260407114258:31) stempler den.
- * created_at er checkout-STARTEN, ikke betalingen; Stripe-sessionen kan
- * betales op til 24 timer senere. Mangler updated_at, falder vi tilbage
- * på created_at.
+ * DATOEN på «Betalt {dato}» er created_at — IKKE updated_at (rettet 13/9):
+ *
+ *   created_at er checkout-STARTEN, og en Stripe-session kan i teorien
+ *   betales op til 24 timer senere — men created_at er den eneste dato
+ *   ingen trigger kan flytte. Målt på de to ægte køb (13/9): 12:18:15 →
+ *   12:19:07 og 10:25:43 → 10:26:31, altså under et minut fra checkout til
+ *   webhook. På dagsniveau er de identiske.
+ *
+ *   updated_at ER stadig betalingen for rækker webhooken alene har rørt —
+ *   men fladen kan ikke skelne dem fra rækker en admin har rettet. Det
+ *   skete 13/9: to rækker fik company_id rettet i SQL editoren
+ *   (Rallysupports køb, som create-stripe-checkout havde efterladt uden
+ *   virksomhed), og trigger update_session_bookings_updated_at
+ *   (20260407114258:31) stemplede updated_at til nu. Skærmen sagde derpå
+ *   «Betalt 13. september» for køb fra 23. og 30. juni, og forsøg på at
+ *   sætte updated_at tilbage i SQL fejlede — triggeren vinder hver gang
+ *   (målt 13/9 kl. 20:13: begge rækker 2026-09-13 18:13:36). En forkert
+ *   dato er værre end en dato der er et minut for tidlig.
+ *
+ *   NOTE: stripe_payment_intent_id findes på rækken (målt 13/9) og bærer
+ *   det præcise betalingstidspunkt i Stripe. Skal datoen være eksakt, er
+ *   det kilden — det ville kræve et Stripe-opslag og er ikke gjort her.
+ *
+ * LINJEN BÆRER TO DATOER (besluttet 13/9): «Betalt {dato} · afholdt
+ * {dato}» og «Betalt {dato} · booket til {tid}» — samme form som «Betalt
+ * {dato} · booking-link sendt», så linjen læses ens uanset tilstand, og
+ * pengene står først i alle. IKKE tre datoer: «booket den …» udelades,
+ * fordi rækken ikke har en kolonne til bookingtidspunktet, og en ny
+ * kolonne ville stå tom for alle fremtidige køb indtil Calendly-kæden er
+ * repareret. Målt 13/9: Rallysupport bookede fire og atten minutter efter
+ * betalingen — bookingdatoen er betalingsdatoen på dagsniveau.
  */
 
 import { formatIntroTid } from "@/lib/introSession";
@@ -69,14 +104,15 @@ export interface BetaltBooking {
   status: string;
   /** Prisen i kr. 0 = gratis spor (introSession); > 0 = betalt spor. */
   amount_dkk: number;
-  /** Sat af calendly-webhook ved invitee.created. Uden den tror vi ikke på booked. */
+  /** Sat af calendly-webhook ved invitee.created. Læses IKKE af dommen (13/9): tiden er beviset. */
   calendly_event_uri: string | null;
-  /** ISO (UTC) eller null — fra webhooken (20260908190000). */
+  /** ISO (UTC) eller null — fra webhooken (20260908190000) eller sat i hånden fra Calendly. */
   start_tid: string | null;
+  /** Kendes ikke for håndsatte rækker (Calendly viser kun «Event started»). */
   slut_tid: string | null;
-  /** Checkout-start. */
+  /** Checkout-start — betalingsdatoen på fladen (den eneste dato ingen trigger flytter). */
   created_at: string;
-  /** Webhookens skrivning (trigger). Null tolereres — så bruges created_at. */
+  /** Læses IKKE af dommen (13/9): trigger-stemplet, flyttes af enhver admin-rettelse. Tolereres i input. */
   updated_at?: string | null;
 }
 
@@ -89,19 +125,19 @@ export type BetaltTilstand =
   | "betalt_uden_link"
   /** Betalt, link sendt — det mest vi ved i dag. */
   | "betalt_link_sendt"
-  /** booked med URI, sluttid passeret. */
+  /** booked med tid, grænsen (slut_tid, ellers start_tid) passeret. */
   | "afholdt"
-  /** booked med URI, tid forude. */
+  /** booked med tid, grænsen forude. */
   | "booket"
-  /** booked med URI, ingen tid. */
-  | "booket_uden_tid"
+  /* «booket_uden_tid» findes ikke længere (13/9): booked uden nogen tid er
+     «betalt_link_sendt», uanset URI — ordet alene beviser ingen tid. */
   | "aflyst"
   | "refunderet"
   | "ukendt";
 
 export interface BetaltDom {
   tilstand: BetaltTilstand;
-  /** Betalingsdatoen (updated_at, ellers created_at). Null når ikke betalt. */
+  /** Betalingsdatoen (created_at — se filhovedet). Null når ikke betalt eller ugyldig dato. */
   betalt: Date | null;
   start: Date | null;
   slut: Date | null;
@@ -128,7 +164,9 @@ export function afgoerBetaltSession(b: BetaltBooking | null | undefined, nu: Dat
   if (b.status === "pending") return { ...tom, tilstand: "ikke_gennemfoert" };
   if (!erBetalt(b)) return tom;
 
-  const betalt = somDato(b.updated_at) ?? somDato(b.created_at);
+  // created_at, aldrig updated_at: triggeren flytter updated_at ved enhver
+  // rettelse, og fladen kan ikke se hvem der rørte rækken (13/9).
+  const betalt = somDato(b.created_at);
   const start = somDato(b.start_tid);
   const slut = somDato(b.slut_tid);
   const dom = (tilstand: BetaltTilstand): BetaltDom => ({ tilstand, betalt, start, slut });
@@ -139,10 +177,13 @@ export function afgoerBetaltSession(b: BetaltBooking | null | undefined, nu: Dat
     case "booking_sent":
       return dom("betalt_link_sendt");
     case "booked": {
-      // Ordet booked beviser intet uden Calendlys URI — så er det «link sendt».
-      if (!b.calendly_event_uri) return dom("betalt_link_sendt");
-      if (slut != null && slut.getTime() <= nu.getTime()) return dom("afholdt");
-      return dom(slut ? "booket" : "booket_uden_tid");
+      // Tiden er beviset, ikke URI'en (13/9). Uden nogen tid beviser ordet
+      // booked intet — så er det «link sendt». Grænsen er slut_tid når den
+      // findes, ellers start_tid (Calendly giver kun «Event started»).
+      const graense = slut ?? start;
+      if (graense == null) return dom("betalt_link_sendt");
+      if (graense.getTime() <= nu.getTime()) return dom("afholdt");
+      return dom("booket");
     }
     case "cancelled":
       return dom("aflyst");
@@ -161,12 +202,12 @@ export function betaltSessionTekst(dom: BetaltDom): string | null {
       return `Betalt${betaltDato} · booking-link sendt`;
     case "betalt_uden_link":
       return `Betalt${betaltDato} · booking-link ikke sendt`;
+    // Begge datoer, pengene først — samme form som «booking-link sendt».
+    // Mødedatoen er starten når den findes, ellers slutningen.
     case "afholdt":
-      return `Afholdt ${formatIntroTid(dom.start ?? (dom.slut as Date), false)}`;
+      return `Betalt${betaltDato} · afholdt ${formatIntroTid(dom.start ?? (dom.slut as Date), false)}`;
     case "booket":
-      return `Booket til ${formatIntroTid(dom.start ?? (dom.slut as Date), true)}`;
-    case "booket_uden_tid":
-      return "Booket — tidspunktet er ikke registreret";
+      return `Betalt${betaltDato} · booket til ${formatIntroTid(dom.start ?? (dom.slut as Date), true)}`;
     case "aflyst":
       return "Betalt · aflyst";
     case "refunderet":
