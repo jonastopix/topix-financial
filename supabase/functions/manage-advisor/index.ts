@@ -141,16 +141,29 @@ Deno.serve(async (req) => {
       const allCompanyUserIds = new Set((allCompanyMembers || []).map((r: any) => r.user_id));
       const toDelete = [...allCompanyUserIds].filter(id => !privilegedIds.has(id));
 
+      // Samme lækage som companyHardDelete.ts før 13/9: kontoen blev prøvet
+      // SIDST, returværdien fra deleteUser (som ikke kaster) blev ignoreret,
+      // og svaret sagde success: true. Nu: kontoen FØRST — fejler den, røres
+      // medlemskab, profil og rolle ikke, og brugeren står i not_deleted.
+      // Løkken stopper ikke ved første fejl (bulk), men melder den.
       let deleted = 0;
+      const notDeleted: { user_id: string; fejl: string }[] = [];
       for (const uid of toDelete) {
         try {
-          // Delete related data
-          await adminSupabase.from('company_members').delete().eq('user_id', uid);
-          await adminSupabase.from('profiles').delete().eq('user_id', uid);
-          await adminSupabase.from('user_roles').delete().eq('user_id', uid);
-          await adminSupabase.auth.admin.deleteUser(uid);
+          const { error: authErr } = await adminSupabase.auth.admin.deleteUser(uid);
+          if (authErr && !/not found/i.test(authErr.message ?? '')) {
+            notDeleted.push({ user_id: uid, fejl: authErr.message });
+            console.error(`[bulk-remove] auth user ${uid} IKKE slettet: ${authErr.message}`);
+            continue;
+          }
+          // Kontoen er væk (profiles og user_roles kaskaderer); det der ikke har FK ryddes eksplicit.
+          for (const t of ['company_members', 'profiles', 'user_roles']) {
+            const { error } = await adminSupabase.from(t).delete().eq('user_id', uid);
+            if (error) throw new Error(`${t}: ${error.message}`);
+          }
           deleted++;
-        } catch (err) {
+        } catch (err: any) {
+          notDeleted.push({ user_id: uid, fejl: err?.message ?? String(err) });
           console.error(`[bulk-remove] Failed to delete user ${uid}:`, err);
         }
       }
@@ -162,13 +175,16 @@ Deno.serve(async (req) => {
         .neq('id', '00000000-0000-0000-0000-000000000000') // delete all
         .select('id', { count: 'exact', head: true });
 
-      console.log(`[bulk-remove] Deleted ${deleted} members, cleared ${invitationsDeleted || 0} invitations`);
+      console.log(`[bulk-remove] Deleted ${deleted} members (${notDeleted.length} not deleted), cleared ${invitationsDeleted || 0} invitations`);
 
-      return new Response(JSON.stringify({ 
-        success: true, 
-        deleted, 
+      return new Response(JSON.stringify({
+        success: notDeleted.length === 0,
+        deleted,
+        not_deleted: notDeleted,
         invitations_cleared: invitationsDeleted || 0,
-        message: `${deleted} medlemmer fjernet og alle invitationer nulstillet` 
+        message: notDeleted.length === 0
+          ? `${deleted} medlemmer fjernet og alle invitationer nulstillet`
+          : `${deleted} medlemmer fjernet, ${notDeleted.length} kunne IKKE slettes (se not_deleted), alle invitationer nulstillet`,
       }), {
         status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
@@ -178,14 +194,24 @@ Deno.serve(async (req) => {
     if (action === 'cleanup-shells') {
       const { accept_invitation_ids, delete_company_ids, delete_auth_user_ids } = body;
 
-      // Step 0: Delete standalone auth users (when companies already removed via SQL)
+      // Step 0: Delete standalone auth users (when companies already removed via SQL).
+      // auth.admin.deleteUser KASTER ikke ved API-fejl — den returnerer
+      // { error } (auth-js GoTrueAdminApi.deleteUser). Før 13/9 blev
+      // returværdien ignoreret, og en fejlet sletning talte som succes.
       const authDeleteResults: string[] = [];
+      const authDeleteFailed: { user_id: string; fejl: string }[] = [];
       for (const uid of (delete_auth_user_ids || [])) {
         try {
-          await adminSupabase.auth.admin.deleteUser(uid);
+          const { error } = await adminSupabase.auth.admin.deleteUser(uid);
+          if (error && !/not found/i.test(error.message ?? '')) {
+            authDeleteFailed.push({ user_id: uid, fejl: error.message });
+            console.error(`[cleanup-shells] auth user ${uid} IKKE slettet: ${error.message}`);
+            continue;
+          }
           authDeleteResults.push(uid);
         } catch (e: any) {
-          console.warn(`[cleanup-shells] Could not delete auth user ${uid}:`, e.message);
+          authDeleteFailed.push({ user_id: uid, fejl: e.message });
+          console.error(`[cleanup-shells] auth user ${uid} IKKE slettet:`, e.message);
         }
       }
       if (authDeleteResults.length) {
@@ -202,29 +228,53 @@ Deno.serve(async (req) => {
         console.log(`[cleanup-shells] Marked ${accept_invitation_ids.length} invitations as accepted`);
       }
 
-      // Step 2: Cascade-delete each shell company
-      const results: { company_id: string; status: string; error?: string }[] = [];
+      // Step 2: Cascade-delete each shell company.
+      // Svaret fra hardDeleteCompany (13/9) bærer det der IKKE lykkedes:
+      // storage-fejl (filerne ligger stadig) og konti der ikke kunne
+      // slettes (profil og loginlog da heller ikke rørt). En virksomhed
+      // hvor noget af det skete står som 'deleted_with_leftovers' — rækken
+      // ER væk, men efterladenskaberne skal tages i hånden. success er kun
+      // true når alt lykkedes; ellers lyver svaret som før lækagen.
+      const results: {
+        company_id: string;
+        status: 'deleted' | 'deleted_with_leftovers' | 'error';
+        error?: string;
+        storage?: Record<string, number>;
+        fejl?: string[];
+        brugere_ikke_slettet?: { user_id: string; fejl: string }[];
+      }[] = [];
 
       for (const companyId of (delete_company_ids || [])) {
         try {
-          const { userIds } = await hardDeleteCompany(adminSupabase, companyId, {
+          const r = await hardDeleteCompany(adminSupabase, companyId, {
             deleteUsers: true,
             preserveInvitations: true,
           });
 
-          results.push({ company_id: companyId, status: 'deleted' });
-          console.log(`[cleanup-shells] Deleted company ${companyId} with ${userIds.length} users`);
+          if (r.ok) {
+            results.push({ company_id: companyId, status: 'deleted', storage: r.storage });
+            console.log(`[cleanup-shells] Deleted company ${companyId} with ${r.userIds.length} users, storage=${JSON.stringify(r.storage)}`);
+          } else {
+            results.push({ company_id: companyId, status: 'deleted_with_leftovers', storage: r.storage, fejl: r.fejl, brugere_ikke_slettet: r.brugereIkkeSlettet });
+            for (const f of r.fejl) console.error(`[cleanup-shells] company ${companyId}: ${f}`);
+            for (const b of r.brugereIkkeSlettet) console.error(`[cleanup-shells] company ${companyId}: auth user ${b.user_id} IKKE slettet: ${b.fejl}`);
+          }
         } catch (err: any) {
           console.error(`[cleanup-shells] Error deleting company ${companyId}:`, err);
           results.push({ company_id: companyId, status: 'error', error: err.message });
         }
       }
 
+      const leftovers = results.filter(r => r.status === 'deleted_with_leftovers');
+      const errors = results.filter(r => r.status === 'error');
       return new Response(JSON.stringify({
-        success: true,
+        success: authDeleteFailed.length === 0 && leftovers.length === 0 && errors.length === 0,
         accepted: accept_invitation_ids?.length || 0,
         deleted: results.filter(r => r.status === 'deleted').length,
-        errors: results.filter(r => r.status === 'error'),
+        deleted_with_leftovers: leftovers,
+        auth_users_deleted: authDeleteResults.length,
+        auth_users_not_deleted: authDeleteFailed,
+        errors,
         results,
       }), {
         status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
