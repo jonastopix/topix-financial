@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import { useAppConfig } from "@/hooks/useAppConfig";
 import { supabase } from "@/integrations/supabase/client";
-import { APP_BRANDING, PERFORMANCE_SCORE, GAMIFICATION } from "@/lib/appConfig";
+import { APP_BRANDING } from "@/lib/appConfig";
 import { cn } from "@/lib/utils";
 import { HbButton } from "../../HbButton";
 import { HbCard } from "../../HbCard";
@@ -42,12 +42,22 @@ import { HbField, HbInput } from "../HbField";
  * DE ELLEVE INPUTS er HbField-familien (HbField + HbInput, native), med
  * samme type/step/min/max/maxLength/placeholder som før.
  *
- * TRE DELE HAR INGEN LÆSER I DRIFT (målt 4/9): branding-navnet læses kun
- * af det gamle design, Performance Score og Møde læses af ingen flade.
- * De BEHOLDES i denne PR — om de skal væk er en beslutning, ikke en
- * konvertering — og står samlet nederst under «Øvrige indstillinger»
- * med en stille linje om at ingen læser dem. Se markeringerne ved hver
- * sektion nedenfor.
+ * TRE DØDE DELE ER SLETTET (kort 82, målt 4/9, bekræftet 10/9 og 11/9,
+ * besluttet 11/9, bygget 13/9): Performance Score, Møde og Gamification.
+ * Ingen monteret flade læste dem — PerformanceScore.tsx og
+ * CommunityProgress.tsx (de eneste læsere af performance_score og
+ * gamification) blev importeret ingen steder, og «meetings» havde ingen
+ * læser overhovedet (målt 13/9 på cecf1f61: grep i src/, supabase/ og
+ * scripts/ → kun denne fil og useAppConfig). Komponenterne, konstanterne
+ * (appConfig.ts), hook-felterne (useAppConfig.ts) og sektionerne her er
+ * væk; app_config-rækkerne slettes af migrationen
+ * 20260913231500_platformconfig_doede_raekker.sql (prod målt 11/9 11:43
+ * — FØR-værdierne står i migrationen).
+ *
+ * BRANDING BEHOLDES til det gamle design er væk: branding.name læses af
+ * AppLayout.tsx og AppSidebar.tsx (AnnualBaseline, LegatDashboard,
+ * PulseCheckin, målt 13/9). De tre andre felter (shortName, advisorLabel,
+ * chatPlaceholder) læses af ingen, men følger navnet i samme række.
  */
 
 interface AdvisorEntry {
@@ -101,7 +111,7 @@ const Sektionsoverskrift = ({ titel, tekst }: { titel: string; tekst?: string })
 
 export const ConfigView = () => {
   const { isAdmin } = useAuth();
-  const { branding, performanceScore, gamification, meetings, velkomstvideoGuid, updateConfig } = useAppConfig();
+  const { branding, velkomstvideoGuid, updateConfig } = useAppConfig();
 
   const [saving, setSaving] = useState<string | null>(null);
   const [testingWeeklyFocus, setTestingWeeklyFocus] = useState(false);
@@ -147,51 +157,6 @@ export const ConfigView = () => {
       chatPlaceholder: branding.chatPlaceholder || "",
     });
   }, [branding.name, branding.shortName, branding.advisorLabel, branding.chatPlaceholder]);
-
-  // ─── Performance Score state ────────────────────────────
-  const [perfForm, setPerfForm] = useState({
-    weights: [0.3, 0.25, 0.25, 0.2] as number[],
-    growthMultiplier: 2,
-    marginMultiplier: 2,
-    profitMultiplier: 3,
-    liquidityMonths: 6,
-    defaultSalaryFallback: 50000,
-  });
-
-  useEffect(() => {
-    setPerfForm({
-      weights: [...(performanceScore.weights || [0.3, 0.25, 0.25, 0.2])],
-      growthMultiplier: performanceScore.growthMultiplier ?? 2,
-      marginMultiplier: performanceScore.marginMultiplier ?? 2,
-      profitMultiplier: performanceScore.profitMultiplier ?? 3,
-      liquidityMonths: performanceScore.liquidityMonths ?? 6,
-      defaultSalaryFallback: performanceScore.defaultSalaryFallback ?? 50000,
-    });
-  }, [performanceScore.growthMultiplier, performanceScore.marginMultiplier, performanceScore.profitMultiplier, performanceScore.liquidityMonths, performanceScore.defaultSalaryFallback]);
-
-  // ─── Gamification state ─────────────────────────────────
-  const [gamForm, setGamForm] = useState({
-    pointsPerReport: 10,
-    pointsPerMilestone: 25,
-    levels: [] as { threshold: number; label: string; emoji: string }[],
-  });
-
-  useEffect(() => {
-    setGamForm({
-      pointsPerReport: gamification.pointsPerReport ?? 10,
-      pointsPerMilestone: gamification.pointsPerMilestone ?? 25,
-      levels: [...(gamification.levels || [])].map((l) => ({ ...l })),
-    });
-  }, [gamification.pointsPerReport, gamification.pointsPerMilestone, gamification.levels]);
-
-  // ─── Meetings state ─────────────────────────────────────
-  const [meetingDate, setMeetingDate] = useState<string>(
-    meetings.next_meeting_date || ""
-  );
-
-  useEffect(() => {
-    setMeetingDate(meetings.next_meeting_date || "");
-  }, [meetings.next_meeting_date]);
 
   // ─── Velkomstvideo state ────────────────────────────────
   const [velkomstGuid, setVelkomstGuid] = useState<string>(velkomstvideoGuid);
@@ -284,7 +249,7 @@ export const ConfigView = () => {
   if (!isAdmin) return <Navigate to="/" replace />;
 
   const handleSave = async (
-    key: "branding" | "performance_score" | "gamification" | "meetings" | "velkomstvideo_guid",
+    key: "branding" | "velkomstvideo_guid",
     value: any
   ) => {
     setSaving(key);
@@ -297,8 +262,6 @@ export const ConfigView = () => {
     setSaving(null);
   };
 
-  const weightLabels = ["Vækstrate", "Bruttomargin", "Nettoresultat", "Likviditet"];
-  const vaegtSum = perfForm.weights.reduce((s, w) => s + w, 0);
   const antalAdmins = advisors.filter((a) => a.status === "active" && a.isAdmin).length;
   const antalAfventer = advisors.filter((a) => a.status === "pending").length;
 
@@ -502,102 +465,6 @@ export const ConfigView = () => {
             />
           </HbCard>
 
-          {/* Gamification — læses af CommunityProgress. */}
-          <HbCard className="p-6">
-            <Sektionsoverskrift titel="Gamification" />
-            <div className="mt-5 grid grid-cols-2 gap-4">
-              <HbField label="Point pr. rapport" htmlFor="config-gam-rapport">
-                <HbInput
-                  id="config-gam-rapport"
-                  type="number"
-                  min="0"
-                  value={gamForm.pointsPerReport}
-                  onChange={(e) =>
-                    setGamForm((p) => ({
-                      ...p,
-                      pointsPerReport: parseInt(e.target.value) || 0,
-                    }))
-                  }
-                />
-              </HbField>
-              <HbField label="Point pr. milestone" htmlFor="config-gam-milestone">
-                <HbInput
-                  id="config-gam-milestone"
-                  type="number"
-                  min="0"
-                  value={gamForm.pointsPerMilestone}
-                  onChange={(e) =>
-                    setGamForm((p) => ({
-                      ...p,
-                      pointsPerMilestone: parseInt(e.target.value) || 0,
-                    }))
-                  }
-                />
-              </HbField>
-            </div>
-            <div className="mt-5">
-              <p className="mb-2 block text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft">Niveauer</p>
-              <div className="space-y-2">
-                {gamForm.levels.map((level, i) => (
-                  <div key={i} className="flex items-center gap-3">
-                    <HbInput
-                      type="text"
-                      value={level.emoji}
-                      maxLength={4}
-                      aria-label="Emoji"
-                      onChange={(e) => {
-                        const next = [...gamForm.levels];
-                        next[i] = { ...next[i], emoji: e.target.value };
-                        setGamForm((p) => ({ ...p, levels: next }));
-                      }}
-                      className="w-16 px-2 text-center"
-                    />
-                    <HbInput
-                      type="number"
-                      min="0"
-                      value={level.threshold}
-                      aria-label="Points"
-                      onChange={(e) => {
-                        const next = [...gamForm.levels];
-                        next[i] = {
-                          ...next[i],
-                          threshold: parseInt(e.target.value) || 0,
-                        };
-                        setGamForm((p) => ({ ...p, levels: next }));
-                      }}
-                      className="w-24 px-2"
-                      placeholder="Points"
-                    />
-                    <HbInput
-                      type="text"
-                      value={level.label}
-                      maxLength={30}
-                      aria-label="Niveau-navn"
-                      onChange={(e) => {
-                        const next = [...gamForm.levels];
-                        next[i] = { ...next[i], label: e.target.value };
-                        setGamForm((p) => ({ ...p, levels: next }));
-                      }}
-                      className="flex-1"
-                      placeholder="Niveau-navn"
-                    />
-                  </div>
-                ))}
-              </div>
-            </div>
-            <Bundlinje
-              gemmer={saving === "gamification"}
-              onGem={() => handleSave("gamification", gamForm)}
-              onNulstil={() =>
-                setGamForm({
-                  pointsPerReport: GAMIFICATION.pointsPerReport,
-                  pointsPerMilestone: GAMIFICATION.pointsPerMilestone,
-                  levels: [...GAMIFICATION.levels].map((l) => ({ ...l })),
-                })
-              }
-            />
-          </HbCard>
-
           {/* Test & Debug */}
           <HbCard className="p-6">
             <Sektionsoverskrift titel="Test & Debug" />
@@ -610,17 +477,18 @@ export const ConfigView = () => {
         </div>
       </HbSection>
 
-      {/* ─── Øvrige indstillinger — INGEN LÆSER I DRIFT (målt 4/9) ─────
-          Branding-navnet læses kun af det gamle design; Performance Score
-          og Møde læses af ingen flade. De beholdes i denne PR — om de skal
-          væk er en beslutning, ikke en konvertering. */}
+      {/* ─── Øvrige indstillinger — kun Branding tilbage ────────────
+          Performance Score og Møde stod her til 13/9 (kort 82); de er
+          slettet sammen med Gamification ovenfor, se filhovedet. Branding
+          beholdes til det gamle design er væk: kun navnet læses
+          (AppLayout, AppSidebar). */}
       <HbSection eyebrow="Øvrige indstillinger" hairline className="mt-14">
         <p className="max-w-2xl text-sm text-hb-ink-soft">
-          Ingen flade læser de tre indstillinger nedenfor i dag (målt 4/9). De står her indtil det er besluttet om de skal væk.
+          Kun det gamle design læser navnet nedenfor. Sektionen forsvinder med det.
         </p>
         <div className="mt-6 grid gap-6">
-          {/* Branding — INGEN LÆSER I DRIFT (målt 4/9): kun det gamle
-              design læser navnet. Beholdt. */}
+          {/* Branding — læses kun af det gamle design (AppLayout.tsx,
+              AppSidebar.tsx: branding.name). Beholdt. */}
           <HbCard className="p-6">
             <Sektionsoverskrift titel="Branding" tekst="Læses kun af det gamle design." />
             <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -654,119 +522,6 @@ export const ConfigView = () => {
                   chatPlaceholder: APP_BRANDING.chatPlaceholder,
                 })
               }
-            />
-          </HbCard>
-
-          {/* Performance Score — INGEN LÆSER I DRIFT (målt 4/9). Beholdt. */}
-          <HbCard className="p-6">
-            <Sektionsoverskrift titel="Performance Score" tekst="Ingen flade læser den i drift." />
-            <div className="mt-5 space-y-5">
-              <div>
-                <p className="mb-2 block text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft">
-                  Scoring-vægte (skal summe til 1.0)
-                </p>
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                  {perfForm.weights.map((w, i) => (
-                    <HbField key={i} label={weightLabels[i]} htmlFor={`config-perf-w-${i}`}>
-                      <HbInput
-                        id={`config-perf-w-${i}`}
-                        type="number"
-                        step="0.05"
-                        min="0"
-                        max="1"
-                        value={w}
-                        onChange={(e) => {
-                          const next = [...perfForm.weights];
-                          next[i] = parseFloat(e.target.value) || 0;
-                          setPerfForm((p) => ({ ...p, weights: next }));
-                        }}
-                      />
-                    </HbField>
-                  ))}
-                </div>
-                {Math.abs(vaegtSum - 1) > 0.01 && (
-                  <p className="mt-2 text-xs text-hb-rust">
-                    Vægtene summer til {vaegtSum.toFixed(2)} — bør være 1.00
-                  </p>
-                )}
-              </div>
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                {([
-                  { key: "growthMultiplier", label: "Vækst-multiplikator" },
-                  { key: "marginMultiplier", label: "Margin-multiplikator" },
-                  { key: "profitMultiplier", label: "Profit-multiplikator" },
-                  { key: "liquidityMonths", label: "Likviditets-måneder" },
-                ] as const).map((field) => (
-                  <HbField key={field.key} label={field.label} htmlFor={`config-perf-${field.key}`}>
-                    <HbInput
-                      id={`config-perf-${field.key}`}
-                      type="number"
-                      step="0.5"
-                      min="0"
-                      value={perfForm[field.key]}
-                      onChange={(e) =>
-                        setPerfForm((p) => ({
-                          ...p,
-                          [field.key]: parseFloat(e.target.value) || 0,
-                        }))
-                      }
-                    />
-                  </HbField>
-                ))}
-              </div>
-            </div>
-            <Bundlinje
-              gemmer={saving === "performance_score"}
-              onGem={() => handleSave("performance_score", perfForm)}
-              onNulstil={() =>
-                setPerfForm({
-                  weights: [...PERFORMANCE_SCORE.weights],
-                  growthMultiplier: PERFORMANCE_SCORE.growthMultiplier,
-                  marginMultiplier: PERFORMANCE_SCORE.marginMultiplier,
-                  profitMultiplier: PERFORMANCE_SCORE.profitMultiplier,
-                  liquidityMonths: PERFORMANCE_SCORE.liquidityMonths,
-                  defaultSalaryFallback: PERFORMANCE_SCORE.defaultSalaryFallback,
-                })
-              }
-            />
-          </HbCard>
-
-          {/* Møde — INGEN LÆSER I DRIFT (målt 4/9): den gamle sides
-              undertekst («Vises på alle members' dashboard») beskriver et
-              kort ingen flade viser i dag. Beholdt med teksten som før. */}
-          <HbCard className="p-6">
-            <Sektionsoverskrift
-              titel="Næste boardroom-møde"
-              tekst="Vises på alle members' dashboard som nedtælling til mødet"
-            />
-            <div className="mt-5 max-w-xs">
-              <HbField
-                label="Dato for næste møde"
-                htmlFor="config-moede"
-                help={
-                  meetingDate
-                    ? `Vises som: ${new Date(meetingDate).toLocaleDateString("da-DK", {
-                        weekday: "long", day: "numeric", month: "long", year: "numeric",
-                      })}`
-                    : "Ingen dato sat — mødekortet vises ikke på dashboard"
-                }
-              >
-                <HbInput
-                  id="config-moede"
-                  type="date"
-                  value={meetingDate}
-                  onChange={(e) => setMeetingDate(e.target.value)}
-                />
-              </HbField>
-            </div>
-            <Bundlinje
-              gemLabel="Gem dato"
-              gemmer={saving === "meetings"}
-              onGem={async () => {
-                setSaving("meetings");
-                await handleSave("meetings", { next_meeting_date: meetingDate || null });
-                setSaving(null);
-              }}
             />
           </HbCard>
         </div>

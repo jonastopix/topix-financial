@@ -1,0 +1,39 @@
+-- Kort 82 (13/9): Platformconfigs tre døde dele — rækkerne i app_config.
+--
+-- Målt 4/9, bekræftet 10/9 og 11/9, besluttet 11/9, bygget 13/9 (samme PR
+-- som denne fil): ingen monteret flade læste performance_score, gamification
+-- eller meetings. De eneste læsere var PerformanceScore.tsx og
+-- CommunityProgress.tsx (importeret ingen steder) og formularerne i
+-- ConfigView — alle slettet i koden i samme PR. useAppConfig ignorerer
+-- ukendte rækker, så sletningen er også harmløs for en frontend-build der
+-- endnu ikke er opdateret (defaults fylder ud).
+--
+-- Prod målt 11/9 kl. 11:43 (query-results-export-2026-09-11_11-43-37.csv,
+-- sektion c_82_app_config), FØR-værdier, ordret:
+--   meetings          {"next_meeting_date": "2026-04-30"}
+--                     opdateret 2026-03-27T07:05:35.982904+00:00 — ikke seedet
+--                     af nogen migration; gemt fra ConfigView, datoen er passeret.
+--   performance_score {"weights": [0.3, 0.25, 0.25, 0.2], "liquidityMonths": 6,
+--                      "growthMultiplier": 2, "marginMultiplier": 2,
+--                      "profitMultiplier": 3, "defaultSalaryFallback": 50000}
+--                     opdateret 2026-02-24T09:55:51.972469+00:00 — seed-værdien
+--                     fra 20260224095552, aldrig ændret.
+--   gamification      {"levels": [Starter 0 🌱, Aktiv 25 ⚡, Dedikeret 75 🔥,
+--                      Stjerneelev 150 ⭐, Mester 300 🏆], "pointsPerReport": 10,
+--                      "pointsPerMilestone": 25}
+--                     opdateret 2026-02-24T09:55:51.972469+00:00 — seed-værdien
+--                     fra 20260224095552, aldrig ændret.
+--
+-- RØRES IKKE: branding (læses af det gamle design: AppLayout, AppSidebar —
+-- beholdes til det er væk), session_timeout_minutes, velkomstvideo_guid,
+-- notification_v2_rollout, extraction_v2_rollout.
+--
+-- Køres manuelt i Lovable → SQL editor efter merge (CLAUDE.md). Efterprøv
+-- FØR med:  SELECT config_key, config_value, updated_at FROM public.app_config
+--           WHERE config_key IN ('performance_score','gamification','meetings');
+-- Forventet EFTER: DELETE 3, og SELECT config_key FROM public.app_config
+-- ORDER BY 1 giver fem rækker: branding, extraction_v2_rollout,
+-- notification_v2_rollout, session_timeout_minutes, velkomstvideo_guid.
+
+DELETE FROM public.app_config
+WHERE config_key IN ('performance_score', 'gamification', 'meetings');

@@ -51,7 +51,9 @@ const AFVIGERE: Array<{ sti: string; regel: string; hvorfor: string }> = [
   { sti: "src/components/MilestonesList.tsx", regel: "if (progress >= 100) return \"done\";", hvorfor: "den gamle liste, urørt siden konverteringen (ikke routet)" },
   { sti: "src/components/DashboardMilestones.tsx", regel: 'm.status !== "completed" && m.progress < 100', hvorfor: "gammel dashboard-flade" },
   { sti: "src/components/DashboardActionCenter.tsx", regel: '.lt("progress", 100)', hvorfor: "gammel dashboard-flade" },
-  { sti: "src/components/CommunityProgress.tsx", regel: "m.progress >= 100", hvorfor: "gammel community-flade" },
+  // CommunityProgress.tsx stod her («m.progress >= 100», gammel community-
+  // flade) til 13/9 — slettet med kort 82 (importeret ingen steder, målt
+  // 4/9 og 13/9). Posten er taget ud, så listen kun låser filer der findes.
   { sti: "src/components/AdvisorAlertsPanel.tsx", regel: '.lt("deadline", now)', hvorfor: "renderes aldrig (opgave-model-design §6.4)" },
   { sti: "src/components/AdvisorDashboard.tsx", regel: "m.progress >= 100", hvorfor: "gammel milestone-bar i rådgiverforsiden" },
   { sti: "src/components/ActivityFeed.tsx", regel: "ms.progress >= 100", hvorfor: "gammel aktivitetsfeed" },

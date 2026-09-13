@@ -1,18 +1,19 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import {
-  APP_BRANDING,
-  PERFORMANCE_SCORE,
-  GAMIFICATION,
-  MEETINGS,
-  laesVelkomstvideoGuid,
-} from "@/lib/appConfig";
+import { APP_BRANDING, laesVelkomstvideoGuid } from "@/lib/appConfig";
 
-type ConfigKey = "branding" | "performance_score" | "gamification" | "meetings" | "velkomstvideo_guid";
+/** Nøglerne fladen kan skrive. performance_score, gamification og meetings
+    er SLETTET 13/9 (kort 82): ingen monteret flade læste dem (målt 4/9,
+    bekræftet 11/9 og 13/9), og rækkerne fjernes af migrationen
+    20260913231500_platformconfig_doede_raekker. De øvrige app_config-nøgler
+    (session_timeout_minutes, notification_v2_rollout, extraction_v2_rollout)
+    har aldrig været skrivbare herfra. */
+type ConfigKey = "branding" | "velkomstvideo_guid";
 
 /**
  * Fetches all app_config rows and merges with static defaults.
  * Every authenticated user can read; only advisors can write.
+ * Ukendte rækker i tabellen ignoreres; en manglende række giver default.
  */
 export function useAppConfig() {
   const queryClient = useQueryClient();
@@ -32,9 +33,6 @@ export function useAppConfig() {
   const dbMap = Object.fromEntries(dbRows.map((r) => [r.config_key, r.config_value]));
 
   const branding = { ...APP_BRANDING, ...(dbMap.branding || {}) };
-  const performanceScore = { ...PERFORMANCE_SCORE, ...(dbMap.performance_score || {}) };
-  const gamification = { ...GAMIFICATION, ...(dbMap.gamification || {}) };
-  const meetings = { ...MEETINGS, ...(dbMap.meetings || {}) };
   // Én JSON-streng, ikke et objekt — dommen (tom JSON-streng = ingen video,
   // også læst rå) bor i laesVelkomstvideoGuid og er testet dér.
   const velkomstvideoGuid = laesVelkomstvideoGuid(dbMap.velkomstvideo_guid);
@@ -50,5 +48,5 @@ export function useAppConfig() {
     queryClient.invalidateQueries({ queryKey: ["app-config"] });
   };
 
-  return { branding, performanceScore, gamification, meetings, velkomstvideoGuid, updateConfig };
+  return { branding, velkomstvideoGuid, updateConfig };
 }
