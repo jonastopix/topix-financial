@@ -12,6 +12,14 @@ import {
   type Betalingsmodel,
   type Indgangsmulighed,
 } from "@/lib/indgangspris";
+import {
+  afgoerKvittering,
+  BETALT_PARAM,
+  KVITTERING_GRAENSE_MS,
+  KVITTERING_RETRY_MS,
+  laesBetaltHint,
+  skalHenteIgen,
+} from "@/lib/betalKvittering";
 
 /** /betal?token=<uuid> — betalingssiden i indgangen (docs/indgangen-design.md
     §5, §12-§16). En person UDEN konto lander her fra dag 0-mailen og vælger
@@ -26,7 +34,19 @@ import {
     Standalone Hb-flade uden skal — samme ydre div og klasser som
     MembershipExpiredGate og FornyelseKvittering. Siden sætter BEVIDST ikke
     document.title: ingen side i appen gør det, og virksomhedsnavnet skal
-    ikke i browserhistorikken. */
+    ikke i browserhistorikken.
+
+    HJEMKOMSTEN FRA STRIPE (fund A, 14/9): success_url er
+    /betal?token=…&betalt=1 (opret-indgangs-checkout:114). Stripe sender
+    ansøgeren tilbage i samme øjeblik betalingen er gennemført, mens
+    stripe-webhook, der skriver contract_end_date, fyrer selvstændigt. Før
+    læste siden aldrig `betalt`, slog status op én gang og viste — når
+    webhooken ikke var landet — betalingsskærmen IGEN med tre aktive knapper.
+    Nu: er hintet sat, kvitterer siden straks, henter stille igen hvert
+    KVITTERING_RETRY_MS i op til KVITTERING_GRAENSE_MS, og siger derefter
+    ærligt at bekræftelsen mangler. Dommen «betalt» er stadig databasens
+    alene — hintet vælger kun venteskærmen (src/lib/betalKvittering.ts).
+    Forlæg: fornyelses-låsen i Index.tsx og FornyelseKvittering. */
 
 type Betalingsstatus =
   | "betalt"
@@ -93,6 +113,8 @@ function formaterFrist(iso: string): string {
 }
 
 const MAILTO = `mailto:jonas@topix.dk?subject=${encodeURIComponent("The Boardroom — mit betalingslink")}`;
+/** Emnet når betalingen er gennemført, men bekræftelsen mangler — så mailen kan kendes fra linkspørgsmål. */
+const MAILTO_BETALING = `mailto:jonas@topix.dk?subject=${encodeURIComponent("The Boardroom — min betaling mangler bekræftelse")}`;
 
 /** Fælles ramme: samme ydre div som MembershipExpiredGate:148 — men
     min-h-screen-SAFE (dvh), ikke 100vh, som HB_RAMME (4/9, mobilens grønne
@@ -129,9 +151,23 @@ function SkrivTilOs() {
 export default function Betal() {
   const [searchParams] = useSearchParams();
   const token = (searchParams.get("token") || "").trim();
+  // Hintet fra Stripes success_url. IKKE bevis for betaling (kan skrives i
+  // adressefeltet) — det afgør kun hvilken venteskærm der vises, aldrig
+  // dommen. Se betalKvittering.ts.
+  const betaltHint = laesBetaltHint(searchParams.get(BETALT_PARAM));
   const [opslag, setOpslag] = useState<Opslag>({ tilstand: "henter" });
-  const [forsoeg, setForsoeg] = useState(0);
-  const proevIgen = useCallback(() => setForsoeg((n) => n + 1), []);
+  // `stille`: hent igen UDEN at falde tilbage til spinneren — det de stille
+  // gen-hentninger efter en betaling bruger. «Prøv igen»-knappen henter højt.
+  const [forsoeg, setForsoeg] = useState({ n: 0, stille: false });
+  const proevIgen = useCallback(() => setForsoeg((f) => ({ n: f.n + 1, stille: false })), []);
+  const hentStille = useCallback(() => setForsoeg((f) => ({ n: f.n + 1, stille: true })), []);
+  // Vinduet efter hjemkomsten: `overskredet` er STATE med sin egen timer —
+  // ikke en beregning ved render (Index.tsx-lærdommen: rammer den sidste
+  // hentning kort før grænsen, ville render aldrig regne igen, og skærmen
+  // ville stå i «vi bekræfter» for evigt). `vindue` tæller op når «Tjek
+  // igen» åbner et nyt vindue.
+  const [overskredet, setOverskredet] = useState(false);
+  const [vindue, setVindue] = useState(0);
   // Hvilken betalingsmodel der er ved at åbne Checkout — alle tre knapper
   // deaktiveres imens, så ét klik giver én session. Hook i topblokken, før
   // enhver betinget return (React #310-lærdommen).
@@ -149,7 +185,7 @@ export default function Betal() {
       return;
     }
     let aktiv = true;
-    setOpslag({ tilstand: "henter" });
+    if (!forsoeg.stille) setOpslag({ tilstand: "henter" });
     (async () => {
       try {
         // Funktionen er ikke i de genererede Supabase-typer endnu — samme
@@ -178,6 +214,98 @@ export default function Betal() {
       aktiv = false;
     };
   }, [token, forsoeg]);
+
+  // Kvitteringsdommen — ren i betalKvittering.ts. Status er SQL'ens fem
+  // værdier når vi har et svar, ellers opslagets egen tilstand.
+  const kvittering = afgoerKvittering({
+    betaltHint,
+    status: opslag.tilstand === "tilbud" ? opslag.tilbud.status : opslag.tilstand,
+    overskredet,
+  });
+
+  // Vinduet lukker efter KVITTERING_GRAENSE_MS — kun med hint. Ryddes i
+  // cleanup; et nyt `vindue` starter det forfra.
+  useEffect(() => {
+    if (!betaltHint) return;
+    setOverskredet(false);
+    const t = setTimeout(() => setOverskredet(true), KVITTERING_GRAENSE_MS);
+    return () => clearTimeout(t);
+  }, [betaltHint, vindue]);
+
+  // Mens vi bekræfter: hent stille igen KVITTERING_RETRY_MS efter hvert svar
+  // (ikke oven i et opslag der kører). Stopper af sig selv, når dommen
+  // falder ('betalt' → «ingen») eller vinduet lukker («ubekraeftet»).
+  // `opslag` i deps: hvert svar er et nyt objekt, også når status er uændret.
+  useEffect(() => {
+    if (!skalHenteIgen(kvittering) || opslag.tilstand === "henter") return;
+    const t = setTimeout(hentStille, KVITTERING_RETRY_MS);
+    return () => clearTimeout(t);
+  }, [kvittering, opslag, hentStille]);
+
+  const tjekIgen = useCallback(() => {
+    setVindue((v) => v + 1);
+    hentStille();
+  }, [hentStille]);
+
+  // ── 0a. Hjem fra Stripe, webhooken er ikke landet endnu — kvitteringen
+  //        vises STRAKS, også mens første opslag kører (aldrig «Vi finder
+  //        dit tilbud…» til én der lige har betalt). Ingen knapper: der er
+  //        intet at gøre, og især ikke at betale igen. ────────────────────
+  if (kvittering === "bekraefter") {
+    return (
+      <Ramme>
+        <Overskrift
+          titel="Tak — vi bekræfter din betaling"
+          tekst="Stripe har modtaget den. Vi åbner din adgang om et øjeblik — siden opdaterer sig selv, du behøver ikke gøre noget."
+        />
+        <HbCard className="p-5">
+          <div className="flex items-center gap-3">
+            <Loader2 className="h-5 w-5 shrink-0 text-hb-ink-soft animate-spin" />
+            <p className="text-sm text-hb-ink-soft">Venter på den sidste bekræftelse…</p>
+          </div>
+        </HbCard>
+        <SkrivTilOs />
+      </Ramme>
+    );
+  }
+
+  // ── 0b. Vinduet er lukket uden 'betalt'. Ansøgeren HAR betalt — Stripe
+  //        sender kun til success_url efter en gennemført betaling, og
+  //        pengene er taget. At vise betalingsknapperne her ville sige «du
+  //        har ikke betalt» til én der har, og et klik ville åbne en ny
+  //        Checkout. Så: sig hvad vi ved (betalingen er registreret hos
+  //        Stripe), hvad vi ikke ved (vores bekræftelse mangler), og giv to
+  //        udgange — Tjek igen (nyt vindue) og Skriv til os. Samme form som
+  //        FornyelseKvitterings «Adgangen åbner snarest». En der selv skrev
+  //        &betalt=1 uden at betale, ender også her — uden adgang, uden
+  //        knapper, og kan fjerne parameteren og betale. ─────────────────
+  if (kvittering === "ubekraeftet") {
+    return (
+      <Ramme>
+        <Overskrift
+          titel="Vi mangler den sidste bekræftelse"
+          tekst="Betalingen er registreret hos Stripe, og du skal ikke betale igen. Beskeden til os tager længere end normalt — tjek igen om lidt, eller skriv til os, så åbner vi adgangen i hånden."
+        />
+        <HbCard className="p-5">
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <HbButton variant="primary" onClick={tjekIgen} className="w-full sm:flex-1">
+              <RefreshCw className="h-4 w-4 shrink-0" />
+              Tjek igen
+            </HbButton>
+            <HbButton
+              variant="secondary"
+              onClick={() => { window.location.href = MAILTO_BETALING; }}
+              className="w-full sm:flex-1"
+            >
+              Skriv til os
+              <ArrowRight className="h-4 w-4 shrink-0 text-hb-evergreen" />
+            </HbButton>
+          </div>
+        </HbCard>
+        <SkrivTilOs />
+      </Ramme>
+    );
+  }
 
   // ── 1. Henter ──────────────────────────────────────────────────────────
   if (opslag.tilstand === "henter") {
