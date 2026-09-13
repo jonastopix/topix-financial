@@ -5,8 +5,10 @@ import { afgoerBetaltSession, betaltSessionTekst, erBetalt, type BetaltBooking }
 // betalt og link sendt — og påstår aldrig «afholdt» uden en tid der er
 // passeret. Tiden er beviset, ikke calendly_event_uri (ændret 13/9 aften):
 // de to Rallysupport-rækker får start_tid sat i hånden fra Calendly, fordi
-// webhooken filtrerer Jonas' spor fra. Prod 11/9: tre booking_sent uden
-// URI, ni pending, ingen paid/refunded.
+// deres links (juni) aldrig bar et booking-id og webhooken derfor ikke kan
+// ramme dem (webhookens Morten-filter er åbnet 13/9 aften; nye køb får id i
+// linket). Prod 11/9: tre booking_sent uden URI, ni pending, ingen
+// paid/refunded.
 //
 // Betalingsdatoen er created_at (rettet 13/9 aften): updated_at stemples af
 // trigger update_session_bookings_updated_at ved ENHVER update, også en

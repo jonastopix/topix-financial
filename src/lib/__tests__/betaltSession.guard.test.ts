@@ -11,11 +11,13 @@ import { resolve } from "node:path";
 //
 // VÆRNET SKIFTEDE 13/9 aften: det låste før at «afholdt» krævede
 // calendly_event_uri. URI'en var kun porten fordi calendly-webhook plejede
-// at sætte den SAMMEN med tiden — og webhooken filtrerer Jonas' spor fra
-// (calendly-webhook:122, :157), så håndsatte rækker (Rallysupports to køb,
-// tid taget fra Calendly 13/9) aldrig får en. Beviset for «afholdt» er nu
-// TIDEN: slut_tid når den findes, ellers start_tid. Værnet låser samtidig
-// at URI-kravet ikke genindføres uden at ændre denne test med vilje.
+// at sætte den SAMMEN med tiden — og håndsatte rækker (Rallysupports to
+// køb, tid taget fra Calendly 13/9) får aldrig en: deres links (juni) bar
+// intet booking-id, så webhooken kan ikke ramme dem. (Webhookens filter på
+// advisor='morten' er åbnet samme aften; det ændrer intet for de to rækker.)
+// Beviset for «afholdt» er nu TIDEN: slut_tid når den findes, ellers
+// start_tid. Værnet låser samtidig at URI-kravet ikke genindføres uden at
+// ændre denne test med vilje.
 
 const FLADE = "src/components/hjemmebane/virksomhed/VirksomhedView.tsx";
 const DOM = "src/lib/betaltSession.ts";

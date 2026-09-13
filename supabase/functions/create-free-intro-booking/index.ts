@@ -158,6 +158,9 @@ Deno.serve(async (req: Request) => {
 
       // Indlejr id'et i linket. salesforce_uuid er Calendlys dedikerede pass-through-felt;
       // utm_content er en redundant fallback. URL-API'et haandterer ? vs & og encoding selv.
+      // DUBLERET i stripe-webhook 13/9 (Jonas' betalte spor) — anden gang de to filer deler
+      // Calendly-kode (hjaelperne oeverst var foerste). En samling i _shared/calendly.ts er
+      // et eget run.
       const u = new URL(bookingUrl);
       u.searchParams.set("salesforce_uuid", bookingId);
       u.searchParams.set("utm_content", bookingId);

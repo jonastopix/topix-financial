@@ -490,6 +490,16 @@ service role (edge functions `create-stripe-checkout`, `stripe-webhook`,
 `company_id`, Stripe ids, Calendly URIs and, from 8/9, `start_tid`/`slut_tid`
 — no member PII beyond the ids.
 
+`calendly-webhook` (Bucket C) verifies the HMAC signature against TWO signing
+keys from 13/9-2026 — `CALENDLY_WEBHOOK_SIGNING_KEY` (Morten's subscription,
+legacy name) and `CALENDLY_WEBHOOK_SIGNING_KEY_JONAS` (Jonas' subscription) —
+one per Calendly subscription, so rotating one never 401s the other (Calendly
+retries 24h, then sets the subscription `disabled`, unrecoverable). A missing
+key is skipped; no key at all → 503. The matching key is logged, not enforced:
+the row's `advisor` gates the only side effect (reopening
+`companies.intro_session_used_at`, Morten's track only — pure, tested in
+`_shared/calendlyWebhookDom.ts`).
+
 ### Member read on own agreement (`company_perioder`, `company_traek`)
 ```sql
 company_id = public.user_company_id(auth.uid())
