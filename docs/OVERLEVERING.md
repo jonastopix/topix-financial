@@ -192,26 +192,36 @@
 > intervallet er forkert for dem, ikke omvendt. Alle 130 rækker seedet
 > 29/3, aldrig rørt, ingen kilde, intet årstal. 26 af 27 aktive har en
 > kode med benchmarks (Bastant Design mangler), 18 har en afsluttet måned.
-> Jonas: «Enig med dig» — afsnittet fjernes fra `/kpis`. **BYGGET i A,
-> IKKE MERGET:** `NoegletalView.tsx` 1296 → 1240 linjer (hentningen,
-> mappingen, gaugeRows og render-blokken væk; en kommentar med målingen
-> står i stedet); tsc 0; men `bun run test` på hele suiten kl. 18:40: 1 af
-> 2982 fejlede — #833's eget værn `ingenBranchefallback.guard.test.ts:55`
-> låste at afsnittet hentede `from("industry_benchmarks")`. Værnet gjorde
-> sit arbejde: præmissen var bortfaldet. A's verifikation havde meldt
-> grønt på egne filer alene — tredje gang 13/9 at commit-blokkens egen
-> kørsel fangede det (DEL 4, skærpet). Og chatten svarede «PR #834 er
-> oprettet» på et vedhæftet output der var tomt i konteksten; PR 834
-> findes ikke (`gh pr view 834`), seneste er #833 (ny fælde i DEL 4: «Et
-> tomt dokument er ikke et grønt svar»). A retter testen; PR'en kommer
-> derefter. Bliver: tabellen og synken til `kpi_benchmarks`. Tre
+> Jonas: «Enig med dig» — afsnittet fjernes fra `/kpis`. **MERGET — PR
+> #834** «feat: brancheafsnittet fjernes fra Noegletal — intervallerne
+> skelner ikke», `gh pr view` ordret: mergedAt «2026-09-13T16:52:02Z»,
+> mergeCommit «19e26ca110454afb7bc3e29167bd229adc7d3705» (18:52:02
+> dansk). `NoegletalView.tsx` 1296 → 1240 linjer (hentningen, mappingen,
+> gaugeRows og render-blokken væk; en kommentar med hele målingen står i
+> stedet). Undervejs: `bun run test` på hele suiten kl. 18:40 gav 1 af 2982
+> fejlet — #833's eget værn `ingenBranchefallback.guard.test.ts:55` låste
+> at afsnittet hentede `from("industry_benchmarks")`; præmissen var
+> bortfaldet, og it-blokken blev OMSKREVET til at låse at kortets benchmark
+> kommer gennem hooken. A's verifikation havde meldt grønt på egne filer
+> alene — tredje gang 13/9 at commit-blokkens egen kørsel fangede det (DEL
+> 4, skærpet). Chatten svarede «PR #834 er oprettet» på et vedhæftet output
+> der var tomt i beskeden, FØR PR'en fandtes — og gentog fejlen to gange
+> mere (ny fælde i DEL 4: «Et tomt dokument er ikke et grønt svar»,
+> skærpet: hent filen fra disken). Committen bar også del 3 af denne
+> bogføring (docs +428/+130), fordi index'et bar begge — PR-teksten nævner
+> kun koden (ny fælde: «`git add <filer>` afgrænser ikke en commit»).
+> **Update klikket; BEVIST PÅ SKÆRM kl. 18:58:00**
+> (`screencapture-app-theboardroom-dk-kpis-2026-09-13-18_58_00.pdf`, ANLA
+> GLAS): siden går fra «MÅNED FOR MÅNED» direkte til «AI-ANALYSE», intet
+> hul, ingen tom sektion. Bliver: tabellen og synken til
+> `kpi_benchmarks`. Tre
 > kort fra målingen: triggeren `BENCHMARK_BELOW` (beslutning — den bruger
 > de samme intervaller og rører ugefokus), «tal der ikke kan passe» (Brick
 > Works resultatmargin 259,4 % `measured`, Doggybed −101,4 %; og navnet
 > `ebitda_margin_pct` lyver — formlen er resultat før skat), M/M-tonen.
 > Mangellisten 131 → 132 → 134 (kort 40 og branchelinjen fjernet som løst,
 > «Aftalt»- og CVR-branche-kortet omskrevet, fem nye). Tests: 2967 → 2977
-> → 2982.
+> → 2982 (194 filer; #834 ændrede ikke antallet).
 >
 > **12/9:** i repoet skete der INTET — #819 blev merget 11/9 kl. 10:55:26
 > UTC, og næste commit er ikke kommet. Om der skete noget i prod, Stripe
@@ -4347,7 +4357,7 @@ Kilde `recon-a4-forsidens-dom.md`.
   oprydningen (run-weekly-agent, digestens kode, podcasten ud) → 56 → 76 →
   82 → 57 → 29. A4: recon af hvordan linjen for en ny refleksion lukkes.
 
-### 13. september — doggybeds træk gik igennem (#563 og #572 bevist, #815 ubevist); stripe-webhook i ental og udrullet 12:04 UTC; kort 83 bygget og i drift (#820, merget 12:17:29 UTC, manage-advisor udrullet 12:18 UTC); /members bygning 1 FÆRDIG (#823, #824, #825 — merget 13:08:25, 13:33:58 og 13:54:51 UTC; panelet på skærm 15:38); bygning 2 LØST (#826, merget 14:13:00 UTC; fire funktioner udrullet 14:20 UTC); Guiden AFGJORT — dør i bygning 3, ankrene bliver; bygning 3 GJORT — /members og Guiden slettet (#828, merget 14:47:38 UTC; Update klikket; /members og /guide NotFound på skærm; manage-advisor udrullet 14:50 UTC); målt kl. 16:53 — sletningen fjernede intet i brug, NOTEN BEVIST I DRIFT, efterladenskaber fra tidligere sletninger fundet; kilderne fundet i A's recon; lækagen LUKKET (#830, merget 15:31:14 UTC) og udrullet 15:33 UTC; kort 40 GJORT — KPI-fallbacken fjernet helt (#832, merget 15:57:43 UTC; Update og skærmbevis åbne); branchelinjen på KPI-kortet fundet på skærmen kl. 18:00 — BESLUTTET: estimatet væk, forrige måneds eget tal i stedet — BYGGET (#833, merget 16:21:03 UTC) og BEVIST PÅ SKÆRM 18:26:57, som også beviser kort 40; brancheafsnittet MÅLT 18:28 (3 af 36 domme indenfor) og BESLUTTET: det dør — BYGGET i A, IKKE merget: #833's værn låste afsnittet (1 af 2982 fejlede kl. 18:40), og chatten meldte en PR #834 der ikke findes
+### 13. september — doggybeds træk gik igennem (#563 og #572 bevist, #815 ubevist); stripe-webhook i ental og udrullet 12:04 UTC; kort 83 bygget og i drift (#820, merget 12:17:29 UTC, manage-advisor udrullet 12:18 UTC); /members bygning 1 FÆRDIG (#823, #824, #825 — merget 13:08:25, 13:33:58 og 13:54:51 UTC; panelet på skærm 15:38); bygning 2 LØST (#826, merget 14:13:00 UTC; fire funktioner udrullet 14:20 UTC); Guiden AFGJORT — dør i bygning 3, ankrene bliver; bygning 3 GJORT — /members og Guiden slettet (#828, merget 14:47:38 UTC; Update klikket; /members og /guide NotFound på skærm; manage-advisor udrullet 14:50 UTC); målt kl. 16:53 — sletningen fjernede intet i brug, NOTEN BEVIST I DRIFT, efterladenskaber fra tidligere sletninger fundet; kilderne fundet i A's recon; lækagen LUKKET (#830, merget 15:31:14 UTC) og udrullet 15:33 UTC; kort 40 GJORT — KPI-fallbacken fjernet helt (#832, merget 15:57:43 UTC; Update og skærmbevis åbne); branchelinjen på KPI-kortet fundet på skærmen kl. 18:00 — BESLUTTET: estimatet væk, forrige måneds eget tal i stedet — BYGGET (#833, merget 16:21:03 UTC) og BEVIST PÅ SKÆRM 18:26:57, som også beviser kort 40; brancheafsnittet MÅLT 18:28 (3 af 36 domme indenfor) og BESLUTTET: det dør — #833's værn låste afsnittet (1 af 2982 fejlede kl. 18:40), værnet omskrevet, og #834 MERGET 16:52:02 UTC (bar også del 3 af denne bogføring — index'et bar begge); Update klikket og BEVIST PÅ SKÆRM 18:58:00 — afsnittet er væk, siden går fra «MÅNED FOR MÅNED» direkte til «AI-ANALYSE»
 
 Kilder: `~/Downloads/query-results-export-2026-09-13_14-01-42.csv` (prod,
 målt kl. 14:01, kolonner `noegle;sektion;vaerdi`, ordret),
@@ -5862,8 +5872,8 @@ kort fra målingen.** Kilder: `~/Downloads/recon-brancheafsnittet.md`
   (låst af `ingenDomUdenMaal.guard`). Kortet «CVR-branche og faktisk
   branche er to ting» er omskrevet: spørgsmålet ændrer sig når afsnittet
   dør — tilbage er triggeren og synken.
-- **BYGGET i vindue A 13/9 aften — IKKE MERGET ved skrivetidspunktet.**
-  Kilder: `~/Downloads/verifikation-brancheafsnittet.txt` og
+- **BYGGET i vindue A 13/9 aften** (skrevet FØR merge — merget som #834,
+  se nedenfor). Kilder: `~/Downloads/verifikation-brancheafsnittet.txt` og
   `~/Downloads/diff-brancheafsnittet.txt` (læst 13/9 aften). Én fil,
   `NoegletalView.tsx`, 1296 → 1240 linjer; verifikationen skriver +20/−76,
   og diff-filen tæller 73 fjernede og 20 tilføjede linjer (Jonas' «128 ud,
@@ -5903,9 +5913,15 @@ kort fra målingen.** Kilder: `~/Downloads/recon-brancheafsnittet.md`
   til det den stadig låser (kortets benchmark kommer gennem hooken); den
   anden assertion (`useKpiBenchmarks(companyId ?? undefined)`) er stadig
   sand. Alternativet — vende den til `not.toContain` som værn mod at
-  afsnittet bygges igen — er en ny låsning, ikke en oprydning. A retter
-  testen 13/9 aften; med den ene linje rettet forventes 194 filer / 2982
-  tests grønne. **Vigtigt:** A's verifikation meldte GRØNT i chatten; den
+  afsnittet bygges igen — er en ny låsning, ikke en oprydning. **Sådan
+  blev det rettet (i #834, 14 linjer):** it-blokken er OMSKREVET, ikke
+  bare fjernet — den hedder nu «kortets benchmark kommer gennem hooken —
+  ingen egen hentning i visningen» og låser
+  `useKpiBenchmarks(companyId ?? undefined)`; en kommentar i testen
+  (`:56-64`) forklarer hvad der stod, hvorfor præmissen skiftede (målt
+  18:28: 3 af 36) og at «værnet blev ikke smallere ved et uheld: der er
+  ikke længere nogen hentning at låse». Præmissen skiftede, låsen blev
+  flyttet til noget der findes. **Vigtigt:** A's verifikation meldte GRØNT i chatten; den
   havde kun kørt sin egen delmængde, ikke hele suiten. Filen
   `verifikation-brancheafsnittet.txt` bærer nu (læst 13/9 aften) den fulde
   kørsel med fejlen og STOP'et. Det er TREDJE gang 13/9 at commit-blokkens
@@ -5919,7 +5935,30 @@ kort fra målingen.** Kilder: `~/Downloads/recon-brancheafsnittet.md`
   aften: `gh pr view 834` → «Could not resolve to a PullRequest with the
   number of 834»; seneste PR er #833. Jonas fangede det: «at der var noget
   der fejlede betyder ikke noget?». Ny fælde i DEL 4: «Et tomt dokument er
-  ikke et grønt svar.»
+  ikke et grønt svar.» Chatten gentog fejlen to gange mere samme aften —
+  anden gang LÅ filen på disken og kunne have været læst; fælden er
+  skærpet med det.
+- **MERGET — PR #834 «feat: brancheafsnittet fjernes fra Noegletal —
+  intervallerne skelner ikke».** `gh pr view 834 --json mergedAt,mergeCommit`,
+  ordret:
+  «"mergeCommit":{"oid":"19e26ca110454afb7bc3e29167bd229adc7d3705"},"mergedAt":"2026-09-13T16:52:02Z"»
+  (18:52:02 dansk). Committen bar FIRE filer, +567/−101:
+  `NoegletalView.tsx` (−96 netto: 1296 → 1240 linjer),
+  `ingenBranchefallback.guard.test.ts` (14 linjer, værnet omskrevet) — OG
+  `docs/OVERLEVERING.md` (+428) og `docs/mangelliste.html` (+130): del 3 af
+  denne bogføring, som vindue B havde staged med `git add -A`, fulgte med,
+  fordi commit-blokken tog HELE index'et og ikke kun de to filer den
+  navngav. PR-teksten nævner kun koden. Ingen skade — bogføringen skulle
+  alligevel i main — men PR-teksten lyver om sit eget indhold (ny fælde i
+  DEL 4). Kommentaren der står tilbage i `NoegletalView.tsx:1062-1080`
+  bærer hele målingen (3 af 36, de 99-100 % dækningsbidrag, alderen på de
+  130 rækker, clamp-fejlen, hvorfor tabellen bliver), så afsnittet ikke
+  bygges igen uden den. **BEVIST PÅ SKÆRM 13/9 kl. 18:58:00 efter Update (`screencapture-app-theboardroom-dk-kpis-2026-09-13-18_58_00.pdf`, ANLA GLAS A/S, `/kpis`):**
+  siden går nu direkte fra sammenligningstabellen «MÅNED FOR MÅNED» til
+  «AI-ANALYSE». Afsnittet «BRANCHESAMMENLIGNING · MEDIER, KULTUR OG
+  KREATIVE ERHVERV» er væk, og der er hverken tom sektion eller hul hvor
+  det stod — præcis det bevis PR-teksten bad om. Tests efter rettelsen:
+  194 filer / 2982 (uændret antal — ingen test slettet, én omskrevet).
 - **Tre nye kort fra målingen.** *(a) «Triggeren BENCHMARK_BELOW fyrer på
   intervaller der ikke skelner»* — `generate-weekly-focus/index.ts:293-320`
   bruger `benchmark_min` fra de samme 130 rækker; målingen: 6 af 18 er
@@ -7245,7 +7284,30 @@ De konkrete ting der har kostet tid. Led efter dem.
   kan læses, skal det siges — «dokumentet er tomt hos mig, send teksten» —
   ikke fyldes ud med det forventede. Samme klasse som «Mål, påstå ikke»
   (DEL 1): et svar der ikke kan læses, er ikke et svar, og det forventede
-  udfald er ikke et bevis.
+  udfald er ikke et bevis. **Skærpet samme aften — chatten gentog fejlen
+  to gange mere.** Anden gang var årsagen en anden end den påstod: den
+  uploadede fil LÅ i uploadmappen og kunne være læst med et værktøj; det
+  var kun den indlejrede visning i beskeden der var tom. Chatten kaldte
+  den «tom» i stedet for at læse den — selv om den havde læst alle dagens
+  øvrige diffs fra samme mappe med samme værktøj. Jonas fangede begge
+  gange. *Sådan hænger stierne sammen:* `~/Downloads/` er JONAS' maskine —
+  det er dér Claude Code skriver, og derfor nævner prompterne den sti.
+  Chatten kan IKKE læse den mappe. Chatten kan kun læse filer Jonas
+  uploader, og de lander i uploadmappen; derfra læses de med et værktøj.
+  Reglen: når en vedhæftet fil ikke kan læses i beskeden, så læs den fra
+  uploadmappen med et værktøj — den er der. Er der ingen fil (fx
+  terminaloutput indsat direkte i chatten), så sig at det er tomt og bed
+  om teksten eller en måling. Antag aldrig resultatet.
+- **`git add <filer>` afgrænser ikke en commit — index'et gør.** 13/9
+  aften kørte vindue B `git add -A` (docs) mens chatten byggede
+  commit-blokke med `git add <to kodefiler>`. Committen tog HELE index'et,
+  så #834 bar både koden (`NoegletalView.tsx`,
+  `ingenBranchefallback.guard.test.ts`) og bogføringen
+  (`docs/OVERLEVERING.md` +428, `docs/mangelliste.html` +130), og
+  PR-teksten nævnte kun koden. Ingen skade — men PR-teksten løj om sit
+  eget indhold. Kør `git diff --cached --stat` OG læs den, før du
+  committer; eller ryd index'et først (`git restore --staged .`) og stage
+  præcis det committen skal bære. To vinduer på samme main deler ét index.
 - **En dom må ikke love mere end RLS giver.** Kort 60's første tælling
   brugte `status <> 'slettet'` og lovede at en tråd skjult af en rådgiver
   stadig tæller; medlemmets SELECT-policy viser kun `status = 'aktiv'`
