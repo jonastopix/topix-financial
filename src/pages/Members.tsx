@@ -158,7 +158,6 @@ const Members = () => {
   const [deleteAlsoUsers, setDeleteAlsoUsers] = useState(false);
 
   const [resendingInvitation, setResendingInvitation] = useState<string | null>(null);
-  const [removingMember, setRemovingMember] = useState<string | null>(null);
 
   // Rename state
   const [renamingCompany, setRenamingCompany] = useState<{ id: string; currentName: string } | null>(null);
@@ -684,27 +683,6 @@ const Members = () => {
     refetchMembers();
   };
 
-  const handleRemoveMember = async (company: CompanyData, member: CompanyMember) => {
-    if (member.role === 'owner') return;
-    setRemovingMember(member.user_id);
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const { data, error } = await supabase.functions.invoke('manage-advisor', {
-        body: { action: 'remove-member', target_user_id: member.user_id },
-        headers: { Authorization: `Bearer ${session?.access_token}` },
-      });
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
-      toast.success(`${member.full_name} fjernet fra ${company.name}`);
-      refetchMembers();
-    } catch (err: any) {
-      console.error("Remove member error:", err);
-      toast.error("Kunne ikke fjerne medlem: " + (err.message || "Ukendt fejl"));
-    } finally {
-      setRemovingMember(null);
-    }
-  };
-
   const handleResendInvitation = async (company: CompanyData) => {
     if (!company.invitationEmail) return;
     setResendingInvitation(company.id);
@@ -1189,11 +1167,9 @@ const Members = () => {
                 isAdmin={!!isAdmin}
                 isAdvisor={!!isAdvisor}
                 resendingInvitation={resendingInvitation}
-                removingMember={removingMember}
                 onRename={(id, name) => { setRenamingCompany({ id, currentName: name }); setRenameValue(name); }}
                 onInvite={(companyId, email) => { setStandaloneCompanyId(companyId); setStandaloneEmail(email); setStandaloneName(""); setStandaloneInviteOpen(true); }}
                 onResendInvitation={handleResendInvitation}
-                onRemoveMember={handleRemoveMember}
                 onDelete={(c) => { setDeleteTarget(c); setDeleteDialogOpen(true); }}
                 onEditCompany={(id) => { setEditCompanyId(id); setEditCompanyOpen(true); }}
                 getDisplayRevenue={getDisplayRevenue}

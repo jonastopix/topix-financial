@@ -1,29 +1,29 @@
 /**
  * src/lib/medlemsfjernelse.ts
  *
- * ÉN dom over «må dette medlem fjernes med remove-member» — den samme på
- * begge flader (MemberCompanyRow på /members og MemberDetail) og spejlet
- * ordret i edge-funktionen manage-advisor (Deno kan ikke importere herfra;
- * filhovedet i funktionen henviser hertil).
+ * ÉN dom over «må dette medlem fjernes fra virksomheden» — den samme i
+ * fladen (virksomhedssidens knap i VirksomhedView) og spejlet i
+ * edge-funktionen manage-advisor (Deno kan ikke importere herfra; dommen
+ * på serveren ligger i _shared/fjernFraVirksomhed.ts).
  *
- * BESLUTNING (Jonas, 4. september 2026): en owner kan ALDRIG fjernes med
- * remove-member. Sletningen er irreversibel — company_members, profiles OG
- * auth-brugeren ryger — og et værn der kun findes i fladen afhænger af
- * hvilken skærm knappen blev trykket på. Skal virksomheden væk, slettes
- * virksomheden (delete-company); skal owneren skiftes, er det en anden
- * handling, som ikke findes endnu.
+ * BESLUTNING (Jonas, 4. september 2026): en owner kan ALDRIG fjernes. Skal
+ * virksomheden væk, slettes virksomheden (delete-company); skal owneren
+ * skiftes, er det en anden handling, som ikke findes endnu.
  *
- * Målt 4/9: manage-advisor tillader kun admin at kalde remove-member
- * (per-action default-deny), så fladen må heller ikke vise knappen for en
- * rådgiver uden admin — ellers lover den noget serveren afviser.
- *
- * TO DOMME SIDEN 10/9 NAT, én pr. server-handling: maaFjerneMedlem gælder
- * remove-member (sletning af personen, admin-only) og maaFjerneFraVirksomhed
- * gælder fjern-fra-virksomhed (kun company_members-rækken, advisor ELLER
- * admin). #803 byggede den nye handling admin-only samme aften — Morten
- * kunne ikke bruge knappen (Morten-gaten, mangellistens kort 109). Fladen og
- * serveren (ADVISOR_ALLOWED_ACTIONS i manage-advisor) skal sige det samme;
+ * SIDEN 10/9 NAT: fjern-fra-virksomhed sletter kun company_members-rækken
+ * (advisor ELLER admin) og er reversibel — personen kan inviteres igen.
+ * #803 byggede den admin-only samme aften — Morten kunne ikke bruge knappen
+ * (Morten-gaten, mangellistens kort 109). Fladen og serveren
+ * (ADVISOR_ALLOWED_ACTIONS i manage-advisor) skal sige det samme;
  * kildeværnet i testen læser begge filer.
+ *
+ * KORT 83 (13/9): den gamle dom over sletning af PERSONEN (/members' knap,
+ * admin-only) er fjernet sammen med knappen og serverens gren. Grenen
+ * slettede company_members, profiles og auth-brugeren i tre skridt uden
+ * transaktion, og FK'erne på financial_report_facts (NO ACTION) lod
+ * auth-sletningen fejle efter de to første — personen stod halvt slettet.
+ * Rigtig sletning af en person har sit eget kort. Kildeværnet i testen
+ * fejler, hvis dommen eller action'en kommer tilbage.
  *
  * Ren funktion, ingen imports, testet i __tests__/medlemsfjernelse.test.ts.
  */
@@ -37,12 +37,6 @@ export const OWNER_ROLLE = "owner";
     dømme ens. */
 export function erOwner(role: string | null | undefined): boolean {
   return role === OWNER_ROLLE;
-}
-
-/** remove-member (sletning af PERSONEN, det gamle /members): kræver admin
-    (serverens per-action-gate) OG at målet ikke er owner. */
-export function maaFjerneMedlem(erAdmin: boolean, role: string | null | undefined): boolean {
-  return erAdmin && !erOwner(role);
 }
 
 /** fjern-fra-virksomhed (virksomhedssidens «Fjern fra virksomheden», 10/9,

@@ -3,19 +3,13 @@ import {
   Building2, MessageCircle, MessageSquare, FileText,
   ChevronDown, ChevronUp, Users, Globe, MapPin, User,
   Mail, Phone, Wallet, ExternalLink, Hash, Trash2,
-  X, Activity, Send, RotateCcw, CheckCircle2,
+  Activity, Send, RotateCcw, CheckCircle2,
   Loader2, Pencil, CalendarDays,
 } from "lucide-react";
-import {
-  AlertDialog, AlertDialogAction, AlertDialogContent,
-  AlertDialogHeader, AlertDialogTitle, AlertDialogDescription,
-  AlertDialogFooter, AlertDialogCancel, AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
 import { format } from "date-fns";
 import { da } from "date-fns/locale";
-import type { CompanyData, CompanyMember, LoginInfo } from "./types";
+import type { CompanyData, LoginInfo } from "./types";
 import { beloebKr, datoOgTid, stripeSagde, traekBadgeTekst } from "@/lib/traek";
-import { maaFjerneMedlem } from "@/lib/medlemsfjernelse";
 
 interface MemberCompanyRowProps {
   company: CompanyData;
@@ -24,11 +18,9 @@ interface MemberCompanyRowProps {
   isAdmin: boolean;
   isAdvisor: boolean;
   resendingInvitation: string | null;
-  removingMember: string | null;
   onRename: (id: string, currentName: string) => void;
   onInvite: (companyId: string, email: string) => void;
   onResendInvitation: (company: CompanyData) => void;
-  onRemoveMember: (company: CompanyData, member: CompanyMember) => void;
   onDelete: (company: CompanyData) => void;
   onEditCompany: (companyId: string) => void;
   getDisplayRevenue: (c: CompanyData) => { value: number; source: string } | null;
@@ -42,11 +34,9 @@ const MemberCompanyRow = ({
   isAdmin,
   isAdvisor,
   resendingInvitation,
-  removingMember,
   onRename,
   onInvite,
   onResendInvitation,
-  onRemoveMember,
   onDelete,
   onEditCompany,
   getDisplayRevenue,
@@ -333,44 +323,6 @@ const MemberCompanyRow = ({
                           </div>
                           <span className="text-[10px] text-muted-foreground">{m.role}</span>
                         </Link>
-                        {/* Owner-værnet (4/9): samme dom som MemberDetail og som
-                            manage-advisor afviser med 403 — admin OG ikke owner
-                            (src/lib/medlemsfjernelse.ts). */}
-                        {maaFjerneMedlem(isAdmin, m.role) && (
-                          <AlertDialog>
-                            <AlertDialogTrigger asChild>
-                              <button
-                                onClick={(e) => e.stopPropagation()}
-                                disabled={removingMember === m.user_id}
-                                className="opacity-0 group-hover:opacity-100 p-1 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-all disabled:opacity-50"
-                                title={`Fjern ${m.full_name}`}
-                              >
-                                {removingMember === m.user_id ? (
-                                  <Loader2 className="h-3 w-3 animate-spin" />
-                                ) : (
-                                  <X className="h-3 w-3" />
-                                )}
-                              </button>
-                            </AlertDialogTrigger>
-                            <AlertDialogContent>
-                              <AlertDialogHeader>
-                                <AlertDialogTitle>Fjern teammedlem?</AlertDialogTitle>
-                                <AlertDialogDescription>
-                                  Er du sikker på, at du vil fjerne <strong>{m.full_name}</strong> fra {c.name}? Denne handling kan ikke fortrydes.
-                                </AlertDialogDescription>
-                              </AlertDialogHeader>
-                              <AlertDialogFooter>
-                                <AlertDialogCancel>Annuller</AlertDialogCancel>
-                                <AlertDialogAction
-                                  onClick={() => onRemoveMember(c, m)}
-                                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                                >
-                                  Fjern
-                                </AlertDialogAction>
-                              </AlertDialogFooter>
-                            </AlertDialogContent>
-                          </AlertDialog>
-                        )}
                       </div>
                     ))}
                   </div>
