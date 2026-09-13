@@ -186,7 +186,7 @@ Deno.serve(async (req) => {
           company_id: milestoneCompanyId,
           deep_link: memberUserId
             ? `/members/${memberUserId}?section=milestones`
-            : `/members?companyId=${milestoneCompanyId}`,
+            : `/virksomhed/${milestoneCompanyId}`,
           dedup_key: `milestone_completed:${milestoneCompanyId}:${milestoneTitle || "unknown"}:${Date.now()}`,
         });
       }
@@ -270,7 +270,7 @@ Deno.serve(async (req) => {
           company_id: pulseCompanyId,
           deep_link: pulseMemberUserId
             ? `/members/${pulseMemberUserId}`
-            : `/members?companyId=${pulseCompanyId}`,
+            : `/virksomhed/${pulseCompanyId}`,
           dedup_key: `pulse_checkin:${pulseCompanyId}:${pulsePeriodKey || "unknown"}`,
         });
       }
@@ -289,7 +289,7 @@ Deno.serve(async (req) => {
           "https://app.theboardroom.dk";
         const reflectionLink = pulseMemberUserId
           ? `${appUrl}/members/${pulseMemberUserId}`
-          : `${appUrl}/members?companyId=${pulseCompanyId}`;
+          : `${appUrl}/virksomhed/${pulseCompanyId}`;
         const wentWell = pulseRow.went_well?.trim() || "Ingen kommentar";
         const challenge = pulseRow.biggest_challenge?.trim() || "Ingen kommentar";
         const helpNeeded = pulseRow.help_needed?.trim() || "Ingen specifik hjælp ønsket";
