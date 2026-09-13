@@ -17,7 +17,8 @@ const ROOTS = ["src", "supabase/functions"];
 const KALD_MOENSTRE: RegExp[] = [
   // supabase.functions.invoke("run-company-agent", { body: {...} })
   /invoke\(\s*["']run-company-agent["']/g,
-  // rå fetch mod funktions-URL'en (run-weekly-agent)
+  // rå fetch mod funktions-URL'en (ingen i dag — run-weekly-agent, den
+  // eneste, blev slettet 13/9; mønsteret bliver, så en ny rå fetch fanges)
   /\/functions\/v1\/run-company-agent/g,
 ];
 
@@ -68,9 +69,10 @@ describe("run-company-agent-kaldesteder — dry_run skal være eksplicit", () =>
     // 2026-08-25: 11 kaldesteder (AgentForslagPanel, ReportDebug,
     // ReportReviewDialog x4, reportCommit x2, useAuth, Onboarding,
     // run-weekly-agent). 2026-09-02 (trin 7): Onboarding-siden er slettet
-    // med porten — 10 tilbage. Falder tallet til nul-nære værdier, er
-    // mønstrene drevet fra koden — ikke koden fra kaldene.
-    expect(kaldesteder.length).toBeGreaterThanOrEqual(10);
+    // med porten — 10 tilbage. 2026-09-13: run-weekly-agent slettet (kørte
+    // aldrig) — 9 tilbage, alle invoke(). Falder tallet til nul-nære
+    // værdier, er mønstrene drevet fra koden — ikke koden fra kaldene.
+    expect(kaldesteder.length).toBeGreaterThanOrEqual(9);
   });
 
   it("hvert kaldested sætter dry_run eksplicit til true eller false", () => {

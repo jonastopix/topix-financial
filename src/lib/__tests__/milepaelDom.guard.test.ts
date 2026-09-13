@@ -26,9 +26,10 @@ const DAEKKEDE = [
   "src/components/hjemmebane/virksomhed/VirksomhedView.tsx",
   "src/hooks/useVirksomhed.ts",
   "src/lib/virksomhedsSignaler.ts",
-  // Digesten (8/9, efter #741): dømmer gennem _shared/digestMilepaele → milepaelDom.
-  "supabase/functions/_shared/digestMilepaele.ts",
-  "supabase/functions/send-monthly-digest/index.ts",
+  // Digesten (8/9, efter #741) dømte gennem _shared/digestMilepaele →
+  // milepaelDom; slettet 13/9 (oprydningen del 1) — værnet mistede to
+  // dækkede flader, ikke en lås. DAEKKEDE-løkken læser filerne uden
+  // existsSync, så slettede stier SKAL ud herfra.
 ];
 
 /** Motoren selv er den ENESTE der må skrive reglen — og kun disse to linjer. */

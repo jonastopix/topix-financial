@@ -14,9 +14,9 @@
  *
  * TO DOMME:
  *
- * 1. skalHaveUgensFokus — «er virksomheden der?». Samme regel som
- *    run-weekly-agent/index.ts:14-20 (status active + tier ≠ expired),
- *    som huset allerede havde skrevet for agentens ugekørsel; tier er
+ * 1. skalHaveUgensFokus — «er virksomheden der?». Samme regel (status
+ *    active + tier ≠ expired) som huset havde skrevet for agentens
+ *    ugekørsel i run-weekly-agent (slettet 13/9 — den kørte aldrig); tier er
  *    computeMembershipTier (_shared/membershipTier.ts), husets
  *    adgangsdom, regnet af kalderen og givet ind her. IKKE er_kunde og
  *    IKKE is_legat: er_kunde handler om rådgiverens lister (vores egen

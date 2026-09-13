@@ -23,7 +23,8 @@ describe("laesTjeklisteLukket — kun true er lukket", () => {
 
 describe("skrivTjeklisteLukket — bevarer resten af JSON'en", () => {
   it("sætter nøglen og rører ikke mail-præferencerne", () => {
-    const foer = { action_required: true, important: false, monthly_digest: true, pulse_reminders: false };
+    // 13/9: eksemplet brugte monthly_digest, som udgik med digesten — nu en levende nøgle.
+    const foer = { action_required: true, important: false, report_reminders: true, pulse_reminders: false };
     const efter = skrivTjeklisteLukket(foer, true);
     expect(efter).toEqual({ ...foer, tjekliste_lukket: true });
     expect(skrivTjeklisteLukket(efter, false)).toEqual({ ...foer, tjekliste_lukket: false });

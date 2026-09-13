@@ -72,7 +72,8 @@ const STATUS_LABELS: Record<string, string> = {
 const TEMPLATE_LABELS: Record<string, string> = {
   "report-reminder":  "Rapport-påmindelse",
   "pulse-reminder":   "Pulse-påmindelse",
-  "monthly-digest":   "Månedlig digest",
+  // "monthly-digest" udgik 13/9 med send-monthly-digest; gamle rækker viser
+  // det rå template_name (fallback i templateLabel) — ærligt for historik.
   "invitation":       "Invitation",
   "signup":           "Signup-bekræftelse",
   "recovery":         "Password reset",

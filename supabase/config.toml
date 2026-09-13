@@ -30,8 +30,6 @@ project_id = "loiavmastgeieqyiwyyr"
     verify_jwt = false
   [functions.run-company-agent]
     verify_jwt = false
-  [functions.run-weekly-agent]
-    verify_jwt = false
   [functions.send-invitation-email]
     verify_jwt = false
   [functions.send-slack-chat-notification]
@@ -104,8 +102,6 @@ project_id = "loiavmastgeieqyiwyyr"
   [functions.podcast-rss]
     verify_jwt = false
   [functions.generate-weekly-focus]
-    verify_jwt = true
-  [functions.send-monthly-digest]
     verify_jwt = true
   [functions.event-reminders]
     verify_jwt = true

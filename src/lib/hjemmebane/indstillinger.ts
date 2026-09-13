@@ -23,19 +23,22 @@
  * og fladens kildekode mod company_fornyelse.
  *
  * NOTIFIKATIONERNE (afgjort 10/9, Jonas' udgangspunkt: (b) hvis mindst to
- * ting kan slås fra): medlemmet KAN slå seks ting til og fra — fem
+ * ting kan slås fra): medlemmet KAN slå fem ting til og fra — fire
  * mailtyper i profiles.notification_email_prefs (learnt af koden:
  * action_required/important i send-notification-email, report_reminders i
- * send-report-reminder, monthly_digest i send-monthly-digest,
- * intro_reminders i intro-reminder-cron) og Ugens Fokus
+ * send-report-reminder, intro_reminders i intro-reminder-cron) og Ugens Fokus
  * (companies.weekly_focus_enabled, som generate-weekly-focus' gate læser,
  * #749). Så fanen bliver en RIGTIG indstilling. To ting rettes samtidig:
  *   - pulse_reminders vises ikke længere: send-pulse-reminder blev
  *     unscheduleret 12/6 (mailfortegnelsen M13) — en kontakt til en mail
  *     der aldrig kommer, er en løgn. Nøglen bevares i JSON'en (flet).
- *   - beskrivelserne siger det koden gør: digesten kommer d. 22 (flyttet
- *     fra d. 5 den 10/8), rapportpåmindelsen d. 7/15/20 KUN når en måned
- *     mangler, og «ny AI-analyse klar» mailes ikke (info-prioritet).
+ *   - beskrivelserne siger det koden gør: rapportpåmindelsen d. 7/15/20
+ *     KUN når en måned mangler, og «ny AI-analyse klar» mailes ikke
+ *     (info-prioritet).
+ *   - monthly_digest («Månedsoverblik», d. 22) vises ikke længere (13/9):
+ *     jobbet blev slukket i prod 11/9 og send-monthly-digest er slettet —
+ *     samme regel som pulse_reminders: en kontakt til en mail der aldrig
+ *     kommer, er en løgn. Nøglen bevares i JSON'en (flet).
  * Rådgiverens tekst («Du modtager Slack-notifikationer…») er væk: rådgivere
  * sendes til /konto og så aldrig den fane.
  */
@@ -185,7 +188,7 @@ export function betalingsLinjer(perioder: readonly PeriodeInput[], traek: readon
 
 // ── Notifikationerne ──────────────────────────────────────────────────────
 
-export type EmailIndstillingNoegle = "action_required" | "important" | "report_reminders" | "monthly_digest" | "intro_reminders";
+export type EmailIndstillingNoegle = "action_required" | "important" | "report_reminders" | "intro_reminders";
 
 export interface EmailIndstilling {
   noegle: EmailIndstillingNoegle;
@@ -193,17 +196,16 @@ export interface EmailIndstilling {
   beskrivelse: string;
 }
 
-/** De fem mailtyper koden faktisk læser — i den rækkefølge de vises. */
+/** De fire mailtyper koden faktisk læser — i den rækkefølge de vises. */
 export const EMAIL_INDSTILLINGER: readonly EmailIndstilling[] = [
   { noegle: "action_required", label: "Når dine tal venter på dig", beskrivelse: "Rapport klar til gennemsyn, eller en rapport vi ikke kunne læse." },
   { noegle: "important", label: "Opdateringer", beskrivelse: "Svar fra din rådgiver, nye opslag i Community og påmindelser om events." },
   { noegle: "report_reminders", label: "Rapportpåmindelser", beskrivelse: "Den 7., 15. og 20. i måneden — kun når en måned mangler." },
-  { noegle: "monthly_digest", label: "Månedsoverblik", beskrivelse: "Den 22. i måneden: dine tal, milepæle og ulæste beskeder." },
   { noegle: "intro_reminders", label: "Din sparring med Morten", beskrivelse: "En påmindelse om den inkluderede sparring, indtil du har booket den." },
 ];
 
 /** Nøgler der findes i gemte data men ikke længere vises — bevares uændret ved gem. */
-export const SKJULTE_NOEGLER = ["pulse_reminders"] as const;
+export const SKJULTE_NOEGLER = ["pulse_reminders", "monthly_digest"] as const;
 
 export type EmailPraeferencer = Record<EmailIndstillingNoegle, boolean>;
 
