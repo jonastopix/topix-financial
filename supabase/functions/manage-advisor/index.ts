@@ -97,9 +97,13 @@ Deno.serve(async (req) => {
     // Rådgiverhandlinger (advisor ELLER admin — husets mønster, has_role
     // arver): list, og fra 10/9 nat fjern-fra-virksomhed. Den blev bygget
     // admin-only i #803 samme aften — en gate der kun slipper Jonas igennem,
-    // er ikke en gate (mangellistens kort 109, Morten-gaten). Sletning af
-    // en PERSON (remove-member), virksomheder, rådgiverroller og oprydning
-    // forbliver admin. Kildeværn: src/lib/__tests__/medlemsfjernelse.test.ts.
+    // er ikke en gate (mangellistens kort 109, Morten-gaten). Virksomheder,
+    // rådgiverroller og oprydning forbliver admin. Sletning af en PERSON
+    // findes ikke her længere (kort 83, 13/9): den gamle gren slettede
+    // company_members, profiles og auth-brugeren i tre skridt uden
+    // transaktion, og FK'erne på financial_report_facts (NO ACTION) lod
+    // auth-sletningen fejle EFTER de to første — personen stod halvt slettet.
+    // Kildeværn: src/lib/__tests__/medlemsfjernelse.test.ts.
     const ADVISOR_ALLOWED_ACTIONS = ['list', 'fjern-fra-virksomhed'];
     if (!callerIsAdmin) {
       if (!action || !ADVISOR_ALLOWED_ACTIONS.includes(action)) {
@@ -260,8 +264,8 @@ Deno.serve(async (req) => {
     // uploads bliver. Invitationen nulstilles IKKE (den er arkivsporet, og
     // en pending invitation ville koble personen på igen ved næste load).
     // Hænger samtalen på personen, flyttes den til owneren FØRST — fejler
-    // det, er intet sket. Owner afvises (403). Sletning af en person er
-    // remove-member nedenfor — en anden handling, en anden beslutning.
+    // det, er intet sket. Owner afvises (403). Sletning af en person er en
+    // anden handling med sit eget kort — den findes ikke i denne funktion.
     if (action === 'fjern-fra-virksomhed') {
       const companyId = typeof body.company_id === 'string' ? body.company_id : null;
       if (!target_user_id || !companyId) {
@@ -333,100 +337,6 @@ Deno.serve(async (req) => {
 
       console.log(`[manage-advisor] fjern-fra-virksomhed: user=${target_user_id} fjernet fra company=${companyId} af ${userId}${dom.flytSamtale ? ` (samtalen flyttet til ${andenOwner})` : ''}`);
       return new Response(JSON.stringify({ success: true, samtale_flyttet: dom.flytSamtale }), {
-        status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      });
-    }
-
-    if (action === 'remove-member') {
-      if (!target_user_id) {
-        return new Response(JSON.stringify({ error: 'Missing target_user_id' }), {
-          status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        });
-      }
-
-      // ── Owner-værn (Jonas, 4. september 2026) ──
-      // En owner kan ALDRIG fjernes med remove-member. Grenen herunder er
-      // irreversibel: company_members, profiles OG auth-brugeren slettes.
-      // Indtil i dag lå værnet kun i fladen (MemberCompanyRow skjulte
-      // knappen for role === 'owner'), og MemberDetail viste den for alle —
-      // så en admin kunne slette en owner afhængigt af hvilken skærm
-      // knappen blev trykket på. Skal virksomheden væk, bruges
-      // delete-company; skal owneren skiftes, er det en anden handling, som
-      // ikke findes endnu.
-      //
-      // Opslaget tager ALLE målets rækker: company_members har kun
-      // UNIQUE(company_id, user_id), så en bruger kan i princippet stå i
-      // flere virksomheder — og sletningen nedenfor rammer alle hans rækker
-      // (.eq('user_id', …)), ikke én virksomhed. Én owner-række er derfor
-      // nok til at afvise. Dommen spejler src/lib/medlemsfjernelse.ts
-      // (erOwner), som fladerne bruger.
-      const { data: targetMemberships, error: roleErr } = await adminSupabase
-        .from('company_members')
-        .select('company_id, role')
-        .eq('user_id', target_user_id);
-      if (roleErr) throw roleErr;
-
-      const ownerRows = (targetMemberships || []).filter((m: { role: string }) => m.role === 'owner');
-      if (ownerRows.length > 0) {
-        console.warn(`[manage-advisor] DENIED remove-member: target=${target_user_id} er owner i ${ownerRows.length} virksomhed(er); caller=${userId}`);
-        return new Response(JSON.stringify({
-          error: 'Ejeren af en virksomhed kan ikke fjernes. Skal virksomheden lukkes, slettes virksomheden i stedet.',
-          reason: 'target_is_owner',
-        }), {
-          status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        });
-      }
-
-      // Reset any invitations accepted by this user back to pending
-      const { count: resetByAcceptedBy } = await adminSupabase
-        .from('company_invitations')
-        .update({ status: 'pending', accepted_at: null, accepted_by: null })
-        .eq('accepted_by', target_user_id)
-        .select('id', { count: 'exact', head: true });
-
-      // Fallback: if no invitations found via accepted_by, try email-based match
-      if (!resetByAcceptedBy || resetByAcceptedBy === 0) {
-        // Get the user's profile email and company
-        const { data: profileData } = await adminSupabase
-          .from('profiles')
-          .select('email')
-          .eq('user_id', target_user_id)
-          .maybeSingle();
-        const { data: membershipData } = await adminSupabase
-          .from('company_members')
-          .select('company_id')
-          .eq('user_id', target_user_id)
-          .maybeSingle();
-
-        if (profileData?.email && membershipData?.company_id) {
-          await adminSupabase
-            .from('company_invitations')
-            .update({ status: 'pending', accepted_at: null, accepted_by: null })
-            .eq('company_id', membershipData.company_id)
-            .ilike('email', profileData.email.trim())
-            .eq('status', 'accepted');
-        }
-      }
-
-      // Delete company_members
-      const { error: cmErr } = await adminSupabase
-        .from('company_members')
-        .delete()
-        .eq('user_id', target_user_id);
-      if (cmErr) throw cmErr;
-
-      // Delete profiles
-      const { error: profErr } = await adminSupabase
-        .from('profiles')
-        .delete()
-        .eq('user_id', target_user_id);
-      if (profErr) throw profErr;
-
-      // Delete auth user
-      const { error: authErr } = await adminSupabase.auth.admin.deleteUser(target_user_id);
-      if (authErr) throw authErr;
-
-      return new Response(JSON.stringify({ success: true, message: 'Medlem fjernet' }), {
         status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     }
