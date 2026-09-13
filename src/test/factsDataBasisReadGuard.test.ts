@@ -38,8 +38,8 @@ const FORVENTEDE_UNDTAGELSER = [
   "src/lib/hjemmebane/hentefejl.ts",
   "src/lib/raadgiverHentefejl.ts",
   "supabase/functions/run-company-agent/index.ts",
-  "supabase/functions/run-weekly-agent/index.ts",
-  "supabase/functions/send-monthly-digest/index.ts",
+  // 13/9: run-weekly-agent og send-monthly-digest slettet (oprydningen del 1)
+  // — to undtagelser færre, ikke to læsere der er begyndt at filtrere.
   "supabase/functions/send-notification-email/index.ts",
   "supabase/functions/send-report-reminder/index.ts",
   "supabase/functions/slet-medlemsdata-cron/index.ts",

@@ -92,32 +92,40 @@ describe("betalingen — perioder først, så træk; tom liste når intet findes
   });
 });
 
-describe("notifikationerne — fem mailtyper koden læser, ingen døde kontakter", () => {
-  it("nøglerne er dem functions læser; pulse_reminders er skjult men bevares", () => {
-    expect(EMAIL_INDSTILLINGER.map((i) => i.noegle)).toEqual(["action_required", "important", "report_reminders", "monthly_digest", "intro_reminders"]);
+// 13/9: fem nøgler blev fire — monthly_digest udgik da send-monthly-digest
+// blev slettet (jobbet slukket i prod 11/9). Den er skjult som
+// pulse_reminders, ikke glemt: gemte værdier bevares af fletPraeferencer.
+describe("notifikationerne — fire mailtyper koden læser, ingen døde kontakter", () => {
+  it("nøglerne er dem functions læser; pulse_reminders og monthly_digest er skjult men bevares", () => {
+    expect(EMAIL_INDSTILLINGER.map((i) => i.noegle)).toEqual(["action_required", "important", "report_reminders", "intro_reminders"]);
     expect(SKJULTE_NOEGLER).toContain("pulse_reminders");
+    expect(SKJULTE_NOEGLER).toContain("monthly_digest");
     expect(EMAIL_INDSTILLINGER.map((i) => i.noegle)).not.toContain("pulse_reminders");
+    expect(EMAIL_INDSTILLINGER.map((i) => i.noegle)).not.toContain("monthly_digest");
   });
 
-  it("beskrivelserne siger det koden gør: d. 22, d. 7/15/20, ikke d. 5 og ingen AI-analyse-mail", () => {
+  it("beskrivelserne siger det koden gør: d. 7/15/20, ikke d. 22 (digesten er væk), ikke d. 5 og ingen AI-analyse-mail", () => {
     const alt = EMAIL_INDSTILLINGER.map((i) => i.beskrivelse).join(" ");
-    expect(alt).toContain("22.");
+    expect(alt).not.toContain("22.");
     expect(alt).toContain("7., 15. og 20.");
     expect(alt).not.toContain("5. i måneden");
     expect(alt).not.toMatch(/AI-analyse/);
   });
 
   it("laesPraeferencer: alt til medmindre udtrykkeligt false; tåler null og skrald", () => {
-    expect(laesPraeferencer(null)).toEqual({ action_required: true, important: true, report_reminders: true, monthly_digest: true, intro_reminders: true });
+    expect(laesPraeferencer(null)).toEqual({ action_required: true, important: true, report_reminders: true, intro_reminders: true });
     expect(laesPraeferencer("x")).toEqual(laesPraeferencer(null));
-    expect(laesPraeferencer({ important: false, monthly_digest: "nej" }).important).toBe(false);
-    expect(laesPraeferencer({ important: false, monthly_digest: "nej" }).monthly_digest).toBe(true);
+    expect(laesPraeferencer({ important: false, report_reminders: "nej" }).important).toBe(false);
+    expect(laesPraeferencer({ important: false, report_reminders: "nej" }).report_reminders).toBe(true);
+    // En gemt monthly_digest læses ikke — den er ikke længere en indstilling.
+    expect(laesPraeferencer({ monthly_digest: false })).toEqual(laesPraeferencer(null));
   });
 
   it("fletPraeferencer: valgene skrives, ukendte og skjulte nøgler bevares", () => {
-    const gemt = { pulse_reminders: false, noget_andet: 1, important: true };
-    const ud = fletPraeferencer(gemt, { action_required: true, important: false, report_reminders: false, monthly_digest: true, intro_reminders: true });
-    expect(ud).toEqual({ pulse_reminders: false, noget_andet: 1, action_required: true, important: false, report_reminders: false, monthly_digest: true, intro_reminders: true });
+    // monthly_digest: false er en ægte gemt værdi fra før 13/9 — den skal overleve et gem.
+    const gemt = { pulse_reminders: false, monthly_digest: false, noget_andet: 1, important: true };
+    const ud = fletPraeferencer(gemt, { action_required: true, important: false, report_reminders: false, intro_reminders: true });
+    expect(ud).toEqual({ pulse_reminders: false, monthly_digest: false, noget_andet: 1, action_required: true, important: false, report_reminders: false, intro_reminders: true });
     expect(gemt.important).toBe(true); // input urørt
   });
 });

@@ -75,7 +75,9 @@ describe("run-company-agent — trigger- og default-værn (beslutning 2026-08-25
     const ktBlok = rcaSource.match(/const KNOWN_TRIGGERS = \[([\s\S]*?)\]/);
     expect(ktBlok, "KNOWN_TRIGGERS-arrayet ikke fundet — regex-forudsætningen holder ikke").toBeTruthy();
     const triggers = [...ktBlok![1].matchAll(/"([a-z_]+)"/g)].map((m) => m[1]);
-    expect(triggers.length).toBeGreaterThanOrEqual(6);
+    // 13/9: weekly_cron udgik af KNOWN_TRIGGERS sammen med run-weekly-agent
+    // (kørte aldrig) — sentinellen er fem triggere, ikke en forglemmelse.
+    expect(triggers.length).toBeGreaterThanOrEqual(5);
 
     const pbBlok = rcaSource.match(/const POOL_BLOCKLIST[\s\S]*?\{([\s\S]*?)\};/);
     expect(pbBlok, "POOL_BLOCKLIST-objektet ikke fundet — regex-forudsætningen holder ikke").toBeTruthy();

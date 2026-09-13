@@ -230,10 +230,12 @@ async function checkFile(path: string): Promise<FileResult> {
 
   const hasHttp = HTTP_ENTRY.test(raw);
 
-  // Skip files without an HTTP entry-point. This includes cron-only
-  // functions (legat-reminder-cron, run-weekly-agent) — Deno.cron has
-  // no HTTP overlay and is invoked internally by Supabase, so the
-  // auth invariant doesn't apply.
+  // Skip files without an HTTP entry-point, i.e. cron-only functions —
+  // Deno.cron has no HTTP overlay and is invoked internally by Supabase,
+  // so the auth invariant doesn't apply. None exist today (13/9):
+  // run-weekly-agent was deleted (it never ran — the runtime does not
+  // execute Deno.cron) and legat-reminder-cron got Deno.serve on 10/9.
+  // The branch stays so a future cron-only function is skipped, not failed.
   if (!hasHttp) return { file: path, status: "skip-no-http" };
 
   const hasSr = SR_KEY_REF.test(raw) && HAS_CREATECLIENT.test(raw);

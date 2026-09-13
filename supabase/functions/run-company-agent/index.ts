@@ -670,7 +670,6 @@ async function executeTool(name: string, args: any, adminClient: any, trigger: s
       // (not always "ny rapport").
       const titleByTrigger: Record<string, string> = {
         pulse_submitted: "AI-agent har reageret på refleksion",
-        weekly_cron: "AI-agents ugentlige gennemgang",
         anomaly_detected: "AI-agent har detekteret anomali",
         onboarding: "AI-agent har modtaget ny founder",
         report_committed: "AI-agent har analyseret ny rapport",
@@ -1032,7 +1031,11 @@ Deno.serve(async (req) => {
     "report_committed",
     "anomaly_detected",
     "pulse_submitted",
-    "weekly_cron",
+    // weekly_cron udgik 13/9: run-weekly-agent (den eneste kalder) er
+    // slettet — den kørte aldrig (kun Deno.cron, som runtimen ikke
+    // eksekverer; nul weekly_cron-rækker i agent_runs nogensinde). Navnet
+    // fjernes her, så et service-role-kald ikke kan starte en mandagskørsel
+    // ingen har besluttet — fail-closed, som resten af listen.
     "onboarding",
     "company_review",
   ];
@@ -1089,10 +1092,9 @@ Deno.serve(async (req) => {
     report_committed: ["write_chat_message", "notify_advisor"],
     anomaly_detected: ["write_chat_message", "notify_advisor"],
     pulse_submitted: ["write_chat_message", "notify_advisor", "write_company_action", "create_milestone"],
-    weekly_cron: ["write_chat_message", "notify_advisor"],
     onboarding: ["write_chat_message", "notify_advisor"],
     // Virksomhedsgennemgang (rådgiver-igangsat): samme stramhed som
-    // weekly_cron.
+    // rapport- og anomali-kørslerne.
     company_review: ["write_chat_message", "notify_advisor"],
   };
   const blocked = POOL_BLOCKLIST[trigger] ?? [];
@@ -1164,8 +1166,8 @@ Deno.serve(async (req) => {
     }
 
     // ── company_review: perioden findes selv, og rapporteringsstatus dømmes ──
-    // Perioden: nyeste committede fact — run-weekly-agents dom (dens
-    // index.ts:31-42), samme runtime. INGEN facts er IKKE en fejl: det er
+    // Perioden: nyeste committede fact (nyeste period_key i
+    // financial_report_facts), samme runtime. INGEN facts er IKKE en fejl: det er
     // præcis den situation agenten skal forholde sig til (beslutningen
     // 2026-08-25); perioden falder da tilbage til indeværende måned, som
     // bærer dedup-nøgler og agent_runs-rækken.
@@ -1257,8 +1259,6 @@ Virksomhedens alder: ${companyData.start_date ? (() => { const months = Math.flo
 
 ${trigger === "pulse_submitted" 
   ? `Founder har netop afleveret månedlig REFLEKSION (pulse check-in) for ${period_label}. Dette er IKKE en rapport, og refleksionen vedrører UDELUKKENDE ${period_label}.\n\nHent refleksions-svaret med get_pulse_checkins. Du må hente facts med get_company_facts hvis det hjælper dig med at forstå konteksten.\n\nOpdatér weekly focus med udgangspunkt i hvad founder selv har skrevet i deres REFLEKSION, særligt deres største udfordring.\n\nDu må IKKE skrive i founderens chat. Du må heller ikke kalde write_company_action, create_milestone eller andre tools der laver synlige aktioner. Pulse-refleksion er founderens stille check-in, ikke en trigger for opgaver.`
-  : trigger === "weekly_cron"
-  ? `Det er mandag morgen og agenten gennemgår automatisk virksomhedens seneste data.\n\nFølg din arbejdsgang: get_previous_agent_messages først, dernæst minimum get_company_facts, get_handout_levers, get_application_context og get_member_content_progress — plus pulse, milestones og KPI-mål. Saml det vigtigste at fokusere på denne uge i weekly focus-kortet. Du må IKKE skrive i founderens chat.`
   : trigger === "anomaly_detected"
   ? `KRITISK ALERT: Der er detekteret en finansiel anomali for ${period_label}.\n\nDetaljer: ${period_key}\n\nHent get_financial_alerts og get_company_facts omgående. Er der et klart, konkret næste skridt founder bør tage, så opret det som handlingsopgave med write_company_action. Du må IKKE skrive i founderens chat. Opdatér IKKE weekly focus med negativ information.`
   : trigger === "onboarding"

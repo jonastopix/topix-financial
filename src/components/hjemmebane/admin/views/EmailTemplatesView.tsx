@@ -54,8 +54,8 @@ import { EditorBar, EditorShell, type EditorAction, type EditorHandle } from "..
  * bekræftelse i bundlinjen) i stedet for browserens `confirm()`.
  *
  * TOM HØJRESIDE = OVERSIGTEN: det den gamle side viste OVER listen
- * (info-teksten om overstyring, «Månedlig digest» med «Send digest nu»,
- * sendt-loggen og platform-links til brug i skabeloner) bor i højre felt
+ * (info-teksten om overstyring, sendt-loggen og platform-links til brug i
+ * skabeloner; «Månedlig digest»-kortet udgik 13/9 med funktionen) bor i højre felt
  * når ingen skabelon er valgt. Splittet har ingen plads til det over
  * en 380 px-liste, og det er sidens indhold, ikke pynt.
  *
@@ -752,54 +752,10 @@ export const EmailTemplatesView = () => {
   const [dirty, setDirty] = useState(false);
   const [search, setSearch] = useState("");
   const [showLog, setShowLog] = useState(false);
-  const [sendingDigest, setSendingDigest] = useState<"test" | "alle" | null>(null);
-  const [bekraeftDigestAlle, setBekraeftDigestAlle] = useState(false);
   const [sendingTestId, setSendingTestId] = useState<string | null>(null);
   const [savedAt, setSavedAt] = useState<Date | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const editorRef = useRef<EditorHandle>(null);
-
-  // Digesten (10/9): standarden er en TEST til admin selv. «Send til alle»
-  // kræver et andet klik på en bekræftelse og et eksplicit send_til_alle i
-  // body'en — funktionen afviser en tom body. Før sendte ét klik til alle
-  // founders med aktivt medlemskab, når som helst, uden nøgle.
-  const handleSendDigestTest = async () => {
-    if (sendingDigest) return;
-    const email = user?.email;
-    if (!email) {
-      toast.error("Kunne ikke finde din email");
-      return;
-    }
-    setSendingDigest("test");
-    try {
-      const { data, error } = await supabase.functions.invoke("send-monthly-digest", {
-        body: { test_email: email },
-      });
-      if (error) throw error;
-      if (data?.sent > 0) toast.success(`Test-digest sendt til ${email}`);
-      else toast.info("Ingen virksomhed havde indhold til en digest lige nu");
-    } catch {
-      toast.error("Test-digest kunne ikke sendes");
-    }
-    setSendingDigest(null);
-  };
-
-  const handleSendDigestAlle = async () => {
-    if (sendingDigest) return;
-    setSendingDigest("alle");
-    setBekraeftDigestAlle(false);
-    try {
-      const { data, error } = await supabase.functions.invoke("send-monthly-digest", {
-        body: { send_til_alle: true },
-      });
-      if (error) throw error;
-      const dedup = data?.skipped_dedup ? ` · ${data.skipped_dedup} havde allerede fået den denne måned` : "";
-      toast.success(`Digest sendt til ${data?.sent ?? 0} founders${dedup}`);
-    } catch {
-      toast.error("Digest kunne ikke sendes");
-    }
-    setSendingDigest(null);
-  };
 
   const handleSendTest = async (t: EmailTemplate) => {
     if (sendingTestId) return;
@@ -1086,43 +1042,8 @@ export const EmailTemplatesView = () => {
             </p>
           </div>
 
-          {/* Månedlig digest — test som standard, «til alle» bag en bekræftelse (10/9) */}
-          <HbCard className="p-5">
-            <div className="flex flex-wrap items-center gap-4">
-              <div className="min-w-0 flex-1">
-                <h3 className="font-editorial text-lg font-medium text-hb-ink">Månedlig digest</h3>
-                <p className="mt-0.5 text-sm text-hb-ink-soft">
-                  Sendes automatisk den 22. i hver måned kl. 08:00. Hver founder får højst én pr. måned — også hvis der sendes manuelt.
-                </p>
-              </div>
-              <div className="flex shrink-0 flex-wrap gap-2">
-                <HbButton variant="secondary" className="h-9 px-4 text-sm" onClick={handleSendDigestTest} disabled={sendingDigest !== null}>
-                  {sendingDigest === "test" ? "Sender..." : "Send test til mig"}
-                </HbButton>
-                {!bekraeftDigestAlle && (
-                  <HbButton variant="secondary" className="h-9 px-4 text-sm" onClick={() => setBekraeftDigestAlle(true)} disabled={sendingDigest !== null}>
-                    {sendingDigest === "alle" ? "Sender..." : "Send til alle nu"}
-                  </HbButton>
-                )}
-              </div>
-            </div>
-            {bekraeftDigestAlle && (
-              <div className="mt-4 flex flex-wrap items-center gap-3 border-t border-hb-line pt-4">
-                <p className="min-w-0 flex-1 text-sm text-hb-ink">
-                  Sender digesten til <strong className="font-medium">alle founders</strong> med aktivt medlemskab nu. De der allerede har fået månedens digest, springes over.
-                </p>
-                <div className="flex shrink-0 gap-2">
-                  <HbButton variant="secondary" className="h-9 px-4 text-sm" onClick={() => setBekraeftDigestAlle(false)}>
-                    Fortryd
-                  </HbButton>
-                  <HbButton className="h-9 px-4 text-sm" onClick={handleSendDigestAlle}>
-                    Ja, send til alle
-                  </HbButton>
-                </div>
-              </div>
-            )}
-          </HbCard>
-
+          {/* Digest-kortet («Månedlig digest», send test / send til alle) udgik 13/9:
+              send-monthly-digest er slettet og jobbet slukket i prod 11/9. */}
           {/* Send log — grid-listen (EmailLogView-formen), fem kolonner */}
           <div>
             <HbButton variant="secondary" className="h-9 px-4 text-sm" onClick={() => setShowLog((v) => !v)}>
