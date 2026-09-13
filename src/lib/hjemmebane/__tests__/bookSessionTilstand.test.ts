@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  afgoerBookSession,
   afgoerMortenTilstand,
   visMortenKolonne,
+  type BookSessionInput,
   type MortenTilstand,
   type MortenTilstandInput,
 } from "../bookSessionTilstand";
@@ -141,5 +143,133 @@ describe("visMortenKolonne", () => {
     for (const tilstand of synlige) {
       expect(visMortenKolonne(tilstand)).toBe(true);
     }
+  });
+});
+
+// ── Begge rettigheder (13/9) ──────────────────────────────────────────────
+//
+// Medlemskabet indeholder én session med hver rådgiver (Jonas 13/9). Jonas'
+// kort er ALTID til stede: inkluderet indtil retten er brugt, derefter købt.
+// Mortens forsvinder som i dag. Altså altid præcis to kort, indtil Mortens er
+// brugt — så ét.
+
+const begge = (overrides: Partial<BookSessionInput> = {}): BookSessionInput => ({
+  isAdvisor: false,
+  membershipTier: "full",
+  companyId: "c-1",
+  company: { intro_session_used_at: null, jonas_session_used_at: null, contract_end_date: FREMTID },
+  inkluderedeLoading: false,
+  mortenBooking: null,
+  jonasBooking: null,
+  ...overrides,
+});
+const BRUGT = "2026-08-01T10:00:00Z";
+
+describe("afgoerBookSession — Mortens dom er uændret og uafhængig af Jonas' ret", () => {
+  it("nyt medlem: begge kort er 'book' — to kort", () => {
+    expect(afgoerBookSession(begge(), NU)).toEqual({ morten: "book", jonas: { kort: "inkluderet", tilstand: "book" } });
+  });
+
+  it("Mortens tilstande følger afgoerMortenTilstand præcis, uanset Jonas' ret", () => {
+    const c = (intro: string | null) => ({ intro_session_used_at: intro, jonas_session_used_at: BRUGT, contract_end_date: FREMTID });
+    expect(afgoerBookSession(begge({ company: c(null) }), NU).morten).toBe("book");
+    expect(afgoerBookSession(begge({ company: c(BRUGT), inkluderedeLoading: true }), NU).morten).toBe("loading");
+    expect(afgoerBookSession(begge({ company: c(BRUGT) }), NU).morten).toBe("none");
+    expect(afgoerBookSession(begge({ company: c(BRUGT), mortenBooking: { status: "booking_sent" } }), NU).morten).toBe("link-ready");
+    expect(afgoerBookSession(begge({ company: c(BRUGT), mortenBooking: { status: "booked" } }), NU).morten).toBe("booked");
+    expect(afgoerBookSession(begge({ company: c(BRUGT), mortenBooking: { status: "cancelled" } }), NU).morten).toBe("cancelled");
+    expect(afgoerBookSession(begge({ isAdvisor: true }), NU).morten).toBe("hidden");
+  });
+
+  it("de to domme er samme maskine: afgoerMortenTilstand og afgoerBookSession().morten er enige på hele matricen", () => {
+    const retter = [null, BRUGT];
+    const bookinger = [null, { status: "booking_sent" }, { status: "booked" }, { status: "cancelled" }, { status: "pending" }];
+    for (const ret of retter) for (const loading of [false, true]) for (const booking of bookinger) for (const isAdvisor of [false, true]) {
+      const company = { intro_session_used_at: ret, jonas_session_used_at: null, contract_end_date: FREMTID };
+      const gammel = afgoerMortenTilstand(input({ isAdvisor, company, mortenBookingLoading: loading, mortenBooking: booking }), NU);
+      const ny = afgoerBookSession(begge({ isAdvisor, company, inkluderedeLoading: loading, mortenBooking: booking }), NU).morten;
+      expect(ny).toBe(gammel);
+    }
+  });
+});
+
+describe("afgoerBookSession — Jonas-kortets to ansigter", () => {
+  const c = (jonas: string | null) => ({ intro_session_used_at: null, jonas_session_used_at: jonas, contract_end_date: FREMTID });
+
+  it("retten ikke brugt → inkluderet/book", () => {
+    expect(afgoerBookSession(begge({ company: c(null) }), NU).jonas).toEqual({ kort: "inkluderet", tilstand: "book" });
+  });
+
+  it("retten brugt, opslaget henter → inkluderet/loading (det købte kort blinker ikke op)", () => {
+    expect(afgoerBookSession(begge({ company: c(BRUGT), inkluderedeLoading: true }), NU).jonas).toEqual({ kort: "inkluderet", tilstand: "loading" });
+  });
+
+  it("retten brugt, linket sendt men tiden ikke valgt → inkluderet/link-ready (linket vises kun her)", () => {
+    expect(afgoerBookSession(begge({ company: c(BRUGT), jonasBooking: { status: "booking_sent" } }), NU).jonas).toEqual({ kort: "inkluderet", tilstand: "link-ready" });
+    // Enhver anden status end booked/cancelled er link-ready — som Mortens.
+    expect(afgoerBookSession(begge({ company: c(BRUGT), jonasBooking: { status: "pending" } }), NU).jonas).toEqual({ kort: "inkluderet", tilstand: "link-ready" });
+  });
+
+  it("retten brugt og tiden valgt (booked) → købt: «derefter skal boksen skifte til den betalte»", () => {
+    expect(afgoerBookSession(begge({ company: c(BRUGT), jonasBooking: { status: "booked" } }), NU).jonas).toEqual({ kort: "koebt" });
+  });
+
+  it("retten brugt og aflyst → købt (invitee-aflysning: retten forbliver brugt; host-aflysning nulstiller retten og giver book igen)", () => {
+    expect(afgoerBookSession(begge({ company: c(BRUGT), jonasBooking: { status: "cancelled" } }), NU).jonas).toEqual({ kort: "koebt" });
+    expect(afgoerBookSession(begge({ company: c(null), jonasBooking: { status: "cancelled" } }), NU).jonas).toEqual({ kort: "inkluderet", tilstand: "book" });
+  });
+
+  it("retten brugt uden række (sat i hånden af admin) → købt", () => {
+    expect(afgoerBookSession(begge({ company: c(BRUGT), jonasBooking: null }), NU).jonas).toEqual({ kort: "koebt" });
+  });
+
+  it("ikke berettiget (rådgiver, abonnent, udløbet, kontrakt i fortiden, ingen virksomhed) → købt — som det ubetingede Jonas-kort i dag", () => {
+    expect(afgoerBookSession(begge({ isAdvisor: true }), NU).jonas).toEqual({ kort: "koebt" });
+    expect(afgoerBookSession(begge({ membershipTier: "subscriber" }), NU).jonas).toEqual({ kort: "koebt" });
+    expect(afgoerBookSession(begge({ membershipTier: "expired" }), NU).jonas).toEqual({ kort: "koebt" });
+    expect(afgoerBookSession(begge({ company: { intro_session_used_at: null, jonas_session_used_at: null, contract_end_date: FORTID } }), NU).jonas).toEqual({ kort: "koebt" });
+    expect(afgoerBookSession(begge({ company: { intro_session_used_at: null, jonas_session_used_at: null, contract_end_date: null } }), NU).jonas).toEqual({ kort: "koebt" });
+    expect(afgoerBookSession(begge({ companyId: null, company: null }), NU).jonas).toEqual({ kort: "koebt" });
+  });
+
+  it("fuldt medlem med virksomhed, men company-rækken er ikke hentet endnu → inkluderet/loading, ikke et blink af det købte", () => {
+    expect(afgoerBookSession(begge({ company: null }), NU).jonas).toEqual({ kort: "inkluderet", tilstand: "loading" });
+    // Rådgivere og abonnenter venter ikke: de får det købte kort med det samme.
+    expect(afgoerBookSession(begge({ company: null, isAdvisor: true }), NU).jonas).toEqual({ kort: "koebt" });
+    expect(afgoerBookSession(begge({ company: null, membershipTier: "subscriber" }), NU).jonas).toEqual({ kort: "koebt" });
+  });
+
+  it("Jonas' ret er uafhængig af Mortens: Mortens brugt ændrer intet for Jonas, og omvendt", () => {
+    const mortenBrugt = { intro_session_used_at: BRUGT, jonas_session_used_at: null, contract_end_date: FREMTID };
+    const ud = afgoerBookSession(begge({ company: mortenBrugt }), NU);
+    expect(ud.morten).toBe("none");
+    expect(ud.jonas).toEqual({ kort: "inkluderet", tilstand: "book" });
+    const jonasBrugt = { intro_session_used_at: null, jonas_session_used_at: BRUGT, contract_end_date: FREMTID };
+    const ud2 = afgoerBookSession(begge({ company: jonasBrugt }), NU);
+    expect(ud2.morten).toBe("book");
+    expect(ud2.jonas).toEqual({ kort: "koebt" });
+  });
+});
+
+describe("afgoerBookSession — antal kort: to indtil Mortens er brugt, så ét", () => {
+  const antal = (t: ReturnType<typeof afgoerBookSession>) => (visMortenKolonne(t.morten) ? 2 : 1);
+
+  it("nyt medlem: to kort", () => {
+    expect(antal(afgoerBookSession(begge(), NU))).toBe(2);
+  });
+  it("Jonas' ret brugt (og booket) — stadig to kort: Jonas-kortet skifter, det forsvinder ikke", () => {
+    const c = { intro_session_used_at: null, jonas_session_used_at: BRUGT, contract_end_date: FREMTID };
+    expect(antal(afgoerBookSession(begge({ company: c, jonasBooking: { status: "booked" } }), NU))).toBe(2);
+  });
+  it("Mortens ret brugt uden række: ét kort — Jonas', som er det købte når hans ret også er brugt", () => {
+    const c = { intro_session_used_at: BRUGT, jonas_session_used_at: BRUGT, contract_end_date: FREMTID };
+    const t = afgoerBookSession(begge({ company: c }), NU);
+    expect(antal(t)).toBe(1);
+    expect(t.jonas).toEqual({ kort: "koebt" });
+  });
+  it("rådgiver: ét kort — det købte", () => {
+    const t = afgoerBookSession(begge({ isAdvisor: true }), NU);
+    expect(antal(t)).toBe(1);
+    expect(t.jonas).toEqual({ kort: "koebt" });
   });
 });

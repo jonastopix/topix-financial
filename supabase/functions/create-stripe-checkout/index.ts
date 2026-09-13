@@ -81,7 +81,7 @@ Deno.serve(async (req) => {
       subscription_current_period_end: member.companies?.subscription_current_period_end ?? null,
     });
     if (tier !== "full") {
-      return new Response(JSON.stringify({ error: "Kun fulde medlemmer kan købe en 1:1-session." }), {
+      return new Response(JSON.stringify({ error: "Kun fulde medlemmer kan købe en session med Jonas." }), {
         status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }

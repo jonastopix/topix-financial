@@ -63,7 +63,7 @@
  *   (andet)       Ukendt status → ingen linje.
  *
  * «BETALT» udledes af rækken alene: amount_dkk > 0 (sporet koster penge —
- * gratis rækker har 0 og hører til introSession) OG status er forbi
+ * inkluderede rækker har 0 og hører til introSession) OG status er forbi
  * pending. Kun stripe-webhook flytter en betalt række forbi pending, og
  * kun efter Stripes checkout.session.completed. amount_dkk > 0 alene
  * betyder kun at sessionen KOSTER, ikke at den er betalt.
@@ -103,10 +103,38 @@
 
 import { formatIntroTid } from "@/lib/introSession";
 
+/**
+ * DE TRE SPOR (13/9, recon-de-tre-sessioner.md F10): medlemskabet indeholder
+ * ÉN session med hver rådgiver, og dertil kan sessioner med Jonas købes.
+ * Rækken bærer beviset for hvem der betaler i to kolonner:
+ *
+ *   morten_inkluderet  advisor 'morten' · amount_dkk 0   (ret: companies.intro_session_used_at)
+ *   jonas_inkluderet   advisor 'jonas'  · amount_dkk 0   (ret: companies.jonas_session_used_at)
+ *   jonas_koebt        advisor 'jonas'  · amount_dkk > 0 (Stripe)
+ *
+ * Før 13/9 faldt «jonas + 0» mellem to stole: amount 0 blev sendt til
+ * «gratis_spor» (læst som Mortens), og virksomhedssiden tog kun
+ * advisor 'morten' som den inkluderede linje — en inkluderet Jonas-række
+ * forsvandt fra begge. Sporet dømmes derfor ÉT sted, her, og fladen
+ * fordeler rækkerne efter det. «ukendt» er alt andet (fx 'morten' med en
+ * pris — ingen kode skriver den).
+ */
+export type SessionSpor = "morten_inkluderet" | "jonas_inkluderet" | "jonas_koebt" | "ukendt";
+
+export function afgoerSessionSpor(r: Pick<BetaltBooking, "advisor" | "amount_dkk"> | null | undefined): SessionSpor {
+  if (!r) return "ukendt";
+  const inkluderet = !(r.amount_dkk > 0);
+  if (r.advisor === "morten") return inkluderet ? "morten_inkluderet" : "ukendt";
+  if (r.advisor === "jonas") return inkluderet ? "jonas_inkluderet" : "jonas_koebt";
+  return "ukendt";
+}
+
 export interface BetaltBooking {
+  /** session_bookings.advisor: 'jonas' | 'morten' — sammen med amount_dkk beviset for sporet. */
+  advisor: string;
   /** session_bookings.status — se listen i filhovedet. */
   status: string;
-  /** Prisen i kr. 0 = gratis spor (introSession); > 0 = betalt spor. */
+  /** Prisen i kr. 0 = inkluderet spor (introSession, Morten ELLER Jonas); > 0 = købt spor. */
   amount_dkk: number;
   /** Sat af calendly-webhook ved invitee.created. Læses IKKE af dommen (13/9): tiden er beviset. */
   calendly_event_uri: string | null;
@@ -121,7 +149,7 @@ export interface BetaltBooking {
 }
 
 export type BetaltTilstand =
-  /** Rækken er ikke på det betalte spor (amount_dkk = 0). */
+  /** Rækken er på et inkluderet spor (amount_dkk = 0 — Morten eller Jonas), ikke det købte. */
   | "gratis_spor"
   /** Checkout startet, aldrig betalt. Vises ikke. */
   | "ikke_gennemfoert"
@@ -164,7 +192,12 @@ export function erBetalt(b: Pick<BetaltBooking, "status" | "amount_dkk"> | null 
 export function afgoerBetaltSession(b: BetaltBooking | null | undefined, nu: Date): BetaltDom {
   const tom: BetaltDom = { tilstand: "ukendt", betalt: null, start: null, slut: null };
   if (!b) return tom;
-  if (!(b.amount_dkk > 0)) return { ...tom, tilstand: "gratis_spor" };
+  // Sporet først (13/9): kun det købte spor får en betalt-dom. De to
+  // inkluderede spor hører til introSession; en ukendt kombination
+  // (fx 'morten' med en pris) får ingen linje.
+  const spor = afgoerSessionSpor(b);
+  if (spor === "morten_inkluderet" || spor === "jonas_inkluderet") return { ...tom, tilstand: "gratis_spor" };
+  if (spor !== "jonas_koebt") return tom;
   if (b.status === "pending") return { ...tom, tilstand: "ikke_gennemfoert" };
   if (!erBetalt(b)) return tom;
 
@@ -198,7 +231,7 @@ export function afgoerBetaltSession(b: BetaltBooking | null | undefined, nu: Dat
   }
 }
 
-/** Linjens ord på virksomhedssiden. null = ingen linje (pending, gratis spor, ukendt). */
+/** Linjens ord på virksomhedssiden. null = ingen linje (pending, inkluderet spor, ukendt). */
 export function betaltSessionTekst(dom: BetaltDom): string | null {
   const betaltDato = dom.betalt ? ` ${formatIntroTid(dom.betalt, false)}` : "";
   switch (dom.tilstand) {

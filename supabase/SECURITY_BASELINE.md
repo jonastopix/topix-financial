@@ -496,9 +496,14 @@ legacy name) and `CALENDLY_WEBHOOK_SIGNING_KEY_JONAS` (Jonas' subscription) —
 one per Calendly subscription, so rotating one never 401s the other (Calendly
 retries 24h, then sets the subscription `disabled`, unrecoverable). A missing
 key is skipped; no key at all → 503. The matching key is logged, not enforced:
-the row's `advisor` gates the only side effect (reopening
-`companies.intro_session_used_at`, Morten's track only — pure, tested in
-`_shared/calendlyWebhookDom.ts`).
+the row's `advisor` + `amount_dkk` gate the only side effect (reopening the
+included right on a host cancellation: `companies.intro_session_used_at` for
+Morten's included row, `companies.jonas_session_used_at` for Jonas' included
+row, migration `20260913220000`; a paid Jonas row (`amount_dkk > 0`) never
+reopens anything — pure, tested in `_shared/calendlyWebhookDom.ts`).
+`create-free-intro-booking` (Bucket A) serves both included tracks from 13/9
+via body `{ advisor }` (default `morten`); the atomic gate
+`UPDATE companies … WHERE <right> IS NULL` is the same for both columns.
 
 ### Member read on own agreement (`company_perioder`, `company_traek`)
 ```sql

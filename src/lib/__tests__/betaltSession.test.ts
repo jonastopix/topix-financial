@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { afgoerBetaltSession, betaltSessionTekst, erBetalt, type BetaltBooking } from "@/lib/betaltSession";
+import { afgoerBetaltSession, afgoerSessionSpor, betaltSessionTekst, erBetalt, type BetaltBooking } from "@/lib/betaltSession";
 
 // De betalte 1:1-sessioner (kort 76, 13/9): fladen siger det rækken VED —
 // betalt og link sendt — og påstår aldrig «afholdt» uden en tid der er
@@ -17,6 +17,7 @@ import { afgoerBetaltSession, betaltSessionTekst, erBetalt, type BetaltBooking }
 
 const NU = new Date("2026-09-13T12:00:00Z");
 const b = (over: Partial<BetaltBooking> = {}): BetaltBooking => ({
+  advisor: "jonas",
   status: "booking_sent",
   amount_dkk: 500,
   calendly_event_uri: null,
@@ -54,9 +55,18 @@ describe("afgoerBetaltSession — tilstanden", () => {
     expect(dom.tilstand).toBe("ikke_gennemfoert");
     expect(betaltSessionTekst(dom)).toBeNull();
   });
-  it("gratis spor (amount_dkk 0): hører til introSession, ingen linje her", () => {
-    const dom = afgoerBetaltSession(b({ amount_dkk: 0, status: "booked", calendly_event_uri: "https://api.calendly.com/scheduled_events/x" }), NU);
-    expect(dom.tilstand).toBe("gratis_spor");
+  it("inkluderet spor (amount_dkk 0, Morten ELLER Jonas): hører til introSession, ingen linje her", () => {
+    const morten = afgoerBetaltSession(b({ advisor: "morten", amount_dkk: 0, status: "booked", calendly_event_uri: "https://api.calendly.com/scheduled_events/x" }), NU);
+    expect(morten.tilstand).toBe("gratis_spor");
+    expect(betaltSessionTekst(morten)).toBeNull();
+    // Jonas' inkluderede (13/9): samme dom — den er IKKE købt, uanset advisor.
+    const jonas = afgoerBetaltSession(b({ advisor: "jonas", amount_dkk: 0, status: "booked" }), NU);
+    expect(jonas.tilstand).toBe("gratis_spor");
+    expect(betaltSessionTekst(jonas)).toBeNull();
+  });
+  it("ukendt spor ('morten' med en pris — ingen kode skriver den): ingen linje", () => {
+    const dom = afgoerBetaltSession(b({ advisor: "morten", amount_dkk: 500 }), NU);
+    expect(dom.tilstand).toBe("ukendt");
     expect(betaltSessionTekst(dom)).toBeNull();
   });
   it("paid (skrives ikke i dag): betalt uden link", () => {
@@ -158,5 +168,48 @@ describe("ordene — dansk tid, siger kun det rækken ved", () => {
       expect(betaltSessionTekst(afgoerBetaltSession(b({ status, start_tid: "2026-01-05T09:00:00Z", slut_tid: "2026-01-05T09:45:00Z" }), NU)) ?? "").not.toMatch(/afholdt/i);
     }
     expect(betaltSessionTekst(afgoerBetaltSession(b({ status: "booked", start_tid: "2026-01-05T09:00:00Z" }), NU))).toMatch(/afholdt/);
+  });
+});
+
+// ── De tre spor (13/9, recon-de-tre-sessioner.md F10) ──────────────────────
+//
+// «jonas + 0» faldt før mellem to stole: amount 0 blev sendt til «gratis_spor»
+// (læst som Mortens) og virksomhedssiden tog kun advisor 'morten' som den
+// inkluderede linje. Sporet dømmes nu ét sted, og fladen fordeler efter det.
+
+describe("afgoerSessionSpor — de tre spor kan skelnes", () => {
+  it("Morten inkluderet: advisor 'morten' + amount_dkk 0", () => {
+    expect(afgoerSessionSpor({ advisor: "morten", amount_dkk: 0 })).toBe("morten_inkluderet");
+  });
+  it("Jonas inkluderet: advisor 'jonas' + amount_dkk 0 — det spor der ikke fandtes før 13/9", () => {
+    expect(afgoerSessionSpor({ advisor: "jonas", amount_dkk: 0 })).toBe("jonas_inkluderet");
+  });
+  it("Jonas købt: advisor 'jonas' + amount_dkk > 0", () => {
+    expect(afgoerSessionSpor({ advisor: "jonas", amount_dkk: 500 })).toBe("jonas_koebt");
+    expect(afgoerSessionSpor({ advisor: "jonas", amount_dkk: 1 })).toBe("jonas_koebt");
+  });
+  it("de tre spor er parvis forskellige — ingen række kan lande på to", () => {
+    const spor = [
+      afgoerSessionSpor({ advisor: "morten", amount_dkk: 0 }),
+      afgoerSessionSpor({ advisor: "jonas", amount_dkk: 0 }),
+      afgoerSessionSpor({ advisor: "jonas", amount_dkk: 500 }),
+    ];
+    expect(new Set(spor).size).toBe(3);
+  });
+  it("ukendt: 'morten' med pris, ukendt advisor, negativ/ugyldig pris, null", () => {
+    expect(afgoerSessionSpor({ advisor: "morten", amount_dkk: 500 })).toBe("ukendt");
+    expect(afgoerSessionSpor({ advisor: "Jonas", amount_dkk: 0 })).toBe("ukendt");
+    expect(afgoerSessionSpor({ advisor: "", amount_dkk: 0 })).toBe("ukendt");
+    expect(afgoerSessionSpor(null)).toBe("ukendt");
+    expect(afgoerSessionSpor(undefined)).toBe("ukendt");
+    // Ikke-positiv pris er «inkluderet» — NaN/negativ ender ikke som købt.
+    expect(afgoerSessionSpor({ advisor: "jonas", amount_dkk: -1 })).toBe("jonas_inkluderet");
+    expect(afgoerSessionSpor({ advisor: "jonas", amount_dkk: Number.NaN })).toBe("jonas_inkluderet");
+  });
+  it("betalt-dommen følger sporet: kun jonas_koebt får en betalt-tilstand", () => {
+    expect(afgoerBetaltSession(b({ advisor: "jonas", amount_dkk: 500 }), NU).tilstand).toBe("betalt_link_sendt");
+    expect(afgoerBetaltSession(b({ advisor: "jonas", amount_dkk: 0 }), NU).tilstand).toBe("gratis_spor");
+    expect(afgoerBetaltSession(b({ advisor: "morten", amount_dkk: 0 }), NU).tilstand).toBe("gratis_spor");
+    expect(afgoerBetaltSession(b({ advisor: "morten", amount_dkk: 500 }), NU).tilstand).toBe("ukendt");
   });
 });
