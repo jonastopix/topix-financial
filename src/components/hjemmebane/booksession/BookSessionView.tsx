@@ -372,13 +372,17 @@ export const BookSessionView = () => {
       {showMortenColumn && (
         <HbCard className="p-8 space-y-8">
 
-          {/* Avatar-header: konstant i alle tilstande. */}
+          {/* Avatar-header: konstant i alle tilstande. Ingen spor-etiket
+              («… · inkluderet») under titlen: kortet ER
+              sessionen, saa linjen navngav kun det medlemmet allerede ser og
+              gentog knappen nedenunder. Navnet bruges stadig hvor det er en
+              label i en liste — Virksomhed, admin-dialogen, indstillinger,
+              Stripe-kvitteringen (13/9). */}
           <div className="flex items-center gap-4">
             <AdvisorAvatar src="/morten-larsen.jpg" alt="Morten" initials="ML" />
             <div>
               <h2 className="font-semibold text-hb-ink">Morten Larsen</h2>
               <p className="text-sm text-hb-ink-soft">Investor og rådgiver, The Boardroom</p>
-              <p className="text-xs text-hb-ink-soft mt-0.5">Session med Morten · inkluderet</p>
             </div>
           </div>
 
@@ -388,27 +392,40 @@ export const BookSessionView = () => {
             <FaktaTiles minutter={30} undertekst="Personlig sparring" />
           )}
 
-          {/* "book": beskrivelse + book-knap. */}
+          {/* "book": beskrivelse + book-knap. De to broedtekster deler rammen
+              — medlemmet bestemmer indholdet (Jonas 13/9: «det er ikke os, der
+              saetter rammerne for den snak») — men ikke ordene, for staar de
+              ens side om side laeses kun den foerste. Forskellen er raadgiverens
+              blik: Morten er INVESTOR og ser forretningen udefra; Jonas er
+              PARTNER og kender platformen og tallene indefra. Overskriften
+              baerer forskellen foerst. «Onboarding» og «strategi-session» er
+              forbudte — den foerste er for snaever for Jonas' session (den
+              udloeber ikke, og mange behoever det ikke), den anden for Mortens. */}
           {mortenState === "book" && (
             <>
               <div>
-                <h3 className="font-semibold text-hb-ink mb-2">Det kan du få ud af det</h3>
+                <h3 className="font-semibold text-hb-ink mb-2">Blikket udefra</h3>
                 <p className="text-sm text-hb-ink-soft">
-                  Som medlem får du én session med Morten inkluderet. Du bestemmer selv hvad
-                  den skal bruges til. Det kan være en strategisk gennemgang, sparring på en
-                  konkret beslutning, et regnskab du vil have øjne på, eller noget helt fjerde.
-                  Du sidder for bordenden.
+                  Morten er investor og ser din forretning udefra, med det blik en investor
+                  lægger på en virksomhed. Du bestemmer selv hvad sessionen skal bruges til.
+                  Det kan være en beslutning du står over for, en plan du vil have udfordret,
+                  eller et regnskab du vil have friske øjne på. Du sætter dagsordenen, og
+                  Morten stiller de spørgsmål en investor ville stille.
                 </p>
               </div>
 
               <div className="border-t border-hb-line pt-6">
-                <div className="flex items-baseline justify-between mb-4">
-                  <div>
-                    <div className="flex items-baseline gap-2">
-                      <p className="text-lg font-bold text-hb-ink">Inkluderet i dit medlemskab</p>
-                      <p className="text-sm text-hb-ink-soft">én session per virksomhed</p>
-                    </div>
-                  </div>
+                {/* «Én session per virksomhed» er kortets vigtigste oplysning:
+                    retten kan bruges én gang, af én i virksomheden, og derefter
+                    er den vaek (Morten) eller afloest af den koebte (Jonas). Den
+                    stod som graa fodnote paa linje med «Inkluderet»; nu staar den
+                    paa egen linje i ink med konsekvensen skrevet ud (13/9). */}
+                <div className="mb-4 space-y-1">
+                  <p className="text-lg font-bold text-hb-ink">Inkluderet i dit medlemskab</p>
+                  <p className="text-sm font-medium text-hb-ink">
+                    Én session per virksomhed, ikke per bruger. Når den er booket, er den brugt
+                    for hele virksomheden.
+                  </p>
                 </div>
                 <HbButton
                   className="w-full"
@@ -457,14 +474,15 @@ export const BookSessionView = () => {
       {/* Jonas-kortet: ALTID til stede. Inkluderet indtil retten er brugt, derefter koebt. */}
       <HbCard className="p-8 space-y-8">
 
+        {/* Samme som Morten-headeren: ingen spor-etiket («· inkluderet» /
+            «· købt»). Ansigtet er allerede synligt i kortets krop — den
+            inkluderede via «Inkluderet i dit medlemskab», den koebte via
+            45 minutter, prisen og «Book og betal» (13/9). */}
         <div className="flex items-center gap-4">
           <AdvisorAvatar src="/jonas-herlev.png" alt="Jonas Herlev" initials="JH" />
           <div>
             <h2 className="font-semibold text-hb-ink">Jonas Herlev</h2>
             <p className="text-sm text-hb-ink-soft">Partner & Advisor, The Boardroom</p>
-            <p className="text-xs text-hb-ink-soft mt-0.5">
-              {jonasKort.kort === "inkluderet" ? "Session med Jonas · inkluderet" : "Session med Jonas · købt"}
-            </p>
           </div>
         </div>
 
@@ -476,23 +494,28 @@ export const BookSessionView = () => {
 
             {jonasKort.tilstand === "book" && (
               <>
+                {/* Modstykket til Mortens tekst — se kommentaren ved hans
+                    "book"-blok. Her er blikket indefra: platformen og tallene. */}
                 <div>
-                  <h3 className="font-semibold text-hb-ink mb-2">Det kan du få ud af det</h3>
+                  <h3 className="font-semibold text-hb-ink mb-2">Blikket indefra</h3>
                   <p className="text-sm text-hb-ink-soft">
-                    Som medlem får du én session med Jonas inkluderet. Du bestemmer selv hvad den
-                    skal bruges til. Det kan være en gennemgang af platformen og dine tal, sparring
-                    på en konkret beslutning, eller noget helt fjerde. Du sidder for bordenden.
+                    Jonas er partner i The Boardroom og kender platformen og dine tal indefra.
+                    Du bestemmer selv hvad sessionen skal bruges til. Det kan være en gennemgang
+                    af det platformen viser om din virksomhed, hjælp til at læse dine nøgletal,
+                    eller sparring på en beslutning hvor tallene skal med. Du sætter dagsordenen,
+                    og Jonas tager udgangspunkt i det der allerede ligger i dit Boardroom.
                   </p>
                 </div>
 
                 <div className="border-t border-hb-line pt-6">
-                  <div className="flex items-baseline justify-between mb-4">
-                    <div>
-                      <div className="flex items-baseline gap-2">
-                        <p className="text-lg font-bold text-hb-ink">Inkluderet i dit medlemskab</p>
-                        <p className="text-sm text-hb-ink-soft">én session per virksomhed</p>
-                      </div>
-                    </div>
+                  {/* Samme vaegt som paa Mortens kort; konsekvensen er en anden:
+                      retten afloeses af den koebte session, ikke af ingenting. */}
+                  <div className="mb-4 space-y-1">
+                    <p className="text-lg font-bold text-hb-ink">Inkluderet i dit medlemskab</p>
+                    <p className="text-sm font-medium text-hb-ink">
+                      Én session per virksomhed, ikke per bruger. Når den er booket, kan du købe
+                      flere sessioner med Jonas til medlemspris.
+                    </p>
                   </div>
                   <HbButton
                     className="w-full"
