@@ -1,6 +1,6 @@
 # Overlevering
 
-> ## 13/9 — START HER (skrevet 13/9 eftermiddag; opdateret 13/9 sen eftermiddag efter #826 og igen efter udrulningen kl. 14:20 UTC — og igen 13/9 aften efter bygning 3, og igen efter kort 40 og #833, og igen 13/9 aften efter oprydningen del 1 (#836), og igen 13/9 sen aften efter kort 56 (#837) og bogføringen af oprydningen (#838), og igen 13/9 sen aften efter Calendly-kæden (#842) — HEAD `4bf3d405` = #842, merget 13/9 kl. 20:04:19 UTC; prod målt kl. 14:01, `~/Downloads/query-results-export-2026-09-13_14-01-42.csv`)
+> ## 13/9 — START HER (skrevet 13/9 eftermiddag; opdateret 13/9 sen eftermiddag efter #826 og igen efter udrulningen kl. 14:20 UTC — og igen 13/9 aften efter bygning 3, og igen efter kort 40 og #833, og igen 13/9 aften efter oprydningen del 1 (#836), og igen 13/9 sen aften efter kort 56 (#837) og bogføringen af oprydningen (#838), og igen 13/9 sen aften efter Calendly-kæden (#842), og igen 13/9 sen aften efter den inkluderede session med Jonas (#844) og reconen «efter sessionen» — HEAD `7ba2a3b1` = #844, merget 13/9 kl. 20:42:15 UTC; prod målt kl. 14:01, `~/Downloads/query-results-export-2026-09-13_14-01-42.csv`)
 >
 > **Bevist i dag — doggybeds træk gik igennem.** Sektion `a_doggybed_traek`,
 > ordret: «betalt · in_1UF8tR3CvBmCx5PthFjFOjFc;a_doggybed_traek;2026-09-13T09:36:24.309794+00:00
@@ -356,14 +356,61 @@
 > (20:48). Værtsidentiteten (`created_by`, `event_memberships[].user`)
 > logges, håndhæves ikke — måles først i function-logs. To fejl af
 > chatten samme aften (udklipsholderen; bash-syntaks i zsh) — DEL 4.
-> Tokenet skal stadig revokeres. Mangellisten 134 → 133. **HEAD er
-> `4bf3d405` = #842.** Vindue A bygger nu den INKLUDEREDE Jonas-session.
+> Tokenet skal stadig revokeres. Mangellisten 134 → 133. HEAD var
+> `4bf3d405` = #842; den inkluderede Jonas-session er bogført nedenfor.
+>
+> **DEN INKLUDEREDE SESSION MED JONAS ER I DRIFT — PR #844 merget 13/9
+> kl. 20:42:15 UTC (§20).** «feat: den inkluderede session med Jonas kan
+> bookes (kort: de tre sessionstyper)», mergeCommit `7ba2a3b1`; sytten
+> filer, +1157/−287; tests 3002 → 3049; check:edge-auth PASS. RETTEN: ny
+> kolonne `companies.jonas_session_used_at` (migration `20260913220000`,
+> kørt i Lovable 22:42 — begge kolonner timestamptz, begge nullable) —
+> søster til Mortens `intro_session_used_at`, ikke en tabel: en tabel
+> ville flytte asymmetrien, ikke fjerne den. FLADEN: én dom for begge
+> rettigheder — Morten-kortet forsvinder når retten er brugt, Jonas-kortet
+> findes altid og skifter fra inkluderet til købt (Jonas 13/9, ordret i
+> §20); «link-ready» hører til det INKLUDEREDE kort, for den vej sender
+> ingen mail. Linket bærer rækkens id fra start — første spor bygget med
+> Calendly-kæden lukket; abonnementet fra 22:16 dækker hele
+> organisationen. Secret `JONAS_CALENDLY_EVENT_SLUG` = «intro-snak»
+> (Calendly-eventet «Onboarding», 30 min). Fire functions udrullet 20:45
+> UTC (Lovable: alle fire live, tre 401, stripe-webhook 400). **BEVIST PÅ
+> SKÆRM kl. 22:48:25:** to symmetriske kort, «30 minutter · Online ·
+> Fleksibelt», «Inkluderet i dit medlemskab · én session per
+> virksomhed». Chattens gæt om «en time» var forkert — A havde 30
+> minutter rigtigt uden at blive spurgt. **Rammen for teksterne (Jonas
+> 13/9):** medlemmet bestemmer selv hvad sessionen bruges til, retten
+> udløber ikke, 30 minutter — «onboarding» og «strategi-session» er for
+> snævre til kortene. **ÅBENT:** teksterne rettes i vindue A nu
+> (rådgiverlinjen er en etiket, brødteksterne er næsten ens, «én session
+> per virksomhed» står som grå fodnote) — ikke læst. **ÅBENT:** mange
+> gamle virksomheder skal ikke have tilbuddet (Jonas 13/9) — én ad gangen
+> i `EditCompanyDialog`, eller én SQL-sætning; ikke gjort, hvilke er ikke
+> afgjort. **UBEVIST:** en rigtig booking der kommer tilbage (som §19).
+>
+> **HVAD DER SKER EFTER EN SESSION: INTET (§21).** A's recon
+> (`recon-efter-sessionen.md`) udløste STOP-betingelse 1:
+> `advisor_session_notes` er IKKE en note efter et møde — migrationens
+> egen kommentar siger «caching AI-generated session prep notes»
+> (`generated_by`, `note_text`, `generated_at`), den levede under ét døgn
+> i koden (26/3: oprettet, koblet, fjernet samme dag), og har i dag
+> præcis to forekomster, begge slettere. Ingen tabel peger på
+> `session_bookings`; rækken har ingen fritekst; «afholdt» er en dom,
+> ikke en tilstand; medlemmet ser intet; designet har aldrig taget
+> stilling, og `raadgiver_opgaver`-migrationen udelukker sessioner
+> eksplicit («Sessioner hører ikke til her»). En note efter en session
+> har aldrig eksisteret i huset. Rallysupport har betalt 1000 kr. for to
+> sessioner, og platformen ved kun at de fandt sted. IKKE afgjort om der
+> skal bygges noget — nyt kort «En afholdt session efterlader intet
+> spor»; `advisor_session_notes` sat på slettelisten. Mangellisten 133 →
+> 135. **HEAD er `7ba2a3b1` = #844.** Vindue A retter kortenes tekster
+> (uncommitted i `BookSessionView.tsx`).
 >
 > **12/9:** i repoet skete der INTET — #819 blev merget 11/9 kl. 10:55:26
 > UTC, og næste commit er ikke kommet. Om der skete noget i prod, Stripe
 > eller Lovable den 12/9: ikke målt, ikke bogført.
 >
-> Detaljen står i DEL 2 «13. september» (§1–§19).
+> Detaljen står i DEL 2 «13. september» (§1–§21).
 
 > ## 11/9 EFTERMIDDAG — START HER (dagen lukket; skrevet 11/9 eftermiddag efter #817, digestens slukning kl. 12:07 og målingerne 11:33, 11:43, 12:07 og 12:18)
 >
@@ -4503,7 +4550,7 @@ Kilde `recon-a4-forsidens-dom.md`.
   oprydningen (run-weekly-agent, digestens kode, podcasten ud) → 56 → 76 →
   82 → 57 → 29. A4: recon af hvordan linjen for en ny refleksion lukkes.
 
-### 13. september — doggybeds træk gik igennem (#563 og #572 bevist, #815 ubevist); stripe-webhook i ental og udrullet 12:04 UTC; kort 83 bygget og i drift (#820, merget 12:17:29 UTC, manage-advisor udrullet 12:18 UTC); /members bygning 1 FÆRDIG (#823, #824, #825 — merget 13:08:25, 13:33:58 og 13:54:51 UTC; panelet på skærm 15:38); bygning 2 LØST (#826, merget 14:13:00 UTC; fire funktioner udrullet 14:20 UTC); Guiden AFGJORT — dør i bygning 3, ankrene bliver; bygning 3 GJORT — /members og Guiden slettet (#828, merget 14:47:38 UTC; Update klikket; /members og /guide NotFound på skærm; manage-advisor udrullet 14:50 UTC); målt kl. 16:53 — sletningen fjernede intet i brug, NOTEN BEVIST I DRIFT, efterladenskaber fra tidligere sletninger fundet; kilderne fundet i A's recon; lækagen LUKKET (#830, merget 15:31:14 UTC) og udrullet 15:33 UTC; kort 40 GJORT — KPI-fallbacken fjernet helt (#832, merget 15:57:43 UTC; Update og skærmbevis åbne); branchelinjen på KPI-kortet fundet på skærmen kl. 18:00 — BESLUTTET: estimatet væk, forrige måneds eget tal i stedet — BYGGET (#833, merget 16:21:03 UTC) og BEVIST PÅ SKÆRM 18:26:57, som også beviser kort 40; brancheafsnittet MÅLT 18:28 (3 af 36 domme indenfor) og BESLUTTET: det dør — #833's værn låste afsnittet (1 af 2982 fejlede kl. 18:40), værnet omskrevet, og #834 MERGET 16:52:02 UTC (bar også del 3 af denne bogføring — index'et bar begge); Update klikket og BEVIST PÅ SKÆRM 18:58:00 — afsnittet er væk, siden går fra «MÅNED FOR MÅNED» direkte til «AI-ANALYSE»; oprydningen DEL 1 GJORT — run-weekly-agent slettet og digestens kode fjernet (#836, merget 17:08:09 UTC; run-company-agent udrullet 17:09 UTC; migrationen kørt; BEVIST PÅ SKÆRM 19:13:00 og 19:16:58) — «weekly_cron» i hvidlisten var en åben dør, ikke død kode; kort 56 GJORT — handout-siden linker til de lektioner der hører til (#837, merget 17:29:00 UTC; committen bar også §16 — index-fælden igen; Update klikket; Jonas: «Det virker»); bogføringen af oprydningen i mål som #838 (merget 17:35:45 UTC); CALENDLY-PÅSTANDEN FALSIFICERET kl. 21:30 — ét GET-kald, HTTP 200: planen rækker, nul abonnementer på Jonas' organisation; «kræver premium» stod tre steder i ti dage uden at nogen havde sendt kaldet; CALENDLY-KÆDEN LUKKET — #842 merget 20:04:19 UTC, tre functions udrullet 20:05 UTC, secret sat og bevist læst, Jonas' abonnement oprettet 20:16:47 UTC (`state: active`); en rigtig booking er UBEVIST, og Rallysupports to rækker forbliver håndsatte
+### 13. september — doggybeds træk gik igennem (#563 og #572 bevist, #815 ubevist); stripe-webhook i ental og udrullet 12:04 UTC; kort 83 bygget og i drift (#820, merget 12:17:29 UTC, manage-advisor udrullet 12:18 UTC); /members bygning 1 FÆRDIG (#823, #824, #825 — merget 13:08:25, 13:33:58 og 13:54:51 UTC; panelet på skærm 15:38); bygning 2 LØST (#826, merget 14:13:00 UTC; fire funktioner udrullet 14:20 UTC); Guiden AFGJORT — dør i bygning 3, ankrene bliver; bygning 3 GJORT — /members og Guiden slettet (#828, merget 14:47:38 UTC; Update klikket; /members og /guide NotFound på skærm; manage-advisor udrullet 14:50 UTC); målt kl. 16:53 — sletningen fjernede intet i brug, NOTEN BEVIST I DRIFT, efterladenskaber fra tidligere sletninger fundet; kilderne fundet i A's recon; lækagen LUKKET (#830, merget 15:31:14 UTC) og udrullet 15:33 UTC; kort 40 GJORT — KPI-fallbacken fjernet helt (#832, merget 15:57:43 UTC; Update og skærmbevis åbne); branchelinjen på KPI-kortet fundet på skærmen kl. 18:00 — BESLUTTET: estimatet væk, forrige måneds eget tal i stedet — BYGGET (#833, merget 16:21:03 UTC) og BEVIST PÅ SKÆRM 18:26:57, som også beviser kort 40; brancheafsnittet MÅLT 18:28 (3 af 36 domme indenfor) og BESLUTTET: det dør — #833's værn låste afsnittet (1 af 2982 fejlede kl. 18:40), værnet omskrevet, og #834 MERGET 16:52:02 UTC (bar også del 3 af denne bogføring — index'et bar begge); Update klikket og BEVIST PÅ SKÆRM 18:58:00 — afsnittet er væk, siden går fra «MÅNED FOR MÅNED» direkte til «AI-ANALYSE»; oprydningen DEL 1 GJORT — run-weekly-agent slettet og digestens kode fjernet (#836, merget 17:08:09 UTC; run-company-agent udrullet 17:09 UTC; migrationen kørt; BEVIST PÅ SKÆRM 19:13:00 og 19:16:58) — «weekly_cron» i hvidlisten var en åben dør, ikke død kode; kort 56 GJORT — handout-siden linker til de lektioner der hører til (#837, merget 17:29:00 UTC; committen bar også §16 — index-fælden igen; Update klikket; Jonas: «Det virker»); bogføringen af oprydningen i mål som #838 (merget 17:35:45 UTC); CALENDLY-PÅSTANDEN FALSIFICERET kl. 21:30 — ét GET-kald, HTTP 200: planen rækker, nul abonnementer på Jonas' organisation; «kræver premium» stod tre steder i ti dage uden at nogen havde sendt kaldet; CALENDLY-KÆDEN LUKKET — #842 merget 20:04:19 UTC, tre functions udrullet 20:05 UTC, secret sat og bevist læst, Jonas' abonnement oprettet 20:16:47 UTC (`state: active`); en rigtig booking er UBEVIST, og Rallysupports to rækker forbliver håndsatte; DEN INKLUDEREDE SESSION MED JONAS I DRIFT — #844 merget 20:42:15 UTC, migrationen kørt 22:42, fire functions udrullet 20:45 UTC, BEVIST PÅ SKÆRM 22:48:25 (to symmetriske kort, 30 minutter) — teksterne rettes i vindue A; og reconen «efter sessionen»: INTET sker — `advisor_session_notes` er en død AI-cache, en note efter en session har aldrig eksisteret
 
 Kilder: `~/Downloads/query-results-export-2026-09-13_14-01-42.csv` (prod,
 målt kl. 14:01, kolonner `noegle;sektion;vaerdi`, ordret),
@@ -6693,7 +6740,230 @@ svar (ordret, chatten 13/9 sen aften).
   ser Mortens sessioner og omvendt …»). Kortet om Calendly premium var
   allerede rettet i #841. DEL 3-rækken markeret lukket.
 - **Uden for denne bogføring:** vindue A bygger nu den INKLUDEREDE
-  Jonas-session (rører `src/` og `supabase/`). Bogføres for sig.
+  Jonas-session (rører `src/` og `supabase/`). Bogført i §20.
+
+**20. DEN INKLUDEREDE SESSION MED JONAS — PR #844 merget 13/9 kl.
+20:42:15 UTC, migrationen kørt 22:42, fire functions udrullet 20:45 UTC,
+BEVIST PÅ SKÆRM kl. 22:48:25. Kortenes tekster er ÅBNE (rettes i vindue
+A nu).** Kilder: `~/Downloads/verifikation-jonas-session.txt` (målt 13/9
+kl. 22:35 på `cc60921f`, FØR merge), `~/Downloads/diff-jonas-session.txt`
+(diffen, sytten filer), migrationen
+`supabase/migrations/20260913220000_jonas_session_used_at.sql` (ordret),
+`gh pr view 844`, Lovables build-chat, skærmen kl. 22:48:25 og Jonas'
+ord (chatten 13/9, ordret). A's tekstrettelser er IKKE læst — de er
+uncommitted i A's arbejdstræ, mens dette skrives.
+
+- **PR'EN.** #844 «feat: den inkluderede session med Jonas kan bookes
+  (kort: de tre sessionstyper)». `gh pr view 844 --json mergedAt,mergeCommit`,
+  ordret: mergedAt «2026-09-13T20:42:15Z», mergeCommit
+  «7ba2a3b1670e19922e945994816a4b8fc50d5ea3» (22:42:15 dansk). Sytten
+  filer, +1157/−287: `BookSessionView.tsx`, `VirksomhedView.tsx`,
+  `EditCompanyDialog.tsx`, `betaltSession.ts`, `bookSessionTilstand.ts`,
+  `hjemmebane/indstillinger.ts`, `_shared/calendlyWebhookDom.ts`,
+  `calendly-webhook`, `create-free-intro-booking`,
+  `create-stripe-checkout`, `stripe-webhook`, migrationen,
+  `SECURITY_BASELINE.md` og fire testfiler. Verifikationen: tsc nul fejl;
+  `bun run test` 197 filer / **3049 tests** — fra 3002 (+1 fil, +47:
+  `betaltSession.test.ts` 21 → 28, `bookSessionTilstand.test.ts` 18 → 34,
+  `calendlyWebhookDom.test.ts` 10 → 19, ny `inkluderetSession.guard.test.ts`
+  15); `bun run check:edge-auth` PASS (68 af 68).
+- **RETTEN — en søsterkolonne, ikke en ny tabel.** Ny kolonne
+  `companies.jonas_session_used_at timestamptz NULL` (migration
+  `20260913220000`), søster til `intro_session_used_at` (Mortens, fra
+  `20260619120000`). **Kørt i Lovable → SQL editor 13/9 kl. 22:42 —
+  verificeret: begge kolonner `timestamptz`, begge nullable.** Nullable
+  uden default, så alle eksisterende virksomheder starter med retten
+  intakt; ingen RLS-ændring («Advisors can update all companies» dækker
+  admin-afkrydsningen, edge functionen skriver med service role).
+  Begrundelsen står i migrationen, ordret: «En separat tabel (company_id,
+  advisor, used_at) ville IKKE fjerne asymmetrien — den ville flytte den:
+  Mortens ret i en kolonne, Jonas' i en tabel, to gates af forskellig
+  form. Symmetrien mellem de to rettigheder er vigtigere end at undgaa
+  endnu en kolonne med et raadgivernavn i.» Og: «Mortens ret er EN kolonne
+  med fire skrivere (claim, rollback, host-genaabning, admin-afkrydsning)
+  og fire laesere … En soesterkolonne faar praecis samme skrivere og
+  laesere med samme kode — den atomiske gate (UPDATE ... WHERE <ret> IS
+  NULL, 409 ved nul raekker), den guardede rollback paa samme ts, og
+  admin-afkrydsningen der bevarer tidspunktet.» `intro_session_used_at`
+  RØRES IKKE — navnet bliver. Kolonnekommentaren i prod siger det samme:
+  «Saettes af create-free-intro-booking (advisor=jonas) eller
+  admin-markering; nulstilles ved host-aflysning i calendly-webhook.»
+- **FLADEN — én dom for begge rettigheder.** Jonas 13/9, ordret:
+  «introsession med Jonas virker som et link der kun kan bookes én gang.
+  Derefter skal boksen med Jonas skifte til den betalte. Mortens boks kan
+  ligeledes bookes én gang, og derefter skal den forsvinde som den gør i
+  dag». Det er præcis det der er bygget: Morten-kortet forsvinder når
+  retten er brugt (som før); Jonas-kortet findes ALTID og skifter fra
+  inkluderet til købt — `afgoerBookSession` i `bookSessionTilstand.ts`
+  giver `JonasKort = { kort: "inkluderet"; tilstand: "book" | "loading"
+  | "link-ready" } | { kort: "koebt" }`, dømt af samme
+  `InkluderetTilstand` som Mortens kort (`MortenTilstand` er nu et alias).
+  **«link-ready» hører til det INKLUDEREDE kort**, ikke det købte: den
+  inkluderede vej (`create-free-intro-booking`) sender ingen mail, så
+  linket findes kun på skærmen og må ikke forsvinde før tiden er valgt
+  — kortet står som inkluderet med linket, indtil `calendly-webhook`
+  skriver `booked`. På virksomhedssiden er der TRE spor dømt ét sted
+  (`afgoerSessionSpor` i `betaltSession.ts`): «Session med Morten ·
+  inkluderet» (advisor morten, amount 0), «Session med Jonas · inkluderet»
+  (advisor jonas, amount 0 — fandtes ikke før 13/9) og «Session med Jonas
+  · købt» (advisor jonas, amount > 0, én linje pr. købt række). Før
+  #844 ville en inkluderet Jonas-række være faldet mellem to stole:
+  amount 0 gik til det gratis spor, og kun advisor morten blev taget som
+  den inkluderede linje. `EditCompanyDialog` har to afkrydsninger —
+  «Session med Morten · inkluderet — brugt» og «Session med Jonas ·
+  inkluderet — brugt» — samme mønster: afkrydsning ↔ timestamp, hentet
+  tidspunkt bevares ved gem. `jonas_session_used_at` er endnu ikke i
+  `types.ts` (Lovable regenererer den) — derfor den utypede klient to
+  steder, som kommentarerne siger.
+- **LINKET BÆRER RÆKKENS ID FRA START.** Det er det første spor der er
+  bygget EFTER at Calendly-kæden blev lukket (§19): `create-free-intro-booking`
+  tager body `{ advisor }` (default `morten`), bruger den atomiske gate
+  `UPDATE companies … WHERE <ret> IS NULL` på den kolonne der hører til
+  rådgiveren, og lægger rækkens id i linket som Mortens vej altid har
+  gjort. Abonnementet fra 22:16 (§19) dækker hele Jonas' organisation, så
+  de inkluderede events kommer tilbage ad samme vej som de købte. I
+  `calendly-webhook` gates genåbningen ved host-aflysning nu på rækkens
+  advisor OG `amount_dkk` (`genaabnerGratis`, `_shared/calendlyWebhookDom.ts`,
+  19 tests): (host, morten, 0) → `intro_session_used_at` nulstilles;
+  (host, jonas, 0) → `jonas_session_used_at` nulstilles; en KØBT
+  Jonas-række genåbner aldrig noget. `SECURITY_BASELINE.md` (Bucket C)
+  opdateret i samme PR.
+- **SECRET `JONAS_CALENDLY_EVENT_SLUG`** sat i Lovable 13/9 med værdien
+  «intro-snak» — Calendly-eventet «Onboarding», 30 min,
+  `https://calendly.com/topix-jonas/intro-snak`. Eventets NAVN i Calendly
+  er stadig «Onboarding»; kortet siger ikke det ord (se rammen nedenfor).
+- **UDRULNING OG BEVISER, i rækkefølge.** *(1)* Merge 20:42:15 UTC.
+  *(2)* Migrationen kørt 22:42 dansk og verificeret (ovenfor). *(3)*
+  **Fire functions udrullet 13/9 kl. 20:45 UTC (22:45 dansk)** —
+  `create-free-intro-booking`, `calendly-webhook`, `create-stripe-checkout`,
+  `stripe-webhook`. Lovable ordret: alle fire live, tre med HTTP 401,
+  `stripe-webhook` 400. *(4)* **BEVIST PÅ SKÆRM kl. 22:48:25:** to
+  symmetriske kort på `/book-session`, begge «30 minutter · Online ·
+  Fleksibelt», begge «Inkluderet i dit medlemskab · én session per
+  virksomhed». Frontend-builden er dermed udgivet. **Chattens gæt om «en
+  time» var forkert** — A havde 30 minutter rigtigt uden at blive spurgt;
+  begge inkluderede sessioner er 30 minutter (Jonas 13/9).
+- **HVAD SESSIONERNE ER — Jonas 13/9, ordret. Rammen teksterne skal
+  holde sig inden for.** Om Mortens: «Den der one-to-one med Morten … det
+  er jo egentlig en one-to-one-session, som medlemmet selv kan vælge,
+  hvad den skal bruges til. Det er ikke os, der sætter rammerne for den
+  snak, de har med Morten. Det er dem selv.» Om sin egen: «Den med Jonas.
+  Ja, det kan være en onboarding-session. Hvis de ikke føler, at de har
+  behov for det, så må de gerne bruge den til noget andet. Det er jo ikke
+  sådan, at den udløber.» Rammen: begge er 30 MINUTTER, ikke en time;
+  medlemmet bestemmer selv indholdet; retten udløber ikke. Ordene
+  «onboarding» og «strategi-session» er derfor for snævre til kortene —
+  «onboarding» er et eksempel Jonas selv nedtoner, og «strategi-session»
+  sætter rammen for en snak Jonas siger vi ikke sætter rammen for.
+  Calendly-eventet må gerne hedde «Onboarding»; kortet må ikke.
+- **ÅBENT — TEKSTERNE (vindue A, nu; ikke læst).** Det der stod på
+  skærmen kl. 22:48:25, holder sig inden for rammen, men siger det
+  dårligt: rådgiverlinjen («Session med Jonas · inkluderet») er en
+  etiket, ikke en sætning; de to brødtekster er næsten identiske («Som
+  medlem får du én session med Morten/Jonas inkluderet. Du bestemmer selv
+  hvad den skal bruges til …»); og «én session per virksomhed» står som
+  grå fodnote under «Inkluderet i dit medlemskab», skønt det er kortets
+  vigtigste oplysning. A retter det i `BookSessionView.tsx` nu. Bogføres
+  når det er merget.
+- **ÅBENT — MANGE GAMLE VIRKSOMHEDER SKAL IKKE HAVE TILBUDDET (Jonas
+  13/9).** Kolonnen er NULL for alle eksisterende virksomheder, så
+  Jonas-kortet står som inkluderet hos alle — også dem der har været
+  medlem i et år. `EditCompanyDialog` kan markere retten som brugt én
+  virksomhed ad gangen (#844); skal mange lukkes på én gang, er én
+  SQL-sætning i Lovables SQL editor hurtigere (`UPDATE public.companies
+  SET jonas_session_used_at = now() WHERE …` — hvilke, er ikke afgjort;
+  SELECT først). IKKE gjort. Ny række i DEL 3 og nyt kort.
+- **UBEVIST I DRIFT:** at en rigtig inkluderet booking hos Jonas kommer
+  tilbage som `booked` med tid — samme åbne bevis som §19, nu med to
+  spor der kan levere det (inkluderet og købt).
+- **Mangellisten 133 → 135:** to nye kort («En afholdt session
+  efterlader intet spor», §21; «Gamle virksomheder skal ikke have
+  tilbuddet om Jonas-sessionen»); to omskrevet (kort 76 «Jonas ser
+  Mortens sessioner og omvendt …» fik det tredje spor og den nye ret;
+  «Sletteliste: fire ting …» → «fem ting» med `advisor_session_notes`,
+  §21). Ingen fjernet.
+- **Uden for denne bogføring:** A's tekstrettelser (uncommitted).
+
+**21. HVAD DER SKER EFTER EN SESSION: INTET — reconet 13/9 sen aften.
+STOP-betingelse 1 blev udløst: `advisor_session_notes` er ikke det
+navnet siger. En note efter en session har aldrig eksisteret i huset.**
+Kilde: `~/Downloads/recon-efter-sessionen.md` (A's recon, kildelæsning
+ved HEAD `cc60921f`; ingen kald mod Supabase, Calendly eller Stripe; KUN
+fund). Reconens SQL (§4, seks forespørgsler mod de to virksomheder
+Rallysupport og ANLA GLAS) er IKKE kørt.
+
+- **STOP-BETINGELSE 1 — tabellen er en død AI-cache, ikke et notatfelt.**
+  Migrationens egen kommentar, `20260326130754:2`, ordret: «Create
+  advisor_session_notes table for caching AI-generated session prep
+  notes». Kolonnerne er `generated_by`, `note_text`, `generated_at` — en
+  GENERERET tekst FØR et møde, ikke en skrevet efter. Den levede under ét
+  døgn i koden: `97bc4035` (26/3) oprettede den, `679cd80b` samme dag
+  koblede `SessionPrepSection` i `AdvisorCompanyOverview.tsx` til
+  `ai-financial-feedback` med `request_type "session_prep"` og INSERT'ede
+  svaret, og `606571f7` SAMME DAG fjernede begge kald igen. Siden 26/3 har
+  ingen linje i `src/` eller `supabase/functions/` læst eller skrevet den.
+  I dag: præcis to forekomster, begge SLETTERE —
+  `_shared/companyHardDelete.ts:176` og `slet-medlemsdata-cron/index.ts:337`.
+  RLS: kun rådgivere SELECT/INSERT/DELETE, ingen UPDATE-policy, ingen
+  medlems-policy. Tabellen er 12 dage ÆLDRE end `session_bookings` (26/3
+  mod 7/4) og har ingen reference til den. Om der ligger rækker i prod
+  fra 26/3: ikke målt (reconens SQL 4.1). **Den hører på slettelisten** —
+  død kode med to slettere.
+- **FRA EN SESSION KAN MAN KOMME TIL INTET (recon F1–F2).** Ingen tabel
+  har en fremmednøgle mod `session_bookings`: nul `REFERENCES
+  public.session_bookings`, nul `booking_id`/`session_booking_id` i
+  `supabase/migrations/`, nul `referencedRelation: "session_bookings"` i
+  `types.ts`. Rækkens relationer peger kun UD (`company_id`, `user_id`,
+  Stripe, `calendly_event_uri`). Rækken har ingen fritekst-kolonne, intet
+  «afholdt», intet «udeblev»: statussættet er `pending, paid,
+  booking_sent, booked, cancelled, refunded`. «Afholdt» er en DOM (booked
+  OG `slut_tid` passeret, `lib/introSession` og `lib/betaltSession`) —
+  ingen skriver noget når tiden passerer, ingen hændelse udløses.
+  `company_actions.source_type` tillader ikke en session-kilde;
+  `messages.context_type` har ingen session-værdi ud over `session_prep`
+  (forberedelse, og produktionen af den blev fjernet 31/8).
+- **MEDLEMMET SER INTET (F9).** `/book-session` viser booket/aflyst/link
+  for nyeste inkluderede række — «booket», ikke «afholdt», intet om
+  indholdet; forsiden nævner «session» kun om live-sessions; chatten
+  skjuler `session_prep` for medlemmet; menuen har «Chat, Book session»,
+  ingen «Dine sessioner». Det eneste sted et rådgiver-skrevet udfald når
+  medlemmet, er «Dine aftaler» via `foreslaa-opgave` fra CHATTEN — knyttet
+  til virksomhed og samtale, ikke til en session (F5).
+- **DESIGNET HAR ALDRIG TAGET STILLING (F6–F8).** «Referat» findes ét sted
+  i hele `docs/` — om commits (`OVERLEVERING.md:1255`).
+  «Opfølgning»/«efter sessionen» i sessions-betydning: nul træffere i
+  `raadgiverfladen-design.md`, `chat-design.md`, `opgave-model-design.md`,
+  `OVERLEVERING.md`. `opgave-model-design.md:13-15` («Intet i platformen
+  registrerer i dag en aftale mellem rådgiver og medlem …») blev besvaret
+  for CHATTEN med opgave-modellen 22/8; ordet «session» står ikke i det
+  afsnit. Blok 3 «Emnerne I har talt om» gælder chattens beskeder.
+  `raadgiver_opgaver`-migrationen udelukker sessioner endda EKSPLICIT
+  (`20260908170000:13`, ordret: «Sessioner hører ikke til her») — den
+  eneste sætning i huset der tager stilling, og den holder dem ude. Der er
+  INGEN besluttet form der bare ikke er bygget.
+- **HUSETS MØNSTER for «noget skete, her er hvad der kom ud af det» er
+  RAPPORTEN (F11):** hændelsen er en række (`financial_reports`), udfaldet
+  er `report_comments` FK'et til den (rådgiver ELLER medlem, ekko i
+  chatten via `notifyChatMessage`), tilstanden er «Godkend rapport», og
+  AI'ens udlægning (`financial_commentaries.facts_id`) bliver `is_stale`
+  når tallene ændrer sig. Næstnærmest: opgaveforslaget fra chatten, hvor
+  rækken og systembeskeden refererer hinanden (`context_meta.action_id`).
+  Fælles: hændelsen HAR et id, og udfaldet peger på det. Sessionen har et
+  id — intet peger på det.
+- **KONKLUSION.** En note efter en session har aldrig eksisteret i huset —
+  hverken som tabel, kolonne eller flade. Rallysupport har betalt 1000 kr.
+  for to sessioner (23/6 og 30/6, afholdt 25/6 og 1/7), og platformen ved
+  kun at de fandt sted. ANLA GLAS havde en inkluderet med Morten 1/7 —
+  samme. **IKKE afgjort om der skal bygges noget**; reconen er grundlaget,
+  ikke et forslag. Nyt kort: «En afholdt session efterlader intet spor».
+- **Åbne spørgsmål fra reconen (ikke stoppende, ikke målt):** rækker i
+  `advisor_session_notes` i prod (SQL 4.1); `conversations.follow_up_at`
+  findes som kolonne (`types.ts:1459`), ingen kode læser eller skriver den
+  — hvornår kom den, bærer prod værdier; hvor Jonas og Morten i dag
+  skriver deres mødenoter uden for platformen — står ingen steder i
+  repoet; `kpi_chart_comments` er en anden død tabel (F10: nul læsere, nul
+  skrivere, kun sletteren `companyHardDelete.ts:167`) — ikke sat på
+  slettelisten i denne runde, kun noteret her.
 
 ### Mailplatformen — bygget om af Lovable 8/9 kl. 06:52-06:58; afsenderne, fortegnelsen og værnet (#728, #730, #731, #732)
 
@@ -7234,6 +7504,9 @@ facit og rækkefølge; `docs/chat-design.md` chattens form.
 
 | hvornår | hvad | hvor det står |
 |---|---|---|
+| **I DRIFT 13/9 sen aften (#844, merget 20:42:15 UTC; migrationen kørt 22:42; fire functions udrullet 20:45 UTC; BEVIST PÅ SKÆRM 22:48:25) — TEKSTERNE ÅBNE (vindue A, nu)** | **Den inkluderede session med Jonas kan bookes.** Ny kolonne `companies.jonas_session_used_at` (søster til Mortens `intro_session_used_at`; en tabel ville flytte asymmetrien, ikke fjerne den); `create-free-intro-booking` tager `{ advisor }` og lægger rækkens id i linket fra start; `calendly-webhook` genåbner retten pr. rådgiver ved host-aflysning, aldrig for en købt række; én dom for begge rettigheder på `/book-session` — Morten-kortet forsvinder når retten er brugt, Jonas-kortet findes altid og skifter fra inkluderet til købt; «link-ready» hører til det inkluderede kort (ingen mail på den vej). Secret `JONAS_CALENDLY_EVENT_SLUG` = «intro-snak». **Det der venter:** (1) kortenes tekster — rådgiverlinjen er en etiket, brødteksterne næsten ens, «én session per virksomhed» som grå fodnote; rammen er Jonas' ord 13/9 (medlemmet bestemmer selv, udløber ikke, 30 minutter — ikke «onboarding», ikke «strategi-session»); A retter nu. (2) En rigtig inkluderet booking der kommer tilbage som `booked` med tid — ubevist. | DEL 2 «13. september» §20; `~/Downloads/verifikation-jonas-session.txt`, `diff-jonas-session.txt` (uden for repoet) |
+| **ÅBENT — Jonas 13/9; ikke gjort, hvilke er ikke afgjort** | **Mange gamle virksomheder skal ikke have tilbuddet om Jonas-sessionen.** Kolonnen er NULL for alle eksisterende virksomheder, så kortet står som inkluderet hos alle. `EditCompanyDialog` kan markere retten som brugt én ad gangen (#844); skal mange lukkes, er én SQL-sætning i Lovables SQL editor hurtigere (`UPDATE public.companies SET jonas_session_used_at = now() WHERE …`) — SELECT først, og listen over hvem skal komme fra Jonas. | DEL 2 «13. september» §20; mangellisten «Gamle virksomheder skal ikke have tilbuddet om Jonas-sessionen» |
+| **RECONET 13/9 sen aften — IKKE afgjort om der skal bygges noget** | **Efter en session sker INTET.** Ingen tabel peger på `session_bookings`, rækken har ingen fritekst, «afholdt» er en dom, medlemmet ser intet, designet har aldrig taget stilling, og `raadgiver_opgaver` udelukker sessioner eksplicit. `advisor_session_notes` er ikke det navnet siger (AI-forberedelses-cache, død siden 26/3, to slettere) — på slettelisten. Husets mønster for «noget skete, her er hvad der kom ud af det» er rapporten (hændelsesrække + kommentartabel FK'et til den + ekko i chatten). Reconens SQL (§4) er ikke kørt. | DEL 2 «13. september» §21; `~/Downloads/recon-efter-sessionen.md` (uden for repoet); mangellisten «En afholdt session efterlader intet spor» |
 | **AFGJORT 11/9 (Jonas: «A»), GJORT 13/9 (#836)** | **`run-weekly-agent` er SLETTET.** Filen, `config.toml`-blokken og `weekly_cron` i `run-company-agent`s hvidliste er væk; `run-company-agent` udrullet 17:09 UTC. Den havde aldrig kørt (kun `Deno.cron`, 0 `weekly_cron` i `agent_runs`). Ugefokus (`generate-weekly-focus`) kører uændret hver mandag. Det der står tilbage af spørgsmålet — om nogen læser ugefokus — er samtalen med Morten; `weekly_focus.seen_at` på forsiden har første hele uge efter 14/9. Åbent: funktionen ligger formentlig stadig udrullet hos Lovable (kortet «Oprydningens rester»). | DEL 2 «13. september» §16; «Ugefokus og ugeagenten» (grundlaget for valget) |
 | **FØR 13/9** — Stripe er sat op 10/9 kl. 20:50–21:05 (past-due, mails til, dansk); **(1) BYGGET 11/9 (#815), UDRULLET 13/9 kl. 12:04 UTC — UBEVIST I DRIFT**; (2) uændret, ikke bygget | **Restancen:** (1) ~~rådgivernes klokke ved fejlet træk~~ → **bygget 11/9 (#815)**: `skrivRaadgiverBesked` i `payment_failed`, dedup `company_traek.id`, værn mod at et betalt træk vendes til fejlet. Update klikket 11/9 kl. 11:12; `stripe-webhook` udrullet eksplicit 13/9 kl. 12:04 UTC i Lovables build-chat (ordret: «Endpointet svarer live med HTTP 400 Invalid signature (forventet)»). **Ubevist i drift:** doggybeds træk 13/9 gik igennem (`betalt` kl. 09:36:24 UTC, DEL 2 «13. september» §1), så `invoice.payment_failed` blev aldrig sendt; grenen bevises først af et fejlet træk — hvornår det sker, er ukendt. Beviset når det kommer: svaret bærer `traek.id` og `klokke`; en række pr. rådgiver i `advisor_notifications` med `type = 'traek_fejlet'`, `reference_type = 'traek'`, `reference_id = company_traek.id`; klokkens link `/virksomhed/<id>?section=aftale`; et senere `payment_failed` for samme faktura svarer `sprunget_over: allerede_betalt`. (2) retries opbrugt → `invoices.send` når `next_payment_attempt` er null — **ud af A1 11/9, uændret 13/9**, forudsætningerne står på kortet (otte forsøg over en måned). | DEL 2 «13. september» §1–§2; DEL 2 «11. september, formiddag»; fornyelseskæden §9; mangellisten (Betaling) |
 | **LØST — MÅLT KØRT 11/9 kl. 09:20** (alle tre stod i prod; `query-results-export-2026-09-11_09-20-04.csv`). Var: SKREVET 10/9 (#801), IKKE BEKRÆFTET KØRT | **Tre migrationer:** `20260911020000_messages_delete_15min.sql` (to DELETE-policies erstattes af «within 15 min» + advisor), `20260911030000_feedback_bucket_mappetjek.sql` (mappetjek, 5 MB, image/*), `20260911040000_companies_status_check.sql` (CHECK + NOT NULL; prod målt 30/8, 0 NULL). Bevis: SELECT'en nederst i hver fil — indtil da gælder de gamle policies. | DEL 2 «10. september, sen aften»; `SECURITY_BASELINE.md` §5 |
