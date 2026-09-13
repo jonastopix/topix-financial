@@ -870,6 +870,32 @@
       ingen steder — fundet af A).
     Før: 134. Tilføjet: 0. Fjernet: 0. Efter: 134 — målt med grep på
       kortenes div-tag (class card).
+  RYDDET 13/9 AFTEN, DEL 4 — #834 MERGET (bogføring, ingen kode. «feat:
+  brancheafsnittet fjernes fra Noegletal — intervallerne skelner ikke»
+  merget 16:52:02 UTC, 19e26ca1; fire filer +567/−101: NoegletalView.tsx,
+  ingenBranchefallback.guard.test.ts (it-blokken omskrevet, ikke fjernet)
+  OG docs/OVERLEVERING.md + docs/mangelliste.html — del 3 af bogføringen
+  fulgte med, fordi index'et bar begge; PR-teksten nævner kun koden.
+  Update og skærmbevis udestår). Del 3's «ikke merget» rettet i
+  OVERLEVERING DEL 2 «13. september» (overskrift, §15), START HER 13/9 og
+  DEL 4 (fælden «Et tomt dokument …» skærpet: gentaget to gange mere, anden
+  gang lå filen på disken; ny fælde «git add <filer> afgrænser ikke en
+  commit — index'et gør»).
+    OMSKREVET (1): «CVR-branche og faktisk branche er to ting …» (merget;
+      værnet omskrevet; Update og skærmbevis udestår).
+    Før: 134. Tilføjet: 0. Fjernet: 0. Efter: 134 — målt med grep på
+      kortenes div-tag (class card).
+  RYDDET 13/9 AFTEN, DEL 5 — SKÆRMBEVISET (bogføring, ingen kode. Update
+  klikket; screencapture-app-theboardroom-dk-kpis-2026-09-13-18_58_00.pdf,
+  ANLA GLAS: brancheafsnittet væk, «MÅNED FOR MÅNED» → «AI-ANALYSE» uden
+  hul). Rettet i OVERLEVERING DEL 2 «13. september» (overskrift, §15),
+  START HER 13/9 — og fælden «Et tomt dokument …» i DEL 4 rettet: filen
+  lå i uploadmappen, ikke i ~/Downloads (som er Jonas' maskine og ulæselig
+  for chatten); reglen er nu: læs den fra uploadmappen med et værktøj.
+    OMSKREVET (1): «CVR-branche og faktisk branche er to ting …» (bevist på
+      skærm 18:58:00).
+    Før: 134. Tilføjet: 0. Fjernet: 0. Efter: 134 — målt med grep på
+      kortenes div-tag (class card).
 -->
 <html lang="da">
 <head>
@@ -1293,7 +1319,7 @@
       <p><strong>Løst siden:</strong> stamdata og branche vises nu på virksomhedssiden og som filter på listen (#771) — uenigheden afgøres ikke af det.</p>
       <p><strong>Præmissen «kan ikke afgøres fra data, én samtale» holder ikke helt:</strong> CVR er den JURIDISKE branche, platformens er den FAKTISKE — de kan begge være rigtige. Otte samtaler bliver til én modelbeslutning: to felter (CVR-koden som den er, plus en rådgiversat «faktisk branche»), og sammenligningen bruger den faktiske. Så forsvinder uenigheden som blokering; rådgiveren sætter feltet når han alligevel er på siden.</p>
       <p><strong>Målt 13/9 kl. 18:28 (<code>~/Downloads/query-results-export-2026-09-13_18-28-41.csv</code>, SQL'en i <code>~/Downloads/recon-brancheafsnittet.md</code>) — afsnittet skelner ikke.</strong> Ordret: <code>b_dom_gross_margin_pct</code> «indenfor;2», «over;13», «under;3»; <code>b_dom_ebitda_margin_pct</code> «indenfor;1», «over;11», «under;6». 18 aktive × 2 nøgler = 36 domme, TRE «indenfor». Hvorfor: «Booking Innovation;over | dig 100.0 | 55-75% for HR og rekruttering», «Rallysupport;over | dig 100.0 | 25-45% for eventrejser», «Rezycl.com;over | dig 100.0 | 45-80% for tech-startup», «Fjeldgaardshop.dk;over | dig 99.2 | 30-50% for detailhandel» — for en virksomhed uden vareforbrug ER 100 % dækningsbidrag rigtigt; intervallet er forkert for dem. Alderen: «1 rækker i industry_benchmarks;130 | koder 65 | nøgler ebitda_margin_pct, gross_margin_pct», «source_label: Branchestandard (The Boardroom);130 | created 2026-03-29T19:03:15… → 2026-03-29T21:19:53…» — seedet 29/3, aldrig rørt, ingen ekstern kilde, intet årstal. Dækningen: 26 af 27 aktive har en kode med benchmarks (kun Bastant Design mangler), 18 har en afsluttet måned, 8 har ingen. Formen (reconen): kun to nøgler, så aldrig mere end to linjer; bjælken klemmer prikken til kanten (<code>NoegletalView.tsx:1100</code>, clamped 0–100), så «langt under» ligner «lige akkurat udenfor»; «dig» er den allerseneste fact-række, også et estimat.</p>
-      <p><strong>Besluttet 13/9 (chattens anbefaling, Jonas: «Enig med dig»): brancheafsnittet fjernes fra <code>/kpis</code>.</strong> <strong>Bygget i A 13/9 aften, IKKE merget:</strong> <code>NoegletalView.tsx</code> 1296 → 1240 linjer (hentningen, <code>INDUSTRY_TO_DEF_KEY</code>, <code>gaugeRows</code> og render-blokken væk; en kommentar med målingen står på sektion 6's plads); PDF'en rasteriserer eksport-DOM'en, så afsnittet forsvinder af sig selv, CSV'en havde det aldrig. tsc 0 — men <code>bun run test</code> på hele suiten kl. 18:40: 1 af 2982 fejlede, <code>ingenBranchefallback.guard.test.ts:55</code> (#833's eget værn låste <code>from("industry_benchmarks")</code> i filen; præmissen var bortfaldet). A retter testen (assertionen slettes, it-blokken omdøbes til det den stadig låser); PR'en kommer derefter. Chatten meldte «PR #834 er oprettet» på et tomt vedhæftet output — PR 834 findes ikke (OVERLEVERING DEL 4, ny fælde). BLIVER: tabellen <code>industry_benchmarks</code> (ugefokus' T6 læser den) og IndstillingerViews synk til <code>kpi_benchmarks</code>. <strong>Spørgsmålet på dette kort ændrer sig dermed:</strong> når ingen flade sammenligner med branchen, bærer to-felt-modellen kun triggeren <code>BENCHMARK_BELOW</code> (eget kort) og synken ved brancheskift. Uenigheden CVR/faktisk er stadig sand (målt 4/9), men blokerer ingen længere. Kortet holdes åbent til triggeren er afgjort — falder den, kan dette kort lukkes som «ikke længere relevant».</p>
+      <p><strong>Besluttet 13/9 (chattens anbefaling, Jonas: «Enig med dig»): brancheafsnittet fjernes fra <code>/kpis</code>.</strong> <strong>MERGET — PR #834 «feat: brancheafsnittet fjernes fra Noegletal — intervallerne skelner ikke», <code>gh pr view</code> ordret: mergedAt «2026-09-13T16:52:02Z», mergeCommit «19e26ca110454afb7bc3e29167bd229adc7d3705» (18:52:02 dansk); Update klikket, BEVIST PÅ SKÆRM kl. 18:58:00 (<code>screencapture-app-theboardroom-dk-kpis-2026-09-13-18_58_00.pdf</code>, ANLA GLAS: siden går fra «MÅNED FOR MÅNED» direkte til «AI-ANALYSE», intet hul).</strong> <code>NoegletalView.tsx</code> 1296 → 1240 linjer (hentningen, <code>INDUSTRY_TO_DEF_KEY</code>, <code>gaugeRows</code> og render-blokken væk; en kommentar med målingen står på sektion 6's plads); PDF'en rasteriserer eksport-DOM'en, så afsnittet forsvinder af sig selv, CSV'en havde det aldrig. tsc 0 — men <code>bun run test</code> på hele suiten kl. 18:40: 1 af 2982 fejlede, <code>ingenBranchefallback.guard.test.ts:55</code> (#833's eget værn låste <code>from("industry_benchmarks")</code> i filen; præmissen var bortfaldet). It-blokken blev OMSKREVET i #834: den låser nu «kortets benchmark kommer gennem hooken — ingen egen hentning i visningen». Committen bar også docs-bogføringens del 3 (index'et bar begge; PR-teksten nævner kun koden — OVERLEVERING DEL 4, to nye fælder: «Et tomt dokument er ikke et grønt svar» og «git add &lt;filer&gt; afgrænser ikke en commit»). Kommentaren i <code>NoegletalView.tsx:1062-1080</code> bærer hele målingen, så afsnittet ikke bygges igen uden den. BLIVER: tabellen <code>industry_benchmarks</code> (ugefokus' T6 læser den) og IndstillingerViews synk til <code>kpi_benchmarks</code>. <strong>Spørgsmålet på dette kort ændrer sig dermed:</strong> når ingen flade sammenligner med branchen, bærer to-felt-modellen kun triggeren <code>BENCHMARK_BELOW</code> (eget kort) og synken ved brancheskift. Uenigheden CVR/faktisk er stadig sand (målt 4/9), men blokerer ingen længere. Kortet holdes åbent til triggeren er afgjort — falder den, kan dette kort lukkes som «ikke længere relevant».</p>
       <div class="meta"><span class="tag ny">Ny 4/9</span><span class="tag gold">Beslutning</span><span class="tag">Omskrevet 10/9</span><span class="tag">Prod målt 13/9 18:28</span><span class="tag">Omskrevet 13/9</span><span class="tag size">Lille</span></div>
     </div>
     <div class="card new" data-status="ide" data-spor="4" data-rammer="medlem">
