@@ -24,6 +24,7 @@ import { udloebneForslagTekst } from "@/lib/forslagTab";
 import { dageSiden, erLaengeSiden, sidstOnlineTekst } from "@/lib/sidstOnline";
 import { afgoerMilepael } from "@/lib/milepaelDom";
 import { afgoerIntroSession, introSessionTekst, type IntroBooking } from "@/lib/introSession";
+import { afgoerBetaltSession, betaltSessionTekst, type BetaltBooking, type BetaltDom } from "@/lib/betaltSession";
 import { InvitationHandlinger, InviterKnap } from "../virksomheder/HbInvitationer";
 import { computeMembershipTier, type MembershipTier } from "@/lib/membershipTier";
 import { afgoerFornyelsestilstand, type Fornyelsesbeslutning } from "@/lib/fornyelse";
@@ -1307,44 +1308,70 @@ const Blok6 = ({
     forberedelse» (det er AI-forberedelsen, på en knap) og ikke blok 6
     «Aktivitet» (det er medlemmets arbejde). Egen hentning — useVirksomhed
     ligger uden for denne omgangs stier; rådgiver-SELECT på session_bookings
-    er fra 20260908190000. Nyeste Morten-række vinder (som BookSessionView). */
+    er fra 20260908190000. Nyeste Morten-række vinder (som BookSessionView).
+
+    DE BETALTE 1:1-SESSIONER (kort 76, 13/9): samme hentning bærer nu ALLE
+    virksomhedens rækker, og det betalte spor (advisor 'jonas', amount_dkk
+    > 0) får én linje pr. betalt række gennem lib/betaltSession — «Betalt
+    2. september · booking-link sendt», uden afholdt-dom, fordi rækken
+    stopper ved booking_sent (stripe-webhook uden booking-id i linket,
+    calendly-webhook filtreret til Morten). pending (checkouts der aldrig
+    blev gennemført) giver null fra dommen og vises ikke (besluttet 11/9).
+    Før læste linjen KUN Morten-rækken, og de betalte rækker blev læst
+    ingen steder i rådgiverfladen. */
+type SessionRaekke = IntroBooking & BetaltBooking & { id: string; advisor: string };
+
 const IntroSessionLinje = ({ companyId }: { companyId: string }) => {
   const { data } = useQuery({
     queryKey: ["intro-session", companyId],
-    queryFn: async (): Promise<{ booking: IntroBooking | null; retBrugtAt: string | null }> => {
+    queryFn: async (): Promise<{ raekker: SessionRaekke[]; retBrugtAt: string | null }> => {
       const [bookingRes, companyRes] = await Promise.all([
-        // start_tid/slut_tid er nye kolonner (20260908190000) og står ikke i
-        // de genererede typer endnu — derfor `as any`, som andre nye kolonner.
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (supabase.from("session_bookings") as any)
-          .select("status, start_tid, slut_tid, created_at")
+        supabase
+          .from("session_bookings")
+          .select("id, advisor, status, amount_dkk, calendly_event_uri, start_tid, slut_tid, created_at, updated_at")
           .eq("company_id", companyId)
-          .eq("advisor", "morten")
-          .order("created_at", { ascending: false })
-          .limit(1)
-          .maybeSingle(),
+          .order("created_at", { ascending: false }),
         supabase.from("companies").select("intro_session_used_at").eq("id", companyId).maybeSingle(),
       ]);
       if (bookingRes.error) throw new Error(bookingRes.error.message);
-      return { booking: (bookingRes.data as IntroBooking | null) ?? null, retBrugtAt: companyRes.data?.intro_session_used_at ?? null };
+      return { raekker: bookingRes.data ?? [], retBrugtAt: companyRes.data?.intro_session_used_at ?? null };
     },
     staleTime: 60_000,
   });
   if (!data) return null;
-  const dom = afgoerIntroSession(data.booking, new Date());
-  const tekst = introSessionTekst(dom, data.booking);
-  if (tekst) {
-    return (
-      <Linje label="Intro-session">
-        <span className={dom.tilstand === "afholdt" ? "text-hb-evergreen" : undefined}>{tekst}</span>
-      </Linje>
-    );
-  }
-  // Ingen booking, men retten er brugt: sat i hånden (admin) eller klik uden link.
-  if (data.retBrugtAt) {
-    return <Linje label="Intro-session"><span className="text-hb-ink-soft">Retten er brugt {formatDato(data.retBrugtAt)} — ingen booking registreret</span></Linje>;
-  }
-  return null;
+  const nu = new Date();
+
+  // Betalt spor: én linje pr. række dommen har ord for. Dommen skelner selv
+  // sporet på amount_dkk (gratis → null) og skjuler pending (→ null).
+  const betalte = data.raekker
+    .map((r) => {
+      const dom = afgoerBetaltSession(r, nu);
+      return { dom, tekst: betaltSessionTekst(dom), noegle: r.id };
+    })
+    .filter((x): x is { dom: BetaltDom; tekst: string; noegle: string } => x.tekst != null);
+
+  // Gratis spor: nyeste Morten-række, som før.
+  const mortenBooking = data.raekker.find((r) => r.advisor === "morten") ?? null;
+  const dom = afgoerIntroSession(mortenBooking, nu);
+  const tekst = introSessionTekst(dom, mortenBooking);
+
+  return (
+    <>
+      {betalte.map((x) => (
+        <Linje key={x.noegle} label="1:1-session">
+          <span className={x.dom.tilstand === "afholdt" ? "text-hb-evergreen" : undefined}>{x.tekst}</span>
+        </Linje>
+      ))}
+      {tekst ? (
+        <Linje label="Intro-session">
+          <span className={dom.tilstand === "afholdt" ? "text-hb-evergreen" : undefined}>{tekst}</span>
+        </Linje>
+      ) : data.retBrugtAt ? (
+        // Ingen booking, men retten er brugt: sat i hånden (admin) eller klik uden link.
+        <Linje label="Intro-session"><span className="text-hb-ink-soft">Retten er brugt {formatDato(data.retBrugtAt)} — ingen booking registreret</span></Linje>
+      ) : null}
+    </>
+  );
 };
 
 // ── Blok 7: Aftalen ─────────────────────────────────────────────────────
