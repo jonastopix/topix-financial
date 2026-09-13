@@ -1,5 +1,106 @@
 # Overlevering
 
+> ## 13/9 — START HER (skrevet 13/9 eftermiddag; HEAD `3ce1e7dc` = #819, merget 11/9 kl. 10:55:26 UTC; prod målt kl. 14:01, `~/Downloads/query-results-export-2026-09-13_14-01-42.csv`)
+>
+> **Bevist i dag — doggybeds træk gik igennem.** Sektion `a_doggybed_traek`,
+> ordret: «betalt · in_1UF8tR3CvBmCx5PthFjFOjFc;a_doggybed_traek;2026-09-13T09:36:24.309794+00:00
+> | beloeb 437500 | id 781b4c5c-77d8-4ecf-8b45-30e085cc79b0» — kl. 09:36:24
+> UTC (11:36:24 dansk), 437.500 øre = 4.375 kr., ÉN række. **#572 BEVIST.**
+> Sektion `b_doggybed_abonnement`, ordret: «Doggybed;b_doggybed_abonnement;subscription_status
+> NULL | stripe_customer_id NULL | slutdato 2026-10-13». **#563 BEVIST** —
+> grenen sprang over med vilje. Bemærk: `stripe_customer_id` er STADIG
+> NULL; det er det der blokerer kundeportal-linket (kort 26).
+> **Driften** (sektion `e_drift`, ordret): «cron-job
+> send-monthly-digest;e_drift;0» og «cron-jobs i alt;e_drift;18» —
+> digesten er stadig slukket, og 18 = 19 (målt 11/9 kl. 09:20) minus
+> digesten. Sektion `d_praesentation`: INGEN række i resultatet — 0 tråde
+> med `kilde_type = 'praesentation'`.
+>
+> **#815 er IKKE bevist — og KAN ikke bevises af dette træk.** Sektion
+> `c_klokke_traek_fejlet`, ordret: «ingen raekker i alt
+> (kontrol);c_klokke_traek_fejlet;0». Et vellykket træk sender aldrig
+> `invoice.payment_failed`; beviset kræver et fejlet træk, og hvornår det
+> sker, er ukendt.
+>
+> **stripe-webhook — navnet er i ental, og funktionen er udrullet.**
+> Mappen hedder `supabase/functions/stripe-webhook`, og `config.toml:61`
+> siger `[functions.stripe-webhook]`. Denne fil skrev «stripe-webhooks»
+> fire steder — rettet 13/9 (ny fælde i DEL 4); to kodekommentarer
+> (`fornyelsesperiode.ts:39` i begge kopier) tages med i næste bygning i
+> vindue A. Udrullet 13/9 kl. 12:04 UTC (14:04 dansk) i Lovables
+> build-chat, EFTER trækket. Lovable ordret: «Udrulningen af stripe-webhook
+> lykkedes kl. 2026-09-13 12:04 UTC. Endpointet svarer live med HTTP 400
+> Invalid signature (forventet). Ingen filer, andre funktioner eller
+> migrationer blev rørt.» Nu kører main — men `payment_failed`-grenen er
+> stadig ubevist i drift.
+>
+> **Kort 83 er I DRIFT — PR #820** (`fix/fjern-halv-sletning-members`,
+> commit `16f0ab27`, fem filer +82/−230). Fire beviser, i rækkefølge:
+> (1) merget — `gh pr view 820 --json mergedAt,mergeCommit`, ordret:
+> «{"mergeCommit":{"oid":"1b45add2d242eb27d665485398f05e7418929794"},"mergedAt":"2026-09-13T12:17:29Z"}»
+> (14:17:29 dansk); (2) diffen læst i chatten før merge — serveren mistede
+> hele grenen (91 linjer), `ADVISOR_ALLOWED_ACTIONS` og
+> `fjern-fra-virksomhed` urørte; fladen mistede knap, dialog og de
+> imports der kun tjente den; `maaFjerneMedlem` væk, `erOwner` og
+> `maaFjerneFraVirksomhed` uændrede; kildeværnet læser fire filer med
+> regex på HELE ordet plus et værn mod at action-routingen kender navnet,
+> og A kørte en NEGATIV PRØVE (teksten indsat → 2 af 15 tests fejlede,
+> prøvelinjerne fjernet igen); tsc nul fejl, tests 2891 → 2892,
+> `check:edge-auth` PASS (69 filer); (3) `manage-advisor` udrullet
+> EKSPLICIT i Lovables build-chat, ordret: «Udrulningen af manage-advisor
+> lykkedes kl. 2026-09-13 12:18 UTC. Endpointet svarer live med HTTP 401
+> Unauthorized (forventet). Ingen filer, andre funktioner eller
+> migrationer blev rørt.» (14:18 dansk) — uden den ville grenen leve
+> videre på serveren; (4) fladen bevist på skærm kl. 14:22:53
+> (`screencapture-app-theboardroom-dk-members-2026-09-13-14_22_53.pdf`:
+> BR Roset udfoldet, TEAM (2) viser René Larsen (owner) og Betina Larsen
+> (member) UDEN fjern-kryds) og kl. 14:21:55 på virksomhedssiden
+> (`screencapture-…-virksomhed-7b0056eb-…-14_21_55.pdf`: «Fjern fra
+> virksomheden» står ved Betina (member), IKKE ved René (owner)).
+> **Forbehold: serveren er UDRULLET, IKKE drifts-bevist.** Et driftsbevis
+> kræver et admin-token i browserkonsollen; chatten bad Jonas om det, og
+> han afviste med rette (Jonas 13/9: «Du skal teste på en anden måde frem
+> for at jeg skal lege udvikler»). Beviset blev droppet, ikke glemt (DEL
+> 4, ny fælde). Det der holder grenen væk, er kildeværnet i testen plus
+> at Lovable udrullede fra main. FIND FØRST-fundene står i DEL 2 «13.
+> september» §4.
+> **Køen efter kort 83:** 40 (hele fallbacken) → oprydningen
+> (run-weekly-agent, digestens kode, podcasten ud) → 56 → 76 → 82 → 57 →
+> 29. **A4:** recon af hvordan linjen for en ny refleksion lukkes
+> (forslag 21).
+>
+> **Åbne beviser:** kort 60's tre (tjeklistens punkt på et medlems skærm;
+> den første rigtige præsentation — 0 i dag; velkomstmailens nye tekst);
+> #815's fejl-gren (kræver et fejlet træk); 14/9 første hele uge med
+> `weekly_focus.seen_at` på forsiden. **Åbne beslutninger:** 20, 21 og 22
+> (forslag fra chatten, stående uden indsigelse) samt migrationen af de
+> 13 — betingelsen fra 2/9 (at trækket 13/9 gik igennem) er opfyldt;
+> hvornår og i hvilke portioner er IKKE besluttet (DEL 3). **Og
+> `/members`** — Jonas 13/9, ordret: «Hvornår fanden bliver /members lavet
+> om og konverteret til hjemmebane design? Det er en lorteside.» Chattens
+> læsning 13/9 (ikke en måling): der findes ingen dato; planen er at siden
+> LUKKES, ikke konverteres; det der spærrer er ÉN designbeslutning — hvor
+> import, merge og omdøb bor (mangellisten «Tre handlinger uden hjem før
+> /members kan lukkes», åbent siden 4/9). Elleve dele er flyttet siden 4/9
+> (invitationer #754, stamdata #771, tilknyt og berig #772, sidst online
+> #751, fjern fra virksomheden #803/#805, slet virksomheden 10/9, krydset
+> i dag #820); «/members er tømt» holdt ikke (rettet 11/9) —
+> skærmbilledet 14:22:53 viser header, «Importér ansøgning», «Inviter ny
+> bruger», statsbjælken, aktive/inaktive, onboarding-tragten,
+> fornyelsesbeslutningerne (4), branchefilteret, listen med 27
+> virksomheder og invitationsblokken. Ingen har talt op hvad der faktisk
+> står tilbage, og hvor hver del hører hjemme. NÆSTE SKRIDT (forslag fra
+> chatten, stående uden indsigelse): en recon af hver del på siden —
+> findes den allerede i Hjemmebane, hvor hører den hjemme, hvad spærrer —
+> så beslutningen kan tages på fakta; derefter kan siden lukkes i én eller
+> to bygninger. Reconen er IKKE kørt.
+>
+> **12/9:** i repoet skete der INTET — #819 blev merget 11/9 kl. 10:55:26
+> UTC, og næste commit er ikke kommet. Om der skete noget i prod, Stripe
+> eller Lovable den 12/9: ikke målt, ikke bogført.
+>
+> Detaljen står i DEL 2 «13. september» (§1–§4).
+
 > ## 11/9 EFTERMIDDAG — START HER (dagen lukket; skrevet 11/9 eftermiddag efter #817, digestens slukning kl. 12:07 og målingerne 11:33, 11:43, 12:07 og 12:18)
 >
 > **I drift:** #815 og #816 (formiddagen, Update 11:12). **Kort 60 er I
@@ -30,7 +131,7 @@
 > medlemmer»); KPI-mål trin 2 «Jeg er enig med dig!» — intet standardmål.
 >
 > **Åbne beviser:** 13/9 (søndag) doggybeds træk (#563, #572, #815 og
-> stripe-webhooks version — DEL 3); 14/9 første hele uge med
+> stripe-webhook version — DEL 3); 14/9 første hele uge med
 > `weekly_focus.seen_at` på forsiden; **kort 60, tre beviser der stadig
 > mangler** (DEL 3): tjeklistens punkt på et medlems skærm; den første
 > rigtige præsentation (`community_traade` med `kilde_type =
@@ -74,7 +175,7 @@
 > 11:15, «Ny resultatopgørelse fra remm.» → virksomhedssiden); feedbackens
 > skrivevej i prod (række, fil med mappetjek, klokke — Jonas' test 09:15
 > UTC (11:15 dansk), «TEST 11/9 — ignorér»). **Udestående bevis:**
-> stripe-webhooks version — doggybeds event 13/9 (søndag), svaret bærer
+> stripe-webhook version — doggybeds event 13/9 (søndag), svaret bærer
 > `traek.id` eller `klokke`. **Stripe:** opsigelse i kundeportalen slået
 > FRA kl. 10:01; login-linket er ikke aktiveret på nogen konto.
 > **Onboarding-rytmens afsendelsesgren er ubevist** (tørkørsel
@@ -3559,7 +3660,7 @@ mandag 14/9. **§0B er ikke besluttet.**
   #815 og #816). **Skærmbeviset for linket er FØRT:** Jonas klikkede på
   «Ny resultatopgørelse fra remm.» i rådgiverens klokke og landede på
   virksomhedssiden — «Det virker umiddelbart» (chat 11/9 ca. 11:15, uden
-  skærmbillede). **UDESTÅR:** stripe-webhooks version bevises stadig af
+  skærmbillede). **UDESTÅR:** stripe-webhook version bevises stadig af
   doggybeds event 13/9 (svaret bærer `traek.id` eller `klokke`).
 - **#816 merget kl. ca. 11:05 — kort 85, feedback i Hb-skallen.** Motoren
   `src/lib/feedback.ts` (validering image/* og 5 MB, stien `{userId}/…`
@@ -4128,6 +4229,184 @@ Kilde `recon-a4-forsidens-dom.md`.
   oprydningen (run-weekly-agent, digestens kode, podcasten ud) → 56 → 76 →
   82 → 57 → 29. A4: recon af hvordan linjen for en ny refleksion lukkes.
 
+### 13. september — doggybeds træk gik igennem (#563 og #572 bevist, #815 ubevist); stripe-webhook i ental og udrullet 12:04 UTC; kort 83 bygget og i drift (#820, merget 12:17:29 UTC, manage-advisor udrullet 12:18 UTC)
+
+Kilder: `~/Downloads/query-results-export-2026-09-13_14-01-42.csv` (prod,
+målt kl. 14:01, kolonner `noegle;sektion;vaerdi`, ordret),
+`~/Downloads/verifikation-kort83.txt` (FIND FØRST, målt FØR nogen
+kodeændring), repoet ved `3ce1e7dc` (mappen og `config.toml`), Lovables
+build-chat (udrulningen, ordret). Jonas' ord står som «Jonas 13/9»; det
+chatten foreslog og han ikke svarede på, står som «forslag fra chatten,
+stående uden indsigelse». Er en kilde uklar, står der «ikke målt». I
+repoet skete der INTET 12/9: HEAD er stadig `3ce1e7dc` (#819, `gh pr view
+819`: «mergedAt 2026-09-11T10:55:26Z»), og næste commit er ikke kommet.
+Om der skete noget i prod, Stripe eller Lovable den 12/9: ikke målt.
+
+**1. Trækket og de tre beviser.**
+
+- **#572 BEVIST.** Sektion `a_doggybed_traek`, ordret: «betalt ·
+  in_1UF8tR3CvBmCx5PthFjFOjFc;a_doggybed_traek;2026-09-13T09:36:24.309794+00:00
+  | beloeb 437500 | id 781b4c5c-77d8-4ecf-8b45-30e085cc79b0». Kl. 09:36:24
+  UTC = 11:36:24 dansk; 437.500 øre = 4.375 kr.; ÉN række i
+  `company_traek` med `status = 'betalt'`.
+- **#563 BEVIST.** Sektion `b_doggybed_abonnement`, ordret:
+  «Doggybed;b_doggybed_abonnement;subscription_status NULL |
+  stripe_customer_id NULL | slutdato 2026-10-13». `subscription_status`
+  forblev NULL efter trækket — grenen sprang over med vilje. Bemærk:
+  `stripe_customer_id` er STADIG NULL for doggybed; det er det der
+  blokerer kundeportal-linket (kort 26). `customer.subscription.updated`
+  grøn i Stripes Event deliveries: ikke målt.
+- **#815 IKKE BEVIST — og KAN ikke bevises af dette træk.** Sektion
+  `c_klokke_traek_fejlet`, ordret: «ingen raekker i alt
+  (kontrol);c_klokke_traek_fejlet;0» — nul rækker i
+  `advisor_notifications` med `type = 'traek_fejlet'`, som forventet. Et
+  vellykket træk sender aldrig `invoice.payment_failed`; grenen
+  (`skrivRaadgiverBesked`, dedup på `company_traek.id`, værnet mod at et
+  betalt træk vendes til fejlet) bevises først af et fejlet træk. Hvornår
+  det sker, er ukendt. Beviset står uændret i DEL 3.
+- **Betingelsen fra 2/9 er opfyldt:** de tretten andre ventede på at
+  trækket 13/9 gik igennem. Hvornår og i hvilke portioner de migreres, er
+  en ÅBEN BESLUTNING — ikke truffet (DEL 3, rækken om migrationen af de
+  13).
+
+**2. stripe-webhook — navnet og udrulningen.**
+
+- **Navnet er i ental.** Målt i repoet 13/9: mappen hedder
+  `supabase/functions/stripe-webhook`, og `supabase/config.toml:61` siger
+  `[functions.stripe-webhook]`. ÉN funktion. «stripe-webhooks» fandtes
+  seks steder som tekst: fire i denne fil (de to START HER-blokke fra
+  11/9, DEL 2 «11. september, formiddag» under #815, DEL 3's 13/9-række)
+  — rettet 13/9 — og to kodekommentarer, `src/lib/fornyelsesperiode.ts:39`
+  og `supabase/functions/_shared/fornyelsesperiode.ts:39`, som IKKE er
+  rørt i denne bogføring (det er kode) og tages med i næste bygning i
+  vindue A. Ingen af de seks var et kald — intet var i stykker. Ny fælde
+  i DEL 4.
+- **Udrullet 13/9 kl. 12:04 UTC (14:04 dansk)** i Lovables build-chat,
+  EFTER trækket. Lovables svar ordret: «Udrulningen af stripe-webhook
+  lykkedes kl. 2026-09-13 12:04 UTC. Endpointet svarer live med HTTP 400
+  Invalid signature (forventet). Ingen filer, andre funktioner eller
+  migrationer blev rørt.» Hvorfor: doggybeds event beviste kun
+  `invoice.paid`-grenen; #815 rørte `payment_failed`-grenen, og om DEN
+  version var i drift, var ikke målt. Efter udrulningen kører main — men
+  grenen er stadig ubevist i drift (§1).
+
+**3. Driften.** Sektion `e_drift`, ordret: «cron-job
+send-monthly-digest;e_drift;0» og «cron-jobs i alt;e_drift;18». Digesten
+er stadig slukket (`cron.unschedule` 11/9 kl. 12:07), og 18 = 19 (målt
+11/9 kl. 09:20) minus digesten. Sektion `d_praesentation`: INGEN række i
+resultatet — 0 tråde i `community_traade` med `kilde_type =
+'praesentation'`. Kort 60's bevis «den første rigtige præsentation» står
+stadig åbent (DEL 3, rækken «Kort 60 — tre åbne beviser»).
+
+**4. Kort 83 — bygget i vindue A og I DRIFT: den halve sletning er væk
+fra /members (#820).** Grenen `fix/fjern-halv-sletning-members`, ét
+commit `16f0ab27` («fix: den halve sletning fjernes fra /members (kort
+83)», 2026-09-13T14:14:49+02:00), fem filer, 82 indsættelser / 230
+sletninger. Beviserne, i rækkefølge:
+
+- **Merget.** `gh pr view 820 --json mergedAt,mergeCommit`, ordret:
+  «{"mergeCommit":{"oid":"1b45add2d242eb27d665485398f05e7418929794"},"mergedAt":"2026-09-13T12:17:29Z"}»
+  — 12:17:29 UTC, 14:17:29 dansk. (Denne bogføring er skrevet på main ved
+  `3ce1e7dc` uden pull; merge-committet er ikke hentet lokalt.)
+- **Diffen læst i chatten før merge** (chat 13/9): serveren mistede hele
+  grenen (91 linjer), `ADVISOR_ALLOWED_ACTIONS` og `fjern-fra-virksomhed`
+  urørte; fladen mistede knap, dialog og de imports der kun tjente den;
+  `maaFjerneMedlem` væk, `erOwner` og `maaFjerneFraVirksomhed` uændrede.
+  Kildeværnet læser fire filer med regex på HELE ordet
+  (`bulk-remove-members` fanges ikke) plus et værn mod at
+  action-routingen kender navnet. A kørte en NEGATIV PRØVE: med teksten
+  indsat fejlede 2 af 15 tests, og prøvelinjerne blev fjernet igen. tsc
+  nul fejl; tests 2891 → 2892; `check:edge-auth` PASS (69 filer).
+- **Udrullet EKSPLICIT.** `manage-advisor` i Lovables build-chat, ordret:
+  «Udrulningen af manage-advisor lykkedes kl. 2026-09-13 12:18 UTC.
+  Endpointet svarer live med HTTP 401 Unauthorized (forventet). Ingen
+  filer, andre funktioner eller migrationer blev rørt.» (14:18 dansk.)
+  Uden den ville grenen leve videre på serveren, selv om knappen er væk i
+  fladen.
+- **Fladen bevist på skærm.** Kl. 14:22:53
+  (`screencapture-app-theboardroom-dk-members-2026-09-13-14_22_53.pdf`):
+  BR Roset udfoldet, TEAM (2) viser René Larsen (owner) og Betina Larsen
+  (member) UDEN fjern-kryds. Kl. 14:21:55 på virksomhedssiden
+  (`screencapture-…-virksomhed-7b0056eb-…-14_21_55.pdf`): «Fjern fra
+  virksomheden» står ved Betina (member) og IKKE ved René (owner) —
+  owner-værnet på den rigtige handling holder. Update-klikket for
+  frontend-builden: ikke oplyst, ikke målt; skærmbilledet er beviset.
+- **SERVEREN ER UDRULLET, IKKE DRIFTS-BEVIST.** Et driftsbevis (at et
+  direkte kald med `action: 'remove-member'` svarer 400 fra den udrullede
+  version) kræver et admin-token i browserkonsollen, og chatten bad Jonas
+  om det; han afviste med rette (Jonas 13/9: «Du skal teste på en anden
+  måde frem for at jeg skal lege udvikler»). Beviset blev droppet, ikke
+  glemt. Det der holder grenen væk, er kildeværnet i testen plus at
+  Lovable udrullede fra main. Ny fælde i DEL 4.
+
+Udgangspunkt FØR bygningen: `main = origin/main = 3ce1e7dc`, rent træ;
+tests 188 filer / 2891 tests, alle grønne. De fem filer: `src/pages/Members.tsx`,
+`src/components/members/MemberCompanyRow.tsx`,
+`src/lib/medlemsfjernelse.ts`,
+`src/lib/__tests__/medlemsfjernelse.test.ts`,
+`supabase/functions/manage-advisor/index.ts` — ingen andre. FIND FØRST
+(`~/Downloads/verifikation-kort83.txt`, målt FØR nogen kodeændring):
+
+- *Kaldere af action `remove-member`:* `src/pages/Members.tsx:693`
+  (`body: { action: 'remove-member', target_user_id }`) er ENESTE kalder
+  i `src/`; serverens gren er
+  `supabase/functions/manage-advisor/index.ts:340-431`. Kun kommentarer,
+  ingen kald: `index.ts:101, :264, :348, :371`;
+  `_shared/fjernFraVirksomhed.ts:5, :31` og
+  `hjemmebane/virksomhed/VirksomhedView.tsx:1356` (røres ikke — urørt-
+  listen); `medlemsfjernelse.ts:4, :10, :16, :21, :42`. Tests:
+  `medlemsfjernelse.test.ts:64` (testnavn) og `:81` (hævder KUN at
+  `remove-member` ikke står i `ADVISOR_ALLOWED_ACTIONS` — ikke at den
+  skal findes). Scripts: ingen fund. Identifikatoren `removeMember`
+  findes ingen steder.
+- *Kaldere af `maaFjerneMedlem`:* `MemberCompanyRow.tsx:18` (import) og
+  `:339` (gaten på knappen) — ENESTE brug i `src/`; testfilen `:8`,
+  `:27-45` (enhedstests), `:65`, `:87`. Deno-kopi: NEJ — serveren
+  inliner owner-tjekket (`index.ts:364-379`, `m.role === 'owner'`) og
+  henviser kun i en kommentar (`:361-362`). `OWNER_ROLLE` i
+  `_shared/fjernFraVirksomhed.ts:57` og `_shared/medlemsrolle.ts:20` er
+  urelateret.
+- *Hvad grenen deler med andre grene:* FÆLLES og bliver — `corsHeaders`
+  (`:5-9`), `adminSupabase` (`:83`), `userId` (`:77`), `callerIsAdmin`
+  (`:96`), destruktureringen `:99` (`target_user_id` bruges også af
+  `fjern-fra-virksomhed`, `:267, :281, :331`), per-action-gaten og
+  `ADVISOR_ALLOWED_ACTIONS` (`:104-112`, remove-member står IKKE i
+  listen), `if (!email)` → 400 «Missing email» (`:434-438`) og
+  fallthrough → 400 «Unknown action» (`:658-660`). KUN remove-member:
+  hele blokken `:340-431` (owner-opslag, invitations-reset med
+  `accepted_by` + email-fallback, DELETE `company_members`, DELETE
+  `profiles`, `auth.admin.deleteUser`); ingen hjælpefunktion, konstant
+  eller type er eksklusiv for grenen, og den importerer intet fra
+  `_shared`. Efter fjernelsen rammer et direkte kald `{ action:
+  'remove-member', target_user_id }` først `if (!email)` og svarer 400
+  «Missing email»; med email 400 «Unknown action». Begge 400, intet
+  slettes.
+- *Kildeværnet* `medlemsfjernelse.test.ts:70-89` læser
+  `manage-advisor/index.ts` og `VirksomhedView.tsx` — IKKE `Members.tsx`,
+  `MemberCompanyRow.tsx` eller `medlemsfjernelse.ts`. Enhedstestene
+  `:27-45` (4 tests) dækker kun `maaFjerneMedlem` → fjernes; `:64-67`
+  sammenligner de to domme → omskrives til kun at hævde
+  `maaFjerneFraVirksomhed`.
+- *Tilstand knyttet til knappen:* `Members.tsx:161`
+  (`removingMember`), `:687-706` (`handleRemoveMember`: owner-guard,
+  invoke, toast, `refetchMembers`), `:1192`, `:1196` → væk; ingen egen
+  dialog i `Members.tsx` — bekræftelsen er `AlertDialog` inline i
+  `MemberCompanyRow.tsx:340-372`; `refetchMembers` og typen
+  `CompanyMember` (`:22`, brugt `:422`) bliver. I `MemberCompanyRow.tsx`
+  går `AlertDialog*`-imports (`:9-13`), ikonet `X` (`:6`), typen
+  `CompanyMember` (`:16`) og props `removingMember` (`:27, :45`) /
+  `onRemoveMember` (`:31, :49`) væk; `Loader2` (`:538, :547`) og
+  `isAdmin` (`:265, :532, :541, :550, :558`) bliver.
+- *STOP-tjek:* tre gange nej — `maaFjerneMedlem` bruges kun af knappen;
+  `remove-member` deler ingen kode med `fjern-fra-virksomhed`; ingen test
+  hævder at `remove-member` SKAL findes.
+
+Kortet ««Fjern fra virksomheden» findes og virker for begge rådgivere —
+/members' knap sletter stadig mennesket» er FJERNET SOM LØST fra
+mangellisten (RYDDET 13/9). Det der står tilbage om `/members`, står i
+START HER 13/9 (åbne beslutninger) og på kortet «Tre handlinger uden hjem
+før /members kan lukkes».
+
 ### Mailplatformen — bygget om af Lovable 8/9 kl. 06:52-06:58; afsenderne, fortegnelsen og værnet (#728, #730, #731, #732)
 
 **Hvad Lovable gjorde.** 19 commits direkte til main mellem kl. 06:52 og
@@ -4668,7 +4947,7 @@ facit og rækkefølge; `docs/chat-design.md` chattens form.
 | hvornår | hvad | hvor det står |
 |---|---|---|
 | **ÅBENT — Jonas og Morten, ikke i aften** (10/9 kl. 22: «Jeg ved ikke om jeg er skarp nok til at vælge») | **`run-weekly-agent`: slet (A), omlæg tørt/live (B) eller byg færdig som én mandagsmotor (C).** Den har aldrig kørt (kun `Deno.cron`, 0 `weekly_cron` i `agent_runs`), så intet haster. Mål FØRST om nogen læser ugefokus: `notifications` type `weekly_focus_ready` → `seen_at`/`read_at` (SQL i DEL 2). `weekly_focus.seen_at` kan ikke bruges (død skrivevej, rettes i det andet vindue). | DEL 2 «Ugefokus og ugeagenten» |
-| **FØR 13/9** — Stripe er sat op 10/9 kl. 20:50–21:05 (past-due, mails til, dansk); **(1) BYGGET 11/9 (#815)**, (2) ikke bygget | **Restancen:** (1) ~~rådgivernes klokke ved fejlet træk~~ → **bygget 11/9 (#815)**: `skrivRaadgiverBesked` i `payment_failed`, dedup `company_traek.id`, værn mod at et betalt træk vendes til fejlet; udestår Update og bevis på skærm. (2) retries opbrugt → `invoices.send` når `next_payment_attempt` er null — **ud af A1 11/9**, forudsætningerne står på kortet; haster ikke før 13/9 (otte forsøg). Bevis: doggybeds træk 13/9 (søndag) — går det igennem, skrives `betalt`; fejler det, skal klokken ringe og badgen stå, og svaret bærer `traek.id` eller `klokke`. | DEL 2 «11. september, formiddag»; fornyelseskæden §9; mangellisten (Betaling) |
+| **FØR 13/9** — Stripe er sat op 10/9 kl. 20:50–21:05 (past-due, mails til, dansk); **(1) BYGGET 11/9 (#815), UDRULLET 13/9 kl. 12:04 UTC — UBEVIST I DRIFT**; (2) uændret, ikke bygget | **Restancen:** (1) ~~rådgivernes klokke ved fejlet træk~~ → **bygget 11/9 (#815)**: `skrivRaadgiverBesked` i `payment_failed`, dedup `company_traek.id`, værn mod at et betalt træk vendes til fejlet. Update klikket 11/9 kl. 11:12; `stripe-webhook` udrullet eksplicit 13/9 kl. 12:04 UTC i Lovables build-chat (ordret: «Endpointet svarer live med HTTP 400 Invalid signature (forventet)»). **Ubevist i drift:** doggybeds træk 13/9 gik igennem (`betalt` kl. 09:36:24 UTC, DEL 2 «13. september» §1), så `invoice.payment_failed` blev aldrig sendt; grenen bevises først af et fejlet træk — hvornår det sker, er ukendt. Beviset når det kommer: svaret bærer `traek.id` og `klokke`; en række pr. rådgiver i `advisor_notifications` med `type = 'traek_fejlet'`, `reference_type = 'traek'`, `reference_id = company_traek.id`; klokkens link `/virksomhed/<id>?section=aftale`; et senere `payment_failed` for samme faktura svarer `sprunget_over: allerede_betalt`. (2) retries opbrugt → `invoices.send` når `next_payment_attempt` er null — **ud af A1 11/9, uændret 13/9**, forudsætningerne står på kortet (otte forsøg over en måned). | DEL 2 «13. september» §1–§2; DEL 2 «11. september, formiddag»; fornyelseskæden §9; mangellisten (Betaling) |
 | **LØST — MÅLT KØRT 11/9 kl. 09:20** (alle tre stod i prod; `query-results-export-2026-09-11_09-20-04.csv`). Var: SKREVET 10/9 (#801), IKKE BEKRÆFTET KØRT | **Tre migrationer:** `20260911020000_messages_delete_15min.sql` (to DELETE-policies erstattes af «within 15 min» + advisor), `20260911030000_feedback_bucket_mappetjek.sql` (mappetjek, 5 MB, image/*), `20260911040000_companies_status_check.sql` (CHECK + NOT NULL; prod målt 30/8, 0 NULL). Bevis: SELECT'en nederst i hver fil — indtil da gælder de gamle policies. | DEL 2 «10. september, sen aften»; `SECURITY_BASELINE.md` §5 |
 | **RETTET 11/9 — «/members er tømt» holdt ikke** (recon-a2 kort 3 og 83 §4): `Members.tsx` renderer stadig header «Virksomheder», «Importér ansøgning» (`:1058-1065`), «Inviter ny bruger» (`:1066-1070`), `MembersStatsBar` (`:1074`), listen med `MemberCompanyRow` (`:1184-1200`: omdøb, invitér, gensend, fjern, slet, redigér virksomhed), «Slet virksomhed / + brugere» (`:1316`) og `MembersAdminSection` (`:1239-1249`); ruten `App.tsx:243` kræver advisor. Var: «RETTET 10/9 (#771–#773): `/members` er tømt — kun importen og onboarding-tragten står». `/settings` ER konverteret (#773). **EFTER 9/9** — det der stod tilbage efter rådgiverfladen og de to trin | ~~Otte ting kun på `/members`~~ → **10/9: importen bliver til ansøgningsflowet flytter; onboarding-tragten skal IKKE flyttes.** 11/9: siden er ikke tømt — se rækkens første celle; «Fjern»-knappen og `remove-member` fjernes i samme bygning (besluttet 11/9, kortet «Fjern fra virksomheden»). ~~`/settings`' tre rester~~ → **10/9: konverteret (#773).** **Aftale-kortet** er bygget med slutdato og pris; perioderne vises når nogen har nogen — 27 af 27 har nul. **Bevis:** `_shared/ikkeIGang.ts` i «View code» efter merge, Update for forsiden. **Ikke kode:** skriv til de seks der aldrig har uploadet — bed om historikken. | DEL 2 «9. september», mangellisten «Rådgiverfladen» |
 | **9/9 — I MORGEN** (punkt 1 og 2 er KØRT 8/9: de syv slettet kl. 12:14–12:26, DEL 2 «De otte tidligere»; kvitteringen siger en dato og kan fortrydes, #736) | **1) KØRT 8/9 kl. 12:14–12:26** — de syv tidligere slettet i fire hold efter `docs/koereplan-de-syv-tidligere.md` (nu historik); 8 af 8 stemplet, sweep tomt. **2) KØRT (#736)** — kvitteringen siger «Din data slettes den …» (motorens frist) og kan fortrydes til dagen før. **3) Cron-migrationsfilen** der bogfører `slet-medlemsdata` (`0 12 * * *`), formen fra `20260901112000_prod_cron_bogfoert.sql`. **4) Planen for 8/9, punkt 6–7** (punkt 4 og 5 er GJORT 8/9 eftermiddag: digesten kalder milepælsdommen #741/#742, kvitteringsmailen #739 — DEL 2 «Eftermiddagen 8/9»): toasten i `Index.tsx`, og den tomme platform (a–d). **5) Intro-sessionens tid** — starttiden ankommer i `calendly-webhook` og kastes væk; bygges (det andet vindue 8/9 aften). **6) Åbne fund uden beslutning:** de betalte 1:1-sessioner der stopper ved `booking_sent`; agentens forslag (op til tre pr. virksomhed pr. mandag + ét pr. rapport, ingen læser svarene) — mangellisten bærer begge. | `docs/koereplan-de-syv-tidligere.md`; `docs/koereplan-slettefunktionen.md`; DEL 2 «Slettefunktionen»; øverst «PLANEN FOR 8. SEPTEMBER» |
@@ -4680,7 +4959,7 @@ facit og rækkefølge; `docs/chat-design.md` chattens form.
 | BYGGET 7/9 eftermiddag (#683 motoren, #684 pengevejen), udrullet kl. 08:53 UTC — ændrer beslutningen fra 1/9 | **Fornyelse kan betales FØR slutdatoen.** Før kunne et medlem på dag 22 hverken se eller betale sit tilbud (checkout 403, `hent-fornyelsestilbud` null, gaten kun for udløbne). **Regnestykket, ordret:** betalt FØR eller PÅ slutdatoen → GAMMEL SLUTDATO + 12 måneder; betalt EFTER → BETALINGSDAGEN + 12. Grænsen er kontinuert (28/9 og 29/9 → 2027-09-29; 30/9 → 2027-09-30). `periode_start` er udledt af `company_perioder`s invariant: ny periode begynder hvor den gamle slutter. 29. februar er en synlig gren (→ 1/3 året efter, slutdatoen er eksklusiv). **`cancel_at` er IKKE ændret, og skal ikke ændres** — abonnementet er betalingsplanen, ikke adgangen; en der betaler tidligt får et abonnement der ophører FØR kontrakten, og det er rigtigt (DEL 2 «Fornyelseskæden», rettelsen; DEL 4). | fornyelseskæden §15.3, §7; fornyelsesordningen §1 |
 | LØST 7/9 (#691) — fornyelsesbåndet, bevist kl. 12:45; formen strammes (UNDERVEJS, Jonas 7/9) | **Et ikke-udløbet medlem kan betale, men kan ikke SE tilbuddet — LØST: båndet på forsiden.** `MembershipExpiredGate` vises kun ved tier `expired` (`Index.tsx`), og ingen anden flade viser fornyelsen til et medlem (målt 7/9). Betalingsvejen er åben fra dag 60 (`klar_til_tilbud`), men den eneste vej til checkout er gaten. Hvor tilbuddet skal vises før slutdatoen — forsiden, en mail, et kort — er ikke besluttet. *Målt 7/9 middag (`~/Downloads/recon-fornyelse-efter-betaling.md` §6, uden for repoet): `MembershipExpiredGate:88` er det ENESTE kaldested i `src/`; reconen kortlagde otte eksisterende mønstre at vælge imellem, og chattens udløbsbånd (sage-flade, rust-ikon, gatet på tilstand) er formmæssigt tættest — og det blev formen.* *LØST 7/9 kl. 12:45 (#691): `FornyelsesBaand` øverst på forsiden, kun når serveren siger tilbud; bevist på Topix med 20.000 kr. og tre modeller (DEL 2 «Fornyelseskæden»). Kortet er slettet fra mangellisten. Undervejs: større tekst, én primær knap, luft.* | DEL 2 «Fornyelseskæden»; fornyelseskæden §15.3 |
 | samtale, målt 6/9 | **To virksomheder uden slutdato rammer aldrig ordningen:** Alexander Lunds virksomhed og Martin Larsens virksomhed (`ingen_slutdato`). Og **Bastant Design** (31/12-2027) har ingen indgangspris, så fornyelsesprisen er ukendt — et `tilbyd` dér ville give et tomt tilbudskort. | fornyelseskæden §13.4 |
-| **13/9** | doggybeds træk på 4.375 kr. på den nye konto — MÅL at det gik igennem. Derefter flyttes de tretten i portioner. TuaMea (2/9), Floren engros og BR Roset (3/9) venter til efter egne træk. **Samme dag, beviset for #563 (nu stærkere):** `companies.subscription_status` skal forblive NULL på doggybed (`382fd787-3141-45c7-8eea-297b7b947fe0`) efter trækket — fordi grenen springer over med vilje, ikke fordi noget fejler — og `customer.subscription.updated` skal stå grøn i Stripes Event deliveries. SQL'en står i migration-recon §26. **Samme dag, beviset for #572:** en række i `company_traek` for doggybeds faktura med `status = 'betalt'` (SQL editor); fejler trækket, skal rækken stå som `fejlet` og badgen vise sig på /members (#574). **Beviset for #815 (11/9):** svaret på `invoice.payment_failed` bærer `traek.id` og `klokke` (skrevet/fandtes pr. rådgiver); en række pr. rådgiver i `advisor_notifications` med `type = 'traek_fejlet'`, `reference_type = 'traek'`, `reference_id = company_traek.id`; klokkens link er `/virksomhed/382fd787-…?section=aftale`. Går trækket igennem, skrives ingen besked, og et senere `payment_failed` for samme faktura svarer `sprunget_over: allerede_betalt`. 13/9 er søndag. **Skærmbeviset for klokkens link er FØRT 11/9 ca. 11:15** («Ny resultatopgørelse fra remm.» → virksomhedssiden, Jonas: «Det virker umiddelbart», uden skærmbillede; Update klikket 11:12); det der står tilbage her er stripe-webhooks version, som doggybeds event beviser. | migration-recon §25, §26; indgangen-design §31; DEL 2 «11. september, formiddag» |
+| **LØST 13/9 — #563 og #572 BEVIST** (prod målt kl. 14:01, `query-results-export-2026-09-13_14-01-42.csv`); #815 står tilbage — se rækken «FØR 13/9» | **Doggybeds træk på 4.375 kr. gik igennem.** Sektion `a_doggybed_traek`, ordret: «betalt · in_1UF8tR3CvBmCx5PthFjFOjFc;a_doggybed_traek;2026-09-13T09:36:24.309794+00:00 \| beloeb 437500 \| id 781b4c5c-77d8-4ecf-8b45-30e085cc79b0» — kl. 09:36:24 UTC (11:36:24 dansk), 437.500 øre = 4.375 kr., ÉN række i `company_traek` med `status = 'betalt'` (**#572**). Sektion `b_doggybed_abonnement`, ordret: «Doggybed;b_doggybed_abonnement;subscription_status NULL \| stripe_customer_id NULL \| slutdato 2026-10-13» — `companies.subscription_status` forblev NULL på doggybed (`382fd787-3141-45c7-8eea-297b7b947fe0`), fordi grenen springer over med vilje (**#563**); `stripe_customer_id` er STADIG NULL (kort 26). `customer.subscription.updated` grøn i Stripes Event deliveries: ikke målt. **#815 er IKKE bevist og KAN ikke bevises af dette træk:** sektion `c_klokke_traek_fejlet`, ordret: «ingen raekker i alt (kontrol);c_klokke_traek_fejlet;0» — et vellykket træk sender aldrig `invoice.payment_failed`, og der skrives ingen besked, præcis som grenen skal. Beviset kræver et fejlet træk; hvornår det sker, er ukendt (formuleringen står i rækken «FØR 13/9»). `stripe-webhook`s version: udrullet eksplicit 13/9 kl. 12:04 UTC, efter trækket. Var før 13/9: «MÅL at det gik igennem» med beviserne for #563 (migration-recon §26), #572 og #815 (11/9); skærmbeviset for klokkens link var FØRT 11/9 ca. 11:15 («Ny resultatopgørelse fra remm.» → virksomhedssiden, Jonas: «Det virker umiddelbart», uden skærmbillede; Update klikket 11:12). TuaMea (2/9), Floren engros og BR Roset (3/9) venter til efter egne træk. | DEL 2 «13. september» §1–§2; migration-recon §25, §26; indgangen-design §31 |
 | **Kort 60 — tre åbne beviser** (i drift 11/9: merget 12:25:37, migration 12:26, Update før 12:28, `onboarding-rytme` udrullet 12:28, tørkørsel 9091 kl. 12:31 — DEL 2 «11. september, eftermiddag» §3) | **1)** Tjeklistens punkt «Præsentér dig i fællesskabet» på et medlems skærm (ikke rådgiver, ikke legat, `membershipTier === "full"`) — skærmbillede eller Jonas' ord. **2)** Den første rigtige præsentation: en række i `community_traade` med `kilde_type = 'praesentation'` og `status = 'aktiv'` (SQL editor) — og at punktet derefter står som gjort. **3)** Velkomstmailens nye tekst: første nye medlem dag 0–1 får mail A med det syvende punkt «Præsentér dig i fællesskabet — …» (`email_send_log` eller mailen selv). Hver dag uden nyt medlem er dag uden bevis for 3). | DEL 2 «11. september, eftermiddag» §3; `~/Downloads/verifikation-kort60.txt` |
 | LØST 3/9 kl. 10:42 | **Hvorfor skrev webhooken ikke på 2/9?** Eventet BLEV leveret; webhooken svarede 500 i skrivningen (fem gentagelser fra Stripe). Efter #563 gensendt manuelt → 200 `skipped: migreret_subscription`, «Recovered». Webhooken får subscription-events; hvidlisten er bevist på det rigtige event. Hvad der kastede, afdækkes bevidst ikke — men det art-løse selvbetjeningsabonnement går stadig gennem den kode. | migration-recon §26 |
 | **22/9** varsel 2 — jobbet ER planlagt (RETTET 11/9: `cron.job` målt kl. 09:20 har `fornyelsesvarsler` «0 11 * * *» gennem `kald_edge('fornyelsesvarsel-cron', '{"dry_run": false}')`; «jobbet er ikke planlagt» var forældet siden 7/9 kl. 14:51); **29/9** er PHILBERTs sidste dag MED adgang (#698) | PHILBERTs fornyelse: `tilbyd` står i `company_fornyelse`, prisen er gyldig (20.000 kr.). *7/9 kl. 11:57:* **varsel 1 ER SENDT** (nille@…, 22 dage, 20.000 kr.) og stemplet `varsel_1_sendt_at`; båndet på forsiden viser tilbuddet (#691), så PHILBERT kan både se og betale før 29/9 (#684). **Varsel 2 forfalder 22/9** — og sendes af jobbet kl. 11 UTC (målt 11/9); intet manuelt kald. **Digesten sender ikke den 22/9:** `send-monthly-digest` («0 8 22 * *», jobid 550) er slukket 11/9 kl. 12:07 — CSV 12:18 sektion `a_digest_efter`: «0»; de øvrige daglige jobs kører som før. Doggybed 13/10 står som `tilbyd_ikke`. | fornyelseskæden §13.4; prioritering §1; DEL 2 «11. september, eftermiddag» §2 |
@@ -4691,7 +4970,7 @@ facit og rækkefølge; `docs/chat-design.md` chattens form.
 | åbent | **`sikrIndgangsInvitation` kender ikke «allerede accepteret»**: den leder efter pending; findes en accepteret række, fejler insert på `UNIQUE(company_id, email)`, og invitationen sendes ikke. Set 3/9 på FLOOR1. Kan ikke ske for indgangen i drift, men tilstanden er ikke håndteret. | indgangen-design §30 |
 | åbent, besluttet | **Rykkere på dag 31-fakturaen**: Stripes egne påmindelser slås IKKE til (`auto_advance=false` med vilje — en fjerde stemme på engelsk fra en anden afsender ville skurre). Skal der rykkes, er det vores egen kæde. Ikke bygget. Bemærk også: dag 31-mailen siger 50.000 kr, fakturaen 62.500 kr inkl. moms — ikke ændret. | indgangen-design §30 |
 | LØST 3/9 kl. 11:50–12:00 | **Adressen på de eksisterende virksomheder**: `berig-virksomheder` (#567) hentede den fra CVR for 26 af 30 aktive (før 1 af 30). Uden: tre uden CVR-nummer (Alexander Lund, Martin Larsen, Bastant Design) og YKRG, som registret ingen adresse har for. | indgangen-design §33 |
-| efter 13/9 | Migrationen af de 13 (billing_cycle_anchor, cancel_at, default_payment_method, YKRG's kort, kobling til companies.id). | migration-recon §16, §25 |
+| **ÅBEN BESLUTNING — betingelsen er opfyldt 13/9** (doggybeds træk gik igennem, `betalt` kl. 09:36:24 UTC); hvornår og i hvilke portioner er IKKE besluttet | **Migrationen af de 13** (billing_cycle_anchor, cancel_at, default_payment_method, YKRG's kort, kobling til companies.id). Var «efter 13/9»: de tretten ventede på trækket 13/9 (betingelsen fra 2/9). Ikke længere blokeret — en beslutning, ikke en bygning. Datarbejdet står (mangellisten «Platformen kan ikke se hvem der betaler»: 27 aktive med NUL `stripe_customer_id`, målt 10/9 aften; doggybed stadig NULL 13/9). | migration-recon §16, §25; DEL 2 «13. september» §1 |
 | målt 3/9 aften — VIRKER for medlemmet | **1:1-sessionernes Calendly-kæde efter kontoskiftet.** Målt i Stripe (MCP, livemode): `session_1on1` findes som præcis én aktiv pris på den nye konto (`price_1UApFg3CvBmCx5PtyGkNPRmm`, 500 kr. ekskl. moms; kunden betaler 625 kr. med `automatic_tax`); `abonnement_maanedlig` findes ligeledes (`price_1UApQx3CvBmCx5Pt8GxtQsze`, 399 kr.). Webhook-endpointet `we_1UAtaW3CvBmCx5PtL736lAJN` er enabled med seks events inkl. `checkout.session.completed` og peger på `loiavmastgeieqyiwyyr`. **Kæden virker for medlemmet:** to betalte 1:1-sessioner er booket OG afholdt (23/6 og 30/6, målt i Calendly 3/9 aften). Det der fejler, er registreringen — rækken nedenfor. | — |
 | bevidst nedprioriteret 3/9 aften — LAV | **Betalte 1:1-bookinger registreres aldrig som `booked`.** Målt 3/9 aften: **0 af 12 betalte bookinger har `calendly_event_uri`, mod 2 af 3 gratis.** Årsagen er tredelt: (1) `stripe-webhook` (linje 917 og 925) skriver Calendlys `booking_url` RÅT i `session_bookings.calendly_booking_url`, mens `create-free-intro-booking` (161–162) indlejrer bookingens id i URL'en (`salesforce_uuid` + `utm_content`), og `calendly-webhook` (75–80) matcher kun på dem; (2) `calendly-webhook` matcher desuden på `advisor = 'morten'` (l. 94, 129), og de betalte rækker er `'jonas'` (default, migration 20260621120000); (3) Jonas' Calendly-organisation har kun ét medlem, så Mortens webhook-abonnement kan ikke dække Jonas' events. **Prioritet LAV, besluttet:** det koster ikke medlemmet noget — de booker og mødes — og reparationen kræver Calendly-abonnement på premium. Det er nedprioriteret, ikke glemt. Ikke en følge af kontoskiftet; det har været sådan hele tiden. | `~/Downloads/recon-kontoskifte.md`, `recon-1til1-link.md` (uden for repoet) |
 | åbent | **Velkomstvideoen skal optages** (Morten). Pladsen er bygget; GUID'et sættes i /admin/config. Siden 3/9 (#569) kan fokuskortet åbne videoen via `#velkomst`, så velkomst-punktet ikke længere er en fælde den dag GUID'et sættes — beviset på skærm kommer først da. | recon-velkomstvideo, indgangen-overhaling §10 |
@@ -5429,6 +5708,23 @@ De konkrete ting der har kostet tid. Led efter dem.
   tal som 9035). Om Lovable ruller en funktion ud, når kun en delt fil
   under `_shared` er ændret, er ikke målt. Bed om udrulningen, og kør
   tørkørslen bagefter.
+- **Et funktionsnavn i overleveringen skal være mappens navn.** Chatten
+  skrev «stripe-webhooks» i flere dages bogføring (fire steder i denne
+  fil, plus to kodekommentarer i `fornyelsesperiode.ts:39` i begge
+  kopier); funktionen hedder `stripe-webhook` — mappen
+  `supabase/functions/stripe-webhook`, `config.toml:61`. Intet gik i
+  stykker, fordi det kun stod i tekst — men det sender den næste til en
+  mappe der ikke findes. Slå navnet op i `supabase/functions/` og
+  `config.toml`, frem for at huske det. Rettet 13/9 (DEL 2 «13.
+  september» §2).
+- **Et driftsbevis der kræver at brugeren åbner en browserkonsol, er
+  ikke et bevis — det er en opgave.** 13/9 foreslog chatten et
+  konsol-kald med admin-token for at skelne to versioner af
+  `manage-advisor` (om `remove-member` svarer 400 fra den udrullede
+  kode); Jonas afviste: «Du skal teste på en anden måde frem for at jeg
+  skal lege udvikler». Når et bevis kun kan hentes af den der bygger,
+  skal værnet i koden bære det i stedet — kildeværnet i testen plus den
+  eksplicitte udrulning fra main (DEL 2 «13. september» §4).
 
 ---
 
