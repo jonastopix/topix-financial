@@ -1,7 +1,13 @@
 # Overlevering
 
-> ## 13/9 — START HER (skrevet 13/9 eftermiddag; opdateret 13/9 sen eftermiddag efter #826 og igen efter udrulningen kl. 14:20 UTC — og igen 13/9 aften efter bygning 3, og igen efter kort 40 og #833, og igen 13/9 aften efter oprydningen del 1 (#836), og igen 13/9 sen aften efter kort 56 (#837) og bogføringen af oprydningen (#838), og igen 13/9 sen aften efter Calendly-kæden (#842), og igen 13/9 sen aften efter den inkluderede session med Jonas (#844) og reconen «efter sessionen», og igen 13/9 sen aften efter ansøgningssporet, webinarets tidsramme og kort 29's recon — HEAD `e99019c5` = #847, merget 13/9 kl. 21:24:30 UTC; prod målt kl. 14:01, `~/Downloads/query-results-export-2026-09-13_14-01-42.csv`)
+> ## 13/9 — START HER (skrevet 13/9 eftermiddag; opdateret 13/9 sen eftermiddag efter #826 og igen efter udrulningen kl. 14:20 UTC — og igen 13/9 aften efter bygning 3, og igen efter kort 40 og #833, og igen 13/9 aften efter oprydningen del 1 (#836), og igen 13/9 sen aften efter kort 56 (#837) og bogføringen af oprydningen (#838), og igen 13/9 sen aften efter Calendly-kæden (#842), og igen 13/9 sen aften efter den inkluderede session med Jonas (#844) og reconen «efter sessionen», og igen 13/9 sen aften efter ansøgningssporet, webinarets tidsramme og kort 29's recon — HEAD `e99019c5` = #847, merget 13/9 kl. 21:24:30 UTC — OG 14/9 MORGEN: HEAD `b6585db2` = #848 (docs); planen frem mod webinaret i DEL 2 «13. september» §26–§27; prod målt kl. 14:01, `~/Downloads/query-results-export-2026-09-13_14-01-42.csv`)
 >
+> **14/9 MORGEN — I MORGEN, I RÆKKEFØLGE** (detaljen i DEL 2 «13. september» §26 og §27; kort 82 er bogført i §25):
+> **(1) MÅLINGERNE FØRST.** De ni prod-målinger fra A's recon §7 står klar med tærskler i `~/Downloads/maalinger-foer-webinaret.md`: ÉN SQL (kun SELECT, 16 dele, kolonnen `dom` siger OK/FEJL/UBEVIST pr. linje) i Lovable → SQL editor dækker nr. 1–7's spor; nr. 1, 2, 3 og 7 er secrets og kan kun ses som NAVN i Lovable → Cloud → Secrets (værdier er skjulte, DEL 4) — beviset går gennem noget der bruger dem; nr. 8 er Stripe Dashboard (endpoint `we_1UAtaW3CvBmCx5PtL736lAJN`, seks events, failed-webhook-mail TIL); nr. 9 er theboardroom.dk i view-source og LinkedIns Post Inspector. Tre fund fra FIND FØRST: cron-JOBNAVNE er ikke funktionsnavne (`onboarding-rytme` «0 8 \* \* \*», `intro-session-reminder` «0 9», `indgangs-paamindelser` «0 10» — filen 20260909180000 siger «15 9» og er forkert); Monday-boardets id er en KODEKONSTANT (`mondayAnsoegning.ts:16` = 1899777797), ikke en secret; og at slå invitationsskabelonen fra løser intet (fallback'en i koden har de samme fire usandheder).
+> **(2) GENNEMKØRSLEN** (mangellistens nr. 1 «Indgangens kæde har aldrig haft en virksomhed»): testvirksomhed → «Godkendt» i Monday → /betal → Stripe → signup → første login. Den afslører fund A, B og C på et menneske og lukker syv kort; de tre «UBEVIST» i målingerne (secret 1, secret 2, Monday) lukkes af den, ikke af flere målinger.
+> **(3) DE TRE RETTELSER — I STYKKER, øverst i mangellisten:** A `betalt=1` læses aldrig (`Betal.tsx:131`; betalingsskærmen igen med tre aktive knapper efter betalingen — rammer HVER betalende), B invitationens udfald kastes væk (`stripe-webhook:1224/1231/1290`; rettelsen er `skrivRaadgiverBesked`, + fund D), C invitationsmailens fire usandheder — teksten står i `email_templates`, én UPDATE i SQL editoren + fallback'en i koden. Alle tre er små; ingen er estimeret i dage (DEL 4, ny fælde).
+> **(4) DELINGEN** (§27, nr. 3 af de atten): Jonas' krav 13/9 — kreativ med Morten og Jonas, medlemmets billede eller logo, 3–4 tekster, som tjeklistepunkt for NYE medlemmer (besluttet: eksisterende får ikke listen åbnet igen). Stakken kan det uden nyt bibliotek (`html2canvas` 1.4.1, `HbDropzone`, Konto-mønstret); det der blokerer er DESIGNET og otte spørgsmål på kortet — ikke koden. «Del direkte på LinkedIn» kan ikke bygges (OAuth). Jonas' portræt er 300 px — der skal et nyt.
+> **De atten kort** står i mangellisten med tag «22/9 · nr. N af 18» og som nummereret liste øverst i «Rækkefølgen». Fund A–K er blevet syv kort (A+E, B+D, C, K, G, F/I/J, H). Mangellisten: 135 → 141 kort (kort 82 fjernet som løst — det stod der stadig).
 > **Bevist i dag — doggybeds træk gik igennem.** Sektion `a_doggybed_traek`,
 > ordret: «betalt · in_1UF8tR3CvBmCx5PthFjFOjFc;a_doggybed_traek;2026-09-13T09:36:24.309794+00:00
 > | beloeb 437500 | id 781b4c5c-77d8-4ecf-8b45-30e085cc79b0» — kl. 09:36:24
@@ -4596,7 +4602,7 @@ Kilde `recon-a4-forsidens-dom.md`.
   oprydningen (run-weekly-agent, digestens kode, podcasten ud) → 56 → 76 →
   82 → 57 → 29. A4: recon af hvordan linjen for en ny refleksion lukkes.
 
-### 13. september — doggybeds træk gik igennem (#563 og #572 bevist, #815 ubevist); stripe-webhook i ental og udrullet 12:04 UTC; kort 83 bygget og i drift (#820, merget 12:17:29 UTC, manage-advisor udrullet 12:18 UTC); /members bygning 1 FÆRDIG (#823, #824, #825 — merget 13:08:25, 13:33:58 og 13:54:51 UTC; panelet på skærm 15:38); bygning 2 LØST (#826, merget 14:13:00 UTC; fire funktioner udrullet 14:20 UTC); Guiden AFGJORT — dør i bygning 3, ankrene bliver; bygning 3 GJORT — /members og Guiden slettet (#828, merget 14:47:38 UTC; Update klikket; /members og /guide NotFound på skærm; manage-advisor udrullet 14:50 UTC); målt kl. 16:53 — sletningen fjernede intet i brug, NOTEN BEVIST I DRIFT, efterladenskaber fra tidligere sletninger fundet; kilderne fundet i A's recon; lækagen LUKKET (#830, merget 15:31:14 UTC) og udrullet 15:33 UTC; kort 40 GJORT — KPI-fallbacken fjernet helt (#832, merget 15:57:43 UTC; Update og skærmbevis åbne); branchelinjen på KPI-kortet fundet på skærmen kl. 18:00 — BESLUTTET: estimatet væk, forrige måneds eget tal i stedet — BYGGET (#833, merget 16:21:03 UTC) og BEVIST PÅ SKÆRM 18:26:57, som også beviser kort 40; brancheafsnittet MÅLT 18:28 (3 af 36 domme indenfor) og BESLUTTET: det dør — #833's værn låste afsnittet (1 af 2982 fejlede kl. 18:40), værnet omskrevet, og #834 MERGET 16:52:02 UTC (bar også del 3 af denne bogføring — index'et bar begge); Update klikket og BEVIST PÅ SKÆRM 18:58:00 — afsnittet er væk, siden går fra «MÅNED FOR MÅNED» direkte til «AI-ANALYSE»; oprydningen DEL 1 GJORT — run-weekly-agent slettet og digestens kode fjernet (#836, merget 17:08:09 UTC; run-company-agent udrullet 17:09 UTC; migrationen kørt; BEVIST PÅ SKÆRM 19:13:00 og 19:16:58) — «weekly_cron» i hvidlisten var en åben dør, ikke død kode; kort 56 GJORT — handout-siden linker til de lektioner der hører til (#837, merget 17:29:00 UTC; committen bar også §16 — index-fælden igen; Update klikket; Jonas: «Det virker»); bogføringen af oprydningen i mål som #838 (merget 17:35:45 UTC); CALENDLY-PÅSTANDEN FALSIFICERET kl. 21:30 — ét GET-kald, HTTP 200: planen rækker, nul abonnementer på Jonas' organisation; «kræver premium» stod tre steder i ti dage uden at nogen havde sendt kaldet; CALENDLY-KÆDEN LUKKET — #842 merget 20:04:19 UTC, tre functions udrullet 20:05 UTC, secret sat og bevist læst, Jonas' abonnement oprettet 20:16:47 UTC (`state: active`); en rigtig booking er UBEVIST, og Rallysupports to rækker forbliver håndsatte; DEN INKLUDEREDE SESSION MED JONAS I DRIFT — #844 merget 20:42:15 UTC, migrationen kørt 22:42, fire functions udrullet 20:45 UTC, BEVIST PÅ SKÆRM 22:48:25 (to symmetriske kort, 30 minutter) — teksterne rettes i vindue A; og reconen «efter sessionen»: INTET sker — `advisor_session_notes` er en død AI-cache, en note efter en session har aldrig eksisteret
+### 13. september — doggybeds træk gik igennem (#563 og #572 bevist, #815 ubevist); stripe-webhook i ental og udrullet 12:04 UTC; kort 83 bygget og i drift (#820, merget 12:17:29 UTC, manage-advisor udrullet 12:18 UTC); /members bygning 1 FÆRDIG (#823, #824, #825 — merget 13:08:25, 13:33:58 og 13:54:51 UTC; panelet på skærm 15:38); bygning 2 LØST (#826, merget 14:13:00 UTC; fire funktioner udrullet 14:20 UTC); Guiden AFGJORT — dør i bygning 3, ankrene bliver; bygning 3 GJORT — /members og Guiden slettet (#828, merget 14:47:38 UTC; Update klikket; /members og /guide NotFound på skærm; manage-advisor udrullet 14:50 UTC); målt kl. 16:53 — sletningen fjernede intet i brug, NOTEN BEVIST I DRIFT, efterladenskaber fra tidligere sletninger fundet; kilderne fundet i A's recon; lækagen LUKKET (#830, merget 15:31:14 UTC) og udrullet 15:33 UTC; kort 40 GJORT — KPI-fallbacken fjernet helt (#832, merget 15:57:43 UTC; Update og skærmbevis åbne); branchelinjen på KPI-kortet fundet på skærmen kl. 18:00 — BESLUTTET: estimatet væk, forrige måneds eget tal i stedet — BYGGET (#833, merget 16:21:03 UTC) og BEVIST PÅ SKÆRM 18:26:57, som også beviser kort 40; brancheafsnittet MÅLT 18:28 (3 af 36 domme indenfor) og BESLUTTET: det dør — #833's værn låste afsnittet (1 af 2982 fejlede kl. 18:40), værnet omskrevet, og #834 MERGET 16:52:02 UTC (bar også del 3 af denne bogføring — index'et bar begge); Update klikket og BEVIST PÅ SKÆRM 18:58:00 — afsnittet er væk, siden går fra «MÅNED FOR MÅNED» direkte til «AI-ANALYSE»; oprydningen DEL 1 GJORT — run-weekly-agent slettet og digestens kode fjernet (#836, merget 17:08:09 UTC; run-company-agent udrullet 17:09 UTC; migrationen kørt; BEVIST PÅ SKÆRM 19:13:00 og 19:16:58) — «weekly_cron» i hvidlisten var en åben dør, ikke død kode; kort 56 GJORT — handout-siden linker til de lektioner der hører til (#837, merget 17:29:00 UTC; committen bar også §16 — index-fælden igen; Update klikket; Jonas: «Det virker»); bogføringen af oprydningen i mål som #838 (merget 17:35:45 UTC); CALENDLY-PÅSTANDEN FALSIFICERET kl. 21:30 — ét GET-kald, HTTP 200: planen rækker, nul abonnementer på Jonas' organisation; «kræver premium» stod tre steder i ti dage uden at nogen havde sendt kaldet; CALENDLY-KÆDEN LUKKET — #842 merget 20:04:19 UTC, tre functions udrullet 20:05 UTC, secret sat og bevist læst, Jonas' abonnement oprettet 20:16:47 UTC (`state: active`); en rigtig booking er UBEVIST, og Rallysupports to rækker forbliver håndsatte; DEN INKLUDEREDE SESSION MED JONAS I DRIFT — #844 merget 20:42:15 UTC, migrationen kørt 22:42, fire functions udrullet 20:45 UTC, BEVIST PÅ SKÆRM 22:48:25 (to symmetriske kort, 30 minutter) — teksterne rettes i vindue A; og reconen «efter sessionen»: INTET sker — `advisor_session_notes` er en død AI-cache, en note efter en session har aldrig eksisteret; KORT 82 GJORT — #847 merget 21:24:31 UTC, migrationen kørt 23:25 (tre rækker slettet, fem tilbage; §25); og 14/9 morgen: PLANEN FREM MOD WEBINARET (§26) og DELINGEN SOM KRAV (§27)
 
 Kilder: `~/Downloads/query-results-export-2026-09-13_14-01-42.csv` (prod,
 målt kl. 14:01, kolonner `noegle;sektion;vaerdi`, ordret),
@@ -7173,6 +7179,254 @@ KLAR TIL AT BYGGES. `~/Downloads/recon-kort29.md`, 13/9 sen aften; HEAD
   svarer i praksis tomt. Dertil demo-seed med `-base-1..12`
   (`20260316115536:50-59`); om rækkerne findes i prod: ikke målt.
 
+**25. KORT 82 — PLATFORMCONFIGS TRE DØDE DELE ER SLETTET, I KODE OG I PROD.
+PR #847 «feat: platformconfigs tre doede dele slettes (kort 82)», merget
+13/9 kl. 21:24:31 UTC (`gh pr view 847 --json mergedAt,mergeCommit`, ordret:
+«"mergedAt":"2026-09-13T21:24:31Z"», «"oid":"e99019c5656d957b99b29a336c9a97f63932bc06"»
+— e99019c5); migrationen `20260913231500_platformconfig_doede_raekker.sql`
+kørt i Lovable → SQL editor 13/9 kl. 23:25 dansk. Bogført 14/9 morgen.**
+- **Hvad der blev slettet i koden** (migrationens eget hoved, ordret):
+  «ingen monteret flade læste performance_score, gamification eller
+  meetings. De eneste læsere var PerformanceScore.tsx og
+  CommunityProgress.tsx (importeret ingen steder) og formularerne i
+  ConfigView — alle slettet i koden i samme PR. useAppConfig ignorerer
+  ukendte rækker, så sletningen er også harmløs for en frontend-build der
+  endnu ikke er opdateret (defaults fylder ud).» `APP_BRANDING` og
+  rækken `branding` beholdes til det gamle design er væk (AppLayout,
+  AppSidebar).
+- **Prod, 13/9 kl. 23:25:** `DELETE FROM public.app_config WHERE config_key
+  IN ('performance_score', 'gamification', 'meetings')` → **tre rækker
+  slettet, fem tilbage:** `branding`, `extraction_v2_rollout`,
+  `notification_v2_rollout`, `session_timeout_minutes`,
+  `velkomstvideo_guid` — præcis migrationens «Forventet EFTER».
+- **FØR-værdierne, ordret fra migrationsfilen** (målt 11/9 kl. 11:43,
+  `query-results-export-2026-09-11_11-43-37.csv`, sektion
+  `c_82_app_config`), så de kan genskabes hvis nogen savner dem:
+  - `meetings` `{"next_meeting_date": "2026-04-30"}` — opdateret
+    2026-03-27T07:05:35.982904+00:00; ikke seedet af nogen migration;
+    gemt fra ConfigView, datoen er passeret.
+  - `performance_score` `{"weights": [0.3, 0.25, 0.25, 0.2],
+    "liquidityMonths": 6, "growthMultiplier": 2, "marginMultiplier": 2,
+    "profitMultiplier": 3, "defaultSalaryFallback": 50000}` — opdateret
+    2026-02-24T09:55:51.972469+00:00; seed-værdien fra 20260224095552,
+    aldrig ændret.
+  - `gamification` `{"levels": [Starter 0 🌱, Aktiv 25 ⚡, Dedikeret 75 🔥,
+    Stjerneelev 150 ⭐, Mester 300 🏆], "pointsPerReport": 10,
+    "pointsPerMilestone": 25}` — opdateret 2026-02-24T09:55:51.972469+00:00;
+    seed-værdien fra 20260224095552, aldrig ændret.
+- **Mangellisten:** kortet «Platformconfig: slet de tre dele ingen kode
+  læser» stod STADIG i listen 14/9 morgen (DEL 11 i listens filhoved
+  sagde det, ordret: «står stadig og er IKKE bogført i denne runde»);
+  forudsætningen for denne bogføring («allerede fjernet») holdt ikke.
+  Fjernet 14/9 som løst — kun her og i listens filhoved.
+- **Velkomstvideo-fælden består:** `velkomstvideo_guid` er én af de fem
+  tilbageværende og står tom (`'""'::jsonb`, 2/9) — se §26 måling 4.
+
+**26. PLANEN FREM MOD WEBINARET 22/9 — SKREVET 14/9 MORGEN; INGEN KODE.
+Tre recons: A's `~/Downloads/recon-de-nye-medlemmer.md` (medlemmets vej
+trin 1–10, atten kort prioriteret, elleve fund uden kort, ni målinger),
+`~/Downloads/recon-delingen.md` (delingens pris i vores stak) og
+`~/Downloads/maalinger-foer-webinaret.md` (de ni målinger med FIND FØRST,
+tærskler og én SQL). HEAD `b6585db2` = #848.**
+- **Rækkefølgen i morgen:** (1) målingerne → (2) gennemkørslen → (3) de
+  tre rettelser A/B/C → (4) delingen (§27). Målingerne først, fordi hver
+  af de ni kan ødelægge det første møde uden at kunne ses i repoet;
+  gennemkørslen dernæst, fordi den lukker syv kort og de tre «UBEVIST»
+  på én gang; rettelserne er små og bliver konkrete af gennemkørslen;
+  delingen er den eneste ting der virker udad, og dens kritiske sti er
+  designet, som ikke er kode.
+- **De ni målinger — hvor, og hvad det rigtige svar er** (detaljen med
+  fil:linje for hver og SQL'en står i `maalinger-foer-webinaret.md`):
+  1. `INVITATION_AFSENDER_USER_ID` — læses ét sted,
+     `_shared/sikrIndgangsInvitation.ts:49`; mangler den: `sprunget_over`,
+     ingen invitation, kun `console.error`, og webhooken læser ikke
+     udfaldet (`stripe-webhook:1224/1231/1290`). Rigtigt: navnet i
+     Lovable → Cloud → Secrets, værdien = Mortens uuid
+     (`indgangen-design.md:559`; SQL'en viser rådgiverkontiene), og
+     SQL-linjen «betalt uden login» tom. Forkert: tilføj secret'en;
+     invitér manuelt i /members indtil da.
+  2. `RAADGIVER_MAIL_TIL` — `_shared/indgangsBetalingsmail.ts:104`;
+     mangler den: 200 `ingen_raadgiver_mail`, virksomheden står som
+     `afventer_pris` uden at nogen hører det. Rigtigt: navnet i listen,
+     og efter gennemkørslen én `email_send_log`-række
+     `indgang-raadgiver-mangler-pris` med modtageren = værdien.
+  3. `JONAS_CALENDLY_EVENT_SLUG` — `create-free-intro-booking/index.ts:45,
+     :206-211`; mangler den: 503 + rollback («ikke konfigureret endnu»);
+     findes slug'en ikke hos Calendly: 502. Rigtigt: navnet i listen,
+     `https://calendly.com/topix-jonas/intro-snak` viser eventet (30 min),
+     og én testbooking giver en `session_bookings`-række `advisor='jonas'`,
+     `amount_dkk=0`, `booking_sent` → `booked`.
+  4. `velkomstvideo_guid` — `get-video-embed:76-104`,
+     `useOnboardingTjekliste.ts:109`, `onboarding-rytme:172`; tom: 404
+     `ingen_velkomstvideo`, tjeklisten fem punkter, ingen overlejring;
+     ikke et GUID: 500. Rigtigt: et Bunny-GUID sat på /admin/config (eller
+     BEVIDST tom med kort 4's tekst-overlejring bygget). Læses med
+     `config_value #>> '{}'` — rå tekst er `""` på to tegn.
+  5. Cron — tre JOB, ikke tre functions: `onboarding-rytme` «0 8 \* \* \*»
+     (prod 11/9; filen 20260909180000 siger «15 9» og er forkert),
+     `intro-session-reminder` «0 9 \* \* \*» → `intro-reminder-cron`,
+     `indgangs-paamindelser` «0 10 \* \* \*» → `indgangs-paamindelser-cron`.
+     Rigtigt: findes, aktive, præcis de tider, kommandoen nævner
+     funktionen OG `"dry_run": false` (uden det tørkører jobbet hver dag og
+     sender ALDRIG), seneste kørsel `succeeded` inden for et døgn, og
+     `email_queue_service_role_key` i vault (kald_edge kaster uden). SQL'en
+     dømmer alt det pr. linje. Afsendelsesgrenen er stadig ubevist
+     (tørkørslen 11/9: `ville_sende: 0`).
+  6. `email_templates` «Invitation til virksomhed» —
+     `send-invitation-email/index.ts:162-171` bruger rækken når `enabled`;
+     ellers `FALLBACK_HTML` (`:12-58`) med de SAMME fire usandheder og
+     «The Boardroom» i stedet for firmanavnet; to rækker med samme navn
+     giver også fallback (`maybeSingle`). Rigtigt i morgen (før
+     rettelsen): præcis 1 række, enabled, C1–C4 «USANDHED i DB» ×4 —
+     målingen bekræfter at Lovable ikke har ændret den siden
+     20260418124333, og viser `subject` og afsender, som ikke står i
+     repoet. Efter rettelsen: «OK: rettet» ×4.
+  7. Monday — board-id'et er en KODEKONSTANT, `_shared/mondayAnsoegning.ts:16`
+     = 1899777797; et andet board svarer 200 `forkert_board` og intet
+     oprettes (`monday-webhook:230-233`). Secret'en `MONDAY_SIGNING_SECRET`
+     (`:188-204`): mangler → 500, forkert → 401. Rigtigt: boardets URL
+     ender på `/boards/1899777797`; automationen peger på
+     `…/functions/v1/monday-webhook`; et statusskift til andet end
+     «Godkendt» på en testansøgning giver «signature verified» +
+     «ignoreret» i loggen (harmløs signaturtest); `company_betalingslink`
+     får en række med `monday_item_id` efter gennemkørslen. Andet board =
+     kodeændring, ikke en indstilling — brug det gamle board 22/9.
+  8. Stripe — Developers → Webhooks → `we_1UAtaW3CvBmCx5PtL736lAJN`:
+     Enabled, præcis seks events (`checkout.session.completed`,
+     `customer.subscription.created/updated/deleted`, `invoice.paid`,
+     `invoice.payment_failed`; ALDRIG `invoice.created`), 0 fejlede
+     leveringer; og notifikationen om fejlende endpoints slået til for
+     jonas@topix.dk (kort 14 (b), nul kode).
+  9. theboardroom.dk — view-source: `og:title/og:description/og:image`;
+     LinkedIns Post Inspector; mobilvisning 375 px. Rigtigt: beskrivelsen
+     siger hvad produktet ER (netværk, Morten og Jonas, man ansøger), IKKE
+     app'ens «Rapportér, budgettér …» (fund K); billedet loader 1200×630;
+     ansøgningsknappen står over folden og åbner formularen. Sitet er ikke
+     i repoet — forkert rettes dér; indtil da sendes delingspakken med
+     billedet vedhæftet, ikke som link-preview.
+  - **Målt FØRST, tre fund der ikke står i reconens resumé:** secrets kan
+    ikke læses (DEL 4, 3/9) — derfor er tre af de ni «UBEVIST» indtil
+    gennemkørslen; cron-jobnavne ≠ funktionsnavne (det var derfor en
+    tidligere recon troede intro-påmindelsen aldrig havde kørt,
+    20260901112000:16-19); og migrationsfilen 20260909180000 er IKKE
+    referencen for onboarding-rytmens tidsplan — prod er.
+- **Fund A–K uden kort → syv kort i mangellisten** (Indgangen, øverst, de
+  tre første med klasse `blocked`, `data-status="fejl"` og tag «22/9 · I
+  STYKKER»): **A** `betalt=1` læses aldrig (`Betal.tsx:131`;
+  `opret-indgangs-checkout:111-114` kalder det selv «et hint»; efter
+  betalingen står betalingsskærmen igen med tre aktive knapper, klik giver
+  403-toast eller en NY Checkout-session — rammer HVER betalende ansøger;
+  + **E**, kontakt `jonas@topix.dk` på /betal mod dag 0-mailen signeret
+  Morten). **B** invitationens udfald kastes væk
+  (`sikrIndgangsInvitation.ts:49-55, :129-135`; `stripe-webhook:1224/1231/1290`
+  læser ikke returværdien; rettelsen er `skrivRaadgiverBesked`,
+  `_shared/raadgiverBesked.ts:59`; + **D**, ingen rådgiverbesked ved ny
+  indgangsbetaling). **C** invitationsmailens fire usandheder — i
+  `email_templates`, ikke kun i koden (måling 6). **K** app-linkets
+  preview «Alt-i-én platform til økonomistyring for vækstvirksomheder»
+  (`index.html:8, :20-21, :26-27`, `manifest.json:4`) — det et nyt medlems
+  netværk ser hvis hun deler app-linket; fejl, Indgangen. **G** dag
+  10-mailen nævner kun Morten (`onboardingRytme.ts`, to spejle). **F/I/J**
+  tre instrukser der ikke er kode: «send juni–august først» (indeværende
+  måneds rapport er limbo uden knapper i op til en uge, og mail C
+  undertrykkes fordi `harBegyndt` = uploads > 0), importvejen bruges ikke
+  til webinar-ansøgerne (springer betalingen over), e-mailkolonnen
+  udfyldes FØR «Godkendt» (`monday-webhook:278-282` svarer 200
+  `ingen_email`). **H** præsentations-fanout
+  (`notify-community-opslag:108` `important` + mail til alle for hvert
+  opslag; beslutning: `info` for `praesentation` i de to uger, eller
+  accepter det) — Fællesskabet.
+- **De atten kort i prioriteret rækkefølge** (reconens afsnit 6; titel ·
+  størrelse · trin i medlemmets vej): 1 Indgangens kæde har aldrig haft en
+  virksomhed (bevis: prøv den selv · 1–5) · 2 Ankomstens løse ender (Lille
+  · 4–5) · 3 Delingen (Lille V1 · 3/6) · 4 Velkomstvideoen (Lille · 6) · 5
+  Indgangens huller — advarsel og secret (Lille · 1) · 6 Onboardingens
+  rytme (Lille · 7) · 7 Tom-tilstande (Lille · 6–8) · 8 Når en upload
+  strander (Lille · 8) · 9 Profilen forfra (Mellem · 6) · 10 Podcasten ud
+  (Lille · 6) · 11 Jonas ser Mortens sessioner — bevis-delen (Lille · 9) ·
+  12 PHILBERT: to filer (Mellem · 8) · 13 Uden slutdato ser Community
+  (Lille · 6) · 14 Edge functions har ingen fejllæser — vej (b) (Mellem ·
+  3–4) · 15 Beskrivelser på de 13 kurser (indhold · 6) · 16 Auth-mails i
+  egen log (Lille · 5) · 17 Efter dag 31 (beslutning · 3) · 18
+  Community-idéerne: like fra feedet (Lille · 10). Rækkefølgen kan ses i
+  mangellisten: hvert kort bærer tag «22/9 · nr. N af 18» (rust, klasse
+  `tag webinar`) og id `w1`..`w18`; «Rækkefølgen» har en tier øverst med de
+  atten som nummereret liste med links. Valgt sådan fordi et tag er
+  synligt på kortet, søgbart («22/9» finder alle), rører ikke rangeringens
+  tal, og lader kortene blive i deres emne; en ny sektion ville flytte dem,
+  et data-attribut ville være usynligt.
+- **Mangellisten 14/9:** 135 → 141 kort (fjernet 1: kort 82 som løst;
+  tilføjet 7; delingen omskrevet og flyttet Idéer → Indgangen, idé →
+  mangler) — fejl 22 · mangler 62 · beslutninger 26 · idéer 31.
+- **Ikke gjort, med vilje:** ingen kode; ingen måling kørt; kortet
+  «Onboardingens rytme er bygget — cron-jobbet er ikke planlagt» beholder
+  sin forældede titel (jobbet ER planlagt siden 11/9 — kortets tekst siger
+  det; titlen rettes når kortet omskrives efter målingen).
+
+**27. DELINGEN SOM KRAV — JONAS 13/9; BOGFØRT 14/9 MORGEN MED RECONENS
+PRIS. Ingen kode.** Jonas 13/9, ordret: «et smart setup, hvor der er et
+design med Morten og mig, hvor medlemmet kan uploade et billede af sig
+selv eller deres logo, som genererer det færdige billede der er lækkert
+visuelt til at slå op på LinkedIn. Vi kommer også med 3-4 udkast til
+tekster de kan bruge. Og optimalt har vi ikke kun ét, men et par
+forskellige kreativer, som de kan bruge. Det skal være opsigtsvækkende,
+lækkert og nemt, så de netop får det gjort.» Og: «Det skal ikke være i en
+velkomstbesked. Det skal være et forslag i deres onboarding, at de deler
+det på LinkedIn. Og så skal de nemt kunne kopiere copy fra siden samt
+generere kreativet fra samme sted.»
+- **Hvad stakken har** (`~/Downloads/recon-delingen.md`, 14/9, målt i
+  koden): `html2canvas` 1.4.1 er installeret og i brug
+  (`src/lib/exportPdf.ts:20-29`, scale 2, `useCORS`); rå Canvas 2D bruges
+  i `reportUploadEngine.ts:214-220`; download som fil er Blob +
+  `<a download>` to steder (`NoegletalView.tsx:342-350`,
+  `EventDetailView.tsx:36-46`). `HbDropzone` (13/9) giver kalderen
+  `File`-objektet uden bucket (`HbDropzone.tsx:17-19`); husets
+  preview-mønster er `URL.createObjectURL` (`CommunityComposer.tsx:903`).
+  En ny side er 13 linjer + én rute (Konto-mønstret, `App.tsx:268`;
+  `/konto` har intet menupunkt — etableret). Billedet kan laves og hentes
+  helt i browseren: ingen edge function, ingen bucket, ingen migration.
+- **Tjeklisten er en FAST liste på syv id'er** i en ren motor
+  (`onboardingTjekliste.ts:54, :151-159`), låst af test
+  (`__tests__/onboardingTjekliste.test.ts:49-54, :72-92, :194-215`). Et
+  nyt punkt = motor + hook + test + stempelkolonne (migration i Lovable,
+  som `velkomstvideo_set_at`, 20260902170000) + `HbAktiv`-værdi. «Gjort»
+  er handling, ikke besøg (filhovedet `:10-14`) — det målbare er «hentede
+  billedet» og/eller «kopierede en tekst».
+- **BESLUTTET 13/9 (Jonas): de eksisterende medlemmer får IKKE tjeklisten
+  åbnet igen — punktet gælder kun nye, med en datogrænse i dommen.**
+  Uden grænsen gør motoren listen ufærdig for alle 27 (`nextStep.ts:132-136`
+  slot 0, `HbMemberShell.tsx:96-99` menupunktet, pillen).
+- **Fonte og portrætter:** Google Fonts via `@import` (Fraunces
+  `hjemmebane.css:6`), ingen `document.fonts`-håndtering i repoet;
+  Fraunces' `opsz`-akse i html2canvas 1.4.1 skal prøves én gang før
+  designet låses (ren-canvas-vejen kræver `document.fonts.load`). Jonas'
+  portræt `public/jonas-herlev.png` er **300×283 px — for lille** til stor
+  visning (rækker til ~150 px i 2×); der skal et nyt foto i mindst ~800 px.
+  Morten er 1035×830. `og-image.jpg` er 1200×630 og same-origin.
+- **Kan IKKE bygges:** «Del direkte på LinkedIn» (LinkedIn-API med OAuth
+  og app-godkendelse; intet i repoet; share-URL tager kun et link);
+  admin-redigerbare tekster i databasen (ny tabel + policies + flade);
+  gemte billeder/galleri (bucket + migration). Kravet er download +
+  kopiér — det er ikke i vejen, men skal siges højt.
+- **Åbne beslutninger — den kritiske sti er DESIGNET, ikke koden** (står
+  som spørgsmål på kortet): antal kreativer til 22/9; format 1200×627
+  eller 1080×1080 eller begge; hvad der står på billedet; om medlemmets
+  navn skal med (og kunne rettes — `full_name` kan være et mail-præfiks);
+  logo eller portræt eller begge, og hvad når kun det ene findes; om
+  Morten og Jonas står på alle, og hvor store; hvem tegner kreativerne og
+  hvornår. Dertil for koden: hvad tæller som «gjort», plads i rækkefølgen,
+  kun fulde medlemmer, menupunkt eller ej, rute og navn.
+- **Om reconens estimat («4–5 udviklingsdage»):** det er præcis den slags
+  tal DEL 4-fælden «Chattens tidsestimater er for høje» handler om. Det
+  der skal gøres: én side, to DOM-skabeloner + html2canvas, ét
+  tjeklistepunkt med datogrænse, 3–4 tekster som ren skabelonfunktion, én
+  prøve af Fraunces/CORS. Det der blokerer: designet af kreativerne, det
+  nye Jonas-foto, og svarene ovenfor. Intet af det er kode.
+- **Mangellisten:** kortet «Delings-/SoMe-miljø …» (Idéer, idé siden 11/9)
+  er omskrevet til «Delingen på LinkedIn — et krav til 22/9 …» og flyttet
+  til Indgangen som `mangler` med klasse `decision`; det bærer tag «22/9 ·
+  nr. 3 af 18».
+
 ### Mailplatformen — bygget om af Lovable 8/9 kl. 06:52-06:58; afsenderne, fortegnelsen og værnet (#728, #730, #731, #732)
 
 **Hvad Lovable gjorde.** 19 commits direkte til main mellem kl. 06:52 og
@@ -7713,6 +7967,7 @@ facit og rækkefølge; `docs/chat-design.md` chattens form.
 | hvornår | hvad | hvor det står |
 |---|---|---|
 | **22/9 — WEBINARET; de fjorten dage efter (til ca. 6/10) er tidsrammen** (Jonas 13/9). A reconer «hvad en ny ansøger møder» (`~/Downloads/recon-de-nye-medlemmer.md` — ikke skrevet ved bogføringen, ikke læst) | **Ca. 350 tilmeldte, 40 % møder op, næsten 10 % af dem ansøger → 10–15 ansøgere; «minimum fem nye ansøgere eller medlemmer inden for de næste fjorten dage, og dem skal vi tage godt imod».** Kortene sorteres efter hvad en NY ansøger møder de første fjorten dage — ansøgning (Monday), afklaringssamtale, aftalegrundlag, betalingslink (kæden har aldrig haft en rigtig virksomhed — nul rækker i `company_betalingslink`), signup, ankomst, tjekliste, første upload, første session. RETTELSE af chattens vurdering: SoMe-deling er ikke «efter oplevet værdi, uge 2–4» — nyheden er OPTAGELSEN og er stærkest i samme uge (Jonas: «det er faktisk en stor ting for mange at få lov til at blive medlem»). | DEL 2 «13. september» §22; mangellistens delings-kort |
+| **14/9 — PLANEN FREM MOD 22/9** (skrevet 14/9 morgen; ingen kode; DEL 2 «13. september» §26–§27) | **Målinger → gennemkørsel → A/B/C → delingen.** De ni prod-målinger står klar med tærskler og én SQL i `~/Downloads/maalinger-foer-webinaret.md` (tre er secrets og kan kun bevises gennem brug; cron-JOBNAVNE ≠ funktionsnavne; Monday-board-id er en kodekonstant). Gennemkørslen (mangellistens nr. 1) lukker syv kort og de tre «UBEVIST». Tre fund er I STYKKER og har fået kort øverst i mangellisten: A `betalt=1` læses aldrig (rammer hver betalende), B invitationens udfald kastes væk (betalt medlem uden login, tavst), C invitationsmailens fire usandheder (i `email_templates`). Delingen er et krav (§27): kreativ + upload + 3–4 tekster som tjeklistepunkt for nye; kritisk sti er designet. De atten kort bærer tag «22/9 · nr. N af 18». | DEL 2 «13. september» §25–§27; mangellisten «Rækkefølgen» (tier øverst); `~/Downloads/recon-de-nye-medlemmer.md`, `recon-delingen.md`, `maalinger-foer-webinaret.md` (uden for repoet) |
 | **STORT ÅBENT SPOR — Jonas 13/9 sen aften. BESLUTTET: IKKE før webinaret 22/9; først en recon af hvad Monday faktisk gør i dag** | **Hele ansøgningsprocessen ind på platformen i stedet for Monday.** Jonas: «en rigtig lækker ansøgningsformular, som er visuelt overskuelig og lækker at gå igennem. Og så har vi ligesom al viden om virksomhederne allerede fra start.» Flowet: afklaringssamtale med Jonas / afvis / følg op om X måneder / genåbn når en plads bliver ledig; aftalegrundlag → «godkendt» → betalingslink → medlemskab; påmindelser på bookinglinket dag 2, 5 og 10 («så vi ikke taber ansøgere i det»); tracking af leads fra Meta («sindssygt meget styr på»); «hvilke mails der skal sendes hvornår». Det meste EFTER godkendelsen findes (chattens læsning, ikke målt): Calendly-kæden (§19), `import-application`/`monday-webhook`, `company_betalingslink` med 30-dages frist, `indgangs-paamindelser-cron`, `intro-reminder-cron` som mønster. Det der mangler er selve ansøgningen og alt før godkendelsen. Pladsholder i mangellisten: «Ansøgningsflowet skal flyttes til platformen». | DEL 2 «13. september» §23 |
 | **RECONNET 13/9 sen aften — IKKE KLAR; to spørgsmål skal afgøres først** | **Kort 29 — «Fra budget» som målkilde på Nøgletal.** (1) ENHEDEN: prod-målingen 11/9 talte nøglen `loenninger`, men koden kobler pr. GRUPPE (`GROUP_TO_REPORT_FIELD`); `saas_b2b` har ingen `loenninger`, importerede budgetter bærer egne nøgler — nøgle-opslaget overser dem (samme fælde som kort 76). (2) FORMLEN: ingen afvigelsesfunktion på KPI-niveau; tre forskellige domme i huset (budgetfladens 10 % fortegnsbevidst, forsidens 10 % omsætning-only friskhedsgatet, Nøgletals målopfyldelse). Holder: intet bygget, budgettet er månedligt, `budgetNoegleFor` findes. SQL for enheden og for målte måneder mod budget i reconens §6. Tre bifund som eget kort. | DEL 2 «13. september» §24; `~/Downloads/recon-kort29.md` |
 | **I DRIFT 13/9 sen aften (#844, merget 20:42:15 UTC; migrationen kørt 22:42; fire functions udrullet 20:45 UTC; BEVIST PÅ SKÆRM 22:48:25) — TEKSTERNE ÅBNE (vindue A, nu)** | **Den inkluderede session med Jonas kan bookes.** Ny kolonne `companies.jonas_session_used_at` (søster til Mortens `intro_session_used_at`; en tabel ville flytte asymmetrien, ikke fjerne den); `create-free-intro-booking` tager `{ advisor }` og lægger rækkens id i linket fra start; `calendly-webhook` genåbner retten pr. rådgiver ved host-aflysning, aldrig for en købt række; én dom for begge rettigheder på `/book-session` — Morten-kortet forsvinder når retten er brugt, Jonas-kortet findes altid og skifter fra inkluderet til købt; «link-ready» hører til det inkluderede kort (ingen mail på den vej). Secret `JONAS_CALENDLY_EVENT_SLUG` = «intro-snak». **Det der venter:** (1) kortenes tekster — rådgiverlinjen er en etiket, brødteksterne næsten ens, «én session per virksomhed» som grå fodnote; rammen er Jonas' ord 13/9 (medlemmet bestemmer selv, udløber ikke, 30 minutter — ikke «onboarding», ikke «strategi-session»); A retter nu. (2) En rigtig inkluderet booking der kommer tilbage som `booked` med tid — ubevist. | DEL 2 «13. september» §20; `~/Downloads/verifikation-jonas-session.txt`, `diff-jonas-session.txt` (uden for repoet) |
@@ -8670,6 +8925,20 @@ De konkrete ting der har kostet tid. Led efter dem.
   citeres på et kort, skal SQL'en stemme med den kobling koden faktisk
   bruger (find opslaget — `find`, `eq`, `JOIN` — og mål DEN), og kortet
   skal sige hvilken enhed tallet er i. (DEL 2 «13. september» §24)
+- **Chattens tidsestimater er for høje.** Jonas 13/9, ordret: «Du
+  overestimerer altid tiden. Når du skriver 5 arbejdsdage, så er det reelt
+  ikke en gang én dag. Når du skriver 1 time er det oftest 10 min.» Målt
+  mod dagen selv: 13/9 blev kort 83, hele /members-planen i tre bygninger,
+  KPI-målene, lækagen i `hardDeleteCompany`, Calendly-kæden, den
+  inkluderede session og kort 82 bygget og udrullet på én eftermiddag og
+  aften — 28 PR'er. Estimater regnet «i udviklingsdage for én person»
+  (som recon-delingens «4–5 dage», 14/9) rammer ved siden af i denne
+  arbejdsform, og de gør skade: et kort der «koster fem dage» udsættes,
+  selv om det er gjort før frokost. Reglen: angiv hvad der SKAL gøres og
+  hvad der BLOKERER (en beslutning, et design, et foto, en prod-måling)
+  — ikke hvor lang tid det tager. Er et estimat nødvendigt, så mål det mod
+  hvad der faktisk blev gjort på en dag (13/9 er målestokken), og skriv
+  hvad det er målt mod. (DEL 2 «13. september» §26–§27)
 
 ---
 
