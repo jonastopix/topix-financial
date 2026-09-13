@@ -53,6 +53,15 @@ describe("company_fornyelse skrives ét sted", () => {
     }
   });
 
+  // 13/9: /members lukkes, og FornyelsesSektion var det eneste sted noten
+  // kunne redigeres. Virksomhedssiden SKAL derfor selv kunne skrive noten —
+  // gennem den ene skrivevej, ikke med et eget kald.
+  it("virksomhedssiden redigerer noten gennem skrivFornyelsesnote", () => {
+    const kilde = readFileSync(resolve(process.cwd(), "src/components/hjemmebane/virksomhed/VirksomhedView.tsx"), "utf8");
+    expect(kilde, "importen fra den ene skrivevej mangler").toMatch(/import \{[^}]*\bskrivFornyelsesnote\b[^}]*\} from "@\/hooks\/useVirksomhed"/);
+    expect(kilde, "skrivFornyelsesnote(...) kaldes ikke").toContain("skrivFornyelsesnote(companyId,");
+  });
+
   for (const fil of filer.filter((f) => f !== DEN_ENE_SKRIVEVEJ)) {
     const kilde = readFileSync(resolve(process.cwd(), fil), "utf8");
     if (!kilde.includes('"company_fornyelse"')) continue;

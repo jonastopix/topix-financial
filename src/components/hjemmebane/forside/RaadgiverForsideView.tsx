@@ -5,7 +5,8 @@ import { useAuth } from "@/hooks/useAuth";
 import { ADVISOR_DASHBOARD_QUERY_KEY, hentAdvisorDashboard } from "@/components/AdvisorDashboard";
 import { invaliderForsiden, lukOpgave } from "@/hooks/opgaveLukning";
 import { OpgavelisteView } from "@/components/hjemmebane/opgaver/OpgavelisteView";
-import { TAERSKEL, type Linje, type OpgaveSlags, type Pukkellinje, type Virksomhedslinje } from "@/lib/forsidensDom";
+import { TAERSKEL, type Linje, type OpgaveSlags, type Virksomhedslinje } from "@/lib/forsidensDom";
+import { samletLinjeLink } from "@/lib/hjemmebane/forsideLinks";
 import { LUKNINGS_UDFALD, UDFALD_TEKST, type LukningsUdfald } from "@/lib/opgaveLukning";
 import { pulsLinjer } from "@/lib/pulsen";
 import { SIDEN_SIDST_KEY, hentSidenSidst } from "@/hooks/sidenSidst";
@@ -49,7 +50,7 @@ import { raadgiverHentefejlTekst } from "@/lib/raadgiverHentefejl";
  *
  * Tilstande og pukler er deres egen samlede linje (§3) og linker til
  * /virksomheder (§5: tallene er links til listen). Én virksomhed i en
- * samlet tilstand eller pukkel linker direkte til den (se pukkelLink).
+ * samlet tilstand eller pukkel linker direkte til den (se samletLinjeLink).
  *
  * TOPPEN (§10): «N ting kræver dig i dag», ellers «Der er ikke noget der
  * haster i dag.» UNDER STREGEN (§5): tal, ikke lister. FLAGET (§5): når
@@ -84,16 +85,13 @@ const hilsen = (): string => {
 
 const grundLink = (companyId: string, slags: OpgaveSlags) => `/virksomhed/${companyId}?grund=${slags}`;
 
-/** Puklen (agentforslag). Forslag kan KUN afgøres i AgentForslagPanel, som
-    er monteret alene på /virksomhed/:companyId (VirksomhedView). Dækker
-    puklen præcis ÉN virksomhed, peger linjen derfor direkte på den — dommen
-    bærer virksomhederne med netop til det (Pukkellinje.virksomheder, 6/9).
-    Dækker den FLERE, peger den på /virksomheder som hidtil: der findes
-    ingen flade der viser forslag på tværs af virksomheder, så listen er det
-    nærmeste rådgiveren kan komme. KENDT begrænsning, ikke en forglemmelse.
-    Ingen ny rute, ingen ny parameter. */
-const pukkelLink = (p: Pukkellinje) =>
-  p.virksomheder.length === 1 ? grundLink(p.virksomheder[0].companyId, p.slags) : "/virksomheder";
+/** Samlede linjer (tilstand eller pukkel) peger via samletLinjeLink
+    (lib/hjemmebane/forsideLinks, #743): ÉN virksomhed → direkte til den med
+    grunden; FLERE → /virksomheder?grund=<slags>, så listen viser præcis de
+    virksomheder dommen bar (13/9 — før pegede de på listen uden parameter,
+    og rådgiveren så alle 27 for et tal der sagde 12). Puklen (agentforslag)
+    kan stadig kun afgøres i AgentForslagPanel på /virksomhed/:companyId;
+    udsnittet på listen er det nærmeste for flere. */
 
 /** Én linje fra dommen. Virksomhed: handling + grunde; tilstand/pukkel: tekst.
     Rust kun til det der er galt (>= TAERSKEL) eller haster (løftet). */
@@ -144,7 +142,7 @@ const DomLinje = ({ l, onLuk, lukker }: { l: Linje; onLuk: (linje: Virksomhedsli
 
   // Samlet tilstand eller pukkel: én linje, ét tal. Én virksomhed → direkte til den.
   const enkelt = l.linje === "tilstand" && l.antal === 1 ? l.virksomheder[0] : null;
-  const to = enkelt ? grundLink(enkelt.companyId, l.slags) : l.linje === "pukkel" ? pukkelLink(l) : "/virksomheder";
+  const to = samletLinjeLink(l);
   return (
     <li className="flex items-start gap-3 py-3">
       {prik}
@@ -353,7 +351,7 @@ export const RaadgiverForsideView = () => {
         {under.tilstande.map((t) => (
           <p key={`t:${t.slags}`}>
             <Link
-              to={t.antal === 1 ? grundLink(t.virksomheder[0].companyId, t.slags) : "/virksomheder"}
+              to={samletLinjeLink(t)}
               className="text-hb-evergreen underline-offset-4 hover:underline"
             >
               {t.tekst}
@@ -362,7 +360,7 @@ export const RaadgiverForsideView = () => {
         ))}
         {under.pukler.map((p) => (
           <p key={`p:${p.slags}`}>
-            <Link to={pukkelLink(p)} className="text-hb-evergreen underline-offset-4 hover:underline">
+            <Link to={samletLinjeLink(p)} className="text-hb-evergreen underline-offset-4 hover:underline">
               {p.tekst}
             </Link>
           </p>
