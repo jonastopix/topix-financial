@@ -1,6 +1,6 @@
 # Overlevering
 
-> ## 13/9 — START HER (skrevet 13/9 eftermiddag; opdateret 13/9 sen eftermiddag efter #826 og igen efter udrulningen kl. 14:20 UTC — HEAD `f85e59ef` = #826, merget 13/9 kl. 14:13:00 UTC; prod målt kl. 14:01, `~/Downloads/query-results-export-2026-09-13_14-01-42.csv`)
+> ## 13/9 — START HER (skrevet 13/9 eftermiddag; opdateret 13/9 sen eftermiddag efter #826 og igen efter udrulningen kl. 14:20 UTC — og igen 13/9 aften efter bygning 3 — HEAD `d9080ad5` = #828, merget 13/9 kl. 14:47:38 UTC; prod målt kl. 14:01, `~/Downloads/query-results-export-2026-09-13_14-01-42.csv`)
 >
 > **Bevist i dag — doggybeds træk gik igennem.** Sektion `a_doggybed_traek`,
 > ordret: «betalt · in_1UF8tR3CvBmCx5PthFjFOjFc;a_doggybed_traek;2026-09-13T09:36:24.309794+00:00
@@ -77,133 +77,51 @@
 > 13 — betingelsen fra 2/9 (at trækket 13/9 gik igennem) er opfyldt;
 > hvornår og i hvilke portioner er IKKE besluttet (DEL 3).
 >
-> **`/members` — besluttet 13/9; BYGNING 1 OG 2 ER FÆRDIGE (#823, #824,
-> #825, #826), udrullet 14:20 UTC; Guiden er AFGJORT — den dør i bygning
-> 3, ankrene bliver; bygning 3 står.** Jonas 13/9, ordret: «Hvornår fanden bliver
-> /members lavet om og konverteret til hjemmebane design? Det er en
-> lorteside.» Reconen (`~/Downloads/recon-members-hvad-staar-tilbage.md`)
-> og prod målt kl. 14:45 — DEL 2 «13. september» §5. **Jonas' fire
-> beslutninger 13/9** (Jonas 13/9: «Jeg er helt enig i dine
-> anbefalinger»): (1) importen til `/virksomheder` ved siden af «Inviter»,
-> tilknyt-grenen med; (2) den øjeblikkelige sletning dør — `bedOmSletning`
-> er vejen; (3) «Nulstil & gensend» på en ACCEPTERET invitation dør; (4)
-> Legatforløb-listen dør, `/admin/legat` bliver.
-> **Bygning 1 — I DRIFT** (DEL 2 «13. september» §6): #823 motoren
-> `src/lib/ansoegningsimport.ts` + 76 tests, 142 linjer ud af `Members.tsx`
-> (merget 13:08:25 UTC, `c0a2de83`); #824 panelet — `HbDropzone` (ny fri
-> dropzone, 6 tests) + `HbAnsoegningsimport` (knap + panel) monteret i
-> `HbInvitationer` (13:33:58 UTC, `1f15250e`); #825 noten på
-> virksomhedssiden («Tilføj note»/«Rediger note» i Aftalen, kun når der er
-> en beslutning) + forsidens samlede linjer via `samletLinjeLink` til
-> `/virksomheder?grund=<slags>`, to nye kildeværn (13:54:51 UTC,
-> `78d58a63`). **Skærmbevis kl. 15:38:11**
-> (`screencapture-app-theboardroom-dk-virksomheder-2026-09-13-15_38_11.pdf`):
-> panelet i drift på /virksomheder med et ægte Monday-ark — GOURMENSCH,
-> CVR 40364390, omsætning 3200000 med intervallet «D) 2.000.000-4.999.999
-> kr.», kontraktslut 23.01.2027, og motorens advarsel «Kolonnen
-> «Kontaktperson» blev ikke fundet i arket.» øverst. Advarslerne er NYE —
-> /members' dialog gav op i stilhed. Kl. 15:37:00 (`…15_37_00.pdf`):
-> knappen «Importér ansøgning» ved siden af «Inviter». **Ikke bevist på
-> skærm:** noten og forsidelinkene (#825 blev merget EFTER
-> skærmbillederne); om en import blev GENNEMFØRT: ikke målt.
-> **Planen ÆNDREDE sig undervejs** (§6): «fornyelseslisten og Indgangen
-> som udsnit på /virksomheder» holdt ikke — et udsnit kan ikke bære
-> knapper (recon-hb-moenstre 4.3); chattens næste form, SEKTIONER efter
-> HbInvitationer-mønsteret, holdt heller ikke (recon-de-to-sektioner:
-> designet gav dem forsiden; alt de kan, findes i Hb på nær noten; og
-> listerne er FORKERTE — tælleren og de manglende varselstempler).
-> BESLUTTET 13/9 (forslag fra chatten, stående uden indsigelse): BEGGE
-> lister dør uden erstatning i bygning 3. Kun noten flyttedes, og
-> forsidens linjer fik udsnittet, så «se alle der venter, ét sted» findes
-> i Hjemmebane.
-> **Bygning 2 — LØST bortset fra Guiden** (DEL 2 «13. september» §7):
-> PR #826 «fix: vejene ind i /members peger nu paa Hjemmebane (bygning
-> 2)», `gh pr view` ordret: mergedAt «2026-09-13T14:13:00Z» (16:13:00
-> dansk), mergeCommit «f85e59ef4e30d1cb7e119905ebf56a0d6df8264d». Fire
-> filer: `src/components/AppSidebar.tsx` (+4/−6),
-> `supabase/functions/_shared/indgangsMail.ts` (+3/−2),
-> `supabase/functions/_shared/indgangsMail_test.ts` (+2/−2),
-> `supabase/functions/send-slack-report-notification/index.ts` (+3/−3).
-> SYV AF ELLEVE veje er rettet: menupunktet «Medlemmer» ud af den gamle
-> sidebar, de to `navigate("/members")` i company-pickeren →
-> `/virksomheder`, rådgivermailens knap «mangler et prisniveau» →
-> `/virksomhed/{companyId}` (mailen bar allerede id'et), de tre
-> Slack-fallbacks → `/virksomhed/{companyId}`. tsc nul fejl, tests 2978 →
-> 2978 (ingen vitest-fil låste menuen eller slack-funktionen),
-> `check:edge-auth` PASS (69 filer). Byggeriet skete i et andet vindue
-> mens bygning 1 blev bogført: kl. 16:01:54 stod de fire filer ændret og
-> staged i samme træ, commit `ad81c8ed` på `fix/veje-ind-i-members`,
-> merget 16:13:00 — forudsætningen «vindue A skriver ikke» holdt ved
-> bogføringens start (rent træ ved 78d58a63), ikke ved dens afslutning
-> (DEL 4's nye fælde gjaldt allerede mens den blev skrevet).
-> **GUIDEN ER AFGJORT — den dør (Jonas 13/9, ordret: «enig», til
-> chattens anbefaling).** Chattens begrundelse, stående uden indsigelse:
-> en hjælpeside som ingen kan finde, og som beskriver en flade der
-> forsvinder, gør mere skade end gavn — den lover funktioner der ikke er
-> der. Skal Hjemmebane have en guide, skrives den forfra til den flade der
-> findes; det er et eget stykke arbejde. Fundene bag (§7): intet menupunkt
-> i Hb, nås kun fra den gamle AppSidebar eller ved at skrive URL'en;
-> teksterne lover broadcast, som er dødt. **DØR i bygning 3:**
-> `src/pages/Guide.tsx` (de fire links `:105, :114, :123, :139` med),
-> ruten `App.tsx:240`, `src/components/GuidedTour.tsx` (ikke monteret
-> nogen steder — grep `<GuidedTour` → 0) og «Guide»-punktet i AppSidebars
-> `secondaryNavItems` (`:59`). **MEN ANKRENE SKAL BLIVE.** Målt 13/9:
-> `App.tsx` nævner Guide-kontrakten fire steder — `:112` «#goals er
-> Guide-kontrakt og skal overleve redirectet», `:129` «Guide-kontrakt;
-> begge skal overleve redirectet», `:136` «#forecast er Guide-kontrakt og
-> detect-financial-alerts' deep_link», `:308` «(notifikations-deep_link +
-> Guide-hash er kontrakt)» — hash-ankre der skal overleve
-> viderestillinger, og `#forecast` er også deep_link fra
-> `detect-financial-alerts`. Ankrene bruges altså af NOTIFIKATIONER, ikke
-> kun af Guiden. `src/hooks/useScrollToHash.ts` og dens test
-> (`src/hooks/__tests__/useScrollToHash.test.tsx`, describe-navnet
-> «useScrollToHash → documented Guide anchors») SKAL blive — men testens
-> navn og begrundelse skal omskrives i bygning 3, så den næste ikke
-> sletter den fordi «Guiden er væk». Udtrykkeligt punkt på
-> /members-kortet.
-> **UDRULNINGEN ER GJORT — kl. 14:20 UTC (16:20 dansk), og målt først.**
-> Grep 13/9 i `supabase/functions`: `raadgiverManglerPrisMail` kaldes kun
-> fra `_shared/indgangsBetalingsmail.ts:44` (import) og `:143` (kaldet)
-> — plus `_shared/indgangsMail.ts` selv og dens test. Tre funktioner
-> importerer `indgangsBetalingsmail`: `monday-webhook`,
-> `saet-indgangs-prisniveau`, `send-indgangs-betalingsmail`. De tre
-> øvrige (`stripe-webhook`, `indgangs-paamindelser-cron`,
-> `fornyelsesvarsel-cron`) importerer `indgangsMail` til ANDRE mails og
-> ændrer ikke adfærd. Udrullet i Lovables build-chat, fire funktioner:
-> `monday-webhook`, `saet-indgangs-prisniveau`,
-> `send-indgangs-betalingsmail` (rådgivermailens knap) og
-> `send-slack-report-notification` (sine egne tre fallbacks). Lovable
-> ordret: «Alle fire edge-funktioner er udrullet fra nuværende main kl.
-> 2026-09-13 14:20 UTC: monday-webhook ✅ live, svarer HTTP 401;
-> saet-indgangs-prisniveau ✅ live, svarer HTTP 401;
-> send-indgangs-betalingsmail ✅ live, svarer HTTP 401;
-> send-slack-report-notification ✅ live, svarer HTTP 401. Ingen filer,
-> andre funktioner eller migrationer blev rørt.» 401 på et usigneret kald
-> er det forventede svar (auth foran alt andet). **UBEVIST I DRIFT:** at
-> rådgivermailens knap faktisk peger på virksomhedssiden — det kræver at
-> mailen sendes, dvs. en godkendt virksomhed uden prisniveau. Samme klasse
-> som #815's fejl-gren: et åbent bevis, der venter på hændelsen (DEL 3).
-> **To nye kort fra bygning 2:** «To Deno-tests i `indgangsMail_test.ts`
-> fejler på urørt main» (dag 0 og dag 31 — kører hverken i `bun run test`
-> eller CI; bevist med `git stash` 13/9) og «Company-pickeren lander på
-> rådgiverlisten» (efter «vis som virksomhed» → /virksomheder; chattens
-> læsning: formentlig medlemmets forside; ikke afgjort). Mangellisten 130
-> → 132.
-> **Det der venter:** bygning 3 (slet siden, de otte filer og de fem
-> tests — OG de to værn der fejler den dag filerne slettes:
-> `fornyelseSkrivevej.guard.test.ts:43-47` kræver at
-> `FornyelsesSektion.tsx` findes, `forsidenKaster.guard.test.ts:122-165`
-> kræver `Members.tsx`; /members' importdialog og ruten `App.tsx:243`;
-> Guiden — `Guide.tsx`, `App.tsx:240`, `GuidedTour.tsx`, «Guide»-punktet
-> i AppSidebar — MED ankrene bevaret og `useScrollToHash.test.tsx`
-> omdøbt/genbegrundet). Åbent bevis: rådgivermailens knap i drift. Tests:
-> 2892 → 2978 (191 filer).
+> **`/members` — LØST 13/9: ALLE TRE BYGNINGER ER I DRIFT.** Jonas 13/9,
+> ordret: «Hvornår fanden bliver /members lavet om og konverteret til
+> hjemmebane design? Det er en lorteside.» — reconen, målingen 14:45 og de
+> fire beslutninger står i DEL 2 «13. september» §5. **Bygning 1** (#823,
+> #824, #825): importen som panel på /virksomheder, noten i Aftalen,
+> forsidens linjer til udsnittet — §6. **Bygning 2** (#826, udrullet 14:20
+> UTC): syv af elleve veje ind — §7; Guiden afgjort — §8. **Bygning 3**
+> (#828 «feat: /members og Guiden slettes (bygning 3)», `gh pr view`
+> ordret: mergedAt «2026-09-13T14:47:38Z», mergeCommit
+> «d9080ad52bc4e846aab7b894908f4a505b025380»; 22 filer, +49/−3486; tsc 0,
+> tests 2978 → 2955, check:edge-auth PASS 69) — §9. Slettet: Members.tsx +
+> syv komponenter, Guide.tsx, GuidedTour.tsx, ruterne /members og /guide,
+> Guide-punktet i AppSidebar, manage-advisors delete-company-gren. Blev:
+> `importensAdvarsel.ts` (HbAnsoegningsimport importerer den — reconen
+> sagde otte filer, det blev syv), `/members/:userId` (978
+> notifikationer), `useScrollToHash` + test (omdøbt: ankrene er
+> dyb-link-ankre, IKKE notifikationernes kontrakt — deep_links er stier
+> uden hash; §8's påstand holdt ikke, rettet i §9). Seks værn rettet, ikke
+> fem — det sjette var kort 83's eget fra samme formiddag; to læste på
+> modulniveau, så 281 linjer værn for andre flader ville være væltet (ny
+> fælde i DEL 4). `SECURITY_BASELINE.md:30` rettet til de målte kaldere.
+> Update klikket; bevist på skærm — /members og /guide giver NotFound
+> (Jonas 13/9, ordret: «De er begge væk»). **manage-advisor UDRULLET kl.
+> 14:50 UTC** (16:50 dansk), Lovable ordret: «Udrulningen af manage-advisor lykkedes kl. 2026-09-13 14:50 UTC. Endpointet svarer live med HTTP 401 Unauthorized (forventet). Ingen filer, andre funktioner eller migrationer blev rørt.»
+> Sendt EFTER skærmbeviset — rækkefølgen holdt hele vejen: Update →
+> skærmbevis → udrulning; der fandtes aldrig et vindue hvor slet-knappen
+> stod på skærmen uden en gren bag. **Målt kl. 16:53 (§10,
+> `query-results-export-2026-09-13_16-53-25.csv`): sletningen fjernede
+> intet der blev brugt** — «Nulstil & gensend», Legatforløb og Indgangen
+> havde nul spor; importen er i brug (4 på 90 dage, skarp signatur), tilknyt
+> sidst i marts, fornyelseslistens død kostede én virksomhed (PHILBERT, som
+> står på forsiden). **NOTEN ER BEVIST I DRIFT:** PHILBERT ApS' note gemt
+> 13:57 UTC — tre minutter efter #825 blev merget. **Åbne beviser:**
+> rådgivermailens knap i drift (§8), forsidelinkene på skærm (§6), #815's
+> fejl-gren (§1). **Nyt fund, ikke om /members:** efterladenskaber fra
+> tidligere sletninger (129 filer uden ejer, 30 frakoblede invitationer,
+> 4 forældreløse konti, ti FK'er med «no action») — nyt kort; vindue A
+> reconer det nu (§10). Mangellisten 132 → 131 (to kort fjernet som løst,
+> to omskrevet, ét nyt). Tests: 2892 → 2978 → 2955 (191 filer).
 >
 > **12/9:** i repoet skete der INTET — #819 blev merget 11/9 kl. 10:55:26
 > UTC, og næste commit er ikke kommet. Om der skete noget i prod, Stripe
 > eller Lovable den 12/9: ikke målt, ikke bogført.
 >
-> Detaljen står i DEL 2 «13. september» (§1–§8).
+> Detaljen står i DEL 2 «13. september» (§1–§10).
 
 > ## 11/9 EFTERMIDDAG — START HER (dagen lukket; skrevet 11/9 eftermiddag efter #817, digestens slukning kl. 12:07 og målingerne 11:33, 11:43, 12:07 og 12:18)
 >
@@ -4333,7 +4251,7 @@ Kilde `recon-a4-forsidens-dom.md`.
   oprydningen (run-weekly-agent, digestens kode, podcasten ud) → 56 → 76 →
   82 → 57 → 29. A4: recon af hvordan linjen for en ny refleksion lukkes.
 
-### 13. september — doggybeds træk gik igennem (#563 og #572 bevist, #815 ubevist); stripe-webhook i ental og udrullet 12:04 UTC; kort 83 bygget og i drift (#820, merget 12:17:29 UTC, manage-advisor udrullet 12:18 UTC); /members bygning 1 FÆRDIG (#823, #824, #825 — merget 13:08:25, 13:33:58 og 13:54:51 UTC; panelet på skærm 15:38); bygning 2 LØST (#826, merget 14:13:00 UTC; fire funktioner udrullet 14:20 UTC); Guiden AFGJORT — dør i bygning 3, ankrene bliver
+### 13. september — doggybeds træk gik igennem (#563 og #572 bevist, #815 ubevist); stripe-webhook i ental og udrullet 12:04 UTC; kort 83 bygget og i drift (#820, merget 12:17:29 UTC, manage-advisor udrullet 12:18 UTC); /members bygning 1 FÆRDIG (#823, #824, #825 — merget 13:08:25, 13:33:58 og 13:54:51 UTC; panelet på skærm 15:38); bygning 2 LØST (#826, merget 14:13:00 UTC; fire funktioner udrullet 14:20 UTC); Guiden AFGJORT — dør i bygning 3, ankrene bliver; bygning 3 GJORT — /members og Guiden slettet (#828, merget 14:47:38 UTC; Update klikket; /members og /guide NotFound på skærm; manage-advisor udrullet 14:50 UTC); målt kl. 16:53 — sletningen fjernede intet i brug, NOTEN BEVIST I DRIFT, efterladenskaber fra tidligere sletninger fundet
 
 Kilder: `~/Downloads/query-results-export-2026-09-13_14-01-42.csv` (prod,
 målt kl. 14:01, kolonner `noegle;sektion;vaerdi`, ordret),
@@ -4510,7 +4428,7 @@ Kortet ««Fjern fra virksomheden» findes og virker for begge rådgivere —
 mangellisten (RYDDET 13/9). Det der står tilbage om `/members`, står i
 §5 nedenfor, i START HER 13/9 og på kortet «/members lukkes i tre
 bygninger» (omskrevet 13/9 fra «Tre handlinger uden hjem før /members kan
-lukkes»).
+lukkes») — kortet er FJERNET SOM LØST 13/9 aften (§9); historikken står her.
 
 **5. `/members` — reconen, målingen 14:45, Jonas' fire beslutninger og
 planen.** Kilder: `~/Downloads/recon-members-hvad-staar-tilbage.md` (kun
@@ -4836,7 +4754,11 @@ indsigelse»; er noget ikke målt, står der «ikke målt».
   ApS, Two Socks ApS). Om importen blev GENNEMFØRT (knappen klikket,
   GOURMENSCH oprettet): ikke målt, ikke bogført. **Noten og forsidelinkene
   (#825, merget 15:54:51 — EFTER skærmbillederne): ikke bevist på skærm
-  ved skrivetidspunktet.**
+  ved skrivetidspunktet.** *NOTEN BEVIST I DRIFT, målt kl. 16:53 (§10):
+  «h_2026-09-02 PHILBERT ApS;6_fornyelse;tilbyd · af jonas@topix.dk ·
+  note=4 tegn · updated 2026-09-13 13:57 · slutdato=2026-09-29» — 13:57
+  UTC er tre minutter efter #825 blev merget (13:54:51 UTC).
+  Forsidelinkene: stadig ikke bevist på skærm.*
 
 - **Beslutningen der ændrede sig — bogført som skift, ikke kun resultat.**
   Planen fra tidligere 13/9 (§5 og START HER, ordret): «(1) Flyt: importen
@@ -5075,14 +4997,16 @@ Lovables build-chat (ordret).
   Guide-hash er kontrakt)». Det er hash-ankre der skal overleve
   viderestillinger (`/budgettering` → `/budget` m.fl.), og `#forecast` er
   også deep_link fra `detect-financial-alerts`. Ankrene bruges altså af
-  NOTIFIKATIONER, ikke kun af Guiden. `src/hooks/useScrollToHash.ts` og
+  NOTIFIKATIONER, ikke kun af Guiden. *RETTET i §9 (13/9 aften): det
+  holdt ikke — deep_links er stier uden hash; ankrene er dyb-link-ankre,
+  ikke notifikations-kontrakt.* `src/hooks/useScrollToHash.ts` og
   dens test `src/hooks/__tests__/useScrollToHash.test.tsx` (describe
   `:33` «useScrollToHash → documented Guide anchors»; fire it-blokke,
   bl.a. kold-load efter ~1 s) SKAL blive. **Udtrykkeligt punkt til
   bygning 3:** testens navn og begrundelse omskrives (ankrene er
   notifikationernes kontrakt), så den næste ikke sletter den fordi
   «Guiden er væk». Guidens afgørelse tilføjer intet kort — kortet «Guiden
-  er død kode …» bærer den.
+  er død kode …» bærer den. *Kortet er FJERNET SOM LØST 13/9 aften (§9).*
 - **Udrulningen — målt først.** Grep 13/9 i `supabase/functions`:
   `raadgiverManglerPrisMail` kaldes kun fra
   `_shared/indgangsBetalingsmail.ts:44` (import) og `:143` (kaldet) —
@@ -5115,6 +5039,280 @@ Lovables build-chat (ordret).
   puls — ikke målt, samme klasse.
 - **Tallene.** Mangellisten 132 → 132 (to kort omskrevet: /members-kortet
   og «Guiden er død kode …»; intet tilføjet, intet fjernet).
+
+**9. Bygning 3 — SLETNINGEN: /members og Guiden er væk (#828, merget
+14:47:38 UTC); Update klikket og bevist på skærm; manage-advisor sendt til
+udrulning.** Kilder: `~/Downloads/recon-bygning3-sletningen.md` (A's recon,
+målt på `f85e59ef`), `~/Downloads/verifikation-bygning3.txt` (testregnskabet),
+`~/Downloads/diff-bygning3-stat.txt`, `gh pr view 828`, grep på main
+`d9080ad5` ved bogføringen, chat 13/9.
+
+- **PR #828 «feat: /members og Guiden slettes (bygning 3)».** `gh pr view
+  828 --json mergedAt,mergeCommit`, ordret:
+  «"mergeCommit":{"oid":"d9080ad52bc4e846aab7b894908f4a505b025380"},"mergedAt":"2026-09-13T14:47:38Z"»
+  (16:47:38 dansk). 22 filer, 49 linjer ind, 3486 ud. tsc 0 fejl, tests
+  2978 → 2955 (191 testfiler → 191), `check:edge-auth` PASS (69 filer).
+- **SLETTET:** `src/pages/Members.tsx` (1454 linjer) + syv komponenter i
+  `src/components/members/`: `FornyelsesSektion` (309), `IndgangsSektion`
+  (317), `MemberCompanyRow` (527), `MembersAdminSection` (182),
+  `MembersOnboardingFunnel` (116), `MembersStatsBar` (90), `types.ts` (59);
+  `src/pages/Guide.tsx` (318); `src/components/GuidedTour.tsx` (13); de to
+  lazy-imports og ruterne `/members` og `/guide` i `App.tsx`;
+  «Guide»-punktet i AppSidebars `secondaryNavItems` (nu kun Community,
+  `AppSidebar.tsx:57-59`); `manage-advisor`s `delete-company`-gren (27
+  linjer — grep `delete-company` i `index.ts` → 0; `Unknown action` står
+  `:541`). Tilbage i `src/components/members/`: kun `EditCompanyDialog.tsx`
+  (VirksomhedView bruger den).
+- **BLEV — og én rettelse af reconen.** `src/lib/importensAdvarsel.ts`
+  blev: reconen 13/9 middag (§5) talte otte filer der kun importeres af
+  Members; #824 gav den en anden importør (`HbAnsoegningsimport.tsx:7`
+  «import { importAdvarsel } from "@/lib/importensAdvarsel"»), så det blev
+  syv. `/members/:userId` (`App.tsx:253`, MedlemTilVirksomhed) blev — 978
+  notifikationer og Slack-URL'er peger dér. `useScrollToHash.ts` og dens
+  test blev (ankrene nedenfor). `import-application` og
+  `attach-user-to-company` blev — begge kaldes af HbAnsoegningsimport
+  (`:113`, `:168`).
+- **SEKS VÆRN RETTET, ikke fem.** A's recon fandt et sjette:
+  `medlemsfjernelse.test.ts:85-86` — kort 83's EGET kildeværn fra samme
+  formiddag (#820) læste `MemberCompanyRow.tsx` og `Members.tsx` ad
+  sti-streng. De seks: `factsDataBasisReadGuard.test.ts` (listeposten),
+  `forsidenKaster.guard.test.ts` (/members-blokken `:122-165`),
+  `emailSendLogKolonner.guard.test.ts` (sentinellen `:68`),
+  `fornyelseSkrivevej.guard.test.ts` (sentinellen `:46`),
+  `fornyelsesOrd.test.ts` (posten `:64` og strengen `:73`),
+  `medlemsfjernelse.test.ts` (to poster). Hver rettelse bærer nu en
+  kommentar om hvorfor værnet blev smallere — `forsidenKaster.guard.test.ts:31-34`,
+  ordret: «HISTORIK: /members, FornyelsesSektion og IndgangsSektion blev
+  slettet 13/9 (bygning 3), og /members-blokken i dette værn med dem —
+  værnet blev ikke smallere ved et uheld; siden findes ikke.»;
+  `medlemsfjernelse.test.ts:77-78`: «/members selv blev slettet 13/9
+  (bygning 3), så værnet låser de to filer der lever: serveren og
+  dommen.»; `emailSendLogKolonner.guard.test.ts:64-65`: «sentinellen er to
+  filer — ikke en forglemmelse.» To af de seks (`forsidenKaster.guard`
+  `:124` og `fornyelsesOrd.test` `:66-68`) læste filerne på MODULNIVEAU —
+  uden rettelse ville `readFileSync` kaste ved modul-load og vælte hele
+  filen: 281 linjer værn for AdvisorDashboard, virksomhedslisten og
+  BoardroomView (forsidenKaster) og de rene fornyelsesBadge-tests
+  (fornyelsesOrd). Alle seks læser ad sti-streng; tsc ser dem ikke. Ny
+  fælde i DEL 4.
+- **Testregnskabet, ordret fra `verifikation-bygning3.txt`:**
+  «forsidenKaster.guard.test.ts 61 → 43 (−18): /members-blokken — 1
+  import-it + 8 kilder × 2 it + 1 isError-it», «emailSendLogKolonner.guard.test.ts
+  11 → 9 (−2): de to per-fil-it'er for Members.tsx (læser af
+  email_send_log) — filen er væk», «fornyelseSkrivevej.guard.test.ts 6 → 5
+  (−1): per-fil-it'et «FornyelsesSektion.tsx: skriver ikke selv til
+  company_fornyelse» — filen er væk», «medlemsfjernelse.test.ts 15 → 13
+  (−2): it'erne for MemberCompanyRow.tsx og Members.tsx i kildeværnet kort
+  83 — filerne er væk», «fornyelsesOrd.test.ts 12 → 12 (0): kun strenge
+  fjernet», «factsDataBasisReadGuard.test.ts 2 → 2 (0): kun listepost
+  fjernet», «Sum: 18+2+1+2 = 23. Testfiler: 191 → 191 (ingen testfil
+  slettet).» Målt per fil i HEAD (`git stash`) mod arbejdstræet.
+- **ÉN ægte rækkefølge** (A's recon pkt. 7): `factsDataBasisReadGuard`s
+  listepost `"src/pages/Members.tsx"` og markøren `Members.tsx:210`
+  («// data_basis-undtagelse: …») skulle skifte i SAMME commit — fjernes
+  posten først, fejler test 2 («hverken flere eller færre»); fjernes
+  markøren først, fejler test 1 (filen læser facts uden dom). Ingen
+  rækkefølge med grønt træ skiller dem ad. Alt andet kunne skilles ad: fil
+  + import + rute hænger sammen for tsc, men de fem andre værn er
+  ordens-uafhængige (at fjerne en streng gør kun værnet smallere),
+  GuidedTour havde nul importører, og edge-grenen var uafhængig i træet.
+- **`SECURITY_BASELINE.md:30` rettet.** Før: «Only known caller:
+  `src/pages/Members.tsx` (advisor-route)» om `get_users_last_login` —
+  allerede forkert (tre andre kaldere) og efter sletningen en fil der ikke
+  findes. Nu, ordret: «Known callers (målt med grep 13/9, efter /members
+  blev slettet): `src/components/hjemmebane/virksomheder/VirksomhedslisteView.tsx`,
+  `src/hooks/useVirksomhed.ts`, `src/components/AdvisorDashboard.tsx` —
+  alle advisor-flader». Migrationskommentaren
+  `20260507120000_harden_get_users_last_login.sql:10` siger stadig det
+  gamle — historik, ikke rørt.
+- **UDRULNING og BEVIS — i bevidst rækkefølge.** (1) Update klikket i
+  Lovable EFTER merge. (2) Målt på skærm: `/members` og `/guide` giver begge
+  NotFound — Jonas 13/9, ordret: «De er begge væk». (3) DEREFTER
+  `manage-advisor` sendt til udrulning i Lovables build-chat — ved §9's
+  skrivetidspunkt var svaret ikke modtaget; **UDRULLET kl. 14:50 UTC**,
+  bogført ordret i §10. Rækkefølgen er
+  deploy-asymmetrien (A's recon pkt. 3; CLAUDE.md): frontend først ved
+  Update, edge ved merge — men udrulningen af `manage-advisor` blev bedt om
+  eksplicit, som DEL 4's fælde siger. Frontend uden knap FØR server uden
+  gren, så der aldrig fandtes et vindue hvor /members' slet-knap svarede
+  «Unknown action». Rækkefølgen holdt hele vejen (§10): der fandtes
+  aldrig et vindue hvor slet-knappen stod på skærmen uden en gren bag.
+- **Ankrene — en påstand der ikke holdt.** §8 skrev, efter `App.tsx:136`,
+  at `#forecast` er `detect-financial-alerts`' deep_link, og at ankrene
+  «bruges af NOTIFIKATIONER». A målte det: funktionens deep_links er
+  `"/kpis"` (`:147`, `:172`) og `"/budget"` (`:160`) — UDEN hash; grep
+  `deep_link.*#` i `supabase/functions` → 0 (alle ni deep_links i huset er
+  rene stier). Notifikations-kontrakten er STIEN, ikke ankeret. De fire
+  kommentarer i `App.tsx` er rettet — `:140-142`, ordret: «13/9: Guiden er
+  slettet; notifikations-kontrakten er STIEN /budget (deep_link uden hash),
+  og #forecast er et dyb-link-anker BudgetteringView altid holder i DOM.»
+  `useScrollToHash.ts:8-12` siger nu hvad ankrene er: «dyb-link-ankre på
+  /kpis (#goals), /reports (#upload, #annual-reports) og /budget
+  (#forecast), som redirect-komponenterne i App.tsx og fladerne lover at
+  bevare»; testens describe `:42` hedder «useScrollToHash → dyb-link-ankre
+  på /kpis, /reports og /budget» (var «documented Guide anchors»). Ingen
+  anden kode sender hash-links — grep på de fire ankre i `src` og
+  `supabase` uden tests: kun kommentarer (App.tsx, Noegletal.tsx:8,
+  Rapportering.tsx:7, Budgettering.tsx:7, RapporteringView:936,
+  BudgetteringView:48, HbHandoutDetail:24). Guiden var eneste afsender, og
+  den er væk. (P/S) Om mails, bogmærker eller Slack-links udefra bærer et
+  anker, kan koden ikke afgøre — derfor bliver ankrene og hooken. Tre
+  sidekommentarer (Noegletal.tsx:8, Rapportering.tsx:7, Budgettering.tsx:7)
+  siger stadig «Guide-kontrakt» — tekst; tages når filerne rører sig.
+- **Tallene.** Mangellisten 132 → 130: FJERNET SOM LØST «/members lukkes i
+  tre bygninger …» (alle tre bygninger i drift; historikken i §5–§9) og
+  «Guiden er død kode, pulsen er flyttet …» (Guiden slettet,
+  Slack-fallbacks rettet #826; om pulsen sagde kortet selv «ingen
+  selvstændig handling» — epic'et bærer den). OMSKREVET «Sletteliste …»
+  (GuidedTour og MembersStatsBar slettet — tre ting tilbage) og «Sletning
+  af en person har ingen vej …» (delete-company væk; de synkrone
+  `deleteUser`-kald der er tilbage, målt på `d9080ad5`:
+  `bulk-remove-members` `:118`/`:151` og `cleanup-shells` `:178`/`:185` +
+  `hardDeleteCompany` `:210` med `deleteUsers: true` →
+  `companyHardDelete.ts:103`; syv actions). Ingen nye kort.
+- **Åbent ved §9's skrivetidspunkt — rettet i §10:** manage-advisors
+  udrulning (GJORT 14:50 UTC) og noten på skærm (BEVIST I DRIFT 16:53) er
+  lukket. Tilbage: rådgivermailens knap i drift (§8); forsidelinkene på
+  skærm (§6); #815's fejl-gren (§1).
+
+**10. Efter bygning 3 — manage-advisor udrullet 14:50 UTC; målingen kl.
+16:53: sletningen var ufarlig, NOTEN ER BEVIST I DRIFT — og efterladenskaber
+fra tidligere sletninger.** Kilder: Lovables build-chat (ordret),
+`~/Downloads/query-results-export-2026-09-13_16-53-25.csv` (otte sektioner,
+kolonner `noegle;sektion;vaerdi`; SQL'en formuleret i
+`~/Downloads/recon-hvad-bruges-paa-members.md`, kun læsning, kørt i Lovables
+SQL editor), chat 13/9.
+
+- **manage-advisor er udrullet — §9's «udestår» er ikke længere sandt.**
+  Lovable ordret: «Udrulningen af manage-advisor lykkedes kl. 2026-09-13 14:50 UTC. Endpointet svarer live med HTTP 401 Unauthorized (forventet). Ingen filer, andre funktioner eller migrationer blev rørt.» (16:50 dansk.) Rækkefølgen holdt hele
+  vejen: Update → skærmbevis (/members og /guide NotFound) → udrulning. Der
+  fandtes aldrig et vindue hvor slet-knappen stod på skærmen uden en gren
+  bag. 401 på et usigneret kald er det forventede (auth foran alt andet).
+- **NOTEN — bevist i drift.** Sektion `6_fornyelse`, ordret: «b_med_note
+  (note ikke tom);6_fornyelse;1», «h_2026-09-02 PHILBERT ApS;6_fornyelse;tilbyd
+  · af jonas@topix.dk · note=4 tegn · updated 2026-09-13 13:57 ·
+  slutdato=2026-09-29», «f_seneste_updated_at_paa_raekke_med_note;6_fornyelse;2026-09-13
+  13:57:18.165+00». 13:57 UTC = 15:57 dansk — tre minutter efter #825 blev
+  merget (13:54:51 UTC). **Beviset for noten i drift er FØRT** (Jonas'
+  læsning 13/9); «Åbne beviser» i START HER, §6 og §9 er rettet.
+  Forbehold, ikke et åbent bevis: rækken bærer `updated_at`, ikke fladen —
+  begge flader brugte samme skrivevej (`useVirksomhed.ts:434-480`), og
+  Update-klikket efter #825 blev ikke målt (§6). De øvrige fem rækker:
+  «c_pr_beslutning;6_fornyelse;tilbyd: 4 · tilbyd_ikke: 2»,
+  «d_seneste_besluttet_at;6_fornyelse;2026-09-10 08:53:37.173+00»,
+  «g_varsler (varsel_1 sat / varsel_2 sat);6_fornyelse;1 / 1».
+- **IMPORTEN er i brug — og signaturen fra 14:45 var for grov.** Sektion
+  `1_import`, ordret: «b_skarp_signatur (90 d · uden legat · intet link ·
+  invitation 0-10 min efter oprettelse);1_import;4», «c_pr_vej (90 d · uden
+  legat);1_import;import: 4 · ingen_invitation: 3», «a_gammel_signatur (90
+  d · uden legat · intet link · slutdato sat);1_import;5». De fire:
+  «d_2026-06-19 Limo Group - Viborg Limousine Service;1_import;import ·
+  link=0 · slutdato=2027-06-19 · inv efter 00:00:00.131519 ·
+  inv-status=accepted · medl=1 · invited_by=jonas@topix.dk (rådgiver)»;
+  «d_2026-09-01 Din økonomiafdeling Danmark ApS;… inv efter 00:00:00.168589
+  · inv-status=pending · medl=0 · invited_by=jonas@topix.dk (rådgiver)»;
+  «d_2026-09-01 Two Socks ApS;… inv efter 00:00:00.122555 ·
+  inv-status=pending …»; «d_2026-09-01 WESDEX ApS;… inv efter
+  00:00:00.263614 · inv-status=pending …» — alle med invitation under ét
+  sekund efter oprettelsen, alle med Jonas som afsender. Den gamle
+  signatur «intet betalingslink · slutdato sat» gav fem (§5): den femte,
+  «d_2026-08-13 Livja;1_import;ingen_invitation · link=0 ·
+  slutdato=2026-12-16 · inv efter — · inv-status=— · medl=1 ·
+  invited_by=—», kom ad en anden vej — ingen invitation på virksomheden,
+  ét medlem. **RETTELSE af §5's læsning:** tidsafstanden oprettelse →
+  første invitation er importens signatur; slutdatoen er det ikke (den
+  fanger også virksomheder der fik slutdato ad andre veje). Dertil
+  «e_invitationsmails 90 d (email_send_log · template_name=invitation ·
+  status=sent);1_import;22 mails · 20 adresser» og
+  «f_invited_by-fordeling (invitationer oprettet 90 d);1_import;jonas@topix.dk
+  (rådgiver): 13» — ingen anden afsender på 90 dage; Monday-vejens
+  `INVITATION_AFSENDER_USER_ID` har ikke oprettet nogen invitation.
+- **TILKNYT har været brugt — sidst i marts.** Ordret:
+  «a_medlemmer_uden_invitation_accepteret_af_dem (uden rådgivere);2_tilknyt;4»,
+  «b_medlem_oprettet_over_10_min_efter_kontoen (uden rådgivere);2_tilknyt;3»;
+  «c_2026-03-04 Floren Engros;2_tilknyt;floren@mail.dk · konto 2026-03-04
+  09:14 · medlem 2026-03-04 09:14 · inv-accepteret=ingen», «c_2026-03-28
+  Bastant Design;2_tilknyt;gry@bastantdesign.dk · konto 2026-02-23 22:41 ·
+  medlem 2026-03-28 12:14 · inv-accepteret=ingen», «c_2026-03-28
+  Rallysupport;2_tilknyt;peterjacobsen2000@yahoo.dk · konto 2026-03-02
+  12:34 · medlem 2026-03-28 12:03 · inv-accepteret=ingen», «c_2026-03-28
+  TuaMea Jewelry;2_tilknyt;marianne@mmoelgaard.com · konto 2026-02-23 22:41
+  · medlem 2026-03-28 12:14 · inv-accepteret=ingen»;
+  «d_invitation_accepteret_over_10_min_efter_kontoen;2_tilknyt;0». Ikke
+  siden marts. Floren (konto og medlem samme minut) bærer ikke
+  tilknyt-mærket «medlem >10 min efter kontoen» — det gør de tre fra 28/3.
+  Grenen fulgte med importen til /virksomheder (#824,
+  `HbAnsoegningsimport.tsx:168`).
+- **De tre døde var tomme.** «a_pending_med_medlem (invitation pending ·
+  medlem med samme email i virksomheden);4_nulstil;0»,
+  «c_pending_hvor_kontoen_findes (uanset virksomhed — signup-link hjælper
+  ikke);4_nulstil;0» — «Nulstil & gensend» har ingen spor
+  («d_accepterede_uden_accepted_by;4_nulstil;2» er to gamle accepter uden
+  bærer, ikke nulstillinger). «5_legat»: «a_companies_is_legat;5_legat;0»,
+  «b_legat_enrollments pr status;5_legat;0», «c_enrollments_uden_companies_raekke;5_legat;0»,
+  «d_enrollments_hvis_virksomhed_ikke_is_legat;5_legat;0». «7_indgang»:
+  «a_raekker;7_indgang;0», «b_ubetalte (tilstand ≠ betalt);7_indgang;0»,
+  «d_seneste_oprettet (created_at);7_indgang;ingen». **Sletningen
+  fjernede intet der blev brugt.**
+- **Udsnittet nu** («8_udsnit», ordret): «a_univers (er_kunde · ikke legat
+  · ikke udløbet · ikke kun-pending);8_udsnit;22»; «b_fornyelse (status
+  active/null · tier full · slutdato > 2026-09-10 · ≤60 dage · beslutning
+  null eller tilbyd);8_udsnit;1: PHILBERT ApS (16 d, tilbyd)»; «c_indgang
+  (betalingslink i universet · ikke betalt);8_udsnit;0»,
+  «c2_indgang_gennem_porten …;8_udsnit;0»; «d_tavshed_signal (aldrig
+  besked · eller >21 dage);8_udsnit;10», «d2_tavshed_gennem_porten (aldrig
+  · eller ≥33 dage ⇔ alvor ≥70);8_udsnit;8: Bastant Design (138 d),
+  Capture IT A/S (94 d), BRILLEVÆRK (76 d), KJ AUTO OG MIKROMAKKER (68 d),
+  ANLA GLAS A/S (67 d), TuaMea Jewelry (40 d), Rallysupport (40 d), Brick
+  Works ApS (40 d)»; «e_agentforslag (status proposed · proposed_at i
+  indeværende ISO-uge);8_udsnit;0 forslag · 0 virksomheder · i universet:
+  0». Fornyelseslistens død kostede altså én virksomhed — og den står på
+  forsiden.
+- **EFTERLADENSKABER — noget der IKKE handler om /members.** Sektion
+  `3_sletning`, ordret: «f_storage_uden_ejer (første sti-led er et uuid
+  uden companies/auth.users-række);3_sletning;company-logos: 2 ·
+  feedback-screenshots: 1 · financial-documents: 129»;
+  «c_foraeldreloese_konti (auth.users uden medlemskab · uden rolle · uden
+  legat);3_sletning;4: mads@scandimate.dk (oprettet 2026-02-23, sidst
+  aldrig), lars@dasgruppen.dk (oprettet 2026-02-23, sidst aldrig),
+  jeppe1864@gmail.com (oprettet 2026-02-23, sidst aldrig),
+  jh@jonasherlev.dk (oprettet 2026-02-27, sidst 2026-06-01)»;
+  «d_foraeldreloese_profiler (profiles uden medlemskab · uden
+  rolle);3_sletning;1»; «e_mails_til_adresser_uden_raekke (email_send_log ·
+  ingen invitation/contact_email/konto);3_sletning;98 mails · 22
+  adresser»; «g_invitationer_frakoblet (company_id null · status accepted
+  — cleanup-shells-spor);3_sletning;30»; «a_hb_slettet (data_slettet_at
+  sat) pr vej;3_sletning;i_haanden: 8»; «b_hb_anmodet_ikke_slettet
+  (offboarding_requested_at sat · data_slettet_at null);3_sletning;0».
+  FK'erne mod `companies` («h_fk_til_companies (on delete)», ordret for de
+  ti): «budget_targets.company_id=no action», «conversations.company_id=no
+  action», «feedback.company_id=no action»,
+  «financial_report_facts.company_id=no action»,
+  «financial_reports.company_id=no action», «handouts.company_id=no
+  action», «kpi_benchmarks.company_id=no action», «kpi_targets.company_id=no
+  action», «milestones.company_id=no action»,
+  «slack_handout_notification_log.company_id=no action»; «set null» på
+  `raadgiver_opgaver` og `session_bookings`; resten cascade. **Læsning
+  (chat 13/9, ikke en måling):** de ti «no action»-tabeller hænger ikke
+  ved når en virksomhed forsvinder — de bliver liggende. `hardDeleteCompany`
+  sletter dem rækkevis før `companies`-rækken, men rører ikke storage
+  (grep `storage` i `companyHardDelete.ts` → 0), og en sletning i
+  SQL-editoren (de otte 8/9 og Alina, stemplet `i_haanden`) gør heller
+  ikke — de 129 filer under `financial-documents/<id>/` er formentlig
+  deres. De 30 frakoblede invitationer matcher `cleanup-shells`'
+  `preserveInvitations` (`manage-advisor/index.ts:208-213`). De fire konti
+  er fra 23.–27. februar; tre har aldrig logget ind. Hvad der skal ske
+  (slet, stempl, lad ligge) er ikke afgjort. **Vindue A reconer
+  efterladenskaberne netop nu; reconen er ikke læst.** Det gør kortet
+  «Sletning af en person har ingen vej …» større, ikke mindre — der ligger
+  allerede rester fra de sletninger der er sket. Skrevet som EGET kort
+  (Drift), fordi det handler om virksomhedssletningers rester, ikke om en
+  manglende vej for personer, og fordi person-kortet allerede bærer tre
+  lange afsnit; person-kortet henviser.
+- **Tallene.** Mangellisten 130 → 131: NYT «Efterladenskaber fra tidligere
+  sletninger …» (Drift); person-kortet omskrevet (udrulningen gjort,
+  henvisning). START HER's åbne beviser: rådgivermailens knap (§8),
+  forsidelinkene på skærm (§6), #815 (§1).
 
 ### Mailplatformen — bygget om af Lovable 8/9 kl. 06:52-06:58; afsenderne, fortegnelsen og værnet (#728, #730, #731, #732)
 
@@ -6456,6 +6654,25 @@ De konkrete ting der har kostet tid. Led efter dem.
   sin egen test (verifikationen skrev «4 tests»; filen har tre it-blokke,
   målt 13/9 med grep — det fjerde var det andet vindues værn). Tæl
   testene i diffen, eller kør én fælles kørsel — gentag ikke et tal.
+- **Et kildeværn kan holde en fil i live.** Da /members skulle slettes
+  13/9 (bygning 3, #828), læste SEKS tests de døende filer ad sti-streng
+  (`readFileSync(resolve(process.cwd(), "src/pages/Members.tsx"))` o.l.),
+  ikke via import: factsDataBasisReadGuard, forsidenKaster.guard,
+  emailSendLogKolonner.guard, fornyelseSkrivevej.guard, fornyelsesOrd.test
+  og medlemsfjernelse.test. Reconen 13/9 middag fandt fem; det sjette var
+  kort 83's eget kildeværn, bygget samme formiddag (#820) — det læste
+  `MemberCompanyRow.tsx` og `Members.tsx` for at bevise at knappen var
+  væk. To af de seks (forsidenKaster.guard `:124`, fornyelsesOrd.test
+  `:66-68`) læste på MODULNIVEAU: en sletning uden rettelse ville have
+  kastet ved modul-load og væltet hele filen — 281 linjer værn for
+  AdvisorDashboard, virksomhedslisten og BoardroomView, plus de rene
+  badge-tests — for flader der intet havde med /members at gøre. Og tsc
+  ville have været grønt hele vejen: stier i strenge er ikke typer. Når en
+  fil skal dø: grep efter dens STI som streng (`"src/pages/Members.tsx"`,
+  `components/members/`) i `src/` og `scripts/`, ikke kun efter imports;
+  læs hvert fund for om det står på modulniveau (vælter filen) eller inde
+  i et it (vælter én test); og lad hver rettelse bære hvorfor værnet blev
+  smallere (DEL 2 «13. september» §9).
 
 ---
 
