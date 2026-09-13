@@ -265,7 +265,10 @@
 > og fire kommentarer (kortet «Oprydningens rester»). **Del 2 venter:
 > podcasten ud** (kortet «Podcasten ud af platformen — ét link til
 > Spotify»). Mangellisten 134 → 134 (ét kort fjernet som løst, ét nyt,
-> tre omskrevet).
+> tre omskrevet). **NB:** denne bogføring blev taget med i vindue A's
+> commit `3e3fd9ed` = **PR #837** (kort 56) kl. 19:27:10, fordi begge
+> vinduer delte index'et — forudsætningen «A skriver ikke» holdt ikke.
+> Genskabt og staged på main igen; se §16's sidste punkt.
 >
 > **12/9:** i repoet skete der INTET — #819 blev merget 11/9 kl. 10:55:26
 > UTC, og næste commit er ikke kommet. Om der skete noget i prod, Stripe
@@ -6173,6 +6176,25 @@ her.
   «Oprydningens rester» (etiketten, fire kommentarer, de to funktioner
   hos Lovable); Rækkefølgens «Små …»-liste mistede «run-weekly-agent —
   slet eller læg om». Tests: 2982 → 2961 (192 filer).
+- **FORUDSÆTNINGEN HOLDT IKKE — og fælden slog til igen samme aften.**
+  Bogføringsopgaven sagde «Vindue A skriver ikke». Målt 13/9 kl. 19:27:
+  mens vindue B skrev denne §16, byggede vindue A kort 56 i samme træ
+  (`HbHandoutDetail.tsx`, `lektionerForModul.ts` + test). B's afsluttende
+  `git add -A` (kl. ~19:27:00) stagede både docs og A's halve
+  src-ændringer; A's commit-blok kørte kl. 19:27:10, tog HELE index'et,
+  og committede docs OG kode som `3e3fd9ed` «feat: handout-siden linker
+  til de lektioner der hoerer til (kort 56)» på
+  `feat/handout-til-lektion` — pushet, og åbnet som **PR #837**, hvis
+  tekst kun nævner koden. B's tjek et halvt minut senere: `git status`
+  RENT på main, docs-ændringerne VÆK fra disken (branchen var checket ud
+  og main igen). Genskabt på main fra `~/Downloads/diff-bogfoering-oprydningen.txt`
+  (`git apply`, ren) og staged igen. Konsekvens for Jonas: denne §16
+  ligger nu BÅDE i #837 (som A's commit) og staged på main; merges #837
+  først, er main's kopi identisk og falder bort ved pull — merges den
+  ikke, bærer main's kopi bogføringen. Anden gang på én aften (#834 var
+  første); fælden i DEL 4 er skærpet: to vinduer på samme main deler ét
+  index, og «A skriver ikke» er en påstand der skal måles med `git
+  status` lige før `git add`, ikke antages.
 
 ### Mailplatformen — bygget om af Lovable 8/9 kl. 06:52-06:58; afsenderne, fortegnelsen og værnet (#728, #730, #731, #732)
 
@@ -7500,6 +7522,13 @@ De konkrete ting der har kostet tid. Led efter dem.
   eget indhold. Kør `git diff --cached --stat` OG læs den, før du
   committer; eller ryd index'et først (`git restore --staged .`) og stage
   præcis det committen skal bære. To vinduer på samme main deler ét index.
+  *Skete igen samme aften, kl. 19:27:* vindue B's `git add -A` (docs, §16)
+  landede i vindue A's commit-blok ti sekunder senere — `3e3fd9ed`, PR
+  #837 (kort 56) bærer bogføringen af oprydningen, og PR-teksten nævner
+  kun koden. Forudsætningen «Vindue A skriver ikke» stod i opgaven og
+  holdt ikke. Før `git add -A`: kør `git status --short` og STOP hvis der
+  står andet end dine egne filer; og commit-blokken skal altid læse `git
+  diff --cached --stat` før den committer (DEL 2 «13. september» §16).
 - **En dom må ikke love mere end RLS giver.** Kort 60's første tælling
   brugte `status <> 'slettet'` og lovede at en tråd skjult af en rådgiver
   stadig tæller; medlemmets SELECT-policy viser kun `status = 'aktiv'`
