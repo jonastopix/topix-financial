@@ -130,11 +130,32 @@ describe("inkluderetSession.guard — 4. fladen: begge rettigheder ét sted, tre
     expect(kilde).not.toContain('.eq("advisor", "morten")');
   });
 
-  it("de tre navne står på Book session, virksomhedssiden og i admin-dialogen", () => {
+  // Indtil 13/9 (aften) krævede værnet også de tre navne på Book session. De
+  // er fjernet dér med vilje: kortet ER sessionen, så etiketten navngav kun
+  // det medlemmet allerede så og gentog knappen. Navnene er labels i LISTER
+  // (Virksomhed, admin, indstillinger, Stripe) — der bliver de, og der låses de.
+  it("Book session bærer ingen spor-etiket — kortet er sessionen; de to brødtekster kan ikke byttes om", () => {
     const flade = laes(FLADE);
-    expect(flade).toContain("Session med Jonas · inkluderet");
-    expect(flade).toContain("Session med Jonas · købt");
-    expect(flade).toContain("Session med Morten · inkluderet");
+    // Negativerne måles på kilden UDEN kommentarer — kommentarerne må netop forklare
+    // hvad der er fjernet og hvorfor, og skal kunne nævne de forbudte ord.
+    const jsxTekst = flade.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+    expect(jsxTekst).not.toContain("Session med Jonas · inkluderet");
+    expect(jsxTekst).not.toContain("Session med Jonas · købt");
+    expect(jsxTekst).not.toContain("Session med Morten · inkluderet");
+    // Forskellen står i teksten: Morten er investor og ser udefra, Jonas er partner og ser indefra.
+    expect(jsxTekst).toContain("Blikket udefra");
+    expect(jsxTekst).toContain("Blikket indefra");
+    expect(jsxTekst).toMatch(/Morten er investor/);
+    expect(jsxTekst).toMatch(/Jonas er partner/);
+    // Jonas 13/9: «onboarding» må ikke ind (sessionen udløber ikke; mange har ikke brug for det),
+    // og «strategi-session» er for snævert for Mortens.
+    expect(jsxTekst).not.toMatch(/onboarding|strategi-?session/i);
+    // «Én session per virksomhed» er kortets vigtigste oplysning — aldrig igen som grå fodnote.
+    expect(flade).not.toMatch(/text-hb-ink-soft">én session per virksomhed/);
+    expect(jsxTekst.match(/Én session per virksomhed, ikke per bruger\./g)?.length).toBe(2);
+  });
+
+  it("de tre navne står på virksomhedssiden og i admin-dialogen", () => {
     const virk = laes(VIRKSOMHED);
     expect(virk).toContain('label: "Session med Jonas · inkluderet"');
     expect(virk).toContain('label: "Session med Morten · inkluderet"');
