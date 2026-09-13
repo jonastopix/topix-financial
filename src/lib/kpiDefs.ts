@@ -5,8 +5,9 @@
  * advisor-mobile "Se tal"-drawer share one source of truth. No hooks, no state,
  * no side effects. deriveKpiMetrics() is pure: same input → same output.
  *
- * Targets and benchmarks are passed in already-resolved (fallback applied by the
- * caller — useKpiTargets for targets, getBenchmark for benchmarks).
+ * Targets and benchmarks are passed in already-resolved by the caller
+ * (fletKpiMaal via useKpiTargets/useVirksomhed for targets — kun aftalte mål,
+ * intet fallback (kort 40, 11/9); getBenchmark for benchmarks).
  */
 import { DollarSign, TrendingUp, Users, Target, Flame, BarChart3 } from "lucide-react";
 import type { MaalKilde } from "@/lib/kpiMaal";
@@ -32,9 +33,9 @@ export interface KpiMetric {
   numValue: number;
   target: string;
   targetNum: number;
-  /** Målets oprindelse (7/9): «aftalt» fra kpi_targets, «standard» fra
-      KPI_FALLBACK_TARGETS, null når hentningen ikke bærer den (ukendt er
-      ikke standard — fladerne mærker kun «standard»). Se lib/kpiMaal. */
+  /** Målets oprindelse: «aftalt» fra kpi_targets; null når der intet mål er
+      eller hentningen ikke bærer kilden. «standard» produceres ikke længere
+      (fallbacken er fjernet, kort 40 11/9). Se lib/kpiMaal. */
   maalKilde: MaalKilde | null;
   /** "—" når changePct er null — aldrig et opdigtet "+0.0%".
       Beløb: "+10.0%" (relativ). Procent-KPI'er: "+15.6 pp" (procentpoint). */
@@ -81,9 +82,13 @@ export const VALUE_EXTRACTORS: Record<string, (kf: Record<string, number>, basis
   ebitda_margin: (kf) => calcResultMargin(kf) ?? null,
 };
 
-/** Whether a metric meets its target, and progress toward it (0–100). Pure. */
-export function getTargetStatus(metric: KpiMetric): { hit: boolean; pct: number } {
-  if (!metric.targetNum) return { hit: false, pct: 0 };
+/** Whether a metric meets its target, and progress toward it (0–100). Pure.
+    UDEN MÅL DØMMES IKKE (kort 40, 11/9): targetNum ≤ 0 betyder «intet aftalt
+    mål», og så er `hit` null — ingen dom, hverken nået eller ikke nået.
+    Kalderen (chattens «Se tal»-skuffe) må kun tegne rust ved `hit === false`;
+    `!hit` ville gøre «intet mål» til en afvigelse, som skuffen gjorde før. */
+export function getTargetStatus(metric: KpiMetric): { hit: boolean | null; pct: number } {
+  if (!(metric.targetNum > 0)) return { hit: null, pct: 0 };
   const hit = metric.lowerIsBetter
     ? metric.numValue <= metric.targetNum
     : metric.numValue >= metric.targetNum;
@@ -120,15 +125,15 @@ export function getTargetStatus(metric: KpiMetric): { hit: boolean; pct: number 
  * stigende margin er stadig god (og en faldende lønandel ville være god
  * med lowerIsBetter) — fortegnet er det samme uanset form.
  *
- * ÅBENT PUNKT (4/9, ikke rettet her): «mål 60 %» for db_margin er
- * KPI_FALLBACK_TARGETS (appConfig.ts), ikke et mål nogen har sat. Ét fælles
- * fallback-mål dømmer en engrosvirksomhed med 45,7 % som «under» og lader en
- * konsulentvirksomhed med 96,9 % «ramme» — ingen af dommene siger noget om
- * branchen. Et branchespecifikt eller fraværende fallback-mål er en
- * beslutning, ikke en rettelse.
+ * LUKKET (kort 40, 11/9): «mål 60 %» for db_margin var KPI_FALLBACK_TARGETS,
+ * ikke et mål nogen havde sat — ét fælles fallback dømte engros (45,7 %) som
+ * «under» og lod konsulent (96,9 %) «ramme». Fallbacken er fjernet: en nøgle
+ * uden aftalt mål er FRAVÆRENDE i `targets`, og `?? { value: 0, label: "—" }`
+ * nedenfor giver targetNum 0 og maalKilde null — «intet mål», som fladerne
+ * ikke tegner og ikke dømmer. Branchen oplyses via benchmark, ikke som mål.
  *
  * @param facts      committed facts, pre-sorted ascending by period_key
- * @param targets    per-key resolved target (DB value or fallback already applied)
+ * @param targets    per-key AFTALT target (fletKpiMaal) — nøgler uden mål er fraværende
  * @param benchmarks per-key resolved benchmark (DB value or fallback already applied)
  */
 export function deriveKpiMetrics(

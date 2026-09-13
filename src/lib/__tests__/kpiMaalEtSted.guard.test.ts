@@ -2,22 +2,27 @@ import { describe, expect, it } from "vitest";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
 
-// Driftværn (7/9): KPI-mål flettes ÉT sted — fletKpiMaal i src/lib/kpiMaal.ts,
-// som er den eneste KODE der læser KPI_FALLBACK_TARGETS (appConfig.ts, hvor
-// den er DEFINERET). Før flettede useKpiTargets og useVirksomhed hver sin
-// kopi «ordret som den anden»: da oprindelsen (kilde «aftalt»/«standard»)
-// kom til, fik den ene flade mærket og den anden ikke — rådgiverens
-// virksomhedsside viste umarkerede standardtal, mens medlemmets nøgletal
-// mærkede dem. To fletninger driver fra hinanden; én kan ikke.
+// Driftværn (7/9, vendt 13/9 med kort 40): KPI-mål flettes ÉT sted — fletKpiMaal
+// i src/lib/kpiMaal.ts — og der FINDES INTET FALLBACK-MÅL. Før flettede
+// useKpiTargets og useVirksomhed hver sin kopi «ordret som den anden»: da
+// oprindelsen (kilde) kom til, fik den ene flade mærket og den anden ikke.
+// To fletninger driver fra hinanden; én kan ikke. Fra 7/9 låste værnet at
+// KPI_FALLBACK_TARGETS (appConfig.ts) kun blev læst i kpiMaal.ts. 11/9
+// besluttede Jonas at fjerne fallbacken helt: et mål er noget der er AFTALT;
+// husets seks tal var ikke aftalt med nogen og dømte engros som «under» og
+// konsulent som «rammer». Værnet låser nu at konstanten ikke kommer tilbage —
+// hverken i appConfig.ts, kpiMaal.ts eller nogen anden kildefil under src/ —
+// og at kpiMaal.ts ikke importerer noget fra appConfig.
 // Kildelæsning (fornyelseSkrivevej.guard-mønstret): kommentarer strippes
-// FØR målingen, så en forklarende omtale ikke tæller som brug.
+// FØR målingen, så en forklarende omtale (historik) ikke tæller som brug.
 // Samme værn låser at typen ResolvedTargets hentes fra lib/kpiMaal, ikke
 // via hooken — typen bor hos den rene funktion.
 
 const ROD = resolve(process.cwd(), "src");
 const DEN_ENE_FLETNING = "src/lib/kpiMaal.ts";
-const DEFINITIONEN = "src/lib/appConfig.ts";
+const DEN_GAMLE_DEFINITION = "src/lib/appConfig.ts";
 const DE_TO_HENTNINGER = ["src/hooks/useKpiTargets.ts", "src/hooks/useVirksomhed.ts"];
+const FALLBACKEN = "KPI_FALLBACK_TARGETS";
 
 function alleKildefiler(mappe: string): string[] {
   return readdirSync(mappe).flatMap((navn) => {
@@ -35,18 +40,22 @@ function udenKommentarer(kilde: string): string {
 const filer = alleKildefiler(ROD).map((sti) => relative(process.cwd(), sti));
 const laes = (fil: string) => readFileSync(resolve(process.cwd(), fil), "utf8");
 
-describe("KPI-mål flettes ét sted — KPI_FALLBACK_TARGETS læses kun i lib/kpiMaal", () => {
+describe("KPI-mål flettes ét sted, og der findes intet fallback-mål (kort 40)", () => {
   it("værnet ser kildefilerne (ikke et tomt træ)", () => {
     expect(filer.length).toBeGreaterThan(100);
     expect(filer).toContain(DEN_ENE_FLETNING);
-    expect(filer).toContain(DEFINITIONEN);
+    expect(filer).toContain(DEN_GAMLE_DEFINITION);
     for (const h of DE_TO_HENTNINGER) expect(filer).toContain(h);
   });
 
-  it(`${DEN_ENE_FLETNING}: læser KPI_FALLBACK_TARGETS i kode og eksporterer fletKpiMaal`, () => {
+  it(`${DEN_ENE_FLETNING}: eksporterer fletKpiMaal og importerer intet fra appConfig`, () => {
     const kode = udenKommentarer(laes(DEN_ENE_FLETNING));
-    expect(kode).toContain("KPI_FALLBACK_TARGETS[");
     expect(kode).toContain("export function fletKpiMaal(");
+    expect(kode, "fallbacken boede i appConfig — fletningen må ikke hente noget derfra").not.toMatch(/from "@\/lib\/appConfig"/);
+  });
+
+  it(`${DEN_GAMLE_DEFINITION}: definerer ikke længere ${FALLBACKEN}`, () => {
+    expect(udenKommentarer(laes(DEN_GAMLE_DEFINITION))).not.toContain(FALLBACKEN);
   });
 
   for (const h of DE_TO_HENTNINGER) {
@@ -57,12 +66,10 @@ describe("KPI-mål flettes ét sted — KPI_FALLBACK_TARGETS læses kun i lib/kp
     });
   }
 
-  for (const fil of filer.filter((f) => f !== DEN_ENE_FLETNING && f !== DEFINITIONEN)) {
-    const kode = udenKommentarer(laes(fil));
-    if (!kode.includes("KPI_FALLBACK_TARGETS")) continue;
-    it(`${fil}: rører ikke KPI_FALLBACK_TARGETS — fletningen bor i ${DEN_ENE_FLETNING}`, () => {
-      const linjer = kode.split("\n").map((l, i) => ({ nr: i + 1, l })).filter(({ l }) => l.includes("KPI_FALLBACK_TARGETS"));
-      expect(linjer, `KPI_FALLBACK_TARGETS uden om ${DEN_ENE_FLETNING}`).toEqual([]);
-    });
-  }
+  it(`ingen kildefil under src/ nævner ${FALLBACKEN} i kode — fallbacken kommer ikke tilbage`, () => {
+    const brud = filer
+      .map((fil) => ({ fil, linjer: udenKommentarer(laes(fil)).split("\n").map((l, i) => ({ nr: i + 1, l })).filter(({ l }) => l.includes(FALLBACKEN)) }))
+      .filter(({ linjer }) => linjer.length > 0);
+    expect(brud, `${FALLBACKEN} i kode:\n${JSON.stringify(brud, null, 2)}`).toEqual([]);
+  });
 });
