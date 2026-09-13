@@ -6,7 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { useVirksomhed, skrivFornyelsesbeslutning, sletFornyelsesbeslutning, type VirksomhedsData } from "@/hooks/useVirksomhed";
+import { useVirksomhed, skrivFornyelsesbeslutning, skrivFornyelsesnote, sletFornyelsesbeslutning, type VirksomhedsData } from "@/hooks/useVirksomhed";
 import AgentForslagPanel from "@/components/AgentForslagPanel";
 import AdvisorAIChat from "@/components/AdvisorAIChat";
 import CompanyChatPane from "@/components/CompanyChatPane";
@@ -49,6 +49,7 @@ import { HbButton } from "../HbButton";
 import { HbCard } from "../HbCard";
 import { HbSection } from "../HbSection";
 import { HbTag } from "../HbTag";
+import { HbTextarea } from "../admin/HbField";
 import { cn } from "@/lib/utils";
 import { raadgiverHentefejlTekst } from "@/lib/raadgiverHentefejl";
 
@@ -1410,8 +1411,13 @@ const FjernMedlem = ({ medlem, companyId, virksomhed, onFjernet }: { medlem: { u
     «tilbyd» sender fornyelsesvarsel-cron intet. Tre handlinger, samme
     skrivevej som /members (useVirksomhed: skriv-/sletFornyelsesbeslutning):
     sæt tilbyd, sæt tilbyd_ikke, fjern beslutningen igen («ingen række =
-    endnu ikke besluttet», ikke tilbyd_ikke). Noten bevares ved skift og
-    kan kun redigeres på /members — kortet skal blive let. Husets form:
+    endnu ikke besluttet», ikke tilbyd_ikke). Noten bevares ved skift.
+    NOTEN (13/9): /members lukkes, og den var det eneste sted noten kunne
+    redigeres — så en fjerde link-knap folder et lille felt ud på stedet
+    (MilestoneDialoger-formen: forudfyldt kladde, Gem/Annullér) og skriver
+    gennem skrivFornyelsesnote. Knappen står KUN når der er en beslutning:
+    skrivFornyelsesnote rammer nul rækker uden en, og noten følger
+    beslutningen, som den gjorde på /members. Husets form:
     link-knapper som «Rediger virksomhedsdata», og efter succes AWAITes
     invalideringen (siden, forsidens dom og /members-listen) FØR toasten,
     så fladen aldrig viser det gamle (EditCompanyDialog-fælden). */
@@ -1426,15 +1432,23 @@ const FornyelsesHandlinger = ({
 }) => {
   const { user } = useAuth();
   const [gemmer, setGemmer] = useState(false);
-  const koer = async (handling: () => Promise<void>, succes: { titel: string; beskrivelse?: string }, fejl: string) => {
-    if (gemmer) return;
+  // Kladden til noten lever her og kastes væk ved Annullér. Feltet lukkes
+  // først når koer melder succes — dvs. EFTER siden er hentet igen — så
+  // fladen aldrig står med den gamle note (EditCompanyDialog-fælden).
+  const [redigererNote, setRedigererNote] = useState(false);
+  const [noteKladde, setNoteKladde] = useState("");
+  /** Svarer true ved succes (skrevet OG hentet igen), false ved fejl/optaget. */
+  const koer = async (handling: () => Promise<void>, succes: { titel: string; beskrivelse?: string }, fejl: string): Promise<boolean> => {
+    if (gemmer) return false;
     setGemmer(true);
     try {
       await handling();
       await efterSkrivning();
       toast.success(succes.titel, succes.beskrivelse ? { description: succes.beskrivelse } : undefined);
+      return true;
     } catch (err) {
       toast.error(fejl, { description: err instanceof Error ? err.message : undefined });
+      return false;
     } finally {
       setGemmer(false);
     }
@@ -1453,26 +1467,70 @@ const FornyelsesHandlinger = ({
       { titel: "Beslutning fjernet", beskrivelse: "Virksomheden står nu som «endnu ikke besluttet» — ikke som «vi tilbyder ikke»." },
       "Kunne ikke fjerne beslutningen",
     );
+  const aabnNote = () => {
+    setNoteKladde(nuvaerende?.note ?? "");
+    setRedigererNote(true);
+  };
+  const gemNote = async () => {
+    const gemt = await koer(
+      () => skrivFornyelsesnote(companyId, noteKladde.trim() || null),
+      { titel: "Note gemt" },
+      "Noten blev ikke gemt",
+    );
+    if (gemt) setRedigererNote(false);
+  };
   const knap = "text-xs underline-offset-4 hover:underline disabled:opacity-50";
   return (
-    <span className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1">
-      {nuvaerende?.beslutning !== "tilbyd" && (
-        <button type="button" disabled={gemmer || !user} onClick={() => saet("tilbyd")} className={cn(knap, "text-hb-evergreen")}>
-          Tilbyd forlængelse
-        </button>
+    <>
+      <span className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1">
+        {nuvaerende?.beslutning !== "tilbyd" && (
+          <button type="button" disabled={gemmer || !user} onClick={() => saet("tilbyd")} className={cn(knap, "text-hb-evergreen")}>
+            Tilbyd forlængelse
+          </button>
+        )}
+        {nuvaerende?.beslutning !== "tilbyd_ikke" && (
+          <button type="button" disabled={gemmer || !user} onClick={() => saet("tilbyd_ikke")} className={cn(knap, "text-hb-evergreen")}>
+            Tilbyd ikke
+          </button>
+        )}
+        {nuvaerende && (
+          <button type="button" disabled={gemmer} onClick={fjern} className={cn(knap, "text-hb-ink-soft")}>
+            Fjern beslutning
+          </button>
+        )}
+        {nuvaerende && !redigererNote && (
+          <button type="button" disabled={gemmer} onClick={aabnNote} className={cn(knap, "text-hb-evergreen")}>
+            {nuvaerende.note ? "Rediger note" : "Tilføj note"}
+          </button>
+        )}
+        {gemmer && <span className="text-xs text-hb-ink-soft">Gemmer…</span>}
+      </span>
+      {/* Kun spans herunder: Linjes værdicelle er et <span>, og en <div> i
+          et <span> er ugyldig DOM. Feltet forsvinder også hvis beslutningen
+          fjernes imens — uden række ville Gem ramme nul rækker. */}
+      {nuvaerende && redigererNote && (
+        <span className="mt-1.5 block">
+          <HbTextarea
+            autoFocus
+            rows={2}
+            value={noteKladde}
+            onChange={(e) => setNoteKladde(e.target.value)}
+            disabled={gemmer}
+            aria-label="Fornyelsesnote"
+            placeholder="Valgfri note til fornyelsen"
+            className="text-sm"
+          />
+          <span className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
+            <button type="button" disabled={gemmer} onClick={() => void gemNote()} className={cn(knap, "text-hb-evergreen")}>
+              Gem
+            </button>
+            <button type="button" disabled={gemmer} onClick={() => setRedigererNote(false)} className={cn(knap, "text-hb-ink-soft")}>
+              Annullér
+            </button>
+          </span>
+        </span>
       )}
-      {nuvaerende?.beslutning !== "tilbyd_ikke" && (
-        <button type="button" disabled={gemmer || !user} onClick={() => saet("tilbyd_ikke")} className={cn(knap, "text-hb-evergreen")}>
-          Tilbyd ikke
-        </button>
-      )}
-      {nuvaerende && (
-        <button type="button" disabled={gemmer} onClick={fjern} className={cn(knap, "text-hb-ink-soft")}>
-          Fjern beslutning
-        </button>
-      )}
-      {gemmer && <span className="text-xs text-hb-ink-soft">Gemmer…</span>}
-    </span>
+    </>
   );
 };
 
