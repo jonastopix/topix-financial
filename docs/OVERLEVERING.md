@@ -1,6 +1,6 @@
 # Overlevering
 
-> ## 13/9 — START HER (skrevet 13/9 eftermiddag; HEAD `3ce1e7dc` = #819, merget 11/9 kl. 10:55:26 UTC; prod målt kl. 14:01, `~/Downloads/query-results-export-2026-09-13_14-01-42.csv`)
+> ## 13/9 — START HER (skrevet 13/9 eftermiddag; opdateret 13/9 sen eftermiddag efter #826 og igen efter udrulningen kl. 14:20 UTC — HEAD `f85e59ef` = #826, merget 13/9 kl. 14:13:00 UTC; prod målt kl. 14:01, `~/Downloads/query-results-export-2026-09-13_14-01-42.csv`)
 >
 > **Bevist i dag — doggybeds træk gik igennem.** Sektion `a_doggybed_traek`,
 > ordret: «betalt · in_1UF8tR3CvBmCx5PthFjFOjFc;a_doggybed_traek;2026-09-13T09:36:24.309794+00:00
@@ -77,41 +77,133 @@
 > 13 — betingelsen fra 2/9 (at trækket 13/9 gik igennem) er opfyldt;
 > hvornår og i hvilke portioner er IKKE besluttet (DEL 3).
 >
-> **`/members` — besluttet 13/9, bygges nu.** Jonas 13/9, ordret:
-> «Hvornår fanden bliver /members lavet om og konverteret til hjemmebane
-> design? Det er en lorteside.» Reconen ER kørt
-> (`~/Downloads/recon-members-hvad-staar-tilbage.md`, linjenumre fra HEAD
-> `0b3cb67a`) og prod målt kl. 14:45
-> (`~/Downloads/query-results-export-2026-09-13_14-45-10.csv`) — DEL 2
-> «13. september» §5. **Kortet der spærrede siden 4/9 («Tre handlinger
-> uden hjem»), havde to af tre præmisser der ikke holdt:** omdøb er
-> flyttet (#771), «merge» findes ikke som kode (#772 fjernede
-> bivirkningen), og «ImportView» er rapport-upload, ikke
-> ansøgningsimport. Det der KUN findes på /members, er større end tre
-> handlinger (§5). **Jonas' fire beslutninger 13/9** (efter chattens
-> anbefalinger; Jonas 13/9: «Jeg er helt enig i dine anbefalinger»):
-> (1) importen flyttes til `/virksomheder` ved siden af «Inviter» —
-> tilknyt-grenen (`attach-user-to-company`) følger med; (2) den
-> øjeblikkelige sletning (`delete-company` med «slet også
-> brugerkonti») dør — Hb's `bedOmSletning` (7 dages frist) er vejen; (3)
-> «Nulstil & gensend» på en ACCEPTERET invitation dør; (4)
-> Legatforløb-listen dør, `/admin/legat` bliver (prod 14:45: ingen
-> virksomhed har `is_legat = true`). **Planen, tre bygninger** (forslag
-> fra chatten, stående uden indsigelse): (1) flyt — importen + tilknyt
-> til `/virksomheder`, fornyelsesnoten til virksomhedssiden,
-> fornyelseslisten og Indgangen som udsnit på `/virksomheder`; (2) ret
-> de syv veje ind (AppSidebar, Guide, `indgangsMail.ts:286`, tre
-> Slack-fallbacks); (3) slet siden, de otte filer der kun importeres af
-> den, og ret de fem tests der læser den. **Status ved skrivetidspunktet:
-> bygning 1 er i gang i vindue A — TRIN 1, motoren
-> `src/lib/ansoegningsimport.ts`, ingen flade.** Ikke merget, ikke
-> færdigt. Det der venter: bygning 1's flade, bygning 2 og 3.
+> **`/members` — besluttet 13/9; BYGNING 1 OG 2 ER FÆRDIGE (#823, #824,
+> #825, #826), udrullet 14:20 UTC; Guiden er AFGJORT — den dør i bygning
+> 3, ankrene bliver; bygning 3 står.** Jonas 13/9, ordret: «Hvornår fanden bliver
+> /members lavet om og konverteret til hjemmebane design? Det er en
+> lorteside.» Reconen (`~/Downloads/recon-members-hvad-staar-tilbage.md`)
+> og prod målt kl. 14:45 — DEL 2 «13. september» §5. **Jonas' fire
+> beslutninger 13/9** (Jonas 13/9: «Jeg er helt enig i dine
+> anbefalinger»): (1) importen til `/virksomheder` ved siden af «Inviter»,
+> tilknyt-grenen med; (2) den øjeblikkelige sletning dør — `bedOmSletning`
+> er vejen; (3) «Nulstil & gensend» på en ACCEPTERET invitation dør; (4)
+> Legatforløb-listen dør, `/admin/legat` bliver.
+> **Bygning 1 — I DRIFT** (DEL 2 «13. september» §6): #823 motoren
+> `src/lib/ansoegningsimport.ts` + 76 tests, 142 linjer ud af `Members.tsx`
+> (merget 13:08:25 UTC, `c0a2de83`); #824 panelet — `HbDropzone` (ny fri
+> dropzone, 6 tests) + `HbAnsoegningsimport` (knap + panel) monteret i
+> `HbInvitationer` (13:33:58 UTC, `1f15250e`); #825 noten på
+> virksomhedssiden («Tilføj note»/«Rediger note» i Aftalen, kun når der er
+> en beslutning) + forsidens samlede linjer via `samletLinjeLink` til
+> `/virksomheder?grund=<slags>`, to nye kildeværn (13:54:51 UTC,
+> `78d58a63`). **Skærmbevis kl. 15:38:11**
+> (`screencapture-app-theboardroom-dk-virksomheder-2026-09-13-15_38_11.pdf`):
+> panelet i drift på /virksomheder med et ægte Monday-ark — GOURMENSCH,
+> CVR 40364390, omsætning 3200000 med intervallet «D) 2.000.000-4.999.999
+> kr.», kontraktslut 23.01.2027, og motorens advarsel «Kolonnen
+> «Kontaktperson» blev ikke fundet i arket.» øverst. Advarslerne er NYE —
+> /members' dialog gav op i stilhed. Kl. 15:37:00 (`…15_37_00.pdf`):
+> knappen «Importér ansøgning» ved siden af «Inviter». **Ikke bevist på
+> skærm:** noten og forsidelinkene (#825 blev merget EFTER
+> skærmbillederne); om en import blev GENNEMFØRT: ikke målt.
+> **Planen ÆNDREDE sig undervejs** (§6): «fornyelseslisten og Indgangen
+> som udsnit på /virksomheder» holdt ikke — et udsnit kan ikke bære
+> knapper (recon-hb-moenstre 4.3); chattens næste form, SEKTIONER efter
+> HbInvitationer-mønsteret, holdt heller ikke (recon-de-to-sektioner:
+> designet gav dem forsiden; alt de kan, findes i Hb på nær noten; og
+> listerne er FORKERTE — tælleren og de manglende varselstempler).
+> BESLUTTET 13/9 (forslag fra chatten, stående uden indsigelse): BEGGE
+> lister dør uden erstatning i bygning 3. Kun noten flyttedes, og
+> forsidens linjer fik udsnittet, så «se alle der venter, ét sted» findes
+> i Hjemmebane.
+> **Bygning 2 — LØST bortset fra Guiden** (DEL 2 «13. september» §7):
+> PR #826 «fix: vejene ind i /members peger nu paa Hjemmebane (bygning
+> 2)», `gh pr view` ordret: mergedAt «2026-09-13T14:13:00Z» (16:13:00
+> dansk), mergeCommit «f85e59ef4e30d1cb7e119905ebf56a0d6df8264d». Fire
+> filer: `src/components/AppSidebar.tsx` (+4/−6),
+> `supabase/functions/_shared/indgangsMail.ts` (+3/−2),
+> `supabase/functions/_shared/indgangsMail_test.ts` (+2/−2),
+> `supabase/functions/send-slack-report-notification/index.ts` (+3/−3).
+> SYV AF ELLEVE veje er rettet: menupunktet «Medlemmer» ud af den gamle
+> sidebar, de to `navigate("/members")` i company-pickeren →
+> `/virksomheder`, rådgivermailens knap «mangler et prisniveau» →
+> `/virksomhed/{companyId}` (mailen bar allerede id'et), de tre
+> Slack-fallbacks → `/virksomhed/{companyId}`. tsc nul fejl, tests 2978 →
+> 2978 (ingen vitest-fil låste menuen eller slack-funktionen),
+> `check:edge-auth` PASS (69 filer). Byggeriet skete i et andet vindue
+> mens bygning 1 blev bogført: kl. 16:01:54 stod de fire filer ændret og
+> staged i samme træ, commit `ad81c8ed` på `fix/veje-ind-i-members`,
+> merget 16:13:00 — forudsætningen «vindue A skriver ikke» holdt ved
+> bogføringens start (rent træ ved 78d58a63), ikke ved dens afslutning
+> (DEL 4's nye fælde gjaldt allerede mens den blev skrevet).
+> **GUIDEN ER AFGJORT — den dør (Jonas 13/9, ordret: «enig», til
+> chattens anbefaling).** Chattens begrundelse, stående uden indsigelse:
+> en hjælpeside som ingen kan finde, og som beskriver en flade der
+> forsvinder, gør mere skade end gavn — den lover funktioner der ikke er
+> der. Skal Hjemmebane have en guide, skrives den forfra til den flade der
+> findes; det er et eget stykke arbejde. Fundene bag (§7): intet menupunkt
+> i Hb, nås kun fra den gamle AppSidebar eller ved at skrive URL'en;
+> teksterne lover broadcast, som er dødt. **DØR i bygning 3:**
+> `src/pages/Guide.tsx` (de fire links `:105, :114, :123, :139` med),
+> ruten `App.tsx:240`, `src/components/GuidedTour.tsx` (ikke monteret
+> nogen steder — grep `<GuidedTour` → 0) og «Guide»-punktet i AppSidebars
+> `secondaryNavItems` (`:59`). **MEN ANKRENE SKAL BLIVE.** Målt 13/9:
+> `App.tsx` nævner Guide-kontrakten fire steder — `:112` «#goals er
+> Guide-kontrakt og skal overleve redirectet», `:129` «Guide-kontrakt;
+> begge skal overleve redirectet», `:136` «#forecast er Guide-kontrakt og
+> detect-financial-alerts' deep_link», `:308` «(notifikations-deep_link +
+> Guide-hash er kontrakt)» — hash-ankre der skal overleve
+> viderestillinger, og `#forecast` er også deep_link fra
+> `detect-financial-alerts`. Ankrene bruges altså af NOTIFIKATIONER, ikke
+> kun af Guiden. `src/hooks/useScrollToHash.ts` og dens test
+> (`src/hooks/__tests__/useScrollToHash.test.tsx`, describe-navnet
+> «useScrollToHash → documented Guide anchors») SKAL blive — men testens
+> navn og begrundelse skal omskrives i bygning 3, så den næste ikke
+> sletter den fordi «Guiden er væk». Udtrykkeligt punkt på
+> /members-kortet.
+> **UDRULNINGEN ER GJORT — kl. 14:20 UTC (16:20 dansk), og målt først.**
+> Grep 13/9 i `supabase/functions`: `raadgiverManglerPrisMail` kaldes kun
+> fra `_shared/indgangsBetalingsmail.ts:44` (import) og `:143` (kaldet)
+> — plus `_shared/indgangsMail.ts` selv og dens test. Tre funktioner
+> importerer `indgangsBetalingsmail`: `monday-webhook`,
+> `saet-indgangs-prisniveau`, `send-indgangs-betalingsmail`. De tre
+> øvrige (`stripe-webhook`, `indgangs-paamindelser-cron`,
+> `fornyelsesvarsel-cron`) importerer `indgangsMail` til ANDRE mails og
+> ændrer ikke adfærd. Udrullet i Lovables build-chat, fire funktioner:
+> `monday-webhook`, `saet-indgangs-prisniveau`,
+> `send-indgangs-betalingsmail` (rådgivermailens knap) og
+> `send-slack-report-notification` (sine egne tre fallbacks). Lovable
+> ordret: «Alle fire edge-funktioner er udrullet fra nuværende main kl.
+> 2026-09-13 14:20 UTC: monday-webhook ✅ live, svarer HTTP 401;
+> saet-indgangs-prisniveau ✅ live, svarer HTTP 401;
+> send-indgangs-betalingsmail ✅ live, svarer HTTP 401;
+> send-slack-report-notification ✅ live, svarer HTTP 401. Ingen filer,
+> andre funktioner eller migrationer blev rørt.» 401 på et usigneret kald
+> er det forventede svar (auth foran alt andet). **UBEVIST I DRIFT:** at
+> rådgivermailens knap faktisk peger på virksomhedssiden — det kræver at
+> mailen sendes, dvs. en godkendt virksomhed uden prisniveau. Samme klasse
+> som #815's fejl-gren: et åbent bevis, der venter på hændelsen (DEL 3).
+> **To nye kort fra bygning 2:** «To Deno-tests i `indgangsMail_test.ts`
+> fejler på urørt main» (dag 0 og dag 31 — kører hverken i `bun run test`
+> eller CI; bevist med `git stash` 13/9) og «Company-pickeren lander på
+> rådgiverlisten» (efter «vis som virksomhed» → /virksomheder; chattens
+> læsning: formentlig medlemmets forside; ikke afgjort). Mangellisten 130
+> → 132.
+> **Det der venter:** bygning 3 (slet siden, de otte filer og de fem
+> tests — OG de to værn der fejler den dag filerne slettes:
+> `fornyelseSkrivevej.guard.test.ts:43-47` kræver at
+> `FornyelsesSektion.tsx` findes, `forsidenKaster.guard.test.ts:122-165`
+> kræver `Members.tsx`; /members' importdialog og ruten `App.tsx:243`;
+> Guiden — `Guide.tsx`, `App.tsx:240`, `GuidedTour.tsx`, «Guide»-punktet
+> i AppSidebar — MED ankrene bevaret og `useScrollToHash.test.tsx`
+> omdøbt/genbegrundet). Åbent bevis: rådgivermailens knap i drift. Tests:
+> 2892 → 2978 (191 filer).
 >
 > **12/9:** i repoet skete der INTET — #819 blev merget 11/9 kl. 10:55:26
 > UTC, og næste commit er ikke kommet. Om der skete noget i prod, Stripe
 > eller Lovable den 12/9: ikke målt, ikke bogført.
 >
-> Detaljen står i DEL 2 «13. september» (§1–§4).
+> Detaljen står i DEL 2 «13. september» (§1–§8).
 
 > ## 11/9 EFTERMIDDAG — START HER (dagen lukket; skrevet 11/9 eftermiddag efter #817, digestens slukning kl. 12:07 og målingerne 11:33, 11:43, 12:07 og 12:18)
 >
@@ -4241,7 +4333,7 @@ Kilde `recon-a4-forsidens-dom.md`.
   oprydningen (run-weekly-agent, digestens kode, podcasten ud) → 56 → 76 →
   82 → 57 → 29. A4: recon af hvordan linjen for en ny refleksion lukkes.
 
-### 13. september — doggybeds træk gik igennem (#563 og #572 bevist, #815 ubevist); stripe-webhook i ental og udrullet 12:04 UTC; kort 83 bygget og i drift (#820, merget 12:17:29 UTC, manage-advisor udrullet 12:18 UTC)
+### 13. september — doggybeds træk gik igennem (#563 og #572 bevist, #815 ubevist); stripe-webhook i ental og udrullet 12:04 UTC; kort 83 bygget og i drift (#820, merget 12:17:29 UTC, manage-advisor udrullet 12:18 UTC); /members bygning 1 FÆRDIG (#823, #824, #825 — merget 13:08:25, 13:33:58 og 13:54:51 UTC; panelet på skærm 15:38); bygning 2 LØST (#826, merget 14:13:00 UTC; fire funktioner udrullet 14:20 UTC); Guiden AFGJORT — dør i bygning 3, ankrene bliver
 
 Kilder: `~/Downloads/query-results-export-2026-09-13_14-01-42.csv` (prod,
 målt kl. 14:01, kolonner `noegle;sektion;vaerdi`, ordret),
@@ -4554,7 +4646,9 @@ kan afgøre.
   flade).** Ikke merget, ikke færdigt; forventede ændringer i
   `src/lib/ansoegningsimport.ts`, `src/lib/__tests__/ansoegningsimport.test.ts`
   og `src/pages/Members.tsx` (ingen af dem stod i arbejdstræet da dette
-  blev skrevet).
+  blev skrevet). **Overhalet 13/9 sen eftermiddag: bygning 1 er FÆRDIG —
+  §6 nedenfor. Planens «(1) … fornyelseslisten og Indgangen som udsnit på
+  /virksomheder» blev ændret undervejs; §6 bogfører skiftet.**
 - **To fejl i mangellisten, som reconen fandt — rettet 13/9.** (a) Kortet
   «Guiden er død kode, pulsen er flyttet — og Slack-fallback peger stadig
   på en tømt /members» sagde «Rådgivermailen `indgangsMail.ts` gør det
@@ -4566,6 +4660,461 @@ kan afgøre.
   links» forældet (nul i dag, forsvandt med #626) — rettet på kortet
   «Sletteliste: fem ting der er bygget og aldrig kobles til en flade».
   Historikken står på kortene.
+
+**6. `/members` bygning 1 — FÆRDIG og I DRIFT: importen som panel på
+/virksomheder (#823, #824), noten på virksomhedssiden og forsidens samlede
+linjer til udsnittet (#825).** Kilder:
+`~/Downloads/verifikation-import-motor.txt` (trin 1, HEAD `0b3cb67a`),
+`~/Downloads/verifikation-import-panel.txt` (trin 2, HEAD `c0a2de83`),
+`~/Downloads/verifikation-fornyelsesnote.txt` og
+`~/Downloads/verifikation-forsidelinks.txt` (begge HEAD `1f15250e`),
+`~/Downloads/recon-hb-moenstre.md` og
+`~/Downloads/recon-de-to-sektioner.md` (kun fund, HEAD `c0a2de83`),
+`gh pr view` for de tre PR'er (ordret), og to skærmbilleder kl. 15:37:00 og
+15:38:11 (læst 13/9). Skrevet på main ved `78d58a63` (= #825's
+merge-commit, hentet). Jonas' ord står som «Jonas 13/9»; det chatten
+foreslog og han ikke svarede på, som «forslag fra chatten, stående uden
+indsigelse»; er noget ikke målt, står der «ikke målt».
+
+- **De tre PR'er, ordret fra `gh pr view <n> --json mergedAt,mergeCommit`:**
+  - **#823** «refactor: ansoegningsimportens motor ud af Members.tsx (trin
+    1 af 2)» — mergedAt «2026-09-13T13:08:25Z» (15:08:25 dansk),
+    mergeCommit «c0a2de8397111f2640742949d389a8c542e78423». Tre filer:
+    `src/lib/ansoegningsimport.ts` (ny),
+    `src/lib/__tests__/ansoegningsimport.test.ts` (ny),
+    `src/pages/Members.tsx`.
+  - **#824** «feat: ansoegningsimporten som panel paa /virksomheder (trin
+    2 af 2)» — mergedAt «2026-09-13T13:33:58Z» (15:33:58), mergeCommit
+    «1f15250eab09b3fbaaccd64bd35281451f2ac944». Fire filer:
+    `src/components/hjemmebane/HbDropzone.tsx` (ny),
+    `src/components/hjemmebane/__tests__/HbDropzone.test.tsx` (ny),
+    `src/components/hjemmebane/virksomheder/HbAnsoegningsimport.tsx` (ny),
+    `src/components/hjemmebane/virksomheder/HbInvitationer.tsx`.
+  - **#825** «feat: fornyelsesnoten paa virksomhedssiden + forsidens
+    samlede linjer linker til udsnittet» — mergedAt
+    «2026-09-13T13:54:51Z» (15:54:51), mergeCommit
+    «78d58a6364ada708efc8cfe0945a503558150b9b». Fire filer:
+    `src/components/hjemmebane/forside/RaadgiverForsideView.tsx`
+    (+13/−15),
+    `src/components/hjemmebane/forside/__tests__/samledeLinjerLinker.guard.test.ts`
+    (+38, ny), `src/components/hjemmebane/virksomhed/VirksomhedView.tsx`
+    (+80/−22), `src/hooks/__tests__/fornyelseSkrivevej.guard.test.ts` (+9).
+  Edge functions: ingen rørt i de tre. Update-klikket for frontend-builden
+  efter #824: ikke målt; skærmbilledet kl. 15:38 er beviset for at den er
+  publiceret. Efter #825: ikke målt, ikke bevist.
+
+- **#823 — motoren.** `src/lib/ansoegningsimport.ts`: `parseAnsoegning`
+  (rows → `{ felter, advarsler }`; kaster `FEJL_INGEN_HEADER` / `FEJL_INGEN_DATA`
+  med de to gamle tekster), `validerAnsoegning` (alle seks afslag i
+  `handleImport`s rækkefølge, teksterne ordret som `Members.tsx:581-621`),
+  `byggImportBody` (ordret `:626-632`), `tolkOmsaetning`, `tolkExcelDato`,
+  `findHeaderRaekke` og konstanterne. Testen: 39 it-blokke, 76 tests
+  (it.each udfoldet), inkl. et kildeværn der læser
+  `import-application/index.ts` og kræver at hver nøgle i `byggImportBody`
+  står i `interface ApplicationPayload`. `Members.tsx`: «26 linjer ind, 142
+  ud» — `laesAnsoegningsfil` (FileReader + xlsx bliver i fladen) →
+  `parseAnsoegning`; `handleImport` → `validerAnsoegning` + `byggImportBody`;
+  svar-håndteringen urørt. Verifikationen ordret: «Adfærden er FLYTTET,
+  ikke ændret». Én bevidst forskel: tomme felter er nu `""` i stedet for
+  `null`/`undefined` (samme sandhedsværdi, samme body; React-advarslen om
+  `value={null}` forsvinder). tsc nul fejl — «main har pt. NUL
+  baseline-fejl»; tests 2892 → 2968 (+1 fil, +76). Husets validering
+  fandtes ikke i `src/lib` (CVR-8-cifre står inline to steder:
+  `Members.tsx:585` og `IndstillingerView.tsx:249` — kandidat til at dele
+  dommen senere; ikke rørt).
+
+- **#824 — panelet, og de tre formvalg.** FIND FØRST
+  (verifikation-import-panel) udløste STOP-betingelse 2: ingen af husets
+  tre dropzoner kunne bruges uden at kopieres — `HbUploadZone.tsx:42`
+  uploader til bucketen og har ingen `onFile`-prop (`kind`/`ownerId`
+  påkrævet); `HbReportUploadZone.tsx:32-47, :413` er bundet til
+  rapport-pipelinen; `HbBudgetImport.tsx:29-44` har zonen som inline JSX
+  med modul-private hjælpere. `EditorShell` er tilstands-monteret men
+  bygget til admin-skallens højdebegrænsede split (`HbAdminShell.tsx:110-131`)
+  — på en scrollende side kollapser den. Tre formvalg afgjort 13/9
+  (forslag fra chatten, stående uden indsigelse):
+  1. **PANEL frem for dialog.** Husets største Hb-dialog har syv felter
+     (MilestoneDialoger); importen har fjorten; ingen dropzone står i en
+     dialog. Formen er `HbBudgetImport`s — ét komponenttræ der skifter på
+     tilstand (dropzone → gennemsyn → tilknyt), uden rute, uden overlay.
+  2. **`<input type="date">` som LegatViews panel, IKKE
+     kalender-popoveren.** `Datovaelger` i `MilestoneDialoger.tsx:77` er
+     ikke eksporteret; chattens første råd byggede på dialog-mønsteret og
+     blev rettet, da panelet var valgt.
+  3. **/members' dialog BLIVER til bygning 3.** Ingen dobbelt-sletning i
+     bygning 1.
+  Bygget: `HbDropzone.tsx` (den frie dropzone efter HbUploadZones
+  button-form `:64-108`: `onFile`, `accept`, `tekst`, `undertekst`, `busy`,
+  `busyTekst`, `disabled`; 6 tests: tekst + skjult input med accept, drop →
+  første fil, input-valg → onFile og nulstil, klik åbner inputtet, busy
+  spærrer, disabled spærrer). `HbAnsoegningsimport.tsx`:
+  `ImporterAnsoegningKnap` (samme signatur som `InviterKnap`, aria-expanded,
+  toggler) og panelet: filen læses med `arrayBuffer` + dynamisk
+  `import("xlsx")` + `sheet_to_json(…, { header: 1, defval: null })` →
+  `parseAnsoegning`; parserens fejl → `toast.error("Kunne ikke læse filen",
+  …)` som før; alle fjorten felter (de tre der ikke stod i /members' dialog
+  — Omsætning (interval), Hjemmeside, Telefon — er med); **motorens
+  advarsler vises som stille liste under «Ansøgning læst»**;
+  `importAdvarsel()` før knappen «Importér og send invitation»;
+  indsendelse: `validerAnsoegning` → første fejl som toast,
+  `byggImportBody` → `import-application`; svar som `Members.tsx`
+  (`invitation_already_exists` → warning + luk; `user_already_exists` →
+  tilknyt-trinnet med CVR-opslag → `attach-user-to-company`;
+  `reused_company` → «Virksomheden findes allerede — ny invitation sendt»;
+  ellers «Ansøgning importeret ✓»); efter succes
+  `invaliderInvitationer(queryClient, company_id)` (dækker `["invitationer"]`
+  og `["virksomhedsliste"]`). Montering: `HbInvitationer.tsx:176-181` —
+  knap-linjen i en `flex gap-2`-wrapper med `InviterKnap`, panelet lige
+  under linjen, inde i sektionen som `VirksomhedslisteView.tsx:524` gate'r
+  med `!harUdsnit`; gate `isAdvisor` (sektionens egen, ingen `isAdmin`).
+  Tolkninger: «Annullér» rydder OG lukker; «Vælg en anden fil» går til
+  dropzonen med panelet åbent. Panelet testes ikke som komponent
+  (supabase + edge functions); motoren og dropzonen er låst. tsc nul
+  fejl, eslint nul på de fire filer; tests 2968 → 2974 (+1 fil, +6).
+
+- **#825 — noten og forsidelinkene (to vinduer, én PR).** *Noten*
+  (verifikation-fornyelsesnote, vindue A): fjerde link-knap «Tilføj
+  note»/«Rediger note» i Aftalens `FornyelsesHandlinger`
+  (`VirksomhedView.tsx`), KUN når der er en beslutning —
+  `skrivFornyelsesnote` (`useVirksomhed.ts:471-481`) er en UPDATE der
+  rammer nul rækker uden en række og kaster `:478-480` «Skrivningen ramte
+  nul rækker — noten er IKKE gemt (RLS).»; uden beslutning står der intet
+  notefelt, som på /members (noten følger beslutningen). Formen er
+  MilestoneDialogers felt-for-felt (`:463-494`: åbn med forudfyldt kladde,
+  Gem/Annullér, feltet lukkes FØRST efter succes) med link-knapper i
+  `FornyelsesHandlingers` egen stil (`:1456`) og gemme-vejen gennem `koer`
+  (genindlæsning AWAITes før toasten; `koer` svarer nu boolean).
+  `HbTextarea rows={2}`; kun `<span>`-elementer (Linjes værdicelle er et
+  span). Docstringen `:1413-1414` («kan kun redigeres på /members») rettet.
+  Nyt værn i `fornyelseSkrivevej.guard.test.ts` (+9): importen fra den ene
+  skrivevej + kaldet «skrivFornyelsesnote(companyId,». eslint: 1
+  præeksisterende fejl uden for diffen (`:998` «as any»). *Forsidelinkene*
+  (verifikation-forsidelinks, vindue B): `RaadgiverForsideView.tsx`
+  importerede ikke `forsideLinks` — den havde sin egen `grundLink` (:85) og
+  `pukkelLink` (:95-96) skrevet FØR #743 og aldrig koblet om; de samlede
+  linjer pegede nøgent på `"/virksomheder"` tre steder (:147 DomLinje,
+  :356 under stregen tilstande, :365 pukler). Nu `samletLinjeLink(l)`,
+  `samletLinjeLink(t)`, `samletLinjeLink(p)` (:145, :354, :363);
+  `pukkelLink` slettet; `enkelt` (:144) beholdt — den styrer kun
+  tegningen (navn · handling), og for en tilstandslinje er `antal ===
+  virksomheder.length` af konstruktion (`forsidensDom.ts:873, :875`).
+  Alle fire slags med samlet linje (fornyelse, indgang, tavshed,
+  agentforslag) har et gyldigt udsnit (`FORM` `:255-262`, `laesGrundParam`
+  `:61-66`) — ingen STOP. Linjen «N andre virksomheder har noget mindre
+  presserende» (:346) og «Se virksomhederne» (:371) er ikke slags og
+  beholder den nøgne sti. **Pulsen: ingen ændring** — de fire tal linkede
+  allerede med `?puls=<nøgle>` via `pulsLinjer` (`pulsen.ts:290-301`, eneste
+  kalder `RaadgiverForsideView.tsx:300`). Afvigelse mellem forsidens tal og
+  listens rækker er dækket af overskriften selv (`forsideLinks.ts:114`
+  «(forsiden talte N)»), og listen slår op i SAMME dom (samme
+  cache-nøgle). Når `?grund=` ikke længere findes i dommen:
+  `VirksomhedslisteView.tsx:453-457` «Forsiden har ikke længere det tal,
+  du klikkede på — listen viser alle virksomheder.»; findes udsnittet men
+  ingen rækker matcher: `:562-563` «Ingen af forsidens virksomheder er på
+  listen». Nyt værn `samledeLinjerLinker.guard.test.ts` (tre it-blokke;
+  verifikationen skrev «4 tests» — det fjerde var vindue A's, DEL 4).
+  Fælles kørsel før commit: tsc nul fejl; «Test Files 191 passed (191)» /
+  «Tests 2978 passed (2978)».
+
+- **Skærmbevis 13/9 — panelet i drift.** Kl. 15:38:11
+  (`screencapture-app-theboardroom-dk-virksomheder-2026-09-13-15_38_11.pdf`,
+  læst 13/9): på /virksomheder under «ÅBNE INVITATIONER · 3» står panelet
+  «Importér ansøgning — Opretter virksomhed, slår CVR op og sender
+  invitationsmail automatisk» med et ægte Monday-ark læst: linjen
+  «Ansøgning læst — gennemgå og ret hvis nødvendigt», advarslen «Kolonnen
+  «Kontaktperson» blev ikke fundet i arket.» øverst, EMAIL
+  j@gourmensch.dk, VIRKSOMHEDSNAVN GOURMENSCH, CVR-NUMMER 40364390,
+  KONTAKTPERSON tom, ÅRLIG OMSÆTNING (KR.) 3200000, OMSÆTNING (INTERVAL)
+  «D) 2.000.000-4.999.999 kr.», HJEMMESIDE https://www.gourmensch.dk,
+  TELEFON 4522185007, KONTRAKTSTART tom, KONTRAKTSLUT 23.01.2027, de tre
+  fritekstfelter udfyldt, boksen «Det her sker når du importerer» og
+  knappen «Importér og send invitation». **Advarslerne er NYE:** /members'
+  dialog gav op i stilhed (utolkelig kolonne → `""`, verifikation-import-
+  motor pkt. 1 «ukendt kolonne → "" (stille)»). Kl. 15:37:00
+  (`…15_37_00.pdf`): knappen «Importér ansøgning» ved siden af «Inviter»
+  over de tre åbne invitationer (WESDEX ApS, Din økonomiafdeling Danmark
+  ApS, Two Socks ApS). Om importen blev GENNEMFØRT (knappen klikket,
+  GOURMENSCH oprettet): ikke målt, ikke bogført. **Noten og forsidelinkene
+  (#825, merget 15:54:51 — EFTER skærmbillederne): ikke bevist på skærm
+  ved skrivetidspunktet.**
+
+- **Beslutningen der ændrede sig — bogført som skift, ikke kun resultat.**
+  Planen fra tidligere 13/9 (§5 og START HER, ordret): «(1) Flyt: importen
+  + tilknyt til `/virksomheder`; fornyelsesnoten til virksomhedssiden;
+  fornyelseslisten og Indgangen som udsnit på `/virksomheder`.» Det holdt
+  ikke, i to trin:
+  1. **Et udsnit kan ikke bære knapper** (recon-hb-moenstre 4.3): rækken
+     er ét `Link` (`VirksomhedslisteView.tsx:571-573`); `grep -n
+     "<button\|HbButton\|onClick"` i filen → 0 fund; filhovedet `:26-32`
+     forbyder «ingen Indgang/Fornyelse/Legat/admin-sektion — de hører
+     andre steder hen (§11 pkt. 6) eller er ikke afgjort». Chatten
+     foreslog derpå SEKTIONER efter HbInvitationer-mønsteret (skjult i
+     udsnit, egen hentning og key).
+  2. **Reconen af de to sektioner væltede også det**
+     (recon-de-to-sektioner): (a) designet gav dem FORSIDEN, ikke listen —
+     `raadgiverfladen-design.md:823-832` §11 pkt. 6 «de syv køer, med
+     indgange og fornyelser flyttet fra `/members`»; forsiden fik dem i
+     #630 og mistede dem med køerne i #638 (denne fil `:5146`). (b) Alt de
+     kan, findes i Hb på nær noten: forsidens dom pr. virksomhed
+     (`forsidensDom.ts` «fornyelse» `:236`, «indgang» `:237`),
+     prisknapperne på virksomhedssiden (`VirksomhedStamdata.tsx:107-141`,
+     samme kald og samme fejltolkning som `IndgangsSektion.tsx:148-189`),
+     beslutningen i Aftalen. (c) Listerne er ikke bare overflødige, de er
+     FORKERTE: `FornyelsesSektion` henter ikke varselstemplerne og siger
+     «Klar til tilbud» efter varslet (`VirksomhedView.tsx:98-106`,
+     recon 1.2: «grep `varsel` → 0 fund i FornyelsesSektion.tsx»); «N
+     kræver opmærksomhed» (`:215`) tæller seks statusser, hvoraf tre
+     (`udloebet_tilbyd_ikke`, `klar_til_afsked`, `uden_for_ordningen`)
+     ikke kræver nogen handling — forsiden tæller tre
+     (`FORNYELSE_VENTER_STATUSSER`, `forsidensDom.ts:561`: «udloebet_tilbyd,
+     klar_til_tilbud, beslutning_mangler»). (d) Indgangen: (S) ikke på
+     skærmbilledet 13/9 → formentlig nul rækker i prod (ikke målt).
+  **BESLUTTET 13/9 (forslag fra chatten, stående uden indsigelse): BEGGE
+  lister dør uden erstatning i bygning 3.** Kun noten flyttedes (#825), og
+  forsidens linjer fik udsnittet (#825), så arbejdsformen «se alle der
+  venter, ét sted» findes i Hjemmebane: forsidens fornyelseslinje → 
+  `/virksomheder?grund=fornyelse` («N virksomheder med en fornyelse der
+  venter på dig» + «Vis alle»). Designdokumentet (§11 pkt. 6) og listens
+  filhoved er IKKE rettet — de siger stadig «forsiden» og «ingen
+  Indgang/Fornyelse-sektion»; det første er nu sandt igen af en anden
+  grund (forsidens dom bærer dem), det andet holdt.
+
+- **Fund der skal blive — hvor de står.**
+  - *Fem nedarvede fejl i importens parser* (verifikation-import-motor
+    afsnit A–E), låst i test som «NEDARVET FEJL», IKKE rettet (trin 1
+    ændrede ingen adfærd): (A) ISO-datotekst tolkes som Excel-serienummer
+    → 1905, afbødet af valideringens 2020-grænse; (B) tekstdato uden
+    tidszone kan blive én dag for tidlig i dansk tid (ikke låst — flaky på
+    CI); (C) danske datoformater tolkes ikke; (D) «E-mail» med bindestreg
+    rammer ikke søgenøglen «Email»; (E) ugyldig datostreng passerer
+    valideringen (NaN-sammenligninger er false). Nyt kort (Indgangen),
+    Lille.
+  - *To værn fejler den dag bygning 3 sletter filerne:*
+    `fornyelseSkrivevej.guard.test.ts:43-47` «expect(filer).toContain(
+    "src/components/members/FornyelsesSektion.tsx")»;
+    `forsidenKaster.guard.test.ts:122-165` læser `Members.tsx` («queryKey:
+    ["members-data"» til «enabled: !!user && !!isAdvisor», otte
+    `kraevRaekker` og «Listen kunne ikke hentes. Prøv igen.»). På
+    /members-kortet som noget bygning 3 SKAL rette.
+  - *HbDropzone er husets fjerde dropzone.* De tre ældre (HbUploadZone,
+    HbReportUploadZone, HbBudgetImport) er BEVIDST ikke lagt oven på den
+    (uden for de tilladte filer; samme greb som `HbOverlejring.tsx:18-20`
+    tog for HbDialog). Nyt kort (Design), Lille, «når nogen rører dem
+    alligevel».
+  - *`listeLink`/`samletLinjeLink` har fandtes siden #743 uden en eneste
+    kalder* (recon-hb-moenstre 4.2: «grep i `src` uden tests → ingen
+    kaldere uden for `forsideLinks.ts`»). Et FUND om hvordan en hjælper
+    kan skrives, testes og bogføres uden at blive brugt — ikke en fejl der
+    er rettet; det nye værn `samledeLinjerLinker.guard.test.ts` er
+    rettelsen (importen findes, tre kaldesteder findes, den gamle «?
+    grundLink(…) : "/virksomheder"»-form findes ikke). Intet kort.
+  - *Fornyelseslistens tæller og manglende varselstempler* dør med listen
+    — begrundelse på /members-kortet, ikke egne kort.
+
+- **To skrivende vinduer i samme træ — og et testtal der ikke var et
+  testtal.** Noten (vindue A) og forsidelinkene (vindue B) blev bygget
+  samtidig på main uden gren. Det gik kun godt fordi de rørte forskellige
+  filer; begge vinduer opdagede hinanden ved `git add -A` og advarede
+  (verifikation-forsidelinks «STOP-NOTE — vindue A's ændringer dukkede op
+  EFTER forudsætningstjekket»; verifikation-fornyelsesnote «ADVARSEL —
+  FREMMEDE ÆNDRINGER I TRÆET (opdaget ved git add -A)» med «To andre
+  claude-processer (pid 91781/91782) kører»). De to vinduer meldte 2975 og
+  2978; den fælles kørsel før commit gav 2978 (191 filer); chatten
+  forudsagde 2979. To nye fælder i DEL 4.
+
+- **Tallene.** Tests: 2892 (før #823) → 2968 (#823) → 2974 (#824) → 2978
+  (#825), 188 → 191 filer. Mangellisten: 128 → 130 (to nye kort; ét
+  omskrevet — /members-kortet med bygning 1 markeret som løst, planen
+  rettet og de to værn). Intet kort fjernet.
+
+**7. `/members` bygning 2 — vejene ind: SYV AF ELLEVE rettet (#826), Guiden
+står som åbent spørgsmål, udrulningen udestår.** *(Begge afgjort samme
+eftermiddag — §8.)* Kilder:
+`~/Downloads/verifikation-veje-ind.txt` (FIND FØRST + BYG, HEAD `78d58a63`),
+`gh pr view 826` (ordret), reflog i dette træ. Skrevet på main ved
+`f85e59ef` (= #826's merge-commit). Bygget i et andet vindue mens §6 blev
+bogført: tests kørt 16:01:20, filerne staged 16:01:54, commit `ad81c8ed` på
+`fix/veje-ind-i-members`, merget 16:13:00 dansk.
+
+- **PR #826, ordret fra `gh pr view --json mergedAt,mergeCommit`:** «fix:
+  vejene ind i /members peger nu paa Hjemmebane (bygning 2)» — mergedAt
+  «2026-09-13T14:13:00Z» (16:13:00 dansk), mergeCommit
+  «f85e59ef4e30d1cb7e119905ebf56a0d6df8264d». Fire filer:
+  `src/components/AppSidebar.tsx` (+4/−6),
+  `supabase/functions/_shared/indgangsMail.ts` (+3/−2),
+  `supabase/functions/_shared/indgangsMail_test.ts` (+2/−2),
+  `supabase/functions/send-slack-report-notification/index.ts` (+3/−3).
+  Verifikationen ordret: «Filer rørt: præcis de fire tilladte. Ingen andre
+  filer havde behov.» tsc: «(ingen output) TSC EXIT=0»; `bun run test` før
+  og efter «Test Files 191 passed (191)» / «Tests 2978 passed (2978)»
+  (ingen vitest-fil låser AppSidebar-menuen eller slack-funktionen; den
+  eneste låsende test var `indgangsMail_test.ts:173` — rettet);
+  `check:edge-auth`: «PASS — all 69 triggered files contain at least one
+  auth predicate» (81 index.ts skannet).
+
+- **Syv af elleve veje er rettet — fire står tilbage (Guiden).**
+  - *AppSidebar.tsx.* Menupunktet «Medlemmer» fjernet fra `advisorNavItems`
+    (`:64-67` før: «{ icon: UserCog, label: "Medlemmer", path: "/members" }»;
+    `UserCog`-importen med — brugtes kun der). De to `navigate("/members")`
+    i company-pickeren («Vis som virksomhed», mobil `:525-531` og desktop
+    `:585-591`, kommentaren før: «Navigate to members list — from there
+    click into MemberDetail» — MemberDetail er slettet, #626) →
+    `navigate("/virksomheder")`. FUND: AppSidebar monteres KUN af
+    `AppLayout.tsx` (`:340, :357, :373`), som lever på fem sider —
+    `Members.tsx`, `Guide.tsx`, `AnnualBaseline.tsx`, `LegatDashboard.tsx`
+    (3 steder), `PulseCheckin.tsx`; ingen Hb-skal bruger den. Efter bygning
+    3: fire sider.
+  - *`_shared/indgangsMail.ts:286`.* Knappen i rådgivermailen «mangler et
+    prisniveau» (`raadgiverManglerPrisMail`, `:258-290`; docblok: «Husets
+    FØRSTE mail til en rådgiver … BEVIDST undtagelse, besluttet af Jonas
+    2/9») — før: «knap: { tekst: "Åbn i platformen", url:
+    `${APP_URL}/members` }»; nu `${APP_URL}/virksomhed/${a.companyId}`.
+    Mailen bar ALLEREDE id'et: `:264` «companyId: string» (påkrævet), `:287`
+    «efterKnap: [`Virksomheds-id: ${a.companyId}`]» — det stod som tekst
+    under knappen — og `indgangsBetalingsmail.ts:143-150` sender
+    `companyId` med. Testen `indgangsMail_test.ts:173` låste før
+    «href="https://app.theboardroom.dk/members"»; låser nu
+    «href="https://app.theboardroom.dk/virksomhed/0f0f0f0f-0000-4000-8000-000000000001"».
+  - *`send-slack-report-notification/index.ts`.* De tre fallbacks —
+    `:189` (milepæl, in-app `deep_link`), `:273` (puls, in-app), `:292`
+    (puls, Slack-linket) — før `/members?companyId=…`, nu
+    `/virksomhed/{companyId}`. Fallbacken rammes når `memberUserId` er
+    undefined, dvs. virksomheden har INGEN `company_members`-række
+    (opslaget `:160-167` og `:221-228`); den gamle form blev ALDRIG læst
+    af `Members.tsx` (query-parametret `companyId` findes ikke i filen).
+    Hovedvejene `/members/{userId}` (`:76, :100, :484` og
+    `send-slack-handout-notification/index.ts:131`) er urørt — de
+    viderestilles af `MedlemTilVirksomhed.tsx:65-66` med bevaret
+    search/hash.
+  - *Bredt grep* i `src/` og `supabase/` (`/members` + anførselstegn/`?`/
+    `#`/backtick/linjeslut/mellemrum, `members?companyId`,
+    `APP_URL}/members`, `appUrl}/members`): kode-hits = præcis de elleve
+    fra reconen + `App.tsx:243` (selve ruten, dør i bygning 3). Alt andet er
+    kommentarer. Reconen manglede intet.
+
+- **Guiden — IKKE RØRT, et spørgsmål der ikke er afgjort.** `Guide.tsx:105,
+  :114, :123, :139` står tilbage (FIND FØRST 4). Siden har INTET menupunkt
+  i Hb (`hbNav.ts`: hverken medlemmets eller rådgiverens nav har /guide);
+  rute `App.tsx:240`, ProtectedRoute; nås kun fra den gamle AppSidebar
+  (`:60`, secondaryNavItems) eller ved at skrive URL'en. `GuidedTour.tsx:9`
+  navigerer til /guide, men GuidedTour er ikke monteret nogen steder (grep
+  `<GuidedTour` → 0). Teksterne beskriver funktioner der ikke findes:
+  `:105` «Skal alle founders have samme besked? Brug broadcast-funktionen
+  i member-oversigten» og `:123` «Broadcast» — ordet broadcast findes ikke
+  i `Members.tsx` eller `Virksomheder.tsx`; `AdvisorBroadcast.tsx` monteres
+  kun i `AdvisorDashboard.tsx`, som selv ikke er monteret (broadcast-UI'et
+  er dødt; edge-funktionen `advisor-broadcast` findes stadig). `:114`
+  «Medlemmer»-kortet: delvist — rapporteringsstatus, branche og
+  invitationer lever på /virksomheder, «Udvid et medlem for at se
+  login-aktivitet» er /members-UI. `:139` «Sæt slutdato på member …
+  'Rediger virksomhedsdata' (kun admin)» er /members-specifik; stamdata er
+  flyttet til virksomhedssiden (#771, `VirksomhedStamdata.tsx:23`).
+  Verifikationens blik (ikke en afgørelse): «Guiden er uden menupunkt i
+  Hjemmebane, uden indgang (GuidedTour er ikke monteret), og beskriver en
+  flade der forsvinder.» HVIS den rettes: `:105` og `:123` har intet mål
+  (fjernes, eller /chat hvis broadcast ikke genopstår); `:114` →
+  /virksomheder; `:139` → virksomhedssiden. **SPØRGSMÅLET «ret eller dø»
+  er IKKE afgjort.** Bygning 3 kan ikke slette /members før de fire links
+  er håndteret. Åbent punkt i START HER og på /members-kortet.
+
+- **Fund → to nye kort.** (a) *To Deno-tests i `indgangsMail_test.ts`
+  fejler på urørt main:* `deno test --no-check` efter ændringen: «FAILED |
+  17 passed | 2 failed» — «dag 0: subject, tiltale, knap, frist og
+  faktura-konsekvens» (`:118`) og «dag 31: subject, beløb, Stripe — og
+  INGEN knap» (`:148`). FORUD-EKSISTERENDE: samme 2 fejler på det urørte
+  træ (A beviste det med `git stash` 13/9). De vedrører `dag0Mail`/
+  `dag31Mail`'s faktura-sætninger. Deno-testene kører hverken i `bun run
+  test` eller i CI (kun Tests-workflowet og `check:edge-auth`), så ingen
+  har set dem. Hvornår de begyndte at fejle: ikke undersøgt. Nyt kort
+  (Drift), Lille. (b) *Company-pickeren lander på rådgiverlisten:* efter
+  «vis som virksomhed» navigerer AppSidebar nu til /virksomheder (før
+  /members). Chattens læsning 13/9 (ikke en måling): er man i
+  medlemsvisning, hører man formentlig til på medlemmets forside, ikke på
+  rådgiverens liste. Pickeren har `c.id` i hånden, så `/virksomhed/{id}`
+  eller `"/"` ville begge være mulige. Ikke afgjort, ikke bygget. Nyt kort
+  (Rådgiverfladen), Lille.
+
+- **Udrulning — ikke gjort endnu.** `_shared/indgangsMail.ts` er en DELT
+  fil. Seks funktioner importerer den eller `indgangsBetalingsmail` (målt
+  13/9 med grep i `supabase/functions --include=index.ts`):
+  `stripe-webhook`, `monday-webhook`, `saet-indgangs-prisniveau`,
+  `indgangs-paamindelser-cron`, `send-indgangs-betalingsmail`,
+  `fornyelsesvarsel-cron`. Dertil `send-slack-report-notification`, som
+  selv er ændret. Hvilke der faktisk SENDER rådgivermailen
+  (`raadgiverManglerPrisMail`): ikke målt endnu. DEL 4's fælde «En ændret
+  delt fil i `_shared` udrulles eksplicit — og beviset er en tørkørsel»
+  gælder her: om Lovable ruller en funktion ud når kun en delt fil er
+  ændret, er ikke målt. Udrulningen UDESTÅR; indtil den er bevist, peger
+  prod-mailens knap stadig på /members.
+
+- **Tallene.** Tests 2978 → 2978 (191 filer). Mangellisten 130 → 132 (to
+  nye kort; /members-kortet og «Guiden er død kode …» omskrevet). Intet
+  kort fjernet.
+
+**8. Guiden afgjort (den dør — ankrene bliver), og udrulningen gjort kl.
+14:20 UTC.** Kilder: chat 13/9 (Jonas' ord ordret), grep i `src` og
+`supabase/functions` 13/9 (målt igen ved bogføringen, HEAD `f85e59ef`),
+Lovables build-chat (ordret).
+
+- **Guiden dør.** Jonas 13/9, ordret: «enig» (til chattens anbefaling).
+  Chattens begrundelse, stående uden indsigelse: en hjælpeside som ingen
+  kan finde, og som beskriver en flade der forsvinder, gør mere skade end
+  gavn — den lover funktioner der ikke er der. Skal Hjemmebane have en
+  guide, skrives den forfra til den flade der findes; det er et eget
+  stykke arbejde. **DØR i bygning 3:** `src/pages/Guide.tsx` (lazy-import
+  `App.tsx:29`), ruten `App.tsx:240` «<Route path="/guide"
+  element={<ProtectedRoute><Guide /></ProtectedRoute>} />»,
+  `src/components/GuidedTour.tsx` (grep `<GuidedTour` i `src` → 0) og
+  «Guide»-punktet i AppSidebars `secondaryNavItems` (`AppSidebar.tsx:59`
+  «{ icon: BookMarked, label: "Guide", path: "/guide" }»).
+- **MEN — ankrene skal blive.** Målt 13/9: `App.tsx` nævner
+  Guide-kontrakten fire steder — `:112` «#goals er Guide-kontrakt og skal
+  overleve redirectet.», `:129` «Guide-kontrakt; begge skal overleve
+  redirectet.», `:136` «#forecast er Guide-kontrakt og
+  detect-financial-alerts' deep_link», `:308` «(notifikations-deep_link +
+  Guide-hash er kontrakt)». Det er hash-ankre der skal overleve
+  viderestillinger (`/budgettering` → `/budget` m.fl.), og `#forecast` er
+  også deep_link fra `detect-financial-alerts`. Ankrene bruges altså af
+  NOTIFIKATIONER, ikke kun af Guiden. `src/hooks/useScrollToHash.ts` og
+  dens test `src/hooks/__tests__/useScrollToHash.test.tsx` (describe
+  `:33` «useScrollToHash → documented Guide anchors»; fire it-blokke,
+  bl.a. kold-load efter ~1 s) SKAL blive. **Udtrykkeligt punkt til
+  bygning 3:** testens navn og begrundelse omskrives (ankrene er
+  notifikationernes kontrakt), så den næste ikke sletter den fordi
+  «Guiden er væk». Guidens afgørelse tilføjer intet kort — kortet «Guiden
+  er død kode …» bærer den.
+- **Udrulningen — målt først.** Grep 13/9 i `supabase/functions`:
+  `raadgiverManglerPrisMail` kaldes kun fra
+  `_shared/indgangsBetalingsmail.ts:44` (import) og `:143` (kaldet) —
+  plus `_shared/indgangsMail.ts:259` (definitionen) og dens test. Tre
+  funktioner importerer `indgangsBetalingsmail` (`--include=index.ts`):
+  `monday-webhook`, `saet-indgangs-prisniveau`,
+  `send-indgangs-betalingsmail`. De tre øvrige fra §7's liste
+  (`stripe-webhook`, `indgangs-paamindelser-cron`,
+  `fornyelsesvarsel-cron`) importerer `indgangsMail` til ANDRE mails og
+  ændrer ikke adfærd — de er ikke udrullet, og behøver det ikke.
+- **Udrullet 13/9 kl. 14:20 UTC (16:20 dansk)** i Lovables build-chat,
+  fire funktioner: `monday-webhook`, `saet-indgangs-prisniveau`,
+  `send-indgangs-betalingsmail` (rådgivermailens knap) og
+  `send-slack-report-notification` (sine egne tre fallbacks). Lovable
+  ordret: «Alle fire edge-funktioner er udrullet fra nuværende main kl.
+  2026-09-13 14:20 UTC: monday-webhook ✅ live, svarer HTTP 401;
+  saet-indgangs-prisniveau ✅ live, svarer HTTP 401;
+  send-indgangs-betalingsmail ✅ live, svarer HTTP 401;
+  send-slack-report-notification ✅ live, svarer HTTP 401. Ingen filer,
+  andre funktioner eller migrationer blev rørt.» 401 på et usigneret kald
+  er det forventede svar (auth foran alt andet — Bucket A/C). DEL 4's
+  fælde om delte filer blev fulgt: udrulningen bedt om eksplicit, ikke
+  antaget fra merge.
+- **UBEVIST I DRIFT:** at rådgivermailens knap faktisk peger på
+  virksomhedssiden. Det kræver at mailen sendes, dvs. en godkendt
+  virksomhed uden prisniveau (Monday «Godkendt» → `monday-webhook` →
+  `indgangsBetalingsmail.ts:143`). Samme klasse som #815's fejl-gren: et
+  åbent bevis der venter på hændelsen. Slack-fallbacks: bevises først når
+  en virksomhed uden `company_members`-række udløser en milepæl eller
+  puls — ikke målt, samme klasse.
+- **Tallene.** Mangellisten 132 → 132 (to kort omskrevet: /members-kortet
+  og «Guiden er død kode …»; intet tilføjet, intet fjernet).
 
 ### Mailplatformen — bygget om af Lovable 8/9 kl. 06:52-06:58; afsenderne, fortegnelsen og værnet (#728, #730, #731, #732)
 
@@ -5892,6 +6441,21 @@ De konkrete ting der har kostet tid. Led efter dem.
   aldrig rettet, og beslutningen ventede på en præmis der var faldet bort
   for tre dage siden. Når et kort er begrundelsen for at vente, læs dets
   præmisser mod koden i HEAD først (DEL 2 «13. september» §5).
+- **To skrivende vinduer i samme træ.** 13/9 satte chatten begge vinduer
+  til at bygge samtidig — noten i vindue A, forsidelinkene i vindue B,
+  begge på main uden gren. Det gik kun godt fordi de tilfældigvis rørte
+  forskellige filer; begge vinduer opdagede hinanden ved `git add -A` og
+  advarede (verifikation-forsidelinks.txt «STOP-NOTE», verifikation-
+  fornyelsesnote.txt «ADVARSEL»), og begges testtal målte hinandens halve
+  arbejde. CLAUDE.md siger «Lovable og Claude Code skriver ALDRIG
+  samtidig» — det gælder også to Claude Code-vinduer. Ét skrivende vindue
+  ad gangen; det andet reconer eller bogfører (DEL 2 «13. september» §6).
+- **Et testtal fra to samtidige vinduer er ikke et testtal.** De to
+  vinduer meldte 2975 og 2978; den fælles kørsel før commit gav 2978 (191
+  filer). Chatten forudsagde 2979 ved at gentage et vindues optælling af
+  sin egen test (verifikationen skrev «4 tests»; filen har tre it-blokke,
+  målt 13/9 med grep — det fjerde var det andet vindues værn). Tæl
+  testene i diffen, eller kør én fælles kørsel — gentag ikke et tal.
 
 ---
 
