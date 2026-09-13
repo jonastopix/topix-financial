@@ -12,6 +12,10 @@ import { resolve } from "node:path";
 // måneds EGET tal — mærket «M/M» som FINANSIEL UDVIKLING og chattens skuffe.
 // Uden gyldig forrige måned (changePct null) vises ingen linje.
 //
+// Værnet dækker: at fallbacken er væk (appConfig, hooken), og at kortets
+// linje siger M/M. Brancheafsnittet nederst er IKKE længere en del af det —
+// det blev fjernet senere samme dag (se nederst).
+//
 // Værnet er kildelæsning (som kpiMaalEtSted.guard for målene): hooken er
 // bundet til supabase og har ingen enhedstest.
 
@@ -51,8 +55,14 @@ describe("KPI-kortets linje under tallet", () => {
     expect(kode).toMatch(/\{\(harMaal \|\| benchLabel \|\| harMoM\) && \(\s*<p className="mt-0\.5 text-xs">/);
   });
 
-  it("brancheafsnittet nederst henter stadig virksomhedens faktiske branche — ikke gennem hooken", () => {
-    expect(kode).toContain('from("industry_benchmarks")');
+  // Her stod en it-blok der krævede `from("industry_benchmarks")` i
+  // NoegletalView. Præmissen var at brancheafsnittet nederst hentede
+  // industry_benchmarks UDEN OM hooken, så fjernelsen af fallbacken ikke
+  // kunne slå afsnittet ihjel. Afsnittet blev fjernet 13/9 (målt kl. 18:28:
+  // 3 af 36 domme «indenfor» — 18 virksomheder × 2 nøgler), og hentningen
+  // døde med det. Værnet blev ikke smallere ved et uheld: der er ikke
+  // længere nogen hentning at låse. Kortets egen benchmark-vej står nedenfor.
+  it("kortets benchmark kommer gennem hooken — ingen egen hentning i visningen", () => {
     expect(kode).toContain("useKpiBenchmarks(companyId ?? undefined)");
   });
 });

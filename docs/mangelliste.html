@@ -794,6 +794,82 @@
       udrullet).
     Før: 131. Tilføjet: 0. Fjernet: 0. Efter: 131 — målt med grep på
       kortenes div-tag (class card).
+  RYDDET 13/9 AFTEN — KORT 40 GJORT OG BRANCHELINJEN FUNDET (bogføring,
+  ingen kode. #832 «feat: KPI-fallbacken fjernes helt — intet standardmaal
+  (kort 40)» merget 15:57:43 UTC, d46fd7bd; otte filer; tsc 0; tests
+  2967 → 2977 (193 filer). Update IKKE klikket; skærmbeviset kl. 18:00
+  («Ingen mål sat endnu», ANLA GLAS) refereret, ikke set i samtalen —
+  åbent. Vindue A bygger branchelinjen — diffen ikke læst). Bogført i
+  OVERLEVERING DEL 2 «13. september» §13 og §14, START HER 13/9 og DEL 3
+  (fallback-rækken LØST).
+    FJERNET SOM LØST (1): «KPI-fallbacken fjernes helt — intet standardmål
+      (Jonas 11/9)» — KPI_FALLBACK_TARGETS væk, fletKpiMaal returnerer kun
+      aftalte rækker (intet mål = fraværende nøgle, ikke 0), getTargetStatus
+      dømmer ikke uden mål (hit null; skuffen rust kun ved hit === false),
+      brancheskiftets kpi_targets-upsert væk; kildeværn
+      ingenDomUdenMaal.guard (6) + kpiMaalEtSted vendt.
+    OMSKREVET (1): ««Aftalt» mål er ikke altid aftalt …» (branche-upserten
+      væk; tomt-felt-grenen står tilbage og er mindre skadelig: før skrev et
+      gem uden redigering fallbacktallet som «aftalt», nu 0 = intet mål).
+    NYE (2): ««Standardmål»-mærket er død kode efter kort 40 — ryd det i én
+      PR» (Lille; kpiTone, StandardmaalMaerke, NoegletalView :708/:1220,
+      VirksomhedView :585-588, MaalKilde-medlemmet, tre tests);
+      «Branchelinjen på KPI-kortet: «branche 150K» er et estimat for alle,
+      og M/M limes på …» (fejl; besluttet 13/9: estimatet væk, forrige
+      måneds eget tal; bygges i A; brancheafsnittet nederst urørt — måling
+      formuleret i recon-brancheafsnittet.md, ikke kørt).
+    Før: 131. Fjernet: 1. Tilføjet: 2. Efter: 132 — målt med grep på
+      kortenes div-tag (class card).
+  RYDDET 13/9 AFTEN, DEL 2 — #833 BEVIST, BRANCHEAFSNITTET MÅLT OG DØR
+  (bogføring, ingen kode. #833 «feat: KPI-kortet sammenligner med forrige
+  maaned, ikke med et estimat» merget 16:21:03 UTC, ab0fb09f; fire filer
+  +116/−50; tests 2977 → 2982. Skærmbevis 18:26:57
+  (screencapture-app-theboardroom-dk-kpis-2026-09-13-18_26_57.pdf, ANLA
+  GLAS): «−31,5 % M/M», «+1,1 pp M/M», «+1,3 % M/M», intet «branche 150K»;
+  «DINE MÅL: Ingen mål sat endnu» beviser #832 på samme skærm. Prod målt
+  kl. 18:28 (query-results-export-2026-09-13_18-28-41.csv, SQL'en fra
+  recon-brancheafsnittet.md, kun læsning). Vindue A bygger afsnittets
+  fjernelse — diffen ikke læst). Bogført i OVERLEVERING DEL 2 «13.
+  september» §13 (bevist), §14 (bygget, bevist, M/M-fundet) og §15 (nyt:
+  målingen, beslutningen, de tre kort), START HER 13/9 og DEL 3
+  (fallback-rækken: bevist).
+    FJERNET SOM LØST (1): «Branchelinjen på KPI-kortet: «branche 150K» er
+      et estimat for alle …» — KPI_DEFAULT_BENCHMARKS væk, hooken bærer kun
+      virksomhedens egne rækker, kortet viser «{tal} M/M» eller ingen linje;
+      kildeværn ingenBranchefallback.guard (5); bevist på skærm.
+    OMSKREVET (1): «CVR-branche og faktisk branche er to ting …» (målingen
+      18:28 ordret: 3 af 36 domme indenfor; fire med 100 % dækningsbidrag
+      «over»; 130 rækker seedet 29/3, aldrig rørt; besluttet: afsnittet
+      fjernes fra /kpis, Jonas «Enig med dig»; tilbage er triggeren og
+      synken).
+    NYE (3): «M/M arver målets tone på KPI-kortet …» (fejl, Lille — «+1,1
+      pp M/M» i grøn hos en virksomhed med −242.091 i resultat; retning er
+      oplysning, ikke dom); «Triggeren BENCHMARK_BELOW fyrer på intervaller
+      der ikke skelner …» (beslutning, Lille — 6 af 18 under på ebitda, 3
+      på gross; rører ugefokus, kræver måling af hvor ofte den fyrer);
+      «Tal der ikke kan passe står på skærmen …» (fejl, Lille — Brick Works
+      259,4 % og Doggybed −101,4 % som measured; og ebitda_margin_pct er
+      resultat før skat, filens egen NOTE).
+    Før: 132. Fjernet: 1. Tilføjet: 3. Efter: 134 — målt med grep på
+      kortenes div-tag (class card).
+  RYDDET 13/9 AFTEN, DEL 3 — BRANCHEAFSNITTET BYGGET, IKKE MERGET
+  (bogføring, ingen kode. A's verifikation-brancheafsnittet.txt og
+  diff-brancheafsnittet.txt læst: NoegletalView.tsx 1296 → 1240, tsc 0;
+  bun run test på hele suiten kl. 18:40: 1 af 2982 fejlede —
+  ingenBranchefallback.guard.test.ts:55, #833's eget værn låste
+  from("industry_benchmarks"); A retter testen. Chatten meldte «PR #834 er
+  oprettet» på et tomt vedhæftet output — PR 834 findes ikke). Bogført i
+  OVERLEVERING DEL 2 «13. september» §15 (tre nye bullets), START HER 13/9
+  og DEL 4 (fælden «Commit-blokken kører selv tsc og tests» skærpet: en
+  verifikation der kun har kørt egne filer, er ikke en verifikation; et
+  kildeværn i en anden mappe kan låse det man lige har fjernet — og ny
+  fælde «Et tomt dokument er ikke et grønt svar»).
+    OMSKREVET (2): «CVR-branche og faktisk branche er to ting …» (bygget,
+      ikke merget; testen; PR 834 findes ikke); «Sletteliste: tre ting …» →
+      «Sletteliste: fire ting …» (IndustryBenchmarkGauge.tsx importeres
+      ingen steder — fundet af A).
+    Før: 134. Tilføjet: 0. Fjernet: 0. Efter: 134 — målt med grep på
+      kortenes div-tag (class card).
 -->
 <html lang="da">
 <head>
@@ -1176,28 +1252,49 @@
       <p><strong>Står tilbage, kun bevis:</strong> <code>SELECT file_name, status, validation_status, validation_errors, uploaded_at FROM financial_reports WHERE company_id = (SELECT id FROM companies WHERE name ILIKE 'Rallysupport%') AND deleted_at IS NULL ORDER BY uploaded_at DESC LIMIT 10;</code> Findes en strandet fil, er den samme klasse som PHILBERTs PDF (eget kort) og hører dér; findes ingen, lukkes kortet. Lille.</p>
       <div class="meta"><span class="tag">Omskrevet 11/9</span><span class="tag">Kræver prod</span><span class="tag size">Lille</span></div>
     </div>
-    <div class="card new" data-status="mangler" data-spor="2" data-rammer="medlem">
-      <h3>KPI-fallbacken fjernes helt — intet standardmål (Jonas 11/9)</h3>
-      <p><strong>Sandt, uændret siden 7/9:</strong> <code>KPI_FALLBACK_TARGETS</code> (<code>src/lib/appConfig.ts:112-119</code>) er seks tal, ét sæt for alle. FIRE er absolutte kronebeløb — omsætning 120.000, lønninger &lt; 50.000, resultat 10.000, omkostninger &lt; 80.000; to er marginer — <code>db_margin: 60</code>, <code>ebitda_margin: 15</code> — der dømmer engros (45,7 %) som «under» og lader konsulent (96,9 %) «ramme». Løst siden: kun markeringen «Standardmål» (7/9).</p>
-      <p><strong>Fund 11/9 (<code>~/Downloads/recon-b3-tallene.md</code>):</strong> kun <code>kpiMaal.ts:43</code> læser konstanten i kode — <code>useKpiTargets.ts</code> og <code>kpiTone.ts</code> nævner den i kommentarer og går gennem <code>fletKpiMaal</code> (præcis det <code>kpiMaalEtSted.guard.test.ts</code> låser). En nøgle uden fallback giver <code>{ value: 0, label: "—", kilde: "standard" }</code> (<code>:44</code>); nedstrøms betyder 0 «intet mål» — undtagen i chattens «Se tal»-skuffe: <code>getTargetStatus</code> (<code>kpiDefs.ts:86</code>) giver <code>hit: false</code> uden mål, og <code>CompanyChatPane.tsx:1935,1945</code> sætter <code>afviger = !status.hit</code> → rust-ramme UDEN mål-tekst. Fjernes de fire nøgler, fejler værnet ikke (det måler filer, ikke indhold), men <code>kpiMaal.test.ts:21-29</code> kaster TypeError. Ingen serverside-kopi; <code>generate-weekly-focus</code> ser kun DB-rækker. «Sat 24/2 i en Lovable-commit» er ikke efterprøvet mod git.</p>
-      <p><strong>Besluttet 11/9 — forslag fra chatten, stående uden indsigelse:</strong> trin 1 (drop de fire kronebeløb) bygges sammen med rettelsen af chattens skuffe, så «intet mål» ikke tegnes som afvigelse; <code>kpiMaal.test.ts</code> rettes med. Trin 2 (branchemarginer eller intet fallback) er stadig den faglige beslutning.</p>
-      <p><strong>Besluttet 11/9 — trin 2 (Jonas 11/9): «Jeg er enig med dig!» — intet standardmål.</strong> Forslag fra chatten, stående uden indsigelse: hele <code>KPI_FALLBACK_TARGETS</code> fjernes i samme bygning som trin 1 — ikke kun de fire kronebeløb; chattens «Se tal»-skuffe dømmer ikke uden mål; brancheskiftets skrivning af branchetal som <code>kpi_targets</code> (<code>IndstillingerView.tsx:273-276</code>, kortet ««Aftalt» mål …») fjernes med. <code>kpiMaal.test.ts</code> og <code>kpiMaalEtSted.guard.test.ts</code> følger med. Nummer to i køen 12/9 (efter kort 83).</p>
-      <p><strong>Prod 11/9 kl. 11:43, ordret</strong> (<code>~/Downloads/query-results-export-2026-09-11_11-43-37.csv</code>, sektion <code>e_40_daekning</code>): «aktive virksomheder med mindst én kpi_targets-række;4 af 30». Sektion <code>e_40_kpi_targets</code>: «db_margin;4 | med mål 0 0 | virksomheder 4», «ebitda_margin;4 | med mål 0 0 | virksomheder 4», «loenninger;2 | med mål 0 0 | virksomheder 2», «omkostninger;2 | med mål 0 0 | virksomheder 2», «omsaetning;2 | med mål 0 0 | virksomheder 2», «resultat;2 | med mål 0 0 | virksomheder 2». Cellen har formen «antal | med mål 0 &lt;tal&gt; | virksomheder N» — «med mål 0 0» er 0 rækker med <code>target_value = 0</code>. Læsning: 26 af 30 aktive virksomheder får i dag KUN fallbacken; uden den har de intet mål — og det er beslutningen. Ingen af de 16 rækker har et 0-mål.</p>
-      <div class="meta"><span class="tag ny">Ny 7/9</span><span class="tag">Besluttet 11/9 (Jonas)</span><span class="tag">Prod målt 11:43</span><span class="tag">Omskrevet 11/9</span><span class="tag size">Lille</span></div>
-    </div>
     <div class="card new" data-status="fejl" data-spor="2" data-rammer="medlem">
-      <h3>«Aftalt» mål er ikke altid aftalt — et tomt felt gemmes som 0, og et brancheskift skriver branchetal som mål</h3>
+      <h3>«Aftalt» mål er ikke altid aftalt — et tomt felt gemmes som 0 (brancheskiftets skrivning er væk med #832)</h3>
       <p><strong>Fund 11/9 (<code>~/Downloads/recon-b3-tallene.md</code> kort 40 §4):</strong> mål-panelet gemmer <code>parseFloat(ev?.value || "0") || 0</code> (<code>NoegletalView.tsx:405</code>) — et felt medlemmet lod stå tomt bliver <code>target_value: 0</code> i <code>kpi_targets</code>, og rækken får derefter <code>kilde: "aftalt"</code> (<code>:436-440</code>). Og <code>IndstillingerView.tsx:273-276</code> upserter <code>kpi_targets</code> fra <code>industry_benchmarks</code> når branchekoden ændres (toast «KPI-mål opdateret fra branchestandard»), så et brancheskift skriver branchetal som medlemmets «aftalte» mål. Motoren <code>kpiMaal.ts:39-41</code> kalder enhver DB-række «aftalt».</p>
       <p><strong>Kun prod kan afgøre</strong> hvor mange rækker i <code>kpi_targets</code> har <code>target_value = 0</code>, og hvor mange er skrevet af branche-upserten (kendes på <code>target_label</code> = benchmark-label). Hører sammen med KPI-fallbacken og «Fra budget» — rangordenen forudsætter at «aftalt» betyder aftalt.</p>
       <p><strong>11/9 eftermiddag:</strong> branche-upserten (<code>IndstillingerView.tsx:273-276</code>) fjernes med kort 40 (forslag fra chatten, stående uden indsigelse). Prod 11:43 (<code>e_40_kpi_targets</code>): 16 rækker i alt fordelt på 4 virksomheder — «med mål 0 0» på alle seks metrikker, dvs. 0 rækker med <code>target_value = 0</code>. Læsning: tomt-felt-grenen (<code>NoegletalView.tsx:405</code>) har ingen rækker i prod 11/9; grenen står tilbage som kode, ikke som data.</p>
-      <div class="meta"><span class="tag ny">Ny 11/9</span><span class="tag rust">Prod-måling før rettelse</span><span class="tag">Prod målt 11:43</span><span class="tag size">Lille</span></div>
+      <p><strong>Halvt løst 13/9 (#832, merget 15:57:43 UTC — OVERLEVERING DEL 2 «13. september» §13):</strong> brancheskiftets upsert i <code>kpi_targets</code> og toasten «KPI-mål opdateret fra branchestandard» er VÆK; <code>kpi_benchmarks</code> synkes stadig fra <code>industry_benchmarks</code> (låst af <code>ingenDomUdenMaal.guard.test.ts</code>). <strong>Tomt-felt-grenen står tilbage — og er blevet mindre skadelig, ikke værre:</strong> <code>NoegletalView.tsx:388-390</code> forudfylder mål-feltet fra <code>getTarget</code>, og <code>:404-412</code> gemmer <code>parseFloat(ev?.value || "0") || 0</code> for alle seks nøgler. FØR kort 40 var feltet forudfyldt med FALLBACKTALLET, så et gem uden redigering skrev fallbacken som «aftalt»; nu forudfyldes "0"/"—", og gemmet skriver 0, som nedstrøms behandles som «intet mål» (<code>target &gt; 0</code>-værnene). Det rigtige er stadig at IKKE skrive en række for et tomt felt (og slette en eksisterende når feltet tømmes) — så «aftalt» betyder aftalt hele vejen. De 16 eksisterende rækker er uberørte; nogle kan være skrevet af den fjernede branche-upsert (kendes på <code>target_label</code> = benchmark-label) — måling før oprydning.</p>
+      <div class="meta"><span class="tag ny">Ny 11/9</span><span class="tag rust">Prod-måling før rettelse</span><span class="tag">Prod målt 11:43</span><span class="tag">Halvt løst 13/9 (#832)</span><span class="tag size">Lille</span></div>
+    </div>
+    <div class="card new" data-status="mangler" data-spor="senere" data-rammer="ingen">
+      <h3>«Standardmål»-mærket er død kode efter kort 40 — ryd det i én PR</h3>
+      <p><strong>Fund 13/9 (<code>~/Downloads/verifikation-kort40.txt</code> pkt. 2f og OPFØLGNING):</strong> efter #832 producerer ingen kodesti længere kilde <code>"standard"</code> — <code>fletKpiMaal</code> returnerer kun rækker fra <code>kpi_targets</code>, alle «aftalt». Men typen <code>MaalKilde</code> beholder medlemmet (ellers TS2367 i <code>kpiTone.ts:47</code>), og <code>erStandardMaal</code> / <code>STANDARDMAAL_*</code> eksporteres stadig fra <code>kpiMaal.ts</code>. Stederne: <code>kpiTone.ts:46-49</code> (state «standard», tone quiet), <code>StandardmaalMaerke.tsx</code>, <code>NoegletalView.tsx:708</code> og <code>:1220</code>, <code>VirksomhedView.tsx:585-588</code>, <code>MaalKilde</code>-medlemmet «standard», plus tre tests der låser død kode: <code>domKraeverAftaltMaal.guard.test.ts</code> (kræver <code>&lt;StandardmaalMaerke</code> i begge filer og standard-grenen i kpiTone), <code>kpiTone.test.ts:52-60, 74-77</code>, <code>deriveKpiMetrics.test.ts:225-229</code>. Stale kommentarer der stadig nævner fallbacken: <code>useKpiTargets.ts:1-14, :50-52</code>, <code>useVirksomhed.ts:340-344</code>, <code>kpiTone.ts:11-19</code>, <code>VirksomhedView.tsx:585-587</code>.</p>
+      <p><strong>Ingen adfærd afhænger af det nu.</strong> Kan ryddes i én PR: fjern medlemmet, mærket, grenen og de tre tests' standard-cases; <code>domKraeverAftaltMaal.guard</code> vendes til at låse at <code>kilde:</code> stadig bæres til <code>deriveKpiTone</code> (dommen kræver aftalt mål), ikke at mærket findes. Hører til oprydnings-PR'en i køen (run-weekly-agent, digestens kode, podcasten ud).</p>
+      <div class="meta"><span class="tag ny">Ny 13/9</span><span class="tag">Opfølgning på kort 40</span><span class="tag size">Lille</span></div>
+    </div>
+    <div class="card new" data-status="fejl" data-spor="2" data-rammer="medlem">
+      <h3>M/M arver målets tone på KPI-kortet — retningen af én måned farves som en dom, uden at niveauet kendes</h3>
+      <p><strong>Fundet på skærmen 13/9 kl. 18:26:57 (<code>screencapture-app-theboardroom-dk-kpis-2026-09-13-18_26_57.pdf</code>, ANLA GLAS A/S):</strong> DB-margin står «+1,1 pp M/M» i grøn, mens virksomheden har resultat −242.091 og resultatmargin −17,4 %. Tonen dømmer på retningen af én måneds ændring uden at vide om niveauet er sundt. Kortets egen kommentar (<code>NoegletalView.tsx:957-971</code>) siger «Mål dømmer, benchmark oplyser — benchmark farver ALDRIG toner» — M/M er også oplysning, ikke en dom.</p>
+      <p><strong>I koden:</strong> kortets M/M-span (<code>:982</code>) bærer <code>toneCls</code> (<code>:933</code>: MÅLETS tone — rust når et aftalt mål ikke er nået, ellers ink-soft), så M/M arver en dom der handler om noget andet; FINANSIEL UDVIKLING (<code>:866-876</code>) farver efter retning (evergreen-pil ved «up», rust ved «down») — en stigende margin fra −18,5 til −17,4 er «up» og grøn. Det var sådan FØR #833 (skjult bag branchetallet), så det er ikke en regression — men efter #833 er farven det eneste linjen siger. Hvor præcis den grønne på skærmen kommer fra (kortet eller udviklings-rækken), er ikke målt mod pdf'en i denne samtale.</p>
+      <p><strong>Det rigtige:</strong> M/M i ink-soft overalt hvor der ikke er et aftalt mål bag; retningen står i tegnet (+/−), ikke i farven. Rust kun når et mål er sat og ikke nået (samme regel som #832's skuffe). Lille.</p>
+      <div class="meta"><span class="tag ny">Ny 13/9</span><span class="tag">Skærm 18:26</span><span class="tag size">Lille</span></div>
+    </div>
+    <div class="card new" data-status="beslutning" data-spor="senere" data-rammer="medlem">
+      <h3>Triggeren BENCHMARK_BELOW fyrer på intervaller der ikke skelner — blive, lægges om eller dø?</h3>
+      <p><strong>Fund 13/9 (<code>~/Downloads/recon-brancheafsnittet.md</code> §4):</strong> <code>supabase/functions/generate-weekly-focus/index.ts:293-320</code> (T6): for hver række i virksomhedens branche, <code>actual &lt; benchmark_min</code> → trigger <code>BENCHMARK_BELOW</code> med <code>kpi_key, actual, benchmark_min, benchmark_label</code>. Den bruger <code>benchmark_min</code> fra de samme 130 rækker i <code>industry_benchmarks</code> som brancheafsnittet — seedet 29/3, aldrig kurateret, ingen kilde.</p>
+      <p><strong>Målt 13/9 kl. 18:28 (CSV 18-28-41, seneste afsluttede måned):</strong> 6 af 18 er «under» på ebitda (ANLA GLAS −17,4, Booking Innovation −1,2, Capture IT 3,8, Doggybed −101,4, remm. −22,2, Rezycl.com −33,2), 3 af 18 på gross (ANLA GLAS 35,4, Brick Works 31,2, Capture IT 36,2). Og 13 + 11 er «over» — intervallerne er ikke kalibreret til huset (CVR-branche-kortet). Triggeren fyrer altså for en tredjedel på ebitda, og for de fleste af dem handler det om underskud, ikke om branchen.</p>
+      <p><strong>IKKE afgjort:</strong> om triggeren skal blive (den fanger reelt underskud, bare med forkert begrundelse), lægges om (til «resultat før skat negativt» — så er begrundelsen sand og tabellen unødvendig) eller dø med afsnittet. Den rører ugefokus, så den kræver først en måling af hvor ofte den faktisk fyrer: <code>weekly_focus</code>-rækker hvor triggers indeholder <code>BENCHMARK_BELOW</code>, pr. måned, og om ugefokus-teksten nævner branchen. Brancheafsnittet dør uanset (besluttet 13/9). Beslutning, Lille.</p>
+      <div class="meta"><span class="tag ny">Ny 13/9</span><span class="tag gold">Beslutning</span><span class="tag">Prod målt 13/9 18:28</span><span class="tag">Kræver prod</span><span class="tag size">Lille</span></div>
+    </div>
+    <div class="card new" data-status="fejl" data-spor="2" data-rammer="medlem">
+      <h3>Tal der ikke kan passe står på skærmen — resultatmargin 259,4 % og −101,4 % som «measured»; og nøglen ebitda_margin_pct lyver om formlen</h3>
+      <p><strong>Målt 13/9 kl. 18:28 (<code>~/Downloads/query-results-export-2026-09-13_18-28-41.csv</code>, sektion <code>c_udenfor_ebitda_margin_pct</code>), ordret:</strong> «Brick Works ApS;c_udenfor_ebitda_margin_pct;over | dig 259.4 | 10-26% for reklame | 2026-03 | measured» og «Doggybed;c_udenfor_ebitda_margin_pct;under | dig -101.4 | 3-8% for detailhandel | 2026-08 | measured». En resultatmargin på 259,4 % (resultat før skat 2,6 gange omsætningen) kan ikke passe for en måned i drift; −101,4 % kan (underskud større end omsætningen) men er et tal der skal ses. Kilden er <code>measured</code>, ikke estimat — det er tal fra en rapport. Chattens læsning: det handler ikke om branchen, men om at siden viser tal der ikke kan passe.</p>
+      <p><strong>Kræver sin egen måling:</strong> rækkerne ordret — <code>financial_report_facts</code> for de to virksomheder og perioder: <code>metrics -&gt; 'revenue'</code>, <code>'ebt'</code>, <code>'gross_profit'</code>, <code>source_type</code>, <code>source_report_id</code> → rapportens fil og <code>validation_status</code>. Hypoteser: (1) omsætningen i rækken er en delmåned eller 0-ish mens resultatet er periodens (Brick Works 2026-03 er også deres SENESTE afsluttede måned — de har ikke rapporteret siden marts); (2) en engangspost (salg af aktiver, tilskud) i resultatet; (3) parseren har læst et akkumuleret år-til-dato-tal som måned. Hvilken, kan kun prod sige. Fladen har ingen rimelighedsgrænse — <code>calcResultMargin</code> (<code>financialUtils.ts:205-210</code>) returnerer ethvert tal, og kortet viser det.</p>
+      <p><strong>Navnet lyver (reconen §4):</strong> formlen bag «ebitda_margin» er resultat FØR SKAT i procent af omsætningen — <code>calcResultMargin</code>, filens egen NOTE: «This is NOT EBITDA margin (it includes financial costs etc.)». Men nøglen i databasen hedder <code>ebitda_margin_pct</code> (<code>industry_benchmarks</code>, <code>kpi_benchmarks</code> via <code>KPI_KEY_MAP</code>, ugefokus' <code>metrics.ebitda_margin_pct</code>), <code>KPI_DEFS</code>-nøglen hedder <code>ebitda_margin</code>, og kortet hedder «RESULTAT MARGIN» med beskrivelsen «Resultat før skat i % af omsætning» (<code>kpiDefs.ts:76</code>). Fladen siger sandheden; databasen og koden bærer et navn der ikke er det. Omdøbning er en migration + alle læsere; det billige er at lade navnet stå og skrive NOTEN de steder nøglen læses. Fejl, rammer medlem, Lille.</p>
+      <div class="meta"><span class="tag ny">Ny 13/9</span><span class="tag rust">Tal der ikke kan passe</span><span class="tag">Prod målt 13/9 18:28</span><span class="tag">Kræver prod</span><span class="tag size">Lille</span></div>
     </div>
     <div class="card new" data-status="beslutning" data-spor="senere" data-rammer="raadgiver">
-      <h3>CVR-branche og faktisk branche er to ting — hvilken bærer sammenligningen?</h3>
+      <h3>CVR-branche og faktisk branche er to ting — brancheafsnittet dør (besluttet 13/9), tilbage er triggeren og synken</h3>
       <p><strong>Målt 4/9:</strong> ANLA GLAS, Brick Works, Homie, Limo Group, Studio Mini, TOFT, Topix, TuaMea — ti af ti målte koder uenige med motoren; Brick Works og TuaMea ville MISTE deres sammenligning, ANLA GLAS' DB-margin på 50 % flytter fra venstre kant til over midten. Bastant Design uden kode og label (intet CVR).</p>
       <p><strong>Løst siden:</strong> stamdata og branche vises nu på virksomhedssiden og som filter på listen (#771) — uenigheden afgøres ikke af det.</p>
       <p><strong>Præmissen «kan ikke afgøres fra data, én samtale» holder ikke helt:</strong> CVR er den JURIDISKE branche, platformens er den FAKTISKE — de kan begge være rigtige. Otte samtaler bliver til én modelbeslutning: to felter (CVR-koden som den er, plus en rådgiversat «faktisk branche»), og sammenligningen bruger den faktiske. Så forsvinder uenigheden som blokering; rådgiveren sætter feltet når han alligevel er på siden.</p>
-      <div class="meta"><span class="tag ny">Ny 4/9</span><span class="tag gold">Beslutning</span><span class="tag">Omskrevet 10/9</span><span class="tag size">Lille</span></div>
+      <p><strong>Målt 13/9 kl. 18:28 (<code>~/Downloads/query-results-export-2026-09-13_18-28-41.csv</code>, SQL'en i <code>~/Downloads/recon-brancheafsnittet.md</code>) — afsnittet skelner ikke.</strong> Ordret: <code>b_dom_gross_margin_pct</code> «indenfor;2», «over;13», «under;3»; <code>b_dom_ebitda_margin_pct</code> «indenfor;1», «over;11», «under;6». 18 aktive × 2 nøgler = 36 domme, TRE «indenfor». Hvorfor: «Booking Innovation;over | dig 100.0 | 55-75% for HR og rekruttering», «Rallysupport;over | dig 100.0 | 25-45% for eventrejser», «Rezycl.com;over | dig 100.0 | 45-80% for tech-startup», «Fjeldgaardshop.dk;over | dig 99.2 | 30-50% for detailhandel» — for en virksomhed uden vareforbrug ER 100 % dækningsbidrag rigtigt; intervallet er forkert for dem. Alderen: «1 rækker i industry_benchmarks;130 | koder 65 | nøgler ebitda_margin_pct, gross_margin_pct», «source_label: Branchestandard (The Boardroom);130 | created 2026-03-29T19:03:15… → 2026-03-29T21:19:53…» — seedet 29/3, aldrig rørt, ingen ekstern kilde, intet årstal. Dækningen: 26 af 27 aktive har en kode med benchmarks (kun Bastant Design mangler), 18 har en afsluttet måned, 8 har ingen. Formen (reconen): kun to nøgler, så aldrig mere end to linjer; bjælken klemmer prikken til kanten (<code>NoegletalView.tsx:1100</code>, clamped 0–100), så «langt under» ligner «lige akkurat udenfor»; «dig» er den allerseneste fact-række, også et estimat.</p>
+      <p><strong>Besluttet 13/9 (chattens anbefaling, Jonas: «Enig med dig»): brancheafsnittet fjernes fra <code>/kpis</code>.</strong> <strong>Bygget i A 13/9 aften, IKKE merget:</strong> <code>NoegletalView.tsx</code> 1296 → 1240 linjer (hentningen, <code>INDUSTRY_TO_DEF_KEY</code>, <code>gaugeRows</code> og render-blokken væk; en kommentar med målingen står på sektion 6's plads); PDF'en rasteriserer eksport-DOM'en, så afsnittet forsvinder af sig selv, CSV'en havde det aldrig. tsc 0 — men <code>bun run test</code> på hele suiten kl. 18:40: 1 af 2982 fejlede, <code>ingenBranchefallback.guard.test.ts:55</code> (#833's eget værn låste <code>from("industry_benchmarks")</code> i filen; præmissen var bortfaldet). A retter testen (assertionen slettes, it-blokken omdøbes til det den stadig låser); PR'en kommer derefter. Chatten meldte «PR #834 er oprettet» på et tomt vedhæftet output — PR 834 findes ikke (OVERLEVERING DEL 4, ny fælde). BLIVER: tabellen <code>industry_benchmarks</code> (ugefokus' T6 læser den) og IndstillingerViews synk til <code>kpi_benchmarks</code>. <strong>Spørgsmålet på dette kort ændrer sig dermed:</strong> når ingen flade sammenligner med branchen, bærer to-felt-modellen kun triggeren <code>BENCHMARK_BELOW</code> (eget kort) og synken ved brancheskift. Uenigheden CVR/faktisk er stadig sand (målt 4/9), men blokerer ingen længere. Kortet holdes åbent til triggeren er afgjort — falder den, kan dette kort lukkes som «ikke længere relevant».</p>
+      <div class="meta"><span class="tag ny">Ny 4/9</span><span class="tag gold">Beslutning</span><span class="tag">Omskrevet 10/9</span><span class="tag">Prod målt 13/9 18:28</span><span class="tag">Omskrevet 13/9</span><span class="tag size">Lille</span></div>
     </div>
     <div class="card new" data-status="ide" data-spor="4" data-rammer="medlem">
       <h3>Direkte integration til regnskabssystemer</h3>
@@ -1710,11 +1807,12 @@
       <div class="meta"><span class="tag ny">Ny 7/9</span><span class="tag">Fire (10/9)</span><span class="tag size">Lille</span></div>
     </div>
     <div class="card" data-status="mangler" data-spor="senere" data-rammer="ingen">
-      <h3>Sletteliste: tre ting der er bygget og aldrig kobles til en flade</h3>
+      <h3>Sletteliste: fire ting der er bygget og aldrig kobles til en flade</h3>
       <p><strong>Mønstret</strong> (kortlagt 4/9): beregnet eller bygget færdigt, aldrig koblet til en flade. Kontrollér at en beregning har en aftager, før den bygges. «Rettet 4/9» stod på kortet; intet var slettet.</p>
       <p><strong>Listen, efterprøvet med grep 10/9:</strong> <code>DashboardActionCenter.tsx</code> — renderes ingen steder (opgave-modellens «W4»). <code>AdvisorDashboard.tsx</code> — JSX'en renderes ingen steder siden #650; kun <code>hentAdvisorDashboard</code> og <code>ADVISOR_DASHBOARD_QUERY_KEY</code> importeres (<code>RaadgiverForsideView.tsx:5</code>, <code>VirksomhedslisteView.tsx:14</code>) — flyt dem til <code>src/lib/hjemmebane/</code>, slet komponenten (<strong>rettet 13/9:</strong> «og dens fire /members-links» er forældet — <code>AdvisorDashboard.tsx</code> har NUL /members-links i dag, alle <code>navigate(</code> går til <code>/chat?conversationId=</code> eller <code>/virksomhed/…</code>; de fire forsvandt med <code>6e97bd67</code>, #626 — recon 13/9 afsnit 4). <code>send-welcome-message/</code> og <code>send-pulse-reminder/</code> — ingen kaldere, står ikke i <code>config.toml</code>; den første skriver desuden <code>awaiting_reply_from: "member"</code>, som CHECK'en afviser (K1 i mailfortegnelsen, kortet «Ni døde mails»). <strong>Slettet 13/9 (bygning 3, #828, merget 14:47:38 UTC):</strong> <code>GuidedTour.tsx</code> (0 importører) og <code>MembersStatsBar</code> (levede kun på /members) — de var to af kortets «fem ting»; tre står tilbage.</p>
-      <p><strong>Én PR, nul risiko:</strong> tre sletninger + én flytning; typecheck og <code>check:edge-auth</code> beviser at intet peger på dem.</p>
-      <div class="meta"><span class="tag">Omskrevet 10/9</span><span class="tag">Omskrevet 13/9 (#828)</span><span class="tag size">Lille</span></div>
+      <p><strong>Fjerde, fundet 13/9 aften (A's verifikation af brancheafsnittets fjernelse, pkt. 2):</strong> <code>src/components/IndustryBenchmarkGauge.tsx</code> importeres INGEN steder (grep i <code>src</code> = tom). Gammel komponent fra før Hjemmebane — <code>NoegletalView</code> tegnede sine egne bjælker, og de er nu også væk. Kan slettes med de tre andre.</p>
+      <p><strong>Én PR, nul risiko:</strong> fire sletninger + én flytning; typecheck og <code>check:edge-auth</code> beviser at intet peger på dem.</p>
+      <div class="meta"><span class="tag">Omskrevet 10/9</span><span class="tag">Omskrevet 13/9 (#828)</span><span class="tag">Omskrevet 13/9 aften</span><span class="tag size">Lille</span></div>
     </div>
     <div class="card new" data-status="mangler" data-spor="senere" data-rammer="ingen">
       <h3>Slettefunktionens liste nævner ikke fire tabeller — om kaskaden tager dem, kræver prod</h3>

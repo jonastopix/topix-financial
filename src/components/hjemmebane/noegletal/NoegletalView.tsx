@@ -56,7 +56,7 @@ import { erStandardMaal, type ResolvedTargets } from "@/lib/kpiMaal";
     (klik-valg A): mål-hero, trend-overblik (nyt hjem fra Reports),
     KPI-kort, detail-view m. advisor-kommentar-laget bevaret 1:1
     (samme kpi_chart_comments-skrivning, samme notify-kpi-comment),
-    benchmark-gauge, sammenligningstabel, AI-analysen i Hb-udtryk
+    sammenligningstabel, AI-analysen i Hb-udtryk
     (HbFinancialAnalysis m. eget periodevalg — broen afviklet
     2026-08-05), mål/benchmark-panelet (begge roller — mål-adgangs-
     beslutningen 2026-08-05; advisor-write-policies i 20260805220000;
@@ -72,16 +72,6 @@ const HB_SERIES = [
   { key: "loenninger", label: "Lønninger", color: "hsl(20 30% 55%)" },
   { key: "bank_balance", label: "Bank", color: "hsl(var(--hb-ink-soft))" },
 ] as const;
-
-/** Branche-tabellens (industry_benchmarks) nøgler → fladens def-nøgler.
-    Gamle KPIs.tsx' sandhed (858-885): gross_margin_pct → DB-margin
-    (calcDbMargin = VALUE_EXTRACTORS.db_margin), ebitda_margin_pct →
-    Resultatmargin (calcResultMargin = VALUE_EXTRACTORS.ebitda_margin).
-    Jf. hb-benchmark-kilde-recon.txt. */
-const INDUSTRY_TO_DEF_KEY: Record<string, string> = {
-  gross_margin_pct: "db_margin",
-  ebitda_margin_pct: "ebitda_margin",
-};
 
 const hbTooltipStyle = {
   contentStyle: {
@@ -466,30 +456,6 @@ export const NoegletalView = () => {
     setSelectedTemplate(null);
   };
 
-  // ── Benchmark-gauge-data (begge roller — benchmark-synligheds-
-  //    beslutningen 2026-08-05; samme kilde som gamle) ──────────────────────
-  const { data: industryBenchmarkData } = useQuery({
-    queryKey: ["industry-benchmarks-for-company", companyId],
-    queryFn: async () => {
-      const { data: company } = await supabase
-        .from("companies")
-        .select("industry_code, industry_label")
-        .eq("id", companyId!)
-        .maybeSingle();
-      if (!company?.industry_code) return null;
-      const { data: benchmarks } = await supabase
-        .from("industry_benchmarks")
-        .select("kpi_key, benchmark_value, benchmark_label, benchmark_min, benchmark_max, source_label")
-        .eq("industry_code", company.industry_code);
-      return {
-        industryLabel: company.industry_label as string | null,
-        benchmarks: (benchmarks || []) as { kpi_key: string; benchmark_value: number; benchmark_label: string; benchmark_min: number; benchmark_max: number; source_label: string }[],
-      };
-    },
-    enabled: !!companyId,
-    staleTime: 10 * 60_000,
-  });
-
   // Ren state-afledning — står FØR de tidlige returns så scroll-effekten
   // kan gate på den.
   const editingReady = Object.keys(editValues).length > 0;
@@ -540,17 +506,6 @@ export const NoegletalView = () => {
   // data_basis pr. punkt siden estimat-beregningsgrundlag-PR'en.
   const historyTegning = activeMetric ? delSerieTilTegning(activeMetric.history, ["value"]) : [];
   const historyHarEstimater = (activeMetric?.history ?? []).some((h) => h.data_basis === "estimated");
-
-  // Gauge-rækker: branche-nøgler mappes til fladens def-nøgler
-  // (INDUSTRY_TO_DEF_KEY, gamle sides sandhed). Kun RENDERBARE rækker
-  // tæller — sektionen gater på dem, ikke på rå benchmarks.length
-  // (tomt-kort-fejlen, jf. hb-benchmark-kilde-recon.txt).
-  const gaugeRows = (industryBenchmarkData?.benchmarks ?? []).flatMap((b) => {
-    const defKey = INDUSTRY_TO_DEF_KEY[b.kpi_key];
-    const metric = defKey ? kpiMetrics.find((m) => m.key === defKey) : undefined;
-    if (!metric || b.benchmark_max <= b.benchmark_min) return [];
-    return [{ b, metric }];
-  });
 
   /** Prik-renderer til BÅDE dot og activeDot: recharts' active-dot-lag
       renderes oven på dots-laget uden egne handlers, så det øverste lag
@@ -1104,36 +1059,25 @@ export const NoegletalView = () => {
             </HbSection>
           )}
 
-          {/* ── 6. Branche-benchmark (begge roller — benchmark-synligheds-
-              beslutningen 2026-08-05) ── */}
-          {gaugeRows.length > 0 && industryBenchmarkData && (
-            <HbSection eyebrow={`Branchesammenligning${industryBenchmarkData.industryLabel ? ` · ${industryBenchmarkData.industryLabel}` : ""}`} className="mt-10">
-              <HbCard className="space-y-4 p-6">
-                {gaugeRows.map(({ b, metric }) => {
-                  const pos = Math.max(0, Math.min(100, ((metric.numValue - b.benchmark_min) / (b.benchmark_max - b.benchmark_min)) * 100));
-                  const benchPos = Math.max(0, Math.min(100, ((b.benchmark_value - b.benchmark_min) / (b.benchmark_max - b.benchmark_min)) * 100));
-                  return (
-                    <div key={b.kpi_key}>
-                      <div className="flex items-baseline justify-between gap-3">
-                        <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft">{metric.label}</p>
-                        <p className="text-xs text-hb-ink-soft">
-                          dig: <span className="font-medium text-hb-ink">{metric.value}</span>
-                          {/* "dig"-tallet er seneste faktarække — er den et estimat,
-                              må prikken ikke stå umærket mod brancheintervaller
-                              kalibreret til rigtige månedstal. */}
-                          {senesteErEstimat && <EstimatMaerke className="ml-1.5 align-middle" />} · branche: {b.benchmark_label}
-                        </p>
-                      </div>
-                      <div className="relative mt-1.5 h-1.5 rounded-full bg-hb-sage/60">
-                        <span className="absolute top-1/2 h-3 w-0.5 -translate-y-1/2 bg-hb-ink-soft/50" style={{ left: `${benchPos}%` }} aria-hidden />
-                        <span className="absolute top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full bg-hb-evergreen" style={{ left: `${pos}%` }} aria-hidden />
-                      </div>
-                    </div>
-                  );
-                })}
-              </HbCard>
-            </HbSection>
-          )}
+          {/* ── 6. (Branchesammenligning — FJERNET 13/9 2026.) Her stod en
+              bjælke pr. nøgle (DB-margin, resultatmargin) med virksomhedens
+              prik mod industry_benchmarks' min–max-interval. Målt i prod
+              13/9: 18 aktive virksomheder havde både benchmarks og en
+              afsluttet måned; af de 36 domme (18 × 2 nøgler) faldt KUN 3
+              «indenfor» (gross_margin 2/13 over/3 under; ebitda_margin
+              1/11 over/6 under). Fem virksomheder stod med 99–100 %
+              dækningsbidrag — rigtigt for en HR- eller eventvirksomhed
+              uden vareforbrug, men så var intervallet «55–75 %» forkert
+              for dem. De 130 rækker er alle fra 2026-03-29 med
+              source_label DEFAULT «Branchestandard (The Boardroom)» —
+              ingen ekstern kilde, intet årstal. Og bjælken klemte prikken
+              til kanten (pos clamped 0–100), så «langt under» lignede
+              «lige akkurat udenfor». Et interval hvor 92 % falder udenfor,
+              skelner ikke. Byg det ikke igen uden en ny måling og en
+              kalibreret kilde. Tabellen industry_benchmarks BLIVER: den
+              føder T6 BENCHMARK_BELOW i generate-weekly-focus og
+              IndstillingerViews synk til kpi_benchmarks ved brancheskift
+              (kortets «branche X»-linje). ── */}
 
           {/* ── 7. Sammenligningstabel (M/M) ── */}
           {monthlyData.length >= 2 && (
