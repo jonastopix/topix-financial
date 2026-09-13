@@ -1336,7 +1336,7 @@ Deno.serve(async (req) => {
     // Idempotency: check if we already processed this session
     const { data: existingBooking } = await adminClient
       .from("session_bookings")
-      .select("status, calendly_booking_url")
+      .select("id, status, calendly_booking_url")
       .eq("stripe_session_id", stripeSessionId)
       .maybeSingle();
 
@@ -1349,7 +1349,27 @@ Deno.serve(async (req) => {
 
     // Generate Calendly single-use link
     const eventTypeUri = await getCalendlyEventTypeUri(calendlyApiKey, "1to1-session-45");
-    const bookingUrl = await createCalendlySingleUseLink(calendlyApiKey, eventTypeUri);
+    let bookingUrl = await createCalendlySingleUseLink(calendlyApiKey, eventTypeUri);
+
+    // Indlejr raekkens id i linket (13/9), saa calendly-webhook kan matche invitee.created /
+    // invitee.canceled tilbage til praecis denne raekke via payload.tracking. salesforce_uuid
+    // er Calendlys dedikerede pass-through-felt; utm_content er en redundant fallback. Foer
+    // 13/9 blev linket gemt raat, og Jonas' spor stoppede for altid ved booking_sent.
+    // Raekken er oprettet af create-stripe-checkout FOER betalingen (DB-default id) — derfor
+    // hentes id'et i select'en ovenfor. Mangler raekken (create-stripe-checkout logger og
+    // fortsaetter ved insert-fejl), gemmes linket raat som foer: ingen regression, blot en
+    // booking webhooken ikke kan ramme.
+    // DUBLERET fra create-free-intro-booking (:161-164) — det er nu ANDEN gang Calendly-
+    // hjaelperne staar i begge filer (getCalendlyEventTypeUri/createCalendlySingleUseLink
+    // var foerste). En samling i _shared/calendly.ts er et eget run.
+    if (existingBooking?.id) {
+      const u = new URL(bookingUrl);
+      u.searchParams.set("salesforce_uuid", existingBooking.id);
+      u.searchParams.set("utm_content", existingBooking.id);
+      bookingUrl = u.toString();
+    } else {
+      console.warn(`[stripe-webhook] Ingen session_bookings-raekke for ${stripeSessionId} — linket gemmes uden booking-id; webhooken kan ikke matche denne booking.`);
+    }
 
     // Update booking record
     await adminClient

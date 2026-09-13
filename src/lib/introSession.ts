@@ -22,8 +22,8 @@
  * i Calendly. Intet af det er på plads. «Afholdt» betyder derfor «mødet er
  * passeret uden aflysning» — afholdt, medmindre nogen udeblev.
  *
- * De betalte 1:1-sessioner (advisor 'jonas') stopper ved booking_sent og
- * er et andet spor; dommen kaldes kun med Morten-rækken.
+ * De betalte 1:1-sessioner (advisor 'jonas') er et andet spor med sin egen
+ * dom (lib/betaltSession); denne dom kaldes kun med Morten-rækken.
  */
 
 export interface IntroBooking {

@@ -1313,10 +1313,11 @@ const Blok6 = ({
     DE BETALTE 1:1-SESSIONER (kort 76, 13/9): samme hentning bærer nu ALLE
     virksomhedens rækker, og det betalte spor (advisor 'jonas', amount_dkk
     > 0) får én linje pr. betalt række gennem lib/betaltSession — «Betalt
-    2. september · booking-link sendt», uden afholdt-dom, fordi rækken
-    stopper ved booking_sent (stripe-webhook uden booking-id i linket,
-    calendly-webhook filtreret til Morten). pending (checkouts der aldrig
-    blev gennemført) giver null fra dommen og vises ikke (besluttet 11/9).
+    2. september · booking-link sendt», eller «· booket til …» / «· afholdt
+    …» når rækken har en tid. Rækker fra før 13/9 stopper ved booking_sent
+    (deres links bar intet booking-id); fra 13/9 indlejrer stripe-webhook
+    id'et og calendly-webhook matcher begge spor. pending (checkouts der
+    aldrig blev gennemført) giver null fra dommen og vises ikke (besluttet 11/9).
     Før læste linjen KUN Morten-rækken, og de betalte rækker blev læst
     ingen steder i rådgiverfladen. */
 type SessionRaekke = IntroBooking & BetaltBooking & { id: string; advisor: string };

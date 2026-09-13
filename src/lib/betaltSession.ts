@@ -6,18 +6,22 @@
  * lib/introSession (Mortens gratis spor), som den låner formatIntroTid fra.
  *
  * BAGGRUND (kort 76, mangelliste «De betalte 1:1-sessioner stopper ved
- * booking_sent», prod målt 11/9 kl. 11:18): tre betalte står som
+ * booking_sent», prod målt 11/9 kl. 11:18): tre betalte stod som
  * booking_sent uden calendly_event_uri, ni som pending. Betalte bookinger
- * registreres aldrig tilbage i platformen: stripe-webhook (index.ts:1356)
- * skriver Calendlys link råt uden booking-id, calendly-webhook matcher kun
- * advisor = 'morten' (:122, :157), og Jonas' Calendly-organisation har ét
- * medlem. Der kommer derfor aldrig booked, tid eller URI på dette spor
- * AF SIG SELV. Reparationen kræver Calendly premium — nedprioriteret 3/9.
- * De to Rallysupport-rækker (køb 23/6 og 30/6) får derfor status booked og
+ * blev aldrig registreret tilbage i platformen: stripe-webhook skrev
+ * Calendlys link råt uden booking-id, og calendly-webhook matchede kun
+ * advisor = 'morten'. «Kræver Calendly premium» (3/9) var FALSK — målt
+ * 13/9: planen tillader webhooks, der var blot nul abonnementer i Jonas'
+ * org. REPARERET 13/9 aften (recon-calendly-reparationen.md): stripe-
+ * webhook indlejrer nu rækkens id i linket, og calendly-webhook matcher
+ * begge spor (advisor-filteret er flyttet til genåbnings-gaten, dommen i
+ * _shared/calendlyWebhookDom.ts). Kæden lukker først når Jonas' abonnement
+ * og signing key er oprettet (uden for repoet) — og kun for køb EFTER det.
+ * De to Rallysupport-rækker (køb 23/6 og 30/6) fik status booked og
  * start_tid sat i HÅNDEN fra Calendly (målt 13/9: «Event started 25 June
- * at 09:45 (CEST)» og «1 July at 08:30 (CEST)»), fordi calendly-webhook
- * filtrerer Jonas' spor fra (:122, :157). Sluttiden kender Calendly-siden
- * ikke, og en booking-dato har rækken ingen kolonne til.
+ * at 09:45 (CEST)» og «1 July at 08:30 (CEST)»), fordi deres links (juni)
+ * aldrig bar et id — webhooken kan ikke ramme dem. Sluttiden kender
+ * Calendly-siden ikke, og en booking-dato har rækken ingen kolonne til.
  *
  * BESLUTTET 11/9: fladen siger det den VED — at pengene er betalt og
  * linket er sendt — og lader ikke som om den ved, om sessionen blev holdt.
@@ -38,8 +42,8 @@
  *                 checkout.session.completed (mode = payment). Det er
  *                 «betalt» → «Betalt {dato} · booking-link sendt». Ingen
  *                 afholdt-dom: rækken ved ikke om linket blev brugt.
- *   booked        Sættes af calendly-webhook (som filtrerer Jonas' spor
- *                 fra) eller i hånden. TIDEN ER BEVISET, IKKE URI'EN
+ *   booked        Sættes af calendly-webhook (fra 13/9 også for Jonas'
+ *                 spor) eller i hånden. TIDEN ER BEVISET, IKKE URI'EN
  *                 (ændret 13/9): ordet booked alene beviser ingen tid, men
  *                 HAR rækken en start_tid eller slut_tid, ER der en tid.
  *                 URI'en var kun porten fordi webhooken plejede at sætte
