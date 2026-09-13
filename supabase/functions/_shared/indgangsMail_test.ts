@@ -153,7 +153,7 @@ Deno.test("dag 31: subject, beløb, Stripe — og INGEN knap", () => {
   assertIkkeIndeholder(m.html, "Virker knappen ikke?");
 });
 
-Deno.test("rådgivermailen: virksomhed, CVR, kontakt, dato, id, /members-knap, ikke-sendt-besked", () => {
+Deno.test("rådgivermailen: virksomhed, CVR, kontakt, dato, id, virksomhedsside-knap, ikke-sendt-besked", () => {
   const m = raadgiverManglerPrisMail({
     virksomhed: "Nordic By Hand ApS",
     cvr: "46415124",
@@ -170,7 +170,7 @@ Deno.test("rådgivermailen: virksomhed, CVR, kontakt, dato, id, /members-knap, i
   assertStringIncludes(m.html, "Betalingsmailen er IKKE sendt");
   assertStringIncludes(m.html, "sendes betalingsmailen automatisk");
   assertStringIncludes(m.html, ">Åbn i platformen</a>");
-  assertStringIncludes(m.html, 'href="https://app.theboardroom.dk/members"');
+  assertStringIncludes(m.html, 'href="https://app.theboardroom.dk/virksomhed/0f0f0f0f-0000-4000-8000-000000000001"');
   assertStringIncludes(m.html, "Virksomheds-id: 0f0f0f0f-0000-4000-8000-000000000001");
 });
 

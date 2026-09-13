@@ -246,7 +246,8 @@ export function dag31Mail(a: {
  *
  * Arbejdsbesked, ikke velkomst: virksomhed, CVR, kontakt, godkendt
  * hvornår, hvor mange dage der er tilbage af fristen, og et direkte link
- * til /members. Siger udtrykkeligt at betalingsmailen IKKE er sendt, og at
+ * til virksomhedssiden (/virksomhed/{companyId} — 13/9: /members lukkes).
+ * Siger udtrykkeligt at betalingsmailen IKKE er sendt, og at
  * den sendes automatisk når prisniveauet er sat.
  *
  * FRISTEN ER KONTRAKTENS (rettet 2/9): den løber fra underskriften, ikke
@@ -283,7 +284,7 @@ export function raadgiverManglerPrisMail(a: {
         fristLinje,
         "Betalingsmailen er IKKE sendt, fordi der ikke er sat et prisniveau. Sæt prisniveauet på virksomheden, så sendes betalingsmailen automatisk.",
       ],
-      knap: { tekst: "Åbn i platformen", url: `${APP_URL}/members` },
+      knap: { tekst: "Åbn i platformen", url: `${APP_URL}/virksomhed/${a.companyId}` },
       efterKnap: [`Virksomheds-id: ${a.companyId}`],
       hilsen: "The Boardroom",
     }),
