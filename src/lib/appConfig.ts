@@ -107,17 +107,6 @@ export function harVelkomstvideo(configValue: unknown): boolean {
   return laesVelkomstvideoGuid(configValue) !== "";
 }
 
-// ─── KPI Fallback Targets ────────────────────────────────────────────────────
-
-export const KPI_FALLBACK_TARGETS: Record<string, { value: number; label: string }> = {
-  omsaetning: { value: 120000, label: "120.000" },
-  db_margin: { value: 60, label: "60%" },
-  loenninger: { value: 50000, label: "< 50.000" },
-  resultat: { value: 10000, label: "10.000" },
-  omkostninger: { value: 80000, label: "< 80.000" },
-  ebitda_margin: { value: 15, label: "15%" },
-};
-
 // ─── KPI Default Benchmarks ──────────────────────────────────────────────────
 
 /** Kildeprincip (2026-08-05): source_label påstår aldrig mere end vi kan

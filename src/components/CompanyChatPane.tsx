@@ -87,7 +87,8 @@ import {
  * (samme mekanik: overlay, swipe) med `theme-hjemmebane` på indholdet —
  * præcis som MobileMessageActionDrawer gør med variant="hb" — og viser
  * KPI'erne som virksomhedssidens KpiKort (blok 5, VirksomhedView), ikke
- * KPICard: samme dom (getTargetStatus → mål nået/ikke nået), kun udtrykket
+ * KPICard: samme dom (getTargetStatus → mål nået/ikke nået — og INGEN dom
+ * uden aftalt mål, kort 40 11/9), kun udtrykket
  * er Hb. ⋯-MENUEN er ikke længere en Radix Popover: den er en simpel
  * menu i DOM-træet (HbMenu nedenfor), fordi HbOverlejrings HbPopover er
  * venstre-forankret (bygget til datovælgeren under et felt), og ⋯ står i
@@ -156,8 +157,10 @@ const HbMenu = ({
 };
 
 /** KPI-kort i skuffen — VirksomhedView.KpiKort (blok 5), uden sparkline
-    («kompakt, ingen sparkline» var skuffens egen regel). afviger = målet er
-    ikke nået (getTargetStatus, som skuffen dømte før med emerald/amber). */
+    («kompakt, ingen sparkline» var skuffens egen regel). afviger = et AFTALT
+    mål er ikke nået (getTargetStatus.hit === false). Uden mål dømmes ikke
+    (kort 40, 11/9): før stod `!status.hit`, og «intet mål» blev tegnet i
+    rust UDEN mål-tekst — en afvigelse fra et mål der ikke fandtes. */
 const SkuffeKpiKort = ({ metric, afviger }: { metric: KpiMetric; afviger: boolean }) => (
   <div className={`rounded-hb border p-3 ${afviger ? "border-hb-rust/40 bg-hb-rust/5" : "border-hb-line bg-hb-surface"}`}>
     <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft">{metric.label}</p>
@@ -1933,7 +1936,7 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
                     const m = drawerMetrics.find((x) => x.key === key);
                     if (!m) return null;
                     const status = getTargetStatus(m);
-                    return <SkuffeKpiKort key={m.key} metric={m} afviger={!status.hit} />;
+                    return <SkuffeKpiKort key={m.key} metric={m} afviger={status.hit === false} />;
                   })}
                 </div>
 
@@ -1943,7 +1946,7 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
                   <div className="grid grid-cols-1 gap-2">
                     {drawerMetrics.map((m) => {
                       const status = getTargetStatus(m);
-                      return <SkuffeKpiKort key={m.key} metric={m} afviger={!status.hit} />;
+                      return <SkuffeKpiKort key={m.key} metric={m} afviger={status.hit === false} />;
                     })}
                   </div>
                 </div>

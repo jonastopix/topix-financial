@@ -258,7 +258,11 @@ export const IndstillingerView = () => {
         .eq("id", company.id);
       if (error) { toast.error("Kunne ikke gemme virksomhedsdata"); return; }
       toast.success("Virksomhed opdateret");
-      // KPI-benchmarks synkes kun når branchen faktisk ændres (som før).
+      // KPI-benchmarks (branchesammenligningen) synkes kun når branchen
+      // faktisk ændres (som før). Der skrives IKKE i kpi_targets (kort 40,
+      // 11/9): et mål er noget der er aftalt — før upsertede grenen
+      // branchetallene som virksomhedens «aftalte» mål med toasten «KPI-mål
+      // opdateret fra branchestandard», og standardmålet kom ind ad bagdøren.
       const industryChanged = industryCode !== (company.industry_code || "");
       if (industryCode && industryChanged) {
         const KPI_KEY_MAP: Record<string, string> = { gross_margin_pct: "db_margin", ebitda_margin_pct: "ebitda_margin" };
@@ -270,12 +274,7 @@ export const IndstillingerView = () => {
               { company_id: company.id, user_id: user.id, kpi_key: mappedKey, benchmark_value: ib.benchmark_value, benchmark_label: ib.benchmark_label, source_label: ib.source_label },
               { onConflict: "company_id,kpi_key" },
             );
-            await supabase.from("kpi_targets").upsert(
-              { company_id: company.id, user_id: user.id, kpi_key: mappedKey, target_value: ib.benchmark_value, target_label: ib.benchmark_label, lower_is_better: false },
-              { onConflict: "company_id,kpi_key" },
-            );
           }
-          toast.info("KPI-mål opdateret fra branchestandard");
         }
       }
       setCompany({ ...company, name, cvr_number: cvr || null, contact_email: email || null, website: website || null, contact_phone: phone || null, industry_code: industryCode || null, industry_label: industryLabel || null });
