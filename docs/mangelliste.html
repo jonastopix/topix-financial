@@ -925,6 +925,46 @@
       punkt; DEL 4-fælden «git add <filer> afgrænser ikke …» skærpet).
     Før: 134. Fjernet: 1. Tilføjet: 1. Efter: 134 — målt med grep på
       kortenes div-tag (class card).
+  RYDDET 13/9 SEN AFTEN, DEL 7 — KORT 56 (bogføring, ingen kode. #837
+  «feat: handout-siden linker til de lektioner der hoerer til (kort 56)»
+  merget 17:29:00 UTC, 146a1596; FEM filer +432/−25 — tre egne (+183/−0:
+  HbHandoutDetail.tsx +39, lektionerForModul.ts +58, test +86) og de to
+  docs-filer fra DEL 6 (index-fælden; resten af DEL 6 gik som #838,
+  merget 17:35:45 UTC, 32c7eb32); tsc 0; tests 2961 → 2968 (193 filer).
+  Update klikket; bevist i drift uden skærmbillede — Jonas 13/9 aften,
+  ordret: «Det virker». Bogført i OVERLEVERING DEL 2 «13. september» §17
+  og START HER 13/9; DEL 4-fælden «git add <filer> afgrænser ikke …» fik
+  sit udfald.
+    FJERNET SOM LØST (1): «Handout → lektion: det omvendte link («Hører
+      til …»)» — motoren er delt (lektionerForModul, lektionsSti,
+      hoererTilTekst), fladen deler cachen ["akademi","items"], legat får
+      nul rækker via RLS og ser intet link.
+    NYT (1): «Lektionsstien bygges inline syv steder ved siden af
+      lektionsSti» (drift, Lille — målt på 32c7eb32: 7 element-ruter + 3
+      områderuter; A sagde 8, PR-teksten 3).
+    OMSKREVET (1): ««Måske relevant for dig» — agenten ser indholdslaget»
+      (mappingen findes nu som delt motor).
+    Status 11/9's «Fire på en time hver»: handout → lektion mærket gjort.
+    Før: 134. Fjernet: 1. Tilføjet: 1. Efter: 134 — målt med grep på
+      kortenes div-tag (class card).
+  RYDDET 13/9 SEN AFTEN, DEL 8 — CALENDLY-PÅSTANDEN FALSIFICERET (bogføring,
+  ingen kode. Målt 13/9 kl. 21:30: GET /webhook_subscriptions?organization=
+  …28fc12fd…&scope=organization med Jonas' token → HTTP 200,
+  {"collection":[],"pagination":{"count":0,…}}. Planen (standard, paid)
+  tillader webhooks; der findes intet abonnement på Jonas' organisation.
+  «Reparationen kræver Calendly premium» stod tre steder som kendsgerning
+  i ti dage (OVERLEVERING:6952, dette korts tekst, betaltSession.ts:15)
+  og begrundede nedprioriteringen — Rallysupports datoer sat i hånden
+  kl. 20:48. Bogført i OVERLEVERING DEL 2 «13. september» §18, START HER
+  13/9, DEL 3 (rækken omskrevet, gammel ordlyd står med «var») og DEL 4
+  (ny fælde «En begrundelse for ikke at bygge skal måles som alt andet»).
+  Kodekommentaren er IKKE rørt — A's fil, kort 76. Tokenet skal revokeres.
+  HEAD er d31726e6 (#839/#840, kort 76 — ikke bogført i denne runde).
+    OMSKREVET (1): «De betalte 1:1-sessioner stopper ved booking_sent» —
+      blokeringen er koden (advisor-filter, manglende id i linket) plus et
+      manglende abonnement, ikke planen; signaturen er ingen hindring.
+    Før: 134. Fjernet: 0. Tilføjet: 0. Efter: 134 — målt med grep på
+      kortenes div-tag (class card).
 -->
 <html lang="da">
 <head>
@@ -1223,8 +1263,10 @@
     </div>
     <div class="card new" data-status="mangler" data-spor="senere" data-rammer="ingen">
       <h3>De betalte 1:1-sessioner stopper ved <code>booking_sent</code></h3>
-      <p>Målt 3/9: 0 af 12 betalte har <code>calendly_event_uri</code>, mod 2 af 3 gratis. Bekræftet i koden 8/9 (<code>~/Downloads/recon-sessionerne.md</code>): <code>stripe-webhook</code> indlejrer intet booking-id i Calendly-linket, <code>calendly-webhook</code> matcher kun <code>advisor = 'morten'</code>, og abonnementet er Mortens konto. En betalt session når derfor aldrig <code>booked</code>, får ingen tid og ingen URI — Jonas ser den kun i sin Calendly. Ingen rådgiverflade viser sessioner; RLS giver kun ejer og admin læsning. Kæden virker for medlemmet; reparationen kræver Calendly premium. Bevidst nedprioriteret, ikke glemt. (Intro-sessionens tid bygges 8/9 — den gratis vej.)</p>
-      <div class="meta"><span class="tag">Rettet 8/9</span><span class="tag">Prioritet lav</span><span class="tag size">Mellem</span></div>
+      <p>Målt 3/9: 0 af 12 betalte har <code>calendly_event_uri</code>, mod 2 af 3 gratis. Bekræftet i koden 8/9 (<code>~/Downloads/recon-sessionerne.md</code>): <code>stripe-webhook</code> indlejrer intet booking-id i Calendly-linket, <code>calendly-webhook</code> matcher kun <code>advisor = 'morten'</code>, og abonnementet er Mortens konto. En betalt session når derfor aldrig <code>booked</code>, får ingen tid og ingen URI. Kæden virker for medlemmet; reparationen <em>var</em> «kræver Calendly premium» — bevidst nedprioriteret 3/9 på den begrundelse. (Intro-sessionens tid bygges 8/9 — den gratis vej.)</p>
+      <p><strong>Begrundelsen er FALSIFICERET — målt 13/9 kl. 21:30</strong> (OVERLEVERING DEL 2 «13. september» §18): <code>GET /webhook_subscriptions?organization=…28fc12fd…&amp;scope=organization</code> med Jonas' personal access token → HTTP 200, ordret <code>{"collection":[],"pagination":{"count":0,…}}</code>. Planen (standard, paid, ét medlem — <code>recon-de-tre-sessioner.md</code> F5) TILLADER webhooks; der findes bare INTET abonnement på Jonas' organisation. Mortens abonnement ligger på hans organisation og dækker kun den. Påstanden stod her, i DEL 3 og i <code>betaltSession.ts:15</code> i ti dage uden at kaldet var sendt, og er grunden til at Rallysupports mødedatoer blev sat i hånden 13/9 kl. 20:48. Kodekommentaren rettes i A's næste ændring af filen.</p>
+      <p><strong>Blokeringen er koden plus et manglende abonnement:</strong> (1) <code>calendly-webhook</code> filtrerer <code>advisor = 'morten'</code> (<code>:122</code>, <code>:157</code>); (2) den matcher via det booking-id som <code>create-free-intro-booking</code> lægger i URL'en (<code>salesforce_uuid</code>/<code>utm_content</code>, <code>:162-163</code>) — <code>stripe-webhook</code> skriver linket råt uden det (<code>:1351-1356</code>); (3) abonnementet på Jonas' organisation er ikke oprettet (<code>POST /webhook_subscriptions</code>). Signaturen er IKKE en hindring: <code>signing_key</code> vælges af den der opretter abonnementet (<code>maaling-calendly-webhook.md</code>), så Jonas' abonnement kan bruge samme nøgle som Mortens, og funktionen behøver hverken ny secret eller ændret verifikation — men Mortens nøgle kendes ikke i klartekst (Supabase-secret hos Lovable): åbent punkt. A reconer reparationen (<code>~/Downloads/recon-calendly-reparationen.md</code>, ikke læst). Rækkerne vises på virksomhedssiden siden #839/#840 (kort 76, bogføres for sig). <strong>Sikkerhed:</strong> tokenet (<code>webhooks:write</code>, <code>organizations:write</code>) blev delt i chatten i klartekst 13/9 og skal revokeres — Jonas er bedt om det.</p>
+      <div class="meta"><span class="tag">Rettet 8/9</span><span class="tag rust">Begrundelsen falsificeret 13/9</span><span class="tag">Målt 21:30</span><span class="tag">Prioritet: genvurderes</span><span class="tag size">Mellem</span></div>
     </div>
   </div>
   </section>
@@ -1487,14 +1529,6 @@
       <p><strong>Bygget?</strong> Delvist og KUN på topix.dk-siden. Motoren — at vælge en publiceret lektion i platformens <code>content_items</code> og lade den gå fri på topix.dk — findes ikke; de to systemer deler intet. Platformens <code>tier_visibility</code> styrer kun tiers bag login. Nul træffere på topix.dk + lektion/video/frit i <code>docs/</code>.</p>
       <p><strong>Beslutningen:</strong> er topix.dk et UDSTILLINGSVINDUE for Akademiet (så skal indholdet komme fra <code>content_items</code> med et «frit»-flag og et offentligt endpoint — Mellem), eller et SELVSTÆNDIGT bibliotek (så er det færdigt som det er, og dette kort lukkes)? Indtil det er afgjort, vedligeholdes to videosystemer i hånden. Hører sammen med «Ugens push»/marketing-siden af Community-idéerne.</p>
       <div class="meta"><span class="tag ny">Ny 11/9</span><span class="tag gold">Beslutning</span><span class="tag">Fra topix.dk 18/8</span><span class="tag size">Mellem</span></div>
-    </div>
-    <div class="card new" data-status="ide" data-spor="senere" data-rammer="medlem">
-      <h3>Handout → lektion: det omvendte link («Hører til …»)</h3>
-      <p><code>BACKLOG.md:467-479</code> [P3], 5/8: koblingen lektion→handout findes envejs i <code>content_items.handout_module</code>; fra handout-siden er der intet «hører til lektionen …»-link tilbage. Bygget: nej.</p>
-      <p><strong>Fund 11/9 (<code>~/Downloads/recon-b2-indholdslaget.md</code>):</strong> kolonnen er <code>TEXT</code>, nullable, CHECK på de fem moduler, ingen UNIQUE og ingen FK (<code>20260805120000:21-25</code>) — ét modul kan høre til mange lektioner. Læses KUN af <code>ElementView.tsx:270</code> og <code>ItemEditor.tsx:414</code>; <code>HbHandoutDetail.tsx</code> importerer intet fra content_items. Medlemmets RLS på <code>content_items</code> (<code>20260813100000:76-84</code>) kræver <code>har_aktivt_medlemskab</code> eller abonnement + <code>area = 'talks'</code>; SQL-dommen udelukker legat (<code>is_legat = false</code>, <code>20260907141500:54</code>) — en legat-bruger når handouts (self-only, ingen gate) men får nul lektioner. Ruten er <code>/akademiet/:area/:slug</code> (nøglen er <code>item.area</code> + <code>item.slug</code>, aldrig id). Der findes ingen delt opslagsfunktion; <code>listPublishedItems()</code> er ufiltreret. Ingen tests rører <code>handout_module</code>. Kun prod kan afgøre om kolonnen findes (commit <code>c72f22e0</code> sagde «migration IKKE kørt» 5/8) og fordelingen <code>area, handout_module</code>.</p>
-      <p><em>Størrelse:</em> to timer — som en DELT funktion, for «Måske relevant for dig» skal bruge samme mapping. Ingen beslutning taget 11/9.</p>
-      <p><strong>Prod 11/9 kl. 11:43, ordret</strong> (<code>~/Downloads/query-results-export-2026-09-11_11-43-37.csv</code>). Sektion <code>a_56_kolonne</code>: «handout_module;text | nullable YES» — kolonnen FINDES. Sektion <code>a_56_fordeling</code> (area · module; antal | published): «academy · null;27 | published 27», «classroom · administration;3 | published 3», «classroom · bogholderi;4 | published 4», «classroom · marketing;3 | published 3», «classroom · null;34 | published 34», «classroom · salg;3 | published 3», «evergreen · null;4 | published 4», «push · null;2 | published 1», «start_her · null;2 | published 2», «start_her · overordnet;1 | published 1», «talks · null;3 | published 3», «ugens_video · null;2 | published 2». Læsning: 14 elementer har et modul, med fem forskellige værdier — overordnet 1 (start_her), bogholderi 4, administration 3, salg 3, marketing 3 (classroom). En række med «overordnet» står i prod, så værdien tages imod; 34 classroom-lektioner har intet modul. Fjerde i køen 12/9.</p>
-      <div class="meta"><span class="tag ny">Ny 11/9</span><span class="tag">Omskrevet 11/9</span><span class="tag">Prod målt 11:43</span><span class="tag size">Lille</span></div>
     </div>
     <div class="card new" data-status="ide" data-spor="7" data-rammer="medlem">
       <h3>Video-rating med ét tryk i Akademiet</h3>
@@ -1792,6 +1826,12 @@
       <div class="meta"><span class="tag ny">Ny 13/9</span><span class="tag">Efter #836</span><span class="tag">Afregistrering: ikke målt</span><span class="tag size">Lille</span></div>
     </div>
     <div class="card new" data-status="mangler" data-spor="senere" data-rammer="ingen">
+      <h3>Lektionsstien bygges inline syv steder ved siden af <code>lektionsSti</code></h3>
+      <p><strong>Efter #837 (13/9, kort 56; OVERLEVERING DEL 2 «13. september» §17).</strong> Kort 56 gav ruten <code>/akademiet/:area/:slug</code> ét sted — <code>lektionsSti</code> i <code>src/lib/hjemmebane/lektionerForModul.ts</code> — men kun handout-siden kalder den. <strong>Målt på <code>32c7eb32</code> (grep <code>/akademiet/${</code> i <code>src</code>):</strong> element-ruten bygges stadig inline SYV steder — <code>ForsideView.tsx:35</code> og <code>:134</code>, <code>HbItemRow.tsx:71</code>, <code>HbKursusKort.tsx:56</code>, <code>CommunityDokument.tsx:245</code>, <code>BoardroomView.tsx:1412</code>, <code>ElementView.tsx:318</code> — plus tre områderuter <code>/akademiet/${areaKey}</code> (<code>ForsideView.tsx:67</code>, <code>KursusView.tsx:21</code>, <code>ElementView.tsx:333</code>), som <code>lektionsSti</code> ikke dækker. A's verifikation sagde «8 steder», PR-teksten «tre flader»; det målte tal er 7 + 3.</p>
+      <p><strong>Intet er galt i drift</strong> — alle otte strenge er ens i dag. Det der står tilbage: næste gang ruten ændres, skal den ændres otte steder, og en fejl ét sted opdages først på skærmen. Rettelsen er mekanisk: de syv kald erstattes af <code>lektionsSti(item)</code>, og en <code>omraadeSti(areaKey)</code> ved siden af tager de tre; et kildeværn kan låse at <code>/akademiet/${</code> kun findes i motoren. En halv time. Dertil, samme fil: to forud-eksisterende eslint-fund i <code>HbHandoutDetail.tsx</code> (<code>:54</code> <code>any</code> på <code>aiFeedback</code>, <code>:135</code> exhaustive-deps <code>companyId</code>) — ikke rørt af kort 56.</p>
+      <div class="meta"><span class="tag ny">Ny 13/9</span><span class="tag">Efter #837</span><span class="tag">Målt 13/9</span><span class="tag size">Lille</span></div>
+    </div>
+    <div class="card new" data-status="mangler" data-spor="senere" data-rammer="ingen">
       <h3>39 grene på origin ud over main</h3>
       <p>Målt 6/9 med <code>git ls-remote --heads</code>: 38 ud over <code>main</code>. Oprydning udestår; <code>gh pr list --state merged</code> er den eneste der kan afgøre hvilke der må slettes — <code>git diff</code> lyver, fordi GitHub squasher (OVERLEVERING DEL 1). Build-chatten opgav 6/9 en gren og en commit der ikke fandtes; verificér altid med <code>git fetch</code> + <code>git log</code>.</p>
       <p><strong>Målt igen 10/9 aften:</strong> <code>git ls-remote --heads origin | wc -l</code> → 40 (39 ud over main). Vokset med én siden 6/9. Vejen: <code>gh pr list --state merged --limit 200 --json headRefName</code> → slet dem der står der; rør ikke grene uden PR (kan være Lovables).</p>
@@ -1958,7 +1998,8 @@
       <h3>«Måske relevant for dig» — agenten ser indholdslaget</h3>
       <p><code>docs/indhold-recon.md:294, 319</code>: agenten kender tal, opgaver og chat, men ikke Akademiet, podcasten og rabataftalerne — den kan ikke sige «der er en lektion om præcis det her». Bygget: nej. Forudsætter at indholdet har nøgler (podcasten er ude af platformen fra 11/9 — kun Akademiet og rabataftalerne) og hører til «semantisk hukommelse». Mellem; første version er regelbaseret (emne på lektionen mod triggeren i ugens fokus), ikke AI.</p>
       <p><strong>Skærpet 11/9 (<code>~/Downloads/ideerne-skarpt.md</code>):</strong> <em>Løser:</em> at Akademiet og ugens fokus ikke kender hinanden — for medlemmet. <em>Bedre form nu — regelbaseret V1, ikke AI:</em> samme mapping som handout → lektion (<code>handout_module</code>) + video-ratingens «hjalp den?» som vægt. Når ugens fokus handler om X, peger platformen på lektionen om X. <em>Størrelse:</em> to dage.</p>
-      <div class="meta"><span class="tag ny">Ny 11/9</span><span class="tag">Skærpet 11/9</span><span class="tag">Regel, ikke AI</span><span class="tag size">Mellem</span></div>
+      <p><strong>Efter #837 (13/9, kort 56):</strong> mappingen findes nu som DELT motor — <code>lektionerForModul(katalog, modul)</code> i <code>src/lib/hjemmebane/lektionerForModul.ts</code> (kun publicerede, forløbsrækkefølge, ingen supabase-kald; kataloget hentes med cache-nøglen <code>["akademi","items"]</code>) plus <code>lektionsSti</code>. Handout-siden er første kalder; V1 her er den anden og kalder motoren direkte. Grundlaget er smalt: 14 elementer bærer et modul (prod 11/9 kl. 11:43), 34 classroom-lektioner gør ikke — det er redaktionelt (ItemEditor), ikke kode. OVERLEVERING DEL 2 «13. september» §17.</p>
+      <div class="meta"><span class="tag ny">Ny 11/9</span><span class="tag">Skærpet 11/9</span><span class="tag">Regel, ikke AI</span><span class="tag">Motoren findes 13/9</span><span class="tag size">Mellem</span></div>
     </div>
     <div class="card new" data-status="ide" data-spor="senere" data-rammer="medlem">
       <h3>Push-kanal (service worker) findes ikke</h3>
@@ -2063,7 +2104,7 @@
       <p class="why"><strong>3. Netværket bliver et netværk</strong> (bed om kontakt · præsentation dag 1–3 · profilen forfra · foreslå intro). Sitet sælger «ejerledere der står hvor du står», og profilsiden har ingen vej til nogen. Fire dage, intet beskedsystem, og løftet holder.</p>
       <p class="why"><strong>4. Medlemmer som kanal</strong> (affiliate som fornyelsesrabat + delingsbillede). 21 pladser skal sælges; <code>fornyelsespris_oere</code> og <code>invited_by</code> er allerede modelleret. To dage.</p>
       <p class="why"><strong>5. «Din måned» — mulig, ikke bevist.</strong> Fire tal om én selv, aldrig om andre; grundlaget blev ærligt i nat. Byg den lille, mål kohorten før og efter.</p>
-      <p class="why"><strong>Fire på en time hver, i morgen:</strong> Customer Portal-linket (lukker tre kort med én knap, før 13/9) · handout → lektion · tom-tilstande på skærm · like fra feedet. <strong>Digesten er slukket 11/9 kl. 12:07</strong> — ugens auto-tråd og push-kommentarer afgøres for sig.</p>
+      <p class="why"><strong>Fire på en time hver, i morgen:</strong> Customer Portal-linket (lukker tre kort med én knap, før 13/9) · handout → lektion (GJORT 13/9, #837) · tom-tilstande på skærm · like fra feedet. <strong>Digesten er slukket 11/9 kl. 12:07</strong> — ugens auto-tråd og push-kommentarer afgøres for sig.</p>
     </div>
     <div class="tier">
       <h3>De tre der giver mest først — drift og penge</h3>
