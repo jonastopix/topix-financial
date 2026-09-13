@@ -1,4 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import { Link } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, ArrowRight, Check, Loader2, CheckCircle2, RotateCcw, Eye, Target, AlertTriangle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -13,6 +15,9 @@ import {
   toggleHandoutCompleted,
   type LeverMilestone,
 } from "@/lib/handoutEngine";
+import { listPublishedItems } from "@/lib/hjemmebane/akademiApi";
+import { hoererTilTekst, lektionerForModul, lektionsSti } from "@/lib/hjemmebane/lektionerForModul";
+import { sektionsfejlTekst } from "@/lib/hjemmebane/hentefejl";
 import { HbSection } from "../HbSection";
 import { HbCard } from "../HbCard";
 import { hbControlClasses } from "../admin/HbField";
@@ -53,6 +58,18 @@ export const HbHandoutDetail = ({ config, onBack, userId, onModuleSelect }: HbHa
   const [handoutStatus, setHandoutStatus] = useState<string>("not_started");
   const [loading, setLoading] = useState(true);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Kort 56: «Hører til lektionen …» — koblingen handout→lektion, vendt om
+  // fra ElementViews lektion→handout. Samme cache-nøgle og queryFn som
+  // useAkademiData/ProgressView/CommunityComposer, så kataloget deles og
+  // handout_module følger med i "*". Opslaget er den delte motor
+  // (lektionerForModul); ingen ny query. RLS afgør hvad medlemmet ser:
+  // legat får nul rækker (har_aktivt_medlemskab kræver is_legat = false)
+  // og dermed intet link — ikke en fejl. Hooken står i topblokken, før
+  // `if (loading)` (React #310).
+  const lektionerQuery = useQuery({ queryKey: ["akademi", "items"], queryFn: listPublishedItems });
+  const lektioner = lektionerForModul(lektionerQuery.data ?? [], config.module);
+  const hoererTil = hoererTilTekst(lektioner.length);
 
   // Load handout data (H1a + H1b i motoren)
   const loadData = useCallback(async () => {
@@ -184,6 +201,28 @@ export const HbHandoutDetail = ({ config, onBack, userId, onModuleSelect }: HbHa
           <p className="text-xs font-medium uppercase tracking-[0.14em] text-hb-rust">Handout</p>
           <h1 className="mt-2 font-editorial text-3xl font-medium leading-tight text-hb-ink md:text-4xl">{config.title}</h1>
           <p className="mt-2 text-sm text-hb-ink-soft">{config.subtitle} · {progress}% udfyldt</p>
+          {/* Fejlet ≠ tom (hentefejl.ts): kunne kataloget ikke hentes, siges det
+              stille med husets ord; nul lektioner viser intet. Flere lektioner
+              vises alle. Linket er evergreen (rust bærer allerede fire betydninger)
+              og bygges af area+slug som resten af huset. */}
+          {lektionerQuery.isError ? (
+            <p className="mt-2 text-sm text-hb-ink-soft">{sektionsfejlTekst("akademiet")}</p>
+          ) : hoererTil ? (
+            <p className="mt-2 text-sm text-hb-ink-soft">
+              {hoererTil}{" "}
+              {lektioner.map((lektion, i) => (
+                <span key={lektion.id}>
+                  {i > 0 && (i === lektioner.length - 1 ? " og " : ", ")}
+                  <Link
+                    to={lektionsSti(lektion)}
+                    className="font-medium text-hb-evergreen underline-offset-4 hover:underline"
+                  >
+                    {lektion.title}
+                  </Link>
+                </span>
+              ))}
+            </p>
+          ) : null}
         </div>
         <div className="flex items-center gap-3 pt-1">
           {!isOwner && (

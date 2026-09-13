@@ -1,6 +1,6 @@
 # Overlevering
 
-> ## 13/9 — START HER (skrevet 13/9 eftermiddag; opdateret 13/9 sen eftermiddag efter #826 og igen efter udrulningen kl. 14:20 UTC — og igen 13/9 aften efter bygning 3, og igen efter kort 40 og #833 — HEAD `ab0fb09f` = #833, merget 13/9 kl. 16:21:03 UTC; prod målt kl. 14:01, `~/Downloads/query-results-export-2026-09-13_14-01-42.csv`)
+> ## 13/9 — START HER (skrevet 13/9 eftermiddag; opdateret 13/9 sen eftermiddag efter #826 og igen efter udrulningen kl. 14:20 UTC — og igen 13/9 aften efter bygning 3, og igen efter kort 40 og #833, og igen 13/9 aften efter oprydningen del 1 (#836) — HEAD `f23b9919` = #836, merget 13/9 kl. 17:08:09 UTC; prod målt kl. 14:01, `~/Downloads/query-results-export-2026-09-13_14-01-42.csv`)
 >
 > **Bevist i dag — doggybeds træk gik igennem.** Sektion `a_doggybed_traek`,
 > ordret: «betalt · in_1UF8tR3CvBmCx5PthFjFOjFc;a_doggybed_traek;2026-09-13T09:36:24.309794+00:00
@@ -65,9 +65,10 @@
 > at Lovable udrullede fra main. FIND FØRST-fundene står i DEL 2 «13.
 > september» §4.
 > **Køen efter kort 83:** 40 GJORT (#832, §13) → branchelinjen GJORT
-> (#833, §14) → brancheafsnittet dør (bygges i A, §15) → oprydningen (run-weekly-agent, digestens
-> kode, podcasten ud — og «Standardmål»-mærket, der er død kode efter kort
-> 40) → 56 → 76 → 82 → 57 → 29. **A4:** recon af hvordan linjen for en ny refleksion lukkes
+> (#833, §14) → brancheafsnittet GJORT (#834, §15) → oprydningen DEL 1
+> GJORT (#836, §16: run-weekly-agent slettet, digestens kode fjernet) →
+> oprydningen DEL 2: podcasten ud — og «Standardmål»-mærket, der er død
+> kode efter kort 40 → 56 → 76 → 82 → 57 → 29. **A4:** recon af hvordan linjen for en ny refleksion lukkes
 > (forslag 21).
 >
 > **Åbne beviser:** kort 60's tre (tjeklistens punkt på et medlems skærm;
@@ -223,11 +224,54 @@
 > «Aftalt»- og CVR-branche-kortet omskrevet, fem nye). Tests: 2967 → 2977
 > → 2982 (194 filer; #834 ændrede ikke antallet).
 >
+> **OPRYDNINGEN DEL 1 ER GJORT — run-weekly-agent SLETTET, DIGESTENS KODE
+> FJERNET (§16).** PR #836 «feat: run-weekly-agent slettes og digestens
+> kode fjernes (oprydning 1 af 2)», `gh pr view` ordret: mergedAt
+> «2026-09-13T17:08:09Z», mergeCommit
+> «f23b991955148948c4a0f29c119aac6cffae14d7» (19:08:09 dansk); 21 filer,
+> +114/−955; tsc 0; tests 2982 → 2961 (192 filer: 19 digest-tests + 2
+> DAEKKEDE-poster; sentinellerne agentKaldesteder 10 → 9 og
+> agentToerkoersel 6 → 5); check:edge-auth PASS 79 scannede (før 81).
+> Beslutningerne er fra 11/9 (Jonas, ordret: «A» og «Sluk den»).
+> **Fundet der ændrer billedet:** «weekly_cron» i `KNOWN_TRIGGERS`
+> (`run-company-agent/index.ts:1035`) var IKKE død kode — så længe navnet
+> stod i hvidlisten, kunne et service-role-kald starte en mandagskørsel
+> ingen havde besluttet, med prompt-grenen «Det er mandag morgen …» og
+> retten til at skrive i weekly focus. Navnet er fjernet; kaldet afvises
+> nu med 400. Reconen 11/9 kaldte alle fem grene «døde» — fire var det;
+> rettet i §16. Migrationen `20260913190000_monthly_digest_slukkes.sql`
+> følger `20260901110000`-mønstret (DO-blok med IF EXISTS + efter-SELECT;
+> chattens nøgne `cron.unschedule` ville have kastet, jobbet har været væk
+> siden 11/9 kl. 12:07) — **KØRT i SQL editoren 13/9: «Query succeeded. No
+> rows returned»**. Gemte `monthly_digest`-værdier bevares
+> (`fletPraeferencer`; nøglen i `SKJULTE_NOEGLER`, ingen backfill).
+> **run-company-agent UDRULLET kl. 17:09 UTC**, Lovable ordret:
+> «Udrulningen af run-company-agent lykkedes kl. 2026-09-13 17:09 UTC.
+> Endpointet svarer live med HTTP 401 Missing or invalid authorization
+> (forventet). Ingen filer, andre funktioner eller migrationer blev
+> rørt.» Update klikket; **BEVIST PÅ SKÆRM kl. 19:13:00**
+> (`screencapture-app-theboardroom-dk-admin-emails-2026-09-13-19_13_00.pdf`,
+> `/admin/emails`: kortet «Månedlig digest» med «Send test» og «Send til
+> alle» er væk, ingen digest-skabelon i listen) **og kl. 19:16:58**
+> (`screencapture-app-theboardroom-dk-settings-2026-09-13-19_16_58.pdf`,
+> `/settings` → Notifikationer: «E-MAILS FRA OS» har FIRE punkter,
+> «Månedsoverblik — Den 22. i måneden» er væk, «Ugens fokus» i sit eget
+> kort). Chatten dikterede først `/admin/email-templates` og
+> `/indstillinger` — begge «Siden findes ikke»; ruterne er `/admin/emails`
+> og `/settings` (`App.tsx:271`, `:269`; ny fælde i DEL 4: «En URL
+> dikteres ikke af hukommelsen»). **Åbent:** de to slettede funktioner
+> ligger formentlig stadig udrullet hos Lovable — ingen kalder, ingen
+> cron, men skal de afregistreres?; etiketten `AgentForslagPanel.tsx:44`
+> og fire kommentarer (kortet «Oprydningens rester»). **Del 2 venter:
+> podcasten ud** (kortet «Podcasten ud af platformen — ét link til
+> Spotify»). Mangellisten 134 → 134 (ét kort fjernet som løst, ét nyt,
+> tre omskrevet).
+>
 > **12/9:** i repoet skete der INTET — #819 blev merget 11/9 kl. 10:55:26
 > UTC, og næste commit er ikke kommet. Om der skete noget i prod, Stripe
 > eller Lovable den 12/9: ikke målt, ikke bogført.
 >
-> Detaljen står i DEL 2 «13. september» (§1–§15).
+> Detaljen står i DEL 2 «13. september» (§1–§16).
 
 > ## 11/9 EFTERMIDDAG — START HER (dagen lukket; skrevet 11/9 eftermiddag efter #817, digestens slukning kl. 12:07 og målingerne 11:33, 11:43, 12:07 og 12:18)
 >
@@ -1657,6 +1701,11 @@ om noget skal tælles som kunde.
   owner, og medlemskontoen skal virke NØJAGTIG som i dag.
 
 ### Agentkæden — målt 6/9: ugeagenten kører LIVE, ikke tørt — og formentlig slet ikke
+
+> **STATUS 13/9:** `run-weekly-agent` er SLETTET (#836; Jonas 11/9: «A»),
+> så «kører LIVE» gælder ikke længere nogen ugekørsel — `weekly_cron`
+> afvises nu med 400 i `run-company-agent`. Rapport- og anomali-triggerne
+> står som før (DEL 2 «13. september» §16).
 
 `~/Downloads/recon-agentens-skrivninger.md` (uden for repoet — genskabes
 hvis den bruges). Anledningen var `er_kunde`: måtte feltet gate cronen?
@@ -3443,6 +3492,11 @@ længere automatisk, men en manuel annullering i Dashboard er stadig tavs.
 
 ### Ugefokus og ugeagenten — to funktioner, to pipelines; ÅBENT PUNKT til Jonas og Morten (10/9, nat)
 
+> **STATUS 13/9:** punktet er AFGJORT 11/9 (Jonas, ordret: «A») og GJORT
+> 13/9 — `run-weekly-agent` er slettet i #836, og `weekly_cron` er fjernet
+> fra `run-company-agent`s hvidliste (DEL 2 «13. september» §16). Ugefokus
+> kører uændret. Afsnittet nedenfor står som grundlaget for valget.
+
 Jonas 10/9 kl. 22: «Jeg ved ikke om jeg er skarp nok til at vælge.» Det er
 den rigtige grund til at vente. `run-weekly-agent` har ALDRIG kørt, så den
 kan vente en dag mere uden at nogen mærker det. Grundlaget står her
@@ -4357,7 +4411,7 @@ Kilde `recon-a4-forsidens-dom.md`.
   oprydningen (run-weekly-agent, digestens kode, podcasten ud) → 56 → 76 →
   82 → 57 → 29. A4: recon af hvordan linjen for en ny refleksion lukkes.
 
-### 13. september — doggybeds træk gik igennem (#563 og #572 bevist, #815 ubevist); stripe-webhook i ental og udrullet 12:04 UTC; kort 83 bygget og i drift (#820, merget 12:17:29 UTC, manage-advisor udrullet 12:18 UTC); /members bygning 1 FÆRDIG (#823, #824, #825 — merget 13:08:25, 13:33:58 og 13:54:51 UTC; panelet på skærm 15:38); bygning 2 LØST (#826, merget 14:13:00 UTC; fire funktioner udrullet 14:20 UTC); Guiden AFGJORT — dør i bygning 3, ankrene bliver; bygning 3 GJORT — /members og Guiden slettet (#828, merget 14:47:38 UTC; Update klikket; /members og /guide NotFound på skærm; manage-advisor udrullet 14:50 UTC); målt kl. 16:53 — sletningen fjernede intet i brug, NOTEN BEVIST I DRIFT, efterladenskaber fra tidligere sletninger fundet; kilderne fundet i A's recon; lækagen LUKKET (#830, merget 15:31:14 UTC) og udrullet 15:33 UTC; kort 40 GJORT — KPI-fallbacken fjernet helt (#832, merget 15:57:43 UTC; Update og skærmbevis åbne); branchelinjen på KPI-kortet fundet på skærmen kl. 18:00 — BESLUTTET: estimatet væk, forrige måneds eget tal i stedet — BYGGET (#833, merget 16:21:03 UTC) og BEVIST PÅ SKÆRM 18:26:57, som også beviser kort 40; brancheafsnittet MÅLT 18:28 (3 af 36 domme indenfor) og BESLUTTET: det dør — #833's værn låste afsnittet (1 af 2982 fejlede kl. 18:40), værnet omskrevet, og #834 MERGET 16:52:02 UTC (bar også del 3 af denne bogføring — index'et bar begge); Update klikket og BEVIST PÅ SKÆRM 18:58:00 — afsnittet er væk, siden går fra «MÅNED FOR MÅNED» direkte til «AI-ANALYSE»
+### 13. september — doggybeds træk gik igennem (#563 og #572 bevist, #815 ubevist); stripe-webhook i ental og udrullet 12:04 UTC; kort 83 bygget og i drift (#820, merget 12:17:29 UTC, manage-advisor udrullet 12:18 UTC); /members bygning 1 FÆRDIG (#823, #824, #825 — merget 13:08:25, 13:33:58 og 13:54:51 UTC; panelet på skærm 15:38); bygning 2 LØST (#826, merget 14:13:00 UTC; fire funktioner udrullet 14:20 UTC); Guiden AFGJORT — dør i bygning 3, ankrene bliver; bygning 3 GJORT — /members og Guiden slettet (#828, merget 14:47:38 UTC; Update klikket; /members og /guide NotFound på skærm; manage-advisor udrullet 14:50 UTC); målt kl. 16:53 — sletningen fjernede intet i brug, NOTEN BEVIST I DRIFT, efterladenskaber fra tidligere sletninger fundet; kilderne fundet i A's recon; lækagen LUKKET (#830, merget 15:31:14 UTC) og udrullet 15:33 UTC; kort 40 GJORT — KPI-fallbacken fjernet helt (#832, merget 15:57:43 UTC; Update og skærmbevis åbne); branchelinjen på KPI-kortet fundet på skærmen kl. 18:00 — BESLUTTET: estimatet væk, forrige måneds eget tal i stedet — BYGGET (#833, merget 16:21:03 UTC) og BEVIST PÅ SKÆRM 18:26:57, som også beviser kort 40; brancheafsnittet MÅLT 18:28 (3 af 36 domme indenfor) og BESLUTTET: det dør — #833's værn låste afsnittet (1 af 2982 fejlede kl. 18:40), værnet omskrevet, og #834 MERGET 16:52:02 UTC (bar også del 3 af denne bogføring — index'et bar begge); Update klikket og BEVIST PÅ SKÆRM 18:58:00 — afsnittet er væk, siden går fra «MÅNED FOR MÅNED» direkte til «AI-ANALYSE»; oprydningen DEL 1 GJORT — run-weekly-agent slettet og digestens kode fjernet (#836, merget 17:08:09 UTC; run-company-agent udrullet 17:09 UTC; migrationen kørt; BEVIST PÅ SKÆRM 19:13:00 og 19:16:58) — «weekly_cron» i hvidlisten var en åben dør, ikke død kode
 
 Kilder: `~/Downloads/query-results-export-2026-09-13_14-01-42.csv` (prod,
 målt kl. 14:01, kolonner `noegle;sektion;vaerdi`, ordret),
@@ -5982,6 +6036,144 @@ kort fra målingen.** Kilder: `~/Downloads/recon-brancheafsnittet.md`
   skærmen 18:26:57, se §14. Mangellisten 134 → 134 (CVR-branche-kortet
   og slettelisten omskrevet; intet nyt).
 
+**16. Oprydningen del 1 — run-weekly-agent er SLETTET og digestens kode
+FJERNET: PR #836, merget 17:08:09 UTC; run-company-agent udrullet 17:09
+UTC; migrationen kørt; BEVIST PÅ SKÆRM 19:13:00 og 19:16:58.** Kilder:
+`~/Downloads/verifikation-oprydningen.txt` (FIND FØRST mod HEAD
+`19e26ca1`, BYG, rå slutlinjer), `~/Downloads/diff-oprydningen.txt` (den
+stagede diff, 49 KB), reconen 11/9 del A og B (gengivet i «11. september,
+eftermiddag» §7 — filen `recon-tre-oprydninger.md` lå ikke i ~/Downloads
+13/9 aften), Lovables build-chat og de to skærmbeviser. Beslutningerne er
+fra 11/9 — Jonas, ordret: «A» (run-weekly-agent slettes) og «Sluk den»
+(digesten); de står i «11. september, eftermiddag» §1 og gentages ikke
+her.
+
+- **MERGET — PR #836 «feat: run-weekly-agent slettes og digestens kode
+  fjernes (oprydning 1 af 2)».** `gh pr view 836 --json
+  mergedAt,mergeCommit`, ordret:
+  «"mergeCommit":{"oid":"f23b991955148948c4a0f29c119aac6cffae14d7"},"mergedAt":"2026-09-13T17:08:09Z"»
+  (19:08:09 dansk). 21 filer, +114/−955 (`git show --stat f23b9919`).
+  Slettet: `run-weekly-agent/index.ts` (90 linjer),
+  `send-monthly-digest/index.ts` (382), `_shared/digestGate.ts` (71),
+  `_shared/digestMilepaele.ts` (114), `digestGate.test.ts` (7 it) og
+  `digestMilepaele.test.ts` (12 it); begge blokke i `config.toml`. Ny:
+  `20260913190000_monthly_digest_slukkes.sql` (40 linjer). Rettet:
+  `run-company-agent/index.ts` (16 linjer), `EmailTemplatesView.tsx` (−87:
+  state, de to handlers og kortet «Månedlig digest»), `EmailLogView.tsx`,
+  `indstillinger.ts` og dens test, fem værn/tests, `ugensFokusGate.ts` i
+  begge kopier (paritetstesten sammenligner funktionsresultater, ikke
+  kildetekst — grøn), `check-edge-function-auth.ts` (kommentaren var
+  forældet siden 10/9: ingen cron-only-functions tilbage, grenen bliver).
+  tsc 0 fejl. Tests 2982 → 2961 (194 → 192 filer): 19 digest-tests (7 +
+  12) slettet med kilden, plus 2 fra `milepaelDom.guard`, som genererer én
+  it() pr. DAEKKEDE-post (to poster ud) = 21, ingen anden forskel. To
+  sentineller sænket med kommentar: `agentKaldesteder` fra 10 til 9
+  kaldesteder (det tiende var run-weekly-agents rå fetch `:67`; de ni
+  invoke() står), `agentToerkoersel` fra 6 til 5 triggere.
+  `check:edge-auth` PASS: 79 scannede mod 81 før — de to slettede
+  funktioner (68 triggered, 0 skip-no-http; før 69 og 1).
+  `check-verify-jwt-invariant` PASS (79 scannede, 15 affected). eslint på
+  de fire rørte frontend-filer: fejltal identisk med HEAD.
+- **FUNDET DER ÆNDRER BILLEDET — «weekly_cron» i `KNOWN_TRIGGERS` var IKKE
+  død kode.** Reconen 11/9 (§7, del A) kaldte de fem `weekly_cron`-grene i
+  `run-company-agent/index.ts` «døde», og A's opgave 13/9 sagde «rører
+  IKKE weekly_cron i run-company-agent»; chatten lagde grenene i
+  oprydningen alligevel, og A fandt ved FIND FØRST at ÉN af dem var en
+  åben dør. `KNOWN_TRIGGERS` (`:1035`) er hvidlisten der afviser ukendte
+  triggere med 400 (`:1039-1043`). Så længe navnet stod der, kunne et
+  vilkårligt service-role-kald med `trigger: "weekly_cron"` starte en
+  mandagskørsel ingen havde besluttet — med prompt-grenen «Det er mandag
+  morgen …» (`:1260`) og retten til at skrive i weekly focus. De fire
+  øvrige forekomster (titlen `:673`, `POOL_BLOCKLIST` `:1092`, to
+  kommentarer) var døde: de eksekveres kun når triggeren er kommet
+  igennem. Navnet er fjernet, så kaldet afvises med 400 — fail-closed, som
+  resten af listen og som kommentaren `:1026-1030` vil have det; en
+  kommentar på stedet (`:1034-1036`) bærer hvorfor. Det er en RETTELSE af
+  reconens billede: «død kode» gjaldt fire af fem; den femte var den
+  eneste der gjorde noget, og det den gjorde var at TILLADE.
+- **Migrationen — husets mønster, ikke chattens forslag.**
+  `20260913190000_monthly_digest_slukkes.sql`. Reconen 11/9 og
+  mangellistens kort foreslog en fil «der kun kalder `cron.unschedule`»;
+  A fandt at `20260901110000_reflection_nudge_slukkes.sql` løste præcis
+  samme situation 1/9 (jobbet fjernet manuelt i prod, repoet schedulerede
+  det stadig) og fulgte den: en DO-blok med `IF EXISTS (SELECT 1 FROM
+  cron.job WHERE jobname = 'send-monthly-digest') THEN PERFORM
+  cron.unschedule(…)`, og en efter-verifikations-SELECT der forventes at
+  give 0 rækker (samme værn i `20260810230000:44-55`, `20260825233000:82-87`,
+  `20260901090000:68-73`). Et nøgent `cron.unschedule('send-monthly-digest')`
+  ville have KASTET, fordi jobbet har været væk siden 11/9 kl. 12:07 (jobid
+  550). Migrationen er dermed værnet mod at `20260810230000` (`:73-87`)
+  genkøres og tænder et job mod en funktion der ikke findes. **KØRT i
+  Lovables SQL editor 13/9 (efter merge)**, ordret: «Query succeeded. No
+  rows returned» — som forventet: 0 jobs fjernet, SELECT'en tom.
+  Migrationsfilen bærer selv beslutningen, tilstanden 11/9, og at revert
+  kræver en ny beslutning og en ny funktion.
+- **Gemte værdier bevares.** `monthly_digest` i
+  `profiles.notification_email_prefs` røres ikke: `fletPraeferencer`
+  (`indstillinger.ts:219-223`) spreder hele det gemte objekt og
+  overskriver kun nøglerne i `EMAIL_INDSTILLINGER`; `laesPraeferencer`
+  læser kun kendte nøgler. Nøglen er tilføjet `SKJULTE_NOEGLER` efter
+  `pulse_reminders`-præcedensen (12/6), og testen låser at en gemt
+  `monthly_digest: false` overlever et gem. Ingen læser af nøglen findes
+  efter sletningen (grep 0). Ingen backfill.
+- **UDRULNING OG BEVIS, i rækkefølge.** *(1)* `run-company-agent` udrullet
+  EKSPLICIT (som reconen 11/9 krævede) 13/9 kl. 17:09 UTC (19:09 dansk),
+  Lovable ordret: «Udrulningen af run-company-agent lykkedes kl.
+  2026-09-13 17:09 UTC. Endpointet svarer live med HTTP 401 Missing or
+  invalid authorization (forventet). Ingen filer, andre funktioner eller
+  migrationer blev rørt.» Uden den ville hvidlisten på serveren stadig
+  kende `weekly_cron`. *(2)* Migrationen kørt: nul rækker (ovenfor).
+  *(3)* Update klikket. **BEVIST PÅ SKÆRM kl. 19:13:00**
+  (`screencapture-app-theboardroom-dk-admin-emails-2026-09-13-19_13_00.pdf`,
+  `/admin/emails`): kortet «Månedlig digest» med knapperne «Send test» og
+  «Send til alle» er væk; skabelonlisten har ingen digest-skabelon.
+  **Kl. 19:16:58**
+  (`screencapture-app-theboardroom-dk-settings-2026-09-13-19_16_58.pdf`,
+  `/settings` → Notifikationer): «E-MAILS FRA OS» viser FIRE punkter —
+  «Når dine tal venter på dig», «Opdateringer», «Rapportpåmindelser», «Din
+  sparring med Morten». «Månedsoverblik — Den 22. i måneden» er væk.
+  «Ugens fokus» står i sit eget kort.
+- **CHATTENS FEJL, som skal stå:** chatten dikterede først
+  `/admin/email-templates` og `/indstillinger` som de sider der skulle
+  fotograferes. Begge gav «Siden findes ikke». De rigtige ruter er
+  `/admin/emails` og `/settings` (`App.tsx:271`, `:269`) — chatten gættede
+  på stierne ud fra komponentnavnene i stedet for at måle dem. En forkert
+  sti ser ud som en fejlet bygning: to NotFound-skærme lige efter en
+  Update er præcis det billede en tabt build ville give. Ny fælde i DEL 4:
+  «En URL dikteres ikke af hukommelsen.»
+- **Efterladt — uden for A's filliste, intet brydes af det** (kortet
+  «Oprydningens rester», Lille): etiketten `AgentForslagPanel.tsx:44`
+  (`AGENT_TRIGGER_LABELS.weekly_cron: "Ugentlig gennemgang"`) kan aldrig
+  vises — den slås op med `agent_runs.trigger`, der har nul
+  `weekly_cron`-rækker bagud (målt 10/9; 11/9 kl. 09:32 viste stadig kun
+  report_committed, anomaly_detected og company_review), og ingen ny kan
+  opstå efter fjernelsen fra hvidlisten; én linje. Fire kommentarer
+  nævner stadig det slettede: `mcp/src/supabase/client.ts:4`,
+  `generate-weekly-focus/index.ts:67`, `Noegletal.tsx:7`
+  (send-monthly-digest som /kpis-deep-link-skriver),
+  `IndstillingerView.tsx:40` («fem mailtyper» — nu fire).
+  Migrationskommentarer der nævner navnene (otte filer, `20260330182519`
+  → `20260911040000`) er historik og røres ikke. Dertil, BEVIDST:
+  `EmailLogView.tsx:75` mistede etiketten «Månedlig digest», så gamle
+  rækker i `email_send_log` med `template_name = 'monthly-digest'` (de
+  digests der faktisk blev sendt) nu viser det rå navn — ærligt for
+  historik, og etiketten tjente kun digesten.
+- **ÅBENT — drift og repo siger ikke det samme.** `run-weekly-agent` og
+  `send-monthly-digest` er slettet fra repoet, men ligger formentlig
+  stadig udrullet hos Lovable (ikke målt). De har ingen kalder og ingen
+  cron (`cron.job` målt 13/9 kl. 14:01: 0 `send-monthly-digest`;
+  `run-weekly-agent` stod der aldrig), så de gør ingenting — men skal de
+  afregistreres? Står på kortet «Oprydningens rester». Den næste der
+  lister funktioner hos Lovable, må ikke læse de to som levende.
+- **Mangellisten 134 → 134:** kortet «run-weekly-agent slettes — besluttet
+  A» FJERNET SOM LØST (begge halvdele gjort); «Ugens nyheder med
+  auto-tråd» og ««Ugens push» med kommentarer» bar allerede «afgøres for
+  sig» fra 11/9 — tjekket, og «koden fjernet 13/9» føjet til; podcasten
+  står tilbage som oprydningens del 2 (kortet omskrevet); ét nyt kort,
+  «Oprydningens rester» (etiketten, fire kommentarer, de to funktioner
+  hos Lovable); Rækkefølgens «Små …»-liste mistede «run-weekly-agent —
+  slet eller læg om». Tests: 2982 → 2961 (192 filer).
+
 ### Mailplatformen — bygget om af Lovable 8/9 kl. 06:52-06:58; afsenderne, fortegnelsen og værnet (#728, #730, #731, #732)
 
 **Hvad Lovable gjorde.** 19 commits direkte til main mellem kl. 06:52 og
@@ -6521,7 +6713,7 @@ facit og rækkefølge; `docs/chat-design.md` chattens form.
 
 | hvornår | hvad | hvor det står |
 |---|---|---|
-| **ÅBENT — Jonas og Morten, ikke i aften** (10/9 kl. 22: «Jeg ved ikke om jeg er skarp nok til at vælge») | **`run-weekly-agent`: slet (A), omlæg tørt/live (B) eller byg færdig som én mandagsmotor (C).** Den har aldrig kørt (kun `Deno.cron`, 0 `weekly_cron` i `agent_runs`), så intet haster. Mål FØRST om nogen læser ugefokus: `notifications` type `weekly_focus_ready` → `seen_at`/`read_at` (SQL i DEL 2). `weekly_focus.seen_at` kan ikke bruges (død skrivevej, rettes i det andet vindue). | DEL 2 «Ugefokus og ugeagenten» |
+| **AFGJORT 11/9 (Jonas: «A»), GJORT 13/9 (#836)** | **`run-weekly-agent` er SLETTET.** Filen, `config.toml`-blokken og `weekly_cron` i `run-company-agent`s hvidliste er væk; `run-company-agent` udrullet 17:09 UTC. Den havde aldrig kørt (kun `Deno.cron`, 0 `weekly_cron` i `agent_runs`). Ugefokus (`generate-weekly-focus`) kører uændret hver mandag. Det der står tilbage af spørgsmålet — om nogen læser ugefokus — er samtalen med Morten; `weekly_focus.seen_at` på forsiden har første hele uge efter 14/9. Åbent: funktionen ligger formentlig stadig udrullet hos Lovable (kortet «Oprydningens rester»). | DEL 2 «13. september» §16; «Ugefokus og ugeagenten» (grundlaget for valget) |
 | **FØR 13/9** — Stripe er sat op 10/9 kl. 20:50–21:05 (past-due, mails til, dansk); **(1) BYGGET 11/9 (#815), UDRULLET 13/9 kl. 12:04 UTC — UBEVIST I DRIFT**; (2) uændret, ikke bygget | **Restancen:** (1) ~~rådgivernes klokke ved fejlet træk~~ → **bygget 11/9 (#815)**: `skrivRaadgiverBesked` i `payment_failed`, dedup `company_traek.id`, værn mod at et betalt træk vendes til fejlet. Update klikket 11/9 kl. 11:12; `stripe-webhook` udrullet eksplicit 13/9 kl. 12:04 UTC i Lovables build-chat (ordret: «Endpointet svarer live med HTTP 400 Invalid signature (forventet)»). **Ubevist i drift:** doggybeds træk 13/9 gik igennem (`betalt` kl. 09:36:24 UTC, DEL 2 «13. september» §1), så `invoice.payment_failed` blev aldrig sendt; grenen bevises først af et fejlet træk — hvornår det sker, er ukendt. Beviset når det kommer: svaret bærer `traek.id` og `klokke`; en række pr. rådgiver i `advisor_notifications` med `type = 'traek_fejlet'`, `reference_type = 'traek'`, `reference_id = company_traek.id`; klokkens link `/virksomhed/<id>?section=aftale`; et senere `payment_failed` for samme faktura svarer `sprunget_over: allerede_betalt`. (2) retries opbrugt → `invoices.send` når `next_payment_attempt` er null — **ud af A1 11/9, uændret 13/9**, forudsætningerne står på kortet (otte forsøg over en måned). | DEL 2 «13. september» §1–§2; DEL 2 «11. september, formiddag»; fornyelseskæden §9; mangellisten (Betaling) |
 | **LØST — MÅLT KØRT 11/9 kl. 09:20** (alle tre stod i prod; `query-results-export-2026-09-11_09-20-04.csv`). Var: SKREVET 10/9 (#801), IKKE BEKRÆFTET KØRT | **Tre migrationer:** `20260911020000_messages_delete_15min.sql` (to DELETE-policies erstattes af «within 15 min» + advisor), `20260911030000_feedback_bucket_mappetjek.sql` (mappetjek, 5 MB, image/*), `20260911040000_companies_status_check.sql` (CHECK + NOT NULL; prod målt 30/8, 0 NULL). Bevis: SELECT'en nederst i hver fil — indtil da gælder de gamle policies. | DEL 2 «10. september, sen aften»; `SECURITY_BASELINE.md` §5 |
 | **RETTET 11/9 — «/members er tømt» holdt ikke** (recon-a2 kort 3 og 83 §4): `Members.tsx` renderer stadig header «Virksomheder», «Importér ansøgning» (`:1058-1065`), «Inviter ny bruger» (`:1066-1070`), `MembersStatsBar` (`:1074`), listen med `MemberCompanyRow` (`:1184-1200`: omdøb, invitér, gensend, fjern, slet, redigér virksomhed), «Slet virksomhed / + brugere» (`:1316`) og `MembersAdminSection` (`:1239-1249`); ruten `App.tsx:243` kræver advisor. Var: «RETTET 10/9 (#771–#773): `/members` er tømt — kun importen og onboarding-tragten står». `/settings` ER konverteret (#773). **EFTER 9/9** — det der stod tilbage efter rådgiverfladen og de to trin | ~~Otte ting kun på `/members`~~ → **10/9: importen bliver til ansøgningsflowet flytter; onboarding-tragten skal IKKE flyttes.** 11/9: siden er ikke tømt — se rækkens første celle; «Fjern»-knappen og `remove-member` fjernes i samme bygning (besluttet 11/9, kortet «Fjern fra virksomheden»). ~~`/settings`' tre rester~~ → **10/9: konverteret (#773).** **Aftale-kortet** er bygget med slutdato og pris; perioderne vises når nogen har nogen — 27 af 27 har nul. **Bevis:** `_shared/ikkeIGang.ts` i «View code» efter merge, Update for forsiden. **Ikke kode:** skriv til de seks der aldrig har uploadet — bed om historikken. | DEL 2 «9. september», mangellisten «Rådgiverfladen» |
@@ -6587,8 +6779,8 @@ facit og rækkefølge; `docs/chat-design.md` chattens form.
 | MENUEN — målt 4/9 aften (`~/Downloads/recon-admin-menuen.md`, uden for repoet — genskabes hvis den bruges); navnene er IKKE afgjort | **Hvad admin-blokken skal indeholde, målt punkt for punkt.** **Review Queue KAN fjernes fra menuen:** godkendelsen bor et andet sted (`ReportReviewDialog`), og Jonas åbner den kun hvis nogen siger at noget mangler. **Platformconfig KAN IKKE fjernes:** eneste sted rådgivere kan inviteres og fjernes og admin-rollen skiftes (`manage-advisor` har ingen anden kalder). **Import hører på VIRKSOMHEDSSIDEN, ikke som eget punkt** — men funktionen skal med: den er eneste vej til upload for en virksomhed uden company-override og uden rådgiver-notifikation. **Legat KAN IKKE fjernes:** de to edge functions (`create-legat-enrollment`, `upgrade-legat-to-member`) har ingen anden kalder. **NAVNENE:** Jonas 4/9: «tingene skal hedde det de er» — Review Queue, Platformconfig og Import er ord ingen har valgt. Ikke afgjort. Menuen (`HbMemberShell.tsx`, admin-blokken) er ikke rørt af konverteringerne; de seks sider markerer bevidst intet nav-punkt, indtil blokken tegnes om efter denne måling. | `~/Downloads/recon-admin-menuen.md`; `HbMemberShell.tsx` admin-blokken; rækken «KONVERTERINGEN» ovenfor |
 | RÅDGIVERENS CHAT — GJORT 4/9 aften i tre trin (#655 etape 1, #657 etape 2, #658 skallen); én gæld står: `align` på `HbPopover` | **Rådgiverens chat (`CompanyChatPane`) er Hjemmebane hele vejen.** **Etape 1 (#655):** udtrykket skulle ikke opfindes: `MemberChatPane` er 965 linjer ren Hjemmebane og en ORDRET kopi af `CompanyChatPane` med rådgiverdelene slettet — filhovedet siger at skeletterne er bevidst dublerede, så medlemssiden kunne designes frit. Klasserne er kopieret derfra. De seks delte byggesten fik `variant="hb"`, som rådgiveren sendte 0 af 8 mulige steder, selv om komponenterne allerede kunne det. `TOPIC_COLORS` er off-token og droppet. Chatten i blok 4 på virksomhedssiden (låst til én virksomhed, #614) fulgte med, for det er samme komponent. **Etape 2 (#657) er GJORT.** Sidebaren, «Se tal»-skuffen og ⋯-menuen. Efter etape 2 er der INGEN `glass-card`, `bg-card`, `text-foreground` eller `border-border` tilbage i `CompanyChatPane`. Samtalelisten er husets listeform: papir, hairlines, søgefelt i `hbControlClasses` som virksomhedslisten, grupper som eyebrow med tælleren som `HbTag`. «Kræver svar» er rust, **«Tjek ind» er blæk hvor den før var amber — en påmindelse er ikke en fejl.** Samme princip som Review Queue: tonen siger kun om noget haster. Skuffen beholder vaul-Draweren, så overlay og swipe er som før, og får `theme-hjemmebane` på indholdet — samme greb som `MobileMessageActionDrawer`. `KPICard` er erstattet af en kopi af virksomhedssidens kort uden sparkline; dommen (`getTargetStatus`) er den samme. ⋯-menuen er ikke længere en Radix Popover, men en lokal `HbMenu` i DOM-træet: `HbPopover` (i `HbOverlejring`) er venstre-forankret og bygget til datovælgeren under et felt, mens ⋯ står i headerens højre kant. **En `align`-prop på `HbPopover` ville gøre `HbMenu` overflødig** — det står i koden som gæld. **#658: `/chat` har fået Hjemmebane-skallen.** Chatten var konverteret, men siden lå stadig i `AppLayout`, så det papirfarvede panel stod i den mørke skal med den gamle menu ved siden. Rådgiverens gren bruger nu `HbMemberShell` som de tre andre grene i `ChatShell`; medlemmets og abonnentens er urørte. Højden følger virksomhedssidens blok 4, som allerede havde løst en chat i bundet højde inde i en skal der selv scroller. `scrollTop`-fixet fra #639 holder — det virker netop fordi det ikke rører forfædre. Og gælden fra etape 2 er betalt: «Indbakke»-overskriftens egen `theme-hjemmebane` er væk, fordi hele siden nu er Hb. | DEL 2 «Konverteringen»; `docs/chat-design.md` |
 | ÅBENT ved dagens slutning 4/9 — det der står tilbage efter at rådgiverens hverdag blev Hjemmebane hele vejen | **Seks punkter, hver med sin egen række eller sit eget sted:** (1) `/members` kan ikke swappes — elleve dele findes kun dér (rækken «MÅLT 4/9 sen aften» ovenfor). (2) `EmailTemplates` skal designes, ikke konverteres (rækken «DESIGNPUNKT»). (3) Milestones' FUNKTION afventer opgave-modellen; kun udtrykket er gjort (rækken «EPIC, én samtale»). (4) Forsidens dom mangler de to AI-baserede slags — §8's AI-læsning (`docs/forsiden-design.md` §8, §12; `src/lib/forsidensDom.ts` har pladsen i typen). (5) Ingen af de otte admin-sider er set på skærm — beviset er Update og et klik på hver. (6) `align`-prop på `HbPopover`, så `HbMenu` i `CompanyChatPane` kan udgå (gælden fra #657). | DEL 2 «Konverteringen» (status ved dagens slutning) |
-| driftsgæld | Fejlovervågning: query- og mutationsfejl i frontend logges globalt fra 7/9 (#702) — men ingen alarm, og edge functions er ubevogtede; restore er aldrig afprøvet; `run-weekly-agent` står ikke i `cron.job` (**bekræftet 6/9:** ti jobs i prod, ingen af dem den — ugeagenten kører formentlig slet ikke, DEL 2 «Agentkæden»); 73 uploads bestod validering uden at blive committet; e-conomic-integrationen er død (migration-recon §10). | status-1-sept §6; den forrige overlevering (§7, før omskrivningen i #538) findes kun i git-historikken |
-| MÅLT 6/9 — egen opgave | **Ugeagentens cron findes ikke i prod.** `run-weekly-agent` har kun `Deno.cron` (kører aldrig på edge-runtimen); `cron.job` har ti jobs, ingen kalder den. Kun `generate-weekly-focus` (0 6 \* \* 1) kører mandag. Om agenten NOGENSINDE har kørt fra cron, er ikke efterprøvet (`agent_runs.trigger` kan svare). Skal den køre, er vejen pg_cron + `net.http_post` som `intro-reminder-cron` — men den kører LIVE og skriver det medlemmet ser, så det er en beslutning, ikke en rettelse. | DEL 2 «Agentkæden»; DEL 4 (`Deno.cron`) |
+| driftsgæld | Fejlovervågning: query- og mutationsfejl i frontend logges globalt fra 7/9 (#702) — men ingen alarm, og edge functions er ubevogtede; restore er aldrig afprøvet; `run-weekly-agent` er SLETTET 13/9 (#836) — den stod aldrig i `cron.job` og kørte aldrig (DEL 2 «Agentkæden»; «13. september» §16); 73 uploads bestod validering uden at blive committet; e-conomic-integrationen er død (migration-recon §10). | status-1-sept §6; den forrige overlevering (§7, før omskrivningen i #538) findes kun i git-historikken |
+| MÅLT 6/9 — LØST VED SLETNING 13/9 (#836) | **Løst: `run-weekly-agent` findes ikke længere** (Jonas 11/9: «A»; DEL 2 «13. september» §16) — agenten er hændelsesdrevet (rapport og anomali). *Som det stod 6/9:* **Ugeagentens cron findes ikke i prod.** `run-weekly-agent` har kun `Deno.cron` (kører aldrig på edge-runtimen); `cron.job` har ti jobs, ingen kalder den. Kun `generate-weekly-focus` (0 6 \* \* 1) kører mandag. Om agenten NOGENSINDE har kørt fra cron, er ikke efterprøvet (`agent_runs.trigger` kan svare). Skal den køre, er vejen pg_cron + `net.http_post` som `intro-reminder-cron` — men den kører LIVE og skriver det medlemmet ser, så det er en beslutning, ikke en rettelse. | DEL 2 «Agentkæden»; DEL 4 (`Deno.cron`) |
 | LØST 6/9 sen aften (#670) | **De elleve typefejl efter Lovables regenerering af `types.ts`** er rettet ved at lade husets egne interfaces sige sandheden om databasen — `EventTimes.ends_at` og de fire felter på `MemberProgress` er valgfrie OG nullable — og ved at skrive reglen ned begge steder: null og undefined betyder det samme, «det er ikke sket». Ingen casts, intet non-null, ingen ændring i `types.ts`. Tretten nye tests låser reglen, inkl. grænsen ved `starts_at` + 90 min. **Målt efter:** tsc giver præcis fire fejl (CompanyChatPane, PushView, RapporteringView ×2), 1656 tests grønne. | DEL 1 «Kodearbejde» |
 | LØST 7/9 kl. 14:51 — jobbet er planlagt; **22/9** er PHILBERTs varsel 2 | **Cron-jobbet for fornyelsesvarsler skal planlægges.** Kæden sender og er bevist i produktion 7/9 kl. 11:57 (DEL 2 «Fornyelseskæden»), og jobbet ER planlagt 7/9 kl. 14:51: `fornyelsesvarsler`, `0 11 * * *` UTC (13:00 dansk), aktivt — målt i `cron.job`, ellevte job, alene på klokkeslættet. Kæden kører af sig selv. Første rigtige afsendelse er PHILBERTs varsel 2 den 22/9. | fornyelseskæden §15; DEL 2 «Fornyelseskæden» |
 | MÅLT 7/9 — punkt 1–4 LUKKET (#703, #706, #708); 5–11 og de 115 står | **De tavse fejl.** 122 af 139 `useQuery` læser aldrig `isError`; 115 queryFn'er gør en Supabase-fejl til tom data, så TanStack ser en succes; 52 kald med `const { data } = await` uden `error`-tjek; 25 mutationer uden `onError`, 50 uden throw. Global fejllogning findes fra #702; forsidens ni delkald kaster fra #703. **Rækkefølgen for resten:** 2) `/virksomheder`, 3) `/members`, 4) medlemmets «Dine aftaler» og ulæste, 5) Rapportering («Ingen rapporter endnu» til et medlem med 20), 6) nøgletals-mål og benchmarks — FORKERTE tal, ikke tomme, egen alvor — 7) app-config, 8–11) admin-lister, community, mutationer. Mønstret: `kraevRaekker` + `isError`-gren + kildelæsende værn (DEL 1 «Kodearbejde»). *7/9 sidst på dagen:* punkt 1–4 er lukket (#703, #706, #708) og standardmål markeres; punkt 5–11 og de 115 står tilbage — stadig husets største systematiske hul. | DEL 2 «De tavse fejl»; `~/Downloads/recon-tavse-fejl.md` (uden for repoet) |
@@ -7406,6 +7598,17 @@ De konkrete ting der har kostet tid. Led efter dem.
   bulk-remove-members, cleanup-shells trin 0). Når en klient-SDK
   returnerer `{ error }` frem for at kaste, fanger try/catch ingenting; læs
   signaturen frem for at antage.*
+- **En URL dikteres ikke af hukommelsen.** 13/9 aften bad chatten om
+  skærmbeviser fra `/admin/email-templates` og `/indstillinger`; begge gav
+  «Siden findes ikke». Ruterne hedder `/admin/emails` og `/settings`
+  (`App.tsx:271`, `:269`) — chatten havde gættet stierne ud fra
+  komponentnavnene (`EmailTemplatesView`, `IndstillingerView`) i stedet
+  for at slå dem op. To NotFound-skærme lige efter en Update ligner en
+  tabt build, og et bevis der aldrig kunne tages, tæller som et bevis der
+  fejlede. Mål ruten i `App.tsx` (`path="…"`) FØR du beder om et
+  skærmbevis, og skriv stien fra filen, ikke fra komponentens navn. Samme
+  klasse som «Et funktionsnavn i overleveringen skal være mappens navn»
+  (DEL 2 «13. september» §16).
 
 ---
 
