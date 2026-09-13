@@ -1,6 +1,6 @@
 # Overlevering
 
-> ## 13/9 — START HER (skrevet 13/9 eftermiddag; opdateret 13/9 sen eftermiddag efter #826 og igen efter udrulningen kl. 14:20 UTC — og igen 13/9 aften efter bygning 3, og igen efter kort 40 og #833, og igen 13/9 aften efter oprydningen del 1 (#836) — HEAD `f23b9919` = #836, merget 13/9 kl. 17:08:09 UTC; prod målt kl. 14:01, `~/Downloads/query-results-export-2026-09-13_14-01-42.csv`)
+> ## 13/9 — START HER (skrevet 13/9 eftermiddag; opdateret 13/9 sen eftermiddag efter #826 og igen efter udrulningen kl. 14:20 UTC — og igen 13/9 aften efter bygning 3, og igen efter kort 40 og #833, og igen 13/9 aften efter oprydningen del 1 (#836), og igen 13/9 sen aften efter kort 56 (#837) og bogføringen af oprydningen (#838) — HEAD `32c7eb32` = #838, merget 13/9 kl. 17:35:45 UTC; prod målt kl. 14:01, `~/Downloads/query-results-export-2026-09-13_14-01-42.csv`)
 >
 > **Bevist i dag — doggybeds træk gik igennem.** Sektion `a_doggybed_traek`,
 > ordret: «betalt · in_1UF8tR3CvBmCx5PthFjFOjFc;a_doggybed_traek;2026-09-13T09:36:24.309794+00:00
@@ -68,7 +68,7 @@
 > (#833, §14) → brancheafsnittet GJORT (#834, §15) → oprydningen DEL 1
 > GJORT (#836, §16: run-weekly-agent slettet, digestens kode fjernet) →
 > oprydningen DEL 2: podcasten ud — og «Standardmål»-mærket, der er død
-> kode efter kort 40 → 56 → 76 → 82 → 57 → 29. **A4:** recon af hvordan linjen for en ny refleksion lukkes
+> kode efter kort 40 → 56 GJORT (#837, §17) → 76 BYGGET (#839, #840 — ikke bogført) → 82 → 57 → 29. **A4:** recon af hvordan linjen for en ny refleksion lukkes
 > (forslag 21).
 >
 > **Åbne beviser:** kort 60's tre (tjeklistens punkt på et medlems skærm;
@@ -268,13 +268,70 @@
 > tre omskrevet). **NB:** denne bogføring blev taget med i vindue A's
 > commit `3e3fd9ed` = **PR #837** (kort 56) kl. 19:27:10, fordi begge
 > vinduer delte index'et — forudsætningen «A skriver ikke» holdt ikke.
-> Genskabt og staged på main igen; se §16's sidste punkt.
+> Genskabt og staged på main igen; se §16's sidste punkt. **Udfald:** #837
+> blev merget 17:29:00 UTC med §16 om bord (docs +212/−9 og +37/−16 i
+> `146a1596`); resten af bogføringen (NB'en og fælden) gik som **PR #838**
+> «docs: oprydningen del 1 bogfoert, og index-faelden skete igen», `gh pr
+> view` ordret: mergedAt «2026-09-13T17:35:45Z», mergeCommit
+> «32c7eb32874e4ef77694b85f8c10ece1121d50d7» (+30/−1, +4/−0).
+>
+> **KORT 56 ER GJORT — HANDOUT-SIDEN LINKER TIL DE LEKTIONER DER HØRER
+> TIL (§17).** PR #837 «feat: handout-siden linker til de lektioner der
+> hoerer til (kort 56)», `gh pr view` ordret: mergedAt
+> «2026-09-13T17:29:00Z», mergeCommit
+> «146a159601bafdbbedf794a3473e4c0281fe1c92» (19:29:00 dansk). FEM filer:
+> tre egne (`HbHandoutDetail.tsx` +39, `lektionerForModul.ts` +58 og dens
+> test +86) og de to docs-filer fra §16 (index-fælden). tsc 0; tests 2961
+> → 2968 (192 → 193 filer; +7 = den nye testfil). Koblingen fandtes envejs
+> (`content_items.handout_module`, lektion → handout i ElementView); nu er
+> den vendt om som en DELT, ren motor — `lektionerForModul` (kun
+> publicerede, position så created_at), `lektionsSti` (ruten
+> `/akademiet/:area/:slug` ét sted) og `hoererTilTekst` (bøjer efter
+> antal) — fordi «Måske relevant for dig» skal bruge samme mapping. Fladen
+> genbruger cache-nøglen `["akademi","items"]` (ingen ny hentning); fejlet
+> ≠ tom (`sektionsfejlTekst`), nul lektioner viser intet. RLS afgør: en
+> legat-bruger får nul rækker (`har_aktivt_medlemskab` kræver `is_legat =
+> false`) og ser intet link — ikke en fejl. Prod-grundlag 11/9 kl. 11:43:
+> 14 elementer bærer et modul (overordnet 1, bogholderi 4, administration
+> 3, salg 3, marketing 3); 34 classroom-lektioner har intet. **BEVIST I
+> DRIFT:** Update klikket; Jonas 13/9 aften, ordret: «Det virker» (uden
+> skærmbillede, som klokkens link 11/9). **Opfølgning** (§17): ruten
+> bygges stadig inline syv steder ved siden af `lektionsSti` (nyt kort,
+> Lille); to forud-eksisterende eslint-fund i `HbHandoutDetail.tsx` ikke
+> rørt. Mangellisten 134 → 134 (kortet «Handout → lektion» FJERNET SOM
+> LØST; ét nyt; «Måske relevant for dig» omskrevet: motoren findes).
+>
+> **CALENDLY-PÅSTANDEN ER FALSIFICERET — MÅLT 13/9 KL. 21:30 (§18).** Ét
+> GET-kald med Jonas' personal access token mod
+> `/webhook_subscriptions?organization=…28fc12fd…&scope=organization`
+> gav HTTP 200 og ordret
+> `{"collection":[],"pagination":{"count":0,…}}`. Det beviser to ting:
+> Jonas' plan (standard, paid, ét medlem — recon F5) TILLADER webhooks,
+> og der findes NUL abonnementer på hans organisation; Mortens ligger på
+> HANS organisation og dækker kun den. Påstanden «reparationen kræver
+> Calendly premium» stod tre steder som kendsgerning (DEL 3-rækken,
+> mangellistens kort, `betaltSession.ts:15`) siden 3/9, begrundede
+> nedprioriteringen af hele Calendly-kæden i ti dage, og er grunden til at
+> Rallysupports mødedatoer blev sat i hånden 13/9 kl. 20:48 — uden at
+> nogen havde sendt kaldet. De to docs-steder er rettet (gammel ordlyd
+> står med «var»); kodekommentaren hører til A's bygning og skal med
+> dér. **Tilbage:** to hindringer i KODE (`calendly-webhook` filtrerer
+> `advisor = 'morten'` `:122`/`:157` og matcher på et id `stripe-webhook`
+> ikke indlejrer `:1351-1356`); signaturen er IKKE en hindring
+> (`signing_key` vælges selv — samme nøgle som Mortens kan bruges, men
+> den kendes ikke i klartekst); abonnementet på Jonas' organisation er
+> IKKE oprettet; A reconer (`recon-calendly-reparationen.md`, ikke læst).
+> **Sikkerhed:** tokenet (`webhooks:write`, `organizations:write`) blev
+> delt i chatten i klartekst og skal REVOKERES — Jonas er bedt om det.
+> Ny fælde i DEL 4: «En begrundelse for ikke at bygge skal måles som alt
+> andet.» **HEAD er nu `d31726e6`:** #839 og #840 (kort 76) er merget og
+> IKKE bogført her — de bogføres for sig.
 >
 > **12/9:** i repoet skete der INTET — #819 blev merget 11/9 kl. 10:55:26
 > UTC, og næste commit er ikke kommet. Om der skete noget i prod, Stripe
 > eller Lovable den 12/9: ikke målt, ikke bogført.
 >
-> Detaljen står i DEL 2 «13. september» (§1–§16).
+> Detaljen står i DEL 2 «13. september» (§1–§18).
 
 > ## 11/9 EFTERMIDDAG — START HER (dagen lukket; skrevet 11/9 eftermiddag efter #817, digestens slukning kl. 12:07 og målingerne 11:33, 11:43, 12:07 og 12:18)
 >
@@ -4414,7 +4471,7 @@ Kilde `recon-a4-forsidens-dom.md`.
   oprydningen (run-weekly-agent, digestens kode, podcasten ud) → 56 → 76 →
   82 → 57 → 29. A4: recon af hvordan linjen for en ny refleksion lukkes.
 
-### 13. september — doggybeds træk gik igennem (#563 og #572 bevist, #815 ubevist); stripe-webhook i ental og udrullet 12:04 UTC; kort 83 bygget og i drift (#820, merget 12:17:29 UTC, manage-advisor udrullet 12:18 UTC); /members bygning 1 FÆRDIG (#823, #824, #825 — merget 13:08:25, 13:33:58 og 13:54:51 UTC; panelet på skærm 15:38); bygning 2 LØST (#826, merget 14:13:00 UTC; fire funktioner udrullet 14:20 UTC); Guiden AFGJORT — dør i bygning 3, ankrene bliver; bygning 3 GJORT — /members og Guiden slettet (#828, merget 14:47:38 UTC; Update klikket; /members og /guide NotFound på skærm; manage-advisor udrullet 14:50 UTC); målt kl. 16:53 — sletningen fjernede intet i brug, NOTEN BEVIST I DRIFT, efterladenskaber fra tidligere sletninger fundet; kilderne fundet i A's recon; lækagen LUKKET (#830, merget 15:31:14 UTC) og udrullet 15:33 UTC; kort 40 GJORT — KPI-fallbacken fjernet helt (#832, merget 15:57:43 UTC; Update og skærmbevis åbne); branchelinjen på KPI-kortet fundet på skærmen kl. 18:00 — BESLUTTET: estimatet væk, forrige måneds eget tal i stedet — BYGGET (#833, merget 16:21:03 UTC) og BEVIST PÅ SKÆRM 18:26:57, som også beviser kort 40; brancheafsnittet MÅLT 18:28 (3 af 36 domme indenfor) og BESLUTTET: det dør — #833's værn låste afsnittet (1 af 2982 fejlede kl. 18:40), værnet omskrevet, og #834 MERGET 16:52:02 UTC (bar også del 3 af denne bogføring — index'et bar begge); Update klikket og BEVIST PÅ SKÆRM 18:58:00 — afsnittet er væk, siden går fra «MÅNED FOR MÅNED» direkte til «AI-ANALYSE»; oprydningen DEL 1 GJORT — run-weekly-agent slettet og digestens kode fjernet (#836, merget 17:08:09 UTC; run-company-agent udrullet 17:09 UTC; migrationen kørt; BEVIST PÅ SKÆRM 19:13:00 og 19:16:58) — «weekly_cron» i hvidlisten var en åben dør, ikke død kode
+### 13. september — doggybeds træk gik igennem (#563 og #572 bevist, #815 ubevist); stripe-webhook i ental og udrullet 12:04 UTC; kort 83 bygget og i drift (#820, merget 12:17:29 UTC, manage-advisor udrullet 12:18 UTC); /members bygning 1 FÆRDIG (#823, #824, #825 — merget 13:08:25, 13:33:58 og 13:54:51 UTC; panelet på skærm 15:38); bygning 2 LØST (#826, merget 14:13:00 UTC; fire funktioner udrullet 14:20 UTC); Guiden AFGJORT — dør i bygning 3, ankrene bliver; bygning 3 GJORT — /members og Guiden slettet (#828, merget 14:47:38 UTC; Update klikket; /members og /guide NotFound på skærm; manage-advisor udrullet 14:50 UTC); målt kl. 16:53 — sletningen fjernede intet i brug, NOTEN BEVIST I DRIFT, efterladenskaber fra tidligere sletninger fundet; kilderne fundet i A's recon; lækagen LUKKET (#830, merget 15:31:14 UTC) og udrullet 15:33 UTC; kort 40 GJORT — KPI-fallbacken fjernet helt (#832, merget 15:57:43 UTC; Update og skærmbevis åbne); branchelinjen på KPI-kortet fundet på skærmen kl. 18:00 — BESLUTTET: estimatet væk, forrige måneds eget tal i stedet — BYGGET (#833, merget 16:21:03 UTC) og BEVIST PÅ SKÆRM 18:26:57, som også beviser kort 40; brancheafsnittet MÅLT 18:28 (3 af 36 domme indenfor) og BESLUTTET: det dør — #833's værn låste afsnittet (1 af 2982 fejlede kl. 18:40), værnet omskrevet, og #834 MERGET 16:52:02 UTC (bar også del 3 af denne bogføring — index'et bar begge); Update klikket og BEVIST PÅ SKÆRM 18:58:00 — afsnittet er væk, siden går fra «MÅNED FOR MÅNED» direkte til «AI-ANALYSE»; oprydningen DEL 1 GJORT — run-weekly-agent slettet og digestens kode fjernet (#836, merget 17:08:09 UTC; run-company-agent udrullet 17:09 UTC; migrationen kørt; BEVIST PÅ SKÆRM 19:13:00 og 19:16:58) — «weekly_cron» i hvidlisten var en åben dør, ikke død kode; kort 56 GJORT — handout-siden linker til de lektioner der hører til (#837, merget 17:29:00 UTC; committen bar også §16 — index-fælden igen; Update klikket; Jonas: «Det virker»); bogføringen af oprydningen i mål som #838 (merget 17:35:45 UTC); CALENDLY-PÅSTANDEN FALSIFICERET kl. 21:30 — ét GET-kald, HTTP 200: planen rækker, nul abonnementer på Jonas' organisation; «kræver premium» stod tre steder i ti dage uden at nogen havde sendt kaldet
 
 Kilder: `~/Downloads/query-results-export-2026-09-13_14-01-42.csv` (prod,
 målt kl. 14:01, kolonner `noegle;sektion;vaerdi`, ordret),
@@ -6196,6 +6253,249 @@ her.
   index, og «A skriver ikke» er en påstand der skal måles med `git
   status` lige før `git add`, ikke antages.
 
+**17. Kort 56 — HANDOUT-SIDEN LINKER TIL DE LEKTIONER DER HØRER TIL: PR
+#837, merget 17:29:00 UTC; Update klikket; BEVIST I DRIFT — Jonas: «Det
+virker».** Kilder: `~/Downloads/verifikation-kort56.txt` (A's FIND FØRST
+mod HEAD `f23b9919`, BYG, rå slutlinjer), `~/Downloads/diff-kort56.txt`
+(den stagede kodediff, 225 linjer), reconen 11/9 (`recon-b2-indholdslaget.md`,
+gengivet på kortet), prod-målingen 11/9 kl. 11:43 (sektion
+`a_56_fordeling`, gengivet i «11. september, eftermiddag») og Jonas' ord
+13/9 aften.
+
+- **MERGET — PR #837 «feat: handout-siden linker til de lektioner der
+  hoerer til (kort 56)».** `gh pr view 837 --json mergedAt,mergeCommit`,
+  ordret:
+  «"mergeCommit":{"oid":"146a159601bafdbbedf794a3473e4c0281fe1c92"},"mergedAt":"2026-09-13T17:29:00Z"»
+  (19:29:00 dansk). Committen bar FEM filer, ikke tre (`git show
+  --numstat 146a1596`): `docs/OVERLEVERING.md` +212/−9,
+  `docs/mangelliste.html` +37/−16,
+  `src/components/hjemmebane/handouts/HbHandoutDetail.tsx` +39/−0,
+  `src/lib/hjemmebane/__tests__/lektionerForModul.test.ts` +86/−0,
+  `src/lib/hjemmebane/lektionerForModul.ts` +58/−0 — i alt +432/−25,
+  hvoraf koden er +183/−0 og docs +249/−25. De to docs-filer er §16
+  (oprydningen del 1), som vindue B havde staged på samme main — index-
+  fælden, bogført i §16's sidste punkt og i DEL 4. PR-teksten nævner kun
+  koden. Udfaldet af §16's «enten/eller»: #837 gik først, så main's kopi
+  af §16 faldt bort ved pull, og det der stod tilbage (NB'en og den
+  skærpede fælde) blev **PR #838** «docs: oprydningen del 1 bogfoert, og
+  index-faelden skete igen», ordret: mergedAt «2026-09-13T17:35:45Z»,
+  mergeCommit «32c7eb32874e4ef77694b85f8c10ece1121d50d7» (+30/−1,
+  +4/−0). A's rå slutlinjer: tsc «(ingen output) exit 0 — 0 fejl»; `bun
+  run test` «Test Files 193 passed (193) / Tests 2968 passed (2968)» mod
+  FØR 192 / 2961 — +1 fil, +7 tests = den nye testfil, ingen anden
+  forskel; `bunx eslint` på de tre filer: 1 error og 1 warning, BEGGE
+  forud-eksisterende på uændrede linjer (`:54` no-explicit-any på
+  `aiFeedback`, `:135` exhaustive-deps `companyId`) — ikke rørt.
+- **HVAD DER BLEV BYGGET — koblingen vendt om, som en DELT motor.**
+  Koblingen fandtes envejs: `content_items.handout_module` (TEXT,
+  nullable, CHECK på de fem moduler, ingen UNIQUE, ingen FK —
+  `20260805120000:21-25`) læses af `ElementView.tsx:270` (lektion →
+  handout, refleksionskortet med `Link to={/handouts?module=…}`) og
+  skrives af `ItemEditor.tsx:414` (admin-select); handout-siden
+  importerede intet fra `content_items`. Nu vendes den om. Motoren er
+  DELT og REN — kortets egen betingelse fra 11/9 («som en DELT funktion,
+  for «Måske relevant for dig» skal bruge samme mapping») — og bor i
+  `src/lib/hjemmebane/lektionerForModul.ts` uden supabase-kald: kataloget
+  gives ind. Tre funktioner: `lektionerForModul(rækker, modul)` — kun
+  `status === "published"` og `handout_module === modul`, sorteret på
+  `position` så `created_at` (kursets rækkefølge, som `akademiApi`);
+  tomt/ukendt/null-modul giver tom liste, og input muteres ikke.
+  `lektionsSti(area, slug)` — ruten `/akademiet/:area/:slug`
+  (`App.tsx:291`; nøglen er area+slug, aldrig id) ÉT sted. Og
+  `hoererTilTekst(antal)` — «Hører til lektionen» / «Hører til
+  lektionerne», null ved nul. Værnet: 7 tests i
+  `lektionerForModul.test.ts` (match og kun match; tom/ukendt/null; en
+  kladde og et arkiv bliver aldrig et link; sortering; ingen mutation;
+  stien; bøjningen). Modulnøglen på handout-siden er `config.module`
+  (`HandoutConfig.module: HandoutModule`, `handoutConfig.ts:1, :23`) —
+  samme fem værdier som CHECK-constrainten, 1:1.
+- **FLADEN — én linje under undertitlen, ingen ny hentning.**
+  `HbHandoutDetail.tsx`: `useQuery({ queryKey: ["akademi","items"],
+  queryFn: listPublishedItems })` i topblokken (`:70`, FØR `if (loading)`
+  `:177` — React #310-reglen), så handout-siden deler cachen med
+  Akademiet: nøglen bæres allerede af `useAkademiData.ts:39`,
+  `ProgressView.tsx:122` og `CommunityComposer.tsx:664`, og
+  `handout_module` følger med i `select("*")`. `useAkademiData()` blev
+  fravalgt: den koster fire queries (collections, items, joined,
+  progress); til én linje er den rene items-query nok (præcedens:
+  ProgressView, CommunityComposer). Linjen står under
+  «{subtitle} · {progress}% udfyldt» i samme typografi (`text-sm
+  text-hb-ink-soft`); flere lektioner vises alle, adskilt af «, » og
+  « og »; linket er `text-hb-evergreen` (husreglen — rust bærer allerede
+  fire betydninger). **Fejlet ≠ tom** (`hentefejl.ts:14-17` «TOM OG
+  FEJLET ER TO BESKEDER»): ved `isError` vises én stille linje
+  `sektionsfejlTekst("akademiet")` som i `ElementView.tsx:151` og
+  `OmraadeView.tsx:22`; nul lektioner viser intet. `listPublishedItems`
+  kaster ved fejl (`throwIfError`, `akademiApi.ts:40-43`), så fejlen når
+  `isError`. **RETTELSE af reconens ord:** reconen 11/9 kaldte
+  `listPublishedItems()` «ufiltreret» — den ER filtreret på
+  `status = 'published'` (`akademiApi.ts:59-67`); ufiltreret er den på
+  `handout_module` og `area`, og det var det reconen mente. Motoren
+  filtrerer alligevel selv på published, så formen holder uanset hvem der
+  leverer rækkerne.
+- **RLS AFGØR HVAD MEDLEMMET SER — legat får intet link, og det er
+  rigtigt.** Medlemmets SELECT på `content_items`
+  (`20260813100000:76-84`): `status = 'published' AND
+  (har_aktivt_medlemskab(auth.uid()) OR (har_aktivt_abonnement(auth.uid())
+  AND area = 'talks'))`; ingen senere migration rører policyen (grep i
+  `20260813153000`, `20260813160000`, `20260907141500`: tomt).
+  `har_aktivt_medlemskab` kræver `c.is_legat = false`
+  (`20260907141500_slutdagen_taeller_med.sql:54`), så en legat-bruger får
+  NUL rækker — ingen fejl, RLS filtrerer — og ser derfor intet link: ikke
+  en fejl, og ikke en fejlbesked om noget de ikke har adgang til.
+  Legat-brugeren når handout-siden som før: `handouts` er self-only
+  (`20260224071122:35-36`) plus advisor-bred (`:39-40`), company-bred
+  SELECT droppet `20260310194637:4`, ingen medlemskabsgate; HandoutsView
+  har sin egen «Legat-dag-oplåsning». En rådgiver der ser et medlems
+  handout, ser lektionerne (advisor-policyen). Drip: linket bygges uden
+  drip-kontekst; et dryp-låst element mødes af ElementViews låseskærm —
+  samme accepterede præcedens som `CommunityDokument.tsx:236-241`.
+- **PROD-GRUNDLAGET fra 11/9 kl. 11:43** (sektion `a_56_fordeling`,
+  gengivet ordret i «11. september, eftermiddag»): 14 elementer bærer et
+  modul med fem værdier — overordnet 1 (`start_her`), bogholderi 4,
+  administration 3, salg 3, marketing 3 (alle `classroom`). 34
+  classroom-lektioner har intet modul. Linjen viser altså kun det der er
+  mærket i `ItemEditor`; hvilke af de 34 der burde bære et modul, er et
+  redaktionelt valg (Jonas/Morten), ikke kode.
+- **BEVIST I DRIFT — uden skærmbillede.** Update klikket i Lovable, og
+  Jonas bekræftede 13/9 aften, ordret: «Det virker». Det står som bevis
+  uden skærmbillede, som klokkens link 11/9 («Det virker umiddelbart»,
+  «11. september, formiddag»). PR-teksten dikterede beviset: åbn et
+  handout hvis modul har lektioner (bogholderi 4, administration 3, salg
+  3, marketing 3) — linjen «Hører til lektionerne …» under undertitlen,
+  linket fører til `/akademiet/:area/:slug`.
+- **OPFØLGNING — det A fandt og lod stå.** *(1)* `lektionsSti` bærer
+  ruten ét sted, men KUN handout-siden kalder den (grep `lektionsSti` i
+  `src`: én kalder). Målt nu på HEAD `32c7eb32` (grep `/akademiet/${` i
+  `src`): element-ruten `/akademiet/${area}/${slug}` bygges stadig inline
+  SYV steder — `ForsideView.tsx:35` og `:134`, `HbItemRow.tsx:71`,
+  `HbKursusKort.tsx:56`, `CommunityDokument.tsx:245`,
+  `BoardroomView.tsx:1412`, `ElementView.tsx:318` — plus tre områderuter
+  `/akademiet/${areaKey}` (`ForsideView.tsx:67`, `KursusView.tsx:21`,
+  `ElementView.tsx:333`), som `lektionsSti` ikke dækker. A's verifikation
+  sagde «8 steder», PR-teksten «tre flader» — det målte tal er 7 + 3.
+  Ingen fejl i drift; men næste gang ruten ændres, skal den ændres otte
+  steder. Nyt kort, Lille: «Lektionsstien bygges inline syv steder ved
+  siden af `lektionsSti`». *(2)* De to forud-eksisterende eslint-fund i
+  `HbHandoutDetail.tsx` (`:54` `any` på `aiFeedback`, `:135`
+  exhaustive-deps `companyId` i `save`) er ikke rørt — de lå der før
+  kortet og hører til filens egen oprydning. *(3)* «Måske relevant for
+  dig» er motorens anden kalder: kortet er omskrevet med at mappingen nu
+  findes (`lektionerForModul(katalog, modul)`), så V1 kan kalde den
+  direkte. *(4)* Ingen test rører `HbHandoutDetail` eller læser
+  `content_items` direkte — værnet ligger på motoren, ikke på fladen
+  (som `drip.test.ts`, `itemProgressState.test.ts`, `hentefejl.test.ts`).
+- **Mangellisten 134 → 134:** kortet «Handout → lektion: det omvendte
+  link («Hører til …»)» FJERNET SOM LØST; ét nyt kort («Lektionsstien
+  bygges inline syv steder …», Drift, Lille); «Måske relevant for dig»
+  omskrevet (motoren findes); Status 11/9's «Fire på en time hver»:
+  handout → lektion mærket gjort. Tests: 2961 → 2968 (193 filer).
+- **FORUDSÆTNINGEN HOLDT IKKE — TREDJE GANG, men STOP-reglen virkede.**
+  Bogføringen af kort 56 begyndte med rent træ (`git status --short
+  --branch` = «## main...origin/main», HEAD `32c7eb32` = #838) og opgaven
+  sagde igen «Vindue A skriver ikke». `git status --short` kørt FØR `git
+  add -A`, ordret: « M docs/OVERLEVERING.md», « M docs/mangelliste.html»,
+  «?? src/lib/betaltSession.ts» — en tredje fil, untracked, som vindue A
+  var begyndt på imens (kort 76, næste i køen: filens hoved siger «Dommen
+  over de BETALTE 1:1-sessioner … kort 76, mangelliste «De betalte
+  1:1-sessioner stopper ved booking_sent»»). Målt igen to minutter senere:
+  « M src/components/hjemmebane/virksomhed/VirksomhedView.tsx», «??
+  src/lib/__tests__/betaltSession.test.ts», «?? src/lib/betaltSession.ts»
+  — A skrev videre mens B bogførte. Opgavens regel var
+  STOP, og den blev fulgt: INTET blev staged, `git add -A` blev ikke
+  kørt, og diffen til `~/Downloads/diff-bogfoering-kort56.txt` er
+  skrevet fra arbejdstræet (`git diff -- docs`), ikke fra index'et. Det
+  er første gang fælden blev fanget FØR den slog til; de to gange før
+  (#834, #837) blev den bogført bagefter. Reglen i DEL 4 står: mål med
+  `git status` lige før `git add`, og stage aldrig med `-A` når to
+  vinduer deler main.
+
+**18. Calendly-påstanden er FALSIFICERET — målt 13/9 kl. 21:30 med ét
+GET-kald: planen rækker, der findes intet webhook-abonnement på Jonas'
+organisation.** Kilder: målingen (Jonas' personal access token, chatten
+13/9 kl. 21:30 — 19:30 UTC), `~/Downloads/recon-de-tre-sessioner.md` F5
+(målt 13/9 kl. 20:57 via Calendly-MCP), `~/Downloads/maaling-calendly-webhook.md`
+(13/9 kl. 21:03 — signing key), koden ved HEAD `d31726e6`.
+`~/Downloads/recon-calendly-reparationen.md` (A's recon, i gang) er IKKE
+læst og lå ikke i ~/Downloads da dette blev skrevet.
+
+- **MÅLINGEN, ordret.** Kald mod Calendlys API med et personal access
+  token fra Jonas' konto:
+  `GET https://api.calendly.com/webhook_subscriptions?organization=https://api.calendly.com/organizations/28fc12fd-844f-4051-988e-9f60089f3aa0&scope=organization`
+  → HTTP 200. Svaret:
+  `{"collection":[],"pagination":{"count":0,"next_page":null,"next_page_token":null,"previous_page":null,"previous_page_token":null}}`.
+  Organisations-URI'en er den `users-get_current_user` gav 13/9
+  (`current_organization`, `maaling-calendly-webhook.md`).
+- **HVAD DET BEVISER.** *(1)* Jonas' Calendly-plan TILLADER webhooks: et
+  200 på webhook-endpointet med `scope=organization` afvises ikke af
+  planen. Organisationen «Topix.dk» er `kind: single`, `plan: standard`,
+  `stage: paid`, ét medlem (Jonas, owner) — reconens F5, målt 13/9 via
+  `organizations-get_organization` og `list_organization_memberships`;
+  Calendlys hjælpeside nævner Standard i plan-listen. *(2)* Der er NUL
+  webhook-abonnementer på Jonas' organisation (`count: 0`). Mortens
+  abonnement ligger på HANS organisation; et abonnement dækker kun sin
+  egen organisation, og Morten er ikke medlem af Jonas' (ét medlem). Det
+  er derfor Jonas' sessioner aldrig er kommet tilbage — ikke planen.
+- **PÅSTANDEN DER STOD SOM KENDSGERNING, tre steder.** «Reparationen
+  kræver Calendly-abonnement på premium» (DEL 3-rækken «Betalte
+  1:1-bookinger registreres aldrig som `booked`», fra 3/9 aften),
+  «reparationen kræver Calendly premium» (mangellistens kort «De betalte
+  1:1-sessioner stopper ved `booking_sent`», rettet 8/9) og
+  kodekommentaren `src/lib/betaltSession.ts:15` («Reparationen kræver
+  Calendly premium — nedprioriteret 3/9», #839). DEL 3-rækken henviste
+  til `recon-kontoskifte.md` og `recon-1til1-link.md`, som ikke længere
+  ligger i ~/Downloads — hvad påstanden byggede på, kan ikke ses (F5).
+  De to docs-steder er rettet i denne bogføring; den gamle ordlyd står
+  som historik med «var». **Kodekommentaren er IKKE rørt** — den hører
+  til A's bygning (kort 76, #839/#840) og skal med i A's næste ændring
+  af filen: linjen skal sige det målte, ikke «premium».
+- **KONSEKVENSEN.** Påstanden har begrundet nedprioriteringen af hele
+  Calendly-kæden siden 3/9 («Prioritet LAV, besluttet»), og den er grunden
+  til at Rallysupports mødedatoer (køb 23/6 og 30/6; «Event started 25
+  June at 09:45 (CEST)» og «1 July at 08:30 (CEST)») måtte sættes i
+  HÅNDEN 13/9 kl. 20:48 i stedet for at komme fra Calendly. Den blev
+  aldrig efterprøvet: beviset var ét GET-kald, som tog ét minut og
+  svarede 200. Reconen F5 (kl. 20:57) sagde «kan ikke bekræftes herfra —
+  planen ser tilstrækkelig ud, beviset mangler», og målingen kl. 21:03
+  stoppede uden at kunne sende kaldet (ingen nøgle lokalt, MCP'en har
+  intet webhook-værktøj); kl. 21:30 sendte Jonas det selv. Ny fælde i DEL
+  4: «En begrundelse for ikke at bygge skal måles som alt andet.»
+- **HVAD DER STÅR TILBAGE — åbent; A reconer nu.** *(a)* To hindringer
+  er KODE, ikke plan: `calendly-webhook` filtrerer på `advisor =
+  'morten'` (`.eq("advisor", "morten")` ved opdatering `:122` og
+  aflysning `:157`), og den matcher rækken via det booking-id som
+  `create-free-intro-booking` lægger i Calendly-URL'en
+  (`salesforce_uuid` + `utm_content`, `:162-163`; læses
+  `calendly-webhook:78`) — `stripe-webhook` skriver linket råt uden id
+  (`createCalendlySingleUseLink`, `:1351-1356`). *(b)* Signaturen er IKKE
+  en hindring: `signing_key` er et felt i POST-body'en og vælges af den
+  der opretter abonnementet — Calendly genererer den ikke
+  (`maaling-calendly-webhook.md`). Jonas' abonnement kan derfor bruge
+  SAMME nøgle som Mortens, og funktionen behøver hverken ny secret eller
+  ændret verifikation (`calendly-webhook:54` læser én secret,
+  `CALENDLY_WEBHOOK_SIGNING_KEY`). Mortens nøgle kendes dog ikke i
+  klartekst af os — den står som Supabase-secret hos Lovable, ikke i
+  repoet — åbent punkt; alternativet er en ny secret og en løkke over to
+  nøgler (`:54-67`). *(c)* Abonnementet skal oprettes på Jonas'
+  organisation (`POST /webhook_subscriptions`, `scope: organization`,
+  som med ét medlem er lig `scope: user`). IKKE gjort. *(d)* Detaljen
+  bliver A's `recon-calendly-reparationen.md`, når den ligger der.
+- **SIKKERHED — tokenet skal revokeres.** Et Calendly personal access
+  token med `webhooks:write` og `organizations:write` blev delt i
+  chatten i KLARTEKST 13/9 for at sende målingen. Jonas er bedt om at
+  revokere det (calendly.com → Integrations → API & Webhooks). Det står
+  her, så en senere gennemgang kan tjekke at det er sket; indtil det er
+  revokeret, kan enhver med chatteksten oprette og slette
+  webhook-abonnementer på organisationen.
+- **Mangellisten 134 → 134:** kortet «De betalte 1:1-sessioner stopper
+  ved `booking_sent`» omskrevet — blokeringen er ikke planen, men koden
+  plus et manglende abonnement; ingen fjernet, ingen tilføjet.
+- **Uden for denne bogføring:** HEAD er `d31726e6` — #839 «feat: de
+  betalte 1:1-sessioner vises som det de er (kort 76)» og #840 «fix:
+  betalingsdatoen er created_at, og tiden beviser afholdt — ikke
+  Calendlys URI» (commit-tider 17:52:16 og 18:33:55 UTC; `gh pr view`
+  ikke kørt) er merget og IKKE bogført her. Kort 76 bogføres for sig.
+
 ### Mailplatformen — bygget om af Lovable 8/9 kl. 06:52-06:58; afsenderne, fortegnelsen og værnet (#728, #730, #731, #732)
 
 **Hvad Lovable gjorde.** 19 commits direkte til main mellem kl. 06:52 og
@@ -6761,7 +7061,7 @@ facit og rækkefølge; `docs/chat-design.md` chattens form.
 | LØST 3/9 kl. 11:50–12:00 | **Adressen på de eksisterende virksomheder**: `berig-virksomheder` (#567) hentede den fra CVR for 26 af 30 aktive (før 1 af 30). Uden: tre uden CVR-nummer (Alexander Lund, Martin Larsen, Bastant Design) og YKRG, som registret ingen adresse har for. | indgangen-design §33 |
 | **ÅBEN BESLUTNING — betingelsen er opfyldt 13/9** (doggybeds træk gik igennem, `betalt` kl. 09:36:24 UTC); hvornår og i hvilke portioner er IKKE besluttet | **Migrationen af de 13** (billing_cycle_anchor, cancel_at, default_payment_method, YKRG's kort, kobling til companies.id). Var «efter 13/9»: de tretten ventede på trækket 13/9 (betingelsen fra 2/9). Ikke længere blokeret — en beslutning, ikke en bygning. Datarbejdet står (mangellisten «Platformen kan ikke se hvem der betaler»: 27 aktive med NUL `stripe_customer_id`, målt 10/9 aften; doggybed stadig NULL 13/9). | migration-recon §16, §25; DEL 2 «13. september» §1 |
 | målt 3/9 aften — VIRKER for medlemmet | **1:1-sessionernes Calendly-kæde efter kontoskiftet.** Målt i Stripe (MCP, livemode): `session_1on1` findes som præcis én aktiv pris på den nye konto (`price_1UApFg3CvBmCx5PtyGkNPRmm`, 500 kr. ekskl. moms; kunden betaler 625 kr. med `automatic_tax`); `abonnement_maanedlig` findes ligeledes (`price_1UApQx3CvBmCx5Pt8GxtQsze`, 399 kr.). Webhook-endpointet `we_1UAtaW3CvBmCx5PtL736lAJN` er enabled med seks events inkl. `checkout.session.completed` og peger på `loiavmastgeieqyiwyyr`. **Kæden virker for medlemmet:** to betalte 1:1-sessioner er booket OG afholdt (23/6 og 30/6, målt i Calendly 3/9 aften). Det der fejler, er registreringen — rækken nedenfor. | — |
-| bevidst nedprioriteret 3/9 aften — LAV | **Betalte 1:1-bookinger registreres aldrig som `booked`.** Målt 3/9 aften: **0 af 12 betalte bookinger har `calendly_event_uri`, mod 2 af 3 gratis.** Årsagen er tredelt: (1) `stripe-webhook` (linje 917 og 925) skriver Calendlys `booking_url` RÅT i `session_bookings.calendly_booking_url`, mens `create-free-intro-booking` (161–162) indlejrer bookingens id i URL'en (`salesforce_uuid` + `utm_content`), og `calendly-webhook` (75–80) matcher kun på dem; (2) `calendly-webhook` matcher desuden på `advisor = 'morten'` (l. 94, 129), og de betalte rækker er `'jonas'` (default, migration 20260621120000); (3) Jonas' Calendly-organisation har kun ét medlem, så Mortens webhook-abonnement kan ikke dække Jonas' events. **Prioritet LAV, besluttet:** det koster ikke medlemmet noget — de booker og mødes — og reparationen kræver Calendly-abonnement på premium. Det er nedprioriteret, ikke glemt. Ikke en følge af kontoskiftet; det har været sådan hele tiden. | `~/Downloads/recon-kontoskifte.md`, `recon-1til1-link.md` (uden for repoet) |
+| nedprioriteret 3/9 aften — **BEGRUNDELSEN FALSIFICERET 13/9 kl. 21:30** (ét GET-kald, HTTP 200: planen rækker, nul abonnementer på Jonas' organisation) | **Betalte 1:1-bookinger registreres aldrig som `booked`.** Målt 3/9 aften: **0 af 12 betalte bookinger har `calendly_event_uri`, mod 2 af 3 gratis.** Årsagen er tredelt: (1) `stripe-webhook` (linje 917 og 925) skriver Calendlys `booking_url` RÅT i `session_bookings.calendly_booking_url`, mens `create-free-intro-booking` (161–162) indlejrer bookingens id i URL'en (`salesforce_uuid` + `utm_content`), og `calendly-webhook` (75–80) matcher kun på dem; (2) `calendly-webhook` matcher desuden på `advisor = 'morten'` (l. 94, 129), og de betalte rækker er `'jonas'` (default, migration 20260621120000); (3) Jonas' Calendly-organisation har kun ét medlem, så Mortens webhook-abonnement kan ikke dække Jonas' events — et abonnement dækker kun sin egen organisation, og Morten er ikke medlem af Jonas'. **Prioritet LAV, besluttet 3/9:** det koster ikke medlemmet noget — de booker og mødes — og reparationen *var* «kræver Calendly-abonnement på premium». **Det holdt ikke — MÅLT 13/9 kl. 21:30** (DEL 2 «13. september» §18): `GET /webhook_subscriptions?organization=…28fc12fd…&scope=organization` med Jonas' token → HTTP 200, `"collection":[]`, `"count":0`. Planen (standard, paid) TILLADER webhooks; der findes bare INTET abonnement på Jonas' organisation. Blokeringen er kode plus et manglende abonnement: `calendly-webhook` filtrerer `advisor = 'morten'` (`:122`, `:157`) og matcher via det id som `create-free-intro-booking` lægger i URL'en (`:162-163`), som `stripe-webhook` ikke lægger (`:1351-1356`); signaturen er IKKE en hindring (`signing_key` vælges af den der opretter abonnementet). Abonnementet på Jonas' organisation er ikke oprettet. Påstanden begrundede nedprioriteringen i ti dage og er grunden til at Rallysupports mødedatoer blev sat i hånden 13/9 kl. 20:48. Ikke en følge af kontoskiftet; det har været sådan hele tiden. | `~/Downloads/recon-kontoskifte.md`, `recon-1til1-link.md` (uden for repoet) |
 | åbent | **Velkomstvideoen skal optages** (Morten). Pladsen er bygget; GUID'et sættes i /admin/config. Siden 3/9 (#569) kan fokuskortet åbne videoen via `#velkomst`, så velkomst-punktet ikke længere er en fælde den dag GUID'et sættes — beviset på skærm kommer først da. | recon-velkomstvideo, indgangen-overhaling §10 |
 | åbent | **Rundvisningen** — interaktiv førstegangs-oplevelse efter velkomsten; bygges efter C3-indflytningen; må aldrig eksistere ved siden af Guiden. | BACKLOG [P2·EPIC] Platform-onboarding |
 | EPIC, designet 3/9 aften | **Rådgiverfladens overhaling** — tages SAMLET, på størrelse med indgangen. Designsamtalen ER holdt 3/9 aften: designet er låst i `docs/raadgiverfladen-design.md` (fire flader, syv blokke, `companyId`-nøgling, chat ind på virksomhedssiden, emne-opsamling målt før flade), emnelisten i `docs/emneliste.md` (ni emner, to holdt udenfor). **Det der mangler før kode** (designets §10): emnelisten skal bevises ved klassificering af alle 588 menneskebeskeder i et idempotent engangsjob, og målingen skal holde; buckets' linkmål for `primary: "company"` (`AdvisorDashboard.tsx:1130–1134`) er ikke læst; hvilke `advisor_notifications.type`-værdier der findes; hvad de fire AI-edge-functions (`ai-financial-feedback`, `ai-data-chat`, `generate-ai-forecast`, `run-company-agent`/`agent-forslag-afgoer`) læser og skriver serverside; og den samlede rene funktion bag «hvad stikker ud» — det sidste er gjort (#589). **Byggeomkostnings-reconen er kørt 3/9 sen aften** (`~/Downloads/recon-byggeomkostning.md`, uden for repoet — genskabes hvis den bruges). Den viste: (1) en flytning er **tre skridt i fast rækkefølge**, målt på de fire der allerede er sket (KPI'er, Rapportering, Budget, Handouts): motoren udskilles først som ren flytning med tests; den gamle flade lægges om til motoren og fryses; derefter bygges den nye flade på en midlertidig route — og swappes til sidst ind på den GAMLE URL, fordi URL'er er kontrakter i mails og notifikationer. (2) **Handouts er det reneste facit**: `HandoutDetail` 381 linjer → `HbHandoutDetail` 385; `HandoutLeverItem` 89 → 89. Samme motor, UI-primitiver byttet — når datalaget er delt på forhånd, koster en flytning næsten intet i logik. (3) **Rådgiverfladen er dyrere end alle fire**, af grunde ingen af dem havde: datalaget skal vendes fra `user_id` til `company_id`, blokken «Aftalen» skal bygges fra `/members`-listen (findes ikke på MemberDetail), og to inline-domme skulle samles til én — det sidste er gjort (#589). (4) Der findes **ingen opskrift som dokument**; BACKLOG's fire GO-punkter er den de facto-tjekliste, med samme skabelon hver gang. (5) **Ombygningen betaler gæld tilbage**: `HandoutDetail`-trioen, `PeriodSelector`, `AIFinancialAnalysis` og `FileUploadZone` kan først pensioneres når MemberDetail konverteres; ni komponenter i `src/components/` har allerede nul importører. Medlemsskiftet er løst uafhængigt (#573). De tre reconer bag designet ligger uden for repoet (`~/Downloads/recon-raadgiverfladen-2.md`, `recon-virksomhedssiden.md`, `recon-emner.md`) og skal genskabes hvis de bruges. | `docs/raadgiverfladen-design.md` §9–10, `docs/emneliste.md` §7 |
@@ -7529,6 +7829,12 @@ De konkrete ting der har kostet tid. Led efter dem.
   holdt ikke. Før `git add -A`: kør `git status --short` og STOP hvis der
   står andet end dine egne filer; og commit-blokken skal altid læse `git
   diff --cached --stat` før den committer (DEL 2 «13. september» §16).
+  *Udfald:* #837 blev merget 17:29:00 UTC med §16 om bord (`146a1596`,
+  docs +212/−9 og +37/−16); resten gik som #838 (17:35:45 UTC). *Tredje
+  gang, fanget i tide:* kort 56's egen bogføring (§17) kørte `git status
+  --short` før `git add -A` og fandt `?? src/lib/betaltSession.ts` — vindue
+  A var i gang med kort 76 trods «A skriver ikke». STOP: intet staged,
+  diffen skrevet fra arbejdstræet. Reglen virker kun når den køres.
 - **En dom må ikke love mere end RLS giver.** Kort 60's første tælling
   brugte `status <> 'slettet'` og lovede at en tråd skjult af en rådgiver
   stadig tæller; medlemmets SELECT-policy viser kun `status = 'aktiv'`
@@ -7638,6 +7944,22 @@ De konkrete ting der har kostet tid. Led efter dem.
   skærmbevis, og skriv stien fra filen, ikke fra komponentens navn. Samme
   klasse som «Et funktionsnavn i overleveringen skal være mappens navn»
   (DEL 2 «13. september» §16).
+- **En begrundelse for ikke at bygge skal måles som alt andet.**
+  Påstanden «reparationen kræver Calendly premium» stod tre steder
+  (DEL 3-rækken, mangellistens kort, `betaltSession.ts:15`) i ti dage,
+  fra 3/9 til 13/9, formuleret som en kendsgerning, og afgjorde en
+  prioritering: hele Calendly-kæden for Jonas' sessioner blev sat LAV.
+  Ingen havde sendt kaldet. Da det endelig blev sendt (13/9 kl. 21:30:
+  `GET /webhook_subscriptions?organization=…&scope=organization` med
+  Jonas' token), tog det ét minut og svarede 200 med en tom liste —
+  planen rækker, der manglede bare et abonnement. Imens var Rallysupports
+  mødedatoer sat i hånden kl. 20:48. En blokering er også en påstand — og
+  en påstand der SPARER arbejde, bliver sjældnere efterprøvet end en der
+  koster, fordi ingen har lyst til at måle sig til mere arbejde. Reglen:
+  når noget nedprioriteres med en teknisk begrundelse, skal begrundelsen
+  have samme bevis som en bygning — et kald, en række, et skærmbillede —
+  og en kilde der kan slås op. Står der «kræver X» uden måling, er det en
+  hypotese og skal stå som en. (DEL 2 «13. september» §18)
 
 ---
 
