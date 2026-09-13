@@ -15,6 +15,7 @@ import { HbCard } from "../HbCard";
 import { HbSection } from "../HbSection";
 import { HbDialog } from "../milestones/HbOverlejring";
 import { HbField, HbInput, HbSelect } from "../admin/HbField";
+import { HbAnsoegningsimport, ImporterAnsoegningKnap } from "./HbAnsoegningsimport";
 
 /**
  * Invitationerne i det nye design (Jonas 9/9: «Invitationer skal være en del
@@ -139,6 +140,8 @@ export const InviterKnap = ({ companyId, virksomheder, label = "Inviter" }: {
 export const HbInvitationer = () => {
   const { user, isAdvisor } = useAuth();
   const query = useQuery({ queryKey: [...INVITATIONER_KEY], queryFn: hentInvitationer, enabled: !!user && !!isAdvisor, staleTime: 60_000 });
+  // Importpanelet (13/9): knappen står her ved siden af «Inviter», panelet lige under linjen — samme !harUdsnit-gate som sektionen.
+  const [importAaben, setImportAaben] = useState(false);
   const nu = new Date();
   const d = query.data;
   const tal = d ? invitationsTal(d.virksomheder.map((c) => c.id), d.alle, d.medlemmerPrVirksomhed) : null;
@@ -170,8 +173,12 @@ export const HbInvitationer = () => {
         <p className="text-sm text-hb-ink-soft">
           {query.isError ? raadgiverHentefejlTekst(query.error, "invitationerne") : tal ? invitationsTalTekst(tal) : "Henter…"}
         </p>
-        <InviterKnap virksomheder={d?.virksomheder} />
+        <div className="flex flex-wrap items-center gap-2">
+          <ImporterAnsoegningKnap aaben={importAaben} onClick={() => setImportAaben((v) => !v)} />
+          <InviterKnap virksomheder={d?.virksomheder} />
+        </div>
       </div>
+      <HbAnsoegningsimport aaben={importAaben} onLuk={() => setImportAaben(false)} />
       {d && (
         <HbCard className="px-5 py-1">
           {d.aabne.length > 0 ? (
