@@ -32,106 +32,28 @@ import { erKunde } from "@/lib/raadgiverensKunder";
 import { fejledeTraekPrVirksomhed, type FejletTraek } from "@/lib/traek";
 import { kraevRaekker } from "@/lib/kraevRaekker";
 import { importAdvarsel } from "@/lib/importensAdvarsel";
+import {
+  byggImportBody, parseAnsoegning, validerAnsoegning,
+  type AnsoegningsFelter, type Arkdata,
+} from "@/lib/ansoegningsimport";
 
-async function parseApplicationExcel(file: File): Promise<Partial<{
-  email: string; company_name: string; cvr_number: string; contact_name: string;
-  annual_revenue: string; revenue_interval: string; industry_label: string; current_situation: string;
-  goals: string; help_needed: string; website: string; phone: string;
-  contract_start_date: string; contract_end_date: string;
-}>> {
+/**
+ * Filen → rækker af celler (xlsx). Tolkningen af rækkerne — headerrække,
+ * kolonner, omsætning, datoer — bor i src/lib/ansoegningsimport.ts og er
+ * testet dér. Herinde kun det der kræver browseren: FileReader og xlsx.
+ */
+async function laesAnsoegningsfil(file: File): Promise<AnsoegningsFelter> {
   const XLSX = await import("xlsx");
   const { read, utils } = XLSX;
 
-  return new Promise((resolve, reject) => {
+  const rows = await new Promise<Arkdata>((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = (e) => {
       try {
         const data = new Uint8Array(e.target!.result as ArrayBuffer);
         const workbook = read(data, { type: "array" });
         const sheet = workbook.Sheets[workbook.SheetNames[0]];
-        const rows: any[][] = utils.sheet_to_json(sheet, { header: 1, defval: null });
-
-        let headerIdx = -1;
-        for (let i = 0; i < Math.min(rows.length, 15); i++) {
-          const nonNull = rows[i].filter(v => v != null);
-          if (nonNull.length > 5 && (nonNull.includes("Name") || nonNull.includes("Email"))) {
-            headerIdx = i;
-            break;
-          }
-        }
-        if (headerIdx === -1) { reject(new Error("Kunne ikke finde kolonneoverskrifter")); return; }
-
-        const headers: string[] = rows[headerIdx].map(h => String(h ?? ""));
-        const dataRow = rows[headerIdx + 1];
-        if (!dataRow) { reject(new Error("Ingen data fundet")); return; }
-
-        const get = (key: string) => {
-          const idx = headers.findIndex(h => h.toLowerCase().includes(key.toLowerCase()));
-          if (idx === -1) return "";
-          const val = dataRow[idx];
-          return val != null ? String(val).trim() : "";
-        };
-
-        let annualRevenue = "";
-        // Try exact annual revenue first (if founder filled it in)
-        const exactRev = get("Årlig omsætning");
-        const intervalRev = get("Omsætning (interval)");
-        const revRaw = exactRev || intervalRev;
-        if (revRaw) {
-          // Check if it's a clean number (exact revenue)
-          const cleanNum = parseFloat(revRaw.replace(/[\s.]/g, "").replace(",", "."));
-          if (!isNaN(cleanNum) && cleanNum > 0 && cleanNum < 100_000_000 && !revRaw.includes("-")) {
-            annualRevenue = String(Math.round(cleanNum));
-          } else {
-            // It's an interval — extract the two boundary numbers and take midpoint
-            const nums = revRaw.match(/[\d.]+/g)
-              ?.map(n => parseFloat(n.replace(/\./g, "")))
-              .filter(n => !isNaN(n) && n > 0 && n < 100_000_000);
-            if (nums && nums.length >= 2) {
-              annualRevenue = String(Math.round((nums[0] + nums[1]) / 2));
-            } else if (nums && nums.length === 1) {
-              annualRevenue = String(nums[0]);
-            }
-          }
-        }
-        // Store the raw interval string for the agent context
-        const revenueInterval = intervalRev && intervalRev !== exactRev ? intervalRev : null;
-
-        // Parse contract dates
-        const parseExcelDate = (raw: string | number | null | undefined): string | null => {
-          if (raw == null || raw === "" || raw === "nan") return null;
-          try {
-            // Numeric Excel serial date (days since 1900-01-01, with Lotus 1-2-3 leap year bug)
-            const num = typeof raw === "number" ? raw : parseFloat(String(raw));
-            if (!isNaN(num) && num > 1000 && num < 100000) {
-              const utc = new Date(Date.UTC(1899, 11, 30 + Math.floor(num)));
-              if (!isNaN(utc.getTime())) return utc.toISOString().slice(0, 10);
-            }
-            // ISO string or other parseable formats
-            const d = new Date(String(raw));
-            if (!isNaN(d.getTime())) return d.toISOString().slice(0, 10);
-            return null;
-          } catch { return null; }
-        };
-        const contractStart = parseExcelDate(get("Startdato"));
-        const contractEnd = parseExcelDate(get("End date"));
-
-        resolve({
-          email: get("Email"),
-          company_name: get("Name"),
-          cvr_number: get("CVR").replace(/\s/g, ""),
-          contact_name: get("Kontaktperson"),
-          annual_revenue: annualRevenue,
-          revenue_interval: revenueInterval || undefined,
-          industry_label: get("Branche"),
-          current_situation: get("Nuværende situation"),
-          goals: get("Mål med virksomhed"),
-          help_needed: get("Beskriv hvilken hjælp"),
-          website: get("Hjemmeside"),
-          phone: get("Telefon"),
-          contract_start_date: contractStart,
-          contract_end_date: contractEnd,
-        });
+        resolve(utils.sheet_to_json(sheet, { header: 1, defval: null }) as Arkdata);
       } catch (err) {
         reject(err);
       }
@@ -139,6 +61,8 @@ async function parseApplicationExcel(file: File): Promise<Partial<{
     reader.onerror = () => reject(new Error("Kunne ikke læse filen"));
     reader.readAsArrayBuffer(file);
   });
+
+  return parseAnsoegning(rows).felter;
 }
 
 const Members = () => {
@@ -578,58 +502,18 @@ const Members = () => {
   const allProfilesRaw = (membersData?.allProfiles || []) as any[];
 
   const handleImport = async () => {
-    if (!importForm.email || !importForm.company_name) {
-      toast.error("Email og virksomhedsnavn er påkrævet");
+    // Valideringen og body'en bor i src/lib/ansoegningsimport.ts (testet).
+    // Som før vises kun det første afslag.
+    const dom = validerAnsoegning(importForm);
+    if (dom.ok === false) {
+      const [foerste] = dom.fejl;
+      toast.error(foerste.tekst, foerste.detalje ? { description: foerste.detalje } : undefined);
       return;
-    }
-    if (importForm.cvr_number && !/^\d{8}$/.test(importForm.cvr_number.trim())) {
-      toast.error("CVR-nummer skal være præcis 8 cifre");
-      return;
-    }
-    if (!importForm.contract_end_date) {
-      toast.error("Kontraktslut er påkrævet");
-      return;
-    }
-    if (importForm.contract_start_date && importForm.contract_end_date) {
-      if (new Date(importForm.contract_end_date) <= new Date(importForm.contract_start_date)) {
-        toast.error("Kontraktslut skal være efter kontraktstart");
-        return;
-      }
-    }
-    if (importForm.contract_end_date) {
-      const endDate = new Date(importForm.contract_end_date);
-      const minDate = new Date("2020-01-01");
-      const maxDate = new Date();
-      maxDate.setFullYear(maxDate.getFullYear() + 5);
-      if (endDate < minDate || endDate > maxDate) {
-        toast.error("Kontraktslut ser forkert ud", {
-          description: `Datoen ${importForm.contract_end_date} er udenfor forventet interval (2020–${maxDate.getFullYear()})`,
-        });
-        return;
-      }
-    }
-    if (importForm.contract_start_date) {
-      const startDate = new Date(importForm.contract_start_date);
-      const minDate = new Date("2020-01-01");
-      const maxDate = new Date();
-      maxDate.setFullYear(maxDate.getFullYear() + 2);
-      if (startDate < minDate || startDate > maxDate) {
-        toast.error("Kontraktstart ser forkert ud", {
-          description: `Datoen ${importForm.contract_start_date} er udenfor forventet interval (2020–${maxDate.getFullYear()})`,
-        });
-        return;
-      }
     }
     setImporting(true);
     try {
       const { data, error } = await supabase.functions.invoke("import-application", {
-        body: {
-          ...importForm,
-          annual_revenue: importForm.annual_revenue ? Number(importForm.annual_revenue) : undefined,
-          revenue_interval: importForm.revenue_interval || undefined,
-          contract_start_date: importForm.contract_start_date || undefined,
-          contract_end_date: importForm.contract_end_date || undefined,
-        },
+        body: byggImportBody(importForm),
       });
       if (error) throw new Error(error.message || "Import fejlede");
       if (!data?.ok) {
@@ -1383,8 +1267,8 @@ const Members = () => {
                     if (!file) return;
                     setParsing(true);
                     try {
-                      const result = await parseApplicationExcel(file);
-                      setImportForm(f => ({ ...f, ...result }));
+                      const felter = await laesAnsoegningsfil(file);
+                      setImportForm(f => ({ ...f, ...felter }));
                       setParsed(true);
                     } catch (err: any) {
                       toast.error("Kunne ikke læse filen", { description: err.message });
@@ -1405,8 +1289,8 @@ const Members = () => {
                       if (!file) return;
                       setParsing(true);
                       try {
-                        const result = await parseApplicationExcel(file);
-                        setImportForm(f => ({ ...f, ...result }));
+                        const felter = await laesAnsoegningsfil(file);
+                        setImportForm(f => ({ ...f, ...felter }));
                         setParsed(true);
                       } catch (err: any) {
                         toast.error("Kunne ikke læse filen", { description: err.message });
