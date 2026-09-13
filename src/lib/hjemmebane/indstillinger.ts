@@ -201,7 +201,7 @@ export const EMAIL_INDSTILLINGER: readonly EmailIndstilling[] = [
   { noegle: "action_required", label: "Når dine tal venter på dig", beskrivelse: "Rapport klar til gennemsyn, eller en rapport vi ikke kunne læse." },
   { noegle: "important", label: "Opdateringer", beskrivelse: "Svar fra din rådgiver, nye opslag i Community og påmindelser om events." },
   { noegle: "report_reminders", label: "Rapportpåmindelser", beskrivelse: "Den 7., 15. og 20. i måneden — kun når en måned mangler." },
-  { noegle: "intro_reminders", label: "Din sparring med Morten", beskrivelse: "En påmindelse om den inkluderede sparring, indtil du har booket den." },
+  { noegle: "intro_reminders", label: "Session med Morten · inkluderet", beskrivelse: "En påmindelse om din inkluderede session med Morten, indtil du har booket den." },
 ];
 
 /** Nøgler der findes i gemte data men ikke længere vises — bevares uændret ved gem. */

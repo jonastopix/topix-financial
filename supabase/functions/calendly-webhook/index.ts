@@ -1,20 +1,21 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
-import { doemCalendlyEvent, genaabnerGratis } from "../_shared/calendlyWebhookDom.ts";
+import { doemCalendlyEvent, genaabnerRet } from "../_shared/calendlyWebhookDom.ts";
 
 // Bucket C: ekstern webhook fra Calendly. Signaturverifikation FOER parsing.
 // Modtager invitee.created / invitee.canceled, beviser beskeden aegte via HMAC-signatur,
 // laeser VORES booking-id ud (indlejret i booking_url som salesforce_uuid / utm_content) og
 // opdaterer session_bookings.
 //
-// TO SPOR, TO ABONNEMENTER, TO NOEGLER (13/9, recon-calendly-reparationen.md §5b):
-//   Mortens gratis intro  — abonnement i Mortens Calendly-org (oprettet 23/6), noeglen
+// TRE SPOR, TO ABONNEMENTER, TO NOEGLER (13/9, recon-calendly-reparationen.md §5b):
+//   Mortens inkluderede   — abonnement i Mortens Calendly-org (oprettet 23/6), noeglen
 //                           CALENDLY_WEBHOOK_SIGNING_KEY (navnet er arv; den er Mortens).
-//   Jonas' betalte 1:1    — abonnement i Jonas' org (oprettes EFTER denne kode er ude),
-//                           noeglen CALENDLY_WEBHOOK_SIGNING_KEY_JONAS.
-// Begge spor indlejrer raekkens id i linket (create-free-intro-booking hhv. stripe-webhook),
-// saa matchningen er ens; raekkens advisor styrer sideeffekterne (dommen i
-// _shared/calendlyWebhookDom.ts, testet). Foer 13/9 filtrerede UPDATE'erne paa
-// advisor='morten', saa Jonas' spor aldrig blev ramt — det filter er aabnet.
+//   Jonas' inkluderede    — abonnement i Jonas' org (oprettet 13/9 kl. 22:16, daekker hele
+//   Jonas' koebte            organisationen), noeglen CALENDLY_WEBHOOK_SIGNING_KEY_JONAS.
+// Alle tre spor indlejrer raekkens id i linket (create-free-intro-booking for de inkluderede,
+// stripe-webhook for det koebte), saa matchningen er ens; raekkens advisor + amount_dkk
+// styrer sideeffekterne (dommen i _shared/calendlyWebhookDom.ts, testet). Foer 13/9
+// filtrerede UPDATE'erne paa advisor='morten', saa Jonas' spor aldrig blev ramt — det
+// filter er aabnet.
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -192,21 +193,23 @@ Deno.serve(async (req: Request) => {
   }
 
   // dom.handling === "aflys": aegte aflysning. Hvem der aflyste OG hvilket spor raekken er
-  // paa afgoer den gratis (genaabnerGratis, testet):
-  //   host (Morten) aflyser Mortens gratis -> genaabn den gratis, det er ikke medlemmets skyld.
-  //   invitee (medlemmet) eller ukendt      -> den gratis forbliver brugt; genaabning er en admin-handling.
-  //   raekken er Jonas' betalte spor        -> ALDRIG genaabning (F4): en betalt session har ingen
-  //                                            gratis ret, og at nulstille Mortens ret herfra ville
-  //                                            give virksomheden en ekstra gratis.
+  // paa afgoer om en ret genaabnes (genaabnerRet, testet):
+  //   host aflyser Mortens inkluderede ('morten', 0) -> intro_session_used_at nulstilles.
+  //   host aflyser Jonas' inkluderede ('jonas', 0)   -> jonas_session_used_at nulstilles.
+  //   host aflyser Jonas' koebte ('jonas', > 0)      -> ALDRIG genaabning (F4): en koebt session
+  //                                                    har ingen ret, og at nulstille en ret herfra
+  //                                                    ville give virksomheden en ekstra inkluderet.
+  //   invitee (medlemmet) eller ukendt               -> retten forbliver brugt; genaabning er en
+  //                                                    admin-handling.
   // Advisor-filteret paa UPDATE'en er FLYTTET hertil (ikke fjernet): matchet er paa id alene,
-  // gaten laeser raekkens advisor, som select'en returnerer.
+  // gaten laeser raekkens advisor og amount_dkk, som select'en returnerer.
   const cancelerType = event?.payload?.cancellation?.canceler_type;
 
   const { data: cancelled, error } = await admin
     .from("session_bookings")
     .update({ status: "cancelled" })
     .eq("id", bookingId)
-    .select("id, company_id, advisor");
+    .select("id, company_id, advisor, amount_dkk");
 
   if (error) {
     console.error("[calendly-webhook] DB-fejl ved cancelled-opdatering, Calendly proever igen:", error);
@@ -214,22 +217,24 @@ Deno.serve(async (req: Request) => {
   }
 
   const ramt = cancelled && cancelled.length > 0 ? cancelled[0] : null;
-  if (ramt && genaabnerGratis({ cancelerType, advisor: ramt.advisor }) && ramt.company_id) {
-    // Host-aflysning af Mortens gratis: genaabn den paa virksomheden, saa medlemmet kan booke igen.
+  const ret = ramt ? genaabnerRet({ cancelerType, advisor: ramt.advisor, amount_dkk: ramt.amount_dkk }) : null;
+  if (ramt && ret && ramt.company_id) {
+    // Host-aflysning af en inkluderet session: genaabn retten paa virksomheden, saa medlemmet
+    // kan booke igen. Kolonnen vaelges af dommen — samme form for begge raadgivere.
     const { error: reopenError } = await admin
       .from("companies")
-      .update({ intro_session_used_at: null })
+      .update({ [ret]: null })
       .eq("id", ramt.company_id);
     if (reopenError) {
       console.error("[calendly-webhook] Host-aflysning: genaabning fejlede, Calendly proever igen:", reopenError);
       return json(500, { error: "reopen error" });
     }
-    console.log(`[calendly-webhook] invitee.canceled (host): booking ${bookingId} (morten) -> cancelled, gratis genaabnet.`);
+    console.log(`[calendly-webhook] invitee.canceled (host): booking ${bookingId} (${ramt.advisor}) -> cancelled, ${ret} genaabnet.`);
     return json(200, { received: true });
   }
 
-  // Invitee-aflysning, ukendt afsender eller Jonas' betalte spor: status cancelled, gratis uroert.
+  // Invitee-aflysning, ukendt afsender eller Jonas' koebte spor: status cancelled, retten uroert.
   // 0 rows (ukendt id) ignoreres bevidst -> 200.
-  console.log(`[calendly-webhook] invitee.canceled (${cancelerType ?? "?"}): booking ${bookingId} (${ramt?.advisor ?? "ingen raekke"}) -> cancelled. intro_session_used_at uroert.`);
+  console.log(`[calendly-webhook] invitee.canceled (${cancelerType ?? "?"}): booking ${bookingId} (${ramt?.advisor ?? "ingen raekke"}) -> cancelled. Ingen ret genaabnet.`);
   return json(200, { received: true });
 });

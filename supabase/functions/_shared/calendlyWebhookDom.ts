@@ -14,15 +14,26 @@
  *
  *   doemCalendlyEvent  — FØR nogen DB-adgang: event-type + rescheduled →
  *                        book / aflys / ignorér. Rækken er ikke læst endnu.
- *   genaabnerGratis    — EFTER aflysnings-UPDATE'en, som returnerer rækkens
- *                        advisor og company_id: canceler_type + rækkens
- *                        advisor → må den gratis genåbnes?
+ *   genaabnerRet       — EFTER aflysnings-UPDATE'en, som returnerer rækkens
+ *                        advisor, amount_dkk og company_id: canceler_type +
+ *                        rækkens spor → hvilken ret genåbnes (eller ingen)?
+ *                        genaabnerGratis (bool, Morten alene) er bevaret som
+ *                        den ældre form; handleren bruger genaabnerRet.
  *
- * Genåbnings-gaten: KUN canceler_type === "host" OG rækkens advisor ===
- * "morten". Rækkens advisor styrer sideeffekten — ikke payloaden — fordi
- * rækken er vores sandhed om hvilket spor bookingen hører til. Værten i
- * payloaden (created_by, event_memberships) logges kun (B7) indtil den er
- * målt mod en faktisk payload.
+ * Genåbnings-gaten: KUN canceler_type === "host" OG rækken er på et
+ * INKLUDERET spor. Rækkens advisor + amount_dkk styrer sideeffekten — ikke
+ * payloaden — fordi rækken er vores sandhed om hvilket spor bookingen hører
+ * til. Værten i payloaden (created_by, event_memberships) logges kun (B7)
+ * indtil den er målt mod en faktisk payload.
+ *
+ * TO RETTIGHEDER (13/9 aften, recon-de-tre-sessioner.md): medlemskabet
+ * indeholder én session med hver rådgiver. Mortens ret er
+ * companies.intro_session_used_at, Jonas' er companies.jonas_session_used_at
+ * (migration 20260913220000). genaabnerRet siger HVILKEN kolonne en
+ * host-aflysning nulstiller — eller null. Det købte Jonas-spor (amount_dkk
+ * > 0) har ingen ret og genåbner aldrig noget; det er samme række-form
+ * ('jonas') som det inkluderede, så amount_dkk er det der skelner (samme
+ * dom som lib/betaltSession.afgoerSessionSpor på fladen).
  *
  * Matchningen (booking-id fra payload.tracking) ligger IKKE her; den er
  * uændret i handleren (salesforce_uuid || utm_content, skal være UUID).
@@ -75,4 +86,31 @@ export interface GenaabningInput {
  */
 export function genaabnerGratis(i: GenaabningInput): boolean {
   return i.cancelerType === "host" && i.advisor === MORTEN_ADVISOR;
+}
+
+export const JONAS_ADVISOR = "jonas";
+
+/** Kolonnen paa companies der baerer en inkluderet rets «brugt»-stempel. */
+export type RetKolonne = "intro_session_used_at" | "jonas_session_used_at";
+
+export interface GenaabningRetInput extends GenaabningInput {
+  /** session_bookings.amount_dkk paa den ramte raekke. 0 = inkluderet; > 0 = koebt. */
+  amount_dkk: number | null | undefined;
+}
+
+/**
+ * Hvilken ret genåbnes efter denne aflysning? null = ingen.
+ *   host aflyser Mortens inkluderede ('morten', 0)  → intro_session_used_at
+ *   host aflyser Jonas' inkluderede  ('jonas', 0)   → jonas_session_used_at
+ *   host aflyser Jonas' KØBTE        ('jonas', > 0) → null — ingen ret at genåbne
+ *   invitee eller ukendt afsender                  → null; genåbning er en admin-handling
+ * amount_dkk mangler (null/undefined) → behandles som købt: ingen genåbning
+ * på et ufuldstændigt bevis.
+ */
+export function genaabnerRet(i: GenaabningRetInput): RetKolonne | null {
+  if (i.cancelerType !== "host") return null;
+  if (typeof i.amount_dkk !== "number" || i.amount_dkk > 0) return null;
+  if (i.advisor === MORTEN_ADVISOR) return "intro_session_used_at";
+  if (i.advisor === JONAS_ADVISOR) return "jonas_session_used_at";
+  return null;
 }

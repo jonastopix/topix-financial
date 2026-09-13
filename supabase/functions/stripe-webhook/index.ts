@@ -1400,20 +1400,20 @@ Deno.serve(async (req) => {
       type: "session_booked",
       priority: "important",
       title: "Din betaling er modtaget — book din session nu",
-      body: "Klik her for at vælge et tidspunkt til din 1:1 session med Jonas.",
+      body: "Klik her for at vælge et tidspunkt til din session med Jonas.",
       deep_link: "/book-session",
       dedup_key: `session_booked:${stripeSessionId}`,
     });
 
     // Send email with booking link
     if (userEmail) {
-      const subject = "Din 1:1 session med Jonas — vælg et tidspunkt";
+      const subject = "Din session med Jonas — vælg et tidspunkt";
       const html = `<div style="font-family:'Segoe UI',Arial,sans-serif;max-width:520px;margin:0 auto;background:#fff;border-radius:12px;overflow:hidden;border:1px solid #e5e7eb">
   <div style="background:#1a1a2e;padding:28px 32px;text-align:center">
     <span style="color:#fff;font-size:18px;font-weight:700;letter-spacing:0.5px">The Boardroom</span>
   </div>
   <div style="padding:32px">
-    <p style="color:#64748b;font-size:13px;margin:0 0 6px;text-transform:uppercase;letter-spacing:1px">1:1 Session · Jonas Herlev</p>
+    <p style="color:#64748b;font-size:13px;margin:0 0 6px;text-transform:uppercase;letter-spacing:1px">Session med Jonas · købt</p>
     <h1 style="color:#1a1a2e;font-size:22px;margin:0 0 20px;font-weight:700">Hej ${firstName} — tak for din betaling!</h1>
     <p style="color:#334155;font-size:15px;line-height:1.6;margin:0 0 24px">Din betaling er bekræftet. Brug linket herunder til at vælge et tidspunkt der passer dig. Linket er personligt og kan kun bruges én gang.</p>
     <div style="background:#f0fdf4;border-left:4px solid #22c55e;padding:14px 18px;border-radius:8px;margin:0 0 28px">

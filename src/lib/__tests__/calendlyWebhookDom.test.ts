@@ -12,6 +12,8 @@ import { describe, expect, it } from "vitest";
 import {
   doemCalendlyEvent,
   genaabnerGratis,
+  genaabnerRet,
+  JONAS_ADVISOR,
   MORTEN_ADVISOR,
 } from "../../../supabase/functions/_shared/calendlyWebhookDom.ts";
 
@@ -77,5 +79,73 @@ describe("genaabnerGratis — gaten på den gratis intro", () => {
       }
     }
     expect(sande).toEqual(["host/morten"]);
+  });
+});
+
+// ── To rettigheder (13/9 aften) ─────────────────────────────────────────────
+//
+// Medlemskabet indeholder én session med hver rådgiver. En host-aflysning af
+// en INKLUDERET session nulstiller rettens kolonne — Mortens
+// (intro_session_used_at) eller Jonas' (jonas_session_used_at). Det købte
+// Jonas-spor har samme advisor som det inkluderede; amount_dkk skelner.
+
+describe("genaabnerRet — hvilken ret en host-aflysning genåbner", () => {
+  it("host aflyser Mortens inkluderede → intro_session_used_at", () => {
+    expect(genaabnerRet({ cancelerType: "host", advisor: "morten", amount_dkk: 0 })).toBe("intro_session_used_at");
+    expect(MORTEN_ADVISOR).toBe("morten");
+  });
+
+  it("host aflyser Jonas' inkluderede → jonas_session_used_at", () => {
+    expect(genaabnerRet({ cancelerType: "host", advisor: "jonas", amount_dkk: 0 })).toBe("jonas_session_used_at");
+    expect(JONAS_ADVISOR).toBe("jonas");
+  });
+
+  it("host aflyser Jonas' KØBTE → ingen ret genåbnes (samme advisor som den inkluderede — prisen skelner)", () => {
+    expect(genaabnerRet({ cancelerType: "host", advisor: "jonas", amount_dkk: 500 })).toBeNull();
+    expect(genaabnerRet({ cancelerType: "host", advisor: "jonas", amount_dkk: 1 })).toBeNull();
+  });
+
+  it("invitee (medlemmet) aflyser → ingen ret genåbnes, uanset spor", () => {
+    expect(genaabnerRet({ cancelerType: "invitee", advisor: "morten", amount_dkk: 0 })).toBeNull();
+    expect(genaabnerRet({ cancelerType: "invitee", advisor: "jonas", amount_dkk: 0 })).toBeNull();
+  });
+
+  it("ukendt eller manglende canceler_type → ingen", () => {
+    for (const cancelerType of [undefined, null, "", "HOST", "system", 1]) {
+      expect(genaabnerRet({ cancelerType, advisor: "morten", amount_dkk: 0 })).toBeNull();
+      expect(genaabnerRet({ cancelerType, advisor: "jonas", amount_dkk: 0 })).toBeNull();
+    }
+  });
+
+  it("amount_dkk mangler (null/undefined) → ingen: et ufuldstændigt bevis genåbner ikke", () => {
+    expect(genaabnerRet({ cancelerType: "host", advisor: "morten", amount_dkk: null })).toBeNull();
+    expect(genaabnerRet({ cancelerType: "host", advisor: "jonas", amount_dkk: undefined })).toBeNull();
+  });
+
+  it("ingen række ramt eller ukendt advisor → ingen", () => {
+    expect(genaabnerRet({ cancelerType: "host", advisor: null, amount_dkk: 0 })).toBeNull();
+    expect(genaabnerRet({ cancelerType: "host", advisor: "Morten", amount_dkk: 0 })).toBeNull();
+    expect(genaabnerRet({ cancelerType: "host", advisor: "", amount_dkk: 0 })).toBeNull();
+  });
+
+  it("hele matricen: præcis (host, morten, 0) og (host, jonas, 0) genåbner — hver sin kolonne", () => {
+    const sande: string[] = [];
+    for (const cancelerType of ["host", "invitee", undefined]) {
+      for (const advisor of ["morten", "jonas", null]) {
+        for (const amount_dkk of [0, 500, null]) {
+          const ret = genaabnerRet({ cancelerType, advisor, amount_dkk });
+          if (ret) sande.push(`${cancelerType}/${advisor}/${amount_dkk}→${ret}`);
+        }
+      }
+    }
+    expect(sande).toEqual(["host/morten/0→intro_session_used_at", "host/jonas/0→jonas_session_used_at"]);
+  });
+
+  it("genaabnerGratis (den ældre bool) er enig med genaabnerRet om Mortens inkluderede", () => {
+    for (const cancelerType of ["host", "invitee", undefined]) {
+      for (const advisor of ["morten", "jonas", null]) {
+        expect(genaabnerGratis({ cancelerType, advisor })).toBe(genaabnerRet({ cancelerType, advisor, amount_dkk: 0 }) === "intro_session_used_at");
+      }
+    }
   });
 });

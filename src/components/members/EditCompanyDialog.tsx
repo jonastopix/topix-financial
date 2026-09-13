@@ -27,6 +27,10 @@ interface CompanyEditForm {
   website: string;
   slack_channel: string;
   intro_session_used: boolean;
+  /** Jonas' inkluderede session (13/9): companies.jonas_session_used_at —
+      søster til intro_session_used_at (Mortens). Samme mønster: afkrydsning
+      ↔ timestamp, hentet tidspunkt bevares ved gem. */
+  jonas_session_used: boolean;
   /** Gæst (kort #174, 10/9): companies.vis_i_netvaerk = false. Feltet blev
       før kun sat med SQL (migration 20260902110000). Vendt i formularen:
       «gæst» = ikke i Netværket. RLS: «Advisors can update all companies»
@@ -43,6 +47,7 @@ const EMPTY_FORM: CompanyEditForm = {
   website: "",
   slack_channel: "",
   intro_session_used: false,
+  jonas_session_used: false,
   gaest: false,
 };
 
@@ -53,6 +58,7 @@ const EditCompanyDialog = ({ open, onOpenChange, companyId, onSaved }: EditCompa
   const [form, setForm] = useState<CompanyEditForm>(EMPTY_FORM);
   // Bevar den hentede intro-timestamp, saa en almindelig gem aldrig flytter "hvornaar brugt".
   const [originalIntroAt, setOriginalIntroAt] = useState<string | null>(null);
+  const [originalJonasAt, setOriginalJonasAt] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -64,7 +70,7 @@ const EditCompanyDialog = ({ open, onOpenChange, companyId, onSaved }: EditCompa
     (async () => {
       const { data, error } = await supabase
         .from("companies")
-        .select("contract_start_date, contract_end_date, subscription_status, cvr_number, industry_label, website, slack_channel, intro_session_used_at, vis_i_netvaerk")
+        .select("contract_start_date, contract_end_date, subscription_status, cvr_number, industry_label, website, slack_channel, intro_session_used_at, jonas_session_used_at, vis_i_netvaerk")
         .eq("id", companyId)
         .maybeSingle();
       if (cancelled) return;
@@ -75,6 +81,7 @@ const EditCompanyDialog = ({ open, onOpenChange, companyId, onSaved }: EditCompa
       }
       const c = data as any;
       setOriginalIntroAt(c.intro_session_used_at ?? null);
+      setOriginalJonasAt(c.jonas_session_used_at ?? null);
       setForm({
         contract_start_date: c.contract_start_date?.slice(0, 10) || "",
         contract_end_date: c.contract_end_date?.slice(0, 10) || "",
@@ -84,6 +91,7 @@ const EditCompanyDialog = ({ open, onOpenChange, companyId, onSaved }: EditCompa
         website: c.website || "",
         slack_channel: c.slack_channel || "",
         intro_session_used: !!c.intro_session_used_at,
+        jonas_session_used: !!c.jonas_session_used_at,
         gaest: c.vis_i_netvaerk === false,
       });
       setLoading(false);
@@ -113,6 +121,12 @@ const EditCompanyDialog = ({ open, onOpenChange, companyId, onSaved }: EditCompa
         updates.intro_session_used_at = originalIntroAt || new Date().toISOString();
       } else {
         updates.intro_session_used_at = null;
+      }
+      // Jonas' inkluderede session: samme moenster paa soesterkolonnen.
+      if (form.jonas_session_used) {
+        updates.jonas_session_used_at = originalJonasAt || new Date().toISOString();
+      } else {
+        updates.jonas_session_used_at = null;
       }
       const { error } = await (supabase.from("companies").update(updates as any).eq("id", companyId) as any);
       if (error) throw error;
@@ -212,7 +226,18 @@ const EditCompanyDialog = ({ open, onOpenChange, companyId, onSaved }: EditCompa
                 onChange={(e) => setForm(f => ({ ...f, intro_session_used: e.target.checked }))}
                 className="h-4 w-4 rounded border-border"
               />
-              Gratis intro-session brugt
+              Session med Morten · inkluderet — brugt
+            </label>
+          </div>
+          <div>
+            <label className="flex items-center gap-2 text-xs font-medium text-foreground">
+              <input
+                type="checkbox"
+                checked={form.jonas_session_used}
+                onChange={(e) => setForm(f => ({ ...f, jonas_session_used: e.target.checked }))}
+                className="h-4 w-4 rounded border-border"
+              />
+              Session med Jonas · inkluderet — brugt
             </label>
           </div>
           <div>
