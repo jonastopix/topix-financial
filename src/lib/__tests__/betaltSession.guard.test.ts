@@ -8,6 +8,14 @@ import { resolve } from "node:path";
 // .eq("advisor", "morten"), og de betalte rækker blev læst ingen steder i
 // rådgiverfladen. Kildelæsning frem for import (varselStempel.guard-
 // mønstret): fladen er React/Supabase-kode.
+//
+// VÆRNET SKIFTEDE 13/9 aften: det låste før at «afholdt» krævede
+// calendly_event_uri. URI'en var kun porten fordi calendly-webhook plejede
+// at sætte den SAMMEN med tiden — og webhooken filtrerer Jonas' spor fra
+// (calendly-webhook:122, :157), så håndsatte rækker (Rallysupports to køb,
+// tid taget fra Calendly 13/9) aldrig får en. Beviset for «afholdt» er nu
+// TIDEN: slut_tid når den findes, ellers start_tid. Værnet låser samtidig
+// at URI-kravet ikke genindføres uden at ændre denne test med vilje.
 
 const FLADE = "src/components/hjemmebane/virksomhed/VirksomhedView.tsx";
 const DOM = "src/lib/betaltSession.ts";
@@ -21,8 +29,10 @@ describe("betaltSession.guard — virksomhedssiden", () => {
     expect(kilde).not.toContain('.eq("advisor", "morten")');
     expect(kilde).toContain("afgoerBetaltSession(");
     expect(kilde).toContain("betaltSessionTekst(");
-    // Dommen skal have det den dømmer på: pris, URI og webhookens stempel.
-    expect(kilde).toMatch(/select\("[^"]*amount_dkk[^"]*calendly_event_uri[^"]*updated_at[^"]*"\)/);
+    // Dommen skal have det den dømmer på (13/9): pris, status, tiden og
+    // betalingsdatoen (created_at — updated_at flyttes af triggeren ved
+    // enhver admin-rettelse, og calendly_event_uri læses ikke længere).
+    expect(kilde).toMatch(/select\("[^"]*\bstatus\b[^"]*amount_dkk[^"]*start_tid[^"]*slut_tid[^"]*created_at[^"]*"\)/);
   });
 
   it("fladen skriver ingen egen sessions-tekst — «afholdt» står kun i dommene", () => {
@@ -32,12 +42,20 @@ describe("betaltSession.guard — virksomhedssiden", () => {
     expect(jsxAfholdt).toEqual([]);
   });
 
-  it("dommen påstår kun «afholdt» bag calendly_event_uri", () => {
+  it("dommen påstår kun «afholdt» bag en tidsgrænse (slut_tid, ellers start_tid) — ikke bag calendly_event_uri", () => {
     const kilde = laes(DOM);
     const bookedGren = kilde.slice(kilde.indexOf('case "booked"'), kilde.indexOf('case "cancelled"'));
-    expect(bookedGren).toContain("if (!b.calendly_event_uri) return dom(\"betalt_link_sendt\")");
-    expect(bookedGren).toContain('dom("afholdt")');
+    // Grænsen er sluttiden når den findes, ellers starttiden — ingen opfundet varighed.
+    expect(bookedGren).toContain("const graense = slut ?? start;");
+    // Uden nogen tid beviser ordet booked intet: tilbage til «link sendt».
+    expect(bookedGren).toContain('if (graense == null) return dom("betalt_link_sendt");');
+    // «afholdt» kun når grænsen er passeret (nu >= grænse, som introSession.erAfholdt).
+    expect(bookedGren).toContain('if (graense.getTime() <= nu.getTime()) return dom("afholdt");');
+    // URI'en er IKKE længere porten — booked-grenen må ikke læse den.
+    expect(bookedGren).not.toContain("calendly_event_uri");
     // «afholdt» som tilstand tildeles ét sted i dommen: i booked-grenen.
     expect(kilde.split('dom("afholdt")').length - 1).toBe(1);
+    // Ingen anden gren når «afholdt» — den står kun mellem booked og cancelled.
+    expect(bookedGren).toContain('dom("afholdt")');
   });
 });
