@@ -107,21 +107,6 @@ export function harVelkomstvideo(configValue: unknown): boolean {
   return laesVelkomstvideoGuid(configValue) !== "";
 }
 
-// ─── KPI Default Benchmarks ──────────────────────────────────────────────────
-
-/** Kildeprincip (2026-08-05): source_label påstår aldrig mere end vi kan
-    dokumentere — ægte kilder angives m. navn + årstal; skøn hedder
-    Estimat, The Boardroom. Tallene er under faglig kuratering
-    (hb-branchetal-review.md). */
-export const KPI_DEFAULT_BENCHMARKS: Record<string, { value: number; label: string; source: string }> = {
-  omsaetning: { value: 150000, label: "150.000 DKK", source: "Estimat, The Boardroom" },
-  db_margin: { value: 55, label: "55%", source: "Estimat, The Boardroom" },
-  loenninger: { value: 60000, label: "60.000 DKK", source: "Estimat, The Boardroom" },
-  resultat: { value: 12000, label: "12.000 DKK", source: "Estimat, The Boardroom" },
-  omkostninger: { value: 90000, label: "90.000 DKK", source: "Estimat, The Boardroom" },
-  ebitda_margin: { value: 12, label: "12%", source: "Estimat, The Boardroom" },
-};
-
 // ─── Industry Benchmark Templates ────────────────────────────────────────────
 
 export interface BenchmarkTemplate {

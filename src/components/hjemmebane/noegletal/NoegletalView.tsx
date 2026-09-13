@@ -933,6 +933,8 @@ export const NoegletalView = () => {
                 const toneCls = tone.tone === "quiet" ? "text-hb-ink-soft" : "text-hb-rust";
                 // VIRKSOMHEDSSAT benchmark (samme data som panelet
                 // redigerer/gemmer) — kalibrerings-løkken lukker: sæt → se.
+                // Intet benchmark (nøglen fraværende, 13/9) → ingen linje;
+                // husets estimat er væk (useKpiBenchmarks).
                 const bench = benchmarksResolved[metric.key];
                 const benchLabel =
                   bench && bench.value > 0
@@ -940,6 +942,12 @@ export const NoegletalView = () => {
                       ? `${bench.value} %`
                       : formatCompact(bench.value)
                     : null;
+                const harMaal = tone.state !== "no_target";
+                // Forrige måneds eget tal (Jonas 13/9): changePct er null uden
+                // gyldigt M/M-grundlag (momErGyldig, kpiDefs) — så vises INGEN
+                // sammenligning, hverken tal eller forklaring; siden siger det
+                // allerede øverst (grundlags-tælleren) og i grafen.
+                const harMoM = metric.changePct != null;
                 return (
                   <button
                     key={metric.key}
@@ -956,23 +964,28 @@ export const NoegletalView = () => {
                     </p>
                     {/* Mål dømmer, benchmark oplyser — benchmark farver ALDRIG
                         toner, prikker eller domme; den er stille kontekst
-                        (ink-soft), uanset kortets tone. */}
-                    <p className="mt-0.5 text-xs">
-                      {tone.state !== "no_target" && <span className={toneCls}>{`mål ${metric.target}`}</span>}
-                      {tone.state !== "no_target" && metric.maalKilde === "standard" && <StandardmaalMaerke kompakt className="ml-1" />}
-                      {benchLabel && (
-                        <span className="text-hb-ink-soft">
-                          {tone.state !== "no_target" ? " · " : ""}branche {benchLabel}
-                        </span>
-                      )}
-                      {/* "—" (changePct null: intet gyldigt M/M-grundlag) er en
-                          ikke-dom og må aldrig arve målets rust-tone — den ville
-                          ligne et rødt tal. */}
-                      <span className={metric.changePct == null ? "text-hb-ink-soft" : toneCls}>
-                        {tone.state !== "no_target" || benchLabel ? " · " : ""}
-                        {metric.change}
-                      </span>
-                    </p>
+                        (ink-soft), uanset kortets tone. Sammenligningen med
+                        forrige måned bærer husets ord «M/M» (samme som
+                        FINANSIEL UDVIKLING og chattens skuffe), så tallet ikke
+                        læses som en afvigelse fra branchen. Intet at vise →
+                        ingen linje (samme regel som målene, #832). */}
+                    {(harMaal || benchLabel || harMoM) && (
+                      <p className="mt-0.5 text-xs">
+                        {harMaal && <span className={toneCls}>{`mål ${metric.target}`}</span>}
+                        {harMaal && metric.maalKilde === "standard" && <StandardmaalMaerke kompakt className="ml-1" />}
+                        {benchLabel && (
+                          <span className="text-hb-ink-soft">
+                            {harMaal ? " · " : ""}branche {benchLabel}
+                          </span>
+                        )}
+                        {harMoM && (
+                          <span className={toneCls}>
+                            {harMaal || benchLabel ? " · " : ""}
+                            {metric.change} M/M
+                          </span>
+                        )}
+                      </p>
+                    )}
                   </button>
                 );
               })}
