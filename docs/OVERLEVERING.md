@@ -1,6 +1,6 @@
 # Overlevering
 
-> ## 13/9 — START HER (skrevet 13/9 eftermiddag; opdateret 13/9 sen eftermiddag efter #826 og igen efter udrulningen kl. 14:20 UTC — og igen 13/9 aften efter bygning 3, og igen efter kort 40 og #833, og igen 13/9 aften efter oprydningen del 1 (#836), og igen 13/9 sen aften efter kort 56 (#837) og bogføringen af oprydningen (#838), og igen 13/9 sen aften efter Calendly-kæden (#842), og igen 13/9 sen aften efter den inkluderede session med Jonas (#844) og reconen «efter sessionen» — HEAD `7ba2a3b1` = #844, merget 13/9 kl. 20:42:15 UTC; prod målt kl. 14:01, `~/Downloads/query-results-export-2026-09-13_14-01-42.csv`)
+> ## 13/9 — START HER (skrevet 13/9 eftermiddag; opdateret 13/9 sen eftermiddag efter #826 og igen efter udrulningen kl. 14:20 UTC — og igen 13/9 aften efter bygning 3, og igen efter kort 40 og #833, og igen 13/9 aften efter oprydningen del 1 (#836), og igen 13/9 sen aften efter kort 56 (#837) og bogføringen af oprydningen (#838), og igen 13/9 sen aften efter Calendly-kæden (#842), og igen 13/9 sen aften efter den inkluderede session med Jonas (#844) og reconen «efter sessionen», og igen 13/9 sen aften efter ansøgningssporet, webinarets tidsramme og kort 29's recon — HEAD `e99019c5` = #847, merget 13/9 kl. 21:24:30 UTC; prod målt kl. 14:01, `~/Downloads/query-results-export-2026-09-13_14-01-42.csv`)
 >
 > **Bevist i dag — doggybeds træk gik igennem.** Sektion `a_doggybed_traek`,
 > ordret: «betalt · in_1UF8tR3CvBmCx5PthFjFOjFc;a_doggybed_traek;2026-09-13T09:36:24.309794+00:00
@@ -403,14 +403,60 @@
 > sessioner, og platformen ved kun at de fandt sted. IKKE afgjort om der
 > skal bygges noget — nyt kort «En afholdt session efterlader intet
 > spor»; `advisor_session_notes` sat på slettelisten. Mangellisten 133 →
-> 135. **HEAD er `7ba2a3b1` = #844.** Vindue A retter kortenes tekster
-> (uncommitted i `BookSessionView.tsx`).
+> 135. **HEAD er `e99019c5` = #847** (siden #844: #845 teksterne på Book
+> session, merget 21:02:21 UTC; #846 bogføringen af §20–§21, 21:07:34 UTC;
+> #847 kort 82 — platformconfigs tre døde dele slettet, 21:24:30 UTC.
+> Kort 82 er IKKE bogført i denne fil endnu; kortet står i mangellisten).
+>
+> **WEBINARET 22/9 — TIDSRAMMEN DER ÆNDRER PRIORITERINGEN (§22).** Jonas
+> 13/9, ordret: «Den 22. september, altså om ni dage, afholder vi et
+> webinar, og jeg regner med, at der kommer ca. 350 tilmeldte. Vi ved fra
+> tidligere data, at ca. 40% møder op, og at de 40%, der møder op, regner
+> vi med næsten 10% ansøger. Så vi kan måske forvente et sted mellem 10 og
+> 15 ansøgere, hvis alt går godt.» Og: «hvis alt går vel, så har vi inden
+> for de næste fjorten dage minimum fem nye ansøgere eller medlemmer på
+> vores platform, og dem skal vi tage godt imod. Vi skal selvfølgelig have
+> en onboarding, der spiller.» Konsekvens: kortene sorteres efter hvad en
+> NY ansøger møder de første fjorten dage — ikke efter hvad der står
+> øverst. A reconer det (`~/Downloads/recon-de-nye-medlemmer.md` — ikke
+> skrevet endnu ved denne bogføring, ikke læst). Jonas RETTEDE chattens
+> vurdering af SoMe-deling: nyheden er OPTAGELSEN («det er faktisk en stor
+> ting for mange at få lov til at blive medlem»), og den er stærkest i
+> samme uge — ikke efter oplevet værdi i uge 2–4, som chatten havde
+> antaget og placeret lavt.
+>
+> **NYT STORT SPOR — ANSØGNINGSPROCESSEN IND PÅ PLATFORMEN (§23, DEL 3
+> øverst).** Jonas 13/9 sen aften: «Jeg kunne godt tænke mig, at noget af
+> det næste, man får kigget ind i også, det er, at hele
+> ansøgningsprocessen, den bliver bygget op i vores egen platform i stedet
+> for i Monday.» Afklaringssamtale / afvis / følg op om X måneder;
+> genåbning når en plads bliver ledig; aftalegrundlag → «godkendt» →
+> betalingslink → medlemskab; påmindelser på bookinglinket dag 2, 5 og 10;
+> tracking af leads fra Meta. Det meste EFTER godkendelsen findes
+> (chattens læsning, ikke en måling): Calendly-kæden (§19),
+> `import-application`, `company_betalingslink` med 30-dages frist,
+> `indgangs-paamindelser-cron`, `intro-reminder-cron` som eksempel på en
+> påmindelseskæde der virker. Det der mangler er selve ansøgningen og alt
+> før godkendelsen. **BESLUTTET 13/9: bygges IKKE før webinaret — det
+> holder til efter.** Kræver først en recon af hvad Monday faktisk gør i
+> dag.
+>
+> **KORT 29 («Fra budget») ER RECONNET — IKKE KLAR TIL AT BYGGES (§24).**
+> `~/Downloads/recon-kort29.md`: præmissen holder (intet bygget, kort 40
+> indfriet, budgettet er månedligt, `budgetNoegleFor` findes og er
+> testet), men to spørgsmål mangler svar: ENHEDEN (prod-målingen 11/9
+> talte nøglen `loenninger`; koden kobler pr. GRUPPE — `saas_b2b` har
+> ingen `loenninger`, importerede budgetter bærer egne nøgler; samme fælde
+> som kort 76) og FORMLEN (ingen afvigelsesfunktion på KPI-niveau, tre
+> forskellige domme i huset). Bygges ikke før de to er afgjort. Tre
+> bifund som nyt kort («Budgettets tre skjulte fejl»). Mangellisten 135 →
+> 136.
 >
 > **12/9:** i repoet skete der INTET — #819 blev merget 11/9 kl. 10:55:26
 > UTC, og næste commit er ikke kommet. Om der skete noget i prod, Stripe
 > eller Lovable den 12/9: ikke målt, ikke bogført.
 >
-> Detaljen står i DEL 2 «13. september» (§1–§21).
+> Detaljen står i DEL 2 «13. september» (§1–§24).
 
 > ## 11/9 EFTERMIDDAG — START HER (dagen lukket; skrevet 11/9 eftermiddag efter #817, digestens slukning kl. 12:07 og målingerne 11:33, 11:43, 12:07 og 12:18)
 >
@@ -6965,6 +7011,168 @@ Rallysupport og ANLA GLAS) er IKKE kørt.
   skrivere, kun sletteren `companyHardDelete.ts:167`) — ikke sat på
   slettelisten i denne runde, kun noteret her.
 
+**22. WEBINARET 22/9 — TIDSRAMMEN DER ÆNDRER PRIORITERINGEN. Skrevet
+13/9 sen aften; ingen kode.** Jonas 13/9, ordret: «Den 22. september,
+altså om ni dage, afholder vi et webinar, og jeg regner med, at der
+kommer ca. 350 tilmeldte. Vi ved fra tidligere data, at ca. 40% møder
+op, og at de 40%, der møder op, regner vi med næsten 10% ansøger. Så vi
+kan måske forvente et sted mellem 10 og 15 ansøgere, hvis alt går godt.»
+Og: «hvis alt går vel, så har vi inden for de næste fjorten dage minimum
+fem nye ansøgere eller medlemmer på vores platform, og dem skal vi tage
+godt imod. Vi skal selvfølgelig have en onboarding, der spiller.»
+- **Regnestykket, skrevet ud** (Jonas' tal, ikke målt her): 350 tilmeldte
+  × 40 % = 140 fremmødte; 140 × «næsten 10 %» ≈ 10–15 ansøgere; «minimum
+  fem» nye ansøgere eller medlemmer inden for fjorten dage fra 22/9,
+  dvs. senest omkring 6/10.
+- **Hvad det ændrer:** kortene sorteres efter hvad en NY ansøger møder de
+  første fjorten dage — ansøgningen (i dag Monday), afklaringssamtalen,
+  aftalegrundlaget, betalingslinket, signup, ankomsten, tjeklisten,
+  første upload, første rapport, første session — ikke efter hvad der
+  står øverst på listen. A reconer det nu
+  (`~/Downloads/recon-de-nye-medlemmer.md` — filen fandtes ikke ved
+  denne bogføring; ikke læst).
+- **RETTELSE af chattens vurdering — SoMe-deling.** Chatten havde
+  antaget at et medlem først deler efter oplevet værdi (uge 2–4) og
+  placerede delings-kortet lavt i de fjorten dage. Jonas 13/9, ordret:
+  «i og med at Morten er et kendt navn, så er der mange, der vil have
+  lyst til at skrive på deres LinkedIn, at de har fået Morten som
+  rådgiver i deres virksomhed, bare ved at blive medlem. Det er jo ikke
+  alle, der kan blive medlem. Man skal udvælges, man skal sende en
+  ansøgning, og man skal godkendes på en afklaringssamtale. Så det er
+  faktisk en stor ting for mange at få lov til at blive medlem.»
+  Nyheden er OPTAGELSEN, og den er stærkest i samme uge. Delings-kortet
+  («medlem af The Boardroom», V1) hører derfor til i det en ny ansøger
+  møder de første fjorten dage, ikke bagefter. Kortet i mangellisten
+  bærer rettelsen.
+- **Sammenhæng med det der allerede er datosat:** 22/9 er også PHILBERTs
+  varsel 2 (fornyelseskæden) og «første rigtige periode på /settings»
+  (DEL 3). Indgangens kæde har aldrig haft en rigtig virksomhed (nul
+  rækker i `company_betalingslink`, målt 7/9) — de første ansøgere fra
+  webinaret bliver beviset for hele kæden fra «Godkendt» til adgang.
+
+**23. NYT STORT SPOR — ANSØGNINGSPROCESSEN IND PÅ PLATFORMEN. Skrevet
+13/9 sen aften i Jonas' egne ord; ingen kode. BESLUTTET: ikke før
+webinaret.** Jonas 13/9 sen aften, ordret: «Jeg kunne godt tænke mig, at
+noget af det næste, man får kigget ind i også, det er, at hele
+ansøgningsprocessen, den bliver bygget op i vores egen platform i stedet
+for i Monday. Det ville jo give nogle helt andre muligheder at lave en
+rigtig lækker ansøgningsformular, som er visuelt overskuelig og lækker
+at gå igennem. Og så har vi ligesom al viden om virksomhederne allerede
+fra start.»
+- **Flowet, som Jonas beskriver det:**
+  - Nogle ansøgere skal tilbydes en AFKLARINGSSAMTALE med Jonas (i dag et
+    Calendly-link fra Monday).
+  - Nogle skal AFVISES.
+  - Nogle skal FØLGES OP PÅ om X måneder.
+  - «hvis vi for eksempel afviser nogen på en branche eller hvad det
+    måtte være eller en niche, jamen så skal vi selvfølgelig kunne åbne
+    op for dem eller kontakte dem igen når der så bliver en plads ledig».
+  - Efter afklaringssamtalen underskrives et aftalegrundlag/en kontrakt.
+  - Når den er underskrevet, sættes i dag status «godkendt» i Monday, og
+    platformen opretter virksomheden på den godkendelse. De får et
+    betalingslink, og når det er betalt, starter medlemskabet.
+  - PÅMINDELSER på booking-linket: «Hvis ikke de har booket inden for to
+    dage, så får de en påmindelse. Hvis ikke de har booket inden for fem
+    dage, så får de en påmindelse. Hvis ikke de har booket inden for ti
+    dage, så får de en sidste påmindelse.» — «alle de her flows skal der
+    selvfølgelig være styr på, så vi ikke taber ansøgere i det.»
+  - TRACKING: «det er jo leads for os i forhold til vores annoncering på
+    Meta og så videre. Så hele tracking delen og datadelen skal der være
+    sindssygt meget styr på.»
+  - «Det kræver jo, at der er styr på tracking og sådan nogle ting også»
+    og «Det kræver en grundig overvejelse. Det kræver at have styr på,
+    hvilke mails der skal sendes hvornår.»
+- **Hvad der ALLEREDE findes af delene — chattens læsning 13/9, IKKE en
+  måling:** Calendly-kæden er lukket siden 13/9 kl. 22:16 dansk (§19:
+  webhook-abonnement på Jonas' organisation, `state: active`; en rigtig
+  booking er ubevist). `import-application` opretter virksomheder
+  (`opretEllerGenbrugVirksomhed` i `_shared/virksomhedsOprettelse.ts`);
+  `monday-webhook` gør det samme på «Godkendt» og sætter prisniveau,
+  betalingstoken og dag 0-mail. `company_betalingslink` bærer indgangen
+  med 30-dages frist fra underskriften (`20260902140000`, «Fristen er
+  kontraktens»). `indgangs-paamindelser-cron` (0 10 \* \* \*) sender
+  påmindelserne på BETALINGEN (dag 14, dag 25, dag 31-faktura).
+  `intro-reminder-cron` er et eksempel på en påmindelseskæde der allerede
+  virker (`onboardingRytme.ts`). Det der MANGLER er selve ansøgningen og
+  alt før godkendelsen: formularen, ansøger-databasen med tilstand
+  (afklaringssamtale / afvist / følg op om X måneder / genåbnet),
+  bookinglinkets påmindelser dag 2, 5 og 10, aftalegrundlaget, og
+  lead-tracking mod Meta.
+- **BESLUTTET 13/9: sporet bygges IKKE før webinaret 22/9 — det holder
+  til efter.** Det kræver en recon af hvad Monday faktisk gør i dag
+  (boardet Ansøgninger: kolonner, statusser, automatiseringer,
+  Calendly-linket, mails og deres timing), før sporet kan beskrives.
+  Mangellistens kort «Ansøgningsflowet skal flyttes til platformen»
+  (Indgangen) er pladsholderen og peger hertil; sporet er for stort til
+  et kort. Mondays flow er gennemtænkt og skal læres af, ikke kasseres
+  (kortets egen sætning, står).
+- **Hører sammen med:** niche-eksklusiviteten («Du møder aldrig din
+  konkurrent» — «konkurrentfelt» findes ikke i data; genåbning «når en
+  plads bliver ledig» forudsætter at pladsen/nichen er et felt),
+  affiliate («henvist af» på ansøgningen), og kortet om ansøgningen
+  sammenfattet med AI (`import-application`s enrichment).
+
+**24. KORT 29 («Fra budget» som målkilde på Nøgletal) ER RECONNET — IKKE
+KLAR TIL AT BYGGES. `~/Downloads/recon-kort29.md`, 13/9 sen aften; HEAD
+`cecf1f61` ved målingen; ingen kode.**
+- **Præmissen holder:** «Fra budget» er ikke bygget (0 træf som UI-tekst
+  i `src/`); det gamle `KPIs.tsx` (slettet i `bf9e4836`) brugte
+  kalenderårets sum/12 for omsætning og EBITDA; kort 40 er indfriet
+  (#832), så rangordenen er «budget > aftalt > intet» — `MaalKilde` er
+  stadig `"aftalt" | "standard"`, men «standard» produceres ikke
+  (`kpiMaal.ts:24-31`). Budgettet ER månedligt (`period =
+  "YYYY-base-{0..11}"`, `budgetEngine.ts:21`), så ingen fordelingsregel
+  er nødvendig, og `budgetNoegleFor("2026-07") → "2026-base-6"` findes
+  og er testet (`budgetSignalInput.ts:34-41`). Nøgletal viser senestes
+  tal uden periode-etiket (`NoegletalView.tsx:647-668`) — holder.
+- **Spørgsmål 1 — ENHEDEN (samme fælde som kort 76: en recon måler det
+  den bliver bedt om).** Prod-målingen 11/9 («loenninger;6 virksomheder
+  | 72 rækker») talte nøglen `loenninger`. Men koden kobler budget til
+  rapportfelt PR. GRUPPE, ikke pr. nøgle (`GROUP_TO_REPORT_FIELD`,
+  `budgetEngine.ts:296-310`; spor3-design §2 B1 — nøgle-opslag blev
+  prøvet og forkastet 24/8: «27 af 44 skabelon-keys manglede og alle
+  importerede linjer stod ukoblede»). Skabelonen `saas_b2b` har INGEN
+  nøgle `loenninger` — den har `loenninger_dev`, `loenninger_salg`,
+  `loenninger_admin` (`budgetTemplates.ts:145-147`); `service_b2b` har
+  også `uddannelse` i personale; importerede budgetter bærer medlemmets
+  egne nøgler + en `__group__`-markør (`importSkrivning.ts:416-440`). Et
+  nøgle-opslag overser dem alle. Omsætning holder, fordi alle otte
+  skabeloner har præcis én indtægtsnøgle `omsaetning` — det er derfor
+  forsidens og virksomhedssidens opslag virker. Gruppe-summen pr. måned
+  findes kun inde i `decodeBudgetRows` + `HbBudgetBva.tsx:84-98`; der er
+  INGEN ren funktion «(rækker, periode, rapportfelt) → budgettal».
+- **Spørgsmål 2 — FORMLEN.** Der findes INGEN afvigelsesfunktion på
+  KPI-niveau, men TRE forskellige domme i huset: budgetfladens
+  `deriveBudgetTone` (`budgetTone.ts:24-31`: 10 %, fortegnsbevidst,
+  favorable/near/off, «attention, aldrig alert»), forsidens
+  `afgoerVirksomhedsSignaler` (`virksomhedsSignaler.ts:331-344`: 10 %,
+  kun omsætning, friskhedsgatet, alvor 50/40) og Nøgletals egen
+  `deriveKpiTone` (`kpiTone.ts:41-60`: målopfyldelse i % af mål, 0–150).
+  Beslutningen 11/9 siger «afvigelsen på Nøgletal med forsidens motor» —
+  som er omsætning-only og friskhedsgatet. Hvilken formel der skal gælde
+  for to KPI'er på Nøgletal, står ingen steder.
+- **Bygges IKKE før de to er afgjort.** Og uden prod kan det ikke
+  afgøres om kortet er værd at bygge: 11/9-tallet siger hvem der HAR
+  budget, ikke hvor mange der også har en MÅLT måned for samme periode
+  (data-basis-kontrakten: estimater tæller ikke). Reconens §6 har SQL
+  (6a enheden pr. rapportfelt, 6b/6c målte måneder mod budget, 6d de 233
+  «anden form»-rækker og dubletter). De to prod-filer fra 11/9
+  (`recon-b3-tallene.md`, `query-results-export-2026-09-11_11-43-37.csv`)
+  findes ikke længere i Downloads; tallene står ordret i denne fils DEL 2
+  «11. september, eftermiddag».
+- **Tre bifund, nyt kort «Budgettets tre skjulte fejl» (Dine tal):**
+  (1) `budget_targets` har UNIQUE `(company_id, user_id, category,
+  period)` — to brugere i samme virksomhed kan have hver sin række for
+  samme måned; `confirmBudgetFromAccounts` sletter kun pr. `user_id` +
+  `company_id` (`budgetEngine.ts:994-1010`); `.find()` tager den første,
+  `decodeBudgetRows` den sidste. (2) `get_my_group_budget_summary`
+  (`20260316113038:106`) regner pr. gruppe med månedsindeks 1..12 mod
+  klientens 0..11 og kaldes ingen steder. (3) `run-company-agent`s
+  `get_budget_vs_actual` (`index.ts:505-537`) matcher engelske
+  metric-navne mod danske kategorier og summerer alle år og scenarier —
+  svarer i praksis tomt. Dertil demo-seed med `-base-1..12`
+  (`20260316115536:50-59`); om rækkerne findes i prod: ikke målt.
+
 ### Mailplatformen — bygget om af Lovable 8/9 kl. 06:52-06:58; afsenderne, fortegnelsen og værnet (#728, #730, #731, #732)
 
 **Hvad Lovable gjorde.** 19 commits direkte til main mellem kl. 06:52 og
@@ -7504,6 +7712,9 @@ facit og rækkefølge; `docs/chat-design.md` chattens form.
 
 | hvornår | hvad | hvor det står |
 |---|---|---|
+| **22/9 — WEBINARET; de fjorten dage efter (til ca. 6/10) er tidsrammen** (Jonas 13/9). A reconer «hvad en ny ansøger møder» (`~/Downloads/recon-de-nye-medlemmer.md` — ikke skrevet ved bogføringen, ikke læst) | **Ca. 350 tilmeldte, 40 % møder op, næsten 10 % af dem ansøger → 10–15 ansøgere; «minimum fem nye ansøgere eller medlemmer inden for de næste fjorten dage, og dem skal vi tage godt imod».** Kortene sorteres efter hvad en NY ansøger møder de første fjorten dage — ansøgning (Monday), afklaringssamtale, aftalegrundlag, betalingslink (kæden har aldrig haft en rigtig virksomhed — nul rækker i `company_betalingslink`), signup, ankomst, tjekliste, første upload, første session. RETTELSE af chattens vurdering: SoMe-deling er ikke «efter oplevet værdi, uge 2–4» — nyheden er OPTAGELSEN og er stærkest i samme uge (Jonas: «det er faktisk en stor ting for mange at få lov til at blive medlem»). | DEL 2 «13. september» §22; mangellistens delings-kort |
+| **STORT ÅBENT SPOR — Jonas 13/9 sen aften. BESLUTTET: IKKE før webinaret 22/9; først en recon af hvad Monday faktisk gør i dag** | **Hele ansøgningsprocessen ind på platformen i stedet for Monday.** Jonas: «en rigtig lækker ansøgningsformular, som er visuelt overskuelig og lækker at gå igennem. Og så har vi ligesom al viden om virksomhederne allerede fra start.» Flowet: afklaringssamtale med Jonas / afvis / følg op om X måneder / genåbn når en plads bliver ledig; aftalegrundlag → «godkendt» → betalingslink → medlemskab; påmindelser på bookinglinket dag 2, 5 og 10 («så vi ikke taber ansøgere i det»); tracking af leads fra Meta («sindssygt meget styr på»); «hvilke mails der skal sendes hvornår». Det meste EFTER godkendelsen findes (chattens læsning, ikke målt): Calendly-kæden (§19), `import-application`/`monday-webhook`, `company_betalingslink` med 30-dages frist, `indgangs-paamindelser-cron`, `intro-reminder-cron` som mønster. Det der mangler er selve ansøgningen og alt før godkendelsen. Pladsholder i mangellisten: «Ansøgningsflowet skal flyttes til platformen». | DEL 2 «13. september» §23 |
+| **RECONNET 13/9 sen aften — IKKE KLAR; to spørgsmål skal afgøres først** | **Kort 29 — «Fra budget» som målkilde på Nøgletal.** (1) ENHEDEN: prod-målingen 11/9 talte nøglen `loenninger`, men koden kobler pr. GRUPPE (`GROUP_TO_REPORT_FIELD`); `saas_b2b` har ingen `loenninger`, importerede budgetter bærer egne nøgler — nøgle-opslaget overser dem (samme fælde som kort 76). (2) FORMLEN: ingen afvigelsesfunktion på KPI-niveau; tre forskellige domme i huset (budgetfladens 10 % fortegnsbevidst, forsidens 10 % omsætning-only friskhedsgatet, Nøgletals målopfyldelse). Holder: intet bygget, budgettet er månedligt, `budgetNoegleFor` findes. SQL for enheden og for målte måneder mod budget i reconens §6. Tre bifund som eget kort. | DEL 2 «13. september» §24; `~/Downloads/recon-kort29.md` |
 | **I DRIFT 13/9 sen aften (#844, merget 20:42:15 UTC; migrationen kørt 22:42; fire functions udrullet 20:45 UTC; BEVIST PÅ SKÆRM 22:48:25) — TEKSTERNE ÅBNE (vindue A, nu)** | **Den inkluderede session med Jonas kan bookes.** Ny kolonne `companies.jonas_session_used_at` (søster til Mortens `intro_session_used_at`; en tabel ville flytte asymmetrien, ikke fjerne den); `create-free-intro-booking` tager `{ advisor }` og lægger rækkens id i linket fra start; `calendly-webhook` genåbner retten pr. rådgiver ved host-aflysning, aldrig for en købt række; én dom for begge rettigheder på `/book-session` — Morten-kortet forsvinder når retten er brugt, Jonas-kortet findes altid og skifter fra inkluderet til købt; «link-ready» hører til det inkluderede kort (ingen mail på den vej). Secret `JONAS_CALENDLY_EVENT_SLUG` = «intro-snak». **Det der venter:** (1) kortenes tekster — rådgiverlinjen er en etiket, brødteksterne næsten ens, «én session per virksomhed» som grå fodnote; rammen er Jonas' ord 13/9 (medlemmet bestemmer selv, udløber ikke, 30 minutter — ikke «onboarding», ikke «strategi-session»); A retter nu. (2) En rigtig inkluderet booking der kommer tilbage som `booked` med tid — ubevist. | DEL 2 «13. september» §20; `~/Downloads/verifikation-jonas-session.txt`, `diff-jonas-session.txt` (uden for repoet) |
 | **ÅBENT — Jonas 13/9; ikke gjort, hvilke er ikke afgjort** | **Mange gamle virksomheder skal ikke have tilbuddet om Jonas-sessionen.** Kolonnen er NULL for alle eksisterende virksomheder, så kortet står som inkluderet hos alle. `EditCompanyDialog` kan markere retten som brugt én ad gangen (#844); skal mange lukkes, er én SQL-sætning i Lovables SQL editor hurtigere (`UPDATE public.companies SET jonas_session_used_at = now() WHERE …`) — SELECT først, og listen over hvem skal komme fra Jonas. | DEL 2 «13. september» §20; mangellisten «Gamle virksomheder skal ikke have tilbuddet om Jonas-sessionen» |
 | **RECONET 13/9 sen aften — IKKE afgjort om der skal bygges noget** | **Efter en session sker INTET.** Ingen tabel peger på `session_bookings`, rækken har ingen fritekst, «afholdt» er en dom, medlemmet ser intet, designet har aldrig taget stilling, og `raadgiver_opgaver` udelukker sessioner eksplicit. `advisor_session_notes` er ikke det navnet siger (AI-forberedelses-cache, død siden 26/3, to slettere) — på slettelisten. Husets mønster for «noget skete, her er hvad der kom ud af det» er rapporten (hændelsesrække + kommentartabel FK'et til den + ekko i chatten). Reconens SQL (§4) er ikke kørt. | DEL 2 «13. september» §21; `~/Downloads/recon-efter-sessionen.md` (uden for repoet); mangellisten «En afholdt session efterlader intet spor» |
@@ -8447,6 +8658,18 @@ De konkrete ting der har kostet tid. Led efter dem.
   Lovable, signeres med lokalt) skal ligge i en FIL skrevet med umask
   077, som begge trin læser, og som slettes bagefter — ikke i et felt som
   næste kopiering tømmer. (DEL 2 «13. september» §19)
+- **Byg ikke på en recons tal — mål rækkerne bag kortet, i den enhed
+  koden regner i.** En recon måler det den bliver bedt om. Kort 29's
+  prod-måling 11/9 talte `budget_targets.category = 'loenninger'` og fik
+  «6 virksomheder | 72 rækker»; koden kobler budget til rapportfelt PR.
+  GRUPPE (`GROUP_TO_REPORT_FIELD`), og mindst én skabelon (`saas_b2b`)
+  og alle importerede budgetter har ingen række med den nøgle. Tallet var
+  rigtigt og enheden forkert — og kortets beslutning («kun omsætning og
+  lønninger», «en dag») hvilede på det i to dage. Samme klasse som kort
+  76 (recon-a2's RLS-påstand holdt ikke). Reglen: før en prod-måling
+  citeres på et kort, skal SQL'en stemme med den kobling koden faktisk
+  bruger (find opslaget — `find`, `eq`, `JOIN` — og mål DEN), og kortet
+  skal sige hvilken enhed tallet er i. (DEL 2 «13. september» §24)
 
 ---
 
@@ -8541,4 +8764,13 @@ Skal ikke genforhandles uden ny måling.
   rangeringen udsætter, grundlaget afgør hvornår opgaven kommer igen.
 - **Ét signal, flere trin — aldrig to signaler for det samme** (9/9,
   #761, som fornyelsens varsel 1 og 2). Trinnet står i grundlaget.
+- **Ansøgningssporet bygges IKKE før webinaret 22/9 (13/9).** Hele
+  ansøgningsprocessen skal ind på platformen i stedet for Monday — men
+  det holder til efter, og først efter en recon af hvad Monday faktisk
+  gør i dag. (DEL 2 «13. september» §23)
+- **Nyheden er OPTAGELSEN (13/9).** Et nyt medlem deler i samme uge som
+  det bliver optaget — «man skal udvælges, man skal sende en ansøgning,
+  og man skal godkendes på en afklaringssamtale» — ikke først efter
+  oplevet værdi. Delings-kortet hører til i de første fjorten dage.
+  (DEL 2 «13. september» §22)
 - **Vi går ikke på kompromis** — hvert led bliver brugt af det næste.
