@@ -30,7 +30,16 @@ function EmptyPage() {
   return <div />;
 }
 
-describe("useScrollToHash → documented Guide anchors", () => {
+/* Ankrene i `cases` er dyb-link-ankre på /kpis, /reports og /budget, som
+   redirect-komponenterne i App.tsx (NoegletalRedirect, RapporteringRedirect,
+   BudgetteringRedirect) og fladerne lover at bevare — BudgetteringView holder
+   #forecast ALTID i DOM. Guiden, der sendte links til dem, blev slettet 13/9;
+   ankrene er stadig kontrakt for links udefra. De er IKKE notifikations-
+   kontrakt: detect-financial-alerts' deep_links er /kpis og /budget uden
+   hash. Testen låser hookens mekanik (straks-scroll, ingen dobbelt-scroll,
+   polling ved kold load), ikke ankrenes eksistens i appen — fixture-divs
+   ovenfor er testens egne. */
+describe("useScrollToHash → dyb-link-ankre på /kpis, /reports og /budget", () => {
   beforeEach(() => {
     vi.useFakeTimers();
   });

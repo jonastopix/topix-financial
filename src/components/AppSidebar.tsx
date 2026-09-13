@@ -22,7 +22,6 @@ import {
   ChevronDown,
   Check,
   Upload,
-  BookMarked,
   Heart,
   BookOpen,
   History,
@@ -56,7 +55,6 @@ const baseNavItems = [
 ];
 
 const secondaryNavItems = [
-  { icon: BookMarked, label: "Guide", path: "/guide" },
   { icon: Users, label: "Community", path: "/community" },
 ];
 

@@ -25,10 +25,13 @@ import { resolve } from "node:path";
 // Fladen SKAL desuden have en isError-gren, så fejl ikke ligner tom.
 //
 // /members OG MEDLEMMETS FORSIDE (7/9, pkt. 3 og 4): Members.tsx' hentning
-// fodrer også FornyelsesSektion og IndgangsSektion med rækkerne — en fejl
+// fodrede også FornyelsesSektion og IndgangsSektion med rækkerne — en fejl
 // blev til «Ingen virksomheder endnu» og «intet at beslutte». Otte kilder
-// kaster; profiles, user_login_log, get_users_last_login, email_send_log og
-// pulse_checkins er berigelser med fald-tilbage og læses som før.
+// kastede; profiles, user_login_log, get_users_last_login, email_send_log og
+// pulse_checkins var berigelser med fald-tilbage. HISTORIK: /members,
+// FornyelsesSektion og IndgangsSektion blev slettet 13/9 (bygning 3), og
+// /members-blokken i dette værn med dem — værnet blev ikke smallere ved et
+// uheld; siden findes ikke. Virksomhedslisten ovenfor er Hjemmebane-modstykket.
 // BoardroomView: «Dine aftaler» (company_actions) og de ulæste
 // (conversations + messages, head-tællinger → HentningsFejl direkte)
 // kaster; fejlen vises PR. SEKTION, ikke for hele forsiden.
@@ -116,51 +119,6 @@ describe("virksomhedslistens delkald kaster — fire kilder gennem kraevRaekker,
     expect(listeKilde).toContain("listeQuery.isError");
     // 10/9: teksten navngiver kilden og siger at listen kan mangle noget (lib/raadgiverHentefejl).
     expect(listeKilde).toContain('raadgiverHentefejlTekst(listeQuery.error, "listen")');
-  });
-});
-
-// ───────── /members ─────────
-const membersSti = "src/pages/Members.tsx";
-const membersKilde = readFileSync(resolve(process.cwd(), membersSti), "utf8");
-
-/** Fra `queryKey: ["members-data"` til `enabled: !!user && !!isAdvisor` — selve queryFn'en. */
-const membersHentning = (() => {
-  const start = membersKilde.indexOf('queryKey: ["members-data"');
-  const slut = membersKilde.indexOf("enabled: !!user && !!isAdvisor", start);
-  expect(start, "members-data-hentningen mangler").toBeGreaterThan(-1);
-  expect(slut, "enabled-linjen mangler").toBeGreaterThan(start);
-  return membersKilde.slice(start, slut);
-})();
-
-const MEMBERS_SKAL_KASTE: Array<[variabel: string, kildenavn: string]> = [
-  ["companiesRes", "companies"],
-  ["membersRes", "company_members"],
-  ["convsRes", "conversations"],
-  ["reportsRes", "financial_reports"],
-  ["invitationsRes", "company_invitations"],
-  ["factsRes", "financial_report_facts"],
-  ["traekRes", "company_traek"],
-  ["unreadRes", "messages"],
-];
-
-describe("/members' delkald kaster — otte kilder gennem kraevRaekker, og fejl ligner ikke tom", () => {
-  it(`${membersSti}: importerer kraevRaekker fra @/lib/kraevRaekker`, () => {
-    expect(membersKilde).toContain('from "@/lib/kraevRaekker"');
-  });
-
-  for (const [variabel, kildenavn] of MEMBERS_SKAL_KASTE) {
-    it(`${variabel} (${kildenavn}): læses med kraevRaekker og navngiver kilden`, () => {
-      expect(membersHentning, `kraevRaekker(${variabel}, "${kildenavn}") mangler`).toContain(`kraevRaekker(${variabel}, "${kildenavn}")`);
-    });
-
-    it(`${variabel}: læses IKKE som \`.data || []\``, () => {
-      expect(membersHentning, `${variabel}.data || [] findes stadig`).not.toMatch(dataFallback(variabel));
-    });
-  }
-
-  it("fladen har en isError-gren der siger «kunne ikke hentes» — ikke «Ingen virksomheder endnu»", () => {
-    expect(membersKilde).toContain("isError: listenFejlede");
-    expect(membersKilde).toContain("Listen kunne ikke hentes. Prøv igen.");
   });
 });
 

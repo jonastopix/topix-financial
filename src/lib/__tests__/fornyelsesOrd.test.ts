@@ -55,13 +55,13 @@ describe("fornyelsesBadge — stemplet ligger ved siden af motoren, som i forsid
   });
 });
 
-// Kildelæsende værn (agentforslagVenter.guard-mønstret): de tre flader der
+// Kildelæsende værn (agentforslagVenter.guard-mønstret): de to flader der
 // viser beslutningen SKAL bruge ordbogen og må ikke have databasens ord
-// inline igen. forsidensDom er en ren funktion og testes direkte i
+// inline igen. (Der var tre: FornyelsesSektion på /members blev slettet
+// 13/9, bygning 3 — værnet mistede en flade, ikke en lås.) forsidensDom er en ren funktion og testes direkte i
 // forsidensDom.test.ts — her låses kun at teksten ikke falder tilbage.
 const kilder = {
   "src/components/hjemmebane/virksomhed/VirksomhedView.tsx": "",
-  "src/components/members/FornyelsesSektion.tsx": "",
   "src/lib/forsidensDom.ts": "",
 };
 for (const sti of Object.keys(kilder) as (keyof typeof kilder)[]) {
@@ -69,8 +69,8 @@ for (const sti of Object.keys(kilder) as (keyof typeof kilder)[]) {
 }
 
 describe("fladerne siger «vi tilbyder», aldrig databasens «tilbyd» råt", () => {
-  it("VirksomhedView og FornyelsesSektion bruger beslutningsOrd", () => {
-    for (const sti of ["src/components/hjemmebane/virksomhed/VirksomhedView.tsx", "src/components/members/FornyelsesSektion.tsx"] as const) {
+  it("VirksomhedView bruger beslutningsOrd", () => {
+    for (const sti of ["src/components/hjemmebane/virksomhed/VirksomhedView.tsx"] as const) {
       expect(kilder[sti], `${sti}: importen af beslutningsOrd mangler`).toContain('from "@/lib/fornyelsesOrd"');
       expect(kilder[sti], `${sti}: beslutningsOrd(...) kaldes ikke`).toContain("beslutningsOrd(");
       expect(kilder[sti], `${sti}: databasens ord står inline igen`).not.toMatch(/\? "tilbyd" : "tilbyd ikke"/);

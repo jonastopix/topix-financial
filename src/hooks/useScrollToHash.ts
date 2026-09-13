@@ -5,7 +5,11 @@ const POLL_INTERVAL_MS = 150;
 const MAX_WAIT_MS = 6000;
 
 /**
- * Scroller til elementet med id = URL-hash (#goals m.fl. — Guide-kontrakt).
+ * Scroller til elementet med id = URL-hash. Ankrene er dyb-link-ankre på
+ * /kpis (#goals), /reports (#upload, #annual-reports) og /budget
+ * (#forecast), som redirect-komponenterne i App.tsx og fladerne lover at
+ * bevare (BudgetteringView holder #forecast ALTID i DOM). Guiden, der
+ * sendte links til dem, er slettet 13/9 — ankrene er stadig kontrakt.
  * Straksforsøg ved mount/hash-skift (indlæste sider scroller med det samme),
  * derefter polling hvert 150 ms i op til 6 s — så ankre der først renderes
  * efter datahentning (kold load) også rammes. Stopper ved fund, loft,
