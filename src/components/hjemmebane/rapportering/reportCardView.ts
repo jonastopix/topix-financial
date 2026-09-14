@@ -7,6 +7,7 @@
     aldrig status (A1-reglen bor i engine-laget). */
 
 import { DANISH_MONTHS } from "@/lib/financialUtils";
+import { naesteSkridtTekst } from "@/lib/hjemmebane/rapporteringTekst";
 
 export type CommitState = "not_ready" | "ready" | "update_available" | "blocked";
 
@@ -24,6 +25,9 @@ export interface ReportCardInput {
   /** Grunden i medlemmets ord (rapportFejlgrund) — står på kortet efter
       label'en for error- og needs_manual_entry-kortene. null = ingen kendt grund. */
   fejlgrund?: string | null;
+  /** Næste skridt (rapportNaesteSkridt) — står under grunden på error- og
+      needs_manual_entry-kortene. null = intet at sige. */
+  naesteSkridt?: string | null;
 }
 
 /**
@@ -46,7 +50,7 @@ export interface FejlgrundKilde {
   routingBranch?: string | null;
 }
 
-const GRUND_MAKS = 120;
+export const GRUND_MAKS = 120;
 
 /** Højst `maksSaetninger` sætninger (default to), højst GRUND_MAKS tegn — en
     grund der fylder tre linjer på et kort er ikke bedre end ingen. Sætninger
@@ -95,13 +99,112 @@ export function rapportFejlgrund(kilde: FejlgrundKilde): string | null {
   if (foerste && /^Extraction timed out/.test(foerste)) {
     return "Behandlingen blev ikke færdig — prøv igen.";
   }
+  // 4b) Kontrollernes checknavne (14/9, mangellistens nr. 8): kun dem hvis
+  //     betydning står i koden får en tekst — se KONTROL_GRUNDE.
+  const kontrol = foerste ? kontrolGrund(foerste) : null;
+  if (kontrol) return kontrol;
   // 5) Ingen grund gemt: cron-oprydningen (status error uden fejl) — det ENESTE
   //    tilfælde hvor kortet siger noget uden en gemt grund.
   if (kilde.status === "error" && !foerste) {
     return "Behandlingen blev ikke færdig — prøv igen.";
   }
-  // 6) Alt andet (checknavne, engelske/tekniske strenge): ingen grund på kortet.
+  // 6) Alt andet (øvrige checknavne, engelske/tekniske strenge): ingen grund på kortet.
   return null;
+}
+
+/**
+ * Kontrollernes grund (14/9). validation_errors er «navn: details»
+ * (extract-financial-data:1407, canonicalEngine.runExtendedValidation) eller
+ * «Kontrol af dokumentet — navn: details» (:1410, skabelonens egne checks).
+ * Før 14/9 blev alle filtreret fra som teknik, så «gross_profit_sum:
+ * MISMATCH: 95829.05 ≠ 96220.67» gav et kort med «Kræver manuel
+ * indtastning» og ingen grund. Ordene er formularens («Ret data manuelt»,
+ * reportOverrideHelpers.FIELD_LABELS: Omsætning, Direkte omkostninger,
+ * Dækningsbidrag, Resultat f. skat, Aktiver i alt), så grunden peger på
+ * felter medlemmet kan finde. Kun kontroller med belæg i koden står her;
+ * ebit_calculation (EBITDA/EBIT — ingen felter på formularen),
+ * numeric_values_only (parserens fejl, ikke filens), deterministic_parser_status
+ * og skabelonernes øvrige navne (sign_convention, defaulted_fields,
+ * ambiguous_lines …) har ingen tekst og går stadig til gren 6.
+ */
+export const KONTROL_GRUNDE: readonly { navn: string; tekst: string }[] = [
+  // canonicalEngine.ts:625-636 og skabelonernes gross_profit_sum: omsætning −
+  // direkte omkostninger ≠ dækningsbidrag (tolerance 2). I drift var fire af
+  // fire fortegnsvendte (−115.840,07 ≠ 115.840,07; docs/import-model-design.md:80-83).
+  { navn: "gross_profit_sum", tekst: "Dækningsbidraget stemmer ikke med omsætning minus direkte omkostninger — tjek de tre tal på kortet." },
+  // skabelonernes revenue_present («No revenue found») og canonicalEngine.ts:795 (missing_core_totals: «P&L report without revenue»).
+  { navn: "revenue_present", tekst: "Vi fandt ingen omsætning i filen — indtast tallene på kortet." },
+  // skabelonernes ebt_present («No EBT found»).
+  { navn: "ebt_present", tekst: "Vi fandt intet resultat før skat i filen — indtast tallene på kortet." },
+  // canonicalEngine.ts:812: omsætning, men ingen omkostningslinjer.
+  { navn: "cost_lines_present", tekst: "Filen har omsætning, men ingen omkostninger — resultatet ville blive lig omsætningen. Indtast tallene på kortet." },
+  // canonicalEngine.ts:717: periodegrundlaget (måned/år til dato) kunne ikke bestemmes.
+  { navn: "mixed_period_columns_detected", tekst: "Vi kunne ikke se, om tallene gælder måneden eller året til dato — tjek perioden og tallene på kortet." },
+  // canonicalEngine.ts:702-708: år til dato < perioden.
+  { navn: "period_consistency", tekst: "Tallet for året til dato er mindre end tallet for måneden — tjek, hvilken kolonne der er hvad." },
+  // canonicalEngine.ts:735-751: et anker (omsætning, aktiver, passiver) negativt, eller flertallet af omkostningerne.
+  { navn: "suspicious_sign_pattern", tekst: "Fortegnene ser vendte ud: omsætning eller omkostninger står som negative tal — tjek fortegnene på kortet." },
+  // canonicalEngine.ts:769: dækningsgrad uden for ±100 %.
+  { navn: "impossible_margin_check", tekst: "Dækningsgraden er uden for det mulige (over 100 %) — tjek omsætning og direkte omkostninger på kortet." },
+  // canonicalEngine.ts:670-677: resultat før skat > dækningsbidrag.
+  { navn: "result_consistency", tekst: "Resultat før skat er større end dækningsbidraget — tjek fortegnene på kortet." },
+  // canonicalEngine.ts:686-692 (og skabelonernes balance_equation): aktiver ≠ passiver.
+  { navn: "balance_equation", tekst: "Aktiver i alt og passiver i alt stemmer ikke overens — tjek totalerne på kortet." },
+];
+
+const KERNEFELT_NAVNE: Readonly<Record<string, string>> = {
+  revenue: "omsætningen",
+  ebt: "resultatet før skat",
+};
+
+/** «navn: details» eller «Kontrol af dokumentet — navn: details» → navn og details. */
+export function kontrolNavn(tekst: string): { navn: string; details: string } | null {
+  const m = /^(?:Kontrol af dokumentet — )?([a-z][a-z0-9_]*):\s*(.*)$/su.exec(tekst.trim());
+  return m ? { navn: m[1], details: m[2] } : null;
+}
+
+export function kontrolGrund(tekst: string): string | null {
+  const k = kontrolNavn(tekst);
+  if (!k) return null;
+  // canonicalEngine.ts:607-611: required_fields_present «Missing: revenue, ebt» — nævn dem der mangler.
+  if (k.navn === "required_fields_present") {
+    const mangler = k.details
+      .replace(/^Missing:\s*/i, "")
+      .split(",")
+      .map((f) => KERNEFELT_NAVNE[f.trim()])
+      .filter((x): x is string => !!x);
+    if (mangler.length === 0) return null;
+    return `Vi fandt ikke ${mangler.join(" og ")} i filen — indtast tallene på kortet.`;
+  }
+  // canonicalEngine.ts:789: balancen uden begge totaler; :795 uden omsætning.
+  if (k.navn === "missing_core_totals") {
+    if (/without revenue/i.test(k.details)) return "Vi fandt ingen omsætning i filen — indtast tallene på kortet.";
+    if (/without assets_total/i.test(k.details)) return "Vi fandt hverken aktiver i alt eller passiver i alt i filen — indtast tallene på kortet.";
+    return null;
+  }
+  return KONTROL_GRUNDE.find((g) => g.navn === k.navn)?.tekst ?? null;
+}
+
+/**
+ * Kortets NÆSTE SKRIDT (14/9, mangellistens nr. 8: kortet sagde hvorfor,
+ * ikke hvad man skal gøre). Ren dom over samme kilder som rapportFejlgrund,
+ * plus kildefingeraftrykket (raw_extracted_data.routing_trace
+ * .source_fingerprint.source_system — null på ældre rækker og AI-vejen).
+ * Spænd-afvisningen får serverens egen hale, som kortGrund klipper af
+ * grunden («eksportér én måned pr. fil …»); «ikke afsluttet» siger allerede
+ * i grunden hvad man gør; alt andet får vejen for kilden
+ * (rapporteringTekst.naesteSkridtTekst) — aldrig et gættet program.
+ */
+export function rapportNaesteSkridt(kilde: FejlgrundKilde, sourceSystem: string | null | undefined): string | null {
+  const foerste = kilde.validationErrors?.[0] ?? kilde.qualityValidationErrors?.[0] ?? null;
+  const gren = kilde.routingBranch ?? null;
+  if (gren === "period_span_rejected" || (foerste && /^Filen dækker \d+ måneder/.test(foerste))) {
+    return "Eksportér én måned pr. fil, og upload dem hver for sig.";
+  }
+  if (gren === "period_not_completed" || foerste === "Periode ikke afsluttet") {
+    return null;
+  }
+  return naesteSkridtTekst(sourceSystem);
 }
 
 /** Dags dato som «YYYY-MM» (lokal tid — samme dagbegreb som SQL'ens
@@ -151,12 +254,14 @@ export interface ReportCardView {
   label: string;
   tone: "quiet" | "attention" | "alert";
   detail?: string;
+  /** Hvad man gør (14/9) — egen linje under label og grund; ikke klippet af kortGrund. */
+  naesteSkridt?: string;
   primary?: { label: string; action: CardAction };
   secondary?: { label: string; action: CardAction };
 }
 
 export function deriveReportCardView(input: ReportCardInput): ReportCardView {
-  const { status, isCommitted, commitState, stateReason, periodKey, nowKey, fejlgrund } = input;
+  const { status, isCommitted, commitState, stateReason, periodKey, nowKey, fejlgrund, naesteSkridt } = input;
 
   // Rå status-tilstande dømmer først (error slår commitState — prioritet).
   if (status === "processing") {
@@ -169,6 +274,7 @@ export function deriveReportCardView(input: ReportCardInput): ReportCardView {
       tone: "alert",
       // Grunden PÅ kortet (10/9) — «Kunne ikke behandles — Filen dækker 2 måneder …».
       detail: fejlgrund ?? undefined,
+      naesteSkridt: naesteSkridt ?? undefined,
       primary: { label: "Prøv igen", action: "upload" },
       secondary: { label: "Indtast manuelt", action: "override" },
     };
@@ -187,6 +293,7 @@ export function deriveReportCardView(input: ReportCardInput): ReportCardView {
       label: "Kræver manuel indtastning",
       tone: "attention",
       detail: fejlgrund ?? undefined,
+      naesteSkridt: naesteSkridt ?? undefined,
       primary: { label: "Indtast tallene", action: "override" },
     };
   }

@@ -41,7 +41,7 @@ import { HbAdvisorCompanyPrompt } from "../HbAdvisorCompanyPrompt";
 import { HbCard } from "../HbCard";
 import { HbButton } from "../HbButton";
 import { hbControlClasses } from "../admin/HbField";
-import { deriveReportCardView, type CardAction, erForTidligt, godkendSpaerret, rapportFejlgrund } from "./reportCardView";
+import { deriveReportCardView, type CardAction, erForTidligt, godkendSpaerret, rapportFejlgrund, rapportNaesteSkridt } from "./reportCardView";
 import { HbReportUploadZone } from "./HbReportUploadZone";
 import { tomListeTekst } from "@/lib/hjemmebane/rapporteringTekst";
 
@@ -133,11 +133,13 @@ export const RapporteringView = () => {
   const reportsQuery = useQuery({
     queryKey: ["rapportering", "reports", companyId, refreshKey],
     queryFn: async () => {
-      const reportsRes = await (supabase
-        .from("financial_reports")
+      // JSON-stien `kilde:…->>source_system` (PostgREST) ligger uden for den
+      // typede select-parser, så klienten castes før select — som før var
+      // resultatet allerede `as any`.
+      const reportsRes = await (supabase.from("financial_reports") as any)
         .select(
-          "id, file_name, file_path, report_type, report_period, company_name, uploaded_at, status, extracted_data, normalized_data, manual_report_period_label, manual_report_period_key, manual_report_type, manual_normalized_data, manual_override_status, manual_override_note, manual_override_by, manual_override_at, manual_override_source, quality_signals, validation_errors",
-        ) as any)
+          "id, file_name, file_path, report_type, report_period, company_name, uploaded_at, status, extracted_data, normalized_data, manual_report_period_label, manual_report_period_key, manual_report_type, manual_normalized_data, manual_override_status, manual_override_note, manual_override_by, manual_override_at, manual_override_source, quality_signals, validation_errors, kilde:raw_extracted_data->routing_trace->source_fingerprint->>source_system",
+        )
         .eq("company_id", companyId!)
         .is("deleted_at", null)
         .neq("report_type", "aarsrapport")
@@ -478,6 +480,13 @@ export const RapporteringView = () => {
     return <HbAdvisorCompanyPrompt />;
   }
 
+  const fejlgrundKilde = (report: DbReport) => ({
+    status: report.status,
+    validationErrors: report.validation_errors ?? null,
+    qualityValidationErrors: report.quality_signals?.validation_errors ?? null,
+    routingBranch: report.quality_signals?.routing_branch ?? null,
+  });
+
   const statusFor = (report: DbReport) => {
     // needs_manual_entry bor i quality_signals (status er 'processed') —
     // dommen fodres med den effektive tilstand.
@@ -494,12 +503,10 @@ export const RapporteringView = () => {
       // effektive nøgle — «for tidligt» skelnes i klienten (reportCardView).
       periodKey: commitStatesQuery.data?.get(report.id)?.period_key ?? getEffectiveReportPeriodKey(report as any),
       // Grunden på kortet (10/9): serverens egne ord, forkortet — aldrig teknik.
-      fejlgrund: rapportFejlgrund({
-        status: report.status,
-        validationErrors: report.validation_errors ?? null,
-        qualityValidationErrors: report.quality_signals?.validation_errors ?? null,
-        routingBranch: report.quality_signals?.routing_branch ?? null,
-      }),
+      fejlgrund: rapportFejlgrund(fejlgrundKilde(report)),
+      // Hvad man gør (14/9, nr. 8): kildens vej — `kilde` er JSON-stien til
+      // fingeraftrykket i select'en ovenfor; null på ældre rækker → «Andre».
+      naesteSkridt: rapportNaesteSkridt(fejlgrundKilde(report), report.kilde ?? null),
     });
   };
 
@@ -706,6 +713,9 @@ export const RapporteringView = () => {
                             {view.label}
                             {view.detail ? ` — ${view.detail}` : ""}
                           </span>
+                          {view.naesteSkridt && (
+                            <span className="block text-sm text-hb-ink-soft">{view.naesteSkridt}</span>
+                          )}
                         </span>
                       </button>
                       <div className="flex shrink-0 items-center gap-2">

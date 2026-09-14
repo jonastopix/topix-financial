@@ -90,3 +90,74 @@ export const EKSPORT_VEJE: readonly EksportVej[] = [
 export function vejledningAaben(foersteGang: boolean): boolean {
   return foersteGang;
 }
+
+// ── Kilden → vejen (14/9, mangellistens nr. 8) ────────────────────────────
+//
+// Serveren stempler hver upload med et kildefingeraftryk
+// (_shared/sourceFingerprint.ts detectSourceSystem: "economic" | "dinero" |
+// "combined_dk" | "unknown"), gemt i
+// raw_extracted_data.routing_trace.source_fingerprint.source_system
+// (extract-financial-data:480). Før 14/9 blev det kun brugt i toasten lige
+// efter uploaden; kortet sagde HVORFOR (rapportFejlgrund) men ikke HVAD man
+// skal gøre. Her kobles kilden til den vej der ALLEREDE står i EKSPORT_VEJE
+// — én kilde til vejene, så kortet, siden («Sådan henter du den») og
+// historik-mailen (onboardingRytme.EKSPORT_VEJE_TEKST, paritetstestet)
+// siger det samme.
+//
+// INGEN GÆT: «unknown», null og tomt (ældre rækker uden fingeraftryk) →
+// «Andre». «combined_dk» er et strukturelt aftryk (Balance + Nummer/Navn +
+// periodekolonne, sourceFingerprint.ts:138-158), ikke et program —
+// serverens KILDENAVNE kalder det «dit regnskabssystem»
+// (extract-financial-data:872-876); her følger vi serveren: «Andre».
+// Billy står i EKSPORT_VEJE men har intet fingeraftryk, så ingen kilde
+// fører dertil.
+//
+// HVILKEN FIL (punkt 2, målt 14/9): e-conomics saldobalance som Excel er
+// det stærkeste spor — fingeraftrykket er HIGH på to faste rækker (CVR i
+// række 2, «Saldobalance for perioden» i række 4; sourceFingerprint.ts:
+// 103-117, det første tjek i XLSX-grenen), og TO skabeloner dækker den:
+// dkEconomicSaldobalanceXlsxV1 (score 88 efter fire hårde gates, først i
+// registret, templateRegistry.ts:157-158) for varianten uden subtotaler,
+// og dkCombinedBalancePnlV1 (85/92, «DK Combined Balance/P&L
+// (Saldobalance)») for varianten med. Resultatopgørelsen som Excel har ét
+// fingeraftryk (HIGH) og én skabelon med additiv score (maks ~90), der
+// falder til 0 hvis ordet «aktiver» står i filen
+// (dkEconomicResultatopgoerelseXlsxV1.ts:315-320).
+
+/** Serverens kildenavne (SourceSystem) — kun de to der er et program. */
+const KILDE_TIL_SYSTEM: Readonly<Record<string, string>> = {
+  economic: "e-conomic",
+  dinero: "Dinero",
+};
+
+/** «e-conomic» / «Dinero» — null når kilden ikke er et kendt program (aldrig et gæt). */
+export function kildeNavn(kilde: string | null | undefined): string | null {
+  return KILDE_TIL_SYSTEM[(kilde ?? "").trim().toLowerCase()] ?? null;
+}
+
+/** Kilden → dens linje i EKSPORT_VEJE (samme objekt). Ukendt kilde → «Andre». */
+export function eksportVejForKilde(kilde: string | null | undefined): EksportVej {
+  const system = kildeNavn(kilde) ?? "Andre";
+  return (
+    EKSPORT_VEJE.find((v) => v.system === system) ??
+    EKSPORT_VEJE.find((v) => v.system === "Andre") ??
+    EKSPORT_VEJE[EKSPORT_VEJE.length - 1]
+  );
+}
+
+/**
+ * Kortets næste skridt når en upload strander: hvilken fil, og hvor den
+ * hentes — vejen ordret fra EKSPORT_VEJE. e-conomic peger på saldobalancen
+ * som Excel (belægget i filhovedet ovenfor); Dinero på sin linje; ukendt
+ * kilde nævner intet program.
+ */
+export function naesteSkridtTekst(kilde: string | null | undefined): string {
+  const vej = eksportVejForKilde(kilde);
+  if (vej.system === "e-conomic") {
+    return `Den fil vi læser sikrest fra e-conomic, er saldobalancen som Excel: ${vej.vej}.`;
+  }
+  if (vej.system === "Andre") {
+    return `Vi kan ikke se, hvilket regnskabsprogram filen kommer fra. ${vej.vej}.`;
+  }
+  return `Sådan henter du en fil vi kan læse fra ${vej.system}: ${vej.vej}.`;
+}
