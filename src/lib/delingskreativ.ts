@@ -201,6 +201,40 @@ export const PROEVETEKSTER = {
   dateLabel: "september 2026",
 } as const;
 
+/**
+ * Det en kreativ tegnes af (14/9): navn, virksomhed, dato og to billeder.
+ * Billed-URL'er er enten profilens/virksomhedens (avatar_url, logo_url)
+ * eller en object-URL fra en fil hun har lagt ind i browseren. Kreativens
+ * navn og virksomhed er HENDES rettelser — de gemmes aldrig tilbage i
+ * profiles eller companies (Jonas 14/9: «det er hendes kreativ, ikke en
+ * profilredigering»).
+ */
+export interface KreativData {
+  memberName: string;
+  companyName: string;
+  dateLabel: string;
+  portraetUrl?: string | null;
+  logoUrl?: string | null;
+}
+
+export type KreativDel = "navn" | "virksomhed" | "portraet" | "logo";
+
+export interface KreativMangel {
+  del: KreativDel;
+  /** Kort: hvad mangler, og hvad gør hun. */
+  tekst: string;
+}
+
+/** Det der mangler før kreativen er hel — i kreativens egen rækkefølge (portræt, navn, virksomhed, logo). */
+export function manglendeDele(data: KreativData): KreativMangel[] {
+  const m: KreativMangel[] = [];
+  if (!data.portraetUrl) m.push({ del: "portraet", tekst: "Portrættet mangler — læg et billede i feltet «Portræt», eller upload et profilbillede under Konto." });
+  if (!data.memberName.trim()) m.push({ del: "navn", tekst: "Navnet mangler — skriv det i feltet «Navn»." });
+  if (!data.companyName.trim()) m.push({ del: "virksomhed", tekst: "Virksomhedens navn mangler — skriv det i feltet «Virksomhed»." });
+  if (!data.logoUrl) m.push({ del: "logo", tekst: "Logoet mangler — læg det i feltet «Logo», eller upload det under Indstillinger." });
+  return m;
+}
+
 const MAANEDER = [
   "januar", "februar", "marts", "april", "maj", "juni",
   "juli", "august", "september", "oktober", "november", "december",

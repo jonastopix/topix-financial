@@ -7,6 +7,7 @@ import {
   TRE_PAA_RAEKKE_MOERK_KVADRAT as M,
   dateLabel,
   hentMaal,
+  manglendeDele,
   skriftStil,
 } from "../delingskreativ";
 
@@ -96,5 +97,24 @@ describe("dateLabel", () => {
     expect(dateLabel(new Date(2027, 0, 1))).toBe("januar 2027");
     expect(dateLabel(new Date(2026, 11, 31))).toBe("december 2026");
     expect(dateLabel(new Date(2026, 2, 5))).toBe("marts 2026");
+  });
+});
+
+describe("manglendeDele", () => {
+  const hel = { memberName: "Anne Kirkegaard", companyName: "Lazzaweb A/S", dateLabel: "september 2026", portraetUrl: "blob:a", logoUrl: "https://x/logo" };
+
+  it("intet mangler når alle fire dele er der", () => {
+    expect(manglendeDele(hel)).toEqual([]);
+  });
+
+  it("nævner hver manglende del i kreativens rækkefølge: portræt, navn, virksomhed, logo", () => {
+    const m = manglendeDele({ memberName: "  ", companyName: "", dateLabel: "september 2026", portraetUrl: null, logoUrl: undefined });
+    expect(m.map((x) => x.del)).toEqual(["portraet", "navn", "virksomhed", "logo"]);
+    for (const x of m) expect(x.tekst.length).toBeGreaterThan(10);
+  });
+
+  it("kun det der mangler", () => {
+    expect(manglendeDele({ ...hel, logoUrl: null }).map((x) => x.del)).toEqual(["logo"]);
+    expect(manglendeDele({ ...hel, portraetUrl: "" }).map((x) => x.del)).toEqual(["portraet"]);
   });
 });

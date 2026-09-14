@@ -18,18 +18,20 @@
 
 import { useEffect, useId, useRef } from "react";
 import { ChevronLeft, ChevronRight, X } from "lucide-react";
-import { PROEVETEKSTER } from "@/lib/delingskreativ";
+import type { KreativData } from "@/lib/delingskreativ";
 import { SkaleretKreativ } from "./SkaleretKreativ";
 import { kreativMaal, type KreativPost } from "./kreativer";
 
 export interface KreativFuldskaermProps {
   kreativer: ReadonlyArray<KreativPost>;
+  /** Hendes data — samme objekt som galleriet, så rettelser følger med. */
+  data: KreativData;
   indeks: number;
   onSkift: (indeks: number) => void;
   onLuk: () => void;
 }
 
-export const KreativFuldskaerm = ({ kreativer, indeks, onSkift, onLuk }: KreativFuldskaermProps) => {
+export const KreativFuldskaerm = ({ kreativer, data, indeks, onSkift, onLuk }: KreativFuldskaermProps) => {
   const panelRef = useRef<HTMLDivElement>(null);
   const onLukRef = useRef(onLuk);
   onLukRef.current = onLuk;
@@ -107,9 +109,11 @@ export const KreativFuldskaerm = ({ kreativer, indeks, onSkift, onLuk }: Kreativ
           <Kreativ
             udgave={post.udgave}
             format={post.format}
-            memberName={PROEVETEKSTER.memberName}
-            companyName={PROEVETEKSTER.companyName}
-            dateLabel={PROEVETEKSTER.dateLabel}
+            memberName={data.memberName}
+            companyName={data.companyName}
+            dateLabel={data.dateLabel}
+            portraetUrl={data.portraetUrl}
+            logoUrl={data.logoUrl}
             visTomtilstand
           />
         </SkaleretKreativ>
