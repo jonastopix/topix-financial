@@ -16,10 +16,21 @@
  * i komponentens state (`navnRet`, `virksomhedRet`; null = ikke rettet, så
  * profilen slår igennem når den kommer).
  *
- * BILLEDER lever i browseren. HbDropzone giver en File; useObjektUrl laver
- * en object-URL og rydder op (revoke). Har hun avatar_url/logo_url, er de
- * udgangspunktet, og en fil erstatter dem i forhåndsvisningen. Intet
- * uploades til storage i denne runde.
+ * BILLEDERNE GEMMES (14/9, Jonas' beslutning efter recon-kreativ-
+ * persistens.md — «hvis jeg refresher siden, forsvinder tingene igen»):
+ *   LOGOET ad vej (a): virksomhedens logo — company-logos/${company.id}/logo
+ *   + companies.logo_url, ordret som Indstillinger (lib/delingsbilleder.
+ *   uploadVirksomhedslogo). Fladen siger det FØR hun trykker: logoet
+ *   bliver virksomhedens, ikke kun kreativens. Intet «Fjern» her — det
+ *   ville fjerne profilens logo; det gøres under Indstillinger.
+ *   PORTRÆTTET ad vej (b): et sted kun til kreativen — den private bucket
+ *   deling-portraetter/${user.id}/portraet (migration 20260914170000),
+ *   signeret ved visning. Profilbilledet under Konto røres aldrig; det er
+ *   udgangspunktet, indtil hun lægger sit eget ind. Findes objektet efter
+ *   refresh, vises det (hentPortraetUrl) — intet i browseren.
+ *   Grænserne er avatar-uploadens (image/*, 2 MB, tjekBilledfil). Er
+ *   portrættet mindre end slot'ens 310 px, SIGES det (maalBillede +
+ *   oploesningsBesked) — ingen afvisning.
  *
  * TOMTILSTANDEN vises i kreativen (pladsholderen) OG siges uden for den:
  * manglendeDele() i delingskreativ.ts — hvad mangler, og hvad gør hun.
@@ -29,21 +40,32 @@
  */
 
 import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { dateLabel, manglendeDele, type KreativData } from "@/lib/delingskreativ";
+import {
+  TEKST as BILLED_TEKST,
+  fjernPortraet,
+  hentPortraetUrl,
+  maalBillede,
+  oploesningsBesked,
+  tjekBilledfil,
+  uploadPortraet,
+  uploadVirksomhedslogo,
+} from "@/lib/delingsbilleder";
 import { HbDropzone } from "@/components/hjemmebane/HbDropzone";
 import { HB_INPUT, HB_LABEL } from "@/components/hjemmebane/hbFormKlasser";
 import { KreativFuldskaerm } from "./KreativFuldskaerm";
 import { SkaleretKreativ } from "./SkaleretKreativ";
 import { KREATIVER, kreativMaal } from "./kreativer";
-import { useObjektUrl } from "./useObjektUrl";
 
-const erBillede = (f: File) => f.type.startsWith("image/");
+type Felt = "portraet" | "logo";
 
 export const DelingView = () => {
-  const { profile, companyId, companyName } = useAuth();
+  const { user, profile, companyId, companyName } = useAuth();
+  const queryClient = useQueryClient();
+  const userId = user?.id ?? null;
   const logoQuery = useQuery({
     queryKey: ["deling", "logo", companyId],
     enabled: !!companyId,
@@ -54,33 +76,89 @@ export const DelingView = () => {
       return data?.logo_url || null;
     },
   });
+  // Portrættet i hendes egen mappe i deling-portraetter — null = intet gemt,
+  // så profilbilledet er udgangspunktet. Signeret URL (1 time).
+  const portraetQuery = useQuery({
+    queryKey: ["deling", "portraet", userId],
+    enabled: !!userId,
+    staleTime: 10 * 60_000,
+    queryFn: () => hentPortraetUrl(userId!),
+  });
   // Rettelser: null = ikke rettet → profilens/virksomhedens værdi bruges. Gemmes aldrig.
   const [navnRet, setNavnRet] = useState<string | null>(null);
   const [virksomhedRet, setVirksomhedRet] = useState<string | null>(null);
-  const [portraetFil, setPortraetFil] = useState<File | null>(null);
-  const [logoFil, setLogoFil] = useState<File | null>(null);
   const [filFejl, setFilFejl] = useState<string | null>(null);
+  /** Én linje pr. felt efter et valg: «gemt», eller oplysningen om et lille billede + «gemt». */
+  const [status, setStatus] = useState<Record<Felt, string | null>>({ portraet: null, logo: null });
+  const [travlt, setTravlt] = useState<Felt | null>(null);
   const [aaben, setAaben] = useState<number | null>(null);
-  const portraetObjekt = useObjektUrl(portraetFil);
-  const logoObjekt = useObjektUrl(logoFil);
   const dato = useMemo(() => dateLabel(new Date()), []);
 
   const data: KreativData = {
     memberName: navnRet ?? profile?.full_name ?? "",
     companyName: virksomhedRet ?? companyName ?? "",
     dateLabel: dato,
-    portraetUrl: portraetObjekt ?? profile?.avatar_url ?? null,
-    logoUrl: logoObjekt ?? logoQuery.data ?? null,
+    portraetUrl: portraetQuery.data ?? profile?.avatar_url ?? null,
+    logoUrl: logoQuery.data ?? null,
   };
   const mangler = manglendeDele(data);
 
-  const tagFil = (saet: (f: File | null) => void) => (f: File) => {
-    if (!erBillede(f)) {
-      setFilFejl("Vælg en billedfil — jpg, png eller webp.");
-      return;
-    }
+  const saetStatus = (felt: Felt, tekst: string | null) => setStatus((s) => ({ ...s, [felt]: tekst }));
+
+  // Portrættet: tjek (type, 2 MB) → mål (oplysning, ingen afvisning) → upload til
+  // hendes mappe → kreativen henter den signerede URL. Profilen røres ikke.
+  const tagPortraet = async (f: File) => {
+    if (!userId) return;
+    const dom = tjekBilledfil(f);
+    if (dom.ok === false) { setFilFejl(dom.fejl); return; }
     setFilFejl(null);
-    saet(f);
+    setTravlt("portraet");
+    try {
+      const oplysning = oploesningsBesked(await maalBillede(f));
+      await uploadPortraet(userId, f);
+      await queryClient.invalidateQueries({ queryKey: ["deling", "portraet", userId] });
+      saetStatus("portraet", [oplysning, BILLED_TEKST.portraetGemt].filter(Boolean).join(" "));
+    } catch (e) {
+      setFilFejl(e instanceof Error ? e.message : BILLED_TEKST.portraetFejlUpload);
+    } finally {
+      setTravlt(null);
+    }
+  };
+
+  const fjernPortraetHer = async () => {
+    if (!userId) return;
+    setTravlt("portraet");
+    try {
+      await fjernPortraet(userId);
+      await queryClient.invalidateQueries({ queryKey: ["deling", "portraet", userId] });
+      saetStatus("portraet", null);
+    } catch (e) {
+      setFilFejl(e instanceof Error ? e.message : BILLED_TEKST.portraetFejlFjern);
+    } finally {
+      setTravlt(null);
+    }
+  };
+
+  // Logoet: samme tjek, så Indstillingers upload ordret — og alle der viser
+  // logoet henter igen (kreativen her, sidebaren).
+  const tagLogo = async (f: File) => {
+    if (!companyId) return;
+    const dom = tjekBilledfil(f);
+    if (dom.ok === false) { setFilFejl(dom.fejl); return; }
+    setFilFejl(null);
+    setTravlt("logo");
+    try {
+      await uploadVirksomhedslogo(companyId, f);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["deling", "logo", companyId] }),
+        queryClient.invalidateQueries({ queryKey: ["sidebar-company-logo"] }),
+      ]);
+      saetStatus("logo", BILLED_TEKST.logoGemt);
+    } catch (e) {
+      setFilFejl(e instanceof Error ? e.message : BILLED_TEKST.logoFejlUpload);
+    } finally {
+      setTravlt(null);
+    }
   };
 
   return (
@@ -88,7 +166,7 @@ export const DelingView = () => {
       <div className="flex flex-col gap-1">
         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-hb-ink-soft">Delingskreativ</p>
         <h1 className="font-brand text-2xl font-semibold text-hb-ink">Din kreativ</h1>
-        <p className="text-sm text-hb-ink-soft">Ret navn og virksomhed, og læg dit portræt og jeres logo ind. Det ændrer kun kreativen — ikke din profil.</p>
+        <p className="text-sm text-hb-ink-soft">Ret navn og virksomhed — det ændrer kun kreativen, ikke din profil. Portrættet gemmes kun til kreativen; logoet bliver virksomhedens.</p>
       </div>
 
       {/* Rettelser — kun kreativen, aldrig databasen (se filhovedet). */}
@@ -104,19 +182,20 @@ export const DelingView = () => {
         <Billedfelt
           titel="Portræt"
           url={data.portraetUrl}
-          egenFil={portraetFil}
           rund
-          onFile={tagFil(setPortraetFil)}
-          onFjern={() => setPortraetFil(null)}
-          udgangspunkt={profile?.avatar_url ? "Dit profilbillede er udgangspunktet." : null}
+          hjaelp={BILLED_TEKST.portraetHjaelp}
+          onFile={tagPortraet}
+          onFjern={portraetQuery.data ? fjernPortraetHer : undefined}
+          busy={travlt === "portraet"}
+          status={status.portraet ?? (portraetQuery.data ? "Dit eget portræt til kreativen." : profile?.avatar_url ? "Dit profilbillede er udgangspunktet." : "Intet billede endnu.")}
         />
         <Billedfelt
           titel="Logo"
           url={data.logoUrl}
-          egenFil={logoFil}
-          onFile={tagFil(setLogoFil)}
-          onFjern={() => setLogoFil(null)}
-          udgangspunkt={logoQuery.data ? "Jeres logo fra Indstillinger er udgangspunktet." : null}
+          hjaelp={BILLED_TEKST.logoAdvarsel}
+          onFile={tagLogo}
+          busy={travlt === "logo"}
+          status={status.logo ?? (logoQuery.data ? "Jeres logo fra Indstillinger." : "Intet logo endnu.")}
         />
       </div>
       {filFejl && <p className="-mt-4 text-sm text-hb-rust" role="alert">{filFejl}</p>}
@@ -175,20 +254,25 @@ export const DelingView = () => {
   );
 };
 
-/** Ét billedfelt: det billede kreativen bruger nu, en dropzone til at erstatte det, og «Fjern» for hendes egen fil. */
+/** Ét billedfelt: det billede kreativen bruger nu, hjælpen FØR hun vælger (hvad
+    valget betyder), en dropzone, status efter valget, og «Fjern» hvor det giver mening. */
 const Billedfelt = ({
-  titel, url, egenFil, rund = false, onFile, onFjern, udgangspunkt,
+  titel, url, rund = false, hjaelp, onFile, onFjern, busy = false, status,
 }: {
   titel: string;
   url: string | null | undefined;
-  egenFil: File | null;
   rund?: boolean;
+  /** Står før hun trykker — fx at logoet bliver virksomhedens. */
+  hjaelp: string;
   onFile: (f: File) => void;
-  onFjern: () => void;
-  udgangspunkt: string | null;
+  /** Kun når der er noget der kan fjernes uden at røre profilen. */
+  onFjern?: () => void;
+  busy?: boolean;
+  status: string;
 }) => (
   <div className="flex flex-col gap-2">
     <span className={HB_LABEL}>{titel}</span>
+    <p className="text-xs text-hb-ink-soft" data-billedfelt-hjaelp={titel.toLowerCase()}>{hjaelp}</p>
     <div className="flex items-start gap-3">
       <div
         className={`flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden border border-hb-line bg-hb-surface ${rund ? "rounded-full" : "rounded-hb"}`}
@@ -204,17 +288,18 @@ const Billedfelt = ({
         <HbDropzone
           onFile={onFile}
           accept="image/*"
-          tekst={egenFil ? `Erstat ${titel.toLowerCase()}` : `Læg ${titel.toLowerCase()} ind`}
-          undertekst="Træk et billede hertil, eller klik · jpg, png, webp"
+          tekst={url ? `Erstat ${titel.toLowerCase()}` : `Læg ${titel.toLowerCase()} ind`}
+          undertekst="Træk et billede hertil, eller klik · jpg, png, webp · højst 2 MB"
+          busy={busy}
+          busyTekst="Gemmer…"
         />
-        <p className="text-xs text-hb-ink-soft">
-          {egenFil ? (
+        <p className="text-xs text-hb-ink-soft" data-billedfelt-status={titel.toLowerCase()}>
+          {status}
+          {onFjern && (
             <>
-              Bruger <span className="text-hb-ink">{egenFil.name}</span> — kun her i browseren.{" "}
-              <button type="button" onClick={onFjern} className="text-hb-evergreen underline-offset-2 hover:underline">Fjern</button>
+              {" "}
+              <button type="button" onClick={onFjern} disabled={busy} className="text-hb-evergreen underline-offset-2 hover:underline disabled:opacity-50">Fjern</button>
             </>
-          ) : (
-            udgangspunkt ?? "Intet billede endnu."
           )}
         </p>
       </div>
