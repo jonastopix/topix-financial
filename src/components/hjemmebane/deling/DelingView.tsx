@@ -64,6 +64,7 @@ import {
 import { HbDropzone } from "@/components/hjemmebane/HbDropzone";
 import { HB_INPUT, HB_LABEL } from "@/components/hjemmebane/hbFormKlasser";
 import { KreativFuldskaerm } from "./KreativFuldskaerm";
+import { useMarkerDelingHentet } from "@/hooks/useDelingHentet";
 import { SkaleretKreativ } from "./SkaleretKreativ";
 import { KREATIVER, kreativMaal } from "./kreativer";
 
@@ -73,6 +74,10 @@ export const DelingView = () => {
   const { user, profile, companyId, companyName } = useAuth();
   const queryClient = useQueryClient();
   const userId = user?.id ?? null;
+  // Tjeklistens «Fortæl det videre» (14/9 aften): stemples når en PNG er
+  // hentet — den eneste skrivning til profiles herfra, og den rører ikke
+  // navn, virksomhed eller billede (vej (a)/(b) ovenfor står ved magt).
+  const markerDelingHentet = useMarkerDelingHentet();
   // Virksomhedens logo og kontraktstart i ét opslag (logoet er ikke i
   // useAuth; datoen heller ikke). Nøglen hedder stadig «logo» — den
   // invalideres efter logo-upload.
@@ -310,7 +315,7 @@ export const DelingView = () => {
       </section>
 
       {aaben !== null && (
-        <KreativFuldskaerm kreativer={KREATIVER} data={data} indeks={aaben} onSkift={setAaben} onLuk={() => setAaben(null)} />
+        <KreativFuldskaerm kreativer={KREATIVER} data={data} indeks={aaben} onSkift={setAaben} onLuk={() => setAaben(null)} onHentet={markerDelingHentet} />
       )}
     </div>
   );

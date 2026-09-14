@@ -29,6 +29,11 @@
  * Tomtilstanden er til forhåndsvisningen, aldrig til filen (Jonas 14/9):
  * mens der eksporteres, tegnes kreativen med visTomtilstand=false — sat
  * med flushSync, så DOM'en er uden pladsholdere FØR html2canvas kloner.
+ *
+ * onHentet (14/9 aften, delingens del 2): kaldes én gang EFTER en vellykket
+ * PNG — det er tjeklistepunktet «Fortæl det videre»s handling (profiles.
+ * deling_hentet_at, useDelingHentet). Aldrig ved fejl. Kaldet må ikke
+ * kunne vælte filen: fejler det, logges det, og toasten er allerede vist.
  */
 
 import { useEffect, useId, useRef, useState } from "react";
@@ -48,9 +53,11 @@ export interface KreativFuldskaermProps {
   indeks: number;
   onSkift: (indeks: number) => void;
   onLuk: () => void;
+  /** Efter en vellykket PNG — tjeklistens stempel. Valgfri; fejl heri rører ikke filen. */
+  onHentet?: () => void | Promise<void>;
 }
 
-export const KreativFuldskaerm = ({ kreativer, data, indeks, onSkift, onLuk }: KreativFuldskaermProps) => {
+export const KreativFuldskaerm = ({ kreativer, data, indeks, onSkift, onLuk, onHentet }: KreativFuldskaermProps) => {
   const panelRef = useRef<HTMLDivElement>(null);
   const onLukRef = useRef(onLuk);
   onLukRef.current = onLuk;
@@ -102,6 +109,11 @@ export const KreativFuldskaerm = ({ kreativer, data, indeks, onSkift, onLuk }: K
     try {
       const r = await hentKreativSomPng(element, { layout: post.layout, udgave: post.udgave, format: post.format }, data.memberName);
       toast.success("PNG hentet", { description: `${r.filnavn} · ${r.bredde}×${r.hoejde} px` });
+      try {
+        await onHentet?.();
+      } catch (stempelFejl) {
+        console.warn("[KreativFuldskaerm] stemplet efter PNG fejlede — filen er hentet:", stempelFejl instanceof Error ? stempelFejl.message : stempelFejl);
+      }
     } catch (e) {
       toast.error("Kunne ikke hente PNG", { description: e instanceof Error ? e.message : "Ukendt fejl under tegningen." });
     } finally {

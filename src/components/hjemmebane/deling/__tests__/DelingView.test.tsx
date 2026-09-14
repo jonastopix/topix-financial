@@ -19,7 +19,7 @@
  * de to sidste er mocket. Testen ser på struktur og tekst, ikke på px.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 const auth = vi.hoisted(() => ({
@@ -31,6 +31,9 @@ const auth = vi.hoisted(() => ({
   companyName: "Hansen Byg ApS" as string | null,
 }));
 vi.mock("@/hooks/useAuth", () => ({ useAuth: () => auth }));
+/** PNG-motoren er html2canvas — jsdom kan ikke tegne. Mocket, så «Hent PNG» kan trykkes og stemplet ses. */
+const motor = vi.hoisted(() => ({ hentKreativSomPng: vi.fn() }));
+vi.mock("@/lib/kreativEksport", () => ({ hentKreativSomPng: motor.hentKreativSomPng }));
 
 /** Databasen og storage som DelingView må se dem: kun logo-opslag og logo-skrivning; portrættet kun i storage. */
 const db = vi.hoisted(() => ({
@@ -40,6 +43,8 @@ const db = vi.hoisted(() => ({
   /** Objekter i hendes mappe i deling-portraetter. */
   portraetObjekter: [] as string[],
   logoSkrevet: [] as string[],
+  /** profiles.deling_hentet_at-stemplet efter «Hent PNG» (tjeklisten, 14/9 aften). */
+  delingStemplet: [] as string[],
   fromKald: [] as string[],
   storageKald: [] as string[],
 }));
@@ -50,6 +55,21 @@ vi.mock("@/integrations/supabase/client", () => ({
       return {
         select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: { logo_url: db.logoUrl, contract_start_date: db.kontraktStart }, error: null }) }) }),
         update: (payload: Record<string, unknown>) => {
+          // Tjeklistens stempel (14/9 aften): profiles.deling_hentet_at, KUN
+          // når tom (.is null), efter en hentet PNG. Den eneste profiles-
+          // skrivning DelingView må lave — navn/virksomhed/billede kaster stadig.
+          if (tabel === "profiles" && Object.keys(payload).join(",") === "deling_hentet_at") {
+            return {
+              eq: (_k: string, id: string) => ({
+                is: (kol: string, v: null) => ({
+                  select: async () => {
+                    db.delingStemplet.push(`${id}:${kol}=${String(v)}:${typeof payload.deling_hentet_at}`);
+                    return { data: [{ user_id: id }], error: null };
+                  },
+                }),
+              }),
+            };
+          }
           // Vej (a): KUN companies.logo_url må skrives herfra. Alt andet (navn,
           // virksomhed, profiles) kaster — som før.
           if (tabel !== "companies" || Object.keys(payload).join(",") !== "logo_url") {
@@ -108,6 +128,8 @@ beforeEach(() => {
   db.kontraktStart = "2025-11-14";
   db.portraetObjekter = [];
   db.logoSkrevet = [];
+  db.delingStemplet = [];
+  motor.hentKreativSomPng.mockReset();
   db.fromKald = [];
   db.storageKald = [];
   // Målingen før upload: 900×900 som standard — stort nok til slot'en (310).
@@ -379,5 +401,37 @@ describe("DelingView — «Optaget …» kommer fra kontraktens start, og linjen
     expect(invitation()).toHaveTextContent("Hansen Byg ApS er med fra november 2025.");
     fireEvent.click(kontakt);
     expect(invitation()).toHaveTextContent("Hansen Byg ApS er med. Sig til");
+  });
+});
+
+describe("DelingView — «Hent PNG» stempler tjeklistens «Fortæl det videre» (14/9 aften)", () => {
+  it("en hentet PNG skriver profiles.deling_hentet_at for hende, kun når tom — intet andet skrives", async () => {
+    motor.hentKreativSomPng.mockResolvedValue({ filnavn: "x.png", bredde: 1080, hoejde: 1080 });
+    vis();
+    fireEvent.click(kortet());
+    await act(async () => {
+      fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: /Hent PNG/ }));
+    });
+    expect(motor.hentKreativSomPng).toHaveBeenCalledTimes(1);
+    expect(db.delingStemplet).toEqual(["u1:deling_hentet_at=null:string"]);
+    expect(db.logoSkrevet).toEqual([]);
+  });
+
+  it("fejler motoren, stemples intet — et forsøg er ikke en hentet PNG", async () => {
+    motor.hentKreativSomPng.mockRejectedValue(new Error("tomt lærred"));
+    vis();
+    fireEvent.click(kortet());
+    await act(async () => {
+      fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: /Hent PNG/ }));
+    });
+    expect(db.delingStemplet).toEqual([]);
+  });
+
+  it("at åbne fuldskærmen uden at hente stempler intet — besøg tæller ikke", () => {
+    vis();
+    fireEvent.click(kortet());
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(db.delingStemplet).toEqual([]);
+    expect(db.fromKald.filter((t) => t === "profiles")).toEqual([]);
   });
 });

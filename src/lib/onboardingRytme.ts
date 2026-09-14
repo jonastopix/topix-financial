@@ -197,7 +197,9 @@ export const LOEFTET = "Skriv til din rådgiver i chatten, når du vil — Jonas
 
 /**
  * A — tjeklistens punkter i tjeklistens rækkefølge (onboardingTjekliste.ts:
- * velkomst, profil, praesentation, virksomhed, tal, handout, besked).
+ * velkomst, profil, praesentation, virksomhed, tal, handout, besked, deling).
+ * Delingen (14/9 aften) står sidst som i tjeklisten og menuen; mail A går
+ * kun til dag 0-1-medlemmer, som alle er efter DELING_PUNKT_FRA.
  * Velkomsten er kun med når der er en video (Jonas 2/9: «Vi viser ikke
  * tomt indhold»). Præsentationen (11/9, kort 60) følger med — mailen
  * følger tjeklisten (besluttet 11/9); onboardingRytme.test.ts låser
@@ -212,6 +214,7 @@ export function komIGangTekst(fornavn: string | null | undefined, harVelkomstvid
     `Dine tal — ${HISTORIK_SAETNING}`,
     "Dit første handout — start med Overordnet.",
     "Skriv til din rådgiver — sig hej, så ved vi hvor du er.",
+    "Fortæl det videre — dit medlemskab som billede til LinkedIn, så dit netværk ved hvor du får sparring.",
   ];
   return {
     emne: "Sådan kommer du i gang i The Boardroom",

@@ -21,6 +21,13 @@ import { KILDE_PRAESENTATION } from "@/lib/hjemmebane/praesentation";
  *
  * Kilderne (målt 2/9, recon-onboarding-tjekliste.md §1):
  *   profiles.velkomstvideo_set_at               — self-only RLS
+ *   profiles.created_at                          — samme opslag (14/9): grænsen
+ *     for delingspunktet (kun medlemmer fra DELING_PUNKT_FRA).
+ *   profiles.deling_hentet_at                    — EGET opslag, IKKE fatalt (14/9):
+ *     stemplet fra «Hent PNG» (useDelingHentet). Kolonnen kommer med
+ *     migration 20260914220000, som køres i hånden — klikkes «Update» før
+ *     SQL'en er kørt, må tjeklisten ikke vælte for alle 30 medlemmer.
+ *     Fejler opslaget, er svaret null (punktet ikke gjort) og en warn.
  *   member_profiles.ask_me_about                — rækken findes ikke før første gem → null
  *   companies.website, industry_label, cvr_number — brugerens egen virksomhed (companyId)
  *   financial_reports: count, deleted_at is null — virksomhedens uploads
@@ -72,11 +79,11 @@ async function hentInput(
   companyId: string,
   kanOpretteTraad: boolean,
 ): Promise<{ input: TjeklisteInput; velkomstvideoSetAt: string | null }> {
-  const [profilRes, memberProfilRes, companyRes, rapporterRes, godkendteRes, handoutsRes, samtaleRes, velkomstRes, praesentationRes] = await Promise.all([
+  const [profilRes, memberProfilRes, companyRes, rapporterRes, godkendteRes, handoutsRes, samtaleRes, velkomstRes, praesentationRes, delingRes] = await Promise.all([
     // velkomstvideo_set_at er ikke i de genererede typer endnu (se filhovedet).
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (supabase.from("profiles") as any)
-      .select("velkomstvideo_set_at")
+      .select("velkomstvideo_set_at, created_at")
       .eq("user_id", userId)
       .maybeSingle(),
     supabase.from("member_profiles").select("ask_me_about").eq("user_id", userId).maybeSingle(),
@@ -116,6 +123,13 @@ async function hentInput(
       .eq("forfatter_id", userId)
       .eq("kilde_type", KILDE_PRAESENTATION)
       .eq("status", "aktiv"),
+    // Delingsstemplet — eget opslag, holdes UDEN FOR den fatale fejl-liste
+    // nedenfor (se filhovedet: kolonnen kan mangle indtil migrationen er kørt).
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (supabase.from("profiles") as any)
+      .select("deling_hentet_at")
+      .eq("user_id", userId)
+      .maybeSingle(),
   ]);
 
   // Fejl i ét opslag vælter hele hentningen — en tjekliste med et gættet
@@ -123,8 +137,14 @@ async function hentInput(
   const fejl = [profilRes, memberProfilRes, companyRes, rapporterRes, godkendteRes, handoutsRes, samtaleRes, velkomstRes, praesentationRes].find((r) => r.error);
   if (fejl?.error) throw new Error(fejl.error.message);
 
-  const profil = (profilRes.data ?? null) as { velkomstvideo_set_at: string | null } | null;
+  const profil = (profilRes.data ?? null) as { velkomstvideo_set_at: string | null; created_at: string | null } | null;
   const velkomstvideoSetAt = profil?.velkomstvideo_set_at ?? null;
+  let delingHentetAt: string | null = null;
+  if (delingRes.error) {
+    console.warn("[useOnboardingTjekliste] deling_hentet_at kunne ikke læses (migration 20260914220000 kørt?) — punktet regnes som ikke gjort:", delingRes.error.message);
+  } else {
+    delingHentetAt = ((delingRes.data ?? null) as { deling_hentet_at: string | null } | null)?.deling_hentet_at ?? null;
+  }
   // config_value er JSON (jsonb), ikke text: '""'::json er en TOM streng —
   // parset "" (nul tegn), rå «""» (to tegn). Begge skal give «ingen video»,
   // ellers vises en tom overlejring og punktet tælles med. Dommen er den
@@ -146,6 +166,8 @@ async function hentInput(
       antal_godkendte: godkendteRes.count ?? 0,
       antal_udfyldte_handouts: handoutsRes.count ?? 0,
       last_member_message_at: samtaleRes.data?.last_member_message_at ?? null,
+      medlem_siden: profil?.created_at ?? null,
+      deling_hentet_at: delingHentetAt,
     },
   };
 }

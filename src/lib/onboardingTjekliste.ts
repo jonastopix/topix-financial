@@ -22,7 +22,24 @@
  *   5. rapport        Dine tal — den første rapport            ┐ det de får
  *   6. handout        Dit første handout                       ┘ noget ud af
  *   7. besked         Skriv til din rådgiver                   — mennesket
+ *   8. deling         Fortæl det videre (14/9)                 — ud af huset
  * Rækkefølgen er låst af testen i src/lib/__tests__/onboardingTjekliste.test.ts.
+ *
+ * DELINGEN (14/9, delingens del 2): /deling med tolv kreativer, hendes navn
+ * og billede og «Hent PNG» er i drift (#866-#884), men hun FANDT den ikke
+ * af sig selv — Jonas skulle sende linket i hånden til hver ny. Punktet
+ * står SIDST, som menupunktet «Fortæl det videre» står sidst i menuen
+ * (hbNav.ts): de syv andre handler om hende og huset, dette vender ud af
+ * huset. Gjort = profiles.deling_hentet_at (migration 20260914220000),
+ * stemplet af KreativFuldskaerm når en PNG faktisk er hentet — HANDLING,
+ * ikke besøg, som alle de andre punkter. Et besøg på /deling tæller ikke.
+ * KUN NYE MEDLEMMER: punktet findes kun for medlemmer hvis profil er
+ * oprettet fra DELING_PUNKT_FRA og frem (profiles.created_at — sat af
+ * handle_new_user i samme transaktion som company_members, rytmens
+ * dag 0). Et medlem der var færdig før, forbliver færdig: listen åbner
+ * ikke igen for de 30 eksisterende, og fokuskortet på forsiden skifter
+ * ikke tilbage til tjeklisten. Uden dato (null/ukendt) udgår punktet —
+ * hellere ét punkt for lidt til en gammel end en genåbnet liste.
  *
  * PRÆSENTATIONEN (11/9, kort 60) står lige efter profilen, fordi skabelonen
  * bygges AF profilens tre felter (hjemmebane/praesentation.ts). Gjort = en
@@ -51,7 +68,22 @@
 import { PROFIL_MANGLER_TEKST, PROFIL_STI, profilMangler as profilManglerDom } from "./hjemmebane/profilUdfyldt";
 import { PRAESENTATION_STI } from "./hjemmebane/praesentation";
 
-export type TjeklistePunktId = "velkomst" | "profil" | "praesentation" | "virksomhed" | "rapport" | "handout" | "besked";
+export type TjeklistePunktId = "velkomst" | "profil" | "praesentation" | "virksomhed" | "rapport" | "handout" | "besked" | "deling";
+
+/**
+ * Delingspunktet gælder for medlemmer oprettet fra denne dag og frem
+ * (UTC-midnat). Sat 14/9 aften til dagen efter bygningen: de 10-15 der
+ * importeres 22/9 er efter; de 30 eksisterende er før. Rettes kun med
+ * vilje — flyttes den bagud, åbner listen igen for dem der var færdige.
+ */
+export const DELING_PUNKT_FRA = "2026-09-15T00:00:00.000Z";
+
+/** Gælder delingspunktet for et medlem oprettet på dette tidspunkt? Null/ugyldig → nej. */
+export function delingPunktGaelder(medlemSiden: string | null | undefined): boolean {
+  if (!medlemSiden) return false;
+  const t = new Date(medlemSiden).getTime();
+  return Number.isFinite(t) && t >= new Date(DELING_PUNKT_FRA).getTime();
+}
 
 export interface TjeklisteInput {
   /** Er der sat en velkomstvideo i platformconfig (app_config.velkomstvideo_guid)?
@@ -116,6 +148,17 @@ export interface TjeklisteInput {
    * = medlemmet har aldrig skrevet.
    */
   last_member_message_at: string | null;
+  /**
+   * profiles.created_at — hvornår medlemmet kom ind (handle_new_user).
+   * Grænsen for delingspunktet (delingPunktGaelder). Valgfri: udeladt/null
+   * = punktet udgår, så ældre kaldere og tests er uændrede.
+   */
+  medlem_siden?: string | null;
+  /**
+   * profiles.deling_hentet_at — første gang hun hentede en PNG på /deling
+   * (KreativFuldskaerm → useMarkerDelingHentet). Null = ikke hentet.
+   */
+  deling_hentet_at?: string | null;
 }
 
 export interface TjeklistePunkt {
@@ -137,11 +180,12 @@ export interface TjeklistePunkt {
 }
 
 export interface Tjekliste {
-  /** Syv i fast rækkefølge — velkomst udgår uden video, praesentation udgår
-      uden ret til at oprette en tråd. */
+  /** Otte i fast rækkefølge — velkomst udgår uden video, praesentation udgår
+      uden ret til at oprette en tråd, deling udgår for medlemmer fra før
+      DELING_PUNKT_FRA. */
   punkter: TjeklistePunkt[];
   antal_gjort: number;
-  /** 7 med video og trådret; 6 eller 5 når et eller begge punkter udgår. */
+  /** 8 for et nyt medlem med video og trådret; 7, 6 eller 5 når punkter udgår. */
   antal_i_alt: number;
   /** true når alle punkter er gjort. */
   faerdig: boolean;
@@ -156,6 +200,7 @@ export const TJEKLISTE_RAEKKEFOELGE: readonly TjeklistePunktId[] = [
   "rapport",
   "handout",
   "besked",
+  "deling",
 ];
 
 /** Stierne (besluttet 2/9; profil rettet 9/9 til fanen, ikke siden — profilUdfyldt.ts;
@@ -169,6 +214,7 @@ export const TJEKLISTE_STIER: Readonly<Record<TjeklistePunktId, string>> = {
   rapport: "/rapportering",
   handout: "/handouts",
   besked: "/chat",
+  deling: "/deling",
 };
 
 /** Teksterne for det der kan mangle — eksporteret så fladen og testen bruger samme ord. */
@@ -226,6 +272,11 @@ export function byggTjekliste(input: TjeklisteInput): Tjekliste {
   // rådgivere, så det kan ikke krydses af ved at rådgiveren skriver først.
   const beskedGjort = input.last_member_message_at !== null;
 
+  // DELING — stemplet sættes når en PNG er hentet (KreativFuldskaerm), ikke
+  // ved besøg på siden: at hun har billedet, er det vi kan måle; at hun
+  // slår det op, kan vi ikke.
+  const delingGjort = (input.deling_hentet_at ?? null) !== null;
+
   const punkterEfterId: Record<TjeklistePunktId, TjeklistePunkt> = {
     velkomst: {
       id: "velkomst",
@@ -281,15 +332,23 @@ export function byggTjekliste(input: TjeklisteInput): Tjekliste {
       gjort: beskedGjort,
       sti: TJEKLISTE_STIER.besked,
     },
+    deling: {
+      id: "deling",
+      titel: "Fortæl det videre",
+      beskrivelse: "Dit medlemskab som billede til LinkedIn — så dit netværk ved, hvor du får sparring.",
+      gjort: delingGjort,
+      sti: TJEKLISTE_STIER.deling,
+    },
   };
 
   // Rækkefølgen kommer fra TJEKLISTE_RAEKKEFOELGE, ikke fra objektets
   // nøgleorden — så den er låst ét sted. Uden video filtreres velkomst
-  // fra, uden trådret filtreres praesentation fra; resten beholder deres
-  // indbyrdes orden.
+  // fra, uden trådret filtreres praesentation fra, før DELING_PUNKT_FRA
+  // filtreres deling fra; resten beholder deres indbyrdes orden.
   const punkter = TJEKLISTE_RAEKKEFOELGE
     .filter((id) => id !== "velkomst" || input.har_velkomstvideo)
     .filter((id) => id !== "praesentation" || input.kan_oprette_traad)
+    .filter((id) => id !== "deling" || delingPunktGaelder(input.medlem_siden))
     .map((id) => punkterEfterId[id]);
   const antal_gjort = punkter.filter((p) => p.gjort).length;
 
