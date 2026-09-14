@@ -1,5 +1,5 @@
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
-import { sikrIndgangsInvitation } from "../_shared/sikrIndgangsInvitation.ts";
+import { sikrIndgangsInvitation, type IndgangsInvitationResultat } from "../_shared/sikrIndgangsInvitation.ts";
 import { sendManagedEmail } from "../_shared/managedEmail.ts";
 import {
   beloebFraFaktura,
@@ -30,7 +30,7 @@ import {
   TYPE_FORNYELSE_DUBLET,
   type RaadgiverBeskedResultat,
 } from "../_shared/raadgiverBesked.ts";
-import { beskedVedFejletTraek, type FejletTraekRaekke } from "../_shared/raadgiverBeskedTekst.ts";
+import { beskedVedFejletTraek, beskedVedInvitationsUdfald, type FejletTraekRaekke } from "../_shared/raadgiverBeskedTekst.ts";
 import {
   erGenindtraeden,
   forrigeKontraktErArkiveret,
@@ -181,6 +181,53 @@ async function nulstilIndgangsSession(
   }
 }
 
+
+/**
+ * Fund B (14/9): udfaldet af sikrIndgangsInvitation må ikke forsvinde.
+ * «sendt» og «fandtes_allerede» er normale og logges kun. «sprunget_over»
+ * og «fejlet» giver rådgiverne en besked i klokken (skrivRaadgiverBesked —
+ * #815's form: én række pr. rådgiver, dedup på type + reference_id =
+ * company_id, så Stripes gensendelser ikke skriver den fem gange). Kalder
+ * ALDRIG kast videre: betalingen er registreret, og en besked må ikke
+ * koste svaret til Stripe. Navn og mail slås op her (samme mønster som
+ * meldFejletTraek) — invitationen selv røres ikke.
+ */
+async function meldInvitationsUdfald(
+  adminClient: SupabaseClient,
+  companyId: string,
+  udfald: IndgangsInvitationResultat,
+  stripeReference: string,
+): Promise<void> {
+  const praefiks = `[stripe-webhook] klokke ved invitation ${stripeReference}`;
+  try {
+    if (udfald.udfald === "sendt" || udfald.udfald === "fandtes_allerede") {
+      console.log(`${praefiks}: ${udfald.udfald} (${udfald.email}) — ingen besked`);
+      return;
+    }
+    const { data: company, error: companyFejl } = await adminClient
+      .from("companies")
+      .select("name, contact_email")
+      .eq("id", companyId)
+      .maybeSingle();
+    if (companyFejl) console.error(`${praefiks}: companies-opslag fejlede — beskeden får «En virksomhed»:`, companyFejl.message);
+    const raekke = (company ?? null) as { name?: string | null; contact_email?: string | null } | null;
+    const besked = beskedVedInvitationsUdfald({
+      udfald,
+      virksomhed: raekke?.name ?? "En virksomhed",
+      email: raekke?.contact_email ?? null,
+      companyId,
+      stripeReference,
+    });
+    if (!besked) {
+      console.log(`${praefiks}: ingen besked (company ${companyId})`);
+      return;
+    }
+    const resultat = await skrivRaadgiverBesked(adminClient, besked);
+    console.log(`${praefiks}: ${udfald.udfald} → ${resultat.skrevet} skrevet, ${resultat.fandtes} fandtes, ${resultat.raadgivere} rådgivere${resultat.fejl.length ? ` — fejl: ${resultat.fejl.join("; ")}` : ""}`);
+  } catch (err) {
+    console.error(`${praefiks}: klokken ringede ikke — ${err instanceof Error ? err.message : String(err)}. Udfaldet var ${udfald.udfald}.`);
+  }
+}
 
 /**
  * Kvitteringen for en fornyelse (8/9) — sendes EFTER at perioden er
@@ -697,13 +744,15 @@ async function behandlIndgangsFakturaBetaling(
       if (company?.contract_end_date === eksisterende.periode_slut) {
         // Invitationen sikres også her: første forsøg kan være fejlet
         // EFTER kontrakten var sat og FØR invitationen gik.
-        await sikrIndgangsInvitation(adminClient, companyId, invoiceId);
+        const invitation = await sikrIndgangsInvitation(adminClient, companyId, invoiceId);
+        await meldInvitationsUdfald(adminClient, companyId, invitation, invoiceId);
         console.log(`[stripe-webhook] invoice.paid ${invoiceId} allerede behandlet, springer over`);
         return { udfald: "allerede_behandlet" };
       }
       await skrivIndgangsKontrakt(adminClient, companyId, eksisterende, beloeb.beloeb_oere, stripeCustomerId, " (gensendelse)");
       await nulstilIndgangsSession(adminClient, companyId);
-      await sikrIndgangsInvitation(adminClient, companyId, invoiceId);
+      const invitation = await sikrIndgangsInvitation(adminClient, companyId, invoiceId);
+      await meldInvitationsUdfald(adminClient, companyId, invitation, invoiceId);
       console.log(
         `[stripe-webhook] invoice.paid ${invoiceId}: gensendelse fuldførte halvt udført arbejde — kontrakt ${eksisterende.periode_start} → ${eksisterende.periode_slut}`,
       );
@@ -727,7 +776,8 @@ async function behandlIndgangsFakturaBetaling(
     await meldGenindtraeden(adminClient, companyId, forrigeLaest, periode, nu);
     await nulstilIndgangsSession(adminClient, companyId);
     // Invitationen — betalingen giver adgang (§21). Kaster aldrig selv.
-    await sikrIndgangsInvitation(adminClient, companyId, invoiceId);
+    const invitation = await sikrIndgangsInvitation(adminClient, companyId, invoiceId);
+    await meldInvitationsUdfald(adminClient, companyId, invitation, invoiceId);
     return { udfald: "gennemfoert", periode, beloeb_oere: beloeb.beloeb_oere, genoptaget: false };
   } catch (err) {
     const aarsag = err instanceof Error ? err.message : String(err);
@@ -1222,7 +1272,8 @@ Deno.serve(async (req) => {
           // Invitationen sikres også her: første forsøg kan være fejlet
           // EFTER kontrakten var sat (cancel_at) og FØR invitationen gik.
           // Idempotent — se _shared/sikrIndgangsInvitation.ts.
-          await sikrIndgangsInvitation(adminClient, indgangCompanyId, session.id);
+          const invitation = await sikrIndgangsInvitation(adminClient, indgangCompanyId, session.id);
+          await meldInvitationsUdfald(adminClient, indgangCompanyId, invitation, session.id);
           console.log(`[stripe-webhook] Indgang ${session.id} allerede behandlet, springer over`);
           return new Response(JSON.stringify({ received: true, skipped: "already_processed" }), {
             headers: { "Content-Type": "application/json" },
@@ -1232,7 +1283,8 @@ Deno.serve(async (req) => {
         await nulstilIndgangsSession(adminClient, indgangCompanyId);
         // Kontrakten er nu fuldført — invitationen sikres før svaret, så
         // en gensendelse aldrig efterlader et betalt medlem uden login.
-        await sikrIndgangsInvitation(adminClient, indgangCompanyId, session.id);
+        const invitation = await sikrIndgangsInvitation(adminClient, indgangCompanyId, session.id);
+        await meldInvitationsUdfald(adminClient, indgangCompanyId, invitation, session.id);
         console.log(
           `[stripe-webhook] Indgang ${session.id}: gensendelse fuldførte halvt udført arbejde — kontrakt ${eksisterende.periode_start} → ${eksisterende.periode_slut}`
         );
@@ -1295,8 +1347,9 @@ Deno.serve(async (req) => {
       //    før udtrækket nåede en gensendelse aldrig hertil, og fejlede
       //    cancel_at eller kontrakt-opdateringen i første forsøg, udeblev
       //    invitationen for evigt. Idempotent: pending-opslag +
-      //    UNIQUE(company_id, email). ──
-      await sikrIndgangsInvitation(adminClient, indgangCompanyId, session.id);
+      //    UNIQUE(company_id, email). Udfaldet går i klokken (fund B, 14/9). ──
+      const invitation = await sikrIndgangsInvitation(adminClient, indgangCompanyId, session.id);
+      await meldInvitationsUdfald(adminClient, indgangCompanyId, invitation, session.id);
 
       // company_betalingslink røres IKKE: rækken bliver stående som historik,
       // og hent_betalingstilbud giver "betalt" af sig selv, nu hvor
