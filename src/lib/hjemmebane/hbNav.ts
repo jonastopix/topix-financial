@@ -66,7 +66,7 @@ export type HbAktiv =
   | "boardroom" | "akademiet" | "rapportering" | "noegletal" | "budget" | "milestones" | "handouts"
   | "booksession" | "podcast" | "rabataftaler" | "events" | "medlemmer" | "community" | "chat"
   | "virksomheder" | "opgaver" | "konto"
-  /** /deling (14/9): siden findes, intet menupunkt endnu — markerer ingen linje. */
+  /** /deling (14/9): «Fortæl det videre», sidste punkt i medlemmets menu. */
   | "deling";
 
 export interface HbNavInput {
@@ -113,6 +113,13 @@ export function medlemmetsNav(active: HbAktiv, erAbonnent: boolean, boardroomTo:
     { label: "Events", to: "/events", active: active === "events" },
     { label: "Netværket", to: "/medlemmer", active: active === "medlemmer" },
     { label: "Community", to: "/community", active: active === "community" },
+    // «Fortæl det videre» (Jonas 14/9): delingskreativen på /deling. Sidst,
+    // fordi menuen går fra det medlemmet får (Akademiet, Podcast, Rabat-
+    // aftaler) over det hun deltager i (Events) til de andre (Netværket,
+    // Community) — og dette punkt vender ud af huset. Ikke «Deling»: det
+    // beskriver mekanikken, ikke gaven, og lyder som en indstilling.
+    // Kun fulde medlemmer — abonnenten er ikke «optaget i The Boardroom».
+    { label: "Fortæl det videre", to: "/deling", active: active === "deling" },
   ];
 }
 

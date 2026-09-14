@@ -5,6 +5,8 @@ import { BLOK_MEDLEMMETS_FLADER, BLOK_PLATFORM, bygHbNav, type HbAktiv } from "@
 // ændre sig. Medlemmets menu er låst ORDRET nedenfor (labels, links,
 // rækkefølge, ingen blok-overskrifter), som den stod i HbMemberShell.tsx
 // før flytningen. Ændres den, skal denne test ændres med vilje.
+// Ændret med vilje 14/9 (Jonas): «Fortæl det videre» → /deling som tiende
+// og sidste punkt for fulde medlemmer. Abonnenten er urørt.
 
 const flad = (nav: ReturnType<typeof bygHbNav>) =>
   nav.map((n) => ({
@@ -28,7 +30,7 @@ const DINE_TAL = {
 };
 
 describe("medlemmets menu — ordret som før 8/9", () => {
-  it("fuldt medlem: ni punkter i medlemmets rækkefølge, ingen overskrifter", () => {
+  it("fuldt medlem: ti punkter i medlemmets rækkefølge, ingen overskrifter", () => {
     expect(flad(bygHbNav({ isAdvisor: false, erAbonnent: false, active: "boardroom" }))).toEqual([
       { label: "Dit Boardroom", to: "/", blok: null, children: null },
       DINE_TAL,
@@ -39,6 +41,7 @@ describe("medlemmets menu — ordret som før 8/9", () => {
       { label: "Events", to: "/events", blok: null, children: null },
       { label: "Netværket", to: "/medlemmer", blok: null, children: null },
       { label: "Community", to: "/community", blok: null, children: null },
+      { label: "Fortæl det videre", to: "/deling", blok: null, children: null },
     ]);
   });
   it("abonnenten: kun Dine tal, Podcast & Talks og Rabataftaler; hjemlinket er /kpis", () => {
@@ -49,7 +52,7 @@ describe("medlemmets menu — ordret som før 8/9", () => {
     ]);
   });
   it("aktiv-markeringen følger `active` — og præcis ét punkt er aktivt", () => {
-    const tilfaelde: Array<[HbAktiv, string]> = [["boardroom", "Dit Boardroom"], ["akademiet", "Akademiet"], ["community", "Community"], ["chat", "Chat"], ["budget", "Budget"]];
+    const tilfaelde: Array<[HbAktiv, string]> = [["boardroom", "Dit Boardroom"], ["akademiet", "Akademiet"], ["community", "Community"], ["chat", "Chat"], ["budget", "Budget"], ["deling", "Fortæl det videre"]];
     for (const [active, label] of tilfaelde) {
       const nav = bygHbNav({ isAdvisor: false, erAbonnent: false, active });
       const aktive = nav.flatMap((n) => [...(n.active ? [n.label] : []), ...(n.children ?? []).filter((c) => c.active).map((c) => c.label)]);
