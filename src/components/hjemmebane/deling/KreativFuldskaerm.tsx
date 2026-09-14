@@ -100,7 +100,9 @@ export const KreativFuldskaerm = ({ kreativer, indeks, onSkift, onLuk }: Kreativ
         </div>
       </div>
 
-      <div className="min-h-0 flex-1 p-4 sm:p-8">
+      {/* Området er en flex-kolonne med definit højde (dialogen er fixed inset-0):
+          SkaleretKreativ er selv flex-elementet og måler et tal, aldrig en procent. */}
+      <div className="flex min-h-0 flex-1 flex-col p-4 sm:p-8">
         <SkaleretKreativ bredde={maal.bredde} hoejde={maal.hoejde} tilpas="boks">
           <Kreativ
             udgave={post.udgave}
