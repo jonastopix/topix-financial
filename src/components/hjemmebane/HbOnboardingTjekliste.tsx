@@ -1,7 +1,7 @@
 import * as React from "react";
 import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { erVelkomstHash } from "@/lib/hjemmebane/ankomst";
+import { erVelkomstHash, velkomstTekst } from "@/lib/hjemmebane/ankomst";
 import { Check, ChevronDown, ChevronRight, ChevronUp, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Tjekliste, TjeklistePunkt } from "@/lib/onboardingTjekliste";
@@ -69,6 +69,7 @@ const VelkomstOverlejring = ({
   onSeSenere,
   gemmer,
   fejl,
+  pilleTraekkerSig,
 }: {
   fornavn: string | null;
   onKomIGang: () => void;
@@ -76,6 +77,8 @@ const VelkomstOverlejring = ({
   gemmer: boolean;
   /** Skrivningen fejlede: overlejringen bliver stående og siger det. */
   fejl: string | null;
+  /** Samme dom som pillen (ankomst.ts): på forsiden står tjeklisten i kortet, ellers i boksen nederst. Teksten følger den (14/9). */
+  pilleTraekkerSig: boolean;
 }) => (
   <div className="fixed inset-0 z-40 flex items-end justify-center p-0 sm:items-center sm:p-6" role="dialog" aria-modal="true" aria-label="Velkommen">
     <div className="absolute inset-0 bg-hb-ink/40" onClick={onSeSenere} />
@@ -93,7 +96,7 @@ const VelkomstOverlejring = ({
         {fornavn ? `Velkommen i The Boardroom, ${fornavn}` : "Velkommen i The Boardroom"}
       </h2>
       <p className="mt-2 text-sm leading-relaxed text-hb-ink-soft">
-        Her er en kort gennemgang af, hvordan du får mest ud af platformen. Tjeklisten nederst på siden følger med dig, indtil alt er på plads.
+        {velkomstTekst(pilleTraekkerSig)}
       </p>
       <div className="mt-5">
         <HbVelkomstVideoEmbed />
@@ -281,7 +284,7 @@ export const HbOnboardingTjekliste = ({
 
   const overlejring =
     harVelkomstvideo && (visVelkomstAutomatisk || videoAaben) ? (
-      <VelkomstOverlejring fornavn={fornavn} onKomIGang={komIGang} onSeSenere={seSenere} gemmer={gemmer} fejl={stempelFejl} />
+      <VelkomstOverlejring fornavn={fornavn} onKomIGang={komIGang} onSeSenere={seSenere} gemmer={gemmer} fejl={stempelFejl} pilleTraekkerSig={pilleTraekkerSig} />
     ) : null;
 
   // LUKKET med krydset: boksen er væk som før — men en EKSPLICIT åbning af

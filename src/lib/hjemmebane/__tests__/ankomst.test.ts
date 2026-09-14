@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { erVelkomstHash, fokusCtaHref, pillenTraekkerSig, VELKOMST_HASH } from "../ankomst";
+import { erVelkomstHash, fokusCtaHref, pillenTraekkerSig, VELKOMST_HASH, VELKOMST_INDLEDNING, velkomstTekst } from "../ankomst";
 
 // Ankomstens to løse ender (docs/indgangen-overhaling.md §10, 3/9):
 // hashen der lader fokuskortet åbne velkomstvideoen, og dommen der lader
@@ -55,5 +55,31 @@ describe("pillenTraekkerSig — kun på forsiden, kun når kortet viser tjeklist
       expect(pillenTraekkerSig(side, { faerdig: false })).toBe(false);
       expect(pillenTraekkerSig(side, { faerdig: true })).toBe(false);
     }
+  });
+});
+
+describe("velkomstTekst — overlejringen påstår aldrig en placering der ikke er på skærmen (14/9)", () => {
+  it("forsiden (pillen trækker sig): tjeklisten er kortet under «Dit næste skridt» — ikke «nederst»", () => {
+    const t = velkomstTekst(true);
+    expect(t.startsWith(VELKOMST_INDLEDNING)).toBe(true);
+    expect(t).toContain("under «Dit næste skridt» her på forsiden");
+    expect(t).not.toMatch(/nederst/);
+    expect(t).not.toMatch(/hjørne/);
+  });
+
+  it("alle andre sider (pillen vises): tjeklisten ligger nederst på skærmen — sandt både i bunden (mobil) og i hjørnet (lg)", () => {
+    const t = velkomstTekst(false);
+    expect(t.startsWith(VELKOMST_INDLEDNING)).toBe(true);
+    expect(t).toContain("nederst på skærmen");
+    expect(t).not.toMatch(/forsiden/);
+    expect(t).not.toMatch(/hjørne/);
+    expect(t).not.toMatch(/nederst på siden/); // den gamle sætning
+  });
+
+  it("begge tekster lover det samme: at tjeklisten følger med, indtil alt er på plads", () => {
+    for (const t of [velkomstTekst(true), velkomstTekst(false)]) {
+      expect(t).toContain("følger med dig, indtil alt er på plads.");
+    }
+    expect(velkomstTekst(true)).not.toBe(velkomstTekst(false));
   });
 });
