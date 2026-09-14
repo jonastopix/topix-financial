@@ -10,8 +10,10 @@
  * - info: never send email
  * - report_reminder: skip (already emailed by send-report-reminder)
  * - Anti-spam: max MAX_EMAILS_PER_DAY (5) emails/day per user, talt mod
- *   email_send_log (faktiske sends) — IKKE notifications.email_sent_at, som
- *   også sættes af commit-suppress/dispose og derfor ville æde kvoten.
+ *   email_send_log med status «sent» (det der nåede frem, _shared/dagskvote.ts)
+ *   — IKKE notifications.email_sent_at, som også sættes af
+ *   commit-suppress/dispose, og IKKE afviste rækker (failed/rate_limited/
+ *   suppressed), som er mails medlemmet aldrig så (målt 14/9).
  * - Rapport-notifikationer udvælges via selectNotificationEmails
  *   (_shared/notificationEmailSelection.ts): slettede/committede rapporter
  *   disposes, dubletter per (company, periode) kollapses, og kvote-udskudte
@@ -61,7 +63,6 @@ function parseJwtClaims(token: string): Record<string, unknown> | null {
 
 
 const APP_URL = "https://app.theboardroom.dk";
-const MAX_EMAILS_PER_DAY = 5;
 
 const EMAIL_SUBJECTS: Record<string, string> = {
   advisor_replied: "Ny besked fra din rådgiver",
@@ -96,6 +97,7 @@ import { escHtml, escHtmlMedLinjeskift } from "../_shared/htmlEscape.ts";
 import { opslagsMail } from "../_shared/opslagsMail.ts";
 import { sendManagedEmail, SENDER_FROM, VERIFIED_FROM_EMAIL } from "../_shared/managedEmail.ts";
 import { skalKoeStoppe } from "../_shared/mailFejl.ts";
+import { KVOTE_STATUSSER, MAX_EMAILS_PER_DAY, taelDagskvote } from "../_shared/dagskvote.ts";
 
 /** Nyt community-opslag (notify-community-opslag). Mailen bygges af tråden, ikke af body. */
 const COMMUNITY_OPSLAG_TYPE = "community_opslag";
@@ -281,9 +283,9 @@ Deno.serve(async (req) => {
     }
 
     // Fetch daily email counts per user — counted against email_send_log
-    // (actual send attempts). notifications.email_sent_at is ALSO set by
-    // commit-suppress and delete-dispose without any mail being sent, so
-    // counting that column would let suppressions eat the daily quota and
+    // (mails that actually went out). notifications.email_sent_at is ALSO
+    // set by commit-suppress and delete-dispose without any mail being sent,
+    // so counting that column would let suppressions eat the daily quota and
     // defer legitimate mails to the next quota window.
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -292,22 +294,22 @@ Deno.serve(async (req) => {
     const emailToUser = new Map(
       [...userEmailMap.entries()].map(([uid, email]) => [email, uid]),
     );
-    const countMap: Record<string, number> = {};
+    let countMap: Record<string, number> = {};
     if (emailToUser.size > 0) {
-      // En rate limit-afvisning (14/9) er en mail medlemmet aldrig så — den
-      // bruger ikke hans kvote. Alle ANDRE statusser tælles som før
-      // (sent, failed, suppressed …): kun rate_limited er undtaget.
+      // Kvoten tæller det der NÅEDE FREM (status sent), ikke det der blev
+      // forsøgt. Målt 14/9 kl. 19:38: fem adresser spærret resten af dagen
+      // efter tre modtagne mails, fordi to afvisninger fra kl. 09:10 stod
+      // som «failed» (før #857) og talte med. #857 undtog kun rate_limited
+      // — én fejlstatus ad gangen holder ikke. Dommen bor i
+      // _shared/dagskvote.ts (KVOTE_STATUSSER + taelDagskvote).
       const { data: dailyCounts } = await admin
         .from("email_send_log")
-        .select("recipient_email")
+        .select("recipient_email, status")
         .gte("created_at", todayIso)
         .like("template_name", "notification-%")
-        .neq("status", "rate_limited")
+        .in("status", [...KVOTE_STATUSSER])
         .in("recipient_email", [...emailToUser.keys()]);
-      for (const row of dailyCounts || []) {
-        const uid = emailToUser.get(row.recipient_email);
-        if (uid) countMap[uid] = (countMap[uid] || 0) + 1;
-      }
+      countMap = taelDagskvote(dailyCounts || [], emailToUser);
     }
 
     const ctaLabels: Record<string, string> = {

@@ -5,8 +5,9 @@ import { resolve } from "node:path";
 // Kildeværn (14/9 2026): 429 er en kendt tilstand hele vejen — managedEmail.ts
 // dømmer gennem mailFejl.ts og skriver status rate_limited; køen
 // (send-notification-email) holder pause ved første rate limit i BEGGE
-// løkker og tæller ikke rate_limited-rækker i dagskvoten; de fire kaldere
-// der før kastede på reason === 'failed' kaster stadig på rate_limited.
+// løkker; dagskvoten tæller kun det der nåede frem (dagskvote.ts, 14/9
+// aften — før: alt undtagen rate_limited); de fire kaldere der før kastede
+// på reason === 'failed' kaster stadig på rate_limited.
 // Kildelæsning frem for import: filerne importerer npm:-moduler.
 
 const laes = (sti: string) => readFileSync(resolve(process.cwd(), sti), "utf8");
@@ -36,12 +37,12 @@ describe("mailFejl.guard — managedEmail.ts", () => {
 describe("mailFejl.guard — send-notification-email holder pause og tæller rigtigt", () => {
   const kode = udenKommentarer(laes("supabase/functions/send-notification-email/index.ts"));
 
-  it("dagskvoten tæller ikke rate_limited-rækker — og kun den status er undtaget", () => {
-    const opslag = kode.slice(kode.indexOf('const { data: dailyCounts }'), kode.indexOf("for (const row of dailyCounts || [])"));
+  it("dagskvoten tæller det der nåede frem (KVOTE_STATUSSER) — ikke én fejlstatus undtaget ad gangen (14/9 aften, dagskvote.ts)", () => {
+    const opslag = kode.slice(kode.indexOf('const { data: dailyCounts }'), kode.indexOf("countMap = taelDagskvote("));
     expect(opslag).toContain('.like("template_name", "notification-%")');
-    expect(opslag).toContain('.neq("status", "rate_limited")');
+    expect(opslag).toContain('.in("status", [...KVOTE_STATUSSER])');
+    expect(opslag).not.toContain('.neq("status"');
     expect(opslag).not.toContain('.eq("status"');
-    expect(opslag).not.toContain('.in("status"');
   });
 
   it("begge løkker stopper ved første rate limit (skalKoeStoppe → break), og nonChat-løkken starter ikke efter et stop i chat-løkken", () => {
