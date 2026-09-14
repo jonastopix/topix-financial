@@ -8,6 +8,7 @@
  */
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { kildeNavn } from "@/lib/hjemmebane/rapporteringTekst";
 
 export interface ExtractedData {
   report_type?: string;
@@ -173,9 +174,12 @@ export async function runPostExtractionPipeline(params: {
         description: `${extractedData.message} Rapportkortet åbner indtastningen automatisk.`,
       });
     } else {
-      // Build a contextual description based on what we know
-      const sourceHint = extractedData?.source_system && extractedData.source_system !== "unknown"
-        ? ` Vi genkender det som ${extractedData.source_system === "economic" ? "e-conomic" : extractedData.source_system}, men formatet er ukendt for os.`
+      // Build a contextual description based on what we know. Kildenavnet
+      // (14/9): kun de to programmer vi kender — før stod «dinero» og
+      // «combined_dk» råt i toasten.
+      const kilde = kildeNavn(extractedData?.source_system);
+      const sourceHint = kilde
+        ? ` Vi genkender det som ${kilde}, men formatet er ukendt for os.`
         : "";
       const actionHint = extractedData?.extraction_method?.includes("pdf")
         ? " Prøv at eksportere som Excel i stedet."
@@ -303,11 +307,9 @@ export function getFriendlyErrorMessage(data: any): string {
   const err = data?.error || "";
   const source = data?.source_system || "";
   const status = data?.status || "";
-  const systemLabel = (s: string) =>
-    s === "economic" ? "e-conomic"
-    : s === "dinero" ? "Dinero"
-    : s === "combined_dk" ? "e-conomic"
-    : s || "dit regnskabsprogram";
+  // Kildenavnet (14/9): samme kobling som kortet (rapporteringTekst.kildeNavn).
+  // Før blev combined_dk kaldt e-conomic — et gæt; nu «dit regnskabsprogram».
+  const systemLabel = (s: string) => kildeNavn(s) ?? "dit regnskabsprogram";
   // Periode-gate og spænd-gate fra server: vis den klare besked uændret i
   // stedet for den generiske default (spænd: recon-to-maaneder §2b, 10/9).
   if ((status === "period_not_completed" || status === "period_span_rejected") && err) {

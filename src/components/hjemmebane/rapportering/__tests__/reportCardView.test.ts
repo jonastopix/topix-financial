@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { deriveReportCardView, erForTidligt, foersteDagEfterPeriode, godkendSpaerret, kortGrund, nuSomPeriodeNoegle, rapportFejlgrund } from "../reportCardView";
+import { deriveReportCardView, erForTidligt, foersteDagEfterPeriode, godkendSpaerret, GRUND_MAKS, KONTROL_GRUNDE, kontrolGrund, kontrolNavn, kortGrund, nuSomPeriodeNoegle, rapportFejlgrund, rapportNaesteSkridt } from "../reportCardView";
+import { EKSPORT_VEJE } from "@/lib/hjemmebane/rapporteringTekst";
 
 describe("deriveReportCardView — mapping-tabellen række for række", () => {
   it("1) processing → Behandles…, quiet, ingen handling", () => {
@@ -199,11 +200,12 @@ describe("rapportFejlgrund — grunden står på kortet, kort og i medlemmets or
     expect(rapportFejlgrund({ status: "error", validationErrors: null, qualityValidationErrors: null })).toBe("Behandlingen blev ikke færdig — prøv igen.");
   });
 
-  it("tekniske strenge kommer ALDRIG på kortet: checknavne, engelsk, «Unknown error»", () => {
+  it("tekniske strenge kommer ALDRIG på kortet: checknavne uden belæg, engelsk, «Unknown error»", () => {
     for (const teknisk of [
-      "suspicious_sign_pattern: 5/9 metrics negative (>50%)",
-      "gross_profit_sum: MISMATCH: 95829.05 ≠ 96220.67",
       "Kontrol af dokumentet — deterministic_parser_status: Parser reported: FAIL",
+      "ebit_calculation: EBITDA(100) - Depr(10) = 90.00, EBIT = 50",
+      "numeric_values_only: Non-numeric: revenue",
+      "Kontrol af dokumentet — sign_convention: Detected UNKNOWN convention",
       "AI returned no tool call",
       "Unknown error",
       "Known source economic detected but no supported template matched. AI fallback is forbidden for known sources.",
@@ -232,5 +234,110 @@ describe("rapportFejlgrund — grunden står på kortet, kort og i medlemmets or
     expect(med.detail).toMatch(/^Filen dækker/);
     const uden = deriveReportCardView({ status: "error", isCommitted: false, fejlgrund: null });
     expect(uden.detail).toBeUndefined();
+  });
+});
+
+// ── Kontrollernes grund (14/9, mangellistens nr. 8) ──
+//
+// validation_errors er «navn: details» (extract-financial-data:1407) eller
+// «Kontrol af dokumentet — navn: details» (:1410). Før 14/9 var alle teknik
+// → intet på kortet; nu får de kontroller hvis betydning står i
+// canonicalEngine.ts en tekst i formularens ord.
+describe("kontrolGrund — gross_profit_sum HAR nu en grund, og de andre med belæg", () => {
+  it("gross_profit_sum: canonical-formen OG skabelonens form giver samme menneskelige tekst — uden checknavn og tal", () => {
+    const canonical = "gross_profit_sum: MISMATCH: 95829.05 ≠ 96220.67";
+    const skabelon = "Kontrol af dokumentet — gross_profit_sum: 95829.05 - 3000 = 92829.05, DB = 96220.67 (diff 3391.62)";
+    const g = rapportFejlgrund({ status: "processed", validationErrors: [canonical] });
+    expect(g).toBe("Dækningsbidraget stemmer ikke med omsætning minus direkte omkostninger — tjek de tre tal på kortet.");
+    expect(rapportFejlgrund({ status: "processed", qualityValidationErrors: [skabelon] })).toBe(g);
+    expect(g).not.toMatch(/gross_profit|MISMATCH|\d/);
+    // og den står på needs_manual_entry-kortet
+    const view = deriveReportCardView({ status: "needs_manual_entry", isCommitted: false, fejlgrund: g });
+    expect(view.detail).toBe(g);
+  });
+
+  it("kontrolNavn: begge former, og en streng uden checknavn giver null", () => {
+    expect(kontrolNavn("gross_profit_sum: MISMATCH: 1 ≠ 2")).toEqual({ navn: "gross_profit_sum", details: "MISMATCH: 1 ≠ 2" });
+    expect(kontrolNavn("Kontrol af dokumentet — revenue_present: No revenue found")).toEqual({ navn: "revenue_present", details: "No revenue found" });
+    expect(kontrolNavn("Unknown error")).toBeNull();
+    expect(kontrolNavn("Filen dækker 2 måneder: noget")).toBeNull(); // stort bogstav/mellemrum — ikke et checknavn
+  });
+
+  it("required_fields_present nævner de felter der mangler (canonicalEngine:607-611: revenue, ebt)", () => {
+    expect(kontrolGrund("required_fields_present: Missing: revenue, ebt")).toBe("Vi fandt ikke omsætningen og resultatet før skat i filen — indtast tallene på kortet.");
+    expect(kontrolGrund("required_fields_present: Missing: ebt")).toBe("Vi fandt ikke resultatet før skat i filen — indtast tallene på kortet.");
+    expect(kontrolGrund("required_fields_present: Missing: noget_ukendt")).toBeNull();
+  });
+
+  it("missing_core_totals: uden omsætning / uden begge balancetotaler (canonicalEngine:789, :795)", () => {
+    expect(kontrolGrund("missing_core_totals: P&L report without revenue")).toBe("Vi fandt ingen omsætning i filen — indtast tallene på kortet.");
+    expect(kontrolGrund("missing_core_totals: Balance report without assets_total AND liabilities_total")).toMatch(/^Vi fandt hverken aktiver i alt eller passiver i alt/);
+  });
+
+  it("de øvrige med belæg: hver får sin tekst, ordret", () => {
+    const tekst = (navn: string) => KONTROL_GRUNDE.find((g) => g.navn === navn)!.tekst;
+    expect(kontrolGrund("Kontrol af dokumentet — revenue_present: No revenue found")).toBe("Vi fandt ingen omsætning i filen — indtast tallene på kortet.");
+    expect(kontrolGrund("Kontrol af dokumentet — ebt_present: No EBT found")).toBe("Vi fandt intet resultat før skat i filen — indtast tallene på kortet.");
+    expect(kontrolGrund("cost_lines_present: Revenue 100 but no cost lines found — result equals revenue, report incomplete")).toBe(tekst("cost_lines_present"));
+    expect(kontrolGrund("mixed_period_columns_detected: Period basis could not be determined — possible mixing of period/YTD")).toBe(tekst("mixed_period_columns_detected"));
+    expect(kontrolGrund("period_consistency: YTD (100) < period (200)")).toBe(tekst("period_consistency"));
+    expect(kontrolGrund("suspicious_sign_pattern: revenue=-5000 negative")).toBe(tekst("suspicious_sign_pattern"));
+    expect(kontrolGrund("impossible_margin_check: Gross margin 1515.0% outside ±100%")).toBe(tekst("impossible_margin_check"));
+    expect(kontrolGrund("result_consistency: EBT (500) > gross_profit (100) — possible sign error")).toBe(tekst("result_consistency"));
+    expect(kontrolGrund("balance_equation: Assets (100) ≠ Liabilities (90)")).toBe(tekst("balance_equation"));
+  });
+
+  it("alle kontroltekster er dansk, kort (≤ GRUND_MAKS), uden checknavne, og peger på kortet/felterne", () => {
+    for (const g of KONTROL_GRUNDE) {
+      expect(g.tekst.length, g.navn).toBeLessThanOrEqual(GRUND_MAKS);
+      expect(g.tekst, g.navn).not.toMatch(/[a-z]+_[a-z]+/); // ingen snake_case
+      expect(g.tekst, g.navn).toMatch(/kortet|kolonne/);
+    }
+    // ét navn, én tekst
+    expect(new Set(KONTROL_GRUNDE.map((g) => g.navn)).size).toBe(KONTROL_GRUNDE.length);
+  });
+
+  it("serverens danske grunde går stadig forud for kontrollerne (grenrækkefølgen)", () => {
+    expect(rapportFejlgrund({ status: "processed", validationErrors: ["gross_profit_sum: MISMATCH: 1 ≠ 2"], routingBranch: "period_not_completed" })).toMatch(/ikke afsluttet/);
+  });
+});
+
+// ── Næste skridt (14/9): kortet siger hvad man gør ──
+describe("rapportNaesteSkridt — kilden → vejen, uden gæt", () => {
+  const SPAEND = "Filen dækker 2 måneder (maj–juni 2026). Vi kan kun læse én måned ad gangen — eksportér én måned pr. fil og upload dem hver for sig.";
+
+  it("e-conomic-kilde → saldobalancen som Excel, vejen ordret fra EKSPORT_VEJE", () => {
+    const t = rapportNaesteSkridt({ status: "processed", validationErrors: ["gross_profit_sum: MISMATCH: 1 ≠ 2"] }, "economic");
+    expect(t).toMatch(/^Den fil vi læser sikrest fra e-conomic, er saldobalancen som Excel: /);
+    expect(t).toContain(EKSPORT_VEJE.find((v) => v.system === "e-conomic")!.vej);
+  });
+
+  it("dinero-kilde → Dinero-vejen; unknown/null → intet program nævnt", () => {
+    expect(rapportNaesteSkridt({ status: "error", validationErrors: ["PDF structural extraction failed: x"] }, "dinero")).toMatch(/fra Dinero: Rapporter → Resultatopgørelse → CSV eller PDF\.$/);
+    for (const kilde of ["unknown", "combined_dk", null, undefined]) {
+      const t = rapportNaesteSkridt({ status: "error", validationErrors: null }, kilde);
+      expect(t, String(kilde)).toMatch(/^Vi kan ikke se, hvilket regnskabsprogram filen kommer fra\./);
+      expect(t, String(kilde)).not.toMatch(/e-conomic|Dinero|Billy/);
+    }
+  });
+
+  it("spændet: serverens egen hale, som kortGrund klipper af grunden — én måned pr. fil", () => {
+    expect(rapportNaesteSkridt({ status: "error", validationErrors: [SPAEND], routingBranch: "period_span_rejected" }, "economic")).toBe("Eksportér én måned pr. fil, og upload dem hver for sig.");
+    expect(rapportNaesteSkridt({ status: "error", routingBranch: "period_span_rejected" }, null)).toBe("Eksportér én måned pr. fil, og upload dem hver for sig.");
+  });
+
+  it("perioden ikke afsluttet: grunden siger allerede hvad man gør → intet næste skridt", () => {
+    expect(rapportNaesteSkridt({ status: "error", validationErrors: ["Periode ikke afsluttet"] }, "economic")).toBeNull();
+    expect(rapportNaesteSkridt({ status: "error", routingBranch: "period_not_completed" }, "economic")).toBeNull();
+  });
+
+  it("kortet: næste skridt står på error- og needs_manual_entry-kortene, ikke på de andre", () => {
+    const skridt = "Den fil vi læser sikrest fra e-conomic, er saldobalancen som Excel: x.";
+    expect(deriveReportCardView({ status: "error", isCommitted: false, naesteSkridt: skridt }).naesteSkridt).toBe(skridt);
+    expect(deriveReportCardView({ status: "needs_manual_entry", isCommitted: false, naesteSkridt: skridt }).naesteSkridt).toBe(skridt);
+    expect(deriveReportCardView({ status: "error", isCommitted: false, naesteSkridt: null }).naesteSkridt).toBeUndefined();
+    for (const status of ["processing", "processed", "period_not_completed"]) {
+      expect(deriveReportCardView({ status, isCommitted: false, commitState: "ready", naesteSkridt: skridt }).naesteSkridt, status).toBeUndefined();
+    }
   });
 });
