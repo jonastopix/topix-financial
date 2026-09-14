@@ -14,7 +14,9 @@ import { bulletproofButton, fallbackLinkBlock } from "../_shared/emailButtonHelp
 // email_queue_service_role_key).
 //
 // Dagligt pg_cron-mål: paaminder fulde medlemmer der endnu ikke har booket deres
-// inkluderede intro-session hos Morten. Foerste mail INTRO_PAAMINDELSE_FRA_DAG
+// inkluderede session hos Morten (gaten er intro_session_used_at; mailen
+// naevner siden 14/9 BEGGE inkluderede sessioner, Mortens og Jonas', med
+// /book-session-kortenes ord). Foerste mail INTRO_PAAMINDELSE_FRA_DAG
 // (10) dage efter medlemskabsstart, derefter maanedligt indtil de booker
 // (intro_session_used_at saettes) eller kontrakten udloeber.
 //
@@ -26,7 +28,7 @@ import { bulletproofButton, fallbackLinkBlock } from "../_shared/emailButtonHelp
 //
 // SYSTEMETS STEMME (9/9): mailen sendes af en cron, så den siger ikke
 // længere «Du har en sparring med MIG til gode … Morten» — den siger «Din
-// sparring med Morten er inkluderet», afsender «The Boardroom». En maskine
+// sparring med Morten og Jonas er inkluderet», afsender «The Boardroom». En maskine
 // der skriver som Morten er en løgn; en maskine der fortæller om Morten er
 // ærlig (analyse §4).
 //
@@ -64,7 +66,7 @@ function buildIntroReminderHtml(t: RytmeTekst): string {
     </td></tr>
   </table>
   <div style="background:#ffffff;border-radius:0 0 10px 10px;padding:28px 28px 0">
-    <p style="font-size:11px;font-weight:600;color:#16a34a;text-transform:uppercase;letter-spacing:.08em;margin:0 0 10px">Din sparring med Morten</p>
+    <p style="font-size:11px;font-weight:600;color:#16a34a;text-transform:uppercase;letter-spacing:.08em;margin:0 0 10px">Inkluderet i dit medlemskab</p>
     <h1 style="color:#0f1117;font-size:22px;font-weight:700;margin:0 0 14px;line-height:1.3;letter-spacing:-.02em">${esc(t.emne)}</h1>
     <p style="${P}">${esc(t.overskrift)}</p>
 ${afsnit}
@@ -128,7 +130,9 @@ async function koerIntroPaamindelser(
   //    aldrig er sendt en paamindelse eller der er gaaet over 30 dage siden sidst.
   const { data: companies, error: companiesErr } = await supabase
     .from("companies")
-    .select("id, name, contract_start_date, created_at, intro_reminder_last_sent_at")
+    // jonas_session_used_at (14/9): mailen siger «to sessioner» kun når
+    // Jonas-retten ikke er brugt — 14 af 25 kandidater havde brugt den.
+    .select("id, name, contract_start_date, created_at, intro_reminder_last_sent_at, jonas_session_used_at")
     .gt("contract_end_date", nowIso)          // aktiv kontrakt = tier full
     .is("intro_session_used_at", null)         // har ikke booket endnu
     .or(`intro_reminder_last_sent_at.is.null,intro_reminder_last_sent_at.lt.${thirtyDaysAgo}`);
@@ -196,15 +200,19 @@ async function koerIntroPaamindelser(
         continue;
       }
 
+      // Jonas-retten: brugt = feltet er sat. Mailen maa ikke love en session
+      // de ikke har (review 14/9); teksten afgoer selv ordlyden.
+      const jonasRetBrugt = (company as { jonas_session_used_at?: string | null }).jonas_session_used_at != null;
+
       if (toerKoersel) {
         // Toerkoersel: kandidaten er fundet og logget — intet sendes, intet skrives.
-        console.log(`[intro-reminder-cron] TOERKOERSEL ville sende til: ${email} (${company.name})`);
+        console.log(`[intro-reminder-cron] TOERKOERSEL ville sende til: ${email} (${company.name}, ${jonasRetBrugt ? "én session" : "to sessioner"})`);
         resultat.ville_sende++;
         continue;
       }
 
       const firstName = profile?.full_name?.trim().split(" ")[0] || null;
-      const tekst = introPaamindelseTekst(firstName);
+      const tekst = introPaamindelseTekst(firstName, jonasRetBrugt);
       const subject = tekst.emne;
       const html = buildIntroReminderHtml(tekst);
       // 5. Send-vej: mailen sendes med det samme og bogfoeres i email_send_log.

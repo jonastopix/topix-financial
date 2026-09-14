@@ -22,15 +22,19 @@
  * hvad platformen gør og hvad medlemmet kan gøre. De siger «The Boardroom»,
  * aldrig «jeg», aldrig «vi glæder os», og de lader aldrig som om nogen har
  * set på personen. Velkomsten dag 1 og spørgsmålet dag 7 er Jonas' og
- * Mortens (25/8: «velkomsten er rådgiverens egen opgave») — mail A LOVER
- * det menneske, den efterligner det ikke. Testen låser ordvalget.
+ * Mortens (25/8: «velkomsten er rådgiverens egen opgave») — men mail A
+ * lover IKKE at de skriver (Jonas 14/9: det er ikke automatiseret); den
+ * siger at medlemmet er velkommen til at skrive, og at de svarer. Samme
+ * initiativ som tjeklistens sidste punkt, «Skriv til din rådgiver» (punkt
+ * 6 uden velkomstvideo, 7 med). Testen låser ordvalget.
  *
  * DE TRE:
  *   A  dag 0–1   «Sådan kommer du i gang» — tjeklistens punkter i rækkefølge,
  *                «start med historikken: de seneste 3 måneder, gerne mere»,
- *                og løftet om at Jonas eller Morten skriver i chatten.
+ *                og at hun kan skrive i chatten og få svar (LOEFTET).
  *                Springes over hvis de allerede har uploadet.
- *   B  dag 10    «Din sparring med Morten er inkluderet» — sendes af
+ *   B  dag 10    «Din sparring med Morten og Jonas er inkluderet» — eller
+ *                «… med Morten …» når Jonas-retten er brugt — sendes af
  *                intro-reminder-cron (den henter tærsklen og teksten HER),
  *                kun hvis intro_session_used_at er null, derefter hver 30.
  *                dag som før. BESLUTTET af Jonas 9/9 («God idé»): flyttet
@@ -182,8 +186,14 @@ export function tiltale(fornavn: string | null | undefined): string {
 export const HISTORIK_SAETNING =
   "Start med historikken: de seneste 3 måneder, gerne mere — også fra før du blev medlem.";
 
-/** Løftet om mennesket. Et løfte, ikke en efterligning. */
-export const LOEFTET = "Jonas eller Morten skriver til dig i chatten i løbet af de første dage.";
+/**
+ * Det vi lover om mennesket (Jonas 14/9): initiativet er medlemmets — som
+ * tjeklistens punkt «Skriv til din rådgiver — Sig hej, så ved vi, hvor du
+ * er» (onboardingTjekliste.ts) — og svaret er det vi lover. Ikke «Jonas
+ * eller Morten skriver til dig»: det var ikke automatiseret, og ingen
+ * påmindelse sikrede det. Testen låser at den sætning ikke kommer igen.
+ */
+export const LOEFTET = "Skriv til din rådgiver i chatten, når du vil — Jonas eller Morten svarer.";
 
 /**
  * A — tjeklistens punkter i tjeklistens rækkefølge (onboardingTjekliste.ts:
@@ -238,15 +248,42 @@ export function historikTekst(fornavn: string | null | undefined): RytmeTekst {
   };
 }
 
-/** B — intro-påmindelsen i systemets stemme (bruges af intro-reminder-cron). Morten i tredje person. */
-export function introPaamindelseTekst(fornavn: string | null | undefined): RytmeTekst {
+/** Kortenes første sætning på /book-session, ordret (BookSessionView «Blikket udefra» / «Blikket indefra», 13/9). */
+const BLIKKET_UDEFRA = "Blikket udefra — Morten er investor og ser din forretning udefra, med det blik en investor lægger på en virksomhed.";
+const BLIKKET_INDEFRA = "Blikket indefra — Jonas er partner i The Boardroom og kender platformen og dine tal indefra.";
+
+/**
+ * B — intro-påmindelsen i systemets stemme (bruges af intro-reminder-cron).
+ * Begge rådgivere i tredje person (14/9, fund G): siden 13/9 (#844) er der TO
+ * inkluderede sessioner à 30 minutter, én med Morten og én med Jonas. Ordene
+ * om de to er /book-session-kortenes, så mail og flade siger det samme.
+ * Cronen gater kun på Mortens session (intro_session_used_at), så kun den
+ * siges «ikke booket».
+ *
+ * jonasRetBrugt (14/9, review): companies.jonas_session_used_at var sat på
+ * 23 af 38 i prod (sat i hånden 13/9), og 14 af cronens 25 kandidater havde
+ * allerede brugt Jonas-retten. En statisk «to sessioner» ville love dem en
+ * session de ikke har. Er retten brugt, udelades Jonas-afsnittet, og emne og
+ * første afsnit siger ÉN inkluderet session. Ren funktion: kalderen læser
+ * feltet og giver svaret ind. Alt står i afsnit: intro-reminder-crons ramme
+ * gengiver hverken punkter eller efterKnap.
+ */
+export function introPaamindelseTekst(fornavn: string | null | undefined, jonasRetBrugt: boolean): RytmeTekst {
   return {
-    emne: "Din sparring med Morten er inkluderet",
+    emne: jonasRetBrugt ? "Din sparring med Morten er inkluderet" : "Din sparring med Morten og Jonas er inkluderet",
     overskrift: tiltale(fornavn),
-    afsnit: [
-      "Dit medlemskab inkluderer 30 minutters sparring med Morten. Den har du ikke booket endnu.",
-      "Den er der når du har brug for den — du vælger selv tidspunktet.",
-    ],
+    afsnit: jonasRetBrugt
+      ? [
+          "Dit medlemskab inkluderer en session på 30 minutter med Morten. Den har du ikke booket endnu.",
+          BLIKKET_UDEFRA,
+          "Du bestemmer selv hvad sessionen skal bruges til, og hvornår. Én session per virksomhed, ikke per bruger.",
+        ]
+      : [
+          "Dit medlemskab inkluderer to sessioner på 30 minutter: én med Morten og én med Jonas. Sessionen med Morten har du ikke booket endnu.",
+          BLIKKET_UDEFRA,
+          BLIKKET_INDEFRA,
+          "Du bestemmer selv hvad sessionerne skal bruges til, og hvornår. Én session per virksomhed, ikke per bruger.",
+        ],
     punkter: [],
     knap: { tekst: "Book din session", sti: "/book-session" },
     efterKnap: [],
