@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { Loader2, LogOut, Trash2, Upload } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
+import { medVersion } from "@/lib/billedVersion";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import { getPasswordScore } from "@/components/PasswordStrengthIndicator";
@@ -97,10 +98,13 @@ export const KontoView = () => {
     const sti = `${user.id}/avatar`;
     const { error: upFejl } = await supabase.storage.from("avatars").upload(sti, fil, { upsert: true, contentType: fil.type });
     if (upFejl) { toast.error("Billedet kunne ikke uploades"); setUploader(false); return; }
-    const renUrl = supabase.storage.from("avatars").getPublicUrl(sti).data.publicUrl;
+    // Versionen ligger i den GEMTE URL (billedVersion.ts, 14/9): samme sti
+    // giver samme public-URL, så uden version så ingen visning ændringen.
+    // Ingen ?t= i state længere — den gemte streng bærer versionen for alle.
+    const renUrl = medVersion(supabase.storage.from("avatars").getPublicUrl(sti).data.publicUrl);
     const { error: gemFejl } = await supabase.from("profiles").update({ avatar_url: renUrl }).eq("user_id", user.id);
     if (gemFejl) toast.error("Billedet blev ikke gemt på profilen");
-    else { setAvatarUrl(`${renUrl}?t=${Date.now()}`); await refreshProfile(); toast.success("Billede opdateret"); }
+    else { setAvatarUrl(renUrl); await refreshProfile(); toast.success("Billede opdateret"); }
     setUploader(false);
     if (filRef.current) filRef.current.value = "";
   };

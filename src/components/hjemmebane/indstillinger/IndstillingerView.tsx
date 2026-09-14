@@ -7,6 +7,7 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useAuth } from "@/hooks/useAuth";
+import { medVersion } from "@/lib/billedVersion";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import { INDUSTRY_OPTIONS } from "@/lib/brancher";
@@ -218,10 +219,13 @@ export const IndstillingerView = () => {
     const filePath = `${company.id}/logo`;
     const { error: uploadError } = await supabase.storage.from("company-logos").upload(filePath, file, { upsert: true, contentType: file.type });
     if (uploadError) { toast.error("Kunne ikke uploade logo"); setUploadingLogo(false); return; }
-    const cleanUrl = supabase.storage.from("company-logos").getPublicUrl(filePath).data.publicUrl;
+    // Versionen ligger i den GEMTE URL (billedVersion.ts, 14/9) — ikke ?t= i
+    // state: samme sti giver samme public-URL, og alle der læser logo_url
+    // (kreativen, sidebaren) skal se en ny streng når logoet skifter.
+    const cleanUrl = medVersion(supabase.storage.from("company-logos").getPublicUrl(filePath).data.publicUrl);
     const { error: updateError } = await supabase.from("companies").update({ logo_url: cleanUrl }).eq("id", company.id);
     if (updateError) toast.error("Kunne ikke gemme logo-URL");
-    else { setLogoUrl(`${cleanUrl}?t=${Date.now()}`); toast.success("Logo uploadet"); }
+    else { setLogoUrl(cleanUrl); toast.success("Logo uploadet"); }
     setUploadingLogo(false);
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
