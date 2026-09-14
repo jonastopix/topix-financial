@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import {
   afgoerRytme,
   EKSPORT_VEJE_TEKST,
@@ -10,6 +12,7 @@ import {
   introPaamindelseTekst,
   KOM_I_GANG_TIL_DAG,
   komIGangTekst,
+  LOEFTET,
   RYTME_LABEL,
   type RytmeInput,
   type RytmeTekst,
@@ -102,7 +105,10 @@ describe("introPaamindelseModen — B er dag 10, ikke dag 2 (Jonas 9/9)", () => 
 });
 
 describe("teksterne — systemets stemme", () => {
-  const alle: RytmeTekst[] = [komIGangTekst("Mette", true), komIGangTekst(null, false), historikTekst("Ib"), introPaamindelseTekst(null)];
+  const alle: RytmeTekst[] = [
+    komIGangTekst("Mette", true), komIGangTekst(null, false), historikTekst("Ib"),
+    introPaamindelseTekst(null, false), introPaamindelseTekst("Ib", true),
+  ];
   const fladt = (t: RytmeTekst) => [t.emne, t.overskrift, ...t.afsnit, ...t.punkter, t.knap.tekst, ...t.efterKnap].join(" ");
 
   it("ingen «jeg», «mig», «vi glæder os» og ingen underskrift — det er The Boardroom der taler, ikke et menneske", () => {
@@ -131,13 +137,38 @@ describe("teksterne — systemets stemme", () => {
     expect(udenVideo[0].startsWith("Din profil")).toBe(true);
   });
 
-  it("A: historikken (3 måneder, også fra før medlemskabet) og løftet om Jonas eller Morten", () => {
+  it("A: historikken (3 måneder, også fra før medlemskabet), og initiativet er medlemmets — som tjeklistens punkt (Jonas 14/9)", () => {
     const s = fladt(komIGangTekst("Mette", false));
     expect(s).toContain(`de seneste ${HISTORIK_MAANEDER} måneder, gerne mere`);
     expect(s).toContain("også fra før du blev medlem");
-    expect(s).toContain("Jonas eller Morten skriver til dig i chatten");
+    // Det gamle løfte («Jonas eller Morten skriver til dig i chatten») var
+    // ikke automatiseret og må ikke komme igen. Det nye siger det der sker:
+    // hun skriver, de svarer — samme initiativ som tjeklistens «Skriv til
+    // din rådgiver — Sig hej, så ved vi, hvor du er».
+    expect(s).not.toContain("skriver til dig i chatten");
+    expect(s).not.toMatch(/i løbet af de første dage/);
+    expect(komIGangTekst("Mette", false).efterKnap).toEqual([LOEFTET]);
+    expect(LOEFTET).toBe("Skriv til din rådgiver i chatten, når du vil — Jonas eller Morten svarer.");
+    expect(LOEFTET).toMatch(/^Skriv til din rådgiver/);
+    expect(LOEFTET).toContain("Jonas eller Morten svarer");
     expect(komIGangTekst("Mette", false).overskrift).toBe("Hej Mette,");
     expect(komIGangTekst("  ", false).overskrift).toBe("Hej,");
+  });
+
+  it("A: mailen og tjeklistens sidste punkt («Skriv til din rådgiver» — 6 uden video, 7 med) siger det samme om hvem der tager initiativet", () => {
+    const tjekliste = byggTjekliste({
+      har_velkomstvideo: false, velkomstvideo_set_at: null, ask_me_about: null, website: null, industry_label: null,
+      cvr_number: null, antal_rapporter: 0, antal_godkendte: 0, antal_udfyldte_handouts: 0, last_member_message_at: null,
+      kan_oprette_traad: true, har_praesentation: false,
+    });
+    const besked = tjekliste.punkter.find((p) => p.id === "besked");
+    expect(besked?.titel).toBe("Skriv til din rådgiver");
+    // Uden video er det punkt 6 af 6 — og altid det sidste.
+    expect(tjekliste.punkter).toHaveLength(6);
+    expect(tjekliste.punkter[tjekliste.punkter.length - 1].id).toBe("besked");
+    // Begge begynder med medlemmets handling — ingen af dem lover at rådgiveren skriver først.
+    expect(LOEFTET.startsWith(besked!.titel)).toBe(true);
+    expect(fladt(komIGangTekst(null, false))).not.toMatch(/(Jonas|Morten) (eller (Jonas|Morten) )?skriver til dig/);
   });
 
   it("C: eksportvejene er ordret dem på /rapportering", () => {
@@ -148,11 +179,72 @@ describe("teksterne — systemets stemme", () => {
     expect(fladt(c)).toContain(`de seneste ${HISTORIK_MAANEDER} måneder`);
   });
 
-  it("B: Morten i tredje person, ingen «med mig til gode»", () => {
-    const b = introPaamindelseTekst("Ib");
-    expect(b.emne).toBe("Din sparring med Morten er inkluderet");
-    expect(fladt(b)).toContain("sparring med Morten");
+  it("B, Jonas-retten IKKE brugt: BEGGE rådgivere i tredje person — emne og brødtekst (fund G, 14/9); ingen «med mig til gode»", () => {
+    const b = introPaamindelseTekst("Ib", false);
+    expect(b.emne).toBe("Din sparring med Morten og Jonas er inkluderet");
+    expect(b.emne).toContain("Morten");
+    expect(b.emne).toContain("Jonas");
+    const krop = [...b.afsnit].join(" ");
+    expect(krop).toContain("Morten");
+    expect(krop).toContain("Jonas");
+    expect(krop).toContain("to sessioner på 30 minutter");
     expect(fladt(b)).not.toContain("til gode");
     expect(b.knap.sti).toBe("/book-session");
+  });
+
+  it("B, Jonas-retten BRUGT (jonas_session_used_at sat): Jonas nævnes ikke, én session, kun Mortens kort", () => {
+    const b = introPaamindelseTekst("Ib", true);
+    expect(b.emne).toBe("Din sparring med Morten er inkluderet");
+    expect(b.emne).not.toContain("Jonas");
+    const krop = b.afsnit.join(" ");
+    expect(krop).not.toContain("Jonas");
+    expect(krop).not.toContain("Blikket indefra");
+    expect(krop).not.toContain("to sessioner");
+    expect(krop).toContain("en session på 30 minutter med Morten. Den har du ikke booket endnu.");
+    expect(krop).toContain("Du bestemmer selv hvad sessionen skal bruges til, og hvornår.");
+    expect(b.afsnit.some((a) => a.startsWith("Blikket udefra"))).toBe(true);
+    // Mortens kort-sætning er ORDRET den samme i begge grene — fladen siger ét om ham.
+    const udefraBrugt = b.afsnit.find((a) => a.startsWith("Blikket udefra"));
+    const udefraIkkeBrugt = introPaamindelseTekst("Ib", false).afsnit.find((a) => a.startsWith("Blikket udefra"));
+    expect(udefraBrugt).toBe(udefraIkkeBrugt);
+    expect(b.knap.sti).toBe("/book-session");
+    expect(fladt(b)).not.toContain("til gode");
+  });
+
+  it("B: ordene om de to sessioner er /book-session-kortenes — «Blikket udefra» (Morten) og «Blikket indefra» (Jonas)", () => {
+    const kilde = readFileSync(resolve(process.cwd(), "src/components/hjemmebane/booksession/BookSessionView.tsx"), "utf8");
+    const b = introPaamindelseTekst(null, false);
+    const udefra = b.afsnit.find((a) => a.startsWith("Blikket udefra"));
+    const indefra = b.afsnit.find((a) => a.startsWith("Blikket indefra"));
+    expect(udefra).toBeDefined();
+    expect(indefra).toBeDefined();
+    // Overskrifterne står på fladen, og sætningen efter tankestregen er kortets første sætning ordret.
+    expect(kilde).toContain(">Blikket udefra<");
+    expect(kilde).toContain(">Blikket indefra<");
+    const efterStreg = (s: string) => s.split(" — ")[1];
+    const fladeTekst = kilde.replace(/\s+/g, " ");
+    expect(fladeTekst).toContain(efterStreg(udefra!));
+    expect(fladeTekst).toContain(efterStreg(indefra!));
+    // Kortenes egen kerne: «Inkluderet i dit medlemskab» og «Én session per virksomhed, ikke per bruger».
+    expect(fladeTekst).toContain("Én session per virksomhed, ikke per bruger.");
+    expect(b.afsnit.join(" ")).toContain("Én session per virksomhed, ikke per bruger.");
+  });
+
+  it("B: kun Mortens session siges «ikke booket» — cronen gater ikke på Jonas' (intro_session_used_at alene)", () => {
+    for (const brugt of [false, true]) {
+      const krop = introPaamindelseTekst(null, brugt).afsnit.join(" ");
+      // Kun Mortens session får «ikke booket»: «Den» (én session) eller «Sessionen med Morten» (to).
+      expect(krop).toMatch(/(?:med Morten\. Den|Sessionen med Morten) har du ikke booket endnu\./);
+      expect(krop.match(/har du ikke booket endnu/g)).toHaveLength(1);
+      expect(krop).not.toMatch(/Jonas har du ikke booket/);
+    }
+  });
+
+  it("intet af mailene lover et svar på noreply: «svar på denne mail» og «skriv til mig» findes ikke", () => {
+    for (const t of alle) {
+      const s = fladt(t);
+      expect(s).not.toMatch(/svar på denne mail/i);
+      expect(s).not.toMatch(/skriv til mig/i);
+    }
   });
 });
