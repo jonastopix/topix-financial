@@ -1,10 +1,13 @@
 /**
  * KreativBilledfelt — designets <image-slot> oversat til husets primitiver.
  *
- * Med billede: <img> i fast px-ramme med object-fit cover (portræt) eller
- * contain (logo) — image-slot.js:33-35 og :981-984 (cover = max(fw/iw, fh/ih),
- * contain = min), centreret (:299). Cirklen er border-radius 50 %, ikke
- * clip-path (:1074-1084).
+ * Med billede: <img> i fast px-ramme, cover (portræt) eller contain (logo)
+ * — image-slot.js:33-35 og :981-984 (cover = max(fw/iw, fh/ih), contain =
+ * min), centreret (:299). Cirklen er border-radius 50 %, ikke clip-path
+ * (:1074-1084). Tilpasningen regnes i px af billedTilpasning.ts, IKKE med
+ * object-fit: html2canvas 1.4.1 kender ikke object-fit og strakte logoet i
+ * PNG'en (målt 14/9 kl. 17:20). Rammen klipper med overflow:hidden og
+ * radius, som html2canvas honorerer (html2canvas.js:6141-6149).
  *
  * Uden billede: tomtilstanden fra image-slot.js — grå ramme
  * rgba(127,127,127,.08) (:295), ikon 28×28 i currentColor med opacity .45
@@ -17,7 +20,8 @@
  * giver et tomt felt i samme mål uden ikon, tekst og ring.
  */
 
-import type { CSSProperties } from "react";
+import { useLayoutEffect, useRef, useState, type CSSProperties } from "react";
+import { tilpasBillede, type Maal } from "./billedTilpasning";
 
 export type BilledfeltForm = "cirkel" | "rektangel";
 export type BilledfeltTilpasning = "cover" | "contain";
@@ -44,6 +48,20 @@ const PLADSHOLDER_IKON = (
 );
 
 export const KreativBilledfelt = ({ url, bredde, hoejde, form, tilpasning, pladsholder, visTomtilstand, alt = "" }: KreativBilledfeltProps) => {
+  // Billedets naturlige mål — kendt efter load. Hooks i topblokken, før de
+  // betingede returns nedenfor (React #310).
+  const imgRef = useRef<HTMLImageElement>(null);
+  const [natur, setNatur] = useState<Maal | null>(null);
+  const laesNatur = () => {
+    const img = imgRef.current;
+    if (img && img.naturalWidth > 0 && img.naturalHeight > 0) setNatur({ bredde: img.naturalWidth, hoejde: img.naturalHeight });
+  };
+  useLayoutEffect(() => {
+    // Ny URL: glem det gamle mål; er billedet allerede i cachen, fyrer load ikke igen.
+    setNatur(null);
+    if (imgRef.current?.complete) laesNatur();
+  }, [url]);
+
   const radius = form === "cirkel" ? "50%" : "0";
   const ramme: CSSProperties = {
     position: "relative",
@@ -56,13 +74,18 @@ export const KreativBilledfelt = ({ url, bredde, hoejde, form, tilpasning, plads
   };
 
   if (url) {
+    // Tilpasningen regnes i px (billedTilpasning.ts) — html2canvas kender ikke
+    // object-fit og fylder bare <img>-boksen, så boksen SKAL være det viste.
+    // Rammen klipper (overflow:hidden + radius), det virker begge steder.
+    // Før målet kendes: hele rammen med object-fit som midlertidigt greb —
+    // kun på skærmen, aldrig i filen (billedet er indlæst når der hentes).
+    const r = natur ? tilpasBillede(tilpasning, { bredde, hoejde }, natur) : null;
+    const boks: CSSProperties = r
+      ? { position: "absolute", left: `${r.left}px`, top: `${r.top}px`, width: `${r.width}px`, height: `${r.height}px` }
+      : { position: "absolute", left: 0, top: 0, width: "100%", height: "100%", objectFit: tilpasning };
     return (
-      <div style={ramme} data-billedfelt="udfyldt">
-        <img
-          src={url}
-          alt={alt}
-          style={{ display: "block", width: "100%", height: "100%", objectFit: tilpasning, borderRadius: radius }}
-        />
+      <div style={ramme} data-billedfelt="udfyldt" data-tilpasning={r ? "px" : "object-fit"}>
+        <img ref={imgRef} src={url} alt={alt} onLoad={laesNatur} style={{ display: "block", maxWidth: "none", ...boks }} />
       </div>
     );
   }
