@@ -13,6 +13,8 @@
  */
 
 /** «Ansøgninger» — det board webhooken er sat op på. */
+import { bygKontaktperson } from "./virksomhedsraekke.ts";
+
 export const ANSOEGNINGER_BOARD_ID = 1899777797;
 
 /**
@@ -143,13 +145,14 @@ export function laesAnsoegningsFelter(kolonner: MondayKolonneVaerdi[]): Ansoegni
 /**
  * «Fornavn Efternavn» trimmet; null når begge er tomme. Aldrig et
  * hængende mellemrum når kun det ene findes.
+ *
+ * Samlingen bor i virksomhedsraekke.ts (bygKontaktperson, 14/9): samme
+ * kilde-logik som rækkebyggeren bruger til companies.contact_person, så
+ * Monday-vejen (delt navn) og import-vejen (samlet navn) ikke driver fra
+ * hinanden. Her oversættes kun «tomt» til null, som kalderen forventer.
  */
 export function bygKontaktnavn(fornavn: string | null | undefined, efternavn: string | null | undefined): string | null {
-  const navn = [fornavn, efternavn]
-    .map((s) => (s ?? "").trim())
-    .filter(Boolean)
-    .join(" ");
-  return navn || null;
+  return bygKontaktperson(fornavn, efternavn) || null;
 }
 
 /**

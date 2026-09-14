@@ -110,6 +110,33 @@ function tekst(v: string | null | undefined): string | null {
 }
 
 /**
+ * Kontaktpersonens navn til companies.contact_person — den ENE kilde-logik
+ * for begge veje ind (14/9-2026).
+ *
+ * MÅLT: byggVirksomhedsRaekke skrev ALDRIG contact_person. Navnet landede
+ * i application_context.contact_name og blev liggende; kolonnens DEFAULT
+ * er '' (20260225104718), så 35 af 39 virksomheder stod med tom streng
+ * (målt 2/9, aldrig rettet). Bevist 14/9 ved gennemkørslen: Monday-vejen
+ * SATTE feltet — men kun via sin egen separate opdatering (B5), efter
+ * rækken var skrevet — og import-vejen har ingen sådan. Den forskel
+ * lukkes her: rækken bærer feltet, så begge veje sætter det.
+ *
+ * Navnet kommer delt fra Monday (kolonnerne Fornavn og Efternavn) og
+ * samlet fra importformularen («Kontaktperson»). Funktionen tager derfor
+ * et vilkårligt antal dele: hver del trimmes, tomme dele udelades, resten
+ * samles med ét mellemrum. Mellemrum INDE i en del («Anne Marie»,
+ * «Møller Jensen») bevares. Er alt tomt, er svaret den tomme streng —
+ * kolonnens DEFAULT — aldrig null, og aldrig ordet «null» eller
+ * «undefined» som tekst.
+ */
+export function bygKontaktperson(...dele: Array<string | null | undefined>): string {
+  return dele
+    .map((d) => (typeof d === "string" ? d.trim() : ""))
+    .filter(Boolean)
+    .join(" ");
+}
+
+/**
  * Bygger insert-rækken til `companies`. Feltlisten er låst af testen i
  * src/lib/__tests__/virksomhedsraekke.test.ts — glemmer nogen et felt om
  * et halvt år, fejler den.
@@ -192,6 +219,11 @@ export function byggVirksomhedsRaekke(
     // companies.contact_email findes, og stripe-webhookens indgangsgren
     // sender invitationen til den. Uden feltet kan der ikke betales.
     contact_email: input.contact_email || null,
+    // contact_person (14/9): det navn dag 0-mailen, fornyelsesvarslet og
+    // /members læser. Før bar rækken det ikke, og kun Monday-vejens B5
+    // satte det bagefter. Tom streng når navnet mangler — kolonnens
+    // DEFAULT, og fladen tåler både '' og null (20260902190000).
+    contact_person: bygKontaktperson(input.contact_name),
     address,
     postal_code: postalCode,
     city,

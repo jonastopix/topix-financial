@@ -301,8 +301,10 @@ Deno.serve(async (req) => {
 
     // ── B5. contact_person i en separat opdatering. Målt 2/9: feltet blev
     //        skrevet af INGEN, og dag 0-mailen læser det for fornavnet.
-    //        Rækkebyggeren bærer det ikke (låst feltliste), så det sættes
-    //        her. Adressen fra Monday følger med: siden 3/9 bærer rækken
+    //        SIDEN 14/9 bærer rækkebyggeren feltet (bygKontaktperson —
+    //        samme kilde-logik som import-vejen), så for en NY virksomhed
+    //        er dette samme værdi igen; for en GENBRUGT virksomhed er B5
+    //        stadig den eneste vej. Adressen fra Monday følger med: siden 3/9 bærer rækken
     //        address/postal_code/city (Monday først, CVR som fallback), så
     //        for en NY virksomhed er dette de samme værdier igen; for en
     //        GENBRUGT virksomhed er det som før den eneste vej — kun

@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   byggVirksomhedsRaekke,
+  bygKontaktperson,
   parseCvrStiftelsesdato,
   type CvrSvar,
   type VirksomhedsInput,
@@ -9,6 +10,7 @@ import {
 // frontend copy. We import it here so vitest fails loudly if the two drift.
 import {
   byggVirksomhedsRaekke as byggVirksomhedsRaekkeDeno,
+  bygKontaktperson as bygKontaktpersonDeno,
   parseCvrStiftelsesdato as parseCvrStiftelsesdatoDeno,
 } from "../../../supabase/functions/_shared/virksomhedsraekke.ts";
 
@@ -93,6 +95,11 @@ describe("byggVirksomhedsRaekke — parity between src/lib and supabase/function
     ["adresse fra input vinder over CVR", { ...fuldtInput, address: "Strandvejen 1", postal_code: "2900", city: "Hellerup" }, { ...cvr, address: "Vestergade 41, 1. tv.", zipcode: "8600", city: "Silkeborg" }],
     ["adresse delvist fra hver", { ...fuldtInput, address: "Strandvejen 1", postal_code: "", city: null }, { ...cvr, zipcode: "8600", city: "Silkeborg" }],
     ["adresse blank i begge → null", { ...fuldtInput, address: " ", postal_code: "", city: "" }, { ...cvr, address: "", zipcode: " " }],
+    // contact_person (14/9): samlet navn, navn med mellemrum, tomt og null.
+    ["contact_person fra samlet navn", { ...fuldtInput, contact_name: "Anne Marie Møller Jensen" }, cvr],
+    ["contact_person med kanter der trimmes", { ...fuldtInput, contact_name: "  Peter Nørgaard Larsen  " }, null],
+    ["contact_person tomt → tom streng", { ...fuldtInput, contact_name: "" }, cvr],
+    ["contact_person null → tom streng", { ...fuldtInput, contact_name: null }, cvr],
   ];
 
   for (const [navn, input, svar] of parityCases) {
@@ -124,5 +131,30 @@ describe("byggVirksomhedsRaekke — parity between src/lib and supabase/function
       expect("contract_start_date" in raekke).toBe(false);
       expect("contract_end_date" in raekke).toBe(false);
     }
+  });
+});
+
+describe("bygKontaktperson — parity between src/lib and supabase/functions/_shared (14/9)", () => {
+  const dele: Array<Array<string | null | undefined>> = [
+    ["Anne Marie", "Møller Jensen"],
+    ["  Nille ", " Mølgaard "],
+    ["Caspar", null],
+    ["", "Larsen"],
+    [null, undefined],
+    [],
+    ["Jonas Test"],
+    ["Hans Christian", "von der Recke"],
+  ];
+  for (const d of dele) {
+    it(`parity: ${JSON.stringify(d)}`, () => {
+      expect(bygKontaktpersonDeno(...d)).toBe(bygKontaktperson(...d));
+    });
+  }
+  it("begge kopier sætter contact_person i rækken — Deno-kopien er den der indsættes", () => {
+    const input: VirksomhedsInput = { company_name: "Kun navn", contact_name: "Jonas Test" };
+    const fe = byggVirksomhedsRaekke(input, null, NU);
+    const deno = byggVirksomhedsRaekkeDeno(input, null, NU);
+    expect(deno.contact_person).toBe("Jonas Test");
+    expect(fe.contact_person).toBe("Jonas Test");
   });
 });
