@@ -17,6 +17,7 @@ import { PULS_PARAM } from "@/lib/pulsen";
 import {
   BRANCHE_PARAM, brancheOverskrift, brancherAf, filtrerPaaBranche, findSortering, laesBrancheParam, listeSti, SORTERINGER, sorterRaekker, STANDARD_SORTERING, tomBrancheTekst,
 } from "@/lib/hjemmebane/branchefilter";
+import { CVR_MANGEL_MAERKE, cvrOpslagMangler } from "@/lib/cvrBerigelse";
 import { HbTag } from "../HbTag";
 import { HbInvitationer } from "./HbInvitationer";
 import { hbControlClasses } from "../admin/HbField";
@@ -97,6 +98,10 @@ type Raekke = {
   /** Samme periode som nøgle ("YYYY-MM", sorterer leksikalt) — til sorteringen. */
   sidsteRapporteringKey: string | null;
   fejledeTraek: FejletTraek[];
+  /** CVR-opslaget lykkedes ikke ved oprettelsen, og adresse/branchekode står
+      tomme (14/9, lib/cvrBerigelse.ts). Mærket på rækken, så de ramte kan
+      findes uden SQL; forsvinder når felterne fyldes (berigelsen). */
+  cvrOpslagMangler: boolean;
 };
 
 const MS_PER_DOEGN = 86_400_000;
@@ -110,7 +115,7 @@ async function hentVirksomhedsliste(): Promise<Raekke[]> {
     // /members bruger `as any`; her holdes typerne i stedet.
     supabase
       .from("companies")
-      .select("id, name, cvr_number, industry_label, contact_person, contact_email, status, is_legat, contract_end_date, subscription_status, subscription_current_period_end, er_kunde")
+      .select("id, name, cvr_number, industry_label, contact_person, contact_email, status, is_legat, contract_end_date, subscription_status, subscription_current_period_end, er_kunde, address, industry_code, cvr_fetched_at")
       .limit(500),
     // company_members er TILBAGE (4/9, samme dag som #615 fjernede den):
     // #615 fjernede den fordi den kun bar rækkens link, og linket blev
@@ -252,6 +257,12 @@ async function hentVirksomhedsliste(): Promise<Raekke[]> {
         sidsteRapporteringKey: sidsteFactByCompany.get(c.id)?.key ?? null,
         sidstOnlineDage: dageSiden(sidstOnlineByCompany.get(c.id) ?? null, nuDato),
         fejledeTraek: fejledeTraekByCompany.get(c.id) ?? [],
+        cvrOpslagMangler: cvrOpslagMangler({
+          cvr_number: c.cvr_number,
+          cvr_fetched_at: c.cvr_fetched_at,
+          address: c.address,
+          industry_code: c.industry_code,
+        }).mangler,
       };
     })
     .sort((a, b) => a.navn.localeCompare(b.navn, "da"));
@@ -315,6 +326,12 @@ const RaekkeIndhold = ({ r }: { r: Raekke }) => {
             fejlet. */}
         {traekTekst && (
           <HbTag className="bg-hb-rust/10 px-2 py-0.5 text-[11px] text-hb-rust">{traekTekst}</HbTag>
+        )}
+        {/* CVR-opslaget fejlede ved oprettelsen (14/9): samme plads og
+            tone som træk-mærket — en mangel rådgiveren skal se og rette.
+            Ordet er dommens (lib/cvrBerigelse.ts), så siden siger det samme. */}
+        {r.cvrOpslagMangler && (
+          <HbTag className="bg-hb-rust/10 px-2 py-0.5 text-[11px] text-hb-rust">{CVR_MANGEL_MAERKE}</HbTag>
         )}
       </div>
       {/* Sidste kontakt + sidst online i SAMME kolonne (9/9): begge svarer

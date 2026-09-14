@@ -518,7 +518,7 @@ function grundeFraMotoren(v: VirksomhedTilDom): Grund[] {
       slags = "stikker_ud";
       handling = `Tag det op med ${v.navn}`;
     } else {
-      continue; // friske_tal (§11), agentforslag_venter (puklen)
+      continue; // friske_tal (§11), agentforslag_venter (puklen), stamdata_mangler (kun virksomhedssiden, 14/9)
     }
     // Grundlaget (lukningen): tavshed = sidste besked («aldrig» uden),
     // ulæst = sidste medlemsbesked, talsignal = perioden det er regnet af.
