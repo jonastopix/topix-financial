@@ -193,6 +193,24 @@
     Før: 157 (156 + skabelonen). Lukket: 0. Tilføjet: 4.
       Efter: 161 (160 + skabelonen) — 12 lukkede i alt, målt med grep på
       kortenes div-tag (class card, data-status="loest").
+  RØRT 15/9 NAT — PODCASTEN UD AF PLATFORMEN (#888, 130c366f, merget 14/9
+    22:24:57 UTC = 00:24 dansk; bogført i OVERLEVERING DEL 2 «14. september»
+    §45; DE TYVE FØR 22/9 — Jonas' prioritering 15/9 kl. 00:30 — i §46)
+    Lukket: nr. 10 af 18 «Podcasten ud af platformen — ét link til
+    Spotify». Beslutning 17 fra 11/9 gennemført: menupunktet «Podcast &
+    Talks» og hele PodcastTalksView (352 linjer) slettet, ruten væk;
+    tilbage ét Spotify-tekstlink nederst i HbSidebar, kun for medlemmer og
+    abonnenter — ikke rådgivere; URL'en som konstant i
+    lib/hjemmebane/podcastSpotify.ts. Den låste menu-test opdateret med
+    vilje; designsprogets tabel opdateret. tsc 0, 3441 tests (228 filer).
+    Ren frontend — kræver Update-klik, ikke bevist på skærm. Ikke i #888:
+    forsidens podcastkort, podcastRss.ts og podcast-rss-funktionen (står
+    stadig på main; noteret i kortet). Rækkefølgens linje for nr. 10
+    rettet. Kortene selv er i øvrigt uændrede — de tyve er en rækkefølge,
+    ikke en omskrivning.
+    Før: 161 (160 + skabelonen). Lukket: 1 (bliver stående). Tilføjet: 0.
+      Efter: 161 (160 + skabelonen) — 13 lukkede i alt, målt med grep på
+      kortenes div-tag (class card, data-status="loest").
   RYDDET 10/9 AFTEN (Jonas: «få sat flueben ved de ting der er klaret»)
     24 kort slettet som løst — bogført i OVERLEVERING DEL 2 «10. september,
     aften»; 8 omskrevet til det der står tilbage (Rettet 10/9); 3 nye.
@@ -2024,13 +2042,14 @@
       <p><strong>Målt 14/9:</strong> to (se øverst). Rettelsen er ikke «klienten skal sige det SQL siger» — det ville lukke gæsten helt ude, mod Jonas' beslutning. Den er en grænse i fladen for gæsten, og et tjeklistepunkt der udgår for hende. Ikke bygget i #818 (ingen gate).</p>
       <div class="meta"><span class="tag webinar">22/9 · nr. 13 af 18</span><span class="tag ny">Ny 11/9</span><span class="tag">Omskrevet 14/9 — fund 17</span><span class="tag gold">Gæster ser Community, skriver ikke — Jonas 14/9</span><span class="tag rust">Fem adgangsdomme uenige om NULL (adgangsdomme.md:20-24)</span><span class="tag size">Lille</span></div>
     </div>
-    <div class="card new" id="w10" data-status="mangler" data-spor="7" data-rammer="medlem">
+    <div class="card new loest" id="w10" data-status="loest" data-spor="7" data-rammer="medlem">
       <h3>Podcasten ud af platformen — ét link til Spotify</h3>
+      <p><strong>LUKKET 15/9 NAT (#888, <code>130c366f</code>, merget 14/9 22:24:57 UTC = 00:24 dansk; ren frontend — kræver Update-klik, ikke bevist på skærm).</strong> Beslutning 17 fra 11/9 gennemført: menupunktet «Podcast &amp; Talks» og hele <code>PodcastTalksView</code> (352 linjer) er slettet, ruten <code>/podcast</code> er væk (<code>App.tsx</code>, <code>pages/PodcastTalks.tsx</code>, <code>hbNav.ts</code>). Tilbage: ét Spotify-tekstlink «Lyt til Iværksætterlivet på Spotify» nederst i <code>HbSidebar</code> (eksternt link i ny fane, ikke en <code>HbNavEntry</code>), givet af <code>HbMemberShell</code> kun til medlemmer og abonnenter — ikke rådgivere. URL'en som konstant ét sted: <code>lib/hjemmebane/podcastSpotify.ts</code> (<code>PODCAST_SPOTIFY_URL</code>). Den låste menu-test (<code>hbNav.test.ts</code>) opdateret med vilje; ny <code>HbSidebar.test.tsx</code>; designsprogets tabel opdateret. tsc 0, 3441 tests (228 filer). <em>Ikke i #888's filliste</em> (står stadig på main, målt 15/9): forsidens podcastkort (<code>BoardroomView.tsx</code> <code>PodcastCard</code>/<code>podcastQuery</code>), <code>podcastRss.ts</code> + testen, og <code>supabase/functions/podcast-rss</code> (<code>config.toml:102</code>). OVERLEVERING DEL 2 «14. september» §45.</p>
       <p><strong>Jonas 11/9:</strong> «Jeg er enig i, at podcasten ikke giver mening lige nu. Men måske kunne man linke ind til vores podcast på Spotify et sted, hvor der er elegant. For det er sejt vi har det. Og vi har planer om at genoptage det faktisk. Vi lover bare ingen fast rytme. Og det er jo ikke indhold der er forbeholdt medlemmer. Det er for alle. Så det skal ikke fylde så meget.» Showets adresse (Jonas 11/9): <code>https://open.spotify.com/show/4T8krtMFTkRgF21bkNsQ6Q</code> — kanonisk uden «?si=»; siden verificeret 11/9: IVÆRKSÆTTERLIVET, Topix, værter Morten Larsen og Jonas Herlev. Feedets <code>&lt;title&gt;</code> er «IVÆRKSÆTTERLIVET» (<code>~/Downloads/recon-tre-oprydninger.md:132</code>); feedet bærer ingen show-adresse — kun 18 episode-links under <code>podcasters.spotify.com/pod/show/topixdk/episodes/</code> og kanalens <code>&lt;link&gt;</code> «https://www.topix.dk/» (<code>:129-159</code>).</p>
       <p><strong>Beslutning 17 RETTET — forslag fra chatten, stående uden indsigelse:</strong> menupunktet «Podcast &amp; Talks», ruten <code>/podcast</code>, forsidens podcastkort, <code>podcast-rss</code> og parseren fjernes; ét stille tekstlink «Lyt til Iværksætterlivet på Spotify» nederst i sidebaren for medlemmer og abonnenter, ikke rådgivere. Kortene 61, 62 og 69 (afspiller, forbrugsregistrering, ankre) er udgået med det.</p>
       <p><strong>Reconens del C (<code>recon-tre-oprydninger.md:104-168</code>) — det der skal med:</strong> <code>src/App.tsx:293</code> (ruten; kommentar <code>:289-292</code>); <code>src/pages/PodcastTalks.tsx</code>; <code>src/components/hjemmebane/podcasttalks/PodcastTalksView.tsx</code> (eneste fil i mappen — Talks-sektionen <code>:272-284</code> er ingen liste, kun en henvisning til Events); <code>src/lib/hjemmebane/hbNav.ts:92</code> (<code>podcastTalks</code>), <code>:97</code> (abonnentens menu bliver «Dine tal» + «Rabataftaler»), <code>:109</code>, <code>:129</code> (rådgiverens blok), <code>:67</code> («podcast» i HbAktiv); forsiden <code>BoardroomView.tsx:23</code> (import), <code>:740 PodcastCard</code>, <code>:1470-1493 podcastQuery</code>, <code>:886, :941-942</code> (rykkelisten), <code>:1504</code>, <code>:2109-2126</code> (layout-reservation); <code>src/lib/hjemmebane/podcastRss.ts</code>; <code>supabase/functions/podcast-rss/index.ts</code> + <code>config.toml:104-105</code>; testene <code>podcastRss.test.ts</code> (slettes), <code>hbNav.test.ts:37, :44-47, :76</code> (menupunktet — rettes), <code>ankomst.test.ts:54</code>, <code>boardroom/__tests__/pushSelection.test.ts:172-196</code>. <em>Rører IKKE:</em> <code>content_items.area = 'talks'</code> — nøglen bærer abonnent-hvidlisten i RLS (<code>adminContentApi.ts:68-80</code>, <code>20260813100000</code>); admin-fanen «Optagelser» og eventsidens optagelse (<code>EventDetailView.tsx:105-108, :267</code>) bliver. Prod 11:43 (<code>a_56_fordeling</code>): «talks · null;3 | published 3».</p>
       <p><strong>Linket:</strong> skallen har intet mønster for et eksternt link (<code>:163</code>: <code>HbSidebar.tsx:83-92</code> tegner <code>&lt;a href="#"&gt;</code> for punkter uden <code>to</code>; <code>HbNavEntry</code> har intet <code>href</code>-felt) — det skal bygges som ét element nederst i <code>HbSidebar</code>, ikke som en <code>HbNavEntry</code>; mønstret for <code>target="_blank" rel="noopener noreferrer"</code> findes på forsiden (<code>BoardroomView.tsx:617-625</code> tekstlink, <code>:783-788</code> knap). Gate: medlem og abonnent, ikke rådgiver (<code>hbNav.ts</code> kender rollerne). <strong>Oprydningens del 2 — det der står tilbage:</strong> del 1 (run-weekly-agent slettet, digestens kode fjernet) er GJORT 13/9 med #836 (OVERLEVERING DEL 2 «13. september» §16); podcasten er den eneste af de tre oprydninger der ikke er bygget. <em>Størrelse:</em> Lille.</p>
-      <div class="meta"><span class="tag webinar">22/9 · nr. 10 af 18</span><span class="tag ny">Ny 11/9</span><span class="tag">Besluttet 11/9 (Jonas)</span><span class="tag">Beslutning 17 rettet</span><span class="tag">Oprydningens del 2 (del 1 gjort 13/9, #836)</span><span class="tag size">Lille</span></div>
+      <div class="meta"><span class="tag">Lukket 15/9 — #888, kræver Update-klik</span><span class="tag webinar">22/9 · nr. 10 af 18</span><span class="tag ny">Ny 11/9</span><span class="tag">Besluttet 11/9 (Jonas)</span><span class="tag">Beslutning 17 rettet</span><span class="tag">Oprydningens del 2 (del 1 gjort 13/9, #836)</span><span class="tag size">Lille</span></div>
     </div>
     <div class="card new" data-status="ide" data-spor="senere" data-rammer="medlem">
       <h3>«Ugens push» der fremhæver en partneraftale</h3>
@@ -2556,7 +2575,7 @@
       <li><a href="#w7">Tom-tilstande: Nøgletal, Budget, Rapportering</a> · Lille · trin 6–8 · reconnet 14/9: rene i kode; tilbage er ét skærmbevis</li>
       <li><a href="#w8">Når en upload strander, siger kortet HVORFOR</a> · Lille · trin 8 · LUKKET 14/9 (#864): kortet siger nu vejen pr. kilde, e-conomic → saldobalancen som Excel; kræver Update-klik, ikke bevist på skærm</li>
       <li><a href="#w9">Profilen forfra</a> · Lille · trin 6 · OMSKREVET 14/9: ansøgningen må aldrig bruges offentligt — tilbage er eksempler under præsentationsudkastets tre overskrifter, og faktalinjen i RPC'en</li>
-      <li><a href="#w10">Podcasten ud af platformen</a> · Lille · trin 6 · menupunkt dag 1 med et år gammelt indhold</li>
+      <li><a href="#w10">Podcasten ud af platformen</a> · Lille · trin 6 · LUKKET 15/9 (#888): menupunktet og PodcastTalksView slettet, ruten væk; ét Spotify-tekstlink nederst i HbSidebar for medlemmer og abonnenter, ikke rådgivere; ren frontend, kræver Update-klik</li>
       <li><a href="#w11">Jonas ser Mortens sessioner — bevis-delen</a> · Lille · trin 9 · én testbooking gennem Jonas-sporet</li>
       <li><a href="#w12">PHILBERT: to filer strander</a> · Mellem · trin 8 · «Almindelig» er e-conomics layout — rammer enhver ny e-conomic-bruger; parseren urørt af #864, kræver filerne</li>
       <li><a href="#w13">En gæst skal møde en grænse i Community, ikke en fejl</a> · Lille · trin 6 · OMSKREVET 14/9 (fund 17): to gæster i prod; Jonas — gæster ser Community, skriver ikke; grænsen i composeren og tjeklisten mangler</li>
