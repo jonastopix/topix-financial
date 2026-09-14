@@ -1,6 +1,8 @@
 // Monday-webhook — «Godkendt» på Ansøgninger opretter virksomheden, sætter
 // prisniveauet, genererer betalingstokenet og udløser dag 0-mailen.
-// Bucket C: HMAC-SHA256-signaturen verificeres FØR noget andet (uændret).
+// Bucket C: værnet står FØR noget andet end challenge-svaret — JWT-signatur
+// når Monday sender en Authorization-header, ellers den delte hemmelighed i
+// URL'en (?noegle=…). Dommen bor i _shared/mondayVaern.ts (14/9-2026).
 //
 // OMSKREVET 2/9 — tre målte fejl:
 //
@@ -63,6 +65,12 @@ import {
   parsePrisKontraktOere,
   type MondayKolonneVaerdi,
 } from "../_shared/mondayAnsoegning.ts";
+import {
+  afgoerMondayVaern,
+  MONDAY_URL_PARAMETER,
+  MONDAY_WEBHOOK_SECRET_NAVN,
+  verifyMondayJwt,
+} from "../_shared/mondayVaern.ts";
 
 // ── Kolonnerne, navngivet øverst (målt 2/9 på «Ansøgninger», board 1899777797).
 //    Id'erne og fælden med `short_text` (Fornavn her, «Kontaktperson» på
@@ -78,40 +86,6 @@ const KOLONNE_IDS = ANSOEGNING_KOLONNE_IDS;
  * kan ses hvornår make.com holder op med at sende dem.
  */
 const UDLOESENDE_STATUS = "Godkendt";
-
-// HMAC-SHA256 verification for Monday.com webhook JWT
-async function verifyMondayJwt(authHeader: string | null, signingSecret: string): Promise<boolean> {
-  if (!authHeader) return false;
-
-  try {
-    const parts = authHeader.split(".");
-    if (parts.length !== 3) return false;
-
-    const [headerB64, payloadB64, signatureB64] = parts;
-
-    const encoder = new TextEncoder();
-    const key = await crypto.subtle.importKey(
-      "raw",
-      encoder.encode(signingSecret),
-      { name: "HMAC", hash: "SHA-256" },
-      false,
-      ["verify"]
-    );
-
-    const signatureStr = signatureB64.replace(/-/g, "+").replace(/_/g, "/");
-    const pad = signatureStr.length % 4;
-    const paddedSig = pad ? signatureStr + "=".repeat(4 - pad) : signatureStr;
-    const sigBytes = Uint8Array.from(atob(paddedSig), (c) => c.charCodeAt(0));
-
-    const data = encoder.encode(`${headerB64}.${payloadB64}`);
-    const valid = await crypto.subtle.verify("HMAC", key, sigBytes, data);
-
-    return valid;
-  } catch (e) {
-    console.error("JWT verification error:", e);
-    return false;
-  }
-}
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -184,25 +158,33 @@ Deno.serve(async (req) => {
       return jsonResponse({ challenge: body.challenge });
     }
 
-    // ── SIGNATURE VERIFICATION (required for all event processing) ──
-    const MONDAY_SIGNING_SECRET = Deno.env.get("MONDAY_SIGNING_SECRET");
-    if (!MONDAY_SIGNING_SECRET) {
-      console.error("MONDAY_SIGNING_SECRET not configured — refusing to process webhook");
-      return jsonResponse({ error: "Server configuration error" }, 500);
+    // ── VÆRNET (påkrævet for al event-behandling; kun challenge-svaret ovenfor
+    //    går udenom). To veje, fordi Monday sender to slags kald (14/9-2026):
+    //    - Board-webhookens opskrift sender INGEN Authorization-header. Den
+    //      autentificeres på ?noegle=<MONDAY_WEBHOOK_SECRET> i URL'en,
+    //      sammenlignet i konstant tid.
+    //    - En webhook oprettet via en Monday-app (create_webhook med appens
+    //      OAuth-token) sender en HMAC-signeret JWT i Authorization. Den vej
+    //      gælder, hvis webhooken en dag oprettes sådan — og den er uændret:
+    //      MONDAY_SIGNING_SECRET skal findes (500 ellers), verifyMondayJwt
+    //      afgør (401 ved ugyldig). Secret-tjekket ligger inde i den gren, så
+    //      board-kald uden header ikke rammer 500 på en secret de ikke bruger.
+    //    Dommen er ren og testet i _shared/mondayVaern.ts; verifyMondayJwt
+    //    gives ind, så CI-værnet (check-edge-function-auth) ser kaldet her. ──
+    const dom = await afgoerMondayVaern(
+      {
+        authHeader: req.headers.get("Authorization"),
+        urlNoegle: new URL(req.url).searchParams.get(MONDAY_URL_PARAMETER),
+        signeringsSecret: Deno.env.get("MONDAY_SIGNING_SECRET"),
+        urlSecret: Deno.env.get(MONDAY_WEBHOOK_SECRET_NAVN),
+      },
+      (header, secret) => verifyMondayJwt(header, secret),
+    );
+    if (dom.ok === false) {
+      console[dom.logNiveau](dom.logTekst);
+      return jsonResponse({ error: dom.fejl }, dom.status);
     }
-
-    const authHeader = req.headers.get("Authorization");
-    if (!authHeader) {
-      console.warn("Missing Authorization header on Monday webhook event");
-      return jsonResponse({ error: "Unauthorized" }, 401);
-    }
-
-    const isValid = await verifyMondayJwt(authHeader, MONDAY_SIGNING_SECRET);
-    if (!isValid) {
-      console.error("Invalid Monday.com webhook signature");
-      return jsonResponse({ error: "Unauthorized" }, 401);
-    }
-    console.log("Monday.com webhook signature verified");
+    console.log(dom.vej === "jwt" ? "Monday.com webhook signature verified" : "Monday.com board-webhook verificeret på URL-hemmeligheden");
 
     const event = body.event;
     if (!event) {

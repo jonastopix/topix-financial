@@ -704,7 +704,11 @@ skrivende edge functions bruger `SUPABASE_SERVICE_ROLE_KEY`.
   fail-closed without a membership anchor); signs Bunny embed URLs server-side
   (`BUNNY_STREAM_TOKEN_AUTH_KEY` never reaches the frontend, TTL 1h)
 - `auth-email-hook` — system webhook, signature-verified
-- `monday-webhook` — HMAC-SHA256 with `MONDAY_SIGNING_SECRET`
+- `monday-webhook` — to veje (14/9-2026, `_shared/mondayVaern.ts`): med
+  Authorization-header HMAC-SHA256-JWT mod `MONDAY_SIGNING_SECRET` (uændret);
+  uden header (Mondays board-webhook sender ingen) den delte hemmelighed
+  `?noegle=` i URL'en mod `MONDAY_WEBHOOK_SECRET`, sammenlignet i konstant
+  tid (`_shared/konstantTidLighed.ts`). Challenge-svaret ligger før værnet.
 - `send-report-reminder` — service-role-only gate
 - `manage-advisor` — admin role gate + service-role operations
 - `process-pending-invitation` — self-only guard + server-verified email
