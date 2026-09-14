@@ -53,10 +53,11 @@ export interface IndgangsMailArgs {
 }
 
 const APP_URL = "https://app.theboardroom.dk";
-const HILSEN = "Venlig hilsen\nMorten Larsen";
+/** Underskriften i medlemsmailene — eksporteret 14/9, så invitationsmailen (invitationsMail.ts) kan signere ens. */
+export const HILSEN = "Venlig hilsen\nMorten Larsen";
 
-/** HTML-escaper tekst. Linjeskift (\n) bliver til <br>. */
-function esc(tekst: string): string {
+/** HTML-escaper tekst. Linjeskift (\n) bliver til <br>. Eksporteret 14/9, så invitationsMail.ts kan escape virksomhedsnavnet med samme pen. */
+export function esc(tekst: string): string {
   return tekst
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
