@@ -502,9 +502,12 @@ describe("slot (0) — tjeklisten som fokuskortets kilde", () => {
       antal_godkendte: 0,
       antal_udfyldte_handouts: 0,
       last_member_message_at: null,
+      // Delingen (14/9): et nyt medlem er efter DELING_PUNKT_FRA — alle otte.
+      medlem_siden: "2026-09-22T09:00:00.000Z",
     });
     const items = deriveFocus(nulData({ tjekliste, contractStartDate: "2025-01-01" }));
     expect(items.map((i) => i.sourceId)).toEqual([...TJEKLISTE_RAEKKEFOELGE]);
+    expect(items[items.length - 1]).toMatchObject({ sourceId: "deling", ctaHref: "/deling", title: "Fortæl det videre" });
     expect(items[0].title).toBe("Se velkomsten");
     expect(items.map((i) => i.kind)).not.toContain("missing-report");
     expect(items.map((i) => i.kind)).not.toContain("empty-profile");

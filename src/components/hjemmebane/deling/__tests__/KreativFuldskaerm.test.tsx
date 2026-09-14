@@ -23,7 +23,8 @@ import { KREATIVER } from "../kreativer";
 
 const data = { memberName: "Mette Hansen", companyName: "Hansen Byg ApS", dateLabel: "september 2026", portraetUrl: null, logoUrl: null };
 
-const vis = (indeks = 0) => render(<KreativFuldskaerm kreativer={KREATIVER} data={data} indeks={indeks} onSkift={() => {}} onLuk={() => {}} />);
+const vis = (indeks = 0, onHentet?: () => void | Promise<void>) =>
+  render(<KreativFuldskaerm kreativer={KREATIVER} data={data} indeks={indeks} onSkift={() => {}} onLuk={() => {}} onHentet={onHentet} />);
 
 /** Et løfte testen selv afgør, så «mens den tegner» kan ses. */
 const udsat = <T,>() => {
@@ -107,5 +108,55 @@ describe("KreativFuldskaerm — Hent PNG", () => {
     expect(toastMock.success).not.toHaveBeenCalled();
     expect(screen.getByRole("button", { name: /Hent PNG/ })).not.toBeDisabled();
     expect(within(screen.getByRole("dialog")).getByRole("heading", { level: 2 })).toBeInTheDocument();
+  });
+});
+
+describe("KreativFuldskaerm — onHentet er tjeklistens stempel (14/9 aften)", () => {
+  it("kaldes én gang EFTER en vellykket PNG — efter toasten, ikke før", async () => {
+    const raekkefoelge: string[] = [];
+    toastMock.success.mockImplementation(() => { raekkefoelge.push("toast"); });
+    const onHentet = vi.fn(async () => { raekkefoelge.push("stempel"); });
+    motor.hentKreativSomPng.mockResolvedValue({ filnavn: "x.png", bredde: 1080, hoejde: 1080 });
+    vis(0, onHentet);
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /Hent PNG/ }));
+    });
+    expect(onHentet).toHaveBeenCalledTimes(1);
+    expect(raekkefoelge).toEqual(["toast", "stempel"]);
+  });
+
+  it("kaldes IKKE når motoren fejler — et besøg eller et forsøg er ikke en hentet PNG", async () => {
+    const onHentet = vi.fn();
+    motor.hentKreativSomPng.mockRejectedValue(new Error("tomt lærred"));
+    vis(0, onHentet);
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /Hent PNG/ }));
+    });
+    expect(onHentet).not.toHaveBeenCalled();
+    expect(toastMock.error).toHaveBeenCalledTimes(1);
+  });
+
+  it("et stempel der fejler rører ikke filen: PNG'en er hentet, succes-toasten står, ingen fejl-toast, knappen låses op", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const onHentet = vi.fn(async () => { throw new Error("RLS"); });
+    motor.hentKreativSomPng.mockResolvedValue({ filnavn: "x.png", bredde: 1080, hoejde: 1080 });
+    vis(0, onHentet);
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /Hent PNG/ }));
+    });
+    expect(toastMock.success).toHaveBeenCalledTimes(1);
+    expect(toastMock.error).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: /Hent PNG/ })).not.toBeDisabled();
+    expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
+  });
+
+  it("uden onHentet virker knappen som før", async () => {
+    motor.hentKreativSomPng.mockResolvedValue({ filnavn: "x.png", bredde: 1080, hoejde: 1080 });
+    vis(0);
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /Hent PNG/ }));
+    });
+    expect(toastMock.success).toHaveBeenCalledTimes(1);
   });
 });

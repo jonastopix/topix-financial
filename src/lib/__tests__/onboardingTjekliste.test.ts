@@ -1,6 +1,8 @@
 import { describe, it, expect } from "vitest";
 import {
   byggTjekliste,
+  DELING_PUNKT_FRA,
+  delingPunktGaelder,
   MANGLER_TEKST,
   TJEKLISTE_RAEKKEFOELGE,
   TJEKLISTE_STIER,
@@ -202,18 +204,19 @@ describe("byggTjekliste — rækkefølge og stier er LÅST", () => {
   // og præsentationen lige efter. Stien er composeren forudfyldt
   // (/community?praesentation=1). Seks blev syv; de seks gamle beholder
   // deres indbyrdes orden og deres stier.
-  it("punkternes id'er i den faste rækkefølge", () => {
+  it("punkternes id'er i den faste rækkefølge — deling sidst (14/9), og kun for nye medlemmer", () => {
     const ud = byggTjekliste(TOM);
     expect(ud.punkter.map((p) => p.id)).toEqual(["velkomst", "profil", "praesentation", "virksomhed", "rapport", "handout", "besked"]);
-    expect([...TJEKLISTE_RAEKKEFOELGE]).toEqual(["velkomst", "profil", "praesentation", "virksomhed", "rapport", "handout", "besked"]);
+    expect([...TJEKLISTE_RAEKKEFOELGE]).toEqual(["velkomst", "profil", "praesentation", "virksomhed", "rapport", "handout", "besked", "deling"]);
+    expect(byggTjekliste({ ...TOM, medlem_siden: "2026-09-22T09:00:00.000Z" }).punkter.map((p) => p.id)).toEqual([...TJEKLISTE_RAEKKEFOELGE]);
   });
 
   it("rækkefølgen er den samme uanset input", () => {
     expect(byggTjekliste(FULD).punkter.map((p) => p.id)).toEqual(byggTjekliste(TOM).punkter.map((p) => p.id));
   });
 
-  it("stierne: profil → /settings?fane=profil (fanen, ikke siden — 9/9), praesentation → /community?praesentation=1 (11/9), virksomhed → /settings, rapport → /rapportering, handout → /handouts, besked → /chat, velkomst → tom", () => {
-    const stier = Object.fromEntries(byggTjekliste(TOM).punkter.map((p) => [p.id, p.sti]));
+  it("stierne: profil → /settings?fane=profil (fanen, ikke siden — 9/9), praesentation → /community?praesentation=1 (11/9), virksomhed → /settings, rapport → /rapportering, handout → /handouts, besked → /chat, deling → /deling (14/9), velkomst → tom", () => {
+    const stier = Object.fromEntries(byggTjekliste({ ...TOM, medlem_siden: "2026-09-22T09:00:00.000Z" }).punkter.map((p) => [p.id, p.sti]));
     expect(stier).toEqual({
       velkomst: "",
       profil: "/settings?fane=profil",
@@ -222,6 +225,7 @@ describe("byggTjekliste — rækkefølge og stier er LÅST", () => {
       rapport: "/rapportering",
       handout: "/handouts",
       besked: "/chat",
+      deling: "/deling",
     });
     expect(TJEKLISTE_STIER).toEqual(stier);
   });
@@ -295,5 +299,90 @@ describe("byggTjekliste — præsentationen findes kun for dem der kan oprette e
     expect(p.titel).toBe("Præsentér dig i fællesskabet");
     expect(p.sti).toBe("/community?praesentation=1");
     expect(byggTjekliste(TOM).punkter.find((x) => x.id === "praesentation")!.gjort).toBe(false);
+  });
+});
+
+// ── «Fortæl det videre» (14/9 aften, delingens del 2) ──
+// Punktet findes KUN for medlemmer oprettet fra DELING_PUNKT_FRA. De 30
+// eksisterende har intet nyt punkt: en der var færdig, forbliver færdig, og
+// listen åbner ikke igen. Gjort = profiles.deling_hentet_at (en hentet PNG),
+// ikke et besøg på /deling. TOM og FULD ovenfor har ingen medlem_siden og
+// er derfor «eksisterende medlem» — alle deres tal (7, 6, 5) er uændrede.
+describe("byggTjekliste — «Fortæl det videre» findes for nye medlemmer, og kun for dem", () => {
+  const NYT: TjeklisteInput = { ...TOM, medlem_siden: "2026-09-22T09:00:00.000Z" };
+  const GAMMELT: TjeklisteInput = { ...TOM, medlem_siden: "2026-08-01T09:00:00.000Z" };
+
+  it("grænsen er 15/9-2026 UTC-midnat, og dommen er ren: fra og med → ja, før → nej, null/ugyldig → nej", () => {
+    expect(DELING_PUNKT_FRA).toBe("2026-09-15T00:00:00.000Z");
+    expect(delingPunktGaelder("2026-09-15T00:00:00.000Z")).toBe(true);
+    expect(delingPunktGaelder("2026-09-22T09:00:00.000Z")).toBe(true);
+    expect(delingPunktGaelder("2026-09-14T23:59:59.999Z")).toBe(false);
+    expect(delingPunktGaelder("2026-08-01T09:00:00.000Z")).toBe(false);
+    expect(delingPunktGaelder(null)).toBe(false);
+    expect(delingPunktGaelder(undefined)).toBe(false);
+    expect(delingPunktGaelder("")).toBe(false);
+    expect(delingPunktGaelder("ikke en dato")).toBe(false);
+  });
+
+  it("nyt medlem: otte punkter, deling sidst, ikke gjort, titel/beskrivelse/sti", () => {
+    const ud = byggTjekliste(NYT);
+    expect(ud.antal_i_alt).toBe(8);
+    const p = ud.punkter[ud.punkter.length - 1];
+    expect(p.id).toBe("deling");
+    expect(p.gjort).toBe(false);
+    expect(p.titel).toBe("Fortæl det videre");
+    expect(p.beskrivelse).toBe("Dit medlemskab som billede til LinkedIn — så dit netværk ved, hvor du får sparring.");
+    expect(p.sti).toBe("/deling");
+    expect(p.mangler).toBeUndefined();
+    expect(ud.faerdig).toBe(false);
+  });
+
+  it("nyt medlem der har gjort alt det gamle er IKKE færdig før PNG'en er hentet — og så er hun", () => {
+    const altGammelt = byggTjekliste({ ...FULD, medlem_siden: NYT.medlem_siden });
+    expect(altGammelt.antal_gjort).toBe(7);
+    expect(altGammelt.antal_i_alt).toBe(8);
+    expect(altGammelt.faerdig).toBe(false);
+    const hentet = byggTjekliste({ ...FULD, medlem_siden: NYT.medlem_siden, deling_hentet_at: "2026-09-23T10:00:00.000Z" });
+    expect(hentet.punkter.find((p) => p.id === "deling")!.gjort).toBe(true);
+    expect(hentet.antal_gjort).toBe(8);
+    expect(hentet.faerdig).toBe(true);
+  });
+
+  it("gjort sættes af deling_hentet_at alene — kun det punkt, og kun for et nyt medlem", () => {
+    const gjort = gjortAf({ ...NYT, deling_hentet_at: "2026-09-23T10:00:00.000Z" });
+    for (const id of ALLE_ID) expect(gjort[id]).toBe(false);
+    expect(gjort.deling).toBe(true);
+    expect(byggTjekliste({ ...NYT, deling_hentet_at: "2026-09-23T10:00:00.000Z" }).antal_gjort).toBe(1);
+  });
+
+  it("eksisterende medlem (før grænsen): punktet findes ikke — også selv om stemplet skulle være sat", () => {
+    for (const input of [GAMMELT, TOM, { ...GAMMELT, deling_hentet_at: "2026-09-23T10:00:00.000Z" }]) {
+      const ud = byggTjekliste(input);
+      expect(ud.punkter.map((p) => p.id)).not.toContain("deling");
+      expect(ud.antal_i_alt).toBe(7);
+    }
+  });
+
+  it("et medlem der var færdig før grænsen, FORBLIVER færdig — listen åbner ikke igen", () => {
+    const foer = byggTjekliste({ ...FULD, medlem_siden: "2026-08-01T09:00:00.000Z" });
+    expect(foer.faerdig).toBe(true);
+    expect(foer.antal_gjort).toBe(7);
+    expect(foer.antal_i_alt).toBe(7);
+    // Og uden dato overhovedet (ældre kaldere/tests): samme svar.
+    expect(byggTjekliste(FULD).faerdig).toBe(true);
+  });
+
+  it("de øvrige punkter er uændrede: samme id'er, titler, stier og gjort-domme med og uden delingspunktet", () => {
+    const uden = byggTjekliste(TOM).punkter;
+    const med = byggTjekliste(NYT).punkter.filter((p) => p.id !== "deling");
+    expect(med.map((p) => [p.id, p.titel, p.sti, p.gjort, p.beskrivelse])).toEqual(uden.map((p) => [p.id, p.titel, p.sti, p.gjort, p.beskrivelse]));
+    const udenFuld = byggTjekliste(FULD).punkter;
+    const medFuld = byggTjekliste({ ...FULD, medlem_siden: NYT.medlem_siden }).punkter.filter((p) => p.id !== "deling");
+    expect(medFuld.map((p) => [p.id, p.gjort])).toEqual(udenFuld.map((p) => [p.id, p.gjort]));
+  });
+
+  it("udgår sammen med video og trådret som de andre: nyt medlem uden video og trådret har seks", () => {
+    const ud = byggTjekliste({ ...NYT, har_velkomstvideo: false, kan_oprette_traad: false });
+    expect(ud.punkter.map((p) => p.id)).toEqual(["profil", "virksomhed", "rapport", "handout", "besked", "deling"]);
   });
 });
