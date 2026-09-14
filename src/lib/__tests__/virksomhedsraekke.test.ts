@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   byggVirksomhedsRaekke,
+  bygKontaktperson,
   parseCvrStiftelsesdato,
   type CvrSvar,
   type VirksomhedsInput,
@@ -76,6 +77,7 @@ describe("byggVirksomhedsRaekke — feltlisten er LÅST", () => {
         "application_context",
         "city",
         "contact_email",
+        "contact_person",
         "contact_phone",
         "cvr_fetched_at",
         "cvr_number",
@@ -343,5 +345,59 @@ describe("byggVirksomhedsRaekke — felt for felt, som import-application gør d
       application_date: null,
       raw_cvr_data: null,
     });
+  });
+});
+
+// ── contact_person (14/9): rækken bærer feltet, ad BEGGE veje ──
+// MÅLT: rækkebyggeren skrev det aldrig; navnet lå kun i
+// application_context.contact_name, og 35 af 39 virksomheder stod med
+// kolonnens DEFAULT ''. Bevist 14/9: Monday-vejen satte feltet (via sin
+// separate B5-opdatering), import-vejen gjorde ikke. Den 22/9 importeres
+// 10-15 ansøgere ad importvejen.
+describe("byggVirksomhedsRaekke — contact_person sættes ad begge veje fra samme kilde-logik (14/9)", () => {
+  it("import-vejen: ét samlet navn fra «Kontaktperson» lander i contact_person — og stadig i application_context", () => {
+    const raekke = byggVirksomhedsRaekke(input({ contact_name: "Jonas Test" }), cvr, NU);
+    expect(raekke.contact_person).toBe("Jonas Test");
+    expect((raekke.application_context as { contact_name: string }).contact_name).toBe("Jonas Test");
+  });
+
+  it("Monday-vejen: Fornavn + Efternavn samles med bygKontaktperson, og rækken bærer det samlede navn", () => {
+    const samlet = bygKontaktperson("Anne Marie", "Møller Jensen");
+    expect(samlet).toBe("Anne Marie Møller Jensen");
+    const raekke = byggVirksomhedsRaekke(input({ contact_name: samlet }), cvr, NU);
+    expect(raekke.contact_person).toBe("Anne Marie Møller Jensen");
+  });
+
+  it("tomt navn giver tom streng — kolonnens DEFAULT — aldrig null, «null» eller «undefined»", () => {
+    for (const navn of ["", "   ", null, undefined]) {
+      const raekke = byggVirksomhedsRaekke(input({ contact_name: navn }), cvr, NU);
+      expect(raekke.contact_person, JSON.stringify(navn)).toBe("");
+      expect(raekke.contact_person).not.toBeNull();
+    }
+    expect(bygKontaktperson()).toBe("");
+    expect(bygKontaktperson(null, undefined)).toBe("");
+    expect(bygKontaktperson("", "  ")).toBe("");
+    expect(bygKontaktperson(null, undefined)).not.toContain("null");
+    expect(bygKontaktperson(null, undefined)).not.toContain("undefined");
+  });
+
+  it("et navn med mellemrum eller flere efternavne bevares — kun kanterne trimmes", () => {
+    expect(byggVirksomhedsRaekke(input({ contact_name: "Anne Marie Møller Jensen" }), cvr, NU).contact_person)
+      .toBe("Anne Marie Møller Jensen");
+    expect(byggVirksomhedsRaekke(input({ contact_name: "  Peter Nørgaard Larsen  " }), null, NU).contact_person)
+      .toBe("Peter Nørgaard Larsen");
+    expect(bygKontaktperson("Hans Christian", "von der Recke")).toBe("Hans Christian von der Recke");
+    expect(bygKontaktperson(" Nille ", " Mølgaard ")).toBe("Nille Mølgaard");
+  });
+
+  it("kun fornavn eller kun efternavn: intet hængende mellemrum", () => {
+    expect(bygKontaktperson("Caspar", null)).toBe("Caspar");
+    expect(bygKontaktperson("", "Larsen")).toBe("Larsen");
+    expect(bygKontaktperson("Caspar", "")).toBe("Caspar");
+  });
+
+  it("feltet afhænger ikke af CVR-svaret — CVR-registret kender ingen kontaktperson", () => {
+    expect(byggVirksomhedsRaekke(input({ contact_name: "Jonas Test" }), null, NU).contact_person).toBe("Jonas Test");
+    expect(byggVirksomhedsRaekke(input({ contact_name: null }), cvr, NU).contact_person).toBe("");
   });
 });
