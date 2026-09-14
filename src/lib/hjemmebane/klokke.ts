@@ -20,6 +20,8 @@
  * tæller ville være en anden dom for det samme.
  */
 
+import { renTekst } from "./richtext";
+
 export type Prioritet = "info" | "important" | "action_required";
 
 export interface MedlemsNotifikation {
@@ -68,6 +70,50 @@ export function pilleTekst(antal: number): string | null {
 
 export const erDrift = (n: Pick<RaadgiverNotifikation, "type">): boolean => n.type === "drift";
 
+/** Linjens tekst er ren tekst (14/9): klokken viste «<p>Hej Jonas, </p><p>Jo,
+    …» ordret, fordi chat-uddraget var Tiptap-HTML. Kilden (send-slack-chat-
+    notification) er rettet, men rækkerne der allerede ligger i databasen,
+    bærer stadig tags — så klokken renser selv, med husets richtext-håndtering.
+    Tom tekst bliver null, så linjen ikke får en tom underlinje. */
+export function klokkeTekst(body: string | null | undefined): string | null {
+  const t = renTekst(body);
+  return t === "" ? null : t;
+}
+
+/** Driftsbeskedens body er «Cron-vagten (vagt_cron) kl. 19:00. Tallene: {…30
+    nøgler…}» (vagt_cron, migration 20260910170000). Tallene hører ikke hjemme
+    i klokken — de står i rækken og i cron_vagt_log, og forsidens Driften-linje
+    oversætter dem. Her beholdes kun tiden; JSON'en udelades. En body uden
+    «Tallene:» går uændret igennem. */
+export function driftTekst(body: string | null | undefined): string | null {
+  const hel = klokkeTekst(body);
+  if (!hel) return null;
+  const i = hel.indexOf("Tallene:");
+  if (i < 0) return hel;
+  const foer = hel.slice(0, i).trim().replace(/[.\s]+$/, "");
+  return foer ? `${foer}. Tallene står i cron_vagt_log.` : "Tallene står i cron_vagt_log.";
+}
+
+/** Driftsbeskedens titel bærer dommen: «Driften: 3 cron-jobs svarede ikke 200
+    den seneste time ({"200": 40, "500": 3}; 2 timeouts)». Svarkoderne står
+    som rå JSON i titlen; her skrives de som forsidens linje gør det
+    (cronVagt.ts koderTekst): «3 × 500», 200 udelades. Kan JSON'en ikke
+    læses, står titlen som den er — aldrig en fejl i klokken. */
+export function driftTitel(title: string): string {
+  return title.replace(/\{[^{}]*\}/g, (json) => {
+    try {
+      const koder = JSON.parse(json) as Record<string, unknown>;
+      const dele = Object.entries(koder)
+        .filter(([k, n]) => k !== "200" && typeof n === "number")
+        .sort((a, b) => (b[1] as number) - (a[1] as number))
+        .map(([k, n]) => `${n} × ${k === "intet_svar" ? "intet svar" : k}`);
+      return dele.length ? dele.join(", ") : "alle 200";
+    } catch {
+      return json;
+    }
+  });
+}
+
 /** Én linje i udfoldningen — fælles form for begge roller. */
 export interface KlokkeLinje {
   id: string;
@@ -92,7 +138,7 @@ export function medlemsLinje(n: MedlemsNotifikation): KlokkeLinje {
   return {
     id: n.id,
     titel: n.title,
-    tekst: n.body,
+    tekst: klokkeTekst(n.body),
     tid: n.created_at,
     ny: !n.read_at,
     til: n.deep_link,
@@ -129,14 +175,15 @@ export function raadgiverSti(n: Pick<RaadgiverNotifikation, "type" | "reference_
 }
 
 export function raadgiverLinje(n: RaadgiverNotifikation): KlokkeLinje {
+  const drift = erDrift(n);
   return {
     id: n.id,
-    titel: n.title,
-    tekst: n.body,
+    titel: drift ? driftTitel(n.title) : n.title,
+    tekst: drift ? driftTekst(n.body) : klokkeTekst(n.body),
     tid: n.created_at,
     ny: erUlaest(n),
     til: raadgiverSti(n),
-    maerke: erDrift(n) ? "Drift" : null,
+    maerke: drift ? "Drift" : null,
   };
 }
 

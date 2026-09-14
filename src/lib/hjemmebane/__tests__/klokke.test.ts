@@ -2,9 +2,12 @@ import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import {
+  driftTekst,
+  driftTitel,
   erDrift,
   erUlaest,
   erUset,
+  klokkeTekst,
   KLOKKE_LOFT,
   medlemsLinje,
   nyesteFoerst,
@@ -83,12 +86,54 @@ describe("linjerne", () => {
     expect(raadgiverSti(r({ type: "traek_fejlet", reference_type: "traek", reference_id: "t1" }))).toBe("/virksomhed/c1?section=aftale");
     expect(raadgiverSti(r({ type: "traek_fejlet", reference_type: "traek", reference_id: "t1", company_id: null }))).toBe("/virksomheder");
   });
+  it("linjens tekst er ren tekst — rækker med Tiptap-HTML i databasen viser aldrig tags (set 14/9)", () => {
+    const html = "<p>Hej Jonas, </p><p>Jo, det virkede ok! :-)<br>Når forretningen er så lille som her</p>";
+    const forventet = "Hej Jonas, Jo, det virkede ok! :-) Når forretningen er så lille som her";
+    expect(raadgiverLinje(r({ type: "new_message", body: html })).tekst).toBe(forventet);
+    expect(medlemsLinje(m({ body: html })).tekst).toBe(forventet);
+    expect(klokkeTekst("<p></p>")).toBeNull();
+    expect(klokkeTekst(null)).toBeNull();
+    expect(raadgiverLinje(r({ body: "Dans uden formatering" })).tekst).toBe("Dans uden formatering");
+  });
   it("nyeste først, højst ti", () => {
     const liste = Array.from({ length: 14 }, (_, i) => r({ id: `a${i}`, created_at: `2026-09-${String(i + 1).padStart(2, "0")}T10:00:00Z` }));
     const ud = nyesteFoerst(liste);
     expect(ud).toHaveLength(KLOKKE_LOFT);
     expect(ud[0].id).toBe("a13");
     expect(ud[9].id).toBe("a4");
+  });
+});
+
+/* Driftsbeskeden (14/9): vagt_cron (migration 20260910170000) skriver titlen
+   «Driften: …» med svarkoderne som rå JSON, og en body der ender i «Tallene:
+   {…30 nøgler…}». Klokken viser dommen i titlen og kun tiden i teksten;
+   tallene bliver i rækken og i cron_vagt_log. */
+describe("driftsbeskeden — overskriften bærer dommen, JSON-muren udelades", () => {
+  const TAL =
+    '{"koder": {"200": 40, "500": 3, "intet_svar": 1}, "kald_60m": 44, "ikke_200_60m": 4, "jobs_ikke_200": 3, "timeouts_60m": 2, "vault_noegler": 1, "koersler_60m": 13, "koersler_fejlet_60m": 0, "koe_job_aktiv": true, "usendte_30m": 0, "aeldste_usendt_min": 0, "forfaldne": 0, "i_vindue": true}';
+  const body = `Cron-vagten (vagt_cron) kl. 19:00. Tallene: ${TAL}`;
+  const title = 'Driften: 3 cron-jobs svarede ikke 200 den seneste time ({"200": 40, "500": 3, "intet_svar": 1}; 2 timeouts)';
+
+  it("teksten er tiden og en henvisning — ikke ét tal fra JSON'en", () => {
+    expect(driftTekst(body)).toBe("Cron-vagten (vagt_cron) kl. 19:00. Tallene står i cron_vagt_log.");
+    expect(driftTekst(body)).not.toContain("{");
+    expect(driftTekst("Cron-vagten kl. 07:00.")).toBe("Cron-vagten kl. 07:00.");
+    expect(driftTekst(null)).toBeNull();
+  });
+  it("titlens svarkoder skrives som forsidens linje: «3 × 500, 1 × intet svar», 200 udelades", () => {
+    expect(driftTitel(title)).toBe("Driften: 3 cron-jobs svarede ikke 200 den seneste time (3 × 500, 1 × intet svar; 2 timeouts)");
+    expect(driftTitel("Driften: nøglen email_queue_service_role_key mangler i vault")).toBe(
+      "Driften: nøglen email_queue_service_role_key mangler i vault",
+    );
+    expect(driftTitel("Driften: x ({ikke json})")).toBe("Driften: x ({ikke json})");
+  });
+  it("raadgiverLinje for drift bruger begge dele; en almindelig besked rører ikke titlen", () => {
+    const d = r({ type: "drift", title, body, company_id: null, reference_type: "cron_vagt_log", reference_id: null });
+    const linje = raadgiverLinje(d);
+    expect(linje.titel).toContain("3 × 500");
+    expect(linje.tekst).toBe("Cron-vagten (vagt_cron) kl. 19:00. Tallene står i cron_vagt_log.");
+    expect(linje.maerke).toBe("Drift");
+    expect(raadgiverLinje(r({ title: 'Tal: {"a": 1}' })).titel).toBe('Tal: {"a": 1}');
   });
 });
 

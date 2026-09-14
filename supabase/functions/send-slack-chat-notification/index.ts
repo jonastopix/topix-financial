@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
 import { writeNotificationToMany } from "../_shared/notificationWriter.ts";
+import { renTekst } from "../_shared/richtext.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -123,7 +124,10 @@ Deno.serve(async (req) => {
 
     const companyName = companyRes.data?.name || "Ukendt virksomhed";
     const senderName = profileRes.data?.full_name || "Ukendt afsender";
-    const preview = (message.content || "").slice(0, 250);
+    // Uddraget er REN TEKST (14/9): chatten sender Tiptap-HTML (ChatRichInput
+    // getHTML), og klokken viste tags som tekst — «<p>Hej Jonas, </p><p>Jo, …».
+    // Tags og entiteter væk FØR der klippes, så de 250/100 tegn er ord, ikke markup.
+    const preview = renTekst(message.content).slice(0, 250);
     const contextType = message.context_type || null;
 
     // ── Slack config ──

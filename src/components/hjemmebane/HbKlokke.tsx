@@ -26,7 +26,14 @@
  *
  * RÅDGIVEREN har ingen seen_at (advisor_notifications): pillen tæller
  * ulæste, og «Markér alle som læst» står i udfoldningen som i den gamle
- * klokke. Drift står i samme liste, mærket «Drift» (lib, filhovedet).
+ * klokke — ØVERST, før listen (14/9): med mange linjer skal man ellers
+ * scrolle forbi alt for at nå den, og det er netop dér man vil bruge den.
+ * Drift står i samme liste, mærket «Drift» (lib, filhovedet).
+ *
+ * TEKSTEN klippes til to linjer med line-clamp-2 — UDEN `block` ved siden af
+ * (14/9): Tailwinds display-utility ligger EFTER lineClamp i stylesheetet,
+ * så `block` overskrev `display: -webkit-box`, og klippet var dødt. Det var
+ * derfor vagtens JSON-mur fyldte en halv skærm. Låst i __tests__/HbKlokke.test.tsx.
  */
 import { useState } from "react";
 import { Link } from "react-router-dom";
@@ -99,6 +106,11 @@ const KlokkeSkal = ({
       </button>
       {aaben && (
         <div className="ml-4 mt-1 border-l border-hb-ink/15 pl-4">
+          {alleLaest && antal > 0 && (
+            <button type="button" onClick={alleLaest} className="mb-1 py-1 text-xs text-hb-evergreen underline-offset-4 hover:underline">
+              Markér alle som læst
+            </button>
+          )}
           {linjer.length === 0 ? (
             <p className="py-2 text-sm text-hb-ink-soft">{KLOKKE_TOM}</p>
           ) : (
@@ -110,7 +122,7 @@ const KlokkeSkal = ({
                       <span aria-hidden className={cn("mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full", l.ny ? "bg-hb-evergreen" : "bg-transparent")} />
                       <span className="min-w-0">
                         <span className={cn("block text-sm leading-snug", l.ny ? "font-medium text-hb-ink" : "text-hb-ink-soft")}>{l.titel}</span>
-                        {l.tekst && <span className="mt-0.5 line-clamp-2 block text-xs text-hb-ink-soft">{l.tekst}</span>}
+                        {l.tekst && <span data-klokke-tekst className="mt-0.5 line-clamp-2 text-xs text-hb-ink-soft">{l.tekst}</span>}
                         <span className="mt-0.5 flex flex-wrap items-center gap-x-2 text-[11px] text-hb-ink-soft">
                           <span>{tidOrd(l.tid)}</span>
                           {l.maerke && <span className="rounded-full bg-hb-sage px-2 py-0.5 font-medium text-hb-evergreen">{l.maerke}</span>}
@@ -131,11 +143,6 @@ const KlokkeSkal = ({
                 );
               })}
             </ul>
-          )}
-          {alleLaest && antal > 0 && (
-            <button type="button" onClick={alleLaest} className="mt-2 text-xs text-hb-evergreen underline-offset-4 hover:underline">
-              Markér alle som læst
-            </button>
           )}
         </div>
       )}
