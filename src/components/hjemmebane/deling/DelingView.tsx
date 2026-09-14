@@ -44,6 +44,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { dateLabel, manglendeDele, type KreativData } from "@/lib/delingskreativ";
+import { VEJLEDNING, byggDelingstekster, type Delingstekst } from "@/lib/delingstekster";
 import {
   TEKST as BILLED_TEKST,
   fjernPortraet,
@@ -247,9 +248,74 @@ export const DelingView = () => {
         })}
       </ul>
 
+      {/* Teksten over billedet (nr. 3: «3-4 tekster») — fire VEJE (Jonas 14/9:
+          «hvilken vej vil du i dit opslag?») af samme virksomhed/dato som
+          kreativen (lib/delingstekster, ren). Hun kopierer én og retter den
+          selv i LinkedIn. Ved siden af: den korte vejledning — det hun ikke
+          ved om rækkevidde; kun de fire punkter, intet mere om algoritmen. */}
+      <section className="flex flex-col gap-4" aria-labelledby="deling-tekster">
+        <div className="flex flex-col gap-1">
+          <h2 id="deling-tekster" className="font-brand text-xl font-semibold text-hb-ink">Tekst til opslaget</h2>
+          <p className="text-sm text-hb-ink-soft">Fire veje at gå. Kopiér den der ligner dig, og ret den når den er sat ind.</p>
+        </div>
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-[2fr_1fr]">
+          <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2" aria-label="Tekstudkast">
+            {byggDelingstekster({ memberName: data.memberName, companyName: data.companyName, dateLabel: data.dateLabel }).map((udkast) => (
+              <li key={udkast.id}>
+                <Tekstudkast udkast={udkast} />
+              </li>
+            ))}
+          </ul>
+          <aside className="rounded-hb border border-hb-line bg-hb-paper p-4" aria-labelledby="deling-vejledning">
+            <h3 id="deling-vejledning" className="text-xs font-semibold uppercase tracking-[0.18em] text-hb-ink-soft">Før du slår det op</h3>
+            <ol className="mt-3 flex flex-col gap-2 text-sm leading-relaxed text-hb-ink" aria-label="Vejledning">
+              {VEJLEDNING.map((punkt) => (
+                <li key={punkt} className="flex gap-2">
+                  <span aria-hidden="true" className="text-hb-ink-soft">·</span>
+                  <span>{punkt}</span>
+                </li>
+              ))}
+            </ol>
+          </aside>
+        </div>
+      </section>
+
       {aaben !== null && (
         <KreativFuldskaerm kreativer={KREATIVER} data={data} indeks={aaben} onSkift={setAaben} onLuk={() => setAaben(null)} />
       )}
+    </div>
+  );
+};
+
+/** Ét udkast: tonen, teksten (markérbar) og kopiér-knap med kortvarig kvittering —
+    RabataftalerView.KopierKode-mønstret (:56-83): navigator.clipboard kan være
+    blokeret; fejler den, står teksten stadig og kan markeres. */
+const Tekstudkast = ({ udkast }: { udkast: Delingstekst }) => {
+  const [kopieret, setKopieret] = useState(false);
+  const kopier = async () => {
+    try {
+      await navigator.clipboard.writeText(udkast.tekst);
+      setKopieret(true);
+      setTimeout(() => setKopieret(false), 2000);
+    } catch {
+      // Udklipsholderen er blokeret — teksten står synlig og kan markeres.
+    }
+  };
+  return (
+    <div className="flex h-full flex-col gap-3 rounded-hb border border-hb-line bg-hb-surface p-4" data-tekstudkast={udkast.id}>
+      <div className="flex items-center justify-between gap-3">
+        <span className="text-xs font-semibold uppercase tracking-[0.18em] text-hb-ink-soft">{udkast.titel}</span>
+        <button
+          type="button"
+          onClick={kopier}
+          aria-label={`Kopiér: ${udkast.titel}`}
+          className="text-sm text-hb-evergreen underline-offset-4 hover:underline"
+        >
+          {kopieret ? "Kopieret" : "Kopiér"}
+        </button>
+      </div>
+      <p className="select-all whitespace-pre-line text-[15px] leading-relaxed text-hb-ink">{udkast.tekst}</p>
+      {udkast.note && <p className="text-xs text-hb-ink-soft" data-tekstudkast-note="">{udkast.note}</p>}
     </div>
   );
 };
