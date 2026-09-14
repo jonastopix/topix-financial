@@ -32,6 +32,7 @@
  */
 
 import { supabase } from "@/integrations/supabase/client";
+import { medVersion } from "./billedVersion";
 
 export const PORTRAET_BUCKET = "deling-portraetter";
 export const PORTRAET_FILNAVN = "portraet";
@@ -130,13 +131,16 @@ export async function maalBillede(fil: Blob): Promise<BilledMaal | null> {
  * Vej (a) — ordret IndstillingerView.handleLogoUpload (:217-222): samme
  * bucket, samme sti, samme upsert, samme public-URL, samme skrivning til
  * companies.logo_url. Kaster med fladens egne fejltekster; kalderen viser.
- * Returnerer den rene public-URL (uden cache-buster).
+ * URL'en gemmes MED version (billedVersion.ts, 14/9): samme sti giver samme
+ * public-URL, og uden version så kreativen ingen ændring ved andet valg —
+ * hverken React (samme streng) eller browseren (max-age=3600). Returnerer
+ * den gemte, versionerede URL.
  */
 export async function uploadVirksomhedslogo(companyId: string, file: File): Promise<string> {
   const filePath = logoSti(companyId);
   const { error: uploadError } = await supabase.storage.from(LOGO_BUCKET).upload(filePath, file, { upsert: true, contentType: file.type });
   if (uploadError) throw new Error(TEKST.logoFejlUpload);
-  const cleanUrl = supabase.storage.from(LOGO_BUCKET).getPublicUrl(filePath).data.publicUrl;
+  const cleanUrl = medVersion(supabase.storage.from(LOGO_BUCKET).getPublicUrl(filePath).data.publicUrl);
   const { error: updateError } = await supabase.from("companies").update({ logo_url: cleanUrl }).eq("id", companyId);
   if (updateError) throw new Error(TEKST.logoFejlGem);
   return cleanUrl;

@@ -72,8 +72,11 @@ describe("stierne og bucketerne", () => {
     expect(indstillinger).toContain("const filePath = `${company.id}/logo`;");
     expect(indstillinger).toContain('supabase.storage.from("company-logos").upload(filePath, file, { upsert: true, contentType: file.type })');
     expect(indstillinger).toContain('supabase.from("companies").update({ logo_url: cleanUrl }).eq("id", company.id)');
+    // 14/9: begge gemmer URL'en MED version (billedVersion.medVersion) — samme sti giver samme public-URL.
+    expect(indstillinger).toContain('const cleanUrl = medVersion(supabase.storage.from("company-logos").getPublicUrl(filePath).data.publicUrl);');
     const lib = readFileSync("src/lib/delingsbilleder.ts", "utf8");
     expect(lib).toContain("upload(filePath, file, { upsert: true, contentType: file.type })");
+    expect(lib).toContain("const cleanUrl = medVersion(supabase.storage.from(LOGO_BUCKET).getPublicUrl(filePath).data.publicUrl);");
     expect(lib).toContain('.update({ logo_url: cleanUrl }).eq("id", companyId)');
   });
   it("KILDEVÆRN: migrationen opretter bucketen privat med de samme grænser og fire ejermappe-policies", () => {
