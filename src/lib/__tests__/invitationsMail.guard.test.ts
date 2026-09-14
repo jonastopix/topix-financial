@@ -88,7 +88,9 @@ describe("invitationsMail.guard — indgangsMail.ts deler underskriften og escap
     const kode = udenKommentarer(laes("supabase/functions/_shared/invitationsMail.ts"));
     expect(kode).not.toMatch(/\bskriv til mig\b/);
     expect(kode).not.toMatch(/\bsvar på denne mail\b/);
-    expect(kode).toContain('export const KONTAKT_ADRESSE = "kontakt@theboardroom.dk";');
+    // Siden 14/9 defineres adressen i indgangsMail.ts og re-eksporteres her (kontaktadresse.guard.test.ts låser definitionen).
+    expect(kode).toContain("export { KONTAKT_ADRESSE };");
+    expect(kode).toMatch(/import \{[^}]*\bKONTAKT_ADRESSE\b[^}]*\} from "\.\/indgangsMail\.ts";/);
     expect(kode).not.toMatch(/jonas@|morten@|@topix\.dk|@molainvest\.dk/);
   });
 });

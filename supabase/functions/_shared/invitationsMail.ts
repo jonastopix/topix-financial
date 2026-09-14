@@ -30,11 +30,14 @@
  * src/lib/__tests__/invitationsMail.test.ts; send-invitation-email låses til
  * modulet af invitationsMail.guard.test.ts.
  */
-import { esc, HILSEN, indgangsMailHtml, tiltale, type IndgangsMail } from "./indgangsMail.ts";
+import { esc, HILSEN, indgangsMailHtml, KONTAKT_ADRESSE, tiltale, type IndgangsMail } from "./indgangsMail.ts";
 
 export const PLADSHOLDER_VIRKSOMHED = "{{company_name}}";
 export const PLADSHOLDER_LINK = "{{signup_url}}";
-export const KONTAKT_ADRESSE = "kontakt@theboardroom.dk";
+// Adressen bor i indgangsMail.ts siden 14/9 (dag 0 og fornyelsens kvittering
+// deler den); re-eksporteret, så invitationsMail.test.ts og send-invitation-email
+// læser den samme vej som før.
+export { KONTAKT_ADRESSE };
 
 /**
  * Selve mailen. `virksomhed` og `signupUrl` kan være pladsholdere (skabelon-
