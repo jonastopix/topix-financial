@@ -180,8 +180,9 @@ Deno.serve(async (req) => {
       metadata: { ...skabelonvalgMetadata(valg), company_name },
     });
 
-    if (!resultat.sent && resultat.reason === 'failed') {
-      throw new Error(`Failed to send invitation email: ${resultat.error}`);
+    // Kun en spærret modtager passerer stille; failed OG rate_limited (14/9) kaster som før.
+    if (!resultat.sent && resultat.reason !== 'recipient_suppressed') {
+      throw new Error(`Failed to send invitation email (${resultat.reason}): ${resultat.error}`);
     }
 
     console.log(`[send-invitation-email] Enqueued invitation for: ${email} (company: ${company_name}, vej: ${valg.vej})`);

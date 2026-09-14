@@ -13,6 +13,7 @@
  * skiftet — teksten er urørt.
  */
 import { EmailAPIError, sendLovableEmail } from "npm:@lovable.dev/email-js@0.1.0";
+import { klassificerMailFejl, logStatusFor, logTekstFor } from "./mailFejl.ts";
 
 /** Det verificerede afsenderdomæne (delegeret til Lovable). */
 export const SENDER_DOMAIN = "notify.theboardroom.dk";
@@ -45,9 +46,19 @@ export interface ManagedMailArgs {
   subjectForLog?: string;
 }
 
+/**
+ * Tre kendte afvisninger (14/9, _shared/mailFejl.ts):
+ *   recipient_suppressed — modtageren er spærret; prøv ikke igen.
+ *   rate_limited         — udbyderens loft (429); retryAfterSeconds bæres
+ *                          med (null når Retry-After manglede). En kørsel
+ *                          til mange skal holde pause (skalKoeStoppe).
+ *   failed               — alt andet; retryable = 5xx.
+ */
 export type ManagedMailResultat =
   | { sent: true; messageId: string }
-  | { sent: false; reason: "recipient_suppressed" | "failed"; messageId: string; error?: string };
+  | { sent: false; reason: "recipient_suppressed"; messageId: string }
+  | { sent: false; reason: "rate_limited"; messageId: string; retryAfterSeconds: number | null; error: string }
+  | { sent: false; reason: "failed"; messageId: string; error: string; retryable: boolean };
 
 /**
  * Sender én mail og bogfører den i email_send_log. Kaster aldrig —
@@ -71,13 +82,13 @@ export async function sendManagedEmail(args: ManagedMailArgs): Promise<ManagedMa
 
   if (!modtager) {
     console.error(`${praefiks} tom modtager — intet sendt`);
-    return { sent: false, reason: "failed", messageId, error: "empty recipient" };
+    return { sent: false, reason: "failed", messageId, error: "empty recipient", retryable: false };
   }
 
   const apiKey = Deno.env.get("LOVABLE_API_KEY");
   if (!apiKey) {
     console.error(`${praefiks} LOVABLE_API_KEY mangler — intet sendt`);
-    return { sent: false, reason: "failed", messageId, error: "LOVABLE_API_KEY missing" };
+    return { sent: false, reason: "failed", messageId, error: "LOVABLE_API_KEY missing", retryable: false };
   }
 
   async function log(status: string, errorMessage?: string) {
@@ -116,15 +127,26 @@ export async function sendManagedEmail(args: ManagedMailArgs): Promise<ManagedMa
       { apiKey, sendUrl: Deno.env.get("LOVABLE_SEND_URL") },
     );
   } catch (error) {
-    if (error instanceof EmailAPIError && error.code === "recipient_suppressed") {
-      await log("suppressed", "Modtageren er spærret (afmeldt, bounce eller klage)");
+    // Dommen er ren (mailFejl.ts): spærret modtager → rate limit → alt andet.
+    const besked = error instanceof Error ? error.message : String(error);
+    const api = error instanceof EmailAPIError ? error : null;
+    const dom = klassificerMailFejl({
+      status: api?.status ?? null,
+      code: api?.code ?? null,
+      retryAfterSeconds: api?.retryAfterSeconds ?? null,
+      message: besked,
+    });
+    await log(logStatusFor(dom.reason), logTekstFor(dom, besked));
+    if (dom.reason === "recipient_suppressed") {
       console.warn(`${praefiks} modtageren er spærret — intet sendt`);
       return { sent: false, reason: "recipient_suppressed", messageId };
     }
-    const besked = error instanceof Error ? error.message : String(error);
-    await log("failed", besked);
+    if (dom.reason === "rate_limited") {
+      console.error(`${praefiks} rate limit hos udbyderen (429, Retry-After ${dom.retryAfterSeconds ?? "ukendt"})`);
+      return { sent: false, reason: "rate_limited", messageId, retryAfterSeconds: dom.retryAfterSeconds, error: besked };
+    }
     console.error(`${praefiks} afsendelse fejlede:`, besked);
-    return { sent: false, reason: "failed", messageId, error: besked };
+    return { sent: false, reason: "failed", messageId, error: besked, retryable: dom.retryable };
   }
 
   await log("sent");

@@ -95,8 +95,9 @@ Deno.serve(async (req) => {
       isTest: true,
     })
 
-    if (!resultat.sent && resultat.reason === 'failed') {
-      throw new Error(`Failed to send test email: ${resultat.error}`)
+    // Kun en spærret modtager passerer stille; failed OG rate_limited (14/9) kaster som før.
+    if (!resultat.sent && resultat.reason !== 'recipient_suppressed') {
+      throw new Error(`Failed to send test email (${resultat.reason}): ${resultat.error}`)
     }
 
     console.log(`[send-template-email] Test sendt til ${test_email} (template: ${template.name})`)
