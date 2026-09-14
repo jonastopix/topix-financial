@@ -103,6 +103,28 @@
     Før: 154 (153 + skabelonen). Lukket: 2 (bliver stående). Tilføjet: 0.
       Efter: 154 (153 + skabelonen) — 10 lukkede i alt, målt med grep på
       kortenes div-tag (class card, data-status="loest").
+  RØRT 14/9 AFTEN — lille tilføjelse (ikke bogført i OVERLEVERING; intet
+    er målt)
+    Nyt: «Svar på en besked i chatten — så det tydeligt fremgår hvad der
+    svares på» (Jonas 14/9; Chat og rådgiverforløbet, lige efter C12-
+    kortet «Henvis til et tal i chatten» — begge handler om hvad en besked
+    bærer). Ikke undersøgt, ingen recon; prioritet efter 22/9.
+    Før: 154 (153 + skabelonen). Lukket: 0. Tilføjet: 1.
+      Efter: 155 (154 + skabelonen) — 10 lukkede i alt, målt med grep på
+      kortenes div-tag (class card, data-status="loest").
+  RØRT 14/9 AFTEN — anden tilføjelse (bogført i OVERLEVERING DEL 2
+    «14. september» §29; grundlag ~/Downloads/recon-auth-mails.md)
+    Omskrevet: nr. 16 af 18 «Auth-mails står ikke i vores egen log» —
+    reconen vendte det: kun «Nulstil din adgangskode» udløses i vores
+    kode; signup-bekræftelsen er slået fra siden 2/9; de fire andre har
+    ingen udløser. Hullet er ét felt bredt. Prioritering (Jonas 14/9):
+    ikke før 22/9. Nyt: «auth-email-hook holdt op med at logge 8/9 — og
+    ingen opdagede det» (Rådgiverfladen, lige efter nr. 16). DEL 4-fælden
+    «LOVABLE KAN BYGGE OM UNDER OS» skærpet med eksemplet. Rækkefølgens
+    linje for nr. 16 rettet.
+    Før: 155 (154 + skabelonen). Lukket: 0. Tilføjet: 1.
+      Efter: 156 (155 + skabelonen) — 10 lukkede i alt, målt med grep på
+      kortenes div-tag (class card, data-status="loest").
   RYDDET 10/9 AFTEN (Jonas: «få sat flueben ved de ting der er klaret»)
     24 kort slettet som løst — bogført i OVERLEVERING DEL 2 «10. september,
     aften»; 8 omskrevet til det der står tilbage (Rettet 10/9); 3 nye.
@@ -1729,6 +1751,14 @@
       <p><strong>Skærpet 11/9 (<code>~/Downloads/ideerne-skarpt.md</code>):</strong> <em>Løser:</em> at medlemmet ikke har en grund til at skrive, og rådgiveren skal spørge om konteksten — for begge. <em>Bedre form nu — vend retningen:</em> ikke «indsæt et tal i chatten» men «spørg din rådgiver om det her» som knap på hvert nøgletal; beskeden bærer tallet som en chip, frosset som det så ud (<code>context_meta</code>). Levende henvisning kan vente. <em>Størrelse:</em> en dag.</p>
       <div class="meta"><span class="tag ny">Ny 11/9</span><span class="tag">Skærpet 11/9</span><span class="tag">Vend retningen</span><span class="tag size">Lille</span></div>
     </div>
+    <div class="card new" data-status="mangler" data-spor="senere" data-rammer="medlem">
+      <h3>Svar på en besked i chatten — så det tydeligt fremgår hvad der svares på, som i Slack eller iMessage</h3>
+      <p><strong>Jonas 14/9:</strong> man skal kunne svare på en konkret besked, så det tydeligt fremgår hvad der svares på — som i Slack eller iMessage.</p>
+      <p><strong>Hvorfor det betyder noget:</strong> chatten er der rådgivningen sker. En tråd med flere spørgsmål og svar bliver ulæselig uden at man kan se sammenhængen, og trådene bliver længere når der kommer 10-15 nye medlemmer.</p>
+      <p><strong>IKKE UNDERSØGT — ingen recon kørt:</strong> hvad det kræver i datamodellen (formentlig en kolonne der peger på den besvarede besked), i fladen (visning af citatet), og om notifikationer skal kende det. Størrelsen er ikke målt.</p>
+      <p><strong>Prioritet:</strong> efter 22/9. Den konkurrerer med delingen, som har en dato.</p>
+      <div class="meta"><span class="tag ny">Ny 14/9</span><span class="tag">Efter 22/9</span><span class="tag">Ikke undersøgt</span></div>
+    </div>
     <div class="card decision new" data-status="beslutning" data-spor="senere" data-rammer="medlem">
       <h3>AI-fanen hører ved tallene, ikke ved rådgiverchatten — mål brugen først</h3>
       <p><code>docs/chat-design.md:251</code>: AI-sparringen (<code>FinancialAIChat</code>) står som en fane ved siden af rådgiverchatten, men dens emne er tallene. Beslutningen er om den flytter til Nøgletal — og før den træffes, skal brugen måles: hvor mange medlemmer har åbnet fanen de sidste 30 dage, og spurgte de om tal? Kræver prod: <code>agent_runs</code>/chat-loggen for AI-svar pr. virksomhed. Uden målingen er flytningen en smag; med den er det en dom. Lille.</p>
@@ -2056,9 +2086,17 @@
       <div class="meta"><span class="tag ny">Ny 8/9</span><span class="tag">Omskrevet 11/9</span><span class="tag size">Lille</span></div>
     </div>
     <div class="card new" id="w16" data-status="mangler" data-spor="senere" data-rammer="raadgiver">
-      <h3>Auth-mails står ikke i vores egen log</h3>
-      <p>Signup, invite, magic-link, recovery, email-change og reauthentication sendes af Lovables <code>createAuthEmailHandler</code> (<code>auth-email-hook:123-185</code>) og skriver ikke i <code>email_send_log</code>. Seks mails er usynlige i sendt-loggen og virksomhedens mail-log; deres historik findes kun hos Lovable (Cloud → Emails). Om hook'en overhovedet er koblet på, kræver opslag under Auth settings (mailfortegnelsen M20).</p>
-      <div class="meta"><span class="tag webinar">22/9 · nr. 16 af 18</span><span class="tag ny">Ny 8/9</span><span class="tag rust">Tavshed</span><span class="tag size">Lille</span></div>
+      <h3>Auth-mails står ikke i vores egen log — men hullet er ét felt bredt: kun «Nulstil din adgangskode» sendes uden om loggen</h3>
+      <p><strong>Omskrevet 14/9 efter reconen (<code>~/Downloads/recon-auth-mails.md</code>) — kortet var næsten tomt.</strong> Hooken kender seks typer (<code>auth-email-hook/index.ts:125-183</code>), men af dem udløses KUN ÉN i vores kode: «Nulstil din adgangskode» (<code>recovery</code>, <code>supabase.auth.resetPasswordForEmail</code>, <code>Auth.tsx:171</code>). Bekræftelsesmailen ved signup er slået fra siden 2/9 (Lovable → Auth settings → «Auto-confirm email» TIL; bevist med <code>confirmation_sent_at = NULL</code>, <code>docs/indgangen-overhaling.md:103-107</code>) og bekræftet i praksis af gennemkørslen 14/9 («Konto oprettet» → første login, ingen mail). Magiclink, invite, email_change og reauthentication har INGEN udløser i <code>src/</code> eller <code>supabase/functions/</code> (ingen <code>signInWithOtp</code>, <code>inviteUserByEmail</code>, <code>updateUser({ email })</code> eller <code>reauthenticate</code>; legatets <code>generateLink</code> sender ikke — linket lægges i husets egen, loggede velkomstmail).</p>
+      <p><strong>Konsekvens:</strong> en «jeg fik ingen mail» fra en ny ansøger kan ikke handle om en bekræftelsesmail — der sendes ingen. Den handler om betalingslinket, invitationen eller dag 0-mailen, og alle tre står allerede i <code>email_send_log</code> (<code>indgangsBetalingsmail</code>, <code>invitation</code>, <code>onboarding-dag0</code>). Det eneste der kan mangle i loggen, er en nulstil-mail. Om Supabase Auth overhovedet kalder hooken, kræver stadig opslag under Auth settings (<code>mailfortegnelsen.md:171-173</code>); hookens egen historik findes kun hos Lovable.</p>
+      <p><strong>Prioritering (Jonas 14/9):</strong> nulstil-mailen rettes IKKE før 22/9. Hvordan hullet lukkes, står ikke her — kortet nedenfor siger hvordan det opstod. OVERLEVERING DEL 2 «14. september» §29.</p>
+      <div class="meta"><span class="tag webinar">22/9 · nr. 16 af 18</span><span class="tag ny">Ny 8/9</span><span class="tag">Omskrevet 14/9 — ét felt bredt</span><span class="tag">Ikke før 22/9 — Jonas 14/9</span><span class="tag size">Lille</span></div>
+    </div>
+    <div class="card new" data-status="fejl" data-spor="senere" data-rammer="raadgiver">
+      <h3><code>auth-email-hook</code> holdt op med at logge 8/9 — og ingen opdagede det</h3>
+      <p><strong>Fundet 14/9 i git (<code>recon-auth-mails.md</code> §0):</strong> før 8/9 skrev hooken en <code>pending</code>-række i <code>email_send_log</code> med <code>template_name = emailType</code> og lagde mailen i køen <code>auth_emails</code> (gammel <code>auth-email-hook/index.ts:246-251, :253-267</code>, version <code>b6008c51</code>, i drift 11/5 → 8/9 07:00:24 UTC). Ved Lovables ombygning 8/9 (<code>b45007eb</code>, 19 «Changes»-commits uden PR) blev den skrevet om til SDK'ens <code>createAuthEmailHandler</code>, som skriver INTET i loggen — ingen <code>.from(</code>/<code>.insert(</code> i <code>@lovable.dev/email-js@0.1.0/dist/index.js:189-250</code>; den kalder kun <code>sendLovableEmail</code>. Ingen opdagede det: <code>EmailLogView</code>s labels for signup/recovery/magiclink/invite/email_change/reauthentication (<code>EmailLogView.tsx:78-83</code>) er arv fra dengang og viser nu kun gamle rækker, så fladen så ud som om den stadig kendte dem.</p>
+      <p><strong>Tredje gang i dag:</strong> noget der stille holdt op med at virke ved et skift — sammen med Monday-webhooken (opskriften uden Authorization-header, #851) og invitationsmailens <code>enabled_false</code> (#852). Fælden i OVERLEVERING DEL 4 «LOVABLE KAN BYGGE OM UNDER OS» er skærpet med dette eksempel. Hvad der er sendt af nulstil-mails siden 8/9, kan kun ses hos Lovable; ældre rækker med <code>template_name</code> signup/recovery kan stadig findes med SQL (reconen §2b, ikke kørt).</p>
+      <div class="meta"><span class="tag ny">Ny 14/9</span><span class="tag rust">Stille skift 8/9 — tredje i dag</span><span class="tag">Ikke før 22/9 — Jonas 14/9</span><span class="tag size">Lille</span></div>
     </div>
     <div class="card new" data-status="mangler" data-spor="senere" data-rammer="ingen">
       <h3>Ni døde mails og skabeloner — én oprydning</h3>
@@ -2410,7 +2448,7 @@
       <li><a href="#w13">En virksomhed uden slutdato ser Community som fuldt medlem</a> · Lille · trin 6 · rammer kun ved manuel genvej — fristelsen er reel med 10–15</li>
       <li><a href="#w14">Edge functions har ingen fejllæser</a> · Mellem · trin 3–4 · vej (b): Stripes failed-webhook-mail, nul kode, i morgen</li>
       <li><a href="#w15">Beskrivelser på de 13 kurser</a> · Lille (indhold) · trin 6 · Akademiet er det første sted uden tal</li>
-      <li><a href="#w16">Auth-mails står ikke i vores egen log</a> · Lille · trin 5 · «jeg fik ingen mail» kan ikke besvares</li>
+      <li><a href="#w16">Auth-mails står ikke i vores egen log</a> · Lille · trin 5 · OMSKREVET 14/9: hullet er ét felt bredt — kun nulstil-mailen; betalingslink, invitation og dag 0 står i loggen; ingen bekræftelsesmail sendes. Ikke før 22/9 (Jonas)</li>
       <li><a href="#w17">Efter dag 31 sker der intet</a> · Lille, beslutning · trin 3 · skal være truffet før 20/10</li>
       <li><a href="#w18">Community-idéerne: like fra feedet</a> · Lille · trin 10 · 5–15 præsentationer uden et like er stilhed</li>
     </ol>
