@@ -2,7 +2,8 @@ import "@/styles/hjemmebane.css";
 import { HbMemberShell } from "@/components/hjemmebane/HbMemberShell";
 import { RabataftalerView } from "@/components/hjemmebane/rabataftaler/RabataftalerView";
 
-/** Rabataftaler-miljøet (13-08-2026, PodcastTalks.tsx-mønstret):
+/** Rabataftaler-miljøet (13-08-2026, samme mønster som Noegletal.tsx —
+    før 15/9 henvistes til PodcastTalks.tsx, som er nedlagt med podcasten):
     /rabataftaler bærer fladen i Hb-skallen. Datamodel og admin fandtes
     (partners + PartnersView/PartnerEditor) — dette er medlemsfladen.
     MemberRoute; abonnenter må bevidst gerne se rabataftaler. */

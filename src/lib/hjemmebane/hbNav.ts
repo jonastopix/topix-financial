@@ -22,6 +22,17 @@
  * ned» — Community står dog øverst efter Jonas' egen liste (Forside,
  * Virksomheder, Community, Indhold).
  *
+ * PODCASTEN ER UDE (Jonas 11/9, beslutning 17; bygget 15/9): «podcasten
+ * ikke giver mening lige nu … Det er for alle. Så det skal ikke fylde så
+ * meget.» Menupunktet «Podcast & Talks» (/podcast) er væk fra alle tre
+ * menuer — fuldt medlem, abonnent og rådgiver — og ruten er nedlagt (målt
+ * 15/9: ingen dybe links fra mails, tjeklisten eller Akademiet; feedet har
+ * 18 episoder, nyeste 17/9 2025). I stedet ét stille tekstlink til showet
+ * på Spotify nederst i sidebaren (HbSidebar `spotifyLink`, adressen i
+ * podcastSpotify.ts) for medlemmer og abonnenter. Abonnentens menu er
+ * dermed «Dine tal» + «Rabataftaler». «Talks» var aldrig en liste —
+ * optagelser hører til sit event (content_items.area = 'talks', urørt).
+ *
  *   ØVERST (uden overskrift)
  *     Forside        «/» — dommen (Index.tsx: rådgiver uden valgt
  *                    virksomhed lander på RaadgiverForsideView). Ordet er
@@ -42,8 +53,9 @@
  *                    «Vælg en virksomhed» (HbAdvisorCompanyPrompt), og med
  *                    valgt virksomhed medlemmets tal. De BRUGES (det er
  *                    vejen ind i tallene med override), så de bliver.
- *     Akademiet, Podcast & Talks, Rabataftaler, Events, Netværket —
+ *     Akademiet, Rabataftaler, Events, Netværket —
  *                    medlemmets flader uden rådgiver-gren; bliver, skubbet ned.
+ *                    (Podcast & Talks stod her til 15/9.)
  *     IKKE med: «Dit Boardroom» (for rådgiveren er «/» Forside ovenfor;
  *                    medlemmets Boardroom vises kun med valgt virksomhed,
  *                    og så er man der allerede) og «Book session»
@@ -64,7 +76,7 @@ import type { HbNavEntry } from "@/components/hjemmebane/HbSidebar";
 
 export type HbAktiv =
   | "boardroom" | "akademiet" | "rapportering" | "noegletal" | "budget" | "milestones" | "handouts"
-  | "booksession" | "podcast" | "rabataftaler" | "events" | "medlemmer" | "community" | "chat"
+  | "booksession" | "rabataftaler" | "events" | "medlemmer" | "community" | "chat"
   | "virksomheder" | "opgaver" | "konto"
   /** /deling (14/9): «Fortæl det videre», sidste punkt i medlemmets menu. */
   | "deling";
@@ -91,12 +103,12 @@ function dineTal(active: HbAktiv): HbNavEntry {
   };
 }
 
-const podcastTalks = (active: HbAktiv): HbNavEntry => ({ label: "Podcast & Talks", to: "/podcast", active: active === "podcast" });
 const rabataftaler = (active: HbAktiv): HbNavEntry => ({ label: "Rabataftaler", to: "/rabataftaler", active: active === "rabataftaler" });
 
-/** Medlemmets menu — ORDRET som før 8/9 (HbMemberShell.tsx:107-220). */
+/** Medlemmets menu — ORDRET som før 8/9 (HbMemberShell.tsx:107-220), minus
+    «Podcast & Talks» (15/9, se filhovedet). */
 export function medlemmetsNav(active: HbAktiv, erAbonnent: boolean, boardroomTo: string): HbNavEntry[] {
-  if (erAbonnent) return [dineTal(active), podcastTalks(active), rabataftaler(active)];
+  if (erAbonnent) return [dineTal(active), rabataftaler(active)];
   return [
     { label: "Dit Boardroom", to: boardroomTo, active: active === "boardroom" },
     dineTal(active),
@@ -108,14 +120,13 @@ export function medlemmetsNav(active: HbAktiv, erAbonnent: boolean, boardroomTo:
       ],
     },
     { label: "Akademiet", to: "/akademiet", active: active === "akademiet" },
-    podcastTalks(active),
     rabataftaler(active),
     { label: "Events", to: "/events", active: active === "events" },
     { label: "Netværket", to: "/medlemmer", active: active === "medlemmer" },
     { label: "Community", to: "/community", active: active === "community" },
     // «Fortæl det videre» (Jonas 14/9): delingskreativen på /deling. Sidst,
-    // fordi menuen går fra det medlemmet får (Akademiet, Podcast, Rabat-
-    // aftaler) over det hun deltager i (Events) til de andre (Netværket,
+    // fordi menuen går fra det medlemmet får (Akademiet, Rabataftaler)
+    // over det hun deltager i (Events) til de andre (Netværket,
     // Community) — og dette punkt vender ud af huset. Ikke «Deling»: det
     // beskriver mekanikken, ikke gaven, og lyder som en indstilling.
     // Kun fulde medlemmer — abonnenten er ikke «optaget i The Boardroom».
@@ -135,7 +146,6 @@ export function raadgiverensNav(active: HbAktiv): HbNavEntry[] {
     { label: "Indhold", to: "/admin/indhold" },
     { ...dineTal(active), blok: medlem },
     { label: "Akademiet", to: "/akademiet", active: active === "akademiet", blok: medlem },
-    { ...podcastTalks(active), blok: medlem },
     { ...rabataftaler(active), blok: medlem },
     { label: "Events", to: "/events", active: active === "events", blok: medlem },
     { label: "Netværket", to: "/medlemmer", active: active === "medlemmer", blok: medlem },

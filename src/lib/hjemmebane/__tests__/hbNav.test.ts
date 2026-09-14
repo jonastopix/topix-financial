@@ -7,6 +7,13 @@ import { BLOK_MEDLEMMETS_FLADER, BLOK_PLATFORM, bygHbNav, type HbAktiv } from "@
 // før flytningen. Ændres den, skal denne test ændres med vilje.
 // Ændret med vilje 14/9 (Jonas): «Fortæl det videre» → /deling som tiende
 // og sidste punkt for fulde medlemmer. Abonnenten er urørt.
+// Ændret med vilje 15/9 (Jonas 11/9, beslutning 17: podcasten ud af
+// platformen): «Podcast & Talks» (/podcast) er væk fra ALLE tre menuer —
+// fuldt medlem (nu ni punkter), abonnent (nu to) og rådgiver. Intet andet
+// punkt flytter sig: rækkefølgen er den samme med ét punkt taget ud, og
+// listerne nedenfor er fortsat ordrede toEqual, så en forskudt eller
+// omdøbt nabo fejler. Podcasten lever videre som et tekstlink til Spotify
+// nederst i sidebaren (HbSidebar.test.tsx), ikke som menupunkt.
 
 const flad = (nav: ReturnType<typeof bygHbNav>) =>
   nav.map((n) => ({
@@ -30,13 +37,12 @@ const DINE_TAL = {
 };
 
 describe("medlemmets menu — ordret som før 8/9", () => {
-  it("fuldt medlem: ti punkter i medlemmets rækkefølge, ingen overskrifter", () => {
+  it("fuldt medlem: ni punkter i medlemmets rækkefølge, ingen overskrifter", () => {
     expect(flad(bygHbNav({ isAdvisor: false, erAbonnent: false, active: "boardroom" }))).toEqual([
       { label: "Dit Boardroom", to: "/", blok: null, children: null },
       DINE_TAL,
       { label: "Din rådgiver", to: null, blok: null, children: [{ label: "Chat", to: "/chat" }, { label: "Book session", to: "/book-session" }] },
       { label: "Akademiet", to: "/akademiet", blok: null, children: null },
-      { label: "Podcast & Talks", to: "/podcast", blok: null, children: null },
       { label: "Rabataftaler", to: "/rabataftaler", blok: null, children: null },
       { label: "Events", to: "/events", blok: null, children: null },
       { label: "Netværket", to: "/medlemmer", blok: null, children: null },
@@ -44,12 +50,23 @@ describe("medlemmets menu — ordret som før 8/9", () => {
       { label: "Fortæl det videre", to: "/deling", blok: null, children: null },
     ]);
   });
-  it("abonnenten: kun Dine tal, Podcast & Talks og Rabataftaler; hjemlinket er /kpis", () => {
+  it("abonnenten: kun Dine tal og Rabataftaler; hjemlinket er /kpis", () => {
     expect(flad(bygHbNav({ isAdvisor: false, erAbonnent: true, active: "noegletal" }))).toEqual([
       DINE_TAL,
-      { label: "Podcast & Talks", to: "/podcast", blok: null, children: null },
       { label: "Rabataftaler", to: "/rabataftaler", blok: null, children: null },
     ]);
+  });
+  it("podcasten er ude af alle tre menuer — intet punkt hedder Podcast og intet peger på /podcast (15/9)", () => {
+    const menuer = [
+      bygHbNav({ isAdvisor: false, erAbonnent: false, active: "boardroom" }),
+      bygHbNav({ isAdvisor: false, erAbonnent: true, active: "noegletal" }),
+      bygHbNav({ isAdvisor: true, erAbonnent: false, active: "boardroom" }),
+    ];
+    for (const nav of menuer) {
+      const alle = nav.flatMap((n) => [n, ...(n.children ?? [])]);
+      expect(alle.some((e) => /podcast/i.test(e.label))).toBe(false);
+      expect(alle.some((e) => e.to === "/podcast")).toBe(false);
+    }
   });
   it("aktiv-markeringen følger `active` — og præcis ét punkt er aktivt", () => {
     const tilfaelde: Array<[HbAktiv, string]> = [["boardroom", "Dit Boardroom"], ["akademiet", "Akademiet"], ["community", "Community"], ["chat", "Chat"], ["budget", "Budget"], ["deling", "Fortæl det videre"]];
@@ -76,7 +93,6 @@ describe("rådgiverens menu — det I bruger øverst (Jonas 8/9)", () => {
       ["Indhold", "/admin/indhold", null],
       ["Dine tal", null, BLOK_MEDLEMMETS_FLADER],
       ["Akademiet", "/akademiet", BLOK_MEDLEMMETS_FLADER],
-      ["Podcast & Talks", "/podcast", BLOK_MEDLEMMETS_FLADER],
       ["Rabataftaler", "/rabataftaler", BLOK_MEDLEMMETS_FLADER],
       ["Events", "/events", BLOK_MEDLEMMETS_FLADER],
       ["Netværket", "/medlemmer", BLOK_MEDLEMMETS_FLADER],

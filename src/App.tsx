@@ -33,7 +33,6 @@ const PulseCheckin = lazy(() => import("./pages/PulseCheckin"));
 const ReportReviewQueue = lazy(() => import("./pages/ReportReviewQueue"));
 const AdminContent = lazy(() => import("./pages/AdminContent"));
 const Akademiet = lazy(() => import("./pages/Akademiet"));
-const PodcastTalks = lazy(() => import("./pages/PodcastTalks"));
 const Rabataftaler = lazy(() => import("./pages/Rabataftaler"));
 
 // Lazy — admin-only routes
@@ -292,14 +291,15 @@ const App = () => (
               <Route path="/akademiet" element={<ProtectedRoute><Akademiet /></ProtectedRoute>} />
               <Route path="/akademiet/:area" element={<ProtectedRoute><Akademiet /></ProtectedRoute>} />
               <Route path="/akademiet/:area/:slug" element={<ProtectedRoute><Akademiet /></ProtectedRoute>} />
-              {/* Podcast & Talks (2026-08-13): MemberRoute, ikke ProtectedRoute —
-                  samme gate som /events og /community. En abonnent passerer den
-                  (ingen af gates kender "subscriber"), hvilket er tilsigtet:
-                  podcast og talks er deres miljø. */}
-              <Route path="/podcast" element={<MemberRoute><PodcastTalks /></MemberRoute>} />
+              {/* /podcast (Podcast & Talks, 2026-08-13 → 15/9-2026) er nedlagt:
+                  podcasten er ude af platformen (Jonas 11/9, beslutning 17) og
+                  lever som ét Spotify-link nederst i sidebaren (HbSidebar
+                  spotifyLink, lib/hjemmebane/podcastSpotify.ts). Målt 15/9 før
+                  nedlæggelsen: ingen dybe links til /podcast fra mails,
+                  tjeklisten eller Akademiet — ruten falder derfor til «*». */}
               {/* Rabataftaler (2026-08-13): medlemsfladen for partners-tabellen.
-                  MemberRoute som /podcast; abonnenter må bevidst gerne se
-                  aftalerne (published-gatet RLS, ingen medlemskabsdom). */}
+                  MemberRoute som /events og /community; abonnenter må bevidst
+                  gerne se aftalerne (published-gatet RLS, ingen medlemskabsdom). */}
               <Route path="/rabataftaler" element={<MemberRoute><Rabataftaler /></MemberRoute>} />
               {/* Forside-GO 2026-08-12: "/" bærer Hb-forsiden "Dit Boardroom"
                   (Index' medlemsgren) — /boardroom-ruten og previewen

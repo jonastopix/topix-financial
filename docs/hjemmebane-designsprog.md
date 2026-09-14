@@ -259,7 +259,7 @@ GO-stemplerne står i HbMemberShell/App.tsx som kommentarer:
 | KPI /kpis | KPI-GO 2026-08-06 | noegletal/NoegletalView | Fuld paritet + trend/AI i Hb-udtryk (mål-hero, kort, gauge, advisor-kommentarer); konvergens krævede KPI-GO før Rapportering-GO |
 | Budget /budget | Budget-GO 2026-08-06 | budget/BudgetteringView + 8 dele | Fuld paritet (scenarier, BvA, import ×2, hvad-hvis m. #forecast-anker, cashflow); maskinlaget (budgetEngine) udskilt og delt |
 | Handouts /handouts | Handouts-GO 2026-08-06 | handouts/* | Modulkort + detail m. løftestangsrækker (HbHandoutLeverRow) |
-| Podcast & Talks /podcast | GO 2026-08-13 | podcasttalks/ | Ét nav-objekt delt mellem medlem og abonnent |
+| ~~Podcast & Talks /podcast~~ | GO 2026-08-13 — NEDLAGT 15/9-2026 (beslutning 17: podcasten ud af platformen) | ~~podcasttalks/~~ → ét Spotify-tekstlink nederst i HbSidebar (`lib/hjemmebane/podcastSpotify.ts`) | Ingen flade, intet menupunkt — for medlemmer og abonnenter, ikke rådgivere |
 | BookSession /book-session | GO 2026-08-13 | booksession/ | — |
 | Dertil HB fra start: Akademiet (C1 trin 3), Events, Community, Netværket (/medlemmer), Rabataftaler, admin-spejlet | | | |
 
