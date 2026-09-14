@@ -35,7 +35,7 @@
  * («27. september 2026», formatDanskDato) og sender beløbet i hele kroner.
  * Virksomhedens navn escapes af layoutet.
  */
-import { formatKr, indgangsMailHtml, tiltale, type IndgangsMail } from "./indgangsMail.ts";
+import { formatKr, indgangsMailHtml, KONTAKT_ADRESSE, tiltale, type IndgangsMail } from "./indgangsMail.ts";
 import type { Betalingsmodel } from "./fornyelsespris.ts";
 
 const APP_URL = "https://app.theboardroom.dk";
@@ -197,7 +197,9 @@ export function kvitteringMail(a: FornyelsesKvitteringArgs): IndgangsMail {
         `Din adgang løber til og med ${a.nySlutDato}. Kvitteringen for selve betalingen kommer fra Stripe i en separat mail.`,
       ],
       knap: { tekst: "Gå til The Boardroom", url: FORNYELSE_FORSIDE_URL },
-      efterKnap: ["Har du spørgsmål til fornyelsen, så svar på denne mail eller skriv til jonas@topix.dk."],
+      // 14/9: ingen «svar på denne mail» (afsenderen er noreply) og ingen
+      // personlig adresse — indgangens kontaktadresse, som invitationsmailen.
+      efterKnap: [`Har du spørgsmål til fornyelsen, så skriv til ${KONTAKT_ADRESSE}.`],
       hilsen: HILSEN,
     }),
   };

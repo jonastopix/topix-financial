@@ -55,6 +55,16 @@ export interface IndgangsMailArgs {
 const APP_URL = "https://app.theboardroom.dk";
 /** Underskriften i medlemsmailene — eksporteret 14/9, så invitationsmailen (invitationsMail.ts) kan signere ens. */
 export const HILSEN = "Venlig hilsen\nMorten Larsen";
+/**
+ * Kontaktadressen i indgangen (besluttet af Jonas 14/9). Mailene sendes fra
+ * noreply@theboardroom.dk (managedEmail.ts), så «skriv til mig» og «svar på
+ * denne mail» lover et svar ingen læser — adressen skal stå i teksten.
+ * Defineret HER, i basismodulet, så dag 0 (nedenfor), fornyelsens
+ * kvittering (fornyelsesMail.ts) og invitationsmailen (invitationsMail.ts,
+ * som re-eksporterer den) deler én adresse. Låst af
+ * src/lib/__tests__/kontaktadresse.guard.test.ts.
+ */
+export const KONTAKT_ADRESSE = "kontakt@theboardroom.dk";
 
 /** HTML-escaper tekst. Linjeskift (\n) bliver til <br>. Eksporteret 14/9, så invitationsMail.ts kan escape virksomhedsnavnet med samme pen. */
 export function esc(tekst: string): string {
@@ -160,7 +170,7 @@ export function dag0Mail(a: {
       knap: { tekst: "Gå til betaling", url: a.betalingsUrl },
       efterKnap: [
         `Din aftale gælder i 30 dage fra underskriften. Har du ikke betalt inden ${a.fristDato}, sender vi automatisk en faktura på det fulde beløb, ${formatKr(a.beloebKr)} kr. ekskl. moms.`,
-        "Skulle noget gå i vejen med betalingen, så skriv til mig — så finder vi ud af det.",
+        `Skulle noget gå i vejen med betalingen, så skriv til ${KONTAKT_ADRESSE} — så finder vi ud af det.`,
         "Jeg glæder mig til at komme i gang sammen med dig.",
       ],
       hilsen: HILSEN,
