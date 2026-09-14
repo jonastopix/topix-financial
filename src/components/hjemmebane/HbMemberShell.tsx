@@ -12,6 +12,7 @@ import { pillenTraekkerSig } from "@/lib/hjemmebane/ankomst";
 import { HbVisningSom } from "./HbVisningSom";
 import { HbFeedbackDialog } from "./HbFeedbackDialog";
 import { bygHbNav, type HbAktiv } from "@/lib/hjemmebane/hbNav";
+import { PODCAST_SPOTIFY_TEKST, PODCAST_SPOTIFY_URL } from "@/lib/hjemmebane/podcastSpotify";
 import { useQuery } from "@tanstack/react-query";
 import { listAllUpcomingEvents } from "@/lib/hjemmebane/akademiApi";
 import { LIVE_MAERKE, liveEvent, liveEventSti, liveEventTitel } from "@/lib/hjemmebane/liveEvent";
@@ -104,9 +105,10 @@ export const HbMemberShell = ({
         }
       : undefined;
 
-  /* Abonnenten (exit-produktet) beholder KUN Dine tal og Podcast & Talks.
-     Alt andet er lukket i datalaget siden 13-08-2026 (PR #350, #351, #354).
-     Podcast & Talks findes endnu ikke som rute — noteret i BACKLOG.
+  /* Abonnenten (exit-produktet) beholder KUN Dine tal og Rabataftaler
+     (Podcast & Talks var med til 15/9 — podcasten er ude af platformen,
+     beslutning 17; se hbNav.ts). Alt andet er lukket i datalaget siden
+     13-08-2026 (PR #350, #351, #354).
      membershipTier er null i flere renders efter loading er falsk (useAuth
      henter tier i en SENERE runde). null betyder UAFGJORT, aldrig abonnent —
      behandles null som abonnent, flimrer nav'en for alle medlemmer ved hver
@@ -120,6 +122,10 @@ export const HbMemberShell = ({
         },
       }
     : undefined;
+  /* Podcasten på Spotify (15/9): ét tekstlink nederst i sidebaren for
+     medlemmer og abonnenter — ikke rådgivere (beslutning 17). Samme gate
+     som Indstillinger og Giv feedback. */
+  const spotifyLink = !isAdvisor ? { href: PODCAST_SPOTIFY_URL, tekst: PODCAST_SPOTIFY_TEKST } : undefined;
 
   // Forside-GO (2026-08-12): "Dit Boardroom" ér forsiden — "/" for alle.
   // Logo-hjemlinket må ikke sende abonnenten tilbage til en flade de
@@ -166,7 +172,7 @@ export const HbMemberShell = ({
   return (
     <div ref={rodRef} className={`theme-hjemmebane ${fuld ? "h-screen-safe" : "min-h-screen-safe"} bg-hb-paper font-body text-hb-ink antialiased`}>
       <div className={`flex ${fuld ? "h-full overflow-hidden" : "lg:h-screen lg:overflow-hidden"}`}>
-        <HbSidebar avatarSrc={avatarSrc} userName={userName} nav={nav} homeTo={boardroomTo} onSignOut={signOut} komGodtIGang={komGodtIGang} visIndstillinger={!isAdvisor} givFeedback={givFeedback} klokke={<HbKlokke />} />
+        <HbSidebar avatarSrc={avatarSrc} userName={userName} nav={nav} homeTo={boardroomTo} onSignOut={signOut} komGodtIGang={komGodtIGang} visIndstillinger={!isAdvisor} givFeedback={givFeedback} klokke={<HbKlokke />} spotifyLink={spotifyLink} />
         <div className={`min-w-0 flex-1 ${fuld ? "flex flex-col overflow-hidden" : "lg:overflow-y-auto"}`}>
           <HbNav onMenuClick={() => setDrawerOpen(true)} avatarSrc={avatarSrc} />
           {/* «Visning som» (3/9, recon-raadgiverfladen §4): en rådgiver med et
@@ -186,6 +192,7 @@ export const HbMemberShell = ({
             visIndstillinger={!isAdvisor}
             givFeedback={givFeedback}
             klokke={<HbKlokke />}
+            spotifyLink={spotifyLink}
           />
           {fuld ? (
             <main className={`flex min-h-0 flex-1 flex-col ${tjeklisteBundluft}`}>{children}</main>

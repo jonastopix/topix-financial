@@ -229,11 +229,11 @@ const Dashboard = () => {
     return <MembershipExpiredGate />;
   }
 
-  /* Abonnenten (exit-produktet) beholder KUN Dine tal og Podcast & Talks.
+  /* Abonnenten (exit-produktet) beholder KUN Dine tal og Rabataftaler
+     (Podcast & Talks var med til 15/9 — podcasten er ude af platformen).
      Alt andet er lukket i datalaget siden 13-08-2026 (PR #350, #351, #354).
      Landingen manglede: en abonnent faldt gennem fallthrough til Dit
      Boardroom og så hele nav'en, hvor seks af otte punkter er lukkede.
-     Podcast & Talks findes endnu ikke som rute — noteret i BACKLOG.
 
      Abonnenten har ikke Dit Boardroom. "/" spærres bevidst IKKE — den er
      husets universelle fallback (logo-hjemlink, expired-redirect,

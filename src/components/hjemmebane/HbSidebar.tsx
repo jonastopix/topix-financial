@@ -72,6 +72,15 @@ interface HbSidebarProps {
   /** Klokken (10/9, HbKlokke): renderes over menuen, i både kolonnen og
       draweren. Udeladt = ingen klokke (preview, skaller uden bruger). */
   klokke?: React.ReactNode;
+  /** Podcasten på Spotify (15/9, beslutning 17: podcasten ud af
+      platformen). ÉT stille tekstlink nederst — under menuen og «Kom godt
+      i gang», over profilblokkens hairline — i profilblokkens lille tekst,
+      så det ikke fylder (Jonas 11/9). Et eksternt link i ny fane, IKKE en
+      HbNavEntry: skallen har intet mønster for eksterne menupunkter, og
+      podcasten er ikke en flade i huset længere. Skallen giver det kun til
+      medlemmer og abonnenter (ikke rådgivere); adressen bor i
+      lib/hjemmebane/podcastSpotify.ts. Udeladt = intet link. */
+  spotifyLink?: { href: string; tekst: string };
 }
 
 const NavItem = ({ label, active, to, maerke }: { label: string; active?: boolean; to?: string; maerke?: HbNavEntry["maerke"] }) => {
@@ -138,6 +147,7 @@ const SidebarContent = ({
   visIndstillinger = false,
   givFeedback,
   klokke,
+  spotifyLink,
 }: HbSidebarProps) => (
   <>
     {homeTo ? (
@@ -190,6 +200,18 @@ const SidebarContent = ({
         <ListChecks className="h-4 w-4" />
         Kom godt i gang
       </button>
+    )}
+    {/* Podcasten på Spotify — se spotifyLink i props. Samme px-4 som
+        menupunkterne, så teksten flugter; ingen ikon, ingen pille. */}
+    {spotifyLink && (
+      <a
+        href={spotifyLink.href}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="mt-4 block px-4 text-xs text-hb-ink-soft transition-colors hover:text-hb-ink"
+      >
+        {spotifyLink.tekst}
+      </a>
     )}
     <div className="mt-8 flex items-center gap-3 border-t border-hb-line pt-5">
       {avatarSrc ? (

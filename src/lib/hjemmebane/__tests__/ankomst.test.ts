@@ -51,7 +51,7 @@ describe("pillenTraekkerSig — kun på forsiden, kun når kortet viser tjeklist
   });
 
   it("alle andre sider → bliver, uanset tjeklistens tilstand", () => {
-    for (const side of ["akademiet", "rapportering", "noegletal", "budget", "handouts", "booksession", "podcast", "rabataftaler", "events", "medlemmer", "community", "chat"]) {
+    for (const side of ["akademiet", "rapportering", "noegletal", "budget", "handouts", "booksession", "rabataftaler", "events", "medlemmer", "community", "chat", "deling"]) {
       expect(pillenTraekkerSig(side, { faerdig: false })).toBe(false);
       expect(pillenTraekkerSig(side, { faerdig: true })).toBe(false);
     }
