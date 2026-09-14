@@ -18,6 +18,7 @@ import { KreativBilledfelt } from "./KreativBilledfelt";
 import { KreativRaadgiverStak } from "./KreativRaadgiverStak";
 import { KreativLogokort } from "./KreativTrePaaRaekke";
 import type { KreativProps } from "./kreativProps";
+import { datoLinje, datoLinjeStil, harDato } from "./datoLinje";
 
 export const KreativOptagelsen = ({ udgave, format, memberName, companyName, dateLabel, portraetUrl, logoUrl, visTomtilstand = true }: KreativProps) => {
   const m = OPTAGELSEN[kombination(udgave, format)];
@@ -72,8 +73,8 @@ export const KreativOptagelsen = ({ udgave, format, memberName, companyName, dat
   );
 
   const label = (
-    <div style={skriftStil(m.label)}>
-      {TEKSTER.optaget} {dateLabel}
+    <div style={{ ...skriftStil(m.label), ...datoLinjeStil(dateLabel) }} data-datolinje={harDato(dateLabel) ? "vist" : "skjult"}>
+      {datoLinje(dateLabel)}
     </div>
   );
   const overskrift = (
