@@ -24,6 +24,23 @@
            besluttet væk, 27 rettet mod OVERLEVERING, 63 beholdt uændret;
            alle 37 «i mål» er slettet; 48 er nye fra 3.–4. september.
 
+  RØRT 14/9 FORMIDDAG (bogført i OVERLEVERING DEL 2 «14. september»)
+    Jonas 14/9: «Luk de kort der er løst frem for at slette dem.» Derfor
+    en NY tilstand: data-status="loest" + klassen loest. Kortet bliver
+    stående, dæmpet og gennemstreget, med tag «Lukket 14/9» og beviset i
+    én linje; filterknappen «Lukket» viser dem; rangeringen giver dem 0.
+    Reglen «SLET det» i «Sådan tilføjer man et kort» punkt 4 er dermed
+    afløst — et lukket kort forsvinder ikke, det lukkes.
+    Lukket: fund C (invitationsmailen, #852). Omskrevet: nr. 1
+    «Indgangens kæde har aldrig haft en virksomhed» (kæden havde ingen
+    indgang — Monday nåede den aldrig; #851) og «Gamle virksomheder skal
+    ikke have tilbuddet om Jonas-sessionen» (23 af 38 lukket i hånden
+    13/9 kl. 20:50–20:54 UTC; 11 åbne). Otte nye kort: betaling uden om
+    platformen (fund 5) · importen skriver ikke contact_person (fund 4) ·
+    CVR-kilden skal skiftes til Virk (fund 6) · en fejlet CVR-berigelse er
+    tavs (fund 6) · Lovables afmeldingslink (fund 2) · den gamle Monday-
+    oprydning på board 1899777797 (#851) · hzlkypibayzkkumwohap (fund 1) ·
+    to mails lover svar fra noreply (dag 0 og fornyelsen).
   RYDDET 10/9 AFTEN (Jonas: «få sat flueben ved de ting der er klaret»)
     24 kort slettet som løst — bogført i OVERLEVERING DEL 2 «10. september,
     aften»; 8 omskrevet til det der står tilbage (Rettet 10/9); 3 nye.
@@ -411,7 +428,9 @@
          <div class="meta"><span class="tag ny">Ny 4/9</span><span class="tag rust">Live fejl</span><span class="tag size">Lille</span></div>
        </div>
 
-    4. Når kortet er løst: SLET det, og bogfør løsningen i OVERLEVERING.
+    4. Når kortet er løst: LUK det (data-status="loest", klassen loest,
+       tag «Lukket d/m», beviset i én linje) og bogfør løsningen i
+       OVERLEVERING. (Til 14/9: slet det. Jonas 14/9: luk frem for slet.)
 
     KLASSER (visuel kant, kan kombineres)
        card          altid.
@@ -1101,6 +1120,9 @@
   .card.blocked { border-left: 3px solid var(--rust); }
   .card.decision { border-left: 3px solid var(--gold); }
   .card.new { border-left: 3px solid var(--evergreen); }
+  .card.loest { border-left: 3px solid var(--soft); opacity: .62; }
+  .card.loest h3 { text-decoration: line-through; text-decoration-color: var(--soft); }
+  .tag.loest { background: var(--soft); color: #f4f1ea; }
   .card h3 { font-family: Georgia, serif; font-size: 18px; font-weight: 500; margin: 0 0 6px; line-height: 1.25; }
   .card p { margin: 0 0 10px; color: var(--soft); font-size: 14px; }
   .card p:last-of-type { margin-bottom: 0; }
@@ -1172,6 +1194,7 @@
       <button class="fbtn" data-status="beslutning">Beslutninger</button>
       <button class="fbtn" data-status="mangler">Mangler</button>
       <button class="fbtn" data-status="ide">Idéer</button>
+      <button class="fbtn" data-status="loest">Lukket</button>
     </div>
     <div class="group" id="rammerGroup">
       <span class="lbl">Rammer</span>
@@ -1216,12 +1239,11 @@
       <p><strong>Rettelsen er husets eget mønster:</strong> <code>skrivRaadgiverBesked</code> (<code>_shared/raadgiverBesked.ts:59</code> — klokken, som #815 bruger ved fejlet træk) ved <code>sprunget_over</code> og <code>fejlet</code>, med company_id og grunden. <strong>Fund D i samme kald:</strong> ingen rådgiverbesked ved en NY indgangsbetaling overhovedet — første signal er forsidelinjen næste morgen. Samme hjælper, samme PR: én besked «{virksomhed} har betalt — invitation sendt til {mail}» / «… IKKE sendt: {grund}».</p>
       <div class="meta"><span class="tag webinar">22/9 · I STYKKER B</span><span class="tag ny">Ny 14/9</span><span class="tag rust">Tavst</span><span class="tag">Fund D med</span><span class="tag size">Lille</span></div>
     </div>
-    <div class="card blocked new" id="w-c" data-status="fejl" data-spor="1" data-rammer="medlem">
+    <div class="card loest" id="w-c" data-status="loest" data-spor="1" data-rammer="medlem">
       <h3>I STYKKER — fund C: invitationsmailen lyver fire gange — og teksten står i databasen, ikke kun i koden</h3>
-      <p><strong>Rækken <code>email_templates</code> «Invitation til virksomhed»</strong> (sidst sat af migration <code>20260418124333</code>, blok 2; Lovable kan have ændret den siden — derfor måles DB'en) siger: <strong>(1)</strong> i en grøn boks «Du kan oprette dig med en hvilken som helst e-mail» — men <code>Auth.tsx:104-115</code> låser mailfeltet (<code>setEmailLaast(true)</code>, <code>:363</code> <code>readOnly</code>) når invitationen bærer en adresse, og webhook-vejen bærer ALTID en (<code>sikrIndgangsInvitation.ts:82-85</code> kræver <code>contact_email</code>). <strong>(2)</strong> header «The Boardroom by Topix» — <code>_shared/indgangsMail.ts:22-24</code> fjernede Topix fra indgangsmailene med vilje 1/9. <strong>(3)</strong> «Du er blevet inviteret til at blive en del af {{company_name}}» — om medlemmets EGEN virksomhed, som hun lige har betalt for. <strong>(4)</strong> fodnoten «Ignorer denne besked hvis du ikke forventer den» — til en der har skrevet under og betalt (<code>indgangsMail.ts:26-27</code>).</p>
-      <p><strong>Sådan virker skabelonen:</strong> <code>send-invitation-email/index.ts:162-171</code> bruger rækken når <code>enabled</code>; kun <code>{{company_name}}</code> og <code>{{signup_url}}</code> erstattes. Mangler rækken, er den slået fra, eller findes der TO med samme navn (<code>maybeSingle</code> fejler), sendes <code>FALLBACK_HTML</code> (<code>:12-58</code>) — med de SAMME fire usandheder og «The Boardroom» i stedet for firmanavnet. At slå skabelonen fra løser altså intet. <code>subject</code> og afsender står KUN i databasen.</p>
-      <p><strong>Rettelsen:</strong> mål først (<code>maalinger-foer-webinaret.md</code> sektion 6 viser subject, afsender, antal rækker og C1–C4 ord for ord, plus den fulde tekst som forlæg); så én UPDATE af <code>subject</code> + <code>body_html</code> i Lovables SQL editor — uden «by Topix», «Din adgang til The Boardroom er klar» i stedet for «inviteret til at blive en del af», «Opret dig med den adresse invitationen er sendt til» (sandt), uden «Ignorer denne besked»; og samme tekst i fallback'en i en PR, så de to aldrig igen siger noget forskelligt. Hører til §7.7 på kortet «Ankomstens løse ender».</p>
-      <div class="meta"><span class="tag webinar">22/9 · I STYKKER C</span><span class="tag ny">Ny 14/9</span><span class="tag rust">Står i DB</span><span class="tag">SQL + kode</span><span class="tag size">Lille</span></div>
+      <p><strong>LUKKET 14/9 (#852, <code>66b4a732</code>, merget 08:01:50 UTC).</strong> Målt i prod: rækken «Invitation til virksomhed» har <code>enabled=false</code> (updated_at 2026-09-08 07:31:35) — fallback'en VAR mailen, og valget var tavst (<code>maybeSingle()</code> uden error, samme <code>template_name</code> på begge veje). Nu: dommen ren og testet i <code>_shared/invitationsSkabelonvalg.ts</code>, vej + årsag logges og står i <code>email_send_log.metadata</code>; mailen i indgangsfamiliens form (<code>_shared/invitationsMail.ts</code>) uden «by Topix», uden «Ignorer denne besked», med «adressen står allerede udfyldt» og <code>{{company_name}}</code>; kontakt@theboardroom.dk efter knappen. Bevist på skærm 14/9 kl. 10:07 og i drift kl. 08:10:16 (Lisbeths mail: <code>"fallback_aarsag": "enabled_false"</code>). DB-rækken er IKKE rettet — den læses ikke.</p>
+      <p><strong>Det der står tilbage er et nyt kort:</strong> Lovables afmeldingslink på transaktionelle mails (Drift). OVERLEVERING DEL 2 «14. september» §2.</p>
+      <div class="meta"><span class="tag loest">Lukket 14/9</span><span class="tag webinar">22/9 · I STYKKER C</span><span class="tag ny">Ny 14/9</span><span class="tag">#852</span></div>
     </div>
     <div class="card decision new" id="w3" data-status="mangler" data-spor="1" data-rammer="medlem">
       <h3>Delingen på LinkedIn — et krav til 22/9: kreativ med Morten og Jonas, medlemmets billede eller logo, 3–4 tekster, som punkt i onboardingen for NYE medlemmer</h3>
@@ -1308,12 +1330,12 @@
       <p><strong>Præmissen har flyttet sig:</strong> det var et fejl-kort, men ingen har nået dag 31 (nul rækker i <code>company_betalingslink</code>, målt 7/9), og om der overhovedet skal rykkes automatisk, er ikke besluttet. Tre veje: en Drift-post i klokken (#790) til Jonas på dag 45 («faktura ubetalt») så et menneske ringer; Stripe Invoicings egne påmindelser (kræver <code>auto_advance</code>, som blev fravalgt); eller en dag 45-mail i vores kæde. Anbefaling: klokken — nul ny mailtekst.</p>
       <div class="meta"><span class="tag webinar">22/9 · nr. 17 af 18</span><span class="tag ny">Ny 4/9</span><span class="tag gold">Beslutning</span><span class="tag">Omskrevet 10/9</span><span class="tag size">Lille</span></div>
     </div>
-    <div class="card blocked new" id="w1" data-status="mangler" data-spor="1" data-rammer="ingen">
-      <h3>Indgangens kæde har aldrig haft en virksomhed</h3>
-      <p><strong>Målt i prod 7/9: NUL rækker i <code>company_betalingslink</code>.</strong> Fem mails, <code>indgangs-paamindelser</code>-cronen der kører hver dag kl. 10, fakturaen på dag 31 — og ingen at sende til. Cronen finder ingenting, hver dag. Det er ikke det samme som at kæden virker: FLOOR1 3/9 var én gennemført enkeltkørsel, og rækken er væk. Fornyelsen ER derimod bevist i drift i dag med rigtige mails til rigtige mennesker.</p>
-      <p><strong>Ubevist i drift:</strong> dag 14- og dag 25-påmindelserne fra cron, dag 31-fakturaen fra cron (ikke i hånden), betalingen fra en ægte ansøger, og alle indgangens tekster på et rigtigt menneske. Konsekvens: fejl i kæden rammer nul mennesker i dag — men den FØRSTE virksomhed der bruger indgangen, rammer alle på én gang. Beviset er den første rigtige «Godkendt» i Monday.</p>
-      <p><strong>11/9:</strong> kæden er ændret igen i nat (#807: motoren dømmer betalt på gældende slutdato, cronen henter alle linkrækker, genindtræden i webhooken) og #799 (moms i mailene) — uden en prøve på et menneske. Beviset behøver ikke vente på Monday: én gennemkørsel med Jonas' testvirksomhed og Stripe-testkort dækker dag 0, dag 14/25 (sæt <code>underskrevet_at</code> tilbage), dag 31-fakturaen, betalingen, og de dårlige dage §7.2–7.4 (kortet «Ankomstens løse ender»). Én time, og syv kort får bevis.</p>
-      <div class="meta"><span class="tag webinar">22/9 · nr. 1 af 18</span><span class="tag ny">Ny 7/9</span><span class="tag rust">Nul rækker</span><span class="tag">Bevis: prøv den selv</span></div>
+    <div class="card blocked new" id="w1" data-status="mangler" data-spor="1" data-rammer="medlem">
+      <h3>Indgangens kæde har aldrig haft en virksomhed — fordi den aldrig havde en indgang</h3>
+      <p><strong>Fundet 14/9: det var ikke et manglende forsøg, det var en kæde uden indgang.</strong> Mondays indbyggede «send a webhook»-opskrift sender INGEN Authorization-header (Mondays udviklerdokumentation: signeret JWT kommer kun når webhooken oprettes via <code>create_webhook</code> med en integrations-apps OAuth-token). <code>monday-webhook</code> krævede headeren og afviste 401 før alt andet. DERTIL pegede de to Monday-automationer (oprettet 21/3 kl. 22:31) på Supabase-projektet <code>hzlkypibayzkkumwohap</code> — ikke platformens <code>loiavmastgeieqyiwyyr</code>; ref'en har nul træffere i repoet og i git-historikken. Automation 157778880 gik i <code>store.webhooks.error.unauthorized</code> 25/2 kl. 13:41:29. <strong>Konsekvens, målt:</strong> nul rækker i <code>company_betalingslink</code>, og <code>monday-webhook</code> er det ENESTE INSERT i den tabel — /betal, dag 0, de fire påmindelser, cronen, dag 31-fakturaen, checkout og prisknapperne hænger på en række kun Monday kan lave. FLOOR1 3/9 var en enkeltkørsel i hånden.</p>
+      <p><strong>Løst i kode 14/9 (#851, <code>72d25525</code>, merget 07:43:29 UTC):</strong> værn med to veje i <code>_shared/mondayVaern.ts</code> — JWT når headeren er der, ellers <code>?noegle=</code> mod <code>MONDAY_WEBHOOK_SECRET</code> i konstant tid (<code>_shared/konstantTidLighed.ts</code>); challenge-grenen uændret; CI-værnet (<code>check-edge-function-auth.ts:133</code>) matcher stadig. <strong>Driftsbevis, indirekte:</strong> ny automation «Ny ny platform» (webhook-id 185108519, oprettet ca. kl. 10, <code>change_status_column_value</code>, kolonne <code>color_mkpt4hyt</code>) med <code>?noegle=</code> blev STÅENDE TÆNDT efter ét statusskift — Monday slår selv fra ved 401: «Ny platform» (185102661, ca. kl. 09, UDEN nøgle) blev tændt, fik 401, og Monday slog den fra med banneren «The webhook endpoint requires authentication» (kl. 9:15). Kilde: API-udtræk <code>webhooks(board_id: 1899777797)</code> 14/9. Lovables log er ikke læst.</p>
+      <p><strong>Står tilbage:</strong> resten af kæden er stadig ubevist på et menneske — dag 0-mailen, dag 14/25, dag 31-fakturaen fra cron, betalingen fra en ægte ansøger. Beviset er den første rigtige «Godkendt» i Monday (eller én gennemkørsel med Jonas' testvirksomhed). NORDIC BY HAND MÅ ALDRIG SÆTTES TIL «Godkendt»: hun har betalt uden om platformen, og webhooken ville sende en betalingsmail på 40.000 kr. OVERLEVERING DEL 2 «14. september» §1.</p>
+      <div class="meta"><span class="tag webinar">22/9 · nr. 1 af 18</span><span class="tag ny">Ny 7/9</span><span class="tag rust">Omskrevet 14/9 — #851</span><span class="tag">Bevis: første rigtige «Godkendt»</span></div>
     </div>
     <div class="card new" data-status="fejl" data-spor="1" data-rammer="medlem">
       <h3>Fakturateksten kan ikke rettes uden en DEFINER-ændring</h3>
@@ -1340,6 +1362,35 @@
       <h3>Fem nedarvede fejl i importens parser — låst i test som «NEDARVET FEJL», ikke rettet</h3>
       <p><strong>Fundet 13/9 da motoren blev flyttet ud af <code>Members.tsx</code></strong> (#823, <code>~/Downloads/verifikation-import-motor.txt</code> afsnit A–E). Trin 1 ændrede ingen adfærd; fejlene er låst i <code>src/lib/__tests__/ansoegningsimport.test.ts</code> under navnet «NEDARVET FEJL», så de ikke skrider stille, og så en rettelse er bevidst. <strong>(A)</strong> ISO-datotekst tolkes som Excel-serienummer: <code>parseFloat("2026-01-15")</code> = 2026 ligger i vinduet 1000–100000 → serienummer 2026 = 1905-07-18. Rammer KUN når datocellen er tekst; en ægte datocelle kommer som tal fra xlsx og tolkes rigtigt — afbødet af valideringens 2020-grænse («Kontraktslut ser forkert ud»). <strong>(B)</strong> Tekstdato uden tidszone via <code>new Date()</code> → lokal midnat → <code>toISOString()</code> i UTC → én dag TILBAGE i dansk tid («January 15, 2026» → «2026-01-14»); ikke låst i test (ville være flaky på CI). <strong>(C)</strong> Danske datoformater («15-01-2026», «15/01/2026») tolkes ikke → «». <strong>(D)</strong> Kolonnesøgning: «Email» matcher ikke «E-mail» (delstreng). <strong>(E)</strong> Valideringen sammenligner <code>new Date(streng)</code> — en ugyldig datostreng giver NaN, alle sammenligninger med NaN er false, og datoen passerer. Ikke målt om nogen prod-import er ramt; prod-importerne har formentlig rigtige datoer, fordi Monday-arket leverer datoceller som tal. Sidegevinst 13/9: motorens advarsler (kolonne ikke fundet, omsætning uden tal, dato ikke tolket) vises nu i panelet på /virksomheder (#824) — /members' dialog gav op i stilhed.</p>
       <div class="meta"><span class="tag ny">Ny 13/9</span><span class="tag">Låst i test</span><span class="tag size">Lille</span></div>
+    </div>
+    <div class="card blocked new" id="n14-4" data-status="fejl" data-spor="1" data-rammer="medlem">
+      <h3>Importen skriver aldrig contact_person — hver import fra webinaret får en tom kontaktperson</h3>
+      <p><strong>Målt 14/9 (Nordic By Hand, «Kontaktperson» udfyldt i formularen):</strong> <code>contact_person</code> = tom streng. <code>byggVirksomhedsRaekke</code> (<code>_shared/virksomhedsraekke.ts:171-211</code>) har ikke feltet i rækken; værdien lander i <code>application_context.contact_name</code> (<code>:207</code>). Kolonnen har <code>DEFAULT ''</code> (<code>20260225104718:4</code>). Kendt siden 2/9: migrationskommentaren <code>20260902190000_lookup_invite_email_kontakt.sql:22-27</code> siger ordret at 35 af 39 stod med tom streng. Aldrig rettet. Kun <code>monday-webhook</code> skriver kolonnen (B5, <code>index.ts:312-323</code>). Konsekvens: signup-siden forudfylder intet navn, dag 0-mailen ville sige «Kære,». Sat i hånden for Nordic By Hand kl. 10:14.</p>
+      <div class="meta"><span class="tag ny">Ny 14/9</span><span class="tag rust">Rammer hver import</span><span class="tag size">Lille</span></div>
+    </div>
+    <div class="card decision new" id="n14-6a" data-status="beslutning" data-spor="1" data-rammer="raadgiver">
+      <h3>CVR-kilden skal skiftes fra cvrapi.dk til Virk — kvoten hænger på Supabases IP, ikke på os</h3>
+      <p><strong>Målt 14/9:</strong> importen af Nordic By Hand kl. 08:10:15 gav «cvrapi svarede error=QUOTA_EXCEEDED». Berigelsen var IKKE kørt (bekræftet af Jonas; den har eget værn: <code>MAKS_OPSLAG = 45</code>, 500 ms pause, tørkørsel som standard, står ikke i <code>cron.job</code>); importen koster højst ét opslag pr. NY virksomhed. <strong>Beviset:</strong> kl. 10:37 svarede cvrapi 200 med fulde data på CVR 46415124 fra Jonas' maskine med samme User-Agent; kl. 10:40 QUOTA_EXCEEDED på SAMME CVR fra Supabases edge-runtime. <code>hentCvrData</code> (<code>_shared/virksomhedsOprettelse.ts:64-102</code>) er den eneste CVR-kilde i repoet: anonymt kald, ingen nøgle.</p>
+      <p><strong>BESLUTTET 14/9 (Jonas):</strong> Virk/Erhvervsstyrelsens CVR-API erstatter cvrapi. Ingen nøgle findes (secret-listen og repoet) — Jonas opretter den. Blokerer: nøglen. OVERLEVERING DEL 2 «14. september» §6.</p>
+      <div class="meta"><span class="tag ny">Ny 14/9</span><span class="tag gold">Besluttet 14/9 — nøglen mangler</span><span class="tag size">Mellem</span></div>
+    </div>
+    <div class="card new" id="n14-6b" data-status="fejl" data-spor="1" data-rammer="raadgiver">
+      <h3>En fejlet CVR-berigelse er tavs over for rådgiveren — kvitteringen er den samme uanset udfald</h3>
+      <p><code>hentCvrData</code> kaster aldrig (<code>_shared/virksomhedsOprettelse.ts:74, :82, :100</code>), importen fortsætter, og rådgiverens toast er ORDRET den samme uanset om CVR-registret svarede. Svaret bærer <code>cvr_data</code> (<code>import-application/index.ts:236</code>), men ingen fil i <code>src/</code> læser det. <code>cvr_fetched_at IS NULL</code> er det eneste spor, og kolonnen opdateres aldrig efter oprettelsen. Så adresse, branchekode og stiftelsesdato mangler uden at nogen får det at vide — for Nordic By Hand sat i hånden kl. 10:53. Synligheden bygges uafhængigt af kilden (kortet ovenfor).</p>
+      <div class="meta"><span class="tag ny">Ny 14/9</span><span class="tag rust">Tavs</span><span class="tag size">Lille</span></div>
+    </div>
+    <div class="card new" id="n14-7" data-status="mangler" data-spor="1" data-rammer="ingen">
+      <h3>Monday-board 1899777797 skal ryddes: fire webhooks væk, tre bliver — FØRST når kæden er bevist på et rigtigt «Godkendt»</h3>
+      <p><strong>Kilde: API-udtræk <code>webhooks(board_id: 1899777797)</code> 14/9.</strong> Hvem peger på hvad, så ingen skal måle det igen:</p>
+      <p><strong>VÆK (fire):</strong> <code>185102661</code> «Ny platform» — oprettet 14/9 ca. kl. 09 UDEN nøgle; tændt, fik 401, slukket af Monday selv (banneren «The webhook endpoint requires authentication»). <code>161201327</code> uden titel — peger på <code>hzlkypibayzkkumwohap</code>, slukket. <code>161201319</code> «når et emne oprettes» — peger på <code>hzlkypibayzkkumwohap</code>, slukket af Jonas 14/9 efter fire kørsler (Success 13/9 15:29 og 07:15, Fail 8/9 06:52 og 4/9 17:57). <code>157778880</code> uden titel — <code>state=error</code>, <code>store.webhooks.error.unauthorized</code> siden 25/2 2026 13:41:29.</p>
+      <p><strong>BLIVER (tre):</strong> <code>185108519</code> «Ny ny platform» — DEN DER VIRKER: oprettet 14/9 ca. kl. 10 med <code>?noegle=</code>, tændt, beviset for #851. <code>137371356</code> «Periodiseret omsætning» — status «I gang» → Make, urørt. <code>135778522</code> «RapportBOARD+Slack» — status «Medlem» → Make, urørt.</p>
+      <p><strong>Rækkefølge:</strong> rydningen sker først når kæden er bevist på et rigtigt «Godkendt» — ikke før. Bekræftet mod udtrækket 14/9: syv webhooks på boardet — fire væk, tre bliver. OVERLEVERING DEL 2 «14. september» §1.</p>
+      <div class="meta"><span class="tag ny">Ny 14/9</span><span class="tag">Monday, ikke kode</span><span class="tag size">Lille</span></div>
+    </div>
+    <div class="card new" id="n14-8" data-status="fejl" data-spor="1" data-rammer="medlem">
+      <h3>To mails lover svar fra noreply — dag 0 og fornyelsen; fornyelsesmailen går til PHILBERT 22/9</h3>
+      <p><code>indgangsMail.ts:163</code> (dag 0): «Skulle noget gå i vejen med betalingen, så skriv til mig — så finder vi ud af det.» og <code>fornyelsesMail.ts:200</code>: «Har du spørgsmål til fornyelsen, så svar på denne mail eller skriv til jonas@topix.dk.» Begge sendes fra noreply@theboardroom.dk. Kontaktadressen er kontakt@theboardroom.dk (besluttet af Jonas 14/9); invitationsmailen bruger den allerede (#852). Fornyelsesmailen sendes til PHILBERT den 22/9 — rettes før.</p>
+      <div class="meta"><span class="tag ny">Ny 14/9</span><span class="tag rust">22/9 — PHILBERT</span><span class="tag size">Lille</span></div>
     </div>
   </div>
   </section>
@@ -1421,6 +1472,11 @@
       <p><strong>Ført 13/9 (to af tre):</strong> doggybeds træk gik igennem — <code>company_traek</code> «betalt» kl. 09:36:24 UTC, 437.500 øre, én række (#572); <code>subscription_status</code> forblev NULL (#563). Prod ordret i OVERLEVERING DEL 2 «13. september» §1. <code>customer.subscription.updated</code> i Stripes Event deliveries: ikke målt.</p>
       <p><strong>Det der står tilbage:</strong> #815 (rådgivernes klokke ved fejlet træk, <code>skrivRaadgiverBesked</code> i <code>payment_failed</code>) kan IKKE bevises af et vellykket træk — Stripe sender aldrig <code>invoice.payment_failed</code> for det. Målt 13/9 kl. 14:01: 0 rækker med <code>type = 'traek_fejlet'</code>, som forventet. Koden er udrullet (<code>stripe-webhook</code>, 13/9 kl. 12:04 UTC) men ubevist i drift. Beviset når det kommer: svaret bærer <code>traek.id</code> og <code>klokke</code>; en række pr. rådgiver i <code>advisor_notifications</code>; rækken i <code>company_traek</code> står som <code>fejlet</code> og badgen på <code>/members</code>. Hvornår et træk fejler, er ukendt — næste kandidater er de tretten der migreres (åben beslutning).</p>
       <div class="meta"><span class="tag ny">Ny 4/9</span><span class="tag">Omskrevet 13/9</span><span class="tag">Bevis</span><span class="tag size">Lille</span></div>
+    </div>
+    <div class="card blocked new" id="n14-5" data-status="mangler" data-spor="1" data-rammer="raadgiver">
+      <h3>Betaling uden om platformen har ingen flade — fornyelsen regner af en kolonne kun stripe-webhook skriver</h3>
+      <p><strong>Målt 14/9.</strong> Fornyelsesmotoren læser IKKE <code>company_betalingslink</code>, men <code>companies.indgangspris_oere</code> og <code>fornyelsespris_oere</code> (<code>_shared/fornyelsespris.ts:66-90</code>). Reglen er en konstant: <code>Math.floor(indgangspris_oere / 2)</code> (<code>:83</code>), og resultatet skal ramme et af tre prispunkter (15.000/20.000/25.000 kr., <code>:28</code>), ellers <code>ukendt_prispunkt</code>. INGEN flade i <code>src/</code> og ingen edge function ud over <code>stripe-webhook</code> skriver de to kolonner. Et medlem der betaler ved faktura kræver derfor SQL i hånden — ellers fejler varslet med <code>ingen_indgangspris</code>, båndet vises ikke, og cronen tæller <code>sprunget_over.ingen_pris</code> (<code>fornyelsesvarsel-cron/index.ts:297</code>). Bastant Design står allerede sådan; Nordic By Hand (to fakturaer à 20.000 ekskl. moms) fik <code>indgangspris_oere = 4000000</code> i hånden kl. 10:24. BETALING-kortet på virksomhedssiden står tomt hele året for dem. OVERLEVERING DEL 2 «14. september» §5.</p>
+      <div class="meta"><span class="tag ny">Ny 14/9</span><span class="tag rust">SQL i hånden</span><span class="tag size">Mellem</span></div>
     </div>
   </div>
   </section>
@@ -1640,11 +1696,11 @@
       <p><strong>Husets mønster, hvis der skal bygges noget:</strong> rapporten — hændelsen er en række (<code>financial_reports</code>), udfaldet er <code>report_comments</code> FK'et til den, skrevet af rådgiver eller medlem, med ekko i chatten via <code>notifyChatMessage</code>; og opgaveforslaget fra chatten, hvor rækken og systembeskeden refererer hinanden. Fælles: hændelsen har et id, og udfaldet peger på det. Sessionen har et id — intet peger på det. <strong>IKKE afgjort om der skal bygges noget.</strong> Beslutningen er Jonas' og Mortens: hvad de i dag skriver ned efter et møde, og hvor (står ingen steder i repoet), afgør om platformen skal bære det. Reconens SQL (§4, seks forespørgsler mod Rallysupport og ANLA GLAS) er ikke kørt.</p>
       <div class="meta"><span class="tag ny">Ny 13/9</span><span class="tag">Recon 13/9</span><span class="tag">Beslutning</span><span class="tag size">Mellem</span></div>
     </div>
-    <div class="card new" data-status="mangler" data-spor="6" data-rammer="medlem">
-      <h3>Gamle virksomheder skal ikke have tilbuddet om Jonas-sessionen</h3>
-      <p><strong>Jonas 13/9:</strong> mange gamle virksomheder skal ikke have tilbuddet om den inkluderede session med Jonas. Kolonnen <code>companies.jonas_session_used_at</code> (migration <code>20260913220000</code>, kørt 22:42) er NULL for alle eksisterende virksomheder — nullable uden default, så alle starter med retten intakt — og Jonas-kortet på <code>/book-session</code> står derfor som «Inkluderet i dit medlemskab» hos alle, også dem der har været medlem i et år (OVERLEVERING DEL 2 «13. september» §20).</p>
-      <p><strong>To veje:</strong> <code>EditCompanyDialog</code> kan markere «Session med Jonas · inkluderet — brugt» én virksomhed ad gangen (#844; afkrydsning ↔ timestamp, tidspunktet bevares ved gem). Skal mange lukkes på én gang, er én SQL-sætning i Lovables SQL editor hurtigere: <code>UPDATE public.companies SET jonas_session_used_at = now() WHERE …</code> — SELECT først, og listen over HVEM skal komme fra Jonas; den er ikke afgjort. Kortet skifter til «købt» hos dem der lukkes. <strong>Ikke gjort.</strong></p>
-      <div class="meta"><span class="tag ny">Ny 13/9</span><span class="tag">Jonas 13/9</span><span class="tag size">Lille</span></div>
+    <div class="card new" data-status="beslutning" data-spor="1" data-rammer="medlem">
+      <h3>Gamle virksomheder skal ikke have tilbuddet om Jonas-sessionen — 23 af 38 er lukket; 11 står med begge rettigheder åbne</h3>
+      <p><strong>Målt 14/9 — kortets «Ikke gjort» var forkert.</strong> <code>companies.jonas_session_used_at</code> er sat på 23 af 38: 23 forskellige tidsstempler 13/9 mellem 20:50:13 og 20:54:51 UTC, ~11 sekunder imellem, i streng alfabetisk rækkefølge (ANLA GLAS → YKRG) — et menneske ned ad en sorteret liste i <code>EditCompanyDialog</code>, to minutter efter #844's skærmbevis. Ikke en DEFAULT (ingen af de to session-kolonner har en), ikke en migration, ikke Claude Code. Krydset mod Mortens kolonne: 9 begge (aldrig samme tidsstempel), 14 kun Jonas, 4 kun Morten, <strong>11 ingen af dem</strong>. Alle 23 er <code>status=active</code>. Nye virksomheder får NULL og ser sessionen som inkluderet.</p>
+      <p><strong>Står tilbage:</strong> de 11 med begge rettigheder åbne — om de skal lukkes, og hvilke, er Jonas' beslutning. Vejen er den samme: <code>EditCompanyDialog</code> én ad gangen, eller én UPDATE i SQL editoren (SELECT først). OVERLEVERING DEL 2 «14. september» §3.</p>
+      <div class="meta"><span class="tag ny">Ny 13/9</span><span class="tag">Omskrevet 14/9</span><span class="tag gold">Beslutning: de 11</span><span class="tag size">Lille</span></div>
     </div>
   </div>
   </section>
@@ -2119,6 +2175,16 @@
       <p><strong>Husets besluttede mønster</strong> er slettefunktionens (<code>src/lib/sletning.ts</code>, #734): markering, 7 dages frist, cron med tørkørsel, stempel (<code>data_slettet_at/_vej/_raekker</code>), værn. De to admin-veje har ingen af leddene. <strong>Beslutning, ikke en fejl:</strong> skal de lægges om til mønstret, gates strammere (fx kun service-rolle), eller blive som driftsværktøj — med lækage-rettelsen fra #830 (filer slettes, fejl fra <code>deleteUser</code> læses og meldes — udrullet 15:33 UTC)? Ikke afgjort. Tallene fra målingen 16:53 og kilderne står på kortet «Sletning af en person har ingen vej …».</p>
       <div class="meta"><span class="tag ny">Ny 13/9 — omskrevet fra «Efterladenskaber fra tidligere sletninger …»</span><span class="tag gold">Beslutning</span><span class="tag size">Lille (beslutning) / Mellem (omlægning)</span></div>
     </div>
+    <div class="card new" id="n14-1" data-status="mangler" data-spor="senere" data-rammer="ingen">
+      <h3>hzlkypibayzkkumwohap — hvad er det, og fik det data?</h3>
+      <p>Mondays to automationer (oprettet 21/3 2026 kl. 22:31) pegede på Supabase-projektet <code>hzlkypibayzkkumwohap</code> — ikke platformens <code>loiavmastgeieqyiwyyr</code>. Ref'en har nul træffere i arbejdstræet og i hele git-historikken; <code>.lovable/plan.md</code> bar den rigtige URL 25/2 kl. 12:30:57, linjen blev fjernet 13:32:45, og 13:41:29 gik automation 157778880 i <code>store.webhooks.error.unauthorized</code>. Den fremmede vært svarer 200 <code>{"ok":true,"skipped":"no event"}</code> på en tom POST — en udgave UDEN signaturtjek (vores: 400 <code>{"error":"No event in payload"}</code>). Automation 161201319 («når et emne oprettes») stod tændt og sendte dertil 21/3–14/9; run history: fire kørsler (Success 13/9 15:29 og 07:15, Fail 8/9 06:52 og 4/9 17:57). Slået fra 14/9. <strong>Om modtageren gemte noget: ikke målt.</strong> OVERLEVERING DEL 2 «14. september» §1.</p>
+      <div class="meta"><span class="tag ny">Ny 14/9</span><span class="tag rust">Uafklaret</span><span class="tag size">Lille</span></div>
+    </div>
+    <div class="card new" id="n14-2" data-status="mangler" data-spor="1" data-rammer="medlem">
+      <h3>Lovables afmeldingslink står under transaktionelle mails — «Unsubscribe from these emails», på engelsk</h3>
+      <p>Set 14/9 på invitationsmailen (#852): Lovables mail-lag lægger «Afmeld abonnement»/«Unsubscribe from these emails» på — på engelsk, under vores danske footer. En invitation er transaktionel; det samme gælder betalingsmail, påmindelser og fornyelsesvarsler. <strong>Hvad en afmelding rammer, er IKKE målt</strong> — kun marketing, eller alt fra domænet, og om vores egne mails så bliver «suppressed». OVERLEVERING DEL 2 «14. september» §2.</p>
+      <div class="meta"><span class="tag ny">Ny 14/9</span><span class="tag">Mål først</span><span class="tag size">Lille</span></div>
+    </div>
   </div>
   </section>
 
@@ -2219,9 +2285,9 @@
   <div class="tier" style="border-left-color:var(--rust)">
     <h3>22/9 — hvad en ny ansøger møder de første fjorten dage: tre ting I STYKKER, og atten kort i rækkefølge</h3>
     <p class="why">Fra <code>~/Downloads/recon-de-nye-medlemmer.md</code> (13/9): vægtet efter om det rammer de første 14 dage · om DE ser det · i stykker eller bare ikke pænt · hvor mange af de 5–15. Titlen som på kortet · kortets egen størrelse · trin i medlemmets vej. Hvad der sker i morgen (målinger → gennemkørsel → A/B/C → delingen) står i OVERLEVERING DEL 2 «13. september» §26.</p>
-    <p class="why"><strong>I STYKKER — uden kort før 14/9, over nr. 5:</strong> <a href="#w-a">A · betalt=1 læses aldrig</a> (hver betalende ansøger) · <a href="#w-b">B · invitationens udfald kastes væk</a> (betalt medlem uden login, tavst) · <a href="#w-c">C · invitationsmailens fire usandheder</a> (står i databasen). Dertil <a href="#w-k">K · app-linkets preview</a>, <a href="#w-g">G · dag 10-mailen</a>, <a href="#w-fij">F/I/J · tre instrukser</a> og <a href="#w-h">H · præsentations-fanout</a>.</p>
+    <p class="why"><strong>I STYKKER — uden kort før 14/9, over nr. 5:</strong> <a href="#w-a">A · betalt=1 læses aldrig</a> (hver betalende ansøger) · <a href="#w-b">B · invitationens udfald kastes væk</a> (betalt medlem uden login, tavst) · <a href="#w-c">C · invitationsmailens fire usandheder</a> (LUKKET 14/9, #852 — fallback'en var mailen). Dertil <a href="#w-k">K · app-linkets preview</a>, <a href="#w-g">G · dag 10-mailen</a>, <a href="#w-fij">F/I/J · tre instrukser</a> og <a href="#w-h">H · præsentations-fanout</a>.</p>
     <ol style="margin:8px 0 0 20px;padding:0;font-size:13.5px;color:var(--soft);line-height:1.6">
-      <li><a href="#w1">Indgangens kæde har aldrig haft en virksomhed</a> · Bevis: prøv den selv · trin 1–5 · én gennemkørsel afslører A, B og C og lukker syv kort</li>
+      <li><a href="#w1">Indgangens kæde har aldrig haft en virksomhed — fordi den aldrig havde en indgang</a> · omskrevet 14/9: Monday nåede aldrig webhooken (ingen header, forkert vært); værn rettet #851, automationen tændt · trin 1–5 · resten af kæden er stadig ubevist på et menneske</li>
       <li><a href="#w2">Ankomstens løse ender</a> · Lille · trin 4–5 · §7.2, 7.3, 7.4, 7.7 stadig åbne; tages i samme gennemkørsel</li>
       <li><a href="#w3">Delingen på LinkedIn — et krav til 22/9</a> · Lille (V1) · trin 3/6 · det eneste kort der virker udad; designet er kritisk sti</li>
       <li><a href="#w4">Velkomstvideoen venter på Morten</a> · Lille · trin 6 · uden GUID er første login uden velkomst; anbefaling: tekst-overlejring nu</li>
