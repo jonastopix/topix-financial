@@ -1,4 +1,5 @@
 import "@/styles/hjemmebane.css";
+import { KONTAKT_ADRESSE, mailtoKontakt } from "@/lib/kontaktadresse";
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -214,8 +215,8 @@ export default function MembershipExpiredGate() {
           </div>
           <p className="text-sm text-hb-ink-soft">
             Spørgsmål? Skriv til{" "}
-            <a href="mailto:jonas@topix.dk" className="text-hb-evergreen hover:underline">
-              jonas@topix.dk
+            <a href={mailtoKontakt()} className="text-hb-evergreen hover:underline">
+              {KONTAKT_ADRESSE}
             </a>
           </p>
         </div>
@@ -334,7 +335,7 @@ export default function MembershipExpiredGate() {
                 <HbButton
                   variant="secondary"
                   onClick={() => {
-                    window.location.href = `mailto:jonas@topix.dk?subject=${encodeURIComponent("The Boardroom")}`;
+                    window.location.href = mailtoKontakt("The Boardroom");
                   }}
                   className="w-full justify-between text-left"
                 >
@@ -424,8 +425,8 @@ export default function MembershipExpiredGate() {
 
         <p className="text-center text-sm text-hb-ink-soft">
           Spørgsmål? Skriv til{" "}
-          <a href="mailto:jonas@topix.dk" className="text-hb-evergreen hover:underline">
-            jonas@topix.dk
+          <a href={mailtoKontakt()} className="text-hb-evergreen hover:underline">
+            {KONTAKT_ADRESSE}
           </a>
         </p>
       </div>
