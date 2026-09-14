@@ -385,3 +385,36 @@ describe("Sortering", () => {
     expect(s.map((x) => x.noegle)).toContain("ingen_dialog");
   });
 });
+
+describe("kø 8: stamdata mangler — CVR-opslaget lykkedes ikke ved oprettelsen (14/9, lib/cvrBerigelse.ts)", () => {
+  const ramt = { cvr_number: "46415124", cvr_fetched_at: null, address: null, industry_code: null };
+
+  it("uden stamdata i inputtet (forsiden) gives intet signal", () => {
+    expect(noegler(input())).not.toContain("cvr_opslag_mangler");
+  });
+
+  it("gyldigt CVR, intet opslag, tomme felter → signalet, i sin egen kø, alvor 50, med handlingen som detalje", () => {
+    const s = afgoerVirksomhedsSignaler(input({ stamdata: ramt }), NOW).find((x) => x.noegle === "cvr_opslag_mangler");
+    expect(s).toBeDefined();
+    expect(s!.koe).toBe("stamdata_mangler");
+    expect(s!.alvor).toBe(50);
+    expect(s!.tekst).toBe("CVR-opslag mangler — adresse og branchekode står tomt");
+    expect(s!.detalje).toContain("berig-virksomheder");
+  });
+
+  it("er felterne fyldt, eller lykkedes opslaget, gives intet signal", () => {
+    expect(noegler(input({ stamdata: { ...ramt, address: "Vestergade 1", industry_code: "retail_fashion" } }))).not.toContain("cvr_opslag_mangler");
+    expect(noegler(input({ stamdata: { ...ramt, cvr_fetched_at: "2026-09-14T08:10:15Z" } }))).not.toContain("cvr_opslag_mangler");
+    expect(noegler(input({ stamdata: { ...ramt, cvr_number: null } }))).not.toContain("cvr_opslag_mangler");
+  });
+
+  it("alvor 50 ligger under agentforslag (55) og over «over budget» (40)", () => {
+    const signaler = afgoerVirksomhedsSignaler(
+      input({ stamdata: ramt, agentforslagVenter: 1, budgetOmsaetning: 80_000 }),
+      NOW,
+    );
+    const raekkefoelge = signaler.map((x) => x.noegle);
+    expect(raekkefoelge.indexOf("agentforslag_venter")).toBeLessThan(raekkefoelge.indexOf("cvr_opslag_mangler"));
+    expect(raekkefoelge.indexOf("cvr_opslag_mangler")).toBeLessThan(raekkefoelge.indexOf("budget_over"));
+  });
+});

@@ -15,10 +15,9 @@
  * (afgoerFornyelsestilstand i src/lib/fornyelse.ts og betalingsfristen i
  * src/lib/betalingsfrist.ts) og lægges i køerne af kalderen.
  *
- * Ingen imports. Ingen Date-afhængighed ud over `now`-parameteren (valgfri,
- * `new Date()` som default), så filen kan læses af både Vite/Vitest og
- * Deno uden ændring — samme mønster som membershipTier.ts. Skal den
- * spejles til _shared/, er filhovedet den eneste tilladte forskel.
+ * Én import (lib/cvrBerigelse.ts, ren, uden IO — 14/9). Ingen Date-
+ * afhængighed ud over `now`-parameteren (valgfri, `new Date()` som
+ * default). Skal den spejles til _shared/, følger cvrBerigelse.ts med.
  *
  * VALG hvor de to gamle domme var uenige (alle låst af testen i
  * src/lib/__tests__/virksomhedsSignaler.test.ts):
@@ -101,6 +100,8 @@
  *    visningsbeslutning, ikke en dom.
  */
 
+import { CVR_MANGEL_HANDLING, CVR_MANGEL_MAERKE, cvrOpslagMangler, felterTekst, type CvrStamdata } from "./cvrBerigelse";
+
 /** Ét fact-punkt: de fire tal dommen læser, plus periode. */
 export interface FactPunkt {
   /** "YYYY-MM" — bruges til friskhedsgaten. */
@@ -135,15 +136,23 @@ export interface VirksomhedsInput {
   /** Agentforslag der venter på afgørelse (agent_proposals med status 'proposed' —
       ikke «uden decided_at»: 'expired' har også null dér, men kan ikke afgøres; rettet 7/9). */
   agentforslagVenter: number;
+  /** Stamdata til dommen «CVR-opslaget lykkedes ikke ved oprettelsen» (14/9,
+      lib/cvrBerigelse.ts). VALGFRI: forsiden (AdvisorDashboard) henter ikke
+      felterne og giver den ikke — og forsidens dom springer køen over
+      (forsidensDom.grundeFraMotoren), så signalet findes kun på
+      virksomhedssiden. Udeladt = intet signal. */
+  stamdata?: CvrStamdata;
 }
 
-/** De fem køer denne motor afgør. Fornyelser og indgange kommer fra egne motorer. */
+/** De køer denne motor afgør. Fornyelser og indgange kommer fra egne motorer.
+    stamdata_mangler (14/9) er IKKE en forsidekø — kun virksomhedssidens blok 1 viser den. */
 export type SignalKoe =
   | "ikke_hoert_fra_laenge"
   | "venter_paa_svar"
   | "stikker_ud"
   | "agentforslag_venter"
-  | "friske_tal";
+  | "friske_tal"
+  | "stamdata_mangler";
 
 export type SignalNoegle =
   | "aldrig_skrevet"
@@ -155,7 +164,8 @@ export type SignalNoegle =
   | "budget_under"
   | "budget_over"
   | "agentforslag_venter"
-  | "friske_tal";
+  | "friske_tal"
+  | "cvr_opslag_mangler";
 
 export interface Signal {
   /** Stabil nøgle — samme betydning uanset tekst. */
@@ -363,6 +373,24 @@ export function afgoerVirksomhedsSignaler(input: VirksomhedsInput, now: Date = n
         koe: "friske_tal",
         tekst: `Ny rapport for ${seneste?.period_label || "seneste periode"}`,
         alvor: 30,
+      });
+    }
+  }
+
+  // ── Kø 8: Stamdata mangler (14/9, lib/cvrBerigelse.ts) — CVR-opslaget
+  //    lykkedes ikke ved oprettelsen (kvote, netværk, ukendt CVR), og
+  //    adresse og/eller branchekode står tomme. Alvor 50: en mangel der
+  //    skal rettes, ikke noget der haster — på niveau med «under budget»,
+  //    under agentforslag (55). Forsvinder af sig selv når felterne fyldes. ──
+  if (input.stamdata) {
+    const mangel = cvrOpslagMangler(input.stamdata);
+    if (mangel.mangler) {
+      signaler.push({
+        noegle: "cvr_opslag_mangler",
+        koe: "stamdata_mangler",
+        tekst: `${CVR_MANGEL_MAERKE} — ${felterTekst(mangel.felter)} står tomt`,
+        alvor: 50,
+        detalje: CVR_MANGEL_HANDLING,
       });
     }
   }

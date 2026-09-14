@@ -117,6 +117,12 @@ export interface VirksomhedsData {
     offboarding_requested_at?: string | null;
     data_slettet_at?: string | null;
     data_slettet_vej?: string | null;
+    /** Stamdata til dommen «CVR-opslaget lykkedes ikke» (14/9, lib/cvrBerigelse.ts):
+        cvr_fetched_at sættes kun ved oprettelsen; address/industry_code er det
+        opslaget skulle have fyldt. */
+    address?: string | null;
+    industry_code?: string | null;
+    cvr_fetched_at?: string | null;
     /** Ansøgningen som den blev skrevet ved oprettelsen (monday-webhook /
         import-application): current_situation, goals, help_needed m.fl.
         Statisk — designets §4 blok 2 vil have den SAMMENFATTET og gemt i
@@ -214,7 +220,7 @@ async function hentVirksomhed(companyId: string): Promise<VirksomhedsData | null
   ] = await Promise.all([
     supabase
       .from("companies")
-      .select("id, name, cvr_number, industry_label, contact_person, contact_email, contact_phone, status, is_legat, contract_start_date, contract_end_date, subscription_status, subscription_current_period_end, indgangspris_oere, fornyelsespris_oere, created_at, application_context, offboarding_requested_at, data_slettet_at, data_slettet_vej")
+      .select("id, name, cvr_number, industry_label, contact_person, contact_email, contact_phone, status, is_legat, contract_start_date, contract_end_date, subscription_status, subscription_current_period_end, indgangspris_oere, fornyelsespris_oere, created_at, application_context, offboarding_requested_at, data_slettet_at, data_slettet_vej, address, industry_code, cvr_fetched_at")
       .eq("id", companyId)
       .maybeSingle(),
     supabase.from("company_members").select("user_id, role").eq("company_id", companyId),

@@ -5,6 +5,7 @@ import { CheckCircle2, FileSpreadsheet } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { invaliderInvitationer } from "@/hooks/invitationer";
 import { importAdvarsel } from "@/lib/importensAdvarsel";
+import { importKvittering } from "@/lib/cvrBerigelse";
 import {
   TOMME_FELTER, byggImportBody, parseAnsoegning, validerAnsoegning,
   type AnsoegningsFelter, type Arkdata, type ParseResultat,
@@ -129,15 +130,16 @@ export const HbAnsoegningsimport = ({ aaben, onLuk }: { aaben: boolean; onLuk: (
         }
         throw new Error(data?.error || "Import fejlede");
       }
-      if (data.reused_company) {
-        toast.success("Virksomheden findes allerede — ny invitation sendt", {
-          description: `Invitation sendt til ${felter.email} for ${data.company_name}`,
-        });
-      } else {
-        toast.success("Ansøgning importeret ✓", {
-          description: `${data.company_name} er oprettet og invitation sendt til ${felter.email}`,
-        });
-      }
+      // Kvitteringen (14/9, lib/cvrBerigelse.ts): læser cvr_data, som
+      // import-application altid svarer (index.ts:236) — null når opslaget
+      // ikke lykkedes. En mangel, ikke en fejl: virksomheden ER oprettet og
+      // invitationen ER sendt, så panelet lukker som før; advarslen står
+      // længere, så den kan læses færdig.
+      const kvittering = importKvittering(data, { email: felter.email, cvr_number: felter.cvr_number });
+      toast[kvittering.tone](kvittering.titel, {
+        description: kvittering.beskrivelse,
+        ...(kvittering.tone === "warning" ? { duration: 15000 } : {}),
+      });
       nulstilOgLuk();
       await invaliderInvitationer(queryClient, data.company_id ?? null);
     } catch (err) {

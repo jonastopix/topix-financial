@@ -204,6 +204,14 @@ function bygSignalInput(d: VirksomhedsData, facts: CompanyFact[]): VirksomhedsIn
     harCommittedeTal: facts.length > 0,
     // Nu udfyldt RIGTIGT — MemberDetail sendte 0.
     agentforslagVenter: d.agentforslagVenter,
+    // CVR-opslaget (14/9): siden bærer felterne, forsiden gør ikke — se
+    // VirksomhedsInput.stamdata. Dommen bor i lib/cvrBerigelse.ts.
+    stamdata: {
+      cvr_number: d.company.cvr_number,
+      cvr_fetched_at: d.company.cvr_fetched_at ?? null,
+      address: d.company.address ?? null,
+      industry_code: d.company.industry_code ?? null,
+    },
   };
 }
 
