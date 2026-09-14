@@ -1,0 +1,7 @@
+:root{
+--font-display:"Parkinsans",system-ui,sans-serif;--font-body:"Manrope",system-ui,sans-serif;
+--weight-display:600;--weight-body:400;--weight-body-strong:600;
+--size-display:64px;--size-h1:44px;--size-h2:32px;--size-h3:22px;--size-body:17px;--size-small:14px;--size-caption:12px;
+--leading-tight:1.1;--leading-heading:1.15;--leading-body:1.55;
+--tracking-display:-0.02em;--tracking-caption:0.14em;
+}

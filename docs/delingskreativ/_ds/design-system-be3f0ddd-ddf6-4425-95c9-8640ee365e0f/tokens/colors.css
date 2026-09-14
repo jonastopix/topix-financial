@@ -1,0 +1,8 @@
+:root{
+--navy-green:#133332;--ocean:#A3D9C4;--shell:#E9E9E7;--white:#FFFFFF;
+--navy-green-80:#3E5A59;--navy-green-60:#6A8180;--ocean-40:#DAF0E7;--shell-dark:#D6D6D3;
+--surface-page:var(--white);--surface-inverse:var(--navy-green);--surface-card:var(--white);--surface-muted:var(--shell);--surface-accent:var(--ocean);
+--text-body:var(--navy-green);--text-muted:var(--navy-green-60);--text-on-inverse:var(--shell);--text-heading:var(--navy-green);--text-on-accent:var(--navy-green);
+--border-subtle:var(--shell-dark);--border-strong:var(--navy-green);
+--accent:var(--ocean);
+}
