@@ -260,3 +260,50 @@ describe("DelingView — logoet bliver virksomhedens (vej a)", () => {
     expect(screen.queryByRole("button", { name: "Fjern" })).toBeNull();
   });
 });
+
+describe("DelingView — teksten til opslaget (nr. 3): fire veje og vejledningen", () => {
+  it("fire veje under galleriet; de tre med virksomheden følger rettelsen i feltet", () => {
+    vis();
+    const liste = screen.getByRole("list", { name: "Tekstudkast" });
+    expect(liste.querySelectorAll("li")).toHaveLength(4);
+    expect(within(liste).getByText("Glad og ligefrem")).toBeInTheDocument();
+    expect(within(liste).getByText("Ærlig")).toBeInTheDocument();
+    expect(within(liste).getByText("Forretningsmæssig")).toBeInTheDocument();
+    expect(within(liste).getByText("Invitation")).toBeInTheDocument();
+    expect(within(liste).getAllByText(/Hansen Byg ApS/)).toHaveLength(3);
+    fireEvent.change(screen.getByLabelText("Virksomhed"), { target: { value: "Hansen Byg" } });
+    expect(within(screen.getByRole("list", { name: "Tekstudkast" })).getAllByText(/Hansen Byg/)).toHaveLength(3);
+  });
+
+  it("«fire år» i «Ærlig» siges at være et eksempel hun retter selv", () => {
+    vis();
+    const aerlig = screen.getByText("Ærlig").closest("[data-tekstudkast]")!;
+    expect(aerlig).toHaveTextContent("«fire år» er et eksempel — ret det til dit eget tal.");
+    expect(screen.getAllByText(/er et eksempel — ret det/)).toHaveLength(1);
+  });
+
+  it("«Kopiér» lægger hele teksten med linjeskift i udklipsholderen og siger «Kopieret»", async () => {
+    const skrevet: string[] = [];
+    Object.defineProperty(navigator, "clipboard", { value: { writeText: async (t: string) => { skrevet.push(t); } }, configurable: true });
+    vis();
+    fireEvent.click(screen.getByRole("button", { name: "Kopiér: Ærlig" }));
+    expect(await screen.findByText("Kopieret")).toBeInTheDocument();
+    expect(skrevet).toHaveLength(1);
+    expect(skrevet[0]).toMatch(/^Jeg har brugt fire år/);
+    expect(skrevet[0]).toContain("Derfor er Hansen Byg ApS nu med i The Boardroom.");
+    expect(skrevet[0].split("\n")).toHaveLength(3);
+    expect(skrevet[0]).not.toContain("!");
+    expect(skrevet[0]).not.toMatch(/ejerleder/i);
+  });
+
+  it("vejledningen står ved siden af: fire punkter, de to personers LinkedIn, linket i første kommentar", () => {
+    vis();
+    const punkter = within(screen.getByRole("list", { name: "Vejledning" })).getAllByRole("listitem");
+    expect(punkter).toHaveLength(4);
+    expect(punkter[0]).toHaveTextContent("linkedin.com/in/mortenlarsen");
+    expect(punkter[0]).toHaveTextContent("linkedin.com/in/jonasherlev");
+    expect(punkter[1]).toHaveTextContent("i første kommentar, ikke i opslaget");
+    expect(punkter[2]).toHaveTextContent("den første time");
+    expect(punkter[3]).toHaveTextContent("Billedet først, teksten under.");
+  });
+});
