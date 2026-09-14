@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "react-router-dom";
-import { ArrowLeft, Heart } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
@@ -22,6 +22,7 @@ import {
 } from "@/lib/hjemmebane/communityApi";
 import { CommunityComposer } from "./CommunityComposer";
 import { CommunityDokument } from "./CommunityDokument";
+import { LikeKnap } from "./LikeKnap";
 import { hentetilstand, sektionsfejlTekst } from "@/lib/hjemmebane/hentefejl";
 
 /** Trådsiden (/community/:id) — læsning, svar, reaktioner og ret/slet af
@@ -56,36 +57,7 @@ const ForfatterAvatar = ({ navn, avatarUrl }: { navn: string | null; avatarUrl: 
     </span>
   );
 
-/** Like-knappen — tekstuel handling i evergreen som fladens øvrige
-    handlinger; fyldt hjerte når jeg_har_reageret. INGEN optimistisk UI:
-    medlems-præcedensen er invalidering (EventRegisterAction), så tallet
-    er altid databasens, aldrig klientens gæt. */
-const LikeKnap = ({
-  antal,
-  harReageret,
-  disabled,
-  onClick,
-}: {
-  antal: number;
-  harReageret: boolean;
-  disabled: boolean;
-  onClick: () => void;
-}) => (
-  <button
-    type="button"
-    disabled={disabled}
-    onClick={onClick}
-    className={cn(
-      "inline-flex items-center gap-1.5 text-sm transition-colors disabled:opacity-50",
-      harReageret ? "text-hb-evergreen" : "text-hb-ink-soft hover:text-hb-ink",
-    )}
-    aria-pressed={harReageret}
-    title={harReageret ? "Fjern reaktion" : "Synes godt om"}
-  >
-    <Heart className={cn("h-4 w-4", harReageret && "fill-hb-evergreen")} />
-    {antal}
-  </button>
-);
+/* Like-knappen bor i ./LikeKnap.tsx (14/9) — delt med feedet. */
 
 /** Diskrete tekst-handlinger (Rediger/Slet/Skjul) — samme dæmpede udtryk
     som like-knappen, så rækken læses som ét roligt handlings-spor. */

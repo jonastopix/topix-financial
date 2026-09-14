@@ -11,6 +11,7 @@ import {
   notificerNaevnelser,
   notificerNytOpslag,
   opretTraad,
+  saetReaktion,
   type CommunityTraad,
 } from "@/lib/hjemmebane/communityApi";
 import { getMyMemberProfile } from "@/lib/hjemmebane/memberProfile";
@@ -23,6 +24,7 @@ import {
 } from "@/lib/hjemmebane/praesentation";
 import { CommunityComposer } from "./CommunityComposer";
 import { CommunityMedlemmer } from "./CommunityMedlemmer";
+import { LikeKnap } from "./LikeKnap";
 import { HbSection } from "../HbSection";
 import { hentetilstand, sektionsfejlTekst } from "@/lib/hjemmebane/hentefejl";
 import { HbTag } from "../HbTag";
@@ -101,42 +103,71 @@ const RowSkeleton = () => (
   </li>
 );
 
-const TraadRaekke = ({ traad }: { traad: CommunityTraad }) => {
+/** Feedrækken. FØR 14/9 var hele rækken ét <Link>; et like-klik ville så
+    navigere, og en <button> inde i et <a> er ugyldig DOM. NU: rækken er
+    et <li class="relative">, linket sidder på TITLEN og strækkes ud over
+    hele rækken med et ::after-lag (after:absolute after:inset-0) — så
+    hele rækken stadig åbner tråden, som før. Like-knappen står som
+    søskende til linket med relative z-10, altså OVER det strakte lag: et
+    klik på hjertet rammer knappen, ikke linket. Hover-fladen ligger på
+    <li>, så den følger hele rækken som før. */
+const TraadRaekke = ({
+  traad,
+  reagerer,
+  onLike,
+}: {
+  traad: CommunityTraad;
+  reagerer: boolean;
+  onLike: () => void;
+}) => {
   const kilde = kildeLabel(traad.kilde_type);
   /* En skjult tråd står kun i feedet for rådgivere (læse-RPC'erne,
      20260812180000). Markeringen er nødvendig, fordi rådgiveren ellers
      ikke kan se forskel på hvad medlemmerne ser og ikke ser. */
   const erSkjult = traad.status === "skjult";
   return (
-    <li>
-      <Link
-        to={`/community/${traad.id}`}
-        className={cn(
-          "flex items-start gap-5 border-t border-hb-line py-4 transition-colors last:border-b hover:bg-hb-sage/20",
-          erSkjult && "opacity-60",
-        )}
-      >
-        <ForfatterAvatar navn={traad.forfatter_navn} avatarUrl={traad.forfatter_avatar_url} />
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <p className="text-sm text-hb-ink-soft">{traad.forfatter_navn ?? "Medlem"}</p>
-            {traad.fastgjort && <HbTag>Fastgjort</HbTag>}
-            {kilde && <HbTag>{kilde}</HbTag>}
-            {erSkjult && <HbTag>Skjult</HbTag>}
-          </div>
-          <p className="mt-1 truncate font-editorial text-lg font-medium leading-snug text-hb-ink">
+    <li
+      className={cn(
+        "relative flex items-start gap-5 border-t border-hb-line py-4 transition-colors last:border-b hover:bg-hb-sage/20",
+        erSkjult && "opacity-60",
+      )}
+      data-traad-id={traad.id}
+    >
+      <ForfatterAvatar navn={traad.forfatter_navn} avatarUrl={traad.forfatter_avatar_url} />
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-center gap-2">
+          <p className="text-sm text-hb-ink-soft">{traad.forfatter_navn ?? "Medlem"}</p>
+          {traad.fastgjort && <HbTag>Fastgjort</HbTag>}
+          {kilde && <HbTag>{kilde}</HbTag>}
+          {erSkjult && <HbTag>Skjult</HbTag>}
+        </div>
+        <p className="mt-1 truncate font-editorial text-lg font-medium leading-snug text-hb-ink">
+          <Link
+            to={`/community/${traad.id}`}
+            className="after:absolute after:inset-0 after:content-[''] focus-visible:outline-none focus-visible:after:ring-2 focus-visible:after:ring-hb-evergreen/60"
+          >
             {traad.titel}
-          </p>
-          <p className="mt-1 text-xs text-hb-ink-soft">
+          </Link>
+        </p>
+        <p className="mt-1 flex flex-wrap items-center gap-x-1.5 text-xs text-hb-ink-soft">
+          <span>
             {[
               taeller(traad.antal_svar, "svar", "svar"),
               taeller(traad.antal_visninger, "visning", "visninger"),
-              taeller(traad.antal_reaktioner, "reaktion", "reaktioner"),
               relativTid(traad.seneste_aktivitet_at),
             ].join(" · ")}
-          </p>
-        </div>
-      </Link>
+          </span>
+          <span aria-hidden>·</span>
+          {/* Tallet er RPC'ens antal_reaktioner; jeg_har_reageret fylder hjertet. */}
+          <LikeKnap
+            antal={traad.antal_reaktioner}
+            harReageret={traad.jeg_har_reageret}
+            disabled={reagerer}
+            onClick={onLike}
+            className="relative z-10 text-xs"
+          />
+        </p>
+      </div>
     </li>
   );
 };
@@ -197,6 +228,21 @@ export const CommunityView = () => {
   const feedQuery = useQuery({
     queryKey: ["community", "feed"],
     queryFn: () => hentFeed(30),
+  });
+
+  /* Like fra feedet (14/9) — samme form som trådsidens reaktionMutation
+     (CommunityTraadView.tsx): saetReaktion er en toggle i databasen,
+     feedet hentes igen (tallet er altid databasens — ingen optimistisk
+     UI), og en fejl siges med toast. Ingen notifikation: beskeden til den
+     der bliver liket er sin egen opgave (Jonas 14/9). */
+  const reaktionMutation = useMutation({
+    mutationFn: (traadId: string) => saetReaktion({ traadId }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["community", "feed"] });
+    },
+    onError: (fejl: Error) => {
+      toast.error("Reaktionen blev ikke gemt", { description: fejl.message });
+    },
   });
 
   const opretMutation = useMutation({
@@ -281,7 +327,12 @@ export const CommunityView = () => {
         ) : (
           <ul className="list-none">
             {traade.map((traad) => (
-              <TraadRaekke key={traad.id} traad={traad} />
+              <TraadRaekke
+                key={traad.id}
+                traad={traad}
+                reagerer={reaktionMutation.isPending}
+                onLike={() => reaktionMutation.mutate(traad.id)}
+              />
             ))}
           </ul>
         )}
