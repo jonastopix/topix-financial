@@ -1,4 +1,5 @@
 import "@/styles/hjemmebane.css";
+import { KONTAKT_ADRESSE, mailtoKontakt } from "@/lib/kontaktadresse";
 import { ArrowRight, RefreshCw } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useHbDokumentGrund } from "@/hooks/useHbDokumentGrund";
@@ -64,7 +65,7 @@ export default function CompanyLinkFailedGate() {
               <HbButton
                 variant="secondary"
                 onClick={() => {
-                  window.location.href = `mailto:jonas@topix.dk?subject=${encodeURIComponent("The Boardroom — min konto")}`;
+                  window.location.href = mailtoKontakt("The Boardroom — min konto");
                 }}
                 className="w-full sm:flex-1"
               >
@@ -77,8 +78,8 @@ export default function CompanyLinkFailedGate() {
 
         <p className="text-center text-sm text-hb-ink-soft">
           Spørgsmål? Skriv til{" "}
-          <a href="mailto:jonas@topix.dk" className="text-hb-evergreen hover:underline">
-            jonas@topix.dk
+          <a href={mailtoKontakt()} className="text-hb-evergreen hover:underline">
+            {KONTAKT_ADRESSE}
           </a>
           <span className="mx-2">·</span>
           <HbButton variant="link" onClick={() => signOut()} className="text-sm">

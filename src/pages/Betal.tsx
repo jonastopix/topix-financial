@@ -1,4 +1,5 @@
 import "@/styles/hjemmebane.css";
+import { KONTAKT_ADRESSE, mailtoKontakt } from "@/lib/kontaktadresse";
 import { useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
@@ -112,9 +113,10 @@ function formaterFrist(iso: string): string {
   return `${dag}. ${MAANEDER[md - 1]} ${aar}`;
 }
 
-const MAILTO = `mailto:jonas@topix.dk?subject=${encodeURIComponent("The Boardroom — mit betalingslink")}`;
+// Kontaktadressen (14/9): kontakt@theboardroom.dk, ét sted — lib/kontaktadresse.ts.
+const MAILTO = mailtoKontakt("The Boardroom — mit betalingslink");
 /** Emnet når betalingen er gennemført, men bekræftelsen mangler — så mailen kan kendes fra linkspørgsmål. */
-const MAILTO_BETALING = `mailto:jonas@topix.dk?subject=${encodeURIComponent("The Boardroom — min betaling mangler bekræftelse")}`;
+const MAILTO_BETALING = mailtoKontakt("The Boardroom — min betaling mangler bekræftelse");
 
 /** Fælles ramme: samme ydre div som MembershipExpiredGate:148 — men
     min-h-screen-SAFE (dvh), ikke 100vh, som HB_RAMME (4/9, mobilens grønne
@@ -141,8 +143,8 @@ function SkrivTilOs() {
   return (
     <p className="text-center text-sm text-hb-ink-soft">
       Spørgsmål? Skriv til{" "}
-      <a href="mailto:jonas@topix.dk" className="text-hb-evergreen hover:underline">
-        jonas@topix.dk
+      <a href={mailtoKontakt()} className="text-hb-evergreen hover:underline">
+        {KONTAKT_ADRESSE}
       </a>
     </p>
   );

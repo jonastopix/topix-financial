@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { mailtoKontakt } from "@/lib/kontaktadresse";
 import { useSearchParams } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
@@ -222,10 +223,10 @@ export const BookSessionView = () => {
             </p>
           </div>
           <a
-            href="mailto:jonas@topix.dk?subject=Opgradering%20til%20fuldt%20medlemskab"
+            href={mailtoKontakt("Opgradering til fuldt medlemskab")}
             className="inline-flex items-center gap-2 rounded-full bg-hb-evergreen px-6 py-2.5 text-sm font-medium text-white hover:bg-hb-evergreen/90 transition-colors"
           >
-            Kontakt Jonas om fuldt medlemskab →
+            Kontakt os om fuldt medlemskab →
           </a>
           <p className="text-xs text-hb-ink-soft">
             Dit abonnement fortsætter uændret

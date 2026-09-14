@@ -15,8 +15,9 @@
  *     «boardroom.topix.dk» eller «mail.topix.dk». Kommentarer fjernes først
  *     (factsDataBasisGuard-mønstret: kun rigtig kode tæller) — en kommentar
  *     der bogfører historikken kan ikke sende en mail. Kun de to DOMÆNER
- *     rammes: jonas@topix.dk (kontaktvej i fladen, mailto) og
- *     kontakt@topix.dk har domænet topix.dk og matcher ikke.
+ *     rammes: kontakt@theboardroom.dk (kontaktvej i fladen, mailto —
+ *     lib/kontaktadresse.ts siden 14/9) og kontakt@topix.dk har andre
+ *     domæner og matcher ikke.
  *  2) VERIFIED_FROM_EMAIL tildeles kun i managedEmail.ts — ingen anden fil
  *     har sin egen udgave af konstanten.
  *  3) Frontendens standardafsender (EmailTemplatesView, som ikke kan importere
