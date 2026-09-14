@@ -251,8 +251,19 @@ describe("DelingView — logoet bliver virksomhedens (vej a)", () => {
     fireEvent.drop(screen.getByRole("button", { name: /Erstat logo/ }), { dataTransfer: { files: [new File(["l"], "logo.png", { type: "image/png" })] } });
     expect(await screen.findByText("Logoet er gemt som virksomhedens logo.")).toBeInTheDocument();
     expect(db.storageKald).toContain("upload:company-logos/c1/logo:logo.png:true:image/png");
-    expect(db.logoSkrevet).toEqual(["c1=https://x.test/company-logos/c1/logo"]);
-    expect(await within(kortet()).findByAltText("Hansen Byg ApS")).toHaveAttribute("src", "https://x.test/company-logos/c1/logo");
+    // 14/9 (billedVersion.ts): URL'en gemmes MED version, så delene tjekkes hver for sig —
+    // aldrig mod en nøjagtig streng med et tidsstempel i.
+    expect(db.logoSkrevet).toHaveLength(1);
+    const skrevet = db.logoSkrevet[0];
+    const id = skrevet.slice(0, skrevet.indexOf("="));
+    const gemtUrl = skrevet.slice(skrevet.indexOf("=") + 1); // URL'en har selv et «=» i ?v=
+    expect(id).toBe("c1");
+    const gemt = new URL(gemtUrl);
+    expect(gemt.origin + gemt.pathname).toBe("https://x.test/company-logos/c1/logo");
+    expect(gemt.searchParams.get("v")).toMatch(/^\d+$/);
+    // …og kreativen viser den NYE streng (fejlen 14/9: samme streng, intet skiftede).
+    expect(await within(kortet()).findByAltText("Hansen Byg ApS")).toHaveAttribute("src", gemtUrl);
+    expect(gemtUrl).not.toBe("https://x.test/company-logos/c1/logo");
   });
 
   it("intet «Fjern» ved logoet — det ville fjerne profilens logo", () => {
