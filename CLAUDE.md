@@ -78,7 +78,7 @@ Integrationer: Stripe, Slack, Circle (community), Monday.com webhook, pdfjs-dist
 **Edge function-buckets**. Functions har `verify_jwt = false` i `supabase/config.toml` (to undtagelser står `true`: `process-email-queue`, `send-notification-email`) — det er bevidst pga. Supabases signing-keys-system, og konsekvensen er at hver function SKAL validere selv før første service-role-handling.
 - **Bucket A — bruger-trigget**: kald `authenticateUser(req)` FØRST. Brug derefter `callerClient` (JWT-scoped) til RLS-tjek af target-ressourcen, før service-role-klienten konstrueres.
 - **Bucket B — service-role/cron**: kald `authenticateServiceRole(req)` FØRST. Afvis alt der ikke bærer service-role-nøglen.
-- **Bucket C — eksterne webhooks**: per-funktion signaturverifikation FØR parsing (HMAC-SHA256 for Monday.com, `verifyWebhookRequest` for auth-hook, Stripe-signature for Stripe).
+- **Bucket C — eksterne webhooks**: per-funktion signaturverifikation FØR parsing (Monday.com: HMAC-SHA256-JWT når Authorization-header findes, ellers delt hemmelighed `?noegle=` i URL'en mod `MONDAY_WEBHOOK_SECRET` — se `_shared/mondayVaern.ts`; `verifyWebhookRequest` for auth-hook; Stripe-signature for Stripe).
 
 **Immutability-triggers** (BEFORE UPDATE) blokerer ændring af identitets-/audit-felter, selv hvis RLS-policies skulle slække:
 - `protect_message_immutable_fields` på `messages`: `sender_id`, `conversation_id`, `created_at`.
