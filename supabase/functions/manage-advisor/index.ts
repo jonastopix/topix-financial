@@ -34,8 +34,9 @@ async function sendAdvisorInvitationEmail(normalizedEmail: string, adminSupabase
     label: 'advisor-invitation',
   });
 
-  if (!resultat.sent && resultat.reason === 'failed') {
-    throw new Error(`Kunne ikke sende invitation: ${resultat.error}`);
+  // Kun en spærret modtager passerer stille; failed OG rate_limited (14/9) kaster som før.
+  if (!resultat.sent && resultat.reason !== 'recipient_suppressed') {
+    throw new Error(`Kunne ikke sende invitation (${resultat.reason}): ${resultat.error}`);
   }
 
   console.log(`[manage-advisor] Invitation email sendt til: ${normalizedEmail}`);

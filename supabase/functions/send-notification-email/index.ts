@@ -95,6 +95,7 @@ import { bulletproofButton, fallbackLinkBlock } from "../_shared/emailButtonHelp
 import { escHtml, escHtmlMedLinjeskift } from "../_shared/htmlEscape.ts";
 import { opslagsMail } from "../_shared/opslagsMail.ts";
 import { sendManagedEmail, SENDER_FROM, VERIFIED_FROM_EMAIL } from "../_shared/managedEmail.ts";
+import { skalKoeStoppe } from "../_shared/mailFejl.ts";
 
 /** Nyt community-opslag (notify-community-opslag). Mailen bygges af tråden, ikke af body. */
 const COMMUNITY_OPSLAG_TYPE = "community_opslag";
@@ -241,6 +242,13 @@ Deno.serve(async (req) => {
     let sent = 0;
     let skipped = 0;
     let mailsSendt = 0;
+    // PAUSEN (14/9, recon-event-fanout.md §6): rammer en sending udbyderens
+    // loft (429), får de næste rækker samme svar — hver med en logrække.
+    // Kørslen stopper ved den første; rækkerne står ustemplede (email_sent_at
+    // IS NULL) og tages af cronen ved næste kørsel. Ingen backoff-tabel,
+    // ingen ny kolonne: næste kørsel er om fem minutter, og prøver den for
+    // tidligt, stopper den igen ved den første række.
+    let rateLimit: { retryAfterSeconds: number | null; tilbage: number } | null = null;
 
     // Group by user for anti-spam check
     const userIds = [...new Set(pending.map((n: any) => n.user_id))];
@@ -286,11 +294,15 @@ Deno.serve(async (req) => {
     );
     const countMap: Record<string, number> = {};
     if (emailToUser.size > 0) {
+      // En rate limit-afvisning (14/9) er en mail medlemmet aldrig så — den
+      // bruger ikke hans kvote. Alle ANDRE statusser tælles som før
+      // (sent, failed, suppressed …): kun rate_limited er undtaget.
       const { data: dailyCounts } = await admin
         .from("email_send_log")
         .select("recipient_email")
         .gte("created_at", todayIso)
         .like("template_name", "notification-%")
+        .neq("status", "rate_limited")
         .in("recipient_email", [...emailToUser.keys()]);
       for (const row of dailyCounts || []) {
         const uid = emailToUser.get(row.recipient_email);
@@ -538,6 +550,16 @@ Deno.serve(async (req) => {
       if (!resultat.sent) {
         console.error(`Mail ikke sendt (${resultat.reason}) for aggregated chat notifs user ${userId}`);
         skipped += chatNotifs.length;
+        if (skalKoeStoppe(resultat)) {
+          // Resten af chat-brugerne OG hele nonChat-løkken venter til næste kørsel.
+          const tilbage = [...chatNotifsByUser.keys()].indexOf(userId);
+          rateLimit = {
+            retryAfterSeconds: resultat.reason === "rate_limited" ? resultat.retryAfterSeconds : null,
+            tilbage: chatNotifsByUser.size - tilbage - 1 + toEmail.length,
+          };
+          console.error(`[rate-limit] udbyderen afviste (429) — stopper kørslen; ${rateLimit.tilbage} kandidater venter til næste kørsel (Retry-After ${rateLimit.retryAfterSeconds ?? "ukendt"})`);
+          break;
+        }
         continue;
       }
 
@@ -601,7 +623,9 @@ Deno.serve(async (req) => {
     }
 
     // ── Process non-chat notifications (én mail per udvalgt kandidat) ──
-    for (const notif of toEmail) {
+    for (let i = 0; i < toEmail.length; i++) {
+      const notif = toEmail[i];
+      if (rateLimit) break; // chat-løkken ramte loftet — intet mere i denne kørsel
       const userDailyCount = countMap[notif.user_id] || 0;
       if (userDailyCount >= MAX_EMAILS_PER_DAY) {
         console.log(`[anti-spam] Skipping user ${notif.user_id} (${userDailyCount} emails today)`);
@@ -715,6 +739,14 @@ Deno.serve(async (req) => {
       if (!resultat.sent) {
         console.error(`Mail ikke sendt (${resultat.reason}) for ${notif.id}`);
         skipped++;
+        if (skalKoeStoppe(resultat)) {
+          rateLimit = {
+            retryAfterSeconds: resultat.reason === "rate_limited" ? resultat.retryAfterSeconds : null,
+            tilbage: toEmail.length - i - 1,
+          };
+          console.error(`[rate-limit] udbyderen afviste (429) — stopper kørslen; ${rateLimit.tilbage} kandidater venter til næste kørsel (Retry-After ${rateLimit.retryAfterSeconds ?? "ukendt"})`);
+          break;
+        }
         continue;
       }
 
@@ -736,6 +768,10 @@ Deno.serve(async (req) => {
       venter_paa_tid: venterPaaTid.length,
       venter_paa_vindue: venterPaaVindue.length,
       mails_sendt: mailsSendt,
+      // Stoppet ved udbyderens loft: hvor mange der venter, og hvad Retry-After sagde.
+      rate_limited: rateLimit !== null,
+      rate_limit_tilbage: rateLimit?.tilbage ?? 0,
+      rate_limit_retry_after_seconds: rateLimit?.retryAfterSeconds ?? null,
     };
     console.log("[send-notification-email] Summary:", JSON.stringify(summary));
     return json(summary);
