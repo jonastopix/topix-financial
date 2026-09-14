@@ -20,6 +20,7 @@ import { TEKSTER, TRE_PAA_RAEKKE, kombination, skriftStil, type LogokortMaal } f
 import { KreativBilledfelt } from "./KreativBilledfelt";
 import { KreativRaadgivere } from "./KreativRaadgivere";
 import type { KreativProps } from "./kreativProps";
+import { datoLinje, datoLinjeStil, harDato } from "./datoLinje";
 
 /** Bevaret navn fra første skridt. */
 export type KreativTrePaaRaekkeProps = KreativProps;
@@ -77,8 +78,8 @@ export const KreativTrePaaRaekke = ({ udgave, format, memberName, companyName, d
           gap: `${m.topblok.gap}px`,
         }}
       >
-        <div style={skriftStil(m.label)}>
-          {TEKSTER.optaget} {dateLabel}
+        <div style={{ ...skriftStil(m.label), ...datoLinjeStil(dateLabel) }} data-datolinje={harDato(dateLabel) ? "vist" : "skjult"}>
+          {datoLinje(dateLabel)}
         </div>
         <div style={skriftStil(m.overskrift)}>
           {m.overskriftEnLinje ? (

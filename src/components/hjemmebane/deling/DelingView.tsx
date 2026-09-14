@@ -7,7 +7,12 @@
  * Logoet (companies.logo_url) er IKKE i useAuth — ingen hook i huset
  * henter det; IndstillingerView.tsx:177 og AppSidebar.tsx:178 slår det op
  * hver for sig. Her én lille useQuery på companyId, som AppSidebar.
- * dateLabel kommer fra delingskreativ.ts.
+ * OPTAGELSESDATOEN (14/9, set på skærm): «Optaget {måned år}» kommer fra
+ * companies.contract_start_date (lib/optagelsesdato) — ikke fra dagens
+ * dato, som er datoen kreativen laves. Hentes i samme opslag som logoet.
+ * Tomt felt = ingen linje, aldrig en gættet. Og hun kan slå linjen fra
+ * (kontakten ved felterne; valget gemmes ikke, som navn og virksomhed) —
+ * layoutene beholder linjens højde, så intet flytter sig (datoLinje.ts).
  *
  * RETTELSER GEMMES IKKE. Navn og virksomhed kan stå forkert (importen
  * skriver dem), så hun kan rette begge i felterne over kreativen — og det
@@ -43,7 +48,8 @@ import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { dateLabel, manglendeDele, type KreativData } from "@/lib/delingskreativ";
+import { manglendeDele, type KreativData } from "@/lib/delingskreativ";
+import { optagelsesLabel } from "@/lib/optagelsesdato";
 import { VEJLEDNING, byggDelingstekster, type Delingstekst } from "@/lib/delingstekster";
 import {
   TEKST as BILLED_TEKST,
@@ -67,16 +73,20 @@ export const DelingView = () => {
   const { user, profile, companyId, companyName } = useAuth();
   const queryClient = useQueryClient();
   const userId = user?.id ?? null;
-  const logoQuery = useQuery({
+  // Virksomhedens logo og kontraktstart i ét opslag (logoet er ikke i
+  // useAuth; datoen heller ikke). Nøglen hedder stadig «logo» — den
+  // invalideres efter logo-upload.
+  const virksomhedQuery = useQuery({
     queryKey: ["deling", "logo", companyId],
     enabled: !!companyId,
     staleTime: 10 * 60_000,
     queryFn: async () => {
-      const { data, error } = await supabase.from("companies").select("logo_url").eq("id", companyId!).maybeSingle();
+      const { data, error } = await supabase.from("companies").select("logo_url, contract_start_date").eq("id", companyId!).maybeSingle();
       if (error) throw error;
-      return data?.logo_url || null;
+      return { logoUrl: data?.logo_url || null, kontraktStart: data?.contract_start_date ?? null };
     },
   });
+  const logoQuery = { data: virksomhedQuery.data?.logoUrl ?? null };
   // Portrættet i hendes egen mappe i deling-portraetter — null = intet gemt,
   // så profilbilledet er udgangspunktet. Signeret URL (1 time).
   const portraetQuery = useQuery({
@@ -93,12 +103,15 @@ export const DelingView = () => {
   const [status, setStatus] = useState<Record<Felt, string | null>>({ portraet: null, logo: null });
   const [travlt, setTravlt] = useState<Felt | null>(null);
   const [aaben, setAaben] = useState<number | null>(null);
-  const dato = useMemo(() => dateLabel(new Date()), []);
+  /** Kontakten: vis «Optaget …» eller ej. Gemmes ikke — det er til det opslag hun laver nu. */
+  const [visDato, setVisDato] = useState(true);
+  const optagelse = useMemo(() => optagelsesLabel(virksomhedQuery.data?.kontraktStart), [virksomhedQuery.data?.kontraktStart]);
 
   const data: KreativData = {
     memberName: navnRet ?? profile?.full_name ?? "",
     companyName: virksomhedRet ?? companyName ?? "",
-    dateLabel: dato,
+    // Tom streng = linjen skjules i alle tre layouts (datoLinje.ts).
+    dateLabel: visDato && optagelse ? optagelse : "",
     portraetUrl: portraetQuery.data ?? profile?.avatar_url ?? null,
     logoUrl: logoQuery.data ?? null,
   };
@@ -179,6 +192,22 @@ export const DelingView = () => {
         <div>
           <label htmlFor="deling-virksomhed" className={HB_LABEL}>Virksomhed</label>
           <input id="deling-virksomhed" className={HB_INPUT} value={data.companyName} onChange={(e) => setVirksomhedRet(e.target.value)} autoComplete="off" />
+        </div>
+        <div className="sm:col-span-2">
+          <span className={HB_LABEL}>Datolinjen</span>
+          {optagelse ? (
+            <label className="flex items-center gap-2 text-sm text-hb-ink">
+              <input
+                type="checkbox"
+                checked={visDato}
+                onChange={(e) => setVisDato(e.target.checked)}
+                className="h-4 w-4 accent-hb-evergreen"
+              />
+              Vis «Optaget {optagelse}» på kreativen
+            </label>
+          ) : (
+            <p className="text-sm text-hb-ink-soft" data-datolinje-mangler="">Virksomheden har ingen startdato registreret, så linjen «Optaget …» vises ikke.</p>
+          )}
         </div>
         <Billedfelt
           titel="Portræt"

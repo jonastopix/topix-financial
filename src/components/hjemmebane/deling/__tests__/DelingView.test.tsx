@@ -35,6 +35,8 @@ vi.mock("@/hooks/useAuth", () => ({ useAuth: () => auth }));
 /** Databasen og storage som DelingView må se dem: kun logo-opslag og logo-skrivning; portrættet kun i storage. */
 const db = vi.hoisted(() => ({
   logoUrl: "https://x.test/company-logos/c1/logo" as string | null,
+  /** companies.contract_start_date — kontraktens start, kilden til «Optaget …». */
+  kontraktStart: "2025-11-14" as string | null,
   /** Objekter i hendes mappe i deling-portraetter. */
   portraetObjekter: [] as string[],
   logoSkrevet: [] as string[],
@@ -46,7 +48,7 @@ vi.mock("@/integrations/supabase/client", () => ({
     from: (tabel: string) => {
       db.fromKald.push(tabel);
       return {
-        select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: { logo_url: db.logoUrl }, error: null }) }) }),
+        select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: { logo_url: db.logoUrl, contract_start_date: db.kontraktStart }, error: null }) }) }),
         update: (payload: Record<string, unknown>) => {
           // Vej (a): KUN companies.logo_url må skrives herfra. Alt andet (navn,
           // virksomhed, profiles) kaster — som før.
@@ -103,6 +105,7 @@ beforeEach(() => {
   auth.companyName = "Hansen Byg ApS";
   auth.user = { id: "u1" };
   db.logoUrl = "https://x.test/company-logos/c1/logo";
+  db.kontraktStart = "2025-11-14";
   db.portraetObjekter = [];
   db.logoSkrevet = [];
   db.fromKald = [];
@@ -316,5 +319,65 @@ describe("DelingView — teksten til opslaget (nr. 3): fire veje og vejledningen
     expect(punkter[1]).toHaveTextContent("i første kommentar, ikke i opslaget");
     expect(punkter[2]).toHaveTextContent("den første time");
     expect(punkter[3]).toHaveTextContent("Billedet først, teksten under.");
+  });
+});
+
+describe("DelingView — «Optaget …» kommer fra kontraktens start, og linjen kan fjernes", () => {
+  const datolinjer = () => Array.from(document.querySelectorAll<HTMLElement>("[data-kreativ] [data-datolinje]"));
+  const layouts = () => new Set(Array.from(document.querySelectorAll<HTMLElement>("[data-kreativ]")).map((k) => k.getAttribute("data-kreativ")));
+
+  it("datoen er kontraktens måned (november 2025), ikke dagens — i alle tre layouts", async () => {
+    vis();
+    await screen.findByText("Vis «Optaget november 2025» på kreativen");
+    expect(layouts()).toEqual(new Set(["tre-paa-raekke", "optagelsen", "optaget-i"]));
+    const linjer = datolinjer();
+    expect(linjer.length).toBe(KREATIVER.length);
+    for (const l of linjer) {
+      expect(l).toHaveTextContent("Optaget november 2025");
+      expect(l.getAttribute("data-datolinje")).toBe("vist");
+    }
+    expect(document.body.textContent).not.toContain("september 2026");
+  });
+
+  it("uden contract_start_date vises ingen dato — ingen gættet måned, og kontakten siger hvorfor", async () => {
+    db.kontraktStart = null;
+    vis();
+    await screen.findByText(/Virksomheden har ingen startdato registreret/);
+    expect(screen.queryByRole("checkbox")).toBeNull();
+    for (const l of datolinjer()) {
+      expect(l.getAttribute("data-datolinje")).toBe("skjult");
+      expect(l.style.visibility).toBe("hidden");
+      expect(l.textContent).not.toMatch(/Optaget/);
+    }
+    expect(document.body.textContent).not.toMatch(/Optaget \w+ \d{4}/);
+  });
+
+  it("kontakten fjerner linjen i alle tre layouts med det samme — boksen står, teksten er væk — og sætter den tilbage", async () => {
+    vis();
+    const kontakt = await screen.findByRole("checkbox", { name: "Vis «Optaget november 2025» på kreativen" });
+    expect(kontakt).toBeChecked();
+    fireEvent.click(kontakt);
+    expect(layouts().size).toBe(3);
+    for (const l of datolinjer()) {
+      expect(l.getAttribute("data-datolinje")).toBe("skjult");
+      expect(l.style.visibility).toBe("hidden");
+      expect(l.textContent).not.toMatch(/Optaget/);
+      expect(l.textContent).toBe("\u00a0"); // højden bevares
+    }
+    // fuldskærmen følger med
+    fireEvent.click(kortet());
+    expect(within(screen.getByRole("dialog")).queryByText(/Optaget november 2025/)).toBeNull();
+    fireEvent.keyDown(document, { key: "Escape" });
+    fireEvent.click(kontakt);
+    for (const l of datolinjer()) expect(l).toHaveTextContent("Optaget november 2025");
+  });
+
+  it("teksterne til opslaget følger samme dato — og mister den når linjen er slået fra", async () => {
+    vis();
+    const kontakt = await screen.findByRole("checkbox");
+    const invitation = () => screen.getByText("Invitation").closest("[data-tekstudkast]")!;
+    expect(invitation()).toHaveTextContent("Hansen Byg ApS er med fra november 2025.");
+    fireEvent.click(kontakt);
+    expect(invitation()).toHaveTextContent("Hansen Byg ApS er med. Sig til");
   });
 });

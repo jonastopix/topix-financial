@@ -21,6 +21,7 @@ import { KreativBilledfelt } from "./KreativBilledfelt";
 import { KreativRaadgiverStak } from "./KreativRaadgiverStak";
 import { KreativLogokort } from "./KreativTrePaaRaekke";
 import type { KreativProps } from "./kreativProps";
+import { datoLinje, datoLinjeStil, harDato } from "./datoLinje";
 
 export const KreativOptagetI = ({ udgave, format, memberName, companyName, dateLabel, portraetUrl, logoUrl, visTomtilstand = true }: KreativProps) => {
   const m = OPTAGET_I[kombination(udgave, format)];
@@ -79,10 +80,10 @@ export const KreativOptagetI = ({ udgave, format, memberName, companyName, dateL
           gap: `${m.topblok.gap}px`,
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: `${m.oejenbryn.gap}px` }}>
+        <div style={{ display: "flex", alignItems: "center", gap: `${m.oejenbryn.gap}px`, ...datoLinjeStil(dateLabel) }} data-datolinje={harDato(dateLabel) ? "vist" : "skjult"}>
           <span style={{ display: "block", width: `${m.oejenbryn.streg.bredde}px`, height: `${m.oejenbryn.streg.hoejde}px`, background: m.oejenbryn.streg.farve }} />
           <span style={skriftStil(m.oejenbryn.label)}>
-            {TEKSTER.optaget} {dateLabel}
+            {datoLinje(dateLabel)}
           </span>
         </div>
         <div style={skriftStil(m.overskrift)}>
