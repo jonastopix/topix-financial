@@ -14,11 +14,30 @@
  * men fylder hele skærmen og har pile til at skifte.
  *
  * Tastatur: Escape = tilbage til overblikket; ← / → = forrige / næste.
+ *
+ * HENT PNG (14/9): én knap i topbjælken henter den åbne kreativ i dens eget
+ * format gennem motoren kreativEksport.hentKreativSomPng (den kloner
+ * elementet, fjerner skaleringen på klonen og tegner 1080×1080 / 1200×627
+ * med html2canvas). Mens den tegner: HbButton med Loader2 og disabled —
+ * husets mønster for en knap der arbejder (KontoView.tsx:165-183). Klik
+ * nummer to ignoreres af `henter`. Fejl siges med sonner
+ * (toast.error(titel, { description }), HbFeedbackDialog.tsx:80-84):
+ * motoren kaster når lærredet er tomt eller spærret af et billede uden
+ * CORS, eller når det ender i en forkert størrelse. Succes: toast.success
+ * med filnavn og mål.
+ *
+ * Tomtilstanden er til forhåndsvisningen, aldrig til filen (Jonas 14/9):
+ * mens der eksporteres, tegnes kreativen med visTomtilstand=false — sat
+ * med flushSync, så DOM'en er uden pladsholdere FØR html2canvas kloner.
  */
 
-import { useEffect, useId, useRef } from "react";
-import { ChevronLeft, ChevronRight, X } from "lucide-react";
+import { useEffect, useId, useRef, useState } from "react";
+import { flushSync } from "react-dom";
+import { ChevronLeft, ChevronRight, Download, Loader2, X } from "lucide-react";
+import { toast } from "sonner";
 import type { KreativData } from "@/lib/delingskreativ";
+import { hentKreativSomPng } from "@/lib/kreativEksport";
+import { HbButton } from "@/components/hjemmebane/HbButton";
 import { SkaleretKreativ } from "./SkaleretKreativ";
 import { kreativMaal, type KreativPost } from "./kreativer";
 
@@ -42,6 +61,7 @@ export const KreativFuldskaerm = ({ kreativer, data, indeks, onSkift, onLuk }: K
   const antalRef = useRef(kreativer.length);
   antalRef.current = kreativer.length;
   const titelId = useId();
+  const [henter, setHenter] = useState(false);
 
   useEffect(() => {
     const forrige = document.activeElement as HTMLElement | null;
@@ -70,6 +90,25 @@ export const KreativFuldskaerm = ({ kreativer, data, indeks, onSkift, onLuk }: K
   const harForrige = indeks > 0;
   const harNaeste = indeks < kreativer.length - 1;
 
+  const hentPng = async () => {
+    if (henter) return;
+    const element = panelRef.current?.querySelector<HTMLElement>("[data-kreativ]");
+    if (!element) {
+      toast.error("Kunne ikke hente PNG", { description: "Kreativen er ikke på skærmen endnu." });
+      return;
+    }
+    // Pladsholderne ud af DOM'en før klonen tages — synkront.
+    flushSync(() => setHenter(true));
+    try {
+      const r = await hentKreativSomPng(element, { layout: post.layout, udgave: post.udgave, format: post.format }, data.memberName);
+      toast.success("PNG hentet", { description: `${r.filnavn} · ${r.bredde}×${r.hoejde} px` });
+    } catch (e) {
+      toast.error("Kunne ikke hente PNG", { description: e instanceof Error ? e.message : "Ukendt fejl under tegningen." });
+    } finally {
+      setHenter(false);
+    }
+  };
+
   const pil = "rounded-full border border-hb-line bg-hb-surface p-2 text-hb-ink transition-colors hover:bg-hb-sage/50 disabled:opacity-30 disabled:hover:bg-hb-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-hb-evergreen/60";
 
   return (
@@ -93,6 +132,10 @@ export const KreativFuldskaerm = ({ kreativer, data, indeks, onSkift, onLuk }: K
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <HbButton type="button" onClick={hentPng} disabled={henter} aria-busy={henter} className="h-9 gap-1.5 px-4 text-sm">
+            {henter ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Download className="h-4 w-4" aria-hidden />}
+            {henter ? "Tegner…" : "Hent PNG"}
+          </HbButton>
           <button type="button" onClick={() => onSkift(indeks - 1)} disabled={!harForrige} aria-label="Forrige kreativ" className={pil}>
             <ChevronLeft className="h-5 w-5" aria-hidden />
           </button>
@@ -114,7 +157,7 @@ export const KreativFuldskaerm = ({ kreativer, data, indeks, onSkift, onLuk }: K
             dateLabel={data.dateLabel}
             portraetUrl={data.portraetUrl}
             logoUrl={data.logoUrl}
-            visTomtilstand
+            visTomtilstand={!henter}
           />
         </SkaleretKreativ>
       </div>
