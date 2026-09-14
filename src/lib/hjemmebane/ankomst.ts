@@ -58,3 +58,28 @@ export function pillenTraekkerSig(
 ): boolean {
   return active === "boardroom" && Boolean(tjekliste) && !tjekliste!.faerdig;
 }
+
+/**
+ * 3. VELKOMSTOVERLEJRINGENS TEKST FØLGER TILSTANDEN — set på skærm 14/9 kl.
+ *    13:01 (første menneske, GUID sat samme dag): teksten sagde «Tjeklisten
+ *    nederst på siden følger med dig», men på forsiden — netop dér hvor
+ *    overlejringen vises automatisk — har pillen trukket sig (dommen
+ *    ovenfor), og tjeklisten står i stedet i fokuskortet under «Dit næste
+ *    skridt» (BoardroomView, lag 1, øverst). Sætningen pegede på noget der
+ *    ikke var på skærmen. Overlejringen får samme dom som pillen (boksen
+ *    har allerede prop'en pilleTraekkerSig fra skallen), så ordene kan
+ *    følge den: forsiden → kortet; alle andre sider → boksen nederst på
+ *    skærmen (fuld bredde i bunden under lg, nederste hjørne på lg —
+ *    «nederst» er sandt begge steder). Når overlejringen vises på en anden
+ *    side, er boksen ikke lukket (den automatiske velkomst viser sig aldrig
+ *    for en lukket boks, og den eksplicitte åbnes fra listen), så pillen
+ *    eller den udfoldede boks ER der.
+ */
+export const VELKOMST_INDLEDNING = "Her er en kort gennemgang af, hvordan du får mest ud af platformen.";
+
+export function velkomstTekst(pilleTraekkerSig: boolean): string {
+  const hvor = pilleTraekkerSig
+    ? "Tjeklisten står under «Dit næste skridt» her på forsiden og følger med dig, indtil alt er på plads."
+    : "Tjeklisten ligger nederst på skærmen og følger med dig, indtil alt er på plads.";
+  return `${VELKOMST_INDLEDNING} ${hvor}`;
+}
