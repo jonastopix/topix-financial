@@ -32,6 +32,8 @@ export function raadgivereUdenRaekke(
 export const TYPE_FORNYELSE_BETALT = "fornyelse_betalt";
 export const TYPE_FORNYELSE_DUBLET = "fornyelse_dublet";
 export const TYPE_TRAEK_FEJLET = "traek_fejlet";
+/** Fund B (14/9): invitationen efter betaling gik ikke — samme navneform som traek_fejlet. */
+export const TYPE_INVITATION_FEJLET = "invitation_fejlet";
 
 const MODEL_TEKST: Record<Betalingsmodel, string> = {
   fuld: "på én gang",
@@ -133,6 +135,92 @@ export function beskedVedFejletTraek(a: {
     company_id: companyId,
     reference_type: "traek",
     reference_id: id,
+  };
+}
+
+// ── Invitationen efter betaling (fund B, 14/9) ─────────────────────────
+//
+// sikrIndgangsInvitation (stripe-webhook) svarer med fire udfald og kaster
+// aldrig; før 14/9 læste ingen svaret, og et betalt medlem uden login var
+// kun en linje i Lovables log. To udfald er normale og skal ikke larme:
+// «sendt» og «fandtes_allerede». To skal i klokken: «sprunget_over»
+// (secret INVITATION_AFSENDER_USER_ID mangler) og «fejlet» (opslag,
+// insert eller send-invitation-email fejlede). Typen er strukturelt lig
+// IndgangsInvitationResultat (sikrIndgangsInvitation.ts:38-42) — gentaget
+// her, så modulet forbliver uden import af noget der trækker Supabase ind.
+
+export type InvitationsUdfald =
+  | { udfald: "sendt"; email: string }
+  | { udfald: "fandtes_allerede"; email: string }
+  | { udfald: "sprunget_over"; grund: "secret_mangler" }
+  | { udfald: "fejlet"; aarsag: string };
+
+/**
+ * Strukturelt lig RaadgiverBesked. reference_type "company" + reference_id =
+ * companies.id: klokken linker til /virksomhed/{company_id} (klokke.ts
+ * raadgiverSti, default-grenen), og dedup'en i skrivRaadgiverBesked er
+ * advisor_id + type + reference_id — så et event Stripe gensender fem
+ * gange (webhooken svarer 500 ved kast) giver én besked pr. rådgiver. Nøglen
+ * er stabil på tværs af gensendelser OG på tværs af checkout-/fakturavejen,
+ * fordi begge veje ender på samme company_id; et Stripe-id kan ikke bruges
+ * (kolonnen er uuid). Prisen: fejler invitationen igen for samme virksomhed
+ * efter at rådgiveren har inviteret manuelt, ringer klokken ikke igen —
+ * den manuelle invitation er netop udvejen.
+ */
+export interface InvitationFejletBesked {
+  type: string;
+  title: string;
+  body: string;
+  company_id: string;
+  reference_type: "company";
+  reference_id: string;
+}
+
+/** «FLOOR1 I/S: invitationen efter betaling blev ikke sendt» · «Til lisbeth@… · secret INVITATION_AFSENDER_USER_ID mangler · …». */
+export function invitationFejletBeskedTekst(a: {
+  virksomhed: string;
+  email: string | null;
+  grund: string;
+  stripeReference: string;
+}): { title: string; body: string } {
+  const til = (a.email ?? "").trim() || "mailadresse ukendt";
+  return {
+    title: `${a.virksomhed}: invitationen efter betaling blev ikke sendt`,
+    body: [
+      `Til ${til}`,
+      a.grund,
+      `Betalingen er registreret (${a.stripeReference}) og adgangen er åben, men medlemmet har intet login`,
+      "Invitér manuelt fra /virksomheder (Inviter) — mailen bygges af invitationsrækken",
+    ].join(" · "),
+  };
+}
+
+/**
+ * Ren dom: skal der en besked i klokken for dette udfald? Null for «sendt»
+ * og «fandtes_allerede» — begge betyder at en pending invitation findes og
+ * mailen er gået (eller allerede var gået). company_id skal findes
+ * (kolonnen er NOT NULL), ellers null.
+ */
+export function beskedVedInvitationsUdfald(a: {
+  udfald: InvitationsUdfald;
+  virksomhed: string;
+  email: string | null;
+  companyId: string;
+  stripeReference: string;
+}): InvitationFejletBesked | null {
+  const companyId = (a.companyId ?? "").trim();
+  if (!companyId) return null;
+  if (a.udfald.udfald === "sendt" || a.udfald.udfald === "fandtes_allerede") return null;
+  const grund =
+    a.udfald.udfald === "sprunget_over"
+      ? "Secret INVITATION_AFSENDER_USER_ID mangler i Lovable — ingen invitation kan oprettes før den er sat"
+      : `Fejl: ${(a.udfald.aarsag ?? "").trim() || "ukendt"}`;
+  return {
+    type: TYPE_INVITATION_FEJLET,
+    ...invitationFejletBeskedTekst({ virksomhed: a.virksomhed, email: a.email, grund, stripeReference: a.stripeReference }),
+    company_id: companyId,
+    reference_type: "company",
+    reference_id: companyId,
   };
 }
 
