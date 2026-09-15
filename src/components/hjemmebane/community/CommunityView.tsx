@@ -19,6 +19,7 @@ import {
   byggPraesentationsSkabelon,
   KILDE_PRAESENTATION,
   KILDE_PRAESENTATION_LABEL,
+  PRAESENTATION_INSPIRATION,
   PRAESENTATION_PARAM,
   type PraesentationsSkabelon,
 } from "@/lib/hjemmebane/praesentation";
@@ -43,7 +44,7 @@ import { HbTag } from "../HbTag";
     UNDER feedet — feedet med composeren er fladens ærinde på en telefon,
     medlemmerne kommer efter.
 
-    PRÆSENTATIONEN (11/9, kort 60): /community?praesentation=1 (tjeklistens
+    PRÆSENTATIONEN (11/9, kort 60; uden overskrifter 16/9): /community?praesentation=1 (tjeklistens
     punkt) åbner composeren forudfyldt med byggPraesentationsSkabelon —
     titlen «Hej, jeg er {navn} fra {virksomhed}» og de tre profilspørgsmål
     med svarene fra profilen (companies.description, member_profiles).
@@ -305,6 +306,10 @@ export const CommunityView = () => {
               onTitelChange={setTitel}
               submitLabel="Del"
               startIndhold={udkast?.indholdJson}
+              /* Inspirationen (Jonas' valg A, 16/9) — KUN på præsentationsvejen,
+                 som composerens eksisterende placeholder-prop; undefined =
+                 composerens default for alle andre opslag. Ikke indhold. */
+              placeholder={udkast ? PRAESENTATION_INSPIRATION : undefined}
               onSubmit={(indholdJson) =>
                 opretMutation
                   .mutateAsync({ titel, indholdJson, kildeType: udkast ? KILDE_PRAESENTATION : undefined })
