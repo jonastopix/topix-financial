@@ -28,8 +28,29 @@
  *
  * FEJLEN («hvad Stripe sagde»): fakturaen bærer ikke afvisningsgrunden —
  * den ligger på PaymentIntent.last_payment_error (`code`, `decline_code`,
- * `message`, målt i referencen). Kalderen slår den op ved fejlet træk og
- * giver den hertil.
+ * `message`, `advice_code`, `network_decline_code` — målt i referencen
+ * 16/9). Kalderen slår den op ved fejlet træk og giver den hertil.
+ *
+ * VEJEN TIL PAYMENTINTENT'ET (målt i referencen 16/9, efter Livjas træk
+ * TBR-0007 stod uden grund): `Invoice.payments` er i den nuværende
+ * API-version «expandable» — «Payments for this invoice. Use invoice payment
+ * to get more details» — så webhookens event kan komme UDEN listen.
+ * Kalderen går derfor tre veje, i rækkefølge: (1) fakturaens egne felter
+ * (paymentIntentIdFraFaktura: ældre `payment_intent`, ellers en medsendt
+ * `payments.data[]`), (2) `GET /v1/invoice_payments?invoice={id}` (basil:
+ * InvoicePayment-listen, `payment.type === "payment_intent"` →
+ * `payment.payment_intent`; dokumenteret som «List all payments for an
+ * invoice»), (3) intet PaymentIntent → rækken skrives uden grund.
+ *
+ * PERIODEN (16/9): fakturaens `period_start`/`period_end` er IKKE
+ * abonnementsperioden — referencen: «The earliest/latest timestamp at which
+ * invoice items can be associated with this invoice. Use the line item
+ * period to get the service period for each price.» For subscription_create
+ * er de ens (målt: 2026-09-15T22:00Z begge, Livja). Perioden læses fra
+ * ABONNEMENTSLINJEN: `lines.data[]` med `parent.type ===
+ * "subscription_item_details"` (basil), ellers `type === "subscription"`
+ * (ældre), og dens `period.start`/`period.end` — «For subscription line
+ * items, this is the subscription period.» Fallback: fakturaens felter.
  */
 
 /** Det af Stripes Invoice-objekt som registreringen læser — begge API-former. */
@@ -55,6 +76,8 @@ export interface StripeAbonnementsFaktura {
   } | null;
   period_start?: number | null;
   period_end?: number | null;
+  /** Linjerne — abonnementslinjen bærer abonnementsperioden (16/9). */
+  lines?: { data?: StripeFakturaLinje[] | null } | null;
   total?: number | null;
   amount_due?: number | null;
   amount_paid?: number | null;
@@ -67,11 +90,34 @@ export interface StripeAbonnementsFaktura {
   hosted_invoice_url?: string | null;
 }
 
-/** PaymentIntent.last_payment_error — de tre felter vi gemmer. */
+/** Én fakturalinje — det registreringen læser (begge API-former). */
+export interface StripeFakturaLinje {
+  /** basil */
+  parent?: { type?: string | null; subscription_item_details?: { subscription_item?: string | null; subscription?: string | null } | null } | null;
+  /** ældre API-versioner */
+  type?: string | null;
+  subscription_item?: string | null;
+  period?: { start?: number | null; end?: number | null } | null;
+}
+
+/** InvoicePayment (basil) — det `GET /v1/invoice_payments?invoice=` giver. */
+export interface StripeInvoicePayment {
+  payment?: { type?: string | null; payment_intent?: string | { id?: string } | null } | null;
+}
+
+/**
+ * PaymentIntent.last_payment_error — de tre felter vi gemmer (fejl_kode,
+ * fejl_decline_code, fejl_besked) plus to der KUN bæres til klokken (16/9):
+ * advice_code («do_not_try_again» = Stripes nye forsøg vil ikke lykkes) og
+ * network_decline_code. company_traek har ingen kolonner til dem
+ * (20260903150000), og der laves ingen migration for dem.
+ */
 export interface TraekFejl {
   kode: string | null;
   decline_code: string | null;
   besked: string | null;
+  advice_code?: string | null;
+  network_decline_code?: string | null;
 }
 
 export type TraekUdfald = "betalt" | "fejlet";
@@ -144,16 +190,56 @@ export function paymentIntentIdFraFaktura(f: StripeAbonnementsFaktura): string |
   return null;
 }
 
-/** Fejlen fra et PaymentIntent-objekt — kun de tre felter. Null når intet er sat. */
+/** PaymentIntent'et fra InvoicePayment-listen (basil) — første af typen payment_intent. */
+export function paymentIntentIdFraInvoicePayments(liste: readonly StripeInvoicePayment[] | null | undefined): string | null {
+  for (const p of liste ?? []) {
+    if (p?.payment?.type === "payment_intent") {
+      const id = idAf(p.payment.payment_intent);
+      if (id) return id;
+    }
+  }
+  return null;
+}
+
+/** Fejlen fra et PaymentIntent-objekt — de tre felter vi gemmer, plus advice_code og network_decline_code til klokken. Null når intet er sat. */
 export function traekFejlFraPaymentIntent(pi: {
-  last_payment_error?: { code?: string | null; decline_code?: string | null; message?: string | null } | null;
+  last_payment_error?: {
+    code?: string | null;
+    decline_code?: string | null;
+    message?: string | null;
+    advice_code?: string | null;
+    network_decline_code?: string | null;
+  } | null;
 } | null | undefined): TraekFejl | null {
   const e = pi?.last_payment_error;
   if (!e) return null;
   const kode = (e.code ?? "").trim() || null;
   const decline = (e.decline_code ?? "").trim() || null;
   const besked = (e.message ?? "").trim() || null;
-  return kode || decline || besked ? { kode, decline_code: decline, besked } : null;
+  const advice = (e.advice_code ?? "").trim() || null;
+  const netvaerk = (e.network_decline_code ?? "").trim() || null;
+  return kode || decline || besked ? { kode, decline_code: decline, besked, advice_code: advice, network_decline_code: netvaerk } : null;
+}
+
+/**
+ * Abonnementsperioden (16/9): linjen med parent.type "subscription_item_details"
+ * (basil) eller type "subscription" (ældre), og dens period. Er der flere
+ * (fx en proration og selve abonnementet), tages den med den LÆNGSTE
+ * periode — prorationer er kortere. Null når ingen abonnementslinje findes
+ * eller dens period er ulæselig — så falder kalderen tilbage på fakturaens
+ * period_start/period_end.
+ */
+export function abonnementsperiodeFraLinjer(f: Pick<StripeAbonnementsFaktura, "lines">): { start: number; end: number } | null {
+  let bedste: { start: number; end: number } | null = null;
+  for (const l of f.lines?.data ?? []) {
+    const erAbonnement = l?.parent?.type === "subscription_item_details" || l?.type === "subscription";
+    if (!erAbonnement) continue;
+    const start = tal(l.period?.start);
+    const end = tal(l.period?.end);
+    if (start === null || end === null) continue;
+    if (!bedste || end - start > bedste.end - bedste.start) bedste = { start, end };
+  }
+  return bedste;
 }
 
 /**
@@ -193,8 +279,9 @@ export function bygTraekRaekke(
     stripe_invoice_id: f.id,
     stripe_customer_id: idAf(f.customer),
     art: (art ?? "").trim() || null,
-    periode_start: tsIso(f.period_start),
-    periode_slut: tsIso(f.period_end),
+    // Perioden fra abonnementslinjen (16/9); fakturaens felter kun som fallback.
+    periode_start: tsIso(abonnementsperiodeFraLinjer(f)?.start ?? f.period_start),
+    periode_slut: tsIso(abonnementsperiodeFraLinjer(f)?.end ?? f.period_end),
     beloeb_oere: tal(f.total) ?? tal(f.amount_due) ?? 0,
     betalt_oere: udfald === "betalt" ? (tal(f.amount_paid) ?? tal(f.total) ?? 0) : (tal(f.amount_paid) ?? 0),
     status: udfald,

@@ -2,9 +2,11 @@ import { describe, it, expect } from "vitest";
 import {
   abonnementIdFraFaktura,
   abonnementsMetadataFraFaktura,
+  abonnementsperiodeFraLinjer,
   bygTraekRaekke,
   maaRegistrereFejlet,
   paymentIntentIdFraFaktura,
+  paymentIntentIdFraInvoicePayments,
   traekFejlFraPaymentIntent,
   type StripeAbonnementsFaktura,
 } from "../../../supabase/functions/_shared/abonnementstraek.ts";
@@ -105,14 +107,98 @@ describe("paymentIntentIdFraFaktura", () => {
 });
 
 describe("traekFejlFraPaymentIntent", () => {
-  it("de tre felter fra last_payment_error", () => {
+  it("de tre felter fra last_payment_error — plus advice_code og network_decline_code (16/9), null når de mangler", () => {
     expect(traekFejlFraPaymentIntent({ last_payment_error: { code: "card_declined", decline_code: "insufficient_funds", message: "Your card has insufficient funds." } }))
-      .toEqual({ kode: "card_declined", decline_code: "insufficient_funds", besked: "Your card has insufficient funds." });
+      .toEqual({ kode: "card_declined", decline_code: "insufficient_funds", besked: "Your card has insufficient funds.", advice_code: null, network_decline_code: null });
+  });
+  it("Livja 16/9 (pi_3UG5Lo3CvBmCx5Pt0Mczu1dC): card_declined / invalid_account / do_not_try_again / 46 / «Invalid account.»", () => {
+    expect(traekFejlFraPaymentIntent({
+      last_payment_error: { type: "card_error", code: "card_declined", decline_code: "invalid_account", advice_code: "do_not_try_again", network_decline_code: "46", message: "Invalid account.", charge: "ch_3UG5Lo3CvBmCx5Pt0hv0XVPG" } as never,
+    })).toEqual({ kode: "card_declined", decline_code: "invalid_account", besked: "Invalid account.", advice_code: "do_not_try_again", network_decline_code: "46" });
   });
   it("null når fejlen mangler eller er tom", () => {
     expect(traekFejlFraPaymentIntent(null)).toBeNull();
     expect(traekFejlFraPaymentIntent({ last_payment_error: null })).toBeNull();
     expect(traekFejlFraPaymentIntent({ last_payment_error: { code: "", decline_code: null, message: " " } })).toBeNull();
+  });
+});
+
+describe("paymentIntentIdFraInvoicePayments — vej 2: GET /v1/invoice_payments?invoice= (16/9)", () => {
+  it("første InvoicePayment af typen payment_intent; udfoldet objekt; tom liste → null", () => {
+    expect(paymentIntentIdFraInvoicePayments([{ payment: { type: "payment_intent", payment_intent: "pi_3UG5Lo3CvBmCx5Pt0Mczu1dC" } }])).toBe("pi_3UG5Lo3CvBmCx5Pt0Mczu1dC");
+    expect(paymentIntentIdFraInvoicePayments([{ payment: { type: "charge", payment_intent: null } }, { payment: { type: "payment_intent", payment_intent: { id: "pi_2" } } }])).toBe("pi_2");
+    expect(paymentIntentIdFraInvoicePayments([])).toBeNull();
+    expect(paymentIntentIdFraInvoicePayments(null)).toBeNull();
+  });
+});
+
+// ── Perioden fra abonnementslinjen (16/9) ──
+//
+// Livja, TBR-0007 (subscription_create): fakturaens period_start = period_end
+// = 2026-09-15T22:00Z — nul-lang. Linjens period: 15/9 22:00Z → 15/10 22:00Z.
+// Referencen: «Use the line item period to get the service period for each
+// price.» Rækken skal bære linjens periode; fakturaens kun som fallback.
+const LIVJA_START = Date.UTC(2026, 8, 15, 22) / 1000;
+const LIVJA_SLUT = Date.UTC(2026, 9, 15, 22) / 1000;
+const livja: StripeAbonnementsFaktura = {
+  id: "in_1UG4PE3CvBmCx5Pt5LSqqIW2",
+  customer: "cus_livja",
+  parent: { type: "subscription_details", subscription_details: { subscription: "sub_livja", metadata: { art: "migreret", company_id: COMPANY } } },
+  period_start: LIVJA_START,
+  period_end: LIVJA_START,
+  lines: {
+    data: [
+      { parent: { type: "subscription_item_details", subscription_item_details: { subscription_item: "si_x", subscription: "sub_livja" } }, period: { start: LIVJA_START, end: LIVJA_SLUT } },
+    ],
+  },
+  total: 437_500,
+  amount_due: 437_500,
+  amount_paid: 0,
+  attempt_count: 1,
+  next_payment_attempt: Date.UTC(2026, 8, 19, 1, 1) / 1000,
+  status: "open",
+  billing_reason: "subscription_create",
+  number: "TBR-0007",
+};
+
+describe("abonnementsperiodeFraLinjer — linjen med parent.subscription_item_details (basil) eller type subscription (ældre)", () => {
+  it("Livja: subscription_create med nul-lang fakturaperiode → linjens periode", () => {
+    expect(abonnementsperiodeFraLinjer(livja)).toEqual({ start: LIVJA_START, end: LIVJA_SLUT });
+  });
+  it("ældre form: type «subscription»", () => {
+    expect(abonnementsperiodeFraLinjer({ lines: { data: [{ type: "subscription", subscription_item: "si", period: { start: 10, end: 20 } }] } })).toEqual({ start: 10, end: 20 });
+  });
+  it("proration og abonnement på samme faktura: den længste periode er abonnementets", () => {
+    const f = { lines: { data: [
+      { parent: { type: "subscription_item_details", subscription_item_details: { subscription_item: "si", subscription: "sub" } }, period: { start: 15, end: 20 } },
+      { parent: { type: "subscription_item_details", subscription_item_details: { subscription_item: "si", subscription: "sub" } }, period: { start: 10, end: 20 } },
+    ] } };
+    expect(abonnementsperiodeFraLinjer(f)).toEqual({ start: 10, end: 20 });
+  });
+  it("ingen abonnementslinje (invoice item, tom liste, ingen lines, ulæselig period) → null", () => {
+    expect(abonnementsperiodeFraLinjer({ lines: { data: [{ parent: { type: "invoice_item_details" }, period: { start: 1, end: 2 } }] } })).toBeNull();
+    expect(abonnementsperiodeFraLinjer({ lines: { data: [] } })).toBeNull();
+    expect(abonnementsperiodeFraLinjer({})).toBeNull();
+    expect(abonnementsperiodeFraLinjer({ lines: { data: [{ type: "subscription", period: { start: null, end: 2 } }] } })).toBeNull();
+  });
+});
+
+describe("bygTraekRaekke — perioden (16/9)", () => {
+  it("Livja fejlet: periode_start/periode_slut fra abonnementslinjen, ikke fakturaens nul-lange periode", () => {
+    const r = bygTraekRaekke(livja, "fejlet", COMPANY, "sub_livja", "migreret", null, NU);
+    expect(r.periode_start).toBe("2026-09-15T22:00:00.000Z");
+    expect(r.periode_slut).toBe("2026-10-15T22:00:00.000Z");
+    expect(r).toMatchObject({ status: "fejlet", forsoeg: 1, naeste_forsoeg_at: "2026-09-19T01:01:00.000Z", faktura_nummer: "TBR-0007", billing_reason: "subscription_create" });
+  });
+  it("betalt: samme regel — linjens periode", () => {
+    const r = bygTraekRaekke({ ...livja, status: "paid", amount_paid: 437_500 }, "betalt", COMPANY, "sub_livja", "migreret", null, NU);
+    expect(r.periode_start).toBe("2026-09-15T22:00:00.000Z");
+    expect(r.periode_slut).toBe("2026-10-15T22:00:00.000Z");
+  });
+  it("ingen abonnementslinje → fakturaens period_start/period_end (som før)", () => {
+    const r = bygTraekRaekke(basil, "betalt", COMPANY, "sub_x", null, null, NU);
+    expect(r.periode_start).toBe("2026-09-13T08:35:29.000Z");
+    expect(r.periode_slut).toBe("2026-10-13T08:35:29.000Z");
   });
 });
 
