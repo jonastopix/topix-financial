@@ -2759,6 +2759,7 @@ export type Database = {
           avatar_url: string | null
           company_name: string | null
           created_at: string
+          deling_hentet_at: string | null
           email: string | null
           full_name: string
           id: string
@@ -2773,6 +2774,7 @@ export type Database = {
           avatar_url?: string | null
           company_name?: string | null
           created_at?: string
+          deling_hentet_at?: string | null
           email?: string | null
           full_name?: string
           id?: string
@@ -2787,6 +2789,7 @@ export type Database = {
           avatar_url?: string | null
           company_name?: string | null
           created_at?: string
+          deling_hentet_at?: string | null
           email?: string | null
           full_name?: string
           id?: string
