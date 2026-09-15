@@ -31,6 +31,19 @@
  *   profil + virksomhed) via _shared/opslagsMail.ts — så portræt, navn,
  *   virksomhed og uddrag kan stå i mailen. Tråd der ikke længere er
  *   aktiv → dispose (som slettede rapporter), ingen mail.
+ * - UDLØBET-REGLEN (15/9, chattens beslutning på Jonas' krav «ingen
+ *   platformsmails i forlængelsesvinduet», DEL 2 «15. september» §15): en
+ *   række til en bruger hvis virksomheder ALLE er tier expired
+ *   (_shared/mailModtager.ts, computeMembershipTier) stemples uden mail
+ *   med grund «udloebet» — FØR chat-grupperingen og selectNotificationEmails,
+ *   for alle typer. Bruger uden company_members-række er uberørt.
+ * - TØRKØRSEL (15/9): body {"dry_run": true} → ingen sendManagedEmail,
+ *   ingen stempling, ingen email_send_log; svaret bærer dry_run, nu og
+ *   hvad der VILLE sendes/stemples. Tom eller ugyldig body (cronens {}) →
+ *   sender som i dag. «nu» (ISO) læses KUN i tørkørsel og styrer i PR 1
+ *   kun udløbet-reglen (køens egne ure er låst af kildeværnene). ALLE
+ *   sideeffekter går gennem to hjælpere i filen — send() og stempl() —
+ *   låst af src/lib/__tests__/sendNotificationEmail.dryrun.guard.test.ts.
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
@@ -95,9 +108,10 @@ const CHAT_NOTIFICATION_TYPES = new Set(["advisor_replied", "chat_reply"]);
 import { bulletproofButton, fallbackLinkBlock } from "../_shared/emailButtonHelpers.ts";
 import { escHtml, escHtmlMedLinjeskift } from "../_shared/htmlEscape.ts";
 import { opslagsMail } from "../_shared/opslagsMail.ts";
-import { sendManagedEmail, SENDER_FROM, VERIFIED_FROM_EMAIL } from "../_shared/managedEmail.ts";
+import { sendManagedEmail, SENDER_FROM, VERIFIED_FROM_EMAIL, type ManagedMailResultat } from "../_shared/managedEmail.ts";
 import { skalKoeStoppe } from "../_shared/mailFejl.ts";
 import { KVOTE_STATUSSER, MAX_EMAILS_PER_DAY, taelDagskvote } from "../_shared/dagskvote.ts";
+import { UDLOEBET_GRUND, fordelUdloebne, type VirksomhedTilMail } from "../_shared/mailModtager.ts";
 
 /** Nyt community-opslag (notify-community-opslag). Mailen bygges af tråden, ikke af body. */
 const COMMUNITY_OPSLAG_TYPE = "community_opslag";
@@ -160,6 +174,23 @@ Deno.serve(async (req) => {
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const admin = createClient(supabaseUrl, serviceRoleKey);
 
+    // ── Tørkørsel (chattens beslutning 15/9): KUN body {"dry_run": true}.
+    //    Tom eller ugyldig body (cronens {}) → sender som i dag. «nu»
+    //    læses kun i tørkørsel. Fejler læsningen, er det IKKE tørkørsel. ──
+    let toerKoersel = false;
+    let nu = new Date();
+    try {
+      const raaBody = await req.text();
+      const body: unknown = raaBody.trim() ? JSON.parse(raaBody) : {};
+      if (body && typeof body === "object" && (body as { dry_run?: unknown }).dry_run === true) {
+        toerKoersel = true;
+        const nuIso = (body as { nu?: unknown }).nu;
+        if (typeof nuIso === "string" && !Number.isNaN(new Date(nuIso).getTime())) nu = new Date(nuIso);
+      }
+    } catch {
+      toerKoersel = false;
+    }
+
     const fifteenMinAgo = new Date(Date.now() - 15 * 60 * 1000).toISOString();
 
     // Bredt net: 15 minutter er kun DB-forfilteret (den mindste mulige
@@ -196,7 +227,7 @@ Deno.serve(async (req) => {
     }
 
     if (!pending?.length) {
-      return json({ processed: 0, sent: 0, skipped: 0, venter_paa_tid: 0, venter_paa_vindue: 0, mails_sendt: 0 });
+      return json({ processed: 0, sent: 0, skipped: 0, udloebet: 0, venter_paa_tid: 0, venter_paa_vindue: 0, mails_sendt: 0, ...(toerKoersel ? { dry_run: true, nu: nu.toISOString(), ville_sende: [], ville_stemple: [] } : {}) });
     }
 
     // Load notification email templates (one query for all types)
@@ -214,7 +245,7 @@ Deno.serve(async (req) => {
     // Auto-create missing templates (disabled by default) so they appear in admin panel
     for (const [type, tplName] of Object.entries(NOTIFICATION_TEMPLATE_NAMES)) {
       const exists = (notifTemplates || []).some((t: any) => t.name === tplName);
-      if (!exists) {
+      if (!exists && !toerKoersel) {
         const defaultSubject = EMAIL_SUBJECTS[type] || tplName;
         await admin.from("email_templates").insert({
           name: tplName,
@@ -252,8 +283,83 @@ Deno.serve(async (req) => {
     // tidligt, stopper den igen ved den første række.
     let rateLimit: { retryAfterSeconds: number | null; tilbage: number } | null = null;
 
+    // ── SIDEEFFEKTERNE — KUN her (15/9). To hjælpere: send() kalder
+    //    sendManagedEmail, stempl() sætter email_sent_at. I tørkørsel
+    //    registrerer de kun i svaret. Låst af
+    //    src/lib/__tests__/sendNotificationEmail.dryrun.guard.test.ts. ──
+    type RaekkeRef = { id: string; user_id: string; type: string };
+    const villeSende: Array<{ id: string; user_id: string; type: string }> = [];
+    const villeStemple: Array<{ id: string; user_id: string; type: string; grund: string }> = [];
+    async function stempl(n: RaekkeRef, grund: string): Promise<void> {
+      if (toerKoersel) {
+        if (grund !== "sendt") villeStemple.push({ id: n.id, user_id: n.user_id, type: n.type, grund });
+        return;
+      }
+      await admin.from("notifications").update({ email_sent_at: new Date().toISOString() }).eq("id", n.id);
+    }
+    async function send(args: Parameters<typeof sendManagedEmail>[0], raekker: readonly RaekkeRef[]): Promise<ManagedMailResultat> {
+      if (toerKoersel) {
+        for (const n of raekker) villeSende.push({ id: n.id, user_id: n.user_id, type: n.type });
+        return { sent: true, messageId: "toerkoersel" };
+      }
+      return await sendManagedEmail(args);
+    }
+
     // Group by user for anti-spam check
     const userIds = [...new Set(pending.map((n: any) => n.user_id))];
+
+    // ── UDLØBET-REGLEN (15/9, _shared/mailModtager.ts): brugere hvis
+    //    virksomheder ALLE er tier expired får ingen platformsmails —
+    //    rækkerne stemples uden mail, grund «udloebet». Afgøres FØR
+    //    chat-grupperingen og selectNotificationEmails, for alle typer.
+    //    Koblingen går user_id → company_members → companies (company_id
+    //    er ikke sat på event_*/community_*/chat_reply-rækker). ──
+    const medlemskaber = new Map<string, VirksomhedTilMail[]>();
+    {
+      const { data: medlemRows, error: medlemFejl } = await admin
+        .from("company_members")
+        .select("user_id, company_id")
+        .in("user_id", userIds);
+      if (medlemFejl) console.error("[udloebet] company_members-opslag fejlede:", medlemFejl.message);
+      const companyIds = [...new Set((medlemRows || []).map((m: any) => m.company_id as string))];
+      const virksomhedById = new Map<string, VirksomhedTilMail>();
+      if (companyIds.length > 0) {
+        const { data: companyRows, error: companyFejl } = await admin
+          .from("companies")
+          .select("id, contract_end_date, subscription_status, subscription_current_period_end")
+          .in("id", companyIds);
+        if (companyFejl) console.error("[udloebet] companies-opslag fejlede:", companyFejl.message);
+        for (const c of (companyRows || []) as any[]) {
+          virksomhedById.set(c.id, {
+            contract_end_date: c.contract_end_date ?? null,
+            subscription_status: c.subscription_status ?? null,
+            subscription_current_period_end: c.subscription_current_period_end ?? null,
+          });
+        }
+      }
+      for (const m of (medlemRows || []) as any[]) {
+        const virk = virksomhedById.get(m.company_id);
+        if (!virk) continue; // virksomhed ikke fundet → ingen dom på den
+        const liste = medlemskaber.get(m.user_id) ?? [];
+        liste.push(virk);
+        medlemskaber.set(m.user_id, liste);
+      }
+    }
+    const { udloebne: udloebneIds } = fordelUdloebne(
+      pending.map((n: any) => ({ id: n.id as string, user_id: n.user_id as string })),
+      medlemskaber,
+      nu,
+    );
+    const udloebneSet = new Set(udloebneIds);
+    let udloebet = 0;
+    for (const notif of pending) {
+      if (!udloebneSet.has(notif.id)) continue;
+      await stempl(notif, UDLOEBET_GRUND);
+      console.log(`[dispose] IKKE SENDT — ${UDLOEBET_GRUND}: ${notif.type} ${notif.id} (alle brugerens virksomheder er expired)`);
+      udloebet++;
+      skipped++;
+    }
+    const raekkerTilMail = pending.filter((n: any) => !udloebneSet.has(n.id));
 
     // Advisor/admin role lookup for email suppression
     const { data: advisorRoleRows } = await admin
@@ -339,7 +445,7 @@ Deno.serve(async (req) => {
     const chatNotifsByUser = new Map<string, any[]>();
     const nonChatNotifs: any[] = [];
 
-    for (const notif of pending) {
+    for (const notif of raekkerTilMail) {
       if (CHAT_NOTIFICATION_TYPES.has(notif.type)) {
         const existing = chatNotifsByUser.get(notif.user_id) || [];
         existing.push(notif);
@@ -438,11 +544,8 @@ Deno.serve(async (req) => {
     //   rapport_vaek — rapporten er slettet/committet
     //   dublet       — samme (company, periode), nyeste vandt
     for (const notif of toDispose) {
-      await admin
-        .from("notifications")
-        .update({ email_sent_at: new Date().toISOString() })
-        .eq("id", notif.id);
       const grund = disposeGrund.get(notif.id) ?? "ukendt";
+      await stempl(notif, grund);
       const alderTimer = Math.round((Date.now() - new Date(notif.created_at).getTime()) / 3_600_000);
       console.log(
         `[dispose] IKKE SENDT — ${grund}: ${notif.type} ${notif.id} (ref=${notif.reference_id}, ${alderTimer} t gammel, grænse ${BEGIVENHED_MAKS_ALDER_MS / 3_600_000} t for begivenheder)`,
@@ -475,7 +578,7 @@ Deno.serve(async (req) => {
         for (const [userId, chatNotifs] of [...chatNotifsByUser.entries()]) {
           const { send: tilbage, disposed } = delChatKandidater(chatNotifs, laesteBeskedIds);
           for (const n of disposed) {
-            await admin.from("notifications").update({ email_sent_at: new Date().toISOString() }).eq("id", n.id);
+            await stempl(n, "set_i_app");
             console.log(`[dispose] IKKE SENDT — set_i_app: ${n.type} ${n.id} (besked ${n.reference_id} læst i chatten)`);
             skipped++;
           }
@@ -495,9 +598,7 @@ Deno.serve(async (req) => {
       }
 
       if (advisorUserIds.has(userId)) {
-        for (const n of chatNotifs) {
-          await admin.from("notifications").update({ email_sent_at: new Date().toISOString() }).eq("id", n.id);
-        }
+        for (const n of chatNotifs) await stempl(n, "advisor");
         console.log(`[advisor-skip] Skipping ${chatNotifs.length} chat emails for advisor ${userId}`);
         skipped += chatNotifs.length;
         continue;
@@ -505,9 +606,7 @@ Deno.serve(async (req) => {
 
       const userPrefs = prefsByUser.get(userId);
       if (userPrefs && (userPrefs as any).important === false) {
-        for (const n of chatNotifs) {
-          await admin.from("notifications").update({ email_sent_at: new Date().toISOString() }).eq("id", n.id);
-        }
+        for (const n of chatNotifs) await stempl(n, "pref_optout");
         console.log(`[pref-optout] User ${userId} opted out of important emails`);
         skipped += chatNotifs.length;
         continue;
@@ -539,7 +638,7 @@ Deno.serve(async (req) => {
         undefined
       );
 
-      const resultat = await sendManagedEmail({
+      const resultat = await send({
         adminClient: admin,
         to: userEmail,
         from: SENDER_FROM,
@@ -547,7 +646,7 @@ Deno.serve(async (req) => {
         html,
         text: subject,
         label: `notification-chat_aggregated`,
-      });
+      }, chatNotifs);
 
       if (!resultat.sent) {
         console.error(`Mail ikke sendt (${resultat.reason}) for aggregated chat notifs user ${userId}`);
@@ -566,9 +665,7 @@ Deno.serve(async (req) => {
       }
 
       // Mark all chat notifications as email_sent
-      for (const n of chatNotifs) {
-        await admin.from("notifications").update({ email_sent_at: new Date().toISOString() }).eq("id", n.id);
-      }
+      for (const n of chatNotifs) await stempl(n, "sendt");
 
       countMap[userId] = (countMap[userId] || 0) + 1;
       sent += chatNotifs.length;
@@ -638,10 +735,7 @@ Deno.serve(async (req) => {
       // Advisor/admin email suppression: skip email for Slack-covered events
       if (advisorUserIds.has(notif.user_id)) {
         // Mark email_sent_at to prevent future retries, but don't actually send
-        await admin
-          .from("notifications")
-          .update({ email_sent_at: new Date().toISOString() })
-          .eq("id", notif.id);
+        await stempl(notif, "advisor");
         console.log(`[advisor-skip] Skipping email for advisor ${notif.user_id}, type=${notif.type}`);
         skipped++;
         continue;
@@ -652,10 +746,7 @@ Deno.serve(async (req) => {
       if (userPrefs) {
         const priorityKey = notif.priority as string;
         if ((userPrefs as any)[priorityKey] === false) {
-          await admin
-            .from("notifications")
-            .update({ email_sent_at: new Date().toISOString() })
-            .eq("id", notif.id);
+          await stempl(notif, "pref_optout");
           console.log(`[pref-optout] User ${notif.user_id} opted out of ${priorityKey} emails`);
           skipped++;
           continue;
@@ -709,10 +800,7 @@ Deno.serve(async (req) => {
       if (notif.type === COMMUNITY_OPSLAG_TYPE) {
         const opslag = notif.reference_id ? opslagByTraadId.get(notif.reference_id) : undefined;
         if (!opslag) {
-          await admin
-            .from("notifications")
-            .update({ email_sent_at: new Date().toISOString() })
-            .eq("id", notif.id);
+          await stempl(notif, "traad_vaek");
           console.log(`[dispose] ${notif.type} ${notif.id} (traad=${notif.reference_id}) — tråd mangler/inaktiv, ingen mail`);
           skipped++;
           continue;
@@ -727,7 +815,7 @@ Deno.serve(async (req) => {
         ? `${tpl.sender_name} <${VERIFIED_FROM_EMAIL}>`
         : SENDER_FROM;
 
-      const resultat = await sendManagedEmail({
+      const resultat = await send({
         adminClient: admin,
         to: userEmail,
         from: senderFrom,
@@ -736,7 +824,7 @@ Deno.serve(async (req) => {
         text,
         label: `notification-${notif.type}`,
         idempotencyKey: `notification-${notif.id}`,
-      });
+      }, [notif]);
 
       if (!resultat.sent) {
         console.error(`Mail ikke sendt (${resultat.reason}) for ${notif.id}`);
@@ -753,10 +841,7 @@ Deno.serve(async (req) => {
       }
 
       // Mark email_sent_at
-      await admin
-        .from("notifications")
-        .update({ email_sent_at: new Date().toISOString() })
-        .eq("id", notif.id);
+      await stempl(notif, "sendt");
 
       countMap[notif.user_id] = (countMap[notif.user_id] || 0) + 1;
       sent++;
@@ -767,6 +852,8 @@ Deno.serve(async (req) => {
       processed: pending.length,
       sent,
       skipped,
+      // Udløbet-reglen (15/9): rækker stemplet uden mail fordi alle brugerens virksomheder er expired.
+      udloebet,
       venter_paa_tid: venterPaaTid.length,
       venter_paa_vindue: venterPaaVindue.length,
       mails_sendt: mailsSendt,
@@ -774,6 +861,8 @@ Deno.serve(async (req) => {
       rate_limited: rateLimit !== null,
       rate_limit_tilbage: rateLimit?.tilbage ?? 0,
       rate_limit_retry_after_seconds: rateLimit?.retryAfterSeconds ?? null,
+      // Tørkørsel (15/9): intet sendt, intet stemplet, intet i email_send_log — kun hvad der VILLE ske.
+      ...(toerKoersel ? { dry_run: true, nu: nu.toISOString(), ville_sende: villeSende, ville_stemple: villeStemple } : {}),
     };
     console.log("[send-notification-email] Summary:", JSON.stringify(summary));
     return json(summary);
