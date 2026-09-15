@@ -953,6 +953,8 @@ export type Database = {
           updated_at: string
           varsel_1_sendt_at: string | null
           varsel_2_sendt_at: string | null
+          vindue_1_sendt_at: string | null
+          vindue_2_sendt_at: string | null
         }
         Insert: {
           beslutning: string
@@ -964,6 +966,8 @@ export type Database = {
           updated_at?: string
           varsel_1_sendt_at?: string | null
           varsel_2_sendt_at?: string | null
+          vindue_1_sendt_at?: string | null
+          vindue_2_sendt_at?: string | null
         }
         Update: {
           beslutning?: string
@@ -975,6 +979,8 @@ export type Database = {
           updated_at?: string
           varsel_1_sendt_at?: string | null
           varsel_2_sendt_at?: string | null
+          vindue_1_sendt_at?: string | null
+          vindue_2_sendt_at?: string | null
         }
         Relationships: [
           {
