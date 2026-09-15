@@ -81,11 +81,20 @@
 // Kør først funktionen i hånden UDEN body (tørkørsel) og læs svaret, før
 // jobbet planlægges med dry_run: false. Jobbet planlægges IKKE i denne PR:
 // først når en tørkørsel med den nye kode er læst.
+//
+// VINDUESMAILENE (15/9, PR 3 — Jonas' valg A; chattens C1–C5, DEL 2 «15.
+// september» §17): motoren svarer nu også "vindue_1" (dag 1–10 efter
+// slutdato) og "vindue_2" (dag 11–14), kun for udloebet_tilbyd — regnet med
+// companies' RIGTIGE abonnementsfelter. Samme vej: pris (intet uden pris),
+// sendIndgangsMail, contact_email, fornavnAf(contact_person); labels
+// fornyelse-vindue1/-vindue2; stemplerne vindue_1_sendt_at /
+// vindue_2_sendt_at (migration 20260915230000) sættes KUN ved succes.
+// «Til og med {dato}» = slutdato + FORNYELSE_TILBUDSVINDUE_EFTER_UDLOEB_DAGE.
 
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
 import { authenticateServiceRole, corsHeaders } from "../_shared/edgeFunctionAuth.ts";
-import { afgoerForfaldentVarsel, type Varselsnummer } from "../_shared/fornyelsesvarsel.ts";
-import { LABEL_VARSEL_1, LABEL_VARSEL_2, varsel1Mail, varsel2Mail } from "../_shared/fornyelsesMail.ts";
+import { afgoerForfaldentVarsel, VINDUE_2_TIL_DAG, type Varselsnummer } from "../_shared/fornyelsesvarsel.ts";
+import { LABEL_VARSEL_1, LABEL_VARSEL_2, LABEL_VINDUE_1, LABEL_VINDUE_2, varsel1Mail, varsel2Mail, vindue1Mail, vindue2Mail } from "../_shared/fornyelsesMail.ts";
 import { beregnFornyelsespris, erFejl } from "../_shared/fornyelsespris.ts";
 import { formatDanskDato, fornavnAf, sendIndgangsMail } from "../_shared/indgangsMailAfsendelse.ts";
 
@@ -105,6 +114,10 @@ interface VarselsResultat {
   varsel_1: number;
   /** Motoren siger varsel 2 er forfaldent nu. */
   varsel_2: number;
+  /** Motoren siger vinduesmail 1 (dag 1–10 efter slutdato) er forfaldent nu (15/9). */
+  vindue_1: number;
+  /** Motoren siger vinduesmail 2 (dag 11–14 efter slutdato) er forfaldent nu (15/9). */
+  vindue_2: number;
   sprunget_over: {
     /** Motoren siger intet varsel (for tidligt, allerede sendt, slutdato passeret). */
     ingen_forfalden: number;
@@ -143,6 +156,8 @@ interface FornyelsesRaekke {
   beslutning: string;
   varsel_1_sendt_at: string | null;
   varsel_2_sendt_at: string | null;
+  vindue_1_sendt_at: string | null;
+  vindue_2_sendt_at: string | null;
 }
 
 interface VirksomhedsRaekke {
@@ -153,6 +168,14 @@ interface VirksomhedsRaekke {
   contact_email: string | null;
   indgangspris_oere: number | null;
   fornyelsespris_oere: number | null;
+  subscription_status: string | null;
+  subscription_current_period_end: string | null;
+}
+
+/** Sidste dag med tilbud: slutdatoens UTC-kalenderdag + tilbudsvinduets dage (fornyelse.ts). */
+function tilOgMedDato(contractEndDate: string): Date {
+  const d = new Date(contractEndDate);
+  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + VINDUE_2_TIL_DAG));
 }
 
 async function koerVarsler(
@@ -167,6 +190,8 @@ async function koerVarsler(
     ville_sende: 0,
     varsel_1: 0,
     varsel_2: 0,
+    vindue_1: 0,
+    vindue_2: 0,
     sprunget_over: { ingen_forfalden: 0, kan_ikke_handle: 0, ingen_virksomhed: 0, ingen_email: 0, ingen_pris: 0 },
     sprunget_over_liste: [],
     fejlet: 0,
@@ -180,7 +205,7 @@ async function koerVarsler(
   //    beslutninger i prod 6/9).
   const { data: rows, error: rowErr } = await supabase
     .from("company_fornyelse")
-    .select("company_id, beslutning, varsel_1_sendt_at, varsel_2_sendt_at")
+    .select("company_id, beslutning, varsel_1_sendt_at, varsel_2_sendt_at, vindue_1_sendt_at, vindue_2_sendt_at")
     .eq("beslutning", "tilbyd");
   if (rowErr) {
     console.error("[fornyelsesvarsel-cron] company_fornyelse-opslag fejlede:", rowErr.message);
@@ -196,7 +221,7 @@ async function koerVarsler(
   //    dømmes ikke her; det gør motoren.
   const { data: companies, error: companyErr } = await supabase
     .from("companies")
-    .select("id, name, contract_end_date, contact_person, contact_email, indgangspris_oere, fornyelsespris_oere")
+    .select("id, name, contract_end_date, contact_person, contact_email, indgangspris_oere, fornyelsespris_oere, subscription_status, subscription_current_period_end")
     .in("id", fornyelser.map((f) => f.company_id))
     .not("contract_end_date", "is", null);
   if (companyErr) {
@@ -228,6 +253,11 @@ async function koerVarsler(
           beslutning: "tilbyd",
           varsel_1_sendt_at: fornyelse.varsel_1_sendt_at,
           varsel_2_sendt_at: fornyelse.varsel_2_sendt_at,
+          vindue_1_sendt_at: fornyelse.vindue_1_sendt_at,
+          vindue_2_sendt_at: fornyelse.vindue_2_sendt_at,
+          // C2 (15/9): tilstanden EFTER slutdato dømmes med de rigtige abonnementsfelter.
+          subscription_status: company.subscription_status ?? null,
+          subscription_current_period_end: company.subscription_current_period_end ?? null,
         },
         now,
       );
@@ -252,7 +282,9 @@ async function koerVarsler(
       }
 
       if (varsel.varsel === 1) resultat.varsel_1++;
-      else resultat.varsel_2++;
+      else if (varsel.varsel === 2) resultat.varsel_2++;
+      else if (varsel.varsel === "vindue_1") resultat.vindue_1++;
+      else resultat.vindue_2++;
 
       // 4. Modtageren — som indgangen: contact_email. Tom adresse er ikke
       //    en fejl der vælter kørslen; den tælles og listes, så rådgiveren
@@ -317,9 +349,19 @@ async function koerVarsler(
         beloebKr,
       };
       // Varsel 2 bærer dagtallet (emne «i dag» / «i morgen» / dato) — det er
-      // motorens tal, ikke et nyt regnestykke.
-      const mail = varsel.varsel === 1 ? varsel1Mail(args) : varsel2Mail({ ...args, dageTilUdloeb: varsel.dage_til_udloeb });
-      const label = varsel.varsel === 1 ? LABEL_VARSEL_1 : LABEL_VARSEL_2;
+      // motorens tal, ikke et nyt regnestykke. Vinduesmailene bærer sidste
+      // dag med tilbud (slutdato + 14, C4).
+      const vindueArgs = { ...args, tilOgMedDato: formatDanskDato(tilOgMedDato(company.contract_end_date!)) };
+      const mail =
+        varsel.varsel === 1 ? varsel1Mail(args)
+        : varsel.varsel === 2 ? varsel2Mail({ ...args, dageTilUdloeb: varsel.dage_til_udloeb })
+        : varsel.varsel === "vindue_1" ? vindue1Mail(vindueArgs)
+        : vindue2Mail(vindueArgs);
+      const label =
+        varsel.varsel === 1 ? LABEL_VARSEL_1
+        : varsel.varsel === 2 ? LABEL_VARSEL_2
+        : varsel.varsel === "vindue_1" ? LABEL_VINDUE_1
+        : LABEL_VINDUE_2;
 
       const ok = await sendIndgangsMail({
         adminClient: supabase,
@@ -337,7 +379,11 @@ async function koerVarsler(
 
       // 7. Kun ved succes: stempel det varsel der faktisk gik. updated_at
       //    sættes her — company_fornyelse har ingen trigger (målt 7/9).
-      const stempelfelt = varsel.varsel === 1 ? "varsel_1_sendt_at" : "varsel_2_sendt_at";
+      const stempelfelt =
+        varsel.varsel === 1 ? "varsel_1_sendt_at"
+        : varsel.varsel === 2 ? "varsel_2_sendt_at"
+        : varsel.varsel === "vindue_1" ? "vindue_1_sendt_at"
+        : "vindue_2_sendt_at";
       const { error: stempelErr } = await supabase
         .from("company_fornyelse")
         .update({ [stempelfelt]: now.toISOString(), updated_at: now.toISOString() })

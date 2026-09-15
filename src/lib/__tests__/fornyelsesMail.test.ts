@@ -4,8 +4,12 @@ import {
   FORNYELSE_FORSIDE_URL,
   LABEL_VARSEL_1,
   LABEL_VARSEL_2,
+  LABEL_VINDUE_1,
+  LABEL_VINDUE_2,
   varsel1Mail,
   varsel2Mail,
+  vindue1Mail,
+  vindue2Mail,
 } from "../../../supabase/functions/_shared/fornyelsesMail.ts";
 
 // Fornyelsens to varsler (7/9): rene funktioner i _shared, testet herfra
@@ -115,5 +119,72 @@ describe("labels til email_send_log (næste PR)", () => {
     expect(LABEL_VARSEL_1).toBe("fornyelse-varsel1");
     expect(LABEL_VARSEL_2).toBe("fornyelse-varsel2");
     expect(LABEL_VARSEL_1).not.toBe(LABEL_VARSEL_2);
+  });
+});
+
+// ── VINDUESMAILENE (15/9, PR 3 — Jonas' valg A; teksterne i §17) ─────────────
+const CARMA = { fornavn: "Camilla", virksomhed: "CARMA STUDIO", slutDato: "11. september 2026", beloebKr: 20000, tilOgMedDato: "25. september 2026" };
+
+describe("vindue 1 — dag 1–10 efter slutdato", () => {
+  const m = vindue1Mail(CARMA);
+
+  it("emnet: udløbet, kan stadig forlænge til og med datoen", () => {
+    expect(m.subject).toBe("Dit medlemskab er udløbet — du kan stadig forlænge til og med 25. september 2026");
+  });
+
+  it("indholdet: tiltale, virksomhed, slutdato, «adgangen … er lukket», til og med-datoen, prisen, knappen til forsiden, kontaktadressen, Jonas", () => {
+    expect(m.html).toContain("Kære Camilla,");
+    expect(m.html).toContain("CARMA STUDIO");
+    expect(m.html).toContain("udløb 11. september 2026");
+    expect(m.html).toContain("adgangen til platformen er lukket");
+    expect(m.html).toContain("forlænge til og med 25. september 2026");
+    expect(m.html).toContain("20.000 kr. ekskl. moms");
+    expect(m.html).toContain("Forny medlemskabet");
+    expect(m.html).toContain(`href="${FORNYELSE_FORSIDE_URL}"`);
+    expect(m.html).toContain("kontakt@theboardroom.dk");
+    expect(m.html).toContain("Jonas Herlev");
+    expect(m.html).not.toMatch(/stripe\.com|checkout\.|Betal nu/);
+  });
+
+  it("uden fornavn: «Kære,» — aldrig «Kære ,»; og et navn med & og < escapes", () => {
+    const html = vindue1Mail({ ...CARMA, fornavn: null, virksomhed: "Friends & Fries <ApS>" }).html;
+    expect(html).toContain("Kære,");
+    expect(html).not.toContain("Kære ,");
+    expect(html).toContain("Friends &amp; Fries &lt;ApS&gt;");
+    expect(html).not.toContain("<ApS>");
+  });
+});
+
+describe("vindue 2 — dag 11–14 efter slutdato", () => {
+  const m = vindue2Mail(CARMA);
+
+  it("emnet: sidste chance, tilbuddet lukker datoen", () => {
+    expect(m.subject).toBe("Sidste chance: tilbuddet om at forlænge lukker 25. september 2026");
+  });
+
+  it("indholdet: «Hej», virksomhed, datoen, prisen, knappen — en hård deadline uden smuthul (Jonas 15/9): ingen «skriv til os», intet «par klik», ingen kontaktadresse; kortere end vindue 1, ingen Calendly", () => {
+    expect(m.html).toContain("Hej Camilla,");
+    expect(m.html).toContain("CARMA STUDIO");
+    expect(m.html).toContain("lukker 25. september 2026");
+    expect(m.html).not.toContain("skriv til os");
+    expect(m.html).not.toContain("skrive til os");
+    expect(m.html).not.toContain("par klik");
+    expect(m.html).not.toContain("kontakt@theboardroom.dk");
+    expect(m.html).toContain("20.000 kr. ekskl. moms");
+    expect(m.html).toContain(`href="${FORNYELSE_FORSIDE_URL}"`);
+    expect(m.html).not.toContain(FORNYELSE_CALENDLY_URL);
+    expect(m.html.length).toBeLessThan(vindue1Mail(CARMA).html.length);
+  });
+
+  it("uden fornavn: «Hej,» — aldrig «Hej ,»", () => {
+    const html = vindue2Mail({ ...CARMA, fornavn: null }).html;
+    expect(html).toContain("Hej,");
+    expect(html).not.toContain("Hej ,");
+  });
+
+  it("labels: to nye, forskellige fra varslernes", () => {
+    expect(LABEL_VINDUE_1).toBe("fornyelse-vindue1");
+    expect(LABEL_VINDUE_2).toBe("fornyelse-vindue2");
+    expect(new Set([LABEL_VARSEL_1, LABEL_VARSEL_2, LABEL_VINDUE_1, LABEL_VINDUE_2]).size).toBe(4);
   });
 });

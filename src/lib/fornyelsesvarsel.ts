@@ -36,7 +36,7 @@
  * hjælperen en dag blive eksporteret (i begge kopier), er det ét kald at
  * bytte — reglen «én dagberegning i huset» holder allerede nu.
  */
-import { afgoerFornyelsestilstand, FORNYELSE_IKRAFT_DATO, type Fornyelsesbeslutning, type FornyelseStatus } from "./fornyelse";
+import { afgoerFornyelsestilstand, FORNYELSE_IKRAFT_DATO, FORNYELSE_TILBUDSVINDUE_EFTER_UDLOEB_DAGE, type Fornyelsesbeslutning, type FornyelseStatus } from "./fornyelse";
 
 /**
  * Varsel 1 sendes når der er så mange dage ELLER FÆRRE til slutdatoen
@@ -55,7 +55,31 @@ export const VARSEL_1_DAGE_FOER = 30;
  */
 export const VARSEL_2_DAGE_FOER = 7;
 
-export type Varselsnummer = 1 | 2;
+/**
+ * VINDUESMAILENE (Jonas 15/9, valg A; chattens C1–C3, DEL 2 «15. september»
+ * §17): efter slutdatoen kan et medlem med «tilbyd» stadig forlænge i
+ * FORNYELSE_TILBUDSVINDUE_EFTER_UDLOEB_DAGE dage (udloebet_tilbyd). To
+ * mails i det vindue: vindue 1 er forfaldent dag 1 til og med dag 10 efter
+ * slutdato (indhentning ved en mistet cron-dag), vindue 2 dag 11 til og med
+ * dag 14. Er begge forfaldne (dag ≥ 11 uden vindue 1), sendes KUN vindue 2
+ * — samme spring som den sene beslutning før slutdato. Stemplerne er
+ * vindue_1_sendt_at / vindue_2_sendt_at på company_fornyelse (migration
+ * 20260915230000). Dag 0 er stadig varslernes (varsel 2 kan gå på
+ * slutdagen); dag 15+ er udloebet_vindue_lukket → intet.
+ */
+export const VINDUE_1_FRA_DAG = 1;
+export const VINDUE_1_TIL_DAG = 10;
+export const VINDUE_2_FRA_DAG = 11;
+/** Sidste dag med tilbud = tilbudsvinduets længde (fornyelse.ts). */
+export const VINDUE_2_TIL_DAG = FORNYELSE_TILBUDSVINDUE_EFTER_UDLOEB_DAGE;
+
+/**
+ * Udfaldet — HUSETS FORM (valgt 15/9): samme felt, højst ét forfaldent, det
+ * højeste trin vinder. 1 og 2 er varslerne FØR slutdato; "vindue_1" og
+ * "vindue_2" er vinduesmailene EFTER. Ikke en ny art ved siden af:
+ * kalderen har ét sted at læse, og «højst ét pr. dag» gælder hele vejen.
+ */
+export type Varselsnummer = 1 | 2 | "vindue_1" | "vindue_2";
 
 export interface FornyelsesvarselInput {
   /** companies.contract_end_date — date-kolonne («YYYY-MM-DD»). NULL = ingen slutdato, intet at varsle om. */
@@ -66,6 +90,14 @@ export interface FornyelsesvarselInput {
   varsel_1_sendt_at: string | null;
   /** company_fornyelse.varsel_2_sendt_at — som ovenfor for varsel 2. */
   varsel_2_sendt_at: string | null;
+  /** company_fornyelse.vindue_1_sendt_at — stemplet når vinduesmail 1 (dag 1–10 efter slutdato) ER sendt. NULL = ikke sendt. */
+  vindue_1_sendt_at: string | null;
+  /** company_fornyelse.vindue_2_sendt_at — som ovenfor for vinduesmail 2 (dag 11–14). */
+  vindue_2_sendt_at: string | null;
+  /** companies.subscription_status — abonnementsfelterne dømmer tilstanden EFTER slutdato (C2): et medlem med aktivt abonnement er ikke udløbet. */
+  subscription_status: string | null;
+  /** companies.subscription_current_period_end — som ovenfor. */
+  subscription_current_period_end: string | null;
 }
 
 export interface Fornyelsesvarsel {
@@ -130,13 +162,16 @@ function dageTekst(n: number): string {
  *                           i tilstandsmotoren).
  *   3. slutdato ulæselig    intet — fail-closed som betalingsfrist: kendes
  *                           uret ikke, sendes der ikke.
- *   4. slutdato passeret    intet. Tilbuddet lever stadig 14 dage
- *                           (udloebet_tilbyd → udloebet_vindue_lukket), men
- *                           et VARSEL om noget der allerede er sket, er
- *                           forkert: mailene siger «din aftale udløber om N
- *                           dage», og det er ikke sandt længere. Hvad
- *                           medlemmet får EFTER slutdatoen, er gatens og
- *                           tilbudsvinduets sag, ikke varslernes.
+ *   4. slutdato passeret    VINDUESMAILENE (15/9) — kun når tilstanden er
+ *                           udloebet_tilbyd (tilbyd + inde i de 14 dage +
+ *                           ingen aktivt abonnement): dag 11–14 → vindue 2
+ *                           hvis ikke sendt (vindue 1 springes over);
+ *                           dag 1–10 → vindue 1 hvis hverken 1 eller 2 er
+ *                           sendt. ALT ANDET efter slutdato → intet, som
+ *                           før: lukket vindue, stemplet, selvbetjener
+ *                           (abonnent), tilbyd_ikke/ingen række (gren 1).
+ *                           Varslerne 1 og 2 sendes stadig KUN før/på
+ *                           slutdatoen — mailene siger «udløber om N dage».
  *   5. kan ikke handle      intet, med tilstanden som grund (blokeret_af).
  *                           Tilstandsmotoren (afgoerFornyelsestilstand) er
  *                           den samme dom som hent-fornyelsestilbud og
@@ -196,16 +231,15 @@ export function afgoerForfaldentVarsel(
   }
 
   // Dagene OG TILSTANDEN fra fornyelse.ts (se filhovedet). Abonnements-
-  // felterne sendes som null: et varsel kan kun være forfaldent på eller
-  // før slutdagen (gren 4), og til og med slutdagen er tier «full» uanset
-  // abonnement (computeMembershipTier) — så status kan ikke afhænge af dem
-  // på nogen dag hvor der sendes. Derfor kan motoren her svare rigtigt
-  // uden at kalderen bærer flere felter.
+  // felterne sendes MED (C2, 15/9): til og med slutdagen er tier «full»
+  // uanset abonnement, så varslerne før slutdato er uændrede — men EFTER
+  // slutdato afgør de om medlemmet er udløbet (udloebet_tilbyd) eller
+  // selvbetjener (aktivt abonnement), og kun den første får vinduesmails.
   const { dage_til_udloeb, status } = afgoerFornyelsestilstand(
     {
       contract_end_date: input.contract_end_date,
-      subscription_status: null,
-      subscription_current_period_end: null,
+      subscription_status: input.subscription_status,
+      subscription_current_period_end: input.subscription_current_period_end,
       beslutning: input.beslutning,
     },
     now,
@@ -216,11 +250,46 @@ export function afgoerForfaldentVarsel(
     return { varsel: null, grund: "intet: slutdatoen kan ikke læses", dage_til_udloeb: null };
   }
 
-  // 4. SLUTDATO PASSERET — et varsel om noget der allerede er sket, er forkert.
+  // 4. SLUTDATO PASSERET — vinduesmailene (Jonas 15/9, valg A; C1–C2), ELLER
+  //    intet som før for alt der ikke er et forfaldent vinduesmail.
   if (dage_til_udloeb < 0) {
+    const dagEfter = -dage_til_udloeb;
+    const passeret = `slutdatoen er passeret for ${dageTekst(dagEfter)} siden`;
+    if (status !== "udloebet_tilbyd") {
+      const hvorfor =
+        status === "udloebet_vindue_lukket"
+          ? "tilbudsvinduet er lukket"
+          : status === "selvbetjener"
+            ? "medlemmet er selvbetjener (aktivt abonnement)"
+            : `tilstanden er ${status}`;
+      return { varsel: null, grund: `intet: ${passeret} — ${hvorfor}`, dage_til_udloeb };
+    }
+    // Inde i vinduet (dag 1–14) med tilbyd: det højeste forfaldne trin vinder.
+    if (dagEfter >= VINDUE_2_FRA_DAG) {
+      if (input.vindue_2_sendt_at === null) {
+        const spring = input.vindue_1_sendt_at === null ? " (vindue 1 springes over)" : "";
+        return {
+          varsel: "vindue_2",
+          grund: `vindue 2 forfaldent: ${passeret}; tilbuddet lukker efter dag ${VINDUE_2_TIL_DAG}${spring}`,
+          dage_til_udloeb,
+        };
+      }
+      return { varsel: null, grund: `intet: ${passeret} — vindue 2 allerede sendt ${stempeldato(input.vindue_2_sendt_at)}`, dage_til_udloeb };
+    }
+    if (input.vindue_1_sendt_at === null && input.vindue_2_sendt_at === null) {
+      return {
+        varsel: "vindue_1",
+        grund: `vindue 1 forfaldent: ${passeret}; kan forlænge til og med dag ${VINDUE_2_TIL_DAG}`,
+        dage_til_udloeb,
+      };
+    }
+    const sendt =
+      input.vindue_1_sendt_at !== null
+        ? `vindue 1 allerede sendt ${stempeldato(input.vindue_1_sendt_at)}`
+        : `vindue 2 allerede sendt ${stempeldato(input.vindue_2_sendt_at as string)}`;
     return {
       varsel: null,
-      grund: `intet: slutdatoen er passeret for ${dageTekst(-dage_til_udloeb)} siden`,
+      grund: `intet: ${passeret} — ${sendt}; vindue 2 forfalder om ${dageTekst(VINDUE_2_FRA_DAG - dagEfter)}`,
       dage_til_udloeb,
     };
   }
