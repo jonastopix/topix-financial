@@ -43,6 +43,48 @@
  * event-reminders/index.ts:42 og maanedsnoegle.ts:21. Aldrig et fast
  * UTC-offset.
  *
+ * DEL 2 (15/9 aften) — VINDUET, MAPNINGEN OG FORDELINGEN. CHATTENS
+ * beslutninger 15/9 (ikke Jonas'):
+ *   a) Samlemailen sendes kun i vinduet 17:00–20:00 dansk. Ikke sendt inden
+ *      20 → næste dag kl. 17. Begrundelse: Jonas' valg af kl. 17 (en
+ *      aftenmail læses først næste morgen) og køens vindue 07–20 (fund 18).
+ *   b) event_published → punkt: titel = events.title; tekst =
+ *      «{datoOrd(starts_at)} kl. {tidOrd(starts_at)}» + « · Online» når
+ *      meet_url er sat; link = rækkens deep_link; oprettet = created_at.
+ *      UDELADES (stemples uden mail, med grund) når eventet ikke findes,
+ *      status ≠ 'published', eller starts_at ≤ nu.
+ *   c) community_opslag → punkt: titel = trådens titel; tekst = «{navn} har
+ *      præsenteret sig» når kilde_type = 'praesentation', ellers «{navn}
+ *      har skrevet i Community»; navn efter husets visningsnavn-regel
+ *      (opslagsMail.ts:134, importeret); link = deep_link; erPraesentation
+ *      = (kilde_type = 'praesentation'). UDELADES når tråden mangler eller
+ *      status ≠ 'aktiv', eller når modtageren har åbnet tråden — samme dom
+ *      som køen (set_i_app === true → dispose, notificationEmailSelection
+ *      .ts:311-314; opslaget i community_visninger er I/O i
+ *      send-notification-email/index.ts:380-399 og gøres af kalderen).
+ *   d) Forældet (erForaeldetTilSamlemail, > 48 t) → stemples uden mail, med
+ *      grund. Køens erForaeldet (12 t, BEGIVENHED_TYPES) bruges IKKE her —
+ *      den skal undtages for samlemailens typer i integrationen.
+ *   e) Pr. modtager: rådgiver/admin → rækkerne stemples uden mail (som i
+ *      dag); notification_email_prefs.important === false → stemples uden
+ *      mail; ingen auth-mail → venter (intet stempel); dagskvote nået →
+ *      venter.
+ *   f) «Sidst sendt» = seneste email_send_log med template_name
+ *      'notification-samlemail' og status 'sent' for modtagerens mail.
+ *      Label 'notification-samlemail' (tæller i dagskvoten som én mail).
+ *      Idempotency-nøgle 'notification-samlemail-{userId}-{danskDato(nu)}'
+ *      — prod har UNIQUE (message_id) WHERE status='sent' (målt 15/9), så
+ *      en anden sendt række samme dag afvises af databasen.
+ *   g) Fornavn = første ord i profiles.full_name; tomt → null. Samme regel
+ *      som fornavnAf (indgangsMailAfsendelse.ts:130-134), som ikke kan
+ *      importeres her: den fil importerer managedEmail (npm) og en https:-
+ *      type, og vitest læser den ikke. Reglen står derfor her som
+ *      fornavnFraFuldtNavn med kilde.
+ * INVARIANT i fordelSamlemail: hver række optræder præcis ét sted (mail,
+ * stemplesUdenMail eller venter) — testet som notificationEmailSelection's
+ * «regnestykket går op». Modtagerne afgøres af skriverne
+ * (get_event_non_responders, get_community_medlemmer) og ændres ikke her.
+ *
  * RAMMEN ER EN KOPI — ÅBENT: indgangsMailHtml (./indgangsMail.ts:122-152)
  * er eksporteret, men dens kontrakt escaper alle afsnit og kræver en
  * underskrift, så linjer med fed titel, link-anker og gruppeoverskrift kan
@@ -56,6 +98,7 @@ import { escHtml } from "./htmlEscape.ts";
 import { bulletproofButton, fallbackLinkBlock } from "./emailButtonHelpers.ts";
 import { tiltale } from "./indgangsMail.ts";
 import { copenhagenHour } from "./notificationEmailSelection.ts";
+import { visningsnavn } from "./opslagsMail.ts";
 
 
 const TZ = "Europe/Copenhagen";
@@ -74,6 +117,8 @@ export function erSamlemailType(type: string): boolean {
 
 /** Jonas 15/9: samlemailen sendes fra kl. 17:00 dansk tid. */
 export const SAMLEMAIL_TIME_DANSK = 17;
+/** Chattens beslutning 15/9 (a): kun i vinduet 17–20 dansk (eksklusiv 20); ikke sendt inden 20 → næste dag kl. 17. */
+export const SAMLEMAIL_SLUT_TIME_DANSK = 20;
 
 /**
  * Ældre end dette er forældet og kommer ikke med. Regnestykket: samlemailen
@@ -88,16 +133,28 @@ export function danskDato(t: Date): string {
   return t.toLocaleDateString("sv-SE", { timeZone: TZ });
 }
 
+/** Er dansk klokkeslæt inden for vinduet 17 ≤ time < 20? */
+export function erISamlemailVindue(nu: Date): boolean {
+  const time = copenhagenHour(nu);
+  return time >= SAMLEMAIL_TIME_DANSK && time < SAMLEMAIL_SLUT_TIME_DANSK;
+}
+
+/** Er der allerede sendt en samlemail til modtageren på nu's danske dato? */
+export function erSendtIDag(nu: Date, sidstSendt: Date | null): boolean {
+  return sidstSendt !== null && danskDato(sidstSendt) === danskDato(nu);
+}
+
 /**
- * Er det tid til samlemailen? Sand når dansk klokkeslæt for nu er ≥ 17:00
- * OG (sidstSendt er null ELLER sidstSendt ligger på en anden dansk dato end
- * nu). Én pr. modtager pr. dansk døgn (Jonas 15/9). En fejlet kørsel kl.
- * 17:00 prøves igen ved næste kørsel samme aften (datoen er stadig ny);
- * efter midnat venter rækkerne til næste dag kl. 17.
+ * Er det tid til samlemailen? Sand når dansk klokkeslæt for nu er i vinduet
+ * 17 ≤ time < 20 OG (sidstSendt er null ELLER sidstSendt ligger på en anden
+ * dansk dato end nu). Én pr. modtager pr. dansk døgn (Jonas 15/9). En fejlet
+ * kørsel kl. 17:00 prøves igen ved næste kørsel samme aften (datoen er
+ * stadig ny); efter kl. 20 og efter midnat venter rækkerne til næste dag
+ * kl. 17 (chattens beslutning a).
  */
 export function erSamlemailTid(nu: Date, sidstSendt: Date | null): boolean {
-  if (copenhagenHour(nu) < SAMLEMAIL_TIME_DANSK) return false;
-  return sidstSendt === null || danskDato(sidstSendt) !== danskDato(nu);
+  if (!erISamlemailVindue(nu)) return false;
+  return !erSendtIDag(nu, sidstSendt);
 }
 
 /** Forældet når rækken er ÆLDRE end grænsen (præcis 48 t er ikke forældet — som erForaeldet i notificationEmailSelection.ts:132-137). */
@@ -297,4 +354,244 @@ ${fallbackLinkBlock(appUrl)}
 
   tekstDele.push("", `${KNAP_TEKST}: ${appUrl}`);
   return { emne, html, tekst: tekstDele.join("\n") };
+}
+
+// ── DEL 2: mapningen fra rækker til punkter (chattens beslutninger b–c) ──
+
+export const SAMLEMAIL_LABEL = "notification-samlemail";
+
+/** Grunde til at en række stemples UDEN mail — logges af kalderen, som køens disposeGrund. */
+export const UDELAD = {
+  EVENT_MANGLER: "event_mangler",
+  EVENT_IKKE_PUBLICERET: "event_ikke_publiceret",
+  EVENT_PASSERET: "event_passeret",
+  TRAAD_MANGLER: "traad_mangler",
+  TRAAD_IKKE_AKTIV: "traad_ikke_aktiv",
+  SET_I_APP: "set_i_app",
+  FORAELDET: "foraeldet",
+  RAADGIVER: "raadgiver",
+  PREF_FRA: "pref_fra",
+} as const;
+export type UdeladGrund = (typeof UDELAD)[keyof typeof UDELAD];
+
+/** Grunde til at en række VENTER — hverken mail eller stempel. */
+export const VENT = {
+  UDEN_FOR_VINDUET: "uden_for_vinduet",
+  SENDT_I_DAG: "sendt_i_dag",
+  MODTAGER_UKENDT: "modtager_ukendt",
+  INGEN_MAIL: "ingen_mail",
+  DAGSKVOTE_NAAET: "dagskvote_naaet",
+} as const;
+export type VentGrund = (typeof VENT)[keyof typeof VENT];
+
+/** Det motoren skal bruge af en notifications-række (send-notification-email henter mere). */
+export interface SamlemailRaekke {
+  id: string;
+  user_id: string;
+  type: SamlemailType;
+  reference_id: string | null;
+  deep_link: string | null;
+  created_at: string;
+}
+
+/** events-rækken (publish-event skriver title/starts_at/meet_url/status, recon-samlemail-integration.md §1). */
+export interface EventTilSamlemail {
+  title: string;
+  starts_at: string;
+  meet_url: string | null;
+  status: string;
+}
+
+/** community_traade-rækken (id = reference_id; kilde_type er en kolonne i samme tabel, recon §2). */
+export interface TraadTilSamlemail {
+  titel: string;
+  status: string;
+  kilde_type: string | null;
+}
+
+export type Mapning = { punkt: SamlemailPunkt } | { udelad: UdeladGrund };
+
+export const KILDE_PRAESENTATION = "praesentation";
+
+/** b) event_published → punkt, eller udeladt når eventet mangler, ikke er publiceret, eller er begyndt. */
+export function punktFraEvent(a: { raekke: SamlemailRaekke; event: EventTilSamlemail | null | undefined; nu: Date }): Mapning {
+  const { raekke, event, nu } = a;
+  if (!event) return { udelad: UDELAD.EVENT_MANGLER };
+  if (event.status !== "published") return { udelad: UDELAD.EVENT_IKKE_PUBLICERET };
+  if (new Date(event.starts_at).getTime() <= nu.getTime()) return { udelad: UDELAD.EVENT_PASSERET };
+  const hvor = event.meet_url ? " · Online" : "";
+  return {
+    punkt: {
+      id: raekke.id,
+      type: "event_published",
+      titel: event.title,
+      tekst: `${datoOrd(event.starts_at)} kl. ${tidOrd(event.starts_at)}${hvor}`,
+      link: raekke.deep_link,
+      oprettet: new Date(raekke.created_at),
+      erPraesentation: false,
+    },
+  };
+}
+
+/** c) community_opslag → punkt, eller udeladt når tråden mangler/ikke er aktiv, eller modtageren har åbnet den (set i app). */
+export function punktFraOpslag(a: {
+  raekke: SamlemailRaekke;
+  traad: TraadTilSamlemail | null | undefined;
+  forfatternavn: string | null | undefined;
+  harAabnetTraaden: boolean;
+}): Mapning {
+  const { raekke, traad, forfatternavn, harAabnetTraaden } = a;
+  if (!traad) return { udelad: UDELAD.TRAAD_MANGLER };
+  if (traad.status !== "aktiv") return { udelad: UDELAD.TRAAD_IKKE_AKTIV };
+  if (harAabnetTraaden) return { udelad: UDELAD.SET_I_APP };
+  const erPraesentation = traad.kilde_type === KILDE_PRAESENTATION;
+  const navn = visningsnavn(forfatternavn);
+  return {
+    punkt: {
+      id: raekke.id,
+      type: "community_opslag",
+      titel: traad.titel,
+      tekst: erPraesentation ? `${navn} har præsenteret sig` : `${navn} har skrevet i Community`,
+      link: raekke.deep_link,
+      oprettet: new Date(raekke.created_at),
+      erPraesentation,
+    },
+  };
+}
+
+/** g) Fornavn = første ord i profiles.full_name; tomt → null (samme regel som fornavnAf, indgangsMailAfsendelse.ts:130-134). */
+export function fornavnFraFuldtNavn(fullName: string | null | undefined): string | null {
+  const navn = (fullName ?? "").trim();
+  if (!navn) return null;
+  return navn.split(/\s+/)[0];
+}
+
+/** f) Én sendt samlemail pr. modtager pr. dansk dato — nøglen afvises af UNIQUE (message_id) WHERE status = 'sent'. */
+export function samlemailIdempotencyKey(userId: string, nu: Date): string {
+  return `${SAMLEMAIL_LABEL}-${userId}-${danskDato(nu)}`;
+}
+
+// ── DEL 2: fordelingen (chattens beslutninger a, d, e, f) ───────────────
+
+/** Det kalderen har slået op pr. række — event for event_published, tråd/forfatter/visning for community_opslag. */
+export interface OpslaaetData {
+  event?: EventTilSamlemail | null;
+  traad?: TraadTilSamlemail | null;
+  forfatternavn?: string | null;
+  harAabnetTraaden?: boolean;
+}
+
+export interface SamlemailModtager {
+  erRaadgiver: boolean;
+  /** notification_email_prefs.important === false */
+  importantFra: boolean;
+  email: string | null;
+  fornavn: string | null;
+  sidstSendt: Date | null;
+  dagskvoteNaaet: boolean;
+}
+
+export interface FordelInput {
+  nu: Date;
+  raekker: readonly SamlemailRaekke[];
+  opslaaet: ReadonlyMap<string, OpslaaetData>;
+  modtagere: ReadonlyMap<string, SamlemailModtager>;
+}
+
+export interface SamlemailTilAfsendelse {
+  userId: string;
+  email: string;
+  fornavn: string | null;
+  punkter: SamlemailPunkt[];
+  raekkeIder: string[];
+  idempotencyKey: string;
+}
+
+export interface FordelResultat {
+  mails: SamlemailTilAfsendelse[];
+  stemplesUdenMail: Array<{ id: string; grund: UdeladGrund }>;
+  venter: Array<{ id: string; grund: VentGrund }>;
+}
+
+/**
+ * Fordeler samlemailens rækker. Rækkefølgen pr. række: forældet (d) →
+ * stemples; uden for vinduet eller allerede sendt i dag (a, f) → venter;
+ * modtager ukendt → venter; rådgiver eller pref fra (e) → stemples; ingen
+ * mail eller kvote nået (e) → venter; mapning (b, c) → punkt eller stemples
+ * med grund. En modtager hvis punkter alle er udeladt, får ingen mail.
+ * INVARIANT: hver række optræder præcis ét sted. Ren: ingen I/O.
+ */
+export function fordelSamlemail(input: FordelInput): FordelResultat {
+  const { nu, raekker, opslaaet, modtagere } = input;
+  const stemplesUdenMail: FordelResultat["stemplesUdenMail"] = [];
+  const venter: FordelResultat["venter"] = [];
+  const prModtager = new Map<string, SamlemailPunkt[]>();
+  const iVinduet = erISamlemailVindue(nu);
+
+  for (const r of raekker) {
+    if (erForaeldetTilSamlemail(new Date(r.created_at), nu)) {
+      stemplesUdenMail.push({ id: r.id, grund: UDELAD.FORAELDET });
+      continue;
+    }
+    if (!iVinduet) {
+      venter.push({ id: r.id, grund: VENT.UDEN_FOR_VINDUET });
+      continue;
+    }
+    const m = modtagere.get(r.user_id);
+    if (!m) {
+      venter.push({ id: r.id, grund: VENT.MODTAGER_UKENDT });
+      continue;
+    }
+    if (erSendtIDag(nu, m.sidstSendt)) {
+      venter.push({ id: r.id, grund: VENT.SENDT_I_DAG });
+      continue;
+    }
+    if (m.erRaadgiver) {
+      stemplesUdenMail.push({ id: r.id, grund: UDELAD.RAADGIVER });
+      continue;
+    }
+    if (m.importantFra) {
+      stemplesUdenMail.push({ id: r.id, grund: UDELAD.PREF_FRA });
+      continue;
+    }
+    if (!m.email) {
+      venter.push({ id: r.id, grund: VENT.INGEN_MAIL });
+      continue;
+    }
+    if (m.dagskvoteNaaet) {
+      venter.push({ id: r.id, grund: VENT.DAGSKVOTE_NAAET });
+      continue;
+    }
+    const data = opslaaet.get(r.id) ?? {};
+    const mapning =
+      r.type === "event_published"
+        ? punktFraEvent({ raekke: r, event: data.event, nu })
+        : punktFraOpslag({
+            raekke: r,
+            traad: data.traad,
+            forfatternavn: data.forfatternavn,
+            harAabnetTraaden: data.harAabnetTraaden === true,
+          });
+    if ("udelad" in mapning) {
+      stemplesUdenMail.push({ id: r.id, grund: mapning.udelad });
+      continue;
+    }
+    const liste = prModtager.get(r.user_id) ?? [];
+    liste.push(mapning.punkt);
+    prModtager.set(r.user_id, liste);
+  }
+
+  const mails: SamlemailTilAfsendelse[] = [];
+  for (const [userId, punkter] of prModtager) {
+    const m = modtagere.get(userId)!;
+    mails.push({
+      userId,
+      email: m.email!,
+      fornavn: m.fornavn,
+      punkter: sorterPunkter(punkter),
+      raekkeIder: punkter.map((p) => p.id),
+      idempotencyKey: samlemailIdempotencyKey(userId, nu),
+    });
+  }
+  return { mails, stemplesUdenMail, venter };
 }
