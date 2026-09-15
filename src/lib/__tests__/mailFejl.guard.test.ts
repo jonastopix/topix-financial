@@ -78,8 +78,13 @@ describe("mailFejl.guard — kalderne der kaster, kaster stadig ved rate limit",
   });
 });
 
-describe("mailFejl.guard — loggens status er kendt af fladen uden migration", () => {
-  it("EmailLogView kender rate_limited som status og filter; email_send_log.status har ingen CHECK", () => {
+// RETTET 15/9: dette værn læser LEGACY-DDL'en 20260226224654 (CREATE TABLE
+// uden CHECK) — men prod HAR email_send_log_status_check (målt 15/9), og
+// rate_limited er tilladt dér af migrationen 20260915210000 (kørt 15/9
+// 21:14 dansk). Assertions er uændrede; kun navn og kommentar siger
+// sandheden. Prod-reglen vogtes af emailSendLogStatus.guard.test.ts.
+describe("mailFejl.guard — loggens status er kendt af fladen; legacy-DDL'en har ingen CHECK, prod har (migration 20260915210000)", () => {
+  it("EmailLogView kender rate_limited som status og filter; legacy-DDL'en 20260226224654 har ingen CHECK på status (prod HAR email_send_log_status_check)", () => {
     const view = laes("src/components/hjemmebane/admin/views/EmailLogView.tsx");
     expect(view).toContain('rate_limited: "Rate-limited"');
     expect(view).toMatch(/ALL_STATUSES = \[[^\]]*"rate_limited"/);
