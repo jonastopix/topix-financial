@@ -15,9 +15,11 @@ import {
   bygTraekRaekke,
   maaRegistrereFejlet,
   paymentIntentIdFraFaktura,
-  traekFejlFraPaymentIntent,
+  paymentIntentIdFraInvoicePayments,
   type StripeAbonnementsFaktura,
+  type StripeInvoicePayment,
   type TraekFejl,
+  traekFejlFraPaymentIntent,
   type TraekUdfald,
 } from "../_shared/abonnementstraek.ts";
 import { beregnFornyelsesperiode } from "../_shared/fornyelsesperiode.ts";
@@ -345,7 +347,7 @@ async function sendFornyelseskvittering(
 //    kommer tilbage (11/9) — det er klokkens dedup-nøgle ved fejlet træk.
 
 type TraekResultat =
-  | { udfald: "registreret"; id: string; status: TraekUdfald; company_id: string; genopslag: boolean }
+  | { udfald: "registreret"; id: string; status: TraekUdfald; company_id: string; genopslag: boolean; fejl: TraekFejl | null }
   | { udfald: "sprunget_over"; grund: "ingen_abonnement" | "ingen_company_id" | "allerede_betalt" }
   | { udfald: "fejlet"; aarsag: string };
 
@@ -356,6 +358,37 @@ async function stripeGetJson<T>(sti: string): Promise<T> {
   const tekst = await res.text();
   if (!res.ok) throw new Error(`Stripe GET ${sti} svarede ${res.status}: ${tekst.slice(0, 200)}`);
   return JSON.parse(tekst) as T;
+}
+
+/**
+ * Afvisningsgrunden bag et fejlet træk (16/9). Kaster aldrig: hvert trin
+ * logges, og null betyder «ingen grund fundet» — rækken skrives da med
+ * tomme fejl-felter som før. Vejen er målt i Stripes API-reference (se
+ * _shared/abonnementstraek.ts, «VEJEN TIL PAYMENTINTENT'ET»).
+ */
+async function hentTraekFejl(invoice: StripeAbonnementsFaktura): Promise<TraekFejl | null> {
+  const invoiceId = invoice?.id ?? "?";
+  try {
+    let piId = paymentIntentIdFraFaktura(invoice);
+    let vej = "fakturaen";
+    if (!piId) {
+      const liste = await stripeGetJson<{ data?: StripeInvoicePayment[] | null }>(`/invoice_payments?invoice=${encodeURIComponent(invoiceId)}&limit=10`);
+      piId = paymentIntentIdFraInvoicePayments(liste.data);
+      vej = "invoice_payments";
+    }
+    if (!piId) {
+      console.warn(`[stripe-webhook] træk ${invoiceId}: intet PaymentIntent på fakturaen eller i invoice_payments — rækken skrives uden grund`);
+      return null;
+    }
+    const pi = await stripeGetJson<Parameters<typeof traekFejlFraPaymentIntent>[0]>(`/payment_intents/${encodeURIComponent(piId)}`);
+    const fejl = traekFejlFraPaymentIntent(pi);
+    console.log(`[stripe-webhook] træk ${invoiceId}: PaymentIntent ${piId} fundet via ${vej} — grund ${fejl?.decline_code ?? fejl?.kode ?? "ingen"}${fejl?.advice_code ? `, advice ${fejl.advice_code}` : ""}`);
+    return fejl;
+  } catch (err) {
+    // Grunden er rar at have, ikke nødvendig: rækken skrives uden.
+    console.warn(`[stripe-webhook] træk ${invoiceId}: kunne ikke læse afvisningsgrunden:`, err instanceof Error ? err.message : err);
+    return null;
+  }
 }
 
 async function registrerAbonnementstraek(
@@ -386,19 +419,14 @@ async function registrerAbonnementstraek(
     }
     const art = (meta?.art ?? "").trim() || null;
 
-    // Fejlgrunden — kun ved fejlet, og kun hvis der er et PaymentIntent.
+    // Fejlgrunden — kun ved fejlet. Tre veje til PaymentIntent'et (16/9,
+    // efter Livjas TBR-0007 stod uden grund): fakturaens egne felter,
+    // ellers InvoicePayment-listen (Invoice.payments er «expandable» og
+    // kommer ikke med i eventet), ellers ingen. Opslaget må ALDRIG vælte
+    // registreringen: fejler det, skrives rækken med tomme felter og en log.
     let fejl: TraekFejl | null = null;
     if (udfald === "fejlet") {
-      const piId = paymentIntentIdFraFaktura(invoice);
-      if (piId) {
-        try {
-          const pi = await stripeGetJson<Parameters<typeof traekFejlFraPaymentIntent>[0]>(`/payment_intents/${encodeURIComponent(piId)}`);
-          fejl = traekFejlFraPaymentIntent(pi);
-        } catch (err) {
-          // Grunden er rar at have, ikke nødvendig: rækken skrives uden.
-          console.warn(`[stripe-webhook] træk ${invoiceId}: kunne ikke læse PaymentIntent ${piId}:`, err instanceof Error ? err.message : err);
-        }
-      }
+      fejl = await hentTraekFejl(invoice);
     }
 
     // VÆRNET (11/9): et BETALT træk bliver aldrig til fejlet. Stripe
@@ -449,7 +477,7 @@ async function registrerAbonnementstraek(
     } else {
       console.log(`[stripe-webhook] træk betalt: company ${companyId}, abonnement ${abonnementId} (${art ?? "selvbetjening"}), faktura ${invoiceId}, ${raekke.betalt_oere} øre (${raekke.billing_reason ?? "?"})`);
     }
-    return { udfald: "registreret", id: traekId, status: udfald, company_id: companyId, genopslag };
+    return { udfald: "registreret", id: traekId, status: udfald, company_id: companyId, genopslag, fejl };
   } catch (err) {
     const aarsag = err instanceof Error ? err.message : String(err);
     console.error(`[stripe-webhook] KRITISK: træk ${invoiceId} (${udfald}) kunne ikke registreres i company_traek — ${aarsag}. Trækket findes i Stripe; rækken mangler.`);
@@ -497,7 +525,7 @@ async function meldFejletTraek(
   try {
     const { data: raekke, error: raekkeFejl } = await adminClient
       .from("company_traek")
-      .select("id, status, company_id, beloeb_oere, fejl_besked, fejl_decline_code, faktura_nummer, naeste_forsoeg_at")
+      .select("id, status, company_id, beloeb_oere, fejl_besked, fejl_decline_code, fejl_kode, faktura_nummer, naeste_forsoeg_at")
       .eq("id", traek.id)
       .maybeSingle();
     if (raekkeFejl) throw new Error(`company_traek-opslag fejlede: ${raekkeFejl.message}`);
@@ -516,6 +544,8 @@ async function meldFejletTraek(
       traek: r,
       virksomhed: (company as { name?: string | null } | null)?.name ?? "En virksomhed",
       naesteForsoegTekst: r.naeste_forsoeg_at ? formatDanskDato(new Date(r.naeste_forsoeg_at)) : null,
+      // advice_code (16/9) bæres fra dagens opslag — rækken har ingen kolonne til den.
+      adviceCode: traek.fejl?.advice_code ?? null,
     });
     if (!besked) {
       console.log(`${praefiks}: ingen besked (status ${r.status}, company ${r.company_id ?? "ingen"})`);

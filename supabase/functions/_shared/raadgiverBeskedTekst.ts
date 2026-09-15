@@ -64,6 +64,64 @@ export function fornyelsesBeskedTekst(a: {
  * Datoen kommer færdigformateret ind (formatDanskDato i webhooken), som
  * nySlutDatoTekst gør det ovenfor: dette modul er rent.
  */
+/**
+ * Afvisningsgrunden på dansk, kort (16/9): Stripes decline_code (ellers
+ * code) oversat for de koder et menneske kan handle på; ukendte koder står
+ * ORDRET, så ingen gætter. Ordene er fra Stripes «Decline codes»-side
+ * (docs.stripe.com/declines/codes), målt 16/9. Ren funktion.
+ */
+const AFVISNING_DANSK: Readonly<Record<string, string>> = {
+  invalid_account: "kortet er afvist: lukket eller ugyldig konto",
+  insufficient_funds: "ikke nok penge på kontoen",
+  expired_card: "kortet er udløbet",
+  card_declined: "kortet er afvist",
+  generic_decline: "kortet er afvist uden angivet grund",
+  do_not_honor: "kortet er afvist uden angivet grund",
+  lost_card: "kortet er afvist",
+  stolen_card: "kortet er afvist",
+  fraudulent: "kortet er afvist",
+  card_not_supported: "kortet kan ikke bruges til den slags køb",
+  incorrect_cvc: "forkert CVC",
+  incorrect_number: "forkert kortnummer",
+  processing_error: "fejl hos kortudstederen",
+  authentication_required: "kortet kræver godkendelse (3D Secure)",
+  card_velocity_exceeded: "kortets beløbsgrænse er nået",
+  withdrawal_count_limit_exceeded: "kortets beløbsgrænse er nået",
+  currency_not_supported: "kortet understøtter ikke valutaen",
+  new_account_information_available: "kortet er afvist: nye kortoplysninger findes hos udstederen",
+  pickup_card: "kortet er afvist",
+  restricted_card: "kortet er afvist",
+  try_again_later: "kortudstederen beder om et nyt forsøg senere",
+};
+
+export function afvisningsgrundDansk(a: { declineCode?: string | null; kode?: string | null }): string | null {
+  const decline = (a.declineCode ?? "").trim();
+  const kode = (a.kode ?? "").trim();
+  const noegle = decline || kode;
+  if (!noegle) return null;
+  return AFVISNING_DANSK[noegle] ?? noegle;
+}
+
+/** advice_code «do_not_try_again» (Stripe: «The card was declined and you shouldn’t use it again for the same transaction.») */
+export function nyeForsoegVilIkkeLykkes(adviceCode: string | null | undefined): boolean {
+  return (adviceCode ?? "").trim() === "do_not_try_again";
+}
+
+/**
+ * Grunden i klokken (16/9): dansk kort form når koden kendes, ellers
+ * Stripes besked; «Stripe gav ingen grund» KUN når hverken kode eller
+ * besked findes. Stripes egen besked står i parentes efter den danske,
+ * når begge findes og siger noget forskelligt.
+ */
+export function traekGrundTekst(a: { fejlBesked: string | null; declineCode: string | null; kode?: string | null }): string {
+  const dansk = afvisningsgrundDansk({ declineCode: a.declineCode, kode: a.kode });
+  const besked = (a.fejlBesked ?? "").trim();
+  if (dansk && besked) return `${dansk} (Stripe: ${besked})`;
+  if (dansk) return dansk;
+  if (besked) return `Stripe: ${besked}`;
+  return "Stripe gav ingen grund";
+}
+
 export function traekFejletBeskedTekst(a: {
   virksomhed: string;
   beloebOere: number;
@@ -72,11 +130,20 @@ export function traekFejletBeskedTekst(a: {
   /** «17. september 2026» — eller null når Stripe ikke prøver igen. */
   naesteForsoegTekst: string | null;
   fakturaNummer: string | null;
+  /** company_traek.fejl_kode (Stripes `code`, fx card_declined) — bruges når decline_code mangler. */
+  kode?: string | null;
+  /** PaymentIntent.last_payment_error.advice_code — bæres kun til klokken (ingen kolonne). */
+  adviceCode?: string | null;
 }): { title: string; body: string } {
-  const besked = (a.fejlBesked ?? "").trim();
-  const kode = (a.declineCode ?? "").trim();
-  const grund = besked && kode ? `Stripe: ${besked} (${kode})` : besked ? `Stripe: ${besked}` : kode ? `Stripe: ${kode}` : "Stripe gav ingen grund";
-  const naeste = a.naesteForsoegTekst ? `prøver igen ${a.naesteForsoegTekst}` : "ingen flere forsøg fra Stripe";
+  const grund = traekGrundTekst({ fejlBesked: a.fejlBesked, declineCode: a.declineCode, kode: a.kode });
+  // do_not_try_again (16/9): Stripes Smart Retries prøver igen, men
+  // udstederen har sagt at det ikke vil lykkes — medlemmet skal have et nyt
+  // kort. Ellers som før: næste forsøg, eller ingen flere.
+  const naeste = nyeForsoegVilIkkeLykkes(a.adviceCode)
+    ? `Stripes nye forsøg${a.naesteForsoegTekst ? ` (${a.naesteForsoegTekst})` : ""} vil ikke lykkes — medlemmet skal have et nyt kort`
+    : a.naesteForsoegTekst
+      ? `prøver igen ${a.naesteForsoegTekst}`
+      : "ingen flere forsøg fra Stripe";
   const faktura = (a.fakturaNummer ?? "").trim();
   const dele = [grund, naeste, ...(faktura ? [`faktura ${faktura}`] : [])];
   return {
@@ -94,6 +161,8 @@ export interface FejletTraekRaekke {
   fejl_besked: string | null;
   fejl_decline_code: string | null;
   faktura_nummer: string | null;
+  /** company_traek.fejl_kode — valgfri, så ældre kaldere og tests er uændrede. */
+  fejl_kode?: string | null;
 }
 
 /** Strukturelt lig RaadgiverBesked (raadgiverBesked.ts) — reference_id er company_traek.id (uuid). */
@@ -117,6 +186,8 @@ export function beskedVedFejletTraek(a: {
   traek: FejletTraekRaekke;
   virksomhed: string;
   naesteForsoegTekst: string | null;
+  /** advice_code fra dagens opslag (ikke i rækken) — «do_not_try_again» ændrer næste-forsøg-leddet. */
+  adviceCode?: string | null;
 }): TraekFejletBesked | null {
   const id = (a.traek.id ?? "").trim();
   const companyId = (a.traek.company_id ?? "").trim();
@@ -128,6 +199,8 @@ export function beskedVedFejletTraek(a: {
     declineCode: a.traek.fejl_decline_code,
     naesteForsoegTekst: a.naesteForsoegTekst,
     fakturaNummer: a.traek.faktura_nummer,
+    kode: a.traek.fejl_kode ?? null,
+    adviceCode: a.adviceCode ?? null,
   });
   return {
     type: TYPE_TRAEK_FEJLET,
