@@ -47,10 +47,14 @@ describe("mailFejl.guard — send-notification-email holder pause og tæller rig
 
   it("begge løkker stopper ved første rate limit (skalKoeStoppe → break), og nonChat-løkken starter ikke efter et stop i chat-løkken", () => {
     expect(kode).toContain('import { skalKoeStoppe } from "../_shared/mailFejl.ts";');
-    expect(kode.split("if (skalKoeStoppe(resultat)) {").length - 1).toBe(2);
+    // PR 2 (15/9): samlemailens løkke (for (const m of fordeling.mails)) er
+    // en tredje afsender-løkke med sit eget stop — 2 → 3, bevidst; den får
+    // sit eget udsnit med samme «break; inden for 900 tegn»-krav.
+    expect(kode.split("if (skalKoeStoppe(resultat)) {").length - 1).toBe(3);
     const chat = kode.slice(kode.indexOf("for (const [userId, chatNotifs] of chatNotifsByUser.entries())"), kode.indexOf("for (let i = 0; i < toEmail.length; i++)"));
-    const nonChat = kode.slice(kode.indexOf("for (let i = 0; i < toEmail.length; i++)"), kode.indexOf("const summary = {"));
-    for (const loekke of [chat, nonChat]) {
+    const nonChat = kode.slice(kode.indexOf("for (let i = 0; i < toEmail.length; i++)"), kode.indexOf("let samlemailSendt = 0;"));
+    const samlemail = kode.slice(kode.indexOf("for (const m of fordeling.mails)"), kode.indexOf("const summary = {"));
+    for (const loekke of [chat, nonChat, samlemail]) {
       const stop = loekke.indexOf("if (skalKoeStoppe(resultat)) {");
       expect(stop).toBeGreaterThan(-1);
       // Blokken er kort: objektet, én console.error og break — inden for 900 tegn.

@@ -44,6 +44,14 @@
  *   kun udløbet-reglen (køens egne ure er låst af kildeværnene). ALLE
  *   sideeffekter går gennem to hjælpere i filen — send() og stempl() —
  *   låst af src/lib/__tests__/sendNotificationEmail.dryrun.guard.test.ts.
+ * - SAMLEMAILEN (15/9, PR 2, chattens beslutninger, DEL 2 «15. september»
+ *   §16): event_published og community_opslag (SAMLEMAIL_TYPER) er UDE af
+ *   køens første hentning og hentes i en egen forespørgsel, kun i vinduet
+ *   17–20 dansk (erISamlemailVindue). De går gennem udløbet-reglen og
+ *   derefter fordelSamlemail (_shared/samlemail.ts) → én mail pr. modtager
+ *   pr. dansk døgn (bygSamlemail, label SAMLEMAIL_LABEL, idempotency-nøgle
+ *   pr. dansk dato). Løkken kører EFTER de to eksisterende og ikke hvis
+ *   rateLimit er sat. Låst af sendNotificationEmail.samlemail.guard.test.ts.
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
@@ -112,6 +120,17 @@ import { sendManagedEmail, SENDER_FROM, VERIFIED_FROM_EMAIL, type ManagedMailRes
 import { skalKoeStoppe } from "../_shared/mailFejl.ts";
 import { KVOTE_STATUSSER, MAX_EMAILS_PER_DAY, taelDagskvote } from "../_shared/dagskvote.ts";
 import { UDLOEBET_GRUND, fordelUdloebne, type VirksomhedTilMail } from "../_shared/mailModtager.ts";
+import {
+  SAMLEMAIL_LABEL,
+  SAMLEMAIL_TYPER,
+  bygSamlemail,
+  erISamlemailVindue,
+  fordelSamlemail,
+  fornavnFraFuldtNavn,
+  type OpslaaetData,
+  type SamlemailModtager,
+  type SamlemailRaekke,
+} from "../_shared/samlemail.ts";
 
 /** Nyt community-opslag (notify-community-opslag). Mailen bygges af tråden, ikke af body. */
 const COMMUNITY_OPSLAG_TYPE = "community_opslag";
@@ -218,6 +237,10 @@ Deno.serve(async (req) => {
       .in("priority", ["action_required", "important"])
       .lt("created_at", fifteenMinAgo)
       .neq("type", "report_reminder") // Already emailed by send-report-reminder
+      // SAMLEMAILEN (PR 2, 15/9): event_published og community_opslag er
+      // UDE af denne hentning — de venter til kl. 17 og ville ellers fylde
+      // alle 50 pladser og stoppe chatsvar og andre mails hele dagen.
+      .not("type", "in", `(${SAMLEMAIL_TYPER.join(",")})`)
       .order("created_at", { ascending: true })
       .limit(50);
 
@@ -226,8 +249,35 @@ Deno.serve(async (req) => {
       return json({ error: "fetch_failed" }, 500);
     }
 
-    if (!pending?.length) {
-      return json({ processed: 0, sent: 0, skipped: 0, udloebet: 0, venter_paa_tid: 0, venter_paa_vindue: 0, mails_sendt: 0, ...(toerKoersel ? { dry_run: true, nu: nu.toISOString(), ville_sende: [], ville_stemple: [] } : {}) });
+    // ── SAMLEMAILENS EGEN HENTNING (PR 2, 15/9) — kun i vinduet 17–20
+    //    dansk; uden for vinduet hentes intet, og intet sker. «nu» er
+    //    tørkørslens nu, når den er sat. Loftet 500: 40 medlemmer × ca. 7
+    //    rækker på en dag ≈ 280; en webinardag med 15 præsentationer × 40
+    //    modtagere ≈ 600 tages i to kørsler (cronen kører hvert 5. minut i
+    //    vinduet, ældste først; en modtager der allerede har fået dagens
+    //    mail, får resten i morgen — under 48 t er de ikke forældede).
+    //    Samme filtre som køen (usete, umailede, prioritet, > 15 min). ──
+    const SAMLEMAIL_LOFT = 500;
+    const samlemailIVinduet = erISamlemailVindue(nu);
+    let samlemailRaekker: SamlemailRaekke[] = [];
+    if (samlemailIVinduet) {
+      const samlemailGraense = new Date(nu.getTime() - 15 * 60 * 1000).toISOString();
+      const { data: samlemailRows, error: samlemailFejl } = await admin
+        .from("notifications")
+        .select("id, user_id, type, reference_id, deep_link, created_at")
+        .in("type", [...SAMLEMAIL_TYPER])
+        .is("email_sent_at", null)
+        .is("seen_at", null)
+        .in("priority", ["action_required", "important"])
+        .lt("created_at", samlemailGraense)
+        .order("created_at", { ascending: true })
+        .limit(SAMLEMAIL_LOFT);
+      if (samlemailFejl) console.error("[samlemail] hentning fejlede:", samlemailFejl.message);
+      samlemailRaekker = (samlemailRows || []) as SamlemailRaekke[];
+    }
+
+    if (!pending?.length && samlemailRaekker.length === 0) {
+      return json({ processed: 0, sent: 0, skipped: 0, udloebet: 0, venter_paa_tid: 0, venter_paa_vindue: 0, mails_sendt: 0, samlemail: { i_vinduet: samlemailIVinduet, hentet: 0, udloebet: 0, mails: 0, stemplet_uden_mail: 0, venter: 0 }, ...(toerKoersel ? { dry_run: true, nu: nu.toISOString(), ville_sende: [], ville_stemple: [] } : {}) });
     }
 
     // Load notification email templates (one query for all types)
@@ -287,8 +337,8 @@ Deno.serve(async (req) => {
     //    sendManagedEmail, stempl() sætter email_sent_at. I tørkørsel
     //    registrerer de kun i svaret. Låst af
     //    src/lib/__tests__/sendNotificationEmail.dryrun.guard.test.ts. ──
-    type RaekkeRef = { id: string; user_id: string; type: string };
-    const villeSende: Array<{ id: string; user_id: string; type: string }> = [];
+    type RaekkeRef = { id: string; user_id: string; type: string; ids?: string[] };
+    const villeSende: Array<{ id: string; user_id: string; type: string; ids?: string[] }> = [];
     const villeStemple: Array<{ id: string; user_id: string; type: string; grund: string }> = [];
     async function stempl(n: RaekkeRef, grund: string): Promise<void> {
       if (toerKoersel) {
@@ -299,14 +349,15 @@ Deno.serve(async (req) => {
     }
     async function send(args: Parameters<typeof sendManagedEmail>[0], raekker: readonly RaekkeRef[]): Promise<ManagedMailResultat> {
       if (toerKoersel) {
-        for (const n of raekker) villeSende.push({ id: n.id, user_id: n.user_id, type: n.type });
+        for (const n of raekker) villeSende.push({ id: n.id, user_id: n.user_id, type: n.type, ...(n.ids ? { ids: n.ids } : {}) });
         return { sent: true, messageId: "toerkoersel" };
       }
       return await sendManagedEmail(args);
     }
 
-    // Group by user for anti-spam check
-    const userIds = [...new Set(pending.map((n: any) => n.user_id))];
+    // Group by user for anti-spam check — inkl. samlemailens modtagere (PR 2),
+    // så advisor-, pref-, mail- og kvoteopslagene dækker dem uden nye kald.
+    const userIds = [...new Set([...pending, ...samlemailRaekker].map((n: any) => n.user_id as string))];
 
     // ── UDLØBET-REGLEN (15/9, _shared/mailModtager.ts): brugere hvis
     //    virksomheder ALLE er tier expired får ingen platformsmails —
@@ -360,6 +411,23 @@ Deno.serve(async (req) => {
       skipped++;
     }
     const raekkerTilMail = pending.filter((n: any) => !udloebneSet.has(n.id));
+    // Samme regel på samlemailens rækker (PR 2): et medlem kan udløbe mellem
+    // opslaget og kl. 17. Udløbne stemples her; resten går til fordelingen.
+    const { udloebne: samlemailUdloebneIds } = fordelUdloebne(
+      samlemailRaekker.map((n) => ({ id: n.id, user_id: n.user_id })),
+      medlemskaber,
+      nu,
+    );
+    const samlemailUdloebneSet = new Set(samlemailUdloebneIds);
+    let samlemailUdloebet = 0;
+    for (const n of samlemailRaekker) {
+      if (!samlemailUdloebneSet.has(n.id)) continue;
+      await stempl(n, UDLOEBET_GRUND);
+      console.log(`[dispose] IKKE SENDT — ${UDLOEBET_GRUND}: ${n.type} ${n.id} (samlemail; alle brugerens virksomheder er expired)`);
+      samlemailUdloebet++;
+      skipped++;
+    }
+    const samlemailTilFordeling = samlemailRaekker.filter((n) => !samlemailUdloebneSet.has(n.id));
 
     // Advisor/admin role lookup for email suppression
     const { data: advisorRoleRows } = await admin
@@ -848,8 +916,155 @@ Deno.serve(async (req) => {
       mailsSendt++;
     }
 
+    // ── SAMLEMAILEN (PR 2, 15/9): opslag, fordeling og afsendelse — EFTER
+    //    de to eksisterende løkker, og ikke hvis kørslen allerede ramte
+    //    loftet. Dommene (rådgiver, pref, mail, kvote, sidst sendt,
+    //    forældet, mapning) ligger i fordelSamlemail (_shared/samlemail.ts). ──
+    let samlemailSendt = 0;
+    let samlemailStemplet = 0;
+    let samlemailVenter = 0;
+    if (samlemailTilFordeling.length > 0 && !rateLimit) {
+      // Opslag pr. række: events og tråde på reference_id, forfatternes navn,
+      // og «set i appen» med samme dom som køen (community_visninger).
+      const eventIds = [...new Set(samlemailTilFordeling.filter((n) => n.type === "event_published" && n.reference_id).map((n) => n.reference_id as string))];
+      const traadIds = [...new Set(samlemailTilFordeling.filter((n) => n.type === "community_opslag" && n.reference_id).map((n) => n.reference_id as string))];
+      const eventById = new Map<string, { title: string; starts_at: string; meet_url: string | null; status: string }>();
+      if (eventIds.length > 0) {
+        const { data: eventRows, error: eventFejl } = await admin
+          .from("events")
+          .select("id, title, starts_at, meet_url, status")
+          .in("id", eventIds);
+        if (eventFejl) console.error("[samlemail] events-opslag fejlede:", eventFejl.message);
+        for (const e of (eventRows || []) as any[]) eventById.set(e.id, { title: e.title, starts_at: e.starts_at, meet_url: e.meet_url ?? null, status: e.status });
+      }
+      const traadById = new Map<string, { titel: string; status: string; kilde_type: string | null; forfatter_id: string }>();
+      const forfatternavn = new Map<string, string | null>();
+      const samlemailSetTraade = new Set<string>(); // `${user_id}|${traad_id}` — samme dom som setTraadeAf
+      if (traadIds.length > 0) {
+        const { data: traadRows, error: traadFejl } = await admin
+          .from("community_traade")
+          .select("id, titel, status, kilde_type, forfatter_id")
+          .in("id", traadIds);
+        if (traadFejl) console.error("[samlemail] community_traade-opslag fejlede:", traadFejl.message);
+        for (const t of (traadRows || []) as any[]) traadById.set(t.id, { titel: t.titel, status: t.status, kilde_type: t.kilde_type ?? null, forfatter_id: t.forfatter_id });
+        const forfatterIds = [...new Set([...traadById.values()].map((t) => t.forfatter_id))];
+        if (forfatterIds.length > 0) {
+          const { data: forfattere } = await admin.from("profiles").select("user_id, full_name").in("user_id", forfatterIds);
+          for (const f of (forfattere || []) as any[]) forfatternavn.set(f.user_id, f.full_name ?? null);
+        }
+        const brugerIds = [...new Set(samlemailTilFordeling.filter((n) => n.type === "community_opslag").map((n) => n.user_id))];
+        const { data: visninger, error: visningFejl } = await admin
+          .from("community_visninger")
+          .select("traad_id, bruger_id")
+          .in("traad_id", traadIds)
+          .in("bruger_id", brugerIds);
+        if (visningFejl) console.error("[samlemail] community_visninger-opslag fejlede:", visningFejl.message);
+        for (const v of (visninger ?? []) as { traad_id: string; bruger_id: string }[]) samlemailSetTraade.add(`${v.bruger_id}|${v.traad_id}`);
+      }
+      const opslaaet = new Map<string, OpslaaetData>();
+      for (const n of samlemailTilFordeling) {
+        if (n.type === "event_published") {
+          opslaaet.set(n.id, { event: n.reference_id ? eventById.get(n.reference_id) ?? null : null });
+        } else {
+          const traad = n.reference_id ? traadById.get(n.reference_id) ?? null : null;
+          opslaaet.set(n.id, {
+            traad,
+            forfatternavn: traad ? forfatternavn.get(traad.forfatter_id) ?? null : null,
+            harAabnetTraaden: n.reference_id ? samlemailSetTraade.has(`${n.user_id}|${n.reference_id}`) : false,
+          });
+        }
+      }
+
+      // Modtagerne: rådgiver (samme opslag som køen), pref, mail, fornavn,
+      // sidst sendt (email_send_log, label SAMLEMAIL_LABEL, status sent) og
+      // dagskvoten (køens countMap — ikke hentet igen).
+      const samlemailUserIds = [...new Set(samlemailTilFordeling.map((n) => n.user_id))];
+      const raadgiverIds = advisorUserIds; // alias: rådgiverdommen ligger i fordelSamlemail, ikke i endnu en gate i denne fil
+      const fornavnAf = new Map<string, string | null>();
+      const { data: modtagerProfiler } = await admin.from("profiles").select("user_id, full_name").in("user_id", samlemailUserIds);
+      for (const p of (modtagerProfiler || []) as any[]) fornavnAf.set(p.user_id, fornavnFraFuldtNavn(p.full_name));
+      const sidstSendtPrMail = new Map<string, Date>();
+      const samlemailMails = samlemailUserIds.map((uid) => userEmailMap.get(uid)).filter((e): e is string => !!e);
+      if (samlemailMails.length > 0) {
+        const { data: sendte } = await admin
+          .from("email_send_log")
+          .select("recipient_email, created_at")
+          .eq("template_name", SAMLEMAIL_LABEL)
+          .eq("status", "sent")
+          .in("recipient_email", samlemailMails)
+          .order("created_at", { ascending: false });
+        for (const r of (sendte || []) as any[]) {
+          if (!sidstSendtPrMail.has(r.recipient_email)) sidstSendtPrMail.set(r.recipient_email, new Date(r.created_at));
+        }
+      }
+      const modtagere = new Map<string, SamlemailModtager>();
+      for (const uid of samlemailUserIds) {
+        const email = userEmailMap.get(uid) ?? null;
+        const prefs = prefsByUser.get(uid) as { important?: unknown } | undefined;
+        modtagere.set(uid, {
+          erRaadgiver: raadgiverIds.has(uid),
+          importantFra: !!prefs && prefs.important === false,
+          email,
+          fornavn: fornavnAf.get(uid) ?? null,
+          sidstSendt: email ? sidstSendtPrMail.get(email) ?? null : null,
+          dagskvoteNaaet: (countMap[uid] || 0) >= MAX_EMAILS_PER_DAY,
+        });
+      }
+
+      const fordeling = fordelSamlemail({ nu, raekker: samlemailTilFordeling, opslaaet, modtagere });
+      const raekkeById = new Map(samlemailTilFordeling.map((n) => [n.id, n]));
+      for (const st of fordeling.stemplesUdenMail) {
+        const n = raekkeById.get(st.id)!;
+        await stempl(n, st.grund);
+        console.log(`[dispose] IKKE SENDT — ${st.grund}: ${n.type} ${n.id} (samlemail)`);
+        samlemailStemplet++;
+        skipped++;
+      }
+      samlemailVenter = fordeling.venter.length;
+      for (const v of fordeling.venter) console.log(`[venter] samlemail — ${v.grund}: ${v.id}`);
+
+      for (const m of fordeling.mails) {
+        const mail = bygSamlemail({ fornavn: m.fornavn, punkter: m.punkter, nu, appUrl: APP_URL });
+        const raekker = m.raekkeIder.map((id) => raekkeById.get(id)!);
+        const resultat = await send({
+          adminClient: admin,
+          to: m.email,
+          from: SENDER_FROM,
+          subject: mail.emne,
+          html: mail.html,
+          text: mail.tekst,
+          label: SAMLEMAIL_LABEL,
+          idempotencyKey: m.idempotencyKey,
+        }, [{ id: m.raekkeIder[0], user_id: m.userId, type: "samlemail", ids: m.raekkeIder }]);
+
+        if (!resultat.sent) {
+          console.error(`Mail ikke sendt (${resultat.reason}) for samlemail til ${m.userId}`);
+          skipped += raekker.length;
+          if (skalKoeStoppe(resultat)) {
+            rateLimit = {
+              retryAfterSeconds: resultat.reason === "rate_limited" ? resultat.retryAfterSeconds : null,
+              tilbage: fordeling.mails.length - fordeling.mails.indexOf(m) - 1,
+            };
+            console.error(`[rate-limit] udbyderen afviste (429) — stopper kørslen; ${rateLimit.tilbage} samlemails venter til næste kørsel (Retry-After ${rateLimit.retryAfterSeconds ?? "ukendt"})`);
+            break;
+          }
+          continue;
+        }
+
+        for (const n of raekker) await stempl(n, "sendt");
+        countMap[m.userId] = (countMap[m.userId] || 0) + 1;
+        sent += raekker.length;
+        mailsSendt++;
+        samlemailSendt++;
+      }
+    } else if (samlemailTilFordeling.length > 0) {
+      samlemailVenter = samlemailTilFordeling.length; // loftet ramt tidligere i kørslen — venter til næste
+    }
+
     const summary = {
-      processed: pending.length,
+      // processed tæller køens rækker + samlemailens hentede (PR 2), så
+      // sent + skipped + venter går op: samlemailens ventende står i samlemail.venter.
+      processed: pending.length + samlemailRaekker.length,
       sent,
       skipped,
       // Udløbet-reglen (15/9): rækker stemplet uden mail fordi alle brugerens virksomheder er expired.
@@ -861,6 +1076,15 @@ Deno.serve(async (req) => {
       rate_limited: rateLimit !== null,
       rate_limit_tilbage: rateLimit?.tilbage ?? 0,
       rate_limit_retry_after_seconds: rateLimit?.retryAfterSeconds ?? null,
+      // Samlemailen (PR 2, 15/9): hentet kun i vinduet 17–20 dansk.
+      samlemail: {
+        i_vinduet: samlemailIVinduet,
+        hentet: samlemailRaekker.length,
+        udloebet: samlemailUdloebet,
+        mails: samlemailSendt,
+        stemplet_uden_mail: samlemailStemplet,
+        venter: samlemailVenter,
+      },
       // Tørkørsel (15/9): intet sendt, intet stemplet, intet i email_send_log — kun hvad der VILLE ske.
       ...(toerKoersel ? { dry_run: true, nu: nu.toISOString(), ville_sende: villeSende, ville_stemple: villeStemple } : {}),
     };
