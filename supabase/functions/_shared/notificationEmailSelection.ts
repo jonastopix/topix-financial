@@ -263,7 +263,7 @@ export function parseDkReportPeriodKey(period: string | null | undefined): strin
 }
 
 /** Time på døgnet i Europe/Copenhagen (0-23) for et givet tidspunkt. */
-function copenhagenHour(d: Date): number {
+export function copenhagenHour(d: Date): number {
   return Number(
     new Intl.DateTimeFormat("en-GB", {
       timeZone: "Europe/Copenhagen",
