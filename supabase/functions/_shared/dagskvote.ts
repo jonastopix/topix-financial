@@ -14,8 +14,12 @@
  * næste afvisning med en anden status æder kvoten igen. DOMMEN er vendt om:
  * vi tæller det der NÅEDE FREM, ikke det der blev forsøgt.
  *
- * STATUSSERNE i email_send_log (kolonnen er text uden CHECK,
- * 20260226224654:7). Skrevet af koden i dag:
+ * STATUSSERNE i email_send_log. RETTET 15/9: prod HAR CHECK-constrainten
+ * email_send_log_status_check (målt 15/9, arv fra den slettede
+ * 20260319090407_email_infra.sql) — «text uden CHECK» (20260226224654:7)
+ * gjaldt kun den fils CREATE TABLE. rate_limited manglede i reglen og
+ * blev afvist i tavshed; migrationen 20260915210000 tilføjer den.
+ * Skrevet af koden i dag:
  *   sent          — Lovables API tog imod mailen (managedEmail.ts:152).
  *   failed        — afvist, alt andet end 429/spærring (mailFejl.ts:74).
  *   rate_limited  — 429 hos udbyderen (mailFejl.ts:73).
