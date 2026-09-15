@@ -94,3 +94,35 @@ describe("påmindelsen (varsel 2) — begge hentninger bærer varsel_2_sendt_at"
     expect(grund).toMatchObject({ signaltype: "klar_til_tilbud_paamindet", handling: "Skriv til CARMA STUDIO" });
   });
 });
+
+// VINDUESSTEMPLERNE (15/9, PR 3): vindue_1_sendt_at / vindue_2_sendt_at
+// skrives KUN af fornyelsesvarsel-cron og defineres af migrationen
+// 20260915230000. Værnet låser at cronens hentning bærer begge, at begge
+// stemples via samme opdateringssti, og at migrationen definerer dem —
+// samme «to hentninger/skrivere, ét tal»-princip som ovenfor. Fladerne
+// (AdvisorDashboard, useVirksomhed) læser dem ikke endnu: forsidens dom
+// og badget er uændrede i PR 3.
+describe("vinduesmailene (PR 3) — cronen bærer og stempler begge vinduesstempler; migrationen definerer dem", () => {
+  const cron = readFileSync(resolve(process.cwd(), "supabase/functions/fornyelsesvarsel-cron/index.ts"), "utf8");
+  const migration = readFileSync(resolve(process.cwd(), "supabase/migrations/20260915230000_fornyelse_vinduesstempler.sql"), "utf8");
+
+  it("cronens select på company_fornyelse bærer vindue_1_sendt_at og vindue_2_sendt_at, og companies-select bærer abonnementsfelterne", () => {
+    const query = companyFornyelseQuery(cron);
+    expect(query).toContain("vindue_1_sendt_at");
+    expect(query).toContain("vindue_2_sendt_at");
+    expect(cron).toContain("subscription_status, subscription_current_period_end");
+  });
+
+  it("stempelfeltet vælges pr. udfald — alle fire — og skrives i samme update", () => {
+    expect(cron).toContain('varsel.varsel === "vindue_1" ? "vindue_1_sendt_at"');
+    expect(cron).toContain(': "vindue_2_sendt_at";');
+    expect(cron).toContain(".update({ [stempelfelt]: now.toISOString(), updated_at: now.toISOString() })");
+  });
+
+  it("migrationen definerer begge kolonner med kommentar", () => {
+    expect(migration).toContain("add column if not exists vindue_1_sendt_at timestamptz");
+    expect(migration).toContain("add column if not exists vindue_2_sendt_at timestamptz");
+    expect(migration).toContain("comment on column public.company_fornyelse.vindue_1_sendt_at is");
+    expect(migration).toContain("comment on column public.company_fornyelse.vindue_2_sendt_at is");
+  });
+});

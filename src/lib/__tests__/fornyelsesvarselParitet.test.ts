@@ -28,11 +28,15 @@ function slutdatoOmDage(n: number): string {
 
 const SENDT = "2026-08-20T09:00:00.000Z";
 
+// 15/9 (PR 3): vinduesstempler og abonnementsfelter — alle null i basen.
+const TOMME_VINDUER = { vindue_1_sendt_at: null, vindue_2_sendt_at: null, subscription_status: null, subscription_current_period_end: null } as const;
+
 const input = (dageTilSlut: number | null, over: Partial<FornyelsesvarselInput> = {}): FornyelsesvarselInput => ({
   contract_end_date: dageTilSlut === null ? null : slutdatoOmDage(dageTilSlut),
   beslutning: "tilbyd",
   varsel_1_sendt_at: null,
   varsel_2_sendt_at: null,
+  ...TOMME_VINDUER,
   ...over,
 });
 
@@ -42,7 +46,7 @@ const input = (dageTilSlut: number | null, over: Partial<FornyelsesvarselInput> 
 // intended varsel so no branch is silently missed. If this block fails, the
 // two files have drifted and must be re-synced.
 describe("afgoerForfaldentVarsel — parity between src/lib and supabase/functions/_shared", () => {
-  const cases: Array<{ navn: string; varsel: 1 | 2 | null; input: FornyelsesvarselInput }> = [
+  const cases: Array<{ navn: string; varsel: 1 | 2 | "vindue_1" | "vindue_2" | null; input: FornyelsesvarselInput }> = [
     // Grænserne
     { navn: "dag 31: for tidligt", varsel: null, input: input(31) },
     { navn: "dag 30: varsel 1", varsel: 1, input: input(30) },
@@ -61,7 +65,12 @@ describe("afgoerForfaldentVarsel — parity between src/lib and supabase/functio
     { navn: "ingen slutdato", varsel: null, input: input(null) },
     { navn: "ulæselig slutdato", varsel: null, input: input(5, { contract_end_date: "ikke-en-dato" }) },
     { navn: "ulæseligt stempel", varsel: null, input: input(20, { varsel_1_sendt_at: "ikke-en-dato" }) },
-    { navn: "dagen efter slutdato", varsel: null, input: input(-1) },
+    // 15/9 (PR 3): efter slutdato er der vinduesmails — begge kopier skal sige det samme.
+    { navn: "dagen efter slutdato: vindue 1", varsel: "vindue_1", input: input(-1) },
+    { navn: "dag 11 efter: vindue 2 (uden vindue 1)", varsel: "vindue_2", input: input(-11) },
+    { navn: "dag 10 efter, vindue 1 sendt: intet", varsel: null, input: input(-10, { vindue_1_sendt_at: SENDT }) },
+    { navn: "dag 15 efter: intet (lukket)", varsel: null, input: input(-15) },
+    { navn: "dag 5 efter, aktivt abonnement: intet (selvbetjener)", varsel: null, input: input(-5, { subscription_status: "active", subscription_current_period_end: "2027-01-01T00:00:00.000Z" }) },
     // Ordningens grænse (7/9): slutdato på/før 10/9 kan ikke handle — begge kopier skal tie med samme grund.
     { navn: "uden for ordningen: slutdato 2026-09-10, 5 dage før", varsel: null, input: { ...input(5), contract_end_date: "2026-09-10" } },
     { navn: "inden for ordningen: slutdato 2026-09-11, 1 dag før", varsel: 2, input: { ...input(1), contract_end_date: "2026-09-11" } },
@@ -80,7 +89,7 @@ describe("afgoerForfaldentVarsel — parity between src/lib and supabase/functio
     });
   }
 
-  it("alle dage −20…+60 til slutdato × tre beslutninger × alle fire stempel-kombinationer × to now-datoer", () => {
+  it("alle dage −20…+60 til slutdato × tre beslutninger × fire varselsstempler × fire vinduesstempler × to abonnementer × to now-datoer", () => {
     const beslutninger: (Fornyelsesbeslutning | null)[] = [null, "tilbyd", "tilbyd_ikke"];
     const stempler: Array<Pick<FornyelsesvarselInput, "varsel_1_sendt_at" | "varsel_2_sendt_at">> = [
       { varsel_1_sendt_at: null, varsel_2_sendt_at: null },
@@ -88,16 +97,35 @@ describe("afgoerForfaldentVarsel — parity between src/lib and supabase/functio
       { varsel_1_sendt_at: null, varsel_2_sendt_at: SENDT },
       { varsel_1_sendt_at: SENDT, varsel_2_sendt_at: SENDT },
     ];
+    // 15/9 (PR 3): de nye felter sweepes med — vinduesstempler og abonnement.
+    const vinduer: Array<Pick<FornyelsesvarselInput, "vindue_1_sendt_at" | "vindue_2_sendt_at">> = [
+      { vindue_1_sendt_at: null, vindue_2_sendt_at: null },
+      { vindue_1_sendt_at: SENDT, vindue_2_sendt_at: null },
+      { vindue_1_sendt_at: null, vindue_2_sendt_at: SENDT },
+      { vindue_1_sendt_at: SENDT, vindue_2_sendt_at: SENDT },
+    ];
+    const abonnementer: Array<Pick<FornyelsesvarselInput, "subscription_status" | "subscription_current_period_end">> = [
+      { subscription_status: null, subscription_current_period_end: null },
+      { subscription_status: "active", subscription_current_period_end: "2027-01-01T00:00:00.000Z" },
+    ];
+    const set = new Set<string>();
     for (const now of [NU, new Date("2026-10-01T23:30:00.000Z")]) {
       for (let dage = -20; dage <= 60; dage++) {
         for (const beslutning of beslutninger) {
           for (const s of stempler) {
-            const i: FornyelsesvarselInput = { contract_end_date: slutdatoOmDage(dage), beslutning, ...s };
-            expect(afgoerForfaldentVarselDeno(i, now)).toEqual(afgoerForfaldentVarsel(i, now));
+            for (const v of vinduer) {
+              for (const a of abonnementer) {
+                const i: FornyelsesvarselInput = { contract_end_date: slutdatoOmDage(dage), beslutning, ...s, ...v, ...a };
+                const fe = afgoerForfaldentVarsel(i, now);
+                expect(afgoerForfaldentVarselDeno(i, now)).toEqual(fe);
+                set.add(String(fe.varsel));
+              }
+            }
           }
         }
       }
     }
+    expect([...set].sort()).toEqual(["1", "2", "null", "vindue_1", "vindue_2"]); // alle fem udfald er ramt i sweepet
   });
 });
 
@@ -116,7 +144,7 @@ describe("ordningens grænse (gren 5) — begge kopier tier ens omkring 2026-09-
         const slutdato = new Date(Date.UTC(2026, 7, 25) + d * 86_400_000).toISOString().slice(0, 10);
         for (const beslutning of beslutninger) {
           for (const s of stempler) {
-            const i: FornyelsesvarselInput = { contract_end_date: slutdato, beslutning, ...s };
+            const i: FornyelsesvarselInput = { contract_end_date: slutdato, beslutning, ...s, ...TOMME_VINDUER };
             const fe = afgoerForfaldentVarsel(i, now);
             expect(afgoerForfaldentVarselDeno(i, now)).toEqual(fe);
             if (fe.blokeret_af) blokerede++;

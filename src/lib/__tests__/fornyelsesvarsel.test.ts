@@ -20,11 +20,16 @@ function slutdatoOmDage(n: number): string {
 
 const SENDT = "2026-08-20T09:00:00.000Z";
 
+// 15/9 (PR 3): inputtet bærer også vinduesstemplerne og abonnementsfelterne
+// (alle null her — tilstanden før slutdato er uændret af dem).
+const TOMME_VINDUER = { vindue_1_sendt_at: null, vindue_2_sendt_at: null, subscription_status: null, subscription_current_period_end: null } as const;
+
 const input = (dageTilSlut: number | null, over: Partial<FornyelsesvarselInput> = {}): FornyelsesvarselInput => ({
   contract_end_date: dageTilSlut === null ? null : slutdatoOmDage(dageTilSlut),
   beslutning: "tilbyd",
   varsel_1_sendt_at: null,
   varsel_2_sendt_at: null,
+  ...TOMME_VINDUER,
   ...over,
 });
 
@@ -160,13 +165,19 @@ describe("dem der aldrig får et varsel", () => {
     });
   });
 
-  it("dagen efter slutdato: intet — et varsel om noget der er sket, er forkert; tilbuddet er tilstandsmotorens sag", () => {
+  // ÆNDRET 15/9 (PR 3, Jonas' valg A): efter slutdato med «tilbyd» og inde i
+  // de 14 dage er der nu VINDUESMAILS — dag 1 og dag 10 er vindue 1. Før:
+  // «dagen efter slutdato: intet … tilbuddet er tilstandsmotorens sag»
+  // (input(-1) → null, "intet: slutdatoen er passeret for 1 dag siden";
+  // input(-10) → "… 10 dage siden"). Varslerne 1 og 2 sendes stadig kun
+  // før/på slutdatoen.
+  it("dagen efter slutdato med tilbyd: VINDUE 1 (15/9) — dag 1 og dag 10 er begge vindue 1", () => {
     expect(afgoerForfaldentVarsel(input(-1), NU)).toEqual({
-      varsel: null,
-      grund: "intet: slutdatoen er passeret for 1 dag siden",
+      varsel: "vindue_1",
+      grund: "vindue 1 forfaldent: slutdatoen er passeret for 1 dag siden; kan forlænge til og med dag 14",
       dage_til_udloeb: -1,
     });
-    expect(afgoerForfaldentVarsel(input(-10), NU).grund).toBe("intet: slutdatoen er passeret for 10 dage siden");
+    expect(afgoerForfaldentVarsel(input(-10), NU)).toMatchObject({ varsel: "vindue_1", dage_til_udloeb: -10 });
   });
 });
 
@@ -203,13 +214,22 @@ describe("uden for ordningen: slutdato på eller før 2026-09-10 får ALDRIG et 
   ];
   for (const slutdato of paaEllerFoer) {
     for (const nu of nuer) {
-      it(`slutdato ${slutdato}, nu ${nu.toISOString().slice(0, 10)}: intet, blokeret_af uden_for_ordningen`, () => {
-        const ud = afgoerForfaldentVarsel({ contract_end_date: slutdato, beslutning: "tilbyd", varsel_1_sendt_at: null, varsel_2_sendt_at: null }, nu);
-        // Efter slutdatoen vinder gren 4 (passeret) — den er også «intet».
-        expect(ud.varsel).toBeNull();
+      it(`slutdato ${slutdato}, nu ${nu.toISOString().slice(0, 10)}: intet FØR slutdato (blokeret_af uden_for_ordningen); efter slutdato vindue 1 (15/9)`, () => {
+        const ud = afgoerForfaldentVarsel({ contract_end_date: slutdato, beslutning: "tilbyd", varsel_1_sendt_at: null, varsel_2_sendt_at: null, ...TOMME_VINDUER }, nu);
         if (ud.dage_til_udloeb !== null && ud.dage_til_udloeb >= 0) {
+          expect(ud.varsel).toBeNull();
           expect(ud.blokeret_af).toBe("uden_for_ordningen");
           expect(ud.grund).toBe(`intet: uden for ordningen — slutdatoen ${slutdato} er på eller før 2026-09-10, og medlemmet kan ikke forny`);
+        } else if (ud.dage_til_udloeb !== null) {
+          // ÆNDRET 15/9 (PR 3): før vandt gren 4 (passeret → intet) også her.
+          // afgoerFornyelsestilstand dømmer udløbet FØR ordningens grænse, så
+          // en udløbet «tilbyd» inden for 14 dage er udloebet_tilbyd (tilbuddet
+          // står i gaten — bevist for Studio Mini) og får vindue 1/2; dag 15+ intet.
+          const dagEfter = -ud.dage_til_udloeb;
+          if (dagEfter <= 10) expect(ud.varsel).toBe("vindue_1");
+          else if (dagEfter <= 14) expect(ud.varsel).toBe("vindue_2");
+          else expect(ud.varsel).toBeNull();
+          expect(ud.blokeret_af).toBeUndefined();
         }
       });
     }
@@ -217,7 +237,7 @@ describe("uden for ordningen: slutdato på eller før 2026-09-10 får ALDRIG et 
 
   it("CARMA STUDIO 7/9 kl. 11:57: slutdato 7/9, tilbyd, intet sendt → INTET (dag 0, som før gav varsel 2)", () => {
     const ud = afgoerForfaldentVarsel(
-      { contract_end_date: "2026-09-07", beslutning: "tilbyd", varsel_1_sendt_at: null, varsel_2_sendt_at: null },
+      { contract_end_date: "2026-09-07", beslutning: "tilbyd", varsel_1_sendt_at: null, varsel_2_sendt_at: null, ...TOMME_VINDUER },
       new Date("2026-09-07T11:57:00.000Z"),
     );
     expect(ud).toEqual({
@@ -228,16 +248,21 @@ describe("uden for ordningen: slutdato på eller før 2026-09-10 får ALDRIG et 
     });
   });
 
-  it("gren 1-4 vinder stadig før gren 5: tilbyd_ikke, ingen slutdato og passeret slutdato bærer IKKE blokeret_af", () => {
+  // ÆNDRET 15/9 (PR 3): «passeret slutdato» (1/9 set fra 5/9 = dag 4) er nu
+  // vindue 1, ikke «intet» — men bærer stadig IKKE blokeret_af (gren 4 er
+  // afgjort før gren 5). Før: begge kald gav varsel null uden blokeret_af.
+  it("gren 1-4 vinder stadig før gren 5: tilbyd_ikke og passeret slutdato bærer IKKE blokeret_af — passeret med tilbyd er vindue 1", () => {
     const nu = new Date("2026-09-05T12:00:00.000Z");
-    expect(afgoerForfaldentVarsel({ contract_end_date: "2026-09-07", beslutning: "tilbyd_ikke", varsel_1_sendt_at: null, varsel_2_sendt_at: null }, nu).blokeret_af).toBeUndefined();
-    expect(afgoerForfaldentVarsel({ contract_end_date: "2026-09-01", beslutning: "tilbyd", varsel_1_sendt_at: null, varsel_2_sendt_at: null }, nu).blokeret_af).toBeUndefined();
+    expect(afgoerForfaldentVarsel({ contract_end_date: "2026-09-07", beslutning: "tilbyd_ikke", varsel_1_sendt_at: null, varsel_2_sendt_at: null, ...TOMME_VINDUER }, nu).blokeret_af).toBeUndefined();
+    const passeret = afgoerForfaldentVarsel({ contract_end_date: "2026-09-01", beslutning: "tilbyd", varsel_1_sendt_at: null, varsel_2_sendt_at: null, ...TOMME_VINDUER }, nu);
+    expect(passeret.blokeret_af).toBeUndefined();
+    expect(passeret.varsel).toBe("vindue_1");
   });
 });
 
 describe("grænsen fra den anden side: slutdato 2026-09-11 med tilbyd FÅR sit varsel", () => {
   const SLUT = "2026-09-11";
-  const uden = { contract_end_date: SLUT, beslutning: "tilbyd" as const, varsel_1_sendt_at: null, varsel_2_sendt_at: null };
+  const uden = { contract_end_date: SLUT, beslutning: "tilbyd" as const, varsel_1_sendt_at: null, varsel_2_sendt_at: null, ...TOMME_VINDUER };
 
   it("30 dage før (12/8): varsel 1", () => {
     const ud = afgoerForfaldentVarsel(uden, new Date("2026-08-12T12:00:00.000Z"));
@@ -260,5 +285,105 @@ describe("grænsen fra den anden side: slutdato 2026-09-11 med tilbyd FÅR sit v
     expect(ud.varsel).toBeNull();
     expect(ud.blokeret_af).toBeUndefined();
     expect(ud.grund).toMatch(/^intet: \d+ dage til slutdato; varsel 1 forfalder om/);
+  });
+});
+
+// ── VINDUESMAILENE (15/9, PR 3 — Jonas' valg A; chattens C1–C2) ─────────────
+//
+// Efter slutdato, kun med «tilbyd» og tilstanden udloebet_tilbyd: dag 1–10
+// vindue 1, dag 11–14 vindue 2 (uden vindue 1 → kun vindue 2), dag 15+
+// intet (lukket). Abonnementsfelterne dømmer med: et aktivt abonnement er
+// selvbetjener, ikke udløbet. CARMA STUDIO (slut 2026-09-11) konkret.
+describe("vinduesmailene — dag 1–10 vindue 1, dag 11–14 vindue 2, dag 15+ intet", () => {
+  const V1 = "2026-10-02T11:00:00.000Z";
+  const V2 = "2026-10-12T11:00:00.000Z";
+
+  it("dag 0 (slutdagen) med varsel 2 sendt: intet — dag 0 er varslernes, ikke vinduets", () => {
+    const ud = afgoerForfaldentVarsel(input(0, { varsel_1_sendt_at: SENDT, varsel_2_sendt_at: SENDT }), NU);
+    expect(ud.varsel).toBeNull();
+    expect(ud.dage_til_udloeb).toBe(0);
+  });
+
+  it("dag 1: vindue 1; dag 10: vindue 1", () => {
+    expect(afgoerForfaldentVarsel(input(-1), NU).varsel).toBe("vindue_1");
+    expect(afgoerForfaldentVarsel(input(-10), NU)).toEqual({
+      varsel: "vindue_1",
+      grund: "vindue 1 forfaldent: slutdatoen er passeret for 10 dage siden; kan forlænge til og med dag 14",
+      dage_til_udloeb: -10,
+    });
+  });
+
+  it("dag 10 med vindue 1 stemplet: intet, og loggen siger hvornår vindue 2 forfalder", () => {
+    expect(afgoerForfaldentVarsel(input(-10, { vindue_1_sendt_at: V1 }), NU)).toEqual({
+      varsel: null,
+      grund: "intet: slutdatoen er passeret for 10 dage siden — vindue 1 allerede sendt 2026-10-02; vindue 2 forfalder om 1 dag",
+      dage_til_udloeb: -10,
+    });
+  });
+
+  it("dag 11: vindue 2 — også uden vindue 1 (kun vindue 2, vindue 1 springes over)", () => {
+    expect(afgoerForfaldentVarsel(input(-11, { vindue_1_sendt_at: V1 }), NU)).toEqual({
+      varsel: "vindue_2",
+      grund: "vindue 2 forfaldent: slutdatoen er passeret for 11 dage siden; tilbuddet lukker efter dag 14",
+      dage_til_udloeb: -11,
+    });
+    expect(afgoerForfaldentVarsel(input(-11), NU)).toEqual({
+      varsel: "vindue_2",
+      grund: "vindue 2 forfaldent: slutdatoen er passeret for 11 dage siden; tilbuddet lukker efter dag 14 (vindue 1 springes over)",
+      dage_til_udloeb: -11,
+    });
+    // og vindue 1 sendes ikke bagefter, når vindue 2 er sendt
+    expect(afgoerForfaldentVarsel(input(-12, { vindue_2_sendt_at: V2 }), NU).grund).toBe("intet: slutdatoen er passeret for 12 dage siden — vindue 2 allerede sendt 2026-10-12");
+  });
+
+  it("dag 14: vindue 2 (sidste dag); dag 15: intet — tilbudsvinduet er lukket, uanset stempler", () => {
+    expect(afgoerForfaldentVarsel(input(-14, { vindue_1_sendt_at: V1 }), NU).varsel).toBe("vindue_2");
+    expect(afgoerForfaldentVarsel(input(-15), NU)).toEqual({
+      varsel: null,
+      grund: "intet: slutdatoen er passeret for 15 dage siden — tilbudsvinduet er lukket",
+      dage_til_udloeb: -15,
+    });
+    expect(afgoerForfaldentVarsel(input(-15, { vindue_1_sendt_at: V1, vindue_2_sendt_at: V2 }), NU).varsel).toBeNull();
+  });
+
+  it("tilbyd_ikke og ingen beslutning: intet — også efter slutdato", () => {
+    expect(afgoerForfaldentVarsel(input(-5, { beslutning: "tilbyd_ikke" }), NU)).toEqual({ varsel: null, grund: "intet: beslutningen er tilbyd_ikke", dage_til_udloeb: null });
+    expect(afgoerForfaldentVarsel(input(-5, { beslutning: null }), NU).varsel).toBeNull();
+  });
+
+  it("aktivt abonnement efter slutdato: intet — medlemmet er selvbetjener, ikke udløbet (C2)", () => {
+    const ud = afgoerForfaldentVarsel(input(-5, { subscription_status: "active", subscription_current_period_end: "2027-01-01T00:00:00.000Z" }), NU);
+    expect(ud).toEqual({
+      varsel: null,
+      grund: "intet: slutdatoen er passeret for 5 dage siden — medlemmet er selvbetjener (aktivt abonnement)",
+      dage_til_udloeb: -5,
+    });
+    // et udløbet abonnement gør ikke medlemmet til selvbetjener
+    expect(afgoerForfaldentVarsel(input(-5, { subscription_status: "active", subscription_current_period_end: "2026-09-01T00:00:00.000Z" }), NU).varsel).toBe("vindue_1");
+  });
+
+  it("abonnementsfelterne ændrer INTET før slutdato (varslerne som i dag)", () => {
+    const med = { subscription_status: "active", subscription_current_period_end: "2027-01-01T00:00:00.000Z" };
+    expect(afgoerForfaldentVarsel(input(30, med), NU)).toEqual(afgoerForfaldentVarsel(input(30), NU));
+    expect(afgoerForfaldentVarsel(input(7, { ...med, varsel_1_sendt_at: SENDT }), NU).varsel).toBe(2);
+  });
+
+  it("CARMA STUDIO (slut 2026-09-11, tilbyd, varsel 2 sendt 7/9): 12/9 vindue 1 (dag 1), 15/9 vindue 1 (dag 4), 21/9 vindue 1 (dag 10), 22/9 vindue 2 (dag 11), 25/9 vindue 2 (dag 14), 26/9 intet (dag 15)", () => {
+    const carma: FornyelsesvarselInput = {
+      contract_end_date: "2026-09-11",
+      beslutning: "tilbyd",
+      varsel_1_sendt_at: null,
+      varsel_2_sendt_at: "2026-09-07T11:57:50.375Z",
+      ...TOMME_VINDUER,
+    };
+    const paa = (dato: string, over: Partial<FornyelsesvarselInput> = {}) => afgoerForfaldentVarsel({ ...carma, ...over }, new Date(`${dato}T11:00:00.000Z`));
+    expect(paa("2026-09-11").varsel).toBeNull(); // dag 0: varsel 2 allerede sendt
+    expect(paa("2026-09-12")).toMatchObject({ varsel: "vindue_1", dage_til_udloeb: -1 });
+    expect(paa("2026-09-15")).toMatchObject({ varsel: "vindue_1", dage_til_udloeb: -4 });
+    expect(paa("2026-09-21")).toMatchObject({ varsel: "vindue_1", dage_til_udloeb: -10 });
+    expect(paa("2026-09-21", { vindue_1_sendt_at: "2026-09-16T11:00:00.000Z" }).varsel).toBeNull();
+    expect(paa("2026-09-22", { vindue_1_sendt_at: "2026-09-16T11:00:00.000Z" })).toMatchObject({ varsel: "vindue_2", dage_til_udloeb: -11 });
+    expect(paa("2026-09-25", { vindue_1_sendt_at: "2026-09-16T11:00:00.000Z" })).toMatchObject({ varsel: "vindue_2", dage_til_udloeb: -14 });
+    expect(paa("2026-09-26", { vindue_1_sendt_at: "2026-09-16T11:00:00.000Z" })).toMatchObject({ varsel: null, dage_til_udloeb: -15 });
   });
 });

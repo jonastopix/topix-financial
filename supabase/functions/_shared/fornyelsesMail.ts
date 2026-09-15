@@ -51,6 +51,9 @@ export const LABEL_VARSEL_1 = "fornyelse-varsel1";
 export const LABEL_VARSEL_2 = "fornyelse-varsel2";
 /** Kvitteringen efter betalingen (8/9) — template_name i email_send_log og label hos Lovable. */
 export const LABEL_KVITTERING = "fornyelse-kvittering";
+/** Vinduesmailene (15/9, PR 3): dag 1–10 og dag 11–14 efter slutdato. */
+export const LABEL_VINDUE_1 = "fornyelse-vindue1";
+export const LABEL_VINDUE_2 = "fornyelse-vindue2";
 
 const HILSEN = "Venlig hilsen\nJonas Herlev";
 const KNAP = { tekst: "Forny medlemskabet", url: FORNYELSE_FORSIDE_URL };
@@ -121,6 +124,63 @@ export function varsel2Mail(a: FornyelsesMailArgs & { dageTilUdloeb: number | nu
       overskrift: tiltale("Hej", a.fornavn),
       afsnit: [
         `En kort påmindelse: dit medlemskab slutter ${slutter.tekst}, og det kan fornys med et par klik — ${formatKr(a.beloebKr)} kr. ekskl. moms for det næste år.`,
+      ],
+      knap: KNAP,
+      hilsen: HILSEN,
+    }),
+  };
+}
+
+// ── Vinduesmailene — efter slutdatoen (15/9, PR 3) ─────────────────────
+//
+// JONAS 15/9 (valg A): to mails i forlængelsesvinduet — dag 1 («udløbet, du
+// kan stadig forlænge til og med {dato}») og dag 11 («sidste chance,
+// tilbuddet lukker {dato}») — KUN ved beslutning «tilbyd». Motoren
+// (afgoerForfaldentVarsel → "vindue_1" / "vindue_2") afgør hvem; denne fil
+// afgør hvad der står. TEKSTERNE står ordret i DEL 2 «15. september» §17
+// til Jonas' godkendelse før udrulning.
+//
+// INGEN LØFTER KODEN IKKE HOLDER: adgangen er lukket (tier expired →
+// MembershipExpiredGate), tilbuddet kan bruges til og med dag 14
+// (udloebet_tilbyd), betalingen åbner adgangen igen (stripe-webhookens
+// fornyelsesgren sætter status active og ny slutdato). Data slettes
+// tidligst 45 dage efter slutdato (sletning.ts), så «alt ligger klar»
+// holder i vinduet. Knappen er varslernes: forsiden, hvor gaten viser
+// tilbuddet. Vindue 2 er en HÅRD deadline (Jonas 15/9: «vores mails skal
+// give dem en hård deadline») — den siger ikke hvad der sker bagefter, og
+// nævner ingen anden vej ind; ellers åbner mailen et smuthul.
+
+export interface VinduesMailArgs extends FornyelsesMailArgs {
+  /** Sidste dag med tilbud som tekst («25. september 2026») = slutdato + FORNYELSE_TILBUDSVINDUE_EFTER_UDLOEB_DAGE, formateret af kalderen som slutDato. */
+  tilOgMedDato: string;
+}
+
+/** Vindue 1 — dag 1–10 efter slutdato: udløbet, men kan stadig forlænge til og med datoen. */
+export function vindue1Mail(a: VinduesMailArgs): IndgangsMail {
+  return {
+    subject: `Dit medlemskab er udløbet — du kan stadig forlænge til og med ${a.tilOgMedDato}`,
+    html: indgangsMailHtml({
+      overskrift: tiltale("Kære", a.fornavn),
+      afsnit: [
+        `Dit medlemskab af The Boardroom for ${a.virksomhed} udløb ${a.slutDato}, og adgangen til platformen er lukket. Dine tal, dine rapporter og din plads i netværket ligger stadig klar.`,
+        `Du kan forlænge til og med ${a.tilOgMedDato}. Prisen for det næste år er ${formatKr(a.beloebKr)} kr. ekskl. moms, og adgangen åbner igen, så snart betalingen er gået igennem.`,
+      ],
+      knap: KNAP,
+      efterKnap: [`Har du spørgsmål, så skriv til ${KONTAKT_ADRESSE}.`],
+      hilsen: HILSEN,
+    }),
+  };
+}
+
+/** Vindue 2 — dag 11–14 efter slutdato: sidste chance, tilbuddet lukker datoen. */
+export function vindue2Mail(a: VinduesMailArgs): IndgangsMail {
+  return {
+    subject: `Sidste chance: tilbuddet om at forlænge lukker ${a.tilOgMedDato}`,
+    html: indgangsMailHtml({
+      overskrift: tiltale("Hej", a.fornavn),
+      afsnit: [
+        `En sidste påmindelse: tilbuddet om at forlænge medlemskabet for ${a.virksomhed} lukker ${a.tilOgMedDato}.`,
+        `Prisen er ${formatKr(a.beloebKr)} kr. ekskl. moms for det næste år.`,
       ],
       knap: KNAP,
       hilsen: HILSEN,
