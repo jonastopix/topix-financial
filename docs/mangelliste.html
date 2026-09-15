@@ -321,6 +321,11 @@
     n14-6a: Virk-ansøgning sendt 23:13, berigelsen kørt uden svar fra
     cvrapi. n14-7: betingelsen opfyldt, klar til oprydning.
     Antal uændret: 165, 17 lukkede.
+    FUND K RETTET I KODE (OVERLEVERING DEL 2 «15. september» §19). Kort
+    w-k: index.html og manifest.json bærer Jonas' valg A (titel «The
+    Boardroom — sparring for virksomhedsejere»); frontend, kræver
+    Update-klik; bevis = Post Inspector. Står åbent til beviset. Antal
+    uændret: 165, 17 lukkede.
   RYDDET 10/9 AFTEN (Jonas: «få sat flueben ved de ting der er klaret»)
     24 kort slettet som løst — bogført i OVERLEVERING DEL 2 «10. september,
     aften»; 8 omskrevet til det der står tilbage (Rettet 10/9); 3 nye.
@@ -1545,7 +1550,8 @@
       <h3>Fund K: app.theboardroom.dk's link-preview siger «Alt-i-én platform til økonomistyring for vækstvirksomheder» — det er hvad et nyt medlems netværk ser, hvis hun deler app-linket</h3>
       <p><strong>Teksten, ordret:</strong> «Rapportér, budgettér og følg dine milestones. Alt-i-én platform til økonomistyring for vækstvirksomheder.» — <code>index.html:8</code> (description), <code>:20-21</code> (og:title «The Boardroom – Dit finansielle overblik» + og:description), <code>:26-27</code> (twitter), og <code>public/manifest.json:4</code>. Dertil <code>noindex, nofollow</code> (<code>:6</code>). Det er IKKE produktet — det er et medlemsnetværk med Morten og Jonas som rådgivere, man ansøger og udvælges. Billedet er rigtigt: <code>og-image.jpg</code> 1200×630, «Jonas Herlev og Morten Larsen i samtale».</p>
       <p><strong>Rettelsen:</strong> én tekst i tre filer (index.html, manifest.json, og evt. title) i en PR + Update-klik. <strong>Indtil da:</strong> del ALDRIG app-linket — delingspakken og teksterne peger på theboardroom.dk (marketing-sitet, ikke i dette repo; dets og:image/og:description og ansøgningsknap måles i morgen — <code>maalinger-foer-webinaret.md</code> måling 9).</p>
-      <div class="meta"><span class="tag webinar">22/9 · fund K</span><span class="tag ny">Ny 14/9</span><span class="tag rust">Forkert tekst udadtil</span><span class="tag">Hører til delingen</span><span class="tag size">Lille</span></div>
+      <p><strong>RETTET I KODE 15/9 (OVERLEVERING DEL 2 «15. september» §19) — frontend, kræver Update-klik; UBEVIST til Post Inspector.</strong> Jonas' valg A, ordret: titel «The Boardroom — sparring for virksomhedsejere»; beskrivelse «12 måneder med sparring fra Morten Larsen og Jonas Herlev og et netværk af andre selvstændige. Medlemskab efter ansøgning på theboardroom.dk.». Sat i <code>index.html</code> (<code>&lt;title&gt;</code>, description, og:title, og:description, twitter:title, twitter:description) og <code>public/manifest.json</code> (description); robots noindex, canonical, og:url/type/image (1200×630) og twitter:card/image uændrede. Kildeværn <code>src/lib/__tests__/linkPreview.guard.test.ts</code>. Fra recon-fund-k-link-preview.md (vindue B): delingen udleverer ALDRIG app-linket — de fire tekster har intet link, vejledningen sender theboardroom.dk til første kommentar, og der er ingen «del link» i appen — men app'en er en ren SPA, så ethvert app-link viser index.html's tags. <strong>BEVIS</strong> = LinkedIns Post Inspector på <code>https://app.theboardroom.dk</code> viser den nye titel og beskrivelse (LinkedIn cacher; Post Inspector henter på ny). Kortet lukkes ved beviset.</p>
+      <div class="meta"><span class="tag webinar">22/9 · fund K</span><span class="tag ny">Ny 14/9</span><span class="tag gold">Rettet i kode 15/9 — Update-klik, ubevist</span><span class="tag rust">Forkert tekst udadtil</span><span class="tag">Hører til delingen</span><span class="tag size">Lille</span></div>
     </div>
     <div class="card new loest" id="w-g" data-status="loest" data-spor="1" data-rammer="medlem">
       <h3>Fund G: dag 10-mailen («Din sparring med Morten er inkluderet») nævner kun Morten — siden 13/9 er der to inkluderede sessioner</h3>
