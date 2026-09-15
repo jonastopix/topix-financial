@@ -1,24 +1,35 @@
 import { describe, expect, it } from "vitest";
-import { EKSPORT_VEJE, HISTORIK_MAANEDER, tomListeTekst, uploadZoneTekst, vejledningAaben } from "../rapporteringTekst";
+import { EKSPORT_VEJE, HISTORIK_MAANEDER, historikFoerst, tomListeTekst, uploadZoneTekst, vejledningAaben } from "../rapporteringTekst";
 
 // Rapporteringens ord (9/9): en ny skal forstå at de ikke skal vente på
 // næste måned — de skal uploade det de har, også fra før medlemskabet.
 // En vant skal ikke læse introduktionen hver måned.
+// Instruks F (16/9): månederne står ved navn — de tre seneste AFSLUTTEDE,
+// regnet fra `nu` i dansk tid. 22/9-2026 → juni, juli og august.
+
+const NU = new Date("2026-09-22T10:00:00Z");
 
 describe("uploadZoneTekst — ny mod vant", () => {
-  it("ny: beder om historik, tre måneder, gerne mere, også fra før medlemskabet — og siger hvor tallene kommer fra", () => {
-    const t = uploadZoneTekst(true);
+  it("ny: beder om historik — de tre seneste afsluttede måneder ved navn, gerne mere, også fra før medlemskabet — og siger hvor tallene kommer fra", () => {
+    const t = uploadZoneTekst(true, NU);
     expect(HISTORIK_MAANEDER).toBe(3);
     expect(t.overskrift).toBe("Upload dine tal — start med historikken");
-    expect(t.linje).toContain("seneste 3 måneder");
+    expect(t.linje).toBe(
+      "Saldobalance eller resultatopgørelse fra dit regnskabsprogram, som PDF, Excel eller CSV. " +
+        "Tag juni, juli og august med, gerne mere — også fra før du blev medlem. Klik eller træk hertil.",
+    );
+    expect(t.linje).not.toContain("seneste 3 måneder");
     expect(t.linje).toContain("gerne mere");
+    // Månederne følger «nu»: 1/10 er september omme; 5/1 er det oktober–december.
+    expect(uploadZoneTekst(true, new Date("2026-10-01T07:00:00Z")).linje).toContain("Tag juli, august og september med");
+    expect(uploadZoneTekst(true, new Date("2027-01-05T07:00:00Z")).linje).toContain("Tag oktober, november og december med");
     expect(t.linje).toContain("før du blev medlem");
     expect(t.linje).toContain("regnskabsprogram");
     expect(t.linje).toContain("Klik eller træk hertil");
   });
 
   it("vant: den hidtidige korte tekst, ordret", () => {
-    expect(uploadZoneTekst(false)).toEqual({
+    expect(uploadZoneTekst(false, NU)).toEqual({
       overskrift: "Upload din månedsrapport",
       linje: "Saldobalance eller resultatopgørelse — PDF, Excel eller CSV. Klik eller træk hertil.",
     });
@@ -26,14 +37,34 @@ describe("uploadZoneTekst — ny mod vant", () => {
 });
 
 describe("tomListeTekst", () => {
-  it("ny: siger hvad der skal til, ingen nuller", () => {
-    const t = tomListeTekst(true);
-    expect(t).toContain("seneste 3 måneder");
-    expect(t).toContain("før medlemskabet");
+  it("ny: siger hvad der skal til — månederne ved navn, ingen nuller", () => {
+    const t = tomListeTekst(true, NU);
+    expect(t).toBe("Ingen rapporter endnu. Upload juni, juli og august ovenfor — også fra før medlemskabet — så har vi et grundlag at starte fra.");
+    expect(t).not.toContain("seneste 3 måneder");
     expect(t).not.toMatch(/\b0 /);
   });
   it("vant (fx et årsfilter uden rækker): kort", () => {
-    expect(tomListeTekst(false)).toBe("Ingen rapporter i denne visning.");
+    expect(tomListeTekst(false, NU)).toBe("Ingen rapporter i denne visning.");
+  });
+});
+
+// Instruks F (16/9): historikken og den udfoldede vejledning står INDTIL
+// der findes en godkendt rapport — ikke kun til første række. Én upload af
+// indeværende måned er limbo, og så må teksten der beder om historikken
+// ikke forsvinde.
+describe("historikFoerst — «første gang» varer til den første GODKENDTE rapport", () => {
+  it("ingen godkendte: første gang — uanset hvor mange uploads der ligger", () => {
+    expect(historikFoerst(0)).toBe(true);
+  });
+  it("én godkendt: vant", () => {
+    expect(historikFoerst(1)).toBe(false);
+    expect(historikFoerst(12)).toBe(false);
+  });
+  it("zonen og vejledningen følger dommen: første gang → historik + udfoldet; vant → kort + sammenfoldet", () => {
+    expect(uploadZoneTekst(historikFoerst(0), NU).overskrift).toBe("Upload dine tal — start med historikken");
+    expect(vejledningAaben(historikFoerst(0))).toBe(true);
+    expect(uploadZoneTekst(historikFoerst(1), NU).overskrift).toBe("Upload din månedsrapport");
+    expect(vejledningAaben(historikFoerst(1))).toBe(false);
   });
 });
 

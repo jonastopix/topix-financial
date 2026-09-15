@@ -3,8 +3,9 @@
  *
  * Spejlet i supabase/functions/_shared/onboardingRytme.ts — enhver ændring
  * her SKAL også laves der. Pariteten håndhæves af testen i
- * src/lib/__tests__/onboardingRytmeParitet.test.ts. Filen har ingen
- * imports, så de to kopier er ordret ens ud over filhovederne.
+ * src/lib/__tests__/onboardingRytmeParitet.test.ts. Filens ENESTE import er
+ * maanedsnoegle (spejlet, 16/9) — importstien er den eneste tilladte forskel,
+ * så de to kopier er ordret ens ud over filhovederne og importlinjen.
  *
  * ONBOARDINGENS RYTME — de tre systemmails i de første tre uger, som ren
  * dom (analyse-onboardingens-rytme.md §5, Jonas 9/9). Cronen
@@ -30,9 +31,10 @@
  *
  * DE TRE:
  *   A  dag 0–1   «Sådan kommer du i gang» — tjeklistens punkter i rækkefølge,
- *                «start med historikken: de seneste 3 måneder, gerne mere»,
+ *                «start med historikken: {de tre seneste afsluttede måneder}»,
  *                og at hun kan skrive i chatten og få svar (LOEFTET).
- *                Springes over hvis de allerede har uploadet.
+ *                Springes over hvis de allerede har uploadet en AFSLUTTET
+ *                måned (instruks F, 16/9 — samme regel som C).
  *   B  dag 10    «Din sparring med Morten og Jonas er inkluderet» — eller
  *                «… med Morten …» når Jonas-retten er brugt — sendes af
  *                intro-reminder-cron (den henter tærsklen og teksten HER),
@@ -42,7 +44,9 @@
  *                noget — samtalen med Morten har intet grundlag — og dag 10
  *                er efter de har haft tid til at lægge tal ind.
  *   C  dag 14–20 «Historikken først — sådan henter du dine tal» — KUN hvis
- *                intet er uploadet. Rapportpåmindelsen springer netop nye
+ *                ingen AFSLUTTET måned er uploadet (instruks F, 16/9: en
+ *                upload af indeværende måned er limbo og tier ikke mailen;
+ *                så siger første afsnit det). Rapportpåmindelsen springer netop nye
  *                uden upload over (ikkeIGang, 9/9) fordi de skal bedes om
  *                historik af et menneske — men beder mennesket ikke, siger
  *                ingen noget i 90 dage. C er praktisk, ikke rykkende: den
@@ -74,6 +78,8 @@
  * skelnes på companies.is_legat = true og får hverken A eller C.
  */
 
+import { afsluttedeMaanederTekst, erMaanedAfsluttet } from "./maanedsnoegle";
+
 /** A: sendes kun når medlemskabet er højst så mange hele dage gammelt. */
 export const KOM_I_GANG_TIL_DAG = 1;
 /** B: intro-påmindelsen (intro-reminder-cron) er moden fra denne dag. Var 2. */
@@ -95,8 +101,15 @@ export interface RytmeInput {
   medlemSiden: string | Date | null | undefined;
   /** companies.is_legat — legat har egen velkomst. */
   erLegat: boolean;
-  /** Antal uploadede (ikke slettede) financial_reports. */
-  antalUploads: number;
+  /**
+   * Uploadenes effektive periode-nøgler («YYYY-MM»; null = perioden kunne
+   * ikke læses), ikke-slettede financial_reports. INSTRUKS F (16/9): kun
+   * uploads af AFSLUTTEDE måneder tæller som «begyndt» — en upload af
+   * indeværende måned er limbo (kan ikke godkendes før den 1.) og må ikke
+   * tie mailene. En upload uden læselig periode (null) tæller som begyndt,
+   * som før (beslutning 5).
+   */
+  uploadPerioder: readonly (string | null)[];
   /** Findes mindst én facts-række med data_basis = 'measured'? */
   harMaaltRapport: boolean;
   /** Labels (template_name) med status 'sent' til modtageren i email_send_log. */
@@ -131,22 +144,39 @@ export function dageSidenStart(start: string | Date | null | undefined, nu: Date
   return Math.round((b - a) / MS_PER_DOEGN);
 }
 
+/**
+ * Begyndt med tal (instruks F, 16/9): en upload af en AFSLUTTET måned (dansk
+ * tid, maanedsnoegle), en upload uden læselig periode, eller en målt
+ * facts-række. Samme regel for A og C — en upload af indeværende måned er
+ * ikke «begyndt».
+ */
+export function harBegyndtMedTal(input: Pick<RytmeInput, "uploadPerioder" | "harMaaltRapport">, nu: Date): boolean {
+  return input.harMaaltRapport || input.uploadPerioder.some((k) => k === null || erMaanedAfsluttet(k, nu));
+}
+
+export type HistorikSituation = "uden_upload" | "kun_for_tidlige";
+
+/** C's første afsnit: har hun KUN uploads af måneder der ikke er omme, siges det — ellers «ikke lagt tal ind endnu». Meningsfuld når harBegyndtMedTal er falsk. */
+export function historikSituation(input: Pick<RytmeInput, "uploadPerioder">): HistorikSituation {
+  return input.uploadPerioder.length > 0 ? "kun_for_tidlige" : "uden_upload";
+}
+
 export function afgoerRytme(input: RytmeInput, nu: Date): RytmeDom {
   const dage = dageSidenStart(input.medlemSiden, nu);
   if (dage == null) return { dage, sendes: null, grund: "ingen_start" };
   if (input.erLegat) return { dage, sendes: null, grund: "legat" };
-  const harBegyndt = input.antalUploads > 0 || input.harMaaltRapport;
+  const harBegyndt = harBegyndtMedTal(input, nu);
   const sendt = (m: RytmeMail) => input.alleredeSendt.includes(RYTME_LABEL[m]);
 
-  // A — kun dag 0–1 (sikringen i filhovedet). Har de allerede uploadet,
-  // har de gjort det mailen beder om.
+  // A — kun dag 0–1 (sikringen i filhovedet). Har de allerede uploadet en
+  // afsluttet måned, har de gjort det mailen beder om.
   if (dage >= 0 && dage <= KOM_I_GANG_TIL_DAG) {
     if (sendt("kom_i_gang")) return { dage, sendes: null, grund: "allerede_sendt" };
     if (harBegyndt) return { dage, sendes: null, grund: "har_uploadet" };
     return { dage, sendes: "kom_i_gang", grund: null };
   }
 
-  // C — dag 14–20, kun uden nogen upload.
+  // C — dag 14–20, kun uden en upload af en afsluttet måned.
   if (dage >= HISTORIK_FRA_DAG && dage <= HISTORIK_TIL_DAG) {
     if (sendt("historik")) return { dage, sendes: null, grund: "allerede_sendt" };
     if (harBegyndt) return { dage, sendes: null, grund: "har_uploadet" };
@@ -182,9 +212,10 @@ export function tiltale(fornavn: string | null | undefined): string {
   return rent ? `Hej ${rent},` : "Hej,";
 }
 
-/** Historikken — samme tal som rapporteringens tekst (HISTORIK_MAANEDER = 3). */
-export const HISTORIK_SAETNING =
-  "Start med historikken: de seneste 3 måneder, gerne mere — også fra før du blev medlem.";
+/** Historikken — de tre seneste afsluttede måneder ved navn (instruks F, 16/9), regnet fra mailens `nu`. */
+export function historikSaetning(nu: Date): string {
+  return `Start med historikken: ${afsluttedeMaanederTekst(nu)} — én fil pr. måned, også fra før du blev medlem.`;
+}
 
 /**
  * Det vi lover om mennesket (Jonas 14/9): initiativet er medlemmets — som
@@ -205,13 +236,13 @@ export const LOEFTET = "Skriv til din rådgiver i chatten, når du vil — Jonas
  * følger tjeklisten (besluttet 11/9); onboardingRytme.test.ts låser
  * pariteten med startsWith på hvert punkts titel.
  */
-export function komIGangTekst(fornavn: string | null | undefined, harVelkomstvideo: boolean): RytmeTekst {
+export function komIGangTekst(fornavn: string | null | undefined, harVelkomstvideo: boolean, nu: Date): RytmeTekst {
   const punkter = [
     ...(harVelkomstvideo ? ["Se velkomsten — en kort video om hvordan du får mest ud af The Boardroom."] : []),
     "Din profil — hvad de andre i netværket kan spørge dig om.",
     "Præsentér dig i fællesskabet — et opslag om hvem du er, med et udkast ud fra din profil.",
     "Din virksomhed — website, branche og CVR, det platformen regner på.",
-    `Dine tal — ${HISTORIK_SAETNING}`,
+    `Dine tal — ${historikSaetning(nu)}`,
     "Dit første handout — start med Overordnet.",
     "Skriv til din rådgiver — sig hej, så ved vi hvor du er.",
     "Fortæl det videre — dit medlemskab som billede til LinkedIn, så dit netværk ved hvor du får sparring.",
@@ -236,13 +267,20 @@ export const EKSPORT_VEJE_TEKST: readonly string[] = [
   "Andre: Resultatopgørelse eller saldobalance som PDF eller Excel — kan vi ikke læse den, indtaster du de vigtigste tal selv",
 ];
 
-/** C — historikken først, og hvordan. */
-export function historikTekst(fornavn: string | null | undefined): RytmeTekst {
+/**
+ * C — historikken først, og hvordan. Månederne ved navn fra mailens `nu`;
+ * første afsnit følger situationen (instruks F, 16/9): «kun_for_tidlige»
+ * = hun har uploadet, men kun måneder der ikke er omme.
+ */
+export function historikTekst(fornavn: string | null | undefined, nu: Date, situation: HistorikSituation = "uden_upload"): RytmeTekst {
+  const maaneder = afsluttedeMaanederTekst(nu);
   return {
     emne: "Historikken først — sådan henter du dine tal",
     overskrift: tiltale(fornavn),
     afsnit: [
-      "Du har ikke lagt tal ind i The Boardroom endnu. Det der giver mest værdi først, er de seneste 3 måneder — også fra før du blev medlem. Så har din rådgiver noget at se på.",
+      situation === "kun_for_tidlige"
+        ? `Den måned du har uploadet, kan først godkendes når den er omme. Det der giver mest værdi nu, er ${maaneder} — også fra før du blev medlem.`
+        : `Du har ikke lagt tal ind i The Boardroom endnu. Det der giver mest værdi først, er ${maaneder} — også fra før du blev medlem. Så har din rådgiver noget at se på.`,
       "Sådan henter du dem i dit regnskabsprogram:",
     ],
     punkter: [...EKSPORT_VEJE_TEKST],

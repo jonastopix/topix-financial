@@ -8,6 +8,7 @@
 
 import { DANISH_MONTHS } from "@/lib/financialUtils";
 import { naesteSkridtTekst } from "@/lib/hjemmebane/rapporteringTekst";
+import { afsluttedeMaanederTekstFoer } from "@/lib/maanedsnoegle";
 
 export type CommitState = "not_ready" | "ready" | "update_available" | "blocked";
 
@@ -321,7 +322,9 @@ export function deriveReportCardView(input: ReportCardInput): ReportCardView {
           key: "too_early",
           label: `Modtaget — kan godkendes fra ${foersteDagEfterPeriode(periodKey as string)}`,
           tone: "quiet",
-          detail: "Tallene er læst og i orden. Måneden skal være omme, før de kan godkendes.",
+          // Instruks F (16/9): sig hvad hun kan gøre imens — de tre seneste
+          // afsluttede måneder ved navn, regnet fra fladens nu-nøgle.
+          detail: `Måneden skal være omme, før den kan godkendes. Imens: upload ${afsluttedeMaanederTekstFoer(nowKey ?? nuSomPeriodeNoegle())}, så kan de godkendes med det samme.`,
         };
       }
       if (commitState === "not_ready") {

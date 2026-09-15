@@ -1,21 +1,12 @@
 /**
- * _shared/maanedsnoegle.ts — «hvilken måned er det i Danmark, og er en periode
- * afsluttet?» (10/9-2026, de-tyve nr. 10) — og «hvilke tre måneder er de
- * seneste afsluttede?» (16/9, instruks F).
+ * src/lib/maanedsnoegle.ts — spejl af supabase/functions/_shared/maanedsnoegle.ts
+ * (16/9, instruks F): «hvilken måned er det i Danmark, er en periode
+ * afsluttet, og hvilke tre måneder er de seneste afsluttede?»
  *
- * REN: vitest læser den direkte (src/lib/__tests__/maanedsnoegle.test.ts).
- * SPEJLET i src/lib/maanedsnoegle.ts (16/9) — enhver ændring her SKAL også
- * laves der; pariteten låses af src/lib/__tests__/maanedsnoegleParitet.test.ts
- * (funktionerne OG kildeteksten efter filhovedet).
- *
- * HVORFOR: regel 6 i resolve_report_commit_candidate dømte «måneden er ikke
- * afsluttet» med to_char(now(), 'YYYY-MM') — databasens UTC. Fladen dømmer i
- * dansk tid (reportCardView.erForTidligt). Den 1. mellem 00:00 og 02:00 dansk
- * tid (CEST; 00:00–01:00 ved CET) var UTC stadig i forrige måned: fladen sagde
- * «kan godkendes», resolveren «ikke afsluttet». Migration 20260910220000
- * retter SQL'en til Europe/Copenhagen; denne fil er samme regel i TypeScript
- * for cron'en — begge sider skal give samme svar, og grænserne testes fra
- * begge sider (sidste sekund før, første sekund efter, sommer og vinter).
+ * Enhver ændring her SKAL også laves i _shared-udgaven; pariteten låses af
+ * src/lib/__tests__/maanedsnoegleParitet.test.ts (funktionerne OG kildeteksten
+ * efter filhovedet). Begrundelserne (regel 6 i dansk tid, grænserne kl.
+ * 00:00–02:00) står i _shared-udgavens filhoved.
  */
 
 export const TZ = "Europe/Copenhagen";

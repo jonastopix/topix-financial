@@ -4,8 +4,10 @@ import { resolve } from "node:path";
 import {
   afgoerRytme,
   EKSPORT_VEJE_TEKST,
+  harBegyndtMedTal,
   HISTORIK_FRA_DAG,
   HISTORIK_TIL_DAG,
+  historikSituation,
   historikTekst,
   INTRO_PAAMINDELSE_FRA_DAG,
   introPaamindelseModen,
@@ -17,15 +19,20 @@ import {
   type RytmeInput,
   type RytmeTekst,
 } from "@/lib/onboardingRytme";
-import { EKSPORT_VEJE, HISTORIK_MAANEDER } from "@/lib/hjemmebane/rapporteringTekst";
+import { EKSPORT_VEJE } from "@/lib/hjemmebane/rapporteringTekst";
 import { byggTjekliste, TJEKLISTE_RAEKKEFOELGE } from "@/lib/onboardingTjekliste";
 
 const NU = new Date(2026, 8, 9, 9, 0);
 const start = (d: number) => new Date(2026, 8, 9 - d, 14).toISOString();
+// Instruks F (16/9): ved NU (9/9-2026) er august afsluttet, september er
+// ikke — «de tre seneste afsluttede» er juni, juli og august.
+const AFSLUTTET = "2026-08";
+const FOR_TIDLIG = "2026-09";
+const MAANEDER = "juni, juli og august";
 const ny = (d: number, over: Partial<RytmeInput> = {}): RytmeInput => ({
   medlemSiden: start(d),
   erLegat: false,
-  antalUploads: 0,
+  uploadPerioder: [],
   harMaaltRapport: false,
   alleredeSendt: [],
   ...over,
@@ -45,9 +52,16 @@ describe("afgoerRytme — A «Sådan kommer du i gang» (dag 0–1)", () => {
     }
   });
 
-  it("har de allerede uploadet, springes A over — de har gjort det mailen beder om", () => {
-    expect(afgoerRytme(ny(0, { antalUploads: 1 }), NU)).toEqual({ dage: 0, sendes: null, grund: "har_uploadet" });
+  it("har de allerede uploadet en AFSLUTTET måned, springes A over — de har gjort det mailen beder om", () => {
+    expect(afgoerRytme(ny(0, { uploadPerioder: [AFSLUTTET] }), NU)).toEqual({ dage: 0, sendes: null, grund: "har_uploadet" });
     expect(afgoerRytme(ny(1, { harMaaltRapport: true }), NU)).toEqual({ dage: 1, sendes: null, grund: "har_uploadet" });
+  });
+
+  // Instruks F (16/9): samme regel som C — kun afsluttede måneder tæller.
+  it("KUN en upload af en måned der ikke er omme: A sendes alligevel; en upload uden læselig periode tæller som begyndt (beslutning 5)", () => {
+    expect(afgoerRytme(ny(0, { uploadPerioder: [FOR_TIDLIG] }), NU)).toEqual({ dage: 0, sendes: "kom_i_gang", grund: null });
+    expect(afgoerRytme(ny(0, { uploadPerioder: [null] }), NU).grund).toBe("har_uploadet");
+    expect(afgoerRytme(ny(0, { uploadPerioder: [FOR_TIDLIG, AFSLUTTET] }), NU).grund).toBe("har_uploadet");
   });
 
   it("stemplet er email_send_log-rækken: allerede sendt → ikke igen (dag 1 efter dag 0)", () => {
@@ -73,8 +87,21 @@ describe("afgoerRytme — C «Historikken først» (dag 14–20, kun uden upload
     expect([HISTORIK_FRA_DAG, HISTORIK_TIL_DAG]).toEqual([14, 20]);
   });
 
-  it("har de uploadet (også uden godkendelse), er der ingen historik-mail", () => {
-    expect(afgoerRytme(ny(14, { antalUploads: 1 }), NU).grund).toBe("har_uploadet");
+  it("har de uploadet en AFSLUTTET måned (også uden godkendelse), er der ingen historik-mail", () => {
+    expect(afgoerRytme(ny(14, { uploadPerioder: [AFSLUTTET] }), NU).grund).toBe("har_uploadet");
+    expect(afgoerRytme(ny(14, { uploadPerioder: [null] }), NU).grund).toBe("har_uploadet");
+  });
+
+  // Instruks F (16/9): september-tal i september er limbo — mailen sendes, og siger det.
+  it("KUN uploads af måneder der ikke er omme: historik sendes, situationen er «kun_for_tidlige»", () => {
+    const input = ny(14, { uploadPerioder: [FOR_TIDLIG] });
+    expect(afgoerRytme(input, NU)).toEqual({ dage: 14, sendes: "historik", grund: null });
+    expect(harBegyndtMedTal(input, NU)).toBe(false);
+    expect(historikSituation(input)).toBe("kun_for_tidlige");
+    expect(historikSituation(ny(14))).toBe("uden_upload");
+    // Hvad der er «afsluttet» følger dansk tid: den 1/10 er september omme.
+    expect(harBegyndtMedTal(input, new Date("2026-09-30T22:00:00Z"))).toBe(true);
+    expect(harBegyndtMedTal(input, new Date("2026-09-30T21:59:59Z"))).toBe(false);
   });
 
   it("sendt én gang → ikke igen inden for vinduet", () => {
@@ -106,7 +133,7 @@ describe("introPaamindelseModen — B er dag 10, ikke dag 2 (Jonas 9/9)", () => 
 
 describe("teksterne — systemets stemme", () => {
   const alle: RytmeTekst[] = [
-    komIGangTekst("Mette", true), komIGangTekst(null, false), historikTekst("Ib"),
+    komIGangTekst("Mette", true, NU), komIGangTekst(null, false, NU), historikTekst("Ib", NU), historikTekst("Ib", NU, "kun_for_tidlige"),
     introPaamindelseTekst(null, false), introPaamindelseTekst("Ib", true),
   ];
   const fladt = (t: RytmeTekst) => [t.emne, t.overskrift, ...t.afsnit, ...t.punkter, t.knap.tekst, ...t.efterKnap].join(" ");
@@ -129,30 +156,33 @@ describe("teksterne — systemets stemme", () => {
       // Præsentationen (11/9, kort 60): et nyt fuldt medlem kan oprette tråde og har ikke præsenteret sig.
       kan_oprette_traad: true, har_praesentation: false,
     });
-    const medVideo = komIGangTekst("Mette", true).punkter;
+    const medVideo = komIGangTekst("Mette", true, NU).punkter;
     expect(medVideo).toHaveLength(TJEKLISTE_RAEKKEFOELGE.length);
     tjekliste.punkter.forEach((p, i) => expect(medVideo[i].startsWith(p.titel)).toBe(true));
-    const udenVideo = komIGangTekst("Mette", false).punkter;
+    const udenVideo = komIGangTekst("Mette", false, NU).punkter;
     expect(udenVideo).toHaveLength(TJEKLISTE_RAEKKEFOELGE.length - 1);
     expect(udenVideo[0].startsWith("Din profil")).toBe(true);
   });
 
-  it("A: historikken (3 måneder, også fra før medlemskabet), og initiativet er medlemmets — som tjeklistens punkt (Jonas 14/9)", () => {
-    const s = fladt(komIGangTekst("Mette", false));
-    expect(s).toContain(`de seneste ${HISTORIK_MAANEDER} måneder, gerne mere`);
-    expect(s).toContain("også fra før du blev medlem");
+  it("A: historikken — de tre seneste AFSLUTTEDE måneder ved navn (instruks F, 16/9), og initiativet er medlemmets — som tjeklistens punkt (Jonas 14/9)", () => {
+    const s = fladt(komIGangTekst("Mette", false, NU));
+    expect(s).toContain(`Dine tal — Start med historikken: ${MAANEDER} — én fil pr. måned, også fra før du blev medlem.`);
+    expect(s).not.toContain("de seneste 3 måneder");
+    // Månederne følger mailens «nu»: 1/10 er september omme; 5/1 er det oktober–december.
+    expect(fladt(komIGangTekst("Mette", false, new Date("2026-10-01T07:15:00Z")))).toContain("juli, august og september");
+    expect(fladt(komIGangTekst("Mette", false, new Date("2027-01-05T07:15:00Z")))).toContain("oktober, november og december");
     // Det gamle løfte («Jonas eller Morten skriver til dig i chatten») var
     // ikke automatiseret og må ikke komme igen. Det nye siger det der sker:
     // hun skriver, de svarer — samme initiativ som tjeklistens «Skriv til
     // din rådgiver — Sig hej, så ved vi, hvor du er».
     expect(s).not.toContain("skriver til dig i chatten");
     expect(s).not.toMatch(/i løbet af de første dage/);
-    expect(komIGangTekst("Mette", false).efterKnap).toEqual([LOEFTET]);
+    expect(komIGangTekst("Mette", false, NU).efterKnap).toEqual([LOEFTET]);
     expect(LOEFTET).toBe("Skriv til din rådgiver i chatten, når du vil — Jonas eller Morten svarer.");
     expect(LOEFTET).toMatch(/^Skriv til din rådgiver/);
     expect(LOEFTET).toContain("Jonas eller Morten svarer");
-    expect(komIGangTekst("Mette", false).overskrift).toBe("Hej Mette,");
-    expect(komIGangTekst("  ", false).overskrift).toBe("Hej,");
+    expect(komIGangTekst("Mette", false, NU).overskrift).toBe("Hej Mette,");
+    expect(komIGangTekst("  ", false, NU).overskrift).toBe("Hej,");
   });
 
   it("A: mailen og tjeklistens sidste punkt («Skriv til din rådgiver» — 6 uden video, 7 med) siger det samme om hvem der tager initiativet", () => {
@@ -168,15 +198,32 @@ describe("teksterne — systemets stemme", () => {
     expect(tjekliste.punkter[tjekliste.punkter.length - 1].id).toBe("besked");
     // Begge begynder med medlemmets handling — ingen af dem lover at rådgiveren skriver først.
     expect(LOEFTET.startsWith(besked!.titel)).toBe(true);
-    expect(fladt(komIGangTekst(null, false))).not.toMatch(/(Jonas|Morten) (eller (Jonas|Morten) )?skriver til dig/);
+    expect(fladt(komIGangTekst(null, false, NU))).not.toMatch(/(Jonas|Morten) (eller (Jonas|Morten) )?skriver til dig/);
   });
 
-  it("C: eksportvejene er ordret dem på /rapportering", () => {
+  it("C: eksportvejene er ordret dem på /rapportering, og månederne står ved navn", () => {
     expect(EKSPORT_VEJE_TEKST).toEqual(EKSPORT_VEJE.map((v) => `${v.system}: ${v.vej}`));
-    const c = historikTekst(null);
+    const c = historikTekst(null, NU);
     expect(c.punkter).toEqual(EKSPORT_VEJE_TEKST);
     expect(c.knap.sti).toBe("/rapportering");
-    expect(fladt(c)).toContain(`de seneste ${HISTORIK_MAANEDER} måneder`);
+    expect(fladt(c)).toContain(MAANEDER);
+    expect(fladt(c)).not.toContain("de seneste 3 måneder");
+  });
+
+  // Instruks F (16/9): C's første afsnit i de tre situationer.
+  it("C uden upload: «Du har ikke lagt tal ind … endnu» med månederne; KUN for-tidlige uploads: «Den måned du har uploadet …»; resten ens", () => {
+    const uden = historikTekst("Ib", NU);
+    const forTidlig = historikTekst("Ib", NU, "kun_for_tidlige");
+    expect(uden.afsnit[0]).toBe(`Du har ikke lagt tal ind i The Boardroom endnu. Det der giver mest værdi først, er ${MAANEDER} — også fra før du blev medlem. Så har din rådgiver noget at se på.`);
+    expect(forTidlig.afsnit[0]).toBe(`Den måned du har uploadet, kan først godkendes når den er omme. Det der giver mest værdi nu, er ${MAANEDER} — også fra før du blev medlem.`);
+    expect(forTidlig.afsnit[0]).not.toContain("ikke lagt tal ind");
+    expect(forTidlig.afsnit.slice(1)).toEqual(uden.afsnit.slice(1));
+    expect(forTidlig.emne).toBe(uden.emne);
+    expect(forTidlig.punkter).toEqual(uden.punkter);
+    expect(forTidlig.knap).toEqual(uden.knap);
+    expect(forTidlig.efterKnap).toEqual(uden.efterKnap);
+    // En afsluttet upload giver ingen C — situationen er da ligegyldig (dommen ovenfor).
+    expect(afgoerRytme(ny(16, { uploadPerioder: [AFSLUTTET] }), NU).sendes).toBeNull();
   });
 
   it("B, Jonas-retten IKKE brugt: BEGGE rådgivere i tredje person — emne og brødtekst (fund G, 14/9); ingen «med mig til gode»", () => {
