@@ -4,6 +4,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { byggTjekliste, type Tjekliste, type TjeklisteInput } from "@/lib/onboardingTjekliste";
 import { harVelkomstvideo as doemVelkomstvideo } from "@/lib/appConfig";
 import { KILDE_PRAESENTATION } from "@/lib/hjemmebane/praesentation";
+import { getEffectiveReportPeriodKey, type ReportData } from "@/lib/financialUtils";
 
 /**
  * Datalaget for onboarding-tjeklisten: henter de seks datastykker for den
@@ -30,7 +31,10 @@ import { KILDE_PRAESENTATION } from "@/lib/hjemmebane/praesentation";
  *     Fejler opslaget, er svaret null (punktet ikke gjort) og en warn.
  *   member_profiles.ask_me_about                — rækken findes ikke før første gem → null
  *   companies.website, industry_label, cvr_number — brugerens egen virksomhed (companyId)
- *   financial_reports: count, deleted_at is null — virksomhedens uploads
+ *   financial_reports: report_period, manual_report_period_key,
+ *     manual_override_status, deleted_at is null — virksomhedens uploads MED
+ *     effektiv periode (instruks F, 16/9): tjeklisten skelner «kun måneder
+ *     der ikke er omme» fra «en afsluttet måned der venter på godkendelse».
  *   financial_report_facts: count — virksomhedens GODKENDTE tal (9/9: punktet
  *     «Dine tal» er først gjort ved godkendelse, ikke ved upload)
  *   handouts: count, status = 'completed', user_id = mig
@@ -88,9 +92,12 @@ async function hentInput(
       .maybeSingle(),
     supabase.from("member_profiles").select("ask_me_about").eq("user_id", userId).maybeSingle(),
     supabase.from("companies").select("website, industry_label, cvr_number").eq("id", companyId).maybeSingle(),
+    // Uploads med effektiv periode (instruks F, 16/9) — samme nøgle som
+    // rapporteringssiden (getEffectiveReportPeriodKey: anvendt manuel
+    // override vinder over den parsede periode-tekst).
     supabase
       .from("financial_reports")
-      .select("id", { count: "exact", head: true })
+      .select("report_period, manual_report_period_key, manual_override_status")
       .eq("company_id", companyId)
       .is("deleted_at", null),
     // Godkendte tal: én facts-række er nok — handlingen er medlemmets klik
@@ -150,6 +157,7 @@ async function hentInput(
   // ellers vises en tom overlejring og punktet tælles med. Dommen er den
   // rene, testede funktion i src/lib/appConfig.ts (appConfigVelkomstvideo.test).
   const harVelkomstvideo = doemVelkomstvideo(velkomstRes.data?.config_value);
+  const uploads = (rapporterRes.data ?? []) as { report_period: string | null; manual_report_period_key: string | null; manual_override_status: string | null }[];
 
   return {
     velkomstvideoSetAt,
@@ -162,7 +170,8 @@ async function hentInput(
       website: companyRes.data?.website ?? null,
       industry_label: companyRes.data?.industry_label ?? null,
       cvr_number: companyRes.data?.cvr_number ?? null,
-      antal_rapporter: rapporterRes.count ?? 0,
+      antal_rapporter: uploads.length,
+      upload_perioder: uploads.map((r) => getEffectiveReportPeriodKey(r as unknown as ReportData)),
       antal_godkendte: godkendteRes.count ?? 0,
       antal_udfyldte_handouts: handoutsRes.count ?? 0,
       last_member_message_at: samtaleRes.data?.last_member_message_at ?? null,

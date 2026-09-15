@@ -158,22 +158,66 @@ describe("byggTjekliste — tomme strenge og mellemrum tæller ikke som udfyldt"
 });
 
 describe("byggTjekliste — «Dine tal» er gjort ved GODKENDELSE, ikke ved upload (rettet 9/9)", () => {
-  const rapport = (input: TjeklisteInput) => byggTjekliste(input).punkter.find((p) => p.id === "rapport")!;
+  // Instruks F (16/9): 22/9-2026 — de tre seneste afsluttede måneder er juni, juli og august; september er ikke omme.
+  const NU = new Date("2026-09-22T10:00:00Z");
+  const rapport = (input: TjeklisteInput) => byggTjekliste(input, NU).punkter.find((p) => p.id === "rapport")!;
 
-  it("nul rapporter: ikke gjort, ingen mangler-linje, upload-teksten", () => {
+  it("nul rapporter: ikke gjort, ingen mangler-linje — månederne ved navn, én fil pr. måned, også fra før medlemskabet", () => {
     const p = rapport({ ...TOM, antal_rapporter: 0, antal_godkendte: 0 });
     expect(p.gjort).toBe(false);
     expect(p.mangler).toEqual([]);
-    expect(p.beskrivelse).toBe("Upload din første rapport, så tallene kommer i spil.");
+    expect(p.beskrivelse).toBe("Upload juni, juli og august — én fil pr. måned, også fra før du blev medlem.");
+    // Månederne følger «nu»: 1/10 er september omme; 5/1 er det oktober–december.
+    const punkt = (nu: Date) => byggTjekliste({ ...TOM }, nu).punkter.find((p) => p.id === "rapport")!.beskrivelse;
+    expect(punkt(new Date("2026-10-01T07:00:00Z"))).toBe("Upload juli, august og september — én fil pr. måned, også fra før du blev medlem.");
+    expect(punkt(new Date("2027-01-05T07:00:00Z"))).toBe("Upload oktober, november og december — én fil pr. måned, også fra før du blev medlem.");
   });
 
-  it("uploadet men ikke godkendt: IKKE gjort — «Mangler: at godkende tallene», stien er rapporteringen", () => {
-    const p = rapport({ ...TOM, antal_rapporter: 3, antal_godkendte: 0 });
+  it("uploadet en AFSLUTTET måned, ikke godkendt: IKKE gjort — «Mangler: at godkende tallene», stien er rapporteringen", () => {
+    const p = rapport({ ...TOM, antal_rapporter: 3, antal_godkendte: 0, upload_perioder: ["2026-08", "2026-07", "2026-06"] });
     expect(p.gjort).toBe(false);
     expect(p.mangler).toEqual([MANGLER_TEKST.godkendelse]);
     expect(MANGLER_TEKST.godkendelse).toBe("at godkende tallene");
-    expect(p.beskrivelse).toContain("godkend tallene");
+    expect(p.beskrivelse).toBe("Rapporten er uploadet — godkend tallene, så de kommer i spil.");
     expect(p.sti).toBe("/rapportering");
+  });
+
+  it("uden upload_perioder (ældre kalder): som før — enhver upload er «godkend tallene»", () => {
+    const p = rapport({ ...TOM, antal_rapporter: 3, antal_godkendte: 0 });
+    expect(p.mangler).toEqual([MANGLER_TEKST.godkendelse]);
+    expect(p.beskrivelse).toContain("godkend tallene");
+  });
+
+  // Instruks F (16/9): september-tal i september er limbo — «godkend tallene» er en lukket dør.
+  it("KUN uploads af måneder der ikke er omme: «kan først godkendes når den er omme. Upload {måneder} imens.» og Mangler «en afsluttet måned»", () => {
+    const p = rapport({ ...TOM, antal_rapporter: 1, antal_godkendte: 0, upload_perioder: ["2026-09"] });
+    expect(p.gjort).toBe(false);
+    expect(p.beskrivelse).toBe("Den måned du har uploadet, kan først godkendes når den er omme. Upload juni, juli og august imens.");
+    expect(p.mangler).toEqual([MANGLER_TEKST.afsluttet_maaned]);
+    expect(MANGLER_TEKST.afsluttet_maaned).toBe("en afsluttet måned");
+    expect(p.sti).toBe("/rapportering");
+    // To for-tidlige (september og oktober) er stadig kun for-tidlige.
+    expect(rapport({ ...TOM, antal_rapporter: 2, antal_godkendte: 0, upload_perioder: ["2026-09", "2026-10"] }).mangler).toEqual([MANGLER_TEKST.afsluttet_maaned]);
+  });
+
+  it("blandet (én afsluttet + én for tidlig), eller en upload uden læselig periode: «godkend tallene» som før (beslutning 5)", () => {
+    expect(rapport({ ...TOM, antal_rapporter: 2, antal_godkendte: 0, upload_perioder: ["2026-09", "2026-08"] }).mangler).toEqual([MANGLER_TEKST.godkendelse]);
+    expect(rapport({ ...TOM, antal_rapporter: 1, antal_godkendte: 0, upload_perioder: [null] }).mangler).toEqual([MANGLER_TEKST.godkendelse]);
+    expect(rapport({ ...TOM, antal_rapporter: 2, antal_godkendte: 0, upload_perioder: ["2026-09", null] }).mangler).toEqual([MANGLER_TEKST.godkendelse]);
+  });
+
+  it("grænsen er dansk tid: september-uploaden bliver «godkend tallene» kl. 00:00 den 1/10, ikke før", () => {
+    const input = { ...TOM, antal_rapporter: 1, antal_godkendte: 0, upload_perioder: ["2026-09"] };
+    const foer = byggTjekliste(input, new Date("2026-09-30T21:59:59Z")).punkter.find((p) => p.id === "rapport")!;
+    const efter = byggTjekliste(input, new Date("2026-09-30T22:00:00Z")).punkter.find((p) => p.id === "rapport")!;
+    expect(foer.mangler).toEqual([MANGLER_TEKST.afsluttet_maaned]);
+    expect(efter.mangler).toEqual([MANGLER_TEKST.godkendelse]);
+  });
+
+  it("godkendt, selv om der også ligger en for-tidlig upload: gjort, ingen mangler", () => {
+    const p = rapport({ ...TOM, antal_rapporter: 2, antal_godkendte: 1, upload_perioder: ["2026-09", "2026-08"] });
+    expect(p.gjort).toBe(true);
+    expect(p.mangler).toEqual([]);
   });
 
   it("godkendt: gjort, ingen mangler", () => {

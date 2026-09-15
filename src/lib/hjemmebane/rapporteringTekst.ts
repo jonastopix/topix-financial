@@ -27,34 +27,52 @@
  * menneske kan efterkomme på en aften — tolv er årsrapportens sag og har
  * sin egen blok. «Gerne mere» står der, så tre ikke læses som et loft.
  *
- * NY MOD VANT (punkt 4): den der aldrig har uploadet (ingen rækker i
- * financial_reports) får introduktionen og vejledningen foldet UD; den
- * der har uploadet før, får den korte linje og vejledningen foldet
- * sammen. Signalet er listens egen længde — fokusTom (tre tilstande)
- * ville kræve facts og anerkendelseslinje for at svare på et spørgsmål
- * med ét bit. Mens listen hentes, regnes man som vant, så en der har
- * uploadet tolv gange ikke ser introduktionen blinke.
+ * NY MOD VANT (punkt 4, rettet 16/9 — instruks F): den der endnu ikke har
+ * en GODKENDT rapport (ingen række i financial_report_facts) får
+ * introduktionen og vejledningen foldet UD; den der har godkendt, får den
+ * korte linje og vejledningen foldet sammen. Før 16/9 var signalet listens
+ * længde (første række lukkede introduktionen) — men én upload af
+ * indeværende måned er limbo, og så forsvandt netop den tekst der bad om
+ * historikken. Dommen er historikFoerst; mens facts hentes, regnes man
+ * som vant, så en der har godkendt tolv gange ikke ser introduktionen
+ * blinke.
+ *
+ * MÅNEDERNE VED NAVN (16/9, instruks F): «de seneste 3 måneder» er blevet
+ * til «juni, juli og august» — de tre seneste AFSLUTTEDE måneder regnet fra
+ * `nu` i dansk tid (lib/maanedsnoegle, samme nøgle som regel 6). Den 22/9
+ * er «de seneste 3 måneder» kun juni–august hvis læseren tæller de
+ * afsluttede; nu står det der.
  *
  * TONEN er husets: roligt, ét skridt, ingen tolv trin. Vejledningen er
  * én linje pr. system, taget fra FileUploadZone.tsx:693-712 og
  * ReportReviewDialog.tsx:813-826 — de to steder ordene allerede stod.
  */
 
-export const HISTORIK_MAANEDER = 3;
+import { AFSLUTTEDE_MAANEDER_ANTAL, afsluttedeMaanederTekst } from "@/lib/maanedsnoegle";
+
+export const HISTORIK_MAANEDER = AFSLUTTEDE_MAANEDER_ANTAL;
+
+/** «Første gang» = ingen godkendt rapport endnu (instruks F, 16/9): historikken
+    og den udfoldede vejledning står INDTIL den første facts-række, ikke kun
+    til den første upload. */
+export function historikFoerst(antalGodkendte: number): boolean {
+  return antalGodkendte <= 0;
+}
 
 export interface UploadZoneTekst {
   overskrift: string;
   linje: string;
 }
 
-/** Zonens to linjer. Ny: bed om historik. Vant: som hidtil. */
-export function uploadZoneTekst(foersteGang: boolean): UploadZoneTekst {
+/** Zonens to linjer. Ny: bed om historik — de tre seneste afsluttede måneder ved navn. Vant: som hidtil. */
+export function uploadZoneTekst(foersteGang: boolean, nu: Date = new Date()): UploadZoneTekst {
   if (foersteGang) {
+    const maaneder = afsluttedeMaanederTekst(nu, HISTORIK_MAANEDER);
     return {
       overskrift: "Upload dine tal — start med historikken",
       linje:
         `Saldobalance eller resultatopgørelse fra dit regnskabsprogram, som PDF, Excel eller CSV. ` +
-        `Tag de seneste ${HISTORIK_MAANEDER} måneder med, gerne mere — også fra før du blev medlem. Klik eller træk hertil.`,
+        `Tag ${maaneder} med, gerne mere — også fra før du blev medlem. Klik eller træk hertil.`,
     };
   }
   return {
@@ -65,9 +83,9 @@ export function uploadZoneTekst(foersteGang: boolean): UploadZoneTekst {
 
 /** Den tomme liste. Ny: sig hvad der skal til. Vant (fx årsfilter uden
     rækker): kort. */
-export function tomListeTekst(foersteGang: boolean): string {
+export function tomListeTekst(foersteGang: boolean, nu: Date = new Date()): string {
   if (foersteGang) {
-    return `Ingen rapporter endnu. Upload de seneste ${HISTORIK_MAANEDER} måneder ovenfor — også fra før medlemskabet — så har vi et grundlag at starte fra.`;
+    return `Ingen rapporter endnu. Upload ${afsluttedeMaanederTekst(nu, HISTORIK_MAANEDER)} ovenfor — også fra før medlemskabet — så har vi et grundlag at starte fra.`;
   }
   return "Ingen rapporter i denne visning.";
 }

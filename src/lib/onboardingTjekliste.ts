@@ -3,9 +3,10 @@
  *
  * Onboarding-tjeklisten som ren funktion: hvilke af de seks punkter et nyt
  * medlem HAR gjort. Samme form som betalingsfrist.ts og indgangspris.ts —
- * ingen IO, ingen Supabase, ingen React; eneste import er den rene
- * profildom (hjemmebane/profilUdfyldt.ts). Samme input giver altid samme
- * output. Bruges KUN i fronten; spejles bevidst ikke til Deno.
+ * ingen IO, ingen Supabase, ingen React; de eneste imports er rene: profildommen
+ * (hjemmebane/profilUdfyldt.ts) og månedsnøglen (maanedsnoegle.ts). Samme input
+ * og samme `nu` giver altid samme output. Bruges KUN i fronten; spejles
+ * bevidst ikke til Deno.
  *
  * HVORFOR: tjeklisten skal krydse af AUTOMATISK efterhånden som medlemmet
  * gør tingene — ikke ved at de markerer noget selv. «Gjort» betyder
@@ -67,6 +68,7 @@
 
 import { PROFIL_MANGLER_TEKST, PROFIL_STI, profilMangler as profilManglerDom } from "./hjemmebane/profilUdfyldt";
 import { PRAESENTATION_STI } from "./hjemmebane/praesentation";
+import { afsluttedeMaanederTekst, erMaanedAfsluttet } from "./maanedsnoegle";
 
 export type TjeklistePunktId = "velkomst" | "profil" | "praesentation" | "virksomhed" | "rapport" | "handout" | "besked" | "deling";
 
@@ -127,6 +129,15 @@ export interface TjeklisteInput {
    * fra «aldrig uploadet» i teksten; afgør IKKE længere om punktet er gjort.
    */
   antal_rapporter: number;
+  /**
+   * Uploadenes effektive periode-nøgler («YYYY-MM»; null = perioden kunne
+   * ikke læses) — samme rækker som antal_rapporter (instruks F, 16/9).
+   * Skelner «kun måneder der ikke er omme» (limbo: intet kan godkendes før
+   * den 1.) fra «en afsluttet måned der venter på godkendelse». Valgfri:
+   * udeladt → som før (enhver upload regnes som noget der kan godkendes).
+   * En upload uden læselig periode (null) tæller som en almindelig upload.
+   */
+  upload_perioder?: readonly (string | null)[];
   /**
    * Antal financial_report_facts-rækker for virksomheden — godkendte tal.
    * RETTET 9/9: første udgave (2/9) sagde «uploadet er nok — godkendelsen
@@ -224,6 +235,7 @@ export const MANGLER_TEKST = {
   branche: "branchen",
   cvr: "CVR-nummeret",
   godkendelse: "at godkende tallene",
+  afsluttet_maaned: "en afsluttet måned",
 } as const;
 
 /** Sat = ikke null OG ikke kun mellemrum. Et website på « » er ikke et website. */
@@ -231,7 +243,7 @@ function erSat(vaerdi: string | null | undefined): boolean {
   return (vaerdi ?? "").trim().length > 0;
 }
 
-export function byggTjekliste(input: TjeklisteInput): Tjekliste {
+export function byggTjekliste(input: TjeklisteInput, nu: Date = new Date()): Tjekliste {
   // VELKOMST — stemplet sættes af fladen når videoen er set. Handling
   // (afspillet), ikke besøg: profiles.tour_completed_at måler kun første
   // besøg på forsiden og bruges bevidst ikke.
@@ -259,9 +271,28 @@ export function byggTjekliste(input: TjeklisteInput): Tjekliste {
   // Er der uploadet men ikke godkendt, siger punktet præcis det: «Mangler:
   // at godkende tallene» — og stien fører til rapporteringen, hvor knappen
   // står.
+  // INSTRUKS F (16/9): de tre seneste AFSLUTTEDE måneder ved navn — «juni,
+  // juli og august» den 22/9 — i stedet for «din første rapport». Og har
+  // hun KUN uploadet måneder der ikke er omme (september i september), er
+  // «godkend tallene» en lukket dør: så siger punktet det, og beder om de
+  // afsluttede måneder imens. En upload uden læselig periode (null) tæller
+  // som en almindelig upload — som før (beslutning 5).
+  const maaneder = afsluttedeMaanederTekst(nu);
   const rapportGjort = input.antal_godkendte > 0;
-  const rapportUploadetIkkeGodkendt = !rapportGjort && input.antal_rapporter > 0;
-  const rapportMangler: string[] = rapportUploadetIkkeGodkendt ? [MANGLER_TEKST.godkendelse] : [];
+  const harUploads = input.antal_rapporter > 0;
+  const perioder = input.upload_perioder;
+  const kunForTidligeUploads =
+    !rapportGjort &&
+    harUploads &&
+    perioder !== undefined &&
+    perioder.length > 0 &&
+    perioder.every((k) => k !== null && !erMaanedAfsluttet(k, nu));
+  const rapportUploadetIkkeGodkendt = !rapportGjort && harUploads && !kunForTidligeUploads;
+  const rapportMangler: string[] = kunForTidligeUploads
+    ? [MANGLER_TEKST.afsluttet_maaned]
+    : rapportUploadetIkkeGodkendt
+      ? [MANGLER_TEKST.godkendelse]
+      : [];
 
   // HANDOUT — udfyldt, ikke startet. En påbegyndt række (in_progress)
   // findes så snart et enkelt felt er gemt; «Markér udfyldt» er den
@@ -311,9 +342,11 @@ export function byggTjekliste(input: TjeklisteInput): Tjekliste {
     rapport: {
       id: "rapport",
       titel: "Dine tal",
-      beskrivelse: rapportUploadetIkkeGodkendt
-        ? "Rapporten er uploadet — godkend tallene, så de kommer i spil."
-        : "Upload din første rapport, så tallene kommer i spil.",
+      beskrivelse: kunForTidligeUploads
+        ? `Den måned du har uploadet, kan først godkendes når den er omme. Upload ${maaneder} imens.`
+        : rapportUploadetIkkeGodkendt
+          ? "Rapporten er uploadet — godkend tallene, så de kommer i spil."
+          : `Upload ${maaneder} — én fil pr. måned, også fra før du blev medlem.`,
       gjort: rapportGjort,
       sti: TJEKLISTE_STIER.rapport,
       mangler: rapportMangler,

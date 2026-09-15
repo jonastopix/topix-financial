@@ -43,7 +43,7 @@ import { HbButton } from "../HbButton";
 import { hbControlClasses } from "../admin/HbField";
 import { deriveReportCardView, type CardAction, erForTidligt, godkendSpaerret, rapportFejlgrund, rapportNaesteSkridt } from "./reportCardView";
 import { HbReportUploadZone } from "./HbReportUploadZone";
-import { tomListeTekst } from "@/lib/hjemmebane/rapporteringTekst";
+import { historikFoerst, tomListeTekst } from "@/lib/hjemmebane/rapporteringTekst";
 
 /** Rapportering (/rapportering → /reports ved GO) — LEVERANCEN rendyrket
     (klik-valg B): upload, status/nudges, godkendelse, historik (inkl.
@@ -106,7 +106,7 @@ export const RapporteringView = () => {
   // — «Ingen godkendte tal endnu», «12 rapporter afventer din godkendelse»
   // og en godkend-knap på hver. isError læses, og godkend-vejen holdes
   // tilbage (godkendSpaerret) til tallene er tilbage.
-  const { data: facts = [], isError: godkendelseUkendt } = useCompanyFacts();
+  const { data: facts = [], isError: godkendelseUkendt, isLoading: godkendelseHentes } = useCompanyFacts();
   const { data: commentaries = [] } = useCompanyCommentary();
   const commitStatesQuery = useReportCommitStates(companyId || undefined);
 
@@ -170,10 +170,14 @@ export const RapporteringView = () => {
   }, [dbReports]);
 
   const committedReportIds = useMemo(() => new Set(facts.map((f) => f.source_report_id)), [facts]);
-  // Første gang (9/9): aldrig uploadet = ingen rækker i listen. Mens listen
-  // hentes, regnes man som vant — introduktionen må ikke blinke for en der
-  // har uploadet tolv gange. Ét bit, listens egen længde (rapporteringTekst).
-  const foersteGang = !reportsQuery.isLoading && !reportsQuery.isError && dbReports.length === 0;
+  // Første gang (9/9; rettet 16/9, instruks F): ingen GODKENDT rapport endnu
+  // (historikFoerst) — ikke «ingen rækker». Én upload af indeværende måned
+  // er limbo, og historik-teksten og den udfoldede vejledning skal blive
+  // stående til den første facts-række. Mens listen eller facts hentes,
+  // regnes man som vant — introduktionen må ikke blinke for en der har
+  // godkendt tolv gange.
+  const foersteGang =
+    !reportsQuery.isLoading && !reportsQuery.isError && !godkendelseHentes && !godkendelseUkendt && historikFoerst(facts.length);
   const latestCommittedLabel = facts.length > 0 ? facts[facts.length - 1].period_label : null;
 
   // ── Deep link: ?reportId= → expand + scroll + highlight (arvet 1:1) ──────

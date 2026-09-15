@@ -111,7 +111,8 @@ describe("for tidligt — perioden fejler ikke, den er ikke omme", () => {
     expect(view.key).toBe("too_early");
     expect(view.label).toBe("Modtaget — kan godkendes fra 1. september 2026");
     expect(view.tone).toBe("quiet");
-    expect(view.detail).toBe("Tallene er læst og i orden. Måneden skal være omme, før de kan godkendes.");
+    // Instruks F (16/9): sig hvad hun kan gøre imens — de tre seneste afsluttede måneder ved navn, regnet fra nu-nøglen (august → maj, juni og juli).
+    expect(view.detail).toBe("Måneden skal være omme, før den kan godkendes. Imens: upload maj, juni og juli, så kan de godkendes med det samme.");
     expect(view.primary).toBeUndefined();
     expect(view.secondary).toBeUndefined();
     expect(JSON.stringify(view)).not.toContain("Ret periode");
@@ -121,6 +122,16 @@ describe("for tidligt — perioden fejler ikke, den er ikke omme", () => {
     const view = deriveReportCardView({ status: "processed", isCommitted: false, commitState: "not_ready", periodKey: "2026-12", nowKey: "2026-09" });
     expect(view.key).toBe("too_early");
     expect(view.label).toBe("Modtaget — kan godkendes fra 1. januar 2027");
+    // Månederne følger NU-nøglen (september), ikke rapportens periode.
+    expect(view.detail).toBe("Måneden skal være omme, før den kan godkendes. Imens: upload juni, juli og august, så kan de godkendes med det samme.");
+  });
+
+  it("22/9-2026 (nu-nøgle 2026-09): september-rapporten beder om juni, juli og august; ved årsskiftet: oktober, november og december", () => {
+    const sep = deriveReportCardView({ status: "processed", isCommitted: false, commitState: "not_ready", periodKey: "2026-09", nowKey: "2026-09" });
+    expect(sep.detail).toContain("upload juni, juli og august");
+    const jan = deriveReportCardView({ status: "processed", isCommitted: false, commitState: "not_ready", periodKey: "2027-01", nowKey: "2027-01" });
+    expect(jan.detail).toContain("upload oktober, november og december");
+    expect(jan.label).toBe("Modtaget — kan godkendes fra 1. februar 2027");
   });
 
   it("grænsen: perioden lige før nu-måneden er IKKE for tidligt — og uden not_ready er period_key ligegyldig", () => {

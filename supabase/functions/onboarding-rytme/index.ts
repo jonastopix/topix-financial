@@ -44,14 +44,17 @@ import { bulletproofButton, fallbackLinkBlock } from "../_shared/emailButtonHelp
 import {
   afgoerRytme,
   HISTORIK_TIL_DAG,
+  historikSituation,
   historikTekst,
   komIGangTekst,
   RYTME_LABEL,
   dageSidenStart,
+  type HistorikSituation,
   type RytmeGrund,
   type RytmeMail,
   type RytmeTekst,
 } from "../_shared/onboardingRytme.ts";
+import { effektivRapportPeriodeKey } from "../_shared/rapportStatus.ts";
 
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
 const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -114,8 +117,9 @@ ${efter}
 </html>`;
 }
 
-function tekstFor(mail: RytmeMail, fornavn: string | null, harVelkomstvideo: boolean): RytmeTekst {
-  return mail === "kom_i_gang" ? komIGangTekst(fornavn, harVelkomstvideo) : historikTekst(fornavn);
+/** Teksten til dagens mail — månederne regnes fra cronens `nu` (instruks F, 16/9); C's første afsnit følger situationen. */
+function tekstFor(mail: RytmeMail, fornavn: string | null, harVelkomstvideo: boolean, nu: Date, situation: HistorikSituation): RytmeTekst {
+  return mail === "kom_i_gang" ? komIGangTekst(fornavn, harVelkomstvideo, nu) : historikTekst(fornavn, nu, situation);
 }
 
 async function koerRytme(supabase: SupabaseClient, toerKoersel: boolean): Promise<RytmeResultat> {
@@ -166,7 +170,14 @@ async function koerRytme(supabase: SupabaseClient, toerKoersel: boolean): Promis
   // 3. Virksomhederne (legat-flaget), uploads og målte tal for kandidaterne.
   const [companiesRes, uploadsRes, maalteRes, videoRes] = await Promise.all([
     supabase.from("companies").select("id, name, is_legat").in("id", kandidatIds),
-    supabase.from("financial_reports").select("company_id").in("company_id", kandidatIds).is("deleted_at", null),
+    // Uploadenes effektive periode (instruks F, 16/9): motoren tæller kun
+    // AFSLUTTEDE måneder som «begyndt» — samme nøgle som rapporteringssiden
+    // (effektivRapportPeriodeKey: anvendt override vinder over periode-teksten).
+    supabase
+      .from("financial_reports")
+      .select("company_id, report_period, manual_report_period_key, manual_override_status")
+      .in("company_id", kandidatIds)
+      .is("deleted_at", null),
     // data_basis-undtagelse: filtreret på measured — eksistens-check, ingen talværdier læses
     supabase.from("financial_report_facts").select("company_id").in("company_id", kandidatIds).eq("data_basis", "measured"),
     supabase.from("app_config").select("config_value").eq("config_key", "velkomstvideo_guid").maybeSingle(),
@@ -178,8 +189,10 @@ async function koerRytme(supabase: SupabaseClient, toerKoersel: boolean): Promis
   }
   const virksomheder = new Map<string, { name: string; is_legat: boolean }>();
   for (const c of (companiesRes.data ?? []) as { id: string; name: string; is_legat: boolean }[]) virksomheder.set(c.id, c);
-  const uploads = new Map<string, number>();
-  for (const r of (uploadsRes.data ?? []) as { company_id: string }[]) uploads.set(r.company_id, (uploads.get(r.company_id) ?? 0) + 1);
+  const uploadPerioder = new Map<string, (string | null)[]>();
+  for (const r of (uploadsRes.data ?? []) as { company_id: string; report_period: string | null; manual_report_period_key: string | null; manual_override_status: string | null }[]) {
+    uploadPerioder.set(r.company_id, [...(uploadPerioder.get(r.company_id) ?? []), effektivRapportPeriodeKey(r)]);
+  }
   const maalt = new Set(((maalteRes.data ?? []) as { company_id: string }[]).map((f) => f.company_id));
   // Uden video udgår punktet «Se velkomsten» (Jonas 2/9: vi viser ikke tomt indhold).
   const harVelkomstvideo = ((videoRes.data as { config_value?: string | null } | null)?.config_value ?? "").trim() !== "";
@@ -218,11 +231,12 @@ async function koerRytme(supabase: SupabaseClient, toerKoersel: boolean): Promis
       const alleredeSendt = ((log ?? []) as { template_name: string }[]).map((r) => r.template_name);
 
       // 6. Motoren afgør.
+      const perioder = uploadPerioder.get(companyId) ?? [];
       const dom = afgoerRytme(
         {
           medlemSiden: f.created_at,
           erLegat: company.is_legat === true,
-          antalUploads: uploads.get(companyId) ?? 0,
+          uploadPerioder: perioder,
           harMaaltRapport: maalt.has(companyId),
           alleredeSendt,
         },
@@ -233,7 +247,8 @@ async function koerRytme(supabase: SupabaseClient, toerKoersel: boolean): Promis
         continue;
       }
 
-      const tekst = tekstFor(dom.sendes, fornavn, harVelkomstvideo);
+      const situation = historikSituation({ uploadPerioder: perioder });
+      const tekst = tekstFor(dom.sendes, fornavn, harVelkomstvideo, nu, situation);
       const label = RYTME_LABEL[dom.sendes];
 
       if (toerKoersel) {
