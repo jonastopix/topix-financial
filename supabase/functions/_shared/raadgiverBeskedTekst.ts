@@ -142,8 +142,10 @@ export function beskedVedFejletTraek(a: {
 //
 // sikrIndgangsInvitation (stripe-webhook) svarer med fire udfald og kaster
 // aldrig; før 14/9 læste ingen svaret, og et betalt medlem uden login var
-// kun en linje i Lovables log. To udfald er normale og skal ikke larme:
-// «sendt» og «fandtes_allerede». To skal i klokken: «sprunget_over»
+// kun en linje i Lovables log. Tre udfald er normale og skal ikke larme:
+// «sendt», «fandtes_allerede» og «allerede_medlem» (15/9, DE TYVE (8):
+// invitationen er accepteret, og brugeren findes — medlemmet HAR sit
+// login, så «intet login» ville være usandt). To skal i klokken: «sprunget_over»
 // (secret INVITATION_AFSENDER_USER_ID mangler) og «fejlet» (opslag,
 // insert eller send-invitation-email fejlede). Typen er strukturelt lig
 // IndgangsInvitationResultat (sikrIndgangsInvitation.ts:38-42) — gentaget
@@ -152,6 +154,7 @@ export function beskedVedFejletTraek(a: {
 export type InvitationsUdfald =
   | { udfald: "sendt"; email: string }
   | { udfald: "fandtes_allerede"; email: string }
+  | { udfald: "allerede_medlem"; email: string }
   | { udfald: "sprunget_over"; grund: "secret_mangler" }
   | { udfald: "fejlet"; aarsag: string };
 
@@ -198,8 +201,10 @@ export function invitationFejletBeskedTekst(a: {
 /**
  * Ren dom: skal der en besked i klokken for dette udfald? Null for «sendt»
  * og «fandtes_allerede» — begge betyder at en pending invitation findes og
- * mailen er gået (eller allerede var gået). company_id skal findes
- * (kolonnen er NOT NULL), ellers null.
+ * mailen er gået (eller allerede var gået) — og for «allerede_medlem»
+ * (15/9): invitationen er accepteret af en bruger der findes, så medlemmet
+ * har sit login og intet mangler. company_id skal findes (kolonnen er
+ * NOT NULL), ellers null.
  */
 export function beskedVedInvitationsUdfald(a: {
   udfald: InvitationsUdfald;
@@ -210,7 +215,7 @@ export function beskedVedInvitationsUdfald(a: {
 }): InvitationFejletBesked | null {
   const companyId = (a.companyId ?? "").trim();
   if (!companyId) return null;
-  if (a.udfald.udfald === "sendt" || a.udfald.udfald === "fandtes_allerede") return null;
+  if (a.udfald.udfald === "sendt" || a.udfald.udfald === "fandtes_allerede" || a.udfald.udfald === "allerede_medlem") return null;
   const grund =
     a.udfald.udfald === "sprunget_over"
       ? "Secret INVITATION_AFSENDER_USER_ID mangler i Lovable — ingen invitation kan oprettes før den er sat"

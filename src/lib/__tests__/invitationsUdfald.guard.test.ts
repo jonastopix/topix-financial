@@ -6,7 +6,8 @@ import { resolve } from "node:path";
 // sikrIndgangsInvitation i stripe-webhook må stå uden tildeling, hvert
 // tildelt udfald skal meldes gennem meldInvitationsUdfald, og hjælperen
 // skal gå gennem husets skrivRaadgiverBesked uden at kunne kaste.
-// sikrIndgangsInvitation selv er urørt. Kildelæsning: filerne importerer
+// sikrIndgangsInvitations egne grene («allerede accepteret», 15/9) låses i
+// sikrIndgangsInvitation.guard.test.ts. Kildelæsning: filerne importerer
 // npm:/esm.sh-moduler.
 
 const laes = (sti: string) => readFileSync(resolve(process.cwd(), sti), "utf8");
@@ -32,11 +33,12 @@ describe("invitationsUdfald.guard — stripe-webhook", () => {
     }
   });
 
-  it("hjælperen: sendt/fandtes_allerede → ingen besked; ellers beskedVedInvitationsUdfald → skrivRaadgiverBesked; kaster aldrig", () => {
+  it("hjælperen: sendt/fandtes_allerede/allerede_medlem → ingen besked; ellers beskedVedInvitationsUdfald → skrivRaadgiverBesked; kaster aldrig", () => {
     const start = kode.indexOf("async function meldInvitationsUdfald(");
     expect(start).toBeGreaterThan(-1);
     const krop = kode.slice(start, kode.indexOf("\n}\n", start) + 3);
-    expect(krop).toContain('if (udfald.udfald === "sendt" || udfald.udfald === "fandtes_allerede") {');
+    // 15/9 (DE TYVE (8)): «allerede_medlem» er det tredje stille udfald.
+    expect(krop).toContain('if (udfald.udfald === "sendt" || udfald.udfald === "fandtes_allerede" || udfald.udfald === "allerede_medlem") {');
     expect(krop).toContain("beskedVedInvitationsUdfald({");
     expect(krop).toContain("await skrivRaadgiverBesked(adminClient, besked);");
     expect(krop).toContain("try {");
@@ -46,11 +48,12 @@ describe("invitationsUdfald.guard — stripe-webhook", () => {
   });
 });
 
-describe("invitationsUdfald.guard — invitationen selv er urørt, dommen er husets", () => {
-  it("sikrIndgangsInvitation.ts bærer stadig de fire udfald og kaster aldrig ud af sig selv", () => {
+describe("invitationsUdfald.guard — invitationen melder kun udfald, dommen er husets", () => {
+  it("sikrIndgangsInvitation.ts bærer de fem udfald og kaster aldrig ud af sig selv", () => {
     const kode = udenKommentarer(laes("supabase/functions/_shared/sikrIndgangsInvitation.ts"));
     expect(kode).toContain('| { udfald: "sendt"; email: string }');
     expect(kode).toContain('| { udfald: "fandtes_allerede"; email: string }');
+    expect(kode).toContain('| { udfald: "allerede_medlem"; email: string }');
     expect(kode).toContain('| { udfald: "sprunget_over"; grund: "secret_mangler" }');
     expect(kode).toContain('| { udfald: "fejlet"; aarsag: string };');
     expect(kode).not.toContain("skrivRaadgiverBesked");

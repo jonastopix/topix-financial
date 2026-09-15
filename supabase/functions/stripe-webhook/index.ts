@@ -184,7 +184,8 @@ async function nulstilIndgangsSession(
 
 /**
  * Fund B (14/9): udfaldet af sikrIndgangsInvitation må ikke forsvinde.
- * «sendt» og «fandtes_allerede» er normale og logges kun. «sprunget_over»
+ * «sendt», «fandtes_allerede» og «allerede_medlem» (15/9, DE TYVE (8):
+ * accepteret af en bruger der findes) er normale og logges kun. «sprunget_over»
  * og «fejlet» giver rådgiverne en besked i klokken (skrivRaadgiverBesked —
  * #815's form: én række pr. rådgiver, dedup på type + reference_id =
  * company_id, så Stripes gensendelser ikke skriver den fem gange). Kalder
@@ -200,7 +201,7 @@ async function meldInvitationsUdfald(
 ): Promise<void> {
   const praefiks = `[stripe-webhook] klokke ved invitation ${stripeReference}`;
   try {
-    if (udfald.udfald === "sendt" || udfald.udfald === "fandtes_allerede") {
+    if (udfald.udfald === "sendt" || udfald.udfald === "fandtes_allerede" || udfald.udfald === "allerede_medlem") {
       console.log(`${praefiks}: ${udfald.udfald} (${udfald.email}) — ingen besked`);
       return;
     }
