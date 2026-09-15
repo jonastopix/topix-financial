@@ -19,9 +19,14 @@
  *   3. alt andet → "failed", med retryable = 5xx (samme regel som pakkens
  *      egen `retryable`-getter, uden 429 som allerede er taget).
  *
- * LOGGEN: email_send_log.status er text uden CHECK (20260226224654:7) —
- * "rate_limited" er allerede en kendt værdi i EmailLogView (STATUS_LABELS
- * og ALL_STATUSES). Ingen migration.
+ * LOGGEN: "rate_limited" er en kendt værdi i EmailLogView (STATUS_LABELS
+ * og ALL_STATUSES). RETTET 15/9: dette hoved sagde «text uden CHECK
+ * (20260226224654:7), ingen migration» — men prod HAR CHECK-constrainten
+ * email_send_log_status_check (målt 15/9; arv fra den slettede
+ * 20260319090407_email_infra.sql), og den kendte ikke rate_limited, så
+ * managedEmail.ts' log() blev afvist i tavshed fra 14/9 til migrationen
+ * 20260915210000, som tilføjer værdien. Værn:
+ * src/lib/__tests__/emailSendLogStatus.guard.test.ts.
  *
  * KØEN: skalKoeStoppe siger om en kørsel skal holde pause ved dette svar —
  * KUN ved rate limit. En spærret modtager eller en enkelt fejl stopper
