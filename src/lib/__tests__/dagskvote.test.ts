@@ -125,7 +125,11 @@ describe("dagskvote.guard — send-notification-email", () => {
     expect(kode).toContain('(userPrefs as any).important === false');
     expect(kode).toContain("(userPrefs as any)[priorityKey] === false");
     expect(kode.split("if (!userEmail) {").length - 1).toBe(2);
-    expect(kode.split("if (skalKoeStoppe(resultat)) {").length - 1).toBe(2);
+    // PR 2 (15/9): samlemailens løkke er en tredje afsender-løkke med sit
+    // eget rate limit-stop — 2 → 3, bevidst. De øvrige tællinger er
+    // uændrede: samlemailens rådgiver-, pref-, mail- og kvotedomme ligger
+    // i fordelSamlemail (_shared/samlemail.ts), ikke i index.ts.
+    expect(kode.split("if (skalKoeStoppe(resultat)) {").length - 1).toBe(3);
     expect(kode).toContain("if (rateLimit) break;");
   });
 });
