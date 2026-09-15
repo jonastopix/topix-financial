@@ -16,12 +16,17 @@ import {
 const COMPANY = "a4481db0-1cbc-4f2f-801e-29d5693da08d";
 const basis = { virksomhed: "FLOOR1 I/S", email: "lisbeth@floor1.dk", companyId: COMPANY, stripeReference: "cs_test_123" };
 
-describe("beskedVedInvitationsUdfald — de to normale udfald larmer ikke", () => {
+describe("beskedVedInvitationsUdfald — de tre normale udfald larmer ikke", () => {
   it("sendt → null", () => {
     expect(beskedVedInvitationsUdfald({ ...basis, udfald: { udfald: "sendt", email: "lisbeth@floor1.dk" } })).toBeNull();
   });
   it("fandtes_allerede → null", () => {
     expect(beskedVedInvitationsUdfald({ ...basis, udfald: { udfald: "fandtes_allerede", email: "lisbeth@floor1.dk" } })).toBeNull();
+  });
+  // DE TYVE (8), 15/9: invitationen er accepteret af en bruger der findes —
+  // medlemmet har sit login, og «intet login» i klokken ville være usandt.
+  it("allerede_medlem → null (ingen besked: medlemmet har sit login)", () => {
+    expect(beskedVedInvitationsUdfald({ ...basis, udfald: { udfald: "allerede_medlem", email: "lisbeth@floor1.dk" } })).toBeNull();
   });
   it("uden company_id kan der ikke skrives en besked (kolonnen er NOT NULL) → null", () => {
     expect(beskedVedInvitationsUdfald({ ...basis, companyId: "  ", udfald: { udfald: "fejlet", aarsag: "x" } })).toBeNull();
