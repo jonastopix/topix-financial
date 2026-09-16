@@ -92,6 +92,7 @@ import { afgoerIkkeIGang, ikkeIGangGrundlag, ikkeIGangHandling, ikkeIGangTekst }
 import { ALVOR_VENTER_PAA_VELKOMST, afgoerVenterPaaVelkomst, venterPaaVelkomstGrundlag, venterPaaVelkomstTekst } from "./venterPaaVelkomst";
 import { planenDom, UDEN_BEVAEGELSE_DAGE, type MaalRaekke } from "@/lib/hjemmebane/planen";
 import { MAX_AKTIVE_MAAL } from "@/lib/hjemmebane/maal";
+import { maanedsnavn } from "@/lib/maanedsnoegle";
 
 // ─── Konstanter — alle tal dommen bruger, ét sted ────────────────────────
 
@@ -455,7 +456,7 @@ export interface VirksomhedTilDom {
   /** Den NYESTE refleksion (pulse_checkins) med help_needed udfyldt — id,
       teksten og hvornår. null/udeladt = ingen. Én pr. virksomhed: en nyere
       refleksion med hjælp afløser den forrige (nyt grundlag). */
-  refleksionHjaelp?: { id: string; helpNeeded: string; createdAt: string } | null;
+  refleksionHjaelp?: { id: string; helpNeeded: string; createdAt: string; periodKey?: string | null } | null;
 }
 
 /** Én grund: hvorfor virksomheden står der, og hvad man gør (§1). */
@@ -879,21 +880,54 @@ function grundFraMaal(v: VirksomhedTilDom, nu: Date): Grund | null {
     medlemmet skrev hvad de søger hjælp til. Teksten citeres kort (uden
     linjeskift, højst REFLEKSION_UDDRAG tegn), så rådgiveren ser HVAD før
     hun klikker. Grundlag = refleksionens id: lukket holder til en nyere
-    refleksion med hjælp kommer. Tom/blank tekst = ingen grund. */
+    refleksion med hjælp kommer.
+
+    STRAMMET 17/9 (skærmbevis 00:06: 9 af 12 linjer var refleksioner, heraf
+    to der ikke var spørgsmål — «x», «Jeg vender tilbage …» — og linjerne
+    lukkede kun ved kvittering, også når rådgiveren allerede havde svaret i
+    chatten; Jonas: «ja»):
+      1. Linjen LUKKER AF SIG SELV når en rådgiver har skrevet i virksomhedens
+         samtale EFTER refleksionen blev sendt — sidsteRaadgiverBeskedAt
+         (conversations.last_advisor_reply_at, kun menneskebeskeder) nyere end
+         refleksionens createdAt (pulse_checkins.created_at — upsert på
+         company_id, period_key bumper den ikke, så «sendt» = første gang).
+         Præcis samme tidspunkt er IKKE nyere. Ulæselige stempler: linjen
+         står (fail-open — hellere én linje for meget end en glemt bøn om hjælp).
+         «Færdiggjort» er til det der er klaret på anden måde.
+      2. Under REFLEKSION_MIN_TEGN tegn efter trim tæller ikke («x»).
+      3. Teksten bærer perioden: «Refleksion september 2026: Søger hjælp til «…»». */
 export const REFLEKSION_UDDRAG = 90;
+/** Færre tegn end dette (efter trim) er ikke en bøn om hjælp — «x» er et klik, ikke et spørgsmål. */
+export const REFLEKSION_MIN_TEGN = 3;
 export function refleksionUddrag(tekst: string): string {
   const t = tekst.replace(/\s+/g, " ").trim();
   return t.length <= REFLEKSION_UDDRAG ? t : `${t.slice(0, REFLEKSION_UDDRAG - 1).trimEnd()}…`;
 }
+/** «september 2026» fra period_key «2026-09»; null når nøglen er ulæselig. */
+export function refleksionsPeriode(periodKey: string | null | undefined): string | null {
+  if (!periodKey) return null;
+  const navn = maanedsnavn(periodKey);
+  return navn ? `${navn} ${periodKey.slice(0, 4)}` : null;
+}
+/** Er refleksionen BESVARET — har en rådgiver skrevet i samtalen efter den blev sendt? */
+export function refleksionBesvaret(refleksionSendtAt: string, sidsteRaadgiverBeskedAt: string | null | undefined): boolean {
+  if (!sidsteRaadgiverBeskedAt) return false;
+  const sendt = Date.parse(refleksionSendtAt);
+  const svar = Date.parse(sidsteRaadgiverBeskedAt);
+  if (Number.isNaN(sendt) || Number.isNaN(svar)) return false;
+  return svar > sendt;
+}
 function grundFraRefleksion(v: VirksomhedTilDom): Grund | null {
   const r = v.refleksionHjaelp;
-  if (!r || !r.id || !r.helpNeeded || r.helpNeeded.trim() === "") return null;
+  if (!r || !r.id || !r.helpNeeded || r.helpNeeded.trim().length < REFLEKSION_MIN_TEGN) return null;
+  if (refleksionBesvaret(r.createdAt, v.sidsteRaadgiverBeskedAt)) return null;
+  const periode = refleksionsPeriode(r.periodKey);
   return {
     slags: "refleksion_hjaelp",
     signaltype: "refleksion_hjaelp",
     noegle: "refleksion_hjaelp",
     grundlag: r.id,
-    tekst: `Søger hjælp til: «${refleksionUddrag(r.helpNeeded)}»`,
+    tekst: `${periode ? `Refleksion ${periode}: ` : ""}Søger hjælp til «${refleksionUddrag(r.helpNeeded)}»`,
     handling: `Svar ${v.navn} på refleksionen`,
     alvor: ALVOR_REFLEKSION_HJAELP,
     lukkerOmDage: null,

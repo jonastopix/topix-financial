@@ -164,6 +164,14 @@ vise mål uden bevægelse i 30 dage og refleksioner med hjælp ønskes»):
     svaret). Lukning: grundlag = refleksionens id — holder til en nyere
     refleksion med hjælp afløser den. Handout-delen af slags 8 og slags 6
     venter stadig på §8.
+    **Strammet 17/9 (skærmbevis 00:06: 9 af 12 linjer var refleksioner,
+    heraf «x» og «Jeg vender tilbage …»; Jonas: «ja»):** (a) linjen
+    LUKKER AF SIG SELV når en rådgiver har skrevet i virksomhedens samtale
+    EFTER refleksionen blev sendt (`conversations.last_advisor_reply_at`
+    nyere end `pulse_checkins.created_at`; samme tidspunkt er ikke nyere)
+    — «Færdiggjort» er kun til det der er klaret på anden måde; (b) en
+    hjælpetekst under 3 tegn efter trim tæller ikke; (c) teksten bærer
+    perioden: «Refleksion september 2026: Søger hjælp til «…»».
 14. **Ingen mål** (`ingen_maal`, fase 5, Jonas 16/9 «Ja det er i orden») —
     en aktiv kunde (uden legat) med nul aktive mål. Fra fase 5 får den
     ingen AI-forslag (kun mod et aktivt mål), så rådgiveren skal vide hvem
@@ -321,6 +329,13 @@ forsiden ville lyve den dag nogen klikkede «klaret» uden at svare.
 **Undtagelsen:** **«Ikke relevant»** skjuler en linje man er uenig i.
 Den findes, fordi en dom kan være forkert for netop denne virksomhed i
 netop denne uge, og rådgiveren skal kunne sige det uden at handle.
+
+**Handlingen i chatten lukker (17/9, Jonas «ja»):** `refleksion_hjaelp`
+er den første slags der også lukkes af en HANDLING — en rådgiverbesked i
+samtalen efter refleksionen — ikke kun af kvittering («Færdiggjort»/«Ikke
+relevant») eller af nyt grundlag. Det er spejlets egen regel anvendt på
+en hændelse: grunden («ingen har svaret») er væk når nogen har svaret.
+Kvitteringen bliver ved med at gælde for det der er klaret på anden måde.
 
 **Læringen — en regel der SKAL stå:** et fravalg gemmes med
 **signaltype, virksomhed, tidspunkt og valgfri note**, og bruges til
