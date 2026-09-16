@@ -39,23 +39,39 @@ export const PLADSHOLDER_LINK = "{{signup_url}}";
 // læser den samme vej som før.
 export { KONTAKT_ADRESSE };
 
+/** Den ene sætning der KUN er sand efter en betaling (16/9, mangellisten m16-invitation-tak). */
+export const TAK_FOR_BETALING = "Tak for din betaling.";
+
+/** Første afsnit — med tak kun når der ER betalt (Stripe-vejen); ellers uden. */
+export function foersteAfsnit(efterBetaling: boolean): string {
+  const rest = "Din plads i The Boardroom er klar, og du opretter dit login herunder.";
+  return efterBetaling ? `${TAK_FOR_BETALING} ${rest}` : rest;
+}
+
 /**
  * Selve mailen. `virksomhed` og `signupUrl` kan være pladsholdere (skabelon-
  * brug) eller færdige værdier. Fornavnet kendes ikke i send-invitation-email
  * i dag (rækken bærer kun e-mail), så tiltalen er «Hej,» — tiltale() udelader
  * navnet uden at efterlade «Hej ,».
+ *
+ * efterBetaling (16/9): kun Stripe-vejen (sikrIndgangsInvitation, efter
+ * betaling) har betalt. Importen, rådgiverens Gensend/Inviter og medlemmets
+ * «Teamet» har ikke — set 16/9 09:55:15 på en importeret testkonto, hvor
+ * mailen takkede for en betaling ingen havde lavet. Resten af mailen er
+ * sand på alle veje.
  */
 export function invitationsMail(a: {
   virksomhed: string;
   signupUrl: string;
   fornavn?: string | null;
+  efterBetaling: boolean;
 }): IndgangsMail {
   return {
     subject: "Din adgang til The Boardroom er klar",
     html: indgangsMailHtml({
       overskrift: tiltale("Hej", a.fornavn),
       afsnit: [
-        "Tak for din betaling. Din plads i The Boardroom er klar, og du opretter dit login herunder.",
+        foersteAfsnit(a.efterBetaling),
         `Adgangen er til ${a.virksomhed}: det er din virksomhed og dine tal, vi arbejder med.`,
         "Opret dig med den e-mailadresse, denne mail er sendt til. Den står allerede udfyldt, når du åbner linket.",
       ],
@@ -67,8 +83,8 @@ export function invitationsMail(a: {
 }
 
 /** Mailen med pladsholderne som tekst — det send-invitation-email bruger som fallback. */
-export function invitationsMailSkabelon(): IndgangsMail {
-  return invitationsMail({ virksomhed: PLADSHOLDER_VIRKSOMHED, signupUrl: PLADSHOLDER_LINK });
+export function invitationsMailSkabelon(efterBetaling: boolean): IndgangsMail {
+  return invitationsMail({ virksomhed: PLADSHOLDER_VIRKSOMHED, signupUrl: PLADSHOLDER_LINK, efterBetaling });
 }
 
 /**

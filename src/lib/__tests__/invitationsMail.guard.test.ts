@@ -28,9 +28,14 @@ describe("invitationsMail.guard — send-invitation-email", () => {
 
   it("fallbacken kommer fra invitationsMailSkabelon(), og pladsholderne udfyldes med udfyldPladsholdere på begge veje", () => {
     expect(kode).toContain('from \'../_shared/invitationsMail.ts\'');
-    expect(kode).toContain("const FALLBACK = invitationsMailSkabelon();");
-    expect(kode).toContain("let subjectTpl = FALLBACK.subject;");
-    expect(kode).toContain("let bodyTpl = FALLBACK.html;");
+    // 16/9: to udgaver af fallbacken — takken kun når efter_betaling er sand
+    // (invitationTak.guard.test.ts låser valget og default).
+    expect(kode).toContain("const FALLBACK_EFTER_BETALING = invitationsMailSkabelon(true);");
+    expect(kode).toContain("const FALLBACK_UDEN_BETALING = invitationsMailSkabelon(false);");
+    expect(kode).toContain("const fallback = efterBetaling ? FALLBACK_EFTER_BETALING : FALLBACK_UDEN_BETALING;");
+    expect(kode).toContain("let subjectTpl = fallback.subject;");
+    expect(kode).toContain("let bodyTpl = fallback.html;");
+    expect(kode).not.toContain("invitationsMailSkabelon()");
     expect(kode).toContain("const vaerdier = invitationsVaerdier({ companyName: company_name, signupUrl: signup_url });");
     expect(kode).toContain("const subject = udfyldPladsholdere(subjectTpl, vaerdier.tilEmne);");
     expect(kode).toContain("const html = udfyldPladsholdere(bodyTpl, vaerdier.tilHtml);");

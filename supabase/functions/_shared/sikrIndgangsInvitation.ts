@@ -227,12 +227,16 @@ export async function sikrIndgangsInvitation(
 
     // Mailen, som import-application sender den (:348-355):
     // service-role-kald med company_name og signup_url i body.
+    // efter_betaling: true (16/9) — DENNE vej er den eneste hvor der ER
+    // betalt, så mailen må takke for betalingen; alle andre kaldere lader
+    // feltet være (default falsk i send-invitation-email).
     const signupUrl = `${APP_URL}/auth?mode=signup&invite=${token}`;
     const { data: emailData, error: emailErr } = await adminClient.functions.invoke("send-invitation-email", {
       body: {
         email: invitationEmail,
         company_name: invitationCompany?.name ?? "The Boardroom",
         signup_url: signupUrl,
+        efter_betaling: true,
       },
     });
     if (emailErr) {

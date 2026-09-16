@@ -10,12 +10,14 @@
  */
 import { describe, expect, it } from "vitest";
 import {
+  foersteAfsnit,
   invitationsMail,
   invitationsMailSkabelon,
   invitationsVaerdier,
   KONTAKT_ADRESSE,
   PLADSHOLDER_LINK,
   PLADSHOLDER_VIRKSOMHED,
+  TAK_FOR_BETALING,
   udfyldPladsholdere,
 } from "../../../supabase/functions/_shared/invitationsMail.ts";
 import {
@@ -52,7 +54,7 @@ const raekke = (overrides: Partial<SkabelonRaekke> = {}): SkabelonRaekke => ({
 });
 
 describe("invitationsMail — de fire sætninger er væk (hele ordet/sætningen)", () => {
-  const skabelon = invitationsMailSkabelon();
+  const skabelon = invitationsMailSkabelon(true);
   const alt = `${skabelon.subject}\n${skabelon.html}`;
 
   it("«by Topix» står ikke i headeren", () => {
@@ -81,14 +83,63 @@ describe("invitationsMail — de fire sætninger er væk (hele ordet/sætningen)
   });
 });
 
+// Takken (16/9, mangellisten m16-invitation-tak): «Tak for din betaling.» er
+// kun sand efter Stripe-vejen. Importen, rådgiverens Gensend/Inviter og
+// medlemmets «Teamet» får afsnittet uden den — alt andet er ens.
+describe("invitationsMail — «Tak for din betaling.» kun når der ER betalt", () => {
+  const MED = "Tak for din betaling. Din plads i The Boardroom er klar, og du opretter dit login herunder.";
+  const UDEN = "Din plads i The Boardroom er klar, og du opretter dit login herunder.";
+
+  it("foersteAfsnit: sand → med takken; falsk → ordret uden", () => {
+    expect(TAK_FOR_BETALING).toBe("Tak for din betaling.");
+    expect(foersteAfsnit(true)).toBe(MED);
+    expect(foersteAfsnit(false)).toBe(UDEN);
+  });
+
+  it("efterBetaling: true → mailen som i dag (takken står som første afsnit)", () => {
+    const tekst = tekstAf(invitationsMailSkabelon(true).html);
+    expect(tekst).toContain(MED);
+    expect(tekst.indexOf("Tak for din betaling.")).toBeLessThan(tekst.indexOf("Adgangen er til"));
+  });
+
+  it("efterBetaling: false → samme mail uden «Tak for din betaling.» — og ordet «betaling» står ingen steder", () => {
+    const m = invitationsMailSkabelon(false);
+    const tekst = tekstAf(m.html);
+    expect(tekst).toContain(UDEN);
+    expect(tekst).not.toContain("Tak for din betaling");
+    expect(`${m.subject}\n${m.html}`).not.toMatch(/betal/i);
+  });
+
+  it("de to udgaver er ens på alt andet: emne, virksomhed, knap, kontaktlinje, hilsen — kun takken skiller", () => {
+    const med = invitationsMailSkabelon(true);
+    const uden = invitationsMailSkabelon(false);
+    expect(uden.subject).toBe(med.subject);
+    expect(uden.html).toBe(med.html.replace(`${TAK_FOR_BETALING} `, ""));
+    for (const linje of [
+      "Adgangen er til {{company_name}}: det er din virksomhed og dine tal, vi arbejder med.",
+      "Opret dig med den e-mailadresse, denne mail er sendt til. Den står allerede udfyldt, når du åbner linket.",
+      "Går der noget galt undervejs, så skriv til kontakt@theboardroom.dk.",
+    ]) {
+      expect(tekstAf(uden.html)).toContain(linje);
+    }
+    expect(uden.html).toContain(">Opret dit login</a>");
+    expect(uden.html).toContain("Venlig hilsen<br>Morten Larsen");
+  });
+
+  it("invitationsMail kræver valget — begge udgaver med navn", () => {
+    expect(tekstAf(invitationsMail({ virksomhed: "X", signupUrl: "https://x", fornavn: "Lisbeth", efterBetaling: false }).html)).not.toContain("Tak for din betaling");
+    expect(tekstAf(invitationsMail({ virksomhed: "X", signupUrl: "https://x", fornavn: "Lisbeth", efterBetaling: true }).html)).toContain("Tak for din betaling.");
+  });
+});
+
 describe("invitationsMail — husets form", () => {
-  const skabelon = invitationsMailSkabelon();
+  const skabelon = invitationsMailSkabelon(true);
 
   it("emnet og overskriften: ingen salg, tiltalen uden navn er «Hej,» — aldrig «Hej ,»", () => {
     expect(skabelon.subject).toBe("Din adgang til The Boardroom er klar");
     expect(skabelon.html).toContain(">Hej,</h1>");
     expect(skabelon.html).not.toContain("Hej ,");
-    expect(invitationsMail({ virksomhed: "X", signupUrl: "https://x", fornavn: "Lisbeth" }).html).toContain(">Hej Lisbeth,</h1>");
+    expect(invitationsMail({ virksomhed: "X", signupUrl: "https://x", fornavn: "Lisbeth", efterBetaling: true }).html).toContain(">Hej Lisbeth,</h1>");
   });
 
   it("headeren siger kun «The Boardroom», footeren kun «The Boardroom · theboardroom.dk», underskrift Morten Larsen", () => {
@@ -123,7 +174,7 @@ describe("udfyldPladsholdere — begge pladsholdere udfyldes, ingen bliver ståe
   const vaerdier = { company_name: "Floor1 ApS", signup_url: "https://app.theboardroom.dk/auth?mode=signup&invite=abc" };
 
   it("fallbacken: {{company_name}} og {{signup_url}} udfyldes i html og emne, og intet {{ står tilbage", () => {
-    const skabelon = invitationsMailSkabelon();
+    const skabelon = invitationsMailSkabelon(true);
     const html = udfyldPladsholdere(skabelon.html, vaerdier);
     const subject = udfyldPladsholdere(skabelon.subject, vaerdier);
     expect(html).toContain("Adgangen er til Floor1 ApS:");
@@ -155,7 +206,7 @@ describe("invitationsVaerdier — company_name escapes i HTML, aldrig i emnet; s
 
   it("navnet ødelægger ikke HTML'en: ingen rå < eller \" fra navnet, og alle <p> lukkes", () => {
     const v = invitationsVaerdier({ companyName: navn, signupUrl: url });
-    const html = udfyldPladsholdere(invitationsMailSkabelon().html, v.tilHtml);
+    const html = udfyldPladsholdere(invitationsMailSkabelon(true).html, v.tilHtml);
     expect(html).toContain("Adgangen er til Bang &amp; Olufsen &lt;&quot;B&amp;O&quot;&gt; A/S:");
     expect(html).not.toContain('<"B&O">');
     expect(html).not.toContain("Adgangen er til Bang & ");
@@ -168,7 +219,7 @@ describe("invitationsVaerdier — company_name escapes i HTML, aldrig i emnet; s
     const v = invitationsVaerdier({ companyName: navn, signupUrl: url });
     expect(v.tilHtml.signup_url).toBe(url);
     expect(v.tilEmne.signup_url).toBe(url);
-    const html = udfyldPladsholdere(invitationsMailSkabelon().html, v.tilHtml);
+    const html = udfyldPladsholdere(invitationsMailSkabelon(true).html, v.tilHtml);
     expect(html).toContain(`<a href="${url}" target="_blank"`);
     expect(html).toContain(`href="${url}" style="height:44px`);
     expect(html).toContain(`>${url}</a>`);
