@@ -5,28 +5,37 @@
 // undtagelse: en REGISTERKODE i industry_code (rene cifre) erstattes af
 // motorens oversættelse, når motoren rammer. Reglen er den samme som ved
 // oprettelsen (#556, #560); planen regnes i _shared/berigelse.ts (ren,
-// testet), og opslaget genbruger hentCvrData og udledBranchekode.
+// testet), og opslaget genbruger slaaCvrOp og udledBranchekode.
 //
 // SAMME FORM SOM indgangs-paamindelser-cron: HTTP-indgang, Bucket B
 // (authenticateServiceRole bag verify_jwt = true), og TØRKØRSEL SOM
 // STANDARD — uden body findes kandidaterne og rapporteres, men intet
 // skrives. Kun et eksplicit { "dry_run": false } skriver.
 //
-// CVRAPI'S KVOTE (målt 3/9 i cvrapi.dk/documentation): «Du har 50 gratis
-// opslag om dagen» — derover svarer den QUOTA_EXCEEDED. Og User-Agent med
-// firma- og projektnavn er et krav (INVALID_UA); husets UA i hentCvrData
-// har virket i prod. Konsekvens:
-//   - TØRKØRSLEN KALDER IKKE CVRAPI. Målt 3/9 kræver 27 virksomheder et
-//     opslag; en tørkørsel med opslag + en rigtig kørsel = 54 > 50, og
-//     den rigtige kørsel ville løbe tør midt i listen. Tørkørslen viser i
-//     stedet, pr. virksomhed og pr. felt, hvad der ER tomt, hvad der kan
-//     udledes UDEN opslag (branche fra raw_cvr_data, mail fra medlemmet),
-//     og hvad der «kræver CVR-opslag» — og tæller hvor mange opslag den
-//     rigtige kørsel vil bruge.
+// CVR-KILDEN ER DATACVR (skiftet 16/9 fra cvrapi.dk, som begrænsede pr.
+// IP-interval og gav QUOTA_EXCEEDED fra edge-runtimen — fund 6 14/9).
+// Opslaget (slaaCvrOp, _shared/virksomhedsOprettelse.ts) svarer et UDFALD:
+// fundet, findes_ikke, graense (HTTP 429), fejl, noegle_mangler — så
+// «findes ikke» og «grænsen nået» ikke længere er samme null (fund 13).
+// DataCVR's gratis plan giver 25 opslag pr. dag pr. nøgle (målt 16/9 i
+// deres dashboard). Konsekvens:
+//   - TØRKØRSLEN KALDER IKKE DATACVR. Målt 3/9 krævede 27 virksomheder et
+//     opslag; en tørkørsel med opslag + en rigtig kørsel ville bruge det
+//     dobbelte, og den rigtige kørsel ville løbe tør midt i listen.
+//     Tørkørslen viser i stedet, pr. virksomhed og pr. felt, hvad der ER
+//     tomt, hvad der kan udledes UDEN opslag (branche fra raw_cvr_data,
+//     mail fra medlemmet), og hvad der «kræver CVR-opslag» — og tæller
+//     hvor mange opslag den rigtige kørsel vil bruge.
 //   - Den rigtige kørsel slår kun op hvor det nytter (felterDerKraeverCvr),
-//     holder PAUSE_MS mellem opslag, og standser ved MAKS_OPSLAG (45) af
-//     hensyn til kvoten — resten rapporteres som «dagskvote-værn», og
-//     næste kørsel tager dem. Kvoten er pr. dag; kør ikke to gange samme dag.
+//     holder PAUSE_MS mellem opslag, og standser ved MAKS_OPSLAG (20) —
+//     resten rapporteres som «dagskvote-værn», og næste kørsel tager dem.
+//     Svarer DataCVR graense, eller mangler nøglen, laves der INGEN flere
+//     opslag i kørslen; resten tælles som sprunget_over_kvote med grunden.
+//     Grænsen er pr. dag; kør ikke to gange samme dag.
+//   - Et nummer registret ikke kender (findes_ikke) bliver kandidat igen
+//     ved næste kørsel — planen regnes af rækkens felter, og intet stempel
+//     skrives. Det er navngivet i svaret (cvr_findes_ikke), så det kan
+//     tages i hånden (fund 13: to cifre byttet om).
 //
 // IDEMPOTENT: planen regnes af rækkens nuværende værdier og skriver kun
 // felter der var tomme. En gentagelse rammer nul rækker (og bruger nul
@@ -45,7 +54,7 @@
 
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
 import { authenticateServiceRole, corsHeaders } from "../_shared/edgeFunctionAuth.ts";
-import { hentCvrData } from "../_shared/virksomhedsOprettelse.ts";
+import { slaaCvrOp, type CvrSvar } from "../_shared/virksomhedsOprettelse.ts";
 import {
   BERIGELSES_FELTER,
   beregnBerigelse,
@@ -59,10 +68,15 @@ import {
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
 const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-/** Pause mellem cvrapi-opslag. Ingen dokumenteret grænse pr. sekund — så vi er varsomme. */
+/** Pause mellem CVR-opslag. Ingen dokumenteret grænse pr. sekund hos DataCVR — så vi er varsomme. */
 const PAUSE_MS = 500;
-/** Loft pr. kørsel, under kvoten på 50/dag, så der er plads til et par manuelle opslag samme dag. */
-const MAKS_OPSLAG = 45;
+/**
+ * Loft pr. kørsel. Regnestykket (16/9): DataCVR's gratis plan har 25 opslag
+ * pr. dag pr. nøgle, og nøglen deles med importen (import-application) og
+ * Monday-vejen (monday-webhook) samme døgn — hvert nyt CVR koster ét
+ * opslag. 25 − 20 = 5 opslag tilbage til dagens nye virksomheder.
+ */
+const MAKS_OPSLAG = 20;
 
 interface VirksomhedsRapport {
   id: string;
@@ -82,14 +96,22 @@ interface BerigelsesRapport {
   virksomheder_aendret: number;
   sat_pr_felt: Record<BerigelsesFelt, number>;
   opslag: {
-    /** Rigtig kørsel: brugte cvrapi-opslag. */
+    /** Rigtig kørsel: brugte DataCVR-opslag (kald der blev sendt). */
     brugt: number;
     /** Tørkørsel: så mange opslag ville den rigtige kørsel bruge. */
     ville_bruges: number;
     maks: number;
-    /** Opslag der gav intet svar (ukendt CVR, netværk, eller kvote — se loggen). */
+    /** Opslag der ikke gav et fund — summen af findes_ikke, graense, fejl og noegle_mangler. */
     uden_svar: number;
-    /** Sprunget over fordi MAKS_OPSLAG var nået. */
+    /** Registret kender ikke nummeret (HTTP 404 NOT_FOUND). */
+    findes_ikke: number;
+    /** DataCVR svarede 429 — grænsen for dagen er nået; kørslen stoppede opslagene. */
+    graense: number;
+    /** Netværk, timeout, afvist nøgle eller uventet svar — se loggen. */
+    fejl: number;
+    /** DATACVR_API_KEY mangler — kørslen stoppede opslagene. */
+    noegle_mangler: number;
+    /** Sprunget over fordi MAKS_OPSLAG var nået, eller fordi grænsen/nøglen stoppede opslagene. */
     sprunget_over_kvote: number;
   };
   /** Kun virksomheder hvor noget blev sat eller sprunget over. */
@@ -100,7 +122,12 @@ interface BerigelsesRapport {
     uden_db25: string[];
     motor_rammer_ikke: { navn: string; kode: string }[];
     uden_medlem_til_email: { navn: string; grund: string }[];
+    /** Alle uden fund (som før) — de tre næste deler dem op efter udfald. */
     cvr_uden_svar: string[];
+    cvr_findes_ikke: string[];
+    cvr_graense: string[];
+    /** fejl og noegle_mangler. */
+    cvr_fejl: string[];
   };
   error?: string;
 }
@@ -112,9 +139,18 @@ function tomRapport(dryRun: boolean): BerigelsesRapport {
     virksomheder_i_alt: 0,
     virksomheder_aendret: 0,
     sat_pr_felt: { address: 0, postal_code: 0, city: 0, industry_code: 0, industry_label: 0, contact_email: 0 },
-    opslag: { brugt: 0, ville_bruges: 0, maks: MAKS_OPSLAG, uden_svar: 0, sprunget_over_kvote: 0 },
+    opslag: { brugt: 0, ville_bruges: 0, maks: MAKS_OPSLAG, uden_svar: 0, findes_ikke: 0, graense: 0, fejl: 0, noegle_mangler: 0, sprunget_over_kvote: 0 },
     virksomheder: [],
-    ikke_kunne_hjaelpes: { uden_cvr: [], uden_db25: [], motor_rammer_ikke: [], uden_medlem_til_email: [], cvr_uden_svar: [] },
+    ikke_kunne_hjaelpes: {
+      uden_cvr: [],
+      uden_db25: [],
+      motor_rammer_ikke: [],
+      uden_medlem_til_email: [],
+      cvr_uden_svar: [],
+      cvr_findes_ikke: [],
+      cvr_graense: [],
+      cvr_fejl: [],
+    },
   };
 }
 
@@ -186,25 +222,55 @@ async function koerBerigelse(supabase: SupabaseClient, dryRun: boolean): Promise
   });
   rapport.virksomheder_i_alt = virksomheder.length;
 
+  // Sat når DataCVR svarer graense (429) eller nøglen mangler: ingen flere
+  // opslag i denne kørsel — resten af kandidaterne tælles som
+  // sprunget_over_kvote med grunden ordret.
+  let stopGrund: string | null = null;
+
   for (const v of virksomheder) {
     const linje: VirksomhedsRapport = { id: v.id, navn: v.name, cvr: v.cvr_number, sat: {}, sprunget_over: [] };
     try {
-      // 1. CVR-opslag — kun hvor det nytter, aldrig i tørkørsel (kvoten).
+      // 1. CVR-opslag — kun hvor det nytter, aldrig i tørkørsel (grænsen).
       const kraever = felterDerKraeverCvr(v);
-      let cvrSvar: Awaited<ReturnType<typeof hentCvrData>> = null;
+      let cvrSvar: CvrSvar | null = null;
       if (kraever.length > 0 && harCvr(v)) {
         if (dryRun) {
           rapport.opslag.ville_bruges++;
+        } else if (stopGrund !== null) {
+          rapport.opslag.sprunget_over_kvote++;
+          for (const felt of kraever) linje.sprunget_over.push({ felt, grund: stopGrund });
         } else if (rapport.opslag.brugt >= MAKS_OPSLAG) {
           rapport.opslag.sprunget_over_kvote++;
           for (const felt of kraever) linje.sprunget_over.push({ felt, grund: "dagskvote-værn: MAKS_OPSLAG nået — kør igen i morgen" });
         } else {
           if (rapport.opslag.brugt > 0) await sov(PAUSE_MS);
           rapport.opslag.brugt++;
-          cvrSvar = await hentCvrData(v.cvr_number!.trim());
-          if (!cvrSvar) {
+          const opslag = await slaaCvrOp(v.cvr_number!.trim());
+          if (opslag.udfald === "fundet") {
+            cvrSvar = opslag.svar;
+          } else {
             rapport.opslag.uden_svar++;
             rapport.ikke_kunne_hjaelpes.cvr_uden_svar.push(v.name);
+            switch (opslag.udfald) {
+              case "findes_ikke":
+                rapport.opslag.findes_ikke++;
+                rapport.ikke_kunne_hjaelpes.cvr_findes_ikke.push(v.name);
+                break;
+              case "graense":
+                rapport.opslag.graense++;
+                rapport.ikke_kunne_hjaelpes.cvr_graense.push(v.name);
+                stopGrund = "grænsen for CVR-opslag er nået (DataCVR svarede 429) — ingen flere opslag i denne kørsel; kør igen i morgen";
+                break;
+              case "noegle_mangler":
+                rapport.opslag.noegle_mangler++;
+                rapport.ikke_kunne_hjaelpes.cvr_fejl.push(v.name);
+                stopGrund = "DATACVR_API_KEY mangler — ingen CVR-opslag i denne kørsel";
+                break;
+              case "fejl":
+                rapport.opslag.fejl++;
+                rapport.ikke_kunne_hjaelpes.cvr_fejl.push(v.name);
+                break;
+            }
           }
         }
       }
@@ -261,6 +327,9 @@ async function koerBerigelse(supabase: SupabaseClient, dryRun: boolean): Promise
   rapport.ikke_kunne_hjaelpes.uden_cvr = unik(rapport.ikke_kunne_hjaelpes.uden_cvr);
   rapport.ikke_kunne_hjaelpes.uden_db25 = unik(rapport.ikke_kunne_hjaelpes.uden_db25);
   rapport.ikke_kunne_hjaelpes.cvr_uden_svar = unik(rapport.ikke_kunne_hjaelpes.cvr_uden_svar);
+  rapport.ikke_kunne_hjaelpes.cvr_findes_ikke = unik(rapport.ikke_kunne_hjaelpes.cvr_findes_ikke);
+  rapport.ikke_kunne_hjaelpes.cvr_graense = unik(rapport.ikke_kunne_hjaelpes.cvr_graense);
+  rapport.ikke_kunne_hjaelpes.cvr_fejl = unik(rapport.ikke_kunne_hjaelpes.cvr_fejl);
   for (const f of BERIGELSES_FELTER) if (!(f in rapport.sat_pr_felt)) rapport.sat_pr_felt[f] = 0;
   return rapport;
 }

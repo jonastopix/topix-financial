@@ -234,6 +234,10 @@ Deno.serve(async (req) => {
     invitation_token: invitation.token,
     signup_url: signupUrl,
     cvr_data: cvrData,
+    // Opslagets udfald (16/9): fundet | findes_ikke | graense | fejl |
+    // noegle_mangler, null uden gyldigt CVR og ved genbrug. Kvitteringen
+    // (src/lib/cvrBerigelse.ts) siger hvad der skete ud fra det.
+    cvr_udfald: oprettet.cvr_udfald,
     email_sent: !emailErr,
   }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
 });

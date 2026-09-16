@@ -4,17 +4,21 @@
  * Synligheden af en fejlet CVR-berigelse — rene domme, ingen IO.
  *
  * HVORFOR DEN FINDES (målt i prod 14/9 2026 kl. 08:10:15 UTC): importen af
- * Nordic By Hand fik «cvrapi svarede error=QUOTA_EXCEEDED». Virksomheden
- * blev oprettet UDEN adresse og UDEN branchekode, og rådgiverens kvittering
- * var ordret den samme som ved succes. import-application svarede allerede
- * cvr_data, men ingen fil i src/ læste feltet; cvr_fetched_at IS NULL var
- * det eneste spor, og kolonnen opdateres aldrig efter oprettelsen. Den 22.
- * importeres 10–15 ansøgere ad samme vej: rammer kvoten, får rådgiveren ti
- * grønne kvitteringer og ti virksomheder uden branchekode uden at vide det.
+ * Nordic By Hand fik fra den daværende kilde cvrapi.dk «error=QUOTA_EXCEEDED».
+ * Virksomheden blev oprettet UDEN adresse og UDEN branchekode, og
+ * rådgiverens kvittering var ordret den samme som ved succes.
+ * import-application svarede allerede cvr_data, men ingen fil i src/ læste
+ * feltet; cvr_fetched_at IS NULL var det eneste spor, og kolonnen opdateres
+ * aldrig efter oprettelsen. Den 22. importeres 10–15 ansøgere ad samme vej:
+ * fejler opslaget, får rådgiveren ti grønne kvitteringer og ti virksomheder
+ * uden branchekode uden at vide det.
  *
- * KUN SYNLIGHEDEN, IKKE KILDEN: hentCvrData røres ikke — ingen retry, ingen
- * ny udbyder, ingen kø (beslutningen om Virk er truffet, bygges ikke i dag).
- * Tre steder siger det samme ud fra samme dom:
+ * KILDEN SKIFTEDE 16/9 til DataCVR (_shared/cvrOpslag.ts): opslaget svarer
+ * nu et navngivet udfald, og import-application sender det med som
+ * cvr_udfald ved siden af cvr_data. Kvitteringen siger derfor HVAD der
+ * skete — nummeret findes ikke, grænsen er nået, eller opslaget fejlede —
+ * frem for ét ord for alle tre (fund 13). Tre steder siger det samme ud fra
+ * samme dom:
  *   1. Kvitteringen efter import (importKvittering) — HbAnsoegningsimport.
  *   2. Virksomhedssiden, «Hvad skal du vide nu» — et signal i motoren
  *      (virksomhedsSignaler.ts, køen stamdata_mangler). Forsidens dom
@@ -26,19 +30,22 @@
  * tom, og mindst ét af felterne adresse/branchekode tomt. Er felterne fyldt
  * — af berigelsen (berig-virksomheder) eller i hånden — forsvinder mærket
  * af sig selv; cvr_fetched_at sættes nemlig kun ved oprettelsen
- * (virksomhedsraekke.ts:199) og aldrig siden. Uden gyldigt CVR er der
+ * (virksomhedsraekke.ts:231) og aldrig siden. Uden gyldigt CVR er der
  * intet at slå op, og det er ikke en fejlet berigelse.
  *
- * HVAD RÅDGIVEREN SKAL GØRE står i teksterne: køre berigelsen når
- * CVR-kvoten er fri (50 opslag/dag, berig-virksomheder/index.ts:15-29) —
- * den udfylder tomme felter fra CVR. Rådgiverens redigeringsdialog har
- * intet adressefelt og sætter kun branche-labelen, ikke koden; kun
- * medlemmet (Indstillinger) og berigelsen skriver industry_code.
+ * HVAD RÅDGIVEREN SKAL GØRE står i teksterne: køre berigelsen
+ * (berig-virksomheder) — den udfylder tomme felter fra CVR og standser selv
+ * ved DataCVR's grænse (25 opslag pr. dag pr. nøgle; berig-virksomheder
+ * bruger højst 20 pr. kørsel). Findes nummeret ikke i registret, hjælper
+ * ingen berigelse — så skal nummeret tjekkes (fund 13: to cifre byttet om).
+ * Rådgiverens redigeringsdialog har intet adressefelt og sætter kun
+ * branche-labelen, ikke koden; kun medlemmet (Indstillinger) og berigelsen
+ * skriver industry_code.
  */
 
 export const CVR_FORMAT = /^\d{8}$/;
 
-/** Otte cifre, uden mellemrum — det eneste format hentCvrData slår op på (samme regel som berigelse.ts). */
+/** Otte cifre, uden mellemrum — det eneste format opslaget (slaaCvrOp) slår op på (samme regel som berigelse.ts). */
 export function erGyldigtCvr(cvr: string | null | undefined): boolean {
   return CVR_FORMAT.test((cvr ?? "").replace(/\s/g, ""));
 }
@@ -74,9 +81,9 @@ export function cvrOpslagMangler(s: CvrStamdata): CvrMangel {
 /** Mærket på listen og i signalet — samme ord begge steder. */
 export const CVR_MANGEL_MAERKE = "CVR-opslag mangler";
 
-/** Handlingen — samme sætning i kvittering og signal. */
+/** Handlingen — samme sætning i signalet på virksomhedssiden. */
 export const CVR_MANGEL_HANDLING =
-  "Kør berigelsen (berig-virksomheder) når CVR-kvoten er fri — den udfylder de tomme felter fra CVR.";
+  "Kør berigelsen (berig-virksomheder) — den udfylder de tomme felter fra CVR. Findes CVR-nummeret ikke i registret, så tjek nummeret.";
 
 /** «adresse og branchekode» / «adresse» / «branchekode». */
 export function felterTekst(felter: readonly CvrMangelFelt[]): string {
@@ -85,12 +92,17 @@ export function felterTekst(felter: readonly CvrMangelFelt[]): string {
 
 // ── Kvitteringen efter import ─────────────────────────────────────────────
 
-/** Det kvitteringen læser af import-applications svar (index.ts:229-238). */
+/** Opslagets udfald, som _shared/cvrOpslag.ts' CvrOpslag["udfald"] (src kan ikke importere fra _shared). */
+export type CvrUdfald = "fundet" | "findes_ikke" | "graense" | "fejl" | "noegle_mangler";
+
+/** Det kvitteringen læser af import-applications svar. */
 export interface ImportSvar {
   reused_company?: boolean;
   company_name?: string | null;
   /** null når opslaget ikke lykkedes ELLER ikke blev forsøgt (genbrug, intet gyldigt CVR). */
   cvr_data?: unknown;
+  /** Opslagets udfald (16/9). Mangler feltet (gammel server), læses det som «fejl». */
+  cvr_udfald?: CvrUdfald | null;
 }
 
 export interface ImportKvittering {
@@ -99,10 +111,13 @@ export interface ImportKvittering {
   beskrivelse: string;
 }
 
+const MANGEL_HALE = `Virksomheden er mærket «${CVR_MANGEL_MAERKE}» på listen og på sin side, indtil felterne er fyldt.`;
+
 /**
  * Kvitteringen — siger altid at virksomheden er oprettet og invitationen
  * sendt (det ER sket), og siger det ligeud når CVR-opslaget ikke lykkedes:
- * hvad der mangler, og hvad rådgiveren skal gøre. En mangel, ikke en fejl.
+ * hvad der skete, hvad der mangler, og hvad rådgiveren skal gøre. En
+ * mangel, ikke en fejl.
  */
 export function importKvittering(svar: ImportSvar, form: { email: string; cvr_number: string }): ImportKvittering {
   const navn = (svar.company_name ?? "").trim() || "Virksomheden";
@@ -121,11 +136,17 @@ export function importKvittering(svar: ImportSvar, form: { email: string; cvr_nu
   if (!erGyldigtCvr(form.cvr_number)) {
     return { tone: "success", titel: "Ansøgning importeret ✓", beskrivelse: `${grund} Uden CVR-nummer er adresse og branche ikke hentet.` };
   }
+  // Opslaget lykkedes ikke — sig hvad der skete (udfaldet fra slaaCvrOp).
+  // fejl, noegle_mangler og et manglende felt (gammel server) får samme ord.
+  const hvad =
+    svar.cvr_udfald === "findes_ikke"
+      ? "CVR-nummeret findes ikke i registret — tjek nummeret. Adresse og branchekode er ikke hentet."
+      : svar.cvr_udfald === "graense"
+        ? "Grænsen for CVR-opslag i dag er nået — kør berigelsen (berig-virksomheder) i morgen, så udfyldes adresse og branchekode."
+        : "CVR-opslaget fejlede — kør berigelsen (berig-virksomheder) senere, så udfyldes adresse og branchekode.";
   return {
     tone: "warning",
     titel: "Importeret — men CVR-opslaget lykkedes ikke",
-    beskrivelse:
-      `${grund} Adresse og branchekode mangler: CVR-registret svarede ikke (dagskvoten kan være brugt). ` +
-      `${CVR_MANGEL_HANDLING} Virksomheden er mærket «${CVR_MANGEL_MAERKE}» på listen og på sin side, indtil felterne er fyldt.`,
+    beskrivelse: `${grund} ${hvad} ${MANGEL_HALE}`,
   };
 }
