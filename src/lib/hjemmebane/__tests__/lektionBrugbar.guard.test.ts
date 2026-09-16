@@ -134,3 +134,49 @@ describe("lektionBrugbar.guard — svaret siver ikke ind i de eksisterende skriv
     expect(() => funktionsBlok("", "batchAcknowledge")).toThrow(/batchAcknowledge/);
   });
 });
+
+// 4. (16/9, fladen) Skrivevejen saetBrugbar er en UPDATE på egen række med
+//    husets #709-form — aldrig upsert. Låses på kilden, fordi mock-testen
+//    (saetBrugbar.test.ts) kun ser hvad klienten kaldes med, ikke at der
+//    ikke findes en anden gren.
+/** Dommen: en UPDATE på egen række med husets #709-form og motorens patch —
+    sand præcis når blokken har .update(, .select("id"), data.length === 0
+    og brugbarPatch(, og IKKE .upsert(. Selvbeviset kører den samme dom. */
+export function saetBrugbarHar709Form(blok: string): boolean {
+  return (
+    blok.includes(".update(") &&
+    blok.includes('.select("id")') &&
+    blok.includes("data.length === 0") &&
+    blok.includes("brugbarPatch(") &&
+    !blok.includes(".upsert(")
+  );
+}
+
+describe("lektionBrugbar.guard — saetBrugbar er en UPDATE med #709-formen, aldrig upsert", () => {
+  const akademi = laes(AKADEMI_API);
+  const blok = funktionsBlok(akademi, "saetBrugbar");
+
+  it("4. saetBrugbar har #709-formen: .update(, .select(\"id\"), data.length === 0, brugbarPatch( — og ikke .upsert(", () => {
+    expect(saetBrugbarHar709Form(blok)).toBe(true);
+    // Blokken er den rigtige: den slutter ved funktionens egen }, ikke i næste funktion.
+    expect(blok).not.toContain("export function itemProgressState");
+  });
+
+  it("VÆRNET VIRKER: den samme dom er falsk på tre kopier med fejlen indsat (filen er ikke rørt)", () => {
+    // a) update byttet til upsert
+    const kopiUpsert = blok.replace(".update(", ".upsert(");
+    expect(kopiUpsert).not.toBe(blok);
+    expect(saetBrugbarHar709Form(kopiUpsert)).toBe(false);
+    // b) rækketjekket fjernet
+    const kopiUdenTjek = blok.replace("data.length === 0", "false");
+    expect(kopiUdenTjek).not.toBe(blok);
+    expect(saetBrugbarHar709Form(kopiUdenTjek)).toBe(false);
+    // c) patchen skrevet i hånden i stedet for motorens brugbarPatch(
+    const kopiHaandPatch = blok.replace(
+      "brugbarPatch(svar, new Date())",
+      "{ brugbar: svar, brugbar_at: new Date().toISOString() }",
+    );
+    expect(kopiHaandPatch).not.toBe(blok);
+    expect(saetBrugbarHar709Form(kopiHaandPatch)).toBe(false);
+  });
+});

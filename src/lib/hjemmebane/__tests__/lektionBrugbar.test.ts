@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
+  BRUGBAR_SPOERGSMAAL,
+  brugbarLinje,
   brugbarPatch,
   optaelBrugbarPrLektion,
+  patchBrugbarIRaekker,
   skalSpoergeOmBrugbar,
   type BrugbarOptaelling,
   type BrugbarRaekke,
@@ -130,5 +133,58 @@ describe("optaelBrugbarPrLektion — tallet pr. lektion, kun gennemførte, aldri
     const kopi = JSON.parse(JSON.stringify(rows));
     optaelBrugbarPrLektion(rows, []);
     expect(rows).toEqual(kopi);
+  });
+});
+
+describe("brugbarLinje — rådgiverens linje pr. lektion, tre grene", () => {
+  it("undefined eller gennemfoert 0 → «Ingen har gennemført den endnu»", () => {
+    expect(brugbarLinje(undefined)).toBe("Ingen har gennemført den endnu");
+    expect(brugbarLinje({ gennemfoert: 0, ja: 0, nej: 0, ubesvaret: 0 })).toBe("Ingen har gennemført den endnu");
+  });
+
+  it("gennemført men ingen svar → antallet og «ingen har svaret endnu», også med 1", () => {
+    expect(brugbarLinje({ gennemfoert: 1, ja: 0, nej: 0, ubesvaret: 1 })).toBe("1 gennemført · ingen har svaret endnu");
+    expect(brugbarLinje({ gennemfoert: 7, ja: 0, nej: 0, ubesvaret: 7 })).toBe("7 gennemført · ingen har svaret endnu");
+  });
+
+  it("med svar → «ja af (ja+nej) kunne bruge den · gennemført», også med 1", () => {
+    expect(brugbarLinje({ gennemfoert: 1, ja: 1, nej: 0, ubesvaret: 0 })).toBe("1 af 1 kunne bruge den · 1 gennemført");
+    expect(brugbarLinje({ gennemfoert: 5, ja: 0, nej: 1, ubesvaret: 4 })).toBe("0 af 1 kunne bruge den · 5 gennemført");
+    expect(brugbarLinje({ gennemfoert: 9, ja: 4, nej: 2, ubesvaret: 3 })).toBe("4 af 6 kunne bruge den · 9 gennemført");
+  });
+});
+
+describe("patchBrugbarIRaekker — den optimistiske cache-patch", () => {
+  type Raekke = { content_item_id: string; seen_at: string | null; brugbar?: boolean | null };
+  const patch = brugbarPatch(true, NU);
+  const rows = (): Raekke[] => [
+    { content_item_id: "L1", seen_at: ACK, brugbar: null },
+    { content_item_id: "L2", seen_at: null },
+  ];
+
+  it("patcher KUN rækken for itemId — de andre felter bevares, de andre rækker er urørte", () => {
+    const ud = patchBrugbarIRaekker(rows(), "L1", patch);
+    expect(ud[0]).toEqual({ content_item_id: "L1", seen_at: ACK, brugbar: true, brugbar_at: "2026-09-16T10:00:00.000Z" });
+    expect(ud[1]).toEqual({ content_item_id: "L2", seen_at: null });
+  });
+
+  it("manglende række → listen returneres uændret (samme reference), ingen ny række", () => {
+    const input = rows();
+    const ud = patchBrugbarIRaekker(input, "L9", patch);
+    expect(ud).toBe(input);
+    expect(ud).toEqual(rows());
+  });
+
+  it("rører ikke input", () => {
+    const input = rows();
+    const kopi = JSON.parse(JSON.stringify(input));
+    patchBrugbarIRaekker(input, "L1", patch);
+    expect(input).toEqual(kopi);
+  });
+});
+
+describe("fladens ord", () => {
+  it("BRUGBAR_SPOERGSMAAL er præcis «Kunne du bruge den?»", () => {
+    expect(BRUGBAR_SPOERGSMAAL).toBe("Kunne du bruge den?");
   });
 });

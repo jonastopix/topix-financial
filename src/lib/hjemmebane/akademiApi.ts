@@ -6,6 +6,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
 import { isEventPast } from "./eventPhase";
+import { brugbarPatch } from "./lektionBrugbar";
 import type { MemberProfile } from "./memberProfile";
 import type {
   ContentCollection,
@@ -110,6 +111,28 @@ export async function upsertProgress(
       { onConflict: "user_id,content_item_id" },
     );
   if (error) throw new Error(error.message);
+}
+
+/** «Kunne du bruge den?» — medlemmets svar på en lektion der er set
+    færdig. ALDRIG upsert: svaret forudsætter en eksisterende række
+    (acknowledged_at sat), så en UPDATE på egen række er hele skrivevejen,
+    og self-only RLS bærer ejerskabet. Husets #709-form (memberProfile.ts
+    saveMyCompanyDescription): error kaster, og nul ramte rækker kaster —
+    aldrig en stille succes. Patchen kommer fra motoren (brugbarPatch), så
+    de to kolonner altid sættes sammen. */
+export async function saetBrugbar(
+  userId: string,
+  contentItemId: string,
+  svar: boolean,
+): Promise<void> {
+  const { data, error } = await supabase
+    .from("member_progress")
+    .update(brugbarPatch(svar, new Date()))
+    .eq("user_id", userId)
+    .eq("content_item_id", contentItemId)
+    .select("id");
+  if (error) throw new Error(error.message);
+  if (!data || data.length === 0) throw new Error("Skrivningen ramte nul rækker — svaret er IKKE gemt.");
 }
 
 /** Tilstandsprikken pr. element — afledt af de uafhængige tidsstempler.

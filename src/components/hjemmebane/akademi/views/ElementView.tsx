@@ -1,5 +1,5 @@
 import * as React from "react";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, ArrowRight, Check, Download, ExternalLink, Lock, Undo2 } from "lucide-react";
@@ -12,8 +12,10 @@ import { useAuth } from "@/hooks/useAuth";
 import { formatDuration } from "@/components/hjemmebane/admin/editors/shared";
 import { HbButton } from "@/components/hjemmebane/HbButton";
 import { HbVideoEmbed } from "../HbVideoEmbed";
+import { BrugbarSpoergsmaal } from "../BrugbarSpoergsmaal";
 import { isTrackedEntry, useAkademiData } from "../useAkademiData";
 import { sektionsfejlTekst } from "@/lib/hjemmebane/hentefejl";
+import { BRUGBAR_TAK, skalSpoergeOmBrugbar } from "@/lib/hjemmebane/lektionBrugbar";
 
 /** Materialer-listen (c3-vedhaeftninger-design.md §6): rolig sektion under
     medie + body, kun når der ER materialer. Storage-bilag åbnes via signeret
@@ -128,6 +130,15 @@ export const ElementView = ({ areaKey, slug }: { areaKey: string; slug: string }
   const data = useAkademiData();
   const entry = data.bySlug.get(slug);
   const seenWrittenRef = useRef<string | null>(null);
+  /** «Kunne du bruge den?»: item.id for den lektion der er svaret på i
+      DETTE besøg. Kvitteringen vises kun når svaret OGSÅ står i cachen
+      (progress.brugbar != null): ved succes står det der, og kvitteringen
+      bliver stående; fejler skrivningen, ruller useAkademiData cachen
+      tilbage (brugbar er null igen), spørgsmålet kommer tilbage, og
+      toasten «Svaret blev ikke gemt» står alene — kvitteringen lyver aldrig.
+      Ved genbesøg vises intet, fordi rækken da er besvaret (skalSpoergeOmBrugbar).
+      Nøglet pr. item.id, fordi komponenten lever videre på tværs af slugs. */
+  const [brugbarSvaretFor, setBrugbarSvaretFor] = useState<string | null>(null);
 
   // seen_at ved første visning — én gang pr. element pr. besøg.
   useEffect(() => {
@@ -323,6 +334,23 @@ export const ElementView = ({ areaKey, slug }: { areaKey: string; slug: string }
             </Link>
           )}
         </div>
+
+        {brugbarSvaretFor === item.id && progress?.brugbar != null ? (
+          <p className="mt-4 text-sm text-hb-ink-soft">{BRUGBAR_TAK}</p>
+        ) : skalSpoergeOmBrugbar({
+            tracked,
+            state,
+            brugbar: progress?.brugbar,
+            erRaadgiver: data.isAdvisor,
+          }) ? (
+          <BrugbarSpoergsmaal
+            gemmer={data.brugbarGemmer}
+            onSvar={(svar) => {
+              setBrugbarSvaretFor(item.id);
+              data.svarBrugbar(item.id, svar);
+            }}
+          />
+        ) : null}
       </article>
     </div>
   );

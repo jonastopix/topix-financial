@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import type { ContentCollection, ContentItem } from "@/lib/hjemmebane/adminContentApi";
 import {
@@ -8,11 +9,13 @@ import {
   itemProgressState,
   listPublishedCollections,
   listPublishedItems,
+  saetBrugbar,
   upsertProgress,
   type ItemProgressState,
   type MemberProgress,
   type ProgressPatch,
 } from "@/lib/hjemmebane/akademiApi";
+import { brugbarPatch, patchBrugbarIRaekker } from "@/lib/hjemmebane/lektionBrugbar";
 import { dripState, effectiveDrip, type DripState } from "@/lib/hjemmebane/drip";
 
 export interface AkademiItem {
@@ -154,6 +157,34 @@ export function useAkademiData() {
     },
   });
 
+  // «Kunne du bruge den?» (16/9): samme nøgle, samme optimistiske form —
+  // men patchen er motorens (patchBrugbarIRaekker + brugbarPatch), aldrig
+  // ProgressPatch, og skrivevejen er en UPDATE på egen række (saetBrugbar).
+  // Fejl siges højt: rollback OG toast, som KontoView — et svar der ikke
+  // blev gemt må ikke se ud som gemt.
+  const brugbarMutation = useMutation({
+    mutationFn: ({ itemId, svar }: { itemId: string; svar: boolean }) =>
+      saetBrugbar(userId, itemId, svar),
+    onMutate: async ({ itemId, svar }) => {
+      const queryKey = ["akademi", "progress", userId];
+      await queryClient.cancelQueries({ queryKey });
+      const previous = queryClient.getQueryData<MemberProgress[]>(queryKey);
+      queryClient.setQueryData<MemberProgress[]>(queryKey, (old = []) =>
+        patchBrugbarIRaekker(old, itemId, brugbarPatch(svar, new Date())),
+      );
+      return { previous };
+    },
+    onError: (error, _variables, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(["akademi", "progress", userId], context.previous);
+      }
+      toast.error("Svaret blev ikke gemt", { description: error.message });
+    },
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: ["akademi", "progress", userId] });
+    },
+  });
+
   // Fejlede (de nitten, 10/9): alle fire queryFns kaster, men de afledte
   // kort brugte `?? []`, så et fejlet katalog blev til et tomt Akademi —
   // «Kurset findes ikke», «Området findes ikke». Et modul der ikke kunne
@@ -176,6 +207,8 @@ export function useAkademiData() {
     progressRows: progressQuery.data ?? [],
     writeProgress: (itemId: string, patch: ProgressPatch) =>
       progressMutation.mutate({ itemId, patch }),
+    svarBrugbar: (itemId: string, svar: boolean) => brugbarMutation.mutate({ itemId, svar }),
+    brugbarGemmer: brugbarMutation.isPending,
     ...derived,
   };
 }

@@ -393,6 +393,9 @@ export type AdminProgressRow = {
   seen_at: string | null;
   acknowledged_at: string | null;
   skipped_at: string | null;
+  /** «Kunne du bruge den?» (16/9) — null = ikke besvaret; valgfrit, så
+      ProgressViews optimistiske rækker uden feltet stadig er rækker. */
+  brugbar?: boolean | null;
 };
 
 export async function listAllMemberProgress(itemIds: string[]): Promise<AdminProgressRow[]> {
@@ -400,7 +403,7 @@ export async function listAllMemberProgress(itemIds: string[]): Promise<AdminPro
   return throwIfError(
     await supabase
       .from("member_progress")
-      .select("user_id, content_item_id, seen_at, acknowledged_at, skipped_at")
+      .select("user_id, content_item_id, seen_at, acknowledged_at, skipped_at, brugbar")
       .in("content_item_id", itemIds),
   );
 }
