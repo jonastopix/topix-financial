@@ -31,7 +31,7 @@ import { afgoerFornyelsestilstand, type Fornyelsesbeslutning } from "@/lib/forny
 import { beslutningsOrd, fornyelsesBadge, type FornyelseBadge } from "@/lib/fornyelsesOrd";
 import { afgoerBetalingsfrist, type Betalingsfriststatus } from "@/lib/betalingsfrist";
 import { afgoerForsidensDom, FORM, type OpgaveSlags, type VirksomhedTilDom } from "@/lib/forsidensDom";
-import { beloebKr, harFakturaLink, kortDato, datoOgTid, stripeSagde, traekBadgeTekst, traekLabel } from "@/lib/traek";
+import { beloebTekst, harFakturaLink, kortDato, datoOgTid, stripeSagde, traekBadgeTekst, traekLabel } from "@/lib/traek";
 import { KPI_DEFS, deriveKpiMetrics, type KpiMetric } from "@/lib/kpiDefs";
 import { deriveKpiTone } from "../noegletal/kpiTone";
 import { momErGyldig, delSerieTilTegning, basisNoegle, erEstimatNoegle, ESTIMAT_NOEGLE_SUFFIX } from "@/lib/dataGrundlag";
@@ -1689,10 +1689,10 @@ const Blok7 = ({ d, onOpdateret, onFornyelseAendret }: { d: VirksomhedsData; onO
                 de to prispunkter her — skrivningen går stadig gennem
                 saet-indgangs-prisniveau, som også sender dag 0-mailen. */}
             <Linje label="Prisniveau">
-              {formatKr(prisniveau)}
+              {formatKr(prisniveau)}{prisniveau != null && " ekskl. moms"}
               {indgang?.status === "afventer_pris" && <SaetPrisniveau companyId={c.id} onOpdateret={onOpdateret} />}
             </Linje>
-            {c.fornyelsespris_oere != null && <Linje label="Fornyelsespris">{formatKr(c.fornyelsespris_oere)}</Linje>}
+            {c.fornyelsespris_oere != null && <Linje label="Fornyelsespris">{formatKr(c.fornyelsespris_oere)} ekskl. moms</Linje>}
             {c.subscription_status && <Linje label="Abonnement">{c.subscription_status}{c.subscription_current_period_end ? ` · til ${formatDato(c.subscription_current_period_end)}` : ""}</Linje>}
             {d.betalingslink && <Linje label="Underskrevet">{formatDato(d.betalingslink.underskrevet_at)}</Linje>}
             <IntroSessionLinje companyId={c.id} />
@@ -1738,7 +1738,7 @@ const Blok7 = ({ d, onOpdateret, onFornyelseAendret }: { d: VirksomhedsData; onO
             <div className="mt-3 divide-y divide-hb-line">
               {d.perioder.map((p) => (
                 <Linje key={p.id} label={`${formatDato(p.periode_start)} – ${formatDato(p.periode_slut)}`}>
-                  {formatKr(p.beloeb_oere)} · {BETALINGSMODEL_LABEL[p.betalingsmodel] ?? p.betalingsmodel} · {p.art}
+                  {formatKr(p.beloeb_oere)} ekskl. moms · {BETALINGSMODEL_LABEL[p.betalingsmodel] ?? p.betalingsmodel} · {p.art}
                   {p.note && <span className="block text-xs text-hb-ink-soft">{p.note}</span>}
                 </Linje>
               ))}
@@ -1749,7 +1749,7 @@ const Blok7 = ({ d, onOpdateret, onFornyelseAendret }: { d: VirksomhedsData; onO
               {d.traek.map((t) => (
                 <Linje key={t.id} label={traekLabel(t)}>
                   <span className={t.status === "fejlet" ? "text-hb-rust" : undefined}>
-                    {beloebKr(t.beloeb_oere)} · {t.status}
+                    {beloebTekst(t)} · {t.status}
                     {t.status === "fejlet" && kortDato(t.fejlet_at) ? ` ${kortDato(t.fejlet_at)}` : ""}
                     {t.status === "betalt" && kortDato(t.betalt_at) ? ` ${kortDato(t.betalt_at)}` : ""}
                   </span>

@@ -133,7 +133,7 @@ export const SaetPrisniveau = ({ companyId, onOpdateret }: { companyId: string; 
       <span className="text-xs text-hb-ink-soft">Sæt prisniveau — betalingsmailen sendes i samme kald:</span>
       {INDGANGS_PRISPUNKTER_OERE.map((oere) => (
         <HbButton key={oere} type="button" variant="secondary" className="h-8 px-3 text-xs" onClick={() => void saet(oere)} disabled={arbejder !== null}>
-          {arbejder === oere ? "Gemmer…" : formatKr(oere)}
+          {arbejder === oere ? "Gemmer…" : `${formatKr(oere)} ekskl. moms`}
         </HbButton>
       ))}
     </span>

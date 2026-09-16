@@ -1139,6 +1139,7 @@ export type Database = {
           hosted_invoice_url: string | null
           id: string
           kilde: string
+          moms_oere: number | null
           naeste_forsoeg_at: string | null
           periode_slut: string | null
           periode_start: string | null
@@ -1165,6 +1166,7 @@ export type Database = {
           hosted_invoice_url?: string | null
           id?: string
           kilde?: string
+          moms_oere?: number | null
           naeste_forsoeg_at?: string | null
           periode_slut?: string | null
           periode_start?: string | null
@@ -1191,6 +1193,7 @@ export type Database = {
           hosted_invoice_url?: string | null
           id?: string
           kilde?: string
+          moms_oere?: number | null
           naeste_forsoeg_at?: string | null
           periode_slut?: string | null
           periode_start?: string | null

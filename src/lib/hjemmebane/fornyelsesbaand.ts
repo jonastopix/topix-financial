@@ -45,9 +45,9 @@ export function beskrivMulighed(m: FornyelsesMulighed): string {
     case "fuld":
       return "Betal på én gang";
     case "rate2":
-      return `2 rater à ${kr(m.rate_oere)} kr. — nu og om 6 måneder`;
+      return `2 rater à ${kr(m.rate_oere)} kr. ekskl. moms — nu og om 6 måneder`;
     case "rate12":
-      return `12 rater à ${kr(m.rate_oere)} kr. — i alt ${kr(m.samlet_oere)} kr.`;
+      return `12 rater à ${kr(m.rate_oere)} kr. ekskl. moms — i alt ${kr(m.samlet_oere)} kr. ekskl. moms`;
   }
 }
 

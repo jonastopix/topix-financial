@@ -60,7 +60,9 @@ export function fornyelsesBeskedTekst(a: {
  * 4.375 kr. fejlede» · «Stripe: Your card has insufficient funds.
  * (insufficient_funds) · prøver igen 17. september 2026 · faktura
  * DZ7BZXM5-0012». Beløbet er company_traek.beloeb_oere — fakturaens total
- * INKL. moms (migration 20260903150000:84), derfor står der ikke «ekskl.».
+ * INKL. moms (migration 20260903150000:84); siden 16/9 trækkes momsen fra
+ * når moms_oere er kendt («3.500 kr. ekskl. moms»), ellers står der
+ * «inkl. moms» (traekBeloebTekst).
  * Datoen kommer færdigformateret ind (formatDanskDato i webhooken), som
  * nySlutDatoTekst gør det ovenfor: dette modul er rent.
  */
@@ -122,9 +124,23 @@ export function traekGrundTekst(a: { fejlBesked: string | null; declineCode: str
   return "Stripe gav ingen grund";
 }
 
+/**
+ * Beløbet i klokken (16/9): «3.500 kr. ekskl. moms» når momsen er kendt
+ * (company_traek.moms_oere), ellers «4.375 kr. inkl. moms» — beløbet vi
+ * har, med det ord der er sandt. Aldrig 25 % antaget. Samme regel som
+ * fladernes lib/traek.beloebTekst; hele kroner som klokken altid har skrevet.
+ */
+export function traekBeloebTekst(beloebOere: number, momsOere: number | null | undefined): string {
+  return typeof momsOere === "number" && Number.isFinite(momsOere)
+    ? `${formatKrOere(beloebOere - momsOere)} kr. ekskl. moms`
+    : `${formatKrOere(beloebOere)} kr. inkl. moms`;
+}
+
 export function traekFejletBeskedTekst(a: {
   virksomhed: string;
   beloebOere: number;
+  /** company_traek.moms_oere — null/udeladt = ikke kendt → «inkl. moms». */
+  momsOere?: number | null;
   fejlBesked: string | null;
   declineCode: string | null;
   /** «17. september 2026» — eller null når Stripe ikke prøver igen. */
@@ -147,7 +163,7 @@ export function traekFejletBeskedTekst(a: {
   const faktura = (a.fakturaNummer ?? "").trim();
   const dele = [grund, naeste, ...(faktura ? [`faktura ${faktura}`] : [])];
   return {
-    title: `${a.virksomhed}: et træk på ${formatKrOere(a.beloebOere)} kr. fejlede`,
+    title: `${a.virksomhed}: et træk på ${traekBeloebTekst(a.beloebOere, a.momsOere)} fejlede`,
     body: dele.join(" · "),
   };
 }
@@ -158,6 +174,8 @@ export interface FejletTraekRaekke {
   status: string;
   company_id: string | null;
   beloeb_oere: number;
+  /** company_traek.moms_oere (20260917120000) — valgfri; null/udeladt = «inkl. moms». */
+  moms_oere?: number | null;
   fejl_besked: string | null;
   fejl_decline_code: string | null;
   faktura_nummer: string | null;
@@ -195,6 +213,7 @@ export function beskedVedFejletTraek(a: {
   const tekst = traekFejletBeskedTekst({
     virksomhed: a.virksomhed,
     beloebOere: a.traek.beloeb_oere,
+    momsOere: a.traek.moms_oere ?? null,
     fejlBesked: a.traek.fejl_besked,
     declineCode: a.traek.fejl_decline_code,
     naesteForsoegTekst: a.naesteForsoegTekst,

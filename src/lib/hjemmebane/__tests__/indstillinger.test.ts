@@ -44,7 +44,7 @@ describe("medlemskabStatus + aftaleLinjer", () => {
     expect(medlemskabStatus({ ...a, contract_end_date: "2026-09-10" }, "full", NU).vaerdi).toContain("sidste dag i dag");
     const linjer = aftaleLinjer(a, "full", NU);
     expect(linjer.map((l) => l.label)).toEqual(["Medlemskab", "Start", "Slut", "Pris"]);
-    expect(linjer[3].vaerdi).toBe("50.000 kr. for medlemskabet");
+    expect(linjer[3].vaerdi).toBe("50.000 kr. ekskl. moms for medlemskabet");
   });
 
   it("udløbet → rust; ingen slutdato → rust og henvisning til rådgiveren", () => {
@@ -58,7 +58,7 @@ describe("medlemskabStatus + aftaleLinjer", () => {
   it("abonnent: næste periode; fornyelsespris kun når sat", () => {
     const a = { ...tom, contract_end_date: "2026-01-01", subscription_status: "active", subscription_current_period_end: "2026-10-01T00:00:00Z", fornyelsespris_oere: 2500000 };
     expect(medlemskabStatus(a, "subscriber", NU).vaerdi).toBe("Abonnement — næste periode fra 1. oktober 2026");
-    expect(aftaleLinjer(a, "subscriber", NU).find((l) => l.label === "Fornyelsespris")?.vaerdi).toBe("25.000 kr.");
+    expect(aftaleLinjer(a, "subscriber", NU).find((l) => l.label === "Fornyelsespris")?.vaerdi).toBe("25.000 kr. ekskl. moms");
     expect(aftaleLinjer(tom, "no_date", NU).some((l) => l.label === "Fornyelsespris" || l.label === "Pris" || l.label === "Start")).toBe(false);
   });
 
@@ -72,16 +72,16 @@ describe("medlemskabStatus + aftaleLinjer", () => {
 describe("betalingen — perioder først, så træk; tom liste når intet findes", () => {
   it("periodeLinje bruger husets modelord og medlemmets ord for arten", () => {
     const l = periodeLinje({ id: "p1", art: "indgang", betalingsmodel: "rate2", beloeb_oere: 5000000, periode_start: "2026-09-22", periode_slut: "2027-09-21" });
-    expect(l).toEqual({ id: "p1", label: "22. september 2026 – 21. september 2027", vaerdi: "50.000 kr. · 2 rater · Medlemskab" });
+    expect(l).toEqual({ id: "p1", label: "22. september 2026 – 21. september 2027", vaerdi: "50.000 kr. ekskl. moms · 2 rater · Medlemskab" });
   });
 
   it("traekLinje: betalt med dato, fejlet i rust med fakturalink", () => {
-    const betalt = traekLinje({ stripe_invoice_id: "in_1", status: "betalt", beloeb_oere: 2500000, betalt_at: "2026-09-22T10:00:00Z", fejlet_at: null, faktura_nummer: "F-100", hosted_invoice_url: null });
-    expect(betalt).toEqual({ id: "in_1", label: "Faktura F-100", vaerdi: "25.000 kr. · Betalt 22. september 2026", rust: false, fakturaUrl: null });
-    const fejlet = traekLinje({ stripe_invoice_id: "in_2", status: "fejlet", beloeb_oere: 2500000, betalt_at: null, fejlet_at: "2026-10-22T10:00:00Z", faktura_nummer: null, hosted_invoice_url: "https://stripe/x" });
+    const betalt = traekLinje({ stripe_invoice_id: "in_1", status: "betalt", beloeb_oere: 2500000, moms_oere: 500000, betalt_at: "2026-09-22T10:00:00Z", fejlet_at: null, faktura_nummer: "F-100", hosted_invoice_url: null });
+    expect(betalt).toEqual({ id: "in_1", label: "Faktura F-100", vaerdi: "20.000 kr. ekskl. moms · Betalt 22. september 2026", rust: false, fakturaUrl: null });
+    const fejlet = traekLinje({ stripe_invoice_id: "in_2", status: "fejlet", beloeb_oere: 2500000, moms_oere: null, betalt_at: null, fejlet_at: "2026-10-22T10:00:00Z", faktura_nummer: null, hosted_invoice_url: "https://stripe/x" });
     expect(fejlet.rust).toBe(true);
     expect(fejlet.label).toBe("Faktura");
-    expect(fejlet.vaerdi).toBe("25.000 kr. · Betalingen fejlede 22. oktober 2026");
+    expect(fejlet.vaerdi).toBe("25.000 kr. inkl. moms · Betalingen fejlede 22. oktober 2026");
     expect(fejlet.fakturaUrl).toBe("https://stripe/x");
     expect(traekStatusOrd("open")).toBe("Afventer betaling");
     expect(traekStatusOrd("ukendt")).toBe("ukendt");

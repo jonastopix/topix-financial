@@ -81,6 +81,16 @@ export interface StripeAbonnementsFaktura {
   total?: number | null;
   amount_due?: number | null;
   amount_paid?: number | null;
+  /** MOMSEN (16/9, målt i referencen — se momsFraFaktura): basil bærer
+      `total_taxes[]` («The aggregate tax information of all line items»,
+      hvert element `amount` «The amount of the tax, in the smallest currency
+      unit»); ældre versioner bar det samlede `tax` og `total_tax_amounts[]`
+      («`tax`, `total_tax_amounts` — Removed — Invoice», changelog
+      2025-03-31.basil). `total_excluding_tax` findes i begge former. */
+  total_taxes?: { amount?: number | null; tax_behavior?: string | null; type?: string | null }[] | null;
+  total_tax_amounts?: { amount?: number | null }[] | null;
+  tax?: number | null;
+  total_excluding_tax?: number | null;
   attempt_count?: number | null;
   next_payment_attempt?: number | null;
   status?: string | null;
@@ -134,6 +144,9 @@ export interface TraekRaekke {
   periode_slut: string | null;
   beloeb_oere: number;
   betalt_oere: number;
+  /** Momsen i beløbet (20260917120000). null = ikke kendt — fladerne viser
+      beløbet «inkl. moms», aldrig et gæt. 0 = ingen moms på fakturaen. */
+  moms_oere: number | null;
   status: TraekUdfald;
   forsoeg: number | null;
   naeste_forsoeg_at: string | null;
@@ -243,6 +256,42 @@ export function abonnementsperiodeFraLinjer(f: Pick<StripeAbonnementsFaktura, "l
 }
 
 /**
+ * MOMSEN PÅ FAKTURAEN (16/9): gemt pr. betaling — koden antager ALDRIG 25 %.
+ * Jonas: «Priserne vi vil se er dem ex. moms.» En fremtidig kunde uden dansk
+ * moms må ikke vises forkert, så tallet læses fra Stripe, i rækkefølge:
+ *   1. `total_taxes[].amount` summeret — API-version 2025-03-31.basil+
+ *      (referencen: «total_taxes — The aggregate tax information of all
+ *      line items»; «amount — The amount of the tax, in the smallest
+ *      currency unit»). En TOM liste er et svar: ingen moms → 0.
+ *   2. `tax` — ældre API-versioner (changelog 2025-03-31.basil «Replaces
+ *      top-level tax-related properties …»: «`tax`, `total_tax_amounts` —
+ *      Removed — Invoice»). null i `tax` betyder «ingen moms» i de ældre
+ *      versioner, men vi kan ikke skelne det fra «feltet mangler» — så
+ *      null → næste trin.
+ *   3. `total_tax_amounts[].amount` summeret — ældre form af listen.
+ *   4. `total − total_excluding_tax` når begge er tal (begge former).
+ *   5. Ellers null = ikke kendt. Aldrig et gæt.
+ * Negativ moms (kreditnota) klippes ikke — CHECK'en (moms_oere >= 0) afviser
+ * rækken, ligesom beloeb-CHECK'en allerede afviser et negativt total.
+ */
+export function momsFraFaktura(
+  f: Pick<StripeAbonnementsFaktura, "total_taxes" | "tax" | "total_tax_amounts" | "total" | "total_excluding_tax">,
+): number | null {
+  if (Array.isArray(f.total_taxes)) {
+    return f.total_taxes.reduce((sum, t) => sum + (tal(t?.amount) ?? 0), 0);
+  }
+  const aeldre = tal(f.tax);
+  if (aeldre !== null) return aeldre;
+  if (Array.isArray(f.total_tax_amounts)) {
+    return f.total_tax_amounts.reduce((sum, t) => sum + (tal(t?.amount) ?? 0), 0);
+  }
+  const total = tal(f.total);
+  const eksMoms = tal(f.total_excluding_tax);
+  if (total !== null && eksMoms !== null) return total - eksMoms;
+  return null;
+}
+
+/**
  * Ren dom (11/9): må et FEJLET træk skrives oven på det rækken står som?
  * False kun når rækken står som «betalt». «betalt» er slutstatus for en
  * faktura: Stripe garanterer ikke rækkefølgen på events, og events kan
@@ -284,6 +333,8 @@ export function bygTraekRaekke(
     periode_slut: tsIso(abonnementsperiodeFraLinjer(f)?.end ?? f.period_end),
     beloeb_oere: tal(f.total) ?? tal(f.amount_due) ?? 0,
     betalt_oere: udfald === "betalt" ? (tal(f.amount_paid) ?? tal(f.total) ?? 0) : (tal(f.amount_paid) ?? 0),
+    // Momsen fra Stripe (16/9) — null når fakturaen ikke bærer den; aldrig 25 % antaget.
+    moms_oere: momsFraFaktura(f),
     status: udfald,
     forsoeg: tal(f.attempt_count),
     naeste_forsoeg_at: udfald === "fejlet" ? tsIso(f.next_payment_attempt) : null,
