@@ -78,4 +78,23 @@ describe("grundTekst — hver kode har ord, ukendte vises som de er", () => {
     expect(grundTekst("koe_job_mangler", {})).toBe("mailjobbet findes ikke i cron");
     expect(grundTekst("noget_nyt", {})).toBe("noget_nyt");
   });
+
+  it("samlemailens hale (niende version, 16/9): kun når samlemail_venter > 0 — målt 16/9 15:07 stod 25 opslag legitimt til kl. 17", () => {
+    expect(grundTekst("koe_staar_stille", { usendte_30m: 4, aeldste_usendt_min: 171, samlemail_venter: 25 })).toBe("4 mails venter i køen, den ældste i 171 min, 25 venter på samlemailen kl. 17");
+    expect(grundTekst("koe_pauset", { usendte_30m: 1, samlemail_venter: 3 })).toBe("mailjobbet er sat på pause, 1 mails venter, 3 venter på samlemailen kl. 17");
+    expect(grundTekst("koe_staar_stille", { usendte_30m: 4, aeldste_usendt_min: 95, samlemail_venter: 0 })).toBe("4 mails venter i køen, den ældste i 95 min");
+  });
+
+  it("køen står stille — de fire tilfælde: kun almindelige, kun ventende samlemail, kun forfaldne samlemail (usendte 0), begge", () => {
+    // kun almindelige
+    expect(grundTekst("koe_staar_stille", { usendte_30m: 4, aeldste_usendt_min: 95, samlemail_forfaldne: 0, samlemail_venter: 0 })).toBe("4 mails venter i køen, den ældste i 95 min");
+    // kun ventende samlemail (de almindelige står stadig i køen)
+    expect(grundTekst("koe_staar_stille", { usendte_30m: 4, aeldste_usendt_min: 171, samlemail_forfaldne: 0, samlemail_venter: 25 })).toBe("4 mails venter i køen, den ældste i 171 min, 25 venter på samlemailen kl. 17");
+    // kun forfaldne samlemail: samlemailen fejlede, ingen almindelige — «0 mails venter i køen» udelades
+    expect(grundTekst("koe_staar_stille", { usendte_30m: 0, aeldste_usendt_min: 0, samlemail_forfaldne: 25, samlemail_venter: 0 })).toBe("25 mails fra samlemailen skulle være gået kl. 17");
+    // begge: almindelige + forfaldne + ventende
+    expect(grundTekst("koe_staar_stille", { usendte_30m: 4, aeldste_usendt_min: 95, samlemail_forfaldne: 25, samlemail_venter: 3 })).toBe("4 mails venter i køen, den ældste i 95 min, 25 fra samlemailen skulle være gået kl. 17, 3 venter på samlemailen kl. 17");
+    // forfaldne uden ventende, med almindelige
+    expect(grundTekst("koe_staar_stille", { usendte_30m: 1, samlemail_forfaldne: 2 })).toBe("1 mails venter i køen, 2 fra samlemailen skulle være gået kl. 17");
+  });
 });
