@@ -42,8 +42,9 @@
  * ikke tilbage til tjeklisten. Uden dato (null/ukendt) udgår punktet —
  * hellere ét punkt for lidt til en gammel end en genåbnet liste.
  *
- * PRÆSENTATIONEN (11/9, kort 60) står lige efter profilen, fordi skabelonen
- * bygges AF profilens tre felter (hjemmebane/praesentation.ts). Gjort = en
+ * PRÆSENTATIONEN (11/9, kort 60) står lige efter profilen — punktet er et
+ * opslag om hvem du er, og composeren starter tom (Jonas 16/9: intet udkast,
+ * ingen foreslået tekst; hjemmebane/praesentation.ts). Gjort = en
  * community-tråd med kilde_type 'praesentation' og status = 'aktiv'
  * (kalderen tæller). AKTIV, fordi punktets formål er at medlemmet bliver
  * set af de andre: en tråd skjult af en rådgiver ses ikke, og medlemmets
@@ -215,7 +216,7 @@ export const TJEKLISTE_RAEKKEFOELGE: readonly TjeklistePunktId[] = [
 ];
 
 /** Stierne (besluttet 2/9; profil rettet 9/9 til fanen, ikke siden — profilUdfyldt.ts;
-    praesentation 11/9: composeren forudfyldt, hjemmebane/praesentation.ts).
+    praesentation 11/9, tom composer fra 16/9: hjemmebane/praesentation.ts).
     velkomst er tom: videoen åbner i boksen, ikke på en side. */
 export const TJEKLISTE_STIER: Readonly<Record<TjeklistePunktId, string>> = {
   velkomst: "",
@@ -327,7 +328,7 @@ export function byggTjekliste(input: TjeklisteInput, nu: Date = new Date()): Tje
     praesentation: {
       id: "praesentation",
       titel: "Præsentér dig i fællesskabet",
-      beskrivelse: "Et opslag om hvem du er — vi har skrevet et udkast ud fra din profil.",
+      beskrivelse: "Et opslag om hvem du er.",
       gjort: input.har_praesentation,
       sti: TJEKLISTE_STIER.praesentation,
     },
