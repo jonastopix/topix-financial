@@ -348,7 +348,13 @@ describe("Ingen data overhovedet", () => {
 });
 
 describe("Milestones og løftestænger (valg 6)", () => {
-  it("forfaldne milestones og løftestænger giver INGEN signaler", () => {
+  // Valg 6 gjaldt FORFALDNE milepæle og løftestænger: motoren giver ingen
+  // signaler for dem, og det er uændret. «Én plan» fase 4 (16/9) tilføjer
+  // «mål uden bevægelse» — men som FORSIDENS egen slags (forsidensDom
+  // maal_uden_bevaegelse, regnet af planen.ts), IKKE som et signal her.
+  // Motoren kender stadig hverken progress_updated_at eller antallet aktive.
+  // Før (ordret): it("forfaldne milestones og løftestænger giver INGEN signaler", …) — samme forventning, ny begrundelse.
+  it("forfaldne milestones og løftestænger giver INGEN signaler — «uden bevægelse» er forsidensDoms slags, ikke motorens", () => {
     expect(afgoerVirksomhedsSignaler(input({ forfaldneMilestones: 3, loeftestaenger: 5 }), NOW)).toHaveLength(0);
   });
 });

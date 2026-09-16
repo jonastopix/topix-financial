@@ -19,6 +19,8 @@ import {
 import type { Signal } from "@/lib/virksomhedsSignaler";
 import type { Fornyelsestilstand } from "@/lib/fornyelse";
 import type { Betalingsfristtilstand } from "@/lib/betalingsfrist";
+import { ALVOR_MAAL, ALVOR_REFLEKSION_HJAELP, maalTilstandstekst, refleksionUddrag, REFLEKSION_UDDRAG, STILSTAND_LAENGE_DAGE } from "@/lib/forsidensDom";
+import type { MaalRaekke } from "@/lib/hjemmebane/planen";
 
 // Fast «nu»: 4. september 2026 kl. 12:00 lokal tid — dagregning for
 // opgaver sker i lokale kalenderdage, som opgaveEngine.
@@ -106,6 +108,11 @@ describe("konstanterne", () => {
       agentforslag: "pukkel",
       ikke_i_gang: "haendelse",
       venter_paa_velkomst: "haendelse",
+      // «Én plan» fase 4 (16/9) — rettet MED VILJE. Før: tabellen sluttede ved
+      // venter_paa_velkomst (elleve slags). To nye: mål uden bevægelse er en
+      // tilstand (sand igen i morgen, samles), refleksion med hjælp en hændelse.
+      maal_uden_bevaegelse: "tilstand",
+      refleksion_hjaelp: "haendelse",
     });
     for (const slags of Object.keys(FORM) as (keyof typeof INDSATS)[]) {
       expect([1, 2, 3]).toContain(INDSATS[slags]);
@@ -788,5 +795,141 @@ describe("ikke_i_gang — linjen fra dag 21", () => {
     const l = virksomhedslinjer(d)[0];
     expect(l.grunde.map((g) => g.slags)).toEqual(["ikke_i_gang", "tavshed"]);
     expect(d.underStregen.antalTilstandeSamlet).toBe(0);
+  });
+});
+
+// ─── «Én plan» fase 4 (16/9): mål uden bevægelse, refleksion med hjælp ───
+
+const isoForDage = (dage: number) => new Date(NU.getTime() - dage * 86_400_000).toISOString();
+let maalNr = 0;
+function maal(over: Partial<MaalRaekke> & { dageSiden?: number | null } = {}): MaalRaekke {
+  maalNr += 1;
+  const { dageSiden, ...rest } = over;
+  return {
+    id: `m${maalNr}`, title: `Mål ${maalNr}`, status: "active", progress: 10, deadline: null, category: "other", source: "manual",
+    progress_updated_at: dageSiden === null ? null : isoForDage(dageSiden ?? 5), completed_at: null, created_at: isoForDage(100),
+    ...rest,
+  };
+}
+const maalGrund = (d: ReturnType<typeof afgoerForsidensDom>) =>
+  [...d.linjer, ...d.underStregen.tilstande].flatMap((l) => (l.linje === "virksomhed" ? l.grunde : l.linje === "tilstand" ? l.virksomheder.map((x) => x.grund) : [])).find((g) => g.slags === "maal_uden_bevaegelse");
+
+describe("mål uden bevægelse (tolvte slags, fase 4)", () => {
+  it("konstanterne: stilstand 55 under tærsklen, stilstand_laenge 70 fra 60 dage, gennemgang 70", () => {
+    expect(ALVOR_MAAL).toEqual({ stilstand: 55, stilstand_laenge: 70, gennemgang: 70 });
+    expect(STILSTAND_LAENGE_DAGE).toBe(60);
+    expect(FORM.maal_uden_bevaegelse).toBe("tilstand");
+    expect(INDSATS.maal_uden_bevaegelse).toBe(2);
+  });
+  it("uden mål, med kun friske mål (< 30 dage), eller kalder uden feltet: ingen grund", () => {
+    expect(maalGrund(afgoerForsidensDom([virksomhed({ maal: [] })], NU))).toBeUndefined();
+    expect(maalGrund(afgoerForsidensDom([virksomhed({ maal: [maal({ dageSiden: 29 }), maal({ dageSiden: 0 })] })], NU))).toBeUndefined();
+    expect(maalGrund(afgoerForsidensDom([virksomhed()], NU))).toBeUndefined();
+  });
+  it("ét mål 45 dage uden bevægelse: ÉN grund (55) — en tilstand, samlet under stregen; teksten nævner målet og dagene", () => {
+    const d = afgoerForsidensDom([virksomhed({ navn: "Floren", maal: [maal({ title: "Flere leads", dageSiden: 45 }), maal({ dageSiden: 3 })] })], NU);
+    expect(d.linjer).toHaveLength(0);
+    const t = d.underStregen.tilstande[0];
+    expect(t.slags).toBe("maal_uden_bevaegelse");
+    expect(t.tekst).toBe("1 virksomhed har mål der ikke rykker sig");
+    const g = t.virksomheder[0].grund;
+    expect(g).toMatchObject({ signaltype: "maal_stilstand", noegle: "maal_uden_bevaegelse", alvor: 55, lukkerOmDage: null, indsats: 2, handling: "Spørg Floren hvad der står i vejen" });
+    expect(g.tekst).toBe("Målet «Flere leads» har ikke rykket sig i 45 dage");
+  });
+  it("to mål uden bevægelse, det ældste 78 dage (30/6 → 16/9-rytmen): ÉN grund med antal og længste, alvor 70 → den samlede linje står på forsiden", () => {
+    const d = afgoerForsidensDom([virksomhed({ navn: "BR Roset", maal: [maal({ dageSiden: 78 }), maal({ dageSiden: 40 }), maal({ dageSiden: 2 })] })], NU);
+    const t = tilstandslinjer(d)[0];
+    expect(t.slags).toBe("maal_uden_bevaegelse");
+    expect(t.alvor).toBe(70);
+    const g = t.virksomheder[0].grund;
+    expect(g.signaltype).toBe("maal_stilstand_laenge");
+    expect(g.tekst).toBe("2 mål har ikke rykket sig i 78 dage");
+  });
+  it("præcis 60 dage er «længe»; 59 er det ikke; progress_updated_at null tæller ikke som stilstand (ingen dato at regne af)", () => {
+    expect(maalGrund(afgoerForsidensDom([virksomhed({ maal: [maal({ dageSiden: 60 })] })], NU))?.alvor).toBe(70);
+    expect(maalGrund(afgoerForsidensDom([virksomhed({ maal: [maal({ dageSiden: 59 })] })], NU))?.alvor).toBe(55);
+    expect(maalGrund(afgoerForsidensDom([virksomhed({ maal: [maal({ dageSiden: null })] })], NU))).toBeUndefined();
+  });
+  it("flere end tre aktive: GENNEMGANG (70), ikke stilstand — selv når alle står stille; teksten siger antallet og «behold højst 3»", () => {
+    const d = afgoerForsidensDom([virksomhed({ navn: "Floren Engros", maal: Array.from({ length: 17 }, () => maal({ dageSiden: 78 })) })], NU);
+    const g = maalGrund(d)!;
+    expect(g).toMatchObject({ signaltype: "maal_gennemgang", alvor: 70, grundlag: "gennemgang:17", handling: "Gennemgå målene med Floren Engros" });
+    expect(g.tekst).toBe("17 aktive mål — gennemgå planen: behold højst 3");
+  });
+  it("parkerede og nåede mål tæller hverken i stilstand eller gennemgang", () => {
+    const d = afgoerForsidensDom([virksomhed({ maal: [maal({ status: "parked", dageSiden: 90 }), maal({ status: "completed", dageSiden: 90 }), maal({ progress: 100, dageSiden: 90 }), maal({ dageSiden: 1 })] })], NU);
+    expect(maalGrund(d)).toBeUndefined();
+  });
+  it("den samlede linje nævner gennemgang og stilstand hver for sig", () => {
+    const d = afgoerForsidensDom([
+      virksomhed({ maal: Array.from({ length: 5 }, () => maal({ dageSiden: 78 })) }),
+      virksomhed({ maal: Array.from({ length: 4 }, () => maal({ dageSiden: 1 })) }),
+      virksomhed({ maal: [maal({ dageSiden: 78 })] }),
+      virksomhed({ maal: [maal({ dageSiden: 31 })] }),
+    ], NU);
+    const t = tilstandslinjer(d)[0];
+    expect(t.antal).toBe(4);
+    expect(t.tekst).toBe("2 virksomheder har mål til gennemgang, 2 har mål der ikke rykker sig");
+    expect(maalTilstandstekst(1, 0)).toBe("1 virksomhed har mål til gennemgang");
+    expect(maalTilstandstekst(0, 3)).toBe("3 virksomheder har mål der ikke rykker sig");
+  });
+  it("hægtes på en linje der findes alligevel («derfor er du her»), som de andre tilstande", () => {
+    const d = afgoerForsidensDom([virksomhed({ signaler: [bankovertraek], maal: [maal({ dageSiden: 40 })] })], NU);
+    const l = virksomhedslinjer(d)[0];
+    expect(l.grunde.map((g) => g.slags)).toEqual(["stikker_ud", "maal_uden_bevaegelse"]);
+    expect(d.underStregen.tilstande).toHaveLength(0);
+  });
+  it("lukningen: kvittering på præcis de stillestående mål holder; bevægelse på ét af dem, eller et nyt stillestående mål, er noget nyt; gennemgang holder til antallet ændrer sig", () => {
+    const m1 = maal({ id: "m-a", dageSiden: 40 }), m2 = maal({ id: "m-b", dageSiden: 50 });
+    const grundlag = `m-a=${m1.progress_updated_at},m-b=${m2.progress_updated_at}`;
+    const lukket = { udfald: "faerdiggjort" as const, grundlag: { maal_uden_bevaegelse: grundlag }, lukketAt: "" };
+    expect(maalGrund(afgoerForsidensDom([virksomhed({ maal: [m1, m2], kvittering: lukket })], NU))).toBeUndefined();
+    expect(maalGrund(afgoerForsidensDom([virksomhed({ maal: [{ ...m1, progress_updated_at: isoForDage(1) }, m2], kvittering: lukket })], NU))).toBeDefined();
+    expect(maalGrund(afgoerForsidensDom([virksomhed({ maal: [m1, m2, maal({ id: "m-c", dageSiden: 35 })], kvittering: lukket })], NU))).toBeDefined();
+    // Dagene vokser (samme stempler) → stadig lukket.
+    expect(maalGrund(afgoerForsidensDom([virksomhed({ maal: [m1, m2], kvittering: lukket })], new Date(NU.getTime() + 30 * 86_400_000)))).toBeUndefined();
+    const gLukket = { udfald: "faerdiggjort" as const, grundlag: { maal_uden_bevaegelse: "gennemgang:5" }, lukketAt: "" };
+    expect(maalGrund(afgoerForsidensDom([virksomhed({ maal: Array.from({ length: 5 }, () => maal()), kvittering: gLukket })], NU))).toBeUndefined();
+    expect(maalGrund(afgoerForsidensDom([virksomhed({ maal: Array.from({ length: 4 }, () => maal()), kvittering: gLukket })], NU))?.grundlag).toBe("gennemgang:4");
+  });
+});
+
+describe("refleksion med «hjælp ønskes» (trettende slags, fase 4)", () => {
+  const refleksion = (helpNeeded: string, id = "p1") => ({ id, helpNeeded, createdAt: isoForDage(3) });
+  const rGrund = (d: ReturnType<typeof afgoerForsidensDom>) => virksomhedslinjer(d)[0]?.grunde.find((g) => g.slags === "refleksion_hjaelp");
+  it("alvor 80, hændelse, indsats 2 — en virksomhedslinje ved navn gennem alvorsporten; teksten citerer hjælpen, handlingen er «Svar … på refleksionen»", () => {
+    expect(ALVOR_REFLEKSION_HJAELP).toBe(80);
+    expect(FORM.refleksion_hjaelp).toBe("haendelse");
+    expect(INDSATS.refleksion_hjaelp).toBe(2);
+    const d = afgoerForsidensDom([virksomhed({ navn: "Rezycl", refleksionHjaelp: refleksion("Vi mangler en plan for likviditeten i Q4") })], NU);
+    expect(d.linjer).toHaveLength(1);
+    const g = rGrund(d)!;
+    expect(g).toMatchObject({ signaltype: "refleksion_hjaelp", noegle: "refleksion_hjaelp", grundlag: "p1", alvor: 80, lukkerOmDage: null, indsats: 2, handling: "Svar Rezycl på refleksionen" });
+    expect(g.tekst).toBe("Søger hjælp til: «Vi mangler en plan for likviditeten i Q4»");
+  });
+  it("uden refleksion, null, tom eller blank hjælp, eller uden id: ingen grund", () => {
+    expect(rGrund(afgoerForsidensDom([virksomhed()], NU))).toBeUndefined();
+    expect(rGrund(afgoerForsidensDom([virksomhed({ refleksionHjaelp: null })], NU))).toBeUndefined();
+    expect(rGrund(afgoerForsidensDom([virksomhed({ refleksionHjaelp: refleksion("") })], NU))).toBeUndefined();
+    expect(rGrund(afgoerForsidensDom([virksomhed({ refleksionHjaelp: refleksion("   ") })], NU))).toBeUndefined();
+    expect(rGrund(afgoerForsidensDom([virksomhed({ refleksionHjaelp: refleksion("x", "") })], NU))).toBeUndefined();
+  });
+  it("uddraget: linjeskift og dobbelte mellemrum foldes; over 90 tegn klippes med …", () => {
+    expect(refleksionUddrag("  a\n\nb   c ")).toBe("a b c");
+    const lang = "x".repeat(200);
+    expect(refleksionUddrag(lang)).toHaveLength(REFLEKSION_UDDRAG);
+    expect(refleksionUddrag(lang).endsWith("…")).toBe(true);
+    expect(refleksionUddrag("y".repeat(90))).toBe("y".repeat(90));
+  });
+  it("lukningen: kvittering på refleksionens id holder; en nyere refleksion med hjælp (nyt id) er noget nyt", () => {
+    const lukket = { udfald: "ikke_relevant" as const, grundlag: { refleksion_hjaelp: "p1" }, lukketAt: "" };
+    expect(rGrund(afgoerForsidensDom([virksomhed({ refleksionHjaelp: refleksion("hjælp", "p1"), kvittering: lukket })], NU))).toBeUndefined();
+    expect(rGrund(afgoerForsidensDom([virksomhed({ refleksionHjaelp: refleksion("hjælp", "p2"), kvittering: lukket })], NU))).toBeDefined();
+  });
+  it("en virksomhed med refleksion OG stillestående mål: én linje, refleksionen (80) først, målene hægtet på", () => {
+    const d = afgoerForsidensDom([virksomhed({ refleksionHjaelp: refleksion("hjælp"), maal: [maal({ dageSiden: 40 })] })], NU);
+    const l = virksomhedslinjer(d)[0];
+    expect(l.grunde.map((g) => g.slags)).toEqual(["refleksion_hjaelp", "maal_uden_bevaegelse"]);
+    expect(l.alvor).toBe(80);
   });
 });

@@ -139,6 +139,32 @@ rådgiver i dag (målt 4/9, `~/Downloads/recon-virksomhedssidens-datalag.md`
 §4), og syv af dem hentes allerede i forsidens ene datalag
 (`hentAdvisorDashboard`, #630). Det der mangler er dommen, ikke data.
 
+**Designændringer siden (som §2 varsler):** en niende blev puklen
+«agentforslag» (§3); tiende «ny og ikke i gang» (9/9, `lib/ikkeIGang`);
+ellevte «venter på velkomst» (10/9, `lib/venterPaaVelkomst`). Og med
+«Én plan pr. virksomhed» fase 4 (16/9, Jonas: «rådgiverens forside skal
+vise mål uden bevægelse i 30 dage og refleksioner med hjælp ønskes»):
+
+12. **Mål uden bevægelse** (`maal_uden_bevaegelse`) — fra `milestones`
+    (status active). Dommen er Planens (`lib/hjemmebane/planen`): har
+    virksomheden FLERE END TRE aktive mål, er det en gennemgang («17
+    aktive mål — gennemgå planen: behold højst 3», alvor 70); ellers de
+    aktive mål hvis `progress_updated_at` er 30 dage gammel — ÉN grund pr.
+    virksomhed med antal og længste («2 mål har ikke rykket sig i 78
+    dage»; alvor 55, fra 60 dage 70). FORM tilstand: sand igen i morgen,
+    samles til «N virksomheder har mål til gennemgang, M har mål der ikke
+    rykker sig». Lukning (§7, kvitteringen): grundlag = de stillestående
+    måls stempler (en bevægelse eller et nyt stillestående mål er noget
+    nyt; at dagene vokser er det ikke), for gennemgangen antallet aktive.
+13. **Refleksion med «hjælp ønskes»** (`refleksion_hjaelp`) — slags 8's
+    refleksionsdel, bygget UDEN AI: `pulse_checkins.help_needed` ER
+    udsagnet. Den nyeste refleksion med hjælp pr. virksomhed; «Søger hjælp
+    til: «…»», «Svar {navn} på refleksionen». FORM hændelse, alvor 80
+    (som «venter på velkomst»: et menneske har bedt om noget, og ingen har
+    svaret). Lukning: grundlag = refleksionens id — holder til en nyere
+    refleksion med hjælp afløser den. Handout-delen af slags 8 og slags 6
+    venter stadig på §8.
+
 ---
 
 ## §3 Hændelse mod tilstand — den fejl der gjorde forsiden ubrugelig

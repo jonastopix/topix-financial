@@ -90,6 +90,8 @@ import { BETALINGSFRIST_DAGE, type Betalingsfristtilstand } from "./betalingsfri
 import { erLukket, type Kvittering } from "./opgaveLukning";
 import { afgoerIkkeIGang, ikkeIGangGrundlag, ikkeIGangHandling, ikkeIGangTekst } from "./ikkeIGang";
 import { ALVOR_VENTER_PAA_VELKOMST, afgoerVenterPaaVelkomst, venterPaaVelkomstGrundlag, venterPaaVelkomstTekst } from "./venterPaaVelkomst";
+import { planenDom, UDEN_BEVAEGELSE_DAGE, type MaalRaekke } from "@/lib/hjemmebane/planen";
+import { MAX_AKTIVE_MAAL } from "@/lib/hjemmebane/maal";
 
 // ─── Konstanter — alle tal dommen bruger, ét sted ────────────────────────
 
@@ -228,6 +230,46 @@ export const ALVOR_OPGAVE = {
   inden_for_14_dage: 55,
 } as const;
 
+/**
+ * Mål uden bevægelse (TOLVTE slags, «Én plan» fase 4, Jonas 16/9: «rådgiverens
+ * forside viser mål uden bevægelse i 30 dage»). Kilden er milestones.status =
+ * 'active' med progress_updated_at ældre end UDEN_BEVAEGELSE_DAGE (30) —
+ * dommen er planen.ts' dageUdenBevaegelse, ikke en egen regning. ÉN grund
+ * pr. virksomhed med antallet, aldrig én pr. mål (prod 16/9: 87 aktive mål
+ * med seneste fremdrift 30/6 — det ville være 87 linjer).
+ *   stilstand          55  under tærsklen alene: en tilstand der er sand
+ *                          igen i morgen, samles med de andre og står under
+ *                          stregen — som agentforslag (55). Ikke en krise.
+ *   stilstand_laenge   70  60 dage: på tærsklen, som ulæst besked og
+ *                          beslutning_mangler — så den samlede linje går
+ *                          gennem alvorsporten og står på forsiden.
+ *   gennemgang         70  virksomheden har FLERE END TRE aktive mål (prod
+ *                          16/9: 8 virksomheder, 5–17 mål) — det er ikke
+ *                          stilstand, det er en gennemgang der venter
+ *                          (planen.ts: behold højst tre, parkér eller markér
+ *                          nået). Vises som gennemgang, aldrig som stilstand.
+ */
+export const ALVOR_MAAL = {
+  stilstand: 55,
+  stilstand_laenge: 70,
+  gennemgang: 70,
+} as const;
+/** Fra så mange dage uden bevægelse er alvoren stilstand_laenge. */
+export const STILSTAND_LAENGE_DAGE = 60;
+
+/**
+ * Refleksion med «hjælp ønskes» (TRETTENDE slags, fase 4; kortet
+ * «Refleksionens udgang», forslag 21): medlemmet har i sin månedlige
+ * refleksion (pulse_checkins.help_needed) skrevet hvad de søger hjælp til
+ * — det er §2 slags 8 «medlemmet har skrevet noget vi bør reagere på»,
+ * bygget uden AI: teksten ER udsagnet. 80: på linje med omsætningsfald og
+ * «venter på velkomst» — et menneske har bedt om hjælp, og ingen har svaret.
+ * Går gennem alvorsporten alene og står ved navn indtil en rådgiver lukker
+ * linjen (kvitteringen, grundlag = refleksionens id) eller en nyere
+ * refleksion afløser den.
+ */
+export const ALVOR_REFLEKSION_HJAELP = 80;
+
 // ─── Typer ────────────────────────────────────────────────────────────────
 
 /** §2's otte slags, plus §3's pukkel (se filhovedet). De to AI-baserede
@@ -243,7 +285,9 @@ export type OpgaveSlags =
   | "medlem_har_skrevet" // §2 slags 8 — handout/refleksion, AI (§8). IKKE IMPLEMENTERET.
   | "agentforslag" // §3's pukkel — ikke en af de otte, men besluttet vist som én linje
   | "ikke_i_gang" // TIENDE slags (Jonas 9/9, en designændring som §2 varsler): ny uden målt rapport — lib/ikkeIGang
-  | "venter_paa_velkomst"; // ELLEVTE slags (bygget 9/9, koblet 10/9): et medlem kom ind, ingen rådgiver har skrevet — lib/venterPaaVelkomst
+  | "venter_paa_velkomst" // ELLEVTE slags (bygget 9/9, koblet 10/9): et medlem kom ind, ingen rådgiver har skrevet — lib/venterPaaVelkomst
+  | "maal_uden_bevaegelse" // TOLVTE slags («Én plan» fase 4, 16/9): aktive mål uden bevægelse i 30 dage — eller flere end tre aktive (gennemgang). lib/hjemmebane/planen
+  | "refleksion_hjaelp"; // TRETTENDE slags (fase 4, 16/9): refleksionen bærer «søger hjælp til» — pulse_checkins.help_needed. §2 slags 8 uden AI.
 
 /** §3's tre former. */
 export type Form = "haendelse" | "tilstand" | "pukkel";
@@ -262,6 +306,8 @@ export const FORM: Record<OpgaveSlags, Form> = {
   agentforslag: "pukkel", // §3: «otte agentforslag venter» er én linje
   ikke_i_gang: "haendelse", // dag 21 uden tal er noget der SKER én gang — og linjen skal stå ved navn, ikke samles
   venter_paa_velkomst: "haendelse", // et menneske kom ind én gang — linjen står ved navn, og forsvinder når nogen skriver
+  maal_uden_bevaegelse: "tilstand", // sand igen i morgen: samles til «N virksomheder har mål der ikke rykker sig», hægtes på en linje der findes alligevel
+  refleksion_hjaelp: "haendelse", // én refleksion, én gang — linjen står ved navn til den er lukket eller afløst
 };
 
 /** Indsats — «hvor stort» (§4). Bryder KUN uafgjort på alvor; bærer aldrig
@@ -288,6 +334,8 @@ export const INDSATS: Record<OpgaveSlags, Indsats> = {
   rapporteringsfejl: 3,
   ikke_i_gang: 2, // én besked: hjælp dem i gang
   venter_paa_velkomst: 2, // én besked: sig hej
+  maal_uden_bevaegelse: 2, // én besked: spørg hvad der står i vejen (gennemgangen er et klik pr. mål i Planen, men samtalen først)
+  refleksion_hjaelp: 2, // én besked: svar på det de bad om hjælp til
 };
 
 /** company_actions-rækken som dommen ser den: kun det den læser. Kun
@@ -382,6 +430,16 @@ export interface VirksomhedTilDom {
   harMaaltRapport?: boolean;
   /** Uploadede (ikke slettede) rapporter — ændrer ordene, ikke dommen. */
   antalUploads?: number;
+
+  // ── «Én plan» fase 4 (16/9) ────────────────────────────────────────────
+  /** Virksomhedens AKTIVE mål (milestones, status active) som planen.ts læser
+      dem. Udeladt/tom = ingen mål, intet signal. Kalderen (AdvisorDashboard)
+      henter dem; VirksomhedView bærer dem ikke (og får så ingen grund). */
+  maal?: readonly MaalRaekke[];
+  /** Den NYESTE refleksion (pulse_checkins) med help_needed udfyldt — id,
+      teksten og hvornår. null/udeladt = ingen. Én pr. virksomhed: en nyere
+      refleksion med hjælp afløser den forrige (nyt grundlag). */
+  refleksionHjaelp?: { id: string; helpNeeded: string; createdAt: string } | null;
 }
 
 /** Én grund: hvorfor virksomheden står der, og hvad man gør (§1). */
@@ -735,6 +793,79 @@ function grundFraVenterPaaVelkomst(v: VirksomhedTilDom, nu: Date): Grund | null 
   };
 }
 
+/** Mål uden bevægelse ELLER gennemgang («Én plan» fase 4). Dommen er
+    planen.ts' (planenDom): gennemgang = flere end tre aktive; ellers de
+    aktive mål med dageUdenBevaegelse >= UDEN_BEVAEGELSE_DAGE. ÉN grund pr.
+    virksomhed. Uden mål (kalderen bærer dem ikke): ingen grund.
+    GRUNDLAGET (lukningen): gennemgang → antallet aktive (falder det, er
+    det noget nyt — også når det stadig er over tre); stilstand → hvert
+    stillestående måls id med stemplet (en bevægelse på ét af dem, eller
+    et nyt stillestående mål, er noget nyt; at dagene vokser er det ikke —
+    lukket er lukket, Jonas 8/9). */
+function grundFraMaal(v: VirksomhedTilDom, nu: Date): Grund | null {
+  if (!v.maal || v.maal.length === 0) return null;
+  const plan = planenDom(v.maal, [], nu);
+  if (plan.gennemgang) {
+    const antal = plan.aktive.length;
+    return {
+      slags: "maal_uden_bevaegelse",
+      signaltype: "maal_gennemgang",
+      noegle: "maal_uden_bevaegelse",
+      grundlag: `gennemgang:${antal}`,
+      tekst: `${antal} aktive mål — gennemgå planen: behold højst ${MAX_AKTIVE_MAAL}`,
+      handling: `Gennemgå målene med ${v.navn}`,
+      alvor: ALVOR_MAAL.gennemgang,
+      lukkerOmDage: null,
+      indsats: INDSATS.maal_uden_bevaegelse,
+    };
+  }
+  const stille = plan.aktive.filter((x) => x.dageUdenBevaegelse != null && x.dageUdenBevaegelse >= UDEN_BEVAEGELSE_DAGE);
+  if (stille.length === 0) return null;
+  const laengst = Math.max(...stille.map((x) => x.dageUdenBevaegelse ?? 0));
+  const trin: keyof typeof ALVOR_MAAL = laengst >= STILSTAND_LAENGE_DAGE ? "stilstand_laenge" : "stilstand";
+  const tekst =
+    stille.length === 1
+      ? `Målet «${stille[0].maal.title}» har ikke rykket sig i ${laengst} dage`
+      : `${stille.length} mål har ikke rykket sig i ${laengst} dage`;
+  return {
+    slags: "maal_uden_bevaegelse",
+    signaltype: `maal_${trin}`,
+    noegle: "maal_uden_bevaegelse",
+    grundlag: stille.map((x) => `${x.maal.id}=${x.maal.progress_updated_at ?? "aldrig"}`).sort().join(","),
+    tekst,
+    handling: `Spørg ${v.navn} hvad der står i vejen`,
+    alvor: ALVOR_MAAL[trin],
+    lukkerOmDage: null,
+    indsats: INDSATS.maal_uden_bevaegelse,
+  };
+}
+
+/** Refleksion med «hjælp ønskes» (fase 4): den nyeste refleksion hvor
+    medlemmet skrev hvad de søger hjælp til. Teksten citeres kort (uden
+    linjeskift, højst REFLEKSION_UDDRAG tegn), så rådgiveren ser HVAD før
+    hun klikker. Grundlag = refleksionens id: lukket holder til en nyere
+    refleksion med hjælp kommer. Tom/blank tekst = ingen grund. */
+export const REFLEKSION_UDDRAG = 90;
+export function refleksionUddrag(tekst: string): string {
+  const t = tekst.replace(/\s+/g, " ").trim();
+  return t.length <= REFLEKSION_UDDRAG ? t : `${t.slice(0, REFLEKSION_UDDRAG - 1).trimEnd()}…`;
+}
+function grundFraRefleksion(v: VirksomhedTilDom): Grund | null {
+  const r = v.refleksionHjaelp;
+  if (!r || !r.id || !r.helpNeeded || r.helpNeeded.trim() === "") return null;
+  return {
+    slags: "refleksion_hjaelp",
+    signaltype: "refleksion_hjaelp",
+    noegle: "refleksion_hjaelp",
+    grundlag: r.id,
+    tekst: `Søger hjælp til: «${refleksionUddrag(r.helpNeeded)}»`,
+    handling: `Svar ${v.navn} på refleksionen`,
+    alvor: ALVOR_REFLEKSION_HJAELP,
+    lukkerOmDage: null,
+    indsats: INDSATS.refleksion_hjaelp,
+  };
+}
+
 /** Alle grunde for én virksomhed. aiUdsagn ignoreres bevidst (§8 mangler).
     LUKKEDE grunde (lib/opgaveLukning: kvitteringen gemte præcis dette
     grundlag) tages ud HER, før porterne — så en lukket grund hverken giver
@@ -751,6 +882,10 @@ function grundeFor(v: VirksomhedTilDom, nu: Date): Grund[] {
   if (n) grunde.push(n);
   const w = grundFraVenterPaaVelkomst(v, nu);
   if (w) grunde.push(w);
+  const m = grundFraMaal(v, nu);
+  if (m) grunde.push(m);
+  const r = grundFraRefleksion(v);
+  if (r) grunde.push(r);
   return grunde.filter((g) => !erLukket(g, v.kvittering));
 }
 
@@ -791,7 +926,17 @@ export function pukkeltekst(antal: number, medGodkendVej: number | null, hos: st
   return `${antal} agentforslag${hos}: ${medGodkendVej} venter på din afgørelse, ${antal - medGodkendVej} til orientering`;
 }
 
-function tilstandstekst(slags: OpgaveSlags, antal: number): string {
+/** Den samlede måls-linje (fase 4): gennemgang og stilstand er to ting og
+    nævnes hver for sig — «3 virksomheder har mål til gennemgang, 5 har mål
+    der ikke rykker sig». Eksporteret til tests og forsideLinks. */
+export function maalTilstandstekst(antalGennemgang: number, antalStilstand: number): string {
+  const dele: string[] = [];
+  if (antalGennemgang > 0) dele.push(`${flertal(antalGennemgang, "virksomhed har", "virksomheder har")} mål til gennemgang`);
+  if (antalStilstand > 0) dele.push(`${antalGennemgang > 0 ? antalStilstand : flertal(antalStilstand, "virksomhed", "virksomheder")} ${antalGennemgang > 0 ? "har" : "har"} mål der ikke rykker sig`);
+  return dele.join(", ");
+}
+
+function tilstandstekst(slags: OpgaveSlags, antal: number, liste?: readonly { grund: Grund }[]): string {
   const v = flertal(antal, "virksomhed", "virksomheder");
   switch (slags) {
     case "tavshed":
@@ -800,6 +945,10 @@ function tilstandstekst(slags: OpgaveSlags, antal: number): string {
       return `${flertal(antal, "fornyelse", "fornyelser")} venter på dig`;
     case "indgang":
       return `${flertal(antal, "indgang", "indgange")} er ikke betalt`;
+    case "maal_uden_bevaegelse": {
+      const gennemgang = (liste ?? []).filter((x) => x.grund.signaltype === "maal_gennemgang").length;
+      return maalTilstandstekst(gennemgang, antal - gennemgang);
+    }
     default:
       return `${v} med ${slags}`;
   }
@@ -896,7 +1045,7 @@ export function afgoerForsidensDom(virksomheder: readonly VirksomhedTilDom[], nu
       linje: "tilstand",
       slags,
       antal: liste.length,
-      tekst: tilstandstekst(slags, liste.length),
+      tekst: tilstandstekst(slags, liste.length, liste),
       virksomheder: liste,
       alvor: liste[0].grund.alvor,
       lukkerOmDage: null,
