@@ -173,7 +173,7 @@ export function komIGangTekst(fornavn: string | null | undefined, harVelkomstvid
   const punkter = [
     ...(harVelkomstvideo ? ["Se velkomsten — en kort video om hvordan du får mest ud af The Boardroom."] : []),
     "Din profil — hvad de andre i netværket kan spørge dig om.",
-    "Præsentér dig i fællesskabet — et opslag om hvem du er, med et udkast ud fra din profil.",
+    "Præsentér dig i fællesskabet — et opslag om hvem du er.",
     "Din virksomhed — website, branche og CVR, det platformen regner på.",
     `Dine tal — ${historikSaetning(nu)}`,
     "Dit første handout — start med Overordnet.",

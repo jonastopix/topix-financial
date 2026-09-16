@@ -31,7 +31,6 @@ vi.mock("@/lib/hjemmebane/communityApi", () => ({
 }));
 vi.mock("@/lib/hjemmebane/memberProfile", () => ({
   listMemberDirectory: vi.fn(async () => []),
-  getMyMemberProfile: vi.fn(async () => null),
 }));
 vi.mock("@/hooks/useAuth", () => ({ useAuth: () => ({ user: null, profile: null, companyId: null, companyName: null }) }));
 const toastMock = vi.hoisted(() => ({ error: vi.fn(), success: vi.fn() }));

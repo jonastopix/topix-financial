@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { TJEKLISTE_QUERY_KEY } from "@/hooks/useOnboardingTjekliste";
 import { cn } from "@/lib/utils";
@@ -14,14 +13,11 @@ import {
   saetReaktion,
   type CommunityTraad,
 } from "@/lib/hjemmebane/communityApi";
-import { getMyMemberProfile } from "@/lib/hjemmebane/memberProfile";
 import {
-  byggPraesentationsSkabelon,
   KILDE_PRAESENTATION,
   KILDE_PRAESENTATION_LABEL,
-  PRAESENTATION_INSPIRATION,
   PRAESENTATION_PARAM,
-  type PraesentationsSkabelon,
+  PRAESENTATION_PLADSHOLDER,
 } from "@/lib/hjemmebane/praesentation";
 import { CommunityComposer } from "./CommunityComposer";
 import { CommunityMedlemmer } from "./CommunityMedlemmer";
@@ -44,17 +40,22 @@ import { HbTag } from "../HbTag";
     UNDER feedet — feedet med composeren er fladens ærinde på en telefon,
     medlemmerne kommer efter.
 
-    PRÆSENTATIONEN (11/9, kort 60; uden overskrifter 16/9): /community?praesentation=1 (tjeklistens
-    punkt) åbner composeren forudfyldt med byggPraesentationsSkabelon —
-    titlen «Hej, jeg er {navn} fra {virksomhed}» og de tre profilspørgsmål
-    med svarene fra profilen (companies.description, member_profiles).
-    Parameteren ryddes straks (replace), så en reload eller «tilbage» ikke
-    bygger udkastet igen. Composeren læser startIndhold KUN ved oprettelse,
-    derfor remountes den med key når udkastet er klar — og vises ikke før,
-    så et tomt felt ikke blinker op først. Indsendes med kildeType
-    'praesentation' (CHECK'en i 20260911120000); alle andre opslag går som
-    før, og profilen skrives aldrig tilbage. Efter succes invalideres
-    tjeklisten, så punktet krydser af med det samme. */
+    PRÆSENTATIONEN (11/9, kort 60; uden foreslået tekst 16/9): /community?praesentation=1
+    (tjeklistens punkt) åbner composeren TOM — ingen titel på forhånd, ingen
+    afsnit fra profilen, ingen eksempler (Jonas 16/9: «De skal præsentere sig
+    som de har lyst til. Det gør det mere personligt.»). Det eneste fladen
+    siger er pladsholderen PRAESENTATION_PLADSHOLDER (praesentation.ts), og
+    profilen hverken læses eller skrives her. Parameteren ryddes straks
+    (replace) og latches i praesentationAnmodet, som ALENE bærer vejen: key
+    (composeren læser placeholder kun ved oprettelse, derfor remount), placeholder
+    og kildeType 'praesentation' (CHECK'en i 20260911120000). Composeren vises
+    så snart feedet og brugeren er indlæst — der er intet udkast at vente på.
+    Efter en vellykket deling nulstilles praesentationAnmodet og titlen, så
+    næste opslag går som ethvert andet; tjeklisten invalideres, så punktet
+    krydser af med det samme.
+    HISTORIK: 11/9-16/9 formiddag hentede fladen profilen (getMyMemberProfile,
+    companies.description) og forudfyldte titel og brødtekst med
+    byggPraesentationsSkabelon — slettet med Jonas' beslutning 16/9. */
 
 /** Relativ tid på seneste aktivitet — samme ånd som EventsViews
     eventCountdown, blot bagud: "I dag", "I går", "For N dage siden". */
@@ -176,14 +177,13 @@ const TraadRaekke = ({
 export const CommunityView = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { user, profile, companyId, companyName } = useAuth();
+  const { user } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const [titel, setTitel] = useState("");
 
   /* PRÆSENTATIONEN (se filhovedet). Anmodningen latches i state, fordi
-     parameteren ryddes i samme effekt — og udkastet sættes én gang. */
+     parameteren ryddes i samme effekt. Intet andet hentes for vejens skyld. */
   const [praesentationAnmodet, setPraesentationAnmodet] = useState(false);
-  const [udkast, setUdkast] = useState<PraesentationsSkabelon | null>(null);
 
   useEffect(() => {
     if (searchParams.get(PRAESENTATION_PARAM) !== "1") return;
@@ -192,39 +192,6 @@ export const CommunityView = () => {
     naeste.delete(PRAESENTATION_PARAM);
     setSearchParams(naeste, { replace: true });
   }, [searchParams, setSearchParams]);
-
-  // Profilens tre felter — læses, skrives aldrig. companies.description
-  // via company-scoped RLS (som IndstillingerView:178), member_profiles
-  // via self-only RLS (getMyMemberProfile). Fejl kaster (QueryCache.onError
-  // → Sentry); fladen falder tilbage til en skabelon uden svar nedenfor.
-  const udkastQuery = useQuery({
-    queryKey: ["community", "praesentation-udkast", user?.id, companyId],
-    enabled: praesentationAnmodet && Boolean(user) && udkast === null,
-    queryFn: async () => {
-      const [mp, virksomhed] = await Promise.all([
-        getMyMemberProfile(user!.id),
-        companyId ? supabase.from("companies").select("description").eq("id", companyId).maybeSingle() : Promise.resolve(null),
-      ]);
-      if (virksomhed?.error) throw new Error(virksomhed.error.message);
-      return {
-        detLaverVi: virksomhed?.data?.description ?? null,
-        detHarJegVaeretIgennem: mp?.ask_me_about ?? null,
-        detLederJegEfter: mp?.working_on ?? null,
-      };
-    },
-  });
-
-  useEffect(() => {
-    if (udkast !== null || !praesentationAnmodet) return;
-    if (!udkastQuery.data && !udkastQuery.isError) return;
-    const felter = udkastQuery.data ?? { detLaverVi: null, detHarJegVaeretIgennem: null, detLederJegEfter: null };
-    if (udkastQuery.isError) {
-      toast.error("Vi kunne ikke hente din profil til udkastet", { description: "Skriv selv under de tre spørgsmål." });
-    }
-    const skabelon = byggPraesentationsSkabelon({ navn: profile?.full_name, virksomhed: companyName, ...felter });
-    setUdkast(skabelon);
-    setTitel(skabelon.titel);
-  }, [udkast, praesentationAnmodet, udkastQuery.data, udkastQuery.isError, profile?.full_name, companyName]);
 
   const feedQuery = useQuery({
     queryKey: ["community", "feed"],
@@ -270,6 +237,10 @@ export const CommunityView = () => {
       // stod cachen (staleTime 60 s) med det gamle svar i op til et minut.
       if (args.kildeType === KILDE_PRAESENTATION) {
         queryClient.invalidateQueries({ queryKey: [TJEKLISTE_QUERY_KEY] });
+        // Præsentationsvejen er brugt: næste opslag herfra er et almindeligt
+        // opslag og må ikke også få kilde_type 'praesentation'.
+        setPraesentationAnmodet(false);
+        setTitel("");
       }
       navigate(`/community/${nytId}`);
     },
@@ -296,23 +267,23 @@ export const CommunityView = () => {
             indlæst: den må ikke montere med et tomt brugerId, for så ville
             en billed-upload lande på en ulovlig sti, som motoren bagefter
             kasserer. */}
-        {!feedQuery.isLoading && user && !(praesentationAnmodet && udkast === null) && (
+        {!feedQuery.isLoading && user && (
           <div className="mb-8">
             <CommunityComposer
-              key={udkast ? "praesentation" : "nyt"}
+              key={praesentationAnmodet ? "praesentation" : "nyt"}
               visTitel
               brugerId={user.id}
               titel={titel}
               onTitelChange={setTitel}
               submitLabel="Del"
-              startIndhold={udkast?.indholdJson}
-              /* Inspirationen (Jonas' valg A, 16/9) — KUN på præsentationsvejen,
-                 som composerens eksisterende placeholder-prop; undefined =
-                 composerens default for alle andre opslag. Ikke indhold. */
-              placeholder={udkast ? PRAESENTATION_INSPIRATION : undefined}
+              /* Pladsholderen (Jonas 16/9) — KUN på præsentationsvejen, som
+                 composerens eksisterende placeholder-prop; undefined =
+                 composerens default for alle andre opslag. Ikke indhold, og
+                 intet startIndhold: composeren starter tom. */
+              placeholder={praesentationAnmodet ? PRAESENTATION_PLADSHOLDER : undefined}
               onSubmit={(indholdJson) =>
                 opretMutation
-                  .mutateAsync({ titel, indholdJson, kildeType: udkast ? KILDE_PRAESENTATION : undefined })
+                  .mutateAsync({ titel, indholdJson, kildeType: praesentationAnmodet ? KILDE_PRAESENTATION : undefined })
                   .then(() => undefined)
               }
             />

@@ -3,9 +3,9 @@
  *
  * Teksten over billedet (mangellistens nr. 3: «3-4 tekster»). Kreativen er
  * billedet; det her er det hun skriver i LinkedIn-opslaget. Ren motor —
- * ingen React, ingen IO — af { memberName, companyName, dateLabel }, samme
- * mønster som hjemmebane/praesentation.ts: trim, tomt → null, og en
- * sætning der aldrig hænger. Testet i __tests__/delingstekster.test.ts.
+ * ingen React, ingen IO — af { memberName, companyName, dateLabel }: trim,
+ * tomt → null, og en sætning der aldrig hænger (mønstret fra præsentationens
+ * titel, som blev slettet 16/9). Testet i __tests__/delingstekster.test.ts.
  *
  * ANDEN RUNDE (Jonas 14/9 om første runde: «røvsyge»). To ting var galt:
  *   (1) «ejerleder» — målt på theboardroom.dk 14/9 er målgruppen
