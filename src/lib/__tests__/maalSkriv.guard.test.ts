@@ -15,8 +15,10 @@ import { join, resolve } from "node:path";
 //   3. Klientskrivere til milestones er præcis de bogførte (medlemmets egne):
 //      useMilestones, handoutEngine (direkte insert med loeftestangStatus),
 //      RapporteringView (død), LegatDashboard. Planen skriver KUN gennem maal-skriv.
-//   4. Medlemmets flade beholder opret-knappen, og oversætter triggerens fejl
-//      til husets tekst (maalFejlTekst) ved opret og ved parkér/aktivér.
+//   4. Medlemmets flade («Dine mål», fase 3: DineMaalView) beholder opret-
+//      knappen (opretKnap i header OG tom tilstand), og hooket oversætter
+//      triggerens fejl til husets tekst (maalFejlTekst) ved opret og ved
+//      parkér/aktivér.
 //   5. Agenten har hverken create_milestone eller update_milestone_progress —
 //      hverken i poolen, i executeTool, i SKRIVE_TOOLS eller i onboarding-prompten.
 //   6. Triggeren «højst tre» (ikke DEFINER, kun når rækken bliver aktiv, ingen politik).
@@ -33,7 +35,7 @@ const TOER = "supabase/functions/_shared/agentToerkoersel.ts";
 const TRE = "supabase/migrations/20260917150000_maal_hoejst_tre_aktive.sql";
 const HANDOUT = "src/lib/handoutEngine.ts";
 const HOOK = "src/components/hjemmebane/milestones/useMilestones.ts";
-const MEDLEM = "src/components/hjemmebane/milestones/MilestonesView.tsx";
+const MEDLEM = "src/components/hjemmebane/milestones/DineMaalView.tsx";
 const PLANEN = "src/components/hjemmebane/virksomhed/VirksomhedPlanen.tsx";
 const MAALFEJL = "src/lib/hjemmebane/maalFejl.ts";
 const CONFIG = "supabase/config.toml";
@@ -98,11 +100,12 @@ export const loeftestangHolder = (kode: string): boolean =>
 
 /** Dom 4: medlemmets flade — opret-knap bevaret, triggerfejl oversat. */
 export const medlemsfladenHolder = (view: string, hook: string, fejl: string): boolean =>
-  (view.match(/Opret milestone/g) ?? []).length >= 2 &&
+  view.includes("const opretKnap = (") && (view.match(/\bopretKnap\}/g) ?? []).length >= 2 &&
+  view.includes("onOpret={opret}") && view.includes("onSlet={() => setSletId(ms.id)}") &&
   hook.includes('import { maalFejlTekst } from "@/lib/hjemmebane/maalFejl";') &&
-  hook.includes('toast.error(maalFejlTekst(error, "Kunne ikke oprette milestone"))') &&
+  hook.includes('toast.error(maalFejlTekst(error, "Kunne ikke oprette målet"))') &&
   hook.includes('toast.error(maalFejlTekst(error, "Kunne ikke gemme"))') &&
-  !/toast\.error\("Kunne ikke oprette milestone"\)/.test(hook) &&
+  !/toast\.error\("Kunne ikke oprette målet"\)/.test(hook) &&
   fejl.includes('export const HOEJST_TRE_TEKST = `Du har allerede ${MAX_AKTIVE_MAAL} aktive mål — parkér eller markér et som nået først`;');
 
 /** Dom 5: agenten uden mål-tools. */
@@ -139,7 +142,7 @@ describe("maalSkriv.guard — fase 2: medlemmet ejer sine mål, rådgiveren skri
     expect(planen).toContain('functions.invoke("maal-skriv"');
     expect(planen).not.toMatch(/\.from\("milestones"\)/);
   });
-  it("dom 4: medlemmets flade beholder «Opret milestone» og oversætter «højst tre» til husets tekst", () => {
+  it("dom 4: medlemmets flade («Dine mål») beholder opret-knappen og oversætter «højst tre» til husets tekst", () => {
     expect(medlemsfladenHolder(udenKommentarer(laes(MEDLEM)), udenKommentarer(laes(HOOK)), laes(MAALFEJL))).toBe(true);
   });
   it("dom 5: agenten har hverken create_milestone eller update_milestone_progress — kun get_milestones", () => {
@@ -171,8 +174,9 @@ describe("maalSkriv.guard — fase 2: medlemmet ejer sine mål, rådgiveren skri
   });
   it("selvbevis 4: flade uden opret-knap eller hook med den rå fejl falder", () => {
     const view = udenKommentarer(laes(MEDLEM)), hook = udenKommentarer(laes(HOOK)), fejl = laes(MAALFEJL);
-    expect(medlemsfladenHolder(view.replace(/Opret milestone/g, "Nyt mål"), hook, fejl)).toBe(false);
-    expect(medlemsfladenHolder(view, hook.replace('toast.error(maalFejlTekst(error, "Kunne ikke oprette milestone"))', 'toast.error("Kunne ikke oprette milestone")'), fejl)).toBe(false);
+    expect(medlemsfladenHolder(view.replace(/\bopretKnap\}/g, "}"), hook, fejl)).toBe(false);
+    expect(medlemsfladenHolder(view.replace("onSlet={() => setSletId(ms.id)}", ""), hook, fejl)).toBe(false);
+    expect(medlemsfladenHolder(view, hook.replace('toast.error(maalFejlTekst(error, "Kunne ikke oprette målet"))', 'toast.error("Kunne ikke oprette målet")'), fejl)).toBe(false);
   });
   it("selvbevis 5: agenten med toolet tilbage falder", () => {
     const a = udenKommentarer(laes(AGENT)), t = udenKommentarer(laes(TOER));

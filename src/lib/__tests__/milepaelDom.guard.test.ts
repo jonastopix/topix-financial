@@ -20,12 +20,17 @@ import { resolve } from "node:path";
 const DAEKKEDE = [
   "src/lib/milepaelDom.ts",
   "src/components/hjemmebane/milestones/useMilestones.ts",
-  "src/components/hjemmebane/milestones/HbMilestoneRaekke.tsx",
-  "src/components/hjemmebane/milestones/MilestonesView.tsx",
+  // «Dine mål» (fase 3, 16/9) afløste HbMilestoneRaekke/MilestonesView; dommen går gennem lib/hjemmebane/dineMaal → planen → milepaelDom.
+  "src/components/hjemmebane/milestones/HbMaalRaekke.tsx",
+  "src/components/hjemmebane/milestones/DineMaalView.tsx",
+  "src/lib/hjemmebane/dineMaal.ts",
+  "src/lib/hjemmebane/planen.ts",
   "src/components/hjemmebane/milestones/MilestoneDialoger.tsx",
   "src/components/hjemmebane/virksomhed/VirksomhedView.tsx",
   "src/hooks/useVirksomhed.ts",
   "src/lib/virksomhedsSignaler.ts",
+  "src/components/hjemmebane/boardroom/nextStep.ts",
+  "src/components/hjemmebane/boardroom/BoardroomView.tsx",
   // Digesten (8/9, efter #741) dømte gennem _shared/digestMilepaele →
   // milepaelDom; slettet 13/9 (oprydningen del 1) — værnet mistede to
   // dækkede flader, ikke en lås. DAEKKEDE-løkken læser filerne uden
@@ -42,9 +47,9 @@ const AFVIGERE: Array<{ sti: string; regel: string; hvorfor: string }> = [
   // frist inden 14 dage) — en tekstlig påmindelse, ikke en tilstand.
   { sti: "supabase/functions/generate-weekly-focus/index.ts", regel: '.lt("progress", 50)', hvorfor: "T3 MILESTONE_DUE_SOON: bevidst tærskel < 50" },
   { sti: "supabase/functions/generate-weekly-focus/index.ts", regel: '.lt("progress", 100)', hvorfor: "T4 MILESTONE_STALLED: bør kalde afgoerMilepael(…).aktiv" },
-  // Uden for 8/9-omgangens stier: boardroom er det andet vindue.
-  { sti: "src/components/hjemmebane/boardroom/nextStep.ts", regel: 'm.progress < 100 && m.status !== "parked"', hvorfor: "forsidens «Dit næste skridt»: bør kalde afgoerMilepael (boardroom-mappen, andet vindue)" },
-  { sti: "src/components/hjemmebane/boardroom/BoardroomView.tsx", regel: "m.progress >= 100", hvorfor: "milestonesDone-tællingen (boardroom-mappen, andet vindue)" },
+  // nextStep.ts og BoardroomView.tsx er UDE af listen (fase 3, 16/9): fokuskortets
+  // milepælsslot (e) er fjernet, og forsidens «mål nået»-tælling og «Dine mål»
+  // dømmer gennem afgoerMilepael/dineMaalDom — de står nu i DÆKKEDE.
   // run-company-agent er UDE af listen (fase 2, 16/9): update_milestone_progress
   // og create_milestone findes ikke længere — agenten skriver ikke fremdrift;
   // opgave-luk regner den gennem _shared/maal.ts, statussen sættes af maal-skriv.
@@ -94,9 +99,12 @@ describe("milepælenes dom — de dækkede flader bærer ingen egen regel", () =
   it("de dækkede flader, der viser milepæle, kalder motoren (direkte eller gennem useMilestones)", () => {
     expect(laes("src/components/hjemmebane/milestones/useMilestones.ts")).toContain("afgoerMilepael(");
     expect(laes("src/components/hjemmebane/virksomhed/VirksomhedView.tsx")).toContain("afgoerMilepael(");
-    for (const sti of ["HbMilestoneRaekke.tsx", "MilestonesView.tsx", "MilestoneDialoger.tsx"]) {
+    for (const sti of ["HbMaalRaekke.tsx", "MilestoneDialoger.tsx"]) {
       expect(strip(laes(`src/components/hjemmebane/milestones/${sti}`)), `${sti} læser ikke dommen`).toContain(".dom.");
     }
+    // Siden dømmer gennem dineMaalDom (→ planenDom → afgoerMilepael) — ikke selv.
+    expect(strip(laes("src/components/hjemmebane/milestones/DineMaalView.tsx"))).toContain("dineMaalDom(");
+    expect(strip(laes("src/lib/hjemmebane/planen.ts"))).toContain("afgoerMilepael(");
   });
 
   it("motoren selv bærer reglen præcis én gang", () => {

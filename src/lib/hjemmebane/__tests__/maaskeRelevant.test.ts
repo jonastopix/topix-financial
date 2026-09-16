@@ -2,12 +2,17 @@ import { describe, expect, it } from "vitest";
 import {
   MAASKE_RELEVANT_LOFT,
   MAASKE_RELEVANT_PRAEFIKS,
+  MODUL_FOR_KATEGORI,
   MODUL_FOR_TRIGGER,
   brugbarAndel,
   maaskeRelevant,
   maaskeRelevantTekst,
+  modulForMaal,
   modulerForFokus,
+  modulerForMaal,
 } from "@/lib/hjemmebane/maaskeRelevant";
+import { MILESTONE_CATEGORIES } from "@/lib/milestoneCategories";
+import { moduleOrder } from "@/lib/handoutConfig";
 import type { LektionRaekke } from "@/lib/hjemmebane/lektionerForModul";
 
 /* «Måske relevant for dig» (Jonas 16/9): regelbaseret V1 — ugens fokus'
@@ -129,5 +134,38 @@ describe("ordene", () => {
   it("«Måske relevant for dig: {titel}»", () => {
     expect(MAASKE_RELEVANT_PRAEFIKS).toBe("Måske relevant for dig");
     expect(maaskeRelevantTekst({ title: "Likviditet på 20 minutter" })).toBe("Måske relevant for dig: Likviditet på 20 minutter");
+  });
+});
+
+/* Fase 3 («Én plan», 16/9): målets kategori → modul (modulForMaal). */
+describe("modulForMaal — målets kategori peger på lektionen om målet", () => {
+  it("tabellen kender alle milestoneCategories' nøgler, og hvert modul findes i handoutConfig.moduleOrder", () => {
+    expect(Object.keys(MODUL_FOR_KATEGORI).sort()).toEqual(Object.keys(MILESTONE_CATEGORIES).sort());
+    for (const modul of Object.values(MODUL_FOR_KATEGORI)) if (modul) expect(moduleOrder).toContain(modul);
+    expect(MODUL_FOR_KATEGORI.other).toBeNull();
+  });
+  it("kategori → modul; ukendt, tom og 'other' → null", () => {
+    expect(modulForMaal("profit")).toBe("bogholderi");
+    expect(modulForMaal("kunder")).toBe("salg");
+    expect(modulForMaal("vaekst")).toBe("overordnet");
+    expect(modulForMaal("other")).toBeNull();
+    expect(modulForMaal("noget-nyt")).toBeNull();
+    expect(modulForMaal(null)).toBeNull();
+    expect(modulForMaal("")).toBeNull();
+  });
+  it("modulerForMaal: målenes rækkefølge, uden dubletter, uden null", () => {
+    expect(modulerForMaal([{ category: "kunder" }, { category: "other" }, { category: "profit" }, { category: "salg" }])).toEqual(["salg", "bogholderi"]);
+    expect(modulerForMaal(null)).toEqual([]);
+  });
+  it("maaskeRelevant: ugens fokus' moduler først, så målenes; kun mål → stadig linjer; hverken fokus eller mål → null", () => {
+    const lektioner = [
+      raekke({ id: "b", handout_module: "bogholderi", position: 1 }),
+      raekke({ id: "s", handout_module: "salg", position: 1 }),
+    ];
+    const fokus = { triggers_fired: ["BUDGET_DEVIATION"], trigger_data: {} };
+    expect(maaskeRelevant({ fokus, maal: [{ category: "kunder" }], lektioner, progress: [] })?.map((l) => l.id)).toEqual(["b", "s"]);
+    expect(maaskeRelevant({ fokus: null, maal: [{ category: "kunder" }], lektioner, progress: [] })?.map((l) => l.id)).toEqual(["s"]);
+    expect(maaskeRelevant({ fokus: null, maal: [{ category: "other" }], lektioner, progress: [] })).toBeNull();
+    expect(maaskeRelevant({ fokus: null, lektioner, progress: [] })).toBeNull();
   });
 });

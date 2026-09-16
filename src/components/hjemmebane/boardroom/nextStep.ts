@@ -11,8 +11,7 @@ import type { Tjekliste } from "@/lib/onboardingTjekliste";
 
     Kilderne og deres domme er ARVET ORDRET fra DashboardActionCenter/
     den oprindelige port: rapport-signalet (ActionCenter:110-139),
-    ulæste rådgiver-/agent-beskeder (:150-163), milestone-deadline
-    ≤14 dage (:141-148), pulse-nudgen GATED bag committed rapport
+    ulæste rådgiver-/agent-beskeder (:150-163), pulse-nudgen GATED bag committed rapport
     (:166-176 "rapport først, så pulse som stillingtagen"),
     company_actions prioritetssorteret (:200-208 — kalderen leverer
     sorteringen, motoren bevarer ordenen), weekly_focus (indeværende
@@ -34,20 +33,16 @@ import type { Tjekliste } from "@/lib/onboardingTjekliste";
       (a) manglende rapport            (b) rapport afventer godkendelse
       (c) ubesvaret besked (rådgiver før agent — ActionCenter-ordenen)
       (d) weekly_focus (denne uge, ikke set)
-      (e) milestone-deadline ≤14 dage (nærmeste først, dernæst titel)
+      (e) — UDGÅET («Én plan» fase 3, 16/9): milestone-deadline ≤14 dage
+          var fokuskortets milepælspunkt; målet lever nu i forsidens
+          «Dine mål» (fremdrift og frist), ikke som fokuspunkt. Slot-
+          numrene (prioriteterne) beholdes, så (f)–(j) er uændrede.
       (f) åbne company_actions (kalderens prioritetsorden)
       (g) pulse-nudge                  (h) løftestang uden milestone
       (i) tom netværksprofil (ask_me_about mangler) — LAVEST: en tom
-          profil er aldrig vigtigere end tal, beskeder eller milepæle;
+          profil er aldrig vigtigere end tal, beskeder eller skridt;
           den skal kun dukke op i en rolig uge
     Tom liste = alt er ajour (kortet bærer forløbs-linket). */
-
-export interface NextStepMilestone {
-  title: string;
-  deadline: string | null;
-  progress: number;
-  status: string;
-}
 
 export interface NextStepInputs {
   now: Date;
@@ -55,7 +50,6 @@ export interface NextStepInputs {
   processedPeriodKeys: ReadonlySet<string>;
   /** Perioder m. godkendte (committed) tal i facts-laget. */
   committedPeriodKeys: ReadonlySet<string>;
-  milestones: NextStepMilestone[];
   hasPulseThisMonth: boolean;
 }
 
@@ -143,7 +137,6 @@ export type FocusKind =
   | "unread-messages"
   | "unread-agent"
   | "weekly-focus"
-  | "milestone-deadline"
   | "company-action"
   | "pulse"
   | "unlinked-lever"
@@ -163,7 +156,7 @@ export interface FocusItem {
 }
 
 export interface NextStep {
-  id: "missing-report" | "pending-approval" | "milestone-deadline" | "pulse";
+  id: "missing-report" | "pending-approval" | "pulse";
   title: string;
   description: string;
   cta: string;
@@ -322,43 +315,22 @@ export function deriveFocus(inputs: FocusInputs): FocusItem[] {
     });
   }
 
-  // (e) Milestone-deadlines ≤14 dage — ALLE kandidater (nærmeste først,
-  // dernæst titel som fast tie-break); tærskel ordret fra
-  // ActionCenter:145 / portens :62-69.
-  const candidates = inputs.milestones
-    .filter((m) => m.deadline && m.progress < 100 && m.status !== "parked")
-    .map((m) => ({
-      milestone: m,
-      daysLeft: Math.ceil((new Date(m.deadline as string).getTime() - now.getTime()) / 86400000),
-    }))
-    .filter(({ daysLeft }) => daysLeft > 0 && daysLeft <= 14)
-    .sort((a, b) => a.daysLeft - b.daysLeft || a.milestone.title.localeCompare(b.milestone.title, "da"));
-
-  for (const { milestone, daysLeft } of candidates) {
-    items.push({
-      key: `milestone:${milestone.title}`,
-      kind: "milestone-deadline",
-      priority: 5,
-      title: `"${milestone.title}" nærmer sig deadline`,
-      description: `${daysLeft} dag${daysLeft === 1 ? "" : "e"} tilbage — opdatér fremdriften eller justér målet.`,
-      ctaLabel: "Åbn milestones",
-      ctaHref: "/milestones",
-    });
-  }
+  // (e) UDGÅET (fase 3, 16/9): milestone-deadline ≤14 dage. Målet står i
+  // forsidens «Dine mål» med fremdrift og frist — et fokuspunkt oveni
+  // sagde det samme to steder. Prioritet 5 er ledig med vilje.
 
   // (f) Åbne handlinger — kalderens orden bevares (ActionCenter:205-208:
   // high → medium → low, dernæst ældste først). 'proposed' udelades
-  // HELT: et forslag har fået sit eget hjem i "Dine aftaler" og står
-  // dér med knapper. Nævnes det også i fokus-kortet som et link, lover
-  // linket noget sektionen ikke viser (den viser kun ÉT forslag) — og
-  // fire forslag i fokus genindfører netop den liste man scroller
-  // forbi, som ét-ad-gangen-reglen findes for at undgå. En AKTIV opgave
-  // nævnes derimod fortsat: det er en aftale medlemmet har forpligtet
-  // sig til, og den skal huskes i rolige uger — punktet siger hvornår
-  // og peger på #dine-aftaler, som ejer knapperne (samme præcedens som
-  // slot (e), hvor milestone-deadlines nævnes og /milestones ejer
-  // handlingen). Arve-'open' er uændret: href er forsiden selv
-  // (fold-ud), for arven vises ikke i sektionen.
+  // HELT: et forslag har fået sit eget hjem i "Dine skridt" (før «Dine
+  // aftaler») og står dér med knapper. Nævnes det også i fokus-kortet som
+  // et link, lover linket noget sektionen ikke viser (den viser kun ÉT
+  // forslag) — og fire forslag i fokus genindfører netop den liste man
+  // scroller forbi, som ét-ad-gangen-reglen findes for at undgå. Et
+  // AKTIVT skridt nævnes derimod fortsat: det er en aftale medlemmet har
+  // forpligtet sig til, og den skal huskes i rolige uger — punktet siger
+  // hvornår og peger på #dine-skridt, som ejer knapperne. Arve-'open' er
+  // uændret: href er forsiden selv (fold-ud), for arven vises ikke i
+  // sektionen.
   for (const action of inputs.openActions) {
     if (action.status === "proposed") continue;
     /* context er handlingens egen begrundelse fra AI-analysen og siger
@@ -381,8 +353,8 @@ export function deriveFocus(inputs: FocusInputs): FocusItem[] {
       priority: 6,
       title: action.title,
       description,
-      ctaLabel: erAktivOpgave ? "Se dine aftaler" : "Se handlinger",
-      ctaHref: erAktivOpgave ? "#dine-aftaler" : "/",
+      ctaLabel: erAktivOpgave ? "Se dine skridt" : "Se handlinger",
+      ctaHref: erAktivOpgave ? "#dine-skridt" : "/",
       sourceId: action.id,
     });
   }
@@ -452,9 +424,9 @@ export function deriveFocus(inputs: FocusInputs): FocusItem[] {
   return items;
 }
 
-/** Tynd wrapper (uændret kontrakt for BoardroomView + eksisterende
-    tests): de fire oprindelige kilder gennem deriveFocus, første punkt
-    mappet til den gamle NextStep-form. */
+/** Tynd wrapper (uændret kontrakt for eksisterende tests): de oprindelige
+    kilder gennem deriveFocus, første punkt mappet til den gamle NextStep-
+    form. Milepæls-kilden er ude (fase 3) — tre kilder tilbage. */
 export function deriveNextStep(inputs: NextStepInputs): NextStep | null {
   const focus = deriveFocus({
     ...inputs,

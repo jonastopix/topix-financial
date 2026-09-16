@@ -31,7 +31,8 @@ const DINE_TAL = {
     { label: "Rapportering", to: "/reports" },
     { label: "KPI'er", to: "/kpis" },
     { label: "Budget", to: "/budget" },
-    { label: "Milestones", to: "/milestones" },
+    // «Dine mål» («Én plan», fase 3, 16/9) — rettet med vilje.
+    { label: "Dine mål", to: "/milestones" },
     { label: "Handouts", to: "/handouts" },
   ],
 };
@@ -101,7 +102,7 @@ describe("rådgiverens menu — det I bruger øverst (Jonas 8/9)", () => {
   });
   it("Dine tal bliver med sine fem; Book session, Dit Boardroom og Opgaver er ude", () => {
     const labels = nav.flatMap((n) => [n.label, ...(n.children ?? []).map((c) => c.label)]);
-    expect(nav.find((n) => n.label === "Dine tal")?.children?.map((c) => c.label)).toEqual(["Rapportering", "KPI'er", "Budget", "Milestones", "Handouts"]);
+    expect(nav.find((n) => n.label === "Dine tal")?.children?.map((c) => c.label)).toEqual(["Rapportering", "KPI'er", "Budget", "Dine mål", "Handouts"]);
     for (const l of ["Book session", "Dit Boardroom", "Opgaver", "Din rådgiver", "Chat"]) expect(labels).not.toContain(l);
   });
   it("Platform bærer de syv driftssider; Indhold er sit eget punkt øverst", () => {

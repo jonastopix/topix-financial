@@ -47,6 +47,10 @@ export interface Milestone {
   target_value: number | null;
   current_value: number | null;
   unit: string | null;
+  /** Fase 3 («Dine mål»): planens felter — fremdriftens stempel, nået-dato og oprettelse (lib/hjemmebane/planen.MaalRaekke). */
+  progress_updated_at: string | null;
+  completed_at: string | null;
+  created_at: string;
 }
 
 /** Dommen for én række — kaldes ved hentning og efter hver lokal
@@ -110,6 +114,7 @@ export function useMilestones({ userId, companyId, isAdvisor }: Args) {
         id: string; title: string; deadline: string | null; status: string; description: string | null;
         source: string; source_report: string | null; progress: number | null; category: string | null;
         baseline: string | null; target_value: number | null; current_value: number | null; unit: string | null;
+        progress_updated_at: string | null; completed_at: string | null; created_at: string;
       };
       const nu = new Date();
       const mapped: Milestone[] = ((data || []) as unknown as Raekke[]).map((m) => ({
@@ -127,6 +132,9 @@ export function useMilestones({ userId, companyId, isAdvisor }: Args) {
         target_value: m.target_value ?? null,
         current_value: m.current_value ?? null,
         unit: m.unit ?? null,
+        progress_updated_at: m.progress_updated_at ?? null,
+        completed_at: m.completed_at ?? null,
+        created_at: m.created_at,
       }));
       setMilestones(mapped);
       setConversationId(convRes.data?.id ?? null);
@@ -164,7 +172,7 @@ export function useMilestones({ userId, companyId, isAdvisor }: Args) {
       confetti({ particleCount: 80, spread: 60, origin: { y: 0.7 } });
       postActivityMessage({ conversationId, senderId: userId, content: `🎯 Milestone gennemført: **${title}**`, contextType: "milestone", contextMeta: { title } });
     }
-    toast.success("Milestone fuldført! 🎉", { description: "Godt gået — du er et skridt tættere på dit mål.", duration: 5000 });
+    toast.success("Målet er nået 🎉", { description: "Godt gået — det er sådan en plan bliver til noget.", duration: 5000 });
     if (companyId) {
       supabase.functions.invoke("send-slack-report-notification", {
         body: { event: "milestone_completed", companyId, milestoneTitle: title },
@@ -213,10 +221,26 @@ export function useMilestones({ userId, companyId, isAdvisor }: Args) {
     await saetFremgang(id, ms.dom.faerdig ? 0 : 100);
   }, [milestones, saetFremgang]);
 
+  /** «Marker som nået» (fase 3, Jonas 16/9: medlemmet ejer sine mål) — status
+      = 'completed', fremdriften røres IKKE (et mål kan nås på 40 %; på 100 %
+      er det allerede nået). completed_at sættes af triggeren
+      milestone_completed_at (fase 1). Fejringen er den samme som ved 100 %. */
+  const markerNaaet = useCallback(async (id: string) => {
+    const ms = milestones.find((m) => m.id === id);
+    if (!ms || ms.dom.faerdig || ms.dom.parkeret) return;
+    const { error } = await supabase.from("milestones").update({ status: "completed" }).eq("id", id);
+    if (error) { toast.error("Kunne ikke markere målet som nået"); return; }
+    setMilestones((prev) => prev.map((m) => (m.id === id ? { ...m, dbStatus: "completed", ...doem({ dbStatus: "completed", progress: m.progress, deadline: m.deadline }) } : m)));
+    fejr(ms.title);
+  }, [milestones, fejr]);
+
+  /** Genhent listen — efter en skrivning uden om hooket (opgave-luk rykker målets fremdrift). */
+  const genhent = useCallback(() => setRefreshKey((k) => k + 1), []);
+
   /** MilestonesList.tsx:698-703. */
   const slet = useCallback(async (id: string, title: string) => {
     const { error } = await supabase.from("milestones").delete().eq("id", id);
-    if (error) { toast.error("Kunne ikke slette milestone"); return; }
+    if (error) { toast.error("Kunne ikke slette målet"); return; }
     setMilestones((prev) => prev.filter((m) => m.id !== id));
     toast.success(`"${title}" er slettet`);
   }, []);
@@ -238,6 +262,11 @@ export function useMilestones({ userId, companyId, isAdvisor }: Args) {
     if ("status" in fields) {
       dbFields.status = fields.status;
       localFields.dbStatus = fields.status;
+    }
+    // Fase 3: genåbning af et mål nået på 100 % uden skridt nulstiller fremdriften (som skiftFuldfoert gjorde).
+    if ("progress" in fields && typeof fields.progress === "number") {
+      dbFields.progress = fields.progress;
+      localFields.progress = fields.progress;
     }
     const { error } = await supabase.from("milestones").update(dbFields).eq("id", id);
     // Aktivering af et parkeret mål kan ramme «højst tre» — husets tekst, ikke databasens.
@@ -273,11 +302,11 @@ export function useMilestones({ userId, companyId, isAdvisor }: Args) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { error } = await supabase.from("milestones").insert(payload as any);
     // Det fjerde aktive mål afvises af databasen (trigger 20260917150000) — husets tekst, ikke databasens.
-    if (error) { toast.error(maalFejlTekst(error, "Kunne ikke oprette milestone")); return false; }
-    toast.success("Milestone oprettet");
+    if (error) { toast.error(maalFejlTekst(error, "Kunne ikke oprette målet")); return false; }
+    toast.success("Målet er sat");
     setRefreshKey((k) => k + 1);
     return true;
   }, [userId, companyId]);
 
-  return { milestones, loading, saetFremgang, saetNuvaerendeVaerdi, skiftFuldfoert, slet, opdaterFelt, opret };
+  return { milestones, loading, saetFremgang, saetNuvaerendeVaerdi, skiftFuldfoert, markerNaaet, slet, opdaterFelt, opret, genhent };
 }
