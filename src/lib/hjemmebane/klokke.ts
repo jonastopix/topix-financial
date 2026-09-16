@@ -154,7 +154,10 @@ export function medlemsLinje(n: MedlemsNotifikation): KlokkeLinje {
     Træk: virksomhedssiden rullet til «Aftalen» (?section=aftale), hvor
     «Betaling» med det fejlede træk står.
     Handout og chat: virksomhedssiden / indbakken uden opslag (den gamle
-    klokke slog modul og samtale op i databasen — det er ikke en ren funktion). */
+    klokke slog modul og samtale op i databasen — det er ikke en ren funktion).
+    Community (16/9): et nyt opslag fra et medlem (notify-community-opslag,
+    reference_type 'community_traad') fører til tråden, /community/{id} —
+    uden reference_id til feedet. Ruten er MemberRoute; rådgivere passerer. */
 export function raadgiverSti(n: Pick<RaadgiverNotifikation, "type" | "reference_type" | "reference_id" | "company_id">): string | null {
   if (n.type === "drift") return "/";
   const virksomhed = n.company_id ? `/virksomhed/${n.company_id}` : null;
@@ -169,6 +172,8 @@ export function raadgiverSti(n: Pick<RaadgiverNotifikation, "type" | "reference_
       return "/chat";
     case "feedback":
       return `/admin/feedback${n.reference_id ? `?feedbackId=${n.reference_id}` : ""}`;
+    case "community_traad":
+      return n.reference_id ? `/community/${n.reference_id}` : "/community";
     default:
       return virksomhed;
   }

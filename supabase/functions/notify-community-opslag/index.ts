@@ -28,12 +28,27 @@
 // dedup_key er ÉN pr. tråd (community_opslag:{traadId}) og unik pr.
 // (user_id, dedup_key): kaldes funktionen igen for samme tråd, får ingen
 // to beskeder.
+//
+//   8. RÅDGIVERNES KLOKKE (16/9, Jonas: «klokken … skal fange at der er
+//      opslag fra et medlem»): rådgiverne får allerede en notifications-
+//      række i trin 7 (get_community_medlemmer inkluderer dem), men deres
+//      klokke læser KUN advisor_notifications (useAdvisorNotifications).
+//      Derfor skrives — EFTER trin 7, og KUN når forfatteren ikke selv er
+//      rådgiver (user_roles advisor/admin) — én advisor_notifications-række
+//      pr. rådgiver med skrivRaadgiverBesked (vagtens form: advisor_id sat,
+//      dedup på reference_id = trådens id). Teksten er den rene
+//      beskedVedNytOpslag (_shared/communityOpslagBesked.ts). Alt i
+//      try/catch: klokken må ALDRIG koste medlemmernes notifikationer eller
+//      svaret — fejl logges, svaret er uændret. Ingen mail: send-notification-
+//      email læser aldrig advisor_notifications.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
 import { authenticateUser, corsHeaders } from "../_shared/edgeFunctionAuth.ts";
 import { writeNotificationToMany } from "../_shared/notificationWriter.ts";
 import { samlNaevnteBrugere } from "../_shared/communityNaevnte.ts";
 import { visningsnavn } from "../_shared/opslagsMail.ts";
+import { skrivRaadgiverBesked } from "../_shared/raadgiverBesked.ts";
+import { beskedVedNytOpslag } from "../_shared/communityOpslagBesked.ts";
 
 export const COMMUNITY_OPSLAG_TYPE = "community_opslag";
 
@@ -113,6 +128,50 @@ Deno.serve(async (req) => {
     reference_id: traad.id,
     dedup_key: `${COMMUNITY_OPSLAG_TYPE}:${traad.id}`,
   });
+
+  // ── 8. Rådgivernes klokke — efter trin 7, aldrig på bekostning af det ──
+  try {
+    const { data: roller, error: rolleFejl } = await adminClient
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", traad.forfatter_id)
+      .in("role", ["advisor", "admin"])
+      .limit(1);
+    if (rolleFejl) throw new Error(`user_roles-opslag fejlede: ${rolleFejl.message}`);
+    const forfatterErRaadgiver = (roller ?? []).length > 0;
+
+    // Forfatterens virksomhed — ældste medlemskab først, som
+    // get_community_medlemmer vælger den. Fejler opslaget: null, ikke stop.
+    let companyId: string | null = null;
+    const { data: medlemskab, error: medlemskabFejl } = await adminClient
+      .from("company_members")
+      .select("company_id")
+      .eq("user_id", traad.forfatter_id)
+      .order("created_at", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+    if (medlemskabFejl) console.error("[notify-community-opslag] company_members-opslag fejlede — klokken får company_id null:", medlemskabFejl.message);
+    else companyId = (medlemskab as { company_id?: string | null } | null)?.company_id ?? null;
+
+    const besked = beskedVedNytOpslag({
+      traadId: traad.id,
+      titel: traad.titel,
+      forfatterId: traad.forfatter_id,
+      forfatterNavn: forfatter?.navn,
+      forfatterErRaadgiver,
+      companyId,
+    });
+    if (besked) {
+      const klokke = await skrivRaadgiverBesked(adminClient, besked);
+      console.log(
+        `[notify-community-opslag] klokken: ${klokke.skrevet} skrevet, ${klokke.fandtes} fandtes, ${klokke.raadgivere} rådgivere${klokke.fejl.length ? ` — fejl: ${klokke.fejl.join("; ")}` : ""}`,
+      );
+    } else {
+      console.log(`[notify-community-opslag] klokken: ingen besked (forfatteren er rådgiver)`);
+    }
+  } catch (err) {
+    console.error("[notify-community-opslag] klokken ringede ikke —", err instanceof Error ? err.message : String(err));
+  }
 
   return jsonResponse({ notificeret });
 });
