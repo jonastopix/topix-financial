@@ -41,7 +41,8 @@ export function createHandoutTablesMock() {
     return tables[name];
   };
 
-  const makeSelect = (tableName: string) => {
+  // opts: { count: "exact", head: true } (createLeverMilestone tæller aktive mål, fase 2).
+  const makeSelect = (tableName: string, opts?: { count?: string; head?: boolean }) => {
     const rows = requireTable(tableName);
     const filters: Filter[] = [];
     const exec = () => rows.filter((r) => filters.every((f) => f(r))).map((r) => ({ ...r }));
@@ -67,7 +68,9 @@ export function createHandoutTablesMock() {
       },
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       then(resolve: any, reject?: any) {
-        return Promise.resolve({ data: exec(), error: null }).then(resolve, reject);
+        const m = exec();
+        const svar = opts?.count ? { data: opts.head ? null : m, count: m.length, error: null } : { data: m, error: null };
+        return Promise.resolve(svar).then(resolve, reject);
       },
     };
     return builder;
@@ -144,7 +147,7 @@ export function createHandoutTablesMock() {
   const supabase = {
     from(tableName: string) {
       return {
-        select: (_cols?: string) => makeSelect(tableName),
+        select: (_cols?: string, opts?: { count?: string; head?: boolean }) => makeSelect(tableName, opts),
         insert: (rows: Row | Row[]) => makeInsert(tableName, rows),
         update: (patch: Row) => makeUpdate(tableName, patch),
       };

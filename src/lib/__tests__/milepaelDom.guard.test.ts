@@ -45,7 +45,9 @@ const AFVIGERE: Array<{ sti: string; regel: string; hvorfor: string }> = [
   // Uden for 8/9-omgangens stier: boardroom er det andet vindue.
   { sti: "src/components/hjemmebane/boardroom/nextStep.ts", regel: 'm.progress < 100 && m.status !== "parked"', hvorfor: "forsidens «Dit næste skridt»: bør kalde afgoerMilepael (boardroom-mappen, andet vindue)" },
   { sti: "src/components/hjemmebane/boardroom/BoardroomView.tsx", regel: "m.progress >= 100", hvorfor: "milestonesDone-tællingen (boardroom-mappen, andet vindue)" },
-  { sti: "supabase/functions/run-company-agent/index.ts", regel: 'progress >= 100 ? "completed" : "active"', hvorfor: "agentens skrivevej: bør kalde statusEfterFremgang" },
+  // run-company-agent er UDE af listen (fase 2, 16/9): update_milestone_progress
+  // og create_milestone findes ikke længere — agenten skriver ikke fremdrift;
+  // opgave-luk regner den gennem _shared/maal.ts, statussen sættes af maal-skriv.
   { sti: "supabase/functions/ai-data-chat/index.ts", regel: '.lt("progress", 100)', hvorfor: "AI-kontekst «aktive milestones»" },
   // Arv (gamle app-flader, ikke Hjemmebane). MilestonesList, DashboardMilestones,
   // DashboardActionCenter, AdvisorAlertsPanel, ActivityFeed og DashboardActivity
