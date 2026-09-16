@@ -15,10 +15,35 @@
 import { format } from "date-fns";
 import { da } from "date-fns/locale";
 
-/** De kolonner fladen læser fra company_traek (status = 'fejlet'). */
+/** company_traek.kilde (migration 20260917110000): hvor betalingen kommer fra. */
+export type TraekKilde = "stripe_abonnement" | "stripe_engang" | "e-conomic";
+export const TRAEK_KILDER: readonly TraekKilde[] = ["stripe_abonnement", "stripe_engang", "e-conomic"];
+
+/**
+ * Linjens label pr. kilde (16/9): «Træk {nr}» for et abonnementstræk (som
+ * i dag — `abonnementOrd` lader medlemmets flade sige «Faktura»), «Stripe ·
+ * {nr}» for en engangsbetaling i Stripe, «e-conomic #{nr}» for en betalt
+ * e-conomic-faktura. Uden nummer: ordet alene. Ukendt/manglende kilde
+ * behandles som abonnement (rækker fra før migrationen bærer DEFAULT'en).
+ */
+export function traekLabel(t: { kilde?: string | null; faktura_nummer: string | null }, abonnementOrd = "Træk"): string {
+  const nr = (t.faktura_nummer ?? "").trim();
+  if (t.kilde === "stripe_engang") return nr ? `Stripe · ${nr}` : "Stripe";
+  if (t.kilde === "e-conomic") return nr ? `e-conomic #${nr}` : "e-conomic";
+  return nr ? `${abonnementOrd} ${nr}` : abonnementOrd;
+}
+
+/** Fakturalink kun når Stripe har en hosted side — e-conomic-rækker og gamle historik-rækker har ingen. */
+export function harFakturaLink(t: { hosted_invoice_url: string | null }): boolean {
+  return typeof t.hosted_invoice_url === "string" && t.hosted_invoice_url.trim() !== "";
+}
+
+/** De kolonner fladen læser fra company_traek (status = 'fejlet').
+    stripe_invoice_id er nullable siden 20260917110000 (e-conomic-rækker);
+    fejlede rækker er altid Stripe, men typen følger tabellen. */
 export interface FejletTraek {
   company_id: string;
-  stripe_invoice_id: string;
+  stripe_invoice_id: string | null;
   beloeb_oere: number;
   fejlet_at: string | null;
   forsoeg: number | null;

@@ -31,7 +31,7 @@ import { afgoerFornyelsestilstand, type Fornyelsesbeslutning } from "@/lib/forny
 import { beslutningsOrd, fornyelsesBadge, type FornyelseBadge } from "@/lib/fornyelsesOrd";
 import { afgoerBetalingsfrist, type Betalingsfriststatus } from "@/lib/betalingsfrist";
 import { afgoerForsidensDom, FORM, type OpgaveSlags, type VirksomhedTilDom } from "@/lib/forsidensDom";
-import { beloebKr, kortDato, datoOgTid, stripeSagde, traekBadgeTekst } from "@/lib/traek";
+import { beloebKr, harFakturaLink, kortDato, datoOgTid, stripeSagde, traekBadgeTekst, traekLabel } from "@/lib/traek";
 import { KPI_DEFS, deriveKpiMetrics, type KpiMetric } from "@/lib/kpiDefs";
 import { deriveKpiTone } from "../noegletal/kpiTone";
 import { momErGyldig, delSerieTilTegning, basisNoegle, erEstimatNoegle, ESTIMAT_NOEGLE_SUFFIX } from "@/lib/dataGrundlag";
@@ -1742,8 +1742,12 @@ const Blok7 = ({ d, onOpdateret, onFornyelseAendret }: { d: VirksomhedsData; onO
                   {p.note && <span className="block text-xs text-hb-ink-soft">{p.note}</span>}
                 </Linje>
               ))}
+              {/* Én betalingsliste (16/9): abonnementstræk «Træk {nr}», Stripe-
+                  engangsbetalinger «Stripe · {nr}», e-conomic «e-conomic #{nr}»
+                  — label og link-regel er lib/traek (traekLabel, harFakturaLink);
+                  nøglen er rækkens id, stripe_invoice_id kan være NULL. */}
               {d.traek.map((t) => (
-                <Linje key={t.stripe_invoice_id} label={t.faktura_nummer ? `Træk ${t.faktura_nummer}` : "Træk"}>
+                <Linje key={t.id} label={traekLabel(t)}>
                   <span className={t.status === "fejlet" ? "text-hb-rust" : undefined}>
                     {beloebKr(t.beloeb_oere)} · {t.status}
                     {t.status === "fejlet" && kortDato(t.fejlet_at) ? ` ${kortDato(t.fejlet_at)}` : ""}
@@ -1753,10 +1757,10 @@ const Blok7 = ({ d, onOpdateret, onFornyelseAendret }: { d: VirksomhedsData; onO
                     <span className="block text-xs text-hb-ink-soft">
                       {stripeSagde(t) ? `Stripe: ${stripeSagde(t)} · ` : ""}
                       {datoOgTid(t.naeste_forsoeg_at) ? `næste forsøg ${datoOgTid(t.naeste_forsoeg_at)}` : "ingen flere forsøg fra Stripe"}
-                      {t.hosted_invoice_url && (
+                      {harFakturaLink(t) && (
                         <>
                           {" · "}
-                          <a href={t.hosted_invoice_url} target="_blank" rel="noopener noreferrer" className="text-hb-evergreen underline-offset-4 hover:underline">Faktura</a>
+                          <a href={t.hosted_invoice_url!} target="_blank" rel="noopener noreferrer" className="text-hb-evergreen underline-offset-4 hover:underline">Faktura</a>
                         </>
                       )}
                     </span>

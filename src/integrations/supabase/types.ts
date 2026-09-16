@@ -1138,13 +1138,14 @@ export type Database = {
           forsoeg: number | null
           hosted_invoice_url: string | null
           id: string
+          kilde: string
           naeste_forsoeg_at: string | null
           periode_slut: string | null
           periode_start: string | null
           status: string
           stripe_customer_id: string | null
-          stripe_invoice_id: string
-          stripe_subscription_id: string
+          stripe_invoice_id: string | null
+          stripe_subscription_id: string | null
           updated_at: string
         }
         Insert: {
@@ -1163,13 +1164,14 @@ export type Database = {
           forsoeg?: number | null
           hosted_invoice_url?: string | null
           id?: string
+          kilde?: string
           naeste_forsoeg_at?: string | null
           periode_slut?: string | null
           periode_start?: string | null
           status: string
           stripe_customer_id?: string | null
-          stripe_invoice_id: string
-          stripe_subscription_id: string
+          stripe_invoice_id?: string | null
+          stripe_subscription_id?: string | null
           updated_at?: string
         }
         Update: {
@@ -1188,13 +1190,14 @@ export type Database = {
           forsoeg?: number | null
           hosted_invoice_url?: string | null
           id?: string
+          kilde?: string
           naeste_forsoeg_at?: string | null
           periode_slut?: string | null
           periode_start?: string | null
           status?: string
           stripe_customer_id?: string | null
-          stripe_invoice_id?: string
-          stripe_subscription_id?: string
+          stripe_invoice_id?: string | null
+          stripe_subscription_id?: string | null
           updated_at?: string
         }
         Relationships: [
