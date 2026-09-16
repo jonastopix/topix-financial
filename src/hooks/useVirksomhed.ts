@@ -192,6 +192,8 @@ export interface VirksomhedsData {
   agentforslagVenter: number;
   /** company_actions med status 'expired' — forslag der udløb uden svar (8/9: 63 i prod, ingen flade viste dem). */
   udloebneForslag: number;
+  /** De seneste fem udløbne forslag (titel, udløb) — fase 0b: rådgiveren skal kunne SE hvad der gik tabt, ikke kun tallet. */
+  udloebneSeneste: { id: string; title: string; expires_at: string | null }[];
   traek: VirksomhedsTraek[];
   perioder: VirksomhedsPeriode[];
   betalingslink: {
@@ -334,16 +336,20 @@ async function hentVirksomhed(companyId: string): Promise<VirksomhedsData | null
     // runde via RPC'en forsiden bruger (AdvisorDashboard:370), og navnet
     // slås op i kode. Få rækker (rådgivere + admins).
     supabase.rpc("get_all_advisor_profiles"),
-    // Forslag der udløb uden svar — kun tallet (head/count). Udløb er
-    // bogført af cronen opgave-udloeb som status 'expired' (20260901090000).
-    // accepted_at IS NULL: forfalds-cronen (20260911010000) lukker også
-    // AKTIVE opgaver som 'expired' — de har accepted_at og er ikke forslag.
+    // Forslag der udløb uden svar — tallet OG de seneste fem titler (fase 0b,
+    // «Én plan»: udløbne synlige for rådgiveren). Udløb er bogført af cronen
+    // opgave-udloeb som status 'expired' (20260901090000). accepted_at IS
+    // NULL: forfalds-cronen (20260911010000) lukker også AKTIVE opgaver som
+    // 'expired' — de har accepted_at og er ikke forslag. count: "exact"
+    // giver hele tallet selv om kun fem rækker hentes.
     supabase
       .from("company_actions")
-      .select("id", { count: "exact", head: true })
+      .select("id, title, expires_at", { count: "exact" })
       .eq("company_id", companyId)
       .eq("status", "expired")
-      .is("accepted_at", null),
+      .is("accepted_at", null)
+      .order("expires_at", { ascending: false, nullsFirst: false })
+      .limit(5),
   ]);
 
   // KPI-mål: ÉT sted fletter (lib/kpiMaal, 7/9) — DB-værdi hvis den findes
@@ -410,6 +416,7 @@ async function hentVirksomhed(companyId: string): Promise<VirksomhedsData | null
       erForslagGyldigt(p.proposed_at, nu),
     ).length,
     udloebneForslag: (() => { if (udloebneRes.error) throw new HentningsFejl("agent_proposals", udloebneRes.error.message); return udloebneRes.count ?? 0; })(),
+    udloebneSeneste: (udloebneRes.data ?? []) as { id: string; title: string; expires_at: string | null }[],
     traek: kraevRaekker(traekRes, "company_traek") as VirksomhedsTraek[],
     perioder: kraevRaekker(perioderRes, "company_perioder"),
     betalingslink: kraevRaekke(linkRes, "company_betalingslink"),

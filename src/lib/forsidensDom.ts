@@ -322,6 +322,13 @@ export interface VirksomhedTilDom {
   /** Motorens agentforslag_venter-signal bærer ikke antallet; det gør dette
       felt (samme tal som VirksomhedsInput.agentforslagVenter). */
   agentforslagVenter: number;
+  /** Fase 0b («Én plan», plan §4 0b): hvor mange af de ventende forslag der
+      HAR en godkend-vej (tool i UNDERSTOETTEDE_SKRIVEVEJE — i dag kun
+      update_weekly_focus). Resten kan kun forkastes, og puklens tekst må
+      ikke love «din afgørelse» om dem (recon §6.4). Valgfri: en kalder uden
+      tallet (VirksomhedView «derfor er du her», ældre tests) får den gamle
+      tekst. */
+  agentforslagMedGodkendVej?: number;
   /** afgoerFornyelsestilstand(…, nu); null når kalderen ikke har regnet den
       (fx legat — samme udsnit som FornyelsesSektion). */
   fornyelse: Fornyelsestilstand | null;
@@ -774,6 +781,16 @@ function navnAf(l: Linje): string {
   return l.linje === "virksomhed" ? l.navn : l.tekst;
 }
 
+/** Puklens tekst (0b): «din afgørelse» loves kun for forslag der kan
+    godkendes. Uden tallet (null): den gamle tekst. Alle med godkend-vej:
+    den gamle tekst. Ingen: «til orientering — de kan kun forkastes».
+    Blandet: begge tal. Kortets egen tekstrettelse (EPIC 4/9, recon §8c). */
+export function pukkeltekst(antal: number, medGodkendVej: number | null, hos: string): string {
+  if (medGodkendVej == null || medGodkendVej >= antal) return `${antal} agentforslag${hos} venter på din afgørelse`;
+  if (medGodkendVej <= 0) return `${antal} agentforslag${hos} til orientering — de kan kun forkastes`;
+  return `${antal} agentforslag${hos}: ${medGodkendVej} venter på din afgørelse, ${antal - medGodkendVej} til orientering`;
+}
+
 function tilstandstekst(slags: OpgaveSlags, antal: number): string {
   const v = flertal(antal, "virksomhed", "virksomheder");
   switch (slags) {
@@ -801,6 +818,9 @@ export function afgoerForsidensDom(virksomheder: readonly VirksomhedTilDom[], nu
   let agentforslagAntal = 0;
   let agentforslagAlvor: number | null = null;
   const agentforslagHos: Pukkellinje["virksomheder"] = [];
+  // Godkend-vej (0b): summen kendes kun når ALLE bidragende virksomheder
+  // bærer tallet — ellers null, og teksten er den gamle.
+  let agentforslagMedGodkendVej: number | null = 0;
 
   for (const v of virksomheder) {
     // Puklen tælles på tværs af alle — også dem der får en linje. Virksomheden
@@ -810,6 +830,11 @@ export function afgoerForsidensDom(virksomheder: readonly VirksomhedTilDom[], nu
       agentforslagAntal += v.agentforslagVenter;
       agentforslagAlvor = Math.max(agentforslagAlvor ?? 0, pukkelSignal.alvor);
       agentforslagHos.push({ companyId: v.companyId, navn: v.navn, antal: v.agentforslagVenter });
+      if (agentforslagMedGodkendVej != null) {
+        agentforslagMedGodkendVej = v.agentforslagMedGodkendVej == null
+          ? null
+          : agentforslagMedGodkendVej + Math.min(v.agentforslagMedGodkendVej, v.agentforslagVenter);
+      }
     }
 
     const grunde = grundeFor(v, nu);
@@ -890,7 +915,7 @@ export function afgoerForsidensDom(virksomheder: readonly VirksomhedTilDom[], nu
       linje: "pukkel",
       slags: "agentforslag",
       antal: agentforslagAntal,
-      tekst: `${agentforslagAntal} agentforslag${hos} venter på din afgørelse`,
+      tekst: pukkeltekst(agentforslagAntal, agentforslagMedGodkendVej, hos),
       virksomheder: agentforslagHos,
       alvor: agentforslagAlvor,
       lukkerOmDage: null,

@@ -20,7 +20,7 @@ import { maaFjerneFraVirksomhed } from "@/lib/medlemsfjernelse";
 import type { CompanyFact } from "@/hooks/useCompanyFacts";
 import { factsToDanishMetrics } from "@/lib/factsAdapter";
 import { afgoerVirksomhedsSignaler, type FactPunkt, type Signal, type VirksomhedsInput } from "@/lib/virksomhedsSignaler";
-import { udloebneForslagTekst } from "@/lib/forslagTab";
+import { UDLOEBNE_VISTE, udloebetDenTekst, udloebneForslagTekst, udloebneRestTekst } from "@/lib/forslagTab";
 import { dageSiden, erLaengeSiden, sidstOnlineTekst } from "@/lib/sidstOnline";
 import { afgoerMilepael } from "@/lib/milepaelDom";
 import { afgoerIntroSession, introSessionTekst, type IntroBooking } from "@/lib/introSession";
@@ -370,7 +370,24 @@ const Blok1 = ({ d, facts, derfor }: { d: VirksomhedsData; facts: CompanyFact[];
           {udloebneTekst && (
             <li className="flex items-baseline gap-3 text-[15px] leading-snug text-hb-ink-soft">
               <span aria-hidden className="mt-[0.55em] h-1.5 w-1.5 shrink-0 rounded-full bg-current" />
-              <span>{udloebneTekst}</span>
+              {/* Fase 0b («Én plan»): tallet er foldet — de seneste fem titler
+                  under det, så rådgiveren ser HVAD der gik tabt, ikke kun at
+                  noget gjorde. Native <details> som ReportDebugView; ingen
+                  ny dom, ingen ny hentning ud over de fem rækker. */}
+              <details className="group" data-udloebne-forslag={d.udloebneForslag}>
+                <summary className="cursor-pointer list-none underline-offset-4 hover:underline">{udloebneTekst}</summary>
+                <ul className="mt-1.5 space-y-1 text-sm">
+                  {d.udloebneSeneste.slice(0, UDLOEBNE_VISTE).map((f) => (
+                    <li key={f.id} className="flex items-baseline gap-2">
+                      <span className="text-hb-ink">{f.title}</span>
+                      {udloebetDenTekst(f.expires_at) && <span className="text-hb-ink-soft">· {udloebetDenTekst(f.expires_at)}</span>}
+                    </li>
+                  ))}
+                  {udloebneRestTekst(d.udloebneForslag, Math.min(d.udloebneSeneste.length, UDLOEBNE_VISTE)) && (
+                    <li className="text-hb-ink-soft">{udloebneRestTekst(d.udloebneForslag, Math.min(d.udloebneSeneste.length, UDLOEBNE_VISTE))}</li>
+                  )}
+                </ul>
+              </details>
             </li>
           )}
         </ul>
