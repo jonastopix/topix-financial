@@ -134,7 +134,7 @@ async function hentVirksomhedsliste(): Promise<Raekke[]> {
     // filtreret serverside, som på /members. Kolonnerne er FejletTraek.
     supabase
       .from("company_traek")
-      .select("company_id, stripe_invoice_id, beloeb_oere, fejlet_at, forsoeg, naeste_forsoeg_at, fejl_kode, fejl_decline_code, fejl_besked, hosted_invoice_url, faktura_nummer, periode_start")
+      .select("company_id, stripe_invoice_id, beloeb_oere, moms_oere, fejlet_at, forsoeg, naeste_forsoeg_at, fejl_kode, fejl_decline_code, fejl_besked, hosted_invoice_url, faktura_nummer, periode_start")
       .eq("status", "fejlet")
       .order("fejlet_at", { ascending: false })
       .limit(500),

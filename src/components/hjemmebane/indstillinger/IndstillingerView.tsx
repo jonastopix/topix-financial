@@ -201,7 +201,7 @@ export const IndstillingerView = () => {
     queryFn: async () => {
       const [perioder, traek] = await Promise.all([
         supabase.from("company_perioder").select("id, art, betalingsmodel, beloeb_oere, periode_start, periode_slut").eq("company_id", company!.id).order("periode_start", { ascending: false }),
-        supabase.from("company_traek").select("id, kilde, stripe_invoice_id, status, beloeb_oere, betalt_at, fejlet_at, faktura_nummer, hosted_invoice_url").eq("company_id", company!.id).order("periode_start", { ascending: false }).limit(100),
+        supabase.from("company_traek").select("id, kilde, stripe_invoice_id, status, beloeb_oere, moms_oere, betalt_at, fejlet_at, faktura_nummer, hosted_invoice_url").eq("company_id", company!.id).order("periode_start", { ascending: false }).limit(100),
       ]);
       if (perioder.error) throw perioder.error;
       if (traek.error) throw traek.error;

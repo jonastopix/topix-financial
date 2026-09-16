@@ -59,9 +59,9 @@ describe("traekGrund.guard — payment_failed henter grunden, og opslaget kan ik
     expect(h).not.toContain("fetch(");
   });
 
-  it("klokken: rækken læses med fejl_kode, og advice_code kommer fra dagens opslag", () => {
+  it("klokken: rækken læses med fejl_kode og moms_oere (16/9), og advice_code kommer fra dagens opslag", () => {
     const m = krop(webhook, "async function meldFejletTraek(");
-    expect(m).toContain('.select("id, status, company_id, beloeb_oere, fejl_besked, fejl_decline_code, fejl_kode, faktura_nummer, naeste_forsoeg_at")');
+    expect(m).toContain('.select("id, status, company_id, beloeb_oere, moms_oere, fejl_besked, fejl_decline_code, fejl_kode, faktura_nummer, naeste_forsoeg_at")');
     expect(m).toContain("adviceCode: traek.fejl?.advice_code ?? null,");
   });
 

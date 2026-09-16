@@ -540,7 +540,7 @@ async function meldFejletTraek(
   try {
     const { data: raekke, error: raekkeFejl } = await adminClient
       .from("company_traek")
-      .select("id, status, company_id, beloeb_oere, fejl_besked, fejl_decline_code, fejl_kode, faktura_nummer, naeste_forsoeg_at")
+      .select("id, status, company_id, beloeb_oere, moms_oere, fejl_besked, fejl_decline_code, fejl_kode, faktura_nummer, naeste_forsoeg_at")
       .eq("id", traek.id)
       .maybeSingle();
     if (raekkeFejl) throw new Error(`company_traek-opslag fejlede: ${raekkeFejl.message}`);

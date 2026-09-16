@@ -45,6 +45,8 @@ export interface FejletTraek {
   company_id: string;
   stripe_invoice_id: string | null;
   beloeb_oere: number;
+  /** Momsen i beloeb_oere (20260917120000). null = ikke kendt → beløbet vises «inkl. moms». */
+  moms_oere: number | null;
   fejlet_at: string | null;
   forsoeg: number | null;
   naeste_forsoeg_at: string | null;
@@ -72,9 +74,30 @@ export function datoOgTid(iso: string | null | undefined): string | null {
   return format(d, "d. MMM yyyy 'kl.' HH:mm", { locale: da });
 }
 
-/** 437500 → «4.375 kr.» — beløbet er inkl. moms (company_traek.beloeb_oere). */
+/** 437500 → «4.375 kr.» — tallet alene, uden momsord. */
 export function beloebKr(oere: number): string {
   return `${new Intl.NumberFormat("da-DK", { maximumFractionDigits: 0 }).format(Math.round(oere / 100))} kr.`;
+}
+
+/**
+ * Beløbet UDEN moms (16/9; Jonas: «Priserne vi vil se er dem ex. moms.»):
+ * beloeb_oere − moms_oere når momsen er kendt. null når moms_oere er null —
+ * momsen er ikke kendt, og der gættes ALDRIG på 25 % (en kunde uden dansk
+ * moms må ikke vises forkert). Momsen gemmes pr. betaling i
+ * company_traek.moms_oere (20260917120000).
+ */
+export function beloebEksMoms(t: { beloeb_oere: number; moms_oere: number | null | undefined }): number | null {
+  return typeof t.moms_oere === "number" && Number.isFinite(t.moms_oere) ? t.beloeb_oere - t.moms_oere : null;
+}
+
+/**
+ * Beløbet som fladerne skriver det: «3.500 kr. ekskl. moms» når momsen er
+ * kendt, ellers «4.375 kr. inkl. moms» — beløbet vi HAR, med det ord der
+ * er sandt. Aldrig et gæt.
+ */
+export function beloebTekst(t: { beloeb_oere: number; moms_oere: number | null | undefined }): string {
+  const eks = beloebEksMoms(t);
+  return eks === null ? `${beloebKr(t.beloeb_oere)} inkl. moms` : `${beloebKr(eks)} ekskl. moms`;
 }
 
 /**

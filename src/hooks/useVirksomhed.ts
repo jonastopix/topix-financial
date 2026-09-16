@@ -272,7 +272,7 @@ async function hentVirksomhed(companyId: string): Promise<VirksomhedsData | null
       .limit(500),
     supabase
       .from("company_traek")
-      .select("id, kilde, company_id, stripe_invoice_id, beloeb_oere, fejlet_at, forsoeg, naeste_forsoeg_at, fejl_kode, fejl_decline_code, fejl_besked, hosted_invoice_url, faktura_nummer, periode_start, periode_slut, status, art, betalt_at")
+      .select("id, kilde, company_id, stripe_invoice_id, beloeb_oere, moms_oere, fejlet_at, forsoeg, naeste_forsoeg_at, fejl_kode, fejl_decline_code, fejl_besked, hosted_invoice_url, faktura_nummer, periode_start, periode_slut, status, art, betalt_at")
       .eq("company_id", companyId)
       .order("periode_start", { ascending: false })
       .limit(100),

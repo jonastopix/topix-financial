@@ -5,6 +5,7 @@ import {
   abonnementsperiodeFraLinjer,
   bygTraekRaekke,
   maaRegistrereFejlet,
+  momsFraFaktura,
   paymentIntentIdFraFaktura,
   paymentIntentIdFraInvoicePayments,
   traekFejlFraPaymentIntent,
@@ -267,5 +268,46 @@ describe("maaRegistrereFejlet — et betalt træk bliver aldrig til fejlet (11/9
   });
   it("rækken står som betalt → skriv IKKE: betalt er slutstatus, og et senere fejlet-event er et ældre forsøg", () => {
     expect(maaRegistrereFejlet("betalt")).toBe(false);
+  });
+});
+
+// ── Momsen pr. betaling (16/9; Jonas: «Priserne vi vil se er dem ex. moms.») ──
+// Aldrig 25 % antaget: momsen læses fra Stripes Invoice-objekt. Referencen
+// (docs.stripe.com/api/invoices/object, 16/9): «total_taxes — The aggregate
+// tax information of all line items» med «amount — The amount of the tax, in
+// the smallest currency unit»; changelog 2025-03-31.basil «Replaces top-level
+// tax-related properties …»: «`tax`, `total_tax_amounts` — Removed — Invoice».
+describe("momsFraFaktura — momsen fra Stripe, i rækkefølge, aldrig et gæt", () => {
+  // doggybed rate 12 som en basil-faktura bærer det: 3.500 + 875 = 4.375 kr.
+  const basilMoms = { total_taxes: [{ amount: 87_500, tax_behavior: "exclusive", type: "tax_rate_details" }], total: 437_500, total_excluding_tax: 350_000 };
+  it("basil: total_taxes[].amount summeret — flere elementer lægges sammen", () => {
+    expect(momsFraFaktura(basilMoms)).toBe(87_500);
+    expect(momsFraFaktura({ total_taxes: [{ amount: 50_000 }, { amount: 37_500 }] })).toBe(87_500);
+  });
+  it("basil med TOM total_taxes er et svar: ingen moms → 0 (fx en momsfri kunde eller en 0-faktura)", () => {
+    expect(momsFraFaktura({ total_taxes: [], total: 0 })).toBe(0);
+    expect(momsFraFaktura({ total_taxes: [], total: 350_000, total_excluding_tax: 350_000 })).toBe(0);
+  });
+  it("ældre API: `tax` når total_taxes mangler; ellers total_tax_amounts[] summeret", () => {
+    expect(momsFraFaktura({ tax: 87_500, total: 437_500 })).toBe(87_500);
+    expect(momsFraFaktura({ tax: null, total_tax_amounts: [{ amount: 87_500 }], total: 437_500 })).toBe(87_500);
+  });
+  it("kun total og total_excluding_tax: differencen", () => {
+    expect(momsFraFaktura({ total: 437_500, total_excluding_tax: 350_000 })).toBe(87_500);
+  });
+  it("intet af det → null (ikke kendt) — og aldrig beløb × 0,2", () => {
+    expect(momsFraFaktura({ total: 437_500 })).toBeNull();
+    expect(momsFraFaktura({})).toBeNull();
+    expect(momsFraFaktura({ total_taxes: null, tax: null, total_tax_amounts: null, total: 437_500, total_excluding_tax: null })).toBeNull();
+  });
+  it("bygTraekRaekke bærer moms_oere: fra basil-fakturaen 87.500; uden momsfelter null", () => {
+    const med = bygTraekRaekke({ ...basil, ...basilMoms }, "betalt", COMPANY, "sub_x", "migreret", null, NU);
+    expect(med.moms_oere).toBe(87_500);
+    expect(med.beloeb_oere).toBe(437_500);
+    const uden = bygTraekRaekke(basil, "betalt", COMPANY, "sub_x", "migreret", null, NU);
+    expect(uden.moms_oere).toBeNull();
+    expect("moms_oere" in uden).toBe(true);
+    // Fejlet træk bærer også momsen (samme faktura, samme moms).
+    expect(bygTraekRaekke({ ...aeldre, tax: 87_500 }, "fejlet", COMPANY, "sub_aeldre", null, null, NU).moms_oere).toBe(87_500);
   });
 });

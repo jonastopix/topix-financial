@@ -10,6 +10,7 @@ import {
   dubletBeskedTekst,
   fornyelsesBeskedTekst,
   raadgivereUdenRaekke,
+  traekBeloebTekst,
   traekFejletBeskedTekst,
   TYPE_FORNYELSE_BETALT,
   TYPE_FORNYELSE_DUBLET,
@@ -71,13 +72,13 @@ describe("det fejlede træk (kort 23)", () => {
     ...over,
   });
 
-  it("teksten: virksomhed og beløb inkl. moms i titlen; grunden på dansk med Stripes besked i parentes, næste forsøg og faktura i teksten (16/9)", () => {
+  it("teksten: virksomhed og beløb i titlen — «inkl. moms» når momsen ikke er kendt (16/9); grunden på dansk med Stripes besked i parentes, næste forsøg og faktura i teksten (16/9)", () => {
     expect(TYPE_TRAEK_FEJLET).toBe("traek_fejlet");
     expect(traekFejletBeskedTekst({
       virksomhed: "doggybed", beloebOere: 437_500, fejlBesked: "Your card has insufficient funds.", declineCode: "insufficient_funds",
       naesteForsoegTekst: "17. september 2026", fakturaNummer: "DZ7BZXM5-0012",
     })).toEqual({
-      title: "doggybed: et træk på 4.375 kr. fejlede",
+      title: "doggybed: et træk på 4.375 kr. inkl. moms fejlede",
       body: "ikke nok penge på kontoen (Stripe: Your card has insufficient funds.) · prøver igen 17. september 2026 · faktura DZ7BZXM5-0012",
     });
   });
@@ -90,9 +91,20 @@ describe("det fejlede træk (kort 23)", () => {
     expect(grund(null, "en_kode_vi_ikke_kender")).toBe("en_kode_vi_ikke_kender · ingen flere forsøg fra Stripe");
     expect(grund("Kortet blev afvist.", null)).toBe("Stripe: Kortet blev afvist. · ingen flere forsøg fra Stripe");
   });
+  it("momsen kendt (16/9): titlen siger beløbet EKSKL. moms — 4.375 − 875 = «3.500 kr. ekskl. moms»; moms 0 → «… ekskl. moms» med hele beløbet; null/udeladt → «inkl. moms»", () => {
+    const t = traekFejletBeskedTekst({ virksomhed: "doggybed", beloebOere: 437_500, momsOere: 87_500, fejlBesked: null, declineCode: "card_declined", naesteForsoegTekst: null, fakturaNummer: null });
+    expect(t.title).toBe("doggybed: et træk på 3.500 kr. ekskl. moms fejlede");
+    expect(traekFejletBeskedTekst({ virksomhed: "X", beloebOere: 437_500, momsOere: 0, fejlBesked: null, declineCode: null, naesteForsoegTekst: null, fakturaNummer: null }).title).toBe("X: et træk på 4.375 kr. ekskl. moms fejlede");
+    expect(traekFejletBeskedTekst({ virksomhed: "X", beloebOere: 437_500, momsOere: null, fejlBesked: null, declineCode: null, naesteForsoegTekst: null, fakturaNummer: null }).title).toBe("X: et træk på 4.375 kr. inkl. moms fejlede");
+    expect(traekBeloebTekst(437_500, 87_500)).toBe("3.500 kr. ekskl. moms");
+    expect(traekBeloebTekst(437_500, undefined)).toBe("4.375 kr. inkl. moms");
+    // Dommen bærer rækkens moms_oere med; uden kolonnen (ældre række) → inkl.
+    expect(beskedVedFejletTraek({ traek: raekke({ moms_oere: 87_500 }), virksomhed: "doggybed", naesteForsoegTekst: null })?.title).toBe("doggybed: et træk på 3.500 kr. ekskl. moms fejlede");
+    expect(beskedVedFejletTraek({ traek: raekke(), virksomhed: "doggybed", naesteForsoegTekst: null })?.title).toBe("doggybed: et træk på 4.375 kr. inkl. moms fejlede");
+  });
   it("uden næste forsøg: «ingen flere forsøg fra Stripe»; uden fakturanummer udelades leddet", () => {
     const t = traekFejletBeskedTekst({ virksomhed: "X", beloebOere: 250_000, fejlBesked: null, declineCode: "expired_card", naesteForsoegTekst: null, fakturaNummer: null });
-    expect(t.title).toBe("X: et træk på 2.500 kr. fejlede");
+    expect(t.title).toBe("X: et træk på 2.500 kr. inkl. moms fejlede");
     expect(t.body).toBe("kortet er udløbet · ingen flere forsøg fra Stripe");
     expect(t.body).not.toContain("faktura");
   });
@@ -120,7 +132,7 @@ describe("det fejlede træk (kort 23)", () => {
       virksomhed: "Livja", beloebOere: 437_500, fejlBesked: "Invalid account.", declineCode: "invalid_account", kode: "card_declined",
       naesteForsoegTekst: "19. september 2026", fakturaNummer: "TBR-0007", adviceCode: "do_not_try_again",
     });
-    expect(t.title).toBe("Livja: et træk på 4.375 kr. fejlede");
+    expect(t.title).toBe("Livja: et træk på 4.375 kr. inkl. moms fejlede");
     expect(t.body).toBe("kortet er afvist: lukket eller ugyldig konto (Stripe: Invalid account.) · Stripes nye forsøg (19. september 2026) vil ikke lykkes — medlemmet skal have et nyt kort · faktura TBR-0007");
     expect(t.body).not.toContain("prøver igen");
     expect(t.body).not.toContain("Stripe gav ingen grund");
@@ -145,7 +157,7 @@ describe("det fejlede træk (kort 23)", () => {
   it("dommen: en fejlet række med id og virksomhed giver beskeden med reference_id = company_traek.id", () => {
     expect(beskedVedFejletTraek({ traek: raekke(), virksomhed: "doggybed", naesteForsoegTekst: "17. september 2026" })).toEqual({
       type: "traek_fejlet",
-      title: "doggybed: et træk på 4.375 kr. fejlede",
+      title: "doggybed: et træk på 4.375 kr. inkl. moms fejlede",
       body: "ikke nok penge på kontoen (Stripe: Your card has insufficient funds.) · prøver igen 17. september 2026 · faktura DZ7BZXM5-0012",
       company_id: "c1",
       reference_type: "traek",

@@ -44,10 +44,10 @@ describe("harFakturaLink — kun når Stripe har en side", () => {
 });
 
 describe("traekLinje (medlemmets flade) — nøgle og label pr. kilde", () => {
-  const basis = { status: "betalt", beloeb_oere: 5000000, betalt_at: "2026-01-21T11:00:00Z", fejlet_at: null, hosted_invoice_url: null };
+  const basis = { status: "betalt", beloeb_oere: 5000000, moms_oere: 1000000, betalt_at: "2026-01-21T11:00:00Z", fejlet_at: null, hosted_invoice_url: null };
   it("e-conomic-række: nøglen er rækkens id, label «e-conomic #{nr}», intet fakturalink", () => {
     const l = traekLinje({ ...basis, id: "row-1", kilde: "e-conomic", stripe_invoice_id: null, faktura_nummer: "122" });
-    expect(l).toEqual({ id: "row-1", label: "e-conomic #122", vaerdi: "50.000 kr. · Betalt 21. januar 2026", rust: false, fakturaUrl: null });
+    expect(l).toEqual({ id: "row-1", label: "e-conomic #122", vaerdi: "40.000 kr. ekskl. moms · Betalt 21. januar 2026", rust: false, fakturaUrl: null });
   });
   it("engangsbetaling: «Stripe · {nr}», link når Stripe har en side", () => {
     const l = traekLinje({ ...basis, id: "row-2", kilde: "stripe_engang", stripe_invoice_id: "in_1Ry8oB", faktura_nummer: "D9VAUPRB-0001", hosted_invoice_url: "https://invoice.stripe.com/i/y" });

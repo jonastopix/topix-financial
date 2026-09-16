@@ -17,6 +17,7 @@ const traek = (overrides: Partial<FejletTraek> = {}): FejletTraek => ({
   company_id: "c1",
   stripe_invoice_id: "in_1",
   beloeb_oere: 437_500,
+  moms_oere: null,
   fejlet_at: "2026-09-13T08:35:29.000Z",
   forsoeg: 1,
   naeste_forsoeg_at: "2026-09-17T08:35:29.000Z",

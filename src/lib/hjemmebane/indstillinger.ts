@@ -43,7 +43,7 @@
  * sendes til /konto og så aldrig den fane.
  */
 
-import { beloebKr, harFakturaLink, traekLabel } from "@/lib/traek";
+import { beloebKr, beloebTekst, harFakturaLink, traekLabel } from "@/lib/traek";
 import type { MembershipTier } from "@/lib/membershipTier";
 import { kalenderdageTil } from "./aftaler";
 
@@ -107,8 +107,8 @@ export function aftaleLinjer(a: AftaleInput, tier: MembershipTier, nu: Date): Af
   const start = formatDato(a.contract_start_date);
   if (start) linjer.push({ label: "Start", vaerdi: start });
   linjer.push({ label: "Slut", vaerdi: formatDato(a.contract_end_date) ?? "Ikke registreret", rust: !a.contract_end_date });
-  if (a.indgangspris_oere != null) linjer.push({ label: "Pris", vaerdi: `${beloebKr(a.indgangspris_oere)} for medlemskabet` });
-  if (a.fornyelsespris_oere != null) linjer.push({ label: "Fornyelsespris", vaerdi: beloebKr(a.fornyelsespris_oere) });
+  if (a.indgangspris_oere != null) linjer.push({ label: "Pris", vaerdi: `${beloebKr(a.indgangspris_oere)} ekskl. moms for medlemskabet` });
+  if (a.fornyelsespris_oere != null) linjer.push({ label: "Fornyelsespris", vaerdi: `${beloebKr(a.fornyelsespris_oere)} ekskl. moms` });
   return linjer;
 }
 
@@ -140,6 +140,8 @@ export interface TraekInput {
   stripe_invoice_id: string | null;
   status: string;
   beloeb_oere: number;
+  /** Momsen i beloeb_oere; null = ikke kendt → «inkl. moms» (lib/traek.beloebTekst). */
+  moms_oere: number | null;
   betalt_at: string | null;
   fejlet_at: string | null;
   faktura_nummer: string | null;
@@ -162,7 +164,8 @@ export function periodeLinje(p: PeriodeInput): BetalingsLinje {
   return {
     id: p.id,
     label: `${formatDato(p.periode_start) ?? p.periode_start} – ${formatDato(p.periode_slut) ?? p.periode_slut}`,
-    vaerdi: `${beloebKr(p.beloeb_oere)} · ${model} · ${ART_LABEL[p.art] ?? p.art}`,
+    // company_perioder.beloeb_oere er UDEN moms (20260901140000:37) — ordet står, så listen er ens (16/9).
+    vaerdi: `${beloebKr(p.beloeb_oere)} ekskl. moms · ${model} · ${ART_LABEL[p.art] ?? p.art}`,
   };
 }
 
@@ -182,7 +185,8 @@ export function traekLinje(t: TraekInput): BetalingsLinje {
     // Kilden i medlemmets ord: «Faktura {nr}» for abonnementstræk (som før),
     // «Stripe · {nr}» og «e-conomic #{nr}» for de andre (lib/traek.traekLabel).
     label: traekLabel(t, "Faktura"),
-    vaerdi: `${beloebKr(t.beloeb_oere)} · ${traekStatusOrd(t.status)}${dato ? ` ${dato}` : ""}`,
+    // Beløbet ekskl. moms når momsen er kendt, ellers «inkl. moms» (16/9) — aldrig et gæt.
+    vaerdi: `${beloebTekst(t)} · ${traekStatusOrd(t.status)}${dato ? ` ${dato}` : ""}`,
     rust: t.status === "fejlet",
     fakturaUrl: harFakturaLink(t) ? t.hosted_invoice_url : null,
   };

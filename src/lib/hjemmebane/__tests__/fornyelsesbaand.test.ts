@@ -32,7 +32,7 @@ describe("fornyelsesbåndets tekster", () => {
       betalingsmodel, samlet_oere: samlet, rate_oere: rate, antal_traek: antal, lookup_key: `fornyelse_20000_${betalingsmodel}`,
     });
     expect(beskrivMulighed(m("fuld", 2_000_000, 2_000_000, 1))).toBe("Betal på én gang");
-    expect(beskrivMulighed(m("rate2", 2_000_000, 1_000_000, 2))).toBe("2 rater à 10.000 kr. — nu og om 6 måneder");
-    expect(beskrivMulighed(m("rate12", 2_100_000, 175_000, 12))).toBe("12 rater à 1.750 kr. — i alt 21.000 kr.");
+    expect(beskrivMulighed(m("rate2", 2_000_000, 1_000_000, 2))).toBe("2 rater à 10.000 kr. ekskl. moms — nu og om 6 måneder");
+    expect(beskrivMulighed(m("rate12", 2_100_000, 175_000, 12))).toBe("12 rater à 1.750 kr. ekskl. moms — i alt 21.000 kr. ekskl. moms");
   });
 });
