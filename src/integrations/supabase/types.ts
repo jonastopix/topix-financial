@@ -823,6 +823,7 @@ export type Database = {
           expires_at: string | null
           generated_at: string | null
           id: string
+          maal_id: string | null
           priority: string
           proposed_by: string | null
           source_id: string | null
@@ -846,6 +847,7 @@ export type Database = {
           expires_at?: string | null
           generated_at?: string | null
           id?: string
+          maal_id?: string | null
           priority?: string
           proposed_by?: string | null
           source_id?: string | null
@@ -869,6 +871,7 @@ export type Database = {
           expires_at?: string | null
           generated_at?: string | null
           id?: string
+          maal_id?: string | null
           priority?: string
           proposed_by?: string | null
           source_id?: string | null
@@ -885,6 +888,13 @@ export type Database = {
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "company_actions_maal_id_fkey"
+            columns: ["maal_id"]
+            isOneToOne: false
+            referencedRelation: "milestones"
             referencedColumns: ["id"]
           },
         ]
@@ -2595,6 +2605,7 @@ export type Database = {
           baseline: string | null
           category: string
           company_id: string
+          completed_at: string | null
           created_at: string
           current_value: number | null
           deadline: string | null
@@ -2615,6 +2626,7 @@ export type Database = {
           baseline?: string | null
           category?: string
           company_id: string
+          completed_at?: string | null
           created_at?: string
           current_value?: number | null
           deadline?: string | null
@@ -2635,6 +2647,7 @@ export type Database = {
           baseline?: string | null
           category?: string
           company_id?: string
+          completed_at?: string | null
           created_at?: string
           current_value?: number | null
           deadline?: string | null
