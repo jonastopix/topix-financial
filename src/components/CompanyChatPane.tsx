@@ -278,24 +278,37 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
   });
 
 
-  // Deep linking
+  // Deep linking. To nøgler til samtalen: ?conversationId= (notifications'
+  // deep_link, notify-chat-reply) og ?companyId= (rådgiverens klokke, 16/9 —
+  // advisor_notifications bærer virksomheden og beskedens id, ikke samtalens
+  // id; lib/hjemmebane/klokke.chatSti). Listen ovenfor holder én samtale pr.
+  // virksomhed (dedupe på company_id), så virksomheden peger entydigt på den
+  // samtale rådgiveren selv ville klikke på. Ukendt id (samtale eller
+  // virksomhed der ikke er i listen): intet sker — indbakken står som før.
   useEffect(() => {
     const convParam = searchParams.get("conversationId");
+    const companyParam = searchParams.get("companyId");
     const msgParam = searchParams.get("messageId");
-    if (convParam && conversations.length > 0) {
-      const conv = conversations.find(c => c.id === convParam);
-      if (conv && activeConvId !== convParam) {
-        setActiveConvId(convParam);
-        if (isMobile) setShowMessages(true);
-        // Clear URL param immediately after applying — prevents re-locking
+    if (conversations.length === 0) return;
+    const conv = convParam
+      ? conversations.find(c => c.id === convParam)
+      : companyParam
+        ? conversations.find(c => c.company_id === companyParam)
+        : undefined;
+    if (!conv) return;
+    if (activeConvId !== conv.id) {
+      setActiveConvId(conv.id);
+      if (isMobile) setShowMessages(true);
+      // Clear URL param immediately after applying — prevents re-locking.
+      // Med ?messageId= ryddes først EFTER rulningen (16/9): ryddes den her,
+      // er beskedens id væk når beskederne er hentet, og der rulles aldrig.
+      if (!msgParam) setSearchParams({}, { replace: true });
+    }
+    if (msgParam && messages.length > 0 && activeConvId === conv.id) {
+      setTimeout(() => {
+        scrollToMessage(msgParam);
         setSearchParams({}, { replace: true });
-      }
-      if (msgParam && messages.length > 0 && activeConvId === convParam) {
-        setTimeout(() => {
-          scrollToMessage(msgParam);
-          setSearchParams({}, { replace: true });
-        }, 300);
-      }
+      }, 300);
     }
   }, [searchParams, conversations, messages, activeConvId]);
 
