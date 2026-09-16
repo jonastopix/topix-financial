@@ -6,7 +6,8 @@ import { toast } from "sonner";
 import { ArrowRight, ChevronRight, Loader2, RefreshCw } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { HbCard } from "@/components/hjemmebane/HbCard";
-import { HbButton } from "@/components/hjemmebane/HbButton";
+import { HbButton, hbButtonVariants } from "@/components/hjemmebane/HbButton";
+import { cn } from "@/lib/utils";
 import { useHbDokumentGrund } from "@/hooks/useHbDokumentGrund";
 import {
   alleIndgangsmuligheder,
@@ -21,6 +22,7 @@ import {
   laesBetaltHint,
   skalHenteIgen,
 } from "@/lib/betalKvittering";
+import { afgoerEfterFristen, formaterFrist } from "@/lib/betalEfterFristen";
 
 /** /betal?token=<uuid> — betalingssiden i indgangen (docs/indgangen-design.md
     §5, §12-§16). En person UDEN konto lander her fra dag 0-mailen og vælger
@@ -47,7 +49,16 @@ import {
     KVITTERING_RETRY_MS i op til KVITTERING_GRAENSE_MS, og siger derefter
     ærligt at bekræftelsen mangler. Dommen «betalt» er stadig databasens
     alene — hintet vælger kun venteskærmen (src/lib/betalKvittering.ts).
-    Forlæg: fornyelses-låsen i Index.tsx og FornyelseKvittering. */
+    Forlæg: fornyelses-låsen i Index.tsx og FornyelseKvittering.
+
+    EFTER FRISTEN (DE TYVE (12), 16/9): gren 6 følger STEMPLET, ikke dagene.
+    Før fakturaen er sendt siger siden «Fristen udløb {frist}. Du får en
+    faktura på det fulde beløb. Pladsen står stadig klar til dig.»; efter
+    «Vi har sendt fakturaen på mail den {dato}. Pladsen står stadig klar til
+    dig.» med knappen «Betal fakturaen» til Stripes hostede fakturaside.
+    Dommen er ren (src/lib/betalEfterFristen.ts) og læser faktura_sendt_den
+    og faktura_url fra hent_betalingstilbud (migration 20260916150000).
+    Mailadressen står aldrig på siden. */
 
 type Betalingsstatus =
   | "betalt"
@@ -63,6 +74,10 @@ interface Betalingstilbud {
   /** "YYYY-MM-DD" fra SQL'ens (underskrevet_at::date + 30)::text — kontraktens frist (rettet 2/9). */
   frist: string | null;
   dage_tilbage: number | null;
+  /** "YYYY-MM-DD" fra faktura_sendt_at::date::text — null = dag 31-fakturaen er ikke sendt (16/9). */
+  faktura_sendt_den: string | null;
+  /** Stripes hosted_invoice_url — null før afsendelse, eller hvis Stripe ikke gav et link (16/9). */
+  faktura_url: string | null;
 }
 
 /* De fire udfald af opslaget holdes adskilt — især "ukendt" og "fejl".
@@ -100,18 +115,8 @@ function beskrivMulighed(m: Indgangsmulighed): string {
   }
 }
 
-const MAANEDER = [
-  "januar", "februar", "marts", "april", "maj", "juni",
-  "juli", "august", "september", "oktober", "november", "december",
-];
-
-/** "2026-10-02" → "2. oktober 2026". Splitter selv frem for new Date(),
-    så datoen ikke skifter med maskinens tidszone (nextStep.ts-mønstret). */
-function formaterFrist(iso: string): string {
-  const [aar, md, dag] = iso.split("-").map((s) => Number(s));
-  if (!aar || !md || !dag || md < 1 || md > 12) return iso;
-  return `${dag}. ${MAANEDER[md - 1]} ${aar}`;
-}
+// formaterFrist bor i src/lib/betalEfterFristen.ts (16/9) — samme funktion
+// til «Betal inden …» og «Fristen udløb …».
 
 // Kontaktadressen (14/9): kontakt@theboardroom.dk, ét sted — lib/kontaktadresse.ts.
 const MAILTO = mailtoKontakt("The Boardroom — mit betalingslink");
@@ -383,15 +388,28 @@ export default function Betal() {
     );
   }
 
-  // ── 6. Fristen er passeret — aftalen bortfalder IKKE (§4) ───────────────
+  // ── 6. Fristen er passeret — aftalen bortfalder IKKE (§4). Teksten følger
+  //       stemplet faktura_sendt_at, ikke dagene (16/9): før afsendelse «du
+  //       får», efter «vi har sendt» + «Betal fakturaen». Dommen er ren. ──
   if (tilbud.status === "frist_overskredet") {
+    const efter = afgoerEfterFristen(tilbud);
     return (
       <Ramme>
-        <Overskrift
-          titel="Fristen er passeret"
-          tekst="Vi har sendt en faktura på det fulde beløb, og pladsen står stadig klar til dig. Har du spørgsmål til fakturaen, så skriv til os."
-        />
-        <HbCard className="p-5">
+        <Overskrift titel={efter.titel} tekst={efter.tekst} />
+        <HbCard className="p-5 space-y-3">
+          {efter.knap && (
+            /* Stripes hostede fakturaside — nyt vindue, ingen opener.
+               href er dommens (kun https://), aldrig en literal her. */
+            <a
+              href={efter.knap.href}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={cn(hbButtonVariants({ variant: "primary" }), "w-full justify-between text-left")}
+            >
+              {efter.knap.label}
+              <ArrowRight className="h-4 w-4 shrink-0" />
+            </a>
+          )}
           <HbButton
             variant="secondary"
             onClick={() => { window.location.href = MAILTO; }}

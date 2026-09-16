@@ -174,6 +174,40 @@ to the entire access-control model.
 - **Fact line** (migration `20260909150000_profilen_forfra.sql`): all three RPCs gained two trailing columns, `city` (`companies.city`) and `stiftet_aar` (`EXTRACT(year FROM companies.start_date)`, the CVR founding date) — public register data, NULL on the advisor branch. Return type changed → DROP + CREATE again, grants re-applied. Deliberately NOT exposed: `annual_revenue`, `revenue_interval`, any `financial_report_facts` — "no numbers between members that they did not choose to write themselves" (Jonas 9/9). Same migration re-labels the shared text fields (`companies.description` = «Det laver vi», `ask_me_about` = «Det har jeg været igennem», `working_on` = «Det leder jeg efter») and NULLs `working_on` (meaning change; 0 of 25 members had a row 9/9). `companies.description` is now written by the member through the existing `Members can update own company` policy — no policy change.
 - Introduced in migration `20260810120000_member_profiles.sql`; rationale under `member_profiles` in section 5
 
+### Payment-link lookups: `hent_betalingstilbud(betalingstoken uuid) → json`, `hent_betalingsdata_til_checkout(betalingstoken uuid) → json`
+- Both: `language sql`, STABLE, SECURITY DEFINER with `search_path = public`; the
+  token is the ARGUMENT, never a filter (`WHERE bl.token = betalingstoken LIMIT 1`)
+  — RLS is row-level and cannot see the URL, so a "lookup by token" policy would
+  expose every row (migration `20260902090000_hent_betalingstilbud.sql`). Table
+  `company_betalingslink` has advisor FOR ALL and service_role FOR ALL only; no
+  anon/member policy — the token is a bearer credential and lives in a table the
+  client can never read (`20260902080000_betalingslink.sql`).
+- `hent_betalingstilbud`: callable by **anon** (the visitor has no account yet),
+  authenticated and service_role — `REVOKE ALL FROM PUBLIC` then explicit
+  `GRANT EXECUTE` to the three. Returns `status`, `virksomhed`,
+  `prisniveau_oere`, `frist`, `dage_tilbage` and, since migration
+  `20260916150000_betal_efter_fristen.sql` (Jonas 16/9: «Vi skal bygge det
+  bedste»), `faktura_sendt_den` (`faktura_sendt_at::date::text`, NULL until the
+  day-31 invoice has actually been sent) and `faktura_url` (Stripe's
+  `hosted_invoice_url`, NULL until sent). The invoice link is itself a bearer
+  URL that Stripe mails to the same `contact_email` the token went to — same
+  audience, same action (pay). **NEVER expose** `contact_email`, `cvr_number`,
+  `company_id`, `company_fornyelse` decisions or anything not listed. «betalt»
+  is judged on `contract_end_date + 1 > now()` (the door, `20260911050000`);
+  `src/lib/__tests__/doeren.guard.test.ts` locks that file and
+  `betalEfterFristen.guard.test.ts` locks the newer one (the last file run wins).
+- `hent_betalingsdata_til_checkout`: **service_role only** (`REVOKE` from
+  PUBLIC, anon and authenticated). Returns `company_id`, `virksomhed`,
+  `kontakt_email`, `prisniveau_oere` — and only while payment is allowed
+  (not paid, price set, mail sent, within the 30-day window, contact email
+  present). Kept separate precisely so the anon-callable function never has a
+  reason to carry the mail or the company id. Unchanged by `20260916150000`.
+- Column `company_betalingslink.faktura_url` (added `20260916150000`) is written
+  ONLY by `_shared/indgangsFaktura.ts` (`stemplFaktura`) in the same UPDATE as
+  `faktura_invoice_id`/`faktura_sendt_at`, after Stripe has finalized and sent
+  the invoice. The client shows it only as an `https://` link in a new window
+  (`src/lib/betalEfterFristen.ts` rejects anything else).
+
 ---
 
 ## 2. Auth Trigger
