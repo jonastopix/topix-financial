@@ -11,7 +11,7 @@ import { join, relative, resolve } from "node:path";
 //   2. batchAcknowledge og clearAcknowledge (adminContentApi.ts) nævner
 //      ikke brugbar — rådgiverens markering og fortryd rører aldrig svaret.
 //   3. Ingen fil under src/ nævner brugbar_at ud over types.ts, lektionBrugbar.ts,
-//      akademiApi.ts og testfiler — ingen læser af de nye kolonner ved navn
+//      progressState.ts (typen, flyttet 16/9) og testfiler — ingen læser af de nye kolonner ved navn
 //      i denne omgang (mangellistens (4): UI og tal kommer senere, bevidst).
 // Kilde-læsning (emailSendLogStatus.guard-/fornyelseSkrivevej.guard-mønstret),
 // og værnet beviser sig selv på en KOPI af kilden med fejlen indsat.
@@ -24,7 +24,10 @@ const ADMIN_API = "src/lib/hjemmebane/adminContentApi.ts";
 const MAA_NAEVNE_BRUGBAR_AT = [
   "src/integrations/supabase/types.ts",
   "src/lib/hjemmebane/lektionBrugbar.ts",
-  AKADEMI_API,
+  // 16/9: MemberProgress-typen (med brugbar/brugbar_at) bor nu i den rene
+  // progressState.ts; akademiApi.ts re-eksporterer den og nævner ikke
+  // kolonnen selv længere.
+  "src/lib/hjemmebane/progressState.ts",
 ];
 
 /** Blokken `export type ProgressPatch = …;` — frem til det første `;`. */
@@ -88,7 +91,7 @@ describe("lektionBrugbar.guard — svaret siver ikke ind i de eksisterende skriv
     }
   });
 
-  it("3. ingen fil under src/ nævner brugbar_at ud over types.ts, lektionBrugbar.ts, akademiApi.ts og testfiler", () => {
+  it("3. ingen fil under src/ nævner brugbar_at ud over types.ts, lektionBrugbar.ts, progressState.ts og testfiler", () => {
     expect(ulovligeBrugbarAtFiler(filer)).toEqual([]);
   });
 

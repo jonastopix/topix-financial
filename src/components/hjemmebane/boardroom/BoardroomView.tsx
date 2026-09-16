@@ -45,6 +45,8 @@ import { hasRichTextContent } from "@/lib/hjemmebane/richtext";
 import { fokusCtaHref } from "@/lib/hjemmebane/ankomst";
 import { isTrackedEntry, useAkademiData, type AkademiItem } from "../akademi/useAkademiData";
 import { afgoerForloeb, forloebslinje, type Forloebslinje } from "@/lib/hjemmebane/forloeb";
+import { maaskeRelevant, MAASKE_RELEVANT_PRAEFIKS } from "@/lib/hjemmebane/maaskeRelevant";
+import { lektionsSti } from "@/lib/hjemmebane/lektionerForModul";
 import { HbVideoEmbed } from "../akademi/HbVideoEmbed";
 import { deriveFocus, filtrerUdloebneForslag, type FocusItem } from "./nextStep";
 import {
@@ -1699,6 +1701,24 @@ export const BoardroomView = () => {
     enabled: !!companyId,
   });
 
+  // «Måske relevant for dig» (Jonas 16/9, lib/hjemmebane/maaskeRelevant):
+  // ugens fokus' triggere → handout-modul → lektionerForModul (den delte
+  // motor fra handout-siden), gennemførte udeladt, forløbsrækkefølge og
+  // derefter «brugbar»-andel. Kataloget og progress-rækkerne er dem
+  // forsiden allerede har (useAkademiData, published-only) — ingen ny
+  // query. Fejler ugens fokus eller Akademiet, er data undefined/tom og
+  // dommen giver null: ingen linje, og kortet vælter aldrig. Dommen bor
+  // i motoren — fladen filtrerer intet selv (forloeb.guard).
+  const maaskeRelevante = useMemo(() => {
+    const lektioner = [...akademi.orderedByArea.values()].flat().map((entry) => entry.item);
+    return maaskeRelevant({
+      fokus: weeklyFocusQuery.data ?? null,
+      lektioner,
+      progress: akademi.progressRows,
+      ratings: akademi.progressRows,
+    });
+  }, [akademi.orderedByArea, akademi.progressRows, weeklyFocusQuery.data]);
+
   // Åbne handlinger, ubesvarede forslag og accepterede opgaver —
   // sortering ordret fra DashboardActionCenter:200-208 (high → medium →
   // low, dernæst ældste). Statusfilteret dækker 'open' (arven),
@@ -2152,6 +2172,23 @@ export const BoardroomView = () => {
           tom={fokusTom}
           onProevIgen={proevIgen}
         />
+        {/* «MÅSKE RELEVANT FOR DIG» (Jonas 16/9): én stille linje pr. lektion
+            (højst to) under kortet — når ugens fokus handler om X, peger
+            platformen på lektionen om X. Ingen linje uden match, ingen linje
+            ved hentefejl (dommen giver null). Ordene og udvalget er motorens
+            (lib/hjemmebane/maaskeRelevant); stien er lektionsSti. */}
+        {maaskeRelevante && maaskeRelevante.length > 0 && (
+          <ul className="mt-4 space-y-1 text-sm text-hb-ink-soft" data-maaske-relevant={maaskeRelevante.length}>
+            {maaskeRelevante.map((lektion) => (
+              <li key={lektion.id}>
+                {MAASKE_RELEVANT_PRAEFIKS}:{" "}
+                <Link to={lektionsSti(lektion)} className="text-hb-evergreen underline-offset-4 hover:underline">
+                  {lektion.title}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
         {hentefejlLinje && (
           <p className="mt-4 text-sm text-hb-rust">
             {hentefejlLinje}{" "}
