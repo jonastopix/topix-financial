@@ -2451,6 +2451,8 @@ export type Database = {
       member_progress: {
         Row: {
           acknowledged_at: string | null
+          brugbar: boolean | null
+          brugbar_at: string | null
           content_item_id: string
           created_at: string
           id: string
@@ -2462,6 +2464,8 @@ export type Database = {
         }
         Insert: {
           acknowledged_at?: string | null
+          brugbar?: boolean | null
+          brugbar_at?: string | null
           content_item_id: string
           created_at?: string
           id?: string
@@ -2473,6 +2477,8 @@ export type Database = {
         }
         Update: {
           acknowledged_at?: string | null
+          brugbar?: boolean | null
+          brugbar_at?: string | null
           content_item_id?: string
           created_at?: string
           id?: string
