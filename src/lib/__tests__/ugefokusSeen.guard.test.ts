@@ -39,8 +39,9 @@ describe("kolonnelåsen: kun seen_at, service role forbi", () => {
     expect(trigger).not.toContain("NEW.seen_at IS DISTINCT FROM OLD.seen_at");
     expect(trigger).toContain("RAISE EXCEPTION 'weekly_focus: only seen_at may be changed by members'");
   });
-  it("migrationen er ikke kørt (bogført i filen)", () => {
-    expect(migration).toContain("IKKE KØRT");
+  it("migrationen er KØRT i prod (målt 11/9 09:20) — filen siger det, og siger ikke længere «IKKE KØRT»", () => {
+    expect(migration).toContain("KØRT i prod — målt 11/9 kl. 09:20");
+    expect(migration).not.toContain("IKKE KØRT");
   });
 });
 

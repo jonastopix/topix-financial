@@ -30,7 +30,6 @@ import { formatDistanceToNow } from "date-fns";
 import { da } from "date-fns/locale";
 import KPICard from "@/components/KPICard";
 import AdvisorBroadcast from "@/components/AdvisorBroadcast";
-import AdvisorAlertsPanel from "@/components/AdvisorAlertsPanel";
 
 // ── Helpers ──
 
