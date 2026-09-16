@@ -6,7 +6,10 @@ import { beregnUdloeb } from "../_shared/opgaveUdloeb.ts";
 // _shared/isoUge.ts (hændelsen 2026-08-25), adfærd uændret (paritetstest).
 import { getISOWeekKey } from "../_shared/isoUge.ts";
 import { computeMembershipTier } from "../_shared/membershipTier.ts";
-import { maaSkriveForslag, skalHaveUgensFokus } from "./ugensFokusGate.ts";
+import { skalHaveUgensFokus } from "./ugensFokusGate.ts";
+// Fase 0a («Én plan»): dedup og «højst ét åbent forslag» bor i den delte
+// motor — samme dom som run-company-agent og foreslaa-opgave.
+import { doemSkrivning, SKRIVE_SELECT_KOLONNER, skriveFilter } from "../_shared/skridtForslag.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -538,7 +541,10 @@ Generer en ugentlig fokusanalyse. Svar med dette JSON-format:
 
   const headline = analysis.headline || "Ugentlig fokus";
   const summary = analysis.summary || "";
-  const actions: any[] = Array.isArray(analysis.actions) ? analysis.actions.slice(0, 3) : [];
+  // Højst ÉT forslag pr. kørsel (Jonas 16/9, beslutning 3: AI'en foreslår
+  // højst ét skridt ad gangen). Modellen må stadig svare med flere; det
+  // første tages, resten kasseres. Var slice(0, 3).
+  const actions: any[] = Array.isArray(analysis.actions) ? analysis.actions.slice(0, 1) : [];
 
   // ── STEP 5: PERSIST ───────────────────────────────────────────────
   await admin.from("weekly_focus").upsert({
@@ -555,20 +561,29 @@ Generer en ugentlig fokusanalyse. Svar med dette JSON-format:
     expires_at: new Date(now.getTime() + 8 * 24 * 60 * 60 * 1000).toISOString(),
   }, { onConflict: "company_id,week_key" });
 
-  // Persist actions — men KUN hvis intet ligger ubesvaret (Jonas 8/9,
-  // ugensFokusGate.maaSkriveForslag): seks ubesvarede plus seks nye er
-  // ikke et nudge. Tæller ventende forslag af ENHVER kilde — også
-  // rådgiverens — der ikke er udløbet endnu. Kortet ovenfor er skrevet;
-  // kun forslagene holdes tilbage.
-  const { count: antalVentende } = await admin
-    .from("company_actions")
-    .select("id", { count: "exact", head: true })
-    .eq("company_id", company.id)
-    .eq("status", "proposed")
-    .gt("expires_at", now.toISOString());
-  if (actions.length > 0 && !maaSkriveForslag(antalVentende ?? 0)) {
-    console.log(`[weekly-focus] ${company.name}: ${antalVentende} forslag venter ubesvaret — skriver ikke ${actions.length} nye`);
-    actions.length = 0;
+  // Persist actions — men KUN hvis motoren siger ja (fase 0a, «Én plan»):
+  // (1) højst ét åbent forslag pr. virksomhed — ALLE proposed tæller, også
+  // et udløbet som cronen kl. 04 endnu ikke har lukket (var: kun
+  // expires_at > now); (2) samme normaliserede titel inden for 30 døgn er
+  // en gentagelse, uanset status (også dismissed/expired). Kortet ovenfor
+  // er skrevet; kun forslaget holdes tilbage. Rækkerne hentes med motorens
+  // kolonner og filter, så de tre skrivere ser det samme.
+  if (actions.length > 0) {
+    const { data: eksisterende, error: eksErr } = await admin
+      .from("company_actions")
+      .select(SKRIVE_SELECT_KOLONNER)
+      .eq("company_id", company.id)
+      .or(skriveFilter(now));
+    if (eksErr) throw new Error(`company_actions kunne ikke læses før forslag: ${eksErr.message}`);
+    const dom = doemSkrivning(String(actions[0]?.title ?? ""), eksisterende ?? [], now, { skriver: "ai" });
+    if (!dom.ok) {
+      console.log(
+        dom.grund === "forslag_venter"
+          ? `[weekly-focus] ${company.name}: ${dom.antal} forslag venter ubesvaret — skriver ikke et nyt`
+          : `[weekly-focus] ${company.name}: «${actions[0]?.title}» er en gentagelse (${dom.status}, ${dom.created_at}) — skriver ikke`,
+      );
+      actions.length = 0;
+    }
   }
 
   if (actions.length > 0) {

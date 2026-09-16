@@ -30,10 +30,10 @@
  *    virksomhed der rapporterer kvartalsvis og chatter — det er ikke
  *    «ikke der».
  *
- * 2. maaSkriveForslag — «ligger der allerede noget ubesvaret?». Seks
- *    ubesvarede plus seks nye er ikke et nudge. Ét ventende forslag (af
- *    ENHVER kilde — også rådgiverens) er nok til at holde maskinen tilbage;
- *    fokus-KORTET (headline/summary) skrives stadig, kun forslagene holdes.
+ * 2. maaSkriveForslag — «ligger der allerede noget ubesvaret?» — FLYTTET
+ *    16/9 (fase 0a, «Én plan») til _shared/skridtForslag.ts (spejlet i
+ *    src/lib/hjemmebane/skridtForslag.ts), hvor alle tre skrivere deler den
+ *    sammen med gentagelsesdommen. Her står kun «er virksomheden der?».
  */
 
 export type FokusTier = "no_date" | "full" | "subscriber" | "expired";
@@ -54,10 +54,4 @@ export function skalHaveUgensFokus(input: FokusGateInput): FokusGateDom {
   if (input.tier === "expired") return { ok: false, grund: "udloebet" };
   if (input.status != null && input.status !== "active") return { ok: false, grund: "ikke_aktiv" };
   return { ok: true };
-}
-
-/** Må der skrives NYE forslag, når `antalVentende` forslag (proposed, ikke
-    udløbne) allerede ligger ubesvarede hos virksomheden? Kun ved nul. */
-export function maaSkriveForslag(antalVentende: number): boolean {
-  return antalVentende <= 0;
 }

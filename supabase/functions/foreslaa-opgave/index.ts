@@ -21,6 +21,9 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
 import { authenticateUser, corsHeaders } from "../_shared/edgeFunctionAuth.ts";
 import { beregnUdloeb } from "../_shared/opgaveUdloeb.ts";
 import { normaliserBegrundelse, validerTitel } from "../_shared/foreslaaOpgaveValidering.ts";
+// Fase 0a («Én plan»): samme dom som ugens fokus og agenten — højst ét åbent
+// forslag pr. virksomhed, ingen gentagelse inden for 30 døgn.
+import { doemSkrivning, SKRIVE_SELECT_KOLONNER, skriveFilter } from "../_shared/skridtForslag.ts";
 
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -131,6 +134,33 @@ Deno.serve(async (req) => {
   }
   if (!medlem) {
     return jsonResponse({ error: "Virksomheden har intet medlem — forslaget ville ingen modtager have" }, 404);
+  }
+
+  // Fase 0a: dommen FØR insert. JONAS 16/9, VALG A: rådgiverens egne
+  // forslag spærres ALDRIG af et ventende forslag — kun af dubletkontrollen
+  // (samme titel inden for 30 døgn); det er AI'en der stopper når der
+  // venter noget. Rådgiveren får svaret ordret i chatten (klienten viser
+  // fejl-body'en, opgaveMutation-mønstret): 409, ikke 500 — det er reglen.
+  const nu = new Date();
+  const { data: eksisterende, error: eksErr } = await adminClient
+    .from("company_actions")
+    .select(SKRIVE_SELECT_KOLONNER)
+    .eq("company_id", companyId)
+    .or(skriveFilter(nu));
+  if (eksErr) {
+    console.error("[foreslaa-opgave] company_actions-opslag fejlede:", eksErr);
+    return jsonResponse({ error: "Intern fejl" }, 500);
+  }
+  const dom = doemSkrivning(titelDom.titel, eksisterende ?? [], nu, { skriver: "raadgiver" });
+  if (!dom.ok) {
+    // For «raadgiver» giver dommen aldrig forslag_venter (valg A) — grenen
+    // står kun så typen er udtømt.
+    return jsonResponse(
+      dom.grund === "gentagelse"
+        ? { error: "Et forslag med samme titel er givet inden for de seneste 30 dage — skriv det anderledes, eller lad det ligge", grund: "gentagelse", status: dom.status, created_at: dom.created_at }
+        : { error: "Forslaget blev holdt tilbage", grund: dom.grund },
+      409,
+    );
   }
 
   // Forslaget. B10: udløbsfristen for kilden 'advisor' er 30 dage —

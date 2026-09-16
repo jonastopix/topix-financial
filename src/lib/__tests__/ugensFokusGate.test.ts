@@ -1,9 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { maaSkriveForslag, skalHaveUgensFokus, type FokusTier } from "../ugensFokusGate";
-import {
-  maaSkriveForslag as maaSkriveForslagDeno,
-  skalHaveUgensFokus as skalHaveUgensFokusDeno,
-} from "../../../supabase/functions/generate-weekly-focus/ugensFokusGate.ts";
+import { skalHaveUgensFokus, type FokusTier } from "../ugensFokusGate";
+import { skalHaveUgensFokus as skalHaveUgensFokusDeno } from "../../../supabase/functions/generate-weekly-focus/ugensFokusGate.ts";
+// maaSkriveForslag er flyttet til skridtForslag.ts (fase 0a) — testes i
+// src/lib/hjemmebane/__tests__/skridtForslag.test.ts.
 
 // Jonas 8/9: «Maskinen skal selvfølgelig ikke foreslå noget, hvis der ikke
 // er noget at foreslå på.» Målt: Rallysupport og ANLA GLAS (faldet ud) fik
@@ -37,17 +36,6 @@ describe("skalHaveUgensFokus — er virksomheden der?", () => {
   });
 });
 
-describe("maaSkriveForslag — seks ubesvarede plus seks nye er ikke et nudge", () => {
-  it("nul ventende: ja", () => {
-    expect(maaSkriveForslag(0)).toBe(true);
-  });
-  it("ét eller flere ventende: nej", () => {
-    expect(maaSkriveForslag(1)).toBe(false);
-    expect(maaSkriveForslag(6)).toBe(false);
-    expect(maaSkriveForslag(61)).toBe(false);
-  });
-});
-
 describe("paritet — Deno-kopien i generate-weekly-focus/ er ordret den samme dom", () => {
   for (const tier of TIERS) {
     for (const status of STATUSSER) {
@@ -55,10 +43,5 @@ describe("paritet — Deno-kopien i generate-weekly-focus/ er ordret den samme d
         expect(skalHaveUgensFokusDeno({ status, tier })).toEqual(skalHaveUgensFokus({ status, tier }));
       });
     }
-  }
-  for (const n of [0, 1, 6, 61]) {
-    it(`maaSkriveForslag(${n})`, () => {
-      expect(maaSkriveForslagDeno(n)).toBe(maaSkriveForslag(n));
-    });
   }
 });
