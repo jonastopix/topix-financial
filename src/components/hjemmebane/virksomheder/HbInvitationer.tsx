@@ -33,6 +33,16 @@ import { HbAnsoegningsimport, ImporterAnsoegningKnap } from "./HbAnsoegningsimpo
 const formatDato = (iso: string): string =>
   new Date(iso).toLocaleDateString("da-DK", { day: "numeric", month: "long", timeZone: "Europe/Copenhagen" });
 
+/** Spærret (16/9): send-invitation-email svarede spaerret: true — Lovable har
+    spærret adressen (afmeldt, bounce eller klage). Rækken står, mailen nåede
+    ikke frem; samme ord som klokkens (spaerretMail.ts). Står 15 s som
+    importens advarsel, så den kan læses færdig. */
+const spaerretAdvarsel = (email: string) =>
+  toast.warning("Invitationen blev ikke leveret", {
+    description: `${email} er spærret hos mailudbyderen (afmeldt, bounce eller klage). Kontakt dem direkte og få en adresse der virker.`,
+    duration: 15000,
+  });
+
 /** Gensend + slet for én åben invitation. Slet er to klik, som listen. */
 export const InvitationHandlinger = ({ inv, companyId }: { inv: { id: string; email: string }; companyId: string | null }) => {
   const queryClient = useQueryClient();
@@ -49,7 +59,11 @@ export const InvitationHandlinger = ({ inv, companyId }: { inv: { id: string; em
       <button
         type="button"
         disabled={skriv.isPending}
-        onClick={() => skriv.mutate(async () => { await gensendInvitation(inv.email); toast.success(`Invitation gensendt til ${inv.email}`); })}
+        onClick={() => skriv.mutate(async () => {
+          const r = await gensendInvitation(inv.email);
+          if (r.spaerret) spaerretAdvarsel(inv.email);
+          else toast.success(`Invitation gensendt til ${inv.email}`);
+        })}
         className="inline-flex items-center gap-1 text-hb-evergreen underline-offset-4 hover:underline disabled:opacity-50"
       >
         <RotateCcw className="h-3 w-3" /> Gensend
@@ -94,7 +108,8 @@ export const InviterKnap = ({ companyId, virksomheder, label = "Inviter" }: {
       return r;
     },
     onSuccess: (r) => {
-      toast.success(r.gensendt ? `Invitation gensendt til ${email.trim()}` : `Invitation sendt til ${email.trim()}`);
+      if (r.spaerret) spaerretAdvarsel(email.trim());
+      else toast.success(r.gensendt ? `Invitation gensendt til ${email.trim()}` : `Invitation sendt til ${email.trim()}`);
       setAaben(false);
       setEmail("");
       if (!companyId) setValgtCompany("");

@@ -103,7 +103,13 @@ export interface ImportSvar {
   cvr_data?: unknown;
   /** Opslagets udfald (16/9). Mangler feltet (gammel server), læses det som «fejl». */
   cvr_udfald?: CvrUdfald | null;
+  /** Invitationsmailen blev IKKE leveret — Lovable har spærret adressen (afmeldt, bounce eller klage). 16/9. */
+  invitation_spaerret?: boolean;
 }
+
+/** Klokkens hale (spaerretMail.ts), ordret — samme ord til rådgiveren uanset flade. */
+export const SPAERRET_HALE =
+  "adressen er spærret hos mailudbyderen (afmeldt, bounce eller klage). Kontakt dem direkte og få en adresse der virker.";
 
 export interface ImportKvittering {
   tone: "success" | "warning";
@@ -122,6 +128,21 @@ const MANGEL_HALE = `Virksomheden er mærket «${CVR_MANGEL_MAERKE}» på listen
 export function importKvittering(svar: ImportSvar, form: { email: string; cvr_number: string }): ImportKvittering {
   const navn = (svar.company_name ?? "").trim() || "Virksomheden";
   const email = form.email.trim();
+  // Spærret (16/9) går FORAN alt andet — også genbrug og CVR-grenene: uden
+  // mailen har ansøgeren intet login, uanset hvad CVR-opslaget gav.
+  if (svar.invitation_spaerret === true) {
+    return svar.reused_company
+      ? {
+          tone: "warning",
+          titel: "Virksomheden findes allerede — men invitationen blev ikke leveret",
+          beskrivelse: `Invitationen til ${email} for ${navn} blev ikke sendt: ${SPAERRET_HALE}`,
+        }
+      : {
+          tone: "warning",
+          titel: "Importeret — men invitationen blev ikke leveret",
+          beskrivelse: `${navn} er oprettet, men invitationen til ${email} blev ikke sendt: ${SPAERRET_HALE}`,
+        };
+  }
   if (svar.reused_company) {
     return {
       tone: "success",

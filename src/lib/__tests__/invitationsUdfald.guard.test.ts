@@ -49,9 +49,13 @@ describe("invitationsUdfald.guard — stripe-webhook", () => {
 });
 
 describe("invitationsUdfald.guard — invitationen melder kun udfald, dommen er husets", () => {
-  it("sikrIndgangsInvitation.ts bærer de fem udfald og kaster aldrig ud af sig selv", () => {
+  // 16/9: sjette udfald «spaerret» — mailudbyderen har spærret adressen; klokken
+  // er spaerretMail-motorens (invitationSpaerret.guard.test.ts), så
+  // raadgiverBeskedTekst.ts' InvitationsUdfald-kopi kender den IKKE.
+  it("sikrIndgangsInvitation.ts bærer de seks udfald og kaster aldrig ud af sig selv", () => {
     const kode = udenKommentarer(laes("supabase/functions/_shared/sikrIndgangsInvitation.ts"));
     expect(kode).toContain('| { udfald: "sendt"; email: string }');
+    expect(kode).toContain('| { udfald: "spaerret"; email: string }');
     expect(kode).toContain('| { udfald: "fandtes_allerede"; email: string }');
     expect(kode).toContain('| { udfald: "allerede_medlem"; email: string }');
     expect(kode).toContain('| { udfald: "sprunget_over"; grund: "secret_mangler" }');

@@ -187,13 +187,22 @@ const CompanyInvitations = () => {
 
       // Send invitation email
       const tokenParam = invToken ? `&invite=${invToken}` : "";
-      await supabase.functions.invoke("send-invitation-email", {
+      const { data: emailData } = await supabase.functions.invoke("send-invitation-email", {
         body: {
           email: pendingEmail,
           company_name: companyName || "Din virksomhed",
           signup_url: `https://app.theboardroom.dk/auth?mode=signup${tokenParam}`,
         },
       });
+      // Spærret (16/9): funktionen svarede 200 med spaerret: true — mailudbyderen
+      // har spærret adressen (afmeldt, bounce eller klage). Rækken står, men
+      // mailen nåede ikke frem; medlemmet får det at vide efter succes-toasten.
+      if (emailData?.spaerret === true) {
+        toast.warning("Invitationen blev ikke leveret", {
+          description: `${pendingEmail} tager ikke imod mails fra platformen. Bed personen om en anden adresse.`,
+          duration: 15000,
+        });
+      }
     } catch (err: any) {
       console.error("Invitation error:", err);
       toast.error("Kunne ikke sende invitation: " + (err.message || "Ukendt fejl"));

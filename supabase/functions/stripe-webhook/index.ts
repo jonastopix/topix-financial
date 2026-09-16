@@ -208,6 +208,15 @@ async function meldInvitationsUdfald(
       console.log(`${praefiks}: ${udfald.udfald} (${udfald.email}) — ingen besked`);
       return;
     }
+    // «Spærret» (16/9): mailen nåede ikke frem, fordi Lovable har spærret
+    // adressen — klokken er spaerretMail-motorens (label "invitation", dedup
+    // pr. virksomhed), ikke «invitationen fejlede». Afgøres FØR
+    // beskedVedInvitationsUdfald, hvis type (InvitationsUdfald-kopien i
+    // raadgiverBeskedTekst.ts) ikke kender varianten.
+    if (udfald.udfald === "spaerret") {
+      await meldSpaerretMail(adminClient, { label: "invitation", companyId, modtager: udfald.email });
+      return;
+    }
     const { data: company, error: companyFejl } = await adminClient
       .from("companies")
       .select("name, contact_email")

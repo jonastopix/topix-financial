@@ -185,8 +185,17 @@ Deno.serve(async (req) => {
       throw new Error(`Failed to send invitation email (${resultat.reason}): ${resultat.error}`);
     }
 
+    // Spærret hos Lovable (16/9): svaret SIGER det (spaerret: true), så kalderne
+    // kan handle — funktionen ringer ikke selv klokken, fordi service-role-
+    // kaldene (stripe-webhook, import-application) ikke bærer company_id.
+    // Ikke «Enqueued»: intet blev sendt (email_send_log har status suppressed).
+    if (!resultat.sent) {
+      console.warn(`[send-invitation-email] ${email} er spærret hos mailudbyderen — intet sendt (company: ${company_name}, vej: ${valg.vej})`);
+      return new Response(JSON.stringify({ success: true, spaerret: true, skabelonvalg: valg.vej }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
     console.log(`[send-invitation-email] Enqueued invitation for: ${email} (company: ${company_name}, vej: ${valg.vej})`);
-    return new Response(JSON.stringify({ success: true, skabelonvalg: valg.vej }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    return new Response(JSON.stringify({ success: true, spaerret: false, skabelonvalg: valg.vej }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
   } catch (error: unknown) {
     console.error("send-invitation-email error:", error);

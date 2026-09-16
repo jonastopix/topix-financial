@@ -76,11 +76,14 @@ export async function hentInvitationer(): Promise<Invitationsdata> {
   };
 }
 
-/** Gensend: mailen bygges serverside af rækken. */
-export async function gensendInvitation(email: string): Promise<void> {
+/** Gensend: mailen bygges serverside af rækken. spaerret (16/9): funktionen
+    svarede 200 med spaerret: true — Lovable har spærret adressen (afmeldt,
+    bounce eller klage), rækken står, men mailen nåede ikke frem. */
+export async function gensendInvitation(email: string): Promise<{ spaerret: boolean }> {
   const { data, error } = await supabase.functions.invoke("send-invitation-email", { body: { email: normaliserEmail(email) } });
   if (error) throw new Error(error.message);
   if (data?.error) throw new Error(String(data.error));
+  return { spaerret: data?.spaerret === true };
 }
 
 export async function sletInvitation(id: string): Promise<void> {
@@ -90,7 +93,7 @@ export async function sletInvitation(id: string): Promise<void> {
 }
 
 /** Opret (eller genbrug) og send. companyId null = personen opretter selv en virksomhed. */
-export async function opretInvitation(input: { email: string; companyId: string | null; invitedBy: string }): Promise<{ gensendt: boolean }> {
+export async function opretInvitation(input: { email: string; companyId: string | null; invitedBy: string }): Promise<{ gensendt: boolean; spaerret: boolean }> {
   const email = normaliserEmail(input.email);
   let eksisterende = supabase.from("company_invitations").select("id, status").eq("email", email);
   eksisterende = input.companyId ? eksisterende.eq("company_id", input.companyId) : eksisterende.is("company_id", null);
@@ -116,8 +119,8 @@ export async function opretInvitation(input: { email: string; companyId: string 
     if (error) throw new Error(error.message);
     if (!data || data.length === 0) throw new Error("Oprettelsen ramte nul rækker — invitationen er IKKE gemt (RLS).");
   }
-  await gensendInvitation(email);
-  return { gensendt };
+  const { spaerret } = await gensendInvitation(email);
+  return { gensendt, spaerret };
 }
 
 /** Alle læsere af invitationer: listen, virksomhedssiden og /members' data. */

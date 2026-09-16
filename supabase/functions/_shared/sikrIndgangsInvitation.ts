@@ -56,6 +56,7 @@ const APP_URL = "https://app.theboardroom.dk";
 
 export type IndgangsInvitationResultat =
   | { udfald: "sendt"; email: string }
+  | { udfald: "spaerret"; email: string }
   | { udfald: "fandtes_allerede"; email: string }
   | { udfald: "allerede_medlem"; email: string }
   | { udfald: "sprunget_over"; grund: "secret_mangler" }
@@ -227,7 +228,7 @@ export async function sikrIndgangsInvitation(
     // Mailen, som import-application sender den (:348-355):
     // service-role-kald med company_name og signup_url i body.
     const signupUrl = `${APP_URL}/auth?mode=signup&invite=${token}`;
-    const { error: emailErr } = await adminClient.functions.invoke("send-invitation-email", {
+    const { data: emailData, error: emailErr } = await adminClient.functions.invoke("send-invitation-email", {
       body: {
         email: invitationEmail,
         company_name: invitationCompany?.name ?? "The Boardroom",
@@ -244,6 +245,17 @@ export async function sikrIndgangsInvitation(
         console.warn("[stripe-webhook] kunne ikke læse send-invitation-email-fejlsvar:", readErr);
       }
       throw new Error(`send-invitation-email fejlede: status=${status ?? "?"} body=${bodyText ?? ""} error=${emailErr.message ?? String(emailErr)}`);
+    }
+
+    // «Spærret» (16/9): send-invitation-email svarer 200 med spaerret: true når
+    // Lovable afviser modtageren (afmeldt, bounce eller klage). Rækken er
+    // skrevet, men mailen nåede ikke frem — udfaldet er sit eget, så
+    // klokken kan ringe (meldInvitationsUdfald → meldSpaerretMail).
+    if ((emailData as { spaerret?: unknown } | null)?.spaerret === true) {
+      console.warn(
+        `[stripe-webhook] Indgang for company ${companyId}: invitation til ${invitationEmail} IKKE leveret — adressen er spærret hos mailudbyderen`
+      );
+      return { udfald: "spaerret", email: invitationEmail };
     }
 
     console.log(
