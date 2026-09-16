@@ -1,6 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { HandoutModule } from "@/lib/handoutConfig";
 import { notifyHandoutCompleted } from "@/lib/handoutNotify";
+import { kraevRaekker } from "@/lib/kraevRaekker";
 
 /** Handout-motoren (hb-handouts-byggeplan §2, PR 1): skrivevejene H1-H6
     flyttet ORDRET fra Handouts.tsx / HandoutDetail.tsx /
@@ -56,7 +57,11 @@ export async function loadLeverMilestones(handoutId: string): Promise<Record<num
 }
 
 /** H1c — liste-fladens resuméer (Handouts.tsx' load: advisor ser
-    virksomhedens rækker, medlem sine egne). */
+    virksomhedens rækker, medlem sine egne).
+    KASTER ved fejl (16/9, mangellisten «Tavse queryFn'er»): før gjorde
+    `const { data } = await query; return data ?? []` en fejl til nul rækker,
+    og HandoutsView sagde «Kom godt i gang med handouts» til en der havde
+    udfyldt fire. Tom og fejlet er to beskeder (lib/hjemmebane/hentefejl). */
 export async function loadHandoutSummaries(args: {
   userId: string;
   companyId: string;
@@ -70,8 +75,7 @@ export async function loadHandoutSummaries(args: {
   } else {
     query = query.eq("user_id", args.userId);
   }
-  const { data } = await query;
-  return data ?? [];
+  return kraevRaekker(await query, "handouts");
 }
 
 /** Fladt result-objekt (ikke discriminated union — tsconfig'ens

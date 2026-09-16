@@ -9,6 +9,8 @@ import { useNavigationReset } from "@/hooks/useNavigationReset";
 import { handoutConfigs, moduleOrder, type HandoutModule } from "@/lib/handoutConfig";
 import { calcHandoutProgress } from "@/lib/handoutUtils";
 import { loadHandoutSummaries } from "@/lib/handoutEngine";
+import { kraevRaekke } from "@/lib/kraevRaekker";
+import { kildeAf, sektionsfejlTekst } from "@/lib/hjemmebane/hentefejl";
 import { HbAdvisorCompanyPrompt } from "../HbAdvisorCompanyPrompt";
 import { HbSection } from "../HbSection";
 import { HbCard } from "../HbCard";
@@ -41,27 +43,40 @@ export const HandoutsView = () => {
   );
   const [activeModule, setActiveModule] = useState<HandoutModule | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  /* Hentefejl (16/9, mangellisten «Tavse queryFn'er — de flader tjeklisten
+     fører til»): tjeklistens punkt 6 («Dit første handout») fører hertil, og
+     før lignede en fejlet hentning «Kom godt i gang med handouts» — summaries
+     beholdt sine not_started-defaults, og ingen sagde noget. Nu kaster
+     loadHandoutSummaries (kraevRaekker), fejlen fanges her med kildens navn,
+     og fladen viser husets linje (sektionsfejlTekst) i stedet for grid'et og
+     kom-godt-i-gang-kortet. Tom (ingen rækker) ser ud som før. */
+  const [hentefejl, setHentefejl] = useState<string | null>(null);
 
   // Resolved member userId for the selected company (advisor view)
   const [memberUserId, setMemberUserId] = useState<string | null>(null);
   // Per-module user_id from existing handout rows
   const [moduleUserMap, setModuleUserMap] = useState<Record<string, string>>({});
 
-  // Legat module gating (ordret fra Handouts.tsx)
-  const { data: legatEnrollment } = useQuery({
+  // Legat module gating (ordret fra Handouts.tsx). Kaster ved fejl (16/9):
+  // «ingen aktiv indskrivning» er null uden fejl (kraevRaekke); en fejl
+  // fanges af TanStack, og fladen siger det (legatQuery.isError). Gaten
+  // står som før: uden legatDay er alle moduler åbne — det var den også ved
+  // en tavs fejl, nu siger fladen det bare.
+  const legatQuery = useQuery({
     queryKey: ["legat-enrollment-handouts", user?.id],
-    queryFn: async () => {
+    queryFn: async (): Promise<{ start_date: string; status: string } | null> => {
       if (!user) return null;
-      const { data } = await (supabase as any)
+      const svar = await (supabase as any)
         .from("legat_enrollments")
         .select("start_date, status")
         .eq("user_id", user.id)
         .eq("status", "active")
         .maybeSingle();
-      return data;
+      return kraevRaekke<{ start_date: string; status: string }>(svar, "legat_enrollments");
     },
     enabled: !!user && isLegat,
   });
+  const legatEnrollment = legatQuery.data;
 
   const legatDay = legatEnrollment ? Math.min(
     Math.max(
@@ -120,8 +135,10 @@ export const HandoutsView = () => {
   useEffect(() => {
     if (!user || !companyId) return;
     setIsLoading(true);
+    setHentefejl(null);
     const load = async () => {
       // H1c i motoren — advisor ser virksomhedens rækker, medlem sine egne.
+      // Kaster HentningsFejl("handouts") ved fejl; fanges nederst.
       const data = await loadHandoutSummaries({ userId: user!.id, companyId: companyId!, isAdvisor });
 
       // Build per-module user_id map for advisor deep-linking
@@ -148,7 +165,11 @@ export const HandoutsView = () => {
       }));
       setIsLoading(false);
     };
-    load();
+    load().catch((e: unknown) => {
+      // Fejl er ikke tom: kildens navn (handouts) bliver til fladens linje.
+      setHentefejl(kildeAf(e));
+      setIsLoading(false);
+    });
     // `user?.id` — ikke user-objektet (samme fokus-event-mønster som
     // BudgetteringViews load-effekt, hb-budget-persistens-recon §1c):
     // effekten afhænger kun af bruger-identiteten; objektet skiftes ved
@@ -193,6 +214,7 @@ export const HandoutsView = () => {
     ? Math.round(summaries.reduce((s, h) => s + h.progress, 0) / summaries.length)
     : 0;
   const completedCount = summaries.filter(s => s.status === "completed").length;
+  const fejlet = hentefejl != null;
 
   if (isAdvisor && !companyId) {
     return <HbAdvisorCompanyPrompt />;
@@ -211,8 +233,21 @@ export const HandoutsView = () => {
         </p>
       </section>
 
+      {/* ── Hentefejl (16/9): fejl og tom er to beskeder. Linjen står i stedet
+          for grid'et, fremgangen og kom-godt-i-gang — en fejlet hentning må
+          aldrig se ud som «du har ikke udfyldt noget». ── */}
+      {fejlet && (
+        <HbCard className="mt-8 p-5">
+          <p className="text-sm text-hb-ink">{sektionsfejlTekst(hentefejl)}</p>
+          <p className="mt-1 text-xs text-hb-ink-soft">Prøv igen om lidt.</p>
+        </HbCard>
+      )}
+      {legatQuery.isError && (
+        <p className="mt-4 text-sm text-hb-ink-soft">{sektionsfejlTekst("legat_enrollments")}</p>
+      )}
+
       {/* ── Din fremgang ── */}
-      {!isAdvisor && !isLoading && summaries.length > 0 && (
+      {!isAdvisor && !isLoading && !fejlet && summaries.length > 0 && (
         <HbCard className="mt-8 p-5">
           <div className="flex items-baseline justify-between gap-3">
             <div>
@@ -234,8 +269,8 @@ export const HandoutsView = () => {
         </HbCard>
       )}
 
-      {/* ── Kom godt i gang ── */}
-      {!isAdvisor && !isLoading && summaries.every(s => s.status === "not_started" && s.progress === 0) && (
+      {/* ── Kom godt i gang ── (kun når hentningen LYKKEDES og alt er urørt) */}
+      {!isAdvisor && !isLoading && !fejlet && summaries.every(s => s.status === "not_started" && s.progress === 0) && (
         <HbCard className="mt-4 flex items-start gap-4 p-5">
           <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-hb-sage/60">
             <Lightbulb className="h-5 w-5 text-hb-evergreen" />
@@ -252,9 +287,9 @@ export const HandoutsView = () => {
         </HbCard>
       )}
 
-      {/* ── Modul-grid ── */}
+      {/* ── Modul-grid ── (ved fejl står linjen ovenfor — intet grid af tomme kort) */}
       <section className="mt-8">
-        {isLoading ? (
+        {fejlet ? null : isLoading ? (
           <div className="flex items-center justify-center py-16">
             <Loader2 className="h-6 w-6 animate-spin text-hb-evergreen" />
           </div>
@@ -301,7 +336,7 @@ export const HandoutsView = () => {
       </section>
 
       {/* ── Dine valgte løftestænger ── */}
-      {!isAdvisor && !isLoading && (() => {
+      {!isAdvisor && !isLoading && !fejlet && (() => {
         const allLevers = summaries.flatMap(s =>
           s.levers.map(lever => ({
             lever,
@@ -350,7 +385,7 @@ export const HandoutsView = () => {
       })()}
 
       {/* ── Milepæls-rejsen ── */}
-      {!isAdvisor && !isLoading && (() => {
+      {!isAdvisor && !isLoading && !fejlet && (() => {
         const allChecklistModules = summaries
           .map(s => {
             const config = handoutConfigs[s.module];
