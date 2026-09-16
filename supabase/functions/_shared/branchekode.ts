@@ -280,8 +280,9 @@ export const DB25_UNDERKLASSER: Mapping = {
 };
 
 /**
- * Normaliserer det CVR-registret sender. cvrapi.dk leverer `industrycode`
- * som TAL (fx 682040), og hentCvrData gør det til streng — så en kode i
+ * Normaliserer det CVR-registret sender. CVR-kilden (DataCVR fra 16/9, som
+ * cvrapi før) leverer `industrycode` som TAL (fx 682040), og opslaget
+ * (_shared/cvrOpslag.ts) gør det til streng — så en kode i
  * afdeling 01-09 mister sit foranstillede nul (01.11.00 → 11100). Fem cifre
  * kan derfor kun være et tabt nul og fyldes op. Punktummer (68.20.40) og
  * mellemrum fjernes. Under to cifre eller over seks er ikke en branchekode.

@@ -87,7 +87,7 @@ export interface BerigelsesPlan {
 
 const CVR_FORMAT = /^\d{8}$/;
 
-/** Otte cifre — det eneste format hentCvrData slår op på. */
+/** Otte cifre — det eneste format opslaget (slaaCvrOp) slår op på. */
 export function harCvr(v: Pick<BerigelsesVirksomhed, "cvr_number">): boolean {
   return CVR_FORMAT.test((v.cvr_number ?? "").trim());
 }

@@ -41,13 +41,13 @@
 
 import { udledBranchekode } from "./branchekode";
 
-/** Det vi bruger af cvrapi.dk-svaret (import-application: lookupCVR). */
+/** Det vi bruger af CVR-svaret (DataCVR fra 16/9, samme feltnavne som cvrapi; tolkes i _shared/cvrOpslag.ts). */
 export interface CvrSvar {
   name?: string;
   founded?: string;
   industry_code?: string;
   industry_label?: string;
-  /** cvrapi.dk's egne feltnavne — målt live 3/9 (hentCvrData). */
+  /** CVR-kildens egne feltnavne — målt live 3/9 (cvrapi) og 16/9 (DataCVR, samme navne). */
   address?: string;
   zipcode?: string;
   city?: string;
@@ -186,7 +186,8 @@ export function byggVirksomhedsRaekke(
   // skrev vinder, CVR-registret er fallback, ikke en rettelse. Målt i
   // prod 3/9: kun 1 af 32 aktive virksomheder havde alle tre felter, og
   // FLOOR1 (oprettet via import med CVR-opslag) ingen af dem, fordi
-  // hverken rækken eller hentCvrData bar adressen. Uden den kan Stripe
+  // hverken rækken eller det daværende opslag (hentCvrData, før 16/9) bar
+  // adressen. Uden den kan Stripe
   // Tax ikke bestemme momssatsen, og dag 31-fakturaen finaliseres uden
   // moms. Tomme og blanke felter bliver null — en tom streng ser udfyldt
   // ud for enhver der tjekker «er feltet sat». KUN ved oprettelse: ved
