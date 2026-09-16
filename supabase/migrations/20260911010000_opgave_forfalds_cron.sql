@@ -61,7 +61,11 @@
 -- Revert: SELECT cron.unschedule('opgave-forfald');
 --   Lukkede rækker genåbnes ikke — expired er en sluttilstand.
 --
--- IKKE KØRT. DEPLOY: manuelt i Lovable -> SQL editor efter merge.
+-- KØRT — målt i prod 15/9 23:49 dansk (query-results-export-2026-09-15_23-49-39.csv;
+-- OVERLEVERING DEL 2 «16. september (nat)» §9): cron.job «opgave-forfald» står
+-- blandt de 18 aktive jobs. Skrevet 11/9 som «ikke kørt»; filhovedet ført à
+-- jour 16/9 («Én plan» fase 0c) — prod er sandheden.
+-- DEPLOY (historik): manuelt i Lovable -> SQL editor efter merge.
 
 -- ── 1. Idempotent unschedule-værn ──
 DO $$

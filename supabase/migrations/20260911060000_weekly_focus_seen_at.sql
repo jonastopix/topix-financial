@@ -38,7 +38,10 @@
 -- Revert: DROP POLICY "Members set seen_at on own weekly focus" ON public.weekly_focus;
 --         DROP TRIGGER protect_weekly_focus_seen_only ON public.weekly_focus;
 --
--- IKKE KØRT. DEPLOY: manuelt i Lovable -> SQL editor efter merge.
+-- KØRT i prod — målt 11/9 kl. 09:20 (se linje 1). Linjen sagde «ikke kørt» til
+-- 16/9 og ugefokusSeen.guard.test.ts låste den forældede påstand (recon-opgaver-
+-- og-milestones.md §7b); begge ført à jour i «Én plan» fase 0c.
+-- DEPLOY (historik): manuelt i Lovable -> SQL editor efter merge.
 
 -- ── 1. Policyen ──
 DROP POLICY IF EXISTS "Members set seen_at on own weekly focus" ON public.weekly_focus;
