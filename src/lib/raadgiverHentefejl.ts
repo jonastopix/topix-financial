@@ -54,6 +54,8 @@ export const RAADGIVER_KILDE_ORD: Readonly<Record<string, string>> = {
   company_betalingslink: "betalingslinkene",
   company_traek: "trækkene",
   company_perioder: "perioderne",
+  community_traade: "opslagene i fællesskabet",
+  community_svar: "svarene i fællesskabet",
   advisor_company_acknowledgments: "kvitteringerne",
   email_send_log: "mailloggen",
   uploads: "uploads",
