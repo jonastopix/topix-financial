@@ -9,7 +9,9 @@ import { HbCard } from "@/components/hjemmebane/HbCard";
 import { HbButton } from "@/components/hjemmebane/HbButton";
 import { HbRaadgiverPortraetter } from "@/components/hjemmebane/HbRaadgiverPortraetter";
 import { HB_EYEBROW, HB_H1, HB_INPUT, HB_INPUT_LAAST, HB_LABEL, HB_RAMME } from "@/components/hjemmebane/hbFormKlasser";
+import { HbSpinner } from "@/components/hjemmebane/HbSpinner";
 import { useHbDokumentGrund } from "@/hooks/useHbDokumentGrund";
+import { afgoerInvitationslink, LINK_UKENDT_TEKST, signupFejl, type Invitationslink } from "@/lib/signupFejl";
 
 /* Rammen, eyebrow, overskrift og felterne deles med ResetPassword og
    NotFound — de bor i hjemmebane/hbFormKlasser.ts (trin 10-12). */
@@ -55,6 +57,9 @@ const Auth = () => {
      (handle_new_user) ingen invitation og afviser signup med P0001. */
   const [emailLaast, setEmailLaast] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
+  /* Opslagets dom (16/9, w2): «venter» indtil RPC'en har svaret, så siden
+     ikke blinker fra signup til login. Uden token er der intet at slå op. */
+  const [opslag, setOpslag] = useState<"venter" | Invitationslink>(inviteToken ? "venter" : "ingen_token");
   /* Lærredet bag HB_RAMME er papir mens siden er mountet (4/9, mobilens
      grønne bundstykke) — som HbMemberShell. Hook i topblokken, før enhver
      betinget return. */
@@ -98,14 +103,17 @@ const Auth = () => {
   }, [returnUrl]);
 
   // Look up company info from invite token — og forudfyld mail + navn.
-  // Svarer opslaget null (ukendt eller brugt token), sker intet nyt her:
-  // felterne står tomme og redigerbare som før, og triggeren afgør.
+  // Dommen (16/9, lib/signupFejl.ts): gyldig → som før; ukendt (brugt,
+  // slettet eller forvansket token — data null eller 22P02) → siden åbner
+  // på «Log ind» med en linje der siger det; fejl (netværk o.l.) → signup
+  // som før, og triggeren afgør.
   useEffect(() => {
     if (!inviteToken) return;
     supabase
       .rpc("lookup_invite_company_info", { invite_token: inviteToken })
-      .then(({ data }) => {
-        if (data && typeof data === "object" && (data as any).name) {
+      .then(({ data, error }) => {
+        const dom = afgoerInvitationslink({ harToken: true, data, error });
+        if (dom === "gyldig") {
           const info = data as { name: string; logo_url: string | null; email?: string | null; kontakt?: string | null };
           setInviteCompany(info);
           const invitationsMail = (info.email ?? "").trim().toLowerCase();
@@ -117,7 +125,12 @@ const Auth = () => {
           // Monday, og det er personens eget. Null → tomt og redigerbart.
           const kontakt = (info.kontakt ?? "").trim();
           if (kontakt) setFullName((nuvaerende) => nuvaerende || kontakt);
+        } else if (dom === "ukendt") {
+          setIsLogin(true);
+        } else if (error) {
+          console.warn("[Auth] lookup_invite_company_info fejlede:", error.code ?? "", error.message ?? "");
         }
+        setOpslag(dom);
       });
   }, [inviteToken]);
 
@@ -157,7 +170,13 @@ const Auth = () => {
       },
     });
     if (error) {
-      toast.error(error.message);
+      // Supabases rå tekst («User already registered», «Database error saving
+      // new user») vises aldrig — signupFejl oversætter (16/9, w2). Den rå
+      // står i konsollen, så den kan genfindes.
+      console.warn("[Auth] signup fejlede:", error.message);
+      const dom = signupFejl(error.message);
+      toast.error(dom.tekst);
+      if (dom.skiftTilLogin) setIsLogin(true); // mailen bliver i feltet
     } else {
       setSignupEmail(email);
       setSignupResult(data.session ? "auto" : "confirm");
@@ -196,6 +215,13 @@ const Auth = () => {
       setGoogleLoading(false);
     }
   };
+
+  /* ── OPSLAGET VENTER (16/9): med token vises intet valg før RPC'en har
+     svaret — ellers ville siden blinke fra signup til login ved et ukendt
+     token. Efter alle hooks (React #310). */
+  if (opslag === "venter") {
+    return <HbSpinner />;
+  }
 
   /* ── NULSTIL ADGANGSKODE — Hjemmebane (trin 10-12, anden del). Adfærd
      som før: handleReset sender Supabase-linket til /reset-password og
@@ -431,6 +457,20 @@ const Auth = () => {
         <div className="space-y-3 text-center">
           <p className={HB_EYEBROW}>The Boardroom</p>
           <h1 className={HB_H1}>Log ind</h1>
+          {opslag === "ukendt" && (
+            /* Linket svarede ikke (brugt, slettet eller forvansket token, 16/9 w2):
+               sig det, og giv vejen til signup som et valg — ikke som standard. */
+            <div className="space-y-2">
+              <p className="text-hb-ink-soft">{LINK_UKENDT_TEKST}</p>
+              <button
+                type="button"
+                onClick={() => { setIsLogin(false); setSignupResult(null); }}
+                className="text-sm text-hb-ink-soft underline-offset-4 transition-colors hover:text-hb-ink hover:underline"
+              >
+                Opret konto alligevel
+              </button>
+            </div>
+          )}
         </div>
         <HbCard className="p-6 md:p-8">
           <HbButton
