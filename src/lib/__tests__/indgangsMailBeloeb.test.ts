@@ -20,8 +20,10 @@ describe("fakturaBeloebTekst", () => {
     expect(fakturaBeloebTekst({ totalOere: 0, momsBeregnet: true, listeprisKr: 40_000 })).toBe("40.000 kr. ekskl. moms");
     expect(fakturaBeloebTekst({ totalOere: Number.NaN, momsBeregnet: true, listeprisKr: 40_000 })).toBe("40.000 kr. ekskl. moms");
   });
-  it("rammer ører op til hele kroner: 6.250.050 øre → 62.501", () => {
-    expect(fakturaBeloebTekst({ totalOere: 6_250_050, momsBeregnet: true, listeprisKr: 50_000 })).toBe("62.501 kr. inkl. moms");
+  it("bevarer ører — som fakturaen: 6.250.050 øre → 62.500,50; 1.250 øre → 12,50 (målt 16/9: «13 kr.» for 12,50)", () => {
+    expect(fakturaBeloebTekst({ totalOere: 6_250_050, momsBeregnet: true, listeprisKr: 50_000 })).toBe("62.500,50 kr. inkl. moms");
+    expect(fakturaBeloebTekst({ totalOere: 1_250, momsBeregnet: true, listeprisKr: 10 })).toBe("12,50 kr. inkl. moms");
+    expect(fakturaBeloebTekst({ totalOere: 1_000, momsBeregnet: false, listeprisKr: 10 })).toBe("10 kr.");
   });
 });
 
@@ -48,5 +50,9 @@ describe("mailene", () => {
       .toContain("en faktura på 50.000 kr. Du finder den");
     expect(dag31Mail({ fornavn: "Lisbeth", beloebKr: 50_000 }).html)
       .toContain("en faktura på 50.000 kr. ekskl. moms. Du finder den");
+  });
+  it("dag 31 med ører: 1.250 øre inkl. moms → «12,50 kr. inkl. moms» — og punktummet sættes efter «moms»", () => {
+    expect(dag31Mail({ fornavn: "Lisbeth", beloebKr: 10, fakturaTotalOere: 1_250, momsBeregnet: true }).html)
+      .toContain("en faktura på 12,50 kr. inkl. moms. Du finder den");
   });
 });
