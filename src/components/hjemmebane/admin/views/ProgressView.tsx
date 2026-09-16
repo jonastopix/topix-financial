@@ -20,7 +20,7 @@ import {
   listPublishedItems,
   type ItemProgressState,
 } from "@/lib/hjemmebane/akademiApi";
-import { brugbarLinje, optaelBrugbarPrLektion } from "@/lib/hjemmebane/lektionBrugbar";
+import { brugbarLinje, optaelBrugbarPrLektion, udelukFraBrugbar } from "@/lib/hjemmebane/lektionBrugbar";
 import { kraevRaekker } from "@/lib/kraevRaekker";
 import { raadgiverHentefejlTekst } from "@/lib/raadgiverHentefejl";
 import { supabase } from "@/integrations/supabase/client";
@@ -134,10 +134,13 @@ export const ProgressView = () => {
     queryFn: () => listAllMemberProgress(publishedIds),
     enabled: publishedIds.length > 0,
   });
-  // Rådgivere og admins udelukkes af «Kunne du bruge den?»-tallet: deres
-  // egne rækker (self-only RLS gælder også dem) må ikke tælle. Samme RPC
-  // og kraevRaekker-form som useVirksomhed (:332/:382) — fejler opslaget,
-  // vises INGEN tal (aldrig tal uden udelukkelsen).
+  // Rådgiverne og ikke-kunders medlemmer udelukkes af «Kunne du bruge
+  // den?»-tallet: rådgivernes egne rækker (self-only RLS gælder også dem)
+  // må ikke tælle, og heller ikke Topix.dk ApS' (er_kunde = false, som i
+  // rådgiverens andre flader). Rådgiverne kommer herfra; ikke-kunderne fra
+  // membersQuery (companyErKunde). Samme RPC og kraevRaekker-form som
+  // useVirksomhed (:332/:382) — fejler opslaget, vises INGEN tal (aldrig
+  // tal uden udelukkelsen).
   const raadgivereQuery = useQuery({
     queryKey: ["admin-progress", "raadgivere"],
     queryFn: async () =>
@@ -145,15 +148,27 @@ export const ProgressView = () => {
         .map((r) => r.user_id)
         .filter(Boolean),
   });
-  // Tal kun når BEGGE hentninger er hentet: rådgiverlisten (udelukkelsen)
-  // OG progress-rækkerne. progressQuery er disabled uden publicerede
-  // lektioner — dér er [] det sande svar; ellers er null «ikke klar».
+  // Tal kun når ALLE TRE hentninger er hentet: rådgiverlisten OG
+  // medlemslisten (udelukkelsen: rådgiverne og ikke-kunders medlemmer,
+  // udelukFraBrugbar — pr. bruger, så et medlem af både en kunde og en
+  // ikke-kunde tæller med) OG progress-rækkerne. progressQuery er disabled
+  // uden publicerede lektioner — dér er [] det sande svar; ellers er null
+  // «ikke klar».
   const brugbarOptaelling = useMemo(() => {
-    if (!raadgivereQuery.isSuccess) return null;
-    if (progressQuery.isSuccess) return optaelBrugbarPrLektion(progressQuery.data, raadgivereQuery.data);
-    if (publishedIds.length === 0) return optaelBrugbarPrLektion([], raadgivereQuery.data);
+    if (!raadgivereQuery.isSuccess || !membersQuery.isSuccess) return null;
+    const udeluk = udelukFraBrugbar(raadgivereQuery.data, membersQuery.data);
+    if (progressQuery.isSuccess) return optaelBrugbarPrLektion(progressQuery.data, udeluk);
+    if (publishedIds.length === 0) return optaelBrugbarPrLektion([], udeluk);
     return null;
-  }, [progressQuery.isSuccess, progressQuery.data, raadgivereQuery.isSuccess, raadgivereQuery.data, publishedIds.length]);
+  }, [
+    progressQuery.isSuccess,
+    progressQuery.data,
+    raadgivereQuery.isSuccess,
+    raadgivereQuery.data,
+    membersQuery.isSuccess,
+    membersQuery.data,
+    publishedIds.length,
+  ]);
 
   const trackedItems = useMemo(
     () => (itemsQuery.data ?? []).filter(isTrackedItem),
@@ -402,7 +417,8 @@ export const ProgressView = () => {
   ) : (
     /* Intet medlem valgt (16/9): overblikket «Svar pr. lektion» — tallet fra
        «Kunne du bruge den?» pr. tracked lektion, grupperet som medlems-
-       detaljen. Rækkerne er listAllMemberProgress; rådgiverne trækkes fra.
+       detaljen. Rækkerne er listAllMemberProgress; rådgiverne og
+       ikke-kunders medlemmer trækkes fra (udelukFraBrugbar).
        På smal skærm er højre side skjult uden valgt medlem (HbAdminSplit:
        hidden md:block) — overblikket ses dér ikke; ladt være. */
     <div className="flex h-full min-h-0 flex-col bg-hb-surface">
@@ -423,6 +439,8 @@ export const ProgressView = () => {
             </p>
           ) : raadgivereQuery.isError ? (
             <p className="mt-4 text-sm text-hb-rust">{raadgiverHentefejlTekst(raadgivereQuery.error, "listen")}</p>
+          ) : membersQuery.isError ? (
+            <p className="mt-4 text-sm text-hb-rust">{raadgiverHentefejlTekst(membersQuery.error, "listen")}</p>
           ) : progressQuery.isError ? (
             <p className="mt-4 text-sm text-hb-rust">{raadgiverHentefejlTekst(progressQuery.error, "listen")}</p>
           ) : itemsQuery.isSuccess && publishedIds.length === 0 ? (
