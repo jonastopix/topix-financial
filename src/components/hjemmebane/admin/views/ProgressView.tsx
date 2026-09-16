@@ -20,6 +20,10 @@ import {
   listPublishedItems,
   type ItemProgressState,
 } from "@/lib/hjemmebane/akademiApi";
+import { brugbarLinje, optaelBrugbarPrLektion } from "@/lib/hjemmebane/lektionBrugbar";
+import { kraevRaekker } from "@/lib/kraevRaekker";
+import { raadgiverHentefejlTekst } from "@/lib/raadgiverHentefejl";
+import { supabase } from "@/integrations/supabase/client";
 import { isTrackedItem } from "../../akademi/useAkademiData";
 import { hbControlClasses } from "../HbField";
 import { HbAdminSplit } from "../HbAdminShell";
@@ -130,6 +134,26 @@ export const ProgressView = () => {
     queryFn: () => listAllMemberProgress(publishedIds),
     enabled: publishedIds.length > 0,
   });
+  // Rådgivere og admins udelukkes af «Kunne du bruge den?»-tallet: deres
+  // egne rækker (self-only RLS gælder også dem) må ikke tælle. Samme RPC
+  // og kraevRaekker-form som useVirksomhed (:332/:382) — fejler opslaget,
+  // vises INGEN tal (aldrig tal uden udelukkelsen).
+  const raadgivereQuery = useQuery({
+    queryKey: ["admin-progress", "raadgivere"],
+    queryFn: async () =>
+      (kraevRaekker(await supabase.rpc("get_all_advisor_profiles"), "get_all_advisor_profiles") as { user_id: string }[])
+        .map((r) => r.user_id)
+        .filter(Boolean),
+  });
+  // Tal kun når BEGGE hentninger er hentet: rådgiverlisten (udelukkelsen)
+  // OG progress-rækkerne. progressQuery er disabled uden publicerede
+  // lektioner — dér er [] det sande svar; ellers er null «ikke klar».
+  const brugbarOptaelling = useMemo(() => {
+    if (!raadgivereQuery.isSuccess) return null;
+    if (progressQuery.isSuccess) return optaelBrugbarPrLektion(progressQuery.data, raadgivereQuery.data);
+    if (publishedIds.length === 0) return optaelBrugbarPrLektion([], raadgivereQuery.data);
+    return null;
+  }, [progressQuery.isSuccess, progressQuery.data, raadgivereQuery.isSuccess, raadgivereQuery.data, publishedIds.length]);
 
   const trackedItems = useMemo(
     () => (itemsQuery.data ?? []).filter(isTrackedItem),
@@ -376,11 +400,66 @@ export const ProgressView = () => {
       </div>
     </div>
   ) : (
-    <div className="flex h-full items-center justify-center bg-hb-surface px-10">
-      <p className="max-w-sm text-sm leading-relaxed text-hb-ink-soft">
-        Vælg et medlem i listen for at se og markere fremdrift. Markeringer skrives som ægte
-        fremdrift — medlemmet ser Gennemført, som var det selvsat.
-      </p>
+    /* Intet medlem valgt (16/9): overblikket «Svar pr. lektion» — tallet fra
+       «Kunne du bruge den?» pr. tracked lektion, grupperet som medlems-
+       detaljen. Rækkerne er listAllMemberProgress; rådgiverne trækkes fra.
+       På smal skærm er højre side skjult uden valgt medlem (HbAdminSplit:
+       hidden md:block) — overblikket ses dér ikke; ladt være. */
+    <div className="flex h-full min-h-0 flex-col bg-hb-surface">
+      <div className="min-h-0 flex-1 overflow-y-auto px-6 py-8 md:px-10">
+        <div className="max-w-2xl">
+          <p className="text-xs font-medium uppercase tracking-[0.14em] text-hb-rust">Svar pr. lektion</p>
+          <p className="mt-2 text-sm leading-relaxed text-hb-ink-soft">
+            Medlemmernes svar på «Kunne du bruge den?» efter hver video. Vælg et medlem i listen for
+            at se og markere fremdrift.
+          </p>
+
+          {/* Kataloget først: fejler items eller collections, er areaBlocks
+              tomme, og uden denne gren ligner en fejlet hentning «ingen
+              lektioner». Tom og fejlet må ikke se ens ud. */}
+          {itemsQuery.isError || collectionsQuery.isError ? (
+            <p className="mt-4 text-sm text-hb-rust">
+              {raadgiverHentefejlTekst(itemsQuery.isError ? itemsQuery.error : collectionsQuery.error, "listen")}
+            </p>
+          ) : raadgivereQuery.isError ? (
+            <p className="mt-4 text-sm text-hb-rust">{raadgiverHentefejlTekst(raadgivereQuery.error, "listen")}</p>
+          ) : progressQuery.isError ? (
+            <p className="mt-4 text-sm text-hb-rust">{raadgiverHentefejlTekst(progressQuery.error, "listen")}</p>
+          ) : itemsQuery.isSuccess && publishedIds.length === 0 ? (
+            /* Ingen publicerede lektioner: kun eyebrow og indledning — aldrig «Henter…» for evigt. */
+            null
+          ) : brugbarOptaelling === null || loading ? (
+            <p className="mt-4 text-sm text-hb-ink-soft">Henter…</p>
+          ) : (
+            <div className="mt-8 space-y-10">
+              {areaBlocks.map((block) => (
+                <section key={block.areaKey}>
+                  <p className="text-xs font-medium uppercase tracking-[0.14em] text-hb-rust">
+                    {block.areaLabel}
+                  </p>
+                  <div className="mt-3 space-y-6">
+                    {block.groups.map((group) => (
+                      <div key={`${block.areaKey}:${group.label}`}>
+                        <h3 className="min-w-0 truncate font-editorial text-lg font-medium text-hb-ink">
+                          {group.label}
+                        </h3>
+                        <ul className="mt-2 space-y-1">
+                          {group.items.map((item) => (
+                            <li key={item.id} className="rounded-lg px-2 py-1.5">
+                              <p className="truncate text-[15px] text-hb-ink">{item.title}</p>
+                              <p className="text-xs text-hb-ink-soft">{brugbarLinje(brugbarOptaelling[item.id])}</p>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 

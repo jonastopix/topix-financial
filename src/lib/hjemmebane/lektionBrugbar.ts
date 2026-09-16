@@ -31,6 +31,12 @@
 
 import type { ItemProgressState } from "./akademiApi";
 
+/** Fladens ord (Jonas 16/9): spørgsmålet, de to svar og kvitteringen. */
+export const BRUGBAR_SPOERGSMAAL = "Kunne du bruge den?";
+export const BRUGBAR_JA = "Ja";
+export const BRUGBAR_NEJ = "Nej";
+export const BRUGBAR_TAK = "Tak for svaret.";
+
 export interface SkalSpoergeInput {
   /** isTrackedItem/isTrackedEntry — kun Bunny-videoer spores. */
   tracked: boolean;
@@ -57,6 +63,21 @@ export interface BrugbarPatch {
 
 export function brugbarPatch(svar: boolean, nu: Date): BrugbarPatch {
   return { brugbar: svar, brugbar_at: nu.toISOString() };
+}
+
+/** Den optimistiske cache-patch (useAkademiData.svarBrugbar): patcher KUN
+    en eksisterende række for itemId — svaret forudsætter at lektionen er
+    set færdig, så rækken findes. Findes den ikke, returneres listen
+    uændret (samme reference). Input røres aldrig. */
+export function patchBrugbarIRaekker<T extends { content_item_id: string }>(
+  raekker: T[],
+  itemId: string,
+  patch: BrugbarPatch,
+): T[] {
+  if (!raekker.some((raekke) => raekke.content_item_id === itemId)) return raekker;
+  return raekker.map((raekke) =>
+    raekke.content_item_id === itemId ? { ...raekke, ...patch } : raekke,
+  );
 }
 
 /** Det subset af en member_progress-række optællingen læser. */
@@ -92,4 +113,14 @@ export function optaelBrugbarPrLektion(
     else tal.ubesvaret += 1;
   }
   return ud;
+}
+
+/** Rådgiverens linje pr. lektion (ProgressView-overblikket). Tre grene:
+    ingen gennemført → ingen tal; gennemført men intet svar → antallet
+    og at ingen har svaret; ellers «ja af (ja+nej) kunne bruge den». */
+export function brugbarLinje(t: BrugbarOptaelling | undefined): string {
+  if (!t || t.gennemfoert === 0) return "Ingen har gennemført den endnu";
+  const svar = t.ja + t.nej;
+  if (svar === 0) return `${t.gennemfoert} gennemført · ingen har svaret endnu`;
+  return `${t.ja} af ${svar} kunne bruge den · ${t.gennemfoert} gennemført`;
 }
