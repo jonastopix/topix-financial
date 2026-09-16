@@ -138,13 +138,54 @@ describe("importKvittering — kvitteringen efter import", () => {
     expect(k.beskrivelse).not.toContain(CVR_MANGEL_MAERKE);
   });
 
-  it("alle tilfælde siger at virksomheden er oprettet og invitationen sendt", () => {
+  // 16/9: afgrænset til invitation_spaerret falsk/manglende — er invitationen
+  // spærret, siger kvitteringen det i stedet (testene nedenfor).
+  it("alle tilfælde uden spærret invitation siger at virksomheden er oprettet og invitationen sendt", () => {
     for (const cvr_data of [null, undefined, { name: "x" }]) {
       for (const cvr_udfald of ["fundet", "findes_ikke", "graense", "fejl", "noegle_mangler", null, undefined] as (CvrUdfald | null | undefined)[]) {
-        const k = importKvittering({ reused_company: false, company_name: "Nordic By Hand", cvr_data, cvr_udfald }, form);
-        expect(k.beskrivelse).toContain("er oprettet, og invitationen er sendt til gry@nordicbyhand.dk");
+        for (const invitation_spaerret of [false, undefined]) {
+          const k = importKvittering({ reused_company: false, company_name: "Nordic By Hand", cvr_data, cvr_udfald, invitation_spaerret }, form);
+          expect(k.beskrivelse).toContain("er oprettet, og invitationen er sendt til gry@nordicbyhand.dk");
+        }
       }
     }
+  });
+
+  // Spærret (16/9): Lovable har spærret adressen (afmeldt, bounce eller
+  // klage) — send-invitation-email svarede spaerret: true, import-application
+  // sender invitation_spaerret. Uden mailen har ansøgeren intet login, så
+  // grenen vinder over alt andet.
+  it("invitation_spaerret → advarsel med klokkens ord, ordret — foran alle CVR-grene", () => {
+    for (const cvr_data of [null, undefined, { name: "x" }]) {
+      for (const cvr_udfald of ["fundet", "findes_ikke", "graense", "fejl", "noegle_mangler", null, undefined] as (CvrUdfald | null | undefined)[]) {
+        const k = importKvittering({ reused_company: false, company_name: "Nordic By Hand", cvr_data, cvr_udfald, invitation_spaerret: true }, form);
+        expect(k, `${String(cvr_data)}/${String(cvr_udfald)}`).toEqual({
+          tone: "warning",
+          titel: "Importeret — men invitationen blev ikke leveret",
+          beskrivelse:
+            "Nordic By Hand er oprettet, men invitationen til gry@nordicbyhand.dk blev ikke sendt: adressen er spærret hos mailudbyderen (afmeldt, bounce eller klage). Kontakt dem direkte og få en adresse der virker.",
+        });
+      }
+    }
+  });
+
+  it("invitation_spaerret vinder også over genbrug — egen titel og beskrivelse, ordret", () => {
+    const k = importKvittering({ reused_company: true, company_name: "Nordic By Hand", cvr_data: null, cvr_udfald: null, invitation_spaerret: true }, form);
+    expect(k).toEqual({
+      tone: "warning",
+      titel: "Virksomheden findes allerede — men invitationen blev ikke leveret",
+      beskrivelse:
+        "Invitationen til gry@nordicbyhand.dk for Nordic By Hand blev ikke sendt: adressen er spærret hos mailudbyderen (afmeldt, bounce eller klage). Kontakt dem direkte og få en adresse der virker.",
+    });
+  });
+
+  it("spærret uden gyldigt CVR og uden navn: stadig advarslen, «Virksomheden», aldrig «undefined»", () => {
+    const k = importKvittering({ reused_company: false, cvr_data: null, invitation_spaerret: true }, { email: form.email, cvr_number: "" });
+    expect(k.tone).toBe("warning");
+    expect(k.titel).toBe("Importeret — men invitationen blev ikke leveret");
+    expect(k.beskrivelse.startsWith("Virksomheden er oprettet, men invitationen til gry@nordicbyhand.dk blev ikke sendt:")).toBe(true);
+    expect(k.beskrivelse).not.toContain("undefined");
+    expect(k.beskrivelse).not.toContain(CVR_MANGEL_MAERKE);
   });
 
   it("uden gyldigt CVR i formularen er manglende cvr_data forventet — succes med en oplysning, ikke en advarsel", () => {

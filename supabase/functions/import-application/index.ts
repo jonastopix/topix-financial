@@ -204,7 +204,7 @@ Deno.serve(async (req) => {
 
   // 5. Send invitation email
   const signupUrl = `https://app.theboardroom.dk/auth?mode=signup&invite=${invitation.token}`;
-  const { data: _emailData, error: emailErr } = await adminClient.functions.invoke("send-invitation-email", {
+  const { data: emailData, error: emailErr } = await adminClient.functions.invoke("send-invitation-email", {
     body: {
       email,
       company_name: companyName,
@@ -224,7 +224,12 @@ Deno.serve(async (req) => {
     console.warn("[import-application] Failed to send invitation email (non-blocking):", { status, body: bodyText, error: emailErr });
   }
 
-  console.log(`[import-application] Invitation created: company=${companyId}, email=${email}, token=${invitation.token}, email_sent=${!emailErr}`);
+  // «Spærret» (16/9): send-invitation-email svarer 200 med spaerret: true når
+  // Lovable afviser modtageren. Svaret bærer det videre (invitation_spaerret),
+  // så kvitteringen (src/lib/cvrBerigelse.ts) kan sige det — ingen klokke
+  // herfra; rådgiveren står selv med kvitteringen.
+  const invitationSpaerret = (emailData as { spaerret?: unknown } | null)?.spaerret === true;
+  console.log(`[import-application] Invitation created: company=${companyId}, email=${email}, token=${invitation.token}, email_sent=${!emailErr}, invitation_spaerret=${invitationSpaerret}`);
 
   return new Response(JSON.stringify({
     ok: true,
@@ -239,5 +244,6 @@ Deno.serve(async (req) => {
     // (src/lib/cvrBerigelse.ts) siger hvad der skete ud fra det.
     cvr_udfald: oprettet.cvr_udfald,
     email_sent: !emailErr,
+    invitation_spaerret: invitationSpaerret,
   }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
 });
