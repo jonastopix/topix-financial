@@ -146,6 +146,32 @@ export function medlemsLinje(n: MedlemsNotifikation): KlokkeLinje {
   };
 }
 
+/** Indbakken — kun som fald-tilbage (se chatSti). */
+export const CHAT_STI = "/chat";
+
+/** Chatbeskedens vej (16/9, mangellisten «En chatbesked i klokken åbner
+    indbakken, ikke samtalen»; Jonas' prioritet 1). Set på skærm 11/9: klik
+    førte til /chat — indbakken.
+    HVAD RÆKKEN BÆRER (send-slack-chat-notification, den eneste skriver med
+    reference_type 'chat'): company_id = samtalens virksomhed (altid — uden
+    virksomhed skrives ingen række), member_id = afsenderen, reference_id =
+    BESKEDENS id. Samtalens id står ikke på rækken, og advisor_notifications
+    har intet deep_link. Den gamle klokke slog messages.conversation_id op i
+    databasen; det er ikke en ren funktion.
+    NØGLEN ER VIRKSOMHEDEN: indbakken (CompanyChatPane) holder én samtale pr.
+    virksomhed — den dedupliserer sin liste på company_id, og virksomheds-
+    sidens Blok 4 er nøglet på samme id («Målt 4/9: højst én samtale pr.
+    virksomhed»). Så ?companyId= vælger præcis den samtale rådgiveren selv
+    ville klikke på i listen, og ?messageId= ruller til beskeden når den er
+    hentet. Sandt for alle rækker, gamle som nye — uden writer-ændring.
+    FALD-TILBAGE: uden company_id (rækker fra før writeren skrev virksomheden,
+    eller en fremmed skriver) kan samtalen ikke findes → indbakken. */
+export function chatSti(n: Pick<RaadgiverNotifikation, "company_id" | "reference_id">): string {
+  if (!n.company_id) return CHAT_STI; // ingen virksomhed → ingen samtale at pege på
+  const besked = n.reference_id ? `&messageId=${n.reference_id}` : "";
+  return `${CHAT_STI}?companyId=${n.company_id}${besked}`;
+}
+
 /** Rådgiverens vej fra en besked — Hjemmebanes ruter, ikke det gamle /members.
     Virksomhedssiden er /virksomhed/:companyId (App.tsx, ental) — /virksomheder
     er LISTEN, og /virksomheder/{id} ramte NotFound (rettet 11/9, låst med
@@ -153,8 +179,9 @@ export function medlemsLinje(n: MedlemsNotifikation): KlokkeLinje {
     Rapport: virksomhedssiden med rapporten foldet ud (?reportId, blok 6).
     Træk: virksomhedssiden rullet til «Aftalen» (?section=aftale), hvor
     «Betaling» med det fejlede træk står.
-    Handout og chat: virksomhedssiden / indbakken uden opslag (den gamle
-    klokke slog modul og samtale op i databasen — det er ikke en ren funktion).
+    Handout: virksomhedssiden uden opslag (den gamle klokke slog modulet op i
+    databasen — det er ikke en ren funktion).
+    Chat (16/9, Jonas' prioritet 1): SAMTALEN, ikke indbakken — chatSti.
     Community (16/9): et nyt opslag fra et medlem (notify-community-opslag,
     reference_type 'community_traad') fører til tråden, /community/{id} —
     uden reference_id til feedet. Ruten er MemberRoute; rådgivere passerer. */
@@ -169,7 +196,7 @@ export function raadgiverSti(n: Pick<RaadgiverNotifikation, "type" | "reference_
     case "handout":
       return virksomhed ?? "/virksomheder";
     case "chat":
-      return "/chat";
+      return chatSti(n);
     case "feedback":
       return `/admin/feedback${n.reference_id ? `?feedbackId=${n.reference_id}` : ""}`;
     case "community_traad":

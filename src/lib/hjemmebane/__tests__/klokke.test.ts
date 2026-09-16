@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import {
+  CHAT_STI,
+  chatSti,
   driftTekst,
   driftTitel,
   erDrift,
@@ -78,9 +80,30 @@ describe("linjerne", () => {
     expect(raadgiverSti(r({ company_id: null }))).toBe("/virksomheder");
     expect(raadgiverSti(r({ reference_type: "handout" }))).toBe("/virksomhed/c1");
     expect(raadgiverSti(r({ reference_type: "ukendt_type", reference_id: null }))).toBe("/virksomhed/c1");
-    expect(raadgiverSti(r({ reference_type: "chat", type: "new_message" }))).toBe("/chat");
     expect(raadgiverSti(r({ reference_type: "feedback", reference_id: "f9", type: "feedback_submitted" }))).toBe("/admin/feedback?feedbackId=f9");
     expect(raadgiverSti(r({ reference_type: null, company_id: null, type: "agent_insight" }))).toBeNull();
+  });
+
+  /* Chat (16/9, Jonas' prioritet 1): samtalen, ikke indbakken. Rækken
+     (send-slack-chat-notification) bærer company_id og BESKEDENS id som
+     reference_id — aldrig samtalens id. Indbakken holder én samtale pr.
+     virksomhed, så virksomheden er nøglen; beskeden følger med når den er der. */
+  it("chat: med virksomhed OG besked → samtalen med beskeden", () => {
+    const n = r({ reference_type: "chat", type: "new_message", company_id: "c1", reference_id: "m1" });
+    expect(raadgiverSti(n)).toBe("/chat?companyId=c1&messageId=m1");
+    expect(chatSti(n)).toBe("/chat?companyId=c1&messageId=m1");
+  });
+  it("chat: med virksomhed uden besked-id → samtalen alene", () => {
+    expect(raadgiverSti(r({ reference_type: "chat", type: "new_message", reference_id: null }))).toBe("/chat?companyId=c1");
+  });
+  it("chat: gammel række uden virksomhed → indbakken (samtalen kan ikke findes) — også med et besked-id", () => {
+    expect(raadgiverSti(r({ reference_type: "chat", type: "new_message", company_id: null, reference_id: "m1" }))).toBe(CHAT_STI);
+    expect(raadgiverSti(r({ reference_type: "chat", type: "new_message", company_id: null, reference_id: null }))).toBe("/chat");
+  });
+  it("chat: kun reference_type afgør grenen — en anden type med reference_type chat går samme vej; andre reference_types rører den ikke", () => {
+    expect(raadgiverSti(r({ reference_type: "chat", type: "ukendt", reference_id: "m2" }))).toBe("/chat?companyId=c1&messageId=m2");
+    expect(raadgiverSti(r({ reference_type: "handout" }))).toBe("/virksomhed/c1");
+    expect(raadgiverSti(r({ reference_type: "community_traad", reference_id: "t1" }))).toBe("/community/t1");
   });
   it("et fejlet træk fører til virksomhedssidens «Aftalen», hvor «Betaling» står", () => {
     expect(raadgiverSti(r({ type: "traek_fejlet", reference_type: "traek", reference_id: "t1" }))).toBe("/virksomhed/c1?section=aftale");
