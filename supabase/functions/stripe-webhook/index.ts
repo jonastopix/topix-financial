@@ -27,6 +27,7 @@ import { doemFornyelsesdublet } from "../_shared/fornyelsesVaern.ts";
 import {
   dubletBeskedTekst,
   fornyelsesBeskedTekst,
+  meldSpaerretMail,
   skrivRaadgiverBesked,
   TYPE_FORNYELSE_BETALT,
   TYPE_FORNYELSE_DUBLET,
@@ -317,6 +318,11 @@ async function sendFornyelseskvittering(
     });
     if (!resultat.sent) {
       console.error(`${praefiks}: ikke sendt (${resultat.reason}) — betalingen er registreret, kvitteringen mangler`);
+      // Spærret hos Lovable: kvitteringen når aldrig frem, og det gør de
+      // næste varsler heller ikke. Klokken (16/9, spaerretMail.ts); kaster aldrig.
+      if (resultat.reason === "recipient_suppressed") {
+        await meldSpaerretMail(adminClient, { label: LABEL_KVITTERING, companyId: args.companyId, modtager: til });
+      }
       return;
     }
     console.log(`${praefiks}: sendt til ${til} (${args.betalingsmodel}, ${args.samletOere} øre, til ${args.periodeSlut})`);

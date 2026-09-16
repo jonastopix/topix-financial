@@ -34,6 +34,7 @@
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
 import { BETALINGSFRIST_DAGE } from "./betalingsfrist.ts";
 import { SENDER_FROM, VERIFIED_FROM_EMAIL, SENDER_DOMAIN, sendManagedEmail } from "./managedEmail.ts";
+import { meldSpaerretMail } from "./raadgiverBesked.ts";
 
 export { SENDER_DOMAIN, VERIFIED_FROM_EMAIL, SENDER_FROM };
 
@@ -68,6 +69,13 @@ export async function sendIndgangsMail(args: SendIndgangsMailArgs): Promise<bool
 
   if (!resultat.sent) {
     console.error(`[indgangsMail:${label}] ikke sendt (${resultat.reason}) for company ${companyId}`);
+    // Spærret hos Lovable (afmeldt, bounce eller klage): adressen er død for
+    // ALLE app-mails, og cronens nye forsøg i morgen rammer samme mur.
+    // Rådgiverne skal vide det nu (16/9, spaerretMail.ts). Kaster aldrig,
+    // og udfaldet er stadig false — kalderne er uændrede.
+    if (resultat.reason === "recipient_suppressed") {
+      await meldSpaerretMail(adminClient, { label, companyId, modtager: til });
+    }
     return false;
   }
 

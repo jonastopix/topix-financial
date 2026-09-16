@@ -25,6 +25,7 @@
  */
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
 import { raadgivereUdenRaekke, type EksisterendeRaekke } from "./raadgiverBeskedTekst.ts";
+import { beskedVedSpaerretMail } from "./spaerretMail.ts";
 
 // Teksterne og dedup-dommen er rene og bor i raadgiverBeskedTekst.ts (så
 // vitest kan importere dem uden Supabase-klienten). Genudstilles her, så
@@ -117,5 +118,41 @@ export async function skrivRaadgiverBesked(
     resultat.fejl.push(err instanceof Error ? err.message : String(err));
     console.error(`${log}: uventet fejl:`, err);
     return resultat;
+  }
+}
+
+/**
+ * Klokken når en mail om adgang eller penge er spærret hos Lovable
+ * (16/9, motoren i spaerretMail.ts). Kaldes fra sendIndgangsMail og fra
+ * stripe-webhooks kvittering når sendManagedEmail svarer
+ * recipient_suppressed. Slår virksomhedens navn op, bygger beskeden med
+ * motoren og skriver den med skrivRaadgiverBesked (én pr. rådgiver, dedup
+ * på type + company_id).
+ *
+ * KASTER ALDRIG og returnerer intet: kalderens udfald (false / return)
+ * må ikke ændres af at klokken fejler — mailen var allerede ikke sendt.
+ */
+export async function meldSpaerretMail(
+  admin: SupabaseClient,
+  a: { label: string; companyId: string; modtager: string },
+): Promise<void> {
+  const log = `[spaerretMail] ${a.label} (company ${a.companyId})`;
+  try {
+    const { data: company, error: companyFejl } = await admin
+      .from("companies")
+      .select("name")
+      .eq("id", a.companyId)
+      .maybeSingle();
+    if (companyFejl) console.error(`${log}: companies-opslag fejlede — beskeden får «En virksomhed»:`, companyFejl.message);
+    const virksomhed = ((company ?? null) as { name?: string | null } | null)?.name ?? "En virksomhed";
+    const besked = beskedVedSpaerretMail({ label: a.label, companyId: a.companyId, virksomhed, modtager: a.modtager });
+    if (!besked) {
+      console.log(`${log}: ingen besked (label uden for listen eller company_id mangler)`);
+      return;
+    }
+    const resultat = await skrivRaadgiverBesked(admin, besked);
+    console.log(`${log}: ${resultat.skrevet} skrevet, ${resultat.fandtes} fandtes, ${resultat.raadgivere} rådgivere${resultat.fejl.length ? ` — fejl: ${resultat.fejl.join("; ")}` : ""}`);
+  } catch (err) {
+    console.error(`${log}: klokken ringede ikke —`, err instanceof Error ? err.message : String(err));
   }
 }
