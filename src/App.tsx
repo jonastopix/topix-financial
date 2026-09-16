@@ -10,6 +10,7 @@ import { ViewModeProvider } from "@/hooks/useViewMode";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import ScrollToTop from "@/components/ScrollToTop";
 import { HbSpinner } from "@/components/hjemmebane/HbSpinner";
+import InvitationTilLoggetInd from "@/components/hjemmebane/InvitationTilLoggetInd";
 
 // Synchronous — needed on initial load
 import Index from "./pages/Index";
@@ -174,10 +175,17 @@ const AuthRoute = ({ children }: { children: React.ReactNode }) => {
   const qs = new URLSearchParams(window.location.search);
   const returnUrl = qs.get("returnUrl");
   const force = qs.get("force");
+  const invite = qs.get("invite");
   // Spinneren frem for null (trin 10-12): null gav en hvid, tom skærm
   // før /auth tegnede; nu samme rolige papir som siden selv.
   if (loading) return <HbSpinner />;
-  if (user && !force) return <Navigate to={returnUrl || "/"} replace />;
+  if (user && !force) {
+    // Invitationslink i en indlogget browser (16/9, w2 scenarie 4): før
+    // gik den ordløst til / og tabte tokenet. Nu: sig hvem der er logget
+    // ind, og lad hende logge ud på SAMME URL. Uden invite: som før.
+    if (invite) return <InvitationTilLoggetInd email={user.email ?? ""} />;
+    return <Navigate to={returnUrl || "/"} replace />;
+  }
   return <>{children}</>;
 };
 
