@@ -32,7 +32,6 @@ function fokusInputs(
     now,
     processedPeriodKeys: processed,
     committedPeriodKeys: committed,
-    milestones: [],
     hasPulseThisMonth: true,
     unreadUserMessages: 0,
     unreadAgentMessages: 0,

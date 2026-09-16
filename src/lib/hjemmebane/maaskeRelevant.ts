@@ -58,6 +58,48 @@ export const MODUL_FOR_TRIGGER: Readonly<Record<string, string | null>> = {
   REPORT_UPLOADED: null,
 };
 
+/** Fase 3 («Én plan», 16/9): MÅLETS kategori → handout-modul (modulForMaal).
+    Når medlemmet har et aktivt mål om X, peger linjen på lektionen om X —
+    et bedre anker end ugens trigger alene (plan §3a). Nøglerne er
+    milestoneCategories.ts' fjorten (værnet dineMaal.guard låser at tabellen
+    kender dem alle); modulerne er handoutConfig.moduleOrder's fem:
+    'overordnet' («Målsætning 12 mdr.»), 'bogholderi' («Få styr på dine tal
+    og økonomistyring»), 'administration' («Optimér din drift og dine
+    processer»), 'salg' («Styrk din salgsproces og pipeline»), 'marketing'
+    («Skab synlighed og resultater med din marketing»). 'other' → intet. */
+export const MODUL_FOR_KATEGORI: Readonly<Record<string, string | null>> = {
+  vaekst: "overordnet",
+  profit: "bogholderi",
+  salg: "salg",
+  kunder: "salg",
+  produkt: "overordnet",
+  marketing: "marketing",
+  medarbejdere: "administration",
+  timer: "administration",
+  db: "bogholderi",
+  juridisk: "administration",
+  funding: "bogholderi",
+  regnskab: "bogholderi",
+  administration: "administration",
+  other: null,
+};
+
+/** Målets modul — null for ukendt kategori, tom eller 'other'. */
+export function modulForMaal(category: string | null | undefined): string | null {
+  if (!category) return null;
+  return MODUL_FOR_KATEGORI[category] ?? null;
+}
+
+/** Modulerne de aktive mål peger på, i målenes rækkefølge, uden dubletter. */
+export function modulerForMaal(maal: readonly { category: string | null }[] | null | undefined): string[] {
+  const ud: string[] = [];
+  for (const m of maal ?? []) {
+    const modul = modulForMaal(m.category);
+    if (modul && !ud.includes(modul)) ud.push(modul);
+  }
+  return ud;
+}
+
 /** Det dommen læser af weekly_focus — Json-kolonnerne tages som unknown og læses defensivt. */
 export interface FokusRaekke {
   triggers_fired: unknown;
@@ -112,6 +154,8 @@ export function brugbarAndel(
 
 export interface MaaskeRelevantInput<T extends LektionRaekke> {
   fokus: FokusRaekke | null | undefined;
+  /** Fase 3: de AKTIVE mål (kalderen dømmer aktiv gennem afgoerMilepael) — kategorien giver modulet. Valgfri. */
+  maal?: readonly { category: string | null }[] | null;
   /** Kataloget (published-only fra listPublishedItems; formen holder uanset). */
   lektioner: readonly T[];
   /** Medlemmets egne member_progress-rækker (useAkademiData.progressRows). */
@@ -123,10 +167,13 @@ export interface MaaskeRelevantInput<T extends LektionRaekke> {
 
 /** Højst `loft` lektioner: kun publicerede med matchende modul, ikke
     gennemført af medlemmet, i forløbsrækkefølge (modulerne i fokus-orden,
-    lektionerne i kursets orden), derefter «brugbar»-andel (højest først,
-    ubesvaret sidst). Intet match → null: ingen linje. */
+    så målenes orden — fase 3; lektionerne i kursets orden), derefter
+    «brugbar»-andel (højest først, ubesvaret sidst). Intet match → null:
+    ingen linje. Ugens fokus først: linjen står under fokuskortet, og ugens
+    emne er det medlemmet lige har læst; målet supplerer. */
 export function maaskeRelevant<T extends LektionRaekke>(i: MaaskeRelevantInput<T>): T[] | null {
-  const moduler = modulerForFokus(i.fokus);
+  const moduler = [...modulerForFokus(i.fokus)];
+  for (const m of modulerForMaal(i.maal)) if (!moduler.includes(m)) moduler.push(m);
   if (moduler.length === 0) return null;
   const progressAf = new Map(i.progress.map((p) => [p.content_item_id, p]));
   const andel = brugbarAndel(i.ratings ?? []);

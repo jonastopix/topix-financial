@@ -19,7 +19,6 @@ const base = (overrides: Partial<FocusInputs> = {}): FocusInputs => ({
   now: NOW,
   processedPeriodKeys: new Set(["2026-07"]),
   committedPeriodKeys: new Set(["2026-07"]),
-  milestones: [],
   hasPulseThisMonth: true,
   unreadUserMessages: 0,
   unreadAgentMessages: 0,
@@ -76,38 +75,22 @@ describe("deriveFocus — hver kilde for sig", () => {
     const medBesked = deriveFocus(base({ unreadUserMessages: 1, weeklyFocus: { headline: "Stram likviditeten", seen: true } }));
     expect(medBesked.map((i) => i.kind)).toEqual(["unread-messages", "weekly-focus"]);
     expect(medBesked[medBesked.length - 1].kind).toBe("weekly-focus");
-    // Grænsen fra den anden side: ikke-set står FORAN milepæle (prioritet 4 < 5).
-    const ikkeSet = deriveFocus(base({ weeklyFocus: { headline: "x", seen: false }, milestones: [{ title: "Ny hjemmeside", deadline: "2026-09-05", progress: 10, status: "active" }] }));
+    // Grænsen fra den anden side: ikke-set står FORAN aktive skridt (prioritet 4 < 6).
+    // (Milepæls-slottet (e) er ude siden fase 3 — skridtet er nærmeste nabo.)
+    const skridt = [{ id: "k1", title: "Ring til banken", priority: "high", status: "active", due_date: "2026-09-04" }];
+    const ikkeSet = deriveFocus(base({ weeklyFocus: { headline: "x", seen: false }, openActions: skridt }));
     expect(ikkeSet[0].kind).toBe("weekly-focus");
-    const set = deriveFocus(base({ weeklyFocus: { headline: "x", seen: true }, milestones: [{ title: "Ny hjemmeside", deadline: "2026-09-05", progress: 10, status: "active" }] }));
+    const set = deriveFocus(base({ weeklyFocus: { headline: "x", seen: true }, openActions: skridt }));
     expect(set[set.length - 1].kind).toBe("weekly-focus");
     // Uden ugefokus: intet punkt, hverken forrest eller bagerst.
     expect(deriveFocus(base({ weeklyFocus: null })).some((i) => i.kind === "weekly-focus")).toBe(false);
   });
 
-  it("(e) milestone-deadlines: ≤14-dages-tærsklen ordret (14 med, 15 ikke), ALLE kandidater, nærmeste først + titel-tie-break", () => {
-    const items = deriveFocus(
-      base({
-        milestones: [
-          { title: "Parkeret", deadline: daysFromNow(2), progress: 10, status: "parked" },
-          { title: "Færdig", deadline: daysFromNow(2), progress: 100, status: "active" },
-          { title: "Grænse-15 (ude)", deadline: daysFromNow(15), progress: 10, status: "active" },
-          { title: "B-samme-dag", deadline: daysFromNow(4), progress: 40, status: "active" },
-          { title: "A-samme-dag", deadline: daysFromNow(4), progress: 40, status: "active" },
-          { title: "Senere", deadline: daysFromNow(10), progress: 40, status: "active" },
-          { title: "Grænse-14 (med)", deadline: daysFromNow(14), progress: 40, status: "active" },
-        ],
-      }),
-    );
-    expect(items.map((i) => i.title)).toEqual([
-      '"A-samme-dag" nærmer sig deadline',
-      '"B-samme-dag" nærmer sig deadline',
-      '"Senere" nærmer sig deadline',
-      '"Grænse-14 (med)" nærmer sig deadline',
-    ]);
-    // Præcis 4·86400000 ms frem → ceil = 4 — uafhængigt af tidszone.
-    expect(items[0].description).toContain("4 dage tilbage");
-    expect(items[3].description).toContain("14 dage tilbage");
+  it("(e) UDGÅET (fase 3, 16/9): ingen milepæls-kilde i fokusmotoren — inputtet findes ikke, og ingen kind hedder milestone-deadline", () => {
+    // Målet står i forsidens «Dine mål» (dineMaal.ts); fokuskortet nævner det ikke.
+    const items = deriveFocus({ ...base(), ...({ milestones: [{ title: "x", deadline: daysFromNow(2), progress: 10, status: "active" }] } as object) });
+    expect(items.some((i) => (i.kind as string) === "milestone-deadline")).toBe(false);
+    expect(items).toEqual([]);
   });
 
   it("(f) company_actions: kalderens orden bevares, sourceId følger med", () => {
@@ -156,7 +139,7 @@ describe("deriveFocus — hver kilde for sig", () => {
     ]);
   });
 
-  it("(f) 'proposed' giver INTET fokus-punkt — forslaget bor i Dine aftaler (ét ad gangen)", () => {
+  it("(f) 'proposed' giver INTET fokus-punkt — forslaget bor i Dine skridt (ét ad gangen)", () => {
     const items = deriveFocus(
       base({
         openActions: [
@@ -168,7 +151,7 @@ describe("deriveFocus — hver kilde for sig", () => {
     expect(items).toEqual([]);
   });
 
-  it("(f) 'active' siger hvornår den skal være gjort og peger på #dine-aftaler", () => {
+  it("(f) 'active' siger hvornår den skal være gjort og peger på #dine-skridt", () => {
     const items = deriveFocus(
       base({
         openActions: [
@@ -177,7 +160,8 @@ describe("deriveFocus — hver kilde for sig", () => {
       }),
     );
     expect(items[0].description).toBe("Skal være gjort senest 4. september.");
-    expect(items[0].ctaHref).toBe("#dine-aftaler");
+    expect(items[0].ctaHref).toBe("#dine-skridt");
+    expect(items[0].ctaLabel).toBe("Se dine skridt");
   });
 
   it("(f) 'active' med context: fristen først, begrundelsen efter", () => {
@@ -307,12 +291,11 @@ describe("deriveFocus — hver kilde for sig", () => {
 });
 
 describe("deriveFocus — rækkefølge og tom-tilstand", () => {
-  it("alle ni slots samtidig → fast (a)-(i)-rækkefølge", () => {
+  it("alle slots samtidig → fast (a)-(i)-rækkefølge (uden (e), fase 3)", () => {
     const items = deriveFocus({
       now: NOW,
       processedPeriodKeys: new Set(), // (a) — og pulse-gaten lukker (g)
       committedPeriodKeys: new Set(),
-      milestones: [{ title: "Deadline", deadline: daysFromNow(5), progress: 20, status: "active" }],
       hasPulseThisMonth: false,
       unreadUserMessages: 2,
       unreadAgentMessages: 1,
@@ -326,7 +309,6 @@ describe("deriveFocus — rækkefølge og tom-tilstand", () => {
       "unread-messages",
       "unread-agent",
       "weekly-focus",
-      "milestone-deadline",
       "company-action",
       "unlinked-lever",
       "empty-profile",
@@ -347,11 +329,9 @@ describe("deriveFocus — rækkefølge og tom-tilstand", () => {
         openActions: [
           { id: "a1", title: "X", priority: "high" },
           { id: "a2", title: "Y", priority: "low" },
+          { id: "a3", title: "Z", priority: "low", status: "active", due_date: "2026-09-04" },
         ],
-        milestones: [
-          { title: "M1", deadline: daysFromNow(5), progress: 1, status: "active" },
-          { title: "M2", deadline: daysFromNow(6), progress: 1, status: "active" },
-        ],
+        unlinkedLevers: [{ lever: "L", moduleTitle: "Salg" }],
       }),
     );
     const keys = items.map((i) => i.key);
@@ -461,7 +441,6 @@ describe("slot (a) og kontraktstarten", () => {
       now: NOW,
       processedPeriodKeys: new Set(),
       committedPeriodKeys: new Set(),
-      milestones: [],
       hasPulseThisMonth: true,
     });
     expect(step?.id).toBe("missing-report");
@@ -535,7 +514,6 @@ describe("slot (0) — tjeklisten som fokuskortets kilde", () => {
         committedPeriodKeys: new Set(),
         unreadUserMessages: 2,
         weeklyFocus: { headline: "X", seen: false },
-        milestones: [{ title: "Deadline", deadline: daysFromNow(5), progress: 20, status: "active" }],
         openActions: [{ id: "a1", title: "Handling", priority: "high" }],
         askMeAboutMissing: true,
       }),
@@ -587,7 +565,6 @@ describe("deriveNextStep — wrapper-regressionsværn (de fire oprindelige kilde
     now: NOW,
     processedPeriodKeys: new Set(["2026-07"]),
     committedPeriodKeys: new Set(["2026-07"]),
-    milestones: [],
     hasPulseThisMonth: true,
     ...overrides,
   });
@@ -611,24 +588,6 @@ describe("deriveNextStep — wrapper-regressionsværn (de fire oprindelige kilde
       description: "Tallene for juli 2026 er uploadet, men ikke godkendt endnu — godkend dem, så de kommer i drift.",
       cta: "Godkend tallene",
       link: "/reports",
-    });
-  });
-
-  it("milestone-deadline — nærmeste vinder, tekst ordret", () => {
-    const step = deriveNextStep(
-      old({
-        milestones: [
-          { title: "Senere", deadline: daysFromNow(10), progress: 40, status: "active" },
-          { title: "Nærmest", deadline: daysFromNow(4), progress: 40, status: "active" },
-        ],
-      }),
-    );
-    expect(step).toEqual({
-      id: "milestone-deadline",
-      title: '"Nærmest" nærmer sig deadline',
-      description: "4 dage tilbage — opdatér fremdriften eller justér målet.",
-      cta: "Åbn milestones",
-      link: "/milestones",
     });
   });
 

@@ -127,8 +127,8 @@ export const SletMilestoneDialog = ({
     open={open}
     onClose={() => onOpenChange(false)}
     alert
-    titel="Slet milestone?"
-    beskrivelse={<>Er du sikker på, at du vil slette {ms ? `«${ms.title}»` : "denne milestone"}? Denne handling kan ikke fortrydes.</>}
+    titel="Slet målet?"
+    beskrivelse={<>Er du sikker på, at du vil slette {ms ? `«${ms.title}»` : "dette mål"}? Skridtene under det mister deres mål, men slettes ikke. Denne handling kan ikke fortrydes.</>}
     fod={
       <>
         <HbButton variant="secondary" onClick={() => onOpenChange(false)}>Annuller</HbButton>

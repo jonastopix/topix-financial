@@ -97,7 +97,8 @@ function dineTal(active: HbAktiv): HbNavEntry {
       { label: "Rapportering", to: "/reports", active: active === "rapportering" },
       { label: "KPI'er", to: "/kpis", active: active === "noegletal" },
       { label: "Budget", to: "/budget", active: active === "budget" },
-      { label: "Milestones", to: "/milestones", active: active === "milestones" },
+      // «Dine mål» («Én plan», fase 3, 16/9): stien /milestones beholdes, ordet er målenes.
+      { label: "Dine mål", to: "/milestones", active: active === "milestones" },
       { label: "Handouts", to: "/handouts", active: active === "handouts" },
     ],
   };

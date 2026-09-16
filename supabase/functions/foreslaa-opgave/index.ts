@@ -1,8 +1,15 @@
-// foreslaa-opgave — rådgiveren foreslår en opgave til medlemmet fra
-// chatten. En ny PRODUCENT oven på opgave-modellens beviste skrivevej,
-// ingen ny mekanik: source_type 'advisor', status 'proposed', 30 dages
-// udløb (B10), proposed_by = rådgiveren. due_date sættes IKKE — B6:
-// datoen vælges af den der forpligter sig, ved accept i "Dine aftaler".
+// foreslaa-opgave — rådgiveren foreslår et SKRIDT til medlemmet fra
+// chatten eller fra «Planen» på virksomhedssiden. En PRODUCENT oven på
+// opgave-modellens beviste skrivevej, ingen ny mekanik: source_type
+// 'advisor', status 'proposed', 30 dages udløb (B10), proposed_by =
+// rådgiveren. due_date sættes IKKE — B6: datoen vælges af den der
+// forpligter sig, ved accept i "Dine skridt" på forsiden.
+// «Én plan» FASE 3 — JONAS 16/9 (ordret: «B»): maalId er VALGFRIT.
+// Rådgiveren vælger et mål når der er et; uden valg lander skridtet som
+// «uden mål (fra før planen)» i Planen. Et VALGT mål slås op hos SAMME
+// virksomhed (404) og skal være aktivt (409). Kun AI'en er bundet til mål
+// (fase 5). Kalderne (chatten, Planen) foreslår det ældste aktive mål som
+// standard med et tydeligt «Uden mål»-valg.
 //
 // Bucket A-form fra opgave-accepter:
 //   1. CORS-preflight.
@@ -58,7 +65,7 @@ Deno.serve(async (req) => {
     conversationId?: unknown;
     titel?: unknown;
     begrundelse?: unknown;
-    /** Fase 1 («Én plan»): valgfrit — det mål skridtet hører til. Obligatorisk først i fase 3. */
+    /** Fase 3 («Én plan», Jonas «B»): VALGFRIT — det aktive mål skridtet hører til; udeladt = uden mål. */
     maalId?: unknown;
   };
   if (typeof companyId !== "string" || companyId.trim() === "") {
@@ -75,7 +82,7 @@ Deno.serve(async (req) => {
   if (maalId !== undefined && maalId !== null && (typeof maalId !== "string" || maalId.trim() === "")) {
     return jsonResponse({ error: "Ugyldig maalId" }, 400);
   }
-  const oensketMaalId = typeof maalId === "string" ? maalId.trim() : null;
+  const oensketMaalId = typeof maalId === "string" && maalId.trim() !== "" ? maalId.trim() : null;
 
   // ── 4. Virksomheden, med KALDERENS klient (RLS gater adgangen) ──
   const { data: virksomhed, error: virkErr } = await callerClient
@@ -176,7 +183,8 @@ Deno.serve(async (req) => {
   // Fase 1: VÆRNET for målet — det skal findes, høre til SAMME virksomhed og
   // være aktivt (parkerede og nåede mål får ingen skridt). Service role +
   // company-filter er dommen; et mål fra en anden virksomhed ser ud som
-  // «findes ikke» (404), aldrig som et link på tværs.
+  // «findes ikke» (404), aldrig som et link på tværs. Kun når et mål ER valgt
+  // (Jonas «B»: valgfrit) — værnet for det valgte mål bliver.
   if (oensketMaalId) {
     const { data: maal, error: maalErr } = await adminClient
       .from("milestones")
@@ -211,7 +219,7 @@ Deno.serve(async (req) => {
       priority: "medium",
       proposed_by: callerId,
       expires_at: beregnUdloeb("advisor", new Date()).toISOString(),
-      // Fase 1: skridtets mål (NULL når rådgiveren ikke valgte et — fase 3 gør det obligatorisk).
+      // Fase 3 (Jonas «B»): skridtets mål — NULL når rådgiveren ikke valgte et («uden mål» i Planen).
       maal_id: oensketMaalId,
     })
     .select("id")
@@ -226,7 +234,7 @@ Deno.serve(async (req) => {
   // ('user','system','ai') rammes ikke af mark_messages_read og bliver
   // evigt ulæste (chat-recon-2 §3, welcome/nudge-fælden).
   // awaiting_reply_from røres IKKE: medlemmet skylder ikke et chat-svar —
-  // de skylder et ja/nej i "Dine aftaler" på forsiden.
+  // de skylder et ja/nej i "Dine skridt" på forsiden.
   // Fejler beskeden, er opgaven stadig skrevet og kaldet ok — opgaven er
   // det vigtige, beskeden er sporet; fejlen logges og meldes i svaret
   // frem for at blive slugt eller vælte det hele.

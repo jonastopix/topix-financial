@@ -135,7 +135,7 @@ const boardroomHentning = (() => {
   return boardroomKilde.slice(start, slut);
 })();
 
-describe("medlemmets forside — «Dine aftaler» og de ulæste kaster, og fejlen vises pr. sektion", () => {
+describe("medlemmets forside — «Dine skridt» (før «Dine aftaler»), «Dine mål» og de ulæste kaster, og fejlen vises pr. sektion", () => {
   it(`${boardroomSti}: importerer HentningsFejl og kraevRaekker`, () => {
     expect(boardroomKilde).toContain('from "@/lib/kraevRaekker"');
   });
@@ -151,9 +151,14 @@ describe("medlemmets forside — «Dine aftaler» og de ulæste kaster, og fejle
     expect(boardroomHentning).toContain('new HentningsFejl("messages"');
   });
 
-  it("fejlen vises pr. sektion — «Dine aftaler» og de ulæste — ikke for hele forsiden", () => {
+  it("skridtene under målene («Dine mål», fase 3) læses med kraevRaekker og navngiver kilden", () => {
+    expect(boardroomHentning).toContain('kraevRaekker(skridtRes, "company_actions")');
+  });
+
+  it("fejlen vises pr. sektion — «Dine skridt», «Dine mål» og de ulæste — ikke for hele forsiden", () => {
     expect(boardroomKilde).toContain("actionsQuery.isError");
-    expect(boardroomKilde).toContain("Dine aftaler kunne ikke hentes. Prøv igen.");
+    expect(boardroomKilde).toContain("DINE_SKRIDT_FEJL_TEKST");
+    expect(boardroomKilde).toContain("DINE_MAAL_FEJL_TEKST");
     expect(boardroomKilde).toContain("unreadQuery.isError");
     expect(boardroomKilde).toContain("Dine ulæste beskeder kunne ikke hentes. Prøv igen.");
   });

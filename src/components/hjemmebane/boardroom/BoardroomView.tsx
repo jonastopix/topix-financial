@@ -46,6 +46,9 @@ import { fokusCtaHref } from "@/lib/hjemmebane/ankomst";
 import { isTrackedEntry, useAkademiData, type AkademiItem } from "../akademi/useAkademiData";
 import { afgoerForloeb, forloebslinje, type Forloebslinje } from "@/lib/hjemmebane/forloeb";
 import { maaskeRelevant, MAASKE_RELEVANT_PRAEFIKS } from "@/lib/hjemmebane/maaskeRelevant";
+import { afgoerMilepael } from "@/lib/milepaelDom";
+import { dineMaalDom, DINE_MAAL_FEJL_TEKST, DINE_MAAL_TOM_TEKST, DINE_SKRIDT_FEJL_TEKST, forsideMaal, modMaaletTekst, type SkridtTilDineMaal } from "@/lib/hjemmebane/dineMaal";
+import type { MaalRaekke } from "@/lib/hjemmebane/planen";
 import { lektionsSti } from "@/lib/hjemmebane/lektionerForModul";
 import { HbVideoEmbed } from "../akademi/HbVideoEmbed";
 import { deriveFocus, filtrerUdloebneForslag, type FocusItem } from "./nextStep";
@@ -1649,13 +1652,15 @@ export const BoardroomView = () => {
   const milestonesQuery = useQuery({
     queryKey: ["boardroom", "milestones", companyId],
     queryFn: async () => {
-      // KASTER ved fejl (10/9): tomme milepæle er et svar, en fejl er ikke —
-      // anerkendelseslinjen og motoren læser begge listen.
+      // KASTER ved fejl (10/9): tomme mål er et svar, en fejl er ikke —
+      // anerkendelseslinjen og «Dine mål» læser begge listen. Fase 3 («Én
+      // plan»): planens kolonner (lib/hjemmebane/planen.MaalRaekke), så
+      // forsiden og /milestones dømmer ens; fokusmotoren læser dem ikke mere.
       const res = await supabase
         .from("milestones")
-        .select("title, deadline, progress, status")
+        .select("id, title, deadline, progress, status, category, source, progress_updated_at, completed_at, created_at")
         .eq("company_id", companyId!);
-      return kraevRaekker(res, "milestones");
+      return kraevRaekker(res, "milestones") as MaalRaekke[];
     },
     enabled: !!companyId,
     staleTime: 3 * 60_000,
@@ -1701,6 +1706,14 @@ export const BoardroomView = () => {
     enabled: !!companyId,
   });
 
+  // De aktive mål til «Måske relevant» (fase 3: modulForMaal) — dømt gennem
+  // afgoerMilepael, uden for memo'en nedenfor (maaskeRelevant.guard dom 1
+  // forbyder egen filtrering i den).
+  const aktiveMaalTilRelevans = useMemo(() => {
+    const nu = new Date();
+    return (milestonesQuery.data ?? []).filter((m) => afgoerMilepael(m, nu).aktiv).map((m) => ({ category: m.category }));
+  }, [milestonesQuery.data]);
+
   // «Måske relevant for dig» (Jonas 16/9, lib/hjemmebane/maaskeRelevant):
   // ugens fokus' triggere → handout-modul → lektionerForModul (den delte
   // motor fra handout-siden), gennemførte udeladt, forløbsrækkefølge og
@@ -1713,11 +1726,13 @@ export const BoardroomView = () => {
     const lektioner = [...akademi.orderedByArea.values()].flat().map((entry) => entry.item);
     return maaskeRelevant({
       fokus: weeklyFocusQuery.data ?? null,
+      // Fase 3: målenes kategori → modul (modulForMaal) — efter ugens fokus' moduler.
+      maal: aktiveMaalTilRelevans,
       lektioner,
       progress: akademi.progressRows,
       ratings: akademi.progressRows,
     });
-  }, [akademi.orderedByArea, akademi.progressRows, weeklyFocusQuery.data]);
+  }, [akademi.orderedByArea, akademi.progressRows, aktiveMaalTilRelevans, weeklyFocusQuery.data]);
 
   // Åbne handlinger, ubesvarede forslag og accepterede opgaver —
   // sortering ordret fra DashboardActionCenter:200-208 (high → medium →
@@ -1739,12 +1754,33 @@ export const BoardroomView = () => {
       // #703/#706): før blev en fejl til `[]`, og «Dine aftaler» forsvandt
       // tavst — et forslag fra rådgiveren eller en aktiv opgave væk uden
       // spor. Tom er et gyldigt svar (ingen aftaler); fejl er det ikke.
-      const actionsRes = (await supabase.from("company_actions").select("id, title, context, priority, status, created_at, due_date, expires_at, deferral_count, source_type")
+      const actionsRes = (await supabase.from("company_actions").select("id, title, context, priority, status, created_at, due_date, expires_at, deferral_count, source_type, maal_id")
         .eq("company_id", companyId!).in("status", ["open", "proposed", "active"]).order("created_at", { ascending: false }).limit(50)) as any;
       return (kraevRaekker(actionsRes, "company_actions") as any[]).sort((a: any, b: any) => {
         const order: Record<string, number> = { high: 0, medium: 1, low: 2 };
         return (order[a.priority] ?? 1) - (order[b.priority] ?? 1) || new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
       });
+    },
+    enabled: !!companyId,
+    staleTime: 3 * 60_000,
+  });
+
+  // Skridtene under målene («Dine mål», fase 3): ALLE company_actions med
+  // maal_id — også gjorte/lukkede, for fremdriften regnes af dem (maal.ts)
+  // og gjorte er historik. Egen query frem for at udvide actionsQuery:
+  // «Dine skridt» viser kun åbne, og de to lister har hver sin grænse.
+  // KASTER ved fejl som de andre — «Dine mål» siger det pr. sektion.
+  const skridtQuery = useQuery({
+    queryKey: ["boardroom", "skridt", companyId],
+    queryFn: async () => {
+      const skridtRes = await supabase
+        .from("company_actions")
+        .select("id, title, status, due_date, maal_id, closed_at")
+        .eq("company_id", companyId!)
+        .not("maal_id", "is", null)
+        .order("created_at", { ascending: true })
+        .limit(200);
+      return kraevRaekker(skridtRes, "company_actions") as SkridtTilDineMaal[];
     },
     enabled: !!companyId,
     staleTime: 3 * 60_000,
@@ -1882,8 +1918,8 @@ export const BoardroomView = () => {
 
   // ── Anerkendelses-linjen til fokus-kortets tom-tilstand (bølge 3) ───────
   // RENT afledt af hånd-data — INGEN nye queries: committedKeys (godkendte
-  // facts-perioder, "YYYY-MM"), milestonesQuery (progress >= 100 er SAMME
-  // dom som Milestones.tsx:60) og akademi-objektet (isTrackedEntry +
+  // facts-perioder, "YYYY-MM"), milestonesQuery (nået = afgoerMilepael
+  // (…).faerdig — den ene dom, fase 3) og akademi-objektet (isTrackedEntry +
   // state === "done" — B1-video-dommen). BEVIDST ingen nævner: "5 af 6"
   // er mangel-fokus (nævneren siger "du mangler 1") — anerkendelsen
   // tæller det GJORTE. Kun tal > 0 vises; ALLE nul → null, og kortet
@@ -1892,7 +1928,8 @@ export const BoardroomView = () => {
   const journeyLine = useMemo(() => {
     const year = String(new Date().getFullYear());
     const reportsThisYear = [...committedKeys].filter((k) => k.startsWith(year)).length;
-    const milestonesDone = (milestonesQuery.data ?? []).filter((m) => m.progress >= 100).length;
+    const nuJourney = new Date();
+    const milestonesDone = (milestonesQuery.data ?? []).filter((m) => afgoerMilepael(m, nuJourney).faerdig).length;
     const akademiDone = [...akademi.orderedByArea.values()]
       .flat()
       .filter((entry) => isTrackedEntry(entry) && entry.state === "done").length;
@@ -1902,7 +1939,7 @@ export const BoardroomView = () => {
         reportsThisYear === 1 ? "1 godkendt rapport i år" : `${reportsThisYear} godkendte rapporter i år`,
       );
     if (milestonesDone > 0)
-      parts.push(milestonesDone === 1 ? "1 milepæl nået" : `${milestonesDone} milepæle nået`);
+      parts.push(milestonesDone === 1 ? "1 mål nået" : `${milestonesDone} mål nået`);
     if (akademiDone > 0)
       parts.push(
         akademiDone === 1 ? "1 video gennemført i Akademiet" : `${akademiDone} videoer gennemført i Akademiet`,
@@ -1940,7 +1977,7 @@ export const BoardroomView = () => {
       now: new Date(),
       processedPeriodKeys: processedQuery.data ?? new Set<string>(),
       committedPeriodKeys: committedKeys,
-      milestones: milestonesQuery.data ?? [],
+      // Fase 3: ingen milepæls-kilde — målet står i «Dine mål» nedenfor.
       hasPulseThisMonth: Boolean(pulseQuery.data),
       unreadUserMessages: unreadQuery.data?.userCount ?? 0,
       unreadAgentMessages: unreadQuery.data?.agentCount ?? 0,
@@ -1972,7 +2009,7 @@ export const BoardroomView = () => {
       contractStartDate: contractStartQuery.data ?? null,
       tjekliste: tjeklisteData.tjekliste,
     });
-  }, [companyId, processedQuery.data, committedKeys, milestonesQuery.data, pulseQuery.data, unreadQuery.data, weeklyFocusQuery.data, actionsQuery.data, leversQuery.data, ownProfileQuery.data, contractStartQuery.data, tjeklisteData.tjekliste]);
+  }, [companyId, processedQuery.data, committedKeys, pulseQuery.data, unreadQuery.data, weeklyFocusQuery.data, actionsQuery.data, leversQuery.data, ownProfileQuery.data, contractStartQuery.data, tjeklisteData.tjekliste]);
 
   // Markér ugens fokus som SET når punktet faktisk vises — samme mekanik
   // som DashboardActionCenter:87-98 (mutation + engangs-ref).
@@ -2130,6 +2167,17 @@ export const BoardroomView = () => {
   const aftaleForslagMeta = aftaleForslag ? forslagMetaLinje(aftaleForslag, aftaleNu) : null;
   const aftaleFlereTekst = flereForslagTekst(aftaleVentende.length);
 
+  // ── «Dine mål» (fase 3): samme dom som /milestones (dineMaalDom → planen
+  // → milepaelDom) på forsidens egne kilder — de aktive mål med fremdrift
+  // regnet af skridtene. null mens en af kilderne mangler (fejl vises pr.
+  // sektion). «Mod målet: …» på skridtene slår op i samme liste.
+  const dineMaal = useMemo(
+    () => (milestonesQuery.data && skridtQuery.data ? dineMaalDom(milestonesQuery.data, skridtQuery.data, new Date()) : null),
+    [milestonesQuery.data, skridtQuery.data],
+  );
+  const dineMaalForside = dineMaal ? forsideMaal(dineMaal) : null;
+  const maalTitler = milestonesQuery.data ?? [];
+
   if (akademi.loading || factsLoading) {
     return <p className="text-sm text-hb-ink-soft">Henter dit Boardroom…</p>;
   }
@@ -2203,9 +2251,10 @@ export const BoardroomView = () => {
         )}
       </HbSection>
 
-      {/* ── DINE AFTALER: aktive opgaver øverst, ÉT forslag nederst ──
+      {/* ── DINE SKRIDT (før «Dine aftaler», fase 3): aktive skridt øverst,
+          ÉT forslag nederst — hvert med «Mod målet: …» når det bærer maal_id.
           Læser actionsQuery.data DIREKTE — fokus-laget omtaler (slot f
-          peger herned via #dine-aftaler), sektionen handler; de to
+          peger herned via #dine-skridt), sektionen handler; de to
           præsentationer er bevidst ukoblede. Rammeløse rækker som
           events-sektionen (border-t hb-line); knapperne står som
           SØSKENDE til teksten — en klikbar handling i et anker er
@@ -2216,17 +2265,20 @@ export const BoardroomView = () => {
           et medlem der mister hele sin forside fordi én hentning fejlede,
           er en dårligere byttehandel. Formen er RaadgiverForsideViews. */}
       {actionsQuery.isError && (
-        <HbSection id="dine-aftaler" eyebrow="Dine aftaler" hairline className="mt-14 md:mt-16">
-          <p className="text-sm text-hb-rust">Dine aftaler kunne ikke hentes. Prøv igen.</p>
+        <HbSection id="dine-skridt" eyebrow="Dine skridt" hairline className="mt-14 md:mt-16">
+          <p className="text-sm text-hb-rust">{DINE_SKRIDT_FEJL_TEKST}</p>
         </HbSection>
       )}
       {!actionsQuery.isError && (aftaleAktive.length > 0 || aftaleForslag) && (
-        <HbSection id="dine-aftaler" eyebrow="Dine aftaler" hairline className="mt-14 md:mt-16">
+        <HbSection id="dine-skridt" eyebrow="Dine skridt" hairline className="mt-14 md:mt-16">
           <ul>
             {aftaleAktive.map((a) => (
-              <li key={a.id} className="border-t border-hb-line first:border-t-0 last:border-b">
+              <li key={a.id} className="border-t border-hb-line first:border-t-0 last:border-b" data-skridt-maal={a.maal_id ?? ""}>
                 <div className="flex flex-wrap items-center gap-x-6 gap-y-3 py-4">
                   <div className="min-w-0 flex-1 basis-64">
+                    {modMaaletTekst(maalTitler, a.maal_id) && (
+                      <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft">{modMaaletTekst(maalTitler, a.maal_id)}</p>
+                    )}
                     <p className="text-[15px] font-medium leading-snug text-hb-ink">{a.title}</p>
                     <p className="mt-1 text-sm text-hb-ink-soft">{fristTekst(a.due_date!, tilDatoStreng(new Date()))}</p>
                   </div>
@@ -2259,6 +2311,9 @@ export const BoardroomView = () => {
                   <div className="min-w-0 flex-1 basis-64">
                     <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-hb-evergreen">{forslagOverlinje(aftaleVentende.length)}</p>
                     <p className="mt-1 text-[15px] font-medium leading-snug text-hb-ink">{aftaleForslag.title}</p>
+                    {modMaaletTekst(maalTitler, aftaleForslag.maal_id) && (
+                      <p className="mt-1 text-sm text-hb-ink-soft">{modMaaletTekst(maalTitler, aftaleForslag.maal_id)}</p>
+                    )}
                     {aftaleForslagMeta && (
                       <p className="mt-1 text-sm text-hb-ink-soft">
                         {aftaleForslagMeta.dele.join(" · ")}
@@ -2287,6 +2342,62 @@ export const BoardroomView = () => {
               </li>
             )}
           </ul>
+        </HbSection>
+      )}
+
+      {/* ── DINE MÅL (fase 3, «Én plan»): målenes fremdrift på forsiden —
+          højst tre aktive med bar, «2 af 3 skridt gjort · 67 %» (planens
+          ord) og frist; siden /milestones («Dine mål») ejer handlingerne.
+          Tom = ingen mål: én sætning og vejen til at sætte det første
+          (medlemmet ejer sine mål, Jonas 16/9). FEJL er ikke tom: fejler
+          mål eller skridt, står sektionen med en fejllinje. */}
+      {(milestonesQuery.isError || skridtQuery.isError) && (
+        <HbSection id="dine-maal" eyebrow="Dine mål" hairline className="mt-14 md:mt-16">
+          <p className="text-sm text-hb-rust">
+            {DINE_MAAL_FEJL_TEKST}{" "}
+            <button type="button" onClick={proevIgen} className="underline-offset-4 hover:underline">Prøv igen</button>
+          </p>
+        </HbSection>
+      )}
+      {dineMaal && dineMaalForside && (
+        <HbSection id="dine-maal" eyebrow="Dine mål" hairline linkLabel="Se alle dine mål" linkTo="/milestones" className="mt-14 md:mt-16">
+          {dineMaalForside.viste.length === 0 ? (
+            <p className="text-sm text-hb-ink-soft" data-dine-maal="0">
+              {dineMaal.tom ? DINE_MAAL_TOM_TEKST : "Ingen aktive mål lige nu — aktivér et parkeret, eller sæt et nyt."}{" "}
+              <Link to="/milestones" className="text-hb-evergreen underline-offset-4 hover:underline">Sæt et mål</Link>
+            </p>
+          ) : (
+            <ul data-dine-maal={dineMaalForside.viste.length}>
+              {dineMaalForside.viste.map((x) => {
+                const aabne = x.skridtLinjer.filter((l) => l.tegn === "◻").length;
+                const venter = x.skridtLinjer.filter((l) => l.tegn === "?").length;
+                return (
+                  <li key={x.plan.maal.id} className="border-t border-hb-line py-4 first:border-t-0 last:border-b" data-maal-id={x.plan.maal.id} data-maal-fremdrift={x.plan.fremdrift} data-maal-beregnet={x.plan.beregnet ? "1" : "0"}>
+                    <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
+                      <p className="min-w-0 flex-1 basis-64 text-[15px] font-medium leading-snug text-hb-ink">{x.plan.maal.title}</p>
+                      {x.plan.dom.forfalden ? (
+                        <span className="text-sm font-medium text-hb-rust">{fristTekst(x.plan.maal.deadline!, tilDatoStreng(new Date()))}</span>
+                      ) : x.plan.maal.deadline ? (
+                        <span className="text-sm text-hb-ink-soft">{fristTekst(x.plan.maal.deadline, tilDatoStreng(new Date()))}</span>
+                      ) : null}
+                    </div>
+                    <div className="mt-2 h-[3px] overflow-hidden rounded-full bg-hb-line">
+                      <div className="h-full rounded-full bg-hb-evergreen/70" style={{ width: `${x.plan.fremdrift}%` }} />
+                    </div>
+                    <p className="mt-1 text-sm text-hb-ink-soft">
+                      {x.fremdriftTekst}
+                      {aabne > 0 && <span> · {aabne} {aabne === 1 ? "skridt i gang" : "skridt i gang"}</span>}
+                      {venter > 0 && <span> · {venter} {venter === 1 ? "forslag venter" : "forslag venter"}</span>}
+                    </p>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+          {dineMaalForside.flere > 0 && (
+            <p className="mt-3 text-sm text-hb-ink-soft">+{dineMaalForside.flere} {dineMaalForside.flere === 1 ? "aktivt mål mere" : "aktive mål mere"} — se dem alle under Dine mål.</p>
+          )}
+          {dineMaal.overGraensen && <p className="mt-1 text-sm text-hb-rust">{dineMaal.graenseTekst}</p>}
         </HbSection>
       )}
 

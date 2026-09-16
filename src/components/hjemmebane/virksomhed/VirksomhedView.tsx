@@ -1244,7 +1244,7 @@ const Blok6 = ({
         {/* Planen (fase 2): målene — højst tre aktive — med skridt under hvert,
             parkerede og nåede, «sæt mål sammen med medlemmet», og gennemgangen
             af mål fra før planen. Alle skrivninger går gennem maal-skriv. */}
-        <VirksomhedPlanen companyId={d.company.id} maal={d.milestones} skridt={d.skridt} onOpdateret={onOpdateret} />
+        <VirksomhedPlanen companyId={d.company.id} maal={d.milestones} skridt={d.skridt} samtaleId={samtaleId} onOpdateret={onOpdateret} />
       </div>
 
       {/* Rapporterne — eget afsnit under kortene, foldet efter de tre nyeste. */}

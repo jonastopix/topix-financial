@@ -6,6 +6,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useViewMode } from "@/hooks/useViewMode";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { supabase } from "@/integrations/supabase/client";
+import { kraevRaekker } from "@/lib/kraevRaekker";
 import { notifyChatMessage } from "@/lib/chatNotify";
 import { uploadChatAttachments } from "@/lib/chatAttachments";
 import { MessageAttachments, type ChatAttachment } from "@/components/ChatAttachments";
@@ -240,10 +241,16 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
   const [companyMembers, setCompanyMembers] = useState<{ user_id: string; full_name: string; avatar_url: string | null }[]>([]);
   const [assignmentPopoverOpen, setAssignmentPopoverOpen] = useState(false);
   const [showCompanyDrawer, setShowCompanyDrawer] = useState(false);
-  // Foreslå opgave fra chatten (rådgiver, ⋯-menuen) — B1: et forslag,
-  // ikke en opgave, før medlemmet siger ja i "Dine aftaler".
+  // Foreslå skridt fra chatten (rådgiver, ⋯-menuen) — B1: et forslag,
+  // ikke en opgave, før medlemmet siger ja i "Dine skridt" på forsiden.
+  // Fase 3 («Én plan») — JONAS 16/9 (ordret: «B»): målvælgeren er VALGFRI.
+  // Standard = det ældste aktive mål (aktiveMaalQuery er sorteret ældst
+  // først); «Uden mål» er et tydeligt valg; ingen aktive mål → intet valg
+  // vises, og forslaget sendes uden mål. forslagMaalValg: "" = urørt
+  // (standarden), "uden" = uden mål, ellers et mål-id.
   const [forslagTitel, setForslagTitel] = useState("");
   const [forslagBegrundelse, setForslagBegrundelse] = useState("");
+  const [forslagMaalValg, setForslagMaalValg] = useState("");
   const [foreslaarOpgave, setForeslaarOpgave] = useState(false);
 
   // C1-splittet: all-advisor-profiles-query'en var `enabled: !isAdvisor`
@@ -808,6 +815,29 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
 
   const activeConv = conversations.find((c) => c.id === activeConvId);
 
+  // Virksomhedens AKTIVE mål til målvælgeren i «Foreslå skridt» (fase 3).
+  // Kun rådgiveren, kun når en samtale er valgt. KASTER ved fejl: menuen
+  // siger «kunne ikke hentes» frem for at vise en tom vælger, som ville
+  // ligne «ingen mål». Samme regel som foreslaa-opgave: status = active.
+  const forslagCompanyId = isAdvisor ? (activeConv?.company_id ?? null) : null;
+  const aktiveMaalQuery = useQuery({
+    queryKey: ["chat", "aktive-maal", forslagCompanyId],
+    queryFn: async () => {
+      const res = await supabase
+        .from("milestones")
+        .select("id, title")
+        .eq("company_id", forslagCompanyId!)
+        .eq("status", "active")
+        .order("created_at", { ascending: true });
+      return kraevRaekker(res, "milestones") as { id: string; title: string }[];
+    },
+    enabled: !!forslagCompanyId,
+    staleTime: 60_000,
+  });
+  const aktiveMaal = aktiveMaalQuery.data ?? [];
+  // Det mål forslaget sendes med: standarden (ældste aktive) når vælgeren er urørt; null = uden mål.
+  const valgtMaalId: string | null = forslagMaalValg === "" ? (aktiveMaal[0]?.id ?? null) : forslagMaalValg === "uden" ? null : forslagMaalValg;
+
   // Modtageren i skrivefeltet (og den tomme tilstand): rådgiveren skriver
   // TIL virksomheden. Låst (blok 4): virksomhedens navn, samme tone som
   // medlemmets «Skriv til Dine rådgivere...». Ellers neutralt.
@@ -986,6 +1016,8 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
           conversationId: activeConvId,
           titel: forslagTitel,
           ...(forslagBegrundelse.trim() ? { begrundelse: forslagBegrundelse } : {}),
+          // Fase 3 (Jonas «B»): målet er valgfrit — udeladt = uden mål; et valgt mål valideres af serveren (404/409).
+          ...(valgtMaalId ? { maalId: valgtMaalId } : {}),
         },
       });
       if (error) {
@@ -1001,13 +1033,14 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
         // Opgaven er det vigtige; beskeden er sporet — men rådgiveren
         // skal vide at sporet mangler, ellers leder de forgæves.
         toast.warning("Forslaget er sendt, men kom ikke med i samtalen", {
-          description: "Medlemmet ser det stadig under Dine aftaler.",
+          description: "Medlemmet ser det stadig under Dine skridt på forsiden.",
         });
       } else {
-        toast.success("Opgaven er foreslået — medlemmet svarer i Dine aftaler");
+        toast.success("Skridtet er foreslået — medlemmet svarer under Dine skridt");
       }
       setForslagTitel("");
       setForslagBegrundelse("");
+      setForslagMaalValg("");
       setAssignmentPopoverOpen(false);
       // INGEN manuel genindlæsning af beskederne: realtime-abonnementet
       // på messages INSERT henter allerede den nye systembesked, og en
@@ -1434,18 +1467,38 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
                                 </button>
                               </>
                             )}
-                            {/* Foreslå opgave — rådgiverens ikke-besked-handling.
-                                Forslaget lander i medlemmets "Dine aftaler"
+                            {/* Foreslå skridt — rådgiverens ikke-besked-handling.
+                                Forslaget lander i medlemmets "Dine skridt"
                                 (B1: intet er en opgave før medlemmet siger ja;
-                                B6: medlemmet vælger datoen ved accept). */}
+                                B6: medlemmet vælger datoen ved accept).
+                                Fase 3 (Jonas «B»): målvælgeren er valgfri —
+                                standard er det ældste aktive mål, «Uden mål» er
+                                et tydeligt valg; uden aktive mål vises intet
+                                valg, og skridtet sendes uden mål. */}
                             <div className="border-t border-hb-line my-1" />
-                            <div className="px-2 py-1.5">
-                              <p className="text-[10px] text-hb-ink-soft font-medium uppercase tracking-[0.14em] mb-1.5">Foreslå opgave</p>
+                            <div className="px-2 py-1.5" data-foreslaa-skridt>
+                              <p className="text-[10px] text-hb-ink-soft font-medium uppercase tracking-[0.14em] mb-1.5">Foreslå skridt</p>
+                              {aktiveMaalQuery.isError ? (
+                                <p className="mb-1.5 text-xs text-hb-rust">Virksomhedens mål kunne ikke hentes — skridtet sendes uden mål.</p>
+                              ) : aktiveMaal.length > 0 ? (
+                                <select
+                                  value={valgtMaalId ?? "uden"}
+                                  onChange={(e) => setForslagMaalValg(e.target.value)}
+                                  aria-label="Målet skridtet hører til"
+                                  className={`${hbControlClasses} mb-1.5 px-2 py-1.5 text-xs`}
+                                  data-maalvaelger
+                                >
+                                  {aktiveMaal.map((m) => (
+                                    <option key={m.id} value={m.id}>Mod målet: {m.title}</option>
+                                  ))}
+                                  <option value="uden">Uden mål</option>
+                                </select>
+                              ) : null}
                               <input
                                 value={forslagTitel}
                                 onChange={(e) => setForslagTitel(e.target.value)}
                                 maxLength={200}
-                                placeholder="Hvad skal medlemmet gøre?"
+                                placeholder="Hvad er skridtet?"
                                 className={`${hbControlClasses} mb-1.5 px-2 py-1.5 text-xs`}
                               />
                               <textarea
@@ -1461,7 +1514,7 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
                                 disabled={foreslaarOpgave || !forslagTitel.trim()}
                                 className="h-8 w-full px-2 text-xs"
                               >
-                                {foreslaarOpgave ? "Sender…" : "Foreslå opgave"}
+                                {foreslaarOpgave ? "Sender…" : "Foreslå skridt"}
                               </HbButton>
                             </div>
                       </HbMenu>
