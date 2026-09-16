@@ -19,7 +19,7 @@ import {
 import type { Signal } from "@/lib/virksomhedsSignaler";
 import type { Fornyelsestilstand } from "@/lib/fornyelse";
 import type { Betalingsfristtilstand } from "@/lib/betalingsfrist";
-import { ALVOR_INGEN_MAAL, ALVOR_MAAL, ALVOR_REFLEKSION_HJAELP, maalTilstandstekst, refleksionUddrag, REFLEKSION_UDDRAG, STILSTAND_LAENGE_DAGE } from "@/lib/forsidensDom";
+import { ALVOR_INGEN_MAAL, ALVOR_MAAL, ALVOR_REFLEKSION_HJAELP, maalTilstandstekst, refleksionBesvaret, refleksionsPeriode, refleksionUddrag, REFLEKSION_MIN_TEGN, REFLEKSION_UDDRAG, STILSTAND_LAENGE_DAGE } from "@/lib/forsidensDom";
 import type { MaalRaekke } from "@/lib/hjemmebane/planen";
 
 // Fast «nu»: 4. september 2026 kl. 12:00 lokal tid — dagregning for
@@ -897,8 +897,9 @@ describe("mål uden bevægelse (tolvte slags, fase 4)", () => {
   });
 });
 
-describe("refleksion med «hjælp ønskes» (trettende slags, fase 4)", () => {
-  const refleksion = (helpNeeded: string, id = "p1") => ({ id, helpNeeded, createdAt: isoForDage(3) });
+describe("refleksion med «hjælp ønskes» (trettende slags, fase 4; strammet 17/9)", () => {
+  // Sendt for 3 dage siden, periode august 2026 (refleksionen for forrige måned).
+  const refleksion = (helpNeeded: string, id = "p1", periodKey: string | null = "2026-08") => ({ id, helpNeeded, createdAt: isoForDage(3), periodKey });
   const rGrund = (d: ReturnType<typeof afgoerForsidensDom>) => virksomhedslinjer(d)[0]?.grunde.find((g) => g.slags === "refleksion_hjaelp");
   it("alvor 80, hændelse, indsats 2 — en virksomhedslinje ved navn gennem alvorsporten; teksten citerer hjælpen, handlingen er «Svar … på refleksionen»", () => {
     expect(ALVOR_REFLEKSION_HJAELP).toBe(80);
@@ -908,14 +909,48 @@ describe("refleksion med «hjælp ønskes» (trettende slags, fase 4)", () => {
     expect(d.linjer).toHaveLength(1);
     const g = rGrund(d)!;
     expect(g).toMatchObject({ signaltype: "refleksion_hjaelp", noegle: "refleksion_hjaelp", grundlag: "p1", alvor: 80, lukkerOmDage: null, indsats: 2, handling: "Svar Rezycl på refleksionen" });
-    expect(g.tekst).toBe("Søger hjælp til: «Vi mangler en plan for likviditeten i Q4»");
+    // 17/9: perioden i teksten. Før: "Søger hjælp til: «Vi mangler en plan for likviditeten i Q4»".
+    expect(g.tekst).toBe("Refleksion august 2026: Søger hjælp til «Vi mangler en plan for likviditeten i Q4»");
+  });
+  it("perioden: dansk månedsnavn + år fra period_key; ulæselig eller manglende nøgle → teksten uden periode", () => {
+    expect(refleksionsPeriode("2026-09")).toBe("september 2026");
+    expect(refleksionsPeriode("2025-12")).toBe("december 2025");
+    expect(refleksionsPeriode("2026-13")).toBeNull();
+    expect(refleksionsPeriode("nej")).toBeNull();
+    expect(refleksionsPeriode(null)).toBeNull();
+    expect(rGrund(afgoerForsidensDom([virksomhed({ refleksionHjaelp: refleksion("hjælp til noget", "p1", null) })], NU))?.tekst).toBe("Søger hjælp til «hjælp til noget»");
+    expect(rGrund(afgoerForsidensDom([virksomhed({ refleksionHjaelp: refleksion("hjælp til noget", "p1", "2026-13") })], NU))?.tekst).toBe("Søger hjælp til «hjælp til noget»");
+  });
+  it("besvaret i chatten (17/9): en rådgiverbesked NYERE end refleksionen lukker linjen af sig selv; ældre, præcis samme tidspunkt, eller ingen besked → linjen står", () => {
+    const sendt = isoForDage(3);
+    const r = { id: "p1", helpNeeded: "Vi mangler en plan for likviditeten", createdAt: sendt, periodKey: "2026-08" };
+    expect(rGrund(afgoerForsidensDom([virksomhed({ refleksionHjaelp: r, sidsteRaadgiverBeskedAt: isoForDage(2) })], NU))).toBeUndefined();
+    expect(rGrund(afgoerForsidensDom([virksomhed({ refleksionHjaelp: r, sidsteRaadgiverBeskedAt: isoForDage(4) })], NU))).toBeDefined();
+    expect(rGrund(afgoerForsidensDom([virksomhed({ refleksionHjaelp: r, sidsteRaadgiverBeskedAt: sendt })], NU))).toBeDefined();
+    expect(rGrund(afgoerForsidensDom([virksomhed({ refleksionHjaelp: r, sidsteRaadgiverBeskedAt: null })], NU))).toBeDefined();
+    expect(rGrund(afgoerForsidensDom([virksomhed({ refleksionHjaelp: r })], NU))).toBeDefined();
+    // Ét sekund efter er nyere.
+    expect(rGrund(afgoerForsidensDom([virksomhed({ refleksionHjaelp: r, sidsteRaadgiverBeskedAt: new Date(Date.parse(sendt) + 1000).toISOString() })], NU))).toBeUndefined();
+    // Ulæselige stempler: fail-open — linjen står.
+    expect(refleksionBesvaret("nej", isoForDage(1))).toBe(false);
+    expect(refleksionBesvaret(sendt, "nej")).toBe(false);
+    expect(refleksionBesvaret(sendt, undefined)).toBe(false);
+    expect(refleksionBesvaret(sendt, isoForDage(1))).toBe(true);
+  });
+  it("længdekravet (17/9): under 3 tegn efter trim tæller ikke — «x», «  ab  »; præcis 3 tæller", () => {
+    expect(REFLEKSION_MIN_TEGN).toBe(3);
+    expect(rGrund(afgoerForsidensDom([virksomhed({ refleksionHjaelp: refleksion("x") })], NU))).toBeUndefined();
+    expect(rGrund(afgoerForsidensDom([virksomhed({ refleksionHjaelp: refleksion("  ab  ") })], NU))).toBeUndefined();
+    expect(rGrund(afgoerForsidensDom([virksomhed({ refleksionHjaelp: refleksion(" abc ") })], NU))).toBeDefined();
+    // Warburg-tilfældet (skærmbevis 17/9): en lang tekst der ikke er et spørgsmål tæller stadig — kun længden dømmes her; svaret i chatten lukker den.
+    expect(rGrund(afgoerForsidensDom([virksomhed({ refleksionHjaelp: refleksion("Jeg vender tilbage med en separat mail, når jeg er igennem sommerbunken") })], NU))).toBeDefined();
   });
   it("uden refleksion, null, tom eller blank hjælp, eller uden id: ingen grund", () => {
     expect(rGrund(afgoerForsidensDom([virksomhed()], NU))).toBeUndefined();
     expect(rGrund(afgoerForsidensDom([virksomhed({ refleksionHjaelp: null })], NU))).toBeUndefined();
     expect(rGrund(afgoerForsidensDom([virksomhed({ refleksionHjaelp: refleksion("") })], NU))).toBeUndefined();
     expect(rGrund(afgoerForsidensDom([virksomhed({ refleksionHjaelp: refleksion("   ") })], NU))).toBeUndefined();
-    expect(rGrund(afgoerForsidensDom([virksomhed({ refleksionHjaelp: refleksion("x", "") })], NU))).toBeUndefined();
+    expect(rGrund(afgoerForsidensDom([virksomhed({ refleksionHjaelp: refleksion("hjælp", "") })], NU))).toBeUndefined();
   });
   it("uddraget: linjeskift og dobbelte mellemrum foldes; over 90 tegn klippes med …", () => {
     expect(refleksionUddrag("  a\n\nb   c ")).toBe("a b c");

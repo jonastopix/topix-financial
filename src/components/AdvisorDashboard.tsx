@@ -633,7 +633,9 @@ export const hentAdvisorDashboard = () =>
       const latestPulseByCompany = new Map<string, { went_well: string; biggest_challenge: string; help_needed?: string | null; created_at: string; period_key: string | null }>();
       // Fase 4: den NYESTE refleksion med «søger hjælp til» pr. virksomhed —
       // forsidens slags refleksion_hjaelp (lukkes på refleksionens id).
-      const refleksionHjaelpByCompany = new Map<string, { id: string; helpNeeded: string; createdAt: string }>();
+      // periodKey med (17/9): linjen viser «Refleksion {måned år}». Længdekravet
+      // (REFLEKSION_MIN_TEGN) og «besvaret i chatten» dømmes i forsidensDom — ikke her.
+      const refleksionHjaelpByCompany = new Map<string, { id: string; helpNeeded: string; createdAt: string; periodKey: string | null }>();
       for (const p of kraevRaekker(pulseRes, "pulse_checkins") as any[]) {
         if (!latestPulseByCompany.has(p.company_id)) {
           latestPulseByCompany.set(p.company_id, {
@@ -645,7 +647,7 @@ export const hentAdvisorDashboard = () =>
           });
         }
         if (p.company_id && p.id && typeof p.help_needed === "string" && p.help_needed.trim() && !refleksionHjaelpByCompany.has(p.company_id)) {
-          refleksionHjaelpByCompany.set(p.company_id, { id: p.id, helpNeeded: p.help_needed, createdAt: p.created_at });
+          refleksionHjaelpByCompany.set(p.company_id, { id: p.id, helpNeeded: p.help_needed, createdAt: p.created_at, periodKey: p.period_key ?? null });
         }
       }
 

@@ -36,6 +36,12 @@ export const dommenLaanerReglen = (dom: string): boolean =>
   /grundlag: `gennemgang:\$\{antal\}`/.test(dom) &&
   /grundlag: stille\.map\(\(x\) => `\$\{x\.maal\.id\}=\$\{x\.maal\.progress_updated_at \?\? "aldrig"\}`\)\.sort\(\)\.join\(","\)/.test(dom) &&
   /grundlag: r\.id,/.test(dom) &&
+  // 17/9: refleksionen lukker af sig selv på rådgiverens svar, og længdekravet står ét sted (REFLEKSION_MIN_TEGN).
+  /export const REFLEKSION_MIN_TEGN = 3;/.test(dom) &&
+  /r\.helpNeeded\.trim\(\)\.length < REFLEKSION_MIN_TEGN\) return null;/.test(dom) &&
+  /if \(refleksionBesvaret\(r\.createdAt, v\.sidsteRaadgiverBeskedAt\)\) return null;/.test(dom) &&
+  /return svar > sendt;/.test(dom) &&
+  /Refleksion \$\{periode\}: /.test(dom) &&
   // Fase 5: «ingen mål» (grundFraIngenMaal) står mellem målene og refleksionen.
   /const m = grundFraMaal\(v, nu\);\s*if \(m\) grunde\.push\(m\);\s*const im = grundFraIngenMaal\(v\);\s*if \(im\) grunde\.push\(im\);\s*const r = grundFraRefleksion\(v\);\s*if \(r\) grunde\.push\(r\);\s*return grunde\.filter\(\(g\) => !erLukket\(g, v\.kvittering\)\);/.test(dom);
 
@@ -47,7 +53,10 @@ export const hentningenBaerer = (dash: string): boolean =>
   /maal: maalByCompany\.get\(c\.company_id\) \?\? \[\],/.test(dash) &&
   /refleksionHjaelp: refleksionHjaelpByCompany\.get\(c\.company_id\) \?\? null,/.test(dash) &&
   /kraevRaekker\(milestonesRes, "milestones"\)/.test(dash) &&
-  /typeof p\.help_needed === "string" && p\.help_needed\.trim\(\) && !refleksionHjaelpByCompany\.has\(p\.company_id\)/.test(dash);
+  /typeof p\.help_needed === "string" && p\.help_needed\.trim\(\) && !refleksionHjaelpByCompany\.has\(p\.company_id\)/.test(dash) &&
+  // 17/9: periodKey bæres med; INGEN egen længderegel i hentningen (den bor i dommen).
+  /periodKey: p\.period_key \?\? null/.test(dash) &&
+  !/help_needed[^\n]*\.length\s*[<>]=?\s*\d/.test(dash);
 
 /** Dom 3: FORM og INDSATS. */
 export const formenHolder = (dom: string): boolean =>
@@ -97,12 +106,19 @@ describe("forsideMaal.guard — fase 4: mål uden bevægelse og refleksion med h
     expect(dommenLaanerReglen(d.replace("x.dageUdenBevaegelse >= UDEN_BEVAEGELSE_DAGE", "x.dageUdenBevaegelse >= 30"))).toBe(false);
     expect(dommenLaanerReglen(d.replace("const plan = planenDom(v.maal, [], nu);", "const plan = { gennemgang: v.maal.length > 3, aktive: [] };"))).toBe(false);
     expect(dommenLaanerReglen(d.replace("grundlag: r.id,", "grundlag: r.createdAt,"))).toBe(false);
+    // 17/9: uden besvaret-dommen, med «>=» (samme tidspunkt lukker), eller uden længdekravet falder.
+    expect(dommenLaanerReglen(d.replace("if (refleksionBesvaret(r.createdAt, v.sidsteRaadgiverBeskedAt)) return null;", ""))).toBe(false);
+    expect(dommenLaanerReglen(d.replace("return svar > sendt;", "return svar >= sendt;"))).toBe(false);
+    expect(dommenLaanerReglen(d.replace("r.helpNeeded.trim().length < REFLEKSION_MIN_TEGN) return null;", 'r.helpNeeded.trim() === "") return null;'))).toBe(false);
   });
   it("selvbevis 2: hentning uden hentAlleSider, uden id på pulse, eller uden felterne i tilDom falder", () => {
     const h = udenKommentarer(laes(DASH));
     expect(hentningenBaerer(h.replace(".order(\"id\")\n            .range(fra, til),", ".limit(200),"))).toBe(false);
     expect(hentningenBaerer(h.replace('.select("id, company_id, period_key, went_well', '.select("company_id, period_key, went_well'))).toBe(false);
     expect(hentningenBaerer(h.replace("maal: maalByCompany.get(c.company_id) ?? [],", ""))).toBe(false);
+    // 17/9: en egen længderegel i hentningen falder; manglende periodKey falder.
+    expect(hentningenBaerer(h.replace("p.help_needed.trim() && !refleksionHjaelpByCompany", "p.help_needed.trim() && p.help_needed.length >= 3 && !refleksionHjaelpByCompany"))).toBe(false);
+    expect(hentningenBaerer(h.replace("periodKey: p.period_key ?? null", "periodKey: null"))).toBe(false);
   });
   it("selvbevis 3: FORM med hændelse for målene, eller andre alvorstal, falder", () => {
     const d = udenKommentarer(laes(DOM));
