@@ -24,6 +24,7 @@ import { CommunityComposer } from "./CommunityComposer";
 import { CommunityDokument } from "./CommunityDokument";
 import { LikeKnap } from "./LikeKnap";
 import { hentetilstand, sektionsfejlTekst } from "@/lib/hjemmebane/hentefejl";
+import { UBESVAREDE_OPSLAG_KEY } from "@/hooks/ubesvaredeOpslag";
 
 /** Trådsiden (/community/:id) — læsning, svar, reaktioner og ret/slet af
     eget indhold (RPC'erne 20260812120000).
@@ -191,6 +192,13 @@ export const CommunityTraadView = ({ traadId }: { traadId: string }) => {
     queryClient.invalidateQueries({ queryKey: ["community", "traad", traadId] });
     queryClient.invalidateQueries({ queryKey: ["community", "feed"] });
   };
+  /* Forsidekortet «Ubesvarede opslag» (16/9) dømmer på svarene: et svar fra
+     en rådgiver — eller et slettet svar — ændrer kortet, og rådgiveren kan
+     være tilbage på forsiden inden for kortets staleTime. Nøglen er kun
+     hentet hos rådgivere; hos et medlem rammer invalideringen ingenting. */
+  const invaliderUbesvarede = () => {
+    queryClient.invalidateQueries({ queryKey: UBESVAREDE_OPSLAG_KEY });
+  };
 
   const svarMutation = useMutation({
     /* Notifikationen kaldes i mutationFn og ikke i onSuccess: onSuccess
@@ -204,7 +212,10 @@ export const CommunityTraadView = ({ traadId }: { traadId: string }) => {
       await notificerNaevnelser({ svarId });
       return svarId;
     },
-    onSuccess: invaliderTraadOgFeed,
+    onSuccess: () => {
+      invaliderTraadOgFeed();
+      invaliderUbesvarede();
+    },
     /* Composeren sluger bevidst fejl (den beholder blot medlemmets tekst),
        så fejlvisningen ejes HER — uden toasten ville et mislykket svar se
        ud som om intet skete. */
@@ -267,7 +278,10 @@ export const CommunityTraadView = ({ traadId }: { traadId: string }) => {
 
   const sletSvarMutation = useMutation({
     mutationFn: (svarId: string) => sletSvar(svarId),
-    onSuccess: invaliderTraadOgFeed,
+    onSuccess: () => {
+      invaliderTraadOgFeed();
+      invaliderUbesvarede();
+    },
     onError: (fejl: Error) => {
       toast.error("Svaret blev ikke slettet", { description: fejl.message });
     },

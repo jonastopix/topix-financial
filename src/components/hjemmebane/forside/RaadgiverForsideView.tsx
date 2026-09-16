@@ -13,6 +13,19 @@ import { SIDEN_SIDST_KEY, hentSidenSidst } from "@/hooks/sidenSidst";
 import { CRON_VAGT_KEY, hentCronVagt } from "@/hooks/cronVagt";
 import { vagtLinje } from "@/lib/cronVagt";
 import { intetNytTekst, sidenSidstLinjer, sidenTekst } from "@/lib/sidenSidst";
+import { UBESVAREDE_OPSLAG_KEY, hentUbesvaredeOpslag } from "@/hooks/ubesvaredeOpslag";
+import {
+  ALLE_BESVARET_TEKST,
+  alderTekst,
+  flereTekst,
+  KORT_OVERSKRIFT,
+  kortUdsnit,
+  linjeTekst,
+  traadSti,
+  ubesvaredeOpslag,
+} from "@/lib/hjemmebane/ubesvaredeOpslag";
+import { KILDE_PRAESENTATION, KILDE_PRAESENTATION_LABEL } from "@/lib/hjemmebane/praesentation";
+import { HbTag } from "@/components/hjemmebane/HbTag";
 import { cn } from "@/lib/utils";
 import { raadgiverHentefejlTekst } from "@/lib/raadgiverHentefejl";
 
@@ -192,6 +205,17 @@ export const RaadgiverForsideView = () => {
     enabled: !!user,
     staleTime: 5 * 60_000,
   });
+  // Ubesvarede opslag (Jonas 16/9, valg B; hooks/ubesvaredeOpslag +
+  // lib/hjemmebane/ubesvaredeOpslag): medlemmers opslag fra de sidste 14
+  // dage uden svar fra en rådgiver. Én nøgle, egen hentning — tråde, svar
+  // og rådgiverlisten i samme query, så kortet aldrig dømmer på en delmængde.
+  // Hook i topblokken, før nogen betinget return (React #310).
+  const ubesvaredeQuery = useQuery({
+    queryKey: UBESVAREDE_OPSLAG_KEY,
+    queryFn: () => hentUbesvaredeOpslag(),
+    enabled: !!user,
+    staleTime: 60_000,
+  });
   // Lukningen — hook i TOPBLOKKEN, før nogen betinget return (React #310).
   // Skriv, så hent igen: dommen afgør hvad der står; ingen lokal patch.
   const lukning = useMutation({
@@ -337,6 +361,43 @@ export const RaadgiverForsideView = () => {
               </ul>
             ) : (
               <p className="pb-4">{intetNytTekst(sidenSidstQuery.data.siden, new Date())}</p>
+            );
+          })()
+        ) : null}
+        {/* UBESVAREDE OPSLAG (Jonas 16/9, valg B): «et eget kort på forsiden
+            … med medlemmers opslag fra de sidste 14 dage som ingen rådgiver
+            har svaret på, og et link til hvert». Forsvinder af sig selv når
+            en af rådgiverne har svaret (dommen læser svarene). Højst fem
+            linjer; flere → «og N mere i fællesskabet». Fejl siges med husets
+            hentefejltekst — aldrig en tom liste der ligner «alt besvaret». */}
+        <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft">{KORT_OVERSKRIFT}</p>
+        {ubesvaredeQuery.isLoading ? (
+          <div aria-hidden className="pb-4"><div className="h-3 w-2/3 animate-pulse rounded bg-hb-line/60" /></div>
+        ) : ubesvaredeQuery.isError ? (
+          <p className="pb-4 text-xs">{raadgiverHentefejlTekst(ubesvaredeQuery.error, "forsiden")}</p>
+        ) : ubesvaredeQuery.data ? (
+          (() => {
+            const nu = new Date();
+            const { liste, ialt } = ubesvaredeOpslag({ ...ubesvaredeQuery.data, nu });
+            if (ialt === 0) return <p className="pb-4">{ALLE_BESVARET_TEKST}</p>;
+            const { viste, flere } = kortUdsnit(liste);
+            return (
+              <ul className="space-y-1 pb-4" data-ubesvarede-opslag={ialt}>
+                {viste.map((t) => (
+                  <li key={t.id}>
+                    <Link to={traadSti(t.id)} className="text-hb-evergreen underline-offset-4 hover:underline">
+                      {linjeTekst(t)}
+                    </Link>
+                    <span className="text-hb-ink-soft"> · {alderTekst(t.created_at, nu)}</span>
+                    {t.kilde_type === KILDE_PRAESENTATION && <HbTag className="ml-2">{KILDE_PRAESENTATION_LABEL}</HbTag>}
+                  </li>
+                ))}
+                {flere > 0 && (
+                  <li>
+                    <Link to="/community" className="text-hb-evergreen underline-offset-4 hover:underline">{flereTekst(flere)}</Link>
+                  </li>
+                )}
+              </ul>
             );
           })()
         ) : null}
