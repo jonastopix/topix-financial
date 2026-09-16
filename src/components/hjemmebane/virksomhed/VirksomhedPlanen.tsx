@@ -4,12 +4,17 @@ import { supabase } from "@/integrations/supabase/client";
 import { fremdriftTekst, planenDom, udenBevaegelseTekst, type MaalIPlanen, type MaalRaekke, type SkridtRaekke } from "@/lib/hjemmebane/planen";
 import { MAX_AKTIVE_MAAL } from "@/lib/hjemmebane/maal";
 import { HbButton } from "../HbButton";
-import { HbCard } from "../HbCard";
+import { HbSection } from "../HbSection";
 import { HbField, HbInput, HbTextarea, hbControlClasses } from "../admin/HbField";
 
 /**
- * «Planen» på rådgiverens virksomhedsside (blok 6; kortet der før hed
- * «Milestones») — «Én plan pr. virksomhed», fase 2 (16/9-2026). Jonas:
+ * «Planen» på rådgiverens virksomhedsside — «Én plan pr. virksomhed», fase 2
+ * (16/9-2026), og fra 17/9 BLOK 3 I FULD BREDDE (virksomhedssiden PR 1,
+ * ~/Downloads/analyse-virksomhedssiden.md §4; Jonas 17/9 «Ja på alle»):
+ * sessionens genstand står før tallene, som egen sektion, ikke som tredje
+ * kolonne i «Aktivitet» (målt: 184–333 px tekst). Målene som rækker, skridtene
+ * ÅBNE (◻ aktive · ? venter · ✓ gjorte · – ikke gjort; op til seks pr. mål,
+ * resten «Vis alle»), handlingerne som ord; parkerede og nåede foldet. Jonas:
  * rådgiveren sætter målene sammen med medlemmet; højst tre aktive; ingen af
  * de eksisterende mål parkeres uden et klik.
  *
@@ -33,9 +38,16 @@ import { HbField, HbInput, HbTextarea, hbControlClasses } from "../admin/HbField
  *
  * FULDE TITLER (Jonas 16/9: «Vi kan ikke se hele opgaveskriften på
  * virksomhedssiden»): målenes og skridtenes titler ombrydes — ingen
- * truncate/line-clamp (dineMaal.guard låser det). Kortet er én af tre
- * kolonner (md:grid-cols-3); er det for smalt, flyttes intet herfra.
+ * truncate/line-clamp (dineMaal.guard dom 8 og virksomhedsside.guard låser
+ * det). Sektionen har hele indholdsbredden (704–1152 px); under md står alt
+ * i én kolonne som før.
+ *
+ * ANKERET id="section-milestones" bor HER (forsideMaal.guard dom 5 læser denne
+ * fil): forsidens maal_uden_bevaegelse og ingen_maal lander på sektionen.
  */
+
+/** Skridt vist åbent pr. mål før «Vis alle» (Jonas 17/9, valg 4). */
+export const SKRIDT_VIST = 6;
 
 type Handling = "opret" | "rediger" | "aktiver" | "parker" | "naaet";
 
@@ -95,6 +107,8 @@ export function VirksomhedPlanen({
   const [skridtMaalValg, setSkridtMaalValg] = useState("uden");
   const [skridtTitel, setSkridtTitel] = useState("");
   const [skridtBegrundelse, setSkridtBegrundelse] = useState("");
+  // «Vis alle N skridt» pr. mål (PR 1): op til SKRIDT_VIST åbne, resten på klik.
+  const [visAlleSkridt, setVisAlleSkridt] = useState<Set<string>>(() => new Set());
   const aabnForeslaa = (sted: string) => {
     if (foreslaaFor === sted) { setForeslaaFor(null); return; }
     setForeslaaFor(sted); setSkridtMaalValg(sted); setSkridtTitel(""); setSkridtBegrundelse("");
@@ -148,9 +162,9 @@ export function VirksomhedPlanen({
   };
 
   return (
-    <HbCard id="section-milestones" className="scroll-mt-24 p-5" data-planen-gennemgang={dom.gennemgang ? "1" : "0"}>
-      <p className="text-xs font-semibold uppercase tracking-[0.14em] text-hb-ink-soft">Planen</p>
-      <p className={dom.gennemgang ? "mt-3 text-sm font-medium text-hb-rust" : "mt-3 text-sm text-hb-ink"}>{dom.tekst}</p>
+    // id="section-milestones": ankeret for forsidens maal_uden_bevaegelse og ingen_maal (fase 4/5).
+    <HbSection id="section-milestones" eyebrow="Planen" hairline className="mt-12 scroll-mt-24" data-planen-gennemgang={dom.gennemgang ? "1" : "0"} data-planen-aktive={dom.aktive.length}>
+      <p className={dom.gennemgang ? "text-sm font-medium text-hb-rust" : "text-sm text-hb-ink"} data-planen-tekst>{dom.tekst}</p>
       {dom.gennemgang && (
         <p className="mt-1 text-xs text-hb-ink-soft">
           Målene er fra før planen (seneste fremdrift kan ligge måneder tilbage). Behold dem der stadig gælder — højst {MAX_AKTIVE_MAAL} — og parkér eller markér resten som nået. Intet parkeres af sig selv.
@@ -158,13 +172,15 @@ export function VirksomhedPlanen({
       )}
 
       {dom.aktive.length > 0 && (
-        <ul className="mt-3 divide-y divide-hb-line">
+        <ul className="mt-4 divide-y divide-hb-line">
           {dom.aktive.map((x) => (
             <MaalLinje
               key={x.maal.id}
               x={x}
               arbejder={arbejder}
               gennemgang={dom.gennemgang}
+              visAlle={visAlleSkridt.has(x.maal.id)}
+              onVisAlle={() => setVisAlleSkridt((prev) => new Set(prev).add(x.maal.id))}
               onParker={() => void skriv(x.maal.id, "parker", { maalId: x.maal.id })}
               onNaaet={() => void skriv(x.maal.id, "naaet", { maalId: x.maal.id })}
               samtaleId={samtaleId}
@@ -288,7 +304,7 @@ export function VirksomhedPlanen({
           </form>
         )}
       </div>
-    </HbCard>
+    </HbSection>
   );
 }
 
@@ -325,20 +341,41 @@ function SkridtForm({
   );
 }
 
+/** Skridtene under et mål i planens rækkefølge: aktive (◻), ventende (?),
+    gjorte (✓), ikke gjort/droppet (–). dismissed/expired vises ikke — de var
+    aldrig skridt. Dommen (grupperingen) er planen.ts'; her kun tegn og ord. */
+function skridtLinjer(s: MaalIPlanen["skridt"]): { id: string; tegn: string; titel: string; ord: string | null; klasse: string }[] {
+  const frist = (d: string | null) => (d ? `frist ${formatDato(d)}` : null);
+  return [
+    ...s.aktive.map((k) => ({ id: k.id, tegn: "◻", titel: k.title, ord: frist(k.due_date), klasse: "text-hb-ink" })),
+    ...s.venter.map((k) => ({ id: k.id, tegn: "?", titel: k.title, ord: "venter på svar", klasse: "text-hb-ink-soft" })),
+    ...s.gjorte.map((k) => ({ id: k.id, tegn: "✓", titel: k.title, ord: "gjort", klasse: "text-hb-ink-soft" })),
+    ...s.andre
+      .filter((k) => k.status === "not_done" || k.status === "dropped")
+      .map((k) => ({ id: k.id, tegn: "–", titel: k.title, ord: k.status === "not_done" ? "ikke gjort" : "droppet", klasse: "text-hb-ink-soft" })),
+  ];
+}
+
 function MaalLinje({
-  x, arbejder, gennemgang, onParker, onNaaet, samtaleId, foreslaaAaben, onForeslaaAabn, form,
+  x, arbejder, gennemgang, visAlle, onVisAlle, onParker, onNaaet, samtaleId, foreslaaAaben, onForeslaaAabn, form,
 }: {
-  x: MaalIPlanen; arbejder: string | null; gennemgang: boolean; onParker: () => void; onNaaet: () => void;
+  x: MaalIPlanen; arbejder: string | null; gennemgang: boolean;
+  /** «Vis alle N skridt» er klikket for dette mål. */
+  visAlle: boolean; onVisAlle: () => void;
+  onParker: () => void; onNaaet: () => void;
   samtaleId: string | null; foreslaaAaben: boolean; onForeslaaAabn: () => void;
   /** Formularen når den står under dette mål (SkridtForm) — ellers null. */
   form: ReactNode;
 }) {
   const bevaegelse = udenBevaegelseTekst(x.dageUdenBevaegelse);
   const s = x.skridt;
+  const linjer = skridtLinjer(s);
+  const viste = visAlle ? linjer : linjer.slice(0, SKRIDT_VIST);
+  const skjulte = linjer.length - viste.length;
   return (
-    <li className="py-2 text-sm" data-maal-id={x.maal.id}>
-      <div className="flex items-baseline justify-between gap-3">
-        <span className="min-w-0 break-words text-hb-ink">{x.maal.title}</span>
+    <li className="py-3 text-sm" data-maal-id={x.maal.id} data-maal-fremdrift={x.fremdrift}>
+      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+        <span className="min-w-0 flex-1 basis-64 break-words text-[15px] leading-snug text-hb-ink">{x.maal.title}</span>
         {x.dom.forfalden ? (
           <span className="shrink-0 text-xs font-medium text-hb-rust">Fristen var {formatDato(x.maal.deadline)}</span>
         ) : (
@@ -353,17 +390,29 @@ function MaalLinje({
         {bevaegelse && <span className="text-hb-rust"> · {bevaegelse}</span>}
         {s.venter.length > 0 && <span> · {s.venter.length} {s.venter.length === 1 ? "skridt venter" : "skridt venter"} på svar</span>}
       </p>
-      {(s.aktive.length > 0 || s.gjorte.length > 0 || s.venter.length > 0) && (
-        <details className="mt-1">
-          <summary className="cursor-pointer text-xs text-hb-ink-soft">Skridtene</summary>
-          <ul className="mt-1 space-y-0.5 text-xs">
-            {s.aktive.map((k) => <li key={k.id} className="text-hb-ink">◻ {k.title}{k.due_date ? <span className="text-hb-ink-soft"> · frist {formatDato(k.due_date)}</span> : null}</li>)}
-            {s.venter.map((k) => <li key={k.id} className="text-hb-ink-soft">? {k.title} · venter på svar</li>)}
-            {s.gjorte.map((k) => <li key={k.id} className="text-hb-ink-soft">✓ {k.title}</li>)}
-          </ul>
-        </details>
+      {/* Skridtene ÅBNE (PR 1, Jonas valg 4): op til SKRIDT_VIST, resten «Vis alle».
+          Hele titler — break-words, aldrig truncate. */}
+      {linjer.length > 0 && (
+        <ul className="mt-2 space-y-1 text-sm" data-skridt-viste={viste.length} data-skridt-alle={linjer.length}>
+          {viste.map((l) => (
+            <li key={l.id} className={`flex items-baseline gap-2 ${l.klasse}`} data-skridt-id={l.id}>
+              <span aria-hidden className="w-4 shrink-0 text-center">{l.tegn}</span>
+              <span className="min-w-0 break-words">
+                {l.titel}
+                {l.ord && <span className="text-hb-ink-soft"> · {l.ord}</span>}
+              </span>
+            </li>
+          ))}
+          {skjulte > 0 && (
+            <li>
+              <button type="button" onClick={onVisAlle} className="text-xs text-hb-evergreen underline-offset-4 hover:underline" data-vis-alle-skridt>
+                Vis alle {linjer.length} skridt
+              </button>
+            </li>
+          )}
+        </ul>
       )}
-      <div className="mt-1.5 flex flex-wrap gap-3 text-xs">
+      <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs">
         {x.handlinger.kanParkere && (
           <button type="button" disabled={arbejder !== null} onClick={onParker} className="text-hb-ink-soft underline-offset-4 hover:underline disabled:opacity-50">{arbejder === x.maal.id ? "Gemmer…" : "Parkér"}</button>
         )}

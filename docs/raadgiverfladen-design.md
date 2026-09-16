@@ -321,6 +321,45 @@ træk, betalingslink og fornyelsestilstand ligger i `/members`-rækken
 `IndgangsSektion`/`FornyelsesSektion`. **Blokken skal BYGGES fra
 listen, ikke flyttes fra detaljesiden.**
 
+**Rettelse 17/9 — rækkefølgen er lagt om (virksomhedssiden PR 1).**
+Analysen 17/9 (`~/Downloads/analyse-virksomhedssiden.md` §1–§5) målte
+at siden var sat op til at LÆSE en virksomhed, ikke til at rådgive
+den: «Én plan» (16/9) kom ind som tredje kolonne i blok 6, tre
+skærmhøjder nede, med 184–333 px til målenes titler. Jonas 16/9
+(ordret): «Vi kan ikke se hele opgaveskriften på virksomhedssiden. Og
+spørgsmålet er også, om det ikke skal prioriteres højere eller mere på
+siden.» Jonas 17/9 (ordret: «Ja på alle») til analysens fem valg, alle A:
+
+1. Planen: blok 3 i fuld bredde, før tallene.
+2. Chatten: ned under tallene, 60 vh (min 420 px), med «Åbn i /chat».
+3. Aftalen: foldet som standard med statuslinje åben; åbnes af
+   ?grund=fornyelse|indgang og ?section=aftale (scroll-effekten åbner
+   folden).
+4. Skridtene i Planen: åbne, op til seks pr. mål, resten «vis alle».
+5. Forberedelsen læser planen: ja — men i PR 2, IKKE her.
+
+**Læserækkefølgen fra 17/9** (kompositionen i `VirksomhedView.tsx`;
+blokkenes NUMRE ovenfor beholdes som navne i koden, Blok1…Blok7):
+
+| Plads | Sektion | Anker | Ændret 17/9 |
+|---|---|---|---|
+| — | Header: navn, meta, **statuslinje** (planens én-linje-tekst + antal afvigelser i tallene) | — | ny linje |
+| 1 | Hvad skal du vide nu (blok 1) | — | uændret (blok 1-køen: PR 2) |
+| 2 | Deres ord og din forberedelse (blok 2) | `section-refleksion`, `section-session` | uændret (forberedelsen læser planen: PR 2) |
+| 3 | **Planen** (`VirksomhedPlanen`) — egen sektion i FULD BREDDE: målene som rækker, hele titler, skridtene ÅBNE (◻ aktive · ? venter · ✓ gjort · – ikke gjort; op til seks, resten «Vis alle»), handlinger som ord; parkerede/nåede foldet | `section-milestones` | flyttet fra blok 6 |
+| 4 | Tallene (blok 5) | `section-tal` | før chatten |
+| 5 | Chatten (blok 4) — 60 vh, min 420 px, «Åbn i /chat»; den daglige puls sker på `/chat` (§3.4) | `section-chat` | efter tallene, lavere |
+| 6 | Aktivitet (blok 6): Rapportering · Handouts (to kort) + Rapporter (foldet efter tre) + Leveringsoverblik | `section-handouts`, `section-reports` | uden Planen |
+| 7 | Aftalen (blok 7) — FOLDET, statuslinjen (tier · fornyelse · indgang · fejlede træk · medlemmer · invitationer) åben; folden åbnes af `?section=aftale` og `?grund=fornyelse\|indgang` | `section-aftale` | foldet |
+| 8 | Mails til virksomheden | `section-mails` | uændret |
+| 9 | Farlig zone | — | uændret |
+
+Blok 3 «Emnerne» (§5) venter stadig på klassificeringen; pladsen har
+Planen. Ankrene er id'er, ikke positioner — forsidens `?grund=` ruller
+til samme steder som før. Låst af `virksomhedsside.guard.test.ts` (seks
+domme med selvbevis: rækkefølgen, Planens fulde bredde, ingen klipning
+af titler, Aftalen foldet og åbnet af deep-links, chattens højde, ankrene).
+
 ---
 
 ## 5. Emne-opsamlingen — beslutningen står, formen måles først
