@@ -8,6 +8,8 @@ import { afgoerVirksomhedsSignaler, isFiguresFresh, type FactPunkt, type Signal,
 import { budgetOmsaetningFor, type BudgetRaekke } from "@/lib/budgetSignalInput";
 import { afgoerForsidensDom, type OpgaveTilDom, type VirksomhedTilDom } from "@/lib/forsidensDom";
 import { kraevRaekker } from "@/lib/kraevRaekker";
+import { hentAlleSider } from "@/lib/budgetEngine";
+import type { MaalRaekke } from "@/lib/hjemmebane/planen";
 import { laesKvittering, type Kvittering } from "@/lib/opgaveLukning";
 import { afgoerPulsen, SVAR_VINDUE_DAGE, type PulsSvar } from "@/lib/pulsen";
 import { erForslagGyldigt } from "@/lib/forslagUdloeb";
@@ -388,9 +390,10 @@ export const hentAdvisorDashboard = () =>
         (supabase
           .from("financial_report_facts")
           .select("company_id, period_key, period_label, metrics, data_basis, committed_at") as any),
+        // id med (fase 4): refleksionen med «hjælp ønskes» lukkes på sit id.
         supabase
           .from("pulse_checkins")
-          .select("company_id, period_key, went_well, biggest_challenge, help_needed, created_at")
+          .select("id, company_id, period_key, went_well, biggest_challenge, help_needed, created_at")
           .order("created_at", { ascending: false })
           .limit(2000),
         (supabase
@@ -400,11 +403,19 @@ export const hentAdvisorDashboard = () =>
           .gte("uploaded_at", weekAgo)
           .order("uploaded_at", { ascending: false })
           .limit(20) as any),
-        supabase
-          .from("milestones")
-          .select("company_id, title, deadline, progress, status")
-          .eq("status", "active")
-          .order("deadline", { ascending: true }),
+        // Aktive mål — ALLE kolonner planen.ts læser (fase 4: «mål uden
+        // bevægelse» og gennemgang på forsiden regnes af samme dom som
+        // Planen på virksomhedssiden). Uden loft før: PostgREST giver højst
+        // 1.000 rækker stille — 87 i prod 16/9, men hentAlleSider bærer det.
+        hentAlleSider<MaalRaekke & { company_id: string }>((fra, til) =>
+          supabase
+            .from("milestones")
+            .select("id, company_id, title, deadline, progress, status, category, source, progress_updated_at, completed_at, created_at")
+            .eq("status", "active")
+            .order("deadline", { ascending: true })
+            .order("id")
+            .range(fra, til),
+        ).then((data) => ({ data, error: null })),
         (supabase
           .from("kpi_targets")
           .select("company_id, kpi_key, target_value, target_label") as any),
@@ -600,11 +611,15 @@ export const hentAdvisorDashboard = () =>
 
       // company_id → active milestones[]
       const milestonesByCompany = new Map<string, MilestoneData[]>();
-      for (const m of kraevRaekker(milestonesRes, "milestones") as any[]) {
+      // Fase 4: de samme rækker, hele, til forsidens dom (maal_uden_bevaegelse).
+      const maalByCompany = new Map<string, MaalRaekke[]>();
+      for (const m of kraevRaekker(milestonesRes, "milestones") as (MaalRaekke & { company_id: string })[]) {
         const cid = m.company_id;
         if (!cid) continue;
         if (!milestonesByCompany.has(cid)) milestonesByCompany.set(cid, []);
         milestonesByCompany.get(cid)!.push({ title: m.title, deadline: m.deadline, progress: m.progress });
+        if (!maalByCompany.has(cid)) maalByCompany.set(cid, []);
+        maalByCompany.get(cid)!.push(m);
       }
 
       // company_id → kpi targets[]
@@ -616,6 +631,9 @@ export const hentAdvisorDashboard = () =>
 
       // Latest pulse by company
       const latestPulseByCompany = new Map<string, { went_well: string; biggest_challenge: string; help_needed?: string | null; created_at: string; period_key: string | null }>();
+      // Fase 4: den NYESTE refleksion med «søger hjælp til» pr. virksomhed —
+      // forsidens slags refleksion_hjaelp (lukkes på refleksionens id).
+      const refleksionHjaelpByCompany = new Map<string, { id: string; helpNeeded: string; createdAt: string }>();
       for (const p of kraevRaekker(pulseRes, "pulse_checkins") as any[]) {
         if (!latestPulseByCompany.has(p.company_id)) {
           latestPulseByCompany.set(p.company_id, {
@@ -625,6 +643,9 @@ export const hentAdvisorDashboard = () =>
             created_at: p.created_at,
             period_key: p.period_key ?? null,
           });
+        }
+        if (p.company_id && p.id && typeof p.help_needed === "string" && p.help_needed.trim() && !refleksionHjaelpByCompany.has(p.company_id)) {
+          refleksionHjaelpByCompany.set(p.company_id, { id: p.id, helpNeeded: p.help_needed, createdAt: p.created_at });
         }
       }
 
@@ -1200,6 +1221,9 @@ export const hentAdvisorDashboard = () =>
             sidsteRaadgiverBeskedAt: sidsteRaadgiverBeskedByCompany.get(c.company_id) ?? null,
             harMaaltRapport: maaltByCompany.has(c.company_id),
             antalUploads: uploadsByCompany.get(c.company_id) ?? 0,
+            // «Én plan» fase 4: målene (aktive) og refleksionen med hjælp.
+            maal: maalByCompany.get(c.company_id) ?? [],
+            refleksionHjaelp: refleksionHjaelpByCompany.get(c.company_id) ?? null,
           };
         };
       const virksomhederTilDom: VirksomhedTilDom[] = investorSummaries

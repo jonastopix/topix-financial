@@ -249,6 +249,8 @@ const GRUNDENS_ANKER: Record<OpgaveSlags, string | null> = {
   agentforslag: null, // panelet står i blok 1
   ikke_i_gang: "section-tal", // «Hjælp … i gang» — tallene mangler, blok 5
   venter_paa_velkomst: "section-chat", // «Skriv til …» — blok 4 (10/9)
+  maal_uden_bevaegelse: "section-milestones", // Planen — blok 6 («Én plan» fase 4)
+  refleksion_hjaelp: "section-refleksion", // Refleksionen — blok 2 (fase 4)
 };
 
 /** Samme dom som forsiden (afgoerForsidensDom), for denne ene virksomhed,
@@ -493,7 +495,7 @@ const Blok2 = ({ d }: { d: VirksomhedsData }) => {
     <HbSection eyebrow="Deres ord og din forberedelse" hairline className="mt-12">
       <div className="grid gap-4 md:grid-cols-[3fr_2fr]">
         {/* 1. Refleksionen — deres egne ord, i fuld længde */}
-        <HbCard className="p-5">
+        <HbCard id="section-refleksion" className="p-5">
           <div className="flex items-baseline justify-between gap-3">
             <p className="text-xs font-semibold uppercase tracking-[0.14em] text-hb-ink-soft">Refleksionen</p>
             {r && <p className="text-xs text-hb-ink-soft">{periodeIOrd(r.period_key) ?? formatDato(r.created_at)}</p>}

@@ -108,6 +108,9 @@ export function filterOverskrift(slags: OpgaveSlags, vist: number, antalIDommen:
     case "agentforslag":
       tekst = `${v} med agentforslag der venter på din afgørelse`;
       break;
+    case "maal_uden_bevaegelse":
+      tekst = `${v} med mål der ikke rykker sig — eller flere end tre aktive`;
+      break;
     default:
       tekst = `${v} med ${slags}`;
   }
