@@ -59,6 +59,8 @@ export const RAADGIVER_KILDE_ORD: Readonly<Record<string, string>> = {
   advisor_company_acknowledgments: "kvitteringerne",
   email_send_log: "mailloggen",
   uploads: "uploads",
+  // Kohortelinjen (16/9): login-historikken bag «kom igen efter dag 1».
+  user_login_log: "login-historikken",
 };
 
 export type RaadgiverFlade = "forsiden" | "virksomheden" | "listen" | "opgaverne" | "invitationerne";

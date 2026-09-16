@@ -25,6 +25,8 @@ import {
   ubesvaredeOpslag,
 } from "@/lib/hjemmebane/ubesvaredeOpslag";
 import { KILDE_PRAESENTATION, KILDE_PRAESENTATION_LABEL } from "@/lib/hjemmebane/praesentation";
+import { KOHORTE_KEY, hentKohorte } from "@/hooks/kohorte";
+import { KOHORTE_OVERSKRIFT, ikkeKommetIgenTekst, kohorteLinje, kohorteTekst, startetIDagTekst } from "@/lib/hjemmebane/kohorte";
 import { HbTag } from "@/components/hjemmebane/HbTag";
 import { cn } from "@/lib/utils";
 import { raadgiverHentefejlTekst } from "@/lib/raadgiverHentefejl";
@@ -216,6 +218,18 @@ export const RaadgiverForsideView = () => {
     enabled: !!user,
     staleTime: 60_000,
   });
+  // Nye medlemmer (Jonas 16/9; hooks/kohorte + lib/hjemmebane/kohorte):
+  // «N af M kom igen efter dag 1» med navnene på dem der ikke er kommet
+  // igen. Nulpunktets regel (16/9 00:57) som ren dom over companies,
+  // company_members og user_login_log — rådgiverens egen RLS, ingen SQL.
+  // Én nøgle, egen hentning; staleTime som «Siden sidst». Hook i
+  // topblokken, før nogen betinget return (React #310).
+  const kohorteQuery = useQuery({
+    queryKey: KOHORTE_KEY,
+    queryFn: () => hentKohorte(),
+    enabled: !!user,
+    staleTime: 5 * 60_000,
+  });
   // Lukningen — hook i TOPBLOKKEN, før nogen betinget return (React #310).
   // Skriv, så hent igen: dommen afgør hvad der står; ingen lokal patch.
   const lukning = useMutation({
@@ -361,6 +375,30 @@ export const RaadgiverForsideView = () => {
               </ul>
             ) : (
               <p className="pb-4">{intetNytTekst(sidenSidstQuery.data.siden, new Date())}</p>
+            );
+          })()
+        ) : null}
+        {/* NYE MEDLEMMER (Jonas 16/9, lib/hjemmebane/kohorte + hooks/kohorte):
+            «N af M kom igen efter dag 1» — nulpunktets regel (16/9 00:57)
+            som linje, med navnene på dem der ikke er kommet igen (højst fem).
+            Startet i dag tælles ikke i M — de har ikke kunnet komme igen
+            endnu — men siges. Intet tal før hentningen er klar; fejl siges
+            med husets hentefejltekst — aldrig «Ingen nye medlemmer». */}
+        <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft">{KOHORTE_OVERSKRIFT}</p>
+        {kohorteQuery.isLoading ? (
+          <div aria-hidden className="pb-4"><div className="h-3 w-2/3 animate-pulse rounded bg-hb-line/60" /></div>
+        ) : kohorteQuery.isError ? (
+          <p className="pb-4 text-xs">{raadgiverHentefejlTekst(kohorteQuery.error, "forsiden")}</p>
+        ) : kohorteQuery.data ? (
+          (() => {
+            const linje = kohorteLinje({ ...kohorteQuery.data, nu: new Date() });
+            const idag = startetIDagTekst(linje.udeladtIDag);
+            const ikke = ikkeKommetIgenTekst(linje.ikkeKommetIgen);
+            return (
+              <div className="space-y-1 pb-4" data-kohorte-m={linje.m} data-kohorte-n={linje.n}>
+                <p>{kohorteTekst(linje)}{idag ? ` ${idag}` : ""}</p>
+                {ikke && <p>{ikke}</p>}
+              </div>
             );
           })()
         ) : null}
