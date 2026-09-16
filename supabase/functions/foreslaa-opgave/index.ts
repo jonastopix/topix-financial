@@ -21,8 +21,12 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
 import { authenticateUser, corsHeaders } from "../_shared/edgeFunctionAuth.ts";
 import { beregnUdloeb } from "../_shared/opgaveUdloeb.ts";
 import { normaliserBegrundelse, validerTitel } from "../_shared/foreslaaOpgaveValidering.ts";
-// Fase 0a («Én plan»): samme dom som ugens fokus og agenten — højst ét åbent
-// forslag pr. virksomhed, ingen gentagelse inden for 30 døgn.
+// Fase 0a («Én plan»), JONAS 16/9 VALG A: rådgiverens function er KUN
+// underlagt dubletkontrollen — ingen gentagelse inden for 30 døgn (samme
+// normaliserede titel, uanset status). Et ventende forslag spærrer ALDRIG
+// rådgiveren; «højst ét åbent forslag pr. virksomhed» gælder kun AI'en
+// (generate-weekly-focus, run-company-agent). Dommen kaldes med
+// { skriver: "raadgiver" } nedenfor.
 import { doemSkrivning, SKRIVE_SELECT_KOLONNER, skriveFilter } from "../_shared/skridtForslag.ts";
 
 function jsonResponse(body: unknown, status = 200): Response {
