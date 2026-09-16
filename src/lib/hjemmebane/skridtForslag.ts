@@ -22,7 +22,10 @@
 /** Vinduet for «samme forslag igen» — kortets regel (mangellisten, EPIC 4/9):
     «samme normaliserede titel inden for 30 dage = samme forslag». Gælder
     ALLE statusser — også dismissed og expired (Jonas 16/9: et afvist forslag
-    kommer ikke igen). Fase 1 skærper det for dismissed inden for samme mål. */
+    kommer ikke igen). FASE 5 skærper det: et AFVIST forslag (dismissed) med
+    samme titel INDEN FOR SAMME MÅL (maal_id) er en gentagelse UANSET alder —
+    «et afvist forslag inden for samme mål kommer aldrig igen» (plan §2a
+    punkt 3). Gælder alle skrivere (dubletkontrollen — også rådgiveren, valg A). */
 export const GENTAGELSES_VINDUE_DAGE = 30;
 
 /** Et forslag der venter på medlemmets svar — uanset expires_at. Et forslag
@@ -33,13 +36,15 @@ export const AABNE_STATUSSER: readonly string[] = ["proposed"];
 
 /** Kolonnerne skriveren skal hente fra company_actions for virksomheden —
     ét sted, så de tre skrivere henter det samme. */
-export const SKRIVE_SELECT_KOLONNER = "id, title, status, created_at";
+export const SKRIVE_SELECT_KOLONNER = "id, title, status, created_at, maal_id";
 
 export interface ForslagsRaekke {
   title: string;
   status: string;
   /** ISO-tidsstempel (company_actions.created_at). */
   created_at: string;
+  /** company_actions.maal_id (fase 1) — det mål skridtet hører til; null/udeladt = intet mål. */
+  maal_id?: string | null;
 }
 
 /** Titlens nøgle: små bogstaver, ét mellemrum mellem ord, ingen kanter,
@@ -63,27 +68,33 @@ export function gentagelsesGraense(nu: Date): Date {
 
 export type GentagelsesDom =
   | { gentagelse: false }
-  | { gentagelse: true; status: string; created_at: string };
+  | { gentagelse: true; status: string; created_at: string; grund: "vindue" | "afvist_i_maalet" };
 
 /** Findes der en række med samme normaliserede titel oprettet inden for de
     seneste 30 døgn (uanset status)? Fail-closed: et ulæseligt eller
     fremtidigt created_at tæller som «inden for vinduet» — hellere ét forslag
-    for lidt end en dublet. Den nyeste ramte række returneres. */
-export function erGentagelse(nyTitel: string, eksisterende: readonly ForslagsRaekke[], nu: Date): GentagelsesDom {
+    for lidt end en dublet. Den nyeste ramte række returneres.
+    FASE 5: gives `maalId`, er en AFVIST (dismissed) række med samme titel og
+    samme maal_id en gentagelse UANSET alder («kommer aldrig igen»). Uden
+    maalId (forslag uden mål) gælder kun vinduet. */
+export function erGentagelse(nyTitel: string, eksisterende: readonly ForslagsRaekke[], nu: Date, maalId?: string | null): GentagelsesDom {
   const noegle = normaliserTitel(nyTitel);
   if (noegle === "") return { gentagelse: false };
   const graense = gentagelsesGraense(nu).getTime();
+  const maal = (maalId ?? "").trim();
   let ramt: ForslagsRaekke | null = null;
   let ramtTid = -Infinity;
+  let ramtGrund: "vindue" | "afvist_i_maalet" = "vindue";
   for (const r of eksisterende) {
     if (normaliserTitel(r.title) !== noegle) continue;
     const t = Date.parse(r.created_at);
+    const afvistIMaalet = maal !== "" && r.status === "dismissed" && (r.maal_id ?? "") === maal;
     const iVinduet = Number.isNaN(t) || t >= graense;
-    if (!iVinduet) continue;
+    if (!iVinduet && !afvistIMaalet) continue;
     const tid = Number.isNaN(t) ? Infinity : t;
-    if (tid >= ramtTid) { ramt = r; ramtTid = tid; }
+    if (tid >= ramtTid) { ramt = r; ramtTid = tid; ramtGrund = afvistIMaalet && !iVinduet ? "afvist_i_maalet" : afvistIMaalet ? "afvist_i_maalet" : "vindue"; }
   }
-  return ramt ? { gentagelse: true, status: ramt.status, created_at: ramt.created_at } : { gentagelse: false };
+  return ramt ? { gentagelse: true, status: ramt.status, created_at: ramt.created_at, grund: ramtGrund } : { gentagelse: false };
 }
 
 /** Antal åbne forslag (proposed) i rækkerne — uanset expires_at. */
@@ -102,7 +113,7 @@ export function maaSkriveForslag(antalAabne: number): boolean {
 export type SkriveDom =
   | { ok: true }
   | { ok: false; grund: "forslag_venter"; antal: number }
-  | { ok: false; grund: "gentagelse"; status: string; created_at: string };
+  | { ok: false; grund: "gentagelse"; status: string; created_at: string; aarsag: "vindue" | "afvist_i_maalet" };
 
 /** Hvem skriver? JONAS 16/9, VALG A: rådgiverens egne forslag (foreslaa-
     opgave) spærres ALDRIG af et ventende forslag — kun af dubletkontrollen.
@@ -113,21 +124,24 @@ export type Skriver = "raadgiver" | "ai";
 /** ÉN dom for alle tre skrivere, i denne rækkefølge: (1) for AI'en: venter
     der allerede et forslag hos virksomheden → skriv ikke (rådgiveren
     springer dette led over — valg A); (2) er titlen en gentagelse inden for
-    30 døgn → skriv ikke, uanset skriver; ellers ok. `eksisterende` er
-    virksomhedens company_actions hentet med SKRIVE_SELECT_KOLONNER og
-    filteret «status = proposed ELLER created_at ≥ gentagelsesGraense(nu)». */
-export function doemSkrivning(nyTitel: string, eksisterende: readonly ForslagsRaekke[], nu: Date, valg: { skriver: Skriver }): SkriveDom {
+    30 døgn — eller afvist inden for samme mål (fase 5, `valg.maalId`) —
+    → skriv ikke, uanset skriver; ellers ok. `eksisterende` er virksomhedens
+    company_actions hentet med SKRIVE_SELECT_KOLONNER og skriveFilter(nu, maalId). */
+export function doemSkrivning(nyTitel: string, eksisterende: readonly ForslagsRaekke[], nu: Date, valg: { skriver: Skriver; maalId?: string | null }): SkriveDom {
   if (valg.skriver === "ai") {
     const aabne = taelAabne(eksisterende);
     if (!maaSkriveForslag(aabne)) return { ok: false, grund: "forslag_venter", antal: aabne };
   }
-  const g = erGentagelse(nyTitel, eksisterende, nu);
-  if (g.gentagelse) return { ok: false, grund: "gentagelse", status: g.status, created_at: g.created_at };
+  const g = erGentagelse(nyTitel, eksisterende, nu, valg.maalId);
+  if (g.gentagelse) return { ok: false, grund: "gentagelse", status: g.status, created_at: g.created_at, aarsag: g.grund };
   return { ok: true };
 }
 
 /** Filteret til skriverens SELECT (PostgREST .or-syntaks): åbne forslag
-    uanset alder + alt oprettet inden for vinduet. */
-export function skriveFilter(nu: Date): string {
-  return `status.eq.proposed,created_at.gte.${gentagelsesGraense(nu).toISOString()}`;
+    uanset alder + alt oprettet inden for vinduet — og (fase 5) ALLE afviste
+    forslag under målet, uanset alder, når skridtet har et mål. */
+export function skriveFilter(nu: Date, maalId?: string | null): string {
+  const basis = `status.eq.proposed,created_at.gte.${gentagelsesGraense(nu).toISOString()}`;
+  const maal = (maalId ?? "").trim();
+  return maal ? `${basis},and(status.eq.dismissed,maal_id.eq.${maal})` : basis;
 }

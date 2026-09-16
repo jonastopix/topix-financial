@@ -111,6 +111,9 @@ export function filterOverskrift(slags: OpgaveSlags, vist: number, antalIDommen:
     case "maal_uden_bevaegelse":
       tekst = `${v} med mål der ikke rykker sig — eller flere end tre aktive`;
       break;
+    case "ingen_maal":
+      tekst = `${v} uden mål — sæt dem sammen med medlemmet`;
+      break;
     default:
       tekst = `${v} med ${slags}`;
   }

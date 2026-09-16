@@ -60,6 +60,26 @@ export function kanOpretteMaal(antalAktive: number): boolean {
   return antalAktive < MAX_AKTIVE_MAAL;
 }
 
+/** Venter virksomheden på en GENNEMGANG — flere aktive mål end de tre?
+    (Prod 16/9: 8 virksomheder, 5–17 mål.) ÉN regel for Planen på
+    virksomhedssiden, forsidens linje og AI-skriverne (Jonas 16/9, «Ja det
+    er i orden»: ingen AI-forslag mens gennemgangen venter — rådgiveren
+    skal først vælge de højst tre). Ulæseligt tal → nej (intet at gennemgå). */
+export function gennemgangVenter(antalAktive: number): boolean {
+  if (typeof antalAktive !== "number" || !Number.isFinite(antalAktive)) return false;
+  return antalAktive > MAX_AKTIVE_MAAL;
+}
+
+/** Må AI'en foreslå et skridt mod virksomhedens mål? Kun når der ER aktive
+    mål OG gennemgangen ikke venter. Dommen står her; hvilket mål vælges af
+    vaelgMaalForForslag bagefter. */
+export type ForslagsAdgang = { ok: true } | { ok: false; grund: "ingen_aktive_maal" } | { ok: false; grund: "gennemgang_foerst"; antal: number };
+export function maaForeslaaMod(antalAktive: number): ForslagsAdgang {
+  if (typeof antalAktive !== "number" || !Number.isFinite(antalAktive) || antalAktive <= 0) return { ok: false, grund: "ingen_aktive_maal" };
+  if (gennemgangVenter(antalAktive)) return { ok: false, grund: "gennemgang_foerst", antal: antalAktive };
+  return { ok: true };
+}
+
 /** Det af milestones-rækken forslagsvælgeren læser. */
 export interface MaalTilValg {
   id: string;

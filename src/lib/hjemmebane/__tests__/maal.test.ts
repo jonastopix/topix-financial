@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { kanOpretteMaal, maalFremdrift, MAX_AKTIVE_MAAL, TAELLENDE_SKRIDT, vaelgMaalForForslag } from "@/lib/hjemmebane/maal";
+import { gennemgangVenter, kanOpretteMaal, maaForeslaaMod, maalFremdrift, MAX_AKTIVE_MAAL, TAELLENDE_SKRIDT, vaelgMaalForForslag } from "@/lib/hjemmebane/maal";
 
 /* «Én plan pr. virksomhed», fase 1 (16/9): motoren for mål og skridt.
    Jonas: når alle skridt er gjort, rykker målets fremdrift; højst tre aktive
@@ -68,6 +68,25 @@ describe("kanOpretteMaal — højst tre aktive", () => {
     expect(kanOpretteMaal(Number.NaN)).toBe(false);
     expect(kanOpretteMaal(Number.POSITIVE_INFINITY)).toBe(false);
     expect(kanOpretteMaal("2" as unknown as number)).toBe(false);
+  });
+});
+
+describe("gennemgangVenter og maaForeslaaMod (fase 5, Jonas «Ja det er i orden»: ingen AI-forslag under gennemgangen)", () => {
+  it("gennemgangVenter: 4+ aktive → ja; 0–3 → nej; ulæseligt → nej", () => {
+    expect(gennemgangVenter(4)).toBe(true);
+    expect(gennemgangVenter(17)).toBe(true);
+    expect(gennemgangVenter(3)).toBe(false);
+    expect(gennemgangVenter(0)).toBe(false);
+    expect(gennemgangVenter(Number.NaN)).toBe(false);
+  });
+  it("maaForeslaaMod: 0 → ingen_aktive_maal; 1–3 → ok; 4+ → gennemgang_foerst med antallet; ulæseligt/negativt → ingen_aktive_maal", () => {
+    expect(maaForeslaaMod(0)).toEqual({ ok: false, grund: "ingen_aktive_maal" });
+    expect(maaForeslaaMod(1)).toEqual({ ok: true });
+    expect(maaForeslaaMod(3)).toEqual({ ok: true });
+    expect(maaForeslaaMod(4)).toEqual({ ok: false, grund: "gennemgang_foerst", antal: 4 });
+    expect(maaForeslaaMod(17)).toEqual({ ok: false, grund: "gennemgang_foerst", antal: 17 });
+    expect(maaForeslaaMod(-1)).toEqual({ ok: false, grund: "ingen_aktive_maal" });
+    expect(maaForeslaaMod(Number.NaN)).toEqual({ ok: false, grund: "ingen_aktive_maal" });
   });
 });
 

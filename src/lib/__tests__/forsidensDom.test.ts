@@ -19,7 +19,7 @@ import {
 import type { Signal } from "@/lib/virksomhedsSignaler";
 import type { Fornyelsestilstand } from "@/lib/fornyelse";
 import type { Betalingsfristtilstand } from "@/lib/betalingsfrist";
-import { ALVOR_MAAL, ALVOR_REFLEKSION_HJAELP, maalTilstandstekst, refleksionUddrag, REFLEKSION_UDDRAG, STILSTAND_LAENGE_DAGE } from "@/lib/forsidensDom";
+import { ALVOR_INGEN_MAAL, ALVOR_MAAL, ALVOR_REFLEKSION_HJAELP, maalTilstandstekst, refleksionUddrag, REFLEKSION_UDDRAG, STILSTAND_LAENGE_DAGE } from "@/lib/forsidensDom";
 import type { MaalRaekke } from "@/lib/hjemmebane/planen";
 
 // Fast «nu»: 4. september 2026 kl. 12:00 lokal tid — dagregning for
@@ -113,6 +113,9 @@ describe("konstanterne", () => {
       // tilstand (sand igen i morgen, samles), refleksion med hjælp en hændelse.
       maal_uden_bevaegelse: "tilstand",
       refleksion_hjaelp: "haendelse",
+      // Fase 5 (16/9, Jonas «Ja det er i orden»): en aktiv kunde uden aktive mål — en tilstand.
+      // Før (fase 4): tabellen sluttede ved refleksion_hjaelp (tretten slags).
+      ingen_maal: "tilstand",
     });
     for (const slags of Object.keys(FORM) as (keyof typeof INDSATS)[]) {
       expect([1, 2, 3]).toContain(INDSATS[slags]);
@@ -931,5 +934,50 @@ describe("refleksion med «hjælp ønskes» (trettende slags, fase 4)", () => {
     const l = virksomhedslinjer(d)[0];
     expect(l.grunde.map((g) => g.slags)).toEqual(["refleksion_hjaelp", "maal_uden_bevaegelse"]);
     expect(l.alvor).toBe(80);
+  });
+});
+
+describe("ingen mål (fjortende slags, fase 5)", () => {
+  const ingenGrund = (d: ReturnType<typeof afgoerForsidensDom>) =>
+    [...d.linjer, ...d.underStregen.tilstande].flatMap((l) => (l.linje === "virksomhed" ? l.grunde : l.linje === "tilstand" ? l.virksomheder.map((x) => x.grund) : [])).find((g) => g.slags === "ingen_maal");
+  it("alvor 70, tilstand, indsats 2 — en kunde med tomt maal-felt giver ÉN samlet linje på forsiden", () => {
+    expect(ALVOR_INGEN_MAAL).toBe(70);
+    expect(FORM.ingen_maal).toBe("tilstand");
+    expect(INDSATS.ingen_maal).toBe(2);
+    const d = afgoerForsidensDom([virksomhed({ navn: "Nordic By Hand", maal: [] })], NU);
+    const t = tilstandslinjer(d)[0];
+    expect(t.slags).toBe("ingen_maal");
+    expect(t.tekst).toBe("1 kunde har ingen mål — sæt dem sammen med medlemmet");
+    expect(t.virksomheder[0].grund).toMatchObject({ signaltype: "ingen_maal", noegle: "ingen_maal", grundlag: "ingen:0", tekst: "Ingen mål endnu", handling: "Sæt mål sammen med Nordic By Hand", alvor: 70, lukkerOmDage: null, indsats: 2 });
+  });
+  it("15 af 29 (prod 16/9): femten kunder med tomt felt → «15 kunder har ingen mål …», de andre tæller ikke", () => {
+    const d = afgoerForsidensDom([
+      ...Array.from({ length: 15 }, () => virksomhed({ maal: [] })),
+      ...Array.from({ length: 14 }, () => virksomhed({ maal: [maal({ dageSiden: 1 })] })),
+    ], NU);
+    const t = tilstandslinjer(d).find((l) => l.slags === "ingen_maal")!;
+    expect(t.antal).toBe(15);
+    expect(t.tekst).toBe("15 kunder har ingen mål — sæt dem sammen med medlemmet");
+  });
+  it("kun parkerede/nåede mål er også «ingen aktive» — teksten siger det; grundlaget tæller alle mål", () => {
+    const d = afgoerForsidensDom([virksomhed({ maal: [maal({ status: "parked" }), maal({ status: "completed" })] })], NU);
+    expect(ingenGrund(d)).toMatchObject({ grundlag: "ingen:2", tekst: "Ingen aktive mål (2 parkerede eller nåede)" });
+    expect(ingenGrund(afgoerForsidensDom([virksomhed({ maal: [maal({ status: "parked" })] })], NU))?.tekst).toBe("Ingen aktive mål (1 parkeret eller nået)");
+  });
+  it("ét aktivt mål, eller kalder uden maal-feltet (VirksomhedView, legat): ingen grund", () => {
+    expect(ingenGrund(afgoerForsidensDom([virksomhed({ maal: [maal()] })], NU))).toBeUndefined();
+    expect(ingenGrund(afgoerForsidensDom([virksomhed()], NU))).toBeUndefined();
+  });
+  it("lukningen: kvittering på «ingen:0» holder; et parkeret mål bliver sat (ingen:1) er noget nyt; et aktivt mål fjerner grunden helt", () => {
+    const lukket = { udfald: "ikke_relevant" as const, grundlag: { ingen_maal: "ingen:0" }, lukketAt: "" };
+    expect(ingenGrund(afgoerForsidensDom([virksomhed({ maal: [], kvittering: lukket })], NU))).toBeUndefined();
+    expect(ingenGrund(afgoerForsidensDom([virksomhed({ maal: [maal({ status: "parked" })], kvittering: lukket })], NU))).toBeDefined();
+    expect(ingenGrund(afgoerForsidensDom([virksomhed({ maal: [maal()], kvittering: lukket })], NU))).toBeUndefined();
+  });
+  it("hægtes på en linje der findes alligevel; står aldrig sammen med maal_uden_bevaegelse (de udelukker hinanden)", () => {
+    const d = afgoerForsidensDom([virksomhed({ signaler: [bankovertraek], maal: [] })], NU);
+    expect(virksomhedslinjer(d)[0].grunde.map((g) => g.slags)).toEqual(["stikker_ud", "ingen_maal"]);
+    const d2 = afgoerForsidensDom([virksomhed({ maal: [maal({ dageSiden: 78 })] })], NU);
+    expect(ingenGrund(d2)).toBeUndefined();
   });
 });

@@ -36,7 +36,8 @@ export const dommenLaanerReglen = (dom: string): boolean =>
   /grundlag: `gennemgang:\$\{antal\}`/.test(dom) &&
   /grundlag: stille\.map\(\(x\) => `\$\{x\.maal\.id\}=\$\{x\.maal\.progress_updated_at \?\? "aldrig"\}`\)\.sort\(\)\.join\(","\)/.test(dom) &&
   /grundlag: r\.id,/.test(dom) &&
-  /const m = grundFraMaal\(v, nu\);\s*if \(m\) grunde\.push\(m\);\s*const r = grundFraRefleksion\(v\);\s*if \(r\) grunde\.push\(r\);\s*return grunde\.filter\(\(g\) => !erLukket\(g, v\.kvittering\)\);/.test(dom);
+  // Fase 5: «ingen mål» (grundFraIngenMaal) står mellem målene og refleksionen.
+  /const m = grundFraMaal\(v, nu\);\s*if \(m\) grunde\.push\(m\);\s*const im = grundFraIngenMaal\(v\);\s*if \(im\) grunde\.push\(im\);\s*const r = grundFraRefleksion\(v\);\s*if \(r\) grunde\.push\(r\);\s*return grunde\.filter\(\(g\) => !erLukket\(g, v\.kvittering\)\);/.test(dom);
 
 /** Dom 2: hentningen bærer felterne. */
 export const hentningenBaerer = (dash: string): boolean =>
@@ -50,8 +51,10 @@ export const hentningenBaerer = (dash: string): boolean =>
 
 /** Dom 3: FORM og INDSATS. */
 export const formenHolder = (dom: string): boolean =>
-  /maal_uden_bevaegelse: "tilstand",/.test(dom) && /refleksion_hjaelp: "haendelse",/.test(dom) &&
-  /maal_uden_bevaegelse: 2,/.test(dom) && /refleksion_hjaelp: 2,/.test(dom) &&
+  /maal_uden_bevaegelse: "tilstand",/.test(dom) && /refleksion_hjaelp: "haendelse",/.test(dom) && /ingen_maal: "tilstand",/.test(dom) &&
+  /maal_uden_bevaegelse: 2,/.test(dom) && /refleksion_hjaelp: 2,/.test(dom) && /ingen_maal: 2,/.test(dom) &&
+  /export const ALVOR_INGEN_MAAL = 70;/.test(dom) &&
+  /grundlag: `ingen:\$\{v\.maal\.length\}`,/.test(dom) &&
   /export const ALVOR_MAAL = \{\s*stilstand: 55,\s*stilstand_laenge: 70,\s*gennemgang: 70,\s*\} as const;/.test(dom) &&
   /export const ALVOR_REFLEKSION_HJAELP = 80;/.test(dom);
 
@@ -83,6 +86,7 @@ describe("forsideMaal.guard — fase 4: mål uden bevægelse og refleksion med h
     const v = udenKommentarer(laes(VIEW));
     expect(v).toContain('maal_uden_bevaegelse: "section-milestones",');
     expect(v).toContain('refleksion_hjaelp: "section-refleksion",');
+    expect(v).toContain('ingen_maal: "section-milestones",');
     expect(v).toContain('<HbCard id="section-refleksion"');
     // Planen-kortet (fase 2) bærer ankeret section-milestones.
     expect(udenKommentarer(laes("src/components/hjemmebane/virksomhed/VirksomhedPlanen.tsx"))).toContain('id="section-milestones"');

@@ -28,7 +28,9 @@ function doemKilde(kilde: string, insert: string, skriver: "ai" | "raadgiver"): 
     doemmer: dom >= 0,
     foerInsert: dom >= 0 && ins >= 0 && dom < ins,
     henterMedFilter: kilde.includes("SKRIVE_SELECT_KOLONNER") && kilde.includes("skriveFilter("),
-    rigtigSkriver: kilde.includes(`{ skriver: "${skriver}" }`) && !kilde.includes(`{ skriver: "${anden}" }`),
+    // Fase 5: kaldet bærer også maalId — `{ skriver: "ai", maalId }` / `{ skriver: "raadgiver", maalId: oensketMaalId }`.
+    // Før: kilde.includes(`{ skriver: "${skriver}" }`) && !kilde.includes(`{ skriver: "${anden}" }`).
+    rigtigSkriver: new RegExp(`\\{ skriver: "${skriver}"[,} ]`).test(kilde) && !new RegExp(`\\{ skriver: "${anden}"[,} ]`).test(kilde),
   };
 }
 

@@ -16,7 +16,7 @@
  * kolonne (plan §3c).
  */
 import { afgoerMilepael, type MilepaelDom } from "@/lib/milepaelDom";
-import { kanOpretteMaal, maalFremdrift, MAX_AKTIVE_MAAL, TAELLENDE_SKRIDT } from "@/lib/hjemmebane/maal";
+import { gennemgangVenter, kanOpretteMaal, maalFremdrift, MAX_AKTIVE_MAAL, TAELLENDE_SKRIDT } from "@/lib/hjemmebane/maal";
 
 /** Det af milestones-rækken Planen læser (useVirksomhed). */
 export interface MaalRaekke {
@@ -129,7 +129,8 @@ export function planenDom(maal: readonly MaalRaekke[], skridt: readonly SkridtRa
   const aktive = alle.filter((x) => x.dom.aktiv).sort(aeldsteFoerst);
   const parkerede = alle.filter((x) => x.dom.parkeret).sort(aeldsteFoerst);
   const naaede = alle.filter((x) => x.dom.faerdig).sort(aeldsteFoerst);
-  const gennemgang = aktive.length > MAX_AKTIVE_MAAL;
+  // ÉN regel (maal.ts gennemgangVenter) — samme som forsiden og AI-skriverne.
+  const gennemgang = gennemgangVenter(aktive.length);
   const kanSaetteMaal = kanOpretteMaal(aktive.length);
 
   for (const x of aktive) x.handlinger = { kanAktivere: false, kanParkere: true, kanMarkereNaaet: true, kanForeslaaSkridt: !gennemgang };

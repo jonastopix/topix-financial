@@ -164,6 +164,13 @@ vise mål uden bevægelse i 30 dage og refleksioner med hjælp ønskes»):
     svaret). Lukning: grundlag = refleksionens id — holder til en nyere
     refleksion med hjælp afløser den. Handout-delen af slags 8 og slags 6
     venter stadig på §8.
+14. **Ingen mål** (`ingen_maal`, fase 5, Jonas 16/9 «Ja det er i orden») —
+    en aktiv kunde (uden legat) med nul aktive mål. Fra fase 5 får den
+    ingen AI-forslag (kun mod et aktivt mål), så rådgiveren skal vide hvem
+    der mangler mål: «N kunder har ingen mål — sæt dem sammen med
+    medlemmet». FORM tilstand, alvor 70 (én samlet linje på forsiden; prod
+    16/9: 15 af 29). Lukning: grundlag = antallet af alle virksomhedens mål
+    — sættes et aktivt mål, er grunden væk.
 
 ---
 

@@ -30,7 +30,11 @@ describe("maal — paritet mellem src/lib/hjemmebane og supabase/functions/_shar
     expect(web.MAX_AKTIVE_MAAL).toBe(deno.MAX_AKTIVE_MAAL);
     expect([...web.TAELLENDE_SKRIDT]).toEqual([...deno.TAELLENDE_SKRIDT]);
     for (const skridt of SKRIDTSAET) for (const n of NUVAERENDE) expect(web.maalFremdrift(skridt, n)).toBe(deno.maalFremdrift(skridt, n));
-    for (const n of [-1, 0, 1, 2, 3, 4, Number.NaN, Number.POSITIVE_INFINITY]) expect(web.kanOpretteMaal(n)).toBe(deno.kanOpretteMaal(n));
+    for (const n of [-1, 0, 1, 2, 3, 4, 17, Number.NaN, Number.POSITIVE_INFINITY]) {
+      expect(web.kanOpretteMaal(n)).toBe(deno.kanOpretteMaal(n));
+      expect(web.gennemgangVenter(n)).toBe(deno.gennemgangVenter(n));
+      expect(web.maaForeslaaMod(n)).toEqual(deno.maaForeslaaMod(n));
+    }
     for (const o of OENSKER) {
       expect(web.vaelgMaalForForslag(MAAL, o)).toBe(deno.vaelgMaalForForslag(MAAL, o));
       expect(web.vaelgMaalForForslag([], o)).toBe(deno.vaelgMaalForForslag([], o));
