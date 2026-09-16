@@ -21,6 +21,15 @@ export interface NotificationPayload {
   deep_link?: string;
   company_id?: string;
   dedup_key: string;
+  /**
+   * «Stemplet uden mail» ved skrivning (16/9): sættes den, står rækken i
+   * klokken som vigtig (klokken læser kun seen_at + priority), men når
+   * ALDRIG mailkøen (send-notification-email: .is("email_sent_at", null))
+   * og tælles ikke af vagten (vagt_cron: email_sent_at IS NULL). Atomisk i
+   * samme INSERT — send-report-reminder gør det i to trin (:472-475);
+   * her er der intet vindue hvor køen kan nå rækken. Udelades → som før.
+   */
+  email_sent_at?: string;
 }
 
 /**
@@ -46,6 +55,7 @@ export async function writeNotification(
         deep_link: payload.deep_link || null,
         company_id: payload.company_id || null,
         dedup_key: payload.dedup_key,
+        ...(payload.email_sent_at ? { email_sent_at: payload.email_sent_at } : {}),
       });
 
     if (error) {
