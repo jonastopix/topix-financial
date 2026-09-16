@@ -77,8 +77,12 @@ export interface VirksomhedsSamtale {
   assigned_advisor_id: string | null;
 }
 
-/** company_traek — ALLE træk (betalte og fejlede) til «Betaling»-linjen. */
+/** company_traek — ALLE betalinger (betalte og fejlede) til «Betaling»-linjen.
+    id er React-nøglen (stripe_invoice_id er nullable siden 20260917110000);
+    kilde afgør linjens label (lib/traek.traekLabel). */
 export interface VirksomhedsTraek extends FejletTraek {
+  id: string;
+  kilde: string;
   status: string;
   art: string | null;
   betalt_at: string | null;
@@ -268,7 +272,7 @@ async function hentVirksomhed(companyId: string): Promise<VirksomhedsData | null
       .limit(500),
     supabase
       .from("company_traek")
-      .select("company_id, stripe_invoice_id, beloeb_oere, fejlet_at, forsoeg, naeste_forsoeg_at, fejl_kode, fejl_decline_code, fejl_besked, hosted_invoice_url, faktura_nummer, periode_start, periode_slut, status, art, betalt_at")
+      .select("id, kilde, company_id, stripe_invoice_id, beloeb_oere, fejlet_at, forsoeg, naeste_forsoeg_at, fejl_kode, fejl_decline_code, fejl_besked, hosted_invoice_url, faktura_nummer, periode_start, periode_slut, status, art, betalt_at")
       .eq("company_id", companyId)
       .order("periode_start", { ascending: false })
       .limit(100),

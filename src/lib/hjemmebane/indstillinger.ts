@@ -43,7 +43,7 @@
  * sendes til /konto og så aldrig den fane.
  */
 
-import { beloebKr } from "@/lib/traek";
+import { beloebKr, harFakturaLink, traekLabel } from "@/lib/traek";
 import type { MembershipTier } from "@/lib/membershipTier";
 import { kalenderdageTil } from "./aftaler";
 
@@ -133,7 +133,11 @@ export interface PeriodeInput {
 }
 
 export interface TraekInput {
-  stripe_invoice_id: string;
+  /** Rækkens id — linjens nøgle (stripe_invoice_id er nullable siden 20260917110000). */
+  id?: string;
+  /** company_traek.kilde — mangler den (rækker hentet uden kolonnen), læses den som abonnement. */
+  kilde?: string | null;
+  stripe_invoice_id: string | null;
   status: string;
   beloeb_oere: number;
   betalt_at: string | null;
@@ -173,11 +177,14 @@ export function traekStatusOrd(status: string): string {
 export function traekLinje(t: TraekInput): BetalingsLinje {
   const dato = t.status === "betalt" ? formatDato(t.betalt_at) : t.status === "fejlet" ? formatDato(t.fejlet_at) : null;
   return {
-    id: t.stripe_invoice_id,
-    label: t.faktura_nummer ? `Faktura ${t.faktura_nummer}` : "Faktura",
+    // Nøglen: rækkens id; ældre kaldere uden id falder tilbage til Stripe-id'et, så nummeret (16/9).
+    id: t.id ?? t.stripe_invoice_id ?? `traek:${t.faktura_nummer ?? "?"}`,
+    // Kilden i medlemmets ord: «Faktura {nr}» for abonnementstræk (som før),
+    // «Stripe · {nr}» og «e-conomic #{nr}» for de andre (lib/traek.traekLabel).
+    label: traekLabel(t, "Faktura"),
     vaerdi: `${beloebKr(t.beloeb_oere)} · ${traekStatusOrd(t.status)}${dato ? ` ${dato}` : ""}`,
     rust: t.status === "fejlet",
-    fakturaUrl: t.hosted_invoice_url,
+    fakturaUrl: harFakturaLink(t) ? t.hosted_invoice_url : null,
   };
 }
 
