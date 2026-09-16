@@ -31,6 +31,16 @@
  *      stemplet KUN når fakturaen er sendt — husets mønster
  *      (betalingsmail_sendt_at, sidste_paamindelse_dag). Sat → fandtes
  *      allerede, intet Stripe-kald.
+ *      Sammen med det (16/9, migration 20260916150000): faktura_sendt_at
+ *      og faktura_url — Stripes hosted_invoice_url — i SAMME UPDATE, så
+ *      /betal kan sige «Vi har sendt fakturaen på mail den …» og give
+ *      knappen «Betal fakturaen» (hent_betalingstilbud). Aldrig før
+ *      fakturaen er sendt: linket uden faktura ville være en løgn til.
+ *      UDRULNING (chatten 16/9): merge → migrationen i SQL editor
+ *      (FØR-målingen igen først) → denne fils kalder,
+ *      indgangs-paamindelser-cron, udrulles EKSPLICIT — dens UPDATE skriver
+ *      faktura_url, og før migrationen fejler stemplet på en ukendt kolonne
+ *      → Update-klik for frontenden.
  *   2. Opslag i Stripe på kundens fakturaer (GET /v1/invoices?customer=,
  *      konsistent læsning — ikke Search-API'et, som er eventual consistent)
  *      med match på metadata. Dækker den kørsel hvor fakturaen kom ud, men
@@ -166,7 +176,10 @@ function momsBeregnet(f: StripeFaktura): boolean {
  * Stempler linkrækken med fakturaen. Kaster aldrig: fakturaen er allerede
  * ude, og et manglende stempel må ikke gøre kørslen til en fejl — laget
  * over (Stripe-opslaget) fanger det næste gang. Returnerer om stemplet
- * blev skrevet.
+ * blev skrevet. Linket (hosted_invoice_url) skrives SAMMEN med stemplet
+ * (16/9): samme objekt, samme UPDATE — enten er alle tre felter sat, eller
+ * ingen af dem. Gav Stripe intet link, står faktura_url NULL, og siden
+ * viser datoen uden knap.
  */
 async function stemplFaktura(
   adminClient: SupabaseClient,
@@ -181,12 +194,13 @@ async function stemplFaktura(
     .update({
       faktura_invoice_id: faktura.id,
       faktura_sendt_at: sendtAt,
+      faktura_url: faktura.hosted_invoice_url ?? null,
       updated_at: new Date().toISOString(),
     })
     .eq("company_id", companyId);
   if (error) {
     console.error(
-      `${LOG} KRITISK: faktura ${faktura.id} er sendt for company ${companyId}, men faktura_invoice_id kunne ikke skrives på company_betalingslink — sæt det i hånden:`,
+      `${LOG} KRITISK: faktura ${faktura.id} er sendt for company ${companyId}, men faktura_invoice_id/faktura_sendt_at/faktura_url kunne ikke skrives på company_betalingslink — sæt dem i hånden:`,
       error,
     );
     return false;
