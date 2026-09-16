@@ -251,6 +251,7 @@ const GRUNDENS_ANKER: Record<OpgaveSlags, string | null> = {
   venter_paa_velkomst: "section-chat", // «Skriv til …» — blok 4 (10/9)
   maal_uden_bevaegelse: "section-milestones", // Planen — blok 6 («Én plan» fase 4)
   refleksion_hjaelp: "section-refleksion", // Refleksionen — blok 2 (fase 4)
+  ingen_maal: "section-milestones", // Planen — «Sæt mål sammen med medlemmet» (fase 5)
 };
 
 /** Samme dom som forsiden (afgoerForsidensDom), for denne ene virksomhed,

@@ -270,6 +270,19 @@ export const STILSTAND_LAENGE_DAGE = 60;
  */
 export const ALVOR_REFLEKSION_HJAELP = 80;
 
+/**
+ * Ingen mål (FJORTENDE slags, fase 5; Jonas 16/9 «Ja det er i orden»): en
+ * aktiv kunde (uden legat) med NUL aktive mål. Prod 16/9: 15 af 29. Fra
+ * fase 5 får de ingen AI-forslag (beslutning 3: kun mod et aktivt mål) — så
+ * rådgiveren skal vide hvem der mangler mål. 70: på tærsklen, så den samlede
+ * linje «N kunder har ingen mål — sæt dem sammen med medlemmet» står på
+ * forsiden som ÉN linje; en tilstand (sand igen i morgen), aldrig én linje
+ * pr. kunde. Lukning: grundlag = antallet af ALLE virksomhedens mål (også
+ * parkerede og nåede) — sættes et mål, er grunden væk; lukkes linjen uden
+ * at der sættes mål, holder den til noget ændrer sig i målene.
+ */
+export const ALVOR_INGEN_MAAL = 70;
+
 // ─── Typer ────────────────────────────────────────────────────────────────
 
 /** §2's otte slags, plus §3's pukkel (se filhovedet). De to AI-baserede
@@ -287,7 +300,8 @@ export type OpgaveSlags =
   | "ikke_i_gang" // TIENDE slags (Jonas 9/9, en designændring som §2 varsler): ny uden målt rapport — lib/ikkeIGang
   | "venter_paa_velkomst" // ELLEVTE slags (bygget 9/9, koblet 10/9): et medlem kom ind, ingen rådgiver har skrevet — lib/venterPaaVelkomst
   | "maal_uden_bevaegelse" // TOLVTE slags («Én plan» fase 4, 16/9): aktive mål uden bevægelse i 30 dage — eller flere end tre aktive (gennemgang). lib/hjemmebane/planen
-  | "refleksion_hjaelp"; // TRETTENDE slags (fase 4, 16/9): refleksionen bærer «søger hjælp til» — pulse_checkins.help_needed. §2 slags 8 uden AI.
+  | "refleksion_hjaelp" // TRETTENDE slags (fase 4, 16/9): refleksionen bærer «søger hjælp til» — pulse_checkins.help_needed. §2 slags 8 uden AI.
+  | "ingen_maal"; // FJORTENDE slags (fase 5, 16/9): en aktiv kunde uden aktive mål — sæt dem sammen med medlemmet.
 
 /** §3's tre former. */
 export type Form = "haendelse" | "tilstand" | "pukkel";
@@ -308,6 +322,7 @@ export const FORM: Record<OpgaveSlags, Form> = {
   venter_paa_velkomst: "haendelse", // et menneske kom ind én gang — linjen står ved navn, og forsvinder når nogen skriver
   maal_uden_bevaegelse: "tilstand", // sand igen i morgen: samles til «N virksomheder har mål der ikke rykker sig», hægtes på en linje der findes alligevel
   refleksion_hjaelp: "haendelse", // én refleksion, én gang — linjen står ved navn til den er lukket eller afløst
+  ingen_maal: "tilstand", // sand igen i morgen: samles til «N kunder har ingen mål — sæt dem sammen med medlemmet»
 };
 
 /** Indsats — «hvor stort» (§4). Bryder KUN uafgjort på alvor; bærer aldrig
@@ -336,6 +351,7 @@ export const INDSATS: Record<OpgaveSlags, Indsats> = {
   venter_paa_velkomst: 2, // én besked: sig hej
   maal_uden_bevaegelse: 2, // én besked: spørg hvad der står i vejen (gennemgangen er et klik pr. mål i Planen, men samtalen først)
   refleksion_hjaelp: 2, // én besked: svar på det de bad om hjælp til
+  ingen_maal: 2, // en samtale om mål — sæt dem sammen
 };
 
 /** company_actions-rækken som dommen ser den: kun det den læser. Kun
@@ -802,6 +818,25 @@ function grundFraVenterPaaVelkomst(v: VirksomhedTilDom, nu: Date): Grund | null 
     stillestående måls id med stemplet (en bevægelse på ét af dem, eller
     et nyt stillestående mål, er noget nyt; at dagene vokser er det ikke —
     lukket er lukket, Jonas 8/9). */
+/** Ingen mål (fase 5): kalderen bærer `maal` (AdvisorDashboard: kun aktive
+    kunder uden legat) og listen er tom for AKTIVE mål → én grund. Uden
+    feltet (VirksomhedView) ingen grund. */
+function grundFraIngenMaal(v: VirksomhedTilDom): Grund | null {
+  if (!v.maal) return null;
+  if (v.maal.some((m) => m.status === "active")) return null;
+  return {
+    slags: "ingen_maal",
+    signaltype: "ingen_maal",
+    noegle: "ingen_maal",
+    grundlag: `ingen:${v.maal.length}`,
+    tekst: v.maal.length === 0 ? "Ingen mål endnu" : `Ingen aktive mål (${flertal(v.maal.length, "parkeret eller nået", "parkerede eller nåede")})`,
+    handling: `Sæt mål sammen med ${v.navn}`,
+    alvor: ALVOR_INGEN_MAAL,
+    lukkerOmDage: null,
+    indsats: INDSATS.ingen_maal,
+  };
+}
+
 function grundFraMaal(v: VirksomhedTilDom, nu: Date): Grund | null {
   if (!v.maal || v.maal.length === 0) return null;
   const plan = planenDom(v.maal, [], nu);
@@ -884,6 +919,8 @@ function grundeFor(v: VirksomhedTilDom, nu: Date): Grund[] {
   if (w) grunde.push(w);
   const m = grundFraMaal(v, nu);
   if (m) grunde.push(m);
+  const im = grundFraIngenMaal(v);
+  if (im) grunde.push(im);
   const r = grundFraRefleksion(v);
   if (r) grunde.push(r);
   return grunde.filter((g) => !erLukket(g, v.kvittering));
@@ -949,6 +986,8 @@ function tilstandstekst(slags: OpgaveSlags, antal: number, liste?: readonly { gr
       const gennemgang = (liste ?? []).filter((x) => x.grund.signaltype === "maal_gennemgang").length;
       return maalTilstandstekst(gennemgang, antal - gennemgang);
     }
+    case "ingen_maal":
+      return `${flertal(antal, "kunde", "kunder")} har ingen mål — sæt dem sammen med medlemmet`;
     default:
       return `${v} med ${slags}`;
   }

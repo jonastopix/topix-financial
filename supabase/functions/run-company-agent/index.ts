@@ -8,6 +8,8 @@ import { skrivUgensFokus } from "../_shared/agentSkriveveje.ts";
 // Fase 0a («Én plan»): write_company_action dømmer gennem den delte motor
 // (højst ét åbent forslag pr. virksomhed; ingen gentagelse inden for 30 døgn).
 import { doemSkrivning, SKRIVE_SELECT_KOLONNER, skriveFilter } from "../_shared/skridtForslag.ts";
+// Fase 5 («Én plan»): et skridt hører til et aktivt mål — motoren vælger det.
+import { maaForeslaaMod, vaelgMaalForForslag, type MaalTilValg } from "../_shared/maal.ts";
 
 const DEPLOY_STAMP = "run-company-agent v5 agent-proposals (2026-08-25)";
 const MODEL = "google/gemini-2.5-flash";
@@ -55,7 +57,7 @@ DIN ARBEJDSGANG (i rækkefølge — sådan arbejder en grundig rådgiver):
    get_handout_levers og get_application_context er en fast del af billedet, ikke et tilvalg: de bærer hvad founder selv har fortalt og hvor de er i forløbet — det kan ikke udledes af tallene, og uden det bliver din sparring generisk. Kald gerne flere værktøjer parallelt.
 3. Analysér: hvad er det vigtigste signal i denne måneds tal? Sammenlign med forrige måned, med mål — og med hvad founder selv har sagt.
 4. Opdatér weekly focus-kortet på dashboardet med en kort overskrift og opsummering — det er dit primære output og skal bære dit vigtigste nøglefund. Fokusér på ét nøglefund, ikke fem.
-5. Opret én konkret handlingsopgave med write_company_action hvis der er et klart næste skridt founder skal tage inden for de næste 7 dage
+5. Opret én konkret handlingsopgave med write_company_action hvis der er et klart næste skridt founder skal tage inden for de næste 7 dage — et skridt hører til ét af virksomhedens AKTIVE mål (get_milestones): angiv milestone_id. Har virksomheden ingen aktive mål, foreslår du intet skridt (målene sætter rådgiveren sammen med medlemmet)
 6. Foreslå aldrig mål (milestones) — dem sætter rådgiveren sammen med medlemmet; du foreslår højst ét konkret skridt
 7. Du skubber ALDRIG til advisoren med notify_advisor
 8. Kald finish
@@ -326,7 +328,7 @@ const tools = [
     type: "function",
     function: {
       name: "write_company_action",
-      description: "Foreslår en konkret handlingsopgave til founderen på dashboardet. Forslaget udløber automatisk efter 14 dage hvis founderen ikke tager stilling. Brug kun til ét klart, specifikt næste skridt — fx 'Ring til din bank om kreditfacilitet' eller 'Opdatér din salgspipeline inden fredag'. Maks 1 action per kørsel.",
+      description: "Foreslår et konkret SKRIDT mod ét af virksomhedens aktive mål (get_milestones) til founderen på dashboardet. Forslaget udløber automatisk efter 14 dage hvis founderen ikke tager stilling. Brug kun til ét klart, specifikt næste skridt — fx 'Ring til din bank om kreditfacilitet' eller 'Opdatér din salgspipeline inden fredag'. Maks 1 action per kørsel. Uden aktive mål afvises kaldet (intet_aktivt_maal); har virksomheden flere end tre aktive mål, afvises det også (gennemgang_foerst) — rådgiveren gennemgår først.",
       parameters: {
         type: "object",
         properties: {
@@ -334,6 +336,7 @@ const tools = [
           title: { type: "string", description: "Handlingen i imperativ form. Maks 10 ord." },
           context: { type: "string", description: "Kort forklaring på hvorfor. Maks 20 ord." },
           priority: { type: "string", enum: ["high", "medium", "low"] },
+          milestone_id: { type: "string", description: "ID på det aktive mål (fra get_milestones) skridtet hører til. Udelades det, vælges det ældste aktive mål." },
         },
         required: ["company_id", "title", "context", "priority"],
       },
@@ -636,24 +639,44 @@ async function executeTool(name: string, args: any, adminClient: any, trigger: s
         .maybeSingle();
       if (!member) return { ok: false, reason: "no_member" };
 
+      // Fase 5: skridtet hører til et AKTIVT mål. Motoren vælger: modellens
+      // milestone_id hvis det er aktivt, ellers det ældste aktive. Ingen
+      // aktive mål → intet forslag; modellen får grunden og prøver ikke igen.
+      const nu = new Date();
+      const { data: maalRows, error: maalErr } = await adminClient
+        .from("milestones")
+        .select("id, status, category, created_at")
+        .eq("company_id", args.company_id)
+        .eq("status", "active");
+      if (maalErr) throw new Error(maalErr.message);
+      // Jonas 16/9: ingen AI-forslag mens gennemgangen venter (flere end tre aktive mål).
+      const adgang = maaForeslaaMod((maalRows ?? []).length);
+      if (!adgang.ok) {
+        return adgang.grund === "gennemgang_foerst"
+          ? { ok: false, reason: "gennemgang_foerst", antal: adgang.antal }
+          : { ok: false, reason: "intet_aktivt_maal" };
+      }
+      const maalId = vaelgMaalForForslag((maalRows ?? []) as MaalTilValg[], { maalId: typeof args.milestone_id === "string" ? args.milestone_id : null });
+      if (!maalId) return { ok: false, reason: "intet_aktivt_maal" };
+
       // Fase 0a: dommen FØR insert — (1) venter der allerede et forslag hos
       // virksomheden (uanset kilde og udløb), skrives intet nyt; (2) samme
       // normaliserede titel inden for 30 døgn (også dismissed/expired) er
-      // en gentagelse. Modellen får ok:false med grunden, som den får ved
-      // milestone_already_exists — den skal ikke prøve igen med samme titel.
+      // en gentagelse — og (fase 5) et afvist forslag under samme mål er det
+      // uanset alder. Modellen får ok:false med grunden, som den får ved
+      // forslag_venter — den skal ikke prøve igen med samme titel.
       {
-        const nu = new Date();
         const { data: eksisterende, error: eksErr } = await adminClient
           .from("company_actions")
           .select(SKRIVE_SELECT_KOLONNER)
           .eq("company_id", args.company_id)
-          .or(skriveFilter(nu));
+          .or(skriveFilter(nu, maalId));
         if (eksErr) throw new Error(eksErr.message);
-        const dom = doemSkrivning(String(args.title ?? ""), eksisterende ?? [], nu, { skriver: "ai" });
+        const dom = doemSkrivning(String(args.title ?? ""), eksisterende ?? [], nu, { skriver: "ai", maalId });
         if (!dom.ok) {
           return dom.grund === "forslag_venter"
             ? { ok: false, reason: "forslag_venter", antal: dom.antal }
-            : { ok: false, reason: "gentagelse", status: dom.status, created_at: dom.created_at };
+            : { ok: false, reason: dom.aarsag === "afvist_i_maalet" ? "afvist_i_maalet" : "gentagelse", status: dom.status, created_at: dom.created_at };
         }
       }
 
@@ -671,7 +694,9 @@ async function executeTool(name: string, args: any, adminClient: any, trigger: s
           priority: args.priority,
           source_type: "agent",
           status: "proposed",
-          expires_at: beregnUdloeb("agent", new Date()).toISOString(),
+          expires_at: beregnUdloeb("agent", nu).toISOString(),
+          // Fase 5: skridtets mål — aldrig null her.
+          maal_id: maalId,
         } as any);
 
       if (error) throw new Error(error.message);

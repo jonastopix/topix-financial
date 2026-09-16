@@ -163,18 +163,21 @@ Deno.serve(async (req) => {
     .from("company_actions")
     .select(SKRIVE_SELECT_KOLONNER)
     .eq("company_id", companyId)
-    .or(skriveFilter(nu));
+    // Fase 5: med et mål på tæller også et AFVIST forslag under samme mål — uanset alder.
+    .or(skriveFilter(nu, oensketMaalId));
   if (eksErr) {
     console.error("[foreslaa-opgave] company_actions-opslag fejlede:", eksErr);
     return jsonResponse({ error: "Intern fejl" }, 500);
   }
-  const dom = doemSkrivning(titelDom.titel, eksisterende ?? [], nu, { skriver: "raadgiver" });
+  const dom = doemSkrivning(titelDom.titel, eksisterende ?? [], nu, { skriver: "raadgiver", maalId: oensketMaalId });
   if (!dom.ok) {
     // For «raadgiver» giver dommen aldrig forslag_venter (valg A) — grenen
     // står kun så typen er udtømt.
     return jsonResponse(
       dom.grund === "gentagelse"
-        ? { error: "Et forslag med samme titel er givet inden for de seneste 30 dage — skriv det anderledes, eller lad det ligge", grund: "gentagelse", status: dom.status, created_at: dom.created_at }
+        ? dom.aarsag === "afvist_i_maalet"
+          ? { error: "Medlemmet har afvist et forslag med samme titel under dette mål — det kommer ikke igen; foreslå noget andet", grund: "afvist_i_maalet", status: dom.status, created_at: dom.created_at }
+          : { error: "Et forslag med samme titel er givet inden for de seneste 30 dage — skriv det anderledes, eller lad det ligge", grund: "gentagelse", status: dom.status, created_at: dom.created_at }
         : { error: "Forslaget blev holdt tilbage", grund: dom.grund },
       409,
     );

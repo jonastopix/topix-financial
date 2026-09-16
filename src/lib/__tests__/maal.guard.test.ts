@@ -92,11 +92,12 @@ describe("maal.guard — fase 1: maal_id, fremdrift og paritet", () => {
   it("dom 1: migrationen er additiv — FK ON DELETE SET NULL, partielt indeks, completed_at + trigger, ingen politik, ingen DEFINER", () => {
     expect(migrationenHolder(udenSqlKommentarer(laes(MIGRATION)))).toBe(true);
   });
-  it("dom 2: maal_id skrives kun af foreslaa-opgave — ingen anden fil under supabase/functions eller src", () => {
+  it("dom 2: maal_id skrives kun af de planlagte skrivere — foreslaa-opgave (fase 1) og de to AI-skrivere (fase 5); ingen anden fil under supabase/functions eller src", () => {
+    // Før (fase 1): expect(skrivere).toEqual([FORESLAA]);
     const skrivere = [...alleFiler("supabase/functions"), ...alleFiler("src")]
       .filter((f) => !f.includes("__tests__") && !f.endsWith(".test.ts"))
       .filter((f) => skriverAfMaalId(udenKommentarer(laes(f))));
-    expect(skrivere).toEqual([FORESLAA]);
+    expect(skrivere).toEqual([FORESLAA, "supabase/functions/generate-weekly-focus/index.ts", "supabase/functions/run-company-agent/index.ts"].sort());
     expect(foreslaaHolder(udenKommentarer(laes(FORESLAA)))).toBe(true);
   });
   it("dom 3: opgave-luk læser maal_id, lader motoren regne og skriver kun progress", () => {

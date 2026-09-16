@@ -10,6 +10,9 @@ import { skalHaveUgensFokus } from "./ugensFokusGate.ts";
 // Fase 0a («Én plan»): dedup og «højst ét åbent forslag» bor i den delte
 // motor — samme dom som run-company-agent og foreslaa-opgave.
 import { doemSkrivning, SKRIVE_SELECT_KOLONNER, skriveFilter } from "../_shared/skridtForslag.ts";
+// Fase 5 («Én plan»): et forslag er et SKRIDT mod et aktivt mål — målet vælges
+// af motoren (vaelgMaalForForslag); ingen aktive mål → intet forslag.
+import { maaForeslaaMod, vaelgMaalForForslag, type MaalTilValg } from "../_shared/maal.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -568,19 +571,58 @@ Generer en ugentlig fokusanalyse. Svar med dette JSON-format:
   // en gentagelse, uanset status (også dismissed/expired). Kortet ovenfor
   // er skrevet; kun forslaget holdes tilbage. Rækkerne hentes med motorens
   // kolonner og filter, så de tre skrivere ser det samme.
+  // Fase 5: skridtet hører til et AKTIVT mål (Jonas 16/9, beslutning 3:
+  // «AI'en foreslår højst ét skridt ad gangen, og kun mod et aktivt mål»).
+  // Målet vælges af motoren: det mål milepæls-triggeren pegede på hvis det
+  // er aktivt, ellers det ældste aktive. Ingen aktive mål → intet forslag,
+  // og loggen siger det. Kortet (headline/summary) skrives stadig.
+  let maalId: string | null = null;
+  if (actions.length > 0) {
+    const { data: maalRows, error: maalErr } = await admin
+      .from("milestones")
+      .select("id, status, category, created_at")
+      .eq("company_id", company.id)
+      .eq("status", "active");
+    if (maalErr) throw new Error(`milestones kunne ikke læses før forslag: ${maalErr.message}`);
+    // Jonas 16/9 («Ja det er i orden»): INGEN AI-forslag mens virksomheden har
+    // flere end tre aktive mål — gennemgangen (rådgiveren vælger de tre) først.
+    // Dommen er motorens (maaForeslaaMod), samme regel som Planen og forsiden.
+    const adgang = maaForeslaaMod((maalRows ?? []).length);
+    if (!adgang.ok) {
+      console.log(
+        adgang.grund === "gennemgang_foerst"
+          ? `[weekly-focus] ${company.name}: ${adgang.antal} aktive mål — gennemgang først, skriver intet forslag`
+          : `[weekly-focus] ${company.name}: ingen aktive mål — skriver intet forslag (Jonas 16/9: kun mod et aktivt mål)`,
+      );
+      actions.length = 0;
+    } else {
+      const oensket =
+        (triggerData.MILESTONE_DUE_SOON as { id: string }[] | undefined)?.[0]?.id ??
+        (triggerData.MILESTONE_STALLED as { id: string }[] | undefined)?.[0]?.id ??
+        null;
+      maalId = vaelgMaalForForslag((maalRows ?? []) as MaalTilValg[], { maalId: oensket });
+      if (!maalId) {
+        console.log(`[weekly-focus] ${company.name}: ingen aktive mål — skriver intet forslag (Jonas 16/9: kun mod et aktivt mål)`);
+        actions.length = 0;
+      }
+    }
+  }
+
   if (actions.length > 0) {
     const { data: eksisterende, error: eksErr } = await admin
       .from("company_actions")
       .select(SKRIVE_SELECT_KOLONNER)
       .eq("company_id", company.id)
-      .or(skriveFilter(now));
+      .or(skriveFilter(now, maalId));
     if (eksErr) throw new Error(`company_actions kunne ikke læses før forslag: ${eksErr.message}`);
-    const dom = doemSkrivning(String(actions[0]?.title ?? ""), eksisterende ?? [], now, { skriver: "ai" });
+    const dom = doemSkrivning(String(actions[0]?.title ?? ""), eksisterende ?? [], now, { skriver: "ai", maalId });
     if (!dom.ok) {
       console.log(
         dom.grund === "forslag_venter"
           ? `[weekly-focus] ${company.name}: ${dom.antal} forslag venter ubesvaret — skriver ikke et nyt`
-          : `[weekly-focus] ${company.name}: «${actions[0]?.title}» er en gentagelse (${dom.status}, ${dom.created_at}) — skriver ikke`,
+          : dom.aarsag === "afvist_i_maalet"
+            ? `[weekly-focus] ${company.name}: «${actions[0]?.title}» blev afvist under samme mål (${dom.created_at}) — kommer aldrig igen, skriver ikke`
+            : `[weekly-focus] ${company.name}: «${actions[0]?.title}» er en gentagelse (${dom.status}, ${dom.created_at}) — skriver ikke`,
       );
       actions.length = 0;
     }
@@ -611,6 +653,8 @@ Generer en ugentlig fokusanalyse. Svar med dette JSON-format:
         week_key: weekKey,
         generated_at: now.toISOString(),
         expires_at: beregnUdloeb("ai_weekly", now).toISOString(),
+        // Fase 5: skridtets mål — aldrig null her (uden mål skrives intet forslag).
+        maal_id: maalId,
       }));
       await admin.from("company_actions").insert(actionRows);
     }
