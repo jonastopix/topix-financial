@@ -5,6 +5,9 @@ import { beregnUdloeb } from "../_shared/opgaveUdloeb.ts";
 import { SKRIVE_TOOLS, toerResultat } from "../_shared/agentToerkoersel.ts";
 import { effektivRapportPeriodeKey, rapporteringsStatus } from "../_shared/rapportStatus.ts";
 import { skrivUgensFokus } from "../_shared/agentSkriveveje.ts";
+// Fase 0a («Én plan»): write_company_action dømmer gennem den delte motor
+// (højst ét åbent forslag pr. virksomhed; ingen gentagelse inden for 30 døgn).
+import { doemSkrivning, SKRIVE_SELECT_KOLONNER, skriveFilter } from "../_shared/skridtForslag.ts";
 
 const DEPLOY_STAMP = "run-company-agent v5 agent-proposals (2026-08-25)";
 const MODEL = "google/gemini-2.5-flash";
@@ -725,6 +728,27 @@ async function executeTool(name: string, args: any, adminClient: any, trigger: s
         .limit(1)
         .maybeSingle();
       if (!member) return { ok: false, reason: "no_member" };
+
+      // Fase 0a: dommen FØR insert — (1) venter der allerede et forslag hos
+      // virksomheden (uanset kilde og udløb), skrives intet nyt; (2) samme
+      // normaliserede titel inden for 30 døgn (også dismissed/expired) er
+      // en gentagelse. Modellen får ok:false med grunden, som den får ved
+      // milestone_already_exists — den skal ikke prøve igen med samme titel.
+      {
+        const nu = new Date();
+        const { data: eksisterende, error: eksErr } = await adminClient
+          .from("company_actions")
+          .select(SKRIVE_SELECT_KOLONNER)
+          .eq("company_id", args.company_id)
+          .or(skriveFilter(nu));
+        if (eksErr) throw new Error(eksErr.message);
+        const dom = doemSkrivning(String(args.title ?? ""), eksisterende ?? [], nu, { skriver: "ai" });
+        if (!dom.ok) {
+          return dom.grund === "forslag_venter"
+            ? { ok: false, reason: "forslag_venter", antal: dom.antal }
+            : { ok: false, reason: "gentagelse", status: dom.status, created_at: dom.created_at };
+        }
+      }
 
       // Opgave-modellens form (B1/B10): et forslag, ikke en åben opgave —
       // medlemmet forpligter sig ved accept. Udløb for kilden 'agent' er
