@@ -5,6 +5,7 @@
 
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
+import { erKunde } from "@/lib/raadgiverensKunder";
 
 type Tables = Database["public"]["Tables"];
 
@@ -410,21 +411,30 @@ export async function listAllMemberProgress(itemIds: string[]): Promise<AdminPro
 
 /** Medlemslisten til Fremdrift-fanen: company_members × profiles ×
     companies — minimal udgave af Members-mønstret. Legat filtreres FRA
-    (kurateret forløb, eget dashboard); advisors optræder ikke i
-    company_members og er dermed automatisk udeladt. Medlemmer uden
-    profil-række beholdes med fallback-navn. Alfabetisk sortering. */
+    (kurateret forløb, eget dashboard); advisors UDEN company_members-række
+    er automatisk udeladt — men en rådgiver KAN have en (Jonas Herlev på
+    Topix.dk ApS), og en ikke-kunde (companies.er_kunde = false) står i
+    listen som alle andre (chattens valg (i), 16/9: listen er uændret).
+    Derfor bærer hver række companyErKunde = erKunde(virksomheden)
+    (raadgiverensKunder.ts, fail-open: en række uden virksomhed er kunde),
+    så «Svar pr. lektion» kan trække ikke-kunders medlemmer fra tallet
+    (lektionBrugbar.udelukFraBrugbar). ÉN række pr. medlemskab: company_members
+    er unik på (company, user), så samme userId kan stå to gange. Medlemmer
+    uden profil-række beholdes med fallback-navn. Alfabetisk sortering. */
 export type AdminMember = {
   userId: string;
   name: string;
   avatarUrl: string | null;
   companyName: string;
+  /** erKunde(companies-rækken) — false KUN ved eksplicit er_kunde = false. */
+  companyErKunde: boolean;
 };
 
 export async function listMembers(): Promise<AdminMember[]> {
   const [membersRes, profilesRes, companiesRes] = await Promise.all([
     supabase.from("company_members").select("user_id, company_id"),
     supabase.from("profiles").select("user_id, full_name, avatar_url"),
-    supabase.from("companies").select("id, name, is_legat"),
+    supabase.from("companies").select("id, name, is_legat, er_kunde"),
   ]);
   for (const res of [membersRes, profilesRes, companiesRes])
     if (res.error) throw new Error(res.error.message);
@@ -441,6 +451,7 @@ export async function listMembers(): Promise<AdminMember[]> {
         name: profile?.full_name?.trim() || "Ukendt medlem",
         avatarUrl: profile?.avatar_url ?? null,
         companyName: companyById.get(m.company_id)?.name ?? "",
+        companyErKunde: erKunde(companyById.get(m.company_id) ?? {}),
       };
     })
     .sort((a, b) => a.name.localeCompare(b.name, "da"));

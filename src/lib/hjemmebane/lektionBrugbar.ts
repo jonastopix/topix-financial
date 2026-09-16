@@ -19,11 +19,23 @@
  *
  * 3. optaelBrugbarPrLektion — tallet pr. lektion til rådgiverne. Tæller KUN
  *    rækker med acknowledged_at sat, og aldrig rækker fra udelukkede
- *    brugere (rådgiverne). Et fortrudt svar bliver i data (fortryd
- *    nulstiller kun acknowledged_at, ElementView/clearAcknowledge), men
- *    tæller ikke: uden acknowledged_at er lektionen ikke set færdig, og
- *    så er svaret ikke et svar på en gennemført lektion. Invariant:
- *    ja + nej + ubesvaret = gennemfoert, altid.
+ *    brugere (rådgiverne og ikke-kunders medlemmer, se 4). Et fortrudt
+ *    svar bliver i data (fortryd nulstiller kun acknowledged_at,
+ *    ElementView/clearAcknowledge), men tæller ikke: uden acknowledged_at
+ *    er lektionen ikke set færdig, og så er svaret ikke et svar på en
+ *    gennemført lektion. Invariant: ja + nej + ubesvaret = gennemfoert, altid.
+ *
+ * 4. udelukFraBrugbar — HVEM der ikke tæller (16/9, «Svar pr. lektion»
+ *    uden ikke-kunder): rådgiverne (get_all_advisor_profiles, vinder altid)
+ *    ∪ medlemmer hvis ALLE medlemskaber er ikke-kunder (companies.er_kunde
+ *    = false, dommen erKunde i raadgiverensKunder.ts regnet i listMembers,
+ *    fail-open). PR. BRUGER, ikke pr. række: company_members er unik på
+ *    (company, user), så en bruger kan stå i flere virksomheder, og
+ *    listMembers giver én række pr. medlemskab. Et medlem af både en kunde
+ *    og en ikke-kunde TÆLLER MED — progress-rækker har ingen company_id, så
+ *    svaret kan ikke deles op, og en kunde der forsvinder uden beslutning
+ *    er den fejl der ikke opdages (erKunde's regel). Kun tallet: listen på
+ *    Fremdrift-fanen viser stadig alle (chattens valg (i), 16/9).
  *
  * Reglen fra MemberProgress gælder: et fraværende felt (undefined) er det
  * samme som null — ikke sket / ikke besvaret.
@@ -112,6 +124,31 @@ export function optaelBrugbarPrLektion(
     else if (raekke.brugbar === false) tal.nej += 1;
     else tal.ubesvaret += 1;
   }
+  return ud;
+}
+
+/** Det udelukkelsen læser af et medlem — AdminMember (adminContentApi.ts)
+    opfylder den strukturelt. companyErKunde er erKunde(virksomheden). */
+export interface UdelukMedlem {
+  userId: string;
+  companyErKunde: boolean;
+}
+
+/** user_id'er der ikke tæller i «Svar pr. lektion»: rådgiverne ∪ brugere
+    hvis ALLE medlemskaber er ikke-kunder. En bruger uden rækker i
+    medlemmer udelukkes kun hvis hun er rådgiver. Rører ikke input. */
+export function udelukFraBrugbar(
+  raadgiverUserIds: Iterable<string>,
+  medlemmer: readonly UdelukMedlem[],
+): Set<string> {
+  const ud = new Set<string>();
+  for (const id of raadgiverUserIds) if (id) ud.add(id);
+  // Pr. bruger: mindst ét kunde-medlemskab holder brugeren inde.
+  const harKundeMedlemskab = new Map<string, boolean>();
+  for (const m of medlemmer) {
+    harKundeMedlemskab.set(m.userId, (harKundeMedlemskab.get(m.userId) ?? false) || m.companyErKunde);
+  }
+  for (const [userId, erKunde] of harKundeMedlemskab) if (!erKunde) ud.add(userId);
   return ud;
 }
 

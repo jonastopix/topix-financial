@@ -6,9 +6,14 @@ import {
   optaelBrugbarPrLektion,
   patchBrugbarIRaekker,
   skalSpoergeOmBrugbar,
+  udelukFraBrugbar,
   type BrugbarOptaelling,
   type BrugbarRaekke,
+  type UdelukMedlem,
 } from "../lektionBrugbar";
+// erKunde er ren (raadgiverensKunder.ts: ingen I/O, ingen Supabase) — bruges kun
+// til at vise at companyErKunde's fire kilde-cases lander som fail-open siger.
+import { erKunde } from "@/lib/raadgiverensKunder";
 
 /** Motoren bag «Kunne du bruge den?» (16/9-2026). Ren — lektionBrugbar.ts
     har kun en type-import fra akademiApi, så ingen Supabase-mock er nødvendig. */
@@ -186,5 +191,77 @@ describe("patchBrugbarIRaekker — den optimistiske cache-patch", () => {
 describe("fladens ord", () => {
   it("BRUGBAR_SPOERGSMAAL er præcis «Kunne du bruge den?»", () => {
     expect(BRUGBAR_SPOERGSMAAL).toBe("Kunne du bruge den?");
+  });
+});
+
+describe("udelukFraBrugbar — rådgiverne og ikke-kunders medlemmer, PR. BRUGER (16/9)", () => {
+  const medlem = (userId: string, companyErKunde: boolean): UdelukMedlem => ({ userId, companyErKunde });
+
+  it("ingen rådgivere, alle kunder → tomt sæt", () => {
+    expect(udelukFraBrugbar([], [medlem("u1", true), medlem("u2", true)])).toEqual(new Set());
+  });
+
+  it("rådgiver-id'er er i sættet — også en rådgiver uden company_members-række (står ikke i medlemmer)", () => {
+    expect(udelukFraBrugbar(["morten"], [medlem("u1", true)])).toEqual(new Set(["morten"]));
+    expect(udelukFraBrugbar(new Set(["morten", "jonas"]), [])).toEqual(new Set(["morten", "jonas"]));
+  });
+
+  it("et medlem af en ikke-kunde (companyErKunde false) er i sættet; et medlem af en kunde er ikke", () => {
+    expect(udelukFraBrugbar([], [medlem("topix", false), medlem("kunde", true)])).toEqual(new Set(["topix"]));
+  });
+
+  it("companyErKunde kommer fra erKunde (fail-open) — true, null og undefined er alle kunde, kun false udelukker", () => {
+    const raa = [
+      { userId: "a", er_kunde: true },
+      { userId: "b", er_kunde: null },
+      { userId: "c", er_kunde: undefined },
+      { userId: "d", er_kunde: false },
+    ];
+    const medlemmer = raa.map((r) => medlem(r.userId, erKunde(r)));
+    expect(udelukFraBrugbar([], medlemmer)).toEqual(new Set(["d"]));
+  });
+
+  it("en rådgiver der OGSÅ er medlem af en kunde er i sættet — rådgiverlisten vinder", () => {
+    expect(udelukFraBrugbar(["jonas"], [medlem("jonas", true)])).toEqual(new Set(["jonas"]));
+  });
+
+  it("PR. BRUGER: et medlem af både en kunde og en ikke-kunde tæller med — udelukkes kun hvis ALLE medlemskaber er ikke-kunder", () => {
+    expect(udelukFraBrugbar([], [medlem("dobbelt", false), medlem("dobbelt", true)])).toEqual(new Set());
+    expect(udelukFraBrugbar([], [medlem("dobbelt", true), medlem("dobbelt", false)])).toEqual(new Set());
+    expect(udelukFraBrugbar([], [medlem("kunTopix", false), medlem("kunTopix", false)])).toEqual(new Set(["kunTopix"]));
+  });
+
+  it("dubletter: samme user_id flere gange står én gang i sættet", () => {
+    const ud = udelukFraBrugbar(["r", "r"], [medlem("x", false), medlem("x", false)]);
+    expect([...ud].sort()).toEqual(["r", "x"]);
+  });
+
+  it("tomme rådgiver-id'er (filter(Boolean)-reglen) kommer ikke med", () => {
+    expect(udelukFraBrugbar(["", "r"], [])).toEqual(new Set(["r"]));
+  });
+
+  it("rører ikke input", () => {
+    const raadgivere = ["r"];
+    const medlemmer = [medlem("x", false), medlem("y", true)];
+    const kopi = JSON.parse(JSON.stringify({ raadgivere, medlemmer }));
+    udelukFraBrugbar(raadgivere, medlemmer);
+    expect({ raadgivere, medlemmer }).toEqual(kopi);
+  });
+
+  it("sammensat med optaelBrugbarPrLektion: en ikke-kundes gennemførte lektion er ikke i tallet, rådgiverens heller ikke, og invarianten holder", () => {
+    const udeluk = udelukFraBrugbar(["raadgiver"], [medlem("topix", false), medlem("kunde", true), medlem("dobbelt", false), medlem("dobbelt", true)]);
+    const ud = optaelBrugbarPrLektion(
+      [
+        raekke({ user_id: "kunde", content_item_id: "L1", acknowledged_at: ACK, brugbar: true }),
+        raekke({ user_id: "dobbelt", content_item_id: "L1", acknowledged_at: ACK, brugbar: false }),
+        raekke({ user_id: "topix", content_item_id: "L1", acknowledged_at: ACK, brugbar: true }),
+        raekke({ user_id: "raadgiver", content_item_id: "L1", acknowledged_at: ACK, brugbar: true }),
+        raekke({ user_id: "topix", content_item_id: "L2", acknowledged_at: ACK, brugbar: true }),
+      ],
+      udeluk,
+    );
+    expect(ud).toEqual({ L1: { gennemfoert: 2, ja: 1, nej: 1, ubesvaret: 0 } });
+    expect(ud.L2).toBeUndefined();
+    forventInvariant(ud);
   });
 });
