@@ -51,7 +51,19 @@ export interface VagtTal {
   koe_job_aktiv?: boolean | null;
   usendte_30m?: number;
   aeldste_usendt_min?: number;
+  /** Niende version (16/9): samlemail-rækker (event_published, community_opslag) der venter legitimt på kl. 17 — ikke talt i usendte_30m. */
+  samlemail_venter?: number;
+  /** Samlemail-rækker der skulle være gået i det seneste vindue og stadig står — talt med i forfaldne. */
+  samlemail_forfaldne?: number;
 }
+
+/**
+ * Samlemailens klokkeslæt (dansk), som forsidens linje siger. SKAL være
+ * SAMLEMAIL_TIME_DANSK i supabase/functions/_shared/samlemail.ts — klienten
+ * kan ikke importere Deno-filen, så kildeværnet vagtSamlemail.guard.test.ts
+ * sammenligner de to (samme form som KONTAKT_ADRESSE).
+ */
+export const SAMLEMAIL_TIME_DANSK = 17;
 
 export interface VagtRaekke {
   id: number;
@@ -85,6 +97,30 @@ const koderTekst = (koder: Record<string, number> | undefined): string => {
   return dele.length ? ` (${dele.join(", ")})` : "";
 };
 
+/** Halen på kø-linjerne (niende version, 16/9): kun når der VENTER samlemail-rækker — nul eller manglende nøgle giver ingen hale. */
+const samlemailHale = (tal: VagtTal): string =>
+  tal.samlemail_venter ? `, ${tal.samlemail_venter} venter på samlemailen kl. ${SAMLEMAIL_TIME_DANSK}` : "";
+
+/**
+ * «Køen står stille» (niende version, 16/9). Tre led, hvert kun når der er
+ * noget at sige: de almindelige mails i køen; samlemail-rækker der skulle
+ * være gået i det seneste vindue (FORFALDNE — dem der gør dommen rød når
+ * samlemailen fejler; usendte_30m tæller dem ikke, så uden dette led stod
+ * der «0 mails venter i køen» — rød uden grund); samlemail-rækker der venter
+ * legitimt. Er der ingen almindelige og kun forfaldne samlemail-rækker,
+ * udelades «0 mails venter i køen», og linjen begynder med samlemailen.
+ */
+const koeStaarStilleTekst = (tal: VagtTal): string => {
+  const dele: string[] = [];
+  if (tal.usendte_30m || !tal.samlemail_forfaldne) {
+    dele.push(`${tal.usendte_30m ?? "nogle"} mails venter i køen${tal.aeldste_usendt_min ? `, den ældste i ${tal.aeldste_usendt_min} min` : ""}`);
+  }
+  if (tal.samlemail_forfaldne) {
+    dele.push(`${tal.samlemail_forfaldne} ${dele.length === 0 ? "mails " : ""}fra samlemailen skulle være gået kl. ${SAMLEMAIL_TIME_DANSK}`);
+  }
+  return dele.join(", ") + samlemailHale(tal);
+};
+
 /** Én grund → ét stykke tekst, med tallene fra rækken. Ukendt kode vises som den er, aldrig som en fejl. */
 export function grundTekst(grund: string, tal: VagtTal): string {
   switch (grund as VagtGrund) {
@@ -95,9 +131,9 @@ export function grundTekst(grund: string, tal: VagtTal): string {
     case "cron_koersel_fejlet":
       return `${tal.koersler_fejlet_60m ?? "nogle"} cron-kørsler fejlede i databasen`;
     case "koe_staar_stille":
-      return `${tal.usendte_30m ?? "nogle"} mails venter i køen${tal.aeldste_usendt_min ? `, den ældste i ${tal.aeldste_usendt_min} min` : ""}`;
+      return koeStaarStilleTekst(tal);
     case "koe_pauset":
-      return `mailjobbet er sat på pause, ${tal.usendte_30m ?? "nogle"} mails venter`;
+      return `mailjobbet er sat på pause, ${tal.usendte_30m ?? "nogle"} mails venter${samlemailHale(tal)}`;
     case "koe_job_mangler":
       return "mailjobbet findes ikke i cron";
     default:
