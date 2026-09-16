@@ -18,8 +18,8 @@ export const SKRIVE_TOOLS: ReadonlySet<string> = new Set([
   "update_weekly_focus",
   "write_company_action",
   "notify_advisor",
-  "create_milestone",
-  "update_milestone_progress",
+  // create_milestone og update_milestone_progress er ude (fase 2, 16/9):
+  // målene sættes af rådgiveren (maal-skriv), fremdriften regnes af opgave-luk.
 ]);
 
 export interface ToerResultat {
@@ -32,8 +32,7 @@ export interface ToerResultat {
     note: modellen skal fortsætte sin plan — hverken prøve igen (det gør den
     ved {error}-formen) eller vælge et andet tool (det gør den ved
     blocked-formen). Ingen fabrikerede id'er: intet andet tool i poolen
-    forbruger id'er fra skriveresultater (update_milestone_progress tager
-    sit id fra get_milestones, ikke fra create_milestone). */
+    forbruger id'er fra skriveresultater. */
 export function toerResultat(toolName: string): ToerResultat {
   return {
     ok: true,

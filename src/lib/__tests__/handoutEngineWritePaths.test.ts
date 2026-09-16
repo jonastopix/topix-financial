@@ -172,12 +172,14 @@ describe("H4 — createLeverMilestone (+ junction + idempotens)", () => {
     h.current.seed("handouts", [{ user_id: MEMBER, module: "salg", status: "in_progress" }]);
     const handoutId = h.current.tables.handouts[0].id;
 
-    const { milestoneId } = await createLeverMilestone({
+    const { milestoneId, status } = await createLeverMilestone({
       userId: MEMBER, companyId: COMPANY, handoutId, leverIndex: 0, title: "Flere leads",
     });
 
+    // Fase 2: der er plads (0 aktive) → aktivt mål som før.
+    expect(status).toBe("active");
     expect(h.current.tables.milestones[0]).toMatchObject({
-      id: milestoneId, user_id: MEMBER, company_id: COMPANY, title: "Flere leads", source: "handout",
+      id: milestoneId, user_id: MEMBER, company_id: COMPANY, title: "Flere leads", source: "handout", status: "active",
     });
     expect(h.current.tables.handout_lever_milestones[0]).toMatchObject({
       handout_id: handoutId, lever_index: 0, milestone_id: milestoneId,
@@ -202,6 +204,27 @@ describe("H4 — createLeverMilestone (+ junction + idempotens)", () => {
     // Dokumenteret prod-semantik (kilden ordret): milestone-rækken oprettes
     // FØR junction-fejlen — den forældreløse milestone er kendt adfærd.
     expect(h.current.tables.milestones).toHaveLength(2);
+  });
+
+  it("fase 2 («højst tre aktive»): med tre aktive mål hos virksomheden oprettes løftestangens mål PARKERET — så triggeren ikke afviser og løftestangen ikke går tabt", async () => {
+    // FØR (til 16/9): målet blev altid oprettet uden status (databasens default 'active').
+    h.current.seed("handouts", [{ user_id: MEMBER, module: "salg", status: "in_progress" }]);
+    h.current.seed("milestones", [
+      { user_id: MEMBER, company_id: COMPANY, title: "A", status: "active" },
+      { user_id: MEMBER, company_id: COMPANY, title: "B", status: "active" },
+      { user_id: MEMBER, company_id: COMPANY, title: "C", status: "active" },
+      { user_id: MEMBER, company_id: COMPANY, title: "P", status: "parked" },
+      { user_id: "anden", company_id: "company-b", title: "X", status: "active" },
+    ]);
+    const handoutId = h.current.tables.handouts[0].id;
+    const { milestoneId, status } = await createLeverMilestone({ userId: MEMBER, companyId: COMPANY, handoutId, leverIndex: 2, title: "Flere leads" });
+    expect(status).toBe("parked");
+    expect(h.current.tables.milestones.find((m) => m.id === milestoneId)).toMatchObject({ title: "Flere leads", source: "handout", status: "parked" });
+    expect(h.current.tables.handout_lever_milestones[0]).toMatchObject({ handout_id: handoutId, lever_index: 2, milestone_id: milestoneId });
+    // To aktive → plads → aktivt.
+    h.current.tables.milestones[0].status = "completed";
+    const igen = await createLeverMilestone({ userId: MEMBER, companyId: COMPANY, handoutId, leverIndex: 3, title: "Mere" });
+    expect(igen.status).toBe("active");
   });
 });
 

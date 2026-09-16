@@ -6,6 +6,7 @@ import { Progress } from "@/components/ui/progress";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 import { createLeverMilestone } from "@/lib/handoutEngine";
+import { loeftestangToast } from "@/lib/hjemmebane/maalFejl";
 
 interface LeverMilestone {
   milestone_id: string;
@@ -33,9 +34,11 @@ const HandoutLeverItem = ({ index, value, onChange, handoutId, linkedMilestone, 
     setCreating(true);
     try {
       // H4 i motoren — milestone + junction-rækken (UNIQUE bærer idempotensen)
-      await createLeverMilestone({ userId: user.id, companyId, handoutId, leverIndex: index, title: value.trim() });
+      const { status } = await createLeverMilestone({ userId: user.id, companyId, handoutId, leverIndex: index, title: value.trim() });
 
-      toast.success("Milestone oprettet", { description: `"${value.trim()}" er nu en aktiv milestone. Åbn Milestones for at tilføje et konkret talmål.` });
+      // Fase 2: parkeret når der allerede er tre aktive — toasten siger det (lib/hjemmebane/maalFejl).
+      const t = loeftestangToast(status, value.trim());
+      toast.success(t.title, { description: t.description });
       onMilestoneCreated?.();
     } catch (e: any) {
       toast.error("Fejl", { description: e.message });

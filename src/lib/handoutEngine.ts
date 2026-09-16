@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { loeftestangStatus } from "@/lib/hjemmebane/maalFejl";
 import type { HandoutModule } from "@/lib/handoutConfig";
 import { notifyHandoutCompleted } from "@/lib/handoutNotify";
 import { kraevRaekker } from "@/lib/kraevRaekker";
@@ -163,16 +164,33 @@ export async function toggleHandoutCompleted(args: {
 /** H4 — løftestang → milestone + junction-rækken
     (HandoutLeverItem.createMilestone ordret; UNIQUE(handout_id,
     lever_index) i DB bærer idempotensen). Kaster ved fejl — kalderen
-    ejer toast/fejlvisning som i kilden. */
+    ejer toast/fejlvisning som i kilden.
+    Fase 2 («Én plan», 16/9; Jonas: «det er medlemmernes virksomheder»):
+    medlemmet opretter målet SELV som før — men «højst tre aktive» gælder
+    alle (trigger 20260917150000), så er der allerede tre, oprettes målet
+    PARKERET (dommen: lib/hjemmebane/maalFejl.loeftestangStatus), og
+    kalderen siger det i toasten (loeftestangToast). Tællingen læser
+    virksomhedens aktive mål med medlemmets egen SELECT-politik. */
 export async function createLeverMilestone(args: {
   userId: string;
   companyId: string | null;
   handoutId: string;
   leverIndex: number;
   title: string;
-}): Promise<{ milestoneId: string }> {
+}): Promise<{ milestoneId: string; status: "active" | "parked" }> {
   const { userId, companyId, handoutId, leverIndex, title } = args;
-  const insertData: Record<string, any> = { user_id: userId, title, source: "handout", company_id: companyId };
+  let antalAktive = 0;
+  if (companyId) {
+    const { count, error: taelErr } = await supabase
+      .from("milestones")
+      .select("id", { count: "exact", head: true })
+      .eq("company_id", companyId)
+      .eq("status", "active");
+    if (taelErr) throw taelErr;
+    antalAktive = count ?? 0;
+  }
+  const status = loeftestangStatus(antalAktive);
+  const insertData: Record<string, any> = { user_id: userId, title, source: "handout", company_id: companyId, status };
   const { data: ms, error: msErr } = await supabase
     .from("milestones")
     .insert(insertData as any)
@@ -185,7 +203,7 @@ export async function createLeverMilestone(args: {
     .insert({ handout_id: handoutId, lever_index: leverIndex, milestone_id: (ms as any).id });
   if (linkErr) throw linkErr;
 
-  return { milestoneId: (ms as any).id };
+  return { milestoneId: (ms as any).id, status };
 }
 
 /** H5 — AI-feedback-kaldet (HandoutAIFeedback.requestFeedback ordret,

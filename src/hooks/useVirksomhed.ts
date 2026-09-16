@@ -147,7 +147,11 @@ export interface VirksomhedsData {
   invitationer: VirksomhedsInvitation[];
   samtaler: VirksomhedsSamtale[];
   budgetter: { period: string; category: string; budget_amount: number }[];
-  milestones: { id: string; title: string; deadline: string | null; progress: number; status: string }[];
+  /** Målene (milestones) — til «Planen» (fase 2): dom, fremdrift, skridt og gennemgang regnes af lib/hjemmebane/planen. */
+  milestones: {
+    id: string; title: string; deadline: string | null; progress: number; status: string;
+    category: string | null; source: string | null; progress_updated_at: string | null; completed_at: string | null; created_at: string;
+  }[];
   /** user_id: ejeren af handout-rækken — HandoutDetail/loadHandout er nøglet
       på user_id, så «åbn handout» åbner det medlem der faktisk udfyldte det. */
   handouts: { levers: unknown; status: string; module: string; completed_at: string | null; user_id: string }[];
@@ -188,6 +192,8 @@ export interface VirksomhedsData {
   kpiMaal: ResolvedTargets;
   /** company_actions der venter: open/proposed/active (BoardroomView:1686). */
   opgaver: { id: string; title: string; status: string; priority: string; due_date: string | null }[];
+  /** Skridt til «Planen» (fase 2): ALLE company_actions med maal_id (også gjorte/lukkede — historik under målet), seneste 200. */
+  skridt: { id: string; title: string; status: string; due_date: string | null; maal_id: string | null }[];
   /** agent_proposals med status 'proposed' — det der kan afgøres (virksomhedsSignaler.ts:135). */
   agentforslagVenter: number;
   /** company_actions med status 'expired' — forslag der udløb uden svar (8/9: 63 i prod, ingen flade viste dem). */
@@ -221,7 +227,7 @@ async function hentVirksomhed(companyId: string): Promise<VirksomhedsData | null
   const nu = new Date();
   const [
     companyRes, membersRes, invitationsRes, convsRes, budgetRes, milestonesRes,
-    handoutsRes, actionsRes, proposalsRes, traekRes, perioderRes, linkRes, fornyelseRes,
+    handoutsRes, actionsRes, skridtRes, proposalsRes, traekRes, perioderRes, linkRes, fornyelseRes,
     rapporterRes, kpiMaalRes, refleksionRes, kommentarRes, raadgivereRes, udloebneRes,
   ] = await Promise.all([
     supabase
@@ -242,7 +248,7 @@ async function hentVirksomhed(companyId: string): Promise<VirksomhedsData | null
     supabase.from("budget_targets").select("period, category, budget_amount").eq("company_id", companyId),
     supabase
       .from("milestones")
-      .select("id, title, deadline, progress, status")
+      .select("id, title, deadline, progress, status, category, source, progress_updated_at, completed_at, created_at")
       .eq("company_id", companyId)
       .order("deadline", { ascending: true })
       .limit(200),
@@ -256,6 +262,15 @@ async function hentVirksomhed(companyId: string): Promise<VirksomhedsData | null
       .in("status", ["open", "proposed", "active"])
       .order("created_at", { ascending: false })
       .limit(50),
+    // Skridtene under målene (fase 2): kun rækker MED maal_id, alle statusser —
+    // gjorte skridt er historik under målet (Jonas: «fuldførte skridt bliver stående»).
+    supabase
+      .from("company_actions")
+      .select("id, title, status, due_date, maal_id")
+      .eq("company_id", companyId)
+      .not("maal_id", "is", null)
+      .order("created_at", { ascending: false })
+      .limit(200),
     // Filtret er på status, ikke decided_at (rettet 7/9): 'expired' har
     // decided_at = NULL, fordi ingen afgjorde den — evnen blev fjernet.
     // Kun 'proposed' kan afgøres i AgentForslagPanel; samme filter som
@@ -411,6 +426,7 @@ async function hentVirksomhed(companyId: string): Promise<VirksomhedsData | null
     milestones: kraevRaekker(milestonesRes, "milestones"),
     handouts: kraevRaekker(handoutsRes, "handouts"),
     opgaver: kraevRaekker(actionsRes, "company_actions"),
+    skridt: kraevRaekker(skridtRes, "company_actions"),
     // Kun forslag der stadig kan afgøres (udløbsdommen, se hentningen).
     agentforslagVenter: (kraevRaekker(proposalsRes, "agent_proposals") as { proposed_at: string }[]).filter((p) =>
       erForslagGyldigt(p.proposed_at, nu),

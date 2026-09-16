@@ -44,6 +44,7 @@ import { StandardmaalMaerke } from "../StandardmaalMaerke";
 import { VirksomhedMailLog } from "./VirksomhedMailLog";
 import { FarligZone, OmdoebVirksomhed, SaetPrisniveau } from "./VirksomhedStamdata";
 import { GenkoerRapport } from "./VirksomhedGenkoersel";
+import { VirksomhedPlanen } from "./VirksomhedPlanen";
 import { erStrandet, needsManualEntryAf } from "@/lib/genkoersel";
 import { virksomhedensAdresser } from "@/lib/mailLog";
 import { HbButton } from "../HbButton";
@@ -1176,11 +1177,8 @@ const Blok6 = ({
   // /milestones. Før: status ≠ completed/parked og status = completed, så
   // en række med progress 100 men status 'active' hverken var nået eller
   // færdig her, mens /milestones talte den som nået.
-  const nuMilepaele = new Date();
-  const milepaeleDomme = new Map(d.milestones.map((m) => [m.id, afgoerMilepael(m, nuMilepaele)]));
-  const aktive = d.milestones.filter((m) => milepaeleDomme.get(m.id)?.aktiv);
-  const naaede = d.milestones.filter((m) => milepaeleDomme.get(m.id)?.faerdig).length;
-  const forfaldne = d.milestones.filter((m) => milepaeleDomme.get(m.id)?.forfalden).length;
+  // Fase 2 («Én plan», 16/9): kortet er «Planen» (VirksomhedPlanen) — dommen
+  // pr. mål kommer stadig fra milepaelDom (gennem lib/hjemmebane/planen).
   // Samtalen kommentarer skrives i: den med seneste besked (flere er
   // muligt pr. virksomhed). null = ingen samtale → der skrives ikke.
   const samtaleId = [...d.samtaler].sort((a, b) => (b.last_message_at ?? "").localeCompare(a.last_message_at ?? ""))[0]?.id ?? null;
@@ -1241,41 +1239,10 @@ const Blok6 = ({
           </ul>
         </HbCard>
 
-        <HbCard id="section-milestones" className="scroll-mt-24 p-5">
-          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-hb-ink-soft">Milestones</p>
-          {d.milestones.length === 0 ? (
-            <p className="mt-3 text-sm text-hb-ink-soft">Ingen milestones endnu.</p>
-          ) : (
-            <>
-              <p className="mt-3 text-sm text-hb-ink">
-                {aktive.length} {aktive.length === 1 ? "aktiv" : "aktive"}
-                {naaede > 0 && <span className="text-hb-ink-soft"> · {naaede} nået</span>}
-                {forfaldne > 0 && <span className="font-medium text-hb-rust"> · {forfaldne} {forfaldne === 1 ? "forfalden" : "forfaldne"}</span>}
-              </p>
-              {/* Forfaldne står forrest af sig selv (hentningen sorterer på deadline
-                  stigende, uden frist sidst) og stikker ud i rust med «Fristen var …»
-                  — samme ord som «Dine aftaler» og /milestones. */}
-              <ul className="mt-3 divide-y divide-hb-line">
-                {aktive.slice(0, 4).map((m) => (
-                  <li key={m.id} className="py-1.5 text-sm">
-                    <div className="flex items-baseline justify-between gap-3">
-                      <span className="min-w-0 truncate text-hb-ink">{m.title}</span>
-                      {milepaeleDomme.get(m.id)?.forfalden ? (
-                        <span className="shrink-0 text-xs font-medium text-hb-rust">Fristen var {formatDato(m.deadline)}</span>
-                      ) : (
-                        <span className="shrink-0 text-xs text-hb-ink-soft">{m.deadline ? formatDato(m.deadline) : "Ingen frist"}</span>
-                      )}
-                    </div>
-                    <div className="mt-1 h-1 rounded-full bg-hb-sage/60">
-                      <span className="block h-1 rounded-full bg-hb-evergreen" style={{ width: `${Math.max(0, Math.min(100, m.progress ?? 0))}%` }} aria-hidden />
-                    </div>
-                  </li>
-                ))}
-              </ul>
-              {aktive.length > 4 && <p className="mt-2 text-xs text-hb-ink-soft">+{aktive.length - 4} flere</p>}
-            </>
-          )}
-        </HbCard>
+        {/* Planen (fase 2): målene — højst tre aktive — med skridt under hvert,
+            parkerede og nåede, «sæt mål sammen med medlemmet», og gennemgangen
+            af mål fra før planen. Alle skrivninger går gennem maal-skriv. */}
+        <VirksomhedPlanen companyId={d.company.id} maal={d.milestones} skridt={d.skridt} onOpdateret={onOpdateret} />
       </div>
 
       {/* Rapporterne — eget afsnit under kortene, foldet efter de tre nyeste. */}

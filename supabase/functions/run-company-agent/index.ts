@@ -56,7 +56,7 @@ DIN ARBEJDSGANG (i rækkefølge — sådan arbejder en grundig rådgiver):
 3. Analysér: hvad er det vigtigste signal i denne måneds tal? Sammenlign med forrige måned, med mål — og med hvad founder selv har sagt.
 4. Opdatér weekly focus-kortet på dashboardet med en kort overskrift og opsummering — det er dit primære output og skal bære dit vigtigste nøglefund. Fokusér på ét nøglefund, ikke fem.
 5. Opret én konkret handlingsopgave med write_company_action hvis der er et klart næste skridt founder skal tage inden for de næste 7 dage
-6. Opret max ét milestone hvis tallene klart indikerer et specifikt næste skridt
+6. Foreslå aldrig mål (milestones) — dem sætter rådgiveren sammen med medlemmet; du foreslår højst ét konkret skridt
 7. Du skubber ALDRIG til advisoren med notify_advisor
 8. Kald finish
 
@@ -73,7 +73,7 @@ HVAD DU IKKE GØR:
 - Hvis du tidligere har anbefalet noget specifikt (fx "fokusér på at øge dækningsbidraget"), og tallene nu viser fremgang eller tilbagegang på netop det punkt, så nævn det eksplicit: "Sidst anbefalede jeg X — her er hvad der er sket"
 - Skriv aldrig det samme som du sagde sidst — men referer gerne til det
 - Gentag ikke hvad AI-analysen allerede har sagt (den er en detaljeret rapport, din besked er en sparring)
-- Opret ikke milestones der allerede eksisterer
+- Læs målene med get_milestones, men opret eller opdatér dem aldrig
 - Skriv ikke generiske råd der kunne gælde enhver virksomhed
 - Roser ikke bare for at rose — vær ærlig
 - Hvis get_budget_vs_actual viser afvigelser over 20%, skal dette altid nævnes konkret i din besked — det er det founder har brug for at vide
@@ -287,41 +287,9 @@ const tools = [
       },
     },
   },
-  {
-    type: "function",
-    function: {
-      name: "create_milestone",
-      description:
-        "Opretter et milestone-forslag til virksomheden baseret på tallene. Brug kun hvis der er et klart rationale.",
-      parameters: {
-        type: "object",
-        properties: {
-          company_id: { type: "string" },
-          title: { type: "string" },
-          description: { type: "string" },
-          category: { type: "string" },
-          deadline_days: { type: "number" },
-        },
-        required: ["company_id", "title", "description", "category", "deadline_days"],
-      },
-    },
-  },
-  {
-    type: "function",
-    function: {
-      name: "update_milestone_progress",
-      description: "Opdaterer fremgangen på et eksisterende milestone baseret på de faktiske tal. Brug KUN hvis tallene klart viser fremgang mod et specifikt milestone-mål — fx omsætningsmilestone der nærmer sig målet.",
-      parameters: {
-        type: "object",
-        properties: {
-          milestone_id: { type: "string", description: "ID fra get_milestones" },
-          progress: { type: "number", description: "Ny fremgang 0-100" },
-          reason: { type: "string", description: "Kort forklaring på hvorfor" },
-        },
-        required: ["milestone_id", "progress", "reason"],
-      },
-    },
-  },
+  // create_milestone og update_milestone_progress er UDE (fase 2, «Én plan»,
+  // 16/9): målene sættes af rådgiveren (maal-skriv), ikke af AI'en; fremdriften
+  // på mål med skridt regnes af opgave-luk gennem _shared/maal.ts.
   {
     type: "function",
     function: {
@@ -611,53 +579,6 @@ async function executeTool(name: string, args: any, adminClient: any, trigger: s
       return { ok: true, message_id: msg.id };
     }
 
-    case "create_milestone": {
-      // Check for existing milestone with similar title (broader dedup)
-      const titleWords = args.title.toLowerCase().split(" ").slice(0, 3).join(" ");
-      const { data: existingMilestones } = await adminClient
-        .from("milestones")
-        .select("id, title")
-        .eq("company_id", args.company_id)
-        .eq("status", "active");
-      
-      const duplicate = (existingMilestones ?? []).find(m =>
-        m.title.toLowerCase().includes(titleWords) ||
-        args.title.toLowerCase().includes(m.title.toLowerCase().split(" ").slice(0, 3).join(" "))
-      );
-      
-      if (duplicate) return { ok: false, reason: "milestone_already_exists", id: duplicate.id };
-
-      const { data: member, error: memberErr } = await adminClient
-        .from("company_members")
-        .select("user_id")
-        .eq("company_id", args.company_id)
-        .limit(1)
-        .maybeSingle();
-      if (memberErr) throw new Error(memberErr.message);
-      if (!member) return { ok: false, reason: "no_member" };
-
-      const deadline = new Date();
-      deadline.setDate(deadline.getDate() + Number(args.deadline_days ?? 30));
-
-      const { data: milestone, error: msErr } = await adminClient
-        .from("milestones")
-        .insert({
-          company_id: args.company_id,
-          user_id: member.user_id,
-          title: args.title,
-          description: args.description,
-          category: args.category,
-          deadline: deadline.toISOString(),
-          source: "agent",
-          progress: 0,
-          status: "active",
-        })
-        .select("id")
-        .single();
-      if (msErr) throw new Error(msErr.message);
-      return { ok: true, milestone_id: milestone.id };
-    }
-
     case "notify_advisor": {
       // Find assigned advisor for this company
       const { data: conv } = await adminClient
@@ -704,20 +625,6 @@ async function executeTool(name: string, args: any, adminClient: any, trigger: s
     // (docs/chat-design.md, 31/8).
     case "update_weekly_focus": {
       return await skrivUgensFokus(adminClient, args, trigger);
-    }
-
-    case "update_milestone_progress": {
-      const progress = Math.min(100, Math.max(0, Number(args.progress)));
-      const { error } = await adminClient
-        .from("milestones")
-        .update({
-          progress,
-          status: progress >= 100 ? "completed" : "active",
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", args.milestone_id);
-      if (error) throw new Error(error.message);
-      return { ok: true, milestone_id: args.milestone_id, new_progress: progress };
     }
 
     case "write_company_action": {
@@ -1103,7 +1010,7 @@ Deno.serve(async (req) => {
   // Intet skubbes mod advisoren ved rutine-koersler: notify_advisor (klokken) er fjernet
   // fra pool'en for ALLE rutine-triggers.
   // Pulse-refleksion: advisor faar i forvejen en deterministisk template-notifikation fra
-  // send-slack-report-notification; write_company_action og create_milestone fjernes ogsaa
+  // send-slack-report-notification; write_company_action fjernes ogsaa (create_milestone findes ikke længere, fase 2)
   // - refleksion er founderens stille check-in, ikke en handlings-trigger.
   //
   // Onboarding var tidligere den ENESTE trigger med fuld pool (velkomstbesked +
@@ -1115,7 +1022,7 @@ Deno.serve(async (req) => {
   const POOL_BLOCKLIST: Record<string, string[]> = {
     report_committed: ["write_chat_message", "notify_advisor"],
     anomaly_detected: ["write_chat_message", "notify_advisor"],
-    pulse_submitted: ["write_chat_message", "notify_advisor", "write_company_action", "create_milestone"],
+    pulse_submitted: ["write_chat_message", "notify_advisor", "write_company_action"],
     onboarding: ["write_chat_message", "notify_advisor"],
     // Virksomhedsgennemgang (rådgiver-igangsat): samme stramhed som
     // rapport- og anomali-kørslerne.
@@ -1282,11 +1189,11 @@ Oprettet: ${companyData.start_date ? new Date(companyData.start_date).toLocaleDa
 Virksomhedens alder: ${companyData.start_date ? (() => { const months = Math.floor((Date.now() - new Date(companyData.start_date).getTime()) / (1000 * 60 * 60 * 24 * 30)); return months < 6 ? `${months} måneder (tidlig fase)` : months < 18 ? `${months} måneder (vækstfase)` : `${Math.floor(months/12)} år (moden fase)`; })() : "ukendt"}
 
 ${trigger === "pulse_submitted" 
-  ? `Founder har netop afleveret månedlig REFLEKSION (pulse check-in) for ${period_label}. Dette er IKKE en rapport, og refleksionen vedrører UDELUKKENDE ${period_label}.\n\nHent refleksions-svaret med get_pulse_checkins. Du må hente facts med get_company_facts hvis det hjælper dig med at forstå konteksten.\n\nOpdatér weekly focus med udgangspunkt i hvad founder selv har skrevet i deres REFLEKSION, særligt deres største udfordring.\n\nDu må IKKE skrive i founderens chat. Du må heller ikke kalde write_company_action, create_milestone eller andre tools der laver synlige aktioner. Pulse-refleksion er founderens stille check-in, ikke en trigger for opgaver.`
+  ? `Founder har netop afleveret månedlig REFLEKSION (pulse check-in) for ${period_label}. Dette er IKKE en rapport, og refleksionen vedrører UDELUKKENDE ${period_label}.\n\nHent refleksions-svaret med get_pulse_checkins. Du må hente facts med get_company_facts hvis det hjælper dig med at forstå konteksten.\n\nOpdatér weekly focus med udgangspunkt i hvad founder selv har skrevet i deres REFLEKSION, særligt deres største udfordring.\n\nDu må IKKE skrive i founderens chat. Du må heller ikke kalde write_company_action eller andre tools der laver synlige aktioner. Pulse-refleksion er founderens stille check-in, ikke en trigger for opgaver.`
   : trigger === "anomaly_detected"
   ? `KRITISK ALERT: Der er detekteret en finansiel anomali for ${period_label}.\n\nDetaljer: ${period_key}\n\nHent get_financial_alerts og get_company_facts omgående. Er der et klart, konkret næste skridt founder bør tage, så opret det som handlingsopgave med write_company_action. Du må IKKE skrive i founderens chat. Opdatér IKKE weekly focus med negativ information.`
   : trigger === "onboarding"
-  ? `Founder ${founderFirstName} logger ind i The Boardroom for første gang.\n\nDette er en onboarding-kørsel. Du skriver IKKE i founderens chat — velkomsten er rådgiverens egen opgave. Gør følgende i rækkefølge:\n1. Hent ansøgningskontekst med get_application_context\n2. Hent virksomhedens brancheinfo\n3. Opret præcis 2 start-milestones baseret på deres mål — de skal være tydeligt forskellige fra hinanden og maksimalt 6 ord lange. Tjek eksisterende milestones med get_milestones først.\n4. Opret én konkret første handlingsopgave (fx upload første rapport)\n5. Sæt weekly focus med en velkomst-headline\n6. Kald finish`
+  ? `Founder ${founderFirstName} logger ind i The Boardroom for første gang.\n\nDette er en onboarding-kørsel. Du skriver IKKE i founderens chat — velkomsten er rådgiverens egen opgave. Gør følgende i rækkefølge:\n1. Hent ansøgningskontekst med get_application_context\n2. Hent virksomhedens brancheinfo\n3. Læs eventuelle mål med get_milestones — målene sættes af rådgiveren sammen med medlemmet, du opretter ingen\n4. Opret én konkret første handlingsopgave (fx upload første rapport)\n5. Sæt weekly focus med en velkomst-headline\n6. Kald finish`
   : trigger === "company_review"
   ? `Rådgiveren har bedt om en samlet gennemgang af virksomheden — et blik på virksomheden som helhed, ikke på et enkelt dokument.\n\n${rapportStatusBlok}\n\nFølg din arbejdsgang: get_previous_agent_messages først, dernæst minimum get_company_facts, get_handout_levers, get_application_context og get_member_content_progress — plus pulse, milestones og KPI-mål.\n\nHvis rapporteringsstatussen ovenfor viser at virksomheden mangler at rapportere, eller har uploadet uden at godkende, SKAL du adressere det som et af dine punkter: at rapportere og forholde sig til sine egne tal ER rådgivning, og et hul i rapporteringen er en observation på linje med et hul i tallene. Findes der ingen godkendte tal overhovedet, er DET dit vigtigste punkt — analysér ikke videre på estimater som om de var friske tal.\n\nVIGTIGT: weekly focus-kortet er FOUNDER-SYNLIGT. Opdatér det kun hvis gennemgangen giver et medlemsrettet fokus at sætte — det må ALDRIG bære rådgiver-intern gennemgang. Rådgiver-forberedelses-sporet findes ikke længere; har kørslen intet medlemsrettet at skrive, så kald finish uden yderligere output. Du må IKKE skrive i founderens chat.`
   : `Ny rapport committed: ${period_label} (${period_key})\n\nFølg din arbejdsgang: get_previous_agent_messages først, og dernæst — gerne parallelt — get_company_facts, get_handout_levers, get_application_context, get_member_content_progress, get_milestones, get_kpi_targets og get_budget_vs_actual, så du har det fulde billede før du skriver. Hvis der er budget-afvigelser over 20%, prioritér disse.\n\nOpdatér weekly focus med dit vigtigste nøglefund. Du må IKKE skrive i founderens chat.\n\nBemærk: Hvis dette er virksomhedens første rapport, er der automatisk oprettet et udkast-budget og en årsbaseline baseret på de committede tal (annualiseret x12 med jævn fordeling). Tag dette med i din vurdering, fx at budgetmåneder der afviger fra gennemsnittet kan skulle justeres. Hvis der findes historiske årsrapport-facts (data_quality='estimat_fra_årsrapport_divideret_med_12') for tidligere år, så sammenlign årets udvikling med det historiske niveau.`

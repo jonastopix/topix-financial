@@ -5,6 +5,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { postActivityMessage } from "@/lib/chatActivity";
 import type { MilestoneCategory } from "@/lib/milestoneCategories";
 import { afgoerMilepael, sammenlignAktive, statusEfterFremgang, type MilepaelDom, type MilepaelTilstand } from "@/lib/milepaelDom";
+// Fase 2 («Én plan», 16/9): «højst tre aktive» håndhæves af databasen (trigger) — fladen oversætter fejlen til husets tekst.
+import { maalFejlTekst } from "@/lib/hjemmebane/maalFejl";
 
 /**
  * Datalaget for Hb-milestonefladen — en ren FLYTNING af logikken i
@@ -238,7 +240,8 @@ export function useMilestones({ userId, companyId, isAdvisor }: Args) {
       localFields.dbStatus = fields.status;
     }
     const { error } = await supabase.from("milestones").update(dbFields).eq("id", id);
-    if (error) { toast.error("Kunne ikke gemme"); return; }
+    // Aktivering af et parkeret mål kan ramme «højst tre» — husets tekst, ikke databasens.
+    if (error) { toast.error(maalFejlTekst(error, "Kunne ikke gemme")); return; }
     // Dommen regnes om på den samlede række — status OG deadline kan være ændret.
     setMilestones((prev) => prev.map((m) => {
       if (m.id !== id) return m;
@@ -269,7 +272,8 @@ export function useMilestones({ userId, companyId, isAdvisor }: Args) {
     };
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { error } = await supabase.from("milestones").insert(payload as any);
-    if (error) { toast.error("Kunne ikke oprette milestone"); return false; }
+    // Det fjerde aktive mål afvises af databasen (trigger 20260917150000) — husets tekst, ikke databasens.
+    if (error) { toast.error(maalFejlTekst(error, "Kunne ikke oprette milestone")); return false; }
     toast.success("Milestone oprettet");
     setRefreshKey((k) => k + 1);
     return true;
