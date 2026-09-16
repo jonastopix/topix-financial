@@ -1,6 +1,27 @@
+// Finansielle alarmer efter en godkendt rapport (Bucket A): tre betingelser
+// (omsætningsfald ≥ 15 % MoM, negativ kasse, resultat vendt negativt) for
+// ÉN periode (period_key). Kaldes fra klienten efter commit_report_facts
+// (reportCommit.ts, ReportReviewDialog.tsx).
+//
+// TO MODTAGERKREDSE:
+//   A) RÅDGIVERNE — de tre rå alarmer, én notifications-række pr. alarm pr.
+//      rådgiver, for ALLE måneder. UÆNDRET (dashboard/feed/paneler filtrerer
+//      på de tre typer). De mailes ikke (send-notification-email stempler
+//      rådgiverrækker uden mail).
+//   B) MEDLEMMET — én samlet, rolig besked (alert_financial_summary).
+//      JONAS 16/9 (ordret): «Der skal satme ikke sendes så meget. Og slet
+//      ikke for gamle rapporter.» Valg B: medlemmet får KUN alarmen for den
+//      SENESTE AFSLUTTEDE måned set fra Danmark (skalMedlemsAlarm,
+//      _shared/alarmPeriode.ts) — historik (ældre måneder godkendt i ét
+//      hug) giver ingen medlemsalarm, kun en loglinje. Og KUN i klokken:
+//      rækken skrives med email_sent_at sat (notificationWriter), så
+//      mailkøen aldrig ser den og vagten ikke tæller den; prioriteten
+//      (important/action_required) står, så pillen tæller den. Før 16/9 gik
+//      der én mail pr. godkendt måned efter 240 min (recon-mailkoe-alarmer.md).
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
 import { authenticateUser, corsHeaders } from "../_shared/edgeFunctionAuth.ts";
 import { writeNotification } from "../_shared/notificationWriter.ts";
+import { senesteAfsluttedeMaaned, skalMedlemsAlarm } from "../_shared/alarmPeriode.ts";
 
 function formatDKK(val: number): string {
   return new Intl.NumberFormat("da-DK", { style: "currency", currency: "DKK", maximumFractionDigits: 0 }).format(val);
@@ -176,6 +197,7 @@ Deno.serve(async (req) => {
 
   // 5. Write notifications (split: advisors keep the three separate alerts,
   //    members get one calm consolidated message instead of a burst).
+  let medlemsalarm: "skrevet" | "ingen_alarm" | "ikke_seneste_maaned" = "ingen_alarm";
   if (alerts.length > 0) {
     // A) ADVISORS: unchanged. One notification per alert per advisor, with the
     //    existing types and dedup_keys. The advisor dashboard, get-advisor-alerts
@@ -200,6 +222,20 @@ Deno.serve(async (req) => {
 
     // B) MEMBERS: one consolidated, calm message. The founder just uploaded and
     //    approved these figures, so the tone is informative, not alarming.
+    //    KUN for den seneste afsluttede måned (Jonas 16/9, valg B) — ellers en
+    //    loglinje og intet skrevet. Rådgiverne ovenfor har allerede fået deres.
+    const nu = new Date();
+    if (!skalMedlemsAlarm(period_key, nu)) {
+      console.log(
+        `[detect-financial-alerts] company ${company_id}: ${alerts.length} alarm(er) for ${period_key}, men medlemmet får kun alarmer for den seneste afsluttede måned (${senesteAfsluttedeMaaned(nu)}) — ingen medlemsalarm, kun rådgiverne`,
+      );
+      medlemsalarm = "ikke_seneste_maaned";
+      return new Response(
+        JSON.stringify({ alerts_written: alerts.length, medlemsalarm }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+    medlemsalarm = "skrevet";
     const hasNegativeCash = alerts.some((a) => a.type === "alert_negative_cash");
     const summaryPriority: "important" | "action_required" = hasNegativeCash
       ? "action_required"
@@ -246,12 +282,14 @@ Deno.serve(async (req) => {
         reference_type: "report",
         reference_id: report_id,
         dedup_key: `alert_financial_summary:${company_id}:${period_key}`,
+        // Kun i klokken, aldrig som mail (Jonas 16/9): stemplet ved skrivning.
+        email_sent_at: nu.toISOString(),
       });
     }
   }
 
   return new Response(
-    JSON.stringify({ alerts_written: alerts.length }),
+    JSON.stringify({ alerts_written: alerts.length, medlemsalarm }),
     { headers: { ...corsHeaders, "Content-Type": "application/json" } }
   );
 });
