@@ -14,6 +14,7 @@ import { HbFeedbackDialog } from "./HbFeedbackDialog";
 import { bygHbNav, type HbAktiv } from "@/lib/hjemmebane/hbNav";
 import { PODCAST_SPOTIFY_TEKST, PODCAST_SPOTIFY_URL } from "@/lib/hjemmebane/podcastSpotify";
 import { useQuery } from "@tanstack/react-query";
+import { useOnlineTracking } from "@/hooks/onlineTracking";
 import { listAllUpcomingEvents } from "@/lib/hjemmebane/akademiApi";
 import { LIVE_MAERKE, liveEvent, liveEventSti, liveEventTitel } from "@/lib/hjemmebane/liveEvent";
 
@@ -66,7 +67,14 @@ export const HbMemberShell = ({
      hvordan står i hooket — det flyttede dertil 4/9, da login, Betal og
      admin-skallen skulle gøre det samme (mobilens grønne bundstykke). */
   useHbDokumentGrund(rodRef);
-  const { profile, signOut, membershipTier, isAdvisor } = useAuth();
+  const { user, profile, signOut, membershipTier, isAdvisor } = useAuth();
+  /* ONLINE NU (Jonas 16/9, hooks/onlineTracking): medlemmet tracker sig selv
+     på den private Presence-kanal, så rådgiverne kan se hvem der har appen
+     åben. Gaten er useAuth's RÅ isAdvisor — ikke viewingAsMember: i «Se som
+     medlem» er rådgiveren stadig rådgiver og tracker aldrig. Abonnenter
+     tracker (de er medlemmer i skallen); om de vises afgør rådgiverens dom.
+     Hook i topblokken, før enhver betinget return. */
+  useOnlineTracking(!!user && !isAdvisor, user?.id);
   const avatarSrc = profile?.avatar_url || undefined;
   const userName = profile?.full_name || "Medlem";
 

@@ -565,6 +565,29 @@ a `STABLE SECURITY DEFINER` sql function, EXECUTE to authenticated, with
 and returns only counts and up to six company names per kind. No message
 content, no amounts, no member ids leave the function.
 
+### Realtime Presence — online-medlemmer (`realtime.messages`)
+Migration `20260917100000_online_presence.sql` (16/9-2026, Jonas: «Ja» —
+only advisors may see, in real time, which members have the app open; legat
+and guests are shown too, legat with the «Legat» tag). Two RLS policies on
+Supabase's `realtime.messages` table (Realtime Authorization for Presence),
+scoped to ONE private channel topic `online-medlemmer` (`ONLINE_KANAL` in
+`src/lib/hjemmebane/online.ts`; the guard `online.guard.test.ts` keeps the
+SQL literal and the constant identical):
+- INSERT `to authenticated` with `realtime.topic() = 'online-medlemmer' AND
+  extension = 'presence'` — members publish their own presence (track).
+- SELECT `to authenticated` with the same topic/extension AND
+  `public.has_role(auth.uid(), 'advisor')` — only advisors receive presence.
+Members have NO select policy and therefore receive nothing («With no
+policies, clients connect but receive no messages», Realtime Settings) —
+members never see each other. The advisor client never tracks (no INSERT
+needed). The channel is opened with `config.private = true` on both sides;
+«Allow public access» stays ENABLED — private channels enforce these
+policies regardless, and a public channel with the same topic is a
+different channel (Realtime Concepts). The eight existing `postgres_changes`
+channels are unchanged. `has_role` is called, not modified. The presence
+payload carries no PII (`online_at` only; the presence key is the user id,
+which the advisor already reads via `profiles`).
+
 ### Shared member-profile layer (`member_profiles`)
 - Purpose: the PERSONAL layer of the member profile — `linkedin_url`,
   `expertise`, `bio`. Industry and website live on `companies` (so two

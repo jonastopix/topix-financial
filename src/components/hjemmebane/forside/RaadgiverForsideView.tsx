@@ -28,6 +28,10 @@ import { KILDE_PRAESENTATION, KILDE_PRAESENTATION_LABEL } from "@/lib/hjemmebane
 import { KOHORTE_KEY, hentKohorte } from "@/hooks/kohorte";
 import { KOHORTE_OVERSKRIFT, ikkeKommetIgenTekst, kohorteLinje, kohorteTekst, startetIDagTekst } from "@/lib/hjemmebane/kohorte";
 import { HbTag } from "@/components/hjemmebane/HbTag";
+import { HbAvatar } from "@/components/hjemmebane/HbAvatar";
+import { ONLINE_DOM_KEY, hentOnlineDom, useOnlineMedlemmer } from "@/hooks/onlineMedlemmer";
+import { INGEN_ONLINE_TEKST, onlineMedlemmer, onlineOverskrift, onlineTitel, onlineUdsnit } from "@/lib/hjemmebane/online";
+import { HentningsFejl } from "@/lib/kraevRaekker";
 import { cn } from "@/lib/utils";
 import { raadgiverHentefejlTekst } from "@/lib/raadgiverHentefejl";
 
@@ -230,6 +234,19 @@ export const RaadgiverForsideView = () => {
     enabled: !!user,
     staleTime: 5 * 60_000,
   });
+  // Online nu (Jonas 16/9; hooks/onlineMedlemmer + lib/hjemmebane/online):
+  // rådgiveren lytter på den private Presence-kanal (tracker aldrig) og slår
+  // navn, billede og virksomhed op for netop de id'er der er online — nøglen
+  // bærer id'erne, så et nyt medlem online giver ét opslag. Kanalen har sin
+  // egen status (henter · live · fejl); hentningen er en query. Hooks i
+  // topblokken, før nogen betinget return (React #310).
+  const online = useOnlineMedlemmer(!!user);
+  const onlineQuery = useQuery({
+    queryKey: ONLINE_DOM_KEY(online.ids),
+    queryFn: () => hentOnlineDom(online.ids),
+    enabled: !!user && online.status === "live" && online.ids.length > 0,
+    staleTime: 5 * 60_000,
+  });
   // Lukningen — hook i TOPBLOKKEN, før nogen betinget return (React #310).
   // Skriv, så hent igen: dommen afgør hvad der står; ingen lokal patch.
   const lukning = useMutation({
@@ -326,6 +343,70 @@ export const RaadgiverForsideView = () => {
 
         {/* ── Højre: det der orienterer. Under stregen (§5): tal, ikke lister ── */}
         <aside className="mt-10 min-w-0 space-y-1 text-sm text-hb-ink-soft lg:mt-0 lg:border-l lg:border-hb-line lg:pl-8">
+        {/* ONLINE NU (Jonas 16/9, lib/hjemmebane/online + hooks/onlineMedlemmer):
+            profilbilleder af de medlemmer der har appen åben lige nu — det
+            eneste på siden der er «nu», derfor øverst. Navn (+ « · Legat») ved
+            hover og for skærmlæsere; højst ONLINE_LOFT billeder, resten «+ N».
+            Skelet før første sync; «Ingen medlemmer online lige nu.» når
+            kanalen er live og tom; kanalfejl (CHANNEL_ERROR/TIMED_OUT/CLOSED)
+            og opslagsfejl siges med husets hentefejltekst — aldrig «ingen
+            online» ved en fejl. Dommen (hvem vises) er onlineMedlemmer. */}
+        {(() => {
+          const overskrift = (antal: number) => (
+            <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft">{onlineOverskrift(antal)}</p>
+          );
+          const skelet = (
+            <div aria-hidden className="flex gap-2 pb-4">
+              {[0, 1, 2].map((i) => <div key={i} className="h-8 w-8 animate-pulse rounded-full bg-hb-line/40" />)}
+            </div>
+          );
+          if (online.status === "fejl") {
+            return (
+              <>
+                {overskrift(0)}
+                <p className="pb-4 text-xs">{raadgiverHentefejlTekst(new HentningsFejl("realtime_presence", "kanalen kunne ikke åbnes"), "forsiden")}</p>
+              </>
+            );
+          }
+          if (online.status === "henter" || (online.ids.length > 0 && !onlineQuery.data && !onlineQuery.isError)) {
+            return <>{overskrift(0)}{skelet}</>;
+          }
+          if (onlineQuery.isError) {
+            return (
+              <>
+                {overskrift(0)}
+                <p className="pb-4 text-xs">{raadgiverHentefejlTekst(onlineQuery.error, "forsiden")}</p>
+              </>
+            );
+          }
+          const liste = online.ids.length === 0 || !onlineQuery.data ? [] : onlineMedlemmer({ ids: online.ids, ...onlineQuery.data });
+          if (liste.length === 0) {
+            return <>{overskrift(0)}<p className="pb-4">{INGEN_ONLINE_TEKST}</p></>;
+          }
+          const { viste, flere } = onlineUdsnit(liste);
+          return (
+            <>
+              {overskrift(liste.length)}
+              <ul className="flex flex-wrap gap-2 pb-4" data-online-antal={liste.length}>
+                {viste.map((m) => (
+                  <li key={m.user_id}>
+                    <HbAvatar navn={m.navn} avatarUrl={m.avatar_url} stoerrelse="sm" title={onlineTitel(m)} />
+                  </li>
+                ))}
+                {flere > 0 && (
+                  <li>
+                    <span
+                      title={`og ${flere} mere`}
+                      className="flex h-8 w-8 items-center justify-center rounded-full border border-hb-line bg-hb-paper text-xs font-medium text-hb-ink-soft"
+                    >
+                      +{flere}
+                    </span>
+                  </li>
+                )}
+              </ul>
+            </>
+          );
+        })()}
         {/* PULSEN (Jonas 8/9, lib/pulsen): fire tal for hele porteføljen, læses
             hver morgen. Tallene er MOTORERNES — tavshed er virksomhedsSignalers
             21 dage, fornyelser er dommens FORNYELSE_VENTER_STATUSSER, «har

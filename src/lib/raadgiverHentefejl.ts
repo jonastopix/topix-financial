@@ -61,6 +61,8 @@ export const RAADGIVER_KILDE_ORD: Readonly<Record<string, string>> = {
   uploads: "uploads",
   // Kohortelinjen (16/9): login-historikken bag «kom igen efter dag 1».
   user_login_log: "login-historikken",
+  // «Online nu» (16/9): Realtime Presence-kanalen — ikke en tabel, men en kilde der kan fejle.
+  realtime_presence: "hvem der er online",
 };
 
 export type RaadgiverFlade = "forsiden" | "virksomheden" | "listen" | "opgaverne" | "invitationerne";
