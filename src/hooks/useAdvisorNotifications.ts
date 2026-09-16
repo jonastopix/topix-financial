@@ -14,16 +14,21 @@ export function useAdvisorNotifications() {
   const { user, isAdvisor } = useAuth();
   const [notifications, setNotifications] = useState<RaadgiverNotifikation[]>([]);
   const [loading, setLoading] = useState(true);
+  /* Hentefejl (16/9, «Tavse queryFn'er»): en fejl gav en tom liste og
+     «Intet nyt.». Nu læses error — listen tømmes (intet tal, aldrig et 0),
+     og udfoldningen siger det (HbKlokke). Samme form som useNotifications. */
+  const [hentefejl, setHentefejl] = useState(false);
 
   const load = useCallback(async () => {
     if (!user || !isAdvisor) return;
     // Tabellen er i de genererede typer — ingen any (i modsætning til den gamle klokke).
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("advisor_notifications")
       .select("*")
       .order("created_at", { ascending: false })
       .limit(30);
-    setNotifications((data ?? []) as unknown as RaadgiverNotifikation[]);
+    setHentefejl(!!error);
+    setNotifications(error ? [] : ((data ?? []) as unknown as RaadgiverNotifikation[]));
     setLoading(false);
   }, [user, isAdvisor]);
 
@@ -49,5 +54,5 @@ export function useAdvisorNotifications() {
     setNotifications((prev) => prev.map((n) => ({ ...n, read_at: n.read_at || new Date().toISOString() })));
   }, [notifications]);
 
-  return { notifications, loading, markAsRead, markAllRead };
+  return { notifications, loading, hentefejl, markAsRead, markAllRead };
 }

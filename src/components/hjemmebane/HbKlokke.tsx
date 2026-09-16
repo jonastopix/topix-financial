@@ -44,6 +44,7 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
 import { useNotifications } from "@/hooks/useNotifications";
 import { useAdvisorNotifications } from "@/hooks/useAdvisorNotifications";
+import { sektionsfejlTekst } from "@/lib/hjemmebane/hentefejl";
 import {
   KLOKKE_LABEL,
   KLOKKE_TOM,
@@ -66,10 +67,14 @@ const tidOrd = (iso: string): string => {
 
 /** Rækken + udfoldningen — rollefri; data kommer fra kalderen. */
 const KlokkeSkal = ({
-  antal, linjer, onAabn, onLinje, alleLaest,
+  antal, linjer, onAabn, onLinje, alleLaest, fejlet = false,
 }: {
   antal: number;
   linjer: KlokkeLinje[];
+  /** Hentningen fejlede (16/9): ingen pille (antal er 0, aldrig et 0-tal),
+      og udfoldningen siger det i stedet for «Intet nyt.» — fejl og tom er
+      to beskeder. Menuen selv får ingen fejltekst. */
+  fejlet?: boolean;
   /** Kaldes når udfoldningen ÅBNES (medlem: markAllSeen). */
   onAabn?: () => void;
   onLinje: (l: KlokkeLinje) => void;
@@ -111,7 +116,9 @@ const KlokkeSkal = ({
               Markér alle som læst
             </button>
           )}
-          {linjer.length === 0 ? (
+          {fejlet ? (
+            <p className="py-2 text-sm text-hb-ink-soft">{sektionsfejlTekst("notifications")}</p>
+          ) : linjer.length === 0 ? (
             <p className="py-2 text-sm text-hb-ink-soft">{KLOKKE_TOM}</p>
           ) : (
             <ul className="divide-y divide-hb-line">
@@ -151,7 +158,7 @@ const KlokkeSkal = ({
 };
 
 const HbKlokkeMedlem = () => {
-  const { notifications, unseenCount, markAllSeen, markRead } = useNotifications();
+  const { notifications, unseenCount, markAllSeen, markRead, hentefejl } = useNotifications();
   const linjer = nyesteFoerst(notifications).map(medlemsLinje);
   // unseenCount er hookens egen; taelUsete er samme regel som ren funktion (låst af test).
   const antal = unseenCount || taelUsete(notifications);
@@ -159,6 +166,7 @@ const HbKlokkeMedlem = () => {
     <KlokkeSkal
       antal={antal}
       linjer={linjer}
+      fejlet={hentefejl}
       onAabn={() => void markAllSeen()}
       onLinje={(l) => { if (l.ny) void markRead(l.id); }}
     />
@@ -166,12 +174,13 @@ const HbKlokkeMedlem = () => {
 };
 
 const HbKlokkeRaadgiver = () => {
-  const { notifications, markAsRead, markAllRead } = useAdvisorNotifications();
+  const { notifications, markAsRead, markAllRead, hentefejl } = useAdvisorNotifications();
   const linjer = nyesteFoerst(notifications).map(raadgiverLinje);
   return (
     <KlokkeSkal
       antal={taelUlaeste(notifications)}
       linjer={linjer}
+      fejlet={hentefejl}
       onLinje={(l) => { if (l.ny) void markAsRead(l.id); }}
       alleLaest={() => void markAllRead()}
     />

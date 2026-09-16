@@ -51,6 +51,9 @@ export const KILDE_ORD: Readonly<Record<string, string>> = {
   content_item_attachments: "materialet",
   financial_reports_papirkurv: "papirkurven",
   kpi_chart_comments: "kommentarerne",
+  // Tjeklistens flader og skallen (16/9, «Tavse queryFn'er»).
+  legat_enrollments: "dit legatforløb",
+  notifications: "dine notifikationer",
 };
 
 /** Kilden af en kastet fejl: HentningsFejl bærer `kilde`; alt andet er «ukendt». */

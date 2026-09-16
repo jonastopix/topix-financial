@@ -26,18 +26,25 @@ export function useNotifications() {
   const { user } = useAuth();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
+  /* Hentefejl (16/9, «Tavse queryFn'er»): før blev en fejl til en tom liste
+     — pillen sagde ingenting, og udfoldningen sagde «Intet nyt.». Nu læses
+     error: listen tømmes (INTET tal — aldrig et 0-tal, samme udtryk som
+     ingen nye), og klokkens udfoldning siger at notifikationerne ikke kunne
+     hentes. Menuen får ingen fejltekst — det er ikke dens ærinde. */
+  const [hentefejl, setHentefejl] = useState(false);
 
   const load = useCallback(async () => {
     if (!user) return;
     const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("notifications" as any)
       .select("*")
       .eq("user_id", user.id)
       .gte("created_at", thirtyDaysAgo)
       .order("created_at", { ascending: false })
       .limit(50);
-    setNotifications((data as any as Notification[]) || []);
+    setHentefejl(!!error);
+    setNotifications(error ? [] : ((data as any as Notification[]) || []));
     setLoading(false);
   }, [user]);
 
@@ -102,6 +109,7 @@ export function useNotifications() {
   return {
     notifications,
     loading,
+    hentefejl,
     unseenCount,
     hasActionRequired,
     markAllSeen,
