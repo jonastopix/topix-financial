@@ -82,6 +82,15 @@ export function formatKr(beloebKr: number): string {
   return String(Math.abs(hel)).replace(/\B(?=(\d{3})+(?!\d))/g, ".").replace(/^/, hel < 0 ? "-" : "");
 }
 
+/** Øre → dansk kronestreng: hele beløb uden decimaler («2.000»), skæve med to («2.187,50»). Flyttet fra fornyelsesMail.ts 16/9 — dag 31-mailen skal sige fakturaens beløb med ører. */
+export function formatKrOere(oere: number): string {
+  const kroner = oere / 100;
+  const hel = Math.trunc(kroner);
+  const rest = Math.round(Math.abs(kroner - hel) * 100);
+  const helTekst = formatKr(hel);
+  return rest === 0 ? helTekst : `${helTekst},${String(rest).padStart(2, "0")}`;
+}
+
 /**
  * Beløbet i dag 31-mailen — det der RENT FAKTISK står på fakturaen (10/9,
  * recon-penge-og-roller.md §1). Før stod der listeprisen «50.000 kr.» uden
@@ -95,6 +104,8 @@ export function formatKr(beloebKr: number): string {
  *                                        ingen moms på fakturaen)
  *   total ukendt (opslag fejlede) → «50.000 kr. ekskl. moms» — listeprisen,
  *                                        mærket som resten af huset gør det
+ * Ører bevares (16/9): 1.250 øre → «12,50 kr. inkl. moms» — målt 16/9 stod
+ * der «13 kr.» for en faktura på 12,50 (formatKr rundede til hele kroner).
  */
 export function fakturaBeloebTekst(a: {
   totalOere: number | null | undefined;
@@ -102,7 +113,7 @@ export function fakturaBeloebTekst(a: {
   listeprisKr: number;
 }): string {
   if (typeof a.totalOere === "number" && Number.isFinite(a.totalOere) && a.totalOere > 0) {
-    const kr = formatKr(a.totalOere / 100);
+    const kr = formatKrOere(a.totalOere); // fakturaens tal med ører — «12,50», «62.500», «62.500,50»
     return a.momsBeregnet === true ? `${kr} kr. inkl. moms` : `${kr} kr.`;
   }
   return `${formatKr(a.listeprisKr)} kr. ekskl. moms`;
@@ -191,7 +202,7 @@ export function dag14Mail(a: {
         "Du aktiverer dit medlemskab ved at betale. Så er du inde med det samme.",
       ],
       knap: { tekst: "Gå til betaling", url: a.betalingsUrl },
-      efterKnap: ["Har du spørgsmål, er jeg kun en mail væk."],
+      efterKnap: [`Har du spørgsmål, så skriv til ${KONTAKT_ADRESSE} — så finder vi ud af det.`],
       hilsen: HILSEN,
     }),
   };
@@ -213,7 +224,7 @@ export function dag25Mail(a: {
       knap: { tekst: "Gå til betaling", url: a.betalingsUrl },
       efterKnap: [
         `Betaler du ikke inden da, sender vi automatisk en faktura på det fulde beløb, ${formatKr(a.beloebKr)} kr. ekskl. moms. Vil du betale i rater, skal du bruge linket ovenfor inden fristen.`,
-        "Er der noget i vejen, så sig til. Jeg vil hellere høre fra dig end sende en faktura.",
+        `Er der noget i vejen, så skriv til ${KONTAKT_ADRESSE}. Jeg vil hellere høre fra dig end sende en faktura.`,
       ],
       hilsen: HILSEN,
     }),
@@ -241,7 +252,7 @@ export function dag31Mail(a: {
       afsnit: [
         `Fristen for at aktivere dit medlemskab via betalingslinket er passeret, og derfor har vi sendt dig en faktura på ${beloebSaetning} Du finder den i en separat mail fra Stripe.`,
         "Din plads står stadig klar — betal fakturaen, så åbner vi din adgang.",
-        "Er der noget vi skal tale om, så ring eller skriv. Vi tager den gerne.",
+        `Er der noget vi skal tale om, så skriv til ${KONTAKT_ADRESSE}. Vi tager den gerne.`,
       ],
       hilsen: HILSEN,
     }),

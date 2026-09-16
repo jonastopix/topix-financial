@@ -35,7 +35,11 @@
  * («27. september 2026», formatDanskDato) og sender beløbet i hele kroner.
  * Virksomhedens navn escapes af layoutet.
  */
-import { formatKr, indgangsMailHtml, KONTAKT_ADRESSE, tiltale, type IndgangsMail } from "./indgangsMail.ts";
+import { formatKr, formatKrOere, indgangsMailHtml, KONTAKT_ADRESSE, tiltale, type IndgangsMail } from "./indgangsMail.ts";
+// formatKrOere bor i indgangsMail.ts siden 16/9 (dag 31-mailen bruger den);
+// re-eksporteret, så raadgiverBeskedTekst.ts og fornyelsesKvitteringMail.test.ts
+// læser den samme vej som før.
+export { formatKrOere };
 import type { Betalingsmodel } from "./fornyelsespris.ts";
 
 const APP_URL = "https://app.theboardroom.dk";
@@ -203,15 +207,6 @@ export function vindue2Mail(a: VinduesMailArgs): IndgangsMail {
 // (formatDanskDato) og sender beløbene i ØRE, som Stripe og
 // company_perioder bærer dem; raterne kan have ører (2.187,50), og de må
 // ikke forsvinde i formateringen (samme regel som MembershipExpiredGate.kr).
-
-/** Øre → dansk kronestreng: hele beløb uden decimaler («2.000»), skæve med to («2.187,50»). */
-export function formatKrOere(oere: number): string {
-  const kroner = oere / 100;
-  const hel = Math.trunc(kroner);
-  const rest = Math.round(Math.abs(kroner - hel) * 100);
-  const helTekst = formatKr(hel);
-  return rest === 0 ? helTekst : `${helTekst},${String(rest).padStart(2, "0")}`;
-}
 
 /** Hvor mange træk hver model giver — samme tal som fornyelsespris.ts' TRAEK. */
 const ANTAL_TRAEK: Record<Betalingsmodel, number> = { fuld: 1, rate2: 2, rate12: 12 };
