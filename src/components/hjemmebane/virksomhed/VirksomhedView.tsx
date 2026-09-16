@@ -45,6 +45,7 @@ import { VirksomhedMailLog } from "./VirksomhedMailLog";
 import { FarligZone, OmdoebVirksomhed, SaetPrisniveau } from "./VirksomhedStamdata";
 import { GenkoerRapport } from "./VirksomhedGenkoersel";
 import { VirksomhedPlanen } from "./VirksomhedPlanen";
+import { planenDom } from "@/lib/hjemmebane/planen";
 import { erStrandet, needsManualEntryAf } from "@/lib/genkoersel";
 import { virksomhedensAdresser } from "@/lib/mailLog";
 import { HbButton } from "../HbButton";
@@ -80,6 +81,20 @@ import { raadgiverHentefejlTekst } from "@/lib/raadgiverHentefejl";
  *   - EditCompanyDialog → blok 7, kun admin (MemberDetail:953).
  * De tre første tegner i appens gamle tokens (bg-card, text-foreground)
  * inde i Hb-skallen — samme accepterede skift som admin-siderne (#603).
+ *
+ * NY RÆKKEFØLGE 17/9 (virksomhedssiden PR 1, ~/Downloads/analyse-
+ * virksomhedssiden.md §4; Jonas 17/9 «Ja på alle»): siden var sat op til at
+ * LÆSE en virksomhed, ikke til at rådgive den — «Én plan» kom 16/9 ind som
+ * tredje kolonne i blok 6, tre skærme nede. Nu: Header (med planens status og
+ * antal afvigelser) → 1 Hvad skal du vide nu → 2 Deres ord og din forberedelse
+ * → 3 PLANEN i fuld bredde (VirksomhedPlanen, egen sektion) → 4 Tallene → 5
+ * Chatten (60 vh, «Åbn i /chat») → 6 Aktivitet (Rapportering · Handouts +
+ * Rapporter + Leveringsoverblik) → 7 Aftalen FOLDET med statuslinjen åben
+ * (åbnes af ?section=aftale og ?grund=fornyelse|indgang) → 8 Mails → 9 Farlig
+ * zone. Blokkenes NAVNE (Blok1…Blok7) er designets numre fra 3/9 og beholdes i
+ * koden; rækkefølgen er kompositionens (VirksomhedView nederst). Ankrene
+ * (section-*) følger med — forsidens ?grund= ruller til id'er, ikke til
+ * positioner. Låst af virksomhedsside.guard.
  */
 
 const formatDato = (iso: string | null | undefined): string => {
@@ -238,21 +253,25 @@ const laesGrund = (raw: string | null): OpgaveSlags | null =>
 /** Hvor en grund peger hen på siden. Ankrene findes fra deep-link-arbejdet
     (#619) og denne etape. null = intet bestemt sted; man er øverst. */
 const GRUNDENS_ANKER: Record<OpgaveSlags, string | null> = {
-  venter_i_samtalen: "section-chat", // «Svar …» — blok 4
-  tavshed: "section-chat", // «Skriv til …» — blok 4
-  stikker_ud: "section-tal", // et tal — blok 5
-  rapporteringsfejl: "section-tal", // et tal — blok 5 (slags ikke bygget endnu)
-  fornyelse: "section-aftale", // blok 7
-  indgang: "section-aftale", // blok 7
+  // Tallene i kommentarerne er sidens PLADS fra 17/9 (PR 1), ikke designets bloknummer.
+  venter_i_samtalen: "section-chat", // «Svar …» — chatten, plads 5
+  tavshed: "section-chat", // «Skriv til …» — chatten, plads 5
+  stikker_ud: "section-tal", // et tal — tallene, plads 4
+  rapporteringsfejl: "section-tal", // et tal — tallene, plads 4 (slags ikke bygget endnu)
+  fornyelse: "section-aftale", // Aftalen, plads 7 — folden åbnes (startAftaleAaben)
+  indgang: "section-aftale", // Aftalen, plads 7 — folden åbnes
   opgave_naer_deadline: null, // opgaverne står kun som antal i blok 1
-  medlem_har_skrevet: "section-handouts", // blok 6 (slags ikke bygget endnu)
+  medlem_har_skrevet: "section-handouts", // Aktivitet, plads 6 (slags ikke bygget endnu)
   agentforslag: null, // panelet står i blok 1
-  ikke_i_gang: "section-tal", // «Hjælp … i gang» — tallene mangler, blok 5
-  venter_paa_velkomst: "section-chat", // «Skriv til …» — blok 4 (10/9)
-  maal_uden_bevaegelse: "section-milestones", // Planen — blok 6 («Én plan» fase 4)
+  ikke_i_gang: "section-tal", // «Hjælp … i gang» — tallene mangler, plads 4
+  venter_paa_velkomst: "section-chat", // «Skriv til …» — chatten, plads 5 (10/9)
+  maal_uden_bevaegelse: "section-milestones", // Planen — plads 3, fuld bredde («Én plan» fase 4)
   refleksion_hjaelp: "section-refleksion", // Refleksionen — blok 2 (fase 4)
   ingen_maal: "section-milestones", // Planen — «Sæt mål sammen med medlemmet» (fase 5)
 };
+
+/** Grundene der lander i Aftalen — folden skal åbnes før der rulles. */
+const AABNER_AFTALEN: ReadonlySet<OpgaveSlags> = new Set<OpgaveSlags>(["fornyelse", "indgang"]);
 
 /** Samme dom som forsiden (afgoerForsidensDom), for denne ene virksomhed,
     så handlingen står med forsidens ord — «Send tilbuddet til PHILBERT»,
@@ -743,6 +762,13 @@ type ForecastPunkt = { period_key: string; period_label: string; revenue: number
     højdekæde som AppLayout fullscreen giver den på /chat. Udtrykket
     indeni er chattens gamle (glass-card, appens tokens) — konverteringen
     til Hb er ikke denne etape. */
+/** PR 1 (Jonas 17/9, valg 2): chatten er KONTEKST på siden — den daglige
+    puls sker på /chat (raadgiverfladen-design.md §3.4: «/chat bliver stående
+    som ren indbakke»). Derfor 60 vh (min 420 px) frem for hele viewportet, og
+    «Åbn i /chat» (CompanyChatPane læser ?companyId). Under md er 60 vh af en
+    telefon ~400–480 px — min-h holder skrivefeltet synligt. */
+const CHAT_HOEJDE = "h-[60vh] min-h-[420px]";
+
 const Blok4 = ({ d }: { d: VirksomhedsData }) => {
   // Samtalestatus + «Tildelt» over chatten (MemberDetail:924-950, samme fire
   // tilstande). Samtalen er den med seneste besked; flere pr. virksomhed er
@@ -760,7 +786,7 @@ const Blok4 = ({ d }: { d: VirksomhedsData }) => {
   const tildelt = samtale?.assigned_advisor_id ? d.raadgiverNavne[samtale.assigned_advisor_id] ?? null : null;
   return (
     // id="section-chat": ankeret for «derfor er du her» (§6) — svar og «skriv til» lander her.
-    <HbSection id="section-chat" eyebrow="Chatten" hairline className="mt-12 scroll-mt-24">
+    <HbSection id="section-chat" eyebrow="Chatten" hairline linkLabel="Åbn i /chat" linkTo={`/chat?companyId=${d.company.id}`} className="mt-12 scroll-mt-24">
       <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm">
         <HbTag className={cn("px-2 py-0.5 text-[11px]", samtale ? "border border-hb-line bg-hb-paper text-hb-ink" : "bg-hb-line/60 text-hb-ink-soft")}>{status}</HbTag>
         {samtale && (
@@ -769,19 +795,33 @@ const Blok4 = ({ d }: { d: VirksomhedsData }) => {
           </span>
         )}
       </div>
-      <div className="flex h-[calc(100dvh-10rem)] min-h-[520px] flex-col overflow-hidden rounded-hb border border-hb-line">
+      <div className={cn("flex flex-col overflow-hidden rounded-hb border border-hb-line", CHAT_HOEJDE)}>
         <CompanyChatPane laastTilCompanyId={d.company.id} />
       </div>
     </HbSection>
   );
 };
 
+/** Tallene sorteret med afvigerne først — ÉT sted (PR 1): Blok5 tegner dem,
+    headerens statuslinje tæller dem. «Afviger» = målet er ikke nået
+    (deriveKpiTone: attention) ELLER M/M går den forkerte vej (trend down —
+    kun sat når M/M er gyldig). Et STANDARDMÅL dømmer ikke (kilde med, 7/9):
+    rust kræver et aftalt mål — eller et fald. deriveKpiMetrics er den rene,
+    testede dom fra /kpis (M/M gated med momErGyldig inde i den); benchmarks
+    er ikke sidens ærinde — tom map. */
+function sorterAfvigende(facts: CompanyFact[], kpiMaal: VirksomhedsData["kpiMaal"]): { m: KpiMetric; afviger: boolean }[] {
+  const metrics = deriveKpiMetrics(facts, kpiMaal, {});
+  return [...metrics]
+    .map((m) => {
+      const def = KPI_DEFS.find((k) => k.key === m.key)!;
+      const tone = deriveKpiTone({ actual: m.numValue, target: m.targetNum > 0 ? m.targetNum : null, lowerIsBetter: def.lowerIsBetter, kilde: m.maalKilde });
+      return { m, afviger: tone.tone === "attention" || m.trend === "down" };
+    })
+    .sort((a, b) => Number(b.afviger) - Number(a.afviger));
+}
+
 const Blok5 = ({ d, facts }: { d: VirksomhedsData; facts: CompanyFact[] }) => {
-  // deriveKpiMetrics er den rene, testede dom fra /kpis: tal, formatering
-  // og M/M — M/M er allerede gated med momErGyldig INDE i den (kpiDefs:111),
-  // så changePct er null når en af de to seneste er et estimat. Benchmarks
-  // er ikke blok 5's ærinde (ingen brancheprik her) — tom map.
-  const metrics = useMemo(() => deriveKpiMetrics(facts, d.kpiMaal, {}), [facts, d.kpiMaal]);
+  const sorteret = useMemo(() => sorterAfvigende(facts, d.kpiMaal), [facts, d.kpiMaal]);
   // Forecast — på en knap, aldrig ved sidevisning (samme regel som
   // sessionsforberedelsen i blok 2). Kaldet er MemberDetail:1285-1289.
   const [forecast, setForecast] = useState<ForecastPunkt[] | null>(null);
@@ -827,18 +867,8 @@ const Blok5 = ({ d, facts }: { d: VirksomhedsData; facts: CompanyFact[] }) => {
   // NoegletalView:1002); M/M-linjen forklarer hvorfor den er tom.
   const senesteErEstimat = seneste.data_basis === "estimated";
   const momGyldig = momErGyldig(facts);
-  // «Afviger» = målet er ikke nået (deriveKpiTone: tone attention) ELLER
-  // M/M går den forkerte vej (trend down — kun sat når M/M er gyldig).
-  // Et STANDARDMÅL dømmer ikke (kilde med, 7/9): rust kræver et aftalt
-  // mål — eller et fald. Afvigende først, resten i KPI_DEFS' rækkefølge.
-  // Ikke en fuld nøgletalsflade — den findes på /kpis.
-  const sorteret = [...metrics]
-    .map((m) => {
-      const def = KPI_DEFS.find((k) => k.key === m.key)!;
-      const tone = deriveKpiTone({ actual: m.numValue, target: m.targetNum > 0 ? m.targetNum : null, lowerIsBetter: def.lowerIsBetter, kilde: m.maalKilde });
-      return { m, afviger: tone.tone === "attention" || m.trend === "down" };
-    })
-    .sort((a, b) => Number(b.afviger) - Number(a.afviger));
+  // Afvigende først, resten i KPI_DEFS' rækkefølge (sorterAfvigende) — ikke
+  // en fuld nøgletalsflade, den findes på /kpis.
   const antalAfviger = sorteret.filter((s) => s.afviger).length;
   const bank = factsToDanishMetrics(seneste.metrics).bank_balance ?? null;
 
@@ -1198,7 +1228,8 @@ const Blok6 = ({
 
   return (
     <HbSection eyebrow="Aktivitet" hairline className="mt-12">
-      <div className="grid gap-4 md:grid-cols-3">
+      {/* PR 1 (17/9): to kort — Planen er sin egen sektion (plads 3, fuld bredde). */}
+      <div className="grid gap-4 md:grid-cols-2">
         <HbCard className="p-5">
           <p className="text-xs font-semibold uppercase tracking-[0.14em] text-hb-ink-soft">Rapportering</p>
           {d.rapporter.length === 0 ? (
@@ -1241,11 +1272,6 @@ const Blok6 = ({
             })}
           </ul>
         </HbCard>
-
-        {/* Planen (fase 2): målene — højst tre aktive — med skridt under hvert,
-            parkerede og nåede, «sæt mål sammen med medlemmet», og gennemgangen
-            af mål fra før planen. Alle skrivninger går gennem maal-skriv. */}
-        <VirksomhedPlanen companyId={d.company.id} maal={d.milestones} skridt={d.skridt} samtaleId={samtaleId} onOpdateret={onOpdateret} />
       </div>
 
       {/* Rapporterne — eget afsnit under kortene, foldet efter de tre nyeste. */}
@@ -1582,8 +1608,24 @@ const FornyelsesHandlinger = ({
   );
 };
 
-const Blok7 = ({ d, onOpdateret, onFornyelseAendret }: { d: VirksomhedsData; onOpdateret: () => Promise<void>; onFornyelseAendret: () => Promise<void> }) => {
+const Blok7 = ({
+  d, onOpdateret, onFornyelseAendret, startAaben,
+}: {
+  d: VirksomhedsData;
+  onOpdateret: () => Promise<void>;
+  onFornyelseAendret: () => Promise<void>;
+  /** PR 1 (Jonas 17/9, valg 3): Aftalen er FOLDET som standard — administration
+      hører ikke til på skærmdeling i en session. Sand når ?section=aftale
+      eller ?grund=fornyelse|indgang: folden åbnes FØR scroll-effekten ruller
+      (klokke.ts' ?section=aftale, forsidens grunde). */
+  startAaben: boolean;
+}) => {
   const c = d.company;
+  // Folden: åben når siden bad om det (deep-link/grund), ellers lukket; rådgiveren kan altid slå den op.
+  const [aaben, setAaben] = useState(startAaben);
+  useEffect(() => {
+    if (startAaben) setAaben(true);
+  }, [startAaben]);
   // isAdvisor er advisor ELLER admin (useAuth); «Fjern fra virksomheden» er
   // en rådgiverhandling (10/9 nat — #803 gjorde den admin-only ved en fejl).
   const { isAdmin, isAdvisor } = useAuth();
@@ -1643,7 +1685,27 @@ const Blok7 = ({ d, onOpdateret, onFornyelseAendret }: { d: VirksomhedsData; onO
   return (
     // id="section-aftale": ankeret for «derfor er du her» (§6) — fornyelse og indgang lander her.
     <HbSection id="section-aftale" eyebrow="Aftalen" hairline className="mt-12 scroll-mt-24">
-      <div className="grid gap-4 md:grid-cols-2">
+      {/* Statuslinjen står ALTID (summary): tier, fornyelse, indgang, fejlede
+          træk, medlemmer og afventende invitationer — det man skal vide uden
+          at folde ud. Native <details> som de øvrige folder på siden;
+          tilstanden er kontrolleret, så deep-links kan åbne den. */}
+      <details open={aaben} onToggle={(e) => setAaben((e.currentTarget as HTMLDetailsElement).open)} data-aftale-aaben={aaben ? "1" : "0"}>
+        <summary className="flex cursor-pointer list-none flex-wrap items-center gap-x-3 gap-y-1.5 text-sm [&::-webkit-details-marker]:hidden">
+          <span className="flex flex-wrap items-center gap-1.5">
+            <TierBadge tier={tier} kontraktSlut={c.contract_end_date} />
+            <HbTag className="bg-hb-paper border border-hb-line px-2 py-0.5 text-[11px] text-hb-ink-soft">{FORNYELSE_LABEL[fornyelsesBadge(fornyelse.status, d.fornyelse?.varsel_1_sendt_at, d.fornyelse?.varsel_2_sendt_at)]}</HbTag>
+            {indgang && indgang.status !== "betalt" && (
+              <HbTag className="bg-hb-rust/10 px-2 py-0.5 text-[11px] text-hb-rust">{INDGANG_LABEL[indgang.status]}</HbTag>
+            )}
+            {fejletBadge && <HbTag className="bg-hb-rust/10 px-2 py-0.5 text-[11px] text-hb-rust">{fejletBadge}</HbTag>}
+          </span>
+          <span className="text-hb-ink-soft">
+            {d.medlemmer.length} {d.medlemmer.length === 1 ? "medlem" : "medlemmer"}
+            {afventende.length > 0 && ` · ${afventende.length} ${afventende.length === 1 ? "invitation venter" : "invitationer venter"}`}
+          </span>
+          <span className="ml-auto text-hb-evergreen underline-offset-4 hover:underline">{aaben ? "Skjul aftalen" : "Vis aftalen"}</span>
+        </summary>
+      <div className="mt-4 grid gap-4 md:grid-cols-2">
         <HbCard className="p-5">
           <div className="flex items-baseline justify-between gap-3">
             <p className="text-xs font-semibold uppercase tracking-[0.14em] text-hb-ink-soft">Kontrakt</p>
@@ -1652,14 +1714,6 @@ const Blok7 = ({ d, onOpdateret, onFornyelseAendret }: { d: VirksomhedsData; onO
                 Rediger virksomhedsdata
               </button>
             )}
-          </div>
-          <div className="mt-3 flex flex-wrap items-center gap-1.5">
-            <TierBadge tier={tier} kontraktSlut={c.contract_end_date} />
-            <HbTag className="bg-hb-paper border border-hb-line px-2 py-0.5 text-[11px] text-hb-ink-soft">{FORNYELSE_LABEL[fornyelsesBadge(fornyelse.status, d.fornyelse?.varsel_1_sendt_at, d.fornyelse?.varsel_2_sendt_at)]}</HbTag>
-            {indgang && indgang.status !== "betalt" && (
-              <HbTag className="bg-hb-rust/10 px-2 py-0.5 text-[11px] text-hb-rust">{INDGANG_LABEL[indgang.status]}</HbTag>
-            )}
-            {fejletBadge && <HbTag className="bg-hb-rust/10 px-2 py-0.5 text-[11px] text-hb-rust">{fejletBadge}</HbTag>}
           </div>
           <div className="mt-3 divide-y divide-hb-line">
             {/* Navn (10/9, fra /members' blyant): stamdata hører her, sammen
@@ -1822,6 +1876,7 @@ const Blok7 = ({ d, onOpdateret, onFornyelseAendret }: { d: VirksomhedsData; onO
           )}
         </HbCard>
       </div>
+      </details>
       {isAdmin && (
         <EditCompanyDialog open={redigerer} onOpenChange={lukDialog} companyId={c.id} onSaved={efterGem} />
       )}
@@ -1861,6 +1916,9 @@ export const VirksomhedView = ({ companyId }: { companyId: string | undefined })
     () => (dybGrund && data ? findDerfor(data, facts, dybGrund, new Date()) : null),
     [dybGrund, data, facts],
   );
+  // Aftalen er foldet (PR 1) — ?section=aftale og grundene fornyelse/indgang
+  // åbner folden, så scroll-effekterne nedenfor rammer noget synligt.
+  const startAftaleAaben = dybSektion === "aftale" || (derfor != null && AABNER_AFTALEN.has(derfor.slags));
   // Rul til det sted grunden peger hen — samme mekanik som ?section: først
   // når blokkene er tegnet. Peger grunden ingen steder hen (opgaver,
   // agentforslag), rulles der ikke; man er allerede øverst. Chatten ruller
@@ -1916,6 +1974,17 @@ export const VirksomhedView = ({ companyId }: { companyId: string | undefined })
   const ownerNavn = data.medlemmer.find((m) => m.role === "owner")?.full_name?.trim() || null;
   const kontaktperson = ownerNavn ?? (c.contact_person?.trim() || null);
   const metaLinje = [c.industry_label, c.cvr_number ? `CVR ${c.cvr_number}` : null, kontaktperson, c.contact_email].filter(Boolean).join(" · ");
+  // Headerens statuslinje (PR 1): planens én-linje-tekst (samme dom som
+  // sektionen — planen.ts, urørt) og antal afvigelser i tallene (samme
+  // sortering som Tallene — sorterAfvigende). Sidens vigtigste tal, øverst.
+  const plan = planenDom(data.milestones, data.skridt, new Date());
+  const antalAfvigelser = facts.length > 0 ? sorterAfvigende(facts, data.kpiMaal).filter((s) => s.afviger).length : 0;
+  const statusLinje = [
+    plan.tekst,
+    facts.length === 0 ? "ingen tal endnu" : antalAfvigelser === 0 ? "ingen afvigelser i tallene" : `${antalAfvigelser} ${antalAfvigelser === 1 ? "afvigelse" : "afvigelser"} i tallene`,
+  ].join(" · ");
+  // Samtalen «Foreslå skridt» skrives i: den med seneste besked (som Blok6's rapport-kommentarer).
+  const samtaleId = [...data.samtaler].sort((a, b) => (b.last_message_at ?? "").localeCompare(a.last_message_at ?? ""))[0]?.id ?? null;
 
   /* ÅBN HANDOUT i læse-tilstand — som MemberDetail:648-658 (HandoutDetail
      med userId ≠ egen → isOwner=false, alle felter disabled). HandoutDetail/
@@ -1954,15 +2023,19 @@ export const VirksomhedView = ({ companyId }: { companyId: string | undefined })
             kanten), og meta-linjen bærer e-mailen — begge må brydes. */}
         <h1 className="mt-3 break-words font-editorial text-4xl font-medium leading-[1.1] tracking-tight text-hb-ink md:text-5xl">{c.name}</h1>
         {metaLinje && <p className="mt-3 break-words text-sm text-hb-ink-soft">{metaLinje}</p>}
+        <p className={cn("mt-2 text-sm", plan.gennemgang ? "font-medium text-hb-rust" : "text-hb-ink")} data-status-linje>{statusLinje}</p>
       </section>
 
+      {/* RÆKKEFØLGEN (PR 1, 17/9): 1 → 2 → PLANEN → Tallene → Chatten →
+          Aktivitet → Aftalen (foldet) → Mails → Farlig zone. Se filhovedet. */}
       <div className="mt-10">
         <Blok1 d={data} facts={facts} derfor={derfor} />
       </div>
       <Blok2 d={data} />
-      {/* Blok 3 kommer i en senere etape — rækkefølgen er designets. */}
-      <Blok4 d={data} />
+      {/* Designets blok 3 (emnerne) venter på klassificeringen; pladsen har Planen. */}
+      <VirksomhedPlanen companyId={data.company.id} maal={data.milestones} skridt={data.skridt} samtaleId={samtaleId} onOpdateret={invalider} />
       <Blok5 d={data} facts={facts} />
+      <Blok4 d={data} />
       <Blok6
         d={data}
         facts={facts}
@@ -1970,7 +2043,7 @@ export const VirksomhedView = ({ companyId }: { companyId: string | undefined })
         onAabnHandout={kanAabneHandout ? setAktivtHandout : null}
         onOpdateret={invalider}
       />
-      <Blok7 d={data} onOpdateret={invalider} onFornyelseAendret={invaliderFornyelse} />
+      <Blok7 d={data} onOpdateret={invalider} onFornyelseAendret={invaliderFornyelse} startAaben={startAftaleAaben} />
       {/* Blok 8 (7/9): mails til virksomheden — EFTER Aftalen, som sidste
           blok. Designets syv blokke beholder deres rækkefølge; en log er
           opslag, ikke et signal, og den står lige under de stempler i
