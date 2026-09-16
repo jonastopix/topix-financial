@@ -44,6 +44,7 @@ import { HbSection } from "../HbSection";
 import { hasRichTextContent } from "@/lib/hjemmebane/richtext";
 import { fokusCtaHref } from "@/lib/hjemmebane/ankomst";
 import { isTrackedEntry, useAkademiData, type AkademiItem } from "../akademi/useAkademiData";
+import { afgoerForloeb, forloebslinje, type Forloebslinje } from "@/lib/hjemmebane/forloeb";
 import { HbVideoEmbed } from "../akademi/HbVideoEmbed";
 import { deriveFocus, filtrerUdloebneForslag, type FocusItem } from "./nextStep";
 import {
@@ -1248,14 +1249,20 @@ const FocusCard = ({
   loading,
   items,
   weeklySummary,
-  nextEntry,
+  linje,
   tom,
   onProevIgen,
 }: {
   loading: boolean;
   items: FocusItem[];
   weeklySummary: string | null;
-  nextEntry: AkademiItem | undefined;
+  /** Forløbslinjen (lib/hjemmebane/forloeb, 16/9): «Eller fortsæt dit
+      forløb: {continue}» når noget er midt i; ellers på næste urørte
+      «Eller fortsæt dit forløb: {next}» hvis hun har rørt en Akademi-video
+      (også kun gennemførte), og «Eller start i Akademiet: {next}» kun til
+      den der aldrig har begyndt; null når der hverken er continue eller
+      next — så vises intet. */
+  linje: Forloebslinje<AkademiItem> | null;
   /** Den tomme tilstand (lib/hjemmebane/fokusTom, 9/9): tre tilstande —
       aldrig uploadet, uploadet men ikke godkendt, godkendt (med
       anerkendelseslinjen). Aldrig «Alt er ajour» til en uden tal.
@@ -1407,12 +1414,12 @@ const FocusCard = ({
           )}
         </div>
       )}
-      {!loading && nextEntry && (
+      {!loading && linje && (
         <Link
-          to={`/akademiet/${nextEntry.item.area}/${nextEntry.item.slug}`}
+          to={linje.sti}
           className="mt-6 inline-block text-sm text-hb-ink-soft underline-offset-4 transition-colors hover:text-hb-ink hover:underline"
         >
-          Eller fortsæt dit forløb: {nextEntry.item.title}
+          {linje.tekst}
         </Link>
       )}
     </HbCard>
@@ -1601,17 +1608,18 @@ export const BoardroomView = () => {
     staleTime: 30 * 60_000,
   });
 
-  // Forløbs-linket — samme dom som Akademi-forsiden.
-  const nextEntry = useMemo(() => {
-    const inAkademi = (entry: AkademiItem) =>
-      AREAS.find((a) => a.key === entry.item.area)?.akademi === true;
-    return AREAS.filter((area) => area.akademi)
-      .flatMap((area) => akademi.orderedByArea.get(area.key) ?? [])
-      .find(
-        (entry) =>
-          isTrackedEntry(entry) && inAkademi(entry) && entry.drip.unlocked && entry.state !== "done",
-      );
-  }, [akademi.orderedByArea]);
+  // Forløbslinjen — samme dom som Akademi-forsiden, bogstaveligt: afgoerForloeb
+  // (lib/hjemmebane/forloeb.ts) er den funktion ForsideView kalder. FØR 16/9
+  // stod her en egen forenklet udgave (første ikke-gennemførte, «fortsæt»
+  // hardkodet), som sagde «fortsæt dit forløb» til en konto der aldrig var
+  // begyndt (fund 5). Nu følger teksten tilstanden; null = ingen linje.
+  const forloebsLinje = useMemo(
+    () =>
+      forloebslinje(
+        afgoerForloeb({ orderedByArea: akademi.orderedByArea, progressRows: akademi.progressRows, areas: AREAS }),
+      ),
+    [akademi.orderedByArea, akademi.progressRows],
+  );
 
   // ── Fokus-motorens inputs (kilderne arvet ordret fra ActionCenter) ──────
   const processedQuery = useQuery({
@@ -2140,7 +2148,7 @@ export const BoardroomView = () => {
           loading={focusLoading}
           items={focus}
           weeklySummary={weeklyFocusQuery.data?.summary ?? null}
-          nextEntry={nextEntry}
+          linje={forloebsLinje}
           tom={fokusTom}
           onProevIgen={proevIgen}
         />
