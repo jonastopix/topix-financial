@@ -1,5 +1,5 @@
 import React, { useState, useRef, useCallback } from "react";
-import { Pencil, Trash2 } from "lucide-react";
+import { Pencil, Trash2, CornerUpLeft } from "lucide-react";
 import {
   Drawer, DrawerContent, DrawerHeader, DrawerTitle,
 } from "@/components/ui/drawer";
@@ -18,6 +18,9 @@ interface Props {
   onEdit: () => void;
   onDelete: () => void;
   onReaction?: (emoji: string) => void;
+  /** «Svar» (16/9): sat af panen KUN når beskeden kan besvares
+      (lib/chatSvar.kanBesvares). Uden prop'en er skuffen som før. */
+  onReply?: () => void;
   /** variant="hb" (C4): Hjemmebane-udtrykket. Drawer- og alert-
       indholdet er PORTALER uden for .theme-hjemmebane-wrapperen —
       klassen sættes derfor på Content-elementerne selv. Slet er rust.
@@ -31,7 +34,7 @@ interface Props {
  * with edit/delete/reaction actions. Shows a visual scale pulse on hold.
  */
 const MobileMessageActionDrawer: React.FC<Props> = ({
-  canEdit, canDelete, onEdit, onDelete, onReaction, variant, children,
+  canEdit, canDelete, onEdit, onDelete, onReaction, onReply, variant, children,
 }) => {
   const hb = variant === "hb";
   const [open, setOpen] = useState(false);
@@ -40,7 +43,7 @@ const MobileMessageActionDrawer: React.FC<Props> = ({
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const moved = useRef(false);
 
-  const hasActions = canEdit || canDelete || !!onReaction;
+  const hasActions = canEdit || canDelete || !!onReaction || !!onReply;
 
   const clearTimer = useCallback(() => {
     if (timerRef.current) {
@@ -75,6 +78,11 @@ const MobileMessageActionDrawer: React.FC<Props> = ({
     setOpen(false);
     // Small delay so drawer closes before inline-edit opens
     setTimeout(onEdit, 150);
+  };
+
+  const handleReply = () => {
+    setOpen(false);
+    if (onReply) setTimeout(onReply, 150);
   };
 
   const handleDeleteRequest = () => {
@@ -122,6 +130,19 @@ const MobileMessageActionDrawer: React.FC<Props> = ({
             )}
             {/* Actions */}
             <div className="space-y-1">
+              {onReply && (
+                <button
+                  onClick={handleReply}
+                  className={
+                    hb
+                      ? "flex items-center gap-3 w-full px-4 py-3 rounded-lg text-sm font-medium text-hb-ink hover:bg-hb-sage/20 active:bg-hb-sage/20 transition-colors"
+                      : "flex items-center gap-3 w-full px-4 py-3 rounded-lg text-sm font-medium text-foreground hover:bg-secondary active:bg-secondary transition-colors"
+                  }
+                >
+                  <CornerUpLeft className={`h-4 w-4 ${hb ? "text-hb-ink-soft" : "text-muted-foreground"}`} />
+                  Svar
+                </button>
+              )}
               {canEdit && (
                 <button
                   onClick={handleEdit}

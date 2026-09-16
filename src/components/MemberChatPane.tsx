@@ -24,6 +24,8 @@ import {
   Building2, Loader2,
 } from "lucide-react";
 import ChatRichInput from "@/components/ChatRichInput";
+import { SvarCitat, SvarerPaaBanner } from "@/components/ChatSvarCitat";
+import { kanBesvares, svarUddrag } from "@/lib/chatSvar";
 import { HbButton } from "@/components/hjemmebane/HbButton";
 import { format, startOfDay } from "date-fns";
 import { da } from "date-fns/locale";
@@ -69,6 +71,8 @@ const MemberChatPane = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState("");
   const [sending, setSending] = useState(false);
+  // Svar på en besked (16/9, form A) — som CompanyChatPane: kun id'et sendes.
+  const [svarPaa, setSvarPaa] = useState<Message | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messageRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const messagesContainerRef = useRef<HTMLDivElement>(null);
@@ -264,17 +268,18 @@ const MemberChatPane = () => {
     // Company thread: existing logic
     const loadMessages = async () => {
       // Kun de 11 læste kolonner (alt undtagen edited_at — attachments bor i
-      // context_meta-jsonb'en og SKAL med), og et loft på 500: median er 26
+      // context_meta-jsonb'en og SKAL med) + svar_paa_id (16/9), og et loft på 500: median er 26
       // beskeder og max 89 i dag, så loftet ændrer intet i praksis. Hentes
       // nyeste-først og vendes, så en samtale over loftet viser de NYESTE
       // 500 — ikke de ældste (perf/chatpane-nyttelast).
       const { data } = await supabase
         .from("messages")
-        .select("id, conversation_id, sender_id, content, read_at, created_at, message_type, context_type, context_id, context_meta, pinned_at")
+        .select("id, conversation_id, sender_id, content, read_at, created_at, message_type, context_type, context_id, context_meta, pinned_at, svar_paa_id")
         .eq("conversation_id", activeConvId)
         .order("created_at", { ascending: false })
         .limit(500);
       setMessages((data || []).reverse());
+      setSvarPaa(null);
 
       if (user) {
         await supabase.rpc("mark_messages_read", { p_conversation_id: activeConvId });
@@ -393,17 +398,23 @@ const MemberChatPane = () => {
       if (contextMeta) {
         insertData.context_meta = contextMeta;
       }
+      // Svar på en besked: kun id'et. Databasen (protect_message_svar_paa)
+      // afviser en original i en anden samtale eller af forkert type.
+      if (svarPaa) {
+        insertData.svar_paa_id = svarPaa.id;
+      }
 
       const { data, error } = await supabase.from("messages").insert(insertData).select().single();
 
       if (!error && data) {
         setNewMessage("");
+        setSvarPaa(null);
         notifyChatMessage((data as any).id);
       }
     }
 
     setSending(false);
-  }, [activeConvId, user, conversations]);
+  }, [activeConvId, user, conversations, svarPaa]);
 
   const activeConv = conversations.find((c) => c.id === activeConvId);
 
@@ -429,6 +440,11 @@ const MemberChatPane = () => {
       setTimeout(() => el.classList.remove("ring-2", "ring-hb-evergreen/50"), 2000);
     }
   };
+
+  const startSvar = (msg: Message) => setSvarPaa(msg);
+
+  const navnFor = (senderId: string): string | null =>
+    participants.find(p => p.user_id === senderId)?.full_name ?? profilesMap.get(senderId)?.full_name ?? null;
 
   const handleBackToList = () => {
     setShowMessages(false);
@@ -734,6 +750,7 @@ const MemberChatPane = () => {
                                 canDelete={canDeleteCheck(msg.sender_id, msg.created_at)}
                                 onEdit={() => startEdit(msg.id, msg.content)}
                                 onDelete={() => handleDeleteMsg(msg.id)}
+                                onReply={kanBesvares(msg) ? () => startSvar(msg) : undefined}
                                 isMine={isMine}
                                 variant="hb"
                               />
@@ -746,8 +763,10 @@ const MemberChatPane = () => {
                               onEdit={() => startEdit(msg.id, msg.content)}
                               onDelete={() => handleDeleteMsg(msg.id)}
                               onReaction={(emoji) => toggleReaction(msg.id, emoji)}
+                              onReply={kanBesvares(msg) ? () => startSvar(msg) : undefined}
                               variant="hb"
                             >
+                              <SvarCitat svarPaaId={msg.svar_paa_id} beskeder={messages} navnFor={navnFor} onKlik={scrollToMessage} isMine={isMine} />
                               {topicInfo && (
                                 /* Emnefarverne (inkl. milestone-lilla) er off-token —
                                    i Hb er alle emne-chips sage/ink (HbTag-formen). */
@@ -801,6 +820,7 @@ const MemberChatPane = () => {
                             </MobileMessageActionDrawer>
                           ) : (
                             <>
+                              <SvarCitat svarPaaId={msg.svar_paa_id} beskeder={messages} navnFor={navnFor} onKlik={scrollToMessage} isMine={isMine} />
                               {topicInfo && (
                                 /* Emnefarverne (inkl. milestone-lilla) er off-token —
                                    i Hb er alle emne-chips sage/ink (HbTag-formen). */
@@ -898,6 +918,9 @@ const MemberChatPane = () => {
                   </div>
                 ) : (
                 <>
+                {svarPaa && (
+                  <SvarerPaaBanner navn={navnFor(svarPaa.sender_id)} uddrag={svarUddrag(svarPaa.content)} onFjern={() => setSvarPaa(null)} />
+                )}
                 <div className="flex gap-2 items-end">
                   <ChatRichInput
                     onSubmit={handleSend}

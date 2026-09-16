@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Pencil, Trash2, MoreVertical } from "lucide-react";
+import { Pencil, Trash2, MoreVertical, CornerUpLeft } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -22,6 +22,10 @@ interface Props {
   canDelete: boolean;
   onEdit: () => void;
   onDelete: () => void;
+  /** «Svar» (16/9): sat af panen KUN når beskeden kan besvares
+      (lib/chatSvar.kanBesvares — user, ikke session_prep). Uden prop'en
+      er menuen tegn-for-tegn som før. */
+  onReply?: () => void;
   isMine: boolean;
   /** variant="hb" (C4): Hjemmebane-udtrykket. Dropdown- og alert-
       indholdet er PORTALER uden for .theme-hjemmebane-wrapperen —
@@ -31,11 +35,11 @@ interface Props {
   variant?: "hb";
 }
 
-const MessageActionMenu: React.FC<Props> = ({ canEdit, canDelete, onEdit, onDelete, isMine, variant }) => {
+const MessageActionMenu: React.FC<Props> = ({ canEdit, canDelete, onEdit, onDelete, onReply, isMine, variant }) => {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const hb = variant === "hb";
 
-  if (!canEdit && !canDelete) return null;
+  if (!canEdit && !canDelete && !onReply) return null;
 
   return (
     <>
@@ -57,6 +61,12 @@ const MessageActionMenu: React.FC<Props> = ({ canEdit, canDelete, onEdit, onDele
           sideOffset={4}
           className={hb ? "theme-hjemmebane border-hb-line bg-hb-surface text-hb-ink" : undefined}
         >
+          {onReply && (
+            <DropdownMenuItem onClick={onReply} className={`gap-2 text-xs${hb ? " focus:bg-hb-sage/30 focus:text-hb-ink" : ""}`}>
+              <CornerUpLeft className="h-3.5 w-3.5" />
+              Svar
+            </DropdownMenuItem>
+          )}
           {canEdit && (
             <DropdownMenuItem onClick={onEdit} className={`gap-2 text-xs${hb ? " focus:bg-hb-sage/30 focus:text-hb-ink" : ""}`}>
               <Pencil className="h-3.5 w-3.5" />
