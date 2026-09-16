@@ -53,11 +53,13 @@ Deno.serve(async (req) => {
     return jsonResponse({ error: "Ugyldig JSON-body" }, 400);
   }
 
-  const { companyId, conversationId, titel, begrundelse } = (body ?? {}) as {
+  const { companyId, conversationId, titel, begrundelse, maalId } = (body ?? {}) as {
     companyId?: unknown;
     conversationId?: unknown;
     titel?: unknown;
     begrundelse?: unknown;
+    /** Fase 1 («Én plan»): valgfrit — det mål skridtet hører til. Obligatorisk først i fase 3. */
+    maalId?: unknown;
   };
   if (typeof companyId !== "string" || companyId.trim() === "") {
     return jsonResponse({ error: "Ugyldig companyId" }, 400);
@@ -70,6 +72,10 @@ Deno.serve(async (req) => {
     return jsonResponse({ error: titelDom.grund }, 400);
   }
   const context = normaliserBegrundelse(begrundelse);
+  if (maalId !== undefined && maalId !== null && (typeof maalId !== "string" || maalId.trim() === "")) {
+    return jsonResponse({ error: "Ugyldig maalId" }, 400);
+  }
+  const oensketMaalId = typeof maalId === "string" ? maalId.trim() : null;
 
   // ── 4. Virksomheden, med KALDERENS klient (RLS gater adgangen) ──
   const { data: virksomhed, error: virkErr } = await callerClient
@@ -167,6 +173,29 @@ Deno.serve(async (req) => {
     );
   }
 
+  // Fase 1: VÆRNET for målet — det skal findes, høre til SAMME virksomhed og
+  // være aktivt (parkerede og nåede mål får ingen skridt). Service role +
+  // company-filter er dommen; et mål fra en anden virksomhed ser ud som
+  // «findes ikke» (404), aldrig som et link på tværs.
+  if (oensketMaalId) {
+    const { data: maal, error: maalErr } = await adminClient
+      .from("milestones")
+      .select("id, status")
+      .eq("id", oensketMaalId)
+      .eq("company_id", companyId)
+      .maybeSingle();
+    if (maalErr) {
+      console.error("[foreslaa-opgave] mål-opslag fejlede:", maalErr);
+      return jsonResponse({ error: "Intern fejl" }, 500);
+    }
+    if (!maal) {
+      return jsonResponse({ error: "Målet findes ikke hos denne virksomhed" }, 404);
+    }
+    if ((maal as { status: string }).status !== "active") {
+      return jsonResponse({ error: "Målet er ikke aktivt — et skridt kan kun høre til et aktivt mål" }, 409);
+    }
+  }
+
   // Forslaget. B10: udløbsfristen for kilden 'advisor' er 30 dage —
   // reglen bor i _shared/opgaveUdloeb.ts (spejl af opgaveEngine.ts) og
   // hardcodes ALDRIG her.
@@ -182,6 +211,8 @@ Deno.serve(async (req) => {
       priority: "medium",
       proposed_by: callerId,
       expires_at: beregnUdloeb("advisor", new Date()).toISOString(),
+      // Fase 1: skridtets mål (NULL når rådgiveren ikke valgte et — fase 3 gør det obligatorisk).
+      maal_id: oensketMaalId,
     })
     .select("id")
     .single();

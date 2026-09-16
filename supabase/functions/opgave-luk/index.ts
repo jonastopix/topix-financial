@@ -9,10 +9,13 @@
 //   6. motoren dømmer — reglerne gentages IKKE her  7. først derefter
 //   service-role write med optimistisk lås på status.
 
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
+import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
 import { authenticateUser, corsHeaders } from "../_shared/edgeFunctionAuth.ts";
 import { luk, type SlutUdfald } from "../_shared/opgaveEngine.ts";
 import { OPGAVE_KOLONNER, radTilOpgave } from "../_shared/opgaveRad.ts";
+// Fase 1 («Én plan», 16/9): når et skridt under et mål lukkes, rykker
+// målets fremdrift — regnet af motoren, aldrig her.
+import { maalFremdrift, TAELLENDE_SKRIDT } from "../_shared/maal.ts";
 
 const KLIENT_UDFALD = ["done", "not_done", "dropped", "dismissed"] as const;
 
@@ -52,9 +55,11 @@ Deno.serve(async (req) => {
   }
 
   // ── 4. Opgaven, med KALDERENS klient (RLS gater company-medlemskab) ──
+  // maal_id (fase 1) læses MED, uden om motorens Opgave-form: motoren
+  // dømmer overgangen, målet er det der sker bagefter.
   const { data: rad, error: radErr } = await callerClient
     .from("company_actions")
-    .select(OPGAVE_KOLONNER)
+    .select(`${OPGAVE_KOLONNER}, maal_id`)
     .eq("id", opgaveId)
     .maybeSingle();
 
@@ -104,5 +109,59 @@ Deno.serve(async (req) => {
     return jsonResponse({ error: "Opgaven blev ændret i mellemtiden — genindlæs og prøv igen" }, 409);
   }
 
-  return jsonResponse({ ok: true, opgave: opdateret });
+  // ── 8. Målets fremdrift (fase 1) — EFTER lukningen, og aldrig i vejen for
+  //       den: skridtet ER lukket; fejler dette led, siges det i svaret og
+  //       loggen, ikke med en 500. progress_updated_at sættes af triggeren
+  //       milestone_progress_updated_at (20260407172908) når progress ændres.
+  const maalId = (rad as Record<string, unknown>).maal_id;
+  const maal = typeof maalId === "string" && maalId ? await rykMaalFremdrift(adminClient, maalId) : null;
+
+  return jsonResponse({ ok: true, opgave: opdateret, maal });
 });
+
+type MaalFremdriftResultat =
+  | { id: string; ok: true; progress: number; aendret: boolean }
+  | { id: string; ok: false; aarsag: string };
+
+/** Læser alle skridt under målet og målets nuværende fremdrift, lader
+    motoren regne, og skriver KUN hvis tallet er et andet. Status røres ikke
+    («nået» er et menneskes valg, fase 2). Kaster aldrig. */
+async function rykMaalFremdrift(
+  adminClient: SupabaseClient,
+  maalId: string,
+): Promise<MaalFremdriftResultat> {
+  const praefiks = `[opgave-luk] fremdrift på mål ${maalId}`;
+  try {
+    const { data: skridt, error: skridtErr } = await adminClient
+      .from("company_actions")
+      .select("status")
+      .eq("maal_id", maalId)
+      .in("status", [...TAELLENDE_SKRIDT]);
+    if (skridtErr) throw new Error(`skridt-opslag fejlede: ${skridtErr.message}`);
+
+    const { data: raekke, error: maalErr } = await adminClient
+      .from("milestones")
+      .select("id, progress")
+      .eq("id", maalId)
+      .maybeSingle();
+    if (maalErr) throw new Error(`mål-opslag fejlede: ${maalErr.message}`);
+    if (!raekke) throw new Error("målet findes ikke (slettet — skridtets maal_id er sat til NULL af FK'en)");
+
+    const nuvaerende = (raekke as { progress: number | null }).progress;
+    const ny = maalFremdrift((skridt ?? []) as { status: string }[], nuvaerende);
+    if (ny === (nuvaerende ?? 0)) {
+      return { id: maalId, ok: true, progress: ny, aendret: false };
+    }
+    const { error: updErr } = await adminClient
+      .from("milestones")
+      .update({ progress: ny })
+      .eq("id", maalId);
+    if (updErr) throw new Error(`mål-skrivning fejlede: ${updErr.message}`);
+    console.log(`${praefiks}: ${nuvaerende ?? 0} → ${ny} (${(skridt ?? []).length} tællende skridt)`);
+    return { id: maalId, ok: true, progress: ny, aendret: true };
+  } catch (err) {
+    const aarsag = err instanceof Error ? err.message : String(err);
+    console.error(`${praefiks}: rykkede ikke — ${aarsag}. Skridtet er lukket; fremdriften regnes igen ved næste lukning.`);
+    return { id: maalId, ok: false, aarsag };
+  }
+}
