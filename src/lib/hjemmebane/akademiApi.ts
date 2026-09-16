@@ -25,7 +25,10 @@ import type {
     null — det er ikke sket. Dommen i itemProgressState læser felterne
     som sandhedsværdi, ikke `!== null`, så en række hentet uden en
     kolonne dømmes som en række med en tom kolonne. Samme for
-    last_position_seconds: fraværende = ingen gemt position. */
+    last_position_seconds: fraværende = ingen gemt position.
+    brugbar/brugbar_at (migration 20260916100000, «Kunne du bruge den?»):
+    samme regel — fraværende = null = ikke besvaret. Dommen for om der
+    skal spørges bor i lektionBrugbar.ts; ProgressPatch bærer dem IKKE. */
 export type MemberProgress = {
   id: string;
   user_id: string;
@@ -34,6 +37,8 @@ export type MemberProgress = {
   acknowledged_at?: string | null;
   skipped_at?: string | null;
   last_position_seconds?: number | null;
+  brugbar?: boolean | null;
+  brugbar_at?: string | null;
   created_at: string;
   updated_at: string;
 };
