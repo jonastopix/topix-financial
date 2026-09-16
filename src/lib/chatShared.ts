@@ -31,6 +31,10 @@ export interface Message {
   context_id?: string | null;
   context_meta?: any;
   pinned_at?: string | null;
+  /** Svar på en konkret besked (16/9, form A): originalens id i samme
+      samtale, eller null. Citatet følger originalen — lib/chatSvar.ts.
+      Hentes af begge paner (select-listen) og bæres af realtime-payloaden. */
+  svar_paa_id?: string | null;
 }
 
 export interface ConversationWithProfile {

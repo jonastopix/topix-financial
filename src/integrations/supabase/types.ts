@@ -2542,6 +2542,7 @@ export type Database = {
           pinned_at: string | null
           read_at: string | null
           sender_id: string
+          svar_paa_id: string | null
         }
         Insert: {
           content: string
@@ -2556,6 +2557,7 @@ export type Database = {
           pinned_at?: string | null
           read_at?: string | null
           sender_id: string
+          svar_paa_id?: string | null
         }
         Update: {
           content?: string
@@ -2570,6 +2572,7 @@ export type Database = {
           pinned_at?: string | null
           read_at?: string | null
           sender_id?: string
+          svar_paa_id?: string | null
         }
         Relationships: [
           {
