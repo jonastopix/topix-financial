@@ -21,6 +21,7 @@ import {
   type ItemProgressState,
 } from "@/lib/hjemmebane/akademiApi";
 import { brugbarLinje, optaelBrugbarPrLektion, udelukFraBrugbar } from "@/lib/hjemmebane/lektionBrugbar";
+import { detaljeTilstand } from "@/lib/hjemmebane/fremdriftDetalje";
 import { kraevRaekker } from "@/lib/kraevRaekker";
 import { raadgiverHentefejlTekst } from "@/lib/raadgiverHentefejl";
 import { supabase } from "@/integrations/supabase/client";
@@ -286,6 +287,16 @@ export const ProgressView = () => {
   const selectedMember = members.find((m) => m.userId === selectedUserId);
   const loading =
     membersQuery.isLoading || collectionsQuery.isLoading || itemsQuery.isLoading || progressQuery.isLoading;
+  // Medlemsdetaljens dom (16/9, fremdriftDetalje.ts): fejler lektionerne,
+  // samlingerne eller fremdriften, vises husets fejltekst — aldrig «0 af 0
+  // videoer gennemført». Mens der hentes: «Henter…». Tallet og listen med
+  // markeringsknapperne findes kun ved «klar».
+  const detalje = detaljeTilstand({
+    lektioner: itemsQuery,
+    samlinger: collectionsQuery,
+    fremdrift: progressQuery,
+    publiceredeLektioner: publishedIds.length,
+  });
 
   const memberRow = (member: AdminMember) => {
     const active = member.userId === selectedUserId;
@@ -329,13 +340,24 @@ export const ProgressView = () => {
             {selectedMember.name}
           </h2>
           <p className="mt-1.5 text-sm text-hb-ink-soft">
-            {[selectedMember.companyName, `${doneCount(selectedMember.userId)} af ${trackedItems.length} videoer gennemført`]
+            {[
+              selectedMember.companyName,
+              detalje.art === "klar" ? `${doneCount(selectedMember.userId)} af ${trackedItems.length} videoer gennemført` : null,
+            ]
               .filter(Boolean)
               .join(" · ")}
           </p>
 
           {error && <p className="mt-4 text-sm text-hb-rust">{error}</p>}
 
+          {/* Hentefejl før tallet og listen (16/9): fejlet og «intet set» må
+              ikke se ens ud, og knapperne må ikke kunne bruges på en liste
+              der ikke er hentet. Skrivefejlen ovenfor står som før. */}
+          {detalje.art === "fejl" ? (
+            <p className="mt-4 text-sm text-hb-rust">{raadgiverHentefejlTekst(detalje.error, "listen")}</p>
+          ) : detalje.art === "henter" ? (
+            <p className="mt-4 text-sm text-hb-ink-soft">Henter…</p>
+          ) : (
           <div className="mt-8 space-y-10">
             {areaBlocks.map((block) => (
               <section key={block.areaKey}>
@@ -411,6 +433,7 @@ export const ProgressView = () => {
               </section>
             ))}
           </div>
+          )}
         </div>
       </div>
     </div>
