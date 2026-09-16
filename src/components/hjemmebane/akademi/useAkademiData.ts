@@ -17,6 +17,7 @@ import {
 } from "@/lib/hjemmebane/akademiApi";
 import { brugbarPatch, patchBrugbarIRaekker } from "@/lib/hjemmebane/lektionBrugbar";
 import { dripState, effectiveDrip, type DripState } from "@/lib/hjemmebane/drip";
+import { erSporetVideo } from "@/lib/hjemmebane/forloeb";
 
 export interface AkademiItem {
   item: ContentItem;
@@ -216,9 +217,11 @@ export function useAkademiData() {
 /** Model B1-video (BACKLOG-beslutningsnote 2026-08-04): fremdrift spores KUN
     på video-items — øvrige items er bibliotek uden sporings-UI. Kræver både
     bunny-provider OG et faktisk video-ID (ét prædikat, delt af alle views —
-    inkl. advisor-fremdriftsværktøjet via isTrackedItem). */
+    inkl. advisor-fremdriftsværktøjet via isTrackedItem). Reglen BOR i
+    lib/hjemmebane/forloeb.ts (erSporetVideo, 16/9) — forløbsdommen er ren
+    og kan ikke importere herfra; de to holdes ens af paritetstesten. */
 export function isTrackedItem(item: ContentItem): boolean {
-  return item.media_provider === "bunny" && Boolean(item.bunny_video_id);
+  return erSporetVideo(item);
 }
 
 export function isTrackedEntry(entry: AkademiItem): boolean {

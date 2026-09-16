@@ -6,8 +6,9 @@ import { formatDuration } from "@/components/hjemmebane/admin/editors/shared";
 import { HbCard } from "@/components/hjemmebane/HbCard";
 import { HbButton } from "@/components/hjemmebane/HbButton";
 import { HbProgressBar } from "../HbProgressBar";
-import { isTrackedEntry, progressSummary, useAkademiData, type AkademiItem } from "../useAkademiData";
+import { progressSummary, useAkademiData, type AkademiItem } from "../useAkademiData";
 import { sektionsfejlTekst } from "@/lib/hjemmebane/hentefejl";
+import { afgoerForloeb } from "@/lib/hjemmebane/forloeb";
 
 /** Forsidens store genoptagelses-kort — forsiden ER genoptagelsen. */
 const ContinueCard = ({ entry }: { entry: AkademiItem }) => {
@@ -79,34 +80,15 @@ export const ForsideView = () => {
     return <p className="text-sm text-hb-ink-soft">{sektionsfejlTekst("akademiet")} Prøv igen om lidt.</p>;
   }
 
-  // Kun forløbsområder — et push-item m. bunny-medie må aldrig blive
-  // "fortsæt"/"næste" (dets element-side findes ikke i Akademiet).
-  const inAkademi = (entry: { item: { area: string } }) =>
-    AREAS.find((a) => a.key === entry.item.area)?.akademi === true;
-
-  // Model B1-video: fortsæt/næste peger kun på video-items — bibliotek
-  // (tekst/dokumenter) bærer ingen fremdrift og skal ikke "genoptages".
-  // Seneste påbegyndte video (nyeste progress-aktivitet, ulåst, ikke gennemført).
-  const continueEntry = [...data.progressRows]
-    .sort((a, b) => b.updated_at.localeCompare(a.updated_at))
-    .map((row) => data.byId.get(row.content_item_id))
-    .find(
-      (entry) =>
-        entry && isTrackedEntry(entry) && inAkademi(entry) && entry.drip.unlocked && entry.state !== "done",
-    );
-
-  // Første urørte video i forløbsrækkefølgen (områdernes rækkefølge).
-  const nextEntry = AREAS.filter((area) => area.akademi)
-    .flatMap((area) => data.orderedByArea.get(area.key) ?? [])
-    .find(
-      (entry) =>
-        isTrackedEntry(entry) &&
-        entry.drip.unlocked &&
-        entry.state === "untouched" &&
-        entry.item.id !== continueEntry?.item.id,
-    );
-
-  const started = Boolean(continueEntry);
+  // Dommen bor i lib/hjemmebane/forloeb.ts (16/9) — ordret flyttet herfra,
+  // delt med forsidens fokuskort: continue = seneste påbegyndte video
+  // (ulåst, ikke gennemført, kun Akademi-områder), next = første urørte i
+  // forløbsrækkefølgen, started = om noget er begyndt.
+  const { continueEntry, nextEntry, started } = afgoerForloeb({
+    orderedByArea: data.orderedByArea,
+    progressRows: data.progressRows,
+    areas: AREAS,
+  });
 
   return (
     <div>
