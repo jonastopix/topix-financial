@@ -129,7 +129,7 @@ Deno.test("dag 0: subject, tiltale, knap, frist og faktura-konsekvens", () => {
   assertStringIncludes(m.html, "vælg, om du vil betale på én gang eller fordelt over flere rater");
   assertStringIncludes(m.html, ">Gå til betaling</a>");
   assertStringIncludes(m.html, `href="${URL}"`);
-  assertStringIncludes(m.html, "Har du ikke betalt inden 2. oktober 2026, sender vi automatisk en faktura på det fulde beløb.");
+  assertStringIncludes(m.html, "Har du ikke betalt inden 2. oktober 2026, sender vi automatisk en faktura på det fulde beløb, 50.000 kr. ekskl. moms.");
   assertStringIncludes(m.html, "Jeg glæder mig til at komme i gang sammen med dig.");
   assertStringIncludes(m.html, "Venlig hilsen<br>Morten Larsen");
 });
@@ -159,7 +159,7 @@ Deno.test("dag 31: subject, beløb, Stripe — og INGEN knap", () => {
   const m = dag31Mail({ fornavn: "Lisbeth", beloebKr: 40000 });
   assertEquals(m.subject, "Din faktura til The Boardroom");
   assertStringIncludes(m.html, "Hej Lisbeth,");
-  assertStringIncludes(m.html, "har vi sendt dig en faktura på 40.000 kr. Du finder den i en separat mail fra Stripe.");
+  assertStringIncludes(m.html, "har vi sendt dig en faktura på 40.000 kr. ekskl. moms. Du finder den i en separat mail fra Stripe.");
   assertStringIncludes(m.html, "Din plads står stadig klar — betal fakturaen, så åbner vi din adgang.");
   assertStringIncludes(m.html, "Er der noget vi skal tale om, så skriv til kontakt@theboardroom.dk. Vi tager den gerne.");
   assertIkkeIndeholder(m.html, "<v:roundrect");
