@@ -33,8 +33,10 @@ const corsHeaders = {
 const SENDER = SENDER_FROM;
 const SENDER_DOMAIN = FROM_DOMAIN;
 
-/** Fallbacken: husets mail med {{company_name}} og {{signup_url}} som pladsholdere — udfyldes nedenfor som DB-skabelonen. */
-const FALLBACK = invitationsMailSkabelon();
+/** Fallbacken: husets mail med {{company_name}} og {{signup_url}} som pladsholdere — udfyldes nedenfor som DB-skabelonen.
+    To udgaver (16/9): med «Tak for din betaling.» kun når kalderen siger efter_betaling: true. */
+const FALLBACK_EFTER_BETALING = invitationsMailSkabelon(true);
+const FALLBACK_UDEN_BETALING = invitationsMailSkabelon(false);
 
 function resolveSenderFromTemplate(senderName: string | null | undefined, senderEmail: string | null | undefined): string {
   const safeName = (senderName ?? 'The Boardroom').trim() || 'The Boardroom';
@@ -81,6 +83,13 @@ Deno.serve(async (req) => {
     let email: string;
     let company_name: string;
     let signup_url: string;
+
+    // efter_betaling (16/9): kun et service-role-kald kan sige at der ER
+    // betalt (sikrIndgangsInvitation efter Stripe). Default er FALSK, og
+    // JWT-kald (rådgiverens Gensend/Inviter, medlemmets «Teamet») er altid
+    // falsk: en usand tak («Tak for din betaling» til en der intet har
+    // betalt — set 16/9 på importvejen) er værre end en manglende.
+    const efterBetaling = isServiceRole && body?.efter_betaling === true;
 
     if (isServiceRole) {
       if (!body?.company_name || !body?.signup_url) {
@@ -152,8 +161,9 @@ Deno.serve(async (req) => {
       console.warn(skabelonvalgLogtekst(valg));
     }
 
-    let subjectTpl = FALLBACK.subject;
-    let bodyTpl = FALLBACK.html;
+    const fallback = efterBetaling ? FALLBACK_EFTER_BETALING : FALLBACK_UDEN_BETALING;
+    let subjectTpl = fallback.subject;
+    let bodyTpl = fallback.html;
     let senderFrom = SENDER;
     if (valg.vej === 'skabelon') {
       subjectTpl = valg.raekke.subject;
