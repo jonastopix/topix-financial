@@ -24,6 +24,7 @@ import {
   MASSE_TEKST,
   opsummer,
   periodeNoegleAf,
+  ALLE_SKABELONVALG,
   SKABELON_GRUPPER,
   skabelonAf,
   talTekst,
@@ -95,7 +96,7 @@ export const GenkoerRapporterView = () => {
   const queryClient = useQueryClient();
   const [valgteVirksomheder, setValgteVirksomheder] = useState<Set<string>>(new Set());
   const [soeg, setSoeg] = useState("");
-  const [skabeloner, setSkabeloner] = useState<Set<string>>(new Set(SKABELON_GRUPPER.map((g) => g.skabelon)));
+  const [skabeloner, setSkabeloner] = useState<Set<string>>(new Set(ALLE_SKABELONVALG));
   const [medManuelle, setMedManuelle] = useState(false);
   const [rapporter, setRapporter] = useState<RapportTilMasse[] | null>(null);
   const [henter, setHenter] = useState(false);

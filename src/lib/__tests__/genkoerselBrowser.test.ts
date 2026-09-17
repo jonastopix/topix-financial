@@ -4,6 +4,10 @@ import {
   afgoerGodkendelse,
   afgoerMasseGenkoersel,
   filtypeAf,
+  ALLE_SKABELONVALG,
+  ANDET_SKABELON,
+  SKABELON_GRUPPER,
+  erSkabelonValgt,
   gruppeAf,
   HOLD_LOFT,
   koerselsRaekkefoelge,
@@ -35,7 +39,12 @@ describe("skabelon, gruppe, filtype, periodenøgle", () => {
     expect(skabelonAf(raekke({ template_id: null, extraction_method: "ai_extraction" }))).toBe("ai_extraction");
     expect(gruppeAf(raekke())).toBe("b");
     expect(gruppeAf(raekke({ template_id: "DK_ECONOMIC_SALDOBALANCE_XLSX_V1" }))).toBe("a");
-    expect(gruppeAf(raekke({ template_id: "DK_DINERO_RESULTATOPGOERELSE_V1" }))).toBe("oevrige");
+    // 17/9 22:21: Dinero-CSV'en er gruppe g (før «oevrige» → «fravalgt_skabelon» uanset kryds); en ukendt skabelon er «andet».
+    expect(gruppeAf(raekke({ template_id: "DK_DINERO_RESULTATOPGOERELSE_V1" }))).toBe("g");
+    expect(gruppeAf(raekke({ template_id: "DK_ECONOMIC_RESULTATOPGOERELSE_XLSX_V1" }))).toBe("e");
+    expect(gruppeAf(raekke({ template_id: "DK_MAMUT_SALDO_XLSX_V1" }))).toBe("j");
+    expect(gruppeAf(raekke({ template_id: null, routing_template_id: null, extraction_method: "legacy_ocr" }))).toBe("andet");
+    expect(gruppeAf(raekke({ template_id: ANDET_SKABELON }))).toBe("andet"); // filter-id'et selv er ingen skabelon
   });
   it("filtypen på navnet", () => {
     expect(filtypeAf("a.PDF")).toBe("pdf"); expect(filtypeAf("a.xls")).toBe("xlsx"); expect(filtypeAf("a.csv")).toBe("csv"); expect(filtypeAf(null)).toBe("ukendt");
@@ -77,6 +86,41 @@ describe("afgoerMasseGenkoersel — rækkefølgen er bevidst", () => {
   it("det der gør kørslen FORKERT (manuel, ejerskab) dømmes før det der gør den UMULIG (fil)", () => {
     expect(afgoerMasseGenkoersel(raekke({ manual_override_status: "applied", file_path: null }), alle).grund).toBe("manuel_anvendt");
     expect(afgoerMasseGenkoersel(raekke({ periode_ejes_af: "r9", file_path: null }), alle).grund).toBe("periode_ejes_af_anden");
+  });
+});
+
+describe("filteret (17/9 22:21) — alle registrerede skabeloner kan vælges; en ukendt falder i «andet» og kan vælges dér", () => {
+  const registrerede = SKABELON_GRUPPER.filter((g) => g.skabelon !== ANDET_SKABELON).map((g) => g.skabelon);
+  it("hver skabelon i listen er OK med alle kryds sat — ingen «fravalgt_skabelon» (ANLA GLAS' 15 e-conomic-XLSX'er)", () => {
+    for (const skabelon of registrerede) {
+      const d = afgoerMasseGenkoersel(raekke({ template_id: skabelon }), { skabeloner: ALLE_SKABELONVALG, medManuelle: false });
+      expect(d.grund, skabelon).toBe("ok");
+      expect(d.gruppe, skabelon).not.toBe("andet");
+    }
+    expect(registrerede.length).toBeGreaterThanOrEqual(12);
+    expect(new Set(SKABELON_GRUPPER.map((g) => g.gruppe)).size).toBe(SKABELON_GRUPPER.length); // én gruppe pr. skabelon
+  });
+  it("en ukendt skabelon er «andet»: valgt når «Andet» er krydset af, fravalgt når det ikke er — den forsvinder ikke", () => {
+    const ukendt = raekke({ template_id: "DK_NOGET_NYT_V9" });
+    expect(afgoerMasseGenkoersel(ukendt, { skabeloner: ALLE_SKABELONVALG, medManuelle: false }).grund).toBe("ok");
+    const udenAndet = new Set([...ALLE_SKABELONVALG].filter((s) => s !== ANDET_SKABELON));
+    expect(afgoerMasseGenkoersel(ukendt, { skabeloner: udenAndet, medManuelle: false }).grund).toBe("fravalgt_skabelon");
+    expect(afgoerMasseGenkoersel(ukendt, { skabeloner: null, medManuelle: false }).grund).toBe("ok");
+    expect(erSkabelonValgt("DK_NOGET_NYT_V9", "andet", new Set([ANDET_SKABELON]))).toBe(true);
+    expect(erSkabelonValgt("DK_MAMUT_SALDO_XLSX_V1", "j", new Set([ANDET_SKABELON]))).toBe(false);
+  });
+  it("kun én skabelon valgt: de andre er fravalgt — som før", () => {
+    expect(afgoerMasseGenkoersel(raekke({ template_id: "DK_MAMUT_SALDO_XLSX_V1" }), { skabeloner: new Set(["DK_MAMUT_SALDO_XLSX_V1"]), medManuelle: false }).grund).toBe("ok");
+    expect(afgoerMasseGenkoersel(raekke(), { skabeloner: new Set(["DK_MAMUT_SALDO_XLSX_V1"]), medManuelle: false }).grund).toBe("fravalgt_skabelon");
+  });
+  it("rækkefølgen følger listens orden a → l → andet", () => {
+    const r = koerselsRaekkefoelge([
+      raekke({ id: "andet", template_id: null, routing_template_id: null, extraction_method: "legacy_ocr" }),
+      raekke({ id: "mamut", template_id: "DK_MAMUT_SALDO_XLSX_V1" }),
+      raekke({ id: "xlsx-pnl", template_id: "DK_ECONOMIC_RESULTATOPGOERELSE_XLSX_V1" }),
+      raekke({ id: "pdf-pnl" }),
+    ]);
+    expect(r.map((x) => x.id)).toEqual(["pdf-pnl", "xlsx-pnl", "mamut", "andet"]);
   });
 });
 

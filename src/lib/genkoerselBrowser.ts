@@ -51,7 +51,21 @@ export interface RapportTilMasse {
 
 // ── Skabelonen og grunden (genkør-planens §1) ──
 
-export type Skabelonsgruppe = "a" | "b" | "c" | "d" | "oevrige";
+/**
+ * Skabelongrupperne — ALLE registrerede skabeloner (templateRegistry.TEMPLATE_REGISTRY) + AI-vejen + «Andet».
+ *
+ * RETTET 17/9-2026 22:21 (målt i drift, ANLA GLAS: 15 af 20 rapporter «Skabelonen er ikke valgt i filteret»
+ * med alle kryds sat): listen kendte kun fire skabeloner, og alt andet — DK_ECONOMIC_RESULTATOPGOERELSE_XLSX_V1,
+ * combined, Dinero, generic og de tre nye fra #980 — faldt i «oevrige» og dermed i «fravalgt_skabelon», fordi
+ * filteret er et sæt af skabelon-id'er og fladen kun kunne krydse de fire af. Nu står hver registreret
+ * skabelon her med sin gruppe (a … l), og en rapport uden kendt skabelon hører til «andet», som kan vælges
+ * som enhver anden (ANDET_SKABELON er dens id i filteret) — den forsvinder ikke.
+ *
+ * Registeret kan ikke importeres i browseren (templateRegistry trækker npm:xlsx ind), så listen er skrevet af
+ * — og kildeværnet genkoerselFilter.guard.test.ts læser TEMPLATE_REGISTRY og hver skabelons template_id og
+ * FEJLER, hvis registeret får en skabelon der ikke står her. Hullet kan ikke opstå igen i stilhed.
+ */
+export type Skabelonsgruppe = "a" | "b" | "c" | "d" | "e" | "f" | "g" | "h" | "i" | "j" | "k" | "l" | "andet";
 
 export interface SkabelonValg {
   gruppe: Skabelonsgruppe;
@@ -60,12 +74,27 @@ export interface SkabelonValg {
   grund: string;
 }
 
+/** Filter-id'et for rapporter hvis skabelon ikke står i listen (ukendt template_id, gamle extraction_methods). */
+export const ANDET_SKABELON = "__andet__";
+
 export const SKABELON_GRUPPER: readonly SkabelonValg[] = [
-  { gruppe: "a", skabelon: "DK_ECONOMIC_SALDOBALANCE_XLSX_V1", label: "e-conomic saldobalance (XLSX)", grund: "fortegn og grupper (#971)" },
+  { gruppe: "a", skabelon: "DK_ECONOMIC_SALDOBALANCE_XLSX_V1", label: "e-conomic saldobalance (XLSX)", grund: "fortegn og grupper (#971), kolonnerne (#978)" },
   { gruppe: "b", skabelon: "DK_ECONOMIC_RESULTATOPGOERELSE_PDF_V1", label: "e-conomic resultatopgørelse (PDF)", grund: "admin, renter, periodens resultat (A/A2)" },
   { gruppe: "c", skabelon: "DK_ECONOMIC_SALDOBALANCE_PDF_V1", label: "e-conomic saldobalance (PDF)", grund: "lokaler, autodrift, renter (A)" },
   { gruppe: "d", skabelon: "ai_extraction", label: "AI-læst resultatopgørelse", grund: "fortegnet krydstjekkes (C)" },
+  { gruppe: "e", skabelon: "DK_ECONOMIC_RESULTATOPGOERELSE_XLSX_V1", label: "e-conomic resultatopgørelse (XLSX)", grund: "finansielle indtægter, øvrige omkostninger (#976)" },
+  { gruppe: "f", skabelon: "DK_COMBINED_BALANCE_PNL_V1", label: "kombineret balance/resultat (XLSX)", grund: "finansielle indtægter, øvrige omkostninger (#976)" },
+  { gruppe: "g", skabelon: "DK_DINERO_RESULTATOPGOERELSE_V1", label: "Dinero resultatopgørelse (CSV)", grund: "kontogrupper, kontrolsum (#976)" },
+  { gruppe: "h", skabelon: "DK_DINERO_RESULTATOPGOERELSE_PDF_V1", label: "Dinero resultatopgørelse (PDF)", grund: "kontogrupper, kontrolsum (#976)" },
+  { gruppe: "i", skabelon: "DK_GENERIC_RESULTATOPGOERELSE_PDF_V1", label: "generisk resultatopgørelse (PDF)", grund: "kontogrupper, kontrolsum (#976)" },
+  { gruppe: "j", skabelon: "DK_MAMUT_SALDO_XLSX_V1", label: "Mamut/C5-saldoliste (XLSX)", grund: "ny skabelon (#980) — ANLA GLAS" },
+  { gruppe: "k", skabelon: "DK_ECONOMIC_BALANCERAPPORT_PDF_V1", label: "e-conomic balancerapport (PDF)", grund: "ny skabelon (#980) — Warburg" },
+  { gruppe: "l", skabelon: "DK_ETIKET_RESULTAT_BALANCE_CSV_V1", label: "etiket;beløb-CSV", grund: "ny skabelon (#980) — BR Roset" },
+  { gruppe: "andet", skabelon: ANDET_SKABELON, label: "Andet / ukendt skabelon", grund: "rapporter uden kendt skabelon — kan vælges, forsvinder ikke" },
 ];
+
+/** Skabelon-id'erne fladen kan krydse af (inkl. «Andet») — startværdien for filteret er dem alle. */
+export const ALLE_SKABELONVALG: ReadonlySet<string> = new Set(SKABELON_GRUPPER.map((g) => g.skabelon));
 
 /** Skabelonen som reconen læser den: template_id → routing_trace → extraction_method. */
 export function skabelonAf(r: Pick<RapportTilMasse, "template_id" | "routing_template_id" | "extraction_method">): string {
@@ -74,7 +103,14 @@ export function skabelonAf(r: Pick<RapportTilMasse, "template_id" | "routing_tem
 
 export function gruppeAf(r: Pick<RapportTilMasse, "template_id" | "routing_template_id" | "extraction_method">): Skabelonsgruppe {
   const s = skabelonAf(r);
-  return SKABELON_GRUPPER.find((g) => g.skabelon === s)?.gruppe ?? "oevrige";
+  return SKABELON_GRUPPER.find((g) => g.skabelon === s && g.skabelon !== ANDET_SKABELON)?.gruppe ?? "andet";
+}
+
+/** Er skabelonen valgt i filteret? En ukendt skabelon er valgt når «Andet» er krydset af. null-filter = alle. */
+export function erSkabelonValgt(skabelon: string, gruppe: Skabelonsgruppe, valgte: ReadonlySet<string> | null): boolean {
+  if (!valgte) return true;
+  if (gruppe === "andet") return valgte.has(ANDET_SKABELON);
+  return valgte.has(skabelon);
 }
 
 // ── Periodenøglen «September 2026» → «2026-09» (spejl af parse_dk_report_period_key i SQL, kun til listen;
@@ -167,7 +203,7 @@ export function afgoerMasseGenkoersel(r: RapportTilMasse, valg: MasseValg): Mass
   if (!r.file_path) return dom("ingen_fil");
   if (erLegacySti(r.file_path)) return dom("legacy_sti");
   if (filtype === "ukendt") return dom("ukendt_filtype");
-  if (valg.skabeloner && !valg.skabeloner.has(skabelon)) return dom("fravalgt_skabelon");
+  if (!erSkabelonValgt(skabelon, gruppe, valg.skabeloner)) return dom("fravalgt_skabelon");
   return dom("ok");
 }
 
@@ -264,9 +300,9 @@ export function opsummer(resultater: readonly Resultat[]): { genlaest: number; f
   };
 }
 
-/** Kørselsrækkefølgen: godkendte først (de viser forkerte tal i dag), dernæst gruppe a → d, dernæst periode. */
+/** Kørselsrækkefølgen: godkendte først (de viser forkerte tal i dag), dernæst gruppe a → l → andet (listens orden), dernæst periode. */
 export function koerselsRaekkefoelge(rapporter: readonly RapportTilMasse[]): RapportTilMasse[] {
-  const rang: Record<Skabelonsgruppe, number> = { a: 0, b: 1, c: 2, d: 3, oevrige: 4 };
+  const rang: Record<string, number> = Object.fromEntries(SKABELON_GRUPPER.map((g, i) => [g.gruppe, i]));
   return [...rapporter].sort((x, y) => {
     const gx = x.facts_period_key ? 0 : 1;
     const gy = y.facts_period_key ? 0 : 1;
