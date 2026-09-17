@@ -23,6 +23,8 @@ export interface DeterministicMeta {
   column_basis_rule?: "single" | "mixed";
 }
 
+import type { Kontrolsum } from "./omkostningsnoegler.ts";
+
 // ── Canonical Metrics (English names, all nullable) ──
 export interface CanonicalMetrics {
   revenue: number | null;
@@ -159,6 +161,11 @@ export interface CanonicalOutput {
 
   ai_eligible: boolean;
   ai_eligible_payload: AiEligiblePayload | null;
+
+  /** Kontrolsummen (17/9-2026): ÉT tal — hvor meget af resultatet er ikke dækket af grupperne
+      (omkostningsnoegler.kontrolsum på metrics). null uden resultat eller omsætning. Kopieres til
+      financial_reports.quality_signals.udaekket af extract-financial-data. */
+  kontrolsum: Kontrolsum | null;
   
   // Phase 4: Deterministic metadata (only present for deterministic extraction)
   deterministic_meta?: DeterministicMeta | null;

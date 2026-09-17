@@ -68,7 +68,9 @@ describe("Fjeldgaardshop 2026-01 (rigtig: ebt 25.873,21 = regnet 25.873)", () =>
   const m = maaned(53329.369999999995, 36590.28999999999, null, 25873.209999999992, 25873);
   it("alle tre PASS — ingen advarsler", () => {
     const a = rimelighedstjek(m, "trial_balance");
-    expect(a.map((x) => [x.name, x.result])).toEqual([["ebt_reconciles", "PASS"], ["result_vs_revenue", "PASS"], ["magnitude_plausibility", "PASS"]]);
+    // Kontrolsummen (17/9-2026) er det fjerde tjek — gammel forventning ordret:
+    // expect(a.map((x) => [x.name, x.result])).toEqual([["ebt_reconciles", "PASS"], ["result_vs_revenue", "PASS"], ["magnitude_plausibility", "PASS"]]);
+    expect(a.map((x) => [x.name, x.result])).toEqual([["ebt_reconciles", "PASS"], ["result_vs_revenue", "PASS"], ["magnitude_plausibility", "PASS"], ["resultat_udaekket", "PASS"]]);
     expect(rimelighedAdvarsler(m, "trial_balance")).toEqual([]);
   });
 });
@@ -149,7 +151,8 @@ describe("kanter", () => {
   it("balance-rapport: alt SKIP; uden revenue: to SKIP; uden opex: ebt_reconciles SKIP", () => {
     expect(rimelighedstjek({ revenue: 100, ebt: 10 }, "balance").every((x) => x.result === "SKIP")).toBe(true);
     const u = rimelighedstjek({ gross_profit: 100, payroll: 50, ebt: 50 }, "pnl");
-    expect(u.map((x) => x.result)).toEqual(["PASS", "SKIP", "SKIP"]);
+    // fjerde tjek (kontrolsummen) SKIP uden omsætning — gammel forventning ordret: expect(u.map((x) => x.result)).toEqual(["PASS", "SKIP", "SKIP"]);
+    expect(u.map((x) => x.result)).toEqual(["PASS", "SKIP", "SKIP", "SKIP"]);
     expect(finder(rimelighedstjek({ revenue: 100, gross_profit: 80, ebt: 80 }, "pnl"), "ebt_reconciles").result).toBe("SKIP");
   });
   it("tolerancen: gulvet 500 kr. absorberer små afvigelser; 5 % skalerer", () => {

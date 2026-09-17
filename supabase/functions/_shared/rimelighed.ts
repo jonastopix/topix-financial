@@ -54,7 +54,7 @@
  * commit_report_facts. Samme funktion kører i manuel rettelse (src-spejlet).
  */
 
-import { CANONICAL as OMK, ANDEL_NOEGLER_TIL_RIMELIGHED, ebtRegnet, sumOmkostninger } from "./omkostningsnoegler.ts";
+import { CANONICAL as OMK, ANDEL_NOEGLER_TIL_RIMELIGHED, ebtRegnet, kontrolsum, sumOmkostninger, udaekketErStort, udaekketTekst } from "./omkostningsnoegler.ts";
 
 export type RimelighedResultat = "PASS" | "WARN" | "SKIP";
 
@@ -80,7 +80,7 @@ export interface RimelighedInput {
 }
 
 export interface RimelighedAdvarsel {
-  name: "ebt_reconciles" | "result_vs_revenue" | "magnitude_plausibility";
+  name: "ebt_reconciles" | "result_vs_revenue" | "magnitude_plausibility" | "resultat_udaekket";
   result: RimelighedResultat;
   /** Teknisk detalje (engelsk, som de 13 andre tjek) — til loggen. */
   details: string;
@@ -142,7 +142,8 @@ export function erResultatopgoerelse(statementType: string): boolean {
   return statementType === "pnl" || statementType === "trial_balance" || statementType === "combined";
 }
 
-/** De tre tjek. Rækkefølgen er fast: ebt_reconciles, result_vs_revenue, magnitude_plausibility. */
+/** De fire tjek. Rækkefølgen er fast: ebt_reconciles, result_vs_revenue, magnitude_plausibility, resultat_udaekket
+    (kontrolsummen, 17/9-2026: ÉT tal — hvor meget af resultatet er ikke dækket af grupperne; omkostningsnoegler.kontrolsum). */
 export function rimelighedstjek(m: RimelighedInput, statementType: string): RimelighedAdvarsel[] {
   const ud: RimelighedAdvarsel[] = [];
   const skip = (name: RimelighedAdvarsel["name"], details: string) => ud.push({ name, result: "SKIP", details, tekst: "", felter: [] });
@@ -150,6 +151,7 @@ export function rimelighedstjek(m: RimelighedInput, statementType: string): Rime
     skip("ebt_reconciles", `Not a P&L (${statementType})`);
     skip("result_vs_revenue", `Not a P&L (${statementType})`);
     skip("magnitude_plausibility", `Not a P&L (${statementType})`);
+    skip("resultat_udaekket", `Not a P&L (${statementType})`);
     return ud;
   }
 
@@ -162,6 +164,11 @@ export function rimelighedstjek(m: RimelighedInput, statementType: string): Rime
   // ebitda-afledning og saldobalancens kontrolsum, så et tal afledt af posterne altid lukker).
   const opexFundet = sumOmkostninger(m, OMK, "alle").fundet - (tal((m as Record<string, unknown>)[OMK.vareforbrug] as number | null | undefined) === null ? 0 : 1);
   const beregnetEbt = ebtRegnet(grossProfit, m, OMK);
+  // Kontrolsummen (tjek 4) regnes først: når den er stor, er «forkert kolonne?» ikke forklaringen på
+  // ebt_reconciles' afvigelse — så bærer tjek 4 teksten til medlemmet, og tjek 1 nøjes med loggen.
+  const ks = kontrolsum(m, OMK);
+  const udaekketStort = udaekketErStort(ks);
+  let vendt = false;
   if (grossProfit === null || ebt === null) {
     skip("ebt_reconciles", "Missing gross_profit or ebt");
   } else if (opexFundet === 0 || beregnetEbt === null) {
@@ -173,14 +180,19 @@ export function rimelighedstjek(m: RimelighedInput, statementType: string): Rime
     if (afvigelse <= tolerance) {
       ud.push({ name: "ebt_reconciles", result: "PASS", details: `gross_profit − opex + financial_income = ${beregnet.toFixed(2)} ≈ ebt ${ebt}`, tekst: "", felter: [] });
     } else {
-      const vendt = Math.abs(beregnet + ebt) <= tolerance;
+      // «Vendt» kræver mindst to driftsgrupper: med én eller ingen er «samme tal med modsat fortegn» et
+      // tilfælde (ANLA GLAS 2025-12: ingen grupper fanget, 212.743 mod −216.244 — kontrolsummen er 2 mio.).
+      vendt = Math.abs(beregnet + ebt) <= tolerance && sumOmkostninger(m, OMK, "drift").fundet >= 2;
+      const forklaretAfKontrolsummen = !vendt && udaekketStort;
       ud.push({
         name: "ebt_reconciles",
         result: "WARN",
-        details: `gross_profit − opex + financial_income = ${beregnet.toFixed(2)} but ebt = ${ebt} (diff ${afvigelse.toFixed(2)}, tolerance ${tolerance.toFixed(2)})${vendt ? " — same amount, opposite sign" : ""}`,
+        details: `gross_profit − opex + financial_income = ${beregnet.toFixed(2)} but ebt = ${ebt} (diff ${afvigelse.toFixed(2)}, tolerance ${tolerance.toFixed(2)})${vendt ? " — same amount, opposite sign" : ""}${forklaretAfKontrolsummen ? " — see resultat_udaekket" : ""}`,
         tekst: vendt
           ? `Resultatet før skat står som ${krTekst(ebt)} kr., men dækningsbidraget minus omkostningerne giver ${krTekst(beregnet)} kr. — samme tal med modsat fortegn. Er et overskud læst som underskud, eller omvendt?`
-          : `Resultatet før skat står som ${krTekst(ebt)} kr., men dækningsbidraget minus omkostningerne giver ${krTekst(beregnet)} kr. Er resultatet læst fra en anden kolonne (fx år til dato) end omkostningerne?`,
+          : forklaretAfKontrolsummen
+            ? ""
+            : `Resultatet før skat står som ${krTekst(ebt)} kr., men dækningsbidraget minus omkostningerne giver ${krTekst(beregnet)} kr. Er resultatet læst fra en anden kolonne (fx år til dato) end omkostningerne?`,
         felter: ["ebt"],
       });
     }
@@ -240,12 +252,32 @@ export function rimelighedstjek(m: RimelighedInput, statementType: string): Rime
     }
   }
 
+  // 4. resultat_udaekket — kontrolsummen som ÉT tal (omkostningsnoegler.kontrolsum). WARN når tallet er
+  // stort (> 5 % af omsætningen eller > 10.000 kr.) og fortegnet ikke er vendt (så er tallet meningsløst
+  // og tjek 1 bærer advarslen). Tallet selv gemmes altid i quality_signals.udaekket af motoren.
+  if (ks === null) {
+    skip("resultat_udaekket", "Missing ebt or revenue");
+  } else if (!udaekketStort) {
+    ud.push({ name: "resultat_udaekket", result: "PASS", details: `uncovered ${ks.udaekket} kr. (${ks.udaekket_pct_af_omsaetning === null ? "n/a" : (ks.udaekket_pct_af_omsaetning * 100).toFixed(1) + "%"} of revenue) within limits`, tekst: "", felter: [] });
+  } else if (vendt) {
+    skip("resultat_udaekket", `uncovered ${ks.udaekket} kr. but sign inverted — see ebt_reconciles`);
+  } else {
+    ud.push({
+      name: "resultat_udaekket",
+      result: "WARN",
+      details: `uncovered ${ks.udaekket} kr. (${ks.udaekket_pct_af_omsaetning === null ? "n/a" : (ks.udaekket_pct_af_omsaetning * 100).toFixed(1) + "%"} of revenue): ebt ${ks.udaekket + ks.regnet} vs revenue + income − costs ${ks.regnet}; ${ks.grupper_fundet} cost groups found`,
+      tekst: udaekketTekst(ks),
+      felter: ["ebt"],
+    });
+  }
+
   return ud;
 }
 
-/** Kun advarslerne (WARN) — det dialogen viser og kræver bekræftet. */
+/** Kun advarslerne til medlemmet (WARN med tekst) — det dialogen viser og kræver bekræftet. En WARN uden tekst
+    (ebt_reconciles når kontrolsummen forklarer afvigelsen, 17/9-2026) bliver i loggen. */
 export function rimelighedAdvarsler(m: RimelighedInput, statementType: string): RimelighedAdvarsel[] {
-  return rimelighedstjek(m, statementType).filter((a) => a.result === "WARN");
+  return rimelighedstjek(m, statementType).filter((a) => a.result === "WARN" && a.tekst !== "");
 }
 
 /** Teksten på bekræftelsen — ordret i dialogen og i manuel rettelse. */

@@ -21,6 +21,10 @@ export interface Noeglesaet {
   andreDriftsindtaegter: string;
   /** Finansielle indtægter (renteindtægter m.v., positiv) — A2 (18/9-2026): ebt = ebit − finans + finansielle indtægter; null hvor konventionen ingen nøgle har. */
   finansielleIndtaegter: string | null;
+  /** Omsætningen, dækningsbidraget og resultatet før skat — kontrolsummens ankre (17/9-2026). */
+  omsaetning: string;
+  daekningsbidrag: string;
+  resultat: string;
 }
 
 export const CANONICAL: Noeglesaet = {
@@ -30,6 +34,9 @@ export const CANONICAL: Noeglesaet = {
   finans: "financial_costs",
   andreDriftsindtaegter: "other_operating_income",
   finansielleIndtaegter: "financial_income",
+  omsaetning: "revenue",
+  daekningsbidrag: "gross_profit",
+  resultat: "ebt",
 };
 
 export const DANSK: Noeglesaet = {
@@ -39,6 +46,9 @@ export const DANSK: Noeglesaet = {
   finans: null,
   andreDriftsindtaegter: "andre_driftsindtaegter",
   finansielleIndtaegter: "finansielle_indtaegter",
+  omsaetning: "omsaetning",
+  daekningsbidrag: "daekningsbidrag",
+  resultat: "resultat_foer_skat",
 };
 
 /** Et objekt med tal under nøglerne — CanonicalMetrics, dansk kf, RimelighedInput … (interfaces har ingen
@@ -114,3 +124,103 @@ export function ebtRegnet(daekningsbidrag: number | null | undefined, m: Tal, s:
     også pension, øvrige personale og autodrift, som e-conomics PDF/XLSX og combined fanger), afskrivninger og finans.
     Rækkefølgen er visningens. */
 export const ANDEL_NOEGLER_TIL_RIMELIGHED = ["cogs", "payroll", "payroll_related", "other_staff_costs", "sales_costs", "facility_costs", "admin_costs", "vehicle_costs", "other_costs", "depreciation", "financial_costs"] as const;
+
+// ── Kontrolsummen: ÉT tal pr. rapport — hvor meget af resultatet er ikke dækket af de viste grupper ──
+//
+// (17/9-2026, Jonas: «Jeg har brug for den absolut bedste løsning. ALTID.» — chattens punkt 2: hver
+// rapport bærer ét tal, og platformen siger det når tallet er stort, i stedet for at vise et pænt men
+// ufuldstændigt omkostningsbillede.)
+//
+//   udaekket = resultat − (omsætning + andre driftsindtægter + finansielle indtægter − Σ|alle omkostningsgrupper|)
+//
+// Vareforbruget står i dækningsbidraget: er vareforbruget ikke målt, men dækningsbidraget er (årsrapporter,
+// Booking Innovation-klassen), regnes fra dækningsbidraget i stedet for omsætningen — ellers ville hele
+// vareforbruget tælle som «ikke fordelt». Med begge målt regnes omsætning − vareforbrug.
+//
+// Negativt = der mangler omkostninger for |udaekket| kr. (grupper skabelonen ikke fangede); positivt = der
+// mangler indtægter. I HELE KRONER (ikke øre): tallene i canonical/facts er kroner med decimaler, og et tal
+// til et menneske afrundes alligevel — øre ville kun flytte afrundingen til læseren. Samme funktion for ALLE
+// skabeloner og AI-vejen (den regner på canonical-nøglerne); for saldobalance-XLSX er det pr. konstruktion
+// det samme tal som skabelonens pnl_coverage (alle resultatkonti lander i en gruppe → 0 inden for 1 kr.).
+//
+// GRÆNSERNE SAGT HØJT: tallet er STORT når |udaekket| > UDAEKKET_GRAENSE_PCT × omsætning ELLER
+// |udaekket| > UDAEKKET_GRAENSE_KR — så siger godkendelsen (D's boks) og virksomhedssiden det.
+// Tallet gemmes ALTID i quality_signals.udaekket, også under grænsen.
+
+export const UDAEKKET_GRAENSE_PCT = 0.05;
+export const UDAEKKET_GRAENSE_KR = 10_000;
+export const KONTROLSUM_KILDE = "grupper_mod_resultat" as const;
+
+export interface Kontrolsum {
+  /** Hele kroner: resultat − regnet. Negativt = manglende omkostninger, positivt = manglende indtægter. */
+  udaekket: number;
+  /** udaekket / omsætning; null når omsætningen er 0 eller mangler. */
+  udaekket_pct_af_omsaetning: number | null;
+  kilde: typeof KONTROLSUM_KILDE;
+  /** Regnestykkets højre side: omsætning + indtægter − Σ|omkostninger| (hele kroner). */
+  regnet: number;
+  /** Antal omkostningsnøgler med et tal — 0 betyder at intet omkostningsbillede findes. */
+  grupper_fundet: number;
+}
+
+/** Kontrolsummen for et sæt tal. null når resultatet eller omsætningen mangler (så er der intet at måle mod). */
+export function kontrolsum(m: Tal, s: Noeglesaet): Kontrolsum | null {
+  const resultat = laes(m, s.resultat);
+  const omsaetning = laes(m, s.omsaetning);
+  if (resultat === null || omsaetning === null) return null;
+  const vareforbrug = laes(m, s.vareforbrug);
+  const daekningsbidrag = laes(m, s.daekningsbidrag);
+  const drift = sumOmkostninger(m, s, "drift_og_afskrivninger");
+  const finans = s.finans ? laes(m, s.finans) : null;
+  const basis = vareforbrug !== null
+    ? Math.abs(omsaetning) - Math.abs(vareforbrug)
+    : daekningsbidrag !== null ? daekningsbidrag : Math.abs(omsaetning);
+  const regnet = basis + andreDriftsindtaegter(m, s) + finansielleIndtaegter(m, s) - drift.sum - (finans === null ? 0 : Math.abs(finans));
+  const udaekket = Math.round(resultat - regnet);
+  return {
+    udaekket,
+    udaekket_pct_af_omsaetning: Math.abs(omsaetning) > 0 ? udaekket / Math.abs(omsaetning) : null,
+    kilde: KONTROLSUM_KILDE,
+    regnet: Math.round(regnet),
+    grupper_fundet: drift.fundet + (vareforbrug === null ? 0 : 1) + (finans === null ? 0 : 1),
+  };
+}
+
+/** Er tallet stort — over 5 % af omsætningen ELLER over 10.000 kr.? */
+export function udaekketErStort(k: Kontrolsum | null): boolean {
+  if (k === null) return false;
+  const abs = Math.abs(k.udaekket);
+  if (abs > UDAEKKET_GRAENSE_KR) return true;
+  return k.udaekket_pct_af_omsaetning !== null && Math.abs(k.udaekket_pct_af_omsaetning) > UDAEKKET_GRAENSE_PCT;
+}
+
+/** «15.721» — dansk tusindtal, hele kroner, uden fortegn (fortegnet siges med ord). */
+export function udaekketKr(k: Kontrolsum): string {
+  return Math.abs(k.udaekket).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+}
+
+/** Teksten til medlemmet — husets tone: resultatet er rigtigt, det er grupperne der mangler. */
+export function udaekketTekst(k: Kontrolsum): string {
+  const retning = k.udaekket < 0 ? "der mangler omkostninger for" : "der mangler indtægter for";
+  return `${udaekketKr(k)} kr. af resultatet er ikke fordelt på grupperne — ${retning} ${udaekketKr(k)} kr. Omkostningsbilledet er ufuldstændigt; resultatet er rigtigt.`;
+}
+
+/** Den lille linje på virksomhedssiden ved månedens tal — kun når tallet er stort, ellers null. */
+export function udaekketLinje(k: Kontrolsum | null): string | null {
+  if (!udaekketErStort(k) || k === null) return null;
+  return `${udaekketKr(k)} kr. af resultatet er ikke fordelt på grupperne — omkostningsbilledet er ufuldstændigt.`;
+}
+
+/** Læser kontrolsummen ud af en rapports quality_signals (jsonb → unknown); null når den ikke er der. */
+export function kontrolsumAf(qualitySignals: unknown): Kontrolsum | null {
+  const u = (qualitySignals as { udaekket?: unknown } | null | undefined)?.udaekket as Record<string, unknown> | null | undefined;
+  if (!u || typeof u !== "object" || typeof u.udaekket !== "number" || !Number.isFinite(u.udaekket)) return null;
+  const pct = typeof u.udaekket_pct_af_omsaetning === "number" && Number.isFinite(u.udaekket_pct_af_omsaetning) ? u.udaekket_pct_af_omsaetning : null;
+  return {
+    udaekket: u.udaekket,
+    udaekket_pct_af_omsaetning: pct,
+    kilde: KONTROLSUM_KILDE,
+    regnet: typeof u.regnet === "number" ? u.regnet : 0,
+    grupper_fundet: typeof u.grupper_fundet === "number" ? u.grupper_fundet : 0,
+  };
+}

@@ -223,6 +223,7 @@ function getEarlyExitPersistPayload(
       validation_status: "FAIL",
       validation_errors: errors,
       canonical_checks: [],
+      udaekket: null,
       ai_eligible: false,
       has_metrics: false,
       has_period: false,
@@ -1739,6 +1740,10 @@ Hvis du er i tvivl om et tal eller en kolonne → sæt validation.status = "UNSU
           validation_status: finalStatus,
           validation_errors: allErrors.length > 0 ? allErrors : null,
           canonical_checks: canonical.validation?.canonical_checks ?? [],
+          // Kontrolsummen (17/9-2026): ÉT tal pr. rapport — hvor meget af resultatet er ikke dækket af grupperne
+          // ({ udaekket, udaekket_pct_af_omsaetning, kilde, regnet, grupper_fundet }; omkostningsnoegler.kontrolsum).
+          // Gemmes ALTID, også under grænsen; null uden resultat eller omsætning.
+          udaekket: canonical.kontrolsum ?? null,
           ai_eligible: canonical.ai_eligible ?? false,
           has_metrics: !!(canonical.metrics && Object.keys(canonical.metrics).length > 0),
           has_period: !!(dbReportPeriod && dbReportPeriod.length > 0),

@@ -105,7 +105,8 @@ export const prompten = (i: string): boolean =>
 // Efter C's saldobalance-rettelse går regnestykket gennem omkostningsnoegler.ts (begge spejle):
 // drift-listen bærer vehicle_costs/payroll_related/other_staff_costs, og ebtRegnet lægger finansielle indtægter til.
 export const rimelighedRegner = (r: string, o: string): boolean =>
-  r.includes('import { CANONICAL as OMK, ANDEL_NOEGLER_TIL_RIMELIGHED, ebtRegnet, sumOmkostninger } from "./omkostningsnoegler.ts";') &&
+  // kontrolsummen (17/9-2026) udvidede importen — før ordret: 'import { CANONICAL as OMK, ANDEL_NOEGLER_TIL_RIMELIGHED, ebtRegnet, sumOmkostninger } from "./omkostningsnoegler.ts";'
+  r.includes('import { CANONICAL as OMK, ANDEL_NOEGLER_TIL_RIMELIGHED, ebtRegnet, kontrolsum, sumOmkostninger, udaekketErStort, udaekketTekst } from "./omkostningsnoegler.ts";') &&
   r.includes("const beregnetEbt = ebtRegnet(grossProfit, m, OMK);") &&
   r.includes("financial_income?: number | null;") &&
   o.includes('drift: ["payroll", "payroll_related", "other_staff_costs", "sales_costs", "facility_costs", "admin_costs", "vehicle_costs", "other_costs"],') &&

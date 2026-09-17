@@ -153,7 +153,7 @@ Deno.test("Comparison: full multi-layer zero regressions", () => {
       vat_payable: null, liabilities_total: null },
     correction_log: [], provenance: {},
     validation: { status: "PASS", ai_checks: [], server_checks: [], canonical_checks: [] },
-    ai_eligible: true, ai_eligible_payload: null,
+    ai_eligible: true, ai_eligible_payload: null, kontrolsum: null,
   };
 
   const result = compareExtractions(output, output, "test.pdf");
