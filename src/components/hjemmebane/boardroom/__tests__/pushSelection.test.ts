@@ -249,6 +249,14 @@ describe("pickMainStory — hovedplads + sidespalte", () => {
     });
   });
 
+  it("velkomst (første uge) vinder over pushet; pushet rykker i sidespalten (PR 5)", () => {
+    const result = pickMainStory<string>([c("velkomst"), c("push"), c("video"), null, c("evergreen")]);
+    expect(result.main).toEqual(c("velkomst"));
+    expect(result.side.map((s) => s.kind)).toEqual(["push", "video", "evergreen"]);
+    // dag 8 / set / ingen video: kandidaten er null → som før
+    expect(pickMainStory<string>([null, c("push"), c("video"), null, c("evergreen")]).main).toEqual(c("push"));
+  });
+
   it("push+video+evergreen (redaktionelt null) → push vinder, resten i rækkefølge", () => {
     // Før: [c("push"), c("video"), null, c("podcast"), null] → side ["video", "podcast"].
     const result = pickMainStory<string>([c("push"), c("video"), null, c("evergreen")]);
@@ -263,9 +271,11 @@ describe("pickMainStory — hovedplads + sidespalte", () => {
     expect(result.side.map((s) => s.kind)).toEqual(["evergreen"]);
   });
 
-  it("kind «podcast» findes ikke længere i rykkelisten (beslutning 17)", () => {
-    const kinds: StoryCandidate["kind"][] = ["push", "video", "redaktionelt", "evergreen"];
+  it("kind «podcast» findes ikke længere i rykkelisten (beslutning 17); «velkomst» står først (PR 5)", () => {
+    // Før (17/9 formiddag): ["push", "video", "redaktionelt", "evergreen"] — velkomst kom til med forside PR 5.
+    const kinds: StoryCandidate["kind"][] = ["velkomst", "push", "video", "redaktionelt", "evergreen"];
     expect(kinds).not.toContain("podcast");
+    expect(kinds[0]).toBe("velkomst");
   });
 });
 

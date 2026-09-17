@@ -56,12 +56,19 @@ function dageMellem(a: string, b: string): number {
   return Math.round((Date.UTC(by, bm - 1, bd) - Date.UTC(ay, am - 1, ad)) / 86400000);
 }
 
-/** Dag 1: medlemskabets start (ISO-dato eller -tidsstempel) ligger 0–14 danske
-    kalenderdage tilbage. Ingen start (legacy), ulæselig, eller i fremtiden → ikke dag 1. */
-export function erDag1(startDato: string | null | undefined, nu: Date): boolean {
+/** Ligger starten (ISO-dato eller -tidsstempel) 0–`doegn` danske kalenderdage
+    tilbage? Ingen start (legacy), ulæselig, eller i fremtiden → nej. ÉN kilde til
+    dagsregningen: erDag1 (14 døgn, hilsenens tone) og velkomstHistorie.erFoersteUge
+    (7 døgn, videoen i hovedpladsen — forside PR 5) bruger den. */
+export function erIndenDoegn(startDato: string | null | undefined, nu: Date, doegn: number): boolean {
   if (!startDato) return false;
   const start = new Date(startDato);
   if (Number.isNaN(start.getTime())) return false;
   const dage = dageMellem(dagDansk(start), dagDansk(nu));
-  return dage >= 0 && dage <= DAG1_DOEGN;
+  return dage >= 0 && dage <= doegn;
+}
+
+/** Dag 1: medlemskabets start ligger 0–14 danske kalenderdage tilbage. */
+export function erDag1(startDato: string | null | undefined, nu: Date): boolean {
+  return erIndenDoegn(startDato, nu, DAG1_DOEGN);
 }

@@ -84,7 +84,9 @@ export function pickEvergreen(items: ContentItem[], now: Date): ContentItem | un
 }
 
 // Før (til 17/9): "push" | "video" | "redaktionelt" | "podcast" | "evergreen" — podcast-kortet udgik (beslutning 17).
-export type StoryKind = "push" | "video" | "redaktionelt" | "evergreen";
+/** «velkomst» (forside PR 5, 17/9): velkomstvideoen FØRST i rykkelisten den første
+    uge for et nyt medlem — dommen er lib/hjemmebane/velkomstHistorie. */
+export type StoryKind = "velkomst" | "push" | "video" | "redaktionelt" | "evergreen";
 
 export interface StoryCandidate<T = unknown> {
   kind: StoryKind;
@@ -93,8 +95,8 @@ export interface StoryCandidate<T = unknown> {
 
 /** Rykkeliste-dommen (PR B1): første IKKE-NULL kandidat vinder
     hovedpladsen; resten fylder sidespalten — ingen tomme pladser.
-    Kandidaterne ankommer i FAST rækkefølge (push → ugens video →
-    redaktionelt → evergreen; podcasten udgik 17/9), og enhver kandidat
+    Kandidaterne ankommer i FAST rækkefølge (velkomst (første uge, PR 5) →
+    push → ugens video → redaktionelt → evergreen; podcasten udgik 17/9), og enhver kandidat
     kan være null af HVILKEN SOM HELST grund (udløbet, tom pulje) —
     dommen antager aldrig at en kandidat findes. */
 export function pickMainStory<T>(
