@@ -118,4 +118,30 @@ describe("rådgiverens menu — det I bruger øverst (Jonas 8/9)", () => {
   it("rådgivermenuen vinder selv hvis rådgiverens egen tier skulle være abonnent", () => {
     expect(bygHbNav({ isAdvisor: true, erAbonnent: true, active: "boardroom" })[0].label).toBe("Forside");
   });
+  /* «Økonomi» (Ø2, 18/9 — Jonas 17/9: «Kun mig og Morten»): kun partnere
+     ser punktet; for alle andre rådgivere er menuen ordret som ovenfor. */
+  it("«Økonomi» findes ikke for en rådgiver uden partner — heller ikke når isPartner er false", () => {
+    for (const n of [nav, bygHbNav({ isAdvisor: true, erAbonnent: false, active: "boardroom", isPartner: false })]) {
+      expect(flad(n).map((x) => x.label)).not.toContain("Økonomi");
+      expect(flad(n).map((x) => x.to)).not.toContain("/oekonomi");
+    }
+  });
+  it("partneren får «Økonomi» sidst i den øverste blok, efter Indhold, uden blok-overskrift; aktiv på /oekonomi", () => {
+    const p = bygHbNav({ isAdvisor: true, erAbonnent: false, active: "boardroom", isPartner: true });
+    expect(flad(p).slice(0, 7).map((n) => [n.label, n.to, n.blok])).toEqual([
+      ["Forside", "/", null],
+      ["Virksomheder", "/virksomheder", null],
+      ["Indbakke", "/chat", null],
+      ["Community", "/community", null],
+      ["Indhold", "/admin/indhold", null],
+      ["Økonomi", "/oekonomi", null],
+      ["Dine tal", null, BLOK_MEDLEMMETS_FLADER],
+    ]);
+    expect(flad(p).length).toBe(flad(nav).length + 1);
+    expect(bygHbNav({ isAdvisor: true, erAbonnent: false, active: "oekonomi", isPartner: true }).find((n) => n.label === "Økonomi")?.active).toBe(true);
+    expect(p.find((n) => n.label === "Økonomi")?.active).toBe(false);
+  });
+  it("et medlem med isPartner får IKKE «Økonomi» — punktet hører til rådgivermenuen", () => {
+    expect(flad(bygHbNav({ isAdvisor: false, erAbonnent: false, active: "boardroom", isPartner: true })).map((x) => x.label)).not.toContain("Økonomi");
+  });
 });

@@ -67,7 +67,7 @@ export const HbMemberShell = ({
      hvordan står i hooket — det flyttede dertil 4/9, da login, Betal og
      admin-skallen skulle gøre det samme (mobilens grønne bundstykke). */
   useHbDokumentGrund(rodRef);
-  const { user, profile, signOut, membershipTier, isAdvisor } = useAuth();
+  const { user, profile, signOut, membershipTier, isAdvisor, isPartner } = useAuth();
   /* ONLINE NU (Jonas 16/9, hooks/onlineTracking): medlemmet tracker sig selv
      på den private Presence-kanal, så rådgiverne kan se hvem der har appen
      åben. Gaten er useAuth's RÅ isAdvisor — ikke viewingAsMember: i «Se som
@@ -147,7 +147,8 @@ export const HbMemberShell = ({
      først og admin-blokken (§3.1) sidst for rådgiveren; «Opgaver» er ude
      (listen hører på forsiden). Samme array til desktop-sidebaren og
      mobil-draweren nedenfor. */
-  const navUdenMaerke: HbNavEntry[] = bygHbNav({ isAdvisor, erAbonnent, active });
+  // «Økonomi» (Ø2, 18/9) kun for partnere — useAuth's isPartner, aldrig isAdmin.
+  const navUdenMaerke: HbNavEntry[] = bygHbNav({ isAdvisor, erAbonnent, active, isPartner });
 
   /* «LIVE NU» VED EVENTS (Jonas 10/9). Hentningen deler cache-nøgle med
      /events og Community-composeren (["events", "upcoming-all"]), så

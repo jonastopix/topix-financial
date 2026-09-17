@@ -25,6 +25,9 @@ interface AuthContext {
   loading: boolean;
   isAdvisor: boolean;
   isAdmin: boolean;
+  /** Rollen partner (Ø2, 18/9): præcis Jonas og Morten — økonomioverblikket.
+      Arves ikke af admin og arver intet (has_role kender kun admin → advisor). */
+  isPartner: boolean;
   isLegat: boolean;
   profile: { full_name: string; company_name: string; avatar_url: string; tour_completed_at: string | null } | null;
   companyId: string | null;
@@ -51,6 +54,7 @@ const AuthContext = createContext<AuthContext>({
   loading: true,
   isAdvisor: false,
   isAdmin: false,
+  isPartner: false,
   isLegat: false,
   profile: null,
   companyId: null,
@@ -140,6 +144,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const havdeSessionRef = useRef(false);
   const [isAdvisor, setIsAdvisor] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isPartner, setIsPartner] = useState(false);
   const [isLegat, setIsLegat] = useState(false);
   const [profile, setProfile] = useState<AuthContext["profile"]>(null);
   const [membershipTier, setMembershipTier] = useState<"full" | "subscriber" | "expired" | null>(null);
@@ -190,6 +195,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     const isAdv = roles.includes("advisor") || roles.includes("admin");
     setIsAdvisor(isAdv);
     setIsAdmin(roles.includes("admin" as any));
+    setIsPartner(roles.includes("partner" as any));
     let legatRow: any = null;
     if (!isAdv) {
       const { data } = await supabase
@@ -410,7 +416,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   return (
     <AuthContext.Provider value={{
-      user, session, loading, isAdvisor, isAdmin, isLegat, profile,
+      user, session, loading, isAdvisor, isAdmin, isPartner, isLegat, profile,
       companyId, companyName,
       ownCompanyId, ownCompanyName,
       isCompanyOverride,

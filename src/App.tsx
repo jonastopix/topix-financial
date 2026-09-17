@@ -65,6 +65,7 @@ const Virksomheder = lazy(() => import("./pages/Virksomheder"));
 const Opgaver = lazy(() => import("./pages/Opgaver"));
 const Virksomhed = lazy(() => import("./pages/Virksomhed"));
 const Forside = lazy(() => import("./pages/Forside"));
+const Oekonomi = lazy(() => import("./pages/Oekonomi"));
 
 // Lazy — demo routes (no auth)
 const DemoLayout = lazy(() => import("./demo/DemoLayout"));
@@ -170,6 +171,18 @@ const AdminRoute = ({ children }: { children: React.ReactNode }) => {
   return <>{children}</>;
 };
 
+/** Partner-vagten (Ø2, 18/9): præcis Jonas og Morten (rollen partner —
+    Jonas 17/9: «1. Kun mig og Morten»). Kopi af AdminRoute på isPartner;
+    admin er IKKE partner. Fladen er kun skallen — tallene kommer fra
+    hent_oekonomi_overblik(), som selv afviser alle uden rollen. */
+const PartnerRoute = ({ children }: { children: React.ReactNode }) => {
+  const { user, loading, isPartner } = useAuth();
+  if (loading) return null;
+  if (!user) return <Navigate to="/auth" replace />;
+  if (!isPartner) return <Navigate to="/" replace />;
+  return <>{children}</>;
+};
+
 const AuthRoute = ({ children }: { children: React.ReactNode }) => {
   const { user, loading } = useAuth();
   const qs = new URLSearchParams(window.location.search);
@@ -272,6 +285,8 @@ const App = () => (
                   MIDLERTIDIG rute ved siden af "/" (AdvisorDashboard i
                   AppLayout) til swappet — samme mønster som de to ovenfor. */}
               <Route path="/forside" element={<AdvisorRoute><Forside /></AdvisorRoute>} />
+              {/* Økonomioverblikket (Ø2, 18/9): kun partnere. Tom side indtil Ø3. */}
+              <Route path="/oekonomi" element={<PartnerRoute><Oekonomi /></PartnerRoute>} />
               {/* Kontoen i Hjemmebane (9/9): navn, adgangskode, login, log ud — for alle roller. */}
               <Route path="/konto" element={<ProtectedRoute><Konto /></ProtectedRoute>} />
               {/* Delingskreativen (14/9, første skridt): én kreativ på skærmen. Intet menupunkt endnu. */}
