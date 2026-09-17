@@ -2,12 +2,17 @@ import { describe, expect, it } from "vitest";
 import {
   NAVNE_MAKS,
   SIDEN_SIDST_LOFT_DAGE,
+  erFunktionenIkkeFundet,
   intetNytTekst,
   samlNavne,
   sidenAf,
+  sidenSidstLinjeDele,
+  sidenSidstLinjeTekst,
   sidenSidstLinjer,
+  sidenSidstNavneSep,
   sidenTekst,
   talord,
+  type SidenSidstRaekke,
 } from "@/lib/sidenSidst";
 
 const NU = new Date(2026, 8, 9, 8, 30); // 9. september 2026, morgen
@@ -88,5 +93,65 @@ describe("sidenSidstLinjer", () => {
   it("«og N andre» regnes af navnene, ikke af hændelserne: tre beskeder fra én virksomhed", () => {
     const l = sidenSidstLinjer([{ slags: "beskeder", antal: 3, navne: ["Doggybed"] }]);
     expect(l[0].tekst).toBe("Tre nye beskeder · Doggybed");
+  });
+});
+
+/* Links på navnene (17/9, PR 3): linjen i DELE. Kontrakten: delene siger
+   præcis det teksten siger — sidenSidstLinjeTekst(dele) === tekst. */
+describe("sidenSidstLinjeDele — delene siger det teksten siger", () => {
+  const raekker: SidenSidstRaekke[] = [
+    { slags: "rapporter", antal: 3, navne: ["Doggybed", "PHILBERT", "Floren"], virksomheder: [{ id: "d", navn: "Doggybed" }, { id: "p", navn: "PHILBERT" }, { id: "f", navn: "Floren" }] },
+    { slags: "beskeder", antal: 5, navne: ["A", "B", "C", "D", "E"], virksomheder: [{ id: "a", navn: "A" }, { id: "b", navn: "B" }, { id: "c", navn: "C" }, { id: "d", navn: "D" }, { id: "e", navn: "E" }] },
+    { slags: "svar", antal: 1, navne: ["CARMA STUDIO"], virksomheder: [{ id: "c1", navn: "CARMA STUDIO" }] },
+    { slags: "medlemmer", antal: 2, navne: ["Ny ApS", "Anden"] },
+    { slags: "betalinger", antal: 4, navne: ["X", "Y", "Z", "W"] },
+    { slags: "betalinger", antal: 0, navne: [] },
+    { slags: "andet", antal: 9, navne: ["x"] },
+    { slags: "rapporter", antal: 1, navne: [] },
+  ];
+  it("for hver linje: samme slags, antal og tekst som sidenSidstLinjer, i samme orden", () => {
+    const tekst = sidenSidstLinjer(raekker);
+    const dele = sidenSidstLinjeDele(raekker);
+    expect(dele.map((d) => [d.slags, d.antal])).toEqual(tekst.map((t) => [t.slags, t.antal]));
+    expect(dele.map(sidenSidstLinjeTekst)).toEqual(tekst.map((t) => t.tekst));
+  });
+  it("id'erne følger med når rækken har virksomheder; null når kun navne (den gamle RPC)", () => {
+    const dele = sidenSidstLinjeDele(raekker);
+    const rapporter = dele.find((d) => d.slags === "rapporter" && d.antal === 3)!;
+    expect(rapporter.viste).toEqual([{ id: "d", navn: "Doggybed" }, { id: "p", navn: "PHILBERT" }, { id: "f", navn: "Floren" }]);
+    expect(rapporter.efter).toBe("");
+    const medlemmer = dele.find((d) => d.slags === "medlemmer")!;
+    expect(medlemmer.viste).toEqual([{ id: null, navn: "Ny ApS" }, { id: null, navn: "Anden" }]);
+  });
+  it("højst NAVNE_MAKS vises; halen «to andre»/«en anden»; blanke navne ud", () => {
+    const [b] = sidenSidstLinjeDele([{ slags: "beskeder", antal: 5, navne: [" A ", "", "B", "C", "D", "E"] }]);
+    expect(b.viste.map((v) => v.navn)).toEqual(["A", "B", "C"]);
+    expect(b.viste).toHaveLength(NAVNE_MAKS);
+    expect(b.efter).toBe("to andre");
+    const [en] = sidenSidstLinjeDele([{ slags: "beskeder", antal: 4, navne: ["A", "B", "C", "D"] }]);
+    expect(en.efter).toBe("en anden");
+  });
+  it("skilletegnene: «, » mellem, « og » før det sidste — men «, » hele vejen når «… andre» følger", () => {
+    expect([0, 1, 2].map((i) => sidenSidstNavneSep(i, 3, false))).toEqual(["", ", ", " og "]);
+    expect([0, 1, 2].map((i) => sidenSidstNavneSep(i, 3, true))).toEqual(["", ", ", ", "]);
+    expect(sidenSidstNavneSep(1, 2, false)).toBe(" og ");
+  });
+  it("uden navne: kun hovedet", () => {
+    const [d] = sidenSidstLinjeDele([{ slags: "rapporter", antal: 1, navne: [] }]);
+    expect(d.viste).toEqual([]);
+    expect(sidenSidstLinjeTekst(d)).toBe("En rapport kom ind");
+  });
+});
+
+describe("erFunktionenIkkeFundet — kun PostgREST's «funktionen findes ikke» sender hooken tilbage", () => {
+  it("PGRST202, eller beskeden «Could not find the function», er «findes ikke»", () => {
+    expect(erFunktionenIkkeFundet({ code: "PGRST202", message: "x" })).toBe(true);
+    expect(erFunktionenIkkeFundet({ code: null, message: "Could not find the function public.get_siden_sidst_virksomheder(siden) in the schema cache" })).toBe(true);
+  });
+  it("alle andre fejl er fejl", () => {
+    expect(erFunktionenIkkeFundet({ code: "42501", message: "permission denied" })).toBe(false);
+    expect(erFunktionenIkkeFundet({ code: "PGRST301", message: "JWT expired" })).toBe(false);
+    expect(erFunktionenIkkeFundet(null)).toBe(false);
+    expect(erFunktionenIkkeFundet(undefined)).toBe(false);
   });
 });

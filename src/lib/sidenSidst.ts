@@ -31,10 +31,30 @@ export const NAVNE_MAKS = 3;
 
 export type SidenSidstSlags = "rapporter" | "beskeder" | "svar" | "betalinger" | "medlemmer";
 
+/** Én virksomhed på en linje (17/9, PR 3): id'et gør navnet til et link
+    (/virksomhed/{id}); null når rækken kom fra den gamle RPC uden id'er
+    (fald-tilbage i hooks/sidenSidst.ts) — så står navnet som tekst. */
+export interface SidenSidstVirksomhed {
+  id: string | null;
+  navn: string;
+}
+
 export interface SidenSidstRaekke {
   slags: SidenSidstSlags | string;
   antal: number;
   navne: string[];
+  /** (17/9) id + navn pr. virksomhed, samme orden som `navne`, højst seks fra
+      SQL. Udeladt/tom = den gamle RPC (get_siden_sidst) uden id'er. */
+  virksomheder?: SidenSidstVirksomhed[];
+}
+
+/** «Kunne ikke finde funktionen» — PostgREST's svar når RPC'en ikke findes
+    i skemaet (migrationen ikke kørt endnu). Kun DEN fejl må sende hooken
+    tilbage til den gamle RPC; alle andre fejl kastes som før. */
+export function erFunktionenIkkeFundet(fejl: { code?: string | null; message?: string | null } | null | undefined): boolean {
+  if (!fejl) return false;
+  if (fejl.code === "PGRST202") return true;
+  return /could not find the function/i.test(fejl.message ?? "");
 }
 
 const MS_PER_DOEGN = 86_400_000;
@@ -120,4 +140,63 @@ export function sidenSidstLinjer(raekker: readonly SidenSidstRaekke[]): SidenSid
 /** Den tomme tilstand — sand og rolig, ikke en fejl. */
 export function intetNytTekst(siden: Date, nu: Date): string {
   return `Intet nyt ${sidenTekst(siden, nu)}.`;
+}
+
+// ── Linjen i DELE — til links på navnene (17/9, PR 3) ──────────────────
+// sidenSidstLinjer (ovenfor) er teksten; fladen tegner nu navnene som links
+// og skal derfor have delene hver for sig: hovedet («Tre rapporter kom
+// ind»), de viste virksomheder (højst NAVNE_MAKS, med id når RPC'en gav
+// et) og halen («og to andre»). Kommaerne og «og» er IKKE en del af
+// linkene — de sættes af fladen mellem delene med sidenSidstNavneSep.
+// Kontrakten, låst i testen: sidenSidstLinjeTekst(dele) === tekst fra
+// sidenSidstLinjer for samme række — delene siger præcis det teksten siger.
+
+export interface SidenSidstLinjeDele {
+  slags: string;
+  antal: number;
+  /** «Tre rapporter kom ind» / «En ny besked». */
+  hoved: string;
+  /** De navne der vises (højst NAVNE_MAKS), i rækkefølge; id null = kun tekst. */
+  viste: SidenSidstVirksomhed[];
+  /** «to andre» / «en anden» — tom når alle navne vises. */
+  efter: string;
+}
+
+/** Virksomhederne på en række: id'erne når de findes, ellers navnene alene.
+    Samme rensning som samlNavne (trim, tomme ud). */
+function virksomhederAf(r: SidenSidstRaekke): SidenSidstVirksomhed[] {
+  const kilde: SidenSidstVirksomhed[] =
+    r.virksomheder && r.virksomheder.length > 0
+      ? r.virksomheder.map((v) => ({ id: v.id ?? null, navn: v.navn }))
+      : r.navne.map((navn) => ({ id: null, navn }));
+  return kilde.map((v) => ({ id: v.id, navn: v.navn.trim() })).filter((v) => v.navn.length > 0);
+}
+
+/** Linjerne som dele — samme udvalg og orden som sidenSidstLinjer. */
+export function sidenSidstLinjeDele(raekker: readonly SidenSidstRaekke[], maks = NAVNE_MAKS): SidenSidstLinjeDele[] {
+  const ud: SidenSidstLinjeDele[] = [];
+  for (const r of raekker) {
+    if (!(r.slags in ORD) || r.antal <= 0) continue;
+    const [ental, flertal] = ORD[r.slags as SidenSidstSlags];
+    const alle = virksomhederAf(r);
+    const viste = alle.length <= maks ? alle : alle.slice(0, maks);
+    const rest = alle.length - viste.length;
+    const efter = rest > 0 ? `${talord(rest, false)} ${rest === 1 ? "anden" : "andre"}` : "";
+    ud.push({ slags: r.slags, antal: r.antal, hoved: r.antal === 1 ? ental : `${talord(r.antal)} ${flertal}`, viste, efter });
+  }
+  return ud.sort((a, b) => b.antal - a.antal);
+}
+
+/** Skilletegnet FØR navn nr. i (i ≥ 1): «, » — dog « og » før det sidste
+    når intet «… andre» følger. Fladen tegner det som tekst, uden for linket. */
+export function sidenSidstNavneSep(i: number, antalViste: number, harEfter: boolean): string {
+  if (i <= 0) return "";
+  return !harEfter && i === antalViste - 1 ? " og " : ", ";
+}
+
+/** Teksten bygget af delene — skal være identisk med sidenSidstLinjer's. */
+export function sidenSidstLinjeTekst(l: SidenSidstLinjeDele): string {
+  if (l.viste.length === 0) return l.hoved;
+  const navne = l.viste.map((v, i) => `${sidenSidstNavneSep(i, l.viste.length, l.efter !== "")}${v.navn}`).join("");
+  return `${l.hoved} · ${navne}${l.efter ? ` og ${l.efter}` : ""}`;
 }

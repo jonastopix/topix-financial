@@ -18,7 +18,16 @@
  */
 
 import { supabase } from "@/integrations/supabase/client";
-import { sidenAf, type SidenSidstRaekke } from "@/lib/sidenSidst";
+import { erFunktionenIkkeFundet, sidenAf, type SidenSidstRaekke, type SidenSidstVirksomhed } from "@/lib/sidenSidst";
+
+/** RPC'erne (17/9, PR 3): den nye bærer id + navn pr. virksomhed
+    (virksomheder jsonb), så navnene kan linke; den gamle bærer kun navne.
+    Rækkefølgen ved udrulning er FRI: findes den nye ikke endnu (Update før
+    migrationen — PostgREST: PGRST202 «Could not find the function»), falder
+    hooken tilbage til den gamle, og fladen viser navnene som tekst. Alle
+    ANDRE fejl kastes som før. Findes den nye, bruges den gamle aldrig. */
+export const SIDEN_SIDST_RPC = "get_siden_sidst_virksomheder";
+export const SIDEN_SIDST_RPC_GAMMEL = "get_siden_sidst";
 
 export const SIDEN_SIDST_KEY = (userId: string | undefined) => ["siden-sidst", userId] as const;
 
@@ -68,9 +77,20 @@ export async function hentSidenSidst(userId: string, nu: Date = new Date()): Pro
     if (skriveFejl) console.warn("[siden-sidst] stemplet blev ikke sat:", skriveFejl.message);
     skrivSessionSiden(userId, siden);
   }
-  const { data, error } = await (supabase.rpc("get_siden_sidst" as any, { siden: siden.toISOString() }) as any);
+  const param = { siden: siden.toISOString() };
+  const ny = await (supabase.rpc(SIDEN_SIDST_RPC as any, param) as any);
+  if (!ny.error) {
+    const raekker: SidenSidstRaekke[] = ((ny.data ?? []) as { slags: string; antal: number; virksomheder: unknown }[]).map((r) => {
+      const virksomheder = laesVirksomheder(r.virksomheder);
+      return { slags: r.slags, antal: Number(r.antal) || 0, navne: virksomheder.map((v) => v.navn), virksomheder };
+    });
+    return { siden, raekker };
+  }
+  if (!erFunktionenIkkeFundet(ny.error)) throw new Error(ny.error.message);
+  // Fald-tilbage: migrationen er ikke kørt endnu — den gamle RPC, navne uden id.
+  const { data, error } = await (supabase.rpc(SIDEN_SIDST_RPC_GAMMEL as any, param) as any);
   if (error) throw new Error(error.message);
-  const raekker = ((data ?? []) as { slags: string; antal: number; navne: string[] | null }[]).map((r) => ({
+  const raekker: SidenSidstRaekke[] = ((data ?? []) as { slags: string; antal: number; navne: string[] | null }[]).map((r) => ({
     slags: r.slags,
     antal: Number(r.antal) || 0,
     navne: r.navne ?? [],
@@ -78,3 +98,18 @@ export async function hentSidenSidst(userId: string, nu: Date = new Date()): Pro
   return { siden, raekker };
 }
 /* eslint-enable @typescript-eslint/no-explicit-any */
+
+/** virksomheder jsonb → [{ id, navn }] — kun rækker med både id (uuid-streng)
+    og name; alt andet springes over, så en skæv række aldrig vælter listen. */
+export function laesVirksomheder(raa: unknown): SidenSidstVirksomhed[] {
+  if (!Array.isArray(raa)) return [];
+  const ud: SidenSidstVirksomhed[] = [];
+  for (const x of raa) {
+    if (!x || typeof x !== "object") continue;
+    const id = (x as { id?: unknown }).id;
+    const name = (x as { name?: unknown }).name;
+    if (typeof id !== "string" || typeof name !== "string" || name.trim() === "") continue;
+    ud.push({ id, navn: name });
+  }
+  return ud;
+}
