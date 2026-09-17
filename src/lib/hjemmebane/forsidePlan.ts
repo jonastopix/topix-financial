@@ -42,6 +42,8 @@ export interface PlanSkridt {
   source_type: string | null;
   created_at: string;
   priority?: string | null;
+  /** Rådgiveren der foreslog (PR 4: ansigtet — ansigter.raadgiverAnsigt). Valgfri: ældre kald bygger rækker uden. */
+  proposed_by?: string | null;
 }
 
 export interface MaalIForsidePlan {
