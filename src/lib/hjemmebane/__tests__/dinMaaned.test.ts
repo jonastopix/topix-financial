@@ -6,13 +6,17 @@ import {
   dinMaanedDom,
   retningTekst,
   sparkline,
+  SPARKLINE_UDEN_MAALTE_TEKST,
   sparklineKoordinater,
   type MaanedsRaekke,
 } from "@/lib/hjemmebane/dinMaaned";
 
 /* «Din måned» (forside PR 2, 17/9 — Jonas «A» til valg 2): tre tal med
    retning i ORD mod forrige måned, sparkline over de seneste 12 måneder med
-   tal (manglende springes over), og dag 1-teksten uden tal. */
+   tal (manglende springes over), og dag 1-teksten uden tal.
+   KUN MÅLTE i kurven (17/9, Jonas «Vi går med dine anbefalinger» — valg A):
+   estimater (årsregnskabet /12) udelades af sparkline og af «seneste N
+   måneder»; retningen og de tre tal er uændrede. */
 
 const r = (key: string, over: Partial<MaanedsRaekke> = {}): MaanedsRaekke => ({
   key,
@@ -66,6 +70,60 @@ describe("sparkline — de seneste 12 måneder MED tallet; manglende springes ov
   it("tom eller alle null → tom liste", () => {
     expect(sparkline([], "bank")).toEqual([]);
     expect(sparkline([r("2026-01", { bank: null })], "bank")).toEqual([]);
+  });
+});
+
+describe("sparkline — kun målte måneder (17/9, valg A): estimater er ikke måneder", () => {
+  it("blandede estimated/measured: kun de målte i kurven, rækkefølgen bevaret (Topix.dk-mønstret: 2025 estimeret /12, 2026 målt)", () => {
+    const rows = [
+      r("2026-02", { omsaetning: 95_000 }),
+      r("2025-12", { basis: "estimated", omsaetning: 48_929.75 }),
+      r("2026-01", { omsaetning: 88_000 }),
+      r("2025-11", { basis: "estimated", omsaetning: 48_929.75 }),
+      r("2026-03", { omsaetning: 101_000 }),
+    ];
+    expect(sparkline(rows, "omsaetning")).toEqual([
+      { key: "2026-01", value: 88_000 },
+      { key: "2026-02", value: 95_000 },
+      { key: "2026-03", value: 101_000 },
+    ]);
+    const d = dinMaanedDom(rows, false);
+    if (d.tom === true) return;
+    expect(d.sparklineTekst).toBe("Omsætning · seneste 3 måneder");
+  });
+  it("kun estimated → ingen kurve, teksten «kurven kommer med første målte måned»; tallene og retningen følger stadig seneste række, kortet mærket som estimat", () => {
+    const rows = [r("2025-11", { basis: "estimated", omsaetning: 48_929.75 }), r("2025-12", { basis: "estimated", omsaetning: 48_929.75, period: "December 2025" })];
+    expect(sparkline(rows, "omsaetning")).toEqual([]);
+    const d = dinMaanedDom(rows, false);
+    expect(d.tom).toBe(false);
+    if (d.tom === true) return;
+    expect(d.sparkline).toEqual([]);
+    expect(d.sparklineTekst).toBe(SPARKLINE_UDEN_MAALTE_TEKST);
+    expect(d.sparklineTekst).toBe("Omsætning · kurven kommer med første målte måned");
+    expect(d.periodLabel).toBe("December 2025");
+    expect(d.estimeret).toBe(true);
+    expect(d.tal[0]).toMatchObject({ label: "Omsætning", value: 48_929.75, retning: "som i november" });
+  });
+  it("et estimat NYERE end de målte: kurven stopper ved sidste målte; tallene følger den nyeste (estimerede) række med estimat-mærket som i dag", () => {
+    const rows = [
+      r("2026-05", { omsaetning: 90_000 }),
+      r("2026-06", { omsaetning: 100_000 }),
+      r("2026-07", { basis: "estimated", omsaetning: 70_000, period: "Juli 2026" }),
+    ];
+    expect(sparkline(rows, "omsaetning").map((p) => p.key)).toEqual(["2026-05", "2026-06"]);
+    const d = dinMaanedDom(rows, false);
+    if (d.tom === true) return;
+    expect(d.sparkline.map((p) => p.value)).toEqual([90_000, 100_000]);
+    expect(d.sparklineTekst).toBe("Omsætning · seneste 2 måneder");
+    expect(d.periodLabel).toBe("Juli 2026");
+    expect(d.estimeret).toBe(true);
+    expect(d.tal[0]).toMatchObject({ label: "Omsætning", value: 70_000, retning: "lavere end i juni" });
+  });
+  it("én målt måned (og estimater før den) → ingen kurve endnu, teksten siger næste måned", () => {
+    const d = dinMaanedDom([r("2025-12", { basis: "estimated" }), r("2026-01")], false);
+    if (d.tom === true) return;
+    expect(d.sparkline).toHaveLength(1);
+    expect(d.sparklineTekst).toBe("Omsætning · kurven kommer med næste måned");
   });
 });
 
