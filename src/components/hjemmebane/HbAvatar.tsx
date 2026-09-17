@@ -10,6 +10,11 @@ import { cn } from "@/lib/utils";
  * ikke her — det er et eget kort. Første bruger: «Online nu» på
  * rådgiverens forside. `title`/`aria-label` bærer navnet (og « · Legat»)
  * ved hover og for skærmlæsere — ingen tooltip-komponent.
+ *
+ * Forside PR 4 (17/9): størrelsen «lg» (72 px — det fremhævede opslags og
+ * pushets portrætform) og ALDRIG ET TOMT BILLEDE: kan billedet ikke
+ * indlæses (onError), falder det tilbage til initialen i husets form i
+ * stedet for en brudt firkant. `data-avatar` siger hvad der står.
  */
 export const HbAvatar = ({
   navn,
@@ -20,19 +25,24 @@ export const HbAvatar = ({
 }: {
   navn: string | null;
   avatarUrl: string | null;
-  stoerrelse?: "sm" | "md";
+  stoerrelse?: "sm" | "md" | "lg";
   /** Hover-/skærmlæser-tekst; default = navnet. */
   title?: string;
   className?: string;
 }) => {
-  const dim = stoerrelse === "sm" ? "h-8 w-8" : "h-9 w-9";
+  const [fejl, setFejl] = React.useState(false);
+  React.useEffect(() => setFejl(false), [avatarUrl]);
+  const dim = stoerrelse === "sm" ? "h-8 w-8" : stoerrelse === "lg" ? "h-[72px] w-[72px]" : "h-9 w-9";
+  const tekst = stoerrelse === "lg" ? "text-2xl" : "text-sm";
   const titel = title ?? navn ?? "Medlem";
-  return avatarUrl ? (
+  return avatarUrl && !fejl ? (
     <img
       src={avatarUrl}
       alt={navn ?? "Medlem"}
       title={titel}
       aria-label={titel}
+      onError={() => setFejl(true)}
+      data-avatar="billede"
       className={cn(dim, "shrink-0 rounded-full border border-hb-line object-cover", className)}
     />
   ) : (
@@ -40,9 +50,11 @@ export const HbAvatar = ({
       role="img"
       title={titel}
       aria-label={titel}
+      data-avatar="initial"
       className={cn(
         dim,
-        "flex shrink-0 items-center justify-center rounded-full border border-hb-line bg-hb-sage/40 font-editorial text-sm text-hb-ink-soft",
+        "flex shrink-0 items-center justify-center rounded-full border border-hb-line bg-hb-sage/40 font-editorial text-hb-ink-soft",
+        tekst,
         className,
       )}
     >

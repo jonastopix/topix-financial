@@ -23,6 +23,8 @@ import { bunnyThumbnailUrl } from "@/lib/hjemmebane/bunnyMedia";
 import { getISOWeekKey } from "@/lib/hjemmebane/week";
 import { denneUgesFredag, naesteUgesFredag, omEnMaaned, tilDatoStreng } from "@/lib/hjemmebane/opgaveDato";
 import { forslagMetaLinje, fristTekst } from "@/lib/hjemmebane/aftaler";
+import { afsender, aktiveMedlemmer, INGEN_RAADGIVERE, raadgiverAnsigt, raadgiverOpslag, synligeMedlemmer, type Ansigt } from "@/lib/hjemmebane/ansigter";
+import { listMemberDirectory } from "@/lib/hjemmebane/memberProfile";
 import { afgoerFokusTom, type FokusTom } from "@/lib/hjemmebane/fokusTom";
 import { hentefejlTekst, kildeAf, sektionsfejlTekst } from "@/lib/hjemmebane/hentefejl";
 import { Calendar } from "@/components/ui/calendar";
@@ -42,6 +44,7 @@ import { EstimatMaerke } from "../EstimatMaerke";
 import { dinMaanedDom, sparklineKoordinater, type DinMaanedDom, type MaanedsRaekke } from "@/lib/hjemmebane/dinMaaned";
 import { erDag1, hilsenLinje } from "@/lib/hjemmebane/forsideHilsen";
 import { HbSection } from "../HbSection";
+import { HbAvatar } from "../HbAvatar";
 import { HbMaalForklaring } from "../milestones/HbMaalForklaring";
 import { MAAL_FORKLARING_OVERSKRIFT } from "@/lib/hjemmebane/maalForklaring";
 import { hasRichTextContent } from "@/lib/hjemmebane/richtext";
@@ -149,21 +152,9 @@ const traadRelativTid = (iso: string): string => {
   return `For ${days} dage siden`;
 };
 
-/** LOKAL pendant til CommunityViews ForfatterAvatar (CommunityView.tsx:
-    38-49, ikke eksporteret) — samme ramme, samme sage-fallback med
-    initial når avatar_url er null. */
-const TraadForfatterAvatar = ({ navn, avatarUrl }: { navn: string | null; avatarUrl: string | null }) =>
-  avatarUrl ? (
-    <img
-      src={avatarUrl}
-      alt={navn ?? "Medlem"}
-      className="h-9 w-9 shrink-0 rounded-full border border-hb-line object-cover"
-    />
-  ) : (
-    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-hb-line bg-hb-sage/40 font-editorial text-sm text-hb-ink-soft">
-      {(navn ?? "?").charAt(0)}
-    </span>
-  );
+/* Forside PR 4: TraadForfatterAvatar (lokal pendant til ForfatterAvatar) er
+   afløst af husets HbAvatar — samme ramme, samme initial i sage, og nu
+   ALDRIG et tomt billede (onError → initialen). */
 
 /** Det fremhævede opslags billede — første hvidlistede billede i
     dokumentet, signeret ved visning som CommunityBillede (CommunityDokument
@@ -220,17 +211,8 @@ const FremhaevetOpslag = ({ traad }: { traad: CommunityTraad }) => {
           <div className="p-6 md:p-8">
             <p className="text-xs font-medium uppercase tracking-[0.14em] text-hb-rust">Seneste opslag</p>
             <div className="mt-4 flex items-start gap-5">
-              {traad.forfatter_avatar_url ? (
-                <img
-                  src={traad.forfatter_avatar_url}
-                  alt={navn}
-                  className="h-[72px] w-[72px] shrink-0 rounded-full border border-hb-line object-cover"
-                />
-              ) : (
-                <span className="flex h-[72px] w-[72px] shrink-0 items-center justify-center rounded-full border border-hb-line bg-hb-sage/40 font-editorial text-2xl text-hb-ink-soft">
-                  {navn.charAt(0)}
-                </span>
-              )}
+              {/* PR 4: portrættet når forfatteren har et, ellers initialen i husets form (HbAvatar — aldrig et tomt billede). */}
+              <HbAvatar navn={navn} avatarUrl={traad.forfatter_avatar_url} stoerrelse="lg" />
               <div className="min-w-0">
                 <h2 className="font-editorial text-3xl font-medium leading-tight text-hb-ink md:text-4xl">
                   {traad.titel}
@@ -360,17 +342,8 @@ const PushStory = ({
       </p>
       {bigPortrait ? (
         <div className="mt-4 flex items-start gap-5">
-          {sender?.avatar_url ? (
-            <img
-              src={sender.avatar_url}
-              alt={senderName!}
-              className="h-[72px] w-[72px] shrink-0 rounded-full border border-hb-line object-cover"
-            />
-          ) : (
-            <span className="flex h-[72px] w-[72px] shrink-0 items-center justify-center rounded-full border border-hb-line bg-hb-sage/40 font-editorial text-2xl text-hb-ink-soft">
-              {senderName!.charAt(0)}
-            </span>
-          )}
+          {/* PR 4: samme 72 px-form gennem HbAvatar — aldrig et tomt billede. */}
+          <HbAvatar navn={senderName!} avatarUrl={sender?.avatar_url ?? null} stoerrelse="lg" />
           <div className="min-w-0">
             <h2 className="font-editorial text-3xl font-medium leading-tight text-hb-ink md:text-4xl">
               {push.title}
@@ -1110,9 +1083,13 @@ const FocusCard = ({
   onProevIgen,
   variant = "fuld",
   relevante = [],
+  ansigt = null,
 }: {
   loading: boolean;
   items: FocusItem[];
+  /** Forside PR 4 (valg 6): rådgiverens ansigt ved det PRIMÆRE punkt, når det er
+      hendes skridt (dommen er ansigter.raadgiverAnsigt — kortet dømmer intet). */
+  ansigt?: Ansigt | null;
   weeklySummary: string | null;
   /** Forside PR 2: «kompakt» er toppens højre kolonne — titel 18 px, én
       linje manchet, knap; #2–4 som tætte linjer; «Måske relevant» som
@@ -1174,6 +1151,12 @@ const FocusCard = ({
         </div>
       ) : primary ? (
         <div>
+          {ansigt && (
+            <p className={cn("flex items-center gap-2 text-xs font-medium text-hb-ink", kompakt ? "mb-2" : "mb-3")} data-ansigt={ansigt.userId}>
+              <HbAvatar navn={ansigt.navn} avatarUrl={ansigt.avatarUrl} stoerrelse="sm" />
+              <span>{ansigt.linje}</span>
+            </p>
+          )}
           <h3 className={cn("font-editorial font-medium leading-tight text-hb-ink", kompakt ? "text-lg" : "text-3xl md:text-4xl")}>
             {primary.title}
           </h3>
@@ -1313,8 +1296,10 @@ const FocusCard = ({
     begrundelsen (forslag), og OpgaveKnapper — SAMME knapper og kald som
     «Dine skridt» havde. Knapperne er søskende til teksten (ingen klikbar
     handling i et anker). */
-const PlanSkridtRaekke = ({ skridt, slags, busy, onKald }: { skridt: PlanSkridt; slags: "aktiv" | "forslag"; busy: boolean; onKald: (kald: OpgaveKald) => void }) => {
+const PlanSkridtRaekke = ({ skridt, slags, busy, onKald, ansigt = null }: { skridt: PlanSkridt; slags: "aktiv" | "forslag"; busy: boolean; onKald: (kald: OpgaveKald) => void; ansigt?: Ansigt | null }) => {
   const meta = slags === "forslag" ? forslagMetaLinje(skridt, new Date()) : null;
+  // PR 4: med et ansigt siger første led «Fra Morten» i stedet for «Fra din rådgiver» (aftaler.forslagKilde er fald-tilbage).
+  const metaDele = meta ? (ansigt ? [ansigt.linje, ...meta.dele.slice(1)] : meta.dele) : [];
   return (
     <li className="border-t border-hb-line/60 first:border-t-0" data-skridt-id={skridt.id} data-skridt-status={skridt.status} data-skridt-maal={skridt.maal_id ?? ""}>
       <div className="flex flex-wrap items-center gap-x-6 gap-y-3 py-3">
@@ -1327,14 +1312,17 @@ const PlanSkridtRaekke = ({ skridt, slags, busy, onKald }: { skridt: PlanSkridt;
             <p className="mt-1 text-sm text-hb-ink-soft">{fristTekst(skridt.due_date, tilDatoStreng(new Date()))}</p>
           )}
           {meta && (
-            <p className="mt-1 text-sm text-hb-ink-soft">
-              {meta.dele.join(" · ")}
+            <p className="mt-1 flex items-center gap-2 text-sm text-hb-ink-soft">
+              {ansigt && <HbAvatar navn={ansigt.navn} avatarUrl={ansigt.avatarUrl} stoerrelse="sm" />}
+              <span data-forslag-kilde={ansigt ? ansigt.userId : "uden-ansigt"}>
+              {metaDele.join(" · ")}
               {meta.udloeb && (
                 <>
                   {" · "}
                   <span className={meta.haster ? "text-hb-rust" : undefined}>{meta.udloeb}</span>
                 </>
               )}
+              </span>
             </p>
           )}
           {slags === "forslag" && skridt.context?.trim() && (
@@ -1471,29 +1459,25 @@ export const BoardroomView = () => {
     [items],
   );
 
-  // Afsender-portrættet (PR 3): profiler slås op via den SAMME RPC som
-  // medlems-chatten bruger ("Fetch all advisors for member header",
-  // CompanyChatPane:163-176 — get_all_advisor_profiles er security definer,
-  // så MEDLEMMER må kalde den; direkte profiles-select er ikke garanteret
-  // for medlemmer). Kun når pushet bærer et author_user_id.
+  // RÅDGIVERNES ANSIGTER (forside PR 4, Jonas «A» til valg 6): ÉN hentning
+  // af get_all_advisor_profiles — den SAMME security definer-RPC som
+  // medlems-chatten (CompanyChatPane:163-176), så MEDLEMMER må kalde den;
+  // direkte profiles-select er ikke garanteret for medlemmer. Før (PR 3)
+  // hentedes den kun for pushets afsender; nu føder ét opslag pushets
+  // afsender, «Dit næste skridt» og forslagene i «Din plan». Dommen om
+  // HVEM der får et ansigt er ren (ansigter.raadgiverAnsigt). Ansigter er
+  // berigelse: fejler kaldet, står teksterne uden portræt («Fra din
+  // rådgiver») — kilden navngives (kraevRaekker), ingen fejllinje.
   const pushAuthorUserId =
     ((pushItem?.metadata as Record<string, unknown> | null)?.author_user_id as string) || null;
-  const { data: pushSender = null } = useQuery({
-    queryKey: ["boardroom", "push-sender", pushAuthorUserId],
-    queryFn: async () => {
-      const { data, error } = await supabase.rpc("get_all_advisor_profiles" as any);
-      if (error) {
-        console.error("Failed to fetch advisor profiles:", error);
-        return null;
-      }
-      const match = ((data as any[]) || []).find((r: any) => r.user_id === pushAuthorUserId);
-      return match
-        ? { full_name: match.full_name as string, avatar_url: (match.avatar_url as string) ?? null }
-        : null;
-    },
+  const raadgivereQuery = useQuery({
+    queryKey: ["boardroom", "raadgivere"],
+    queryFn: async () => raadgiverOpslag(kraevRaekker(await supabase.rpc("get_all_advisor_profiles" as any), "get_all_advisor_profiles") as any[]),
     staleTime: 10 * 60 * 1000,
-    enabled: !!pushAuthorUserId,
+    enabled: !!user,
   });
+  const raadgivere = raadgivereQuery.data ?? INGEN_RAADGIVERE;
+  const pushSender = afsender(pushAuthorUserId, raadgivere);
 
   // Push-coveret (PR A) — samme signerede-URL-mønster som Akademiets covers
   // (getAssetPreviewUrl mod content-assets).
@@ -1645,7 +1629,7 @@ export const BoardroomView = () => {
       // #703/#706): før blev en fejl til `[]`, og «Dine aftaler» forsvandt
       // tavst — et forslag fra rådgiveren eller en aktiv opgave væk uden
       // spor. Tom er et gyldigt svar (ingen aftaler); fejl er det ikke.
-      const actionsRes = (await supabase.from("company_actions").select("id, title, context, priority, status, created_at, due_date, expires_at, deferral_count, source_type, maal_id")
+      const actionsRes = (await supabase.from("company_actions").select("id, title, context, priority, status, created_at, due_date, expires_at, deferral_count, source_type, maal_id, proposed_by")
         .eq("company_id", companyId!).in("status", ["open", "proposed", "active"]).order("created_at", { ascending: false }).limit(50)) as any;
       return (kraevRaekker(actionsRes, "company_actions") as any[]).sort((a: any, b: any) => {
         const order: Record<string, number> = { high: 0, medium: 1, low: 2 };
@@ -2079,6 +2063,30 @@ export const BoardroomView = () => {
   // (lib/hjemmebane/forsidePlan): grupperingen under mål, «Uden mål» sidst,
   // udløbne forslag fra, forfaldne øverst.
   const aftaleRaekker = (actionsQuery.data ?? []) as PlanSkridt[];
+  // Ansigtet ved «Dit næste skridt» (PR 4): kun når det primære punkt er et
+  // skridt fra rådgiveren (company-action med source_type advisor og kendt
+  // proposed_by) — dommen er raadgiverAnsigt; fokus-motoren er urørt.
+  const fokusAnsigt = useMemo<Ansigt | null>(() => {
+    const primaer = focus[0];
+    if (!primaer || primaer.kind !== "company-action" || !primaer.sourceId) return null;
+    const raekke = aftaleRaekker.find((r) => r.id === primaer.sourceId);
+    return raekke ? raadgiverAnsigt(raekke, raadgivere) : null;
+  }, [focus, aftaleRaekker, raadgivere]);
+  // AKTIVE MEDLEMMER (PR 4, analyse §5): små portrætter af dem der har skrevet
+  // den seneste uge — kun medlemmer i Netværket (get_member_directory:
+  // vis_i_netvaerk, ingen rådgivere, ingen legat) og kun det feedet
+  // (fail-closed) allerede har givet. Hentes først når feedet har rækker;
+  // samme nøgle som /medlemmer og community-sporet, så cachen deles.
+  const directoryQuery = useQuery({
+    queryKey: ["member-directory"],
+    queryFn: listMemberDirectory,
+    staleTime: 5 * 60_000,
+    enabled: (communityQuery.data?.length ?? 0) > 0,
+  });
+  const aktive = useMemo(
+    () => aktiveMedlemmer(communityQuery.data ?? [], directoryQuery.data ? synligeMedlemmer(directoryQuery.data) : null, new Date()),
+    [communityQuery.data, directoryQuery.data],
+  );
   const dineMaal = useMemo(
     () => (milestonesQuery.data && skridtQuery.data ? dineMaalDom(milestonesQuery.data, skridtQuery.data, new Date()) : null),
     [milestonesQuery.data, skridtQuery.data],
@@ -2212,6 +2220,7 @@ export const BoardroomView = () => {
               tom={fokusTom}
               onProevIgen={proevIgen}
               relevante={(maaskeRelevante ?? []).map((lektion) => ({ id: lektion.id, title: lektion.title, sti: lektionsSti(lektion) }))}
+              ansigt={fokusAnsigt}
             />
             {hentefejlLinje && (
               <p className="mt-4 text-sm text-hb-rust">
@@ -2378,7 +2387,7 @@ export const BoardroomView = () => {
                         <PlanSkridtRaekke key={a.id} skridt={a} slags="aktiv" busy={planBusy} onKald={(kald) => opgaveMutation.mutate(kald)} />
                       ))}
                       {x.forslag.map((f) => (
-                        <PlanSkridtRaekke key={f.id} skridt={f} slags="forslag" busy={planBusy} onKald={(kald) => opgaveMutation.mutate(kald)} />
+                        <PlanSkridtRaekke key={f.id} skridt={f} slags="forslag" ansigt={raadgiverAnsigt(f, raadgivere)} busy={planBusy} onKald={(kald) => opgaveMutation.mutate(kald)} />
                       ))}
                     </ul>
                   )}
@@ -2408,7 +2417,7 @@ export const BoardroomView = () => {
                   <PlanSkridtRaekke key={a.id} skridt={a} slags="aktiv" busy={planBusy} onKald={(kald) => opgaveMutation.mutate(kald)} />
                 ))}
                 {plan.udenMaal.forslag.map((f) => (
-                  <PlanSkridtRaekke key={f.id} skridt={f} slags="forslag" busy={planBusy} onKald={(kald) => opgaveMutation.mutate(kald)} />
+                  <PlanSkridtRaekke key={f.id} skridt={f} slags="forslag" ansigt={raadgiverAnsigt(f, raadgivere)} busy={planBusy} onKald={(kald) => opgaveMutation.mutate(kald)} />
                 ))}
               </ul>
             </div>
@@ -2421,7 +2430,7 @@ export const BoardroomView = () => {
                   <PlanSkridtRaekke key={a.id} skridt={a} slags="aktiv" busy={planBusy} onKald={(kald) => opgaveMutation.mutate(kald)} />
                 ))}
                 {plan.andre.forslag.map((f) => (
-                  <PlanSkridtRaekke key={f.id} skridt={f} slags="forslag" busy={planBusy} onKald={(kald) => opgaveMutation.mutate(kald)} />
+                  <PlanSkridtRaekke key={f.id} skridt={f} slags="forslag" ansigt={raadgiverAnsigt(f, raadgivere)} busy={planBusy} onKald={(kald) => opgaveMutation.mutate(kald)} />
                 ))}
               </ul>
             </div>
@@ -2504,6 +2513,23 @@ export const BoardroomView = () => {
           hairline
           className="mt-10 md:mt-12"
         >
+          {/* PR 4: de seneste aktive medlemmer — små portrætter (højst 6) og
+              «N medlemmer har skrevet den seneste uge». Kun Netværkets
+              medlemmer; dommen er aktiveMedlemmer. Ingen når ingen har skrevet. */}
+          {aktive.tekst && (
+            <div className="mb-5 flex flex-wrap items-center gap-3" data-aktive-medlemmer={aktive.antal}>
+              <ul className="flex -space-x-2">
+                {aktive.medlemmer.map((m) => (
+                  <li key={m.userId}>
+                    <Link to={`/medlemmer/${m.userId}`} className="block rounded-full ring-2 ring-hb-paper">
+                      <HbAvatar navn={m.navn} avatarUrl={m.avatarUrl} stoerrelse="sm" />
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+              <p className="text-sm text-hb-ink-soft">{aktive.tekst}</p>
+            </div>
+          )}
           <FremhaevetOpslag traad={forsideOpslag.fremhaevet} />
           <ul className={cn(forsideOpslag.resten.length > 0 && "mt-8")}>
             {forsideOpslag.resten.map((traad) => (
@@ -2512,10 +2538,7 @@ export const BoardroomView = () => {
                   to={`/community/${traad.id}`}
                   className="flex items-center gap-5 py-4 transition-colors hover:bg-hb-sage/20"
                 >
-                  <TraadForfatterAvatar
-                    navn={traad.forfatter_navn}
-                    avatarUrl={traad.forfatter_avatar_url}
-                  />
+                  <HbAvatar navn={traad.forfatter_navn} avatarUrl={traad.forfatter_avatar_url} />
                   <div className="min-w-0 flex-1">
                     <p className="text-sm text-hb-ink-soft">{traad.forfatter_navn ?? "Medlem"}</p>
                     <p className="mt-1 truncate font-editorial text-lg font-medium leading-snug text-hb-ink">
