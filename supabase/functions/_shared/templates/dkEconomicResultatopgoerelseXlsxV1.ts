@@ -26,6 +26,7 @@ import type {
   SemanticLineItem,
 } from "../semanticTypes.ts";
 import type { MetricFamily } from "../normalizationProfiles.ts";
+import { fordelSubtotaler, FINANSIELLE_INDTAEGTER_RE, OEVRIGE_OMKOSTNINGER_RE, FINANSIERINGSUDGIFTER_RE, type GruppeRaekke } from "../subtotalGrupper.ts";
 
 // ── Sign normalization helpers ──
 
@@ -217,10 +218,16 @@ const LABEL_MATCHERS: LabelMatch[] = [
   { key: "afskrivninger", pattern: /afskrivninger\s*(i\s*alt|ialt)?$/i, signRule: "abs", isProfitSubtotal: false, reason: "Cost → abs()" },
   // EBIT — profit subtotal (convention-dependent)
   { key: "indtjeningsbidrag", pattern: /(indtjeningsbidrag|resultat\s*før\s*(renter|finansielle\s*poster))/i, signRule: "flipSign", isProfitSubtotal: true, reason: "Profit subtotal (convention-dependent)" },
-  // Financial costs — abs()
-  { key: "finansieringsudgifter", pattern: /finansierings(udgifter|omkostninger)\s*(i\s*alt|ialt)?$/i, signRule: "abs", isProfitSubtotal: false, reason: "Cost → abs()" },
-  // Extraordinary items — abs()
-  { key: "ekstraordinaere_poster", pattern: /ekstraordinære\s*poster\s*(i\s*alt|ialt)?$/i, signRule: "abs", isProfitSubtotal: false, reason: "Cost → abs()" },
+  // Financial costs — abs(). 17/9-2026: også «Renteudgifter i alt» (Floren, målt) og «Finansielle udgifter i alt» (ANLA, målt)
+  { key: "finansieringsudgifter", pattern: FINANSIERINGSUDGIFTER_RE, signRule: "abs", isProfitSubtotal: false, reason: "Cost → abs()" },
+  // Financial income — 17/9-2026 (subtotalGrupper.ts): «Renteindtægter i alt» / «Finansielle indtægter i alt» → financial_income
+  { key: "finansielle_indtaegter", pattern: FINANSIELLE_INDTAEGTER_RE, signRule: "abs", isProfitSubtotal: false, reason: "Financial income → abs()" },
+  // Other external costs — 17/9-2026: «Andre eksterne omkostninger i alt», «Fremmed arbejde i alt», «Underleverandører i alt» → other_costs (lægges sammen)
+  { key: "oevrige_omkostninger", pattern: OEVRIGE_OMKOSTNINGER_RE, signRule: "abs", isProfitSubtotal: false, reason: "Cost → abs()" },
+  // Extraordinary items — abs(). 17/9-2026: forankret med ^ — uden den ramte mønstret «resultat før
+  // ekstraordinære poster» (profit-subtotalen står SENERE i listen, og første match vinder), målt på en
+  // e-conomic-fil i forretningsfortegn: ebt 51.719 blev også til «ekstraordinære poster» 51.719.
+  { key: "ekstraordinaere_poster", pattern: /^ekstraordinære\s*poster\s*(i\s*alt|ialt)?$/i, signRule: "abs", isProfitSubtotal: false, reason: "Cost → abs()" },
   // EBT — profit subtotal (convention-dependent)
   { key: "resultat_foer_skat", pattern: /resultat\s*før\s*skat/i, signRule: "flipSign", isProfitSubtotal: true, reason: "Profit subtotal (convention-dependent)" },
   // EBT fallback variant — "resultat før ekstraordinære poster" (e-conomic variant without tax line)
@@ -269,6 +276,8 @@ const SEMANTIC_FAMILY_MAP: Record<string, MetricFamily> = {
   afskrivninger: "cost_like",
   indtjeningsbidrag: "profit_like",
   finansieringsudgifter: "cost_like",
+  finansielle_indtaegter: "revenue_like",
+  oevrige_omkostninger: "cost_like",
   ekstraordinaere_poster: "cost_like",
   resultat_foer_skat: "profit_like",
   resultat_foer_ekstraordinaere: "profit_like",
@@ -818,8 +827,13 @@ export const dkEconomicResultatopgoerelseXlsxV1: SemanticXlsxTemplateEntry = {
     console.log(`[DK_ECONOMIC_PNL_XLSX_SEMANTIC] Convention: ${signConvention}, profile: ${normalizationProfileId}`);
 
     // ── Scan structural rows for label + value ──
+    // 17/9-2026 (subtotalGrupper.ts): subtotal-rækkerne samles først (skabelonens første matcher pr.
+    // række som før), og fordelSubtotaler dømmer: finansielle indtægter og øvrige omkostninger lægges
+    // sammen, kredit-netto i en omkostningsgruppe → andre driftsindtægter, grupper uden nøgle bevises
+    // af filens egen resultatlinje, kontrolsum pnl_coverage. Sidste række med samme nøgle vinder (som før).
     const metricCandidates: SemanticMetricCandidate[] = [];
     const lineItems: SemanticLineItem[] = [];
+    const gruppeRaekker: GruppeRaekke[] = [];
     let matchCount = 0;
 
     for (const row of xlsxResult.rows) {
@@ -855,28 +869,36 @@ export const dkEconomicResultatopgoerelseXlsxV1: SemanticXlsxTemplateEntry = {
       });
 
       if (!isSubtotal) continue;
-      for (const matcher of LABEL_MATCHERS) {
-        if (!matcher.pattern.test(label)) continue;
+      const matcher = LABEL_MATCHERS.find((m) => m.pattern.test(label)) ?? null;
+      if (matcher) matchCount++;
+      gruppeRaekker.push({
+        label,
+        rawValue,
+        rowIndex: row.row_index,
+        cellAddress: valueCell?.cell_address ?? null,
+        key: matcher?.key ?? null,
+        family: matcher ? (SEMANTIC_FAMILY_MAP[matcher.key] || "contra_or_unknown") : null,
+        evidence: matcher ? [`label_match:${matcher.key}`, `pattern:${matcher.pattern.source}`] : [],
+      });
+    }
 
-        const family = SEMANTIC_FAMILY_MAP[matcher.key] || "contra_or_unknown";
-        metricCandidates.push({
-          source_field_id: matcher.key,
-          normalization_family: family,
-          raw_value: rawValue,
-          raw_sign: rawValue != null ? (rawValue > 0 ? "positive" : rawValue < 0 ? "negative" : "zero") : "zero",
-          sign_convention: signConvention,
-          source_label: label,
-          source_row_index: row.row_index,
-          source_column_slot: valueColIndex,
-          source_cell_address: valueCell?.cell_address ?? null,
-          basis: "period",
-          confidence: "HIGH",
-          evidence: [`label_match:${matcher.key}`, `pattern:${matcher.pattern.source}`],
-          proposed_canonical_target: null,
-        });
-        matchCount++;
-        break;
-      }
+    const fordeling = fordelSubtotaler(gruppeRaekker, signConvention, "last");
+    for (const k of fordeling.kandidater) {
+      metricCandidates.push({
+        source_field_id: k.key,
+        normalization_family: k.family,
+        raw_value: k.rawValue,
+        raw_sign: k.rawValue != null ? (k.rawValue > 0 ? "positive" : k.rawValue < 0 ? "negative" : "zero") : "zero",
+        sign_convention: k.signConvention,
+        source_label: k.label,
+        source_row_index: k.rowIndex,
+        source_column_slot: valueColIndex,
+        source_cell_address: k.cellAddress,
+        basis: "period",
+        confidence: "HIGH",
+        evidence: k.evidence,
+        proposed_canonical_target: null,
+      });
     }
 
     if (matchCount < 3) {
@@ -902,6 +924,8 @@ export const dkEconomicResultatopgoerelseXlsxV1: SemanticXlsxTemplateEntry = {
     checks.push({ name: "ebt_present", result: hasEbtFinal ? "PASS" as const : "FAIL" as const, details: hasEbtFinal ? "EBT found" : "No EBT" });
     // Phase 6b: sign convention detection validation check
     checks.push({ name: "sign_convention_detected", result: "PASS" as const, details: `Convention: ${signConvention}` });
+    // 17/9-2026: kontrolsummen — filens egen resultatlinje mod omsætning − grupper + indtægter (subtotalGrupper.ts)
+    checks.push(fordeling.kontrolsum);
     const parserStatus = checks.some(c => c.result === "FAIL") ? "FAIL" as const : "PASS" as const;
 
     const result: SemanticExtractionResult = {

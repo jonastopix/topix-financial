@@ -114,6 +114,7 @@ const economic_pnl_credit_v1: NormalizationProfile = {
     contra_or_unknown:       REJECT,
   },
   field_overrides: {
+    andre_driftsindtaegter: { action: "keep", description: "Positiv del udstedt af subtotalGrupper.ts (business, kredit-netto i en omkostningsgruppe) — vendes ikke (17/9-2026)" },
     direkte_omkostninger: {
       action: "conditional",
       description: "COGS may be negative (contra-cost) — validate against revenue-GP equation",
@@ -124,13 +125,19 @@ const economic_pnl_credit_v1: NormalizationProfile = {
 
 // ── Profile: Dinero Resultatopgørelse (credit convention, P&L only) ──
 
+// 17/9-2026 (kontogrupper.ts): skabelonen udsteder omsætningen som rå KREDIT-netto (negativ → NEGATE
+// her, før ABS) og omkostningsgrupperne som deres POSITIVE del markeret «business» (allerede vendt) —
+// ABS er et no-op på dem, og en negativ del kan ikke opstå (kredit-netto → 0 + indtægt); ABS beholdes
+// fordi omkostningsFortegn.guard kræver ABS/NEGATE på cost_like i hver profil. Indtægtskandidaterne
+// (andre_driftsindtaegter, finansielle_indtaegter) er positive og «business» → KEEP, ellers ville
+// revenue_like NEGATE vende dem til minus (motorens tjek 17).
 const dinero_pnl_credit_v1: NormalizationProfile = {
   profile_id: "dinero_pnl_credit_v1",
   description: "Dinero Resultatopgørelse PDF/CSV — credit convention, P&L only",
   sign_convention: "credit",
   statement_type: "pnl",
   family_defaults: {
-    revenue_like:            ABS,
+    revenue_like:            NEGATE,
     cost_like:               ABS,
     profit_like:             NEGATE,
     asset_like:              ABS,
@@ -141,6 +148,9 @@ const dinero_pnl_credit_v1: NormalizationProfile = {
     contra_or_unknown:       REJECT,
   },
   field_overrides: {
+    andre_driftsindtaegter: { action: "keep", description: "Positiv del udstedt af kontogrupper.ts (business) — vendes ikke" },
+    finansielle_indtaegter: { action: "keep", description: "Positiv del udstedt af kontogrupper.ts (business) — vendes ikke" },
+    resultat_efter_skat: KEEP_DERIVED, // ebt − skat regnet i skabelonen (kontogrupper.ts) — fortegnet ER resultatet
     resultat_foer_skat: {
       action: "conditional",
       description: "Cross-validate profit direction against computed GP - opex",
@@ -172,7 +182,9 @@ const combined_dk_credit_v1: NormalizationProfile = {
     receivable_payable_like: KEEP,     // Direction matters
     contra_or_unknown:       REJECT,
   },
-  field_overrides: {},
+  field_overrides: {
+    andre_driftsindtaegter: { action: "keep", description: "Positiv del udstedt af subtotalGrupper.ts (business, kredit-netto i en omkostningsgruppe) — vendes ikke (17/9-2026)" },
+  },
 };
 
 // ── Profile: Combined Balance/PnL XLSX (credit convention) ──
@@ -224,7 +236,9 @@ const economic_pnl_business_v1: NormalizationProfile = {
     receivable_payable_like: KEEP,
     contra_or_unknown:       REJECT,
   },
-  field_overrides: {},
+  field_overrides: {
+    andre_driftsindtaegter: { action: "keep", description: "Positiv del udstedt af subtotalGrupper.ts (business, kredit-netto i en omkostningsgruppe) — vendes ikke (17/9-2026)" },
+  },
 };
 
 // ── Profile: Combined DK (business convention, P&L + Balance) ──
@@ -245,7 +259,9 @@ const combined_dk_business_v1: NormalizationProfile = {
     receivable_payable_like: KEEP,     // Direction matters
     contra_or_unknown:       REJECT,
   },
-  field_overrides: {},
+  field_overrides: {
+    andre_driftsindtaegter: { action: "keep", description: "Positiv del udstedt af subtotalGrupper.ts (business, kredit-netto i en omkostningsgruppe) — vendes ikke (17/9-2026)" },
+  },
 };
 
 // ── Registry ──
