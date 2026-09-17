@@ -6,7 +6,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { ADVISOR_DASHBOARD_QUERY_KEY, hentAdvisorDashboard } from "@/components/AdvisorDashboard";
 import { invaliderForsiden, lukOpgave } from "@/hooks/opgaveLukning";
 import { OpgavelisteView } from "@/components/hjemmebane/opgaver/OpgavelisteView";
-import { TAERSKEL, usaedvanligtMangeTekst, type Betaltlinje, type Boelgelinje, type Linje, type OpgaveSlags, type Virksomhedslinje } from "@/lib/forsidensDom";
+import { TAERSKEL, usaedvanligtMangeTekst, type Betaltlinje, type Boelgelinje, type Linje, type OpgaveSlags, type Tilstandslinje, type Virksomhedslinje } from "@/lib/forsidensDom";
 import { samletLinjeLink } from "@/lib/hjemmebane/forsideLinks";
 import { LUKNINGS_UDFALD, UDFALD_TEKST, type LukningsUdfald } from "@/lib/opgaveLukning";
 import { pulsLinjer } from "@/lib/pulsen";
@@ -102,9 +102,19 @@ import { raadgiverHentefejlTekst } from "@/lib/raadgiverHentefejl";
  * gemmer det grundlag dommen selv gav linjen (Virksomhedslinje.grundlag)
  * gennem den ene skrivevej (hooks/opgaveLukning), invaliderer forsiden og
  * lader dommen afgøre hvad der står — ingen optimistisk patch. Linjen
- * kommer igen når noget NYT er sket (andet grundlag). Tilstandslinjerne
- * («N virksomheder har du ikke hørt fra længe») har ingen knapper —
- * de er næste PR.
+ * kommer igen når noget NYT er sket (andet grundlag).
+ *
+ * TILSTANDSLINJERNE (PR 5, 17/9 — analyse-raadgivernes-forside.md §3.1 pkt.
+ * 3 / §6 forslag 6; før: «har ingen knapper — de er næste PR»): «11 kunder
+ * har ingen mål», «2 virksomheder har mål til gennemgang», «N har du ikke
+ * hørt fra længe» er nu folde (TilstandFold) — over OG under stregen —
+ * med ét navn pr. virksomhed, dens grund, og «Færdiggjort · Ikke relevant»
+ * PR. NAVN; linjens egne to ord kvitterer alle. Hver kvittering er én
+ * lukOpgave pr. virksomhed med DENS grundlag for netop tilstanden
+ * (Tilstandslinje.virksomheder[].grundlag: {ingen_maal: «ingen:0»},
+ * {maal_uden_bevaegelse: «gennemgang:4»}, {tavshed: sidste besked}) — så
+ * linjen tæller kun de ikke-kvitterede, og en ny virksomhed i tilstanden
+ * eller et andet grundlag står igen. Ingen ny tabel eller kolonne.
  */
 
 const hilsen = (): string => {
@@ -132,9 +142,52 @@ const virksomhedsLink = (companyId: string) => `/virksomhed/${companyId}`;
     kan stadig kun afgøres i AgentForslagPanel på /virksomhed/:companyId;
     udsnittet på listen er det nærmeste for flere. */
 
-/** Én linje fra dommen. Virksomhed: handling + grunde; tilstand/pukkel: tekst.
-    Rust kun til det der er galt (>= TAERSKEL) eller haster (løftet). */
-const DomLinje = ({ l, onLuk, lukker }: { l: Linje; onLuk: (linje: Virksomhedslinje | Boelgelinje | Betaltlinje, udfald: LukningsUdfald) => void; lukker: boolean }) => {
+type LukbarLinje = Virksomhedslinje | Boelgelinje | Betaltlinje | Tilstandslinje;
+
+/** PR 5 (17/9): en samlet tilstand som fold — summary er linjens tekst (linket
+    til udsnittet, samletLinjeLink, som før), folden ét navn pr. virksomhed
+    med link til grunden, grundens tekst, og «Færdiggjort · Ikke relevant»
+    PR. NAVN (`kun` = virksomhedens id). Bruges over og under stregen; de to
+    ord for HELE linjen står hos kalderen. */
+const TilstandFold = ({ t, onLuk, lukker, summaryClass }: { t: Tilstandslinje; onLuk: (linje: LukbarLinje, udfald: LukningsUdfald, kun?: string) => void; lukker: boolean; summaryClass?: string }) => (
+  <details className="min-w-0 flex-1" data-tilstand-fold={t.slags} data-tilstand-antal={t.antal}>
+    <summary className={cn("cursor-pointer list-none rounded-hb transition-colors hover:bg-hb-sage/20 [&::-webkit-details-marker]:hidden", summaryClass)}>
+      <Link to={samletLinjeLink(t)} className="text-hb-evergreen underline-offset-4 hover:underline">
+        {t.tekst}
+      </Link>
+    </summary>
+    <ul className="mt-2 space-y-1 text-sm">
+      {t.virksomheder.map((v) => (
+        <li key={v.companyId} className="flex items-baseline gap-3">
+          <span className="min-w-0 flex-1">
+            <Link to={grundLink(v.companyId, v.grund.slags)} className={TEKSTLINK}>
+              {v.navn}
+            </Link>
+            <span className="text-hb-ink-soft"> · {v.grund.tekst}</span>
+          </span>
+          <span className="flex shrink-0 items-center gap-2 text-xs">
+            {LUKNINGS_UDFALD.map((udfald) => (
+              <button
+                key={udfald}
+                type="button"
+                disabled={lukker}
+                onClick={() => onLuk(t, udfald, v.companyId)}
+                className="text-hb-evergreen underline-offset-4 hover:underline disabled:opacity-50"
+              >
+                {UDFALD_TEKST[udfald]}
+              </button>
+            ))}
+          </span>
+        </li>
+      ))}
+    </ul>
+  </details>
+);
+
+/** Én linje fra dommen. Virksomhed: handling + grunde; tilstand: fold med
+    kvittering (PR 5); pukkel: tekst. Rust kun til det der er galt
+    (>= TAERSKEL) eller haster (løftet). */
+const DomLinje = ({ l, onLuk, lukker }: { l: Linje; onLuk: (linje: LukbarLinje, udfald: LukningsUdfald, kun?: string) => void; lukker: boolean }) => {
   const rust = l.alvor >= TAERSKEL || l.loeftet;
   const prik = <span aria-hidden className={cn("mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-current", rust ? "text-hb-rust" : "text-hb-ink-soft")} />;
   const hast = l.lukkerOmDage != null && (
@@ -268,24 +321,49 @@ const DomLinje = ({ l, onLuk, lukker }: { l: Linje; onLuk: (linje: Virksomhedsli
   // Samlet tilstand eller pukkel: én linje, ét tal. Én virksomhed → direkte til den.
   const enkelt = l.linje === "tilstand" && l.antal === 1 ? l.virksomheder[0] : null;
   const to = samletLinjeLink(l);
+  if (l.linje === "tilstand") {
+    /* TILSTANDEN (PR 5): én virksomhed → navn + handling som en virksomhedslinje;
+       flere → folden (TilstandFold) med kvittering pr. navn. De to ord til højre
+       kvitterer ALLE i tilstanden (én lukning pr. virksomhed med dens grundlag). */
+    return (
+      <li className="flex items-start gap-3 py-3" data-tilstand={l.slags} data-tilstand-antal={l.antal}>
+        {prik}
+        {enkelt ? (
+          <Link to={to} className="min-w-0 flex-1 rounded-hb transition-colors hover:bg-hb-sage/20">
+            <span className="block text-[15px] leading-snug text-hb-ink">
+              <span className="font-medium">{enkelt.navn}</span>
+              <span className="text-hb-ink-soft"> · </span>
+              {enkelt.grund.handling}
+            </span>
+            <span className={cn("block text-sm leading-snug", rust ? "text-hb-rust" : "text-hb-ink-soft")}>{enkelt.grund.tekst}</span>
+          </Link>
+        ) : (
+          <TilstandFold t={l} onLuk={onLuk} lukker={lukker} summaryClass="text-[15px] leading-snug text-hb-ink [&>a]:text-hb-ink [&>a]:font-medium" />
+        )}
+        <span className="flex shrink-0 flex-col items-end gap-1">
+          <span className="flex items-center gap-2 text-xs">
+            {LUKNINGS_UDFALD.map((udfald) => (
+              <button
+                key={udfald}
+                type="button"
+                disabled={lukker}
+                onClick={() => onLuk(l, udfald)}
+                className="text-hb-evergreen underline-offset-4 hover:underline disabled:opacity-50"
+              >
+                {UDFALD_TEKST[udfald]}
+              </button>
+            ))}
+          </span>
+        </span>
+      </li>
+    );
+  }
+  // Puklen: tekst og link — ingen kvittering (den afgøres på virksomhedssiden).
   return (
     <li className="flex items-start gap-3 py-3">
       {prik}
       <Link to={to} className="min-w-0 flex-1 rounded-hb transition-colors hover:bg-hb-sage/20">
-        <span className="block text-[15px] leading-snug text-hb-ink">
-          {enkelt ? (
-            <>
-              <span className="font-medium">{enkelt.navn}</span>
-              <span className="text-hb-ink-soft"> · </span>
-              {enkelt.grund.handling}
-            </>
-          ) : (
-            l.tekst
-          )}
-        </span>
-        {enkelt && (
-          <span className={cn("block text-sm leading-snug", rust ? "text-hb-rust" : "text-hb-ink-soft")}>{enkelt.grund.tekst}</span>
-        )}
+        <span className="block text-[15px] leading-snug text-hb-ink">{l.tekst}</span>
       </Link>
     </li>
   );
@@ -366,7 +444,7 @@ export const RaadgiverForsideView = () => {
   // Lukningen — hook i TOPBLOKKEN, før nogen betinget return (React #310).
   // Skriv, så hent igen: dommen afgør hvad der står; ingen lokal patch.
   const lukning = useMutation({
-    mutationFn: async (input: { linje: Virksomhedslinje | Boelgelinje | Betaltlinje; udfald: LukningsUdfald }) => {
+    mutationFn: async (input: { linje: LukbarLinje; udfald: LukningsUdfald; kun?: string }) => {
       if (!user) throw new Error("Ikke logget ind");
       if (input.linje.linje === "boelge" || input.linje.linje === "betalt") {
         // Bølgen: én kvittering pr. virksomhed, med dens eget grundlag — som
@@ -375,13 +453,25 @@ export const RaadgiverForsideView = () => {
         for (const v of input.linje.virksomheder) {
           await lukOpgave({ companyId: v.companyId, advisorId: user.id, udfald: input.udfald, grundlag: v.grundlag });
         }
+      } else if (input.linje.linje === "tilstand") {
+        // Tilstanden (PR 5): én kvittering pr. virksomhed med DENS grundlag for
+        // netop tilstanden; `kun` = ét navn i folden, ellers alle i linjen.
+        const liste = input.kun ? input.linje.virksomheder.filter((v) => v.companyId === input.kun) : input.linje.virksomheder;
+        for (const v of liste) {
+          await lukOpgave({ companyId: v.companyId, advisorId: user.id, udfald: input.udfald, grundlag: v.grundlag });
+        }
       } else {
         await lukOpgave({ companyId: input.linje.companyId, advisorId: user.id, udfald: input.udfald, grundlag: input.linje.grundlag });
       }
       await invaliderForsiden(queryClient);
     },
     onSuccess: (_d, input) => {
-      const navn = input.linje.linje === "boelge" ? `${input.linje.antal} nye` : input.linje.linje === "betalt" ? `${input.linje.antal} betalt uden konto` : input.linje.navn;
+      const navn =
+        input.linje.linje === "boelge" ? `${input.linje.antal} nye`
+        : input.linje.linje === "betalt" ? `${input.linje.antal} betalt uden konto`
+        : input.linje.linje === "tilstand"
+          ? (input.kun ? (input.linje.virksomheder.find((v) => v.companyId === input.kun)?.navn ?? "1 virksomhed") : `${input.linje.antal} ${input.linje.antal === 1 ? "virksomhed" : "virksomheder"}`)
+          : input.linje.navn;
       toast.success(`${navn} · ${UDFALD_TEKST[input.udfald]}`, { description: "Linjen kommer igen, når der er sket noget nyt." });
     },
     onError: (e: Error) => {
@@ -456,7 +546,7 @@ export const RaadgiverForsideView = () => {
                     key={linjeNoegle(l)}
                     l={l}
                     lukker={lukning.isPending}
-                    onLuk={(linje, udfald) => lukning.mutate({ linje, udfald })}
+                    onLuk={(linje, udfald, kun) => lukning.mutate({ linje, udfald, kun })}
                   />
                 ))}
               </ul>
@@ -476,15 +566,24 @@ export const RaadgiverForsideView = () => {
               </Link>
             </p>
           )}
+          {/* Tilstande under stregen (PR 5): samme fold og kvittering som over. */}
           {under.tilstande.map((t) => (
-            <p key={`t:${t.slags}`}>
-              <Link
-                to={samletLinjeLink(t)}
-                className="text-hb-evergreen underline-offset-4 hover:underline"
-              >
-                {t.tekst}
-              </Link>
-            </p>
+            <div key={`t:${t.slags}`} className="flex items-start gap-3" data-tilstand-under={t.slags}>
+              <TilstandFold t={t} onLuk={(linje, udfald, kun) => lukning.mutate({ linje, udfald, kun })} lukker={lukning.isPending} />
+              <span className="flex shrink-0 items-center gap-2 text-xs">
+                {LUKNINGS_UDFALD.map((udfald) => (
+                  <button
+                    key={udfald}
+                    type="button"
+                    disabled={lukning.isPending}
+                    onClick={() => lukning.mutate({ linje: t, udfald })}
+                    className="text-hb-evergreen underline-offset-4 hover:underline disabled:opacity-50"
+                  >
+                    {UDFALD_TEKST[udfald]}
+                  </button>
+                ))}
+              </span>
+            </div>
           ))}
           {under.pukler.map((p) => (
             <p key={`p:${p.slags}`}>

@@ -131,7 +131,14 @@ describe("forsideBoelge.guard — VÆRNET VIRKER på kopier med fejlen indsat", 
     expect(velkomstErHaendelse(dom.replace('venter_paa_velkomst: "haendelse",', 'venter_paa_velkomst: "tilstand",'))).toBe(false);
   });
   it("4. en bølge uden fold, uden link pr. navn, eller en lukning der kun kvitterer én, fælder dom 4", () => {
-    expect(fladenFolderOgLukkerAlle(flade.replace("<details className=", "<div className="))).toBe(false);
+    // PR 5 (17/9): fladen har nu flere folde (TilstandFold står FØR bølgen i
+    // filen), så fejlen indsættes i BØLGENS blok — ikke i første forekomst.
+    // Før: `expect(fladenFolderOgLukkerAlle(flade.replace("<details className=", "<div className="))).toBe(false);`
+    const start = flade.indexOf('if (l.linje === "boelge") {');
+    const slut = flade.indexOf('const enkelt = l.linje === "tilstand" && l.antal === 1', start);
+    const udenFold = flade.slice(0, start) + flade.slice(start, slut).replace("<details className=", "<div className=") + flade.slice(slut);
+    expect(udenFold).not.toBe(flade);
+    expect(fladenFolderOgLukkerAlle(udenFold)).toBe(false);
     expect(fladenFolderOgLukkerAlle(flade.replace('<Link to={grundLink(v.companyId, "venter_paa_velkomst")}', "<span"))).toBe(false);
     expect(fladenFolderOgLukkerAlle(flade.replace("for (const v of input.linje.virksomheder) {", "for (const v of input.linje.virksomheder.slice(0, 1)) {"))).toBe(false);
   });

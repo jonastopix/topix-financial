@@ -19,11 +19,11 @@ import {
 import type { Signal } from "@/lib/virksomhedsSignaler";
 import type { Fornyelsestilstand } from "@/lib/fornyelse";
 import type { Betalingsfristtilstand } from "@/lib/betalingsfrist";
+import type { MaalRaekke } from "@/lib/hjemmebane/planen";
 import { ALVOR_INGEN_MAAL, ALVOR_MAAL, ALVOR_REFLEKSION_HJAELP, maalTilstandstekst, refleksionBesvaret, refleksionsPeriode, refleksionUddrag, REFLEKSION_MIN_TEGN, REFLEKSION_UDDRAG, STILSTAND_LAENGE_DAGE } from "@/lib/forsidensDom";
 import { BOELGE_FRA, BOELGENS_LEDSAGERE, boelgeDagTekst, USAEDVANLIGT_MANGE_TEKST, usaedvanligtMangeTekst, type Boelgelinje } from "@/lib/forsidensDom";
 import { ALVOR_BETALT_IKKE_OPRETTET, BETALT_NOEGLE, betaltGrundTekst, betaltIkkeOprettetTekst, betaltLinje, FORM as FORM_KORT, INDSATS as INDSATS_KORT, type BetaltIkkeOprettet, type Betaltlinje } from "@/lib/forsidensDom";
 import type { Kvittering } from "@/lib/opgaveLukning";
-import type { MaalRaekke } from "@/lib/hjemmebane/planen";
 
 // Fast «nu»: 4. september 2026 kl. 12:00 lokal tid — dagregning for
 // opgaver sker i lokale kalenderdage, som opgaveEngine.
@@ -1195,5 +1195,86 @@ describe("betalt, ikke oprettet konto (før 22/9, Jonas «1. Ja») — én folde
     expect(betaltGrundTekst("2026-09-24", nu)).toBe("Betalte 24. september · 1 dag uden login");
     expect(betaltGrundTekst("2026-09-15", nu)).toBe("Betalte 15. september · 10 dage uden login");
     expect(betaltGrundTekst("hest", nu)).toBe("Betalte hest · i dag");
+  });
+});
+
+describe("tilstandslinjer kan lukkes (rådgivernes forside PR 5, 17/9) — kvittering pr. virksomhed med tilstandens grundlag", () => {
+  const kv = (grundlag: Record<string, string>) => ({ udfald: "ikke_relevant" as const, grundlag, lukketAt: "2026-09-17T10:00:00Z" });
+  const udenMaal = (navn: string, over: Partial<VirksomhedTilDom> = {}) => virksomhed({ navn, maal: [], ...over });
+  const maal = (id: string, over: Partial<MaalRaekke> = {}): MaalRaekke => ({
+    id, title: `Mål ${id}`, status: "active", progress: 10, deadline: null, category: null, source: "manual",
+    progress_updated_at: "2026-09-01T08:00:00Z", completed_at: null, created_at: "2026-08-01T08:00:00Z", ...over,
+  });
+
+  it("linjen bærer grundlaget pr. virksomhed — for «ingen mål» er det antallet af mål (ingen:0), sorteret på navn", () => {
+    const d = afgoerForsidensDom([udenMaal("B"), udenMaal("A"), udenMaal("C")], NU);
+    const [l] = tilstandslinjer(d);
+    expect(l).toMatchObject({ slags: "ingen_maal", antal: 3, tekst: "3 kunder har ingen mål — sæt dem sammen med medlemmet", alvor: 70 });
+    expect(l.virksomheder.map((v) => [v.navn, v.grundlag])).toEqual([
+      ["A", { ingen_maal: "ingen:0" }],
+      ["B", { ingen_maal: "ingen:0" }],
+      ["C", { ingen_maal: "ingen:0" }],
+    ]);
+  });
+
+  it("alle tre kvitteret «ikke relevant» med tilstandens grundlag → ingen linje, intet under stregen", () => {
+    const d = afgoerForsidensDom([udenMaal("A", { kvittering: kv({ ingen_maal: "ingen:0" }) }), udenMaal("B", { kvittering: kv({ ingen_maal: "ingen:0" }) }), udenMaal("C", { kvittering: kv({ ingen_maal: "ingen:0" }) })], NU);
+    expect(d.linjer).toEqual([]);
+    expect(d.underStregen).toEqual({ antalVirksomhederUnderTaersklen: 0, antalTilstandeSamlet: 0, tilstande: [], pukler: [] });
+  });
+
+  it("én ny virksomhed i tilstanden → linjen med 1, kun det navn — og med én er det navnet og handlingen (som før)", () => {
+    const d = afgoerForsidensDom([udenMaal("A", { kvittering: kv({ ingen_maal: "ingen:0" }) }), udenMaal("B", { kvittering: kv({ ingen_maal: "ingen:0" }) }), udenMaal("Ny")], NU);
+    const [l] = tilstandslinjer(d);
+    expect(l).toMatchObject({ slags: "ingen_maal", antal: 1, tekst: "1 kunde har ingen mål — sæt dem sammen med medlemmet" });
+    expect(l.virksomheder.map((v) => v.navn)).toEqual(["Ny"]);
+    expect(l.virksomheder[0].grund.handling).toBe("Sæt mål sammen med Ny");
+    expect(d.underStregen.antalTilstandeSamlet).toBe(1);
+  });
+
+  it("grundlaget ændret — et mål er kommet til (også et parkeret) → tilbage i tilstanden; kvitteret på det nye grundlag → væk igen", () => {
+    const parkeret = maal("m1", { status: "paused" });
+    const tilbage = afgoerForsidensDom([udenMaal("A", { maal: [parkeret], kvittering: kv({ ingen_maal: "ingen:0" }) })], NU);
+    const [l] = tilstandslinjer(tilbage);
+    expect(l).toMatchObject({ slags: "ingen_maal", antal: 1 });
+    expect(l.virksomheder[0].grundlag).toEqual({ ingen_maal: "ingen:1" });
+    expect(l.virksomheder[0].grund.tekst).toBe("Ingen aktive mål (1 parkeret eller nået)");
+    const igen = afgoerForsidensDom([udenMaal("A", { maal: [parkeret], kvittering: kv({ ingen_maal: "ingen:1" }) })], NU);
+    expect(igen.linjer).toEqual([]);
+  });
+
+  it("gennemgang: grundlaget er antallet af aktive mål (gennemgang:N); ét mål færre er noget nyt", () => {
+    const fire = [maal("a"), maal("b"), maal("c"), maal("d")];
+    const d = afgoerForsidensDom([virksomhed({ navn: "Floren", maal: fire })], NU);
+    const [l] = tilstandslinjer(d);
+    expect(l).toMatchObject({ slags: "maal_uden_bevaegelse", antal: 1, tekst: "1 virksomhed har mål til gennemgang" });
+    expect(l.virksomheder[0].grundlag).toEqual({ maal_uden_bevaegelse: "gennemgang:4" });
+    expect(afgoerForsidensDom([virksomhed({ navn: "Floren", maal: fire, kvittering: kv({ maal_uden_bevaegelse: "gennemgang:4" }) })], NU).linjer).toEqual([]);
+    const fem = [...fire, maal("e")];
+    expect(tilstandslinjer(afgoerForsidensDom([virksomhed({ navn: "Floren", maal: fem, kvittering: kv({ maal_uden_bevaegelse: "gennemgang:4" }) })], NU))).toHaveLength(1);
+  });
+
+  it("tavshed samlet: grundlaget pr. virksomhed er sidste besked («aldrig» uden); kvitteret holder til en ny besked", () => {
+    const d = afgoerForsidensDom([
+      virksomhed({ navn: "Tavs 1", signaler: [ingenDialog(40, 74)], senesteBeskedAt: "2026-07-26T08:00:00Z" }),
+      virksomhed({ navn: "Tavs 2", signaler: [aldrigSkrevet] }),
+    ], NU);
+    const [l] = tilstandslinjer(d);
+    expect(l.virksomheder.map((v) => [v.navn, v.grundlag])).toEqual([
+      ["Tavs 2", { tavshed: "aldrig" }],
+      ["Tavs 1", { tavshed: "2026-07-26T08:00:00Z" }],
+    ]);
+    const lukket = afgoerForsidensDom([
+      virksomhed({ navn: "Tavs 1", signaler: [ingenDialog(40, 74)], senesteBeskedAt: "2026-07-26T08:00:00Z", kvittering: kv({ tavshed: "2026-07-26T08:00:00Z" }) }),
+      virksomhed({ navn: "Tavs 2", signaler: [aldrigSkrevet], kvittering: kv({ tavshed: "aldrig" }) }),
+    ], NU);
+    expect(lukket.linjer).toEqual([]);
+  });
+
+  it("en virksomhed med egen linje bærer stadig tilstanden som grund — dens kvittering gemmer hele linjen (uændret)", () => {
+    const d = afgoerForsidensDom([udenMaal("Bastant", { signaler: [bankovertraek], senestePeriode: "2026-08" })], NU);
+    const [l] = virksomhedslinjer(d);
+    expect(l.grundlag).toEqual({ "stikker_ud:bankovertraek": "2026-08", ingen_maal: "ingen:0" });
+    expect(tilstandslinjer(d)).toEqual([]);
   });
 });

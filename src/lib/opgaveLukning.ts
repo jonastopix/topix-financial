@@ -49,10 +49,22 @@
  * KVITTERINGEN er én række i advisor_company_acknowledgments pr. lukning
  * (en log, ikke en tilstand — migration 20260908150000): udfald,
  * grundlag (jsonb: nøgle → værdi for hver grund på linjen da den blev
- * lukket), advisor_id (hvem), acknowledged_at (hvornår). Dommen læser den
- * NYESTE kvittering med grundlag for virksomheden, uanset hvilken
- * rådgiver der lukkede: opgaven er virksomhedens, ikke rådgiverens
- * (Morten lukker Doggybed; Jonas skal ikke se den).
+ * lukket), advisor_id (hvem), acknowledged_at (hvornår). Dommen læser
+ * kvitteringerne for virksomheden uanset hvilken rådgiver der lukkede:
+ * opgaven er virksomhedens, ikke rådgiverens (Morten lukker Doggybed;
+ * Jonas skal ikke se den).
+ *
+ * FLERE KVITTERINGER PR. VIRKSOMHED (rådgivernes forside PR 5, 17/9 —
+ * «Ikke relevant» på tilstandslinjerne): før læste dommen KUN den nyeste
+ * række («Dommen læser den NYESTE kvittering med grundlag for
+ * virksomheden»). Det holdt så længe en virksomheds lukning altid bar ALLE
+ * dens grunde (Virksomhedslinje.grundlag). En tilstand kvitteres pr.
+ * virksomhed med KUN tilstandens grund ({ingen_maal: «ingen:0»}), og
+ * lukkes tavsheden for samme virksomhed en uge senere, ville «ingen mål»
+ * være levende igen uden at noget var sket. Derfor FLETTES rækkerne
+ * (fletKvitteringer): nøgle for nøgle, nyeste vinder. Jonas' regel gælder
+ * uændret — lukket holder til grundlaget er et andet; en ældre kvittering
+ * på et gammelt grundlag lukker intet, fordi ligheden fejler.
  */
 
 export type LukningsUdfald = "faerdiggjort" | "ikke_relevant";
@@ -97,6 +109,20 @@ export function grundlagForLinje(grunde: readonly GrundTilLukning[]): Record<str
   const ud: Record<string, string> = {};
   for (const g of grunde) ud[g.noegle] = g.grundlag;
   return ud;
+}
+
+/** Fletter en virksomheds kvitteringer (NYESTE FØRST) til én: nøgle for
+    nøgle vinder den nyeste; udfald og tidspunkt er den nyestes. Tom liste →
+    null. PR 5 (17/9) — se filhovedet. */
+export function fletKvitteringer(nyesteFoerst: readonly Kvittering[]): Kvittering | null {
+  if (nyesteFoerst.length === 0) return null;
+  const grundlag: Record<string, string> = {};
+  for (const k of nyesteFoerst) {
+    for (const [noegle, g] of Object.entries(k.grundlag)) {
+      if (!(noegle in grundlag)) grundlag[noegle] = g;
+    }
+  }
+  return { udfald: nyesteFoerst[0].udfald, grundlag, lukketAt: nyesteFoerst[0].lukketAt };
 }
 
 /** Læser en kvittering-række som den kommer fra databasen; null når rækken

@@ -24,7 +24,8 @@ const tilstand = (slags: Tilstandslinje["slags"], ids: string[]): Tilstandslinje
   slags,
   antal: ids.length,
   tekst: `${ids.length} virksomheder`,
-  virksomheder: ids.map((id) => ({ companyId: id, navn: `V-${id}`, grund: grund(slags) })),
+  // grundlag pr. virksomhed: PR 5 (17/9) — før: `{ companyId: id, navn: \`V-${id}\`, grund: grund(slags) }`.
+  virksomheder: ids.map((id) => ({ companyId: id, navn: `V-${id}`, grund: grund(slags), grundlag: { [slags]: "x" } })),
   alvor: 60,
   lukkerOmDage: null,
   loeftet: false,
