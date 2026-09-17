@@ -17,6 +17,8 @@ import {
   isPushExpired,
   pickActivePush,
 } from "../../boardroom/pushSelection";
+import { extractYouTubeId } from "../../boardroom/youtube";
+import { rensSpotifyEpisodeUrl } from "../../boardroom/pushMedie";
 import { HbField, HbInput, HbTextarea, hbControlClasses } from "../HbField";
 import { HbUploadZone } from "../HbUploadZone";
 import { HbEditorRichtext } from "../HbEditorRichtext";
@@ -37,6 +39,15 @@ import {
     af titlen), intet dryp/materialer. ÉN bevidst undtagelse fra
     medie-løsheden (forside-vægt, PR A): ét cover-felt (ItemEditors
     HbUploadZone-mønster) — hovedhistorien skal kunne bære et billede.
+    Og fra 17/9 (Jonas: «Jeg vil rigtig gerne kunne smide en video ind som
+    nyhed på forsiden … Morten har lige optaget en spændende podcast (m.
+    video) sammen med Nordea, og den skal frem i bussen»): et Video-felt —
+    et YouTube-link → media_provider 'external' + external_url, tomt →
+    'none' + null (CHECK'en content_items_media_matches_provider holder
+    fordi de to ALTID skrives sammen); og et valgfrit Spotify-episode-felt →
+    metadata.spotify_url (renset, kun open.spotify.com/episode/<id>).
+    Ugyldige links: klar tekst ved feltet, og gem er spærret — intet gemmes.
+    Bunny i pushet er BEVIDST ikke med.
     Aktiv/udløbs-markeringerne genbruger pushSelection-dommene — én
     sandhed med forsidens hero. ItemEditor er Akademiets og røres ikke. */
 
@@ -61,6 +72,14 @@ const PushEditor = forwardRef<
   const queryClient = useQueryClient();
   const [savedAt, setSavedAt] = useState<Date | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Video/Spotify (PR A, 17/9): feltets rå tekst og dets fejl. Editoren er
+  // keyed pr. item, så starten er rækkens gemte værdi.
+  const [videoInput, setVideoInput] = useState<string>(item.external_url ?? "");
+  const [videoFejl, setVideoFejl] = useState<string | null>(null);
+  const [spotifyInput, setSpotifyInput] = useState<string>(
+    (((item.metadata as Record<string, unknown> | null)?.spotify_url as string | undefined) ?? ""),
+  );
+  const [spotifyFejl, setSpotifyFejl] = useState<string | null>(null);
 
   const form = { ...item, ...draft } as ContentItem;
   const dirty = Object.keys(draft).length > 0;
@@ -120,6 +139,11 @@ const PushEditor = forwardRef<
   const persist = (extra: Draft = {}) => {
     if (mutation.isPending) return;
     setError(null);
+    // Et ugyldigt video-/Spotify-link spærrer gem — intet gemmes (PR A).
+    if (videoFejl || spotifyFejl) {
+      setError(videoFejl ?? spotifyFejl);
+      return;
+    }
     const patch: Draft = { ...draft, ...extra };
     // Tom patch = intet at gemme — kvittér stille (no-op-guard).
     if (Object.keys(patch).length === 0) {
@@ -171,6 +195,48 @@ const PushEditor = forwardRef<
     onDraftChange({
       metadata: { ...((form.metadata as Record<string, unknown>) ?? {}), [key]: value || undefined } as ContentItem["metadata"],
     });
+
+  // Video (PR A): media_provider og external_url skrives ALTID sammen —
+  // 'external' + linket, eller 'none' + null — så CHECK'en
+  // content_items_media_matches_provider holder i begge retninger. Et link
+  // der ikke er YouTube (extractYouTubeId → null) rører ikke kladden; fejlen
+  // står ved feltet, og persist er spærret så længe den står.
+  const VIDEO_FEJL = "Det er ikke et YouTube-link — brug youtu.be/… eller youtube.com/watch?v=… Intet er gemt.";
+  const onVideoChange = (value: string) => {
+    setVideoInput(value);
+    const trimmed = value.trim();
+    if (trimmed === "") {
+      setVideoFejl(null);
+      onDraftChange({ media_provider: "none", external_url: null });
+      return;
+    }
+    if (extractYouTubeId(trimmed)) {
+      setVideoFejl(null);
+      onDraftChange({ media_provider: "external", external_url: trimmed });
+      return;
+    }
+    setVideoFejl(VIDEO_FEJL);
+  };
+
+  // Spotify-episoden (PR A): kun open.spotify.com/episode/<id>, renset for
+  // ?si=… (rensSpotifyEpisodeUrl); show/track afvises. Tomt fjerner nøglen.
+  const SPOTIFY_FEJL = "Det er ikke en Spotify-episode — brug open.spotify.com/episode/… Intet er gemt.";
+  const onSpotifyChange = (value: string) => {
+    setSpotifyInput(value);
+    const trimmed = value.trim();
+    if (trimmed === "") {
+      setSpotifyFejl(null);
+      setMeta("spotify_url", "");
+      return;
+    }
+    const renset = rensSpotifyEpisodeUrl(trimmed);
+    if (renset) {
+      setSpotifyFejl(null);
+      setMeta("spotify_url", renset);
+      return;
+    }
+    setSpotifyFejl(SPOTIFY_FEJL);
+  };
 
   return (
     <EditorShell
@@ -235,6 +301,38 @@ const PushEditor = forwardRef<
           accept="image/*"
           onUploaded={(path) => onDraftChange({ cover_path: path })}
           onCleared={() => onDraftChange({ cover_path: null })}
+        />
+      </HbField>
+
+      {/* PR A «video i nyheden» (17/9): YouTube i hovedpladsen, Spotify under
+          manchetten. Bunny i pushet er bevidst ikke med. */}
+      <HbField
+        label="Video"
+        htmlFor="push-video"
+        help="Valgfrit — et YouTube-link (youtu.be/… eller youtube.com/watch?v=…). Afspilleren vises i hovedpladsen i stedet for coveret; coveret bliver forsidebilledet før afspilning. Tomt = ingen video."
+        error={videoFejl}
+      >
+        <HbInput
+          id="push-video"
+          value={videoInput}
+          inputMode="url"
+          placeholder="https://youtu.be/…"
+          onChange={(e) => onVideoChange(e.target.value)}
+        />
+      </HbField>
+
+      <HbField
+        label="Spotify-episode"
+        htmlFor="push-spotify"
+        help="Valgfrit — et link til episoden (open.spotify.com/episode/…). Vises som Spotify-afspiller under manchetten; ?si= og lignende fjernes."
+        error={spotifyFejl}
+      >
+        <HbInput
+          id="push-spotify"
+          value={spotifyInput}
+          inputMode="url"
+          placeholder="https://open.spotify.com/episode/…"
+          onChange={(e) => onSpotifyChange(e.target.value)}
         />
       </HbField>
 

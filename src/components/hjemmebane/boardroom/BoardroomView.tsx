@@ -64,7 +64,7 @@ import {
   type StoryCandidate,
   type StoryKind,
 } from "./pushSelection";
-import { extractYouTubeId } from "./youtube";
+import { pushMedie, spotifyEmbedUrl, youtubeIdAf, youtubeNocookieEmbedUrl, youtubeThumbnailUrl } from "./pushMedie";
 
 /** Dit Boardroom (/boardroom) — Hb-forsiden i VANE-ANKER-IA'en (forside
     PR 2, hb-forside-recon §C/§G): de tre lag i rækkefølgen
@@ -279,12 +279,25 @@ const PushStory = ({
   const marker = publishedMarker(push.published_at ?? push.created_at);
   const senderName = sender?.full_name ?? author;
 
+  // PR A «video i nyheden» (17/9, Jonas: «Morten har lige optaget en
+  // spændende podcast (m. video) sammen med Nordea, og den skal frem i
+  // bussen»): bærer pushet en YouTube-video (media_provider 'external' +
+  // external_url), står AFSPILLEREN i hovedpladsen i stedet for coveret —
+  // SAMME gate som «Denne uges video» (YouTubePlayer: cover + play-knap,
+  // iframe først ved klik). Coveret bliver forsidebilledet før afspilning;
+  // uden cover bruges YouTube-thumbnailet. Dommen er pushMedie (ren).
+  const medie = pushMedie(push);
+  const player = medie.youtubeId ? (
+    <YouTubePlayer youtubeId={medie.youtubeId} title={push.title} coverUrl={coverUrl ?? youtubeThumbnailUrl(medie.youtubeId)} />
+  ) : null;
+
   // PR A (visuel vægt): hovedhistorien skal SE UD som en historie —
   // cover øverst, større overskrift, mere luft. Uden cover bærer
   // afsenderens portræt i STORT format (72 px) den visuelle vægt i
   // stedet; m. cover holdes bylinen lille (40 px). Kun Hb-paletten —
-  // vægten kommer fra billede, typografi-skala og luft.
-  const bigPortrait = !coverUrl && hasSenderId && senderName;
+  // vægten kommer fra billede, typografi-skala og luft. Med afspiller
+  // bærer den vægten — bylinen holdes lille som m. cover.
+  const bigPortrait = !coverUrl && !player && hasSenderId && senderName;
 
   if (variant === "side") {
     // Redesign (materiale, ikke farve): sidetiles er redaktionelle
@@ -307,7 +320,7 @@ const PushStory = ({
     // Polering #1: to-spaltet m. cover (billede venstre, tekst højre);
     // uden cover bærer teksten fuld bredde som i dag (bigPortrait-
     // fallback'et er netop cover-løs og forbliver fuldbredde).
-    <MainStoryShell coverUrl={coverUrl}>
+    <MainStoryShell coverUrl={player ? null : coverUrl} player={player}>
       <p className="text-xs font-medium uppercase tracking-[0.14em] text-hb-rust">
         Ugens push{marker && <span className="ml-2 normal-case tracking-normal text-hb-ink-soft">· {marker}</span>}
       </p>
@@ -338,6 +351,10 @@ const PushStory = ({
       )}
       {push.description && (
         <p className="mt-4 max-w-2xl text-base leading-relaxed text-hb-ink-soft">{push.description}</p>
+      )}
+      {/* Spotify-episoden (metadata.spotify_url) under manchetten — kun episode-embed, lazy. */}
+      {medie.spotifyEpisodeId && (
+        <SpotifyEpisodeEmbed episodeId={medie.spotifyEpisodeId} title={push.title} />
       )}
       {!bigPortrait && hasSenderId && senderName ? (
         <p className="mt-5 flex items-center gap-3">
@@ -436,6 +453,43 @@ const PlayCover = ({
   </button>
 );
 
+/** YouTube-afspilleren — ÉN delt komponent (PR A, 17/9) for «Denne uges
+    video» OG pushet i hovedpladsen, så der ikke findes to. Gaten er
+    PlayCover's: INGEN iframe, ingen autoplay, ingen lyd før klik; ved klik
+    monteres nocookie-iframen m. autoplay=1 (youtubeNocookieEmbedUrl), så det
+    første klik også starter afspilningen. Ingen overlay oven på afspilleren
+    (YouTubes vilkår). coverUrl: pushets/videoens eget cover, ellers
+    i.ytimg.com-thumbnailet — kalderen vælger. */
+const YouTubePlayer = ({ youtubeId, title, coverUrl }: { youtubeId: string; title: string; coverUrl: string | null }) => {
+  const [playing, setPlaying] = useState(false);
+  return playing ? (
+    <iframe
+      src={youtubeNocookieEmbedUrl(youtubeId)}
+      title={title}
+      className="aspect-video w-full rounded-hb border border-hb-line bg-black"
+      allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture"
+      allowFullScreen
+    />
+  ) : (
+    <PlayCover coverUrl={coverUrl} title={title} onPlay={() => setPlaying(true)} />
+  );
+};
+
+/** Spotify-episoden under pushets manchet (PR A): KUN episode-embed'et
+    (spotifyEmbedUrl — show/track afvises allerede i dommen), compact højde
+    (152 px er Spotifys kompakte afspiller), loading="lazy" og en
+    title-attribut. Ingen autoplay — Spotify starter aldrig selv. */
+const SpotifyEpisodeEmbed = ({ episodeId, title }: { episodeId: string; title: string }) => (
+  <iframe
+    src={spotifyEmbedUrl(episodeId)}
+    title={`Spotify: ${title}`}
+    className="mt-4 h-[152px] w-full max-w-2xl rounded-xl border-0"
+    loading="lazy"
+    allow="clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+    data-spotify-episode={episodeId}
+  />
+);
+
 /** Polering #1 — fælles main-layout, ÉT sted for alle main-varianter:
     m. medie → TO-SPALTET på md+ (medie venstre ~42 %, tekst højre m.
     luft); mobil: medie over tekst; uden medie → tekst i fuld bredde
@@ -486,7 +540,8 @@ const MainStoryShell = ({
     YouTube via nocookie-iframe m. autoplay=1 så FØRSTE klik også starter
     afspilningen. Bunny-cover hentes som Akademiets covers
     (getAssetPreviewUrl, signeret URL); YouTube-cover fra i.ytimg.com.
-    Alt andet eksternt → "Åbn"-knap. PR B3: variant-prop — "side" er den
+    YouTube-grenen er den DELTE YouTubePlayer (PR A, 17/9 — samme
+    komponent som pushet i hovedpladsen). Alt andet eksternt → "Åbn"-knap. PR B3: variant-prop — "side" er den
     hidtidige form (p-4, alm. brødskrift-titel); "main" er STOR form
     (hovedpladsen når pushet mangler: editorial-titel, mere luft) m.
     SAMME player-blok — gate/afspiller-logikken er delt, kun rammen
@@ -494,7 +549,7 @@ const MainStoryShell = ({
 const WeekVideoCard = ({ video, variant }: { video: ContentItem; variant: StoryVariant }) => {
   const [playing, setPlaying] = useState(false);
   const marker = publishedMarker(video.published_at ?? video.created_at);
-  const youTubeId = video.media_provider === "external" ? extractYouTubeId(video.external_url) : null;
+  const youTubeId = youtubeIdAf(video);
   const isBunny = video.media_provider === "bunny" && Boolean(video.bunny_video_id);
 
   // Bunny-cover som Akademiet henter covers: signeret URL fra content-assets.
@@ -510,7 +565,7 @@ const WeekVideoCard = ({ video, variant }: { video: ContentItem; variant: StoryV
   const coverUrl = isBunny
     ? coverQuery.data ?? bunnyThumbnailUrl(video.bunny_video_id)
     : youTubeId
-      ? `https://i.ytimg.com/vi/${youTubeId}/hqdefault.jpg`
+      ? youtubeThumbnailUrl(youTubeId)
       : null;
 
   const player = isBunny ? (
@@ -520,17 +575,8 @@ const WeekVideoCard = ({ video, variant }: { video: ContentItem; variant: StoryV
       <PlayCover coverUrl={coverUrl} title={video.title} onPlay={() => setPlaying(true)} />
     )
   ) : youTubeId ? (
-    playing ? (
-      <iframe
-        src={`https://www.youtube-nocookie.com/embed/${youTubeId}?autoplay=1`}
-        title={video.title}
-        className="aspect-video w-full rounded-hb border border-hb-line bg-black"
-        allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture"
-        allowFullScreen
-      />
-    ) : (
-      <PlayCover coverUrl={coverUrl} title={video.title} onPlay={() => setPlaying(true)} />
-    )
+    // PR A: den DELTE afspiller — samme gate som pushet i hovedpladsen.
+    <YouTubePlayer youtubeId={youTubeId} title={video.title} coverUrl={coverUrl} />
   ) : video.external_url ? (
     <a href={video.external_url} target="_blank" rel="noopener noreferrer">
       <HbButton variant="secondary" className="h-9 px-4 text-sm">
