@@ -25,6 +25,8 @@ const ROOT = process.cwd();
 const FORVENTEDE_UNDTAGELSER = [
   "src/components/AdvisorDashboard.tsx",
   "src/components/hjemmebane/rapportering/RapporteringView.tsx",
+  // 17/9: «Genkør flere rapporter» — læser facts til ejerskabstjek (source_report_id/period_key), ingen beregning.
+  "src/components/hjemmebane/genkoersel/GenkoerRapporterView.tsx",
   "src/components/hjemmebane/virksomheder/VirksomhedslisteView.tsx",
   "src/hooks/useOnboardingTjekliste.ts",
   "supabase/functions/_shared/companyHardDelete.ts",
