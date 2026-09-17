@@ -565,6 +565,22 @@ a `STABLE SECURITY DEFINER` sql function, EXECUTE to authenticated, with
 and returns only counts and up to six company names per kind. No message
 content, no amounts, no member ids leave the function.
 
+`get_siden_sidst_virksomheder(siden timestamptz)` (17/9-2026, migration
+`20260917170000_siden_sidst_virksomheder.sql`, PR 3 «links på navnene»;
+SECURITY DEFINER green-lit by Jonas 17/9-2026, verbatim: «Vi går med din
+anbefaling»): a NEW function beside the old one — same body, same `STABLE
+SECURITY DEFINER`,
+same `SET search_path = public`, same `has_role(auth.uid(), 'advisor')` gate
+in the WHERE, same `GRANT EXECUTE TO authenticated` — that returns
+`virksomheder jsonb` (`[{"id": <company uuid>, "name": …}]`, up to six per
+kind, newest first) instead of `navne text[]`, so the front page can link
+each name to `/virksomhed/{id}`. Company ids are already visible to advisors
+everywhere (`companies` SELECT policy); still no message content, amounts or
+member ids. `get_siden_sidst` is left untouched; the hook
+(`src/hooks/sidenSidst.ts`) falls back to it only on PostgREST `PGRST202`
+(function not found — Update before migration). Guard:
+`src/lib/__tests__/forsideNavneLinker.guard.test.ts`.
+
 ### Realtime Presence — online-medlemmer (`realtime.messages`)
 Migration `20260917100000_online_presence.sql` (16/9-2026, Jonas: «Ja» —
 only advisors may see, in real time, which members have the app open; legat

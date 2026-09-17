@@ -74,6 +74,12 @@ export interface KohorteLogin {
   logged_in_at: string;
 }
 
+/** Én virksomhed på linjen: id til linket, navn til teksten. */
+export interface KohorteVirksomhedRef {
+  id: string;
+  navn: string;
+}
+
 export interface KohorteInput {
   virksomheder: readonly KohorteVirksomhed[];
   /** ALLE virksomhedens rækker — ankeret er den første, ikke den seneste. */
@@ -89,6 +95,9 @@ export interface Kohortelinje {
   n: number;
   /** Virksomhedsnavne, ældste start først. */
   ikkeKommetIgen: string[];
+  /** (17/9, PR 3) samme virksomheder med id — så navnene kan linke til
+      /virksomhed/{id}. Samme orden som ikkeKommetIgen. */
+  ikkeKommetIgenVirksomheder: KohorteVirksomhedRef[];
   /** Nye der startede i dag (dansk dato) — ikke i M, fordi de ikke har kunnet komme igen endnu. */
   udeladtIDag: number;
 }
@@ -130,7 +139,7 @@ export function kohorteLinje(input: KohorteInput): Kohortelinje {
   let m = 0;
   let n = 0;
   let udeladtIDag = 0;
-  const ikke: { navn: string; start: number }[] = [];
+  const ikke: { id: string; navn: string; start: number }[] = [];
 
   for (const v of virksomheder) {
     if (v.is_legat === true) continue;
@@ -155,11 +164,17 @@ export function kohorteLinje(input: KohorteInput): Kohortelinje {
       if (komIgen) break;
     }
     if (komIgen) n += 1;
-    else ikke.push({ navn: v.name, start: s.getTime() });
+    else ikke.push({ id: v.id, navn: v.name, start: s.getTime() });
   }
 
   ikke.sort((a, b) => a.start - b.start);
-  return { m, n, ikkeKommetIgen: ikke.map((x) => x.navn), udeladtIDag };
+  return {
+    m,
+    n,
+    ikkeKommetIgen: ikke.map((x) => x.navn),
+    ikkeKommetIgenVirksomheder: ikke.map((x) => ({ id: x.id, navn: x.navn })),
+    udeladtIDag,
+  };
 }
 
 /** «3 af 5 kom igen efter dag 1» — eller den rolige tomme. */
@@ -179,4 +194,27 @@ export function ikkeKommetIgenTekst(navne: readonly string[]): string | null {
   const viste = navne.slice(0, NAVNE_LOFT);
   const flere = navne.length - viste.length;
   return `Ikke kommet igen: ${viste.join(", ")}${flere > 0 ? ` … og ${flere} mere` : ""}`;
+}
+
+/** Samme linje i DELE (17/9, PR 3), så fladen kan tegne hvert navn som et
+    link: præfikset, de viste virksomheder (højst NAVNE_LOFT) og antallet
+    bag «… og N mere». Kommaerne er fladens, ikke linkenes. null når ingen.
+    Kontrakt (låst i testen): ikkeKommetIgenDeleTekst(dele) === ikkeKommetIgenTekst(navne). */
+export const IKKE_KOMMET_IGEN_PRAEFIKS = "Ikke kommet igen: ";
+export interface IkkeKommetIgenDele {
+  viste: KohorteVirksomhedRef[];
+  flere: number;
+}
+export function ikkeKommetIgenDele(virksomheder: readonly KohorteVirksomhedRef[]): IkkeKommetIgenDele | null {
+  if (virksomheder.length === 0) return null;
+  const viste = virksomheder.slice(0, NAVNE_LOFT);
+  return { viste, flere: virksomheder.length - viste.length };
+}
+/** «… og N mere» — tom når alle vises. */
+export function ikkeKommetIgenHale(flere: number): string {
+  return flere > 0 ? ` … og ${flere} mere` : "";
+}
+export function ikkeKommetIgenDeleTekst(dele: IkkeKommetIgenDele | null): string | null {
+  if (!dele) return null;
+  return `${IKKE_KOMMET_IGEN_PRAEFIKS}${dele.viste.map((v) => v.navn).join(", ")}${ikkeKommetIgenHale(dele.flere)}`;
 }

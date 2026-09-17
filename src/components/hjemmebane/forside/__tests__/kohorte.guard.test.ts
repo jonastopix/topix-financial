@@ -127,7 +127,9 @@ describe("kohorte.guard — kohortelinjen på forsiden", () => {
   it("5. dommen bruger dansk dato (TZ) og husets udelukkelser; startet i dag udelades af M", () => {
     expect(danskDatoOgHusetsUdelukkelser(lib)).toBe(true);
     expect(linjeBlok(flade)).toContain("startetIDagTekst(linje.udeladtIDag)");
-    expect(linjeBlok(flade)).toContain("ikkeKommetIgenTekst(linje.ikkeKommetIgen)");
+    // 17/9 (PR 3, links på navnene): var «ikkeKommetIgenTekst(linje.ikkeKommetIgen)» —
+    // fladen tegner nu navnene som links gennem delene (samme dom, samme loft).
+    expect(linjeBlok(flade)).toContain("ikkeKommetIgenDele(linje.ikkeKommetIgenVirksomheder)");
   });
   it("6. hooken er i topblokken: kohorteQuery står før den første betingede return", () => {
     const krop = flade.slice(flade.indexOf("export const RaadgiverForsideView = () => {"));

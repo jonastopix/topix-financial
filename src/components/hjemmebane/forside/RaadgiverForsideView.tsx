@@ -1,3 +1,4 @@
+import { Fragment } from "react";
 import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -12,7 +13,7 @@ import { pulsLinjer } from "@/lib/pulsen";
 import { SIDEN_SIDST_KEY, hentSidenSidst } from "@/hooks/sidenSidst";
 import { CRON_VAGT_KEY, hentCronVagt } from "@/hooks/cronVagt";
 import { vagtLinje } from "@/lib/cronVagt";
-import { intetNytTekst, sidenSidstLinjer, sidenTekst } from "@/lib/sidenSidst";
+import { intetNytTekst, sidenSidstLinjeDele, sidenSidstNavneSep, sidenTekst } from "@/lib/sidenSidst";
 import { UBESVAREDE_OPSLAG_KEY, hentUbesvaredeOpslag } from "@/hooks/ubesvaredeOpslag";
 import {
   ALLE_BESVARET_TEKST,
@@ -26,7 +27,7 @@ import {
 } from "@/lib/hjemmebane/ubesvaredeOpslag";
 import { KILDE_PRAESENTATION, KILDE_PRAESENTATION_LABEL } from "@/lib/hjemmebane/praesentation";
 import { KOHORTE_KEY, hentKohorte } from "@/hooks/kohorte";
-import { KOHORTE_OVERSKRIFT, ikkeKommetIgenTekst, kohorteLinje, kohorteTekst, startetIDagTekst } from "@/lib/hjemmebane/kohorte";
+import { IKKE_KOMMET_IGEN_PRAEFIKS, KOHORTE_OVERSKRIFT, ikkeKommetIgenDele, ikkeKommetIgenHale, kohorteLinje, kohorteTekst, startetIDagTekst } from "@/lib/hjemmebane/kohorte";
 import { HbTag } from "@/components/hjemmebane/HbTag";
 import { HbAvatar } from "@/components/hjemmebane/HbAvatar";
 import { ONLINE_DOM_KEY, hentOnlineDom, useOnlineMedlemmer } from "@/hooks/onlineMedlemmer";
@@ -106,6 +107,13 @@ const hilsen = (): string => {
 };
 
 const grundLink = (companyId: string, slags: OpgaveSlags) => `/virksomhed/${companyId}?grund=${slags}`;
+
+/** Husets tekstlink i højre spalte (samme klasser som Pulsens og «Under
+    stregen»s links): ingen knapflade. Navnene i «Siden sidst» og «Nye
+    medlemmer» linker hermed til virksomheden (17/9, PR 3) — kommaer og «og»
+    står som tekst mellem linkene, ikke inde i dem. */
+const TEKSTLINK = "text-hb-evergreen underline-offset-4 hover:underline";
+const virksomhedsLink = (companyId: string) => `/virksomhed/${companyId}`;
 
 /** Samlede linjer (tilstand eller pukkel) peger via samletLinjeLink
     (lib/hjemmebane/forsideLinks, #743): ÉN virksomhed → direkte til den med
@@ -504,10 +512,26 @@ export const RaadgiverForsideView = () => {
           <p className="pb-4 text-xs">Kunne ikke hente hvad der er sket siden sidst.</p>
         ) : sidenSidstQuery.data ? (
           (() => {
-            const linjer = sidenSidstLinjer(sidenSidstQuery.data.raekker);
+            const linjer = sidenSidstLinjeDele(sidenSidstQuery.data.raekker);
             return linjer.length > 0 ? (
               <ul className="space-y-1 pb-4">
-                {linjer.map((l) => <li key={l.slags}>{l.tekst}</li>)}
+                {linjer.map((l) => (
+                  <li key={l.slags}>
+                    {l.hoved}
+                    {l.viste.length > 0 && " · "}
+                    {l.viste.map((v, i) => (
+                      <Fragment key={`${v.id ?? "navn"}:${v.navn}:${i}`}>
+                        {sidenSidstNavneSep(i, l.viste.length, l.efter !== "")}
+                        {v.id ? (
+                          <Link to={virksomhedsLink(v.id)} className={TEKSTLINK}>{v.navn}</Link>
+                        ) : (
+                          v.navn
+                        )}
+                      </Fragment>
+                    ))}
+                    {l.efter && ` og ${l.efter}`}
+                  </li>
+                ))}
               </ul>
             ) : (
               <p className="pb-4">{intetNytTekst(sidenSidstQuery.data.siden, new Date())}</p>
@@ -529,11 +553,22 @@ export const RaadgiverForsideView = () => {
           (() => {
             const linje = kohorteLinje({ ...kohorteQuery.data, nu: new Date() });
             const idag = startetIDagTekst(linje.udeladtIDag);
-            const ikke = ikkeKommetIgenTekst(linje.ikkeKommetIgen);
+            const ikke = ikkeKommetIgenDele(linje.ikkeKommetIgenVirksomheder);
             return (
               <div className="space-y-1 pb-4" data-kohorte-m={linje.m} data-kohorte-n={linje.n}>
                 <p>{kohorteTekst(linje)}{idag ? ` ${idag}` : ""}</p>
-                {ikke && <p>{ikke}</p>}
+                {ikke && (
+                  <p>
+                    {IKKE_KOMMET_IGEN_PRAEFIKS}
+                    {ikke.viste.map((v, i) => (
+                      <Fragment key={v.id}>
+                        {i > 0 && ", "}
+                        <Link to={virksomhedsLink(v.id)} className={TEKSTLINK}>{v.navn}</Link>
+                      </Fragment>
+                    ))}
+                    {ikkeKommetIgenHale(ikke.flere)}
+                  </p>
+                )}
               </div>
             );
           })()
