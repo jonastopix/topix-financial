@@ -44,6 +44,7 @@ import {
 import { kvitteringMail, LABEL_KVITTERING } from "../_shared/fornyelsesMail.ts";
 import { formatDanskDato } from "../_shared/indgangsMailAfsendelse.ts";
 import type { Betalingsmodel } from "../_shared/fornyelsespris.ts";
+import { bygKontraktRaekke, type KontraktInput } from "../_shared/kontraktRaekke.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -629,8 +630,8 @@ async function opretIndgangsPeriode(
     /** Arkivnoten ved genindtræden (_shared/genindtraeden.ts) — ellers null. */
     note?: string | null;
   },
-): Promise<void> {
-  const { error } = await adminClient.from("company_perioder").insert({
+): Promise<string | null> {
+  const { data, error } = await adminClient.from("company_perioder").insert({
     company_id: raekke.company_id,
     periode_start: raekke.periode.periode_start,
     periode_slut: raekke.periode.periode_slut,
@@ -640,10 +641,44 @@ async function opretIndgangsPeriode(
     stripe_reference: raekke.stripe_reference,
     oprettet_af: null, // betalingen er ikke en rådgiverhandling
     note: raekke.note ?? null,
-  });
+  }).select("id").maybeSingle();
   if (error) {
     console.error("[stripe-webhook] periode-indsættelse (indgang) fejlede:", error);
     throw new Error("Failed to insert company_periode");
+  }
+  // Rækkens id er kontraktårets bilag (kontrakter.periode_id) — null hvis svaret ikke bar det.
+  return (data as { id?: string } | null)?.id ?? null;
+}
+
+/**
+ * KONTRAKTÅRET (økonomi, 18/9-2026): ved hver indgang og fornyelse skrives ÉN
+ * række i public.kontrakter af det webhooken allerede har (_shared/
+ * kontraktRaekke.ts — Jonas 17/9: «Prisen er det, der faktisk er faktureret.
+ * Grundprisen er det, fornyelsen regner fra.»). Idempotent på UNIQUE
+ * (company_id, periode_start): upsert med ignoreDuplicates, så en gensendelse
+ * eller Ø1's backfill-række for samme start aldrig giver to. KASTER ALDRIG:
+ * kontrakter er regnskabslaget for partnernes dashboard — fejler skrivningen,
+ * må betalingen ikke svares 500 (Stripe ville gensende en fuldført betaling),
+ * og hullet fanges af backfill-SQL'en (udkastets 02-backfill). Samme mønster
+ * som meldGenindtraeden/skrivRaadgiverBesked: log, gå videre.
+ */
+async function skrivKontraktraekke(adminClient: SupabaseClient, input: KontraktInput, kontekst: string): Promise<void> {
+  const bygget = bygKontraktRaekke(input);
+  if (bygget.ok === false) {
+    console.error(`[stripe-webhook] kontraktår IKKE skrevet${kontekst} (${input.stripe_reference}): ${bygget.grund}`);
+    return;
+  }
+  try {
+    const { error } = await adminClient
+      .from("kontrakter")
+      .upsert(bygget.raekke, { onConflict: "company_id,periode_start", ignoreDuplicates: true });
+    if (error) {
+      console.error(`[stripe-webhook] kontraktår kunne ikke skrives${kontekst} (${input.stripe_reference}):`, error.message);
+      return;
+    }
+    console.log(`[stripe-webhook] kontraktår skrevet${kontekst}: ${input.art} ${bygget.raekke.periode_start} → ${bygget.raekke.periode_slut}, pris ${bygget.raekke.pris_eks_moms_oere} øre, grundpris ${bygget.raekke.grundpris_oere} øre`);
+  } catch (err) {
+    console.error(`[stripe-webhook] kontraktår kastede${kontekst} (${input.stripe_reference}):`, err instanceof Error ? err.message : err);
   }
 }
 
@@ -796,6 +831,10 @@ async function behandlIndgangsFakturaBetaling(
         return { udfald: "allerede_behandlet" };
       }
       await skrivIndgangsKontrakt(adminClient, companyId, eksisterende, beloeb.beloeb_oere, stripeCustomerId, " (gensendelse)");
+      await skrivKontraktraekke(adminClient, {
+        company_id: companyId, periode_id: eksisterende.id, periode_start: eksisterende.periode_start, periode_slut: eksisterende.periode_slut,
+        beloeb_oere: beloeb.beloeb_oere, grundbeloeb_oere: beloeb.beloeb_oere, betalingsmodel: "faktura", art: "indgang", stripe_reference: invoiceId,
+      }, " (gensendelse)");
       await nulstilIndgangsSession(adminClient, companyId);
       const invitation = await sikrIndgangsInvitation(adminClient, companyId, invoiceId);
       await meldInvitationsUdfald(adminClient, companyId, invitation, invoiceId);
@@ -809,7 +848,7 @@ async function behandlIndgangsFakturaBetaling(
     // Genindtræden (11/9): læses FØR kontrakten overskrives.
     const nu = new Date();
     const forrigeLaest = await laesForrigeKontrakt(adminClient, companyId);
-    await opretIndgangsPeriode(adminClient, {
+    const periodeId = await opretIndgangsPeriode(adminClient, {
       company_id: companyId,
       periode,
       beloeb_oere: beloeb.beloeb_oere,
@@ -819,6 +858,10 @@ async function behandlIndgangsFakturaBetaling(
     });
     // Listeprisen = linjebeløbet: en faktura har intet ratetillæg.
     await skrivIndgangsKontrakt(adminClient, companyId, periode, beloeb.beloeb_oere, stripeCustomerId, "");
+    await skrivKontraktraekke(adminClient, {
+      company_id: companyId, periode_id: periodeId, periode_start: periode.periode_start, periode_slut: periode.periode_slut,
+      beloeb_oere: beloeb.beloeb_oere, grundbeloeb_oere: beloeb.beloeb_oere, betalingsmodel: "faktura", art: "indgang", stripe_reference: invoiceId,
+    }, "");
     await meldGenindtraeden(adminClient, companyId, forrigeLaest, periode, nu);
     await nulstilIndgangsSession(adminClient, companyId);
     // Invitationen — betalingen giver adgang (§21). Kaster aldrig selv.
@@ -1038,7 +1081,7 @@ Deno.serve(async (req) => {
       // — ellers forlænges kontrakten aldrig.
       const { data: eksisterende, error: eksisterendeError } = await adminClient
         .from("company_perioder")
-        .select("id, periode_slut")
+        .select("id, periode_start, periode_slut")
         .eq("stripe_reference", session.id)
         .maybeSingle();
       if (eksisterendeError) {
@@ -1098,6 +1141,10 @@ Deno.serve(async (req) => {
           reference_type: "periode",
           reference_id: eksisterende.id,
         });
+        await skrivKontraktraekke(adminClient, {
+          company_id: fornyelseCompanyId, periode_id: eksisterende.id, periode_start: eksisterende.periode_start, periode_slut: eksisterende.periode_slut,
+          beloeb_oere: beloebOere, grundbeloeb_oere: grundbeloebOere, betalingsmodel, art: "fornyelse", stripe_reference: session.id,
+        }, " (gensendelse)");
         // Kontrakten er nu fuldført — kvitteringen sikres før svaret.
         await sendFornyelseskvittering(adminClient, {
           sessionId: session.id,
@@ -1203,6 +1250,10 @@ Deno.serve(async (req) => {
         console.error("[stripe-webhook] contract_end_date-opdatering fejlede:", datoError);
         throw new Error("Failed to update contract_end_date");
       }
+      await skrivKontraktraekke(adminClient, {
+        company_id: fornyelseCompanyId, periode_id: (nyPeriodeRaekke as { id?: string } | null)?.id ?? null, periode_start, periode_slut,
+        beloeb_oere: beloebOere, grundbeloeb_oere: grundbeloebOere, betalingsmodel, art: "fornyelse", stripe_reference: session.id,
+      }, "");
 
       // ── RÅDGIVERBESKEDEN (10/9, recon-penge-og-roller.md §3) — EFTER
       //    datoen, FØR cancel_at: kaster cancel_at, går gensendelsen ind i
@@ -1326,6 +1377,10 @@ Deno.serve(async (req) => {
           });
         }
         await skrivIndgangsKontrakt(adminClient, indgangCompanyId, eksisterende, grundbeloebOere, stripeCustomerId, " (gensendelse)");
+        await skrivKontraktraekke(adminClient, {
+          company_id: indgangCompanyId, periode_id: eksisterende.id, periode_start: eksisterende.periode_start, periode_slut: eksisterende.periode_slut,
+          beloeb_oere: beloebOere, grundbeloeb_oere: grundbeloebOere, betalingsmodel, art: "indgang", stripe_reference: session.id,
+        }, " (gensendelse)");
         await nulstilIndgangsSession(adminClient, indgangCompanyId);
         // Kontrakten er nu fuldført — invitationen sikres før svaret, så
         // en gensendelse aldrig efterlader et betalt medlem uden login.
@@ -1351,7 +1406,7 @@ Deno.serve(async (req) => {
       // Perioden FØRST, virksomheden bagefter: fejler det andet, findes
       // perioden som spor af hvad der blev betalt. Fejler indsættelsen,
       // er intet sket, og Stripe forsøger igen.
-      await opretIndgangsPeriode(adminClient, {
+      const periodeId = await opretIndgangsPeriode(adminClient, {
         company_id: indgangCompanyId,
         periode,
         beloeb_oere: beloebOere,
@@ -1365,6 +1420,10 @@ Deno.serve(async (req) => {
       // docs/fornyelseskaeden-1-september.md). En der betaler 52.500 i tolv
       // rater er kommet ind på 50.000 og fornyer til 25.000.
       await skrivIndgangsKontrakt(adminClient, indgangCompanyId, periode, grundbeloebOere, stripeCustomerId, "");
+      await skrivKontraktraekke(adminClient, {
+        company_id: indgangCompanyId, periode_id: periodeId, periode_start: periode.periode_start, periode_slut: periode.periode_slut,
+        beloeb_oere: beloebOere, grundbeloeb_oere: grundbeloebOere, betalingsmodel, art: "indgang", stripe_reference: session.id,
+      }, "");
       await meldGenindtraeden(adminClient, indgangCompanyId, forrigeLaest, periode, nu);
 
       // Sessionen er brugt — pegeren på company_betalingslink nulstilles
