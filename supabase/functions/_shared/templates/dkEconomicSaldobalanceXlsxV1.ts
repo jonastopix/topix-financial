@@ -170,6 +170,70 @@ const MONTH_NAMES = [
   "Juli", "August", "September", "Oktober", "November", "December",
 ];
 
+// ── Kolonnerne findes af FILENS EGEN overskrift (17/9-2026, Jonas' filer 21:15) ──
+//
+// Brick Works' saldobalance har KUN fire kolonner — række 6: «Nr.» · «Navn» · «Perioden» · «År til dato»,
+// balancen i kolonne D (indeks 3). Fjeldgaardshops har seks: række 5 «Perioden» (C) og «År til dato» (E),
+// række 6 «Nr.» · «Navn» · «Indeværende år…» · «Året før…» · «Indeværende år…» · «Året før…». Før stod her
+// faste `VALUE_COL = 2` og `YTD_COL = 4` — så blev Brick Works' balance læst som tom (86 balancekonti uden
+// beløb, ingen assets_total/equity_total/cash, balance_present FAIL på alle 22 rapporter). Nu: find rækken med
+// «Nr.»/«Navn», læs gruppeoverskriften i rækken over (bæres til højre som en flettet celle), og vælg den første
+// kolonne der hedder «Perioden» (evt. «Indeværende år» under «Perioden») og den første der hedder «År til
+// dato» — aldrig en kolonne der hedder «Året før». Falder genkendelsen igennem, bruges de gamle faste indeks
+// som SIDSTE udvej, og det står i evidence/parser-tjekket column_detection.
+
+export const FAST_VALUE_COL = 2;
+export const FAST_YTD_COL = 4;
+export const OVERSKRIFT_SOEGERAEKKER = 12;
+
+export interface Kolonnevalg {
+  headerRowIndex: number;
+  valueCol: number;
+  ytdCol: number;
+  metode: "overskrift" | "fast_indeks";
+  evidence: string[];
+}
+
+const celletekst = (v: unknown): string => (v == null ? "" : String(v)).toLowerCase().replace(/\s+/g, " ").trim();
+
+/** Rækken med «Nr.» i A og «Navn» i B blandt de første OVERSKRIFT_SOEGERAEKKER rækker; −1 når den ikke findes. */
+export function findOverskriftsRaekke(matrix: ReadonlyArray<ReadonlyArray<unknown> | undefined>): number {
+  for (let i = 0; i < Math.min(matrix.length, OVERSKRIFT_SOEGERAEKKER); i++) {
+    const row = matrix[i] ?? [];
+    if (celletekst(row[0]) === "nr." && celletekst(row[1]) === "navn") return i;
+  }
+  return -1;
+}
+
+export function findKolonner(matrix: ReadonlyArray<ReadonlyArray<unknown> | undefined>): Kolonnevalg {
+  const h = findOverskriftsRaekke(matrix);
+  const fallback = (grund: string, headerRowIndex: number): Kolonnevalg => ({
+    headerRowIndex, valueCol: FAST_VALUE_COL, ytdCol: FAST_YTD_COL, metode: "fast_indeks",
+    evidence: [`fallback_fixed_columns:${FAST_VALUE_COL}/${FAST_YTD_COL}`, grund],
+  });
+  if (h < 0) return fallback(`no Nr./Navn header row in first ${OVERSKRIFT_SOEGERAEKKER} rows`, 5);
+  const headerRow = matrix[h] ?? [];
+  const groupRow = h > 0 ? (matrix[h - 1] ?? []) : [];
+  const maxCols = Math.max(headerRow.length, groupRow.length);
+  let valueCol = -1;
+  let ytdCol = -1;
+  let gruppe = "";
+  const set: string[] = [];
+  for (let c = 2; c < maxCols; c++) {
+    const g = celletekst(groupRow[c]);
+    if (/perioden|år til dato/.test(g)) gruppe = g;
+    const sub = celletekst(headerRow[c]);
+    if (!sub && !gruppe) continue;
+    set.push(`${c}:"${sub}"${gruppe ? `/"${gruppe}"` : ""}`);
+    const aaretFoer = /året før/.test(sub);
+    if (aaretFoer) continue;
+    if (valueCol < 0 && (/perioden/.test(sub) || /perioden/.test(gruppe))) { valueCol = c; continue; }
+    if (ytdCol < 0 && (/år til dato/.test(sub) || /år til dato/.test(gruppe))) { ytdCol = c; }
+  }
+  if (valueCol < 0 || ytdCol < 0) return fallback(`header found at row ${h} but columns not recognised: ${set.join(" | ")}`, h);
+  return { headerRowIndex: h, valueCol, ytdCol, metode: "overskrift", evidence: [`header_row:${h}`, `period_col:${valueCol}`, `ytd_col:${ytdCol}`, ...set] };
+}
+
 function parsePeriodFromRow4(text: string): { start: string | null; end: string | null; label: string | null } {
   // "Saldobalance for perioden DD.MM.YY - DD.MM.YY" or "DD.MM.YYYY - DD.MM.YYYY"
   const m = text.match(/(\d{2}\.\d{2}\.\d{2,4})\s*[-–]\s*(\d{2}\.\d{2}\.\d{2,4})/);
@@ -225,17 +289,17 @@ export const dkEconomicSaldobalanceXlsxV1: SemanticXlsxTemplateEntry = {
     const row4 = (ctx.headerRows[3]?.[0] ?? "").toString();
     if (!row4 || !/saldobalance/i.test(row4)) return 0;
 
-    // Row 6 (index 5): "Nr." in col 0, "Navn" in col 1
-    const row6 = ctx.headerRows[5];
-    if (!row6 || row6.length < 3) return 0;
-    const col0 = (row6[0] ?? "").toString().toLowerCase().trim();
-    const col1 = (row6[1] ?? "").toString().toLowerCase().trim();
-    if (col0 !== "nr." || col1 !== "navn") return 0;
+    // Overskriftsrækken «Nr.» / «Navn» — række 6 (indeks 5) i begge kendte former, men findes af indholdet
+    // (før: fast indeks 5 og mindst tre kolonner — Brick Works' fire-kolonne-form har den også på indeks 5).
+    const overskrift = findOverskriftsRaekke(ctx.headerRows);
+    if (overskrift < 0) return 0;
+    const headerRow = ctx.headerRows[overskrift];
+    if (!headerRow || headerRow.length < 3) return 0;
 
     // Check for account numbers in 1000-9999 range
     let accountCount = 0;
     let hasSubtotalLikeRows = false;
-    for (let i = 6; i < Math.min(ctx.headerRows.length, 100); i++) {
+    for (let i = overskrift + 1; i < Math.min(ctx.headerRows.length, 100); i++) {
       const row = ctx.headerRows[i];
       if (!row) continue;
       const acctVal = row[0];
@@ -314,19 +378,29 @@ export const dkEconomicSaldobalanceXlsxV1: SemanticXlsxTemplateEntry = {
       periodStart = `01-${pad(lastDay.getMonth() + 1)}-${lastDay.getFullYear()}`;
     }
 
-    // ── Identify value columns ──
-    // Col 0 = Nr., Col 1 = Navn, Col 2 = period amount («Perioden · Indeværende år»), Col 4 = YTD
-    const VALUE_COL = 2;
-    const YTD_COL = 4;
+    // ── Kolonnerne af filens egen overskrift (før: faste VALUE_COL = 2 / YTD_COL = 4) ──
+    const matrix: unknown[][] = [];
+    for (const row of xlsxResult.rows) {
+      if (row.row_index >= OVERSKRIFT_SOEGERAEKKER) continue;
+      const r: unknown[] = [];
+      for (const c of row.cells) r[c.col_index] = c.raw_value;
+      matrix[row.row_index] = r;
+    }
+    const kolonner = findKolonner(matrix);
+    const VALUE_COL = kolonner.valueCol;
+    const YTD_COL = kolonner.ytdCol;
+    console.log(`${LOG_PREFIX} Columns by ${kolonner.metode}: period=${VALUE_COL}, ytd=${YTD_COL}, header row=${kolonner.headerRowIndex}`);
 
     // ── Læs kontolinjerne: resultatkonti (1000–4999) fra perioden, balance (≥ 5000) fra ÅTD ──
     const lineItems: SemanticLineItem[] = [];
     const resultatkonti: Resultatkonto[] = [];
     const balanceSums: Record<string, number> = {};
     let totalLineItems = 0;
+    let balanceKonti = 0;
+    let balanceKontiMedBeloeb = 0;
 
     for (const row of xlsxResult.rows) {
-      if (row.row_index < 6) continue; // Skip header rows
+      if (row.row_index <= kolonner.headerRowIndex) continue; // Skip header rows
 
       const acctCell = row.cells.find(c => c.col_index === 0);
       const acctRaw = acctCell?.raw_value;
@@ -344,6 +418,10 @@ export const dkEconomicSaldobalanceXlsxV1: SemanticXlsxTemplateEntry = {
         : null;
 
       totalLineItems++;
+      if (isBalanceAccount) {
+        balanceKonti++;
+        if (rawValue != null && rawValue !== 0) balanceKontiMedBeloeb++;
+      }
 
       lineItems.push({
         source_field_id: `acct_${acctNum}`,
@@ -498,6 +576,22 @@ export const dkEconomicSaldobalanceXlsxV1: SemanticXlsxTemplateEntry = {
     const hasBalance = ["egenkapital", "bank_balance", "debitorer"].some(k => balanceSums[k] != null);
     checks.push({ name: "balance_present", result: hasBalance ? "PASS" as const : "FAIL" as const, details: hasBalance ? "Balance accounts found" : "No balance accounts" });
     checks.push({ name: "no_subtotals", result: "PASS" as const, details: "Line-item only format confirmed" });
+    // Kolonnevalget står i loggen — også når det er faldet tilbage til de faste indeks.
+    checks.push({
+      name: "column_detection",
+      result: "PASS" as const,
+      details: `${kolonner.metode === "overskrift" ? "Columns from header" : "FALLBACK fixed columns"}: period col ${VALUE_COL}, ytd col ${YTD_COL}, header row ${kolonner.headerRowIndex} (${kolonner.evidence.join("; ")})`,
+    });
+    // Balancekonti i filen, men ingen af dem med et beløb → kolonnen er forkert (Brick Works 17/9: 86 konti, 0 beløb) — fælder.
+    checks.push({
+      name: "balance_values_present",
+      result: balanceKonti === 0 ? "SKIP" as const : balanceKontiMedBeloeb > 0 ? "PASS" as const : "FAIL" as const,
+      details: balanceKonti === 0
+        ? "No balance accounts (≥ 5000) in file"
+        : balanceKontiMedBeloeb > 0
+          ? `${balanceKontiMedBeloeb} of ${balanceKonti} balance accounts carry a value in ytd col ${YTD_COL}`
+          : `${balanceKonti} balance accounts found but NONE carry a value in ytd col ${YTD_COL} — wrong column (header: ${kolonner.evidence.join("; ")})`,
+    });
     // Kontrolsummen: omsætning − Σ grupper + andre driftsindtægter = −Σ resultatkonti (1 kr.), og ingen konto uden gruppe.
     const daekket = Math.abs(fordeling.afvigelse) <= KONTROLSUM_TOLERANCE && fordeling.udenGruppe.length === 0;
     checks.push({
