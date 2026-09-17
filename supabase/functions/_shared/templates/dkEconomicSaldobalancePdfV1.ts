@@ -20,7 +20,9 @@ import type {
   DeterministicMeta,
 } from "../templateRegistry.ts";
 
+import { alleGrupper, bygGruppetrae, findGruppe, type Gruppe, type Gruppelinje } from "../gruppetrae.ts";
 import {
+  parseDanishNumber,
   parseEconomicPdfText,
   type PdfParsedLine,
   type PdfSection,
@@ -125,6 +127,184 @@ function flipPnlSign(val: number | null): number | null {
 
 function absVal(val: number | null): number | null {
   return val != null ? Math.abs(val) : null;
+}
+
+// ── Grupperne som træ — også uden «i alt» (17/9-2026, KJ AUTO, Jonas' fil ~22:00) ──
+//
+// KJ AUTOs saldobalance navngiver grupperne UDEN «i alt»: «Vareforbrug 749.217,49 · Salgsfremmende omk. ·
+// Personaleudgifter (som rummer «Løn i alt») · Administrationsomkostninger · Lokaleomkostninger ·
+// Udlejning af fast ejendom −9.428,38 (som rummer «Sekundære lejeindtægter» −10.000 og «Personbil» 571,62) ·
+// Driftsmiddelomkostninger · Kapacitetsomkostninger 434.803,77 · Resultat før renter · Renteudgifter ·
+// Resultat» og balancen «Anlægsaktiver · Varebeholdninger · Tilgodehavender · Likvide beholdninger ·
+// Omsætningsaktiver · Aktiver · Egenkapital (personlig) · Gæld · Passiver». findByLabel krævede «… i alt»
+// (is_subtotal) → cost_lines_present FAIL «Revenue 1330860.74 but no cost lines found» (prod 17/9 21:59).
+//
+// Skellet mellem konto og gruppesum er KONTONUMMERET i første kolonne (4–6 cifre; pdfTextParser kender kun
+// 4, så 5-cifrede balancekonti som «11510 Kostpris, primo» ville ellers ligne grupper). Træet
+// (_shared/gruppetrae.ts) giver nesting, så «Løn i alt» ikke tælles oven i «Personaleudgifter», og en
+// omkostningsgruppe hvis netto er en KREDIT (Udlejning af fast ejendom) bliver andre driftsindtægter —
+// samme regel som saldobalance-regnearket fik i #971. Kontrolsummen på filen:
+//   1.330.860,74 − 749.217,49 − 290.946,33 (løn) − 31.163,85 (øvrige personale = 322.110,18 − 290.946,33)
+//   − 32.469,69 − 56.087,95 − 19.020,94 − 14.543,39 (driftsmidler → øvrige) − 0 (renter) + 9.428,38 = 146.839,48 = Resultat.
+
+const DK_NUM = /-?[\d.]+,\d{2}/g;
+const DK_NUM_FIRST = /-?[\d.]+,\d{2}/;
+
+/** Linjerne i filens egen rækkefølge pr. sektion — overskrifter (uden tal) MED, kontolinjer mærket. */
+export function linjerAfTekst(text: string): Record<"PNL" | "AKTIVER" | "PASSIVER", Gruppelinje[]> {
+  const ud: Record<"PNL" | "AKTIVER" | "PASSIVER", Gruppelinje[]> = { PNL: [], AKTIVER: [], PASSIVER: [] };
+  let section: "PNL" | "AKTIVER" | "PASSIVER" | null = null;
+  let i = 0;
+  for (const raw of text.split("\n")) {
+    i++;
+    const line = raw.trim();
+    if (!line) continue;
+    const nums = line.match(DK_NUM) ?? [];
+    // Sektionsmarkører — kun uden tal: «Aktiver 253.823,19 …» med tal er TOTALEN, ikke markøren.
+    if (nums.length === 0) {
+      if (/^resultatopg/i.test(line)) { section = "PNL"; continue; }
+      if (/^#?\s*aktiver\b/i.test(line) && !/anlæg|omsætning/i.test(line)) { section = "AKTIVER"; continue; }
+      if (/^#?\s*passiver\b/i.test(line)) { section = "PASSIVER"; continue; }
+    }
+    if (!section) continue;
+    if (/^Nr\.?\s+Navn/i.test(line) || /^\(NB/i.test(line) || /e-conomic\.com/i.test(line) || /^Hentet:/i.test(line)) continue;
+    if (/^\|[\s|-]*\|$/.test(line)) continue;
+    const erKonto = /^\s*\d{4,6}\s+\S/.test(line);
+    let label = line;
+    const fi = line.search(DK_NUM_FIRST);
+    if (fi > 0) label = line.slice(0, fi).trim();
+    label = label.replace(/^\|?\s*/, "").replace(/\s*\|?\s*$/, "").trim();
+    if (label.length < 2) continue;
+    const pd = (s: string) => parseDanishNumber(s);
+    const value = nums.length > 0 ? pd(nums[0]!) : null;
+    // Kolonnerne som pdfTextParser læser dem: 2 tal = perioden/ÅTD; 3 = perioden/året før/ÅTD; 4 = perioden/året før/ÅTD/året før.
+    const ytd = nums.length >= 3 ? pd(nums[2]!) : nums.length >= 2 ? pd(nums[1]!) : null;
+    ud[section].push({ label, value, ytd, erKonto, index: i });
+  }
+  return ud;
+}
+
+export interface GruppeNoegletal {
+  kf: Record<string, number | null>;
+  /** Hvad der blev til hvad — til parser-tjekket og loggen. */
+  spor: string[];
+  /** Gruppetræet fandt en omsætning (ellers falder skabelonen tilbage til «… i alt»-matcherne). */
+  fandtOmsaetning: boolean;
+}
+
+const OPEX_REGLER: ReadonlyArray<{ key: string; pattern: RegExp }> = [
+  { key: "loenninger", pattern: /^(lønninger|løn(,? gager( og honorarer)?)?|løn i alt)( mv\.?)?( i alt| ialt)?$/ },
+  { key: "pensioner_sociale", pattern: /^pension/ },
+  { key: "oevrige_personale", pattern: /^(personale(udgifter|omkostninger)|øvrige personale|sociale bidrag)/ },
+  { key: "salgsomkostninger", pattern: /^salgs/ },
+  { key: "lokaleomkostninger", pattern: /^lokale/ },
+  { key: "administrationsomkostninger", pattern: /^administration/ },
+  { key: "transportomkostninger", pattern: /^(autodrift|transport|biler|bilomk|vare-?\s*\/?\s*lastbil)/ },
+  { key: "afskrivninger", pattern: /^afskrivning/ },
+];
+
+/** Nøgletallene fra træet. Kreditformat: omsætning/indtægt negativ, omkostning positiv, overskud negativt. */
+export function gruppeNoegletal(linjer: Record<"PNL" | "AKTIVER" | "PASSIVER", Gruppelinje[]>): GruppeNoegletal {
+  const kf: Record<string, number | null> = {};
+  const spor: string[] = [];
+  const pnlRoots = bygGruppetrae(linjer.PNL);
+  const pnl = alleGrupper(pnlRoots);
+  const saet = (key: string, v: number | null, hvorfra: string) => { kf[key] = v; if (v !== null) spor.push(`${key}<-${hvorfra}`); };
+
+  // Omsætning: den yderste gruppe (Nettoomsætning / Omsætning i alt) — sidste rodgruppe der matcher.
+  const omsRoots = pnlRoots.filter((g) => /^(netto)?omsætning( i alt| ialt| diverse)?$/.test(g.norm));
+  const oms = omsRoots.length > 0 ? omsRoots[omsRoots.length - 1] : null;
+  saet("omsaetning", oms ? Math.abs(oms.value) : null, oms?.label ?? "");
+  const cogsRoots = pnlRoots.filter((g) => /^(vareforbrug|direkte omkostninger)( i alt| ialt)?$/.test(g.norm));
+  saet("direkte_omkostninger", cogsRoots.length > 0 ? cogsRoots.reduce((s, g) => s + Math.abs(g.value), 0) : null, cogsRoots.map((g) => g.label).join("+"));
+  const db = findGruppe(pnl, /^dækningsbidrag/);
+  saet("daekningsbidrag", db ? -db.value : null, db?.label ?? "");
+  if (db) kf.gross_profit = -db.value;
+
+  // Driftsomkostningerne: børnene af en beholder («Kapacitetsomkostninger», «Omkostninger i alt»), ellers
+  // rodgrupperne mellem dækningsbidraget/omsætningen og den første resultatlinje.
+  const beholder = pnlRoots.find((g) => /^(kapacitetsomk|omkostninger( i alt| ialt)?$|faste omkostninger)/.test(g.norm));
+  const erResultat = (g: Gruppe) => /^resultat/.test(g.norm);
+  const erFinans = (g: Gruppe) => /rente|finansi/.test(g.norm);
+  const startIdx = (db ?? oms)?.index ?? -1;
+  const foersteResultat = pnlRoots.find((g) => erResultat(g) && g.index > startIdx);
+  const opexGrupper = beholder
+    ? beholder.children
+    : pnlRoots.filter((g) => g.index > startIdx && (!foersteResultat || g.index < foersteResultat.index) && !erResultat(g) && !erFinans(g) && !/^(netto)?omsætning|^vareforbrug|^direkte omk|^dækningsbidrag/.test(g.norm));
+  let oevrige = 0, oevrigeFundet = false, indtaegt = 0, indtaegtFundet = false;
+  for (const g of opexGrupper) {
+    const regel = OPEX_REGLER.find((r) => r.pattern.test(g.norm));
+    if (!regel) {
+      if (g.value < 0) { indtaegt += -g.value; indtaegtFundet = true; spor.push(`andre_driftsindtaegter<-${g.label}`); }
+      else { oevrige += g.value; oevrigeFundet = true; spor.push(`oevrige_omkostninger<-${g.label}`); }
+      continue;
+    }
+    // Personaleudgifter der rummer «Løn i alt»/«Pensioner»: løn og pension fra børnene, resten som øvrige personale.
+    if (regel.key === "oevrige_personale") {
+      let rest = g.value;
+      for (const c of g.children) {
+        const cr = OPEX_REGLER.find((r) => r.pattern.test(c.norm));
+        if (cr && (cr.key === "loenninger" || cr.key === "pensioner_sociale") && kf[cr.key] == null) { saet(cr.key, Math.abs(c.value), `${g.label}>${c.label}`); rest -= c.value; }
+      }
+      saet("oevrige_personale", (kf.oevrige_personale ?? 0) + Math.abs(rest), g.label);
+      continue;
+    }
+    if (regel.key === "loenninger" && g.children.some((c) => /^pension/.test(c.norm))) {
+      const p = g.children.find((c) => /^pension/.test(c.norm))!;
+      saet("pensioner_sociale", Math.abs(p.value), `${g.label}>${p.label}`);
+      saet("loenninger", Math.abs(g.value - p.value), g.label);
+      continue;
+    }
+    saet(regel.key, (kf[regel.key] ?? 0) + Math.abs(g.value), g.label);
+  }
+  if (oevrigeFundet) kf.oevrige_omkostninger = oevrige;
+  if (indtaegtFundet) kf.andre_driftsindtaegter = indtaegt;
+
+  // Finansielle poster (rodgrupper): udgifter og indtægter hver for sig.
+  const finUdg = pnlRoots.filter((g) => /^(renteudgift|finansielle (omkostninger|udgifter)|finansierings(omkostninger|udgifter))/.test(g.norm));
+  const finIndt = pnlRoots.filter((g) => /^(renteindtægt|finansielle indtægt)/.test(g.norm));
+  saet("finansielle_omkostninger", finUdg.length > 0 ? finUdg.reduce((s, g) => s + Math.abs(g.value), 0) : null, finUdg.map((g) => g.label).join("+"));
+  saet("finansielle_indtaegter", finIndt.length > 0 ? finIndt.reduce((s, g) => s + Math.abs(g.value), 0) : null, finIndt.map((g) => g.label).join("+"));
+  const ebitda = findGruppe(pnlRoots, /^resultat før afskrivninger/);
+  saet("resultat_foer_afskrivninger", ebitda ? -ebitda.value : null, ebitda?.label ?? "");
+
+  // Resultatet: «Resultat før skat» > «Resultat før ekstraordinære poster» > «Resultat» > «Resultat før renter» (kun sidste udvej,
+  // og så med de finansielle poster lagt til) — samme præcedens som #972 gav PDF-resultatopgørelsen.
+  const rfs = findGruppe(pnlRoots, /^resultat før skat/);
+  const rfe = findGruppe(pnlRoots, /^resultat før ekstraordinære/);
+  const res = findGruppe(pnlRoots, /^resultat$/);
+  const rfr = findGruppe(pnlRoots, /^resultat før renter/);
+  const ebtG = rfs ?? rfe ?? res;
+  if (ebtG) saet("resultat_foer_skat", -ebtG.value, ebtG.label);
+  else if (rfr) saet("resultat_foer_skat", -rfr.value - (kf.finansielle_omkostninger ?? 0) + (kf.finansielle_indtaegter ?? 0), `${rfr.label} − finans + finansielle indtægter (sidste udvej)`);
+  else kf.resultat_foer_skat = null;
+  if (rfr) saet("resultat_foer_renter", -rfr.value, rfr.label);
+  const efterSkat = findGruppe(pnlRoots, /^resultat efter skat|^årets resultat/);
+  saet("arets_resultat", efterSkat ? -efterSkat.value : null, efterSkat?.label ?? "");
+
+  // Balancen (år til dato): rodtotaler og de kendte grupper — med eller uden «i alt».
+  const akt = alleGrupper(bygGruppetrae(linjer.AKTIVER));
+  const pas = alleGrupper(bygGruppetrae(linjer.PASSIVER));
+  const ytd = (g: Gruppe | null) => (g ? (g.ytd ?? g.value) : null);
+  const aktiver = akt.find((g) => /^aktiver( i alt| ialt)?$/.test(g.norm)) ?? null;
+  const passiver = pas.find((g) => /^passiver( i alt| ialt)?$/.test(g.norm)) ?? null;
+  saet("aktiver_i_alt", aktiver ? Math.abs(ytd(aktiver)!) : null, aktiver?.label ?? "");
+  saet("passiver_i_alt", passiver ? Math.abs(ytd(passiver)!) : null, passiver?.label ?? "");
+  const egen = pas.find((g) => /^egenkapital/.test(g.norm)) ?? null;
+  saet("egenkapital", egen ? -ytd(egen)! : null, egen?.label ?? "");
+  const hens = pas.find((g) => /^hensættelser/.test(g.norm)) ?? null;
+  saet("hensaettelser", hens ? -ytd(hens)! : null, hens?.label ?? "");
+  const gaeldTotal = pas.find((g) => /^gæld( i alt| ialt)?$/.test(g.norm)) ?? null;
+  const gaeldGrupper = gaeldTotal ? [gaeldTotal] : pas.filter((g) => g.depth === 0 && /gæld|kreditorer/.test(g.norm) && !/^passiver/.test(g.norm));
+  saet("gaeld_i_alt", gaeldGrupper.length > 0 ? gaeldGrupper.reduce((s, g) => s + Math.abs(ytd(g)!), 0) : null, gaeldGrupper.map((g) => g.label).join("+"));
+  const likv = akt.find((g) => /^likvide/.test(g.norm)) ?? null;
+  saet("likvider", likv ? ytd(likv) : null, likv?.label ?? "");
+  const deb = akt.find((g) => /^tilgodehavender( i alt| ialt)?$|^debitorer/.test(g.norm)) ?? null;
+  saet("debitorer", deb ? ytd(deb) : null, deb?.label ?? "");
+  const lager = akt.find((g) => /^varebeholdninger|^varelager/.test(g.norm)) ?? null;
+  saet("varelager", lager ? ytd(lager) : null, lager?.label ?? "");
+
+  return { kf, spor, fandtOmsaetning: oms !== null };
 }
 
 // ── Template Definition ──
@@ -293,6 +473,15 @@ export const dkEconomicSaldobalancePdfV1: TemplateEntry = {
       gaeld_i_alt: absVal(gaeldLine?.ytd_amount ?? null),
     };
 
+    // ── Grupperne som træ — også uden «i alt» (17/9-2026): træets tal vinder hvor det fandt noget; «… i alt»-
+    //    matcherne ovenfor er faldback for filer træet ikke kan læse. ──
+    const trae = gruppeNoegletal(linjerAfTekst(text));
+    if (trae.fandtOmsaetning) {
+      for (const [k, v] of Object.entries(trae.kf)) {
+        if (v !== null && v !== undefined) keyFigures[k] = v;
+      }
+    }
+
     // ═══════════════════════════════════════════════════════════════
     // BUILD LINE ITEMS
     // ═══════════════════════════════════════════════════════════════
@@ -339,6 +528,13 @@ export const dkEconomicSaldobalancePdfV1: TemplateEntry = {
     } else {
       checks.push({ name: "balance_equation", result: "SKIP", details: "Missing balance totals" });
     }
+
+    // Check: grupperne læst som træ (17/9) — hvad der blev til hvad står i details.
+    checks.push({
+      name: "groups_from_tree",
+      result: trae.fandtOmsaetning ? "PASS" : "SKIP",
+      details: trae.fandtOmsaetning ? trae.spor.join("; ") : "Tree found no revenue group — «… i alt» matchers used",
+    });
 
     // Check: EBT present
     if (keyFigures.resultat_foer_skat != null) {

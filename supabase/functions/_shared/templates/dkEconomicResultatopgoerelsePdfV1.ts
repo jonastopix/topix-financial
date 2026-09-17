@@ -77,7 +77,15 @@ const SEMANTIC_FIELD_MAP: Array<{
   { source_field_id: "omsaetning", pattern: /omsætning\s*(i alt|ialt)/i, family: "revenue_like", canonical_hint: "revenue", require_subtotal: true },
   { source_field_id: "direkte_omkostninger", pattern: /vareforbrug|direkte omk/i, family: "cost_like", canonical_hint: "cogs", require_subtotal: false },
   // NOTE: daekningsbidrag intentionally omitted — gross_profit derived as revenue - cogs in canonical engine
-  { source_field_id: "loenninger", pattern: /lønninger\s*(mv\.?)?\s*(i alt|ialt)/i, family: "cost_like", canonical_hint: "payroll", require_subtotal: true },
+  // BRILLEVÆRK (prod 17/9 21:59): «Løn, gager og honorarer i alt» — før pattern: /lønninger\s*(mv\.?)?\s*(i alt|ialt)/i (løn var tom)
+  { source_field_id: "loenninger", pattern: /^(lønninger|løn,? gager( og honorarer)?|løn)\s*(mv\.?)?\s*(i alt|ialt)/i, family: "cost_like", canonical_hint: "payroll", require_subtotal: true },
+  // BRILLEVÆRK: «Pensioner i alt» → payroll_related; «Sociale bidrag og personaleomkostninger i alt» / «Personaleomkostninger i alt» /
+  // «Øvrige personaleudgifter i alt» → other_staff_costs. Den FØRSTE matchende række vinder (consumedFieldIds); rummer en
+  // «Personaleomkostninger i alt» både løn og pension (den står EFTER dem), trækkes de fra igen i efterbehandlPersonale.
+  { source_field_id: "pensioner_sociale", pattern: /^pensioner\s*(og sociale bidrag)?\s*(i alt|ialt)/i, family: "cost_like", canonical_hint: "payroll_related", require_subtotal: true },
+  { source_field_id: "oevrige_personale", pattern: /^(sociale bidrag og personaleomkostninger|personaleomkostninger|øvrige personale(udgifter|omkostninger))\s*(i alt|ialt)/i, family: "cost_like", canonical_hint: "other_staff_costs", require_subtotal: true },
+  // «Leasing i alt» → øvrige omkostninger, ikke autodrift: leasing af udstyr/inventar er ikke bildrift (afvejet 17/9 — README).
+  { source_field_id: "oevrige_omkostninger", pattern: /^(leasing|andre eksterne omkostninger|øvrige omkostninger)\s*(i alt|ialt)/i, family: "cost_like", canonical_hint: "other_costs", require_subtotal: true },
   // A2 (18/9-2026): e-conomic kalder gruppen «Salgs- og rejseomkostninger i alt» (Floren Engros) — før pattern: /salgsomkostninger/i
   { source_field_id: "salgsomkostninger", pattern: /salgs.*omkostninger/i, family: "cost_like", canonical_hint: "sales_costs", require_subtotal: true },
   { source_field_id: "lokaleomkostninger", pattern: /lokaleomkostninger/i, family: "cost_like", canonical_hint: "facility_costs", require_subtotal: true },
@@ -93,7 +101,7 @@ const SEMANTIC_FIELD_MAP: Array<{
   // så motoren kan regne ebt = ebit − financial_costs + financial_income. Nettolinjen «Finansielle poster i alt» matches IKKE (fortegnet
   // afgør om den er indtægt eller udgift, og ABS-normaliseringen ville tabe det).
   { source_field_id: "renteindtaegter", pattern: /(renteindtægter|finansielle indtægter)\s*(i alt|ialt)/i, family: "revenue_like", canonical_hint: "financial_income", require_subtotal: true },
-  { source_field_id: "renteudgifter", pattern: /(renteudgifter|finansielle (omkostninger|udgifter)|finansieringsudgifter)\s*(i alt|ialt)/i, family: "cost_like", canonical_hint: "financial_costs", require_subtotal: true },
+  { source_field_id: "renteudgifter", pattern: /(renteudgifter|finansielle (omkostninger|udgifter)|finansierings(udgifter|omkostninger))\s*(i alt|ialt)/i, family: "cost_like", canonical_hint: "financial_costs", require_subtotal: true },
   { source_field_id: "resultat_foer_skat", pattern: /resultat før skat/i, family: "profit_like", canonical_hint: "ebt", require_subtotal: true },
   { source_field_id: "resultat_foer_ekstraordinaere", pattern: /resultat før ekstraordinære poster/i, family: "profit_like", canonical_hint: "ebt", require_subtotal: true },
   // A2 (18/9-2026): «Resultat før renter» er ebit — før canonical_hint: "ebt" (Floren Engros 2026-06 fik −49.089,83 i stedet for −38.048,14).
@@ -273,6 +281,24 @@ function extractStructuralMetadata(structural: PdfStructuralPayload): {
 
 // ── Structural Payload → Semantic Extraction (PRIMARY PATH) ──
 
+// ── Personaleomkostninger som BEHOLDER (17/9-2026) ──
+// BRILLEVÆRK: «Løn, gager og honorarer i alt · Pensioner i alt · Sociale bidrag og personaleomkostninger … · Personaleomkostninger
+// i alt». Er kandidaten til other_staff_costs en beholder der står EFTER løn og pension og er mindst lige så stor som dem
+// tilsammen, trækkes løn og pension fra — ellers ville de tælle to gange. Står den før, eller er den mindre, er den en søskende
+// («Sociale bidrag …») og røres ikke. Evidence siger hvad der skete.
+function efterbehandlPersonale(candidates: SemanticMetricCandidate[]): void {
+  const beholder = candidates.find(c => c.source_field_id === "oevrige_personale");
+  if (!beholder || beholder.raw_value === null) return;
+  const dele = candidates.filter(c => (c.source_field_id === "loenninger" || c.source_field_id === "pensioner_sociale") && c.raw_value !== null && (c.source_row_index ?? -1) < (beholder.source_row_index ?? -1));
+  if (dele.length === 0) return;
+  const sumDele = dele.reduce((s, c) => s + (c.raw_value as number), 0);
+  if (Math.abs(beholder.raw_value) + 0.005 < Math.abs(sumDele) || Math.sign(beholder.raw_value) !== Math.sign(sumDele)) return;
+  const foer = beholder.raw_value;
+  beholder.raw_value = foer - sumDele;
+  beholder.raw_sign = beholder.raw_value === 0 ? "zero" : beholder.raw_value < 0 ? "negative" : "positive";
+  beholder.evidence.push(`container: ${foer} minus ${dele.map(c => `${c.source_field_id}(${c.raw_value})`).join(" + ")} = ${beholder.raw_value}`);
+}
+
 function extractSemanticFromStructural(
   structural: PdfStructuralPayload | null,
   textContent: string,
@@ -354,7 +380,19 @@ function extractSemanticFromStructural(
 
       // Prefer first match that has a usable slot0 value over first regex-only match
       const withSlot0 = matchingRows.find(m => getSlot0Value(m.row) !== null);
-      const best = withSlot0 || matchingRows[0];
+      let best = withSlot0 || matchingRows[0];
+      // Vareforbrug (17/9-2026): undergrupper FØR «Omsætning i alt» ligger inde i omsætningen (BRILLEVÆRK: «Vareforbrug Glas og
+      // Briller i alt», «Vareforbrug Linser i alt» før «Omsætning i alt»; «Vareforbrug øvrigt i alt» efter). Grupper inde i grupper
+      // lukker indefra og ud, så den YDERSTE total er den SIDSTE vareforbrug-subtotal mellem omsætningstotalen og dækningsbidraget
+      // (Resultat_6-golden: «VAREFORBRUG» 141.587,59 og dernæst «VAREFORBRUG OG FREMMED ARBEJDE» 141.587,59 — den sidste, ikke summen).
+      if (fieldDef.source_field_id === "direkte_omkostninger") {
+        const omsIdx = candidates.find(c => c.source_field_id === "omsaetning")?.source_row_index ?? -1;
+        const dbIdx = allRows.findIndex((r, i) => i > omsIdx && isEffectiveSubtotal(r) && /dækningsbidrag/i.test(getRowLabel(r)));
+        const efter = matchingRows.filter(m => m.idx > omsIdx && (dbIdx < 0 || m.idx < dbIdx) && getSlot0Value(m.row) !== null && isEffectiveSubtotal(m.row));
+        const total = efter.find(m => /^(vareforbrug|direkte omkostninger)\s*(i alt|ialt)$/i.test(getRowLabel(m.row)));
+        if (total) best = total;
+        else if (efter.length > 0) best = efter[efter.length - 1];
+      }
       const matchIdx = best.idx;
       const matchRow = best.row;
       const label = getRowLabel(matchRow);
@@ -421,6 +459,8 @@ function extractSemanticFromStructural(
         proposed_canonical_target: fieldDef.canonical_hint,
       });
     }
+
+    efterbehandlPersonale(candidates);
 
     // Build line items for provenance from all rows with values
     for (let i = 0; i < allRows.length; i++) {
@@ -515,9 +555,18 @@ function extractSemanticFromStructural(
   }
 
   for (const fieldDef of SEMANTIC_FIELD_MAP) {
-    const match = lines.find(
+    let match = lines.find(
       l => fieldDef.pattern.test(l.name) && (!fieldDef.anti_pattern || !fieldDef.anti_pattern.test(l.name)) && (!fieldDef.require_subtotal || l.is_subtotal)
     );
+    // Vareforbrug (17/9-2026): kun subtotaler EFTER omsætningstotalen — undergrupper før den ligger inde i omsætningen (samme regel som strukturvejen).
+    if (fieldDef.source_field_id === "direkte_omkostninger") {
+      const omsLinje = candidates.find(c => c.source_field_id === "omsaetning");
+      const omsIdx = omsLinje?.source_row_index ?? -1;
+      const dbIdx = lines.findIndex((l, i) => i > omsIdx && l.is_subtotal && /dækningsbidrag/i.test(l.name));
+      const efter = lines.filter((l, i) => i > omsIdx && (dbIdx < 0 || i < dbIdx) && l.is_subtotal && l.period_amount !== null && fieldDef.pattern.test(l.name));
+      const total = efter.find(l => /^(vareforbrug|direkte omkostninger)\s*(i alt|ialt)$/i.test(l.name));
+      if (total) match = total; else if (efter.length > 0) match = efter[efter.length - 1];
+    }
     if (!match) continue;
 
     if (ebtFieldIds.includes(fieldDef.source_field_id)) {
@@ -549,6 +598,8 @@ function extractSemanticFromStructural(
       proposed_canonical_target: fieldDef.canonical_hint,
     });
   }
+
+  efterbehandlPersonale(candidates);
 
   for (const line of lines) {
     if (line.is_subtotal || line.account_no != null) {

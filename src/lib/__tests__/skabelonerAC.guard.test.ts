@@ -41,7 +41,8 @@ const OMK_SRC = "src/lib/omkostningsnoegler.ts";
 export const pnlSkabelonen = (p: string): boolean =>
   p.includes('{ source_field_id: "administrationsomkostninger", pattern: /administration(s?omkostninger)?\\b/i, family: "cost_like", canonical_hint: "admin_costs", require_subtotal: true },') &&
   p.includes('{ source_field_id: "renteindtaegter", pattern: /(renteindtægter|finansielle indtægter)\\s*(i alt|ialt)/i, family: "revenue_like", canonical_hint: "financial_income", require_subtotal: true },') &&
-  p.includes('{ source_field_id: "renteudgifter", pattern: /(renteudgifter|finansielle (omkostninger|udgifter)|finansieringsudgifter)\\s*(i alt|ialt)/i, family: "cost_like", canonical_hint: "financial_costs", require_subtotal: true },') &&
+  // 17/9 (grupper uden i alt): finansieringsOMKOSTNINGER kom med — før ordret: pattern: /(renteudgifter|finansielle (omkostninger|udgifter)|finansieringsudgifter)\\s*(i alt|ialt)/i
+  p.includes('{ source_field_id: "renteudgifter", pattern: /(renteudgifter|finansielle (omkostninger|udgifter)|finansierings(udgifter|omkostninger))\\s*(i alt|ialt)/i, family: "cost_like", canonical_hint: "financial_costs", require_subtotal: true },') &&
   p.includes('{ source_field_id: "salgsomkostninger", pattern: /salgs.*omkostninger/i, family: "cost_like", canonical_hint: "sales_costs", require_subtotal: true },') &&
   p.includes('{ source_field_id: "transportomkostninger", pattern: /^(transportomkostninger|autodrift).*(i alt|ialt)/i, family: "cost_like", canonical_hint: "vehicle_costs", require_subtotal: true },') &&
   p.includes('{ source_field_id: "resultat_foer_renter", pattern: /resultat før renter/i, family: "profit_like", canonical_hint: "ebit", require_subtotal: true },') &&
