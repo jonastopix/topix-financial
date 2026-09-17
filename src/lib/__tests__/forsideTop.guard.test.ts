@@ -12,6 +12,9 @@ import { resolve } from "node:path";
 //      kortet (DinMaaned i BoardroomView) skriver «%»; retningen er ord.
 //   3. Sparklinen har INGEN nul-punkter: sparkline() filtrerer på `!= null`
 //      og indsætter aldrig `?? 0`; tegningen tager punkterne som de er.
+//      Og KUN MÅLTE måneder (17/9, Jonas «Vi går med dine anbefalinger» —
+//      valg A): sparkline() filtrerer på `basis === "measured"`, så
+//      årsregnskabet delt på 12 aldrig tegnes som en flad start.
 //   4. Hovedhistorien er STÅENDE (mediet øverst i fuld bredde, 16:9) — ingen
 //      md:w-[42%]-spalte tilbage i MainStoryShell.
 // Kildelæsning med selvbevis på kopier (dineMaal.guard-mønstret).
@@ -80,7 +83,7 @@ export const ingenProcent = (dom: string, forside: string): boolean => {
     /return `højere end i \$\{navn\}`;/.test(dom) && /return `lavere end i \$\{navn\}`;/.test(dom) && /return `som i \$\{navn\}`;/.test(dom);
 };
 
-/** Dom 3: sparkline uden nul-punkter. */
+/** Dom 3: sparkline uden nul-punkter — og kun målte måneder. */
 export const ingenNulPunkter = (dom: string): boolean => {
   const fra = dom.indexOf("export function sparkline(");
   if (fra === -1) return false;
@@ -88,7 +91,8 @@ export const ingenNulPunkter = (dom: string): boolean => {
   const rest = dom.slice(fra + 1);
   const m = rest.search(/\n(export )?function /);
   const fn = dom.slice(fra, m === -1 ? undefined : fra + 1 + m);
-  return fn.length > 0 && /\.filter\(\(r\) => r\[felt\] != null\)/.test(fn) && !/\?\? 0/.test(fn) && !/: 0\b/.test(fn) && !/\|\| 0/.test(fn);
+  return fn.length > 0 && /\.filter\(\(r\) => r\[felt\] != null\)/.test(fn) && !/\?\? 0/.test(fn) && !/: 0\b/.test(fn) && !/\|\| 0/.test(fn) &&
+    /\.filter\(\(r\) => r\.basis === "measured"\)/.test(fn);
 };
 
 /** Dom 4: stående hovedhistorie. */
@@ -107,7 +111,7 @@ describe("forsideTop.guard — PR 2: to kolonner, Din måned uden procent, spark
   it("dom 2: ingen procent i Din måned — retningen er ord", () => {
     expect(ingenProcent(dom, forside)).toBe(true);
   });
-  it("dom 3: sparklinen filtrerer null og indsætter aldrig nul", () => {
+  it("dom 3: sparklinen filtrerer null, indsætter aldrig nul — og tager kun målte måneder", () => {
     expect(ingenNulPunkter(dom)).toBe(true);
   });
   it("dom 4: hovedhistorien er stående — ingen 42 %-spalte", () => {
@@ -130,8 +134,10 @@ describe("forsideTop.guard — PR 2: to kolonner, Din måned uden procent, spark
     expect(ingenProcent(dom.replace("return `højere end i ${navn}`;", "return `${Math.round(100 * (nu - foer) / foer)} % højere end i ${navn}`;"), forside)).toBe(false);
     expect(ingenProcent(dom, forside.replace("<Sparkline dom={dom} />", "<Sparkline dom={dom} /><p>+12 %</p>"))).toBe(false);
   });
-  it("selvbevis 3: en sparkline der fylder nul ind for manglende måneder falder", () => {
+  it("selvbevis 3: en sparkline der fylder nul ind for manglende måneder, eller tegner estimater med, falder", () => {
     expect(ingenNulPunkter(dom.replace(".filter((r) => r[felt] != null)", ""))).toBe(false);
+    expect(ingenNulPunkter(dom.replace('.filter((r) => r.basis === "measured")', ""))).toBe(false);
+    expect(ingenNulPunkter(dom.replace('.filter((r) => r.basis === "measured")', '.filter((r) => r.basis === "measured" || r.basis === "estimated")'))).toBe(false);
     expect(ingenNulPunkter(dom.replace(".map((r) => ({ key: r.key, value: r[felt] as number }))", ".map((r) => ({ key: r.key, value: r[felt] ?? 0 }))"))).toBe(false);
   });
   it("selvbevis 5: tiles tilbage i venstre kolonne (før højre), en order-klasse, eller tiles renderet to gange falder", () => {
