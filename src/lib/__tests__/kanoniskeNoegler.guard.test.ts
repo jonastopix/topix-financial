@@ -16,19 +16,12 @@ const laes = (sti: string) => readFileSync(resolve(process.cwd(), sti), "utf8");
 /** SQL uden «-- …»-kommentarer — filhovedet nævner de gamle mønstre med ord, og det må værnet ikke falde for. */
 const udenSqlKommentarer = (k: string) => k.replace(/--[^\n]*/g, "");
 const MIGRATION = "supabase/migrations/20260918170000_kanoniske_noegler_faelles_liste.sql";
+/** Senere migrationer der FØJER nøgler til listen (A2, 18/9-2026: financial_income) — alle filer med «kanoniske_noegler» i navnet. */
+const SEED_MIGRATIONER = (): string[] =>
+  readdirSync(resolve(process.cwd(), "supabase/migrations")).filter((f) => f.includes("kanoniske_noegler") && f.endsWith(".sql")).sort().map((f) => `supabase/migrations/${f}`);
 
 /** De to AFLEDTE procenter regnes af læserne af de gemte tal og er ALDRIG committet — bevidst uden for listen. */
 const AFLEDTE_PROCENTER = new Set(["gross_margin_pct", "equity_ratio_pct"]);
-
-/**
- * KOMMER MED A (17/9-2026): nøgler der er seedet i databasen FØR typen kender dem, fordi migrationen kun må
- * ændre resolveren én gang. `financial_income` (renteindtægter, «to nøgler, ikke netto») lægges i
- * CanonicalMetrics af vindue A's skabelon-udkast. Undtagelsen gælder KUN retningen «seed har, typen mangler»
- * (harmløs: ingen skriver nøglen endnu) — retningen «typen har, seed mangler» (den der tabte vehicle_costs
- * m.fl. i stilhed) er stadig helt stram. SELVUDLØBENDE: testen nedenfor FEJLER den dag typen HAR nøglen,
- * med besked om at slette den herfra — så undtagelsen kan ikke overleve sit formål.
- */
-const KOMMER_MED_A = new Set(["financial_income"]);
 
 function noeglerITypen(): string[] {
   const k = laes("supabase/functions/_shared/canonicalTypes.ts");
@@ -43,7 +36,15 @@ function noeglerITypen(): string[] {
 interface SeedRaekke { noegle: string; dansk: string | null; gruppe: string; label: string; aliaser: string[] }
 
 function seedIMigrationen(): SeedRaekke[] {
-  const k = laes(MIGRATION);
+  const filer = SEED_MIGRATIONER();
+  expect(filer, "grundmigrationen mangler i listen").toContain(MIGRATION);
+  const raekker: SeedRaekke[] = [];
+  for (const fil of filer) raekker.push(...seedIFilen(laes(fil)));
+  expect(raekker.length, "seeden har for få rækker — parseren ramte ved siden af").toBeGreaterThanOrEqual(30);
+  return raekker;
+}
+
+function seedIFilen(k: string): SeedRaekke[] {
   const start = k.indexOf("INSERT INTO public.kanoniske_noegler");
   expect(start, "seeden findes ikke").toBeGreaterThan(-1);
   const blok = k.slice(start, k.indexOf("ON CONFLICT", start));
@@ -54,7 +55,7 @@ function seedIMigrationen(): SeedRaekke[] {
     label: m[4].replace(/''/g, "'"),
     aliaser: [...m[5].matchAll(/'([a-z_]+)'/g)].map((a) => a[1]),
   }));
-  expect(raekker.length, "seeden har for få rækker — parseren ramte ved siden af").toBeGreaterThanOrEqual(30);
+  expect(raekker.length, "filen har ingen seed-rækker — parseren ramte ved siden af").toBeGreaterThanOrEqual(1);
   return raekker;
 }
 
@@ -63,14 +64,12 @@ describe("kanoniske_noegler — koden og databasen kender de samme nøgler", () 
     const typen = new Set(noeglerITypen().filter((n) => !AFLEDTE_PROCENTER.has(n)));
     const seed = new Set(seedIMigrationen().map((r) => r.noegle));
     const kunIKoden = [...typen].filter((n) => !seed.has(n));
-    const kunISeeden = [...seed].filter((n) => !typen.has(n) && !KOMMER_MED_A.has(n));
+    const kunISeeden = [...seed].filter((n) => !typen.has(n));
     expect(kunIKoden, "koden kender nøgler seeden ikke har — de ville falde bort ved commit").toEqual([]);
     expect(kunISeeden, "seeden har nøgler koden ikke kender").toEqual([]);
     // Undtagelsen er selvudløbende: står nøglen i typen, er undtagelsen død og SKAL fjernes.
-    for (const n of KOMMER_MED_A) {
-      expect(seed.has(n), `${n} er navngivet «kommer med A» men står ikke i seeden`).toBe(true);
-      expect(typen.has(n), `${n} findes nu i CanonicalMetrics — slet den fra KOMMER_MED_A (undtagelsen er død)`).toBe(false);
-    }
+    // A (18/9-2026) landede: financial_income står nu i typen — undtagelsen KOMMER_MED_A er slettet, som den bad om.
+    expect(typen.has("financial_income")).toBe(true);
     // De to procenter er BEVIDST udeladt — og de findes faktisk i typen (ellers er undtagelsen død).
     for (const p of AFLEDTE_PROCENTER) expect(noeglerITypen()).toContain(p);
     expect(seed.has("gross_margin_pct")).toBe(false);
@@ -203,9 +202,9 @@ describe("kanoniske_noegler — INGEN skabelon må udstede en kanonisk nøgle da
     expect(huller, "en skabelon udsteder en kanonisk nøgle databasen ikke kender — tallet ville falde bort ved commit").toEqual([]);
   });
 
-  it("alt en skabelon udsteder er også en nøgle i CanonicalMetrics (ellers når det aldrig metrics) — undtagen det der kommer med A", () => {
+  it("alt en skabelon udsteder er også en nøgle i CanonicalMetrics (ellers når det aldrig metrics)", () => {
     const typen = new Set(noeglerITypen());
-    const huller = udstedteNoegler().filter((u) => !typen.has(u.noegle) && !KOMMER_MED_A.has(u.noegle)).map((u) => `${u.noegle} (${u.kilde})`);
+    const huller = udstedteNoegler().filter((u) => !typen.has(u.noegle)).map((u) => `${u.noegle} (${u.kilde})`);
     expect(huller).toEqual([]);
   });
 });

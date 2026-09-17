@@ -56,7 +56,10 @@ const KF_TO_CANONICAL: Record<string, keyof CanonicalMetrics> = {
   resultat_foer_afskrivninger: "ebitda",
   resultat_foer_skat: "ebt",
   resultat_foer_ekstraordinaere: "ebt",
-  resultat_foer_renter: "ebt",
+  // A2 (18/9-2026): «Resultat før renter» ER ebit. Før stod her "ebt", og Floren
+  // Engros 2026-06 fik ebt = −49.089,83 (før renter) hvor «PERIODENS RESULTAT»
+  // var −38.048,14 — renterne +11.041,69 manglede.
+  resultat_foer_renter: "ebit",
   resultat_efter_skat: "net_result",
   arets_resultat: "net_result",
   periodens_resultat: "net_result",
@@ -72,6 +75,9 @@ const KF_TO_CANONICAL: Record<string, keyof CanonicalMetrics> = {
   hensaettelser: "provisions_total",
   tech_software: "admin_costs", // merged into admin
   finansielle_omkostninger: "financial_costs",
+  renteudgifter: "financial_costs",
+  finansielle_indtaegter: "financial_income",
+  renteindtaegter: "financial_income",
 };
 
 // Line item class → canonical metric name
@@ -81,6 +87,7 @@ const CLASS_TO_CANONICAL: Record<string, keyof CanonicalMetrics> = {
   OPEX: "admin_costs",
   DEPR: "depreciation",
   FIN_EXPENSE: "financial_costs",
+  FIN_INCOME: "financial_income",
   ASSET: "assets_total",
   LIABILITY: "liabilities_total",
   EQUITY: "equity_total",
@@ -156,6 +163,86 @@ export function inferPeriodBasis(kf: Record<string, any>): PeriodBasis {
 // Only balance-specific fields that intentionally keep raw accounting sign
 // (e.g. equity in some paths) may still require canonical normalization.
 //
+// ── C (18/9-2026): resultatets fortegn på AI-vejen — krydstjek ALTID ──
+export const AI_RESULTAT_TOLERANCE_PCT = 0.05;
+export const AI_RESULTAT_TOLERANCE_MIN_KR = 500;
+
+export interface AiResultatDom {
+  vend: boolean;
+  forventet: number | null;
+  variant: string;
+  reason: string;
+}
+
+/**
+ * Prompten (TRIN 3 D) sagde «I RESULTATOPGØRELSER: Aflæs DIREKTE», men i
+ * e-conomics kreditformat (omsætning negativ, omkostninger positive) står
+ * resultatet NEGATIVT ved overskud og POSITIVT ved underskud. Rezycl 2026-02
+ * (prod 17/9 18:14): egen linje «RESULTAT FØR SKAT = 45.635,14», regnet
+ * −45.635,14 — et underskud gemt som overskud. Motoren havde kun et
+ * fortegnsværn for saldobalancer (saldobalance_result_sign_inverted).
+ *
+ * Dommen for resultatopgørelser: VEND kun når AI'ens eget regnestykke
+ * |dækningsbidrag| − omkostninger har modsat fortegn af resultatet OG samme
+ * størrelse (±AI_RESULTAT_TOLERANCE_PCT af det største af de to, mindst
+ * AI_RESULTAT_TOLERANCE_MIN_KR) — så er det det samme tal med forkert
+ * fortegn, ikke en manglende post. Regnestykket prøves i varianter: med/uden
+ * tech_software (som kan sidde inde i admin-totalen — jf. det afstemte fold)
+ * og med/uden finansielle poster (key_figures.finansielle_* eller
+ * line_items med class FIN_EXPENSE/FIN_INCOME). Alt andet rører dommen ikke.
+ * Dækningsbidrag mangler → ingen dom (omsætning − direkte omkostninger som
+ * erstatning når begge findes).
+ */
+export function aiResultatFortegnsdom(kf: Record<string, unknown>, lineItems: unknown[], value: number): AiResultatDom {
+  const abs = (k: string): number | null => {
+    const v = kf[k];
+    return typeof v === "number" && Number.isFinite(v) ? Math.abs(v) : null;
+  };
+  const oms = abs("omsaetning");
+  const direkte = abs("direkte_omkostninger");
+  const gp = abs("daekningsbidrag") ?? (oms !== null && direkte !== null ? oms - direkte : null);
+  if (gp === null || value === 0 || !Number.isFinite(value)) {
+    return { vend: false, forventet: null, variant: "", reason: "no gross profit — no verdict" };
+  }
+  const opexUdenTech =
+    (abs("loenninger") ?? 0) + (abs("marketing") ?? abs("salgsomkostninger") ?? 0) +
+    (abs("lokaler") ?? abs("lokaleomkostninger") ?? 0) + (abs("admin") ?? abs("administrationsomkostninger") ?? 0) +
+    (abs("afskrivninger") ?? 0);
+  const tech = abs("tech_software") ?? 0;
+  const finKf = (abs("finansielle_omkostninger") ?? 0) - (abs("finansielle_indtaegter") ?? 0);
+  let finLinjer = 0;
+  for (const li of Array.isArray(lineItems) ? lineItems : []) {
+    const item = li as { class?: unknown; period_amount?: unknown };
+    if (typeof item?.period_amount !== "number") continue;
+    if (item.class === "FIN_EXPENSE") finLinjer += Math.abs(item.period_amount);
+    if (item.class === "FIN_INCOME") finLinjer -= Math.abs(item.period_amount);
+  }
+  const varianter: Array<[string, number]> = [
+    ["uden tech, uden finans", gp - opexUdenTech],
+    ["med tech, uden finans", gp - opexUdenTech - tech],
+    ["uden tech, finans fra key_figures", gp - opexUdenTech - finKf],
+    ["med tech, finans fra key_figures", gp - opexUdenTech - tech - finKf],
+    ["uden tech, finans fra line_items", gp - opexUdenTech - finLinjer],
+    ["med tech, finans fra line_items", gp - opexUdenTech - tech - finLinjer],
+  ];
+  let bedst: { variant: string; forventet: number; afvigelse: number } | null = null;
+  for (const [variant, forventet] of varianter) {
+    if (forventet === 0 || Math.sign(forventet) === Math.sign(value)) continue;
+    const afvigelse = Math.abs(Math.abs(value) - Math.abs(forventet));
+    const tolerance = Math.max(AI_RESULTAT_TOLERANCE_PCT * Math.max(Math.abs(value), Math.abs(forventet)), AI_RESULTAT_TOLERANCE_MIN_KR);
+    if (afvigelse <= tolerance && (bedst === null || afvigelse < bedst.afvigelse)) bedst = { variant, forventet, afvigelse };
+  }
+  if (bedst === null) {
+    return { vend: false, forventet: varianter[0][1], variant: "", reason: `sign kept: |gross_profit| − costs = ${varianter[0][1].toFixed(2)} vs result ${value} — no variant is the same amount with opposite sign` };
+  }
+  return {
+    vend: true,
+    forventet: bedst.forventet,
+    variant: bedst.variant,
+    reason: `AI result sign inverted (cross-validated, ${bedst.variant}): ${value} → ${-value}; |gross_profit| − costs = ${bedst.forventet.toFixed(2)} (diff ${bedst.afvigelse.toFixed(2)})`,
+  };
+}
+
 export function normalizeToCanonical(extractedData: any, extractionMethod?: string): {
   metrics: CanonicalMetrics;
   correction_log: CorrectionLogEntry[];
@@ -173,7 +260,7 @@ export function normalizeToCanonical(extractedData: any, extractionMethod?: stri
     payroll: null, payroll_related: null, other_staff_costs: null,
     sales_costs: null, facility_costs: null, admin_costs: null, vehicle_costs: null,
     other_costs: null, other_operating_income: null,
-    ebitda: null, depreciation: null, ebit: null, financial_costs: null,
+    ebitda: null, depreciation: null, ebit: null, financial_costs: null, financial_income: null,
     extraordinary_items: null, ebt: null, net_result: null,
     assets_total: null, inventory: null, receivables_total: null,
     trade_receivables: null, unbilled_wip: null, cash: null,
@@ -184,7 +271,9 @@ export function normalizeToCanonical(extractedData: any, extractionMethod?: stri
 
   // Map key_figures → canonical, applying sign rules
   const revenueFields = ["omsaetning", "omsaetning_aar"];
-  const alwaysPositiveExpenseFields = ["loenninger", "marketing", "lokaler", "admin", "tech_software", "afskrivninger"];
+  const alwaysPositiveExpenseFields = ["loenninger", "marketing", "lokaler", "admin", "tech_software", "afskrivninger", "finansielle_omkostninger"];
+  // A2/C (18/9-2026): AI-skemaet fik finansielle_omkostninger og finansielle_indtaegter (begge positive tal).
+  const alwaysPositiveIncomeFields = ["finansielle_indtaegter"];
   const profitFields = ["daekningsbidrag", "daekningsbidrag_aar"];
   const resultatFields = ["resultat_foer_skat", "resultat_foer_skat_aar", "resultat_efter_skat", "resultat_efter_skat_aar"];
   const assetFields = ["aktiver_i_alt", "debitorer", "varelager"];
@@ -244,6 +333,13 @@ export function normalizeToCanonical(extractedData: any, extractionMethod?: stri
         `Expense ${dkField} flipped from ${value} to ${normalized}`, "HIGH");
     }
 
+    // Finansielle indtægter: altid positive (samme værn som omkostningerne)
+    if (alwaysPositiveIncomeFields.includes(dkField) && value < 0) {
+      normalized = Math.abs(value);
+      correct(dkField, value, normalized, "income_must_be_positive",
+        `Income ${dkField} flipped from ${value} to ${normalized}`, "HIGH");
+    }
+
     // Gross profit in saldobalance: invert sign (AI safety net only)
     // Deterministic paths pre-normalize → skip
     if (profitFields.includes(dkField) && isSaldobalance && !isDeterministic && value < 0) {
@@ -274,6 +370,18 @@ export function normalizeToCanonical(extractedData: any, extractionMethod?: stri
           correct(dkField, value, normalized, "saldobalance_result_sign_inverted",
             `Saldobalance result inverted (cross-validated): ${value} → ${normalized}`, "HIGH");
         }
+      }
+    }
+
+    // C (18/9-2026): resultat i RESULTATOPGØRELSE på AI-vejen — krydstjek ALTID
+    // (før: kun saldobalancer; Rezycl 2026-02 gemte et underskud som overskud).
+    // Vendes KUN når AI'ens eget regnestykke giver samme tal med modsat fortegn
+    // (aiResultatFortegnsdom). Ellers intet — D's ebt_reconciles viser advarslen.
+    if (resultatFields.includes(dkField) && !isSaldobalance && !isDeterministic && value !== 0) {
+      const dom = aiResultatFortegnsdom(kf, lineItems, value);
+      if (dom.vend) {
+        normalized = -value;
+        correct(dkField, value, normalized, "ai_result_sign_inverted", dom.reason, "HIGH");
       }
     }
 
@@ -945,10 +1053,13 @@ const SEMANTIC_TO_CANONICAL: Record<string, keyof CanonicalMetrics> = {
   indtjeningsbidrag: "ebit",
   finansieringsudgifter: "financial_costs",
   finansielle_omkostninger: "financial_costs",
+  renteudgifter: "financial_costs",
+  finansielle_indtaegter: "financial_income",
+  renteindtaegter: "financial_income",
   ekstraordinaere_poster: "extraordinary_items",
   resultat_foer_skat: "ebt",
   resultat_foer_ekstraordinaere: "ebt",
-  resultat_foer_renter: "ebt",
+  resultat_foer_renter: "ebit", // A2 (18/9-2026): før "ebt" — se KF_TO_CANONICAL
   arets_resultat: "net_result",
   resultat_efter_skat: "net_result",
   periodens_resultat: "net_result",
@@ -1127,7 +1238,7 @@ export function buildCanonicalFromSemantic(semantic: SemanticExtractionResult): 
     payroll: null, payroll_related: null, other_staff_costs: null,
     sales_costs: null, facility_costs: null, admin_costs: null, vehicle_costs: null,
     other_costs: null, other_operating_income: null,
-    ebitda: null, depreciation: null, ebit: null, financial_costs: null,
+    ebitda: null, depreciation: null, ebit: null, financial_costs: null, financial_income: null,
     extraordinary_items: null, ebt: null, net_result: null,
     assets_total: null, inventory: null, receivables_total: null,
     trade_receivables: null, unbilled_wip: null, cash: null,
@@ -1150,7 +1261,9 @@ export function buildCanonicalFromSemantic(semantic: SemanticExtractionResult): 
     ebt: ["resultat_foer_skat", "resultat_foer_ekstraordinaere", "periodens_resultat"],
     net_result: ["arets_resultat", "resultat_efter_skat", "periodens_resultat"],
     vehicle_costs: ["autodrift", "transportomkostninger"],
-    financial_costs: ["finansieringsudgifter", "finansielle_omkostninger"],
+    financial_costs: ["finansieringsudgifter", "finansielle_omkostninger", "renteudgifter"],
+    financial_income: ["finansielle_indtaegter", "renteindtaegter"],
+    ebit: ["indtjeningsbidrag", "resultat_foer_renter"],
   };
 
   const canonicalSourceMap: Record<string, string> = {}; // canonical_key → winning source_field_id
@@ -1282,17 +1395,48 @@ export function buildCanonicalFromSemantic(semantic: SemanticExtractionResult): 
     });
   }
 
-  // ebt = ebit - financial_costs (when null but both inputs present)
-  if (metrics.ebt == null && metrics.ebit != null && metrics.financial_costs != null) {
-    metrics.ebt = metrics.ebit - metrics.financial_costs;
+  // ebt = ebit − financial_costs + financial_income (A2, 18/9-2026 — før: kun
+  // ebit − financial_costs, og kun når financial_costs fandtes). Rækkefølgen når
+  // dokumentet ingen «Resultat før skat» har (e-conomics månedsopgørelse, Floren
+  // Engros 2026-06): (1) ebit ± de finansielle poster der ER fundet; (2) periodens/
+  // årets resultat når ingen finansposter og ingen skat er fundet (i en
+  // månedsopgørelse er det samme tal); (3) ebit alene som SIDSTE udvej — og så en
+  // WARN «resultatet er før renter» (ebt_before_interest) til medlemmet.
+  let ebtFraEbitUdenFinans = false;
+  const skatKandidat = semantic.metric_candidates.some(c => /skat|tax/i.test(c.source_field_id));
+  if (metrics.ebt == null && metrics.ebit != null && (metrics.financial_costs != null || metrics.financial_income != null)) {
+    metrics.ebt = metrics.ebit - (metrics.financial_costs ?? 0) + (metrics.financial_income ?? 0);
     correction_log.push({
       field: "ebt",
       source: "derived_metric",
       raw_value: null,
       normalized_value: metrics.ebt,
       rule: "canonical_derivation",
-      reason: `ebt derived: ebit(${metrics.ebit}) - financial_costs(${metrics.financial_costs}) = ${metrics.ebt}`,
+      reason: `ebt derived: ebit(${metrics.ebit}) - financial_costs(${metrics.financial_costs ?? 0}) + financial_income(${metrics.financial_income ?? 0}) = ${metrics.ebt}`,
       confidence: "HIGH",
+    });
+  } else if (metrics.ebt == null && metrics.net_result != null && !skatKandidat) {
+    metrics.ebt = metrics.net_result;
+    correction_log.push({
+      field: "ebt",
+      source: "derived_metric",
+      raw_value: null,
+      normalized_value: metrics.ebt,
+      rule: "ebt_from_net_result",
+      reason: `ebt taken from net_result(${metrics.net_result}) — no «Resultat før skat» line, no financial items and no tax candidate found`,
+      confidence: "HIGH",
+    });
+  } else if (metrics.ebt == null && metrics.ebit != null) {
+    metrics.ebt = metrics.ebit;
+    ebtFraEbitUdenFinans = true;
+    correction_log.push({
+      field: "ebt",
+      source: "derived_metric",
+      raw_value: null,
+      normalized_value: metrics.ebt,
+      rule: "ebt_from_ebit_no_financials",
+      reason: `ebt taken from ebit(${metrics.ebit}) — last resort: no «Resultat før skat», no financial items, no net result found`,
+      confidence: "MEDIUM",
     });
   }
 
@@ -1367,6 +1511,16 @@ export function buildCanonicalFromSemantic(semantic: SemanticExtractionResult): 
   const { status, canonical_checks, errors } = runExtendedValidation(
     { key_figures: {}, report_type: semantic.document_type }, metrics, periodBasis, statementType, aiChecks, signTrail
   );
+  // A2: «Resultat før renter» som eneste kilde til ebt → WARN (aldrig FAIL) med tekst til medlemmet.
+  if (ebtFraEbitUdenFinans) {
+    canonical_checks.push({
+      name: "ebt_before_interest",
+      result: "WARN",
+      details: `ebt = ebit (${metrics.ebit}) — no financial items captured; result is before interest`,
+      tekst: `Resultatet før skat er taget fra «Resultat før renter» (${Math.round(metrics.ebit ?? 0).toLocaleString("da-DK")} kr.), fordi der ikke blev fundet renteindtægter eller renteudgifter. Står der finansielle poster i rapporten, er resultatet ikke det endelige.`,
+      felter: ["ebt"],
+    });
+  }
 
   const aiEligible = computeAiEligible(metrics, status, statementType, periodBasis);
 

@@ -144,7 +144,7 @@ Deno.test("Comparison: full multi-layer zero regressions", () => {
       payroll: null, payroll_related: null, other_staff_costs: null,
       sales_costs: null, facility_costs: null, admin_costs: null, vehicle_costs: null,
       other_costs: null, other_operating_income: null,
-      ebitda: null, depreciation: null, ebit: null, financial_costs: null,
+      ebitda: null, depreciation: null, ebit: null, financial_costs: null, financial_income: null,
       extraordinary_items: null, ebt: 200000, net_result: null,
       assets_total: null, inventory: null, receivables_total: null,
       trade_receivables: null, unbilled_wip: null, cash: null,

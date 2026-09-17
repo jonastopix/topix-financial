@@ -78,16 +78,30 @@ const SEMANTIC_FIELD_MAP: Array<{
   { source_field_id: "direkte_omkostninger", pattern: /vareforbrug|direkte omk/i, family: "cost_like", canonical_hint: "cogs", require_subtotal: false },
   // NOTE: daekningsbidrag intentionally omitted — gross_profit derived as revenue - cogs in canonical engine
   { source_field_id: "loenninger", pattern: /lønninger\s*(mv\.?)?\s*(i alt|ialt)/i, family: "cost_like", canonical_hint: "payroll", require_subtotal: true },
-  { source_field_id: "salgsomkostninger", pattern: /salgsomkostninger/i, family: "cost_like", canonical_hint: "sales_costs", require_subtotal: true },
+  // A2 (18/9-2026): e-conomic kalder gruppen «Salgs- og rejseomkostninger i alt» (Floren Engros) — før pattern: /salgsomkostninger/i
+  { source_field_id: "salgsomkostninger", pattern: /salgs.*omkostninger/i, family: "cost_like", canonical_hint: "sales_costs", require_subtotal: true },
   { source_field_id: "lokaleomkostninger", pattern: /lokaleomkostninger/i, family: "cost_like", canonical_hint: "facility_costs", require_subtotal: true },
-  { source_field_id: "transportomkostninger", pattern: /^transportomkostninger\s*(i alt|ialt)/i, family: "cost_like", canonical_hint: "vehicle_costs", require_subtotal: true },
-  { source_field_id: "administrationsomkostninger", pattern: /administration\b/i, family: "cost_like", canonical_hint: "admin_costs", require_subtotal: true },
+  // A2 (18/9-2026): «Autodrift - gulpladebiler i alt» (Floren Engros: −15.721,14) — før pattern: /^transportomkostninger\s*(i alt|ialt)/i
+  { source_field_id: "transportomkostninger", pattern: /^(transportomkostninger|autodrift).*(i alt|ialt)/i, family: "cost_like", canonical_hint: "vehicle_costs", require_subtotal: true },
+  // A (18/9-2026): før stod her pattern: /administration\b/i — ordgrænsen efter «administration» rammer
+  // ALDRIG e-conomics subtotal «Administrationsomkostninger i alt» (næste tegn er «s»), så admin_costs
+  // var null for alle rapporter på skabelonen (prod 17/9 18:14: BRILLEVÆRK, Capture IT, Doggybed, Floren).
+  { source_field_id: "administrationsomkostninger", pattern: /administration(s?omkostninger)?\b/i, family: "cost_like", canonical_hint: "admin_costs", require_subtotal: true },
   { source_field_id: "afskrivninger", pattern: /afskrivninger/i, anti_pattern: /resultat\s+før/i, family: "cost_like", canonical_hint: "depreciation", require_subtotal: true },
+  // A2 (18/9-2026): finansielle poster — e-conomics månedsopgørelse har «Renteindtægter i alt» og «Renteudgifter i alt»
+  // (Floren Engros 2026-06: +16.175,55 / −5.133,86). To nøgler: financial_costs og financial_income (canonicalTypes),
+  // så motoren kan regne ebt = ebit − financial_costs + financial_income. Nettolinjen «Finansielle poster i alt» matches IKKE (fortegnet
+  // afgør om den er indtægt eller udgift, og ABS-normaliseringen ville tabe det).
+  { source_field_id: "renteindtaegter", pattern: /(renteindtægter|finansielle indtægter)\s*(i alt|ialt)/i, family: "revenue_like", canonical_hint: "financial_income", require_subtotal: true },
+  { source_field_id: "renteudgifter", pattern: /(renteudgifter|finansielle (omkostninger|udgifter)|finansieringsudgifter)\s*(i alt|ialt)/i, family: "cost_like", canonical_hint: "financial_costs", require_subtotal: true },
   { source_field_id: "resultat_foer_skat", pattern: /resultat før skat/i, family: "profit_like", canonical_hint: "ebt", require_subtotal: true },
   { source_field_id: "resultat_foer_ekstraordinaere", pattern: /resultat før ekstraordinære poster/i, family: "profit_like", canonical_hint: "ebt", require_subtotal: true },
-  { source_field_id: "resultat_foer_renter", pattern: /resultat før renter/i, family: "profit_like", canonical_hint: "ebt", require_subtotal: true },
+  // A2 (18/9-2026): «Resultat før renter» er ebit — før canonical_hint: "ebt" (Floren Engros 2026-06 fik −49.089,83 i stedet for −38.048,14).
+  // ebt findes af motoren: egen linje > ebit ± finansielle poster > periodens/årets resultat > ebit alene (WARN ebt_before_interest).
+  { source_field_id: "resultat_foer_renter", pattern: /resultat før renter/i, family: "profit_like", canonical_hint: "ebit", require_subtotal: true },
   { source_field_id: "resultat_efter_skat", pattern: /resultat efter skat/i, family: "profit_like", canonical_hint: "net_result", require_subtotal: true },
   { source_field_id: "periodens_resultat", pattern: /periodens resultat/i, family: "profit_like", canonical_hint: "net_result", require_subtotal: true },
+  { source_field_id: "arets_resultat", pattern: /årets resultat/i, anti_pattern: /skat af/i, family: "profit_like", canonical_hint: "net_result", require_subtotal: true },
 ];
 
 // ── Template-Level Structural Acceptance Rule ──
@@ -291,7 +305,8 @@ function extractSemanticFromStructural(
     const consumedFieldIds = new Set<string>();
 
     // EBT fallback chain
-    const ebtFieldIds = ["resultat_foer_skat", "resultat_foer_ekstraordinaere", "resultat_foer_renter", "periodens_resultat"];
+    // A2 (18/9-2026): «Resultat før renter» er ikke længere en ebt-kilde (den er ebit) — før: [..., "resultat_foer_renter", ...]
+    const ebtFieldIds = ["resultat_foer_skat", "resultat_foer_ekstraordinaere", "periodens_resultat", "arets_resultat"];
     let ebtConsumed = false;
 
     // Narrow allowlist for label-text numeric fallback
@@ -301,6 +316,7 @@ function extractSemanticFromStructural(
       "resultat_foer_ekstraordinaere",
       "resultat_foer_renter",
       "periodens_resultat",
+      "arets_resultat",
       "resultat_efter_skat",
     ]);
 
@@ -427,6 +443,8 @@ function extractSemanticFromStructural(
     const checks: Array<{ name: string; result: "PASS" | "FAIL" | "SKIP"; details: string }> = [];
     const hasRevenue = candidates.some(c => c.source_field_id === "omsaetning");
     const hasEbt = candidates.some(c => c.proposed_canonical_target === "ebt");
+    // A2: uden egen «Resultat før skat» afleder motoren ebt af ebit ± finansielle poster eller periodens/årets resultat.
+    const ebtKanAfledes = candidates.some(c => c.proposed_canonical_target === "ebit" || c.proposed_canonical_target === "net_result");
     checks.push({
       name: "revenue_present",
       result: hasRevenue ? "PASS" : "FAIL",
@@ -434,8 +452,8 @@ function extractSemanticFromStructural(
     });
     checks.push({
       name: "ebt_present",
-      result: hasEbt ? "PASS" : "FAIL",
-      details: hasEbt ? "EBT found via structural row" : "No EBT found",
+      result: hasEbt || ebtKanAfledes ? "PASS" : "FAIL",
+      details: hasEbt ? "EBT found via structural row" : ebtKanAfledes ? "No «Resultat før skat» row — EBT derived by canonical engine from ebit/financial items or net result" : "No EBT found",
     });
     checks.push({
       name: "structural_acceptance",
@@ -483,12 +501,22 @@ function extractSemanticFromStructural(
   const candidates: SemanticMetricCandidate[] = [];
   const lineItems: SemanticLineItem[] = [];
   const consumedFieldIds = new Set<string>();
-  const ebtFieldIds = ["resultat_foer_skat", "resultat_foer_ekstraordinaere", "resultat_foer_renter", "periodens_resultat"];
+  // A2 (18/9-2026): «Resultat før renter» er ikke længere en ebt-kilde (den er ebit) — før: [..., "resultat_foer_renter", ...]
+    const ebtFieldIds = ["resultat_foer_skat", "resultat_foer_ekstraordinaere", "periodens_resultat", "arets_resultat"];
   let ebtConsumed = false;
+
+  // A2 (18/9-2026): tekstvejen fik samme to regler som den strukturelle vej — anti_pattern
+  // (før matchede «afskrivninger» «Resultat før afskrivninger») og konventionen (før gik
+  // profit_like i forretningsformat gennem NEGATE og vendte fortegnet: Floren Engros' −49.089,83 blev +49.089,83).
+  let legacyConvention: "credit" | "business" = "credit";
+  const legacyRevenue = lines.find(l => /omsætning\s*(i alt|ialt)/i.test(l.name) && l.is_subtotal && l.period_amount !== null);
+  if (legacyRevenue && legacyRevenue.period_amount !== null) {
+    legacyConvention = legacyRevenue.period_amount >= 0 ? "business" : "credit";
+  }
 
   for (const fieldDef of SEMANTIC_FIELD_MAP) {
     const match = lines.find(
-      l => fieldDef.pattern.test(l.name) && (!fieldDef.require_subtotal || l.is_subtotal)
+      l => fieldDef.pattern.test(l.name) && (!fieldDef.anti_pattern || !fieldDef.anti_pattern.test(l.name)) && (!fieldDef.require_subtotal || l.is_subtotal)
     );
     if (!match) continue;
 
@@ -501,7 +529,10 @@ function extractSemanticFromStructural(
     if (consumedFieldIds.has(fieldDef.source_field_id)) continue;
     consumedFieldIds.add(fieldDef.source_field_id);
 
-    const rawValue = match.period_amount;
+    let rawValue = match.period_amount;
+    if (fieldDef.family === "profit_like" && rawValue !== null && legacyConvention === "business") {
+      rawValue = -rawValue; // same rule as FIX B on the structural path
+    }
     candidates.push({
       source_field_id: fieldDef.source_field_id,
       normalization_family: fieldDef.family,
@@ -514,7 +545,7 @@ function extractSemanticFromStructural(
       source_cell_address: null,
       basis: "period",
       confidence: "HIGH",
-      evidence: [`[LEGACY] Matched label pattern: ${fieldDef.pattern.source}`, `Subtotal: ${match.is_subtotal}`],
+      evidence: [`[LEGACY] Matched label pattern: ${fieldDef.pattern.source}`, `Subtotal: ${match.is_subtotal}`, `Convention: ${legacyConvention}`],
       proposed_canonical_target: fieldDef.canonical_hint,
     });
   }
@@ -536,7 +567,8 @@ function extractSemanticFromStructural(
   const hasRevenue = candidates.some(c => c.source_field_id === "omsaetning");
   const hasEbt = candidates.some(c => c.proposed_canonical_target === "ebt");
   checks.push({ name: "revenue_present", result: hasRevenue ? "PASS" : "FAIL", details: hasRevenue ? "Revenue found" : "No revenue" });
-  checks.push({ name: "ebt_present", result: hasEbt ? "PASS" : "FAIL", details: hasEbt ? "EBT found" : "No EBT" });
+  const ebtKanAfledes = candidates.some(c => c.proposed_canonical_target === "ebit" || c.proposed_canonical_target === "net_result");
+  checks.push({ name: "ebt_present", result: hasEbt || ebtKanAfledes ? "PASS" : "FAIL", details: hasEbt ? "EBT found" : ebtKanAfledes ? "EBT derived by canonical engine" : "No EBT" });
 
   return {
     source_system: "economic",
@@ -670,7 +702,9 @@ export const dkEconomicResultatopgoerelsePdfV1: TemplateEntry & {
     const salgsLine = findByLabel(lines, /salgsomkostninger/i);
     const lokaleLine = findByLabel(lines, /lokaleomkostninger/i);
     const transportLine = findByLabel(lines, /^transportomkostninger\s*(i alt|ialt)/i);
-    const adminLine = findByLabel(lines, /administration\b/i);
+    const adminLine = findByLabel(lines, /administration(s?omkostninger)?\b/i); // A: før /administration\b/i
+    const renteindtLine = findByLabel(lines, /(renteindtægter|finansielle indtægter)\s*(i alt|ialt)/i);
+    const renteudgLine = findByLabel(lines, /(renteudgifter|finansielle (omkostninger|udgifter)|finansieringsudgifter)\s*(i alt|ialt)/i);
     const afskrLine = findByLabel(lines, /afskrivninger/i, /resultat\s+før/i);
     const ebtLine = findByLabel(lines, /resultat før skat/i)
       || findByLabel(lines, /resultat før ekstraordinære poster/i)
@@ -693,6 +727,8 @@ export const dkEconomicResultatopgoerelsePdfV1: TemplateEntry & {
       transportomkostninger: absVal(transportLine?.period_amount ?? null),
       administrationsomkostninger: absVal(adminLine?.period_amount ?? null),
       afskrivninger: absVal(afskrLine?.period_amount ?? null),
+      finansielle_indtaegter: absVal(renteindtLine?.period_amount ?? null),
+      finansielle_omkostninger: absVal(renteudgLine?.period_amount ?? null),
       resultat_foer_skat: flipSign(ebtLine?.period_amount ?? null),
       resultat_efter_skat: flipSign(netResultLine?.period_amount ?? null),
     };

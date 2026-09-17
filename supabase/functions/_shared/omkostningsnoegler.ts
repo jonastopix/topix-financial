@@ -31,6 +31,8 @@ export interface Noeglesaet {
   finans: string | null;
   /** Andre driftsindtægter — en omkostningsgruppe hvis netto er en indtægt (positiv). */
   andreDriftsindtaegter: string;
+  /** Finansielle indtægter (renteindtægter m.v., positiv) — A2 (18/9-2026): ebt = ebit − finans + finansielle indtægter; null hvor konventionen ingen nøgle har. */
+  finansielleIndtaegter: string | null;
 }
 
 export const CANONICAL: Noeglesaet = {
@@ -39,6 +41,7 @@ export const CANONICAL: Noeglesaet = {
   afskrivninger: "depreciation",
   finans: "financial_costs",
   andreDriftsindtaegter: "other_operating_income",
+  finansielleIndtaegter: "financial_income",
 };
 
 export const DANSK: Noeglesaet = {
@@ -47,6 +50,7 @@ export const DANSK: Noeglesaet = {
   afskrivninger: "afskrivninger",
   finans: null,
   andreDriftsindtaegter: "andre_driftsindtaegter",
+  finansielleIndtaegter: "finansielle_indtaegter",
 };
 
 /** Et objekt med tal under nøglerne — CanonicalMetrics, dansk kf, RimelighedInput … (interfaces har ingen
@@ -102,16 +106,23 @@ export function ebitdaRegnet(daekningsbidrag: number | null | undefined, m: Tal,
   return db - drift.sum + (indtaegt === null ? 0 : Math.abs(indtaegt));
 }
 
-/** Resultat før skat regnet af posterne: EBITDA − |afskrivninger| − |finans|. Samme regnestykke
-    som saldobalance-skabelonens kontrolsum og D's ebt_reconciles. null når ebitdaRegnet er null. */
+/** Finansielle indtægter som positivt tal; 0 når nøglen mangler eller sættet ingen har. */
+export function finansielleIndtaegter(m: Tal, s: Noeglesaet): number {
+  const v = s.finansielleIndtaegter ? laes(m, s.finansielleIndtaegter) : null;
+  return v === null ? 0 : Math.abs(v);
+}
+
+/** Resultat før skat regnet af posterne: EBITDA − |afskrivninger| − |finans| + finansielle indtægter (A2, 18/9-2026).
+    Samme regnestykke som saldobalance-skabelonens kontrolsum og D's ebt_reconciles. null når ebitdaRegnet er null. */
 export function ebtRegnet(daekningsbidrag: number | null | undefined, m: Tal, s: Noeglesaet): number | null {
   const ebitda = ebitdaRegnet(daekningsbidrag, m, s);
   if (ebitda === null) return null;
   const afskr = laes(m, s.afskrivninger);
   const finans = s.finans ? laes(m, s.finans) : null;
-  return ebitda - (afskr === null ? 0 : Math.abs(afskr)) - (finans === null ? 0 : Math.abs(finans));
+  return ebitda - (afskr === null ? 0 : Math.abs(afskr)) - (finans === null ? 0 : Math.abs(finans)) + finansielleIndtaegter(m, s);
 }
 
-/** Posterne D's magnitude_plausibility måler som andel af omsætningen: vareforbrug, drift (kun de nøgler
-    de danske rapporter kender + øvrige), afskrivninger og finans. Rækkefølgen er visningens. */
-export const ANDEL_NOEGLER_TIL_RIMELIGHED = ["cogs", "payroll", "sales_costs", "facility_costs", "admin_costs", "other_costs", "depreciation", "financial_costs"] as const;
+/** Posterne D's magnitude_plausibility måler som andel af omsætningen: vareforbrug, ALLE driftsposter (A2, 18/9-2026:
+    også pension, øvrige personale og autodrift, som e-conomics PDF/XLSX og combined fanger), afskrivninger og finans.
+    Rækkefølgen er visningens. */
+export const ANDEL_NOEGLER_TIL_RIMELIGHED = ["cogs", "payroll", "payroll_related", "other_staff_costs", "sales_costs", "facility_costs", "admin_costs", "vehicle_costs", "other_costs", "depreciation", "financial_costs"] as const;

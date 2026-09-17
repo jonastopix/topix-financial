@@ -1006,8 +1006,13 @@ A) OMSÆTNING/INDTÆGTER:
    - I saldobalancer: typisk NEGATIVE tal (kreditside)
    - → RETURNÉR ALTID SOM POSITIVT TAL (brug absolutværdi)
 
-B) OMKOSTNINGER (løn, varekøb, marketing, lokaler, admin, afskrivninger):
+B) OMKOSTNINGER (løn, varekøb, marketing, lokaler, admin, afskrivninger, finansielle omkostninger):
    - → RETURNÉR ALTID SOM POSITIVT TAL (brug absolutværdi)
+
+   FINANSIELLE POSTER:
+   - "Renteudgifter i alt" / "Finansielle omkostninger i alt" → finansielle_omkostninger (positivt tal)
+   - "Renteindtægter i alt" / "Finansielle indtægter i alt" → finansielle_indtaegter (positivt tal)
+   - Findes kun en nettolinje "Finansielle poster i alt": læg den i finansielle_omkostninger hvis den er en udgift, ellers i finansielle_indtaegter
 
    LOKALER (lokaler):
    - Inkludér ALT under "Lokaleomkostninger": husleje, el, vand, varme, rengøring
@@ -1022,8 +1027,11 @@ C) DÆKNINGSBIDRAG:
    - Dvs. for saldobalancer: VEND fortegnet (gang med -1)
 
 D) RESULTAT (resultat_foer_skat, resultat_efter_skat, driftsresultat):
-   - ⚠️ VIGTIGT: Fortegnskonventionen AFHÆNGER AF RAPPORTTYPEN ⚠️
-   - I RESULTATOPGØRELSER: Aflæs DIREKTE — negativt = tab, positivt = overskud
+   - ⚠️ VIGTIGT: Fortegnskonventionen AFHÆNGER AF RAPPORTTYPEN — OG AF OMSÆTNINGENS FORTEGN ⚠️
+   - I RESULTATOPGØRELSER: se på omsætningslinjen FØRST:
+     · Omsætning står POSITIV (forretningsformat, fx Dinero): aflæs resultatet DIREKTE — negativt = tab, positivt = overskud
+     · Omsætning står NEGATIV (e-conomics kreditformat: omsætning negativ, omkostninger positive): resultatet står med OMVENDT fortegn — NEGATIVT = OVERSKUD, POSITIVT = TAB → VEND fortegnet (gang med -1)
+     · Tjek dig selv: dækningsbidrag minus omkostninger skal give resultatet med SAMME fortegn. Er det samme tal med modsat fortegn, har du glemt at vende
    - I SALDOBALANCER: Fortegnet er OMVENDT! Negativt = OVERSKUD (kredit > debet), positivt = TAB
    - → RETURNÉR I "NORMAL" KONVENTION: positivt = overskud, negativt = tab
    - Dvs. for saldobalancer: VEND fortegnet (gang med -1)
@@ -1170,6 +1178,8 @@ Hvis du er i tvivl om et tal eller en kolonne → sæt validation.status = "UNSU
                         admin: { type: "number", description: "Administrative omkostninger samlet (kontor, telefon, forsikring, revisor, etc.)" },
                         afskrivninger: { type: "number", description: "Af- og nedskrivninger" },
                         tech_software: { type: "number", description: "IT, software, hosting" },
+                        finansielle_omkostninger: { type: "number", description: "Renteudgifter / finansielle omkostninger i alt — positivt tal" },
+                        finansielle_indtaegter: { type: "number", description: "Renteindtægter / finansielle indtægter i alt — positivt tal" },
                         resultat_foer_skat: { type: "number" },
                         resultat_foer_skat_aar: { type: "number" },
                         resultat_efter_skat: { type: "number" },

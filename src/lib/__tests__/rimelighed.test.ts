@@ -120,6 +120,31 @@ describe("Booking Innovation 2024: payroll 46 kr. ved omsætning 83.665 (læst i
   });
 });
 
+describe("A2 (18/9-2026): finansielle indtægter og autodrift tæller med i regnestykket", () => {
+  // Florens opbygning i syntetiske tal: dækningsbidrag 132.000, løn 107.000, salg 1.000,
+  // lokaler 20.000, autodrift 16.000, admin 38.000, renteudgifter 5.000, renteindtægter 16.000
+  // → 132 − 107 − 1 − 20 − 16 − 38 − 5 + 16 = −39.000 = resultatet.
+  const m = { revenue: 440_000, gross_profit: 132_000, cogs: 308_000, payroll: 107_000, sales_costs: 1_000, facility_costs: 20_000, vehicle_costs: 16_000, admin_costs: 38_000, financial_costs: 5_000, financial_income: 16_000, ebt: -39_000 };
+  it("ebt_reconciles PASS når renteindtægter lægges til og autodrift trækkes fra", () => {
+    const e = finder(rimelighedstjek(m, "pnl"), "ebt_reconciles");
+    expect(e.result).toBe("PASS");
+    expect(e.details).toBe("gross_profit − opex + financial_income = -39000.00 ≈ ebt -39000");
+  });
+  it("uden autodrift-nøglen (som før) ville regnestykket give −23.000 og advare falsk", () => {
+    const { vehicle_costs: _v, ...uden } = m;
+    const e = finder(rimelighedstjek(uden, "pnl"), "ebt_reconciles");
+    expect(e.result).toBe("WARN");
+    expect(e.details).toMatch(/= -23000\.00 but ebt = -39000/);
+  });
+  it("magnitude_plausibility dømmer også autodrift, pension og øvrige personale (posten navngivet)", () => {
+    const mp = finder(rimelighedstjek({ ...m, vehicle_costs: 10, payroll_related: 20, other_staff_costs: 30 }, "pnl"), "magnitude_plausibility");
+    expect(mp.result).toBe("WARN");
+    expect(mp.felter).toEqual(["payroll_related", "other_staff_costs", "vehicle_costs"]);
+    expect(mp.tekst).toMatch(/^Pension og sociale omkostninger er 20 kr\./);
+    expect(mp.tekst).toMatch(/Autodrift er 10 kr\./);
+  });
+});
+
 describe("kanter", () => {
   it("balance-rapport: alt SKIP; uden revenue: to SKIP; uden opex: ebt_reconciles SKIP", () => {
     expect(rimelighedstjek({ revenue: 100, ebt: 10 }, "balance").every((x) => x.result === "SKIP")).toBe(true);

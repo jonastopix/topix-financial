@@ -23,7 +23,9 @@
  * post kan bryde dem; medlemmet skal bekræfte, ikke afvises):
  *
  *   ebt_reconciles        gross_profit − (payroll + sales_costs + facility_costs
- *                         + admin_costs + depreciation + financial_costs) ≈ ebt
+ *                         + admin_costs + depreciation + financial_costs)
+ *                         + financial_income ≈ ebt (A2, 18/9-2026: renteindtægter
+ *                         tæller med, Floren Engros 2026-06: +16.175,55)
  *                         med tolerance max(5 % af det største af |beregnet| og
  *                         |ebt|, 500 kr.) — fanger fortegnsvend (samme tal med
  *                         modsat fortegn) og forkert kolonne (ÅTD mod måned),
@@ -33,8 +35,9 @@
  *                         resultatopgørelser (pnl/trial_balance/combined) —
  *                         et resultat større end hele omsætningen er sjældent
  *                         rigtigt.
- *   magnitude_plausibility hver omkostningspost (cogs, payroll, sales, facility,
- *                         admin, depreciation, financial) som andel af omsætning
+ *   magnitude_plausibility hver omkostningspost (cogs, payroll, pension, øvrige
+ *                         personale, sales, facility, autodrift, admin,
+ *                         depreciation, financial) som andel af omsætning
  *                         i [0,1 %; 300 %] — under: læst i t.kr. eller forkert
  *                         kolonne; over: omsætningen er en delmåned eller
  *                         forkert enhed. Resultatmargin ebt/revenue i
@@ -71,6 +74,8 @@ export interface RimelighedInput {
   payroll_related?: number | null;
   other_staff_costs?: number | null;
   vehicle_costs?: number | null;
+  /** Finansielle indtægter (positivt tal) — lægges TIL i regnestykket (A2, 18/9-2026). */
+  financial_income?: number | null;
   ebt?: number | null;
 }
 
@@ -113,6 +118,7 @@ const LABEL: Record<string, string> = {
   payroll_related: "Pension og sociale omkostninger",
   other_staff_costs: "Øvrige personaleomkostninger",
   vehicle_costs: "Autodrift",
+  financial_income: "Finansielle indtægter",
   ebt: "Resultat før skat",
 };
 
@@ -165,13 +171,13 @@ export function rimelighedstjek(m: RimelighedInput, statementType: string): Rime
     const tolerance = Math.max(TOLERANCE_PCT * Math.max(Math.abs(beregnet), Math.abs(ebt)), TOLERANCE_MIN_KR);
     const afvigelse = Math.abs(beregnet - ebt);
     if (afvigelse <= tolerance) {
-      ud.push({ name: "ebt_reconciles", result: "PASS", details: `gross_profit − opex = ${beregnet.toFixed(2)} ≈ ebt ${ebt}`, tekst: "", felter: [] });
+      ud.push({ name: "ebt_reconciles", result: "PASS", details: `gross_profit − opex + financial_income = ${beregnet.toFixed(2)} ≈ ebt ${ebt}`, tekst: "", felter: [] });
     } else {
       const vendt = Math.abs(beregnet + ebt) <= tolerance;
       ud.push({
         name: "ebt_reconciles",
         result: "WARN",
-        details: `gross_profit − opex = ${beregnet.toFixed(2)} but ebt = ${ebt} (diff ${afvigelse.toFixed(2)}, tolerance ${tolerance.toFixed(2)})${vendt ? " — same amount, opposite sign" : ""}`,
+        details: `gross_profit − opex + financial_income = ${beregnet.toFixed(2)} but ebt = ${ebt} (diff ${afvigelse.toFixed(2)}, tolerance ${tolerance.toFixed(2)})${vendt ? " — same amount, opposite sign" : ""}`,
         tekst: vendt
           ? `Resultatet før skat står som ${krTekst(ebt)} kr., men dækningsbidraget minus omkostningerne giver ${krTekst(beregnet)} kr. — samme tal med modsat fortegn. Er et overskud læst som underskud, eller omvendt?`
           : `Resultatet før skat står som ${krTekst(ebt)} kr., men dækningsbidraget minus omkostningerne giver ${krTekst(beregnet)} kr. Er resultatet læst fra en anden kolonne (fx år til dato) end omkostningerne?`,
