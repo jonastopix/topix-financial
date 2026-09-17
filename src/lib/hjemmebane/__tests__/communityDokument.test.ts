@@ -735,6 +735,91 @@ describe("parseCommunityDokument — eventhenvisning-noder", () => {
   });
 });
 
+describe("parseCommunityDokument — opslaghenvisning-noder (17/9, #opslag)", () => {
+  const TRAAD_ID = "3f2504e0-4f89-11d3-9a0c-0305e82c3301";
+
+  it("gyldig opslaghenvisning i et afsnit → bevaret med traadId og titel", () => {
+    const input = doc([
+      {
+        type: "paragraph",
+        content: [
+          tekst("Se også "),
+          { type: "opslaghenvisning", attrs: { traadId: TRAAD_ID, titel: "Hej, jeg er Mette" } },
+        ],
+      },
+    ]);
+    expect(parseCommunityDokument(input)).toEqual([
+      {
+        type: "paragraph",
+        content: [
+          { type: "text", text: "Se også ", marks: [] },
+          { type: "opslaghenvisning", traadId: TRAAD_ID, titel: "Hej, jeg er Mette" },
+        ],
+      },
+    ]);
+  });
+
+  it("attrs.traad_id i stedet for traadId → bevaret", () => {
+    const input = doc([
+      {
+        type: "paragraph",
+        content: [{ type: "opslaghenvisning", attrs: { traad_id: TRAAD_ID, titel: "Hej" } }],
+      },
+    ]);
+    expect(parseCommunityDokument(input)).toEqual([
+      { type: "paragraph", content: [{ type: "opslaghenvisning", traadId: TRAAD_ID, titel: "Hej" }] },
+    ]);
+  });
+
+  it.each([
+    ["ugyldigt uuid", { traadId: "ikke-et-uuid", titel: "Hej" }],
+    ["manglende titel", { traadId: TRAAD_ID }],
+    ["tom titel", { traadId: TRAAD_ID, titel: "   " }],
+  ])("%s → fjernet", (_navn, attrs) => {
+    const input = doc([
+      { type: "paragraph", content: [tekst("før"), { type: "opslaghenvisning", attrs }] },
+    ]);
+    expect(parseCommunityDokument(input)).toEqual([
+      { type: "paragraph", content: [{ type: "text", text: "før", marks: [] }] },
+    ]);
+  });
+
+  it("titel med kontroltegn → renset; over 120 tegn → klippet", () => {
+    const input = doc([
+      {
+        type: "paragraph",
+        content: [
+          { type: "opslaghenvisning", attrs: { traadId: TRAAD_ID, titel: String.fromCharCode(0) + "x".repeat(200) } },
+        ],
+      },
+    ]);
+    const [afsnit] = parseCommunityDokument(input);
+    expect(afsnit).toEqual({
+      type: "paragraph",
+      content: [{ type: "opslaghenvisning", traadId: TRAAD_ID, titel: "x".repeat(120) }],
+    });
+  });
+
+  it("opslaghenvisning som direkte barn af roden → fjernet", () => {
+    const input = doc([
+      { type: "opslaghenvisning", attrs: { traadId: TRAAD_ID, titel: "Hej" } },
+      { type: "paragraph", content: [tekst("beholdes")] },
+    ]);
+    expect(parseCommunityDokument(input)).toEqual([
+      { type: "paragraph", content: [{ type: "text", text: "beholdes", marks: [] }] },
+    ]);
+  });
+
+  it("afsnit med KUN en opslaghenvisning → afsnittet bevares", () => {
+    const input = doc([
+      { type: "paragraph", content: [{ type: "opslaghenvisning", attrs: { traadId: TRAAD_ID, titel: "Hej" } }] },
+    ]);
+    expect(parseCommunityDokument(input)).toEqual([
+      { type: "paragraph", content: [{ type: "opslaghenvisning", traadId: TRAAD_ID, titel: "Hej" }] },
+    ]);
+  });
+});
+
 describe("parseCommunityDokument — kontekstafhængig hvidliste", () => {
   it("listItem som direkte barn af roden → fjernet", () => {
     const input = doc([

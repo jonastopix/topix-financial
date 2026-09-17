@@ -32,7 +32,12 @@ import {
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { uploadCommunityBillede, uploadCommunityFil } from "@/lib/hjemmebane/communityUpload";
-import { hentCommunityMedlemmer, type CommunityMedlem } from "@/lib/hjemmebane/communityApi";
+import {
+  hentCommunityMedlemmer,
+  hentFeed,
+  type CommunityMedlem,
+  type CommunityTraad,
+} from "@/lib/hjemmebane/communityApi";
 import {
   listAllUpcomingEvents,
   listPublishedCollections,
@@ -454,7 +459,14 @@ const opretHenvisningsDropdown =
       const under = document.createElement("span");
       under.className = "block truncate text-xs text-hb-ink-soft";
 
-      if (forslag.slags === "event") {
+      if (forslag.slags === "opslag") {
+        titel.textContent = forslag.traad.titel;
+        const dato = new Date(forslag.traad.created_at).toLocaleDateString("da-DK", {
+          day: "numeric",
+          month: "short",
+        });
+        under.textContent = `Opslag · ${forslag.traad.forfatter_navn ?? "Medlem"} · ${dato}`;
+      } else if (forslag.slags === "event") {
         titel.textContent = forslag.event.title;
         // Samme dato-mønster som EventsView. Ingen varighed på events.
         const dato = new Date(forslag.event.starts_at).toLocaleDateString("da-DK", {
@@ -579,11 +591,60 @@ const EventHenvisningNode = Mention.extend({
   },
 });
 
-/** #-pickerens forslag rummer BÅDE akademi-items og events —
+/** #-opslagshenvisninger (17/9, valg 2: «#-menuen udvides med opslag») —
+    samme snit som EventHenvisningNode, men mod community_traade.
+    Tegnet er stadig '#': lektion, event og opslag er alle «noget på
+    platformen», og listen skelner dem med underteksten
+    («Opslag · {forfatter} · {dato}»).
+
+    renderHTML/parseHTML spejler hinanden: span med data-traad-id og
+    data-titel; parseren matcher span[data-traad-id][data-titel] — ingen
+    overlap med de tre andre (hver kræver mindst én attribut, de andre
+    aldrig skriver: data-user-id, data-area+data-slug, data-event-id). */
+const OpslagHenvisningNode = Mention.extend({
+  name: "opslaghenvisning",
+  addAttributes() {
+    return {
+      traadId: {
+        default: null,
+        parseHTML: (element: HTMLElement) => element.getAttribute("data-traad-id"),
+        renderHTML: (attributes: { traadId?: string | null }) =>
+          attributes.traadId ? { "data-traad-id": attributes.traadId } : {},
+      },
+      titel: {
+        default: "",
+        parseHTML: (element: HTMLElement) => element.getAttribute("data-titel") ?? "",
+        renderHTML: (attributes: { titel?: string }) =>
+          attributes.titel ? { "data-titel": attributes.titel } : {},
+      },
+    };
+  },
+  parseHTML() {
+    return [{ tag: "span[data-traad-id][data-titel]" }];
+  },
+  renderHTML({ node, HTMLAttributes }) {
+    return [
+      "span",
+      mergeAttributes(HTMLAttributes, { class: "font-medium text-hb-rust" }),
+      `#${node.attrs.titel ?? ""}`,
+    ];
+  },
+  renderText({ node }) {
+    return `#${node.attrs.titel ?? ""}`;
+  },
+  // Kun skema — forslagene bor i HenvisningNodes #-suggestion (som
+  // EventHenvisningNode; se begrundelsen dér).
+  addProseMirrorPlugins() {
+    return [];
+  },
+});
+
+/** #-pickerens forslag rummer akademi-items, events OG opslag —
     diskrimineret union, så række og command kan forgrene uden casts. */
 type HenvisningsForslag =
   | { slags: "item"; item: ContentItem }
-  | { slags: "event"; event: EventRow };
+  | { slags: "event"; event: EventRow }
+  | { slags: "opslag"; traad: CommunityTraad };
 
 /** Kun http/https/mailto får lov at forlade composeren — men motoren
     hærder href'en IGEN ved visning: editoren er bekvemmelighed, ikke
@@ -691,6 +752,18 @@ export function CommunityComposer({
   const eventsRef = useRef<EventRow[]>([]);
   eventsRef.current = eventsQuery.data ?? [];
 
+  /* Opslag til #-pickeren (17/9) — SAMME queryKey og SAMME queryFn som
+     CommunityViews feed (["community", "feed"], hentFeed(30)), så cachen
+     deles og feedet ikke forgiftes med en anden liste. RPC'en giver kun
+     aktive tråde medlemmet må se. Læses via ref som de øvrige kilder. */
+  const feedQuery = useQuery({
+    queryKey: ["community", "feed"],
+    queryFn: () => hentFeed(30),
+    staleTime: 60_000,
+  });
+  const traadeRef = useRef<CommunityTraad[]>([]);
+  traadeRef.current = feedQuery.data ?? [];
+
   /* De fire opslagskilder til @ og # (de nitten, 10/9). hentefejl-mønstret
      kan IKKE anvendes pr. picker: Tiptaps suggestion.items læser refs
      inde i en extension der bygges én gang ved mount, og pickeren er en
@@ -701,7 +774,11 @@ export function CommunityComposer({
      fire queryFns kaster (throwIfError), så Sentry får fejlen af
      QueryCache.onError. Medlemmet kan stadig skrive og dele. */
   const forslagFejlede =
-    medlemmerQuery.isError || itemsQuery.isError || samlingerQuery.isError || eventsQuery.isError;
+    medlemmerQuery.isError ||
+    itemsQuery.isError ||
+    samlingerQuery.isError ||
+    eventsQuery.isError ||
+    feedQuery.isError;
   const sendRef = useRef<() => void>(() => {});
   const billedInputRef = useRef<HTMLInputElement>(null);
   const filInputRef = useRef<HTMLInputElement>(null);
@@ -748,6 +825,7 @@ export function CommunityComposer({
       CommunityBilledeNode,
       CommunityFilNode,
       EventHenvisningNode,
+      OpslagHenvisningNode,
       NaevnelseNode.configure({
         suggestion: {
           char: "@",
@@ -805,7 +883,13 @@ export function CommunityComposer({
               .filter((item) => HENVISNINGS_OMRAADER.has(item.area))
               .filter((item) => item.title.toLowerCase().includes(q))
               .map((item) => ({ slags: "item" as const, item }));
-            return [...events, ...items].slice(0, 8);
+            /* Opslag SIDST: lektioner og events er det, huset henviser
+               til; et andet opslag er den sjældnere reference. Feedet
+               er allerede kun aktive tråde, nyeste aktivitet først. */
+            const opslag: HenvisningsForslag[] = traadeRef.current
+              .filter((traad) => traad.titel.toLowerCase().includes(q))
+              .map((traad) => ({ slags: "opslag" as const, traad }));
+            return [...events, ...items, ...opslag].slice(0, 8);
           },
           command: ({ editor: ed, range, props }) => {
             const forslag = props as unknown as HenvisningsForslag;
@@ -818,14 +902,19 @@ export function CommunityComposer({
                     type: "eventhenvisning",
                     attrs: { eventId: forslag.event.id, titel: forslag.event.title },
                   }
-                : {
-                    type: "henvisning",
-                    attrs: {
-                      area: forslag.item.area,
-                      slug: forslag.item.slug,
-                      titel: forslag.item.title,
-                    },
-                  };
+                : forslag.slags === "opslag"
+                  ? {
+                      type: "opslaghenvisning",
+                      attrs: { traadId: forslag.traad.id, titel: forslag.traad.titel },
+                    }
+                  : {
+                      type: "henvisning",
+                      attrs: {
+                        area: forslag.item.area,
+                        slug: forslag.item.slug,
+                        titel: forslag.item.title,
+                      },
+                    };
             ed
               .chain()
               .focus()

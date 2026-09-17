@@ -4,6 +4,8 @@ import { useQuery } from "@tanstack/react-query";
 import { Download, File, FileCode, FileSpreadsheet, FileText, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { hentBilledUrl, hentFilUrl } from "@/lib/hjemmebane/communityApi";
+import { linkKortIDokument } from "@/lib/hjemmebane/linkKort";
+import { CommunityLinkKortListe } from "./CommunityLinkKort";
 import {
   parseCommunityDokument,
   type CommunityMark,
@@ -261,6 +263,19 @@ function renderNode(node: CommunityNode, key: number): ReactNode {
           #{node.titel}
         </Link>
       );
+
+    case "opslaghenvisning":
+      // Ruten er MemberRoute-gated (App.tsx:252). Samme rust-udtryk som
+      // de to andre #-henvisninger.
+      return (
+        <Link
+          key={key}
+          to={`/community/${node.traadId}`}
+          className="font-medium text-hb-rust hover:underline"
+        >
+          #{node.titel}
+        </Link>
+      );
   }
 }
 
@@ -272,12 +287,23 @@ export function CommunityDokument({ doc }: { doc: unknown }) {
   const noder = parseCommunityDokument(doc);
   if (noder.length === 0) return null;
 
+  /* Link-kortene (17/9) afledes af det HVIDLISTEDE træ — links og
+     #-noder — og står under den topblok, de optræder i; et link der går
+     igen giver ét kort (linkKortIDokument). Linkteksten selv står
+     uændret i afsnittet. */
+  const kort = linkKortIDokument(noder);
+
   /* Brødteksten arves fra wrapperen: Manrope (font-body), 15px, rummelig
      linjehøjde og luft mellem blokkene — samme snit som EventDetailViews
      beskrivelses-afsnit. */
   return (
     <div className="space-y-4 font-body text-[15px] leading-relaxed text-hb-ink">
-      {renderIndhold(noder)}
+      {noder.map((node, index) => (
+        <Fragment key={index}>
+          {renderNode(node, index)}
+          <CommunityLinkKortListe kort={kort[index]} />
+        </Fragment>
+      ))}
     </div>
   );
 }

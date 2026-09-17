@@ -30,7 +30,8 @@ export type CommunityNode =
   | { type: "fil"; path: string; navn: string }
   | { type: "naevnelse"; userId: string; navn: string }
   | { type: "henvisning"; area: string; slug: string; titel: string }
-  | { type: "eventhenvisning"; eventId: string; titel: string };
+  | { type: "eventhenvisning"; eventId: string; titel: string }
+  | { type: "opslaghenvisning"; traadId: string; titel: string };
 
 /** Dybdegrænsen. try/catch fanger et stack overflow, men et dokument skal
     afvises på en KENDT grænse frem for at afhænge af, hvornår kaldestakken
@@ -50,7 +51,8 @@ export const MAKS_DYBDE = 20;
                                              orderedList, blockquote, image, fil
       liste  (bulletList, orderedList)     → KUN listItem
       inline (paragraph, heading)          → text, hardBreak, naevnelse,
-                                             henvisning og eventhenvisning
+                                             henvisning, eventhenvisning og
+                                             opslaghenvisning
 
     Konsekvensen: et blockquote må indeholde blokke og dermed nestes, en
     liste kan kun indeholde listItem, og et listItem kan indeholde både
@@ -70,9 +72,16 @@ const TILLADT: Record<Kontekst, ReadonlySet<string>> = {
     "fil",
   ]),
   liste: new Set(["listItem"]),
-  // "naevnelse", "henvisning" og "eventhenvisning" er INLINE — de står
-  // midt i en sætning, ikke som blokke.
-  inline: new Set(["text", "hardBreak", "naevnelse", "henvisning", "eventhenvisning"]),
+  // "naevnelse", "henvisning", "eventhenvisning" og "opslaghenvisning" er
+  // INLINE — de står midt i en sætning, ikke som blokke.
+  inline: new Set([
+    "text",
+    "hardBreak",
+    "naevnelse",
+    "henvisning",
+    "eventhenvisning",
+    "opslaghenvisning",
+  ]),
 };
 
 const erObjekt = (v: unknown): v is Record<string, unknown> =>
@@ -207,7 +216,10 @@ function hvidlistMarks(raw: unknown): CommunityMark[] {
 /** Et nævnelses-userId skal være et rent uuid — det bliver til et
     profil-link (/medlemmer/{userId}) ved visning, og alt andet end
     uuid-formen kasseres. */
-const UUID_MOENSTER =
+// Eksporteret (17/9) så link-kortenes motor (linkKort.ts) dømmer et
+// /events/{id}- og /community/{id}-link med PRÆCIS samme mønster som en
+// #-node — ét mønster, to indgange.
+export const UUID_MOENSTER =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function sikkertUuid(raw: unknown): string | null {
@@ -228,7 +240,7 @@ function sikkertUuid(raw: unknown): string | null {
 // medlemsflade (optagelser vises på deres event), og skabeloner er nedlagt
 // som område (vedhæftninger på lektionen i stedet). Eksisterende
 // henvisninger til dem fjernes STILLE ved visning — motorens kontrakt.
-const TILLADTE_OMRAADER = new Set([
+export const TILLADTE_OMRAADER: ReadonlySet<string> = new Set([
   "classroom",
   "academy",
   "rabataftaler",
@@ -247,7 +259,7 @@ function sikkertOmraade(raw: unknown): string | null {
     er derfor snævert: kun [a-z0-9-], maks 200 tegn. Ingen skråstreger,
     intet punktum, intet kolon, ingen mellemrum — alt andet kunne bryde
     ud af stien. */
-const SLUG_MOENSTER = /^[a-z0-9-]{1,200}$/;
+export const SLUG_MOENSTER = /^[a-z0-9-]{1,200}$/;
 
 function sikkertSlug(raw: unknown): string | null {
   if (typeof raw !== "string") return null;
@@ -375,6 +387,23 @@ function oversaetNode(raw: unknown, kontekst: Kontekst, dybde: number): Communit
       // Både eventId OG titel skal være gyldige — ellers falder noden væk.
       if (eventId === null || titel === null) return null;
       return { type: "eventhenvisning", eventId, titel };
+    }
+
+    case "opslaghenvisning": {
+      /* Tredje smalle #-node (17/9, Jonas: «henvise til video/opslag/
+         lektion/event etc. i et opslag»): et andet opslag i Community,
+         navigeret på /community/{id} med et uuid. Samme snit som
+         eventhenvisning — én nøgle, én titel, begge skal være gyldige.
+         Motoren tjekker IKKE om tråden findes eller må ses: det gør
+         hentTraad (RPC med adgangsdom) ved visning, og et kort til en
+         skjult tråd falder stille væk der. */
+      const attrs = erObjekt(raw.attrs) ? raw.attrs : {};
+      // Både traadId og traad_id accepteres — samme mønster som
+      // eventId/event_id. traadId har forrang.
+      const traadId = sikkertUuid(attrs.traadId ?? attrs.traad_id);
+      const titel = sikkertVisningsNavn(attrs.titel);
+      if (traadId === null || titel === null) return null;
+      return { type: "opslaghenvisning", traadId, titel };
     }
 
     // Uden for hvidlisten (eller nested "doc") → stille væk, resten består.
