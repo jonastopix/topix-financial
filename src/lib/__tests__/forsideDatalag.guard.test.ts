@@ -186,7 +186,9 @@ describe("forsideDatalag.guard — VÆRNET VIRKER på kopier med fejlen indsat",
   });
   it("6. målingslinjen, «(§5)» eller den døde ternær tilbage fælder dom 6", () => {
     expect(fladenUdenMaaling(view.replace("</aside>", "<p>Måling: tærskel 70</p></aside>"))).toBe(false);
-    expect(fladenUdenMaaling(view.replace("ikke at dagen er.", "ikke at dagen er (§5)."))).toBe(false);
+    // 17/9 (PR 4, bølgen): flagets sætning bor nu i forsidensDom (usaedvanligtMangeTekst) — var
+    // `view.replace("ikke at dagen er.", "ikke at dagen er (§5).")`; «(§5)» indsættes nu ved kaldet.
+    expect(fladenUdenMaaling(view.replace("{usaedvanligtMangeTekst(dom)}", "{usaedvanligtMangeTekst(dom)} (§5)"))).toBe(false);
     expect(fladenUdenMaaling(view.replace("`${dom.antalOpgaver} ting kræver dig i dag.`", '`${dom.antalOpgaver} ${dom.antalOpgaver === 1 ? "ting kræver" : "ting kræver"} dig i dag.`'))).toBe(false);
   });
 });

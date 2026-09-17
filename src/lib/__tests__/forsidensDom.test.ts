@@ -20,6 +20,7 @@ import type { Signal } from "@/lib/virksomhedsSignaler";
 import type { Fornyelsestilstand } from "@/lib/fornyelse";
 import type { Betalingsfristtilstand } from "@/lib/betalingsfrist";
 import { ALVOR_INGEN_MAAL, ALVOR_MAAL, ALVOR_REFLEKSION_HJAELP, maalTilstandstekst, refleksionBesvaret, refleksionsPeriode, refleksionUddrag, REFLEKSION_MIN_TEGN, REFLEKSION_UDDRAG, STILSTAND_LAENGE_DAGE } from "@/lib/forsidensDom";
+import { BOELGE_FRA, BOELGENS_LEDSAGERE, boelgeDagTekst, USAEDVANLIGT_MANGE_TEKST, usaedvanligtMangeTekst, type Boelgelinje } from "@/lib/forsidensDom";
 import type { MaalRaekke } from "@/lib/hjemmebane/planen";
 
 // Fast «nu»: 4. september 2026 kl. 12:00 lokal tid — dagregning for
@@ -580,10 +581,12 @@ describe("de tre former (§3)", () => {
 
 describe("tom liste og tallene under stregen", () => {
   it("tom liste: nul opgaver, intet under stregen — forsiden KAN være tom (§10)", () => {
+    // 17/9 (bølgen): feltet nyeSidenIGaar kom til — var ordret uden det.
     expect(afgoerForsidensDom([], NU)).toEqual({
       linjer: [],
       antalOpgaver: 0,
       usaedvanligtMange: false,
+      nyeSidenIGaar: 0,
       underStregen: { antalVirksomhederUnderTaersklen: 0, antalTilstandeSamlet: 0, tilstande: [], pukler: [] },
     });
   });
@@ -749,6 +752,101 @@ describe("venter_paa_velkomst — linjen fra dag 1 (bygget 9/9, koblet 10/9)", (
     // Samme virksomhed (samme startdag), tre dage senere: stadig lukket — dagene tæller ikke.
     expect(afgoerForsidensDom([ny(2, { kvittering: kv })], new Date(NU.getTime() + 3 * 86_400_000)).linjer).toEqual([]);
     expect(virksomhedslinjer(afgoerForsidensDom([ny(1, { kvittering: kv })], NU))).toHaveLength(1);
+  });
+});
+
+// ─── Bølgen (Jonas 17/9 «AA», valg 2) ────────────────────────────────────
+// ≥ BOELGE_FRA velkomster med samme startdag (dansk dato) samles til ÉN
+// foldet linje; under: én linje pr. navn som hidtil. venter_paa_velkomst er
+// STADIG en hændelse (FORM) — bølgen er en form for mange på én gang.
+// Rettet MED VILJE 17/9: før stod «linjen står ved navn» uden undtagelse;
+// de gamle forventninger ovenfor (én ny ad gangen) er uændrede.
+
+describe("bølgen — mindst tre velkomster med samme startdag er ÉN linje", () => {
+  const start = (dageSiden: number, time = 14) => new Date(NU.getFullYear(), NU.getMonth(), NU.getDate() - dageSiden, time, 0).toISOString();
+  const ny = (navn: string, dageSiden: number, over: Partial<VirksomhedTilDom> = {}) =>
+    virksomhed({ navn, medlemSiden: start(dageSiden), sidsteRaadgiverBeskedAt: null, harMaaltRapport: true, ...over });
+  const boelger = (d: ReturnType<typeof afgoerForsidensDom>) => d.linjer.filter((l): l is Boelgelinje => l.linje === "boelge");
+
+  it("tre fra i går → én bølge-linje: antal 3, alfabetisk, «3 nye fra i går: A, B, C — sig hej», alvor 80; ingen egne linjer", () => {
+    const d = afgoerForsidensDom([ny("Cabo", 1), ny("Anker", 1), ny("Brick", 1)], NU);
+    expect(d.linjer).toHaveLength(1);
+    const b = boelger(d)[0];
+    expect(b).toMatchObject({ linje: "boelge", slags: "venter_paa_velkomst", antal: 3, alvor: 80, loeftet: false, lukkerOmDage: null, indsats: 2 });
+    expect(b.tekst).toBe("3 nye fra i går: Anker, Brick, Cabo — sig hej");
+    expect(b.virksomheder.map((v) => v.navn)).toEqual(["Anker", "Brick", "Cabo"]);
+    expect(b.virksomheder[0].grund.slags).toBe("venter_paa_velkomst");
+    expect(virksomhedslinjer(d)).toHaveLength(0);
+    expect(d.antalOpgaver).toBe(1);
+    expect(d.nyeSidenIGaar).toBe(3);
+    expect(BOELGE_FRA).toBe(3);
+  });
+  it("to fra i går → to egne linjer som hidtil (under BOELGE_FRA)", () => {
+    const d = afgoerForsidensDom([ny("A", 1), ny("B", 1)], NU);
+    expect(boelger(d)).toHaveLength(0);
+    expect(virksomhedslinjer(d)).toHaveLength(2);
+    expect(d.nyeSidenIGaar).toBe(2);
+  });
+  it("fire navne: teksten viser tre og «…»; folden bærer alle fire", () => {
+    const b = boelger(afgoerForsidensDom([ny("D", 1), ny("C", 1), ny("B", 1), ny("A", 1)], NU))[0];
+    expect(b.tekst).toBe("4 nye fra i går: A, B, C … — sig hej");
+    expect(b.virksomheder).toHaveLength(4);
+  });
+  it("forskellige dage samles hver for sig: tre fra i går + tre fra for 3 dage siden → to bølger; to fra for 5 dage siden → egne linjer", () => {
+    const d = afgoerForsidensDom([ny("A", 1), ny("B", 1), ny("C", 1), ny("D", 3), ny("E", 3), ny("F", 3), ny("G", 5), ny("H", 5)], NU);
+    expect(boelger(d).map((b) => [b.dag, b.antal])).toEqual([[start(1).slice(0, 10), 3], [start(3).slice(0, 10), 3]]);
+    expect(virksomhedslinjer(d).map((l) => l.navn)).toEqual(["G", "H"]);
+    expect(d.nyeSidenIGaar).toBe(3);
+  });
+  it("dagteksten: «i går» / «i dag» (kl. 23 i går dansk = i går) / «1. september»", () => {
+    expect(boelgeDagTekst(start(1).slice(0, 10), NU)).toBe("i går");
+    expect(boelgeDagTekst("2026-09-01", NU)).toBe("1. september");
+    expect(boelgeDagTekst(start(0).slice(0, 10), NU)).toBe("i dag");
+  });
+  it("en ny der har SKREVET (ulæst besked) står som egen linje — ikke i bølgen; tavshed «aldrig skrevet» og ikke_i_gang er ledsagere", () => {
+    const d = afgoerForsidensDom([
+      ny("A", 1, { signaler: [aldrigSkrevet] }),
+      ny("B", 1),
+      ny("C", 1, { harMaaltRapport: false, antalUploads: 0 }),
+      ny("Skrev", 1, { signaler: [ulaeste(1)] }),
+    ], NU);
+    const b = boelger(d)[0];
+    expect(b.antal).toBe(3);
+    expect(b.virksomheder.map((v) => v.navn)).toEqual(["A", "B", "C"]);
+    expect(virksomhedslinjer(d).map((l) => l.navn)).toEqual(["Skrev"]);
+    expect(BOELGENS_LEDSAGERE.has("tavshed")).toBe(true);
+    expect(BOELGENS_LEDSAGERE.has("venter_i_samtalen")).toBe(false);
+    expect(BOELGENS_LEDSAGERE.has("stikker_ud")).toBe(false);
+  });
+  it("lukningen: bølgen bærer hver virksomheds grundlag; kvitteres alle, er linjen væk; kvitteres én af tre, står de to som egne linjer", () => {
+    const d = afgoerForsidensDom([ny("A", 1), ny("B", 1), ny("C", 1)], NU);
+    const b = boelger(d)[0];
+    for (const v of b.virksomheder) expect(Object.keys(v.grundlag)).toEqual(["venter_paa_velkomst"]);
+    const kv = (g: Record<string, string>) => ({ udfald: "faerdiggjort" as const, grundlag: g, lukketAt: "2026-09-04T10:00:00Z" });
+    const alle = afgoerForsidensDom(b.virksomheder.map((v) => ny(v.navn, 1, { kvittering: kv(v.grundlag) })), NU);
+    expect(alle.linjer).toEqual([]);
+    const en = afgoerForsidensDom([ny("A", 1, { kvittering: kv(b.virksomheder[0].grundlag) }), ny("B", 1), ny("C", 1)], NU);
+    expect(boelger(en)).toHaveLength(0);
+    expect(virksomhedslinjer(en).map((l) => l.navn)).toEqual(["B", "C"]);
+  });
+  it("når nogen har fået en besked, falder de ud — under tre står resten ved navn", () => {
+    const d = afgoerForsidensDom([ny("A", 1, { sidsteRaadgiverBeskedAt: "2026-09-04T09:00:00Z" }), ny("B", 1), ny("C", 1)], NU);
+    expect(boelger(d)).toHaveLength(0);
+    expect(virksomhedslinjer(d).map((l) => l.navn)).toEqual(["B", "C"]);
+  });
+  it("bølgen sorteres som en linje med alvor 80: efter bankovertræk (90), før ulæst besked (71)", () => {
+    const d = afgoerForsidensDom([virksomhed({ navn: "Bank", signaler: [bankovertraek] }), ny("A", 1), ny("B", 1), ny("C", 1), virksomhed({ navn: "Svar", signaler: [ulaeste(1)] })], NU);
+    expect(d.linjer.map((l) => (l.linje === "virksomhed" ? l.navn : l.linje))).toEqual(["Bank", "boelge", "Svar"]);
+  });
+  it("flaget: med ≥ 3 nye siden i går er dagen usædvanlig — ellers tærsklen (den gamle sætning ordret)", () => {
+    expect(usaedvanligtMangeTekst({ nyeSidenIGaar: 12 })).toBe("Usædvanligt mange i dag — 12 af dem er nye siden i går.");
+    expect(usaedvanligtMangeTekst({ nyeSidenIGaar: 2 })).toBe(USAEDVANLIGT_MANGE_TEKST);
+    expect(USAEDVANLIGT_MANGE_TEKST).toBe("Usædvanligt mange kræver noget i dag — så mange linjer betyder at tærsklen er forkert, ikke at dagen er.");
+  });
+  it("«nye siden i går» tæller også en ny der har skrevet (egen linje), og ikke en fra for 3 dage siden", () => {
+    const d = afgoerForsidensDom([ny("Skrev", 1, { signaler: [ulaeste(1)] }), ny("Gammel", 3)], NU);
+    expect(d.nyeSidenIGaar).toBe(1);
+    expect(boelger(d)).toHaveLength(0);
   });
 });
 

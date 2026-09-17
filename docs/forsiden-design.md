@@ -224,6 +224,28 @@ virksomhed, der også har holdt op med at rapportere, er en opgave med
 en handling — «skriv til CARMA». Det er porten der afgør det, ikke
 slagsen.
 
+**Bølgen — en form for ÉN slags (besluttet 17/9, Jonas «AA», valg 2;
+bygget før webinaret 22/9).** Når en hændelse sker for MANGE på én gang
+— 10–15 nye fra webinaret, som alle venter på velkomst med samme
+startdag — er den ikke tolv hændelser men én: «sig hej til dem fra
+webinaret». Forsiden samler derfor **mindst tre velkomster
+(`venter_paa_velkomst`) med samme startdag (dansk dato) til ÉN foldet
+linje**: «12 nye fra i går: A, B, C … — sig hej», med ét link pr. navn i
+folden og «Færdiggjort»/«Ikke relevant» der kvitterer dem alle (én
+kvittering pr. virksomhed, med hver sit grundlag — §7's regel gælder
+uændret pr. virksomhed). Under tre: én linje pr. navn, som hidtil. Med i
+bølgen er kun den, der venter på velkomst og intet andet har på linjen end
+ledsagerne tavshed («aldrig skrevet» er tautologisk på dag 1), ikke i
+gang, ingen mål og mål uden bevægelse — en ny der har SKREVET, stikker ud
+eller har en frist, får sin egen linje. Bølgen er hverken tilstand (den
+lukker når alle har fået en besked) eller pukkel (den er ny): det er
+hændelsens form når mange sker samtidig. `venter_paa_velkomst` forbliver
+en hændelse i `FORM`. Flaget fra §5 er rettet så det er sandt begge dage:
+med mindst tre nye siden i går siger det «Usædvanligt mange i dag — N af
+dem er nye siden i går.» — dagen er usædvanlig, ikke tærsklen.
+Konstanterne `BOELGE_FRA` og `BOELGENS_LEDSAGERE` står i
+`src/lib/forsidensDom.ts`; værnet er `src/lib/__tests__/forsideBoelge.guard.test.ts`.
+
 ---
 
 ## §4 Udvælgelsen — to porte og en sortering
