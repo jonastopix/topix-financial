@@ -1,0 +1,358 @@
+{
+  "_om": "Kontraktår for de 29 aktive kunder (prod-kopi 16/9-2026) med Jonas' rettelser 16/9 som facit ORDRET. Beløb i øre ekskl. moms. Jonas 17/9 (ordret): «Prisen er det, der faktisk er faktureret. Grundprisen er det, fornyelsen regner fra.» grundpris = listeprisen (grundlag for 50 %-reglen, som companies.indgangspris_oere); pris = det der faktureres for perioden inkl. 5 % ratetillæg. slut er eksklusiv. start 'created_at' = SQL'en tager companies.created_at::date (Bastant har ingen kontraktstart).",
+  "raekker": [
+    {
+      "navn": "ANLA GLAS A/S",
+      "company_id": "c81621bc-5187-4b61-ac07-058733a14a6d",
+      "start": "2026-05-07",
+      "slut": "2027-05-07",
+      "grundpris": 5000000,
+      "pris": 5250000,
+      "model": "rate12",
+      "note": "12 rater à 4.375 ekskl. (50.000 + 5 %); 5 betalt pr. 16/9"
+    },
+    {
+      "navn": "Bastant Design",
+      "company_id": "601a2faa-b7a1-49dc-b872-4ad27422acf6",
+      "start": "created_at",
+      "slut": "2027-12-31",
+      "grundpris": 0,
+      "pris": 0,
+      "model": "gratis",
+      "note": "Jonas 16/9: gratis — en af Mortens investeringer. Ingen kontraktstart; starten er rækkens oprettelse"
+    },
+    {
+      "navn": "Booking Innovation",
+      "company_id": "48c09162-decd-4b77-bc8d-305e5f8cf5d3",
+      "start": "2026-05-11",
+      "slut": "2027-05-11",
+      "grundpris": 5000000,
+      "pris": 5000000,
+      "model": "fuld",
+      "note": "Stripe engang 487EWVLL-0002 62.500 inkl."
+    },
+    {
+      "navn": "BR Roset",
+      "company_id": "7b0056eb-1498-439b-ac3b-0f8e96e83cdd",
+      "start": "2026-03-03",
+      "slut": "2027-03-03",
+      "grundpris": 4000000,
+      "pris": 4200000,
+      "model": "rate12",
+      "note": "12 rater à 3.500 ekskl. (40.000 + 5 %)"
+    },
+    {
+      "navn": "Brick Works ApS",
+      "company_id": "a6b2fa30-6118-4a25-8426-205a46868cd5",
+      "start": "2026-04-07",
+      "slut": "2027-04-07",
+      "grundpris": 4000000,
+      "pris": 4200000,
+      "model": "rate12",
+      "note": "12 rater à 3.500 ekskl."
+    },
+    {
+      "navn": "BRILLEVÆRK",
+      "company_id": "6971b6d7-1c25-4733-b662-533b4056cde1",
+      "start": "2025-08-20",
+      "slut": "2026-08-20",
+      "grundpris": 4000000,
+      "pris": 4000000,
+      "model": "fuld",
+      "note": "Jonas 16/9: «Brilleværk var 40k første år.» Stripe engang D9VAUPRB-0001 20/8-2025 (e-conomic #115 25/8 er Cloudify-spejlet af samme betaling)"
+    },
+    {
+      "navn": "BRILLEVÆRK",
+      "company_id": "6971b6d7-1c25-4733-b662-533b4056cde1",
+      "start": "2026-08-20",
+      "slut": "2027-08-20",
+      "grundpris": 2000000,
+      "pris": 2000000,
+      "model": "e-conomic",
+      "note": "Jonas 16/9: «20k ex. moms for år 2» — e-conomic #138"
+    },
+    {
+      "navn": "Capture IT A/S",
+      "company_id": "f7bde263-c9f3-4687-bb32-de345bf370dc",
+      "start": "2025-08-04",
+      "slut": "2026-08-04",
+      "grundpris": 4000000,
+      "pris": 4200000,
+      "model": "rate12",
+      "note": "Jonas 16/9: «Indgangspris var 40k» — 12 rater à 3.500 ekskl. (MBRJSFCL-0001..12, første 25/7-2025); kontraktstart 4/8 er companies' dato"
+    },
+    {
+      "navn": "Capture IT A/S",
+      "company_id": "f7bde263-c9f3-4687-bb32-de345bf370dc",
+      "start": "2026-08-25",
+      "slut": "2027-08-25",
+      "grundpris": 2000000,
+      "pris": 2000000,
+      "model": "e-conomic",
+      "note": "Jonas 16/9: «Det er hele prisen for år 2» — e-conomic #139 25.000 inkl. Tre ugers hul 4/8 → 25/8 som companies siger"
+    },
+    {
+      "navn": "CARMA STUDIO",
+      "company_id": "9797633d-01d4-4028-8e3d-2f03002db98d",
+      "start": "2025-09-07",
+      "slut": "2026-09-11",
+      "grundpris": 4000000,
+      "pris": 4200000,
+      "model": "rate12",
+      "note": "12 rater à 3.500 ekskl.; slutdato 11/9 er companies' (4 dage efter 12. rate)"
+    },
+    {
+      "navn": "Din Forsikringsret",
+      "company_id": "bb507129-ecd1-4e92-b124-43f895417d3f",
+      "start": "2026-09-15",
+      "slut": "2027-09-15",
+      "grundpris": 5000000,
+      "pris": 5250000,
+      "model": "rate12",
+      "kilde": "indgang",
+      "note": "Indgangen 15/9 ad Monday-vejen: company_perioder art indgang (5.250.000 rate12), indgangspris_oere 5.000.000"
+    },
+    {
+      "navn": "Din økonomiafdeling Danmark ApS",
+      "company_id": "25a801c3-062b-4c97-ba2b-8319a66ec0a9",
+      "start": "2026-02-25",
+      "slut": "2027-02-25",
+      "grundpris": 4000000,
+      "pris": 4000000,
+      "model": "e-conomic",
+      "note": "e-conomic #122 50.000 inkl."
+    },
+    {
+      "navn": "Doggybed",
+      "company_id": "382fd787-3141-45c7-8eea-297b7b947fe0",
+      "start": "2025-10-13",
+      "slut": "2026-10-13",
+      "grundpris": 4000000,
+      "pris": 4200000,
+      "model": "rate12",
+      "note": "12 rater à 3.500 ekskl. (11 på den gamle konto + TBR-0004 13/9 på den nye)"
+    },
+    {
+      "navn": "Fjeldgaardshop.dk",
+      "company_id": "95657412-41e1-4576-8ace-59d526c14ef2",
+      "start": "2026-03-18",
+      "slut": "2027-03-18",
+      "grundpris": 4000000,
+      "pris": 4200000,
+      "model": "rate12",
+      "note": "12 rater à 3.500 ekskl."
+    },
+    {
+      "navn": "Floren Engros",
+      "company_id": "3254539d-a1fc-468f-ab72-7af388a84b30",
+      "start": "2026-03-03",
+      "slut": "2027-03-03",
+      "grundpris": 4000000,
+      "pris": 4200000,
+      "model": "rate12",
+      "note": "12 rater à 3.500 ekskl."
+    },
+    {
+      "navn": "Homie Håndværkerservice ApS",
+      "company_id": "6a696599-ad56-4ec6-a263-baf9d079bc2f",
+      "start": "2026-05-20",
+      "slut": "2027-05-20",
+      "grundpris": 5000000,
+      "pris": 5250000,
+      "model": "rate12",
+      "note": "12 rater à 4.375 ekskl."
+    },
+    {
+      "navn": "KJ AUTO OG MIKROMAKKER",
+      "company_id": "daf913ac-d71a-4897-9f67-08c019990248",
+      "start": "2025-03-11",
+      "slut": "2026-03-11",
+      "grundpris": 3000000,
+      "pris": 2236672,
+      "model": "rate12",
+      "note": "Jonas 16/9: «Hans indgangspris var samlet 30k» — grundprisen. Faktureret: 12 rater à 1.030,56 ekskl. (LANCERING25, 69C5AADC-0001..12) + e-conomic #110 10.000 = 22.366,72 — prisen er det fakturerede; STOP-punkt i README om 30.000 skal stå som pris"
+    },
+    {
+      "navn": "KJ AUTO OG MIKROMAKKER",
+      "company_id": "daf913ac-d71a-4897-9f67-08c019990248",
+      "start": "2026-05-20",
+      "slut": "2027-05-20",
+      "grundpris": 1500000,
+      "pris": 1575000,
+      "model": "rate12",
+      "note": "Jonas 16/9: «15k for år 2 (+5 % pga. rater)» — 12 rater à 1.312,50 ekskl. (69C5AADC-0013.., TB2026V2)"
+    },
+    {
+      "navn": "Limo Group - Viborg Limousine Service",
+      "company_id": "c468fd17-9408-4dbe-b223-3240ddfbbe37",
+      "start": "2026-06-19",
+      "slut": "2027-06-19",
+      "grundpris": 5000000,
+      "pris": 5000000,
+      "model": "e-conomic",
+      "note": "e-conomic #135 62.500 inkl. (11/6, otte dage før kontraktstart)"
+    },
+    {
+      "navn": "Livja",
+      "company_id": "5d7fb0a3-7ffa-467f-ad24-b3145961a0a6",
+      "start": "2025-09-16",
+      "slut": "2026-12-16",
+      "grundpris": 4000000,
+      "pris": 4200000,
+      "model": "rate12",
+      "note": "Rater à 3.500 ekskl. fra 16/9-2025 (VYSFU5CT-0001..; 0005–0007 jan–mar 2026 mangler i Stripe); companies har ingen startdato og slut 16/12-2026 — perioden følger companies' slutdato. STOP-punkt i README"
+    },
+    {
+      "navn": "Nordic By Hand ApS",
+      "company_id": "a4481db0-1cbc-4f2f-801e-29d5693da08d",
+      "start": "2026-09-14",
+      "slut": "2027-09-14",
+      "grundpris": 4000000,
+      "pris": 4000000,
+      "model": "rate2",
+      "note": "Jonas 16/9: 40.000 i to rater à 20.000 — e-conomic #140 31/8 (rate 1), #141 forfalder 1/11 (rate 2)"
+    },
+    {
+      "navn": "PHILBERT ApS",
+      "company_id": "926f0b16-81c1-4a06-94e1-49c942200094",
+      "start": "2025-09-29",
+      "slut": "2026-09-29",
+      "grundpris": 4000000,
+      "pris": 4200000,
+      "model": "rate12",
+      "note": "12 rater à 3.500 ekskl."
+    },
+    {
+      "navn": "Rallysupport",
+      "company_id": "86d4a4fa-8a43-4c65-ad0e-01f0d53ffbfd",
+      "start": "2026-01-21",
+      "slut": "2027-01-21",
+      "grundpris": 4000000,
+      "pris": 4000000,
+      "model": "fuld",
+      "note": "Stripe engang 3QYQAGOY-0001 50.000 inkl. (e-conomic #121 6/2 er Cloudify-spejlet af samme betaling)"
+    },
+    {
+      "navn": "remm.",
+      "company_id": "9f00e582-1050-4d47-ba8f-221e75e72fab",
+      "start": "2026-06-15",
+      "slut": "2027-06-15",
+      "grundpris": 5000000,
+      "pris": 5250000,
+      "model": "rate12",
+      "note": "12 rater à 4.375 ekskl."
+    },
+    {
+      "navn": "Rezycl.com",
+      "company_id": "183f082e-5090-41e1-995b-371e72318d73",
+      "start": "2026-03-09",
+      "slut": "2027-03-09",
+      "grundpris": 4000000,
+      "pris": 3501000,
+      "model": "e-conomic",
+      "note": "Jonas 17/9 (ordret): «Prisen er det, der faktisk er faktureret. Grundprisen er det, fornyelsen regner fra.» — faktureret e-conomic #125 43.762,50 inkl. moms = 35.010 ekskl.; grundpris 40.000 (Jonas 16/9: «hans pris er reelt 40k for år 1» — resten var betalt til Topix, lukket)"
+    },
+    {
+      "navn": "Studio Mini ApS",
+      "company_id": "4e42c9fa-7d94-4973-a364-728af63e350f",
+      "start": "2025-09-05",
+      "slut": "2026-09-05",
+      "grundpris": 4000000,
+      "pris": 4200000,
+      "model": "rate12",
+      "note": "12 rater à 3.500 ekskl.; tilbyd_ikke 15/9 — på vej ud"
+    },
+    {
+      "navn": "TOFT ADMINISTRATION ApS",
+      "company_id": "17ce0b34-b6c4-43fc-8ffd-d29ceda19364",
+      "start": "2026-05-12",
+      "slut": "2027-05-22",
+      "grundpris": 5000000,
+      "pris": 5000000,
+      "model": "e-conomic",
+      "note": "e-conomic #130 62.500 inkl.; companies' slutdato 22/5 (12 mdr. + 10 dage)"
+    },
+    {
+      "navn": "TuaMea Jewelry",
+      "company_id": "3242a137-01b1-4014-8bf1-186b7d338c05",
+      "start": "2026-02-02",
+      "slut": "2027-02-02",
+      "grundpris": 4000000,
+      "pris": 4200000,
+      "model": "rate12",
+      "note": "12 rater à 3.500 ekskl."
+    },
+    {
+      "navn": "Two Socks ApS",
+      "company_id": "1c54625a-4a34-4d66-a8a6-4242a96b3d1d",
+      "start": "2026-02-26",
+      "slut": "2027-02-26",
+      "grundpris": 4000000,
+      "pris": 4200000,
+      "model": "rate12",
+      "note": "12 rater à 3.500 ekskl."
+    },
+    {
+      "navn": "Warburg VVS & Kloak Ekspres ApS",
+      "company_id": "3a429199-ed85-460d-8c85-9df70252136a",
+      "start": "2025-06-26",
+      "slut": "2026-06-26",
+      "grundpris": 4000000,
+      "pris": 4000000,
+      "model": "e-conomic",
+      "note": "Jonas 16/9: «forlængelsen fremover skal stadig tage udgangspunkt i pris på 40k for år 1» — e-conomic #112 16/6-2025 50.000 inkl. År 1's datoer er år 2's start minus 12 mdr. (companies bærer kun år 2) — STOP-punkt i README"
+    },
+    {
+      "navn": "Warburg VVS & Kloak Ekspres ApS",
+      "company_id": "3a429199-ed85-460d-8c85-9df70252136a",
+      "start": "2026-06-26",
+      "slut": "2027-06-26",
+      "grundpris": 1500000,
+      "pris": 1500000,
+      "model": "fuld",
+      "note": "Jonas 16/9: «15k ex. moms for år 2, da indgangspris var 30k» — Stripe engang 7WMYOQJD-0001 18.750 inkl."
+    },
+    {
+      "navn": "WESDEX ApS",
+      "company_id": "6ab77507-d3f3-4980-a699-6d23d1148fe4",
+      "start": "2026-01-29",
+      "slut": "2027-01-29",
+      "grundpris": 4000000,
+      "pris": 4200000,
+      "model": "rate12",
+      "note": "12 rater à 3.500 ekskl."
+    },
+    {
+      "navn": "YKRG APS",
+      "company_id": "f6b0a166-ca6c-4b3e-9194-e521718d2e06",
+      "start": "2026-04-29",
+      "slut": "2027-04-29",
+      "grundpris": 5000000,
+      "pris": 5250000,
+      "model": "rate12",
+      "note": "12 rater à 4.375 ekskl. (e-conomic #136/#137 er Cloudify-spejl af ét træk, netto 4.375)"
+    }
+  ],
+  "oe1b_forsmag": [
+    {
+      "navn": "Friends & Fries ApS",
+      "company_id": "32379181-f2c6-4ad9-92ca-aaed860f3e53",
+      "start": "2025-08-22",
+      "slut": "2026-08-22",
+      "grundpris": 4000000,
+      "pris": 4200000,
+      "model": "rate12",
+      "note": "tidligere kunde; 12 træk i company_traek — kontraktår kommer i Ø1b"
+    },
+    {
+      "navn": "Startkørekort",
+      "company_id": "fbec75bb-6e3f-4b90-b937-7522bde76917",
+      "start": "2025-05-21",
+      "slut": "2026-05-21",
+      "grundpris": 4000000,
+      "pris": 4200000,
+      "model": "rate12",
+      "note": "tidligere kunde; 12 træk i company_traek — kontraktår kommer i Ø1b"
+    }
+  ]
+}

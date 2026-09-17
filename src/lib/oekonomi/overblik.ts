@@ -32,11 +32,21 @@ export interface OverblikVirksomhed {
   is_legat: boolean;
 }
 
+/** company_fornyelse (Ø3, 18/9 — RPC-udvidelsen 20260918150000): rådgiverens beslutning om fornyelse. */
+export interface OverblikFornyelse {
+  company_id: string;
+  beslutning: string;
+  besluttet_at: string | null;
+  note: string | null;
+}
+
 export interface Overblik {
   kontrakter: Kontrakt[];
   /** Alle rækker fra company_traek — også fejlede (status 'fejlet'); motoren får kun de betalte (betalingerTilMotor). */
   betalinger: OverblikBetaling[];
   virksomheder: OverblikVirksomhed[];
+  /** undefined når RPC'en i drift endnu ikke afleverer nøglen (migration 20260918150000 ikke kørt) — fornyelsesradaren siger «ukendt». */
+  fornyelser?: OverblikFornyelse[];
   hentet_at: string;
 }
 
@@ -68,6 +78,7 @@ export function laesOverblik(json: unknown): Overblik {
     periode_start: tekst(k.periode_start, "kontrakter.periode_start"),
     periode_slut: tekst(k.periode_slut, "kontrakter.periode_slut"),
     pris_eks_moms_oere: tal(k.pris_eks_moms_oere, "kontrakter.pris_eks_moms_oere"),
+    grundpris_oere: typeof k.grundpris_oere === "number" ? k.grundpris_oere : null,
     betalingsmodel: tekstEllerNull(k.betalingsmodel),
     kilde: tekstEllerNull(k.kilde),
   }));
@@ -92,7 +103,15 @@ export function laesOverblik(json: unknown): Overblik {
     er_kunde: c.er_kunde === true,
     is_legat: c.is_legat === true,
   }));
-  return { kontrakter, betalinger, virksomheder, hentet_at: tekstEllerNull(o.hentet_at) ?? "" };
+  const fornyelser: OverblikFornyelse[] | undefined = Array.isArray(o.fornyelser)
+    ? liste(o.fornyelser, "fornyelser").map((f) => ({
+        company_id: tekst(f.company_id, "fornyelser.company_id"),
+        beslutning: tekst(f.beslutning, "fornyelser.beslutning"),
+        besluttet_at: tekstEllerNull(f.besluttet_at),
+        note: tekstEllerNull(f.note),
+      }))
+    : undefined;
+  return { kontrakter, betalinger, virksomheder, fornyelser, hentet_at: tekstEllerNull(o.hentet_at) ?? "" };
 }
 
 /** Motoren får kun BETALTE rækker med et tidspunkt — fejlede træk er ikke kontant. */

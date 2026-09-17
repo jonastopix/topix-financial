@@ -1,0 +1,1525 @@
+{
+ "_om": "Betalinger ekskl. moms (beloeb/1,25 afrundet) regnet på de lokale prod-kopier 16/9: traekhistorik/02-indsaet.sql (174), betalinger-uden-stripe/02-indsaet.sql (13), plus de tre på den nye konto (Doggybed TBR-0004 13/9, Din Forsikringsret TBR-0006 15/9, Livja TBR-0007 16/9). IKKE prod — bruges kun til beviset.",
+ "raekker": [
+  {
+   "company_id": "c81621bc-5187-4b61-ac07-058733a14a6d",
+   "kilde": "stripe_abonnement",
+   "ref": "KWBVUJHJ-0001",
+   "betalt_at": "2026-05-07T10:04:00+00:00",
+   "beloeb_oere": 546875,
+   "eks_moms_oere": 437500
+  },
+  {
+   "company_id": "c81621bc-5187-4b61-ac07-058733a14a6d",
+   "kilde": "stripe_abonnement",
+   "ref": "KWBVUJHJ-0002",
+   "betalt_at": "2026-06-07T11:04:00+00:00",
+   "beloeb_oere": 546875,
+   "eks_moms_oere": 437500
+  },
+  {
+   "company_id": "c81621bc-5187-4b61-ac07-058733a14a6d",
+   "kilde": "stripe_abonnement",
+   "ref": "KWBVUJHJ-0003",
+   "betalt_at": "2026-07-07T11:04:00+00:00",
+   "beloeb_oere": 546875,
+   "eks_moms_oere": 437500
+  },
+  {
+   "company_id": "c81621bc-5187-4b61-ac07-058733a14a6d",
+   "kilde": "stripe_abonnement",
+   "ref": "KWBVUJHJ-0004",
+   "betalt_at": "2026-08-07T11:04:00+00:00",
+   "beloeb_oere": 546875,
+   "eks_moms_oere": 437500
+  },
+  {
+   "company_id": "c81621bc-5187-4b61-ac07-058733a14a6d",
+   "kilde": "stripe_abonnement",
+   "ref": "KWBVUJHJ-0005",
+   "betalt_at": "2026-09-07T11:04:00+00:00",
+   "beloeb_oere": 546875,
+   "eks_moms_oere": 437500
+  },
+  {
+   "company_id": "7b0056eb-1498-439b-ac3b-0f8e96e83cdd",
+   "kilde": "stripe_abonnement",
+   "ref": "686P23XT-0001",
+   "betalt_at": "2026-03-03T17:30:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "7b0056eb-1498-439b-ac3b-0f8e96e83cdd",
+   "kilde": "stripe_abonnement",
+   "ref": "686P23XT-0002",
+   "betalt_at": "2026-04-03T18:31:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "7b0056eb-1498-439b-ac3b-0f8e96e83cdd",
+   "kilde": "stripe_abonnement",
+   "ref": "686P23XT-0003",
+   "betalt_at": "2026-05-03T18:31:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "7b0056eb-1498-439b-ac3b-0f8e96e83cdd",
+   "kilde": "stripe_abonnement",
+   "ref": "686P23XT-0004",
+   "betalt_at": "2026-06-03T18:31:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "7b0056eb-1498-439b-ac3b-0f8e96e83cdd",
+   "kilde": "stripe_abonnement",
+   "ref": "686P23XT-0005",
+   "betalt_at": "2026-07-03T18:30:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "7b0056eb-1498-439b-ac3b-0f8e96e83cdd",
+   "kilde": "stripe_abonnement",
+   "ref": "686P23XT-0006",
+   "betalt_at": "2026-08-03T18:30:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "7b0056eb-1498-439b-ac3b-0f8e96e83cdd",
+   "kilde": "stripe_abonnement",
+   "ref": "686P23XT-0007",
+   "betalt_at": "2026-09-03T18:30:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "a6b2fa30-6118-4a25-8426-205a46868cd5",
+   "kilde": "stripe_abonnement",
+   "ref": "E2XKAYFH-0001",
+   "betalt_at": "2026-04-07T06:40:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "a6b2fa30-6118-4a25-8426-205a46868cd5",
+   "kilde": "stripe_abonnement",
+   "ref": "E2XKAYFH-0002",
+   "betalt_at": "2026-05-07T07:40:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "a6b2fa30-6118-4a25-8426-205a46868cd5",
+   "kilde": "stripe_abonnement",
+   "ref": "E2XKAYFH-0003",
+   "betalt_at": "2026-06-07T07:41:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "a6b2fa30-6118-4a25-8426-205a46868cd5",
+   "kilde": "stripe_abonnement",
+   "ref": "E2XKAYFH-0004",
+   "betalt_at": "2026-07-07T07:41:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "a6b2fa30-6118-4a25-8426-205a46868cd5",
+   "kilde": "stripe_abonnement",
+   "ref": "E2XKAYFH-0005",
+   "betalt_at": "2026-08-07T07:41:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "a6b2fa30-6118-4a25-8426-205a46868cd5",
+   "kilde": "stripe_abonnement",
+   "ref": "E2XKAYFH-0006",
+   "betalt_at": "2026-09-07T07:41:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "f7bde263-c9f3-4687-bb32-de345bf370dc",
+   "kilde": "stripe_abonnement",
+   "ref": "MBRJSFCL-0001",
+   "betalt_at": "2025-07-25T11:09:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "f7bde263-c9f3-4687-bb32-de345bf370dc",
+   "kilde": "stripe_abonnement",
+   "ref": "MBRJSFCL-0002",
+   "betalt_at": "2025-08-25T12:10:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "f7bde263-c9f3-4687-bb32-de345bf370dc",
+   "kilde": "stripe_abonnement",
+   "ref": "MBRJSFCL-0003",
+   "betalt_at": "2025-09-25T12:10:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "f7bde263-c9f3-4687-bb32-de345bf370dc",
+   "kilde": "stripe_abonnement",
+   "ref": "MBRJSFCL-0004",
+   "betalt_at": "2025-10-25T12:09:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "f7bde263-c9f3-4687-bb32-de345bf370dc",
+   "kilde": "stripe_abonnement",
+   "ref": "MBRJSFCL-0005",
+   "betalt_at": "2025-11-25T12:08:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "f7bde263-c9f3-4687-bb32-de345bf370dc",
+   "kilde": "stripe_abonnement",
+   "ref": "MBRJSFCL-0006",
+   "betalt_at": "2025-12-25T12:08:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "f7bde263-c9f3-4687-bb32-de345bf370dc",
+   "kilde": "stripe_abonnement",
+   "ref": "MBRJSFCL-0007",
+   "betalt_at": "2026-01-26T07:41:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "f7bde263-c9f3-4687-bb32-de345bf370dc",
+   "kilde": "stripe_abonnement",
+   "ref": "MBRJSFCL-0008",
+   "betalt_at": "2026-02-25T12:09:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "f7bde263-c9f3-4687-bb32-de345bf370dc",
+   "kilde": "stripe_abonnement",
+   "ref": "MBRJSFCL-0009",
+   "betalt_at": "2026-03-25T12:08:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "f7bde263-c9f3-4687-bb32-de345bf370dc",
+   "kilde": "stripe_abonnement",
+   "ref": "MBRJSFCL-0010",
+   "betalt_at": "2026-04-25T12:09:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "f7bde263-c9f3-4687-bb32-de345bf370dc",
+   "kilde": "stripe_abonnement",
+   "ref": "MBRJSFCL-0011",
+   "betalt_at": "2026-05-25T12:09:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "f7bde263-c9f3-4687-bb32-de345bf370dc",
+   "kilde": "stripe_abonnement",
+   "ref": "MBRJSFCL-0012",
+   "betalt_at": "2026-06-25T12:09:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "9797633d-01d4-4028-8e3d-2f03002db98d",
+   "kilde": "stripe_abonnement",
+   "ref": "DXOOEXDY-0001",
+   "betalt_at": "2025-09-07T02:16:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "9797633d-01d4-4028-8e3d-2f03002db98d",
+   "kilde": "stripe_abonnement",
+   "ref": "DXOOEXDY-0002",
+   "betalt_at": "2025-10-09T08:05:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "9797633d-01d4-4028-8e3d-2f03002db98d",
+   "kilde": "stripe_abonnement",
+   "ref": "DXOOEXDY-0003",
+   "betalt_at": "2025-11-07T03:17:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "9797633d-01d4-4028-8e3d-2f03002db98d",
+   "kilde": "stripe_abonnement",
+   "ref": "DXOOEXDY-0004",
+   "betalt_at": "2025-12-08T08:29:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "9797633d-01d4-4028-8e3d-2f03002db98d",
+   "kilde": "stripe_abonnement",
+   "ref": "DXOOEXDY-0005",
+   "betalt_at": "2026-01-07T03:16:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "9797633d-01d4-4028-8e3d-2f03002db98d",
+   "kilde": "stripe_abonnement",
+   "ref": "DXOOEXDY-0006",
+   "betalt_at": "2026-02-07T03:17:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "9797633d-01d4-4028-8e3d-2f03002db98d",
+   "kilde": "stripe_abonnement",
+   "ref": "DXOOEXDY-0007",
+   "betalt_at": "2026-03-07T03:17:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "9797633d-01d4-4028-8e3d-2f03002db98d",
+   "kilde": "stripe_abonnement",
+   "ref": "DXOOEXDY-0008",
+   "betalt_at": "2026-04-07T03:17:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "9797633d-01d4-4028-8e3d-2f03002db98d",
+   "kilde": "stripe_abonnement",
+   "ref": "DXOOEXDY-0009",
+   "betalt_at": "2026-05-07T03:17:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "9797633d-01d4-4028-8e3d-2f03002db98d",
+   "kilde": "stripe_abonnement",
+   "ref": "DXOOEXDY-0010",
+   "betalt_at": "2026-06-07T03:17:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "9797633d-01d4-4028-8e3d-2f03002db98d",
+   "kilde": "stripe_abonnement",
+   "ref": "DXOOEXDY-0011",
+   "betalt_at": "2026-07-07T03:17:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "9797633d-01d4-4028-8e3d-2f03002db98d",
+   "kilde": "stripe_abonnement",
+   "ref": "DXOOEXDY-0012",
+   "betalt_at": "2026-08-07T03:16:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "382fd787-3141-45c7-8eea-297b7b947fe0",
+   "kilde": "stripe_abonnement",
+   "ref": "DZ7BZXM5-0001",
+   "betalt_at": "2025-10-13T08:37:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "382fd787-3141-45c7-8eea-297b7b947fe0",
+   "kilde": "stripe_abonnement",
+   "ref": "DZ7BZXM5-0002",
+   "betalt_at": "2025-11-13T09:36:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "382fd787-3141-45c7-8eea-297b7b947fe0",
+   "kilde": "stripe_abonnement",
+   "ref": "DZ7BZXM5-0003",
+   "betalt_at": "2025-12-13T09:36:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "382fd787-3141-45c7-8eea-297b7b947fe0",
+   "kilde": "stripe_abonnement",
+   "ref": "DZ7BZXM5-0004",
+   "betalt_at": "2026-01-13T09:36:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "382fd787-3141-45c7-8eea-297b7b947fe0",
+   "kilde": "stripe_abonnement",
+   "ref": "DZ7BZXM5-0005",
+   "betalt_at": "2026-02-13T09:35:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "382fd787-3141-45c7-8eea-297b7b947fe0",
+   "kilde": "stripe_abonnement",
+   "ref": "DZ7BZXM5-0006",
+   "betalt_at": "2026-03-13T09:36:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "382fd787-3141-45c7-8eea-297b7b947fe0",
+   "kilde": "stripe_abonnement",
+   "ref": "DZ7BZXM5-0007",
+   "betalt_at": "2026-04-13T09:35:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "382fd787-3141-45c7-8eea-297b7b947fe0",
+   "kilde": "stripe_abonnement",
+   "ref": "DZ7BZXM5-0008",
+   "betalt_at": "2026-05-13T09:36:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "382fd787-3141-45c7-8eea-297b7b947fe0",
+   "kilde": "stripe_abonnement",
+   "ref": "DZ7BZXM5-0009",
+   "betalt_at": "2026-06-13T09:36:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "382fd787-3141-45c7-8eea-297b7b947fe0",
+   "kilde": "stripe_abonnement",
+   "ref": "DZ7BZXM5-0010",
+   "betalt_at": "2026-07-13T09:36:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "382fd787-3141-45c7-8eea-297b7b947fe0",
+   "kilde": "stripe_abonnement",
+   "ref": "DZ7BZXM5-0011",
+   "betalt_at": "2026-08-13T09:36:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "95657412-41e1-4576-8ace-59d526c14ef2",
+   "kilde": "stripe_abonnement",
+   "ref": "WLA2YTXE-0001",
+   "betalt_at": "2026-03-18T10:52:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "95657412-41e1-4576-8ace-59d526c14ef2",
+   "kilde": "stripe_abonnement",
+   "ref": "WLA2YTXE-0002",
+   "betalt_at": "2026-04-18T11:53:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "95657412-41e1-4576-8ace-59d526c14ef2",
+   "kilde": "stripe_abonnement",
+   "ref": "WLA2YTXE-0003",
+   "betalt_at": "2026-05-19T06:27:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "95657412-41e1-4576-8ace-59d526c14ef2",
+   "kilde": "stripe_abonnement",
+   "ref": "WLA2YTXE-0004",
+   "betalt_at": "2026-06-18T11:52:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "95657412-41e1-4576-8ace-59d526c14ef2",
+   "kilde": "stripe_abonnement",
+   "ref": "WLA2YTXE-0005",
+   "betalt_at": "2026-07-18T11:52:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "95657412-41e1-4576-8ace-59d526c14ef2",
+   "kilde": "stripe_abonnement",
+   "ref": "WLA2YTXE-0006",
+   "betalt_at": "2026-08-18T11:53:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "3254539d-a1fc-468f-ab72-7af388a84b30",
+   "kilde": "stripe_abonnement",
+   "ref": "PCVHKXZH-0001",
+   "betalt_at": "2026-03-03T10:51:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "3254539d-a1fc-468f-ab72-7af388a84b30",
+   "kilde": "stripe_abonnement",
+   "ref": "PCVHKXZH-0002",
+   "betalt_at": "2026-04-03T11:52:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "3254539d-a1fc-468f-ab72-7af388a84b30",
+   "kilde": "stripe_abonnement",
+   "ref": "PCVHKXZH-0003",
+   "betalt_at": "2026-05-03T11:50:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "3254539d-a1fc-468f-ab72-7af388a84b30",
+   "kilde": "stripe_abonnement",
+   "ref": "PCVHKXZH-0004",
+   "betalt_at": "2026-06-03T11:51:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "3254539d-a1fc-468f-ab72-7af388a84b30",
+   "kilde": "stripe_abonnement",
+   "ref": "PCVHKXZH-0005",
+   "betalt_at": "2026-07-03T11:51:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "3254539d-a1fc-468f-ab72-7af388a84b30",
+   "kilde": "stripe_abonnement",
+   "ref": "PCVHKXZH-0006",
+   "betalt_at": "2026-08-03T11:52:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "3254539d-a1fc-468f-ab72-7af388a84b30",
+   "kilde": "stripe_abonnement",
+   "ref": "PCVHKXZH-0007",
+   "betalt_at": "2026-09-03T11:50:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "32379181-f2c6-4ad9-92ca-aaed860f3e53",
+   "kilde": "stripe_abonnement",
+   "ref": "5DURLZLL-0001",
+   "betalt_at": "2025-08-22T10:51:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "32379181-f2c6-4ad9-92ca-aaed860f3e53",
+   "kilde": "stripe_abonnement",
+   "ref": "5DURLZLL-0002",
+   "betalt_at": "2025-09-22T11:50:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "32379181-f2c6-4ad9-92ca-aaed860f3e53",
+   "kilde": "stripe_abonnement",
+   "ref": "5DURLZLL-0003",
+   "betalt_at": "2025-10-22T11:52:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "32379181-f2c6-4ad9-92ca-aaed860f3e53",
+   "kilde": "stripe_abonnement",
+   "ref": "5DURLZLL-0004",
+   "betalt_at": "2025-11-22T11:52:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "32379181-f2c6-4ad9-92ca-aaed860f3e53",
+   "kilde": "stripe_abonnement",
+   "ref": "5DURLZLL-0005",
+   "betalt_at": "2025-12-22T11:51:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "32379181-f2c6-4ad9-92ca-aaed860f3e53",
+   "kilde": "stripe_abonnement",
+   "ref": "5DURLZLL-0006",
+   "betalt_at": "2026-01-22T11:51:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "32379181-f2c6-4ad9-92ca-aaed860f3e53",
+   "kilde": "stripe_abonnement",
+   "ref": "5DURLZLL-0007",
+   "betalt_at": "2026-02-22T11:51:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "32379181-f2c6-4ad9-92ca-aaed860f3e53",
+   "kilde": "stripe_abonnement",
+   "ref": "5DURLZLL-0008",
+   "betalt_at": "2026-03-22T11:51:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "32379181-f2c6-4ad9-92ca-aaed860f3e53",
+   "kilde": "stripe_abonnement",
+   "ref": "5DURLZLL-0009",
+   "betalt_at": "2026-04-22T11:51:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "32379181-f2c6-4ad9-92ca-aaed860f3e53",
+   "kilde": "stripe_abonnement",
+   "ref": "5DURLZLL-0010",
+   "betalt_at": "2026-05-22T11:52:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "32379181-f2c6-4ad9-92ca-aaed860f3e53",
+   "kilde": "stripe_abonnement",
+   "ref": "5DURLZLL-0011",
+   "betalt_at": "2026-06-22T11:52:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "32379181-f2c6-4ad9-92ca-aaed860f3e53",
+   "kilde": "stripe_abonnement",
+   "ref": "5DURLZLL-0012",
+   "betalt_at": "2026-07-22T11:51:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "6a696599-ad56-4ec6-a263-baf9d079bc2f",
+   "kilde": "stripe_abonnement",
+   "ref": "KBIYKMD1-0002",
+   "betalt_at": "2026-05-20T12:58:00+00:00",
+   "beloeb_oere": 546875,
+   "eks_moms_oere": 437500
+  },
+  {
+   "company_id": "6a696599-ad56-4ec6-a263-baf9d079bc2f",
+   "kilde": "stripe_abonnement",
+   "ref": "KBIYKMD1-0003",
+   "betalt_at": "2026-06-20T13:58:00+00:00",
+   "beloeb_oere": 546875,
+   "eks_moms_oere": 437500
+  },
+  {
+   "company_id": "6a696599-ad56-4ec6-a263-baf9d079bc2f",
+   "kilde": "stripe_abonnement",
+   "ref": "KBIYKMD1-0004",
+   "betalt_at": "2026-07-20T13:58:00+00:00",
+   "beloeb_oere": 546875,
+   "eks_moms_oere": 437500
+  },
+  {
+   "company_id": "6a696599-ad56-4ec6-a263-baf9d079bc2f",
+   "kilde": "stripe_abonnement",
+   "ref": "KBIYKMD1-0005",
+   "betalt_at": "2026-08-20T13:58:00+00:00",
+   "beloeb_oere": 546875,
+   "eks_moms_oere": 437500
+  },
+  {
+   "company_id": "daf913ac-d71a-4897-9f67-08c019990248",
+   "kilde": "stripe_abonnement",
+   "ref": "69C5AADC-0001",
+   "betalt_at": "2025-03-11T17:15:00+00:00",
+   "beloeb_oere": 128820,
+   "eks_moms_oere": 103056
+  },
+  {
+   "company_id": "daf913ac-d71a-4897-9f67-08c019990248",
+   "kilde": "stripe_abonnement",
+   "ref": "69C5AADC-0002",
+   "betalt_at": "2025-04-11T18:15:00+00:00",
+   "beloeb_oere": 128820,
+   "eks_moms_oere": 103056
+  },
+  {
+   "company_id": "daf913ac-d71a-4897-9f67-08c019990248",
+   "kilde": "stripe_abonnement",
+   "ref": "69C5AADC-0003",
+   "betalt_at": "2025-05-11T18:15:00+00:00",
+   "beloeb_oere": 128820,
+   "eks_moms_oere": 103056
+  },
+  {
+   "company_id": "daf913ac-d71a-4897-9f67-08c019990248",
+   "kilde": "stripe_abonnement",
+   "ref": "69C5AADC-0004",
+   "betalt_at": "2025-06-11T18:15:00+00:00",
+   "beloeb_oere": 128820,
+   "eks_moms_oere": 103056
+  },
+  {
+   "company_id": "daf913ac-d71a-4897-9f67-08c019990248",
+   "kilde": "stripe_abonnement",
+   "ref": "69C5AADC-0005",
+   "betalt_at": "2025-07-13T14:16:00+00:00",
+   "beloeb_oere": 128820,
+   "eks_moms_oere": 103056
+  },
+  {
+   "company_id": "daf913ac-d71a-4897-9f67-08c019990248",
+   "kilde": "stripe_abonnement",
+   "ref": "69C5AADC-0006",
+   "betalt_at": "2025-08-11T18:16:00+00:00",
+   "beloeb_oere": 128820,
+   "eks_moms_oere": 103056
+  },
+  {
+   "company_id": "daf913ac-d71a-4897-9f67-08c019990248",
+   "kilde": "stripe_abonnement",
+   "ref": "69C5AADC-0007",
+   "betalt_at": "2025-09-11T18:15:00+00:00",
+   "beloeb_oere": 128820,
+   "eks_moms_oere": 103056
+  },
+  {
+   "company_id": "daf913ac-d71a-4897-9f67-08c019990248",
+   "kilde": "stripe_abonnement",
+   "ref": "69C5AADC-0008",
+   "betalt_at": "2025-10-11T18:16:00+00:00",
+   "beloeb_oere": 128820,
+   "eks_moms_oere": 103056
+  },
+  {
+   "company_id": "daf913ac-d71a-4897-9f67-08c019990248",
+   "kilde": "stripe_abonnement",
+   "ref": "69C5AADC-0009",
+   "betalt_at": "2025-11-11T18:16:00+00:00",
+   "beloeb_oere": 128820,
+   "eks_moms_oere": 103056
+  },
+  {
+   "company_id": "daf913ac-d71a-4897-9f67-08c019990248",
+   "kilde": "stripe_abonnement",
+   "ref": "69C5AADC-0010",
+   "betalt_at": "2025-12-11T18:15:00+00:00",
+   "beloeb_oere": 128820,
+   "eks_moms_oere": 103056
+  },
+  {
+   "company_id": "daf913ac-d71a-4897-9f67-08c019990248",
+   "kilde": "stripe_abonnement",
+   "ref": "69C5AADC-0011",
+   "betalt_at": "2026-01-11T18:15:00+00:00",
+   "beloeb_oere": 128820,
+   "eks_moms_oere": 103056
+  },
+  {
+   "company_id": "daf913ac-d71a-4897-9f67-08c019990248",
+   "kilde": "stripe_abonnement",
+   "ref": "69C5AADC-0012",
+   "betalt_at": "2026-02-11T18:15:00+00:00",
+   "beloeb_oere": 128820,
+   "eks_moms_oere": 103056
+  },
+  {
+   "company_id": "daf913ac-d71a-4897-9f67-08c019990248",
+   "kilde": "stripe_abonnement",
+   "ref": "69C5AADC-0013",
+   "betalt_at": "2026-05-20T09:58:00+00:00",
+   "beloeb_oere": 164063,
+   "eks_moms_oere": 131250
+  },
+  {
+   "company_id": "daf913ac-d71a-4897-9f67-08c019990248",
+   "kilde": "stripe_abonnement",
+   "ref": "69C5AADC-0014",
+   "betalt_at": "2026-06-20T10:58:00+00:00",
+   "beloeb_oere": 164063,
+   "eks_moms_oere": 131250
+  },
+  {
+   "company_id": "daf913ac-d71a-4897-9f67-08c019990248",
+   "kilde": "stripe_abonnement",
+   "ref": "69C5AADC-0015",
+   "betalt_at": "2026-07-20T10:59:00+00:00",
+   "beloeb_oere": 164063,
+   "eks_moms_oere": 131250
+  },
+  {
+   "company_id": "daf913ac-d71a-4897-9f67-08c019990248",
+   "kilde": "stripe_abonnement",
+   "ref": "69C5AADC-0016",
+   "betalt_at": "2026-08-20T10:58:00+00:00",
+   "beloeb_oere": 164063,
+   "eks_moms_oere": 131250
+  },
+  {
+   "company_id": "5d7fb0a3-7ffa-467f-ad24-b3145961a0a6",
+   "kilde": "stripe_abonnement",
+   "ref": "VYSFU5CT-0001",
+   "betalt_at": "2025-09-16T11:03:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "5d7fb0a3-7ffa-467f-ad24-b3145961a0a6",
+   "kilde": "stripe_abonnement",
+   "ref": "VYSFU5CT-0002",
+   "betalt_at": "2025-10-16T12:04:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "5d7fb0a3-7ffa-467f-ad24-b3145961a0a6",
+   "kilde": "stripe_abonnement",
+   "ref": "VYSFU5CT-0003",
+   "betalt_at": "2025-11-16T12:03:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "5d7fb0a3-7ffa-467f-ad24-b3145961a0a6",
+   "kilde": "stripe_abonnement",
+   "ref": "VYSFU5CT-0004",
+   "betalt_at": "2025-12-16T12:04:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "5d7fb0a3-7ffa-467f-ad24-b3145961a0a6",
+   "kilde": "stripe_abonnement",
+   "ref": "VYSFU5CT-0008",
+   "betalt_at": "2026-04-16T12:04:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "5d7fb0a3-7ffa-467f-ad24-b3145961a0a6",
+   "kilde": "stripe_abonnement",
+   "ref": "VYSFU5CT-0009",
+   "betalt_at": "2026-05-17T09:58:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "5d7fb0a3-7ffa-467f-ad24-b3145961a0a6",
+   "kilde": "stripe_abonnement",
+   "ref": "VYSFU5CT-0010",
+   "betalt_at": "2026-06-16T12:04:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "5d7fb0a3-7ffa-467f-ad24-b3145961a0a6",
+   "kilde": "stripe_abonnement",
+   "ref": "VYSFU5CT-0011",
+   "betalt_at": "2026-07-16T12:04:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "5d7fb0a3-7ffa-467f-ad24-b3145961a0a6",
+   "kilde": "stripe_abonnement",
+   "ref": "VYSFU5CT-0012",
+   "betalt_at": "2026-08-16T12:03:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "926f0b16-81c1-4a06-94e1-49c942200094",
+   "kilde": "stripe_abonnement",
+   "ref": "J7UXEBFS-0001",
+   "betalt_at": "2025-09-29T09:02:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "926f0b16-81c1-4a06-94e1-49c942200094",
+   "kilde": "stripe_abonnement",
+   "ref": "J7UXEBFS-0002",
+   "betalt_at": "2025-10-29T10:03:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "926f0b16-81c1-4a06-94e1-49c942200094",
+   "kilde": "stripe_abonnement",
+   "ref": "J7UXEBFS-0003",
+   "betalt_at": "2025-11-29T10:03:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "926f0b16-81c1-4a06-94e1-49c942200094",
+   "kilde": "stripe_abonnement",
+   "ref": "J7UXEBFS-0004",
+   "betalt_at": "2025-12-29T10:03:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "926f0b16-81c1-4a06-94e1-49c942200094",
+   "kilde": "stripe_abonnement",
+   "ref": "J7UXEBFS-0005",
+   "betalt_at": "2026-01-29T10:03:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "926f0b16-81c1-4a06-94e1-49c942200094",
+   "kilde": "stripe_abonnement",
+   "ref": "J7UXEBFS-0006",
+   "betalt_at": "2026-02-28T10:04:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "926f0b16-81c1-4a06-94e1-49c942200094",
+   "kilde": "stripe_abonnement",
+   "ref": "J7UXEBFS-0007",
+   "betalt_at": "2026-03-29T10:02:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "926f0b16-81c1-4a06-94e1-49c942200094",
+   "kilde": "stripe_abonnement",
+   "ref": "J7UXEBFS-0008",
+   "betalt_at": "2026-04-29T10:03:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "926f0b16-81c1-4a06-94e1-49c942200094",
+   "kilde": "stripe_abonnement",
+   "ref": "J7UXEBFS-0009",
+   "betalt_at": "2026-05-29T10:02:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "926f0b16-81c1-4a06-94e1-49c942200094",
+   "kilde": "stripe_abonnement",
+   "ref": "J7UXEBFS-0010",
+   "betalt_at": "2026-06-29T10:03:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "926f0b16-81c1-4a06-94e1-49c942200094",
+   "kilde": "stripe_abonnement",
+   "ref": "J7UXEBFS-0011",
+   "betalt_at": "2026-07-29T10:03:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "926f0b16-81c1-4a06-94e1-49c942200094",
+   "kilde": "stripe_abonnement",
+   "ref": "J7UXEBFS-0012",
+   "betalt_at": "2026-08-29T10:03:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "9f00e582-1050-4d47-ba8f-221e75e72fab",
+   "kilde": "stripe_abonnement",
+   "ref": "B0SIZONV-0001",
+   "betalt_at": "2026-06-15T05:53:00+00:00",
+   "beloeb_oere": 546875,
+   "eks_moms_oere": 437500
+  },
+  {
+   "company_id": "9f00e582-1050-4d47-ba8f-221e75e72fab",
+   "kilde": "stripe_abonnement",
+   "ref": "B0SIZONV-0002",
+   "betalt_at": "2026-07-15T06:54:00+00:00",
+   "beloeb_oere": 546875,
+   "eks_moms_oere": 437500
+  },
+  {
+   "company_id": "9f00e582-1050-4d47-ba8f-221e75e72fab",
+   "kilde": "stripe_abonnement",
+   "ref": "B0SIZONV-0003",
+   "betalt_at": "2026-08-15T06:54:00+00:00",
+   "beloeb_oere": 546875,
+   "eks_moms_oere": 437500
+  },
+  {
+   "company_id": "9f00e582-1050-4d47-ba8f-221e75e72fab",
+   "kilde": "stripe_abonnement",
+   "ref": "B0SIZONV-0004",
+   "betalt_at": "2026-09-15T06:53:00+00:00",
+   "beloeb_oere": 546875,
+   "eks_moms_oere": 437500
+  },
+  {
+   "company_id": "fbec75bb-6e3f-4b90-b937-7522bde76917",
+   "kilde": "stripe_abonnement",
+   "ref": "Q9QRASJ0-0001",
+   "betalt_at": "2025-05-21T19:17:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "fbec75bb-6e3f-4b90-b937-7522bde76917",
+   "kilde": "stripe_abonnement",
+   "ref": "Q9QRASJ0-0002",
+   "betalt_at": "2025-06-21T20:16:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "fbec75bb-6e3f-4b90-b937-7522bde76917",
+   "kilde": "stripe_abonnement",
+   "ref": "Q9QRASJ0-0003",
+   "betalt_at": "2025-07-21T20:17:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "fbec75bb-6e3f-4b90-b937-7522bde76917",
+   "kilde": "stripe_abonnement",
+   "ref": "Q9QRASJ0-0004",
+   "betalt_at": "2025-08-21T20:16:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "fbec75bb-6e3f-4b90-b937-7522bde76917",
+   "kilde": "stripe_abonnement",
+   "ref": "Q9QRASJ0-0005",
+   "betalt_at": "2025-09-21T20:16:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "fbec75bb-6e3f-4b90-b937-7522bde76917",
+   "kilde": "stripe_abonnement",
+   "ref": "Q9QRASJ0-0006",
+   "betalt_at": "2025-10-21T20:17:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "fbec75bb-6e3f-4b90-b937-7522bde76917",
+   "kilde": "stripe_abonnement",
+   "ref": "Q9QRASJ0-0007",
+   "betalt_at": "2025-11-21T20:17:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "fbec75bb-6e3f-4b90-b937-7522bde76917",
+   "kilde": "stripe_abonnement",
+   "ref": "Q9QRASJ0-0008",
+   "betalt_at": "2025-12-21T20:17:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "fbec75bb-6e3f-4b90-b937-7522bde76917",
+   "kilde": "stripe_abonnement",
+   "ref": "Q9QRASJ0-0009",
+   "betalt_at": "2026-01-21T20:18:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "fbec75bb-6e3f-4b90-b937-7522bde76917",
+   "kilde": "stripe_abonnement",
+   "ref": "Q9QRASJ0-0010",
+   "betalt_at": "2026-02-21T20:17:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "fbec75bb-6e3f-4b90-b937-7522bde76917",
+   "kilde": "stripe_abonnement",
+   "ref": "Q9QRASJ0-0011",
+   "betalt_at": "2026-03-24T11:17:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "fbec75bb-6e3f-4b90-b937-7522bde76917",
+   "kilde": "stripe_abonnement",
+   "ref": "Q9QRASJ0-0012",
+   "betalt_at": "2026-04-21T20:17:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "4e42c9fa-7d94-4973-a364-728af63e350f",
+   "kilde": "stripe_abonnement",
+   "ref": "LL62E1ZZ-0001",
+   "betalt_at": "2025-09-05T13:31:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "4e42c9fa-7d94-4973-a364-728af63e350f",
+   "kilde": "stripe_abonnement",
+   "ref": "LL62E1ZZ-0002",
+   "betalt_at": "2025-10-05T14:32:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "4e42c9fa-7d94-4973-a364-728af63e350f",
+   "kilde": "stripe_abonnement",
+   "ref": "LL62E1ZZ-0003",
+   "betalt_at": "2025-11-05T14:31:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "4e42c9fa-7d94-4973-a364-728af63e350f",
+   "kilde": "stripe_abonnement",
+   "ref": "LL62E1ZZ-0004",
+   "betalt_at": "2025-12-05T14:31:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "4e42c9fa-7d94-4973-a364-728af63e350f",
+   "kilde": "stripe_abonnement",
+   "ref": "LL62E1ZZ-0005",
+   "betalt_at": "2026-01-05T14:31:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "4e42c9fa-7d94-4973-a364-728af63e350f",
+   "kilde": "stripe_abonnement",
+   "ref": "LL62E1ZZ-0006",
+   "betalt_at": "2026-02-05T14:32:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "4e42c9fa-7d94-4973-a364-728af63e350f",
+   "kilde": "stripe_abonnement",
+   "ref": "LL62E1ZZ-0007",
+   "betalt_at": "2026-03-05T14:32:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "4e42c9fa-7d94-4973-a364-728af63e350f",
+   "kilde": "stripe_abonnement",
+   "ref": "LL62E1ZZ-0008",
+   "betalt_at": "2026-04-05T14:35:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "4e42c9fa-7d94-4973-a364-728af63e350f",
+   "kilde": "stripe_abonnement",
+   "ref": "LL62E1ZZ-0009",
+   "betalt_at": "2026-05-05T14:33:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "4e42c9fa-7d94-4973-a364-728af63e350f",
+   "kilde": "stripe_abonnement",
+   "ref": "LL62E1ZZ-0010",
+   "betalt_at": "2026-06-05T14:31:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "4e42c9fa-7d94-4973-a364-728af63e350f",
+   "kilde": "stripe_abonnement",
+   "ref": "LL62E1ZZ-0011",
+   "betalt_at": "2026-07-05T14:32:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "4e42c9fa-7d94-4973-a364-728af63e350f",
+   "kilde": "stripe_abonnement",
+   "ref": "LL62E1ZZ-0012",
+   "betalt_at": "2026-08-05T14:31:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "3242a137-01b1-4014-8bf1-186b7d338c05",
+   "kilde": "stripe_abonnement",
+   "ref": "RMQ6A6RJ-0001",
+   "betalt_at": "2026-02-02T22:55:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "3242a137-01b1-4014-8bf1-186b7d338c05",
+   "kilde": "stripe_abonnement",
+   "ref": "RMQ6A6RJ-0002",
+   "betalt_at": "2026-03-02T23:55:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "3242a137-01b1-4014-8bf1-186b7d338c05",
+   "kilde": "stripe_abonnement",
+   "ref": "RMQ6A6RJ-0003",
+   "betalt_at": "2026-04-02T23:55:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "3242a137-01b1-4014-8bf1-186b7d338c05",
+   "kilde": "stripe_abonnement",
+   "ref": "RMQ6A6RJ-0004",
+   "betalt_at": "2026-05-02T23:56:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "3242a137-01b1-4014-8bf1-186b7d338c05",
+   "kilde": "stripe_abonnement",
+   "ref": "RMQ6A6RJ-0005",
+   "betalt_at": "2026-06-02T23:56:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "3242a137-01b1-4014-8bf1-186b7d338c05",
+   "kilde": "stripe_abonnement",
+   "ref": "RMQ6A6RJ-0006",
+   "betalt_at": "2026-07-02T23:56:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "3242a137-01b1-4014-8bf1-186b7d338c05",
+   "kilde": "stripe_abonnement",
+   "ref": "RMQ6A6RJ-0007",
+   "betalt_at": "2026-08-02T23:55:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "3242a137-01b1-4014-8bf1-186b7d338c05",
+   "kilde": "stripe_abonnement",
+   "ref": "RMQ6A6RJ-0008",
+   "betalt_at": "2026-09-02T23:56:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "1c54625a-4a34-4d66-a8a6-4242a96b3d1d",
+   "kilde": "stripe_abonnement",
+   "ref": "LTAEQBDJ-0001",
+   "betalt_at": "2026-02-26T06:41:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "1c54625a-4a34-4d66-a8a6-4242a96b3d1d",
+   "kilde": "stripe_abonnement",
+   "ref": "LTAEQBDJ-0002",
+   "betalt_at": "2026-03-26T07:41:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "1c54625a-4a34-4d66-a8a6-4242a96b3d1d",
+   "kilde": "stripe_abonnement",
+   "ref": "LTAEQBDJ-0003",
+   "betalt_at": "2026-04-26T07:42:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "1c54625a-4a34-4d66-a8a6-4242a96b3d1d",
+   "kilde": "stripe_abonnement",
+   "ref": "LTAEQBDJ-0004",
+   "betalt_at": "2026-06-01T07:42:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "1c54625a-4a34-4d66-a8a6-4242a96b3d1d",
+   "kilde": "stripe_abonnement",
+   "ref": "LTAEQBDJ-0005",
+   "betalt_at": "2026-06-26T07:42:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "1c54625a-4a34-4d66-a8a6-4242a96b3d1d",
+   "kilde": "stripe_abonnement",
+   "ref": "LTAEQBDJ-0006",
+   "betalt_at": "2026-07-26T07:42:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "1c54625a-4a34-4d66-a8a6-4242a96b3d1d",
+   "kilde": "stripe_abonnement",
+   "ref": "LTAEQBDJ-0007",
+   "betalt_at": "2026-08-26T07:41:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "6ab77507-d3f3-4980-a699-6d23d1148fe4",
+   "kilde": "stripe_abonnement",
+   "ref": "FLZAOVZB-0001",
+   "betalt_at": "2026-01-29T13:42:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "6ab77507-d3f3-4980-a699-6d23d1148fe4",
+   "kilde": "stripe_abonnement",
+   "ref": "FLZAOVZB-0002",
+   "betalt_at": "2026-02-28T14:46:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "6ab77507-d3f3-4980-a699-6d23d1148fe4",
+   "kilde": "stripe_abonnement",
+   "ref": "FLZAOVZB-0003",
+   "betalt_at": "2026-03-29T14:42:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "6ab77507-d3f3-4980-a699-6d23d1148fe4",
+   "kilde": "stripe_abonnement",
+   "ref": "FLZAOVZB-0004",
+   "betalt_at": "2026-04-29T14:42:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "6ab77507-d3f3-4980-a699-6d23d1148fe4",
+   "kilde": "stripe_abonnement",
+   "ref": "FLZAOVZB-0005",
+   "betalt_at": "2026-05-29T14:41:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "6ab77507-d3f3-4980-a699-6d23d1148fe4",
+   "kilde": "stripe_abonnement",
+   "ref": "FLZAOVZB-0006",
+   "betalt_at": "2026-06-29T14:41:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "6ab77507-d3f3-4980-a699-6d23d1148fe4",
+   "kilde": "stripe_abonnement",
+   "ref": "FLZAOVZB-0007",
+   "betalt_at": "2026-07-29T14:42:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "6ab77507-d3f3-4980-a699-6d23d1148fe4",
+   "kilde": "stripe_abonnement",
+   "ref": "FLZAOVZB-0008",
+   "betalt_at": "2026-08-29T14:42:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "f6b0a166-ca6c-4b3e-9194-e521718d2e06",
+   "kilde": "stripe_abonnement",
+   "ref": "UVXL7LPI-0001",
+   "betalt_at": "2026-04-29T11:31:00+00:00",
+   "beloeb_oere": 546875,
+   "eks_moms_oere": 437500
+  },
+  {
+   "company_id": "f6b0a166-ca6c-4b3e-9194-e521718d2e06",
+   "kilde": "stripe_abonnement",
+   "ref": "UVXL7LPI-0002",
+   "betalt_at": "2026-05-31T06:31:00+00:00",
+   "beloeb_oere": 546875,
+   "eks_moms_oere": 437500
+  },
+  {
+   "company_id": "f6b0a166-ca6c-4b3e-9194-e521718d2e06",
+   "kilde": "stripe_abonnement",
+   "ref": "UVXL7LPI-0004",
+   "betalt_at": "2026-08-10T08:33:00+00:00",
+   "beloeb_oere": 546875,
+   "eks_moms_oere": 437500
+  },
+  {
+   "company_id": "f6b0a166-ca6c-4b3e-9194-e521718d2e06",
+   "kilde": "stripe_abonnement",
+   "ref": "UVXL7LPI-0005",
+   "betalt_at": "2026-09-10T09:32:00+00:00",
+   "beloeb_oere": 546875,
+   "eks_moms_oere": 437500
+  },
+  {
+   "company_id": "6971b6d7-1c25-4733-b662-533b4056cde1",
+   "kilde": "stripe_engang",
+   "ref": "D9VAUPRB-0001",
+   "betalt_at": "2025-08-20T10:00:00+00:00",
+   "beloeb_oere": 5000000,
+   "eks_moms_oere": 4000000
+  },
+  {
+   "company_id": "86d4a4fa-8a43-4c65-ad0e-01f0d53ffbfd",
+   "kilde": "stripe_engang",
+   "ref": "3QYQAGOY-0001",
+   "betalt_at": "2026-01-21T10:00:00+00:00",
+   "beloeb_oere": 5000000,
+   "eks_moms_oere": 4000000
+  },
+  {
+   "company_id": "48c09162-decd-4b77-bc8d-305e5f8cf5d3",
+   "kilde": "stripe_engang",
+   "ref": "487EWVLL-0002",
+   "betalt_at": "2026-05-11T10:00:00+00:00",
+   "beloeb_oere": 6250000,
+   "eks_moms_oere": 5000000
+  },
+  {
+   "company_id": "3a429199-ed85-460d-8c85-9df70252136a",
+   "kilde": "stripe_engang",
+   "ref": "7WMYOQJD-0001",
+   "betalt_at": "2026-06-26T10:00:00+00:00",
+   "beloeb_oere": 1875000,
+   "eks_moms_oere": 1500000
+  },
+  {
+   "company_id": "6971b6d7-1c25-4733-b662-533b4056cde1",
+   "kilde": "e-conomic",
+   "ref": "138",
+   "betalt_at": "2026-08-20T10:00:00+00:00",
+   "beloeb_oere": 2500000,
+   "eks_moms_oere": 2000000
+  },
+  {
+   "company_id": "3a429199-ed85-460d-8c85-9df70252136a",
+   "kilde": "e-conomic",
+   "ref": "112",
+   "betalt_at": "2025-06-16T10:00:00+00:00",
+   "beloeb_oere": 5000000,
+   "eks_moms_oere": 4000000
+  },
+  {
+   "company_id": "25a801c3-062b-4c97-ba2b-8319a66ec0a9",
+   "kilde": "e-conomic",
+   "ref": "122",
+   "betalt_at": "2026-02-25T10:00:00+00:00",
+   "beloeb_oere": 5000000,
+   "eks_moms_oere": 4000000
+  },
+  {
+   "company_id": "c468fd17-9408-4dbe-b223-3240ddfbbe37",
+   "kilde": "e-conomic",
+   "ref": "135",
+   "betalt_at": "2026-06-11T10:00:00+00:00",
+   "beloeb_oere": 6250000,
+   "eks_moms_oere": 5000000
+  },
+  {
+   "company_id": "183f082e-5090-41e1-995b-371e72318d73",
+   "kilde": "e-conomic",
+   "ref": "125",
+   "betalt_at": "2026-03-03T10:00:00+00:00",
+   "beloeb_oere": 4376250,
+   "eks_moms_oere": 3501000
+  },
+  {
+   "company_id": "17ce0b34-b6c4-43fc-8ffd-d29ceda19364",
+   "kilde": "e-conomic",
+   "ref": "130",
+   "betalt_at": "2026-05-12T10:00:00+00:00",
+   "beloeb_oere": 6250000,
+   "eks_moms_oere": 5000000
+  },
+  {
+   "company_id": "a4481db0-1cbc-4f2f-801e-29d5693da08d",
+   "kilde": "e-conomic",
+   "ref": "140",
+   "betalt_at": "2026-08-31T10:00:00+00:00",
+   "beloeb_oere": 2500000,
+   "eks_moms_oere": 2000000
+  },
+  {
+   "company_id": "f7bde263-c9f3-4687-bb32-de345bf370dc",
+   "kilde": "e-conomic",
+   "ref": "139",
+   "betalt_at": "2026-08-25T10:00:00+00:00",
+   "beloeb_oere": 2500000,
+   "eks_moms_oere": 2000000
+  },
+  {
+   "company_id": "daf913ac-d71a-4897-9f67-08c019990248",
+   "kilde": "e-conomic",
+   "ref": "110",
+   "betalt_at": "2025-04-23T10:00:00+00:00",
+   "beloeb_oere": 1250000,
+   "eks_moms_oere": 1000000
+  },
+  {
+   "company_id": "382fd787-3141-45c7-8eea-297b7b947fe0",
+   "kilde": "stripe_abonnement",
+   "ref": "TBR-0004",
+   "betalt_at": "2026-09-13T08:35:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  },
+  {
+   "company_id": "bb507129-ecd1-4e92-b124-43f895417d3f",
+   "kilde": "stripe_abonnement",
+   "ref": "TBR-0006",
+   "betalt_at": "2026-09-15T10:00:00+00:00",
+   "beloeb_oere": 546875,
+   "eks_moms_oere": 437500
+  },
+  {
+   "company_id": "5d7fb0a3-7ffa-467f-ad24-b3145961a0a6",
+   "kilde": "stripe_abonnement",
+   "ref": "TBR-0007",
+   "betalt_at": "2026-09-16T10:00:00+00:00",
+   "beloeb_oere": 437500,
+   "eks_moms_oere": 350000
+  }
+ ]
+}
