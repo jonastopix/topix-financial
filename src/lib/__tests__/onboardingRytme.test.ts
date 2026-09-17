@@ -151,7 +151,7 @@ describe("teksterne — systemets stemme", () => {
 
   it("A: tjeklistens punkter i tjeklistens rækkefølge, med og uden video", () => {
     const tjekliste = byggTjekliste({
-      har_velkomstvideo: true, velkomstvideo_set_at: null, ask_me_about: null, website: null, industry_label: null,
+      har_velkomstvideo: true, velkomstvideo_set_at: null, ask_me_about: null, avatar_url: null, website: null, industry_label: null,
       cvr_number: null, antal_rapporter: 0, antal_godkendte: 0, antal_udfyldte_handouts: 0, last_member_message_at: null,
       // Præsentationen (11/9, kort 60): et nyt fuldt medlem kan oprette tråde og har ikke præsenteret sig.
       kan_oprette_traad: true, har_praesentation: false,
@@ -187,7 +187,7 @@ describe("teksterne — systemets stemme", () => {
 
   it("A: mailen og tjeklistens sidste punkt («Skriv til din rådgiver» — 6 uden video, 7 med) siger det samme om hvem der tager initiativet", () => {
     const tjekliste = byggTjekliste({
-      har_velkomstvideo: false, velkomstvideo_set_at: null, ask_me_about: null, website: null, industry_label: null,
+      har_velkomstvideo: false, velkomstvideo_set_at: null, ask_me_about: null, avatar_url: null, website: null, industry_label: null,
       cvr_number: null, antal_rapporter: 0, antal_godkendte: 0, antal_udfyldte_handouts: 0, last_member_message_at: null,
       kan_oprette_traad: true, har_praesentation: false,
     });

@@ -33,7 +33,7 @@
  */
 
 import { uddrag } from "./uddrag";
-import { profilUdfyldt } from "./profilUdfyldt";
+import { profilHarTekst } from "./profilUdfyldt";
 
 /** Det sporet læser af en MemberProfile — et snit, så testene kan bygge rækker uden hele typen. */
 export interface SporMedlem {
@@ -60,9 +60,11 @@ export interface MedlemsSpor<T extends SporMedlem> {
 export const TEASER_MAKS_TEGN = 80;
 
 /** Har medlemmet sagt noget om sig selv — ask_me_about er det bærende felt.
-    Samme dom som tjeklisten, forsiden og profilsiden (profilUdfyldt.ts, 9/9). */
+    Teksten alene (profilUdfyldt.profilHarTekst): sporet spørger «hvem kan man
+    SPØRGE», ikke «er profilen færdig» — fotoet (17/9, tjeklistens krav)
+    ændrer ikke rækkefølgen her. */
 export function harProfiltekst(m: Pick<SporMedlem, "ask_me_about">): boolean {
-  return profilUdfyldt(m);
+  return profilHarTekst(m);
 }
 
 const sammenlignNavn = (a: SporMedlem, b: SporMedlem): number =>

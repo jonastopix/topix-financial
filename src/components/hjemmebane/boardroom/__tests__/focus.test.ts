@@ -350,6 +350,8 @@ const tjeklisteAltGjort = (overrides: Partial<TjeklisteInput> = {}): TjeklisteIn
   kan_oprette_traad: true,
   har_praesentation: true,
   ask_me_about: "Likviditet",
+  // 17/9 (Jonas «C», forside PR 4b): fotoet er en del af «Din profil» — «alt gjort» har et.
+  avatar_url: "https://x/avatars/u/avatar?v=1",
   website: "https://firma.dk",
   industry_label: "Håndværk",
   cvr_number: "12345678",
@@ -457,7 +459,8 @@ describe("slot (0) — tjeklisten som fokuskortets kilde", () => {
     expect(items[0]).toMatchObject({
       key: "tjekliste:profil",
       title: "Din profil",
-      description: "Hvad de andre kan spørge dig om.",
+      // RETTET MED VILJE 17/9 (Jonas «C»): før "Hvad de andre kan spørge dig om." — fotoet er nu en del af punktet.
+      description: "Et foto, og hvad de andre kan spørge dig om.",
       ctaHref: "/settings?fane=profil",
       ctaLabel: "Gør det nu",
     });
@@ -474,6 +477,7 @@ describe("slot (0) — tjeklisten som fokuskortets kilde", () => {
       kan_oprette_traad: true,
       har_praesentation: false,
       ask_me_about: null,
+      avatar_url: null,
       website: null,
       industry_label: null,
       cvr_number: null,
