@@ -449,6 +449,36 @@ export type Database = {
         }
         Relationships: []
       }
+      backfill_log_kanoniske_noegler_20260918: {
+        Row: {
+          company_id: string
+          fact_id: string
+          koert_at: string
+          noegle: string
+          period_key: string
+          source_report_id: string
+          vaerdi: number
+        }
+        Insert: {
+          company_id: string
+          fact_id: string
+          koert_at?: string
+          noegle: string
+          period_key: string
+          source_report_id: string
+          vaerdi: number
+        }
+        Update: {
+          company_id?: string
+          fact_id?: string
+          koert_at?: string
+          noegle?: string
+          period_key?: string
+          source_report_id?: string
+          vaerdi?: number
+        }
+        Relationships: []
+      }
       budget_targets: {
         Row: {
           budget_amount: number
@@ -2293,6 +2323,33 @@ export type Database = {
           kpi_key?: string
           source_label?: string
           updated_at?: string
+        }
+        Relationships: []
+      }
+      kanoniske_noegler: {
+        Row: {
+          created_at: string
+          dansk_noegle: string | null
+          danske_aliaser: string[]
+          gruppe: string
+          label: string
+          noegle: string
+        }
+        Insert: {
+          created_at?: string
+          dansk_noegle?: string | null
+          danske_aliaser?: string[]
+          gruppe: string
+          label: string
+          noegle: string
+        }
+        Update: {
+          created_at?: string
+          dansk_noegle?: string | null
+          danske_aliaser?: string[]
+          gruppe?: string
+          label?: string
+          noegle?: string
         }
         Relationships: []
       }
