@@ -70,7 +70,11 @@ describe("en URL uden version vises uændret (de gamle skal ikke migreres)", () 
 });
 
 describe("KILDEVÆRN: versionen ligger i den gemte URL, ikke i state", () => {
-  const konto = readFileSync("src/components/hjemmebane/konto/KontoView.tsx", "utf8");
+  // RETTET MED VILJE (forside PR 4b, 17/9): avatar-uploadet er flyttet fra KontoView
+  // til den delte ProfilFotoFelt (bruges af /konto OG /settings?fane=profil).
+  // Før: readFileSync("src/components/hjemmebane/konto/KontoView.tsx", "utf8") —
+  // samme fire forventninger, nu mod den ene skriver.
+  const konto = readFileSync("src/components/hjemmebane/ProfilFotoFelt.tsx", "utf8");
   const indstillinger = readFileSync("src/components/hjemmebane/indstillinger/IndstillingerView.tsx", "utf8");
   const lib = readFileSync("src/lib/delingsbilleder.ts", "utf8");
 
@@ -84,7 +88,7 @@ describe("KILDEVÆRN: versionen ligger i den gemte URL, ikke i state", () => {
   });
 
   it("ingen ?t=${Date.now()} i state længere — den gemte streng bærer versionen", () => {
-    for (const [navn, kilde] of [["KontoView", konto], ["IndstillingerView", indstillinger], ["delingsbilleder", lib]] as const) {
+    for (const [navn, kilde] of [["ProfilFotoFelt", konto], ["IndstillingerView", indstillinger], ["delingsbilleder", lib]] as const) {
       expect(kilde, navn).not.toContain("?t=${Date.now()}");
     }
     expect(konto).toContain("setAvatarUrl(renUrl)");

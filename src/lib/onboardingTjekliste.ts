@@ -67,7 +67,7 @@
  * «N af 5». Fladen viser heller ikke overlejringen. Med video: seks.
  */
 
-import { PROFIL_MANGLER_TEKST, PROFIL_STI, profilMangler as profilManglerDom } from "./hjemmebane/profilUdfyldt";
+import { PROFIL_MANGLER_FOTO_TEKST, PROFIL_MANGLER_TEKST, PROFIL_STI, profilMangler as profilManglerDom } from "./hjemmebane/profilUdfyldt";
 import { PRAESENTATION_STI } from "./hjemmebane/praesentation";
 import { afsluttedeMaanederTekst, erMaanedAfsluttet } from "./maanedsnoegle";
 
@@ -112,10 +112,16 @@ export interface TjeklisteInput {
    * member_profiles.ask_me_about — profilens BÆRENDE felt («Det kan du
    * spørge mig om», migration 20260810200000). Rækken findes ikke før
    * medlemmet gemmer første gang; kalderen sender null når den mangler.
-   * Billedet (profiles.avatar_url) indgik indtil 9/9 — det bor nu på /konto
-   * (#757) og er ikke en del af punktet: dommen er profilUdfyldt.ts.
+   * Billedet (profiles.avatar_url) indgik indtil 9/9, blev taget ud (bor på
+   * /konto, #757) — og er FRA 17/9 IGEN en del af punktet (Jonas «C»,
+   * forside PR 4b): dommen er profilUdfyldt.ts (tekst OG foto).
    */
   ask_me_about: string | null;
+  /**
+   * profiles.avatar_url — self-only RLS, samme opslag som velkomstvideo_set_at.
+   * Null/tom = intet foto → punktet mangler «et foto» (17/9, Jonas «C»).
+   */
+  avatar_url: string | null;
   /**
    * companies.website, industry_label, cvr_number — de tre platformen
    * faktisk bruger. Branchen er nøgle til kpi_benchmarks: uden den er
@@ -232,6 +238,7 @@ export const TJEKLISTE_STIER: Readonly<Record<TjeklistePunktId, string>> = {
 /** Teksterne for det der kan mangle — eksporteret så fladen og testen bruger samme ord. */
 export const MANGLER_TEKST = {
   ask_me_about: PROFIL_MANGLER_TEKST,
+  foto: PROFIL_MANGLER_FOTO_TEKST,
   website: "virksomhedens website",
   branche: "branchen",
   cvr: "CVR-nummeret",
@@ -250,13 +257,12 @@ export function byggTjekliste(input: TjeklisteInput, nu: Date = new Date()): Tje
   // besøg på forsiden og bruges bevidst ikke.
   const velkomstGjort = input.velkomstvideo_set_at !== null;
 
-  // PROFIL — ÉT felt: ask_me_about (dommen i profilUdfyldt.ts, 9/9 — målt
-  // nul af 25; gamle medlemmer skal udfylde en NY funktion, så ét felt der
-  // bliver udfyldt slår fire tomme). ask_me_about er valgt frem for
-  // full_name, fordi full_name ALTID findes (sættes af handle_new_user ved
-  // signup, med fallback til mail-præfikset) og derfor ikke siger om
-  // medlemmet har gjort noget. Samme dom som forsidens fokusmotor,
-  // profilsiden og Community.
+  // PROFIL — TO felter (17/9, Jonas «C» — omgør 9/9's «ét felt», se
+  // profilUdfyldt.ts' filhoved med begge citater): ask_me_about OG
+  // avatar_url. ask_me_about er stadig valgt frem for full_name, fordi
+  // full_name ALTID findes (handle_new_user) og ikke siger om medlemmet har
+  // gjort noget. Fotoet: kun 6 af 30 har et (prod 17/9 13:01); 24 får
+  // punktet tilbage. Samme dom som forsidens fokusmotor.
   const profilMangler = profilManglerDom(input);
 
   // VIRKSOMHED — website OG branche OG CVR. Tre felter, ikke alle:
@@ -320,7 +326,7 @@ export function byggTjekliste(input: TjeklisteInput, nu: Date = new Date()): Tje
     profil: {
       id: "profil",
       titel: "Din profil",
-      beskrivelse: "Hvad de andre kan spørge dig om.",
+      beskrivelse: "Et foto, og hvad de andre kan spørge dig om.",
       gjort: profilMangler.length === 0,
       sti: TJEKLISTE_STIER.profil,
       mangler: profilMangler,

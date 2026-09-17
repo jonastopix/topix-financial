@@ -1,6 +1,10 @@
 import * as React from "react";
 import { forwardRef, useImperativeHandle, useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useRaadgivere } from "@/hooks/useRaadgivere";
+import { INGEN_RAADGIVERE } from "@/lib/hjemmebane/ansigter";
+import { tilUdkast, validerVaerter, type VaertUdkast } from "@/lib/hjemmebane/vaerter";
+import { listVaerterForEvents, saveVaerter } from "@/lib/hjemmebane/vaerterApi";
 import {
   type ContentItem,
   type EventRow,
@@ -10,6 +14,7 @@ import {
   updateEvent,
 } from "@/lib/hjemmebane/adminContentApi";
 import { HbField, HbInput, HbSelect, HbTextarea } from "../HbField";
+import { VaerterFelt } from "./VaerterFelt";
 import {
   EditorBar,
   EditorShell,
@@ -45,10 +50,27 @@ export const EventEditor = forwardRef<EditorHandle, EventEditorProps>(
     const [error, setError] = useState<string | null>(null);
 
     const form = { ...event, ...draft } as EventRow;
-    const dirty = Object.keys(draft).length > 0;
+    // VÆRTER (PR 4b): egen tabel (event_vaerter), eget udkast — null = urørt
+    // (det gemte vises). Gemmes SAMMEN med eventet i persist/publicér.
+    const vaerterQuery = useQuery({ queryKey: ["admin-events", "vaerter", event.id], queryFn: () => listVaerterForEvents([event.id]) });
+    const raadgivereQuery = useRaadgivere();
+    const [vaerterDraft, setVaerterDraft] = useState<VaertUdkast[] | null>(null);
+    const vaerter: VaertUdkast[] = vaerterDraft ?? (vaerterQuery.data ?? []).map(tilUdkast);
+    const dirty = Object.keys(draft).length > 0 || vaerterDraft !== null;
 
+    const gemVaerter = async () => {
+      if (!vaerterDraft) return;
+      await saveVaerter(event.id, vaerterDraft);
+      setVaerterDraft(null);
+      void queryClient.invalidateQueries({ queryKey: ["admin-events", "vaerter", event.id] });
+      void queryClient.invalidateQueries({ queryKey: ["events", "vaerter"] });
+    };
     const mutation = useMutation({
-      mutationFn: (patch: Draft) => updateEvent(event.id, patch),
+      mutationFn: async (patch: Draft) => {
+        const row = await updateEvent(event.id, patch);
+        await gemVaerter();
+        return row;
+      },
       onSuccess: () => {
         void queryClient.invalidateQueries({ queryKey: ["admin-events"] });
         setSavedAt(new Date());
@@ -66,6 +88,7 @@ export const EventEditor = forwardRef<EditorHandle, EventEditorProps>(
         (!next.title.trim() && "Titel mangler") ||
         (!next.starts_at && "Starttidspunkt mangler") ||
         (next.meet_url && !/^https:\/\/.+/.test(next.meet_url) && "Meet-linket skal være https://") ||
+        (vaerterDraft && validerVaerter(vaerterDraft)) ||
         null;
       if (problem) {
         setError(problem);
@@ -82,7 +105,8 @@ export const EventEditor = forwardRef<EditorHandle, EventEditorProps>(
     // sendte intet.
     const publishMutation = useMutation({
       mutationFn: async () => {
-        if (dirty) await updateEvent(event.id, draft);
+        if (Object.keys(draft).length > 0) await updateEvent(event.id, draft);
+        await gemVaerter();
         return publishEvent(event.id);
       },
       onSuccess: () => {
@@ -100,6 +124,7 @@ export const EventEditor = forwardRef<EditorHandle, EventEditorProps>(
         (!next.title.trim() && "Titel mangler") ||
         (!next.starts_at && "Starttidspunkt mangler") ||
         (next.meet_url && !/^https:\/\/.+/.test(next.meet_url) && "Meet-linket skal være https://") ||
+        (vaerterDraft && validerVaerter(vaerterDraft)) ||
         null;
       if (problem) {
         setError(problem);
@@ -270,6 +295,8 @@ export const EventEditor = forwardRef<EditorHandle, EventEditorProps>(
             spellCheck={false}
           />
         </HbField>
+
+        <VaerterFelt eventId={event.id} vaerter={vaerter} onChange={setVaerterDraft} raadgivere={raadgivereQuery.data ?? INGEN_RAADGIVERE} />
 
         <HbField
           label="Optagelse"

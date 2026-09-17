@@ -1,18 +1,18 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { Loader2, LogOut, Trash2, Upload } from "lucide-react";
+import { Loader2, LogOut } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
-import { medVersion } from "@/lib/billedVersion";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import { getPasswordScore } from "@/components/PasswordStrengthIndicator";
-import { initialer, loginMetoder, styrkeOrd, tjekAdgangskode, validerNavn } from "@/lib/konto";
+import { loginMetoder, styrkeOrd, tjekAdgangskode, validerNavn } from "@/lib/konto";
 import { HbButton } from "../HbButton";
 import { HbCard } from "../HbCard";
 import { HbSection } from "../HbSection";
 import { HbTag } from "../HbTag";
 import { HbField, HbInput } from "../admin/HbField";
+import { ProfilFotoFelt } from "../ProfilFotoFelt";
 
 /**
  * /konto — KONTOEN i Hjemmebane (Jonas 9/9: «Indstillinger er også gammelt
@@ -56,9 +56,6 @@ export const KontoView = () => {
   // Navn + billede
   const [navn, setNavn] = useState("");
   const [gemmerNavn, setGemmerNavn] = useState(false);
-  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
-  const [uploader, setUploader] = useState(false);
-  const filRef = useRef<HTMLInputElement>(null);
   // Adgangskode
   const [nuvaerende, setNuvaerende] = useState("");
   const [ny, setNy] = useState("");
@@ -68,7 +65,6 @@ export const KontoView = () => {
   useEffect(() => {
     if (profile) {
       setNavn(profile.full_name || "");
-      setAvatarUrl(profile.avatar_url || null);
     }
   }, [profile]);
 
@@ -88,37 +84,7 @@ export const KontoView = () => {
     setGemmerNavn(false);
   };
 
-  // Samme bucket, sti og profiles-skrivning som Settings.handleAvatarUpload (:249-297).
-  const uploadBillede = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const fil = e.target.files?.[0];
-    if (!fil || !user) return;
-    if (!fil.type.startsWith("image/")) { toast.error("Vælg en billedfil"); return; }
-    if (fil.size > 2 * 1024 * 1024) { toast.error("Billedet må højst være 2 MB"); return; }
-    setUploader(true);
-    const sti = `${user.id}/avatar`;
-    const { error: upFejl } = await supabase.storage.from("avatars").upload(sti, fil, { upsert: true, contentType: fil.type });
-    if (upFejl) { toast.error("Billedet kunne ikke uploades"); setUploader(false); return; }
-    // Versionen ligger i den GEMTE URL (billedVersion.ts, 14/9): samme sti
-    // giver samme public-URL, så uden version så ingen visning ændringen.
-    // Ingen ?t= i state længere — den gemte streng bærer versionen for alle.
-    const renUrl = medVersion(supabase.storage.from("avatars").getPublicUrl(sti).data.publicUrl);
-    const { error: gemFejl } = await supabase.from("profiles").update({ avatar_url: renUrl }).eq("user_id", user.id);
-    if (gemFejl) toast.error("Billedet blev ikke gemt på profilen");
-    else { setAvatarUrl(renUrl); await refreshProfile(); toast.success("Billede opdateret"); }
-    setUploader(false);
-    if (filRef.current) filRef.current.value = "";
-  };
-
-  const fjernBillede = async () => {
-    if (!user) return;
-    setUploader(true);
-    const { error: sletFejl } = await supabase.storage.from("avatars").remove([`${user.id}/avatar`]);
-    if (sletFejl) { toast.error("Billedet kunne ikke fjernes"); setUploader(false); return; }
-    const { error } = await supabase.from("profiles").update({ avatar_url: null }).eq("user_id", user.id);
-    if (error) toast.error("Profilen blev ikke opdateret");
-    else { setAvatarUrl(null); await refreshProfile(); toast.success("Billede fjernet"); }
-    setUploader(false);
-  };
+  // Billedet (PR 4b): ProfilFotoFelt — samme bucket/sti/skrivning, ét sted (også i /settings?fane=profil).
 
   // Samme to auth-kald som Settings.handleChangePassword (:395-435).
   const score = getPasswordScore(ny);
@@ -159,26 +125,7 @@ export const KontoView = () => {
       <HbSection eyebrow="Dig" hairline className="mt-10 max-w-3xl">
         <div className="grid gap-4 md:grid-cols-2">
           <Kort titel="Navn og billede">
-            <div className="flex items-center gap-4">
-              <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-full border border-hb-line bg-hb-sage">
-                {avatarUrl ? <img src={avatarUrl} alt="Profilbillede" className="h-full w-full object-cover" /> : <span className="text-lg font-medium text-hb-ink">{initialer(navn || user?.email || "")}</span>}
-              </div>
-              <div>
-                <input ref={filRef} type="file" accept="image/*" onChange={uploadBillede} className="hidden" />
-                <div className="flex flex-wrap items-center gap-2">
-                  <HbButton type="button" variant="secondary" className="h-9 gap-1.5 px-4 text-sm" onClick={() => filRef.current?.click()} disabled={uploader}>
-                    {uploader ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-                    {avatarUrl ? "Skift billede" : "Upload billede"}
-                  </HbButton>
-                  {avatarUrl && (
-                    <button type="button" onClick={fjernBillede} disabled={uploader} className="inline-flex items-center gap-1 text-sm text-hb-ink-soft underline-offset-4 hover:text-hb-rust hover:underline">
-                      <Trash2 className="h-3.5 w-3.5" /> Fjern
-                    </button>
-                  )}
-                </div>
-                <p className="mt-1 text-xs text-hb-ink-soft">PNG eller JPG, højst 2 MB.</p>
-              </div>
-            </div>
+            <ProfilFotoFelt variant="konto" />
             <div className="mt-5">
               <HbField label="Fuldt navn" htmlFor="konto-navn">
                 <HbInput id="konto-navn" value={navn} onChange={(e) => setNavn(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") gemNavn(); }} autoComplete="name" />

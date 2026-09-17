@@ -16,6 +16,7 @@ const TOM: TjeklisteInput = {
   kan_oprette_traad: true,
   har_praesentation: false,
   ask_me_about: null,
+  avatar_url: null,
   website: null,
   industry_label: null,
   cvr_number: null,
@@ -31,6 +32,7 @@ const FULD: TjeklisteInput = {
   kan_oprette_traad: true,
   har_praesentation: true,
   ask_me_about: "Likviditet og prissætning i håndværk.",
+  avatar_url: "https://x/avatars/u/avatar?v=1",
   website: "https://firma.dk",
   industry_label: "Håndværk",
   cvr_number: "12345678",
@@ -74,7 +76,8 @@ describe("byggTjekliste — yderpunkterne", () => {
 describe("byggTjekliste — hvert punkt for sig: kun det ene felt sat, kun det punkt bliver true", () => {
   const kunEt: { id: TjeklistePunktId; input: Partial<TjeklisteInput> }[] = [
     { id: "velkomst", input: { velkomstvideo_set_at: FULD.velkomstvideo_set_at } },
-    { id: "profil", input: { ask_me_about: FULD.ask_me_about } },
+    // 17/9 (Jonas «C»): profil kræver tekst OG foto — før: { ask_me_about: FULD.ask_me_about }.
+    { id: "profil", input: { ask_me_about: FULD.ask_me_about, avatar_url: FULD.avatar_url } },
     { id: "praesentation", input: { har_praesentation: true } },
     { id: "virksomhed", input: { website: FULD.website, industry_label: FULD.industry_label, cvr_number: FULD.cvr_number } },
     { id: "rapport", input: { antal_rapporter: 1, antal_godkendte: 1 } },
@@ -94,20 +97,37 @@ describe("byggTjekliste — hvert punkt for sig: kun det ene felt sat, kun det p
 });
 
 describe("byggTjekliste — delvist gjort", () => {
-  it("profil: ask_me_about mangler → gjort=false, mangler er præcis det ene — intet om billedet (9/9)", () => {
+  // OMSKREVET MED VILJE 17/9-2026 (forside PR 4b, Jonas ordret «C»): fotoet er et krav.
+  // Før (9/9) lød de to tests:
+  //   it("profil: ask_me_about mangler → gjort=false, mangler er præcis det ene — intet om billedet (9/9)")
+  //     expect(profil.mangler).toEqual([MANGLER_TEKST.ask_me_about]);
+  //     expect(profil.mangler!.join(" ")).not.toMatch(/billede/);
+  //     expect(profil.beskrivelse).toBe("Hvad de andre kan spørge dig om.");
+  //   it("profil: ask_me_about alene er nok — billedet indgår ikke (bor på /konto)")
+  //     byggTjekliste({ ...TOM, ask_me_about: FULD.ask_me_about }) → profil.gjort === true, mangler []
+  it("profil: tekst og foto mangler → gjort=false, mangler nævner begge (teksten først) (17/9)", () => {
     const ud = byggTjekliste(TOM);
     const profil = ud.punkter.find((p) => p.id === "profil")!;
     expect(profil.gjort).toBe(false);
-    expect(profil.mangler).toEqual([MANGLER_TEKST.ask_me_about]);
-    expect(profil.mangler!.join(" ")).not.toMatch(/billede/);
-    expect(profil.beskrivelse).toBe("Hvad de andre kan spørge dig om.");
+    expect(profil.mangler).toEqual([MANGLER_TEKST.ask_me_about, MANGLER_TEKST.foto]);
+    expect(MANGLER_TEKST.foto).toBe("et foto");
+    expect(profil.beskrivelse).toBe("Et foto, og hvad de andre kan spørge dig om.");
   });
 
-  it("profil: ask_me_about alene er nok — billedet indgår ikke (bor på /konto)", () => {
+  it("profil: ask_me_about alene er IKKE nok længere — fotoet mangler (17/9, Jonas «C»)", () => {
     const ud = byggTjekliste({ ...TOM, ask_me_about: FULD.ask_me_about });
     const profil = ud.punkter.find((p) => p.id === "profil")!;
-    expect(profil.gjort).toBe(true);
-    expect(profil.mangler).toEqual([]);
+    expect(profil.gjort).toBe(false);
+    expect(profil.mangler).toEqual([MANGLER_TEKST.foto]);
+  });
+
+  it("profil: fotoet alene er heller ikke nok — teksten mangler; begge sat → gjort", () => {
+    const kunFoto = byggTjekliste({ ...TOM, avatar_url: FULD.avatar_url }).punkter.find((p) => p.id === "profil")!;
+    expect(kunFoto.gjort).toBe(false);
+    expect(kunFoto.mangler).toEqual([MANGLER_TEKST.ask_me_about]);
+    const begge = byggTjekliste({ ...TOM, ask_me_about: FULD.ask_me_about, avatar_url: FULD.avatar_url }).punkter.find((p) => p.id === "profil")!;
+    expect(begge.gjort).toBe(true);
+    expect(begge.mangler).toEqual([]);
   });
 
   it("virksomhed: website og CVR men ikke branche → mangler er præcis branchen", () => {
@@ -132,11 +152,13 @@ describe("byggTjekliste — delvist gjort", () => {
 });
 
 describe("byggTjekliste — tomme strenge og mellemrum tæller ikke som udfyldt", () => {
-  it("profil: ask_me_about som tom streng / mellemrum", () => {
-    const gjort = gjortAf({ ...TOM, ask_me_about: "   " });
+  it("profil: ask_me_about som tom streng / mellemrum (fotoet sat, så kun teksten mangler — før 17/9 uden avatar_url)", () => {
+    const gjort = gjortAf({ ...TOM, ask_me_about: "   ", avatar_url: FULD.avatar_url });
     expect(gjort.profil).toBe(false);
-    const profil = byggTjekliste({ ...TOM, ask_me_about: "   " }).punkter.find((p) => p.id === "profil")!;
+    const profil = byggTjekliste({ ...TOM, ask_me_about: "   ", avatar_url: FULD.avatar_url }).punkter.find((p) => p.id === "profil")!;
     expect(profil.mangler).toEqual([MANGLER_TEKST.ask_me_about]);
+    // et foto på kun mellemrum tæller heller ikke
+    expect(byggTjekliste({ ...FULD, avatar_url: "  " }).punkter.find((p) => p.id === "profil")!.mangler).toEqual([MANGLER_TEKST.foto]);
   });
 
   it("virksomhed: et website på « » er ikke et website", () => {

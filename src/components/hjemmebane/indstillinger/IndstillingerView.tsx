@@ -26,6 +26,7 @@ import { HbCard } from "../HbCard";
 import { HbSection } from "../HbSection";
 import { HbTag } from "../HbTag";
 import { HbField, HbInput, HbSelect, HbTextarea } from "../admin/HbField";
+import { ProfilFotoFelt } from "../ProfilFotoFelt";
 
 /**
  * /settings — INDSTILLINGERNE i Hjemmebane (10/9), konverteret som kontoen
@@ -537,6 +538,8 @@ export const IndstillingerView = () => {
             <p className="text-sm leading-relaxed text-hb-ink-soft">
               Det her ser de andre medlemmer. Branche, by, stiftelsesår og website henter vi fra din virksomhed — tal viser vi aldrig.
             </p>
+            {/* FOTOET FØRST (PR 4b, Jonas 17/9 «C»): 6 af 30 har et — og fotoet er et KRAV for at «Din profil» er færdig (profilUdfyldt.ts: tekst OG foto). */}
+            <ProfilFotoFelt variant="profil" className="mt-5" />
             <div className="mt-5 space-y-5">
               {PROFIL_FELTER.map((f) => {
                 const vaerdi = tekster[f.noegle];

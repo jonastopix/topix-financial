@@ -25,6 +25,9 @@ import { denneUgesFredag, naesteUgesFredag, omEnMaaned, tilDatoStreng } from "@/
 import { forslagMetaLinje, fristTekst } from "@/lib/hjemmebane/aftaler";
 import { afsender, aktiveMedlemmer, INGEN_RAADGIVERE, raadgiverAnsigt, raadgiverOpslag, synligeMedlemmer, type Ansigt } from "@/lib/hjemmebane/ansigter";
 import { listMemberDirectory } from "@/lib/hjemmebane/memberProfile";
+import { vaerterForEvent } from "@/lib/hjemmebane/vaerter";
+import { listVaerterForEvents } from "@/lib/hjemmebane/vaerterApi";
+import { HbVaerter } from "../events/HbVaerter";
 import { afgoerFokusTom, type FokusTom } from "@/lib/hjemmebane/fokusTom";
 import { hentefejlTekst, kildeAf, sektionsfejlTekst } from "@/lib/hjemmebane/hentefejl";
 import { Calendar } from "@/components/ui/calendar";
@@ -1721,13 +1724,13 @@ export const BoardroomView = () => {
     staleTime: 5 * 60_000,
   });
 
-  // Egen netværksprofil (fokus-kilde (i)): mangler ask_me_about?
+  // Egen netværksprofil (fokus-kilde (i)): mangler ask_me_about eller fotoet (17/9)?
   // ADVISOR-GATED via enabled — rådgivere har ikke samme profilrolle, og
   // deres user.id ville ellers slå igennem selv i company-override.
   // Disabled/loading → data undefined → askMeAboutMissing false (ingen
   // flakkende prompt før svaret er der).
   const ownProfileQuery = useQuery({
-    queryKey: ["boardroom", "own-profile-empty", user?.id],
+    queryKey: ["boardroom", "own-profile-empty", user?.id, profile?.avatar_url ?? null],
     queryFn: async () => {
       // KASTER ved fejl (10/9): en fejl må ikke blive «profilen er tom» og et
       // nudge til en der har udfyldt den.
@@ -1737,7 +1740,8 @@ export const BoardroomView = () => {
         .eq("user_id", user!.id)
         .maybeSingle();
       if (error) throw new HentningsFejl("member_profiles", error.message);
-      return !profilUdfyldt(data as unknown as { ask_me_about: string | null } | null); // én dom: profilUdfyldt.ts
+      // Én dom: profilUdfyldt.ts — fra 17/9 (Jonas «C») tekst OG foto; fotoet er useAuth's profil (profiles.avatar_url).
+      return !profilUdfyldt({ ask_me_about: (data as unknown as { ask_me_about: string | null } | null)?.ask_me_about ?? null, avatar_url: profile?.avatar_url ?? null });
     },
     enabled: !!user && !isAdvisor,
     staleTime: 5 * 60_000,
@@ -2014,6 +2018,15 @@ export const BoardroomView = () => {
     staleTime: 5 * 60_000,
   });
   const events = eventsQuery.data ?? [];
+  // VÆRTERNE (PR 4b): event_vaerter for de viste events — én hentning, først
+  // når der er events; rådgivernes navne/portrætter fra samme opslag som
+  // ansigterne (raadgivere). Fejl → ingen værter, eventet står som før.
+  const vaerterQuery = useQuery({
+    queryKey: ["events", "vaerter", events.map((e) => e.id)],
+    queryFn: () => listVaerterForEvents(events.map((e) => e.id)),
+    enabled: events.length > 0,
+    staleTime: 5 * 60_000,
+  });
 
   // ── Community-sektionen: SAMME nøgle OG samme kald som CommunityView
   // (["community","feed"] + hentFeed(30)) — cachen deles begge veje.
@@ -2479,6 +2492,7 @@ export const BoardroomView = () => {
                           .filter(Boolean)
                           .join(" · ")}
                       </p>
+                      <HbVaerter kompakt className="mt-2" vaerter={vaerterForEvent(vaerterQuery.data ?? [], event.id, raadgivere)} />
                     </div>
                   </Link>
                   <EventRegisterAction eventId={event.id} phase={eventMeetPhase(event)} />

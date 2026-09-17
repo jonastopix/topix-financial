@@ -39,6 +39,27 @@
  * flytter ikke profilen; at flytte den ind i Netværket som en del af
  * onboardingen er NÆSTE skridt, og det løser intet hvis nudget ikke virker.
  * Billedet bor på /konto (#757) og er ikke længere en del af punktet.
+ *
+ * ── OMGJORT 17/9-2026 (forside PR 4b): FOTOET ER ET KRAV ──
+ * Beslutningen 9/9 ovenfor sagde ordret: «STRAM IKKE kriteriet tilbage til
+ * fire felter fordi «profilen er jo halvtom» — så får ingen af de 25
+ * nogensinde et flueben, og nudget bliver til støj. Perfektion er fjenden
+ * her.» og «Billedet bor på /konto (#757) og er ikke længere en del af
+ * punktet.»
+ * JONAS 17/9 (ordret: «C») til valget om fotoet: fotoet er et KRAV for alle
+ * for at «Din profil» er færdig i tjeklisten. Grundlaget er analysens §5
+ * («hvor mangler der menneskelige ansigter») og prod 17/9 13:01: kun 6 af
+ * 30 medlemmer har et portræt — fællesskabets kort og avatar-rækken (PR 4)
+ * viser initialer. Konsekvensen er kendt og accepteret: 24 af 30 medlemmer
+ * får «Din profil» tilbage som ugjort, tjeklisten åbner igen for dem, og
+ * forsidens fokuskort skifter tilbage til tjeklisten indtil fotoet er lagt
+ * op (fotoet står nu ØVERST i profil-fanen — ProfilFotoFelt).
+ * DERFOR TO FELTER: «udfyldt» = ask_me_about sat OG avatar_url sat.
+ * profilHarTekst (kun teksten) findes stadig — Community sorterer på den
+ * («hvem kan man SPØRGE» er tekstens spørgsmål, ikke fotoets), og
+ * profilMangler nævner begge dele hver for sig, så tjeklisten siger præcis
+ * hvad der mangler. Én dom stadig: tjeklisten og forsidens fokusmotor
+ * bruger profilUdfyldt; ingen flade regner selv.
  */
 
 /** Query-parameteren Settings læser for at forvælge fanen. */
@@ -57,8 +78,10 @@ export function laesFaneParam(raa: string | null | undefined): SettingsFane {
 /** Dér hvor felterne står. Alle nudges bruger denne — ikke "/settings". */
 export const PROFIL_STI = `/settings?${FANE_PARAM}=profil`;
 
-/** Det ene der kan mangle — samme ord i tjeklisten og testen. */
+/** Teksten der kan mangle — samme ord i tjeklisten og testen. */
 export const PROFIL_MANGLER_TEKST = "hvad man kan spørge dig om";
+/** Fotoet der kan mangle (17/9, Jonas «C») — samme ord i tjeklisten og testen. */
+export const PROFIL_MANGLER_FOTO_TEKST = "et foto";
 
 /** Opfordringen (MemberProfileViews formulering, brugt tre steder). */
 export const PROFIL_OPFORDRING = "Fortæl de andre hvad du er god til";
@@ -67,14 +90,29 @@ export const PROFIL_OPFORDRING_LINK = "udfyld din profil";
 export interface ProfilInput {
   /** member_profiles.ask_me_about — null når rækken ikke findes. */
   ask_me_about: string | null | undefined;
+  /** profiles.avatar_url — null uden foto (17/9: en del af dommen). */
+  avatar_url: string | null | undefined;
 }
 
-/** Udfyldt = ask_me_about er sat. Tomme strenge og mellemrum tæller ikke. */
-export function profilUdfyldt(p: ProfilInput | null | undefined): boolean {
+/** Teksten er sat. Tomme strenge og mellemrum tæller ikke. */
+export function profilHarTekst(p: Pick<ProfilInput, "ask_me_about"> | null | undefined): boolean {
   return (p?.ask_me_about ?? "").trim() !== "";
 }
 
-/** Hvad der mangler for at profilen er udfyldt — tom liste når den er. */
+/** Fotoet er sat (en ikke-tom URL). */
+export function profilHarFoto(p: Pick<ProfilInput, "avatar_url"> | null | undefined): boolean {
+  return (p?.avatar_url ?? "").trim() !== "";
+}
+
+/** Udfyldt = ask_me_about er sat OG avatar_url er sat (17/9, Jonas «C» — før 9/9: kun teksten). */
+export function profilUdfyldt(p: ProfilInput | null | undefined): boolean {
+  return profilHarTekst(p) && profilHarFoto(p);
+}
+
+/** Hvad der mangler for at profilen er udfyldt — teksten først, så fotoet; tom liste når den er. */
 export function profilMangler(p: ProfilInput | null | undefined): string[] {
-  return profilUdfyldt(p) ? [] : [PROFIL_MANGLER_TEKST];
+  const m: string[] = [];
+  if (!profilHarTekst(p)) m.push(PROFIL_MANGLER_TEKST);
+  if (!profilHarFoto(p)) m.push(PROFIL_MANGLER_FOTO_TEKST);
+  return m;
 }

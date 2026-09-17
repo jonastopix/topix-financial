@@ -27,8 +27,10 @@ describe("tjekBilledfil — avatar-uploadens to tjek, ingen ny grænse", () => {
     expect(MAKS_BYTES).toBe(2 * 1024 * 1024);
   });
 
-  it("KILDEVÆRN: grænserne er KontoView's, ordret (image/ og 2 * 1024 * 1024)", () => {
-    const konto = readFileSync("src/components/hjemmebane/konto/KontoView.tsx", "utf8");
+  it("KILDEVÆRN: grænserne er avatar-uploadens (ProfilFotoFelt), ordret (image/ og 2 * 1024 * 1024)", () => {
+    // RETTET MED VILJE (forside PR 4b, 17/9): uploadet bor nu i ProfilFotoFelt (delt af
+    // /konto og profil-fanen). Før: readFileSync("src/components/hjemmebane/konto/KontoView.tsx", "utf8").
+    const konto = readFileSync("src/components/hjemmebane/ProfilFotoFelt.tsx", "utf8");
     expect(konto).toContain('fil.type.startsWith("image/")');
     expect(konto).toContain("fil.size > 2 * 1024 * 1024");
     expect(konto).toContain('"Billedet må højst være 2 MB"');

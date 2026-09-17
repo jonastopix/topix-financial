@@ -74,6 +74,7 @@ const TOM: TjeklisteInput = {
   kan_oprette_traad: true,
   har_praesentation: false,
   ask_me_about: null,
+  avatar_url: null,
   website: null,
   industry_label: null,
   cvr_number: null,

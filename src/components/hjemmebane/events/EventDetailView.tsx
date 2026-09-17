@@ -14,6 +14,12 @@ import {
   type EventParticipant,
 } from "@/lib/hjemmebane/akademiApi";
 import { eventMeetPhase } from "@/lib/hjemmebane/eventPhase";
+import { useRaadgivere } from "@/hooks/useRaadgivere";
+import { INGEN_RAADGIVERE } from "@/lib/hjemmebane/ansigter";
+import { vaerterForEvent } from "@/lib/hjemmebane/vaerter";
+import { listVaerterForEvents } from "@/lib/hjemmebane/vaerterApi";
+import { HbAvatar } from "../HbAvatar";
+import { HbVaerter } from "./HbVaerter";
 import { bygKalenderfil, kalenderfilnavn, kanFoejeTilKalender } from "@/lib/kalenderfil";
 import { HbButton, hbButtonVariants } from "../HbButton";
 import { HbVideoEmbed } from "../akademi/HbVideoEmbed";
@@ -57,20 +63,10 @@ const BackLink = () => (
   </Link>
 );
 
-/** Avatar efter forsidens afsender-portræt (BoardroomView), blot i
-    listestørrelse: samme ramme, samme sage-fallback med initial. */
-const ParticipantAvatar = ({ participant }: { participant: EventParticipant }) =>
-  participant.avatar_url ? (
-    <img
-      src={participant.avatar_url}
-      alt={participant.full_name}
-      className="h-9 w-9 shrink-0 rounded-full border border-hb-line object-cover"
-    />
-  ) : (
-    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-hb-line bg-hb-sage/40 font-editorial text-sm text-hb-ink-soft">
-      {participant.full_name.charAt(0)}
-    </span>
-  );
+/** Deltagerens portræt — husets HbAvatar (PR 4b): samme ramme, initialen i sage, aldrig et tomt billede. */
+const ParticipantAvatar = ({ participant }: { participant: EventParticipant }) => (
+  <HbAvatar navn={participant.full_name} avatarUrl={participant.avatar_url} />
+);
 
 export const EventDetailView = ({ eventId }: { eventId: string }) => {
   const { user } = useAuth();
@@ -110,6 +106,10 @@ export const EventDetailView = ({ eventId }: { eventId: string }) => {
       !!recordingId && !!eventQuery.data && eventMeetPhase(eventQuery.data) === "after",
     staleTime: 60_000,
   });
+  // VÆRTERNE (PR 4b): event_vaerter + rådgiverne (delt nøgle med forsiden).
+  // Står i topblokken FØR de betingede returns (React #310).
+  const vaerterQuery = useQuery({ queryKey: ["events", "vaerter", [eventId]], queryFn: () => listVaerterForEvents([eventId]), staleTime: 5 * 60_000 });
+  const raadgivereQuery = useRaadgivere();
 
   const invalidateRegistrationState = () => {
     queryClient.invalidateQueries({ queryKey: ["event", eventId, "participants"] });
@@ -211,6 +211,8 @@ export const EventDetailView = ({ eventId }: { eventId: string }) => {
           {dateLine} · {timeSpan}
           {event.meet_url ? " · Online" : ""}
         </p>
+        {/* Værterne (PR 4b): rådgivere med portræt og navn, gæster med foto/initial og «Gæstevært». */}
+        <HbVaerter className="mt-5" vaerter={vaerterForEvent(vaerterQuery.data ?? [], eventId, raadgivereQuery.data ?? INGEN_RAADGIVERE)} />
         {/* «Føj til kalender» — kommende og igangværende, aldrig afholdt eller
             aflyst (kanFoejeTilKalender). Evergreen som husets øvrige Hb-
             handlinger («Se original fil»). Filen bærer Meet-linket i både

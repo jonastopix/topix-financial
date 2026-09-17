@@ -495,7 +495,7 @@ export async function clearAcknowledge(userId: string, itemId: string): Promise<
 
 /** Path-konventionen fra baseline §9. Filnavn saneres til slug-venlig form. */
 export function buildAssetPath(
-  kind: "covers" | "templates" | "partners" | "attachments",
+  kind: "covers" | "templates" | "partners" | "attachments" | "vaerter",
   ownerId: string,
   filename: string,
 ): string {
