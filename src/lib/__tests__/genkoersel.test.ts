@@ -5,6 +5,7 @@
 import { describe, expect, it } from "vitest";
 import {
   afgoerGenkoersel,
+  udaekketAf,
   base64AfBytes,
   csvTekstAfBytes,
   erStrandet,
@@ -60,11 +61,49 @@ describe("afgoerGenkoersel — hvad kan genkøres", () => {
     const d = afgoerGenkoersel(strandet({ status: "processed", validation_status: "PASS", needs_manual_entry: false }));
     expect(d).toMatchObject({ kan: false, grund: "ikke_strandet" });
   });
+  // TVUNGET (17/9-2026, udkast-genkoersel-tvunget): rådgiverens ordre på navngivne id'er springer
+  // «har facts» og «ikke strandet» over — og INTET andet.
+  it("tvunget: en rapport med facts genkøres alligevel — grunden siger det", () => {
+    const d = afgoerGenkoersel(strandet({ har_facts: true, tvunget: true }));
+    expect(d).toMatchObject({ kan: true, grund: "ok_tvunget", filtype: "csv" });
+    expect(d.tekst).toContain("rådgiverens udtrykkelige ordre");
+    expect(d.tekst).toContain("godkendes igen");
+  });
+  it("tvunget: en rapport der er læst og i orden (PASS, med facts) genkøres — det er netop de 36 saldobalancer", () => {
+    expect(afgoerGenkoersel(strandet({ file_name: "saldobalance (16).xlsx", status: "processed", validation_status: "PASS", needs_manual_entry: false, har_facts: true, tvunget: true })))
+      .toMatchObject({ kan: true, grund: "ok_tvunget", filtype: "xlsx" });
+  });
+  it("tvunget ændrer IKKE de andre nej'er: slettet, manuel anvendt, under behandling, uden fil, PDF, ukendt filtype", () => {
+    expect(afgoerGenkoersel(strandet({ tvunget: true, deleted_at: "2026-09-01T00:00:00Z", har_facts: true })).grund).toBe("slettet");
+    expect(afgoerGenkoersel(strandet({ tvunget: true, manual_override_status: "applied", har_facts: true })).grund).toBe("manuel_anvendt");
+    expect(afgoerGenkoersel(strandet({ tvunget: true, status: "processing", validation_status: null, needs_manual_entry: false })).grund).toBe("behandles");
+    expect(afgoerGenkoersel(strandet({ tvunget: true, file_path: null, har_facts: true })).grund).toBe("ingen_fil");
+    expect(afgoerGenkoersel(strandet({ tvunget: true, file_name: "x.pdf", har_facts: true })).grund).toBe("pdf_kraever_browser");
+    expect(afgoerGenkoersel(strandet({ tvunget: true, file_name: "tal.numbers", har_facts: true })).grund).toBe("ukendt_filtype");
+  });
+  it("uden tvunget er dommen som før: facts → har_facts, PASS → ikke_strandet, strandet uden facts → ok", () => {
+    expect(afgoerGenkoersel(strandet({ har_facts: true, tvunget: false })).grund).toBe("har_facts");
+    expect(afgoerGenkoersel(strandet({ status: "processed", validation_status: "PASS", needs_manual_entry: false, tvunget: false })).grund).toBe("ikke_strandet");
+    expect(afgoerGenkoersel(strandet({ tvunget: false })).grund).toBe("ok");
+    expect(afgoerGenkoersel(strandet({ tvunget: true })).grund).toBe("ok_tvunget");
+  });
   it("hver grund har en tekst i ord — ingen koder med understreg", () => {
     for (const tekst of Object.values(GENKOERSEL_TEKST)) {
       expect(tekst.length).toBeGreaterThan(10);
       expect(tekst).not.toMatch(/_/);
     }
+  });
+});
+
+describe("udaekketAf — kontrolsummens tal fra quality_signals (til FØR/EFTER-beviset)", () => {
+  it("læser quality_signals.udaekket.udaekket som tal; null når det mangler, er null eller ikke er et tal", () => {
+    expect(udaekketAf({ udaekket: { udaekket: -426000, udaekket_pct_af_omsaetning: -21.2, kilde: "grupper_mod_resultat" } })).toBe(-426000);
+    expect(udaekketAf({ udaekket: { udaekket: 0 } })).toBe(0);
+    expect(udaekketAf({ udaekket: null })).toBeNull();
+    expect(udaekketAf({ needs_manual_entry: true })).toBeNull();
+    expect(udaekketAf(null)).toBeNull();
+    expect(udaekketAf(undefined)).toBeNull();
+    expect(udaekketAf({ udaekket: { udaekket: "12" } })).toBeNull();
   });
 });
 
