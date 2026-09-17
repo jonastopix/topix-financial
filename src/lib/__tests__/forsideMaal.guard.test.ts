@@ -113,7 +113,10 @@ describe("forsideMaal.guard — fase 4: mål uden bevægelse og refleksion med h
   });
   it("selvbevis 2: hentning uden hentAlleSider, uden id på pulse, eller uden felterne i tilDom falder", () => {
     const h = udenKommentarer(laes(DASH));
-    expect(hentningenBaerer(h.replace(".order(\"id\")\n            .range(fra, til),", ".limit(200),"))).toBe(false);
+    // 17/9 (PR 1): conversations/companies/facts/company_members/budget_targets
+    // pagineres nu også med «.order("id") .range(fra, til)» — selvbeviset
+    // rammer derfor milestones-kaldet ved dets eget deadline-order.
+    expect(hentningenBaerer(h.replace('.order("deadline", { ascending: true })\n            .order("id")\n            .range(fra, til),', '.order("deadline", { ascending: true })\n            .limit(200),'))).toBe(false);
     expect(hentningenBaerer(h.replace('.select("id, company_id, period_key, went_well', '.select("company_id, period_key, went_well'))).toBe(false);
     expect(hentningenBaerer(h.replace("maal: maalByCompany.get(c.company_id) ?? [],", ""))).toBe(false);
     // 17/9: en egen længderegel i hentningen falder; manglende periodKey falder.

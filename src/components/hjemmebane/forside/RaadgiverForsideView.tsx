@@ -63,9 +63,10 @@ import { raadgiverHentefejlTekst } from "@/lib/raadgiverHentefejl";
  * LINJERNE (§1, §6): hver linje er virksomheden, grundene med den
  * vigtigste først, og handlingen — og HELE linjen er ét link til
  * /virksomhed/:companyId?grund=<slags>. Ingen knapper pr. grund, ingen
- * «Åbn chat». Parameteren `grund` bærer den vigtigste grunds slags, så
- * virksomhedssiden kan vise «derfor er du her» øverst i blok 1 (§6) —
- * den LÆSER den ikke endnu; kontrakten findes.
+ * «Åbn chat». Parameteren `grund` bærer den vigtigste grunds slags, og
+ * virksomhedssiden LÆSER den (VirksomhedView: laesGrund(searchParams.get
+ * ("grund")) → ankrene section-chat/-tal/-aftale/-milestones/-refleksion)
+ * som «derfor er du her» øverst i blok 1 (§6).
  *
  * Tilstande og pukler er deres egen samlede linje (§3) og linker til
  * /virksomheder (§5: tallene er links til listen). Én virksomhed i en
@@ -73,8 +74,10 @@ import { raadgiverHentefejlTekst } from "@/lib/raadgiverHentefejl";
  *
  * TOPPEN (§10): «N ting kræver dig i dag», ellers «Der er ikke noget der
  * haster i dag.» UNDER STREGEN (§5): tal, ikke lister. FLAGET (§5): når
- * dommen siger usædvanligt mange, står det her. MÅLINGEN nederst bliver
- * stående til tærsklen (TAERSKEL) er justeret efter drift (§12).
+ * dommen siger usædvanligt mange, står det her. Målingslinjen («Måling:
+ * tærskel 70 · …», 4/9) er taget af fladen 17/9 (PR 1): tærsklen blev
+ * aldrig justeret, og tallene måles i SQL når det skal ske — ikke som
+ * debug-tekst til rådgiveren.
  *
  * TO KOLONNER (Jonas 8/9): på desktop står dommen og jeres to-do-liste i
  * venstre kolonne (to tredjedele) — det man læser først og handler på —
@@ -296,11 +299,11 @@ export const RaadgiverForsideView = () => {
         <p className="mt-3 text-[15px] text-hb-ink">
           {dom.antalOpgaver === 0
             ? "Der er ikke noget der haster i dag."
-            : `${dom.antalOpgaver} ${dom.antalOpgaver === 1 ? "ting kræver" : "ting kræver"} dig i dag.`}
+            : `${dom.antalOpgaver} ting kræver dig i dag.`}
         </p>
         {dom.usaedvanligtMange && (
           <p className="mt-2 text-sm text-hb-rust">
-            Usædvanligt mange kræver noget i dag — så mange linjer betyder at tærsklen er forkert, ikke at dagen er (§5).
+            Usædvanligt mange kræver noget i dag — så mange linjer betyder at tærsklen er forkert, ikke at dagen er.
           </p>
         )}
       </section>
@@ -551,11 +554,6 @@ export const RaadgiverForsideView = () => {
             <Link to="/virksomheder" className="text-hb-evergreen underline-offset-4 hover:underline">Se virksomhederne</Link>, hvis du alligevel vil kigge.
           </p>
         )}
-        {/* Måling (§12): tærsklen justeres efter drift. Tallene bliver stående
-            til det er sket. Målt 4/9 kl. 13:04: 7 linjer mod køernes 38 rækker. */}
-        <p className="pt-2 text-xs">
-          Måling: tærskel {TAERSKEL} · {dom.antalOpgaver} {dom.antalOpgaver === 1 ? "linje" : "linjer"} over stregen · {under.antalTilstandeSamlet} samlet i tilstande · {antalUnder} under tærsklen.
-        </p>
         </aside>
       </div>
     </div>
