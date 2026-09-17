@@ -78,10 +78,12 @@ export const raadgiverenLytterKun = (k: string): boolean =>
   k.includes('if (s === "SUBSCRIBED") setStatus("live");') &&
   k.includes('else if (s === "CHANNEL_ERROR" || s === "TIMED_OUT" || s === "CLOSED") setStatus("fejl");');
 
-/** Blokken i fladen: fra kanal-fejlgrenen til Pulsen. */
+/** Blokken i fladen: fra kanal-fejlgrenen til Ubesvarede opslag.
+    17/9 (PR 2, højre efter tid): var «til Pulsen» — Pulsen står nu i
+    «Måneden»; Online følges af Ubesvarede opslag i «I dag». */
 export function onlineBlok(flade: string): string {
   const start = flade.indexOf('if (online.status === "fejl") {');
-  const slut = flade.indexOf(">Pulsen<", start);
+  const slut = flade.indexOf("{KORT_OVERSKRIFT}", start);
   if (start === -1 || slut === -1) return "";
   return flade.slice(start, slut);
 }

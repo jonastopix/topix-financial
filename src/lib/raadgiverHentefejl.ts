@@ -63,6 +63,8 @@ export const RAADGIVER_KILDE_ORD: Readonly<Record<string, string>> = {
   user_login_log: "login-historikken",
   // «Online nu» (16/9): Realtime Presence-kanalen — ikke en tabel, men en kilde der kan fejle.
   realtime_presence: "hvem der er online",
+  // «Sessioner i dag» (17/9, PR 2): bookede sessioner på dagens danske dato.
+  session_bookings: "sessionerne",
 };
 
 export type RaadgiverFlade = "forsiden" | "virksomheden" | "listen" | "opgaverne" | "invitationerne";

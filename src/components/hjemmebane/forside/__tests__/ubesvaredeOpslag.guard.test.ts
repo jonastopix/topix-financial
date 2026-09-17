@@ -28,10 +28,12 @@ const FLADE = "src/components/hjemmebane/forside/RaadgiverForsideView.tsx";
 const HOOK = "src/hooks/ubesvaredeOpslag.ts";
 const TRAAD = "src/components/hjemmebane/community/CommunityTraadView.tsx";
 
-/** Kortblokken: fra `{KORT_OVERSKRIFT}` til «Under stregen»-overskriften. */
+/** Kortblokken: fra `{KORT_OVERSKRIFT}` til Driften (vagtQuery).
+    17/9 (PR 2, højre efter tid): var «til «Under stregen»-overskriften» —
+    Under stregen står nu i venstre kolonne, og kortet følges af Driften. */
 export function kortBlok(kilde: string): string {
   const start = kilde.indexOf("{KORT_OVERSKRIFT}");
-  const slut = kilde.indexOf(">Under stregen<", start);
+  const slut = kilde.indexOf("vagtQuery.isLoading", start);
   if (start === -1 || slut === -1) return "";
   return kilde.slice(start, slut);
 }
