@@ -44,6 +44,8 @@ export interface CanonicalMetrics {
   depreciation: number | null;
   ebit: number | null;
   financial_costs: number | null;
+  /** Finansielle indtægter (renteindtægter m.v.), positivt tal. A2 (18/9-2026): ebt = ebit − financial_costs + financial_income. */
+  financial_income: number | null;
   extraordinary_items: number | null;
   ebt: number | null;
   net_result: number | null;

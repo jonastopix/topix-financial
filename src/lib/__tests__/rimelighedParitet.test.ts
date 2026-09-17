@@ -23,6 +23,7 @@ const cases: { navn: string; m: Parameters<typeof rimelighedstjek>[0]; type: str
   { navn: "balance", m: { revenue: 100, ebt: 10 }, type: "balance" },
   { navn: "tom", m: {}, type: "pnl" },
   { navn: "negativ konvention", m: { revenue: 100_000, gross_profit: 60_000, payroll: -30_000, sales_costs: -5_000, financial_costs: -1_000, ebt: 24_000 }, type: "combined" },
+  { navn: "A2: renteindtægter og autodrift", m: { revenue: 440_000, gross_profit: 132_000, payroll: 107_000, sales_costs: 1_000, facility_costs: 20_000, vehicle_costs: 16_000, admin_costs: 38_000, financial_costs: 5_000, financial_income: 16_000, ebt: -39_000 }, type: "pnl" },
 ];
 
 describe("rimelighedstjek — parity between src/lib and supabase/functions/_shared", () => {

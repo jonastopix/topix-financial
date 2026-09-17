@@ -210,6 +210,13 @@ export const dkEconomicSaldobalancePdfV1: TemplateEntry = {
     const loenLine = findByLabel(lines, /lønninger\s*(i alt|ialt)/i, "PNL");
     const salgsLine = findByLabel(lines, /salgs.*(i alt|ialt)/i, "PNL");
     const adminLine = findByLabel(lines, /administrations.*(i alt|ialt)/i, "PNL");
+    // A (18/9-2026): grupperne der aldrig blev fanget — Topix.dk 2026-01: ebt 25.152,55 mod regnet 29.146,05 =
+    // lokaleomkostningerne; KJ AUTO 2026-02: 1,2 mio. i lokaler/autodrift/finans. Nøglerne findes i KF_TO_CANONICAL
+    // (lokaleomkostninger → facility_costs, transportomkostninger → vehicle_costs, finansielle_* → financial_*).
+    const lokaleLine = findByLabel(lines, /lokale.*(i alt|ialt)/i, "PNL");
+    const autoLine = findByLabel(lines, /(autodrift|transport|\bbil(er|omk))[^\n]*(i alt|ialt)/i, "PNL");
+    const renteindtLine = findByLabel(lines, /(renteindtægter|finansielle indtægter).*(i alt|ialt)/i, "PNL");
+    const renteudgLine = findByLabel(lines, /(renteudgifter|finansielle (omkostninger|udgifter)|finansieringsudgifter).*(i alt|ialt)/i, "PNL");
     const afskrLine = findByLabel(lines, /afskrivninger\s*(i alt|ialt)/i, "PNL");
     const ebitdaLine = findByLabel(lines, /resultat før afskrivninger/i, "PNL");
     const ebtLine =
@@ -266,6 +273,10 @@ export const dkEconomicSaldobalancePdfV1: TemplateEntry = {
       loenninger: absVal(loenLine?.period_amount ?? null),
       salgsomkostninger: absVal(salgsLine?.period_amount ?? null),
       administrationsomkostninger: absVal(adminLine?.period_amount ?? null),
+      lokaleomkostninger: absVal(lokaleLine?.period_amount ?? null),
+      transportomkostninger: absVal(autoLine?.period_amount ?? null),
+      finansielle_indtaegter: absVal(renteindtLine?.period_amount ?? null),
+      finansielle_omkostninger: absVal(renteudgLine?.period_amount ?? null),
       afskrivninger: absVal(afskrLine?.period_amount ?? null),
       resultat_foer_afskrivninger: flipPnlSign(ebitdaLine?.period_amount ?? null),
       resultat_foer_skat: flipPnlSign(ebtLine?.period_amount ?? null),
