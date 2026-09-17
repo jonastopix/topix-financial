@@ -60,6 +60,37 @@ export function syntetiskeRaekker(): unknown[][] {
   ];
 }
 
+/** Brick Works-formen (17/9-2026, Jonas' fil 21:15): KUN fire kolonner — række 6 «Nr.» · «Navn» · «Perioden» ·
+    «År til dato», ingen gruppe-række, ingen «Året før», balancen i kolonne D (indeks 3). Samme konti, samme tal. */
+export function syntetiskeRaekkerFireKolonner(): unknown[][] {
+  return [
+    [],
+    [SYNTETISK_FIRMA],
+    ["Rapporter > Regnskab >"],
+    [`Saldobalance for perioden ${SYNTETISK_PERIODE}`],
+    [],
+    ["Nr.", "Navn", "Perioden", "År til dato"],
+    ...SYNTETISKE_KONTI.map(([nr, navn, c, e]) => [nr, navn, c, e]),
+  ];
+}
+
+/** Balancen, regnet AF tabellen: ÅTD pr. interval (samme regler som skabelonens BALANCE_RANGES). */
+export function syntetiskeBalanceForventninger() {
+  const bal = SYNTETISKE_KONTI.filter(([nr]) => nr >= 5000);
+  const sum = (fra: number, til: number) => bal.filter(([nr]) => nr >= fra && nr <= til).reduce((s, [, , , e]) => s + e, 0);
+  const anlaeg = Math.abs(sum(5000, 5099));
+  const varelager = Math.abs(sum(5500, 5599));
+  const debitorer = Math.abs(sum(5600, 5699));
+  const bank = sum(5800, 5899);
+  return {
+    cash: bank,
+    trade_receivables: debitorer,
+    assets_total: anlaeg + varelager + debitorer + (bank > 0 ? bank : 0),
+    balanceKonti: bal.length,
+    balanceKontiMedBeloeb: bal.filter(([, , , e]) => e !== 0).length,
+  };
+}
+
 /** De forventede tal, regnet AF tabellen (ikke skrevet af) — testen sammenligner motoren med disse. */
 export function syntetiskeForventninger() {
   const pnl = SYNTETISKE_KONTI.filter(([nr]) => nr >= 1000 && nr <= 4999);
