@@ -101,6 +101,20 @@ export function detectSourceSystem(
 
   // ── XLSX fingerprinting ──
   if ((fileType === "xlsx" || fileType === "xls") && headerRows && headerRows.length >= 5) {
+    // Mamut/C5 saldoliste (17/9-2026, ANLA GLAS): række 0 «Saldo: …», række 1 præcis
+    // «Kontonummer · Kontonavn · Beløb». Kendt kilde → AI er forbudt; skabelonen
+    // DK_MAMUT_SALDO_XLSX_V1 læser den.
+    const mRow0 = headerRows[0]?.[0]?.toString() || "";
+    const mRow1 = (headerRows[1] || []).map((c: any) => (c ?? "").toString().trim().toLowerCase()).filter((c: string) => c !== "");
+    if (/^saldo\s*:/i.test(mRow0) && mRow1.length === 3 && mRow1[0] === "kontonummer" && mRow1[1] === "kontonavn" && mRow1[2] === "beløb") {
+      evidence.push("Mamut/C5 saldoliste xlsx: «Saldo:» in row 0, Kontonummer/Kontonavn/Beløb in row 1");
+      return {
+        source_system: "mamut",
+        document_type: "combined",
+        confidence: "HIGH",
+        evidence,
+      };
+    }
     // e-conomic saldobalance xlsx:
     // Row 2 (index 1): "{ID} - {company} - CVR {8digits}"
     // Row 4 (index 3): "Saldobalance for perioden DD.MM.YY - DD.MM.YY"

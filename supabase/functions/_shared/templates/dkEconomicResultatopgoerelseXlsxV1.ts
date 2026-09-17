@@ -26,6 +26,7 @@ import type {
   SemanticLineItem,
 } from "../semanticTypes.ts";
 import type { MetricFamily } from "../normalizationProfiles.ts";
+import { erMamutKolonner } from "./dkMamutSaldoXlsxV1.ts";
 import { fordelSubtotaler, FINANSIELLE_INDTAEGTER_RE, OEVRIGE_OMKOSTNINGER_RE, FINANSIERINGSUDGIFTER_RE, type GruppeRaekke } from "../subtotalGrupper.ts";
 
 // ── Sign normalization helpers ──
@@ -295,6 +296,11 @@ export const dkEconomicResultatopgoerelseXlsxV1: SemanticXlsxTemplateEntry = {
 
   detect(ctx: DetectionContext): number {
     if (!ctx.headerRows || ctx.headerRows.length < 3) return 0;
+
+    // VÆRN (17/9-2026, ANLA GLAS' fil): en Mamut/C5-saldoliste har «Kontonummer · Kontonavn · Beløb»
+    // i række 1 og KONTO 999 «Resultatopgørelse» i række 2 — den vandt her med 85 (A's måling).
+    // Trækker 100 fra (→ 0): den er DK_MAMUT_SALDO_XLSX_V1's, ikke e-conomics.
+    if (erMamutKolonner(ctx.headerRows[1])) return 0;
 
     let score = 0;
     const allText = ctx.headerRows

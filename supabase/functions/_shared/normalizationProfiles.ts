@@ -264,6 +264,98 @@ const combined_dk_business_v1: NormalizationProfile = {
   },
 };
 
+// ── Profile: Mamut/C5 saldoliste (business convention, P&L + Balance) — 17/9-2026 ──
+// Forretningsformatet i Mamuts saldoliste (ANLA GLAS, målt): omsætning positiv, omkostninger
+// negative, subtotaler med eget fortegn (underskud negativt); balancen: aktiver positive,
+// egenkapital og gæld negative (kredit), likvide midler negative ved kassekredit. Skabelonen
+// (dkMamutSaldoXlsxV1) udsteder omkostningsgrupperne rå (negative) og subtotalerne som de står.
+const mamut_saldo_business_v1: NormalizationProfile = {
+  profile_id: "mamut_saldo_business_v1",
+  description: "Mamut/C5 saldoliste XLSX — business convention: revenue positive, costs negative, credit-side balance negative",
+  sign_convention: "business",
+  statement_type: "combined",
+  family_defaults: {
+    revenue_like:            KEEP,     // omsætning og finansielle indtægter som de står (indtægt negativ = udgift)
+    cost_like:               NEGATE,   // omkostningsgrupper er negative → positive
+    profit_like:             KEEP,     // dækningsbidrag/resultat med eget fortegn
+    asset_like:              KEEP,     // aktiver positive
+    liability_like:          NEGATE,   // gæld/passiver er kredit (negative) → positive
+    equity_like:             NEGATE,   // egenkapital er kredit (negativ) → positiv
+    cash_like:               KEEP,     // likvide midler: kassekredit er negativ og skal blive det
+    receivable_payable_like: KEEP,     // tilgodehavender positive
+    contra_or_unknown:       REJECT,
+  },
+  field_overrides: {},
+};
+
+// ── Profile: e-conomic balancerapport PDF (credit) — 17/9-2026 (Warburgs månedsrapport) ──
+// Kandidaterne kommer fra subtotalGrupper.fordelSubtotaler i FILENS fortegn (kredit): omsætning og finansielle
+// indtægter negative → NEGATE; omkostningsgrupper positive → ABS; resultatlinjer negative ved overskud → NEGATE.
+// andre_driftsindtaegter er regnet positiv (business) → KEEP.
+const economic_balancerapport_credit_v1: NormalizationProfile = {
+  profile_id: "economic_balancerapport_credit_v1",
+  description: "e-conomic balancerapport PDF (månedsrapport, «ialt») — credit convention, P&L only",
+  sign_convention: "credit",
+  statement_type: "pnl",
+  family_defaults: {
+    revenue_like:            NEGATE,
+    cost_like:               ABS,
+    profit_like:             NEGATE,
+    asset_like:              REJECT,   // balancen er periodens bevægelser — udstedes ikke
+    liability_like:          REJECT,
+    equity_like:             REJECT,
+    cash_like:               REJECT,
+    receivable_payable_like: REJECT,
+    contra_or_unknown:       REJECT,
+  },
+  field_overrides: {
+    andre_driftsindtaegter: { action: "keep", description: "Positiv del udstedt af subtotalGrupper.ts (business, kredit-netto i en omkostningsgruppe) — vendes ikke" },
+  },
+};
+
+// Samme rapport i FORRETNINGSFORTEGN (omsætning positiv, omkostninger negative): KEEP/ABS/KEEP.
+const economic_balancerapport_business_v1: NormalizationProfile = {
+  profile_id: "economic_balancerapport_business_v1",
+  description: "e-conomic balancerapport PDF (månedsrapport, «ialt») — business convention, P&L only",
+  sign_convention: "business",
+  statement_type: "pnl",
+  family_defaults: {
+    revenue_like:            KEEP,
+    cost_like:               ABS,
+    profit_like:             KEEP,
+    asset_like:              REJECT,
+    liability_like:          REJECT,
+    equity_like:             REJECT,
+    cash_like:               REJECT,
+    receivable_payable_like: REJECT,
+    contra_or_unknown:       REJECT,
+  },
+  field_overrides: {
+    andre_driftsindtaegter: { action: "keep", description: "Positiv del udstedt af subtotalGrupper.ts (business) — vendes ikke" },
+  },
+};
+
+// ── Profile: etiket;beløb-CSV (business) — 17/9-2026 (BR Rosets format) ──
+// Alt står positivt (omkostninger trækkes fra i filen); balancen er saldi, alle positive.
+const etiket_pnl_business_v1: NormalizationProfile = {
+  profile_id: "etiket_pnl_business_v1",
+  description: "Etiket;beløb-CSV med resultat og balance — business convention, alt positivt",
+  sign_convention: "business",
+  statement_type: "combined",
+  family_defaults: {
+    revenue_like:            KEEP,
+    cost_like:               ABS,      // positive i filen; ABS er et no-op (omkostningsFortegn.guard)
+    profit_like:             KEEP,
+    asset_like:              KEEP,
+    liability_like:          ABS,
+    equity_like:             KEEP,
+    cash_like:               KEEP,
+    receivable_payable_like: KEEP,
+    contra_or_unknown:       REJECT,
+  },
+  field_overrides: {},
+};
+
 // ── Registry ──
 
 const NORMALIZATION_PROFILES: Record<string, NormalizationProfile> = {
@@ -274,6 +366,10 @@ const NORMALIZATION_PROFILES: Record<string, NormalizationProfile> = {
   combined_dk_credit_v1,
   combined_balance_pnl_credit_v1,
   combined_dk_business_v1,
+  mamut_saldo_business_v1,
+  economic_balancerapport_credit_v1,
+  economic_balancerapport_business_v1,
+  etiket_pnl_business_v1,
 };
 
 export function getNormalizationProfile(profileId: string): NormalizationProfile | null {

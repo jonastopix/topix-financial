@@ -153,6 +153,9 @@ import { dkEconomicResultatopgoerelseXlsxV1 } from "./templates/dkEconomicResult
 import { dkDineroResultatopgoerelseCsvV1 } from "./templates/dkDineroResultatopgoerelseCsvV1.ts";
 import { dkDineroResultatopgoerelsePdfV1 } from "./templates/dkDineroResultatopgoerelsePdfV1.ts";
 import { dkGenericResultatopgoerelsePdfV1 } from "./templates/dkGenericResultatopgoerelsePdfV1.ts";
+import { dkMamutSaldoXlsxV1 } from "./templates/dkMamutSaldoXlsxV1.ts";
+import { dkEconomicBalancerapportPdfV1 } from "./templates/dkEconomicBalancerapportPdfV1.ts";
+import { dkEtiketResultatBalanceCsvV1 } from "./templates/dkEtiketResultatBalanceCsvV1.ts";
 
 const TEMPLATE_REGISTRY: TemplateEntry[] = [
   dkEconomicSaldobalanceXlsxV1,
@@ -160,6 +163,9 @@ const TEMPLATE_REGISTRY: TemplateEntry[] = [
   dkEconomicSaldobalancePdfV1,
   dkEconomicResultatopgoerelsePdfV1,
   dkEconomicResultatopgoerelseXlsxV1,
+  dkMamutSaldoXlsxV1, // Mamut/C5 saldoliste (17/9-2026) — sumkonti med kontonummer, «Saldo:» i række 0
+  dkEconomicBalancerapportPdfV1, // e-conomics balancerapport som PDF (17/9-2026) — kontonumre + «ialt» (Warburgs månedsrapport)
+  dkEtiketResultatBalanceCsvV1, // etiket;beløb-CSV uden kontonumre (17/9-2026) — BR Rosets format
   dkDineroResultatopgoerelseCsvV1,
   dkDineroResultatopgoerelsePdfV1,
   dkGenericResultatopgoerelsePdfV1,

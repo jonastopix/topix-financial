@@ -83,6 +83,14 @@ const KF_TO_CANONICAL: Record<string, keyof CanonicalMetrics> = {
   // omkostningsgruppe) — samme nøgler som SEMANTIC_TO_CANONICAL allerede kender.
   oevrige_omkostninger: "other_costs",
   andre_driftsindtaegter: "other_operating_income",
+  // 17/9-2026 (aften): legacy-vejene i balancerapport-PDF'en og etiket-CSV'en udsteder de samme kilde-id'er som
+  // den semantiske vej — spejlet fra SEMANTIC_TO_CANONICAL.
+  pensioner_sociale: "payroll_related",
+  oevrige_personale: "other_staff_costs",
+  autodrift: "vehicle_costs",
+  indtjeningsbidrag: "ebit",
+  finansieringsudgifter: "financial_costs",
+  ekstraordinaere_poster: "extraordinary_items",
 };
 
 // Line item class → canonical metric name
