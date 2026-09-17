@@ -90,15 +90,19 @@ const Tilstandsprik = ({ x }: { x: MaalForMedlem }) => {
 const SKRIDT_TITEL_MIN_LAENGDE = 3;
 
 /** «Tilføj skridt» under et AKTIVT mål (skridt-tilfoej, 17/9 — Jonas «ja»).
+    EKSPORTERET (forside PR 3): forsidens «Din plan» bruger SAMME formular —
+    én formular, én dom (foreslaaetFrist/doemFrist), ingen kopi.
     JONAS 17/9 (ordret: «1»): fristen er OBLIGATORISK — forudfyldt med i dag
     + 14 dage i dansk tid (foreslaaetFrist), kan ændres, ikke tømmes, og ikke
     før i dag (doemFrist — samme dom som functionen). Fejl fra functionen
     vises ordret under feltet; oprettelsen genhenter skridt og mål. */
-const TilfoejSkridtForm = ({ maalId, busy, onTilfoej, onLuk }: {
+export const TilfoejSkridtForm = ({ maalId, busy, onTilfoej, onLuk, knapTekst }: {
   maalId: string;
   busy: boolean;
   onTilfoej: (titel: string, dueDate: string) => Promise<string | null>;
   onLuk: () => void;
+  /** Knappens tekst — «Tilføj skridt» (standard) eller «Tilføj det første skridt» (forsidens plan, PR 3). */
+  knapTekst?: string;
 }) => {
   const [titel, setTitel] = useState("");
   const [frist, setFrist] = useState(() => foreslaaetFrist(new Date()));
@@ -124,7 +128,7 @@ const TilfoejSkridtForm = ({ maalId, busy, onTilfoej, onLuk }: {
         <HbInput id={`tilfoej-frist-${maalId}`} type="date" value={frist} min={idag} required onChange={(e) => setFrist(e.target.value)} className="py-1.5 text-sm" />
       </HbField>
       <div className="flex items-center gap-2">
-        <HbButton type="submit" className="h-8 px-3 text-xs" disabled={busy || !titelOk || !frist}>{busy ? "Gemmer…" : TILFOEJ_SKRIDT_KNAP_TEKST}</HbButton>
+        <HbButton type="submit" className="h-8 px-3 text-xs" disabled={busy || !titelOk || !frist}>{busy ? "Gemmer…" : knapTekst ?? TILFOEJ_SKRIDT_KNAP_TEKST}</HbButton>
         <HbButton type="button" variant="secondary" className="h-8 px-3 text-xs" disabled={busy} onClick={onLuk}>Fortryd</HbButton>
       </div>
     </form>

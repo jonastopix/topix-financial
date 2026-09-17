@@ -44,11 +44,33 @@ export const toppenHolder = (forside: string): boolean => {
   const topLinje = forside.slice(forside.lastIndexOf("\n", top), forside.indexOf("\n", top));
   return top > -1 && venstre > top && nyheden > venstre && main > nyheden && hoejre > main && maaned > hoejre && skridt > maaned &&
     /md:grid-cols-12/.test(topLinje) && /grid grid-cols-1/.test(topLinje) &&
-    /className="min-w-0 md:col-span-7" data-forside-venstre/.test(forside) &&
-    /"md:col-span-5" : "md:col-span-12"\)\} data-forside-hoejre/.test(forside) &&
+    // Før (PR 2): /className="min-w-0 md:col-span-7" data-forside-venstre/ og
+    // /"md:col-span-5" : "md:col-span-12"\)\} data-forside-hoejre/ — tiles lå i venstre kolonne.
+    /className="min-w-0 md:col-span-7 md:col-start-1 md:row-start-1" data-forside-venstre/.test(forside) &&
+    /"md:col-span-5 md:col-start-8 md:row-span-2 md:row-start-1" : "md:col-span-12"\)\} data-forside-hoejre/.test(forside) &&
     /<FocusCard\s+variant="kompakt"/.test(forside.slice(skridt)) &&
     /<DinMaaned dom=\{dinMaaned\} \/>/.test(forside.slice(maaned, skridt)) &&
     !/<TalStrip/.test(forside);
+};
+
+/** Dom 5 (PR 3, Jonas' skærm 17/9 11:28): MOBIL-RÆKKEFØLGEN. Tiles er ET
+    grid-barn (data-forside-tiles) der står EFTER højre kolonne i DOM (mobil:
+    nyheden → Din måned → Dit næste skridt → tiles) og på md får række 2 i
+    venstre kolonne (md:col-start-1 md:row-start-2); ingen `order-*`, og
+    side-tiles renderes præcis ÉN gang (ingen md:hidden-dublet). */
+export const mobilRaekkefoelge = (forside: string): boolean => {
+  const top = forside.indexOf("data-forside-top");
+  const venstre = forside.indexOf("data-forside-venstre", top);
+  const hoejre = forside.indexOf("data-forside-hoejre", venstre);
+  const tiles = forside.indexOf("data-forside-tiles", hoejre);
+  const slut = forside.indexOf('id="din-plan"', tiles);
+  const topBlok = forside.slice(top, slut === -1 ? undefined : slut);
+  return top > -1 && venstre > top && hoejre > venstre && tiles > hoejre &&
+    /className="min-w-0 md:col-span-7 md:col-start-1 md:row-start-2" data-forside-tiles/.test(forside) &&
+    !/\border-\d|md:order-|\bord[e]r-(first|last|none)\b/.test(topBlok) &&
+    (topBlok.match(/variant="side"/g) ?? []).length === 1 &&
+    !/md:hidden|hidden md:block/.test(topBlok) &&
+    forside.indexOf('variant="side"', tiles) > tiles;
 };
 
 /** Dom 2: ingen procent i «Din måned». */
@@ -91,6 +113,9 @@ describe("forsideTop.guard — PR 2: to kolonner, Din måned uden procent, spark
   it("dom 4: hovedhistorien er stående — ingen 42 %-spalte", () => {
     expect(staaende(forside)).toBe(true);
   });
+  it("dom 5 (PR 3): mobil-rækkefølgen — tiles EFTER højre kolonne i DOM, række 2 venstre på md, ingen order-*, tiles renderet én gang", () => {
+    expect(mobilRaekkefoelge(forside)).toBe(true);
+  });
 
   it("selvbevis 1: højre før venstre, Dit næste skridt før Din måned, en fuld FocusCard i toppen, eller tal-strippen tilbage falder", () => {
     const v = forside.indexOf("data-forside-venstre");
@@ -108,6 +133,19 @@ describe("forsideTop.guard — PR 2: to kolonner, Din måned uden procent, spark
   it("selvbevis 3: en sparkline der fylder nul ind for manglende måneder falder", () => {
     expect(ingenNulPunkter(dom.replace(".filter((r) => r[felt] != null)", ""))).toBe(false);
     expect(ingenNulPunkter(dom.replace(".map((r) => ({ key: r.key, value: r[felt] as number }))", ".map((r) => ({ key: r.key, value: r[felt] ?? 0 }))"))).toBe(false);
+  });
+  it("selvbevis 5: tiles tilbage i venstre kolonne (før højre), en order-klasse, eller tiles renderet to gange falder", () => {
+    const t = forside.indexOf("data-forside-tiles");
+    const h = forside.indexOf("data-forside-hoejre");
+    // Tiles-blokken flyttet op FØR højre kolonne.
+    const tilesBlokStart = forside.lastIndexOf("{hasBand && (band.side.length", t);
+    const tilesBlokSlut = forside.indexOf('id="din-plan"', t);
+    const tilesBlok = forside.slice(tilesBlokStart, forside.lastIndexOf("</div>", tilesBlokSlut));
+    const hoejreStart = forside.lastIndexOf("<div className={cn(\"min-w-0 space-y-8\"", h);
+    const flyttet = forside.slice(0, hoejreStart) + tilesBlok + "\n" + forside.slice(hoejreStart, tilesBlokStart) + forside.slice(forside.lastIndexOf("</div>", tilesBlokSlut));
+    expect(mobilRaekkefoelge(flyttet)).toBe(false);
+    expect(mobilRaekkefoelge(forside.replace('md:col-start-1 md:row-start-2" data-forside-tiles', 'order-3 md:order-none" data-forside-tiles'))).toBe(false);
+    expect(mobilRaekkefoelge(forside.replace("data-forside-tiles>", 'data-forside-tiles>{band.side.map((story) => <StoryCard key={story.kind} story={story} variant="side" pushSender={null} pushCoverUrl={null} />)}'))).toBe(false);
   });
   it("selvbevis 4: 42 %-spalten tilbage i MainStoryShell falder", () => {
     expect(staaende(forside.replace('<div className="relative aspect-video w-full">', '<div className="relative aspect-[3/2] md:aspect-auto md:w-[42%] md:shrink-0">'))).toBe(false);

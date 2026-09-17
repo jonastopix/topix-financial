@@ -10,6 +10,7 @@ import { HbButton } from "../HbButton";
 import { HbTag } from "../HbTag";
 import { HbField, HbInput, HbSelect, HbTextarea, hbControlClasses } from "../admin/HbField";
 import { HbDialog, HbPopover, HbKalender } from "./HbOverlejring";
+import { MAAL_FORKLARING_TEKST, maalEksemplerHjaelp } from "@/lib/hjemmebane/maalForklaring";
 import type { Milestone, NyMilestone } from "./useMilestones";
 
 /**
@@ -176,7 +177,7 @@ export const OpretMilestoneDialog = ({
       open={open}
       onClose={luk}
       titel="Opret ny milestone"
-      beskrivelse="Definer dit mål og vælg en kategori."
+      beskrivelse={MAAL_FORKLARING_TEKST}
       fod={
         <>
           <HbButton variant="secondary" onClick={luk}>Annuller</HbButton>
@@ -187,7 +188,7 @@ export const OpretMilestoneDialog = ({
       }
     >
       <div className="space-y-4">
-        <HbField label="Titel *" htmlFor="ms-titel">
+        <HbField label="Titel *" htmlFor="ms-titel" help={maalEksemplerHjaelp()}>
           <HbInput id="ms-titel" value={ny.title} onChange={(e) => saet("title", e.target.value)} placeholder="F.eks. Nå 1M i omsætning" />
         </HbField>
         <HbField label="Beskrivelse" htmlFor="ms-beskrivelse">
