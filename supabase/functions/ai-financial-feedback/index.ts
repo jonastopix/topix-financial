@@ -12,7 +12,7 @@ const corsHeaders = {
 const CORE_METRIC_KEYS = ["revenue", "gross_profit", "ebt"];
 const ALL_METRIC_KEYS = [
   "revenue", "cogs", "gross_profit", "gross_margin_pct", "payroll",
-  "sales_costs", "facility_costs", "admin_costs", "depreciation",
+  "sales_costs", "facility_costs", "admin_costs", "other_costs", "other_operating_income", "depreciation",
   "ebitda", "ebit", "ebt", "net_result", "assets_total", "equity_total",
   "cash", "trade_receivables", "current_liabilities", "liabilities_total", "debt_total",
 ];
@@ -30,6 +30,8 @@ METRICS FORMAT (engelske navne):
 - sales_costs: Salgs/marketingomkostninger
 - facility_costs: Lokaleomkostninger
 - admin_costs: Administrative omkostninger (inkl. IT/software)
+- other_costs: Øvrige driftsomkostninger uden for de navngivne grupper (positiv = omkostning)
+- other_operating_income: Andre driftsindtægter, fx lejeindtægter bogført under lokaler (positiv = indtægt)
 - depreciation: Afskrivninger
 - ebitda: EBITDA
 - ebit: EBIT

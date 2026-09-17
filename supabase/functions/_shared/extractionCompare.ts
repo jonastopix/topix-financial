@@ -118,6 +118,7 @@ const ALL_METRIC_KEYS: (keyof CanonicalMetrics)[] = [
   "revenue", "cogs", "gross_profit", "gross_margin_pct",
   "payroll", "payroll_related", "other_staff_costs",
   "sales_costs", "facility_costs", "admin_costs", "vehicle_costs",
+  "other_costs", "other_operating_income",
   "ebitda", "depreciation", "ebit", "financial_costs",
   "extraordinary_items", "ebt", "net_result",
   "assets_total", "inventory", "receivables_total",

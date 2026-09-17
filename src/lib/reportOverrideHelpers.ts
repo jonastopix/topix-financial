@@ -11,6 +11,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import { DANISH_MONTHS, type ReportData, hasManualOverride, getEffectiveMetrics, getEffectiveReportPeriodKey, isCompletedMonth } from "@/lib/financialUtils";
 import { positiveOmkostninger } from "@/lib/omkostningsFortegn";
+import { DANSK, ebitdaRegnet } from "@/lib/omkostningsnoegler";
 
 // ── Report types ──
 export const REPORT_TYPES = [
@@ -28,6 +29,8 @@ export const PNL_FIELDS = [
   "salgsomkostninger",
   "lokaleomkostninger",
   "administrationsomkostninger",
+  "oevrige_omkostninger",
+  "andre_driftsindtaegter",
   "afskrivninger",
   "resultat_foer_skat",
   "resultat_efter_skat",
@@ -50,6 +53,8 @@ export const FIELD_LABELS: Record<string, string> = {
   salgsomkostninger: "Salgsomkostninger",
   lokaleomkostninger: "Lokaleomkostninger",
   administrationsomkostninger: "Administrationsomkostninger",
+  oevrige_omkostninger: "Øvrige omkostninger",
+  andre_driftsindtaegter: "Andre driftsindtægter",
   afskrivninger: "Afskrivninger",
   resultat_foer_skat: "Resultat f. skat",
   resultat_efter_skat: "Resultat efter skat",
@@ -70,6 +75,8 @@ export const FIELD_DESCRIPTIONS: Record<string, string> = {
   salgsomkostninger: "Omkostninger til salg og markedsføring, fx annoncering og provision.",
   lokaleomkostninger: "Husleje, el, varme og andre omkostninger til virksomhedens lokaler.",
   administrationsomkostninger: "Generelle driftsomkostninger som ikke hører under de øvrige, fx kontor, IT og revisor.",
+  oevrige_omkostninger: "Driftsomkostninger der ikke hører under de navngivne grupper, fx rejser, bro og parkering.",
+  andre_driftsindtaegter: "Indtægter der er bogført i en omkostningsgruppe, fx lejeindtægter under lokaler. Står som positivt tal og lægges til resultatet.",
   afskrivninger: "Periodens værdiforringelse på aktiver som maskiner, inventar og biler.",
   resultat_foer_skat: "Periodens resultat efter alle omkostninger og renter, men før skat. Indgår i beregningen af din resultatgrad.",
   resultat_efter_skat: "Periodens endelige resultat efter skat (bundlinjen).",
@@ -101,6 +108,8 @@ export const CANONICAL_TO_DANISH: Record<string, string> = {
   sales_costs: "salgsomkostninger",
   facility_costs: "lokaleomkostninger",
   admin_costs: "administrationsomkostninger",
+  other_costs: "oevrige_omkostninger",
+  other_operating_income: "andre_driftsindtaegter",
   depreciation: "afskrivninger",
 };
 
@@ -275,14 +284,12 @@ export function computeDerivedMetrics(
   const round2 = (v: number) => Math.round(v * 100) / 100;
   const derived: { ebitda?: number; ebit?: number } = {};
 
+  // ÉN fælles definition (omkostningsnoegler.ebitdaRegnet, 17/9-2026): dækningsbidrag − Σ|drift|
+  // (inkl. øvrige omkostninger) + andre driftsindtægter — samme regnestykke som motoren.
   const db = metrics.daekningsbidrag;
   if (typeof db === "number") {
-    const opex =
-      (metrics.loenninger || 0) +
-      (metrics.salgsomkostninger || 0) +
-      (metrics.lokaleomkostninger || 0) +
-      (metrics.administrationsomkostninger || 0);
-    if (opex > 0) derived.ebitda = round2(db - opex);
+    const ebitda = ebitdaRegnet(db, metrics, DANSK);
+    if (ebitda != null) derived.ebitda = round2(ebitda);
   }
 
   const afskrivninger = metrics.afskrivninger;

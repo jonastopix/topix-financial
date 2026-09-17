@@ -27,6 +27,8 @@
  * financialUtils.ts:203-204). Nøglen er bevaret, fordi den står i
  * kpi_targets, men udlederen følger UI'et.
  */
+import { CANONICAL as OMK, sumOmkostninger } from "./omkostningsnoegler.ts";
+
 export type MetricBag = Record<string, number | null | undefined>;
 
 const num = (v: number | null | undefined): number | null =>
@@ -70,17 +72,9 @@ export const KPI_EXTRACTORS: Record<string, (m: MetricBag) => number | null> = {
   // mellem kilder, derfor Math.abs pr. led. Kun positiv sum tæller —
   // nul betyder at ingen omkostninger blev læst, ikke at der ingen var.
   omkostninger: (m) => {
-    const dele = [
-      m.payroll, m.cogs, m.sales_costs,
-      m.facility_costs, m.admin_costs, m.depreciation,
-    ];
-    let sum = 0;
-    let fundet = false;
-    for (const d of dele) {
-      const v = num(d);
-      if (v !== null) { sum += Math.abs(v); fundet = true; }
-    }
-    if (!fundet || sum <= 0) return null;
+    // ÉN fælles definition (omkostningsnoegler.CANONICAL, 17/9-2026) — samme nøgler som calcTotalExpenses.
+    const { sum, fundet } = sumOmkostninger(m, OMK, "alle");
+    if (fundet === 0 || sum <= 0) return null;
     return sum;
   },
 };

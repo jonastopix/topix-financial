@@ -183,8 +183,10 @@ Deno.serve(async (req) => {
     budgetCategories.push({ category: "salgsomkostninger", annual: metrics.sales_costs * 12 });
   if (metrics.facility_costs != null && metrics.facility_costs > 0)
     budgetCategories.push({ category: "lokaleomkostninger", annual: metrics.facility_costs * 12 });
-  if (metrics.admin_costs != null && metrics.admin_costs > 0)
-    budgetCategories.push({ category: "admin", annual: metrics.admin_costs * 12 });
+  // Øvrige omkostninger (saldobalance-XLSX, 17/9-2026) har ingen egen budgetgruppe (budgetEngine: drift ↔ admin) → lægges i admin.
+  const adminMedOevrige = (metrics.admin_costs ?? 0) + (metrics.other_costs ?? 0);
+  if (adminMedOevrige > 0)
+    budgetCategories.push({ category: "admin", annual: adminMedOevrige * 12 });
   if (metrics.depreciation != null && metrics.depreciation > 0)
     budgetCategories.push({ category: "afskrivninger", annual: metrics.depreciation * 12 });
 

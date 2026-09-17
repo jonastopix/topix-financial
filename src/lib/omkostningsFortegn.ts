@@ -20,15 +20,12 @@
  * være ægte negative (mangellisten #38).
  */
 
-/** De seks omkostningsnøgler (danske, som formularen og adapteren bruger). */
-export const OMKOSTNINGSNOEGLER_DK = [
-  "direkte_omkostninger",
-  "loenninger",
-  "salgsomkostninger",
-  "lokaleomkostninger",
-  "administrationsomkostninger",
-  "afskrivninger",
-] as const;
+import { DANSK, omkostningsnoegler } from "@/lib/omkostningsnoegler";
+
+/** Omkostningsnøglerne (danske, som formularen og adapteren bruger) — fra ÉN fælles definition
+    (omkostningsnoegler.DANSK, 17/9-2026): vareforbrug, drift inkl. øvrige omkostninger, afskrivninger.
+    Andre driftsindtægter er en indtægt og står ikke her. */
+export const OMKOSTNINGSNOEGLER_DK: readonly string[] = omkostningsnoegler(DANSK, "alle");
 
 /** Kopi af metrics hvor de seks omkostningsposter er |beløb|. null og
     manglende nøgler bevares; alle andre nøgler røres ikke. */

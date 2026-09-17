@@ -34,9 +34,13 @@ const CANONICAL_TO_DANISH: Record<string, string> = {
   facility_costs: "lokaleomkostninger",
   admin_costs: "administrationsomkostninger",
   depreciation: "afskrivninger",
+  // Saldobalance-XLSX (17/9-2026): resultatkonti uden for de navngivne grupper, og en gruppe hvis netto er en indtægt.
+  other_costs: "oevrige_omkostninger",
+  other_operating_income: "andre_driftsindtaegter",
   ebt: "resultat_foer_skat",
   net_result: "resultat_efter_skat",
   ebitda: "ebitda",
+  ebit: "ebit", // 17/9-2026: manuel rettelse og motoren skriver ebit; adapteren tabte den (den fælles liste kanoniske_noegler kender den)
   debt_total: "gaeld_i_alt",
   assets_total: "aktiver_i_alt",
   equity_total: "egenkapital",

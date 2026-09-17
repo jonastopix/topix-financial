@@ -2,17 +2,43 @@
  * Template: DK_ECONOMIC_SALDOBALANCE_XLSX_V1
  * e-conomic detailed saldobalance XLSX — line items only, no subtotals.
  *
- * Structure:
+ * Structure (målt 17/9-2026 i to rigtige filer):
  *   Row 1: empty
- *   Row 2: company name + CVR
+ *   Row 2: "<kundenr> - <firma> - CVR <8 cifre>"
  *   Row 3: "Rapporter > Regnskab > ..."
  *   Row 4: "Saldobalance for perioden DD.MM.YY - DD.MM.YY"
- *   Row 5: empty / "Perioden"
- *   Row 6: "Nr." / "Navn" / date-range columns
- *   Row 7+: line items (account_no, label, period, prev, ytd, ytd_prev)
+ *   Row 5: "" / "" / "Perioden" / "" / "År til dato"
+ *   Row 6: "Nr." / "Navn" / "Indeværende år<periode>" / "Året før<periode>" / "Indeværende år<ÅTD>" / "Året før<ÅTD>" / "Note"
+ *   Row 7+: line items (account_no, label, C period, D period last year, E ytd, F ytd last year)
  *
  * Sign convention: credit (revenue negative, costs positive).
  * Normalization profile: economic_saldobalance_credit_v1
+ *
+ * RESULTATET (omskrevet 17/9-2026 — recon-saldobalance-fortegn.md, Jonas: «den bedste
+ * løsning for det hele»): SALDOBALANCENS EGEN SANDHED. Resultat før skat er
+ * −Σ «Perioden» over ALLE resultatkonti 1000–4999 — ikke omsætning minus udvalgte
+ * grupper. Før: revenue − Σ|udvalgte intervaller| med 5100–5200 som «afskrivninger» —
+ * det var BALANCEKONTI (5111 «Indretning, anskaffelse primo», 5116 «… afskrivning
+ * primo») læst fra ÅTD-kolonnen, og konti uden for intervallerne (2770 Rejseudgifter,
+ * 3131 Bro/færge) manglede. Målt: Fjeldgaardshop 2025-10 gav +241.813 (abs af
+ * −241.813) hvor saldobalancen siger +150.932,87.
+ *
+ * FULD DÆKNING: hver resultatkonto hører til præcis én gruppe — de navngivne
+ * intervaller, ellers «øvrige omkostninger» (oevrige_omkostninger → other_costs).
+ * KONTROLSUM (parser-tjek pnl_coverage): omsætning − Σ grupper + andre
+ * driftsindtægter = resultatet inden for 1 kr., ellers FAIL med de konti der mangler.
+ *
+ * ANDRE DRIFTSINDTÆGTER: en omkostningsgruppe hvis netto er en KREDIT (lejeindtægter
+ * 3401/3413 i 3400–3599) er en indtægt: gruppen udstedes som sin positive del (0 når
+ * nettoet er kredit) og kreditten lægges i andre_driftsindtaegter (→
+ * other_operating_income, positiv). Omkostninger forbliver positive (7/9-konventionen).
+ *
+ * AFSKRIVNINGER: kun resultatkonti tæller. Der findes INGEN måling af e-conomics
+ * resultatinterval for afskrivninger (hverken i repoet eller i de to filer — kun
+ * balancens akkumulerede 5116/5226), så afskrivninger = 0 for denne skabelon;
+ * summen dækkes af fuld dækning. Findes intervallet en dag, tilføjes det i PNL_GROUPS.
+ *
+ * BALANCEN: konti ≥ 5000 læses fra «År til dato» (kolonne E) som før — rigtigt for balance.
  */
 
 import type {
@@ -56,7 +82,15 @@ interface AccountRange {
   signRule: "negate" | "abs" | "keep";
 }
 
-const PNL_RANGES: AccountRange[] = [
+/** Resultatkonti — e-conomics standardkontoplan som skabelonen kender den (målt i filerne 17/9-2026).
+    Alt i 1000–4999 uden for disse grupper er «øvrige omkostninger» (OEVRIGE_KEY). */
+export const PNL_MIN = 1000;
+export const PNL_MAX = 4999;
+export const OEVRIGE_KEY = "oevrige_omkostninger";
+export const ANDRE_DRIFTSINDTAEGTER_KEY = "andre_driftsindtaegter";
+export const AFSKRIVNINGER_KEY = "afskrivninger";
+
+const PNL_GROUPS: AccountRange[] = [
   { key: "omsaetning", family: "revenue_like", min: 1000, max: 1299, signRule: "negate" },
   { key: "direkte_omkostninger", family: "cost_like", min: 1300, max: 1499, signRule: "abs" },
   { key: "loenninger", family: "cost_like", min: 2200, max: 2299, signRule: "abs" },
@@ -64,7 +98,6 @@ const PNL_RANGES: AccountRange[] = [
   { key: "lokaleomkostninger", family: "cost_like", min: 3400, max: 3599, signRule: "abs" },
   { key: "administrationsomkostninger", family: "cost_like", min: 3600, max: 3799, signRule: "abs" },
   { key: "finansieringsudgifter", family: "cost_like", min: 4400, max: 4499, signRule: "abs" },
-  { key: "afskrivninger", family: "cost_like", min: 5100, max: 5200, signRule: "abs" },
 ];
 
 const BALANCE_RANGES: AccountRange[] = [
@@ -77,7 +110,58 @@ const BALANCE_RANGES: AccountRange[] = [
   { key: "moms_skat", family: "liability_like", min: 6900, max: 6999, signRule: "negate" },
 ];
 
-const ALL_RANGES = [...PNL_RANGES, ...BALANCE_RANGES];
+/** Kontrolsummens tolerance — 1 kr. (flydende tal over ~100 konti). */
+export const KONTROLSUM_TOLERANCE = 1;
+
+export interface Resultatkonto { nr: number; navn: string; periode: number }
+
+export interface Resultatfordeling {
+  /** Rå netto pr. gruppe (kredit-konvention: omsætning negativ, omkostninger positive), inkl. OEVRIGE_KEY. */
+  netto: Record<string, number>;
+  /** Hvilke konti der landede i hvilken gruppe. */
+  konti: Record<string, number[]>;
+  /** Resultat før skat = −Σ periode over alle resultatkonti (forretningskonvention). */
+  ebt: number;
+  /** Omsætning (positiv) = −netto.omsaetning. */
+  revenue: number;
+  /** Omkostningsgruppernes POSITIVE del (netto ≥ 0 → netto; netto < 0 → 0). */
+  omkostninger: Record<string, number>;
+  /** Σ af de kredit-nettoer (som positivt tal) — «andre driftsindtægter». */
+  andreDriftsindtaegter: number;
+  /** Konti i 1000–4999 uden gruppe — tom pr. konstruktion (øvrige tager resten); står her for kontrolsummens skyld. */
+  udenGruppe: number[];
+  /** revenue − Σ omkostninger + andre − ebt — skal være 0 inden for KONTROLSUM_TOLERANCE. */
+  afvigelse: number;
+}
+
+/** Fordelingen af resultatkontiene — REN funktion, testes direkte. */
+export function fordelResultatkonti(konti: readonly Resultatkonto[]): Resultatfordeling {
+  const netto: Record<string, number> = {};
+  const grupper: Record<string, number[]> = {};
+  let sum = 0;
+  const udenGruppe: number[] = [];
+  for (const k of konti) {
+    if (k.nr < PNL_MIN || k.nr > PNL_MAX) continue;
+    sum += k.periode;
+    const g = PNL_GROUPS.find(r => k.nr >= r.min && k.nr <= r.max);
+    const key = g ? g.key : OEVRIGE_KEY;
+    if (!g && !(k.nr >= PNL_MIN && k.nr <= PNL_MAX)) { udenGruppe.push(k.nr); continue; }
+    netto[key] = (netto[key] || 0) + k.periode;
+    (grupper[key] ||= []).push(k.nr);
+  }
+  const ebt = -sum;
+  const revenue = -(netto["omsaetning"] || 0);
+  const omkostninger: Record<string, number> = {};
+  let andre = 0;
+  for (const [key, v] of Object.entries(netto)) {
+    if (key === "omsaetning") continue;
+    if (v >= 0) omkostninger[key] = v;
+    else { omkostninger[key] = 0; andre += -v; }
+  }
+  const sumOmk = Object.values(omkostninger).reduce((a, b) => a + b, 0);
+  const afvigelse = revenue - sumOmk + andre - ebt;
+  return { netto, konti: grupper, ebt, revenue, omkostninger, andreDriftsindtaegter: andre, udenGruppe, afvigelse };
+}
 
 // ── Period parsing ──
 
@@ -117,8 +201,9 @@ function extractCompanyName(text: string): string | null {
   // Row 2 often: "ID - CompanyName CVR" or just "CompanyName CVR"
   const dashIdx = text.indexOf(" - ");
   const base = dashIdx >= 0 ? text.substring(dashIdx + 3) : text;
-  // Strip trailing CVR
-  return base.replace(/\s*\d{8}\s*$/, "").trim() || null;
+  // Strip trailing «- CVR 12345678» / «CVR 12345678» / «12345678» (målt 17/9-2026: rækken er
+  // «<kundenr> - <firma> - CVR <8 cifre>»; før blev kun cifrene fjernet, og navnet endte på «- CVR»).
+  return base.replace(/\s*-?\s*(CVR\s*)?\d{8}\s*$/i, "").trim() || null;
 }
 
 // ── Template Definition ──
@@ -230,30 +315,28 @@ export const dkEconomicSaldobalanceXlsxV1: SemanticXlsxTemplateEntry = {
     }
 
     // ── Identify value columns ──
-    // Col 0 = Nr., Col 1 = Navn, Col 2 = period amount, Col 4 = YTD
+    // Col 0 = Nr., Col 1 = Navn, Col 2 = period amount («Perioden · Indeværende år»), Col 4 = YTD
     const VALUE_COL = 2;
     const YTD_COL = 4;
 
-    // ── Aggregate line items by account ranges ──
-    const sums: Record<string, number> = {};
+    // ── Læs kontolinjerne: resultatkonti (1000–4999) fra perioden, balance (≥ 5000) fra ÅTD ──
     const lineItems: SemanticLineItem[] = [];
+    const resultatkonti: Resultatkonto[] = [];
+    const balanceSums: Record<string, number> = {};
     let totalLineItems = 0;
 
     for (const row of xlsxResult.rows) {
       if (row.row_index < 6) continue; // Skip header rows
 
-      // Get account number from col 0
       const acctCell = row.cells.find(c => c.col_index === 0);
       const acctRaw = acctCell?.raw_value;
       const acctNum = typeof acctRaw === "number" ? acctRaw : parseInt((acctRaw ?? "").toString(), 10);
       if (isNaN(acctNum) || acctNum < 1000 || acctNum > 9999) continue;
 
-      // Get label from col 1
       const labelCell = row.cells.find(c => c.col_index === 1);
       const label = (labelCell?.raw_value ?? "").toString().trim();
 
-      // P&L accounts use period column; balance accounts use YTD column
-      const isBalanceAccount = acctNum >= 5000 && acctNum <= 9999;
+      const isBalanceAccount = acctNum > PNL_MAX;
       const colIndex = isBalanceAccount ? YTD_COL : VALUE_COL;
       const valueCell = row.cells.find(c => c.col_index === colIndex);
       const rawValue = valueCell?.raw_value != null
@@ -273,119 +356,130 @@ export const dkEconomicSaldobalanceXlsxV1: SemanticXlsxTemplateEntry = {
 
       if (rawValue == null || rawValue === 0) continue;
 
-      // Accumulate into matching ranges
-      for (const range of ALL_RANGES) {
+      if (!isBalanceAccount) {
+        resultatkonti.push({ nr: acctNum, navn: label, periode: rawValue });
+        continue;
+      }
+      for (const range of BALANCE_RANGES) {
         if (acctNum >= range.min && acctNum <= range.max) {
-          sums[range.key] = (sums[range.key] || 0) + rawValue;
+          balanceSums[range.key] = (balanceSums[range.key] || 0) + rawValue;
           break;
         }
       }
     }
 
-    console.log(`${LOG_PREFIX} Scanned ${totalLineItems} line items, aggregated keys: ${Object.keys(sums).join(", ")}`);
+    const fordeling = fordelResultatkonti(resultatkonti);
+    console.log(`${LOG_PREFIX} Scanned ${totalLineItems} line items; P&L accounts ${resultatkonti.length} → groups ${Object.keys(fordeling.netto).join(", ")}; balance keys ${Object.keys(balanceSums).join(", ")}`);
 
     if (totalLineItems < 5) {
       console.log(`${LOG_PREFIX} Too few line items (${totalLineItems}) → reject`);
       return null;
     }
 
-    // ── Build metric candidates from aggregated sums ──
+    // ── Build metric candidates ──
     const metricCandidates: SemanticMetricCandidate[] = [];
+    const kandidat = (over: Partial<SemanticMetricCandidate> & Pick<SemanticMetricCandidate, "source_field_id" | "normalization_family" | "raw_value" | "sign_convention" | "source_label" | "confidence" | "evidence">): SemanticMetricCandidate => ({
+      source_row_index: null,
+      source_column_slot: VALUE_COL,
+      source_cell_address: null,
+      basis: "period",
+      proposed_canonical_target: null,
+      ...over,
+      raw_sign: over.raw_value == null ? "zero" : over.raw_value > 0 ? "positive" : over.raw_value < 0 ? "negative" : "zero",
+    });
 
-    for (const range of ALL_RANGES) {
-      const rawSum = sums[range.key];
-      if (rawSum == null) continue;
-
-      metricCandidates.push({
-        source_field_id: range.key,
-        normalization_family: range.family,
-        raw_value: rawSum,
-        raw_sign: rawSum > 0 ? "positive" : rawSum < 0 ? "negative" : "zero",
-        sign_convention: "credit",
-        source_label: `aggregated:${range.key} (accounts ${range.min}-${range.max})`,
-        source_row_index: null,
-        source_column_slot: VALUE_COL,
-        source_cell_address: null,
-        basis: "period",
-        confidence: "HIGH",
-        evidence: [`account_range:${range.min}-${range.max}`, `sign_rule:${range.signRule}`],
-        proposed_canonical_target: null,
-      });
+    // Omsætningsgruppen: rå kredit-netto (negativ) — profilen NEGATE'r til positiv.
+    if (fordeling.netto["omsaetning"] != null) {
+      metricCandidates.push(kandidat({
+        source_field_id: "omsaetning", normalization_family: "revenue_like", raw_value: fordeling.netto["omsaetning"], sign_convention: "credit",
+        source_label: "aggregated:omsaetning (accounts 1000-1299)", confidence: "HIGH",
+        evidence: ["account_range:1000-1299", "sign_rule:negate", `accounts:${(fordeling.konti["omsaetning"] || []).length}`],
+      }));
     }
 
-    // ── Derived metrics ──
-    const revenue = sums["omsaetning"] != null ? Math.abs(sums["omsaetning"]) : null;
-    const cogs = sums["direkte_omkostninger"] != null ? Math.abs(sums["direkte_omkostninger"]) : null;
+    // Omkostningsgrupperne: den POSITIVE del (kredit-netto → 0 og lagt i andre driftsindtægter).
+    for (const [key, positivDel] of Object.entries(fordeling.omkostninger)) {
+      const g = PNL_GROUPS.find(r => r.key === key);
+      const label = g ? `aggregated:${key} (accounts ${g.min}-${g.max})` : `aggregated:${key} (P&L accounts outside named groups)`;
+      const netto = fordeling.netto[key];
+      metricCandidates.push(kandidat({
+        source_field_id: key, normalization_family: "cost_like", raw_value: positivDel, sign_convention: "credit",
+        source_label: label, confidence: g ? "HIGH" : "MEDIUM",
+        evidence: [
+          g ? `account_range:${g.min}-${g.max}` : `accounts:${(fordeling.konti[key] || []).join(",")}`,
+          `net:${netto}`,
+          ...(netto < 0 ? [`credit_net_moved_to:${ANDRE_DRIFTSINDTAEGTER_KEY}`] : []),
+        ],
+      }));
+    }
+
+    // Andre driftsindtægter: Σ kredit-nettoer, udstedt som KREDIT (negativ) → profilen NEGATE'r til positiv.
+    if (fordeling.andreDriftsindtaegter > 0) {
+      metricCandidates.push(kandidat({
+        source_field_id: ANDRE_DRIFTSINDTAEGTER_KEY, normalization_family: "revenue_like", raw_value: -fordeling.andreDriftsindtaegter, sign_convention: "credit",
+        source_label: "aggregated:andre_driftsindtaegter (cost groups whose net is a credit)", confidence: "HIGH",
+        evidence: Object.entries(fordeling.netto).filter(([k, v]) => k !== "omsaetning" && v < 0).map(([k, v]) => `${k}:${v}`),
+        proposed_canonical_target: "other_operating_income",
+      }));
+    }
+
+    // Afskrivninger: intet målt resultatinterval → 0 for denne skabelon (filhovedet). Balancens 51xx/52xx tæller IKKE.
+    if (resultatkonti.length > 0) {
+      metricCandidates.push(kandidat({
+        source_field_id: AFSKRIVNINGER_KEY, normalization_family: "cost_like", raw_value: 0, sign_convention: "credit",
+        source_label: "no P&L depreciation range known for this template — 0 by rule", confidence: "LOW",
+        evidence: ["no_pnl_depreciation_range", "balance_51xx_52xx_excluded"],
+      }));
+    }
+
+    // ── Derived metrics (forretningskonvention — profilen KEEP'er dem) ──
+    const revenue = fordeling.netto["omsaetning"] != null ? fordeling.revenue : null;
+    const cogs = fordeling.omkostninger["direkte_omkostninger"];
 
     if (revenue != null && cogs != null) {
       const grossProfit = revenue - cogs;
-      metricCandidates.push({
-        source_field_id: "daekningsbidrag",
-        normalization_family: "profit_like",
-        raw_value: grossProfit,
-        raw_sign: grossProfit > 0 ? "positive" : grossProfit < 0 ? "negative" : "zero",
-        sign_convention: "business",
-        source_label: "derived:gross_profit (revenue - cogs)",
-        source_row_index: null,
-        source_column_slot: null,
-        source_cell_address: null,
-        basis: "period",
-        confidence: "MEDIUM",
-        evidence: ["derived:revenue-cogs"],
-        proposed_canonical_target: "gross_profit",
-      });
+      metricCandidates.push(kandidat({
+        source_field_id: "daekningsbidrag", normalization_family: "profit_like", raw_value: grossProfit, sign_convention: "business",
+        source_label: "derived:gross_profit (revenue - cogs)", confidence: "MEDIUM", evidence: ["derived:revenue-cogs"],
+        source_column_slot: null, proposed_canonical_target: "gross_profit",
+      }));
     }
 
-    // Approximate EBT: gross_profit - all cost buckets
-    if (revenue != null) {
-      const costKeys = ["direkte_omkostninger", "loenninger", "salgsomkostninger",
-        "lokaleomkostninger", "administrationsomkostninger", "finansieringsudgifter", "afskrivninger"];
-      let totalCosts = 0;
-      for (const k of costKeys) {
-        if (sums[k] != null) totalCosts += Math.abs(sums[k]);
-      }
-      const ebt = revenue - totalCosts;
-      metricCandidates.push({
-        source_field_id: "resultat_foer_skat",
-        normalization_family: "profit_like",
-        raw_value: ebt,
-        raw_sign: ebt > 0 ? "positive" : ebt < 0 ? "negative" : "zero",
-        sign_convention: "business",
-        source_label: "derived:ebt (revenue - sum_costs)",
-        source_row_index: null,
-        source_column_slot: null,
-        source_cell_address: null,
-        basis: "period",
-        confidence: "LOW",
-        evidence: ["derived:revenue-all_costs", "approximate"],
-        proposed_canonical_target: "ebt",
-      });
+    // Resultat før skat = −Σ Perioden over alle resultatkonti — saldobalancens egen sandhed.
+    if (resultatkonti.length > 0) {
+      metricCandidates.push(kandidat({
+        source_field_id: "resultat_foer_skat", normalization_family: "profit_like", raw_value: fordeling.ebt, sign_convention: "business",
+        source_label: "derived:ebt (−Σ period over all P&L accounts 1000-4999)", confidence: "HIGH",
+        evidence: [`pnl_accounts:${resultatkonti.length}`, "derived:-sum(1000-4999)"],
+        source_column_slot: null, proposed_canonical_target: "ebt",
+      }));
     }
 
     // Assets total
-    const fixedAssets = sums["anlaegsaktiver"] != null ? Math.abs(sums["anlaegsaktiver"]) : 0;
-    const inventory = sums["varelager"] != null ? Math.abs(sums["varelager"]) : 0;
-    const receivables = sums["debitorer"] != null ? Math.abs(sums["debitorer"]) : 0;
-    const cashRaw = sums["bank_balance"] ?? 0;
+    const fixedAssets = balanceSums["anlaegsaktiver"] != null ? Math.abs(balanceSums["anlaegsaktiver"]) : 0;
+    const inventory = balanceSums["varelager"] != null ? Math.abs(balanceSums["varelager"]) : 0;
+    const receivables = balanceSums["debitorer"] != null ? Math.abs(balanceSums["debitorer"]) : 0;
+    const cashRaw = balanceSums["bank_balance"] ?? 0;
     const cashForAssets = cashRaw > 0 ? cashRaw : 0;
+
+    for (const range of BALANCE_RANGES) {
+      const rawSum = balanceSums[range.key];
+      if (rawSum == null) continue;
+      metricCandidates.push(kandidat({
+        source_field_id: range.key, normalization_family: range.family, raw_value: rawSum, sign_convention: "credit",
+        source_label: `aggregated:${range.key} (accounts ${range.min}-${range.max})`, confidence: "HIGH",
+        evidence: [`account_range:${range.min}-${range.max}`, `sign_rule:${range.signRule}`],
+        source_column_slot: YTD_COL, basis: "ytd",
+      }));
+    }
 
     if (fixedAssets + inventory + receivables + cashForAssets > 0) {
       const assetsTotal = fixedAssets + inventory + receivables + cashForAssets;
-      metricCandidates.push({
-        source_field_id: "aktiver_i_alt",
-        normalization_family: "asset_like",
-        raw_value: assetsTotal,
-        raw_sign: "positive",
-        sign_convention: "credit",
-        source_label: "derived:assets_total",
-        source_row_index: null,
-        source_column_slot: null,
-        source_cell_address: null,
-        basis: "period",
-        confidence: "MEDIUM",
-        evidence: ["derived:fixed+inventory+receivables+cash"],
-        proposed_canonical_target: "assets_total",
-      });
+      metricCandidates.push(kandidat({
+        source_field_id: "aktiver_i_alt", normalization_family: "asset_like", raw_value: assetsTotal, sign_convention: "credit",
+        source_label: "derived:assets_total", confidence: "MEDIUM", evidence: ["derived:fixed+inventory+receivables+cash"],
+        source_column_slot: null, proposed_canonical_target: "assets_total",
+      }));
     }
 
     console.log(`${LOG_PREFIX} Built ${metricCandidates.length} metric candidates`);
@@ -397,13 +491,22 @@ export const dkEconomicSaldobalanceXlsxV1: SemanticXlsxTemplateEntry = {
 
     // ── Validation checks ──
     const checks = [];
-    const hasRevenue = sums["omsaetning"] != null;
+    const hasRevenue = fordeling.netto["omsaetning"] != null;
     checks.push({ name: "revenue_present", result: hasRevenue ? "PASS" as const : "FAIL" as const, details: hasRevenue ? "Revenue accounts found" : "No revenue accounts" });
-    const hasCosts = ["direkte_omkostninger", "loenninger", "administrationsomkostninger"].some(k => sums[k] != null);
+    const hasCosts = ["direkte_omkostninger", "loenninger", "administrationsomkostninger"].some(k => fordeling.netto[k] != null);
     checks.push({ name: "costs_present", result: hasCosts ? "PASS" as const : "FAIL" as const, details: hasCosts ? "Cost accounts found" : "No cost accounts" });
-    const hasBalance = ["egenkapital", "bank_balance", "debitorer"].some(k => sums[k] != null);
+    const hasBalance = ["egenkapital", "bank_balance", "debitorer"].some(k => balanceSums[k] != null);
     checks.push({ name: "balance_present", result: hasBalance ? "PASS" as const : "FAIL" as const, details: hasBalance ? "Balance accounts found" : "No balance accounts" });
     checks.push({ name: "no_subtotals", result: "PASS" as const, details: "Line-item only format confirmed" });
+    // Kontrolsummen: omsætning − Σ grupper + andre driftsindtægter = −Σ resultatkonti (1 kr.), og ingen konto uden gruppe.
+    const daekket = Math.abs(fordeling.afvigelse) <= KONTROLSUM_TOLERANCE && fordeling.udenGruppe.length === 0;
+    checks.push({
+      name: "pnl_coverage",
+      result: daekket ? "PASS" as const : "FAIL" as const,
+      details: daekket
+        ? `All ${resultatkonti.length} P&L accounts assigned; revenue ${fordeling.revenue.toFixed(2)} − costs + other income ${fordeling.andreDriftsindtaegter.toFixed(2)} = ebt ${fordeling.ebt.toFixed(2)} (diff ${fordeling.afvigelse.toFixed(2)})`
+        : `P&L coverage broken: diff ${fordeling.afvigelse.toFixed(2)} kr. (tolerance ${KONTROLSUM_TOLERANCE}); accounts without group: ${fordeling.udenGruppe.join(", ") || "none"}`,
+    });
 
     const parserStatus = checks.some(c => c.result === "FAIL") ? "FAIL" as const : "PASS" as const;
 

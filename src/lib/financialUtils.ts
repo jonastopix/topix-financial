@@ -1,4 +1,5 @@
 import type { Json } from "@/integrations/supabase/types";
+import { DANSK, omkostningerIAlt } from "@/lib/omkostningsnoegler";
 
 // ── Danish month names ──
 export const DANISH_MONTHS = [
@@ -88,6 +89,8 @@ export function getCanonicalOrLegacyMetrics(report: ReportData): ReportMetricsRe
         salgsomkostninger: m.sales_costs ?? null,
         lokaleomkostninger: m.facility_costs ?? null,
         administrationsomkostninger: m.admin_costs ?? null,
+        oevrige_omkostninger: m.other_costs ?? null,
+        andre_driftsindtaegter: m.other_operating_income ?? null,
         afskrivninger: m.depreciation ?? null,
         resultat_foer_skat: m.ebt ?? null,
         resultat_efter_skat: m.net_result ?? null,
@@ -148,6 +151,8 @@ export function getEffectiveMetrics(report: ReportData): ReportMetricsResult | n
           salgsomkostninger: mnd.metrics.salgsomkostninger ?? null,
           lokaleomkostninger: mnd.metrics.lokaleomkostninger ?? null,
           administrationsomkostninger: mnd.metrics.administrationsomkostninger ?? null,
+          oevrige_omkostninger: mnd.metrics.oevrige_omkostninger ?? null,
+          andre_driftsindtaegter: mnd.metrics.andre_driftsindtaegter ?? null,
           afskrivninger: mnd.metrics.afskrivninger ?? null,
           resultat_foer_skat: mnd.metrics.resultat_foer_skat ?? null,
           resultat_efter_skat: mnd.metrics.resultat_efter_skat ?? null,
@@ -182,14 +187,10 @@ export const REPORT_OVERRIDE_SELECT = "manual_report_period_label, manual_report
 // ── Shared metric helpers (canonical expense model) ──
 
 /** Canonical total expenses — the single shared definition across all surfaces.
- *  Uses the 6 canonical cost buckets from normalized_data.metrics. */
+ *  Σ|alle omkostningsnøgler| fra omkostningsnoegler.DANSK (17/9-2026: nu også øvrige
+ *  omkostninger; andre driftsindtægter er en indtægt og trækkes ikke fra her). */
 export function calcTotalExpenses(kf: Record<string, number | null>): number {
-  return Math.abs(kf.loenninger ?? 0)
-    + Math.abs(kf.direkte_omkostninger ?? 0)
-    + Math.abs(kf.salgsomkostninger ?? 0)
-    + Math.abs(kf.lokaleomkostninger ?? 0)
-    + Math.abs(kf.administrationsomkostninger ?? 0)
-    + Math.abs(kf.afskrivninger ?? 0);
+  return omkostningerIAlt(kf, DANSK);
 }
 
 /** DB margin (dækningsgrad) — gross profit as % of revenue */

@@ -39,6 +39,7 @@
  */
 import { factsToDanishMetricsNullable } from "@/lib/factsAdapter";
 import { deriveGrowthFactor } from "@/lib/budgetEngine";
+import { DANSK, omkostningsnoegler } from "@/lib/omkostningsnoegler";
 
 /** Det budgettet behøver fra en fact. Ingen nøgle = null, aldrig 0. */
 export interface FactTilAktual {
@@ -78,20 +79,16 @@ export interface MaanedsAktual {
   bank: number | null;
 }
 
-const OMKOSTNINGSPOSTER = [
-  "loenninger",
-  "salgsomkostninger",
-  "lokaleomkostninger",
-  "administrationsomkostninger",
-  "direkte_omkostninger",
-] as const;
+/** Posterne kommer fra ÉN fælles definition (omkostningsnoegler.DANSK, 17/9-2026): vareforbrug + drift
+    (inkl. øvrige omkostninger), og afskrivninger når de bedes om. */
+const OMKOSTNINGSPOSTER = omkostningsnoegler(DANSK, "vareforbrug_og_drift");
 
 /** Summen af de målte poster; null når ingen af dem er målt. */
 export function sumMaalteOmkostninger(
   kf: Record<string, number | null>,
   medAfskrivninger: boolean,
 ): number | null {
-  const poster: readonly string[] = medAfskrivninger ? [...OMKOSTNINGSPOSTER, "afskrivninger"] : OMKOSTNINGSPOSTER;
+  const poster: readonly string[] = medAfskrivninger ? [...OMKOSTNINGSPOSTER, DANSK.afskrivninger] : OMKOSTNINGSPOSTER;
   let sum = 0;
   let maalte = 0;
   for (const post of poster) {

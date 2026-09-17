@@ -65,9 +65,8 @@ export default function CombinedBudgetWidget() {
     const budgetMargin = budgetRevenue > 0 ? (budgetEbitda / budgetRevenue) * 100 : 0;
 
     const actualRevenue = kf.omsaetning ?? 0;
-    const actualExpenses = Math.abs(kf.loenninger ?? 0) + Math.abs(kf.direkte_omkostninger ?? 0) +
-      Math.abs(kf.salgsomkostninger ?? 0) + Math.abs(kf.lokaleomkostninger ?? 0) +
-      Math.abs(kf.administrationsomkostninger ?? 0) + Math.abs(kf.afskrivninger ?? 0);
+    // ÉN fælles definition (calcTotalExpenses → omkostningsnoegler.DANSK, 17/9-2026) — før en lokal liste på seks.
+    const actualExpenses = calcTotalExpenses(kf);
     const actualEbitda = actualRevenue - actualExpenses;
     const actualMargin = actualRevenue > 0 ? (actualEbitda / actualRevenue) * 100 : 0;
 

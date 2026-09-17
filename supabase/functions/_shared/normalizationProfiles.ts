@@ -54,17 +54,31 @@ const ABS: NormalizationRule = { action: "abs", description: "Take absolute valu
 const NEGATE: NormalizationRule = { action: "negate", description: "Negate sign (credit→business)" };
 const KEEP: NormalizationRule = { action: "keep", description: "Keep raw document sign" };
 const REJECT: NormalizationRule = { action: "reject", description: "Unclassified — reject and fail loud" };
+/** Afledt i skabelonen (−Σ resultatkonti, revenue − cogs) — allerede i forretningskonvention; et underskud er negativt og SKAL blive det. */
+const KEEP_DERIVED: NormalizationRule = { action: "keep", description: "Derived in template — already business convention, sign is the result" };
 
 // ── Profile: e-conomic Saldobalance (credit convention, mixed P&L + balance) ──
 
+// FORTEGNSFEJLEN (rettet 17/9-2026, recon-saldobalance-fortegn.md §1): de fire
+// feltregler for de AFLEDTE resultatlinjer stod som `abs` («already in business
+// convention»). abs kaster fortegnet væk: et overskud stod uændret, et underskud
+// blev positivt. Målt i prod 17/9: Fjeldgaardshop 2025-10 ebt −241.813,30 →
+// +241.813,30 (correction_log «field_override_abs»); 12 abs-poster hos
+// Fjeldgaardshop, 12 hos Brick Works. Reglen kom ind 26/3-2026 (79d65be5). Et tal
+// der allerede har sit fortegn skal `keep`. Skabelonen (dkEconomicSaldobalanceXlsxV1)
+// udsteder nu resultatet som −Σ alle resultatkonti, omkostningsgrupperne som deres
+// positive del og «andre driftsindtægter» som en kredit-kandidat (revenue_like →
+// NEGATE, som signRule på intervallet altid har sagt; ABS ville skjule en måned hvor
+// omsætningsgruppen netto er debet — nu bliver den negativ og fældes af anker-tjekket).
+// Kildeværn: src/lib/__tests__/saldobalanceFortegn.guard.test.ts.
 const economic_saldobalance_credit_v1: NormalizationProfile = {
   profile_id: "economic_saldobalance_credit_v1",
-  description: "e-conomic Saldobalance PDF — credit convention, mixed basis",
+  description: "e-conomic Saldobalance XLSX (detailed, no subtotals) — credit convention, mixed basis",
   sign_convention: "credit",
   statement_type: "trial_balance",
   family_defaults: {
-    revenue_like:            ABS,
-    cost_like:               ABS,
+    revenue_like:            NEGATE,  // kredit (negativ) → positiv; en debet-gruppe bliver negativ og fældes (17/9-2026, var ABS)
+    cost_like:               ABS,     // grupperne er allerede den positive del (skabelonen) — ABS er identitet
     profit_like:             NEGATE,
     asset_like:              ABS,
     liability_like:          ABS,
@@ -74,10 +88,10 @@ const economic_saldobalance_credit_v1: NormalizationProfile = {
     contra_or_unknown:       REJECT,
   },
   field_overrides: {
-    daekningsbidrag: { action: "abs", description: "Derived gross_profit — already in business convention" },
-    resultat_foer_skat: { action: "abs", description: "Derived EBT — already in business convention" },
-    ebitda: { action: "abs", description: "Derived EBITDA — already in business convention" },
-    resultat_efter_skat: { action: "abs", description: "Derived net result — already in business convention" },
+    daekningsbidrag:     KEEP_DERIVED, // derived gross_profit (revenue − cogs) — var abs
+    resultat_foer_skat:  KEEP_DERIVED, // derived EBT (−Σ resultatkonti) — var abs
+    ebitda:              KEEP_DERIVED, // var abs (skabelonen udsteder den ikke; motoren afleder)
+    resultat_efter_skat: KEEP_DERIVED, // var abs (skabelonen udsteder den ikke)
   },
 };
 
