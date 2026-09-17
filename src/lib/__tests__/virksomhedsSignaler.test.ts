@@ -2,6 +2,12 @@ import { describe, it, expect } from "vitest";
 import {
   afgoerVirksomhedsSignaler,
   isFiguresFresh,
+  RIMELIGHED_FAKTISK_MIN_KR,
+  RIMELIGHED_GRUNDLAG_MIN_KR,
+  RIMELIGHED_PCT_MAX,
+  TAL_SER_FORKERT_UD_ALVOR,
+  talSerForkertUd,
+  talSerForkertUdTekst,
   type FactPunkt,
   type VirksomhedsInput,
 } from "@/lib/virksomhedsSignaler";
@@ -422,5 +428,92 @@ describe("kø 8: stamdata mangler — CVR-opslaget lykkedes ikke ved oprettelsen
     const raekkefoelge = signaler.map((x) => x.noegle);
     expect(raekkefoelge.indexOf("agentforslag_venter")).toBeLessThan(raekkefoelge.indexOf("cvr_opslag_mangler"));
     expect(raekkefoelge.indexOf("cvr_opslag_mangler")).toBeLessThan(raekkefoelge.indexOf("budget_over"));
+  });
+});
+
+describe("Rimelighedsdommen (valg 8, 17/9) — tal der ikke kan passe bliver «tjek tallet», ikke en procent", () => {
+  it("grænserne står som VALG: 500 %, 1.000 kr., 50.000 kr., alvor 50", () => {
+    expect(RIMELIGHED_PCT_MAX).toBe(500);
+    expect(RIMELIGHED_GRUNDLAG_MIN_KR).toBe(1000);
+    expect(RIMELIGHED_FAKTISK_MIN_KR).toBe(50_000);
+    expect(TAL_SER_FORKERT_UD_ALVOR).toBe(50);
+  });
+
+  it("talSerForkertUd: over 500 % til hver side, eller grundlag < 1.000 mod faktisk > 50.000; præcis på grænsen er rimeligt", () => {
+    expect(talSerForkertUd(500, 100_000, 600_000)).toBe(false);
+    expect(talSerForkertUd(500.1, 100_000, 600_100)).toBe(true);
+    expect(talSerForkertUd(-500.1, 100_000, -400_100)).toBe(true);
+    expect(talSerForkertUd(20, 999, 50_001)).toBe(true);
+    expect(talSerForkertUd(20, 1000, 50_001)).toBe(false);
+    expect(talSerForkertUd(20, 999, 50_000)).toBe(false);
+    expect(talSerForkertUd(null, null, null)).toBe(false);
+  });
+
+  it("Doggybed 2026-08 ordret (prod 17/9 15:33): faktisk 7.656,76 kr. mod budget 35 kr. → IKKE «Omsætning 21776% over budgetteret», men «Tallet ser forkert ud — tjek budgettet for Aug 2026»", () => {
+    const s = afgoerVirksomhedsSignaler(input({ senesteFact: fact({ omsaetning: 7656.76 }), budgetOmsaetning: 35 }), NOW);
+    // Den gamle dom ville have givet præcis dette (regnet: (7656,76 − 35) / 35 × 100 = 21776,46):
+    expect(Math.round(((7656.76 - 35) / 35) * 100)).toBe(21776);
+    expect(s.map((x) => x.tekst)).not.toContain("Omsætning 21776% over budgetteret");
+    expect(s.map((x) => x.noegle)).not.toContain("budget_over");
+    const t = s.find((x) => x.noegle === "tal_ser_forkert_ud");
+    expect(t).toMatchObject({
+      koe: "stikker_ud",
+      alvor: 50,
+      tekst: "Tallet ser forkert ud — tjek budgettet for Aug 2026",
+      detalje: "Faktisk 7.657 kr. mod budget 35 kr.",
+    });
+  });
+
+  it("et budget på 999 kr. mod faktisk 50.001 kr. er forkert (grundlagsreglen), selv om procenten er lille — 1.000 kr. mod 1.100 kr. er ikke", () => {
+    expect(noegler(input({ senesteFact: fact({ omsaetning: 50_001 }), budgetOmsaetning: 999 }))).toContain("tal_ser_forkert_ud");
+    const s = noegler(input({ senesteFact: fact({ omsaetning: 1100 }), budgetOmsaetning: 1000 }));
+    expect(s).not.toContain("tal_ser_forkert_ud");
+    expect(s).not.toContain("budget_over"); // 10 % — under tærsklen
+  });
+
+  it("et rigtigt budgetsignal er uændret: 85.000 mod 100.000 → budget_under, ingen rimelighedslinje", () => {
+    const s = noegler(input({ senesteFact: fact({ omsaetning: 85_000 }), budgetOmsaetning: 100_000 }));
+    expect(s).toContain("budget_under");
+    expect(s).not.toContain("tal_ser_forkert_ud");
+  });
+
+  it("MoM: forrige måned 10 kr. mod 100.000 kr. → «tjek tallene», intet faldsignal; begge retninger dømmes", () => {
+    const op = afgoerVirksomhedsSignaler(
+      input({ forrigeFact: fact({ period_key: "2026-07", period_label: "Jul 2026", omsaetning: 10 }), senesteFact: fact({ omsaetning: 100_000 }) }),
+      NOW,
+    );
+    expect(op.find((x) => x.noegle === "tal_ser_forkert_ud")).toMatchObject({
+      tekst: "Tallet ser forkert ud — tjek tallene for Aug 2026",
+      detalje: "Omsætning 10 kr. → 100.000 kr.",
+    });
+    const ned = afgoerVirksomhedsSignaler(
+      input({ forrigeFact: fact({ period_key: "2026-07", period_label: "Jul 2026", resultat_foer_skat: -100 }), senesteFact: fact({ resultat_foer_skat: -10_000 }) }),
+      NOW,
+    );
+    expect(ned.map((x) => x.noegle)).not.toContain("resultatfald_mom");
+    expect(ned.find((x) => x.noegle === "tal_ser_forkert_ud")?.detalje).toBe("Resultat f. skat -100 kr. → -10.000 kr.");
+  });
+
+  it("rammer både budget og M/M → ÉN linje: «tjek budgettet og tallene», detaljerne samlet med ·", () => {
+    const s = afgoerVirksomhedsSignaler(
+      input({ forrigeFact: fact({ period_key: "2026-07", period_label: "Jul 2026", omsaetning: 10 }), senesteFact: fact({ omsaetning: 100_000 }), budgetOmsaetning: 35 }),
+      NOW,
+    );
+    const linjer = s.filter((x) => x.noegle === "tal_ser_forkert_ud");
+    expect(linjer).toHaveLength(1);
+    expect(linjer[0].tekst).toBe("Tallet ser forkert ud — tjek budgettet og tallene for Aug 2026");
+    expect(linjer[0].detalje).toBe("Omsætning 10 kr. → 100.000 kr. · Faktisk 100.000 kr. mod budget 35 kr.");
+  });
+
+  it("gamle tal: rimelighedsdommen er under friskhedsgaten som resten af køen", () => {
+    const s = noegler(input({ senesteFact: fact({ period_key: "2026-03", period_label: "Mar 2026", omsaetning: 7656.76 }), budgetOmsaetning: 35 }));
+    expect(s).not.toContain("tal_ser_forkert_ud");
+    expect(s).not.toContain("budget_over");
+  });
+
+  it("teksten: ét eller to ting at tjekke", () => {
+    expect(talSerForkertUdTekst(["budgettet"], "Aug 2026")).toBe("Tallet ser forkert ud — tjek budgettet for Aug 2026");
+    expect(talSerForkertUdTekst(["tallene"], "Aug 2026")).toBe("Tallet ser forkert ud — tjek tallene for Aug 2026");
+    expect(talSerForkertUdTekst(["tallene", "budgettet"], "Aug 2026")).toBe("Tallet ser forkert ud — tjek budgettet og tallene for Aug 2026");
   });
 });

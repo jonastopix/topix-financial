@@ -706,7 +706,9 @@ function grundeFraMotoren(v: VirksomhedTilDom): Grund[] {
       handling = `Svar ${v.navn}`;
     } else if (s.koe === "stikker_ud") {
       slags = "stikker_ud";
-      handling = `Tag det op med ${v.navn}`;
+      // Rimelighedsdommen (17/9, virksomhedsSignaler valg 8): et forkert tal
+      // tages ikke op med virksomheden — det tjekkes først.
+      handling = s.noegle === "tal_ser_forkert_ud" ? `Tjek tallene for ${v.navn}` : `Tag det op med ${v.navn}`;
     } else {
       continue; // friske_tal (§11), agentforslag_venter (puklen), stamdata_mangler (kun virksomhedssiden, 14/9)
     }

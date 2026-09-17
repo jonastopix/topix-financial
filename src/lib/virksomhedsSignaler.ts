@@ -98,6 +98,31 @@
  * 7. LOFT. MemberDetail cappede til fire signal-rækker. VALGT: intet loft
  *    her. Motoren giver alt, sorteret; fladen skærer. Et loft er en
  *    visningsbeslutning, ikke en dom.
+ *
+ * 8. RIMELIGHEDSDOMMEN (17/9-2026 — Jonas ordret «Enig med dig» til
+ *    ~/Downloads/recon-tal-der-ikke-kan-passe.md §5 A). Set i drift 17/9
+ *    00:06 på rådgiverens forside: Doggybed «Omsætning 21776% over
+ *    budgetteret». Prod 15:33 (…_15-33-09.csv): 2026-08 faktisk 7.656,76 kr.
+ *    mod budget 35 kr., measured. Dommen regnede rigtigt på et forkert
+ *    grundlag, og rådgiveren så procenten uden tallene bag (fladen viser
+ *    ikke `detalje`). VALGT: en procent over RIMELIGHED_PCT_MAX (500) til
+ *    hver side, eller et sammenligningsgrundlag (budget / forrige måned)
+ *    under RIMELIGHED_GRUNDLAG_MIN_KR (1.000 kr.) mod et faktisk tal over
+ *    RIMELIGHED_FAKTISK_MIN_KR (50.000 kr.), er ikke et signal om
+ *    VIRKSOMHEDEN — det er et signal om TALLET. Så gives IKKE
+ *    «Omsætning N% over budgetteret» / «… faldt N% MoM», men ét signal
+ *    `tal_ser_forkert_ud` i samme kø (alvor 50, som «under budget»):
+ *    «Tallet ser forkert ud — tjek budgettet for Aug 2026», med de to tal
+ *    i `detalje`. Grænserne er VALG, sagt højt her: 500 % er fem gange
+ *    planen — ingen SMV rammer det på én måned uden at tallet er forkert
+ *    (delmåned, t.kr., et 1-tal i budgettet); 1.000/50.000 kr. fanger
+ *    nævneren tæt på nul, før procenten eksploderer. Gælder budgetgrenen OG
+ *    begge MoM-grene (en forrige måned på 10 kr. giver samme slags tal) —
+ *    MoM'en dømmes her i BEGGE retninger, fordi et grundlag tæt på nul er
+ *    lige forkert uanset fortegn (valg 2 gælder stadig for de rigtige
+ *    faldsignaler). Én linje pr. virksomhed uanset hvor mange grene der
+ *    rammer: nøglen skal være entydig i forsidens grundlag/kvittering
+ *    (opgaveLukning: «stikker_ud:tal_ser_forkert_ud»).
  */
 
 import { CVR_MANGEL_HANDLING, CVR_MANGEL_MAERKE, cvrOpslagMangler, felterTekst, type CvrStamdata } from "./cvrBerigelse";
@@ -163,6 +188,7 @@ export type SignalNoegle =
   | "resultatfald_mom"
   | "budget_under"
   | "budget_over"
+  | "tal_ser_forkert_ud"
   | "agentforslag_venter"
   | "friske_tal"
   | "cvr_opslag_mangler";
@@ -185,6 +211,27 @@ const STALE_DAGE = 21;
 const FRISKE_TAL_DAGE = 14;
 const MOM_TAERSKEL_PCT = 15;
 const BUDGET_TAERSKEL_PCT = 10;
+
+/** Rimelighedsdommen (valg 8 i filhovedet): grænserne — sagt højt, VALG. */
+export const RIMELIGHED_PCT_MAX = 500;
+export const RIMELIGHED_GRUNDLAG_MIN_KR = 1000;
+export const RIMELIGHED_FAKTISK_MIN_KR = 50_000;
+export const TAL_SER_FORKERT_UD_ALVOR = 50;
+
+/** Sand når et procenttal ikke kan være et signal om virksomheden: over
+    500 % til hver side, ELLER grundlaget (budget/forrige måned) under 1.000 kr.
+    mod et faktisk tal over 50.000 kr. Ren, testet (Doggybed ordret). */
+export function talSerForkertUd(pct: number | null, grundlag: number | null, faktisk: number | null): boolean {
+  if (pct != null && Math.abs(pct) > RIMELIGHED_PCT_MAX) return true;
+  if (grundlag != null && faktisk != null && Math.abs(grundlag) < RIMELIGHED_GRUNDLAG_MIN_KR && Math.abs(faktisk) > RIMELIGHED_FAKTISK_MIN_KR) return true;
+  return false;
+}
+
+/** Teksten for `tal_ser_forkert_ud` — det der skal tjekkes, og perioden. */
+export function talSerForkertUdTekst(tjek: readonly ("budgettet" | "tallene")[], periode: string): string {
+  const hvad = tjek.includes("budgettet") && tjek.includes("tallene") ? "budgettet og tallene" : (tjek[0] ?? "tallene");
+  return `Tallet ser forkert ud — tjek ${hvad} for ${periode}`;
+}
 
 /**
  * FLYTTET ORDRET fra src/components/AdvisorDashboard.tsx l. 50–60 (3/9 2026).
@@ -313,10 +360,17 @@ export function afgoerVirksomhedsSignaler(input: VirksomhedsInput, now: Date = n
     });
   }
 
+  // Rimelighedsdommen (valg 8): samles på tværs af grenene til ÉN linje.
+  const forkertTjek: ("budgettet" | "tallene")[] = [];
+  const forkertDetaljer: string[] = [];
+
   // Omsætningsfald MoM fra friske facts (kun fald, valg 2; abs-nævner, valg 3).
   if (frisk && seneste && forrige) {
     const pct = pctAendring(seneste.omsaetning, forrige.omsaetning);
-    if (pct != null && pct <= -MOM_TAERSKEL_PCT) {
+    if (pct != null && talSerForkertUd(pct, forrige.omsaetning, seneste.omsaetning)) {
+      if (!forkertTjek.includes("tallene")) forkertTjek.push("tallene");
+      forkertDetaljer.push(`Omsætning ${kr(forrige.omsaetning as number)} → ${kr(seneste.omsaetning as number)}`);
+    } else if (pct != null && pct <= -MOM_TAERSKEL_PCT) {
       signaler.push({
         noegle: "omsaetningsfald_mom",
         koe: "stikker_ud",
@@ -327,7 +381,10 @@ export function afgoerVirksomhedsSignaler(input: VirksomhedsInput, now: Date = n
     }
     // Resultatfald MoM (MemberDetail havde den; kun fald, valg 2).
     const pctRes = pctAendring(seneste.resultat_foer_skat, forrige.resultat_foer_skat);
-    if (pctRes != null && pctRes <= -MOM_TAERSKEL_PCT) {
+    if (pctRes != null && talSerForkertUd(pctRes, forrige.resultat_foer_skat, seneste.resultat_foer_skat)) {
+      if (!forkertTjek.includes("tallene")) forkertTjek.push("tallene");
+      forkertDetaljer.push(`Resultat f. skat ${kr(forrige.resultat_foer_skat as number)} → ${kr(seneste.resultat_foer_skat as number)}`);
+    } else if (pctRes != null && pctRes <= -MOM_TAERSKEL_PCT) {
       signaler.push({
         noegle: "resultatfald_mom",
         koe: "stikker_ud",
@@ -341,7 +398,11 @@ export function afgoerVirksomhedsSignaler(input: VirksomhedsInput, now: Date = n
   // Budgetafvigelse over 10 % (MemberDetail.tsx:779–794; gated på friskhed, valg 1).
   if (frisk && seneste && seneste.omsaetning != null && input.budgetOmsaetning != null && input.budgetOmsaetning !== 0) {
     const pct = ((seneste.omsaetning - input.budgetOmsaetning) / Math.abs(input.budgetOmsaetning)) * 100;
-    if (Math.abs(pct) > BUDGET_TAERSKEL_PCT) {
+    if (talSerForkertUd(pct, input.budgetOmsaetning, seneste.omsaetning)) {
+      // Doggybed 17/9: 7.656,76 mod 35 → 21776 %. Ikke et signal om virksomheden.
+      forkertTjek.push("budgettet");
+      forkertDetaljer.push(`Faktisk ${kr(seneste.omsaetning)} mod budget ${kr(input.budgetOmsaetning)}`);
+    } else if (Math.abs(pct) > BUDGET_TAERSKEL_PCT) {
       const under = pct < 0;
       signaler.push({
         noegle: under ? "budget_under" : "budget_over",
@@ -351,6 +412,17 @@ export function afgoerVirksomhedsSignaler(input: VirksomhedsInput, now: Date = n
         detalje: `Faktisk ${kr(seneste.omsaetning)} mod budget ${kr(input.budgetOmsaetning)}`,
       });
     }
+  }
+
+  // Rimelighedsdommen (valg 8): én linje, alvor som «under budget».
+  if (forkertTjek.length > 0 && seneste) {
+    signaler.push({
+      noegle: "tal_ser_forkert_ud",
+      koe: "stikker_ud",
+      tekst: talSerForkertUdTekst(forkertTjek, seneste.period_label || seneste.period_key || "seneste periode"),
+      alvor: TAL_SER_FORKERT_UD_ALVOR,
+      detalje: forkertDetaljer.join(" · "),
+    });
   }
 
   // ── Kø 6: Agentforslag der venter på afgørelse (nyt, designets §3.5) ──
