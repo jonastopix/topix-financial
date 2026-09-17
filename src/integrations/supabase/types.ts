@@ -3596,6 +3596,7 @@ export type Database = {
         Returns: Json
       }
       hent_betalingstilbud: { Args: { betalingstoken: string }; Returns: Json }
+      hent_oekonomi_overblik: { Args: never; Returns: Json }
       is_legat_user: { Args: { _user_id: string }; Returns: boolean }
       is_membership_active: { Args: { p_company_id: string }; Returns: boolean }
       kald_edge: {
@@ -3701,7 +3702,7 @@ export type Database = {
       }
     }
     Enums: {
-      app_role: "member" | "advisor" | "admin"
+      app_role: "member" | "advisor" | "admin" | "partner"
     }
     CompositeTypes: {
       report_commit_candidate: {
@@ -3845,7 +3846,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      app_role: ["member", "advisor", "admin"],
+      app_role: ["member", "advisor", "admin", "partner"],
     },
   },
 } as const

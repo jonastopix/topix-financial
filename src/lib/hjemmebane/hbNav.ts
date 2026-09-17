@@ -78,6 +78,8 @@ export type HbAktiv =
   | "boardroom" | "akademiet" | "rapportering" | "noegletal" | "budget" | "milestones" | "handouts"
   | "booksession" | "rabataftaler" | "events" | "medlemmer" | "community" | "chat"
   | "virksomheder" | "opgaver" | "konto"
+  /** /oekonomi (Ø2, 18/9): økonomioverblikket — kun partnere. */
+  | "oekonomi"
   /** /deling (14/9): «Fortæl det videre», sidste punkt i medlemmets menu. */
   | "deling";
 
@@ -85,6 +87,10 @@ export interface HbNavInput {
   isAdvisor: boolean;
   erAbonnent: boolean;
   active: HbAktiv;
+  /** Rollen partner (Ø2, 18/9 — Jonas: «Kun mig og Morten»): «Økonomi» i
+      rådgivermenuen KUN for partnere. Udeladt = ikke partner; menuen er
+      uændret for alle andre rådgivere. */
+  isPartner?: boolean;
 }
 
 export const BLOK_MEDLEMMETS_FLADER = "Medlemmets flader";
@@ -135,8 +141,10 @@ export function medlemmetsNav(active: HbAktiv, erAbonnent: boolean, boardroomTo:
   ];
 }
 
-/** Rådgiverens menu (8/9) — se filhovedet. */
-export function raadgiverensNav(active: HbAktiv): HbNavEntry[] {
+/** Rådgiverens menu (8/9) — se filhovedet. «Økonomi» (Ø2, 18/9) står sidst
+    i den øverste blok og KUN når isPartner er sand — for alle andre
+    rådgivere er arrayet ordret som før. */
+export function raadgiverensNav(active: HbAktiv, isPartner = false): HbNavEntry[] {
   const medlem = BLOK_MEDLEMMETS_FLADER;
   const platform = BLOK_PLATFORM;
   return [
@@ -145,6 +153,7 @@ export function raadgiverensNav(active: HbAktiv): HbNavEntry[] {
     { label: "Indbakke", to: "/chat", active: active === "chat" },
     { label: "Community", to: "/community", active: active === "community" },
     { label: "Indhold", to: "/admin/indhold" },
+    ...(isPartner === true ? [{ label: "Økonomi", to: "/oekonomi", active: active === "oekonomi" }] : []),
     { ...dineTal(active), blok: medlem },
     { label: "Akademiet", to: "/akademiet", active: active === "akademiet", blok: medlem },
     { ...rabataftaler(active), blok: medlem },
@@ -169,7 +178,7 @@ export function raadgiverensNav(active: HbAktiv): HbNavEntry[] {
 /** Hele nav'en for skallen. Rådgiveren får sin egen; medlemmet sin — den
     dag en rådgivers egen tier skulle være abonnent, vinder rådgivermenuen
     (før hang admin-blokken på begge grene af samme grund). */
-export function bygHbNav({ isAdvisor, erAbonnent, active }: HbNavInput): HbNavEntry[] {
-  if (isAdvisor) return raadgiverensNav(active);
+export function bygHbNav({ isAdvisor, erAbonnent, active, isPartner }: HbNavInput): HbNavEntry[] {
+  if (isAdvisor) return raadgiverensNav(active, isPartner === true);
   return medlemmetsNav(active, erAbonnent, erAbonnent ? "/kpis" : "/");
 }
