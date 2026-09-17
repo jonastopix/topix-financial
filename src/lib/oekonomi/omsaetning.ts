@@ -69,6 +69,8 @@ export interface Kontrakt {
   periode_slut: string;
   /** Prisen for HELE perioden, ekskl. moms, i øre — inkl. ratetillæg (det der faktureres). */
   pris_eks_moms_oere: number;
+  /** Grundprisen (det fornyelsen regner fra — Jonas 17/9). Motoren regner ikke på den; dashboardet viser den. */
+  grundpris_oere?: number | null;
   betalingsmodel?: Betalingsmodel | string | null;
   kilde?: KontraktKilde | string | null;
 }
@@ -245,7 +247,8 @@ export function aktivPaaDag(k: Kontrakt, dag: string): boolean {
   return utc(sy, sm, sd) <= t && t < utc(ey, em, ed);
 }
 
-function sidsteDag(key: string): string {
+/** Sidste kalenderdag i måneden «YYYY-MM» → «YYYY-MM-DD». */
+export function sidsteDag(key: string): string {
   const [y, m] = laesMaaned(key);
   return `${key}-${String(dageIMaaned(y, m)).padStart(2, "0")}`;
 }
@@ -284,9 +287,18 @@ function harForgaenger(kontrakter: readonly Kontrakt[], companyId: string, start
   });
 }
 
-/** Broen for én måned: bevægelsen pr. virksomhed fra forrige måneds MRR til denne. */
-export function mrrBro(kontrakter: readonly Kontrakt[], key: string, forrigeKey: string | null): MrrBro {
-  const bro = tomBro();
+export type BroSlags = keyof MrrBro;
+
+/** Én post i broen: hvilken virksomhed, hvilken slags, hvor mange øre (0 for gratis). */
+export interface BroPostDetalje {
+  slags: BroSlags;
+  company_id: string;
+  oere: number;
+}
+
+/** Broens poster for én måned pr. virksomhed — dashboardet (Ø3) sætter navne på; mrrBro lægger dem sammen. */
+export function mrrBroPoster(kontrakter: readonly Kontrakt[], key: string, forrigeKey: string | null): BroPostDetalje[] {
+  const poster: BroPostDetalje[] = [];
   const nu = mrrPrVirksomhed(kontrakter, key);
   const foer = forrigeKey ? mrrPrVirksomhed(kontrakter, forrigeKey) : new Map<string, number>();
   const virksomheder = new Set<string>([...nu.keys(), ...foer.keys()]);
@@ -306,25 +318,29 @@ export function mrrBro(kontrakter: readonly Kontrakt[], key: string, forrigeKey:
               .filter((k) => k !== nyeste && k.company_id === c && k.pris_eks_moms_oere > 0 && dageMellem(k.periode_slut, nyeste.periode_start) >= 0 && dageMellem(k.periode_slut, nyeste.periode_start) <= FORNYELSES_AFSTAND_DAGE)
               .map(mrrForKontrakt))
           : 0;
-        const post = b > forrigeMrr ? bro.fornyet_op : b < forrigeMrr ? bro.fornyet_ned : bro.fornyet_uaendret;
-        post.antal += 1;
-        post.oere += b;
+        poster.push({ slags: b > forrigeMrr ? "fornyet_op" : b < forrigeMrr ? "fornyet_ned" : "fornyet_uaendret", company_id: c, oere: b });
       } else {
-        bro.ny.antal += 1;
-        bro.ny.oere += b;
+        poster.push({ slags: "ny", company_id: c, oere: b });
       }
     } else if (b === 0) {
-      bro.tabt.antal += 1;
-      bro.tabt.oere += b - a;
+      poster.push({ slags: "tabt", company_id: c, oere: b - a });
     } else {
-      const post = b > a ? bro.fornyet_op : bro.fornyet_ned;
-      post.antal += 1;
-      post.oere += b - a;
+      poster.push({ slags: b > a ? "fornyet_op" : "fornyet_ned", company_id: c, oere: b - a });
     }
   }
   // Gratis: en kontrakt med pris 0 der STARTER i måneden (ingen øre, kun antal).
   for (const k of kontrakter) {
-    if (k.pris_eks_moms_oere === 0 && k.periode_start.slice(0, 7) === key) bro.gratis.antal += 1;
+    if (k.pris_eks_moms_oere === 0 && k.periode_start.slice(0, 7) === key) poster.push({ slags: "gratis", company_id: k.company_id, oere: 0 });
+  }
+  return poster;
+}
+
+/** Broen for én måned: bevægelsen pr. virksomhed fra forrige måneds MRR til denne, lagt sammen pr. slags. */
+export function mrrBro(kontrakter: readonly Kontrakt[], key: string, forrigeKey: string | null): MrrBro {
+  const bro = tomBro();
+  for (const p of mrrBroPoster(kontrakter, key, forrigeKey)) {
+    bro[p.slags].antal += 1;
+    bro[p.slags].oere += p.oere;
   }
   return bro;
 }

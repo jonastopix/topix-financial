@@ -20,7 +20,8 @@ const svar = {
 describe("laesOverblik", () => {
   it("læser kontrakter, betalinger og virksomheder til motorens typer", () => {
     const o = laesOverblik(svar);
-    expect(o.kontrakter).toEqual([{ id: "k1", company_id: "c1", periode_start: "2026-01-01", periode_slut: "2027-01-01", pris_eks_moms_oere: 5_000_000, betalingsmodel: "fuld", kilde: "backfill" }]);
+    expect(o.kontrakter).toEqual([{ id: "k1", company_id: "c1", periode_start: "2026-01-01", periode_slut: "2027-01-01", pris_eks_moms_oere: 5_000_000, grundpris_oere: 5_000_000, betalingsmodel: "fuld", kilde: "backfill" }]);
+    expect(o.fornyelser).toBeUndefined(); // RPC uden nøglen (før 20260918150000)
     expect(o.betalinger).toHaveLength(2);
     expect(o.betalinger[0]).toMatchObject({ id: "t1", beloeb_eks_moms_oere: 5_000_000, moms_oere: 1_250_000, status: "betalt" });
     expect(o.betalinger[1]).toMatchObject({ id: "t2", betalt_at: "", moms_oere: null, status: "fejlet" });
@@ -32,6 +33,11 @@ describe("laesOverblik", () => {
     expect(() => laesOverblik({ kontrakter: "nej", betalinger: [], virksomheder: [] })).toThrow(/kontrakter er ikke en liste/);
     expect(() => laesOverblik({ ...svar, kontrakter: [{ ...svar.kontrakter[0], pris_eks_moms_oere: "50000" }] })).toThrow(/pris_eks_moms_oere er ikke et tal/);
     expect(() => laesOverblik({ ...svar, betalinger: [{ ...svar.betalinger[0], company_id: "" }] })).toThrow(/betalinger.company_id mangler/);
+  });
+  it("fornyelser læses når RPC'en afleverer dem (20260918150000); forkert form kaster", () => {
+    const o = laesOverblik({ ...svar, fornyelser: [{ company_id: "c1", beslutning: "tilbyd", besluttet_at: "2026-09-10T08:00:00+00:00", note: null }] });
+    expect(o.fornyelser).toEqual([{ company_id: "c1", beslutning: "tilbyd", besluttet_at: "2026-09-10T08:00:00+00:00", note: null }]);
+    expect(() => laesOverblik({ ...svar, fornyelser: [{ company_id: "c1" }] })).toThrow(/fornyelser.beslutning mangler/);
   });
   it("tomme lister er et gyldigt (tomt) overblik", () => {
     const o = laesOverblik({ kontrakter: [], betalinger: [], virksomheder: [], hentet_at: "x" });
