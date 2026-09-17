@@ -31,6 +31,8 @@ const DAEKKEDE = [
   "src/lib/virksomhedsSignaler.ts",
   "src/components/hjemmebane/boardroom/nextStep.ts",
   "src/components/hjemmebane/boardroom/BoardroomView.tsx",
+  // Forsidens datalag (17/9, PR 1): JSX'en med den gamle milestone-bar er væk.
+  "src/components/AdvisorDashboard.tsx",
   // Digesten (8/9, efter #741) dømte gennem _shared/digestMilepaele →
   // milepaelDom; slettet 13/9 (oprydningen del 1) — værnet mistede to
   // dækkede flader, ikke en lås. DAEKKEDE-løkken læser filerne uden
@@ -59,7 +61,9 @@ const AFVIGERE: Array<{ sti: string; regel: string; hvorfor: string }> = [
   // stod her til 16/9 — slettet i «Én plan» fase 0c (importeret ingen steder,
   // målt 16/9; existsSync-gaten nedenfor sprang dem allerede over). Posterne er
   // taget ud, så listen kun låser filer der findes — som CommunityProgress 13/9.
-  { sti: "src/components/AdvisorDashboard.tsx", regel: "m.progress >= 100", hvorfor: "gammel milestone-bar i rådgiverforsiden" },
+  // AdvisorDashboard.tsx stod her med «m.progress >= 100» (MemberCards
+  // milestone-bar) til 17/9 — PR 1 pensionerede JSX'en; filen er nu kun
+  // datalag uden egen regel og står i DAEKKEDE.
   { sti: "src/pages/LegatDashboard.tsx", regel: "progress === 100", hvorfor: "gammel legat-flade" },
   { sti: "src/demo/DemoMilestones.tsx", regel: "if (progress >= 100) return \"done\";", hvorfor: "demo" },
 ];
