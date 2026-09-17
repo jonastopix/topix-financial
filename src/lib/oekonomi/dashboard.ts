@@ -33,35 +33,86 @@
  *      dage, pris, grundpris, beslutning fra company_fornyelse (RPC-nøglen
  *      'fornyelser'; mangler den, er beslutningen «ukendt»), og om et nyt
  *      kontraktår allerede er skrevet («fornyet»). «Omsætning i spil» = Σ
- *      pris på de kontraktår der udløber uden et nyt.
+ *      pris på de kontraktår der udløber uden et nyt. KUN AKTIVE KUNDER
+ *      (Ø3b, 17/9 17:27 — Jonas' skærmbillede): Pro-Vision ApS (21/9,
+ *      42.000) og E-skilte ApS (29/10, 40.000) stod i radaren og i «i spil»
+ *      (208.000 i stedet for 126.000), men er companies.status «tidligere»
+ *      (Ø1b, historik 2025) — de skal ikke fornyes. Radaren læser derfor
+ *      kun kontraktår for virksomheder med status 'active' OG er_kunde
+ *      (erAktivKunde). MRR, broen og kurven rører det IKKE: de betalte til
+ *      deres slutdato og tæller som i Monday.
  *   5. PRISUDVIKLING: virksomheder med to kontraktår — år 1 → år 2 for
  *      grundpris og pris, og samlet.
- *   6. KONCENTRATION: de fem største kunders andel af MRR ved månedens slutning.
- *   7. UDESTÅENDE: pr. virksomhed hvor betalt til dato − anerkendt til dato
- *      er negativ, og fejlede træk (company_traek.status = 'fejlet').
+ *   6. KUNDEVÆRDI (Ø3b — Jonas 17/9 ordret: «De fem største er ikke
+ *      relevante som de står nu»; fem kunder på 4.375 · 5 %, fordi alle med
+ *      52.500 i rater har samme MRR): de KUNDEVAERDI_ANTAL (10) største
+ *      kunder efter SAMLET betalt ekskl. moms siden første betaling
+ *      (company_traek status betalt, beloeb − moms), med andel af den
+ *      samlede betalte omsætning, antal kontraktår og status
+ *      (aktiv/tidligere). Under: «De 10 største har betalt N % af alt siden
+ *      {første betalingsmåned}». Koncentrationen efter MRR er fjernet.
+ *   7. UDESTÅENDE (Ø3b — Jonas 17/9 ordret: «Jeg forstår ikke udestående.
+ *      Det burde vi ikke have udover YKRG.»): FORFALDNE betalinger der ikke
+ *      er betalt i dag (dansk tid) — forfaldentFor. Før (17:27: «Udestående
+ *      −9.200» med YKRG −4.667 · Homie −1.694 · Fjeldgaardshop −1.581 · KJ
+ *      AUTO −508 · Two Socks −375 · WESDEX −339 · Livja −38) var det
+ *      «betalt til dato − anerkendt til MÅNEDENS UDGANG» (udestaaendeFor,
+ *      og MaanedsTal.udestaaende_oere i omsaetning.ts:411-416): for
+ *      månedlige rater med fast trækdato (Fjeldgaardshop den 18.) er det
+ *      TIMING, ikke gæld — hele september var anerkendt den 17., raten
+ *      trækkes den 18. Forfald pr. betalingsmodel: rate12/maanedlig hver
+ *      rate på kontraktårets trækdato (periode_start + N måneder, dagen
+ *      klippes til månedens længde); fuld/e-conomic/gratis hele prisen ved
+ *      periode_start (fakturaens dato er ikke i data — company_traek bærer
+ *      kun betalte/fejlede træk); rate2 halvdelen ved start, halvdelen
+ *      RATE2_ANDEN_RATE_MAANEDER (6) måneder senere (Nordic By Hand: rate 2
+ *      forfalder 1/11 — datoen findes ikke i data; 6 måneder er valget, og
+ *      raten står først som forfalden når den er passeret). PAUSER: et
+ *      rate12-kontraktår der spænder over MERE end 12 måneder (Livja:
+ *      16/9-2025 → 16/12-2026, «0005–0007 jan–mar 2026 mangler i Stripe»)
+ *      bærer sine tolv rater over kontraktens måneder — de ekstra måneder er
+ *      pauser, ikke gæld (kontrakten blev forlænget i stedet). Udestående
+ *      pr. virksomhed = Σ forfaldent − Σ betalt (status betalt, betalt_at ≤
+ *      i dag), kun hvor positivt. Målt mod kopien 16/9 pr. 17/9: KUN YKRG
+ *      (5 rater forfaldne à 4.375, 4 betalt → 4.375 — juni-raten); alle
+ *      andre 0,00 på kronen. Fejlede træk står i egen kolonne som før.
+ *      MaanedsTal.forudbetalt_oere har IKKE samme fejl spejlvendt:
+ *      anerkendt regnes til månedens UDGANG, så en rate betalt den 1. for
+ *      måneden ligger hele måneden med diff 0 (ikke forudbetalt), og en fuld
+ *      pris forud er forudbetalt præcis som før. Forudbetalt er uændret.
+ *      Nøgletallet «Udestående» (Noegletal.udestaaende_oere) sættes af
+ *      dashboardDom til den nye sum, så kortet og sektionen siger det samme;
+ *      motoren (omsaetning.ts) er urørt.
+ *   AKSEN (Ø3b — «augsep» yderst til højre): etiketterne står hver 3. måned
+ *      + den sidste (akseIndeks). Er den sidste mindre end AKSE_MIN_AFSTAND
+ *      (6 % af bredden ≈ 1,7 måned ved 29 punkter) fra den forrige, udelades
+ *      den forrige — den sidste vinder, for den siger hvor kurven ender.
  */
 import {
-  aktivPaaDag,
   danskMaaned,
   kr,
+  laengdeIMaaneder,
   laesDato,
   mrrBroPoster,
-  mrrForKontrakt,
   periodiser,
-  periodiserKontrakt,
-  sidsteDag,
   type BroSlags,
   type Kontrakt,
   type MaanedsTal,
 } from "@/lib/oekonomi/omsaetning";
-import { betalingerTilMotor, type Overblik, type OverblikBetaling } from "@/lib/oekonomi/overblik";
+import { betalingerTilMotor, type Overblik, type OverblikBetaling, type OverblikVirksomhed } from "@/lib/oekonomi/overblik";
 
 export const RADAR_DAGE = 90;
+/** Ø3b: kundeværdien — de N største efter samlet betalt. */
+export const KUNDEVAERDI_ANTAL = 10;
+/** Ø3b: aksens mindste afstand mellem to etiketter, i andel af bredden. */
+export const AKSE_MIN_AFSTAND = 0.06;
+/** Ø3b: rate 2 forfalder så mange måneder efter kontraktstart (fakturadatoen er ikke i data). */
+export const RATE2_ANDEN_RATE_MAANEDER = 6;
+export const UDESTAAENDE_LINJE = "forfaldne betalinger der ikke er kommet";
 export const KURVE_MAANEDER_FREM = 12;
 /** Kurven begynder her — Ø1b (kørt 17/9) lagde historikken fra maj 2025 ind (Monday starter maj 2025; KJ AUTOs marts–april 2025 tæller i tallene, men tegnes ikke). */
 export const KURVE_FRA = "2025-05";
 export const BRO_MAANEDER = 12;
-export const KONCENTRATION_ANTAL = 5;
 
 /** Teksterne fladen viser (låst her, så ordene er dommens). */
 export const OEKONOMI_EYEBROW = "Partnere";
@@ -150,27 +201,38 @@ export interface Prisudvikling {
   samlet: { grundpris_aar1: number; grundpris_aar2: number; pris_aar1: number; pris_aar2: number };
 }
 
-export interface KoncentrationRaekke {
-  company_id: string;
-  navn: string;
-  mrr_oere: number;
-  andel: number;
-}
-
-export interface Koncentration {
-  top: KoncentrationRaekke[];
-  top_andel: number;
-  mrr_i_alt_oere: number;
-  betalende: number;
-}
-
-export interface UdestaaendeRaekke {
+/** Ø3b: én kunde i kundeværdien — samlet betalt ekskl. moms siden første betaling. */
+export interface KundevaerdiRaekke {
   company_id: string;
   navn: string;
   betalt_oere: number;
-  anerkendt_oere: number;
-  /** Negativ: udestående. */
-  forskel_oere: number;
+  /** Andel af den samlede betalte omsætning (alle kunder). */
+  andel: number;
+  /** Antal kontraktår i public.kontrakter. */
+  kontraktaar: number;
+  status: "aktiv" | "tidligere";
+}
+
+export interface Kundevaerdi {
+  top: KundevaerdiRaekke[];
+  top_andel: number;
+  betalt_i_alt_oere: number;
+  /** Antal kunder med mindst én betaling. */
+  kunder: number;
+  /** Første betalingsmåned «YYYY-MM»; null uden betalinger. */
+  siden: string | null;
+}
+
+/** Ø3b: én virksomhed med forfaldne betalinger der ikke er kommet. */
+export interface UdestaaendeRaekke {
+  company_id: string;
+  navn: string;
+  /** Σ forfaldent til og med i dag (forfaldentFor). */
+  forfaldent_oere: number;
+  /** Σ betalt (status betalt, betalt_at ≤ i dag). */
+  betalt_oere: number;
+  /** forfaldent − betalt, altid > 0 her. */
+  udestaaende_oere: number;
 }
 
 export interface FejletTraek {
@@ -183,6 +245,7 @@ export interface FejletTraek {
 
 export interface Udestaaende {
   raekker: UdestaaendeRaekke[];
+  /** Σ udestaaende_oere — positivt. */
   i_alt_oere: number;
   fejlede: FejletTraek[];
   fejlede_i_alt_oere: number;
@@ -198,7 +261,7 @@ export type DashboardDom =
       bro: BroMaaned[];
       radar: Radar;
       prisudvikling: Prisudvikling;
-      koncentration: Koncentration;
+      kundevaerdi: Kundevaerdi;
       udestaaende: Udestaaende;
       maaneder: MaanedsTal[];
     };
@@ -289,11 +352,26 @@ export function kurveKoordinater(kurve: readonly KurvePunkt[]): KurveKoordinater
   });
   const bredde = n === 1 ? 0.5 : (1 / (n - 1)) * 0.6;
   const soejler = kurve.map((p, i) => ({ x: x(i) - bredde / 2, bredde, hoejde: p.kontant_oere / max }));
-  const akse = kurve
-    .map((p, i) => ({ i, p }))
-    .filter(({ i }) => i % 3 === 0 || i === n - 1)
-    .map(({ i, p }) => ({ x: x(i), label: maanedsLabel(p.key), betalende: p.betalende }));
+  const akse = akseIndeks(n).map((i) => ({ x: x(i), label: maanedsLabel(kurve[i].key), betalende: kurve[i].betalende }));
   return { mrr, mrr_kontraheret: mrrKontraheret, tjent, kontraheret, soejler, max_oere: max, akse };
+}
+
+/** Ø3b: indeks for aksens etiketter — hver 3. måned + den sidste; en etiket
+    der ligger under minAfstand (andel af bredden) fra den SIDSTE udelades,
+    så «aug»/«sep» aldrig kolliderer yderst til højre. Ren, testet. */
+export function akseIndeks(n: number, minAfstand: number = AKSE_MIN_AFSTAND): number[] {
+  if (n <= 0) return [];
+  if (n === 1) return [0];
+  const x = (i: number) => i / (n - 1);
+  const sidste = n - 1;
+  const ud: number[] = [];
+  for (let i = 0; i < n; i += 3) {
+    if (i === sidste) continue;
+    if (x(sidste) - x(i) < minAfstand) continue;
+    ud.push(i);
+  }
+  ud.push(sidste);
+  return ud;
 }
 
 const MAANEDER_KORT = ["jan", "feb", "mar", "apr", "maj", "jun", "jul", "aug", "sep", "okt", "nov", "dec"];
@@ -327,11 +405,18 @@ export function broFor(overblik: Overblik, maaneder: readonly MaanedsTal[], nuKe
   });
 }
 
+/** Ø3b: en aktiv kunde — status 'active' OG er_kunde. Tidligere kunder (Ø1b-historik) skal ikke fornyes. */
+export function erAktivKunde(v: Pick<OverblikVirksomhed, "status" | "er_kunde">): boolean {
+  return v.status === "active" && v.er_kunde === true;
+}
+
 export function radarFor(overblik: Overblik, nuDag: string): Radar {
   const navn = navneOpslag(overblik);
   const nuMs = dagTilMs(nuDag);
   const graenseMs = nuMs + RADAR_DAGE * 86_400_000;
   const ukendt = overblik.fornyelser === undefined;
+  // Ø3b: kun kontraktår for aktive kunder (Pro-Vision, E-skilte er «tidligere» — ude af radaren og af «i spil»).
+  const aktive = new Set(overblik.virksomheder.filter(erAktivKunde).map((v) => v.id));
   const beslutningAf = (companyId: string): { beslutning: RadarBeslutning; note: string | null } => {
     if (ukendt) return { beslutning: "ukendt", note: null };
     const f = (overblik.fornyelser ?? [])
@@ -342,6 +427,7 @@ export function radarFor(overblik: Overblik, nuDag: string): Radar {
   };
   const raekker: RadarRaekke[] = overblik.kontrakter
     .filter((k) => {
+      if (!aktive.has(k.company_id)) return false;
       const slut = dagTilMs(k.periode_slut);
       return slut > nuMs && slut <= graenseMs;
     })
@@ -403,52 +489,101 @@ export function prisudviklingFor(overblik: Overblik): Prisudvikling {
   return { raekker, samlet };
 }
 
-export function koncentrationFor(overblik: Overblik, nuKey: string): Koncentration {
+/** Ø3b: kundeværdien — de KUNDEVAERDI_ANTAL største efter samlet betalt ekskl. moms (status betalt). */
+export function kundevaerdiFor(overblik: Overblik): Kundevaerdi {
   const navn = navneOpslag(overblik);
-  const dag = sidsteDag(nuKey);
+  const status = new Map(overblik.virksomheder.map((v) => [v.id, erAktivKunde(v) ? ("aktiv" as const) : ("tidligere" as const)]));
+  const kontraktaar = new Map<string, number>();
+  for (const k of overblik.kontrakter) kontraktaar.set(k.company_id, (kontraktaar.get(k.company_id) ?? 0) + 1);
   const pr = new Map<string, number>();
-  for (const k of overblik.kontrakter) {
-    if (k.pris_eks_moms_oere <= 0 || !aktivPaaDag(k, dag)) continue;
-    pr.set(k.company_id, (pr.get(k.company_id) ?? 0) + mrrForKontrakt(k));
+  let siden: string | null = null;
+  for (const b of betalingerTilMotor(overblik.betalinger)) {
+    pr.set(b.company_id, (pr.get(b.company_id) ?? 0) + Math.round(b.beloeb_eks_moms_oere));
+    const key = danskMaaned(b.betalt_at);
+    if (siden === null || key < siden) siden = key;
   }
   const iAlt = [...pr.values()].reduce((s, v) => s + v, 0);
   const alle = [...pr.entries()]
-    .map(([company_id, mrr]) => ({ company_id, navn: navn(company_id), mrr_oere: mrr, andel: iAlt > 0 ? mrr / iAlt : 0 }))
-    .sort((a, b) => b.mrr_oere - a.mrr_oere || a.navn.localeCompare(b.navn, "da"));
-  const top = alle.slice(0, KONCENTRATION_ANTAL);
-  return { top, top_andel: top.reduce((s, r) => s + r.andel, 0), mrr_i_alt_oere: iAlt, betalende: alle.length };
+    .map(([company_id, betalt]) => ({
+      company_id,
+      navn: navn(company_id),
+      betalt_oere: betalt,
+      andel: iAlt > 0 ? betalt / iAlt : 0,
+      kontraktaar: kontraktaar.get(company_id) ?? 0,
+      status: status.get(company_id) ?? ("tidligere" as const),
+    }))
+    .sort((a, b) => b.betalt_oere - a.betalt_oere || a.navn.localeCompare(b.navn, "da"));
+  const top = alle.slice(0, KUNDEVAERDI_ANTAL);
+  return { top, top_andel: top.reduce((s, r) => s + r.andel, 0), betalt_i_alt_oere: iAlt, kunder: alle.length, siden };
 }
 
-export function udestaaendeFor(overblik: Overblik, nuKey: string): Udestaaende {
+/** «De 10 største har betalt 52 % af alt siden marts 2025». */
+export function kundevaerdiTekst(k: Kundevaerdi): string {
+  const siden = k.siden ? ` siden ${maanedsNavn(k.siden)}` : "";
+  return `De ${k.top.length} største har betalt ${pct(k.top_andel)} af alt${siden}`;
+}
+
+/** Kalenderdag + n måneder, dagen klippet til månedens længde («2026-01-31» + 1 → «2026-02-28»). */
+export function laegMaanederTilDag(dag: string, n: number): string {
+  const [y, m, d] = laesDato(dag);
+  const key = laegMaanederTil(`${y}-${String(m).padStart(2, "0")}`, n);
+  const [ny, nm] = key.split("-").map(Number);
+  const dage = new Date(Date.UTC(ny, nm, 0)).getUTCDate();
+  return `${key}-${String(Math.min(d, dage)).padStart(2, "0")}`;
+}
+
+/** Ø3b: det der er FORFALDENT på en kontrakt til og med dagen «YYYY-MM-DD» (se filhovedet, del 7). */
+export function forfaldentFor(k: Kontrakt, nuDag: string): number {
+  const pris = Math.round(k.pris_eks_moms_oere);
+  if (pris <= 0) return 0;
+  const model = k.betalingsmodel ?? null;
+  if (model === "rate12" || model === "maanedlig") {
+    const laengde = Math.max(1, Math.round(laengdeIMaaneder(k)));
+    const rater = model === "rate12" ? 12 : laengde;
+    const pauser = Math.max(0, laengde - rater);
+    let passeret = 0;
+    for (let n = 0; n < rater + pauser; n += 1) if (laegMaanederTilDag(k.periode_start, n) <= nuDag) passeret += 1;
+    const forfaldne = Math.max(0, Math.min(rater, passeret - pauser));
+    return Math.round((pris * forfaldne) / rater);
+  }
+  if (model === "rate2") {
+    const rate1 = Math.floor(pris / 2);
+    return (k.periode_start <= nuDag ? rate1 : 0) + (laegMaanederTilDag(k.periode_start, RATE2_ANDEN_RATE_MAANEDER) <= nuDag ? pris - rate1 : 0);
+  }
+  return k.periode_start <= nuDag ? pris : 0;
+}
+
+/** Ø3b: forfaldne betalinger der ikke er kommet — pr. virksomhed, kun hvor positivt; fejlede træk som før. */
+export function udestaaendeFor(overblik: Overblik, nuDag: string): Udestaaende {
   const navn = navneOpslag(overblik);
+  const forfaldentPr = new Map<string, number>();
+  for (const k of overblik.kontrakter) forfaldentPr.set(k.company_id, (forfaldentPr.get(k.company_id) ?? 0) + forfaldentFor(k, nuDag));
   const betaltPr = new Map<string, number>();
   for (const b of betalingerTilMotor(overblik.betalinger)) {
-    if (danskMaaned(b.betalt_at) > nuKey) continue;
-    betaltPr.set(b.company_id, (betaltPr.get(b.company_id) ?? 0) + b.beloeb_eks_moms_oere);
+    if (danskDagAf(b.betalt_at) > nuDag) continue;
+    betaltPr.set(b.company_id, (betaltPr.get(b.company_id) ?? 0) + Math.round(b.beloeb_eks_moms_oere));
   }
-  const anerkendtPr = new Map<string, number>();
-  for (const k of overblik.kontrakter) {
-    const sum = periodiserKontrakt(k).filter((m) => m.key <= nuKey).reduce((s, m) => s + m.anerkendt_oere, 0);
-    anerkendtPr.set(k.company_id, (anerkendtPr.get(k.company_id) ?? 0) + sum);
-  }
-  const ids = new Set<string>([...betaltPr.keys(), ...anerkendtPr.keys()]);
   const raekker: UdestaaendeRaekke[] = [];
-  for (const id of ids) {
+  for (const [id, forfaldent] of forfaldentPr) {
     const betalt = betaltPr.get(id) ?? 0;
-    const anerkendt = anerkendtPr.get(id) ?? 0;
-    const forskel = betalt - anerkendt;
-    if (forskel < 0) raekker.push({ company_id: id, navn: navn(id), betalt_oere: betalt, anerkendt_oere: anerkendt, forskel_oere: forskel });
+    const udestaaende = forfaldent - betalt;
+    if (udestaaende > 0) raekker.push({ company_id: id, navn: navn(id), forfaldent_oere: forfaldent, betalt_oere: betalt, udestaaende_oere: udestaaende });
   }
-  raekker.sort((a, b) => a.forskel_oere - b.forskel_oere);
+  raekker.sort((a, b) => b.udestaaende_oere - a.udestaaende_oere || a.navn.localeCompare(b.navn, "da"));
   const fejlede: FejletTraek[] = overblik.betalinger
     .filter((b: OverblikBetaling) => b.status === "fejlet")
     .map((b) => ({ company_id: b.company_id, navn: navn(b.company_id), faktura_nummer: b.faktura_nummer, kilde: b.kilde, beloeb_eks_moms_oere: b.beloeb_eks_moms_oere }));
   return {
     raekker,
-    i_alt_oere: raekker.reduce((s, r) => s + r.forskel_oere, 0),
+    i_alt_oere: raekker.reduce((s, r) => s + r.udestaaende_oere, 0),
     fejlede,
     fejlede_i_alt_oere: fejlede.reduce((s, f) => s + f.beloeb_eks_moms_oere, 0),
   };
+}
+
+/** Dansk kalenderdag for et ISO-tidspunkt («YYYY-MM-DD»). */
+function danskDagAf(iso: string): string {
+  return danskDag(new Date(iso));
 }
 
 // ── Hele dommen ──
@@ -461,16 +596,18 @@ export function dashboardDom(overblik: Overblik, nu: Date): DashboardDom {
   const fra = foerste < nuKey ? foerste : nuKey; // periodiseringen regner fra første kontrakt; kurven klipper til KURVE_FRA
   const til = laegMaanederTil(nuKey, KURVE_MAANEDER_FREM);
   const maaneder = periodiser({ kontrakter: overblik.kontrakter, betalinger: betalingerTilMotor(overblik.betalinger), fra, til });
+  const udestaaende = udestaaendeFor(overblik, nuDag);
   return {
     tom: false,
     nuKey,
-    noegletal: noegletalFor(maaneder, nuKey),
+    // Ø3b: nøgletallet «Udestående» er den nye dom (forfaldne, ikke betalte) — ikke motorens timing-tal.
+    noegletal: { ...noegletalFor(maaneder, nuKey), udestaaende_oere: udestaaende.i_alt_oere },
     kurve: kurveFor(maaneder, nuKey),
     bro: broFor(overblik, maaneder, nuKey),
     radar: radarFor(overblik, nuDag),
     prisudvikling: prisudviklingFor(overblik),
-    koncentration: koncentrationFor(overblik, nuKey),
-    udestaaende: udestaaendeFor(overblik, nuKey),
+    kundevaerdi: kundevaerdiFor(overblik),
+    udestaaende,
     maaneder,
   };
 }
