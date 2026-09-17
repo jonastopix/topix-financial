@@ -14,7 +14,10 @@ import { resolve } from "node:path";
 //      «gennemført»-regel — og bærer ingen supabase-import.
 //   3. Fladen: linjen rendres kun når dommen gav noget, med lektionsSti
 //      som link og motorens præfiks; ingen egen tekst, ingen linje ved fejl
-//      (dommen får `?? null` og giver null).
+//      (dommen får `?? null` og giver null). FORSIDE PR 2 (17/9): linjen
+//      står nu som FocusCards SIDSTE linje (prop `relevante`, stien regnet
+//      i fladen med lektionsSti) — før stod den som løse linjer under
+//      kortet i JSX-blokken `{maaskeRelevante && maaskeRelevante.length > 0 && (`.
 //   4. Regeltabellen kender netop de ni triggere fra generate-weekly-focus
 //      — ændres triggerne dér, fælder værnet her.
 // Værnet beviser sig selv på en KOPI med fejlen indsat.
@@ -35,12 +38,19 @@ export function memoBlok(flade: string): string {
   return slut === -1 ? "" : flade.slice(start, slut);
 }
 
-/** Linjeblokken i JSX: fra `{maaskeRelevante && …` til hentefejlLinje-grenen under kortet. */
+/** Linjeblokken (PR 2): FocusCards `{!loading && relevante.length > 0 && (`
+    til blokkens `</ul>` — PLUS fladens prop-linje `relevante={(maaskeRelevante ?? []).map(…)}`,
+    så dommen ser både hvor stien regnes (lektionsSti i fladen) og hvor
+    ordene står (præfikset i kortet).
+    Før (til 17/9): fra `{maaskeRelevante && maaskeRelevante.length > 0 && (` til
+    `{hentefejlLinje && (` under kortet. */
 export function linjeBlok(flade: string): string {
-  const start = flade.indexOf("{maaskeRelevante && maaskeRelevante.length > 0 && (");
+  const start = flade.indexOf("{!loading && relevante.length > 0 && (");
   if (start === -1) return "";
-  const slut = flade.indexOf("{hentefejlLinje && (", start);
-  return slut === -1 ? "" : flade.slice(start, slut);
+  const slut = flade.indexOf("</ul>", start);
+  const prop = flade.indexOf("relevante={(maaskeRelevante ?? []).map(");
+  if (slut === -1 || prop === -1) return "";
+  return flade.slice(start, slut) + "\n" + flade.slice(prop, flade.indexOf("\n", prop));
 }
 
 /** Dom 1: fladen dømmer gennem motoren på de kilder den allerede har. */
@@ -114,12 +124,15 @@ export const motorenErRenTransitivt = (kaede: readonly string[], laesFil: (sti: 
     return kilde != null && !/@\/integrations\/supabase|from "\.\.\/\.\.\/integrations|supabase-js/.test(udenKommentarer(kilde));
   });
 
-/** Dom 3: linjen i fladen — kun ved match, motorens ord, lektionsSti. */
+/** Dom 3: linjen — kun ved match, motorens ord, lektionsSti som link.
+    Før (til 17/9): blok.includes("{maaskeRelevante && maaskeRelevante.length > 0 && (") &&
+    blok.includes("<Link to={lektionsSti(lektion)}"). */
 export const linjenErMotorens = (flade: string): boolean => {
   const blok = linjeBlok(flade);
-  return blok.includes("{maaskeRelevante && maaskeRelevante.length > 0 && (") &&
+  return blok.includes("{!loading && relevante.length > 0 && (") &&
     blok.includes("{MAASKE_RELEVANT_PRAEFIKS}:") &&
-    blok.includes("<Link to={lektionsSti(lektion)}") &&
+    blok.includes("<Link to={lektion.sti}") &&
+    blok.includes("sti: lektionsSti(lektion)") &&
     !/Måske relevant/.test(blok);
 };
 
@@ -191,7 +204,9 @@ describe("maaskeRelevant.guard — dommene fanger fejlen på en kopi af kilden",
   });
   it("3. en linje med fast tekst eller uden lektionsSti fælder dom 3", () => {
     expect(linjenErMotorens(flade.replace("{MAASKE_RELEVANT_PRAEFIKS}:", "Måske relevant for dig:"))).toBe(false);
-    expect(linjenErMotorens(flade.replace("<Link to={lektionsSti(lektion)}", "<Link to={`/akademiet/${lektion.id}`}"))).toBe(false);
+    // Før: flade.replace("<Link to={lektionsSti(lektion)}", "<Link to={`/akademiet/${lektion.id}`}").
+    expect(linjenErMotorens(flade.replace("sti: lektionsSti(lektion)", "sti: `/akademiet/${lektion.id}`"))).toBe(false);
+    expect(linjenErMotorens(flade.replace("<Link to={lektion.sti}", "<Link to={`/akademiet/${lektion.id}`}"))).toBe(false);
   });
   it("5. en motor der importerer fra akademiApi (som importerer klienten) fælder dom 5 — transitivt, ikke kun i den ene fil", () => {
     // Kopien af motoren peger på akademiApi igen; alt andet læses fra disken som det er.

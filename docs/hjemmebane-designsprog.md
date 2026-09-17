@@ -255,7 +255,7 @@ GO-stemplerne står i HbMemberShell/App.tsx som kommentarer:
 
 | Flade | GO | Filer | Anderledes end forgængeren |
 |---|---|---|---|
-| Forsiden "/" ("Dit Boardroom") | Forside-GO 2026-08-12 (App.tsx:291) | boardroom/BoardroomView | Fokus-motor (deriveFocus) i stedet for widget-grid; tre lag (næste skridt → events → redaktionelt bånd → tal-strip); "Dine aftaler" (#454) |
+| Forsiden "/" ("Dit Boardroom") | Forside-GO 2026-08-12 (App.tsx:291) | boardroom/BoardroomView | Fokus-motor (deriveFocus) i stedet for widget-grid; fra forside PR 2 (17/9-2026, Jonas «A på alle»): toppen i to kolonner — nyheden stående venstre (7/12), «Din måned» (tre tal med retning i ord + sparkline, lib/hjemmebane/dinMaaned) over «Dit næste skridt» (kompakt) højre (5/12); derunder skridt, mål, events, fællesskabet; tal-strippen nederst er væk |
 | Rapportering /reports | GO 2026-08-06 | rapportering/RapporteringView | Leverance-fortælling (leveringsbånd, nudges, tilstandskort, årsrapporter) frem for pipeline-liste; trend/AI flyttet til /noegletal |
 | KPI /kpis | KPI-GO 2026-08-06 | noegletal/NoegletalView | Fuld paritet + trend/AI i Hb-udtryk (mål-hero, kort, gauge, advisor-kommentarer); konvergens krævede KPI-GO før Rapportering-GO |
 | Budget /budget | Budget-GO 2026-08-06 | budget/BudgetteringView + 8 dele | Fuld paritet (scenarier, BvA, import ×2, hvad-hvis m. #forecast-anker, cashflow); maskinlaget (budgetEngine) udskilt og delt |

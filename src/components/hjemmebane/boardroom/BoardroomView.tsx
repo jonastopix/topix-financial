@@ -39,6 +39,8 @@ import { HbButton } from "../HbButton";
 import { FornyelsesBaand } from "./FornyelsesBaand";
 import { HbCard } from "../HbCard";
 import { EstimatMaerke } from "../EstimatMaerke";
+import { dinMaanedDom, sparklineKoordinater, type DinMaanedDom, type MaanedsRaekke } from "@/lib/hjemmebane/dinMaaned";
+import { hilsenLinje } from "@/lib/hjemmebane/forsideHilsen";
 import { HbSection } from "../HbSection";
 import { hasRichTextContent } from "@/lib/hjemmebane/richtext";
 import { fokusCtaHref } from "@/lib/hjemmebane/ankomst";
@@ -68,7 +70,20 @@ import { pushOverlinje } from "./pushOverlinje";
 
 /** Dit Boardroom (/boardroom) — Hb-forsiden i VANE-ANKER-IA'en (forside
     PR 2, hb-forside-recon §C/§G): de tre lag i rækkefølgen
-    1) "Dit næste skridt" ØVERST — fokus-motoren (deriveFocus, PR #217)
+    FORSIDE PR 2 (17/9-2026 — Jonas «A på alle» til analyse-medlemmets-
+    forside.md §6.4): TOPPEN ER TO KOLONNER på md+ (grid-cols-12): venstre
+    7/12 NYHEDEN som stående hovedhistorie (MainStoryShell: mediet øverst
+    i fuld kortbredde 16:9, teksten under) med tiles under; højre 5/12
+    «DIN MÅNED» (tre tal med retning i ord + sparkline, lib/hjemmebane/
+    dinMaaned) og under det «DIT NÆSTE SKRIDT» som kompakt kort (FocusCard
+    variant="kompakt" med «Måske relevant» som sidste linje). Mobil:
+    hilsen → nyheden → Din måned → Dit næste skridt → resten. Hilsenen
+    har fået én linje (forsideHilsen: dagen · «N nye ting siden sidst»,
+    dag 1 en fast sætning). Lagene nedenfor er den oprindelige orden —
+    «Dine skridt», «Dine mål», Kommende og Fællesskabet står UNDER toppen
+    (PR 3 samler skridt og mål til «Din plan»). Tal-strippen nederst er
+    afløst af «Din måned».
+    1) "Dit næste skridt" — fokus-motoren (deriveFocus, PR #217)
        m. ALLE kilder: rapport-signal, beskeder, ugens fokus (læses
        INLINE så notifikations-kontrakten "Ugens fokus er klar" → "/"
        indfries), milestones, company_actions, pulse, løftestænger.
@@ -238,7 +253,7 @@ const FremhaevetOpslag = ({ traad }: { traad: CommunityTraad }) => {
     — rubrikken står selv. Topluften (mt-8 md:mt-10) bor HER i
     komponenten, ikke i shell'en — eyebrow'en bar tidligere luften, og
     shell'ens py-10/14 deles af alle flader og må ikke vokse for én. */
-const PageHeader = ({ firstName, velkomst }: { firstName: string; velkomst: boolean }) => (
+const PageHeader = ({ firstName, velkomst, linje }: { firstName: string; velkomst: boolean; linje: string }) => (
   <section className="mt-8 max-w-3xl md:mt-10">
     <h1 className="font-editorial text-4xl font-medium leading-[1.1] tracking-tight text-hb-ink md:text-5xl">
       {/* Ankomsten (trin 9, indgangen-overhaling §5): så længe tjeklisten
@@ -246,6 +261,10 @@ const PageHeader = ({ firstName, velkomst }: { firstName: string; velkomst: bool
           når medlemmet er kommet ind. */}
       {velkomst ? "Velkommen" : getGreeting()}, {firstName}.
     </h1>
+    {/* Forside PR 2: én linje der er sand i dag — dagen og «N nye ting siden
+        sidst» (flyttet op fra båndet), dag 1 den faste sætning. Dommen er
+        lib/hjemmebane/forsideHilsen. */}
+    <p className="mt-3 text-sm text-hb-ink-soft" data-hilsen-linje>{linje}</p>
   </section>
 );
 
@@ -508,15 +527,16 @@ const SpotifyEpisodeEmbed = ({ episodeId, title }: { episodeId: string; title: s
   );
 };
 
-/** Polering #1 — fælles main-layout, ÉT sted for alle main-varianter:
-    m. medie → TO-SPALTET på md+ (medie venstre ~42 %, tekst højre m.
-    luft); mobil: medie over tekst; uden medie → tekst i fuld bredde
-    (den variant var allerede god — uændret udtryk). To medie-former:
-    - coverUrl (push/redaktionelt/evergreen): billedet FYLDER spalten
-      (absolute-fill + object-cover; aspect-[3/2] på mobil, md+ følger
-      tekstens højde via flex-stretch) — 21:9-dominansen er væk.
-    - player (video): gate/afspiller beholder sit EGET format og ligger
-      roligt centreret i spalten (en iframe må ikke strækkes). */
+/** Fælles main-layout, ÉT sted for alle main-varianter — STÅENDE fra
+    forside PR 2 (17/9, Jonas «A» til valg 1): hovedhistorien bor nu i
+    toppens venstre kolonne (7/12 ≈ 640 px), så mediet står ØVERST i fuld
+    kortbredde og teksten under — på alle bredder. Før (polering #1) var
+    den to-spaltet (medie venstre 42 %, tekst højre) i fuld sidebredde.
+    To medie-former:
+    - coverUrl (push/redaktionelt/evergreen): billedet i 16:9 (object-cover)
+      i fuld kortbredde.
+    - player (video): gaten/afspilleren er selv 16:9 og fylder kortbredden
+      med kortets luft omkring (en iframe må ikke strækkes). */
 const MainStoryShell = ({
   coverUrl,
   player,
@@ -530,21 +550,15 @@ const MainStoryShell = ({
     return <HbCard className="p-6 md:p-8">{children}</HbCard>;
   }
   return (
-    <HbCard className="overflow-hidden">
-      <div className="md:flex md:min-h-[280px]">
-        {player ? (
-          <div className="p-6 pb-0 md:w-[42%] md:shrink-0 md:self-center md:py-6 md:pl-6 md:pr-0">
-            {player}
-          </div>
-        ) : (
-          <div className="relative aspect-[3/2] md:aspect-auto md:w-[42%] md:shrink-0">
-            <img src={coverUrl!} alt="" className="absolute inset-0 h-full w-full object-cover" />
-          </div>
-        )}
-        <div className="min-w-0 md:flex-1">
-          <div className="p-6 md:p-8">{children}</div>
+    <HbCard className="overflow-hidden" data-hovedhistorie="staaende">
+      {player ? (
+        <div className="p-5 pb-0 md:p-6 md:pb-0">{player}</div>
+      ) : (
+        <div className="relative aspect-video w-full">
+          <img src={coverUrl!} alt="" className="absolute inset-0 h-full w-full object-cover" />
         </div>
-      </div>
+      )}
+      <div className="min-w-0 p-6 md:p-7">{children}</div>
     </HbCard>
   );
 };
@@ -836,97 +850,64 @@ const StoryCard = ({
   }
 };
 
-/** Tal-strip (lag 3): senest godkendte periode fra facts-laget — indhold
-    og kilder uændret; kun placeringen er flyttet nederst.
+/** «Din måned» (forside PR 2, 17/9 — Jonas «A» til valg 2) — afløser
+    tal-strippen nederst. Samme kilder (facts-laget via dinMaanedDom: sidste
+    periode, bank evt. fra en ældre række, estimat-mærket efter data_basis),
+    men i toppens højre kolonne og med RETNING I ORD mod forrige måned og
+    en SPARKLINE over de seneste 12 måneder med tal. Ingen procent, ingen
+    farve for op/ned — kun ord (negativt beløb er rust som i resten af
+    huset). Uden tal: hvad det bliver til + «Upload din første rapport». */
+const Sparkline = ({ dom }: { dom: Extract<DinMaanedDom, { tom: false }> }) => {
+  const k = sparklineKoordinater(dom.sparkline);
+  if (k.length < 2) return null;
+  const B = 100, H = 32;
+  const punkter = k.map((p) => `${(p.x * B).toFixed(1)},${(2 + p.y * (H - 4)).toFixed(1)}`).join(" ");
+  const sidste = k[k.length - 1];
+  return (
+    <svg viewBox={`0 0 ${B} ${H}`} preserveAspectRatio="none" className="mt-3 h-9 w-full" aria-hidden data-sparkline={k.length}>
+      <polyline points={punkter} fill="none" stroke="hsl(var(--hb-evergreen))" strokeWidth="1.5" vectorEffect="non-scaling-stroke" strokeLinejoin="round" strokeLinecap="round" />
+      <circle cx={(sidste.x * B).toFixed(1)} cy={(2 + sidste.y * (H - 4)).toFixed(1)} r="2.5" fill="hsl(var(--hb-evergreen))" vectorEffect="non-scaling-stroke" />
+    </svg>
+  );
+};
 
-    data_basis-kontrakten: er seneste periode et estimat, siger ledeteksten
-    det ("Seneste tal" + Estimat-mærke) i stedet for at påstå "Senest
-    godkendt" om en /12-fordelt årsrapportrække. Bank-tallet kan komme fra
-    en ÆLDRE række end periodLabel (bankRow-opslaget) og mærkes separat,
-    når netop dén række er et estimat. */
-const TalStrip = ({
-  hasFacts,
-  processing,
-  periodLabel,
-  estimeret,
-  revenue,
-  result,
-  bank,
-  bankEstimeret,
-}: {
-  hasFacts: boolean;
-  processing: boolean;
-  periodLabel: string | null;
-  /** Seneste periode (periodLabel) er en estimatrække. */
-  estimeret: boolean;
-  revenue: number | null;
-  result: number | null;
-  bank: number | null;
-  /** Bank-tallets kilderække er et estimat (kan afvige fra `estimeret`). */
-  bankEstimeret: boolean;
-}) => {
-  if (!hasFacts) {
+const DinMaaned = ({ dom }: { dom: DinMaanedDom }) => {
+  // strict=false: `if (dom.tom)` snævrer ikke unionen — sammenlign med true (husets regel).
+  if (dom.tom === true) {
     return (
-      <HbCard className="flex flex-col gap-3 p-6 md:flex-row md:items-center md:justify-between">
-        <div>
-          <p className="text-xs font-medium uppercase tracking-[0.14em] text-hb-rust">Dine tal</p>
-          <p className="mt-1 text-sm text-hb-ink-soft">
-            {processing
-              ? "Dine tal er ved at blive behandlet — de lander her, så snart de er godkendt."
-              : "Ingen godkendte tal endnu — upload din første rapport, så fylder vi båndet ud."}
-          </p>
-        </div>
-        <Link
-          to="/reports"
-          className="shrink-0 whitespace-nowrap text-sm text-hb-rust underline-offset-4 hover:underline"
-        >
-          {processing ? "Se status" : "Kom i gang med dine tal"}
+      <HbCard className="p-6" data-din-maaned="tom">
+        <h3 className="font-editorial text-2xl font-medium leading-tight text-hb-ink">{dom.overskrift}</h3>
+        <p className="mt-2 text-sm leading-relaxed text-hb-ink-soft">{dom.linje}</p>
+        <Link to={dom.cta.to} className="mt-4 inline-block">
+          <HbButton className="h-9 px-4 text-sm">{dom.cta.label}</HbButton>
         </Link>
       </HbCard>
     );
   }
-
-  const figures: { label: string; value: number | null; estimeret?: boolean }[] = [
-    { label: "Omsætning", value: revenue },
-    { label: "Resultat f. skat", value: result },
-    // Bank mærkes kun når strippen ikke allerede er mærket som helhed.
-    { label: "Bank", value: bank, estimeret: bankEstimeret && !estimeret },
-  ];
-
   return (
-    <HbCard className="flex flex-col gap-6 p-6 md:flex-row md:items-center">
-      <div className="shrink-0 md:w-48">
-        <p className="text-xs font-medium uppercase tracking-[0.14em] text-hb-rust">Dine tal</p>
-        <p className="mt-1 whitespace-nowrap text-sm text-hb-ink-soft">
-          {estimeret ? <>Seneste tal: {periodLabel} <EstimatMaerke className="align-middle" /></> : <>Senest godkendt: {periodLabel}</>}
-        </p>
-      </div>
-      <div className="flex flex-1 flex-col gap-4 md:flex-row md:items-center md:justify-around md:gap-6">
-        {figures.map((figure) => (
-          <div key={figure.label}>
-            <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft">
-              {figure.label}
-              {figure.estimeret && <EstimatMaerke kompakt className="ml-1" />}
-            </p>
-            {/* Fortegns-tonen: ordret samme udtryk som resten af
-                platformen (HbBudgetEditTable:625). */}
-            <p
-              className={cn(
-                "mt-1 font-editorial text-2xl font-medium",
-                figure.value != null && figure.value < 0 ? "text-hb-rust" : "text-hb-ink",
-              )}
-            >
-              {figure.value != null ? formatDKK(figure.value) : "—"}
-            </p>
+    <HbCard className="p-6" data-din-maaned={dom.periodLabel}>
+      <p className="text-sm text-hb-ink-soft">
+        {dom.estimeret ? <>Seneste tal: {dom.periodLabel} <EstimatMaerke className="align-middle" /></> : <>Senest godkendt: {dom.periodLabel}</>}
+      </p>
+      <dl className="mt-3 divide-y divide-hb-line">
+        {dom.tal.map((t) => (
+          <div key={t.felt} className="flex items-baseline justify-between gap-4 py-2.5 first:pt-0" data-tal={t.felt}>
+            <dt className="text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft">
+              {t.label}
+              {t.estimeret && <EstimatMaerke kompakt className="ml-1" />}
+            </dt>
+            <dd className="text-right">
+              {/* Fortegns-tonen: samme udtryk som resten af platformen (HbBudgetEditTable:625). */}
+              <p className={cn("font-editorial text-2xl font-medium leading-none", t.value != null && t.value < 0 ? "text-hb-rust" : "text-hb-ink")}>
+                {t.value != null ? formatDKK(t.value) : "—"}
+              </p>
+              {t.retning && <p className="mt-1 text-xs text-hb-ink-soft" data-retning>{t.retning}</p>}
+            </dd>
           </div>
         ))}
-      </div>
-      <Link
-        to="/kpis"
-        className="shrink-0 whitespace-nowrap text-sm text-hb-rust underline-offset-4 hover:underline"
-      >
-        Se dine tal
-      </Link>
+      </dl>
+      <p className="mt-4 text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft">{dom.sparklineTekst}</p>
+      <Sparkline dom={dom} />
     </HbCard>
   );
 };
@@ -1116,10 +1097,19 @@ const FocusCard = ({
   linje,
   tom,
   onProevIgen,
+  variant = "fuld",
+  relevante = [],
 }: {
   loading: boolean;
   items: FocusItem[];
   weeklySummary: string | null;
+  /** Forside PR 2: «kompakt» er toppens højre kolonne — titel 18 px, én
+      linje manchet, knap; #2–4 som tætte linjer; «Måske relevant» som
+      sidste linje I kortet (før: løse linjer under). «fuld» er den
+      hidtidige form (bevares for symmetri; toppen bruger kompakt). */
+  variant?: "fuld" | "kompakt";
+  /** «Måske relevant for dig» (lib/hjemmebane/maaskeRelevant) — højst to. */
+  relevante?: { id: string; title: string; sti: string }[];
   /** Forløbslinjen (lib/hjemmebane/forloeb, 16/9): «Eller fortsæt dit
       forløb: {continue}» når noget er midt i; ellers på næste urørte
       «Eller fortsæt dit forløb: {next}» hvis hun har rørt en Akademi-video
@@ -1154,6 +1144,7 @@ const FocusCard = ({
   // (nextStep.ts) og tjeklistens stier er urørte; oversættelsen sker her.
   const hrefAf = (item: FocusItem) => fokusCtaHref(item);
   const harSide = (href: string) => href !== "/" && href !== "";
+  const kompakt = variant === "kompakt";
 
   // Redesign (ægte form): primær handling i STOR editorial-skala m.
   // manchet i rolig grad og CTA'en i bunden af den primære zone m. luft
@@ -1162,7 +1153,7 @@ const FocusCard = ({
   // typografiske vægt som den aktive — sidens vigtigste plads må ikke
   // være svagest den uge, hvor medlemmet har styr på det hele.
   return (
-    <HbCard className="min-h-[230px] p-7 md:p-9">
+    <HbCard className={kompakt ? "p-5 md:p-6" : "min-h-[230px] p-7 md:p-9"} data-fokus-variant={variant}>
       {loading ? (
         <div aria-hidden>
           <div className="h-10 w-2/3 animate-pulse rounded bg-hb-line/60" />
@@ -1172,26 +1163,27 @@ const FocusCard = ({
         </div>
       ) : primary ? (
         <div>
-          <h3 className="font-editorial text-3xl font-medium leading-tight text-hb-ink md:text-4xl">
+          <h3 className={cn("font-editorial font-medium leading-tight text-hb-ink", kompakt ? "text-lg" : "text-3xl md:text-4xl")}>
             {primary.title}
           </h3>
-          <p className="mt-4 max-w-2xl text-base leading-relaxed text-hb-ink-soft">
+          {/* Kompakt: manchetten på ÉN linje (truncate) — hele teksten står i title-attributten. */}
+          <p className={cn("text-hb-ink-soft", kompakt ? "mt-1.5 truncate text-sm" : "mt-4 max-w-2xl text-base leading-relaxed")} title={kompakt ? primary.description : undefined}>
             {primary.description}
           </p>
           {inlineBody(primary) && (
-            <p className="mt-3 max-w-2xl text-base leading-relaxed text-hb-ink">{inlineBody(primary)}</p>
+            <p className={cn("text-hb-ink", kompakt ? "mt-1.5 text-sm leading-relaxed" : "mt-3 max-w-2xl text-base leading-relaxed")}>{inlineBody(primary)}</p>
           )}
           {/* Hash-hrefs (#dine-aftaler) rammer et anker på SAMME side:
               et almindeligt <a> ruller natively — router-Link ville kun
               omskrive URL'en, og useScrollToHash er ikke mountet her. */}
           {harSide(hrefAf(primary)) &&
             (hrefAf(primary).startsWith("#") ? (
-              <a href={hrefAf(primary)} className="mt-7 inline-block">
-                <HbButton>{primary.ctaLabel}</HbButton>
+              <a href={hrefAf(primary)} className={kompakt ? "mt-4 inline-block" : "mt-7 inline-block"}>
+                <HbButton className={kompakt ? "h-9 px-4 text-sm" : undefined}>{primary.ctaLabel}</HbButton>
               </a>
             ) : (
-              <Link to={hrefAf(primary)} className="mt-7 inline-block">
-                <HbButton>{primary.ctaLabel}</HbButton>
+              <Link to={hrefAf(primary)} className={kompakt ? "mt-4 inline-block" : "mt-7 inline-block"}>
+                <HbButton className={kompakt ? "h-9 px-4 text-sm" : undefined}>{primary.ctaLabel}</HbButton>
               </Link>
             ))}
           {quiet.length > 0 && (
@@ -1201,7 +1193,7 @@ const FocusCard = ({
                description i soft med luft over og under, og en hairline
                mellem punkterne (first:border-t-0 — ul'en bærer allerede
                sin egen toplinje). */
-            <ul className="mt-9 w-full border-t border-hb-line pt-4">
+            <ul className={cn("w-full border-t border-hb-line", kompakt ? "mt-5 pt-2" : "mt-9 pt-4")}>
               {quiet.map((item) => (
                 <li key={item.key} className="border-t border-hb-line first:border-t-0">
                   {harSide(hrefAf(item)) ? (
@@ -1254,7 +1246,7 @@ const FocusCard = ({
         </div>
       ) : (
         <div>
-          <h3 className="font-editorial text-3xl font-medium leading-tight text-hb-ink md:text-4xl">
+          <h3 className={cn("font-editorial font-medium leading-tight text-hb-ink", kompakt ? "text-lg" : "text-3xl md:text-4xl")}>
             {tom.overskrift}
           </h3>
           {/* Anerkendelse frem for tomhed (bølge 3): samme typografiske
@@ -1265,14 +1257,14 @@ const FocusCard = ({
               uploadet → «Kom i gang med dine tal»; uploadet, ikke godkendt →
               «Dine tal venter på dig»; godkendt → «Alt er ajour» + rejsen.
               CTA'en er det ene næste skridt, samme knap som punkterne. */}
-          <p className="mt-4 max-w-2xl text-base leading-relaxed text-hb-ink-soft">{tom.linje}</p>
+          <p className={cn("text-hb-ink-soft", kompakt ? "mt-1.5 text-sm leading-relaxed" : "mt-4 max-w-2xl text-base leading-relaxed")}>{tom.linje}</p>
           {tom.cta && (
-            <Link to={tom.cta.to} className="mt-6 inline-block">
-              <HbButton className="h-11 px-5">{tom.cta.label}</HbButton>
+            <Link to={tom.cta.to} className={kompakt ? "mt-4 inline-block" : "mt-6 inline-block"}>
+              <HbButton className={kompakt ? "h-9 px-4 text-sm" : "h-11 px-5"}>{tom.cta.label}</HbButton>
             </Link>
           )}
           {tom.tilstand === "kunne_ikke_hente" && onProevIgen && (
-            <HbButton type="button" variant="secondary" className="mt-6 h-11 px-5" onClick={onProevIgen}>
+            <HbButton type="button" variant="secondary" className={kompakt ? "mt-4 h-9 px-4 text-sm" : "mt-6 h-11 px-5"} onClick={onProevIgen}>
               Prøv igen
             </HbButton>
           )}
@@ -1281,10 +1273,25 @@ const FocusCard = ({
       {!loading && linje && (
         <Link
           to={linje.sti}
-          className="mt-6 inline-block text-sm text-hb-ink-soft underline-offset-4 transition-colors hover:text-hb-ink hover:underline"
+          className={cn("inline-block text-sm text-hb-ink-soft underline-offset-4 transition-colors hover:text-hb-ink hover:underline", kompakt ? "mt-4" : "mt-6")}
         >
           {linje.tekst}
         </Link>
+      )}
+      {/* «MÅSKE RELEVANT FOR DIG» (Jonas 16/9) som kortets SIDSTE linje (PR 2)
+          — før stod de som løse linjer under kortet. Ordene og udvalget er
+          motorens (lib/hjemmebane/maaskeRelevant); stien er kalderens. */}
+      {!loading && relevante.length > 0 && (
+        <ul className={cn("space-y-1 text-sm text-hb-ink-soft", kompakt ? "mt-4 border-t border-hb-line pt-3" : "mt-6")} data-maaske-relevant={relevante.length}>
+          {relevante.map((lektion) => (
+            <li key={lektion.id}>
+              {MAASKE_RELEVANT_PRAEFIKS}:{" "}
+              <Link to={lektion.sti} className="text-hb-evergreen underline-offset-4 hover:underline">
+                {lektion.title}
+              </Link>
+            </li>
+          ))}
+        </ul>
       )}
     </HbCard>
   );
@@ -1382,19 +1389,10 @@ export const BoardroomView = () => {
     [pushItem, weekVideo, redaktioneltItem, lastVisitIso],
   );
 
-  // 0 → ingen linje. Tidsdel: ≤7 dage → ugedag ("siden i tirsdags"),
-  // ellers den rolige fallback (en gammel dato ville udstille fraværet).
-  const newsLine = useMemo(() => {
-    if (newsCount === 0 || !lastVisitIso) return null;
-    const since = new Date(lastVisitIso);
-    const days = (Date.now() - since.getTime()) / 86400000;
-    const sincePart =
-      !Number.isNaN(since.getTime()) && days <= 7
-        ? `siden i ${since.toLocaleDateString("da-DK", { weekday: "long" })}s`
-        : "siden dit sidste besøg";
-    return `${newsCount === 1 ? "1 ny ting" : `${newsCount} nye ting`} ${sincePart}`;
-  }, [newsCount, lastVisitIso]);
-
+  // Hilsenens linje (forside PR 2): dagen + «N nye ting siden sidst» —
+  // newsCount er den samme dom som før (countNewSince), linjen er flyttet
+  // OP fra båndet til under hilsenen. Dag 1 (tjeklisten ikke færdig): den
+  // faste sætning. Ordene er lib/hjemmebane/forsideHilsen.
   // Historik (PR B3): seneste redaktionelle som rolige linjer, kollapset.
   const [historikOpen, setHistorikOpen] = useState(false);
   const redaktioneltHistory = useMemo(
@@ -1971,9 +1969,23 @@ export const BoardroomView = () => {
     () => facts.map((f) => ({ key: f.period_key, kf: factsToDanishMetrics(f.metrics), period: f.period_label, basis: f.data_basis })),
     [facts],
   );
-  const latestFacts = sorted[sorted.length - 1];
-  const bankRow = [...sorted].reverse().find((r) => r.kf.bank_balance != null);
   const processing = sorted.length === 0 && (processedQuery.data?.size ?? 0) > 0;
+  // «Din måned» (PR 2): samme rækker som tal-strippen læste — ren dom.
+  const dinMaaned = useMemo(
+    () =>
+      dinMaanedDom(
+        sorted.map<MaanedsRaekke>((r) => ({
+          key: r.key,
+          period: r.period,
+          basis: r.basis === "estimated" ? "estimated" : "measured",
+          omsaetning: r.kf.omsaetning ?? null,
+          resultat: r.kf.resultat_foer_skat ?? null,
+          bank: r.kf.bank_balance ?? null,
+        })),
+        processing,
+      ),
+    [sorted, processing],
+  );
 
   const firstName = profile?.full_name?.split(" ")[0] || user?.email?.split("@")[0] || "dig";
 
@@ -2019,53 +2031,154 @@ export const BoardroomView = () => {
 
   return (
     <div>
-      <PageHeader firstName={firstName} velkomst={Boolean(tjeklisteData.tjekliste && !tjeklisteData.tjekliste.faerdig)} />
+      <PageHeader
+        firstName={firstName}
+        velkomst={Boolean(tjeklisteData.tjekliste && !tjeklisteData.tjekliste.faerdig)}
+        linje={hilsenLinje({ nu: new Date(), nyeTing: newsCount, dag1: Boolean(tjeklisteData.tjekliste && !tjeklisteData.tjekliste.faerdig) })}
+      />
 
-      {/* ── FORNYELSEN (7/9): båndet står mellem hilsenen og lag 1, KUN når
+      {/* ── FORNYELSEN (7/9): båndet står mellem hilsenen og toppen, KUN når
           hent-fornyelsestilbud siger at der er et tilbud — ellers null og
           ingen plads. Dommen er serverens (motoren); se FornyelsesBaand. ── */}
       <FornyelsesBaand />
 
-      {/* ── LAG 1: Dit næste skridt (fuld bredde, øverst) ── */}
-      <HbSection eyebrow="Dit næste skridt" hairline className="mt-10 md:mt-12">
-        <FocusCard
-          loading={focusLoading}
-          items={focus}
-          weeklySummary={weeklyFocusQuery.data?.summary ?? null}
-          linje={forloebsLinje}
-          tom={fokusTom}
-          onProevIgen={proevIgen}
-        />
-        {/* «MÅSKE RELEVANT FOR DIG» (Jonas 16/9): én stille linje pr. lektion
-            (højst to) under kortet — når ugens fokus handler om X, peger
-            platformen på lektionen om X. Ingen linje uden match, ingen linje
-            ved hentefejl (dommen giver null). Ordene og udvalget er motorens
-            (lib/hjemmebane/maaskeRelevant); stien er lektionsSti. */}
-        {maaskeRelevante && maaskeRelevante.length > 0 && (
-          <ul className="mt-4 space-y-1 text-sm text-hb-ink-soft" data-maaske-relevant={maaskeRelevante.length}>
-            {maaskeRelevante.map((lektion) => (
-              <li key={lektion.id}>
-                {MAASKE_RELEVANT_PRAEFIKS}:{" "}
-                <Link to={lektionsSti(lektion)} className="text-hb-evergreen underline-offset-4 hover:underline">
-                  {lektion.title}
-                </Link>
-              </li>
-            ))}
-          </ul>
+      {/* ── TOPPEN (forside PR 2, 17/9 — Jonas «A» til valg 1): to kolonner på
+          md+ — venstre 7/12 NYHEDEN (stående hovedhistorie + tiles), højre
+          5/12 «DIN MÅNED» over «DIT NÆSTE SKRIDT» (kompakt). Mobil: samme
+          DOM-orden stablet — nyheden først (det der giver liv står over
+          folden), så tallene, så pligten. Uden bånd (intet publiceret): højre
+          kolonne tager hele bredden. ── */}
+      <div className={cn("mt-10 grid grid-cols-1 gap-8 md:mt-12 md:items-start", hasBand && "md:grid-cols-12")} data-forside-top>
+        {hasBand && (
+          <div className="min-w-0 md:col-span-7" data-forside-venstre>
+          {hasBand && (
+            // Overskriften: "Siden sidst" → "Fra os til dig" — båndet rummer
+            // både tidløst (evergreen) og fremtid gjorde det tidligere (event);
+            // "siden sidst" var kun sandt for push/podcast. Selve "siden
+            // sidst"-LINJEN (countNewSince) beholder sin tekst — den handler
+            // netop om det nye.
+            <HbSection eyebrow="Fra os til dig" linkLabel="Se Akademiet" linkTo="/akademiet" hairline data-forside-nyheden>
+              {/* "Siden sidst"-linjen står nu under hilsenen (PR 2, forsideHilsen). */}
+              {/* Redesign (bryd to-kolonne-stakken): rykkelistens vinder står
+                  i FULD bredde som fokus-kortet ovenfor — cover i fuld
+                  kortbredde, editorial-overskrift i stor skala. Resten
+                  (side[] + talk) ligger UNDER i ét jævnt 3-kolonne-
+                  grid af ENS, rammeløse tiles (materiale-differentiering:
+                  hovedhistorien er det eneste hvide kort i båndet) — grid'et
+                  wrapper og tåler 2-3 elementer uden tomme hjørner. Ingen
+                  skeletons: alle kandidater er synkrone (17/9). */}
+              {band.main && (
+                <StoryCard
+                  story={band.main}
+                  variant="main"
+                  pushSender={pushSender}
+                  pushCoverUrl={pushCoverUrl}
+                />
+              )}
+              {band.side.length > 0 && (
+                <div className={cn("mt-8 grid grid-cols-1 items-start gap-x-6 gap-y-8", tileColsClass(tileCount))}>
+                  {band.side.map((story) => (
+                    <StoryCard
+                      key={story.kind}
+                      story={story}
+                      variant="side"
+                      pushSender={pushSender}
+                      pushCoverUrl={pushCoverUrl}
+                    />
+                  ))}
+                </div>
+              )}
+
+              {/* Historik (PR B3): diskret "Se tidligere" under båndet —
+                  seneste redaktionelle (byPublishedDesc, 5 stk) som rolige
+                  linjer m. titel + dato + link. Kollapset som standard. */}
+              {redaktioneltHistory.length > 0 && (
+                <div className="mt-9">
+                  <button
+                    type="button"
+                    onClick={() => setHistorikOpen((open) => !open)}
+                    className="flex items-center gap-1.5 text-sm text-hb-ink-soft transition-colors hover:text-hb-ink"
+                  >
+                    {historikOpen ? "Skjul tidligere" : "Se tidligere"}
+                    {historikOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                  </button>
+                  {historikOpen && (
+                    <ul className="mt-3">
+                      {redaktioneltHistory.map((item) => {
+                        const link =
+                          (((item.metadata as Record<string, unknown>) ?? {}).link as string) || null;
+                        const date = new Date(item.published_at ?? item.created_at).toLocaleDateString(
+                          "da-DK",
+                          { day: "numeric", month: "short", year: "numeric" },
+                        );
+                        return (
+                          <li
+                            key={item.id}
+                            className="flex items-baseline gap-3 border-t border-hb-line/60 py-2.5 text-sm"
+                          >
+                            <span className="w-28 shrink-0 text-xs text-hb-ink-soft">{date}</span>
+                            {link ? (
+                              <a
+                                href={link}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-hb-ink underline-offset-4 hover:underline"
+                              >
+                                {item.title}
+                              </a>
+                            ) : (
+                              <span className="text-hb-ink">{item.title}</span>
+                            )}
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
+                </div>
+              )}
+            </HbSection>
+          )}
+          </div>
         )}
-        {hentefejlLinje && (
-          <p className="mt-4 text-sm text-hb-rust">
-            {hentefejlLinje}{" "}
-            <button type="button" onClick={proevIgen} className="underline-offset-4 hover:underline">Prøv igen</button>
-          </p>
-        )}
-        {/* Ulæste beskeder fejlede (7/9): fokus-laget får 0 ulæste ind og
-            tier stille — så siger vi det her, under kortet, i stedet for
-            at lade hele forsiden fejle på én tælling. */}
-        {unreadQuery.isError && (
-          <p className="mt-4 text-sm text-hb-rust">Dine ulæste beskeder kunne ikke hentes. Prøv igen.</p>
-        )}
-      </HbSection>
+        <div className={cn("min-w-0 space-y-8", hasBand ? "md:col-span-5" : "md:col-span-12")} data-forside-hoejre>
+          {/* «DIN MÅNED» (valg 2) — afløser tal-strippen nederst. Kun med virksomhed. */}
+          {companyId && (
+            <HbSection eyebrow="Din måned" hairline linkLabel="Se dine tal" linkTo="/kpis" data-forside-din-maaned>
+              <DinMaaned dom={dinMaaned} />
+            </HbSection>
+          )}
+
+          {/* «DIT NÆSTE SKRIDT» (kompakt) — fokus-motoren er urørt (nextStep.ts);
+              kun præsentationen er kompakt, og «Måske relevant» står som kortets
+              sidste linje. Rådgiverens ansigt (valg 6) VENTER til PR 4: fokus-
+              punktet fra et rådgiverforslag bærer intet proposed_by, og
+              profilerne hentes i dag kun for pushets afsender. */}
+          <HbSection eyebrow="Dit næste skridt" hairline data-forside-naeste-skridt>
+            <FocusCard
+              variant="kompakt"
+              loading={focusLoading}
+              items={focus}
+              weeklySummary={weeklyFocusQuery.data?.summary ?? null}
+              linje={forloebsLinje}
+              tom={fokusTom}
+              onProevIgen={proevIgen}
+              relevante={(maaskeRelevante ?? []).map((lektion) => ({ id: lektion.id, title: lektion.title, sti: lektionsSti(lektion) }))}
+            />
+            {hentefejlLinje && (
+              <p className="mt-4 text-sm text-hb-rust">
+                {hentefejlLinje}{" "}
+                <button type="button" onClick={proevIgen} className="underline-offset-4 hover:underline">Prøv igen</button>
+              </p>
+            )}
+            {/* Ulæste beskeder fejlede (7/9): fokus-laget får 0 ulæste ind og
+                tier stille — så siger vi det her, under kortet, i stedet for
+                at lade hele forsiden fejle på én tælling. */}
+            {unreadQuery.isError && (
+              <p className="mt-4 text-sm text-hb-rust">Dine ulæste beskeder kunne ikke hentes. Prøv igen.</p>
+            )}
+          </HbSection>
+        </div>
+      </div>
 
       {/* ── DINE SKRIDT (før «Dine aftaler», fase 3): aktive skridt øverst,
           ÉT forslag nederst — hvert med «Mod målet: …» når det bærer maal_id.
@@ -2320,113 +2433,6 @@ export const BoardroomView = () => {
         </HbSection>
       )}
 
-      {/* ── LAG 2: Fra os til dig (kurateret bånd) ── */}
-      {hasBand && (
-        // Overskriften: "Siden sidst" → "Fra os til dig" — båndet rummer
-        // både tidløst (evergreen) og fremtid gjorde det tidligere (event);
-        // "siden sidst" var kun sandt for push/podcast. Selve "siden
-        // sidst"-LINJEN (countNewSince) beholder sin tekst — den handler
-        // netop om det nye.
-        <HbSection eyebrow="Fra os til dig" linkLabel="Se Akademiet" linkTo="/akademiet" hairline className="mt-10 md:mt-12">
-          {/* "Siden sidst"-linjen (bølge 3): rolig grund til at kigge i
-              dag frem for på fredag. 0 nye → ingen linje (tavshed, ikke
-              "0 nye ting"). */}
-          {newsLine && <p className="mb-5 text-sm text-hb-ink-soft">{newsLine}</p>}
-          {/* Redesign (bryd to-kolonne-stakken): rykkelistens vinder står
-              i FULD bredde som fokus-kortet ovenfor — cover i fuld
-              kortbredde, editorial-overskrift i stor skala. Resten
-              (side[] + talk) ligger UNDER i ét jævnt 3-kolonne-
-              grid af ENS, rammeløse tiles (materiale-differentiering:
-              hovedhistorien er det eneste hvide kort i båndet) — grid'et
-              wrapper og tåler 2-3 elementer uden tomme hjørner. Ingen
-              skeletons: alle kandidater er synkrone (17/9). */}
-          {band.main && (
-            <StoryCard
-              story={band.main}
-              variant="main"
-              pushSender={pushSender}
-              pushCoverUrl={pushCoverUrl}
-            />
-          )}
-          {band.side.length > 0 && (
-            <div className={cn("mt-10 grid grid-cols-1 items-start gap-x-8 gap-y-9", tileColsClass(tileCount))}>
-              {band.side.map((story) => (
-                <StoryCard
-                  key={story.kind}
-                  story={story}
-                  variant="side"
-                  pushSender={pushSender}
-                  pushCoverUrl={pushCoverUrl}
-                />
-              ))}
-            </div>
-          )}
-
-          {/* Historik (PR B3): diskret "Se tidligere" under båndet —
-              seneste redaktionelle (byPublishedDesc, 5 stk) som rolige
-              linjer m. titel + dato + link. Kollapset som standard. */}
-          {redaktioneltHistory.length > 0 && (
-            <div className="mt-9">
-              <button
-                type="button"
-                onClick={() => setHistorikOpen((open) => !open)}
-                className="flex items-center gap-1.5 text-sm text-hb-ink-soft transition-colors hover:text-hb-ink"
-              >
-                {historikOpen ? "Skjul tidligere" : "Se tidligere"}
-                {historikOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-              </button>
-              {historikOpen && (
-                <ul className="mt-3">
-                  {redaktioneltHistory.map((item) => {
-                    const link =
-                      (((item.metadata as Record<string, unknown>) ?? {}).link as string) || null;
-                    const date = new Date(item.published_at ?? item.created_at).toLocaleDateString(
-                      "da-DK",
-                      { day: "numeric", month: "short", year: "numeric" },
-                    );
-                    return (
-                      <li
-                        key={item.id}
-                        className="flex items-baseline gap-3 border-t border-hb-line/60 py-2.5 text-sm"
-                      >
-                        <span className="w-28 shrink-0 text-xs text-hb-ink-soft">{date}</span>
-                        {link ? (
-                          <a
-                            href={link}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-hb-ink underline-offset-4 hover:underline"
-                          >
-                            {item.title}
-                          </a>
-                        ) : (
-                          <span className="text-hb-ink">{item.title}</span>
-                        )}
-                      </li>
-                    );
-                  })}
-                </ul>
-              )}
-            </div>
-          )}
-        </HbSection>
-      )}
-
-      {/* ── LAG 3: Tal-strippen (rolig status, nederst) ── */}
-      {companyId && (
-        <div className="mt-10 md:mt-12">
-          <TalStrip
-            hasFacts={sorted.length > 0}
-            processing={processing}
-            periodLabel={latestFacts?.period ?? null}
-            estimeret={latestFacts?.basis === "estimated"}
-            revenue={latestFacts?.kf.omsaetning ?? null}
-            result={latestFacts?.kf.resultat_foer_skat ?? null}
-            bank={bankRow?.kf.bank_balance ?? null}
-            bankEstimeret={bankRow?.basis === "estimated"}
-          />
-        </div>
-      )}
     </div>
   );
 };
