@@ -15,10 +15,13 @@
  *   - Convention-inferred sign logic via detectSignConvention()
  *   - Fail-closed: missing core metrics → FAIL, ambiguous sign → FAIL
  *
- * Sign convention:
- *   - CREDIT: revenue < 0, cost > 0 → abs() all, flipSign subtotals
- *   - BUSINESS: revenue > 0, cost < 0 → abs() all
- *   - UNKNOWN: mixed/missing → FAIL
+ * Sign convention (17/9-2026, kontogrupper.ts — C's mønster fra saldobalance-XLSX'en):
+ *   - CREDIT: revenue < 0, cost > 0 → alle beløb vendes til forretningsfortegn
+ *   - BUSINESS: revenue > 0, cost < 0 → beholdes
+ *   - UNKNOWN: mixed/missing → FAIL (fordelingen regner som CREDIT så tallene findes; parser_status er FAIL)
+ *   Hver klasse er sin NETTO med fortegn: kredit-netto i en omkostningsklasse → andre_driftsindtaegter
+ *   (financial_costs-klassen → finansielle_indtaegter), uklassificerede/tvetydige linjer →
+ *   oevrige_omkostninger, kontrolsum pnl_coverage. Før: abs() pr. klasse, uklassificerede sprunget over.
  */
 
 import type {
@@ -30,6 +33,7 @@ import type {
 } from "../templateRegistry.ts";
 
 import { detectEconomicAccountRanges } from "../economicRangeDetector.ts";
+import { fordelKontogrupper, keyFiguresAf, kontrolsumTjek } from "../kontogrupper.ts";
 
 // Generic low-level PDF line parser.
 // NOTE: Despite its historical name "parseEconomicPdfText", this is a generic
@@ -447,15 +451,12 @@ export const dkGenericResultatopgoerelsePdfV1: TemplateEntry = {
     // ── Sign convention inference ──
     const convention = detectSignConvention(classified);
 
-    // ── Aggregate by class ──
-    const sums: Record<string, number> = {};
-    const counts: Record<string, number> = {};
-
-    for (const line of classified) {
-      if (line.cls === "unclassified") continue;
-      sums[line.cls] = (sums[line.cls] || 0) + line.rawAmount;
-      counts[line.cls] = (counts[line.cls] || 0) + 1;
-    }
+    // ── Fordelingen (kontogrupper.ts): netto med fortegn, kredit-netto → indtægt, alt tæller ──
+    const fordeling = fordelKontogrupper(
+      classified.map((l) => ({ cls: l.cls, rawAmount: l.rawAmount, ambiguous: l.ambiguous })),
+      convention === "BUSINESS" ? "BUSINESS" : "CREDIT",
+    );
+    const counts = fordeling.antal;
 
     // Track ambiguous class conflicts
     const ambiguousClasses = new Set<string>();
@@ -465,79 +466,34 @@ export const dkGenericResultatopgoerelsePdfV1: TemplateEntry = {
       }
     }
 
-    // ── Normalize amounts based on convention ──
+    // Linjebeløb til line_items — størrelsen (fortegnet står i raw_sign)
     function normalizeAmount(raw: number): number {
       return Math.abs(raw);
     }
 
-    const revenue = sums.revenue != null ? normalizeAmount(sums.revenue) : null;
-    const cogs = sums.cogs != null ? normalizeAmount(sums.cogs) : null;
-    const payroll = sums.payroll != null ? normalizeAmount(sums.payroll) : null;
-    const salesCosts = sums.sales_costs != null ? normalizeAmount(sums.sales_costs) : null;
-    const facilityCosts = sums.facility_costs != null ? normalizeAmount(sums.facility_costs) : null;
-    const vehicleCosts = sums.vehicle_costs != null ? normalizeAmount(sums.vehicle_costs) : null;
-    const adminCosts = sums.admin_costs != null ? normalizeAmount(sums.admin_costs) : null;
+    const revenue = fordeling.revenue;
+    const cogs = fordeling.omkostninger.cogs ?? null;
+    const grossProfit = fordeling.grossProfit;
 
-    // ── Depreciation: default 0 if absent, null if ambiguous ──
+    // ── Depreciation / financial costs: 0 når ingen linje matcher; tvetydighed markeres (beløbet
+    // ligger i øvrige omkostninger og tæller i ebt — før blev ebt null) ──
     const defaultedFields: { field: string; reason: "absent" | "ambiguous_conflict" }[] = [];
-    let depreciation: number | null;
-    let depreciationUnsure = false;
-    if (counts.depreciation != null && counts.depreciation > 0) {
-      depreciation = normalizeAmount(sums.depreciation);
-    } else if (ambiguousClasses.has("depreciation")) {
-      depreciation = null;
-      depreciationUnsure = true;
-      console.log("[GenericPDF] WARNING: depreciation ambiguous → null");
-    } else {
-      depreciation = 0;
+    const depreciationUnsure = counts.depreciation == null && ambiguousClasses.has("depreciation");
+    if (counts.depreciation == null && !depreciationUnsure) {
       defaultedFields.push({ field: "depreciation", reason: "absent" });
       console.log("[GenericPDF] depreciation missing → assumed 0");
     }
-
-    // ── Financial costs: default 0 if absent, null if ambiguous ──
-    let financialCosts: number | null;
-    let financialCostsUnsure = false;
-    if (counts.financial_costs != null && counts.financial_costs > 0) {
-      financialCosts = normalizeAmount(sums.financial_costs);
-    } else if (ambiguousClasses.has("financial_costs")) {
-      financialCosts = null;
-      financialCostsUnsure = true;
-      console.log("[GenericPDF] WARNING: financial_costs ambiguous → null");
-    } else {
-      financialCosts = 0;
+    const financialCostsUnsure = counts.financial_costs == null && ambiguousClasses.has("financial_costs");
+    if (counts.financial_costs == null && !financialCostsUnsure) {
       defaultedFields.push({ field: "financial_costs", reason: "absent" });
       console.log("[GenericPDF] financial_costs missing → assumed 0");
     }
-
-    const tax = counts.tax != null && counts.tax > 0 ? normalizeAmount(sums.tax) : null;
-
-    // ── Conservative metric derivation ──
-    const grossProfit = revenue != null && cogs != null ? revenue - cogs : null;
-    const opex = (payroll || 0) + (salesCosts || 0) + (facilityCosts || 0) + (vehicleCosts || 0) + (adminCosts || 0);
-    const ebitda = grossProfit != null ? grossProfit - opex : null;
-    const ebit = ebitda != null && depreciation != null ? ebitda - depreciation : null;
-    const ebt = ebit != null && financialCosts != null ? ebit - financialCosts : null;
-    let netResult: number | null = null;
-    if (ebt != null) {
-      netResult = tax != null ? ebt - tax : ebt;
-    }
+    const depreciation = fordeling.omkostninger.depreciation ?? 0;
+    const financialCosts = fordeling.omkostninger.financial_costs ?? 0;
+    const ebt = fordeling.ebt;
 
     // ── Key figures (Danish names → canonical engine mapping) ──
-    const keyFigures: Record<string, number | null> = {
-      omsaetning: revenue,
-      direkte_omkostninger: cogs,
-      daekningsbidrag: grossProfit,
-      loenninger: payroll,
-      salgsomkostninger: salesCosts,
-      lokaleomkostninger: facilityCosts,
-      administrationsomkostninger: adminCosts,
-      transportomkostninger: vehicleCosts,
-      resultat_foer_afskrivninger: ebitda,
-      afskrivninger: depreciation,
-      finansielle_omkostninger: financialCosts,
-      resultat_foer_skat: ebt,
-      resultat_efter_skat: netResult,
-    };
+    const keyFigures: Record<string, number | null> = keyFiguresAf(fordeling);
 
     // ── Line items ──
     const lineItems = classified.map(line => ({
@@ -585,7 +541,7 @@ export const dkGenericResultatopgoerelsePdfV1: TemplateEntry = {
       name: "depreciation_present",
       result: depreciationUnsure ? "FAIL" : "PASS",
       details: depreciationUnsure
-        ? "UNSURE: depreciation ambiguous → null"
+        ? "UNSURE: depreciation ambiguous → counted in other_costs"
         : depreciation === 0 && defaultedFields.some(f => f.field === "depreciation")
           ? "assumed 0 — no matching lines, no ambiguity"
           : `Depreciation: ${depreciation?.toFixed(2)}`,
@@ -596,7 +552,7 @@ export const dkGenericResultatopgoerelsePdfV1: TemplateEntry = {
       name: "financial_costs_present",
       result: financialCostsUnsure ? "FAIL" : "PASS",
       details: financialCostsUnsure
-        ? "UNSURE: financial_costs ambiguous → null"
+        ? "UNSURE: financial_costs ambiguous → counted in other_costs"
         : financialCosts === 0 && defaultedFields.some(f => f.field === "financial_costs")
           ? "assumed 0 — no matching lines, no ambiguity"
           : `Financial costs: ${financialCosts?.toFixed(2)}`,
@@ -606,8 +562,11 @@ export const dkGenericResultatopgoerelsePdfV1: TemplateEntry = {
     checks.push({
       name: "ebt_present",
       result: ebt != null ? "PASS" : "FAIL",
-      details: ebt != null ? `EBT: ${ebt.toFixed(2)}` : "EBT null (upstream dependency missing)",
+      details: ebt != null ? `EBT: ${ebt.toFixed(2)}` : "EBT null (missing revenue or cogs)",
     });
+
+    // 6b. Kontrolsum: hver linje tæller én gang (kontogrupper.ts — 0 pr. konstruktion, se filhovedet dér)
+    checks.push(kontrolsumTjek(fordeling));
 
     // 7. Ambiguity — core metric conflict
     const ambiguityAffectsCore = depreciationUnsure || financialCostsUnsure;
@@ -617,8 +576,8 @@ export const dkGenericResultatopgoerelsePdfV1: TemplateEntry = {
       details: ambiguousCount === 0
         ? "No ambiguous label matches"
         : ambiguityAffectsCore
-          ? `${ambiguousCount} ambiguous lines affecting core metrics → FAIL`
-          : `${ambiguousCount} ambiguous lines (non-core) → accepted`,
+          ? `${ambiguousCount} ambiguous lines affecting core metrics → FAIL (amounts counted in other_costs)`
+          : `${ambiguousCount} ambiguous lines (non-core) → accepted, counted in other_costs`,
     });
 
     // 8. Ambiguity EBT impact gate
@@ -677,7 +636,7 @@ export const dkGenericResultatopgoerelsePdfV1: TemplateEntry = {
         parser_validation_status: parserStatus as "PASS" | "FAIL",
         parser_validation_errors: parserErrors,
         raw_line_count: classified.length,
-        normalized_line_count: classified.filter(l => l.cls !== "unclassified").length,
+        normalized_line_count: classified.length, // alle linjer tæller (uklassificerede → other_costs)
         column_basis_rule: "single",
       },
     };

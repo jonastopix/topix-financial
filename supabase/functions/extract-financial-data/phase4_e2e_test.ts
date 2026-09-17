@@ -2336,30 +2336,31 @@ Deno.test("Phase6b — R2. XLSX semantic regression: business convention (Topix 
   }
 
   // ──────────────────────────────────────────────────────────────────────
-  // COGS: LOCAL EXCEPTION — DO NOT GENERALIZE
-  //
-  // This is an explicit, test-local exception for a known legacy quirk:
-  //   Legacy path: COGS is negative (negated for GP equation reconciliation)
-  //   Semantic path: COGS is positive (canonical convention: costs are positive numbers)
-  //
-  // The semantic path is canonical-correct (matches engine_test.ts Case 8).
-  // We assert COGS against its canonical contract (positive), then verify
-  // magnitude matches legacy. This exception applies ONLY to COGS in this
-  // specific regression test and must NOT be used as a pattern for other
-  // metrics or other tests. All other metrics satisfy standard regression.
+  // COGS i denne fil er en KREDIT-NETTO (17/9-2026, subtotalGrupper.ts):
+  //   «Direkte omkostninger i alt» = +5.677,52 i en fil i FORRETNINGSFORTEGN (omkostninger negative),
+  //   og filens eget dækningsbidrag 63.165,04 = omsætning 57.487,52 + 5.677,52 — gruppen er en indtægt.
+  //   Legacy-vejen så det («Reconciled COGS sign … 5677.52 -> -5677.52») og afleverer cogs −5.677,52.
+  //   Før 17/9 abs'ede den semantiske vej beløbet til en OMKOSTNING på 5.677,52 (testen kaldte det en
+  //   «known legacy quirk» og målte kun størrelsen). Nu: cogs = 0 og beløbet i other_operating_income —
+  //   C's mønster (kredit-netto i en omkostningsgruppe → andre driftsindtægter). Dækningsbidraget er
+  //   stadig filens egen linje (sammenlignet ovenfor).
   // ──────────────────────────────────────────────────────────────────────
+  //   Filen har TO kredit-netto-grupper: direkte omkostninger +5.677,52 og «Salgs- og rejseomkostninger i
+  //   alt» +138.519,23 — filens eget «Resultat før afskrivninger» 94.478,57 = 63.165,04 − 86.673,29 +
+  //   138.519,23 − 6.450 − 14.082,41 beviser at salgsgruppen er en indtægt (med den som omkostning ville
+  //   ebitda være −182.559). Kontrolsummen pnl_coverage (filens resultatlinje) er PASS.
   const legacyCogs = legacyCanonical.metrics.cogs;
   const semanticCogs = semanticCanonical.metrics.cogs;
-  console.log(`  cogs: legacy=${legacyCogs}, semantic=${semanticCogs} (canonical-correct positive vs legacy-negative)`);
-  assertExists(semanticCogs, "COGS should be present in semantic output");
-  assert(semanticCogs! > 0, "COGS must be positive per canonical convention (costs are positive numbers)");
-  if (legacyCogs != null) {
-    assertEquals(
-      Math.abs(Math.abs(legacyCogs) - semanticCogs!) < 2,
-      true,
-      `COGS magnitude drift: legacy=${legacyCogs}, semantic=${semanticCogs}`,
-    );
-  }
+  const semanticAndre = semanticCanonical.metrics.other_operating_income;
+  console.log(`  cogs: legacy=${legacyCogs}, semantic=${semanticCogs}, other_operating_income=${semanticAndre} (credit-net groups → income)`);
+  assertEquals(semanticCogs, 0, "COGS group is a credit net in this file → 0 (amount moved to other_operating_income)");
+  assertEquals(semanticCanonical.metrics.sales_costs, 0, "Sales group is a credit net in this file → 0");
+  assertExists(semanticAndre, "other_operating_income should carry the credit nets");
+  assertEquals(Math.abs((semanticAndre as number) - (5677.52 + 138519.23)) < 2, true, `other_operating_income = 5.677,52 + 138.519,23, got ${semanticAndre}`);
+  if (legacyCogs != null) assertEquals(Math.abs(Math.abs(legacyCogs) - 5677.52) < 2, true, `legacy cogs magnitude: ${legacyCogs}`);
+  const coverage = semantic!.parser_validation.checks.find(c => c.name === "pnl_coverage");
+  assertEquals(coverage?.result, "PASS", `pnl_coverage: ${JSON.stringify(coverage)}`);
+  assertEquals(semanticCanonical.metrics.extraordinary_items ?? null, null, "«resultat før ekstraordinære poster» må ikke længere blive ekstraordinære poster");
 
   // ── All values should be positive (business convention) ──
   assertEquals((semanticCanonical.metrics.revenue ?? 0) > 0, true, "Revenue should be positive");

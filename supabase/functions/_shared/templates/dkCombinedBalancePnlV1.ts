@@ -28,6 +28,7 @@ import type {
   SemanticLineItem,
 } from "../semanticTypes.ts";
 import type { MetricFamily } from "../normalizationProfiles.ts";
+import { fordelSubtotaler, FINANSIELLE_INDTAEGTER_RE, OEVRIGE_OMKOSTNINGER_RE, FINANSIERINGSUDGIFTER_RE, type GruppeRaekke } from "../subtotalGrupper.ts";
 
 import {
   detectReportTemplate,
@@ -141,8 +142,12 @@ const PNL_LABEL_MATCHERS: CombinedLabelMatch[] = [
   { key: "resultat_foer_afskrivninger", pattern: /resultat\s*før\s*afskrivninger/i, family: "profit_like" },
   { key: "afskrivninger", pattern: /afskrivninger\s*(i\s*alt|ialt)?$/i, family: "cost_like" },
   { key: "indtjeningsbidrag", pattern: /(indtjeningsbidrag|resultat\s*før\s*(renter|finansielle\s*poster))/i, family: "profit_like" },
-  { key: "finansieringsudgifter", pattern: /finansierings(udgifter|omkostninger)\s*(i\s*alt|ialt)?$/i, family: "cost_like" },
-  { key: "ekstraordinaere_poster", pattern: /ekstraordinære\s*poster\s*(i\s*alt|ialt)?$/i, family: "cost_like" },
+  // 17/9-2026 (subtotalGrupper.ts): finansielle omkostninger også som «Renteudgifter i alt» / «Finansielle udgifter i alt»;
+  // finansielle indtægter → financial_income; andre eksterne / fremmed arbejde / underleverandører → other_costs
+  { key: "finansieringsudgifter", pattern: FINANSIERINGSUDGIFTER_RE, family: "cost_like" },
+  { key: "finansielle_indtaegter", pattern: FINANSIELLE_INDTAEGTER_RE, family: "revenue_like" },
+  { key: "oevrige_omkostninger", pattern: OEVRIGE_OMKOSTNINGER_RE, family: "cost_like" },
+  { key: "ekstraordinaere_poster", pattern: /^ekstraordinære\s*poster\s*(i\s*alt|ialt)?$/i, family: "cost_like" }, // ^ 17/9-2026: ramte «resultat før ekstraordinære poster» (se XLSX-P&L)
   { key: "resultat_foer_skat", pattern: /resultat\s*før\s*skat/i, family: "profit_like" },
   { key: "resultat_foer_ekstraordinaere", pattern: /resultat\s*før\s*ekstraordinære\s*poster/i, family: "profit_like" },
   { key: "arets_resultat", pattern: /(årets\s*resultat|resultat\s*efter\s*skat)/i, family: "profit_like" },
@@ -431,6 +436,7 @@ export const dkCombinedBalancePnlV1: SemanticXlsxTemplateEntry = {
     // ── Scan all rows for metric candidates and line items ──
     const metricCandidates: SemanticMetricCandidate[] = [];
     const lineItems: SemanticLineItem[] = [];
+    const gruppeRaekker: GruppeRaekke[] = [];
     const matchedKeys = new Set<string>();
 
     for (const row of xlsxResult.rows) {
@@ -468,29 +474,38 @@ export const dkCombinedBalancePnlV1: SemanticXlsxTemplateEntry = {
       const isSubtotal = /i\s*alt|dækningsbidrag|resultat/i.test(label);
       if (!isSubtotal) continue;
 
-      // Match against label matchers
-      for (const matcher of ALL_LABEL_MATCHERS) {
-        if (!matcher.pattern.test(label)) continue;
-        if (matchedKeys.has(matcher.key)) break; // First match wins per key
+      // 17/9-2026 (subtotalGrupper.ts): rækken samles med skabelonens første matcher; fordelSubtotaler
+      // dømmer bagefter (første række med samme nøgle vinder, som før).
+      const matcher = ALL_LABEL_MATCHERS.find((m) => m.pattern.test(label)) ?? null;
+      gruppeRaekker.push({
+        label,
+        rawValue,
+        rowIndex: row.row_index,
+        cellAddress: valueCell?.cell_address ?? null,
+        key: matcher?.key ?? null,
+        family: matcher?.family ?? null,
+        evidence: matcher ? [`label_match:${matcher.key}`, `pattern:${matcher.pattern.source}`] : [],
+      });
+    }
 
-        matchedKeys.add(matcher.key);
-        metricCandidates.push({
-          source_field_id: matcher.key,
-          normalization_family: matcher.family,
-          raw_value: rawValue,
-          raw_sign: rawValue != null ? (rawValue > 0 ? "positive" : rawValue < 0 ? "negative" : "zero") : "zero",
-          sign_convention: signConvention,
-          source_label: label,
-          source_row_index: row.row_index,
-          source_column_slot: valueColIndex,
-          source_cell_address: valueCell?.cell_address ?? null,
-          basis: "period",
-          confidence: "HIGH",
-          evidence: [`label_match:${matcher.key}`, `pattern:${matcher.pattern.source}`],
-          proposed_canonical_target: null,
-        });
-        break;
-      }
+    const fordeling = fordelSubtotaler(gruppeRaekker, signConvention, "first");
+    for (const k of fordeling.kandidater) {
+      matchedKeys.add(k.key);
+      metricCandidates.push({
+        source_field_id: k.key,
+        normalization_family: k.family,
+        raw_value: k.rawValue,
+        raw_sign: k.rawValue != null ? (k.rawValue > 0 ? "positive" : k.rawValue < 0 ? "negative" : "zero") : "zero",
+        sign_convention: k.signConvention,
+        source_label: k.label,
+        source_row_index: k.rowIndex,
+        source_column_slot: valueColIndex,
+        source_cell_address: k.cellAddress,
+        basis: "period",
+        confidence: "HIGH",
+        evidence: k.evidence,
+        proposed_canonical_target: null,
+      });
     }
 
     console.log(`[DK_COMBINED_PNL_SEMANTIC] Matched ${metricCandidates.length} metric candidates (keys: ${[...matchedKeys].join(", ")})`);
@@ -522,6 +537,8 @@ export const dkCombinedBalancePnlV1: SemanticXlsxTemplateEntry = {
     const hasAssets = matchedKeys.has("aktiver_i_alt");
     checks.push({ name: "assets_present", result: hasAssets ? "PASS" as const : "FAIL" as const, details: hasAssets ? "Assets total found" : "No assets total" });
     checks.push({ name: "sign_convention_detected", result: "PASS" as const, details: `Convention: ${signConvention}` });
+    // 17/9-2026: kontrolsummen — filens egen resultatlinje mod omsætning − grupper + indtægter (subtotalGrupper.ts)
+    checks.push(fordeling.kontrolsum);
     const parserStatus = checks.some(c => c.result === "FAIL") ? "FAIL" as const : "PASS" as const;
 
     const result: SemanticExtractionResult = {

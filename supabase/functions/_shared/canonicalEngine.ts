@@ -78,6 +78,11 @@ const KF_TO_CANONICAL: Record<string, keyof CanonicalMetrics> = {
   renteudgifter: "financial_costs",
   finansielle_indtaegter: "financial_income",
   renteindtaegter: "financial_income",
+  // 17/9-2026 (kontogrupper.ts): de tre legacy-skabeloner (Dinero CSV/PDF, generic PDF) udsteder nu
+  // øvrige omkostninger (uklassificerede linjer) og andre driftsindtægter (kredit-netto i en
+  // omkostningsgruppe) — samme nøgler som SEMANTIC_TO_CANONICAL allerede kender.
+  oevrige_omkostninger: "other_costs",
+  andre_driftsindtaegter: "other_operating_income",
 };
 
 // Line item class → canonical metric name
@@ -715,6 +720,19 @@ export interface DerivedSignTrailEntry {
   action: string | null;
 }
 
+/**
+ * De AFLEDTE RESULTATLINJER tjek 18 dømmer — de fire feltregler C satte til KEEP_DERIVED i profilerne
+ * (economic_saldobalance_credit_v1): fortegnet ER resultatet, og et vend er fejlen tjekket blev bygget til.
+ * INDSNÆVRET 17/9-2026 (aften): før dømte tjekket ALLE kandidater med sign_convention «business» — men
+ * XLSX-P&L og combined markerer hver kandidat med FILENS konvention, så i en fil i forretningsfortegn
+ * (omkostninger negative) blev profilens ABS/NEGATE på en omkostning (−200.000 → 200.000) læst som «en
+ * afledt kandidat der skiftede fortegn» → validation FAIL og ai_eligible false for ALLE business-XLSX-filer
+ * (målt på 4ac83dc3; i drift fra 0937340e). En omkostning der vendes til positiv er ikke et resultat der
+ * vendes — omkostningernes fortegn holdes af omkostningsFortegn.guard (ABS/NEGATE i hver profil) og af
+ * suspicious_sign_pattern. Dette tjek ser kun resultatet.
+ */
+export const AFLEDTE_RESULTATLINJER: readonly string[] = ["resultat_foer_skat", "daekningsbidrag", "ebitda", "resultat_efter_skat"];
+
 // ── Extended Validation (18 checks: 13 + rimelighed 14–17 (D's tre + kontrolsummen) + 18 derived_sign_preserved) ──
 export function runExtendedValidation(
   extractedData: any,
@@ -964,11 +982,13 @@ export function runExtendedValidation(
   // overskud i 24 måneder, og ingen af de 13 første tjek så det (D's ebt_reconciles
   // ser SYMPTOMET som WARN; dette tjek ser ÅRSAGEN som FAIL). Nul→tal og tal→nul
   // er ikke et skift; kredit-kandidater dømmes ikke (de SKAL vendes).
-  const businessTrail = (signTrail ?? []).filter(e => e.sign_convention === "business" && e.raw_value != null && e.normalized_value != null);
+  // KUN de afledte resultatlinjer (AFLEDTE_RESULTATLINJER) — ikke omkostnings- eller indtægtskandidater,
+  // som profilerne med rette abs'er/vender i filer i forretningsfortegn (se konstantens kommentar).
+  const businessTrail = (signTrail ?? []).filter(e => e.sign_convention === "business" && AFLEDTE_RESULTATLINJER.includes(e.source_field_id) && e.raw_value != null && e.normalized_value != null);
   if (!signTrail) {
     checks.push({ name: "derived_sign_preserved", result: "SKIP", details: "No semantic sign trail (legacy path)" });
   } else if (businessTrail.length === 0) {
-    checks.push({ name: "derived_sign_preserved", result: "SKIP", details: "No business-convention candidates" });
+    checks.push({ name: "derived_sign_preserved", result: "SKIP", details: "No business-convention result-line candidates" });
   } else {
     const flipped = businessTrail.filter(e => Math.sign(e.raw_value as number) !== 0 && Math.sign(e.normalized_value as number) !== 0
       && Math.sign(e.raw_value as number) !== Math.sign(e.normalized_value as number));
@@ -977,7 +997,7 @@ export function runExtendedValidation(
       checks.push({ name: "derived_sign_preserved", result: "FAIL", details: `Business-convention candidate changed sign during normalization — ${details}` });
       errors.push(`Derived sign flipped by normalization: ${details}`);
     } else {
-      checks.push({ name: "derived_sign_preserved", result: "PASS", details: `${businessTrail.length} business-convention candidate(s) kept their sign` });
+      checks.push({ name: "derived_sign_preserved", result: "PASS", details: `${businessTrail.length} business-convention result line(s) kept their sign` });
     }
   }
 

@@ -10,6 +10,12 @@
  *
  * Phase 7: Added extractSemanticFromCsv() — structural-first semantic path.
  *
+ * FORTEGN OG DÆKNING (17/9-2026, C's mønster fra saldobalance-XLSX'en; se _shared/kontogrupper.ts):
+ * begge veje fordeler via fordelKontogrupper — netto med fortegn pr. klasse, kredit-netto i en
+ * omkostningsklasse → andre_driftsindtaegter (financial_costs-klassen → finansielle_indtaegter),
+ * uklassificerede og tvetydige linjer → oevrige_omkostninger, kontrolsum pnl_coverage. Før blev
+ * hver klasse abs'et og linjer uden klasse sprunget over.
+ *
  * FILNAVNET VEJER IKKE (10/9-2026, Jonas). Fra 9/3 til 10/9 afgjorde detect()
  * på filnavnet: «resultat» gav +20 og «balance» gav 0 — uden begrundelse i
  * kode eller commit. Fingerprintet (sourceFingerprint.ts) genkender Dinero
@@ -44,6 +50,7 @@ import type {
   SemanticLineItem,
 } from "../semanticTypes.ts";
 import type { MetricFamily } from "../normalizationProfiles.ts";
+import { fordelKontogrupper, keyFiguresAf, kontrolsumTjek, OEVRIGE_CLS, type GruppeFordeling } from "../kontogrupper.ts";
 
 // ── Label patterns per class (PRIMARY classification) ──
 
@@ -343,15 +350,11 @@ export const dkDineroResultatopgoerelseCsvV1: SemanticCsvTemplateEntry = {
     }
     // If all revenue is 0, skip convention check (no revenue this period)
 
-    // ── Aggregate metrics by class ──
-    const sums: Record<string, number> = {};
-    const counts: Record<string, number> = {};
-
-    for (const line of classified) {
-      if (line.cls === "unclassified") continue;
-      sums[line.cls] = (sums[line.cls] || 0) + line.rawAmount;
-      counts[line.cls] = (counts[line.cls] || 0) + 1;
-    }
+    // ── Fordelingen (kontogrupper.ts): netto med fortegn, kredit-netto → indtægt, alt tæller ──
+    const fordeling = fordelKontogrupper(
+      classified.map((l) => ({ cls: l.cls, rawAmount: l.rawAmount, ambiguous: l.ambiguous })),
+      "CREDIT",
+    );
 
     // Track which ambiguous lines could have affected specific classes
     const ambiguousClasses = new Set<string>();
@@ -364,89 +367,28 @@ export const dkDineroResultatopgoerelseCsvV1: SemanticCsvTemplateEntry = {
     // Track defaulted-to-zero fields and their reason
     const defaultedFields: { field: string; reason: "absent" | "ambiguous_conflict" }[] = [];
 
-    // Revenue: abs() to normalize from credit (negative) to positive
-    const revenue = sums.revenue != null ? Math.abs(sums.revenue) : null;
-    const cogs = sums.cogs != null ? Math.abs(sums.cogs) : null;
-    const payroll = sums.payroll != null ? Math.abs(sums.payroll) : null;
-    const salesCosts = sums.sales_costs != null ? Math.abs(sums.sales_costs) : null;
-    const facilityCosts = sums.facility_costs != null ? Math.abs(sums.facility_costs) : null;
-    const vehicleCosts = sums.vehicle_costs != null ? Math.abs(sums.vehicle_costs) : null;
-    const adminCosts = sums.admin_costs != null ? Math.abs(sums.admin_costs) : null;
+    const revenue = fordeling.revenue;
+    const cogs = fordeling.omkostninger.cogs ?? null;
+    const grossProfit = fordeling.grossProfit;
 
-    // ── Depreciation: default 0 ONLY if truly absent, null if ambiguous ──
-    let depreciation: number | null;
-    let depreciationUnsure = false;
-    if (counts.depreciation != null && counts.depreciation > 0) {
-      depreciation = Math.abs(sums.depreciation);
-    } else if (ambiguousClasses.has("depreciation")) {
-      depreciation = null;
-      depreciationUnsure = true;
-      console.log("[Dinero] WARNING: depreciation ambiguous → null (not defaulted)");
-    } else {
-      depreciation = 0;
+    // ── Depreciation / financial costs: 0 når ingen linje matcher; tvetydighed markeres (beløbet
+    // ligger i øvrige omkostninger og tæller i ebt — før blev ebt null) ──
+    const depreciationUnsure = fordeling.antal.depreciation == null && ambiguousClasses.has("depreciation");
+    if (fordeling.antal.depreciation == null && !depreciationUnsure) {
       defaultedFields.push({ field: "depreciation", reason: "absent" });
       console.log("[Dinero] depreciation missing → assumed 0 (no matching lines, no ambiguity)");
     }
-
-    // ── Financial costs: default 0 ONLY if truly absent, null if ambiguous ──
-    let financialCosts: number | null;
-    let financialCostsUnsure = false;
-    if (counts.financial_costs != null && counts.financial_costs > 0) {
-      financialCosts = Math.abs(sums.financial_costs);
-    } else if (ambiguousClasses.has("financial_costs")) {
-      financialCosts = null;
-      financialCostsUnsure = true;
-      console.log("[Dinero] WARNING: financial_costs ambiguous → null (not defaulted)");
-    } else {
-      financialCosts = 0;
+    const financialCostsUnsure = fordeling.antal.financial_costs == null && ambiguousClasses.has("financial_costs");
+    if (fordeling.antal.financial_costs == null && !financialCostsUnsure) {
       defaultedFields.push({ field: "financial_costs", reason: "absent" });
       console.log("[Dinero] financial_costs missing → assumed 0 (no matching lines, no ambiguity)");
     }
-
-    // Tax: null if no lines matched (acceptable — net_result = ebt)
-    const tax =
-      counts.tax != null && counts.tax > 0 ? Math.abs(sums.tax) : null;
-
-    // ── Conservative metric derivation ──
-    const grossProfit = revenue != null && cogs != null ? revenue - cogs : null;
-
-    const opex =
-      (payroll || 0) +
-      (salesCosts || 0) +
-      (facilityCosts || 0) +
-      (vehicleCosts || 0) +
-      (adminCosts || 0);
-    const ebitda = grossProfit != null ? grossProfit - opex : null;
-
-    const ebit =
-      ebitda != null && depreciation != null ? ebitda - depreciation : null;
-
-    // EBT: only derivable if ebit and financialCosts are both known
-    const ebt =
-      ebit != null && financialCosts != null ? ebit - financialCosts : null;
-
-    // net_result: null if ebt null; ebt if tax null (acceptable); ebt - tax if both known
-    let netResult: number | null = null;
-    if (ebt != null) {
-      netResult = tax != null ? ebt - tax : ebt;
-    }
+    const depreciation = fordeling.omkostninger.depreciation ?? 0;
+    const financialCosts = fordeling.omkostninger.financial_costs ?? 0;
+    const ebt = fordeling.ebt;
 
     // ── Build key_figures (Danish names for canonical engine mapping) ──
-    const keyFigures: Record<string, number | null> = {
-      omsaetning: revenue,
-      direkte_omkostninger: cogs,
-      daekningsbidrag: grossProfit,
-      loenninger: payroll,
-      salgsomkostninger: salesCosts,
-      lokaleomkostninger: facilityCosts,
-      administrationsomkostninger: adminCosts,
-      transportomkostninger: vehicleCosts,
-      resultat_foer_afskrivninger: ebitda,
-      afskrivninger: depreciation,
-      finansielle_omkostninger: financialCosts,
-      resultat_foer_skat: ebt,
-      resultat_efter_skat: netResult,
-    };
+    const keyFigures: Record<string, number | null> = keyFiguresAf(fordeling);
 
     // ── Build line_items ──
     const lineItems = classified.map((line) => ({
@@ -502,7 +444,7 @@ export const dkDineroResultatopgoerelseCsvV1: SemanticCsvTemplateEntry = {
       name: "depreciation_present",
       result: depreciationUnsure ? "FAIL" : "PASS",
       details: depreciationUnsure
-        ? "UNSURE: depreciation ambiguous due to label conflict → null (not defaulted)"
+        ? "UNSURE: depreciation ambiguous due to label conflict → counted in other_costs"
         : depreciation === 0 && defaultedFields.some(f => f.field === "depreciation")
           ? "assumed 0 — no depreciation lines found, no ambiguity"
           : `Depreciation: ${depreciation?.toFixed(2)}`,
@@ -513,7 +455,7 @@ export const dkDineroResultatopgoerelseCsvV1: SemanticCsvTemplateEntry = {
       name: "financial_costs_present",
       result: financialCostsUnsure ? "FAIL" : "PASS",
       details: financialCostsUnsure
-        ? "UNSURE: financial_costs ambiguous due to label conflict → null (not defaulted)"
+        ? "UNSURE: financial_costs ambiguous due to label conflict → counted in other_costs"
         : financialCosts === 0 && defaultedFields.some(f => f.field === "financial_costs")
           ? "assumed 0 — no financial cost lines found, no ambiguity"
           : `Financial costs: ${financialCosts?.toFixed(2)}`,
@@ -526,8 +468,11 @@ export const dkDineroResultatopgoerelseCsvV1: SemanticCsvTemplateEntry = {
       details:
         ebt != null
           ? `EBT: ${ebt.toFixed(2)}`
-          : "EBT is null (upstream dependency missing due to ambiguity)",
+          : "EBT is null (missing revenue or cogs)",
     });
+
+    // 6b. Kontrolsum: hver linje tæller én gang (kontogrupper.ts — 0 pr. konstruktion, se filhovedet dér)
+    checks.push(kontrolsumTjek(fordeling));
 
     // 7. Ambiguous lines — warning, not blocking unless affecting core derived metrics
     const ambiguityAffectsCore = depreciationUnsure || financialCostsUnsure;
@@ -538,8 +483,8 @@ export const dkDineroResultatopgoerelseCsvV1: SemanticCsvTemplateEntry = {
         ambiguousCount === 0
           ? "No ambiguous label matches"
           : ambiguityAffectsCore
-            ? `${ambiguousCount} ambiguous lines affecting core metrics (depreciation/financial_costs) → FAIL`
-            : `${ambiguousCount} ambiguous lines (non-core only) → accepted`,
+            ? `${ambiguousCount} ambiguous lines affecting core metrics (depreciation/financial_costs) → FAIL (amounts counted in other_costs)`
+            : `${ambiguousCount} ambiguous lines (non-core only) → accepted, counted in other_costs`,
     });
 
     // 9. Balancelinjer sprunget over (saldobalance læst som sin resultatopgørelse) — kun når der var nogen
@@ -589,7 +534,7 @@ export const dkDineroResultatopgoerelseCsvV1: SemanticCsvTemplateEntry = {
         parser_validation_status: parserStatus as "PASS" | "FAIL",
         parser_validation_errors: parserErrors,
         raw_line_count: classified.length,
-        normalized_line_count: classified.filter((l) => l.cls !== "unclassified").length,
+        normalized_line_count: classified.length, // alle linjer tæller (uklassificerede → other_costs)
         column_basis_rule: "single",
       },
     };
@@ -644,46 +589,80 @@ export const dkDineroResultatopgoerelseCsvV1: SemanticCsvTemplateEntry = {
       return null;
     }
 
-    // ── Aggregate raw sums per class — preserving document signs ──
-    // No Math.abs(), no sign transformation — raw document convention
-    const sums: Record<string, number> = {};
-    const counts: Record<string, number> = {};
-
-    for (const line of classified) {
-      if (line.cls === "unclassified") continue;
-      sums[line.cls] = (sums[line.cls] || 0) + line.rawAmount;
-      counts[line.cls] = (counts[line.cls] || 0) + 1;
-    }
+    // ── Fordelingen (kontogrupper.ts) — samme dom som legacy-vejen ──
+    const fordeling: GruppeFordeling = fordelKontogrupper(
+      classified.map((l) => ({ cls: l.cls, rawAmount: l.rawAmount, ambiguous: l.ambiguous })),
+      "CREDIT",
+    );
+    const sums = fordeling.netto;
+    const counts = fordeling.antal;
 
     // ── Sign convention evidence ──
     const revenueLines = classified.filter((l) => l.cls === "revenue");
     const nonZeroRevenue = revenueLines.filter((l) => l.rawAmount !== 0);
     const hasNegativeRevenue = nonZeroRevenue.some((l) => l.rawAmount < 0);
 
-    // ── Build SemanticMetricCandidates (one per classified class) ──
     const metricCandidates: SemanticMetricCandidate[] = [];
+    const confidence = ambiguousCount > 0 ? "MEDIUM" : "HIGH";
+    const kandidat = (
+      fieldId: string,
+      family: MetricFamily,
+      value: number,
+      signConvention: "credit" | "business",
+      label: string,
+      evidence: string[],
+    ): SemanticMetricCandidate => ({
+      source_field_id: fieldId,
+      normalization_family: family,
+      raw_value: value,
+      raw_sign: value < 0 ? "negative" : value > 0 ? "positive" : "zero",
+      sign_convention: signConvention,
+      source_label: label,
+      source_row_index: null,
+      source_column_slot: 2, // Beløb column
+      source_cell_address: null,
+      basis: "period",
+      confidence,
+      evidence,
+      proposed_canonical_target: null, // Advisory only, NOT used
+    });
 
-    for (const [cls, rawSum] of Object.entries(sums)) {
-      const fieldId = CLASS_TO_FIELD_ID[cls];
-      const family = CLASS_TO_FAMILY[cls];
-      if (!fieldId || !family) continue;
-
-      // Raw value preserves document sign convention (negative revenue, positive costs)
-      metricCandidates.push({
-        source_field_id: fieldId,
-        normalization_family: family,
-        raw_value: rawSum,
-        raw_sign: rawSum < 0 ? "negative" : rawSum > 0 ? "positive" : "zero",
-        sign_convention: "credit",
-        source_label: `${cls} (aggregated ${counts[cls]} lines)`,
-        source_row_index: null,
-        source_column_slot: 2, // Beløb column
-        source_cell_address: null,
-        basis: "period",
-        confidence: ambiguousCount > 0 ? "MEDIUM" : "HIGH",
-        evidence: [`${counts[cls]} lines classified as ${cls}`],
-        proposed_canonical_target: null, // Advisory only, NOT used
-      });
+    // Omsætningen: rå kredit-netto (negativ) — profilen vender (revenue_like NEGATE).
+    if (counts.revenue != null) {
+      metricCandidates.push(kandidat("omsaetning", "revenue_like", -sums.revenue, "credit",
+        `revenue (aggregated ${counts.revenue} lines)`, [`${counts.revenue} lines classified as revenue`]));
+    }
+    // Skat: rå kredit-netto (positiv omkostning) — profilen abs'er ikke længere; KEEP på cost_like.
+    if (counts.tax != null) {
+      metricCandidates.push(kandidat("skat", "cost_like", -sums.tax, "credit",
+        `tax (aggregated ${counts.tax} lines)`, [`${counts.tax} lines classified as tax`]));
+    }
+    // Omkostningsgrupperne: den POSITIVE del, markeret «business» (fordelingen har allerede vendt
+    // fortegnet — motorens tjek 17 kræver at den ikke vendes igen). Kredit-netto → 0 her og
+    // beløbet i andre_driftsindtaegter / finansielle_indtaegter nedenfor.
+    for (const [cls, value] of Object.entries(fordeling.omkostninger)) {
+      const fieldId = cls === OEVRIGE_CLS ? "oevrige_omkostninger" : CLASS_TO_FIELD_ID[cls];
+      if (!fieldId) continue;
+      const flyttet = fordeling.kreditKlasser.includes(cls);
+      metricCandidates.push(kandidat(fieldId, "cost_like", value, "business",
+        `${cls} (aggregated ${counts[cls]} lines${flyttet ? ", credit net → income" : ""})`,
+        [`${counts[cls]} lines classified as ${cls}`, ...(flyttet ? [`net ${sums[cls].toFixed(2)} is a credit → 0 here, amount in income`] : [])]));
+    }
+    if (fordeling.andreDriftsindtaegter > 0) {
+      metricCandidates.push(kandidat("andre_driftsindtaegter", "revenue_like", fordeling.andreDriftsindtaegter, "business",
+        "other operating income (credit net of cost groups)", [`credit groups: ${fordeling.kreditKlasser.filter((k) => k !== "financial_costs").join(", ")}`]));
+    }
+    if (fordeling.finansielleIndtaegter > 0) {
+      metricCandidates.push(kandidat("finansielle_indtaegter", "revenue_like", fordeling.finansielleIndtaegter, "business",
+        "financial income (credit net of financial_costs class)", ["financial_costs class net is a credit"]));
+    }
+    // Resultat efter skat: motoren afleder net_result af ebt KUN når ingen skat-kandidat findes (skat har
+    // ingen kanonisk nøgle). Med skattelinjer regnede den semantiske vej derfor aldrig net_result (målt
+    // 17/9, legacy-vejen gjorde) — her udstedes fordelingens net (ebt − skat) som skabelon-afledt (business,
+    // profilens feltregel KEEP), præcis som saldobalance-XLSX'en udsteder sit resultat.
+    if (counts.tax != null && fordeling.netResult != null) {
+      metricCandidates.push(kandidat("resultat_efter_skat", "profit_like", fordeling.netResult, "business",
+        "net result (ebt − tax, derived in template)", [`ebt ${fordeling.ebt} − tax ${fordeling.skat}`]));
     }
 
     // ── Default-zero candidates for absent non-ambiguous fields ──
@@ -707,7 +686,7 @@ export const dkDineroResultatopgoerelseCsvV1: SemanticCsvTemplateEntry = {
             normalization_family: family,
             raw_value: 0,
             raw_sign: "zero",
-            sign_convention: "credit",
+            sign_convention: "business",
             source_label: `${cls} (defaulted to 0 — no matching lines, no ambiguity)`,
             source_row_index: null,
             source_column_slot: null,
@@ -756,6 +735,8 @@ export const dkDineroResultatopgoerelseCsvV1: SemanticCsvTemplateEntry = {
       details: `${Object.keys(sums).length} classes found`,
     });
 
+    checks.push(kontrolsumTjek(fordeling));
+
     if (balanceSkipped > 0) {
       checks.push({
         name: "balance_lines_skipped",
@@ -794,7 +775,7 @@ export const dkDineroResultatopgoerelseCsvV1: SemanticCsvTemplateEntry = {
         parser_confidence: parserStatus === "PASS" ? "HIGH" : "MEDIUM",
         detection_score: 0, // Set by registry
         raw_line_count: classified.length,
-        normalized_line_count: classified.filter(l => l.cls !== "unclassified").length,
+        normalized_line_count: classified.length, // alle linjer tæller (uklassificerede → other_costs)
         column_basis_rule: "single",
       },
     };
