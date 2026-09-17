@@ -349,7 +349,7 @@ Deno.test("CASE 8: Golden snapshot of full canonical output", () => {
   // ── VALIDATION ──
   assertEquals(canonical.validation.status, "PASS");
   assert(Array.isArray(canonical.validation.canonical_checks));
-  assertEquals(canonical.validation.canonical_checks.length, 17); // 13 + D's 14–16 (rimelighed) + 17 derived_sign_preserved (SKIP på den gamle vej) — 17/9-2026
+  assertEquals(canonical.validation.canonical_checks.length, 18); // 13 + D's 14–16 (rimelighed) + 17 resultat_udaekket (kontrolsummen, 17/9) + 18 derived_sign_preserved (SKIP på den gamle vej)
   assert(Array.isArray(canonical.validation.ai_checks));
   assertEquals(canonical.validation.ai_checks.length, 1);
 

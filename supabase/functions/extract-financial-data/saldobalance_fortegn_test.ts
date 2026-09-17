@@ -2,8 +2,8 @@
  * saldobalance_fortegn_test.ts — e-conomics saldobalance-XLSX: resultatet er saldobalancens
  * egen sandhed (17/9-2026, recon-saldobalance-fortegn.md; Jonas: «den bedste løsning for det hele»).
  *
- * FORUDSÆTTER D (tjek 14–16 i runExtendedValidation; merged c055078a). Tjek 17 er
- * derived_sign_preserved.
+ * FORUDSÆTTER D (tjek 14–16 i runExtendedValidation; merged c055078a) og A's kontrolsum
+ * (tjek 17 resultat_udaekket). Tjek 18 er derived_sign_preserved.
  *
  * INGEN kundedata her: fixturen er syntetisk (_test_fixtures/saldobalanceSyntetisk.ts +
  * saldobalance_syntetisk_v1.xlsx), og de forventede tal regnes AF tabellen. Kørslen på de to
@@ -104,8 +104,10 @@ Deno.test("saldobalance: syntetisk xlsx — ebt = −Σ(1000–4999), kontrolsum
   assertEquals(tjek(canonical, "ebt_reconciles").result, "PASS", tjek(canonical, "ebt_reconciles").details);
   assertEquals(tjek(canonical, "derived_sign_preserved").result, "PASS");
   assertEquals(canonical.validation.status, "PASS");
-  assertEquals(canonical.validation.canonical_checks.length, 17);
-  assertEquals(canonical.validation.canonical_checks.slice(13).map(c => c.name), ["ebt_reconciles", "result_vs_revenue", "magnitude_plausibility", "derived_sign_preserved"]);
+  // 18 tjek fra 17/9: D's tre + A's kontrolsum (resultat_udaekket) i rimelighedsløkken, derefter derived_sign_preserved.
+  assertEquals(canonical.validation.canonical_checks.length, 18);
+  assertEquals(canonical.validation.canonical_checks.slice(13).map(c => c.name), ["ebt_reconciles", "result_vs_revenue", "magnitude_plausibility", "resultat_udaekket", "derived_sign_preserved"]);
+  assertEquals(tjek(canonical, "resultat_udaekket").result, "PASS", "fuld dækning pr. konstruktion → udækket 0");
 
   // Provenance: resultatet er keep (var abs), indtægten er negate af en kredit-kandidat
   assertEquals(prov(canonical, "ebt").normalization_action, "keep");

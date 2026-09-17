@@ -22,7 +22,7 @@ import type {
   Confidence,
 } from "./canonicalTypes.ts";
 import { rimelighedstjek } from "./rimelighed.ts";
-import { CANONICAL as OMK, ebitdaRegnet } from "./omkostningsnoegler.ts";
+import { CANONICAL as OMK, ebitdaRegnet, kontrolsum } from "./omkostningsnoegler.ts";
 
 import type {
   SemanticExtractionResult,
@@ -715,7 +715,7 @@ export interface DerivedSignTrailEntry {
   action: string | null;
 }
 
-// ── Extended Validation (17 checks: 13 + D's 14–16 rimelighed + 17 derived_sign_preserved) ──
+// ── Extended Validation (18 checks: 13 + rimelighed 14–17 (D's tre + kontrolsummen) + 18 derived_sign_preserved) ──
 export function runExtendedValidation(
   extractedData: any,
   metrics: CanonicalMetrics,
@@ -956,7 +956,7 @@ export function runExtendedValidation(
     checks.push({ name: r.name, result: r.result, details: r.details, tekst: r.tekst, felter: r.felter });
   }
 
-  // 17. derived_sign_preserved (17/9-2026, recon-saldobalance-fortegn.md §5 D — efter D's 14–16)
+  // 18. derived_sign_preserved (17/9-2026, recon-saldobalance-fortegn.md §5 D — efter rimelighedens 14–17)
   // En kandidat skabelonen selv har regnet i FORRETNINGSKONVENTION (−Σ resultatkonti:
   // et underskud er negativt) må ikke skifte fortegn under normaliseringen —
   // fortegnet ER resultatet. Målt i prod 17/9: profilens feltregel `abs` på
@@ -1547,6 +1547,7 @@ export function buildCanonicalFromSemantic(semantic: SemanticExtractionResult): 
     },
     ai_eligible: aiEligible,
     ai_eligible_payload: null,
+    kontrolsum: kontrolsum(metrics, OMK),
     deterministic_meta: semantic._deterministic_meta as any,
   };
 
@@ -1651,6 +1652,7 @@ export function buildCanonicalOutput(
     },
     ai_eligible: aiEligible,
     ai_eligible_payload: null,
+    kontrolsum: kontrolsum(metrics, OMK),
     deterministic_meta: deterministicMeta,
   };
 

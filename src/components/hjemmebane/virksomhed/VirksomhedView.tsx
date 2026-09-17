@@ -19,6 +19,7 @@ import {
 import { maaFjerneFraVirksomhed } from "@/lib/medlemsfjernelse";
 import type { CompanyFact } from "@/hooks/useCompanyFacts";
 import { factsToDanishMetrics } from "@/lib/factsAdapter";
+import { type Kontrolsum, kontrolsumAf, udaekketLinje } from "@/lib/omkostningsnoegler";
 import { afgoerVirksomhedsSignaler, type FactPunkt, type Signal, type VirksomhedsInput } from "@/lib/virksomhedsSignaler";
 import { budgetOmsaetningFor } from "@/lib/budgetSignalInput";
 import { UDLOEBNE_VISTE, udloebetDenTekst, udloebneForslagTekst, udloebneRestTekst } from "@/lib/forslagTab";
@@ -973,7 +974,10 @@ const rapportBadge = (r: Rapport, committed: boolean): { tekst: string; klasse: 
     source_report_id, så hooken henter ingen talstier). Bank og egenkapital
     kun når de findes. Pilene er ink, ikke rust: et fald er et tal, ikke en
     afvigelse — afvigelser dømmes i blok 1 og 5. */
-const RapportTal = ({ fact, forrige }: { fact: CompanyFact; forrige: CompanyFact | null }) => {
+const RapportTal = ({ fact, forrige, udaekket }: { fact: CompanyFact; forrige: CompanyFact | null; udaekket: Kontrolsum | null }) => {
+  // Kontrolsummen (17/9-2026): én lille linje ved månedens tal når |udækket| er over grænsen
+  // (omkostningsnoegler.udaekketLinje — 5 % af omsætningen eller 10.000 kr.); ellers intet.
+  const udaekketTekst = udaekketLinje(udaekket);
   const kf = factsToDanishMetrics(fact.metrics);
   const pk = forrige ? factsToDanishMetrics(forrige.metrics) : null;
   const kort: { label: string; v: number | undefined; p: number | undefined }[] = [
@@ -998,6 +1002,7 @@ const RapportTal = ({ fact, forrige }: { fact: CompanyFact; forrige: CompanyFact
           {pk && pil(k.v, k.p) && <p className="text-xs text-hb-ink-soft">{pil(k.v, k.p)} mod {forrige!.period_label}</p>}
         </div>
       ))}
+      {udaekketTekst && <p className="text-xs text-hb-ink-soft sm:col-span-3" data-udaekket={udaekket?.udaekket}>{udaekketTekst}</p>}
     </div>
   );
 };
@@ -1091,7 +1096,7 @@ const RapportRaekke = ({
       {aaben && (
         <div className="mt-3 space-y-4 border-t border-hb-line pt-3">
           {fact ? (
-            <RapportTal fact={fact} forrige={forrige} />
+            <RapportTal fact={fact} forrige={forrige} udaekket={kontrolsumAf(r.quality_signals)} />
           ) : (
             <p className="text-sm text-hb-ink-soft">Ingen godkendte tal for denne rapport endnu.</p>
           )}
