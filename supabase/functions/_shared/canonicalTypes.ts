@@ -36,6 +36,10 @@ export interface CanonicalMetrics {
   facility_costs: number | null;
   admin_costs: number | null;
   vehicle_costs: number | null;
+  /** Resultatkonti uden for de navngivne grupper (saldobalance-XLSX, 17/9-2026) — positiv. */
+  other_costs: number | null;
+  /** En omkostningsgruppe hvis netto er en indtægt (fx lejeindtægter i lokalegruppen) — positiv. */
+  other_operating_income: number | null;
   ebitda: number | null;
   depreciation: number | null;
   ebit: number | null;

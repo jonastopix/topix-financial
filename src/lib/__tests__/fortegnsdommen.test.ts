@@ -29,6 +29,7 @@ const tomme: CanonicalMetrics = {
   revenue: null, cogs: null, gross_profit: null, gross_margin_pct: null,
   payroll: null, payroll_related: null, other_staff_costs: null,
   sales_costs: null, facility_costs: null, admin_costs: null, vehicle_costs: null,
+  other_costs: null, other_operating_income: null,
   ebitda: null, depreciation: null, ebit: null, financial_costs: null,
   extraordinary_items: null, ebt: null, net_result: null,
   assets_total: null, inventory: null, receivables_total: null,

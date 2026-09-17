@@ -22,6 +22,7 @@ import type {
   Confidence,
 } from "./canonicalTypes.ts";
 import { rimelighedstjek } from "./rimelighed.ts";
+import { CANONICAL as OMK, ebitdaRegnet } from "./omkostningsnoegler.ts";
 
 import type {
   SemanticExtractionResult,
@@ -171,6 +172,7 @@ export function normalizeToCanonical(extractedData: any, extractionMethod?: stri
     revenue: null, cogs: null, gross_profit: null, gross_margin_pct: null,
     payroll: null, payroll_related: null, other_staff_costs: null,
     sales_costs: null, facility_costs: null, admin_costs: null, vehicle_costs: null,
+    other_costs: null, other_operating_income: null,
     ebitda: null, depreciation: null, ebit: null, financial_costs: null,
     extraordinary_items: null, ebt: null, net_result: null,
     assets_total: null, inventory: null, receivables_total: null,
@@ -479,13 +481,11 @@ export function normalizeToCanonical(extractedData: any, extractionMethod?: stri
     metrics.equity_ratio_pct = (metrics.equity_total / metrics.assets_total) * 100;
   }
 
-  // Derive EBITDA if not present: gross_profit - opex
+  // Derive EBITDA if not present: gross_profit − Σ drift + andre driftsindtægter
+  // (ÉN fælles definition: _shared/omkostningsnoegler.ts, 17/9-2026 — før en lokal liste på fire poster).
   if (metrics.ebitda == null && metrics.gross_profit != null) {
-    const opex = (metrics.payroll || 0) + (metrics.sales_costs || 0) +
-      (metrics.facility_costs || 0) + (metrics.admin_costs || 0);
-    if (opex > 0) {
-      metrics.ebitda = metrics.gross_profit - opex;
-    }
+    const ebitda = ebitdaRegnet(metrics.gross_profit, metrics, OMK);
+    if (ebitda != null) metrics.ebitda = ebitda;
   }
 
   // Derive EBIT if not present: ebitda - depreciation
@@ -579,7 +579,7 @@ export const SIGN_LOCKED_ANCHORS: readonly (keyof CanonicalMetrics)[] = ["revenu
 /** Rene omkostningsposter — flertal negative = vendt omkostningssæt. cogs er udeladt (contra-cost). */
 export const SIGN_LOCKED_COSTS: readonly (keyof CanonicalMetrics)[] = [
   "payroll", "payroll_related", "other_staff_costs", "sales_costs", "facility_costs",
-  "admin_costs", "vehicle_costs", "depreciation", "financial_costs",
+  "admin_costs", "vehicle_costs", "other_costs", "depreciation", "financial_costs",
 ];
 /**
  * GULVET (10/9-2026, «1/1 cost fields negative», ANLA GLAS 2026-6.xlsx): et
@@ -592,13 +592,29 @@ export const SIGN_LOCKED_COSTS: readonly (keyof CanonicalMetrics)[] = [
  */
 export const SIGN_LOCKED_COSTS_MIN = 3;
 
-// ── Extended Validation (13 checks) ──
+/**
+ * Fortegnssporet for tjek 17 (derived_sign_preserved, 17/9-2026): én post pr.
+ * semantisk kandidat — hvad skabelonen sagde om fortegnet (sign_convention),
+ * hvad den afleverede, og hvad normaliseringen gjorde ved det. Bygges i
+ * buildCanonicalFromSemantic; den gamle AI-vej har intet spor (SKIP).
+ */
+export interface DerivedSignTrailEntry {
+  source_field_id: string;
+  sign_convention: "credit" | "business" | "unknown";
+  raw_value: number | null;
+  normalized_value: number | null;
+  rule_type: string | null;
+  action: string | null;
+}
+
+// ── Extended Validation (17 checks: 13 + D's 14–16 rimelighed + 17 derived_sign_preserved) ──
 export function runExtendedValidation(
   extractedData: any,
   metrics: CanonicalMetrics,
   periodBasis: PeriodBasis,
   statementType: StatementType,
-  aiChecks: ValidationCheck[]
+  aiChecks: ValidationCheck[],
+  signTrail?: readonly DerivedSignTrailEntry[]
 ): { status: ValidationStatus; canonical_checks: ValidationCheck[]; errors: string[] } {
   const checks: ValidationCheck[] = [];
   const errors: string[] = [];
@@ -638,11 +654,11 @@ export function runExtendedValidation(
     checks.push({ name: "gross_profit_sum", result: "SKIP", details: "Missing revenue, cogs or gross_profit" });
   }
 
-  // 4. ebitda_calculation
+  // 4. ebitda_calculation — samme regnestykke som afledningen (omkostningsnoegler.ebitdaRegnet, 17/9-2026):
+  // dækningsbidrag − Σ|drift inkl. other_costs| + andre driftsindtægter.
   if (metrics.gross_profit != null) {
-    const opex = (metrics.payroll || 0) + (metrics.sales_costs || 0) + (metrics.facility_costs || 0) + (metrics.admin_costs || 0);
-    if (opex > 0) {
-      const expectedEbitda = metrics.gross_profit - opex;
+    const expectedEbitda = ebitdaRegnet(metrics.gross_profit, metrics, OMK);
+    if (expectedEbitda != null) {
       checks.push({ name: "ebitda_calculation", result: "PASS", details: `Computed EBITDA: ${expectedEbitda.toFixed(2)}` });
     } else {
       checks.push({ name: "ebitda_calculation", result: "SKIP", details: "No opex data" });
@@ -805,7 +821,7 @@ export function runExtendedValidation(
   // Doggybed apr 2026 — net_result == revenue med PASS).
   const costFields: (keyof CanonicalMetrics)[] = [
     "cogs", "payroll", "payroll_related", "other_staff_costs", "sales_costs",
-    "facility_costs", "vehicle_costs", "admin_costs", "depreciation", "financial_costs",
+    "facility_costs", "vehicle_costs", "admin_costs", "other_costs", "depreciation", "financial_costs",
   ];
   if (metrics.revenue != null && metrics.revenue > 0) {
     const costLineCount = costFields.filter(f => metrics[f] != null && metrics[f] !== 0).length;
@@ -830,6 +846,31 @@ export function runExtendedValidation(
   // (Booking Innovation: payroll 46 kr.) UANSET årsag.
   for (const r of rimelighedstjek(metrics, statementType)) {
     checks.push({ name: r.name, result: r.result, details: r.details, tekst: r.tekst, felter: r.felter });
+  }
+
+  // 17. derived_sign_preserved (17/9-2026, recon-saldobalance-fortegn.md §5 D — efter D's 14–16)
+  // En kandidat skabelonen selv har regnet i FORRETNINGSKONVENTION (−Σ resultatkonti:
+  // et underskud er negativt) må ikke skifte fortegn under normaliseringen —
+  // fortegnet ER resultatet. Målt i prod 17/9: profilens feltregel `abs` på
+  // resultat_foer_skat vendte Fjeldgaardshops og Brick Works' underskud til
+  // overskud i 24 måneder, og ingen af de 13 første tjek så det (D's ebt_reconciles
+  // ser SYMPTOMET som WARN; dette tjek ser ÅRSAGEN som FAIL). Nul→tal og tal→nul
+  // er ikke et skift; kredit-kandidater dømmes ikke (de SKAL vendes).
+  const businessTrail = (signTrail ?? []).filter(e => e.sign_convention === "business" && e.raw_value != null && e.normalized_value != null);
+  if (!signTrail) {
+    checks.push({ name: "derived_sign_preserved", result: "SKIP", details: "No semantic sign trail (legacy path)" });
+  } else if (businessTrail.length === 0) {
+    checks.push({ name: "derived_sign_preserved", result: "SKIP", details: "No business-convention candidates" });
+  } else {
+    const flipped = businessTrail.filter(e => Math.sign(e.raw_value as number) !== 0 && Math.sign(e.normalized_value as number) !== 0
+      && Math.sign(e.raw_value as number) !== Math.sign(e.normalized_value as number));
+    if (flipped.length > 0) {
+      const details = flipped.map(e => `${e.source_field_id}: ${e.raw_value} → ${e.normalized_value} via ${e.rule_type ?? "?"}/${e.action ?? "?"}`).join("; ");
+      checks.push({ name: "derived_sign_preserved", result: "FAIL", details: `Business-convention candidate changed sign during normalization — ${details}` });
+      errors.push(`Derived sign flipped by normalization: ${details}`);
+    } else {
+      checks.push({ name: "derived_sign_preserved", result: "PASS", details: `${businessTrail.length} business-convention candidate(s) kept their sign` });
+    }
   }
 
   // ── Derive final status ──
@@ -897,6 +938,8 @@ const SEMANTIC_TO_CANONICAL: Record<string, keyof CanonicalMetrics> = {
   administrationsomkostninger: "admin_costs",
   transportomkostninger: "vehicle_costs",
   autodrift: "vehicle_costs",
+  oevrige_omkostninger: "other_costs",
+  andre_driftsindtaegter: "other_operating_income",
   afskrivninger: "depreciation",
   resultat_foer_afskrivninger: "ebitda",
   indtjeningsbidrag: "ebit",
@@ -916,6 +959,7 @@ const SEMANTIC_TO_CANONICAL: Record<string, keyof CanonicalMetrics> = {
   debitorer: "trade_receivables",
   igangvaerende_arbejde: "unbilled_wip",
   likvider: "cash",
+  bank_balance: "cash", // saldobalance-XLSX 5800–5899 (17/9-2026: kandidaten fandtes, men nåede aldrig cash — Fjeldgaardshop stod uden bank)
   egenkapital: "equity_total",
   mellemregning: "related_party_net",
   hensaettelser: "provisions_total",
@@ -1082,6 +1126,7 @@ export function buildCanonicalFromSemantic(semantic: SemanticExtractionResult): 
     revenue: null, cogs: null, gross_profit: null, gross_margin_pct: null,
     payroll: null, payroll_related: null, other_staff_costs: null,
     sales_costs: null, facility_costs: null, admin_costs: null, vehicle_costs: null,
+    other_costs: null, other_operating_income: null,
     ebitda: null, depreciation: null, ebit: null, financial_costs: null,
     extraordinary_items: null, ebt: null, net_result: null,
     assets_total: null, inventory: null, receivables_total: null,
@@ -1203,26 +1248,21 @@ export function buildCanonicalFromSemantic(semantic: SemanticExtractionResult): 
     metrics.equity_ratio_pct = (metrics.equity_total / metrics.assets_total) * 100;
   }
 
-  // ebitda = gross_profit - (payroll + sales_costs + facility_costs + vehicle_costs + admin_costs)
+  // ebitda = gross_profit − Σ|drift| + andre driftsindtægter — ÉN fælles definition
+  // (_shared/omkostningsnoegler.ts, 17/9-2026): drift er payroll, payroll_related,
+  // other_staff_costs, sales_costs, facility_costs, admin_costs, vehicle_costs, other_costs.
   // Only when ebitda is null and gross_profit is present
   if (metrics.ebitda == null && metrics.gross_profit != null) {
-    const opexComponents = [
-      metrics.payroll,
-      metrics.sales_costs,
-      metrics.facility_costs,
-      metrics.vehicle_costs,
-      metrics.admin_costs,
-    ];
-    const opexSum = opexComponents.reduce((sum: number, v) => sum + (v || 0), 0 as number);
-    if (opexSum > 0) {
-      metrics.ebitda = metrics.gross_profit! - opexSum;
+    const ebitda = ebitdaRegnet(metrics.gross_profit, metrics, OMK);
+    if (ebitda != null) {
+      metrics.ebitda = ebitda;
       correction_log.push({
         field: "ebitda",
         source: "derived_metric",
         raw_value: null,
         normalized_value: metrics.ebitda,
         rule: "canonical_derivation",
-        reason: `ebitda derived: gross_profit(${metrics.gross_profit}) - (payroll(${metrics.payroll || 0}) + sales(${metrics.sales_costs || 0}) + facility(${metrics.facility_costs || 0}) + admin(${metrics.admin_costs || 0})) = ${metrics.ebitda}`,
+        reason: `ebitda derived: gross_profit(${metrics.gross_profit}) - drift(payroll ${metrics.payroll || 0}, sales ${metrics.sales_costs || 0}, facility ${metrics.facility_costs || 0}, admin ${metrics.admin_costs || 0}, other ${metrics.other_costs || 0}) + other_operating_income(${metrics.other_operating_income || 0}) = ${metrics.ebitda}`,
         confidence: "HIGH",
       });
     }
@@ -1311,8 +1351,21 @@ export function buildCanonicalFromSemantic(semantic: SemanticExtractionResult): 
     details: `Semantic parser reported: ${semantic.parser_validation.parser_status}`,
   });
 
+  // Fortegnssporet til tjek 17: skabelonens kandidat + hvad profilen gjorde (provenance pr. source_field_id).
+  const signTrail: DerivedSignTrailEntry[] = semantic.metric_candidates.map(c => {
+    const prov = normResult.provenance_by_source[c.source_field_id];
+    return {
+      source_field_id: c.source_field_id,
+      sign_convention: c.sign_convention,
+      raw_value: c.raw_value,
+      normalized_value: prov ? prov.normalized_value : null,
+      rule_type: prov ? prov.normalization_rule_type : null,
+      action: prov ? prov.normalization_action : null,
+    };
+  });
+
   const { status, canonical_checks, errors } = runExtendedValidation(
-    { key_figures: {}, report_type: semantic.document_type }, metrics, periodBasis, statementType, aiChecks
+    { key_figures: {}, report_type: semantic.document_type }, metrics, periodBasis, statementType, aiChecks, signTrail
   );
 
   const aiEligible = computeAiEligible(metrics, status, statementType, periodBasis);

@@ -349,7 +349,7 @@ Deno.test("CASE 8: Golden snapshot of full canonical output", () => {
   // ── VALIDATION ──
   assertEquals(canonical.validation.status, "PASS");
   assert(Array.isArray(canonical.validation.canonical_checks));
-  assertEquals(canonical.validation.canonical_checks.length, 13); // All 13 checks
+  assertEquals(canonical.validation.canonical_checks.length, 17); // 13 + D's 14–16 (rimelighed) + 17 derived_sign_preserved (SKIP på den gamle vej) — 17/9-2026
   assert(Array.isArray(canonical.validation.ai_checks));
   assertEquals(canonical.validation.ai_checks.length, 1);
 
@@ -458,6 +458,7 @@ function metricsWith(overrides: Partial<CanonicalMetrics>): CanonicalMetrics {
     revenue: null, cogs: null, gross_profit: null, gross_margin_pct: null,
     payroll: null, payroll_related: null, other_staff_costs: null,
     sales_costs: null, facility_costs: null, admin_costs: null, vehicle_costs: null,
+    other_costs: null, other_operating_income: null,
     ebitda: null, depreciation: null, ebit: null, financial_costs: null,
     extraordinary_items: null, ebt: null, net_result: null,
     assets_total: null, inventory: null, receivables_total: null,
@@ -498,7 +499,8 @@ Deno.test("CASE 11b: Revenue med kun cogs → PASS", () => {
   });
 
   assertEquals(check.result, "PASS");
-  assert(check.details.includes("1/10"), "Details should count 1 of 10 cost fields");
+  // 11 omkostningsfelter fra 17/9-2026 (other_costs — saldobalancens «øvrige omkostninger» — kom til).
+  assert(check.details.includes("1/11"), "Details should count 1 of 11 cost fields");
 });
 
 Deno.test("CASE 11c: Revenue med kun admin_costs → PASS", () => {
@@ -507,7 +509,7 @@ Deno.test("CASE 11c: Revenue med kun admin_costs → PASS", () => {
   });
 
   assertEquals(check.result, "PASS");
-  assert(check.details.includes("1/10"), "Details should count 1 of 10 cost fields");
+  assert(check.details.includes("1/11"), "Details should count 1 of 11 cost fields");
 });
 
 Deno.test("CASE 11d: Revenue null → SKIP", () => {

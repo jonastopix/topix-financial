@@ -16,6 +16,8 @@
  * Grænserne, teksterne og reglerne står i Deno-kopiens filhoved.
  */
 
+import { CANONICAL as OMK, ANDEL_NOEGLER_TIL_RIMELIGHED, ebtRegnet, sumOmkostninger } from "./omkostningsnoegler.ts";
+
 export type RimelighedResultat = "PASS" | "WARN" | "SKIP";
 
 export interface RimelighedInput {
@@ -28,6 +30,12 @@ export interface RimelighedInput {
   admin_costs?: number | null;
   depreciation?: number | null;
   financial_costs?: number | null;
+  /** Saldobalance-XLSX (17/9-2026): resultatkonti uden for de navngivne grupper, og en gruppe hvis netto er en indtægt. */
+  other_costs?: number | null;
+  other_operating_income?: number | null;
+  payroll_related?: number | null;
+  other_staff_costs?: number | null;
+  vehicle_costs?: number | null;
   ebt?: number | null;
 }
 
@@ -49,10 +57,11 @@ export const ANDEL_MAX = 3;
 export const MARGIN_MIN = -3;
 export const MARGIN_MAX = 1;
 
-/** Omkostningsposterne der indgår i regnestykket gross_profit − opex ≈ ebt (cogs sidder allerede i gross_profit). */
-export const OPEX_FELTER = ["payroll", "sales_costs", "facility_costs", "admin_costs", "depreciation", "financial_costs"] as const;
-/** Posterne der måles som andel af omsætningen. */
-export const ANDEL_FELTER = ["cogs", "payroll", "sales_costs", "facility_costs", "admin_costs", "depreciation", "financial_costs"] as const;
+/** Omkostningsposterne der indgår i regnestykket gross_profit − opex + andre driftsindtægter ≈ ebt —
+    ÉN fælles definition (omkostningsnoegler.ts, 17/9-2026): drift + afskrivninger + finans; cogs sidder i gross_profit. */
+export const OPEX_FELTER = [...OMK.drift, OMK.afskrivninger, OMK.finans as string] as const;
+/** Posterne der måles som andel af omsætningen (samme modul). */
+export const ANDEL_FELTER = ANDEL_NOEGLER_TIL_RIMELIGHED;
 
 const LABEL: Record<string, string> = {
   revenue: "Omsætning",
@@ -64,6 +73,11 @@ const LABEL: Record<string, string> = {
   admin_costs: "Administrationsomkostninger",
   depreciation: "Afskrivninger",
   financial_costs: "Finansielle omkostninger",
+  other_costs: "Øvrige omkostninger",
+  other_operating_income: "Andre driftsindtægter",
+  payroll_related: "Pension og sociale omkostninger",
+  other_staff_costs: "Øvrige personaleomkostninger",
+  vehicle_costs: "Autodrift",
   ebt: "Resultat før skat",
 };
 
@@ -102,14 +116,17 @@ export function rimelighedstjek(m: RimelighedInput, statementType: string): Rime
   const grossProfit = tal(m.gross_profit);
   const ebt = tal(m.ebt);
 
-  // 1. ebt_reconciles
-  const opex = OPEX_FELTER.map((f) => tal(m[f])).filter((v): v is number => v !== null);
+  // 1. ebt_reconciles — regnestykket er omkostningsnoegler.ebtRegnet: gross_profit − Σ|drift|
+  // + andre driftsindtægter − |afskrivninger| − |finans| (17/9-2026: samme funktion som motorens
+  // ebitda-afledning og saldobalancens kontrolsum, så et tal afledt af posterne altid lukker).
+  const opexFundet = sumOmkostninger(m, OMK, "alle").fundet - (tal((m as Record<string, unknown>)[OMK.vareforbrug] as number | null | undefined) === null ? 0 : 1);
+  const beregnetEbt = ebtRegnet(grossProfit, m, OMK);
   if (grossProfit === null || ebt === null) {
     skip("ebt_reconciles", "Missing gross_profit or ebt");
-  } else if (opex.length === 0) {
+  } else if (opexFundet === 0 || beregnetEbt === null) {
     skip("ebt_reconciles", "No opex fields");
   } else {
-    const beregnet = grossProfit - opex.reduce((s, v) => s + Math.abs(v), 0);
+    const beregnet = beregnetEbt;
     const tolerance = Math.max(TOLERANCE_PCT * Math.max(Math.abs(beregnet), Math.abs(ebt)), TOLERANCE_MIN_KR);
     const afvigelse = Math.abs(beregnet - ebt);
     if (afvigelse <= tolerance) {

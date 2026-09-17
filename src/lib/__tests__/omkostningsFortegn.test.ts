@@ -19,12 +19,13 @@ vi.mock("@/integrations/supabase/client", () => ({
 
 import { saveManualOverride } from "@/lib/reportOverrideHelpers";
 
-describe("positiveOmkostninger — de seks omkostningsposter er |beløb|, intet andet røres", () => {
+describe("positiveOmkostninger — omkostningsposterne (omkostningsnoegler.DANSK, nu syv med øvrige) er |beløb|, intet andet røres", () => {
   it("vender negative omkostninger positive", () => {
     const ud = positiveOmkostninger({
       direkte_omkostninger: -600000, loenninger: -320000, salgsomkostninger: -45000,
-      lokaleomkostninger: -60000, administrationsomkostninger: -85000, afskrivninger: -40000,
+      lokaleomkostninger: -60000, administrationsomkostninger: -85000, oevrige_omkostninger: -1500, afskrivninger: -40000,
     });
+    expect(OMKOSTNINGSNOEGLER_DK).toEqual(["direkte_omkostninger", "loenninger", "salgsomkostninger", "lokaleomkostninger", "administrationsomkostninger", "oevrige_omkostninger", "afskrivninger"]);
     for (const k of OMKOSTNINGSNOEGLER_DK) expect(ud[k]).toBeGreaterThan(0);
     expect(ud.loenninger).toBe(320000);
   });

@@ -19,6 +19,7 @@ import { MONTHS, REVENUE_GROUPS, type BudgetRow } from "@/components/budget/type
 import { HbCard } from "../HbCard";
 import { deriveBudgetTone } from "./budgetTone";
 import { TalStat, fmtNumber, hbBudgetTooltipStyle } from "./hbBudgetShared";
+import { DANSK, andreDriftsindtaegter, omkostningsnoegler, sumOmkostninger } from "@/lib/omkostningsnoegler";
 
 /** Budget vs. Realiseret — pr. GRUPPE (spor3-design §3, B2): regnskabet
     bærer ét realiseret tal pr. gruppe pr. måned (financial_report_facts er
@@ -63,12 +64,10 @@ export const HbBudgetBva = ({ baseRows, year, companyId }: Props) => {
       const kf = factsToDanishMetrics(fact.metrics);
       if (!map[monthIdx]) map[monthIdx] = {};
       if (kf.omsaetning != null) map[monthIdx]["omsaetning"] = Math.abs(kf.omsaetning);
-      if (kf.direkte_omkostninger != null) map[monthIdx]["direkte_omkostninger"] = Math.abs(kf.direkte_omkostninger);
-      if (kf.loenninger != null) map[monthIdx]["loenninger"] = Math.abs(kf.loenninger);
-      if (kf.salgsomkostninger != null) map[monthIdx]["salgsomkostninger"] = Math.abs(kf.salgsomkostninger);
-      if (kf.lokaleomkostninger != null) map[monthIdx]["lokaleomkostninger"] = Math.abs(kf.lokaleomkostninger);
-      if (kf.administrationsomkostninger != null)
-        map[monthIdx]["administrationsomkostninger"] = Math.abs(kf.administrationsomkostninger);
+      // Omkostningsnøglerne fra ÉN fælles definition (omkostningsnoegler.DANSK, 17/9-2026) — og indtægten.
+      for (const k of [...omkostningsnoegler(DANSK, "vareforbrug_og_drift"), DANSK.andreDriftsindtaegter]) {
+        if (kf[k] != null) map[monthIdx][k] = Math.abs(kf[k]);
+      }
     }
     return map;
   }, [facts, year]);
@@ -102,12 +101,7 @@ export const HbBudgetBva = ({ baseRows, year, companyId }: Props) => {
   const actualEbitda = MONTHS.map((_, i) => {
     if (!actualsMap[i]) return null;
     const rev = actualsMap[i]["omsaetning"] ?? 0;
-    const costs =
-      (actualsMap[i]["direkte_omkostninger"] ?? 0) +
-      (actualsMap[i]["loenninger"] ?? 0) +
-      (actualsMap[i]["salgsomkostninger"] ?? 0) +
-      (actualsMap[i]["lokaleomkostninger"] ?? 0) +
-      (actualsMap[i]["administrationsomkostninger"] ?? 0);
+    const costs = sumOmkostninger(actualsMap[i], DANSK, "vareforbrug_og_drift").sum - andreDriftsindtaegter(actualsMap[i], DANSK);
     return rev - costs;
   });
 
@@ -119,13 +113,7 @@ export const HbBudgetBva = ({ baseRows, year, companyId }: Props) => {
 
   const totalActualRevenue = MONTHS.reduce((s, _, i) => s + (actualsMap[i]?.["omsaetning"] ?? 0), 0);
   const totalActualCosts = MONTHS.reduce(
-    (s, _, i) =>
-      s +
-      (actualsMap[i]?.["direkte_omkostninger"] ?? 0) +
-      (actualsMap[i]?.["loenninger"] ?? 0) +
-      (actualsMap[i]?.["salgsomkostninger"] ?? 0) +
-      (actualsMap[i]?.["lokaleomkostninger"] ?? 0) +
-      (actualsMap[i]?.["administrationsomkostninger"] ?? 0),
+    (s, _, i) => s + (actualsMap[i] ? sumOmkostninger(actualsMap[i], DANSK, "vareforbrug_og_drift").sum - andreDriftsindtaegter(actualsMap[i], DANSK) : 0),
     0,
   );
   const totalActualEbitda = totalActualRevenue - totalActualCosts;

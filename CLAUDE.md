@@ -92,6 +92,8 @@ Integrationer: Stripe, Slack, Circle (community), Monday.com webhook, pdfjs-dist
 3. Email-baseret invite (matcher `company_invitations.email`). IKKE fail-closed på `email_confirmed_at` — en tidligere version af denne linje påstod det; målt 2/9 er der ingen sådan betingelse.
 4. Intet invite-match → signup AFVISES med `RAISE EXCEPTION` (P0001). «Kun adgang via invitation» er håndhævet i databasen. En ny virksomhed oprettes kun når en matchet invitation har `company_id IS NULL`.
 
+**Omkostningsnøgler** (17/9-2026): ÉN definition af omkostningsnøglerne og de tre regnestykker (`omkostningerIAlt`, `ebitdaRegnet`, `ebtRegnet`) i `src/lib/omkostningsnoegler.ts` og spejlet `supabase/functions/_shared/omkostningsnoegler.ts` (byte-ens krop, paritetstest). Enhver læser der summerer omkostninger (calcTotalExpenses, BVA, budget, ugefokus, motorens ebitda-afledning, rimelighed) går gennem den — ingen lokale lister. Nye kanoniske nøgler `other_costs` (resultatkonti uden for de navngivne grupper) og `other_operating_income` (en omkostningsgruppe hvis netto er en indtægt, positiv). Omkostninger er POSITIVE (7/9). Saldobalance-XLSX'ens resultat er `−Σ Perioden` over alle konti 1000–4999 med kontrolsum (`pnl_coverage`).
+
 Se `supabase/SECURITY_BASELINE.md` for den autoritative checklist.
 
 ## FORBIDDEN uden eksplicit grønt lys

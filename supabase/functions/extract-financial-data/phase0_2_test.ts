@@ -143,6 +143,7 @@ Deno.test("Comparison: full multi-layer zero regressions", () => {
     metrics: { revenue: 1000000, cogs: null, gross_profit: null, gross_margin_pct: null,
       payroll: null, payroll_related: null, other_staff_costs: null,
       sales_costs: null, facility_costs: null, admin_costs: null, vehicle_costs: null,
+      other_costs: null, other_operating_income: null,
       ebitda: null, depreciation: null, ebit: null, financial_costs: null,
       extraordinary_items: null, ebt: 200000, net_result: null,
       assets_total: null, inventory: null, receivables_total: null,
@@ -256,7 +257,11 @@ Deno.test("Profile registry: economic_saldobalance equity = keep", () => {
   const profile = getNormalizationProfile("economic_saldobalance_credit_v1")!;
   assertEquals(profile.family_defaults.equity_like.action, "keep");
   assertEquals(profile.family_defaults.cash_like.action, "keep");
-  assertEquals(profile.family_defaults.revenue_like.action, "abs");
+  // 17/9-2026: NEGATE (var abs) — kredit-gruppen er negativ; en debet-gruppe skal blive negativ og fældes af anker-tjekket, ikke skjules af abs.
+  assertEquals(profile.family_defaults.revenue_like.action, "negate");
+  for (const id of ["daekningsbidrag", "resultat_foer_skat", "ebitda", "resultat_efter_skat"]) {
+    assertEquals(profile.field_overrides[id]?.action, "keep", `${id}: afledt resultat beholder fortegn`);
+  }
 });
 
 Deno.test("Profile registry: economic_pnl has COGS field_override", () => {

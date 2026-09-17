@@ -1383,7 +1383,8 @@ Hvis du er i tvivl om et tal eller en kolonne → sæt validation.status = "UNSU
         const kfMap: Record<string, string> = {
           revenue: "omsaetning", cogs: "direkte_omkostninger", gross_profit: "daekningsbidrag",
           payroll: "loenninger", sales_costs: "marketing", facility_costs: "lokaler",
-          admin_costs: "admin", depreciation: "afskrivninger", ebt: "resultat_foer_skat",
+          admin_costs: "admin", other_costs: "oevrige_omkostninger", other_operating_income: "andre_driftsindtaegter",
+          depreciation: "afskrivninger", ebt: "resultat_foer_skat",
           net_result: "resultat_efter_skat", assets_total: "aktiver_i_alt",
           liabilities_total: "passiver_i_alt", equity_total: "egenkapital",
           cash: "bank_balance", trade_receivables: "debitorer", current_liabilities: "kreditorer",
