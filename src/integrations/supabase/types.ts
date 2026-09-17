@@ -2255,6 +2255,63 @@ export type Database = {
         }
         Relationships: []
       }
+      kontrakter: {
+        Row: {
+          betalingsmodel: string
+          company_id: string
+          created_at: string
+          grundpris_oere: number
+          id: string
+          kilde: string
+          note: string | null
+          periode_id: string | null
+          periode_slut: string
+          periode_start: string
+          pris_eks_moms_oere: number
+        }
+        Insert: {
+          betalingsmodel: string
+          company_id: string
+          created_at?: string
+          grundpris_oere: number
+          id?: string
+          kilde: string
+          note?: string | null
+          periode_id?: string | null
+          periode_slut: string
+          periode_start: string
+          pris_eks_moms_oere: number
+        }
+        Update: {
+          betalingsmodel?: string
+          company_id?: string
+          created_at?: string
+          grundpris_oere?: number
+          id?: string
+          kilde?: string
+          note?: string | null
+          periode_id?: string | null
+          periode_slut?: string
+          periode_start?: string
+          pris_eks_moms_oere?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "kontrakter_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "kontrakter_periode_id_fkey"
+            columns: ["periode_id"]
+            isOneToOne: false
+            referencedRelation: "company_perioder"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       kpi_benchmarks: {
         Row: {
           benchmark_label: string
