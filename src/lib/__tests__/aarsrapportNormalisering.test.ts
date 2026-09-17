@@ -74,7 +74,7 @@ describe("normaliserAarsrapport — ok, uændret ebt (klasse A)", () => {
     expect(r.noter).toEqual([]);
   });
 
-  it("Booking Innovation 2024: lukker inden for tolerancen", () => {
+  it("Booking Innovation 2024: lukker inden for tolerancen — og rimelighedstjekket (D, 18/9) noterer payroll 46 kr.", () => {
     const r = kraevOk(
       normaliserAarsrapport({
         revenue: 83665,
@@ -85,7 +85,14 @@ describe("normaliserAarsrapport — ok, uændret ebt (klasse A)", () => {
     );
     expect(r.vaerdier.payroll).toBe(46);
     expect(r.vaerdier.ebt).toBe(16978);
-    expect(r.noter).toEqual([]);
+    // Før D (ordret): expect(r.noter).toEqual([]);
+    // Ny præmis: invarianterne lukker stadig (ingen «brutto»/«resultat»-note), men
+    // rimelighedstjekket ser payroll 46 kr. = 0,05 % af omsætningen — det er
+    // netop Booking Innovation-klassen (t.kr.), som recon-tal-der-ikke-kan-passe
+    // §3 fandt slap igennem alle invarianter.
+    expect(r.noter).toEqual([
+      "rimelighed: Lønomkostninger er 46 kr. — kun 0,05 % af omsætningen. Er tallet i tusinder (t.kr.) eller læst fra en forkert kolonne?",
+    ]);
   });
 
   it("Doggybed 2025: invariant 1 lukker eksakt, ægte underskud urørt", () => {

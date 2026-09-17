@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
@@ -15,6 +15,8 @@ import {
 import { Loader2, CheckCircle2, AlertCircle, ShieldAlert, RefreshCw, Pencil, X, AlertTriangle, Info } from "lucide-react";
 import { formatDKK } from "@/lib/financialUtils";
 import OverrideFormFields from "@/components/OverrideFormFields";
+import RimelighedBoks, { advarslerFraInputs, advarslerFraPreview, BEKRAEFTELSE_MANGLER } from "@/components/RimelighedBoks";
+import { type RimelighedAdvarsel } from "@/lib/rimelighed";
 import {
   ALL_FIELDS,
   canonicalPreviewToDanishInputs,
@@ -35,8 +37,11 @@ interface ReportReviewDialogProps {
 
 interface QualitySignal {
   name: string;
-  result: string; // 'PASS' | 'FAIL' | 'SKIP'
+  result: string; // 'PASS' | 'FAIL' | 'SKIP' | 'WARN'
   details: string;
+  /** Rimelighedstjek (D): teksten til medlemmet og felterne advarslen handler om. */
+  tekst?: string;
+  felter?: string[];
 }
 
 interface QualitySignalsPayload {
@@ -115,10 +120,19 @@ export default function ReportReviewDialog({
   const [editYear, setEditYear] = useState(2026);
   const [editReportType, setEditReportType] = useState("andet");
   const [editNote, setEditNote] = useState("");
+  /* «Tal der ikke kan passe» D (18/9-2026): rimelighedstjekkets advarsler — fra
+     udtrækkets quality_signals (WARN med tekst) når de findes, ellers regnet
+     her på de tal dialogen viser (lib/rimelighed, spejl af _shared). I
+     rettelses-tilstand regnes de på det medlemmet taster. Et aktivt kryds
+     («Ja, tallene er rigtige — godkend alligevel») er krævet før commit,
+     erstat og gem — nulstilles hver gang dialogen åbner eller preview'et
+     genindlæses. */
+  const [bekraeftet, setBekraeftet] = useState(false);
 
   const loadPreview = useCallback(async () => {
     setLoading(true);
     setError(null);
+    setBekraeftet(false);
     try {
       const { data, error: rpcError } = await supabase.rpc("get_report_commit_preview", {
         p_report_id: reportId,
@@ -162,6 +176,7 @@ export default function ReportReviewDialog({
       setError(null);
       setEditing(false);
       setValidationErrors([]);
+      setBekraeftet(false);
     }
   }, [open, reportId, loadPreview]);
 
@@ -178,6 +193,18 @@ export default function ReportReviewDialog({
       enterEditMode();
     }
   }, [open, preview, loading]);
+
+  const advarsler = useMemo<RimelighedAdvarsel[]>(() => {
+    if (editing) return advarslerFraInputs(metricInputs, editReportType);
+    if (!preview) return [];
+    const fraMotoren = (preview.quality_signals?.canonical_checks ?? []).filter(
+      (c): c is QualitySignal & { tekst: string; felter: string[] } => c.result === "WARN" && typeof c.tekst === "string" && c.tekst !== "",
+    );
+    if (fraMotoren.length > 0) return fraMotoren.map((c) => ({ name: c.name as RimelighedAdvarsel["name"], result: "WARN", details: c.details, tekst: c.tekst, felter: c.felter ?? [] }));
+    return advarslerFraPreview(preview.metrics_preview, preview.report_type);
+  }, [editing, metricInputs, editReportType, preview]);
+  const kraeverBekraeftelse = advarsler.length > 0 && !bekraeftet;
+  const markeredeFelter = useMemo(() => new Set(advarsler.flatMap((a) => a.felter)), [advarsler]);
 
   // Initialize edit form from preview data
   function enterEditMode() {
@@ -199,6 +226,7 @@ export default function ReportReviewDialog({
   // Save edits as manual override, then refresh preview
   async function handleSaveEdits() {
     if (!user || !preview) return;
+    if (kraeverBekraeftelse) { toast.error(BEKRAEFTELSE_MANGLER); return; }
 
     // We need a minimal ReportData for validation
     // For inline edit in review dialog, we construct a pseudo-report from preview
@@ -267,6 +295,7 @@ export default function ReportReviewDialog({
   }
 
   const handleCommit = async () => {
+    if (kraeverBekraeftelse) { toast.error(BEKRAEFTELSE_MANGLER); return; }
     setCommitting(true);
     try {
       const { error: commitError } = await supabase.rpc("commit_report_facts", {
@@ -392,6 +421,7 @@ export default function ReportReviewDialog({
 
   // Handle replace: soft-delete old report owner, then commit this one
   const handleReplace = async () => {
+    if (kraeverBekraeftelse) { toast.error(BEKRAEFTELSE_MANGLER); return; }
     if (!preview?.existing_owner_id) return;
     setReplacing(true);
     try {
@@ -688,15 +718,20 @@ export default function ReportReviewDialog({
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                   {Object.entries(preview.metrics_preview).map(([key, value]) => (
-                    <div key={key} className="rounded-lg border border-hb-line bg-hb-surface p-2.5">
+                    <div key={key} className={`rounded-lg border p-2.5 ${markeredeFelter.has(key) ? "border-hb-rust/60 bg-hb-rust/5" : "border-hb-line bg-hb-surface"}`} data-rimelighed-felt={markeredeFelter.has(key) ? key : undefined}>
                       <p className="text-[10px] text-hb-ink-soft uppercase tracking-wider">
                         {METRIC_LABELS[key] || key}
                       </p>
-                      <p className="text-sm font-medium text-hb-ink mt-0.5">
+                      <p className={`text-sm font-medium mt-0.5 ${markeredeFelter.has(key) ? "text-hb-rust" : "text-hb-ink"}`}>
                         {formatDKK(value as number)}
                       </p>
+                      {markeredeFelter.has(key) && <p className="mt-0.5 text-[10px] text-hb-rust">tjek dette tal</p>}
                     </div>
                   ))}
+                </div>
+                {/* «Tal der ikke kan passe?» — VED tallene, med det aktive kryds (D). */}
+                <div className="mt-3">
+                  <RimelighedBoks advarsler={advarsler} bekraeftet={bekraeftet} onBekraeft={setBekraeftet} />
                 </div>
               </div>
             )}
@@ -706,7 +741,7 @@ export default function ReportReviewDialog({
               if (preview.extraction_contract_version !== 'v2' || !preview.quality_signals) return null;
               const checks: QualitySignal[] = preview.quality_signals.canonical_checks || [];
               if (checks.length === 0) return null;
-              const hasWarnings = checks.some(s => s.result === 'FAIL');
+              const hasWarnings = checks.some(s => s.result === 'FAIL' || s.result === 'WARN');
               return (
                 <div>
                   <h4 className="text-xs font-semibold text-hb-ink-soft uppercase tracking-wider mb-2">
@@ -715,19 +750,20 @@ export default function ReportReviewDialog({
                   <div className="space-y-1.5">
                     {checks.map((signal, idx) => {
                       const isFail = signal.result === 'FAIL';
+                      const isWarn = signal.result === 'WARN';
                       const isPass = signal.result === 'PASS';
                       return (
                         <div
                           key={idx}
                           className={`flex items-start gap-2 rounded-lg border p-2.5 text-xs ${
-                            isFail
+                            isFail || isWarn
                               ? 'border-hb-rust/40 bg-hb-rust/5'
                               : isPass
                                 ? 'border-hb-line bg-hb-surface'
                                 : 'border-hb-line bg-hb-paper'
                           }`}
                         >
-                          {isFail ? (
+                          {isFail || isWarn ? (
                             <AlertTriangle className="h-3.5 w-3.5 text-hb-rust mt-0.5 flex-shrink-0" />
                           ) : isPass ? (
                             <CheckCircle2 className="h-3.5 w-3.5 text-hb-evergreen mt-0.5 flex-shrink-0" />
@@ -735,11 +771,11 @@ export default function ReportReviewDialog({
                             <Info className="h-3.5 w-3.5 text-hb-ink-soft mt-0.5 flex-shrink-0" />
                           )}
                           <div className="min-w-0">
-                            <p className={`font-medium ${isFail ? 'text-hb-rust' : 'text-hb-ink'}`}>
+                            <p className={`font-medium ${isFail || isWarn ? 'text-hb-rust' : 'text-hb-ink'}`}>
                               {signal.name}
                             </p>
-                            {signal.details && (
-                              <p className="text-hb-ink-soft mt-0.5">{signal.details}</p>
+                            {(signal.tekst || signal.details) && (
+                              <p className="text-hb-ink-soft mt-0.5">{isWarn && signal.tekst ? signal.tekst : signal.details}</p>
                             )}
                           </div>
                         </div>
@@ -866,6 +902,9 @@ export default function ReportReviewDialog({
               note={editNote}
               onNoteChange={setEditNote}
             />
+            <div className="mt-4">
+              <RimelighedBoks advarsler={advarsler} bekraeftet={bekraeftet} onBekraeft={setBekraeftet} />
+            </div>
           </div>
         )}
 
@@ -878,13 +917,13 @@ export default function ReportReviewDialog({
                 Annuller
               </button>
               {preview?.can_commit && (
-                <button type="button" className="inline-flex items-center justify-center rounded-full bg-hb-evergreen px-5 py-2 text-sm font-medium text-white transition-colors hover:bg-hb-evergreen/90 disabled:opacity-50" onClick={handleCommit} disabled={committing}>
+                <button type="button" className="inline-flex items-center justify-center rounded-full bg-hb-evergreen px-5 py-2 text-sm font-medium text-white transition-colors hover:bg-hb-evergreen/90 disabled:opacity-50" onClick={handleCommit} disabled={committing || kraeverBekraeftelse}>
                   {committing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   {preview.ownership_state === "same_report" ? "Opdater committed data" : "Godkend data"}
                 </button>
               )}
               {isBlocked && preview?.existing_owner_id && (
-                <button type="button" className="inline-flex items-center justify-center rounded-full bg-hb-evergreen px-5 py-2 text-sm font-medium text-white transition-colors hover:bg-hb-evergreen/90 disabled:opacity-50" onClick={handleReplace} disabled={replacing}>
+                <button type="button" className="inline-flex items-center justify-center rounded-full bg-hb-evergreen px-5 py-2 text-sm font-medium text-white transition-colors hover:bg-hb-evergreen/90 disabled:opacity-50" onClick={handleReplace} disabled={replacing || kraeverBekraeftelse}>
                   {replacing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   Erstat gammel data
                 </button>
@@ -899,7 +938,7 @@ export default function ReportReviewDialog({
                 <X className="mr-1 h-3.5 w-3.5" />
                 Annuller redigering
               </button>
-              <button type="button" className="inline-flex items-center justify-center rounded-full bg-hb-evergreen px-5 py-2 text-sm font-medium text-white transition-colors hover:bg-hb-evergreen/90 disabled:opacity-50" onClick={handleSaveEdits} disabled={saving}>
+              <button type="button" className="inline-flex items-center justify-center rounded-full bg-hb-evergreen px-5 py-2 text-sm font-medium text-white transition-colors hover:bg-hb-evergreen/90 disabled:opacity-50" onClick={handleSaveEdits} disabled={saving || kraeverBekraeftelse}>
                 {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Gem rettelser
               </button>

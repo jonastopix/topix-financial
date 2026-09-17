@@ -23,6 +23,7 @@ import {
   resetManualOverride,
 } from "@/lib/reportOverrideHelpers";
 import OverrideFormFields from "@/components/OverrideFormFields";
+import RimelighedBoks, { advarslerFraInputs, BEKRAEFTELSE_MANGLER } from "@/components/RimelighedBoks";
 
 interface Props {
   report: ReportData;
@@ -75,8 +76,18 @@ export default function ReportManualOverride({ report, open, onOpenChange, onSav
     }
   }, [open, report.id]);
 
+  /* «Tal der ikke kan passe» D (18/9-2026): samme advarsler som godkendelsesdialogen,
+     regnet på det der tastes; «Gem og anvend» (= commit) kræver det aktive kryds.
+     En kladde gemmes uden. */
+  const advarsler = advarslerFraInputs(metricInputs, reportType);
+  const [bekraeftet, setBekraeftet] = useState(false);
+
   async function save(status: "draft" | "applied") {
     if (!user) return;
+    if (status === "applied" && advarsler.length > 0 && !bekraeftet) {
+      toast.error("Validering", { description: BEKRAEFTELSE_MANGLER });
+      return;
+    }
 
     if (status === "applied") {
       const err = validateForApply({ month, year, reportType, metricInputs, report });
@@ -170,6 +181,10 @@ export default function ReportManualOverride({ report, open, onOpenChange, onSav
               note={note}
               onNoteChange={setNote}
             />
+
+            <div className="mt-4">
+              <RimelighedBoks advarsler={advarsler} bekraeftet={bekraeftet} onBekraeft={setBekraeftet} />
+            </div>
 
             {/* Actions */}
             <div className="space-y-3 pt-4 mt-6 border-t border-border">

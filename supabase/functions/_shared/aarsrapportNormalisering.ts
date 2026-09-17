@@ -60,6 +60,7 @@
  * vende et forkert dokument til "ok"; med rene 5 % afvises det som
  * regnestykket_lukker_ikke.
  */
+import { rimelighedAdvarsler } from "./rimelighed.ts";
 
 export interface AarsrapportInput {
   revenue?: number | null;
@@ -248,6 +249,14 @@ export function normaliserAarsrapport(
       forventet: ebtRaa,
       afvigelse: afvigelseUaendret,
     };
+  }
+
+  // Rimelighedstjek (D, 18/9-2026) som NOTER — årsrapporten normaliseres, den
+  // godkendes ikke i en dialog, så advarslen står i normaliserings_noter
+  // («payroll er 0,05 % af omsætningen — læst i t.kr.?»). Samme tre tjek som
+  // canonicalEngine kører for månedsrapporter (_shared/rimelighed.ts).
+  for (const a of rimelighedAdvarsler({ revenue, gross_profit: grossProfit, cogs, payroll, depreciation, admin_costs: adminCosts, ebt }, "pnl")) {
+    noter.push(`rimelighed: ${a.tekst}`);
   }
 
   return {

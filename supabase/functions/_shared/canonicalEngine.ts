@@ -21,6 +21,7 @@ import type {
   AiEligiblePayload,
   Confidence,
 } from "./canonicalTypes.ts";
+import { rimelighedstjek } from "./rimelighed.ts";
 
 import type {
   SemanticExtractionResult,
@@ -816,6 +817,19 @@ export function runExtendedValidation(
     }
   } else {
     checks.push({ name: "cost_lines_present", result: "SKIP", details: "Revenue missing or zero" });
+  }
+
+  // 14–16. Rimelighedstjek («tal der ikke kan passe» D, 18/9-2026 —
+  // _shared/rimelighed.ts, spejlet i src/lib): ebt_reconciles,
+  // result_vs_revenue, magnitude_plausibility. Alle WARN, aldrig FAIL —
+  // status-dommen nedenfor tæller kun FAIL, så en WARN blokerer aldrig en
+  // rigtig rapport; godkendelsesdialogen kræver i stedet et aktivt «Ja,
+  // tallene er rigtige» (tekst + felter følger med i canonical_checks →
+  // quality_signals). Fanger fortegnsvend (Fjeldgaardshop 2025-10, Brick
+  // Works 2025-01: ebt = −(revenue − alle omkostninger)) og t.kr.-tal
+  // (Booking Innovation: payroll 46 kr.) UANSET årsag.
+  for (const r of rimelighedstjek(metrics, statementType)) {
+    checks.push({ name: r.name, result: r.result, details: r.details, tekst: r.tekst, felter: r.felter });
   }
 
   // ── Derive final status ──
