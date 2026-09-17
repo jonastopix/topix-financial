@@ -83,18 +83,45 @@
  *      Nøgletallet «Udestående» (Noegletal.udestaaende_oere) sættes af
  *      dashboardDom til den nye sum, så kortet og sektionen siger det samme;
  *      motoren (omsaetning.ts) er urørt.
+ *   ANERKENDT MOD MRR (Ø3c — Jonas 17/9 ordret: «Jeg forstår stadig ikke
+ *      hvordan der kan være 87k i MRR og 91k i anerkendt denne måned. Hvad
+ *      dækker de sidste 4k?» og «gerne en forklaring så det er nemt at
+ *      forstå. Eller visning»): MRR tæller dem der er kunder den SIDSTE dag
+ *      i måneden med hele månedsprisen; anerkendt tæller hver dag. Forskellen
+ *      anerkendt − MRR deles pr. virksomhed (anerkendtModMrrFor) i (a) dem der
+ *      STOPPEDE i måneden — ingen kontrakt aktiv den sidste dag, men
+ *      anerkendt for deres dage (Studio Mini til 5/9 ≈ 467, CARMA til 11/9 ≈
+ *      1.167, Pro-Vision til 21/9 ≈ 2.333, PHILBERT til 29/9 ≈ 3.267 =
+ *      +7.233); (b) dem der STARTEDE i måneden — MRR med hele prisen, men
+ *      anerkendt kun for dagene (Din Forsikringsret 15/9: 4.375 − 2.333 =
+ *      2.042; Nordic By Hand 14/9: 3.333 − 1.889 = 1.444 = −3.486); (c) REST
+ *      (afrunding, prisskift midt i måneden — en fornyelse på en anden dag
+ *      end den 1.: virksomheden var kunde den 1. OG den sidste dag, så den
+ *      hverken stoppede eller startede). Identiteten holder på øren: forskel = Σ stoppede − Σ
+ *      startede + rest. Under kortet «Anerkendt denne måned»: «+7.233 fra 4
+ *      der stoppede · −3.486 fra 2 der startede», foldbar med navne og beløb;
+ *      er forskellen 0, ingen linje.
  *   AKSEN (Ø3b — «augsep» yderst til højre): etiketterne står hver 3. måned
  *      + den sidste (akseIndeks). Er den sidste mindre end AKSE_MIN_AFSTAND
  *      (6 % af bredden ≈ 1,7 måned ved 29 punkter) fra den forrige, udelades
  *      den forrige — den sidste vinder, for den siger hvor kurven ender.
+ *      Ø3c (skærmbillede 17/9 18:08: «j 25» og «sep» klippet ved kanten):
+ *      hver etiket bærer sit anker (akseAnker) — «start» ved x = 0, «end» ved
+ *      x = 1, ellers «middle» — så den første og sidste står helt inde i
+ *      tegningen; fladen bruger det som textAnchor og som forskydning af
+ *      tallet under aksen.
  */
 import {
+  aktivPaaDag,
   danskMaaned,
   kr,
   laengdeIMaaneder,
   laesDato,
   mrrBroPoster,
+  mrrForKontrakt,
   periodiser,
+  periodiserKontrakt,
+  sidsteDag,
   type BroSlags,
   type Kontrakt,
   type MaanedsTal,
@@ -251,12 +278,38 @@ export interface Udestaaende {
   fejlede_i_alt_oere: number;
 }
 
+/** Ø3c: én virksomhed i forklaringen anerkendt mod MRR. */
+export interface AnerkendtModMrrPost {
+  company_id: string;
+  navn: string;
+  /** Stoppede: anerkendt for dagene. Startede: MRR − anerkendt. Altid > 0. */
+  oere: number;
+  /** Stoppede: sidste dag med kontrakt (slut eksklusiv → dagen før). Startede: første dag. */
+  dag: string;
+}
+
+export interface AnerkendtModMrr {
+  key: string;
+  anerkendt_oere: number;
+  mrr_oere: number;
+  /** anerkendt − MRR. */
+  forskel_oere: number;
+  stoppede: AnerkendtModMrrPost[];
+  startede: AnerkendtModMrrPost[];
+  stoppede_i_alt_oere: number;
+  startede_i_alt_oere: number;
+  /** forskel − Σ stoppede + Σ startede: afrunding og prisskift midt i måneden. */
+  rest_oere: number;
+}
+
 export type DashboardDom =
   | { tom: true; tekst: string }
   | {
       tom: false;
       nuKey: string;
       noegletal: Noegletal;
+      /** Ø3c: forklaringen under «Anerkendt denne måned». */
+      anerkendtModMrr: AnerkendtModMrr;
       kurve: KurvePunkt[];
       bro: BroMaaned[];
       radar: Radar;
@@ -328,8 +381,16 @@ export interface KurveKoordinater {
   kontraheret: { x: number; y: number }[];
   soejler: { x: number; bredde: number; hoejde: number }[];
   max_oere: number;
-  /** Hver 3. måned + den sidste — til aksen, med antal betalende ultimo. */
-  akse: { x: number; label: string; betalende: number }[];
+  /** Hver 3. måned + den sidste — til aksen, med antal betalende ultimo og ankeret (Ø3c). */
+  akse: { x: number; label: string; betalende: number; anker: AkseAnker }[];
+}
+
+/** Ø3c: etikettens anker — «start» ved venstre kant, «end» ved højre, ellers «middle». */
+export type AkseAnker = "start" | "middle" | "end";
+export function akseAnker(x: number): AkseAnker {
+  if (x <= 0) return "start";
+  if (x >= 1) return "end";
+  return "middle";
 }
 
 /** Koordinater i [0,1]² for kurven — tegningen (SVG) er ren afbildning af dem. */
@@ -352,7 +413,7 @@ export function kurveKoordinater(kurve: readonly KurvePunkt[]): KurveKoordinater
   });
   const bredde = n === 1 ? 0.5 : (1 / (n - 1)) * 0.6;
   const soejler = kurve.map((p, i) => ({ x: x(i) - bredde / 2, bredde, hoejde: p.kontant_oere / max }));
-  const akse = akseIndeks(n).map((i) => ({ x: x(i), label: maanedsLabel(kurve[i].key), betalende: kurve[i].betalende }));
+  const akse = akseIndeks(n).map((i) => ({ x: x(i), label: maanedsLabel(kurve[i].key), betalende: kurve[i].betalende, anker: akseAnker(x(i)) }));
   return { mrr, mrr_kontraheret: mrrKontraheret, tjent, kontraheret, soejler, max_oere: max, akse };
 }
 
@@ -586,6 +647,79 @@ function danskDagAf(iso: string): string {
   return danskDag(new Date(iso));
 }
 
+/** Ø3c: forklaringen af anerkendt mod MRR for måneden `nuKey` — se filhovedet. */
+export function anerkendtModMrrFor(overblik: Overblik, nuKey: string): AnerkendtModMrr {
+  const navn = navneOpslag(overblik);
+  const sidste = sidsteDag(nuKey);
+  const foerste = `${nuKey}-01`;
+  const prVirksomhed = new Map<string, { anerkendt: number; mrr: number; startDag: string | null; slutDag: string | null; aktivFoerste: boolean }>();
+  const hent = (id: string) => {
+    let v = prVirksomhed.get(id);
+    if (!v) {
+      v = { anerkendt: 0, mrr: 0, startDag: null, slutDag: null, aktivFoerste: false };
+      prVirksomhed.set(id, v);
+    }
+    return v;
+  };
+  for (const k of overblik.kontrakter) {
+    const v = hent(k.company_id);
+    v.anerkendt += periodiserKontrakt(k).find((m) => m.key === nuKey)?.anerkendt_oere ?? 0;
+    if (aktivPaaDag(k, sidste) && k.pris_eks_moms_oere > 0) v.mrr += mrrForKontrakt(k);
+    if (aktivPaaDag(k, foerste)) v.aktivFoerste = true;
+    if (k.periode_start > foerste && k.periode_start <= sidste && (v.startDag === null || k.periode_start < v.startDag)) v.startDag = k.periode_start;
+    if (k.periode_slut > foerste && k.periode_slut <= sidste && (v.slutDag === null || k.periode_slut > v.slutDag)) v.slutDag = k.periode_slut;
+  }
+  const stoppede: AnerkendtModMrrPost[] = [];
+  const startede: AnerkendtModMrrPost[] = [];
+  let anerkendt = 0;
+  let mrr = 0;
+  let rest = 0;
+  for (const [id, v] of prVirksomhed) {
+    anerkendt += v.anerkendt;
+    mrr += v.mrr;
+    const diff = v.anerkendt - v.mrr;
+    if (diff === 0) continue;
+    if (v.mrr === 0 && v.anerkendt > 0) {
+      stoppede.push({ company_id: id, navn: navn(id), oere: v.anerkendt, dag: v.slutDag ? dagenFoer(v.slutDag) : sidste });
+    } else if (v.startDag !== null && !v.aktivFoerste && diff < 0) {
+      // Startede: ingen kontrakt den 1., en kontrakt begyndt i måneden — en fornyelse midt i måneden er et prisskift (rest).
+      startede.push({ company_id: id, navn: navn(id), oere: -diff, dag: v.startDag });
+    } else {
+      rest += diff;
+    }
+  }
+  stoppede.sort((a, b) => a.dag.localeCompare(b.dag) || a.navn.localeCompare(b.navn, "da"));
+  startede.sort((a, b) => a.dag.localeCompare(b.dag) || a.navn.localeCompare(b.navn, "da"));
+  return {
+    key: nuKey,
+    anerkendt_oere: anerkendt,
+    mrr_oere: mrr,
+    forskel_oere: anerkendt - mrr,
+    stoppede,
+    startede,
+    stoppede_i_alt_oere: stoppede.reduce((s, p) => s + p.oere, 0),
+    startede_i_alt_oere: startede.reduce((s, p) => s + p.oere, 0),
+    rest_oere: rest,
+  };
+}
+
+/** «+7.233 fra 4 der stoppede · −3.486 fra 2 der startede» (+ «· ±13 afrunding eller prisskift» når resten ≠ 0). Tom streng når forskellen er 0. */
+export function anerkendtModMrrTekst(f: AnerkendtModMrr): string {
+  if (f.forskel_oere === 0) return "";
+  const dele: string[] = [];
+  if (f.stoppede.length > 0) dele.push(`${krMedFortegn(f.stoppede_i_alt_oere)} fra ${f.stoppede.length} der stoppede`);
+  if (f.startede.length > 0) dele.push(`${krMedFortegn(-f.startede_i_alt_oere)} fra ${f.startede.length} der startede`);
+  if (f.rest_oere !== 0) dele.push(`${krMedFortegn(f.rest_oere)} afrunding eller prisskift`);
+  return dele.join(" · ");
+}
+
+/** Dagen før «YYYY-MM-DD» (slutdatoen er eksklusiv — sidste dag med kontrakt). */
+function dagenFoer(dag: string): string {
+  const [y, m, d] = laesDato(dag);
+  const t = new Date(Date.UTC(y, m - 1, d) - 86_400_000);
+  return `${t.getUTCFullYear()}-${String(t.getUTCMonth() + 1).padStart(2, "0")}-${String(t.getUTCDate()).padStart(2, "0")}`;
+}
+
 // ── Hele dommen ──
 
 export function dashboardDom(overblik: Overblik, nu: Date): DashboardDom {
@@ -602,6 +736,7 @@ export function dashboardDom(overblik: Overblik, nu: Date): DashboardDom {
     nuKey,
     // Ø3b: nøgletallet «Udestående» er den nye dom (forfaldne, ikke betalte) — ikke motorens timing-tal.
     noegletal: { ...noegletalFor(maaneder, nuKey), udestaaende_oere: udestaaende.i_alt_oere },
+    anerkendtModMrr: anerkendtModMrrFor(overblik, nuKey),
     kurve: kurveFor(maaneder, nuKey),
     bro: broFor(overblik, maaneder, nuKey),
     radar: radarFor(overblik, nuDag),

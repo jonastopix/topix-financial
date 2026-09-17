@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   AKSE_MIN_AFSTAND,
+  akseAnker,
   akseIndeks,
+  anerkendtModMrrFor,
+  anerkendtModMrrTekst,
   broFor,
   danskDag,
   dashboardDom,
@@ -106,8 +109,14 @@ describe("nøgletal og kurve", () => {
     expect(ko.kontraheret.length).toBe(kurve.length - 5 + 1);
     expect(ko.soejler[0].hoejde).toBe(1);
     expect(ko.soejler[1].hoejde).toBe(0);
-    expect(ko.akse[0]).toEqual({ x: 0, label: "maj 26", betalende: 1 });
-    expect(ko.akse[ko.akse.length - 1].label).toBe("sep 27");
+    expect(ko.akse[0]).toEqual({ x: 0, label: "maj 26", betalende: 1, anker: "start" });
+    expect(ko.akse[ko.akse.length - 1]).toMatchObject({ x: 1, label: "sep 27", anker: "end" });
+    expect(ko.akse.slice(1, -1).every((a) => a.anker === "middle")).toBe(true);
+    // Ø3c (skærmbillede 17/9 18:08: «j 25» og «sep» klippet ved kanten): ankeret følger x.
+    expect(akseAnker(0)).toBe("start");
+    expect(akseAnker(0.5)).toBe("middle");
+    expect(akseAnker(1)).toBe("end");
+    expect(akseAnker(0.99)).toBe("middle");
     // Ø3b: 17 punkter (maj 26 … sep 27): hver 3. er 0,3,6,9,12,15 + sidste 16 — 15 ligger 1/16 = 6,25 % fra 16 og består (≥ 6 %).
     expect(ko.akse.map((a) => a.label)).toEqual(["maj 26", "aug 26", "nov 26", "feb 27", "maj 27", "aug 27", "sep 27"]);
     expect(kurveKoordinater([])).toEqual({ mrr: [], mrr_kontraheret: [], tjent: [], kontraheret: [], soejler: [], max_oere: 0, akse: [] });
@@ -204,6 +213,60 @@ describe("fornyelsesradaren", () => {
     expect(r.ukendt).toBe(false);
     expect(r.raekker.find((x) => x.navn === "Alfa ApS")).toMatchObject({ beslutning: "tilbyd_ikke", note: "på vej ud" });
     expect(r.raekker.find((x) => x.navn === "Beta ApS")?.beslutning).toBe("ingen");
+  });
+});
+
+describe("anerkendt mod MRR (Ø3c) — «hvad dækker de sidste 4k?»", () => {
+  it("Jonas' september 2026 ordret: fire stoppede (+7.233), to startede (−3.486), rest 0 — identiteten holder på øren", () => {
+    const o = overblik([
+      k({ id: "sm", company_id: "sm", periode_start: "2025-09-05", periode_slut: "2026-09-05" }), // Studio Mini til 5/9 ≈ 467
+      k({ id: "ca", company_id: "ca", periode_start: "2025-09-11", periode_slut: "2026-09-11" }), // CARMA til 11/9 ≈ 1.167
+      k({ id: "pv", company_id: "pv", periode_start: "2025-09-21", periode_slut: "2026-09-21" }), // Pro-Vision til 21/9 ≈ 2.333
+      k({ id: "ph", company_id: "ph", periode_start: "2025-09-29", periode_slut: "2026-09-29" }), // PHILBERT til 29/9 ≈ 3.267
+      k({ id: "df", company_id: "df", periode_start: "2026-09-15", periode_slut: "2027-09-15", pris_eks_moms_oere: 5_250_000, grundpris_oere: 5_000_000 }), // Din Forsikringsret: 4.375 − 2.333
+      k({ id: "nb", company_id: "nb", periode_start: "2026-09-14", periode_slut: "2027-09-14", pris_eks_moms_oere: 4_000_000, betalingsmodel: "rate2" }), // Nordic By Hand: 3.333 − 1.889
+      k({ id: "hel", company_id: "hel", periode_start: "2026-01-01", periode_slut: "2027-01-01" }), // hele måneden: anerkendt = MRR → ingen post
+    ]);
+    o.virksomheder.push(
+      ...[["sm", "Studio Mini ApS"], ["ca", "CARMA STUDIO"], ["pv", "Pro-Vision ApS"], ["ph", "PHILBERT ApS"], ["df", "Din Forsikringsret"], ["nb", "Nordic By Hand ApS"], ["hel", "Hele Måneden ApS"]]
+        .map(([id, name]) => ({ id, name, status: "active", contract_start_date: null, contract_end_date: null, er_kunde: true, is_legat: false })),
+    );
+    const f = anerkendtModMrrFor(o, "2026-09");
+    expect(f.stoppede.map((p) => [p.navn, Math.round(p.oere / 100), p.dag])).toEqual([
+      ["Studio Mini ApS", 467, "2026-09-04"],
+      ["CARMA STUDIO", 1_167, "2026-09-10"],
+      ["Pro-Vision ApS", 2_333, "2026-09-20"],
+      ["PHILBERT ApS", 3_267, "2026-09-28"],
+    ]);
+    expect(Math.round(f.stoppede_i_alt_oere / 100)).toBe(7_233);
+    expect(f.startede.map((p) => [p.navn, Math.round(p.oere / 100), p.dag])).toEqual([
+      ["Nordic By Hand ApS", 1_444, "2026-09-14"],
+      ["Din Forsikringsret", 2_042, "2026-09-15"],
+    ]);
+    expect(Math.round(f.startede_i_alt_oere / 100)).toBe(3_486);
+    expect(f.rest_oere).toBe(0);
+    expect(f.forskel_oere).toBe(f.anerkendt_oere - f.mrr_oere);
+    expect(f.forskel_oere).toBe(f.stoppede_i_alt_oere - f.startede_i_alt_oere + f.rest_oere);
+    expect(Math.round(f.forskel_oere / 100)).toBe(3_747); // Jonas' 3.734 er prod med flere kontrakter — resten bærer afrundingen dér
+    expect(anerkendtModMrrTekst(f)).toBe("+7.233 fra 4 der stoppede · −3.486 fra 2 der startede");
+  });
+  it("forskel 0 → tom tekst; kun stoppede → én del; rest (prisskift midt i måneden) nævnes med fortegn", () => {
+    const hel = overblik([k({ id: "h", company_id: "a", periode_start: "2026-01-01", periode_slut: "2027-01-01" })]);
+    const f0 = anerkendtModMrrFor(hel, "2026-09");
+    expect(f0.forskel_oere).toBe(0);
+    expect(anerkendtModMrrTekst(f0)).toBe("");
+    const kunStop = anerkendtModMrrFor(overblik([k({ id: "s", company_id: "a", periode_start: "2025-09-11", periode_slut: "2026-09-11" })]), "2026-09");
+    expect(anerkendtModMrrTekst(kunStop)).toBe("+1.167 fra 1 der stoppede");
+    // Prisskift midt i måneden: år 1 slutter 11/9, år 2 starter 11/9 til en anden pris — hverken stoppet eller startet på den 1., så resten bærer forskellen.
+    const skift = anerkendtModMrrFor(overblik([
+      k({ id: "a1", company_id: "a", periode_start: "2025-09-11", periode_slut: "2026-09-11", pris_eks_moms_oere: 4_200_000 }),
+      k({ id: "a2", company_id: "a", periode_start: "2026-09-11", periode_slut: "2027-09-11", pris_eks_moms_oere: 5_250_000 }),
+    ]), "2026-09");
+    expect(skift.stoppede).toEqual([]);
+    expect(skift.startede).toEqual([]);
+    expect(skift.rest_oere).toBe(skift.forskel_oere);
+    expect(skift.forskel_oere).toBe(Math.round((4_200_000 * (10 / 30)) / 12) + Math.round((5_250_000 * (20 / 30)) / 12) - 437_500);
+    expect(anerkendtModMrrTekst(skift)).toBe(`${krMedFortegn(skift.rest_oere)} afrunding eller prisskift`);
   });
 });
 
@@ -378,6 +441,18 @@ describe("dashboardDom — hele dommen", () => {
     expect(dom.udestaaende.raekker[0]).toMatchObject({ forfaldent_oere: 5 * 437_500, betalt_oere: 4 * 437_500 });
     expect(dom.udestaaende.i_alt_oere).toBe(437_500);
     expect(dom.noegletal.udestaaende_oere).toBe(437_500); // kortet siger det samme som sektionen
+    // Ø3c — anerkendt mod MRR i kopien (uden Pro-Vision, som er Ø1b-historik): tre stoppede, to startede; identiteten holder.
+    const f = dom.anerkendtModMrr;
+    expect(f.key).toBe("2026-09");
+    expect(f.anerkendt_oere).toBe(dom.noegletal.anerkendt_oere);
+    expect(f.mrr_oere).toBe(dom.noegletal.mrr_oere);
+    expect(f.stoppede.map((p) => p.navn)).toEqual(["Studio Mini ApS", "CARMA STUDIO", "PHILBERT ApS"]);
+    expect(f.startede.map((p) => p.navn)).toEqual(["Nordic By Hand ApS", "Din Forsikringsret"]);
+    // Målt på kopien: CARMA's kontraktår er 7/9-2025 → 11/9-2026 (ikke 12 hele måneder), så dens dage vejer lidt anderledes end i Jonas' hovedregning: 4.887, ikke 4.900.
+    expect(Math.round(f.stoppede_i_alt_oere / 100)).toBe(4_887);
+    expect(Math.round(f.startede_i_alt_oere / 100)).toBe(3_486);
+    expect(f.forskel_oere).toBe(f.stoppede_i_alt_oere - f.startede_i_alt_oere + f.rest_oere);
+    expect(anerkendtModMrrTekst(f)).toMatch(/^\+4\.887 fra 3 der stoppede · −3\.486 fra 2 der startede/);
     for (const navn of ["Fjeldgaardshop.dk", "Homie Håndværkerservice ApS", "KJ AUTO OG MIKROMAKKER", "Two Socks ApS", "WESDEX ApS", "Livja", "Nordic By Hand ApS"]) {
       expect(dom.udestaaende.raekker.map((r) => r.navn)).not.toContain(navn);
     }
