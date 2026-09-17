@@ -208,8 +208,12 @@ export function afgoerPulsen(input: PulsInput): Pulsen {
     return { antal: liste.length, companyIds: liste };
   };
   // «Står øverst»: dem i tallet der har EGEN virksomhedslinje i dommen.
+  // Bølgen (17/9) tæller som egen linje for hver virksomhed i den — de STÅR
+  // øverst, samlet på én linje.
   const medEgenLinje = new Set(
-    (input.dom?.linjer ?? []).flatMap((l) => (l.linje === "virksomhed" ? [l.companyId] : [])),
+    (input.dom?.linjer ?? []).flatMap((l) =>
+      l.linje === "virksomhed" ? [l.companyId] : l.linje === "boelge" ? l.virksomheder.map((v) => v.companyId) : [],
+    ),
   );
   const oeverst = (ids: string[]) => ids.filter((id) => medEgenLinje.has(id)).length;
   // Fordelingen af de tavse (10/9): i linjen = dommens samlede tavsheds-

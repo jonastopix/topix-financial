@@ -73,7 +73,9 @@ export function virksomhederForGrund(
   slags: OpgaveSlags,
 ): { ids: string[]; antalIDommen: number } | null {
   const kandidater: Array<Tilstandslinje | Pukkellinje> = [
-    ...dom.linjer.filter((l): l is Tilstandslinje | Pukkellinje => l.linje !== "virksomhed"),
+    // Kun samlede tilstande og pukler — ikke virksomhedslinjer og ikke
+    // bølgen (17/9: en hændelse ved navn, foldet; listen filtrerer ikke på den).
+    ...dom.linjer.filter((l): l is Tilstandslinje | Pukkellinje => l.linje === "tilstand" || l.linje === "pukkel"),
     ...dom.underStregen.tilstande,
     ...dom.underStregen.pukler,
   ];

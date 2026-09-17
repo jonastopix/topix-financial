@@ -5,7 +5,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { ADVISOR_DASHBOARD_QUERY_KEY, hentAdvisorDashboard } from "@/components/AdvisorDashboard";
 import { invaliderForsiden, lukOpgave } from "@/hooks/opgaveLukning";
 import { OpgavelisteView } from "@/components/hjemmebane/opgaver/OpgavelisteView";
-import { TAERSKEL, type Linje, type OpgaveSlags, type Virksomhedslinje } from "@/lib/forsidensDom";
+import { TAERSKEL, usaedvanligtMangeTekst, type Boelgelinje, type Linje, type OpgaveSlags, type Virksomhedslinje } from "@/lib/forsidensDom";
 import { samletLinjeLink } from "@/lib/hjemmebane/forsideLinks";
 import { LUKNINGS_UDFALD, UDFALD_TEKST, type LukningsUdfald } from "@/lib/opgaveLukning";
 import { pulsLinjer } from "@/lib/pulsen";
@@ -117,7 +117,7 @@ const grundLink = (companyId: string, slags: OpgaveSlags) => `/virksomhed/${comp
 
 /** Én linje fra dommen. Virksomhed: handling + grunde; tilstand/pukkel: tekst.
     Rust kun til det der er galt (>= TAERSKEL) eller haster (løftet). */
-const DomLinje = ({ l, onLuk, lukker }: { l: Linje; onLuk: (linje: Virksomhedslinje, udfald: LukningsUdfald) => void; lukker: boolean }) => {
+const DomLinje = ({ l, onLuk, lukker }: { l: Linje; onLuk: (linje: Virksomhedslinje | Boelgelinje, udfald: LukningsUdfald) => void; lukker: boolean }) => {
   const rust = l.alvor >= TAERSKEL || l.loeftet;
   const prik = <span aria-hidden className={cn("mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-current", rust ? "text-hb-rust" : "text-hb-ink-soft")} />;
   const hast = l.lukkerOmDage != null && (
@@ -144,6 +144,49 @@ const DomLinje = ({ l, onLuk, lukker }: { l: Linje; onLuk: (linje: Virksomhedsli
         <span className="flex shrink-0 flex-col items-end gap-1">
           {hast}
           {/* Lukningen: to ord, evergreen (husets handlingsfarve), ingen knapflade. */}
+          <span className="flex items-center gap-2 text-xs">
+            {LUKNINGS_UDFALD.map((udfald) => (
+              <button
+                key={udfald}
+                type="button"
+                disabled={lukker}
+                onClick={() => onLuk(l, udfald)}
+                className="text-hb-evergreen underline-offset-4 hover:underline disabled:opacity-50"
+              >
+                {UDFALD_TEKST[udfald]}
+              </button>
+            ))}
+          </span>
+        </span>
+      </li>
+    );
+  }
+
+  if (l.linje === "boelge") {
+    /* BØLGEN (Jonas 17/9 «AA»): ≥ 3 velkomster med samme startdag som ÉN
+       foldet linje — teksten er summary, folden bærer ét link pr. navn til
+       samme mål som velkomstlinjen (grundLink … venter_paa_velkomst → chatten
+       på virksomhedssiden), og de to ord kvitterer ALLE i bølgen (mutationen
+       lukker én virksomhed ad gangen med dens eget grundlag). */
+    return (
+      <li className="flex items-start gap-3 py-3" data-boelge={l.dag} data-boelge-antal={l.antal}>
+        {prik}
+        <details className="min-w-0 flex-1">
+          <summary className="cursor-pointer list-none rounded-hb text-[15px] leading-snug text-hb-ink transition-colors hover:bg-hb-sage/20 [&::-webkit-details-marker]:hidden">
+            <span className="font-medium">{l.tekst}</span>
+          </summary>
+          <ul className="mt-2 space-y-1 text-sm">
+            {l.virksomheder.map((v) => (
+              <li key={v.companyId}>
+                <Link to={grundLink(v.companyId, "venter_paa_velkomst")} className="text-hb-evergreen underline-offset-4 hover:underline">
+                  {v.navn}
+                </Link>
+                <span className="text-hb-ink-soft"> · {v.grund.tekst}</span>
+              </li>
+            ))}
+          </ul>
+        </details>
+        <span className="flex shrink-0 flex-col items-end gap-1">
           <span className="flex items-center gap-2 text-xs">
             {LUKNINGS_UDFALD.map((udfald) => (
               <button
@@ -253,13 +296,23 @@ export const RaadgiverForsideView = () => {
   // Lukningen — hook i TOPBLOKKEN, før nogen betinget return (React #310).
   // Skriv, så hent igen: dommen afgør hvad der står; ingen lokal patch.
   const lukning = useMutation({
-    mutationFn: async (input: { linje: Virksomhedslinje; udfald: LukningsUdfald }) => {
+    mutationFn: async (input: { linje: Virksomhedslinje | Boelgelinje; udfald: LukningsUdfald }) => {
       if (!user) throw new Error("Ikke logget ind");
-      await lukOpgave({ companyId: input.linje.companyId, advisorId: user.id, udfald: input.udfald, grundlag: input.linje.grundlag });
+      if (input.linje.linje === "boelge") {
+        // Bølgen: én kvittering pr. virksomhed, med dens eget grundlag — som
+        // om rådgiveren havde lukket hver linje selv. Sekventielt, så en fejl
+        // stopper med kildens besked; de allerede lukkede forbliver lukket.
+        for (const v of input.linje.virksomheder) {
+          await lukOpgave({ companyId: v.companyId, advisorId: user.id, udfald: input.udfald, grundlag: v.grundlag });
+        }
+      } else {
+        await lukOpgave({ companyId: input.linje.companyId, advisorId: user.id, udfald: input.udfald, grundlag: input.linje.grundlag });
+      }
       await invaliderForsiden(queryClient);
     },
     onSuccess: (_d, input) => {
-      toast.success(`${input.linje.navn} · ${UDFALD_TEKST[input.udfald]}`, { description: "Linjen kommer igen, når der er sket noget nyt." });
+      const navn = input.linje.linje === "boelge" ? `${input.linje.antal} nye` : input.linje.navn;
+      toast.success(`${navn} · ${UDFALD_TEKST[input.udfald]}`, { description: "Linjen kommer igen, når der er sket noget nyt." });
     },
     onError: (e: Error) => {
       toast.error("Kunne ikke lukke linjen", { description: e.message });
@@ -284,7 +337,8 @@ export const RaadgiverForsideView = () => {
   }
 
   const dom = data.dom;
-  const linjeNoegle = (l: Linje) => (l.linje === "virksomhed" ? `v:${l.companyId}` : `${l.linje}:${l.slags}`);
+  const linjeNoegle = (l: Linje) =>
+    l.linje === "virksomhed" ? `v:${l.companyId}` : l.linje === "boelge" ? `b:${l.dag}` : `${l.linje}:${l.slags}`;
   const under = dom.underStregen;
   const antalUnder = under.antalVirksomhederUnderTaersklen;
 
@@ -302,9 +356,7 @@ export const RaadgiverForsideView = () => {
             : `${dom.antalOpgaver} ting kræver dig i dag.`}
         </p>
         {dom.usaedvanligtMange && (
-          <p className="mt-2 text-sm text-hb-rust">
-            Usædvanligt mange kræver noget i dag — så mange linjer betyder at tærsklen er forkert, ikke at dagen er.
-          </p>
+          <p className="mt-2 text-sm text-hb-rust">{usaedvanligtMangeTekst(dom)}</p>
         )}
       </section>
 

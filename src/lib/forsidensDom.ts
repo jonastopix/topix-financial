@@ -93,6 +93,7 @@ import { ALVOR_VENTER_PAA_VELKOMST, afgoerVenterPaaVelkomst, venterPaaVelkomstGr
 import { planenDom, UDEN_BEVAEGELSE_DAGE, type MaalRaekke } from "@/lib/hjemmebane/planen";
 import { MAX_AKTIVE_MAAL } from "@/lib/hjemmebane/maal";
 import { maanedsnavn } from "@/lib/maanedsnoegle";
+import { dagsNoegleKbh } from "@/lib/hjemmebane/kohorte";
 
 // ─── Konstanter — alle tal dommen bruger, ét sted ────────────────────────
 
@@ -283,6 +284,39 @@ export const ALVOR_REFLEKSION_HJAELP = 80;
  * at der sættes mål, holder den til noget ændrer sig i målene.
  */
 export const ALVOR_INGEN_MAAL = 70;
+
+/**
+ * BØLGEN (Jonas 17/9 «AA», valg 2; analyse-raadgivernes-forside.md §2c og §6
+ * forslag 4; forsiden-design §3 «Bølgen»): når mindst BOELGE_FRA
+ * virksomheder venter på velkomst med SAMME startdag (dansk dato), er det
+ * ikke tre hændelser men ÉN — «sig hej til dem fra webinaret». De samles
+ * til én linje med alle navnene (foldet i fladen, ét link pr. navn), og
+ * «Færdiggjort»/«Ikke relevant» på den samlede linje kvitterer dem alle
+ * (grundlaget er de enkelte velkomster; se Boelgelinje.virksomheder).
+ * Under BOELGE_FRA på samme dag: én linje pr. navn, som i dag.
+ *
+ * MED I BØLGEN er en virksomhed kun når den venter på velkomst og INTET
+ * andet kræver sit eget svar: ved siden af må kun stå BOELGENS_LEDSAGERE —
+ * tavshed («aldrig skrevet» er tautologisk på dag 1), ikke i gang, ingen
+ * mål, mål uden bevægelse. En ny der har SKREVET (venter_i_samtalen),
+ * stikker ud, har en frist, en fornyelse, en indgang eller en refleksion
+ * med hjælp, får sin egen linje som i dag — den er mere end «ny».
+ *
+ * FORM: venter_paa_velkomst er stadig en HÆNDELSE (FORM) — bølgen er ikke
+ * en tilstand (den lukker når alle har fået en besked) og ikke en pukkel
+ * (den er ny). Den er §3's tredje form anvendt på én slags, når hændelsen
+ * sker for mange på én gang. Falder antallet under BOELGE_FRA (nogle har
+ * fået en besked, nogle er lukket), står resten igen som egne linjer.
+ */
+export const BOELGE_FRA = 3;
+/** Navne i selve linjeteksten; resten «…» — alle står i folden. */
+export const BOELGE_NAVNE_I_TEKST = 3;
+export const BOELGENS_LEDSAGERE: ReadonlySet<OpgaveSlags> = new Set<OpgaveSlags>([
+  "tavshed",
+  "ikke_i_gang",
+  "ingen_maal",
+  "maal_uden_bevaegelse",
+]);
 
 // ─── Typer ────────────────────────────────────────────────────────────────
 
@@ -482,6 +516,9 @@ export interface Grund {
   lukkerOmDage: number | null;
   indsats: Indsats;
   detalje?: string;
+  /** Startdagen som DANSK dato («YYYY-MM-DD») — kun venter_paa_velkomst;
+      bølgen grupperer på den (17/9). Grundlaget (lukningen) er uændret UTC. */
+  dag?: string;
 }
 
 /** En virksomhed med én eller flere grunde, den vigtigste først (§4
@@ -535,7 +572,26 @@ export interface Pukkellinje {
   indsats: Indsats;
 }
 
-export type Linje = Virksomhedslinje | Tilstandslinje | Pukkellinje;
+/** Bølgen (17/9): ≥ BOELGE_FRA velkomster med samme startdag som ÉN linje. */
+export interface Boelgelinje {
+  linje: "boelge";
+  slags: "venter_paa_velkomst";
+  /** Startdagen (dansk «YYYY-MM-DD») — nøglen linjen er samlet på. */
+  dag: string;
+  antal: number;
+  /** «12 nye fra i går: A, B, C … — sig hej» */
+  tekst: string;
+  /** Alle i bølgen, alfabetisk; grundlag = hver virksomheds linjegrundlag,
+      så «Færdiggjort» på bølgen kan kvittere hver enkelt (én kvittering pr.
+      virksomhed, som ved en egen linje). */
+  virksomheder: { companyId: string; navn: string; grund: Grund; grundlag: Record<string, string> }[];
+  alvor: number;
+  lukkerOmDage: null;
+  loeftet: false;
+  indsats: Indsats;
+}
+
+export type Linje = Virksomhedslinje | Tilstandslinje | Pukkellinje | Boelgelinje;
 
 export interface Forsidensdom {
   /** Det der står på forsiden, sorteret (§4). */
@@ -544,6 +600,9 @@ export interface Forsidensdom {
   antalOpgaver: number;
   /** §5: antalOpgaver >= USAEDVANLIGT_MANGE — fladen skal sige det. */
   usaedvanligtMange: boolean;
+  /** Virksomheder der venter på velkomst med startdag i dag eller i går
+      (dansk dato) — bølgens mål, og flagets forklaring (usaedvanligtMangeTekst). */
+  nyeSidenIGaar: number;
   /** §5's to tal, plus det der ligger bag dem. Intet loft, intet skjult. */
   underStregen: {
     /** «ni andre virksomheder har noget mindre presserende»: virksomheder
@@ -797,6 +856,11 @@ function grundFraVenterPaaVelkomst(v: VirksomhedTilDom, nu: Date): Grund | null 
   const input = { medlemSiden: v.medlemSiden ?? null, sidsteRaadgiverBeskedAt: v.sidsteRaadgiverBeskedAt ?? null };
   const dom = afgoerVenterPaaVelkomst(input, nu);
   if (!dom.signal) return null;
+  // Startdagen som dansk dato (bølgens nøgle, 17/9) — grundlaget nedenfor
+  // er uændret (venterPaaVelkomstGrundlag, UTC-dag), så kvitteringer fra før
+  // holder.
+  const start = v.medlemSiden ? new Date(v.medlemSiden) : null;
+  const dag = start && !Number.isNaN(start.getTime()) ? dagsNoegleKbh(start) : undefined;
   return {
     slags: "venter_paa_velkomst",
     signaltype: "venter_paa_velkomst",
@@ -807,6 +871,7 @@ function grundFraVenterPaaVelkomst(v: VirksomhedTilDom, nu: Date): Grund | null 
     alvor: ALVOR_VENTER_PAA_VELKOMST,
     lukkerOmDage: null,
     indsats: INDSATS.venter_paa_velkomst,
+    ...(dag ? { dag } : {}),
   };
 }
 
@@ -980,11 +1045,38 @@ function sammenlignLinjer(a: Linje, b: Linje): number {
   if (a.loeftet && b.loeftet && a.lukkerOmDage !== b.lukkerOmDage) {
     return (a.lukkerOmDage ?? Infinity) - (b.lukkerOmDage ?? Infinity);
   }
+  // To bølger (samme alvor og indsats): nyeste dag først — «i går» over «1. september».
+  if (a.linje === "boelge" && b.linje === "boelge" && a.dag !== b.dag) return b.dag.localeCompare(a.dag);
   return b.alvor - a.alvor || a.indsats - b.indsats || navnAf(a).localeCompare(navnAf(b), "da");
 }
 
 function navnAf(l: Linje): string {
   return l.linje === "virksomhed" ? l.navn : l.tekst;
+}
+
+/** «i dag» / «i går» / «22. september» for en dansk dagsnøgle. */
+export function boelgeDagTekst(dag: string, nu: Date): string {
+  if (dag === dagsNoegleKbh(nu)) return "i dag";
+  if (dag === dagsNoegleKbh(new Date(nu.getTime() - MS_PER_DOEGN))) return "i går";
+  const navn = maanedsnavn(dag.slice(0, 7));
+  return navn ? `${Number(dag.slice(8, 10))}. ${navn}` : dag;
+}
+
+/** «12 nye fra i går: A, B, C … — sig hej» — højst BOELGE_NAVNE_I_TEKST navne
+    i teksten; alle står i folden. */
+export function boelgeTekst(antal: number, dagTekst: string, navne: readonly string[]): string {
+  const viste = navne.slice(0, BOELGE_NAVNE_I_TEKST).join(", ");
+  return `${antal} nye fra ${dagTekst}: ${viste}${navne.length > BOELGE_NAVNE_I_TEKST ? " …" : ""} — sig hej`;
+}
+
+/** Flagets tekst (§5, rettet 17/9 så den er sand begge dage): når mindst
+    BOELGE_FRA er nye siden i går, er DAGEN usædvanlig — ikke tærsklen. */
+export const USAEDVANLIGT_MANGE_TEKST =
+  "Usædvanligt mange kræver noget i dag — så mange linjer betyder at tærsklen er forkert, ikke at dagen er.";
+export function usaedvanligtMangeTekst(d: Pick<Forsidensdom, "nyeSidenIGaar">): string {
+  return d.nyeSidenIGaar >= BOELGE_FRA
+    ? `Usædvanligt mange i dag — ${d.nyeSidenIGaar} af dem er nye siden i går.`
+    : USAEDVANLIGT_MANGE_TEKST;
 }
 
 /** Puklens tekst (0b): «din afgørelse» loves kun for forslag der kan
@@ -1146,9 +1238,52 @@ export function afgoerForsidensDom(virksomheder: readonly VirksomhedTilDom[], nu
     });
   }
 
+  // Bølgen (17/9): velkomster med samme startdag samles når de er mindst
+  // BOELGE_FRA — og kun for virksomheder der ikke har andet på linjen end
+  // ledsagerne. Tallet «nye siden i går» tælles FØR samlingen, over alle
+  // velkomstlinjer, så flaget kan forklare sig.
+  const idag = dagsNoegleKbh(nu);
+  const igaar = dagsNoegleKbh(new Date(nu.getTime() - MS_PER_DOEGN));
+  let nyeSidenIGaar = 0;
+  const prDag = new Map<string, Virksomhedslinje[]>();
+  for (const l of virksomhedslinjer) {
+    const velkomst = l.grunde.find((g) => g.slags === "venter_paa_velkomst");
+    if (!velkomst || !velkomst.dag) continue;
+    if (velkomst.dag === idag || velkomst.dag === igaar) nyeSidenIGaar += 1;
+    if (!l.grunde.every((g) => g.slags === "venter_paa_velkomst" || BOELGENS_LEDSAGERE.has(g.slags))) continue;
+    const liste = prDag.get(velkomst.dag) ?? [];
+    liste.push(l);
+    prDag.set(velkomst.dag, liste);
+  }
+  const boelger: Boelgelinje[] = [];
+  const iBoelge = new Set<string>();
+  for (const [dag, liste] of prDag) {
+    if (liste.length < BOELGE_FRA) continue;
+    liste.sort((a, b) => a.navn.localeCompare(b.navn, "da"));
+    for (const l of liste) iBoelge.add(l.companyId);
+    boelger.push({
+      linje: "boelge",
+      slags: "venter_paa_velkomst",
+      dag,
+      antal: liste.length,
+      tekst: boelgeTekst(liste.length, boelgeDagTekst(dag, nu), liste.map((l) => l.navn)),
+      virksomheder: liste.map((l) => ({
+        companyId: l.companyId,
+        navn: l.navn,
+        grund: l.grunde.find((g) => g.slags === "venter_paa_velkomst")!,
+        grundlag: l.grundlag,
+      })),
+      alvor: ALVOR_VENTER_PAA_VELKOMST,
+      lukkerOmDage: null,
+      loeftet: false,
+      indsats: INDSATS.venter_paa_velkomst,
+    });
+  }
+
   // Samlede linjer går gennem alvorsporten som ÉN linje hver.
   const linjer: Linje[] = [
-    ...virksomhedslinjer,
+    ...virksomhedslinjer.filter((l) => !iBoelge.has(l.companyId)),
+    ...boelger,
     ...tilstandslinjer.filter(gaarGennemPorten),
     ...pukler.filter(gaarGennemPorten),
   ].sort(sammenlignLinjer);
@@ -1157,6 +1292,7 @@ export function afgoerForsidensDom(virksomheder: readonly VirksomhedTilDom[], nu
     linjer,
     antalOpgaver: linjer.length,
     usaedvanligtMange: linjer.length >= USAEDVANLIGT_MANGE,
+    nyeSidenIGaar,
     underStregen: {
       antalVirksomhederUnderTaersklen,
       antalTilstandeSamlet,
