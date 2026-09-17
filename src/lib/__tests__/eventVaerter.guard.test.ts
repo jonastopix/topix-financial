@@ -23,6 +23,11 @@ import { resolve } from "node:path";
 //      er ask_me_about OG avatar_url; profilMangler nævner «et foto»;
 //      hooken læser profiles.avatar_url; begge citater står i profilUdfyldt.ts'
 //      filhoved med datoerne. Community sorterer stadig på teksten alene.
+//   6. GEM-FEJLEN (17/9 14:05, fejl i drift): mutationFn kalder ALDRIG
+//      updateEvent med en tom patch — gem-rækkefølgen bor i den rene
+//      gemEventOgVaerter (event kun ved ikke-tom patch, værter kun ved
+//      ændring, eventet først), og editoren kalder den i stedet for
+//      updateEvent direkte. Publicér-vejen beholder sin egen guard.
 // Kildelæsning med selvbevis på kopier (dineMaal.guard-mønstret).
 
 const laes = (sti: string) => readFileSync(resolve(process.cwd(), sti), "utf8");
@@ -37,6 +42,7 @@ const FORSIDE = "src/components/hjemmebane/boardroom/BoardroomView.tsx";
 const EVENTSIDE = "src/components/hjemmebane/events/EventDetailView.tsx";
 const HBVAERTER = "src/components/hjemmebane/events/HbVaerter.tsx";
 const EDITOR = "src/components/hjemmebane/admin/editors/EventEditor.tsx";
+const GEM_DOM = "src/lib/hjemmebane/gemEventOgVaerter.ts";
 const FELT = "src/components/hjemmebane/admin/editors/VaerterFelt.tsx";
 const INDSTILLINGER = "src/components/hjemmebane/indstillinger/IndstillingerView.tsx";
 const KONTO = "src/components/hjemmebane/konto/KontoView.tsx";
@@ -71,12 +77,14 @@ export const dommenErRen = (dom: string, forside: string, eventside: string, hb:
   hb.includes("{vaerterTekst(vaerter)}") &&
   !/gæstevært|Gæstevært/.test(forside) && !/gæstevært|Gæstevært/.test(eventside);
 
-/** Dom 3: admin gemmer værterne sammen med eventet. */
+/** Dom 3: admin gemmer værterne sammen med eventet. Gem-vejen giver gemVaerter
+    ind til gemEventOgVaerter (17/9 14:05; før: `mut.includes("await gemVaerter();")`);
+    publicér-vejen kalder den stadig selv. */
 export const adminHolder = (editor: string, felt: string, api: string): boolean => {
   const mut = editor.slice(editor.indexOf("const mutation = useMutation({"), editor.indexOf("const persist = ("));
   const pub = editor.slice(editor.indexOf("const publishMutation = useMutation({"), editor.indexOf("const publicer = ("));
   return editor.includes("await saveVaerter(event.id, vaerterDraft);") &&
-    mut.includes("await gemVaerter();") && pub.includes("await gemVaerter();") &&
+    mut.includes("gemVaerter,") && pub.includes("await gemVaerter();") &&
     (editor.match(/\(vaerterDraft && validerVaerter\(vaerterDraft\)\)/g) ?? []).length === 2 &&
     editor.includes("<VaerterFelt eventId={event.id} vaerter={vaerter} onChange={setVaerterDraft}") &&
     felt.includes("uploadGaestFoto(eventId, fil)") &&
@@ -109,7 +117,23 @@ export const fotoKravetHolder = (profilDomRaa: string, profilDom: string, tjekli
   hook.includes('.select("velkomstvideo_set_at, created_at, avatar_url")') && hook.includes("avatar_url: profil?.avatar_url ?? null,") &&
   spor.includes("return profilHarTekst(m);") && !/profilUdfyldt\(/.test(spor);
 
-describe("eventVaerter.guard — PR 4b: migrationen, ren dom, admin gemmer sammen, fotoet først, foto-kravet", () => {
+/** Dom 6: mutationFn kalder aldrig updateEvent med en tom patch — kun gennem
+    gemEventOgVaerter, hvis regel er «event kun ved ikke-tom patch, værter kun
+    ved ændring, eventet først». */
+export const tomPatchNaarAldrigUpdate = (editor: string, gemDom: string): boolean => {
+  const mut = editor.slice(editor.indexOf("const mutation = useMutation({"), editor.indexOf("const persist = ("));
+  const krop = gemDom.slice(gemDom.indexOf("export async function gemEventOgVaerter<T>("));
+  return mut.includes("gemEventOgVaerter({") &&
+    mut.includes("vaerterAendret: vaerterDraft !== null,") &&
+    mut.includes("gemEvent: () => updateEvent(event.id, patch),") &&
+    !/await updateEvent\(/.test(mut) &&
+    krop.includes("const row = Object.keys(input.patch).length > 0 ? await input.gemEvent() : null;") &&
+    krop.includes("if (input.vaerterAendret) await input.gemVaerter();") &&
+    krop.indexOf("await input.gemEvent()") < krop.indexOf("await input.gemVaerter()") &&
+    !/supabase|@tanstack|from "react"/.test(gemDom);
+};
+
+describe("eventVaerter.guard — PR 4b: migrationen, ren dom, admin gemmer sammen, fotoet først, foto-kravet, gem-fejlen", () => {
   const sql = udenSqlKommentarer(laes(MIGRATION));
   const dom = udenKommentarer(laes(DOM));
   const api = udenKommentarer(laes(API));
@@ -126,6 +150,7 @@ describe("eventVaerter.guard — PR 4b: migrationen, ren dom, admin gemmer samme
   const profilDomRaa = laes(PROFIL_DOM);
   const hook = udenKommentarer(laes(HOOK));
   const spor = udenKommentarer(laes(SPOR));
+  const gemDom = udenKommentarer(laes(GEM_DOM));
 
   it("dom 1: migrationen — CHECK præcis én, læsning gennem events' RLS, skrivning som events, ingen SECURITY DEFINER", () => {
     expect(existsSync(resolve(process.cwd(), MIGRATION))).toBe(true);
@@ -142,6 +167,10 @@ describe("eventVaerter.guard — PR 4b: migrationen, ren dom, admin gemmer samme
   });
   it("dom 5: fotoet er et krav (17/9, «C») — profilUdfyldt kræver tekst OG foto, tjeklisten og hooken bærer avatar_url, citaterne står i filhovedet, Community sorterer på teksten", () => {
     expect(fotoKravetHolder(profilDomRaa, profilDom, tjekliste, hook, spor)).toBe(true);
+  });
+
+  it("dom 6: mutationFn kalder aldrig updateEvent med en tom patch — gem-vejen går gennem gemEventOgVaerter (event kun ved ikke-tom patch, værter kun ved ændring, eventet først)", () => {
+    expect(tomPatchNaarAldrigUpdate(editor, gemDom)).toBe(true);
   });
 
   it("selvbevis 1: SET NULL på event_id, en SECURITY DEFINER, eller en læseregel uden EXISTS mod events falder", () => {
@@ -169,5 +198,20 @@ describe("eventVaerter.guard — PR 4b: migrationen, ren dom, admin gemmer samme
     // Sætningen står to gange i filhovedet (9/9-originalen og 17/9-gengivelsen) — alle forekomster væk.
     expect(fotoKravetHolder(profilDomRaa.split("Perfektion er fjenden").join("…"), profilDom, tjekliste, hook, spor)).toBe(false);
     expect(fotoKravetHolder(profilDomRaa, profilDom, tjekliste, hook, spor.replace("return profilHarTekst(m);", "return profilUdfyldt(m);"))).toBe(false);
+  });
+  it("selvbevis 6: den gamle mutationFn (updateEvent først, uanset patch), eller en dom uden tom-patch-guard, falder", () => {
+    // Formen der fejlede i drift 17/9 14:05, ordret.
+    const gammel = editor.replace(
+      "gemEventOgVaerter({\n          patch,\n          vaerterAendret: vaerterDraft !== null,\n          gemEvent: () => updateEvent(event.id, patch),\n          gemVaerter,\n        })",
+      "(async () => {\n        const row = await updateEvent(event.id, patch);\n        await gemVaerter();\n        return row;\n      })()",
+    );
+    expect(gammel).not.toBe(editor);
+    expect(tomPatchNaarAldrigUpdate(gammel, gemDom)).toBe(false);
+    // En dom der gemmer eventet uanset patch.
+    expect(tomPatchNaarAldrigUpdate(editor, gemDom.replace("const row = Object.keys(input.patch).length > 0 ? await input.gemEvent() : null;", "const row = await input.gemEvent();"))).toBe(false);
+    // Værterne før eventet.
+    expect(tomPatchNaarAldrigUpdate(editor, gemDom.replace("if (input.vaerterAendret) await input.gemVaerter();\n  return row;", "return row;").replace("const row = Object.keys", "if (input.vaerterAendret) await input.gemVaerter();\n  const row = Object.keys"))).toBe(false);
+    // Et direkte updateEvent-kald i mutationFn ved siden af dommen.
+    expect(tomPatchNaarAldrigUpdate(editor.replace("gemEventOgVaerter({", "(await updateEvent(event.id, patch), gemEventOgVaerter({").replace("          gemVaerter,\n        }),", "          gemVaerter,\n        })),"), gemDom)).toBe(false);
   });
 });

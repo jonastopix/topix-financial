@@ -5,6 +5,7 @@ import { useRaadgivere } from "@/hooks/useRaadgivere";
 import { INGEN_RAADGIVERE } from "@/lib/hjemmebane/ansigter";
 import { tilUdkast, validerVaerter, type VaertUdkast } from "@/lib/hjemmebane/vaerter";
 import { listVaerterForEvents, saveVaerter } from "@/lib/hjemmebane/vaerterApi";
+import { gemEventOgVaerter } from "@/lib/hjemmebane/gemEventOgVaerter";
 import {
   type ContentItem,
   type EventRow,
@@ -65,12 +66,18 @@ export const EventEditor = forwardRef<EditorHandle, EventEditorProps>(
       void queryClient.invalidateQueries({ queryKey: ["admin-events", "vaerter", event.id] });
       void queryClient.invalidateQueries({ queryKey: ["events", "vaerter"] });
     };
+    // GEM (fejl i drift 17/9 14:05): en tom event-patch må ALDRIG nå
+    // updateEvent — UPDATE … RETURNING med {} rammer 0 rækker og kaster
+    // «Elementet findes ikke længere», så værterne aldrig blev gemt.
+    // Rækkefølgen og reglerne bor i gemEventOgVaerter (ren, testet).
     const mutation = useMutation({
-      mutationFn: async (patch: Draft) => {
-        const row = await updateEvent(event.id, patch);
-        await gemVaerter();
-        return row;
-      },
+      mutationFn: (patch: Draft) =>
+        gemEventOgVaerter({
+          patch,
+          vaerterAendret: vaerterDraft !== null,
+          gemEvent: () => updateEvent(event.id, patch),
+          gemVaerter,
+        }),
       onSuccess: () => {
         void queryClient.invalidateQueries({ queryKey: ["admin-events"] });
         setSavedAt(new Date());
