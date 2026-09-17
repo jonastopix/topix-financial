@@ -3,7 +3,7 @@ import * as Sentry from "@sentry/react";
 import { computeMembershipTier } from "@/lib/membershipTier";
 import { afgoerVirksomhedsSignaler, type FactPunkt, type Signal, type VirksomhedsInput } from "@/lib/virksomhedsSignaler";
 import { budgetOmsaetningFor, type BudgetRaekke } from "@/lib/budgetSignalInput";
-import { afgoerForsidensDom, type OpgaveTilDom, type VirksomhedTilDom } from "@/lib/forsidensDom";
+import { afgoerForsidensDom, type OpgaveTilDom, type VirksomhedTilDom, type BetaltIkkeOprettet } from "@/lib/forsidensDom";
 import { kraevRaekker } from "@/lib/kraevRaekker";
 import { hentAlleSider } from "@/lib/budgetEngine";
 import type { MaalRaekke } from "@/lib/hjemmebane/planen";
@@ -51,6 +51,8 @@ interface CompanyRow {
   name: string;
   logo_url: string | null;
   er_kunde?: boolean | null;
+  /** Betalingsdagen (stripe-webhook) — «betalt, ikke oprettet konto» (før 22/9). */
+  contract_start_date?: string | null;
 }
 
 interface MilestoneData {
@@ -185,7 +187,7 @@ export const hentAdvisorDashboard = () =>
         sider<CompanyRow & Record<string, unknown>>((fra, til) =>
           supabase
             .from("companies")
-            .select("id, name, logo_url, is_legat, status, contract_end_date, subscription_status, subscription_current_period_end, created_at, er_kunde")
+            .select("id, name, logo_url, is_legat, status, contract_end_date, subscription_status, subscription_current_period_end, created_at, er_kunde, contract_start_date")
             .order("name")
             .order("id")
             .range(fra, til),
@@ -941,7 +943,16 @@ export const hentAdvisorDashboard = () =>
       const virksomhederTilDom: VirksomhedTilDom[] = investorSummaries
         .filter((c) => !expiredCompanyIds.has(c.company_id) && !pendingCompanyIds.has(c.company_id))
         .map(tilDom);
-      const dom = afgoerForsidensDom(virksomhederTilDom, now);
+      // BETALT, IKKE OPRETTET KONTO (før 22/9 — forsidensDom.BetaltIkkeOprettet):
+      // kunder (ikke legat) med contract_start_date, gældende kontrakt (ikke
+      // udløbet) og INGEN company_members-række. De er *pending* i gaten
+      // ovenfor og står derfor ikke i virksomhederTilDom — dommen får dem
+      // som egen liste, med hver virksomheds kvittering (lukningen). Legat
+      // og ikke-kunder tælles ikke (de kommer ikke ind ad indgangen).
+      const betaltIkkeOprettet: BetaltIkkeOprettet[] = (companies as CompanyRow[])
+        .filter((c) => !legatCompanyIds.has(c.id) && erKunde(c) && !!c.contract_start_date && !expiredCompanyIds.has(c.id) && !companiesWithActiveMembers.has(c.id))
+        .map((c) => ({ companyId: c.id, navn: c.name, betaltDag: c.contract_start_date as string, kvittering: kvitteringByCompany.get(c.id) ?? null }));
+      const dom = afgoerForsidensDom(virksomhederTilDom, now, { betaltIkkeOprettet });
       // Pulsen (lib/pulsen): PORTEFØLJENS univers = listens (VirksomhedslisteView:
       // kunde, ikke legat, status aktiv/tom) — pending OG udløbne er MED
       // (10/9: «af 26» mod listens 27 var den udløbne; en udløbet er i

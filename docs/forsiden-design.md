@@ -179,6 +179,20 @@ vise mål uden bevægelse i 30 dage og refleksioner med hjælp ønskes»):
     medlemmet». FORM tilstand, alvor 70 (én samlet linje på forsiden; prod
     16/9: 15 af 29). Lukning: grundlag = antallet af alle virksomhedens mål
     — sættes et aktivt mål, er grunden væk.
+15. **Betalt, ikke oprettet konto** (`betalt_ikke_oprettet`, før webinaret
+    22/9 — recon-webinar-22-9.md §7 pkt. 3, Jonas 17/9 «1. Ja») — en kunde
+    (ikke legat) med `contract_start_date` (stripe-webhook har registreret
+    betalingen) og gældende kontrakt, men INGEN `company_members`-række:
+    ingen har oprettet login. Dommen så dem aldrig (pending-gaten), og
+    bølgen (§3) kræver et medlem. Én samlet, FOLDET linje som bølgen: «3 har
+    betalt, men ikke oprettet konto: A, B, C — send invitationen igen»; hvert
+    navn linker til virksomhedssiden, hvor «Invitationer» kan gensende.
+    FORM hændelse (væk når kontoen er oprettet), alvor 85 (det er os der
+    kan gøre noget — som afventer_pris), indsats 1. Lukning uden ny kolonne:
+    kvittering pr. virksomhed med grundlag «betalt:{kontraktstart}» — en ny
+    betaling (ny start) gør grunden levende igen. Kilden er
+    `AdvisorDashboard` (companies + company_members — ingen ny hentning);
+    dommen får listen som `ForsidensEkstra.betaltIkkeOprettet`.
 
 ---
 

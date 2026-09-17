@@ -14,9 +14,34 @@ import {
   traekFejletBeskedTekst,
   TYPE_FORNYELSE_BETALT,
   TYPE_FORNYELSE_DUBLET,
+  TYPE_INDGANG_BETALT,
   TYPE_TRAEK_FEJLET,
   type FejletTraekRaekke,
 } from "../../../supabase/functions/_shared/raadgiverBeskedTekst.ts";
+import { indgangBetaltBeskedTekst, indgangLoginTekst } from "../../../supabase/functions/_shared/indgangBetaltBesked.ts";
+
+describe("indgangen betalt (før 22/9, Jonas «1. Ja») — spejl af fornyelse_betalt", () => {
+  it("typen og teksten: virksomhed i titlen; beløb ekskl. moms, model, slutdato og loginets udfald i teksten", () => {
+    expect(TYPE_INDGANG_BETALT).toBe("indgang_betalt");
+    expect(indgangBetaltBeskedTekst({ virksomhed: "Din Forsikringsret", samletOere: 5_000_000, betalingsmodel: "fuld", slutDatoTekst: "15. september 2027", invitation: { udfald: "sendt", email: "tgn@dinforsikringsret.dk" } })).toEqual({
+      title: "Din Forsikringsret er nyt medlem — har betalt",
+      body: "50.000 kr. ekskl. moms på én gang · til 15. september 2027 · login-mailen er sendt til tgn@dinforsikringsret.dk",
+    });
+  });
+  it("modellerne: to rater, tolv rater (med tillægget i beløbet) og fakturaen (dag 31), som fornyelsen ikke har", () => {
+    expect(indgangBetaltBeskedTekst({ virksomhed: "X", samletOere: 5_250_000, betalingsmodel: "rate12", slutDatoTekst: "d", invitation: { udfald: "sendt", email: "a@b.dk" } }).body.startsWith("52.500 kr. ekskl. moms i tolv rater · til d")).toBe(true);
+    expect(indgangBetaltBeskedTekst({ virksomhed: "X", samletOere: 4_000_000, betalingsmodel: "rate2", slutDatoTekst: "d", invitation: { udfald: "sendt", email: "a@b.dk" } }).body.startsWith("40.000 kr. ekskl. moms i to rater")).toBe(true);
+    expect(indgangBetaltBeskedTekst({ virksomhed: "X", samletOere: 5_000_000, betalingsmodel: "faktura", slutDatoTekst: "d", invitation: { udfald: "sendt", email: "a@b.dk" } }).body.startsWith("50.000 kr. ekskl. moms efter faktura")).toBe(true);
+  });
+  it("loginets udfald: sendt, lå der allerede, har allerede login, spærret, og alt andet = ikke sendt — invitér manuelt", () => {
+    expect(indgangLoginTekst({ udfald: "sendt", email: "a@b.dk" })).toBe("login-mailen er sendt til a@b.dk");
+    expect(indgangLoginTekst({ udfald: "fandtes_allerede", email: "a@b.dk" })).toBe("invitationen til a@b.dk lå der allerede — ingen ny mail");
+    expect(indgangLoginTekst({ udfald: "allerede_medlem", email: "a@b.dk" })).toBe("a@b.dk har allerede et login");
+    expect(indgangLoginTekst({ udfald: "spaerret", email: "a@b.dk" })).toBe("login-mailen blev IKKE sendt — a@b.dk er spærret hos mailudbyderen");
+    expect(indgangLoginTekst({ udfald: "fejlet" })).toBe("login-mailen blev IKKE sendt — invitér manuelt fra /virksomheder");
+    expect(indgangLoginTekst({ udfald: "sprunget_over" })).toBe("login-mailen blev IKKE sendt — invitér manuelt fra /virksomheder");
+  });
+});
 
 describe("raadgivereUdenRaekke", () => {
   const raadgivere = ["jonas", "morten"];
