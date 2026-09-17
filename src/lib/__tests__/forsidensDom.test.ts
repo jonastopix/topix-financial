@@ -42,6 +42,7 @@ const ingenDialog = (dage: number, alvor: number): Signal => ({
 const bankovertraek: Signal = { noegle: "bankovertraek", koe: "stikker_ud", tekst: "Bankovertræk", alvor: 90, detalje: "Bank -12.000 kr." };
 const omsaetningsfald: Signal = { noegle: "omsaetningsfald_mom", koe: "stikker_ud", tekst: "Omsætning faldt 20% MoM", alvor: 80 };
 const budgetOver: Signal = { noegle: "budget_over", koe: "stikker_ud", tekst: "Omsætning 12% over budgetteret", alvor: 40 };
+const talForkert: Signal = { noegle: "tal_ser_forkert_ud", koe: "stikker_ud", tekst: "Tallet ser forkert ud — tjek budgettet for Aug 2026", alvor: 50, detalje: "Faktisk 7.657 kr. mod budget 35 kr." };
 const ulaeste = (n: number): Signal => ({
   noegle: "ulaeste_beskeder", koe: "venter_paa_svar", tekst: `${n} ulæste beskeder`, alvor: 70 + Math.min(n, 20),
 });
@@ -1117,6 +1118,25 @@ describe("ingen mål (fjortende slags, fase 5)", () => {
     expect(virksomhedslinjer(d)[0].grunde.map((g) => g.slags)).toEqual(["stikker_ud", "ingen_maal"]);
     const d2 = afgoerForsidensDom([virksomhed({ maal: [maal({ dageSiden: 78 })] })], NU);
     expect(ingenGrund(d2)).toBeUndefined();
+  });
+});
+
+describe("Rimelighedsdommen på forsiden (17/9) — «tal_ser_forkert_ud» er et stikker_ud med handlingen «Tjek tallene for»", () => {
+  it("linjen bærer motorens tekst og detalje, handlingen er «Tjek tallene for {navn}» — ikke «Tag det op med»", () => {
+    // Alvor 50 er under alvorsporten (70) alene — sammen med bankovertræk (90)
+    // står linjen, og alle grunde er med (som testen for budgetOver ovenfor).
+    const d = afgoerForsidensDom([virksomhed({ navn: "Doggybed", signaler: [bankovertraek, talForkert], senestePeriode: "2026-08" })], NU);
+    const g = virksomhedslinjer(d).flatMap((l) => l.grunde).find((x) => x.signaltype === "tal_ser_forkert_ud");
+    expect(g).toMatchObject({
+      slags: "stikker_ud",
+      noegle: "stikker_ud:tal_ser_forkert_ud",
+      grundlag: "2026-08",
+      tekst: "Tallet ser forkert ud — tjek budgettet for Aug 2026",
+      handling: "Tjek tallene for Doggybed",
+      detalje: "Faktisk 7.657 kr. mod budget 35 kr.",
+    });
+    const b = afgoerForsidensDom([virksomhed({ navn: "Doggybed", signaler: [bankovertraek, budgetOver] })], NU);
+    expect(virksomhedslinjer(b).flatMap((l) => l.grunde).find((x) => x.signaltype === "budget_over")?.handling).toBe("Tag det op med Doggybed");
   });
 });
 

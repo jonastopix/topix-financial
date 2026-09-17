@@ -48,6 +48,7 @@ import type { Json } from "@/integrations/supabase/types";
 import { useCompanyFacts, type CompanyFact } from "@/hooks/useCompanyFacts";
 import type { FejletTraek } from "@/lib/traek";
 import { HentningsFejl, kraevRaekke, kraevRaekker } from "@/lib/kraevRaekker";
+import { hentAlleSider } from "@/lib/budgetEngine";
 import { fletKpiMaal, type ResolvedTargets } from "@/lib/kpiMaal";
 import type { Fornyelsesbeslutning } from "@/lib/fornyelse";
 
@@ -146,7 +147,9 @@ export interface VirksomhedsData {
   medlemmer: VirksomhedsMedlem[];
   invitationer: VirksomhedsInvitation[];
   samtaler: VirksomhedsSamtale[];
-  budgetter: { period: string; category: string; budget_amount: number }[];
+  /** budget_targets for virksomheden — company_id med, så forsidens opslag
+      (budgetSignalInput.budgetOmsaetningFor) kan bruges uændret (17/9). */
+  budgetter: { company_id: string; period: string; category: string; budget_amount: number }[];
   /** Målene (milestones) — til «Planen» (fase 2): dom, fremdrift, skridt og gennemgang regnes af lib/hjemmebane/planen. */
   milestones: {
     id: string; title: string; deadline: string | null; progress: number; status: string;
@@ -245,7 +248,21 @@ async function hentVirksomhed(companyId: string): Promise<VirksomhedsData | null
       .from("conversations")
       .select("id, last_message_at, awaiting_reply_from, assigned_advisor_id")
       .eq("company_id", companyId),
-    supabase.from("budget_targets").select("period, category, budget_amount").eq("company_id", companyId),
+    // Budgettet gennem hentAlleSider (17/9, recon-tal-der-ikke-kan-passe.md
+    // §5 B): PostgREST giver højst 1.000 rækker stille, og remm. har 1.378
+    // (CombinedBudgetWidget). Svaret pakkes som {data, error}, så
+    // kraevRaekker nedenfor stadig navngiver kilden ved fejl.
+    hentAlleSider<{ company_id: string; period: string; category: string; budget_amount: number }>((fra, til) =>
+      supabase
+        .from("budget_targets")
+        .select("company_id, period, category, budget_amount")
+        .eq("company_id", companyId)
+        .order("id")
+        .range(fra, til),
+    ).then(
+      (data) => ({ data, error: null as { message: string } | null }),
+      (e: unknown) => ({ data: null, error: { message: e instanceof Error ? e.message : String(e) } }),
+    ),
     supabase
       .from("milestones")
       .select("id, title, deadline, progress, status, category, source, progress_updated_at, completed_at, created_at")

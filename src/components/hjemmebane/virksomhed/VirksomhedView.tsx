@@ -20,6 +20,7 @@ import { maaFjerneFraVirksomhed } from "@/lib/medlemsfjernelse";
 import type { CompanyFact } from "@/hooks/useCompanyFacts";
 import { factsToDanishMetrics } from "@/lib/factsAdapter";
 import { afgoerVirksomhedsSignaler, type FactPunkt, type Signal, type VirksomhedsInput } from "@/lib/virksomhedsSignaler";
+import { budgetOmsaetningFor } from "@/lib/budgetSignalInput";
 import { UDLOEBNE_VISTE, udloebetDenTekst, udloebneForslagTekst, udloebneRestTekst } from "@/lib/forslagTab";
 import { dageSiden, erLaengeSiden, sidstOnlineTekst } from "@/lib/sidstOnline";
 import { afgoerMilepael } from "@/lib/milepaelDom";
@@ -186,13 +187,13 @@ function bygSignalInput(d: VirksomhedsData, facts: CompanyFact[]): VirksomhedsIn
   // useCompanyFacts sorterer på period_key stigende — seneste sidst.
   const seneste = facts[facts.length - 1] ?? null;
   const forrige = facts.length >= 2 ? facts[facts.length - 2] : null;
-  // Budgetmål for senestes periode — samme opslag som MemberDetail.tsx:752-757.
-  const budgetOmsaetning = (() => {
-    if (!seneste) return null;
-    const [y, m] = seneste.period_key.split("-");
-    const baseKey = `${y}-base-${parseInt(m, 10) - 1}`;
-    return d.budgetter.find((b) => b.period === baseKey && b.category === "omsaetning")?.budget_amount ?? null;
-  })();
+  // Budgetmål for senestes periode — SAMME opslag som forsiden (17/9,
+  // recon-tal-der-ikke-kan-passe.md §5 B; før: eget opslag uden data_basis-
+  // gate og uden 0-værn, `${y}-base-${parseInt(m, 10) - 1}` mod
+  // d.budgetter.find). budgetOmsaetningFor giver null for estimater og 0.
+  const budgetOmsaetning = seneste
+    ? budgetOmsaetningFor(d.budgetter, d.company.id, seneste.period_key, seneste.data_basis)
+    : null;
   // Seneste besked på tværs af virksomhedens samtaler (flere er muligt).
   const senesteBeskedAt = d.samtaler.reduce<string | null>(
     (acc, s) => (s.last_message_at && (!acc || s.last_message_at > acc) ? s.last_message_at : acc),
@@ -205,7 +206,9 @@ function bygSignalInput(d: VirksomhedsData, facts: CompanyFact[]): VirksomhedsIn
   const nu = Date.now();
   return {
     senesteFact: tilFactPunkt(seneste),
-    forrigeFact: tilFactPunkt(forrige),
+    // M/M kun når begge de to seneste er målinger — samme gate som forsiden
+    // (AdvisorDashboard momErGyldig); et /12-estimat er ikke en måned.
+    forrigeFact: momErGyldig(facts) ? tilFactPunkt(forrige) : null,
     senesteCommittedAt: seneste?.committed_at ?? null,
     budgetOmsaetning,
     // Dommen (milepaelDom): forfalden = aktiv (hverken færdig eller parkeret)
