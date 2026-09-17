@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   normaliserBegrundelse,
+  SKRIDT_TITEL_MIN_LAENGDE,
   TITEL_MAX_LAENGDE,
+  validerSkridtTitel,
   validerTitel,
 } from "../../../supabase/functions/_shared/foreslaaOpgaveValidering.ts";
 
@@ -40,5 +42,18 @@ describe("normaliserBegrundelse — valgfri, trimmet, tom bliver null", () => {
     expect(normaliserBegrundelse("   ")).toBeNull();
     expect(normaliserBegrundelse(undefined)).toBeNull();
     expect(normaliserBegrundelse(42)).toBeNull();
+  });
+});
+
+describe("validerSkridtTitel — medlemmets eget skridt (skridt-tilfoej, 17/9): mindst 3 tegn efter trim, ellers som validerTitel", () => {
+  it("under 3 tegn (også efter trim), tom og ikke-streng afvises med medlemmets tekst", () => {
+    for (const input of [undefined, null, 42, "", "ab", " ab ", "  a  "]) {
+      expect(validerSkridtTitel(input)).toEqual({ ok: false, grund: `Skriv hvad du vil gøre — mindst ${SKRIDT_TITEL_MIN_LAENGDE} tegn` });
+    }
+    expect(SKRIDT_TITEL_MIN_LAENGDE).toBe(3);
+  });
+  it("præcis 3 tegn godkendes og trimmes; over 200 afvises som validerTitel", () => {
+    expect(validerSkridtTitel(" abc ")).toEqual({ ok: true, titel: "abc" });
+    expect(validerSkridtTitel("x".repeat(TITEL_MAX_LAENGDE + 1))).toEqual({ ok: false, grund: `Titlen må højst være ${TITEL_MAX_LAENGDE} tegn` });
   });
 });

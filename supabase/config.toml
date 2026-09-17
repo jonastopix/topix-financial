@@ -134,6 +134,9 @@ project_id = "loiavmastgeieqyiwyyr"
   # Samme begrundelse som get-community-billed-url ovenfor. Fase 2 («Én plan»): rådgiveren sætter mål.
   [functions.maal-skriv]
     verify_jwt = true
+  # Samme begrundelse som get-community-billed-url ovenfor. «Én plan» 17/9: medlemmet tilføjer selv skridt under sine aktive mål.
+  [functions.skridt-tilfoej]
+    verify_jwt = true
   # Samme begrundelse som get-community-billed-url ovenfor.
   [functions.hent-fornyelsestilbud]
     verify_jwt = true

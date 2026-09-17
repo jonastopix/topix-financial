@@ -3,7 +3,10 @@ import { Link } from "react-router-dom";
 import { Archive, BookOpen, Check, Sparkles, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { MILESTONE_CATEGORIES } from "@/lib/milestoneCategories";
-import type { MaalForMedlem, SkridtLinje } from "@/lib/hjemmebane/dineMaal";
+import { TILFOEJ_SKRIDT_KNAP_TEKST, type MaalForMedlem, type SkridtLinje } from "@/lib/hjemmebane/dineMaal";
+import { dagsdatoDansk, doemFrist, foreslaaetFrist, FORESLAAET_FRIST_DAGE } from "@/lib/hjemmebane/skridtForslag";
+import { HbButton } from "../HbButton";
+import { HbField, HbInput } from "../admin/HbField";
 import { HbTag } from "../HbTag";
 import type { Milestone } from "./useMilestones";
 
@@ -81,6 +84,53 @@ const Tilstandsprik = ({ x }: { x: MaalForMedlem }) => {
   );
 };
 
+/** Titlens mindstelængde — dommen bor i functionen (validerSkridtTitel,
+    _shared/foreslaaOpgaveValidering.ts, som src ikke kan importere); her kun
+    så knappen er slået fra før kaldet. Samme tal, samme tekst. */
+const SKRIDT_TITEL_MIN_LAENGDE = 3;
+
+/** «Tilføj skridt» under et AKTIVT mål (skridt-tilfoej, 17/9 — Jonas «ja»).
+    JONAS 17/9 (ordret: «1»): fristen er OBLIGATORISK — forudfyldt med i dag
+    + 14 dage i dansk tid (foreslaaetFrist), kan ændres, ikke tømmes, og ikke
+    før i dag (doemFrist — samme dom som functionen). Fejl fra functionen
+    vises ordret under feltet; oprettelsen genhenter skridt og mål. */
+const TilfoejSkridtForm = ({ maalId, busy, onTilfoej, onLuk }: {
+  maalId: string;
+  busy: boolean;
+  onTilfoej: (titel: string, dueDate: string) => Promise<string | null>;
+  onLuk: () => void;
+}) => {
+  const [titel, setTitel] = useState("");
+  const [frist, setFrist] = useState(() => foreslaaetFrist(new Date()));
+  const [fejl, setFejl] = useState<string | null>(null);
+  const idag = dagsdatoDansk(new Date());
+  const titelOk = titel.trim().length >= SKRIDT_TITEL_MIN_LAENGDE;
+  const send = async () => {
+    const fristDom = doemFrist(frist, new Date());
+    // strict=false: `!fristDom.ok` snævrer ikke — sammenlign med false (husets regel).
+    if (fristDom.ok === false) { setFejl(fristDom.grund); return; }
+    if (!titelOk) { setFejl(`Skriv hvad du vil gøre — mindst ${SKRIDT_TITEL_MIN_LAENGDE} tegn`); return; }
+    setFejl(null);
+    const svar = await onTilfoej(titel.trim(), fristDom.dato);
+    if (svar) setFejl(svar);
+    else { setTitel(""); setFrist(foreslaaetFrist(new Date())); onLuk(); }
+  };
+  return (
+    <form className="mt-2 space-y-2" onSubmit={(e) => { e.preventDefault(); void send(); }} data-tilfoej-skridt-form={maalId}>
+      <HbField label="Skridtet" htmlFor={`tilfoej-titel-${maalId}`} help={`Hvad vil du gøre? Mindst ${SKRIDT_TITEL_MIN_LAENGDE} tegn, højst 200.`}>
+        <HbInput id={`tilfoej-titel-${maalId}`} value={titel} maxLength={200} onChange={(e) => setTitel(e.target.value)} autoFocus className="py-1.5 text-sm" />
+      </HbField>
+      <HbField label="Frist" htmlFor={`tilfoej-frist-${maalId}`} help={`Foreslået: om ${FORESLAAET_FRIST_DAGE} dage. Ikke før i dag.`} error={fejl}>
+        <HbInput id={`tilfoej-frist-${maalId}`} type="date" value={frist} min={idag} required onChange={(e) => setFrist(e.target.value)} className="py-1.5 text-sm" />
+      </HbField>
+      <div className="flex items-center gap-2">
+        <HbButton type="submit" className="h-8 px-3 text-xs" disabled={busy || !titelOk || !frist}>{busy ? "Gemmer…" : TILFOEJ_SKRIDT_KNAP_TEKST}</HbButton>
+        <HbButton type="button" variant="secondary" className="h-8 px-3 text-xs" disabled={busy} onClick={onLuk}>Fortryd</HbButton>
+      </div>
+    </form>
+  );
+};
+
 const Skridt = ({ l, busy, onGjort }: { l: SkridtLinje; busy: boolean; onGjort: () => void }) => (
   <li className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-xs" data-skridt-id={l.id} data-skridt-status={l.status}>
     <span className={l.tegn === "◻" ? "text-hb-ink" : "text-hb-ink-soft"}>
@@ -101,7 +151,7 @@ const Skridt = ({ l, busy, onGjort }: { l: SkridtLinje; busy: boolean; onGjort: 
 );
 
 export const HbMaalRaekke = ({
-  x, ms, busy, onAabn, onFremgang, onNaaet, onGenaabn, onParker, onAktiver, onSlet, onSkridtGjort,
+  x, ms, busy, onAabn, onFremgang, onNaaet, onGenaabn, onParker, onAktiver, onSlet, onSkridtGjort, onTilfoejSkridt,
 }: {
   x: MaalForMedlem;
   /** Rækken fra useMilestones — kategori, kilde, målbarhed (target_value/unit). */
@@ -117,9 +167,12 @@ export const HbMaalRaekke = ({
   onAktiver: () => void;
   onSlet: () => void;
   onSkridtGjort: (skridtId: string) => void;
+  /** «Tilføj skridt» (skridt-tilfoej): returnerer fejlteksten ordret, eller null når skridtet er tilføjet. */
+  onTilfoejSkridt: (maalId: string, titel: string, dueDate: string) => Promise<string | null>;
 }) => {
   const barRef = useRef<HTMLDivElement>(null);
   const [visHistorik, setVisHistorik] = useState(false);
+  const [tilfoejAaben, setTilfoejAaben] = useState(false);
   const cfg = MILESTONE_CATEGORIES[ms.category] || MILESTONE_CATEGORIES.other;
   const Ikon = cfg.icon;
   const maalbar = !!(ms.target_value && ms.unit);
@@ -198,6 +251,17 @@ export const HbMaalRaekke = ({
                 </div>
               )}
             </div>
+          )}
+
+          {/* «Tilføj skridt» — kun under aktive mål (dommen: kanTilfoejeSkridt). */}
+          {h.kanTilfoejeSkridt && (
+            tilfoejAaben ? (
+              <TilfoejSkridtForm maalId={ms.id} busy={busy} onTilfoej={(titel, dueDate) => onTilfoejSkridt(ms.id, titel, dueDate)} onLuk={() => setTilfoejAaben(false)} />
+            ) : (
+              <button type="button" disabled={busy} onClick={() => setTilfoejAaben(true)} className="mt-2 text-xs text-hb-evergreen underline-offset-4 hover:underline disabled:opacity-50" data-handling="tilfoej-skridt">
+                + {TILFOEJ_SKRIDT_KNAP_TEKST}
+              </button>
+            )
           )}
 
           {/* Handlingerne som ord — medlemmet ejer målet. */}

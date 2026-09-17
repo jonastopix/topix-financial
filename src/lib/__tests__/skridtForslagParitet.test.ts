@@ -37,7 +37,7 @@ describe("skridtForslag — paritet mellem src/lib/hjemmebane og supabase/functi
         const udsnit = RAEKKER.slice(0, n);
         expect(web.erGentagelse(t, udsnit, NU)).toEqual(deno.erGentagelse(t, udsnit, NU));
         for (const m of MAAL) expect(web.erGentagelse(t, udsnit, NU, m)).toEqual(deno.erGentagelse(t, udsnit, NU, m));
-        for (const skriver of ["ai", "raadgiver"] as const) {
+        for (const skriver of ["ai", "raadgiver", "medlem"] as const) {
           expect(web.doemSkrivning(t, udsnit, NU, { skriver })).toEqual(deno.doemSkrivning(t, udsnit, NU, { skriver }));
           for (const m of MAAL) expect(web.doemSkrivning(t, udsnit, NU, { skriver, maalId: m })).toEqual(deno.doemSkrivning(t, udsnit, NU, { skriver, maalId: m }));
         }
@@ -45,6 +45,17 @@ describe("skridtForslag — paritet mellem src/lib/hjemmebane og supabase/functi
       }
     }
     for (const n of [0, 1, 6]) expect(web.maaSkriveForslag(n)).toBe(deno.maaSkriveForslag(n));
+    // Fristen (skridt-tilfoej, 17/9): samme kalenderdag, samme forslag, samme dom i begge kopier.
+    expect(web.FORESLAAET_FRIST_DAGE).toBe(deno.FORESLAAET_FRIST_DAGE);
+    expect(web.FRIST_TIDSZONE).toBe(deno.FRIST_TIDSZONE);
+    for (const nu of [NU, new Date("2026-09-17T22:30:00Z"), new Date("2026-12-31T23:30:00Z")]) {
+      expect(web.dagsdatoDansk(nu)).toBe(deno.dagsdatoDansk(nu));
+      expect(web.foreslaaetFrist(nu)).toBe(deno.foreslaaetFrist(nu));
+      for (const v of [undefined, "", "2026-09-16", "2026-09-17", "2026-09-18", "2026-02-30", "17-09-2026", " 2026-10-01 "]) {
+        expect(web.doemFrist(v, nu)).toEqual(deno.doemFrist(v, nu));
+      }
+    }
+    for (const [d, n] of [["2026-12-25", 14], ["2028-02-20", 10], ["2026-09-17", 0]] as const) expect(web.laegDageTilDato(d, n)).toBe(deno.laegDageTilDato(d, n));
   });
   it("kildekoden er ordret ens efter filhovedet (ingen imports at undtage)", () => {
     const krop = (sti: string) => {

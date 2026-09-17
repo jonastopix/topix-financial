@@ -26,6 +26,11 @@ import { join, resolve } from "node:path";
 //      nøgler, og modulerne findes i handoutConfig.moduleOrder.
 //   7. Forsidens «Dine mål» og «Dine skridt» dømmer gennem dineMaal
 //      (dineMaalDom/forsideMaal/modMaaletTekst) og kaster med kraevRaekker.
+//   9. (17/9, Jonas «ja»; fristen «1») «Tilføj skridt» kun under aktive mål;
+//      frist foreslået i dag + 14 dage i dansk tid, ikke før i dag; fladen
+//      kalder skridt-tilfoej og genhenter.
+//  10. (17/9) Mærket «medlemmets eget» i Planen: 'manual' ét sted, hooket
+//      henter source_type, Planen tegner gennem planen.ts.
 // Kildelæsning med selvbevis på kopier — samme mønster som maalSkriv.guard.
 
 const laes = (sti: string) => readFileSync(resolve(process.cwd(), sti), "utf8");
@@ -45,6 +50,39 @@ const PLANEN = "src/components/hjemmebane/virksomhed/VirksomhedPlanen.tsx";
 const RELEVANT = "src/lib/hjemmebane/maaskeRelevant.ts";
 const KATEGORIER = "src/lib/milestoneCategories.ts";
 const HANDOUT = "src/lib/handoutConfig.ts";
+const PLANEN_DOM = "src/lib/hjemmebane/planen.ts";
+const HOOK = "src/hooks/useVirksomhed.ts";
+
+/** Dom 9 (17/9, Jonas «ja»; fristen «1»): «Tilføj skridt» KUN under aktive mål —
+    rækken tegner knappen/formularen bag dommens kanTilfoejeSkridt, dommen giver
+    den kun i den aktive gren; formularen bruger foreslaaetFrist + doemFrist (dansk
+    tid, ikke før i dag) og et date-felt med min = i dag; fladen kalder
+    skridt-tilfoej og genhenter (invalidate + genhent) bagefter. */
+export const tilfoejKnappenHolder = (raekke: string, dom: string, view: string): boolean =>
+  /\{h\.kanTilfoejeSkridt && \(/.test(raekke) &&
+  raekke.includes("<TilfoejSkridtForm ") &&
+  /useState\(\(\) => foreslaaetFrist\(new Date\(\)\)\)/.test(raekke) &&
+  /const fristDom = doemFrist\(frist, new Date\(\)\);/.test(raekke) &&
+  /type="date" value=\{frist\} min=\{idag\} required/.test(raekke) &&
+  /const idag = dagsdatoDansk\(new Date\(\)\);/.test(raekke) &&
+  (dom.match(/kanTilfoejeSkridt: true/g) ?? []).length === 1 &&
+  (dom.match(/kanTilfoejeSkridt: false/g) ?? []).length === 2 &&
+  /x\.dom\.aktiv\s*\?\s*\{[^}]*kanTilfoejeSkridt: true/.test(dom) &&
+  /functions\.invoke\("skridt-tilfoej", \{ body: \{ companyId, \.\.\.input \} \}\)/.test(view) &&
+  view.includes("onTilfoejSkridt={tilfoejSkridt}") &&
+  /queryKey: \["dine-maal"\] \}\);\s*await queryClient\.invalidateQueries\(\{ queryKey: \["boardroom"\] \}\);\s*genhent\(\);/.test(view.slice(view.indexOf("const tilfoejMutation")));
+
+/** Dom 10 (17/9): mærket «medlemmets eget» i Planen — kilden er 'manual' ét
+    sted (planen.ts), hooket henter source_type, og Planen tegner mærket gennem
+    erMedlemmetsEget/MEDLEMMETS_EGET_TEKST (ingen egen «manual»-streng). */
+export const maerketHolder = (planenDom: string, hook: string, planen: string): boolean =>
+  planenDom.includes('export const MEDLEMMETS_EGET_KILDE = "manual";') &&
+  /export function erMedlemmetsEget\(s: Pick<SkridtRaekke, "source_type">\): boolean \{\s*return s\.source_type === MEDLEMMETS_EGET_KILDE;/.test(planenDom) &&
+  hook.includes('.select("id, title, status, due_date, maal_id, source_type")') &&
+  /erMedlemmetsEget, fremdriftTekst, MEDLEMMETS_EGET_TEKST/.test(planen) &&
+  /eget: erMedlemmetsEget\(k\)/.test(planen) &&
+  /\{l\.eget && <span className="text-hb-ink-soft"> · \{MEDLEMMETS_EGET_TEKST\}<\/span>\}/.test(planen) &&
+  !/"manual"/.test(planen);
 
 function alleFiler(rod: string, endelse: RegExp): string[] {
   const ud: string[] = [];
@@ -81,7 +119,8 @@ export const motorenUdenMilepaele = (motor: string, forside: string): boolean =>
 export const skyderenHolder = (raekke: string, dom: string): boolean =>
   /const klikbarBar = h\.kanSaetteFremdrift && !maalbar;/.test(raekke) &&
   !/klikbarBar = (?!h\.kanSaetteFremdrift)/.test(raekke) &&
-  /kanSaetteFremdrift: !x\.beregnet \}/.test(dom) &&
+  // Før (17/9): /kanSaetteFremdrift: !x\.beregnet \}/ — «Tilføj skridt» lagde kanTilfoejeSkridt til i samme gren.
+  /kanSaetteFremdrift: !x\.beregnet, kanTilfoejeSkridt: true \}/.test(dom) &&
   (dom.match(/kanSaetteFremdrift: false/g) ?? []).length === 2;
 
 /** Dom 4: medlemmet ejer sine mål — fladen skriver med hookets egne skrivere; ingen RLS-migration. */
@@ -141,6 +180,7 @@ describe("dineMaal.guard — fase 3: medlemmets mål, uden milepæls-slot, skyde
   const fn = udenKommentarer(laes(FORESLAA)), chat = udenKommentarer(laes(CHAT)), planen = udenKommentarer(laes(PLANEN));
   const relevant = udenKommentarer(laes(RELEVANT)), kategorier = udenKommentarer(laes(KATEGORIER)), handout = udenKommentarer(laes(HANDOUT));
   const migrationer = alleFiler("supabase/migrations", /\.sql$/);
+  const planenDom = udenKommentarer(laes(PLANEN_DOM)), hook = udenKommentarer(laes(HOOK));
 
   it("dom 1: menuen siger «Dine mål» på /milestones, og siden er DineMaalView", () => {
     expect(menuenHolder(nav, side)).toBe(true);
@@ -166,6 +206,12 @@ describe("dineMaal.guard — fase 3: medlemmets mål, uden milepæls-slot, skyde
   it("dom 7: forsidens «Dine mål» og «Dine skridt» dømmer gennem dineMaal og kaster med kraevRaekker; ankeret er #dine-skridt", () => {
     expect(forsidenHolder(forside)).toBe(true);
   });
+  it("dom 9 (17/9): «Tilføj skridt» kun under aktive mål — dommen giver den kun aktive; formularen med foreslået frist, dansk tid, ikke før i dag; fladen kalder skridt-tilfoej og genhenter", () => {
+    expect(tilfoejKnappenHolder(raekke, dom, view)).toBe(true);
+  });
+  it("dom 10 (17/9): mærket «medlemmets eget» — 'manual' ét sted, hooket henter source_type, Planen tegner mærket gennem planen.ts", () => {
+    expect(maerketHolder(planenDom, hook, planen)).toBe(true);
+  });
 
   it("selvbevis 1: «Milestones» tilbage i menuen, eller siden på den gamle view, falder", () => {
     expect(menuenHolder(nav.replace('label: "Dine mål"', 'label: "Milestones"'), side)).toBe(false);
@@ -177,7 +223,7 @@ describe("dineMaal.guard — fase 3: medlemmets mål, uden milepæls-slot, skyde
   });
   it("selvbevis 3: en bar der er klikbar uanset skridt, eller en dom der giver skyderen til mål med skridt, falder", () => {
     expect(skyderenHolder(raekke.replace("const klikbarBar = h.kanSaetteFremdrift && !maalbar;", "const klikbarBar = !maalbar;"), dom)).toBe(false);
-    expect(skyderenHolder(raekke, dom.replace("kanSaetteFremdrift: !x.beregnet }", "kanSaetteFremdrift: true }"))).toBe(false);
+    expect(skyderenHolder(raekke, dom.replace("kanSaetteFremdrift: !x.beregnet, kanTilfoejeSkridt: true }", "kanSaetteFremdrift: true, kanTilfoejeSkridt: true }"))).toBe(false);
   });
   it("selvbevis 4: fladen uden slet, med maal-skriv, eller en RLS-migration med planens navn falder", () => {
     expect(medlemmetEjer(view.replace("onSlet={() => setSletId(ms.id)}", ""), migrationer)).toBe(false);
@@ -197,6 +243,18 @@ describe("dineMaal.guard — fase 3: medlemmets mål, uden milepæls-slot, skyde
   it("selvbevis 6: en kategori uden linje i tabellen, eller et modul der ikke findes, falder", () => {
     expect(kategoritabellenHolder(relevant, kategorier + "\n  ny_kategori: {\n", handout)).toBe(false);
     expect(kategoritabellenHolder(relevant.replace('profit: "bogholderi",', 'profit: "finans",'), kategorier, handout)).toBe(false);
+  });
+  it("selvbevis 9: knappen uanset tilstand, dommen der giver den til parkerede, en tom standardfrist, et date-felt uden min, eller en flade der ikke genhenter falder", () => {
+    expect(tilfoejKnappenHolder(raekke.replace("{h.kanTilfoejeSkridt && (", "{("), dom, view)).toBe(false);
+    expect(tilfoejKnappenHolder(raekke, dom.replace("kanAktivere: plads, kanSlette: true, kanSaetteFremdrift: false, kanTilfoejeSkridt: false }", "kanAktivere: plads, kanSlette: true, kanSaetteFremdrift: false, kanTilfoejeSkridt: true }"), view)).toBe(false);
+    expect(tilfoejKnappenHolder(raekke.replace("useState(() => foreslaaetFrist(new Date()))", 'useState("")'), dom, view)).toBe(false);
+    expect(tilfoejKnappenHolder(raekke.replace("type=\"date\" value={frist} min={idag} required", "type=\"date\" value={frist}"), dom, view)).toBe(false);
+    expect(tilfoejKnappenHolder(raekke, dom, view.replace("genhent();\n    },\n  });\n  const tilfoejSkridt", "},\n  });\n  const tilfoejSkridt"))).toBe(false);
+  });
+  it("selvbevis 10: en Planen med sin egen «manual»-streng, et hook uden source_type, eller en anden kilde i planen.ts falder", () => {
+    expect(maerketHolder(planenDom, hook, planen + '\nconst x = s.source_type === "manual";')).toBe(false);
+    expect(maerketHolder(planenDom, hook.replace('.select("id, title, status, due_date, maal_id, source_type")', '.select("id, title, status, due_date, maal_id")'), planen)).toBe(false);
+    expect(maerketHolder(planenDom.replace('export const MEDLEMMETS_EGET_KILDE = "manual";', 'export const MEDLEMMETS_EGET_KILDE = "member";'), hook, planen)).toBe(false);
   });
   it("selvbevis 7: forsiden med egen dom, uden kraevRaekker på skridtene, eller med det gamle anker falder", () => {
     expect(forsidenHolder(forside.replace("dineMaalDom(milestonesQuery.data, skridtQuery.data, new Date())", "egenDom(milestonesQuery.data)"))).toBe(false);

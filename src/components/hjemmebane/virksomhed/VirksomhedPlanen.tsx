@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { fremdriftTekst, planenDom, udenBevaegelseTekst, type MaalIPlanen, type MaalRaekke, type SkridtRaekke } from "@/lib/hjemmebane/planen";
+import { erMedlemmetsEget, fremdriftTekst, MEDLEMMETS_EGET_TEKST, planenDom, udenBevaegelseTekst, type MaalIPlanen, type MaalRaekke, type SkridtRaekke } from "@/lib/hjemmebane/planen";
 import { MAX_AKTIVE_MAAL } from "@/lib/hjemmebane/maal";
 import { HbButton } from "../HbButton";
 import { HbSection } from "../HbSection";
@@ -344,15 +344,16 @@ function SkridtForm({
 /** Skridtene under et mål i planens rækkefølge: aktive (◻), ventende (?),
     gjorte (✓), ikke gjort/droppet (–). dismissed/expired vises ikke — de var
     aldrig skridt. Dommen (grupperingen) er planen.ts'; her kun tegn og ord. */
-function skridtLinjer(s: MaalIPlanen["skridt"]): { id: string; tegn: string; titel: string; ord: string | null; klasse: string }[] {
+function skridtLinjer(s: MaalIPlanen["skridt"]): { id: string; tegn: string; titel: string; ord: string | null; klasse: string; eget: boolean }[] {
   const frist = (d: string | null) => (d ? `frist ${formatDato(d)}` : null);
+  // «medlemmets eget» (skridt-tilfoej, 17/9): mærket på skridt med source_type 'manual' — dommen er planen.ts' (erMedlemmetsEget).
   return [
-    ...s.aktive.map((k) => ({ id: k.id, tegn: "◻", titel: k.title, ord: frist(k.due_date), klasse: "text-hb-ink" })),
-    ...s.venter.map((k) => ({ id: k.id, tegn: "?", titel: k.title, ord: "venter på svar", klasse: "text-hb-ink-soft" })),
-    ...s.gjorte.map((k) => ({ id: k.id, tegn: "✓", titel: k.title, ord: "gjort", klasse: "text-hb-ink-soft" })),
+    ...s.aktive.map((k) => ({ id: k.id, tegn: "◻", titel: k.title, ord: frist(k.due_date), klasse: "text-hb-ink", eget: erMedlemmetsEget(k) })),
+    ...s.venter.map((k) => ({ id: k.id, tegn: "?", titel: k.title, ord: "venter på svar", klasse: "text-hb-ink-soft", eget: erMedlemmetsEget(k) })),
+    ...s.gjorte.map((k) => ({ id: k.id, tegn: "✓", titel: k.title, ord: "gjort", klasse: "text-hb-ink-soft", eget: erMedlemmetsEget(k) })),
     ...s.andre
       .filter((k) => k.status === "not_done" || k.status === "dropped")
-      .map((k) => ({ id: k.id, tegn: "–", titel: k.title, ord: k.status === "not_done" ? "ikke gjort" : "droppet", klasse: "text-hb-ink-soft" })),
+      .map((k) => ({ id: k.id, tegn: "–", titel: k.title, ord: k.status === "not_done" ? "ikke gjort" : "droppet", klasse: "text-hb-ink-soft", eget: erMedlemmetsEget(k) })),
   ];
 }
 
@@ -395,11 +396,12 @@ function MaalLinje({
       {linjer.length > 0 && (
         <ul className="mt-2 space-y-1 text-sm" data-skridt-viste={viste.length} data-skridt-alle={linjer.length}>
           {viste.map((l) => (
-            <li key={l.id} className={`flex items-baseline gap-2 ${l.klasse}`} data-skridt-id={l.id}>
+            <li key={l.id} className={`flex items-baseline gap-2 ${l.klasse}`} data-skridt-id={l.id} data-skridt-eget={l.eget ? "1" : "0"}>
               <span aria-hidden className="w-4 shrink-0 text-center">{l.tegn}</span>
               <span className="min-w-0 break-words">
                 {l.titel}
                 {l.ord && <span className="text-hb-ink-soft"> · {l.ord}</span>}
+                {l.eget && <span className="text-hb-ink-soft"> · {MEDLEMMETS_EGET_TEKST}</span>}
               </span>
             </li>
           ))}

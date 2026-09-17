@@ -110,12 +110,17 @@ export type SkriveDom =
 /** Hvem skriver? JONAS 16/9, VALG A: rådgiverens egne forslag (foreslaa-
     opgave) spærres ALDRIG af et ventende forslag — kun af dubletkontrollen.
     AI'en (generate-weekly-focus, run-company-agent) stopper når der venter
-    noget (Jonas' beslutning 3: højst ét skridt ad gangen). */
-export type Skriver = "raadgiver" | "ai";
+    noget (Jonas' beslutning 3: højst ét skridt ad gangen).
+    «medlem» (skridt-tilfoej, 17/9 — Jonas «ja»): medlemmets EGET skridt under
+    sit aktive mål — samme adfærd som rådgiveren: kun dubletkontrollen spærrer
+    (samme titel under samme mål inden for 30 døgn, eller afvist under målet).
+    Skridtet er aktivt fra start — der er intet forslag at acceptere, og et
+    ventende forslag hos AI'en spærrer ikke medlemmet i sin egen plan. */
+export type Skriver = "raadgiver" | "ai" | "medlem";
 
-/** ÉN dom for alle tre skrivere, i denne rækkefølge: (1) for AI'en: venter
-    der allerede et forslag hos virksomheden → skriv ikke (rådgiveren
-    springer dette led over — valg A); (2) er titlen en gentagelse inden for
+/** ÉN dom for alle fire skrivere, i denne rækkefølge: (1) for AI'en: venter
+    der allerede et forslag hos virksomheden → skriv ikke (rådgiveren og
+    medlemmet springer dette led over — valg A); (2) er titlen en gentagelse inden for
     30 døgn — eller afvist inden for samme mål (fase 5, `valg.maalId`) —
     → skriv ikke, uanset skriver; ellers ok. `eksisterende` er virksomhedens
     company_actions hentet med SKRIVE_SELECT_KOLONNER og skriveFilter(nu, maalId). */
@@ -136,4 +141,46 @@ export function skriveFilter(nu: Date, maalId?: string | null): string {
   const basis = `status.eq.proposed,created_at.gte.${gentagelsesGraense(nu).toISOString()}`;
   const maal = (maalId ?? "").trim();
   return maal ? `${basis},and(status.eq.dismissed,maal_id.eq.${maal})` : basis;
+}
+
+/** MEDLEMMETS EGET SKRIDT (skridt-tilfoej, 17/9) — FRISTEN. JONAS 17/9
+    (ordret: «1»): fristen er OBLIGATORISK (B3 står — CHECK'en
+    company_actions_active_requires_due_date og docs/opgave-model-design.md
+    §B3 er urørte); formularen foreslår i dag + 14 dage i dansk tid, datoen
+    kan ændres men ikke tømmes, og ingen dato før i dag. Kalenderdagen regnes
+    i Europe/Copenhagen — ikke UTC, ikke browserens zone (OVERLEVERING DEL 4:
+    dansk tid mod UTC ved datogrænser). Ren: samme kode i begge kopier. */
+export const FORESLAAET_FRIST_DAGE = 14;
+export const FRIST_TIDSZONE = "Europe/Copenhagen";
+
+/** Kalenderdagen i dansk tid som «YYYY-MM-DD» (en-CA giver netop den form). */
+export function dagsdatoDansk(nu: Date): string {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: FRIST_TIDSZONE, year: "numeric", month: "2-digit", day: "2-digit" }).format(nu);
+}
+
+/** «YYYY-MM-DD» + n kalenderdage — UTC-aritmetik på en ren dato, så ingen zone skrider. */
+export function laegDageTilDato(dato: string, dage: number): string {
+  const [y, m, d] = dato.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d + dage)).toISOString().slice(0, 10);
+}
+
+/** Den foreslåede frist: i dag (dansk tid) + FORESLAAET_FRIST_DAGE. */
+export function foreslaaetFrist(nu: Date): string {
+  return laegDageTilDato(dagsdatoDansk(nu), FORESLAAET_FRIST_DAGE);
+}
+
+export type FristDom = { ok: true; dato: string } | { ok: false; grund: string };
+
+/** Dommen over klientens frist: «YYYY-MM-DD», en rigtig kalenderdato, ikke
+    før i dag i dansk tid. Grunden er dansk og vises ordret (400-svaret og
+    formularens fejl). Fail-closed: alt andet end en gyldig dato afvises. */
+export function doemFrist(input: unknown, nu: Date): FristDom {
+  if (typeof input !== "string" || input.trim() === "") return { ok: false, grund: "Fristen mangler — vælg en dato" };
+  const dato = input.trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dato)) return { ok: false, grund: "Fristen skal være en dato på formen ÅÅÅÅ-MM-DD" };
+  const [y, m, d] = dato.split("-").map(Number);
+  const kontrol = new Date(Date.UTC(y, m - 1, d));
+  if (Number.isNaN(kontrol.getTime()) || kontrol.toISOString().slice(0, 10) !== dato) return { ok: false, grund: "Fristen er ikke en rigtig dato" };
+  if (dato < dagsdatoDansk(nu)) return { ok: false, grund: "Fristen kan ikke ligge før i dag" };
+  return { ok: true, dato };
 }

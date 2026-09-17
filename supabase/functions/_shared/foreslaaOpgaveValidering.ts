@@ -23,6 +23,18 @@ export function validerTitel(input: unknown): { ok: true; titel: string } | { ok
   return { ok: true, titel };
 }
 
+/** Medlemmets eget skridt (skridt-tilfoej, 17/9 — Jonas «ja»): titlen skal
+    have mindst 3 tegn EFTER trim; resten er validerTitel (højst 200).
+    Teksten er til medlemmet selv — ikke «medlemmet skal gøre». */
+export const SKRIDT_TITEL_MIN_LAENGDE = 3;
+
+export function validerSkridtTitel(input: unknown): { ok: true; titel: string } | { ok: false; grund: string } {
+  if (typeof input !== "string" || input.trim().length < SKRIDT_TITEL_MIN_LAENGDE) {
+    return { ok: false, grund: `Skriv hvad du vil gøre — mindst ${SKRIDT_TITEL_MIN_LAENGDE} tegn` };
+  }
+  return validerTitel(input);
+}
+
 /** Begrundelsen er valgfri: trimmes, tom/ikke-streng bliver null
     (context-kolonnen er nullable). */
 export function normaliserBegrundelse(input: unknown): string | null {

@@ -193,7 +193,7 @@ export interface VirksomhedsData {
   /** company_actions der venter: open/proposed/active (BoardroomView:1686). */
   opgaver: { id: string; title: string; status: string; priority: string; due_date: string | null }[];
   /** Skridt til «Planen» (fase 2): ALLE company_actions med maal_id (også gjorte/lukkede — historik under målet), seneste 200. */
-  skridt: { id: string; title: string; status: string; due_date: string | null; maal_id: string | null }[];
+  skridt: { id: string; title: string; status: string; due_date: string | null; maal_id: string | null; source_type: string | null }[];
   /** agent_proposals med status 'proposed' — det der kan afgøres (virksomhedsSignaler.ts:135). */
   agentforslagVenter: number;
   /** company_actions med status 'expired' — forslag der udløb uden svar (8/9: 63 i prod, ingen flade viste dem). */
@@ -264,9 +264,10 @@ async function hentVirksomhed(companyId: string): Promise<VirksomhedsData | null
       .limit(50),
     // Skridtene under målene (fase 2): kun rækker MED maal_id, alle statusser —
     // gjorte skridt er historik under målet (Jonas: «fuldførte skridt bliver stående»).
+    // source_type med (17/9): 'manual' = medlemmets eget skridt — mærket i Planen.
     supabase
       .from("company_actions")
-      .select("id, title, status, due_date, maal_id")
+      .select("id, title, status, due_date, maal_id, source_type")
       .eq("company_id", companyId)
       .not("maal_id", "is", null)
       .order("created_at", { ascending: false })

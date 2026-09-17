@@ -10,6 +10,11 @@ import {
   skriveFilter,
   taelAabne,
   SKRIVE_SELECT_KOLONNER,
+  dagsdatoDansk,
+  doemFrist,
+  foreslaaetFrist,
+  FORESLAAET_FRIST_DAGE,
+  laegDageTilDato,
   type ForslagsRaekke,
 } from "../skridtForslag";
 
@@ -83,6 +88,7 @@ describe("taelAabne og maaSkriveForslag — højst ét åbent forslag pr. virkso
 
 const AI = { skriver: "ai" } as const;
 const RAADGIVER = { skriver: "raadgiver" } as const;
+const MEDLEM = { skriver: "medlem" } as const;
 
 describe("doemSkrivning for AI'en — i rækkefølgen venter → gentagelse → ok", () => {
   it("ingen rækker: ok", () => {
@@ -166,5 +172,54 @@ describe("erGentagelse med maalId — afvist under samme mål er en gentagelse u
     expect(skriveFilter(NU5, "")).toBe(basis);
     expect(skriveFilter(NU5, "m1")).toBe(`${basis},and(status.eq.dismissed,maal_id.eq.m1)`);
     expect(SKRIVE_SELECT_KOLONNER).toBe("id, title, status, created_at, maal_id");
+  });
+});
+
+describe("doemSkrivning for medlemmet (skridt-tilfoej, 17/9 — Jonas «ja») — som rådgiveren: kun dubletkontrollen", () => {
+  it("et åbent forslag hos virksomheden spærrer IKKE medlemmets eget skridt", () => {
+    expect(doemSkrivning("Ring til banken", [r("Noget andet", "proposed", 1)], NU, MEDLEM)).toEqual({ ok: true });
+    expect(doemSkrivning("Ring til banken", [r("A", "proposed", 1), r("B", "proposed", 2)], NU, { ...MEDLEM, maalId: "m1" })).toEqual({ ok: true });
+  });
+  it("samme titel inden for 30 døgn spærrer — uanset status; og afvist under samme mål spærrer uanset alder", () => {
+    expect(doemSkrivning("Ring til banken", [r("ring til banken.", "done", 10)], NU, MEDLEM)).toEqual({ ok: false, grund: "gentagelse", status: "done", created_at: dage(10), aarsag: "vindue" });
+    const afvist: ForslagsRaekke = { title: "Ring til banken", status: "dismissed", created_at: dage(200), maal_id: "m1" };
+    expect(doemSkrivning("Ring til banken", [afvist], NU, { ...MEDLEM, maalId: "m1" })).toMatchObject({ ok: false, grund: "gentagelse", aarsag: "afvist_i_maalet" });
+    expect(doemSkrivning("Ring til banken", [afvist], NU, { ...MEDLEM, maalId: "m2" })).toEqual({ ok: true });
+  });
+  it("samme rækker, tre skrivere: AI'en stopper, rådgiveren og medlemmet skriver", () => {
+    const raekker = [r("Noget andet", "proposed", 1)];
+    expect(doemSkrivning("Ring til banken", raekker, NU, AI)).toMatchObject({ ok: false, grund: "forslag_venter" });
+    expect(doemSkrivning("Ring til banken", raekker, NU, RAADGIVER)).toEqual({ ok: true });
+    expect(doemSkrivning("Ring til banken", raekker, NU, MEDLEM)).toEqual({ ok: true });
+  });
+});
+
+describe("fristen (Jonas 17/9: «1» — obligatorisk, foreslået i dag + 14 dage i dansk tid, ikke før i dag)", () => {
+  // 17/9 22:30 UTC er 18/9 00:30 dansk — kalenderdagen er den danske.
+  const SENT = new Date("2026-09-17T22:30:00Z");
+  it("dagsdatoDansk regner kalenderdagen i Europe/Copenhagen, ikke UTC", () => {
+    expect(dagsdatoDansk(NU)).toBe("2026-09-17");
+    expect(dagsdatoDansk(SENT)).toBe("2026-09-18");
+    expect(dagsdatoDansk(new Date("2026-12-31T23:30:00Z"))).toBe("2027-01-01");
+  });
+  it("foreslaaetFrist er i dag + 14 dage — over måneds- og årsskifte", () => {
+    expect(FORESLAAET_FRIST_DAGE).toBe(14);
+    expect(foreslaaetFrist(NU)).toBe("2026-10-01");
+    expect(foreslaaetFrist(SENT)).toBe("2026-10-02");
+    expect(laegDageTilDato("2026-12-25", 14)).toBe("2027-01-08");
+    expect(laegDageTilDato("2028-02-20", 10)).toBe("2028-03-01");
+  });
+  it("doemFrist: i dag og senere er ok; i går afvises; dansk midnat afgør", () => {
+    expect(doemFrist("2026-09-17", NU)).toEqual({ ok: true, dato: "2026-09-17" });
+    expect(doemFrist(" 2026-10-01 ", NU)).toEqual({ ok: true, dato: "2026-10-01" });
+    expect(doemFrist("2026-09-16", NU)).toEqual({ ok: false, grund: "Fristen kan ikke ligge før i dag" });
+    // Kl. 00:30 dansk den 18/9 er 17/9 «i går» — selv om UTC stadig siger 17/9.
+    expect(doemFrist("2026-09-17", SENT)).toEqual({ ok: false, grund: "Fristen kan ikke ligge før i dag" });
+    expect(doemFrist("2026-09-18", SENT)).toEqual({ ok: true, dato: "2026-09-18" });
+  });
+  it("doemFrist afviser manglende, forkert form og datoer der ikke findes", () => {
+    for (const v of [undefined, null, "", "   ", 42]) expect(doemFrist(v, NU)).toEqual({ ok: false, grund: "Fristen mangler — vælg en dato" });
+    for (const v of ["17-09-2026", "2026/09/17", "2026-9-17", "2026-09-17T00:00:00Z"]) expect(doemFrist(v, NU)).toEqual({ ok: false, grund: "Fristen skal være en dato på formen ÅÅÅÅ-MM-DD" });
+    for (const v of ["2026-02-30", "2026-13-01", "2026-04-31", "2026-00-10"]) expect(doemFrist(v, NU)).toEqual({ ok: false, grund: "Fristen er ikke en rigtig dato" });
   });
 });
