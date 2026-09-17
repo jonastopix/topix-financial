@@ -7,7 +7,7 @@ import { afgoerForsidensDom, type OpgaveTilDom, type VirksomhedTilDom, type Beta
 import { kraevRaekker } from "@/lib/kraevRaekker";
 import { hentAlleSider } from "@/lib/budgetEngine";
 import type { MaalRaekke } from "@/lib/hjemmebane/planen";
-import { laesKvittering, type Kvittering } from "@/lib/opgaveLukning";
+import { fletKvitteringer, laesKvittering, type Kvittering } from "@/lib/opgaveLukning";
 import { afgoerPulsen, SVAR_VINDUE_DAGE, type PulsSvar } from "@/lib/pulsen";
 import { erForslagGyldigt } from "@/lib/forslagUdloeb";
 // Fase 0b («Én plan»): puklen lover «din afgørelse» kun for forslag med en
@@ -849,14 +849,26 @@ export const hentAdvisorDashboard = () =>
         liste.push({ id: o.id, title: o.title, status: o.status, due_date: aar && md && dag ? new Date(aar, md - 1, dag) : null });
         opgaverByCompany.set(o.company_id, liste);
       }
-      // Lukningen: nyeste kvittering med grundlag pr. virksomhed (rækkerne er
-      // sorteret nyeste først, så den første pr. company_id vinder). Gamle
-      // snooze-rækker læses som null af laesKvittering og lukker intet.
-      const kvitteringByCompany = new Map<string, Kvittering>();
+      // Lukningen: ALLE kvitteringer med grundlag pr. virksomhed, flettet
+      // (lib/opgaveLukning.fletKvitteringer — nøgle for nøgle vinder den
+      // nyeste; rækkerne kommer nyeste først). PR 5 (17/9): før vandt kun den
+      // nyeste række («if (!r.company_id || kvitteringByCompany.has(r.company_id))
+      // continue;»), så «Ikke relevant» på «ingen mål» blev ophævet af en
+      // senere lukning af tavsheden for samme virksomhed. Gamle snooze-rækker
+      // læses som null af laesKvittering og lukker intet.
+      const kvitteringerByCompany = new Map<string, Kvittering[]>();
       for (const r of kraevRaekker(kvitteringerRes, "advisor_company_acknowledgments") as { company_id: string; udfald: string | null; grundlag: unknown; acknowledged_at: string | null }[]) {
-        if (!r.company_id || kvitteringByCompany.has(r.company_id)) continue;
+        if (!r.company_id) continue;
         const k = laesKvittering(r);
-        if (k) kvitteringByCompany.set(r.company_id, k);
+        if (!k) continue;
+        const liste = kvitteringerByCompany.get(r.company_id) ?? [];
+        liste.push(k);
+        kvitteringerByCompany.set(r.company_id, liste);
+      }
+      const kvitteringByCompany = new Map<string, Kvittering>();
+      for (const [cid, liste] of kvitteringerByCompany) {
+        const k = fletKvitteringer(liste);
+        if (k) kvitteringByCompany.set(cid, k);
       }
       // Den ulæstes grundlag: seneste medlemsbesked på tværs af virksomhedens samtaler.
       // Seneste rådgiverbesked pr. virksomhed — «venter på velkomst» (10/9):

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { erLukket, grundlagForLinje, laesKvittering, LUKNINGS_UDFALD, UDFALD_TEKST, type Kvittering } from "@/lib/opgaveLukning";
+import { erLukket, fletKvitteringer, grundlagForLinje, laesKvittering, LUKNINGS_UDFALD, UDFALD_TEKST, type Kvittering } from "@/lib/opgaveLukning";
 
 // Lukningen (Jonas 8/9): lukket holder på den opgave der er; noget NYT
 // gør den levende igen. Grænserne: samme grundlag = lukket, andet
@@ -62,5 +62,29 @@ describe("grundlagForLinje og laesKvittering", () => {
     expect(LUKNINGS_UDFALD).toEqual(["faerdiggjort", "ikke_relevant"]);
     expect(UDFALD_TEKST.faerdiggjort).toBe("Færdiggjort");
     expect(UDFALD_TEKST.ikke_relevant).toBe("Ikke relevant");
+  });
+});
+
+describe("fletKvitteringer (PR 5, 17/9) — flere kvitteringer pr. virksomhed, nyeste vinder pr. nøgle", () => {
+  const nyeste: Kvittering = { udfald: "faerdiggjort", grundlag: { tavshed: "2026-09-10T08:00:00Z" }, lukketAt: "2026-09-17T10:00:00Z" };
+  const aeldre: Kvittering = { udfald: "ikke_relevant", grundlag: { ingen_maal: "ingen:0", tavshed: "2026-08-01T08:00:00Z" }, lukketAt: "2026-09-10T10:00:00Z" };
+
+  it("tom liste → null; én → den selv", () => {
+    expect(fletKvitteringer([])).toBeNull();
+    expect(fletKvitteringer([nyeste])).toEqual(nyeste);
+  });
+  it("nøgler fra den ældre bevares (ingen mål er stadig lukket), fælles nøgler tager den nyeste; udfald og tid er den nyestes", () => {
+    expect(fletKvitteringer([nyeste, aeldre])).toEqual({
+      udfald: "faerdiggjort",
+      grundlag: { tavshed: "2026-09-10T08:00:00Z", ingen_maal: "ingen:0" },
+      lukketAt: "2026-09-17T10:00:00Z",
+    });
+  });
+  it("det fejlen så ud som før (kun den nyeste række): «ingen mål» kvitteret, tavsheden lukket senere → ingen mål var levende igen", () => {
+    const foer = nyeste; // den gamle læsning: første række pr. virksomhed vandt
+    expect(erLukket({ noegle: "ingen_maal", grundlag: "ingen:0" }, foer)).toBe(false);
+    expect(erLukket({ noegle: "ingen_maal", grundlag: "ingen:0" }, fletKvitteringer([nyeste, aeldre]))).toBe(true);
+    // og et NYT grundlag er stadig levende:
+    expect(erLukket({ noegle: "ingen_maal", grundlag: "ingen:1" }, fletKvitteringer([nyeste, aeldre]))).toBe(false);
   });
 });

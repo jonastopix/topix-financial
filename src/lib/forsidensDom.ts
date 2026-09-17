@@ -565,13 +565,19 @@ export interface Virksomhedslinje {
   grundlag: Record<string, string>;
 }
 
-/** Én tilstand samlet på tværs af virksomheder (§3). */
+/** Én tilstand samlet på tværs af virksomheder (§3). PR 5 (17/9): hver
+    virksomhed bærer sit grundlag for NETOP tilstanden ({nøgle: grundlag}),
+    så «Færdiggjort»/«Ikke relevant» — på hele linjen eller pr. navn i
+    folden — kvitterer pr. virksomhed som bølgen og betalt-linjen gør.
+    Linjen tæller kun de ikke-kvitterede (grundeFor tager lukkede grunde ud
+    før samlingen); en ny virksomhed i tilstanden, eller et andet grundlag,
+    står igen. Ingen ny tabel eller kolonne. */
 export interface Tilstandslinje {
   linje: "tilstand";
   slags: OpgaveSlags;
   antal: number;
   tekst: string;
-  virksomheder: { companyId: string; navn: string; grund: Grund }[];
+  virksomheder: { companyId: string; navn: string; grund: Grund; grundlag: Record<string, string> }[];
   /** Højeste alvor blandt de samlede. */
   alvor: number;
   lukkerOmDage: null;
@@ -1302,7 +1308,8 @@ export function afgoerForsidensDom(virksomheder: readonly VirksomhedTilDom[], nu
     for (const g of grunde) {
       if (FORM[g.slags] !== "tilstand") continue;
       const liste = samlede.get(g.slags) ?? [];
-      liste.push({ companyId: v.companyId, navn: v.navn, grund: g });
+      // Grundlaget for netop denne tilstand — det fladen gemmer ved «Ikke relevant» (PR 5).
+      liste.push({ companyId: v.companyId, navn: v.navn, grund: g, grundlag: { [g.noegle]: g.grundlag } });
       samlede.set(g.slags, liste);
       iTilstand = true;
     }

@@ -366,6 +366,20 @@ forsiden ville lyve den dag nogen klikkede «klaret» uden at svare.
 Den findes, fordi en dom kan være forkert for netop denne virksomhed i
 netop denne uge, og rådgiveren skal kunne sige det uden at handle.
 
+**Også på tilstandslinjerne (rådgivernes forside PR 5, 17/9 — analysens
+§3.1 pkt. 3 / §6 forslag 6; Jonas: «se om det kan gøres endnu bedre»).**
+«11 kunder har ingen mål», «2 virksomheder har mål til gennemgang» og «N
+har du ikke hørt fra længe» stod hver morgen til tilstanden var væk, uden
+knapper. Nu er de folde — over og under stregen — med ét navn pr.
+virksomhed og «Færdiggjort»/«Ikke relevant» PR. NAVN; linjens egne to ord
+kvitterer alle. Kvitteringen er pr. virksomhed med grundlaget for netop
+tilstanden (ingen mål: antallet af mål; gennemgang: antallet af aktive
+mål; tavshed: sidste besked), så linjen tæller kun de ikke-kvitterede, og
+en ny virksomhed i tilstanden eller et andet grundlag står igen. Fordi en
+virksomhed nu kan have flere kvitteringer med hver sin del af grundlaget,
+FLETTES dens kvitteringer (nyeste vinder pr. nøgle) — før læste dommen
+kun den nyeste række. Ingen ny tabel eller kolonne.
+
 **Handlingen i chatten lukker (17/9, Jonas «ja»):** `refleksion_hjaelp`
 er den første slags der også lukkes af en HANDLING — en rådgiverbesked i
 samtalen efter refleksionen — ikke kun af kvittering («Færdiggjort»/«Ikke

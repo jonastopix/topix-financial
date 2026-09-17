@@ -65,7 +65,7 @@ describe("afgoerPulsen", () => {
       linjer: [
         { linje: "virksomhed", companyId: "a", navn: "a", grunde: [] as Grund[], alvor: 95, lukkerOmDage: null, loeftet: false, indsats: 2, grundlag: {} },
         { linje: "virksomhed", companyId: "c", navn: "c", grunde: [] as Grund[], alvor: 80, lukkerOmDage: null, loeftet: false, indsats: 2, grundlag: {} },
-        { linje: "tilstand", slags: "tavshed", antal: 1, tekst: "1 virksomhed …", virksomheder: [{ companyId: "b", navn: "b", grund: {} as Grund }], alvor: 60, lukkerOmDage: null, loeftet: false, indsats: 2 },
+        { linje: "tilstand", slags: "tavshed", antal: 1, tekst: "1 virksomhed …", virksomheder: [{ companyId: "b", navn: "b", grund: {} as Grund, grundlag: {} }], alvor: 60 /* grundlag: PR 5 (17/9); før: uden feltet */, lukkerOmDage: null, loeftet: false, indsats: 2 },
       ],
     };
     const q = afgoerPulsen({ virksomheder, facts, maanedNoegle: "2026-08", svar, nu: NU, dom });
