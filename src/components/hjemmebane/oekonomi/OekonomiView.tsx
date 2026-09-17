@@ -10,6 +10,7 @@ import {
   datoKort,
   FORVENTET_FORNYELSE_KOMMER,
   krMedFortegn,
+  kundevaerdiTekst,
   kurveKoordinater,
   maanedsLabel,
   maanedsNavn,
@@ -20,6 +21,7 @@ import {
   pct,
   RADAR_DAGE,
   RADAR_UKENDT_TEKST,
+  UDESTAAENDE_LINJE,
   type BroMaaned,
   type DashboardDom,
   type KurvePunkt,
@@ -69,7 +71,8 @@ const Noegletal = ({ dom }: { dom: Extract<DashboardDom, { tom: false }> }) => {
       <StortTal testId="kontant" label="Kontant indgået denne måned" oere={n.kontant_oere} linje="betalinger med dato i måneden" />
       <StortTal testId="kontraheret" label="Kontraheret de næste 12 mdr." oere={n.kontraheret_12_oere} linje="kun det der er kontrakt på" />
       <StortTal testId="forudbetalt" label="Forudbetalt, ikke tjent" oere={n.forudbetalt_oere} linje="betalt forud for perioden" />
-      <StortTal testId="udestaaende" label="Udestående" oere={-n.udestaaende_oere} linje="anerkendt, men ikke betalt" />
+      {/* Ø3b: forfaldne betalinger der ikke er kommet (dashboard.ts del 7) — ikke motorens timing-tal. */}
+      <StortTal testId="udestaaende" label="Udestående" oere={n.udestaaende_oere} linje={UDESTAAENDE_LINJE} />
     </div>
   );
 };
@@ -217,25 +220,29 @@ const Prisudvikling = ({ dom }: { dom: Extract<DashboardDom, { tom: false }> }) 
   );
 };
 
-const Koncentration = ({ dom }: { dom: Extract<DashboardDom, { tom: false }> }) => {
-  const c = dom.koncentration;
-  if (c.top.length === 0) return <p className="text-sm text-hb-ink-soft">Ingen betalende kontrakter ved månedens slutning.</p>;
+/** Ø3b: kundeværdien — de 10 største efter samlet betalt (Jonas 17/9: «De fem største er ikke relevante som de står nu»). */
+const Kundevaerdi = ({ dom }: { dom: Extract<DashboardDom, { tom: false }> }) => {
+  const k = dom.kundevaerdi;
+  if (k.top.length === 0) return <p className="text-sm text-hb-ink-soft">Ingen betalinger endnu.</p>;
   return (
-    <div data-oekonomi-koncentration={c.top.length}>
-      <p className="text-sm text-hb-ink-soft">
-        De {c.top.length} største bærer <span className="font-medium text-hb-ink">{pct(c.top_andel)}</span> af MRR ({kr(c.mrr_i_alt_oere)} fordelt på {c.betalende} betalende).
-      </p>
-      <ul className="mt-3">
-        {c.top.map((r) => (
-          <li key={r.company_id} className="border-t border-hb-line py-3 last:border-b" data-konc-raekke={r.company_id}>
+    <div data-oekonomi-kundevaerdi={k.top.length}>
+      <ul>
+        {k.top.map((r, i) => (
+          <li key={r.company_id} className="border-t border-hb-line py-3 last:border-b" data-kundevaerdi-raekke={r.company_id}>
             <div className="flex items-baseline justify-between gap-4 text-sm">
-              <span className="font-medium text-hb-ink">{r.navn}</span>
-              <span className="tabular-nums text-hb-ink">{kr(r.mrr_oere)} <span className="text-hb-ink-soft">· {pct(r.andel)}</span></span>
+              <span className="min-w-0 text-hb-ink">
+                <span className="tabular-nums text-hb-ink-soft">{i + 1}.</span> <span className="font-medium">{r.navn}</span>
+                <span className="text-hb-ink-soft"> · {r.kontraktaar} kontraktår · {r.status}</span>
+              </span>
+              <span className="shrink-0 tabular-nums text-hb-ink">{kr(r.betalt_oere)} <span className="text-hb-ink-soft">· {pct(r.andel)}</span></span>
             </div>
             <div className="mt-1.5 h-1.5 w-full rounded-full bg-hb-sage/60"><div className="h-1.5 rounded-full bg-hb-evergreen" style={{ width: `${Math.max(2, Math.round(r.andel * 100))}%` }} /></div>
           </li>
         ))}
       </ul>
+      <p className="mt-3 text-sm text-hb-ink-soft" data-kundevaerdi-tekst>
+        {kundevaerdiTekst(k)} <span className="text-hb-ink-soft">({kr(k.betalt_i_alt_oere)} fra {k.kunder} kunder)</span>
+      </p>
     </div>
   );
 };
@@ -245,13 +252,14 @@ const Udestaaende = ({ dom }: { dom: Extract<DashboardDom, { tom: false }> }) =>
   return (
     <div className="grid gap-8 md:grid-cols-2" data-oekonomi-udestaaende={u.raekker.length}>
       <div>
-        <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft">Betalt mindre end anerkendt · {kr(u.i_alt_oere)}</p>
-        {u.raekker.length === 0 ? <p className="mt-2 text-sm text-hb-ink-soft">Ingen — alle har betalt mindst det anerkendte.</p> : (
+        {/* Ø3b: forfaldne betalinger der ikke er kommet — ikke «anerkendt, men ikke betalt» (timing på rater med fast trækdato). */}
+        <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft">Forfaldent, ikke betalt · {kr(u.i_alt_oere)}</p>
+        {u.raekker.length === 0 ? <p className="mt-2 text-sm text-hb-ink-soft">Ingen — alle forfaldne betalinger er kommet.</p> : (
           <ul className="mt-2">
             {u.raekker.map((r) => (
               <li key={r.company_id} className="flex items-baseline justify-between gap-4 border-t border-hb-line py-2.5 text-sm last:border-b" data-udest-raekke={r.company_id}>
-                <span className="text-hb-ink">{r.navn} <span className="text-hb-ink-soft">· betalt {kr(r.betalt_oere)} af {kr(r.anerkendt_oere)}</span></span>
-                <span className="tabular-nums text-hb-rust">{kr(r.forskel_oere)}</span>
+                <span className="text-hb-ink">{r.navn} <span className="text-hb-ink-soft">· forfaldent {kr(r.forfaldent_oere)}, betalt {kr(r.betalt_oere)}</span></span>
+                <span className="tabular-nums text-hb-rust">{kr(r.udestaaende_oere)}</span>
               </li>
             ))}
           </ul>
@@ -320,11 +328,12 @@ export const OekonomiView = ({ nu = new Date() }: { nu?: Date }) => {
             <Prisudvikling dom={dom} />
           </HbSection>
 
-          <HbSection eyebrow="Koncentration" title="De fem største" hairline className={sektion}>
-            <Koncentration dom={dom} />
+          <HbSection eyebrow="Kundeværdi" title="De 10 største kunder" hairline className={sektion}>
+            <p className="mb-4 text-sm text-hb-ink-soft">Samlet betalt ekskl. moms siden første betaling — andel af alt, antal kontraktår og status.</p>
+            <Kundevaerdi dom={dom} />
           </HbSection>
 
-          <HbSection eyebrow="Udestående" title="Ikke betalt endnu" hairline className={sektion}>
+          <HbSection eyebrow="Udestående" title="Forfaldne betalinger der ikke er kommet" hairline className={sektion}>
             <Udestaaende dom={dom} />
           </HbSection>
         </>
