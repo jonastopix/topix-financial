@@ -25,11 +25,18 @@ const skridt = (over: Partial<SkridtTilDineMaal> & { id: string; maal_id: string
 });
 
 describe("dineMaalDom — medlemmets handlinger", () => {
+  it("«Tilføj skridt» (17/9, Jonas «ja»): KUN under aktive mål — ikke parkerede, ikke nåede", () => {
+    const d = dineMaalDom([maal({ id: "a" }), maal({ id: "p", status: "parked" }), maal({ id: "n", status: "completed", completed_at: "2026-09-12T00:00:00Z" })], [], NU);
+    expect(d.aktive[0].handlinger.kanTilfoejeSkridt).toBe(true);
+    expect(d.parkerede[0].handlinger.kanTilfoejeSkridt).toBe(false);
+    expect(d.naaede[0].handlinger.kanTilfoejeSkridt).toBe(false);
+  });
   it("aktivt mål: nået, parkér, slet — og skyderen KUN uden tællende skridt", () => {
     const d = dineMaalDom([maal({ id: "u" }), maal({ id: "m" })], [skridt({ id: "s1", maal_id: "m" })], NU);
     const uden = d.aktive.find((x) => x.plan.maal.id === "u")!;
     const med = d.aktive.find((x) => x.plan.maal.id === "m")!;
-    expect(uden.handlinger).toEqual({ kanMarkereNaaet: true, kanGenaabne: false, kanParkere: true, kanAktivere: false, kanSlette: true, kanSaetteFremdrift: true });
+    // Før (17/9): toEqual uden kanTilfoejeSkridt — «Tilføj skridt» (skridt-tilfoej) kom til 17/9.
+    expect(uden.handlinger).toEqual({ kanMarkereNaaet: true, kanGenaabne: false, kanParkere: true, kanAktivere: false, kanSlette: true, kanSaetteFremdrift: true, kanTilfoejeSkridt: true });
     expect(med.handlinger.kanSaetteFremdrift).toBe(false);
     expect(med.plan.beregnet).toBe(true);
     expect(uden.plan.beregnet).toBe(false);

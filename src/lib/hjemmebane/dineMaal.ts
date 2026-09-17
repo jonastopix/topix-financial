@@ -62,6 +62,8 @@ export interface MedlemsHandlinger {
   kanSlette: boolean;
   /** Skyderen/«nuværende værdi»: kun aktive mål UDEN tællende skridt. */
   kanSaetteFremdrift: boolean;
+  /** «Tilføj skridt» (skridt-tilfoej, 17/9 — Jonas «ja»): KUN under aktive mål — ikke parkerede, ikke nåede. */
+  kanTilfoejeSkridt: boolean;
 }
 
 export interface MaalForMedlem {
@@ -136,10 +138,10 @@ export function graenseTekst(antalAktive: number): string {
 function medHandlinger(x: MaalIPlanen, skridtAf: Map<string, SkridtTilDineMaal[]>, plads: boolean): MaalForMedlem {
   const alleGjort = x.beregnet && x.fremdrift >= 100;
   const handlinger: MedlemsHandlinger = x.dom.aktiv
-    ? { kanMarkereNaaet: true, kanGenaabne: false, kanParkere: true, kanAktivere: false, kanSlette: true, kanSaetteFremdrift: !x.beregnet }
+    ? { kanMarkereNaaet: true, kanGenaabne: false, kanParkere: true, kanAktivere: false, kanSlette: true, kanSaetteFremdrift: !x.beregnet, kanTilfoejeSkridt: true }
     : x.dom.parkeret
-      ? { kanMarkereNaaet: false, kanGenaabne: false, kanParkere: false, kanAktivere: plads, kanSlette: true, kanSaetteFremdrift: false }
-      : { kanMarkereNaaet: false, kanGenaabne: plads && !alleGjort, kanParkere: false, kanAktivere: false, kanSlette: true, kanSaetteFremdrift: false };
+      ? { kanMarkereNaaet: false, kanGenaabne: false, kanParkere: false, kanAktivere: plads, kanSlette: true, kanSaetteFremdrift: false, kanTilfoejeSkridt: false }
+      : { kanMarkereNaaet: false, kanGenaabne: plads && !alleGjort, kanParkere: false, kanAktivere: false, kanSlette: true, kanSaetteFremdrift: false, kanTilfoejeSkridt: false };
   const linjer = skridtLinjer(skridtAf.get(x.maal.id) ?? []);
   return { plan: x, handlinger, skridtLinjer: linjer, fremdriftTekst: fremdriftTekst(x), gjorte: x.skridt.gjorte.length };
 }
@@ -182,3 +184,7 @@ export function modMaaletTekst(maal: readonly Pick<MaalRaekke, "id" | "title">[]
 export const DINE_MAAL_TOM_TEKST = "I har ikke sat mål endnu. Sæt det første — det er din virksomheds plan.";
 export const DINE_MAAL_FEJL_TEKST = "Dine mål kunne ikke hentes. Prøv igen.";
 export const DINE_SKRIDT_FEJL_TEKST = "Dine skridt kunne ikke hentes. Prøv igen.";
+/** «Tilføj skridt» (skridt-tilfoej, 17/9): ordene ét sted — knappen, formularen og fejlen. */
+export const TILFOEJ_SKRIDT_KNAP_TEKST = "Tilføj skridt";
+export const TILFOEJ_SKRIDT_FEJL_TEKST = "Skridtet blev ikke tilføjet";
+export const TILFOEJ_SKRIDT_OK_TEKST = "Skridtet er tilføjet — det tæller med i målets fremdrift";

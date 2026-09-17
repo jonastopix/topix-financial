@@ -6,8 +6,9 @@ import { join, resolve } from "node:path";
 //   1. Migrationen: maal_id uuid → milestones ON DELETE SET NULL, det
 //      partielle indeks, milestones.completed_at, triggeren — og INGEN
 //      politik (RLS er fase 2 og kræver grønt lys).
-//   2. maal_id skrives KUN af de planlagte skrivere: i dag foreslaa-opgave
-//      (insert). Ingen anden fil i supabase/functions eller src skriver
+//   2. maal_id skrives KUN af de planlagte skrivere: foreslaa-opgave (fase 1),
+//      generate-weekly-focus og run-company-agent (fase 5), skridt-tilfoej
+//      (17/9, medlemmets eget). Ingen anden fil i supabase/functions eller src skriver
 //      `maal_id:` i en insert/update. opgave-luk LÆSER den (select) og
 //      skriver den aldrig.
 //   3. Fremdriften regnes KUN af motoren: opgave-luk's eneste skrivning til
@@ -26,6 +27,7 @@ const udenSqlKommentarer = (k: string) => k.replace(/--[^\n]*/g, "");
 const MIGRATION = "supabase/migrations/20260917140000_maal_og_skridt.sql";
 const LUK = "supabase/functions/opgave-luk/index.ts";
 const FORESLAA = "supabase/functions/foreslaa-opgave/index.ts";
+const TILFOEJ = "supabase/functions/skridt-tilfoej/index.ts";
 const MOTOR_DENO = "supabase/functions/_shared/maal.ts";
 const MOTOR_SRC = "src/lib/hjemmebane/maal.ts";
 const PARITET = "src/lib/__tests__/maalParitet.test.ts";
@@ -92,12 +94,14 @@ describe("maal.guard — fase 1: maal_id, fremdrift og paritet", () => {
   it("dom 1: migrationen er additiv — FK ON DELETE SET NULL, partielt indeks, completed_at + trigger, ingen politik, ingen DEFINER", () => {
     expect(migrationenHolder(udenSqlKommentarer(laes(MIGRATION)))).toBe(true);
   });
-  it("dom 2: maal_id skrives kun af de planlagte skrivere — foreslaa-opgave (fase 1) og de to AI-skrivere (fase 5); ingen anden fil under supabase/functions eller src", () => {
+  it("dom 2: maal_id skrives kun af de planlagte skrivere — foreslaa-opgave (fase 1), de to AI-skrivere (fase 5) og skridt-tilfoej (17/9); ingen anden fil under supabase/functions eller src", () => {
     // Før (fase 1): expect(skrivere).toEqual([FORESLAA]);
+    // Før (fase 5, til 17/9): expect(skrivere).toEqual([FORESLAA, "supabase/functions/generate-weekly-focus/index.ts", "supabase/functions/run-company-agent/index.ts"].sort());
+    // 17/9 (Jonas «ja»): skridt-tilfoej — medlemmets eget skridt under sit aktive mål — er den fjerde skriver (værnet: skridtMaal.guard dom 4).
     const skrivere = [...alleFiler("supabase/functions"), ...alleFiler("src")]
       .filter((f) => !f.includes("__tests__") && !f.endsWith(".test.ts"))
       .filter((f) => skriverAfMaalId(udenKommentarer(laes(f))));
-    expect(skrivere).toEqual([FORESLAA, "supabase/functions/generate-weekly-focus/index.ts", "supabase/functions/run-company-agent/index.ts"].sort());
+    expect(skrivere).toEqual([FORESLAA, "supabase/functions/generate-weekly-focus/index.ts", "supabase/functions/run-company-agent/index.ts", TILFOEJ].sort());
     expect(foreslaaHolder(udenKommentarer(laes(FORESLAA)))).toBe(true);
   });
   it("dom 3: opgave-luk læser maal_id, lader motoren regne og skriver kun progress", () => {

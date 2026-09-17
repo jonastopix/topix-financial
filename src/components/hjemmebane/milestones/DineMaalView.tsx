@@ -9,7 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { kraevRaekker } from "@/lib/kraevRaekker";
 import { MILESTONE_CATEGORIES, type MilestoneCategory } from "@/lib/milestoneCategories";
 import { MILESTONE_SUGGESTIONS } from "@/lib/milestoneSuggestions";
-import { dineMaalDom, DINE_SKRIDT_FEJL_TEKST, type SkridtTilDineMaal } from "@/lib/hjemmebane/dineMaal";
+import { dineMaalDom, DINE_SKRIDT_FEJL_TEKST, TILFOEJ_SKRIDT_FEJL_TEKST, TILFOEJ_SKRIDT_OK_TEKST, type SkridtTilDineMaal } from "@/lib/hjemmebane/dineMaal";
 import type { MaalRaekke } from "@/lib/hjemmebane/planen";
 import { MAX_AKTIVE_MAAL } from "@/lib/hjemmebane/maal";
 import { HbAdvisorCompanyPrompt } from "../HbAdvisorCompanyPrompt";
@@ -125,6 +125,41 @@ export const DineMaalView = () => {
     onError: (e: Error) => toast.error("Skridtet blev ikke lukket", { description: e.message }),
   });
 
+  // «Tilføj skridt» (skridt-tilfoej, 17/9 — Jonas «ja», fristen «1»): medlemmets
+  // eget skridt under et aktivt mål, aktivt fra start. Functionen dømmer
+  // (medlemskab, målet aktivt, titel, frist, dubletkontrol); fejl-body'en vises
+  // ordret under formularen (opgaveMutation-mønstret); bagefter genhentes
+  // skridt og mål, så fremdriften rykker i samme render.
+  const tilfoejMutation = useMutation({
+    mutationFn: async (input: { maalId: string; titel: string; dueDate: string }) => {
+      const { error } = await supabase.functions.invoke("skridt-tilfoej", { body: { companyId, ...input } });
+      if (error) {
+        let besked = error.message;
+        try {
+          const svar = await (error as { context?: { json?: () => Promise<{ error?: string }> } }).context?.json?.();
+          if (svar?.error) besked = svar.error;
+        } catch { /* behold error.message */ }
+        throw new Error(besked);
+      }
+    },
+    onSuccess: async () => {
+      toast.success(TILFOEJ_SKRIDT_OK_TEKST);
+      await queryClient.invalidateQueries({ queryKey: ["dine-maal"] });
+      await queryClient.invalidateQueries({ queryKey: ["boardroom"] });
+      genhent();
+    },
+  });
+  const tilfoejSkridt = async (maalId: string, titel: string, dueDate: string): Promise<string | null> => {
+    try {
+      await tilfoejMutation.mutateAsync({ maalId, titel, dueDate });
+      return null;
+    } catch (e) {
+      const besked = e instanceof Error ? e.message : String(e);
+      toast.error(TILFOEJ_SKRIDT_FEJL_TEKST, { description: besked });
+      return besked;
+    }
+  };
+
   const [opretAaben, setOpretAaben] = useState(false);
   const [forudfyldt, setForudfyldt] = useState<Partial<NyMilestone> | null>(null);
   const [aabenId, setAabenId] = useState<string | null>(null);
@@ -138,7 +173,7 @@ export const DineMaalView = () => {
   const aaben: Milestone | null = milestones.find((m) => m.id === aabenId) ?? null;
   const aabenBeregnet = aaben ? [...dom.aktive, ...dom.parkerede, ...dom.naaede].find((x) => x.plan.maal.id === aaben.id)?.plan.beregnet ?? false : false;
   const tilSletning: Milestone | null = milestones.find((m) => m.id === sletId) ?? null;
-  const busy = gjortMutation.isPending;
+  const busy = gjortMutation.isPending || tilfoejMutation.isPending;
 
   if (isAdvisor && !companyId) {
     return <HbAdvisorCompanyPrompt />;
@@ -174,6 +209,7 @@ export const DineMaalView = () => {
         onParker={() => void opdaterFelt(ms.id, { status: "parked" })}
         onSlet={() => setSletId(ms.id)}
         onSkridtGjort={(id) => gjortMutation.mutate(id)}
+        onTilfoejSkridt={tilfoejSkridt}
       />
     );
   };

@@ -39,6 +39,18 @@ export interface SkridtRaekke {
   status: string;
   due_date: string | null;
   maal_id: string | null;
+  /** company_actions.source_type — 'manual' er medlemmets eget skridt (skridt-tilfoej, 17/9). Valgfri: ældre kaldere læser den ikke. */
+  source_type?: string | null;
+}
+
+/** Medlemmets eget skridt (skridt-tilfoej, 17/9 — Jonas «ja»): source_type
+    'manual' — den gamle Milestones-sides værdi for medlemmets egne opgaver,
+    som ingen anden skriver bruger i dag. Rådgiveren ser mærket i Planen. */
+export const MEDLEMMETS_EGET_KILDE = "manual";
+export const MEDLEMMETS_EGET_TEKST = "medlemmets eget";
+
+export function erMedlemmetsEget(s: Pick<SkridtRaekke, "source_type">): boolean {
+  return s.source_type === MEDLEMMETS_EGET_KILDE;
 }
 
 export type SkridtGruppe = "venter" | "aktive" | "gjorte" | "andre";

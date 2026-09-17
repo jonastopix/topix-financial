@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { fremdriftTekst, grupperSkridt, planenDom, planenTekst, udenBevaegelseTekst, type MaalRaekke, type SkridtRaekke } from "@/lib/hjemmebane/planen";
+import { erMedlemmetsEget, fremdriftTekst, grupperSkridt, MEDLEMMETS_EGET_KILDE, MEDLEMMETS_EGET_TEKST, planenDom, planenTekst, udenBevaegelseTekst, type MaalRaekke, type SkridtRaekke } from "@/lib/hjemmebane/planen";
 
 /* «Planen» på virksomhedssiden (fase 2, 16/9): målene i tre grupper, skridt
    under hvert, knappernes tilstand, gennemgangen ved flere end tre aktive. */
@@ -116,5 +116,22 @@ describe("planenTekst", () => {
     expect(planenTekst(2, 0, 1, false)).toBe("2 af 3 aktive · 1 nået");
     expect(planenTekst(3, 2, 0, false)).toBe("3 af 3 aktive · 2 parkerede");
     expect(planenTekst(0, 1, 0, false)).toBe("0 af 3 aktive · 1 parkeret");
+  });
+});
+
+describe("erMedlemmetsEget — mærket «medlemmets eget» (skridt-tilfoej, 17/9)", () => {
+  it("source_type 'manual' er medlemmets eget; advisor/ai_weekly/agent, null og udeladt er det ikke", () => {
+    expect(MEDLEMMETS_EGET_KILDE).toBe("manual");
+    expect(MEDLEMMETS_EGET_TEKST).toBe("medlemmets eget");
+    expect(erMedlemmetsEget(skridt({ id: "e", maal_id: "m", source_type: "manual" }))).toBe(true);
+    for (const k of ["advisor", "ai_weekly", "agent", "reflection", null, undefined]) {
+      expect(erMedlemmetsEget(skridt({ id: "x", maal_id: "m", source_type: k }))).toBe(false);
+    }
+  });
+  it("skridtet grupperes som alle andre — kilden ændrer ikke gruppen eller fremdriften", () => {
+    const d = planenDom([maal({ id: "m" })], [skridt({ id: "e", maal_id: "m", source_type: "manual" }), skridt({ id: "g", maal_id: "m", status: "done", source_type: "manual" })], NU);
+    expect(d.aktive[0].skridt.aktive.map((s) => s.id)).toEqual(["e"]);
+    expect(d.aktive[0].skridt.gjorte.map((s) => s.id)).toEqual(["g"]);
+    expect(d.aktive[0].fremdrift).toBe(50);
   });
 });
