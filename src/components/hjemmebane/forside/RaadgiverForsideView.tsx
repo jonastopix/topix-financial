@@ -27,6 +27,8 @@ import {
 } from "@/lib/hjemmebane/ubesvaredeOpslag";
 import { KILDE_PRAESENTATION, KILDE_PRAESENTATION_LABEL } from "@/lib/hjemmebane/praesentation";
 import { KOHORTE_KEY, hentKohorte } from "@/hooks/kohorte";
+import { DAGENS_SESSIONER_KEY, hentDagensSessioner } from "@/hooks/dagensSessioner";
+import { INGEN_SESSIONER_TEKST, SESSIONER_OVERSKRIFT, dagensSessioner, sessionLinjeTekst } from "@/lib/hjemmebane/dagensSessioner";
 import { IKKE_KOMMET_IGEN_PRAEFIKS, KOHORTE_OVERSKRIFT, ikkeKommetIgenDele, ikkeKommetIgenHale, kohorteLinje, kohorteTekst, startetIDagTekst } from "@/lib/hjemmebane/kohorte";
 import { HbTag } from "@/components/hjemmebane/HbTag";
 import { HbAvatar } from "@/components/hjemmebane/HbAvatar";
@@ -82,11 +84,18 @@ import { raadgiverHentefejlTekst } from "@/lib/raadgiverHentefejl";
  *
  * TO KOLONNER (Jonas 8/9): på desktop står dommen og jeres to-do-liste i
  * venstre kolonne (to tredjedele) — det man læser først og handler på —
- * og det der orienterer i højre (en tredjedel, smallere): tallene under
- * stregen nu, pulsen og «siden sidst» senere. På mobil én kolonne: dom,
- * liste, højre. Listen står HER med skrivefelt — ikke bag et menupunkt
- * («et menupunkt vi aldrig nogensinde kommer til at arbejde med»). Se
- * OpgavelisteViews filhoved.
+ * og det der orienterer i højre (en tredjedel, smallere). Listen står HER
+ * med skrivefelt — ikke bag et menupunkt («et menupunkt vi aldrig
+ * nogensinde kommer til at arbejde med»). Se OpgavelisteViews filhoved.
+ *
+ * HØJRE EFTER TID og UNDER STREGEN I VENSTRE (Jonas 17/9 «AA», valg 1;
+ * analyse-raadgivernes-forside.md §5–§6 forslag 2): «Under stregen» er
+ * dommens egen rest og står nu lige under linjerne, før listen. Højre er
+ * tre grupper — «I dag» (Sessioner i dag, Online nu, Ubesvarede opslag,
+ * Driften KUN når rød), «Ugen» (Siden sidst), «Måneden» (Pulsen, Nye
+ * medlemmer) — så det der er nu står øverst og månedstallene nederst. På
+ * mobil: dommen → Under stregen → «I dag» → Jeres liste → Ugen/Måneden.
+ * Målingslinjen er væk (PR 1).
  *
  * LUKNINGEN (Jonas 8/9, lib/opgaveLukning): hver virksomhedslinje har to
  * handlinger, «Færdiggjort» og «Ikke relevant». Ingen «Udsæt». Fladen
@@ -301,6 +310,16 @@ export const RaadgiverForsideView = () => {
     enabled: !!user && online.status === "live" && online.ids.length > 0,
     staleTime: 5 * 60_000,
   });
+  // Sessioner i dag (17/9, PR 2; hooks/dagensSessioner + lib/hjemmebane/
+  // dagensSessioner): bookede sessioner med start på dagens danske dato —
+  // «10:00 Floren Engros · Morten» → virksomhedssiden. Én nøgle, egen
+  // hentning. Hook i topblokken, før nogen betinget return (React #310).
+  const sessionerQuery = useQuery({
+    queryKey: DAGENS_SESSIONER_KEY,
+    queryFn: () => hentDagensSessioner(),
+    enabled: !!user,
+    staleTime: 60_000,
+  });
   // Lukningen — hook i TOPBLOKKEN, før nogen betinget return (React #310).
   // Skriv, så hent igen: dommen afgør hvad der står; ingen lokal patch.
   const lukning = useMutation({
@@ -368,17 +387,23 @@ export const RaadgiverForsideView = () => {
         )}
       </section>
 
-      {/* ── TO KOLONNER (Jonas 8/9): venstre to tredjedele — dommen øverst,
-          jeres liste under den; højre en tredjedel — det der ORIENTERER
-          frem for at kræve (tallene under stregen nu; pulsen og «siden
-          sidst» kommer i en senere PR). Højre er smallere med vilje: er de
-          lige brede, ved man ikke hvor man skal starte. Formen er husets
-          (CommunityView:158: lg:grid + minmax(0, …) + lg:items-start +
-          lg:gap-12); under lg falder det til én kolonne i DOM-rækkefølgen
-          dom → liste → højre. Fuldhøjde og papir-grunden ejes af
-          HbMemberShell (hbFuldhoejde.guard), ikke af denne flade. */}
-      <div className="mt-10 lg:grid lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] lg:items-start lg:gap-12">
-        <div className="min-w-0">
+      {/* ── TO KOLONNER, FIRE FELTER (Jonas 8/9 to kolonner; 17/9 «AA», valg 1
+          — højre kolonne efter TID, «Under stregen» op i venstre):
+            venstre  række 1: dommen + Under stregen · række 2: Jeres liste
+            højre    række 1: «I dag» (Sessioner i dag, Online nu, Ubesvarede
+                     opslag, Driften kun når rød) · række 2: «Ugen» (Siden
+                     sidst) og «Måneden» (Pulsen, Nye medlemmer)
+          Under lg falder gridet til én kolonne i DOM-rækkefølgen: dommen →
+          Under stregen → «I dag» → Jeres liste → Ugen/Måneden — det der er
+          «nu» før listen, listen før månedstallene (medlemmets forside PR 3
+          løste mobilen på samme måde: col-/row-start på md+, DOM-orden under).
+          AFVEJNINGEN: to grid-rækker frem for én højre spalte der spænder
+          begge rækker — prisen er at række 1 er så høj som den højeste af
+          dommen og «I dag»; er dommen kort (0 linjer) og «I dag» lang,
+          begynder Jeres liste lidt under dommens slutning. Vundet: den
+          mobile rækkefølge uden order-klasser eller dobbeltrendering. */}
+      <div className="mt-10 lg:grid lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] lg:items-start lg:gap-x-12" data-forside-grid>
+        <div className="min-w-0 lg:col-start-1 lg:row-start-1" data-forside-felt="dommen">
           {/* ── Dommen (§1–§6) ── */}
           {dom.linjer.length > 0 && (
             <section className="max-w-3xl">
@@ -395,17 +420,77 @@ export const RaadgiverForsideView = () => {
             </section>
           )}
 
-          {/* ── Jeres liste (Jonas 8/9): UNDER DOMMEN, i venstre kolonne, med
-              skrivefeltet synligt — dommen er stadig det første man læser, og
-              listen er det man skriver i, når man kommer fra en chat. Samme
-              komponent som /opgaver, i forsidens udgave: skrivefeltet først,
-              forfaldne og dagens altid, resten op til et loft, «vis alle» til
-              siden. */}
-          <OpgavelisteView paaForsiden />
+          {/* ── UNDER STREGEN (§5) — flyttet fra højre spalte til VENSTRE, lige
+              under dommens linjer og før «Jeres liste» (Jonas 17/9 «AA», valg 1):
+              det er dommens egen rest — «ni andre har noget mindre presserende»
+              — ikke orientering. Samme linjer og links som før (samletLinjeLink). */}
+          <section className="mt-6 max-w-3xl space-y-1 text-sm text-hb-ink-soft" data-under-stregen>
+          <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft">Under stregen</p>
+          {antalUnder > 0 && (
+            <p>
+              <Link to="/virksomheder" className="text-hb-evergreen underline-offset-4 hover:underline">
+                {antalUnder} {antalUnder === 1 ? "anden virksomhed har" : "andre virksomheder har"} noget mindre presserende
+              </Link>
+            </p>
+          )}
+          {under.tilstande.map((t) => (
+            <p key={`t:${t.slags}`}>
+              <Link
+                to={samletLinjeLink(t)}
+                className="text-hb-evergreen underline-offset-4 hover:underline"
+              >
+                {t.tekst}
+              </Link>
+            </p>
+          ))}
+          {under.pukler.map((p) => (
+            <p key={`p:${p.slags}`}>
+              <Link to={samletLinjeLink(p)} className="text-hb-evergreen underline-offset-4 hover:underline">
+                {p.tekst}
+              </Link>
+            </p>
+          ))}
+          {dom.linjer.length === 0 && antalUnder === 0 && under.tilstande.length === 0 && under.pukler.length === 0 && (
+            <p>
+              Ingen tavse, ingen ubesvarede, intet der stikker ud.{" "}
+              <Link to="/virksomheder" className="text-hb-evergreen underline-offset-4 hover:underline">Se virksomhederne</Link>, hvis du alligevel vil kigge.
+            </p>
+          )}
+          </section>
         </div>
 
-        {/* ── Højre: det der orienterer. Under stregen (§5): tal, ikke lister ── */}
-        <aside className="mt-10 min-w-0 space-y-1 text-sm text-hb-ink-soft lg:mt-0 lg:border-l lg:border-hb-line lg:pl-8">
+        {/* ── Højre, række 1: «I DAG» — det der er nu ── */}
+        <aside className="mt-10 min-w-0 space-y-1 text-sm text-hb-ink-soft lg:col-start-2 lg:row-start-1 lg:mt-0 lg:border-l lg:border-hb-line lg:pl-8" data-forside-felt="i-dag">
+        <p className="mb-3 text-xs font-medium uppercase tracking-[0.14em] text-hb-rust">I dag</p>
+        {/* SESSIONER I DAG (17/9, PR 2 — NY; lib/hjemmebane/dagensSessioner +
+            hooks/dagensSessioner): «10:00 Floren Engros · Morten» → virksomhedssiden.
+            Fem minutter før et møde er dette det første rådgiveren skal se.
+            Fejl siges med husets hentefejltekst — aldrig «Ingen sessioner i dag». */}
+        <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft">{SESSIONER_OVERSKRIFT}</p>
+        {sessionerQuery.isLoading ? (
+          <div aria-hidden className="pb-4"><div className="h-3 w-2/3 animate-pulse rounded bg-hb-line/60" /></div>
+        ) : sessionerQuery.isError ? (
+          <p className="pb-4 text-xs">{raadgiverHentefejlTekst(sessionerQuery.error, "forsiden")}</p>
+        ) : sessionerQuery.data ? (
+          (() => {
+            const liste = dagensSessioner({ ...sessionerQuery.data, nu: new Date() });
+            return liste.length > 0 ? (
+              <ul className="space-y-1 pb-4" data-sessioner-i-dag={liste.length}>
+                {liste.map((s) => (
+                  <li key={s.id}>
+                    {s.companyId ? (
+                      <Link to={virksomhedsLink(s.companyId)} className={TEKSTLINK}>{sessionLinjeTekst(s)}</Link>
+                    ) : (
+                      sessionLinjeTekst(s)
+                    )}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="pb-4">{INGEN_SESSIONER_TEKST}</p>
+            );
+          })()
+        ) : null}
         {/* ONLINE NU (Jonas 16/9, lib/hjemmebane/online + hooks/onlineMedlemmer):
             profilbilleder af de medlemmer der har appen åben lige nu — det
             eneste på siden der er «nu», derfor øverst. Navn (+ « · Legat») ved
@@ -470,25 +555,43 @@ export const RaadgiverForsideView = () => {
             </>
           );
         })()}
-        {/* PULSEN (Jonas 8/9, lib/pulsen): fire tal for hele porteføljen, læses
-            hver morgen. Tallene er MOTORERNES — tavshed er virksomhedsSignalers
-            21 dage, fornyelser er dommens FORNYELSE_VENTER_STATUSSER, «har
-            rapporteret» er seneste afsluttede måned med målte tal. Ingen
-            grafer; klik hvor der er nogen at klikke på. */}
-        <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft">Pulsen</p>
-        <ul className="space-y-1 pb-4">
-          {pulsLinjer(data.pulsen).map((l) => (
-            <li key={l.noegle} className={cn(l.noegle === "tavse" && data.pulsen.tavse.antal > 0 && "text-hb-rust")}>
-              {l.to ? (
-                <Link to={l.to} className={cn("underline-offset-4 hover:underline", l.noegle === "tavse" && data.pulsen.tavse.antal > 0 ? "text-hb-rust" : "text-hb-evergreen")}>
-                  {l.tekst}
-                </Link>
-              ) : (
-                l.tekst
-              )}
-            </li>
-          ))}
-        </ul>
+        {/* UBESVAREDE OPSLAG (Jonas 16/9, valg B): «et eget kort på forsiden
+            … med medlemmers opslag fra de sidste 14 dage som ingen rådgiver
+            har svaret på, og et link til hvert». Forsvinder af sig selv når
+            en af rådgiverne har svaret (dommen læser svarene). Højst fem
+            linjer; flere → «og N mere i fællesskabet». Fejl siges med husets
+            hentefejltekst — aldrig en tom liste der ligner «alt besvaret». */}
+        <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft">{KORT_OVERSKRIFT}</p>
+        {ubesvaredeQuery.isLoading ? (
+          <div aria-hidden className="pb-4"><div className="h-3 w-2/3 animate-pulse rounded bg-hb-line/60" /></div>
+        ) : ubesvaredeQuery.isError ? (
+          <p className="pb-4 text-xs">{raadgiverHentefejlTekst(ubesvaredeQuery.error, "forsiden")}</p>
+        ) : ubesvaredeQuery.data ? (
+          (() => {
+            const nu = new Date();
+            const { liste, ialt } = ubesvaredeOpslag({ ...ubesvaredeQuery.data, nu });
+            if (ialt === 0) return <p className="pb-4">{ALLE_BESVARET_TEKST}</p>;
+            const { viste, flere } = kortUdsnit(liste);
+            return (
+              <ul className="space-y-1 pb-4" data-ubesvarede-opslag={ialt}>
+                {viste.map((t) => (
+                  <li key={t.id}>
+                    <Link to={traadSti(t.id)} className="text-hb-evergreen underline-offset-4 hover:underline">
+                      {linjeTekst(t)}
+                    </Link>
+                    <span className="text-hb-ink-soft"> · {alderTekst(t.created_at, nu)}</span>
+                    {t.kilde_type === KILDE_PRAESENTATION && <HbTag className="ml-2">{KILDE_PRAESENTATION_LABEL}</HbTag>}
+                  </li>
+                ))}
+                {flere > 0 && (
+                  <li>
+                    <Link to="/community" className="text-hb-evergreen underline-offset-4 hover:underline">{flereTekst(flere)}</Link>
+                  </li>
+                )}
+              </ul>
+            );
+          })()
+        ) : null}
         {/* DRIFTEN (9/9, lib/cronVagt): vagten i databasen dømmer hver time —
             vault, cron-svarene, mailkøen — og skriver til cron_vagt_log. Her
             står kun én linje: grøn er ink-soft, rød er rust med hvad der er
@@ -498,8 +601,24 @@ export const RaadgiverForsideView = () => {
           <p className="pb-4">Driften: vagten kunne ikke hentes lige nu.</p>
         ) : (() => {
           const v = vagtLinje(vagtQuery.data ?? [], new Date());
-          return <p className={cn("pb-4", v.tone === "rust" && "text-hb-rust")}>{v.tekst}</p>;
+          // KUN når rød (17/9, PR 2): grøn drift er ingen nyhed og får ingen
+          // plads i «I dag»; klokkens drift-notifikation lander på «/», hvor
+          // den røde linje står. Fejl siges stadig.
+          return v.tone === "rust" ? <p className="pb-4 text-hb-rust">{v.tekst}</p> : null;
         })()}
+        </aside>
+
+        {/* ── Venstre, række 2: Jeres liste (Jonas 8/9): UNDER DOMMEN, med
+            skrivefeltet synligt — dommen er stadig det første man læser, og
+            listen er det man skriver i, når man kommer fra en chat. Samme
+            komponent som /opgaver, i forsidens udgave. */}
+        <div className="min-w-0 lg:col-start-1 lg:row-start-2" data-forside-felt="liste">
+          <OpgavelisteView paaForsiden />
+        </div>
+
+        {/* ── Højre, række 2: «UGEN» og «MÅNEDEN» — det der orienterer ── */}
+        <aside className="mt-10 min-w-0 space-y-1 text-sm text-hb-ink-soft lg:col-start-2 lg:row-start-2 lg:mt-12 lg:border-l lg:border-hb-line lg:pl-8" data-forside-felt="ugen-maaneden">
+        <p className="mb-3 text-xs font-medium uppercase tracking-[0.14em] text-hb-rust">Ugen</p>
         {/* SIDEN SIDST (Jonas 8/9, lib/sidenSidst + hooks/sidenSidst): hvad der
             har flyttet sig siden du sidst åbnede — pr. rådgiver, syv dages
             loft. Fem-seks linjer med tal og navne; tom tilstand er rolig. */}
@@ -538,6 +657,26 @@ export const RaadgiverForsideView = () => {
             );
           })()
         ) : null}
+        <p className="mb-3 text-xs font-medium uppercase tracking-[0.14em] text-hb-rust">Måneden</p>
+        {/* PULSEN (Jonas 8/9, lib/pulsen): fire tal for hele porteføljen, læses
+            hver morgen. Tallene er MOTORERNES — tavshed er virksomhedsSignalers
+            21 dage, fornyelser er dommens FORNYELSE_VENTER_STATUSSER, «har
+            rapporteret» er seneste afsluttede måned med målte tal. Ingen
+            grafer; klik hvor der er nogen at klikke på. */}
+        <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft">Pulsen</p>
+        <ul className="space-y-1 pb-4">
+          {pulsLinjer(data.pulsen).map((l) => (
+            <li key={l.noegle} className={cn(l.noegle === "tavse" && data.pulsen.tavse.antal > 0 && "text-hb-rust")}>
+              {l.to ? (
+                <Link to={l.to} className={cn("underline-offset-4 hover:underline", l.noegle === "tavse" && data.pulsen.tavse.antal > 0 ? "text-hb-rust" : "text-hb-evergreen")}>
+                  {l.tekst}
+                </Link>
+              ) : (
+                l.tekst
+              )}
+            </li>
+          ))}
+        </ul>
         {/* NYE MEDLEMMER (Jonas 16/9, lib/hjemmebane/kohorte + hooks/kohorte):
             «N af M kom igen efter dag 1» — nulpunktets regel (16/9 00:57)
             som linje, med navnene på dem der ikke er kommet igen (højst fem).
@@ -573,74 +712,6 @@ export const RaadgiverForsideView = () => {
             );
           })()
         ) : null}
-        {/* UBESVAREDE OPSLAG (Jonas 16/9, valg B): «et eget kort på forsiden
-            … med medlemmers opslag fra de sidste 14 dage som ingen rådgiver
-            har svaret på, og et link til hvert». Forsvinder af sig selv når
-            en af rådgiverne har svaret (dommen læser svarene). Højst fem
-            linjer; flere → «og N mere i fællesskabet». Fejl siges med husets
-            hentefejltekst — aldrig en tom liste der ligner «alt besvaret». */}
-        <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft">{KORT_OVERSKRIFT}</p>
-        {ubesvaredeQuery.isLoading ? (
-          <div aria-hidden className="pb-4"><div className="h-3 w-2/3 animate-pulse rounded bg-hb-line/60" /></div>
-        ) : ubesvaredeQuery.isError ? (
-          <p className="pb-4 text-xs">{raadgiverHentefejlTekst(ubesvaredeQuery.error, "forsiden")}</p>
-        ) : ubesvaredeQuery.data ? (
-          (() => {
-            const nu = new Date();
-            const { liste, ialt } = ubesvaredeOpslag({ ...ubesvaredeQuery.data, nu });
-            if (ialt === 0) return <p className="pb-4">{ALLE_BESVARET_TEKST}</p>;
-            const { viste, flere } = kortUdsnit(liste);
-            return (
-              <ul className="space-y-1 pb-4" data-ubesvarede-opslag={ialt}>
-                {viste.map((t) => (
-                  <li key={t.id}>
-                    <Link to={traadSti(t.id)} className="text-hb-evergreen underline-offset-4 hover:underline">
-                      {linjeTekst(t)}
-                    </Link>
-                    <span className="text-hb-ink-soft"> · {alderTekst(t.created_at, nu)}</span>
-                    {t.kilde_type === KILDE_PRAESENTATION && <HbTag className="ml-2">{KILDE_PRAESENTATION_LABEL}</HbTag>}
-                  </li>
-                ))}
-                {flere > 0 && (
-                  <li>
-                    <Link to="/community" className="text-hb-evergreen underline-offset-4 hover:underline">{flereTekst(flere)}</Link>
-                  </li>
-                )}
-              </ul>
-            );
-          })()
-        ) : null}
-        <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft">Under stregen</p>
-        {antalUnder > 0 && (
-          <p>
-            <Link to="/virksomheder" className="text-hb-evergreen underline-offset-4 hover:underline">
-              {antalUnder} {antalUnder === 1 ? "anden virksomhed har" : "andre virksomheder har"} noget mindre presserende
-            </Link>
-          </p>
-        )}
-        {under.tilstande.map((t) => (
-          <p key={`t:${t.slags}`}>
-            <Link
-              to={samletLinjeLink(t)}
-              className="text-hb-evergreen underline-offset-4 hover:underline"
-            >
-              {t.tekst}
-            </Link>
-          </p>
-        ))}
-        {under.pukler.map((p) => (
-          <p key={`p:${p.slags}`}>
-            <Link to={samletLinjeLink(p)} className="text-hb-evergreen underline-offset-4 hover:underline">
-              {p.tekst}
-            </Link>
-          </p>
-        ))}
-        {dom.linjer.length === 0 && antalUnder === 0 && under.tilstande.length === 0 && under.pukler.length === 0 && (
-          <p>
-            Ingen tavse, ingen ubesvarede, intet der stikker ud.{" "}
-            <Link to="/virksomheder" className="text-hb-evergreen underline-offset-4 hover:underline">Se virksomhederne</Link>, hvis du alligevel vil kigge.
-          </p>
-        )}
         </aside>
       </div>
     </div>

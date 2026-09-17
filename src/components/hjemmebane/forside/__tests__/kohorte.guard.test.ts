@@ -33,10 +33,13 @@ const FLADE = "src/components/hjemmebane/forside/RaadgiverForsideView.tsx";
 const HOOK = "src/hooks/kohorte.ts";
 const LIB = "src/lib/hjemmebane/kohorte.ts";
 
-/** Linjeblokken: fra `{KOHORTE_OVERSKRIFT}` til `{KORT_OVERSKRIFT}` (Ubesvarede opslag). */
+/** Linjeblokken: fra `{KOHORTE_OVERSKRIFT}` til asidens slutning.
+    17/9 (PR 2, højre efter tid): var «til `{KORT_OVERSKRIFT}` (Ubesvarede
+    opslag)» — Ubesvarede står nu FØR kohorten (i «I dag»), og kohorten er
+    sidst i «Måneden». */
 export function linjeBlok(kilde: string): string {
   const start = kilde.indexOf("{KOHORTE_OVERSKRIFT}");
-  const slut = kilde.indexOf("{KORT_OVERSKRIFT}", start);
+  const slut = kilde.indexOf("</aside>", start);
   if (start === -1 || slut === -1) return "";
   return kilde.slice(start, slut);
 }
@@ -89,11 +92,16 @@ export const harFejlgren = (flade: string): boolean => {
     !blok.slice(fejl, data).includes("kohorteTekst(");
 };
 
+/** Dom 4, rettet 17/9 (PR 2, højre efter tid): var «EFTER «Siden sidst» og
+    FØR «Ubesvarede opslag»» (`kohorte > sidenSidst && opslag > kohorte`).
+    Nu: Ubesvarede står i «I dag» FØR alt det andet; kohorten står i
+    «Måneden» EFTER «Siden sidst» (Ugen) og EFTER Pulsen. */
 export const staarMellemSidenSidstOgOpslag = (flade: string): boolean => {
-  const sidenSidst = flade.indexOf("Siden sidst{");
-  const kohorte = flade.indexOf("{KOHORTE_OVERSKRIFT}");
   const opslag = flade.indexOf("{KORT_OVERSKRIFT}");
-  return sidenSidst !== -1 && kohorte > sidenSidst && opslag > kohorte;
+  const sidenSidst = flade.indexOf("Siden sidst{");
+  const pulsen = flade.indexOf(">Pulsen<");
+  const kohorte = flade.indexOf("{KOHORTE_OVERSKRIFT}");
+  return opslag !== -1 && sidenSidst > opslag && pulsen > sidenSidst && kohorte > pulsen;
 };
 
 export const danskDatoOgHusetsUdelukkelser = (lib: string): boolean =>
@@ -121,7 +129,7 @@ describe("kohorte.guard — kohortelinjen på forsiden", () => {
     expect(RAADGIVER_KILDE_ORD.user_login_log).toBe("login-historikken");
     expect(raadgiverHentefejlTekst(new HentningsFejl("user_login_log", "x"), "forsiden")).toBe("Login-historikken kunne ikke hentes — forsiden kan mangle linjer. Prøv igen.");
   });
-  it("4. linjen står efter «Siden sidst» og før «Ubesvarede opslag»", () => {
+  it("4. linjen står i «Måneden»: efter «Ubesvarede opslag», «Siden sidst» og Pulsen (17/9)", () => {
     expect(staarMellemSidenSidstOgOpslag(flade)).toBe(true);
   });
   it("5. dommen bruger dansk dato (TZ) og husets udelukkelser; startet i dag udelades af M", () => {
@@ -161,9 +169,9 @@ describe("kohorte.guard — VÆRNET VIRKER på kopier med fejlen indsat", () => 
   it("3. en flade uden fejlgren fælder dom 3", () => {
     expect(harFejlgren(flade.replace("kohorteQuery.isError ? (", "false ? ("))).toBe(false);
   });
-  it("4. linjen flyttet under «Ubesvarede opslag» fælder dom 4", () => {
+  it("4. linjen flyttet op FØR «Siden sidst» fælder dom 4 (17/9: var «under Ubesvarede»)", () => {
     const blok = linjeBlok(flade);
-    const flyttet = flade.replace(blok, "").replace("{KORT_OVERSKRIFT}", `{KORT_OVERSKRIFT}${blok}`);
+    const flyttet = flade.replace(blok, "").replace("Siden sidst{", `${blok}Siden sidst{`);
     expect(flyttet).not.toBe(flade);
     expect(staarMellemSidenSidstOgOpslag(flyttet)).toBe(false);
   });

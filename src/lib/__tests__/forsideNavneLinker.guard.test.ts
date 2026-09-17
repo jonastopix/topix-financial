@@ -44,10 +44,11 @@ export function sidenSidstBlok(flade: string): string {
   const slut = flade.indexOf("{KOHORTE_OVERSKRIFT}", start);
   return start === -1 || slut === -1 ? "" : flade.slice(start, slut);
 }
-/** Blokken for «Nye medlemmer»: fra `{KOHORTE_OVERSKRIFT}` til `{KORT_OVERSKRIFT}`. */
+/** Blokken for «Nye medlemmer»: fra `{KOHORTE_OVERSKRIFT}` til asidens slutning
+    (17/9, PR 2: var «til `{KORT_OVERSKRIFT}`» — Ubesvarede står nu før). */
 export function kohorteBlok(flade: string): string {
   const start = flade.indexOf("{KOHORTE_OVERSKRIFT}");
-  const slut = flade.indexOf("{KORT_OVERSKRIFT}", start);
+  const slut = flade.indexOf("</aside>", start);
   return start === -1 || slut === -1 ? "" : flade.slice(start, slut);
 }
 
