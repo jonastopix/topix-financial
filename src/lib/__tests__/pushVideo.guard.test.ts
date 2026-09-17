@@ -15,6 +15,8 @@ import { join, resolve } from "node:path";
 //   4. Spotify er KUN episode-embed'et: spotifyEmbedUrl bygger
 //      open.spotify.com/embed/episode/<id>; SpotifyEpisodeEmbed bruger den,
 //      loading="lazy" og title; dommen spotifyEpisodeId afviser show/track.
+//      Og (17/9, forside PR 1): iframen monteres FØRST ved klik — samme
+//      playing-gate som YouTubePlayer; ingen autoplay.
 //   5. PushView skriver media_provider og external_url SAMMEN — 'external' +
 //      linket, eller 'none' + null — aldrig external_url alene; et ugyldigt
 //      link spærrer persist.
@@ -80,13 +82,26 @@ export const nocookieEtSted = (medie: string, filer: readonly { sti: string; kod
   filer.every(({ sti, kode }) => (sti === MEDIE ? true : !/youtube-nocookie\.com\/embed|autoplay=1/.test(kode))) &&
   filer.every(({ kode }) => !/www\.youtube\.com\/embed/.test(kode));
 
-/** Dom 4: Spotify kun episode-embed. */
+/** Dom 4: Spotify kun episode-embed — og (forside PR 1, 17/9) iframen står
+    under en playing-gate som alle andre afspillere: useState(false), iframen
+    i `return playing ? (`-grenen, kortet med onClick={() => setPlaying(true)}
+    i else-grenen, ingen autoplay-tekst.
+    Før (PR A, til 17/9): kun `e.length > 0 && /src=\{spotifyEmbedUrl\(episodeId\)\}/.test(e) && /loading="lazy"/.test(e) && /title=\{`Spotify: \$\{title\}`\}/.test(e)` — iframen monteredes ved sidevisning. */
 export const spotifyKunEpisode = (medie: string, forside: string): boolean => {
   const e = blok(forside, "SpotifyEpisodeEmbed");
+  if (!e) return false;
+  const gren = e.indexOf("return playing ? (");
+  const iframe = e.indexOf("<iframe");
+  const ellers = e.indexOf(") : (", gren);
   return medie.includes("return `https://open.spotify.com/embed/episode/${episodeId}`;") &&
     /const match = parsed\.pathname\.match\(\/\^\\\/episode\\\/\(\[\^\/\]\+\)\\\/\?\$\/\);/.test(medie) &&
     /parsed\.hostname !== "open\.spotify\.com"/.test(medie) &&
-    e.length > 0 && /src=\{spotifyEmbedUrl\(episodeId\)\}/.test(e) && /loading="lazy"/.test(e) && /title=\{`Spotify: \$\{title\}`\}/.test(e) &&
+    /src=\{spotifyEmbedUrl\(episodeId\)\}/.test(e) && /loading="lazy"/.test(e) && /title=\{`Spotify: \$\{title\}`\}/.test(e) &&
+    /const \[playing, setPlaying\] = useState\(false\);/.test(e) &&
+    gren > -1 && iframe > gren && ellers > iframe &&
+    /onClick=\{\(\) => setPlaying\(true\)\}/.test(e.slice(ellers)) &&
+    (e.match(/setPlaying\(true\)/g) ?? []).length === 1 &&
+    !/autoplay/.test(e) && !/useState\(true\)/.test(e) &&
     !/embed\/(show|track|playlist)/.test(medie + forside);
 };
 
@@ -126,7 +141,7 @@ describe("pushVideo.guard — PR A: video i nyheden, én delt afspiller, iframe 
   it("dom 2+3: youtube-nocookie m. autoplay=1 bygges ét sted (pushMedie.ts); ingen youtube.com/embed i src", () => {
     expect(nocookieEtSted(medie, filer)).toBe(true);
   });
-  it("dom 4: Spotify er kun episode-embed'et — lazy, med title; show/track findes ikke", () => {
+  it("dom 4: Spotify er kun episode-embed'et — lazy, med title, bag en playing-gate (iframe først ved klik); show/track findes ikke", () => {
     expect(spotifyKunEpisode(medie, forside)).toBe(true);
   });
   it("dom 5: PushView skriver media_provider og external_url sammen; ugyldigt link spærrer gem; ingen Bunny i pushet", () => {
@@ -145,11 +160,19 @@ describe("pushVideo.guard — PR A: video i nyheden, én delt afspiller, iframe 
     expect(nocookieEtSted(medie, [...filer, { sti: "src/x.tsx", kode: 'src="https://www.youtube-nocookie.com/embed/abc?autoplay=1"' }])).toBe(false);
     expect(nocookieEtSted(medie.replace("youtube-nocookie.com/embed", "youtube.com/embed"), filer)).toBe(false);
   });
-  it("selvbevis 3: et show-embed, en iframe uden lazy, eller en dom der tager show/, falder", () => {
+  it("selvbevis 3: et show-embed, en iframe uden lazy, en dom der tager show/, eller en Spotify-iframe uden gate/med autoplay falder", () => {
     expect(spotifyKunEpisode(medie.replace("embed/episode/", "embed/show/"), forside)).toBe(false);
     // loading="lazy" findes også på billeder i forsiden — fjern netop Spotify-iframens (unik nabo: allow="clipboard-write…").
     expect(spotifyKunEpisode(medie, forside.replace(/loading="lazy"(\s+allow="clipboard-write)/, "$1"))).toBe(false);
     expect(spotifyKunEpisode(medie.replace("/^\\/episode\\/([^/]+)\\/?$/", "/^\\/(episode|show)\\/([^/]+)\\/?$/"), forside)).toBe(false);
+    // Gaten (17/9): iframen uden playing-gren, playing der starter sand, eller autoplay i blokken falder.
+    const spotifyBlok = forside.slice(forside.indexOf("const SpotifyEpisodeEmbed = ("));
+    const udenGate = forside.slice(0, forside.indexOf("const SpotifyEpisodeEmbed = (")) + spotifyBlok.replace("return playing ? (", "return true ? (");
+    expect(spotifyKunEpisode(medie, udenGate)).toBe(false);
+    const altidAaben = forside.slice(0, forside.indexOf("const SpotifyEpisodeEmbed = (")) + spotifyBlok.replace("const [playing, setPlaying] = useState(false);", "const [playing, setPlaying] = useState(true);");
+    expect(spotifyKunEpisode(medie, altidAaben)).toBe(false);
+    const medAutoplay = forside.slice(0, forside.indexOf("const SpotifyEpisodeEmbed = (")) + spotifyBlok.replace('allow="clipboard-write;', 'allow="autoplay; clipboard-write;');
+    expect(spotifyKunEpisode(medie, medAutoplay)).toBe(false);
   });
   it("selvbevis 4: external_url skrevet alene, eller gem der ikke spærres af fejlen, falder", () => {
     expect(editorSkriverSammen(editor.replace('onDraftChange({ media_provider: "external", external_url: trimmed });', "onDraftChange({ external_url: trimmed });"))).toBe(false);

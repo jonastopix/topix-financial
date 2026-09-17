@@ -16,7 +16,9 @@ import {
   byPublishedDesc,
   isPushExpired,
   pickActivePush,
+  PUSH_STANDARD_LEVETID_DAGE,
 } from "../../boardroom/pushSelection";
+import { dagsdatoDansk, laegDageTilDato } from "@/lib/hjemmebane/skridtForslag";
 import { extractYouTubeId } from "../../boardroom/youtube";
 import { rensSpotifyEpisodeUrl } from "../../boardroom/pushMedie";
 import { HbField, HbInput, HbTextarea, hbControlClasses } from "../HbField";
@@ -55,6 +57,8 @@ type Draft = Partial<ContentItem>;
 type DraftMap = Record<string, Draft>;
 
 const uniqueSlugSuffix = () => crypto.randomUUID().slice(0, 8);
+/** Foreslået «Vises til og med» ved oprettelse (Jonas 17/9, valg 4): +21 dage. */
+const STANDARD_EXPIRES_DAGE = 21;
 
 /** Editoren (højre side): fem felter + EditorBar m. robusthedslæren
     (no-op-guard, slug-afledning m. ét kollisions-retry, arkiv+slet-flow —
@@ -393,7 +397,7 @@ const PushEditor = forwardRef<
         <HbField
           label="Vises til og med"
           htmlFor="push-expires"
-          help="Valgfri — efter denne dag falder hero'en tilbage. Tom = vises til afløst af nyere."
+          help={`Foreslået: 3 uger fra oprettelsen — kan ændres eller tømmes. Efter denne dag falder forsiden tilbage til det næste. Uden dato falder pushet tilbage af sig selv ${PUSH_STANDARD_LEVETID_DAGE} dage efter det er publiceret.`}
         >
           <HbInput
             id="push-expires"
@@ -464,6 +468,9 @@ export const PushView = () => {
         title: "Uden titel",
         slug: `push-${uniqueSlugSuffix()}`,
         position: 0,
+        // Forside PR 1 (17/9, Jonas «A» til valg 4): «Vises til og med» foreslås
+        // som i dag + 21 dage (dansk tid) — kan ændres eller tømmes i feltet.
+        metadata: { expires_at: laegDageTilDato(dagsdatoDansk(new Date()), STANDARD_EXPIRES_DAGE) },
       }),
     onSuccess: (created) => {
       void queryClient.invalidateQueries({ queryKey: ["admin-content"] });
@@ -482,7 +489,8 @@ export const PushView = () => {
     const active = item.id === selectedId;
     const dirty = Object.keys(drafts[item.id] ?? {}).length > 0;
     const isActiveNow = item.id === activePush?.id;
-    const expired = item.status === "published" && isPushExpired(item, now);
+    // Samme dom som forsiden, inkl. standard-levetiden uden dato (PR 1, 17/9).
+    const expired = item.status === "published" && isPushExpired(item, now, PUSH_STANDARD_LEVETID_DAGE);
     const date = item.published_at
       ? new Date(item.published_at).toLocaleDateString("da-DK", { day: "numeric", month: "short", year: "numeric" })
       : null;

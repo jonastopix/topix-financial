@@ -1,5 +1,8 @@
 import type { ContentItem } from "@/lib/hjemmebane/adminContentApi";
 import { isoWeekNumber } from "@/lib/hjemmebane/week";
+// Dansk kalenderdag og dato-aritmetik — samme rene helpers som fristen på
+// medlemmets skridt (skridtForslag.ts har nul imports).
+import { dagsdatoDansk, laegDageTilDato } from "@/lib/hjemmebane/skridtForslag";
 
 /** Forsidens kuraterings-domme som rene funktioner (testbare): nyeste
     published indslag der ikke er udløbet. Dommen er AREA-AGNOSTISK
@@ -8,8 +11,16 @@ import { isoWeekNumber } from "@/lib/hjemmebane/week";
     (deriveNextStep/deriveFocus-mønstret; ingen duplikeret logik).
     Udløb bæres i metadata.expires_at ("YYYY-MM-DD", valgfrit — som
     author-mønstret, ingen kolonne): udløbsdagen selv er stadig aktiv
-    ("torsdagens push lever torsdagen ud, væk fredag"); manglende/
-    ugyldig dato = aldrig udløb.
+    ("torsdagens push lever torsdagen ud, væk fredag").
+
+    NYHEDENS LEVETID (forside PR 1, 17/9 — Jonas «A på alle», valg 4):
+    et PUSH uden (gyldig) expires_at udløber PUSH_STANDARD_LEVETID_DAGE
+    (28) dage efter published_at — dag 28 er stadig aktiv, dag 29 væk,
+    regnet i dansk kalenderdag. Før stod «Ugens push» fra 12. august på
+    forsiden 17. september (analyse-medlemmets-forside.md §5.4). Ugens
+    video (pickActiveWeekVideo) deler kerne-dommen men IKKE levetiden:
+    den kurateres i hånden og har ingen beslutning om alder — den
+    udløber kun med expires_at som før (valget står i testen).
 
     METADATA-KONVENTIONER på forside-indslag (bølge 1, bindende for
     PR 2/3): author (fri tekst, byline-FALLBACK) · author_user_id
@@ -20,26 +31,40 @@ import { isoWeekNumber } from "@/lib/hjemmebane/week";
 export const byPublishedDesc = (a: ContentItem, b: ContentItem) =>
   (b.published_at ?? b.created_at).localeCompare(a.published_at ?? a.created_at);
 
+/** Et push uden dato lever 28 dage (Jonas 17/9: «A»). Ét sted. */
+export const PUSH_STANDARD_LEVETID_DAGE = 28;
+
 /** Udløbsdommen — eksporteret så admin-listen (PushView) kan vise
-    "Udløbet" med SAMME dom som forsidens udvælgelse. */
-export function isPushExpired(item: ContentItem, now: Date): boolean {
+    "Udløbet" med SAMME dom som forsidens udvælgelse. Med
+    `standardLevetidDage` gælder standard-levetiden når expires_at mangler
+    eller er ugyldig; uden (ugens video) = aldrig udløb uden dato, som før. */
+export function isPushExpired(item: ContentItem, now: Date, standardLevetidDage?: number): boolean {
   const raw = (item.metadata as Record<string, unknown> | null)?.expires_at;
-  if (typeof raw !== "string") return false;
-  const match = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  if (!match) return false;
-  // Udgangen af udløbsdagen i LOKAL tid: startet af dagen efter.
-  const endOfDay = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]) + 1);
-  return now.getTime() >= endOfDay.getTime();
+  const match = typeof raw === "string" ? raw.match(/^(\d{4})-(\d{2})-(\d{2})$/) : null;
+  if (match) {
+    // Udgangen af udløbsdagen i LOKAL tid: startet af dagen efter.
+    const endOfDay = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]) + 1);
+    return now.getTime() >= endOfDay.getTime();
+  }
+  if (standardLevetidDage == null) return false;
+  // Standard-levetiden: sidste aktive dag = udgivelsesdagen (dansk tid) +
+  // levetiden; dagen efter er pushet væk. Ulæselig udgivelsesdato → aldrig
+  // udløb (fail-open på visning: et push uden stempel er ikke «gammelt»).
+  const udgivet = new Date(item.published_at ?? item.created_at);
+  if (Number.isNaN(udgivet.getTime())) return false;
+  const sidsteDag = laegDageTilDato(dagsdatoDansk(udgivet), standardLevetidDage);
+  return dagsdatoDansk(now) > sidsteDag;
 }
 
-/** Kerne-dommen (area-agnostisk): nyeste published, ikke udløbet. */
-export function pickActiveItem(items: ContentItem[], now: Date): ContentItem | undefined {
-  return [...items].sort(byPublishedDesc).find((item) => !isPushExpired(item, now));
+/** Kerne-dommen (area-agnostisk): nyeste published, ikke udløbet.
+    `standardLevetidDage` gives KUN af pushet. */
+export function pickActiveItem(items: ContentItem[], now: Date, standardLevetidDage?: number): ContentItem | undefined {
+  return [...items].sort(byPublishedDesc).find((item) => !isPushExpired(item, now, standardLevetidDage));
 }
 
-/** Hero-udvælgelsen (area='push') — tynd wrapper, uændret adfærd. */
+/** Hero-udvælgelsen (area='push'): kerne-dommen + standard-levetiden. */
 export function pickActivePush(items: ContentItem[], now: Date): ContentItem | undefined {
-  return pickActiveItem(items, now);
+  return pickActiveItem(items, now, PUSH_STANDARD_LEVETID_DAGE);
 }
 
 /** Ugens video (area='ugens_video', bølge 1) — samme dom som hero'en. */
@@ -58,7 +83,8 @@ export function pickEvergreen(items: ContentItem[], now: Date): ContentItem | un
   return pool[isoWeekNumber(now) % pool.length];
 }
 
-export type StoryKind = "push" | "video" | "redaktionelt" | "podcast" | "evergreen";
+// Før (til 17/9): "push" | "video" | "redaktionelt" | "podcast" | "evergreen" — podcast-kortet udgik (beslutning 17).
+export type StoryKind = "push" | "video" | "redaktionelt" | "evergreen";
 
 export interface StoryCandidate<T = unknown> {
   kind: StoryKind;
@@ -68,9 +94,9 @@ export interface StoryCandidate<T = unknown> {
 /** Rykkeliste-dommen (PR B1): første IKKE-NULL kandidat vinder
     hovedpladsen; resten fylder sidespalten — ingen tomme pladser.
     Kandidaterne ankommer i FAST rækkefølge (push → ugens video →
-    redaktionelt → podcast → evergreen), og enhver kandidat kan være
-    null af HVILKEN SOM HELST grund (udløbet, tom pulje, RSS-fejl) —
-    dommen antager aldrig at fx podcasten findes. */
+    redaktionelt → evergreen; podcasten udgik 17/9), og enhver kandidat
+    kan være null af HVILKEN SOM HELST grund (udløbet, tom pulje) —
+    dommen antager aldrig at en kandidat findes. */
 export function pickMainStory<T>(
   candidates: (StoryCandidate<T> | null | undefined)[],
 ): { main: StoryCandidate<T> | null; side: StoryCandidate<T>[] } {

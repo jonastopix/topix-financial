@@ -3,7 +3,7 @@ import { profilUdfyldt } from "@/lib/hjemmebane/profilUdfyldt";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowRight, ChevronDown, ChevronUp, ExternalLink, Pause, Play } from "lucide-react";
+import { ArrowRight, ChevronDown, ChevronUp, ExternalLink, Play } from "lucide-react";
 import { toast } from "sonner";
 import { HentningsFejl, kraevRaekker } from "@/lib/kraevRaekker";
 import { cn } from "@/lib/utils";
@@ -20,7 +20,6 @@ import {
 } from "@/lib/financialUtils";
 import { AREAS, getAssetPreviewUrl, type ContentItem } from "@/lib/hjemmebane/adminContentApi";
 import { bunnyThumbnailUrl } from "@/lib/hjemmebane/bunnyMedia";
-import { parsePodcastFeed, type PodcastEpisode } from "@/lib/hjemmebane/podcastRss";
 import { getISOWeekKey } from "@/lib/hjemmebane/week";
 import { denneUgesFredag, naesteUgesFredag, omEnMaaned, tilDatoStreng } from "@/lib/hjemmebane/opgaveDato";
 import { flereForslagTekst, forslagMetaLinje, forslagOverlinje, fristTekst, sorterAktive, vaelgForslag } from "@/lib/hjemmebane/aftaler";
@@ -65,6 +64,7 @@ import {
   type StoryKind,
 } from "./pushSelection";
 import { pushMedie, spotifyEmbedUrl, youtubeIdAf, youtubeNocookieEmbedUrl, youtubeThumbnailUrl } from "./pushMedie";
+import { pushOverlinje } from "./pushOverlinje";
 
 /** Dit Boardroom (/boardroom) — Hb-forsiden i VANE-ANKER-IA'en (forside
     PR 2, hb-forside-recon §C/§G): de tre lag i rækkefølgen
@@ -78,10 +78,12 @@ import { pushMedie, spotifyEmbedUrl, youtubeIdAf, youtubeNocookieEmbedUrl, youtu
        (tilmelding er egen leverance).
     3) "Fra os til dig"-båndet — kurateret via RYKKELISTEN (PR B3,
        pickMainStory): push → ugens video → nyeste redaktionelle →
-       nyeste podcast-episode → evergreen-rotationen. Første kandidat
-       vinder hovedpladsen; resten fylder tile-rækken sammen m. seneste
-       talk. Hver kandidat kan være null af hvilken som helst grund
-       (udløbet, tom pulje, RSS-fejl) — båndet vælter aldrig.
+       evergreen-rotationen (podcast-kortet UDGIK 17/9 — beslutning 17,
+       Jonas 11/9: podcasten er ét Spotify-link i sidebaren). Første
+       kandidat vinder hovedpladsen; resten fylder tile-rækken. Hver
+       kandidat kan være null af hvilken som helst grund (udløbet — et
+       push også af ALDER, PUSH_STANDARD_LEVETID_DAGE — eller tom pulje)
+       — båndet vælter aldrig.
     4) Tal-strippen NEDERST som rolig status (uændret indhold/kilder).
     Motoren (deriveFocus) var LÅST i forside-byggeriet; låsen er
     overhalet af opgave-modellen (PR #453 + "Dine aftaler"): slot (f)
@@ -144,8 +146,8 @@ const TraadForfatterAvatar = ({ navn, avatarUrl }: { navn: string | null; avatar
     med trådsiden; samme 50-minutters fornyelse under TTL'en på 3600 s.
     Ét ekstra kald til get-community-billed-url, kun når det nyeste opslag
     HAR et billede, og først når feedet er landet — kortets tekst står
-    imens, og cover-pladsen holdes af en pulserende flade i StorySkeletons
-    main-mål, så kortet ikke skifter form når billedet kommer. Fejl eller
+    imens, og cover-pladsen holdes af en pulserende flade i hovedhistoriens
+    cover-mål, så kortet ikke skifter form når billedet kommer. Fejl eller
     nej fra adgangsdommen → intet billede, teksten tager bredden (samme
     valg som CommunityBillede: et billede der ikke kan hentes, må ikke
     efterlade en brudt firkant). */
@@ -276,8 +278,11 @@ const PushStory = ({
   const metadata = (push.metadata as Record<string, unknown>) ?? {};
   const author = (metadata.author as string) || null;
   const hasSenderId = Boolean(metadata.author_user_id);
-  const marker = publishedMarker(push.published_at ?? push.created_at);
   const senderName = sender?.full_name ?? author;
+  // Overlinjen (forside PR 1, 17/9 — Jonas «A på alle», valg 4/§5.4): «Ny i
+  // denne uge» ≤ 7 dage; ellers afsenderen («Fra Morten») når der er en;
+  // ellers intet. Datoen («12. august») udstillede alderen — den er væk.
+  const marker = pushOverlinje({ publishedAt: push.published_at ?? push.created_at, afsenderNavn: senderName, nu: new Date() });
 
   // PR A «video i nyheden» (17/9, Jonas: «Morten har lige optaget en
   // spændende podcast (m. video) sammen med Nordea, og den skal frem i
@@ -402,17 +407,10 @@ const PlayCover = ({
   coverUrl,
   title,
   onPlay,
-  shape = "video",
 }: {
   coverUrl: string | null;
   title: string;
   onPlay: () => void;
-  /** Polering #3: podcast-episoders covers er KVADRATISKE — presset i
-      bredformat klippes hoveder/tekst. "square" viser dem 1:1 (intet
-      crop af et kvadratisk billede i kvadratisk ramme). Bunny/YouTube
-      er 16:9 og beholder default "video". Ren præsentation — gate-
-      funktionen (ingen lyd/afspilning før klik) er uændret. */
-  shape?: "video" | "square";
 }) => (
   <button
     type="button"
@@ -424,18 +422,13 @@ const PlayCover = ({
       <img
         src={coverUrl}
         alt=""
-        className={cn(shape === "square" ? "aspect-square" : "aspect-video", "w-full object-cover")}
+        className="aspect-video w-full object-cover"
       />
     ) : (
       // Fallback uden cover: REN rolig flade — ingen titel-tekst (alle
       // kaldere viser titlen over playeren, og aria-label bærer den for
       // skærmlæsere), så play-cirklen ikke lander oven i tekst.
-      <span
-        className={cn(
-          shape === "square" ? "aspect-square" : "aspect-video",
-          "block w-full bg-hb-sage/30",
-        )}
-      />
+      <span className="block aspect-video w-full bg-hb-sage/30" />
     )}
     {/* Sløret gælder KUN over et cover (læsbarheds-kontrast for
         play-cirklen på billeder); uden cover er hvilefladen ren, og
@@ -475,20 +468,45 @@ const YouTubePlayer = ({ youtubeId, title, coverUrl }: { youtubeId: string; titl
   );
 };
 
-/** Spotify-episoden under pushets manchet (PR A): KUN episode-embed'et
-    (spotifyEmbedUrl — show/track afvises allerede i dommen), compact højde
-    (152 px er Spotifys kompakte afspiller), loading="lazy" og en
-    title-attribut. Ingen autoplay — Spotify starter aldrig selv. */
-const SpotifyEpisodeEmbed = ({ episodeId, title }: { episodeId: string; title: string }) => (
-  <iframe
-    src={spotifyEmbedUrl(episodeId)}
-    title={`Spotify: ${title}`}
-    className="mt-4 h-[152px] w-full max-w-2xl rounded-xl border-0"
-    loading="lazy"
-    allow="clipboard-write; encrypted-media; fullscreen; picture-in-picture"
-    data-spotify-episode={episodeId}
-  />
-);
+/** Spotify-episoden under pushets manchet (PR A; gaten fra forside PR 1,
+    17/9): KUN episode-embed'et (spotifyEmbedUrl — show/track afvises
+    allerede i dommen), compact højde (152 px er Spotifys kompakte
+    afspiller). SAMME regel som alle husets afspillere (YouTubePlayer,
+    Bunny, community-kortene): INTET monteres før klik — før klik står et
+    lille kort (Spotify-mærke, «Lyt til episoden», play-knap); ved klik
+    monteres iframen (loading="lazy", title). Ingen autoplay: Spotifys
+    embed har ingen dokumenteret autoplay-parameter (recon §5.2), så
+    afspilningen startes i Spotifys egen knap — det andet klik. */
+const SpotifyEpisodeEmbed = ({ episodeId, title }: { episodeId: string; title: string }) => {
+  const [playing, setPlaying] = useState(false);
+  return playing ? (
+    <iframe
+      src={spotifyEmbedUrl(episodeId)}
+      title={`Spotify: ${title}`}
+      className="mt-4 h-[152px] w-full max-w-2xl rounded-xl border-0"
+      loading="lazy"
+      allow="clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+      data-spotify-episode={episodeId}
+    />
+  ) : (
+    <button
+      type="button"
+      onClick={() => setPlaying(true)}
+      aria-label={`Lyt til episoden på Spotify: ${title}`}
+      className="group mt-4 flex w-full max-w-2xl items-center gap-3 rounded-xl border border-hb-line bg-hb-surface px-4 py-3 text-left transition-colors hover:bg-hb-sage/30"
+      data-spotify-episode={episodeId}
+      data-spotify-gate
+    >
+      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-hb-evergreen text-white transition-transform group-hover:scale-105">
+        <Play className="ml-0.5 h-4 w-4" fill="currentColor" />
+      </span>
+      <span className="min-w-0">
+        <span className="block text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft">Spotify</span>
+        <span className="block text-sm font-medium text-hb-ink">Lyt til episoden</span>
+      </span>
+    </button>
+  );
+};
 
 /** Polering #1 — fælles main-layout, ÉT sted for alle main-varianter:
     m. medie → TO-SPALTET på md+ (medie venstre ~42 %, tekst højre m.
@@ -497,9 +515,8 @@ const SpotifyEpisodeEmbed = ({ episodeId, title }: { episodeId: string; title: s
     - coverUrl (push/redaktionelt/evergreen): billedet FYLDER spalten
       (absolute-fill + object-cover; aspect-[3/2] på mobil, md+ følger
       tekstens højde via flex-stretch) — 21:9-dominansen er væk.
-    - player (video/podcast): gate/afspiller beholder sit EGET format
-      og ligger roligt centreret i spalten (en iframe/audio-bar må ikke
-      strækkes). */
+    - player (video): gate/afspiller beholder sit EGET format og ligger
+      roligt centreret i spalten (en iframe må ikke strækkes). */
 const MainStoryShell = ({
   coverUrl,
   player,
@@ -708,172 +725,6 @@ const RedaktioneltCard = ({ item, variant }: { item: ContentItem; variant: Story
   );
 };
 
-/** Hb-stylet lydafspiller (podcast-tile): den nøgne <audio controls>
-    gav browser-chrome og download-menu. <audio>-elementet er nu SKJULT
-    og styres af play/pause-cirklen (samme udtryk som PlayCovers knap),
-    en klikbar forløbslinje i hb-line/hb-evergreen og tiden som
-    "12:04 / 47:10". Monteres fortsat FØRST ved klik på gaten og
-    autostarter dér — monteringen ER klikket (PR A-reglen intakt). */
-const HbAudioPlayer = ({ src, title }: { src: string; title: string }) => {
-  const audioRef = useRef<HTMLAudioElement>(null);
-  const [audioPlaying, setAudioPlaying] = useState(false);
-  const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState<number | null>(null);
-
-  const toggle = () => {
-    const audio = audioRef.current;
-    if (!audio) return;
-    if (audio.paused) {
-      void audio.play();
-    } else {
-      audio.pause();
-    }
-  };
-
-  const seek = (event: React.MouseEvent<HTMLButtonElement>) => {
-    const audio = audioRef.current;
-    if (!audio || !duration) return;
-    const rect = event.currentTarget.getBoundingClientRect();
-    const ratio = Math.min(Math.max((event.clientX - rect.left) / rect.width, 0), 1);
-    audio.currentTime = ratio * duration;
-  };
-
-  const progress = duration ? Math.min(currentTime / duration, 1) : 0;
-
-  return (
-    <div className="flex items-center gap-3 rounded-hb border border-hb-line bg-hb-surface px-3 py-2.5">
-      {/* eslint-disable-next-line jsx-a11y/media-has-caption -- eksternt podcast-feed uden tekstspor */}
-      <audio
-        ref={audioRef}
-        src={src}
-        autoPlay
-        onPlay={() => setAudioPlaying(true)}
-        onPause={() => setAudioPlaying(false)}
-        onEnded={() => setAudioPlaying(false)}
-        onTimeUpdate={(event) => setCurrentTime(event.currentTarget.currentTime)}
-        onLoadedMetadata={(event) => setDuration(event.currentTarget.duration)}
-        className="hidden"
-      />
-      <button
-        type="button"
-        onClick={toggle}
-        aria-label={audioPlaying ? `Pause: ${title}` : `Afspil: ${title}`}
-        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-hb-evergreen text-white shadow-hb-hover transition-transform hover:scale-105"
-      >
-        {audioPlaying ? (
-          <Pause className="h-4 w-4" fill="currentColor" />
-        ) : (
-          <Play className="ml-0.5 h-4 w-4" fill="currentColor" />
-        )}
-      </button>
-      <button
-        type="button"
-        onClick={seek}
-        aria-label="Spol i afspilningen"
-        className="relative h-1.5 min-w-0 flex-1 cursor-pointer overflow-hidden rounded-full bg-hb-line"
-      >
-        <span
-          className="absolute inset-y-0 left-0 rounded-full bg-hb-evergreen"
-          style={{ width: `${progress * 100}%` }}
-        />
-      </button>
-      <span className="shrink-0 text-xs tabular-nums text-hb-ink-soft">
-        {formatDuration(Math.floor(currentTime)) ?? "0:00"} /{" "}
-        {duration != null ? formatDuration(Math.floor(duration)) ?? "0:00" : "–:––"}
-      </span>
-    </div>
-  );
-};
-
-/** Podcast-kortet (PR B3): nyeste episode fra feedet (dum proxy + ren
-    parser, B1/B2). INGEN LYD FØR KLIK (PR A-reglen gælder også podcast):
-    afspilleren monteres FØRST ved klik på PlayCover-gaten — autostart er
-    OK dér, monteringen ER klikket. Uden audioUrl: "Åbn episoden"-link. */
-const PodcastCard = ({ episode, variant }: { episode: PodcastEpisode; variant: StoryVariant }) => {
-  const [playing, setPlaying] = useState(false);
-  // Sæson/episode-etiket i stedet for dato (podcast-tile): "S2E2" når
-  // BEGGE findes, ellers ingenting — bevidst INGEN dato-fallback (en
-  // elleve måneder gammel dato skal ikke vises).
-  const seasonLabel =
-    episode.season != null && episode.episode != null
-      ? `S${episode.season}E${episode.episode}`
-      : null;
-  const teaser = episode.description
-    ? truncateText(stripHtml(episode.description), variant === "main" ? 200 : 110)
-    : null;
-
-  const player =
-    playing && episode.audioUrl ? (
-      // Coveret BLIVER stående når afspilningen starter — ellers
-      // kollapser podcast-spalten til tom luft ved siden af
-      // video-spalten. Nu som RENT billede uden gate/overlay
-      // (afspilningen styres af afspilleren nedenunder); separat <img>
-      // frem for en "inert" PlayCover-prop, fordi gaten er en <button>
-      // m. Afspil-aria og ikke skal kunne være en ikke-knap.
-      <div>
-        {episode.imageUrl && (
-          <img
-            src={episode.imageUrl}
-            alt=""
-            className="aspect-square w-full rounded-hb border border-hb-line object-cover"
-          />
-        )}
-        <div className={cn(episode.imageUrl && "mt-3")}>
-          <HbAudioPlayer src={episode.audioUrl} title={episode.title} />
-        </div>
-      </div>
-    ) : episode.audioUrl ? (
-      // Polering #3: kvadratisk ramme — episode-covers er 1:1 og skal
-      // ikke beskæres i bredformat (hoveder/tekst klippes).
-      <PlayCover
-        coverUrl={episode.imageUrl}
-        title={episode.title}
-        onPlay={() => setPlaying(true)}
-        shape="square"
-      />
-    ) : episode.link ? (
-      <a href={episode.link} target="_blank" rel="noopener noreferrer">
-        <HbButton variant="secondary" className="h-9 px-4 text-sm">
-          <ExternalLink className="h-4 w-4" />
-          Åbn episoden
-        </HbButton>
-      </a>
-    ) : null;
-
-  if (variant === "side") {
-    return (
-      <div className="border-t border-hb-line pt-4">
-        <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft">
-          Podcast{seasonLabel && <span className="ml-2 normal-case tracking-normal">· {seasonLabel}</span>}
-        </p>
-        <p className="mt-2 text-[15px] font-medium leading-snug text-hb-ink">{episode.title}</p>
-        {teaser && <p className="mt-1.5 text-sm leading-relaxed text-hb-ink-soft">{teaser}</p>}
-        {episode.durationSeconds != null && (
-          <p className="mt-1.5 text-xs text-hb-ink-soft">{formatDuration(episode.durationSeconds)}</p>
-        )}
-        <div className="mt-3">{player}</div>
-      </div>
-    );
-  }
-
-  // Polering #1: gaten (kvadratisk albumkunst) i venstre spalte, teksten
-  // højre — samme fælles layout-greb som de øvrige main-varianter.
-  return (
-    <MainStoryShell player={player}>
-      <p className="text-xs font-medium uppercase tracking-[0.14em] text-hb-rust">
-        Podcast{seasonLabel && <span className="ml-2 normal-case tracking-normal text-hb-ink-soft">· {seasonLabel}</span>}
-      </p>
-      <h2 className="mt-4 font-editorial text-3xl font-medium leading-tight text-hb-ink md:text-4xl">
-        {episode.title}
-      </h2>
-      {teaser && <p className="mt-4 max-w-2xl text-base leading-relaxed text-hb-ink-soft">{teaser}</p>}
-      {episode.durationSeconds != null && (
-        <p className="mt-2 text-sm text-hb-ink-soft">{formatDuration(episode.durationSeconds)}</p>
-      )}
-    </MainStoryShell>
-  );
-};
-
 /** Evergreen-indslaget (PR B3): biblioteket der bærer forsiden når alt
     andet er stille — markeret "Værd at se igen", BEVIDST uden
     tidsmarkering (indslaget er tidløst; en dato ville modsige det). */
@@ -927,17 +778,7 @@ const EvergreenCard = ({ item, variant }: { item: ContentItem; variant: StoryVar
   );
 };
 
-type BandItem = ContentItem | PodcastEpisode;
-
-/** Rykkelistens FASTE rækkefølge som rang — bruges til at holde podcast-
-    skeletonets plads i sidespalten mens feedet hentes. */
-const KIND_RANK: Record<StoryKind, number> = {
-  push: 0,
-  video: 1,
-  redaktionelt: 2,
-  podcast: 3,
-  evergreen: 4,
-};
+type BandItem = ContentItem;
 
 /** Polering #2 (begrundet valg): kolonneantal AFHÆNGIGT af antallet frem
     for fast grid. Fast cols-3 efterlader én enlig ved 4 (3+1), og fast
@@ -990,38 +831,10 @@ const StoryCard = ({
       return <WeekVideoCard video={story.item as ContentItem} variant={variant} />;
     case "redaktionelt":
       return <RedaktioneltCard item={story.item as ContentItem} variant={variant} />;
-    case "podcast":
-      return <PodcastCard episode={story.item as PodcastEpisode} variant={variant} />;
     case "evergreen":
       return <EvergreenCard item={story.item as ContentItem} variant={variant} />;
   }
 };
-
-/** Reserveret højde mens podcast-feedet hentes (ingen layout-hop):
-    main-formen matcher det to-spaltede kort (polering #1); side-formen
-    den rammeløse tile — m. KVADRATISK medie-blok, for skeletonet holder
-    netop podcastens plads, og dens cover er 1:1 (polering #3). */
-const StorySkeleton = ({ variant }: { variant: StoryVariant }) =>
-  variant === "main" ? (
-    <HbCard className="overflow-hidden" aria-hidden>
-      <div className="md:flex md:min-h-[280px]">
-        <div className="aspect-[3/2] w-full animate-pulse bg-hb-line/40 md:aspect-auto md:w-[42%] md:shrink-0" />
-        <div className="min-w-0 md:flex-1">
-          <div className="p-6 md:p-8">
-            <div className="h-3 w-28 animate-pulse rounded bg-hb-line/40" />
-            <div className="mt-4 h-9 w-2/3 animate-pulse rounded bg-hb-line/60" />
-            <div className="mt-4 h-4 w-5/6 animate-pulse rounded bg-hb-line/40" />
-          </div>
-        </div>
-      </div>
-    </HbCard>
-  ) : (
-    <div className="border-t border-hb-line pt-4" aria-hidden>
-      <div className="h-3 w-24 animate-pulse rounded bg-hb-line/40" />
-      <div className="mt-2.5 h-4 w-3/4 animate-pulse rounded bg-hb-line/60" />
-      <div className="mt-3 aspect-square w-full animate-pulse rounded bg-hb-line/40" />
-    </div>
-  );
 
 /** Tal-strip (lag 3): senest godkendte periode fra facts-laget — indhold
     og kilder uændret; kun placeringen er flyttet nederst.
@@ -1521,37 +1334,6 @@ export const BoardroomView = () => {
     [items],
   );
 
-  // Podcast: dum proxy (podcast-rss, B2) + ren parser (parsePodcastFeed,
-  // B1) → nyeste episode. FEJL/tom → null: queryFn'en kaster ALDRIG, så
-  // medlemmet ser aldrig en fejl — kandidaten falder bare ud af
-  // rykkelisten. invoke() bærer sessionens JWT (Bucket A-kravet).
-  const podcastQuery = useQuery({
-    queryKey: ["boardroom", "podcast-latest"],
-    queryFn: async (): Promise<PodcastEpisode | null> => {
-      try {
-        const { data, error } = await supabase.functions.invoke("podcast-rss");
-        if (error) return null;
-        // functions-js afleverer ikke-JSON-svar som tekst; Blob-grenen er
-        // defensiv mod content-type-afvigelser.
-        const xml =
-          typeof data === "string" ? data : data instanceof Blob ? await data.text() : null;
-        if (!xml) return null;
-        const episodes = parsePodcastFeed(xml);
-        if (episodes.length === 0) return null;
-        return [...episodes].sort((a, b) =>
-          (b.publishedAt ?? "").localeCompare(a.publishedAt ?? ""),
-        )[0];
-      } catch {
-        return null;
-      }
-    },
-    staleTime: 30 * 60_000,
-    retry: 1,
-    enabled: !!user,
-  });
-  const podcastEpisode = podcastQuery.data ?? null;
-  const podcastPending = !!user && podcastQuery.isPending;
-
   // Rykkelisten (LÅST dom): første ikke-null kandidat vinder hovedpladsen.
   const band = useMemo(
     () =>
@@ -1559,10 +1341,9 @@ export const BoardroomView = () => {
         pushItem ? { kind: "push", item: pushItem } : null,
         weekVideo ? { kind: "video", item: weekVideo } : null,
         redaktioneltItem ? { kind: "redaktionelt", item: redaktioneltItem } : null,
-        podcastEpisode ? { kind: "podcast", item: podcastEpisode } : null,
         evergreenItem ? { kind: "evergreen", item: evergreenItem } : null,
       ]),
-    [pushItem, weekVideo, redaktioneltItem, podcastEpisode, evergreenItem],
+    [pushItem, weekVideo, redaktioneltItem, evergreenItem],
   );
 
   // ── "Siden sidst"-linjen (bølge 3) ──────────────────────────────────────
@@ -1595,11 +1376,10 @@ export const BoardroomView = () => {
           redaktioneltItem
             ? { publishedAt: redaktioneltItem.published_at ?? redaktioneltItem.created_at }
             : null,
-          podcastEpisode ? { publishedAt: podcastEpisode.publishedAt } : null,
         ].filter((c): c is NewsCandidate => c != null),
         lastVisitIso,
       ),
-    [pushItem, weekVideo, redaktioneltItem, podcastEpisode, lastVisitIso],
+    [pushItem, weekVideo, redaktioneltItem, lastVisitIso],
   );
 
   // 0 → ingen linje. Tidsdel: ≤7 dage → ugedag ("siden i tirsdags"),
@@ -2228,24 +2008,14 @@ export const BoardroomView = () => {
     return <p className="text-sm text-hb-ink-soft">Henter dit Boardroom…</p>;
   }
 
-  // Kan podcasten stadig ende som HOVEDhistorie? Kun når alle kandidater
-  // FØR den i rykkelisten mangler. Så viser hovedpladsen skeleton m.
-  // reserveret højde i stedet for at lade evergreen rykke ind og blive
-  // skubbet ud igen når feedet lander — ingen indholds-swap/layout-hop.
-  const podcastCouldLeadBand = podcastPending && !pushItem && !weekVideo && !redaktioneltItem;
-  const hasBand = Boolean(
-    band.main || podcastCouldLeadBand || redaktioneltHistory.length > 0,
-  );
-  const sideBefore = band.side.filter((s) => KIND_RANK[s.kind] < KIND_RANK.podcast);
-  const sideAfter = band.side.filter((s) => KIND_RANK[s.kind] >= KIND_RANK.podcast);
-  // Antal tiles i rækken (polering #2) — skeletonet tæller med, så
-  // kolonnevalget ikke skifter når feedet lander. Event er flyttet til
-  // egen sektion og talk-tilen er fjernet (talks bor på sit event,
-  // 13-08-2026); tileColsClass-mapningen (2→2, 3→3, 4→4/2+2, 5-6→3)
-  // dækker fortsat hele intervallet — rækken kan nu højst rumme 4
-  // side-historier.
-  const tileCount =
-    podcastCouldLeadBand ? 0 : band.side.length + (podcastPending ? 1 : 0);
+  // Båndet vises når der er en hovedhistorie eller historik. Podcast-
+  // kortet og dets skeleton udgik 17/9 (beslutning 17): alle kandidater er
+  // nu synkrone afledninger af Akademi-kataloget — intet feed at vente på,
+  // ingen reserveret plads. Antal tiles (polering #2): rækken rummer højst
+  // 3 side-historier (video, redaktionelt, evergreen); tileColsClass-
+  // mapningen (2→2, 3→3) dækker intervallet.
+  const hasBand = Boolean(band.main || redaktioneltHistory.length > 0);
+  const tileCount = band.side.length;
 
   return (
     <div>
@@ -2311,12 +2081,12 @@ export const BoardroomView = () => {
           et medlem der mister hele sin forside fordi én hentning fejlede,
           er en dårligere byttehandel. Formen er RaadgiverForsideViews. */}
       {actionsQuery.isError && (
-        <HbSection id="dine-skridt" eyebrow="Dine skridt" hairline className="mt-14 md:mt-16">
+        <HbSection id="dine-skridt" eyebrow="Dine skridt" hairline className="mt-10 md:mt-12">
           <p className="text-sm text-hb-rust">{DINE_SKRIDT_FEJL_TEKST}</p>
         </HbSection>
       )}
       {!actionsQuery.isError && (aftaleAktive.length > 0 || aftaleForslag) && (
-        <HbSection id="dine-skridt" eyebrow="Dine skridt" hairline className="mt-14 md:mt-16">
+        <HbSection id="dine-skridt" eyebrow="Dine skridt" hairline className="mt-10 md:mt-12">
           <ul>
             {aftaleAktive.map((a) => (
               <li key={a.id} className="border-t border-hb-line first:border-t-0 last:border-b" data-skridt-maal={a.maal_id ?? ""}>
@@ -2398,7 +2168,7 @@ export const BoardroomView = () => {
           (medlemmet ejer sine mål, Jonas 16/9). FEJL er ikke tom: fejler
           mål eller skridt, står sektionen med en fejllinje. */}
       {(milestonesQuery.isError || skridtQuery.isError) && (
-        <HbSection id="dine-maal" eyebrow="Dine mål" hairline className="mt-14 md:mt-16">
+        <HbSection id="dine-maal" eyebrow="Dine mål" hairline className="mt-10 md:mt-12">
           <p className="text-sm text-hb-rust">
             {DINE_MAAL_FEJL_TEKST}{" "}
             <button type="button" onClick={proevIgen} className="underline-offset-4 hover:underline">Prøv igen</button>
@@ -2406,7 +2176,7 @@ export const BoardroomView = () => {
         </HbSection>
       )}
       {dineMaal && dineMaalForside && (
-        <HbSection id="dine-maal" eyebrow="Dine mål" hairline linkLabel="Se alle dine mål" linkTo="/milestones" className="mt-14 md:mt-16">
+        <HbSection id="dine-maal" eyebrow="Dine mål" hairline linkLabel="Se alle dine mål" linkTo="/milestones" className="mt-10 md:mt-12">
           {dineMaalForside.viste.length === 0 ? (
             <p className="text-sm text-hb-ink-soft" data-dine-maal="0">
               {dineMaal.tom ? DINE_MAAL_TOM_TEKST : "Ingen aktive mål lige nu — aktivér et parkeret, eller sæt et nyt."}{" "}
@@ -2458,7 +2228,7 @@ export const BoardroomView = () => {
         <p className="mt-14 text-sm text-hb-rust md:mt-16">{sektionsfejlTekst("events")}</p>
       )}
       {events.length > 0 && (
-        <HbSection eyebrow="Kommende" hairline className="mt-14 md:mt-16">
+        <HbSection eyebrow="Kommende" hairline className="mt-10 md:mt-12">
           {/* Link'et dækker KUN dato+titel+meta — tilmeldingshandlingen
               står som SØSKENDE i rækken, aldrig inde i linket (klikbar
               handling i et anker er ugyldig HTML og ville trigge
@@ -2520,7 +2290,7 @@ export const BoardroomView = () => {
           linkLabel="Gå til fællesskabet"
           linkTo="/community"
           hairline
-          className="mt-14 md:mt-16"
+          className="mt-10 md:mt-12"
         >
           <FremhaevetOpslag traad={forsideOpslag.fremhaevet} />
           <ul className={cn(forsideOpslag.resten.length > 0 && "mt-8")}>
@@ -2557,7 +2327,7 @@ export const BoardroomView = () => {
         // "siden sidst" var kun sandt for push/podcast. Selve "siden
         // sidst"-LINJEN (countNewSince) beholder sin tekst — den handler
         // netop om det nye.
-        <HbSection eyebrow="Fra os til dig" linkLabel="Se Akademiet" linkTo="/akademiet" hairline className="mt-14 md:mt-16">
+        <HbSection eyebrow="Fra os til dig" linkLabel="Se Akademiet" linkTo="/akademiet" hairline className="mt-10 md:mt-12">
           {/* "Siden sidst"-linjen (bølge 3): rolig grund til at kigge i
               dag frem for på fredag. 0 nye → ingen linje (tavshed, ikke
               "0 nye ting"). */}
@@ -2568,46 +2338,27 @@ export const BoardroomView = () => {
               (side[] + talk) ligger UNDER i ét jævnt 3-kolonne-
               grid af ENS, rammeløse tiles (materiale-differentiering:
               hovedhistorien er det eneste hvide kort i båndet) — grid'et
-              wrapper og tåler 2-6 elementer uden tomme hjørner. Mens
-              feedet hentes holder skeletons pladsen (reserveret højde);
-              side-tiles skjules mens podcasten kan ende som main
-              (evergreen må ikke først stå i rækken og så hoppe op). */}
-          {(band.main || podcastCouldLeadBand) &&
-            (podcastCouldLeadBand ? (
-              <StorySkeleton variant="main" />
-            ) : (
-              <StoryCard
-                story={band.main!}
-                variant="main"
-                pushSender={pushSender}
-                pushCoverUrl={pushCoverUrl}
-              />
-            ))}
-          {(band.side.length > 0 || podcastPending) && (
+              wrapper og tåler 2-3 elementer uden tomme hjørner. Ingen
+              skeletons: alle kandidater er synkrone (17/9). */}
+          {band.main && (
+            <StoryCard
+              story={band.main}
+              variant="main"
+              pushSender={pushSender}
+              pushCoverUrl={pushCoverUrl}
+            />
+          )}
+          {band.side.length > 0 && (
             <div className={cn("mt-10 grid grid-cols-1 items-start gap-x-8 gap-y-9", tileColsClass(tileCount))}>
-              {!podcastCouldLeadBand && (
-                <>
-                  {sideBefore.map((story) => (
-                    <StoryCard
-                      key={story.kind}
-                      story={story}
-                      variant="side"
-                      pushSender={pushSender}
-                      pushCoverUrl={pushCoverUrl}
-                    />
-                  ))}
-                  {podcastPending && <StorySkeleton variant="side" />}
-                  {sideAfter.map((story) => (
-                    <StoryCard
-                      key={story.kind}
-                      story={story}
-                      variant="side"
-                      pushSender={pushSender}
-                      pushCoverUrl={pushCoverUrl}
-                    />
-                  ))}
-                </>
-              )}
+              {band.side.map((story) => (
+                <StoryCard
+                  key={story.kind}
+                  story={story}
+                  variant="side"
+                  pushSender={pushSender}
+                  pushCoverUrl={pushCoverUrl}
+                />
+              ))}
             </div>
           )}
 
@@ -2663,7 +2414,7 @@ export const BoardroomView = () => {
 
       {/* ── LAG 3: Tal-strippen (rolig status, nederst) ── */}
       {companyId && (
-        <div className="mt-14 md:mt-16">
+        <div className="mt-10 md:mt-12">
           <TalStrip
             hasFacts={sorted.length > 0}
             processing={processing}

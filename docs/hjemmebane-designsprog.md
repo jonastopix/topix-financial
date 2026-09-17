@@ -223,8 +223,9 @@ komponenten, ikke skallen).
 **Sektioner**: `HbSection` håndhæver rytmen ét sted — eyebrow (rust,
 uppercase) + valgfri Fraunces-titel + valgfrit "se alle"-link, header
 med `min-h-6` og `hairline` = `border-b border-hb-line pb-3` over
-`mb-5`. Forsidens afstande: første sektion `mt-10 md:mt-12`, alle
-følgende `mt-14 md:mt-16`.
+`mb-5`. Forsidens afstande: `mt-10 md:mt-12` på ALLE sektioner (17/9,
+forside PR 1 — Jonas «A» til valg 8: luften ned fra `mt-14 md:mt-16`, ca.
+250 px mindre scroll).
 
 **Kort**: HbCard (`rounded-hb` = 1rem, `border-hb-line`, hvid flade,
 `hover:shadow-hb-hover`). Fokus-kortet padder selv `p-7 md:p-9` og
