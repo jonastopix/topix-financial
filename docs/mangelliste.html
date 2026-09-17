@@ -1616,6 +1616,23 @@
       fire ting …» → «Sletteliste: fem ting …» (advisor_session_notes).
     Før: 133. Fjernet: 0. Tilføjet: 2. Efter: 135 — målt med grep på
       kortenes div-tag (class card).
+  RØRT 17/9 AFTEN (bogført i OVERLEVERING DEL 2 «17. september» §8)
+    Tallenes aften (#971–#981). Lukket: «Tal der ikke kan passe står på
+    skærmen …» (#965 forsidens værn, #967 rimelighedstjek før godkendelse;
+    navnet ebitda_margin_pct udestår — eget kort). Omskrevet: Booking
+    Innovations 46 kr. (værnet (b) er i drift med #967; datafixet (a)
+    udestår); «Rallysupport: parseren klassificerer på ét ord» → «Rallysupports
+    to eksporter af samme måneder» (beslutning). Tolv nye kort (Dine tal,
+    Ny 17/9) — de fire første kræver Jonas' beslutning: de 45 identiske
+    manuelle rettelser · Rallysupports to eksporter · BR Roset 2025-07 og
+    YKRG 2026-04 · BR Rosets runde tusinder; dernæst genkørslerne (Brick
+    Works' balance; PDF- og AI-rapporterne), saldobalance-PDF uden «i alt»
+    (merget #982 dbe98d36 22:50 — udrul + genkør), AI-skemaets fem manglende grupper, XLSX-P&L/combined uden
+    BRILLEVÆRK-navnene, kontrolsummen på forsiden + snapshot, D's migration
+    (STOP), rapporter uden fil i storage + 5–10 %-fortegn. Plus ét lille:
+    ebitda_margin_pct-noten. Talt med grep på div-taggene: før 186 (inkl.
+    skabelonen i kommentaren) og 56 lukkede; efter 198 og 57 lukkede.
+    Lukket: 1 (bliver stående). Omskrevet: 2. Tilføjet: 12.
   RYDDET 13/9 SEN AFTEN, DEL 11 — ANSØGNINGSSPORET, WEBINARET 22/9 OG KORT
   29 (bogføring, ingen kode. HEAD er e99019c5 = #847 «feat: platformconfigs
   tre doede dele slettes (kort 82)», merget 21:24:30 UTC — kort 82's kort
@@ -2189,6 +2206,66 @@
   <h2>Dine tal — rapportering, KPI, budget, handouts, parsing</h2>
   <p class="lede">Fungerer teknisk, bruges ikke nok. To mails fra betalende medlemmer, modtaget 22. august, står stadig åbne: «den har ikke taget alle mine omkostningsposter med … jeg kan ikke slette poster den allerede har lavet … jeg skal manuelt indtaste tal i hvert felt» og «den vil ikke uploade. Den skriver, at jeg skal indtaste tallene manuelt — kan det passe?»</p>
   <div class="grid">
+    <div class="card decision new" id="m17-manuelle-rettelser" data-status="beslutning" data-spor="1" data-rammer="raadgiver">
+      <h3>45 manuelt rettede måneder hvor rettelsen er identisk med udtrækket — slip rettelsen (så genkørsler og de nye nøgler når facts), eller behold?</h3>
+      <p>Chattens måling 17/9 aften: 45 rapporter med <code>manual_override_status = 'applied'</code> hvor <code>manual_normalized_data</code> er lig udtrækket. Den manuelle rettelse har forrang i resolveren, så backfillen (19:53) sprang dem over, og en genkørsel ændrer ikke deres facts. Valget pr. rapport (genkør-planens §3 B): sæt <code>manual_override_status</code> væk og genkør, eller behold. Identiske rettelser er uden tab at slippe; de fire hos Livja og ANLA's 14 kræver et blik først (SQL i <code>udkast-sidste-ukendte/README.md</code> §5). Historik: OVERLEVERING DEL 2 «17. september» §8.</p>
+      <div class="meta"><span class="tag ny">Ny 17/9</span><span class="tag gold">Jonas' beslutning</span><span class="tag size">Lille</span></div>
+    </div>
+    <div class="card decision new" id="m17-brroset-ykrg" data-status="beslutning" data-spor="1" data-rammer="raadgiver">
+      <h3>BR Roset 2025-07 og YKRG 2026-04 — to måneder chatten fandt ved genkørslen, som kræver Jonas' afgørelse før de godkendes</h3>
+      <p>Chattens bogføring 17/9 aften nævner de to måneder som åbne efter genkørslen (tallet efter stemmer ikke med det Jonas venter, eller perioden ejes af en anden rapport); detaljen står i chattens resultatsæt, ikke i repoet. Kør <code>udkast-tilstand-efter/02-hvad-en-genkoersel-aendrer.sql</code> for de to, læs <code>forventet_virkning</code> og <code>periode_ejes_af</code>, og afgør: godkend, «Erstat gammel data», eller manuel rettelse. Historik: OVERLEVERING DEL 2 «17. september» §8.</p>
+      <div class="meta"><span class="tag ny">Ny 17/9</span><span class="tag gold">Jonas' beslutning</span><span class="tag">Kræver prod</span><span class="tag size">Lille</span></div>
+    </div>
+    <div class="card decision new" id="m17-brroset-runde-tusinder" data-status="beslutning" data-spor="1" data-rammer="medlem">
+      <h3>BR Rosets tal er AI-skøn i hele tusinder (17 af 20 måneder med regnet ≫ resultat) — acceptér, eller route filerne til en skabelon</h3>
+      <p>AI-vejen runder og har ingen felter for pension, øvrige personale, autodrift, andre eksterne og ekstraordinære poster (målt i skemaet, <code>udkast-sidste-ukendte/README.md</code> §3). Afgøres af <code>routing_branch</code>/<code>source_system</code> i SQL'en dér: <code>*_fail_ai_fallback</code> = e-conomic der faldt til AI → genkør med #972/#980 rammer skabelonen; <code>ai_fallback_no_match</code> = fremmed kilde → ny skabelon (som Mamut, #980) eller flere skemafelter + prompt. Jonas henter den øverste fil (Virksomheder → BR Roset → Rapporter → Vis alle → måneden → «Se original fil»). Historik: OVERLEVERING DEL 2 «17. september» §8.</p>
+      <div class="meta"><span class="tag ny">Ny 17/9</span><span class="tag gold">Jonas' beslutning</span><span class="tag">Kræver filen</span><span class="tag size">Mellem</span></div>
+    </div>
+    <div class="card new" id="m17-brick-works-balance" data-status="mangler" data-spor="1" data-rammer="medlem">
+      <h3>Brick Works' 22 måneder genkøres igen for balancen — resultatet er rigtigt (genkørt 17/9), balancen tom indtil #978 er udrullet og kørt</h3>
+      <p>Målt 21:15 i <code>saldobalance39.xlsx</code>: fire kolonner, balancen i D; skabelonen læste kolonne E → 86 balancekonti uden beløb, <code>balance_present</code> FAIL på alle 22. #978 (<code>c25fbdc6</code>) finder kolonnerne af overskriften og fælder tom balance (<code>balance_values_present</code>). Vejen: «Genkør rapporter» (/virksomheder/genkoer) → Brick Works → kun saldobalance-XLSX → 10 + 10 + 2 → «Godkend alle der er PASS». Bevis: <code>facts.metrics ? 'cash'</code> på alle 22 (genkør-planens <code>04-efter-billede.sql</code>). Historik: OVERLEVERING DEL 2 «17. september» §3 (5), §5.</p>
+      <div class="meta"><span class="tag ny">Ny 17/9</span><span class="tag rust">Udrulning + genkørsel</span><span class="tag size">Lille</span></div>
+    </div>
+    <div class="card new" id="m17-koerelisten" data-status="mangler" data-spor="1" data-rammer="medlem">
+      <h3>Kørelisten: PDF- og AI-rapporterne, ANLA 14, Warburg 8 og BR Roset 20 er ikke genkørt — resultatet ændres for Floren-typen og Rezycl-typen, grupperne for resten</h3>
+      <p>Rækkefølgen og forventet virkning pr. virksomhed: <code>udkast-tilstand-efter/README.md</code> §3 (Rezycl → Floren → Capture IT → BRILLEVÆRK → Doggybed → KJ AUTO → Rallysupport → Topix.dk → Nordic → remm. → Brick Works igen → Warburg → Livja → BR Roset → resten); <code>02-hvad-en-genkoersel-aendrer.sql</code> siger pr. rapport hvad der sker uden at køre den. Snapshot (<code>udkast-genkoersel-plan/03-snapshot-og-rollback.sql</code>) FØR første hold: der findes intet før-billede i databasen. Hold à 10 i «Genkør rapporter»; <code>01-tilstand-pr-virksomhed.sql</code> som nulpunkt og efter hvert hold. Historik: OVERLEVERING DEL 2 «17. september» §5, §8.</p>
+      <div class="meta"><span class="tag ny">Ny 17/9</span><span class="tag rust">Genkørsel</span><span class="tag size">Mellem</span></div>
+    </div>
+    <div class="card new" id="m17-saldobalance-pdf-uden-i-alt" data-status="mangler" data-spor="1" data-rammer="medlem">
+      <h3>PDF-grupperne som træ er MERGET (#982, <code>dbe98d36</code>, 22:50) — udrulning af extract-financial-data og genkørsel af KJ AUTO, Rallysupport, Topix.dk, Nordic By Hand, remm., Doggybed, BRILLEVÆRK, Floren Engros og Capture IT udestår</h3>
+      <p>Målt 17/9 ~22:00 i KJ AUTO's fil (grupper uden «i alt», grupper inde i grupper: «Løn i alt» inde i «Personaleudgifter», lejeindtægter inde i «Udlejning af fast ejendom») → <code>cost_lines_present</code> FAIL efter #978's genkørsel; og i prod 21:59 for BRILLEVÆRK (løn tom: «Løn, gager og honorarer i alt» matchede ikke). Rettelsen (<code>_shared/gruppetrae.ts</code>, begge PDF-skabeloner) er i HEAD; KJ AUTO målt: alle grupper, balancen, kontrolsum 0. Vejen: udrul eksplicit → «Genkør rapporter», skabelon c) og b), hold à 10 → «Godkend alle der er PASS». Bevis: <code>groups_from_tree</code> i <code>quality_signals.ai_checks</code>, udækket ≈ 0 i <code>04-efter-billede.sql</code>. Historik: OVERLEVERING DEL 2 «17. september» §1 (sidste række), §7; <code>~/Downloads/udkast-saldobalance-pdf-grupper/README.md</code>.</p>
+      <div class="meta"><span class="tag ny">Ny 17/9</span><span class="tag rust">Udrulning + genkørsel</span><span class="tag size">Lille</span></div>
+    </div>
+    <div class="card new" id="m17-ai-skema-grupper" data-status="mangler" data-spor="2" data-rammer="medlem">
+      <h3>AI-skemaet har ingen felter for pension, øvrige personale, autodrift, andre eksterne og ekstraordinære poster — AI-læste rapporter bliver ved med at have udækket</h3>
+      <p>Målt i <code>extract-financial-data/index.ts</code> (key_figures-skemaet efter #972): løn, marketing, lokaler, admin, afskrivninger, tech_software, finansielle omkostninger/indtægter — resten kan AI'en kun lægge i <code>line_items</code>, som aldrig når metrics. Tre veje (<code>udkast-sidste-ukendte/README.md</code> §3): flere skemafelter + prompt (lille), kontrolsummen som prompt-tjek, eller en skabelon for kilden (rigtigst). Rammer BR Roset, Booking Innovation, CARMA, PHILBERT, YKRG og AI-delene af Warburg/Nordic/Topix. Historik: OVERLEVERING DEL 2 «17. september» §8.</p>
+      <div class="meta"><span class="tag ny">Ny 17/9</span><span class="tag size">Lille</span></div>
+    </div>
+    <div class="card new" id="m17-xlsx-combined-navne" data-status="mangler" data-spor="2" data-rammer="medlem">
+      <h3>XLSX-resultatopgørelsen og combined-skabelonen kender ikke «Løn, gager og honorarer», «Personaleomkostninger», «Leasing» og «Finansieringsomkostninger» — de falder i øvrige omkostninger (kontrolsummen går op, navnet er forkert)</h3>
+      <p>#976 gav de to skabeloner øvrige omkostninger for grupper uden nøgle, så tallet lukker; men <code>LABEL_MATCHERS</code>/<code>PNL_LABEL_MATCHERS</code> matcher «lønninger», «pensioner &amp; sociale», «øvrige personaleudgifter», «finansieringsudgifter» — BRILLEVÆRK-navnene (målt i PDF'en) ville lande i other_costs, hvis et regneark viser dem. Én linje pr. matcher når en fil viser formen; PDF-udgaven er rettet i udkastet ovenfor. Historik: OVERLEVERING DEL 2 «17. september» §7, <code>udkast-saldobalance-pdf-grupper/README.md</code> §3.</p>
+      <div class="meta"><span class="tag ny">Ny 17/9</span><span class="tag size">Lille</span></div>
+    </div>
+    <div class="card new" id="m17-kontrolsum-forside-snapshot" data-status="mangler" data-spor="2" data-rammer="raadgiver">
+      <h3>Kontrolsummen bor på rapporten (quality_signals.udaekket) — forsiden og facts viser den ikke; og der findes intet før-billede i databasen før genkørsler</h3>
+      <p>#973 gemmer tallet pr. rapport og viser det ved godkendelsen og på virksomhedssiden (via <code>source_report_id</code>); rådgiverens forside og rapportkortet (<code>reportCardView</code>) ved intet. To små ting: (a) samme helper (<code>kontrolsumAf</code> + <code>udaekketLinje</code>) på rapportkortet; (b) snapshot-tabellerne <code>ops.genkoersel_foer_rapporter</code>/<code>_facts</code> (genkør-planens <code>03-snapshot-og-rollback.sql</code>) køres FØR hvert hold — udtrækket og commit overskriver rækkerne uden historik. Historik: OVERLEVERING DEL 2 «17. september» §8, <code>udkast-genkoersel-plan/README.md</code> §6.</p>
+      <div class="meta"><span class="tag ny">Ny 17/9</span><span class="tag size">Lille</span></div>
+    </div>
+    <div class="card decision new" id="m17-fail-kraever-raadgiver" data-status="beslutning" data-spor="2" data-rammer="medlem">
+      <h3>D's migration «en FAIL-rapport kan ikke committes som measured af et medlem» ligger i udkast (STOP) — kør den først når PDF-skabelonerne er genkørt; hænger sammen med «skal PASS uden advarsler committes automatisk?»</h3>
+      <p><code>udkast-tal-rimelighed-d/supabase/migrations/20260918160000_commit_report_facts_fail_kraever_raadgiver.sql</code> (SECURITY DEFINER → grønt lys). STOP 17/9 fordi FAIL var hyppig på kendte kilder (Brick Works 21 af 21 før #971); efter #971–#980 og genkørslerne er FAIL igen et signal. Sammen med kortet «Tre PASS-uploads uden facts venter i køen» afgør de to hvad godkendelsen er: automatisk ved PASS uden advarsler, kryds ved WARN, rådgiver ved FAIL. Historik: OVERLEVERING DEL 2 «17. september» §2, §8; <code>udkast-tal-rimelighed-d/README.md</code> §4.</p>
+      <div class="meta"><span class="tag ny">Ny 17/9</span><span class="tag gold">SECURITY DEFINER</span><span class="tag size">Lille</span></div>
+    </div>
+    <div class="card new" id="m17-uden-fil-og-fem-procent" data-status="mangler" data-spor="2" data-rammer="medlem">
+      <h3>Rapporter uden fil i storage (legacy-sti «uploads/…») kan ikke genkøres — «Genupload original» først; og 5–10 %-fortegnstilfældene (Rezycl 2026-05) vendes ikke automatisk</h3>
+      <p>«Genkør rapporter» mærker dem (<code>legacy_sti</code>, <code>ingen_fil</code>) og springer dem over — de skal have filen igen af medlemmet eller rådgiveren. AI-fortegnet vendes kun ved samme størrelse ±5 % (mindst 500 kr.); Rezycl 2026-05 er 5,2 % fra og står som D's advarsel «samme tal med modsat fortegn» → kryds. Vil Jonas have den med: <code>AI_RESULTAT_TOLERANCE_PCT</code> 0,05 → 0,06 (én konstant). Historik: OVERLEVERING DEL 2 «17. september» §6, §8.</p>
+      <div class="meta"><span class="tag ny">Ny 17/9</span><span class="tag size">Lille</span></div>
+    </div>
+    <div class="card new" id="m17-ebitda-margin-navn" data-status="mangler" data-spor="senere" data-rammer="ingen">
+      <h3>ebitda_margin_pct lyver om formlen — den er resultat FØR SKAT; skriv noten de steder nøglen læses (omdøbning er en migration)</h3>
+      <p>Resten af det lukkede kort «Tal der ikke kan passe står på skærmen» (13/9): databasen og ugefokus kalder resultatgraden <code>ebitda_margin_pct</code>, formlen er ebt/omsætning. Noten er tekst; omdøbningen er en migration + alle læsere. Historik: OVERLEVERING DEL 2 «13. september», «17. september» §8.</p>
+      <div class="meta"><span class="tag ny">Ny 17/9</span><span class="tag size">Lille</span></div>
+    </div>
     <div class="card new" id="m16-download-uden-tal" data-status="fejl" data-spor="8" data-rammer="medlem">
       <h3>Nøgletal viser «Download PDF · Download CSV» på en tom side — knapperne er disabled i kode, men de skal udgå når der ingen tal er</h3>
       <p>Set 16/9 10:03 på /kpis for en ny konto uden tal. <code>NoegletalView.tsx:590, :599</code> gør dem <code>disabled</code> ved <code>monthlyData.length === 0</code>; om de var nedtonet på skærmen er ikke målt. Samme regel som tom-tilstandens kort: ingen eksport af ingenting. Analysens nr. 5. Historik: OVERLEVERING DEL 2 «16. september (formiddag)» §6 fund 6.</p>
@@ -2237,7 +2314,7 @@
     </div>
     <div class="card new" data-status="fejl" data-spor="2" data-rammer="medlem">
       <h3>Booking Innovations personale er 46 kr. om måneden (2024, årsrapport) — datafix + et tærskelværn i valideringen</h3>
-      <p>0,1 % af omsætningen mod 17–40 % hos de andre; «46» for 46.000 eller én linje læst som hele lønnen — ikke afgjort. Medlemmet ser tallet på flere flader nu (#795). (a) SELECT før, UPDATE guardet på 46, SELECT efter; (b) «lønandel under 1 % med omsætning over 0 → flag», samme klasse som <code>suspicious_sign_pattern</code>. Chattens 10 altafgørende 16/9 (8) hører til. Historik: OVERLEVERING DEL 2 «Årsrapport-udtrækket».</p>
+      <p><strong>RETTET 17/9 (delvist): værnet (b) er i drift — #967 <code>magnitude_plausibility</code> advarer «Lønomkostninger er 46 kr. — kun 0,05 % af omsætningen. Er tallet i tusinder (t.kr.) …» ved godkendelsen og som note i årsrapporten. Datafixet (a) udestår.</strong> 0,1 % af omsætningen mod 17–40 % hos de andre; «46» for 46.000 eller én linje læst som hele lønnen — ikke afgjort. Medlemmet ser tallet på flere flader nu (#795). (a) SELECT før, UPDATE guardet på 46, SELECT efter; (b) «lønandel under 1 % med omsætning over 0 → flag», samme klasse som <code>suspicious_sign_pattern</code>. Chattens 10 altafgørende 16/9 (8) hører til. Historik: OVERLEVERING DEL 2 «Årsrapport-udtrækket».</p>
       <div class="meta"><span class="tag">Forkerte tal</span><span class="tag size">Lille</span></div>
     </div>
     <div class="card" data-status="mangler" data-spor="1" data-rammer="medlem">
@@ -2250,10 +2327,10 @@
       <p>Målt 10/9: 3, ikke 73 (køen var driftsgæld og er betalt). SQL til hvem: <code>financial_reports</code> PASS uden <code>financial_report_facts</code>. Beslutningen afgør om køen vokser igen: automatisk commit ved PASS uden advarsler (fjerner køen), eller hver rapport gennem en rådgiver (en fast vagt). Historik: OVERLEVERING DEL 2 «10. september».</p>
       <div class="meta"><span class="tag gold">Beslutning</span><span class="tag size">Lille</span></div>
     </div>
-    <div class="card" data-status="mangler" data-spor="1" data-rammer="medlem">
-      <h3>Rallysupport: parseren klassificerer på ét ord — find den strandede fil i prod, ellers lukkes kortet</h3>
-      <p><code>sourceFingerprint.ts:44-52</code> vælger dokumenttype på «saldobalance»/«resultatopgørelse». Om det ramte en konkret Rallysupport-fil, står ingen steder. SQL: <code>financial_reports</code> for Rallysupport, seneste 10 med status og fejl. Findes en, hører den under PHILBERT-kortet; findes ingen, lukkes kortet. KJ AUTO-halvdelen var ikke en fejl (forecast kræver tre målte måneder med vilje). Historik: OVERLEVERING DEL 2 «11. september».</p>
-      <div class="meta"><span class="tag gold">Kræver prod</span><span class="tag size">Lille</span></div>
+    <div class="card decision new" id="m17-rallysupport-to-eksporter" data-status="beslutning" data-spor="1" data-rammer="raadgiver">
+      <h3>Rallysupports to eksporter af samme måneder — hvilken gælder? (Var: «parseren klassificerer på ét ord — find den strandede fil»)</h3>
+      <p><strong>Omskrevet 17/9.</strong> Chattens bogføring 17/9 aften: Rallysupport har uploadet to eksporter for de samme måneder (saldobalance-PDF og en anden udgave); perioden kan kun ejes af én rapport (<code>commit_report_facts</code> rejser «already owned by report …»), og genkørslen springer den anden over. Jonas afgør hvilken der gælder pr. måned — så soft-slettes den anden («Erstat gammel data») og de 16 genkøres med saldobalance-PDF'ens grupper uden «i alt» (udkast). Den gamle grund («ét ord i fingerprintet») er afløst af #972/#980. Historik: OVERLEVERING DEL 2 «17. september» §8; <code>~/Downloads/udkast-genkoersel-plan/README.md</code> §6.</p>
+      <div class="meta"><span class="tag ny">Ny 17/9</span><span class="tag gold">Jonas' beslutning</span><span class="tag size">Lille</span></div>
     </div>
     <div class="card new" data-status="fejl" data-spor="2" data-rammer="medlem">
       <h3>«Aftalt» mål er ikke altid aftalt: et tomt målfelt gemmes som 0 — skriv ingen række for et tomt felt, og slet rækken når feltet tømmes</h3>
@@ -2280,10 +2357,11 @@
       <p>Set på forsiden ved skærmbeviset for fase 4 (17/9 00:06). Linjen regner rigtigt på det der står i <code>budget_targets</code>; fejlen er budgettet (eller en delmåned mod en hel). Mål først Doggybeds budgetrækker og den måned linjen peger på (kræver prod); dernæst enten rettes budgettet af rådgiveren, eller forsidens dom får en rimelighedsgrænse (som «tal der ikke kan passe», kortet ovenfor). Historik: OVERLEVERING DEL 2 «16. september (eftermiddag og aften) og 17. september (nat)» §45 (d).</p>
       <div class="meta"><span class="tag gold">Set 17/9 00:06</span><span class="tag ny">Ny 17/9</span><span class="tag">Kræver prod</span><span class="tag size">Lille</span></div>
     </div>
-    <div class="card new" data-status="fejl" data-spor="2" data-rammer="medlem">
+    <div class="card new loest" data-status="loest" data-spor="2" data-rammer="medlem">
       <h3>Tal der ikke kan passe står på skærmen (resultatmargin 259,4 % og −101,4 % som «measured») — og nøglen ebitda_margin_pct lyver om formlen</h3>
+      <p><strong>LUKKET 17/9 — #965 (<code>e4fbcd25</code>): rimelighedsdommen på forsiden og virksomhedssiden («Tallet ser forkert ud — tjek budgettet» i stedet for umulige procenter; prod 15:33: Doggybed 21776 %); #967 (<code>c055078a</code>): tre rimelighedstjek FØR godkendelse med aktivt kryds; #973: kontrolsummen. Årsagen bag Brick Works 2026-03 var fortegnet i saldobalancen (#971) — genkørt 17/9. Navnet <code>ebitda_margin_pct</code> er IKKE rettet — eget kort «ebitda_margin_pct lyver om formlen».</strong></p>
       <p>Målt 13/9 18:28: Brick Works 2026-03 og Doggybed 2026-08. Hypoteser: delmåned/0-omsætning mod hel periode, engangspost, år-til-dato læst som måned — kun prod kan sige hvilken (facts-rækkerne, rapportens fil og status). Fladen har ingen rimelighedsgrænse (<code>calcResultMargin</code>). Navnet: formlen er resultat FØR SKAT, men databasen og ugefokus kalder den <code>ebitda_margin_pct</code> — skriv NOTEN de steder nøglen læses; omdøbning er en migration. Chattens 10 altafgørende 16/9 (8). Historik: OVERLEVERING DEL 2 «13. september».</p>
-      <div class="meta"><span class="tag gold">Chattens 10 altafgørende 16/9 (8)</span><span class="tag">Kræver prod</span><span class="tag size">Lille</span></div>
+      <div class="meta"><span class="tag loest">Lukket 17/9</span><span class="tag gold">Chattens 10 altafgørende 16/9 (8)</span><span class="tag size">Lille</span></div>
     </div>
     <div class="card new" data-status="ide" data-spor="4" data-rammer="medlem">
       <h3>Direkte integration til regnskabssystemer (e-conomic først) — fjerner den handling de 19 af 27 ikke gør: upload</h3>
