@@ -7,7 +7,7 @@
 export type StatementType = "pnl" | "trial_balance" | "balance" | "combined" | "unknown";
 export type PeriodBasis = "period" | "ytd" | "unknown";
 export type ValidationStatus = "PASS" | "FAIL" | "UNSURE";
-export type CheckResult = "PASS" | "FAIL" | "SKIP";
+export type CheckResult = "PASS" | "FAIL" | "SKIP" | "WARN";
 export type Confidence = "HIGH" | "MEDIUM" | "LOW";
 export type CorrectionSource = "key_figure" | "line_item" | "derived_metric" | "semantic_candidate";
 
@@ -84,6 +84,10 @@ export interface ValidationCheck {
   name: string;
   result: CheckResult;
   details: string;
+  /** Rimelighedstjek (D, 18/9-2026): teksten til medlemmet, dansk — kun på WARN. */
+  tekst?: string;
+  /** Rimelighedstjek: canonical-nøgler advarslen handler om — dialogen markerer dem ved tallet. */
+  felter?: string[];
 }
 
 // ── Raw Line (from AI extraction) ──
