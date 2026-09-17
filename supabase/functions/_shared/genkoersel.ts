@@ -21,6 +21,7 @@ export type GenkoerselFiltype = "csv" | "xlsx" | "pdf" | "ukendt";
 
 export type GenkoerselGrund =
   | "ok"
+  | "ok_tvunget"
   | "pdf_kraever_browser"
   | "har_facts"
   | "slettet"
@@ -43,6 +44,11 @@ export interface GenkoerselRaekke {
   needs_manual_entry: boolean;
   /** Findes der facts med source_report_id = id. */
   har_facts: boolean;
+  /** TVUNGET (17/9-2026, udkast-genkoersel-tvunget): rådgiverens udtrykkelige ordre på navngivne
+      report_ids — «har facts» og «ikke strandet» springes over, facts overskrives og godkendes igen
+      i samme tur. Alt der gør en genkørsel UMULIG eller FARLIG på anden vis (slettet, manuel, under
+      behandling, uden fil, PDF, ukendt filtype) gælder stadig. Aldrig sat i tørkørslen over de 90 dage. */
+  tvunget?: boolean;
 }
 
 export interface GenkoerselDom {
@@ -55,6 +61,7 @@ export interface GenkoerselDom {
 
 export const GENKOERSEL_TEKST: Readonly<Record<GenkoerselGrund, string>> = {
   ok: "Kan genkøres fra storage.",
+  ok_tvunget: "Genkøres på rådgiverens udtrykkelige ordre: filen læses igen, og de godkendte tal overskrives og godkendes igen i samme tur.",
   pdf_kraever_browser:
     "PDF kan ikke genkøres fra serveren: tekst, sidebilleder og struktur laves af pdfjs i browseren. Upload filen igen fra rapporteringssiden.",
   har_facts: "Rapporten har allerede facts — en genkørsel ville overskrive grundlaget for godkendte tal.",
@@ -65,6 +72,15 @@ export const GENKOERSEL_TEKST: Readonly<Record<GenkoerselGrund, string>> = {
   ikke_strandet: "Rapporten er læst og i orden (behandlet uden fejl) — en genkørsel ville overskrive den uden grund.",
   ukendt_filtype: "Filtypen kendes ikke på filnavnet — kun .csv, .xlsx og .xls kan genkøres.",
 };
+
+/** Kontrolsummens tal fra rapportens quality_signals.udaekket (kontrolsum-udkastet, 17/9-2026:
+    `{ udaekket, udaekket_pct_af_omsaetning, kilde, regnet, grupper_fundet }`, hele kroner; null når det
+    ikke er regnet — rapporter udtrukket før udrulningen). Bruges til FØR/EFTER-beviset i den tvungne genkørsel. */
+export function udaekketAf(qs: unknown): number | null {
+  const u = (qs as { udaekket?: { udaekket?: unknown } | null } | null | undefined)?.udaekket;
+  const v = u && typeof u === "object" ? (u as { udaekket?: unknown }).udaekket : undefined;
+  return typeof v === "number" && Number.isFinite(v) ? v : null;
+}
 
 /** Filtypen som extract-financial-data selv afgør den: på endelsen alene. */
 export function filtypeAfNavn(fileName: string | null | undefined): GenkoerselFiltype {
@@ -92,20 +108,20 @@ export function afgoerGenkoersel(r: GenkoerselRaekke): GenkoerselDom {
   const dom = (grund: GenkoerselGrund): GenkoerselDom => ({
     report_id: r.id,
     filtype,
-    kan: grund === "ok",
+    kan: grund === "ok" || grund === "ok_tvunget",
     grund,
     tekst: GENKOERSEL_TEKST[grund],
   });
 
   if (r.deleted_at) return dom("slettet");
-  if (r.har_facts) return dom("har_facts");
+  if (r.har_facts && !r.tvunget) return dom("har_facts");
   if (r.manual_override_status === "applied") return dom("manuel_anvendt");
   if (r.status === "processing") return dom("behandles");
-  if (!erStrandet(r)) return dom("ikke_strandet");
+  if (!erStrandet(r) && !r.tvunget) return dom("ikke_strandet");
   if (!r.file_path) return dom("ingen_fil");
   if (filtype === "pdf") return dom("pdf_kraever_browser");
   if (filtype === "ukendt") return dom("ukendt_filtype");
-  return dom("ok");
+  return dom(r.tvunget ? "ok_tvunget" : "ok");
 }
 
 // ── Payloaden — præcis som browseren laver den (src/lib/reportUploadEngine.ts) ──

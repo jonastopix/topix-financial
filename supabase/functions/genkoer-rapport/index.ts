@@ -24,6 +24,25 @@
 // PDF afvises med ord (dommen i _shared/genkoersel.ts): pdfjs findes kun i
 // browseren. Tom body = tørkørsel over de strandede fra de sidste 90 dage.
 // Kun { "dry_run": false, "report_ids": [...] } kører — højst ti pr. kald.
+//
+// TVUNGET (17/9-2026, udkast-genkoersel-tvunget — saldobalance-rettelsen): 36 committede
+// saldobalancer (Fjeldgaardshop 15, Brick Works 21) har forkerte tal fra skabelonen og
+// kan ikke genkøres af dommen (har_facts / ikke_strandet). { "overskriv_facts": true }
+// sammen med NAVNGIVNE report_ids lader rådgiveren tvinge dem igennem: dommen får
+// tvunget = true, kæden læser filen igen på samme reportId, og derefter kaldes
+// commit_report_facts med RÅDGIVERENS eget JWT (callerClient — RPC'en kræver auth.uid()
+// og rådgiverrollen, og skriver på samme source_report_id → UPDATE af metrics), så facts
+// er rettet i samme tur. Svaret bærer FØR/EFTER pr. rapport (revenue, gross_profit,
+// facility_costs, other_costs, other_operating_income, ebitda, ebit, ebt, committed_at)
+// og et BEVIS på fire tal: ebt_foer → ebt_efter (facts) og udaekket_foer → udaekket_efter
+// (rapportens quality_signals.udaekket — kontrolsummen, 17/9), så genkørslen kan bevises
+// uden SQL bagefter. Tørkørsel med overskriv_facts viser FØR-tallene og dommen uden at
+// røre noget. Aldrig uden report_ids: tørkørslen over 90 dage kan ikke tvinges.
+//
+// TO VEJE (17/9, vindue A's «Genkør flere rapporter» i browseren): XLSX/CSV genkøres HER på
+// serveren (filen hentes fra storage); PDF kan ikke (pdfjs findes kun i browseren) og
+// genkøres i A's flade, som kalder extract-financial-data med det SAMME reportId (aldrig
+// overwrite) og godkender med det SAMME commit_report_facts. Dommen her afviser PDF som før.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
 import * as XLSX from "npm:xlsx@0.18.5";
@@ -33,6 +52,7 @@ import {
   base64AfBytes,
   csvTekstAfBytes,
   regnearkTekst,
+  udaekketAf,
   type GenkoerselDom,
   type GenkoerselRaekke,
 } from "../_shared/genkoersel.ts";
@@ -58,6 +78,34 @@ interface RapportRaekke {
   report_type: string | null;
   uploaded_at: string;
   quality_signals: Record<string, unknown> | null;
+}
+
+/** Det udsnit af facts svaret viser FØR og EFTER (tvunget): tallene rettelsen handler om. */
+const FACTS_FELTER = "source_report_id, period_key, data_basis, committed_at, metrics";
+const FOER_EFTER_NOEGLER = ["revenue", "gross_profit", "facility_costs", "other_costs", "other_operating_income", "ebitda", "ebit", "ebt"] as const;
+
+interface FactsRaekke {
+  source_report_id: string | null;
+  period_key: string | null;
+  data_basis: string | null;
+  committed_at: string | null;
+  metrics: Record<string, unknown> | null;
+}
+
+interface FactsUdsnit {
+  period_key: string | null;
+  data_basis: string | null;
+  committed_at: string | null;
+  tal: Record<string, number | null>;
+}
+
+function factsUdsnit(f: FactsRaekke): FactsUdsnit {
+  const tal: Record<string, number | null> = {};
+  for (const k of FOER_EFTER_NOEGLER) {
+    const v = f.metrics?.[k];
+    tal[k] = typeof v === "number" ? v : v == null ? null : Number(v);
+  }
+  return { period_key: f.period_key, data_basis: f.data_basis, committed_at: f.committed_at, tal };
 }
 
 function jsonResponse(body: unknown, status = 200): Response {
@@ -94,6 +142,7 @@ Deno.serve(async (req) => {
     // ── 2. Input: tørkørsel medmindre { dry_run: false }; report_ids valgfrit i tørkørsel, krævet ved kørsel ──
     const body = await req.json().catch(() => null);
     const dryRun = body?.dry_run !== false;
+    const overskrivFacts = body?.overskriv_facts === true;
     const rawIds: unknown = body?.report_ids ?? (typeof body?.report_id === "string" ? [body.report_id] : undefined);
     let reportIds: string[] | null = null;
     if (rawIds !== undefined) {
@@ -107,6 +156,9 @@ Deno.serve(async (req) => {
     }
     if (!dryRun && reportIds && reportIds.length > MAX_PR_KALD) {
       return jsonResponse({ error: `Højst ${MAX_PR_KALD} rapporter pr. kald (${reportIds.length} sendt)` }, 400);
+    }
+    if (overskrivFacts && !reportIds) {
+      return jsonResponse({ error: "overskriv_facts kræver navngivne report_ids — den brede tørkørsel kan ikke tvinges" }, 400);
     }
 
     // ── 3. Service-role-klient: rækkerne, facts og virksomhedsnavne ──
@@ -143,14 +195,20 @@ Deno.serve(async (req) => {
 
     const ids = raekker.map((r) => r.id);
     const medFacts = new Set<string>();
+    // FØR-tallene (kun læst når der tvinges — ellers er facts et eksistenstjek som før).
+    const factsFoer = new Map<string, FactsUdsnit>();
     if (ids.length > 0) {
       // data_basis-undtagelse: eksistenstjek, ingen beregning — FINDES der en facts-række fra rapporten (målt eller estimeret), må den ikke genkøres
       const { data: facts, error: factsErr } = await admin
         .from("financial_report_facts")
-        .select("source_report_id")
+        .select(FACTS_FELTER)
         .in("source_report_id", ids);
       if (factsErr) throw new Error(`facts-opslag fejlede: ${factsErr.message}`);
-      for (const f of facts ?? []) if (f.source_report_id) medFacts.add(f.source_report_id as string);
+      for (const f of (facts ?? []) as FactsRaekke[]) {
+        if (!f.source_report_id) continue;
+        medFacts.add(f.source_report_id);
+        if (overskrivFacts) factsFoer.set(f.source_report_id, factsUdsnit(f));
+      }
     }
 
     const companyIds = Array.from(new Set(raekker.map((r) => r.company_id)));
@@ -173,6 +231,7 @@ Deno.serve(async (req) => {
         manual_override_status: r.manual_override_status,
         needs_manual_entry: needsManualEntry(r.quality_signals),
         har_facts: medFacts.has(r.id),
+        tvunget: overskrivFacts,
       };
       return { raekke: r, dom: afgoerGenkoersel(input) };
     });
@@ -209,6 +268,7 @@ Deno.serve(async (req) => {
       grund: dom.grund,
       tekst: dom.tekst,
       ...(advarsler.has(raekke.id) ? { advarsel: advarsler.get(raekke.id) } : {}),
+      ...(overskrivFacts ? { tvunget: true, foer: factsFoer.get(raekke.id) ?? null, udaekket_foer: udaekketAf(raekke.quality_signals) } : {}),
     });
 
     const villeGenkoere = domme.filter((d) => d.dom.kan).map(beskriv);
@@ -218,6 +278,7 @@ Deno.serve(async (req) => {
     if (dryRun) {
       return jsonResponse({
         dry_run: true,
+        tvunget: overskrivFacts,
         kilde,
         ville_genkoere: villeGenkoere,
         afvist,
@@ -275,6 +336,17 @@ Deno.serve(async (req) => {
           .eq("id", raekke.id)
           .maybeSingle();
 
+        // TVUNGET: godkend igen i samme tur — med rådgiverens eget JWT (RPC'en kræver auth.uid() +
+        // rolle; samme source_report_id → UPDATE af metrics, kollisionsvagten rammer ikke).
+        let commit: { koert: boolean; ok: boolean; fejl: string | null } = { koert: false, ok: false, fejl: null };
+        let factsEfter: FactsUdsnit | null = null;
+        if (overskrivFacts && efter && efter.status === "processed") {
+          const { error: commitErr } = await callerClient.rpc("commit_report_facts", { p_report_id: raekke.id });
+          commit = { koert: true, ok: !commitErr, fejl: commitErr?.message ?? null };
+          const { data: fe } = await admin.from("financial_report_facts").select(FACTS_FELTER).eq("source_report_id", raekke.id).maybeSingle();
+          factsEfter = fe ? factsUdsnit(fe as FactsRaekke) : null;
+        }
+
         koert.push({
           report_id: raekke.id,
           virksomhed: navne.get(raekke.company_id) ?? null,
@@ -312,6 +384,22 @@ Deno.serve(async (req) => {
                 needs_manual_entry: needsManualEntry(efter.quality_signals as Record<string, unknown> | null),
               }
             : null,
+          ...(overskrivFacts
+            ? {
+                tvunget: true,
+                foer: factsFoer.get(raekke.id) ?? null,
+                commit,
+                efter: factsEfter,
+                // Beviset: fire tal, ingen SQL bagefter. ebt fra facts (før: den vendte; efter: saldobalancens),
+                // udækket fra rapportens quality_signals.udaekket (før: null hvis udtrukket før kontrolsummen).
+                bevis: {
+                  ebt_foer: factsFoer.get(raekke.id)?.tal.ebt ?? null,
+                  ebt_efter: factsEfter?.tal.ebt ?? null,
+                  udaekket_foer: udaekketAf(raekke.quality_signals),
+                  udaekket_efter: udaekketAf(efter?.quality_signals ?? null),
+                },
+              }
+            : {}),
         });
       } catch (e) {
         console.error(`${LOG} genkørsel af ${raekke.id} kastede:`, e);
@@ -319,7 +407,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    return jsonResponse({ dry_run: false, kilde, koert, afvist, ukendte_report_ids: ukendteIds });
+    return jsonResponse({ dry_run: false, tvunget: overskrivFacts, kilde, koert, afvist, ukendte_report_ids: ukendteIds });
   } catch (e) {
     console.error(`${LOG} fejl:`, e);
     return jsonResponse({ error: e instanceof Error ? e.message : "Ukendt fejl" }, 500);

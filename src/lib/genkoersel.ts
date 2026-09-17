@@ -21,6 +21,7 @@ export type GenkoerselFiltype = "csv" | "xlsx" | "pdf" | "ukendt";
 
 export type GenkoerselGrund =
   | "ok"
+  | "ok_tvunget"
   | "pdf_kraever_browser"
   | "har_facts"
   | "slettet"
@@ -40,6 +41,8 @@ export interface GenkoerselRaekke {
   manual_override_status: string | null;
   needs_manual_entry: boolean;
   har_facts: boolean;
+  /** Rådgiverens udtrykkelige ordre (genkoer-rapport med overskriv_facts) — se Deno-spejlets filhoved. Fladen sætter den aldrig. */
+  tvunget?: boolean;
 }
 
 export interface GenkoerselDom {
@@ -52,6 +55,7 @@ export interface GenkoerselDom {
 
 export const GENKOERSEL_TEKST: Readonly<Record<GenkoerselGrund, string>> = {
   ok: "Kan genkøres fra storage.",
+  ok_tvunget: "Genkøres på rådgiverens udtrykkelige ordre: filen læses igen, og de godkendte tal overskrives og godkendes igen i samme tur.",
   pdf_kraever_browser:
     "PDF kan ikke genkøres fra serveren: tekst, sidebilleder og struktur laves af pdfjs i browseren. Upload filen igen fra rapporteringssiden.",
   har_facts: "Rapporten har allerede facts — en genkørsel ville overskrive grundlaget for godkendte tal.",
@@ -82,20 +86,20 @@ export function afgoerGenkoersel(r: GenkoerselRaekke): GenkoerselDom {
   const dom = (grund: GenkoerselGrund): GenkoerselDom => ({
     report_id: r.id,
     filtype,
-    kan: grund === "ok",
+    kan: grund === "ok" || grund === "ok_tvunget",
     grund,
     tekst: GENKOERSEL_TEKST[grund],
   });
 
   if (r.deleted_at) return dom("slettet");
-  if (r.har_facts) return dom("har_facts");
+  if (r.har_facts && !r.tvunget) return dom("har_facts");
   if (r.manual_override_status === "applied") return dom("manuel_anvendt");
   if (r.status === "processing") return dom("behandles");
-  if (!erStrandet(r)) return dom("ikke_strandet");
+  if (!erStrandet(r) && !r.tvunget) return dom("ikke_strandet");
   if (!r.file_path) return dom("ingen_fil");
   if (filtype === "pdf") return dom("pdf_kraever_browser");
   if (filtype === "ukendt") return dom("ukendt_filtype");
-  return dom("ok");
+  return dom(r.tvunget ? "ok_tvunget" : "ok");
 }
 
 // ── Fladen: fra rapportrækken til dommen, og ordene for svaret ──

@@ -85,6 +85,11 @@ describe("paritet — src/lib/genkoersel spejler supabase/functions/_shared/genk
     { file_path: null },
     { file_name: "tal.numbers" },
     { file_name: null },
+    // tvunget (17/9-2026): samme dom i begge spejle
+    { har_facts: true, tvunget: true },
+    { status: "processed", validation_status: "PASS", needs_manual_entry: false, har_facts: true, tvunget: true },
+    { file_name: "a.pdf", har_facts: true, tvunget: true },
+    { deleted_at: "2026-09-01T00:00:00Z", tvunget: true },
   ];
   for (const v of varianter) {
     it(`paritet: ${JSON.stringify(v)}`, () => {
