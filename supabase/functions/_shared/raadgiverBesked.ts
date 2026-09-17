@@ -35,6 +35,7 @@ export {
   fornyelsesBeskedTekst,
   raadgivereUdenRaekke,
   TYPE_FORNYELSE_BETALT,
+  TYPE_INDGANG_BETALT,
   TYPE_FORNYELSE_DUBLET,
 } from "./raadgiverBeskedTekst.ts";
 

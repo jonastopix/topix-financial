@@ -162,6 +162,9 @@ describe("teksterne — systemets stemme", () => {
     const udenVideo = komIGangTekst("Mette", false, NU).punkter;
     expect(udenVideo).toHaveLength(TJEKLISTE_RAEKKEFOELGE.length - 1);
     expect(udenVideo[0].startsWith("Din profil")).toBe(true);
+    // Før 22/9 (fotokravet #957, Jonas «2. JA»): mailen følger tjeklisten — fotoet nævnes.
+    // Før: "Din profil — hvad de andre i netværket kan spørge dig om."
+    expect(udenVideo[0]).toBe("Din profil — et foto af dig, og hvad de andre i netværket kan spørge dig om.");
   });
 
   it("A: historikken — de tre seneste AFSLUTTEDE måneder ved navn (instruks F, 16/9), og initiativet er medlemmets — som tjeklistens punkt (Jonas 14/9)", () => {

@@ -59,7 +59,9 @@ export const renFunktion = (ren: string, renRaa: string, w: string): boolean =>
 export const bilagetFoelgerMed = (w: string): boolean =>
   w.includes("): Promise<string | null> {\n  const { data, error } = await adminClient.from(\"company_perioder\").insert({") &&
   w.includes('\n  }).select("id").maybeSingle();') && // opretIndgangsPeriode (to mellemrum — fornyelsens insert står dybere)
-  (w.match(/const periodeId = await opretIndgangsPeriode\(adminClient, \{/g) ?? []).length === 2 &&
+  // Før 22/9 (unikhedsreglen, PeriodeFandtesAllerede): kaldet står i en try — «periodeId = await …» uden const.
+  // Før: /const periodeId = await opretIndgangsPeriode\(adminClient, \{/g — samme to steder.
+  (w.match(/periodeId = await opretIndgangsPeriode\(adminClient, \{/g) ?? []).length === 2 &&
   w.includes('.select("id, periode_start, periode_slut")\n        .eq("stripe_reference", session.id)') &&
   w.includes("periode_id: (nyPeriodeRaekke as { id?: string } | null)?.id ?? null, periode_start, periode_slut,");
 

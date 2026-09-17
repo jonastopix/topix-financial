@@ -34,6 +34,8 @@ export const TYPE_FORNYELSE_DUBLET = "fornyelse_dublet";
 export const TYPE_TRAEK_FEJLET = "traek_fejlet";
 /** Fund B (14/9): invitationen efter betaling gik ikke — samme navneform som traek_fejlet. */
 export const TYPE_INVITATION_FEJLET = "invitation_fejlet";
+/** Før 22/9 (recon-webinar-22-9.md §7 pkt. 3, Jonas «1. Ja»): et NYT medlem har betalt — spejl af fornyelse_betalt. */
+export const TYPE_INDGANG_BETALT = "indgang_betalt";
 
 const MODEL_TEKST: Record<Betalingsmodel, string> = {
   fuld: "på én gang",

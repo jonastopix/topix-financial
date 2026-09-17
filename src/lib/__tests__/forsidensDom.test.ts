@@ -21,6 +21,8 @@ import type { Fornyelsestilstand } from "@/lib/fornyelse";
 import type { Betalingsfristtilstand } from "@/lib/betalingsfrist";
 import { ALVOR_INGEN_MAAL, ALVOR_MAAL, ALVOR_REFLEKSION_HJAELP, maalTilstandstekst, refleksionBesvaret, refleksionsPeriode, refleksionUddrag, REFLEKSION_MIN_TEGN, REFLEKSION_UDDRAG, STILSTAND_LAENGE_DAGE } from "@/lib/forsidensDom";
 import { BOELGE_FRA, BOELGENS_LEDSAGERE, boelgeDagTekst, USAEDVANLIGT_MANGE_TEKST, usaedvanligtMangeTekst, type Boelgelinje } from "@/lib/forsidensDom";
+import { ALVOR_BETALT_IKKE_OPRETTET, BETALT_NOEGLE, betaltGrundTekst, betaltIkkeOprettetTekst, betaltLinje, FORM as FORM_KORT, INDSATS as INDSATS_KORT, type BetaltIkkeOprettet, type Betaltlinje } from "@/lib/forsidensDom";
+import type { Kvittering } from "@/lib/opgaveLukning";
 import type { MaalRaekke } from "@/lib/hjemmebane/planen";
 
 // Fast «nu»: 4. september 2026 kl. 12:00 lokal tid — dagregning for
@@ -117,6 +119,9 @@ describe("konstanterne", () => {
       // Fase 5 (16/9, Jonas «Ja det er i orden»): en aktiv kunde uden aktive mål — en tilstand.
       // Før (fase 4): tabellen sluttede ved refleksion_hjaelp (tretten slags).
       ingen_maal: "tilstand",
+      // Før 22/9 (17/9, Jonas «1. Ja») — rettet MED VILJE. Før: tabellen sluttede ved
+      // ingen_maal (fjorten slags). Betalt uden konto er en hændelse: væk når kontoen er oprettet.
+      betalt_ikke_oprettet: "haendelse",
     });
     for (const slags of Object.keys(FORM) as (keyof typeof INDSATS)[]) {
       expect([1, 2, 3]).toContain(INDSATS[slags]);
@@ -1112,5 +1117,63 @@ describe("ingen mål (fjortende slags, fase 5)", () => {
     expect(virksomhedslinjer(d)[0].grunde.map((g) => g.slags)).toEqual(["stikker_ud", "ingen_maal"]);
     const d2 = afgoerForsidensDom([virksomhed({ maal: [maal({ dageSiden: 78 })] })], NU);
     expect(ingenGrund(d2)).toBeUndefined();
+  });
+});
+
+describe("betalt, ikke oprettet konto (før 22/9, Jonas «1. Ja») — én foldet linje uden for virksomhederne", () => {
+  const nu = new Date("2026-09-25T09:00:00Z");
+  const b = (id: string, navn: string, betaltDag: string, kvittering: Kvittering | null = null): BetaltIkkeOprettet => ({ companyId: id, navn, betaltDag, kvittering });
+
+  it("én virksomhed: linjen bærer navnet og handlingen; grunden siger betalingsdagen og dagene uden login", () => {
+    const dom = afgoerForsidensDom([], nu, { betaltIkkeOprettet: [b("c1", "Mette Hansen ApS", "2026-09-22")] });
+    const linje = dom.linjer.find((l): l is Betaltlinje => l.linje === "betalt")!;
+    expect(linje).toBeDefined();
+    expect(linje.tekst).toBe("Mette Hansen ApS har betalt, men ikke oprettet konto — send invitationen igen");
+    expect(linje.antal).toBe(1);
+    expect(linje.alvor).toBe(ALVOR_BETALT_IKKE_OPRETTET);
+    expect(ALVOR_BETALT_IKKE_OPRETTET).toBe(85);
+    expect(linje.virksomheder[0].grund.tekst).toBe("Betalte 22. september · 3 dage uden login");
+    expect(linje.virksomheder[0].grund.handling).toBe("Send invitationen igen til Mette Hansen ApS");
+    expect(linje.virksomheder[0].grundlag).toEqual({ [BETALT_NOEGLE]: "betalt:2026-09-22" });
+    expect(dom.antalOpgaver).toBe(1);
+  });
+
+  it("flere: «N har betalt …: A, B, C … — send invitationen igen», ældste betaling først, højst tre navne i teksten", () => {
+    const liste = [b("c1", "Delta", "2026-09-23"), b("c2", "Alfa", "2026-09-22"), b("c3", "Charlie", "2026-09-22"), b("c4", "Bravo", "2026-09-24")];
+    const linje = afgoerForsidensDom([], nu, { betaltIkkeOprettet: liste }).linjer.find((l): l is Betaltlinje => l.linje === "betalt")!;
+    expect(linje.virksomheder.map((v) => v.navn)).toEqual(["Alfa", "Charlie", "Delta", "Bravo"]);
+    expect(linje.tekst).toBe("4 har betalt, men ikke oprettet konto: Alfa, Charlie, Delta … — send invitationen igen");
+    expect(betaltIkkeOprettetTekst(["A", "B"])).toBe("2 har betalt, men ikke oprettet konto: A, B — send invitationen igen");
+  });
+
+  it("lukning uden ny kolonne: en kvittering med grundlag «betalt:{dag}» fjerner virksomheden; en ny betalingsdag gør den levende igen; alle kvitteret → ingen linje", () => {
+    const kv = { udfald: "faerdiggjort" as const, grundlag: { [BETALT_NOEGLE]: "betalt:2026-09-22" }, lukketAt: "2026-09-23T10:00:00Z" };
+    const lukket = afgoerForsidensDom([], nu, { betaltIkkeOprettet: [b("c1", "Alfa", "2026-09-22", kv), b("c2", "Bravo", "2026-09-22")] }).linjer.find((l): l is Betaltlinje => l.linje === "betalt")!;
+    expect(lukket.virksomheder.map((v) => v.navn)).toEqual(["Bravo"]);
+    expect(afgoerForsidensDom([], nu, { betaltIkkeOprettet: [b("c1", "Alfa", "2026-09-24", kv)] }).linjer.some((l) => l.linje === "betalt")).toBe(true);
+    expect(afgoerForsidensDom([], nu, { betaltIkkeOprettet: [b("c1", "Alfa", "2026-09-22", kv)] }).linjer.some((l) => l.linje === "betalt")).toBe(false);
+    expect(betaltLinje([], nu)).toBeNull();
+    expect(betaltLinje(undefined, nu)).toBeNull();
+  });
+
+  it("uden feltet (ældre kaldere) ændres intet: samme dom som før", () => {
+    expect(afgoerForsidensDom([], nu)).toEqual(afgoerForsidensDom([], nu, {}));
+    expect(afgoerForsidensDom([], nu).linjer.some((l) => l.linje === "betalt")).toBe(false);
+  });
+
+  it("sortering: 85 står over velkomstlinjen (80) og under en forfalden fornyelse (90); slagsen er hændelse med indsats 1", () => {
+    expect(FORM_KORT.betalt_ikke_oprettet).toBe("haendelse");
+    expect(INDSATS_KORT.betalt_ikke_oprettet).toBe(1);
+    const medVelkomst = virksomhed({ navn: "Ny", medlemSiden: "2026-09-23T08:00:00Z", sidsteRaadgiverBeskedAt: null });
+    const dom = afgoerForsidensDom([medVelkomst], nu, { betaltIkkeOprettet: [b("c9", "Betalt ApS", "2026-09-22")] });
+    const roekkefoelge = dom.linjer.map((l) => l.linje);
+    expect(roekkefoelge.indexOf("betalt")).toBeLessThan(roekkefoelge.indexOf("virksomhed"));
+  });
+
+  it("betaltGrundTekst: i dag, 1 dag, N dage; ulæselig dato falder tilbage til teksten", () => {
+    expect(betaltGrundTekst("2026-09-25", nu)).toBe("Betalte 25. september · i dag");
+    expect(betaltGrundTekst("2026-09-24", nu)).toBe("Betalte 24. september · 1 dag uden login");
+    expect(betaltGrundTekst("2026-09-15", nu)).toBe("Betalte 15. september · 10 dage uden login");
+    expect(betaltGrundTekst("hest", nu)).toBe("Betalte hest · i dag");
   });
 });

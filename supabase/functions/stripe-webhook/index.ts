@@ -31,8 +31,10 @@ import {
   skrivRaadgiverBesked,
   TYPE_FORNYELSE_BETALT,
   TYPE_FORNYELSE_DUBLET,
+  TYPE_INDGANG_BETALT,
   type RaadgiverBeskedResultat,
 } from "../_shared/raadgiverBesked.ts";
+import { indgangBetaltBeskedTekst } from "../_shared/indgangBetaltBesked.ts";
 import { beskedVedFejletTraek, beskedVedInvitationsUdfald, type FejletTraekRaekke } from "../_shared/raadgiverBeskedTekst.ts";
 import {
   erGenindtraeden,
@@ -618,6 +620,22 @@ async function findIndgangsPeriode(
   return (data as EksisterendeIndgangsPeriode | null) ?? null;
 }
 
+/**
+ * UNIKHEDSREGLEN (migration 20260918140000, før 22/9): company_perioder.
+ * stripe_reference er unik pr. Stripe-reference. Taber en indsættelse racen
+ * mod en samtidig leverance af samme event, svarer databasen 23505 — så er
+ * perioden allerede skrevet af vinderen, og DENNE leverance skal hverken
+ * skrive kontraktår, kontrakt eller klokke igen. Kastes som typet fejl, så
+ * kalderen kan svare 200 «concurrent_duplicate» (Stripe skal ikke gensende
+ * en betaling vinderen fuldfører; fejler vinderen, gensender Stripe DEN).
+ * Uden indekset (før migrationen er kørt) er grenen aldrig aktiv — som i dag.
+ */
+class PeriodeFandtesAllerede extends Error {
+  constructor(public readonly stripeReference: string, public readonly periodeId: string | null) {
+    super(`company_perioder: stripe_reference ${stripeReference} findes allerede (23505)`);
+  }
+}
+
 /** Perioden FØRST — fejler det næste trin, findes perioden som spor af hvad der blev betalt. */
 async function opretIndgangsPeriode(
   adminClient: SupabaseClient,
@@ -643,6 +661,13 @@ async function opretIndgangsPeriode(
     note: raekke.note ?? null,
   }).select("id").maybeSingle();
   if (error) {
+    if ((error as { code?: string }).code === "23505") {
+      // Racen tabt: vinderen har skrevet rækken. Slå dens id op på referencen
+      // (kontraktårets bilag), og lad kalderen svare 200 uden at gøre mere.
+      const eksisterende = await findIndgangsPeriode(adminClient, raekke.stripe_reference).catch(() => null);
+      console.warn(`[stripe-webhook] periode-indsættelse (indgang) ramte unikhedsreglen på ${raekke.stripe_reference} — samtidig leverance; vinderen fuldfører (periode ${eksisterende?.id ?? "?"}).`);
+      throw new PeriodeFandtesAllerede(raekke.stripe_reference, eksisterende?.id ?? null);
+    }
     console.error("[stripe-webhook] periode-indsættelse (indgang) fejlede:", error);
     throw new Error("Failed to insert company_periode");
   }
@@ -680,6 +705,42 @@ async function skrivKontraktraekke(adminClient: SupabaseClient, input: KontraktI
   } catch (err) {
     console.error(`[stripe-webhook] kontraktår kastede${kontekst} (${input.stripe_reference}):`, err instanceof Error ? err.message : err);
   }
+}
+
+/**
+ * KLOKKEN «NYT MEDLEM HAR BETALT» (før 22/9 — recon-webinar-22-9.md §7 pkt. 3,
+ * Jonas «1. Ja»): spejl af fornyelsens TYPE_FORNYELSE_BETALT. Skrives EFTER
+ * invitationen (så udfaldet står i teksten) og KUN i første-gangs-grenene —
+ * gensendelser og racen når aldrig hertil. Dedup på periodens id (uden id: på
+ * titlen), én række pr. rådgiver. KASTER ALDRIG (skrivRaadgiverBesked) —
+ * betalingen er registreret; klokken er besked, ikke kæde.
+ */
+async function meldIndgangBetalt(
+  adminClient: SupabaseClient,
+  a: {
+    companyId: string;
+    navn: string | null;
+    samletOere: number;
+    betalingsmodel: string;
+    periode: IndgangsPeriode;
+    periodeId: string | null;
+    invitation: { udfald: string; email?: string };
+  },
+): Promise<void> {
+  await skrivRaadgiverBesked(adminClient, {
+    type: TYPE_INDGANG_BETALT,
+    ...indgangBetaltBeskedTekst({
+      virksomhed: a.navn ?? "En virksomhed",
+      samletOere: a.samletOere,
+      betalingsmodel: a.betalingsmodel,
+      slutDatoTekst: formatDanskDato(new Date(a.periode.periode_slut)),
+      invitation: a.invitation,
+    }),
+    company_id: a.companyId,
+    member_id: null,
+    reference_type: "periode",
+    reference_id: a.periodeId,
+  });
 }
 
 /**
@@ -848,14 +909,20 @@ async function behandlIndgangsFakturaBetaling(
     // Genindtræden (11/9): læses FØR kontrakten overskrives.
     const nu = new Date();
     const forrigeLaest = await laesForrigeKontrakt(adminClient, companyId);
-    const periodeId = await opretIndgangsPeriode(adminClient, {
-      company_id: companyId,
-      periode,
-      beloeb_oere: beloeb.beloeb_oere,
-      betalingsmodel: "faktura",
-      stripe_reference: invoiceId,
-      note: genindtraedelsesNoteHvisNoedvendig(forrigeLaest, nu),
-    });
+    let periodeId: string | null;
+    try {
+      periodeId = await opretIndgangsPeriode(adminClient, {
+        company_id: companyId,
+        periode,
+        beloeb_oere: beloeb.beloeb_oere,
+        betalingsmodel: "faktura",
+        stripe_reference: invoiceId,
+        note: genindtraedelsesNoteHvisNoedvendig(forrigeLaest, nu),
+      });
+    } catch (e) {
+      if (e instanceof PeriodeFandtesAllerede) return { udfald: "allerede_behandlet" };
+      throw e;
+    }
     // Listeprisen = linjebeløbet: en faktura har intet ratetillæg.
     await skrivIndgangsKontrakt(adminClient, companyId, periode, beloeb.beloeb_oere, stripeCustomerId, "");
     await skrivKontraktraekke(adminClient, {
@@ -867,6 +934,8 @@ async function behandlIndgangsFakturaBetaling(
     // Invitationen — betalingen giver adgang (§21). Kaster aldrig selv.
     const invitation = await sikrIndgangsInvitation(adminClient, companyId, invoiceId);
     await meldInvitationsUdfald(adminClient, companyId, invitation, invoiceId);
+    // Klokken «nyt medlem har betalt» (før 22/9) — KUN første gang: gensendelsen ovenfor og racen (PeriodeFandtesAllerede) når aldrig hertil.
+    await meldIndgangBetalt(adminClient, { companyId, navn: forrigeLaest?.navn ?? null, samletOere: beloeb.beloeb_oere, betalingsmodel: "faktura", periode, periodeId, invitation });
     return { udfald: "gennemfoert", periode, beloeb_oere: beloeb.beloeb_oere, genoptaget: false };
   } catch (err) {
     const aarsag = err instanceof Error ? err.message : String(err);
@@ -1235,6 +1304,13 @@ Deno.serve(async (req) => {
         oprettet_af: null, // betalingen er ikke en rådgiverhandling
       }).select("id").maybeSingle();
       if (periodeError) {
+        if ((periodeError as { code?: string }).code === "23505") {
+          // Unikhedsreglen (20260918140000): en samtidig leverance vandt racen og fuldfører — svar 200 uden at gøre mere.
+          console.warn(`[stripe-webhook] periode-indsættelse (fornyelse) ramte unikhedsreglen på ${session.id} — samtidig leverance; vinderen fuldfører.`);
+          return new Response(JSON.stringify({ received: true, skipped: "concurrent_duplicate" }), {
+            headers: { "Content-Type": "application/json" },
+          });
+        }
         console.error("[stripe-webhook] periode-indsættelse fejlede:", periodeError);
         throw new Error("Failed to insert company_periode");
       }
@@ -1406,14 +1482,24 @@ Deno.serve(async (req) => {
       // Perioden FØRST, virksomheden bagefter: fejler det andet, findes
       // perioden som spor af hvad der blev betalt. Fejler indsættelsen,
       // er intet sket, og Stripe forsøger igen.
-      const periodeId = await opretIndgangsPeriode(adminClient, {
-        company_id: indgangCompanyId,
-        periode,
-        beloeb_oere: beloebOere,
-        betalingsmodel,
-        stripe_reference: session.id,
-        note: genindtraedelsesNoteHvisNoedvendig(forrigeLaest, nu),
-      });
+      let periodeId: string | null;
+      try {
+        periodeId = await opretIndgangsPeriode(adminClient, {
+          company_id: indgangCompanyId,
+          periode,
+          beloeb_oere: beloebOere,
+          betalingsmodel,
+          stripe_reference: session.id,
+          note: genindtraedelsesNoteHvisNoedvendig(forrigeLaest, nu),
+        });
+      } catch (e) {
+        if (e instanceof PeriodeFandtesAllerede) {
+          return new Response(JSON.stringify({ received: true, skipped: "concurrent_duplicate" }), {
+            headers: { "Content-Type": "application/json" },
+          });
+        }
+        throw e;
+      }
 
       // indgangspris_oere er LISTEPRISEN (grundbeloeb_oere), ikke det
       // betalte: ratetillægget er finansiering, ikke pris (rettelsen 1/9 i
@@ -1455,6 +1541,8 @@ Deno.serve(async (req) => {
       //    UNIQUE(company_id, email). Udfaldet går i klokken (fund B, 14/9). ──
       const invitation = await sikrIndgangsInvitation(adminClient, indgangCompanyId, session.id);
       await meldInvitationsUdfald(adminClient, indgangCompanyId, invitation, session.id);
+      // Klokken «nyt medlem har betalt» (før 22/9) — KUN første gang: gensendelses-grenen ovenfor og racen (PeriodeFandtesAllerede) når aldrig hertil.
+      await meldIndgangBetalt(adminClient, { companyId: indgangCompanyId, navn: forrigeLaest?.navn ?? null, samletOere: beloebOere, betalingsmodel, periode, periodeId, invitation });
 
       // company_betalingslink røres IKKE: rækken bliver stående som historik,
       // og hent_betalingstilbud giver "betalt" af sig selv, nu hvor

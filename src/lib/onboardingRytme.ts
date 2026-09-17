@@ -239,7 +239,7 @@ export const LOEFTET = "Skriv til din rådgiver i chatten, når du vil — Jonas
 export function komIGangTekst(fornavn: string | null | undefined, harVelkomstvideo: boolean, nu: Date): RytmeTekst {
   const punkter = [
     ...(harVelkomstvideo ? ["Se velkomsten — en kort video om hvordan du får mest ud af The Boardroom."] : []),
-    "Din profil — hvad de andre i netværket kan spørge dig om.",
+    "Din profil — et foto af dig, og hvad de andre i netværket kan spørge dig om.",
     "Præsentér dig i fællesskabet — et opslag om hvem du er.",
     "Din virksomhed — website, branche og CVR, det platformen regner på.",
     `Dine tal — ${historikSaetning(nu)}`,

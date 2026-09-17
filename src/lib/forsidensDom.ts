@@ -286,6 +286,27 @@ export const ALVOR_REFLEKSION_HJAELP = 80;
 export const ALVOR_INGEN_MAAL = 70;
 
 /**
+ * BETALT, IKKE OPRETTET KONTO (før webinaret 22/9 — recon-webinar-22-9.md §7
+ * pkt. 3; Jonas 17/9 «1. Ja»): virksomheden har betalt (stripe-webhook har
+ * sat contract_start_date), men ingen har oprettet et login (ingen
+ * company_members-række). Dommen så dem aldrig: pending-gaten i
+ * AdvisorDashboard filtrerer virksomheder uden medlemmer ud, og
+ * venter_paa_velkomst kræver netop en medlemsrække. Med 10–15 samtidige
+ * betalinger er det den liste rådgiveren mangler: hvem har betalt uden at
+ * komme ind? Én samlet, foldet linje med navnene (som bølgen), hvert navn
+ * linker til virksomhedssiden, hvor «Invitationer» kan gensende.
+ * ALVOR 85: det er OS der kan gøre noget (samme grund som afventer_pris 85)
+ * — over venter_paa_velkomst (80), under frist_overskredet (90). INDSATS 1
+ * (ét klik). FORM hændelse — væk når kontoen er oprettet. LUKNING uden ny
+ * kolonne: kvittering med grundlag «betalt:{kontraktstart}» — betaler de
+ * igen (ny start), er grunden levende igen.
+ */
+export const ALVOR_BETALT_IKKE_OPRETTET = 85;
+export const BETALT_NOEGLE = "betalt_ikke_oprettet";
+/** Navne i selve linjeteksten; resten «…» — alle står i folden (som bølgen). */
+export const BETALT_NAVNE_I_TEKST = 3;
+
+/**
  * BØLGEN (Jonas 17/9 «AA», valg 2; analyse-raadgivernes-forside.md §2c og §6
  * forslag 4; forsiden-design §3 «Bølgen»): når mindst BOELGE_FRA
  * virksomheder venter på velkomst med SAMME startdag (dansk dato), er det
@@ -336,7 +357,8 @@ export type OpgaveSlags =
   | "venter_paa_velkomst" // ELLEVTE slags (bygget 9/9, koblet 10/9): et medlem kom ind, ingen rådgiver har skrevet — lib/venterPaaVelkomst
   | "maal_uden_bevaegelse" // TOLVTE slags («Én plan» fase 4, 16/9): aktive mål uden bevægelse i 30 dage — eller flere end tre aktive (gennemgang). lib/hjemmebane/planen
   | "refleksion_hjaelp" // TRETTENDE slags (fase 4, 16/9): refleksionen bærer «søger hjælp til» — pulse_checkins.help_needed. §2 slags 8 uden AI.
-  | "ingen_maal"; // FJORTENDE slags (fase 5, 16/9): en aktiv kunde uden aktive mål — sæt dem sammen med medlemmet.
+  | "ingen_maal" // FJORTENDE slags (fase 5, 16/9): en aktiv kunde uden aktive mål — sæt dem sammen med medlemmet.
+  | "betalt_ikke_oprettet"; // FEMTENDE slags (før 22/9, 17/9 — Jonas «1. Ja»): har betalt (kontraktstart sat), men ingen konto (ingen company_members). Står uden for pending-gaten; egen indgang til dommen (BetaltIkkeOprettet).
 
 /** §3's tre former. */
 export type Form = "haendelse" | "tilstand" | "pukkel";
@@ -358,6 +380,7 @@ export const FORM: Record<OpgaveSlags, Form> = {
   maal_uden_bevaegelse: "tilstand", // sand igen i morgen: samles til «N virksomheder har mål der ikke rykker sig», hægtes på en linje der findes alligevel
   refleksion_hjaelp: "haendelse", // én refleksion, én gang — linjen står ved navn til den er lukket eller afløst
   ingen_maal: "tilstand", // sand igen i morgen: samles til «N kunder har ingen mål — sæt dem sammen med medlemmet»
+  betalt_ikke_oprettet: "haendelse", // én betaling, én gang — én samlet, foldet linje med navne (Betaltlinje), som bølgen; væk når kontoen er oprettet
 };
 
 /** Indsats — «hvor stort» (§4). Bryder KUN uafgjort på alvor; bærer aldrig
@@ -387,6 +410,7 @@ export const INDSATS: Record<OpgaveSlags, Indsats> = {
   maal_uden_bevaegelse: 2, // én besked: spørg hvad der står i vejen (gennemgangen er et klik pr. mål i Planen, men samtalen først)
   refleksion_hjaelp: 2, // én besked: svar på det de bad om hjælp til
   ingen_maal: 2, // en samtale om mål — sæt dem sammen
+  betalt_ikke_oprettet: 1, // ét klik: send invitationen igen fra virksomhedssiden
 };
 
 /** company_actions-rækken som dommen ser den: kun det den læser. Kun
@@ -572,6 +596,31 @@ export interface Pukkellinje {
   indsats: Indsats;
 }
 
+/** Det dommen får om en virksomhed der har betalt uden konto (AdvisorDashboard bygger listen uden om pending-gaten). */
+export interface BetaltIkkeOprettet {
+  companyId: string;
+  navn: string;
+  /** companies.contract_start_date («YYYY-MM-DD») — betalingsdagen; grundlaget for lukningen. */
+  betaltDag: string;
+  /** Den nyeste kvittering for virksomheden; null = ingen. */
+  kvittering?: Kvittering | null;
+}
+
+/** «N har betalt, men ikke oprettet konto» (før 22/9): én foldet linje med navne, som bølgen. */
+export interface Betaltlinje {
+  linje: "betalt";
+  slags: "betalt_ikke_oprettet";
+  antal: number;
+  /** «3 har betalt, men ikke oprettet konto: A, B, C — send invitationen igen» */
+  tekst: string;
+  /** Alle, ældste betaling først; grundlag = {betalt_ikke_oprettet: «betalt:dag»}, så «Færdiggjort» kvitterer hver enkelt. */
+  virksomheder: { companyId: string; navn: string; grund: Grund; grundlag: Record<string, string> }[];
+  alvor: number;
+  lukkerOmDage: null;
+  loeftet: false;
+  indsats: Indsats;
+}
+
 /** Bølgen (17/9): ≥ BOELGE_FRA velkomster med samme startdag som ÉN linje. */
 export interface Boelgelinje {
   linje: "boelge";
@@ -591,7 +640,7 @@ export interface Boelgelinje {
   indsats: Indsats;
 }
 
-export type Linje = Virksomhedslinje | Tilstandslinje | Pukkellinje | Boelgelinje;
+export type Linje = Virksomhedslinje | Tilstandslinje | Pukkellinje | Boelgelinje | Betaltlinje;
 
 export interface Forsidensdom {
   /** Det der står på forsiden, sorteret (§4). */
@@ -1119,13 +1168,73 @@ function tilstandstekst(slags: OpgaveSlags, antal: number, liste?: readonly { gr
   }
 }
 
+/** «Betalte 22. september · 3 dage uden login» — betalingsdagen og hvor længe kontoen har manglet. */
+export function betaltGrundTekst(betaltDag: string, nu: Date): string {
+  const navn = maanedsnavn(betaltDag.slice(0, 7));
+  const dagTekst = navn ? `${Number(betaltDag.slice(8, 10))}. ${navn}` : betaltDag;
+  const [y, m, d] = betaltDag.split("-").map(Number);
+  const start = Date.UTC(y, m - 1, d);
+  const idag = Date.UTC(nu.getUTCFullYear(), nu.getUTCMonth(), nu.getUTCDate());
+  const dage = Number.isFinite(start) ? Math.max(0, Math.round((idag - start) / MS_PER_DOEGN)) : 0;
+  const uden = dage === 0 ? "i dag" : dage === 1 ? "1 dag uden login" : `${dage} dage uden login`;
+  return `Betalte ${dagTekst} · ${uden}`;
+}
+
+/** «Mette Hansen ApS har betalt, men ikke oprettet konto — send invitationen igen» /
+    «3 har betalt, men ikke oprettet konto: A, B, C — send invitationen igen» (højst BETALT_NAVNE_I_TEKST navne). */
+export function betaltIkkeOprettetTekst(navne: readonly string[]): string {
+  if (navne.length === 1) return `${navne[0]} har betalt, men ikke oprettet konto — send invitationen igen`;
+  const viste = navne.slice(0, BETALT_NAVNE_I_TEKST).join(", ");
+  return `${navne.length} har betalt, men ikke oprettet konto: ${viste}${navne.length > BETALT_NAVNE_I_TEKST ? " …" : ""} — send invitationen igen`;
+}
+
+/** Grunden for én betalt-uden-konto — nøgle og grundlag som lukningen læser. */
+export function grundFraBetaltIkkeOprettet(b: BetaltIkkeOprettet, nu: Date): Grund {
+  return {
+    slags: "betalt_ikke_oprettet",
+    signaltype: "betalt_ikke_oprettet",
+    noegle: BETALT_NOEGLE,
+    grundlag: `betalt:${b.betaltDag}`,
+    tekst: betaltGrundTekst(b.betaltDag, nu),
+    handling: `Send invitationen igen til ${b.navn}`,
+    alvor: ALVOR_BETALT_IKKE_OPRETTET,
+    lukkerOmDage: null,
+    indsats: INDSATS.betalt_ikke_oprettet,
+  };
+}
+
+/** Linjen — null når ingen (eller alle er kvitteret). Ældste betaling først. */
+export function betaltLinje(liste: readonly BetaltIkkeOprettet[] | undefined, nu: Date): Betaltlinje | null {
+  const aabne = (liste ?? [])
+    .map((b) => ({ b, grund: grundFraBetaltIkkeOprettet(b, nu) }))
+    .filter(({ grund, b }) => !erLukket(grund, b.kvittering))
+    .sort((x, y) => x.b.betaltDag.localeCompare(y.b.betaltDag) || x.b.navn.localeCompare(y.b.navn, "da"));
+  if (aabne.length === 0) return null;
+  return {
+    linje: "betalt",
+    slags: "betalt_ikke_oprettet",
+    antal: aabne.length,
+    tekst: betaltIkkeOprettetTekst(aabne.map(({ b }) => b.navn)),
+    virksomheder: aabne.map(({ b, grund }) => ({ companyId: b.companyId, navn: b.navn, grund, grundlag: { [grund.noegle]: grund.grundlag } })),
+    alvor: ALVOR_BETALT_IKKE_OPRETTET,
+    lukkerOmDage: null,
+    loeftet: false,
+    indsats: INDSATS.betalt_ikke_oprettet,
+  };
+}
+
 // ─── Dommen ───────────────────────────────────────────────────────────────
 
 /**
  * Forsidens dom over alle virksomheder. «nu» er eksplicit; samme input
  * giver altid samme output.
  */
-export function afgoerForsidensDom(virksomheder: readonly VirksomhedTilDom[], nu: Date): Forsidensdom {
+/** Det der står UDEN FOR virksomhederne (før 22/9): dem der har betalt uden konto — ingen company_members, derfor ikke i `virksomheder`. Valgfri: ældre kaldere og tests uden feltet får ingen linje. */
+export interface ForsidensEkstra {
+  betaltIkkeOprettet?: readonly BetaltIkkeOprettet[];
+}
+
+export function afgoerForsidensDom(virksomheder: readonly VirksomhedTilDom[], nu: Date, ekstra: ForsidensEkstra = {}): Forsidensdom {
   const virksomhedslinjer: Virksomhedslinje[] = [];
   const samlede = new Map<OpgaveSlags, Tilstandslinje["virksomheder"]>();
   let antalVirksomhederUnderTaersklen = 0;
@@ -1280,10 +1389,15 @@ export function afgoerForsidensDom(virksomheder: readonly VirksomhedTilDom[], nu
     });
   }
 
+  // Betalt, ikke oprettet konto (før 22/9): én foldet linje, alvor 85 — går
+  // gennem porten alene; null når ingen eller alle kvitteret.
+  const betalt = betaltLinje(ekstra.betaltIkkeOprettet, nu);
+
   // Samlede linjer går gennem alvorsporten som ÉN linje hver.
   const linjer: Linje[] = [
     ...virksomhedslinjer.filter((l) => !iBoelge.has(l.companyId)),
     ...boelger,
+    ...(betalt ? [betalt] : []),
     ...tilstandslinjer.filter(gaarGennemPorten),
     ...pukler.filter(gaarGennemPorten),
   ].sort(sammenlignLinjer);
