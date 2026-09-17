@@ -112,39 +112,83 @@ const Noegletal = ({ dom }: { dom: Extract<DashboardDom, { tom: false }> }) => {
   );
 };
 
-/** Kurven: MRR ultimo som hovedlinje (Mondays tal), anerkendt som anden linje, kontant som søjler bag; efter i dag stiplet. */
+/** Kurven (Ø3d): MRR ultimo som hovedlinje (Mondays tal), anerkendt som anden linje; efter i dag stiplet.
+    Skala i venstre side (top, midt, 0), MRR-tallet ved den fulde linjes ende, «uden nye fornyelser» ved den
+    stiplede linjes ende, en lodret streg ved i dag — og kontanten som EGEN lille kurve nedenunder med egen top.
+    Alt er regnet i dommen (kurveKoordinater); her tegnes kun. Etiketterne står i SVG'en (viewBox-mønstret fra Ø3),
+    ordene og tallene omkring den som HTML i husets typografi, placeret efter dommens x/y. */
 const Kurve = ({ kurve }: { kurve: KurvePunkt[] }) => {
   const ko = kurveKoordinater(kurve);
   if (ko.mrr.length + ko.mrr_kontraheret.length < 2) return null;
   const B = 100, H = 40, TOP = 3, BUND = 6;
   const yPx = (y: number) => (TOP + y * (H - TOP - BUND)).toFixed(2);
+  const yPct = (y: number) => (((TOP + y * (H - TOP - BUND)) / H) * 100).toFixed(2);
   const pts = (p: { x: number; y: number }[]) => p.map((q) => `${(q.x * B).toFixed(2)},${yPx(q.y)}`).join(" ");
+  const KB = 100, KH = 12;
   return (
-    <div data-oekonomi-kurve={kurve.length}>
-      <svg viewBox={`0 0 ${B} ${H}`} preserveAspectRatio="none" className="h-44 w-full md:h-56" aria-hidden>
-        {ko.soejler.map((s, i) => (
-          <rect key={i} x={(s.x * B).toFixed(2)} y={yPx(1 - s.hoejde)} width={(s.bredde * B).toFixed(2)} height={((s.hoejde) * (H - TOP - BUND)).toFixed(2)} fill="hsl(var(--hb-sage))" />
+    <div data-oekonomi-kurve={kurve.length} className="grid grid-cols-[3.25rem_1fr] gap-x-2">
+      {/* Skalaen — tre niveauer i husets typografi, ud for linjernes y */}
+      <div className="relative h-44 md:h-56 text-[11px] tabular-nums text-hb-ink-soft" data-kurve-skala>
+        {ko.skala.map((s) => (
+          <span key={s.oere} className="absolute right-0 -translate-y-1/2" style={{ top: `${yPct(s.y)}%` }}>{kr(s.oere)}</span>
         ))}
-        <polyline points={pts(ko.tjent)} fill="none" stroke="hsl(var(--hb-ink-soft))" strokeWidth="1" vectorEffect="non-scaling-stroke" strokeLinejoin="round" strokeLinecap="round" data-kurve-tjent />
-        <polyline points={pts(ko.kontraheret)} fill="none" stroke="hsl(var(--hb-ink-soft))" strokeWidth="1" strokeDasharray="4 3" vectorEffect="non-scaling-stroke" strokeLinejoin="round" strokeLinecap="round" data-kurve-kontraheret />
-        <polyline points={pts(ko.mrr)} fill="none" stroke="hsl(var(--hb-evergreen))" strokeWidth="2" vectorEffect="non-scaling-stroke" strokeLinejoin="round" strokeLinecap="round" data-kurve-mrr />
-        <polyline points={pts(ko.mrr_kontraheret)} fill="none" stroke="hsl(var(--hb-evergreen))" strokeWidth="2" strokeDasharray="4 3" vectorEffect="non-scaling-stroke" strokeLinejoin="round" strokeLinecap="round" data-kurve-mrr-kontraheret />
-        {ko.akse.map((a) => (
-          <text key={a.label} x={(a.x * B).toFixed(2)} y={H - 1} fontSize="2.6" textAnchor={a.anker} fill="hsl(var(--hb-ink-soft))" style={{ fontFamily: "inherit" }}>{a.label}</text>
-        ))}
-      </svg>
+      </div>
+      <div className="relative">
+        <svg viewBox={`0 0 ${B} ${H}`} preserveAspectRatio="none" className="h-44 w-full md:h-56" aria-hidden>
+          {ko.skala.map((s) => (
+            <line key={s.oere} x1="0" x2={B} y1={yPx(s.y)} y2={yPx(s.y)} stroke="hsl(var(--hb-line))" strokeWidth="1" vectorEffect="non-scaling-stroke" />
+          ))}
+          {ko.idag && (
+            <line x1={(ko.idag.x * B).toFixed(2)} x2={(ko.idag.x * B).toFixed(2)} y1={TOP} y2={H - BUND} stroke="hsl(var(--hb-ink-soft))" strokeWidth="1" strokeDasharray="2 2" vectorEffect="non-scaling-stroke" data-kurve-idag />
+          )}
+          <polyline points={pts(ko.tjent)} fill="none" stroke="hsl(var(--hb-ink-soft))" strokeWidth="1" vectorEffect="non-scaling-stroke" strokeLinejoin="round" strokeLinecap="round" data-kurve-tjent />
+          <polyline points={pts(ko.kontraheret)} fill="none" stroke="hsl(var(--hb-ink-soft))" strokeWidth="1" strokeDasharray="4 3" vectorEffect="non-scaling-stroke" strokeLinejoin="round" strokeLinecap="round" data-kurve-kontraheret />
+          <polyline points={pts(ko.mrr)} fill="none" stroke="hsl(var(--hb-evergreen))" strokeWidth="2" vectorEffect="non-scaling-stroke" strokeLinejoin="round" strokeLinecap="round" data-kurve-mrr />
+          <polyline points={pts(ko.mrr_kontraheret)} fill="none" stroke="hsl(var(--hb-evergreen))" strokeWidth="2" strokeDasharray="4 3" vectorEffect="non-scaling-stroke" strokeLinejoin="round" strokeLinecap="round" data-kurve-mrr-kontraheret />
+          {ko.akse.map((a) => (
+            <text key={a.label} x={(a.x * B).toFixed(2)} y={H - 1} fontSize="2.6" textAnchor={a.anker} fill="hsl(var(--hb-ink-soft))" style={{ fontFamily: "inherit" }}>{a.label}</text>
+          ))}
+        </svg>
+        {/* Ordene omkring linjerne — HTML, så de ikke strækkes med SVG'en */}
+        {ko.idag && (
+          <span className="pointer-events-none absolute top-0 ml-1.5 text-[10px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft" style={{ left: `${(ko.idag.x * 100).toFixed(2)}%` }} data-kurve-idag-tekst>{ko.idag.label}</span>
+        )}
+        {/* MRR-tallet står OVER den fulde linjes sidste punkt, højrestillet mod i dag-stregen — så det hverken ligger på den stiplede linje eller på «herefter kun kontrakt» */}
+        {ko.ende.mrr && (
+          <span className="pointer-events-none absolute -translate-x-full -translate-y-full pb-1 pr-1.5 font-editorial text-sm font-medium leading-none text-hb-evergreen" style={{ left: `${(ko.ende.mrr.x * 100).toFixed(2)}%`, top: `${yPct(ko.ende.mrr.y)}%` }} data-kurve-mrr-ende>{kr(ko.ende.mrr.oere)}</span>
+        )}
+        {/* «uden nye fornyelser» står OVER den stiplede linjes ende (den falder mod nul), fri af aksens «sep 27» */}
+        {ko.ende.kontraheret && (
+          <span className="pointer-events-none absolute right-0 -translate-y-full pb-2 text-[11px] text-hb-ink-soft" style={{ top: `${yPct(ko.ende.kontraheret.y)}%` }} data-kurve-uden-fornyelser>{ko.ende.kontraheret.label}</span>
+        )}
+      </div>
+      <div />
       <div className="relative mt-1 h-4 text-[11px] tabular-nums text-hb-ink-soft" data-kurve-betalende>
         {ko.akse.map((a) => (
           <span key={a.label} className={cn("absolute", a.anker === "middle" && "-translate-x-1/2", a.anker === "end" && "-translate-x-full")} style={{ left: `${(a.x * 100).toFixed(2)}%` }} title={`${a.betalende} betalende ultimo ${a.label}`}>{a.betalende}</span>
         ))}
       </div>
+      {/* Kontanten — egen lille kurve med egen top; en årsbetaling er ikke MRR */}
+      <div className="relative mt-8 h-12 text-[11px] tabular-nums text-hb-ink-soft" data-kurve-kontant-skala>
+        <span className="absolute right-0 top-0 -translate-y-1/2">{kr(ko.kontant_max_oere)}</span>
+        <span className="absolute bottom-0 right-0 translate-y-1/2">0</span>
+      </div>
+      <div className="relative mt-8">
+        <p className="absolute -top-5 left-0 text-[10px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft">Kontant indgået · top {kr(ko.kontant_max_oere)}</p>
+        <svg viewBox={`0 0 ${KB} ${KH}`} preserveAspectRatio="none" className="h-12 w-full" aria-hidden data-kurve-kontant>
+          <line x1="0" x2={KB} y1={KH} y2={KH} stroke="hsl(var(--hb-line))" strokeWidth="1" vectorEffect="non-scaling-stroke" />
+          {ko.soejler.map((s, i) => (
+            <rect key={i} x={(s.x * KB).toFixed(2)} y={((1 - s.hoejde) * KH).toFixed(2)} width={(s.bredde * KB).toFixed(2)} height={(s.hoejde * KH).toFixed(2)} fill="hsl(var(--hb-sage))" />
+          ))}
+        </svg>
+      </div>
+      <div />
       <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-xs text-hb-ink-soft">
         <span><span className="mr-1.5 inline-block h-0.5 w-5 bg-hb-evergreen align-middle" />MRR ultimo (Mondays «periodiseret»)</span>
         <span><span className="mr-1.5 inline-block h-px w-5 bg-hb-ink-soft align-middle" />anerkendt pr. måned</span>
         <span><span className="mr-1.5 inline-block h-0.5 w-5 border-t border-dashed border-hb-evergreen align-middle" />kontraheret (efter i dag)</span>
-        <span><span className="mr-1.5 inline-block h-3 w-3 bg-hb-sage align-middle" />kontant</span>
+        <span><span className="mr-1.5 inline-block h-3 w-3 bg-hb-sage align-middle" />kontant (egen skala)</span>
         <span>tallene under aksen: betalende ultimo</span>
-        <span>top: {kr(ko.max_oere)}</span>
       </div>
     </div>
   );

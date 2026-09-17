@@ -8,8 +8,8 @@ import { resolve } from "node:path";
 //      'active' og er_kunde) — Pro-Vision og E-skilte («tidligere») er ude af
 //      radaren og af «omsætning i spil». MRR, broen og kurven er urørt:
 //      periodiseringen får stadig ALLE kontrakter.
-//   2. AKSEN: etiketterne kommer fra akseIndeks (hver 3. + sidste, en etiket
-//      under AKSE_MIN_AFSTAND fra den sidste udelades) — ikke fra det gamle
+//   2. AKSEN (omskrevet Ø3d): etiketterne kommer fra akseEtiketter (første og
+//      sidste altid, resten efter pladsen målt af fontstørrelsen) — ikke fra det gamle
 //      `i % 3 === 0 || i === n - 1` i kurveKoordinater.
 //   3. KUNDEVÆRDI erstatter koncentrationen: ingen koncentrationFor /
 //      KONCENTRATION_ANTAL / «De fem største»; KUNDEVAERDI_ANTAL = 10, fladen
@@ -41,15 +41,19 @@ export const radarenTagerKunAktive = (dom: string): boolean => {
   );
 };
 
-/** Dom 2. */
+/** Dom 2 (omskrevet Ø3d, 17/9 19:42: «maj 25aug 25» — Ø3b's 6 %-regel så kun den sidste; nu vælges
+    etiketterne efter pladsen med tekstbredde af fontstørrelsen, og det gamle «hver 3. eller sidste» er stadig væk). */
 export const aksenHolderAfstand = (dom: string): boolean => {
-  const koord = dom.slice(dom.indexOf("export function kurveKoordinater("), dom.indexOf("export function akseIndeks("));
-  const akse = dom.slice(dom.indexOf("export function akseIndeks("), dom.indexOf("const MAANEDER_KORT"));
+  const koord = dom.slice(dom.indexOf("export function kurveKoordinater("), dom.indexOf("export function etiketBredde("));
+  const akse = dom.slice(dom.indexOf("export function akseEtiketter("), dom.indexOf("export function skalaNiveauer("));
   return (
-    dom.includes("export const AKSE_MIN_AFSTAND = 0.06;") &&
-    koord.includes("const akse = akseIndeks(n).map((i) =>") &&
+    dom.includes("export const AKSE_FONT = 2.6;") &&
+    dom.includes("export const AKSE_TEGN_EM = 0.55;") &&
+    koord.includes("const akse = akseEtiketter(labels).map((i) =>") &&
     !koord.includes("i % 3 === 0 || i === n - 1") &&
-    akse.includes("if (x(sidste) - x(i) < minAfstand) continue;") &&
+    !dom.includes("AKSE_MIN_AFSTAND") &&
+    akse.includes("const spaendFor = (i: number) => etiketSpaend(x(i), etiketBredde(labels[i], font), akseAnker(x(i)));") &&
+    akse.includes("if (rammer(sp)) continue;") &&
     akse.includes("ud.push(sidste);")
   );
 };
@@ -89,7 +93,7 @@ describe("oekonomiOe3b.guard — radaren, aksen, kundeværdien og udestående", 
   it("1. radaren tager kun aktive kunder; MRR, broen og kurven får stadig alle kontrakter", () => {
     expect(radarenTagerKunAktive(dom)).toBe(true);
   });
-  it("2. aksen: akseIndeks med mindste afstand 6 %; det gamle «hver 3. eller sidste» er væk", () => {
+  it("2. aksen: etiketterne vælges efter pladsen (akseEtiketter med tekstbredde af fontstørrelsen); det gamle «hver 3. eller sidste» og 6 %-reglen er væk", () => {
     expect(aksenHolderAfstand(dom)).toBe(true);
   });
   it("3. kundeværdi (10 største efter betalt) erstatter koncentrationen efter MRR — i dommen og på fladen", () => {
@@ -111,8 +115,10 @@ describe("oekonomiOe3b.guard — VÆRNET VIRKER på kopier med fejlen indsat", (
   });
   it("2. den gamle akse ordret, eller en akse hvor den sidste ryger, falder", () => {
     // Før Ø3b ordret: `.filter(({ i }) => i % 3 === 0 || i === n - 1)`.
-    expect(aksenHolderAfstand(dom.replace("const akse = akseIndeks(n).map((i) =>", "const akse = kurve.map((p, i) => ({ i, p })).filter(({ i }) => i % 3 === 0 || i === n - 1).map(({ i }) =>"))).toBe(false);
+    expect(aksenHolderAfstand(dom.replace("const akse = akseEtiketter(labels).map((i) =>", "const akse = kurve.map((p, i) => ({ i, p })).filter(({ i }) => i % 3 === 0 || i === n - 1).map(({ i }) =>"))).toBe(false);
     expect(aksenHolderAfstand(dom.replace("ud.push(sidste);", ""))).toBe(false);
+    // En akse der ikke måler bredden (fast afstand) falder også.
+    expect(aksenHolderAfstand(dom.replace("if (rammer(sp)) continue;", "if (x(i) - x(ud[ud.length - 1]) < 0.06) continue;"))).toBe(false);
   });
   it("3. koncentrationen tilbage i dommen, eller «De fem største» på fladen, falder", () => {
     expect(kundevaerdiErstatterKoncentration(dom + "\nexport function koncentrationFor() {}", view)).toBe(false);

@@ -1,8 +1,16 @@
 import { describe, expect, it } from "vitest";
 import {
-  AKSE_MIN_AFSTAND,
+  AKSE_FONT,
+  AKSE_LUFT,
+  AKSE_TEGN_EM,
+  IDAG_TEKST,
+  UDEN_FORNYELSER_TEKST,
   akseAnker,
-  akseIndeks,
+  akseEtiketter,
+  etiketBredde,
+  etiketSpaend,
+  idagIndeks,
+  skalaNiveauer,
   anerkendtModMrrFor,
   anerkendtModMrrTekst,
   broFor,
@@ -100,10 +108,12 @@ describe("nøgletal og kurve", () => {
     expect(kurve.find((p) => p.key === "2026-10")?.frem).toBe(true);
     expect(kurve.find((p) => p.key === "2027-06")).toMatchObject({ mrr_oere: 0, betalende: 0 });
     const ko = kurveKoordinater(kurve);
-    expect(ko.max_oere).toBe(5_000_000); // kontant i maj er det største
+    // Ø3d: hovedkurvens top er MRR/anerkendt alene (416.667); kontanten (5.000.000 i maj) har sin egen top.
+    expect(ko.max_oere).toBe(416_667);
+    expect(ko.kontant_max_oere).toBe(5_000_000);
     expect(ko.tjent.length).toBe(5); // maj–sep
     expect(ko.mrr.length).toBe(5);
-    expect(ko.mrr[1].y).toBeCloseTo(1 - 416_667 / 5_000_000, 10);
+    expect(ko.mrr[1].y).toBeCloseTo(0, 10); // MRR = toppen
     expect(ko.kontraheret[0]).toEqual(ko.tjent[ko.tjent.length - 1]); // dagens punkt deles
     expect(ko.mrr_kontraheret[0]).toEqual(ko.mrr[ko.mrr.length - 1]);
     expect(ko.kontraheret.length).toBe(kurve.length - 5 + 1);
@@ -117,9 +127,15 @@ describe("nøgletal og kurve", () => {
     expect(akseAnker(0.5)).toBe("middle");
     expect(akseAnker(1)).toBe("end");
     expect(akseAnker(0.99)).toBe("middle");
-    // Ø3b: 17 punkter (maj 26 … sep 27): hver 3. er 0,3,6,9,12,15 + sidste 16 — 15 ligger 1/16 = 6,25 % fra 16 og består (≥ 6 %).
-    expect(ko.akse.map((a) => a.label)).toEqual(["maj 26", "aug 26", "nov 26", "feb 27", "maj 27", "aug 27", "sep 27"]);
-    expect(kurveKoordinater([])).toEqual({ mrr: [], mrr_kontraheret: [], tjent: [], kontraheret: [], soejler: [], max_oere: 0, akse: [] });
+    // Ø3d: 17 punkter (maj 26 … sep 27), 6,25 % mellem punkterne, «maj 26» er 8,58 % bred: skridt 2; «jul 26» (12,5 %) rammer
+    // den første (0–8,58 %), «jul 27» (87,5 %) rammer den sidste (91,4–100 %) — begge udelades; resten hver 2. måned.
+    expect(ko.akse.map((a) => a.label)).toEqual(["maj 26", "sep 26", "nov 26", "jan 27", "mar 27", "maj 27", "sep 27"]);
+    // Skala, i dag og enderne (Ø3d)
+    expect(ko.skala).toEqual([{ oere: 416_667, y: 0 }, { oere: 208_334, y: 1 - 208_334 / 416_667 }, { oere: 0, y: 1 }]);
+    expect(ko.idag).toEqual({ x: 4 / 16, label: IDAG_TEKST }); // sep 26 er den sidste ikke-frem
+    expect(ko.ende.mrr).toEqual({ x: 4 / 16, y: 0, oere: 416_667 });
+    expect(ko.ende.kontraheret).toEqual({ x: 1, y: 1, label: UDEN_FORNYELSER_TEKST }); // MRR 0 i sep 27 — ingen har fornyet
+    expect(kurveKoordinater([])).toEqual({ mrr: [], mrr_kontraheret: [], tjent: [], kontraheret: [], soejler: [], max_oere: 0, kontant_max_oere: 0, akse: [], skala: [], idag: null, ende: { mrr: null, kontraheret: null } });
   });
   it("kurven klipper til KURVE_FRA (maj 2025) — tidligere måneder tæller i tallene, men tegnes ikke", () => {
     const tidlig = periodiser({ kontrakter: [k({ id: "kj", company_id: "kj", periode_start: "2025-03-11", periode_slut: "2026-03-11", pris_eks_moms_oere: 2_236_672 })], fra: "2025-03", til: "2025-06" });
@@ -270,24 +286,91 @@ describe("anerkendt mod MRR (Ø3c) — «hvad dækker de sidste 4k?»", () => {
   });
 });
 
-describe("aksen (Ø3b) — «augsep» yderst til højre", () => {
-  it("hver 3. + den sidste; en etiket under AKSE_MIN_AFSTAND fra den sidste udelades — den sidste vinder", () => {
-    expect(AKSE_MIN_AFSTAND).toBe(0.06);
-    // Kurven i drift 17/9: maj 2025 … sep 2027 = 29 punkter. Før: 0,3,…,27 + 28 — «aug 27» (27) og «sep 27» (28) 3,6 % fra hinanden.
-    expect(akseIndeks(29)).toEqual([0, 3, 6, 9, 12, 15, 18, 21, 24, 28]);
-    expect(akseIndeks(29)).not.toContain(27);
-    // 28 punkter: 27 ER den sidste — ingen kollision.
-    expect(akseIndeks(28)).toEqual([0, 3, 6, 9, 12, 15, 18, 21, 24, 27]);
-    // 30 punkter: 27 ligger 2/29 = 6,9 % fra 29 og består.
-    expect(akseIndeks(30)).toEqual([0, 3, 6, 9, 12, 15, 18, 21, 24, 27, 29]);
-    expect(akseIndeks(1)).toEqual([0]);
-    expect(akseIndeks(2)).toEqual([0, 1]); // 1/1 = 100 % fra hinanden
-    expect(akseIndeks(0)).toEqual([]);
-    // Grænsen er et valg: med 10 % ville 27 også ryge ved 30 punkter.
-    expect(akseIndeks(30, 0.1)).toEqual([0, 3, 6, 9, 12, 15, 18, 21, 24, 29]);
-    // Kurvens akse bruger den samme dom.
+describe("aksen (Ø3d) — etiketterne efter pladsen: «maj 25aug 25» i venstre ende", () => {
+  const labels29 = Array.from({ length: 29 }, (_, i) => maanedsLabel(laegMaanederTil("2025-05", i)));
+  it("bredden måles af fontstørrelsen i viewBox-enheder: «maj 25» = 6 tegn × 0,55 em × 2,6 = 8,58 % af bredden", () => {
+    expect(AKSE_FONT).toBe(2.6);
+    expect(AKSE_TEGN_EM).toBe(0.55);
+    expect(AKSE_LUFT).toBe(1);
+    expect(etiketBredde("maj 25")).toBeCloseTo(8.58, 10);
+    expect(etiketBredde("sep 27", 2.6, 0.5)).toBeCloseTo(7.8, 10);
+    expect(etiketSpaend(0, 8.58, "start")).toEqual([0, 8.58]);
+    expect(etiketSpaend(1, 8.58, "end")).toEqual([100 - 8.58, 100]);
+    expect(etiketSpaend(0.5, 8, "middle")).toEqual([46, 54]);
+  });
+  it("29 punkter (maj 25 … sep 27, kurven i drift): første og sidste altid; «aug 25» rammer «maj 25» og udelades; «maj 27» står; «aug 27» rammer «sep 27»", () => {
+    // Før (Ø3b/Ø3c): [0,3,6,…,24,28] — «maj 25» (start, 0–8,6 %) og «aug 25» (middle om 10,7 %) overlappede: «maj 25aug 25».
+    expect(akseEtiketter(labels29)).toEqual([0, 6, 9, 12, 15, 18, 21, 24, 28]);
+    expect(akseEtiketter(labels29)).not.toContain(3);
+    expect(akseEtiketter(labels29)).not.toContain(27);
+  });
+  it("ingen to valgte etiketter overlapper — for 2 … 40 punkter, med hver sit anker", () => {
+    for (let n = 2; n <= 40; n++) {
+      const labels = Array.from({ length: n }, (_, i) => maanedsLabel(laegMaanederTil("2025-05", i)));
+      const valgte = akseEtiketter(labels);
+      expect(valgte[0]).toBe(0);
+      expect(valgte[valgte.length - 1]).toBe(n - 1);
+      const x = (i: number) => i / (n - 1);
+      const anker = (i: number): "start" | "middle" | "end" => (i === 0 ? "start" : i === n - 1 ? "end" : "middle");
+      const spaend = valgte.map((i) => etiketSpaend(x(i), etiketBredde(labels[i]), anker(i)));
+      for (let k = 1; k < spaend.length; k++) {
+        // Den første og den sidste står ALTID — også når de to alene rammer hinanden (n = 2 … 6 med 100 % bredde er nok).
+        if (k === spaend.length - 1 && spaend.length === 2) continue;
+        expect(spaend[k][0], `n=${n}: etiket ${valgte[k]} rammer ${valgte[k - 1]}`).toBeGreaterThanOrEqual(spaend[k - 1][1] + AKSE_LUFT - 1e-9);
+      }
+    }
+  });
+  it("kanter: 0, 1 og 2 punkter; mere luft giver færre etiketter; mindre font giver flere", () => {
+    expect(akseEtiketter([])).toEqual([]);
+    expect(akseEtiketter(["maj 25"])).toEqual([0]);
+    expect(akseEtiketter(["maj 25", "jun 25"])).toEqual([0, 1]);
+    expect(akseEtiketter(labels29, 6).length).toBeLessThan(akseEtiketter(labels29).length);
+    expect(akseEtiketter(labels29, 1, 1.3).length).toBeGreaterThan(akseEtiketter(labels29).length);
+  });
+  it("kurvens akse bruger den samme dom: de tre sidste er feb 27, maj 27, sep 27 — og de to første maj 25, nov 25", () => {
     const kurve = Array.from({ length: 29 }, (_, i) => ({ key: laegMaanederTil("2025-05", i), anerkendt_oere: 1, mrr_oere: 1, betalende: 1, kontant_oere: 0, frem: i > 16 }));
-    expect(kurveKoordinater(kurve).akse.map((a) => a.label).slice(-3)).toEqual(["feb 27", "maj 27", "sep 27"]);
+    const akse = kurveKoordinater(kurve).akse.map((a) => a.label);
+    expect(akse.slice(0, 2)).toEqual(["maj 25", "nov 25"]);
+    expect(akse.slice(-3)).toEqual(["feb 27", "maj 27", "sep 27"]);
+  });
+});
+
+describe("skala, i dag og enderne (Ø3d)", () => {
+  it("skalaNiveauer: top, midt (hele kroner) og 0", () => {
+    expect(skalaNiveauer(8_721_600)).toEqual([{ oere: 8_721_600, andel: 1 }, { oere: 4_360_800, andel: 0.5 }, { oere: 0, andel: 0 }]);
+    expect(skalaNiveauer(1)).toEqual([{ oere: 1, andel: 1 }, { oere: 1, andel: 0.5 }, { oere: 0, andel: 0 }]);
+    expect(skalaNiveauer(0)).toEqual([{ oere: 0, andel: 1 }, { oere: 0, andel: 0.5 }, { oere: 0, andel: 0 }]);
+  });
+  it("idagIndeks: den sidste måned der ikke er frem; −1 når alt er frem eller kurven er tom", () => {
+    expect(idagIndeks([{ frem: false }, { frem: false }, { frem: true }])).toBe(1);
+    expect(idagIndeks([{ frem: true }])).toBe(-1);
+    expect(idagIndeks([])).toBe(-1);
+  });
+  it("enderne: MRR-tallet ved den fulde linjes ende; «uden nye fornyelser» kun når der er en stiplet linje at sætte det ved", () => {
+    const kurve = [
+      { key: "2026-08", anerkendt_oere: 100, mrr_oere: 200, betalende: 2, kontant_oere: 0, frem: false },
+      { key: "2026-09", anerkendt_oere: 100, mrr_oere: 300, betalende: 3, kontant_oere: 900, frem: false },
+      { key: "2026-10", anerkendt_oere: 100, mrr_oere: 150, betalende: 1, kontant_oere: 0, frem: true },
+    ];
+    const ko = kurveKoordinater(kurve);
+    expect(ko.max_oere).toBe(300);
+    expect(ko.kontant_max_oere).toBe(900);
+    expect(ko.soejler[1].hoejde).toBe(1);
+    expect(ko.idag).toEqual({ x: 0.5, label: "herefter kun kontrakt" });
+    expect(ko.ende.mrr).toEqual({ x: 0.5, y: 0, oere: 300 });
+    expect(ko.ende.kontraheret).toEqual({ x: 1, y: 0.5, label: "uden nye fornyelser" });
+    // Teksten står over linjens højeste punkt inden for sin egen bredde (15 % fra højre): falder linjen stejlt til sidst, løftes den.
+    const stejl = kurveKoordinater([
+      { key: "2026-08", anerkendt_oere: 0, mrr_oere: 100, betalende: 1, kontant_oere: 0, frem: false },
+      ...Array.from({ length: 9 }, (_, i) => ({ key: laegMaanederTil("2026-09", i), anerkendt_oere: 0, mrr_oere: i === 8 ? 0 : 100, betalende: 1, kontant_oere: 0, frem: true })),
+    ]);
+    expect(stejl.mrr_kontraheret[stejl.mrr_kontraheret.length - 1].y).toBe(1);
+    expect(stejl.ende.kontraheret?.y).toBe(0); // punktet før (x = 8/9 ≥ 0,85) ligger i toppen → teksten står over toppen, ikke nede ved nul
+    // Uden frem-måneder: ingen stiplet linje, intet «uden nye fornyelser»; MRR-tallet ved den sidste.
+    const kunTjent = kurveKoordinater(kurve.slice(0, 2));
+    expect(kunTjent.ende.kontraheret).toBeNull();
+    expect(kunTjent.ende.mrr).toEqual({ x: 1, y: 0, oere: 300 });
+    expect(kunTjent.idag?.x).toBe(1);
   });
 });
 

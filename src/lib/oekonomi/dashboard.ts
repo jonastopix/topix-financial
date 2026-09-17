@@ -101,15 +101,27 @@
  *      startede + rest. Under kortet «Anerkendt denne måned»: «+7.233 fra 4
  *      der stoppede · −3.486 fra 2 der startede», foldbar med navne og beløb;
  *      er forskellen 0, ingen linje.
- *   AKSEN (Ø3b — «augsep» yderst til højre): etiketterne står hver 3. måned
- *      + den sidste (akseIndeks). Er den sidste mindre end AKSE_MIN_AFSTAND
- *      (6 % af bredden ≈ 1,7 måned ved 29 punkter) fra den forrige, udelades
- *      den forrige — den sidste vinder, for den siger hvor kurven ender.
- *      Ø3c (skærmbillede 17/9 18:08: «j 25» og «sep» klippet ved kanten):
- *      hver etiket bærer sit anker (akseAnker) — «start» ved x = 0, «end» ved
- *      x = 1, ellers «middle» — så den første og sidste står helt inde i
- *      tegningen; fladen bruger det som textAnchor og som forskydning af
- *      tallet under aksen.
+ *   AKSEN (Ø3d, 17/9 19:42 — Jonas: «maj 25aug 25» overlapper i venstre
+ *      ende): etiketterne vælges efter PLADSEN, ikke efter et fast «hver 3.».
+ *      Den første og den sidste altid; derefter så mange midterste som kan
+ *      stå med luft imellem (akseEtiketter). Tekstbredden måles af
+ *      fontstørrelsen i viewBox-enheder: etiketBredde = tegn × AKSE_TEGN_EM ×
+ *      AKSE_FONT — og fordi SVG'en tegnes med preserveAspectRatio="none",
+ *      følger x-enhederne bredden, så målet holder uanset skærmens
+ *      højde/bredde-forhold. Hver etikets spænd regnes med dens anker (Ø3c:
+ *      «start» ved x = 0, «end» ved x = 1, ellers «middle» — akseAnker), så
+ *      «maj 25» (start, 0 → 8,6 %) og «aug 25» (middle om 10,7 %) ses at
+ *      kollidere, og «aug 25» udelades. Ø3b's «hver 3. + sidste» og Ø3c's
+ *      ankre er begge indeholdt; AKSE_MIN_AFSTAND/akseIndeks er afløst.
+ *   SKALA, TO KURVER, ENDER OG I DAG (Ø3d, Jonas 17/9 19:42): tre niveauer
+ *      (0, midt, top — skalaNiveauer) i venstre side; kontanten som EGEN lille
+ *      kurve under hovedkurven med egen top (kontant_max_oere) — en
+ *      årsbetaling er ikke MRR og skal ikke sætte MRR-linjens skala;
+ *      hovedkurven skaleres til max af MRR og anerkendt alene. MRR-tallet
+ *      skrives ved den fulde linjes ende (i dag), «uden nye fornyelser» ved
+ *      den stiplede linjes ende (den falder mod nul, fordi ingen har fornyet
+ *      endnu), og en lodret streg ved «i dag» med «herefter kun kontrakt».
+ *      Alt regnes her (kurveKoordinater: skala, idag, ende); SVG'en tegner.
  */
 import {
   aktivPaaDag,
@@ -132,7 +144,14 @@ export const RADAR_DAGE = 90;
 /** Ø3b: kundeværdien — de N største efter samlet betalt. */
 export const KUNDEVAERDI_ANTAL = 10;
 /** Ø3b: aksens mindste afstand mellem to etiketter, i andel af bredden. */
-export const AKSE_MIN_AFSTAND = 0.06;
+/** Aksens etiketter (Ø3d): svg-fontstørrelse i viewBox-enheder, gennemsnitlig tegnbredde i em, og mindste luft mellem to etiketter (viewBox-enheder = % af bredden). */
+export const AKSE_FONT = 2.6;
+export const AKSE_TEGN_EM = 0.55;
+export const AKSE_LUFT = 1;
+export const IDAG_TEKST = "herefter kun kontrakt";
+export const UDEN_FORNYELSER_TEKST = "uden nye fornyelser";
+/** Hvor bred «uden nye fornyelser» er som andel af tegningen (≈ 19 tegn à 11 px på ~900 px) — teksten står OVER linjens højeste punkt inden for sin egen bredde, så den ikke ligger på det faldende stykke. */
+export const UDEN_FORNYELSER_BREDDE_ANDEL = 0.15;
 /** Ø3b: rate 2 forfalder så mange måneder efter kontraktstart (fakturadatoen er ikke i data). */
 export const RATE2_ANDEN_RATE_MAANEDER = 6;
 export const UDESTAAENDE_LINJE = "forfaldne betalinger der ikke er kommet";
@@ -379,10 +398,19 @@ export interface KurveKoordinater {
   /** Anerkendt pr. måned (anden linje): tjent til og med i dag, kontraheret derefter. */
   tjent: { x: number; y: number }[];
   kontraheret: { x: number; y: number }[];
+  /** Kontanten — egen lille kurve under hovedkurven (Ø3d); højden er relativ til kontant_max_oere. */
   soejler: { x: number; bredde: number; hoejde: number }[];
+  /** Hovedkurvens top: max af MRR og anerkendt (IKKE kontant — en årsbetaling er ikke MRR). */
   max_oere: number;
-  /** Hver 3. måned + den sidste — til aksen, med antal betalende ultimo og ankeret (Ø3c). */
+  kontant_max_oere: number;
+  /** Etiketterne valgt efter pladsen (akseEtiketter) — med antal betalende ultimo og ankeret (Ø3c). */
   akse: { x: number; label: string; betalende: number; anker: AkseAnker }[];
+  /** Tre niveauer i venstre side: top, midt, 0 — y i [0,1] (0 øverst) som linjerne. */
+  skala: { oere: number; y: number }[];
+  /** «I dag»: x for sidste måned der ikke er frem; null når alt er frem eller intet er. */
+  idag: { x: number; label: string } | null;
+  /** Ender: MRR-tallet ved den fulde linjes ende (i dag), «uden nye fornyelser» ved den stiplede linjes ende — y er linjens højeste punkt inden for tekstens bredde (UDEN_FORNYELSER_BREDDE_ANDEL), så teksten står over linjen. */
+  ende: { mrr: { x: number; y: number; oere: number } | null; kontraheret: { x: number; y: number; label: string } | null };
 }
 
 /** Ø3c: etikettens anker — «start» ved venstre kant, «end» ved højre, ellers «middle». */
@@ -396,8 +424,10 @@ export function akseAnker(x: number): AkseAnker {
 /** Koordinater i [0,1]² for kurven — tegningen (SVG) er ren afbildning af dem. */
 export function kurveKoordinater(kurve: readonly KurvePunkt[]): KurveKoordinater {
   const n = kurve.length;
-  if (n === 0) return { mrr: [], mrr_kontraheret: [], tjent: [], kontraheret: [], soejler: [], max_oere: 0, akse: [] };
-  const max = Math.max(1, ...kurve.map((p) => Math.max(p.anerkendt_oere, p.mrr_oere, p.kontant_oere)));
+  if (n === 0) return { mrr: [], mrr_kontraheret: [], tjent: [], kontraheret: [], soejler: [], max_oere: 0, kontant_max_oere: 0, akse: [], skala: [], idag: null, ende: { mrr: null, kontraheret: null } };
+  // Ø3d: hovedkurvens top er MRR/anerkendt alene; kontanten har sin egen top (en årsbetaling må ikke trykke MRR-linjen ned).
+  const max = Math.max(1, ...kurve.map((p) => Math.max(p.anerkendt_oere, p.mrr_oere)));
+  const kontantMax = Math.max(1, ...kurve.map((p) => p.kontant_oere));
   const x = (i: number) => (n === 1 ? 0.5 : i / (n - 1));
   const y = (v: number) => 1 - v / max;
   const mrr: { x: number; y: number }[] = [];
@@ -412,26 +442,75 @@ export function kurveKoordinater(kurve: readonly KurvePunkt[]): KurveKoordinater
     if (deler) { kontraheret.push(pt); mrrKontraheret.push(pm); }
   });
   const bredde = n === 1 ? 0.5 : (1 / (n - 1)) * 0.6;
-  const soejler = kurve.map((p, i) => ({ x: x(i) - bredde / 2, bredde, hoejde: p.kontant_oere / max }));
-  const akse = akseIndeks(n).map((i) => ({ x: x(i), label: maanedsLabel(kurve[i].key), betalende: kurve[i].betalende, anker: akseAnker(x(i)) }));
-  return { mrr, mrr_kontraheret: mrrKontraheret, tjent, kontraheret, soejler, max_oere: max, akse };
+  const soejler = kurve.map((p, i) => ({ x: x(i) - bredde / 2, bredde, hoejde: p.kontant_oere / kontantMax }));
+  const labels = kurve.map((p) => maanedsLabel(p.key));
+  const akse = akseEtiketter(labels).map((i) => ({ x: x(i), label: labels[i], betalende: kurve[i].betalende, anker: akseAnker(x(i)) }));
+  const skala = skalaNiveauer(max).map((s) => ({ oere: s.oere, y: y(s.oere) }));
+  const iIdag = idagIndeks(kurve);
+  const idag = iIdag < 0 ? null : { x: x(iIdag), label: IDAG_TEKST };
+  const sidsteMrr = mrr[mrr.length - 1] ?? null;
+  const sidsteKontraheret = mrrKontraheret[mrrKontraheret.length - 1] ?? null;
+  // «uden nye fornyelser» skal stå fri af den faldende linje: y er det HØJESTE punkt (mindste y) på den stiplede linje inden for tekstens egen bredde fra højre kant.
+  const yUnderTeksten = Math.min(...mrrKontraheret.filter((q) => q.x >= 1 - UDEN_FORNYELSER_BREDDE_ANDEL).map((q) => q.y), sidsteKontraheret?.y ?? 1);
+  const ende = {
+    mrr: sidsteMrr && iIdag >= 0 ? { x: sidsteMrr.x, y: sidsteMrr.y, oere: kurve[iIdag].mrr_oere } : null,
+    kontraheret: sidsteKontraheret && mrrKontraheret.length > 1 ? { x: sidsteKontraheret.x, y: yUnderTeksten, label: UDEN_FORNYELSER_TEKST } : null,
+  };
+  return { mrr, mrr_kontraheret: mrrKontraheret, tjent, kontraheret, soejler, max_oere: max, kontant_max_oere: kontantMax, akse, skala, idag, ende };
 }
 
-/** Ø3b: indeks for aksens etiketter — hver 3. måned + den sidste; en etiket
-    der ligger under minAfstand (andel af bredden) fra den SIDSTE udelades,
-    så «aug»/«sep» aldrig kolliderer yderst til højre. Ren, testet. */
-export function akseIndeks(n: number, minAfstand: number = AKSE_MIN_AFSTAND): number[] {
-  if (n <= 0) return [];
+/** Ø3d: etikettens bredde i viewBox-enheder (= % af tegningens bredde) — tegn × gennemsnitlig tegnbredde × fontstørrelse.
+    Holder uanset skærmens format, fordi SVG'en tegnes med preserveAspectRatio="none" (x-enhederne følger bredden). */
+export function etiketBredde(label: string, font: number = AKSE_FONT, tegnEm: number = AKSE_TEGN_EM): number {
+  return label.length * tegnEm * font;
+}
+
+/** Ø3d: det vandrette spænd [fra, til] i % som en etiket optager ved x (andel 0–1) med sit anker. */
+export function etiketSpaend(x: number, bredde: number, anker: AkseAnker): [number, number] {
+  const px = x * 100;
+  if (anker === "start") return [px, px + bredde];
+  if (anker === "end") return [px - bredde, px];
+  return [px - bredde / 2, px + bredde / 2];
+}
+
+/** Ø3d: aksens etiketter efter PLADSEN. Den første og den sidste altid (med deres ankre);
+    derefter hver s. måned, hvor s er den mindste afstand der giver plads til den bredeste
+    etiket + luft — og hver kandidat udelades hvis den rammer en allerede stående etiket.
+    29 punkter (maj 25 … sep 27): «maj 25» står 0–8,6 %, «aug 25» ville stå om 10,7 % ± 4,3 →
+    kolliderer → udelades; resten hver 3. måned; «maj 27» står, «sep 27» sidst. Ren, testet. */
+export function akseEtiketter(labels: readonly string[], luft: number = AKSE_LUFT, font: number = AKSE_FONT): number[] {
+  const n = labels.length;
+  if (n === 0) return [];
   if (n === 1) return [0];
   const x = (i: number) => i / (n - 1);
   const sidste = n - 1;
-  const ud: number[] = [];
-  for (let i = 0; i < n; i += 3) {
-    if (i === sidste) continue;
-    if (x(sidste) - x(i) < minAfstand) continue;
+  const spaendFor = (i: number) => etiketSpaend(x(i), etiketBredde(labels[i], font), akseAnker(x(i)));
+  const staar: [number, number][] = [spaendFor(0), spaendFor(sidste)];
+  const rammer = (sp: [number, number]) => staar.some(([a, b]) => sp[0] < b + luft && sp[1] > a - luft);
+  const dx = 100 / (n - 1);
+  const bredest = Math.max(...labels.map((l) => etiketBredde(l, font)));
+  const skridt = Math.max(1, Math.ceil((bredest + luft) / dx));
+  const ud = [0];
+  for (let i = skridt; i < sidste; i += skridt) {
+    const sp = spaendFor(i);
+    if (rammer(sp)) continue;
+    staar.push(sp);
     ud.push(i);
   }
   ud.push(sidste);
+  return ud;
+}
+
+/** Ø3d: skalaens tre niveauer — top (max), midt (halvdelen, hele kroner) og 0. */
+export function skalaNiveauer(maxOere: number): { oere: number; andel: number }[] {
+  const top = Math.max(0, Math.round(maxOere));
+  return [{ oere: top, andel: 1 }, { oere: Math.round(top / 2), andel: 0.5 }, { oere: 0, andel: 0 }];
+}
+
+/** Ø3d: indeks for «i dag» — den sidste måned der ikke er frem; −1 når alt er frem eller kurven er tom. */
+export function idagIndeks(kurve: readonly Pick<KurvePunkt, "frem">[]): number {
+  let ud = -1;
+  kurve.forEach((p, i) => { if (!p.frem) ud = i; });
   return ud;
 }
 
