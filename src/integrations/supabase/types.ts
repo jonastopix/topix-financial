@@ -1770,6 +1770,47 @@ export type Database = {
           },
         ]
       }
+      event_vaerter: {
+        Row: {
+          created_at: string
+          event_id: string
+          gaest_foto_path: string | null
+          gaest_navn: string | null
+          gaest_titel: string | null
+          id: string
+          raekkefoelge: number
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          event_id: string
+          gaest_foto_path?: string | null
+          gaest_navn?: string | null
+          gaest_titel?: string | null
+          id?: string
+          raekkefoelge?: number
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          event_id?: string
+          gaest_foto_path?: string | null
+          gaest_navn?: string | null
+          gaest_titel?: string | null
+          id?: string
+          raekkefoelge?: number
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_vaerter_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       events: {
         Row: {
           capacity: number | null
@@ -3572,6 +3613,14 @@ export type Database = {
           antal: number
           navne: string[]
           slags: string
+        }[]
+      }
+      get_siden_sidst_virksomheder: {
+        Args: { siden: string }
+        Returns: {
+          antal: number
+          slags: string
+          virksomheder: Json
         }[]
       }
       get_users_last_login: {
