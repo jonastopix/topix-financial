@@ -22,7 +22,7 @@ import { AREAS, getAssetPreviewUrl, type ContentItem } from "@/lib/hjemmebane/ad
 import { bunnyThumbnailUrl } from "@/lib/hjemmebane/bunnyMedia";
 import { getISOWeekKey } from "@/lib/hjemmebane/week";
 import { denneUgesFredag, naesteUgesFredag, omEnMaaned, tilDatoStreng } from "@/lib/hjemmebane/opgaveDato";
-import { flereForslagTekst, forslagMetaLinje, forslagOverlinje, fristTekst, sorterAktive, vaelgForslag } from "@/lib/hjemmebane/aftaler";
+import { forslagMetaLinje, fristTekst } from "@/lib/hjemmebane/aftaler";
 import { afgoerFokusTom, type FokusTom } from "@/lib/hjemmebane/fokusTom";
 import { hentefejlTekst, kildeAf, sektionsfejlTekst } from "@/lib/hjemmebane/hentefejl";
 import { Calendar } from "@/components/ui/calendar";
@@ -40,15 +40,22 @@ import { FornyelsesBaand } from "./FornyelsesBaand";
 import { HbCard } from "../HbCard";
 import { EstimatMaerke } from "../EstimatMaerke";
 import { dinMaanedDom, sparklineKoordinater, type DinMaanedDom, type MaanedsRaekke } from "@/lib/hjemmebane/dinMaaned";
-import { hilsenLinje } from "@/lib/hjemmebane/forsideHilsen";
+import { erDag1, hilsenLinje } from "@/lib/hjemmebane/forsideHilsen";
 import { HbSection } from "../HbSection";
+import { HbMaalForklaring } from "../milestones/HbMaalForklaring";
+import { MAAL_FORKLARING_OVERSKRIFT } from "@/lib/hjemmebane/maalForklaring";
 import { hasRichTextContent } from "@/lib/hjemmebane/richtext";
 import { fokusCtaHref } from "@/lib/hjemmebane/ankomst";
 import { isTrackedEntry, useAkademiData, type AkademiItem } from "../akademi/useAkademiData";
 import { afgoerForloeb, forloebslinje, type Forloebslinje } from "@/lib/hjemmebane/forloeb";
 import { maaskeRelevant, MAASKE_RELEVANT_PRAEFIKS } from "@/lib/hjemmebane/maaskeRelevant";
 import { afgoerMilepael } from "@/lib/milepaelDom";
-import { dineMaalDom, DINE_MAAL_FEJL_TEKST, DINE_MAAL_TOM_TEKST, DINE_SKRIDT_FEJL_TEKST, forsideMaal, modMaaletTekst, type SkridtTilDineMaal } from "@/lib/hjemmebane/dineMaal";
+import { dineMaalDom, DINE_MAAL_FEJL_TEKST, DINE_SKRIDT_FEJL_TEKST, TILFOEJ_SKRIDT_FEJL_TEKST, TILFOEJ_SKRIDT_KNAP_TEKST, TILFOEJ_SKRIDT_OK_TEKST, type SkridtTilDineMaal } from "@/lib/hjemmebane/dineMaal";
+import {
+  ALLE_GJORT_TEKST, ANDRE_MAAL_OVERSKRIFT, FEJRING_VARIGHED_MS, fejring as lavFejring, forsidePlanDom, MAAL_UDEN_SKRIDT_TEKST, PLAN_INGEN_AKTIVE_TEKST, PLAN_TOM_BOOK, PLAN_TOM_SAET_MAAL, PLAN_TOM_TEKST, SE_HELE_PLANEN, UDEN_MAAL_OVERSKRIFT,
+  type Fejring, type PlanSkridt,
+} from "@/lib/hjemmebane/forsidePlan";
+import { TilfoejSkridtForm } from "../milestones/HbMaalRaekke";
 import type { MaalRaekke } from "@/lib/hjemmebane/planen";
 import { lektionsSti } from "@/lib/hjemmebane/lektionerForModul";
 import { HbVideoEmbed } from "../akademi/HbVideoEmbed";
@@ -80,8 +87,11 @@ import { pushOverlinje } from "./pushOverlinje";
     hilsen → nyheden → Din måned → Dit næste skridt → resten. Hilsenen
     har fået én linje (forsideHilsen: dagen · «N nye ting siden sidst»,
     dag 1 en fast sætning). Lagene nedenfor er den oprindelige orden —
-    «Dine skridt», «Dine mål», Kommende og Fællesskabet står UNDER toppen
-    (PR 3 samler skridt og mål til «Din plan»). Tal-strippen nederst er
+    Kommende og Fællesskabet står UNDER toppen. FORSIDE PR 3 (17/9, Jonas
+    «A» til valg 3): «DIN PLAN» afløser «Dine skridt» + «Dine mål» — målene
+    med skridtene under (lib/hjemmebane/forsidePlan), tom-tilstanden som
+    invitation, fejring af et gjort skridt; tiles står sidst på mobil, og
+    dag 1 afledes af medlemskabets start (14 døgn). Tal-strippen nederst er
     afløst af «Din måned».
     1) "Dit næste skridt" — fokus-motoren (deriveFocus, PR #217)
        m. ALLE kilder: rapport-signal, beskeder, ugens fokus (læses
@@ -945,7 +955,8 @@ type OpgaveKald =
     kalender-først den første justering — det er den observation B6
     beder om.
 
-    "Ikke endnu" vises kun ved forfald: motoren afviser udskydelse før
+    "Udskyd" (før 17/9: "Ikke endnu"; forslagets "Tag den" hed "Ja, det gør
+    jeg" — forside PR 3) vises kun ved forfald: motoren afviser udskydelse før
     fristen er passeret (B2, opgaveEngine.ts:146-148), og en knap der
     altid svarer 409 er ingen handling. Dommen over overgangen er
     stadig motorens — fladen gater kun visningen. */
@@ -1028,7 +1039,7 @@ const OpgaveKnapper = ({
     return (
       <div className={cn("flex flex-wrap gap-2", className)}>
         <HbButton className="h-9 px-4" disabled={busy} onClick={() => setDatoFormaal("accept")}>
-          Ja, det gør jeg
+          Tag den
         </HbButton>
         <HbButton
           variant="secondary"
@@ -1071,7 +1082,7 @@ const OpgaveKnapper = ({
                 setDatoFormaal("udskyd")
           }
         >
-          Ikke endnu
+          Udskyd
         </HbButton>
       )}
       <HbButton
@@ -1296,6 +1307,62 @@ const FocusCard = ({
     </HbCard>
   );
 };
+
+/** Én skridt-række i «Din plan» (PR 3): titel, frist (aktiv) eller meta-
+    linjen «Fra din rådgiver · foreslået i går · udløber om 3 dage» +
+    begrundelsen (forslag), og OpgaveKnapper — SAMME knapper og kald som
+    «Dine skridt» havde. Knapperne er søskende til teksten (ingen klikbar
+    handling i et anker). */
+const PlanSkridtRaekke = ({ skridt, slags, busy, onKald }: { skridt: PlanSkridt; slags: "aktiv" | "forslag"; busy: boolean; onKald: (kald: OpgaveKald) => void }) => {
+  const meta = slags === "forslag" ? forslagMetaLinje(skridt, new Date()) : null;
+  return (
+    <li className="border-t border-hb-line/60 first:border-t-0" data-skridt-id={skridt.id} data-skridt-status={skridt.status} data-skridt-maal={skridt.maal_id ?? ""}>
+      <div className="flex flex-wrap items-center gap-x-6 gap-y-3 py-3">
+        <div className="min-w-0 flex-1 basis-64">
+          {slags === "forslag" && (
+            <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-hb-evergreen">Forslag til dig</p>
+          )}
+          <p className="text-[15px] font-medium leading-snug text-hb-ink">{slags === "aktiv" ? "◻ " : "? "}{skridt.title}</p>
+          {slags === "aktiv" && skridt.due_date && (
+            <p className="mt-1 text-sm text-hb-ink-soft">{fristTekst(skridt.due_date, tilDatoStreng(new Date()))}</p>
+          )}
+          {meta && (
+            <p className="mt-1 text-sm text-hb-ink-soft">
+              {meta.dele.join(" · ")}
+              {meta.udloeb && (
+                <>
+                  {" · "}
+                  <span className={meta.haster ? "text-hb-rust" : undefined}>{meta.udloeb}</span>
+                </>
+              )}
+            </p>
+          )}
+          {slags === "forslag" && skridt.context?.trim() && (
+            <p className="mt-1 text-sm leading-relaxed text-hb-ink-soft">{skridt.context.trim()}</p>
+          )}
+        </div>
+        <OpgaveKnapper
+          className="shrink-0"
+          handling={slags === "aktiv"
+            ? { slags: "aktiv", opgaveId: skridt.id, deferralCount: skridt.deferral_count ?? 0, dueDate: skridt.due_date ?? null }
+            : { slags: "forslag", opgaveId: skridt.id, deferralCount: skridt.deferral_count ?? 0, dueDate: null }}
+          busy={busy}
+          onKald={onKald}
+        />
+      </div>
+    </li>
+  );
+};
+
+/** Fejringen (PR 3): ✓ titel og «Godt gået — {mål} er nu {N} %» — en stille linje. */
+const FejringRaekke = ({ fejring }: { fejring: Fejring }) => (
+  <li className="border-t border-hb-line/60 py-3 first:border-t-0" data-fejring={fejring.skridtId}>
+    <p className="text-[15px] font-medium leading-snug text-hb-ink">
+      <span className="text-hb-evergreen">✓</span> {fejring.titel}
+    </p>
+    <p className="mt-1 text-sm text-hb-ink-soft">{fejring.tekst}</p>
+  </li>
+);
 
 export const BoardroomView = () => {
   const { user, profile, companyId, isAdvisor } = useAuth();
@@ -1898,7 +1965,17 @@ export const BoardroomView = () => {
       }
       return data;
     },
-    onSuccess: (_data, kald) => {
+    onSuccess: (data, kald) => {
+      // Fejringen (PR 3): et skridt lukket som gjort — find skridtet i det
+      // fladen allerede har, og målets titel; fremdriften er motorens tal.
+      if (kald.type === "luk" && kald.udfald === "done") {
+        const skridt = ((actionsQuery.data ?? []) as PlanSkridt[]).find((a) => a.id === kald.opgaveId);
+        if (skridt) {
+          const maal = (milestonesQuery.data ?? []).find((m) => m.id === skridt.maal_id);
+          const progress = (data as { maal?: { ok?: boolean; progress?: number } | null } | null)?.maal?.ok ? (data as { maal: { progress: number } }).maal.progress : null;
+          setFejring(lavFejring(skridt, maal?.title ?? null, progress));
+        }
+      }
       toast.success(
         kald.type === "accepter"
           ? "Aftalen er registreret"
@@ -1911,6 +1988,11 @@ export const BoardroomView = () => {
                 : "Forslaget er afvist",
       );
       void queryClient.invalidateQueries({ queryKey: ["boardroom", "company-actions", companyId] });
+      // Planen (PR 3): et lukket skridt rykker målets fremdrift (opgave-luk
+      // skriver progress) — genhent mål og skridt, så baren følger med.
+      void queryClient.invalidateQueries({ queryKey: ["boardroom", "milestones", companyId] });
+      void queryClient.invalidateQueries({ queryKey: ["boardroom", "skridt", companyId] });
+      void queryClient.invalidateQueries({ queryKey: ["dine-maal"] });
     },
     onError: (error: any) => {
       toast.error("Det lykkedes ikke", { description: error?.message || String(error) });
@@ -1989,32 +2071,66 @@ export const BoardroomView = () => {
 
   const firstName = profile?.full_name?.split(" ")[0] || user?.email?.split("@")[0] || "dig";
 
-  // ── "Dine aftaler"-afledningen: alle aktive (forfaldne øverst) + ÉT
-  // forslag. Hvorfor kun ét, og hvordan det vælges, står ved
-  // vaelgForslag i lib/hjemmebane/aftaler.ts. B8-filteret (udløbne
-  // forslag) kører FØR udvælgelsen — et udløbet forslag må hverken
-  // vises eller optage pladsen.
-  const aftaleRaekker = (actionsQuery.data ?? []) as any[];
-  const aftaleAktive = sorterAktive(aftaleRaekker.filter((a) => a.status === "active"));
-  // Alle ventende forslag tælles (8/9) — fladen viser stadig ÉT, men
-  // siger nu hvor mange der venter (forslagOverlinje / flereForslagTekst,
-  // begrundelsen står i aftaler.ts). Samme «nu» til udvalg og meta-linje.
-  const aftaleNu = new Date();
-  const aftaleVentende = filtrerUdloebneForslag(aftaleRaekker.filter((a) => a.status === "proposed"), aftaleNu);
-  const aftaleForslag = vaelgForslag(aftaleVentende);
-  const aftaleForslagMeta = aftaleForslag ? forslagMetaLinje(aftaleForslag, aftaleNu) : null;
-  const aftaleFlereTekst = flereForslagTekst(aftaleVentende.length);
-
-  // ── «Dine mål» (fase 3): samme dom som /milestones (dineMaalDom → planen
-  // → milepaelDom) på forsidens egne kilder — de aktive mål med fremdrift
-  // regnet af skridtene. null mens en af kilderne mangler (fejl vises pr.
-  // sektion). «Mod målet: …» på skridtene slår op i samme liste.
+  // ── «DIN PLAN» (forside PR 3, Jonas «A» til valg 3): målene med skridt under.
+  // Kilderne er de samme som «Dine skridt» + «Dine mål» læste — actionsQuery
+  // (open/proposed/active med deferral_count/expires_at/context) og
+  // dineMaalDom (milestones + skridt med maal_id → fremdrift regnet af
+  // skridtene, SAMME dom som /milestones). Ingen ny hentning. Dommen er ren
+  // (lib/hjemmebane/forsidePlan): grupperingen under mål, «Uden mål» sidst,
+  // udløbne forslag fra, forfaldne øverst.
+  const aftaleRaekker = (actionsQuery.data ?? []) as PlanSkridt[];
   const dineMaal = useMemo(
     () => (milestonesQuery.data && skridtQuery.data ? dineMaalDom(milestonesQuery.data, skridtQuery.data, new Date()) : null),
     [milestonesQuery.data, skridtQuery.data],
   );
-  const dineMaalForside = dineMaal ? forsideMaal(dineMaal) : null;
+  const plan = useMemo(() => (dineMaal ? forsidePlanDom(dineMaal, aftaleRaekker, new Date()) : null), [dineMaal, aftaleRaekker]);
   const maalTitler = milestonesQuery.data ?? [];
+
+  // FEJRINGEN (PR 3, analyse §5 «intet bliver fejret»): når et skridt lukkes
+  // som gjort, står det kort med ✓ og «Godt gået — {mål} er nu {N} %» under
+  // sit mål (uden mål: «Godt gået.») frem for at forsvinde. Tallet er det
+  // motoren skrev (opgave-luk's svar `maal.progress`) — aldrig regnet her.
+  // Stille: én linje i FEJRING_VARIGHED_MS, ingen konfetti, ingen lyd.
+  const [fejring, setFejring] = useState<Fejring | null>(null);
+  useEffect(() => {
+    if (!fejring) return;
+    const id = window.setTimeout(() => setFejring(null), FEJRING_VARIGHED_MS);
+    return () => window.clearTimeout(id);
+  }, [fejring]);
+
+  // «+ Tilføj skridt» (PR 3): SAMME function og SAMME formular som /milestones
+  // (#946: skridt-tilfoej, TilfoejSkridtForm med foreslået frist +14 dage).
+  // Ingen ny skrivevej. Bagefter genhentes forsidens kilder.
+  const [tilfoejAaben, setTilfoejAaben] = useState<string | null>(null);
+  const tilfoejMutation = useMutation({
+    mutationFn: async (input: { maalId: string; titel: string; dueDate: string }) => {
+      const { error } = await supabase.functions.invoke("skridt-tilfoej", { body: { companyId, ...input } });
+      if (error) {
+        let besked = error.message;
+        try {
+          const svar = await (error as { context?: { json?: () => Promise<{ error?: string }> } }).context?.json?.();
+          if (svar?.error) besked = svar.error;
+        } catch { /* behold error.message */ }
+        throw new Error(besked);
+      }
+    },
+    onSuccess: async () => {
+      toast.success(TILFOEJ_SKRIDT_OK_TEKST);
+      await queryClient.invalidateQueries({ queryKey: ["boardroom"] });
+      await queryClient.invalidateQueries({ queryKey: ["dine-maal"] });
+    },
+  });
+  const tilfoejSkridt = async (maalId: string, titel: string, dueDate: string): Promise<string | null> => {
+    try {
+      await tilfoejMutation.mutateAsync({ maalId, titel, dueDate });
+      return null;
+    } catch (e) {
+      const besked = e instanceof Error ? e.message : String(e);
+      toast.error(TILFOEJ_SKRIDT_FEJL_TEKST, { description: besked });
+      return besked;
+    }
+  };
+  const planBusy = opgaveMutation.isPending || tilfoejMutation.isPending;
 
   if (akademi.loading || factsLoading) {
     return <p className="text-sm text-hb-ink-soft">Henter dit Boardroom…</p>;
@@ -2034,7 +2150,10 @@ export const BoardroomView = () => {
       <PageHeader
         firstName={firstName}
         velkomst={Boolean(tjeklisteData.tjekliste && !tjeklisteData.tjekliste.faerdig)}
-        linje={hilsenLinje({ nu: new Date(), nyeTing: newsCount, dag1: Boolean(tjeklisteData.tjekliste && !tjeklisteData.tjekliste.faerdig) })}
+        // Dag 1 (PR 3, rettet efter Jonas' skærm 17/9 11:28): medlemskabets start
+        // (contract_start_date, som forsiden allerede henter til fokus-motoren)
+        // inden for 14 døgn — ikke «tjeklisten ikke færdig».
+        linje={hilsenLinje({ nu: new Date(), nyeTing: newsCount, dag1: erDag1(contractStartQuery.data ?? null, new Date()) })}
       />
 
       {/* ── FORNYELSEN (7/9): båndet står mellem hilsenen og toppen, KUN når
@@ -2042,31 +2161,23 @@ export const BoardroomView = () => {
           ingen plads. Dommen er serverens (motoren); se FornyelsesBaand. ── */}
       <FornyelsesBaand />
 
-      {/* ── TOPPEN (forside PR 2, 17/9 — Jonas «A» til valg 1): to kolonner på
-          md+ — venstre 7/12 NYHEDEN (stående hovedhistorie + tiles), højre
-          5/12 «DIN MÅNED» over «DIT NÆSTE SKRIDT» (kompakt). Mobil: samme
-          DOM-orden stablet — nyheden først (det der giver liv står over
-          folden), så tallene, så pligten. Uden bånd (intet publiceret): højre
-          kolonne tager hele bredden. ── */}
+      {/* ── TOPPEN (forside PR 2 + PR 3, 17/9 — Jonas «A» til valg 1): to kolonner
+          på md+ — venstre 7/12 NYHEDEN (stående hovedhistorie) i række 1 og
+          TILES (ugens video, redaktionelt, evergreen) i række 2; højre 5/12
+          «DIN MÅNED» over «DIT NÆSTE SKRIDT» (kompakt) hen over begge rækker.
+          MOBIL (PR 3, rettet efter Jonas' skærm 17/9 11:28 — analyse §6.2):
+          DOM-ordenen ER mobil-ordenen: hilsen → nyheden → Din måned → Dit
+          næste skridt → tiles → resten. Valget: tiles er ET grid-barn med
+          eksplicit plads på md (col-start-1/row-start-2) frem for `order-*`
+          eller to renderinger (md:hidden/hidden md:block) — tiles renderes
+          ÉN gang, ingen dobbelt hentning, ingen dobbelt afspiller-tilstand.
+          Uden bånd (intet publiceret): højre kolonne tager hele bredden. ── */}
       <div className={cn("mt-10 grid grid-cols-1 gap-8 md:mt-12 md:items-start", hasBand && "md:grid-cols-12")} data-forside-top>
         {hasBand && (
-          <div className="min-w-0 md:col-span-7" data-forside-venstre>
-          {hasBand && (
-            // Overskriften: "Siden sidst" → "Fra os til dig" — båndet rummer
-            // både tidløst (evergreen) og fremtid gjorde det tidligere (event);
-            // "siden sidst" var kun sandt for push/podcast. Selve "siden
-            // sidst"-LINJEN (countNewSince) beholder sin tekst — den handler
-            // netop om det nye.
+          <div className="min-w-0 md:col-span-7 md:col-start-1 md:row-start-1" data-forside-venstre>
             <HbSection eyebrow="Fra os til dig" linkLabel="Se Akademiet" linkTo="/akademiet" hairline data-forside-nyheden>
-              {/* "Siden sidst"-linjen står nu under hilsenen (PR 2, forsideHilsen). */}
-              {/* Redesign (bryd to-kolonne-stakken): rykkelistens vinder står
-                  i FULD bredde som fokus-kortet ovenfor — cover i fuld
-                  kortbredde, editorial-overskrift i stor skala. Resten
-                  (side[] + talk) ligger UNDER i ét jævnt 3-kolonne-
-                  grid af ENS, rammeløse tiles (materiale-differentiering:
-                  hovedhistorien er det eneste hvide kort i båndet) — grid'et
-                  wrapper og tåler 2-3 elementer uden tomme hjørner. Ingen
-                  skeletons: alle kandidater er synkrone (17/9). */}
+              {/* "Siden sidst"-linjen står under hilsenen (PR 2, forsideHilsen).
+                  Rykkelistens vinder som stående hovedhistorie (PR 2). */}
               {band.main && (
                 <StoryCard
                   story={band.main}
@@ -2075,72 +2186,10 @@ export const BoardroomView = () => {
                   pushCoverUrl={pushCoverUrl}
                 />
               )}
-              {band.side.length > 0 && (
-                <div className={cn("mt-8 grid grid-cols-1 items-start gap-x-6 gap-y-8", tileColsClass(tileCount))}>
-                  {band.side.map((story) => (
-                    <StoryCard
-                      key={story.kind}
-                      story={story}
-                      variant="side"
-                      pushSender={pushSender}
-                      pushCoverUrl={pushCoverUrl}
-                    />
-                  ))}
-                </div>
-              )}
-
-              {/* Historik (PR B3): diskret "Se tidligere" under båndet —
-                  seneste redaktionelle (byPublishedDesc, 5 stk) som rolige
-                  linjer m. titel + dato + link. Kollapset som standard. */}
-              {redaktioneltHistory.length > 0 && (
-                <div className="mt-9">
-                  <button
-                    type="button"
-                    onClick={() => setHistorikOpen((open) => !open)}
-                    className="flex items-center gap-1.5 text-sm text-hb-ink-soft transition-colors hover:text-hb-ink"
-                  >
-                    {historikOpen ? "Skjul tidligere" : "Se tidligere"}
-                    {historikOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                  </button>
-                  {historikOpen && (
-                    <ul className="mt-3">
-                      {redaktioneltHistory.map((item) => {
-                        const link =
-                          (((item.metadata as Record<string, unknown>) ?? {}).link as string) || null;
-                        const date = new Date(item.published_at ?? item.created_at).toLocaleDateString(
-                          "da-DK",
-                          { day: "numeric", month: "short", year: "numeric" },
-                        );
-                        return (
-                          <li
-                            key={item.id}
-                            className="flex items-baseline gap-3 border-t border-hb-line/60 py-2.5 text-sm"
-                          >
-                            <span className="w-28 shrink-0 text-xs text-hb-ink-soft">{date}</span>
-                            {link ? (
-                              <a
-                                href={link}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-hb-ink underline-offset-4 hover:underline"
-                              >
-                                {item.title}
-                              </a>
-                            ) : (
-                              <span className="text-hb-ink">{item.title}</span>
-                            )}
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  )}
-                </div>
-              )}
             </HbSection>
-          )}
           </div>
         )}
-        <div className={cn("min-w-0 space-y-8", hasBand ? "md:col-span-5" : "md:col-span-12")} data-forside-hoejre>
+        <div className={cn("min-w-0 space-y-8", hasBand ? "md:col-span-5 md:col-start-8 md:row-span-2 md:row-start-1" : "md:col-span-12")} data-forside-hoejre>
           {/* «DIN MÅNED» (valg 2) — afløser tal-strippen nederst. Kun med virksomhed. */}
           {companyId && (
             <HbSection eyebrow="Din måned" hairline linkLabel="Se dine tal" linkTo="/kpis" data-forside-din-maaned>
@@ -2178,155 +2227,205 @@ export const BoardroomView = () => {
             )}
           </HbSection>
         </div>
+        {hasBand && (band.side.length > 0 || redaktioneltHistory.length > 0) && (
+          /* TILES + historik: række 2 i venstre kolonne på md; SIDST på mobil (DOM-ordenen). */
+          <div className="min-w-0 md:col-span-7 md:col-start-1 md:row-start-2" data-forside-tiles>
+            {band.side.length > 0 && (
+              <div className={cn("grid grid-cols-1 items-start gap-x-6 gap-y-8", tileColsClass(tileCount))}>
+                {band.side.map((story) => (
+                  <StoryCard
+                    key={story.kind}
+                    story={story}
+                    variant="side"
+                    pushSender={pushSender}
+                    pushCoverUrl={pushCoverUrl}
+                  />
+                ))}
+              </div>
+            )}
+          {/* Historik (PR B3): diskret "Se tidligere" under båndet —
+              seneste redaktionelle (byPublishedDesc, 5 stk) som rolige
+              linjer m. titel + dato + link. Kollapset som standard. */}
+          {redaktioneltHistory.length > 0 && (
+            <div className={band.side.length > 0 ? "mt-9" : undefined}>
+              <button
+                type="button"
+                onClick={() => setHistorikOpen((open) => !open)}
+                className="flex items-center gap-1.5 text-sm text-hb-ink-soft transition-colors hover:text-hb-ink"
+              >
+                {historikOpen ? "Skjul tidligere" : "Se tidligere"}
+                {historikOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+              </button>
+              {historikOpen && (
+                <ul className="mt-3">
+                  {redaktioneltHistory.map((item) => {
+                    const link =
+                      (((item.metadata as Record<string, unknown>) ?? {}).link as string) || null;
+                    const date = new Date(item.published_at ?? item.created_at).toLocaleDateString(
+                      "da-DK",
+                      { day: "numeric", month: "short", year: "numeric" },
+                    );
+                    return (
+                      <li
+                        key={item.id}
+                        className="flex items-baseline gap-3 border-t border-hb-line/60 py-2.5 text-sm"
+                      >
+                        <span className="w-28 shrink-0 text-xs text-hb-ink-soft">{date}</span>
+                        {link ? (
+                          <a
+                            href={link}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-hb-ink underline-offset-4 hover:underline"
+                          >
+                            {item.title}
+                          </a>
+                        ) : (
+                          <span className="text-hb-ink">{item.title}</span>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </div>
+          )}
+          </div>
+        )}
       </div>
 
-      {/* ── DINE SKRIDT (før «Dine aftaler», fase 3): aktive skridt øverst,
-          ÉT forslag nederst — hvert med «Mod målet: …» når det bærer maal_id.
-          Læser actionsQuery.data DIREKTE — fokus-laget omtaler (slot f
-          peger herned via #dine-skridt), sektionen handler; de to
-          præsentationer er bevidst ukoblede. Rammeløse rækker som
-          events-sektionen (border-t hb-line); knapperne står som
-          SØSKENDE til teksten — en klikbar handling i et anker er
-          ugyldig HTML (events-lærdommen). Arve-'open' vises ikke her.
-          Hverken aktive eller forslag → ingen sektion. FEJL er ikke tom
-          (7/9): kunne aftalerne ikke hentes, står sektionen med en
-          fejllinje frem for at forsvinde — KUN sektionen, ikke forsiden;
-          et medlem der mister hele sin forside fordi én hentning fejlede,
-          er en dårligere byttehandel. Formen er RaadgiverForsideViews. */}
-      {actionsQuery.isError && (
-        <HbSection id="dine-skridt" eyebrow="Dine skridt" hairline className="mt-10 md:mt-12">
-          <p className="text-sm text-hb-rust">{DINE_SKRIDT_FEJL_TEKST}</p>
-        </HbSection>
-      )}
-      {!actionsQuery.isError && (aftaleAktive.length > 0 || aftaleForslag) && (
-        <HbSection id="dine-skridt" eyebrow="Dine skridt" hairline className="mt-10 md:mt-12">
-          <ul>
-            {aftaleAktive.map((a) => (
-              <li key={a.id} className="border-t border-hb-line first:border-t-0 last:border-b" data-skridt-maal={a.maal_id ?? ""}>
-                <div className="flex flex-wrap items-center gap-x-6 gap-y-3 py-4">
-                  <div className="min-w-0 flex-1 basis-64">
-                    {modMaaletTekst(maalTitler, a.maal_id) && (
-                      <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft">{modMaaletTekst(maalTitler, a.maal_id)}</p>
-                    )}
-                    <p className="text-[15px] font-medium leading-snug text-hb-ink">{a.title}</p>
-                    <p className="mt-1 text-sm text-hb-ink-soft">{fristTekst(a.due_date!, tilDatoStreng(new Date()))}</p>
-                  </div>
-                  <OpgaveKnapper
-                    className="shrink-0"
-                    handling={{ slags: "aktiv", opgaveId: a.id, deferralCount: a.deferral_count ?? 0, dueDate: a.due_date ?? null }}
-                    busy={opgaveMutation.isPending}
-                    onKald={(kald) => opgaveMutation.mutate(kald)}
-                  />
-                </div>
-              </li>
-            ))}
-            {aftaleForslag && (
-              /* Forslaget skelnes fra aftalerne med en lille evergreen-
-                 overlinje ("Forslag til dig") og INGEN frist-linje: et
-                 forslag er et spørgsmål, ikke en forpligtelse — det har
-                 ingen dato før medlemmet vælger en (B6). Evergreen er
-                 Hjemmebanes handlingsfarve; rust bærer allerede fire
-                 betydninger og eyebrow'en.
-                 8/9: forslaget siger nu HVEM og HVORNÅR (meta-linjen:
-                 «Fra din rådgiver · foreslået i går»), HVOR MANGE der
-                 venter («· 1 af 3» i overlinjen + linjen under) og
-                 HVORNÅR DET UDLØBER når der er ≤ 7 dage («udløber om 3
-                 dage», rust ved i dag/i morgen — rådgiverforsidens regel
-                 for det der haster). Stadig ét forslag med knapper;
-                 hvorfor står i aftaler.ts. Ordene er husets: milestone-
-                 sidens tælling, eventCountdown, chattens datoskille. */
-              <li key={aftaleForslag.id} className="border-t border-hb-line first:border-t-0 last:border-b">
-                <div className="flex flex-wrap items-center gap-x-6 gap-y-3 py-4">
-                  <div className="min-w-0 flex-1 basis-64">
-                    <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-hb-evergreen">{forslagOverlinje(aftaleVentende.length)}</p>
-                    <p className="mt-1 text-[15px] font-medium leading-snug text-hb-ink">{aftaleForslag.title}</p>
-                    {modMaaletTekst(maalTitler, aftaleForslag.maal_id) && (
-                      <p className="mt-1 text-sm text-hb-ink-soft">{modMaaletTekst(maalTitler, aftaleForslag.maal_id)}</p>
-                    )}
-                    {aftaleForslagMeta && (
-                      <p className="mt-1 text-sm text-hb-ink-soft">
-                        {aftaleForslagMeta.dele.join(" · ")}
-                        {aftaleForslagMeta.udloeb && (
-                          <>
-                            {" · "}
-                            <span className={aftaleForslagMeta.haster ? "text-hb-rust" : undefined}>{aftaleForslagMeta.udloeb}</span>
-                          </>
-                        )}
-                      </p>
-                    )}
-                    {aftaleForslag.context?.trim() && (
-                      <p className="mt-1 text-sm leading-relaxed text-hb-ink-soft">{aftaleForslag.context.trim()}</p>
-                    )}
-                    {aftaleFlereTekst && (
-                      <p className="mt-1 text-sm text-hb-ink-soft">{aftaleFlereTekst}</p>
-                    )}
-                  </div>
-                  <OpgaveKnapper
-                    className="shrink-0"
-                    handling={{ slags: "forslag", opgaveId: aftaleForslag.id, deferralCount: aftaleForslag.deferral_count ?? 0, dueDate: null }}
-                    busy={opgaveMutation.isPending}
-                    onKald={(kald) => opgaveMutation.mutate(kald)}
-                  />
-                </div>
-              </li>
-            )}
-          </ul>
-        </HbSection>
-      )}
-
-      {/* ── DINE MÅL (fase 3, «Én plan»): målenes fremdrift på forsiden —
-          højst tre aktive med bar, «2 af 3 skridt gjort · 67 %» (planens
-          ord) og frist; siden /milestones («Dine mål») ejer handlingerne.
-          Tom = ingen mål: én sætning og vejen til at sætte det første
-          (medlemmet ejer sine mål, Jonas 16/9). FEJL er ikke tom: fejler
-          mål eller skridt, står sektionen med en fejllinje. */}
-      {(milestonesQuery.isError || skridtQuery.isError) && (
-        <HbSection id="dine-maal" eyebrow="Dine mål" hairline className="mt-10 md:mt-12">
+      {/* ── DIN PLAN (forside PR 3, Jonas «A» til valg 3): ÉN sektion afløser
+          «Dine skridt» + «Dine mål» — de aktive mål (højst tre) som rækker
+          med fremdrift, og under hvert mål dets aktive skridt (Gjort / Udskyd
+          ved forfald / Drop den) og ventende forslag (Tag den / Nej tak) —
+          SAMME functions som før (opgave-luk/-udskyd/-accepter via
+          opgaveMutation; skridt-tilfoej via tilfoejMutation). Skridt uden mål
+          sidst under «Uden mål». Ankrene #dine-skridt og #dine-maal bevares
+          INDE i sektionen, så fokus-motorens href (#dine-skridt), gamle links
+          og værn ikke brister. FEJL er ikke tom: fejler en af de tre
+          hentninger, står sektionen med en fejllinje — kun sektionen. */}
+      {(actionsQuery.isError || milestonesQuery.isError || skridtQuery.isError) && (
+        <HbSection id="din-plan" eyebrow="Din plan" hairline className="mt-10 md:mt-12">
+          <span id="dine-skridt" data-anker /><span id="dine-maal" data-anker />
           <p className="text-sm text-hb-rust">
-            {DINE_MAAL_FEJL_TEKST}{" "}
+            {actionsQuery.isError ? DINE_SKRIDT_FEJL_TEKST : DINE_MAAL_FEJL_TEKST}{" "}
             <button type="button" onClick={proevIgen} className="underline-offset-4 hover:underline">Prøv igen</button>
           </p>
         </HbSection>
       )}
-      {dineMaal && dineMaalForside && (
-        <HbSection id="dine-maal" eyebrow="Dine mål" hairline linkLabel="Se alle dine mål" linkTo="/milestones" className="mt-10 md:mt-12">
-          {dineMaalForside.viste.length === 0 ? (
-            <p className="text-sm text-hb-ink-soft" data-dine-maal="0">
-              {dineMaal.tom ? DINE_MAAL_TOM_TEKST : "Ingen aktive mål lige nu — aktivér et parkeret, eller sæt et nyt."}{" "}
-              <Link to="/milestones" className="text-hb-evergreen underline-offset-4 hover:underline">Sæt et mål</Link>
+      {!actionsQuery.isError && !milestonesQuery.isError && !skridtQuery.isError && plan && (
+        <HbSection id="din-plan" eyebrow="Din plan" hairline linkLabel={SE_HELE_PLANEN} linkTo="/milestones" className="mt-10 md:mt-12" data-din-plan={plan.maal.length} data-din-plan-tom={plan.tom ? "1" : "0"}>
+          <span id="dine-skridt" data-anker /><span id="dine-maal" data-anker />
+          {/* «Hvad er et mål?» (tillæg 17/9) — med mål: et lille link ved
+              sektionens header der folder forklaringen ud (native <details>,
+              lukket som standard). Uden mål står den ÅBEN i tom-tilstanden. */}
+          {!plan.tom && (
+            <details className="-mt-2 mb-4" data-maal-forklaring-fold>
+              <summary className="inline-block cursor-pointer list-none text-sm text-hb-evergreen underline-offset-4 hover:underline [&::-webkit-details-marker]:hidden">{MAAL_FORKLARING_OVERSKRIFT}</summary>
+              <HbMaalForklaring udenOverskrift className="mt-3" />
+            </details>
+          )}
+          {/* FEJRINGEN øverst i sektionen — ét sted, uanset om målet stadig er
+              blandt de aktive (ved 100 % er det nået i planens dom og rykker ud). */}
+          {fejring && (
+            <ul className="mb-3"><FejringRaekke fejring={fejring} /></ul>
+          )}
+          {/* TOM — invitationen (medlemmet ejer sine mål, Jonas 16/9): ikke «I har ikke sat mål endnu». */}
+          {plan.tom && (
+            <div data-plan-tom>
+              <p className="max-w-2xl text-sm leading-relaxed text-hb-ink-soft">{PLAN_TOM_TEKST}</p>
+              <HbMaalForklaring className="mt-5" />
+              <div className="mt-5 flex flex-wrap gap-2">
+                <Link to="/milestones"><HbButton className="h-9 px-4 text-sm">{PLAN_TOM_SAET_MAAL}</HbButton></Link>
+                <Link to="/book-session"><HbButton variant="secondary" className="h-9 px-4 text-sm">{PLAN_TOM_BOOK}</HbButton></Link>
+              </div>
+            </div>
+          )}
+          {plan.ingenAktive && (
+            <p className="text-sm text-hb-ink-soft" data-plan-ingen-aktive>
+              {PLAN_INGEN_AKTIVE_TEKST}{" "}
+              <Link to="/milestones" className="text-hb-evergreen underline-offset-4 hover:underline">{PLAN_TOM_SAET_MAAL}</Link>
             </p>
-          ) : (
-            <ul data-dine-maal={dineMaalForside.viste.length}>
-              {dineMaalForside.viste.map((x) => {
-                const aabne = x.skridtLinjer.filter((l) => l.tegn === "◻").length;
-                const venter = x.skridtLinjer.filter((l) => l.tegn === "?").length;
-                return (
-                  <li key={x.plan.maal.id} className="border-t border-hb-line py-4 first:border-t-0 last:border-b" data-maal-id={x.plan.maal.id} data-maal-fremdrift={x.plan.fremdrift} data-maal-beregnet={x.plan.beregnet ? "1" : "0"}>
-                    <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
-                      <p className="min-w-0 flex-1 basis-64 text-[15px] font-medium leading-snug text-hb-ink">{x.plan.maal.title}</p>
-                      {x.plan.dom.forfalden ? (
-                        <span className="text-sm font-medium text-hb-rust">{fristTekst(x.plan.maal.deadline!, tilDatoStreng(new Date()))}</span>
-                      ) : x.plan.maal.deadline ? (
-                        <span className="text-sm text-hb-ink-soft">{fristTekst(x.plan.maal.deadline, tilDatoStreng(new Date()))}</span>
-                      ) : null}
-                    </div>
-                    <div className="mt-2 h-[3px] overflow-hidden rounded-full bg-hb-line">
-                      <div className="h-full rounded-full bg-hb-evergreen/70" style={{ width: `${x.plan.fremdrift}%` }} />
-                    </div>
-                    <p className="mt-1 text-sm text-hb-ink-soft">
-                      {x.fremdriftTekst}
-                      {aabne > 0 && <span> · {aabne} {aabne === 1 ? "skridt i gang" : "skridt i gang"}</span>}
-                      {venter > 0 && <span> · {venter} {venter === 1 ? "forslag venter" : "forslag venter"}</span>}
+          )}
+          {plan.maal.length > 0 && (
+            <ul data-plan-maal={plan.maal.length}>
+              {plan.maal.map((x) => (
+                <li key={x.plan.plan.maal.id} className="border-t border-hb-line py-4 first:border-t-0 last:border-b" data-maal-id={x.plan.plan.maal.id} data-maal-fremdrift={x.plan.plan.fremdrift} data-maal-beregnet={x.plan.plan.beregnet ? "1" : "0"}>
+                  <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
+                    <p className="min-w-0 flex-1 basis-64 text-[15px] font-medium leading-snug text-hb-ink">{x.plan.plan.maal.title}</p>
+                    {x.plan.plan.dom.forfalden ? (
+                      <span className="text-sm font-medium text-hb-rust">{fristTekst(x.plan.plan.maal.deadline!, tilDatoStreng(new Date()))}</span>
+                    ) : x.plan.plan.maal.deadline ? (
+                      <span className="text-sm text-hb-ink-soft">{fristTekst(x.plan.plan.maal.deadline, tilDatoStreng(new Date()))}</span>
+                    ) : null}
+                  </div>
+                  <div className="mt-2 h-[3px] overflow-hidden rounded-full bg-hb-line">
+                    <div className="h-full rounded-full bg-hb-evergreen/70" style={{ width: `${x.plan.plan.fremdrift}%` }} />
+                  </div>
+                  <p className="mt-1 text-sm text-hb-ink-soft">
+                    {x.plan.fremdriftTekst}
+                    {x.forslag.length > 0 && <span> · {x.forslag.length} {x.forslag.length === 1 ? "forslag venter" : "forslag venter"}</span>}
+                  </p>
+                  {x.alleGjort && (
+                    <p className="mt-1 text-sm" data-alle-gjort>
+                      <Link to="/milestones" className="text-hb-evergreen underline-offset-4 hover:underline">{ALLE_GJORT_TEKST}</Link>
                     </p>
-                  </li>
-                );
-              })}
+                  )}
+                  {/* Skridtene under målet: aktive, så forslag. */}
+                  {(x.aktive.length > 0 || x.forslag.length > 0) && (
+                    <ul className="mt-3 border-l-2 border-hb-line pl-4">
+                      {x.aktive.map((a) => (
+                        <PlanSkridtRaekke key={a.id} skridt={a} slags="aktiv" busy={planBusy} onKald={(kald) => opgaveMutation.mutate(kald)} />
+                      ))}
+                      {x.forslag.map((f) => (
+                        <PlanSkridtRaekke key={f.id} skridt={f} slags="forslag" busy={planBusy} onKald={(kald) => opgaveMutation.mutate(kald)} />
+                      ))}
+                    </ul>
+                  )}
+                  {/* «+ Tilføj skridt» — #946's formular (samme function). Uden skridt: «Tilføj det første skridt». */}
+                  {tilfoejAaben === x.plan.plan.maal.id ? (
+                    <div className="mt-3 max-w-xl">
+                      <TilfoejSkridtForm maalId={x.plan.plan.maal.id} busy={planBusy} onTilfoej={(titel, dueDate) => tilfoejSkridt(x.plan.plan.maal.id, titel, dueDate)} onLuk={() => setTilfoejAaben(null)} knapTekst={x.udenSkridt ? MAAL_UDEN_SKRIDT_TEKST : undefined} />
+                    </div>
+                  ) : (
+                    <button type="button" disabled={planBusy} onClick={() => setTilfoejAaben(x.plan.plan.maal.id)} className="mt-3 text-xs text-hb-evergreen underline-offset-4 hover:underline disabled:opacity-50" data-handling="tilfoej-skridt">
+                      + {x.udenSkridt ? MAAL_UDEN_SKRIDT_TEKST : TILFOEJ_SKRIDT_KNAP_TEKST}
+                    </button>
+                  )}
+                </li>
+              ))}
             </ul>
           )}
-          {dineMaalForside.flere > 0 && (
-            <p className="mt-3 text-sm text-hb-ink-soft">+{dineMaalForside.flere} {dineMaalForside.flere === 1 ? "aktivt mål mere" : "aktive mål mere"} — se dem alle under Dine mål.</p>
+          {plan.flere > 0 && (
+            <p className="mt-3 text-sm text-hb-ink-soft">+{plan.flere} {plan.flere === 1 ? "aktivt mål mere" : "aktive mål mere"} — se dem alle under Din plan.</p>
           )}
-          {dineMaal.overGraensen && <p className="mt-1 text-sm text-hb-rust">{dineMaal.graenseTekst}</p>}
+          {plan.overGraensen && <p className="mt-1 text-sm text-hb-rust">{plan.graenseTekst}</p>}
+          {(plan.udenMaal.aktive.length > 0 || plan.udenMaal.forslag.length > 0) && (
+            <div className="mt-6" data-plan-uden-maal>
+              <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft">{UDEN_MAAL_OVERSKRIFT}</p>
+              <ul className="mt-2">
+                {plan.udenMaal.aktive.map((a) => (
+                  <PlanSkridtRaekke key={a.id} skridt={a} slags="aktiv" busy={planBusy} onKald={(kald) => opgaveMutation.mutate(kald)} />
+                ))}
+                {plan.udenMaal.forslag.map((f) => (
+                  <PlanSkridtRaekke key={f.id} skridt={f} slags="forslag" busy={planBusy} onKald={(kald) => opgaveMutation.mutate(kald)} />
+                ))}
+              </ul>
+            </div>
+          )}
+          {(plan.andre.aktive.length > 0 || plan.andre.forslag.length > 0) && (
+            <div className="mt-6" data-plan-andre>
+              <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft">{ANDRE_MAAL_OVERSKRIFT}</p>
+              <ul className="mt-2">
+                {plan.andre.aktive.map((a) => (
+                  <PlanSkridtRaekke key={a.id} skridt={a} slags="aktiv" busy={planBusy} onKald={(kald) => opgaveMutation.mutate(kald)} />
+                ))}
+                {plan.andre.forslag.map((f) => (
+                  <PlanSkridtRaekke key={f.id} skridt={f} slags="forslag" busy={planBusy} onKald={(kald) => opgaveMutation.mutate(kald)} />
+                ))}
+              </ul>
+            </div>
+          )}
         </HbSection>
       )}
 

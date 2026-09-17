@@ -18,6 +18,7 @@ import { HbCard } from "../HbCard";
 import { HbTag } from "../HbTag";
 import { HbButton } from "../HbButton";
 import { HbMaalRaekke } from "./HbMaalRaekke";
+import { HbMaalForklaring } from "./HbMaalForklaring";
 import { useMilestones, type Milestone, type NyMilestone } from "./useMilestones";
 import { MilestoneDetaljeDialog, OpretMilestoneDialog, SletMilestoneDialog } from "./MilestoneDialoger";
 
@@ -239,8 +240,10 @@ export const DineMaalView = () => {
         </div>
       ) : dom.tom ? (
         <HbSection eyebrow="Kom i gang" title="Sæt dit første mål" hairline className="mt-10">
-          <p className="max-w-xl text-sm leading-relaxed text-hb-ink-soft">
-            Et mål er det I arbejder hen imod; skridtene under det er det I gør. Start med et af forslagene, eller sæt dit eget — din rådgiver kan også sætte mål sammen med dig.
+          {/* «Hvad er et mål?» (tillæg 17/9) — samme kilde og samme åbne form som forsidens «Din plan» uden mål. */}
+          <HbMaalForklaring />
+          <p className="mt-5 max-w-xl text-sm leading-relaxed text-hb-ink-soft">
+            Start med et af forslagene, eller sæt dit eget — din rådgiver kan også sætte mål sammen med dig.
           </p>
           <div className="mt-4 flex flex-wrap items-center gap-3">
             {opretKnap}

@@ -24,8 +24,9 @@ import { join, resolve } from "node:path";
 //      på virksomhedssiden»): ingen truncate/line-clamp i VirksomhedPlanen.
 //   6. «Måske relevant»: MODUL_FOR_KATEGORI kender præcis milestoneCategories'
 //      nøgler, og modulerne findes i handoutConfig.moduleOrder.
-//   7. Forsidens «Dine mål» og «Dine skridt» dømmer gennem dineMaal
-//      (dineMaalDom/forsideMaal/modMaaletTekst) og kaster med kraevRaekker.
+//   7. Forsidens «Din plan» (PR 3; før: «Dine mål» + «Dine skridt») dømmer
+//      gennem dineMaal → forsidePlan (dineMaalDom/forsidePlanDom) og kaster
+//      med kraevRaekker; ankrene #dine-skridt/#dine-maal bevares i #din-plan.
 //   9. (17/9, Jonas «ja»; fristen «1») «Tilføj skridt» kun under aktive mål;
 //      frist foreslået i dag + 14 dage i dansk tid, ikke før i dag; fladen
 //      kalder skridt-tilfoej og genhenter.
@@ -165,12 +166,18 @@ export const kategoritabellenHolder = (relevant: string, kategorier: string, han
 };
 
 /** Dom 7: forsidens sektioner dømmer gennem dineMaal og kaster. */
+/** Før (fase 3, til forside PR 3 17/9): forside.includes("forsideMaal(dineMaal)") &&
+    forside.includes("modMaaletTekst(maalTitler, a.maal_id)") — forsiden viste
+    «Dine skridt» (med «Mod målet: …») og «Dine mål» som to sektioner. Nu (PR 3,
+    Jonas «A» til valg 3) dømmer forsiden gennem forsidePlanDom(dineMaal, …), som
+    selv kalder forsideMaal; skridtene står under deres mål, så «Mod målet» er
+    væk. Ankrene #dine-maal og #dine-skridt BEVARES inde i #din-plan. */
 export const forsidenHolder = (forside: string): boolean =>
   forside.includes("dineMaalDom(milestonesQuery.data, skridtQuery.data, new Date())") &&
-  forside.includes("forsideMaal(dineMaal)") &&
-  forside.includes("modMaaletTekst(maalTitler, a.maal_id)") &&
+  forside.includes("forsidePlanDom(dineMaal, aftaleRaekker, new Date())") &&
   forside.includes('kraevRaekker(skridtRes, "company_actions")') &&
   forside.includes('kraevRaekker(res, "milestones") as MaalRaekke[]') &&
+  /id="din-plan"/.test(forside) &&
   /id="dine-maal"/.test(forside) && /id="dine-skridt"/.test(forside) && !/id="dine-aftaler"/.test(forside);
 
 describe("dineMaal.guard — fase 3: medlemmets mål, uden milepæls-slot, skyder kun uden skridt, mål obligatorisk", () => {
@@ -203,7 +210,7 @@ describe("dineMaal.guard — fase 3: medlemmets mål, uden milepæls-slot, skyde
   it("dom 6: MODUL_FOR_KATEGORI kender præcis milestoneCategories' nøgler, modulerne findes i moduleOrder", () => {
     expect(kategoritabellenHolder(relevant, kategorier, handout)).toBe(true);
   });
-  it("dom 7: forsidens «Dine mål» og «Dine skridt» dømmer gennem dineMaal og kaster med kraevRaekker; ankeret er #dine-skridt", () => {
+  it("dom 7: forsidens «Din plan» dømmer gennem dineMaal → forsidePlan og kaster med kraevRaekker; ankrene #din-plan, #dine-skridt og #dine-maal findes", () => {
     expect(forsidenHolder(forside)).toBe(true);
   });
   it("dom 9 (17/9): «Tilføj skridt» kun under aktive mål — dommen giver den kun aktive; formularen med foreslået frist, dansk tid, ikke før i dag; fladen kalder skridt-tilfoej og genhenter", () => {
