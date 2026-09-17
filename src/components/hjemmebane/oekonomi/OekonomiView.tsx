@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { HbCard } from "@/components/hjemmebane/HbCard";
@@ -6,6 +6,7 @@ import { HbSection } from "@/components/hjemmebane/HbSection";
 import { useOekonomiOverblik } from "@/hooks/oekonomiOverblik";
 import { kr } from "@/lib/oekonomi/omsaetning";
 import {
+  anerkendtModMrrTekst,
   dashboardDom,
   datoKort,
   FORVENTET_FORNYELSE_KOMMER,
@@ -50,15 +51,49 @@ import {
 
 const nul = (n: number) => n === 0;
 
-const StortTal = ({ label, oere, linje, negativErRust = true, testId }: { label: string; oere: number; linje?: string; negativErRust?: boolean; testId: string }) => (
+const StortTal = ({ label, oere, linje, negativErRust = true, testId, fold }: { label: string; oere: number; linje?: string; negativErRust?: boolean; testId: string; fold?: ReactNode }) => (
   <HbCard className="p-5 md:p-6" data-noegletal={testId}>
     <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft">{label}</p>
     <p className={cn("mt-2 font-editorial text-3xl font-medium leading-none md:text-4xl", negativErRust && oere < 0 ? "text-hb-rust" : "text-hb-ink")}>
       {kr(oere)}
     </p>
     {linje && <p className="mt-2 text-xs text-hb-ink-soft">{linje}</p>}
+    {fold}
   </HbCard>
 );
+
+/** Ø3c: forklaringen under «Anerkendt denne måned» — én linje, foldbar med navne og beløb; intet når forskellen er 0. */
+const AnerkendtModMrr = ({ dom }: { dom: Extract<DashboardDom, { tom: false }> }) => {
+  const f = dom.anerkendtModMrr;
+  if (f.forskel_oere === 0) return null;
+  const post = (p: { company_id: string; navn: string; oere: number; dag: string }, fortegn: 1 | -1, ord: string) => (
+    <li key={p.company_id} className="flex items-baseline justify-between gap-3">
+      <span className="min-w-0 text-hb-ink">{p.navn} <span className="text-hb-ink-soft">· {ord} {datoKort(p.dag)}</span></span>
+      <span className="shrink-0 tabular-nums">{krMedFortegn(fortegn * p.oere)}</span>
+    </li>
+  );
+  return (
+    <details className="mt-2 text-xs text-hb-ink-soft" data-anerkendt-mod-mrr={f.forskel_oere}>
+      <summary className="cursor-pointer list-none [&::-webkit-details-marker]:hidden">
+        <span className="text-hb-evergreen underline-offset-4 hover:underline">{anerkendtModMrrTekst(f)}</span>
+      </summary>
+      <ul className="mt-2 space-y-1">
+        {f.stoppede.map((p) => post(p, 1, "til"))}
+        {f.startede.map((p) => post(p, -1, "fra"))}
+        {f.rest_oere !== 0 && (
+          <li className="flex items-baseline justify-between gap-3">
+            <span>afrunding eller prisskift midt i måneden</span>
+            <span className="tabular-nums">{krMedFortegn(f.rest_oere)}</span>
+          </li>
+        )}
+        <li className="flex items-baseline justify-between gap-3 border-t border-hb-line pt-1 text-hb-ink">
+          <span>anerkendt {kr(f.anerkendt_oere)} − MRR {kr(f.mrr_oere)}</span>
+          <span className="tabular-nums">{krMedFortegn(f.forskel_oere)}</span>
+        </li>
+      </ul>
+    </details>
+  );
+};
 
 const Noegletal = ({ dom }: { dom: Extract<DashboardDom, { tom: false }> }) => {
   const n = dom.noegletal;
@@ -67,7 +102,7 @@ const Noegletal = ({ dom }: { dom: Extract<DashboardDom, { tom: false }> }) => {
     <div className="grid grid-cols-2 gap-3 md:grid-cols-3 md:gap-4" data-oekonomi-noegletal>
       <StortTal testId="mrr" label="MRR" oere={n.mrr_oere} linje={`${n.aktive} betalende${n.gratis_aktive ? ` + ${n.gratis_aktive} gratis` : ""} · ultimo ${maaned}`} />
       <StortTal testId="arr" label="ARR" oere={n.arr_oere} linje="12 × MRR" />
-      <StortTal testId="anerkendt" label="Anerkendt denne måned" oere={n.anerkendt_oere} linje={`periodiseret · ${maaned}`} />
+      <StortTal testId="anerkendt" label="Anerkendt denne måned" oere={n.anerkendt_oere} linje={`periodiseret · ${maaned}`} fold={<AnerkendtModMrr dom={dom} />} />
       <StortTal testId="kontant" label="Kontant indgået denne måned" oere={n.kontant_oere} linje="betalinger med dato i måneden" />
       <StortTal testId="kontraheret" label="Kontraheret de næste 12 mdr." oere={n.kontraheret_12_oere} linje="kun det der er kontrakt på" />
       <StortTal testId="forudbetalt" label="Forudbetalt, ikke tjent" oere={n.forudbetalt_oere} linje="betalt forud for perioden" />
@@ -95,12 +130,12 @@ const Kurve = ({ kurve }: { kurve: KurvePunkt[] }) => {
         <polyline points={pts(ko.mrr)} fill="none" stroke="hsl(var(--hb-evergreen))" strokeWidth="2" vectorEffect="non-scaling-stroke" strokeLinejoin="round" strokeLinecap="round" data-kurve-mrr />
         <polyline points={pts(ko.mrr_kontraheret)} fill="none" stroke="hsl(var(--hb-evergreen))" strokeWidth="2" strokeDasharray="4 3" vectorEffect="non-scaling-stroke" strokeLinejoin="round" strokeLinecap="round" data-kurve-mrr-kontraheret />
         {ko.akse.map((a) => (
-          <text key={a.label} x={(a.x * B).toFixed(2)} y={H - 1} fontSize="2.6" textAnchor="middle" fill="hsl(var(--hb-ink-soft))" style={{ fontFamily: "inherit" }}>{a.label}</text>
+          <text key={a.label} x={(a.x * B).toFixed(2)} y={H - 1} fontSize="2.6" textAnchor={a.anker} fill="hsl(var(--hb-ink-soft))" style={{ fontFamily: "inherit" }}>{a.label}</text>
         ))}
       </svg>
       <div className="relative mt-1 h-4 text-[11px] tabular-nums text-hb-ink-soft" data-kurve-betalende>
         {ko.akse.map((a) => (
-          <span key={a.label} className="absolute -translate-x-1/2" style={{ left: `${(a.x * 100).toFixed(2)}%` }} title={`${a.betalende} betalende ultimo ${a.label}`}>{a.betalende}</span>
+          <span key={a.label} className={cn("absolute", a.anker === "middle" && "-translate-x-1/2", a.anker === "end" && "-translate-x-full")} style={{ left: `${(a.x * 100).toFixed(2)}%` }} title={`${a.betalende} betalende ultimo ${a.label}`}>{a.betalende}</span>
         ))}
       </div>
       <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-xs text-hb-ink-soft">
