@@ -46,6 +46,9 @@ import { HbCard } from "../HbCard";
 import { EstimatMaerke } from "../EstimatMaerke";
 import { dinMaanedDom, sparklineKoordinater, type DinMaanedDom, type MaanedsRaekke } from "@/lib/hjemmebane/dinMaaned";
 import { erDag1, hilsenLinje } from "@/lib/hjemmebane/forsideHilsen";
+import { VELKOMST_EYEBROW, VELKOMST_MANCHET, VELKOMST_SET_HJAELP, VELKOMST_SET_KNAP, VELKOMST_TITEL, velkomstHovedhistorie } from "@/lib/hjemmebane/velkomstHistorie";
+import { useAppConfig } from "@/hooks/useAppConfig";
+import { HbVelkomstVideoEmbed } from "../HbVelkomstVideoEmbed";
 import { HbSection } from "../HbSection";
 import { HbAvatar } from "../HbAvatar";
 import { HbMaalForklaring } from "../milestones/HbMaalForklaring";
@@ -778,7 +781,63 @@ const EvergreenCard = ({ item, variant }: { item: ContentItem; variant: StoryVar
   );
 };
 
-type BandItem = ContentItem;
+/** Velkomst-kandidaten bærer ingen content_items-række — kun GUID'et (til coveret). */
+type VelkomstBand = { velkomst: true; guid: string };
+type BandItem = ContentItem | VelkomstBand;
+
+/** VELKOMSTVIDEOEN i hovedpladsen (forside PR 5, 17/9 — Jonas «A» til valg 7):
+    den første uge for et nyt medlem, før pushet. SAMME gate som alle husets
+    afspillere: PlayCover (Bunny-thumbnailet fra pull zonen, som ugens video)
+    og FØRST ved klik monteres HbVelkomstVideoEmbed (den signerede Bunny-
+    iframe, samme komponent som overlejringen). «Jeg har set den» stempler
+    velkomstvideo_set_at gennem tjeklistens egen mutation (markerVelkomstSet)
+    — så «Se velkomsten» krydses af, og hovedpladsen falder tilbage til
+    rykkelisten. Side-formen findes for komponentsæt-symmetrien (velkomsten
+    står altid først og er derfor main når den findes). */
+const VelkomstStory = ({ guid, variant, onSet }: { guid: string; variant: StoryVariant; onSet: () => Promise<void> }) => {
+  const [playing, setPlaying] = useState(false);
+  const [gemmer, setGemmer] = useState(false);
+  const [fejl, setFejl] = useState<string | null>(null);
+  const coverUrl = bunnyThumbnailUrl(guid);
+  const player = playing ? <HbVelkomstVideoEmbed /> : <PlayCover coverUrl={coverUrl} title={VELKOMST_TITEL} onPlay={() => setPlaying(true)} />;
+  const set = async () => {
+    setGemmer(true);
+    setFejl(null);
+    try {
+      await onSet();
+    } catch (err) {
+      console.error("[VelkomstStory] velkomstvideo_set_at kunne ikke sættes:", err);
+      setFejl("Vi kunne ikke gemme, at du har set velkomsten. Prøv igen.");
+    } finally {
+      setGemmer(false);
+    }
+  };
+  if (variant === "main") {
+    return (
+      <MainStoryShell player={player}>
+        <div data-velkomst-historie>
+          <p className="text-xs font-medium uppercase tracking-[0.14em] text-hb-rust">{VELKOMST_EYEBROW}</p>
+          <h2 className="mt-4 font-editorial text-3xl font-medium leading-tight text-hb-ink md:text-4xl">{VELKOMST_TITEL}</h2>
+          <p className="mt-4 max-w-2xl text-base leading-relaxed text-hb-ink-soft">{VELKOMST_MANCHET}</p>
+          <div className="mt-6 flex flex-wrap items-center gap-3">
+            <HbButton variant="secondary" className="h-9 px-4 text-sm" onClick={set} disabled={gemmer} data-velkomst-set>
+              {gemmer ? "Et øjeblik…" : VELKOMST_SET_KNAP}
+            </HbButton>
+            <span className="text-xs text-hb-ink-soft">{VELKOMST_SET_HJAELP}</span>
+          </div>
+          {fejl && <p className="mt-2 text-sm text-hb-rust">{fejl}</p>}
+        </div>
+      </MainStoryShell>
+    );
+  }
+  return (
+    <div className="border-t border-hb-line pt-4" data-velkomst-historie>
+      {player}
+      <p className="mt-3 text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft">{VELKOMST_EYEBROW}</p>
+      <p className="mt-1 text-[15px] font-medium leading-snug text-hb-ink">{VELKOMST_TITEL}</p>
+    </div>
+  );
+};
 
 /** Polering #2 (begrundet valg): kolonneantal AFHÆNGIGT af antallet frem
     for fast grid. Fast cols-3 efterlader én enlig ved 4 (3+1), og fast
@@ -811,13 +870,18 @@ const StoryCard = ({
   variant,
   pushSender,
   pushCoverUrl,
+  onVelkomstSet,
 }: {
   story: StoryCandidate<BandItem>;
   variant: StoryVariant;
   pushSender: { full_name: string; avatar_url: string | null } | null;
   pushCoverUrl: string | null;
+  /** Forside PR 5: stempler velkomstvideo_set_at (tjeklistens markerVelkomstSet). */
+  onVelkomstSet: () => Promise<void>;
 }) => {
   switch (story.kind) {
+    case "velkomst":
+      return <VelkomstStory guid={(story.item as VelkomstBand).guid} variant={variant} onSet={onVelkomstSet} />;
     case "push":
       return (
         <PushStory
@@ -1358,6 +1422,8 @@ const FejringRaekke = ({ fejring }: { fejring: Fejring }) => (
 export const BoardroomView = () => {
   const { user, profile, companyId, isAdvisor } = useAuth();
   const akademi = useAkademiData();
+  // Forside PR 5: velkomstvideoens GUID (app_config — «Anyone authenticated can read config») til Bunny-coveret; dommen om AT vise den er velkomstHovedhistorie.
+  const { velkomstvideoGuid } = useAppConfig();
   const { data: facts = [], isLoading: factsLoading, isError: factsError } = useCompanyFacts();
 
   // ── Katalog-afledninger (deler cache med Akademiet) ─────────────────────
@@ -1399,17 +1465,9 @@ export const BoardroomView = () => {
     [items],
   );
 
-  // Rykkelisten (LÅST dom): første ikke-null kandidat vinder hovedpladsen.
-  const band = useMemo(
-    () =>
-      pickMainStory<BandItem>([
-        pushItem ? { kind: "push", item: pushItem } : null,
-        weekVideo ? { kind: "video", item: weekVideo } : null,
-        redaktioneltItem ? { kind: "redaktionelt", item: redaktioneltItem } : null,
-        evergreenItem ? { kind: "evergreen", item: evergreenItem } : null,
-      ]),
-    [pushItem, weekVideo, redaktioneltItem, evergreenItem],
-  );
+  // Rykkelisten (pickMainStory) står LÆNGERE NEDE (efter contractStartQuery og
+  // tjeklisten) — forside PR 5: velkomst-kandidaten læser kontraktstarten og
+  // velkomstvideo_set_at, som deklareres dér.
 
   // ── "Siden sidst"-linjen (bølge 3) ──────────────────────────────────────
   // READ-THEN-STAMP på localStorage: forrige besøgs stempel fanges i
@@ -1774,6 +1832,31 @@ export const BoardroomView = () => {
     enabled: !!companyId,
     staleTime: 5 * 60_000,
   });
+
+  // ── Rykkelisten (LÅST dom): første ikke-null kandidat vinder hovedpladsen. ──
+  // VELKOMSTEN FØRST (forside PR 5, 17/9 — Jonas «A» til valg 7): den første uge
+  // efter kontraktstarten (0–7 danske døgn, samme dagsregning som hilsenens
+  // dag 1), når der ER en video (app_config.velkomstvideo_guid) og medlemmet
+  // ikke har set den (profiles.velkomstvideo_set_at). Dommen er ren
+  // (velkomstHovedhistorie); set/ingen video/dag 8 → kandidaten er null →
+  // rykkelisten som før (push → ugens video → redaktionelt → evergreen).
+  const visVelkomst = velkomstHovedhistorie({
+    startDato: contractStartQuery.data ?? null,
+    nu: new Date(),
+    harVideo: tjeklisteData.harVelkomstvideo && !!velkomstvideoGuid,
+    setAt: tjeklisteData.velkomstvideoSetAt,
+  });
+  const band = useMemo(
+    () =>
+      pickMainStory<BandItem>([
+        visVelkomst ? { kind: "velkomst", item: { velkomst: true, guid: velkomstvideoGuid } } : null,
+        pushItem ? { kind: "push", item: pushItem } : null,
+        weekVideo ? { kind: "video", item: weekVideo } : null,
+        redaktioneltItem ? { kind: "redaktionelt", item: redaktioneltItem } : null,
+        evergreenItem ? { kind: "evergreen", item: evergreenItem } : null,
+      ]),
+    [visVelkomst, velkomstvideoGuid, pushItem, weekVideo, redaktioneltItem, evergreenItem],
+  );
 
   const committedKeys = useMemo(() => new Set(facts.map((f) => f.period_key)), [facts]);
 
@@ -2205,6 +2288,7 @@ export const BoardroomView = () => {
                   variant="main"
                   pushSender={pushSender}
                   pushCoverUrl={pushCoverUrl}
+                  onVelkomstSet={tjeklisteData.markerVelkomstSet}
                 />
               )}
             </HbSection>
@@ -2261,6 +2345,7 @@ export const BoardroomView = () => {
                     variant="side"
                     pushSender={pushSender}
                     pushCoverUrl={pushCoverUrl}
+                    onVelkomstSet={tjeklisteData.markerVelkomstSet}
                   />
                 ))}
               </div>
