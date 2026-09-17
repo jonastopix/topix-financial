@@ -278,6 +278,13 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  // Rapportens id løftet ud af try-blokken, så den YDERSTE catch kan markere rapporten til manuel
+  // indtastning (17/9-2026 — rettelse af TS2304 «Cannot find name 'reportId'» ×3 siden #785: `reportId`
+  // blev destruktureret med const INDE i try (:312) og var usynlig i catch; `typeof` på et ikke-erklæret navn er
+  // "undefined", så «best-effort»-opdateringen blev aldrig kørt, og rækken blev hængende uden spor når et
+  // udtræk fejlede). Sættes lige efter body-parsingen.
+  let rapportId: string | null = null;
+
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
 
@@ -310,6 +317,7 @@ serve(async (req) => {
       });
     }
     const { reportId, fileContent, pageImages, fileName, overwrite, knownCompanyName, excelBase64, pdfStructural } = body;
+    rapportId = typeof reportId === "string" && reportId ? reportId : null;
 
     // ── ACCESS CHECK: verify caller can access this report ──
     const callerId = claimsData.claims.sub;
@@ -1865,7 +1873,7 @@ Hvis du er i tvivl om et tal eller en kolonne → sæt validation.status = "UNSU
     console.error("extract-financial-data error:", error);
     // Best-effort: try to mark report as needs_manual_entry instead of leaving it in limbo
     try {
-      if (typeof reportId === "string" && reportId) {
+      if (typeof rapportId === "string" && rapportId) {
         const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
         const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
         const { createClient } = await import("https://esm.sh/@supabase/supabase-js@2.97.0");
@@ -1891,7 +1899,7 @@ Hvis du er i tvivl om et tal eller en kolonne → sæt validation.status = "UNSU
               routing_branch: "exception",
             },
           })
-          .eq("id", reportId);
+          .eq("id", rapportId);
       }
     } catch (fallbackErr) {
       console.error("Fallback DB update also failed:", fallbackErr);
