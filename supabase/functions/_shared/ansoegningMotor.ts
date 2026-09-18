@@ -621,10 +621,14 @@ export async function konverterTilVirksomhed(admin: SupabaseClient, a: Ansoegnin
         // og dag 0-betalingsmailen udløst — mod et betalende medlem. Nu: intet skrives, overgangen
         // «underskrevet» afvises, og rådgiveren får en klokke med hvad der skal gøres i hånden.
         const grund = `CVR ${a.cvr} findes allerede som virksomheden «${oprettet.company_name}» (${companyId}) — konverteringen er stoppet. Er det samme virksomhed, kobles ansøgningen i hånden; er det en ny, retter I CVR-nummeret først.`;
+        // Pengekæden (C's recon 18/9, §4): den der lige har skrevet under, må IKKE få rykkere om at
+        // skrive under, og køen må ikke lukke sagen «udløbet» dag 21. Aftalegrundlags-trappen annulleres;
+        // ansøgningen bliver stående på aftalegrundlag_sendt, indtil et menneske kobler den.
+        const annulleret = await annullerTrapper(admin, a.id, ["aftalegrundlag"], "konvertering stoppet: CVR findes som virksomhed", nu);
         await skrivRaadgiverBesked(admin, {
           type: RAADGIVER_BESKED.underskrevet,
           title: `Underskrift stoppet: ${virksomhedsnavnAf(a)}`,
-          body: grund,
+          body: `${grund} Rykkerne om aftalegrundlaget er annulleret (${annulleret} rækker) — ansøgningen står på «aftalegrundlag sendt», til I har koblet den.`,
           reference_type: REFERENCE_TYPE,
           reference_id: a.id,
         });

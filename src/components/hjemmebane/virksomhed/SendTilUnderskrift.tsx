@@ -84,7 +84,7 @@ export const SendTilUnderskrift = ({ onOpdateret, ...ejer }: UnderskriftEjer & {
       setViser(null);
     }
   };
-  const send = async (oere: number, erstat = false) => {
+  const send = async (oere: number, erstat = false, bekraeftNyVirksomhed = false) => {
     setArbejder(oere);
     try {
       if (ejer.ansoegningId !== undefined) {
@@ -94,7 +94,7 @@ export const SendTilUnderskrift = ({ onOpdateret, ...ejer }: UnderskriftEjer & {
       }
       const { data: { session } } = await supabase.auth.getSession();
       const { data, error } = await supabase.functions.invoke("send-til-underskrift", {
-        body: { ...ejerBody(ejer), prisniveau_oere: oere, erstat },
+        body: { ...ejerBody(ejer), prisniveau_oere: oere, erstat, bekraeft_ny_virksomhed: bekraeftNyVirksomhed },
         headers: { Authorization: `Bearer ${session?.access_token}` },
       });
       if (error) {
@@ -103,7 +103,16 @@ export const SendTilUnderskrift = ({ onOpdateret, ...ejer }: UnderskriftEjer & {
         if (kode === "aftale_allerede_sendt" && !erstat) {
           if (window.confirm("Der er allerede sendt et aftalegrundlag, som ikke er underskrevet. Skal det trækkes tilbage og et nyt sendes?")) {
             setArbejder(null);
-            await send(oere, true);
+            await send(oere, true, bekraeftNyVirksomhed);
+          }
+          return;
+        }
+        // Pengekæden (C's recon 18/9): mailen er kontakt på en virksomhed i forvejen → et BEVIDST valg.
+        if (kode === "mail_findes_som_kontakt" && !bekraeftNyVirksomhed) {
+          const navne = ((body?.virksomheder as { name: string; status: string | null }[] | undefined) ?? []).map((v) => `«${v.name}» (${v.status ?? "status ukendt"})`).join(", ");
+          if (window.confirm(`Ansøgerens mail er allerede kontaktperson på ${navne || "en virksomhed"}. Sendes aftalen, oprettes EN NY virksomhed med samme kontaktperson ved underskriften. Er det rigtigt — er det en ny virksomhed?`)) {
+            setArbejder(null);
+            await send(oere, erstat, true);
           }
           return;
         }
@@ -117,6 +126,7 @@ export const SendTilUnderskrift = ({ onOpdateret, ...ejer }: UnderskriftEjer & {
           : kode === "ansoegning_ikke_indsendt" ? "Ansøgningen er ikke sendt ind endnu."
           : kode === "pris_saettes_paa_ansoegningen" ? "Prisen på ansøgningen er en anden — sæt den først."
           : kode === "ukendt_ansoegning" ? "Ansøgningen findes ikke."
+          : kode === "cvr_findes_som_virksomhed" ? `CVR-nummeret er allerede virksomheden ${((body?.virksomheder as { name: string }[] | undefined) ?? []).map((v) => `«${v.name}»`).join(", ") || "i basen"}. Send ikke en ny aftale — kobl ansøgningen til den eksisterende virksomhed, eller ret CVR-nummeret først.`
           : `Kunne ikke sende (${status ?? "?"}).`;
         console.error("[SendTilUnderskrift] send-til-underskrift fejlede:", status, body, error);
         toast.error("Aftalegrundlaget blev ikke sendt", { description: tekst });

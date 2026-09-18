@@ -31,7 +31,7 @@ const forklaringFor = (trin: "ny" | "afholdt", handling: string): string =>
 export const komponentenTagerAnsoegning = (k: string): boolean =>
   k.includes("export type UnderskriftEjer = { companyId: string; ansoegningId?: undefined } | { ansoegningId: string; companyId?: undefined };") &&
   k.includes("{ ansoegning_id: ejer.ansoegningId }") && k.includes("{ company_id: ejer.companyId }") &&
-  k.includes("body: { ...ejerBody(ejer), prisniveau_oere: oere, erstat }") &&
+  k.includes("body: { ...ejerBody(ejer), prisniveau_oere: oere, erstat, bekraeft_ny_virksomhed: bekraeftNyVirksomhed }") && // pengekæden 18/9: det bevidste valg rejser med
   /await gemNoteOgPris\(ejer\.ansoegningId, \{ pris_oere: oere \}\);[\s\S]*?supabase\.functions\.invoke\("send-til-underskrift"/.test(k) &&
   k.includes('kode === "ansoegning_forkert_trin"') && k.includes('kode === "pris_saettes_paa_ansoegningen"') &&
   k.includes("motor.ok === false");
