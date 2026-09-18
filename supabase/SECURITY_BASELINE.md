@@ -235,6 +235,16 @@ to the entire access-control model.
 - Prevents mutation of: `user_id`, `company_id`, `created_at`
 - Raises exception on any attempt to change these fields
 
+### `protect_aftale_immutable_fields()` on `aftale_underskrift BEFORE UPDATE` (udkast 18/9-2026, migration `20260918290000`)
+- Always locked: `token`, `ansoegning_id`, `company_id`, `skabelon_id`, `dokument_titel`, `dokument_tekst`, `dokument_aftryk`, `prisniveau_oere`, `modtager_email`, `modtager_navn`, `sendt_at`, `sendt_af`, `created_at`
+- After `status = 'underskrevet'`: `status`, `underskrevet_at`, `underskrevet_navn`, `underskrevet_ip`, `underskrevet_user_agent` locked; `pdf_sti`, `pdf_aftryk`, `kvittering_sendt_at` may only go NULL → value once (the two writes `aftale-underskrift` makes after signing)
+- After `status = 'annulleret'`: `status` and `annulleret_*` locked. From `sendt`, `underskrevet_*`/`pdf_*` may only be set together with `status = 'underskrevet'`
+- Why: the signed document must be evidence in the table, not only in the receipt mails and the PDF. Service role bypasses RLS — the trigger does not. Behaviour measured in WASM Postgres (draft `test/`), source guard `src/lib/__tests__/aftaleUforanderlig.guard.test.ts`
+
+### `protect_aftale_spor()` on `aftale_spor BEFORE UPDATE OR DELETE`
+- UPDATE always raises. DELETE raises when direct (`pg_trigger_depth() <= 1`); a cascade from deleting the `aftale_underskrift` row (personal-data deletion via `companies`/`ansoegninger` ON DELETE CASCADE) runs at depth 2 and is allowed
+- The audit trail is append-only for everyone, including service role
+
 ---
 
 ## 4. Data Normalization Triggers
