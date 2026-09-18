@@ -24,8 +24,42 @@ async function laesFejl(error: unknown): Promise<{ status: number | null; body: 
   }
 }
 
+/** Forhåndsvisningen: den udfyldte tekst i et nyt vindue — som ren tekst, aldrig HTML fra data. */
+function visForhaandsvisning(svar: { titel?: string; skabelon?: string; tekst?: string; manglende?: string[]; tomme?: string[]; kan_sendes?: boolean; til?: string | null }) {
+  const w = window.open("", "_blank", "noopener,width=820,height=900");
+  if (!w) return toast.error("Browseren blokerede vinduet — tillad pop-ups for at se dokumentet.");
+  const advarsel = svar.kan_sendes
+    ? `KAN SENDES (til ${svar.til ?? "?"}). Dette er en forhåndsvisning — intet er sendt.`
+    : `KAN IKKE SENDES: ${[...(svar.manglende ?? []).map((m) => `{{${m}}} kendes ikke`), ...(svar.tomme ?? []).map((t) => `{{${t}}} er tom`), ...(svar.til ? [] : ["ingen kontaktmail"])].join(" · ")}`;
+  w.document.title = `Forhåndsvisning — ${svar.skabelon ?? ""}`;
+  const pre = w.document.createElement("pre");
+  pre.style.cssText = "white-space:pre-wrap;font:15px/1.6 Georgia,serif;max-width:720px;margin:32px auto;padding:0 24px";
+  pre.textContent = `[${advarsel}]\n\n${svar.titel ?? ""}\n${svar.skabelon ?? ""}\n\n${svar.tekst ?? ""}`;
+  w.document.body.appendChild(pre);
+}
+
 export const SendTilUnderskrift = ({ companyId, onOpdateret }: { companyId: string; onOpdateret: () => Promise<void> }) => {
   const [arbejder, setArbejder] = useState<number | null>(null);
+  const [viser, setViser] = useState<number | null>(null);
+  // Forhåndsvis (18/9): samme kald med forhaandsvis: true — intet skrives, intet sendes.
+  const forhaandsvis = async (oere: number) => {
+    setViser(oere);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const { data, error } = await supabase.functions.invoke("send-til-underskrift", {
+        body: { company_id: companyId, prisniveau_oere: oere, forhaandsvis: true },
+        headers: { Authorization: `Bearer ${session?.access_token}` },
+      });
+      if (error) {
+        const { status, body } = await laesFejl(error);
+        console.error("[SendTilUnderskrift] forhåndsvisning fejlede:", status, body, error);
+        return toast.error("Kunne ikke bygge forhåndsvisningen", { description: typeof body?.error === "string" ? body.error : `(${status ?? "?"})` });
+      }
+      visForhaandsvisning(data ?? {});
+    } finally {
+      setViser(null);
+    }
+  };
   const send = async (oere: number, erstat = false) => {
     setArbejder(oere);
     try {
@@ -66,9 +100,15 @@ export const SendTilUnderskrift = ({ companyId, onOpdateret }: { companyId: stri
     <span className="mt-1 flex flex-wrap items-center gap-2">
       <span className="text-xs text-hb-ink-soft">Send aftalegrundlaget til e-underskrift — vælg prisniveau:</span>
       {INDGANGS_PRISPUNKTER_OERE.map((oere) => (
-        <HbButton key={oere} type="button" variant="secondary" className="h-8 px-3 text-xs" onClick={() => void send(oere)} disabled={arbejder !== null}>
+        <HbButton key={oere} type="button" variant="secondary" className="h-8 px-3 text-xs" onClick={() => void send(oere)} disabled={arbejder !== null || viser !== null}>
           {arbejder === oere ? "Sender…" : `${formatKr(oere)} ekskl. moms`}
         </HbButton>
+      ))}
+      <span className="text-xs text-hb-ink-soft">·</span>
+      {INDGANGS_PRISPUNKTER_OERE.map((oere) => (
+        <button key={`vis-${oere}`} type="button" onClick={() => void forhaandsvis(oere)} disabled={arbejder !== null || viser !== null} className="text-xs text-hb-evergreen underline-offset-4 hover:underline disabled:opacity-50" data-forhaandsvis={oere}>
+          {viser === oere ? "Bygger…" : `Forhåndsvis ${formatKr(oere)}`}
+        </button>
       ))}
     </span>
   );
