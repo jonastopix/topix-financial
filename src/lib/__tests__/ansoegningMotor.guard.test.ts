@@ -58,9 +58,11 @@ export const foer = (kilde: string, a: string, b: string): boolean => {
   return ia !== -1 && ib !== -1 && ia < ib;
 };
 export const reglerneStaarIHovedet = (hoved: string): boolean => REGLER.every((r) => hoved.includes(r));
-export const cronErRigtig = (k: string): boolean =>
+/** 2: cronen (k) — service-role først, tørkørsel som standard; idempotensnøglen er message_id i motorens sendKoeMail (m), som cronen sender igennem (19/9). */
+export const cronErRigtig = (k: string, m: string = k): boolean =>
   foer(k, "authenticateServiceRole(req)", "createClient(") &&
-  k.includes("idempotencyKey: raekke.idempotensnoegle") &&
+  m.includes("idempotencyKey: raekke.idempotensnoegle") &&
+  k.includes("await sendKoeMail(admin, raekke, a, nu,") &&
   k.includes("let toer = true;") &&
   k.includes('if (body?.dry_run === false) toer = false;');
 export const sqlCheckListe = (sql: string, kolonne: string): string[] | null => {
@@ -127,7 +129,7 @@ describe("ansoegningMotor.guard — de otte domme på repoets filer", () => {
     expect(reglerneStaarIHovedet(hoved)).toBe(true);
   });
   it("2. cronen: service-role FØRST, idempotensnøglen er message_id, tørkørsel er standard", () => {
-    expect(cronErRigtig(udenKommentarer(laes(CRON)))).toBe(true);
+    expect(cronErRigtig(udenKommentarer(laes(CRON)), udenKommentarer(laes(MOTOR)))).toBe(true);
   });
   it("3. migrationen: IKKE KØRT, UNIQUE, ingen SECURITY DEFINER, trin/årsager/kilder = koden, ingen anon, triggeren på egen tabel", () => {
     const raa = laes(MIGRATION);
@@ -211,10 +213,11 @@ describe("ansoegningMotor.guard — dommene fanger fejlen på en kopi", () => {
     expect(reglerneStaarIHovedet(hoved.replace("aldrig efter 16", "aldrig efter 17"))).toBe(false);
   });
   it("2. createClient før auth, en tilfældig nøgle eller live som standard fælder dom 2", () => {
-    const k = udenKommentarer(laes(CRON));
-    expect(cronErRigtig(k.replace("const auth = authenticateServiceRole(req);\n  if (auth !== true) return auth;", ""))).toBe(false);
-    expect(cronErRigtig(k.replace("idempotencyKey: raekke.idempotensnoegle", "idempotencyKey: crypto.randomUUID()"))).toBe(false);
-    expect(cronErRigtig(k.replace("let toer = true;", "let toer = false;"))).toBe(false);
+    const k = udenKommentarer(laes(CRON)), m = udenKommentarer(laes(MOTOR));
+    expect(cronErRigtig(k.replace("const auth = authenticateServiceRole(req);\n  if (auth !== true) return auth;", ""), m)).toBe(false);
+    expect(cronErRigtig(k, m.replace("idempotencyKey: raekke.idempotensnoegle", "idempotencyKey: crypto.randomUUID()"))).toBe(false);
+    expect(cronErRigtig(k.replace("await sendKoeMail(admin, raekke, a, nu,", "await x("), m)).toBe(false);
+    expect(cronErRigtig(k.replace("let toer = true;", "let toer = false;"), m)).toBe(false);
   });
   it("3. SECURITY DEFINER, en ottende trin-værdi, en anon-grant eller triggeren på auth.users fælder dom 3", () => {
     const sql = udenSqlKommentarer(laes(MIGRATION));

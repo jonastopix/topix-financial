@@ -89,9 +89,12 @@ describe("flowRettelser.guard — de syv rettelser står", () => {
     // Jonas' ordlyd (18/9, anden runde) — «Vi har din ansøgning for …», Morten og jeg, «inden for et par hverdage».
     expect(m.tekst).toContain("Tak fordi du søgte om en plads i The Boardroom. Vi har din ansøgning for Nordic Byg ApS.");
     expect(m.tekst).toContain("Morten og jeg læser den og vurderer, om vi er det rigtige for dig.");
-    expect(m.tekst).toContain("Din største udfordring lige nu: Vi har travlt, men der er ingen penge tilbage.");
+    // Prøven 18/9, pkt. 5: spørgsmål og svar hver for sig — overskriften på sin egen linje, svaret under.
+    expect(m.tekst).toContain("Din største udfordring lige nu\nVi har travlt, men der er ingen penge tilbage.");
     expect(m.tekst).not.toContain("Det du selv har prøvet");
-    expect(m.tekst).toContain("Om tolv måneder: Overskud hver måned.");
+    expect(m.tekst).toContain("Om tolv måneder\nOverskud hver måned.");
+    expect(m.html).toContain("<p style=\"color:#133332;font-size:13px;font-weight:700;line-height:1.4;margin:0 0 4px\">Din største udfordring lige nu</p>");
+    expect(klipSvar("  Første linje.\r\n\r\n\r\nAnden   linje. ")).toBe("Første linje.\n\nAnden linje.");
     expect(m.tekst).toContain("Du hører fra os inden for et par hverdage.");
     expect(m.tekst).toContain(KONTEKST.statusUrl);
     expect(m.tekst).not.toContain(KONTEKST.ikkeNuUrl);

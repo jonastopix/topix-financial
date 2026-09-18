@@ -34,6 +34,7 @@ const foer = (k: string, a: string, b: string) => { const i = k.indexOf(a), j = 
 const DOM_SRC = "src/lib/afslagsTilbud.ts";
 const DOM_DENO = "supabase/functions/_shared/afslagsTilbud.ts";
 const KNAPPER = "src/components/hjemmebane/ansoegninger/AnsoegningHandlinger.tsx";
+const MOTOR_IO = "supabase/functions/_shared/ansoegningMotor.ts";
 const CRON = "supabase/functions/ansoegning-rykker-cron/index.ts";
 const MAILS = "supabase/functions/_shared/ansoegningRykkerMails.ts";
 const MIGRATION = "supabase/migrations/20260918250000_afslag_venteliste.sql";
@@ -52,16 +53,24 @@ export function krop(k: string): string {
 export const dialogenErRigtig = (k: string): boolean =>
   k.includes("const tilbud = afslagsFoelger(grund);") &&
   k.includes("{tilbud.venteliste && (") &&
-  foer(k, "const svar = await udfoerHandling({", "await saetPaaVenteliste(id, ventelisteCompanyId,") &&
-  k.includes("if (k.kraeverAfslagsgrund && tilbud.venteliste && ventelisteCompanyId) {") &&
+  // 19/9 (Jonas 18/9, pkt. 8): ventelisten REJSER MED i handlingen — lukningen, pladsen og afslagsmailen
+  // (straks, med pladsen i) sker i ansoegning-handling i den rækkefølge; fladen kalder ikke venteliste-handling selv.
+  k.includes("ventelisteCompanyId: k.kraeverAfslagsgrund && tilbud.venteliste ? ventelisteCompanyId || null : null,") &&
+  !/saetPaaVenteliste\(/.test(k) &&
   !/from\("ventepladser"/.test(k) &&
   k.includes("afslagsgrund: k.kraeverAfslagsgrund ? grund : null,");
-export const cronenErRigtig = (k: string): boolean =>
+/** 3: cronen (k) kender undtagelsen for lukkede; køpladsen læses fail-soft i motorens koeMailKontekst (m), som cronen og «straks» deler (19/9). */
+export const cronenErRigtig = (k: string, m: string = k): boolean =>
   k.includes("TRAPPER_PAA_LUKKET.includes(raekke.trappe)") &&
   k.includes('? (!a || !a.indsendt_at || a.trin !== "lukket")') &&
-  k.includes("koeNummer(") && k.includes("afslagsmailen sendes uden køplads") &&
-  k.includes('efterSamtale: a.lukkeaarsag === "afslag_efter_samtale"') &&
-  k.includes('afslag: raekke.trappe === "afslag" ? await afslagsIndhold(admin, a) : null,');
+  m.includes("koeNummer(") && m.includes("afslagsmailen sendes uden køplads") &&
+  m.includes('efterSamtale: a.lukkeaarsag === "afslag_efter_samtale"') &&
+  m.includes('afslag: i.trappe === "afslag" ? await afslagsIndhold(admin, a) : null,');
+/** Handlingen: ventelisten sættes EFTER lukningen og FØR afslagsmailen — og kun da sender motoren den ikke selv. */
+export const handlingenSaetterPladsenFoerMailen = (h: string): boolean =>
+  h.includes("svarMailStraks: ventelisteCompanyId === null") &&
+  foer(h, "await saetPaaVenteliste(admin, { ansoegningId, companyId: ventelisteCompanyId,", 'await sendSvarMailNu(admin, frisk, "afslag", nu)') &&
+  foer(h, "const res = await udfoerOvergang(admin, {", "await saetPaaVenteliste(admin, { ansoegningId, companyId: ventelisteCompanyId,");
 /** Mailbyggeren kender kun ansøgerens sætning — ikke rådgiverens tekst med navn, ikke feltet virksomhed. */
 export const mailenErRigtig = (k: string): boolean =>
   k.includes("koeSaetningTilAnsoeger(a.ventepladser)") && !k.includes("koeTekstTilRaadgiver") && !/\.virksomhed\b/.test(k) &&
@@ -92,7 +101,10 @@ describe("afslagTilbud.guard — de otte domme på repoets filer", () => {
     expect(a).toBe(b);
   });
   it("2. dialogen: ventelistefeltet kun når grunden giver det, kaldt efter lukningen, aldrig direkte i tabellen", () => expect(dialogenErRigtig(udenKommentarer(laes(KNAPPER)))).toBe(true));
-  it("3. cronen: lukkede ansøgninger med afslag-trappe sendes; køpladsen læses fail-soft; samtalen kendes", () => expect(cronenErRigtig(udenKommentarer(laes(CRON)))).toBe(true));
+  it("3. cronen: lukkede ansøgninger med afslag-trappe sendes; køpladsen læses fail-soft i motorens kontekst; samtalen kendes; handlingen sætter pladsen før mailen", () => {
+    expect(cronenErRigtig(udenKommentarer(laes(CRON)), udenKommentarer(laes(MOTOR_IO)))).toBe(true);
+    expect(handlingenSaetterPladsenFoerMailen(udenKommentarer(laes(HANDLING)))).toBe(true);
+  });
   it("4. mailen: nummeret, aldrig navnet; «tak for snakken» kun efter samtale; ingen «ikke nu»", () => {
     expect([...RYKKER_SKABELONER].sort()).toEqual([...KOE_SKABELONER].sort());
     expect(mailenErRigtig(udenKommentarer(laes(MAILS)))).toBe(true);
@@ -122,18 +134,21 @@ describe("afslagTilbud.guard — de otte domme på repoets filer", () => {
 });
 
 describe("afslagTilbud.guard — dommene fanger fejlen på en kopi", () => {
-  it("2. ventelisten før lukningen, eller altid vist, eller skrevet direkte, fælder dom 2", () => {
+  it("2. ventelisten kaldt selv fra fladen, eller altid vist, eller skrevet direkte, fælder dom 2", () => {
     const k = udenKommentarer(laes(KNAPPER));
-    const kald = "await saetPaaVenteliste(id, ventelisteCompanyId,";
-    expect(dialogenErRigtig(k.replace(kald, "").replace("const svar = await udfoerHandling({", kald + " null); const svar = await udfoerHandling({"))).toBe(false);
+    expect(dialogenErRigtig(k + "\nawait saetPaaVenteliste(id, ventelisteCompanyId, null);")).toBe(false);
+    expect(dialogenErRigtig(k.replace("ventelisteCompanyId: k.kraeverAfslagsgrund && tilbud.venteliste ? ventelisteCompanyId || null : null,", "ventelisteCompanyId: null,"))).toBe(false);
     expect(dialogenErRigtig(k.replace("{tilbud.venteliste && (", "{true && ("))).toBe(false);
     expect(dialogenErRigtig(k + '\nsupabase.from("ventepladser").insert({});')).toBe(false);
   });
-  it("3. cronen uden undtagelsen, uden fail-soft eller uden samtalen fælder dom 3", () => {
-    const k = udenKommentarer(laes(CRON));
-    expect(cronenErRigtig(k.replace("TRAPPER_PAA_LUKKET.includes(raekke.trappe)", "false"))).toBe(false);
-    expect(cronenErRigtig(k.replace("afslagsmailen sendes uden køplads", "x"))).toBe(false);
-    expect(cronenErRigtig(k.replace('efterSamtale: a.lukkeaarsag === "afslag_efter_samtale"', "efterSamtale: true"))).toBe(false);
+  it("3. cronen uden undtagelsen, motoren uden fail-soft eller uden samtalen, handlingen med mailen før pladsen fælder dom 3", () => {
+    const k = udenKommentarer(laes(CRON)), m = udenKommentarer(laes(MOTOR_IO)), h = udenKommentarer(laes(HANDLING));
+    expect(cronenErRigtig(k.replace("TRAPPER_PAA_LUKKET.includes(raekke.trappe)", "false"), m)).toBe(false);
+    expect(cronenErRigtig(k, m.replace("afslagsmailen sendes uden køplads", "x"))).toBe(false);
+    expect(cronenErRigtig(k, m.replace('efterSamtale: a.lukkeaarsag === "afslag_efter_samtale"', "efterSamtale: true"))).toBe(false);
+    expect(handlingenSaetterPladsenFoerMailen(h.replace("svarMailStraks: ventelisteCompanyId === null", "svarMailStraks: true"))).toBe(false);
+    const plads = "await saetPaaVenteliste(admin, { ansoegningId, companyId: ventelisteCompanyId,";
+    expect(handlingenSaetterPladsenFoerMailen(h.replace(plads, "0;") + `\n${plads} hvorfor: null, satAf: userId });`)).toBe(false);
   });
   it("4. en mailbygger der bruger rådgiverens tekst eller feltet virksomhed fælder dom 4", () => {
     const k = udenKommentarer(laes(MAILS));

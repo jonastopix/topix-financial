@@ -10,6 +10,9 @@
  * planlagte_haendelser (dag 0 mail, dag 3 rykker, dag 7 venteplads_udloeb),
  * planlagt af A's planlaegTrappe med ankeret = tilbudstidspunktet. Ankeret
  * er også idempotensnøglen: samme tilbud to gange = samme nøgler = UNIQUE.
+ * Dag 0-mailen sendes STRAKS (Jonas 18/9, pkt. 8: svar på en handling venter
+ * ikke på sendevinduet) gennem motorens sendSvarMailNu; går den ikke, står
+ * rækken i køen og cronen sender den i næste sendevindue.
  *
  * NÆSTE I KØEN sker af sig selv (udløb eller nej tak) — det er kun det
  * FØRSTE tilbud for en ledig plads, et menneske trykker på. Er køen tom når
@@ -20,9 +23,8 @@
  */
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
 import { planlaegTrappe } from "./rykkerkoe.ts";
-import { skrivPlan, annullerTrapper, udfoerOvergang, hentAnsoegning, virksomhedsnavnAf, REFERENCE_TYPE } from "./ansoegningMotor.ts";
+import { skrivPlan, annullerTrapper, udfoerOvergang, hentAnsoegning, virksomhedsnavnAf, REFERENCE_TYPE, sendSvarMailNu, tagPladsenLink, afslaaPladsenLink, type StraksUdfald } from "./ansoegningMotor.ts";
 import { skrivRaadgiverBesked } from "./raadgiverBesked.ts";
-import { naesteSendevindue } from "./hverdage.ts";
 import { afgoerSvar, erBloedUdgave, harTilbudUde, naesteIKoen, svarfristFra, type VentepladsRaekke, type VentepladsStatus } from "./ventelisteDom.ts";
 
 export const TYPE_VENTELISTE = "venteliste";
@@ -103,7 +105,7 @@ export async function fjernFraVenteliste(admin: SupabaseClient, id: string, nu: 
 }
 
 export type TilbudsResultat =
-  | { udfald: "tilbudt"; id: string; ansoegning_id: string; navn: string; bloed: boolean; svarfrist: string; planlagt: number }
+  | { udfald: "tilbudt"; id: string; ansoegning_id: string; navn: string; bloed: boolean; svarfrist: string; planlagt: number; mail: StraksUdfald }
   | { udfald: "tilbud_ude" }
   | { udfald: "koen_er_tom" };
 
@@ -118,10 +120,11 @@ export async function tilbydPladsen(admin: SupabaseClient, companyId: string, nu
   const naeste = naesteIKoen(koe);
   if (!naeste) return { udfald: "koen_er_tom" };
 
-  // Fristen løber fra AFSENDELSEN, ikke fra klikket (recon 18/9 §2, pkt. 7): mailen går tidligst i næste
-  // sendevindue (aften/weekend → næste hverdag kl. 07), og dag 0 er undtaget dagsreglen, så planlagt = sendt.
-  // Trappen ankres samme sted, så udløbsrækken (dag 7) og «svar senest» i mailen er samme dag.
-  const afsendelse = naesteSendevindue(nu);
+  // Fristen løber fra AFSENDELSEN (recon 18/9 §2, pkt. 7) — og afsendelsen er NU (Jonas 18/9, pkt. 8:
+  // tilbuddet er svar på en handling og sendes straks, uden om sendevinduet). Trappen ankres samme sted,
+  // så udløbsrækken (dag 7) og «svar senest» i mailen er samme dag. Kan mailen ikke sendes straks, står
+  // rækken i køen og går i næste sendevindue — fristen bliver stående (7 dage fra tilbuddet).
+  const afsendelse = nu;
   const svarfrist = svarfristFra(afsendelse);
   const { data, error } = await admin
     .from("ventepladser")
@@ -136,8 +139,13 @@ export async function tilbydPladsen(admin: SupabaseClient, companyId: string, nu
   const skrevet = await skrivPlan(admin, plan);
   const a = await hentAnsoegning(admin, naeste.ansoegning_id);
   const navn = a ? virksomhedsnavnAf(a) : naeste.ansoegning_id;
-  console.log(`${LOG} plads hos ${companyId} tilbudt ${navn} (${naeste.id}), nr. ${tilbudNr}, frist ${svarfrist.toISOString()}, ${skrevet.skrevet} rækker i køen`);
-  return { udfald: "tilbudt", id: naeste.id, ansoegning_id: naeste.ansoegning_id, navn, bloed: erBloedUdgave(naeste.afvist_at, nu), svarfrist: svarfrist.toISOString(), planlagt: skrevet.skrevet };
+  const bloed = erBloedUdgave(naeste.afvist_at, nu);
+  // Tilbuddet STRAKS — samme kontekst som cronen bygger for rækken (bloed, frist, de to links).
+  const mail: StraksUdfald = a
+    ? await sendSvarMailNu(admin, a, "venteplads", nu, { bloed, svarfrist, tagPladsenUrl: tagPladsenLink(a.token), afslaaPladsenUrl: afslaaPladsenLink(a.token) })
+    : "ingen_raekke";
+  console.log(`${LOG} plads hos ${companyId} tilbudt ${navn} (${naeste.id}), nr. ${tilbudNr}, frist ${svarfrist.toISOString()}, ${skrevet.skrevet} rækker i køen, mail ${mail}`);
+  return { udfald: "tilbudt", id: naeste.id, ansoegning_id: naeste.ansoegning_id, navn, bloed, svarfrist: svarfrist.toISOString(), planlagt: skrevet.skrevet, mail };
 }
 
 /** Ansøgeren svarede ja/nej på et tilbud (ansoegning-link). */

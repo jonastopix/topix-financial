@@ -65,6 +65,7 @@ export const motorErRigtig = (k: string): boolean =>
   k.includes('if (updErr.code === "23505") return { ok: false, status: 409') && !/afklaringUrl|bygBookingUrl|calendly\.com/.test(k);
 export const kunCalendlyApiTalerMedCalendly = (filer: Array<[string, string]>): boolean =>
   filer.every(([sti, k]) => sti === CALENDLY_API || !/api\.calendly\.com/.test(k));
+/** Køens mailkontekst bor i motoren (koeMailKontekst, 19/9 — cronen og «straks» deler den): ansøgerens side som bookinglink, mødelinket fra ansøgningen. */
 export const cronErRigtig = (k: string): boolean =>
   k.includes("bookingUrl: ansoegerLink(a.token),") && !/bygBookingUrl|afklaringUrl/.test(k) && k.includes("moedeLink: a.samtale_link,");
 export const mailsErRigtige = (koe: string, samtale: string): boolean =>
@@ -86,7 +87,10 @@ describe("samtaleBooking.guard — de otte domme på repoets filer", () => {
     expect(motorErRigtig(udenKommentarer(laes(MOTOR)))).toBe(true);
     expect(kunCalendlyApiTalerMedCalendly([SAMTALE_FN, HANDLING_FN, MOTOR, CRON, "supabase/functions/_shared/samtaleTider.ts", CALENDLY_API].map((f) => [f, udenKommentarer(laes(f))]))).toBe(true);
   });
-  it("4. cronen linker til ansøgerens side; mødelinket er ansøgningens", () => expect(cronErRigtig(udenKommentarer(laes(CRON)))).toBe(true));
+  it("4. køens mailkontekst (motoren, delt af cronen og «straks») linker til ansøgerens side; mødelinket er ansøgningens", () => {
+    expect(cronErRigtig(udenKommentarer(laes(MOTOR)))).toBe(true);
+    expect(udenKommentarer(laes(CRON)).includes("await sendKoeMail(admin, raekke, a, nu,")).toBe(true);
+  });
   it("5. samtalemailene går uden om køen; ingen Calendly i køens mails", () => expect(mailsErRigtige(udenKommentarer(laes(MAILS)), udenKommentarer(laes(SAMTALE_MAILS)))).toBe(true));
   it("6. siden og afsnittet regner ingen tider selv; statussiden (#992) viser AnsoegSamtale og ingen Calendly-knap", () => {
     expect(sideErRigtig(udenKommentarer(laes(SIDE)), udenKommentarer(laes(AFSNIT)))).toBe(true);
@@ -114,7 +118,7 @@ describe("samtaleBooking.guard — dommene fanger fejlen på en kopi", () => {
     expect(kunCalendlyApiTalerMedCalendly([[MOTOR, udenKommentarer(laes(MOTOR)) + "\nfetch('https://api.calendly.com/users/me');"]])).toBe(false);
     expect(motorErRigtig(udenKommentarer(laes(MOTOR)).replace('if (updErr.code === "23505") return { ok: false, status: 409', "if (false) return { ok: false, status: 409"))).toBe(false);
     expect(motorErRigtig(udenKommentarer(laes(MOTOR)) + '\nexport const x = "https://calendly.com/x";')).toBe(false);
-    expect(cronErRigtig(udenKommentarer(laes(CRON)).replace("bookingUrl: ansoegerLink(a.token),", "bookingUrl: bygBookingUrl(base, a.id),"))).toBe(false);
+    expect(cronErRigtig(udenKommentarer(laes(MOTOR)).replace("bookingUrl: ansoegerLink(a.token),", "bookingUrl: bygBookingUrl(base, a.id),"))).toBe(false);
   });
   it("5./6. en samtalemail i køen, eller en side der læser tabellen selv, fælder dom 5/6", () => {
     expect(mailsErRigtige(udenKommentarer(laes(MAILS)) + "\nconst t = 'Calendly';", udenKommentarer(laes(SAMTALE_MAILS)))).toBe(false);

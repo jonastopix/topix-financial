@@ -1,4 +1,5 @@
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, BarChart3, MessageSquareText } from "lucide-react";
+import { fokusUdenScroll } from "@/lib/fokusUdenScroll";
 import { HbButton } from "@/components/hjemmebane/HbButton";
 import { HB_EYEBROW } from "@/components/hjemmebane/hbFormKlasser";
 import type { Mellemstykke } from "@/lib/ansoegning/mellemstykker";
@@ -27,6 +28,23 @@ export const AnsoegMellemstykke = ({ stykke, onVidere }: { stykke: Mellemstykke;
           </footer>
         )}
       </blockquote>
+    ) : stykke.punkter ? (
+      /* Prøven 18/9, pkt. 3: «Sådan hjælper vi dig» som to plader med ikon — chatten og tallene.
+         Ikonet i evergreen på en sage-plade, overskriften i editorial, Jonas' afsnit ordret under. */
+      <ul className="grid gap-4 sm:grid-cols-2" data-mellemstykke-punkter={stykke.punkter.length}>
+        {stykke.punkter.map((pkt) => {
+          const Ikon = pkt.ikon === "chat" ? MessageSquareText : BarChart3;
+          return (
+            <li key={pkt.ikon} className="rounded-hb border border-hb-line bg-hb-surface p-5">
+              <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-hb-sage/30 text-hb-evergreen" aria-hidden="true">
+                <Ikon className="h-5 w-5" />
+              </span>
+              <h2 className="mt-4 font-editorial text-xl font-medium leading-snug text-hb-ink">{pkt.overskrift}</h2>
+              <p className="mt-2 text-[15px] leading-relaxed text-hb-ink-soft">{pkt.tekst}</p>
+            </li>
+          );
+        })}
+      </ul>
     ) : (
       <>
         {stykke.titel && <h2 className="font-editorial text-3xl font-medium leading-tight text-hb-ink md:text-4xl">{stykke.titel}</h2>}
@@ -34,7 +52,8 @@ export const AnsoegMellemstykke = ({ stykke, onVidere }: { stykke: Mellemstykke;
         <p className="whitespace-pre-line text-base leading-relaxed text-hb-ink-soft">{stykke.tekst}</p>
       </>
     )}
-    <HbButton type="button" onClick={onVidere} className="w-full md:w-auto" autoFocus>
+    {/* Fokus uden rulning (pkt. 1): autoFocus rullede knappen ind i syne. */}
+    <HbButton type="button" onClick={onVidere} className="w-full md:w-auto" ref={fokusUdenScroll}>
       Videre
       <ArrowRight className="h-4 w-4" aria-hidden="true" />
     </HbButton>

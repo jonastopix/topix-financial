@@ -4,6 +4,7 @@ import { ArrowLeft, ArrowRight, Check, Loader2 } from "lucide-react";
 import { HbButton } from "@/components/hjemmebane/HbButton";
 import { HB_EYEBROW, HB_INPUT } from "@/components/hjemmebane/hbFormKlasser";
 import { cn } from "@/lib/utils";
+import { fokusUdenScroll } from "@/lib/fokusUdenScroll";
 import {
   type AnsoegningsSvar,
   type CvrVisning,
@@ -136,7 +137,7 @@ export const AnsoegSkaerm = (p: AnsoegSkaermProps) => {
           aria-invalid={fejl ? true : undefined}
           aria-describedby={fejl ? `${htmlId}-fejl` : undefined}
           className={cn(HB_INPUT, "text-lg", fejl && "border-hb-rust")}
-          autoFocus={def.felter[0] === id}
+          ref={def.felter[0] === id ? fokusUdenScroll : undefined}
         />
         {fejl && (
           <p id={`${htmlId}-fejl`} className="text-sm text-hb-rust" role="alert">
@@ -163,7 +164,7 @@ export const AnsoegSkaerm = (p: AnsoegSkaermProps) => {
           aria-invalid={fejl ? true : undefined}
           aria-describedby={fejl ? `${htmlId}-fejl` : undefined}
           className={cn(HB_INPUT, "resize-y text-base leading-relaxed", fejl && "border-hb-rust")}
-          autoFocus
+          ref={fokusUdenScroll}
         />
         <div className="flex items-baseline justify-between gap-3">
           {fejl ? (
@@ -217,7 +218,7 @@ export const AnsoegSkaerm = (p: AnsoegSkaermProps) => {
               )}
               {!p.cvr.aktiv && <p className="mt-2 text-sm text-hb-rust">{CVR_IKKE_AKTIV}</p>}
               <div className="mt-4 flex flex-col gap-2 sm:flex-row">
-                <HbButton type="button" onClick={p.onCvrJa} disabled={p.gemmer} autoFocus>
+                <HbButton type="button" onClick={p.onCvrJa} disabled={p.gemmer} ref={fokusUdenScroll}>
                   {CVR_JA}
                 </HbButton>
                 <HbButton type="button" variant="secondary" onClick={p.onCvrNej} disabled={p.gemmer}>
@@ -247,7 +248,7 @@ export const AnsoegSkaerm = (p: AnsoegSkaermProps) => {
                 }}
                 aria-invalid={p.virksomhedsnavnFejl ? true : undefined}
                 className={cn(HB_INPUT, "mt-1.5", p.virksomhedsnavnFejl && "border-hb-rust")}
-                autoFocus
+                ref={fokusUdenScroll}
               />
               {p.virksomhedsnavnFejl && (
                 <p className="mt-1.5 text-sm text-hb-rust" role="alert">

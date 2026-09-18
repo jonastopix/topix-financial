@@ -1,5 +1,6 @@
 import { ArrowRight } from "lucide-react";
 import { HbButton } from "@/components/hjemmebane/HbButton";
+import { fokusUdenScroll } from "@/lib/fokusUdenScroll";
 import { HB_EYEBROW } from "@/components/hjemmebane/hbFormKlasser";
 import { INTRO } from "@/lib/ansoegning/spoergsmaal";
 import { MEDLEMSKAB_PRIS_KR_AAR } from "@/lib/ansoegning/skema";
@@ -46,7 +47,7 @@ export const AnsoegIntro = ({ onStart, genoptager }: { onStart: () => void; geno
     </div>
 
     <div className="mt-8 flex flex-col items-start gap-3">
-      <HbButton type="button" onClick={onStart} className="w-full md:w-auto" autoFocus={!genoptager}>
+      <HbButton type="button" onClick={onStart} className="w-full md:w-auto" ref={genoptager ? undefined : fokusUdenScroll}>
         {INTRO.knap}
         <ArrowRight className="h-4 w-4" aria-hidden="true" />
       </HbButton>

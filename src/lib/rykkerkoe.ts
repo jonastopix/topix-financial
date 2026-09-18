@@ -158,6 +158,21 @@ export const TRAPPER: Record<Trappe, readonly TrappeTrin[]> = {
  */
 export const TRAPPER_PAA_LUKKET: readonly Trappe[] = ["afslag", "venteplads"];
 
+/**
+ * SVAR-MAILEN (Jonas 18/9, pkt. 8): trappens første række, når den er en mail på dag 0 —
+ * kvitteringen, indkaldelsen, aftalegrundlaget, ventepladsens tilbud og afslaget. Den er
+ * svar på en handling og sendes STRAKS (ansoegningMotor.sendSvarMailNu), uden om
+ * sendevinduet og dagsreglen; køen er reserven, hvis afsendelsen fejler. null = trappen
+ * begynder med en tidsbestemt række (kladdens dag 2, samtalens dag −1, pausen) — den
+ * bliver i vinduet.
+ */
+export function svarMailTrin(trappe: Trappe): TrappeTrin | null {
+  const t = TRAPPER[trappe][0];
+  if (!t || t.trinNr !== 0 || t.handling !== "send_mail" || t.dag !== 0) return null;
+  if (t.vedSamtaleSlut || t.kraeverHverdagSammeDag || t.klokke !== undefined) return null;
+  return t;
+}
+
 export const PAUSE_MAANEDER = 3;
 
 /** Alle skabelonnavne køen kan bede om — mailbyggeren skal kende hver af dem. */

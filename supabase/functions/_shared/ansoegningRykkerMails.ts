@@ -82,10 +82,19 @@ export interface MailKontekst {
   svar?: { udfordring: string | null; proevet: string | null; omTolvMaaneder: string | null } | null;
 }
 
-/** Et svar klippet til mailen — hele afsnit, højst KVITTERING_SVAR_MAKS tegn, ellers «…». */
+/**
+ * Et svar klippet til mailen — højst KVITTERING_SVAR_MAKS tegn, ellers «…». Ansøgerens
+ * LINJESKIFT BEVARES (Jonas 18/9, prøven pkt. 5: svarene stod som én lang tekst): kun
+ * gentagne mellemrum og mere end ét tomt afsnit trykkes sammen. esc() gør \n til <br>.
+ */
 export const KVITTERING_SVAR_MAKS = 600;
 export function klipSvar(tekst: string | null | undefined): string | null {
-  const t = (tekst ?? "").replace(/\s+/g, " ").trim();
+  const t = (tekst ?? "")
+    .replace(/\r\n?/g, "\n")
+    .replace(/[ \t]+/g, " ")
+    .replace(/ ?\n ?/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
   if (!t) return null;
   return t.length <= KVITTERING_SVAR_MAKS ? t : `${t.slice(0, KVITTERING_SVAR_MAKS - 1).trimEnd()}…`;
 }
@@ -116,6 +125,8 @@ export interface Udkast {
   emne: string;
   eyebrow: string;
   afsnit: string[];
+  /** Spørgsmål/svar-blokke efter brødteksten (kvitteringen: det ansøgeren skrev) — overskrift i fed, svaret under, hver for sig. */
+  blokke?: Array<{ overskrift: string; tekst: string }>;
   knap: { tekst: string; href: string } | null;
   /** Knap nr. to (ventelisten: «Nej tak — giv den videre →»). */
   knapSekundaer?: { tekst: string; href: string } | null;
@@ -173,11 +184,13 @@ const BYGGERE: Record<string, (k: MailKontekst) => Udkast> = {
   // efter Jonas' tekst — ansøgeren skal kunne se, at vi har svarene.
   "ansoegning-kvittering": (k) => {
     const s = k.svar ?? { udfordring: null, proevet: null, omTolvMaaneder: null };
+    // Jonas 18/9 (prøven, pkt. 5): svarene skal stå opdelt og læsbart — spørgsmål og svar hver for
+    // sig, ikke i ét afsnit. Spørgsmålet i fed, svaret under med ansøgerens egne linjeskift.
     const dine = [
-      s.udfordring ? `Din største udfordring lige nu: ${klipSvar(s.udfordring)}` : null,
-      s.proevet ? `Det du selv har prøvet: ${klipSvar(s.proevet)}` : null,
-      s.omTolvMaaneder ? `Om tolv måneder: ${klipSvar(s.omTolvMaaneder)}` : null,
-    ].filter((x): x is string => x !== null);
+      s.udfordring ? { overskrift: "Din største udfordring lige nu", tekst: klipSvar(s.udfordring)! } : null,
+      s.proevet ? { overskrift: "Det du selv har prøvet", tekst: klipSvar(s.proevet)! } : null,
+      s.omTolvMaaneder ? { overskrift: "Om tolv måneder", tekst: klipSvar(s.omTolvMaaneder)! } : null,
+    ].filter((x): x is { overskrift: string; tekst: string } => x !== null);
     return {
       emne: "Vi har din ansøgning",
       eyebrow: "Din ansøgning til The Boardroom",
@@ -186,8 +199,9 @@ const BYGGERE: Record<string, (k: MailKontekst) => Udkast> = {
         `Tak fordi du søgte om en plads i The Boardroom. Vi har din ansøgning for ${k.virksomhedsnavn}.`,
         "Morten og jeg læser den og vurderer, om vi er det rigtige for dig. Passer det, inviterer jeg dig til en uforpligtende snak, hvor vi begge tager stilling til, om der er et match.",
         "Du hører fra os inden for et par hverdage.",
-        ...(dine.length > 0 ? ["Her er det, du skrev, så du kan se, at vi har det:", ...dine] : []),
+        ...(dine.length > 0 ? ["Her er det, du skrev, så du kan se, at vi har det:"] : []),
       ],
+      blokke: dine,
       knap: { tekst: "Se din ansøgning →", href: k.statusUrl },
       ikkeNu: false,
     };
@@ -400,6 +414,7 @@ function ramme(u: Udkast, k: MailKontekst): string {
     eyebrow: u.eyebrow,
     overskrift: u.emne,
     afsnit: u.afsnit,
+    blokke: u.blokke,
     knap: u.knap ? { tekst: u.knap.tekst, url: u.knap.href } : undefined,
     knapSekundaer: u.knapSekundaer ? { tekst: u.knapSekundaer.tekst, url: u.knapSekundaer.href } : undefined,
     knapBredde: 260,
@@ -412,6 +427,8 @@ function ramme(u: Udkast, k: MailKontekst): string {
 /** text/plain — samme ord som HTML'en; knapperne som «tekst link», så den giver mening uden HTML. */
 function tekst(u: Udkast, k: MailKontekst): string {
   const linjer = [...u.afsnit];
+  // Blokkene som i HTML'en: overskriften på sin egen linje, svaret under, luft imellem.
+  for (const b of u.blokke ?? []) linjer.push("", b.overskrift, b.tekst);
   if (u.knap) linjer.push("", `${u.knap.tekst} ${u.knap.href}`);
   if (u.knapSekundaer) linjer.push(`${u.knapSekundaer.tekst} ${u.knapSekundaer.href}`);
   linjer.push("", HILSEN_JONAS);

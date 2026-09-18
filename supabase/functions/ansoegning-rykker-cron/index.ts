@@ -13,12 +13,15 @@
 //   2. afgoerSending (rykkerkoe.ts) dømmer: forfalden? i vinduet? har
 //      modtageren fået en mail i dag? Nej → planlagt_til rykkes til
 //      udskydTil (udskudt_antal++), intet sendes.
-//   3. send_mail: mailen bygges (ansoegningRykkerMails.ts) og sendes gennem
-//      sendManagedEmail med idempotencyKey = idempotensnoegle → message_id i
-//      email_send_log (UNIQUE WHERE status = sent). Kun ved sendt: status
-//      sendt, sendt_til, udfoert_at, message_id, og ansoegninger.rykkere_sendt
-//      tælles op (trin_nr > 0). Spærret modtager → rækken markeres fejlet
-//      uden retry. Anden fejl → fejl_antal++ (tre forsøg, så fejlet).
+//   3. send_mail: ansoegningMotor.sendKoeMail — ÉT sted for cronen og for
+//      «straks» (Jonas 18/9, pkt. 8: svar-mailen sendes med det samme af
+//      motoren; cronen er reserven og sender rykkerne). Mailen bygges
+//      (ansoegningRykkerMails.ts) og sendes gennem sendManagedEmail med
+//      idempotencyKey = idempotensnoegle → message_id i email_send_log
+//      (UNIQUE WHERE status = sent). Kun ved sendt: status sendt, sendt_til,
+//      udfoert_at, message_id, og ansoegninger.rykkere_sendt tælles op
+//      (trin_nr > 0). Spærret modtager → rækken markeres fejlet uden retry.
+//      Anden fejl → fejl_antal++ (MAKS_FEJL forsøg, så fejlet).
 //   4. luk_svarer_ikke / udloeb / marker_afholdt → udfoerOvergang (via koe)
 //      → status udfoert; rådgiveren får en klokke. pause_slut → klokke.
 //
@@ -34,29 +37,25 @@
 
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
 import { authenticateServiceRole, corsHeaders } from "../_shared/edgeFunctionAuth.ts";
-import { sendManagedEmail } from "../_shared/managedEmail.ts";
 import { skrivRaadgiverBesked } from "../_shared/raadgiverBesked.ts";
 import { afgoerSending, taellerIkkeIDagsreglen, TRAPPER_PAA_LUKKET, type KoeHandling } from "../_shared/rykkerkoe.ts";
-import { grundTekst, koeNummer, type AfslagsIndhold } from "../_shared/afslagsTilbud.ts";
-import type { VentepladsRaekke } from "../_shared/ventelisteDom.ts";
-import { erAabentTrin, erPaaPause, trappensTrin, type Trappe } from "../_shared/ansoegningTrin.ts";
+import { erAabentTrin, erPaaPause, trappensTrin } from "../_shared/ansoegningTrin.ts";
 import { kbhDato, kbhTilUtc } from "../_shared/hverdage.ts";
-import { bygRykkerMail, type VentepladsKontekst } from "../_shared/ansoegningRykkerMails.ts";
-import { KONTAKT_ADRESSE } from "../_shared/indgangsMail.ts";
+import type { VentepladsKontekst } from "../_shared/ansoegningRykkerMails.ts";
 import { hentAnsoegerensPladser, pladsUdloebet } from "../_shared/venteliste.ts";
 import { erBloedUdgave } from "../_shared/ventelisteDom.ts";
-import { tagPladsenLink, afslaaPladsenLink } from "../_shared/ansoegningMotor.ts";
-import { afgoerFremdrift, TOMME_SVAR, type AnsoegningsSvar } from "../_shared/ansoegningSkema.ts";
 import {
-  ansoegerLink,
-  fornavnAf,
+  afslaaPladsenLink,
   hentAnsoegning,
-  ikkeNuLink,
+  KOE_RAEKKE_FELTER,
   RAADGIVER_BESKED,
   REFERENCE_TYPE,
+  sendKoeMail,
+  tagPladsenLink,
   udfoerOvergang,
   virksomhedsnavnAf,
   type AnsoegningRaekke,
+  type KoeRaekke,
 } from "../_shared/ansoegningMotor.ts";
 
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -64,22 +63,6 @@ const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
 /** Højst så mange rækker pr. kørsel — kørslen varer under kald_edge's 30 s. */
 const BATCH = 50;
-/** Efter så mange fejl står rækken som fejlet og tages ikke igen. */
-const MAKS_FEJL = 3;
-
-interface Raekke {
-  id: string;
-  ansoegning_id: string;
-  trappe: Trappe;
-  trin_nr: number;
-  handling: KoeHandling;
-  skabelon: string | null;
-  modtager: "ansoeger" | "raadgiver";
-  planlagt_til: string;
-  idempotensnoegle: string;
-  udskudt_antal: number;
-  fejl_antal: number;
-}
 
 interface Resultat {
   ok: boolean;
@@ -121,43 +104,6 @@ async function sendtIDag(admin: SupabaseClient, nu: Date): Promise<Set<string>> 
   );
 }
 
-/**
- * Afslagsmailen: grunden, køpladserne (C's ventepladser — nummeret regnes som
- * rådgiverens venteliste, sorterKoe; kun NUMRE, aldrig medlemmets navn) og om
- * der var en samtale (lukkeaarsag).
- * Fail-soft: kan køen ikke læses, sendes mailen uden pladsen (logget) — et nej
- * må ikke vente på en tabel.
- */
-async function afslagsIndhold(admin: SupabaseClient, a: AnsoegningRaekke): Promise<AfslagsIndhold> {
-  const ventepladser: AfslagsIndhold["ventepladser"] = [];
-  try {
-    // Samme læsning som C's hentAnsoegerensPladser/hentKoe (venteliste.ts), skrevet
-    // inline så nummeret regnes over hele køen hos virksomheden; nummeret er C's sorterKoe.
-    type Rad = { id: string; ansoegning_id: string; company_id: string; status: string; hvorfor: string | null; sat_at: string; ansoegninger: { lukket_at: string | null } | null };
-    const tilRaekke = (r: Rad): VentepladsRaekke => ({ id: r.id, ansoegning_id: r.ansoegning_id, company_id: r.company_id, status: r.status as VentepladsRaekke["status"], sat_at: r.sat_at, afvist_at: r.ansoegninger?.lukket_at ?? null });
-    const FELTER = "id, ansoegning_id, company_id, status, hvorfor, sat_at, ansoegninger!inner(lukket_at)";
-    const { data: egne, error } = await admin.from("ventepladser").select(FELTER).eq("ansoegning_id", a.id).eq("status", "venter");
-    if (error) throw new Error(error.message);
-    for (const p of (egne ?? []) as unknown as Rad[]) {
-      const { data: koe, error: koeErr } = await admin.from("ventepladser").select(FELTER).eq("company_id", p.company_id).in("status", ["venter", "tilbudt"]);
-      if (koeErr) throw new Error(koeErr.message);
-      const nummer = koeNummer(((koe ?? []) as unknown as Rad[]).map(tilRaekke), a.id);
-      if (nummer !== null) ventepladser.push({ nummer });
-    }
-  } catch (err) {
-    console.error(`[ansoegning-rykker-cron] ventepladser kunne ikke læses for ${a.id} — afslagsmailen sendes uden køplads:`, err);
-  }
-  return { grundTekst: grundTekst(a.afslagsgrund), ventepladser, efterSamtale: a.lukkeaarsag === "afslag_efter_samtale" };
-}
-
-/** Kladden: hvor mange af B's tolv felter mangler (afgoerFremdrift på rækkens svar). */
-function manglendeSvar(a: AnsoegningRaekke): number {
-  const svar: Record<string, unknown> = { ...TOMME_SVAR };
-  for (const k of Object.keys(TOMME_SVAR)) svar[k] = (a as unknown as Record<string, unknown>)[k] ?? null;
-  const f = afgoerFremdrift(svar as unknown as AnsoegningsSvar);
-  return f.ialt - f.besvarede;
-}
-
 function raadgiverKlokke(a: AnsoegningRaekke, handling: KoeHandling): { type: string; title: string; body: string } {
   const navn = virksomhedsnavnAf(a);
   switch (handling) {
@@ -183,7 +129,7 @@ async function koer(admin: SupabaseClient, toer: boolean, nu: Date): Promise<Res
 
   const { data: raekker, error } = await admin
     .from("planlagte_haendelser")
-    .select("id, ansoegning_id, trappe, trin_nr, handling, skabelon, modtager, planlagt_til, idempotensnoegle, udskudt_antal, fejl_antal")
+    .select(KOE_RAEKKE_FELTER)
     .eq("status", "planlagt")
     .lte("planlagt_til", nu.toISOString())
     .order("planlagt_til", { ascending: true })
@@ -195,7 +141,7 @@ async function koer(admin: SupabaseClient, toer: boolean, nu: Date): Promise<Res
   const harFaaet = await sendtIDag(admin, nu);
   const failClosed = harFaaet.has("*");
 
-  for (const raekke of raekker as Raekke[]) {
+  for (const raekke of raekker as KoeRaekke[]) {
     try {
       const a = await hentAnsoegning(admin, raekke.ansoegning_id);
       const trin = trappensTrin(raekke.trappe);
@@ -254,80 +200,38 @@ async function koer(admin: SupabaseClient, toer: boolean, nu: Date): Promise<Res
       }
 
       if (raekke.handling === "send_mail") {
-        if (!email) {
-          if (!toer) await admin.from("planlagte_haendelser").update({ status: "fejlet", fejl: "ansøgningen har ingen e-mail", fejl_antal: raekke.fejl_antal + 1 }).eq("id", raekke.id);
-          r.fejlet++;
-          continue;
-        }
-        const mail = bygRykkerMail(raekke.skabelon ?? "", {
-          fornavn: fornavnAf(a.navn),
-          virksomhedsnavn: virksomhedsnavnAf(a),
-          bookingUrl: ansoegerLink(a.token),
-          moedeLink: a.samtale_link,
-          nu,
-          statusUrl: ansoegerLink(a.token),
-          ikkeNuUrl: ikkeNuLink(a.token),
-          samtaleStart: a.samtale_start ? new Date(a.samtale_start) : null,
-          aftaleUrl: a.aftale_url,
-          token: a.token,
-          manglerSvar: raekke.trappe === "kladde" ? manglendeSvar(a) : null,
-          afslag: raekke.trappe === "afslag" ? await afslagsIndhold(admin, a) : null,
-          // Kvitteringen (trappen «indsendt», 18/9): det ansøgeren skrev, så de kan se vi har det.
-          svar: { udfordring: a.udfordring, proevet: a.proevet, omTolvMaaneder: a.om_tolv_maaneder },
-          venteplads: venteplads
-            ? ({
-                bloed: erBloedUdgave(a.lukket_at, nu),
-                svarfrist: new Date(venteplads.tilbud_udloeber_at ?? nu.toISOString()),
-                tagPladsenUrl: tagPladsenLink(a.token),
-                afslaaPladsenUrl: afslaaPladsenLink(a.token),
-              } satisfies VentepladsKontekst)
-            : null,
-        });
-        if (!mail) {
-          if (!toer) await admin.from("planlagte_haendelser").update({ status: "fejlet", fejl: `ukendt skabelon ${raekke.skabelon}`, fejl_antal: MAKS_FEJL }).eq("id", raekke.id);
-          r.fejlet++;
-          continue;
-        }
+        const email = (a.email ?? "").toLowerCase();
         if (toer) {
-          console.log(`[ansoegning-rykker-cron] TØRKØRSEL ville sende ${raekke.skabelon} til ${email} (${virksomhedsnavnAf(a)})`);
+          console.log(`[ansoegning-rykker-cron] TØRKØRSEL ville sende ${raekke.skabelon} til ${email || "(ingen adresse)"} (${virksomhedsnavnAf(a)})`);
           r.ville_sende++;
+          if (email) harFaaet.add(email);
+          continue;
+        }
+        const ventepladsKontekst: VentepladsKontekst | null = venteplads
+          ? {
+              bloed: erBloedUdgave(a.lukket_at, nu),
+              svarfrist: new Date(venteplads.tilbud_udloeber_at ?? nu.toISOString()),
+              tagPladsenUrl: tagPladsenLink(a.token),
+              afslaaPladsenUrl: afslaaPladsenLink(a.token),
+            }
+          : null;
+        const res = await sendKoeMail(admin, raekke, a, nu, { venteplads: ventepladsKontekst, vej: "koe" });
+        if (res.udfald === "sendt") {
           harFaaet.add(email);
+          r.sendte++;
           continue;
         }
-        const res = await sendManagedEmail({
-          adminClient: admin,
-          to: email,
-          subject: mail.emne,
-          html: mail.html,
-          text: mail.tekst,
-          label: raekke.skabelon!,
-          idempotencyKey: raekke.idempotensnoegle,
-          // Svar går til Jonas (kontakt@ viderestilles — bekræftet 18/9), ikke til noreply@: tre af mailene siger «svar på denne mail».
-          replyTo: KONTAKT_ADRESSE,
-          metadata: { ansoegning_id: a.id, trappe: raekke.trappe, trin_nr: raekke.trin_nr },
-        });
-        if (res.sent === false) {
-          const endeligt = res.reason === "recipient_suppressed" || raekke.fejl_antal + 1 >= MAKS_FEJL;
-          await admin.from("planlagte_haendelser")
-            .update({ status: endeligt ? "fejlet" : "planlagt", fejl: `${res.reason}${"error" in res ? `: ${res.error}` : ""}`.slice(0, 500), fejl_antal: raekke.fejl_antal + 1 })
-            .eq("id", raekke.id);
-          if (res.reason === "rate_limited") {
-            console.error("[ansoegning-rykker-cron] rate limit — kørslen stopper; resten tages næste kvarter");
-            r.fejl++;
-            break;
-          }
-          if (endeligt) r.fejlet++;
-          else r.fejl++;
+        if (res.udfald === "ingen_adresse" || res.udfald === "ukendt_skabelon") {
+          r.fejlet++;
           continue;
         }
-        await admin.from("planlagte_haendelser")
-          .update({ status: "sendt", udfoert_at: nu.toISOString(), sendt_til: email, message_id: res.messageId })
-          .eq("id", raekke.id);
-        if (raekke.trin_nr > 0) {
-          await admin.from("ansoegninger").update({ rykkere_sendt: a.rykkere_sendt + 1 }).eq("id", a.id);
+        if (res.reason === "rate_limited") {
+          console.error("[ansoegning-rykker-cron] rate limit — kørslen stopper; resten tages næste kvarter");
+          r.fejl++;
+          break;
         }
-        harFaaet.add(email);
-        r.sendte++;
+        if (res.endeligt) r.fejlet++;
+        else r.fejl++;
         continue;
       }
 

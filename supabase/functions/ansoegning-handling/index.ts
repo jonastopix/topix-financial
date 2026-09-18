@@ -17,10 +17,14 @@
 //   flytning (nyt event, det gamle aflyses). Ansøgeren får mail straks;
 //   ingen klokke — rådgiveren handlede selv (samtaleBeskedDom).
 //   afvis/afslag tager valgfrit afslagsgrund ∈ niche · for_tidligt · andet
-//   (niche og for_tidligt planlægger afslagsmailen; andet giver ingen mail).
-//   Ventelisten sættes IKKE her — fladen kalder C's venteliste-handling
-//   «saet» lige efter (kræver trin = lukket), og afslagsmailen (dag 0 i køen)
-//   læser pladsen når den sendes.
+//   (niche og for_tidligt giver afslagsmailen; andet giver ingen mail).
+//   VENTELISTEN REJSER MED (19/9, Jonas 18/9 pkt. 8): afslagsmailen sendes
+//   STRAKS, og pladsen skal stå i den — derfor tager afvis/afslag valgfrit
+//   venteliste_company_id (+ venteliste_hvorfor): lukningen først, så C's
+//   saetPaaVenteliste (kræver trin = lukket), så afslagsmailen gennem
+//   motorens sendSvarMailNu. Uden venteliste sender motoren mailen selv i
+//   overgangen. Svaret bærer mail ∈ sendt · reserve · fejlet · ingen_adresse
+//   · ingen_raekke (ingen dag 0-mail på trappen).
 //   tilbud kræver aftale_url (C's /aftale?token=… eller en PDF) og sætter
 //   pris_oere hvis den gives (bliver prisniveau_oere ved underskrift).
 // Dommen (afgoerOvergang), trappen (rykkerkoe) og konverteringen
@@ -38,6 +42,8 @@ import { erSlotLedig, slutAf } from "../_shared/samtaleSlots.ts";
 import { CalendlyFejl } from "../_shared/calendlyApi.ts";
 import { aflysIKalenderen, bookIKalenderen, hentLedigeSamtaletider } from "../_shared/samtaleTider.ts";
 import { meldSamtaleAendring } from "../_shared/samtaleBesked.ts";
+import { saetPaaVenteliste } from "../_shared/venteliste.ts";
+import { sendSvarMailNu, type StraksUdfald } from "../_shared/ansoegningMotor.ts";
 
 /** Rådgiverens to samtalehandlinger — uden for MENNESKE_HANDLINGER (de er ikke knapper i handlingsrækken, men i afsnittet «Samtalen»). */
 const RAADGIVER_SAMTALE: readonly string[] = ["book", "aflys_booking"];
@@ -98,6 +104,9 @@ Deno.serve(async (req) => {
   const begrundelse = typeof body.begrundelse === "string" ? body.begrundelse.trim().slice(0, 2000) || null : null;
   const aftaleUrl = typeof body.aftale_url === "string" && /^https:\/\//.test(body.aftale_url.trim()) ? body.aftale_url.trim() : null;
   const prisOere = typeof body.pris_oere === "number" && Number.isInteger(body.pris_oere) && body.pris_oere > 0 ? body.pris_oere : null;
+  // Ventelisten med i samme kald (kun afvis/afslag): pladsen sættes efter lukningen og FØR afslagsmailen.
+  const ventelisteCompanyId = (handling?.art === "afvis" || handling?.art === "afslag") && typeof body.venteliste_company_id === "string" && UUID.test(body.venteliste_company_id) ? body.venteliste_company_id : null;
+  const ventelisteHvorfor = typeof body.venteliste_hvorfor === "string" ? body.venteliste_hvorfor.trim().slice(0, 500) || null : null;
 
   const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, {
     auth: { persistSession: false, autoRefreshToken: false },
@@ -163,7 +172,7 @@ Deno.serve(async (req) => {
     }
   }
 
-  const res = await udfoerOvergang(admin, { ansoegning, handling, via: "raadgiver", truffetAf: userId, begrundelse, nu, aftaleUrl, samtale });
+  const res = await udfoerOvergang(admin, { ansoegning, handling, via: "raadgiver", truffetAf: userId, begrundelse, nu, aftaleUrl, samtale, svarMailStraks: ventelisteCompanyId === null });
   if (res.ok === false) {
     // Kompensation: platformen sagde nej efter at Calendly bookede — eventet må ikke blive stående.
     if (samtale?.eventUri) await aflysIKalenderen(samtale.eventUri, "Platformen kunne ikke gemme bookingen — aflyst automatisk");
@@ -177,13 +186,31 @@ Deno.serve(async (req) => {
     console.log(`[ansoegning-handling] ${aendring} på ${ansoegningId}: mail ${besked.mail}`);
   }
 
-  console.log(`[ansoegning-handling] ${handling.art} på ${ansoegningId} af ${userId}: ${res.fra} → ${res.til} (${res.planlagt} planlagt, ${res.annulleret} annulleret)`);
+  // Ventelisten (rejser med afvis/afslag): sat efter lukningen, og afslagsmailen sendes FØRST HEREFTER, så pladsen står i den.
+  let mail: StraksUdfald | null = res.mail;
+  let venteliste: { udfald: string; virksomhed: string | null } | null = null;
+  if (ventelisteCompanyId) {
+    try {
+      const { data: c } = await admin.from("companies").select("name").eq("id", ventelisteCompanyId).maybeSingle();
+      const r = await saetPaaVenteliste(admin, { ansoegningId, companyId: ventelisteCompanyId, hvorfor: ventelisteHvorfor, satAf: userId });
+      venteliste = { udfald: r.udfald, virksomhed: (c as { name?: string } | null)?.name ?? null };
+    } catch (err) {
+      console.error(`[ansoegning-handling] ventelisten kunne ikke sættes for ${ansoegningId} — afslagsmailen sendes uden pladsen:`, err);
+      venteliste = { udfald: "fejl", virksomhed: null };
+    }
+    const frisk = await hentAnsoegning(admin, ansoegningId);
+    mail = frisk ? await sendSvarMailNu(admin, frisk, "afslag", nu) : "ingen_raekke";
+  }
+
+  console.log(`[ansoegning-handling] ${handling.art} på ${ansoegningId} af ${userId}: ${res.fra} → ${res.til} (${res.planlagt} planlagt, ${res.annulleret} annulleret, mail ${mail ?? "-"})`);
   return json({
     ok: true,
     fra: res.fra,
     til: res.til,
     planlagt: res.planlagt,
     annulleret: res.annulleret,
+    mail,
+    ...(venteliste ? { venteliste } : {}),
     ...(res.konvertering && res.konvertering.ok ? { company_id: res.konvertering.company_id, genbrugt: res.konvertering.genbrugt, mail: res.konvertering.mail } : {}),
   });
 });
