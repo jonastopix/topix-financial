@@ -41,6 +41,19 @@
  * annulleres, én pause_slut-række planlægges PÅ datoen (klokke til jer),
  * og dommen regner ansøgningen som ventende igen fra den dag.
  *
+ * PAUSEN OPHÆVES — ÉN DOM, TRE VEJE (18/9 aften, hul fundet i Jonas' prøve:
+ * en pause kunne hverken tages af rådgiveren eller ansøgeren før datoen —
+ * «ikke nu» var bygget som en venlig udvej, ikke som en spærring). genoptag
+ * er tilladt fra ethvert åbent trin, når paa_pause_til er sat (harPause —
+ * også på selve slutdatoen, hvor erPaaPause allerede er falsk): trinnet
+ * står, paa_pause_til ryddes, trappen «pause» annulleres, sporet får sin
+ * linje. INGEN trappe startes: køen skriver ikke til ansøgeren af sig selv
+ * efter en pause — rådgiveren tager næste skridt (samme regel som køens
+ * pause_slut altid har haft: «Det er dit valg — køen gør intet af sig
+ * selv»). Rådgiveren («Genoptag nu»), ansøgeren (statussidens «Tag den op
+ * igen» — giver rådgiverne en klokke) og køen (pause_slut på datoen) går
+ * alle gennem denne ene dom, så de tre veje ikke kan gøre forskellige ting.
+ *
  * AFSLAGET BLIVER TIL NOGET (Jonas 17/9 nat, 18/9): et nej bærer en grund —
  * NICHEN ER OPTAGET (de venter på en konkret virksomheds plads: C's
  * venteliste), FOR TIDLIGT eller ANDET. «Svarer ikke» giver intet. Er
@@ -127,6 +140,8 @@ export type Handling =
   | { art: "ikke_nu" }
   /** Rådgiveren sætter eller flytter pausen til en dato («YYYY-MM-DD», dansk kalender). */
   | { art: "saet_pause"; til: string }
+  /** Pausen ophæves nu — rådgiveren, ansøgeren eller køen på datoen; kræver harPause. */
+  | { art: "genoptag" }
   | { art: "luk"; aarsag: Lukkeaarsag }
   | { art: "genaabn" };
 export type HandlingsArt = Handling["art"];
@@ -142,6 +157,7 @@ export const MENNESKE_HANDLINGER: readonly HandlingsArt[] = [
   "luk",
   "genaabn",
   "saet_pause",
+  "genoptag",
 ];
 
 /** Handlinger systemet udfører (webhook, kø, ansøgerens link). */
@@ -152,6 +168,7 @@ export const SYSTEM_HANDLINGER: readonly HandlingsArt[] = [
   "svarer_ikke",
   "udloeb",
   "ikke_nu",
+  "genoptag",
 ];
 
 export interface Overgang {
@@ -190,6 +207,11 @@ export interface OvergangsKontekst {
   paaPause: boolean;
   /** Trinnet lukningen skete fra — kun brugt ved genaabn. */
   lukketFraTrin: Trin | null;
+  /**
+   * Er paa_pause_til sat overhovedet (også på selve slutdatoen, hvor paaPause er falsk)?
+   * Kun genoptag bruger den — køens pause_slut kører den dag. Udeladt = paaPause (fladen).
+   */
+  harPause?: boolean;
 }
 
 /** Det afvis/afslag lægger oven på lukningen: grunden, og afslagsmailen (trappen «afslag») når grunden giver en. */
@@ -243,6 +265,12 @@ export function afgoerOvergang(fra: Trin, h: Handling, ctx: OvergangsKontekst): 
     });
   }
   if (fra === "lukket") return AFVIST("lukket: kun genaabn er tilladt");
+
+  if (h.art === "genoptag") {
+    // Én dom for rådgiveren, ansøgeren og køen (filhovedet): trinnet står, pausen ryddes, ingen trappe startes.
+    if (!(ctx.harPause ?? ctx.paaPause)) return AFVIST("genoptag: ansøgningen er ikke på pause");
+    return OK({ til: fra, annuller: ["pause"], ophaevPause: true, beslutning: true });
+  }
 
   if (h.art === "luk") {
     return OK({ til: "lukket", lukkeaarsag: h.aarsag, annuller: "alle", beslutning: true });

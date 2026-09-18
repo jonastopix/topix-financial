@@ -53,7 +53,10 @@ export const ikkeNuErRigtig = (trin: string, status: string): boolean =>
   foer(trin, 'if (fra === "booket") return AFVIST("ikke_nu: aflys samtalen først");', 'start: { trappe: "pause", anker: "pause" }, saetPause: true, ophaevPause: false') &&
   !/booket: \{ start: s\.samtale_start[^\n]*visIkkeNu: true/.test(status) && status.includes("visIkkeNu: false, titel: \"Samtalen er booket\"");
 export const pausenSlipper = (cron: string, motor: string, samtale: string, link: string, view: string, status: string): boolean =>
-  cron.includes('if (raekke.handling === "pause_slut") {') && cron.includes(".update({ paa_pause_til: null }).eq(\"id\", a.id).eq(\"paa_pause_til\", pauseDato)") &&
+  // 18/9 aften: pause_slut går gennem motorens genoptag — ikke en rå update af kolonnen — så køen, rådgiveren og ansøgeren har ÉN dom.
+  cron.includes('if (raekke.handling === "pause_slut") {') && cron.includes('handling: { art: "genoptag" }, via: "koe"') && !cron.includes(".update({ paa_pause_til: null })") &&
+  // og pause-rækken lever så længe pausen er SAT (på slutdatoen er erPaaPause falsk — den test annullerede pause_slut den dag, den skulle køre)
+  cron.includes('(raekke.trappe === "pause" && !a.paa_pause_til)') && !cron.includes('(raekke.trappe === "pause" && !paaPause)') &&
   cron.includes("const paaPause = erPaaPause(a?.paa_pause_til, nu);") && !cron.includes("a?.paa_pause_til !== null") &&
   motor.includes("paaPause: erPaaPause(a.paa_pause_til, nu)") && !motor.includes("paaPause: a.paa_pause_til !== null") &&
   samtale.includes("if (erPaaPause(a.paa_pause_til, new Date())) return json({ error: \"Ansøgningen er på pause\" }, 409);") && !samtale.includes("if (a.paa_pause_til) return json") &&
@@ -85,7 +88,7 @@ describe("vejenVidere.guard — de otte rettelser på repoets filer", () => {
     expect(ikkeNuErRigtig(udenKommentarer(laes(TRIN)), udenKommentarer(laes(STATUS)))).toBe(true);
     expect(ikkeNuErRigtig(udenKommentarer(laes(TRIN_SRC)), udenKommentarer(laes(STATUS)))).toBe(true);
   });
-  it("4. pausen slipper: cronen rydder kolonnen, og fire steder tester mod dato", () =>
+  it("4. pausen slipper: cronen går gennem motorens genoptag på datoen, og fire steder tester mod dato", () =>
     expect(pausenSlipper(udenKommentarer(laes(CRON)), udenKommentarer(laes(MOTOR)), udenKommentarer(laes(SAMTALE)), udenKommentarer(laes(LINK)), udenKommentarer(laes(VIEW)), udenKommentarer(laes(STATUS)))).toBe(true));
   it("5. aflysning starter indkaldt fra trin 1", () => expect(ingenDagNulEfterAflysning(udenKommentarer(laes(TRIN)), udenKommentarer(laes(RYK)), udenKommentarer(laes(MOTOR)))).toBe(true));
   it("6. ventelistens ja/nej virker på statussiden", () => expect(ventelistenVirker(udenKommentarer(laes(SIDE)), udenKommentarer(laes(API)), udenKommentarer(laes(STATUS)))).toBe(true));
@@ -107,7 +110,8 @@ describe("vejenVidere.guard — dommene fanger fejlen på en kopi", () => {
     expect(ikkeNuErRigtig(trin.replace('if (fra === "booket") return AFVIST("ikke_nu: aflys samtalen først");', ""), status)).toBe(false);
     expect(ikkeNuErRigtig(trin, status.replace('visIkkeNu: false, titel: "Samtalen er booket"', 'visIkkeNu: true, titel: "Samtalen er booket"'))).toBe(false);
     const cron = udenKommentarer(laes(CRON)), motor = udenKommentarer(laes(MOTOR)), samtale = udenKommentarer(laes(SAMTALE)), link = udenKommentarer(laes(LINK)), view = udenKommentarer(laes(VIEW));
-    expect(pausenSlipper(cron.replace('.update({ paa_pause_til: null }).eq("id", a.id).eq("paa_pause_til", pauseDato)', '.update({}).eq("id", a.id)'), motor, samtale, link, view, status)).toBe(false);
+    expect(pausenSlipper(cron.replace('handling: { art: "genoptag" }, via: "koe"', 'handling: { art: "afholdt" }, via: "koe"'), motor, samtale, link, view, status)).toBe(false);
+    expect(pausenSlipper(cron.replace('(raekke.trappe === "pause" && !a.paa_pause_til)', '(raekke.trappe === "pause" && !paaPause)'), motor, samtale, link, view, status)).toBe(false);
     expect(pausenSlipper(cron, motor, samtale.replace("if (erPaaPause(a.paa_pause_til, new Date())) return json({ error: \"Ansøgningen er på pause\" }, 409);", "if (a.paa_pause_til) return json({ error: \"Ansøgningen er på pause\" }, 409);"), link, view, status)).toBe(false);
     expect(pausenSlipper(cron, motor, samtale, link, view, status.replace("if (erPaaPause(s.paa_pause_til, nu)) {", "if (s.paa_pause_til) {"))).toBe(false);
     expect(ingenDagNulEfterAflysning(trin.replace(', fraTrinNr: 1 } });', " } });"), udenKommentarer(laes(RYK)), motor)).toBe(false);

@@ -51,10 +51,12 @@ const KNAPPE: Record<MenneskeHandling, Omit<Knap, "handling">> = {
   luk: { tekst: "Luk", stor: false, farlig: true, bekraeft: true, kraeverAarsag: true, kraeverAftaleUrl: false, kraeverDato: false, kraeverAfslagsgrund: false, forklaring: "Lukkes med den valgte årsag; alle planlagte rykkere annulleres." },
   genaabn: { tekst: "Genåbn", stor: false, farlig: false, bekraeft: false, kraeverAarsag: false, kraeverAftaleUrl: false, kraeverDato: false, kraeverAfslagsgrund: false, forklaring: "Tilbage til trinnet før lukningen (aldrig til booket eller aftalegrundlag sendt); trappen startes forfra." },
   saet_pause: { tekst: "Sæt på pause", stor: false, farlig: false, bekraeft: true, kraeverAarsag: false, kraeverAftaleUrl: false, kraeverDato: true, kraeverAfslagsgrund: false, forklaring: "Alle planlagte rykkere annulleres; ansøgningen står ikke som ventende før datoen, hvor I får en klokke. Kan sættes og flyttes fra ethvert åbent trin." },
+  // 18/9 aften (hul i Jonas' prøve): en pause kunne ikke tages af igen — kun flyttes. Samme dom som ansøgerens «Tag den op igen» og køens pause_slut.
+  genoptag: { tekst: "Genoptag nu", stor: false, farlig: false, bekraeft: false, kraeverAarsag: false, kraeverAftaleUrl: false, kraeverDato: false, kraeverAfslagsgrund: false, forklaring: "Pausen tages af med det samme; ansøgningen står på samme trin. Ingen mail går af sig selv — I tager næste skridt (indkald, book eller send aftalegrundlaget igen)." },
 };
 
 /** Rækkefølgen knapperne står i. */
-const RAEKKEFOELGE: readonly MenneskeHandling[] = ["tal_med_dem", "afvis", "tilbud", "afslag", "afholdt", "underskrevet", "genaabn", "saet_pause", "luk"];
+const RAEKKEFOELGE: readonly MenneskeHandling[] = ["tal_med_dem", "afvis", "tilbud", "afslag", "afholdt", "underskrevet", "genaabn", "genoptag", "saet_pause", "luk"];
 
 export interface KnapKontekst {
   trin: Trin;

@@ -12,6 +12,13 @@
 //   ikke_nu → pausen (afgoerOvergang: alle trapper annulleres, paa_pause_til
 //              = i dag + 3 måneder, én række pause_slut til rådgiveren).
 //              Idempotent: allerede på pause → 200 { ok, allerede: true }.
+//   genoptag → pausen tages af NU (18/9 aften): motorens genoptag — samme dom
+//              som rådgiverens «Genoptag nu» og køens pause_slut — rydder
+//              paa_pause_til, annullerer pause-trappen, skriver sporet (via
+//              ansoeger_link) og starter ingen trappe. Rådgiverne får en
+//              klokke: en ansøger, der selv melder sig klar, er værd at
+//              reagere hurtigt på (Jonas 18/9). Idempotent: ingen pause →
+//              200 { ok, allerede: true }.
 // Bookingen sker ikke her — den går gennem ansoegning-samtale (samme token):
 // tider, book, flyt, aflys. Platformen selv, ingen Calendly (udkast 18/9).
 
@@ -19,7 +26,8 @@ import { hentAnsoegerensPladser, svarPaaPlads } from "../_shared/venteliste.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
 import { corsHeaders } from "../_shared/edgeFunctionAuth.ts";
 import { verifyAnsoegningslink } from "../_shared/ansoegningLinkAuth.ts";
-import { fornavnAf, udfoerOvergang, virksomhedsnavnAf } from "../_shared/ansoegningMotor.ts";
+import { fornavnAf, RAADGIVER_BESKED, REFERENCE_TYPE, udfoerOvergang, virksomhedsnavnAf } from "../_shared/ansoegningMotor.ts";
+import { skrivRaadgiverBesked } from "../_shared/raadgiverBesked.ts";
 import { erAabentTrin, erPaaPause } from "../_shared/ansoegningTrin.ts";
 import { aftaleTilAnsoeger, AFTALE_TIL_ANSOEGER_FELTER, type AftaleRaekkeTilAnsoeger } from "../_shared/ansoegerAftale.ts";
 
@@ -42,6 +50,7 @@ Deno.serve(async (req) => {
     : body.handling === "hent" ? "hent"
     : body.handling === "tag_pladsen" ? "tag_pladsen"
     : body.handling === "afslaa_pladsen" ? "afslaa_pladsen"
+    : body.handling === "genoptag" ? "genoptag"
     : null;
   if (!token || !handling) return json({ error: "token og handling kræves" }, 400);
 
@@ -106,6 +115,24 @@ Deno.serve(async (req) => {
   }
 
   if (!erAabentTrin(a.trin)) return json({ error: "Ansøgningen er afsluttet" }, 409);
+
+  if (handling === "genoptag") {
+    if (!a.paa_pause_til) return json({ ok: true, allerede: true, ...svar() });
+    const pauseVar = a.paa_pause_til;
+    const res = await udfoerOvergang(admin, { ansoegning: a, handling: { art: "genoptag" }, via: "ansoeger_link", truffetAf: null, nu: new Date() });
+    if (res.ok === false) return json({ error: res.grund }, res.status);
+    // Klokken: ansøgeren meldte sig selv klar — køen skriver ikke af sig selv, det gør rådgiveren.
+    const klokke = await skrivRaadgiverBesked(admin, {
+      type: RAADGIVER_BESKED.genoptaget,
+      title: `${virksomhedsnavnAf(a)} er klar igen — pausen er taget af`,
+      body: `Ansøgeren tog selv pausen af fra sin statusside (den gjaldt til ${pauseVar}). Ansøgningen står på «${a.trin}» — køen skriver ikke af sig selv; det er jer, der tager næste skridt.`,
+      reference_type: REFERENCE_TYPE,
+      reference_id: a.id,
+    });
+    console.log(`[ansoegning-link] genoptag på ${a.id}: ${res.annulleret} annulleret, pause var til ${pauseVar}, klokke ${klokke.skrevet}/${klokke.raadgivere}`);
+    return json({ ok: true, allerede: false, ...svar(), paa_pause_til: null });
+  }
+
   if (erPaaPause(a.paa_pause_til, new Date())) return json({ ok: true, allerede: true, ...svar() });
   const res = await udfoerOvergang(admin, { ansoegning: a, handling: { art: "ikke_nu" }, via: "ansoeger_link", truffetAf: null, nu: new Date() });
   if (res.ok === false) return json({ error: res.grund }, res.status);

@@ -7,7 +7,7 @@ import { HbButton } from "@/components/hjemmebane/HbButton";
 import { HB_EYEBROW, HB_H1, HB_RAMME } from "@/components/hjemmebane/hbFormKlasser";
 import { useHbDokumentGrund } from "@/hooks/useHbDokumentGrund";
 import { KONTAKT_ADRESSE } from "@/lib/kontaktadresse";
-import { AnsoegningsFejl, hentStatus, sigIkkeNu, svarPaaPladsen, type StatusSvar } from "@/lib/ansoegning/api";
+import { AnsoegningsFejl, hentStatus, sigIkkeNu, tagOpIgen, svarPaaPladsen, type StatusSvar } from "@/lib/ansoegning/api";
 import { afgoerStatus, danskDato, laesPladsHandling, PLADS_UDLOEBET, pladsSpoergsmaal, pladsSvarTekst, type PladsSvar } from "@/lib/ansoegning/status";
 import { TOKEN_PARAM } from "@/lib/ansoegning/skema";
 
@@ -38,6 +38,8 @@ const AnsoegStatus = () => {
   const [pladsResultat, setPladsResultat] = useState<{ titel: string; tekst: string } | null>(null);
   const [sender, setSender] = useState(false);
   const [sagtIkkeNu, setSagtIkkeNu] = useState<string | null>(null);
+  // Pausen taget af fra siden (18/9 aften): én grøn linje, siden viser trinnet igen.
+  const [genoptaget, setGenoptaget] = useState(false);
   // Samtalen: efter book/flyt/aflys hentes status igen (version++), og en linje siger hvad der skete.
   const [version, setVersion] = useState(0);
   const [samtaleBesked, setSamtaleBesked] = useState<string | null>(null);
@@ -87,6 +89,24 @@ const AnsoegStatus = () => {
       setBekraefter(false);
     } catch (e) {
       console.error("[ansoeg/status] ikke nu fejlede:", e);
+      setTilstand({ slags: "fejl" });
+    } finally {
+      setSender(false);
+    }
+  };
+
+  const tagOp = async () => {
+    if (sender) return;
+    setSender(true);
+    try {
+      const r = await tagOpIgen(token);
+      setSagtIkkeNu(null);
+      setBekraefter(false);
+      setGenoptaget(true);
+      setTilstand({ slags: "klar", svar: r });
+      setVersion((x) => x + 1);
+    } catch (e) {
+      console.error("[ansoeg/status] tag op igen fejlede:", e);
       setTilstand({ slags: "fejl" });
     } finally {
       setSender(false);
@@ -157,6 +177,20 @@ const AnsoegStatus = () => {
           </div>
         )}
         {samtaleBesked && <p className="text-sm font-medium text-hb-evergreen" data-samtale-besked>{samtaleBesked}</p>}
+        {genoptaget && !v.visGenoptag && <p className="text-sm font-medium text-hb-evergreen" data-genoptaget>Pausen er taget af — vi er i gang igen.</p>}
+        {/* På pause (18/9 aften): «ikke nu» er en udvej, ikke en spærring — er de klar før datoen, tager de selv pausen af. Samme dom som rådgiverens «Genoptag nu». */}
+        {!pladsKort && !pladsResultat && (v.visGenoptag || sagtIkkeNu !== null) && (
+          <div className="rounded-hb border border-hb-line bg-hb-surface p-5" data-genoptag>
+            <p className="text-[15px] font-medium text-hb-ink">Klar før tid?</p>
+            <p className="mt-1 text-sm leading-relaxed text-hb-ink-soft">Så tag ansøgningen op igen nu. Den fortsætter, hvor den slap, og Jonas får besked med det samme.</p>
+            <div className="mt-4">
+              <HbButton type="button" onClick={tagOp} disabled={sender}>
+                {sender ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : null}
+                Tag ansøgningen op igen
+              </HbButton>
+            </div>
+          </div>
+        )}
         {!pladsKort && sagtIkkeNu === null && !bekraefter && (v.book || v.booket) && (
           <AnsoegSamtale token={token} booket={v.booket} onAendret={(besked) => { setSamtaleBesked(besked); setVersion((x) => x + 1); }} />
         )}

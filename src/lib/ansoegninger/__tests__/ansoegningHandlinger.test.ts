@@ -52,6 +52,18 @@ describe("ansoegningHandlinger — knapperne følger afgoerOvergang (fladen gæt
     expect(erGyldigPauseDato("2026-09-18", nu)).toBe(false);
     expect(erGyldigPauseDato("10/12-2026", nu)).toBe(false);
   });
+  it("genoptag (18/9 aften): «Genoptag nu» kun med en pause — reserve, uden dialog, foran «Flyt pausen»; ikke uden pause, ikke på lukket/underskrevet", () => {
+    for (const trin of ["ny", "indkaldt", "booket", "afholdt", "aftalegrundlag_sendt"] as const) {
+      const med = knapperFor(ctx(trin, true)).map((x) => x.handling);
+      expect(med.indexOf("genoptag")).toBeGreaterThanOrEqual(0);
+      expect(med.indexOf("genoptag")).toBeLessThan(med.indexOf("saet_pause"));
+      expect(knapperFor(ctx(trin, true)).find((x) => x.handling === "genoptag")).toMatchObject({ tekst: "Genoptag nu", stor: false, farlig: false, bekraeft: false, kraeverDato: false });
+      expect(knapperFor(ctx(trin)).map((x) => x.handling)).not.toContain("genoptag");
+    }
+    expect(knapperFor(ctx("indkaldt", true)).map((x) => x.handling)).toEqual(["genoptag", "saet_pause", "luk"]);
+    expect(knapperFor(ctx("underskrevet", true))).toEqual([]);
+    expect(knapperFor({ trin: "lukket", paaPause: true, lukketFraTrin: "ny" }).map((x) => x.handling)).toEqual(["genaabn"]);
+  });
   it("overskrift og link-dom", () => {
     expect(bekraeftOverskrift(knapperFor(ctx("ny"))[1], "Nordic Byg ApS")).toBe("Afvis — Nordic Byg ApS?");
     expect(erGyldigtAftaleLink("https://app.theboardroom.dk/aftale?token=x")).toBe(true);
