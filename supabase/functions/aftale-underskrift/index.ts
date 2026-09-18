@@ -47,6 +47,7 @@
 
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
 import { corsHeaders } from "../_shared/edgeFunctionAuth.ts";
+import { udenSpaerring } from "../_shared/raadgiverModtager.ts";
 import { verifyAftaletoken, type AftaleRaekke } from "../_shared/aftaletokenAuth.ts";
 import {
   KODE_GYLDIG_MINUTTER,
@@ -414,7 +415,8 @@ Deno.serve(async (req) => {
       const okModtager = await sendIndgangsMail({
         adminClient: admin, til: aftale.modtager_email, subject: modtager.subject, html: modtager.html, label: "aftale-kvittering", companyId: logCompanyId,
       });
-      const raadgiverTil = (Deno.env.get("RAADGIVER_MAIL_TIL") ?? "").trim();
+      // Uden om bounce-spærringen på kontakt@ (raadgiverModtager.ts, 18/9 → 19/10-2026), hvis secret'en peger dér.
+      const raadgiverTil = udenSpaerring((Deno.env.get("RAADGIVER_MAIL_TIL") ?? "").trim(), nu);
       let okRaadgiver: boolean | null = null;
       if (raadgiverTil) {
         const r = aftaleKvitteringRaadgiverMail({ virksomhed, navn: navnDom.navn, tidspunkt: underskrevetTid, aftryk, companyId: koblingsCompanyId, ansoegningId: aftale.ansoegning_id, ip: kalder.ip, browser });

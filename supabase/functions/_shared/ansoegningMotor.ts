@@ -58,6 +58,7 @@ import { afgoerDubletter, type DubletDom } from "./ansoegningDubletter.ts";
 import { raadgiverMailOmNyAnsoegning } from "./ansoegningRaadgiverMail.ts";
 import { sendManagedEmail } from "./managedEmail.ts";
 import { KONTAKT_ADRESSE } from "./indgangsMail.ts";
+import { raadgiverModtager } from "./raadgiverModtager.ts";
 import { bygRykkerMail, type MailKontekst, type VentepladsKontekst } from "./ansoegningRykkerMails.ts";
 import { grundTekst, koeNummer, type AfslagsIndhold } from "./afslagsTilbud.ts";
 import type { VentepladsRaekke } from "./ventelisteDom.ts";
@@ -321,7 +322,8 @@ export async function registrerIndsendelse(admin: SupabaseClient, id: string, nu
     const mail = raadgiverMailOmNyAnsoegning({ ansoegning: a, anbefaling, dubletter, appUrl: APP_URL });
     const res = await sendManagedEmail({
       adminClient: admin,
-      to: KONTAKT_ADRESSE,
+      // Modtageren går uden om bounce-spærringen på kontakt@ (raadgiverModtager.ts, 18/9 → 19/10-2026).
+      to: raadgiverModtager(nu),
       subject: mail.emne,
       html: mail.html,
       text: mail.tekst,

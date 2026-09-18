@@ -41,6 +41,7 @@
  */
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
 import { afgoerBetalingsfrist, BETALINGSFRIST_DAGE } from "./betalingsfrist.ts";
+import { udenSpaerring } from "./raadgiverModtager.ts";
 import { dag0Mail, raadgiverManglerPrisMail } from "./indgangsMail.ts";
 import {
   betalingsfristDato,
@@ -101,7 +102,8 @@ export async function udloesIndgangsBetalingsmail(
 
   // ── 3. Uden pris: rådgivermailen i stedet (§17, §21) ──
   if (tilstand.status === "afventer_pris") {
-    const raadgiverTil = (Deno.env.get("RAADGIVER_MAIL_TIL") ?? "").trim();
+    // Uden om bounce-spærringen på kontakt@ (raadgiverModtager.ts, 18/9 → 19/10-2026), hvis secret'en peger dér.
+    const raadgiverTil = udenSpaerring((Deno.env.get("RAADGIVER_MAIL_TIL") ?? "").trim(), new Date());
     if (!raadgiverTil) {
       console.error(
         `${LOG} company ${companyId} (${company.name}) mangler prisniveau, men RAADGIVER_MAIL_TIL er ikke sat — ingen rådgivermail sendt`,

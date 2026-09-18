@@ -41,7 +41,7 @@ export const kvitteringsskaermenLoverMailen = (k: string): boolean => k.includes
 // 3) mail til rådgiverne ved indsendelse, til kontakt@, én gang pr. ansøgning.
 export const raadgiverMailSendesVedIndsendelse = (motor: string): boolean =>
   motor.includes("raadgiverMailOmNyAnsoegning({ ansoegning: a, anbefaling, dubletter, appUrl: APP_URL })") &&
-  motor.includes("to: KONTAKT_ADRESSE") && motor.includes('label: "ansoegning-ny-raadgiver"') &&
+  motor.includes("to: raadgiverModtager(nu),") /* 18/9 aften: uden om bounce-spærringen på kontakt@ (raadgiverModtager.ts) */ && motor.includes('label: "ansoegning-ny-raadgiver"') &&
   motor.includes("idempotencyKey: `ansoegning-ny-raadgiver-${a.id}`");
 // 4) loftet: 30 pr. IP pr. time, og 429-teksten giver en udvej.
 export const loftetEr30MedUdvej = (gem: string): boolean =>
@@ -141,7 +141,7 @@ describe("flowRettelser.guard — VÆRNET VIRKER: kopier med fejlen sat ind fang
   });
   it("3. rådgivermailen uden idempotens → falsk; til en anden adresse → falsk", () => {
     expect(raadgiverMailSendesVedIndsendelse(motor.replace("idempotencyKey: `ansoegning-ny-raadgiver-${a.id}`", "idempotencyKey: undefined"))).toBe(false);
-    expect(raadgiverMailSendesVedIndsendelse(motor.replace("to: KONTAKT_ADRESSE", 'to: "jonas@topix.dk"'))).toBe(false);
+    expect(raadgiverMailSendesVedIndsendelse(motor.replace("to: raadgiverModtager(nu),", 'to: "nogen@andet.dk",'))).toBe(false);
   });
   it("4. loftet tilbage på 5 → falsk; 429-teksten uden udvej → falsk", () => {
     expect(loftetEr30MedUdvej(gem.replace("const OPRET_PR_IP_PR_TIME = 30;", "const OPRET_PR_IP_PR_TIME = 5;"))).toBe(false);
