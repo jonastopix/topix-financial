@@ -2,13 +2,35 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { INDGANGS_PRISPUNKTER_OERE } from "@/lib/indgangspris";
+import { gemNoteOgPris } from "@/hooks/ansoegninger";
 import { HbButton } from "../HbButton";
 
-/** «Send til underskrift» på virksomhedssiden (UDKAST 18/9). Rådgiveren
-    vælger prisniveauet aftalen skal lyde på, og kaldet går til
-    send-til-underskrift (Bucket A), som fastfryser teksten, sender linkmailen
-    og skriver sporet. Samme form som SaetPrisniveau i VirksomhedStamdata.
-    Findes der allerede en åben aftale, spørger vi før den erstattes. */
+/** «Send til underskrift» (UDKAST 18/9). Rådgiveren vælger prisniveauet
+    aftalen skal lyde på, og kaldet går til send-til-underskrift (Bucket A),
+    som fastfryser teksten, sender linkmailen og skriver sporet. Samme form
+    som SaetPrisniveau i VirksomhedStamdata. Findes der allerede en åben
+    aftale, spørger vi før den erstattes.
+
+    EJEREN er enten en VIRKSOMHED (companyId — virksomhedssiden, som før)
+    eller en ANSØGNING (ansoegningId — ansøgningens side; generalprøvens
+    brist 1, 18/9): functionen tager allerede `ansoegning_id` fra trinnene
+    «afholdt» og «aftalegrundlag_sendt» og flytter selv motorens trin
+    («tilbud»), så rykkerne i aftalegrundlags-trappen peger på aftalen.
+
+    PRISEN på en ansøgning: én pris, ét sted — functionen læser
+    ansoegninger.pris_oere og afviser (409 pris_saettes_paa_ansoegningen) et
+    prisniveau der afviger. Derfor skrives prisniveauet på ansøgningen FØR
+    kaldet (gemNoteOgPris — samme skrivning som notefeltet), og
+    forhåndsvisningen sender intet prisniveau for en ansøgning, så den viser
+    den pris der står. */
+
+/** Præcis én ejer: virksomhedens id eller ansøgningens id. */
+export type UnderskriftEjer = { companyId: string; ansoegningId?: undefined } | { ansoegningId: string; companyId?: undefined };
+
+/** Body-feltet for ejeren — functionen kræver præcis én af de to. */
+function ejerBody(ejer: UnderskriftEjer): Record<string, string> {
+  return ejer.ansoegningId !== undefined ? { ansoegning_id: ejer.ansoegningId } : { company_id: ejer.companyId };
+}
 
 function formatKr(oere: number): string {
   return new Intl.NumberFormat("da-DK", { maximumFractionDigits: 0 }).format(oere / 100) + " kr.";
@@ -38,16 +60,18 @@ function visForhaandsvisning(svar: { titel?: string; skabelon?: string; tekst?: 
   w.document.body.appendChild(pre);
 }
 
-export const SendTilUnderskrift = ({ companyId, onOpdateret }: { companyId: string; onOpdateret: () => Promise<void> }) => {
+export const SendTilUnderskrift = ({ onOpdateret, ...ejer }: UnderskriftEjer & { onOpdateret: () => Promise<void> }) => {
+  const erAnsoegning = ejer.ansoegningId !== undefined;
   const [arbejder, setArbejder] = useState<number | null>(null);
   const [viser, setViser] = useState<number | null>(null);
   // Forhåndsvis (18/9): samme kald med forhaandsvis: true — intet skrives, intet sendes.
+  // For en ansøgning sendes intet prisniveau: functionen bruger den pris der står på ansøgningen.
   const forhaandsvis = async (oere: number) => {
     setViser(oere);
     try {
       const { data: { session } } = await supabase.auth.getSession();
       const { data, error } = await supabase.functions.invoke("send-til-underskrift", {
-        body: { company_id: companyId, prisniveau_oere: oere, forhaandsvis: true },
+        body: { ...ejerBody(ejer), prisniveau_oere: erAnsoegning ? null : oere, forhaandsvis: true },
         headers: { Authorization: `Bearer ${session?.access_token}` },
       });
       if (error) {
@@ -63,9 +87,14 @@ export const SendTilUnderskrift = ({ companyId, onOpdateret }: { companyId: stri
   const send = async (oere: number, erstat = false) => {
     setArbejder(oere);
     try {
+      if (ejer.ansoegningId !== undefined) {
+        // Én pris, ét sted: prisniveauet skrives på ansøgningen FØR kaldet (motoren læser
+        // pris_oere ved «underskrevet»; functionen afviser et afvigende prisniveau).
+        await gemNoteOgPris(ejer.ansoegningId, { pris_oere: oere });
+      }
       const { data: { session } } = await supabase.auth.getSession();
       const { data, error } = await supabase.functions.invoke("send-til-underskrift", {
-        body: { company_id: companyId, prisniveau_oere: oere, erstat },
+        body: { ...ejerBody(ejer), prisniveau_oere: oere, erstat },
         headers: { Authorization: `Bearer ${session?.access_token}` },
       });
       if (error) {
@@ -84,21 +113,32 @@ export const SendTilUnderskrift = ({ companyId, onOpdateret }: { companyId: stri
           : kode === "pladsholdere_mangler" ? `Skabelonen har pladsholdere uden værdi: ${(body?.manglende as string[] | undefined)?.join(", ") ?? "?"}.`
           : kode === "felter_tomme" ? `Virksomheden mangler: ${(body?.tomme as string[] | undefined)?.join(", ") ?? "?"}.`
           : kode === "link_mail_fejlede" ? "Mailen kunne ikke sendes — aftalen er trukket tilbage igen. Prøv om lidt."
+          : kode === "ansoegning_forkert_trin" ? `Aftalegrundlaget kan først sendes efter samtalen — ansøgningen står på «${typeof body?.trin === "string" ? body.trin : "?"}».`
+          : kode === "ansoegning_ikke_indsendt" ? "Ansøgningen er ikke sendt ind endnu."
+          : kode === "pris_saettes_paa_ansoegningen" ? "Prisen på ansøgningen er en anden — sæt den først."
+          : kode === "ukendt_ansoegning" ? "Ansøgningen findes ikke."
           : `Kunne ikke sende (${status ?? "?"}).`;
         console.error("[SendTilUnderskrift] send-til-underskrift fejlede:", status, body, error);
         toast.error("Aftalegrundlaget blev ikke sendt", { description: tekst });
         return;
       }
       const til = typeof data?.til === "string" ? data.til : "kontaktmailen";
-      toast.success("Aftalegrundlaget er sendt til underskrift", { description: `Linket er sendt til ${til} og gælder i 21 dage.` });
+      // Ansøgningsvejen: aftalen ER sendt og mailen gået, men motorens «tilbud» kan være afvist —
+      // så står trinnet forkert, og rådgiveren skal vide det (functionen melder det i `motor`).
+      const motor = (data?.motor ?? null) as { ok?: boolean; grund?: string; til?: string } | null;
+      if (erAnsoegning && motor !== null && motor.ok === false) {
+        toast.warning("Aftalegrundlaget er sendt — men trinnet blev ikke flyttet", { description: `Linket er sendt til ${til}. Motoren sagde: ${motor.grund ?? "ukendt fejl"}. Sæt trinnet i hånden.` });
+      } else {
+        toast.success("Aftalegrundlaget er sendt til underskrift", { description: `Linket er sendt til ${til} og gælder i 21 dage.${erAnsoegning && motor?.til ? ` Ansøgningen står nu på «${motor.til}».` : ""}` });
+      }
       await onOpdateret();
     } finally {
       setArbejder(null);
     }
   };
   return (
-    <span className="mt-1 flex flex-wrap items-center gap-2">
-      <span className="text-xs text-hb-ink-soft">Send aftalegrundlaget til e-underskrift — vælg prisniveau:</span>
+    <span className="mt-1 flex flex-wrap items-center gap-2" data-send-til-underskrift={erAnsoegning ? "ansoegning" : "virksomhed"}>
+      <span className="text-xs text-hb-ink-soft">{erAnsoegning ? "Send aftalegrundlaget til e-underskrift — prisen sættes på ansøgningen, vælg niveau:" : "Send aftalegrundlaget til e-underskrift — vælg prisniveau:"}</span>
       {INDGANGS_PRISPUNKTER_OERE.map((oere) => (
         <HbButton key={oere} type="button" variant="secondary" className="h-8 px-3 text-xs" onClick={() => void send(oere)} disabled={arbejder !== null || viser !== null}>
           {arbejder === oere ? "Sender…" : `${formatKr(oere)} ekskl. moms`}
