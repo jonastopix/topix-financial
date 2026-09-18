@@ -65,9 +65,13 @@ export const RAADGIVER_KILDE_ORD: Readonly<Record<string, string>> = {
   realtime_presence: "hvem der er online",
   // «Sessioner i dag» (17/9, PR 2): bookede sessioner på dagens danske dato.
   session_bookings: "sessionerne",
+  // Ansøgningerne der venter (18/9): forsidens linje og /ansoegninger.
+  ansoegninger: "ansøgningerne",
+  ansoegning_beslutninger: "ansøgningernes spor",
+  planlagte_haendelser: "rykkerkøen",
 };
 
-export type RaadgiverFlade = "forsiden" | "virksomheden" | "listen" | "opgaverne" | "invitationerne";
+export type RaadgiverFlade = "forsiden" | "virksomheden" | "listen" | "opgaverne" | "invitationerne" | "ansoegningerne" | "ansoegningen";
 
 /** Hvad fladen kan mangle — det rådgiveren skal vide om skærmen. */
 export const FLADE_MANGEL: Readonly<Record<RaadgiverFlade, string>> = {
@@ -76,6 +80,8 @@ export const FLADE_MANGEL: Readonly<Record<RaadgiverFlade, string>> = {
   listen: "listen kan mangle noget",
   opgaverne: "listen kan mangle noget",
   invitationerne: "listen kan mangle noget",
+  ansoegningerne: "listen kan mangle noget",
+  ansoegningen: "siden kan mangle noget",
 };
 
 /** Rådgiverens ord for en kilde; ukendte kilder bliver «noget af det der står her». */

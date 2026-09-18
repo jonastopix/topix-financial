@@ -67,6 +67,8 @@ const Virksomheder = lazy(() => import("./pages/Virksomheder"));
 const GenkoerRapporter = lazy(() => import("./pages/GenkoerRapporter"));
 const Opgaver = lazy(() => import("./pages/Opgaver"));
 const Virksomhed = lazy(() => import("./pages/Virksomhed"));
+const Ansoegninger = lazy(() => import("./pages/Ansoegninger"));
+const Ansoegning = lazy(() => import("./pages/Ansoegning"));
 const Forside = lazy(() => import("./pages/Forside"));
 const Oekonomi = lazy(() => import("./pages/Oekonomi"));
 
@@ -286,6 +288,11 @@ const App = () => (
               {/* «Genkør flere rapporter» (17/9): rådgiverens masse-genkørsel i browseren — filen fra storage,
                   samme rapport-id, aldrig overwrite. Nået fra virksomhedslisten. */}
               <Route path="/virksomheder/genkoer" element={<AdvisorRoute><GenkoerRapporter /></AdvisorRoute>} />
+              {/* Rådgiverens side af ansøgningen (18/9): listen i trin og én ansøgnings egen
+                  side — de to beslutninger (tal med dem/afvis; tilbud/afslag) træffes her,
+                  gennem ansoegning-handling. Nået fra forsidens linje og virksomhedslisten. */}
+              <Route path="/ansoegninger" element={<AdvisorRoute><Ansoegninger /></AdvisorRoute>} />
+              <Route path="/ansoegninger/:ansoegningId" element={<AdvisorRoute><Ansoegning /></AdvisorRoute>} />
               {/* Rådgivernes fælles to-do-liste (8/9): en liste ved siden af forsiden. */}
               <Route path="/opgaver" element={<AdvisorRoute><Opgaver /></AdvisorRoute>} />
               {/* Virksomhedssiden, etape 1 (§3.3, §4, §11 pkt. 5): nøglet på

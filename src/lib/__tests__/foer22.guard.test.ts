@@ -77,7 +77,8 @@ export const forsidelinjenHolder = (dom: string, dash: string, flade: string): b
   dom.includes("ekstra: ForsidensEkstra = {}") &&
   dash.includes("created_at, er_kunde, contract_start_date\")") &&
   dash.includes("!!c.contract_start_date && !expiredCompanyIds.has(c.id) && !companiesWithActiveMembers.has(c.id))") &&
-  dash.includes("afgoerForsidensDom(virksomhederTilDom, now, { betaltIkkeOprettet })") &&
+  // 18/9 (rådgiverens side af ansøgningen): dommen får også ansøgningerne i ekstra — betalt-listen står stadig først i kaldet.
+  dash.includes("afgoerForsidensDom(virksomhederTilDom, now, { betaltIkkeOprettet, ansoegninger: ansoegningerTilForside })") &&
   flade.includes('if (l.linje === "betalt") {') &&
   flade.includes("<Link to={virksomhedsLink(v.companyId)} className={TEKSTLINK}>") &&
   flade.includes('input.linje.linje === "boelge" || input.linje.linje === "betalt"') &&

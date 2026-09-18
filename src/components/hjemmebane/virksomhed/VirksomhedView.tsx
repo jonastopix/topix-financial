@@ -273,6 +273,7 @@ const GRUNDENS_ANKER: Record<OpgaveSlags, string | null> = {
   refleksion_hjaelp: "section-refleksion", // Refleksionen — blok 2 (fase 4)
   ingen_maal: "section-milestones", // Planen — «Sæt mål sammen med medlemmet» (fase 5)
   betalt_ikke_oprettet: null, // «Invitationer»-blokken har intet anker; man er øverst og ser statuslinjen (før 22/9)
+  ansoegninger_venter: null, // ikke en virksomhed — linjen peger på /ansoegninger, aldrig hertil (18/9)
 };
 
 /** Grundene der lander i Aftalen — folden skal åbnes før der rulles. */

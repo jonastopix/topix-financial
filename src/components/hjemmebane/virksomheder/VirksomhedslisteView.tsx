@@ -461,7 +461,7 @@ export const VirksomhedslisteView = () => {
           Alle virksomheder, ét sted.
         </h1>
         {/* «Genkør flere rapporter» (17/9): rådgiverens masse-genkørsel — én linje, ikke en knap i listen. */}
-        <p className="mt-2 text-sm text-hb-ink-soft"><Link to="/virksomheder/genkoer" className="text-hb-evergreen underline-offset-4 hover:underline">Genkør rapporter</Link> — læs filer igen med de rettede skabeloner.</p>
+        <p className="mt-2 text-sm text-hb-ink-soft"><Link to="/virksomheder/genkoer" className="text-hb-evergreen underline-offset-4 hover:underline">Genkør rapporter</Link> — læs filer igen med de rettede skabeloner. <Link to="/ansoegninger" className="text-hb-evergreen underline-offset-4 hover:underline">Ansøgninger</Link> — dem der venter på jeres beslutning.</p>
         {/* Forsidens udsnit (8/9): listen SIGER hvad den viser, med forsidens
             ord, og «Vis alle» er vejen tilbage. Findes grunden ikke længere i
             dommen (tilstanden er væk siden klikket), siges det — og listen

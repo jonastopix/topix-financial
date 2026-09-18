@@ -307,6 +307,22 @@ export const BETALT_NOEGLE = "betalt_ikke_oprettet";
 export const BETALT_NAVNE_I_TEKST = 3;
 
 /**
+ * ANSØGNINGER DER VENTER (18/9, rådgiverens side af ansøgningsmotoren): de
+ * to beslutninger et menneske skal træffe — (1) efter ansøgningen: tal med
+ * dem eller afvis (trin «ny»); (2) efter samtalen: tilbud eller afslag
+ * (trin «afholdt»). Én linje: «2 nye ansøgninger venter på jer · 1 samtale
+ * er afholdt — tilbud eller afslag?». Alvor 80: over tærsklen (går altid
+ * gennem porten), under «betalt uden konto» (85) — en ansøger venter, et
+ * betalende medlem uden konto venter mere. FORM hændelse: væk når
+ * beslutningen er truffet (trinnet skifter). INGEN KVITTERING: en
+ * ansøgning har intet company_id (kvitteringen kræver ét,
+ * advisor_company_acknowledgments.company_id NOT NULL), og «Ikke relevant»
+ * ER beslutning (1) — afvis på /ansoegninger. Linjen peger dertil.
+ */
+export const ALVOR_ANSOEGNINGER_VENTER = 80;
+export const ANSOEGNINGER_STI = "/ansoegninger";
+
+/**
  * BØLGEN (Jonas 17/9 «AA», valg 2; analyse-raadgivernes-forside.md §2c og §6
  * forslag 4; forsiden-design §3 «Bølgen»): når mindst BOELGE_FRA
  * virksomheder venter på velkomst med SAMME startdag (dansk dato), er det
@@ -358,6 +374,7 @@ export type OpgaveSlags =
   | "maal_uden_bevaegelse" // TOLVTE slags («Én plan» fase 4, 16/9): aktive mål uden bevægelse i 30 dage — eller flere end tre aktive (gennemgang). lib/hjemmebane/planen
   | "refleksion_hjaelp" // TRETTENDE slags (fase 4, 16/9): refleksionen bærer «søger hjælp til» — pulse_checkins.help_needed. §2 slags 8 uden AI.
   | "ingen_maal" // FJORTENDE slags (fase 5, 16/9): en aktiv kunde uden aktive mål — sæt dem sammen med medlemmet.
+  | "ansoegninger_venter" // SEKSTENDE slags (18/9, ansøgningsmotoren): ansøgninger på trin «ny» eller «afholdt» — de to menneskebeslutninger. Ingen virksomhed, ingen kvittering; egen indgang (AnsoegningTilForside). Står FØR den femtende, så foer22.guard's ordrette linje holder.
   | "betalt_ikke_oprettet"; // FEMTENDE slags (før 22/9, 17/9 — Jonas «1. Ja»): har betalt (kontraktstart sat), men ingen konto (ingen company_members). Står uden for pending-gaten; egen indgang til dommen (BetaltIkkeOprettet).
 
 /** §3's tre former. */
@@ -381,6 +398,7 @@ export const FORM: Record<OpgaveSlags, Form> = {
   refleksion_hjaelp: "haendelse", // én refleksion, én gang — linjen står ved navn til den er lukket eller afløst
   ingen_maal: "tilstand", // sand igen i morgen: samles til «N kunder har ingen mål — sæt dem sammen med medlemmet»
   betalt_ikke_oprettet: "haendelse", // én betaling, én gang — én samlet, foldet linje med navne (Betaltlinje), som bølgen; væk når kontoen er oprettet
+  ansoegninger_venter: "haendelse", // én samlet linje (Ansoegningslinje) — væk når beslutningerne er truffet (trinnet skifter); ingen kvittering
 };
 
 /** Indsats — «hvor stort» (§4). Bryder KUN uafgjort på alvor; bærer aldrig
@@ -411,6 +429,7 @@ export const INDSATS: Record<OpgaveSlags, Indsats> = {
   refleksion_hjaelp: 2, // én besked: svar på det de bad om hjælp til
   ingen_maal: 2, // en samtale om mål — sæt dem sammen
   betalt_ikke_oprettet: 1, // ét klik: send invitationen igen fra virksomhedssiden
+  ansoegninger_venter: 2, // en læsning og en beslutning pr. ansøgning på /ansoegninger
 };
 
 /** company_actions-rækken som dommen ser den: kun det den læser. Kun
@@ -646,7 +665,33 @@ export interface Boelgelinje {
   indsats: Indsats;
 }
 
-export type Linje = Virksomhedslinje | Tilstandslinje | Pukkellinje | Boelgelinje | Betaltlinje;
+/** Det dommen får om en ansøgning der venter på et menneske (AdvisorDashboard læser ansoegninger med trin ny/afholdt). */
+export interface AnsoegningTilForside {
+  id: string;
+  /** Virksomhedsnavnet (CVR-registrets, ellers ansøgerens) — kun til folden. */
+  navn: string;
+  trin: "ny" | "afholdt";
+  /** ansoegninger.trin_sat_at (ISO) — hvor længe den har ventet. */
+  sidenAt: string;
+}
+
+/** «2 nye ansøgninger venter på jer · 1 samtale er afholdt — tilbud eller afslag?» (18/9): én linje, ingen kvittering, peger på /ansoegninger. */
+export interface Ansoegningslinje {
+  linje: "ansoegninger";
+  slags: "ansoegninger_venter";
+  antal: number;
+  nye: number;
+  afholdte: number;
+  tekst: string;
+  /** Ældste først — til folden på forsiden (navn · «ny»/«samtale afholdt»). */
+  ansoegninger: { id: string; navn: string; trin: "ny" | "afholdt"; sidenAt: string }[];
+  alvor: number;
+  lukkerOmDage: null;
+  loeftet: false;
+  indsats: Indsats;
+}
+
+export type Linje = Virksomhedslinje | Tilstandslinje | Pukkellinje | Boelgelinje | Betaltlinje | Ansoegningslinje;
 
 export interface Forsidensdom {
   /** Det der står på forsiden, sorteret (§4). */
@@ -1231,6 +1276,38 @@ export function betaltLinje(liste: readonly BetaltIkkeOprettet[] | undefined, nu
   };
 }
 
+/** «2 nye ansøgninger venter på jer» · «1 samtale er afholdt — tilbud eller afslag?» · begge med « · » imellem. */
+export function ansoegningerTekst(nye: number, afholdte: number): string {
+  const dele: string[] = [];
+  if (nye > 0) dele.push(nye === 1 ? "1 ny ansøgning venter på jer" : `${nye} nye ansøgninger venter på jer`);
+  if (afholdte > 0) dele.push(afholdte === 1 ? "1 samtale er afholdt — tilbud eller afslag?" : `${afholdte} samtaler er afholdt — tilbud eller afslag?`);
+  return dele.join(" · ");
+}
+
+/** Linjen — null når ingen venter. Ældste først (den der har ventet længst står øverst i folden). Kun trin ny/afholdt tæller; andet i listen ignoreres. */
+export function ansoegningslinje(liste: readonly AnsoegningTilForside[] | undefined): Ansoegningslinje | null {
+  const venter = (liste ?? [])
+    .filter((a) => a.trin === "ny" || a.trin === "afholdt")
+    .slice()
+    .sort((x, y) => x.sidenAt.localeCompare(y.sidenAt) || x.navn.localeCompare(y.navn, "da"));
+  if (venter.length === 0) return null;
+  const nye = venter.filter((a) => a.trin === "ny").length;
+  const afholdte = venter.length - nye;
+  return {
+    linje: "ansoegninger",
+    slags: "ansoegninger_venter",
+    antal: venter.length,
+    nye,
+    afholdte,
+    tekst: ansoegningerTekst(nye, afholdte),
+    ansoegninger: venter.map((a) => ({ id: a.id, navn: a.navn, trin: a.trin, sidenAt: a.sidenAt })),
+    alvor: ALVOR_ANSOEGNINGER_VENTER,
+    lukkerOmDage: null,
+    loeftet: false,
+    indsats: INDSATS.ansoegninger_venter,
+  };
+}
+
 // ─── Dommen ───────────────────────────────────────────────────────────────
 
 /**
@@ -1240,6 +1317,8 @@ export function betaltLinje(liste: readonly BetaltIkkeOprettet[] | undefined, nu
 /** Det der står UDEN FOR virksomhederne (før 22/9): dem der har betalt uden konto — ingen company_members, derfor ikke i `virksomheder`. Valgfri: ældre kaldere og tests uden feltet får ingen linje. */
 export interface ForsidensEkstra {
   betaltIkkeOprettet?: readonly BetaltIkkeOprettet[];
+  /** Ansøgninger på trin ny/afholdt (18/9) — ingen virksomhed, ingen kvittering. Valgfri som ovenfor. */
+  ansoegninger?: readonly AnsoegningTilForside[];
 }
 
 export function afgoerForsidensDom(virksomheder: readonly VirksomhedTilDom[], nu: Date, ekstra: ForsidensEkstra = {}): Forsidensdom {
@@ -1401,12 +1480,15 @@ export function afgoerForsidensDom(virksomheder: readonly VirksomhedTilDom[], nu
   // Betalt, ikke oprettet konto (før 22/9): én foldet linje, alvor 85 — går
   // gennem porten alene; null når ingen eller alle kvitteret.
   const betalt = betaltLinje(ekstra.betaltIkkeOprettet, nu);
+  // Ansøgninger der venter på et menneske (18/9): én linje, alvor 80, ingen kvittering.
+  const ansoegninger = ansoegningslinje(ekstra.ansoegninger);
 
   // Samlede linjer går gennem alvorsporten som ÉN linje hver.
   const linjer: Linje[] = [
     ...virksomhedslinjer.filter((l) => !iBoelge.has(l.companyId)),
     ...boelger,
     ...(betalt ? [betalt] : []),
+    ...(ansoegninger ? [ansoegninger] : []),
     ...tilstandslinjer.filter(gaarGennemPorten),
     ...pukler.filter(gaarGennemPorten),
   ].sort(sammenlignLinjer);
