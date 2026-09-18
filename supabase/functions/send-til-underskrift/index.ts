@@ -64,6 +64,7 @@ import { betalingsfristDato, fornavnAf, formatDanskDato, sendIndgangsMail } from
 import { aftaleLinkMail, aftaleUrl } from "../_shared/underskriftMail.ts";
 import { hentAnsoegning, udfoerOvergang, virksomhedsnavnAf, type AnsoegningRaekke } from "../_shared/ansoegningMotor.ts";
 import { KENDTE_FELTNAVNE } from "../_shared/aftalefelter.ts";
+import { afgoerUnderskriftStop, type KendtVirksomhed } from "../_shared/underskriftStop.ts";
 import { slaaCvrOp } from "../_shared/virksomhedsOprettelse.ts";
 import type { CvrSvar } from "../_shared/virksomhedsraekke.ts";
 
@@ -202,6 +203,9 @@ Deno.serve(async (req) => {
     }
     const erstat = body?.erstat === true;
     const forhaandsvis = body?.forhaandsvis === true;
+    // Pengekæden (C's recon 18/9, §4): «ja, det er en ny virksomhed» — rådgiverens bevidste valg
+    // når ansøgningens mail allerede er kontakt på en virksomhed. Gælder kun mail-tilfældet.
+    const bekraeftNyVirksomhed = body?.bekraeft_ny_virksomhed === true;
 
     // ── 3. Service-role-klient, virksomheden ──
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -245,6 +249,29 @@ Deno.serve(async (req) => {
         // Én pris, ét sted: motoren læser ansoegninger.pris_oere ved
         // «underskrevet». Sæt prisen på ansøgningen først (A's flade).
         return jsonResponse({ error: "pris_saettes_paa_ansoegningen", pris_oere: ansoegning.pris_oere }, 409);
+      }
+      // ── 3a. Pengekæden (C's recon 18/9, §4 + §8 pkt. 2 og 4): STOP FØR aftalen sendes ──
+      //   CVR findes som virksomhed → 409, altid (konverteringen ville stoppe ved underskriften,
+      //   og den underskrevne ville få rykkere). Mail er kontakt på en virksomhed → 409, medmindre
+      //   rådgiveren har bekræftet en ny virksomhed. Kun ved afsendelse — forhåndsvisningen skriver intet.
+      if (!forhaandsvis) {
+        const mailLower = (ansoegning.email ?? "").trim().toLowerCase();
+        const cvrOk = !!ansoegning.cvr && /^\d{8}$/.test(ansoegning.cvr);
+        const [paaCvr, paaMail] = await Promise.all([
+          cvrOk ? admin.from("companies").select("id, name, status, contract_end_date").eq("cvr_number", ansoegning.cvr).limit(5) : Promise.resolve({ data: [], error: null }),
+          mailLower ? admin.from("companies").select("id, name, status, contract_end_date").eq("contact_email", mailLower).limit(5) : Promise.resolve({ data: [], error: null }),
+        ]);
+        if (paaCvr.error) throw new Error(`virksomhedsopslag (cvr) fejlede: ${paaCvr.error.message}`);
+        if (paaMail.error) throw new Error(`virksomhedsopslag (mail) fejlede: ${paaMail.error.message}`);
+        const stop = afgoerUnderskriftStop({
+          paaCvr: (paaCvr.data ?? []) as KendtVirksomhed[],
+          paaMail: (paaMail.data ?? []) as KendtVirksomhed[],
+          bekraeftNyVirksomhed,
+        });
+        if (stop.stop !== null) {
+          console.warn(`${LOG} afsendelse stoppet for ansøgning ${ansoegning.id}: ${stop.stop} (${stop.virksomheder.map((v) => v.id).join(", ")})`);
+          return jsonResponse({ error: stop.stop, ansoegning_id: ansoegning.id, virksomheder: stop.virksomheder, kan_bekraeftes: stop.kanBekraeftes }, 409);
+        }
       }
       ejer = {
         navn: virksomhedsnavnAf(ansoegning),
@@ -359,7 +386,7 @@ Deno.serve(async (req) => {
     }
 
     // ── 8. Spor ──
-    await admin.from("aftale_spor").insert({ aftale_id: aftale.id, haendelse: "link_sendt", detaljer: { til, af: callerId, skabelon: `${skabelon.navn} v${skabelon.version}` } });
+    await admin.from("aftale_spor").insert({ aftale_id: aftale.id, haendelse: "link_sendt", detaljer: { til, af: callerId, skabelon: `${skabelon.navn} v${skabelon.version}`, ...(bekraeftNyVirksomhed ? { bekraeft_ny_virksomhed: true } : {}) } });
 
     // ── 9. Ansøgningsvejen: motorens trin. Fra «afholdt» er det «tilbud»
     //       (aftale_url = dette link; A's rykkere i aftalegrundlags-trappen
