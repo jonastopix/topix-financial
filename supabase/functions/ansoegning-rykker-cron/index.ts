@@ -26,10 +26,11 @@
 // udfoert_at i dansk dag, plus det der er sendt i DENNE kørsel. Aldrig i
 // email_send_log — den bærer også andre systemers mails.
 //
-// BOOKINGLINKET er Jonas' afklaringssamtale (afklaringUrl: secret
-// AFKLARING_CALENDLY_URL eller standarden calendly.com/topix-jonas/
-// afklaringssamtale — Jonas D3). Trappen «kladde» (Jonas D6) er formularens
-// påmindelse: den sendes kun mens ansøgningen stadig er en kladde med e-mail.
+// BOOKINGLINKET er ansøgerens egen side (ansoegerLink): samtalen vælges i
+// PLATFORMEN (udkast 18/9) og oprettes i Calendly bagved. Mødelinket til i
+// dag/i morgen-mailene står på ansøgningen (samtale_link, fra Calendly-eventet).
+// Trappen «kladde» (Jonas D6) er formularens påmindelse: den sendes kun mens
+// ansøgningen stadig er en kladde med e-mail.
 
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
 import { authenticateServiceRole, corsHeaders } from "../_shared/edgeFunctionAuth.ts";
@@ -47,9 +48,7 @@ import { erBloedUdgave } from "../_shared/ventelisteDom.ts";
 import { tagPladsenLink, afslaaPladsenLink } from "../_shared/ansoegningMotor.ts";
 import { afgoerFremdrift, TOMME_SVAR, type AnsoegningsSvar } from "../_shared/ansoegningSkema.ts";
 import {
-  afklaringUrl,
   ansoegerLink,
-  bygBookingUrl,
   fornavnAf,
   hentAnsoegning,
   ikkeNuLink,
@@ -188,7 +187,6 @@ async function koer(admin: SupabaseClient, toer: boolean, nu: Date): Promise<Res
 
   const harFaaet = await sendtIDag(admin, nu);
   const failClosed = harFaaet.has("*");
-  const bookingBase = afklaringUrl();
 
   for (const raekke of raekker as Raekke[]) {
     try {
@@ -253,7 +251,8 @@ async function koer(admin: SupabaseClient, toer: boolean, nu: Date): Promise<Res
         const mail = bygRykkerMail(raekke.skabelon ?? "", {
           fornavn: fornavnAf(a.navn),
           virksomhedsnavn: virksomhedsnavnAf(a),
-          bookingUrl: bygBookingUrl(bookingBase, a.id),
+          bookingUrl: ansoegerLink(a.token),
+          moedeLink: a.samtale_link,
           statusUrl: ansoegerLink(a.token),
           ikkeNuUrl: ikkeNuLink(a.token),
           samtaleStart: a.samtale_start ? new Date(a.samtale_start) : null,

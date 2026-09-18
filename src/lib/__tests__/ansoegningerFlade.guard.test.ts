@@ -51,9 +51,11 @@ export const ruterneErRigtige = (app: string): boolean =>
 
 export const hookenErRigtig = (h: string): boolean =>
   h.includes('supabase.functions.invoke("ansoegning-handling"') &&
-  h.includes("headers: { Authorization: `Bearer ${session?.access_token}` }") &&
+  // Nye præmis (samtalen i kalenderen, 18/9): hooken har FLERE kald til ansoegning-handling (udfoerHandling, hentSamtaleTider) — hvert kald bærer Bearer.
+  (h.split('functions.invoke("ansoegning-handling"').length - 1) >= 1 &&
+  h.split("headers: { Authorization: `Bearer ${session?.access_token}` }").length - 1 === h.split('functions.invoke("ansoegning-handling"').length - 1 &&
   h.includes("if (error) throw new Error(await laesFejl(error));") &&
-  h.includes("if (data?.error) throw new Error(String(data.error));") &&
+  h.split("if (data?.error) throw new Error(String(data.error));").length - 1 === h.split('functions.invoke("ansoegning-handling"').length - 1 &&
   h.includes('queryKey: ["advisor-dashboard"]') &&
   h.includes('.not("indsendt_at", "is", null)');
 
@@ -137,7 +139,8 @@ describe("ansoegningerFlade.guard — dommene fanger fejlen på en kopi", () => 
   });
   it("2. uden Bearer, uden data.error-tjek eller med kladder fælder dom 2", () => {
     const h = udenKommentarer(laes(HOOK));
-    expect(hookenErRigtig(h.replace("headers: { Authorization: `Bearer ${session?.access_token}` }", ""))).toBe(false);
+    expect(hookenErRigtig(h.replace("headers: { Authorization: `Bearer ${session?.access_token}` }", ""))).toBe(false); // ét kald uden Bearer er nok
+    expect(hookenErRigtig(h.split("headers: { Authorization: `Bearer ${session?.access_token}` }").join(""))).toBe(false);
     expect(hookenErRigtig(h.replace("if (data?.error) throw new Error(String(data.error));", ""))).toBe(false);
     expect(hookenErRigtig(h.split('.not("indsendt_at", "is", null)').join(""))).toBe(false);
   });

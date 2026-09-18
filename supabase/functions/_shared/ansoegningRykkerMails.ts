@@ -60,7 +60,7 @@ export const PROCESTEKST = "Morten og Jonas læser og vurderer, om The Boardroom
 export interface MailKontekst {
   fornavn: string | null;
   virksomhedsnavn: string;
-  /** Jonas' Calendly-link med ansøgningens id (bygBookingUrl). */
+  /** Ansøgerens egen side (ansoegerLink) — samtalen vælges dér og oprettes i Calendly bagved (udkast 18/9). */
   bookingUrl: string;
   /** Ansøgerens egen side efter indsendelse. */
   statusUrl: string;
@@ -72,6 +72,8 @@ export interface MailKontekst {
   manglerSvar: number | null;
   /** Ventelisten (udkast 18/9): kun sat for trappen «venteplads». */
   venteplads?: VentepladsKontekst | null;
+  /** Samtalen i kalenderen (udkast 18/9): Meet-linket fra Calendly-eventet (ansoegninger.samtale_link) — i dag/i morgen-mailene og bekræftelsen. */
+  moedeLink?: string | null;
   /** Afslagsmailen (18/9): grunden i ansøgerens ord, køpladserne (kun numre — aldrig medlemmets navn) og om der var en samtale. Kun sat for trappen «afslag». */
   afslag?: AfslagsIndhold | null;
   /** Kvitteringen (18/9): de tre svar ansøgeren skrev — så de kan se, vi har dem. */
@@ -108,7 +110,7 @@ export interface Mail {
   tekst: string;
 }
 
-interface Udkast {
+export interface Udkast {
   emne: string;
   eyebrow: string;
   afsnit: string[];
@@ -238,16 +240,16 @@ const BYGGERE: Record<string, (k: MailKontekst) => Udkast> = {
     afsnit: [
       `${hej(k)},`,
       `Vi ses i morgen${k.samtaleStart ? `, ${formaterSamtaletid(k.samtaleStart)}` : ""}. Du skal ikke forberede noget særligt. Jeg vil gerne høre om jeres forretning, og hvad du håber at få ud af The Boardroom.`,
-      "Skal tiden flyttes, så brug linket i bekræftelsen fra Calendly.",
+      "Mødelinket står i din kalenderinvitation. Skal tiden flyttes, kan du gøre det på din side — linket står nedenfor.",
     ],
-    knap: null,
+    knap: { tekst: "Se din booking", href: k.statusUrl },
     ikkeNu: false,
   }),
   "ansoegning-samtale-i-dag": (k) => ({
     emne: "I dag: vores snak",
     eyebrow: "Afklaringssamtalen",
-    afsnit: [`${hej(k)},`, `Det er i dag${k.samtaleStart ? ` ${formaterSamtaletid(k.samtaleStart)}` : ""}. Linket til mødet står i bekræftelsen fra Calendly. Jeg glæder mig.`],
-    knap: null,
+    afsnit: [`${hej(k)},`, `Det er i dag${k.samtaleStart ? ` ${formaterSamtaletid(k.samtaleStart)}` : ""}. ${k.moedeLink ? "Mødelinket står nedenfor og i din kalenderinvitation." : "Mødelinket står i din kalenderinvitation."} Jeg glæder mig.`],
+    knap: k.moedeLink ? { tekst: "Gå til mødet", href: k.moedeLink } : { tekst: "Se din booking", href: k.statusUrl },
     ikkeNu: false,
   }),
   "ansoegning-aftalegrundlag": (k) => ({
@@ -402,7 +404,11 @@ function tekst(u: Udkast, k: MailKontekst): string {
 export function bygRykkerMail(skabelon: string, k: MailKontekst): Mail | null {
   const bygger = BYGGERE[skabelon];
   if (!bygger) return null;
-  const u = bygger(k);
+  return bygUdkast(bygger(k), k);
+}
+
+/** Samme ramme og tekstform for mails uden om køen (samtaleMails.ts: bekræftelse, ny tid, aflysning). */
+export function bygUdkast(u: Udkast, k: MailKontekst): Mail {
   return { emne: u.emne, html: ramme(u, k), tekst: tekst(u, k) };
 }
 

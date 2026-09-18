@@ -240,6 +240,12 @@ project_id = "loiavmastgeieqyiwyyr"
   # på ansoegninger.token hvor indsendt_at er sat — ingen SQL-funktion).
   [functions.ansoegning-link]
     verify_jwt = false
+  # Ansøgerens booking/flyt/aflys af afklaringssamtalen (udkast 18/9): tiden
+  # vælges her og oprettes i Calendly bagved. verify_jwt = FALSE af samme grund
+  # som ansoegning-link — tokenet i
+  # body er legitimationen (verifyAnsoegningslink FØR enhver service-role-handling).
+  [functions.ansoegning-samtale]
+    verify_jwt = false
   # Bucket B, samme form som indgangs-paamindelser-cron: authenticateServiceRole,
   # pg_cron via kald_edge (20260918210000) passerer gaten. Tørkørsel som standard.
   [functions.ansoegning-rykker-cron]

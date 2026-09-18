@@ -23,6 +23,7 @@ import { grundlagSomTekst, OMSAETNINGSINTERVALLER_KR } from "@/lib/ansoegningAnb
 import { danskTidspunkt, LUKKEAARSAG_ORD, TRIN_ORD, ventetid, virksomhedsnavnAf } from "@/lib/ansoegninger/ansoegningVisning";
 import { koelinjer, sporlinjer } from "@/lib/ansoegninger/ansoegningSpor";
 import { AnsoegningHandlinger } from "./AnsoegningHandlinger";
+import { SamtaleAfsnit } from "./SamtaleAfsnit";
 import { SendTilUnderskrift } from "../virksomhed/SendTilUnderskrift";
 
 const Linje = ({ label, children }: { label: string; children: React.ReactNode }) => (
@@ -97,6 +98,12 @@ export const AnsoegningView = ({ id }: { id: string | undefined }) => {
           </div>
         )}
       </section>
+
+      {(a.trin === "indkaldt" || a.trin === "booket") && !a.paa_pause_til && (
+        <HbSection eyebrow="Samtalen" hairline className="mt-12">
+          <SamtaleAfsnit id={a.id} navn={navn} trin={a.trin} samtaleStart={a.samtale_start} samtaleLink={a.samtale_link} />
+        </HbSection>
+      )}
 
       {(a.trin === "lukket" || (ventepladser.data?.length ?? 0) > 0) && (
         <HbSection eyebrow="Ventelisten" hairline className="mt-12">

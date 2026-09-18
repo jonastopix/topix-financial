@@ -13,9 +13,12 @@
  *   B → motoren   registrerIndsendelse(id) efter at ansoegning-gem har sat
  *                 indsendt_at: anbefalingen skrives, rådgiveren får en
  *                 klokke. Idempotent (anbefaling sat = gjort).
- *   Calendly →    udfoerOvergang({art:"book"}, via "calendly", samtale)
- *                 når tracking-id'et er en ansøgning (diff i calendly-
- *                 webhook: først session_bookings, så ansoegninger).
+ *   samtalen →    udfoerOvergang({art:"book"|"aflys_booking"}, samtale) fra
+ *                 ansoegning-samtale (ansøgeren, token) og ansoegning-
+ *                 handling (rådgiveren) — tiden vælges i PLATFORMEN og
+ *                 oprettes i Calendly bagved (udkast 18/9). calendly-webhook
+ *                 kalder det samme via "calendly" for de gamle links og for
+ *                 aflysninger gjort i Calendly/Google.
  *   C → motoren   udfoerOvergang({art:"underskrevet"}, via "e_signatur")
  *                 når aftalen hører til en ansøgning — DEN konverterer
  *                 (B3/B4 + B7 + B8) i stedet for C's egen B7+B8.
@@ -56,15 +59,6 @@ import { sendManagedEmail } from "./managedEmail.ts";
 import { KONTAKT_ADRESSE } from "./indgangsMail.ts";
 
 export const APP_URL = "https://app.theboardroom.dk";
-/**
- * Jonas' afklaringssamtale (Jonas D3, 18/9): hans egen kalender. Secret
- * AFKLARING_CALENDLY_URL kan overstyre; ellers denne. Webhook-abonnementet
- * skal dække Jonas' org (CALENDLY_WEBHOOK_SIGNING_KEY_JONAS).
- */
-export const AFKLARING_CALENDLY_URL_STANDARD = "https://calendly.com/topix-jonas/afklaringssamtale";
-export function afklaringUrl(): string {
-  return Deno.env.get("AFKLARING_CALENDLY_URL")?.trim() || AFKLARING_CALENDLY_URL_STANDARD;
-}
 /** Ansøgerens side efter indsendelse (status, book, «ikke nu») — C/B bygger fladen; stien er kontrakten. */
 export const ANSOEGER_STATUS_STI = "/ansoeg/status";
 /** URL-parameteren — samme som B's formular (TOKEN_PARAM = "t"). */
@@ -118,6 +112,8 @@ export interface AnsoegningRaekke {
   samtale_start: string | null;
   samtale_slut: string | null;
   calendly_event_uri: string | null;
+  /** Meet-linket fra Calendly-eventet (samtalen i kalenderen, 18/9 rev. 2). */
+  samtale_link: string | null;
   pris_oere: number | null;
   aftale_url: string | null;
   note: string | null;
@@ -127,7 +123,7 @@ export const ANSOEGNING_KOLONNER = [
   "id", "token", "updated_at", "indsendt_at", "cvr_bekraeftet", "trin", "lukkeaarsag", "lukket_at", "lukket_fra_trin", "rykkere_sendt", "trin_sat_at",
   "paa_pause_til", "company_id", "konverteret_at", "kilde", "kilde_raa", "cvr", "cvr_opslag", "hjemmeside",
   "omsaetningsinterval", "antal_ansatte", "navn", "email", "telefon", "udfordring", "proevet", "om_tolv_maaneder",
-  "start_tidspunkt", "set_webinar", "anbefaling", "samtale_start", "samtale_slut", "calendly_event_uri",
+  "start_tidspunkt", "set_webinar", "anbefaling", "samtale_start", "samtale_slut", "calendly_event_uri", "samtale_link",
   "pris_oere", "aftale_url", "note", "afslagsgrund",
 ].join(", ");
 
@@ -170,19 +166,6 @@ export function tagPladsenLink(token: string, appUrl: string = APP_URL): string 
 }
 export function afslaaPladsenLink(token: string, appUrl: string = APP_URL): string {
   return `${ansoegerLink(token, appUrl)}&handling=afslaa_pladsen`;
-}
-
-/**
- * Calendly-linket med ansøgningens id indlejret — samme to parametre som
- * create-free-intro-booking (salesforce_uuid + utm_content), så
- * calendly-webhook finder rækken igen. Basen er secret AFKLARING_CALENDLY_URL
- * (Jonas' afklaringssamtale-eventtype — STOP-punkt i README: hvilken).
- */
-export function bygBookingUrl(base: string, ansoegningId: string): string {
-  const u = new URL(base);
-  u.searchParams.set("salesforce_uuid", ansoegningId);
-  u.searchParams.set("utm_content", ansoegningId);
-  return u.toString();
 }
 
 export function bygAnbefalingsInput(a: AnsoegningRaekke, nu: Date): AnbefalingsInput {
@@ -397,7 +380,10 @@ export async function skrivPlan(admin: SupabaseClient, raekker: PlanlagtRaekke[]
 export interface Samtale {
   start: Date;
   slut: Date | null;
+  /** Calendly-eventet (platformen opretter det selv nu; de gamle links satte det via webhooken). */
   eventUri: string | null;
+  /** Meet-linket; undefined = rør ikke kolonnen (webhookens book kender det ikke). */
+  moedeLink?: string | null;
 }
 
 export interface OvergangsArgs {
@@ -408,7 +394,7 @@ export interface OvergangsArgs {
   truffetAf: string | null;
   begrundelse?: string | null;
   nu: Date;
-  /** Kun book: samtalens tid fra Calendly. */
+  /** Kun book: samtalens tid — platformens slot (eventUri fra opretBooking) eller, for gamle links, Calendlys. */
   samtale?: Samtale | null;
   /** Kun tilbud: linket til aftalegrundlaget (C's /aftale?token=… eller en PDF). */
   aftaleUrl?: string | null;
@@ -461,11 +447,13 @@ export async function udfoerOvergang(admin: SupabaseClient, args: OvergangsArgs)
     opd.samtale_start = args.samtale.start.toISOString();
     opd.samtale_slut = args.samtale.slut ? args.samtale.slut.toISOString() : null;
     opd.calendly_event_uri = args.samtale.eventUri;
+    if (args.samtale.moedeLink !== undefined) opd.samtale_link = args.samtale.moedeLink;
   }
   if (h.art === "aflys_booking") {
     opd.samtale_start = null;
     opd.samtale_slut = null;
     opd.calendly_event_uri = null;
+    opd.samtale_link = null;
   }
   if (h.art === "tilbud" && args.aftaleUrl) opd.aftale_url = args.aftaleUrl;
   if (konvertering && konvertering.ok) {
@@ -480,6 +468,8 @@ export async function udfoerOvergang(admin: SupabaseClient, args: OvergangsArgs)
     .eq("trin", a.trin)
     .select("id");
   if (updErr) {
+    // 23505 = ansoegninger_samtale_start_uidx: to ansøgere valgte samme slot i samme sekund — databasen er dommeren (migration 18/9).
+    if (updErr.code === "23505") return { ok: false, status: 409, grund: "tiden er lige blevet taget — vælg en anden" };
     console.error("[ansoegningMotor] udfoerOvergang: update fejlede:", updErr.message);
     return { ok: false, status: 500, grund: updErr.message };
   }

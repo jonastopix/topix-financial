@@ -60,10 +60,13 @@ export interface AnsoegningRaekke {
   lukket_at: string | null;
   lukket_fra_trin: Trin | null;
   afslagsgrund: Afslagsgrund | null;
+  /** Calendly-eventet og Meet-linket bag samtalen (samtalen i kalenderen, 18/9 rev. 2). */
+  calendly_event_uri: string | null;
+  samtale_link: string | null;
 }
 
 export const LISTE_KOLONNER =
-  "id, indsendt_at, trin, trin_sat_at, lukkeaarsag, lukket_at, lukket_fra_trin, rykkere_sendt, paa_pause_til, kilde, navn, email, telefon, cvr, cvr_opslag, omsaetningsinterval, antal_ansatte, udfordring, proevet, om_tolv_maaneder, set_webinar, anbefaling, samtale_start, pris_oere, aftale_url, company_id, afslagsgrund";
+  "id, indsendt_at, trin, trin_sat_at, lukkeaarsag, lukket_at, lukket_fra_trin, rykkere_sendt, paa_pause_til, kilde, navn, email, telefon, cvr, cvr_opslag, omsaetningsinterval, antal_ansatte, udfordring, proevet, om_tolv_maaneder, set_webinar, anbefaling, samtale_start, pris_oere, aftale_url, company_id, afslagsgrund, calendly_event_uri, samtale_link";
 
 export async function hentAnsoegninger(): Promise<AnsoegningRaekke[]> {
   const res = await tabel("ansoegninger")
@@ -154,9 +157,22 @@ export interface HandlingsSvar {
  * Dommens grund (409) hentes ud af fejlkroppen, så rådgiveren læser
  * hvorfor — «direkte tilbud findes ikke …» — ikke «non-2xx».
  */
+/** Slots til rådgiverens «Samtalen»: Calendlys bookbare tider gennem platformens dom (ansoegning-handling samtale_tider). */
+export async function hentSamtaleTider(ansoegningId: string): Promise<{ slots: string[]; varighedMin: number }> {
+  const { data: { session } } = await supabase.auth.getSession();
+  const { data, error } = await supabase.functions.invoke("ansoegning-handling", {
+    body: { ansoegning_id: ansoegningId, handling: "samtale_tider" },
+    headers: { Authorization: `Bearer ${session?.access_token}` },
+  });
+  if (error) throw new Error(await laesFejl(error));
+  if (data?.error) throw new Error(String(data.error));
+  return { slots: (data?.slots ?? []) as string[], varighedMin: typeof data?.varighed_min === "number" ? data.varighed_min : 30 };
+}
+
 export async function udfoerHandling(input: {
   ansoegningId: string;
-  handling: MenneskeHandling;
+  /** Menneskets handlinger — plus samtalens to (book med samtaleStart, aflys_booking) fra afsnittet «Samtalen» (udkast 18/9). */
+  handling: MenneskeHandling | "book" | "aflys_booking";
   begrundelse?: string | null;
   lukkeaarsag?: Lukkeaarsag | null;
   aftaleUrl?: string | null;
@@ -165,6 +181,8 @@ export async function udfoerHandling(input: {
   pauseTil?: string | null;
   /** afvis/afslag: grunden bag nej'et (afslagsmailen planlægges ved niche og for_tidligt; ved niche sætter fladen C's venteliste bagefter). */
   afslagsgrund?: Afslagsgrund | null;
+  /** book: et ledigt slot (ISO) — serveren regner selv om det stadig er ledigt. */
+  samtaleStart?: string | null;
 }): Promise<HandlingsSvar> {
   const { data: { session } } = await supabase.auth.getSession();
   const { data, error } = await supabase.functions.invoke("ansoegning-handling", {
@@ -177,6 +195,7 @@ export async function udfoerHandling(input: {
       ...(input.prisOere ? { pris_oere: input.prisOere } : {}),
       ...(input.pauseTil ? { pause_til: input.pauseTil } : {}),
       ...(input.afslagsgrund ? { afslagsgrund: input.afslagsgrund } : {}),
+      ...(input.samtaleStart ? { samtale_start: input.samtaleStart } : {}),
     },
     headers: { Authorization: `Bearer ${session?.access_token}` },
   });

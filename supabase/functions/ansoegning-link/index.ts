@@ -6,20 +6,20 @@
 // af samme grund som ansoegning-gem.
 //
 // Body: { token, handling: "hent" | "ikke_nu" }
-//   hent    → { trin, paa_pause_til, samtale_start, booking_url, aftale_url,
-//              virksomhedsnavn, fornavn } — ALDRIG anbefalingen, aldrig
-//              beslutningerne, aldrig noget om rådgiveren.
+//   hent    → { trin, paa_pause_til, samtale_start, samtale_slut, moede_link,
+//              aftale_url, virksomhedsnavn, fornavn } — ALDRIG anbefalingen,
+//              aldrig beslutningerne, aldrig noget om rådgiveren.
 //   ikke_nu → pausen (afgoerOvergang: alle trapper annulleres, paa_pause_til
 //              = i dag + 3 måneder, én række pause_slut til rådgiveren).
 //              Idempotent: allerede på pause → 200 { ok, allerede: true }.
-// Bookingen sker ikke her — den går gennem Calendly (booking_url) og melder
-// tilbage via calendly-webhook.
+// Bookingen sker ikke her — den går gennem ansoegning-samtale (samme token):
+// tider, book, flyt, aflys. Platformen selv, ingen Calendly (udkast 18/9).
 
 import { svarPaaPlads } from "../_shared/venteliste.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
 import { corsHeaders } from "../_shared/edgeFunctionAuth.ts";
 import { verifyAnsoegningslink } from "../_shared/ansoegningLinkAuth.ts";
-import { afklaringUrl, bygBookingUrl, fornavnAf, udfoerOvergang, virksomhedsnavnAf } from "../_shared/ansoegningMotor.ts";
+import { fornavnAf, udfoerOvergang, virksomhedsnavnAf } from "../_shared/ansoegningMotor.ts";
 import { erAabentTrin } from "../_shared/ansoegningTrin.ts";
 
 function json(body: unknown, status = 200): Response {
@@ -52,12 +52,12 @@ Deno.serve(async (req) => {
   const a = await verifyAnsoegningslink(token, admin);
   if (!a) return json({ error: "Ukendt link" }, 404);
 
-  const bookingBase = afklaringUrl();
   const svar = () => ({
     trin: a.trin,
     paa_pause_til: a.paa_pause_til,
     samtale_start: a.samtale_start,
-    booking_url: a.trin === "indkaldt" ? bygBookingUrl(bookingBase, a.id) : null,
+    samtale_slut: a.samtale_slut,
+    moede_link: a.trin === "booket" ? a.samtale_link : null,
     aftale_url: a.trin === "aftalegrundlag_sendt" ? a.aftale_url : null,
     virksomhedsnavn: virksomhedsnavnAf(a),
     fornavn: fornavnAf(a.navn),
