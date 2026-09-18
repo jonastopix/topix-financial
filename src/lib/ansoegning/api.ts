@@ -73,6 +73,8 @@ export interface StatusSvar {
   samtale_slut: string | null;
   moede_link: string | null;
   aftale_url: string | null;
+  /** E-underskriften på ansøgningen (brist 8, 18/9): url + tilstand fra aftale_underskrift; null = ingen aftale sendt den vej (så gælder aftale_url). */
+  underskrift?: { url: string; tilstand: "kan_underskrives" | "underskrevet" | "udloebet" | "annulleret" | "ugyldig"; udloeber_at: string | null; underskrevet_at: string | null } | null;
   virksomhedsnavn: string;
   fornavn: string | null;
 }

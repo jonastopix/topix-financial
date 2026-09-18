@@ -25,6 +25,7 @@ import { koelinjer, sporlinjer } from "@/lib/ansoegninger/ansoegningSpor";
 import { AnsoegningHandlinger } from "./AnsoegningHandlinger";
 import { SamtaleAfsnit } from "./SamtaleAfsnit";
 import { SendTilUnderskrift } from "../virksomhed/SendTilUnderskrift";
+import { AnsoegningRaadgivermail } from "./AnsoegningRaadgivermail";
 
 const Linje = ({ label, children }: { label: string; children: React.ReactNode }) => (
   <div className="grid grid-cols-1 gap-x-4 py-1.5 text-sm sm:grid-cols-[11rem_1fr]">
@@ -196,6 +197,8 @@ export const AnsoegningView = ({ id }: { id: string | undefined }) => {
           </ul>
         )}
         <p className="mt-2 text-xs text-hb-ink-soft">Rykkere sendt på dette trin: {a.rykkere_sendt}.{a.aftale_url ? <> Aftalegrundlag: <a href={a.aftale_url} target="_blank" rel="noopener noreferrer" className="text-hb-evergreen underline-offset-4 hover:underline">link</a>.</> : null}</p>
+        {/* Brist 7 (18/9): kom mailen til kontakt@ af sted? Læses fra email_send_log. */}
+        <AnsoegningRaadgivermail ansoegningId={a.id} />
       </HbSection>
 
       <HbSection eyebrow="Jeres note" hairline className="mt-12">
