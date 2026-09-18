@@ -146,6 +146,17 @@ const AUTH_PREDICATES: Predicate[] = [
   // svarer når betaling er tilladt. Se _shared/betalingstokenAuth.ts.
   { name: "verifyBetalingstoken()",       pattern: /\bverifyBetalingstoken\s*\(/ },
 
+  // Ansøgningstoken (formularen, 18/9): samme klasse som betalingstokenet —
+  // kalderen er en besøgende UDEN konto. Dommen ligger i SQL
+  // (hent_ansoegning_til_gem, service_role-only), som kun svarer for en
+  // åben ansøgning. Se _shared/ansoegningToken.ts.
+  { name: "verifyAnsoegningstoken()",     pattern: /\bverifyAnsoegningstoken\s*\(/ },
+
+  // Ansøgerens link EFTER indsendelse (motoren, 18/9): samme mekanisme som
+  // verifyAnsoegningstoken (service-role-opslag på ansoegninger.token, ingen
+  // SQL-funktion), men fasen indsendt_at IS NOT NULL. Se _shared/ansoegningLinkAuth.ts.
+  { name: "verifyAnsoegningslink()",      pattern: /\bverifyAnsoegningslink\s*\(/ },
+
   // Shape-based: `Bearer ${...}` template compared against a request
   // header (=== or !==). Excludes outbound fetch-header assignments
   // by syntactic shape, not by variable name.

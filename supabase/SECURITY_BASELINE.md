@@ -719,6 +719,16 @@ skrivende edge functions bruger `SUPABASE_SERVICE_ROLE_KEY`.
 
 ---
 
+### Ansøgningsmotoren (`ansoegninger`, `ansoegning_beslutninger`, `planlagte_haendelser`) — udkast 18/9-2026
+
+- **Én tabel med formularen (B):** `ansoegninger` bærer både kladden (B: `token`, `indsendt_at`) og motoren (A: `trin`, `lukkeaarsag`, `rykkere_sendt`, `paa_pause_til`, `company_id`). Migration `20260918200000_ansoegninger.sql`.
+- **Ansøgeren har INGEN politik** (ingen politik = ingen adgang). Adgang går kun gennem edge functions med tokenet som legitimation: B's `ansoegning-gem`/`-cvr` FØR indsendelse (`hent_ansoegning_til_gem`, B's SECURITY DEFINER — B's STOP), motorens `ansoegning-link` EFTER (`verifyAnsoegningslink`, `_shared/ansoegningLinkAuth.ts`: service-role-opslag på `token` hvor `indsendt_at` er sat — ingen SQL-funktion). Svaret bærer aldrig anbefalingen eller beslutningerne.
+- **Rådgivere:** SELECT på alle tre tabeller; UPDATE på `ansoegninger` (note, pris, felter) — men motorens felter (trin, lukkeaarsag, lukket_*, rykkere_sendt, trin_sat_at, paa_pause_til, company_id, konverteret_at, token, indsendt_at, anbefaling, samtale_*) afvises af den NYE BEFORE UPDATE-trigger `protect_ansoegning_motor_fields` for alt andet end service role. Ny trigger på egen tabel; ikke på `auth.users`, ikke SECURITY DEFINER.
+- **Trinnet skrives ét sted:** `_shared/ansoegningMotor.ts:udfoerOvergang` (dommen `afgoerOvergang`, optimistisk lås `.eq("trin", fra)`). Kaldere: `ansoegning-handling` (Bucket A, `authenticateUser` + `has_role` advisor FØR service role), `ansoegning-link` (token), `ansoegning-rykker-cron` (Bucket B), `calendly-webhook` (Bucket C, EFTER `session_bookings`-opslaget) og C's `aftale-underskrift` (e-signatur).
+- **Idempotens:** `planlagte_haendelser.idempotensnoegle` UNIQUE, gives videre som `email_send_log.message_id` (UNIQUE WHERE status = sent). `company_betalingslink.ansoegning_id` partielt unikt (som `monday_item_id`).
+- **Samme id:** ved «underskrevet» oprettes `companies` med `id = ansoegninger.id` (`opretEllerGenbrugVirksomhed(…, { id })`); CVR-genbrug er eneste undtagelse. Ingen kontraktdatoer — stripe-webhook skriver dem ved betaling.
+- Kildeværn: `src/lib/__tests__/ansoegningMotor.guard.test.ts` (8 domme med selvbevis).
+
 ## 6. Security Outcomes from Hardening Patches 5–10
 
 ### Messages ownership mutation rules (Patch 5)

@@ -64,6 +64,9 @@ describe("contactPerson.guard — import-vejen (samlet navn) sender contact_name
   it("virksomhedsOprettelse indsætter rækken fra byggVirksomhedsRaekke uden at pille felter af", () => {
     const kode = udenKommentarer(laes("supabase/functions/_shared/virksomhedsOprettelse.ts"));
     expect(kode).toContain("const raekke = byggVirksomhedsRaekke(input, cvrSvar);");
-    expect(kode).toContain(".insert(raekke)");
+    // 18/9 (ansøgningsmotoren): rækken må få et id lagt til — ansøgningen bliver
+    // virksomheden med samme id — men ingen felter piller af. Formen låses.
+    expect(kode).toContain(".insert(valg.id ? { ...raekke, id: valg.id } : raekke)");
+    expect(kode).not.toMatch(/\.insert\(\{[^}]*\.\.\.raekke[^}]*(name|contact_person|contact_email):/);
   });
 });

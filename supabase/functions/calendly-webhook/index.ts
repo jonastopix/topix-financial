@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
 import { doemCalendlyEvent, genaabnerRet } from "../_shared/calendlyWebhookDom.ts";
+import { hentAnsoegning, udfoerOvergang } from "../_shared/ansoegningMotor.ts";
 
 // Bucket C: ekstern webhook fra Calendly. Signaturverifikation FOER parsing.
 // Modtager invitee.created / invitee.canceled, beviser beskeden aegte via HMAC-signatur,
@@ -185,6 +186,28 @@ Deno.serve(async (req: Request) => {
       return json(500, { error: "db error" });
     }
     if (!updated || updated.length === 0) {
+      // ANSØGNINGSMOTOREN (18/9): er id'et ikke en session_bookings-række, kan det
+      // være en ANSØGNING — afklaringssamtalens link bærer ansoegninger.id på
+      // samme to parametre (bygBookingUrl). Dommen og trappen (indkaldt
+      // annulleres, booket planlægges) ligger i motoren; her kun opslag + kald.
+      const ansoegning = await hentAnsoegning(admin, bookingId);
+      if (ansoegning) {
+        const res = await udfoerOvergang(admin, {
+          ansoegning,
+          handling: { art: "book" },
+          via: "calendly",
+          truffetAf: null,
+          nu: new Date(),
+          samtale: { start: startTid ? new Date(startTid) : new Date(), slut: slutTid ? new Date(slutTid) : null, eventUri: typeof event.payload?.event === "string" ? event.payload.event : null },
+        });
+        if (res.ok === false) {
+          // 409 = allerede booket / lukket / ikke indkaldt endnu: intet at gense — 200, ingen retry.
+          console.log(`[calendly-webhook] invitee.created for ansøgning : `);
+          return json(res.status >= 500 ? 500 : 200, { received: true, ansoegning: bookingId, skipped: res.grund });
+        }
+        console.log(`[calendly-webhook] invitee.created: ansøgning  →  ( planlagt,  annulleret).`);
+        return json(200, { received: true, ansoegning: bookingId, trin: res.til });
+      }
       console.log("[calendly-webhook] invitee.created: ukendt id eller aflyst.");
       return json(200, { received: true, skipped: "ukendt id eller aflyst" });
     }
@@ -217,6 +240,17 @@ Deno.serve(async (req: Request) => {
   }
 
   const ramt = cancelled && cancelled.length > 0 ? cancelled[0] : null;
+  if (!ramt) {
+    // ANSØGNINGSMOTOREN (18/9): en ægte aflysning af en afklaringssamtale →
+    // tilbage til «indkaldt» med ny trappe (aflys_booking). Hvem der aflyste
+    // ændrer intet her: der er ingen ret at genåbne på en ansøgning.
+    const ansoegning = await hentAnsoegning(admin, bookingId);
+    if (ansoegning) {
+      const res = await udfoerOvergang(admin, { ansoegning, handling: { art: "aflys_booking" }, via: "calendly", truffetAf: null, nu: new Date() });
+      console.log(`[calendly-webhook] invitee.canceled (${cancelerType ?? "?"}): ansøgning ${bookingId} → ${res.ok ? res.til : `uændret (${res.grund})`}.`);
+      return json(res.ok === false && res.status >= 500 ? 500 : 200, { received: true, ansoegning: bookingId });
+    }
+  }
   const ret = ramt ? genaabnerRet({ cancelerType, advisor: ramt.advisor, amount_dkk: ramt.amount_dkk }) : null;
   if (ramt && ret && ramt.company_id) {
     // Host-aflysning af en inkluderet session: genaabn retten paa virksomheden, saa medlemmet
