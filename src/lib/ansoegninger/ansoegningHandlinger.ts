@@ -42,7 +42,7 @@ export interface Knap {
 }
 
 const KNAPPE: Record<MenneskeHandling, Omit<Knap, "handling">> = {
-  tal_med_dem: { tekst: "Indkald til samtale", stor: true, farlig: false, bekraeft: false, kraeverAarsag: false, kraeverAftaleUrl: false, kraeverDato: false, kraeverAfslagsgrund: false, forklaring: "Jonas inviterer til en afklaringssamtale — indkaldelsen sendes i dag i sendevinduet, rykkere dag 2, 4, 7 og 11." },
+  tal_med_dem: { tekst: "Indkald til samtale", stor: true, farlig: false, bekraeft: false, kraeverAarsag: false, kraeverAftaleUrl: false, kraeverDato: false, kraeverAfslagsgrund: false, forklaring: "Jonas inviterer til en afklaringssamtale — indkaldelsen sendes i dag i sendevinduet, rykkere dag 2, 7 og 11 — uden svar lukkes den «svarer ikke» dag 14." },
   afvis: { tekst: "Afvis", stor: true, farlig: true, bekraeft: true, kraeverAarsag: false, kraeverAftaleUrl: false, kraeverDato: false, kraeverAfslagsgrund: true, forklaring: "Ansøgningen lukkes som «afslag efter ansøgningen». Ansøgeren får ingen mail fra køen — afslaget skriver I selv. Kan genåbnes, men ikke fortrydes uden spor." },
   tilbud: { tekst: "Send aftalegrundlag", stor: true, farlig: false, bekraeft: false, kraeverAarsag: false, kraeverAftaleUrl: true, kraeverDato: false, kraeverAfslagsgrund: false, forklaring: "Aftalegrundlaget sendes i dag i sendevinduet med link; rykkere dag 2, 5, 9 og 14, udløber dag 21." },
   afslag: { tekst: "Afslut", stor: true, farlig: true, bekraeft: true, kraeverAarsag: false, kraeverAftaleUrl: false, kraeverDato: false, kraeverAfslagsgrund: true, forklaring: "Ansøgningen lukkes som «afslag efter samtalen». Ingen mail fra køen — afslaget skriver I selv." },

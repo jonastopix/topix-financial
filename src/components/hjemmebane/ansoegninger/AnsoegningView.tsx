@@ -23,6 +23,7 @@ import { grundlagSomTekst, OMSAETNINGSINTERVALLER_KR } from "@/lib/ansoegningAnb
 import { danskTidspunkt, LUKKEAARSAG_ORD, TRIN_ORD, ventetid, virksomhedsnavnAf } from "@/lib/ansoegninger/ansoegningVisning";
 import { koelinjer, sporlinjer } from "@/lib/ansoegninger/ansoegningSpor";
 import { AnsoegningHandlinger } from "./AnsoegningHandlinger";
+import { SendTilUnderskrift } from "../virksomhed/SendTilUnderskrift";
 
 const Linje = ({ label, children }: { label: string; children: React.ReactNode }) => (
   <div className="grid grid-cols-1 gap-x-4 py-1.5 text-sm sm:grid-cols-[11rem_1fr]">
@@ -86,6 +87,15 @@ export const AnsoegningView = ({ id }: { id: string | undefined }) => {
           {a.company_id ? <> · <Link to={`/virksomhed/${a.company_id}`} className="text-hb-evergreen underline-offset-4 hover:underline">virksomheden</Link></> : null}
         </p>
         <AnsoegningHandlinger id={a.id} navn={navn} trin={a.trin} paaPause={a.paa_pause_til !== null} lukketFraTrin={a.lukket_fra_trin} />
+        {/* E-underskriften fra ansøgningen (generalprøvens brist 1, 18/9): samme komponent som
+            virksomhedssiden, med ansoegning_id. Kun efter samtalen («afholdt») og ved gensendelse
+            («aftalegrundlag_sendt»), aldrig på pause — samme vilkår som functionen selv stiller.
+            «Send aftalegrundlag» ovenfor (indtastet link) står stadig til papir/PDF. */}
+        {(a.trin === "afholdt" || a.trin === "aftalegrundlag_sendt") && a.paa_pause_til === null && (
+          <div className="mt-3 rounded-hb border border-hb-line bg-hb-surface px-4 py-3" data-underskrift-fra-ansoegning>
+            <SendTilUnderskrift ansoegningId={a.id} onOpdateret={() => invaliderAnsoegninger(queryClient, id)} />
+          </div>
+        )}
       </section>
 
       {(a.trin === "lukket" || (ventepladser.data?.length ?? 0) > 0) && (
