@@ -107,6 +107,8 @@ interface EditorBarProps {
   savedAt: Date | null;
   error?: string | null;
   onSave: () => void;
+  /** Knappens tekst når «Gem» gør mere end at gemme (udkast 18/9: «Gem — N tilmeldte får besked om den nye tid»). Standard «Gem». */
+  saveLabel?: string;
   actions: EditorAction[];
   /** Kun angivet når sletning overhovedet er mulig (status = arkiveret m.v.). */
   deleteSpec?: DeleteSpec;
@@ -121,6 +123,7 @@ export const EditorBar = ({
   savedAt,
   error,
   onSave,
+  saveLabel,
   actions,
   deleteSpec,
 }: EditorBarProps) => {
@@ -209,7 +212,7 @@ export const EditorBar = ({
           </button>
         ))}
       <HbButton variant="secondary" className="h-9 px-4 text-sm" onClick={onSave} disabled={saving}>
-        Gem <span className="text-hb-ink-soft">⌘S</span>
+        {saveLabel ?? "Gem"} <span className="text-hb-ink-soft">⌘S</span>
       </HbButton>
       {actions
         .filter((a) => a.variant !== "link")

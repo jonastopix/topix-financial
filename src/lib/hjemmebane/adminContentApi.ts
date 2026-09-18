@@ -4,6 +4,7 @@
     forsvarslinjen. Sletning i normal drift er arkivering (B10). */
 
 import { supabase } from "@/integrations/supabase/client";
+import { planlaegGem, type Tidspatch } from "@/lib/hjemmebane/flytEvent";
 import type { Database } from "@/integrations/supabase/types";
 import { erKunde } from "@/lib/raadgiverensKunder";
 
@@ -278,6 +279,32 @@ export async function updateEvent(
 /** Aflysning går gennem cancel-event-funktionen (Bucket A) — den sætter
     status OG giver alle aktive tilmeldte besked. En ren status-UPDATE
     ville aflyse i stilhed; brug ALDRIG updateEvent til aflysning. */
+/** FLYTNING (udkast 18/9): dato/tid på et PUBLICERET event går gennem
+    flyt-event (Bucket A) — den opdaterer OG giver de tilmeldte besked med
+    gammel og ny tid. En ren UPDATE ville flytte i stilhed; brug ALDRIG
+    updateEvent til starts_at/ends_at på et publiceret event. */
+export async function flytEvent(
+  eventId: string,
+  tid: Tidspatch,
+): Promise<{ ok: boolean; moved?: boolean; unchanged?: boolean; recipients?: number; notified?: number; notify_error?: string }> {
+  const { data, error } = await supabase.functions.invoke("flyt-event", { body: { event_id: eventId, ...tid } });
+  if (error) throw new Error(error.message);
+  return data as { ok: boolean; moved?: boolean; unchanged?: boolean; recipients?: number; notified?: number; notify_error?: string };
+}
+
+/** «Gem» i EventEditor: resten FØRST (så beskeden bærer den nye titel),
+    derefter flytningen — dommen om hvad der er hvad er ren (planlaegGem).
+    Returnerer den gemte række når resten blev gemt, ellers null. */
+export async function gemEventEllerFlyt(
+  event: Pick<EventRow, "id" | "status" | "starts_at" | "ends_at">,
+  patch: Tables["events"]["Update"],
+): Promise<EventRow | null> {
+  const plan = planlaegGem(event, patch as Record<string, unknown>);
+  const row = Object.keys(plan.rest).length > 0 ? await updateEvent(event.id, plan.rest as Tables["events"]["Update"]) : null;
+  if (plan.flytning) await flytEvent(event.id, plan.flytning);
+  return row;
+}
+
 /** Publicér = statusskift OG besked til alle aktive medlemmer i samme kald
     (publish-event, 10/9) — en kladde sender aldrig, et publiceret event er no-op. */
 export async function publishEvent(

@@ -4,6 +4,8 @@
  */
 import { describe, expect, it } from "vitest";
 import {
+  erFlytning,
+  flyttetBesked,
   erOmEnTime,
   OM_EN_TIME_FRA_MIN,
   OM_EN_TIME_TIL_MIN,
@@ -66,8 +68,38 @@ describe("beskederne", () => {
   });
   it("om en time: samme type og dedup-form som A og B, suffiks c, mødelink med når det findes", () => {
     const b = omEnTimeBesked(e);
-    expect(b).toMatchObject({ type: "event_reminder", title: "Om en time: Live sparring: likviditet", dedup_key: "event_reminder:e1:c", deep_link: "/events/e1" });
+    expect(b).toMatchObject({ type: "event_reminder", title: "Om en time: Live sparring: likviditet", dedup_key: "event_reminder:e1:c:2026-09-15T08:30:00.000Z", deep_link: "/events/e1" });
+    // Rettet 18/9: nøglen bærer starttidspunktet — flyttes eventet, sendes C igen for den nye tid.
+    expect(omEnTimeBesked({ ...e, starts_at: "2026-09-15T12:00:00Z" }).dedup_key).toBe("event_reminder:e1:c:2026-09-15T12:00:00.000Z");
+    expect(omEnTimeBesked({ ...e, starts_at: "2026-09-15T10:30:00+02:00" }).dedup_key).toBe(b.dedup_key);
     expect(b.body).toMatch(/^Kl\. 10[.:]30\. Mødelink: https:\/\/meet\.google\.com\/abc$/);
     expect(omEnTimeBesked({ ...e, meet_url: null }).body).toMatch(/^Kl\. 10[.:]30\.$/);
+  });
+});
+
+describe("flytning (udkast 18/9) — erFlytning og «Ny tid»-beskeden", () => {
+  const gemt = { starts_at: "2026-09-15T08:30:00Z", ends_at: "2026-09-15T09:30:00Z" };
+  it("erFlytning: samme øjeblik i anden skrivemåde er ingen flytning; ny start, ny slut eller fjernet slut er", () => {
+    expect(erFlytning(gemt, { starts_at: "2026-09-15T10:30:00+02:00" })).toBe(false);
+    expect(erFlytning(gemt, {})).toBe(false);
+    expect(erFlytning(gemt, { starts_at: "2026-09-16T08:30:00Z" })).toBe(true);
+    expect(erFlytning(gemt, { ends_at: "2026-09-15T10:00:00Z" })).toBe(true);
+    expect(erFlytning(gemt, { ends_at: null })).toBe(true);
+    expect(erFlytning({ starts_at: gemt.starts_at, ends_at: null }, { ends_at: null })).toBe(false);
+  });
+  it("flyttetBesked: «Ny tid», den nye tid først, så den gamle, mødelinket, kalenderlinjen, dedup med den nye starttid", () => {
+    const b = flyttetBesked({ id: "e1", title: "Live sparring: likviditet", starts_at: "2026-09-22T09:00:00Z", meet_url: "https://meet.google.com/abc" }, "2026-09-15T08:30:00Z");
+    expect(b.type).toBe("event_flyttet");
+    expect(b.priority).toBe("important");
+    expect(b.title).toBe("Ny tid: Live sparring: likviditet");
+    expect(b.body).toBe("Sessionen er flyttet til tirsdag 22. september kl. 11.00. Den var sat til tirsdag 15. september kl. 10.30. Mødelinket er det samme. Har du lagt den i din kalender, så hent den igen fra eventsiden.");
+    expect(b.deep_link).toBe("/events/e1");
+    expect(b.dedup_key).toBe("event_flyttet:e1:2026-09-22T09:00:00.000Z");
+  });
+  it("uden mødelink: ingen linje om det; en anden ny tid giver en anden dedup-nøgle", () => {
+    const a = flyttetBesked({ id: "e1", title: "X", starts_at: "2026-09-22T09:00:00Z" }, "2026-09-15T08:30:00Z");
+    const c = flyttetBesked({ id: "e1", title: "X", starts_at: "2026-09-23T09:00:00Z" }, "2026-09-15T08:30:00Z");
+    expect(a.body).not.toContain("Mødelinket");
+    expect(a.dedup_key).not.toBe(c.dedup_key);
   });
 });

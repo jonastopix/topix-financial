@@ -20,6 +20,13 @@
  *    dagligt kl. 07. C rammer når starten er 60–90 min væk: cron'en kører
  *    hvert 15. min, så ethvert event rammes mindst én gang (dedup tager
  *    resten), og mailkøens 15 min forsinkelse lander mailen 40–75 min før.
+ *
+ * FLYTNING (udkast 18/9-2026, recon-event-aendring.md §7): når dato/tid på
+ * et PUBLICERET event ændres, får de tilmeldte én klokke + én mail med gammel
+ * og ny tid (flyttetBesked). Dedup bærer den NYE starttid, så en anden
+ * flytning giver en ny besked, men et retry af samme flytning ikke gør.
+ * Dommen «er patchen en flytning?» (erFlytning) er ren og deles af
+ * flyt-event (server) og editoren (via src/lib/hjemmebane/flytEvent.ts).
  */
 
 export const OM_EN_TIME_FRA_MIN = 60;
@@ -64,6 +71,24 @@ export interface EventTilMail {
   meet_url?: string | null;
 }
 
+/** Samme øjeblik? Sammenligner som tidspunkter, ikke som strenge («…Z» = «…+00:00»). Ulæselig = forskellig. */
+export function sammeTid(a: string | null | undefined, b: string | null | undefined): boolean {
+  if (!a && !b) return true;
+  if (!a || !b) return false;
+  const ta = new Date(a).getTime(), tb = new Date(b).getTime();
+  return Number.isFinite(ta) && Number.isFinite(tb) && ta === tb;
+}
+
+/** Ændrer patchen start- eller sluttid i forhold til det gemte? */
+export function erFlytning(
+  gemt: { starts_at: string; ends_at?: string | null },
+  patch: { starts_at?: string | null; ends_at?: string | null },
+): boolean {
+  const start = patch.starts_at !== undefined && !sammeTid(gemt.starts_at, patch.starts_at);
+  const slut = patch.ends_at !== undefined && !sammeTid(gemt.ends_at ?? null, patch.ends_at);
+  return start || slut;
+}
+
 export interface Besked {
   type: string;
   priority: "important";
@@ -90,8 +115,21 @@ export function publiceringsBesked(e: EventTilMail): Besked {
   };
 }
 
-/** Vindue C: «Om en time: …» — samme type og dedup-form som A og B (suffiks c). */
+/**
+ * Vindue C: «Om en time: …» — samme type som A og B, suffiks c. Dedup bærer
+ * eventets STARTTIDSPUNKT (ISO/UTC), ikke kun dagen (rettet 18/9, Jonas):
+ * flyttes eventet EFTER at «om en time» er sendt for den gamle tid, giver
+ * den nye tid en ny nøgle, og C sendes igen når den nye tid er 60–90 min
+ * væk. Det DÆKKER: enhver flytning til et tidspunkt mindst 60 min ude
+ * (også samme dag). Det dækker IKKE: en flytning til et tidspunkt under 60
+ * min ude (vinduet er allerede passeret — der sendes ingen C for den nye
+ * tid; flyttetBesked er den eneste besked), og en flytning tilbage til
+ * præcis samme tidspunkt (samme nøgle, allerede sendt). Gamle rækker
+ * (`…:c` uden tid) berøres ikke — de spærrer kun deres egen, nu ukendte,
+ * nøgle.
+ */
 export function omEnTimeBesked(e: EventTilMail): Besked {
+  const startIso = new Date(e.starts_at).toISOString();
   return {
     type: "event_reminder",
     priority: "important",
@@ -100,6 +138,30 @@ export function omEnTimeBesked(e: EventTilMail): Besked {
     reference_type: "event",
     reference_id: e.id,
     deep_link: `/events/${e.id}`,
-    dedup_key: `event_reminder:${e.id}:c`,
+    dedup_key: `event_reminder:${e.id}:c:${startIso}`,
+  };
+}
+
+/**
+ * «Ny tid: …» — til de TILMELDTE (attending, ikke afmeldt) når et publiceret
+ * event flyttes. Teksten er UDKAST til Jonas' godkendelse (README).
+ * Dedup: event_flyttet:{id}:{ny starts_at som ISO/UTC} — én besked pr.
+ * modtager pr. ny tid.
+ */
+export function flyttetBesked(e: EventTilMail, gammelStartsAt: string): Besked {
+  const nyIso = new Date(e.starts_at).toISOString();
+  return {
+    type: "event_flyttet",
+    priority: "important",
+    title: `Ny tid: ${e.title}`,
+    // Jonas' udgave (18/9): den NYE tid først og fremhævet, så den gamle.
+    body:
+      `Sessionen er flyttet til ${datoOrd(e.starts_at)} kl. ${tidOrd(e.starts_at)}. Den var sat til ${datoOrd(gammelStartsAt)} kl. ${tidOrd(gammelStartsAt)}.` +
+      `${e.meet_url ? " Mødelinket er det samme." : ""}` +
+      " Har du lagt den i din kalender, så hent den igen fra eventsiden.",
+    reference_type: "event",
+    reference_id: e.id,
+    deep_link: `/events/${e.id}`,
+    dedup_key: `event_flyttet:${e.id}:${nyIso}`,
   };
 }

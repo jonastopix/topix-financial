@@ -28,6 +28,10 @@ import { resolve } from "node:path";
 //      gemEventOgVaerter (event kun ved ikke-tom patch, værter kun ved
 //      ændring, eventet først), og editoren kalder den i stedet for
 //      updateEvent direkte. Publicér-vejen beholder sin egen guard.
+//      NY PRÆMIS (udkast 18/9, flyt-event): gemEvent er gemEventEllerFlyt
+//      (adminContentApi), som deler patchen i tid → flyt-event og rest →
+//      updateEvent (dommen planlaegGem, låst i flytEvent.guard). Editoren
+//      kalder stadig aldrig updateEvent i mutationFn.
 // Kildelæsning med selvbevis på kopier (dineMaal.guard-mønstret).
 
 const laes = (sti: string) => readFileSync(resolve(process.cwd(), sti), "utf8");
@@ -125,7 +129,7 @@ export const tomPatchNaarAldrigUpdate = (editor: string, gemDom: string): boolea
   const krop = gemDom.slice(gemDom.indexOf("export async function gemEventOgVaerter<T>("));
   return mut.includes("gemEventOgVaerter({") &&
     mut.includes("vaerterAendret: vaerterDraft !== null,") &&
-    mut.includes("gemEvent: () => updateEvent(event.id, patch),") &&
+    mut.includes("gemEvent: () => gemEventEllerFlyt(event, patch),") &&
     !/await updateEvent\(/.test(mut) &&
     krop.includes("const row = Object.keys(input.patch).length > 0 ? await input.gemEvent() : null;") &&
     krop.includes("if (input.vaerterAendret) await input.gemVaerter();") &&
@@ -169,7 +173,7 @@ describe("eventVaerter.guard — PR 4b: migrationen, ren dom, admin gemmer samme
     expect(fotoKravetHolder(profilDomRaa, profilDom, tjekliste, hook, spor)).toBe(true);
   });
 
-  it("dom 6: mutationFn kalder aldrig updateEvent med en tom patch — gem-vejen går gennem gemEventOgVaerter (event kun ved ikke-tom patch, værter kun ved ændring, eventet først)", () => {
+  it("dom 6: mutationFn kalder aldrig updateEvent — gem-vejen går gennem gemEventOgVaerter med gemEventEllerFlyt (event kun ved ikke-tom patch, værter kun ved ændring, eventet først)", () => {
     expect(tomPatchNaarAldrigUpdate(editor, gemDom)).toBe(true);
   });
 
@@ -202,7 +206,7 @@ describe("eventVaerter.guard — PR 4b: migrationen, ren dom, admin gemmer samme
   it("selvbevis 6: den gamle mutationFn (updateEvent først, uanset patch), eller en dom uden tom-patch-guard, falder", () => {
     // Formen der fejlede i drift 17/9 14:05, ordret.
     const gammel = editor.replace(
-      "gemEventOgVaerter({\n          patch,\n          vaerterAendret: vaerterDraft !== null,\n          gemEvent: () => updateEvent(event.id, patch),\n          gemVaerter,\n        })",
+      "gemEventOgVaerter({\n          patch,\n          vaerterAendret: vaerterDraft !== null,\n          gemEvent: () => gemEventEllerFlyt(event, patch),\n          gemVaerter,\n        })",
       "(async () => {\n        const row = await updateEvent(event.id, patch);\n        await gemVaerter();\n        return row;\n      })()",
     );
     expect(gammel).not.toBe(editor);
