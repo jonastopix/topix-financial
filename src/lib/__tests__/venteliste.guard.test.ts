@@ -94,7 +94,7 @@ export function reglerDom(ioK: string, cronK: string, mailsK: string): string[] 
   const tilbyd = ioK.slice(ioK.indexOf("export async function tilbydPladsen("), ioK.indexOf("export async function svarPaaPlads("));
   if (!tilbyd.includes("const naeste = naesteIKoen(koe);")) f.push("tilbydPladsen tager ikke den første efter anciennitet");
   if (!tilbyd.includes("if (harTilbudUde(koe)) return { udfald: \"tilbud_ude\" };")) f.push("tilbydPladsen tillader to tilbud ude");
-  if (!tilbyd.includes('trappe: "venteplads", anker: nu')) f.push("trappen planlægges ikke med ankeret = nu");
+  if (!tilbyd.includes('trappe: "venteplads", anker: afsendelse')) f.push("trappen planlægges ikke med ankeret = afsendelsen (recon 18/9 pkt. 7: fristen løber fra afsendelsen)");
   if (!cronK.includes("bloed: erBloedUdgave(a.lukket_at, nu),")) f.push("cronen regner ikke den bløde udgave af lukket_at");
   const tilbud = mailsK.slice(mailsK.indexOf('"ansoegning-venteplads-tilbud": (k) => {'), mailsK.indexOf('"ansoegning-venteplads-rykker": (k) => {'));
   if (!tilbud.includes("if (v?.bloed) {") || !tilbud.includes("er det stadig aktuelt?")) f.push("mailen har ikke den bløde udgave");

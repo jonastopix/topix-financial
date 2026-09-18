@@ -44,6 +44,8 @@ export const LEDIG_VED_FORNYELSESSTATUS = [
 ] as const;
 
 export type VentepladsStatus = "venter" | "tilbudt" | "accepteret" | "udloebet" | "afslaaet" | "trukket";
+/** Alle statusser som liste — enum-værnet (enumsMatcherDatabasen.guard) holder den op mod ventepladser_status_check. */
+export const VENTEPLADS_STATUSSER: readonly VentepladsStatus[] = ["venter", "tilbudt", "accepteret", "udloebet", "afslaaet", "trukket"];
 
 export interface VentepladsRaekke {
   id: string;

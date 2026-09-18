@@ -69,7 +69,7 @@
  * DAG 0-MAILEN FØLGER OGSÅ VINDUET: klikker rådgiveren «tal med dem» kl.
  * 17, går indkaldelsen næste hverdag kl. 07 — det er reglen, ikke en fejl.
  */
-import type { Trappe } from "./ansoegningTrin";
+import { TRAPPER_NAVNE, type Trappe } from "./ansoegningTrin";
 import {
   erHverdagDato,
   kbhDato,
@@ -98,6 +98,12 @@ export interface TrappeTrin {
   vedSamtaleSlut?: boolean;
   /** Rækken udelades når dagen ikke er en hverdag (samme-dags-mail før en weekendsamtale). */
   kraeverHverdagSammeDag?: boolean;
+  /**
+   * Uden for «højst én mail pr. person pr. dag» (recon 18/9 §2, pkt. 7): ventepladsens tilbud
+   * (dag 0) må ikke skubbes et døgn af en anden mail — svarfristen på 7 dage løber fra
+   * afsendelsen, og den skal være den samme i mailen og i basen. Rykkeren dag 3 følger reglen.
+   */
+  udenDagsregel?: boolean;
   handling: KoeHandling;
   skabelon: string | null;
   modtager: Modtager;
@@ -138,7 +144,7 @@ export const TRAPPER: Record<Trappe, readonly TrappeTrin[]> = {
   // køen går selv videre til den næste (venteplads_udloeb). Ingen «ikke nu»
   // i disse mails: ansøgningen er lukket, svaret er ja/nej på pladsen.
   venteplads: [
-    { trinNr: 0, dag: 0, handling: "send_mail", skabelon: "ansoegning-venteplads-tilbud", modtager: "ansoeger" },
+    { trinNr: 0, dag: 0, udenDagsregel: true, handling: "send_mail", skabelon: "ansoegning-venteplads-tilbud", modtager: "ansoeger" },
     { trinNr: 1, dag: 3, handling: "send_mail", skabelon: "ansoegning-venteplads-rykker", modtager: "ansoeger" },
     { trinNr: 2, dag: VENTEPLADS_SVARFRIST_DAGE, handling: "venteplads_udloeb", skabelon: null, modtager: "raadgiver" },
   ],
@@ -243,6 +249,8 @@ export interface SendeInput {
   modtagerHarFaaetMailIDag: boolean;
   /** Rækkens trappe — «indsendt» (kvitteringen) er undtaget fra dagsreglen (18/9). Udeladt = reglen gælder. */
   trappe?: Trappe;
+  /** Rækkens trin — et trin med `udenDagsregel` (ventepladsens tilbud) er undtaget. Udeladt = kun trappen afgør. */
+  trinNr?: number;
 }
 
 /**
@@ -251,8 +259,16 @@ export interface SendeInput {
  * indkaldelsen et døgn (cronen tæller den heller ikke som «har fået mail i dag»).
  */
 export const TRAPPER_UDEN_DAGSREGEL: readonly Trappe[] = ["indsendt"];
-export function erUndtagetFraDagsreglen(trappe: Trappe | undefined): boolean {
-  return trappe !== undefined && TRAPPER_UDEN_DAGSREGEL.includes(trappe);
+/** Hele trapper uden dagsregel (TRAPPER_UDEN_DAGSREGEL) — eller ét trin med `udenDagsregel` (ventepladsens tilbud). */
+export function erUndtagetFraDagsreglen(trappe: Trappe | undefined, trinNr?: number): boolean {
+  if (trappe === undefined) return false;
+  if (TRAPPER_UDEN_DAGSREGEL.includes(trappe)) return true;
+  if (trinNr === undefined) return false;
+  return TRAPPER[trappe].some((t) => t.trinNr === trinNr && t.udenDagsregel === true);
+}
+/** Til cronens optælling: er en SENDT række en, der ikke tæller som «har fået mail i dag»? */
+export function taellerIkkeIDagsreglen(r: { trappe: string; trin_nr: number }): boolean {
+  return (TRAPPER_NAVNE as readonly string[]).includes(r.trappe) && erUndtagetFraDagsreglen(r.trappe as Trappe, r.trin_nr);
 }
 
 export type SendeDom =
@@ -269,7 +285,7 @@ export function afgoerSending(i: SendeInput): SendeDom {
   if (i.planlagtTil.getTime() > i.nu.getTime()) return { ok: false, grund: "ikke_forfalden" };
   if (i.handling !== "send_mail") return { ok: true };
   if (!erISendevindue(i.nu)) return { ok: false, grund: "uden_for_vinduet", udskydTil: naesteSendevindue(i.nu) };
-  if (i.modtagerHarFaaetMailIDag && !erUndtagetFraDagsreglen(i.trappe)) {
+  if (i.modtagerHarFaaetMailIDag && !erUndtagetFraDagsreglen(i.trappe, i.trinNr)) {
     const naesteDag = kbhDato(startAfNaesteDag(i.nu));
     return { ok: false, grund: "allerede_mail_i_dag", udskydTil: kbhTilUtc(naesteHverdagFra(naesteDag, true), RYKKER_KLOKKE, 0) };
   }

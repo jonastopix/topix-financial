@@ -36,7 +36,7 @@ import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supa
 import { authenticateServiceRole, corsHeaders } from "../_shared/edgeFunctionAuth.ts";
 import { sendManagedEmail } from "../_shared/managedEmail.ts";
 import { skrivRaadgiverBesked } from "../_shared/raadgiverBesked.ts";
-import { afgoerSending, TRAPPER_PAA_LUKKET, TRAPPER_UDEN_DAGSREGEL, type KoeHandling } from "../_shared/rykkerkoe.ts";
+import { afgoerSending, taellerIkkeIDagsreglen, TRAPPER_PAA_LUKKET, type KoeHandling } from "../_shared/rykkerkoe.ts";
 import { grundTekst, koeNummer, type AfslagsIndhold } from "../_shared/afslagsTilbud.ts";
 import type { VentepladsRaekke } from "../_shared/ventelisteDom.ts";
 import { erAabentTrin, erPaaPause, trappensTrin, type Trappe } from "../_shared/ansoegningTrin.ts";
@@ -105,15 +105,20 @@ async function sendtIDag(admin: SupabaseClient, nu: Date): Promise<Set<string>> 
   // Trapper uden dagsregel (kvitteringen) tæller ikke — ellers skubber kvitteringen indkaldelsen et døgn.
   const { data, error } = await admin
     .from("planlagte_haendelser")
-    .select("sendt_til")
+    .select("sendt_til, trappe, trin_nr")
     .eq("status", "sendt")
-    .not("trappe", "in", `(${TRAPPER_UDEN_DAGSREGEL.join(",")})`)
     .gte("udfoert_at", fra);
   if (error) {
     console.error("[ansoegning-rykker-cron] sendtIDag fejlede — fail-closed: alle regnes som «har fået»:", error.message);
     return new Set(["*"]);
   }
-  return new Set((data ?? []).map((r: { sendt_til: string | null }) => (r.sendt_til ?? "").toLowerCase()).filter(Boolean));
+  // Undtagne rækker (kvitteringen, ventepladsens tilbud) tæller ikke — ellers skubber de næste mail et døgn.
+  return new Set(
+    ((data ?? []) as { sendt_til: string | null; trappe: string; trin_nr: number }[])
+      .filter((r) => !taellerIkkeIDagsreglen(r))
+      .map((r) => (r.sendt_til ?? "").toLowerCase())
+      .filter(Boolean),
+  );
 }
 
 /**
@@ -234,6 +239,7 @@ async function koer(admin: SupabaseClient, toer: boolean, nu: Date): Promise<Res
         handling: raekke.handling,
         modtagerHarFaaetMailIDag: raekke.modtager === "ansoeger" && (failClosed || harFaaet.has(email)),
         trappe: raekke.trappe,
+        trinNr: raekke.trin_nr,
       });
       if (dom.ok === false) {
         if (dom.grund === "ikke_forfalden") continue;

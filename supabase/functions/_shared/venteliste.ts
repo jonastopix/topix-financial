@@ -22,6 +22,7 @@ import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.97.0
 import { planlaegTrappe } from "./rykkerkoe.ts";
 import { skrivPlan, annullerTrapper, udfoerOvergang, hentAnsoegning, virksomhedsnavnAf, REFERENCE_TYPE } from "./ansoegningMotor.ts";
 import { skrivRaadgiverBesked } from "./raadgiverBesked.ts";
+import { naesteSendevindue } from "./hverdage.ts";
 import { afgoerSvar, erBloedUdgave, harTilbudUde, naesteIKoen, svarfristFra, type VentepladsRaekke, type VentepladsStatus } from "./ventelisteDom.ts";
 
 export const TYPE_VENTELISTE = "venteliste";
@@ -117,7 +118,11 @@ export async function tilbydPladsen(admin: SupabaseClient, companyId: string, nu
   const naeste = naesteIKoen(koe);
   if (!naeste) return { udfald: "koen_er_tom" };
 
-  const svarfrist = svarfristFra(nu);
+  // Fristen løber fra AFSENDELSEN, ikke fra klikket (recon 18/9 §2, pkt. 7): mailen går tidligst i næste
+  // sendevindue (aften/weekend → næste hverdag kl. 07), og dag 0 er undtaget dagsreglen, så planlagt = sendt.
+  // Trappen ankres samme sted, så udløbsrækken (dag 7) og «svar senest» i mailen er samme dag.
+  const afsendelse = naesteSendevindue(nu);
+  const svarfrist = svarfristFra(afsendelse);
   const { data, error } = await admin
     .from("ventepladser")
     .update({ status: "tilbudt", tilbudt_at: nu.toISOString(), tilbud_udloeber_at: svarfrist.toISOString(), tilbud_nr: tilbudNr })
@@ -127,7 +132,7 @@ export async function tilbydPladsen(admin: SupabaseClient, companyId: string, nu
   if (error) throw new Error(`tilbud kunne ikke skrives: ${error.message}`);
   if (!data || data.length === 0) return { udfald: "tilbud_ude" }; // en anden nåede det først
 
-  const plan = planlaegTrappe({ ansoegningId: naeste.ansoegning_id, trappe: "venteplads", anker: nu, nu });
+  const plan = planlaegTrappe({ ansoegningId: naeste.ansoegning_id, trappe: "venteplads", anker: afsendelse, nu });
   const skrevet = await skrivPlan(admin, plan);
   const a = await hentAnsoegning(admin, naeste.ansoegning_id);
   const navn = a ? virksomhedsnavnAf(a) : naeste.ansoegning_id;
