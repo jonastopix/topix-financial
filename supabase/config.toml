@@ -195,3 +195,31 @@ project_id = "loiavmastgeieqyiwyyr"
     verify_jwt = true
   [functions.preview-transactional-email]
     verify_jwt = false
+  # Ansøgningsformularen (udkast 18/9): verify_jwt = FALSE, bevidst — samme
+  # begrundelse som opret-indgangs-checkout: kalderen er en besøgende UDEN
+  # session (ingen konto, intet login). Beskyttelsen er ansøgningstokenet i
+  # body, verificeret af verifyAnsoegningstoken (_shared/ansoegningToken.ts)
+  # mod hent_ansoegning_til_gem (service_role-only), som kun svarer for en
+  # åben ansøgning — samme klasse som webhook-signaturerne (Bucket C).
+  # Oprettelsen uden token er begrænset (honningfelt + timelofter).
+  [functions.ansoegning-gem]
+    verify_jwt = false
+  # Samme begrundelse som ansoegning-gem: tokenet FØR opslaget, så kun én
+  # med en åben ansøgning kan bruge CVR-kvoten.
+  [functions.ansoegning-cvr]
+    verify_jwt = false
+  # ANSØGNINGSMOTOREN (udkast 18/9). Bucket A: rådgiverens handlinger
+  # (tal_med_dem, afvis, tilbud, afslag, underskrevet, luk, genaabn, afholdt)
+  # bag authenticateUser + advisor-gate — samme form som saet-indgangs-prisniveau.
+  [functions.ansoegning-handling]
+    verify_jwt = true
+  # Ansøgerens link EFTER indsendelse: verify_jwt = FALSE, bevidst — samme
+  # begrundelse som ansoegning-gem og opret-indgangs-checkout: ingen session.
+  # Legitimationen er tokenet i body (verifyAnsoegningslink, service-role-opslag
+  # på ansoegninger.token hvor indsendt_at er sat — ingen SQL-funktion).
+  [functions.ansoegning-link]
+    verify_jwt = false
+  # Bucket B, samme form som indgangs-paamindelser-cron: authenticateServiceRole,
+  # pg_cron via kald_edge (20260918210000) passerer gaten. Tørkørsel som standard.
+  [functions.ansoegning-rykker-cron]
+    verify_jwt = true

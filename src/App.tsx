@@ -17,6 +17,8 @@ import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import ResetPassword from "./pages/ResetPassword";
 import Betal from "./pages/Betal";
+import Ansoeg from "./pages/Ansoeg";
+import AnsoegPersondata from "./pages/AnsoegPersondata";
 import NotFound from "./pages/NotFound";
 
 // Lazy — member/advisor routes
@@ -224,6 +226,10 @@ const App = () => (
                   ProtectedRoute, ingen MemberRoute. AuthProvider kalder
                   ikke fetchUserData uden session, så ruten koster intet. */}
               <Route path="/betal" element={<Betal />} />
+              {/* Ansøgningsformularen (udkast 18/9): uguardet som /betal — ansøgeren
+                  har ingen konto. Tokenet i ?t= er legitimationen (docs i README). */}
+              <Route path="/ansoeg" element={<Ansoeg />} />
+              <Route path="/ansoeg/persondata" element={<AnsoegPersondata />} />
               <Route path="/onboarding" element={<OnboardingRedirect />} />
               <Route path="/" element={<MemberRoute><Index /></MemberRoute>} />
               {/* Rapportering-GO (2026-08-06): /reports bærer Hb-rapporteringen.

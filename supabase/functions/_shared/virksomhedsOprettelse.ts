@@ -72,22 +72,33 @@ const OPSLAG_TIMEOUT_MS = 8000;
 const CVR_USER_AGENT = "The Boardroom - medlemsplatform - kontakt@theboardroom.dk";
 
 /**
- * Slår et CVR-nummer op hos DataCVR og svarer et udfald — kaster aldrig.
+ * Det rå svar fra DataCVR — status og parset body — eller grunden til at
+ * der intet svar er. Udskilt 18/9 (ansøgningsformularen), så to læsere kan
+ * tolke SAMME svar: tolkDataCvrSvar (de syv felter til virksomhedsrækken,
+ * uændret) og tolkCvrTilAnsoeger (_shared/cvrAnsoeger.ts: ansatte,
+ * selskabsform, status, hjemmeside — kun til det der vises tilbage til
+ * ansøgeren, aldrig til raw_cvr_data). Fetch, nøgle, timeout og User-Agent
+ * bor stadig HER, ét sted; kildeværnet cvrKilde.guard dømmer på denne fil.
+ *
  * Nøglen læses INDE i funktionen (secret DATACVR_API_KEY), og mangler den,
- * logges det og udfaldet er noegle_mangler — som husets
- * INVITATION_AFSENDER_USER_ID-mønster (sikrIndgangsInvitation.ts).
- * Nøglen, headerne og Authorization står ALDRIG i en log.
+ * logges det — som husets INVITATION_AFSENDER_USER_ID-mønster
+ * (sikrIndgangsInvitation.ts). Nøglen, headerne og Authorization står
+ * ALDRIG i en log. Kaster aldrig.
  */
-export async function slaaCvrOp(cvr: string): Promise<CvrOpslag> {
+export type DataCvrRaa =
+  | { slags: "svar"; status: number; body: unknown }
+  | { slags: "noegle_mangler" }
+  | { slags: "fejl"; grund: string };
+
+export async function hentDataCvrRaa(cvr: string): Promise<DataCvrRaa> {
   const noegle = Deno.env.get("DATACVR_API_KEY")?.trim();
   if (!noegle) {
     console.error("[virksomhedsOprettelse] DATACVR_API_KEY mangler — CVR-opslag springes over");
-    return { udfald: "noegle_mangler" };
+    return { slags: "noegle_mangler" };
   }
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), OPSLAG_TIMEOUT_MS);
-  let opslag: CvrOpslag;
   try {
     const resp = await fetch(dataCvrUrl(cvr), {
       headers: {
@@ -103,17 +114,31 @@ export async function slaaCvrOp(cvr: string): Promise<CvrOpslag> {
     } catch {
       body = null; // ugyldig eller tom JSON — tolkningen dømmer på status alene
     }
-    opslag = tolkDataCvrSvar(resp.status, body);
+    return { slags: "svar", status: resp.status, body };
   } catch (err) {
     const afbrudt = err instanceof DOMException && err.name === "AbortError";
-    opslag = {
-      udfald: "fejl",
+    return {
+      slags: "fejl",
       grund: afbrudt ? `timeout efter ${OPSLAG_TIMEOUT_MS / 1000} s` : err instanceof Error ? err.message : String(err),
     };
   } finally {
     clearTimeout(timer);
   }
+}
 
+/** Det rå svar → udfald. Ren; delt af slaaCvrOp og ansoegning-cvr. */
+export function udfaldAf(raa: DataCvrRaa): CvrOpslag {
+  if (raa.slags === "noegle_mangler") return { udfald: "noegle_mangler" };
+  if (raa.slags === "fejl") return { udfald: "fejl", grund: raa.grund };
+  return tolkDataCvrSvar(raa.status, raa.body);
+}
+
+/**
+ * Slår et CVR-nummer op hos DataCVR og svarer et udfald — kaster aldrig.
+ * Samme kontrakt som før 18/9; kroppen er nu hentDataCvrRaa + udfaldAf.
+ */
+export async function slaaCvrOp(cvr: string): Promise<CvrOpslag> {
+  const opslag = udfaldAf(await hentDataCvrRaa(cvr));
   if (opslag.udfald !== "fundet") {
     const grund = opslag.udfald === "fejl" ? ` — ${opslag.grund}` : "";
     console.warn(`[virksomhedsOprettelse] CVR ${cvr}: opslag ${opslag.udfald}${grund}`);
@@ -121,9 +146,20 @@ export async function slaaCvrOp(cvr: string): Promise<CvrOpslag> {
   return opslag;
 }
 
+export interface OpretValg {
+  /**
+   * Virksomhedens id, når kalderen allerede har det — ansøgningsmotoren
+   * (18/9): ansøgningen BLIVER virksomheden med samme id. Bruges kun ved
+   * NYOPRETTELSE; ved CVR-genbrug er det den eksisterende rækkes id der
+   * gælder, og kalderen læser det i svaret.
+   */
+  id?: string;
+}
+
 export async function opretEllerGenbrugVirksomhed(
   input: VirksomhedsInput,
   adminClient: SupabaseClient,
+  valg: OpretValg = {},
 ): Promise<OpretResultat> {
   const cvr = input.cvr_number && CVR_FORMAT.test(input.cvr_number) ? input.cvr_number : null;
 
@@ -164,7 +200,7 @@ export async function opretEllerGenbrugVirksomhed(
 
   const { data: company, error: companyErr } = await adminClient
     .from("companies")
-    .insert(raekke)
+    .insert(valg.id ? { ...raekke, id: valg.id } : raekke)
     .select("id")
     .single();
 

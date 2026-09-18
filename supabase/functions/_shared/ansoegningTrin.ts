@@ -1,0 +1,241 @@
+/**
+ * ansoegningTrin — de syv trin, lukkeårsagerne, kilderne og overgangsdommen
+ * for en ansøgning. Spejl: src/lib/ansoegningTrin.ts (kroppen efter
+ * filhovedet er ordret ens; pariteten låses af
+ * src/lib/__tests__/ansoegningMotor.paritet.test.ts).
+ *
+ * JONAS 18/9 (ordret): «Vi bygger ikke en kopi af Monday. Vi bygger et
+ * meget smartere og mere moderne flow.» Mondays statusfelt bar fire ting
+ * på én gang (trin, årsag, forsøgsnummer, udløser) — 40 etiketter og 122
+ * opskrifter. Her er de fire adskilt: TRIN er ét af syv ord her,
+ * LUKKEÅRSAG en egen kolonne, FORSØGSNUMMER et tal (rykkere_sendt på
+ * rækken, trin_nr på køens række), NÆSTE HANDLING en række i køen
+ * (planlagte_haendelser) med en dato. En ny rykker er en RÆKKE, ikke en
+ * ny etiket.
+ *
+ * FEM TRIN + LUKKET (chatten 17/9 nat): ny → indkaldt til afklaringssamtale
+ * → samtale booket → samtale afholdt → aftalegrundlag sendt → underskrevet;
+ * plus lukket med en årsag. «Samtale booket/afholdt» er to trin, fordi
+ * de har hver sin trappe (påmindelser før mødet; menneskets beslutning
+ * efter). DIREKTE TILBUD FINDES IKKE: fra «ny» kan man kun indkalde eller
+ * afvise — dommen afviser ny → aftalegrundlag_sendt og ny → underskrevet.
+ *
+ * TO BESLUTNINGER KRÆVER ET MENNESKE: (1) efter ansøgningen — tal_med_dem
+ * eller afvis (systemet giver en anbefaling, _shared/ansoegningAnbefaling.ts);
+ * (2) efter samtalen — tilbud eller afslag. Alt andet er systemhandlinger:
+ * book/aflys_booking (Calendly), afholdt (køen når samtalen er slut),
+ * svarer_ikke (køen dag 14), udloeb (køen dag 21), ikke_nu (ansøgerens
+ * link). underskrevet er et menneske i dag (rådgiveren stempler), og bliver
+ * en systemhandling den dag e-signaturen melder tilbage.
+ *
+ * EFTER UNDERSKRIFT overtager platformens EKSISTERENDE betalingsforløb
+ * (company_betalingslink + indgangs-paamindelser-cron: 30 dage, faktura dag
+ * 31) — dommen tillader ingen handling fra «underskrevet»; motoren har
+ * afleveret.
+ *
+ * REAKTIONER ANNULLERER TRAPPEN: hver overgang siger hvilke trapper der
+ * annulleres og hvilken der startes. «alle» ved lukning, pause og
+ * underskrift; ellers den trappe trinnet forlader. Det er reglen «enhver
+ * reaktion fra ansøgeren annullerer resten af trappen» — udført ét sted.
+ *
+ * GENÅBNING: lukket → det trin lukningen skete fra, dog aldrig tilbage til
+ * «booket» (tiden er gået) eller «aftalegrundlag_sendt» (tilbuddet skal
+ * sendes igen af et menneske): booket → indkaldt, aftalegrundlag_sendt →
+ * afholdt. Trappen for det genåbnede trin startes forfra med nyt anker.
+ */
+
+export const TRIN = [
+  "ny",
+  "indkaldt",
+  "booket",
+  "afholdt",
+  "aftalegrundlag_sendt",
+  "underskrevet",
+  "lukket",
+] as const;
+export type Trin = (typeof TRIN)[number];
+
+export const LUKKEAARSAGER = [
+  "afslag_efter_ansoegning",
+  "afslag_efter_samtale",
+  "svarer_ikke",
+  "udloebet",
+  "trak_sig",
+  "dublet",
+  "andet",
+] as const;
+export type Lukkeaarsag = (typeof LUKKEAARSAGER)[number];
+
+// B's fem (ansoegningSkema.ts KILDER) — byte-ens liste; ansoegningMotor.guard låser den.
+export const KILDER = ["webinar", "anbefaling", "linkedin", "direkte", "andet"] as const;
+export type Kilde = (typeof KILDER)[number];
+
+/**
+ * Trapperne i rykkerkøen. Definitionen (dage, skabeloner) bor i rykkerkoe.ts.
+ * «kladde» er formularens påmindelse (Jonas D6, 18/9): B's egen cron er
+ * lagt ind i den fælles kø — anker = sidste gem, én række, og den lever
+ * FØR trinnene (indsendt_at er null). trappensTrin svarer null for den,
+ * og køen tjekker i stedet at ansøgningen stadig er en kladde med e-mail.
+ */
+export const TRAPPER_NAVNE = ["kladde", "indkaldt", "booket", "aftalegrundlag", "pause"] as const;
+export type Trappe = (typeof TRAPPER_NAVNE)[number];
+
+export type Handling =
+  | { art: "tal_med_dem" }
+  | { art: "afvis" }
+  | { art: "book" }
+  | { art: "aflys_booking" }
+  | { art: "afholdt" }
+  | { art: "tilbud" }
+  | { art: "afslag" }
+  | { art: "underskrevet" }
+  | { art: "svarer_ikke" }
+  | { art: "udloeb" }
+  | { art: "ikke_nu" }
+  | { art: "luk"; aarsag: Lukkeaarsag }
+  | { art: "genaabn" };
+export type HandlingsArt = Handling["art"];
+
+/** Handlinger et menneske må udføre fra fladen (Bucket A, rådgiver). */
+export const MENNESKE_HANDLINGER: readonly HandlingsArt[] = [
+  "tal_med_dem",
+  "afvis",
+  "afholdt",
+  "tilbud",
+  "afslag",
+  "underskrevet",
+  "luk",
+  "genaabn",
+];
+
+/** Handlinger systemet udfører (webhook, kø, ansøgerens link). */
+export const SYSTEM_HANDLINGER: readonly HandlingsArt[] = [
+  "book",
+  "aflys_booking",
+  "afholdt",
+  "svarer_ikke",
+  "udloeb",
+  "ikke_nu",
+];
+
+export interface Overgang {
+  til: Trin;
+  lukkeaarsag: Lukkeaarsag | null;
+  /** Hvilke trapper der annulleres (alle planlagte rækker sættes annulleret). */
+  annuller: "alle" | readonly Trappe[];
+  /** Hvilken trappe der startes, og om ankeret er «nu» eller samtalens starttid. */
+  start: { trappe: Trappe; anker: "nu" | "samtale" } | null;
+  /** Sætter pausen (paa_pause_til = i dag + 3 måneder). */
+  saetPause: boolean;
+  /** Ophæver en pause (paa_pause_til = null) — enhver anden reaktion end ikke_nu. */
+  ophaevPause: boolean;
+  /** Skal der skrives en række i ansoegning_beslutninger? (menneskets to beslutninger + lukning/genåbning) */
+  beslutning: boolean;
+}
+
+export interface OvergangsKontekst {
+  paaPause: boolean;
+  /** Trinnet lukningen skete fra — kun brugt ved genaabn. */
+  lukketFraTrin: Trin | null;
+}
+
+export type OvergangsDom = { ok: true; overgang: Overgang } | { ok: false; grund: string };
+
+const AFVIST = (grund: string): OvergangsDom => ({ ok: false, grund });
+const OK = (o: Partial<Overgang> & { til: Trin }): OvergangsDom => ({
+  ok: true,
+  overgang: {
+    lukkeaarsag: null,
+    annuller: [],
+    start: null,
+    saetPause: false,
+    ophaevPause: true,
+    beslutning: false,
+    ...o,
+  },
+});
+
+/** Hvor en genåbning lander, regnet fra det trin lukningen skete fra. */
+export function genaabningsTrin(lukketFra: Trin | null): Trin {
+  switch (lukketFra) {
+    case "indkaldt":
+    case "booket":
+      return "indkaldt";
+    case "afholdt":
+    case "aftalegrundlag_sendt":
+      return "afholdt";
+    default:
+      return "ny";
+  }
+}
+
+export function afgoerOvergang(fra: Trin, h: Handling, ctx: OvergangsKontekst): OvergangsDom {
+  if (fra === "underskrevet") return AFVIST("underskrevet: motoren har afleveret til betalingsforløbet — ingen handling herfra");
+
+  if (h.art === "genaabn") {
+    if (fra !== "lukket") return AFVIST(`genaabn: kun en lukket ansøgning kan genåbnes (er ${fra})`);
+    const til = genaabningsTrin(ctx.lukketFraTrin);
+    return OK({
+      til,
+      start: til === "indkaldt" ? { trappe: "indkaldt", anker: "nu" } : null,
+      beslutning: true,
+    });
+  }
+  if (fra === "lukket") return AFVIST("lukket: kun genaabn er tilladt");
+
+  if (h.art === "luk") {
+    return OK({ til: "lukket", lukkeaarsag: h.aarsag, annuller: "alle", beslutning: true });
+  }
+
+  if (h.art === "ikke_nu") {
+    if (ctx.paaPause) return AFVIST("ikke_nu: ansøgningen er allerede på pause");
+    return OK({ til: fra, annuller: "alle", start: { trappe: "pause", anker: "nu" }, saetPause: true, ophaevPause: false });
+  }
+
+  switch (fra) {
+    case "ny":
+      if (h.art === "tal_med_dem") return OK({ til: "indkaldt", start: { trappe: "indkaldt", anker: "nu" }, beslutning: true });
+      if (h.art === "afvis") return OK({ til: "lukket", lukkeaarsag: "afslag_efter_ansoegning", annuller: "alle", beslutning: true });
+      if (h.art === "tilbud" || h.art === "underskrevet") return AFVIST("direkte tilbud findes ikke: fra «ny» kan man kun indkalde eller afvise");
+      break;
+    case "indkaldt":
+      if (h.art === "book") return OK({ til: "booket", annuller: ["indkaldt"], start: { trappe: "booket", anker: "samtale" } });
+      if (h.art === "svarer_ikke") return OK({ til: "lukket", lukkeaarsag: "svarer_ikke", annuller: "alle" });
+      break;
+    case "booket":
+      if (h.art === "afholdt") return OK({ til: "afholdt", annuller: ["booket"] });
+      if (h.art === "aflys_booking") return OK({ til: "indkaldt", annuller: ["booket"], start: { trappe: "indkaldt", anker: "nu" } });
+      if (h.art === "book") return OK({ til: "booket", annuller: ["booket"], start: { trappe: "booket", anker: "samtale" } }); // flytning: ny tid, ny trappe
+      break;
+    case "afholdt":
+      if (h.art === "tilbud") return OK({ til: "aftalegrundlag_sendt", start: { trappe: "aftalegrundlag", anker: "nu" }, beslutning: true });
+      if (h.art === "afslag") return OK({ til: "lukket", lukkeaarsag: "afslag_efter_samtale", annuller: "alle", beslutning: true });
+      break;
+    case "aftalegrundlag_sendt":
+      if (h.art === "underskrevet") return OK({ til: "underskrevet", annuller: "alle", beslutning: true });
+      if (h.art === "udloeb") return OK({ til: "lukket", lukkeaarsag: "udloebet", annuller: "alle" });
+      break;
+  }
+  return AFVIST(`${h.art} er ikke tilladt fra «${fra}»`);
+}
+
+/** Er trinnet et hvor køen må arbejde? (Ikke lukket, ikke afleveret.) */
+export function erAabentTrin(trin: Trin): boolean {
+  return trin !== "lukket" && trin !== "underskrevet";
+}
+
+/** Hvilket trin en trappe hører til — køen tjekker at ansøgningen stadig står dér før den sender. */
+export function trappensTrin(trappe: Trappe): Trin | null {
+  switch (trappe) {
+    case "indkaldt":
+      return "indkaldt";
+    case "booket":
+      return "booket";
+    case "aftalegrundlag":
+      return "aftalegrundlag_sendt";
+    case "pause":
+      return null; // pausen gælder uanset trin
+    case "kladde":
+      return null; // kladden er før trinnene (indsendt_at is null) — køen tjekker det selv
+  }
+}
