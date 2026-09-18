@@ -19,6 +19,7 @@ import ResetPassword from "./pages/ResetPassword";
 import Betal from "./pages/Betal";
 import Ansoeg from "./pages/Ansoeg";
 import AnsoegPersondata from "./pages/AnsoegPersondata";
+import Aftale from "./pages/Aftale";
 import NotFound from "./pages/NotFound";
 
 // Lazy — member/advisor routes
@@ -232,6 +233,10 @@ const App = () => (
                   har ingen konto. Tokenet i ?t= er legitimationen (docs i README). */}
               <Route path="/ansoeg" element={<Ansoeg />} />
               <Route path="/ansoeg/persondata" element={<AnsoegPersondata />} />
+              {/* E-underskriften (UDKAST 18/9): en person UDEN konto lander
+                  her fra linkmailen med ?token=<uuid>. Uguardet som /betal —
+                  alle kald går gennem edge-funktionen aftale-underskrift. */}
+              <Route path="/aftale" element={<Aftale />} />
               <Route path="/onboarding" element={<OnboardingRedirect />} />
               <Route path="/" element={<MemberRoute><Index /></MemberRoute>} />
               {/* Rapportering-GO (2026-08-06): /reports bærer Hb-rapporteringen.

@@ -729,6 +729,16 @@ skrivende edge functions bruger `SUPABASE_SERVICE_ROLE_KEY`.
 - **Samme id:** ved «underskrevet» oprettes `companies` med `id = ansoegninger.id` (`opretEllerGenbrugVirksomhed(…, { id })`); CVR-genbrug er eneste undtagelse. Ingen kontraktdatoer — stripe-webhook skriver dem ved betaling.
 - Kildeværn: `src/lib/__tests__/ansoegningMotor.guard.test.ts` (8 domme med selvbevis).
 
+### E-underskriften (`aftale_skabelon`, `aftale_underskrift`, `aftale_kode`, `aftale_spor`, bucket `aftaler`) — udkast 18/9-2026
+
+- **Migration** `20260918220000_aftaleunderskrift.sql` (kræver A's `20260918200000` først — FK til `ansoegninger`). Ingen SECURITY DEFINER-funktion rører `has_role`/`user_company_id`.
+- **Modtageren har INGEN konto og INGEN politik.** Alt går gennem edge-funktionen `aftale-underskrift` (`verify_jwt = false`, bevidst) med tokenet som legitimation: `verifyAftaletoken` (`_shared/aftaletokenAuth.ts`, service-role-opslag på `aftale_underskrift.token` UNIQUE uuid) FØR enhver anden databaseadgang — samme klasse som `verifyBetalingstoken`; registreret som prædikat i `scripts/check-edge-function-auth.ts`. Ingen anon-RPC: hver åbning skal i sporet med IP/browser fra request-headerne.
+- **Rådgivere:** SELECT på `aftale_underskrift` og `aftale_spor`, FOR ALL på `aftale_skabelon`, SELECT i bucket `aftaler`. Afsendelse og annullering går KUN gennem `send-til-underskrift` (Bucket A: `authenticateUser` + `has_role` advisor, `verify_jwt = true`), så en sendt aftale aldrig findes uden spor og mail.
+- **Koderne (`aftale_kode`) er service-role-only** — ikke engang rådgivere læser hash'ene. Kun `sha256(aftale_id:kode)` gemmes; forsøg tælles atomisk i SQL (`registrer_kodeforsoeg`, `WHERE forsoeg < 5`, CHECK ≤ 5); `annuller_gamle_koder` erstatter åbne koder. Begge funktioner: SECURITY DEFINER, EXECUTE kun til `service_role`.
+- **Sporet (`aftale_spor`) er append-only:** INSERT/SELECT for service_role, SELECT for rådgivere, ingen UPDATE/DELETE-politik for nogen; kildeværnet låser at koden kun indsætter.
+- **Én ejer pr. aftale:** CHECK præcis én af `company_id`/`ansoegning_id` (D1: virksomheden oprettes ved underskriften af A's motor, `udfoerOvergang(underskrevet, via e_signatur)`). Underskriften sender ALDRIG invitationen og skriver aldrig kontraktdatoer — adgang gives ved betaling (`stripe-webhook`, urørt).
+- Kildeværn: `src/lib/__tests__/aftaleUnderskrift.guard.test.ts` (9 domme + 8 selvbeviser).
+
 ## 6. Security Outcomes from Hardening Patches 5–10
 
 ### Messages ownership mutation rules (Patch 5)

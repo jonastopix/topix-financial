@@ -46,6 +46,7 @@ import { EstimatMaerke, ESTIMAT_FORKLARING } from "../EstimatMaerke";
 import { StandardmaalMaerke } from "../StandardmaalMaerke";
 import { VirksomhedMailLog } from "./VirksomhedMailLog";
 import { FarligZone, OmdoebVirksomhed, SaetPrisniveau } from "./VirksomhedStamdata";
+import { SendTilUnderskrift } from "./SendTilUnderskrift";
 import { GenkoerRapport } from "./VirksomhedGenkoersel";
 import { VirksomhedPlanen } from "./VirksomhedPlanen";
 import { planenDom } from "@/lib/hjemmebane/planen";
@@ -1748,6 +1749,14 @@ const Blok7 = ({
             {c.fornyelsespris_oere != null && <Linje label="Fornyelsespris">{formatKr(c.fornyelsespris_oere)} ekskl. moms</Linje>}
             {c.subscription_status && <Linje label="Abonnement">{c.subscription_status}{c.subscription_current_period_end ? ` · til ${formatDato(c.subscription_current_period_end)}` : ""}</Linje>}
             {d.betalingslink && <Linje label="Underskrevet">{formatDato(d.betalingslink.underskrevet_at)}</Linje>}
+            {/* E-underskriften (UDKAST 18/9): uden linkrække er der ikke
+                skrevet under endnu — herfra sendes aftalegrundlaget. Med
+                linkrække er underskriften sket (e-underskrift eller Monday). */}
+            {!d.betalingslink && !c.contract_end_date && (
+              <Linje label="Aftalegrundlag">
+                <SendTilUnderskrift companyId={c.id} onOpdateret={onOpdateret} />
+              </Linje>
+            )}
             <IntroSessionLinje companyId={c.id} />
             {/* Fornyelsen som FORLØB, ikke som ét ord (rettet 7/9, set på skærm:
                 «Fornyelse: Tilbyd · dato» lød som en afsendelse, men besluttet_at
