@@ -448,6 +448,15 @@ export interface OvergangsArgs {
   samtale?: Samtale | null;
   /** Kun tilbud: linket til aftalegrundlaget (C's /aftale?token=… eller en PDF). */
   aftaleUrl?: string | null;
+  /**
+   * Start den nye trappe fra dette trin (recon-sammenhæng §2, 19/9): send-til-underskrift har
+   * ALLEREDE sendt aftale-link-mailen med linket — køens dag 0 («Aftalegrundlaget for jeres
+   * medlemskab», samme link) ville komme et kvarter senere. Med 1 springes dag 0 over; rykkerne
+   * dag 2/5/9/14 og udløbet dag 21 kører som før. Samme mekanisme som aflysning (fraTrinNr i
+   * dommen) — men valget er KALDERENS, for kun kalderen ved om mailen allerede er gået. Udeladt =
+   * dommens eget fraTrinNr (aflysning) eller hele trappen.
+   */
+  startFraTrinNr?: number;
 }
 
 export type OvergangsResultat =
@@ -549,7 +558,7 @@ export async function udfoerOvergang(admin: SupabaseClient, args: OvergangsArgs)
       trappe: o.start.trappe,
       anker,
       samtaleSlut: o.start.anker === "samtale" ? args.samtale!.slut : null,
-      fraTrinNr: o.start.fraTrinNr,
+      fraTrinNr: args.startFraTrinNr ?? o.start.fraTrinNr,
       nu,
     });
     planlagt = (await skrivPlan(admin, plan)).skrevet;

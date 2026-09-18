@@ -176,7 +176,8 @@ export interface Overgang {
 /**
  * Er ansøgningen på pause NU? paa_pause_til er en dansk dato (YYYY-MM-DD) og
  * pausen slutter den dag — en dato i fortiden er ingen pause (rettelse 19/9:
- * tre steder testede rå null, så en pause slap aldrig; cronens pause_slut
+ * fire steder testede rå null — motor, samtale, link, rådgiverside — og
+ * cronen som det sidste (19/9), så en pause slap aldrig; cronens pause_slut
  * rydder nu også kolonnen, men dommen må ikke afhænge af det).
  */
 export function erPaaPause(paaPauseTil: string | null | undefined, nu: Date): boolean {

@@ -50,6 +50,19 @@ describe("afgoerStatus", () => {
     expect(afgoerStatus({ ...basis, trin: "lukket" })).toMatchObject({ book: false, aftale: null, visIkkeNu: false });
     expect(afgoerStatus({ ...basis, trin: "afholdt" })).toMatchObject({ book: false, aftale: null, visIkkeNu: true });
   });
+  it("lukket med venteplads (19/9): tilbud → «Du har et tilbud om en plads» + frist + knapperne; i kø → «Du står i kø»; ellers «afsluttet»", () => {
+    const lukket = { ...basis, trin: "lukket" };
+    const tilbud = afgoerStatus({ ...lukket, ventepladser: { venter: 0, tilbud: { udloeber_at: "2026-09-25T10:00:00Z" } } });
+    expect(tilbud).toMatchObject({ plads: "tilbud", titel: "Du har et tilbud om en plads", book: false, aftale: null, visIkkeNu: false });
+    expect(tilbud.tekst).toContain("Svar senest 25. september 2026");
+    const koe = afgoerStatus({ ...lukket, ventepladser: { venter: 2, tilbud: null } });
+    expect(koe).toMatchObject({ plads: "koe", titel: "Du står i kø" });
+    expect(koe.tekst).toContain("til 2 pladser");
+    expect(afgoerStatus({ ...lukket, ventepladser: { venter: 1, tilbud: null } }).tekst).not.toContain("pladser");
+    expect(afgoerStatus({ ...lukket, ventepladser: { venter: 0, tilbud: null } })).toMatchObject({ plads: null, titel: "Ansøgningen er afsluttet" });
+    expect(afgoerStatus({ ...lukket, ventepladser: null })).toMatchObject({ plads: null, titel: "Ansøgningen er afsluttet" });
+    expect(afgoerStatus(lukket)).toMatchObject({ plads: null, titel: "Ansøgningen er afsluttet" });
+  });
   it("på pause: datoen på dansk, ingen knapper — uanset trin", () => {
     const v = afgoerStatus({ ...basis, trin: "indkaldt", paa_pause_til: "2026-12-18" });
     expect(v.titel).toBe("Din ansøgning holder pause");

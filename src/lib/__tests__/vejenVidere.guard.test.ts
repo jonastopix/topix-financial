@@ -54,6 +54,7 @@ export const ikkeNuErRigtig = (trin: string, status: string): boolean =>
   !/booket: \{ start: s\.samtale_start[^\n]*visIkkeNu: true/.test(status) && status.includes("visIkkeNu: false, titel: \"Samtalen er booket\"");
 export const pausenSlipper = (cron: string, motor: string, samtale: string, link: string, view: string, status: string): boolean =>
   cron.includes('if (raekke.handling === "pause_slut") {') && cron.includes(".update({ paa_pause_til: null }).eq(\"id\", a.id).eq(\"paa_pause_til\", pauseDato)") &&
+  cron.includes("const paaPause = erPaaPause(a?.paa_pause_til, nu);") && !cron.includes("a?.paa_pause_til !== null") &&
   motor.includes("paaPause: erPaaPause(a.paa_pause_til, nu)") && !motor.includes("paaPause: a.paa_pause_til !== null") &&
   samtale.includes("if (erPaaPause(a.paa_pause_til, new Date())) return json({ error: \"Ansøgningen er på pause\" }, 409);") && !samtale.includes("if (a.paa_pause_til) return json") &&
   link.includes("if (erPaaPause(a.paa_pause_til, new Date())) return json({ ok: true, allerede: true") && !link.includes("if (a.paa_pause_til) return json") &&
@@ -62,7 +63,7 @@ export const pausenSlipper = (cron: string, motor: string, samtale: string, link
 export const ingenDagNulEfterAflysning = (trin: string, ryk: string, motor: string): boolean =>
   trin.includes('if (h.art === "aflys_booking") return OK({ til: "indkaldt", annuller: ["booket"], start: { trappe: "indkaldt", anker: "nu", fraTrinNr: 1 } });') &&
   ryk.includes("if (i.fraTrinNr !== undefined && t.trinNr < i.fraTrinNr) continue;") &&
-  motor.includes("fraTrinNr: o.start.fraTrinNr,");
+  motor.includes("fraTrinNr: args.startFraTrinNr ?? o.start.fraTrinNr,");
 export const ventelistenVirker = (side: string, api: string, status: string): boolean =>
   side.includes("laesPladsHandling(searchParams.get(\"handling\"))") && side.includes("await svarPaaPladsen(token, pladsSvar)") && side.includes("onClick={svarPlads}") &&
   api.includes('handling: svar === "ja" ? "tag_pladsen" : "afslaa_pladsen"') &&

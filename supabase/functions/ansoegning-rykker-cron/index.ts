@@ -39,7 +39,7 @@ import { skrivRaadgiverBesked } from "../_shared/raadgiverBesked.ts";
 import { afgoerSending, TRAPPER_PAA_LUKKET, TRAPPER_UDEN_DAGSREGEL, type KoeHandling } from "../_shared/rykkerkoe.ts";
 import { grundTekst, koeNummer, type AfslagsIndhold } from "../_shared/afslagsTilbud.ts";
 import type { VentepladsRaekke } from "../_shared/ventelisteDom.ts";
-import { erAabentTrin, trappensTrin, type Trappe } from "../_shared/ansoegningTrin.ts";
+import { erAabentTrin, erPaaPause, trappensTrin, type Trappe } from "../_shared/ansoegningTrin.ts";
 import { kbhDato, kbhTilUtc } from "../_shared/hverdage.ts";
 import { bygRykkerMail, type VentepladsKontekst } from "../_shared/ansoegningRykkerMails.ts";
 import { KONTAKT_ADRESSE } from "../_shared/indgangsMail.ts";
@@ -194,7 +194,9 @@ async function koer(admin: SupabaseClient, toer: boolean, nu: Date): Promise<Res
     try {
       const a = await hentAnsoegning(admin, raekke.ansoegning_id);
       const trin = trappensTrin(raekke.trappe);
-      const paaPause = a?.paa_pause_til !== null && a?.paa_pause_til !== undefined;
+      // Rettelse 19/9 (recon-sammenhæng §2): den fjerde og sidste rå null-test. En pause hvis dato er nået,
+      // er ingen pause — ellers annullerede cronen enhver ny række, hvis pause_slut-rækken var fejlet.
+      const paaPause = erPaaPause(a?.paa_pause_til, nu);
       // Kladden lever FØR trinnene: rækken gælder kun mens ansøgningen stadig er
       // en kladde med e-mail; er den indsendt, vandt reaktionen (regel 1).
       // Ventelisten (udkast 18/9): trappen «venteplads» lever på en LUKKET
