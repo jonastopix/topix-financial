@@ -107,6 +107,11 @@ project_id = "loiavmastgeieqyiwyyr"
   # kald_edge med vault-nøglen — samme værdi som event-reminders.
   [functions.report-review-cron]
     verify_jwt = true
+  # UDKAST 18/9 — flyt-event: Bucket A (authenticateUser + advisor-gate),
+  # kaldes fra editorens «Gem» når dato/tid ændres på et publiceret event —
+  # samme form som publish-event og cancel-event.
+  [functions.flyt-event]
+    verify_jwt = true
   # Bucket A (10/9): authenticateUser + advisor-gate, kaldes fra editorens
   # «Publicér» med brugerens JWT — samme form som saet-indgangs-prisniveau.
   [functions.publish-event]

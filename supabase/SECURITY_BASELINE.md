@@ -797,6 +797,7 @@ skrivende edge functions bruger `SUPABASE_SERVICE_ROLE_KEY`.
 - `manage-advisor` — admin role gate + service-role operations
 - `process-pending-invitation` — self-only guard + server-verified email
 - `agent-forslag-afgoer` — Bucket A m. `verify_jwt = true` i config.toml
+- `flyt-event` (udkast 18/9) — Bucket A m. `verify_jwt = true`: `authenticateUser` → advisor/admin via `user_roles` → service role. Flytter dato/tid på et event og giver de tilmeldte (attending, ikke afmeldt) besked; UPDATE før beskeder; kun publicerede events får beskeder. Editoren må aldrig sende `starts_at`/`ends_at` til `updateEvent` for et publiceret event (kildeværn `flytEvent.guard`).
   (PR #267-mønstret) + advisor gate (`has_role` via callerClient) FØR
   service-role-konstruktion; target-ressourcen (agent_proposals +
   agent_runs) læses med kalderens klient (RLS advisor-SELECT). Afgørelsens

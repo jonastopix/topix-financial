@@ -6,11 +6,13 @@ import { INGEN_RAADGIVERE } from "@/lib/hjemmebane/ansigter";
 import { tilUdkast, validerVaerter, type VaertUdkast } from "@/lib/hjemmebane/vaerter";
 import { listVaerterForEvents, saveVaerter } from "@/lib/hjemmebane/vaerterApi";
 import { gemEventOgVaerter } from "@/lib/hjemmebane/gemEventOgVaerter";
+import { gemKnapTekst, planlaegGem } from "@/lib/hjemmebane/flytEvent";
 import {
   type ContentItem,
   type EventRow,
   cancelEvent,
   deleteEvent,
+  gemEventEllerFlyt,
   publishEvent,
   updateEvent,
 } from "@/lib/hjemmebane/adminContentApi";
@@ -70,12 +72,16 @@ export const EventEditor = forwardRef<EditorHandle, EventEditorProps>(
     // updateEvent — UPDATE … RETURNING med {} rammer 0 rækker og kaster
     // «Elementet findes ikke længere», så værterne aldrig blev gemt.
     // Rækkefølgen og reglerne bor i gemEventOgVaerter (ren, testet).
+    // FLYTNING (udkast 18/9): dato/tid på et PUBLICERET event går gennem
+    // flyt-event, som giver de tilmeldte besked — gemEventEllerFlyt deler
+    // patchen (planlaegGem: tid → flyt-event, rest → updateEvent). En ren
+    // updateEvent på starts_at flyttede i stilhed (recon-event-aendring.md).
     const mutation = useMutation({
       mutationFn: (patch: Draft) =>
         gemEventOgVaerter({
           patch,
           vaerterAendret: vaerterDraft !== null,
-          gemEvent: () => updateEvent(event.id, patch),
+          gemEvent: () => gemEventEllerFlyt(event, patch),
           gemVaerter,
         }),
       onSuccess: () => {
@@ -205,6 +211,7 @@ export const EventEditor = forwardRef<EditorHandle, EventEditorProps>(
             savedAt={savedAt}
             error={error}
             onSave={() => persist()}
+            saveLabel={gemKnapTekst(planlaegGem(event, draft), registrationCount)}
             actions={actions}
             deleteSpec={
               // Events har intet 'archived' — de afsluttede tilstande

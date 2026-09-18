@@ -20,16 +20,26 @@
  * advisor, intet aktivt svar) og har EXECUTE til service_role netop
  * til dette kald. Ingen replikeret dom her.
  *
- * dedup_key pr. vindue er `event_reminder:{event_id}:{a|b}` UDEN
+ * dedup_key pr. vindue er `event_reminder:{event_id}:{a|b}:{dag}` UDEN
  * user_id: notifications har UNIQUE (user_id, dedup_key)
  * (20260323112326), så nøglen er allerede scoped pr. modtager.
- * Daglig/hyppigere genkørsel dobbelt-sender derfor aldrig.
+ * Daglig/hyppigere genkørsel dobbelt-sender derfor aldrig. DAGEN i
+ * nøglen (udkast 18/9, recon-event-aendring.md §7 pkt. 4): flyttes et
+ * event efter at «i morgen» er sendt for den gamle dag, skal de tilmeldte
+ * have den igen for den nye dag — uden dagen ville den gamle nøgle
+ * spærre. Gamle rækker (uden dag) berøres ikke; en flytning giver ny nøgle.
  *
  *   C) Om en time (10/9-2026, Jonas: «starter om en time») → tilmeldte,
  *      mødelink med. Kører IKKE i den daglige kørsel: sin egen cron hvert
  *      kvarter kalder med body { "vindue": "time" }, og så køres KUN C —
  *      A og B er urørte og kører stadig dagligt kl. 07 med tom body
- *      (_shared/eventMails.ts: erOmEnTime, vinduerFraBody). Dedup-suffiks c.
+ *      (_shared/eventMails.ts: erOmEnTime, vinduerFraBody). Dedup-suffiks c
+ *      MED STARTTIDSPUNKT (rettet 18/9): `event_reminder:{id}:c:{starts_at}`.
+ *      Flyttes eventet efter at C er sendt for den gamle tid, sendes C igen
+ *      for den nye (ny nøgle) — det er dér en flytning gør mest skade.
+ *      Dækker ikke en flytning til under 60 min ude (vinduet er passeret;
+ *      flyttetBesked er den eneste besked) eller tilbage til samme tid.
+ *      A/B bærer dagen, C tidspunktet. Gamle rækker berøres ikke.
  */
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
 import { authenticateServiceRole, corsHeaders } from "../_shared/edgeFunctionAuth.ts";
@@ -119,7 +129,7 @@ Deno.serve(async (req) => {
           reference_type: "event",
           reference_id: event.id,
           deep_link: `/events/${event.id}`,
-          dedup_key: `event_reminder:${event.id}:a`,
+          dedup_key: `event_reminder:${event.id}:a:${eventDay}`,
         });
       }
     }
@@ -143,7 +153,7 @@ Deno.serve(async (req) => {
         reference_type: "event",
         reference_id: event.id,
         deep_link: `/events/${event.id}`,
-        dedup_key: `event_reminder:${event.id}:b`,
+        dedup_key: `event_reminder:${event.id}:b:${eventDay}`,
       });
     }
 
