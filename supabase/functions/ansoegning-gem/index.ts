@@ -246,7 +246,8 @@ Deno.serve(async (req) => {
     // er ansøgningen stadig indsendt — det logges, og svaret er stadig ok.
     const motor = await registrerIndsendelse(adminClient, ansoegning.id, new Date());
     if (motor.ok === false) console.error(`[ansoegning-gem] registrerIndsendelse fejlede for ${ansoegning.id}: ${motor.grund}`);
-    return jsonResponse({ ok: true, indsendt: true });
+    // Kvitteringens vej (straks / reserve i køen) gives til skærmen, så den siger det rigtige (Jonas 18/9: «med det samme»).
+    return jsonResponse({ ok: true, indsendt: true, kvittering: motor.ok ? motor.kvittering : "reserve" });
   } catch (err) {
     console.error("[ansoegning-gem] uventet fejl:", err);
     return jsonResponse({ error: "Uventet fejl" }, 500);

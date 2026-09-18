@@ -1,12 +1,13 @@
 import { HB_EYEBROW } from "@/components/hjemmebane/hbFormKlasser";
 import { ALLEREDE, KVITTERING } from "@/lib/ansoegning/spoergsmaal";
-import { hvornaarKommerKvitteringen } from "@/lib/ansoegning/kvitteringTid";
+import type { KvitteringsUdfald } from "@/lib/ansoegning/api";
 
 /** «sendt» = den normale kvittering; «allerede» = 409 fra indsend (mailen har allerede en åben ansøgning). */
-export const AnsoegKvittering = ({ udgave = "sendt" }: { udgave?: "sendt" | "allerede" }) => {
+export const AnsoegKvittering = ({ udgave = "sendt", mail = "sendt" }: { udgave?: "sendt" | "allerede"; mail?: KvitteringsUdfald }) => {
   const t = udgave === "allerede" ? ALLEREDE : KVITTERING;
-  // Hvornår kvitteringen kommer, regnet af køens egen dom på det øjeblik skærmen vises (brist 2, 18/9).
-  const tekst = udgave === "allerede" ? ALLEREDE.tekst : KVITTERING.tekst(hvornaarKommerKvitteringen(new Date()));
+  // Kvitteringen sendes STRAKS ved indsendelse (Jonas 18/9) — «om et øjeblik». Kun når afsendelsen fejlede
+  // og køen tog den som reserve, siger skærmen «den er på vej» (næste kørsel i vinduet 07–16).
+  const tekst = udgave === "allerede" ? ALLEREDE.tekst : KVITTERING.tekst(mail === "sendt");
   return (
   <div className="mx-auto max-w-xl space-y-5 text-center">
     <p className={HB_EYEBROW}>{t.eyebrow}</p>

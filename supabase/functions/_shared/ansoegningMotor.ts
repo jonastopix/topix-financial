@@ -58,6 +58,7 @@ import { afgoerDubletter, type DubletDom } from "./ansoegningDubletter.ts";
 import { raadgiverMailOmNyAnsoegning } from "./ansoegningRaadgiverMail.ts";
 import { sendManagedEmail } from "./managedEmail.ts";
 import { KONTAKT_ADRESSE } from "./indgangsMail.ts";
+import { bygRykkerMail, type MailKontekst } from "./ansoegningRykkerMails.ts";
 
 export const APP_URL = "https://app.theboardroom.dk";
 /** Ansøgerens side efter indsendelse (status, book, «ikke nu») — C/B bygger fladen; stien er kontrakten. */
@@ -197,9 +198,28 @@ export function omsaetningsLabel(noegle: string | null): string | null {
 
 // ── Indsendelsen (B → motoren) ─────────────────────────────────────────────
 
+/** Kvitteringens vej: «sendt» straks · «reserve» = afsendelsen fejlede, køen tager den · «ingen_adresse» · «allerede» = indsendelsen var registreret i forvejen. */
+export type KvitteringsUdfald = "sendt" | "reserve" | "ingen_adresse" | "allerede";
+
 export type IndsendelsesResultat =
-  | { ok: true; anbefaling: Anbefaling; allerede: boolean }
+  | { ok: true; anbefaling: Anbefaling; allerede: boolean; kvittering: KvitteringsUdfald }
   | { ok: false; status: number; grund: string };
+
+/** Mailkonteksten for kvitteringen — samme form som cronen bygger for køens mails (reserve-vejen), så de to veje giver samme mail. */
+export function kvitteringsKontekst(a: AnsoegningRaekke): MailKontekst {
+  return {
+    fornavn: fornavnAf(a.navn),
+    virksomhedsnavn: virksomhedsnavnAf(a),
+    bookingUrl: ansoegerLink(a.token),
+    statusUrl: ansoegerLink(a.token),
+    ikkeNuUrl: ikkeNuLink(a.token),
+    samtaleStart: null,
+    aftaleUrl: null,
+    token: a.token,
+    manglerSvar: null,
+    svar: { udfordring: a.udfordring, proevet: a.proevet, omTolvMaaneder: a.om_tolv_maaneder },
+  };
+}
 
 /**
  * Kaldes af ansoegning-gem lige efter indsendt_at er sat (i samme proces —
@@ -212,7 +232,7 @@ export async function registrerIndsendelse(admin: SupabaseClient, id: string, nu
   const a = await hentAnsoegning(admin, id);
   if (!a) return { ok: false, status: 404, grund: "ansøgningen findes ikke" };
   if (!a.indsendt_at) return { ok: false, status: 409, grund: "ansøgningen er ikke indsendt" };
-  if (a.anbefaling) return { ok: true, anbefaling: a.anbefaling, allerede: true };
+  if (a.anbefaling) return { ok: true, anbefaling: a.anbefaling, allerede: true, kvittering: "allerede" };
 
   const anbefaling = afgoerAnbefaling(bygAnbefalingsInput(a, nu));
   // Dubletter (Jonas 18/9, flow-gennemgangen §4-5): findes virksomheden eller mailen allerede
@@ -251,15 +271,44 @@ export async function registrerIndsendelse(admin: SupabaseClient, id: string, nu
     reference_id: a.id,
   });
 
-  // Kvitteringen til ansøgeren (Jonas 18/9): trappen «indsendt», én mail dag 0 gennem køen —
-  // samme vindue og dagsregel som alle andre mails. Fejler planlægningen, er indsendelsen stadig
-  // registreret; det logges.
-  try {
-    const plan = planlaegTrappe({ ansoegningId: a.id, trappe: "indsendt", anker: nu, nu });
-    const { skrevet } = await skrivPlan(admin, plan);
-    if (skrevet === 0) console.warn(`[ansoegningMotor] kvitteringen blev ikke planlagt for ${a.id} (fandtes måske)`);
-  } catch (err) {
-    console.error("[ansoegningMotor] kvitteringen kunne ikke planlægges:", err);
+  // Kvitteringen til ansøgeren — STRAKS. Jonas 18/9 (ordret): «Man skal have en kvittering med
+  // det samme. Det giver sig selv.» Sendes synkront her, uden om køen og sendevinduet: den er
+  // udløst af ansøgeren selv og generer ingen (vinduet er til for rykkerne). Samme mønster som
+  // rådgivermailen nedenfor: idempotent på ansøgningens id, kaster aldrig. FEJLER afsendelsen
+  // (429, udbyderen nede, ingen adresse), lægges den i køen som RESERVE — trappen «indsendt»,
+  // dag 0 i vinduet, undtaget dagsreglen — så den går ved næste kørsel. Indsendelsen er
+  // registreret uanset. Kvitteringens udfald gives tilbage, så skærmen siger det rigtige.
+  let kvittering: KvitteringsUdfald = "ingen_adresse";
+  if (a.email) {
+    try {
+      const mail = bygRykkerMail("ansoegning-kvittering", kvitteringsKontekst(a));
+      if (!mail) throw new Error("skabelonen ansoegning-kvittering findes ikke");
+      const res = await sendManagedEmail({
+        adminClient: admin,
+        to: a.email,
+        subject: mail.emne,
+        html: mail.html,
+        text: mail.tekst,
+        label: "ansoegning-kvittering",
+        idempotencyKey: `ansoegning-kvittering-${a.id}`,
+        replyTo: KONTAKT_ADRESSE,
+        metadata: { ansoegning_id: a.id, vej: "straks" },
+      });
+      kvittering = res.sent ? "sendt" : "reserve";
+      if (res.sent === false) console.error(`[ansoegningMotor] kvitteringen til ${a.id} kunne ikke sendes straks (${res.reason}) — lægges i køen som reserve`);
+    } catch (err) {
+      kvittering = "reserve";
+      console.error(`[ansoegningMotor] kvitteringen til ${a.id} kastede — lægges i køen som reserve:`, err);
+    }
+    if (kvittering === "reserve") {
+      try {
+        const plan = planlaegTrappe({ ansoegningId: a.id, trappe: "indsendt", anker: nu, nu });
+        const { skrevet } = await skrivPlan(admin, plan);
+        if (skrevet === 0) console.warn(`[ansoegningMotor] reserve-kvitteringen blev ikke planlagt for ${a.id} (fandtes måske)`);
+      } catch (err) {
+        console.error("[ansoegningMotor] reserve-kvitteringen kunne ikke planlægges:", err);
+      }
+    }
   }
 
   // Besked til Jonas og Morten (Jonas 18/9): en mail til kontakt@ (viderestilles til Jonas) —
@@ -282,7 +331,7 @@ export async function registrerIndsendelse(admin: SupabaseClient, id: string, nu
   } catch (err) {
     console.error("[ansoegningMotor] rådgivermail kastede:", err);
   }
-  return { ok: true, anbefaling, allerede: false };
+  return { ok: true, anbefaling, allerede: false, kvittering };
 }
 
 /** Opslagene bag dubletdommen — ren dom i ansoegningDubletter.ts; her kun IO. Kaster aldrig. */

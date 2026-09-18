@@ -147,10 +147,10 @@ export const INTRO = {
 export const KVITTERING = {
   eyebrow: "Tak",
   titel: "Din ansøgning er sendt",
-  // 18/9: mailen (trappen «indsendt») går i sendevinduet 07–16 på hverdage. HVORNÅR regnes ud af køens
-  // egen dom (kvitteringTid.hvornaarKommerKvitteringen) — «om et øjeblik», «i dag kl. 10», «i morgen tidlig»,
-  // «mandag morgen» — aldrig en fast formulering (generalprøvens brist 2: fredag efter 16 er svaret mandag).
-  tekst: (hvornaar: string) => `Du får en mail med det, du skrev — ${hvornaar}. Morten og Jonas læser og vurderer din ansøgning, og Jonas vender tilbage til dig. Du behøver ikke gøre mere nu.`,
+  // 18/9 (Jonas, ordret): «Man skal have en kvittering med det samme. Det giver sig selv.» Mailen sendes
+  // straks ved indsendelse, uden om sendevinduet — «om et øjeblik». Fejlede afsendelsen, tog køen den som
+  // reserve, og så siger skærmen «den er på vej» (kvitteringTid.ts og køens tidsregning udgik 19/9).
+  tekst: (sendt: boolean) => `Du får en mail med det, du skrev — ${sendt ? "om et øjeblik" : "den er på vej"}. Morten og Jonas læser og vurderer din ansøgning, og Jonas vender tilbage til dig. Du behøver ikke gøre mere nu.`,
 } as const;
 
 /**

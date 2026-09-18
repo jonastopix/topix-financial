@@ -131,7 +131,9 @@ export function svarPaaPladsen(token: string, svar: "ja" | "nej"): Promise<Statu
   return kaldLink({ token, handling: svar === "ja" ? "tag_pladsen" : "afslaa_pladsen" });
 }
 
-export function indsendAnsoegning(token: string, svar: Partial<AnsoegningsSvar>): Promise<{ ok: true; indsendt: true }> {
+/** Kvitteringens vej (18/9): «sendt» straks, «reserve» = køen tager den ved næste kørsel i vinduet. */
+export type KvitteringsUdfald = "sendt" | "reserve" | "ingen_adresse" | "allerede";
+export function indsendAnsoegning(token: string, svar: Partial<AnsoegningsSvar>): Promise<{ ok: true; indsendt: true; kvittering?: KvitteringsUdfald }> {
   return kald("ansoegning-gem", { handling: "indsend", token, svar });
 }
 
