@@ -6,6 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { KONTAKT_ADRESSE, mailtoKontakt } from "@/lib/kontaktadresse";
 import { HbCard } from "@/components/hjemmebane/HbCard";
 import { HbButton } from "@/components/hjemmebane/HbButton";
+import { AftaleDokument } from "@/components/hjemmebane/AftaleDokument";
 import { HbField, HbInput } from "@/components/hjemmebane/admin/HbField";
 import { useHbDokumentGrund } from "@/hooks/useHbDokumentGrund";
 import { afgoerKnap, kodeHjaelp, tolkFejl, type FunktionsFejl } from "@/lib/aftaleSide";
@@ -111,9 +112,8 @@ function Dokument({ titel, tekst }: { titel: string; tekst: string }) {
   return (
     <HbCard className="p-6 md:p-8">
       <h2 className="font-editorial text-xl font-medium text-hb-ink mb-4">{titel}</h2>
-      <div className="space-y-3 text-[15px] leading-relaxed text-hb-ink">
-        {tekst.split("\n").map((linje, i) => (linje.trim() === "" ? <div key={i} className="h-2" /> : <p key={i}>{linje}</p>))}
-      </div>
+      {/* Markdown → struktur uden HTML fra data (aftaleMarkdown.ts). Samme visning som rådgiverens forhåndsvisning. */}
+      <AftaleDokument tekst={tekst} />
     </HbCard>
   );
 }
