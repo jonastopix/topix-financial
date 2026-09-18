@@ -728,6 +728,7 @@ export type Database = {
           pris_oere: number | null
           proevet: string | null
           rykkere_sendt: number
+          samtale_link: string | null
           samtale_slut: string | null
           samtale_start: string | null
           set_webinar: string | null
@@ -770,6 +771,7 @@ export type Database = {
           pris_oere?: number | null
           proevet?: string | null
           rykkere_sendt?: number
+          samtale_link?: string | null
           samtale_slut?: string | null
           samtale_start?: string | null
           set_webinar?: string | null
@@ -812,6 +814,7 @@ export type Database = {
           pris_oere?: number | null
           proevet?: string | null
           rykkere_sendt?: number
+          samtale_link?: string | null
           samtale_slut?: string | null
           samtale_start?: string | null
           set_webinar?: string | null
