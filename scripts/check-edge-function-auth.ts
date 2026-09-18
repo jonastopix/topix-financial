@@ -157,6 +157,11 @@ const AUTH_PREDICATES: Predicate[] = [
   // SQL-funktion), men fasen indsendt_at IS NOT NULL. Se _shared/ansoegningLinkAuth.ts.
   { name: "verifyAnsoegningslink()",      pattern: /\bverifyAnsoegningslink\s*\(/ },
 
+  // UDKAST 18/9 — e-underskriftens token som legitimation: samme klasse som
+  // verifyBetalingstoken (kalderen har ingen session; tokenet er 122 bit og
+  // læses kun serverside). Se _shared/aftaletokenAuth.ts.
+  { name: "verifyAftaletoken()",          pattern: /\bverifyAftaletoken\s*\(/ },
+
   // Shape-based: `Bearer ${...}` template compared against a request
   // header (=== or !==). Excludes outbound fetch-header assignments
   // by syntactic shape, not by variable name.

@@ -1,6 +1,13 @@
 project_id = "loiavmastgeieqyiwyyr"
 
 [functions]
+  # UDKAST 18/9 — e-underskriften. verify_jwt = FALSE, bevidst: kalderen er
+  # /aftale — en person UDEN session og uden konto. Beskyttelsen er
+  # aftaletokenet i body, verificeret af verifyAftaletoken
+  # (_shared/aftaletokenAuth.ts) FØR enhver service-role-handling — samme
+  # klasse som opret-indgangs-checkout (verifyBetalingstoken).
+  [functions.aftale-underskrift]
+    verify_jwt = false
   # Samme begrundelse som get-community-billed-url nedenfor: ny Bucket
   # A-funktion, gatewayen bærer signaturtjekket (PR #267-mønstret).
   # Advisor-gate via has_role FØR service-role-konstruktion.
@@ -154,6 +161,10 @@ project_id = "loiavmastgeieqyiwyyr"
   # tilladt — samme klasse som webhook-signaturerne (Bucket C).
   [functions.opret-indgangs-checkout]
     verify_jwt = false
+  # UDKAST 18/9 — Bucket A: authenticateUser + advisor-gate, kaldes fra
+  # virksomhedssiden med brugerens JWT — samme form som saet-indgangs-prisniveau.
+  [functions.send-til-underskrift]
+    verify_jwt = true
   # Bucket B: authenticateServiceRole læser role-claimet, gatewayen bærer
   # signaturtjekket — samme begrundelse som intro-reminder-cron. Kun til
   # manuelle kald med service-role-JWT'en; Monday-grenen og prissætningen
