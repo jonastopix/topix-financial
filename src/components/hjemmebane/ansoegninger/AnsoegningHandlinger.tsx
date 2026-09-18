@@ -17,7 +17,8 @@ import {
 import { cn } from "@/lib/utils";
 import { hbControlClasses } from "@/components/hjemmebane/admin/HbField";
 import { AKTIVE_KUNDER_KEY, hentAktiveKunder, invaliderAnsoegninger, udfoerHandling } from "@/hooks/ansoegninger";
-import { AFSLAGSGRUND_ORD, bekraeftOverskrift, erGyldigPauseDato, erGyldigtAftaleLink, knapperFor, LUKKEAARSAGER_TIL_VALG, standardPauseTil, type Knap } from "@/lib/ansoegninger/ansoegningHandlinger";
+import { AFSLAGSGRUND_ORD, bekraeftOverskrift, erGyldigPauseDato, knapperFor, LUKKEAARSAGER_TIL_VALG, standardPauseTil, type Knap } from "@/lib/ansoegninger/ansoegningHandlinger";
+import { INDGANGS_PRISPUNKTER_OERE, STANDARD_PRISNIVEAU_OERE } from "@/lib/indgangspris";
 import { LUKKEAARSAG_ORD, TRIN_ORD } from "@/lib/ansoegninger/ansoegningVisning";
 import { AFSLAGSGRUNDE, afslagsFoelger, type Afslagsgrund, type Lukkeaarsag, type Trin } from "@/lib/ansoegningTrin";
 
@@ -33,8 +34,8 @@ export const AnsoegningHandlinger = ({ id, navn, trin, paaPause, lukketFraTrin, 
   const [dialog, setDialog] = useState<Knap | null>(null);
   const [aarsag, setAarsag] = useState<Lukkeaarsag>("andet");
   const [begrundelse, setBegrundelse] = useState("");
-  const [aftaleUrl, setAftaleUrl] = useState("");
-  const [visAftale, setVisAftale] = useState(false);
+  // Papirvejen (18/9 aften): prisen er et FORUDFYLDT, synligt valg (50.000), kan skiftes til 40.000 — aldrig uden.
+  const [prisOere, setPrisOere] = useState<number>(STANDARD_PRISNIVEAU_OERE);
   const [pauseTil, setPauseTil] = useState(() => standardPauseTil(new Date()));
   // Afslaget bliver til noget (Jonas 17/9, 18/9): grunden styrer følgerne — niche → venteliste + afslagsmail, for tidligt → afslagsmail, andet → intet.
   const [grund, setGrund] = useState<Afslagsgrund>("andet");
@@ -55,7 +56,7 @@ export const AnsoegningHandlinger = ({ id, navn, trin, paaPause, lukketFraTrin, 
         handling: k.handling,
         begrundelse: begrundelse.trim() || null,
         lukkeaarsag: k.kraeverAarsag ? aarsag : null,
-        aftaleUrl: k.kraeverAftaleUrl ? aftaleUrl.trim() : null,
+        prisOere: k.kraeverPris ? prisOere : null,
         pauseTil: k.kraeverDato ? pauseTil : null,
         afslagsgrund: k.kraeverAfslagsgrund ? grund : null,
         // Ventelisten er C's og sættes EFTER lukningen — men i SAMME kald (19/9): ansoegning-handling lukker,
@@ -70,7 +71,6 @@ export const AnsoegningHandlinger = ({ id, navn, trin, paaPause, lukketFraTrin, 
     onSuccess: ({ k, svar, venteliste }) => {
       setDialog(null);
       setBegrundelse("");
-      setVisAftale(false);
       setVentelisteCompanyId("");
       setVentelisteHvorfor("");
       toast.success(`${k.tekst}: ${navn}`, { description: `${TRIN_ORD[svar.til].split(" — ")[0]}${MAIL_ORD[svar.mail ?? ""] ?? ""}${svar.planlagt ? ` · ${svar.planlagt} i køen` : ""}${venteliste ? ` · i kø hos ${venteliste}` : ""}${svar.company_id ? " · virksomheden er oprettet" : ""}` });
@@ -79,10 +79,6 @@ export const AnsoegningHandlinger = ({ id, navn, trin, paaPause, lukketFraTrin, 
   });
 
   const tryk = (k: Knap) => {
-    if (k.kraeverAftaleUrl) {
-      if (!visAftale) return setVisAftale(true);
-      if (!erGyldigtAftaleLink(aftaleUrl)) return toast.error("Linket til aftalegrundlaget skal være et https-link");
-    }
     if (k.bekraeft) return setDialog(k);
     koer.mutate(k);
   };
@@ -103,16 +99,6 @@ export const AnsoegningHandlinger = ({ id, navn, trin, paaPause, lukketFraTrin, 
           {koer.isPending && koer.variables?.handling === k.handling ? "Arbejder…" : k.tekst}
         </button>
       ))}
-      {visAftale && (
-        <input
-          type="url"
-          value={aftaleUrl}
-          onChange={(e) => setAftaleUrl(e.target.value)}
-          placeholder="https://app.theboardroom.dk/aftale?token=… (linket til aftalegrundlaget)"
-          className={cn(hbControlClasses, "min-w-[20rem] flex-1 rounded-full")}
-          data-aftale-url
-        />
-      )}
       {reserve.length > 0 && (
         <span className="ml-auto flex items-center gap-3 text-hb-ink-soft">
           {reserve.map((k) => (
@@ -136,6 +122,17 @@ export const AnsoegningHandlinger = ({ id, navn, trin, paaPause, lukketFraTrin, 
                 {LUKKEAARSAGER_TIL_VALG.map((l) => <option key={l} value={l}>{LUKKEAARSAG_ORD[l]}</option>)}
               </select>
             </label>
+          )}
+          {dialog?.kraeverPris && (
+            <fieldset className="text-sm" data-pris-valg>
+              <legend className="text-hb-ink-soft">Pris (ekskl. moms) — forudfyldt, kan skiftes</legend>
+              {INDGANGS_PRISPUNKTER_OERE.map((oere) => (
+                <label key={oere} className="mt-1 flex items-center gap-2">
+                  <input type="radio" name="prisniveau" value={oere} checked={prisOere === oere} onChange={() => setPrisOere(oere)} />
+                  <span className="text-hb-ink">{new Intl.NumberFormat("da-DK", { maximumFractionDigits: 0 }).format(oere / 100)} kr.{oere === STANDARD_PRISNIVEAU_OERE ? " (standard)" : ""}</span>
+                </label>
+              ))}
+            </fieldset>
           )}
           {dialog?.kraeverDato && (
             <label className="block text-sm">
@@ -183,7 +180,7 @@ export const AnsoegningHandlinger = ({ id, navn, trin, paaPause, lukketFraTrin, 
             <AlertDialogCancel disabled={koer.isPending}>Annuller</AlertDialogCancel>
             <AlertDialogAction
               onClick={(e) => { e.preventDefault(); if (dialog) koer.mutate(dialog); }}
-              disabled={koer.isPending || (dialog?.kraeverDato === true && !erGyldigPauseDato(pauseTil, new Date())) || (dialog?.kraeverAfslagsgrund === true && !ventelisteKlar)}
+              disabled={koer.isPending || (dialog?.kraeverDato === true && !erGyldigPauseDato(pauseTil, new Date())) || (dialog?.kraeverAfslagsgrund === true && !ventelisteKlar) || (dialog?.kraeverPris === true && !(INDGANGS_PRISPUNKTER_OERE as readonly number[]).includes(prisOere))}
               className={cn(dialog?.farlig && "bg-destructive text-destructive-foreground hover:bg-destructive/90")}
             >
               {koer.isPending ? "Arbejder…" : dialog?.tekst}

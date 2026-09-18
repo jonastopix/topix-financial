@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { INDGANGS_PRISPUNKTER_OERE } from "@/lib/indgangspris";
+import { INDGANGS_PRISPUNKTER_OERE, STANDARD_PRISNIVEAU_OERE } from "@/lib/indgangspris";
 import { gemNoteOgPris } from "@/hooks/ansoegninger";
+import { afgoerForhaandsvisning, type ForhaandsvisningSvar } from "@/lib/hjemmebane/forhaandsvisning";
 import { HbButton } from "../HbButton";
 
 /** «Send til underskrift» (UDKAST 18/9). Rådgiveren vælger prisniveauet
@@ -46,24 +47,17 @@ async function laesFejl(error: unknown): Promise<{ status: number | null; body: 
   }
 }
 
-/** Forhåndsvisningen: den udfyldte tekst i et nyt vindue — som ren tekst, aldrig HTML fra data. */
-function visForhaandsvisning(svar: { titel?: string; skabelon?: string; tekst?: string; manglende?: string[]; tomme?: string[]; kan_sendes?: boolean; til?: string | null }) {
-  const w = window.open("", "_blank", "noopener,width=820,height=900");
-  if (!w) return toast.error("Browseren blokerede vinduet — tillad pop-ups for at se dokumentet.");
-  const advarsel = svar.kan_sendes
-    ? `KAN SENDES (til ${svar.til ?? "?"}). Dette er en forhåndsvisning — intet er sendt.`
-    : `KAN IKKE SENDES: ${[...(svar.manglende ?? []).map((m) => `{{${m}}} kendes ikke`), ...(svar.tomme ?? []).map((t) => `{{${t}}} er tom`), ...(svar.til ? [] : ["ingen kontaktmail"])].join(" · ")}`;
-  w.document.title = `Forhåndsvisning — ${svar.skabelon ?? ""}`;
-  const pre = w.document.createElement("pre");
-  pre.style.cssText = "white-space:pre-wrap;font:15px/1.6 Georgia,serif;max-width:720px;margin:32px auto;padding:0 24px";
-  pre.textContent = `[${advarsel}]\n\n${svar.titel ?? ""}\n${svar.skabelon ?? ""}\n\n${svar.tekst ?? ""}`;
-  w.document.body.appendChild(pre);
-}
 
 export const SendTilUnderskrift = ({ onOpdateret, ...ejer }: UnderskriftEjer & { onOpdateret: () => Promise<void> }) => {
   const erAnsoegning = ejer.ansoegningId !== undefined;
   const [arbejder, setArbejder] = useState<number | null>(null);
   const [viser, setViser] = useState<number | null>(null);
+  // Prisen er et FORUDFYLDT, synligt valg (Jonas 18/9: «50k er default … jeg vil gerne kunne ændre den»):
+  // står ved knappen, kan skiftes til 40.000 — og ingen aftale sendes uden.
+  const [valgtOere, setValgtOere] = useState<number>(STANDARD_PRISNIVEAU_OERE);
+  // Forhåndsvisningen vises I FLADEN (18/9 aften): window.open efter await blokeres af browseren
+  // uanset pop-up-indstillingen (klikket er ikke længere brugerens handling). Ren tekst, aldrig HTML fra data.
+  const [forhaandsvisning, setForhaandsvisning] = useState<{ oere: number; svar: ForhaandsvisningSvar } | null>(null);
   // Forhåndsvis (18/9): samme kald med forhaandsvis: true — intet skrives, intet sendes.
   // For en ansøgning sendes intet prisniveau: functionen bruger den pris der står på ansøgningen.
   const forhaandsvis = async (oere: number) => {
@@ -79,7 +73,7 @@ export const SendTilUnderskrift = ({ onOpdateret, ...ejer }: UnderskriftEjer & {
         console.error("[SendTilUnderskrift] forhåndsvisning fejlede:", status, body, error);
         return toast.error("Kunne ikke bygge forhåndsvisningen", { description: typeof body?.error === "string" ? body.error : `(${status ?? "?"})` });
       }
-      visForhaandsvisning(data ?? {});
+      setForhaandsvisning({ oere, svar: (data ?? {}) as ForhaandsvisningSvar });
     } finally {
       setViser(null);
     }
@@ -146,20 +140,41 @@ export const SendTilUnderskrift = ({ onOpdateret, ...ejer }: UnderskriftEjer & {
       setArbejder(null);
     }
   };
+  const dom = forhaandsvisning ? afgoerForhaandsvisning(forhaandsvisning.svar) : null;
   return (
-    <span className="mt-1 flex flex-wrap items-center gap-2" data-send-til-underskrift={erAnsoegning ? "ansoegning" : "virksomhed"}>
-      <span className="text-xs text-hb-ink-soft">{erAnsoegning ? "Send aftalegrundlaget til e-underskrift — prisen sættes på ansøgningen, vælg niveau:" : "Send aftalegrundlaget til e-underskrift — vælg prisniveau:"}</span>
-      {INDGANGS_PRISPUNKTER_OERE.map((oere) => (
-        <HbButton key={oere} type="button" variant="secondary" className="h-8 px-3 text-xs" onClick={() => void send(oere)} disabled={arbejder !== null || viser !== null}>
-          {arbejder === oere ? "Sender…" : `${formatKr(oere)} ekskl. moms`}
-        </HbButton>
-      ))}
-      <span className="text-xs text-hb-ink-soft">·</span>
-      {INDGANGS_PRISPUNKTER_OERE.map((oere) => (
-        <button key={`vis-${oere}`} type="button" onClick={() => void forhaandsvis(oere)} disabled={arbejder !== null || viser !== null} className="text-xs text-hb-evergreen underline-offset-4 hover:underline disabled:opacity-50" data-forhaandsvis={oere}>
-          {viser === oere ? "Bygger…" : `Forhåndsvis ${formatKr(oere)}`}
-        </button>
-      ))}
+    <div className="mt-1" data-send-til-underskrift={erAnsoegning ? "ansoegning" : "virksomhed"}>
+    <span className="flex flex-wrap items-center gap-2">
+      <span className="text-xs text-hb-ink-soft">{erAnsoegning ? "Send aftalegrundlaget til e-underskrift — prisen sættes på ansøgningen:" : "Send aftalegrundlaget til e-underskrift:"}</span>
+      <span className="flex items-center gap-2 text-xs text-hb-ink" data-pris-valg>
+        {INDGANGS_PRISPUNKTER_OERE.map((oere) => (
+          <label key={oere} className="flex items-center gap-1">
+            <input type="radio" name={`prisniveau-${ejer.ansoegningId ?? ejer.companyId}`} value={oere} checked={valgtOere === oere} onChange={() => setValgtOere(oere)} disabled={arbejder !== null || viser !== null} />
+            <span>{formatKr(oere)}{oere === STANDARD_PRISNIVEAU_OERE ? " (standard)" : ""}</span>
+          </label>
+        ))}
+        <span className="text-hb-ink-soft">ekskl. moms</span>
+      </span>
+      <HbButton type="button" variant="secondary" className="h-8 px-3 text-xs" onClick={() => void send(valgtOere)} disabled={arbejder !== null || viser !== null} data-send-aftale={valgtOere}>
+        {arbejder !== null ? "Sender…" : `Send til e-underskrift — ${formatKr(valgtOere)}`}
+      </HbButton>
+      <button type="button" onClick={() => void forhaandsvis(valgtOere)} disabled={arbejder !== null || viser !== null} className="text-xs text-hb-evergreen underline-offset-4 hover:underline disabled:opacity-50" data-forhaandsvis={valgtOere}>
+        {viser !== null ? "Bygger…" : "Forhåndsvis"}
+      </button>
     </span>
+    {forhaandsvisning && dom && (
+      <div className="mt-3 rounded-hb border border-hb-line bg-hb-surface p-4" data-forhaandsvisning={forhaandsvisning.oere}>
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <p className={dom.kanSendes ? "text-sm font-medium text-hb-evergreen" : "text-sm font-medium text-hb-rust"}>{dom.linje}</p>
+          <button type="button" onClick={() => setForhaandsvisning(null)} className="text-xs text-hb-ink-soft underline-offset-4 hover:underline" data-forhaandsvisning-luk>
+            Luk
+          </button>
+        </div>
+        <p className="mt-2 text-xs text-hb-ink-soft">Forhåndsvisning af {formatKr(forhaandsvisning.oere)} ekskl. moms · {dom.skabelon}</p>
+        {dom.titel && <p className="mt-3 font-editorial text-xl font-medium text-hb-ink">{dom.titel}</p>}
+        {/* Ren tekst: React escaper — der sættes aldrig HTML fra data ind. */}
+        <pre className="mt-3 max-h-[60vh] overflow-auto whitespace-pre-wrap font-editorial text-[15px] leading-relaxed text-hb-ink">{dom.tekst}</pre>
+      </div>
+    )}
+    </div>
   );
 };

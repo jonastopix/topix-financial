@@ -128,12 +128,18 @@ Deno.serve(async (req) => {
   }
   if (!handling) return json({ error: "Ukendt handling" }, 400);
 
-  // Prisen sættes FØR overgangen (et almindeligt felt — rådgiveren må også sætte den fra fladen).
-  if (prisOere !== null && handling.art === "tilbud") {
+  // «tilbud» med indtastet link er IKKE en rådgiverhandling længere (Jonas 18/9 aften): e-underskriften
+  // (send-til-underskrift) er den eneste vej til en aftale — den sætter prisen. Den gamle vej sprang prisen over.
+  if (handling.art === "tilbud") return json({ error: "brug_e_underskriften", grund: "Aftalen sendes fra «Send til e-underskrift» på ansøgningen — den sætter prisen og laver aftalen." }, 409);
+
+  // Prisen sættes FØR overgangen — papirvejen («underskrevet») bærer den fra dialogen (forudfyldt 50.000).
+  if (prisOere !== null && handling.art === "underskrevet") {
     const { error } = await admin.from("ansoegninger").update({ pris_oere: prisOere }).eq("id", ansoegningId);
     if (error) return json({ error: `Kunne ikke sætte prisen: ${error.message}` }, 500);
     ansoegning.pris_oere = prisOere;
   }
+  // Ingen underskrift uden pris: ellers oprettes betalingslinket med prisniveau null, og sagen går i stå ved betalingen.
+  if (handling.art === "underskrevet" && ansoegning.pris_oere === null) return json({ error: "pris_mangler", grund: "Vælg prisniveauet først — uden pris går betalingen i stå." }, 409);
 
   const nu = new Date();
 

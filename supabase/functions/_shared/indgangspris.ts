@@ -41,6 +41,13 @@ export type Betalingsmodel = "fuld" | "rate2" | "rate12";
  * Ændres listen, skal kataloget ændres først — og omvendt.
  */
 export const INDGANGS_PRISPUNKTER_OERE = [4_000_000, 5_000_000] as const;
+/**
+ * Det FORUDFYLDTE prisniveau i fladen (Jonas 18/9, ordret: «50k er default. Jeg behøver ikke sætte en
+ * pris. Jeg vil gerne have muligheden for at ændre prisen, men jeg skal ikke nødvendigvis sætte den
+ * inden jeg sender. For det er næsten altid 50k.»). Et synligt valg, ikke en skjult standard: prisen
+ * står ved knappen og kan skiftes til 40.000 før afsendelse. Ingen aftale sendes uden en pris på.
+ */
+export const STANDARD_PRISNIVEAU_OERE: (typeof INDGANGS_PRISPUNKTER_OERE)[number] = 5_000_000;
 
 /** Tillæg ved 12 rater. To rater og fuld betaling bærer intet tillæg. */
 export const RATE12_TILLAEG_PCT = 5;

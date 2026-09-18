@@ -666,6 +666,8 @@ export async function udfoerOvergang(admin: SupabaseClient, args: OvergangsArgs)
 
   // Underskrift: virksomheden FØRST — fejler den, ændres intet.
   let konvertering: KonverteringsResultat | null = null;
+  // Ingen underskrift uden pris (18/9 aften): betalingslinket ville få prisniveau null, og sagen gik i stå ved betalingen.
+  if (h.art === "underskrevet" && a.pris_oere === null) return { ok: false, status: 409, grund: "underskrevet kræver en pris på ansøgningen (pris_oere) — vælg prisniveauet først" };
   if (h.art === "underskrevet") {
     konvertering = await konverterTilVirksomhed(admin, a, nu);
     if (konvertering.ok === false) return { ok: false, status: 500, grund: konvertering.grund };
