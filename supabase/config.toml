@@ -213,6 +213,11 @@ project_id = "loiavmastgeieqyiwyyr"
   # med en åben ansøgning kan bruge CVR-kvoten.
   [functions.ansoegning-cvr]
     verify_jwt = false
+  # UDKAST 18/9 — ventelisten: Bucket A (authenticateUser + has_role advisor
+  # FØR service role), kaldes fra rådgiverfladen — samme form som
+  # ansoegning-handling. Handlinger: saet, fjern, tilbyd.
+  [functions.venteliste-handling]
+    verify_jwt = true
   # ANSØGNINGSMOTOREN (udkast 18/9). Bucket A: rådgiverens handlinger
   # (tal_med_dem, afvis, tilbud, afslag, underskrevet, luk, genaabn, afholdt)
   # bag authenticateUser + advisor-gate — samme form som saet-indgangs-prisniveau.

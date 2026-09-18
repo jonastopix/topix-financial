@@ -142,12 +142,14 @@ describe("ansoegningMotor.guard — de otte domme på repoets filer", () => {
     expect(handlingErRigtig(udenKommentarer(laes(HANDLING)))).toBe(true);
     expect(linkErRigtig(laes(LINK))).toBe(true);
   });
-  it("7. mailbyggerne dækker præcis køens skabeloner; hver ansøger-mail bærer «ikke nu»-linket, samtale-påmindelserne ikke", () => {
+  it("7. mailbyggerne dækker præcis køens skabeloner; hver ansøger-mail bærer «ikke nu»-linket, samtale-påmindelserne og ventelistens ikke", () => {
     expect([...RYKKER_SKABELONER].sort()).toEqual([...KOE_SKABELONER].sort());
     for (const s of KOE_SKABELONER) {
       const m = bygRykkerMail(s, KONTEKST);
       expect(m, s).not.toBeNull();
-      const erSamtale = s.startsWith("ansoegning-samtale-") || s === "ansoegning-kladde-paamindelse";
+      // Ventelisten (udkast 18/9): tilbuddet går til en LUKKET ansøgning — «ikke nu»
+      // (pause) giver ingen mening; svaret er ja/nej til pladsen. Derfor undtaget.
+      const erSamtale = s.startsWith("ansoegning-samtale-") || s === "ansoegning-kladde-paamindelse" || s.startsWith("ansoegning-venteplads-");
       // I HTML er «&» escapet (escHtml) — det er den form linket har i en href.
       expect(m!.html.includes(KONTEKST.ikkeNuUrl.replace(/&/g, "&amp;")), s).toBe(!erSamtale);
       expect(m!.tekst.includes(KONTEKST.ikkeNuUrl), s).toBe(!erSamtale);

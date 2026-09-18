@@ -88,6 +88,7 @@ import { afgoerVarselTrin } from "@/lib/varselTrin";
 import type { Fornyelsestilstand } from "./fornyelse";
 import { BETALINGSFRIST_DAGE, type Betalingsfristtilstand } from "./betalingsfrist";
 import { erLukket, type Kvittering } from "./opgaveLukning";
+import { forsidelinje } from "@/lib/ventelisteDom";
 import { afgoerIkkeIGang, ikkeIGangGrundlag, ikkeIGangHandling, ikkeIGangTekst } from "./ikkeIGang";
 import { ALVOR_VENTER_PAA_VELKOMST, afgoerVenterPaaVelkomst, venterPaaVelkomstGrundlag, venterPaaVelkomstTekst } from "./venterPaaVelkomst";
 import { planenDom, UDEN_BEVAEGELSE_DAGE, type MaalRaekke } from "@/lib/hjemmebane/planen";
@@ -307,6 +308,21 @@ export const BETALT_NOEGLE = "betalt_ikke_oprettet";
 export const BETALT_NAVNE_I_TEKST = 3;
 
 /**
+ * VENTELISTEN (udkast 18/9, chatten 17/9 nat + Jonas' svar): når en plads
+ * bliver ledig — «tilbyd ikke» besluttet, eller de 14 dage efter slutdatoen
+ * gået uden svar (src/lib/ventelisteDom.erPladsLedig) — og nogen venter på
+ * netop den virksomhed, står der én linje pr. virksomhed: «Homie er ude.
+ * Nordic Byg har ventet siden 3. maj — tilbyd pladsen?». Der går INGEN mail
+ * af sig selv; handlingen bor på virksomhedssiden (VentelisteHandlinger), og
+ * når mennesket har trykket, er tilbuddet ude og linjen væk (køen kører selv,
+ * klokken fortæller). Alvor 80 — under «betalt uden konto» (85), over
+ * fornyelse der venter (75). LUKNING: grundlag «venteliste:{ansøgning}» —
+ * skifter den første i køen, er grunden levende igen.
+ */
+export const ALVOR_VENTELISTE = 80;
+export const VENTELISTE_NOEGLE = "venteliste";
+
+/**
  * ANSØGNINGER DER VENTER (18/9, rådgiverens side af ansøgningsmotoren): de
  * to beslutninger et menneske skal træffe — (1) efter ansøgningen: tal med
  * dem eller afvis (trin «ny»); (2) efter samtalen: tilbud eller afslag
@@ -375,7 +391,8 @@ export type OpgaveSlags =
   | "refleksion_hjaelp" // TRETTENDE slags (fase 4, 16/9): refleksionen bærer «søger hjælp til» — pulse_checkins.help_needed. §2 slags 8 uden AI.
   | "ingen_maal" // FJORTENDE slags (fase 5, 16/9): en aktiv kunde uden aktive mål — sæt dem sammen med medlemmet.
   | "ansoegninger_venter" // SEKSTENDE slags (18/9, ansøgningsmotoren): ansøgninger på trin «ny» eller «afholdt» — de to menneskebeslutninger. Ingen virksomhed, ingen kvittering; egen indgang (AnsoegningTilForside). Står FØR den femtende, så foer22.guard's ordrette linje holder.
-  | "betalt_ikke_oprettet"; // FEMTENDE slags (før 22/9, 17/9 — Jonas «1. Ja»): har betalt (kontraktstart sat), men ingen konto (ingen company_members). Står uden for pending-gaten; egen indgang til dommen (BetaltIkkeOprettet).
+  | "betalt_ikke_oprettet" // FEMTENDE slags (før 22/9, 17/9 — Jonas «1. Ja»): har betalt (kontraktstart sat), men ingen konto (ingen company_members). Står uden for pending-gaten; egen indgang til dommen (BetaltIkkeOprettet).
+  | "venteliste"; // SYTTENDE slags (udkast 18/9): en plads er ledig (fornyelsesdommen) og nogen venter på netop den virksomhed — «tilbyd pladsen?». Egen indgang til dommen (VentelisteTilDom); mennesket trykker, køen kører selv derefter.
 
 /** §3's tre former. */
 export type Form = "haendelse" | "tilstand" | "pukkel";
@@ -398,6 +415,7 @@ export const FORM: Record<OpgaveSlags, Form> = {
   refleksion_hjaelp: "haendelse", // én refleksion, én gang — linjen står ved navn til den er lukket eller afløst
   ingen_maal: "tilstand", // sand igen i morgen: samles til «N kunder har ingen mål — sæt dem sammen med medlemmet»
   betalt_ikke_oprettet: "haendelse", // én betaling, én gang — én samlet, foldet linje med navne (Betaltlinje), som bølgen; væk når kontoen er oprettet
+  venteliste: "haendelse", // pladsen blev ledig én gang; linjen står ved virksomhedens navn til nogen trykker «tilbyd» (så er den væk — køen kører selv) eller lukker den
   ansoegninger_venter: "haendelse", // én samlet linje (Ansoegningslinje) — væk når beslutningerne er truffet (trinnet skifter); ingen kvittering
 };
 
@@ -429,6 +447,7 @@ export const INDSATS: Record<OpgaveSlags, Indsats> = {
   refleksion_hjaelp: 2, // én besked: svar på det de bad om hjælp til
   ingen_maal: 2, // en samtale om mål — sæt dem sammen
   betalt_ikke_oprettet: 1, // ét klik: send invitationen igen fra virksomhedssiden
+  venteliste: 1, // ét klik: «Tilbyd pladsen til X» på virksomhedssiden
   ansoegninger_venter: 2, // en læsning og en beslutning pr. ansøgning på /ansoegninger
 };
 
@@ -646,6 +665,36 @@ export interface Betaltlinje {
   indsats: Indsats;
 }
 
+/** Det dommen får om en virksomhed hvis plads er ledig og som nogen venter på (AdvisorDashboard bygger listen af ventepladser + fornyelsesdommen). */
+export interface VentelisteTilDom {
+  companyId: string;
+  /** Den der er ude. */
+  navn: string;
+  /** Den første i køen (ventelisteDom.naesteIKoen) — null når køen er tom. */
+  naeste: { ansoegningId: string; navn: string; afvistAt: string | null; satAt: string } | null;
+  antalIKoen: number;
+  /** Et tilbud er allerede ude → ingen linje (mennesket har trykket). */
+  tilbudUde: boolean;
+  kvittering?: Kvittering | null;
+}
+
+/** «Homie er ude. Nordic Byg har ventet siden 3. maj — tilbyd pladsen?» — én linje pr. virksomhed, ved navn. */
+export interface Ventelistelinje {
+  linje: "venteliste";
+  slags: "venteliste";
+  companyId: string;
+  navn: string;
+  antal: number;
+  tekst: string;
+  handling: string;
+  grund: Grund;
+  grundlag: Record<string, string>;
+  alvor: number;
+  lukkerOmDage: null;
+  loeftet: false;
+  indsats: Indsats;
+}
+
 /** Bølgen (17/9): ≥ BOELGE_FRA velkomster med samme startdag som ÉN linje. */
 export interface Boelgelinje {
   linje: "boelge";
@@ -693,7 +742,7 @@ export interface Ansoegningslinje {
   indsats: Indsats;
 }
 
-export type Linje = Virksomhedslinje | Tilstandslinje | Pukkellinje | Boelgelinje | Betaltlinje | Ansoegningslinje;
+export type Linje = Virksomhedslinje | Tilstandslinje | Pukkellinje | Boelgelinje | Betaltlinje | Ansoegningslinje | Ventelistelinje;
 
 export interface Forsidensdom {
   /** Det der står på forsiden, sorteret (§4). */
@@ -1316,6 +1365,48 @@ export function ansoegningslinje(liste: readonly AnsoegningTilForside[] | undefi
   };
 }
 
+/** Grunden for én ledig plads med kø — null når køen er tom eller tilbuddet allerede er ude. */
+export function grundFraVenteliste(v: VentelisteTilDom, nu: Date): Grund | null {
+  const linje = forsidelinje({ virksomhedNavn: v.navn, naeste: v.naeste ? { navn: v.naeste.navn, afvist_at: v.naeste.afvistAt, sat_at: v.naeste.satAt } : null, antalIKoen: v.antalIKoen, tilbudUde: v.tilbudUde, nu });
+  if (!linje || !linje.handling || !v.naeste) return null;
+  return {
+    slags: "venteliste",
+    signaltype: "venteliste",
+    noegle: VENTELISTE_NOEGLE,
+    grundlag: `venteliste:${v.naeste.ansoegningId}`,
+    tekst: linje.tekst,
+    handling: linje.handling,
+    alvor: ALVOR_VENTELISTE,
+    lukkerOmDage: null,
+    indsats: INDSATS.venteliste,
+  };
+}
+
+/** Linjerne — én pr. virksomhed med ledig plads og kø; lukkede og tilbudte udelades. */
+export function ventelisteLinjer(liste: readonly VentelisteTilDom[] | undefined, nu: Date): Ventelistelinje[] {
+  const ud: Ventelistelinje[] = [];
+  for (const v of liste ?? []) {
+    const grund = grundFraVenteliste(v, nu);
+    if (!grund || erLukket(grund, v.kvittering)) continue;
+    ud.push({
+      linje: "venteliste",
+      slags: "venteliste",
+      companyId: v.companyId,
+      navn: v.navn,
+      antal: v.antalIKoen,
+      tekst: grund.tekst,
+      handling: grund.handling,
+      grund,
+      grundlag: { [grund.noegle]: grund.grundlag },
+      alvor: ALVOR_VENTELISTE,
+      lukkerOmDage: null,
+      loeftet: false,
+      indsats: INDSATS.venteliste,
+    });
+  }
+  return ud;
+}
+
 // ─── Dommen ───────────────────────────────────────────────────────────────
 
 /**
@@ -1327,6 +1418,8 @@ export interface ForsidensEkstra {
   betaltIkkeOprettet?: readonly BetaltIkkeOprettet[];
   /** Ansøgninger på trin ny/afholdt (18/9) — ingen virksomhed, ingen kvittering. Valgfri som ovenfor. */
   ansoegninger?: readonly AnsoegningTilForside[];
+  /** Ventelisten (udkast 18/9): virksomheder hvis plads er ledig, og hvem der venter. */
+  venteliste?: readonly VentelisteTilDom[];
 }
 
 export function afgoerForsidensDom(virksomheder: readonly VirksomhedTilDom[], nu: Date, ekstra: ForsidensEkstra = {}): Forsidensdom {
@@ -1488,6 +1581,9 @@ export function afgoerForsidensDom(virksomheder: readonly VirksomhedTilDom[], nu
   // Betalt, ikke oprettet konto (før 22/9): én foldet linje, alvor 85 — går
   // gennem porten alene; null når ingen eller alle kvitteret.
   const betalt = betaltLinje(ekstra.betaltIkkeOprettet, nu);
+  // Ventelisten (udkast 18/9): én linje pr. ledig plads med kø, alvor 80 —
+  // går gennem porten alene; tom når ingen, alle kvitteret, eller tilbud ude.
+  const ventelister = ventelisteLinjer(ekstra.venteliste, nu);
   // Ansøgninger der venter på et menneske (18/9): én linje, alvor 80, ingen kvittering.
   const ansoegninger = ansoegningslinje(ekstra.ansoegninger, nu);
 
@@ -1496,6 +1592,7 @@ export function afgoerForsidensDom(virksomheder: readonly VirksomhedTilDom[], nu
     ...virksomhedslinjer.filter((l) => !iBoelge.has(l.companyId)),
     ...boelger,
     ...(betalt ? [betalt] : []),
+    ...ventelister,
     ...(ansoegninger ? [ansoegninger] : []),
     ...tilstandslinjer.filter(gaarGennemPorten),
     ...pukler.filter(gaarGennemPorten),

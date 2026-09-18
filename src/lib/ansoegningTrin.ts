@@ -85,7 +85,10 @@ export type Kilde = (typeof KILDER)[number];
  * FØR trinnene (indsendt_at er null). trappensTrin svarer null for den,
  * og køen tjekker i stedet at ansøgningen stadig er en kladde med e-mail.
  */
-export const TRAPPER_NAVNE = ["kladde", "indkaldt", "booket", "aftalegrundlag", "pause"] as const;
+// «venteplads» (udkast 18/9): ventelistens tilbud — 7 dage til den første i
+// køen; lever på en LUKKET ansøgning, så trappensTrin svarer null, og køen
+// tjekker ventepladsen selv (ventepladsErTilbudt i cronen).
+export const TRAPPER_NAVNE = ["kladde", "indkaldt", "booket", "aftalegrundlag", "pause", "venteplads"] as const;
 export type Trappe = (typeof TRAPPER_NAVNE)[number];
 
 export type Handling =
@@ -255,5 +258,7 @@ export function trappensTrin(trappe: Trappe): Trin | null {
       return null; // pausen gælder uanset trin
     case "kladde":
       return null; // kladden er før trinnene (indsendt_at is null) — køen tjekker det selv
+    case "venteplads":
+      return null; // ventelisten lever på en LUKKET ansøgning — køen tjekker ventepladsen selv
   }
 }

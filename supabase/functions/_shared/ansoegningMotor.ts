@@ -86,6 +86,8 @@ export interface AnsoegningRaekke {
   cvr_bekraeftet: boolean;
   trin: Trin;
   lukkeaarsag: Lukkeaarsag | null;
+  /** Ventelisten (18/9): ancienniteten og den bløde udgave regnes fra afvisningen. */
+  lukket_at: string | null;
   lukket_fra_trin: Trin | null;
   rykkere_sendt: number;
   trin_sat_at: string;
@@ -117,7 +119,7 @@ export interface AnsoegningRaekke {
 }
 
 export const ANSOEGNING_KOLONNER = [
-  "id", "token", "updated_at", "indsendt_at", "cvr_bekraeftet", "trin", "lukkeaarsag", "lukket_fra_trin", "rykkere_sendt", "trin_sat_at",
+  "id", "token", "updated_at", "indsendt_at", "cvr_bekraeftet", "trin", "lukkeaarsag", "lukket_at", "lukket_fra_trin", "rykkere_sendt", "trin_sat_at",
   "paa_pause_til", "company_id", "konverteret_at", "kilde", "kilde_raa", "cvr", "cvr_opslag", "hjemmeside",
   "omsaetningsinterval", "antal_ansatte", "navn", "email", "telefon", "udfordring", "proevet", "om_tolv_maaneder",
   "start_tidspunkt", "set_webinar", "anbefaling", "samtale_start", "samtale_slut", "calendly_event_uri",
@@ -156,6 +158,13 @@ export function ansoegerLink(token: string, appUrl: string = APP_URL): string {
 
 export function ikkeNuLink(token: string, appUrl: string = APP_URL): string {
   return `${ansoegerLink(token, appUrl)}&handling=ikke_nu`;
+}
+/** Ventelisten (udkast 18/9): «ja tak» og «nej tak» til en tilbudt plads — samme side, samme token, handlingen som parameter. */
+export function tagPladsenLink(token: string, appUrl: string = APP_URL): string {
+  return `${ansoegerLink(token, appUrl)}&handling=tag_pladsen`;
+}
+export function afslaaPladsenLink(token: string, appUrl: string = APP_URL): string {
+  return `${ansoegerLink(token, appUrl)}&handling=afslaa_pladsen`;
 }
 
 /**
