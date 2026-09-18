@@ -61,8 +61,15 @@ type Handling = (typeof HANDLINGER)[number];
  * ansøger på én aften. Honningfeltet er botværnet; loftet er kun mod en bølge.
  */
 const OPRET_PR_IP_PR_TIME = 30;
-/** Oprettelser i alt pr. time — et loft mod en bølge, ikke en forventning. */
-const OPRET_PR_TIME_I_ALT = 60;
+/**
+ * Oprettelser i alt pr. time — et loft mod en bølge, ikke en forventning. 60 → 300 (18/9):
+ * en webinaraften giver 15 samtidige ansøgere, og hver kan starte flere kladder (telefon +
+ * laptop, en genindlæsning uden token, et nyt vindue) — 15 × 4 = 60 alene fra ét hold, og et
+ * webinar med 100 deltagere kan give 300 påbegyndte kladder i timen. 300 er 20 × det forventede
+ * og stadig et loft: en bot der rammer det, har passeret honningfeltet og IP-loftet (30) fra
+ * mindst ti forskellige net. Loftet er ikke en kvote — det er alarmen i bunden.
+ */
+const OPRET_PR_TIME_I_ALT = 300;
 const RAA_MAKS = 120;
 
 async function sha256Hex(s: string): Promise<string> {

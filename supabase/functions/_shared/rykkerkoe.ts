@@ -238,6 +238,18 @@ export interface SendeInput {
   handling: KoeHandling;
   /** Har modtageren (mailadressen) allerede fået en mail fra køen i dag (dansk dato)? */
   modtagerHarFaaetMailIDag: boolean;
+  /** Rækkens trappe — «indsendt» (kvitteringen) er undtaget fra dagsreglen (18/9). Udeladt = reglen gælder. */
+  trappe?: Trappe;
+}
+
+/**
+ * Trapper uden for «højst én mail pr. person pr. dag» (18/9): kvitteringen er ansøgerens
+ * eget ekko af det de lige sendte — den må hverken vente på en anden mail, eller skubbe
+ * indkaldelsen et døgn (cronen tæller den heller ikke som «har fået mail i dag»).
+ */
+export const TRAPPER_UDEN_DAGSREGEL: readonly Trappe[] = ["indsendt"];
+export function erUndtagetFraDagsreglen(trappe: Trappe | undefined): boolean {
+  return trappe !== undefined && TRAPPER_UDEN_DAGSREGEL.includes(trappe);
 }
 
 export type SendeDom =
@@ -254,7 +266,7 @@ export function afgoerSending(i: SendeInput): SendeDom {
   if (i.planlagtTil.getTime() > i.nu.getTime()) return { ok: false, grund: "ikke_forfalden" };
   if (i.handling !== "send_mail") return { ok: true };
   if (!erISendevindue(i.nu)) return { ok: false, grund: "uden_for_vinduet", udskydTil: naesteSendevindue(i.nu) };
-  if (i.modtagerHarFaaetMailIDag) {
+  if (i.modtagerHarFaaetMailIDag && !erUndtagetFraDagsreglen(i.trappe)) {
     const naesteDag = kbhDato(startAfNaesteDag(i.nu));
     return { ok: false, grund: "allerede_mail_i_dag", udskydTil: kbhTilUtc(naesteHverdagFra(naesteDag, true), RYKKER_KLOKKE, 0) };
   }
