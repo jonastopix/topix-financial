@@ -15,6 +15,10 @@ interface BulletproofButtonOptions {
   textColor?: string;
   width?: number; // px
   height?: number; // px
+  /** Sekundær knap (18/9, ansøgningsmailene): hvid med kant i denne farve. Udeladt = som før. */
+  borderColor?: string; // HEX only
+  /** Lodret luft om knappen. Udeladt = "24px 0" som før. */
+  margin?: string;
 }
 
 /**
@@ -28,18 +32,23 @@ export function bulletproofButton({
   textColor = "#ffffff",
   width = 220,
   height = 44,
+  borderColor,
+  margin = "24px 0",
 }: BulletproofButtonOptions): string {
   const safeHref = href.replace(/"/g, "&quot;");
   const safeLabel = label.replace(/</g, "&lt;").replace(/>/g, "&gt;");
-  return `<div style="text-align:center;margin:24px 0">
+  const kant = borderColor ? `border:2px solid ${borderColor};` : "";
+  const vmlKant = borderColor ? `stroke="t" strokecolor="${borderColor}" strokeweight="1.5pt"` : `stroke="f"`;
+  const linjehoejde = borderColor ? height - 4 : height;
+  return `<div style="text-align:center;margin:${margin}">
 <!--[if mso]>
-<v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="${safeHref}" style="height:${height}px;v-text-anchor:middle;width:${width}px;" arcsize="18%" stroke="f" fillcolor="${bgColor}">
+<v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="${safeHref}" style="height:${height}px;v-text-anchor:middle;width:${width}px;" arcsize="18%" ${vmlKant} fillcolor="${bgColor}">
   <w:anchorlock/>
   <center style="color:${textColor};font-family:Arial,sans-serif;font-size:14px;font-weight:bold;">${safeLabel}</center>
 </v:roundrect>
 <![endif]-->
 <!--[if !mso]><!-- -->
-<a href="${safeHref}" target="_blank" style="background-color:${bgColor};border-radius:8px;color:${textColor};display:inline-block;font-family:'Manrope','Space Grotesk',Arial,sans-serif;font-size:14px;font-weight:600;line-height:${height}px;text-align:center;text-decoration:none;width:${width}px;-webkit-text-size-adjust:none;mso-hide:all;">${safeLabel}</a>
+<a href="${safeHref}" target="_blank" style="background-color:${bgColor};${kant}border-radius:8px;color:${textColor};display:inline-block;font-family:'Manrope','Space Grotesk',Arial,sans-serif;font-size:14px;font-weight:600;line-height:${linjehoejde}px;text-align:center;text-decoration:none;width:${width}px;-webkit-text-size-adjust:none;mso-hide:all;">${safeLabel}</a>
 <!--<![endif]-->
 </div>`;
 }

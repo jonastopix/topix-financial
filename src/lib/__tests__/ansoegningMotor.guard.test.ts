@@ -4,7 +4,8 @@ import { resolve } from "node:path";
 import { KOE_SKABELONER } from "@/lib/rykkerkoe";
 import { TRIN, LUKKEAARSAGER, KILDER } from "@/lib/ansoegningTrin";
 import { KILDER as SKEMA_KILDER } from "@/lib/ansoegning/skema";
-import { PROCESTEKST, RYKKER_SKABELONER, bygRykkerMail } from "../../../supabase/functions/_shared/ansoegningRykkerMails.ts";
+import { PAUSE, PROCESTEKST, RYKKER_SKABELONER, bygRykkerMail } from "../../../supabase/functions/_shared/ansoegningRykkerMails.ts";
+import { KONTAKT_ADRESSE } from "../../../supabase/functions/_shared/indgangsMail.ts";
 
 // Kildeværn for ansøgningsmotoren (18/9-2026). Otte domme låser det der ikke
 // kan testes som en ren funktion — rækkefølger, SQL og filhoveder — og hver
@@ -144,24 +145,54 @@ describe("ansoegningMotor.guard — de otte domme på repoets filer", () => {
     expect(handlingErRigtig(udenKommentarer(laes(HANDLING)))).toBe(true);
     expect(linkErRigtig(laes(LINK))).toBe(true);
   });
-  it("7. mailbyggerne dækker præcis køens skabeloner; hver ansøger-mail bærer «ikke nu»-linket, samtale-påmindelserne og ventelistens ikke", () => {
+  it("7. mailbyggerne dækker præcis køens skabeloner; pause-knappen sidder på rykkerne — aldrig på den sidste i trappen, kvitteringen, samtale-påmindelserne, ventelisten og afslaget", () => {
     expect([...RYKKER_SKABELONER].sort()).toEqual([...KOE_SKABELONER].sort());
     for (const s of KOE_SKABELONER) {
       const m = bygRykkerMail(s, KONTEKST);
       expect(m, s).not.toBeNull();
-      // Ventelisten (udkast 18/9): tilbuddet går til en LUKKET ansøgning — «ikke nu»
-      // (pause) giver ingen mening; svaret er ja/nej til pladsen. Derfor undtaget.
-      // Uden «ikke nu»: samtale-påmindelserne, kladden, ventepladsen — og afslagsmailen (18/9): et nej har ingen pause at sætte.
-      const erSamtale = s.startsWith("ansoegning-samtale-") || s === "ansoegning-kladde-paamindelse" || s.startsWith("ansoegning-venteplads-") || s === "ansoegning-afslag" || s === "ansoegning-kvittering";
-      // I HTML er «&» escapet (escHtml) — det er den form linket har i en href.
-      expect(m!.html.includes(KONTEKST.ikkeNuUrl.replace(/&/g, "&amp;")), s).toBe(!erSamtale);
-      expect(m!.tekst.includes(KONTEKST.ikkeNuUrl), s).toBe(!erSamtale);
+      // Uden pause (Jonas 18/9): kvitteringen, samtale-påmindelserne, kladden, ventepladsen
+      // (svaret er ja/nej til pladsen), afslaget (et nej har ingen pause at sætte) — og den
+      // SIDSTE mail i indkaldt- og aftalegrundlags-trappen (Jonas 6: «der skal de vælge»).
+      const udenPause = s === "ansoegning-kvittering" || s.startsWith("ansoegning-samtale-") || s === "ansoegning-kladde-paamindelse" || s.startsWith("ansoegning-venteplads-") || s === "ansoegning-afslag" ||
+        s === "ansoegning-indkaldt-rykker-3" || s === "ansoegning-aftalegrundlag-rykker-4";
+      // Pausen er en KNAP (Jonas 1): linket står i en href (bulletproofButton escaper « " », ikke «&»), og teksten bærer knapteksten.
+      expect(m!.html.includes(`href="${KONTEKST.ikkeNuUrl}"`), s).toBe(!udenPause);
+      expect(m!.html.includes(PAUSE.knap), s).toBe(!udenPause);
+      expect(m!.tekst.includes(KONTEKST.ikkeNuUrl), s).toBe(!udenPause);
       expect(m!.html).toContain("Lisbeth");
       // Jonas D4: det er Jonas der inviterer og taler med dem — aldrig «med Morten».
       expect(m!.tekst, s).toContain("Jonas Herlev");
       expect(m!.tekst, s).not.toMatch(/samtale med Morten|snak med Morten|med Morten/);
+      // Jonas 2, 5 og 7 (18/9): ingen mail beder om svar på TIDER; ingen «hårde følelser»-tone; «ApSs» findes ikke.
+      expect(m!.tekst, s).not.toMatch(/et par forslag|svar .{0,40}tidspunkt|hårde følelser|sure miner|ApSs\b/i);
+      // Husets ramme (indgangsMailHtml): den grønne linje, kontaktadressen i footeren.
+      expect(m!.html, s).toContain("height:3px;background-color:#27AE82");
+      expect(m!.html, s).toContain(`mailto:${KONTAKT_ADRESSE}`);
     }
-    expect(bygRykkerMail("ansoegning-indkaldelse", KONTEKST)!.tekst).toContain(PROCESTEKST);
+    // Jonas 3: procesteksten hører til i kvitteringen — ikke i indkaldelsen; «på vegne af».
+    const indkaldelse = bygRykkerMail("ansoegning-indkaldelse", KONTEKST)!.tekst;
+    expect(indkaldelse).not.toContain(PROCESTEKST);
+    expect(indkaldelse).toContain("på vegne af Nordic Byg ApS");
+    expect(indkaldelse).toContain("Vi tager begge stilling til, om der er et match.");
+    // Jonas 4: dagen før — intet regnskab.
+    expect(bygRykkerMail("ansoegning-samtale-i-morgen", KONTEKST)!.tekst).not.toMatch(/regnskab|nøgletal/);
+    // Jonas 5: genitiv med apostrof.
+    expect(bygRykkerMail("ansoegning-aftalegrundlag", KONTEKST)!.tekst).toContain("Nordic Byg ApS' medlemskab");
+    // Jonas 7: ventelisten har TO knapper — ja og nej — i tilbud (normal og blød) og rykker, i HTML og tekst; første person.
+    const vp = { bloed: false, svarfrist: new Date("2026-09-25T08:00:00Z"), tagPladsenUrl: "https://app.theboardroom.dk/ansoeg/status?t=abc&handling=tag_pladsen", afslaaPladsenUrl: "https://app.theboardroom.dk/ansoeg/status?t=abc&handling=afslaa_pladsen" };
+    for (const [s, ctx] of [
+      ["ansoegning-venteplads-tilbud", { ...KONTEKST, venteplads: vp }],
+      ["ansoegning-venteplads-tilbud", { ...KONTEKST, venteplads: { ...vp, bloed: true } }],
+      ["ansoegning-venteplads-rykker", { ...KONTEKST, venteplads: vp }],
+    ] as const) {
+      const m = bygRykkerMail(s, ctx)!;
+      for (const [tekst, url] of [["Ja tak, jeg vil have pladsen →", vp.tagPladsenUrl], ["Nej tak — giv den videre →", vp.afslaaPladsenUrl]]) {
+        expect(m.html, s).toContain(`>${tekst}</a>`);
+        expect(m.html, s).toContain(`href="${url}"`);
+        expect(m.tekst, s).toContain(`${tekst} ${url}`);
+      }
+      expect(m.tekst, s).not.toMatch(/Jonas Herlev dig|Hører vi|tager snakken/);
+    }
     expect(bygRykkerMail("ansoegning-kladde-paamindelse", KONTEKST)!.tekst).toContain("/ansoeg?t=abc");
     expect(bygRykkerMail("findes-ikke", KONTEKST)).toBeNull();
     // Uden bookinglink: indkaldelsen linker til ansøgerens side, aldrig en tom href.

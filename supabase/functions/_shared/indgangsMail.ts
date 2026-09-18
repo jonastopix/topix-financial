@@ -50,6 +50,18 @@ export interface IndgangsMailArgs {
   knap?: { tekst: string; url: string };
   efterKnap?: string[]; // afsnit under knappen
   hilsen: string; // "Venlig hilsen\nMorten Larsen"
+  /**
+   * Ansøgningsmailene (18/9) deler rammen med indgangen — samme kort, farver,
+   * typografi og knap — og får fem VALGFRIE udvidelser. Udelades de, er
+   * HTML'en byte for byte som før, så dag 0/14/25/31, invitationen og
+   * fornyelsen er urørte (indgangsMail_test.ts).
+   */
+  eyebrow?: string; // lille grøn overlinje over overskriften («Afklaringssamtalen»)
+  knapSekundaer?: { tekst: string; url: string }; // en knap nr. to, hvid med grøn kant, lige under den første
+  knapBredde?: number; // px — ansøgningsmailenes knapper er længere («Nej tak — giv den videre →»)
+  pause?: { spoergsmaal: string; tekst: string; url: string; note: string }; // «Passer det ikke lige nu?» + knap + note — efter hilsenen
+  kontaktIFooter?: boolean; // footeren bærer kontaktadressen som link
+  maerke?: boolean; // husets mærke (app.theboardroom.dk/favicon.png) foran ordmærket i headeren
 }
 
 const APP_URL = "https://app.theboardroom.dk";
@@ -132,11 +144,39 @@ const P_STYLE = "color:#4D6663;font-size:14px;line-height:1.6;margin:0 0 14px";
 
 export function indgangsMailHtml(args: IndgangsMailArgs): string {
   const afsnit = args.afsnit.map((a) => `<p style="${P_STYLE}">${esc(a)}</p>`).join("\n");
-  const knap = args.knap
-    ? bulletproofButton({ href: args.knap.url, label: args.knap.tekst, bgColor: "#133332" }) +
+  const bredde = args.knapBredde ? { width: args.knapBredde } : {};
+  const knapPrimaer = args.knap
+    ? bulletproofButton({ href: args.knap.url, label: args.knap.tekst, bgColor: "#133332", ...bredde }) +
       "\n" + fallbackLinkBlock(args.knap.url)
     : "";
+  // Knap nr. to (ventelisten: «Nej tak — giv den videre →»): hvid med grøn kant, tæt under den første.
+  const knapSekundaer = args.knapSekundaer
+    ? "\n" + bulletproofButton({ href: args.knapSekundaer.url, label: args.knapSekundaer.tekst, bgColor: "#ffffff", textColor: "#133332", borderColor: "#133332", margin: "-8px 0 24px", ...bredde })
+    : "";
+  const knap = knapPrimaer + knapSekundaer;
   const efterKnap = (args.efterKnap ?? []).map((a) => `<p style="${P_STYLE}">${esc(a)}</p>`).join("\n");
+  const eyebrow = args.eyebrow
+    ? `<p style="font-family:'Manrope',Arial,sans-serif;font-size:11px;font-weight:700;color:#27AE82;text-transform:uppercase;letter-spacing:.08em;margin:0 0 10px">${esc(args.eyebrow)}</p>\n    `
+    : "";
+  // Ikonet er mørkegrønt på gennemsigtig bund med X'et skåret ud — på headerens
+  // grønne bjælke er det usynligt (målt 18/9 i skærmbillede). Derfor en hvid,
+  // afrundet plade bag det, som browserfanen viser det.
+  const maerke = args.maerke
+    ? `<img src="${APP_URL}/favicon.png" width="24" height="24" alt="" style="display:inline-block;vertical-align:middle;background-color:#ffffff;padding:3px;border-radius:7px;margin-right:10px;border:0">`
+    : "";
+  // Pausen som en KNAP, ikke en sætning (Jonas 18/9: «kunne ikke se, at det var klikbart»).
+  const pause = args.pause
+    ? `\n    <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="border-collapse:collapse;margin:20px 0 0">
+      <tr><td style="background-color:#f4f7f6;border-radius:8px;padding:16px 20px 12px;text-align:center">
+        <p style="color:#133332;font-size:14px;font-weight:700;line-height:1.4;margin:0">${esc(args.pause.spoergsmaal)}</p>
+        ${bulletproofButton({ href: args.pause.url, label: args.pause.tekst, bgColor: "#ffffff", textColor: "#133332", borderColor: "#133332", width: 280, margin: "12px 0 8px" })}
+        <p style="color:#4D6663;font-size:12px;line-height:1.5;margin:0">${esc(args.pause.note)}</p>
+      </td></tr>
+    </table>`
+    : "";
+  const footer = args.kontaktIFooter
+    ? `The Boardroom · theboardroom.dk &nbsp;·&nbsp; <a href="mailto:${KONTAKT_ADRESSE}" style="color:#9ca3af;text-decoration:underline">${KONTAKT_ADRESSE}</a>`
+    : "The Boardroom · theboardroom.dk";
 
   return `<!DOCTYPE html>
 <html>
@@ -145,17 +185,17 @@ export function indgangsMailHtml(args: IndgangsMailArgs): string {
 <div style="max-width:520px;margin:0 auto;background:#ffffff;border-radius:10px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.08)">
   <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="border-collapse:collapse">
     <tr><td style="background-color:#133332;padding:18px 24px">
-      <span style="font-family:'Manrope',Arial,sans-serif;font-size:18px;font-weight:700;color:#ffffff;letter-spacing:-0.3px">The Boardroom</span>
+      ${maerke}<span style="font-family:'Manrope',Arial,sans-serif;font-size:18px;font-weight:700;color:#ffffff;letter-spacing:-0.3px">The Boardroom</span>
     </td></tr>
     <tr><td style="height:3px;background-color:#27AE82"></td></tr>
   </table>
   <div style="padding:28px 32px 32px">
-    <h1 style="color:#133332;font-size:20px;font-weight:700;margin:0 0 16px;line-height:1.3">${esc(args.overskrift)}</h1>
+    ${eyebrow}<h1 style="color:#133332;font-size:20px;font-weight:700;margin:0 0 16px;line-height:1.3">${esc(args.overskrift)}</h1>
 ${afsnit}
 ${knap}
 ${efterKnap}
-    <p style="${P_STYLE}margin-top:20px">${esc(args.hilsen)}</p>
-    <p style="color:#9ca3af;font-size:12px;line-height:1.5;margin:24px 0 0;border-top:1px solid #eee;padding-top:16px">The Boardroom · theboardroom.dk</p>
+    <p style="${P_STYLE}margin-top:20px">${esc(args.hilsen)}</p>${pause}
+    <p style="color:#9ca3af;font-size:12px;line-height:1.5;margin:24px 0 0;border-top:1px solid #eee;padding-top:16px">${footer}</p>
   </div>
 </div>
 </body>

@@ -82,8 +82,8 @@ describe("ansoegningRykkerRettelser.guard — svaradressen er valgfri og kun kø
     expect(r.kun).toBe(true);
     expect(cronenBrugerKontaktadressen(udenKommentarer(laes(CRON)))).toBe(true);
   });
-  it("«svar på denne mail» står i tre mails — og kun fordi svaradressen er sat", () => {
-    expect(svarPaaMailenFindes(udenKommentarer(laes(MAILS)))).toBe(3);
+  it("«svar på denne mail» står i to mails (aftalegrundlagets rykkere) — og kun fordi svaradressen er sat; tider-mailen beder ikke om svar (Jonas 18/9, anden runde: «Det foregår KUN på linket»)", () => {
+    expect(svarPaaMailenFindes(udenKommentarer(laes(MAILS)))).toBe(2);
   });
 });
 

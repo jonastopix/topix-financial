@@ -82,11 +82,13 @@ describe("flowRettelser.guard — de syv rettelser står", () => {
     const m = bygRykkerMail("ansoegning-kvittering", KONTEKST)!;
     expect(m.emne).toBe("Vi har din ansøgning");
     expect(m.tekst).toContain("Hej Lisbeth,");
-    expect(m.tekst).toContain("vi har modtaget din ansøgning for Nordic Byg ApS");
+    // Jonas' ordlyd (18/9, anden runde) — «Vi har din ansøgning for …», Morten og jeg, «inden for et par hverdage».
+    expect(m.tekst).toContain("Tak fordi du søgte om en plads i The Boardroom. Vi har din ansøgning for Nordic Byg ApS.");
+    expect(m.tekst).toContain("Morten og jeg læser den og vurderer, om vi er det rigtige for dig.");
     expect(m.tekst).toContain("Din største udfordring lige nu: Vi har travlt, men der er ingen penge tilbage.");
     expect(m.tekst).not.toContain("Det du selv har prøvet");
     expect(m.tekst).toContain("Om tolv måneder: Overskud hver måned.");
-    expect(m.tekst).toContain("Jonas vender tilbage til dig. Du behøver ikke gøre mere nu.");
+    expect(m.tekst).toContain("Du hører fra os inden for et par hverdage.");
     expect(m.tekst).toContain(KONTEKST.statusUrl);
     expect(m.tekst).not.toContain(KONTEKST.ikkeNuUrl);
     expect(m.html).not.toContain("handling=ikke_nu");

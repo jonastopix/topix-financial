@@ -83,8 +83,9 @@ describe("validerFelt — normaliseret værdi ved ok, dansk fejl ellers", () => 
     expect(validerFelt("set_webinar", true)).toEqual({ ok: false, fejl: FEJL.set_webinar });
   });
 
-  it("ansatte: helt tal 0–999999, tusindpunktum tåles; tekst og negative afvises", () => {
-    expect(validerFelt("antal_ansatte", "0")).toEqual({ ok: true, vaerdi: 0 });
+  it("ansatte: helt tal 1–999999 (ejeren tælles med — Jonas 18/9), tusindpunktum tåles; 0, tekst og negative afvises", () => {
+    expect(validerFelt("antal_ansatte", "1")).toEqual({ ok: true, vaerdi: 1 });
+    expect(validerFelt("antal_ansatte", "0")).toEqual({ ok: false, fejl: FEJL.antal_ansatte });
     expect(validerFelt("antal_ansatte", 14)).toEqual({ ok: true, vaerdi: 14 });
     expect(validerFelt("antal_ansatte", "1.200")).toEqual({ ok: true, vaerdi: 1200 });
     expect(validerFelt("antal_ansatte", "-1")).toEqual({ ok: false, fejl: FEJL.antal_ansatte });
@@ -151,7 +152,7 @@ describe("afgoerFremdrift — dommen over de gemte svar, ikke skærmindekset", (
   });
 
   it("virksomheden færdig: 4 af 12, næste skærm er «navn» (indeks 4)", () => {
-    const f = afgoerFremdrift({ ...TOMME_SVAR, cvr: "12345678", hjemmeside: "", omsaetningsinterval: "A", antal_ansatte: 0 });
+    const f = afgoerFremdrift({ ...TOMME_SVAR, cvr: "12345678", hjemmeside: "", omsaetningsinterval: "A", antal_ansatte: 1 });
     expect(f).toEqual({ besvarede: 4, ialt: 12, procent: 33, naesteSkaerm: 4, faerdig: false });
   });
 

@@ -144,7 +144,9 @@ describe("ansoegningAnbefaling — de to hovedkriterier (Jonas 18/9: minimum 2 m
     expect(p.length).toBeLessThanOrEqual(80 + "har selv prøvet: ".length);
     expect(p.endsWith("…")).toBe(true);
     expect(a.grundlag).not.toContain("har set webinaret");
-    expect(afgoerAnbefaling({ ...basis, antalAnsatte: 0 }).grundlag).toContain("ingen ansatte");
-    expect(afgoerAnbefaling({ ...basis, antalAnsatte: 1 }).grundlag).toContain("1 ansat");
+    // Jonas 18/9 (valg A): 1 = ejeren alene; et gammelt 0 læses som det samme — aldrig «ingen ansatte».
+    expect(afgoerAnbefaling({ ...basis, antalAnsatte: 0 }).grundlag).toContain("alene (1 person)");
+    expect(afgoerAnbefaling({ ...basis, antalAnsatte: 1 }).grundlag).toContain("alene (1 person)");
+    expect(afgoerAnbefaling({ ...basis, antalAnsatte: 2 }).grundlag).toContain("2 ansatte");
   });
 });
