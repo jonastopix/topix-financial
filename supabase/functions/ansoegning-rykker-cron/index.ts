@@ -35,7 +35,9 @@ import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supa
 import { authenticateServiceRole, corsHeaders } from "../_shared/edgeFunctionAuth.ts";
 import { sendManagedEmail } from "../_shared/managedEmail.ts";
 import { skrivRaadgiverBesked } from "../_shared/raadgiverBesked.ts";
-import { afgoerSending, type KoeHandling } from "../_shared/rykkerkoe.ts";
+import { afgoerSending, TRAPPER_PAA_LUKKET, type KoeHandling } from "../_shared/rykkerkoe.ts";
+import { grundTekst, koeNummer, type AfslagsIndhold } from "../_shared/afslagsTilbud.ts";
+import type { VentepladsRaekke } from "../_shared/ventelisteDom.ts";
 import { erAabentTrin, trappensTrin, type Trappe } from "../_shared/ansoegningTrin.ts";
 import { kbhDato, kbhTilUtc } from "../_shared/hverdage.ts";
 import { bygRykkerMail, type VentepladsKontekst } from "../_shared/ansoegningRykkerMails.ts";
@@ -112,6 +114,35 @@ async function sendtIDag(admin: SupabaseClient, nu: Date): Promise<Set<string>> 
   return new Set((data ?? []).map((r: { sendt_til: string | null }) => (r.sendt_til ?? "").toLowerCase()).filter(Boolean));
 }
 
+/**
+ * Afslagsmailen: grunden, køpladserne (C's ventepladser — nummeret regnes som
+ * rådgiverens venteliste, sorterKoe; kun NUMRE, aldrig medlemmets navn) og om
+ * der var en samtale (lukkeaarsag).
+ * Fail-soft: kan køen ikke læses, sendes mailen uden pladsen (logget) — et nej
+ * må ikke vente på en tabel.
+ */
+async function afslagsIndhold(admin: SupabaseClient, a: AnsoegningRaekke): Promise<AfslagsIndhold> {
+  const ventepladser: AfslagsIndhold["ventepladser"] = [];
+  try {
+    // Samme læsning som C's hentAnsoegerensPladser/hentKoe (venteliste.ts), skrevet
+    // inline så nummeret regnes over hele køen hos virksomheden; nummeret er C's sorterKoe.
+    type Rad = { id: string; ansoegning_id: string; company_id: string; status: string; hvorfor: string | null; sat_at: string; ansoegninger: { lukket_at: string | null } | null };
+    const tilRaekke = (r: Rad): VentepladsRaekke => ({ id: r.id, ansoegning_id: r.ansoegning_id, company_id: r.company_id, status: r.status as VentepladsRaekke["status"], sat_at: r.sat_at, afvist_at: r.ansoegninger?.lukket_at ?? null });
+    const FELTER = "id, ansoegning_id, company_id, status, hvorfor, sat_at, ansoegninger!inner(lukket_at)";
+    const { data: egne, error } = await admin.from("ventepladser").select(FELTER).eq("ansoegning_id", a.id).eq("status", "venter");
+    if (error) throw new Error(error.message);
+    for (const p of (egne ?? []) as unknown as Rad[]) {
+      const { data: koe, error: koeErr } = await admin.from("ventepladser").select(FELTER).eq("company_id", p.company_id).in("status", ["venter", "tilbudt"]);
+      if (koeErr) throw new Error(koeErr.message);
+      const nummer = koeNummer(((koe ?? []) as unknown as Rad[]).map(tilRaekke), a.id);
+      if (nummer !== null) ventepladser.push({ nummer });
+    }
+  } catch (err) {
+    console.error(`[ansoegning-rykker-cron] ventepladser kunne ikke læses for ${a.id} — afslagsmailen sendes uden køplads:`, err);
+  }
+  return { grundTekst: grundTekst(a.afslagsgrund), ventepladser, efterSamtale: a.lukkeaarsag === "afslag_efter_samtale" };
+}
+
 /** Kladden: hvor mange af B's tolv felter mangler (afgoerFremdrift på rækkens svar). */
 function manglendeSvar(a: AnsoegningRaekke): number {
   const svar: Record<string, unknown> = { ...TOMME_SVAR };
@@ -174,6 +205,11 @@ async function koer(admin: SupabaseClient, toer: boolean, nu: Date): Promise<Res
         ? (!a || a.indsendt_at !== null || !a.email)
         : raekke.trappe === "venteplads"
         ? (!a || !venteplads)
+        // Afslagsmailen (18/9) lever også på en LUKKET ansøgning (TRAPPER_PAA_LUKKET):
+        // den kræver trin = lukket i stedet for at blive annulleret af «ikke åben».
+        // Ventepladsen er tjekket strengere ovenfor (tilbud ude), derfor står den først.
+        : TRAPPER_PAA_LUKKET.includes(raekke.trappe)
+        ? (!a || !a.indsendt_at || a.trin !== "lukket")
         : (!a || !a.indsendt_at || !erAabentTrin(a.trin) ||
           (trin !== null && a.trin !== trin) ||
           (raekke.trappe !== "pause" && paaPause) ||
@@ -223,6 +259,7 @@ async function koer(admin: SupabaseClient, toer: boolean, nu: Date): Promise<Res
           aftaleUrl: a.aftale_url,
           token: a.token,
           manglerSvar: raekke.trappe === "kladde" ? manglendeSvar(a) : null,
+          afslag: raekke.trappe === "afslag" ? await afslagsIndhold(admin, a) : null,
           venteplads: venteplads
             ? ({
                 bloed: erBloedUdgave(a.lukket_at, nu),

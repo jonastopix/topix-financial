@@ -41,6 +41,15 @@
  * annulleres, én pause_slut-række planlægges PÅ datoen (klokke til jer),
  * og dommen regner ansøgningen som ventende igen fra den dag.
  *
+ * AFSLAGET BLIVER TIL NOGET (Jonas 17/9 nat, 18/9): et nej bærer en grund —
+ * NICHEN ER OPTAGET (de venter på en konkret virksomheds plads: C's
+ * venteliste), FOR TIDLIGT eller ANDET. «Svarer ikke» giver intet. Er
+ * grunden niche eller for_tidligt, planlægges afslagsmailen (trappen
+ * «afslag», dag 0) — ved niche med pladsen i køen («I står nummer N i
+ * køen»). «andet» giver ingen mail: Jonas skriver selv. Abonnementet
+ * «Dine tal» er taget helt ud (Jonas 18/9: «Det skal slet ikke nævnes»)
+ * — README'en siger hvad der skal til, hvis det kobles på senere.
+ *
  * REAKTIONER ANNULLERER TRAPPEN: hver overgang siger hvilke trapper der
  * annulleres og hvilken der startes. «alle» ved lukning, pause og
  * underskrift; ellers den trappe trinnet forlader. Det er reglen «enhver
@@ -88,17 +97,30 @@ export type Kilde = (typeof KILDER)[number];
 // «venteplads» (udkast 18/9): ventelistens tilbud — 7 dage til den første i
 // køen; lever på en LUKKET ansøgning, så trappensTrin svarer null, og køen
 // tjekker ventepladsen selv (ventepladsErTilbudt i cronen).
-export const TRAPPER_NAVNE = ["kladde", "indkaldt", "booket", "aftalegrundlag", "pause", "venteplads"] as const;
+// «afslag» (18/9): afslagsmailen dag 0 — lever også på en LUKKET ansøgning
+// (TRAPPER_PAA_LUKKET i rykkerkoe.ts: køen kræver trin = lukket).
+export const TRAPPER_NAVNE = ["kladde", "indkaldt", "booket", "aftalegrundlag", "pause", "venteplads", "afslag"] as const;
 export type Trappe = (typeof TRAPPER_NAVNE)[number];
+
+/** Grunden bag et nej: nichen er optaget (ventelisten), for tidligt, andet. Værd at kende også uden tilbud (Jonas 18/9). */
+export const AFSLAGSGRUNDE = ["niche", "for_tidligt", "andet"] as const;
+export type Afslagsgrund = (typeof AFSLAGSGRUNDE)[number];
+
+/** Hvad en grund fører med sig — niche: ventelisten og afslagsmailen; for_tidligt: afslagsmailen; andet/ingen: intet (Jonas skriver selv). */
+export function afslagsFoelger(grund: Afslagsgrund | null | undefined): { venteliste: boolean; afslagsmail: boolean } {
+  if (grund === "niche") return { venteliste: true, afslagsmail: true };
+  if (grund === "for_tidligt") return { venteliste: false, afslagsmail: true };
+  return { venteliste: false, afslagsmail: false };
+}
 
 export type Handling =
   | { art: "tal_med_dem" }
-  | { art: "afvis" }
+  | { art: "afvis"; grund?: Afslagsgrund }
   | { art: "book" }
   | { art: "aflys_booking" }
   | { art: "afholdt" }
   | { art: "tilbud" }
-  | { art: "afslag" }
+  | { art: "afslag"; grund?: Afslagsgrund }
   | { art: "underskrevet" }
   | { art: "svarer_ikke" }
   | { art: "udloeb" }
@@ -146,12 +168,20 @@ export interface Overgang {
   ophaevPause: boolean;
   /** Skal der skrives en række i ansoegning_beslutninger? (menneskets to beslutninger + lukning/genåbning) */
   beslutning: boolean;
+  /** afvis/afslag: grunden bag nej'et (skrives på rækken). */
+  afslagsgrund: Afslagsgrund | null;
 }
 
 export interface OvergangsKontekst {
   paaPause: boolean;
   /** Trinnet lukningen skete fra — kun brugt ved genaabn. */
   lukketFraTrin: Trin | null;
+}
+
+/** Det afvis/afslag lægger oven på lukningen: grunden, og afslagsmailen (trappen «afslag») når grunden giver en. */
+function afslagetsFoelger(h: { grund?: Afslagsgrund }): Partial<Overgang> {
+  const grund = h.grund ?? null;
+  return { afslagsgrund: grund, start: afslagsFoelger(grund).afslagsmail ? { trappe: "afslag", anker: "nu" } : null };
 }
 
 export type OvergangsDom = { ok: true; overgang: Overgang } | { ok: false; grund: string };
@@ -165,6 +195,7 @@ const OK = (o: Partial<Overgang> & { til: Trin }): OvergangsDom => ({
     start: null,
     saetPause: false,
     pauseTil: null,
+    afslagsgrund: null,
     ophaevPause: true,
     beslutning: false,
     ...o,
@@ -216,7 +247,7 @@ export function afgoerOvergang(fra: Trin, h: Handling, ctx: OvergangsKontekst): 
   switch (fra) {
     case "ny":
       if (h.art === "tal_med_dem") return OK({ til: "indkaldt", start: { trappe: "indkaldt", anker: "nu" }, beslutning: true });
-      if (h.art === "afvis") return OK({ til: "lukket", lukkeaarsag: "afslag_efter_ansoegning", annuller: "alle", beslutning: true });
+      if (h.art === "afvis") return OK({ til: "lukket", lukkeaarsag: "afslag_efter_ansoegning", annuller: "alle", beslutning: true, ...afslagetsFoelger(h) });
       if (h.art === "tilbud" || h.art === "underskrevet") return AFVIST("direkte tilbud findes ikke: fra «ny» kan man kun indkalde eller afvise");
       break;
     case "indkaldt":
@@ -230,7 +261,7 @@ export function afgoerOvergang(fra: Trin, h: Handling, ctx: OvergangsKontekst): 
       break;
     case "afholdt":
       if (h.art === "tilbud") return OK({ til: "aftalegrundlag_sendt", start: { trappe: "aftalegrundlag", anker: "nu" }, beslutning: true });
-      if (h.art === "afslag") return OK({ til: "lukket", lukkeaarsag: "afslag_efter_samtale", annuller: "alle", beslutning: true });
+      if (h.art === "afslag") return OK({ til: "lukket", lukkeaarsag: "afslag_efter_samtale", annuller: "alle", beslutning: true, ...afslagetsFoelger(h) });
       break;
     case "aftalegrundlag_sendt":
       if (h.art === "underskrevet") return OK({ til: "underskrevet", annuller: "alle", beslutning: true });
@@ -260,5 +291,7 @@ export function trappensTrin(trappe: Trappe): Trin | null {
       return null; // kladden er før trinnene (indsendt_at is null) — køen tjekker det selv
     case "venteplads":
       return null; // ventelisten lever på en LUKKET ansøgning — køen tjekker ventepladsen selv
+    case "afslag":
+      return null; // lever på en LUKKET ansøgning — køen tjekker trin = lukket (TRAPPER_PAA_LUKKET)
   }
 }

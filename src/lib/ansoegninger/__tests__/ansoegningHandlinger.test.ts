@@ -42,6 +42,10 @@ describe("ansoegningHandlinger — knapperne følger afgoerOvergang (fladen gæt
     }
     expect(knapperFor(ctx("underskrevet"))).toEqual([]);
     expect(knapperFor({ trin: "lukket", paaPause: false, lukketFraTrin: null }).map((x) => x.handling)).toEqual(["genaabn"]);
+    // Lukket: kun genåbn — abonnementet er taget ud (Jonas 18/9), så et nej har ingen knap efter sig
+    expect(knapperFor({ trin: "lukket", paaPause: false, lukketFraTrin: "ny" }).map((x) => x.handling)).toEqual(["genaabn"]);
+    expect(knapperFor(ctx("ny")).find((x) => x.handling === "afvis")!.kraeverAfslagsgrund).toBe(true);
+    expect(knapperFor(ctx("afholdt")).find((x) => x.handling === "afslag")!.kraeverAfslagsgrund).toBe(true);
     const nu = new Date("2026-09-18T10:00:00Z");
     expect(standardPauseTil(nu)).toBe("2026-12-18");
     expect(erGyldigPauseDato("2026-12-10", nu)).toBe(true);

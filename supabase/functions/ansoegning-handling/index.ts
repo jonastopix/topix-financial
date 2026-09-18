@@ -8,6 +8,11 @@
 //   afslag · underskrevet · luk (kræver lukkeaarsag) · genaabn ·
 //   saet_pause (kræver pause_til «YYYY-MM-DD» efter i dag — sætter ELLER
 //   flytter pausen; tilladt fra ethvert åbent trin).
+//   afvis/afslag tager valgfrit afslagsgrund ∈ niche · for_tidligt · andet
+//   (niche og for_tidligt planlægger afslagsmailen; andet giver ingen mail).
+//   Ventelisten sættes IKKE her — fladen kalder C's venteliste-handling
+//   «saet» lige efter (kræver trin = lukket), og afslagsmailen (dag 0 i køen)
+//   læser pladsen når den sendes.
 //   tilbud kræver aftale_url (C's /aftale?token=… eller en PDF) og sætter
 //   pris_oere hvis den gives (bliver prisniveau_oere ved underskrift).
 // Dommen (afgoerOvergang), trappen (rykkerkoe) og konverteringen
@@ -19,7 +24,7 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
 import { authenticateUser, corsHeaders } from "../_shared/edgeFunctionAuth.ts";
-import { LUKKEAARSAGER, MENNESKE_HANDLINGER, type Handling, type Lukkeaarsag } from "../_shared/ansoegningTrin.ts";
+import { AFSLAGSGRUNDE, LUKKEAARSAGER, MENNESKE_HANDLINGER, type Afslagsgrund, type Handling, type Lukkeaarsag } from "../_shared/ansoegningTrin.ts";
 import { hentAnsoegning, udfoerOvergang } from "../_shared/ansoegningMotor.ts";
 
 function json(body: unknown, status = 200): Response {
@@ -36,6 +41,11 @@ export function laesHandling(body: Record<string, unknown>): Handling | null {
     const aarsag = typeof body.lukkeaarsag === "string" ? body.lukkeaarsag : "";
     if (!(LUKKEAARSAGER as readonly string[]).includes(aarsag)) return null;
     return { art: "luk", aarsag: aarsag as Lukkeaarsag };
+  }
+  if (art === "afvis" || art === "afslag") {
+    const grund = typeof body.afslagsgrund === "string" ? body.afslagsgrund : null;
+    if (grund !== null && !(AFSLAGSGRUNDE as readonly string[]).includes(grund)) return null;
+    return { art, ...(grund ? { grund: grund as Afslagsgrund } : {}) } as Handling;
   }
   if (art === "saet_pause") {
     const til = typeof body.pause_til === "string" ? body.pause_til.trim() : "";

@@ -56,6 +56,11 @@
  *                 påmindelse som trappe i den fælles kø (Jonas D6, 18/9),
  *                 ikke en cron for sig. Køen sender kun hvis ansøgningen
  *                 stadig er en kladde (indsendt_at null) med e-mail.
+ *   afslag        anker = afvisningen/afslaget (grund niche/for_tidligt;
+ *                 «andet» giver ingen mail). Dag 0: afslagsmailen — ved
+ *                 niche med pladsen i køen (C's venteliste). Lever på en
+ *                 LUKKET ansøgning (TRAPPER_PAA_LUKKET) — køen annullerer
+ *                 den ikke for det.
  *   Efter underskrift: INGEN trappe her — platformens eksisterende
  *   betalingsforløb (company_betalingslink, indgangs-paamindelser-cron:
  *   30 dage, faktura dag 31) overtager.
@@ -133,7 +138,15 @@ export const TRAPPER: Record<Trappe, readonly TrappeTrin[]> = {
     { trinNr: 1, dag: 3, handling: "send_mail", skabelon: "ansoegning-venteplads-rykker", modtager: "ansoeger" },
     { trinNr: 2, dag: VENTEPLADS_SVARFRIST_DAGE, handling: "venteplads_udloeb", skabelon: null, modtager: "raadgiver" },
   ],
+  afslag: [{ trinNr: 0, dag: 0, handling: "send_mail", skabelon: "ansoegning-afslag", modtager: "ansoeger" }],
 };
+
+/**
+ * Trapper der lever på en LUKKET ansøgning — køen annullerer dem ikke for «ikke
+ * åben». Cronen tjekker «venteplads» først og strengere (et tilbud skal være
+ * ude, C's ventepladsErTilbudt); «afslag» kræver blot trin = lukket.
+ */
+export const TRAPPER_PAA_LUKKET: readonly Trappe[] = ["afslag", "venteplads"];
 
 export const PAUSE_MAANEDER = 3;
 
