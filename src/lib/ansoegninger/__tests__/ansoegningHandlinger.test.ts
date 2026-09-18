@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { bekraeftOverskrift, erGyldigPauseDato, erGyldigtAftaleLink, knapperFor, LUKKEAARSAGER_TIL_VALG, standardPauseTil } from "@/lib/ansoegninger/ansoegningHandlinger";
+import { bekraeftOverskrift, erGyldigPauseDato, knapperFor, LUKKEAARSAGER_TIL_VALG, standardPauseTil } from "@/lib/ansoegninger/ansoegningHandlinger";
 
 const ctx = (trin: Parameters<typeof knapperFor>[0]["trin"], paaPause = false) => ({ trin, paaPause, lukketFraTrin: null });
 
@@ -12,11 +12,17 @@ describe("ansoegningHandlinger — knapperne følger afgoerOvergang (fladen gæt
     expect(k.find((x) => x.handling === "afvis")!.bekraeft).toBe(true);
     expect(k.find((x) => x.handling === "tal_med_dem")!.bekraeft).toBe(false);
   });
-  it("afholdt: «Send aftalegrundlag» (kræver link) og «Afslut» (bekræftes)", () => {
+  it("afholdt: kun «Afslut» som stor knap — «Send aftalegrundlag» (indtastet link) er ude af fladen (18/9 aften: e-underskriften er vejen)", () => {
     const k = knapperFor(ctx("afholdt"));
-    expect(k.filter((x) => x.stor).map((x) => x.handling)).toEqual(["tilbud", "afslag"]);
-    expect(k.find((x) => x.handling === "tilbud")!.kraeverAftaleUrl).toBe(true);
+    expect(k.filter((x) => x.stor).map((x) => x.handling)).toEqual(["afslag"]);
+    expect(k.map((x) => x.handling)).not.toContain("tilbud");
     expect(k.find((x) => x.handling === "afslag")!.bekraeft).toBe(true);
+  });
+  it("«Underskrevet på papir» kræver prisen (forudfyldt i dialogen) — ingen aftale uden pris", () => {
+    const k = knapperFor(ctx("aftalegrundlag_sendt")).find((x) => x.handling === "underskrevet")!;
+    expect(k.kraeverPris).toBe(true);
+    expect(k.bekraeft).toBe(true);
+    expect(knapperFor(ctx("afholdt")).every((x) => x.handling === "underskrevet" || x.kraeverPris === false)).toBe(true);
   });
   it("indkaldt/booket: ingen store knapper — kun reserven (luk; afholdt fra booket)", () => {
     expect(knapperFor(ctx("indkaldt")).filter((x) => x.stor)).toEqual([]);
@@ -64,10 +70,7 @@ describe("ansoegningHandlinger — knapperne følger afgoerOvergang (fladen gæt
     expect(knapperFor(ctx("underskrevet", true))).toEqual([]);
     expect(knapperFor({ trin: "lukket", paaPause: true, lukketFraTrin: "ny" }).map((x) => x.handling)).toEqual(["genaabn"]);
   });
-  it("overskrift og link-dom", () => {
+  it("overskrift", () => {
     expect(bekraeftOverskrift(knapperFor(ctx("ny"))[1], "Nordic Byg ApS")).toBe("Afvis — Nordic Byg ApS?");
-    expect(erGyldigtAftaleLink("https://app.theboardroom.dk/aftale?token=x")).toBe(true);
-    expect(erGyldigtAftaleLink("http://x.dk")).toBe(false);
-    expect(erGyldigtAftaleLink("")).toBe(false);
   });
 });

@@ -19,9 +19,16 @@ import { afgoerOvergang, LUKKEAARSAGER, MENNESKE_HANDLINGER, type Afslagsgrund, 
 import { pauseTil } from "@/lib/rykkerkoe";
 
 export type MenneskeHandling = Exclude<Handling["art"], "book" | "aflys_booking" | "svarer_ikke" | "udloeb" | "ikke_nu">;
+/**
+ * Knapperne i fladen — «tilbud» (indtastet link) er IKKE en af dem (Jonas 18/9 aften): e-underskriften
+ * (SendTilUnderskrift) er den eneste vej til en aftale; den laver aftalen, sætter prisen, sender mailen og
+ * flytter trinnet i ét. Den gamle vej sprang prisen over, og fejlen viste sig først ved betalingen.
+ * Motorens «tilbud» findes stadig — send-til-underskrift kalder den med aftalens link.
+ */
+export type FladeHandling = Exclude<MenneskeHandling, "tilbud">;
 
 export interface Knap {
-  handling: MenneskeHandling;
+  handling: FladeHandling;
   tekst: string;
   /** De to beslutningsknapper er «store»; reserven er små tekstknapper. */
   stor: boolean;
@@ -31,8 +38,8 @@ export interface Knap {
   bekraeft: boolean;
   /** Kræver en lukkeårsag (luk) — dialogen viser valget. */
   kraeverAarsag: boolean;
-  /** Kræver et link til aftalegrundlaget (tilbud). */
-  kraeverAftaleUrl: boolean;
+  /** Kræver et prisniveau (underskrevet på papir) — forudfyldt STANDARD_PRISNIVEAU_OERE, kan skiftes. Ingen aftale uden pris. */
+  kraeverPris: boolean;
   /** Kræver en dato (saet_pause) — dialogen viser datovælgeren, standard tre måneder frem. */
   kraeverDato: boolean;
   /** Afvis/afslag: dialogen spørger om grunden (niche → venteliste + afslagsmail, for tidligt → afslagsmail, andet → intet). */
@@ -41,22 +48,21 @@ export interface Knap {
   forklaring: string;
 }
 
-const KNAPPE: Record<MenneskeHandling, Omit<Knap, "handling">> = {
-  tal_med_dem: { tekst: "Indkald til samtale", stor: true, farlig: false, bekraeft: false, kraeverAarsag: false, kraeverAftaleUrl: false, kraeverDato: false, kraeverAfslagsgrund: false, forklaring: "Jonas inviterer til en afklaringssamtale — indkaldelsen sendes i dag i sendevinduet, rykkere dag 2, 7 og 11 — uden svar lukkes den «svarer ikke» dag 14." },
-  afvis: { tekst: "Afvis", stor: true, farlig: true, bekraeft: true, kraeverAarsag: false, kraeverAftaleUrl: false, kraeverDato: false, kraeverAfslagsgrund: true, forklaring: "Ansøgningen lukkes som «afslag efter ansøgningen». Ansøgeren får ingen mail fra køen — afslaget skriver I selv. Kan genåbnes, men ikke fortrydes uden spor." },
-  tilbud: { tekst: "Send aftalegrundlag", stor: true, farlig: false, bekraeft: false, kraeverAarsag: false, kraeverAftaleUrl: true, kraeverDato: false, kraeverAfslagsgrund: false, forklaring: "Aftalegrundlaget sendes i dag i sendevinduet med link; rykkere dag 2, 5, 9 og 14, udløber dag 21." },
-  afslag: { tekst: "Afslut", stor: true, farlig: true, bekraeft: true, kraeverAarsag: false, kraeverAftaleUrl: false, kraeverDato: false, kraeverAfslagsgrund: true, forklaring: "Ansøgningen lukkes som «afslag efter samtalen». Ingen mail fra køen — afslaget skriver I selv." },
-  afholdt: { tekst: "Markér samtalen som afholdt", stor: false, farlig: false, bekraeft: false, kraeverAarsag: false, kraeverAftaleUrl: false, kraeverDato: false, kraeverAfslagsgrund: false, forklaring: "Køen gør det selv når samtalen er slut — kun hvis I tog den før tid." },
-  underskrevet: { tekst: "Underskrevet på papir", stor: false, farlig: false, bekraeft: true, kraeverAarsag: false, kraeverAftaleUrl: false, kraeverDato: false, kraeverAfslagsgrund: false, forklaring: "Virksomheden oprettes med ansøgningens id, betalingslinket og dag 0-mailen sendes — det eksisterende betalingsforløb (30 dage, faktura dag 31) overtager. Kan ikke fortrydes." },
-  luk: { tekst: "Luk", stor: false, farlig: true, bekraeft: true, kraeverAarsag: true, kraeverAftaleUrl: false, kraeverDato: false, kraeverAfslagsgrund: false, forklaring: "Lukkes med den valgte årsag; alle planlagte rykkere annulleres." },
-  genaabn: { tekst: "Genåbn", stor: false, farlig: false, bekraeft: false, kraeverAarsag: false, kraeverAftaleUrl: false, kraeverDato: false, kraeverAfslagsgrund: false, forklaring: "Tilbage til trinnet før lukningen (aldrig til booket eller aftalegrundlag sendt); trappen startes forfra." },
-  saet_pause: { tekst: "Sæt på pause", stor: false, farlig: false, bekraeft: true, kraeverAarsag: false, kraeverAftaleUrl: false, kraeverDato: true, kraeverAfslagsgrund: false, forklaring: "Alle planlagte rykkere annulleres; ansøgningen står ikke som ventende før datoen, hvor I får en klokke. Kan sættes og flyttes fra ethvert åbent trin." },
+const KNAPPE: Record<FladeHandling, Omit<Knap, "handling">> = {
+  tal_med_dem: { tekst: "Indkald til samtale", stor: true, farlig: false, bekraeft: false, kraeverAarsag: false, kraeverPris: false, kraeverDato: false, kraeverAfslagsgrund: false, forklaring: "Jonas inviterer til en afklaringssamtale — indkaldelsen sendes i dag i sendevinduet, rykkere dag 2, 7 og 11 — uden svar lukkes den «svarer ikke» dag 14." },
+  afvis: { tekst: "Afvis", stor: true, farlig: true, bekraeft: true, kraeverAarsag: false, kraeverPris: false, kraeverDato: false, kraeverAfslagsgrund: true, forklaring: "Ansøgningen lukkes som «afslag efter ansøgningen». Ansøgeren får ingen mail fra køen — afslaget skriver I selv. Kan genåbnes, men ikke fortrydes uden spor." },
+  afslag: { tekst: "Afslut", stor: true, farlig: true, bekraeft: true, kraeverAarsag: false, kraeverPris: false, kraeverDato: false, kraeverAfslagsgrund: true, forklaring: "Ansøgningen lukkes som «afslag efter samtalen». Ingen mail fra køen — afslaget skriver I selv." },
+  afholdt: { tekst: "Markér samtalen som afholdt", stor: false, farlig: false, bekraeft: false, kraeverAarsag: false, kraeverPris: false, kraeverDato: false, kraeverAfslagsgrund: false, forklaring: "Køen gør det selv når samtalen er slut — kun hvis I tog den før tid." },
+  underskrevet: { tekst: "Underskrevet på papir", stor: false, farlig: false, bekraeft: true, kraeverAarsag: false, kraeverPris: true, kraeverDato: false, kraeverAfslagsgrund: false, forklaring: "Kun til de sjældne papirtilfælde — e-underskriften er vejen. Prisen sættes her (forudfyldt 50.000, kan skiftes). Virksomheden oprettes med ansøgningens id, betalingslinket og dag 0-mailen sendes — det eksisterende betalingsforløb (30 dage, faktura dag 31) overtager. Kan ikke fortrydes." },
+  luk: { tekst: "Luk", stor: false, farlig: true, bekraeft: true, kraeverAarsag: true, kraeverPris: false, kraeverDato: false, kraeverAfslagsgrund: false, forklaring: "Lukkes med den valgte årsag; alle planlagte rykkere annulleres." },
+  genaabn: { tekst: "Genåbn", stor: false, farlig: false, bekraeft: false, kraeverAarsag: false, kraeverPris: false, kraeverDato: false, kraeverAfslagsgrund: false, forklaring: "Tilbage til trinnet før lukningen (aldrig til booket eller aftalegrundlag sendt); trappen startes forfra." },
+  saet_pause: { tekst: "Sæt på pause", stor: false, farlig: false, bekraeft: true, kraeverAarsag: false, kraeverPris: false, kraeverDato: true, kraeverAfslagsgrund: false, forklaring: "Alle planlagte rykkere annulleres; ansøgningen står ikke som ventende før datoen, hvor I får en klokke. Kan sættes og flyttes fra ethvert åbent trin." },
   // 18/9 aften (hul i Jonas' prøve): en pause kunne ikke tages af igen — kun flyttes. Samme dom som ansøgerens «Tag den op igen» og køens pause_slut.
-  genoptag: { tekst: "Genoptag nu", stor: false, farlig: false, bekraeft: false, kraeverAarsag: false, kraeverAftaleUrl: false, kraeverDato: false, kraeverAfslagsgrund: false, forklaring: "Pausen tages af med det samme; ansøgningen står på samme trin. Ingen mail går af sig selv — I tager næste skridt (indkald, book eller send aftalegrundlaget igen)." },
+  genoptag: { tekst: "Genoptag nu", stor: false, farlig: false, bekraeft: false, kraeverAarsag: false, kraeverPris: false, kraeverDato: false, kraeverAfslagsgrund: false, forklaring: "Pausen tages af med det samme; ansøgningen står på samme trin. Ingen mail går af sig selv — I tager næste skridt (indkald, book eller send aftalegrundlaget igen)." },
 };
 
 /** Rækkefølgen knapperne står i. */
-const RAEKKEFOELGE: readonly MenneskeHandling[] = ["tal_med_dem", "afvis", "tilbud", "afslag", "afholdt", "underskrevet", "genaabn", "genoptag", "saet_pause", "luk"];
+const RAEKKEFOELGE: readonly FladeHandling[] = ["tal_med_dem", "afvis", "afslag", "afholdt", "underskrevet", "genaabn", "genoptag", "saet_pause", "luk"];
 
 export interface KnapKontekst {
   trin: Trin;
@@ -105,7 +111,3 @@ export function erGyldigPauseDato(dato: string, nu: Date): boolean {
   return /^\d{4}-\d{2}-\d{2}$/.test(dato) && dato > nu.toLocaleDateString("sv-SE", { timeZone: "Europe/Copenhagen" });
 }
 
-/** Er linket et https-link (edge functionen afviser andet)? */
-export function erGyldigtAftaleLink(url: string): boolean {
-  return /^https:\/\/\S+$/.test(url.trim());
-}

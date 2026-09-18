@@ -69,9 +69,9 @@ describe("underskriftFraAnsoegning.guard — brist 3: forklaringerne siger det k
     expect(forklaringFor("ny", "tal_med_dem")).toContain(`rykkere dag ${dageSomTekst([2, 7, 11])}`);
     expect(forklaringPasserTilKoeen(forklaringFor("ny", "tal_med_dem"), "indkaldt")).toBe(true);
   });
-  it("«Send aftalegrundlag»: rykkere dag 2, 5, 9 og 14 — udløber dag 21", () => {
+  it("aftalegrundlags-trappen: rykkere dag 2, 5, 9 og 14 — udløber dag 21 (knappen «Send aftalegrundlag» er ude af fladen 18/9 aften; e-underskriften starter trappen)", () => {
     expect(dageAf("aftalegrundlag")).toEqual({ rykkere: [2, 5, 9, 14], slut: { dag: 21, handling: "udloeb" } });
-    expect(forklaringPasserTilKoeen(forklaringFor("afholdt", "tilbud"), "aftalegrundlag")).toBe(true);
+    expect(forklaringFor("afholdt", "tilbud")).toBe("");
   });
 });
 
