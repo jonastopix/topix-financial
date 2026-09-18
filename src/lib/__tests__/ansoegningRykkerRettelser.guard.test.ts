@@ -42,16 +42,21 @@ export const replyToErValgfrit = (k: string): boolean => /replyTo\?: string;/.te
 export const replyToKunNaarSat = (k: string): boolean =>
   k.includes("...(args.replyTo ? { reply_to: args.replyTo } : {})") && (k.match(/reply_to/g) ?? []).length === 1;
 
-/** To afsendere sætter replyTo — cronen (køens mails) og motoren (kvitteringen straks, 19/9) — begge KONTAKT_ADRESSE. */
+/**
+ * ÉN afsender sætter replyTo — motoren (19/9, prøven pkt. 8): kvitteringen straks OG køens
+ * fælles afsendelse sendKoeMail, som cronen og «straks» begge går igennem. Cronen sender ikke
+ * længere selv. Begge steder KONTAKT_ADRESSE.
+ */
 const MOTOR = "supabase/functions/_shared/ansoegningMotor.ts";
 export function kunCronenSaetterReplyTo(filer: string[], laeser: (f: string) => string): { kun: boolean; hvem: string[] } {
   const hvem = filer.filter((f) => f !== MANAGED && /\breplyTo\s*:/.test(udenKommentarer(laeser(f)))).sort();
-  return { kun: hvem.length === 2 && hvem[0] === MOTOR && hvem[1] === CRON, hvem };
+  return { kun: hvem.length === 1 && hvem[0] === MOTOR, hvem };
 }
-export const cronenBrugerKontaktadressen = (cron: string): boolean =>
-  cron.includes("replyTo: KONTAKT_ADRESSE") && cron.includes('import { KONTAKT_ADRESSE } from "../_shared/indgangsMail.ts";');
+/** Cronen sender gennem motoren — ingen egen sendManagedEmail, ingen egen svaradresse. */
+export const cronenSenderGennemMotoren = (cron: string): boolean =>
+  cron.includes("await sendKoeMail(admin, raekke, a, nu, { venteplads: ventepladsKontekst, vej: \"koe\" })") && !/sendManagedEmail\(|replyTo/.test(cron);
 export const motorenBrugerKontaktadressen = (motor: string): boolean =>
-  motor.includes("replyTo: KONTAKT_ADRESSE") && motor.includes('import { KONTAKT_ADRESSE } from "./indgangsMail.ts";');
+  (motor.match(/replyTo: KONTAKT_ADRESSE/g) ?? []).length === 2 && motor.includes('import { KONTAKT_ADRESSE } from "./indgangsMail.ts";');
 
 /** «Svar på denne mail» må kun stå i mails, når svaradressen er sat (parret med replyTo). */
 export const svarPaaMailenFindes = (mails: string): number => (mails.match(/svar på (denne mail|mailen)/gi) ?? []).length;
@@ -77,14 +82,18 @@ describe("ansoegningRykkerRettelser.guard — svaradressen er valgfri og kun kø
     expect(replyToErValgfrit(managed)).toBe(true);
     expect(replyToKunNaarSat(managed)).toBe(true);
   });
-  it("præcis to afsendere sætter replyTo — ansoegning-rykker-cron og motorens kvittering straks — med KONTAKT_ADRESSE; de øvrige er uberørte", () => {
+  it("præcis én afsender sætter replyTo — motoren (kvitteringen straks + køens sendKoeMail) — med KONTAKT_ADRESSE; cronen sender gennem motoren; de øvrige er uberørte", () => {
     const alle = afsendere();
     expect(alle.length).toBeGreaterThanOrEqual(12); // huset har mange afsendere — er tallet lavere, er målingen brudt
     const r = kunCronenSaetterReplyTo(alle, laes);
-    expect(r.hvem).toEqual([MOTOR, CRON]);
+    expect(r.hvem).toEqual([MOTOR]);
     expect(r.kun).toBe(true);
-    expect(cronenBrugerKontaktadressen(udenKommentarer(laes(CRON)))).toBe(true);
+    expect(cronenSenderGennemMotoren(udenKommentarer(laes(CRON)))).toBe(true);
     expect(motorenBrugerKontaktadressen(udenKommentarer(laes(MOTOR)))).toBe(true);
+  });
+  it("VÆRNET VIRKER: en cron der sender selv → falsk; motoren med kun én svaradresse → falsk", () => {
+    expect(cronenSenderGennemMotoren(udenKommentarer(laes(CRON)) + "\nawait sendManagedEmail({});")).toBe(false);
+    expect(motorenBrugerKontaktadressen(udenKommentarer(laes(MOTOR)).replace("replyTo: KONTAKT_ADRESSE", "replyTo: undefined"))).toBe(false);
   });
   it("«svar på denne mail» står i to mails (aftalegrundlagets rykkere) — og kun fordi svaradressen er sat; tider-mailen beder ikke om svar (Jonas 18/9, anden runde: «Det foregår KUN på linket»)", () => {
     expect(svarPaaMailenFindes(udenKommentarer(laes(MAILS)))).toBe(2);
@@ -114,7 +123,7 @@ describe("ansoegningRykkerRettelser.guard — VÆRNET VIRKER: kopier med fejlen 
     const r = kunCronenSaetterReplyTo(afsendere(), laeser);
     expect(r.kun).toBe(false);
     expect(r.hvem).toContain("supabase/functions/send-pulse-reminder/index.ts");
-    expect(cronenBrugerKontaktadressen(cron.replace("replyTo: KONTAKT_ADRESSE", 'replyTo: "jonas@topix.dk"'))).toBe(false);
+    expect(cronenSenderGennemMotoren(cron.replace('vej: "koe" })', 'vej: "koe" }); await sendManagedEmail({ replyTo: "jonas@topix.dk" })'))).toBe(false);
   });
   it("«et par dage» tilbage i sidste rykker → falsk; en fjerde rykker igen → falsk", () => {
     expect(sidsteRykkerSigerTreDage(mails.replace("inden tre dage", "inden for et par dage"))).toBe(false);

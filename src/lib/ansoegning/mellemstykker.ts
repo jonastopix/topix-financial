@@ -33,6 +33,13 @@ export interface Mellemstykke {
   portraet?: { src: string; alt: string };
   /** Kun for citatet: hvem sagde det. null = intet citat endnu. */
   afsender?: string | null;
+  /**
+   * «Sådan hjælper vi dig» som PUNKTER med ikon (Jonas 18/9, prøven pkt. 3: stykket skal være
+   * mere visuelt). Teksten er Jonas' godkendte to afsnit, ét pr. punkt, ordret; kun de korte
+   * overskrifter er nye (UDKAST til Jonas' godkendelse). Sat → renderes som to plader med ikon
+   * i stedet for én tekst; `tekst` er stadig samme ord (til alt/tekst-fald).
+   */
+  punkter?: ReadonlyArray<{ ikon: "chat" | "tal"; overskrift: string; tekst: string }>;
 }
 
 /**
@@ -72,6 +79,12 @@ export const MELLEMSTYKKER: readonly Mellemstykke[] = [
     titel: "",
     tekst:
       "En pris, en ansættelse, et tilbud du er i tvivl om. Du skriver til Morten og Jonas, når det opstår — ikke når kalenderen siger, det er tid.\nDe har dine tal ved hånden, fordi du uploader dem hver måned. Så begynder ingen samtale forfra.",
+    // Prøven 18/9, pkt. 3: de to afsnit som to plader med ikon — chatten (du skriver, når det
+    // opstår) og tallene (de ligger klar). Overskrifterne er UDKAST; afsnittene er ordret Jonas'.
+    punkter: [
+      { ikon: "chat", overskrift: "Du skriver, når det opstår", tekst: "En pris, en ansættelse, et tilbud du er i tvivl om. Du skriver til Morten og Jonas, når det opstår — ikke når kalenderen siger, det er tid." },
+      { ikon: "tal", overskrift: "Dine tal ligger klar", tekst: "De har dine tal ved hånden, fordi du uploader dem hver måned. Så begynder ingen samtale forfra." },
+    ],
   },
   {
     id: "citat",

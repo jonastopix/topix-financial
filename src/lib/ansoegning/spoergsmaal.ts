@@ -65,7 +65,8 @@ export const SKAERMTEKSTER: readonly SkaermTekst[] = [
     id: "kontakt",
     eyebrow: GRUPPENAVNE.dig,
     spoergsmaal: "Hvor fanger vi dig?",
-    hjaelp: "Vi ringer, hvis der er et match. Og bliver du ikke færdig i dag, sender vi dig et link tilbage hertil.",
+    // Jonas 18/9 (prøven, pkt. 2): vi ringer ikke — vi indkalder til en afklaringssamtale. Mailen bærer indkaldelsen.
+    hjaelp: "Passer det, får du en mail med en invitation til en afklaringssamtale. Og bliver du ikke færdig i dag, sender vi dig et link tilbage hertil.",
     placeholder: { email: "dig@virksomheden.dk", telefon: "12 34 56 78" },
   },
   {

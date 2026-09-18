@@ -27,7 +27,8 @@ describe("ansoegningSpor — hvem gjorde hvad hvornår", () => {
     expect(k[0].hvornaar).toMatch(/^planlagt til 22\. september/);
     expect(k[2].hvornaar).toMatch(/^sendt 18\. september/);
     expect(k[3].hvad).toBe("lukkes «svarer ikke»");
-    expect(k[3].hvornaar).toBe("annulleret: book (calendly)");
+    // Prøven 18/9, pkt. 7: «book (calendly)» er rå id'er — grunden oversættes til ord.
+    expect(k[3].hvornaar).toBe("annulleret: ansøgeren (calendly) bookede samtalen");
     expect(naesteIKoen([])).toBeNull();
     expect(naesteIKoen([{ trappe: "pause", trin_nr: 0, handling: "pause_slut", skabelon: null, modtager: "raadgiver", planlagt_til: "2026-12-18T09:00:00Z", status: "planlagt", udfoert_at: null, annulleret_grund: null, fejl: null }])!.hvad).toBe("pausen slutter — klokke til jer");
   });

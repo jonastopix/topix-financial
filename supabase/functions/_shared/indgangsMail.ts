@@ -47,6 +47,7 @@ export interface IndgangsMail {
 export interface IndgangsMailArgs {
   overskrift: string;
   afsnit: string[]; // brødtekst, ét afsnit pr. streng
+  blokke?: Array<{ overskrift: string; tekst: string }>; // spørgsmål/svar efter brødteksten: overskrift i fed, svaret under (kvitteringen, 19/9)
   knap?: { tekst: string; url: string };
   efterKnap?: string[]; // afsnit under knappen
   hilsen: string; // "Venlig hilsen\nMorten Larsen"
@@ -144,6 +145,13 @@ const P_STYLE = "color:#4D6663;font-size:14px;line-height:1.6;margin:0 0 14px";
 
 export function indgangsMailHtml(args: IndgangsMailArgs): string {
   const afsnit = args.afsnit.map((a) => `<p style="${P_STYLE}">${esc(a)}</p>`).join("\n");
+  // Blokkene: en grå plade pr. spørgsmål — overskriften i fed, svaret under med ansøgerens linjeskift (esc → <br>).
+  const blokke = (args.blokke ?? [])
+    .map((b) => `<div style="background-color:#f4f7f6;border-radius:8px;padding:12px 16px;margin:0 0 10px">
+      <p style="color:#133332;font-size:13px;font-weight:700;line-height:1.4;margin:0 0 4px">${esc(b.overskrift)}</p>
+      <p style="${P_STYLE}margin:0">${esc(b.tekst)}</p>
+    </div>`)
+    .join("\n");
   const bredde = args.knapBredde ? { width: args.knapBredde } : {};
   const knapPrimaer = args.knap
     ? bulletproofButton({ href: args.knap.url, label: args.knap.tekst, bgColor: "#133332", ...bredde }) +
@@ -192,6 +200,7 @@ export function indgangsMailHtml(args: IndgangsMailArgs): string {
   <div style="padding:28px 32px 32px">
     ${eyebrow}<h1 style="color:#133332;font-size:20px;font-weight:700;margin:0 0 16px;line-height:1.3">${esc(args.overskrift)}</h1>
 ${afsnit}
+${blokke}
 ${knap}
 ${efterKnap}
     <p style="${P_STYLE}margin-top:20px">${esc(args.hilsen)}</p>${pause}

@@ -17,11 +17,12 @@ import {
 import { cn } from "@/lib/utils";
 import { hbControlClasses } from "@/components/hjemmebane/admin/HbField";
 import { AKTIVE_KUNDER_KEY, hentAktiveKunder, invaliderAnsoegninger, udfoerHandling } from "@/hooks/ansoegninger";
-import { saetPaaVenteliste } from "@/lib/hjemmebane/ventelisteApi";
 import { AFSLAGSGRUND_ORD, bekraeftOverskrift, erGyldigPauseDato, erGyldigtAftaleLink, knapperFor, LUKKEAARSAGER_TIL_VALG, standardPauseTil, type Knap } from "@/lib/ansoegninger/ansoegningHandlinger";
 import { LUKKEAARSAG_ORD, TRIN_ORD } from "@/lib/ansoegninger/ansoegningVisning";
 import { AFSLAGSGRUNDE, afslagsFoelger, type Afslagsgrund, type Lukkeaarsag, type Trin } from "@/lib/ansoegningTrin";
 
+/** Svar-mailens udfald i toasten (Jonas 18/9, pkt. 8): sendt straks, eller køen tager den. */
+const MAIL_ORD: Record<string, string> = { sendt: " · mailen er sendt", reserve: " · mailen går i næste sendevindue", fejlet: " · mailen kunne IKKE sendes", ingen_adresse: " · ingen mailadresse" };
 const STOR = "rounded-full px-4 py-2 text-sm font-medium transition-colors disabled:opacity-50";
 const LILLE = "text-xs underline-offset-4 hover:underline disabled:opacity-50";
 
@@ -57,14 +58,12 @@ export const AnsoegningHandlinger = ({ id, navn, trin, paaPause, lukketFraTrin, 
         aftaleUrl: k.kraeverAftaleUrl ? aftaleUrl.trim() : null,
         pauseTil: k.kraeverDato ? pauseTil : null,
         afslagsgrund: k.kraeverAfslagsgrund ? grund : null,
+        // Ventelisten er C's og sættes EFTER lukningen — men i SAMME kald (19/9): ansoegning-handling lukker,
+        // sætter pladsen og sender afslagsmailen straks med pladsen i (Jonas 18/9, pkt. 8). Aldrig direkte i tabellen.
+        ventelisteCompanyId: k.kraeverAfslagsgrund && tilbud.venteliste ? ventelisteCompanyId || null : null,
+        ventelisteHvorfor: ventelisteHvorfor.trim() || null,
       });
-      // Ventelisten er C's: sættes EFTER lukningen (venteliste-handling «saet» kræver trin = lukket),
-      // og afslagsmailen (dag 0 i køen) læser pladsen når den sendes.
-      let venteliste: string | null = null;
-      if (k.kraeverAfslagsgrund && tilbud.venteliste && ventelisteCompanyId) {
-        const r = await saetPaaVenteliste(id, ventelisteCompanyId, ventelisteHvorfor.trim() || null);
-        venteliste = typeof r.virksomhed === "string" ? r.virksomhed : "virksomheden";
-      }
+      const venteliste = svar.venteliste ? svar.venteliste.virksomhed ?? "virksomheden" : null;
       await invaliderAnsoegninger(queryClient, id);
       return { k, svar, venteliste };
     },
@@ -74,7 +73,7 @@ export const AnsoegningHandlinger = ({ id, navn, trin, paaPause, lukketFraTrin, 
       setVisAftale(false);
       setVentelisteCompanyId("");
       setVentelisteHvorfor("");
-      toast.success(`${k.tekst}: ${navn}`, { description: `${TRIN_ORD[svar.til].split(" — ")[0]}${svar.planlagt ? ` · ${svar.planlagt} mail planlagt` : ""}${venteliste ? ` · i kø hos ${venteliste}` : ""}${svar.company_id ? " · virksomheden er oprettet" : ""}` });
+      toast.success(`${k.tekst}: ${navn}`, { description: `${TRIN_ORD[svar.til].split(" — ")[0]}${MAIL_ORD[svar.mail ?? ""] ?? ""}${svar.planlagt ? ` · ${svar.planlagt} i køen` : ""}${venteliste ? ` · i kø hos ${venteliste}` : ""}${svar.company_id ? " · virksomheden er oprettet" : ""}` });
     },
     onError: (e: Error) => toast.error("Handlingen blev ikke udført", { description: e.message }),
   });

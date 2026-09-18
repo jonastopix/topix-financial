@@ -138,6 +138,8 @@ const Ansoeg = () => {
         setSkaerm(Math.min(f.naesteSkaerm, SKAERME.length - 1));
         // Et token uden ét eneste svar (fx afbrudt efter «opret») starter forfra på intro.
         setFase(f.besvarede === 0 ? { slags: "intro", genoptager: true } : { slags: "skema", velkommenTilbage: true });
+        // Linket skal åbne i toppen (Jonas 18/9, pkt. 1) — feltets fokus ruller ikke længere (fokusUdenScroll), og siden står øverst.
+        window.scrollTo({ top: 0 });
       })
       .catch(() => {
         if (!aktiv) return;

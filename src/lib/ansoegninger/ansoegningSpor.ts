@@ -115,6 +115,31 @@ export const INTERN_ORD: Record<string, string> = {
 
 export type KoeStatus = "planlagt" | "sendt" | "udfoert" | "annulleret" | "fejlet";
 
+/** Statusordene på pillen (Jonas 18/9, prøven pkt. 7: rå enum-værdier som «udfoert» så underlige ud). */
+export const KOE_STATUS_ORD: Record<KoeStatus, string> = { planlagt: "planlagt", sendt: "sendt", udfoert: "udført", annulleret: "annulleret", fejlet: "fejlede" };
+
+/** Hvorfor blev rækken annulleret — motoren skriver «<handling> (<via>)» (udfoerOvergang), cronen en sætning; det første oversættes. */
+export function annulleringsOrd(grund: string | null): string | null {
+  if (!grund) return null;
+  const m = /^([a-z_]+) \(([a-z_]+)\)$/.exec(grund);
+  if (!m) return grund;
+  const [, art, via] = m;
+  const hvad = HANDLING_ORD[art] ?? art;
+  const hvem = via === "raadgiver" ? "en rådgiver" : (VIA_ORD[via] ?? via).toLowerCase();
+  return `${hvem} ${hvad}`;
+}
+
+/** Mails uden om køen, som de står i email_send_log (template_name) — kvitteringen og køens mails ovenfor, samtalens tre, aftalelinket og mailen til jer. */
+export const MAIL_ORD: Record<string, string> = {
+  ...SKABELON_ORD,
+  "ansoegning-samtale-bekraeftet": "bekræftelsen af samtalen",
+  "ansoegning-samtale-flyttet": "den nye tid for samtalen",
+  "ansoegning-samtale-aflyst": "aflysningen af samtalen",
+  "aftale-link": "aftalegrundlaget (linket til underskrift)",
+  "ansoegning-ny-raadgiver": "mailen til jer om den nye ansøgning (kontakt@)",
+};
+export const MAIL_STATUS_ORD: Record<string, string> = { sent: "sendt", failed: "fejlede", suppressed: "spærret modtager", rate_limited: "udbyderens loft (429)", bounced: "afvist (bounce)", complained: "klage", pending: "afventer" };
+
 export interface Koelinje {
   status: KoeStatus;
   /** «rykker 2 om samtalen» / «lukkes «svarer ikke»» */
@@ -133,7 +158,7 @@ export function koelinjer(haendelser: readonly HaendelseTilSpor[]): Koelinje[] {
       status === "planlagt" ? `planlagt til ${danskTidspunkt(h.planlagt_til)}`
       : status === "sendt" ? `sendt ${danskTidspunkt(h.udfoert_at ?? h.planlagt_til)}`
       : status === "udfoert" ? `udført ${danskTidspunkt(h.udfoert_at ?? h.planlagt_til)}`
-      : status === "annulleret" ? `annulleret${h.annulleret_grund ? `: ${h.annulleret_grund}` : ""}`
+      : status === "annulleret" ? `annulleret${h.annulleret_grund ? `: ${annulleringsOrd(h.annulleret_grund)}` : ""}`
       : `fejlede${h.fejl ? `: ${h.fejl}` : ""}`;
     return { status, hvad: ord(h), hvornaar, tidspunkt: h.udfoert_at ?? h.planlagt_til };
   };

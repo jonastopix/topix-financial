@@ -8,6 +8,7 @@ import {
   PAUSE_MAANEDER,
   pauseTil,
   planlaegTrappe,
+  svarMailTrin,
   TRAPPER,
 } from "@/lib/rykkerkoe";
 
@@ -196,5 +197,16 @@ describe("rykkerkoe — trappen uden dag 0 (rettelse 19/9: aflysning → indkald
     expect(uden.map((r) => r.skabelon)).toEqual(["ansoegning-indkaldt-rykker-1", "ansoegning-indkaldt-rykker-2", "ansoegning-indkaldt-rykker-3", null]);
     expect(uden.map((r) => r.idempotensnoegle)).toEqual(fuld.slice(1).map((r) => r.idempotensnoegle));
     expect(planlaegTrappe({ ansoegningId: ID, trappe: "indkaldt", anker: nu, nu, fraTrinNr: 0 })).toEqual(fuld);
+  });
+});
+
+describe("svarMailTrin — dag 0-mailen der er svar på en handling (Jonas 18/9, pkt. 8)", () => {
+  it("kvitteringen, indkaldelsen, aftalegrundlaget, ventepladsens tilbud og afslaget er svar-mails — de sendes straks", () => {
+    expect(["indsendt", "indkaldt", "aftalegrundlag", "venteplads", "afslag"].map((t) => svarMailTrin(t as never)?.skabelon)).toEqual([
+      "ansoegning-kvittering", "ansoegning-indkaldelse", "ansoegning-aftalegrundlag", "ansoegning-venteplads-tilbud", "ansoegning-afslag",
+    ]);
+  });
+  it("kladden (dag 2), samtalens påmindelser (dag −1/0 kl. 07) og pausen er tidsbestemte — de bliver i vinduet", () => {
+    expect(["kladde", "booket", "pause"].map((t) => svarMailTrin(t as never))).toEqual([null, null, null]);
   });
 });

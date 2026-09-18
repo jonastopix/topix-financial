@@ -15,6 +15,7 @@
  * fladen oversætter med raadgiverHentefejlTekst. Kladder (indsendt_at null)
  * hentes aldrig.
  */
+import type { MailLogRaekke } from "@/lib/ansoegninger/raadgivermailStatus";
 import type { QueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { kraevRaekker } from "@/lib/kraevRaekker";
@@ -119,6 +120,16 @@ export interface PlanlagtHaendelse {
   fejl: string | null;
 }
 
+export const ANSOEGNING_MAILS_KEY = (id: string) => ["ansoegning-mails", id] as const;
+
+/** Mails på ansøgningen som de står i email_send_log (rådgivere har SELECT, 20260907180000): alt med metadata.ansoegning_id — køens rækker, dem sendt straks, samtalens, aftalelinket og mailen til jer. Nyeste først. */
+export async function hentAnsoegningMails(ansoegningId: string): Promise<MailLogRaekke[]> {
+  return kraevRaekker(
+    await supabase.from("email_send_log").select("status, created_at, error_message, recipient_email, template_name, metadata").contains("metadata", { ansoegning_id: ansoegningId }).order("created_at", { ascending: false }).limit(50),
+    "email_send_log",
+  ) as MailLogRaekke[];
+}
+
 export interface AnsoegningMedSpor {
   ansoegning: AnsoegningDetalje;
   beslutninger: Beslutning[];
@@ -147,8 +158,13 @@ export interface HandlingsSvar {
   til: Trin;
   planlagt: number;
   annulleret: number;
+  /** Svar-mailen (Jonas 18/9, pkt. 8): sendt straks · reserve (køen tager den i næste sendevindue) · fejlet · ingen_adresse · ingen_raekke; null = trappen har ingen dag 0-mail. */
+  mail?: StraksUdfald | null;
+  /** Ventelisten når den rejste med afvis/afslag: udfaldet og virksomhedens navn. */
+  venteliste?: { udfald: string; virksomhed: string | null };
   company_id?: string;
 }
+export type StraksUdfald = "sendt" | "reserve" | "fejlet" | "ingen_adresse" | "ingen_raekke";
 
 /**
  * Kalder edge functionen ansoegning-handling (Bucket A: rådgiverens JWT
@@ -179,8 +195,11 @@ export async function udfoerHandling(input: {
   prisOere?: number | null;
   /** saet_pause: «YYYY-MM-DD» efter i dag. */
   pauseTil?: string | null;
-  /** afvis/afslag: grunden bag nej'et (afslagsmailen planlægges ved niche og for_tidligt; ved niche sætter fladen C's venteliste bagefter). */
+  /** afvis/afslag: grunden bag nej'et (afslagsmailen sendes straks ved niche og for_tidligt). */
   afslagsgrund?: Afslagsgrund | null;
+  /** afvis/afslag ved niche: ventelisten REJSER MED i samme kald (19/9), så pladsen står i afslagsmailen, der sendes straks efter lukningen. */
+  ventelisteCompanyId?: string | null;
+  ventelisteHvorfor?: string | null;
   /** book: et ledigt slot (ISO) — serveren regner selv om det stadig er ledigt. */
   samtaleStart?: string | null;
 }): Promise<HandlingsSvar> {
@@ -195,6 +214,7 @@ export async function udfoerHandling(input: {
       ...(input.prisOere ? { pris_oere: input.prisOere } : {}),
       ...(input.pauseTil ? { pause_til: input.pauseTil } : {}),
       ...(input.afslagsgrund ? { afslagsgrund: input.afslagsgrund } : {}),
+      ...(input.ventelisteCompanyId ? { venteliste_company_id: input.ventelisteCompanyId, venteliste_hvorfor: input.ventelisteHvorfor ?? null } : {}),
       ...(input.samtaleStart ? { samtale_start: input.samtaleStart } : {}),
     },
     headers: { Authorization: `Bearer ${session?.access_token}` },
@@ -261,7 +281,7 @@ export async function hentVentepladserForAnsoegning(ansoegningId: string): Promi
 export async function invaliderAnsoegninger(queryClient: QueryClient, id?: string): Promise<void> {
   await Promise.all([
     queryClient.invalidateQueries({ queryKey: [...ANSOEGNINGER_KEY] }),
-    ...(id ? [queryClient.invalidateQueries({ queryKey: [...ANSOEGNING_KEY(id)] }), queryClient.invalidateQueries({ queryKey: [...VENTEPLADSER_KEY(id)] })] : []),
+    ...(id ? [queryClient.invalidateQueries({ queryKey: [...ANSOEGNING_KEY(id)] }), queryClient.invalidateQueries({ queryKey: [...VENTEPLADSER_KEY(id)] }), queryClient.invalidateQueries({ queryKey: [...ANSOEGNING_MAILS_KEY(id)] })] : []),
     queryClient.invalidateQueries({ queryKey: ["advisor-dashboard"] }),
   ]);
 }

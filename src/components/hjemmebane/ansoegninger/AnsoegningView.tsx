@@ -21,11 +21,12 @@ import { hbControlClasses } from "@/components/hjemmebane/admin/HbField";
 import { cn } from "@/lib/utils";
 import { grundlagSomTekst, OMSAETNINGSINTERVALLER_KR } from "@/lib/ansoegningAnbefaling";
 import { danskTidspunkt, erPaaPause, LUKKEAARSAG_ORD, TRIN_ORD, ventetid, virksomhedsnavnAf } from "@/lib/ansoegninger/ansoegningVisning";
-import { koelinjer, sporlinjer } from "@/lib/ansoegninger/ansoegningSpor";
+import { koelinjer, KOE_STATUS_ORD, sporlinjer } from "@/lib/ansoegninger/ansoegningSpor";
 import { AnsoegningHandlinger } from "./AnsoegningHandlinger";
 import { SamtaleAfsnit } from "./SamtaleAfsnit";
 import { SendTilUnderskrift } from "../virksomhed/SendTilUnderskrift";
 import { AnsoegningRaadgivermail } from "./AnsoegningRaadgivermail";
+import { AnsoegningMails } from "./AnsoegningMails";
 
 const Linje = ({ label, children }: { label: string; children: React.ReactNode }) => (
   <div className="grid grid-cols-1 gap-x-4 py-1.5 text-sm sm:grid-cols-[11rem_1fr]">
@@ -185,20 +186,39 @@ export const AnsoegningView = ({ id }: { id: string | undefined }) => {
         )}
       </HbSection>
 
+      {/* Prøven 18/9, pkt. 7: køen viste rå ord («udfoert», «book (calendly)») og alle annullerede rækker
+          mellem de levende. Nu: danske statusord, annulleringens grund i ord, og annullerede/fejlede
+          rækker foldet sammen under de levende. Mails uden om køen (kvittering, samtale, aftalelink)
+          står i «Mails» nedenfor — de var usynlige her. */}
       <HbSection eyebrow="Rykkerkøen" hairline className="mt-12">
-        {koe.length === 0 ? <p className="text-sm text-hb-ink-soft">Intet planlagt.</p> : (
-          <ul className="divide-y divide-hb-line text-sm" data-koe={koe.length}>
-            {koe.map((l, i) => (
-              <li key={i} className={cn("py-2", l.status === "annulleret" || l.status === "fejlet" ? "text-hb-ink-soft" : "text-hb-ink")}>
-                <span className={cn("mr-2 inline-block rounded-full px-2 py-0.5 text-[11px] uppercase tracking-[0.1em]", l.status === "planlagt" ? "bg-hb-sage/30" : l.status === "sendt" || l.status === "udfoert" ? "bg-hb-evergreen/10 text-hb-evergreen" : l.status === "fejlet" ? "bg-hb-rust/10 text-hb-rust" : "bg-hb-paper")}>{l.status}</span>
-                {l.hvad} · {l.hvornaar}
-              </li>
-            ))}
-          </ul>
-        )}
+        {koe.length === 0 ? <p className="text-sm text-hb-ink-soft">Intet planlagt.</p> : (() => {
+          const levende = koe.filter((l) => l.status === "planlagt" || l.status === "sendt" || l.status === "udfoert");
+          const doede = koe.filter((l) => l.status === "annulleret" || l.status === "fejlet");
+          const linje = (l: (typeof koe)[number], i: number) => (
+            <li key={i} className={cn("py-2", l.status === "annulleret" || l.status === "fejlet" ? "text-hb-ink-soft" : "text-hb-ink")}>
+              <span className={cn("mr-2 inline-block rounded-full px-2 py-0.5 text-[11px] uppercase tracking-[0.1em]", l.status === "planlagt" ? "bg-hb-sage/30" : l.status === "sendt" || l.status === "udfoert" ? "bg-hb-evergreen/10 text-hb-evergreen" : l.status === "fejlet" ? "bg-hb-rust/10 text-hb-rust" : "bg-hb-paper")}>{KOE_STATUS_ORD[l.status]}</span>
+              {l.hvad} · {l.hvornaar}
+            </li>
+          );
+          return (
+            <>
+              {levende.length === 0 ? <p className="text-sm text-hb-ink-soft">Intet planlagt.</p> : <ul className="divide-y divide-hb-line text-sm" data-koe={levende.length}>{levende.map(linje)}</ul>}
+              {doede.length > 0 && (
+                <details className="mt-2 text-sm" data-koe-annulleret={doede.length}>
+                  <summary className="cursor-pointer text-xs text-hb-ink-soft">{doede.length} {doede.length === 1 ? "annulleret eller fejlet række" : "annullerede eller fejlede rækker"}</summary>
+                  <ul className="mt-1 divide-y divide-hb-line">{doede.map(linje)}</ul>
+                </details>
+              )}
+            </>
+          );
+        })()}
         <p className="mt-2 text-xs text-hb-ink-soft">Rykkere sendt på dette trin: {a.rykkere_sendt}.{a.aftale_url ? <> Aftalegrundlag: <a href={a.aftale_url} target="_blank" rel="noopener noreferrer" className="text-hb-evergreen underline-offset-4 hover:underline">link</a>.</> : null}</p>
         {/* Brist 7 (18/9): kom mailen til kontakt@ af sted? Læses fra email_send_log. */}
         <AnsoegningRaadgivermail ansoegningId={a.id} />
+      </HbSection>
+
+      <HbSection eyebrow="Mails" hairline className="mt-12">
+        <AnsoegningMails ansoegningId={a.id} />
       </HbSection>
 
       <HbSection eyebrow="Jeres note" hairline className="mt-12">

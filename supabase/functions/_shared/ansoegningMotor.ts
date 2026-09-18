@@ -47,10 +47,10 @@ import {
   type Trappe,
   type Trin,
 } from "./ansoegningTrin.ts";
-import { pauseTil, planlaegTrappe, type PlanlagtRaekke } from "./rykkerkoe.ts";
+import { pauseTil, planlaegTrappe, svarMailTrin, type KoeHandling, type Modtager, type PlanlagtRaekke } from "./rykkerkoe.ts";
 import { kbhTilUtc } from "./hverdage.ts";
 import { afgoerAnbefaling, grundlagSomTekst, type Anbefaling, type AnbefalingsInput } from "./ansoegningAnbefaling.ts";
-import { OMSAETNINGSINTERVALLER, type CvrVisning } from "./ansoegningSkema.ts";
+import { afgoerFremdrift, OMSAETNINGSINTERVALLER, TOMME_SVAR, type AnsoegningsSvar, type CvrVisning } from "./ansoegningSkema.ts";
 import { opretEllerGenbrugVirksomhed } from "./virksomhedsOprettelse.ts";
 import { udloesIndgangsBetalingsmail } from "./indgangsBetalingsmail.ts";
 import { skrivRaadgiverBesked } from "./raadgiverBesked.ts";
@@ -58,7 +58,9 @@ import { afgoerDubletter, type DubletDom } from "./ansoegningDubletter.ts";
 import { raadgiverMailOmNyAnsoegning } from "./ansoegningRaadgiverMail.ts";
 import { sendManagedEmail } from "./managedEmail.ts";
 import { KONTAKT_ADRESSE } from "./indgangsMail.ts";
-import { bygRykkerMail, type MailKontekst } from "./ansoegningRykkerMails.ts";
+import { bygRykkerMail, type MailKontekst, type VentepladsKontekst } from "./ansoegningRykkerMails.ts";
+import { grundTekst, koeNummer, type AfslagsIndhold } from "./afslagsTilbud.ts";
+import type { VentepladsRaekke } from "./ventelisteDom.ts";
 
 export const APP_URL = "https://app.theboardroom.dk";
 /** Ansøgerens side efter indsendelse (status, book, «ikke nu») — C/B bygger fladen; stien er kontrakten. */
@@ -425,6 +427,180 @@ export async function skrivPlan(admin: SupabaseClient, raekker: PlanlagtRaekke[]
   return { skrevet, fandtes: raekker.length - skrevet };
 }
 
+// ── Køens afsendelse — ÉT sted (cronen og «straks» sender gennem det samme) ──
+
+/** En række i planlagte_haendelser som cronen og sendSvarMailNu læser den. */
+export interface KoeRaekke {
+  id: string;
+  ansoegning_id: string;
+  trappe: Trappe;
+  trin_nr: number;
+  handling: KoeHandling;
+  skabelon: string | null;
+  modtager: Modtager;
+  planlagt_til: string;
+  idempotensnoegle: string;
+  udskudt_antal: number;
+  fejl_antal: number;
+}
+export const KOE_RAEKKE_FELTER = "id, ansoegning_id, trappe, trin_nr, handling, skabelon, modtager, planlagt_til, idempotensnoegle, udskudt_antal, fejl_antal";
+/** Efter så mange fejl står rækken som fejlet og tages ikke igen. */
+export const MAKS_FEJL = 3;
+
+/**
+ * Afslagsmailen: grunden, køpladserne (C's ventepladser — nummeret regnes som
+ * rådgiverens venteliste, sorterKoe; kun NUMRE, aldrig medlemmets navn) og om
+ * der var en samtale (lukkeaarsag).
+ * Fail-soft: kan køen ikke læses, sendes mailen uden pladsen (logget) — et nej
+ * må ikke vente på en tabel.
+ */
+export async function afslagsIndhold(admin: SupabaseClient, a: AnsoegningRaekke): Promise<AfslagsIndhold> {
+  const ventepladser: AfslagsIndhold["ventepladser"] = [];
+  try {
+    // Samme læsning som C's hentAnsoegerensPladser/hentKoe (venteliste.ts), skrevet
+    // inline så nummeret regnes over hele køen hos virksomheden; nummeret er C's sorterKoe.
+    type Rad = { id: string; ansoegning_id: string; company_id: string; status: string; hvorfor: string | null; sat_at: string; ansoegninger: { lukket_at: string | null } | null };
+    const tilRaekke = (r: Rad): VentepladsRaekke => ({ id: r.id, ansoegning_id: r.ansoegning_id, company_id: r.company_id, status: r.status as VentepladsRaekke["status"], sat_at: r.sat_at, afvist_at: r.ansoegninger?.lukket_at ?? null });
+    const FELTER = "id, ansoegning_id, company_id, status, hvorfor, sat_at, ansoegninger!inner(lukket_at)";
+    const { data: egne, error } = await admin.from("ventepladser").select(FELTER).eq("ansoegning_id", a.id).eq("status", "venter");
+    if (error) throw new Error(error.message);
+    for (const p of (egne ?? []) as unknown as Rad[]) {
+      const { data: koe, error: koeErr } = await admin.from("ventepladser").select(FELTER).eq("company_id", p.company_id).in("status", ["venter", "tilbudt"]);
+      if (koeErr) throw new Error(koeErr.message);
+      const nummer = koeNummer(((koe ?? []) as unknown as Rad[]).map(tilRaekke), a.id);
+      if (nummer !== null) ventepladser.push({ nummer });
+    }
+  } catch (err) {
+    console.error(`[ansoegningMotor] ventepladser kunne ikke læses for ${a.id} — afslagsmailen sendes uden køplads:`, err);
+  }
+  return { grundTekst: grundTekst(a.afslagsgrund), ventepladser, efterSamtale: a.lukkeaarsag === "afslag_efter_samtale" };
+}
+
+/** Kladden: hvor mange af B's tolv felter mangler (afgoerFremdrift på rækkens svar). */
+export function manglendeSvar(a: AnsoegningRaekke): number {
+  const svar: Record<string, unknown> = { ...TOMME_SVAR };
+  for (const k of Object.keys(TOMME_SVAR)) svar[k] = (a as unknown as Record<string, unknown>)[k] ?? null;
+  const f = afgoerFremdrift(svar as unknown as AnsoegningsSvar);
+  return f.ialt - f.besvarede;
+}
+
+/**
+ * Mailkonteksten for en kø-mail — ÉN bygger for cronen og for «straks», så de to veje giver
+ * samme mail. Ventepladsens kontekst kommer fra kalderen (cronen har rækken; tilbydPladsen
+ * har tilbuddet); afslagets køplads læses her (fail-soft).
+ */
+export async function koeMailKontekst(admin: SupabaseClient, a: AnsoegningRaekke, i: { trappe: Trappe; nu: Date; venteplads: VentepladsKontekst | null }): Promise<MailKontekst> {
+  return {
+    fornavn: fornavnAf(a.navn),
+    virksomhedsnavn: virksomhedsnavnAf(a),
+    bookingUrl: ansoegerLink(a.token),
+    moedeLink: a.samtale_link,
+    nu: i.nu,
+    statusUrl: ansoegerLink(a.token),
+    ikkeNuUrl: ikkeNuLink(a.token),
+    samtaleStart: a.samtale_start ? new Date(a.samtale_start) : null,
+    aftaleUrl: a.aftale_url,
+    token: a.token,
+    manglerSvar: i.trappe === "kladde" ? manglendeSvar(a) : null,
+    afslag: i.trappe === "afslag" ? await afslagsIndhold(admin, a) : null,
+    // Kvitteringen (trappen «indsendt», 18/9): det ansøgeren skrev, så de kan se vi har det.
+    svar: { udfordring: a.udfordring, proevet: a.proevet, omTolvMaaneder: a.om_tolv_maaneder },
+    venteplads: i.venteplads,
+  };
+}
+
+export type KoeSendeUdfald =
+  | { udfald: "sendt"; messageId: string }
+  | { udfald: "ingen_adresse" }
+  | { udfald: "ukendt_skabelon" }
+  | { udfald: "ikke_sendt"; reason: string; endeligt: boolean };
+
+/**
+ * Sender én kø-række (send_mail) og bogfører den: mailen bygges (ansoegningRykkerMails.ts),
+ * sendes gennem sendManagedEmail med idempotencyKey = idempotensnoegle → message_id i
+ * email_send_log (UNIQUE WHERE status = sent — en mail kan aldrig gå to gange, heller ikke
+ * når cronen og «straks» rammer samme række). Kun ved sendt: status sendt, sendt_til,
+ * udfoert_at, message_id, og ansoegninger.rykkere_sendt tælles op (trin_nr > 0). Spærret
+ * modtager → fejlet uden retry; anden fejl → fejl_antal++ (MAKS_FEJL forsøg, så fejlet).
+ * Vinduet og dagsreglen dømmes IKKE her — det gør cronen (afgoerSending) før den kalder;
+ * «straks» springer dem over med vilje (Jonas 18/9, pkt. 8). Kaster ikke på afsendelsen.
+ */
+export async function sendKoeMail(admin: SupabaseClient, raekke: KoeRaekke, a: AnsoegningRaekke, nu: Date, i: { venteplads: VentepladsKontekst | null; vej: "koe" | "straks" }): Promise<KoeSendeUdfald> {
+  const email = (a.email ?? "").toLowerCase();
+  if (!email) {
+    await admin.from("planlagte_haendelser").update({ status: "fejlet", fejl: "ansøgningen har ingen e-mail", fejl_antal: raekke.fejl_antal + 1 }).eq("id", raekke.id);
+    return { udfald: "ingen_adresse" };
+  }
+  const mail = bygRykkerMail(raekke.skabelon ?? "", await koeMailKontekst(admin, a, { trappe: raekke.trappe, nu, venteplads: i.venteplads }));
+  if (!mail) {
+    await admin.from("planlagte_haendelser").update({ status: "fejlet", fejl: `ukendt skabelon ${raekke.skabelon}`, fejl_antal: MAKS_FEJL }).eq("id", raekke.id);
+    return { udfald: "ukendt_skabelon" };
+  }
+  const res = await sendManagedEmail({
+    adminClient: admin,
+    to: email,
+    subject: mail.emne,
+    html: mail.html,
+    text: mail.tekst,
+    label: raekke.skabelon!,
+    idempotencyKey: raekke.idempotensnoegle,
+    // Svar går til Jonas (kontakt@ viderestilles — bekræftet 18/9), ikke til noreply@: tre af mailene siger «svar på denne mail».
+    replyTo: KONTAKT_ADRESSE,
+    metadata: { ansoegning_id: a.id, trappe: raekke.trappe, trin_nr: raekke.trin_nr, vej: i.vej },
+  });
+  if (res.sent === false) {
+    const endeligt = res.reason === "recipient_suppressed" || raekke.fejl_antal + 1 >= MAKS_FEJL;
+    await admin.from("planlagte_haendelser")
+      .update({ status: endeligt ? "fejlet" : "planlagt", fejl: `${res.reason}${"error" in res ? `: ${res.error}` : ""}`.slice(0, 500), fejl_antal: raekke.fejl_antal + 1 })
+      .eq("id", raekke.id);
+    return { udfald: "ikke_sendt", reason: res.reason, endeligt };
+  }
+  await admin.from("planlagte_haendelser")
+    .update({ status: "sendt", udfoert_at: nu.toISOString(), sendt_til: email, message_id: res.messageId })
+    .eq("id", raekke.id);
+  if (raekke.trin_nr > 0) {
+    await admin.from("ansoegninger").update({ rykkere_sendt: a.rykkere_sendt + 1 }).eq("id", a.id);
+  }
+  return { udfald: "sendt", messageId: res.messageId };
+}
+
+/** «sendt» straks · «reserve» = fejlede, rækken står i køen og går i næste sendevindue · «fejlet» = endeligt (spærret modtager) · «ingen_adresse» · «ingen_raekke» = trappen har ingen planlagt dag 0-række (sprunget over, eller allerede sendt). */
+export type StraksUdfald = "sendt" | "reserve" | "fejlet" | "ingen_adresse" | "ingen_raekke";
+
+/**
+ * SVAR-MAILEN STRAKS (Jonas 18/9, pkt. 8 — ordret: alle mails der er svar på en handling,
+ * sendes med det samme; kun de tidsbestemte rykkere bliver i vinduet). Finder trappens
+ * planlagte dag 0-række og sender den NU gennem sendKoeMail — samme skabelon, samme kontekst,
+ * samme idempotensnøgle som køen ville have brugt. Går den ikke, bliver rækken stående
+ * (fejl_antal++), og cronen tager den i næste sendevindue: køen ER reserven. Kaster aldrig.
+ */
+export async function sendSvarMailNu(admin: SupabaseClient, a: AnsoegningRaekke, trappe: Trappe, nu: Date, venteplads: VentepladsKontekst | null = null): Promise<StraksUdfald> {
+  try {
+    if (svarMailTrin(trappe) === null) return "ingen_raekke";
+    const { data, error } = await admin
+      .from("planlagte_haendelser")
+      .select(KOE_RAEKKE_FELTER)
+      .eq("ansoegning_id", a.id)
+      .eq("trappe", trappe)
+      .eq("trin_nr", 0)
+      .eq("status", "planlagt")
+      .order("planlagt_til", { ascending: false })
+      .limit(1);
+    if (error) throw new Error(error.message);
+    const raekke = (data ?? [])[0] as KoeRaekke | undefined;
+    if (!raekke) return "ingen_raekke";
+    const res = await sendKoeMail(admin, raekke, a, nu, { venteplads, vej: "straks" });
+    if (res.udfald === "sendt") return "sendt";
+    if (res.udfald === "ingen_adresse") return "ingen_adresse";
+    if (res.udfald === "ukendt_skabelon") return "fejlet";
+    console.error(`[ansoegningMotor] ${raekke.skabelon} til ${a.id} kunne ikke sendes straks (${res.reason}) — ${res.endeligt ? "endeligt fejlet" : "køen tager den i næste sendevindue"}`);
+    return res.endeligt ? "fejlet" : "reserve";
+  } catch (err) {
+    console.error(`[ansoegningMotor] sendSvarMailNu kastede for ${a.id} (${trappe}) — køen tager rækken:`, err);
+    return "reserve";
+  }
+}
+
 // ── Overgangen ─────────────────────────────────────────────────────────────
 
 export interface Samtale {
@@ -457,10 +633,18 @@ export interface OvergangsArgs {
    * dommens eget fraTrinNr (aflysning) eller hele trappen.
    */
   startFraTrinNr?: number;
+  /**
+   * SVAR-MAILEN STRAKS (Jonas 18/9, pkt. 8): begynder den nye trappe med en mail på dag 0
+   * (svarMailTrin: indkaldelsen, aftalegrundlaget, afslaget), sendes den her og nu gennem
+   * sendSvarMailNu — uden om sendevinduet og dagsreglen; køens række er reserven. false =
+   * kalderen sender den selv bagefter (ansoegning-handling: ventelisten skal sættes FØR
+   * afslagsmailen, så pladsen står i den). Udeladt = true.
+   */
+  svarMailStraks?: boolean;
 }
 
 export type OvergangsResultat =
-  | { ok: true; fra: Trin; til: Trin; annulleret: number; planlagt: number; konvertering: KonverteringsResultat | null }
+  | { ok: true; fra: Trin; til: Trin; annulleret: number; planlagt: number; konvertering: KonverteringsResultat | null; mail: StraksUdfald | null }
   | { ok: false; status: number; grund: string };
 
 export async function udfoerOvergang(admin: SupabaseClient, args: OvergangsArgs): Promise<OvergangsResultat> {
@@ -564,7 +748,16 @@ export async function udfoerOvergang(admin: SupabaseClient, args: OvergangsArgs)
     planlagt = (await skrivPlan(admin, plan)).skrevet;
   }
 
-  return { ok: true, fra: a.trin, til: o.til, annulleret, planlagt, konvertering };
+  // Svar-mailen STRAKS (Jonas 18/9, pkt. 8): rækken er skrevet ovenfor — nu sendes den, hvis
+  // trappen begynder med en dag 0-mail og ingen har sprunget den over (aflysning: fraTrinNr 1;
+  // send-til-underskrift: startFraTrinNr 1, linkmailen er sendt). Fejler den, står rækken i
+  // køen og går i næste sendevindue — reserven koster ingen ekstra kode.
+  let mail: StraksUdfald | null = null;
+  if (o.start && args.svarMailStraks !== false && svarMailTrin(o.start.trappe) !== null && (args.startFraTrinNr ?? o.start.fraTrinNr ?? 0) === 0) {
+    mail = await sendSvarMailNu(admin, { ...a, ...opd } as AnsoegningRaekke, o.start.trappe, nu);
+  }
+
+  return { ok: true, fra: a.trin, til: o.til, annulleret, planlagt, konvertering, mail };
 }
 
 // ── Underskrift → virksomheden (samme id) → det eksisterende betalingsforløb ──
