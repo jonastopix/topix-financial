@@ -282,6 +282,233 @@ export type Database = {
           },
         ]
       }
+      aftale_kode: {
+        Row: {
+          aftale_id: string
+          brugt_at: string | null
+          erstattet_at: string | null
+          forsoeg: number
+          id: string
+          ip: string | null
+          kode_hash: string
+          oprettet_at: string
+          user_agent: string | null
+        }
+        Insert: {
+          aftale_id: string
+          brugt_at?: string | null
+          erstattet_at?: string | null
+          forsoeg?: number
+          id?: string
+          ip?: string | null
+          kode_hash: string
+          oprettet_at?: string
+          user_agent?: string | null
+        }
+        Update: {
+          aftale_id?: string
+          brugt_at?: string | null
+          erstattet_at?: string | null
+          forsoeg?: number
+          id?: string
+          ip?: string | null
+          kode_hash?: string
+          oprettet_at?: string
+          user_agent?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "aftale_kode_aftale_id_fkey"
+            columns: ["aftale_id"]
+            isOneToOne: false
+            referencedRelation: "aftale_underskrift"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      aftale_skabelon: {
+        Row: {
+          aktiv: boolean
+          created_at: string
+          id: string
+          navn: string
+          oprettet_af: string | null
+          tekst: string
+          titel: string
+          updated_at: string
+          version: number
+        }
+        Insert: {
+          aktiv?: boolean
+          created_at?: string
+          id?: string
+          navn: string
+          oprettet_af?: string | null
+          tekst: string
+          titel: string
+          updated_at?: string
+          version?: number
+        }
+        Update: {
+          aktiv?: boolean
+          created_at?: string
+          id?: string
+          navn?: string
+          oprettet_af?: string | null
+          tekst?: string
+          titel?: string
+          updated_at?: string
+          version?: number
+        }
+        Relationships: []
+      }
+      aftale_spor: {
+        Row: {
+          aftale_id: string
+          detaljer: Json | null
+          haendelse: string
+          id: number
+          ip: string | null
+          tidspunkt: string
+          user_agent: string | null
+        }
+        Insert: {
+          aftale_id: string
+          detaljer?: Json | null
+          haendelse: string
+          id?: never
+          ip?: string | null
+          tidspunkt?: string
+          user_agent?: string | null
+        }
+        Update: {
+          aftale_id?: string
+          detaljer?: Json | null
+          haendelse?: string
+          id?: never
+          ip?: string | null
+          tidspunkt?: string
+          user_agent?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "aftale_spor_aftale_id_fkey"
+            columns: ["aftale_id"]
+            isOneToOne: false
+            referencedRelation: "aftale_underskrift"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      aftale_underskrift: {
+        Row: {
+          annulleret_af: string | null
+          annulleret_at: string | null
+          annulleret_grund: string | null
+          ansoegning_id: string | null
+          company_id: string | null
+          created_at: string
+          dokument_aftryk: string
+          dokument_tekst: string
+          dokument_titel: string
+          id: string
+          kvittering_sendt_at: string | null
+          modtager_email: string
+          modtager_navn: string | null
+          pdf_aftryk: string | null
+          pdf_sti: string | null
+          prisniveau_oere: number | null
+          sendt_af: string
+          sendt_at: string
+          skabelon_id: string | null
+          status: string
+          token: string
+          underskrevet_at: string | null
+          underskrevet_ip: string | null
+          underskrevet_navn: string | null
+          underskrevet_user_agent: string | null
+          updated_at: string
+        }
+        Insert: {
+          annulleret_af?: string | null
+          annulleret_at?: string | null
+          annulleret_grund?: string | null
+          ansoegning_id?: string | null
+          company_id?: string | null
+          created_at?: string
+          dokument_aftryk: string
+          dokument_tekst: string
+          dokument_titel: string
+          id?: string
+          kvittering_sendt_at?: string | null
+          modtager_email: string
+          modtager_navn?: string | null
+          pdf_aftryk?: string | null
+          pdf_sti?: string | null
+          prisniveau_oere?: number | null
+          sendt_af: string
+          sendt_at?: string
+          skabelon_id?: string | null
+          status?: string
+          token?: string
+          underskrevet_at?: string | null
+          underskrevet_ip?: string | null
+          underskrevet_navn?: string | null
+          underskrevet_user_agent?: string | null
+          updated_at?: string
+        }
+        Update: {
+          annulleret_af?: string | null
+          annulleret_at?: string | null
+          annulleret_grund?: string | null
+          ansoegning_id?: string | null
+          company_id?: string | null
+          created_at?: string
+          dokument_aftryk?: string
+          dokument_tekst?: string
+          dokument_titel?: string
+          id?: string
+          kvittering_sendt_at?: string | null
+          modtager_email?: string
+          modtager_navn?: string | null
+          pdf_aftryk?: string | null
+          pdf_sti?: string | null
+          prisniveau_oere?: number | null
+          sendt_af?: string
+          sendt_at?: string
+          skabelon_id?: string | null
+          status?: string
+          token?: string
+          underskrevet_at?: string | null
+          underskrevet_ip?: string | null
+          underskrevet_navn?: string | null
+          underskrevet_user_agent?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "aftale_underskrift_ansoegning_id_fkey"
+            columns: ["ansoegning_id"]
+            isOneToOne: false
+            referencedRelation: "ansoegninger"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "aftale_underskrift_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "aftale_underskrift_skabelon_id_fkey"
+            columns: ["skabelon_id"]
+            isOneToOne: false
+            referencedRelation: "aftale_skabelon"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       agent_proposals: {
         Row: {
           applied_at: string | null
@@ -3807,6 +4034,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      annuller_gamle_koder: { Args: { p_aftale_id: string }; Returns: number }
       cleanup_stale_processing_reports: { Args: never; Returns: number }
       commit_report_facts: {
         Args: { p_report_id: string }
@@ -4119,6 +4347,7 @@ export type Database = {
         Args: { p_traad_id: string }
         Returns: undefined
       }
+      registrer_kodeforsoeg: { Args: { p_kode_id: string }; Returns: number }
       resolve_report_commit_candidate: {
         Args: { p_report_id: string }
         Returns: Database["public"]["CompositeTypes"]["report_commit_candidate"]
