@@ -6,7 +6,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { ADVISOR_DASHBOARD_QUERY_KEY, hentAdvisorDashboard } from "@/components/AdvisorDashboard";
 import { invaliderForsiden, lukOpgave } from "@/hooks/opgaveLukning";
 import { OpgavelisteView } from "@/components/hjemmebane/opgaver/OpgavelisteView";
-import { TAERSKEL, usaedvanligtMangeTekst, type Betaltlinje, type Boelgelinje, type Linje, type OpgaveSlags, type Tilstandslinje, type Virksomhedslinje } from "@/lib/forsidensDom";
+import { ANSOEGNINGER_STI, TAERSKEL, usaedvanligtMangeTekst, type Betaltlinje, type Boelgelinje, type Linje, type OpgaveSlags, type Tilstandslinje, type Virksomhedslinje } from "@/lib/forsidensDom";
 import { samletLinjeLink } from "@/lib/hjemmebane/forsideLinks";
 import { LUKNINGS_UDFALD, UDFALD_TEKST, type LukningsUdfald } from "@/lib/opgaveLukning";
 import { pulsLinjer } from "@/lib/pulsen";
@@ -275,6 +275,33 @@ const DomLinje = ({ l, onLuk, lukker }: { l: Linje; onLuk: (linje: LukbarLinje, 
     );
   }
 
+  if (l.linje === "ansoegninger") {
+    /* ANSØGNINGER DER VENTER (18/9): én foldet linje som bølgen — teksten er
+       summary med link til /ansoegninger, folden ét link pr. ansøgning til
+       dens egen side. INGEN kvittering: «Ikke relevant» er beslutningen
+       «afvis», som træffes dér — ikke her. */
+    return (
+      <li className="flex items-start gap-3 py-3" data-ansoegninger-venter={l.antal}>
+        {prik}
+        <details data-ansoegninger-fold className="min-w-0 flex-1">
+          <summary data-ansoegninger-summary className="cursor-pointer list-none rounded-hb text-[15px] leading-snug text-hb-ink transition-colors hover:bg-hb-sage/20 [&::-webkit-details-marker]:hidden">
+            <Link to={ANSOEGNINGER_STI} className="font-medium">{l.tekst}</Link>
+          </summary>
+          <ul className="mt-2 space-y-1 text-sm">
+            {l.ansoegninger.map((a) => (
+              <li key={a.id}>
+                <Link to={`${ANSOEGNINGER_STI}/${a.id}`} className={TEKSTLINK}>
+                  {a.navn}
+                </Link>
+                <span className="text-hb-ink-soft"> · {a.trin === "ny" ? "ny ansøgning" : "samtale afholdt"}</span>
+              </li>
+            ))}
+          </ul>
+        </details>
+      </li>
+    );
+  }
+
   if (l.linje === "boelge") {
     /* BØLGEN (Jonas 17/9 «AA»): ≥ 3 velkomster med samme startdag som ÉN
        foldet linje — teksten er summary, folden bærer ét link pr. navn til
@@ -498,7 +525,7 @@ export const RaadgiverForsideView = () => {
 
   const dom = data.dom;
   const linjeNoegle = (l: Linje) =>
-    l.linje === "virksomhed" ? `v:${l.companyId}` : l.linje === "boelge" ? `b:${l.dag}` : l.linje === "betalt" ? "betalt" : `${l.linje}:${l.slags}`;
+    l.linje === "virksomhed" ? `v:${l.companyId}` : l.linje === "boelge" ? `b:${l.dag}` : l.linje === "betalt" ? "betalt" : l.linje === "ansoegninger" ? "ansoegninger" : `${l.linje}:${l.slags}`;
   const under = dom.underStregen;
   const antalUnder = under.antalVirksomhederUnderTaersklen;
 

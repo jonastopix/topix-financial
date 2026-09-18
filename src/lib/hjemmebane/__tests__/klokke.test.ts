@@ -81,6 +81,9 @@ describe("linjerne", () => {
     expect(raadgiverSti(r({ reference_type: "handout" }))).toBe("/virksomhed/c1");
     expect(raadgiverSti(r({ reference_type: "ukendt_type", reference_id: null }))).toBe("/virksomhed/c1");
     expect(raadgiverSti(r({ reference_type: "feedback", reference_id: "f9", type: "feedback_submitted" }))).toBe("/admin/feedback?feedbackId=f9");
+    // Ansøgningsmotoren (18/9): ansøgningens egen side, uden virksomhed.
+    expect(raadgiverSti(r({ reference_type: "ansoegning", reference_id: "a1", company_id: null, type: "ansoegning_ny" }))).toBe("/ansoegninger/a1");
+    expect(raadgiverSti(r({ reference_type: "ansoegning", reference_id: null, company_id: null, type: "ansoegning_ny" }))).toBe("/ansoegninger");
     expect(raadgiverSti(r({ reference_type: null, company_id: null, type: "agent_insight" }))).toBeNull();
   });
 

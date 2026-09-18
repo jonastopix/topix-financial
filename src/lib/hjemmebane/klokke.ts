@@ -199,6 +199,9 @@ export function raadgiverSti(n: Pick<RaadgiverNotifikation, "type" | "reference_
       return chatSti(n);
     case "feedback":
       return `/admin/feedback${n.reference_id ? `?feedbackId=${n.reference_id}` : ""}`;
+    // Ansøgningsmotoren (18/9): klokkerne ansoegning_* peger på ansøgningens egen side — der er ingen virksomhed før underskrift.
+    case "ansoegning":
+      return n.reference_id ? `/ansoegninger/${n.reference_id}` : "/ansoegninger";
     case "community_traad":
       return n.reference_id ? `/community/${n.reference_id}` : "/community";
     default:

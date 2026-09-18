@@ -23,6 +23,7 @@ import type { MaalRaekke } from "@/lib/hjemmebane/planen";
 import { ALVOR_INGEN_MAAL, ALVOR_MAAL, ALVOR_REFLEKSION_HJAELP, maalTilstandstekst, refleksionBesvaret, refleksionsPeriode, refleksionUddrag, REFLEKSION_MIN_TEGN, REFLEKSION_UDDRAG, STILSTAND_LAENGE_DAGE } from "@/lib/forsidensDom";
 import { BOELGE_FRA, BOELGENS_LEDSAGERE, boelgeDagTekst, USAEDVANLIGT_MANGE_TEKST, usaedvanligtMangeTekst, type Boelgelinje } from "@/lib/forsidensDom";
 import { ALVOR_BETALT_IKKE_OPRETTET, BETALT_NOEGLE, betaltGrundTekst, betaltIkkeOprettetTekst, betaltLinje, FORM as FORM_KORT, INDSATS as INDSATS_KORT, type BetaltIkkeOprettet, type Betaltlinje } from "@/lib/forsidensDom";
+import { ALVOR_ANSOEGNINGER_VENTER, ansoegningerTekst, ansoegningslinje, type Ansoegningslinje, type AnsoegningTilForside } from "@/lib/forsidensDom";
 import type { Kvittering } from "@/lib/opgaveLukning";
 
 // Fast «nu»: 4. september 2026 kl. 12:00 lokal tid — dagregning for
@@ -123,6 +124,10 @@ describe("konstanterne", () => {
       // Før 22/9 (17/9, Jonas «1. Ja») — rettet MED VILJE. Før: tabellen sluttede ved
       // ingen_maal (fjorten slags). Betalt uden konto er en hændelse: væk når kontoen er oprettet.
       betalt_ikke_oprettet: "haendelse",
+      // Ansøgningsmotoren (18/9) — rettet MED VILJE. Før: tabellen sluttede ved
+      // betalt_ikke_oprettet (femten slags). Ansøgninger der venter er en hændelse:
+      // væk når beslutningen er truffet; ingen virksomhed, ingen kvittering.
+      ansoegninger_venter: "haendelse",
     });
     for (const slags of Object.keys(FORM) as (keyof typeof INDSATS)[]) {
       expect([1, 2, 3]).toContain(INDSATS[slags]);
@@ -1276,5 +1281,53 @@ describe("tilstandslinjer kan lukkes (rådgivernes forside PR 5, 17/9) — kvitt
     const [l] = virksomhedslinjer(d);
     expect(l.grundlag).toEqual({ "stikker_ud:bankovertraek": "2026-08", ingen_maal: "ingen:0" });
     expect(tilstandslinjer(d)).toEqual([]);
+  });
+});
+
+describe("ansøgninger der venter (18/9) — én linje uden virksomhed og uden kvittering", () => {
+  const nu = new Date("2026-09-25T09:00:00Z");
+  const a = (id: string, navn: string, trin: "ny" | "afholdt", sidenAt: string): AnsoegningTilForside => ({ id, navn, trin, sidenAt });
+
+  it("to nye: «2 nye ansøgninger venter på jer», alvor 80, hændelse, indsats 2, ældste først i folden", () => {
+    const dom = afgoerForsidensDom([], nu, { ansoegninger: [a("a2", "Byg B", "ny", "2026-09-24T10:00:00Z"), a("a1", "Byg A", "ny", "2026-09-22T10:00:00Z")] });
+    const linje = dom.linjer.find((l): l is Ansoegningslinje => l.linje === "ansoegninger")!;
+    expect(linje).toBeDefined();
+    expect(linje.tekst).toBe("2 nye ansøgninger venter på jer");
+    expect(linje.antal).toBe(2);
+    expect(linje.nye).toBe(2);
+    expect(linje.afholdte).toBe(0);
+    expect(linje.alvor).toBe(ALVOR_ANSOEGNINGER_VENTER);
+    expect(ALVOR_ANSOEGNINGER_VENTER).toBe(80);
+    expect(linje.ansoegninger.map((x) => x.id)).toEqual(["a1", "a2"]);
+    expect(FORM_KORT.ansoegninger_venter).toBe("haendelse");
+    expect(INDSATS_KORT.ansoegninger_venter).toBe(2);
+    expect(dom.antalOpgaver).toBe(1);
+    expect(linje).not.toHaveProperty("virksomheder");
+    expect(linje).not.toHaveProperty("grundlag");
+  });
+
+  it("teksten: ental, samtaler afholdt, og begge dele med « · »", () => {
+    expect(ansoegningerTekst(1, 0)).toBe("1 ny ansøgning venter på jer");
+    expect(ansoegningerTekst(0, 1)).toBe("1 samtale er afholdt — tilbud eller afslag?");
+    expect(ansoegningerTekst(0, 3)).toBe("3 samtaler er afholdt — tilbud eller afslag?");
+    expect(ansoegningerTekst(2, 1)).toBe("2 nye ansøgninger venter på jer · 1 samtale er afholdt — tilbud eller afslag?");
+    expect(ansoegningerTekst(0, 0)).toBe("");
+  });
+
+  it("kun ny/afholdt tæller; tom liste, undefined og andre trin giver ingen linje", () => {
+    expect(ansoegningslinje([])).toBeNull();
+    expect(ansoegningslinje(undefined)).toBeNull();
+    expect(ansoegningslinje([{ id: "x", navn: "X", trin: "indkaldt" as unknown as "ny", sidenAt: "2026-09-20T00:00:00Z" }])).toBeNull();
+    expect(afgoerForsidensDom([], nu).linjer).toEqual([]);
+    expect(afgoerForsidensDom([], nu)).toEqual(afgoerForsidensDom([], nu, {}));
+  });
+
+  it("sorteres efter alvor blandt de andre linjer: efter «betalt uden konto» (85), før en tilstand på 70", () => {
+    const dom = afgoerForsidensDom([], nu, {
+      betaltIkkeOprettet: [{ companyId: "c1", navn: "Mette Hansen ApS", betaltDag: "2026-09-22", kvittering: null }],
+      ansoegninger: [a("a1", "Byg A", "afholdt", "2026-09-22T10:00:00Z")],
+    });
+    expect(dom.linjer.map((l) => l.linje)).toEqual(["betalt", "ansoegninger"]);
+    expect(dom.antalOpgaver).toBe(2);
   });
 });
