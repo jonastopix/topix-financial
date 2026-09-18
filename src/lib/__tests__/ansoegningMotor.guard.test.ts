@@ -116,6 +116,7 @@ const KONTEKST = {
   aftaleUrl: "https://app.theboardroom.dk/aftale?token=def",
   token: "abc",
   manglerSvar: 3,
+  afslag: null,
 };
 
 describe("ansoegningMotor.guard — de otte domme på repoets filer", () => {
@@ -149,7 +150,8 @@ describe("ansoegningMotor.guard — de otte domme på repoets filer", () => {
       expect(m, s).not.toBeNull();
       // Ventelisten (udkast 18/9): tilbuddet går til en LUKKET ansøgning — «ikke nu»
       // (pause) giver ingen mening; svaret er ja/nej til pladsen. Derfor undtaget.
-      const erSamtale = s.startsWith("ansoegning-samtale-") || s === "ansoegning-kladde-paamindelse" || s.startsWith("ansoegning-venteplads-");
+      // Uden «ikke nu»: samtale-påmindelserne, kladden, ventepladsen — og afslagsmailen (18/9): et nej har ingen pause at sætte.
+      const erSamtale = s.startsWith("ansoegning-samtale-") || s === "ansoegning-kladde-paamindelse" || s.startsWith("ansoegning-venteplads-") || s === "ansoegning-afslag";
       // I HTML er «&» escapet (escHtml) — det er den form linket har i en href.
       expect(m!.html.includes(KONTEKST.ikkeNuUrl.replace(/&/g, "&amp;")), s).toBe(!erSamtale);
       expect(m!.tekst.includes(KONTEKST.ikkeNuUrl), s).toBe(!erSamtale);

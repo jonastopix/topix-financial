@@ -21,6 +21,9 @@ import { kraevRaekker } from "@/lib/kraevRaekker";
 import type { Lukkeaarsag, Trin } from "@/lib/ansoegningTrin";
 import type { Anbefaling } from "@/lib/ansoegningAnbefaling";
 import type { MenneskeHandling } from "@/lib/ansoegninger/ansoegningHandlinger";
+import type { Afslagsgrund } from "@/lib/ansoegningTrin";
+import { koeNummer } from "@/lib/afslagsTilbud";
+import type { VentepladsRaekke } from "@/lib/ventelisteDom";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 const tabel = (navn: string) => supabase.from(navn as any) as any;
@@ -56,10 +59,11 @@ export interface AnsoegningRaekke {
   company_id: string | null;
   lukket_at: string | null;
   lukket_fra_trin: Trin | null;
+  afslagsgrund: Afslagsgrund | null;
 }
 
 export const LISTE_KOLONNER =
-  "id, indsendt_at, trin, trin_sat_at, lukkeaarsag, lukket_at, lukket_fra_trin, rykkere_sendt, paa_pause_til, kilde, navn, email, telefon, cvr, cvr_opslag, omsaetningsinterval, antal_ansatte, udfordring, proevet, om_tolv_maaneder, set_webinar, anbefaling, samtale_start, pris_oere, aftale_url, company_id";
+  "id, indsendt_at, trin, trin_sat_at, lukkeaarsag, lukket_at, lukket_fra_trin, rykkere_sendt, paa_pause_til, kilde, navn, email, telefon, cvr, cvr_opslag, omsaetningsinterval, antal_ansatte, udfordring, proevet, om_tolv_maaneder, set_webinar, anbefaling, samtale_start, pris_oere, aftale_url, company_id, afslagsgrund";
 
 export async function hentAnsoegninger(): Promise<AnsoegningRaekke[]> {
   const res = await tabel("ansoegninger")
@@ -159,6 +163,8 @@ export async function udfoerHandling(input: {
   prisOere?: number | null;
   /** saet_pause: «YYYY-MM-DD» efter i dag. */
   pauseTil?: string | null;
+  /** afvis/afslag: grunden bag nej'et (afslagsmailen planlægges ved niche og for_tidligt; ved niche sætter fladen C's venteliste bagefter). */
+  afslagsgrund?: Afslagsgrund | null;
 }): Promise<HandlingsSvar> {
   const { data: { session } } = await supabase.auth.getSession();
   const { data, error } = await supabase.functions.invoke("ansoegning-handling", {
@@ -170,6 +176,7 @@ export async function udfoerHandling(input: {
       ...(input.aftaleUrl ? { aftale_url: input.aftaleUrl } : {}),
       ...(input.prisOere ? { pris_oere: input.prisOere } : {}),
       ...(input.pauseTil ? { pause_til: input.pauseTil } : {}),
+      ...(input.afslagsgrund ? { afslagsgrund: input.afslagsgrund } : {}),
     },
     headers: { Authorization: `Bearer ${session?.access_token}` },
   });
@@ -199,11 +206,43 @@ export async function gemNoteOgPris(id: string, felter: { note?: string | null; 
   if (!data || data.length === 0) throw new Error("Skrivningen ramte nul rækker — ansøgningen er IKKE gemt (RLS).");
 }
 
+/** Aktive kunder til «venter på virksomhed» — samme kilde som virksomhedslisten (status active, er_kunde). */
+export interface AktivKunde { id: string; name: string }
+export const AKTIVE_KUNDER_KEY = ["ansoegning-aktive-kunder"] as const;
+export async function hentAktiveKunder(): Promise<AktivKunde[]> {
+  const res = await supabase.from("companies").select("id, name").eq("status", "active").eq("er_kunde", true).order("name");
+  return (kraevRaekker(res, "companies") as AktivKunde[]).slice();
+}
+
+/** Ansøgningens pladser i kø (C's ventepladser, RLS advisor SELECT) med virksomhedens navn og nummeret i køen (C's sorterKoe over hele køen hos virksomheden). */
+export interface VentepladsVisning {
+  id: string;
+  company_id: string;
+  virksomhed: string;
+  status: string;
+  hvorfor: string | null;
+  sat_at: string;
+  nummer: number | null;
+}
+export const VENTEPLADSER_KEY = (id: string) => ["ansoegning-ventepladser", id] as const;
+export async function hentVentepladserForAnsoegning(ansoegningId: string): Promise<VentepladsVisning[]> {
+  type Rad = { id: string; ansoegning_id: string; company_id: string; status: string; hvorfor: string | null; sat_at: string; ansoegninger: { lukket_at: string | null } | null; companies: { name: string } | null };
+  const FELTER = "id, ansoegning_id, company_id, status, hvorfor, sat_at, ansoegninger!inner(lukket_at), companies(name)";
+  const egne = kraevRaekker(await tabel("ventepladser").select(FELTER).eq("ansoegning_id", ansoegningId).in("status", ["venter", "tilbudt"]), "ventepladser") as Rad[];
+  const ud: VentepladsVisning[] = [];
+  for (const p of egne) {
+    const koe = kraevRaekker(await tabel("ventepladser").select(FELTER).eq("company_id", p.company_id).in("status", ["venter", "tilbudt"]), "ventepladser") as Rad[];
+    const raekker: VentepladsRaekke[] = koe.map((r) => ({ id: r.id, ansoegning_id: r.ansoegning_id, company_id: r.company_id, status: r.status as VentepladsRaekke["status"], sat_at: r.sat_at, afvist_at: r.ansoegninger?.lukket_at ?? null }));
+    ud.push({ id: p.id, company_id: p.company_id, virksomhed: p.companies?.name ?? "virksomheden", status: p.status, hvorfor: p.hvorfor, sat_at: p.sat_at, nummer: koeNummer(raekker, ansoegningId) });
+  }
+  return ud;
+}
+
 /** Efter en handling: listen, ansøgningen og forsiden (dommens linje) hentes igen. */
 export async function invaliderAnsoegninger(queryClient: QueryClient, id?: string): Promise<void> {
   await Promise.all([
     queryClient.invalidateQueries({ queryKey: [...ANSOEGNINGER_KEY] }),
-    ...(id ? [queryClient.invalidateQueries({ queryKey: [...ANSOEGNING_KEY(id)] })] : []),
+    ...(id ? [queryClient.invalidateQueries({ queryKey: [...ANSOEGNING_KEY(id)] }), queryClient.invalidateQueries({ queryKey: [...VENTEPLADSER_KEY(id)] })] : []),
     queryClient.invalidateQueries({ queryKey: ["advisor-dashboard"] }),
   ]);
 }

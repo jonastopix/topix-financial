@@ -12,7 +12,9 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { kraevRaekker } from "@/lib/kraevRaekker";
-import { ANSOEGNING_KEY, gemNoteOgPris, hentAnsoegning, invaliderAnsoegninger } from "@/hooks/ansoegninger";
+import { ANSOEGNING_KEY, gemNoteOgPris, hentAnsoegning, hentVentepladserForAnsoegning, invaliderAnsoegninger, VENTEPLADSER_KEY } from "@/hooks/ansoegninger";
+import { fjernFraVenteliste } from "@/lib/hjemmebane/ventelisteApi";
+import { koeTekstTilRaadgiver } from "@/lib/afslagsTilbud";
 import { raadgiverHentefejlTekst } from "@/lib/raadgiverHentefejl";
 import { HbSection } from "@/components/hjemmebane/HbSection";
 import { hbControlClasses } from "@/components/hjemmebane/admin/HbField";
@@ -46,6 +48,12 @@ export const AnsoegningView = ({ id }: { id: string | undefined }) => {
   const q = useQuery({ queryKey: [...ANSOEGNING_KEY(id ?? "")], queryFn: () => hentAnsoegning(id!), enabled: !!id && !!user && !!isAdvisor });
   const raadgivere = useQuery({ queryKey: [...RAADGIVERE_KEY], queryFn: hentRaadgivere, enabled: !!user && !!isAdvisor, staleTime: 10 * 60_000 });
   const [note, setNote] = useState<string | null>(null);
+  const ventepladser = useQuery({ queryKey: [...VENTEPLADSER_KEY(id ?? "")], queryFn: () => hentVentepladserForAnsoegning(id!), enabled: !!id && !!user && !!isAdvisor });
+  const fjern = useMutation({
+    mutationFn: async (ventepladsId: string) => { await fjernFraVenteliste(ventepladsId); await invaliderAnsoegninger(queryClient, id); },
+    onSuccess: () => toast.success("Fjernet fra køen"),
+    onError: (e: Error) => toast.error("Kunne ikke fjerne fra køen", { description: e.message }),
+  });
   const gem = useMutation({
     mutationFn: async () => { await gemNoteOgPris(id!, { note: (note ?? "").trim() || null }); await invaliderAnsoegninger(queryClient, id); },
     onSuccess: () => { setNote(null); toast.success("Noten er gemt"); },
@@ -79,6 +87,31 @@ export const AnsoegningView = ({ id }: { id: string | undefined }) => {
         </p>
         <AnsoegningHandlinger id={a.id} navn={navn} trin={a.trin} paaPause={a.paa_pause_til !== null} lukketFraTrin={a.lukket_fra_trin} />
       </section>
+
+      {(a.trin === "lukket" || (ventepladser.data?.length ?? 0) > 0) && (
+        <HbSection eyebrow="Ventelisten" hairline className="mt-12">
+          {ventepladser.isError ? (
+            <p className="text-sm text-hb-rust">{raadgiverHentefejlTekst(ventepladser.error, "ansoegningen")}</p>
+          ) : (ventepladser.data?.length ?? 0) === 0 ? (
+            <p className="text-sm text-hb-ink-soft">
+              {a.afslagsgrund === "niche" ? "Grunden var nichen — men de står ikke i nogen kø. Sæt dem på ventelisten fra virksomhedssiden, eller afvis igen med en virksomhed." : "Står ikke i kø."}
+            </p>
+          ) : (
+            <ul className="divide-y divide-hb-line text-sm" data-ventepladser={ventepladser.data!.length}>
+              {ventepladser.data!.map((p) => (
+                <li key={p.id} className="flex items-baseline gap-3 py-2">
+                  <span className="min-w-0 flex-1">
+                    <span className="font-medium text-hb-ink">{p.nummer !== null ? koeTekstTilRaadgiver({ virksomhed: p.virksomhed, nummer: p.nummer, hvorfor: p.hvorfor }) : `i kø hos ${p.virksomhed} (${p.status})`}</span>
+                    <span className="text-hb-ink-soft"> · sat {danskTidspunkt(p.sat_at)}{p.hvorfor ? ` · ${p.hvorfor}` : ""}</span>
+                    {" "}<Link to={`/virksomhed/${p.company_id}`} className="text-hb-evergreen underline-offset-4 hover:underline">virksomheden</Link>
+                  </span>
+                  <button type="button" disabled={fjern.isPending} onClick={() => fjern.mutate(p.id)} className="shrink-0 text-xs text-hb-rust underline-offset-4 hover:underline disabled:opacity-50">Fjern</button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </HbSection>
+      )}
 
       <HbSection eyebrow="Anbefalingen" hairline className="mt-12">
         {a.anbefaling ? (

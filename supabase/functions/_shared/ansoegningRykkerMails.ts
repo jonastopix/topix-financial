@@ -26,6 +26,7 @@ import { bulletproofButton, fallbackLinkBlock } from "./emailButtonHelpers.ts";
 import { KONTAKT_ADRESSE } from "./indgangsMail.ts";
 import { ANSOEG_STI, TOKEN_PARAM } from "./ansoegningSkema.ts";
 import { TZ } from "./hverdage.ts";
+import { koeSaetningTilAnsoeger, type AfslagsIndhold } from "./afslagsTilbud.ts";
 
 export const HILSEN_JONAS = "Venlig hilsen\nJonas Herlev";
 export const PROCESTEKST = "Morten og Jonas læser og vurderer, om The Boardroom er det rigtige for dig. Jonas inviterer dig til en uforpligtende snak, hvor I begge tager stilling til, om der er et match.";
@@ -45,6 +46,8 @@ export interface MailKontekst {
   manglerSvar: number | null;
   /** Ventelisten (udkast 18/9): kun sat for trappen «venteplads». */
   venteplads?: VentepladsKontekst | null;
+  /** Afslagsmailen (18/9): grunden i ansøgerens ord, køpladserne (kun numre — aldrig medlemmets navn) og om der var en samtale. Kun sat for trappen «afslag». */
+  afslag?: AfslagsIndhold | null;
 }
 
 export interface VentepladsKontekst {
@@ -267,6 +270,29 @@ const BYGGERE: Record<string, (k: MailKontekst) => Udkast> = {
       ikkeNu: false,
     };
   },
+};
+
+// Afslagsmailen (18/9): én skabelon, to åbninger — «tak for snakken» står KUN
+// når der var en samtale (efterSamtale = lukkeaarsag afslag_efter_samtale).
+// Det siddende medlem nævnes ALDRIG ved navn (Jonas 18/9): køen er «pladsen i
+// jeres niche», og teksten kommer fra koeSaetningTilAnsoeger, som ikke kender navnet.
+BYGGERE["ansoegning-afslag"] = (k) => {
+  const a = k.afslag ?? { grundTekst: "", ventepladser: [], efterSamtale: false };
+  const tak = a.efterSamtale
+    ? `Tak for din ansøgning for ${k.virksomhedsnavn} — og tak for snakken.`
+    : `Tak for din ansøgning for ${k.virksomhedsnavn}.`;
+  const afsnit = [`${hej(k)},`, `${tak} Vi må sige nej denne gang. ${a.grundTekst}`.trim()];
+  if (a.ventepladser.length > 0) {
+    afsnit.push(`Men vi vil gerne have jer med, når der bliver plads: ${koeSaetningTilAnsoeger(a.ventepladser)}. Bliver pladsen ledig, skriver vi til dig — så har du syv dage til at sige ja, før den går videre til den næste.`);
+  }
+  afsnit.push("Har du spørgsmål, så svar bare på denne mail.");
+  return {
+    emne: a.ventepladser.length > 0 ? "Vores svar på din ansøgning — og din plads i køen" : "Vores svar på din ansøgning",
+    eyebrow: "Din ansøgning til The Boardroom",
+    afsnit,
+    knap: null,
+    ikkeNu: false,
+  };
 };
 
 export const RYKKER_SKABELONER: readonly string[] = Object.keys(BYGGERE);

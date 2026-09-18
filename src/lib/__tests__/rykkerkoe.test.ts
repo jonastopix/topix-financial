@@ -46,7 +46,8 @@ describe("rykkerkoe — trapperne som Jonas satte dem", () => {
   });
   it("ingen trappe efter underskrift — betalingsforløbet er platformens eksisterende", () => {
     // «venteplads» (udkast 18/9): ventelistens 7-dages tilbud — også før betalingsforløbet, på en lukket ansøgning.
-    expect(Object.keys(TRAPPER).sort()).toEqual(["aftalegrundlag", "booket", "indkaldt", "kladde", "pause", "venteplads"]);
+    // «afslag» (18/9): afslagsmailen dag 0 — på en lukket ansøgning, aldrig efter underskrift.
+    expect(Object.keys(TRAPPER).sort()).toEqual(["afslag", "aftalegrundlag", "booket", "indkaldt", "kladde", "pause", "venteplads"]);
     expect(KOE_SKABELONER.some((s) => /betal|faktura|underskr/.test(s))).toBe(false);
   });
 });

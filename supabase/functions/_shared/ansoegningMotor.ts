@@ -89,6 +89,7 @@ export interface AnsoegningRaekke {
   /** Ventelisten (18/9): ancienniteten og den bløde udgave regnes fra afvisningen. */
   lukket_at: string | null;
   lukket_fra_trin: Trin | null;
+  afslagsgrund: string | null;
   rykkere_sendt: number;
   trin_sat_at: string;
   paa_pause_til: string | null;
@@ -123,7 +124,7 @@ export const ANSOEGNING_KOLONNER = [
   "paa_pause_til", "company_id", "konverteret_at", "kilde", "kilde_raa", "cvr", "cvr_opslag", "hjemmeside",
   "omsaetningsinterval", "antal_ansatte", "navn", "email", "telefon", "udfordring", "proevet", "om_tolv_maaneder",
   "start_tidspunkt", "set_webinar", "anbefaling", "samtale_start", "samtale_slut", "calendly_event_uri",
-  "pris_oere", "aftale_url", "note",
+  "pris_oere", "aftale_url", "note", "afslagsgrund",
 ].join(", ");
 
 export async function hentAnsoegning(admin: SupabaseClient, id: string): Promise<AnsoegningRaekke | null> {
@@ -375,6 +376,7 @@ export async function udfoerOvergang(admin: SupabaseClient, args: OvergangsArgs)
     opd.lukket_af = null;
     opd.lukket_fra_trin = null;
   }
+  if (o.afslagsgrund) opd.afslagsgrund = o.afslagsgrund;
   if (o.saetPause) opd.paa_pause_til = o.pauseTil ?? pauseTil(nu);
   else if (o.ophaevPause) opd.paa_pause_til = null;
   if (h.art === "book" && args.samtale) {
