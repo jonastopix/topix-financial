@@ -20,6 +20,7 @@
  * Ombrydningen er ren (ombryd) og testes med en falsk målefunktion.
  */
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from "npm:pdf-lib@1.17.1";
+import { erHeltFed, parseAftaleTekst, spansTilTekst } from "./aftaleMarkdown.ts";
 import { formaterAftryk } from "./aftryk.ts";
 
 export interface UnderskriftPdfInput {
@@ -149,9 +150,23 @@ export async function bygUnderskrevetPdf(input: UnderskriftPdfInput): Promise<Ui
   s.linje(tilWinAnsi(input.titel), { stoerrelse: 16, fed: true, linje: 22 });
   s.linje(tilWinAnsi(`${input.virksomhed}${input.cvr ? ` · CVR ${input.cvr}` : ""}`), { stoerrelse: 10, farve: [0.3, 0.4, 0.39], linje: 16 });
   s.streg();
-  for (const afsnit of tilWinAnsi(input.tekst).split("\n")) {
-    if (afsnit.trim() === "") { s.mellemrum(); continue; }
-    s.afsnit(afsnit);
+  // Markdown → struktur (aftaleMarkdown.ts, 18/9 aften): overskrifter fede og større, hel-fede linjer fede,
+  // lister med punkttegn, streger — og aldrig rå «#»/«**» i det dokument ansøgeren skriver under på.
+  // Fed midt i en linje kan Skriver ikke blande (én font pr. afsnit) — den står som almindelig tekst.
+  for (const blok of parseAftaleTekst(tilWinAnsi(input.tekst))) {
+    if (blok.slags === "streg") { s.streg(); continue; }
+    if (blok.slags === "overskrift") {
+      s.mellemrum();
+      s.afsnit(spansTilTekst(blok.spans), { fed: true, stoerrelse: blok.niveau === 1 ? 14 : blok.niveau === 2 ? 12.5 : 11, linje: blok.niveau === 1 ? 19 : 17 });
+      continue;
+    }
+    if (blok.slags === "liste") {
+      for (const punkt of blok.punkter) s.afsnit(`\u2022 ${spansTilTekst(punkt)}`, { fed: erHeltFed(punkt) });
+      s.mellemrum();
+      continue;
+    }
+    s.afsnit(spansTilTekst(blok.spans), { fed: erHeltFed(blok.spans) });
+    s.mellemrum();
   }
 
   // ── Underskriftssiden — ALTID en ny side bagerst ──

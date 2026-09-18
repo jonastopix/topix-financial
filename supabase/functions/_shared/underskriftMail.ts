@@ -89,6 +89,7 @@ export function aftaleKvitteringMail(a: {
         `Dokumentets aftryk (SHA-256): ${formaterAftryk(a.aftryk)}. Det står også på dokumentets sidste side sammen med revisionssporet.`,
       ],
       knap: { tekst: "Hent det underskrevne dokument", url: a.url },
+      knapBredde: 300, // Outlook (VML) beholder fast bredde — teksten er lang (18/9 aften)
       efterKnap: [
         "Gem gerne dokumentet. Næste skridt kommer i en mail for sig: betalingen, som åbner adgangen til platformen.",
         `Spørgsmål? Skriv til ${KONTAKT_ADRESSE}.`,

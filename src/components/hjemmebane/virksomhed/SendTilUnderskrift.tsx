@@ -5,6 +5,7 @@ import { INDGANGS_PRISPUNKTER_OERE, STANDARD_PRISNIVEAU_OERE } from "@/lib/indga
 import { gemNoteOgPris } from "@/hooks/ansoegninger";
 import { afgoerForhaandsvisning, type ForhaandsvisningSvar } from "@/lib/hjemmebane/forhaandsvisning";
 import { HbButton } from "../HbButton";
+import { AftaleDokument } from "../AftaleDokument";
 
 /** «Send til underskrift» (UDKAST 18/9). Rådgiveren vælger prisniveauet
     aftalen skal lyde på, og kaldet går til send-til-underskrift (Bucket A),
@@ -171,8 +172,10 @@ export const SendTilUnderskrift = ({ onOpdateret, ...ejer }: UnderskriftEjer & {
         </div>
         <p className="mt-2 text-xs text-hb-ink-soft">Forhåndsvisning af {formatKr(forhaandsvisning.oere)} ekskl. moms · {dom.skabelon}</p>
         {dom.titel && <p className="mt-3 font-editorial text-xl font-medium text-hb-ink">{dom.titel}</p>}
-        {/* Ren tekst: React escaper — der sættes aldrig HTML fra data ind. */}
-        <pre className="mt-3 max-h-[60vh] overflow-auto whitespace-pre-wrap font-editorial text-[15px] leading-relaxed text-hb-ink">{dom.tekst}</pre>
+        {/* Markdown → struktur (AftaleDokument): aldrig HTML fra data. Samme visning som /aftale. */}
+        <div className="mt-3 max-h-[60vh] overflow-auto pr-2">
+          <AftaleDokument tekst={dom.tekst} />
+        </div>
       </div>
     )}
     </div>

@@ -40,6 +40,8 @@ export function bulletproofButton({
   const kant = borderColor ? `border:2px solid ${borderColor};` : "";
   const vmlKant = borderColor ? `stroke="t" strokecolor="${borderColor}" strokeweight="1.5pt"` : `stroke="f"`;
   const linjehoejde = borderColor ? height - 4 : height;
+  // Bredden er et MINIMUM, og teksten brydes aldrig (18/9 aften: «Hent det underskrevne dokument» brækkede i to
+  // linjer med 44 px linjehøjde — et hul i midten). VML (Outlook) beholder den faste bredde; giv knapBredde dér.
   return `<div style="text-align:center;margin:${margin}">
 <!--[if mso]>
 <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="${safeHref}" style="height:${height}px;v-text-anchor:middle;width:${width}px;" arcsize="18%" ${vmlKant} fillcolor="${bgColor}">
@@ -48,7 +50,7 @@ export function bulletproofButton({
 </v:roundrect>
 <![endif]-->
 <!--[if !mso]><!-- -->
-<a href="${safeHref}" target="_blank" style="background-color:${bgColor};${kant}border-radius:8px;color:${textColor};display:inline-block;font-family:'Manrope','Space Grotesk',Arial,sans-serif;font-size:14px;font-weight:600;line-height:${linjehoejde}px;text-align:center;text-decoration:none;width:${width}px;-webkit-text-size-adjust:none;mso-hide:all;">${safeLabel}</a>
+<a href="${safeHref}" target="_blank" style="background-color:${bgColor};${kant}border-radius:8px;color:${textColor};display:inline-block;font-family:'Manrope','Space Grotesk',Arial,sans-serif;font-size:14px;font-weight:600;line-height:${linjehoejde}px;text-align:center;text-decoration:none;white-space:nowrap;padding:0 22px;box-sizing:border-box;min-width:${width}px;-webkit-text-size-adjust:none;mso-hide:all;">${safeLabel}</a>
 <!--<![endif]-->
 </div>`;
 }

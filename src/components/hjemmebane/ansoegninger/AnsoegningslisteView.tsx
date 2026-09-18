@@ -24,15 +24,18 @@
  */
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
-import { ANSOEGNINGER_KEY, hentAnsoegninger, type AnsoegningRaekke } from "@/hooks/ansoegninger";
+import { ANSOEGNINGER_KEY, hentAnsoegninger, invaliderAnsoegninger, type AnsoegningRaekke } from "@/hooks/ansoegninger";
+import { erPaaPause } from "@/lib/ansoegningTrin";
 import { raadgiverHentefejlTekst } from "@/lib/raadgiverHentefejl";
 import { hbControlClasses } from "@/components/hjemmebane/admin/HbField";
 import { GRUPPE_ORD, gruppeFor, hvadVenter, listeOverskrift, taelVentende, virksomhedsnavnAf, LISTEGRUPPER, type Listegruppe } from "@/lib/ansoegninger/ansoegningVisning";
 import { filtrer, foersteLinje, sorterGruppe, STRIBE_ORD, STRIBE_RAEKKEFOELGE, stribeTal, tidTekst, venterPaa } from "@/lib/ansoegninger/ansoegningsliste";
 import { grundlagSomTekst, OMSAETNINGSINTERVALLER_KR } from "@/lib/ansoegningAnbefaling";
 import { AnsoegningHandlinger } from "./AnsoegningHandlinger";
+import { SendTilUnderskrift } from "../virksomhed/SendTilUnderskrift";
+import { hbButtonVariants } from "../HbButton";
 import { cn } from "@/lib/utils";
 
 const UDFALD_ORD: Record<string, string> = { tal_med_dem: "Tal med dem", tvivl: "Tvivl", afvis: "Afvis" };
@@ -47,6 +50,7 @@ const Svar = ({ label, tekst }: { label: string; tekst: string | null }) => (
 
 /** Folden: det man beslutter ud fra, og knapperne. Alt andet bor på ansøgningens side. */
 const Fold = ({ a }: { a: AnsoegningRaekke }) => {
+  const queryClient = useQueryClient();
   const anb = a.anbefaling;
   const opslag = (a.cvr_opslag ?? {}) as Record<string, unknown>;
   const interval = a.omsaetningsinterval ? OMSAETNINGSINTERVALLER_KR[a.omsaetningsinterval]?.label ?? a.omsaetningsinterval : null;
@@ -69,10 +73,19 @@ const Fold = ({ a }: { a: AnsoegningRaekke }) => {
       </p>
       <p className="mt-1 text-xs text-hb-ink-soft">
         {[interval ? `omsætning ${interval}` : null, typeof opslag.branche === "string" ? opslag.branche.toLowerCase() : null, a.set_webinar === "ja" ? "har set webinaret" : a.set_webinar === "nej" ? "har ikke set webinaret" : null].filter(Boolean).join(" · ") || "—"}
-        {" · "}
-        <Link to={`/ansoegninger/${a.id}`} className="text-hb-evergreen underline-offset-4 hover:underline">Åbn</Link>
       </p>
       <AnsoegningHandlinger id={a.id} navn={virksomhedsnavnAf(a)} trin={a.trin} paaPause={a.paa_pause_til !== null} lukketFraTrin={a.lukket_fra_trin} kompakt />
+      {/* E-underskriften også i folden (Jonas 18/9 aften): samme komponent, samme forudfyldte pris, samme forhåndsvisning —
+          efter samtalen og ved gensendelse, ikke på pause. */}
+      {(a.trin === "afholdt" || a.trin === "aftalegrundlag_sendt") && !erPaaPause(a.paa_pause_til, new Date()) && (
+        <div className="mt-3 rounded-hb border border-hb-line bg-hb-surface px-3 py-2" data-underskrift-i-folden>
+          <SendTilUnderskrift ansoegningId={a.id} onOpdateret={() => invaliderAnsoegninger(queryClient, a.id)} />
+        </div>
+      )}
+      {/* «Åbn» som en rigtig knap (Jonas 18/9 aften: «ekstremt skjult og lille») — sporet, køen og noten er på siden. */}
+      <p className="mt-4">
+        <Link to={`/ansoegninger/${a.id}`} className={cn(hbButtonVariants({ variant: "secondary" }), "h-9 px-4 text-xs")} data-aabn-ansoegning>Åbn ansøgningen →</Link>
+      </p>
     </div>
   );
 };

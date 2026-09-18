@@ -14,7 +14,7 @@ const KOMPONENT = "src/components/hjemmebane/virksomhed/SendTilUnderskrift.tsx";
 export const forhaandsvisningenErIFladen = (k: string): boolean =>
   !k.includes("window.open(") && !k.includes("dangerouslySetInnerHTML") &&
   k.includes("setForhaandsvisning({ oere, svar: (data ?? {}) as ForhaandsvisningSvar });") &&
-  k.includes("data-forhaandsvisning={forhaandsvisning.oere}") && /<pre[^>]*>\{dom\.tekst\}<\/pre>/.test(k) &&
+  k.includes("data-forhaandsvisning={forhaandsvisning.oere}") && k.includes("<AftaleDokument tekst={dom.tekst} />") &&
   k.includes("data-forhaandsvisning-luk");
 
 describe("afgoerForhaandsvisning — linjen øverst", () => {
@@ -42,7 +42,7 @@ describe("forhaandsvisningIFladen.guard", () => {
   it("VÆRNET VIRKER: window.open tilbage → falsk; HTML fra data → falsk; panelet væk → falsk", () => {
     const k = udenKommentarer(laes(KOMPONENT));
     expect(forhaandsvisningenErIFladen(k + '\nconst w = window.open("", "_blank");\n')).toBe(false);
-    expect(forhaandsvisningenErIFladen(k.replace("<pre", "<pre dangerouslySetInnerHTML={{ __html: dom.tekst }}"))).toBe(false);
+    expect(forhaandsvisningenErIFladen(k.replace("<AftaleDokument tekst={dom.tekst} />", "<div dangerouslySetInnerHTML={{ __html: dom.tekst }} />"))).toBe(false);
     expect(forhaandsvisningenErIFladen(k.replace("data-forhaandsvisning-luk", "data-x"))).toBe(false);
   });
 });
