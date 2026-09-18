@@ -39,8 +39,21 @@
 // company_betalingslink.prisniveau_oere ved underskriften (koblingen). Null
 // er tilladt — så indeholder skabelonen ingen {{pris_kr}}, eller kaldet
 // afvises af pladsholder-tjekket.
+//
+// FELTERNE (18/9, anden runde): listen bor i _shared/aftalefelter.ts —
+// funktionen udfylder præcis den (kildeværn aftalefelter.guard.test.ts).
+// Adressen (adresse/postnummer/by) kommer fra companies eller fra CVR-
+// opslaget: cvr_opslag_cache.svar (DataCVR's address/zipcode/city, gemt af
+// ansoegning-cvr), ellers ét friskt DataCVR-opslag. Et felt teksten bruger,
+// som koden ikke kender, stopper afsendelsen (422 pladsholdere_mangler) —
+// aldrig et dokument med rå {{…}}.
+//
+// FORHÅNDSVISNING (body.forhaandsvis: true): alt op til den udfyldte tekst,
+// INTET skrives, INTET sendes — svaret bærer teksten, felterne og det der
+// mangler. Det er sådan Jonas ser et færdigt dokument med rigtige tal uden
+// at sende det til nogen (knappen «Forhåndsvis» på virksomhedssiden).
 
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
+import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
 import { authenticateUser, corsHeaders } from "../_shared/edgeFunctionAuth.ts";
 import { INDGANGS_PRISPUNKTER_OERE, alleIndgangsmuligheder } from "../_shared/indgangspris.ts";
 import { BETALINGSFRIST_DAGE } from "../_shared/betalingsfrist.ts";
@@ -50,6 +63,9 @@ import { formatKr } from "../_shared/indgangsMail.ts";
 import { betalingsfristDato, fornavnAf, formatDanskDato, sendIndgangsMail } from "../_shared/indgangsMailAfsendelse.ts";
 import { aftaleLinkMail, aftaleUrl } from "../_shared/underskriftMail.ts";
 import { hentAnsoegning, udfoerOvergang, virksomhedsnavnAf, type AnsoegningRaekke } from "../_shared/ansoegningMotor.ts";
+import { KENDTE_FELTNAVNE } from "../_shared/aftalefelter.ts";
+import { slaaCvrOp } from "../_shared/virksomhedsOprettelse.ts";
+import type { CvrSvar } from "../_shared/virksomhedsraekke.ts";
 
 const LOG = "[send-til-underskrift]";
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -60,6 +76,91 @@ function jsonResponse(body: unknown, status = 200): Response {
     status,
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
+}
+
+interface Adresse { adresse: string | null; postnummer: string | null; by: string | null }
+const INGEN_ADRESSE: Adresse = { adresse: null, postnummer: null, by: null };
+
+function adresseAfCvrSvar(svar: CvrSvar | null | undefined): Adresse {
+  if (!svar) return INGEN_ADRESSE;
+  return { adresse: svar.address?.trim() || null, postnummer: svar.zipcode?.trim() || null, by: svar.city?.trim() || null };
+}
+
+/**
+ * Adressen fra CVR: først cachen (ansoegning-cvr gemmer DataCVR's svar med
+ * address/zipcode/city — intet nyt opslag), ellers ét friskt opslag. Kaster
+ * aldrig; uden adresse svares tomt, og pladsholder-tjekket afviser så.
+ */
+async function hentCvrAdresse(admin: SupabaseClient, cvr: string | null): Promise<Adresse> {
+  if (!cvr || !/^\d{8}$/.test(cvr)) return INGEN_ADRESSE;
+  const { data, error } = await admin.from("cvr_opslag_cache").select("svar").eq("cvr", cvr).maybeSingle();
+  if (error) console.warn(`${LOG} cvr_opslag_cache fejlede for ${cvr}:`, error.message);
+  const fraCache = adresseAfCvrSvar((data?.svar ?? null) as CvrSvar | null);
+  if (fraCache.adresse || fraCache.postnummer || fraCache.by) return fraCache;
+  const opslag = await slaaCvrOp(cvr);
+  return opslag.udfald === "fundet" ? adresseAfCvrSvar(opslag.svar) : INGEN_ADRESSE;
+}
+
+/**
+ * Skabelonen → felterne → den udfyldte tekst. Felterne er PRÆCIS
+ * _shared/aftalefelter.ts' liste (kildeværnet låser det); et felt teksten
+ * bruger uden for listen står i `manglende`, et kendt felt uden værdi i `tomme`.
+ * Svarer en Response ved fejl (ingen aktiv skabelon, pladsholder-mærket).
+ */
+async function bygUdfyldning(
+  admin: SupabaseClient,
+  ejer: { navn: string; cvr: string | null; kontaktperson: string | null; adresse: string | null; postnummer: string | null; by: string | null },
+  prisniveauOere: number | null,
+): Promise<Response | { skabelon: { id: string; navn: string; version: number; titel: string; tekst: string }; felter: Record<string, string>; udfyldt: { tekst: string; manglende: string[] }; tomme: string[] }> {
+  const { data: skabelon, error: skErr } = await admin
+    .from("aftale_skabelon")
+    .select("id, navn, version, titel, tekst")
+    .eq("aktiv", true)
+    .maybeSingle();
+  if (skErr) throw new Error(`skabelonopslag fejlede: ${skErr.message}`);
+  if (!skabelon) return jsonResponse({ error: "ingen_aktiv_skabelon" }, 500);
+  if (skabelon.tekst.includes(PLADSHOLDER_MAERKE)) {
+    return jsonResponse({ error: "skabelon_er_pladsholder", skabelon: `${skabelon.navn} v${skabelon.version}` }, 422);
+  }
+
+  const nu = new Date();
+  const felter: Record<string, string> = {
+    virksomhed: ejer.navn,
+    cvr: ejer.cvr ?? "",
+    adresse: ejer.adresse ?? "",
+    postnummer: ejer.postnummer ?? "",
+    by: ejer.by ?? "",
+    kontaktperson: ejer.kontaktperson ?? "",
+    dato: formatDanskDato(nu),
+    frist_dage: String(BETALINGSFRIST_DAGE),
+  };
+  // Fristen som dato regnes fra NU — aftalens 30 dage løber fra
+  // underskriften, som endnu ikke er sket; datoen i teksten er derfor
+  // vejledende («senest 30 dage efter underskrift» er det bindende).
+  felter.frist_dato = formatDanskDato(betalingsfristDato(nu));
+  felter.kontrakt_maaneder = "12";
+  if (prisniveauOere !== null) {
+    // Prisen og de tre betalingsmodeller fra husets motor (indgangspris.ts,
+    // spejlet, paritetstestet) — samme tal som betalingssiden viser.
+    felter.pris_kr = formatKr(prisniveauOere / 100);
+    const m = alleIndgangsmuligheder(prisniveauOere);
+    if (m.ok) {
+      for (const x of m.muligheder) {
+        if (x.betalingsmodel === "rate2") felter.pris_rate2_kr = formatKr(x.rate_oere / 100);
+        if (x.betalingsmodel === "rate12") {
+          felter.pris_rate12_kr = formatKr(x.rate_oere / 100);
+          felter.pris_rate12_samlet_kr = formatKr(x.samlet_oere / 100);
+        }
+      }
+    }
+  }
+  // Værn i drift: funktionen må ikke udfylde noget, listen ikke kender (og omvendt låser testen).
+  const uforListen = Object.keys(felter).filter((k) => !KENDTE_FELTNAVNE.includes(k));
+  if (uforListen.length > 0) throw new Error(`felter uden for aftalefelter.ts: ${uforListen.join(", ")}`);
+
+  const udfyldt = udfyldSkabelon(skabelon.tekst, felter);
+  const tomme = Object.entries(felter).filter(([k, v]) => !v && skabelon.tekst.includes(`{{${k}}}`)).map(([k]) => k);
+  return { skabelon, felter, udfyldt, tomme };
 }
 
 Deno.serve(async (req) => {
@@ -100,30 +201,35 @@ Deno.serve(async (req) => {
       prisniveauOere = p;
     }
     const erstat = body?.erstat === true;
+    const forhaandsvis = body?.forhaandsvis === true;
 
     // ── 3. Service-role-klient, virksomheden ──
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const admin = createClient(supabaseUrl, serviceRoleKey, { auth: { persistSession: false, autoRefreshToken: false } });
 
-    // Ejeren: virksomhed ELLER ansøgning — samme fire felter til skabelonen.
-    interface Ejer { navn: string; cvr: string | null; kontaktperson: string | null; email: string; pris: number | null }
+    // Ejeren: virksomhed ELLER ansøgning — samme felter til skabelonen.
+    interface Ejer extends Adresse { navn: string; cvr: string | null; kontaktperson: string | null; email: string; pris: number | null }
     let ejer: Ejer;
     let ansoegning: AnsoegningRaekke | null = null;
     if (companyId) {
       const { data: c, error: companyErr } = await admin
         .from("companies")
-        .select("id, name, cvr_number, contact_person, contact_email")
+        .select("id, name, cvr_number, contact_person, contact_email, address, postal_code, city")
         .eq("id", companyId)
         .maybeSingle();
       if (companyErr) throw new Error(`companies-opslag fejlede: ${companyErr.message}`);
       if (!c) return jsonResponse({ error: "ukendt_virksomhed", company_id: companyId }, 404);
+      // Adressen: virksomhedens egne felter; mangler de, CVR-opslaget.
+      const egen: Adresse = { adresse: c.address?.trim() || null, postnummer: c.postal_code?.trim() || null, by: c.city?.trim() || null };
+      const adresse = egen.adresse && egen.postnummer && egen.by ? egen : { ...(await hentCvrAdresse(admin, c.cvr_number ?? null)), ...Object.fromEntries(Object.entries(egen).filter(([, v]) => v)) };
       ejer = {
         navn: c.name ?? "",
         cvr: c.cvr_number ?? null,
         kontaktperson: c.contact_person || null,
         email: (c.contact_email ?? "").trim().toLowerCase(),
         pris: prisniveauOere,
+        ...adresse,
       };
     } else {
       ansoegning = await hentAnsoegning(admin, ansoegningId);
@@ -146,12 +252,41 @@ Deno.serve(async (req) => {
         kontaktperson: ansoegning.navn,
         email: (ansoegning.email ?? "").trim().toLowerCase(),
         pris: ansoegning.pris_oere,
+        // Ansøgningen har ingen adresse selv — CVR-opslaget (cachen, ellers live).
+        ...(await hentCvrAdresse(admin, ansoegning.cvr)),
       };
       prisniveauOere = ejer.pris;
     }
     const til = ejer.email;
-    if (!til) return jsonResponse({ error: "ingen_kontakt_email", company_id: companyId || null, ansoegning_id: ansoegningId || null }, 422);
+    if (!til && !forhaandsvis) return jsonResponse({ error: "ingen_kontakt_email", company_id: companyId || null, ansoegning_id: ansoegningId || null }, 422);
     const ejerFilter = companyId ? { kolonne: "company_id", vaerdi: companyId } : { kolonne: "ansoegning_id", vaerdi: ansoegningId };
+
+    // ── 3b. Skabelonen → teksten (deles af forhåndsvisningen og afsendelsen) ──
+    const udfyldning = await bygUdfyldning(admin, ejer, prisniveauOere);
+    if (udfyldning instanceof Response) return udfyldning;
+    const { skabelon, felter, udfyldt, tomme } = udfyldning;
+    if (forhaandsvis) {
+      // INTET skrives, INTET sendes. Teksten som modtageren ville se den — med
+      // rå {{…}} stående, hvis noget mangler, så Jonas kan se præcis hvad.
+      return jsonResponse({
+        forhaandsvis: true,
+        kan_sendes: udfyldt.manglende.length === 0 && tomme.length === 0 && Boolean(til),
+        skabelon: `${skabelon.navn} v${skabelon.version}`,
+        titel: skabelon.titel,
+        til: til || null,
+        felter,
+        manglende: udfyldt.manglende,
+        tomme,
+        tekst: udfyldt.tekst,
+      });
+    }
+    if (udfyldt.manglende.length > 0) {
+      return jsonResponse({ error: "pladsholdere_mangler", manglende: udfyldt.manglende, kendte: [...KENDTE_FELTNAVNE] }, 422);
+    }
+    if (tomme.length > 0) {
+      // Pladsholderen ER udfyldt — med ingenting. «CVR » i et aftalegrundlag er en fejl, ikke en aftale.
+      return jsonResponse({ error: "felter_tomme", tomme }, 422);
+    }
 
     // ── 4. En åben aftale i forvejen? ──
     const { data: aaben, error: aabenErr } = await admin
@@ -178,55 +313,7 @@ Deno.serve(async (req) => {
       console.log(`${LOG} aftale ${aaben.id} annulleret af ${callerId} (erstattes)`);
     }
 
-    // ── 5. Skabelonen → teksten ──
-    const { data: skabelon, error: skErr } = await admin
-      .from("aftale_skabelon")
-      .select("id, navn, version, titel, tekst")
-      .eq("aktiv", true)
-      .maybeSingle();
-    if (skErr) throw new Error(`skabelonopslag fejlede: ${skErr.message}`);
-    if (!skabelon) return jsonResponse({ error: "ingen_aktiv_skabelon" }, 500);
-    if (skabelon.tekst.includes(PLADSHOLDER_MAERKE)) {
-      return jsonResponse({ error: "skabelon_er_pladsholder", skabelon: `${skabelon.navn} v${skabelon.version}` }, 422);
-    }
-
     const nu = new Date();
-    const felter: Record<string, string> = {
-      virksomhed: ejer.navn,
-      cvr: ejer.cvr ?? "",
-      kontaktperson: ejer.kontaktperson ?? "",
-      dato: formatDanskDato(nu),
-      frist_dage: String(BETALINGSFRIST_DAGE),
-    };
-    // Fristen som dato regnes fra NU — aftalens 30 dage løber fra
-    // underskriften, som endnu ikke er sket; datoen i teksten er derfor
-    // vejledende («senest 30 dage efter underskrift» er det bindende).
-    felter.frist_dato = formatDanskDato(betalingsfristDato(nu));
-    felter.kontrakt_maaneder = "12";
-    if (prisniveauOere !== null) {
-      // Prisen og de tre betalingsmodeller fra husets motor (indgangspris.ts,
-      // spejlet, paritetstestet) — samme tal som betalingssiden viser.
-      felter.pris_kr = formatKr(prisniveauOere / 100);
-      const m = alleIndgangsmuligheder(prisniveauOere);
-      if (m.ok) {
-        for (const x of m.muligheder) {
-          if (x.betalingsmodel === "rate2") felter.pris_rate2_kr = formatKr(x.rate_oere / 100);
-          if (x.betalingsmodel === "rate12") {
-            felter.pris_rate12_kr = formatKr(x.rate_oere / 100);
-            felter.pris_rate12_samlet_kr = formatKr(x.samlet_oere / 100);
-          }
-        }
-      }
-    }
-    const udfyldt = udfyldSkabelon(skabelon.tekst, felter);
-    if (udfyldt.manglende.length > 0) {
-      return jsonResponse({ error: "pladsholdere_mangler", manglende: udfyldt.manglende }, 422);
-    }
-    const tomme = Object.entries(felter).filter(([k, v]) => !v && skabelon.tekst.includes(`{{${k}}}`)).map(([k]) => k);
-    if (tomme.length > 0) {
-      // Pladsholderen ER udfyldt — med ingenting. «CVR » i et aftalegrundlag er en fejl, ikke en aftale.
-      return jsonResponse({ error: "felter_tomme", tomme }, 422);
-    }
 
     // ── 6. Fastfrysning og rækken ──
     const tekst = kanoniskTekst(udfyldt.tekst);
