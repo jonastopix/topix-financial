@@ -44,6 +44,7 @@ import {
   type Trin,
 } from "./ansoegningTrin.ts";
 import { pauseTil, planlaegTrappe, type PlanlagtRaekke } from "./rykkerkoe.ts";
+import { kbhTilUtc } from "./hverdage.ts";
 import { afgoerAnbefaling, grundlagSomTekst, type Anbefaling, type AnbefalingsInput } from "./ansoegningAnbefaling.ts";
 import { OMSAETNINGSINTERVALLER, type CvrVisning } from "./ansoegningSkema.ts";
 import { opretEllerGenbrugVirksomhed } from "./virksomhedsOprettelse.ts";
@@ -365,7 +366,7 @@ export async function udfoerOvergang(admin: SupabaseClient, args: OvergangsArgs)
     opd.lukket_af = null;
     opd.lukket_fra_trin = null;
   }
-  if (o.saetPause) opd.paa_pause_til = pauseTil(nu);
+  if (o.saetPause) opd.paa_pause_til = o.pauseTil ?? pauseTil(nu);
   else if (o.ophaevPause) opd.paa_pause_til = null;
   if (h.art === "book" && args.samtale) {
     opd.samtale_start = args.samtale.start.toISOString();
@@ -412,7 +413,8 @@ export async function udfoerOvergang(admin: SupabaseClient, args: OvergangsArgs)
 
   let planlagt = 0;
   if (o.start) {
-    const anker = o.start.anker === "samtale" ? args.samtale!.start : nu;
+    // Pausens trappe ankres på slutdatoen (dansk midnat), så pause_slut lander dag 0 kl. 10 på en hverdag.
+    const anker = o.start.anker === "samtale" ? args.samtale!.start : o.start.anker === "pause" ? kbhTilUtc(String(opd.paa_pause_til), 0, 0) : nu;
     const plan = planlaegTrappe({
       ansoegningId: a.id,
       trappe: o.start.trappe,

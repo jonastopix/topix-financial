@@ -33,6 +33,14 @@
  * 31) — dommen tillader ingen handling fra «underskrevet»; motoren har
  * afleveret.
  *
+ * PAUSE SAT AF ET MENNESKE (Jonas 18/9, «den varige vej»): saet_pause bærer
+ * en dato og er tilladt fra ethvert åbent trin — ny, indkaldt, booket,
+ * afholdt, aftalegrundlag_sendt — både uden pause og med en (flyt datoen),
+ * som ikke_nu netop ikke kunne. Ikke fra lukket (genåbn først) og ikke fra
+ * underskrevet (motoren har afleveret). Trinnet står, alle trapper
+ * annulleres, én pause_slut-række planlægges PÅ datoen (klokke til jer),
+ * og dommen regner ansøgningen som ventende igen fra den dag.
+ *
  * REAKTIONER ANNULLERER TRAPPEN: hver overgang siger hvilke trapper der
  * annulleres og hvilken der startes. «alle» ved lukning, pause og
  * underskrift; ellers den trappe trinnet forlader. Det er reglen «enhver
@@ -92,6 +100,8 @@ export type Handling =
   | { art: "svarer_ikke" }
   | { art: "udloeb" }
   | { art: "ikke_nu" }
+  /** Rådgiveren sætter eller flytter pausen til en dato («YYYY-MM-DD», dansk kalender). */
+  | { art: "saet_pause"; til: string }
   | { art: "luk"; aarsag: Lukkeaarsag }
   | { art: "genaabn" };
 export type HandlingsArt = Handling["art"];
@@ -106,6 +116,7 @@ export const MENNESKE_HANDLINGER: readonly HandlingsArt[] = [
   "underskrevet",
   "luk",
   "genaabn",
+  "saet_pause",
 ];
 
 /** Handlinger systemet udfører (webhook, kø, ansøgerens link). */
@@ -123,10 +134,11 @@ export interface Overgang {
   lukkeaarsag: Lukkeaarsag | null;
   /** Hvilke trapper der annulleres (alle planlagte rækker sættes annulleret). */
   annuller: "alle" | readonly Trappe[];
-  /** Hvilken trappe der startes, og om ankeret er «nu» eller samtalens starttid. */
-  start: { trappe: Trappe; anker: "nu" | "samtale" } | null;
-  /** Sætter pausen (paa_pause_til = i dag + 3 måneder). */
+  /** Hvilken trappe der startes, og om ankeret er «nu», samtalens starttid eller pausens slutdato. */
+  start: { trappe: Trappe; anker: "nu" | "samtale" | "pause" } | null;
+  /** Sætter pausen: paa_pause_til = pauseTil («YYYY-MM-DD»), eller i dag + 3 måneder når pauseTil er null. */
   saetPause: boolean;
+  pauseTil: string | null;
   /** Ophæver en pause (paa_pause_til = null) — enhver anden reaktion end ikke_nu. */
   ophaevPause: boolean;
   /** Skal der skrives en række i ansoegning_beslutninger? (menneskets to beslutninger + lukning/genåbning) */
@@ -149,6 +161,7 @@ const OK = (o: Partial<Overgang> & { til: Trin }): OvergangsDom => ({
     annuller: [],
     start: null,
     saetPause: false,
+    pauseTil: null,
     ophaevPause: true,
     beslutning: false,
     ...o,
@@ -189,7 +202,12 @@ export function afgoerOvergang(fra: Trin, h: Handling, ctx: OvergangsKontekst): 
 
   if (h.art === "ikke_nu") {
     if (ctx.paaPause) return AFVIST("ikke_nu: ansøgningen er allerede på pause");
-    return OK({ til: fra, annuller: "alle", start: { trappe: "pause", anker: "nu" }, saetPause: true, ophaevPause: false });
+    return OK({ til: fra, annuller: "alle", start: { trappe: "pause", anker: "pause" }, saetPause: true, ophaevPause: false });
+  }
+
+  if (h.art === "saet_pause") {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(h.til)) return AFVIST("saet_pause: datoen skal være «YYYY-MM-DD»");
+    return OK({ til: fra, annuller: "alle", start: { trappe: "pause", anker: "pause" }, saetPause: true, pauseTil: h.til, ophaevPause: false, beslutning: true });
   }
 
   switch (fra) {

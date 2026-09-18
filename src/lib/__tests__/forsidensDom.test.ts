@@ -1286,7 +1286,7 @@ describe("tilstandslinjer kan lukkes (rådgivernes forside PR 5, 17/9) — kvitt
 
 describe("ansøgninger der venter (18/9) — én linje uden virksomhed og uden kvittering", () => {
   const nu = new Date("2026-09-25T09:00:00Z");
-  const a = (id: string, navn: string, trin: "ny" | "afholdt", sidenAt: string): AnsoegningTilForside => ({ id, navn, trin, sidenAt });
+  const a = (id: string, navn: string, trin: "ny" | "afholdt", sidenAt: string, paaPauseTil: string | null = null): AnsoegningTilForside => ({ id, navn, trin, sidenAt, paaPauseTil });
 
   it("to nye: «2 nye ansøgninger venter på jer», alvor 80, hændelse, indsats 2, ældste først i folden", () => {
     const dom = afgoerForsidensDom([], nu, { ansoegninger: [a("a2", "Byg B", "ny", "2026-09-24T10:00:00Z"), a("a1", "Byg A", "ny", "2026-09-22T10:00:00Z")] });
@@ -1315,11 +1315,28 @@ describe("ansøgninger der venter (18/9) — én linje uden virksomhed og uden k
   });
 
   it("kun ny/afholdt tæller; tom liste, undefined og andre trin giver ingen linje", () => {
-    expect(ansoegningslinje([])).toBeNull();
-    expect(ansoegningslinje(undefined)).toBeNull();
-    expect(ansoegningslinje([{ id: "x", navn: "X", trin: "indkaldt" as unknown as "ny", sidenAt: "2026-09-20T00:00:00Z" }])).toBeNull();
+    expect(ansoegningslinje([], nu)).toBeNull();
+    expect(ansoegningslinje(undefined, nu)).toBeNull();
+    expect(ansoegningslinje([{ id: "x", navn: "X", trin: "indkaldt" as unknown as "ny", sidenAt: "2026-09-20T00:00:00Z", paaPauseTil: null }], nu)).toBeNull();
     expect(afgoerForsidensDom([], nu).linjer).toEqual([]);
     expect(afgoerForsidensDom([], nu)).toEqual(afgoerForsidensDom([], nu, {}));
+  });
+
+  it("PAUSEN (Jonas 18/9): en pause frem i tiden tæller ikke som ventende — hverken i linjen eller tallet; på selve dagen kommer den op igen", () => {
+    // nu = 25/9-2026: pause til 10/12 → ude; pause til 25/9 (i dag) → med; pause til 24/9 (passeret) → med.
+    const liste = [a("p1", "BlueNordix", "afholdt", "2026-09-10T10:00:00Z", "2026-12-10"), a("p2", "Nordivox", "afholdt", "2026-09-10T10:00:00Z", "2026-12-10"), a("a3", "Byg C", "afholdt", "2026-09-20T10:00:00Z", "2026-09-25"), a("a4", "Byg D", "ny", "2026-09-21T10:00:00Z", "2026-09-24")];
+    const dom = afgoerForsidensDom([], nu, { ansoegninger: liste });
+    const linje = dom.linjer.find((l): l is Ansoegningslinje => l.linje === "ansoegninger")!;
+    expect(linje.ansoegninger.map((x) => x.id)).toEqual(["a3", "a4"]);
+    expect(linje.tekst).toBe("1 ny ansøgning venter på jer · 1 samtale er afholdt — tilbud eller afslag?");
+    // Kun de to på pause → ingen linje, antalOpgaver 0.
+    expect(afgoerForsidensDom([], nu, { ansoegninger: liste.slice(0, 2) }).antalOpgaver).toBe(0);
+    // Den 10/12 kl. 00:30 dansk (9/12 23:30 UTC) er pausen slut → linjen er tilbage med begge.
+    const paaDagen = afgoerForsidensDom([], new Date("2026-12-09T23:30:00Z"), { ansoegninger: liste.slice(0, 2) });
+    expect((paaDagen.linjer[0] as Ansoegningslinje).nye).toBe(0);
+    expect((paaDagen.linjer[0] as Ansoegningslinje).afholdte).toBe(2);
+    // Aftenen før (9/12 kl. 22:00 dansk) er den stadig på pause.
+    expect(afgoerForsidensDom([], new Date("2026-12-09T21:00:00Z"), { ansoegninger: liste.slice(0, 2) }).antalOpgaver).toBe(0);
   });
 
   it("sorteres efter alvor blandt de andre linjer: efter «betalt uden konto» (85), før en tilstand på 70", () => {

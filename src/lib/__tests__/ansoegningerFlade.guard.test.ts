@@ -11,8 +11,13 @@ import { resolve } from "node:path";
 //      fejl-tjek (error OG data.error); invalideringen rammer forsiden.
 //   3. Knapperne: det uigenkaldelige går gennem AlertDialog; hvilke der
 //      vises, kommer fra knapperFor (afgoerOvergang) — ingen egen liste.
-//   4. Listen viser anbefalingen MED grundlaget (grundlagSomTekst) og de
-//      tre svar (udfordring, proevet, om_tolv_maaneder) — aldrig et tal alene.
+//   4. Listen er en OVERSIGT (Jonas 18/9 kl. 11:07 + tillæg 1–3): striben
+//      med stribeTal øverst, én linje pr. ansøger med KUN første linje af
+//      udfordringen (foersteLinje) — de fulde svar, grundlaget og
+//      handlingerne står i folden, som kun én ad gangen kan have åben
+//      (kontrolleret <details>, aabenId), og INTET huskes (ingen
+//      useSearchParams, ingen localStorage); de lukkede foldet sammen; «Åbn»
+//      i folden går til ansøgningens side, som stadig bærer alt.
 //   5. Forsiden: grenen for ansøgninger ligger FØR tilstandsgrenen (som
 //      betalt/bølgen) og bærer INGEN kvitteringsknapper; linjen peger på
 //      ANSOEGNINGER_STI; datalaget læser ansoegninger gennem kraevRaekker og
@@ -28,6 +33,7 @@ const APP = "src/App.tsx";
 const HOOK = "src/hooks/ansoegninger.ts";
 const KNAPPER = "src/components/hjemmebane/ansoegninger/AnsoegningHandlinger.tsx";
 const LISTE = "src/components/hjemmebane/ansoegninger/AnsoegningslisteView.tsx";
+const DETALJE = "src/components/hjemmebane/ansoegninger/AnsoegningView.tsx";
 const FORSIDE = "src/components/hjemmebane/forside/RaadgiverForsideView.tsx";
 const DATALAG = "src/components/AdvisorDashboard.tsx";
 const VISNING = "src/lib/ansoegninger/ansoegningVisning.ts";
@@ -58,10 +64,23 @@ export const knapperneErRigtige = (k: string): boolean =>
   k.includes("await invaliderAnsoegninger(queryClient, id);") &&
   !/handling === "tilbud" \|\| handling === "afvis"/.test(k);
 
-export const listenErRigtig = (l: string): boolean =>
-  l.includes("grundlagSomTekst(anb)") &&
-  ["a.udfordring", "a.proevet", "a.om_tolv_maaneder"].every((f) => l.includes(f)) &&
-  !/anb\.udfald\}<\/span>\s*<\/p>/.test(l);
+/** Linjen (summary) fra `<summary` til `</summary>` i Raekke. */
+export function linjen(l: string): string {
+  const i = l.indexOf("const Raekke = (");
+  const s = l.indexOf("<summary", i);
+  const e = l.indexOf("</summary>", s);
+  return i === -1 || s === -1 || e === -1 ? "" : l.slice(s, e);
+}
+export const listenErRigtig = (l: string, detalje: string): boolean => {
+  const linje = linjen(l);
+  return linje.length > 0 &&
+    linje.includes("foersteLinje(a.udfordring)") && !linje.includes("a.proevet") && !linje.includes("a.om_tolv_maaneder") && !linje.includes("grundlagSomTekst") && !linje.includes("<AnsoegningHandlinger") &&
+    l.includes("{aaben && <Fold a={a} />}") && l.includes("aaben={aabenId === a.id}") && l.includes("useState<string | null>(null)") &&
+    !l.includes("useSearchParams") && !l.includes("localStorage") && !l.includes("sessionStorage") &&
+    l.includes("stribeTal(alle, nu)") && l.includes("taelVentende(alle, nu)") && l.includes("listeOverskrift(ventende, !!q.data)") &&
+    l.includes("<details data-lukkede-fold>") && l.includes("<Link to={`/ansoegninger/${a.id}`}") &&
+    ["a.udfordring", "a.proevet", "a.om_tolv_maaneder", "grundlagSomTekst(a.anbefaling)"].every((f) => detalje.includes(f));
+};
 
 export function ansoegningsGren(forside: string): string {
   const start = forside.indexOf('if (l.linje === "ansoegninger") {');
@@ -95,7 +114,7 @@ describe("ansoegningerFlade.guard — de syv domme på repoets filer", () => {
   it("1. ruterne er lazy og bag AdvisorRoute", () => expect(ruterneErRigtige(laes(APP))).toBe(true));
   it("2. hooken: Bearer, to fejl-tjek, forsiden invalideres, kladder hentes aldrig", () => expect(hookenErRigtig(udenKommentarer(laes(HOOK)))).toBe(true));
   it("3. knapperne kommer fra knapperFor; det uigenkaldelige går gennem AlertDialog; invalidering før luk", () => expect(knapperneErRigtige(udenKommentarer(laes(KNAPPER)))).toBe(true));
-  it("4. listen viser grundlaget i ord og de tre svar", () => expect(listenErRigtig(udenKommentarer(laes(LISTE)))).toBe(true));
+  it("4. oversigten: stribe, én linje med første linje af udfordringen, folden med kun én åben og intet husket, lukkede foldet, «Åbn» til siden", () => expect(listenErRigtig(udenKommentarer(laes(LISTE)), udenKommentarer(laes(DETALJE)))).toBe(true));
   it("5. forsiden: grenen før tilstand, uden kvittering, peger på /ansoegninger; datalaget bruger kraevRaekker og ekstra", () => {
     expect(forsidenErRigtig(udenKommentarer(laes(FORSIDE)))).toBe(true);
     expect(datalagetErRigtigt(udenKommentarer(laes(DATALAG)))).toBe(true);
@@ -126,10 +145,15 @@ describe("ansoegningerFlade.guard — dommene fanger fejlen på en kopi", () => 
     expect(knapperneErRigtige(k.replace("if (k.bekraeft) return setDialog(k);", ""))).toBe(false);
     expect(knapperneErRigtige(k + '\nconst x = handling === "tilbud" || handling === "afvis";')).toBe(false);
   });
-  it("4. et tal alene (udfaldet uden grundlag) eller et manglende svar fælder dom 4", () => {
+  it("4. hele teksten på linjen, knapper på linjen, folden husket i URL/localStorage, eller flere folder åbne fælder dom 4", () => {
     const l = udenKommentarer(laes(LISTE));
-    expect(listenErRigtig(l.replace("grundlagSomTekst(anb)", '"score: 7"'))).toBe(false);
-    expect(listenErRigtig(l.replace('<Svar label="Har selv prøvet" tekst={a.proevet} />', ""))).toBe(false);
+    const d = udenKommentarer(laes(DETALJE));
+    expect(listenErRigtig(l.replace("foersteLinje(a.udfordring)", "a.udfordring"), d)).toBe(false);
+    expect(listenErRigtig(l.replace("{foersteLinje(a.udfordring) || \"—\"}", "{foersteLinje(a.udfordring)}<AnsoegningHandlinger id={a.id} />"), d)).toBe(false);
+    expect(listenErRigtig(l + "\nconst [p] = useSearchParams();", d)).toBe(false);
+    expect(listenErRigtig(l + "\nlocalStorage.setItem('fold', aabenId ?? '');", d)).toBe(false);
+    expect(listenErRigtig(l.replace("aaben={aabenId === a.id}", "aaben={true}"), d)).toBe(false);
+    expect(listenErRigtig(l, d.replace("a.om_tolv_maaneder", "null"))).toBe(false);
   });
   it("5. kvitteringsknapper i grenen, grenen efter tilstand, eller dommen uden ekstra fælder dom 5", () => {
     const f = udenKommentarer(laes(FORSIDE));

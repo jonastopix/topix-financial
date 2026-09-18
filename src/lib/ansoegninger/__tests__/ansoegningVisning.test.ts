@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ALLE_TRIN_HAR_ORD, danskTidspunkt, fornavnAf, grupperEfterTrin, LISTE_RAEKKEFOELGE, LUKKEAARSAG_ORD, TRIN_ORD, ventetid, venterPaaMenneske, virksomhedsnavnAf } from "@/lib/ansoegninger/ansoegningVisning";
+import { ALLE_TRIN_HAR_ORD, danskDato, danskDatoOrd, danskTidspunkt, erPaaPause, fornavnAf, GRUPPE_ORD, gruppeFor, grupperEfterTrin, grupperTilListe, hvadVenter, LISTE_RAEKKEFOELGE, LISTEGRUPPER, listeOverskrift, LUKKEAARSAG_ORD, taelVentende, TRIN_ORD, ventetid, venterPaaMenneske, virksomhedsnavnAf } from "@/lib/ansoegninger/ansoegningVisning";
 import { LUKKEAARSAGER, TRIN } from "@/lib/ansoegningTrin";
 
 describe("ansoegningVisning — navn, ord, ventetid, grupper", () => {
@@ -18,9 +18,11 @@ describe("ansoegningVisning — navn, ord, ventetid, grupper", () => {
     for (const l of LUKKEAARSAGER) expect(LUKKEAARSAG_ORD[l]).toBeTruthy();
     expect(LISTE_RAEKKEFOELGE.slice(0, 2)).toEqual(["ny", "afholdt"]);
     expect([...LISTE_RAEKKEFOELGE].sort()).toEqual([...TRIN].sort());
-    expect(venterPaaMenneske("ny")).toBe(true);
-    expect(venterPaaMenneske("afholdt")).toBe(true);
-    expect(venterPaaMenneske("indkaldt")).toBe(false);
+    const nu = new Date("2026-09-25T10:00:00Z");
+    expect(venterPaaMenneske("ny", null, nu)).toBe(true);
+    expect(venterPaaMenneske("afholdt", null, nu)).toBe(true);
+    expect(venterPaaMenneske("indkaldt", null, nu)).toBe(false);
+    for (const g of LISTEGRUPPER) expect(GRUPPE_ORD[g]).toBeTruthy();
   });
 
   it("ventetid: i dag · i går · for N dage siden · for N uger siden; ulæselig → tom", () => {
@@ -43,5 +45,58 @@ describe("ansoegningVisning — navn, ord, ventetid, grupper", () => {
     const g = grupperEfterTrin([r("a", "lukket", "2026-09-01"), r("b", "ny", "2026-09-10"), r("c", "afholdt", "2026-09-12"), r("d", "ny", "2026-09-15")]);
     expect(g.map((x) => x.trin)).toEqual(["ny", "afholdt", "lukket"]);
     expect(g[0].raekker.map((x) => x.id)).toEqual(["d", "b"]);
+  });
+});
+
+describe("ansoegningVisning — pausen (Jonas 18/9) og listens grupper", () => {
+  const nu = new Date("2026-09-25T10:00:00Z"); // 25/9 dansk
+  it("erPaaPause: kun en dato EFTER i dag (dansk); på dagen og før er pausen slut; venterPaaMenneske følger den", () => {
+    expect(danskDato(nu)).toBe("2026-09-25");
+    expect(erPaaPause("2026-12-10", nu)).toBe(true);
+    expect(erPaaPause("2026-09-26", nu)).toBe(true);
+    expect(erPaaPause("2026-09-25", nu)).toBe(false);
+    expect(erPaaPause("2026-09-10", nu)).toBe(false);
+    expect(erPaaPause(null, nu)).toBe(false);
+    expect(venterPaaMenneske("afholdt", "2026-12-10", nu)).toBe(false);
+    expect(venterPaaMenneske("afholdt", "2026-09-25", nu)).toBe(true);
+    // 10/12 kl. 00:30 dansk = 9/12 23:30 UTC → ikke længere på pause
+    expect(erPaaPause("2026-12-10", new Date("2026-12-09T23:30:00Z"))).toBe(false);
+    expect(erPaaPause("2026-12-10", new Date("2026-12-09T21:00:00Z"))).toBe(true);
+  });
+
+  it("grupperTilListe: afholdt → ny → booket → indkaldt → aftalegrundlag → underskrevet → på pause → lukket; pausen vinder over trinnet; tomme udeladt", () => {
+    const r = (id: string, trin: Parameters<typeof gruppeFor>[0]["trin"], trin_sat_at: string, paa_pause_til: string | null = null) => ({ id, trin, trin_sat_at, paa_pause_til });
+    const rk = [
+      r("l1", "lukket", "2026-09-01"), r("n1", "ny", "2026-09-10"), r("a1", "afholdt", "2026-09-12"), r("n2", "ny", "2026-09-15"),
+      r("p1", "afholdt", "2026-09-10", "2026-12-10"), r("p2", "afholdt", "2026-09-11", "2026-11-01"), r("i1", "indkaldt", "2026-09-14"), r("b1", "booket", "2026-09-13"),
+      r("a2", "afholdt", "2026-09-05", "2026-09-10"), // pause passeret → afholdt igen
+    ];
+    const g = grupperTilListe(rk, nu);
+    expect(g.map((x) => x.gruppe)).toEqual(["afholdt", "ny", "booket", "indkaldt", "paa_pause", "lukket"]);
+    expect(g[0].raekker.map((x) => x.id)).toEqual(["a1", "a2"]);
+    expect(g[1].raekker.map((x) => x.id)).toEqual(["n2", "n1"]);
+    expect(g[4].raekker.map((x) => x.id)).toEqual(["p2", "p1"]); // tidligste slutdato først
+    expect(gruppeFor(r("x", "lukket", "2026-09-01", "2026-12-10"), nu)).toBe("lukket"); // lukket er lukket, også med en pausedato
+    expect(taelVentende(rk, nu)).toBe(4); // a1, a2, n1, n2 — ikke p1/p2
+  });
+
+  it("overskriften tæller kun det der venter; ellers noget roligt", () => {
+    expect(listeOverskrift(0, false)).toBe("Ansøgningerne");
+    expect(listeOverskrift(0, true)).toBe("Ingen venter på jer lige nu.");
+    expect(listeOverskrift(1, true)).toBe("Én venter på jeres beslutning.");
+    expect(listeOverskrift(4, true)).toBe("4 venter på jeres beslutning.");
+  });
+
+  it("hvadVenter: kort, aldrig fritekst", () => {
+    const b = { paa_pause_til: null, lukkeaarsag: null, rykkere_sendt: 0, samtale_start: null };
+    expect(hvadVenter({ ...b, trin: "ny" }, nu)).toBe("tal med dem eller afvis?");
+    expect(hvadVenter({ ...b, trin: "afholdt" }, nu)).toBe("tilbud eller afslag?");
+    expect(hvadVenter({ ...b, trin: "afholdt", paa_pause_til: "2026-12-10" }, nu)).toBe("på pause til 10. december");
+    expect(hvadVenter({ ...b, trin: "indkaldt", rykkere_sendt: 2 }, nu)).toBe("rykker 2 sendt");
+    expect(hvadVenter({ ...b, trin: "indkaldt" }, nu)).toBe("indkaldelse sendt");
+    expect(hvadVenter({ ...b, trin: "booket", samtale_start: "2026-09-28T07:00:00Z" }, nu)).toMatch(/^samtale 28\. september/);
+    expect(hvadVenter({ ...b, trin: "lukket", lukkeaarsag: "svarer_ikke" }, nu)).toBe("svarede ikke");
+    expect(hvadVenter({ ...b, trin: "underskrevet" }, nu)).toBe("betalingsforløbet kører");
+    expect(danskDatoOrd("2026-12-10")).toBe("10. december");
   });
 });

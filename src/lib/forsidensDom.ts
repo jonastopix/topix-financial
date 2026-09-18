@@ -673,6 +673,8 @@ export interface AnsoegningTilForside {
   trin: "ny" | "afholdt";
   /** ansoegninger.trin_sat_at (ISO) — hvor længe den har ventet. */
   sidenAt: string;
+  /** ansoegninger.paa_pause_til («YYYY-MM-DD») — ligger den EFTER i dag, venter ansøgningen ikke (Jonas 18/9). */
+  paaPauseTil: string | null;
 }
 
 /** «2 nye ansøgninger venter på jer · 1 samtale er afholdt — tilbud eller afslag?» (18/9): én linje, ingen kvittering, peger på /ansoegninger. */
@@ -1284,10 +1286,16 @@ export function ansoegningerTekst(nye: number, afholdte: number): string {
   return dele.join(" · ");
 }
 
-/** Linjen — null når ingen venter. Ældste først (den der har ventet længst står øverst i folden). Kun trin ny/afholdt tæller; andet i listen ignoreres. */
-export function ansoegningslinje(liste: readonly AnsoegningTilForside[] | undefined): Ansoegningslinje | null {
+/** Dansk dato «YYYY-MM-DD» for nu — pausen sammenlignes på den danske kalenderdag. */
+function danskDatoAf(nu: Date): string {
+  return nu.toLocaleDateString("sv-SE", { timeZone: "Europe/Copenhagen" });
+}
+
+/** Linjen — null når ingen venter. Ældste først. Kun trin ny/afholdt tæller, og IKKE dem på pause frem i tiden (de kommer op på dagen). */
+export function ansoegningslinje(liste: readonly AnsoegningTilForside[] | undefined, nu: Date): Ansoegningslinje | null {
+  const iDag = danskDatoAf(nu);
   const venter = (liste ?? [])
-    .filter((a) => a.trin === "ny" || a.trin === "afholdt")
+    .filter((a) => (a.trin === "ny" || a.trin === "afholdt") && !(a.paaPauseTil && a.paaPauseTil > iDag))
     .slice()
     .sort((x, y) => x.sidenAt.localeCompare(y.sidenAt) || x.navn.localeCompare(y.navn, "da"));
   if (venter.length === 0) return null;
@@ -1481,7 +1489,7 @@ export function afgoerForsidensDom(virksomheder: readonly VirksomhedTilDom[], nu
   // gennem porten alene; null når ingen eller alle kvitteret.
   const betalt = betaltLinje(ekstra.betaltIkkeOprettet, nu);
   // Ansøgninger der venter på et menneske (18/9): én linje, alvor 80, ingen kvittering.
-  const ansoegninger = ansoegningslinje(ekstra.ansoegninger);
+  const ansoegninger = ansoegningslinje(ekstra.ansoegninger, nu);
 
   // Samlede linjer går gennem alvorsporten som ÉN linje hver.
   const linjer: Linje[] = [

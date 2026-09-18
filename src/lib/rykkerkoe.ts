@@ -29,7 +29,9 @@
  *   4. «Ikke nu»-linket sætter på pause i tre måneder. (Overgangen
  *      ikke_nu annullerer alle trapper, sætter paa_pause_til = i dag + 3
  *      måneder og planlægger ÉN række: pause_slut til rådgiveren. Systemet
- *      skriver ikke til ansøgeren igen af sig selv — et menneske afgør.)
+ *      skriver ikke til ansøgeren igen af sig selv — et menneske afgør.
+ *      Rådgiveren kan selv sætte eller flytte pausen til en dato
+ *      (saet_pause) — samme trappe, ankeret er pausens slutdato.)
  *
  * TRAPPERNE (dag N regnes fra ankeret på den danske kalender, kl. 10):
  *   indkaldt      anker = trinskiftet. Dag 0 selve indkaldelsen, rykker
@@ -44,7 +46,10 @@
  *                 udelades.
  *   aftalegrundlag anker = trinskiftet. Dag 0 selve aftalegrundlaget,
  *                 rykker dag 2, 5, 9, 14 → udløber dag 21.
- *   pause         anker = «ikke nu»-klikket. Én række efter tre måneder.
+ *   pause         anker = PAUSENS SLUTDATO (ikke_nu: i dag + 3 md.;
+ *                 saet_pause: rådgiverens dato). Én række dag 0 kl. 10 på
+ *                 en hverdag → klokke til jer; dommen regner ansøgningen
+ *                 som ventende igen fra den dag.
  *   kladde        anker = sidste gem i formularen (B kalder planlaegKladde
  *                 ved hvert gem med e-mail; forrige række annulleres). Dag 2
  *                 kl. 10 én påmindelse «din ansøgning venter» — B's
@@ -117,7 +122,7 @@ export const TRAPPER: Record<Trappe, readonly TrappeTrin[]> = {
     { trinNr: 4, dag: 14, handling: "send_mail", skabelon: "ansoegning-aftalegrundlag-rykker-4", modtager: "ansoeger" },
     { trinNr: 5, dag: 21, handling: "udloeb", skabelon: null, modtager: "raadgiver" },
   ],
-  pause: [{ trinNr: 0, dag: 0, maaneder: 3, handling: "pause_slut", skabelon: null, modtager: "raadgiver" }],
+  pause: [{ trinNr: 0, dag: 0, handling: "pause_slut", skabelon: null, modtager: "raadgiver" }],
 };
 
 export const PAUSE_MAANEDER = 3;
@@ -131,7 +136,7 @@ export const KOE_SKABELONER: readonly string[] = Object.values(TRAPPER)
 export interface PlanInput {
   ansoegningId: string;
   trappe: Trappe;
-  /** Trinskiftet (indkaldt/aftalegrundlag/pause) eller samtalens starttid (booket). */
+  /** Trinskiftet (indkaldt/aftalegrundlag), samtalens starttid (booket) eller pausens slutdato kl. 00 dansk (pause). */
   anker: Date;
   /** Samtalens sluttid — kun booket. Mangler den: start + 60 min. */
   samtaleSlut?: Date | null;
