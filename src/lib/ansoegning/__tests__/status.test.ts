@@ -28,6 +28,20 @@ describe("afgoerStatus", () => {
     // booket uden tid (gamle links før tiden blev læst): tidsvælgeren igen
     expect(afgoerStatus({ ...basis, trin: "booket" })).toMatchObject({ book: true, booket: null });
   });
+  it("aftalegrundlag sendt — brist 8: e-underskriften vinder over aftale_url; udløbet/annulleret giver ingen knap; underskrevet siger velkommen", () => {
+    const u = { url: "https://app.theboardroom.dk/aftale?token=e-sig", udloeber_at: "2026-10-09T10:00:00Z", underskrevet_at: null };
+    const s = { ...basis, trin: "aftalegrundlag_sendt", aftale_url: "https://example.com/gammel.pdf" };
+    expect(afgoerStatus({ ...s, underskrift: { ...u, tilstand: "kan_underskrives" } }).aftale).toBe(u.url);
+    expect(afgoerStatus({ ...s, underskrift: null }).aftale).toBe("https://example.com/gammel.pdf");
+    expect(afgoerStatus(s).aftale).toBe("https://example.com/gammel.pdf");
+    const udloebet = afgoerStatus({ ...s, underskrift: { ...u, tilstand: "udloebet", udloeber_at: null } });
+    expect(udloebet).toMatchObject({ aftale: null, visIkkeNu: true });
+    expect(udloebet.titel).toMatch(/udløbet/);
+    expect(afgoerStatus({ ...s, underskrift: { ...u, tilstand: "annulleret", udloeber_at: null } })).toMatchObject({ aftale: null, visIkkeNu: true });
+    const underskrevet = afgoerStatus({ ...s, underskrift: { ...u, tilstand: "underskrevet", udloeber_at: null, underskrevet_at: "2026-09-19T08:00:00Z" } });
+    expect(underskrevet).toMatchObject({ aftale: null, visIkkeNu: false });
+    expect(underskrevet.titel).toMatch(/skrevet under/);
+  });
   it("aftalegrundlag sendt: aftaleknappen; underskrevet og lukket: ingen knapper", () => {
     expect(afgoerStatus({ ...basis, trin: "aftalegrundlag_sendt", aftale_url: "https://app.theboardroom.dk/aftale?token=x" }).aftale).toBe("https://app.theboardroom.dk/aftale?token=x");
     expect(afgoerStatus({ ...basis, trin: "underskrevet" })).toMatchObject({ book: false, aftale: null, visIkkeNu: false });

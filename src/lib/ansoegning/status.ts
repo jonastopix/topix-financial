@@ -18,7 +18,7 @@ export interface StatusVisning {
   book: boolean;
   /** Den bookede samtale: tid, Meet-link (fra Calendly-eventet, kan mangle) — flyt/aflys vises på siden. */
   booket: { start: string; slut: string | null; moedeLink: string | null } | null;
-  /** «Læs og underskriv» — kun når aftalegrundlaget er sendt og linket findes. */
+  /** «Læs og underskriv» — e-underskriftens /aftale?token=… når den findes (brist 8), ellers rådgiverens aftale_url; null = ingen knap. */
   aftale: string | null;
   /** «Ikke nu» vises på åbne trin, når ansøgningen ikke allerede er på pause. */
   visIkkeNu: boolean;
@@ -56,8 +56,23 @@ export function afgoerStatus(s: StatusSvar): StatusVisning {
         : { ...ingen, book: true, visIkkeNu: true, titel: "Samtalen er booket", tekst: "Tiden er ikke registreret hos os — vælg den gerne igen herunder, så er vi sikre." };
     case "afholdt":
       return { ...ingen, visIkkeNu: true, titel: "Tak for snakken", tekst: "Jonas og Morten tager stilling og vender tilbage til dig. Du behøver ikke gøre mere nu." };
-    case "aftalegrundlag_sendt":
-      return { ...ingen, aftale: s.aftale_url, visIkkeNu: true, titel: "Aftalegrundlaget ligger klar", tekst: "Læs det igennem i ro og mag, og underskriv når du er klar. Vi venter på din underskrift." };
+    case "aftalegrundlag_sendt": {
+      // Brist 8 (18/9): e-underskriften vinder over rådgiverens indtastede aftale_url.
+      // Findes der en aftale i aftale_underskrift, er DEN knappen — eller grunden til at
+      // der ingen knap er. aftale_url bruges KUN når der ingen aftale findes.
+      const u = s.underskrift ?? null;
+      if (u?.tilstand === "underskrevet") {
+        return { ...ingen, titel: "Velkommen — du har skrevet under", tekst: "Det næste er betalingen; du får en mail om den. Så er du inde." };
+      }
+      if (u?.tilstand === "udloebet") {
+        return { ...ingen, visIkkeNu: true, titel: "Linket til aftalegrundlaget er udløbet", tekst: "Det gjaldt i 21 dage. Jonas sender et nyt — du behøver ikke gøre noget nu." };
+      }
+      if (u && u.tilstand !== "kan_underskrives") {
+        return { ...ingen, visIkkeNu: true, titel: "Aftalegrundlaget er på vej igen", tekst: "Det første er trukket tilbage. Jonas sender et nyt — du behøver ikke gøre noget nu." };
+      }
+      const aftale = u ? u.url : s.aftale_url;
+      return { ...ingen, aftale, visIkkeNu: true, titel: "Aftalegrundlaget ligger klar", tekst: "Læs det igennem i ro og mag, og underskriv når du er klar. Vi venter på din underskrift." };
+    }
     case "underskrevet":
       return { ...ingen, titel: "Velkommen — du har skrevet under", tekst: "Det næste er betalingen; du har fået en mail om den. Så er du inde." };
     case "lukket":

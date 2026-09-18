@@ -21,6 +21,7 @@ import { corsHeaders } from "../_shared/edgeFunctionAuth.ts";
 import { verifyAnsoegningslink } from "../_shared/ansoegningLinkAuth.ts";
 import { fornavnAf, udfoerOvergang, virksomhedsnavnAf } from "../_shared/ansoegningMotor.ts";
 import { erAabentTrin } from "../_shared/ansoegningTrin.ts";
+import { aftaleTilAnsoeger, AFTALE_TIL_ANSOEGER_FELTER, type AftaleRaekkeTilAnsoeger } from "../_shared/ansoegerAftale.ts";
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
@@ -52,6 +53,20 @@ Deno.serve(async (req) => {
   const a = await verifyAnsoegningslink(token, admin);
   if (!a) return json({ error: "Ukendt link" }, 404);
 
+  // Brist 8 (18/9): findes der en e-underskrift på ansøgningen, er DET linket —
+  // aftale_url (rådgiverens indtastede link) er kun fald-tilbage. Nyeste
+  // ikke-annullerede aftale; opslaget er service-role bag ansøgningens token.
+  const { data: aftaleRaekke, error: aftaleFejl } = await admin
+    .from("aftale_underskrift")
+    .select(AFTALE_TIL_ANSOEGER_FELTER)
+    .eq("ansoegning_id", a.id)
+    .neq("status", "annulleret")
+    .order("sendt_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (aftaleFejl) console.error(`[ansoegning-link] aftaleopslag fejlede for ${a.id}:`, aftaleFejl.message);
+  const underskrift = aftaleTilAnsoeger((aftaleRaekke ?? null) as AftaleRaekkeTilAnsoeger | null, new Date());
+
   const svar = () => ({
     trin: a.trin,
     paa_pause_til: a.paa_pause_til,
@@ -59,6 +74,7 @@ Deno.serve(async (req) => {
     samtale_slut: a.samtale_slut,
     moede_link: a.trin === "booket" ? a.samtale_link : null,
     aftale_url: a.trin === "aftalegrundlag_sendt" ? a.aftale_url : null,
+    underskrift,
     virksomhedsnavn: virksomhedsnavnAf(a),
     fornavn: fornavnAf(a.navn),
   });
