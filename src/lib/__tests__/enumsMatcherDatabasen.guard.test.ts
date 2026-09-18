@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { readdirSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { AFSLAGSGRUNDE, KILDER, LUKKEAARSAGER, TRAPPER_NAVNE, TRIN } from "@/lib/ansoegningTrin";
+import { AFSLAGSGRUNDE, KILDER, LUKKEAARSAGER, MENNESKE_HANDLINGER, SYSTEM_HANDLINGER, TRAPPER_NAVNE, TRIN } from "@/lib/ansoegningTrin";
+import { VENTEPLADS_STATUSSER } from "@/lib/ventelisteDom";
+import { AFTALE_STATUSSER } from "@/lib/underskriftDom";
 import { START_TIDSPUNKTER } from "@/lib/ansoegning/skema";
 import { TRAPPER } from "@/lib/rykkerkoe";
 import { TRAPPER_NAVNE as TRAPPER_NAVNE_DENO } from "../../../supabase/functions/_shared/ansoegningTrin.ts";
@@ -48,7 +50,13 @@ const M = {
   afslagsgrund: /ansoegninger_afslagsgrund_check\s*check\s*\(\s*afslagsgrund is null or afslagsgrund in \(([^)]*)\)/,
   kilde: /check\s*\(kilde in \(([^)]*)\)\)/,
   start: /check\s*\(start_tidspunkt is null or start_tidspunkt in \(([^)]*)\)/,
+  // Recon 18/9 §6 pkt. 8: de tre tabeller længere væk, hvor koden og databasen også kan glide.
+  handling: /ansoegning_beslutninger_handling_check\s*check\s*\(\s*handling\s+in\s*\(([^)]*)\)/,
+  ventepladsStatus: /ventepladser_status_check\s*check\s*\(\s*status\s+in\s*\(([^)]*)\)/,
+  aftaleStatus: /aftale_underskrift_status_check\s*check\s*\(\s*status\s+in\s*\(([^)]*)\)/,
 };
+/** Alle handlingsarter i koden: mennesket + systemet, uden gentagelser («afholdt» står i begge). */
+const HANDLINGSARTER = [...new Set([...MENNESKE_HANDLINGER, ...SYSTEM_HANDLINGER])];
 
 describe("enumsMatcherDatabasen.guard — koden og databasen kender de samme værdier", () => {
   it("trapperne (planlagte_haendelser_trappe_check) = TRAPPER_NAVNE, begge spejle, og rykkerkoe.TRAPPER", () => {
@@ -63,6 +71,12 @@ describe("enumsMatcherDatabasen.guard — koden og databasen kender de samme væ
   it("afslagsgrunde = AFSLAGSGRUNDE", () => expect(sammenlign("afslagsgrund", AFSLAGSGRUNDE, senesteListe(migrationer, M.afslagsgrund)?.vaerdier ?? null)).toEqual([]));
   it("kilder = KILDER (ansoegninger-migrationerne)", () => expect(sammenlign("kilde", KILDER, senesteListe(migrationer, M.kilde, "public.ansoegninger")?.vaerdier ?? null)).toEqual([]));
   it("starttidspunkter = START_TIDSPUNKTER", () => expect(sammenlign("start_tidspunkt", START_TIDSPUNKTER.map((s) => s.noegle), senesteListe(migrationer, M.start)?.vaerdier ?? null)).toEqual([]));
+  it("handlingsarter (ansoegning_beslutninger_handling_check) = MENNESKE_HANDLINGER ∪ SYSTEM_HANDLINGER", () => {
+    expect(HANDLINGSARTER.length).toBeGreaterThanOrEqual(14);
+    expect(sammenlign("handling", HANDLINGSARTER, senesteListe(migrationer, M.handling)?.vaerdier ?? null)).toEqual([]);
+  });
+  it("ventepladsens statusser (ventepladser_status_check) = VENTEPLADS_STATUSSER", () => expect(sammenlign("ventepladser.status", VENTEPLADS_STATUSSER, senesteListe(migrationer, M.ventepladsStatus)?.vaerdier ?? null)).toEqual([]));
+  it("aftalens statusser (aftale_underskrift_status_check) = AFTALE_STATUSSER", () => expect(sammenlign("aftale_underskrift.status", AFTALE_STATUSSER, senesteListe(migrationer, M.aftaleStatus)?.vaerdier ?? null)).toEqual([]));
 
   it("VÆRNET VIRKER: en migration uden «indsendt» → koden kender en trappe, databasen ikke; en ekstra DB-værdi → død værdi; kommentarlinjer tæller ikke", () => {
     const uden = migrationer.map((x) => ({ fil: x.fil, tekst: x.tekst.replace("'kladde', 'indsendt', 'indkaldt'", "'kladde', 'indkaldt'") }));

@@ -54,6 +54,8 @@ function tid(iso: string | null | undefined): number | null {
 // ── Aftalens tilstand ─────────────────────────────────────────────────
 
 export type Aftalestatus = "sendt" | "underskrevet" | "annulleret";
+/** Alle statusser som liste — enum-værnet (enumsMatcherDatabasen.guard) holder den op mod aftale_underskrift_status_check. */
+export const AFTALE_STATUSSER: readonly Aftalestatus[] = ["sendt", "underskrevet", "annulleret"];
 
 export interface AftaleInput {
   status: Aftalestatus;
