@@ -32,6 +32,9 @@ import { verifyAnsoegningstoken } from "../_shared/ansoegningToken.ts";
 import { hentDataCvrRaa, udfaldAf } from "../_shared/virksomhedsOprettelse.ts";
 import { tolkCvrTilAnsoeger } from "../_shared/cvrAnsoeger.ts";
 import { type CvrVisning, cvrSaetning, normaliserCvr } from "../_shared/ansoegningSkema.ts";
+import { skrivRaadgiverBesked } from "../_shared/raadgiverBesked.ts";
+import { cvrLoftBesked, type CvrLoftGrund } from "../_shared/cvrLoftBesked.ts";
+import { kbhDato } from "../_shared/hverdage.ts";
 
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -51,7 +54,28 @@ const CACHE_DAGE_FINDES_IKKE = 1;
  * kvoten. Sættes lavere med ANSOEGNING_CVR_DAGSLOFT så længe nøglen er på
  * gratisplanen (25/dag delt med berigelsen).
  */
-const DAGSLOFT = Number(Deno.env.get("ANSOEGNING_CVR_DAGSLOFT") ?? "50");
+/**
+ * DAGSLOFTET, eksplicit (generalprøvens brist 6, 18/9). Regnestykket bag standarden:
+ * DataCVR's betalte plan er 1.500 opslag pr. måned ≈ 50 pr. dag, og nøglen deles med
+ * berig-virksomheder (MAKS_OPSLAG 20 pr. kørsel), import-application og monday-webhook.
+ * 50 − 20 − 10 (reserve til import/Monday) = 20 til ansøgningerne. På GRATISPLANEN
+ * (25 pr. dag) skal secret'en sættes til 5 — ellers æder ansøgningerne berigelsens kvote.
+ * Secret'en ANSOEGNING_CVR_DAGSLOFT overstyrer altid (README: hvad Jonas bekræfter hos DataCVR).
+ * Rammes loftet, får rådgiverne én klokke pr. dag (cvrLoftBesked) — ansøgeren fortsætter
+ * med fallback-feltet.
+ */
+export const DAGSLOFT_STANDARD = 20;
+const DAGSLOFT = Number(Deno.env.get("ANSOEGNING_CVR_DAGSLOFT") ?? String(DAGSLOFT_STANDARD));
+
+/** Klokken til rådgiverne når loftet rammes — én pr. dag pr. grund (dedup på titlen). Kaster aldrig. */
+async function meldLoftRamt(adminClient: SupabaseClient, grund: CvrLoftGrund): Promise<void> {
+  try {
+    const r = await skrivRaadgiverBesked(adminClient, cvrLoftBesked(grund, kbhDato(new Date()), DAGSLOFT));
+    if (r.fejl.length > 0) console.error("[ansoegning-cvr] klokken om loftet fejlede:", r.fejl.join("; "));
+  } catch (e) {
+    console.error("[ansoegning-cvr] klokken om loftet kastede:", e);
+  }
+}
 
 type Svar =
   | { udfald: "fundet"; visning: CvrVisning; saetning: string }
@@ -124,6 +148,7 @@ Deno.serve(async (req) => {
     } else if ((await opslagIDag(adminClient)) >= DAGSLOFT) {
       console.warn(`[ansoegning-cvr] dagsloftet (${DAGSLOFT}) er nået — CVR ${cvr} ikke slået op`);
       svar = { udfald: "utilgaengelig" };
+      await meldLoftRamt(adminClient, "dagsloft");
     } else {
       const raa = await hentDataCvrRaa(cvr);
       const udfald = udfaldAf(raa);
@@ -139,6 +164,8 @@ Deno.serve(async (req) => {
         const grund = udfald.udfald === "fejl" ? ` — ${udfald.grund}` : "";
         console.warn(`[ansoegning-cvr] CVR ${cvr}: ${udfald.udfald}${grund}`);
         svar = { udfald: "utilgaengelig" };
+        // DataCVR selv siger stop (429) → rådgiverne skal vide det; fejl/nøgle mangler er en anden sag (logget).
+        if (udfald.udfald === "graense") await meldLoftRamt(adminClient, "datacvr");
       }
 
       if (raekke) {
