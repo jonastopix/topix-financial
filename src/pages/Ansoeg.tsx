@@ -10,6 +10,7 @@ import { AnsoegSkaerm, type CvrTilstand } from "@/components/ansoegning/AnsoegSk
 import { AnsoegMellemstykke } from "@/components/ansoegning/AnsoegMellemstykke";
 import { AnsoegKvittering } from "@/components/ansoegning/AnsoegKvittering";
 import {
+  type KvitteringsUdfald,
   AnsoegningsFejl,
   gemSvar,
   hentAnsoegning,
@@ -70,7 +71,7 @@ type Fase =
   | { slags: "intro"; genoptager: boolean }
   | { slags: "skema"; velkommenTilbage: boolean }
   | { slags: "mellem"; stykke: Mellemstykke; naesteSkaerm: number }
-  | { slags: "kvittering"; udgave: "sendt" | "allerede" };
+  | { slags: "kvittering"; udgave: "sendt" | "allerede"; mail?: KvitteringsUdfald };
 
 type Kladde = Partial<Record<FeltId, string>>;
 
@@ -277,9 +278,9 @@ const Ansoeg = () => {
       try {
         const t = token ?? laesLokaltToken();
         if (!t) throw new AnsoegningsFejl(404, "Intet token");
-        await indsendAnsoegning(t, del);
+        const svar = await indsendAnsoegning(t, del);
         glemLokaltToken();
-        setFase({ slags: "kvittering", udgave: "sendt" });
+        setFase({ slags: "kvittering", udgave: "sendt", mail: svar.kvittering ?? "sendt" });
         window.scrollTo({ top: 0 });
       } catch (e) {
         // 409: mailen har allerede en åben, indsendt ansøgning (A's indeks) — ikke en fejl for ansøgeren.
@@ -370,7 +371,7 @@ const Ansoeg = () => {
       indhold = <AnsoegMellemstykke stykke={fase.stykke} onVidere={() => { setFase({ slags: "skema", velkommenTilbage: false }); setSkaerm(fase.naesteSkaerm); window.scrollTo({ top: 0 }); }} />;
       break;
     case "kvittering":
-      indhold = <AnsoegKvittering udgave={fase.udgave} />;
+      indhold = <AnsoegKvittering udgave={fase.udgave} mail={fase.mail} />;
       break;
     case "skema":
       indhold = (

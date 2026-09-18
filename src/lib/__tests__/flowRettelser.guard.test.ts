@@ -28,11 +28,15 @@ export const ikkeNuKraeverKlik = (side: string): boolean =>
   side.split("sigIkkeNu(").length === 2 &&
   /const ikkeNu = async \(\) => \{[\s\S]*?await sigIkkeNu\(token\)/.test(side) &&
   side.includes("onClick={ikkeNu}");
-// 2) kvitteringen: trappen «indsendt», dag 0, planlagt ved indsendelse; skærmen lover kun mailen.
+// 2) kvitteringen: sendes STRAKS ved indsendelse (Jonas 18/9: «med det samme»), uden om køen — og kun når
+//    afsendelsen fejler, lægges trappen «indsendt» (dag 0) i køen som reserve; skærmen lover kun mailen.
 export const kvitteringErTrappe = (): boolean =>
   TRAPPER.indsendt?.length === 1 && TRAPPER.indsendt[0].dag === 0 && TRAPPER.indsendt[0].handling === "send_mail" &&
   TRAPPER.indsendt[0].skabelon === "ansoegning-kvittering" && TRAPPER.indsendt[0].modtager === "ansoeger" && trappensTrin("indsendt") === null;
-export const indsendelsenPlanlaeggerKvittering = (motor: string): boolean => motor.includes('planlaegTrappe({ ansoegningId: a.id, trappe: "indsendt", anker: nu, nu })');
+export const indsendelsenPlanlaeggerKvittering = (motor: string): boolean =>
+  motor.includes('label: "ansoegning-kvittering"') && motor.includes("idempotencyKey: `ansoegning-kvittering-${a.id}`") &&
+  motor.indexOf('label: "ansoegning-kvittering"') < motor.indexOf('if (kvittering === "reserve") {') &&
+  motor.indexOf('if (kvittering === "reserve") {') < motor.indexOf('planlaegTrappe({ ansoegningId: a.id, trappe: "indsendt", anker: nu, nu })');
 export const kvitteringsskaermenLoverMailen = (k: string): boolean => k.includes("Du får en mail med det, du skrev") && !k.includes("Hold øje med telefonen og indbakken");
 // 3) mail til rådgiverne ved indsendelse, til kontakt@, én gang pr. ansøgning.
 export const raadgiverMailSendesVedIndsendelse = (motor: string): boolean =>
@@ -127,6 +131,8 @@ describe("flowRettelser.guard — VÆRNET VIRKER: kopier med fejlen sat ind fang
   });
   it("2. kvitteringen planlagt som en anden trappe → falsk; skærmen lover indbakken igen → falsk (en kommentar tæller ikke)", () => {
     expect(indsendelsenPlanlaeggerKvittering(motor.replace('trappe: "indsendt", anker: nu, nu', 'trappe: "kladde", anker: nu, nu'))).toBe(false);
+    expect(indsendelsenPlanlaeggerKvittering(motor.replace('label: "ansoegning-kvittering"', 'label: "x"'))).toBe(false); // ikke sendt straks
+    expect(indsendelsenPlanlaeggerKvittering(motor.replace('if (kvittering === "reserve") {', "if (true) {"))).toBe(false); // køen uanset → dobbelt kvittering
     expect(kvitteringsskaermenLoverMailen(kvit.replace("Du får en mail med det, du skrev", "Hold øje med telefonen og indbakken"))).toBe(false);
     expect(kvitteringsskaermenLoverMailen(udenKommentarer(laes(KVIT) + "\n// Hold øje med telefonen og indbakken\n"))).toBe(true);
   });

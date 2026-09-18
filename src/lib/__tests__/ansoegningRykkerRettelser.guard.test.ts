@@ -42,13 +42,16 @@ export const replyToErValgfrit = (k: string): boolean => /replyTo\?: string;/.te
 export const replyToKunNaarSat = (k: string): boolean =>
   k.includes("...(args.replyTo ? { reply_to: args.replyTo } : {})") && (k.match(/reply_to/g) ?? []).length === 1;
 
-/** Kun cronen sætter replyTo, og den sætter KONTAKT_ADRESSE. */
+/** To afsendere sætter replyTo — cronen (køens mails) og motoren (kvitteringen straks, 19/9) — begge KONTAKT_ADRESSE. */
+const MOTOR = "supabase/functions/_shared/ansoegningMotor.ts";
 export function kunCronenSaetterReplyTo(filer: string[], laeser: (f: string) => string): { kun: boolean; hvem: string[] } {
-  const hvem = filer.filter((f) => f !== MANAGED && /\breplyTo\s*:/.test(udenKommentarer(laeser(f))));
-  return { kun: hvem.length === 1 && hvem[0] === CRON, hvem };
+  const hvem = filer.filter((f) => f !== MANAGED && /\breplyTo\s*:/.test(udenKommentarer(laeser(f)))).sort();
+  return { kun: hvem.length === 2 && hvem[0] === MOTOR && hvem[1] === CRON, hvem };
 }
 export const cronenBrugerKontaktadressen = (cron: string): boolean =>
   cron.includes("replyTo: KONTAKT_ADRESSE") && cron.includes('import { KONTAKT_ADRESSE } from "../_shared/indgangsMail.ts";');
+export const motorenBrugerKontaktadressen = (motor: string): boolean =>
+  motor.includes("replyTo: KONTAKT_ADRESSE") && motor.includes('import { KONTAKT_ADRESSE } from "./indgangsMail.ts";');
 
 /** «Svar på denne mail» må kun stå i mails, når svaradressen er sat (parret med replyTo). */
 export const svarPaaMailenFindes = (mails: string): number => (mails.match(/svar på (denne mail|mailen)/gi) ?? []).length;
@@ -74,13 +77,14 @@ describe("ansoegningRykkerRettelser.guard — svaradressen er valgfri og kun kø
     expect(replyToErValgfrit(managed)).toBe(true);
     expect(replyToKunNaarSat(managed)).toBe(true);
   });
-  it("præcis én afsender sætter replyTo — ansoegning-rykker-cron — med KONTAKT_ADRESSE; de øvrige er uberørte", () => {
+  it("præcis to afsendere sætter replyTo — ansoegning-rykker-cron og motorens kvittering straks — med KONTAKT_ADRESSE; de øvrige er uberørte", () => {
     const alle = afsendere();
     expect(alle.length).toBeGreaterThanOrEqual(12); // huset har mange afsendere — er tallet lavere, er målingen brudt
     const r = kunCronenSaetterReplyTo(alle, laes);
-    expect(r.hvem).toEqual([CRON]);
+    expect(r.hvem).toEqual([MOTOR, CRON]);
     expect(r.kun).toBe(true);
     expect(cronenBrugerKontaktadressen(udenKommentarer(laes(CRON)))).toBe(true);
+    expect(motorenBrugerKontaktadressen(udenKommentarer(laes(MOTOR)))).toBe(true);
   });
   it("«svar på denne mail» står i to mails (aftalegrundlagets rykkere) — og kun fordi svaradressen er sat; tider-mailen beder ikke om svar (Jonas 18/9, anden runde: «Det foregår KUN på linket»)", () => {
     expect(svarPaaMailenFindes(udenKommentarer(laes(MAILS)))).toBe(2);
