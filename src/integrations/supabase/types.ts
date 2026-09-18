@@ -3674,6 +3674,72 @@ export type Database = {
         }
         Relationships: []
       }
+      ventepladser: {
+        Row: {
+          afsluttet_at: string | null
+          ansoegning_id: string
+          company_id: string | null
+          created_at: string
+          hvorfor: string | null
+          id: string
+          sat_af: string | null
+          sat_at: string
+          status: string
+          svaret_at: string | null
+          tilbud_nr: number
+          tilbud_udloeber_at: string | null
+          tilbudt_at: string | null
+          updated_at: string
+        }
+        Insert: {
+          afsluttet_at?: string | null
+          ansoegning_id: string
+          company_id?: string | null
+          created_at?: string
+          hvorfor?: string | null
+          id?: string
+          sat_af?: string | null
+          sat_at?: string
+          status?: string
+          svaret_at?: string | null
+          tilbud_nr?: number
+          tilbud_udloeber_at?: string | null
+          tilbudt_at?: string | null
+          updated_at?: string
+        }
+        Update: {
+          afsluttet_at?: string | null
+          ansoegning_id?: string
+          company_id?: string | null
+          created_at?: string
+          hvorfor?: string | null
+          id?: string
+          sat_af?: string | null
+          sat_at?: string
+          status?: string
+          svaret_at?: string | null
+          tilbud_nr?: number
+          tilbud_udloeber_at?: string | null
+          tilbudt_at?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ventepladser_ansoegning_id_fkey"
+            columns: ["ansoegning_id"]
+            isOneToOne: false
+            referencedRelation: "ansoegninger"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ventepladser_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       weekly_focus: {
         Row: {
           actions_generated: number
