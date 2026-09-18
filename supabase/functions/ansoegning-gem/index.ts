@@ -34,6 +34,7 @@
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
 import { corsHeaders } from "../_shared/edgeFunctionAuth.ts";
 import { verifyAnsoegningstoken } from "../_shared/ansoegningToken.ts";
+import { KONTAKT_ADRESSE } from "../_shared/indgangsMail.ts";
 import { planlaegKladde, registrerIndsendelse } from "../_shared/ansoegningMotor.ts";
 import {
   afgoerFremdrift,
@@ -54,8 +55,12 @@ function jsonResponse(body: unknown, status = 200): Response {
 const HANDLINGER = ["opret", "hent", "gem", "indsend"] as const;
 type Handling = (typeof HANDLINGER)[number];
 
-/** Oprettelser pr. IP-dagshash pr. time. Fem: én person der genstarter et par gange. */
-const OPRET_PR_IP_PR_TIME = 5;
+/**
+ * Oprettelser pr. IP-dagshash pr. time. JONAS 18/9 (flow-gennemgangen §8): 30, ikke 5 —
+ * mobilnet (CGNAT) og kontor-wifi deler én offentlig IP mellem mange, og et webinarhold
+ * ansøger på én aften. Honningfeltet er botværnet; loftet er kun mod en bølge.
+ */
+const OPRET_PR_IP_PR_TIME = 30;
 /** Oprettelser i alt pr. time — et loft mod en bølge, ikke en forventning. */
 const OPRET_PR_TIME_I_ALT = 60;
 const RAA_MAKS = 120;
@@ -113,13 +118,15 @@ Deno.serve(async (req) => {
         return jsonResponse({ token: crypto.randomUUID(), fremdrift: afgoerFremdrift(TOMME_SVAR) });
       }
 
+      // 429-teksten giver en udvej (Jonas 18/9): det er sjældent ansøgerens egen skyld.
+      const FOR_MANGE = `Der er mange, der ansøger fra dit netværk lige nu. Prøv igen om lidt — eller skriv til ${KONTAKT_ADRESSE}, så hjælper vi dig i gang.`;
       const ipHash = await ipDagshash(req);
       if ((await antalSidsteTime(adminClient, ipHash)) >= OPRET_PR_IP_PR_TIME) {
-        return jsonResponse({ error: "For mange forsøg — prøv igen om lidt." }, 429);
+        return jsonResponse({ error: FOR_MANGE }, 429);
       }
       if ((await antalSidsteTime(adminClient, null)) >= OPRET_PR_TIME_I_ALT) {
         console.error("[ansoegning-gem] timeloftet for oprettelser er nået");
-        return jsonResponse({ error: "For mange forsøg — prøv igen om lidt." }, 429);
+        return jsonResponse({ error: FOR_MANGE }, 429);
       }
 
       const kildeRaa = typeof body?.kilde === "string" ? body.kilde : "";
@@ -174,6 +181,20 @@ Deno.serve(async (req) => {
         const opslagCvr = ansoegning.cvr_opslag?.cvr;
         const gaeldende = ("cvr" in del.svar ? del.svar.cvr : ansoegning.svar.cvr) ?? null;
         if (ansoegning.cvr_opslag && gaeldende && opslagCvr === gaeldende) opdatering.cvr_bekraeftet = true;
+      }
+      // Fallback (Jonas 18/9, flow-gennemgangen §9): kunne CVR ikke slås op, taster ansøgeren selv
+      // navnet. Det gemmes som et opslag med kilde «ansoeger» — kun når der ikke allerede ligger et
+      // rigtigt opslag (DataCVR) på det CVR. Aldrig bekræftet; motoren siger «CVR ikke slået op».
+      const navnRaa = typeof body?.virksomhedsnavn === "string" ? body.virksomhedsnavn.replace(/\s+/g, " ").trim() : "";
+      if (navnRaa) {
+        if (navnRaa.length < 2 || navnRaa.length > 120) return jsonResponse({ error: "Skriv virksomhedens navn (2–120 tegn)." }, 400);
+        const gaeldende = ("cvr" in del.svar ? del.svar.cvr : ansoegning.svar.cvr) ?? null;
+        const eksisterende = opdatering.cvr_opslag === null ? null : ansoegning.cvr_opslag;
+        const erRigtigtOpslag = eksisterende && eksisterende.kilde !== "ansoeger" && eksisterende.cvr === gaeldende;
+        if (!erRigtigtOpslag) {
+          opdatering.cvr_opslag = { cvr: gaeldende, navn: navnRaa, kilde: "ansoeger", stiftet_aar: null, antal_ansatte: null, selskabsform: null, branche: null, status: null, hjemmeside: null };
+          opdatering.cvr_bekraeftet = false;
+        }
       }
 
       const { data: gemt, error } = await adminClient

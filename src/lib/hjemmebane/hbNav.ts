@@ -78,6 +78,8 @@ export type HbAktiv =
   | "boardroom" | "akademiet" | "rapportering" | "noegletal" | "budget" | "milestones" | "handouts"
   | "booksession" | "rabataftaler" | "events" | "medlemmer" | "community" | "chat"
   | "virksomheder" | "opgaver" | "konto"
+  /** /ansoegninger (18/9): rådgiverens pipeline over ansøgninger — punktet ved siden af Virksomheder. */
+  | "ansoegninger"
   /** /oekonomi (Ø2, 18/9): økonomioverblikket — kun partnere. */
   | "oekonomi"
   /** /deling (14/9): «Fortæl det videre», sidste punkt i medlemmets menu. */
@@ -150,6 +152,8 @@ export function raadgiverensNav(active: HbAktiv, isPartner = false): HbNavEntry[
   return [
     { label: "Forside", to: "/", active: active === "boardroom" },
     { label: "Virksomheder", to: "/virksomheder", active: active === "virksomheder" },
+    // Jonas 18/9 (flow-gennemgangen §7): pipelinen skal kunne findes uden om forsidens linje.
+    { label: "Ansøgninger", to: "/ansoegninger", active: active === "ansoegninger" },
     { label: "Indbakke", to: "/chat", active: active === "chat" },
     { label: "Community", to: "/community", active: active === "community" },
     { label: "Indhold", to: "/admin/indhold" },

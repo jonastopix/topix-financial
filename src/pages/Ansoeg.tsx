@@ -33,7 +33,7 @@ import {
   ansatteTekst,
   validerFelt,
 } from "@/lib/ansoegning/skema";
-import { GENOPTAG } from "@/lib/ansoegning/spoergsmaal";
+import { CVR_NAVN_FEJL, GENOPTAG } from "@/lib/ansoegning/spoergsmaal";
 
 /** /ansoeg — ansøgningsformularen (udkast 18/9-2026, README i
     ~/Downloads/udkast-ansoegning-formular). Erstatter superform.spot-nik.com.
@@ -100,6 +100,8 @@ const Ansoeg = () => {
   const [cvrOpslag, setCvrOpslag] = useState<(CvrVisning & { cvr: string }) | null>(null);
   const [cvrBekraeftet, setCvrBekraeftet] = useState(false);
   const [honning, setHonning] = useState("");
+  const [virksomhedsnavn, setVirksomhedsnavn] = useState("");
+  const [virksomhedsnavnFejl, setVirksomhedsnavnFejl] = useState<string | null>(null);
 
   // Kilden afgøres én gang, af den URL siden blev åbnet med — før ?t= erstatter den.
   const kilde = useRef(
@@ -130,6 +132,7 @@ const Ansoeg = () => {
         setKladde(kladdeAf(h.svar));
         setCvrOpslag(h.cvr_opslag);
         setCvrBekraeftet(h.cvr_bekraeftet);
+        if (h.cvr_opslag && h.cvr_opslag.kilde === "ansoeger") setVirksomhedsnavn(h.cvr_opslag.navn ?? "");
         const f = afgoerFremdrift(h.svar);
         setSkaerm(Math.min(f.naesteSkaerm, SKAERME.length - 1));
         // Et token uden ét eneste svar (fx afbrudt efter «opret») starter forfra på intro.
@@ -159,14 +162,15 @@ const Ansoeg = () => {
 
   /** Gemmer en delmængde — opretter først, hvis der intet token er. Svarer det samlede svar. */
   const gem = useCallback(
-    async (del: Partial<AnsoegningsSvar>, bekraeftCvr = false): Promise<AnsoegningsSvar | null> => {
+    async (del: Partial<AnsoegningsSvar>, bekraeftCvr = false, navn?: string): Promise<AnsoegningsSvar | null> => {
       setGemmer(true);
       try {
         if (!token) {
           const o = await opretAnsoegning({ kilde: kilde.current.kilde, kilde_raa: kilde.current.raa, svar: del, firma: honning });
           husk(o.token);
+          if (navn) await gemSvar(o.token, {}, false, navn);
         } else {
-          await gemSvar(token, del, bekraeftCvr);
+          await gemSvar(token, del, bekraeftCvr, navn);
         }
         const samlet = { ...svar, ...del };
         setSvar(samlet);
@@ -312,7 +316,17 @@ const Ansoeg = () => {
     setCvrOpslag(null);
   };
 
-  const cvrFortsaet = () => {
+  // Fallback (Jonas 18/9): uden opslag skal ansøgeren selv give navnet — ellers hedder de «{navn}s virksomhed» i alle mails.
+  const cvrFortsaet = async () => {
+    const navn = virksomhedsnavn.replace(/\s+/g, " ").trim();
+    if (navn.length < 2) {
+      setVirksomhedsnavnFejl(CVR_NAVN_FEJL);
+      return;
+    }
+    setVirksomhedsnavnFejl(null);
+    const samlet = await gem({}, false, navn);
+    if (!samlet) return;
+    setCvrOpslag({ cvr: svar.cvr ?? "", navn, stiftet_aar: null, antal_ansatte: null, selskabsform: null, branche: null, status: null, hjemmeside: null });
     setCvr({ slags: "tom" });
     gaaTil(skaerm + 1, skaerm);
   };
@@ -386,6 +400,12 @@ const Ansoeg = () => {
             svar={svar}
             honning={honning}
             onHonning={setHonning}
+            virksomhedsnavn={virksomhedsnavn}
+            onVirksomhedsnavn={(v) => {
+              setVirksomhedsnavn(v);
+              if (virksomhedsnavnFejl) setVirksomhedsnavnFejl(null);
+            }}
+            virksomhedsnavnFejl={virksomhedsnavnFejl}
           />
         </div>
       );

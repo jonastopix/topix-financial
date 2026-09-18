@@ -16,10 +16,11 @@ const ID = "11111111-1111-4111-8111-111111111111";
 const kl = (dato: string, time: number, minut = 0) => kbhTilUtc(dato, time, minut).toISOString();
 
 describe("rykkerkoe — trapperne som Jonas satte dem", () => {
-  it("indkaldt: dag 0 indkaldelsen, rykker dag 2, 4, 7, 11 → lukkes «svarer ikke» dag 14", () => {
+  it("indkaldt: dag 0 indkaldelsen, rykker dag 2, 7, 11 → lukkes «svarer ikke» dag 14 (dag 4 udgik 18/9)", () => {
     expect(TRAPPER.indkaldt.map((t) => [t.dag, t.handling])).toEqual([
-      [0, "send_mail"], [2, "send_mail"], [4, "send_mail"], [7, "send_mail"], [11, "send_mail"], [14, "luk_svarer_ikke"],
+      [0, "send_mail"], [2, "send_mail"], [7, "send_mail"], [11, "send_mail"], [14, "luk_svarer_ikke"],
     ]);
+    expect(TRAPPER.indkaldt.map((t) => t.skabelon)).toEqual(["ansoegning-indkaldelse", "ansoegning-indkaldt-rykker-1", "ansoegning-indkaldt-rykker-2", "ansoegning-indkaldt-rykker-3", null]);
   });
   it("booket: dagen før kl. 10 + samme morgen kl. 07 + «afholdt» ved sluttid", () => {
     expect(TRAPPER.booket.map((t) => [t.dag, t.klokke ?? null, t.handling])).toEqual([
@@ -47,7 +48,7 @@ describe("rykkerkoe — trapperne som Jonas satte dem", () => {
   it("ingen trappe efter underskrift — betalingsforløbet er platformens eksisterende", () => {
     // «venteplads» (udkast 18/9): ventelistens 7-dages tilbud — også før betalingsforløbet, på en lukket ansøgning.
     // «afslag» (18/9): afslagsmailen dag 0 — på en lukket ansøgning, aldrig efter underskrift.
-    expect(Object.keys(TRAPPER).sort()).toEqual(["afslag", "aftalegrundlag", "booket", "indkaldt", "kladde", "pause", "venteplads"]);
+    expect(Object.keys(TRAPPER).sort()).toEqual(["afslag", "aftalegrundlag", "booket", "indkaldt", "indsendt", "kladde", "pause", "venteplads"]);
     expect(KOE_SKABELONER.some((s) => /betal|faktura|underskr/.test(s))).toBe(false);
   });
 });
@@ -58,15 +59,14 @@ describe("rykkerkoe — planlægning: hverdage, aldrig efter 16, aldrig weekend 
     const rk = planlaegTrappe({ ansoegningId: ID, trappe: "indkaldt", anker: nu, nu });
     expect(rk.map((r) => [r.trin_nr, r.planlagt_til])).toEqual([
       [0, nu.toISOString()], // dag 0: kl. 10 er passeret, vi er i vinduet → nu
-      [1, kl("2026-09-21", 10)],
-      [2, kl("2026-09-22", 10)],
-      [3, kl("2026-09-25", 10)],
-      [4, kl("2026-09-29", 10)],
-      [5, kl("2026-10-02", 10)],
+      [1, kl("2026-09-21", 10)], // dag 2 (søndag) → mandag
+      [2, kl("2026-09-25", 10)], // dag 7 — dag 4 (tirsdag 22/9) udgik 18/9
+      [3, kl("2026-09-29", 10)], // dag 11
+      [4, kl("2026-10-02", 10)], // dag 14: luk
     ]);
     expect(rk.every((r) => r.ansoegning_id === ID && r.trappe === "indkaldt")).toBe(true);
     expect(rk[0]).toMatchObject({ handling: "send_mail", skabelon: "ansoegning-indkaldelse", modtager: "ansoeger" });
-    expect(rk[5]).toMatchObject({ handling: "luk_svarer_ikke", skabelon: null });
+    expect(rk[4]).toMatchObject({ handling: "luk_svarer_ikke", skabelon: null });
   });
 
   it("dag 0-mailen følger også vinduet: «tal med dem» kl. 17 → indkaldelsen næste hverdag kl. 07", () => {

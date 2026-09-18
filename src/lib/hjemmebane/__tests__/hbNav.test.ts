@@ -79,16 +79,17 @@ describe("medlemmets menu — ordret som før 8/9", () => {
   });
   it("medlemmet ser aldrig rådgiverens punkter", () => {
     const labels = bygHbNav({ isAdvisor: false, erAbonnent: false, active: "boardroom" }).flatMap((n) => [n.label, ...(n.children ?? []).map((c) => c.label)]);
-    for (const l of ["Forside", "Virksomheder", "Indbakke", "Indhold", "Platform", "Opgaver", "E-mails", "Import"]) expect(labels).not.toContain(l);
+    for (const l of ["Forside", "Virksomheder", "Ansøgninger", "Indbakke", "Indhold", "Platform", "Opgaver", "E-mails", "Import"]) expect(labels).not.toContain(l);
   });
 });
 
 describe("rådgiverens menu — det I bruger øverst (Jonas 8/9)", () => {
   const nav = bygHbNav({ isAdvisor: true, erAbonnent: false, active: "boardroom" });
-  it("rækkefølgen: Forside, Virksomheder, Indbakke, Community, Indhold — så medlemmets flader — så Platform", () => {
+  it("rækkefølgen: Forside, Virksomheder, Ansøgninger, Indbakke, Community, Indhold — så medlemmets flader — så Platform", () => {
     expect(flad(nav).map((n) => [n.label, n.to, n.blok])).toEqual([
       ["Forside", "/", null],
       ["Virksomheder", "/virksomheder", null],
+      ["Ansøgninger", "/ansoegninger", null],
       ["Indbakke", "/chat", null],
       ["Community", "/community", null],
       ["Indhold", "/admin/indhold", null],
@@ -128,9 +129,10 @@ describe("rådgiverens menu — det I bruger øverst (Jonas 8/9)", () => {
   });
   it("partneren får «Økonomi» sidst i den øverste blok, efter Indhold, uden blok-overskrift; aktiv på /oekonomi", () => {
     const p = bygHbNav({ isAdvisor: true, erAbonnent: false, active: "boardroom", isPartner: true });
-    expect(flad(p).slice(0, 7).map((n) => [n.label, n.to, n.blok])).toEqual([
+    expect(flad(p).slice(0, 8).map((n) => [n.label, n.to, n.blok])).toEqual([
       ["Forside", "/", null],
       ["Virksomheder", "/virksomheder", null],
+      ["Ansøgninger", "/ansoegninger", null],
       ["Indbakke", "/chat", null],
       ["Community", "/community", null],
       ["Indhold", "/admin/indhold", null],

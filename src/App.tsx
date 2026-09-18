@@ -19,6 +19,7 @@ import ResetPassword from "./pages/ResetPassword";
 import Betal from "./pages/Betal";
 import Ansoeg from "./pages/Ansoeg";
 import AnsoegPersondata from "./pages/AnsoegPersondata";
+import AnsoegStatus from "./pages/AnsoegStatus";
 import Aftale from "./pages/Aftale";
 import NotFound from "./pages/NotFound";
 
@@ -233,6 +234,8 @@ const App = () => (
                   har ingen konto. Tokenet i ?t= er legitimationen (docs i README). */}
               <Route path="/ansoeg" element={<Ansoeg />} />
               <Route path="/ansoeg/persondata" element={<AnsoegPersondata />} />
+              {/* Ansøgerens statusside (18/9): samme legitimation (?t=), samme uguardede klasse. */}
+              <Route path="/ansoeg/status" element={<AnsoegStatus />} />
               {/* E-underskriften (UDKAST 18/9): en person UDEN konto lander
                   her fra linkmailen med ?token=<uuid>. Uguardet som /betal —
                   alle kald går gennem edge-funktionen aftale-underskrift. */}

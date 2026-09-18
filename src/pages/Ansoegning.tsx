@@ -6,7 +6,7 @@ import { AnsoegningView } from "@/components/hjemmebane/ansoegninger/AnsoegningV
 const Ansoegning = () => {
   const { ansoegningId } = useParams<{ ansoegningId: string }>();
   return (
-    <HbMemberShell active="virksomheder">
+    <HbMemberShell active="ansoegninger">
       <AnsoegningView id={ansoegningId} />
     </HbMemberShell>
   );

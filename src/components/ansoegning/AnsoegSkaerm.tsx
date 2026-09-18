@@ -20,6 +20,8 @@ import {
   CVR_FORTSAET_ALLIGEVEL,
   CVR_IKKE_AKTIV,
   CVR_JA,
+  CVR_NAVN_FEJL,
+  CVR_NAVN_SPOERGSMAAL,
   CVR_NEJ,
   CVR_RIGTIGT,
   CVR_UTILGAENGELIG,
@@ -60,6 +62,10 @@ export interface AnsoegSkaermProps {
   /** Honningfeltet «firma» (Jonas 18/9, punkt 6): et menneske ser det ikke, en bot udfylder det. Sendes med «opret». */
   honning: string;
   onHonning: (vaerdi: string) => void;
+  /** Fallback (18/9): virksomhedsnavnet tastet af ansøgeren, når CVR ikke kunne slås op. */
+  virksomhedsnavn: string;
+  onVirksomhedsnavn: (vaerdi: string) => void;
+  virksomhedsnavnFejl: string | null;
 }
 
 /** Ude af flow, ude af skærmen, ude af tab-rækkefølgen og ude af oplæsning — men i DOM'en, så en bot finder det. */
@@ -221,11 +227,36 @@ export const AnsoegSkaerm = (p: AnsoegSkaermProps) => {
             </div>
           )}
           {(p.cvr.slags === "findes_ikke" || p.cvr.slags === "utilgaengelig") && (
-            <div className="rounded-hb border border-hb-line bg-hb-surface p-4">
+            <div className="rounded-hb border border-hb-line bg-hb-surface p-4" data-cvr-fallback>
               <p className="text-sm leading-relaxed text-hb-ink">{p.cvr.slags === "findes_ikke" ? CVR_FINDES_IKKE : CVR_UTILGAENGELIG}</p>
-              <button type="button" onClick={p.onCvrFortsaet} disabled={p.gemmer} className="mt-3 text-sm font-medium text-hb-evergreen underline-offset-4 hover:underline">
+              {/* Fallback (Jonas 18/9): navnet tastes selv, så mails og rådgiversiden aldrig siger «{navn}s virksomhed». */}
+              <label htmlFor={`${idBase}-virksomhedsnavn`} className="mt-4 block text-xs font-medium text-hb-ink-soft">
+                {CVR_NAVN_SPOERGSMAAL}
+              </label>
+              <input
+                id={`${idBase}-virksomhedsnavn`}
+                type="text"
+                autoComplete="organization"
+                value={p.virksomhedsnavn}
+                onChange={(e) => p.onVirksomhedsnavn(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    p.onCvrFortsaet();
+                  }
+                }}
+                aria-invalid={p.virksomhedsnavnFejl ? true : undefined}
+                className={cn(HB_INPUT, "mt-1.5", p.virksomhedsnavnFejl && "border-hb-rust")}
+                autoFocus
+              />
+              {p.virksomhedsnavnFejl && (
+                <p className="mt-1.5 text-sm text-hb-rust" role="alert">
+                  {p.virksomhedsnavnFejl}
+                </p>
+              )}
+              <HbButton type="button" onClick={p.onCvrFortsaet} disabled={p.gemmer} className="mt-3">
                 {CVR_FORTSAET_ALLIGEVEL}
-              </button>
+              </HbButton>
             </div>
           )}
         </div>

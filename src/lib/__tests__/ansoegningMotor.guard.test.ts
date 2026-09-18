@@ -117,6 +117,7 @@ const KONTEKST = {
   token: "abc",
   manglerSvar: 3,
   afslag: null,
+  svar: { udfordring: "Vi har travlt, men ingen penge tilbage.", proevet: "Sat priserne op.", omTolvMaaneder: "Overskud hver måned." },
 };
 
 describe("ansoegningMotor.guard — de otte domme på repoets filer", () => {
@@ -151,7 +152,7 @@ describe("ansoegningMotor.guard — de otte domme på repoets filer", () => {
       // Ventelisten (udkast 18/9): tilbuddet går til en LUKKET ansøgning — «ikke nu»
       // (pause) giver ingen mening; svaret er ja/nej til pladsen. Derfor undtaget.
       // Uden «ikke nu»: samtale-påmindelserne, kladden, ventepladsen — og afslagsmailen (18/9): et nej har ingen pause at sætte.
-      const erSamtale = s.startsWith("ansoegning-samtale-") || s === "ansoegning-kladde-paamindelse" || s.startsWith("ansoegning-venteplads-") || s === "ansoegning-afslag";
+      const erSamtale = s.startsWith("ansoegning-samtale-") || s === "ansoegning-kladde-paamindelse" || s.startsWith("ansoegning-venteplads-") || s === "ansoegning-afslag" || s === "ansoegning-kvittering";
       // I HTML er «&» escapet (escHtml) — det er den form linket har i en href.
       expect(m!.html.includes(KONTEKST.ikkeNuUrl.replace(/&/g, "&amp;")), s).toBe(!erSamtale);
       expect(m!.tekst.includes(KONTEKST.ikkeNuUrl), s).toBe(!erSamtale);

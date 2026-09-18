@@ -41,6 +41,7 @@ import type { VentepladsRaekke } from "../_shared/ventelisteDom.ts";
 import { erAabentTrin, trappensTrin, type Trappe } from "../_shared/ansoegningTrin.ts";
 import { kbhDato, kbhTilUtc } from "../_shared/hverdage.ts";
 import { bygRykkerMail, type VentepladsKontekst } from "../_shared/ansoegningRykkerMails.ts";
+import { KONTAKT_ADRESSE } from "../_shared/indgangsMail.ts";
 import { hentAnsoegerensPladser, pladsUdloebet } from "../_shared/venteliste.ts";
 import { erBloedUdgave } from "../_shared/ventelisteDom.ts";
 import { tagPladsenLink, afslaaPladsenLink } from "../_shared/ansoegningMotor.ts";
@@ -260,6 +261,8 @@ async function koer(admin: SupabaseClient, toer: boolean, nu: Date): Promise<Res
           token: a.token,
           manglerSvar: raekke.trappe === "kladde" ? manglendeSvar(a) : null,
           afslag: raekke.trappe === "afslag" ? await afslagsIndhold(admin, a) : null,
+          // Kvitteringen (trappen «indsendt», 18/9): det ansøgeren skrev, så de kan se vi har det.
+          svar: { udfordring: a.udfordring, proevet: a.proevet, omTolvMaaneder: a.om_tolv_maaneder },
           venteplads: venteplads
             ? ({
                 bloed: erBloedUdgave(a.lukket_at, nu),
@@ -288,6 +291,8 @@ async function koer(admin: SupabaseClient, toer: boolean, nu: Date): Promise<Res
           text: mail.tekst,
           label: raekke.skabelon!,
           idempotencyKey: raekke.idempotensnoegle,
+          // Svar går til Jonas (kontakt@ viderestilles — bekræftet 18/9), ikke til noreply@: tre af mailene siger «svar på denne mail».
+          replyTo: KONTAKT_ADRESSE,
           metadata: { ansoegning_id: a.id, trappe: raekke.trappe, trin_nr: raekke.trin_nr },
         });
         if (res.sent === false) {
