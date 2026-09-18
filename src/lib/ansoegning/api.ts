@@ -21,7 +21,7 @@ export class AnsoegningsFejl extends Error {
   }
 }
 
-async function kald<T>(fn: "ansoegning-gem" | "ansoegning-cvr", body: Record<string, unknown>): Promise<T> {
+async function kald<T>(fn: "ansoegning-gem" | "ansoegning-cvr" | "ansoegning-link" | "ansoegning-samtale", body: Record<string, unknown>): Promise<T> {
   const { data, error } = await supabase.functions.invoke(fn, { body });
   if (error) {
     if (error instanceof FunctionsHttpError) {
@@ -69,10 +69,42 @@ export interface StatusSvar {
   trin: string;
   paa_pause_til: string | null;
   samtale_start: string | null;
-  booking_url: string | null;
+  /** Samtalen i kalenderen (udkast 18/9): sluttid og Meet-linket fra Calendly-eventet — kun når booket. Der er intet booking_url længere: tiden vælges på siden. */
+  samtale_slut: string | null;
+  moede_link: string | null;
   aftale_url: string | null;
   virksomhedsnavn: string;
   fornavn: string | null;
+}
+
+/** Samtalen (ansoegning-samtale, samme token): de ledige tider og de tre handlinger. Serveren regner slottet igen; 409 = «tiden er ikke ledig længere». */
+export interface TiderSvar {
+  ok: true;
+  slots: string[];
+  varighed_min: number;
+  samtale_start: string | null;
+  samtale_slut: string | null;
+  moede_link: string | null;
+}
+export interface SamtaleSvar {
+  ok: true;
+  trin: string;
+  samtale_start: string | null;
+  samtale_slut: string | null;
+  moede_link: string | null;
+  varighed_min: number;
+}
+export function hentTider(token: string): Promise<TiderSvar> {
+  return kald<TiderSvar>("ansoegning-samtale", { token, handling: "tider" });
+}
+export function bookSamtale(token: string, start: string): Promise<SamtaleSvar> {
+  return kald<SamtaleSvar>("ansoegning-samtale", { token, handling: "book", start });
+}
+export function flytSamtale(token: string, start: string): Promise<SamtaleSvar> {
+  return kald<SamtaleSvar>("ansoegning-samtale", { token, handling: "flyt", start });
+}
+export function aflysSamtale(token: string): Promise<SamtaleSvar> {
+  return kald<SamtaleSvar>("ansoegning-samtale", { token, handling: "aflys" });
 }
 async function kaldLink<T>(body: Record<string, unknown>): Promise<T> {
   const { data, error } = await supabase.functions.invoke("ansoegning-link", { body });

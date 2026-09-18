@@ -2,6 +2,7 @@ import "@/styles/hjemmebane.css";
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { ArrowRight, Loader2 } from "lucide-react";
+import { AnsoegSamtale } from "@/components/ansoegning/AnsoegSamtale";
 import { HbButton } from "@/components/hjemmebane/HbButton";
 import { HB_EYEBROW, HB_H1, HB_RAMME } from "@/components/hjemmebane/hbFormKlasser";
 import { useHbDokumentGrund } from "@/hooks/useHbDokumentGrund";
@@ -15,7 +16,8 @@ import { TOKEN_PARAM } from "@/lib/ansoegning/skema";
     («Se din ansøgning») og i «ikke nu»-linjen. Uguardet som /ansoeg; tokenet er
     legitimationen (A's ansoegning-link: verifyAnsoegningslink, fasen indsendt).
     Lille med vilje (Jonas): hvad der sker nu, hvad vi venter på, og to knapper —
-    «Book samtalen med Jonas» når de er indkaldt, og «Ikke nu». Kommer man med
+    tidsvælgeren når de er indkaldt (samtalen i kalenderen, udkast 18/9: tiden
+    vælges HER og oprettes i Calendly bagved — AnsoegSamtale), og «Ikke nu». Kommer man med
     &handling=ikke_nu, vises bekræftelsen med det samme — ét klik, aldrig
     automatisk (et link i en mail må ikke kunne udføre noget ved et uheld). */
 
@@ -33,6 +35,9 @@ const AnsoegStatus = () => {
   const [bekraefter, setBekraefter] = useState(searchParams.get("handling") === "ikke_nu");
   const [sender, setSender] = useState(false);
   const [sagtIkkeNu, setSagtIkkeNu] = useState<string | null>(null);
+  // Samtalen: efter book/flyt/aflys hentes status igen (version++), og en linje siger hvad der skete.
+  const [version, setVersion] = useState(0);
+  const [samtaleBesked, setSamtaleBesked] = useState<string | null>(null);
 
   useEffect(() => {
     let aktiv = true;
@@ -46,7 +51,7 @@ const AnsoegStatus = () => {
     return () => {
       aktiv = false;
     };
-  }, [token]);
+  }, [token, version]);
 
   const ikkeNu = async () => {
     if (sender) return;
@@ -109,14 +114,12 @@ const AnsoegStatus = () => {
             </div>
           </div>
         )}
+        {samtaleBesked && <p className="text-sm font-medium text-hb-evergreen" data-samtale-besked>{samtaleBesked}</p>}
+        {sagtIkkeNu === null && !bekraefter && (v.book || v.booket) && (
+          <AnsoegSamtale token={token} booket={v.booket} onAendret={(besked) => { setSamtaleBesked(besked); setVersion((x) => x + 1); }} />
+        )}
         {sagtIkkeNu === null && !bekraefter && (
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-            {v.book && (
-              <a href={v.book} className="inline-flex h-11 items-center justify-center gap-2 rounded-full bg-hb-evergreen px-6 text-sm font-medium text-white hover:bg-hb-evergreen/90">
-                Book samtalen med Jonas
-                <ArrowRight className="h-4 w-4" aria-hidden="true" />
-              </a>
-            )}
             {v.aftale && (
               <a href={v.aftale} className="inline-flex h-11 items-center justify-center gap-2 rounded-full bg-hb-evergreen px-6 text-sm font-medium text-white hover:bg-hb-evergreen/90">
                 Læs og underskriv

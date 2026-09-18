@@ -1,6 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
 import { doemCalendlyEvent, genaabnerRet } from "../_shared/calendlyWebhookDom.ts";
 import { hentAnsoegning, udfoerOvergang } from "../_shared/ansoegningMotor.ts";
+import { meldSamtaleAendring } from "../_shared/samtaleBesked.ts";
 
 // Bucket C: ekstern webhook fra Calendly. Signaturverifikation FOER parsing.
 // Modtager invitee.created / invitee.canceled, beviser beskeden aegte via HMAC-signatur,
@@ -192,6 +193,15 @@ Deno.serve(async (req: Request) => {
       // annulleres, booket planlægges) ligger i motoren; her kun opslag + kald.
       const ansoegning = await hentAnsoegning(admin, bookingId);
       if (ansoegning) {
+        // SAMTALEN I KALENDEREN (18/9 rev. 2): platformen opretter selv eventet i Calendly
+        // (ansoegning-samtale/ansoegning-handling) og skriver trin + event-uri FØR eller
+        // EFTER denne webhook når frem. Kender ansøgningen allerede dette event, er alt gjort —
+        // en ny «book» ville annullere trappen og (ignoreDuplicates) ikke genskabe den.
+        const eventUri = typeof event.payload?.event === "string" ? event.payload.event : null;
+        if (eventUri && ansoegning.trin === "booket" && ansoegning.calendly_event_uri === eventUri) {
+          console.log(`[calendly-webhook] invitee.created: ansøgning ${bookingId} kender allerede eventet — platformen bookede.`);
+          return json(200, { received: true, ansoegning: bookingId, skipped: "allerede booket af platformen" });
+        }
         const res = await udfoerOvergang(admin, {
           ansoegning,
           handling: { art: "book" },
@@ -242,12 +252,22 @@ Deno.serve(async (req: Request) => {
   const ramt = cancelled && cancelled.length > 0 ? cancelled[0] : null;
   if (!ramt) {
     // ANSØGNINGSMOTOREN (18/9): en ægte aflysning af en afklaringssamtale →
-    // tilbage til «indkaldt» med ny trappe (aflys_booking). Hvem der aflyste
-    // ændrer intet her: der er ingen ret at genåbne på en ansøgning.
+    // tilbage til «indkaldt» med ny trappe (aflys_booking). Der er ingen ret at
+    // genåbne på en ansøgning. SAMTALEN I KALENDEREN (rev. 2, Jonas 18/9): når
+    // Jonas aflyser i Calendly/Google (host) eller ansøgeren i Calendly, sender
+    // Calendly INGEN mail (eventtypen: kun kalenderinvitationen) — vores
+    // «aflyst»-mail går herfra. Har platformen selv aflyst (ansoegning-samtale/
+    // ansoegning-handling), står trinnet allerede på «indkaldt» → 409 → ingen
+    // dobbelt overgang, ingen dobbelt mail.
     const ansoegning = await hentAnsoegning(admin, bookingId);
     if (ansoegning) {
+      const gammelStart = ansoegning.samtale_start ? new Date(ansoegning.samtale_start) : null;
       const res = await udfoerOvergang(admin, { ansoegning, handling: { art: "aflys_booking" }, via: "calendly", truffetAf: null, nu: new Date() });
       console.log(`[calendly-webhook] invitee.canceled (${cancelerType ?? "?"}): ansøgning ${bookingId} → ${res.ok ? res.til : `uændret (${res.grund})`}.`);
+      if (res.ok) {
+        const besked = await meldSamtaleAendring(admin, { a: ansoegning, aendring: "aflys", af: cancelerType === "host" ? "raadgiver" : "ansoeger", nyStart: null, gammelStart, moedeLink: null, varighedMin: 30 });
+        console.log(`[calendly-webhook] invitee.canceled: mail ${besked.mail}, klokke ${besked.klokke}.`);
+      }
       return json(res.ok === false && res.status >= 500 ? 500 : 200, { received: true, ansoegning: bookingId });
     }
   }
