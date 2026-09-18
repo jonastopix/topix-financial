@@ -471,6 +471,7 @@ export type Database = {
       }
       ansoegninger: {
         Row: {
+          afslagsgrund: string | null
           aftale_url: string | null
           anbefaling: Json | null
           antal_ansatte: number | null
@@ -512,6 +513,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          afslagsgrund?: string | null
           aftale_url?: string | null
           anbefaling?: Json | null
           antal_ansatte?: number | null
@@ -553,6 +555,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          afslagsgrund?: string | null
           aftale_url?: string | null
           anbefaling?: Json | null
           antal_ansatte?: number | null
