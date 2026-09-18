@@ -76,7 +76,8 @@ describe("validerFelt — normaliseret værdi ved ok, dansk fejl ellers", () => 
     expect(validerFelt("omsaetningsinterval", "D")).toEqual({ ok: true, vaerdi: "D" });
     expect(validerFelt("omsaetningsinterval", "H")).toEqual({ ok: false, fejl: FEJL.omsaetningsinterval });
     expect(validerFelt("omsaetningsinterval", "D) 2.000.000-4.999.999 kr.")).toEqual({ ok: false, fejl: FEJL.omsaetningsinterval });
-    expect(validerFelt("start_tidspunkt", "senere")).toEqual({ ok: true, vaerdi: "senere" });
+    expect(validerFelt("start_tidspunkt", "inden_3_maaneder")).toEqual({ ok: true, vaerdi: "inden_3_maaneder" });
+    expect(validerFelt("start_tidspunkt", "senere")).toEqual({ ok: false, fejl: FEJL.start_tidspunkt }); // ude 18/9 kl. 10:10 — tre svar om tid
     expect(validerFelt("start_tidspunkt", "i morgen")).toEqual({ ok: false, fejl: FEJL.start_tidspunkt });
     expect(validerFelt("set_webinar", "nej")).toEqual({ ok: true, vaerdi: "nej" });
     expect(validerFelt("set_webinar", true)).toEqual({ ok: false, fejl: FEJL.set_webinar });

@@ -35,7 +35,10 @@
  *   STATUS     ophørt/under konkurs i CVR → afvis uanset.
  *   WEBINAR    set_webinar = ja taler for; kilde «anbefaling» taler for og
  *              løfter et rent afvis til tvivl (nogen står inde for dem).
- *   TIMING     start_tidspunkt = senere («vil først vide mere») taler imod.
+ *   TIMING     start_tidspunkt = hurtigst_muligt nævnes i grundlaget. Svaret
+ *              «senere» er UDE af formularen (Jonas 18/9 kl. 10:10: alle skal
+ *              til afklaringssamtale; der er kun tre svar om tid) og vægtes
+ *              ikke — en gammel række med «senere» tæller som ukendt.
  *   TEKST      alle tre tekster under 40 tegn taler imod (sjældent — B's
  *              formular kræver 40; rækker fra import kan mangle).
  * UDFALDET (versjon 3):
@@ -94,7 +97,7 @@ export interface AnbefalingsInput {
   udfordring: string | null;
   proevet: string | null;
   omTolvMaaneder: string | null;
-  /** hurtigst_muligt | inden_1_maaned | inden_3_maaneder | senere | null */
+  /** hurtigst_muligt | inden_1_maaned | inden_3_maaneder | null («senere» ude 18/9 — tæller som ukendt) */
   startTidspunkt: string | null;
   nu: Date;
 }
@@ -192,10 +195,7 @@ export function afgoerAnbefaling(i: AnbefalingsInput): Anbefaling {
   if (tekster.some((t) => t.length >= TEKST_KONKRET_TEGN)) forListe.push("har beskrevet konkret hvad de vil");
   else imod.push("ansøgningen er tynd: intet konkret om udfordring, forsøg eller mål");
 
-  if (i.startTidspunkt === "senere") {
-    grundlag.push("vil først vide mere");
-    imod.push("vil først vide mere før start");
-  } else if (i.startTidspunkt === "hurtigst_muligt") grundlag.push("kan starte hurtigst muligt");
+  if (i.startTidspunkt === "hurtigst_muligt") grundlag.push("kan starte hurtigst muligt");
 
   let udfald: AnbefalingsUdfald = "tvivl";
   const underMinimum = minimumOk === false;

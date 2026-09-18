@@ -43,11 +43,17 @@ export const OMSAETNINGSINTERVALLER = [
 ] as const;
 export type Omsaetningsnoegle = (typeof OMSAETNINGSINTERVALLER)[number]["noegle"];
 
+/**
+ * JONAS 18/9 kl. 10:10 (ordret): «Alle skal jo igennem afklaringssamtale, så
+ * alle skal vide mere. Og vi skal gå efter at få folk i gang hurtigst muligt,
+ * for hvis først der går tid efter ansøgningen, så bliver de kolde.» Svaret
+ * «Senere — jeg vil først vide mere» er derfor UDE; tre svar om TID. Prod-
+ * CHECK'en rettes i 20260918230000_ansoegning_start_tidspunkt_uden_senere.sql.
+ */
 export const START_TIDSPUNKTER = [
   { noegle: "hurtigst_muligt", label: "Hurtigst muligt" },
   { noegle: "inden_1_maaned", label: "Inden for en måned" },
   { noegle: "inden_3_maaneder", label: "Inden for tre måneder" },
-  { noegle: "senere", label: "Senere — jeg vil først vide mere" },
 ] as const;
 export type Starttidspunkt = (typeof START_TIDSPUNKTER)[number]["noegle"];
 

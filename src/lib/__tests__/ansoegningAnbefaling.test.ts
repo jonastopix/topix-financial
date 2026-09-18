@@ -124,14 +124,18 @@ describe("ansoegningAnbefaling — de to hovedkriterier (Jonas 18/9: minimum 2 m
     expect(a.grundlag).toContain("registret siger: ophørt");
   });
 
-  it("de øvrige vipper kun til tvivl: tynd tekst, «senere», selskabsform og ansatte nævnes, lange tekster klippes", () => {
+  it("de øvrige vipper kun til tvivl: tynd tekst, selskabsform og ansatte nævnes, lange tekster klippes — «senere» vægtes ikke (ude 18/9)", () => {
     const tynd = afgoerAnbefaling({ ...GOD, udfordring: "Hjælp til økonomi" });
     expect(tynd.udfald).toBe("tvivl");
     expect(tynd.imod).toEqual(["ansøgningen er tynd: intet konkret om udfordring, forsøg eller mål"]);
     expect(tynd.grundlag).toContain("udfordringen: Hjælp til økonomi");
+    // «Senere — jeg vil først vide mere» er ude af formularen (Jonas 18/9 kl. 10:10). En gammel række
+    // med værdien tæller som ukendt: intet imod, samme udfald som uden svar.
     const senere = afgoerAnbefaling({ ...GOD, startTidspunkt: "senere" });
-    expect(senere.udfald).toBe("tvivl");
-    expect(senere.imod).toContain("vil først vide mere før start");
+    expect(senere.imod).not.toContain("vil først vide mere før start");
+    expect(senere.grundlag).not.toContain("vil først vide mere");
+    expect(senere.udfald).toBe(afgoerAnbefaling({ ...GOD, startTidspunkt: null }).udfald);
+    expect(afgoerAnbefaling({ ...GOD, startTidspunkt: "inden_3_maaneder" }).imod).toEqual(afgoerAnbefaling({ ...GOD, startTidspunkt: null }).imod);
     const a = afgoerAnbefaling({ ...basis, kilde: "linkedin", setWebinar: "nej", proevet: "x".repeat(200), selskabsform: "A/S", antalAnsatte: 1250 });
     expect(a.grundlag).toContain("kom via LinkedIn");
     expect(a.grundlag).toContain("A/S");

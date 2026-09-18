@@ -1,7 +1,7 @@
 import { ArrowRight } from "lucide-react";
 import { HbButton } from "@/components/hjemmebane/HbButton";
 import { HB_EYEBROW } from "@/components/hjemmebane/hbFormKlasser";
-import { foersteToSaetninger, type Mellemstykke } from "@/lib/ansoegning/mellemstykker";
+import type { Mellemstykke } from "@/lib/ansoegning/mellemstykker";
 
 /** Et brudstykke mellem to grupper — læses på tre sekunder, én knap videre. */
 export const AnsoegMellemstykke = ({ stykke, onVidere }: { stykke: Mellemstykke; onVidere: () => void }) => (
@@ -11,10 +11,10 @@ export const AnsoegMellemstykke = ({ stykke, onVidere }: { stykke: Mellemstykke;
     )}
     <p className={HB_EYEBROW}>{stykke.eyebrow}</p>
     {stykke.id === "citat" ? (
-      <blockquote className="space-y-3">
-        {/* Mobil: de to første sætninger, ordret (Jonas 18/9); fra md: hele citatet. Samme ord, aldrig en anden tekst. */}
-        <p className="font-editorial text-2xl font-medium leading-snug text-hb-ink md:hidden">«{foersteToSaetninger(stykke.tekst ?? "")}»</p>
-        <p className="hidden font-editorial text-2xl font-medium leading-snug text-hb-ink md:block md:text-3xl">«{stykke.tekst}»</p>
+      /* Jonas 18/9 kl. 10:10: citatet skal læses, ikke råbes — to sætninger
+         (mellemstykker.ts), mindre grad end en overskrift, luft over og under. */
+      <blockquote className="space-y-4 py-6">
+        <p className="font-editorial text-lg font-medium leading-relaxed text-hb-ink md:text-xl">«{stykke.tekst}»</p>
         {stykke.afsender && <footer className="text-sm text-hb-ink-soft">— {stykke.afsender}</footer>}
       </blockquote>
     ) : (
