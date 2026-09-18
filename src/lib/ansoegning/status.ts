@@ -25,6 +25,8 @@ export interface StatusVisning {
   visIkkeNu: boolean;
   /** Ventelisten på en lukket ansøgning (19/9): «tilbud» viser ja/nej-knapperne; «koe» kun teksten. */
   plads: "tilbud" | "koe" | null;
+  /** «Tag ansøgningen op igen» — kun på pause (18/9 aften): pausen tages af nu, samme dom som rådgiverens knap. */
+  visGenoptag: boolean;
 }
 
 const MAANEDER = ["januar", "februar", "marts", "april", "maj", "juni", "juli", "august", "september", "oktober", "november", "december"];
@@ -44,10 +46,11 @@ export function danskTidspunkt(iso: string): string {
 }
 
 export function afgoerStatus(s: StatusSvar, nu: Date = new Date()): StatusVisning {
-  const ingen = { book: false, booket: null, aftale: null, visIkkeNu: false, plads: null as StatusVisning["plads"] };
+  const ingen = { book: false, booket: null, aftale: null, visIkkeNu: false, plads: null as StatusVisning["plads"], visGenoptag: false };
   // Pausen gælder til og med dagen før slutdatoen — en dato i fortiden er ingen pause (rettelse 19/9).
+  // Knappen «Tag ansøgningen op igen» (18/9 aften): «ikke nu» var en udvej, ikke en spærring — er de klar før datoen, tager de selv pausen af.
   if (erPaaPause(s.paa_pause_til, nu)) {
-    return { ...ingen, titel: "Din ansøgning holder pause", tekst: `Du bad os vente. Vi skriver ikke til dig før ${danskDato(s.paa_pause_til)} — og gerne før, hvis du selv siger til på ${"kontakt@theboardroom.dk"}.` };
+    return { ...ingen, visGenoptag: true, titel: "Din ansøgning holder pause", tekst: `Du bad os vente. Vi skriver ikke til dig før ${danskDato(s.paa_pause_til)}. Er du klar før — så tag ansøgningen op igen her, så er vi i gang med det samme.` };
   }
   switch (s.trin) {
     case "ny":

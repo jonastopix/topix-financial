@@ -1,21 +1,8 @@
 import { describe, expect, it } from "vitest";
-import {
-  erPaaPause,
-  afgoerOvergang,
-  erAabentTrin,
-  genaabningsTrin,
-  KILDER,
-  LUKKEAARSAGER,
-  MENNESKE_HANDLINGER,
-  SYSTEM_HANDLINGER,
-  TRIN,
-  trappensTrin,
-  type Handling,
-  type Trin,
-} from "@/lib/ansoegningTrin";
+import { erPaaPause, afgoerOvergang, erAabentTrin, genaabningsTrin, KILDER, LUKKEAARSAGER, MENNESKE_HANDLINGER, SYSTEM_HANDLINGER, TRIN, trappensTrin, type Handling, type Trin, type OvergangsKontekst } from "@/lib/ansoegningTrin";
 import { KILDER as SKEMA_KILDER } from "@/lib/ansoegning/skema";
 
-const ctx = { paaPause: false, lukketFraTrin: null as Trin | null };
+const ctx: OvergangsKontekst = { paaPause: false, lukketFraTrin: null };
 const dom = (fra: Trin, h: Handling, c = ctx) => afgoerOvergang(fra, h, c);
 const ok = (fra: Trin, h: Handling, c = ctx) => {
   const d = dom(fra, h, c);
@@ -125,6 +112,20 @@ describe("ansoegningTrin — reaktioner annullerer, pause og lukning", () => {
     expect(ok("ny", { art: "ikke_nu" }).start).toEqual({ trappe: "pause", anker: "pause" });
   });
 
+  it("genoptag (18/9 aften, én dom for tre veje): fra ethvert åbent trin når en pause er SAT — også på selve slutdatoen; trin står, pausen ryddes, kun pause-trappen annulleres, ingen trappe startes, sporet skrives", () => {
+    for (const fra of ["ny", "indkaldt", "booket", "afholdt", "aftalegrundlag_sendt"] as const) {
+      // rådgiveren/ansøgeren: pausen gælder endnu (paaPause) — harPause udeladt = paaPause (fladen)
+      expect(ok(fra, { art: "genoptag" }, { ...ctx, paaPause: true })).toMatchObject({ til: fra, annuller: ["pause"], start: null, saetPause: false, ophaevPause: true, beslutning: true });
+      // køen på slutdatoen: erPaaPause er falsk, men datoen er sat — samme dom
+      expect(ok(fra, { art: "genoptag" }, { ...ctx, paaPause: false, harPause: true })).toMatchObject({ til: fra, annuller: ["pause"], start: null, ophaevPause: true, beslutning: true });
+    }
+    expect(dom("indkaldt", { art: "genoptag" })).toMatchObject({ ok: false, grund: expect.stringContaining("ikke på pause") });
+    expect(dom("indkaldt", { art: "genoptag" }, { ...ctx, paaPause: true, harPause: false })).toMatchObject({ ok: false });
+    expect(dom("lukket", { art: "genoptag" }, { ...ctx, paaPause: true, harPause: true }).ok).toBe(false);
+    expect(dom("underskrevet", { art: "genoptag" }, { ...ctx, paaPause: true, harPause: true }).ok).toBe(false);
+    expect(MENNESKE_HANDLINGER).toContain("genoptag");
+    expect(SYSTEM_HANDLINGER).toContain("genoptag");
+  });
   it("enhver anden reaktion ophæver pausen", () => {
     expect(ok("indkaldt", { art: "book" }, { ...ctx, paaPause: true }).ophaevPause).toBe(true);
     expect(ok("ny", { art: "tal_med_dem" }, { ...ctx, paaPause: true }).ophaevPause).toBe(true);

@@ -75,6 +75,8 @@ export const RAADGIVER_BESKED = {
   afholdt: "ansoegning_afholdt",
   lukket_af_koen: "ansoegning_lukket_af_koen",
   pause_slut: "ansoegning_pause_slut",
+  /** Ansøgeren tog selv pausen af fra statussiden (18/9 aften) — værd at reagere hurtigt på. */
+  genoptaget: "ansoegning_genoptaget",
   underskrevet: "ansoegning_underskrevet",
 } as const;
 export const REFERENCE_TYPE = "ansoegning";
@@ -657,7 +659,8 @@ export async function udfoerOvergang(admin: SupabaseClient, args: OvergangsArgs)
   if (h.art === "book" && !args.samtale) return { ok: false, status: 400, grund: "book kræver samtalens tid" };
   if (h.art === "tilbud" && !(args.aftaleUrl ?? a.aftale_url)) return { ok: false, status: 400, grund: "tilbud kræver aftale_url (linket til aftalegrundlaget)" };
 
-  const dom = afgoerOvergang(a.trin, h, { paaPause: erPaaPause(a.paa_pause_til, nu), lukketFraTrin: a.lukket_fra_trin });
+  // harPause: genoptag skal også kunne køre på selve slutdatoen (køens pause_slut), hvor erPaaPause er falsk.
+  const dom = afgoerOvergang(a.trin, h, { paaPause: erPaaPause(a.paa_pause_til, nu), lukketFraTrin: a.lukket_fra_trin, harPause: a.paa_pause_til !== null });
   if (dom.ok === false) return { ok: false, status: 409, grund: dom.grund };
   const o = dom.overgang;
 

@@ -63,12 +63,16 @@ describe("afgoerStatus", () => {
     expect(afgoerStatus({ ...lukket, ventepladser: null })).toMatchObject({ plads: null, titel: "Ansøgningen er afsluttet" });
     expect(afgoerStatus(lukket)).toMatchObject({ plads: null, titel: "Ansøgningen er afsluttet" });
   });
-  it("på pause: datoen på dansk, ingen knapper — uanset trin", () => {
-    const v = afgoerStatus({ ...basis, trin: "indkaldt", paa_pause_til: "2026-12-18" });
-    expect(v.titel).toBe("Din ansøgning holder pause");
-    expect(v.tekst).toContain("18. december 2026");
-    expect(v.tekst).toContain("kontakt@theboardroom.dk");
-    expect(v).toMatchObject({ book: false, booket: null, aftale: null, visIkkeNu: false });
+  it("på pause: datoen på dansk, ingen andre knapper — men «tag den op igen» (18/9 aften) — uanset trin", () => {
+    for (const trin of ["ny", "indkaldt", "booket", "afholdt", "aftalegrundlag_sendt"]) {
+      const v = afgoerStatus({ ...basis, trin, paa_pause_til: "2026-12-18" });
+      expect(v.titel).toBe("Din ansøgning holder pause");
+      expect(v.tekst).toContain("18. december 2026");
+      expect(v.tekst).toContain("tag ansøgningen op igen");
+      expect(v).toMatchObject({ book: false, booket: null, aftale: null, visIkkeNu: false, visGenoptag: true });
+    }
+    // uden pause: knappen findes ikke — på intet trin
+    for (const trin of ["ny", "indkaldt", "afholdt", "aftalegrundlag_sendt", "underskrevet", "lukket"]) expect(afgoerStatus({ ...basis, trin }).visGenoptag).toBe(false);
   });
   it("ukendt trin → neutral tekst, ingen knapper", () => {
     expect(afgoerStatus({ ...basis, trin: "noget_nyt" })).toMatchObject({ titel: "Din ansøgning", book: false, aftale: null, visIkkeNu: false });

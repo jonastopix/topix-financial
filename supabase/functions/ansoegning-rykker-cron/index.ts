@@ -23,7 +23,8 @@
 //      (trin_nr > 0). Spærret modtager → rækken markeres fejlet uden retry.
 //      Anden fejl → fejl_antal++ (MAKS_FEJL forsøg, så fejlet).
 //   4. luk_svarer_ikke / udloeb / marker_afholdt → udfoerOvergang (via koe)
-//      → status udfoert; rådgiveren får en klokke. pause_slut → klokke.
+//      → status udfoert; rådgiveren får en klokke. pause_slut → motorens
+//      genoptag (samme dom som rådgiverens og ansøgerens, 18/9) → klokke.
 //
 // ÉN MAIL PR. PERSON PR. DAG (regel 3) måles i køen selv: sendt_til +
 // udfoert_at i dansk dag, plus det der er sendt i DENNE kørsel. Aldrig i
@@ -167,7 +168,10 @@ async function koer(admin: SupabaseClient, toer: boolean, nu: Date): Promise<Res
         : (!a || !a.indsendt_at || !erAabentTrin(a.trin) ||
           (trin !== null && a.trin !== trin) ||
           (raekke.trappe !== "pause" && paaPause) ||
-          (raekke.trappe === "pause" && !paaPause));
+          // Pause-rækken gælder så længe en pause er SAT — ikke «er på pause nu»: på selve slutdatoen er
+          // erPaaPause allerede falsk, og med den test blev pause_slut annulleret den dag den skulle køre
+          // (hul fundet 18/9 aften: kolonnen blev aldrig ryddet, klokken kom aldrig).
+          (raekke.trappe === "pause" && !a.paa_pause_til));
       if (skalAnnulleres || !a) {
         if (!toer) {
           await admin.from("planlagte_haendelser")
@@ -252,13 +256,23 @@ async function koer(admin: SupabaseClient, toer: boolean, nu: Date): Promise<Res
       }
 
       if (raekke.handling === "pause_slut") {
-        // Rettelse 19/9 (recon §8 punkt 4): pausen skal slippe. Kolonnen ryddes når dagen er nået —
-        // ellers ser statussiden, bookingen og rådgiverens samtaleafsnit «på pause» for evigt.
-        // Kun den pause rækken hører til (samme dato), så en pause der er flyttet frem ikke ryddes.
+        // Pausen slutter på datoen (18/9 aften): SAMME dom som rådgiverens «Genoptag nu» og ansøgerens
+        // «Tag den op igen» — motorens genoptag rydder paa_pause_til, annullerer trappen «pause», skriver
+        // sporet (via «koe») og starter INGEN trappe; klokken nedenfor er det, rådgiveren får. Rækken
+        // stemples udført FØR motoren, så dens annullering af trappen ikke rammer netop denne række.
+        // Er pausen flyttet frem (datoen efter i dag), er rækken forældet — den annulleres.
         const pauseDato = a.paa_pause_til;
-        if (pauseDato && pauseDato <= kbhDato(nu)) {
-          const { error: pauseErr } = await admin.from("ansoegninger").update({ paa_pause_til: null }).eq("id", a.id).eq("paa_pause_til", pauseDato);
-          if (pauseErr) console.error(`[ansoegning-rykker-cron] paa_pause_til kunne ikke ryddes for ${a.id}:`, pauseErr.message);
+        if (!pauseDato || pauseDato > kbhDato(nu)) {
+          await admin.from("planlagte_haendelser").update({ status: "annulleret", annulleret_at: nu.toISOString(), annulleret_grund: pauseDato ? `pausen er flyttet til ${pauseDato}` : "ansøgningen er ikke på pause" }).eq("id", raekke.id);
+          r.annulleret++;
+          continue;
+        }
+        await admin.from("planlagte_haendelser").update({ status: "udfoert", udfoert_at: nu.toISOString() }).eq("id", raekke.id);
+        const res = await udfoerOvergang(admin, { ansoegning: a, handling: { art: "genoptag" }, via: "koe", truffetAf: null, nu });
+        if (res.ok === false) {
+          console.error(`[ansoegning-rykker-cron] pause_slut: genoptag afvist for ${a.id}: ${res.grund}`);
+          r.fejl++;
+          continue;
         }
       } else {
         const art = raekke.handling === "marker_afholdt" ? "afholdt" : raekke.handling === "luk_svarer_ikke" ? "svarer_ikke" : "udloeb";

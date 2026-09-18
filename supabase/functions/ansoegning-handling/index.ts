@@ -7,7 +7,8 @@
 //   handling ∈ MENNESKE_HANDLINGER: tal_med_dem · afvis · afholdt · tilbud ·
 //   afslag · underskrevet · luk (kræver lukkeaarsag) · genaabn ·
 //   saet_pause (kræver pause_til «YYYY-MM-DD» efter i dag — sætter ELLER
-//   flytter pausen; tilladt fra ethvert åbent trin).
+//   flytter pausen; tilladt fra ethvert åbent trin) · genoptag (18/9 aften:
+//   pausen tages af nu — samme dom som ansøgerens knap og køens pause_slut).
 //   SAMTALEN I KALENDEREN (udkast 18/9, rev. 2): rådgiveren kan også book
 //   (kræver samtale_start = et ledigt slot — serveren regner selv mod
 //   Calendly) og aflys_booking; samtale_tider giver slots til fladen. Samme

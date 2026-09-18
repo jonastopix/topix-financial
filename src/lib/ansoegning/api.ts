@@ -128,6 +128,10 @@ export function hentStatus(token: string): Promise<StatusSvar> {
 export function sigIkkeNu(token: string): Promise<StatusSvar & { ok: true; allerede: boolean }> {
   return kaldLink({ token, handling: "ikke_nu" });
 }
+/** Pausen tages af nu (18/9 aften): serverens genoptag — samme dom som rådgiverens «Genoptag nu»; rådgiverne får en klokke. allerede = der var ingen pause. */
+export function tagOpIgen(token: string): Promise<StatusSvar & { ok: true; allerede: boolean }> {
+  return kaldLink({ token, handling: "genoptag" });
+}
 /** Ventelisten (rettelse 19/9): ja/nej til en tilbudt plads — serverens tag_pladsen/afslaa_pladsen (svarPaaPlads). 409 = intet tilbud ude. */
 export function svarPaaPladsen(token: string, svar: "ja" | "nej"): Promise<StatusSvar & { ok: true; svar: "ja" | "nej"; genaabnet: boolean }> {
   return kaldLink({ token, handling: svar === "ja" ? "tag_pladsen" : "afslaa_pladsen" });
