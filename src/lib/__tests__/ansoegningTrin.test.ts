@@ -14,7 +14,8 @@ describe("ansoegningTrin — formen", () => {
   it("syv trin, syv lukkeårsager, fem kilder; de fire ting fra Mondays statusfelt er adskilt", () => {
     expect(TRIN).toEqual(["ny", "indkaldt", "booket", "afholdt", "aftalegrundlag_sendt", "underskrevet", "lukket"]);
     expect(TRIN.length).toBe(7);
-    expect(LUKKEAARSAGER.length).toBe(7);
+    expect(LUKKEAARSAGER.length).toBe(8); // syv + betalte_ikke (dag 60, 18/9 aften)
+    expect(LUKKEAARSAGER).toContain("betalte_ikke");
     expect(KILDER).toEqual(["webinar", "anbefaling", "linkedin", "direkte", "andet"]);
     expect([...KILDER]).toEqual([...SKEMA_KILDER]); // B's liste (ansoegningSkema) — én sandhed
     // Ingen etiket bærer et forsøgsnummer eller en rykker
@@ -65,6 +66,14 @@ describe("ansoegningTrin — de fem trin i rækkefølge", () => {
   it("aftalegrundlag_sendt → underskrevet (alle trapper annulleres — betalingsforløbet overtager) eller udløber dag 21", () => {
     expect(ok("aftalegrundlag_sendt", { art: "underskrevet" })).toMatchObject({ til: "underskrevet", annuller: "alle", start: null, beslutning: true });
     expect(ok("aftalegrundlag_sendt", { art: "udloeb" })).toMatchObject({ til: "lukket", lukkeaarsag: "udloebet" });
+  });
+  it("betalte_ikke (dag 60, 18/9 aften): KUN fra underskrevet → lukket «betalte_ikke», alle trapper annulleret; systemets, ikke menneskets; genåbning lander på afholdt", () => {
+    expect(ok("underskrevet", { art: "betalte_ikke" })).toMatchObject({ til: "lukket", lukkeaarsag: "betalte_ikke", annuller: "alle", start: null });
+    for (const fra of ["ny", "indkaldt", "booket", "afholdt", "aftalegrundlag_sendt", "lukket"] as const) expect(dom(fra, { art: "betalte_ikke" }).ok).toBe(false);
+    expect(SYSTEM_HANDLINGER).toContain("betalte_ikke");
+    expect(MENNESKE_HANDLINGER).not.toContain("betalte_ikke");
+    expect(genaabningsTrin("underskrevet")).toBe("afholdt");
+    expect(ok("lukket", { art: "genaabn" }, { ...ctx, lukketFraTrin: "underskrevet" })).toMatchObject({ til: "afholdt", start: null });
   });
   it("underskrevet er slut for motoren: ingen handling tilladt, heller ikke luk", () => {
     expect(dom("underskrevet", { art: "luk", aarsag: "andet" }).ok).toBe(false);

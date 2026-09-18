@@ -182,7 +182,8 @@ export const AnsoegningslisteView = () => {
       ) : (
         grupper.map((g) => {
           const os = g.gruppe === "ny" || g.gruppe === "afholdt";
-          const foldet = g.gruppe === "lukket" && filter !== "lukket";
+          // Lukkede OG «blev medlem» (18/9 aften) er færdige: foldet sammen, med tal, åbnes fra striben.
+          const foldet = (g.gruppe === "lukket" || g.gruppe === "blev_medlem") && filter !== g.gruppe;
           const liste = (
             <ul className="divide-y divide-hb-line">
               {g.raekker.map((a) => (

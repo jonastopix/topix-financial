@@ -12,7 +12,7 @@
  * skiftede side.
  */
 import type { Lukkeaarsag, Trin } from "@/lib/ansoegningTrin";
-import { danskDatoOrd, erPaaPause, gruppeFor, LISTEGRUPPER, type Listegruppe } from "./ansoegningVisning";
+import { blevMedlem, danskDatoOrd, erPaaPause, gruppeFor, LISTEGRUPPER, type Listegruppe } from "./ansoegningVisning";
 
 export interface RaekkeTilOversigt {
   trin: Trin;
@@ -20,12 +20,14 @@ export interface RaekkeTilOversigt {
   paa_pause_til: string | null;
   lukkeaarsag: Lukkeaarsag | null;
   lukket_at?: string | null;
+  /** companies.contract_end_date gennem company_id — «blev medlem» (18/9 aften). */
+  virksomhed_slutdato?: string | null;
 }
 
 export type VenterPaa = "os" | "dem" | "ingen";
 
 export function venterPaa(a: RaekkeTilOversigt, nu: Date): VenterPaa {
-  if (a.trin === "lukket" || erPaaPause(a.paa_pause_til, nu)) return "ingen";
+  if (a.trin === "lukket" || blevMedlem(a) || erPaaPause(a.paa_pause_til, nu)) return "ingen";
   if (a.trin === "ny" || a.trin === "afholdt") return "os";
   return "dem";
 }
@@ -43,7 +45,10 @@ const dageOrd = (d: number): string => (d === 0 ? "i dag" : d === 1 ? "1 dag" : 
 export function tidTekst(a: RaekkeTilOversigt, nu: Date): string {
   const d = dageSiden(a.trin_sat_at, nu);
   if (a.trin === "lukket") return `lukket · ${dageOrd(dageSiden(a.lukket_at ?? a.trin_sat_at, nu))}${d === 0 ? "" : " siden"}`;
+  // Betalt = færdig (18/9 aften): ikke «vi venter på dem» for evigt, men hvad de blev.
+  if (blevMedlem(a)) return `blev medlem · medlemskab til ${danskDatoOrd(a.virksomhed_slutdato!.slice(0, 10))}`;
   if (erPaaPause(a.paa_pause_til, nu)) return `på pause til ${danskDatoOrd(a.paa_pause_til!)}`;
+  if (a.trin === "underskrevet") return `venter på betaling · ${dageOrd(d)}`;
   const side = venterPaa(a, nu);
   return side === "os" ? `venter på os · ${dageOrd(d)}` : `vi venter på dem · ${dageOrd(d)}`;
 }
@@ -57,6 +62,7 @@ export function tidTekst(a: RaekkeTilOversigt, nu: Date): string {
 export function sorterGruppe<T extends RaekkeTilOversigt>(gruppe: Listegruppe, raekker: readonly T[]): T[] {
   const r = raekker.slice();
   if (gruppe === "lukket") return r.sort((a, b) => (b.lukket_at ?? b.trin_sat_at).localeCompare(a.lukket_at ?? a.trin_sat_at));
+  if (gruppe === "blev_medlem") return r.sort((a, b) => b.trin_sat_at.localeCompare(a.trin_sat_at)); // nyeste medlem øverst
   if (gruppe === "paa_pause") return r.sort((a, b) => (a.paa_pause_til ?? "").localeCompare(b.paa_pause_til ?? ""));
   return r.sort((a, b) => a.trin_sat_at.localeCompare(b.trin_sat_at));
 }
@@ -75,9 +81,10 @@ export const STRIBE_ORD: Record<Listegruppe, string> = {
   aftalegrundlag_sendt: "aftale sendt",
   underskrevet: "underskrevet",
   paa_pause: "på pause",
+  blev_medlem: "blev medlem",
   lukket: "lukket",
 };
-export const STRIBE_RAEKKEFOELGE: readonly Listegruppe[] = ["ny", "indkaldt", "booket", "afholdt", "aftalegrundlag_sendt", "underskrevet", "paa_pause", "lukket"];
+export const STRIBE_RAEKKEFOELGE: readonly Listegruppe[] = ["ny", "indkaldt", "booket", "afholdt", "aftalegrundlag_sendt", "underskrevet", "blev_medlem", "paa_pause", "lukket"];
 
 /** Første linje af en fritekst, klippet — nok til at genkende dem, aldrig hele smøren. */
 export function foersteLinje(tekst: string | null | undefined, maks = 90): string {

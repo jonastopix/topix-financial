@@ -18,7 +18,7 @@
 import { afgoerOvergang, LUKKEAARSAGER, MENNESKE_HANDLINGER, type Afslagsgrund, type Handling, type Lukkeaarsag, type Trin } from "@/lib/ansoegningTrin";
 import { pauseTil } from "@/lib/rykkerkoe";
 
-export type MenneskeHandling = Exclude<Handling["art"], "book" | "aflys_booking" | "svarer_ikke" | "udloeb" | "ikke_nu">;
+export type MenneskeHandling = Exclude<Handling["art"], "book" | "aflys_booking" | "svarer_ikke" | "udloeb" | "ikke_nu" | "betalte_ikke">;
 /**
  * Knapperne i fladen — «tilbud» (indtastet link) er IKKE en af dem (Jonas 18/9 aften): e-underskriften
  * (SendTilUnderskrift) er den eneste vej til en aftale; den laver aftalen, sætter prisen, sender mailen og

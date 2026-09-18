@@ -14,6 +14,8 @@ import {
   BETALINGSFRIST_DAGE as BETALINGSFRIST_DAGE_DENO,
   PAAMINDELSESDAGE as PAAMINDELSESDAGE_DENO,
 } from "../../../supabase/functions/_shared/betalingsfrist.ts";
+import { AFTALE_DOED_DAG, erAftaleDoed } from "../betalingsfrist";
+import { AFTALE_DOED_DAG as AFTALE_DOED_DAG_DENO, erAftaleDoed as erAftaleDoedDeno } from "../../../supabase/functions/_shared/betalingsfrist.ts";
 
 // Parity gate — the Deno copy at supabase/functions/_shared/betalingsfrist.ts
 // must produce identical output for every input the frontend copy handles:
@@ -106,6 +108,11 @@ describe("afgoerBetalingsfrist — parity between src/lib and supabase/functions
 describe("låsene er ens i begge kopier", () => {
   it("fristen og påmindelsesdagene", () => {
     expect(BETALINGSFRIST_DAGE_DENO).toBe(BETALINGSFRIST_DAGE);
+    expect(AFTALE_DOED_DAG_DENO).toBe(AFTALE_DOED_DAG);
+    for (const dage of [0, 31, 59, 60, 61, 120, null]) for (const status of ["betalt", "afventer_pris", "klar_til_mail", "afventer_betaling", "frist_overskredet"] as const) {
+      const t = { status, dage_siden_underskrift: dage, paamindelse_forfalden: null };
+      expect(erAftaleDoedDeno(t)).toBe(erAftaleDoed(t));
+    }
     expect([...PAAMINDELSESDAGE_DENO]).toEqual([...PAAMINDELSESDAGE]);
   });
 });

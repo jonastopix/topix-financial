@@ -47,6 +47,7 @@ export const LUKKEAARSAG_ORD: Record<Lukkeaarsag, string> = {
   trak_sig: "trak sig",
   dublet: "dublet",
   andet: "andet",
+  betalte_ikke: "betalte ikke — lukket dag 60 efter underskriften",
 };
 
 /** Listens grupper: de to beslutningstrin først (der venter et menneske), så resten i flowets rækkefølge, lukket sidst. */
@@ -68,8 +69,11 @@ export function venterPaaMenneske(trin: Trin, paaPauseTil: string | null | undef
 }
 
 /** Listens grupper (Jonas 18/9): efter hvad der venter på JER — samtale afholdt → ny → booket → indkaldt → aftalegrundlag sendt → underskrevet → på pause → lukket. */
-export type Listegruppe = "afholdt" | "ny" | "booket" | "indkaldt" | "aftalegrundlag_sendt" | "underskrevet" | "paa_pause" | "lukket";
-export const LISTEGRUPPER: readonly Listegruppe[] = ["afholdt", "ny", "booket", "indkaldt", "aftalegrundlag_sendt", "underskrevet", "paa_pause", "lukket"];
+// «blev_medlem» (18/9 aften, Jonas): en BETALT ansøgning er færdig — den hører ikke til blandt beslutninger, der
+// venter, men må ikke forsvinde (så kan man ikke se, hvor et medlem kom fra). Dømmes gennem VIRKSOMHEDEN
+// (companies.contract_end_date via company_id) — samme sandhed som adgangen; ingen ny kolonne, intet nyt i webhooken.
+export type Listegruppe = "afholdt" | "ny" | "booket" | "indkaldt" | "aftalegrundlag_sendt" | "underskrevet" | "paa_pause" | "blev_medlem" | "lukket";
+export const LISTEGRUPPER: readonly Listegruppe[] = ["afholdt", "ny", "booket", "indkaldt", "aftalegrundlag_sendt", "underskrevet", "paa_pause", "blev_medlem", "lukket"];
 
 export const GRUPPE_ORD: Record<Listegruppe, string> = {
   afholdt: "Samtale afholdt — tilbud eller afslag?",
@@ -77,14 +81,21 @@ export const GRUPPE_ORD: Record<Listegruppe, string> = {
   booket: "Samtale booket",
   indkaldt: "Indkaldt — rykkerne kører",
   aftalegrundlag_sendt: "Aftalegrundlag sendt — rykkerne kører",
-  underskrevet: "Underskrevet — betalingsforløbet kører",
+  underskrevet: "Underskrevet — venter på betaling",
   paa_pause: "På pause",
+  blev_medlem: "Blev medlem",
   lukket: "Lukkede",
 };
 
-/** Hvilken gruppe en række hører til: pausen vinder over trinnet (så længe den ligger frem i tiden), lukket er lukket. */
-export function gruppeFor(a: { trin: Trin; paa_pause_til: string | null }, nu: Date): Listegruppe {
+/** Blev de medlem? Underskrevet OG virksomheden har en slutdato (sat af stripe-webhook ved betaling — også en passeret: de BLEV medlem). */
+export function blevMedlem(a: { trin: Trin; virksomhed_slutdato?: string | null }): boolean {
+  return a.trin === "underskrevet" && !!a.virksomhed_slutdato;
+}
+
+/** Hvilken gruppe en række hører til: pausen vinder over trinnet (så længe den ligger frem i tiden), lukket er lukket, betalt er «blev medlem». */
+export function gruppeFor(a: { trin: Trin; paa_pause_til: string | null; virksomhed_slutdato?: string | null }, nu: Date): Listegruppe {
   if (a.trin === "lukket") return "lukket";
+  if (blevMedlem(a)) return "blev_medlem";
   if (erPaaPause(a.paa_pause_til, nu)) return "paa_pause";
   return a.trin;
 }
@@ -93,6 +104,8 @@ export interface RaekkeTilListe {
   trin: Trin;
   trin_sat_at: string;
   paa_pause_til: string | null;
+  /** companies.contract_end_date gennem company_id (hentAnsoegninger) — null uden virksomhed eller uden betaling. */
+  virksomhed_slutdato?: string | null;
 }
 
 /** Grupperne i rækkefølge med deres rækker (nyeste trin_sat_at først; på pause: tidligste slutdato først). Tomme grupper udelades. */
@@ -121,8 +134,9 @@ export function listeOverskrift(ventende: number, hentet: boolean): string {
 }
 
 /** «Hvad der venter» på én linje i listen — kort, aldrig fritekst. */
-export function hvadVenter(a: { trin: Trin; paa_pause_til: string | null; lukkeaarsag: Lukkeaarsag | null; rykkere_sendt: number; samtale_start: string | null }, nu: Date): string {
+export function hvadVenter(a: { trin: Trin; paa_pause_til: string | null; lukkeaarsag: Lukkeaarsag | null; rykkere_sendt: number; samtale_start: string | null; virksomhed_slutdato?: string | null }, nu: Date): string {
   if (a.trin === "lukket") return a.lukkeaarsag ? LUKKEAARSAG_ORD[a.lukkeaarsag] : "lukket";
+  if (blevMedlem(a)) return `blev medlem · medlemskab til ${danskDatoOrd(a.virksomhed_slutdato!.slice(0, 10))}`;
   if (erPaaPause(a.paa_pause_til, nu)) return `på pause til ${danskDatoOrd(a.paa_pause_til!)}`;
   switch (a.trin) {
     case "ny": return "tal med dem eller afvis?";
@@ -130,7 +144,7 @@ export function hvadVenter(a: { trin: Trin; paa_pause_til: string | null; lukkea
     case "indkaldt": return a.rykkere_sendt > 0 ? `rykker ${a.rykkere_sendt} sendt` : "indkaldelse sendt";
     case "booket": return a.samtale_start ? `samtale ${danskTidspunkt(a.samtale_start)}` : "samtale booket";
     case "aftalegrundlag_sendt": return a.rykkere_sendt > 0 ? `aftalegrundlag · rykker ${a.rykkere_sendt} sendt` : "aftalegrundlag sendt";
-    case "underskrevet": return "betalingsforløbet kører";
+    case "underskrevet": return "venter på betaling";
   }
 }
 

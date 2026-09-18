@@ -73,6 +73,13 @@ describe("ansoegningVisning — pausen (Jonas 18/9) og listens grupper", () => {
     ];
     const g = grupperTilListe(rk, nu);
     expect(g.map((x) => x.gruppe)).toEqual(["afholdt", "ny", "booket", "indkaldt", "paa_pause", "lukket"]);
+    // «blev medlem» (18/9 aften): underskrevet + virksomhedens slutdato → egen gruppe før lukket; uden slutdato → underskrevet
+    const m = grupperTilListe([...rk, { ...r("u1", "underskrevet", "2026-09-16"), virksomhed_slutdato: "2027-09-16" }, r("u2", "underskrevet", "2026-09-17")], nu);
+    expect(m.map((x) => x.gruppe)).toEqual(["afholdt", "ny", "booket", "indkaldt", "underskrevet", "paa_pause", "blev_medlem", "lukket"]);
+    expect(m.find((x) => x.gruppe === "blev_medlem")!.raekker.map((x) => x.id)).toEqual(["u1"]);
+    expect(m.find((x) => x.gruppe === "underskrevet")!.raekker.map((x) => x.id)).toEqual(["u2"]);
+    expect(gruppeFor({ ...r("u3", "underskrevet", "2026-09-16", "2026-12-10"), virksomhed_slutdato: "2026-01-01" }, nu)).toBe("blev_medlem"); // betalt vinder over pausen — også en passeret slutdato: de BLEV medlem
+    expect(LISTEGRUPPER).toEqual(["afholdt", "ny", "booket", "indkaldt", "aftalegrundlag_sendt", "underskrevet", "paa_pause", "blev_medlem", "lukket"]);
     expect(g[0].raekker.map((x) => x.id)).toEqual(["a1", "a2"]);
     expect(g[1].raekker.map((x) => x.id)).toEqual(["n2", "n1"]);
     expect(g[4].raekker.map((x) => x.id)).toEqual(["p2", "p1"]); // tidligste slutdato først
@@ -96,7 +103,9 @@ describe("ansoegningVisning — pausen (Jonas 18/9) og listens grupper", () => {
     expect(hvadVenter({ ...b, trin: "indkaldt" }, nu)).toBe("indkaldelse sendt");
     expect(hvadVenter({ ...b, trin: "booket", samtale_start: "2026-09-28T07:00:00Z" }, nu)).toMatch(/^samtale 28\. september/);
     expect(hvadVenter({ ...b, trin: "lukket", lukkeaarsag: "svarer_ikke" }, nu)).toBe("svarede ikke");
-    expect(hvadVenter({ ...b, trin: "underskrevet" }, nu)).toBe("betalingsforløbet kører");
+    expect(hvadVenter({ ...b, trin: "underskrevet" }, nu)).toBe("venter på betaling");
+    expect(hvadVenter({ ...b, trin: "underskrevet", virksomhed_slutdato: "2027-09-16" }, nu)).toBe("blev medlem · medlemskab til 16. september");
+    expect(hvadVenter({ ...b, trin: "lukket", lukkeaarsag: "betalte_ikke" }, nu)).toBe("betalte ikke — lukket dag 60 efter underskriften");
     expect(danskDatoOrd("2026-12-10")).toBe("10. december");
   });
 });

@@ -212,6 +212,8 @@ export interface VirksomhedsData {
     sidste_paamindelse_dag: number | null;
     faktura_sendt_at: string | null;
   } | null;
+  /** Ansøgningen bag virksomheden (18/9 aften, «vejen ind»): null ad Monday-vejen/import — eller når opslaget fejler (fail-soft: siden viser bare ingen linje). */
+  ansoegning: { id: string; indsendt_at: string | null; samtale_start: string | null; konverteret_at: string | null; kilde: string | null } | null;
   /** varsel_1_sendt_at: stemplet fra fornyelsesvarsel-cron (7/9) — forsidens dom
       siger «skriv til» frem for «send tilbuddet» når det er sat. Samme kolonne som
       AdvisorDashboard henter (varselStempel.guard.test.ts). varsel_2_sendt_at:
@@ -426,7 +428,19 @@ async function hentVirksomhed(companyId: string): Promise<VirksomhedsData | null
     if (r.user_id && r.full_name) raadgiverNavne[r.user_id] = r.full_name;
   }
 
+  // «Vejen ind» (18/9 aften): ansøgningen bag virksomheden — eget opslag, fail-soft (ansøgningerne må
+  // aldrig vælte virksomhedssiden). Rådgivere har SELECT på ansoegninger.
+  const ansoegningRes = await supabase
+    .from("ansoegninger" as never)
+    .select("id, indsendt_at, samtale_start, konverteret_at, kilde")
+    .eq("company_id", companyId)
+    .not("indsendt_at", "is", null)
+    .limit(1)
+    .maybeSingle();
+  if (ansoegningRes.error) console.error("[useVirksomhed] ansoegninger-opslag fejlede (vejen ind vises ikke):", ansoegningRes.error.message);
+
   return {
+    ansoegning: ansoegningRes.error ? null : ((ansoegningRes.data as unknown) as VirksomhedsData["ansoegning"]),
     company: companyRes.data,
     raadgiverNavne,
     refleksion: kraevRaekke(refleksionRes, "pulse_checkins"),

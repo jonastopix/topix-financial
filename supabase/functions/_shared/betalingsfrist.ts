@@ -67,6 +67,14 @@ export const BETALINGSFRIST_DAGE = 30;
  */
 export const PAAMINDELSESDAGE = [14, 25, 31] as const;
 
+/**
+ * DØD PÅ DAG 60 (Jonas 18/9 aften): en underskrevet, ubetalt aftale er ikke
+ * en ansøgning mere, når fakturaen fra dag 31 er tredive dage gammel og
+ * pengene ikke er kommet. indgangs-paamindelser-cron spørger erAftaleDoed og
+ * lukker ansøgningen (motorens betalte_ikke) — virksomheden røres ikke her.
+ */
+export const AFTALE_DOED_DAG = 60;
+
 export type Paamindelsesdag = (typeof PAAMINDELSESDAGE)[number];
 
 export interface BetalingsfristInput {
@@ -118,6 +126,16 @@ export interface Betalingsfristtilstand {
 }
 
 const MS_PER_DOEGN = 86_400_000;
+
+/**
+ * Er aftalen død? Alt andet end «betalt» (også afventer_pris/klar_til_mail —
+ * dagene er kontraktens og løber uanset mailen) og mindst AFTALE_DOED_DAG
+ * hele kalenderdage siden underskriften. Ukendt alder (null) er aldrig død —
+ * fail-closed som resten af dommen.
+ */
+export function erAftaleDoed(t: Betalingsfristtilstand): boolean {
+  return t.status !== "betalt" && t.dage_siden_underskrift !== null && t.dage_siden_underskrift >= AFTALE_DOED_DAG;
+}
 
 /** UTC-midnat for datoens kalenderdag — tidszone-uafhængig dagsammenligning. */
 function utcMidnat(d: Date): number {
