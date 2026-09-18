@@ -36,7 +36,7 @@ import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supa
 import { authenticateServiceRole, corsHeaders } from "../_shared/edgeFunctionAuth.ts";
 import { sendManagedEmail } from "../_shared/managedEmail.ts";
 import { skrivRaadgiverBesked } from "../_shared/raadgiverBesked.ts";
-import { afgoerSending, TRAPPER_PAA_LUKKET, type KoeHandling } from "../_shared/rykkerkoe.ts";
+import { afgoerSending, TRAPPER_PAA_LUKKET, TRAPPER_UDEN_DAGSREGEL, type KoeHandling } from "../_shared/rykkerkoe.ts";
 import { grundTekst, koeNummer, type AfslagsIndhold } from "../_shared/afslagsTilbud.ts";
 import type { VentepladsRaekke } from "../_shared/ventelisteDom.ts";
 import { erAabentTrin, trappensTrin, type Trappe } from "../_shared/ansoegningTrin.ts";
@@ -102,10 +102,12 @@ function json(body: unknown, status = 200): Response {
 /** Mailadresser der har fået en kø-mail i dag (dansk dag). */
 async function sendtIDag(admin: SupabaseClient, nu: Date): Promise<Set<string>> {
   const fra = kbhTilUtc(kbhDato(nu), 0, 0).toISOString();
+  // Trapper uden dagsregel (kvitteringen) tæller ikke — ellers skubber kvitteringen indkaldelsen et døgn.
   const { data, error } = await admin
     .from("planlagte_haendelser")
     .select("sendt_til")
     .eq("status", "sendt")
+    .not("trappe", "in", `(${TRAPPER_UDEN_DAGSREGEL.join(",")})`)
     .gte("udfoert_at", fra);
   if (error) {
     console.error("[ansoegning-rykker-cron] sendtIDag fejlede — fail-closed: alle regnes som «har fået»:", error.message);
@@ -229,6 +231,7 @@ async function koer(admin: SupabaseClient, toer: boolean, nu: Date): Promise<Res
         planlagtTil: new Date(raekke.planlagt_til),
         handling: raekke.handling,
         modtagerHarFaaetMailIDag: raekke.modtager === "ansoeger" && (failClosed || harFaaet.has(email)),
+        trappe: raekke.trappe,
       });
       if (dom.ok === false) {
         if (dom.grund === "ikke_forfalden") continue;
