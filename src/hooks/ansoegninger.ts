@@ -64,6 +64,8 @@ export interface AnsoegningRaekke {
   /** Calendly-eventet og Meet-linket bag samtalen (samtalen i kalenderen, 18/9 rev. 2). */
   calendly_event_uri: string | null;
   samtale_link: string | null;
+  /** «Blev medlem» (18/9 aften): companies.contract_end_date gennem company_id — hentet i et andet opslag, ikke en kolonne på ansøgningen. */
+  virksomhed_slutdato: string | null;
 }
 
 export const LISTE_KOLONNER =
@@ -75,7 +77,18 @@ export async function hentAnsoegninger(): Promise<AnsoegningRaekke[]> {
     .not("indsendt_at", "is", null)
     .order("trin_sat_at", { ascending: false })
     .limit(500);
-  return kraevRaekker(res, "ansoegninger") as AnsoegningRaekke[];
+  const raekker = kraevRaekker(res, "ansoegninger") as Omit<AnsoegningRaekke, "virksomhed_slutdato">[];
+  // «Blev medlem» dømmes gennem virksomheden (samme sandhed som adgangen): ét opslag på de virksomheder,
+  // ansøgningerne blev til. Ingen ny kolonne, intet nyt i stripe-webhook. Fejler opslaget, er listen
+  // stadig hel — så står de underskrevne som «venter på betaling», som før.
+  const ids = [...new Set(raekker.map((r) => r.company_id).filter((id): id is string => !!id))];
+  const slutdatoer = new Map<string, string | null>();
+  if (ids.length > 0) {
+    const vRes = await tabel("companies").select("id, contract_end_date").in("id", ids);
+    if (vRes.error) console.error("[ansoegninger] companies-opslag til «blev medlem» fejlede:", vRes.error.message);
+    for (const v of (vRes.data ?? []) as { id: string; contract_end_date: string | null }[]) slutdatoer.set(v.id, v.contract_end_date);
+  }
+  return raekker.map((r) => ({ ...r, virksomhed_slutdato: r.company_id ? (slutdatoer.get(r.company_id) ?? null) : null }));
 }
 
 /** Detaljesidens række: alle svar + motorens felter. */

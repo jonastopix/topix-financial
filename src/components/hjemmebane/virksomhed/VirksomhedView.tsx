@@ -35,6 +35,7 @@ import { beslutningsOrd, fornyelsesBadge, type FornyelseBadge } from "@/lib/forn
 import { afgoerBetalingsfrist, type Betalingsfriststatus } from "@/lib/betalingsfrist";
 import { afgoerForsidensDom, FORM, type OpgaveSlags, type VirksomhedTilDom } from "@/lib/forsidensDom";
 import { beloebTekst, harFakturaLink, kortDato, datoOgTid, stripeSagde, traekBadgeTekst, traekLabel } from "@/lib/traek";
+import { vejenIndTekst } from "@/lib/ansoegninger/vejenInd";
 import { KPI_DEFS, deriveKpiMetrics, type KpiMetric } from "@/lib/kpiDefs";
 import { deriveKpiTone } from "../noegletal/kpiTone";
 import { momErGyldig, delSerieTilTegning, basisNoegle, erEstimatNoegle, ESTIMAT_NOEGLE_SUFFIX } from "@/lib/dataGrundlag";
@@ -360,8 +361,16 @@ const Blok1 = ({ d, facts, derfor }: { d: VirksomhedsData; facts: CompanyFact[];
   // Samme form som linjen ovenfor — en data-linje, ikke et signal.
   const udloebneTekst = udloebneForslagTekst(d.udloebneForslag);
   const tom = signaler.length === 0 && opgaverVenter === 0 && !udloebneTekst;
+  // «Vejen ind» (18/9 aften): hvor medlemmet kom fra — ansøgningen har samme id som virksomheden.
+  const vejenInd = vejenIndTekst(d.ansoegning, new Date());
   return (
     <HbSection eyebrow="Hvad skal du vide nu" hairline>
+      {vejenInd && d.ansoegning && (
+        <p className="mb-4 text-sm text-hb-ink-soft" data-vejen-ind>
+          {vejenInd} ·{" "}
+          <Link to={`/ansoegninger/${d.ansoegning.id}`} className="text-hb-evergreen underline-offset-4 hover:underline">se ansøgningen</Link>
+        </p>
+      )}
       {/* «Derfor er du her» (§6): kun når man kom fra forsiden med en grund
           der stadig findes. Handlingen først, med forsidens ord; grunden
           under. Resten af blokken er som altid — siden skifter ikke form. */}

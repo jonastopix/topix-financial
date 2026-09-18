@@ -31,7 +31,13 @@
  * EFTER UNDERSKRIFT overtager platformens EKSISTERENDE betalingsforløb
  * (company_betalingslink + indgangs-paamindelser-cron: 30 dage, faktura dag
  * 31) — dommen tillader ingen handling fra «underskrevet»; motoren har
- * afleveret.
+ * afleveret. ÉN undtagelse (Jonas 18/9 aften): en underskrevet, ubetalt
+ * aftale er DØD PÅ DAG 60 efter underskriften — fakturaen fra dag 31 er da
+ * tredive dage gammel. Betalingsforløbets cron (indgangs-paamindelser-cron,
+ * erAftaleDoed i betalingsfrist.ts) siger det til motoren med betalte_ikke:
+ * underskrevet → lukket «betalte_ikke», alle trapper annulleres, klokke til
+ * jer. Virksomheden er allerede oprettet og røres IKKE her. Genåbnes den,
+ * lander den på «afholdt» (aftalen skal sendes igen).
  *
  * PAUSE SAT AF ET MENNESKE (Jonas 18/9, «den varige vej»): saet_pause bærer
  * en dato og er tilladt fra ethvert åbent trin — ny, indkaldt, booket,
@@ -93,6 +99,7 @@ export const LUKKEAARSAGER = [
   "trak_sig",
   "dublet",
   "andet",
+  "betalte_ikke",
 ] as const;
 export type Lukkeaarsag = (typeof LUKKEAARSAGER)[number];
 
@@ -142,6 +149,8 @@ export type Handling =
   | { art: "saet_pause"; til: string }
   /** Pausen ophæves nu — rådgiveren, ansøgeren eller køen på datoen; kræver harPause. */
   | { art: "genoptag" }
+  /** Dag 60 efter underskriften uden betaling (betalingsforløbets cron): underskrevet → lukket «betalte_ikke». */
+  | { art: "betalte_ikke" }
   | { art: "luk"; aarsag: Lukkeaarsag }
   | { art: "genaabn" };
 export type HandlingsArt = Handling["art"];
@@ -169,6 +178,7 @@ export const SYSTEM_HANDLINGER: readonly HandlingsArt[] = [
   "udloeb",
   "ikke_nu",
   "genoptag",
+  "betalte_ikke",
 ];
 
 export interface Overgang {
@@ -246,6 +256,7 @@ export function genaabningsTrin(lukketFra: Trin | null): Trin {
       return "indkaldt";
     case "afholdt":
     case "aftalegrundlag_sendt":
+    case "underskrevet": // betalte_ikke: aftalen skal sendes igen — virksomheden findes allerede (konverteringen er idempotent på linkrækken)
       return "afholdt";
     default:
       return "ny";
@@ -253,7 +264,11 @@ export function genaabningsTrin(lukketFra: Trin | null): Trin {
 }
 
 export function afgoerOvergang(fra: Trin, h: Handling, ctx: OvergangsKontekst): OvergangsDom {
-  if (fra === "underskrevet") return AFVIST("underskrevet: motoren har afleveret til betalingsforløbet — ingen handling herfra");
+  if (fra === "underskrevet") {
+    // Den ene undtagelse (filhovedet): dag 60 uden betaling — betalingsforløbets cron lukker.
+    if (h.art === "betalte_ikke") return OK({ til: "lukket", lukkeaarsag: "betalte_ikke", annuller: "alle" });
+    return AFVIST("underskrevet: motoren har afleveret til betalingsforløbet — ingen handling herfra");
+  }
 
   if (h.art === "genaabn") {
     if (fra !== "lukket") return AFVIST(`genaabn: kun en lukket ansøgning kan genåbnes (er ${fra})`);

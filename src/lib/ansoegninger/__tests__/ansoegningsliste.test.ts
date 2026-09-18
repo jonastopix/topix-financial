@@ -16,6 +16,7 @@ describe("ansoegningsliste — venter på os / vi venter på dem (den vigtigste 
     expect(venterPaa(r("booket", 3), nu)).toBe("dem");
     expect(venterPaa(r("aftalegrundlag_sendt", 3), nu)).toBe("dem");
     expect(venterPaa(r("underskrevet", 3), nu)).toBe("dem");
+    expect(venterPaa(r("underskrevet", 3, null, { virksomhed_slutdato: "2027-09-16" }), nu)).toBe("ingen"); // blev medlem (18/9 aften)
     expect(venterPaa(r("afholdt", 3, "2026-12-10"), nu)).toBe("ingen");
     expect(venterPaa(r("lukket", 3), nu)).toBe("ingen");
   });
@@ -25,6 +26,9 @@ describe("ansoegningsliste — venter på os / vi venter på dem (den vigtigste 
     expect(tidTekst(r("indkaldt", 1), nu)).toBe("vi venter på dem · 1 dag");
     expect(tidTekst(r("afholdt", 15, "2026-12-10"), nu)).toBe("på pause til 10. december");
     expect(tidTekst(r("lukket", 12), nu)).toBe("lukket · 12 dage siden");
+    // 18/9 aften: underskrevet siger hvad der ventes på; betalt siger hvad de blev — ingen tæller, der vokser
+    expect(tidTekst(r("underskrevet", 40), nu)).toBe("venter på betaling · 40 dage");
+    expect(tidTekst(r("underskrevet", 40, null, { virksomhed_slutdato: "2027-09-16T00:00:00Z" }), nu)).toBe("blev medlem · medlemskab til 16. september");
     expect(dageSiden("nix", nu)).toBe(0);
   });
   it("sortering: længst ventende på os øverst; vi-venter ældste først; pause tidligste dato; lukkede nyeste først", () => {
@@ -44,8 +48,10 @@ describe("ansoegningsliste — striben, første linje, søgning, filter", () => 
   it("striben har ét tal pr. gruppe i flowets rækkefølge — også nuller — og ordene er korte", () => {
     const s = stribeTal(alle, nu);
     expect(s.map((x) => x.gruppe)).toEqual([...LISTEGRUPPER]);
-    expect(Object.fromEntries(s.map((x) => [x.gruppe, x.antal]))).toEqual({ afholdt: 1, ny: 1, booket: 1, indkaldt: 1, aftalegrundlag_sendt: 0, underskrevet: 0, paa_pause: 2, lukket: 10 });
-    expect(STRIBE_RAEKKEFOELGE).toEqual(["ny", "indkaldt", "booket", "afholdt", "aftalegrundlag_sendt", "underskrevet", "paa_pause", "lukket"]);
+    expect(Object.fromEntries(s.map((x) => [x.gruppe, x.antal]))).toEqual({ afholdt: 1, ny: 1, booket: 1, indkaldt: 1, aftalegrundlag_sendt: 0, underskrevet: 0, paa_pause: 2, blev_medlem: 0, lukket: 10 });
+    expect(STRIBE_RAEKKEFOELGE).toEqual(["ny", "indkaldt", "booket", "afholdt", "aftalegrundlag_sendt", "underskrevet", "blev_medlem", "paa_pause", "lukket"]);
+    const medlem = sorterGruppe("blev_medlem", [r("underskrevet", 30, null, { navn: "a", virksomhed_slutdato: "2027-08-01" }), r("underskrevet", 3, null, { navn: "b", virksomhed_slutdato: "2027-09-16" })]);
+    expect(medlem.map((x) => x.navn)).toEqual(["b", "a"]); // nyeste medlem øverst
     for (const g of LISTEGRUPPER) expect(STRIBE_ORD[g].length).toBeLessThan(14);
   });
   it("foersteLinje: første ikke-tomme linje, klippet med …", () => {

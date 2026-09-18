@@ -1,7 +1,9 @@
 import { describe, it, expect } from "vitest";
 import {
   afgoerBetalingsfrist,
+  AFTALE_DOED_DAG,
   BETALINGSFRIST_DAGE,
+  erAftaleDoed,
   PAAMINDELSESDAGE,
   type BetalingsfristInput,
 } from "../betalingsfrist";
@@ -288,5 +290,26 @@ describe("afgoerBetalingsfrist — låse", () => {
 
   it("dag 31 er både sidste påmindelse og første dag efter fristen", () => {
     expect(PAAMINDELSESDAGE[PAAMINDELSESDAGE.length - 1]).toBe(BETALINGSFRIST_DAGE + 1);
+  });
+});
+
+describe("erAftaleDoed — død på dag 60 (Jonas 18/9 aften)", () => {
+  const input = (dage: number, ekstra: Partial<BetalingsfristInput> = {}): BetalingsfristInput => ({
+    prisniveau_oere: 5_000_000, underskrevet_at: forDage(dage), betalingsmail_sendt_at: forDage(dage), sidste_paamindelse_dag: 31, contract_end_date: null, ...ekstra,
+  });
+  it("dagen er 60 — fakturaen fra dag 31 er tredive dage gammel", () => {
+    expect(AFTALE_DOED_DAG).toBe(60);
+    expect(AFTALE_DOED_DAG - PAAMINDELSESDAGE[PAAMINDELSESDAGE.length - 1]).toBe(29);
+  });
+  it("død: ubetalt og mindst 60 dage; ikke død: dag 59, betalt, eller ukendt alder", () => {
+    expect(erAftaleDoed(afgoerBetalingsfrist(input(60), NU))).toBe(true);
+    expect(erAftaleDoed(afgoerBetalingsfrist(input(200), NU))).toBe(true);
+    expect(erAftaleDoed(afgoerBetalingsfrist(input(59), NU))).toBe(false);
+    expect(erAftaleDoed(afgoerBetalingsfrist(input(60, { contract_end_date: "2027-09-01" }), NU))).toBe(false); // betalt vinder altid
+    expect(erAftaleDoed(afgoerBetalingsfrist(input(60, { underskrevet_at: "nix" }), NU))).toBe(false); // ukendt alder: fail-closed
+  });
+  it("også uden pris eller uden mail: kontraktens ur løber fra underskriften", () => {
+    expect(erAftaleDoed(afgoerBetalingsfrist(input(60, { prisniveau_oere: null }), NU))).toBe(true);
+    expect(erAftaleDoed(afgoerBetalingsfrist(input(60, { betalingsmail_sendt_at: null, sidste_paamindelse_dag: null }), NU))).toBe(true);
   });
 });

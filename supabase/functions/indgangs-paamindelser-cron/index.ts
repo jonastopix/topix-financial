@@ -1,4 +1,7 @@
-// Indgangens påmindelser — dag 14, 25 og 31 efter betalingsmailen.
+// Indgangens påmindelser — dag 14, 25 og 31 efter betalingsmailen — og
+// DAG 60 (18/9 aften): en underskrevet, ubetalt aftale er død; ansøgningen
+// lukkes «betalte ikke» gennem motoren, rådgiverne får en klokke
+// (lukDoedAftale nederst; dommen er erAftaleDoed i _shared/betalingsfrist.ts).
 //
 // SAMME FORM SOM intro-reminder-cron: HTTP-indgang (IKKE Deno.cron — den
 // eksekveres aldrig på Supabases edge-runtime, målt 13/8),
@@ -64,7 +67,9 @@
 
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
 import { authenticateServiceRole, corsHeaders } from "../_shared/edgeFunctionAuth.ts";
-import { afgoerBetalingsfrist, type Paamindelsesdag } from "../_shared/betalingsfrist.ts";
+import { afgoerBetalingsfrist, AFTALE_DOED_DAG, erAftaleDoed, type Paamindelsesdag } from "../_shared/betalingsfrist.ts";
+import { hentAnsoegning, RAADGIVER_BESKED, REFERENCE_TYPE, udfoerOvergang, virksomhedsnavnAf } from "../_shared/ansoegningMotor.ts";
+import { skrivRaadgiverBesked } from "../_shared/raadgiverBesked.ts";
 import { dag14Mail, dag25Mail, dag31Mail, type IndgangsMail } from "../_shared/indgangsMail.ts";
 import { hentFakturaBeloeb, sendIndgangsFaktura } from "../_shared/indgangsFaktura.ts";
 import {
@@ -99,6 +104,13 @@ interface PaamindelsesResultat {
   };
   /** Sendingen fejlede (enqueue eller uventet) — stemples ikke, prøves igen i morgen. */
   fejlet: number;
+  /**
+   * DØD PÅ DAG 60 (18/9 aften): underskrevet, ubetalt i AFTALE_DOED_DAG dage → ansøgningen lukkes
+   * «betalte_ikke» gennem motoren (via koe) og rådgiverne får en klokke; ingen påmindelse/faktura
+   * sendes for en død aftale. uden_ansoegning: linkrækken har intet ansoegning_id (Monday-vejen) —
+   * intet at lukke. allerede: ansøgningen står ikke på «underskrevet» (lukket i går, eller genåbnet).
+   */
+  doede: { lukket: number; ville_lukke: number; uden_ansoegning: number; allerede: number; fejlet: number };
   /** Fordeling af det der blev sendt / ville sendes, pr. trin. */
   pr_trin: Record<"14" | "25" | "31", number>;
   /** Dag 31: fakturaen via Stripe Invoicing (_shared/indgangsFaktura.ts), sendt FØR mailen. */
@@ -124,6 +136,8 @@ interface PaamindelsesResultat {
 
 interface LinkRaekke {
   company_id: string;
+  /** Ansøgningen bag virksomheden (e-underskriften, 18/9) — null ad Monday-vejen. */
+  ansoegning_id: string | null;
   prisniveau_oere: number | null;
   underskrevet_at: string;
   token: string;
@@ -175,6 +189,7 @@ async function koerPaamindelser(
     sendt: 0,
     ville_sende: 0,
     sprunget_over: { ingen_forfalden: 0, betalt: 0, ingen_virksomhed: 0, ingen_email: 0 },
+    doede: { lukket: 0, ville_lukke: 0, uden_ansoegning: 0, allerede: 0, fejlet: 0 },
     fejlet: 0,
     pr_trin: { "14": 0, "25": 0, "31": 0 },
     faktura: { sendt: 0, fandtes_allerede: 0, uden_moms: [], ville_sende: 0 },
@@ -187,7 +202,7 @@ async function koerPaamindelser(
   //    første måned).
   const { data: links, error: linkErr } = await supabase
     .from("company_betalingslink")
-    .select("company_id, prisniveau_oere, underskrevet_at, token, betalingsmail_sendt_at, sidste_paamindelse_dag")
+    .select("company_id, ansoegning_id, prisniveau_oere, underskrevet_at, token, betalingsmail_sendt_at, sidste_paamindelse_dag")
     .not("betalingsmail_sendt_at", "is", null);
   if (linkErr) {
     console.error("[indgangs-paamindelser-cron] company_betalingslink-opslag fejlede:", linkErr.message);
@@ -241,6 +256,13 @@ async function koerPaamindelser(
       );
       if (tilstand.status === "betalt") {
         resultat.sprunget_over.betalt++;
+        continue;
+      }
+      // DØD PÅ DAG 60 — før påmindelserne: en død aftale får hverken rykker eller faktura (springet
+      // ville ellers sende dag 31 på dag 60, hvis intet var sendt). Idempotent gennem motoren: er
+      // ansøgningen ikke længere «underskrevet», er der intet at gøre.
+      if (erAftaleDoed(tilstand)) {
+        await lukDoedAftale(supabase, link, company, tilstand.dage_siden_underskrift ?? AFTALE_DOED_DAG, now, toerKoersel, resultat);
         continue;
       }
       const trin = tilstand.paamindelse_forfalden;
@@ -364,6 +386,53 @@ async function koerPaamindelser(
   }
 
   return resultat;
+}
+
+/**
+ * Dag 60 (18/9 aften): ansøgningen bag linkrækken lukkes «betalte_ikke» — motorens dom (underskrevet →
+ * lukket, alle trapper annulleret, sporet skrevet via «koe»), så klokke til rådgiverne. Virksomheden
+ * røres IKKE (den er oprettet ved underskriften) — hvad der skal ske med den, er økonomisidens
+ * beslutning (README). Tørkørsel: tæller ville_lukke, skriver intet.
+ */
+async function lukDoedAftale(
+  supabase: SupabaseClient,
+  link: LinkRaekke,
+  company: VirksomhedsRaekke,
+  dage: number,
+  now: Date,
+  toerKoersel: boolean,
+  resultat: PaamindelsesResultat,
+): Promise<void> {
+  if (!link.ansoegning_id) {
+    resultat.doede.uden_ansoegning++;
+    return;
+  }
+  const a = await hentAnsoegning(supabase, link.ansoegning_id);
+  if (!a || a.trin !== "underskrevet") {
+    resultat.doede.allerede++;
+    return;
+  }
+  if (toerKoersel) {
+    resultat.doede.ville_lukke++;
+    console.log(`[indgangs-paamindelser-cron] TØRKØRSEL ville lukke ansøgningen «betalte ikke» for ${company.name} (${link.company_id}, dag ${dage})`);
+    return;
+  }
+  const res = await udfoerOvergang(supabase, { ansoegning: a, handling: { art: "betalte_ikke" }, via: "koe", truffetAf: null, nu: now });
+  if (res.ok === false) {
+    console.error(`[indgangs-paamindelser-cron] betalte_ikke afvist for ${a.id} (${company.name}): ${res.grund}`);
+    resultat.doede.fejlet++;
+    return;
+  }
+  const navn = virksomhedsnavnAf(a);
+  await skrivRaadgiverBesked(supabase, {
+    type: RAADGIVER_BESKED.lukket_af_koen,
+    title: `Lukket: ${navn} betalte ikke`,
+    body: `Dag ${dage} efter underskriften — fakturaen fra dag 31 er ubetalt. Ansøgningen er lukket «betalte ikke» og kan genåbnes. Virksomheden «${company.name}» står stadig i platformen uden slutdato — se økonomisiden.`,
+    reference_type: REFERENCE_TYPE,
+    reference_id: a.id,
+  });
+  resultat.doede.lukket++;
+  console.log(`[indgangs-paamindelser-cron] ansøgningen ${a.id} lukket «betalte ikke» (${company.name}, dag ${dage})`);
 }
 
 Deno.serve(async (req) => {

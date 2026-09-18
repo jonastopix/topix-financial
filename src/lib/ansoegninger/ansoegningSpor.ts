@@ -36,6 +36,7 @@ export const HANDLING_ORD: Record<string, string> = {
   genaabn: "genåbnede ansøgningen",
   saet_pause: "satte ansøgningen på pause",
   genoptag: "tog pausen af — ansøgningen er i gang igen",
+  betalte_ikke: "lukkede: betalte ikke — dag 60 efter underskriften",
 };
 
 const VIA_ORD: Record<string, string> = {
