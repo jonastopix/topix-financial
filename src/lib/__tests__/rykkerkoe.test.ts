@@ -185,3 +185,16 @@ describe("rykkerkoe — regel 1: enhver reaktion annullerer resten af trappen (v
     expect(ikkeNu.ok && ikkeNu.overgang.start).toEqual({ trappe: "pause", anker: "pause" }); // ankeret er pausens slutdato (18/9)
   });
 });
+
+describe("rykkerkoe — trappen uden dag 0 (rettelse 19/9: aflysning → indkaldt uden ny indkaldelse)", () => {
+  it("fraTrinNr springer de første trin over; nøglerne er de samme som en fuld trappe", () => {
+    const nu = new Date("2026-09-21T09:00:00Z");
+    const fuld = planlaegTrappe({ ansoegningId: ID, trappe: "indkaldt", anker: nu, nu });
+    const uden = planlaegTrappe({ ansoegningId: ID, trappe: "indkaldt", anker: nu, nu, fraTrinNr: 1 });
+    expect(fuld.map((r) => r.trin_nr)).toEqual([0, 1, 2, 3, 4]);
+    expect(uden.map((r) => r.trin_nr)).toEqual([1, 2, 3, 4]);
+    expect(uden.map((r) => r.skabelon)).toEqual(["ansoegning-indkaldt-rykker-1", "ansoegning-indkaldt-rykker-2", "ansoegning-indkaldt-rykker-3", null]);
+    expect(uden.map((r) => r.idempotensnoegle)).toEqual(fuld.slice(1).map((r) => r.idempotensnoegle));
+    expect(planlaegTrappe({ ansoegningId: ID, trappe: "indkaldt", anker: nu, nu, fraTrinNr: 0 })).toEqual(fuld);
+  });
+});

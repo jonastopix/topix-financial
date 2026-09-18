@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
-import { doemCalendlyEvent, genaabnerRet } from "../_shared/calendlyWebhookDom.ts";
+import { doemCalendlyEvent, genaabnerRet, skalWebhookAflyse, skalWebhookBooke } from "../_shared/calendlyWebhookDom.ts";
+import { hentMoedeLink } from "../_shared/calendlyApi.ts";
 import { hentAnsoegning, udfoerOvergang } from "../_shared/ansoegningMotor.ts";
 import { meldSamtaleAendring } from "../_shared/samtaleBesked.ts";
 
@@ -197,10 +198,21 @@ Deno.serve(async (req: Request) => {
         // (ansoegning-samtale/ansoegning-handling) og skriver trin + event-uri FØR eller
         // EFTER denne webhook når frem. Kender ansøgningen allerede dette event, er alt gjort —
         // en ny «book» ville annullere trappen og (ignoreDuplicates) ikke genskabe den.
+        // Rettelse 19/9 (recon §8 punkt 2): samme event ELLER samme starttid = platformen bookede — ren dom, testet.
         const eventUri = typeof event.payload?.event === "string" ? event.payload.event : null;
-        if (eventUri && ansoegning.trin === "booket" && ansoegning.calendly_event_uri === eventUri) {
-          console.log(`[calendly-webhook] invitee.created: ansøgning ${bookingId} kender allerede eventet — platformen bookede.`);
-          return json(200, { received: true, ansoegning: bookingId, skipped: "allerede booket af platformen" });
+        const dom = skalWebhookBooke({ trin: ansoegning.trin, samtaleStart: ansoegning.samtale_start, ansoegningEventUri: ansoegning.calendly_event_uri, payloadEventUri: eventUri, payloadStart: startTid });
+        if (dom.book === false) {
+          console.log(`[calendly-webhook] invitee.created: ansøgning ${bookingId} springes over — ${dom.grund}.`);
+          return json(200, { received: true, ansoegning: bookingId, skipped: dom.grund });
+        }
+        // En ægte flytning i Calendly (nyt event): Meet-linket følger det NYE event — læses fail-soft, ellers nulstilles det (aldrig et dødt link i «i dag»-mailen).
+        let moedeLink: string | null = null;
+        if (eventUri) {
+          try {
+            moedeLink = await hentMoedeLink(eventUri);
+          } catch (err) {
+            console.error(`[calendly-webhook] mødelinket kunne ikke læses for ${eventUri}:`, err);
+          }
         }
         const res = await udfoerOvergang(admin, {
           ansoegning,
@@ -208,7 +220,7 @@ Deno.serve(async (req: Request) => {
           via: "calendly",
           truffetAf: null,
           nu: new Date(),
-          samtale: { start: startTid ? new Date(startTid) : new Date(), slut: slutTid ? new Date(slutTid) : null, eventUri: typeof event.payload?.event === "string" ? event.payload.event : null },
+          samtale: { start: startTid ? new Date(startTid) : new Date(), slut: slutTid ? new Date(slutTid) : null, eventUri, moedeLink },
         });
         if (res.ok === false) {
           // 409 = allerede booket / lukket / ikke indkaldt endnu: intet at gense — 200, ingen retry.
@@ -261,6 +273,14 @@ Deno.serve(async (req: Request) => {
     // dobbelt overgang, ingen dobbelt mail.
     const ansoegning = await hentAnsoegning(admin, bookingId);
     if (ansoegning) {
+      // Rettelse 19/9 (recon §8 punkt 1): efter en flytning aflyser platformen selv det GAMLE event —
+      // den aflysning må ikke ramme den NYE booking. Aflys kun når det aflyste event er ansøgningens.
+      const aflystEventUri = typeof event.payload?.event === "string" ? event.payload.event : null;
+      const vagt = skalWebhookAflyse({ ansoegningEventUri: ansoegning.calendly_event_uri, payloadEventUri: aflystEventUri });
+      if (vagt.aflys === false) {
+        console.log(`[calendly-webhook] invitee.canceled: ansøgning ${bookingId} springes over — ${vagt.grund}.`);
+        return json(200, { received: true, ansoegning: bookingId, skipped: vagt.grund });
+      }
       const gammelStart = ansoegning.samtale_start ? new Date(ansoegning.samtale_start) : null;
       const res = await udfoerOvergang(admin, { ansoegning, handling: { art: "aflys_booking" }, via: "calendly", truffetAf: null, nu: new Date() });
       console.log(`[calendly-webhook] invitee.canceled (${cancelerType ?? "?"}): ansøgning ${bookingId} → ${res.ok ? res.til : `uændret (${res.grund})`}.`);

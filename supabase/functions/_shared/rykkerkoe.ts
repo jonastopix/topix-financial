@@ -167,6 +167,8 @@ export interface PlanInput {
   anker: Date;
   /** Samtalens sluttid — kun booket. Mangler den: start + 60 min. */
   samtaleSlut?: Date | null;
+  /** Spring trin under dette nummer over (aflysning → indkaldt uden dag 0-mail). */
+  fraTrinNr?: number;
   nu: Date;
 }
 
@@ -196,6 +198,7 @@ const SAMTALE_STANDARD_MIN = 60;
 export function planlaegTrappe(i: PlanInput): PlanlagtRaekke[] {
   const ud: PlanlagtRaekke[] = [];
   for (const t of TRAPPER[i.trappe]) {
+    if (i.fraTrinNr !== undefined && t.trinNr < i.fraTrinNr) continue;
     let tidspunkt: Date;
     if (t.vedSamtaleSlut) {
       tidspunkt = i.samtaleSlut ?? new Date(i.anker.getTime() + SAMTALE_STANDARD_MIN * 60_000);

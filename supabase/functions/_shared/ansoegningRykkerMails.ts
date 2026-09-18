@@ -74,6 +74,8 @@ export interface MailKontekst {
   venteplads?: VentepladsKontekst | null;
   /** Samtalen i kalenderen (udkast 18/9): Meet-linket fra Calendly-eventet (ansoegninger.samtale_link) — i dag/i morgen-mailene og bekræftelsen. */
   moedeLink?: string | null;
+  /** Tidspunktet mailen bygges (dag −1-mailen skelner «i morgen» fra «på mandag»); mangler den, bruges uret. */
+  nu?: Date;
   /** Afslagsmailen (18/9): grunden i ansøgerens ord, køpladserne (kun numre — aldrig medlemmets navn) og om der var en samtale. Kun sat for trappen «afslag». */
   afslag?: AfslagsIndhold | null;
   /** Kvitteringen (18/9): de tre svar ansøgeren skrev — så de kan se, vi har dem. */
@@ -129,6 +131,23 @@ export function genoptagLink(token: string, appUrl: string = APP_URL): string {
 }
 
 /** «mandag den 21. september kl. 09.00» — dansk tid. */
+const UGEDAGE_ORD = ["søndag", "mandag", "tirsdag", "onsdag", "torsdag", "fredag", "lørdag"];
+
+/** «i morgen» når samtalen er dagen efter (dansk dato), ellers «på mandag» osv.; uden tid: «snart». Ren — testet. */
+export function samtaledagOrd(samtaleStart: Date | null, nu: Date): string {
+  if (!samtaleStart) return "snart";
+  const dato = (d: Date) => d.toLocaleDateString("sv-SE", { timeZone: TZ });
+  const iMorgen = new Date(nu.getTime() + 86_400_000);
+  if (dato(samtaleStart) === dato(iMorgen)) return "i morgen";
+  if (dato(samtaleStart) === dato(nu)) return "i dag";
+  const ugedag = new Date(samtaleStart.toLocaleString("en-US", { timeZone: TZ })).getDay();
+  return `på ${UGEDAGE_ORD[ugedag]}`;
+}
+
+function stortForbogstav(s: string): string {
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
 export function formaterSamtaletid(d: Date): string {
   return new Intl.DateTimeFormat("da-DK", { timeZone: TZ, weekday: "long", day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" }).format(d);
 }
@@ -235,11 +254,12 @@ const BYGGERE: Record<string, (k: MailKontekst) => Udkast> = {
   }),
   // Jonas 4: intet regnskab dagen før.
   "ansoegning-samtale-i-morgen": (k) => ({
-    emne: "I morgen: vores snak",
+    // Dag −1 rykkes tilbage til nærmeste hverdag: før en mandagssamtale går mailen fredag — så hedder det «på mandag», ikke «i morgen» (recon 19/9).
+    emne: `${stortForbogstav(samtaledagOrd(k.samtaleStart, k.nu ?? new Date()))}: vores snak`,
     eyebrow: "Afklaringssamtalen",
     afsnit: [
       `${hej(k)},`,
-      `Vi ses i morgen${k.samtaleStart ? `, ${formaterSamtaletid(k.samtaleStart)}` : ""}. Du skal ikke forberede noget særligt. Jeg vil gerne høre om jeres forretning, og hvad du håber at få ud af The Boardroom.`,
+      `Vi ses ${samtaledagOrd(k.samtaleStart, k.nu ?? new Date())}${k.samtaleStart ? `, ${formaterSamtaletid(k.samtaleStart)}` : ""}. Du skal ikke forberede noget særligt. Jeg vil gerne høre om jeres forretning, og hvad du håber at få ud af The Boardroom.`,
       "Mødelinket står i din kalenderinvitation. Skal tiden flyttes, kan du gøre det på din side — linket står nedenfor.",
     ],
     knap: { tekst: "Se din booking", href: k.statusUrl },

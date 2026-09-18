@@ -126,6 +126,10 @@ export function hentStatus(token: string): Promise<StatusSvar> {
 export function sigIkkeNu(token: string): Promise<StatusSvar & { ok: true; allerede: boolean }> {
   return kaldLink({ token, handling: "ikke_nu" });
 }
+/** Ventelisten (rettelse 19/9): ja/nej til en tilbudt plads — serverens tag_pladsen/afslaa_pladsen (svarPaaPlads). 409 = intet tilbud ude. */
+export function svarPaaPladsen(token: string, svar: "ja" | "nej"): Promise<StatusSvar & { ok: true; svar: "ja" | "nej"; genaabnet: boolean }> {
+  return kaldLink({ token, handling: svar === "ja" ? "tag_pladsen" : "afslaa_pladsen" });
+}
 
 export function indsendAnsoegning(token: string, svar: Partial<AnsoegningsSvar>): Promise<{ ok: true; indsendt: true }> {
   return kald("ansoegning-gem", { handling: "indsend", token, svar });

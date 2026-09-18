@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { afgoerStatus, danskDato, danskTidspunkt } from "@/lib/ansoegning/status";
+import { afgoerStatus, danskDato, danskTidspunkt, laesPladsHandling, PLADS_UDLOEBET, pladsSpoergsmaal, pladsSvarTekst } from "@/lib/ansoegning/status";
 
 // Statussiden (18/9, flow-gennemgangen §10): hvad der sker nu, hvad vi venter på, og de to knapper.
 const basis = { trin: "ny", paa_pause_til: null, samtale_start: null, samtale_slut: null, moede_link: null, aftale_url: null, virksomhedsnavn: "Nordic Byg ApS", fornavn: "Lisbeth" };
@@ -25,8 +25,10 @@ describe("afgoerStatus", () => {
     expect(v.tekst).toMatch(/10[.:]00/);
     expect(v.tekst).toContain("kalenderinvitation");
     expect(v.tekst).not.toContain("Calendly");
-    // booket uden tid (gamle links før tiden blev læst): tidsvælgeren igen
-    expect(afgoerStatus({ ...basis, trin: "booket" })).toMatchObject({ book: true, booket: null });
+    // Rettelse 19/9: ingen «Ikke nu» på en booket samtale — den ville gemme mødet væk uden at aflyse det i kalenderen.
+    expect(v.visIkkeNu).toBe(false);
+    // booket uden tid (gamle links før tiden blev læst): tidsvælgeren igen, stadig uden «Ikke nu»
+    expect(afgoerStatus({ ...basis, trin: "booket" })).toMatchObject({ book: true, booket: null, visIkkeNu: false });
   });
   it("aftalegrundlag sendt — brist 8: e-underskriften vinder over aftale_url; udløbet/annulleret giver ingen knap; underskrevet siger velkommen", () => {
     const u = { url: "https://app.theboardroom.dk/aftale?token=e-sig", udloeber_at: "2026-10-09T10:00:00Z", underskrevet_at: null };
@@ -69,5 +71,27 @@ describe("danskDato og danskTidspunkt", () => {
   it("danskTidspunkt i Europe/Copenhagen; ulæseligt → uændret", () => {
     expect(danskTidspunkt("2026-01-05T09:30:00Z")).toMatch(/mandag.*5\. januar.*10[.:]30/);
     expect(danskTidspunkt("ikke en tid")).toBe("ikke en tid");
+  });
+});
+
+describe("statussiden — rettelser 19/9", () => {
+  it("pausen gælder mod dato, ikke mod null: efter slutdatoen er siden ikke på pause (Nordivox/BlueNordix efter 10/12)", () => {
+    const paa = afgoerStatus({ ...basis, trin: "indkaldt", paa_pause_til: "2026-12-10" }, new Date("2026-12-09T10:00:00Z"));
+    expect(paa.titel).toBe("Din ansøgning holder pause");
+    const efter = afgoerStatus({ ...basis, trin: "indkaldt", paa_pause_til: "2026-12-10" }, new Date("2026-12-10T10:00:00Z"));
+    expect(efter.titel).toBe("Jonas vil gerne tale med dig");
+    expect(efter.book).toBe(true);
+  });
+  it("ventelisten: mailens ?handling= læses, kortet spørger, svaret takker — og et udløbet tilbud har sine egne ord", () => {
+    expect(laesPladsHandling("tag_pladsen")).toBe("ja");
+    expect(laesPladsHandling("afslaa_pladsen")).toBe("nej");
+    expect(laesPladsHandling("ikke_nu")).toBeNull();
+    expect(laesPladsHandling(null)).toBeNull();
+    expect(pladsSpoergsmaal("ja").knap).toBe("Ja tak, jeg vil have pladsen");
+    expect(pladsSpoergsmaal("nej").knap).toBe("Nej tak — giv den videre");
+    expect(pladsSvarTekst("ja", true).titel).toBe("Tak — pladsen er din");
+    expect(pladsSvarTekst("ja", true).tekst).toMatch(/genåbnet/);
+    expect(pladsSvarTekst("nej", false).tekst).toMatch(/videre til den næste/);
+    expect(PLADS_UDLOEBET.titel).toMatch(/gælder ikke længere/);
   });
 });

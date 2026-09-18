@@ -10,6 +10,8 @@
  */
 import { describe, expect, it } from "vitest";
 import {
+  skalWebhookAflyse,
+  skalWebhookBooke,
   doemCalendlyEvent,
   genaabnerGratis,
   genaabnerRet,
@@ -147,5 +149,27 @@ describe("genaabnerRet — hvilken ret en host-aflysning genåbner", () => {
         expect(genaabnerGratis({ cancelerType, advisor })).toBe(genaabnerRet({ cancelerType, advisor, amount_dkk: 0 }) === "intro_session_used_at");
       }
     }
+  });
+});
+
+describe("calendlyWebhookDom — ansøgningsmotorens to værn (rettelser 19/9)", () => {
+  const A = "https://api.calendly.com/scheduled_events/aaa", B = "https://api.calendly.com/scheduled_events/bbb";
+  it("aflys: kun når det aflyste event ER ansøgningens; et andet event (det gamle efter en flytning) springes over; ukendt uri lader tvivlen gå til aflysningen", () => {
+    expect(skalWebhookAflyse({ ansoegningEventUri: A, payloadEventUri: A })).toEqual({ aflys: true });
+    const flyt = skalWebhookAflyse({ ansoegningEventUri: B, payloadEventUri: A });
+    expect(flyt.aflys).toBe(false);
+    expect(flyt.aflys === false && flyt.grund).toMatch(/andet event/);
+    expect(skalWebhookAflyse({ ansoegningEventUri: null, payloadEventUri: A })).toEqual({ aflys: true }); // gamle links uden gemt uri
+    expect(skalWebhookAflyse({ ansoegningEventUri: A, payloadEventUri: null })).toEqual({ aflys: true });
+  });
+  it("book: springes over når ansøgningen allerede bærer eventet ELLER samme starttid (platformen bookede); en ægte flytning i Calendly (ny uri, ny tid) bookes", () => {
+    const start = "2026-09-21T07:00:00.000Z";
+    expect(skalWebhookBooke({ trin: "booket", samtaleStart: start, ansoegningEventUri: A, payloadEventUri: A, payloadStart: start }).book).toBe(false);
+    const sammeTid = skalWebhookBooke({ trin: "booket", samtaleStart: start, ansoegningEventUri: null, payloadEventUri: A, payloadStart: "2026-09-21T07:00:00Z" });
+    expect(sammeTid.book).toBe(false);
+    expect(sammeTid.book === false && sammeTid.grund).toMatch(/samme starttid/);
+    expect(skalWebhookBooke({ trin: "booket", samtaleStart: start, ansoegningEventUri: A, payloadEventUri: B, payloadStart: "2026-09-22T07:00:00Z" })).toEqual({ book: true });
+    expect(skalWebhookBooke({ trin: "indkaldt", samtaleStart: null, ansoegningEventUri: null, payloadEventUri: A, payloadStart: start })).toEqual({ book: true });
+    expect(skalWebhookBooke({ trin: "booket", samtaleStart: null, ansoegningEventUri: null, payloadEventUri: A, payloadStart: null })).toEqual({ book: true });
   });
 });

@@ -20,7 +20,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
 import { corsHeaders } from "../_shared/edgeFunctionAuth.ts";
 import { verifyAnsoegningslink } from "../_shared/ansoegningLinkAuth.ts";
 import { fornavnAf, udfoerOvergang, virksomhedsnavnAf } from "../_shared/ansoegningMotor.ts";
-import { erAabentTrin } from "../_shared/ansoegningTrin.ts";
+import { erAabentTrin, erPaaPause } from "../_shared/ansoegningTrin.ts";
 import { aftaleTilAnsoeger, AFTALE_TIL_ANSOEGER_FELTER, type AftaleRaekkeTilAnsoeger } from "../_shared/ansoegerAftale.ts";
 
 function json(body: unknown, status = 200): Response {
@@ -92,7 +92,7 @@ Deno.serve(async (req) => {
   }
 
   if (!erAabentTrin(a.trin)) return json({ error: "Ansøgningen er afsluttet" }, 409);
-  if (a.paa_pause_til) return json({ ok: true, allerede: true, ...svar() });
+  if (erPaaPause(a.paa_pause_til, new Date())) return json({ ok: true, allerede: true, ...svar() });
   const res = await udfoerOvergang(admin, { ansoegning: a, handling: { art: "ikke_nu" }, via: "ansoeger_link", truffetAf: null, nu: new Date() });
   if (res.ok === false) return json({ error: res.grund }, res.status);
   const efter = await verifyAnsoegningslink(token, admin);

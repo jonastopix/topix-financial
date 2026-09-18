@@ -20,7 +20,7 @@ import { HbSection } from "@/components/hjemmebane/HbSection";
 import { hbControlClasses } from "@/components/hjemmebane/admin/HbField";
 import { cn } from "@/lib/utils";
 import { grundlagSomTekst, OMSAETNINGSINTERVALLER_KR } from "@/lib/ansoegningAnbefaling";
-import { danskTidspunkt, LUKKEAARSAG_ORD, TRIN_ORD, ventetid, virksomhedsnavnAf } from "@/lib/ansoegninger/ansoegningVisning";
+import { danskTidspunkt, erPaaPause, LUKKEAARSAG_ORD, TRIN_ORD, ventetid, virksomhedsnavnAf } from "@/lib/ansoegninger/ansoegningVisning";
 import { koelinjer, sporlinjer } from "@/lib/ansoegninger/ansoegningSpor";
 import { AnsoegningHandlinger } from "./AnsoegningHandlinger";
 import { SamtaleAfsnit } from "./SamtaleAfsnit";
@@ -88,7 +88,7 @@ export const AnsoegningView = ({ id }: { id: string | undefined }) => {
           {a.paa_pause_til ? ` · på pause til ${a.paa_pause_til}` : ""}{a.lukkeaarsag ? ` · ${LUKKEAARSAG_ORD[a.lukkeaarsag]}` : ""}
           {a.company_id ? <> · <Link to={`/virksomhed/${a.company_id}`} className="text-hb-evergreen underline-offset-4 hover:underline">virksomheden</Link></> : null}
         </p>
-        <AnsoegningHandlinger id={a.id} navn={navn} trin={a.trin} paaPause={a.paa_pause_til !== null} lukketFraTrin={a.lukket_fra_trin} />
+        <AnsoegningHandlinger id={a.id} navn={navn} trin={a.trin} paaPause={erPaaPause(a.paa_pause_til, nu)} lukketFraTrin={a.lukket_fra_trin} />
         {/* E-underskriften fra ansøgningen (generalprøvens brist 1, 18/9): samme komponent som
             virksomhedssiden, med ansoegning_id. Kun efter samtalen («afholdt») og ved gensendelse
             («aftalegrundlag_sendt»), aldrig på pause — samme vilkår som functionen selv stiller.
@@ -100,7 +100,7 @@ export const AnsoegningView = ({ id }: { id: string | undefined }) => {
         )}
       </section>
 
-      {(a.trin === "indkaldt" || a.trin === "booket") && !a.paa_pause_til && (
+      {(a.trin === "indkaldt" || a.trin === "booket") && !erPaaPause(a.paa_pause_til, nu) && (
         <HbSection eyebrow="Samtalen" hairline className="mt-12">
           <SamtaleAfsnit id={a.id} navn={navn} trin={a.trin} samtaleStart={a.samtale_start} samtaleLink={a.samtale_link} />
         </HbSection>

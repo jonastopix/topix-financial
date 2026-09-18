@@ -33,6 +33,7 @@ import { verifyAnsoegningslink } from "../_shared/ansoegningLinkAuth.ts";
 import { hentAnsoegning, udfoerOvergang } from "../_shared/ansoegningMotor.ts";
 import { CalendlyFejl } from "../_shared/calendlyApi.ts";
 import { erSlotLedig, slutAf } from "../_shared/samtaleSlots.ts";
+import { erPaaPause } from "../_shared/ansoegningTrin.ts";
 import { aflysIKalenderen, bookIKalenderen, hentLedigeSamtaletider } from "../_shared/samtaleTider.ts";
 import { meldSamtaleAendring } from "../_shared/samtaleBesked.ts";
 
@@ -67,7 +68,7 @@ Deno.serve(async (req) => {
   const a = await verifyAnsoegningslink(token, admin);
   if (!a) return json({ error: "Ukendt link" }, 404);
   if (a.trin !== "indkaldt" && a.trin !== "booket") return json({ error: "Samtalen kan ikke bookes fra dette trin" }, 409);
-  if (a.paa_pause_til) return json({ error: "Ansøgningen er på pause" }, 409);
+  if (erPaaPause(a.paa_pause_til, new Date())) return json({ error: "Ansøgningen er på pause" }, 409);
 
   const nu = new Date();
   const svar = (ekstra: Record<string, unknown> = {}) => ({
