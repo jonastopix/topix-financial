@@ -1,5 +1,5 @@
 /**
- * ansoegningRykkerMails — de tretten mails rykkerkøen kan sende, rene
+ * ansoegningRykkerMails — de tolv mails rykkerkøen kan sende, rene
  * byggere (ingen Deno, ingen afsendelse). Nøglerne er KOE_SKABELONER fra
  * rykkerkoe.ts; guard-testen låser at hver nøgle har en bygger her, og at
  * ingen bygger findes uden nøgle.
@@ -20,6 +20,15 @@
  * Rammen er intro-reminder-cron's (bulletproofButton + fallbackLinkBlock),
  * afsenderlinjen «The Boardroom» — det er en maskine der sender på Jonas'
  * vegne, og den siger det.
+ *
+ * JONAS' GENNEMLÆSNING 18/9 (udkast-mailtekster-gennemlaesning): (1) tre
+ * mails siger «svar på denne mail» — afsenderen er noreply@, så cronen
+ * sætter nu replyTo = KONTAKT_ADRESSE (managedEmail.ts, valgfrit felt;
+ * kontakt@theboardroom.dk viderestilles til Jonas — bekræftet af Jonas
+ * 18/9). Ordlyden bliver stående. (2) Sidste rykker om samtalen siger
+ * «inden tre dage» — rykkeren går dag 11, køen lukker dag 14. (3) Rykkeren
+ * dag 4 udgik (sagde det samme som dag 2); trappen er dag 2, 7, 11, og
+ * navnene er rykker-1..3.
  */
 import { escHtml } from "./htmlEscape.ts";
 import { bulletproofButton, fallbackLinkBlock } from "./emailButtonHelpers.ts";
@@ -48,6 +57,16 @@ export interface MailKontekst {
   venteplads?: VentepladsKontekst | null;
   /** Afslagsmailen (18/9): grunden i ansøgerens ord, køpladserne (kun numre — aldrig medlemmets navn) og om der var en samtale. Kun sat for trappen «afslag». */
   afslag?: AfslagsIndhold | null;
+  /** Kvitteringen (18/9): de tre svar ansøgeren skrev — så de kan se, vi har dem. */
+  svar?: { udfordring: string | null; proevet: string | null; omTolvMaaneder: string | null } | null;
+}
+
+/** Et svar klippet til mailen — hele afsnit, højst KVITTERING_SVAR_MAKS tegn, ellers «…». */
+export const KVITTERING_SVAR_MAKS = 600;
+export function klipSvar(tekst: string | null | undefined): string | null {
+  const t = (tekst ?? "").replace(/\s+/g, " ").trim();
+  if (!t) return null;
+  return t.length <= KVITTERING_SVAR_MAKS ? t : `${t.slice(0, KVITTERING_SVAR_MAKS - 1).trimEnd()}…`;
 }
 
 export interface VentepladsKontekst {
@@ -100,6 +119,27 @@ function hej(k: MailKontekst): string {
 const IKKE_NU_TEKST = "Er det ikke det rigtige tidspunkt? Så sig til her — vi sætter det på pause i tre måneder og skriver ikke imens:";
 
 const BYGGERE: Record<string, (k: MailKontekst) => Udkast> = {
+  "ansoegning-kvittering": (k) => {
+    const s = k.svar ?? { udfordring: null, proevet: null, omTolvMaaneder: null };
+    const dine = [
+      s.udfordring ? `Din største udfordring lige nu: ${klipSvar(s.udfordring)}` : null,
+      s.proevet ? `Det du selv har prøvet: ${klipSvar(s.proevet)}` : null,
+      s.omTolvMaaneder ? `Om tolv måneder: ${klipSvar(s.omTolvMaaneder)}` : null,
+    ].filter((x): x is string => x !== null);
+    return {
+      emne: "Vi har din ansøgning",
+      eyebrow: "Din ansøgning til The Boardroom",
+      afsnit: [
+        `${hej(k)},`,
+        `Tak — vi har modtaget din ansøgning for ${k.virksomhedsnavn}. Her er det, du skrev, så du kan se, at vi har det:`,
+        ...dine,
+        PROCESTEKST,
+        "Jonas vender tilbage til dig. Du behøver ikke gøre mere nu.",
+      ],
+      knap: { tekst: "Se din ansøgning", href: k.statusUrl },
+      ikkeNu: false,
+    };
+  },
   "ansoegning-kladde-paamindelse": (k) => {
     const rest = k.manglerSvar ?? 0;
     const status = rest === 0
@@ -139,25 +179,18 @@ const BYGGERE: Record<string, (k: MailKontekst) => Udkast> = {
     ikkeNu: true,
   }),
   "ansoegning-indkaldt-rykker-2": (k) => ({
-    emne: "Samtalen venter på dig",
-    eyebrow: "Afklaringssamtalen",
-    afsnit: [`${hej(k)},`, `Din ansøgning for ${k.virksomhedsnavn} ligger klar hos os. Det eneste der mangler, er et tidspunkt til vores snak.`],
-    knap: { tekst: "Vælg et tidspunkt", href: k.bookingUrl },
-    ikkeNu: true,
-  }),
-  "ansoegning-indkaldt-rykker-3": (k) => ({
     emne: "Skal jeg hjælpe med at finde et tidspunkt?",
     eyebrow: "Afklaringssamtalen",
     afsnit: [`${hej(k)},`, "Passer ingen af tiderne, så svar på denne mail med et par forslag — så finder vi ud af det. Ellers er linket her:"],
     knap: { tekst: "Book samtalen med Jonas", href: k.bookingUrl },
     ikkeNu: true,
   }),
-  "ansoegning-indkaldt-rykker-4": (k) => ({
+  "ansoegning-indkaldt-rykker-3": (k) => ({
     emne: "Sidste hilsen fra mig om samtalen",
     eyebrow: "Afklaringssamtalen",
     afsnit: [
       `${hej(k)},`,
-      "Jeg har skrevet et par gange uden at høre fra dig, så dette er den sidste mail om samtalen. Hører jeg ikke fra dig inden for et par dage, lukker vi ansøgningen — og du er velkommen til at søge igen, når det passer bedre.",
+      "Jeg har skrevet et par gange uden at høre fra dig, så dette er den sidste mail om samtalen. Hører jeg ikke fra dig inden tre dage, lukker vi ansøgningen — og du er velkommen til at søge igen, når det passer bedre.",
     ],
     knap: { tekst: "Book samtalen med Jonas", href: k.bookingUrl },
     ikkeNu: true,

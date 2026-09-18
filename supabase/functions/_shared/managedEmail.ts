@@ -37,6 +37,14 @@ export interface ManagedMailArgs {
   text?: string;
   /** Afsenderlinjen. Standard er «The Boardroom <noreply@…>». */
   from?: string;
+  /**
+   * Svaradresse (Reply-To). VALGFRIT — udelades feltet, sendes intet, og
+   * mailen opfører sig som før (svar går til noreply@). Sat 18/9 for
+   * ansøgningskøens mails (kontakt@theboardroom.dk, viderestilles til Jonas),
+   * fordi tre af dem siger «svar på denne mail». Ingen anden afsender sætter
+   * det — låst af src/lib/__tests__/ansoegningRykkerRettelser.guard.test.ts.
+   */
+  replyTo?: string;
   /** template_name i email_send_log og label hos Lovable. */
   label: string;
   /** Dedup på gentagne kald. Bliver også message_id i loggen. */
@@ -123,6 +131,8 @@ export async function sendManagedEmail(args: ManagedMailArgs): Promise<ManagedMa
         purpose: "transactional",
         label,
         idempotency_key: messageId,
+        // Kun når kalderen har sat den — ellers ikke engang nøglen (uændret adfærd for alle andre).
+        ...(args.replyTo ? { reply_to: args.replyTo } : {}),
       },
       { apiKey, sendUrl: Deno.env.get("LOVABLE_SEND_URL") },
     );

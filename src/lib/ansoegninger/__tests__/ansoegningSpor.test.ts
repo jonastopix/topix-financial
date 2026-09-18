@@ -20,7 +20,7 @@ describe("ansoegningSpor — hvem gjorde hvad hvornår", () => {
       { trappe: "indkaldt", trin_nr: 2, handling: "send_mail", skabelon: "ansoegning-indkaldt-rykker-2", modtager: "ansoeger", planlagt_til: "2026-09-24T08:00:00Z", status: "planlagt", udfoert_at: null, annulleret_grund: null, fejl: null },
       { trappe: "indkaldt", trin_nr: 0, handling: "send_mail", skabelon: "ansoegning-indkaldelse", modtager: "ansoeger", planlagt_til: "2026-09-18T08:00:00Z", status: "sendt", udfoert_at: "2026-09-18T08:02:00Z", annulleret_grund: null, fejl: null },
       { trappe: "indkaldt", trin_nr: 1, handling: "send_mail", skabelon: "ansoegning-indkaldt-rykker-1", modtager: "ansoeger", planlagt_til: "2026-09-22T08:00:00Z", status: "planlagt", udfoert_at: null, annulleret_grund: null, fejl: null },
-      { trappe: "indkaldt", trin_nr: 5, handling: "luk_svarer_ikke", skabelon: null, modtager: "raadgiver", planlagt_til: "2026-10-02T08:00:00Z", status: "annulleret", udfoert_at: null, annulleret_grund: "book (calendly)", fejl: null },
+      { trappe: "indkaldt", trin_nr: 4, handling: "luk_svarer_ikke", skabelon: null, modtager: "raadgiver", planlagt_til: "2026-10-02T08:00:00Z", status: "annulleret", udfoert_at: null, annulleret_grund: "book (calendly)", fejl: null },
     ]);
     expect(k.map((x) => x.status)).toEqual(["planlagt", "planlagt", "sendt", "annulleret"]);
     expect(k[0].hvad).toBe("rykker 1 om samtalen");

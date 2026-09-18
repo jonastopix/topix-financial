@@ -413,6 +413,11 @@ export interface CvrVisning {
   status: string | null;
   /** Registrets website-felt, normaliseret med normaliserHjemmeside; null når tomt/ulæseligt. */
   hjemmeside: string | null;
+  /**
+   * 18/9: hvor navnet kommer fra. Udeladt/«datacvr» = DataCVR; «ansoeger» = ansøgeren tastede
+   * selv navnet, fordi opslaget fejlede (fallback i ansoegning-gem). Motoren og fladen skelner.
+   */
+  kilde?: "datacvr" | "ansoeger";
 }
 
 /** «2019-05-01» → 2019; ulæseligt → null. Splitter selv (aldrig new Date()). */

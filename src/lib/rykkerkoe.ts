@@ -35,9 +35,10 @@
  *
  * TRAPPERNE (dag N regnes fra ankeret på den danske kalender, kl. 10):
  *   indkaldt      anker = trinskiftet. Dag 0 selve indkaldelsen, rykker
- *                 dag 2, 4, 7, 11 → lukkes «svarer ikke» dag 14 (tre dage
+ *                 dag 2, 7, 11 → lukkes «svarer ikke» dag 14 (tre dage
  *                 efter sidste rykker — husets valg, Jonas satte kun
- *                 rykkerdagene).
+ *                 rykkerdagene). Jonas 18/9 (gennemlæsning): rykkeren
+ *                 dag 4 udgik — den sagde det samme som dag 2.
  *   booket        anker = samtalens starttid. Dagen før kl. 10 og samme
  *                 morgen kl. 07; når samtalen er slut markeres «afholdt»
  *                 (rådgiveren får en klokke: tilbud eller afslag). En række
@@ -108,13 +109,16 @@ export const VENTEPLADS_SVARFRIST_DAGE = 7;
 
 export const TRAPPER: Record<Trappe, readonly TrappeTrin[]> = {
   kladde: [{ trinNr: 0, dag: KLADDE_PAAMINDELSE_DAG, handling: "send_mail", skabelon: "ansoegning-kladde-paamindelse", modtager: "ansoeger" }],
+  // Kvitteringen (Jonas 18/9, flow-gennemgangen §3): én mail dag 0 fra indsendelsen — «vi har din
+  // ansøgning» med det ansøgeren skrev. Følger vinduet (aften → næste hverdag kl. 07) og dagsreglen.
+  // Ingen «ikke nu»-linje (der er intet at sætte på pause endnu); tal_med_dem annullerer den ikke.
+  indsendt: [{ trinNr: 0, dag: 0, handling: "send_mail", skabelon: "ansoegning-kvittering", modtager: "ansoeger" }],
   indkaldt: [
     { trinNr: 0, dag: 0, handling: "send_mail", skabelon: "ansoegning-indkaldelse", modtager: "ansoeger" },
     { trinNr: 1, dag: 2, handling: "send_mail", skabelon: "ansoegning-indkaldt-rykker-1", modtager: "ansoeger" },
-    { trinNr: 2, dag: 4, handling: "send_mail", skabelon: "ansoegning-indkaldt-rykker-2", modtager: "ansoeger" },
-    { trinNr: 3, dag: 7, handling: "send_mail", skabelon: "ansoegning-indkaldt-rykker-3", modtager: "ansoeger" },
-    { trinNr: 4, dag: 11, handling: "send_mail", skabelon: "ansoegning-indkaldt-rykker-4", modtager: "ansoeger" },
-    { trinNr: 5, dag: 14, handling: "luk_svarer_ikke", skabelon: null, modtager: "raadgiver" },
+    { trinNr: 2, dag: 7, handling: "send_mail", skabelon: "ansoegning-indkaldt-rykker-2", modtager: "ansoeger" },
+    { trinNr: 3, dag: 11, handling: "send_mail", skabelon: "ansoegning-indkaldt-rykker-3", modtager: "ansoeger" },
+    { trinNr: 4, dag: 14, handling: "luk_svarer_ikke", skabelon: null, modtager: "raadgiver" },
   ],
   booket: [
     { trinNr: 0, dag: -1, klokke: 10, handling: "send_mail", skabelon: "ansoegning-samtale-i-morgen", modtager: "ansoeger" },

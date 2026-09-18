@@ -117,6 +117,9 @@ export const CVR_FINDES_IKKE = "Vi kan ikke finde det nummer i CVR. Tjek cifrene
 export const CVR_UTILGAENGELIG = "Vi kunne ikke slå nummeret op lige nu. Du kan fortsætte — så tjekker vi det.";
 export const CVR_IKKE_AKTIV = "CVR siger, at virksomheden ikke er aktiv. Er det den rigtige?";
 export const CVR_FORTSAET_ALLIGEVEL = "Fortsæt alligevel";
+/** Fallback (18/9): kunne CVR ikke slås op, taster ansøgeren selv navnet før «Fortsæt». */
+export const CVR_NAVN_SPOERGSMAAL = "Hvad hedder virksomheden?";
+export const CVR_NAVN_FEJL = "Skriv virksomhedens navn, så vi ved hvem du er.";
 export const HJEMMESIDE_INGEN_KNAP = "Vi har ingen hjemmeside";
 
 /** Over formularen — hvad der sker bagefter, og prisen. UDKAST. */
@@ -144,7 +147,8 @@ export const INTRO = {
 export const KVITTERING = {
   eyebrow: "Tak",
   titel: "Din ansøgning er sendt",
-  tekst: "Morten og Jonas læser og vurderer den. Er The Boardroom det rigtige for dig, inviterer Jonas dig til en uforpligtende snak. Hold øje med telefonen og indbakken.",
+  // 18/9: mailen (trappen «indsendt») går i sendevinduet 07–16 på hverdage — om aftenen næste morgen. Sig det.
+  tekst: "Du får en mail med det, du skrev — i dag, hvis det er inden for arbejdstid, ellers i morgen tidlig. Morten og Jonas læser og vurderer din ansøgning, og Jonas vender tilbage til dig. Du behøver ikke gøre mere nu.",
 } as const;
 
 /**

@@ -53,8 +53,44 @@ export function hentAnsoegning(token: string): Promise<HentSvar> {
   return kald<HentSvar>("ansoegning-gem", { handling: "hent", token });
 }
 
-export function gemSvar(token: string, svar: Partial<AnsoegningsSvar>, cvrBekraeftet = false): Promise<{ ok: true; fremdrift: Fremdrift }> {
-  return kald("ansoegning-gem", { handling: "gem", token, svar, cvr_bekraeftet: cvrBekraeftet });
+export function gemSvar(
+  token: string,
+  svar: Partial<AnsoegningsSvar>,
+  cvrBekraeftet = false,
+  /** Fallback (18/9): virksomhedsnavnet tastet af ansøgeren, når CVR ikke kunne slås op. */
+  virksomhedsnavn?: string,
+): Promise<{ ok: true; fremdrift: Fremdrift }> {
+  return kald("ansoegning-gem", { handling: "gem", token, svar, cvr_bekraeftet: cvrBekraeftet, ...(virksomhedsnavn ? { virksomhedsnavn } : {}) });
+}
+
+// ── Efter indsendelse: ansøgerens statusside (/ansoeg/status) → ansoegning-link (A's function) ──
+
+export interface StatusSvar {
+  trin: string;
+  paa_pause_til: string | null;
+  samtale_start: string | null;
+  booking_url: string | null;
+  aftale_url: string | null;
+  virksomhedsnavn: string;
+  fornavn: string | null;
+}
+async function kaldLink<T>(body: Record<string, unknown>): Promise<T> {
+  const { data, error } = await supabase.functions.invoke("ansoegning-link", { body });
+  if (error) {
+    if (error instanceof FunctionsHttpError) {
+      const ctx = error.context as Response;
+      const j = await ctx.json().catch(() => ({}));
+      throw new AnsoegningsFejl(ctx.status, typeof j?.error === "string" ? j.error : "Noget gik galt");
+    }
+    throw new AnsoegningsFejl(0, "Ingen forbindelse — prøv igen.");
+  }
+  return data as T;
+}
+export function hentStatus(token: string): Promise<StatusSvar> {
+  return kaldLink<StatusSvar>({ token, handling: "hent" });
+}
+export function sigIkkeNu(token: string): Promise<StatusSvar & { ok: true; allerede: boolean }> {
+  return kaldLink({ token, handling: "ikke_nu" });
 }
 
 export function indsendAnsoegning(token: string, svar: Partial<AnsoegningsSvar>): Promise<{ ok: true; indsendt: true }> {

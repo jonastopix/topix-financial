@@ -99,7 +99,7 @@ export type Kilde = (typeof KILDER)[number];
 // tjekker ventepladsen selv (ventepladsErTilbudt i cronen).
 // «afslag» (18/9): afslagsmailen dag 0 — lever også på en LUKKET ansøgning
 // (TRAPPER_PAA_LUKKET i rykkerkoe.ts: køen kræver trin = lukket).
-export const TRAPPER_NAVNE = ["kladde", "indkaldt", "booket", "aftalegrundlag", "pause", "venteplads", "afslag"] as const;
+export const TRAPPER_NAVNE = ["kladde", "indsendt", "indkaldt", "booket", "aftalegrundlag", "pause", "venteplads", "afslag"] as const;
 export type Trappe = (typeof TRAPPER_NAVNE)[number];
 
 /** Grunden bag et nej: nichen er optaget (ventelisten), for tidligt, andet. Værd at kende også uden tilbud (Jonas 18/9). */
@@ -289,6 +289,8 @@ export function trappensTrin(trappe: Trappe): Trin | null {
       return null; // pausen gælder uanset trin
     case "kladde":
       return null; // kladden er før trinnene (indsendt_at is null) — køen tjekker det selv
+    case "indsendt":
+      return null; // kvitteringen (18/9): gælder uanset hvilket åbent trin ansøgningen står på, når den sendes
     case "venteplads":
       return null; // ventelisten lever på en LUKKET ansøgning — køen tjekker ventepladsen selv
     case "afslag":

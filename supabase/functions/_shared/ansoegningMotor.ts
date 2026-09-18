@@ -50,6 +50,10 @@ import { OMSAETNINGSINTERVALLER, type CvrVisning } from "./ansoegningSkema.ts";
 import { opretEllerGenbrugVirksomhed } from "./virksomhedsOprettelse.ts";
 import { udloesIndgangsBetalingsmail } from "./indgangsBetalingsmail.ts";
 import { skrivRaadgiverBesked } from "./raadgiverBesked.ts";
+import { afgoerDubletter, type DubletDom } from "./ansoegningDubletter.ts";
+import { raadgiverMailOmNyAnsoegning } from "./ansoegningRaadgiverMail.ts";
+import { sendManagedEmail } from "./managedEmail.ts";
+import { KONTAKT_ADRESSE } from "./indgangsMail.ts";
 
 export const APP_URL = "https://app.theboardroom.dk";
 /**
@@ -227,6 +231,20 @@ export async function registrerIndsendelse(admin: SupabaseClient, id: string, nu
   if (a.anbefaling) return { ok: true, anbefaling: a.anbefaling, allerede: true };
 
   const anbefaling = afgoerAnbefaling(bygAnbefalingsInput(a, nu));
+  // Dubletter (Jonas 18/9, flow-gennemgangen §4-5): findes virksomheden eller mailen allerede
+  // som medlem/kunde, eller er der en anden åben ansøgning på samme CVR? Ind i grundlaget, i
+  // klokken og i mailen — og et rent «tal med dem» bliver «tvivl» (aldrig omvendt).
+  const dubletter = await findDubletter(admin, a);
+  if (dubletter.advarsler.length > 0) {
+    anbefaling.grundlag.unshift(...dubletter.advarsler);
+    anbefaling.imod.push(...dubletter.advarsler);
+    if (dubletter.alvorlig && anbefaling.udfald === "tal_med_dem") anbefaling.udfald = "tvivl";
+  }
+  // CVR ikke slået op (fortsatte uden opslag, eller nøglen/kvoten var væk): sig det, så
+  // rådgiveren ser HVORFOR der står «tvivl», og at navnet er ansøgerens eget.
+  if (!a.cvr_opslag || a.cvr_opslag.kilde === "ansoeger") {
+    anbefaling.grundlag.unshift("CVR ikke slået op — virksomhedsnavnet er ansøgerens eget");
+  }
   // Kladdens påmindelse er overflødig nu — reaktionen (indsendelsen) annullerer trappen (regel 1).
   await annullerTrapper(admin, id, ["kladde"], "indsendt", nu);
   const { error } = await admin
@@ -243,12 +261,72 @@ export async function registrerIndsendelse(admin: SupabaseClient, id: string, nu
   const udfald = anbefaling.udfald === "tal_med_dem" ? "tal med dem" : anbefaling.udfald;
   await skrivRaadgiverBesked(admin, {
     type: RAADGIVER_BESKED.ny,
-    title: `Ny ansøgning: ${navn}`,
+    title: `${dubletter.alvorlig ? "OBS — " : ""}Ny ansøgning: ${navn}`,
     body: `Anbefaling: ${udfald}. ${grundlagSomTekst(anbefaling)}.`,
     reference_type: REFERENCE_TYPE,
     reference_id: a.id,
   });
+
+  // Kvitteringen til ansøgeren (Jonas 18/9): trappen «indsendt», én mail dag 0 gennem køen —
+  // samme vindue og dagsregel som alle andre mails. Fejler planlægningen, er indsendelsen stadig
+  // registreret; det logges.
+  try {
+    const plan = planlaegTrappe({ ansoegningId: a.id, trappe: "indsendt", anker: nu, nu });
+    const { skrevet } = await skrivPlan(admin, plan);
+    if (skrevet === 0) console.warn(`[ansoegningMotor] kvitteringen blev ikke planlagt for ${a.id} (fandtes måske)`);
+  } catch (err) {
+    console.error("[ansoegningMotor] kvitteringen kunne ikke planlægges:", err);
+  }
+
+  // Besked til Jonas og Morten (Jonas 18/9): en mail til kontakt@ (viderestilles til Jonas) —
+  // klokken forlader aldrig browseren (send-notification-email læser kun `notifications`, og
+  // ADVISOR_EMAIL_DISABLED gælder medlemsnotifikationer). Sendes direkte, uden om køen:
+  // idempotent på ansøgningens id. Fejler den, er indsendelsen stadig registreret.
+  try {
+    const mail = raadgiverMailOmNyAnsoegning({ ansoegning: a, anbefaling, dubletter, appUrl: APP_URL });
+    const res = await sendManagedEmail({
+      adminClient: admin,
+      to: KONTAKT_ADRESSE,
+      subject: mail.emne,
+      html: mail.html,
+      text: mail.tekst,
+      label: "ansoegning-ny-raadgiver",
+      idempotencyKey: `ansoegning-ny-raadgiver-${a.id}`,
+      metadata: { ansoegning_id: a.id },
+    });
+    if (res.sent === false) console.error(`[ansoegningMotor] rådgivermail om ${a.id} ikke sendt: ${res.reason}`);
+  } catch (err) {
+    console.error("[ansoegningMotor] rådgivermail kastede:", err);
+  }
   return { ok: true, anbefaling, allerede: false };
+}
+
+/** Opslagene bag dubletdommen — ren dom i ansoegningDubletter.ts; her kun IO. Kaster aldrig. */
+export async function findDubletter(admin: SupabaseClient, a: AnsoegningRaekke): Promise<DubletDom> {
+  try {
+    const email = (a.email ?? "").trim().toLowerCase();
+    const [paaCvr, paaMail, andreAnsoegninger] = await Promise.all([
+      a.cvr
+        ? admin.from("companies").select("id, name, status, contract_end_date").eq("cvr_number", a.cvr).limit(3)
+        : Promise.resolve({ data: [], error: null }),
+      email
+        ? admin.from("companies").select("id, name, status, contract_end_date").eq("contact_email", email).limit(3)
+        : Promise.resolve({ data: [], error: null }),
+      a.cvr
+        ? admin.from("ansoegninger").select("id, navn, email, trin").eq("cvr", a.cvr).neq("id", a.id).not("indsendt_at", "is", null).not("trin", "in", "(lukket,underskrevet)").limit(3)
+        : Promise.resolve({ data: [], error: null }),
+    ]);
+    for (const r of [paaCvr, paaMail, andreAnsoegninger]) if (r.error) console.error("[ansoegningMotor] dubletopslag fejlede:", r.error.message);
+    return afgoerDubletter({
+      virksomhederPaaCvr: (paaCvr.data ?? []) as { id: string; name: string; status: string | null; contract_end_date: string | null }[],
+      virksomhederPaaMail: (paaMail.data ?? []) as { id: string; name: string; status: string | null; contract_end_date: string | null }[],
+      andreAabneAnsoegninger: (andreAnsoegninger.data ?? []) as { id: string; navn: string | null; email: string | null; trin: string }[],
+      nu: new Date(),
+    });
+  } catch (err) {
+    console.error("[ansoegningMotor] findDubletter kastede:", err);
+    return { advarsler: [], alvorlig: false, medlem: null };
+  }
 }
 
 // ── Køen: annullér og planlæg ──────────────────────────────────────────────
@@ -488,12 +566,19 @@ export async function konverterTilVirksomhed(admin: SupabaseClient, a: Ansoegnin
       genbrugt = oprettet.genbrugt;
       console.log(`[ansoegningMotor] virksomhed ${genbrugt ? "genbrugt" : "oprettet"}: ${companyId} for ansøgning ${a.id}`);
       if (genbrugt) {
-        // Som monday-webhook B5: kun ikke-tomme felter, så en genbrugt række ikke får tomme værdier.
-        const opd: Record<string, string> = {};
-        if (a.navn) opd.contact_person = a.navn;
-        if (a.email) opd.contact_email = a.email;
-        if (a.telefon) opd.contact_phone = a.telefon;
-        if (Object.keys(opd).length > 0) await admin.from("companies").update(opd).eq("id", companyId);
+        // JONAS 18/9 (flow-gennemgangen §5-6): CVR-genbrug STOPPER konverteringen. Før blev
+        // kontaktperson/mail/telefon på den eksisterende virksomhed overskrevet med ansøgerens,
+        // og dag 0-betalingsmailen udløst — mod et betalende medlem. Nu: intet skrives, overgangen
+        // «underskrevet» afvises, og rådgiveren får en klokke med hvad der skal gøres i hånden.
+        const grund = `CVR ${a.cvr} findes allerede som virksomheden «${oprettet.company_name}» (${companyId}) — konverteringen er stoppet. Er det samme virksomhed, kobles ansøgningen i hånden; er det en ny, retter I CVR-nummeret først.`;
+        await skrivRaadgiverBesked(admin, {
+          type: RAADGIVER_BESKED.underskrevet,
+          title: `Underskrift stoppet: ${virksomhedsnavnAf(a)}`,
+          body: grund,
+          reference_type: REFERENCE_TYPE,
+          reference_id: a.id,
+        });
+        return { ok: false, grund };
       }
     } catch (err) {
       return { ok: false, grund: err instanceof Error ? err.message : String(err) };
