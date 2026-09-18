@@ -5,7 +5,9 @@
 //
 // Body: { ansoegning_id, handling, begrundelse?, lukkeaarsag?, aftale_url?, pris_oere? }
 //   handling ∈ MENNESKE_HANDLINGER: tal_med_dem · afvis · afholdt · tilbud ·
-//   afslag · underskrevet · luk (kræver lukkeaarsag) · genaabn.
+//   afslag · underskrevet · luk (kræver lukkeaarsag) · genaabn ·
+//   saet_pause (kræver pause_til «YYYY-MM-DD» efter i dag — sætter ELLER
+//   flytter pausen; tilladt fra ethvert åbent trin).
 //   tilbud kræver aftale_url (C's /aftale?token=… eller en PDF) og sætter
 //   pris_oere hvis den gives (bliver prisniveau_oere ved underskrift).
 // Dommen (afgoerOvergang), trappen (rykkerkoe) og konverteringen
@@ -35,6 +37,14 @@ export function laesHandling(body: Record<string, unknown>): Handling | null {
     if (!(LUKKEAARSAGER as readonly string[]).includes(aarsag)) return null;
     return { art: "luk", aarsag: aarsag as Lukkeaarsag };
   }
+  if (art === "saet_pause") {
+    const til = typeof body.pause_til === "string" ? body.pause_til.trim() : "";
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(til) || Number.isNaN(Date.parse(`${til}T00:00:00Z`))) return null;
+    // Efter i dag (dansk dato): en pause der slutter i dag eller før er ingen pause.
+    const iDag = new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Copenhagen" });
+    if (til <= iDag) return null;
+    return { art: "saet_pause", til };
+  }
   return { art } as Handling;
 }
 
@@ -58,7 +68,7 @@ Deno.serve(async (req) => {
   const ansoegningId = typeof body.ansoegning_id === "string" ? body.ansoegning_id : "";
   if (!UUID.test(ansoegningId)) return json({ error: "ansoegning_id mangler eller er ugyldigt" }, 400);
   const handling = laesHandling(body);
-  if (!handling) return json({ error: "Ukendt handling (eller lukkeaarsag mangler ved luk)" }, 400);
+  if (!handling) return json({ error: "Ukendt handling (lukkeaarsag mangler ved luk, eller pause_til mangler/er ikke efter i dag ved saet_pause)" }, 400);
   const begrundelse = typeof body.begrundelse === "string" ? body.begrundelse.trim().slice(0, 2000) || null : null;
   const aftaleUrl = typeof body.aftale_url === "string" && /^https:\/\//.test(body.aftale_url.trim()) ? body.aftale_url.trim() : null;
   const prisOere = typeof body.pris_oere === "number" && Number.isInteger(body.pris_oere) && body.pris_oere > 0 ? body.pris_oere : null;

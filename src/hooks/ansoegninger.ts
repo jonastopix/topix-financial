@@ -48,15 +48,18 @@ export interface AnsoegningRaekke {
   udfordring: string | null;
   proevet: string | null;
   om_tolv_maaneder: string | null;
+  set_webinar: string | null;
   anbefaling: Anbefaling | null;
   samtale_start: string | null;
   pris_oere: number | null;
   aftale_url: string | null;
   company_id: string | null;
+  lukket_at: string | null;
+  lukket_fra_trin: Trin | null;
 }
 
 export const LISTE_KOLONNER =
-  "id, indsendt_at, trin, trin_sat_at, lukkeaarsag, rykkere_sendt, paa_pause_til, kilde, navn, email, telefon, cvr, cvr_opslag, omsaetningsinterval, antal_ansatte, udfordring, proevet, om_tolv_maaneder, anbefaling, samtale_start, pris_oere, aftale_url, company_id";
+  "id, indsendt_at, trin, trin_sat_at, lukkeaarsag, lukket_at, lukket_fra_trin, rykkere_sendt, paa_pause_til, kilde, navn, email, telefon, cvr, cvr_opslag, omsaetningsinterval, antal_ansatte, udfordring, proevet, om_tolv_maaneder, set_webinar, anbefaling, samtale_start, pris_oere, aftale_url, company_id";
 
 export async function hentAnsoegninger(): Promise<AnsoegningRaekke[]> {
   const res = await tabel("ansoegninger")
@@ -74,10 +77,7 @@ export interface AnsoegningDetalje extends AnsoegningRaekke {
   hjemmeside: string | null;
   cvr_bekraeftet: boolean;
   start_tidspunkt: string | null;
-  set_webinar: string | null;
-  lukket_at: string | null;
   lukket_af: string | null;
-  lukket_fra_trin: Trin | null;
   samtale_slut: string | null;
   calendly_event_uri: string | null;
   konverteret_at: string | null;
@@ -157,6 +157,8 @@ export async function udfoerHandling(input: {
   lukkeaarsag?: Lukkeaarsag | null;
   aftaleUrl?: string | null;
   prisOere?: number | null;
+  /** saet_pause: «YYYY-MM-DD» efter i dag. */
+  pauseTil?: string | null;
 }): Promise<HandlingsSvar> {
   const { data: { session } } = await supabase.auth.getSession();
   const { data, error } = await supabase.functions.invoke("ansoegning-handling", {
@@ -167,6 +169,7 @@ export async function udfoerHandling(input: {
       ...(input.lukkeaarsag ? { lukkeaarsag: input.lukkeaarsag } : {}),
       ...(input.aftaleUrl ? { aftale_url: input.aftaleUrl } : {}),
       ...(input.prisOere ? { pris_oere: input.prisOere } : {}),
+      ...(input.pauseTil ? { pause_til: input.pauseTil } : {}),
     },
     headers: { Authorization: `Bearer ${session?.access_token}` },
   });

@@ -89,10 +89,25 @@ describe("ansoegningTrin — de fem trin i rækkefølge", () => {
 describe("ansoegningTrin — reaktioner annullerer, pause og lukning", () => {
   it("«ikke nu» fra ethvert åbent trin: trin uændret, alle trapper annulleret, pause sat, pause-trappen startet", () => {
     for (const fra of ["ny", "indkaldt", "booket", "afholdt", "aftalegrundlag_sendt"] as const) {
-      expect(ok(fra, { art: "ikke_nu" })).toMatchObject({ til: fra, annuller: "alle", start: { trappe: "pause", anker: "nu" }, saetPause: true, ophaevPause: false });
+      expect(ok(fra, { art: "ikke_nu" })).toMatchObject({ til: fra, annuller: "alle", start: { trappe: "pause", anker: "pause" }, saetPause: true, pauseTil: null, ophaevPause: false });
     }
     expect(dom("indkaldt", { art: "ikke_nu" }, { ...ctx, paaPause: true }).ok).toBe(false);
   });
+  it("saet_pause (den varige vej, Jonas 18/9): sætter ELLER flytter pausen fra ethvert åbent trin, med eller uden pause i forvejen; skriver sporet; aldrig fra lukket/underskrevet; datoen valideres", () => {
+    for (const fra of ["ny", "indkaldt", "booket", "afholdt", "aftalegrundlag_sendt"] as const) {
+      for (const paaPause of [false, true]) {
+        expect(ok(fra, { art: "saet_pause", til: "2026-12-10" }, { ...ctx, paaPause })).toMatchObject({ til: fra, annuller: "alle", start: { trappe: "pause", anker: "pause" }, saetPause: true, pauseTil: "2026-12-10", ophaevPause: false, beslutning: true });
+      }
+    }
+    expect(dom("lukket", { art: "saet_pause", til: "2026-12-10" }).ok).toBe(false);
+    expect(dom("underskrevet", { art: "saet_pause", til: "2026-12-10" }).ok).toBe(false);
+    expect(dom("ny", { art: "saet_pause", til: "10/12-2026" })).toMatchObject({ ok: false, grund: expect.stringContaining("YYYY-MM-DD") });
+    expect(MENNESKE_HANDLINGER).toContain("saet_pause");
+    expect(SYSTEM_HANDLINGER).not.toContain("saet_pause");
+    // ikke_nu ankres nu også på pausens slutdato (samme trappe)
+    expect(ok("ny", { art: "ikke_nu" }).start).toEqual({ trappe: "pause", anker: "pause" });
+  });
+
   it("enhver anden reaktion ophæver pausen", () => {
     expect(ok("indkaldt", { art: "book" }, { ...ctx, paaPause: true }).ophaevPause).toBe(true);
     expect(ok("ny", { art: "tal_med_dem" }, { ...ctx, paaPause: true }).ophaevPause).toBe(true);

@@ -60,7 +60,7 @@ describe("ansoegningMotor.paritet — funktionerne svarer ens", () => {
   it("ansoegningTrin", () => {
     const handlinger: trinWeb.Handling[] = [
       { art: "tal_med_dem" }, { art: "afvis" }, { art: "book" }, { art: "aflys_booking" }, { art: "afholdt" }, { art: "tilbud" },
-      { art: "afslag" }, { art: "underskrevet" }, { art: "svarer_ikke" }, { art: "udloeb" }, { art: "ikke_nu" }, { art: "luk", aarsag: "andet" }, { art: "genaabn" },
+      { art: "afslag" }, { art: "underskrevet" }, { art: "svarer_ikke" }, { art: "udloeb" }, { art: "ikke_nu" }, { art: "luk", aarsag: "andet" }, { art: "genaabn" }, { art: "saet_pause", til: "2026-12-10" },
     ];
     for (const fra of trinWeb.TRIN) {
       for (const h of handlinger) {

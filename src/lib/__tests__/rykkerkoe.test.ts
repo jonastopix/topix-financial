@@ -31,9 +31,9 @@ describe("rykkerkoe — trapperne som Jonas satte dem", () => {
       [0, "send_mail"], [2, "send_mail"], [5, "send_mail"], [9, "send_mail"], [14, "send_mail"], [21, "udloeb"],
     ]);
   });
-  it("pause: én række til rådgiveren efter tre måneder — ingen mail til ansøgeren", () => {
+  it("pause: én række til rådgiveren PÅ pausens slutdato (ankeret) — ingen mail til ansøgeren; ikke_nu regner datoen som i dag + tre måneder", () => {
     expect(PAUSE_MAANEDER).toBe(3);
-    expect(TRAPPER.pause).toEqual([{ trinNr: 0, dag: 0, maaneder: 3, handling: "pause_slut", skabelon: null, modtager: "raadgiver" }]);
+    expect(TRAPPER.pause).toEqual([{ trinNr: 0, dag: 0, handling: "pause_slut", skabelon: null, modtager: "raadgiver" }]);
     expect(pauseTil(kbhTilUtc("2026-09-18", 12, 0))).toBe("2026-12-18");
   });
   it("kladde (Jonas D6): B's påmindelse som trappe — én mail dag 2 fra sidste gem, ingen cron for sig", () => {
@@ -113,13 +113,15 @@ describe("rykkerkoe — planlægning: hverdage, aldrig efter 16, aldrig weekend 
     ]);
   });
 
-  it("pause: tre måneder frem, rykket til hverdag kl. 10 (18/12-2026 er fredag)", () => {
+  it("pause: ankeret er slutdatoen (dansk midnat) → rækken står dag 0 kl. 10, rykket til hverdag", () => {
     const nu = kbhTilUtc("2026-09-18", 12, 0);
-    const rk = planlaegTrappe({ ansoegningId: ID, trappe: "pause", anker: nu, nu });
+    // saet_pause til 10/12 (torsdag) → 10/12 kl. 10
+    const rk = planlaegTrappe({ ansoegningId: ID, trappe: "pause", anker: kbhTilUtc("2026-12-10", 0, 0), nu });
     expect(rk).toHaveLength(1);
-    expect(rk[0]).toMatchObject({ handling: "pause_slut", modtager: "raadgiver", planlagt_til: kl("2026-12-18", 10) });
-    // 19/9 + 3 md. = 19/12 (lørdag) → mandag 21/12
-    expect(planlaegTrappe({ ansoegningId: ID, trappe: "pause", anker: kbhTilUtc("2026-09-19", 12, 0), nu })[0].planlagt_til).toBe(kl("2026-12-21", 10));
+    expect(rk[0]).toMatchObject({ handling: "pause_slut", modtager: "raadgiver", planlagt_til: kl("2026-12-10", 10) });
+    // ikke_nu: pauseTil(nu) = 18/12 (fredag) → 18/12 kl. 10; 19/12 (lørdag) → mandag 21/12
+    expect(planlaegTrappe({ ansoegningId: ID, trappe: "pause", anker: kbhTilUtc(pauseTil(nu), 0, 0), nu })[0].planlagt_til).toBe(kl("2026-12-18", 10));
+    expect(planlaegTrappe({ ansoegningId: ID, trappe: "pause", anker: kbhTilUtc("2026-12-19", 0, 0), nu })[0].planlagt_til).toBe(kl("2026-12-21", 10));
   });
 });
 
@@ -178,6 +180,6 @@ describe("rykkerkoe — regel 1: enhver reaktion annullerer resten af trappen (v
     expect(under.ok && under.overgang.annuller).toBe("alle");
     const ikkeNu = afgoerOvergang("aftalegrundlag_sendt", { art: "ikke_nu" }, c);
     expect(ikkeNu.ok && ikkeNu.overgang.annuller).toBe("alle");
-    expect(ikkeNu.ok && ikkeNu.overgang.start).toEqual({ trappe: "pause", anker: "nu" });
+    expect(ikkeNu.ok && ikkeNu.overgang.start).toEqual({ trappe: "pause", anker: "pause" }); // ankeret er pausens slutdato (18/9)
   });
 });

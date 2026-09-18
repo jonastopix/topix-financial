@@ -383,7 +383,7 @@ export const hentAdvisorDashboard = () =>
         (supabase
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           .from("ansoegninger" as any)
-          .select("id, navn, email, cvr_opslag, trin, trin_sat_at")
+          .select("id, navn, email, cvr_opslag, trin, trin_sat_at, paa_pause_til")
           .not("indsendt_at", "is", null)
           .in("trin", ["ny", "afholdt"])
           .order("trin_sat_at", { ascending: true })
@@ -984,9 +984,9 @@ export const hentAdvisorDashboard = () =>
       // ANSØGNINGER DER VENTER (18/9): trin ny (beslutning 1) og afholdt
       // (beslutning 2) — ingen virksomhed, ingen kvittering; linjen peger på
       // /ansoegninger, hvor beslutningen træffes.
-      const ansoegningerTilForside: AnsoegningTilForside[] = (kraevRaekker(ansoegningerRes, "ansoegninger") as { id: string; navn: string | null; email: string | null; cvr_opslag: Record<string, unknown> | null; trin: string; trin_sat_at: string }[])
+      const ansoegningerTilForside: AnsoegningTilForside[] = (kraevRaekker(ansoegningerRes, "ansoegninger") as { id: string; navn: string | null; email: string | null; cvr_opslag: Record<string, unknown> | null; trin: string; trin_sat_at: string; paa_pause_til: string | null }[])
         .filter((a) => a.trin === "ny" || a.trin === "afholdt")
-        .map((a) => ({ id: a.id, navn: virksomhedsnavnAf(a), trin: a.trin as "ny" | "afholdt", sidenAt: a.trin_sat_at }));
+        .map((a) => ({ id: a.id, navn: virksomhedsnavnAf(a), trin: a.trin as "ny" | "afholdt", sidenAt: a.trin_sat_at, paaPauseTil: a.paa_pause_til ?? null }));
       const dom = afgoerForsidensDom(virksomhederTilDom, now, { betaltIkkeOprettet, ansoegninger: ansoegningerTilForside });
       // Pulsen (lib/pulsen): PORTEFØLJENS univers = listens (VirksomhedslisteView:
       // kunde, ikke legat, status aktiv/tom) — pending OG udløbne er MED

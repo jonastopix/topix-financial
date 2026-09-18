@@ -52,9 +52,93 @@ export const LUKKEAARSAG_ORD: Record<Lukkeaarsag, string> = {
 /** Listens grupper: de to beslutningstrin først (der venter et menneske), så resten i flowets rækkefølge, lukket sidst. */
 export const LISTE_RAEKKEFOELGE: readonly Trin[] = ["ny", "afholdt", "indkaldt", "booket", "aftalegrundlag_sendt", "underskrevet", "lukket"];
 
-/** Kun de to trin hvor et menneske skal træffe en beslutning. */
-export function venterPaaMenneske(trin: Trin): boolean {
-  return trin === "ny" || trin === "afholdt";
+/** Dansk dato «YYYY-MM-DD» for et tidspunkt (sv-SE giver ISO-formen). */
+export function danskDato(nu: Date): string {
+  return nu.toLocaleDateString("sv-SE", { timeZone: "Europe/Copenhagen" });
+}
+
+/** På pause = paa_pause_til er sat og ligger EFTER i dag (dansk dato). På selve dagen er pausen slut, og ansøgningen kommer op igen. */
+export function erPaaPause(paaPauseTil: string | null | undefined, nu: Date): boolean {
+  return !!paaPauseTil && paaPauseTil > danskDato(nu);
+}
+
+/** Venter på et menneske: de to beslutningstrin — og ikke på pause (Jonas 18/9: en pause frem i tiden tæller ikke som ventende). */
+export function venterPaaMenneske(trin: Trin, paaPauseTil: string | null | undefined, nu: Date): boolean {
+  return (trin === "ny" || trin === "afholdt") && !erPaaPause(paaPauseTil, nu);
+}
+
+/** Listens grupper (Jonas 18/9): efter hvad der venter på JER — samtale afholdt → ny → booket → indkaldt → aftalegrundlag sendt → underskrevet → på pause → lukket. */
+export type Listegruppe = "afholdt" | "ny" | "booket" | "indkaldt" | "aftalegrundlag_sendt" | "underskrevet" | "paa_pause" | "lukket";
+export const LISTEGRUPPER: readonly Listegruppe[] = ["afholdt", "ny", "booket", "indkaldt", "aftalegrundlag_sendt", "underskrevet", "paa_pause", "lukket"];
+
+export const GRUPPE_ORD: Record<Listegruppe, string> = {
+  afholdt: "Samtale afholdt — tilbud eller afslag?",
+  ny: "Nye — tal med dem eller afvis?",
+  booket: "Samtale booket",
+  indkaldt: "Indkaldt — rykkerne kører",
+  aftalegrundlag_sendt: "Aftalegrundlag sendt — rykkerne kører",
+  underskrevet: "Underskrevet — betalingsforløbet kører",
+  paa_pause: "På pause",
+  lukket: "Lukkede",
+};
+
+/** Hvilken gruppe en række hører til: pausen vinder over trinnet (så længe den ligger frem i tiden), lukket er lukket. */
+export function gruppeFor(a: { trin: Trin; paa_pause_til: string | null }, nu: Date): Listegruppe {
+  if (a.trin === "lukket") return "lukket";
+  if (erPaaPause(a.paa_pause_til, nu)) return "paa_pause";
+  return a.trin;
+}
+
+export interface RaekkeTilListe {
+  trin: Trin;
+  trin_sat_at: string;
+  paa_pause_til: string | null;
+}
+
+/** Grupperne i rækkefølge med deres rækker (nyeste trin_sat_at først; på pause: tidligste slutdato først). Tomme grupper udelades. */
+export function grupperTilListe<T extends RaekkeTilListe>(raekker: readonly T[], nu: Date): Array<{ gruppe: Listegruppe; raekker: T[] }> {
+  return LISTEGRUPPER
+    .map((gruppe) => ({
+      gruppe,
+      raekker: raekker
+        .filter((r) => gruppeFor(r, nu) === gruppe)
+        .slice()
+        .sort((a, b) => (gruppe === "paa_pause" ? (a.paa_pause_til ?? "").localeCompare(b.paa_pause_til ?? "") : b.trin_sat_at.localeCompare(a.trin_sat_at))),
+    }))
+    .filter((g) => g.raekker.length > 0);
+}
+
+/** Tæller det der faktisk venter på jer: ny + afholdt, ikke på pause. */
+export function taelVentende(raekker: readonly RaekkeTilListe[], nu: Date): number {
+  return raekker.filter((r) => venterPaaMenneske(r.trin, r.paa_pause_til, nu)).length;
+}
+
+/** Overskriften: tæller kun det der venter; er der intet, står der noget roligt. */
+export function listeOverskrift(ventende: number, hentet: boolean): string {
+  if (!hentet) return "Ansøgningerne";
+  if (ventende === 0) return "Ingen venter på jer lige nu.";
+  return ventende === 1 ? "Én venter på jeres beslutning." : `${ventende} venter på jeres beslutning.`;
+}
+
+/** «Hvad der venter» på én linje i listen — kort, aldrig fritekst. */
+export function hvadVenter(a: { trin: Trin; paa_pause_til: string | null; lukkeaarsag: Lukkeaarsag | null; rykkere_sendt: number; samtale_start: string | null }, nu: Date): string {
+  if (a.trin === "lukket") return a.lukkeaarsag ? LUKKEAARSAG_ORD[a.lukkeaarsag] : "lukket";
+  if (erPaaPause(a.paa_pause_til, nu)) return `på pause til ${danskDatoOrd(a.paa_pause_til!)}`;
+  switch (a.trin) {
+    case "ny": return "tal med dem eller afvis?";
+    case "afholdt": return "tilbud eller afslag?";
+    case "indkaldt": return a.rykkere_sendt > 0 ? `rykker ${a.rykkere_sendt} sendt` : "indkaldelse sendt";
+    case "booket": return a.samtale_start ? `samtale ${danskTidspunkt(a.samtale_start)}` : "samtale booket";
+    case "aftalegrundlag_sendt": return a.rykkere_sendt > 0 ? `aftalegrundlag · rykker ${a.rykkere_sendt} sendt` : "aftalegrundlag sendt";
+    case "underskrevet": return "betalingsforløbet kører";
+  }
+}
+
+/** «10. december» af «2026-12-10». */
+export function danskDatoOrd(dato: string): string {
+  const d = new Date(`${dato}T12:00:00Z`);
+  if (Number.isNaN(d.getTime())) return dato;
+  return new Intl.DateTimeFormat("da-DK", { timeZone: "Europe/Copenhagen", day: "numeric", month: "long" }).format(d);
 }
 
 /** «i dag» · «i går» · «for 3 dage siden» · «for 2 uger siden» — regnet på hele døgn. */

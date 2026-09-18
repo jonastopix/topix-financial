@@ -17,7 +17,7 @@ import {
 import { cn } from "@/lib/utils";
 import { hbControlClasses } from "@/components/hjemmebane/admin/HbField";
 import { invaliderAnsoegninger, udfoerHandling } from "@/hooks/ansoegninger";
-import { bekraeftOverskrift, erGyldigtAftaleLink, knapperFor, LUKKEAARSAGER_TIL_VALG, type Knap } from "@/lib/ansoegninger/ansoegningHandlinger";
+import { bekraeftOverskrift, erGyldigPauseDato, erGyldigtAftaleLink, knapperFor, LUKKEAARSAGER_TIL_VALG, standardPauseTil, type Knap } from "@/lib/ansoegninger/ansoegningHandlinger";
 import { LUKKEAARSAG_ORD, TRIN_ORD } from "@/lib/ansoegninger/ansoegningVisning";
 import type { Lukkeaarsag, Trin } from "@/lib/ansoegningTrin";
 
@@ -33,6 +33,7 @@ export const AnsoegningHandlinger = ({ id, navn, trin, paaPause, lukketFraTrin, 
   const [begrundelse, setBegrundelse] = useState("");
   const [aftaleUrl, setAftaleUrl] = useState("");
   const [visAftale, setVisAftale] = useState(false);
+  const [pauseTil, setPauseTil] = useState(() => standardPauseTil(new Date()));
 
   const knapper = knapperFor({ trin, paaPause, lukketFraTrin });
   const store = knapper.filter((k) => k.stor);
@@ -46,6 +47,7 @@ export const AnsoegningHandlinger = ({ id, navn, trin, paaPause, lukketFraTrin, 
         begrundelse: begrundelse.trim() || null,
         lukkeaarsag: k.kraeverAarsag ? aarsag : null,
         aftaleUrl: k.kraeverAftaleUrl ? aftaleUrl.trim() : null,
+        pauseTil: k.kraeverDato ? pauseTil : null,
       });
       await invaliderAnsoegninger(queryClient, id);
       return { k, svar };
@@ -118,6 +120,13 @@ export const AnsoegningHandlinger = ({ id, navn, trin, paaPause, lukketFraTrin, 
               </select>
             </label>
           )}
+          {dialog?.kraeverDato && (
+            <label className="block text-sm">
+              <span className="text-hb-ink-soft">På pause til (standard: tre måneder frem)</span>
+              <input type="date" value={pauseTil} onChange={(e) => setPauseTil(e.target.value)} className={cn(hbControlClasses, "mt-1 w-full")} data-pause-til />
+              {!erGyldigPauseDato(pauseTil, new Date()) && <span className="mt-1 block text-xs text-hb-rust">Datoen skal ligge efter i dag.</span>}
+            </label>
+          )}
           {dialog && (
             <label className="block text-sm">
               <span className="text-hb-ink-soft">Begrundelse (valgfri — står i sporet)</span>
@@ -128,7 +137,7 @@ export const AnsoegningHandlinger = ({ id, navn, trin, paaPause, lukketFraTrin, 
             <AlertDialogCancel disabled={koer.isPending}>Annuller</AlertDialogCancel>
             <AlertDialogAction
               onClick={(e) => { e.preventDefault(); if (dialog) koer.mutate(dialog); }}
-              disabled={koer.isPending}
+              disabled={koer.isPending || (dialog?.kraeverDato === true && !erGyldigPauseDato(pauseTil, new Date()))}
               className={cn(dialog?.farlig && "bg-destructive text-destructive-foreground hover:bg-destructive/90")}
             >
               {koer.isPending ? "Arbejder…" : dialog?.tekst}
