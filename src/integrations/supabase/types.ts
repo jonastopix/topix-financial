@@ -422,6 +422,187 @@ export type Database = {
           },
         ]
       }
+      ansoegning_beslutninger: {
+        Row: {
+          ansoegning_id: string
+          begrundelse: string | null
+          fra_trin: string
+          handling: string
+          id: string
+          lukkeaarsag: string | null
+          til_trin: string
+          truffet_af: string | null
+          truffet_at: string
+          truffet_via: string
+        }
+        Insert: {
+          ansoegning_id: string
+          begrundelse?: string | null
+          fra_trin: string
+          handling: string
+          id?: string
+          lukkeaarsag?: string | null
+          til_trin: string
+          truffet_af?: string | null
+          truffet_at?: string
+          truffet_via: string
+        }
+        Update: {
+          ansoegning_id?: string
+          begrundelse?: string | null
+          fra_trin?: string
+          handling?: string
+          id?: string
+          lukkeaarsag?: string | null
+          til_trin?: string
+          truffet_af?: string | null
+          truffet_at?: string
+          truffet_via?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ansoegning_beslutninger_ansoegning_id_fkey"
+            columns: ["ansoegning_id"]
+            isOneToOne: false
+            referencedRelation: "ansoegninger"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ansoegninger: {
+        Row: {
+          aftale_url: string | null
+          anbefaling: Json | null
+          antal_ansatte: number | null
+          calendly_event_uri: string | null
+          company_id: string | null
+          created_at: string
+          cvr: string | null
+          cvr_bekraeftet: boolean
+          cvr_opslag: Json | null
+          email: string | null
+          hjemmeside: string | null
+          id: string
+          indsendt_at: string | null
+          ip_hash: string | null
+          kilde: string
+          kilde_raa: string | null
+          konverteret_at: string | null
+          lukkeaarsag: string | null
+          lukket_af: string | null
+          lukket_at: string | null
+          lukket_fra_trin: string | null
+          navn: string | null
+          note: string | null
+          om_tolv_maaneder: string | null
+          omsaetningsinterval: string | null
+          paa_pause_til: string | null
+          pris_oere: number | null
+          proevet: string | null
+          rykkere_sendt: number
+          samtale_slut: string | null
+          samtale_start: string | null
+          set_webinar: string | null
+          start_tidspunkt: string | null
+          telefon: string | null
+          token: string
+          trin: string
+          trin_sat_at: string
+          udfordring: string | null
+          updated_at: string
+        }
+        Insert: {
+          aftale_url?: string | null
+          anbefaling?: Json | null
+          antal_ansatte?: number | null
+          calendly_event_uri?: string | null
+          company_id?: string | null
+          created_at?: string
+          cvr?: string | null
+          cvr_bekraeftet?: boolean
+          cvr_opslag?: Json | null
+          email?: string | null
+          hjemmeside?: string | null
+          id?: string
+          indsendt_at?: string | null
+          ip_hash?: string | null
+          kilde?: string
+          kilde_raa?: string | null
+          konverteret_at?: string | null
+          lukkeaarsag?: string | null
+          lukket_af?: string | null
+          lukket_at?: string | null
+          lukket_fra_trin?: string | null
+          navn?: string | null
+          note?: string | null
+          om_tolv_maaneder?: string | null
+          omsaetningsinterval?: string | null
+          paa_pause_til?: string | null
+          pris_oere?: number | null
+          proevet?: string | null
+          rykkere_sendt?: number
+          samtale_slut?: string | null
+          samtale_start?: string | null
+          set_webinar?: string | null
+          start_tidspunkt?: string | null
+          telefon?: string | null
+          token?: string
+          trin?: string
+          trin_sat_at?: string
+          udfordring?: string | null
+          updated_at?: string
+        }
+        Update: {
+          aftale_url?: string | null
+          anbefaling?: Json | null
+          antal_ansatte?: number | null
+          calendly_event_uri?: string | null
+          company_id?: string | null
+          created_at?: string
+          cvr?: string | null
+          cvr_bekraeftet?: boolean
+          cvr_opslag?: Json | null
+          email?: string | null
+          hjemmeside?: string | null
+          id?: string
+          indsendt_at?: string | null
+          ip_hash?: string | null
+          kilde?: string
+          kilde_raa?: string | null
+          konverteret_at?: string | null
+          lukkeaarsag?: string | null
+          lukket_af?: string | null
+          lukket_at?: string | null
+          lukket_fra_trin?: string | null
+          navn?: string | null
+          note?: string | null
+          om_tolv_maaneder?: string | null
+          omsaetningsinterval?: string | null
+          paa_pause_til?: string | null
+          pris_oere?: number | null
+          proevet?: string | null
+          rykkere_sendt?: number
+          samtale_slut?: string | null
+          samtale_start?: string | null
+          set_webinar?: string | null
+          start_tidspunkt?: string | null
+          telefon?: string | null
+          token?: string
+          trin?: string
+          trin_sat_at?: string
+          udfordring?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ansoegninger_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       app_config: {
         Row: {
           config_key: string
@@ -931,6 +1112,7 @@ export type Database = {
       }
       company_betalingslink: {
         Row: {
+          ansoegning_id: string | null
           betalingsmail_sendt_at: string | null
           company_id: string
           created_at: string
@@ -946,6 +1128,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          ansoegning_id?: string | null
           betalingsmail_sendt_at?: string | null
           company_id: string
           created_at?: string
@@ -961,6 +1144,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          ansoegning_id?: string | null
           betalingsmail_sendt_at?: string | null
           company_id?: string
           created_at?: string
@@ -976,6 +1160,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "company_betalingslink_ansoegning_id_fkey"
+            columns: ["ansoegning_id"]
+            isOneToOne: false
+            referencedRelation: "ansoegninger"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "company_betalingslink_company_id_fkey"
             columns: ["company_id"]
@@ -1588,6 +1779,30 @@ export type Database = {
           id?: number
           tal?: Json
           tid?: string
+        }
+        Relationships: []
+      }
+      cvr_opslag_cache: {
+        Row: {
+          cvr: string
+          slaaet_op_at: string
+          svar: Json | null
+          udfald: string
+          visning: Json | null
+        }
+        Insert: {
+          cvr: string
+          slaaet_op_at?: string
+          svar?: Json | null
+          udfald: string
+          visning?: Json | null
+        }
+        Update: {
+          cvr?: string
+          slaaet_op_at?: string
+          svar?: Json | null
+          udfald?: string
+          visning?: Json | null
         }
         Relationships: []
       }
@@ -2945,6 +3160,80 @@ export type Database = {
           website_url?: string | null
         }
         Relationships: []
+      }
+      planlagte_haendelser: {
+        Row: {
+          annulleret_at: string | null
+          annulleret_grund: string | null
+          ansoegning_id: string
+          created_at: string
+          fejl: string | null
+          fejl_antal: number
+          handling: string
+          id: string
+          idempotensnoegle: string
+          message_id: string | null
+          modtager: string
+          planlagt_til: string
+          sendt_til: string | null
+          skabelon: string | null
+          status: string
+          trappe: string
+          trin_nr: number
+          udfoert_at: string | null
+          udskudt_antal: number
+        }
+        Insert: {
+          annulleret_at?: string | null
+          annulleret_grund?: string | null
+          ansoegning_id: string
+          created_at?: string
+          fejl?: string | null
+          fejl_antal?: number
+          handling: string
+          id?: string
+          idempotensnoegle: string
+          message_id?: string | null
+          modtager: string
+          planlagt_til: string
+          sendt_til?: string | null
+          skabelon?: string | null
+          status?: string
+          trappe: string
+          trin_nr: number
+          udfoert_at?: string | null
+          udskudt_antal?: number
+        }
+        Update: {
+          annulleret_at?: string | null
+          annulleret_grund?: string | null
+          ansoegning_id?: string
+          created_at?: string
+          fejl?: string | null
+          fejl_antal?: number
+          handling?: string
+          id?: string
+          idempotensnoegle?: string
+          message_id?: string | null
+          modtager?: string
+          planlagt_til?: string
+          sendt_til?: string | null
+          skabelon?: string | null
+          status?: string
+          trappe?: string
+          trin_nr?: number
+          udfoert_at?: string | null
+          udskudt_antal?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "planlagte_haendelser_ansoegning_id_fkey"
+            columns: ["ansoegning_id"]
+            isOneToOne: false
+            referencedRelation: "ansoegninger"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       profiles: {
         Row: {
