@@ -45,7 +45,8 @@ describe("rykkerkoe — trapperne som Jonas satte dem", () => {
     expect(planlaegTrappe({ ansoegningId: ID, trappe: "kladde", anker: new Date(gem.getTime() + 60_000), nu: gem })[0].idempotensnoegle).not.toBe(rk[0].idempotensnoegle);
   });
   it("ingen trappe efter underskrift — betalingsforløbet er platformens eksisterende", () => {
-    expect(Object.keys(TRAPPER).sort()).toEqual(["aftalegrundlag", "booket", "indkaldt", "kladde", "pause"]);
+    // «venteplads» (udkast 18/9): ventelistens 7-dages tilbud — også før betalingsforløbet, på en lukket ansøgning.
+    expect(Object.keys(TRAPPER).sort()).toEqual(["aftalegrundlag", "booket", "indkaldt", "kladde", "pause", "venteplads"]);
     expect(KOE_SKABELONER.some((s) => /betal|faktura|underskr/.test(s))).toBe(false);
   });
 });

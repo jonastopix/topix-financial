@@ -69,7 +69,8 @@ export const klokkenHolder = (w: string, tekst: string, typer: string): boolean 
 
 /** Dom 2: forsidelinjen — dom, datalag, flade. */
 export const forsidelinjenHolder = (dom: string, dash: string, flade: string): boolean =>
-  dom.includes('| "betalt_ikke_oprettet";') && dom.includes('betalt_ikke_oprettet: "haendelse",') && dom.includes("betalt_ikke_oprettet: 1,") &&
+  // Ventelisten (udkast 18/9) blev den syttende slags — den femtende afslutter ikke længere unionen.
+  dom.includes('| "betalt_ikke_oprettet"') && dom.includes('| "venteliste";') && dom.includes('betalt_ikke_oprettet: "haendelse",') && dom.includes("betalt_ikke_oprettet: 1,") &&
   dom.includes("export const ALVOR_BETALT_IKKE_OPRETTET = 85;") &&
   dom.includes(".filter(({ grund, b }) => !erLukket(grund, b.kvittering))") &&
   dom.includes("grundlag: `betalt:${b.betaltDag}`,") &&
@@ -78,7 +79,8 @@ export const forsidelinjenHolder = (dom: string, dash: string, flade: string): b
   dash.includes("created_at, er_kunde, contract_start_date\")") &&
   dash.includes("!!c.contract_start_date && !expiredCompanyIds.has(c.id) && !companiesWithActiveMembers.has(c.id))") &&
   // 18/9 (rådgiverens side af ansøgningen): dommen får også ansøgningerne i ekstra — betalt-listen står stadig først i kaldet.
-  dash.includes("afgoerForsidensDom(virksomhederTilDom, now, { betaltIkkeOprettet, ansoegninger: ansoegningerTilForside })") &&
+  // Ventelisten (udkast 18/9) kom til som endnu en indgang i ForsidensEkstra — de to andre er stadig med.
+  dash.includes("afgoerForsidensDom(virksomhederTilDom, now, { betaltIkkeOprettet, ansoegninger: ansoegningerTilForside, venteliste })") &&
   flade.includes('if (l.linje === "betalt") {') &&
   flade.includes("<Link to={virksomhedsLink(v.companyId)} className={TEKSTLINK}>") &&
   flade.includes('input.linje.linje === "boelge" || input.linje.linje === "betalt"') &&

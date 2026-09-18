@@ -96,7 +96,8 @@ export const forsidenErRigtig = (forside: string): boolean => {
 };
 export const datalagetErRigtigt = (d: string): boolean =>
   d.includes('kraevRaekker(ansoegningerRes, "ansoegninger")') &&
-  d.includes("afgoerForsidensDom(virksomhederTilDom, now, { betaltIkkeOprettet, ansoegninger: ansoegningerTilForside })") &&
+  // Ventelisten (udkast 18/9): tredje indgang i ekstra — ansøgningerne er stadig med.
+  d.includes("afgoerForsidensDom(virksomhederTilDom, now, { betaltIkkeOprettet, ansoegninger: ansoegningerTilForside, venteliste })") &&
   d.includes('.from("ansoegninger" as any)') && d.includes('.not("indsendt_at", "is", null)');
 
 /** Kroppen af virksomhedsnavnAf: fra `export function virksomhedsnavnAf(` til næste `\n}`. */
@@ -161,7 +162,7 @@ describe("ansoegningerFlade.guard — dommene fanger fejlen på en kopi", () => 
     expect(forsidenErRigtig(f.replace(gren, gren.replace("</details>", "</details>{LUKNINGS_UDFALD.map((u) => <button onClick={() => onLuk(l, u)}>x</button>)}")))).toBe(false);
     expect(forsidenErRigtig(f.replace(gren, "").replace('export const RaadgiverForsideView = () => {', gren + '\nexport const RaadgiverForsideView = () => {'))).toBe(false);
     const d = udenKommentarer(laes(DATALAG));
-    expect(datalagetErRigtigt(d.replace("{ betaltIkkeOprettet, ansoegninger: ansoegningerTilForside }", "{ betaltIkkeOprettet }"))).toBe(false);
+    expect(datalagetErRigtigt(d.replace("{ betaltIkkeOprettet, ansoegninger: ansoegningerTilForside, venteliste }", "{ betaltIkkeOprettet, venteliste }"))).toBe(false);
     expect(datalagetErRigtigt(d.replace('kraevRaekker(ansoegningerRes, "ansoegninger")', "(ansoegningerRes.data ?? [])"))).toBe(false);
   });
   it("6. en anden rækkefølge i navnet fælder dom 6", () => {

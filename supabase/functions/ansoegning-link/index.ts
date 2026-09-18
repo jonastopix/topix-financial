@@ -15,6 +15,7 @@
 // Bookingen sker ikke her — den går gennem Calendly (booking_url) og melder
 // tilbage via calendly-webhook.
 
+import { svarPaaPlads } from "../_shared/venteliste.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
 import { corsHeaders } from "../_shared/edgeFunctionAuth.ts";
 import { verifyAnsoegningslink } from "../_shared/ansoegningLinkAuth.ts";
@@ -36,7 +37,11 @@ Deno.serve(async (req) => {
     return json({ error: "Ugyldig JSON" }, 400);
   }
   const token = typeof body.token === "string" ? body.token : "";
-  const handling = body.handling === "ikke_nu" ? "ikke_nu" : body.handling === "hent" ? "hent" : null;
+  const handling = body.handling === "ikke_nu" ? "ikke_nu"
+    : body.handling === "hent" ? "hent"
+    : body.handling === "tag_pladsen" ? "tag_pladsen"
+    : body.handling === "afslaa_pladsen" ? "afslaa_pladsen"
+    : null;
   if (!token || !handling) return json({ error: "token og handling kræves" }, 400);
 
   const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, {
@@ -59,6 +64,16 @@ Deno.serve(async (req) => {
   });
 
   if (handling === "hent") return json(svar());
+
+  // Ventelisten (udkast 18/9): ja/nej til en tilbudt plads. Ansøgningen ER
+  // lukket her — det er hele pointen — så den går FØR erAabentTrin-tjekket.
+  // Intet tilbud ude → 409; svaret røber ikke hvilke køer ansøgeren står i.
+  if (handling === "tag_pladsen" || handling === "afslaa_pladsen") {
+    const res = await svarPaaPlads(admin, a.id, handling === "tag_pladsen" ? "accepteret" : "afslaaet", new Date());
+    if (res.udfald === "intet_tilbud") return json({ error: "Der er ikke noget tilbud at svare på" }, 409);
+    console.log(`[ansoegning-link] ${handling} på ${a.id}: ${res.aendret} rækker, genåbnet ${res.genaabnet}`);
+    return json({ ok: true, svar: handling === "tag_pladsen" ? "ja" : "nej", genaabnet: res.genaabnet, ...svar() });
+  }
 
   if (!erAabentTrin(a.trin)) return json({ error: "Ansøgningen er afsluttet" }, 409);
   if (a.paa_pause_til) return json({ ok: true, allerede: true, ...svar() });

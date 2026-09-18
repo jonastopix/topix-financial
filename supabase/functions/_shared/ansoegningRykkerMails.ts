@@ -43,6 +43,24 @@ export interface MailKontekst {
   /** Kladden: linket tilbage til formularen (/ansoeg?t=…) og hvor mange svar der mangler. */
   token: string;
   manglerSvar: number | null;
+  /** Ventelisten (udkast 18/9): kun sat for trappen «venteplads». */
+  venteplads?: VentepladsKontekst | null;
+}
+
+export interface VentepladsKontekst {
+  /** Afvist for mere end 12 måneder siden → den bløde udgave. */
+  bloed: boolean;
+  /** Svarfristen (dansk tid i teksten). */
+  svarfrist: Date;
+  /** Linket der tager pladsen (ansoegning-link, handling tag_pladsen). */
+  tagPladsenUrl: string;
+  /** Linket der siger nej tak (handling afslaa_pladsen). */
+  afslaaPladsenUrl: string;
+}
+
+/** «fredag den 25. september» — dansk tid, uden klokkeslæt. */
+export function formaterFristdag(d: Date): string {
+  return new Intl.DateTimeFormat("da-DK", { timeZone: TZ, weekday: "long", day: "numeric", month: "long" }).format(d);
 }
 
 export interface Mail {
@@ -200,6 +218,55 @@ const BYGGERE: Record<string, (k: MailKontekst) => Udkast> = {
     knap: k.aftaleUrl ? { tekst: "Læs og underskriv", href: k.aftaleUrl } : { tekst: "Se din ansøgning", href: k.statusUrl },
     ikkeNu: true,
   }),
+  // ── Ventelisten (udkast 18/9) — ingen «ikke nu»: ansøgningen er lukket,
+  //    svaret er ja eller nej til pladsen. Uden venteplads-kontekst (kun i
+  //    test) bygges den almindelige udgave med en tom frist.
+  "ansoegning-venteplads-tilbud": (k) => {
+    const v = k.venteplads ?? null;
+    const frist = v ? ` Svar senest ${formaterFristdag(v.svarfrist)} — ellers går pladsen videre til den næste i køen.` : "";
+    const tag = v?.tagPladsenUrl ?? k.statusUrl;
+    if (v?.bloed) {
+      return {
+        emne: "Vi har en plads nu — er det stadig aktuelt?",
+        eyebrow: "Ventelisten",
+        afsnit: [
+          `${hej(k)},`,
+          `Da du søgte om medlemskab af The Boardroom, måtte vi sige nej, fordi pladsen i din niche var optaget. Nu er den ledig.`,
+          `Der er gået et stykke tid, så vi spørger helt uforpligtende: er det stadig aktuelt for ${k.virksomhedsnavn}? Sig ja, så inviterer Jonas Herlev dig til en snak, som da du søgte.${frist}`,
+          v ? `Er det ikke aktuelt, så sig det her, så spørger vi ikke igen: ${v.afslaaPladsenUrl}` : "",
+        ].filter(Boolean),
+        knap: { tekst: "Ja, det er stadig aktuelt", href: tag },
+        ikkeNu: false,
+      };
+    }
+    return {
+      emne: "Der er blevet en plads til dig i The Boardroom",
+      eyebrow: "Ventelisten",
+      afsnit: [
+        `${hej(k)},`,
+        `Da du søgte om medlemskab, måtte vi sige nej, fordi pladsen i din niche var optaget. Nu er den ledig — og du står først i køen.`,
+        `Vil du have den? Sig ja, så inviterer Jonas Herlev dig til en snak, som da du søgte.${frist}`,
+        v ? `Er det ikke aktuelt, så sig det her, så går pladsen videre med det samme: ${v.afslaaPladsenUrl}` : "",
+      ].filter(Boolean),
+      knap: { tekst: "Ja tak, jeg vil have pladsen", href: tag },
+      ikkeNu: false,
+    };
+  },
+  "ansoegning-venteplads-rykker": (k) => {
+    const v = k.venteplads ?? null;
+    return {
+      emne: "Pladsen er stadig din — indtil fristen",
+      eyebrow: "Ventelisten",
+      afsnit: [
+        `${hej(k)},`,
+        `Vi skrev for et par dage siden: der er en ledig plads i The Boardroom til ${k.virksomhedsnavn}.`,
+        v ? `Du har den til og med ${formaterFristdag(v.svarfrist)}. Hører vi ikke fra dig, går den videre til den næste i køen — helt uden hårde følelser.` : "Hører vi ikke fra dig, går den videre til den næste i køen.",
+        "Sig ja eller nej her, så ved vi det. Jonas Herlev tager snakken med dig, hvis det er et ja.",
+      ],
+      knap: { tekst: "Ja tak, jeg vil have pladsen", href: v?.tagPladsenUrl ?? k.statusUrl },
+      ikkeNu: false,
+    };
+  },
 };
 
 export const RYKKER_SKABELONER: readonly string[] = Object.keys(BYGGERE);

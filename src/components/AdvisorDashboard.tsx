@@ -3,7 +3,7 @@ import * as Sentry from "@sentry/react";
 import { computeMembershipTier } from "@/lib/membershipTier";
 import { afgoerVirksomhedsSignaler, type FactPunkt, type Signal, type VirksomhedsInput } from "@/lib/virksomhedsSignaler";
 import { budgetOmsaetningFor, type BudgetRaekke } from "@/lib/budgetSignalInput";
-import { afgoerForsidensDom, type OpgaveTilDom, type VirksomhedTilDom, type BetaltIkkeOprettet, type AnsoegningTilForside } from "@/lib/forsidensDom";
+import { afgoerForsidensDom, type OpgaveTilDom, type VirksomhedTilDom, type BetaltIkkeOprettet, type AnsoegningTilForside, type VentelisteTilDom } from "@/lib/forsidensDom";
 import { virksomhedsnavnAf } from "@/lib/ansoegninger/ansoegningVisning";
 import { kraevRaekker } from "@/lib/kraevRaekker";
 import { hentAlleSider } from "@/lib/budgetEngine";
@@ -17,6 +17,8 @@ import { UNDERSTOETTEDE_SKRIVEVEJE_FLADE } from "@/lib/forslagFlade";
 import { afgoerFornyelsestilstand, type Fornyelsesbeslutning } from "@/lib/fornyelse";
 import { afgoerBetalingsfrist } from "@/lib/betalingsfrist";
 import { erKunde } from "@/lib/raadgiverensKunder";
+import { erPladsLedig, harTilbudUde, naesteIKoen, sorterKoe, type VentepladsStatus } from "@/lib/ventelisteDom";
+import { ansoegerNavn } from "@/lib/hjemmebane/ventelisteApi";
 import { factsToDanishMetrics } from "@/lib/factsAdapter";
 import { momErGyldig, type DataBasis } from "@/lib/dataGrundlag";
 
@@ -128,6 +130,16 @@ interface InvestorCompanySummary extends CompanyMetricSummary {
  * inline i komponenten — flyttet ordret op i modulscope, ikke omskrevet.
  * Den er selvforsynende: ingen closure over user/queryClient (målt 4/9).
  */
+/** Ventelistens række som datalaget læser den (udkast 18/9). */
+interface VentepladsRad {
+  id: string;
+  ansoegning_id: string;
+  company_id: string | null;
+  status: VentepladsStatus;
+  sat_at: string;
+  ansoegninger: { lukket_at: string | null; navn: string | null; email: string | null; cvr_opslag: { navn?: string | null } | null } | null;
+}
+
 export const ADVISOR_DASHBOARD_QUERY_KEY = (userId: string | undefined) =>
   ["advisor-dashboard", userId, "assignment-display-v2"] as const;
 
@@ -165,6 +177,7 @@ export const hentAdvisorDashboard = () =>
         // Lukningen (Jonas 8/9, lib/opgaveLukning): den nyeste kvittering
         // med grundlag pr. virksomhed — «Færdiggjort»/«Ikke relevant».
         kvitteringerRes,
+        ventepladserRes,
         // Pulsen (9/9, lib/pulsen): svar på forslag — det eneste af de fire
         // tal forsiden ikke allerede havde data til.
         svarRes,
@@ -343,6 +356,14 @@ export const hentAdvisorDashboard = () =>
           .select("company_id, udfald, grundlag, acknowledged_at")
           .not("grundlag", "is", null)
           .order("acknowledged_at", { ascending: false })
+          .limit(2000) as any),
+        // Ventelisten (udkast 18/9): levende ventepladser med ansøgningens
+        // navn og lukket_at (ancienniteten). Dommen kobler dem til
+        // fornyelsestilstanden pr. virksomhed — «pladsen er ledig».
+        (supabase
+          .from("ventepladser" as any)
+          .select("id, ansoegning_id, company_id, status, sat_at, ansoegninger(lukket_at, navn, email, cvr_opslag)")
+          .in("status", ["venter", "tilbudt"])
           .limit(2000) as any),
         // Pulsen, tal 2: forslag der er SVARET på inden for SVAR_VINDUE_DAGE —
         // accepteret (accepted_at) eller lukket (closed_at; status afgør i
@@ -987,7 +1008,43 @@ export const hentAdvisorDashboard = () =>
       const ansoegningerTilForside: AnsoegningTilForside[] = (kraevRaekker(ansoegningerRes, "ansoegninger") as { id: string; navn: string | null; email: string | null; cvr_opslag: Record<string, unknown> | null; trin: string; trin_sat_at: string; paa_pause_til: string | null }[])
         .filter((a) => a.trin === "ny" || a.trin === "afholdt")
         .map((a) => ({ id: a.id, navn: virksomhedsnavnAf(a), trin: a.trin as "ny" | "afholdt", sidenAt: a.trin_sat_at, paaPauseTil: a.paa_pause_til ?? null }));
-      const dom = afgoerForsidensDom(virksomhederTilDom, now, { betaltIkkeOprettet, ansoegninger: ansoegningerTilForside });
+      // VENTELISTEN (udkast 18/9 — forsidensDom.VentelisteTilDom): pr. virksomhed
+      // med levende ventepladser: fornyelsesdommen (samme input som tilDom),
+      // den første i køen (ventelisteDom.naesteIKoen) og om et tilbud er ude.
+      // Dommen viser kun dem hvis plads ER ledig (erPladsLedig) — resten
+      // venter i stilhed.
+      const ventepladser = kraevRaekker(ventepladserRes, "ventepladser") as VentepladsRad[];
+      const pladserByCompany = new Map<string, VentepladsRad[]>();
+      for (const v of ventepladser) {
+        if (!v.company_id) continue;
+        const liste = pladserByCompany.get(v.company_id) ?? [];
+        liste.push(v);
+        pladserByCompany.set(v.company_id, liste);
+      }
+      const venteliste: VentelisteTilDom[] = [];
+      for (const [cid, liste] of pladserByCompany) {
+        const row = companyById.get(cid);
+        if (!row) continue;
+        const tilstand = afgoerFornyelsestilstand({
+          contract_end_date: row.contract_end_date ?? null,
+          subscription_status: row.subscription_status ?? null,
+          subscription_current_period_end: row.subscription_current_period_end ?? null,
+          beslutning: beslutningByCompany.get(cid) ?? null,
+        }, now);
+        if (!erPladsLedig(tilstand.status)) continue;
+        const raekker = liste.map((v) => ({ id: v.id, ansoegning_id: v.ansoegning_id, company_id: v.company_id, status: v.status, sat_at: v.sat_at, afvist_at: v.ansoegninger?.lukket_at ?? null }));
+        const naeste = naesteIKoen(raekker);
+        const naesteRad = naeste ? liste.find((v) => v.id === naeste.id) ?? null : null;
+        venteliste.push({
+          companyId: cid,
+          navn: row.name,
+          naeste: naeste && naesteRad ? { ansoegningId: naeste.ansoegning_id, navn: ansoegerNavn(naesteRad.ansoegninger), afvistAt: naeste.afvist_at, satAt: naeste.sat_at } : null,
+          antalIKoen: sorterKoe(raekker).length,
+          tilbudUde: harTilbudUde(raekker),
+          kvittering: kvitteringByCompany.get(cid) ?? null,
+        });
+      }
+      const dom = afgoerForsidensDom(virksomhederTilDom, now, { betaltIkkeOprettet, ansoegninger: ansoegningerTilForside, venteliste });
       // Pulsen (lib/pulsen): PORTEFØLJENS univers = listens (VirksomhedslisteView:
       // kunde, ikke legat, status aktiv/tom) — pending OG udløbne er MED
       // (10/9: «af 26» mod listens 27 var den udløbne; en udløbet er i

@@ -77,7 +77,8 @@ export const aftalenErFoldet = (view: string): boolean => {
     /const \[aaben, setAaben\] = useState\(startAaben\);/.test(view) &&
     /if \(startAaben\) setAaben\(true\);/.test(view) &&
     /const startAftaleAaben = dybSektion === "aftale" \|\| \(derfor != null && AABNER_AFTALEN\.has\(derfor\.slags\)\);/.test(view) &&
-    /new Set<OpgaveSlags>\(\["fornyelse", "indgang"\]\)/.test(view) &&
+    // Ventelisten (udkast 18/9) åbner også Aftalen — «Tilbyd pladsen til X» bor dér.
+    /new Set<OpgaveSlags>\(\["fornyelse", "indgang", "venteliste"\]\)/.test(view) &&
     /startAaben=\{startAftaleAaben\}/.test(komposition(view));
 };
 
@@ -115,7 +116,7 @@ describe("virksomhedsside.guard — PR 1: Planen før tallene i fuld bredde, cha
   it("dom 3: ingen truncate/line-clamp i Planen", () => {
     expect(fuldeTitler(planen)).toBe(true);
   });
-  it("dom 4: Aftalen foldet — åbnes af ?section=aftale og ?grund=fornyelse|indgang", () => {
+  it("dom 4: Aftalen foldet — åbnes af ?section=aftale og ?grund=fornyelse|indgang|venteliste", () => {
     expect(aftalenErFoldet(view)).toBe(true);
   });
   it("dom 5: chatten 60 vh (min 420 px) med «Åbn i /chat»", () => {
@@ -143,7 +144,7 @@ describe("virksomhedsside.guard — PR 1: Planen før tallene i fuld bredde, cha
   });
   it("selvbevis 4: Aftalen uden fold, eller uden åbning fra ?section/?grund, falder", () => {
     expect(aftalenErFoldet(view.replace("<details open={aaben}", "<div"))).toBe(false);
-    expect(aftalenErFoldet(view.replace('new Set<OpgaveSlags>(["fornyelse", "indgang"])', 'new Set<OpgaveSlags>(["fornyelse"])'))).toBe(false);
+    expect(aftalenErFoldet(view.replace('new Set<OpgaveSlags>(["fornyelse", "indgang", "venteliste"])', 'new Set<OpgaveSlags>(["fornyelse"])'))).toBe(false);
     expect(aftalenErFoldet(view.replace("if (startAaben) setAaben(true);", ""))).toBe(false);
   });
   it("selvbevis 5: hele viewportet tilbage, eller uden link, falder", () => {

@@ -8,6 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useVirksomhed, skrivFornyelsesbeslutning, skrivFornyelsesnote, sletFornyelsesbeslutning, type VirksomhedsData } from "@/hooks/useVirksomhed";
 import AgentForslagPanel from "@/components/AgentForslagPanel";
+import { VentelisteHandlinger } from "./VentelisteHandlinger";
 import AdvisorAIChat from "@/components/AdvisorAIChat";
 import CompanyChatPane from "@/components/CompanyChatPane";
 import EditCompanyDialog from "@/components/members/EditCompanyDialog";
@@ -274,10 +275,11 @@ const GRUNDENS_ANKER: Record<OpgaveSlags, string | null> = {
   ingen_maal: "section-milestones", // Planen — «Sæt mål sammen med medlemmet» (fase 5)
   betalt_ikke_oprettet: null, // «Invitationer»-blokken har intet anker; man er øverst og ser statuslinjen (før 22/9)
   ansoegninger_venter: null, // ikke en virksomhed — linjen peger på /ansoegninger, aldrig hertil (18/9)
+  venteliste: "section-aftale", // Aftalen, plads 7 — «Tilbyd pladsen til X» står under Fornyelse (udkast 18/9)
 };
 
 /** Grundene der lander i Aftalen — folden skal åbnes før der rulles. */
-const AABNER_AFTALEN: ReadonlySet<OpgaveSlags> = new Set<OpgaveSlags>(["fornyelse", "indgang"]);
+const AABNER_AFTALEN: ReadonlySet<OpgaveSlags> = new Set<OpgaveSlags>(["fornyelse", "indgang", "venteliste"]);
 
 /** Samme dom som forsiden (afgoerForsidensDom), for denne ene virksomhed,
     så handlingen står med forsidens ord — «Send tilbuddet til PHILBERT»,
@@ -1776,6 +1778,10 @@ const Blok7 = ({
                 />
               </Linje>
             )}
+            {/* Ventelisten (udkast 18/9): hvem venter på DENNE plads, og — når
+                fornyelsesdommen siger at den er ledig — knappen der starter
+                køen. Der går ingen mail før det tryk. */}
+            <VentelisteHandlinger companyId={c.id} fornyelseStatus={fornyelse.status} efterSkrivning={onFornyelseAendret} />
             {d.fornyelse?.varsel_1_sendt_at && <Linje label="Varsel sendt">{formatDato(d.fornyelse.varsel_1_sendt_at)}</Linje>}
             {d.fornyelse?.varsel_2_sendt_at && <Linje label="Påmindelse sendt">{formatDato(d.fornyelse.varsel_2_sendt_at)}</Linje>}
           </div>

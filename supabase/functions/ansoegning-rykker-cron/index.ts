@@ -38,7 +38,10 @@ import { skrivRaadgiverBesked } from "../_shared/raadgiverBesked.ts";
 import { afgoerSending, type KoeHandling } from "../_shared/rykkerkoe.ts";
 import { erAabentTrin, trappensTrin, type Trappe } from "../_shared/ansoegningTrin.ts";
 import { kbhDato, kbhTilUtc } from "../_shared/hverdage.ts";
-import { bygRykkerMail } from "../_shared/ansoegningRykkerMails.ts";
+import { bygRykkerMail, type VentepladsKontekst } from "../_shared/ansoegningRykkerMails.ts";
+import { hentAnsoegerensPladser, pladsUdloebet } from "../_shared/venteliste.ts";
+import { erBloedUdgave } from "../_shared/ventelisteDom.ts";
+import { tagPladsenLink, afslaaPladsenLink } from "../_shared/ansoegningMotor.ts";
 import { afgoerFremdrift, TOMME_SVAR, type AnsoegningsSvar } from "../_shared/ansoegningSkema.ts";
 import {
   afklaringUrl,
@@ -128,6 +131,10 @@ function raadgiverKlokke(a: AnsoegningRaekke, handling: KoeHandling): { type: st
       return { type: RAADGIVER_BESKED.lukket_af_koen, title: `Aftalegrundlaget til ${navn} udløb`, body: "Dag 21 uden underskrift. Kan genåbnes fra ansøgningen." };
     case "pause_slut":
       return { type: RAADGIVER_BESKED.pause_slut, title: `Pausen for ${navn} er slut`, body: "Tre måneder er gået siden «ikke nu». Skal vi skrive igen? Det er dit valg — køen gør intet af sig selv." };
+    case "venteplads_udloeb":
+      // Klokken skrives af _shared/venteliste.ts (pladsUdloebet) — grenen ovenfor
+      // når aldrig hertil; her kun for udtømmende switch.
+      return { type: "venteliste", title: `Tilbuddet til ${navn} udløb`, body: "Køen er gået videre." };
     default:
       return { type: RAADGIVER_BESKED.pause_slut, title: navn, body: handling };
   }
@@ -158,8 +165,15 @@ async function koer(admin: SupabaseClient, toer: boolean, nu: Date): Promise<Res
       const paaPause = a?.paa_pause_til !== null && a?.paa_pause_til !== undefined;
       // Kladden lever FØR trinnene: rækken gælder kun mens ansøgningen stadig er
       // en kladde med e-mail; er den indsendt, vandt reaktionen (regel 1).
+      // Ventelisten (udkast 18/9): trappen «venteplads» lever på en LUKKET
+      // ansøgning — rækken gælder så længe ansøgeren har et tilbud ude.
+      const venteplads = raekke.trappe === "venteplads" && a
+        ? (await hentAnsoegerensPladser(admin, a.id)).find((p) => p.status === "tilbudt") ?? null
+        : null;
       const skalAnnulleres = raekke.trappe === "kladde"
         ? (!a || a.indsendt_at !== null || !a.email)
+        : raekke.trappe === "venteplads"
+        ? (!a || !venteplads)
         : (!a || !a.indsendt_at || !erAabentTrin(a.trin) ||
           (trin !== null && a.trin !== trin) ||
           (raekke.trappe !== "pause" && paaPause) ||
@@ -167,7 +181,7 @@ async function koer(admin: SupabaseClient, toer: boolean, nu: Date): Promise<Res
       if (skalAnnulleres || !a) {
         if (!toer) {
           await admin.from("planlagte_haendelser")
-            .update({ status: "annulleret", annulleret_at: nu.toISOString(), annulleret_grund: a ? `ansøgningen står på «${a.trin}»${paaPause ? " (pause)" : ""}` : "ansøgningen findes ikke" })
+            .update({ status: "annulleret", annulleret_at: nu.toISOString(), annulleret_grund: !a ? "ansøgningen findes ikke" : raekke.trappe === "venteplads" ? "intet tilbud ude på ventelisten" : `ansøgningen står på «${a.trin}»${paaPause ? " (pause)" : ""}` })
             .eq("id", raekke.id).eq("status", "planlagt");
         }
         r.annulleret++;
@@ -209,6 +223,14 @@ async function koer(admin: SupabaseClient, toer: boolean, nu: Date): Promise<Res
           aftaleUrl: a.aftale_url,
           token: a.token,
           manglerSvar: raekke.trappe === "kladde" ? manglendeSvar(a) : null,
+          venteplads: venteplads
+            ? ({
+                bloed: erBloedUdgave(a.lukket_at, nu),
+                svarfrist: new Date(venteplads.tilbud_udloeber_at ?? nu.toISOString()),
+                tagPladsenUrl: tagPladsenLink(a.token),
+                afslaaPladsenUrl: afslaaPladsenLink(a.token),
+              } satisfies VentepladsKontekst)
+            : null,
         });
         if (!mail) {
           if (!toer) await admin.from("planlagte_haendelser").update({ status: "fejlet", fejl: `ukendt skabelon ${raekke.skabelon}`, fejl_antal: MAKS_FEJL }).eq("id", raekke.id);
@@ -261,6 +283,17 @@ async function koer(admin: SupabaseClient, toer: boolean, nu: Date): Promise<Res
         r.ville_sende++;
         continue;
       }
+      if (raekke.handling === "venteplads_udloeb") {
+        // Dag 7 uden svar: tilbuddet udløber og køen går selv videre
+        // (_shared/venteliste.ts skriver klokken). Ingen overgang i A's motor —
+        // ansøgningen er og bliver lukket.
+        const res = await pladsUdloebet(admin, a.id, nu);
+        await admin.from("planlagte_haendelser").update({ status: "udfoert", udfoert_at: nu.toISOString() }).eq("id", raekke.id);
+        console.log(`[ansoegning-rykker-cron] venteplads_udloeb for ${a.id}: ${res.udfald}${res.udfald === "udloebet" ? ` → ${res.naeste.udfald}` : ""}`);
+        r.udfoerte++;
+        continue;
+      }
+
       if (raekke.handling !== "pause_slut") {
         const art = raekke.handling === "marker_afholdt" ? "afholdt" : raekke.handling === "luk_svarer_ikke" ? "svarer_ikke" : "udloeb";
         const res = await udfoerOvergang(admin, { ansoegning: a, handling: { art }, via: "koe", truffetAf: null, nu });

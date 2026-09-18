@@ -77,7 +77,7 @@ import {
   erISendevindue,
 } from "./hverdage.ts";
 
-export type KoeHandling = "send_mail" | "luk_svarer_ikke" | "udloeb" | "marker_afholdt" | "pause_slut";
+export type KoeHandling = "send_mail" | "luk_svarer_ikke" | "udloeb" | "marker_afholdt" | "pause_slut" | "venteplads_udloeb";
 export type Modtager = "ansoeger" | "raadgiver";
 
 export interface TrappeTrin {
@@ -98,6 +98,8 @@ export interface TrappeTrin {
 }
 
 export const KLADDE_PAAMINDELSE_DAG = 2;
+/** Ventelistens svarfrist (udkast 18/9): samme tal som ventelisteDom.SVARFRIST_DAGE. */
+export const VENTEPLADS_SVARFRIST_DAGE = 7;
 
 export const TRAPPER: Record<Trappe, readonly TrappeTrin[]> = {
   kladde: [{ trinNr: 0, dag: KLADDE_PAAMINDELSE_DAG, handling: "send_mail", skabelon: "ansoegning-kladde-paamindelse", modtager: "ansoeger" }],
@@ -123,6 +125,14 @@ export const TRAPPER: Record<Trappe, readonly TrappeTrin[]> = {
     { trinNr: 5, dag: 21, handling: "udloeb", skabelon: null, modtager: "raadgiver" },
   ],
   pause: [{ trinNr: 0, dag: 0, handling: "pause_slut", skabelon: null, modtager: "raadgiver" }],
+  // Ventelisten (udkast 18/9): tilbuddet dag 0, én rykker dag 3, udløb dag 7 →
+  // køen går selv videre til den næste (venteplads_udloeb). Ingen «ikke nu»
+  // i disse mails: ansøgningen er lukket, svaret er ja/nej på pladsen.
+  venteplads: [
+    { trinNr: 0, dag: 0, handling: "send_mail", skabelon: "ansoegning-venteplads-tilbud", modtager: "ansoeger" },
+    { trinNr: 1, dag: 3, handling: "send_mail", skabelon: "ansoegning-venteplads-rykker", modtager: "ansoeger" },
+    { trinNr: 2, dag: VENTEPLADS_SVARFRIST_DAGE, handling: "venteplads_udloeb", skabelon: null, modtager: "raadgiver" },
+  ],
 };
 
 export const PAUSE_MAANEDER = 3;

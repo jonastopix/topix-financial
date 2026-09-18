@@ -15,6 +15,9 @@ import {
   type Tilstandslinje,
   type Virksomhedslinje,
   type VirksomhedTilDom,
+  ALVOR_VENTELISTE,
+  VENTELISTE_NOEGLE,
+  type Ventelistelinje,
 } from "@/lib/forsidensDom";
 import type { Signal } from "@/lib/virksomhedsSignaler";
 import type { Fornyelsestilstand } from "@/lib/fornyelse";
@@ -124,6 +127,7 @@ describe("konstanterne", () => {
       // Før 22/9 (17/9, Jonas «1. Ja») — rettet MED VILJE. Før: tabellen sluttede ved
       // ingen_maal (fjorten slags). Betalt uden konto er en hændelse: væk når kontoen er oprettet.
       betalt_ikke_oprettet: "haendelse",
+      venteliste: "haendelse", // udkast 18/9 — med vilje
       // Ansøgningsmotoren (18/9) — rettet MED VILJE. Før: tabellen sluttede ved
       // betalt_ikke_oprettet (femten slags). Ansøgninger der venter er en hændelse:
       // væk når beslutningen er truffet; ingen virksomhed, ingen kvittering.
@@ -1346,5 +1350,35 @@ describe("ansøgninger der venter (18/9) — én linje uden virksomhed og uden k
     });
     expect(dom.linjer.map((l) => l.linje)).toEqual(["betalt", "ansoegninger"]);
     expect(dom.antalOpgaver).toBe(2);
+  });
+});
+
+describe("ventelisten (udkast 18/9) — én linje pr. ledig plads med kø, uden for virksomhederne", () => {
+  const nu = new Date("2026-09-18T12:00:00Z");
+  const v = (o: Partial<import("@/lib/forsidensDom").VentelisteTilDom> = {}) => ({
+    companyId: "c1", navn: "Homie", naeste: { ansoegningId: "a1", navn: "Nordic Byg", afvistAt: "2026-05-03T09:00:00Z", satAt: "2026-06-01T00:00:00Z" }, antalIKoen: 1, tilbudUde: false, kvittering: null, ...o,
+  });
+  it("linjen bærer navnet, handlingen «Tilbyd pladsen til …» og teksten; alvor 80, indsats 1", () => {
+    const dom = afgoerForsidensDom([], nu, { venteliste: [v()] });
+    const linje = dom.linjer.find((l): l is Ventelistelinje => l.linje === "venteliste")!;
+    expect(linje.navn).toBe("Homie");
+    expect(linje.handling).toBe("Tilbyd pladsen til Nordic Byg");
+    expect(linje.tekst).toBe("Homie er ude. Nordic Byg har ventet siden 3. maj — tilbyd pladsen?");
+    expect(linje.alvor).toBe(ALVOR_VENTELISTE);
+    expect(linje.indsats).toBe(1);
+    expect(linje.grundlag).toEqual({ [VENTELISTE_NOEGLE]: "venteliste:a1" });
+  });
+  it("tilbud ude eller tom kø: ingen linje — mennesket har trykket, eller der er ingen at tilbyde", () => {
+    expect(afgoerForsidensDom([], nu, { venteliste: [v({ tilbudUde: true })] }).linjer.some((l) => l.linje === "venteliste")).toBe(false);
+    expect(afgoerForsidensDom([], nu, { venteliste: [v({ naeste: null, antalIKoen: 0 })] }).linjer.some((l) => l.linje === "venteliste")).toBe(false);
+  });
+  it("lukket med samme grundlag: væk; en anden først i køen: levende igen", () => {
+    const lukket = { udfald: "faerdiggjort" as const, grundlag: { [VENTELISTE_NOEGLE]: "venteliste:a1" }, lukketAt: "2026-09-18T11:00:00Z" };
+    expect(afgoerForsidensDom([], nu, { venteliste: [v({ kvittering: lukket })] }).linjer.some((l) => l.linje === "venteliste")).toBe(false);
+    const anden = v({ kvittering: lukket, naeste: { ansoegningId: "a2", navn: "Byg & Co", afvistAt: null, satAt: "2026-07-01T00:00:00Z" } });
+    expect(afgoerForsidensDom([], nu, { venteliste: [anden] }).linjer.some((l) => l.linje === "venteliste")).toBe(true);
+  });
+  it("uden feltet i ekstra (ældre kaldere): ingen linje, ingen fejl", () => {
+    expect(afgoerForsidensDom([], nu, {}).linjer.some((l) => l.linje === "venteliste")).toBe(false);
   });
 });

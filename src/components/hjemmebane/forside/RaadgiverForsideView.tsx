@@ -6,7 +6,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { ADVISOR_DASHBOARD_QUERY_KEY, hentAdvisorDashboard } from "@/components/AdvisorDashboard";
 import { invaliderForsiden, lukOpgave } from "@/hooks/opgaveLukning";
 import { OpgavelisteView } from "@/components/hjemmebane/opgaver/OpgavelisteView";
-import { ANSOEGNINGER_STI, TAERSKEL, usaedvanligtMangeTekst, type Betaltlinje, type Boelgelinje, type Linje, type OpgaveSlags, type Tilstandslinje, type Virksomhedslinje } from "@/lib/forsidensDom";
+import { ANSOEGNINGER_STI, TAERSKEL, usaedvanligtMangeTekst, type Betaltlinje, type Boelgelinje, type Linje, type OpgaveSlags, type Tilstandslinje, type Ventelistelinje, type Virksomhedslinje } from "@/lib/forsidensDom";
 import { samletLinjeLink } from "@/lib/hjemmebane/forsideLinks";
 import { LUKNINGS_UDFALD, UDFALD_TEKST, type LukningsUdfald } from "@/lib/opgaveLukning";
 import { pulsLinjer } from "@/lib/pulsen";
@@ -142,7 +142,7 @@ const virksomhedsLink = (companyId: string) => `/virksomhed/${companyId}`;
     kan stadig kun afgøres i AgentForslagPanel på /virksomhed/:companyId;
     udsnittet på listen er det nærmeste for flere. */
 
-type LukbarLinje = Virksomhedslinje | Boelgelinje | Betaltlinje | Tilstandslinje;
+type LukbarLinje = Virksomhedslinje | Boelgelinje | Betaltlinje | Tilstandslinje | Ventelistelinje;
 
 /** PR 5 (17/9): en samlet tilstand som fold — summary er linjens tekst (linket
     til udsnittet, samletLinjeLink, som før), folden ét navn pr. virksomhed
@@ -214,6 +214,42 @@ const DomLinje = ({ l, onLuk, lukker }: { l: Linje; onLuk: (linje: LukbarLinje, 
         <span className="flex shrink-0 flex-col items-end gap-1">
           {hast}
           {/* Lukningen: to ord, evergreen (husets handlingsfarve), ingen knapflade. */}
+          <span className="flex items-center gap-2 text-xs">
+            {LUKNINGS_UDFALD.map((udfald) => (
+              <button
+                key={udfald}
+                type="button"
+                disabled={lukker}
+                onClick={() => onLuk(l, udfald)}
+                className="text-hb-evergreen underline-offset-4 hover:underline disabled:opacity-50"
+              >
+                {UDFALD_TEKST[udfald]}
+              </button>
+            ))}
+          </span>
+        </span>
+      </li>
+    );
+  }
+
+  if (l.linje === "venteliste") {
+    /* VENTELISTEN (udkast 18/9): «Homie er ude. Nordic Byg har ventet siden
+       3. maj — tilbyd pladsen?» — én linje pr. virksomhed, ved navn. Linket
+       fører til virksomhedssiden (Aftalen), hvor «Tilbyd pladsen til X» bor;
+       der går ingen mail før det tryk. De to ord lukker linjen med grundlaget
+       «venteliste:{ansøgning}» — skifter den første i køen, står den igen. */
+    return (
+      <li className="flex items-start gap-3 py-3" data-venteliste={l.antal}>
+        {prik}
+        <Link to={grundLink(l.companyId, "venteliste")} className="min-w-0 flex-1 rounded-hb transition-colors hover:bg-hb-sage/20">
+          <span className="block text-[15px] leading-snug text-hb-ink">
+            <span className="font-medium">{l.navn}</span>
+            <span className="text-hb-ink-soft"> · </span>
+            {l.handling}
+          </span>
+          <span className="block text-sm leading-snug text-hb-ink-soft">{l.tekst}</span>
+        </Link>
+        <span className="flex shrink-0 flex-col items-end gap-1">
           <span className="flex items-center gap-2 text-xs">
             {LUKNINGS_UDFALD.map((udfald) => (
               <button
@@ -496,6 +532,7 @@ export const RaadgiverForsideView = () => {
       const navn =
         input.linje.linje === "boelge" ? `${input.linje.antal} nye`
         : input.linje.linje === "betalt" ? `${input.linje.antal} betalt uden konto`
+        : input.linje.linje === "venteliste" ? `${input.linje.navn} (venteliste)`
         : input.linje.linje === "tilstand"
           ? (input.kun ? (input.linje.virksomheder.find((v) => v.companyId === input.kun)?.navn ?? "1 virksomhed") : `${input.linje.antal} ${input.linje.antal === 1 ? "virksomhed" : "virksomheder"}`)
           : input.linje.navn;
@@ -525,7 +562,7 @@ export const RaadgiverForsideView = () => {
 
   const dom = data.dom;
   const linjeNoegle = (l: Linje) =>
-    l.linje === "virksomhed" ? `v:${l.companyId}` : l.linje === "boelge" ? `b:${l.dag}` : l.linje === "betalt" ? "betalt" : l.linje === "ansoegninger" ? "ansoegninger" : `${l.linje}:${l.slags}`;
+    l.linje === "virksomhed" ? `v:${l.companyId}` : l.linje === "boelge" ? `b:${l.dag}` : l.linje === "betalt" ? "betalt" : l.linje === "venteliste" ? `vl:${l.companyId}` : l.linje === "ansoegninger" ? "ansoegninger" : `${l.linje}:${l.slags}`;
   const under = dom.underStregen;
   const antalUnder = under.antalVirksomhederUnderTaersklen;
 
