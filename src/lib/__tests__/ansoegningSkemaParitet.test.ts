@@ -12,7 +12,7 @@ const svar = [
   srcModul.TOMME_SVAR,
   { ...srcModul.TOMME_SVAR, cvr: " 12 34 56 78", hjemmeside: "Www.Nordicbyg.dk/", antal_ansatte: 3 },
   { ...srcModul.TOMME_SVAR, navn: "  A  B ", email: "X@Y.DK", telefon: "12345678", udfordring: "x".repeat(50) },
-  { ...srcModul.TOMME_SVAR, omsaetningsinterval: "G", start_tidspunkt: "senere", set_webinar: "ja", proevet: "et to tre fire fem seks syv otte ni ti elleve tolv tretten fjorten" },
+  { ...srcModul.TOMME_SVAR, omsaetningsinterval: "G", start_tidspunkt: "inden_3_maaneder", set_webinar: "ja", proevet: "et to tre fire fem seks syv otte ni ti elleve tolv tretten fjorten" },
 ];
 
 describe("ansoegningSkema — parity between src/lib and supabase/functions/_shared", () => {
