@@ -160,6 +160,13 @@ const AnsoegStatus = () => {
         {!pladsKort && sagtIkkeNu === null && !bekraefter && (v.book || v.booket) && (
           <AnsoegSamtale token={token} booket={v.booket} onAendret={(besked) => { setSamtaleBesked(besked); setVersion((x) => x + 1); }} />
         )}
+        {/* Ventelisten (19/9): et tilbud ude → de to knapper her på siden, samme bekræftelseskort som fra mailen. */}
+        {!pladsKort && !pladsResultat && v.plads === "tilbud" && (
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center" data-plads-tilbud>
+            <HbButton type="button" onClick={() => setPladsSvar("ja")}>Ja tak, jeg vil have pladsen</HbButton>
+            <HbButton type="button" variant="secondary" onClick={() => setPladsSvar("nej")}>Nej tak — giv den videre</HbButton>
+          </div>
+        )}
         {!pladsKort && sagtIkkeNu === null && !bekraefter && (
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
             {v.aftale && (

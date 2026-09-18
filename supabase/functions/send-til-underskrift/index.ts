@@ -371,7 +371,9 @@ Deno.serve(async (req) => {
     if (ansoegning) {
       const url = aftaleUrl(aftale.token);
       if (ansoegning.trin === "afholdt") {
-        const o = await udfoerOvergang(admin, { ansoegning, handling: { art: "tilbud" }, via: "raadgiver", truffetAf: callerId, aftaleUrl: url, nu });
+        // startFraTrinNr: 1 (recon-sammenhæng §2, 19/9): linkmailen ER sendt ovenfor — køens dag 0
+        // med samme link springes over, så ansøgeren ikke får aftalegrundlaget to gange. Rykkerne kører.
+        const o = await udfoerOvergang(admin, { ansoegning, handling: { art: "tilbud" }, via: "raadgiver", truffetAf: callerId, aftaleUrl: url, nu, startFraTrinNr: 1 });
         motor = o.ok ? { ok: true, fra: o.fra, til: o.til, planlagt: o.planlagt } : { ok: false, status: o.status, grund: o.grund };
         if (!o.ok) console.error(`${LOG} aftale ${aftale.id} sendt, men motorens «tilbud» fejlede for ansøgning ${ansoegning.id}: ${o.grund}`);
       } else {

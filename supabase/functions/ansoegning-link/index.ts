@@ -15,7 +15,7 @@
 // Bookingen sker ikke her — den går gennem ansoegning-samtale (samme token):
 // tider, book, flyt, aflys. Platformen selv, ingen Calendly (udkast 18/9).
 
-import { svarPaaPlads } from "../_shared/venteliste.ts";
+import { hentAnsoegerensPladser, svarPaaPlads } from "../_shared/venteliste.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
 import { corsHeaders } from "../_shared/edgeFunctionAuth.ts";
 import { verifyAnsoegningslink } from "../_shared/ansoegningLinkAuth.ts";
@@ -67,6 +67,19 @@ Deno.serve(async (req) => {
   if (aftaleFejl) console.error(`[ansoegning-link] aftaleopslag fejlede for ${a.id}:`, aftaleFejl.message);
   const underskrift = aftaleTilAnsoeger((aftaleRaekke ?? null) as AftaleRaekkeTilAnsoeger | null, new Date());
 
+  // Ventelisten på statussiden (recon-sammenhæng §5, 19/9): en LUKKET ansøgning kan stå i kø
+  // eller have et tilbud ude — så siger siden ikke «afsluttet». Kun antal og frist; aldrig hvilken
+  // virksomhed (samme regel som afslagsmailen: koeSaetningTilAnsoeger kender ikke navnet).
+  const ventepladser = a.trin === "lukket"
+    ? await hentAnsoegerensPladser(admin, a.id).then(
+        (rader) => {
+          const tilbud = rader.find((r) => r.status === "tilbudt") ?? null;
+          return { venter: rader.filter((r) => r.status === "venter").length, tilbud: tilbud ? { udloeber_at: tilbud.tilbud_udloeber_at } : null };
+        },
+        (e: unknown) => { console.error(`[ansoegning-link] ventepladser fejlede for ${a.id}:`, e instanceof Error ? e.message : String(e)); return null; },
+      )
+    : null;
+
   const svar = () => ({
     trin: a.trin,
     paa_pause_til: a.paa_pause_til,
@@ -75,6 +88,7 @@ Deno.serve(async (req) => {
     moede_link: a.trin === "booket" ? a.samtale_link : null,
     aftale_url: a.trin === "aftalegrundlag_sendt" ? a.aftale_url : null,
     underskrift,
+    ventepladser,
     virksomhedsnavn: virksomhedsnavnAf(a),
     fornavn: fornavnAf(a.navn),
   });

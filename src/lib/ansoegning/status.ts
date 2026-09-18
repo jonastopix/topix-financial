@@ -23,6 +23,8 @@ export interface StatusVisning {
   aftale: string | null;
   /** «Ikke nu» vises på åbne trin, når ansøgningen ikke allerede er på pause. */
   visIkkeNu: boolean;
+  /** Ventelisten på en lukket ansøgning (19/9): «tilbud» viser ja/nej-knapperne; «koe» kun teksten. */
+  plads: "tilbud" | "koe" | null;
 }
 
 const MAANEDER = ["januar", "februar", "marts", "april", "maj", "juni", "juli", "august", "september", "oktober", "november", "december"];
@@ -42,7 +44,7 @@ export function danskTidspunkt(iso: string): string {
 }
 
 export function afgoerStatus(s: StatusSvar, nu: Date = new Date()): StatusVisning {
-  const ingen = { book: false, booket: null, aftale: null, visIkkeNu: false };
+  const ingen = { book: false, booket: null, aftale: null, visIkkeNu: false, plads: null as StatusVisning["plads"] };
   // Pausen gælder til og med dagen før slutdatoen — en dato i fortiden er ingen pause (rettelse 19/9).
   if (erPaaPause(s.paa_pause_til, nu)) {
     return { ...ingen, titel: "Din ansøgning holder pause", tekst: `Du bad os vente. Vi skriver ikke til dig før ${danskDato(s.paa_pause_til)} — og gerne før, hvis du selv siger til på ${"kontakt@theboardroom.dk"}.` };
@@ -78,8 +80,18 @@ export function afgoerStatus(s: StatusSvar, nu: Date = new Date()): StatusVisnin
     }
     case "underskrevet":
       return { ...ingen, titel: "Velkommen — du har skrevet under", tekst: "Det næste er betalingen; du har fået en mail om den. Så er du inde." };
-    case "lukket":
+    case "lukket": {
+      // Recon-sammenhæng §5 (19/9): et nej på nichen er ikke «afsluttet», når de står i kø eller har et tilbud.
+      const v = s.ventepladser ?? null;
+      if (v?.tilbud) {
+        const frist = v.tilbud.udloeber_at ? ` Svar senest ${danskDato(v.tilbud.udloeber_at)} — ellers går pladsen videre til den næste i køen.` : "";
+        return { ...ingen, plads: "tilbud", titel: "Du har et tilbud om en plads", tekst: `Pladsen i jeres niche er blevet ledig, og du står først i køen. Sig ja, så genåbner vi din ansøgning, og Jonas inviterer dig til en snak.${frist}` };
+      }
+      if (v && v.venter > 0) {
+        return { ...ingen, plads: "koe", titel: "Du står i kø", tekst: `Vi måtte sige nej, fordi pladsen i jeres niche var optaget — men du står i kø${v.venter > 1 ? ` til ${v.venter} pladser` : ""}. Bliver pladsen ledig, skriver vi til dig, og du har syv dage til at sige ja.` };
+      }
       return { ...ingen, titel: "Ansøgningen er afsluttet", tekst: "Der er ikke mere at gøre her. Passer det bedre senere, er du velkommen til at søge igen." };
+    }
     default:
       return { ...ingen, titel: "Din ansøgning", tekst: "Jonas vender tilbage til dig." };
   }

@@ -75,6 +75,8 @@ export interface StatusSvar {
   aftale_url: string | null;
   /** E-underskriften på ansøgningen (brist 8, 18/9): url + tilstand fra aftale_underskrift; null = ingen aftale sendt den vej (så gælder aftale_url). */
   underskrift?: { url: string; tilstand: "kan_underskrives" | "underskrevet" | "udloebet" | "annulleret" | "ugyldig"; udloeber_at: string | null; underskrevet_at: string | null } | null;
+  /** Ventelisten (19/9): kun for lukkede — antal køer de står i, og et tilbud ude med frist. Aldrig virksomhedens navn. null = ingen/ikke lukket. */
+  ventepladser?: { venter: number; tilbud: { udloeber_at: string | null } | null } | null;
   virksomhedsnavn: string;
   fornavn: string | null;
 }

@@ -19,7 +19,8 @@ export interface BeslutningTilSpor {
   truffet_at: string;
 }
 
-const HANDLING_ORD: Record<string, string> = {
+/** Beslutningernes ord — nøglerne SKAL være alle HandlingsArt (MENNESKE_ + SYSTEM_HANDLINGER); låst af ansoegningSporOrd.guard. */
+export const HANDLING_ORD: Record<string, string> = {
   tal_med_dem: "indkaldte til samtale",
   afvis: "afviste ansøgningen",
   book: "bookede samtalen",
@@ -33,6 +34,7 @@ const HANDLING_ORD: Record<string, string> = {
   ikke_nu: "trykkede «ikke nu» — pause i tre måneder",
   luk: "lukkede ansøgningen",
   genaabn: "genåbnede ansøgningen",
+  saet_pause: "satte ansøgningen på pause",
 };
 
 const VIA_ORD: Record<string, string> = {
@@ -82,7 +84,8 @@ export interface HaendelseTilSpor {
   fejl: string | null;
 }
 
-const SKABELON_ORD: Record<string, string> = {
+/** Køens mails — nøglerne SKAL være præcis KOE_SKABELONER (rykkerkoe.ts); låst af ansoegningSporOrd.guard. */
+export const SKABELON_ORD: Record<string, string> = {
   "ansoegning-kladde-paamindelse": "påmindelse om kladden",
   "ansoegning-indkaldelse": "indkaldelsen",
   "ansoegning-indkaldt-rykker-1": "rykker 1 om samtalen",
@@ -95,13 +98,19 @@ const SKABELON_ORD: Record<string, string> = {
   "ansoegning-aftalegrundlag-rykker-2": "rykker 2 om aftalegrundlaget",
   "ansoegning-aftalegrundlag-rykker-3": "rykker 3 om aftalegrundlaget",
   "ansoegning-aftalegrundlag-rykker-4": "sidste rykker om aftalegrundlaget",
+  "ansoegning-kvittering": "kvitteringen",
+  "ansoegning-afslag": "afslagsmailen",
+  "ansoegning-venteplads-tilbud": "ventelistens tilbud om pladsen",
+  "ansoegning-venteplads-rykker": "rykker om ventepladsen",
 };
 
-const INTERN_ORD: Record<string, string> = {
+/** Køens interne handlinger — nøglerne SKAL være alle KoeHandling ud over send_mail (TRAPPER); låst af ansoegningSporOrd.guard. */
+export const INTERN_ORD: Record<string, string> = {
   luk_svarer_ikke: "lukkes «svarer ikke»",
   udloeb: "aftalegrundlaget udløber",
   marker_afholdt: "samtalen markeres afholdt",
   pause_slut: "pausen slutter — klokke til jer",
+  venteplads_udloeb: "pladsen udløber — går videre til den næste i køen",
 };
 
 export type KoeStatus = "planlagt" | "sendt" | "udfoert" | "annulleret" | "fejlet";
