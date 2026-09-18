@@ -114,3 +114,53 @@ export function genaabnerRet(i: GenaabningRetInput): RetKolonne | null {
   if (i.advisor === JONAS_ADVISOR) return "jonas_session_used_at";
   return null;
 }
+
+// ── Ansøgningsmotoren: to værn før webhooken rører en ansøgning (rettelser 19/9) ──
+//
+// Platformen opretter og aflyser selv Calendly-events (ansoegning-samtale,
+// ansoegning-handling), og hver af dem giver et invitee.created/canceled
+// tilbage til denne webhook. Uden de to domme ville (1) vores egen aflysning
+// af det GAMLE event efter en flytning ramme den NYE booking (aflys_booking er
+// tilladt fra booket), og (2) et created for en booking platformen lige har
+// skrevet køre «book» igen med samme starttid — annullere trappen og
+// (ignoreDuplicates) ikke genskabe den, så påmindelser og marker_afholdt
+// forsvinder. Recon 19/9 (vejen videre §5, §8 punkt 1–2).
+
+export interface WebhookAflysInput {
+  /** ansoegninger.calendly_event_uri — null for bookinger fra før uri'en blev gemt. */
+  ansoegningEventUri: string | null;
+  /** payload.event — det event Calendly siger er aflyst. */
+  payloadEventUri: string | null;
+}
+
+/** Aflys kun når det aflyste event ER ansøgningens. Kender ansøgningen intet event, lader vi tvivlen komme aflysningen til gode (gamle links). */
+export function skalWebhookAflyse(i: WebhookAflysInput): { aflys: true } | { aflys: false; grund: string } {
+  if (i.ansoegningEventUri && i.payloadEventUri && i.ansoegningEventUri !== i.payloadEventUri) {
+    return { aflys: false, grund: "aflysningen gælder et andet event end ansøgningens (flyttet)" };
+  }
+  return { aflys: true };
+}
+
+export interface WebhookBookInput {
+  trin: string;
+  /** ansoegninger.samtale_start (ISO) */
+  samtaleStart: string | null;
+  ansoegningEventUri: string | null;
+  payloadEventUri: string | null;
+  /** payload.scheduled_event.start_time (ISO) */
+  payloadStart: string | null;
+}
+
+const sammeTid = (a: string | null, b: string | null): boolean => {
+  if (!a || !b) return false;
+  const x = Date.parse(a), y = Date.parse(b);
+  return !Number.isNaN(x) && !Number.isNaN(y) && x === y;
+};
+
+/** Book kun når ansøgningen ikke allerede bærer netop dette event ELLER netop denne starttid (platformen bookede selv). */
+export function skalWebhookBooke(i: WebhookBookInput): { book: true } | { book: false; grund: string } {
+  if (i.trin !== "booket") return { book: true };
+  if (i.payloadEventUri && i.ansoegningEventUri === i.payloadEventUri) return { book: false, grund: "ansøgningen kender allerede eventet — platformen bookede" };
+  if (sammeTid(i.samtaleStart, i.payloadStart)) return { book: false, grund: "ansøgningen er allerede booket på samme starttid — platformen bookede" };
+  return { book: true };
+}

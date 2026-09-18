@@ -7,8 +7,8 @@ import { HbButton } from "@/components/hjemmebane/HbButton";
 import { HB_EYEBROW, HB_H1, HB_RAMME } from "@/components/hjemmebane/hbFormKlasser";
 import { useHbDokumentGrund } from "@/hooks/useHbDokumentGrund";
 import { KONTAKT_ADRESSE } from "@/lib/kontaktadresse";
-import { AnsoegningsFejl, hentStatus, sigIkkeNu, type StatusSvar } from "@/lib/ansoegning/api";
-import { afgoerStatus, danskDato } from "@/lib/ansoegning/status";
+import { AnsoegningsFejl, hentStatus, sigIkkeNu, svarPaaPladsen, type StatusSvar } from "@/lib/ansoegning/api";
+import { afgoerStatus, danskDato, laesPladsHandling, PLADS_UDLOEBET, pladsSpoergsmaal, pladsSvarTekst, type PladsSvar } from "@/lib/ansoegning/status";
 import { TOKEN_PARAM } from "@/lib/ansoegning/skema";
 
 /** /ansoeg/status?t=<token>[&handling=ikke_nu] — ansøgerens egen side EFTER
@@ -33,6 +33,9 @@ const AnsoegStatus = () => {
   const token = searchParams.get(TOKEN_PARAM) ?? "";
   const [tilstand, setTilstand] = useState<Tilstand>({ slags: "henter" });
   const [bekraefter, setBekraefter] = useState(searchParams.get("handling") === "ikke_nu");
+  // Ventelisten (rettelse 19/9): ?handling=tag_pladsen|afslaa_pladsen → bekræftelseskort → svarPaaPladsen. Ét klik, aldrig automatisk.
+  const [pladsSvar, setPladsSvar] = useState<PladsSvar | null>(() => laesPladsHandling(searchParams.get("handling")));
+  const [pladsResultat, setPladsResultat] = useState<{ titel: string; tekst: string } | null>(null);
   const [sender, setSender] = useState(false);
   const [sagtIkkeNu, setSagtIkkeNu] = useState<string | null>(null);
   // Samtalen: efter book/flyt/aflys hentes status igen (version++), og en linje siger hvad der skete.
@@ -52,6 +55,27 @@ const AnsoegStatus = () => {
       aktiv = false;
     };
   }, [token, version]);
+
+  const svarPlads = async () => {
+    if (sender || !pladsSvar) return;
+    setSender(true);
+    try {
+      const r = await svarPaaPladsen(token, pladsSvar);
+      setPladsResultat(pladsSvarTekst(pladsSvar, r.genaabnet));
+      setPladsSvar(null);
+      setVersion((x) => x + 1);
+    } catch (e) {
+      if (e instanceof AnsoegningsFejl && e.status === 409) {
+        setPladsResultat(PLADS_UDLOEBET);
+        setPladsSvar(null);
+      } else {
+        console.error("[ansoeg/status] svar på pladsen fejlede:", e);
+        setTilstand({ slags: "fejl" });
+      }
+    } finally {
+      setSender(false);
+    }
+  };
 
   const ikkeNu = async () => {
     if (sender) return;
@@ -88,18 +112,36 @@ const AnsoegStatus = () => {
     );
   } else {
     const v = afgoerStatus(tilstand.svar);
+    const pladsKort = pladsSvar ? pladsSpoergsmaal(pladsSvar) : null;
     indhold = (
       <div className="mx-auto max-w-xl space-y-6">
         <div className="space-y-3">
           <p className={HB_EYEBROW}>{tilstand.svar.virksomhedsnavn}</p>
-          <h1 className={HB_H1}>{sagtIkkeNu !== null ? "Vi holder pause" : v.titel}</h1>
+          <h1 className={HB_H1}>{pladsResultat ? pladsResultat.titel : pladsKort ? pladsKort.titel : sagtIkkeNu !== null ? "Vi holder pause" : v.titel}</h1>
           <p className="text-base leading-relaxed text-hb-ink-soft">
-            {sagtIkkeNu !== null
-              ? `Tak for besked. Vi skriver ikke til dig${sagtIkkeNu ? ` før ${danskDato(sagtIkkeNu)}` : " de næste tre måneder"} — og gerne før, hvis du selv siger til.`
-              : v.tekst}
+            {pladsResultat
+              ? pladsResultat.tekst
+              : pladsKort
+                ? pladsKort.tekst
+                : sagtIkkeNu !== null
+                  ? `Tak for besked. Vi skriver ikke til dig${sagtIkkeNu ? ` før ${danskDato(sagtIkkeNu)}` : " de næste tre måneder"} — og gerne før, hvis du selv siger til.`
+                  : v.tekst}
           </p>
         </div>
-        {sagtIkkeNu === null && bekraefter && v.visIkkeNu && (
+        {pladsKort && (
+          <div className="rounded-hb border border-hb-line bg-hb-surface p-5" data-plads-bekraeft={pladsSvar}>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <HbButton type="button" onClick={svarPlads} disabled={sender}>
+                {sender ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : null}
+                {pladsKort.knap}
+              </HbButton>
+              <HbButton type="button" variant="secondary" onClick={() => setPladsSvar(null)} disabled={sender}>
+                Fortryd
+              </HbButton>
+            </div>
+          </div>
+        )}
+        {!pladsKort && !pladsResultat && sagtIkkeNu === null && bekraefter && v.visIkkeNu && (
           <div className="rounded-hb border border-hb-line bg-hb-surface p-5" data-ikke-nu-bekraeft>
             <p className="text-[15px] font-medium text-hb-ink">Skal vi sætte ansøgningen på pause?</p>
             <p className="mt-1 text-sm leading-relaxed text-hb-ink-soft">Så skriver vi ikke til dig i tre måneder. Du kan altid vende tilbage før.</p>
@@ -115,10 +157,10 @@ const AnsoegStatus = () => {
           </div>
         )}
         {samtaleBesked && <p className="text-sm font-medium text-hb-evergreen" data-samtale-besked>{samtaleBesked}</p>}
-        {sagtIkkeNu === null && !bekraefter && (v.book || v.booket) && (
+        {!pladsKort && sagtIkkeNu === null && !bekraefter && (v.book || v.booket) && (
           <AnsoegSamtale token={token} booket={v.booket} onAendret={(besked) => { setSamtaleBesked(besked); setVersion((x) => x + 1); }} />
         )}
-        {sagtIkkeNu === null && !bekraefter && (
+        {!pladsKort && sagtIkkeNu === null && !bekraefter && (
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
             {v.aftale && (
               <a href={v.aftale} className="inline-flex h-11 items-center justify-center gap-2 rounded-full bg-hb-evergreen px-6 text-sm font-medium text-white hover:bg-hb-evergreen/90">

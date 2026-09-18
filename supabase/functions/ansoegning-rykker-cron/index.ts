@@ -159,7 +159,7 @@ function raadgiverKlokke(a: AnsoegningRaekke, handling: KoeHandling): { type: st
     case "marker_afholdt":
       return { type: RAADGIVER_BESKED.afholdt, title: `Samtalen med ${navn} er afholdt`, body: "Tilbud eller afslag? Beslutningen er din." };
     case "luk_svarer_ikke":
-      return { type: RAADGIVER_BESKED.lukket_af_koen, title: `Lukket: ${navn} svarede ikke`, body: "Fire rykkere uden booking. Kan genåbnes fra ansøgningen." };
+      return { type: RAADGIVER_BESKED.lukket_af_koen, title: `Lukket: ${navn} svarede ikke`, body: "Tre rykkere uden booking. Kan genåbnes fra ansøgningen." };
     case "udloeb":
       return { type: RAADGIVER_BESKED.lukket_af_koen, title: `Aftalegrundlaget til ${navn} udløb`, body: "Dag 21 uden underskrift. Kan genåbnes fra ansøgningen." };
     case "pause_slut":
@@ -256,6 +256,7 @@ async function koer(admin: SupabaseClient, toer: boolean, nu: Date): Promise<Res
           virksomhedsnavn: virksomhedsnavnAf(a),
           bookingUrl: ansoegerLink(a.token),
           moedeLink: a.samtale_link,
+          nu,
           statusUrl: ansoegerLink(a.token),
           ikkeNuUrl: ikkeNuLink(a.token),
           samtaleStart: a.samtale_start ? new Date(a.samtale_start) : null,
@@ -338,7 +339,16 @@ async function koer(admin: SupabaseClient, toer: boolean, nu: Date): Promise<Res
         continue;
       }
 
-      if (raekke.handling !== "pause_slut") {
+      if (raekke.handling === "pause_slut") {
+        // Rettelse 19/9 (recon §8 punkt 4): pausen skal slippe. Kolonnen ryddes når dagen er nået —
+        // ellers ser statussiden, bookingen og rådgiverens samtaleafsnit «på pause» for evigt.
+        // Kun den pause rækken hører til (samme dato), så en pause der er flyttet frem ikke ryddes.
+        const pauseDato = a.paa_pause_til;
+        if (pauseDato && pauseDato <= kbhDato(nu)) {
+          const { error: pauseErr } = await admin.from("ansoegninger").update({ paa_pause_til: null }).eq("id", a.id).eq("paa_pause_til", pauseDato);
+          if (pauseErr) console.error(`[ansoegning-rykker-cron] paa_pause_til kunne ikke ryddes for ${a.id}:`, pauseErr.message);
+        }
+      } else {
         const art = raekke.handling === "marker_afholdt" ? "afholdt" : raekke.handling === "luk_svarer_ikke" ? "svarer_ikke" : "udloeb";
         const res = await udfoerOvergang(admin, { ansoegning: a, handling: { art }, via: "koe", truffetAf: null, nu });
         if (res.ok === false) {

@@ -39,6 +39,7 @@
  */
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
 import {
+  erPaaPause,
   afgoerOvergang,
   type Handling,
   type Kilde,
@@ -412,7 +413,7 @@ export async function udfoerOvergang(admin: SupabaseClient, args: OvergangsArgs)
   if (h.art === "book" && !args.samtale) return { ok: false, status: 400, grund: "book kræver samtalens tid" };
   if (h.art === "tilbud" && !(args.aftaleUrl ?? a.aftale_url)) return { ok: false, status: 400, grund: "tilbud kræver aftale_url (linket til aftalegrundlaget)" };
 
-  const dom = afgoerOvergang(a.trin, h, { paaPause: a.paa_pause_til !== null, lukketFraTrin: a.lukket_fra_trin });
+  const dom = afgoerOvergang(a.trin, h, { paaPause: erPaaPause(a.paa_pause_til, nu), lukketFraTrin: a.lukket_fra_trin });
   if (dom.ok === false) return { ok: false, status: 409, grund: dom.grund };
   const o = dom.overgang;
 
@@ -499,6 +500,7 @@ export async function udfoerOvergang(admin: SupabaseClient, args: OvergangsArgs)
       trappe: o.start.trappe,
       anker,
       samtaleSlut: o.start.anker === "samtale" ? args.samtale!.slut : null,
+      fraTrinNr: o.start.fraTrinNr,
       nu,
     });
     planlagt = (await skrivPlan(admin, plan)).skrevet;

@@ -9,6 +9,7 @@
  * allerede på pause). Teksterne er UDKAST.
  */
 import type { StatusSvar } from "./api";
+import { erPaaPause } from "@/lib/ansoegningTrin";
 
 export interface StatusVisning {
   titel: string;
@@ -40,9 +41,10 @@ export function danskTidspunkt(iso: string): string {
   return new Intl.DateTimeFormat("da-DK", { timeZone: "Europe/Copenhagen", weekday: "long", day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" }).format(d);
 }
 
-export function afgoerStatus(s: StatusSvar): StatusVisning {
+export function afgoerStatus(s: StatusSvar, nu: Date = new Date()): StatusVisning {
   const ingen = { book: false, booket: null, aftale: null, visIkkeNu: false };
-  if (s.paa_pause_til) {
+  // Pausen gælder til og med dagen før slutdatoen — en dato i fortiden er ingen pause (rettelse 19/9).
+  if (erPaaPause(s.paa_pause_til, nu)) {
     return { ...ingen, titel: "Din ansøgning holder pause", tekst: `Du bad os vente. Vi skriver ikke til dig før ${danskDato(s.paa_pause_til)} — og gerne før, hvis du selv siger til på ${"kontakt@theboardroom.dk"}.` };
   }
   switch (s.trin) {
@@ -52,8 +54,9 @@ export function afgoerStatus(s: StatusSvar): StatusVisning {
       return { ...ingen, book: true, visIkkeNu: true, titel: "Jonas vil gerne tale med dig", tekst: "Det næste skridt er en uforpligtende snak på 30 minutter, online. Vælg et tidspunkt herunder — så får du en kalenderinvitation med mødelinket med det samme." };
     case "booket":
       return s.samtale_start
-        ? { ...ingen, booket: { start: s.samtale_start, slut: s.samtale_slut, moedeLink: s.moede_link }, visIkkeNu: true, titel: "Samtalen er booket", tekst: `Vi ses ${danskTidspunkt(s.samtale_start)}. Mødelinket står i din kalenderinvitation${s.moede_link ? " — og herunder" : ""}. Skal tiden flyttes, kan du gøre det her.` }
-        : { ...ingen, book: true, visIkkeNu: true, titel: "Samtalen er booket", tekst: "Tiden er ikke registreret hos os — vælg den gerne igen herunder, så er vi sikre." };
+        // Ingen «Ikke nu» på en booket samtale: den ville gemme mødet væk uden at aflyse det i kalenderen (rettelse 19/9). Aflys først.
+        ? { ...ingen, booket: { start: s.samtale_start, slut: s.samtale_slut, moedeLink: s.moede_link }, visIkkeNu: false, titel: "Samtalen er booket", tekst: `Vi ses ${danskTidspunkt(s.samtale_start)}. Mødelinket står i din kalenderinvitation${s.moede_link ? " — og herunder" : ""}. Skal tiden flyttes, kan du gøre det her.` }
+        : { ...ingen, book: true, visIkkeNu: false, titel: "Samtalen er booket", tekst: "Tiden er ikke registreret hos os — vælg den gerne igen herunder, så er vi sikre." };
     case "afholdt":
       return { ...ingen, visIkkeNu: true, titel: "Tak for snakken", tekst: "Jonas og Morten tager stilling og vender tilbage til dig. Du behøver ikke gøre mere nu." };
     case "aftalegrundlag_sendt": {
@@ -81,3 +84,36 @@ export function afgoerStatus(s: StatusSvar): StatusVisning {
       return { ...ingen, titel: "Din ansøgning", tekst: "Jonas vender tilbage til dig." };
   }
 }
+
+// ── Ventelisten: «Ja tak» / «Nej tak» fra mailen (rettelse 19/9, recon §8 punkt 6) ──
+//
+// C's ventelistemail linker til /ansoeg/status?t=…&handling=tag_pladsen|afslaa_pladsen.
+// Serveren (ansoegning-link) kender begge (svarPaaPlads: accepteret/afslaaet), men siden
+// kendte kun ikke_nu — så knapperne var døde, og en lukket ansøgning sagde «afsluttet».
+// Som ved «ikke nu»: ét klik på siden, aldrig automatisk fra et link.
+
+export type PladsSvar = "ja" | "nej";
+
+/** ?handling= → hvilket svar mailen bar; alt andet → null. */
+export function laesPladsHandling(raw: string | null): PladsSvar | null {
+  return raw === "tag_pladsen" ? "ja" : raw === "afslaa_pladsen" ? "nej" : null;
+}
+
+/** Bekræftelseskortets ord, før svaret sendes. */
+export function pladsSpoergsmaal(svar: PladsSvar): { titel: string; tekst: string; knap: string } {
+  return svar === "ja"
+    ? { titel: "Ja tak til pladsen?", tekst: "Siger du ja, genåbner vi din ansøgning, og Jonas inviterer dig til en snak — som da du søgte.", knap: "Ja tak, jeg vil have pladsen" }
+    : { titel: "Nej tak til pladsen?", tekst: "Siger du nej, går pladsen videre til den næste i køen. Du er velkommen til at søge igen senere.", knap: "Nej tak — giv den videre" };
+}
+
+/** Ordene efter svaret — eller når tilbuddet ikke længere gælder (409 fra serveren). */
+export function pladsSvarTekst(svar: PladsSvar, genaabnet: boolean): { titel: string; tekst: string } {
+  if (svar === "ja") {
+    return genaabnet
+      ? { titel: "Tak — pladsen er din", tekst: "Vi har genåbnet din ansøgning. Jonas inviterer dig til en snak, så vælg gerne et tidspunkt, når mailen kommer." }
+      : { titel: "Tak for dit svar", tekst: "Vi har noteret dit ja. Jonas vender tilbage til dig." };
+  }
+  return { titel: "Tak for besked", tekst: "Pladsen går videre til den næste i køen. Du er velkommen til at søge igen, når det passer bedre." };
+}
+
+export const PLADS_UDLOEBET = { titel: "Tilbuddet gælder ikke længere", tekst: "Pladsen er gået videre, eller fristen er udløbet. Skriv til kontakt@theboardroom.dk, hvis du stadig er interesseret." };

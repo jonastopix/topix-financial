@@ -47,8 +47,21 @@ function noegle(): string {
   return k;
 }
 
+/** Som DataCVR (virksomhedsOprettelse.ts): ét hængende Calendly-kald må ikke låse «Henter ledige tider…» (recon 19/9, §2). */
+export const CALENDLY_TIMEOUT_MS = 8000;
+
 async function kald<T>(url: string, init: RequestInit = {}): Promise<T> {
-  const res = await fetch(url, { ...init, headers: { Authorization: `Bearer ${noegle()}`, "Content-Type": "application/json", ...(init.headers ?? {}) } });
+  const styring = new AbortController();
+  const vaekkeur = setTimeout(() => styring.abort(), CALENDLY_TIMEOUT_MS);
+  let res: Response;
+  try {
+    res = await fetch(url, { ...init, signal: styring.signal, headers: { Authorization: `Bearer ${noegle()}`, "Content-Type": "application/json", ...(init.headers ?? {}) } });
+  } catch (err) {
+    if (err instanceof DOMException && err.name === "AbortError") throw new CalendlyFejl(504, `Calendly svarede ikke inden ${CALENDLY_TIMEOUT_MS / 1000} s på ${url.replace(BASE, "")}`);
+    throw err;
+  } finally {
+    clearTimeout(vaekkeur);
+  }
   const tekst = await res.text();
   if (!res.ok) throw new CalendlyFejl(res.status, `Calendly ${res.status} på ${url.replace(BASE, "")}: ${tekst.slice(0, 300)}`);
   return (tekst ? JSON.parse(tekst) : {}) as T;

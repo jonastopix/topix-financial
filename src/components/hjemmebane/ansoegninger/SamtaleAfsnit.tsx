@@ -45,7 +45,7 @@ export const SamtaleAfsnit = ({ id, navn, trin, samtaleStart, samtaleLink }: { i
       {booket ? (
         <p className="text-hb-ink"><span className="font-medium">{samtaleOrd(samtaleStart)}</span>{samtaleLink ? <> · <a href={samtaleLink} className="text-hb-evergreen underline-offset-4 hover:underline">Meet-linket</a></> : <span className="text-hb-ink-soft"> · står i Jonas' kalender</span>}</p>
       ) : (
-        <p className="text-hb-ink-soft">Ikke booket endnu — ansøgeren vælger selv en tid fra sin side (Jonas' Calendly-kalender er kilden). Rykkerne kører (dag 2, 4, 7 og 11).</p>
+        <p className="text-hb-ink-soft">Ikke booket endnu — ansøgeren vælger selv en tid fra sin side (Jonas' Calendly-kalender er kilden). Rykkerne kører (dag 2, 7 og 11).</p>
       )}
       {!vaelger ? (
         <div className="mt-3 flex flex-wrap items-center gap-3">

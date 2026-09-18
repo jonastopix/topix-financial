@@ -160,7 +160,8 @@ export interface Overgang {
   /** Hvilke trapper der annulleres (alle planlagte rækker sættes annulleret). */
   annuller: "alle" | readonly Trappe[];
   /** Hvilken trappe der startes, og om ankeret er «nu», samtalens starttid eller pausens slutdato. */
-  start: { trappe: Trappe; anker: "nu" | "samtale" | "pause" } | null;
+  /** fraTrinNr: spring trappens første trin over (aflysning: ingen ny dag 0-indkaldelse — aflysningsmailen bærer «vælg en ny tid»). */
+  start: { trappe: Trappe; anker: "nu" | "samtale" | "pause"; fraTrinNr?: number } | null;
   /** Sætter pausen: paa_pause_til = pauseTil («YYYY-MM-DD»), eller i dag + 3 måneder når pauseTil er null. */
   saetPause: boolean;
   pauseTil: string | null;
@@ -170,6 +171,18 @@ export interface Overgang {
   beslutning: boolean;
   /** afvis/afslag: grunden bag nej'et (skrives på rækken). */
   afslagsgrund: Afslagsgrund | null;
+}
+
+/**
+ * Er ansøgningen på pause NU? paa_pause_til er en dansk dato (YYYY-MM-DD) og
+ * pausen slutter den dag — en dato i fortiden er ingen pause (rettelse 19/9:
+ * tre steder testede rå null, så en pause slap aldrig; cronens pause_slut
+ * rydder nu også kolonnen, men dommen må ikke afhænge af det).
+ */
+export function erPaaPause(paaPauseTil: string | null | undefined, nu: Date): boolean {
+  if (!paaPauseTil) return false;
+  const iDag = nu.toLocaleDateString("sv-SE", { timeZone: "Europe/Copenhagen" });
+  return paaPauseTil > iDag;
 }
 
 export interface OvergangsKontekst {
@@ -236,6 +249,8 @@ export function afgoerOvergang(fra: Trin, h: Handling, ctx: OvergangsKontekst): 
 
   if (h.art === "ikke_nu") {
     if (ctx.paaPause) return AFVIST("ikke_nu: ansøgningen er allerede på pause");
+    // En booket samtale står i Jonas' kalender — pausen må ikke gemme den væk uden aflysning (recon 19/9, §4).
+    if (fra === "booket") return AFVIST("ikke_nu: aflys samtalen først");
     return OK({ til: fra, annuller: "alle", start: { trappe: "pause", anker: "pause" }, saetPause: true, ophaevPause: false });
   }
 
@@ -256,7 +271,7 @@ export function afgoerOvergang(fra: Trin, h: Handling, ctx: OvergangsKontekst): 
       break;
     case "booket":
       if (h.art === "afholdt") return OK({ til: "afholdt", annuller: ["booket"] });
-      if (h.art === "aflys_booking") return OK({ til: "indkaldt", annuller: ["booket"], start: { trappe: "indkaldt", anker: "nu" } });
+      if (h.art === "aflys_booking") return OK({ til: "indkaldt", annuller: ["booket"], start: { trappe: "indkaldt", anker: "nu", fraTrinNr: 1 } }); // ingen ny dag 0-indkaldelse: aflysningsmailen bærer «vælg en ny tid»; rykkerne dag 2/7/11 og dag 14 kører
       if (h.art === "book") return OK({ til: "booket", annuller: ["booket"], start: { trappe: "booket", anker: "samtale" } }); // flytning: ny tid, ny trappe
       break;
     case "afholdt":

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  erPaaPause,
   afgoerOvergang,
   erAabentTrin,
   genaabningsTrin,
@@ -66,7 +67,8 @@ describe("ansoegningTrin — de fem trin i rækkefølge", () => {
   });
   it("booket → afholdt (køen ved sluttid eller rådgiveren); aflysning → indkaldt med ny trappe; flytning → ny booket-trappe", () => {
     expect(ok("booket", { art: "afholdt" })).toMatchObject({ til: "afholdt", annuller: ["booket"] });
-    expect(ok("booket", { art: "aflys_booking" })).toMatchObject({ til: "indkaldt", annuller: ["booket"], start: { trappe: "indkaldt", anker: "nu" } });
+    // Rettelse 19/9: ingen ny dag 0-indkaldelse efter en aflysning (aflysningsmailen bærer «vælg en ny tid») — rykkerne dag 2/7/11 og dag 14 kører.
+    expect(ok("booket", { art: "aflys_booking" })).toMatchObject({ til: "indkaldt", annuller: ["booket"], start: { trappe: "indkaldt", anker: "nu", fraTrinNr: 1 } });
     expect(ok("booket", { art: "book" })).toMatchObject({ til: "booket", annuller: ["booket"], start: { trappe: "booket", anker: "samtale" } });
   });
   it("afholdt → aftalegrundlag_sendt ved tilbud (beslutning 2) eller lukket «afslag_efter_samtale»", () => {
@@ -87,11 +89,26 @@ describe("ansoegningTrin — de fem trin i rækkefølge", () => {
 });
 
 describe("ansoegningTrin — reaktioner annullerer, pause og lukning", () => {
-  it("«ikke nu» fra ethvert åbent trin: trin uændret, alle trapper annulleret, pause sat, pause-trappen startet", () => {
-    for (const fra of ["ny", "indkaldt", "booket", "afholdt", "aftalegrundlag_sendt"] as const) {
+  it("«ikke nu» fra de åbne trin UNDTAGEN booket: trin uændret, alle trapper annulleret, pause sat, pause-trappen startet", () => {
+    for (const fra of ["ny", "indkaldt", "afholdt", "aftalegrundlag_sendt"] as const) {
       expect(ok(fra, { art: "ikke_nu" })).toMatchObject({ til: fra, annuller: "alle", start: { trappe: "pause", anker: "pause" }, saetPause: true, pauseTil: null, ophaevPause: false });
     }
     expect(dom("indkaldt", { art: "ikke_nu" }, { ...ctx, paaPause: true }).ok).toBe(false);
+    // Rettelse 19/9: en booket samtale står i Jonas' kalender — pausen må ikke gemme den væk uden aflysning.
+    const booket = dom("booket", { art: "ikke_nu" });
+    expect(booket.ok).toBe(false);
+    expect(booket.ok === false && booket.grund).toMatch(/aflys samtalen først/);
+  });
+  it("erPaaPause: pausen gælder til dagen før slutdatoen (dansk dato) — en dato i fortiden er ingen pause (rettelse 19/9)", () => {
+    const nu = new Date("2026-12-10T08:00:00Z"); // 10/12 kl. 09 dansk
+    expect(erPaaPause("2026-12-11", nu)).toBe(true);
+    expect(erPaaPause("2026-12-10", nu)).toBe(false); // slutdagen: pausen er slut
+    expect(erPaaPause("2026-12-09", nu)).toBe(false);
+    expect(erPaaPause(null, nu)).toBe(false);
+    expect(erPaaPause(undefined, nu)).toBe(false);
+    // midnat dansk: 9/12 kl. 23:30 UTC er 10/12 kl. 00:30 dansk
+    expect(erPaaPause("2026-12-10", new Date("2026-12-09T23:30:00Z"))).toBe(false);
+    expect(erPaaPause("2026-12-10", new Date("2026-12-09T22:30:00Z"))).toBe(true);
   });
   it("saet_pause (den varige vej, Jonas 18/9): sætter ELLER flytter pausen fra ethvert åbent trin, med eller uden pause i forvejen; skriver sporet; aldrig fra lukket/underskrevet; datoen valideres", () => {
     for (const fra of ["ny", "indkaldt", "booket", "afholdt", "aftalegrundlag_sendt"] as const) {
