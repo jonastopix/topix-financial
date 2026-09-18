@@ -157,7 +157,8 @@ export function afgoerAnbefaling(i: AnbefalingsInput): Anbefaling {
   }
 
   if (i.antalAnsatte !== null && i.antalAnsatte >= 0) {
-    grundlag.push(i.antalAnsatte === 0 ? "ingen ansatte" : i.antalAnsatte === 1 ? "1 ansat" : `${tusind(i.antalAnsatte)} ansatte`);
+    // Tallet er «ansatte, dig selv medregnet» (Jonas 18/9, valg A): 1 = ejeren alene. Et gammelt 0 (før 18/9) læses som det samme.
+    grundlag.push(i.antalAnsatte <= 1 ? "alene (1 person)" : `${tusind(i.antalAnsatte)} ansatte`);
   }
 
   if (i.branche) grundlag.push(i.branche.trim().toLowerCase());

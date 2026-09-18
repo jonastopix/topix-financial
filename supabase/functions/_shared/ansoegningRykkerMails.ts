@@ -1,5 +1,5 @@
 /**
- * ansoegningRykkerMails — de tolv mails rykkerkøen kan sende, rene
+ * ansoegningRykkerMails — de seksten mails rykkerkøen kan sende, rene
  * byggere (ingen Deno, ingen afsendelse). Nøglerne er KOE_SKABELONER fra
  * rykkerkoe.ts; guard-testen låser at hver nøgle har en bygger her, og at
  * ingen bygger findes uden nøgle.
@@ -17,9 +17,28 @@
  * pause), så et nej altid er ét klik. Samtale-påmindelserne og
  * kladde-påmindelsen gør ikke (der er intet at sætte på pause).
  *
- * Rammen er intro-reminder-cron's (bulletproofButton + fallbackLinkBlock),
- * afsenderlinjen «The Boardroom» — det er en maskine der sender på Jonas'
- * vegne, og den siger det.
+ * RAMMEN ER HUSETS (18/9, anden runde): indgangsMailHtml fra indgangsMail.ts
+ * — samme kort, farver, typografi, knap og footer som dag 0/14/25/31,
+ * invitationen og fornyelsen (målt 18/9: ansøgningsmailene bar før en kopi af
+ * send-notification-emails ramme med systemskrift og uden den grønne linje).
+ * Afsenderlinjen er «The Boardroom» — en maskine sender på Jonas' vegne.
+ *
+ * JONAS' RETTELSER 18/9, ANDEN RUNDE (teksterne er GODKENDT med disse):
+ *   1. Pausen er en KNAP, ikke en sætning (PAUSE nedenfor). Alt der kan
+ *      klikkes, ligner en knap; knapperne ender på «→».
+ *   2. Ingen mail beder om svar på tider: «Alle mine ledige tider kan ses i
+ *      kalenderen … Det foregår KUN på linket.» (rykker dag 2 og dag 7).
+ *   3. Indkaldelsen uden procesteksten (den står i kvitteringen), «på vegne
+ *      af», og «vi tager begge stilling til …» ved tidspunktet.
+ *   4. Dagen før samtalen: intet regnskab.
+ *   5. Genitiv «ApS'» (genitiv nedenfor); ventelisten i første person.
+ *   6. Sidste mail i indkaldt- og aftalegrundlags-trappen bærer IKKE pausen.
+ *   7. Ventelisten: to knapper (ja tak / nej tak); «helt uden hårde
+ *      følelser» er slettet.
+ *   8. Kvitteringsmailen med Jonas' ordlyd; kvitteringsskærmen lover mailen.
+ * «Svar på denne mail» står stadig i aftalegrundlagets to rykkere — det
+ * virker, fordi cronen sætter replyTo (nedenfor); tider-mailen beder ikke
+ * længere om svar (2).
  *
  * JONAS' GENNEMLÆSNING 18/9 (udkast-mailtekster-gennemlaesning): (1) tre
  * mails siger «svar på denne mail» — afsenderen er noreply@, så cronen
@@ -30,9 +49,7 @@
  * dag 4 udgik (sagde det samme som dag 2); trappen er dag 2, 7, 11, og
  * navnene er rykker-1..3.
  */
-import { escHtml } from "./htmlEscape.ts";
-import { bulletproofButton, fallbackLinkBlock } from "./emailButtonHelpers.ts";
-import { KONTAKT_ADRESSE } from "./indgangsMail.ts";
+import { indgangsMailHtml, KONTAKT_ADRESSE } from "./indgangsMail.ts";
 import { ANSOEG_STI, TOKEN_PARAM } from "./ansoegningSkema.ts";
 import { TZ } from "./hverdage.ts";
 import { koeSaetningTilAnsoeger, type AfslagsIndhold } from "./afslagsTilbud.ts";
@@ -96,7 +113,9 @@ interface Udkast {
   eyebrow: string;
   afsnit: string[];
   knap: { tekst: string; href: string } | null;
-  /** Vis «ikke nu»-linjen (kun rykkere til ansøgeren om samtale/aftale). */
+  /** Knap nr. to (ventelisten: «Nej tak — giv den videre →»). */
+  knapSekundaer?: { tekst: string; href: string } | null;
+  /** Vis pause-knappen (rykkere om samtale/aftale — men ALDRIG den sidste i trappen, Jonas 6). */
   ikkeNu: boolean;
 }
 
@@ -116,9 +135,21 @@ function hej(k: MailKontekst): string {
   return k.fornavn ? `Hej ${k.fornavn}` : "Hej";
 }
 
-const IKKE_NU_TEKST = "Er det ikke det rigtige tidspunkt? Så sig til her — vi sætter det på pause i tre måneder og skriver ikke imens:";
+/** Pausen som knap (Jonas 1): spørgsmål, knaptekst, note. Én kilde til HTML og tekst. */
+export const PAUSE = {
+  spoergsmaal: "Passer det ikke lige nu?",
+  knap: "Sæt det på pause i tre måneder →",
+  note: "(ét klik — vi skriver ikke imens)",
+} as const;
+
+/** «Nordic Byg ApS'» / «Homies» — dansk genitiv: navne på s, x eller z får apostrof (Jonas 5: aldrig «ApSs»). */
+export function genitiv(navn: string): string {
+  return /[sxzSXZ]$/.test(navn) ? `${navn}'` : `${navn}s`;
+}
 
 const BYGGERE: Record<string, (k: MailKontekst) => Udkast> = {
+  // Jonas 8 (ordlyden godkendt 18/9). A's blok «her er det, du skrev» er bevaret
+  // efter Jonas' tekst — ansøgeren skal kunne se, at vi har svarene.
   "ansoegning-kvittering": (k) => {
     const s = k.svar ?? { udfordring: null, proevet: null, omTolvMaaneder: null };
     const dine = [
@@ -131,12 +162,12 @@ const BYGGERE: Record<string, (k: MailKontekst) => Udkast> = {
       eyebrow: "Din ansøgning til The Boardroom",
       afsnit: [
         `${hej(k)},`,
-        `Tak — vi har modtaget din ansøgning for ${k.virksomhedsnavn}. Her er det, du skrev, så du kan se, at vi har det:`,
-        ...dine,
-        PROCESTEKST,
-        "Jonas vender tilbage til dig. Du behøver ikke gøre mere nu.",
+        `Tak fordi du søgte om en plads i The Boardroom. Vi har din ansøgning for ${k.virksomhedsnavn}.`,
+        "Morten og jeg læser den og vurderer, om vi er det rigtige for dig. Passer det, inviterer jeg dig til en uforpligtende snak, hvor vi begge tager stilling til, om der er et match.",
+        "Du hører fra os inden for et par hverdage.",
+        ...(dine.length > 0 ? ["Her er det, du skrev, så du kan se, at vi har det:", ...dine] : []),
       ],
-      knap: { tekst: "Se din ansøgning", href: k.statusUrl },
+      knap: { tekst: "Se din ansøgning →", href: k.statusUrl },
       ikkeNu: false,
     };
   },
@@ -156,35 +187,40 @@ const BYGGERE: Record<string, (k: MailKontekst) => Udkast> = {
         status,
         "Linket er dit — det åbner ansøgningen præcis hvor du slap. Er det ikke aktuelt længere, kan du bare lade det ligge; vi skriver ikke igen.",
       ],
-      knap: { tekst: "Fortsæt ansøgningen", href: genoptagLink(k.token) },
+      knap: { tekst: "Fortsæt ansøgningen →", href: genoptagLink(k.token) },
       ikkeNu: false,
     };
   },
+  // Jonas 3: uden procesteksten (den står i kvitteringen), «på vegne af»,
+  // og «vi tager begge stilling til» ved tidspunktet.
   "ansoegning-indkaldelse": (k) => ({
     emne: "Lad os tage en uforpligtende snak",
     eyebrow: "Din ansøgning til The Boardroom",
     afsnit: [
       `${hej(k)},`,
-      `Tak for din ansøgning for ${k.virksomhedsnavn}. ${PROCESTEKST}`,
-      "Jeg har læst din ansøgning og vil gerne tale med dig. Vælg et tidspunkt der passer dig — samtalen tager 30 minutter, og vi holder den online.",
+      `Tak for din ansøgning på vegne af ${k.virksomhedsnavn}. Jeg har læst den og vil gerne tale med dig.`,
+      "Vælg et tidspunkt, der passer dig — samtalen tager 30 minutter, og vi holder den online. Vi tager begge stilling til, om der er et match.",
     ],
-    knap: { tekst: "Book samtalen med Jonas", href: k.bookingUrl },
+    knap: { tekst: "Book samtalen med Jonas →", href: k.bookingUrl },
     ikkeNu: true,
   }),
+  // Jonas 2: tiderne ligger i kalenderen — der bedes aldrig om svar på tider. Dag 2:
   "ansoegning-indkaldt-rykker-1": (k) => ({
     emne: "Har du fundet et tidspunkt til vores snak?",
     eyebrow: "Afklaringssamtalen",
-    afsnit: [`${hej(k)},`, "Jeg skrev forleden, at jeg gerne vil tale med dig om din ansøgning. Der er stadig ledige tider i min kalender — det tager to minutter at vælge en."],
-    knap: { tekst: "Book samtalen med Jonas", href: k.bookingUrl },
+    afsnit: [`${hej(k)},`, "Jeg skrev forleden, at jeg gerne vil tale med dig om din ansøgning. Mine ledige tider ligger i kalenderen — det tager to minutter at vælge en."],
+    knap: { tekst: "Book samtalen med Jonas →", href: k.bookingUrl },
     ikkeNu: true,
   }),
+  // Jonas 2, dag 7: erstatter «svar på denne mail med et par forslag».
   "ansoegning-indkaldt-rykker-2": (k) => ({
-    emne: "Skal jeg hjælpe med at finde et tidspunkt?",
+    emne: "Der er stadig ledige tider",
     eyebrow: "Afklaringssamtalen",
-    afsnit: [`${hej(k)},`, "Passer ingen af tiderne, så svar på denne mail med et par forslag — så finder vi ud af det. Ellers er linket her:"],
-    knap: { tekst: "Book samtalen med Jonas", href: k.bookingUrl },
+    afsnit: [`${hej(k)},`, "Der er stadig ledige tider hos mig. Vælg den, der passer dig bedst — også hvis det først er om et par uger."],
+    knap: { tekst: "Book samtalen med Jonas →", href: k.bookingUrl },
     ikkeNu: true,
   }),
+  // Jonas 6: den sidste i trappen (dag 11) — ingen pause; «inden tre dage» (køen lukker dag 14).
   "ansoegning-indkaldt-rykker-3": (k) => ({
     emne: "Sidste hilsen fra mig om samtalen",
     eyebrow: "Afklaringssamtalen",
@@ -192,15 +228,16 @@ const BYGGERE: Record<string, (k: MailKontekst) => Udkast> = {
       `${hej(k)},`,
       "Jeg har skrevet et par gange uden at høre fra dig, så dette er den sidste mail om samtalen. Hører jeg ikke fra dig inden tre dage, lukker vi ansøgningen — og du er velkommen til at søge igen, når det passer bedre.",
     ],
-    knap: { tekst: "Book samtalen med Jonas", href: k.bookingUrl },
-    ikkeNu: true,
+    knap: { tekst: "Book samtalen med Jonas →", href: k.bookingUrl },
+    ikkeNu: false,
   }),
+  // Jonas 4: intet regnskab dagen før.
   "ansoegning-samtale-i-morgen": (k) => ({
     emne: "I morgen: vores snak",
     eyebrow: "Afklaringssamtalen",
     afsnit: [
       `${hej(k)},`,
-      `Vi ses i morgen${k.samtaleStart ? `, ${formaterSamtaletid(k.samtaleStart)}` : ""}. Har du jeres seneste regnskab eller et par nøgletal ved hånden, bliver samtalen mere konkret — men det er ikke et krav.`,
+      `Vi ses i morgen${k.samtaleStart ? `, ${formaterSamtaletid(k.samtaleStart)}` : ""}. Du skal ikke forberede noget særligt. Jeg vil gerne høre om jeres forretning, og hvad du håber at få ud af The Boardroom.`,
       "Skal tiden flyttes, så brug linket i bekræftelsen fra Calendly.",
     ],
     knap: null,
@@ -218,32 +255,34 @@ const BYGGERE: Record<string, (k: MailKontekst) => Udkast> = {
     eyebrow: "Efter vores snak",
     afsnit: [
       `${hej(k)},`,
-      `Tak for snakken. Som aftalt sender jeg aftalegrundlaget for ${k.virksomhedsnavn}s medlemskab af The Boardroom. Læs det igennem i ro og mag — og underskriv, når du er klar.`,
+      `Tak for snakken. Som aftalt sender jeg aftalegrundlaget for ${genitiv(k.virksomhedsnavn)} medlemskab af The Boardroom. Læs det igennem i ro og mag — og underskriv, når du er klar.`,
     ],
-    knap: k.aftaleUrl ? { tekst: "Læs og underskriv", href: k.aftaleUrl } : { tekst: "Se din ansøgning", href: k.statusUrl },
+    knap: k.aftaleUrl ? { tekst: "Læs og underskriv →", href: k.aftaleUrl } : { tekst: "Se din ansøgning →", href: k.statusUrl },
     ikkeNu: true,
   }),
+  // «svar på denne mail» virker: cronen sætter replyTo = kontakt@ (A, 18/9).
   "ansoegning-aftalegrundlag-rykker-1": (k) => ({
     emne: "Har du set aftalegrundlaget?",
     eyebrow: "Aftalegrundlaget",
     afsnit: [`${hej(k)},`, "Jeg sendte aftalegrundlaget forleden. Har du spørgsmål til det, så svar på denne mail — ellers ligger det klar her:"],
-    knap: k.aftaleUrl ? { tekst: "Læs og underskriv", href: k.aftaleUrl } : { tekst: "Se din ansøgning", href: k.statusUrl },
+    knap: k.aftaleUrl ? { tekst: "Læs og underskriv →", href: k.aftaleUrl } : { tekst: "Se din ansøgning →", href: k.statusUrl },
     ikkeNu: true,
   }),
   "ansoegning-aftalegrundlag-rykker-2": (k) => ({
     emne: "Aftalegrundlaget venter",
     eyebrow: "Aftalegrundlaget",
     afsnit: [`${hej(k)},`, `Pladsen til ${k.virksomhedsnavn} står klar. Det eneste der mangler, er din underskrift.`],
-    knap: k.aftaleUrl ? { tekst: "Læs og underskriv", href: k.aftaleUrl } : { tekst: "Se din ansøgning", href: k.statusUrl },
+    knap: k.aftaleUrl ? { tekst: "Læs og underskriv →", href: k.aftaleUrl } : { tekst: "Se din ansøgning →", href: k.statusUrl },
     ikkeNu: true,
   }),
   "ansoegning-aftalegrundlag-rykker-3": (k) => ({
     emne: "Er der noget vi skal tale om?",
     eyebrow: "Aftalegrundlaget",
     afsnit: [`${hej(k)},`, "Er der noget i aftalegrundlaget, der holder dig tilbage, vil jeg hellere høre det end lade det ligge. Svar på mailen, eller underskriv her:"],
-    knap: k.aftaleUrl ? { tekst: "Læs og underskriv", href: k.aftaleUrl } : { tekst: "Se din ansøgning", href: k.statusUrl },
+    knap: k.aftaleUrl ? { tekst: "Læs og underskriv →", href: k.aftaleUrl } : { tekst: "Se din ansøgning →", href: k.statusUrl },
     ikkeNu: true,
   }),
+  // Jonas 6: den sidste i trappen — ingen pause.
   "ansoegning-aftalegrundlag-rykker-4": (k) => ({
     emne: "Sidste hilsen om aftalegrundlaget",
     eyebrow: "Aftalegrundlaget",
@@ -251,16 +290,18 @@ const BYGGERE: Record<string, (k: MailKontekst) => Udkast> = {
       `${hej(k)},`,
       "Dette er den sidste mail om aftalegrundlaget. Hører jeg ikke fra dig inden for en uge, lader vi det udløbe — og du er velkommen til at vende tilbage, når det passer bedre.",
     ],
-    knap: k.aftaleUrl ? { tekst: "Læs og underskriv", href: k.aftaleUrl } : { tekst: "Se din ansøgning", href: k.statusUrl },
-    ikkeNu: true,
+    knap: k.aftaleUrl ? { tekst: "Læs og underskriv →", href: k.aftaleUrl } : { tekst: "Se din ansøgning →", href: k.statusUrl },
+    ikkeNu: false,
   }),
-  // ── Ventelisten (udkast 18/9) — ingen «ikke nu»: ansøgningen er lukket,
-  //    svaret er ja eller nej til pladsen. Uden venteplads-kontekst (kun i
-  //    test) bygges den almindelige udgave med en tom frist.
+  // ── Ventelisten — ingen pause: ansøgningen er lukket, svaret er ja eller
+  //    nej til pladsen. Jonas 7: TO knapper, ingen sætning at misforstå.
+  //    Jonas 5: første person. Uden venteplads-kontekst (kun i test) bygges
+  //    den almindelige udgave med en tom frist og uden nej-knappen.
   "ansoegning-venteplads-tilbud": (k) => {
     const v = k.venteplads ?? null;
     const frist = v ? ` Svar senest ${formaterFristdag(v.svarfrist)} — ellers går pladsen videre til den næste i køen.` : "";
-    const tag = v?.tagPladsenUrl ?? k.statusUrl;
+    const knap = { tekst: "Ja tak, jeg vil have pladsen →", href: v?.tagPladsenUrl ?? k.statusUrl };
+    const knapSekundaer = v ? { tekst: "Nej tak — giv den videre →", href: v.afslaaPladsenUrl } : null;
     if (v?.bloed) {
       return {
         emne: "Vi har en plads nu — er det stadig aktuelt?",
@@ -268,10 +309,10 @@ const BYGGERE: Record<string, (k: MailKontekst) => Udkast> = {
         afsnit: [
           `${hej(k)},`,
           `Da du søgte om medlemskab af The Boardroom, måtte vi sige nej, fordi pladsen i din niche var optaget. Nu er den ledig.`,
-          `Der er gået et stykke tid, så vi spørger helt uforpligtende: er det stadig aktuelt for ${k.virksomhedsnavn}? Sig ja, så inviterer Jonas Herlev dig til en snak, som da du søgte.${frist}`,
-          v ? `Er det ikke aktuelt, så sig det her, så spørger vi ikke igen: ${v.afslaaPladsenUrl}` : "",
-        ].filter(Boolean),
-        knap: { tekst: "Ja, det er stadig aktuelt", href: tag },
+          `Der er gået et stykke tid, så jeg spørger helt uforpligtende: er det stadig aktuelt for ${k.virksomhedsnavn}? Sig ja, så inviterer jeg dig til en snak, som da du søgte.${frist}`,
+        ],
+        knap,
+        knapSekundaer,
         ikkeNu: false,
       };
     }
@@ -281,10 +322,10 @@ const BYGGERE: Record<string, (k: MailKontekst) => Udkast> = {
       afsnit: [
         `${hej(k)},`,
         `Da du søgte om medlemskab, måtte vi sige nej, fordi pladsen i din niche var optaget. Nu er den ledig — og du står først i køen.`,
-        `Vil du have den? Sig ja, så inviterer Jonas Herlev dig til en snak, som da du søgte.${frist}`,
-        v ? `Er det ikke aktuelt, så sig det her, så går pladsen videre med det samme: ${v.afslaaPladsenUrl}` : "",
-      ].filter(Boolean),
-      knap: { tekst: "Ja tak, jeg vil have pladsen", href: tag },
+        `Vil du have den? Sig ja, så inviterer jeg dig til en snak, som da du søgte.${frist}`,
+      ],
+      knap,
+      knapSekundaer,
       ikkeNu: false,
     };
   },
@@ -295,11 +336,12 @@ const BYGGERE: Record<string, (k: MailKontekst) => Udkast> = {
       eyebrow: "Ventelisten",
       afsnit: [
         `${hej(k)},`,
-        `Vi skrev for et par dage siden: der er en ledig plads i The Boardroom til ${k.virksomhedsnavn}.`,
-        v ? `Du har den til og med ${formaterFristdag(v.svarfrist)}. Hører vi ikke fra dig, går den videre til den næste i køen — helt uden hårde følelser.` : "Hører vi ikke fra dig, går den videre til den næste i køen.",
-        "Sig ja eller nej her, så ved vi det. Jonas Herlev tager snakken med dig, hvis det er et ja.",
+        `Jeg skrev for et par dage siden: der er en ledig plads i The Boardroom til ${k.virksomhedsnavn}.`,
+        v ? `Du har den til og med ${formaterFristdag(v.svarfrist)}. Hører jeg ikke fra dig, går den videre til den næste i køen.` : "Hører jeg ikke fra dig, går den videre til den næste i køen.",
+        "Siger du ja, inviterer jeg dig til en snak.",
       ],
-      knap: { tekst: "Ja tak, jeg vil have pladsen", href: v?.tagPladsenUrl ?? k.statusUrl },
+      knap: { tekst: "Ja tak, jeg vil have pladsen →", href: v?.tagPladsenUrl ?? k.statusUrl },
+      knapSekundaer: v ? { tekst: "Nej tak — giv den videre →", href: v.afslaaPladsenUrl } : null,
       ikkeNu: false,
     };
   },
@@ -331,44 +373,27 @@ BYGGERE["ansoegning-afslag"] = (k) => {
 export const RYKKER_SKABELONER: readonly string[] = Object.keys(BYGGERE);
 
 function ramme(u: Udkast, k: MailKontekst): string {
-  const P = "color:#4a4a4a;font-size:14px;line-height:24px;margin:0 0 14px";
-  const afsnit = u.afsnit.map((a) => `<p style="${P}">${escHtml(a)}</p>`).join("\n");
-  const knap = u.knap ? `${bulletproofButton({ href: u.knap.href, label: u.knap.tekst })}\n${fallbackLinkBlock(u.knap.href)}` : "";
-  const ikkeNu = u.ikkeNu
-    ? `<p style="color:#6b7280;font-size:13px;line-height:20px;margin:18px 0 0">${escHtml(IKKE_NU_TEKST)} <a href="${escHtml(k.ikkeNuUrl)}" style="color:#6b7280;text-decoration:underline">Ikke nu</a></p>`
-    : "";
-  return `<!DOCTYPE html>
-<html>
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
-<body style="background-color:#f9f9f9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;margin:0;padding:24px 0">
-<div style="max-width:520px;margin:0 auto">
-  <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="border-collapse:collapse">
-    <tr><td style="background-color:#133332;border-radius:10px 10px 0 0;padding:18px 28px">
-      <span style="color:#ffffff;font-size:14px;font-weight:600;letter-spacing:-.01em;font-family:'Manrope',Arial,sans-serif">The Boardroom</span>
-    </td></tr>
-  </table>
-  <div style="background:#ffffff;border-radius:0 0 10px 10px;padding:28px 28px 0">
-    <p style="font-size:11px;font-weight:600;color:#16a34a;text-transform:uppercase;letter-spacing:.08em;margin:0 0 10px">${escHtml(u.eyebrow)}</p>
-    <h1 style="color:#0f1117;font-size:22px;font-weight:700;margin:0 0 14px;line-height:1.3;letter-spacing:-.02em">${escHtml(u.emne)}</h1>
-${afsnit}
-    ${knap}
-    <p style="${P}">${escHtml(HILSEN_JONAS).replace(/\n/g, "<br>")}</p>
-    ${ikkeNu}
-    <div style="height:0.5px;background:#e5e7eb;margin:16px 0 0"></div>
-    <div style="padding:16px 0">
-      <span style="font-size:12px;color:#9ca3af">The Boardroom · theboardroom.dk &nbsp;·&nbsp; <a href="mailto:${escHtml(KONTAKT_ADRESSE)}" style="font-size:12px;color:#9ca3af;text-decoration:underline">${escHtml(KONTAKT_ADRESSE)}</a></span>
-    </div>
-  </div>
-</div>
-</body>
-</html>`;
+  return indgangsMailHtml({
+    maerke: true,
+    eyebrow: u.eyebrow,
+    overskrift: u.emne,
+    afsnit: u.afsnit,
+    knap: u.knap ? { tekst: u.knap.tekst, url: u.knap.href } : undefined,
+    knapSekundaer: u.knapSekundaer ? { tekst: u.knapSekundaer.tekst, url: u.knapSekundaer.href } : undefined,
+    knapBredde: 260,
+    hilsen: HILSEN_JONAS,
+    pause: u.ikkeNu ? { spoergsmaal: PAUSE.spoergsmaal, tekst: PAUSE.knap, url: k.ikkeNuUrl, note: PAUSE.note } : undefined,
+    kontaktIFooter: true,
+  });
 }
 
+/** text/plain — samme ord som HTML'en; knapperne som «tekst link», så den giver mening uden HTML. */
 function tekst(u: Udkast, k: MailKontekst): string {
   const linjer = [...u.afsnit];
-  if (u.knap) linjer.push("", `${u.knap.tekst}: ${u.knap.href}`);
+  if (u.knap) linjer.push("", `${u.knap.tekst} ${u.knap.href}`);
+  if (u.knapSekundaer) linjer.push(`${u.knapSekundaer.tekst} ${u.knapSekundaer.href}`);
   linjer.push("", HILSEN_JONAS);
-  if (u.ikkeNu) linjer.push("", `${IKKE_NU_TEKST} ${k.ikkeNuUrl}`);
+  if (u.ikkeNu) linjer.push("", `${PAUSE.spoergsmaal} ${PAUSE.knap} ${k.ikkeNuUrl} ${PAUSE.note}`);
   linjer.push("", `Spørgsmål? Skriv til ${KONTAKT_ADRESSE}.`);
   return linjer.join("\n");
 }

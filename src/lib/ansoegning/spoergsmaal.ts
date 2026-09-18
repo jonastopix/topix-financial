@@ -52,7 +52,7 @@ export const SKAERMTEKSTER: readonly SkaermTekst[] = [
     id: "ansatte",
     eyebrow: GRUPPENAVNE.virksomheden,
     spoergsmaal: "Hvor mange er I?",
-    hjaelp: "Ansatte, dig selv medregnet. Skriv 0, hvis du er alene.",
+    hjaelp: "Ansatte, dig selv medregnet. Er du alene, skriver du 1.",
     placeholder: { antal_ansatte: "14" },
   },
   {

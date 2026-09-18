@@ -3,8 +3,9 @@
  *
  * De små brudstykker MELLEM spørgsmålene, der fortæller hvad The Boardroom
  * er — vises efter en gruppe er færdig, aldrig midt i én. Tre stykker:
- * Mortens ansigt (efter virksomheden), hvad der sker på et møde (efter
- * kontakt), et medlemscitat (efter de tre).
+ * Mortens ansigt (efter virksomheden), sådan hjælper vi dig — sparring på
+ * skrift i chatten, ikke møder (efter kontakt; Jonas 18/9), et medlemscitat
+ * (efter de tre).
  *
  * INDHOLDET ER UDKAST TIL JONAS' GODKENDELSE (README §7). Teksten om
  * rådgiverne er theboardroom.dk's egen hero-tekst (læst 18/9), let
@@ -18,6 +19,8 @@
  *
  * Portrættet er den statiske fil public/morten-larsen.jpg (1035×830),
  * som HbRaadgiverPortraetter allerede bruger på /auth — serveres uden login.
+ * Citatets portræt (public/daniel-sand-remm.jpg, 200×200) følger samme mønster
+ * og vises lille og rundt ved navnet (AnsoegMellemstykke), ikke over teksten.
  */
 
 export interface Mellemstykke {
@@ -59,12 +62,16 @@ export const MELLEMSTYKKER: readonly Mellemstykke[] = [
     portraet: { src: "/morten-larsen.jpg", alt: "Morten Larsen" },
   },
   {
+    // Jonas 18/9 (godkendt ordret): rådgivningen er ikke møder — det er sparring
+    // på skrift i medlemmets personlige chat med Morten og Jonas. Sessionerne
+    // nævnes IKKE her. «der selv har bygget, drevet og solgt virksomheder» er
+    // med vilje udeladt: det står allerede i Morten-stykket og må ikke gentages.
     id: "moedet",
     efterSkaerm: 5,
-    eyebrow: "Sådan foregår et møde",
-    titel: "Ikke et foredrag. En beslutning.",
+    eyebrow: "Sådan hjælper vi dig",
+    titel: "",
     tekst:
-      "Du kommer med noget konkret, du står i. Dine tal ligger på bordet, fordi de er uploadet. Rådgiverne spørger, indtil problemet er skarpt — og du går derfra med én ting, du skal gøre inden næste gang.",
+      "En pris, en ansættelse, et tilbud du er i tvivl om. Du skriver til Morten og Jonas, når det opstår — ikke når kalenderen siger, det er tid.\nDe har dine tal ved hånden, fordi du uploader dem hver måned. Så begynder ingen samtale forfra.",
   },
   {
     id: "citat",
@@ -73,6 +80,9 @@ export const MELLEMSTYKKER: readonly Mellemstykke[] = [
     titel: "",
     tekst: CITAT_DANIEL_SAND,
     afsender: "Daniel Sand, Founder & Ejer af remm.dk",
+    // Jonas 18/9: billede på citatet for troværdighed — et tillidsmærke ved navnet,
+    // ikke et billede man ser på. Statisk fil i public/ som Mortens (200×200, 7 kB, ikke skaleret).
+    portraet: { src: "/daniel-sand-remm.jpg", alt: "Daniel Sand, Founder & Ejer af remm.dk" },
   },
 ];
 

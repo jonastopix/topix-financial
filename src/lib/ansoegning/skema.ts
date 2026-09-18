@@ -204,7 +204,7 @@ export const FEJL = {
   cvr: "Et CVR-nummer har otte cifre.",
   hjemmeside: "Skriv adressen som fx nordicbyg.dk — eller vælg «vi har ingen».",
   omsaetningsinterval: "Vælg det interval der passer bedst.",
-  antal_ansatte: "Skriv et helt tal — 0 hvis det kun er dig.",
+  antal_ansatte: "Skriv et helt tal — 1 hvis det kun er dig.",
   navn: "Skriv dit navn.",
   email: "Det ligner ikke en e-mailadresse.",
   telefon: "Skriv otte cifre — eller med landekode, fx +46.",
@@ -231,7 +231,8 @@ export function validerFelt(id: FeltId, raa: unknown): FeltDom {
       return erValg(raa, OMSAETNINGSINTERVALLER) ? { ok: true, vaerdi: raa } : { ok: false, fejl: FEJL.omsaetningsinterval };
     case "antal_ansatte": {
       const s = tekst(raa).replace(/\./g, "");
-      if (!/^\d{1,6}$/.test(s)) return { ok: false, fejl: FEJL.antal_ansatte };
+      // Jonas 18/9 (valg A): ejeren tælles med, så 1 er «alene» og 0 er ikke et svar.
+      if (!/^\d{1,6}$/.test(s) || Number(s) < 1) return { ok: false, fejl: FEJL.antal_ansatte };
       return { ok: true, vaerdi: Number(s) };
     }
     case "navn": {

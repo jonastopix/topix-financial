@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { existsSync } from "node:fs";
+import { resolve } from "node:path";
 import { CITAT_DANIEL_SAND, MELLEMSTYKKER, mellemstykkeEfter } from "@/lib/ansoegning/mellemstykker";
 
 const CITAT = MELLEMSTYKKER.find((m) => m.id === "citat")!;
@@ -19,6 +21,9 @@ describe("mellemstykkerne — tre, efter grupperne, og citatet ordret", () => {
     );
     expect(CITAT.tekst!.split(/(?<=\.)\s+/)).toHaveLength(2); // præcis to sætninger — resten er en kommentar i kilden
     expect(CITAT.afsender).toBe("Daniel Sand, Founder & Ejer af remm.dk");
+    // Jonas 18/9: portrættet som tillidsmærke — filen findes i public/ og alt-teksten er navnet.
+    expect(CITAT.portraet).toEqual({ src: "/daniel-sand-remm.jpg", alt: "Daniel Sand, Founder & Ejer af remm.dk" });
+    expect(existsSync(resolve(process.cwd(), "public/daniel-sand-remm.jpg"))).toBe(true);
   });
 
   it("et tomt citat vises ikke", () => {
