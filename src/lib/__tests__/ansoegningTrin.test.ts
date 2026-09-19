@@ -75,7 +75,15 @@ describe("ansoegningTrin — de fem trin i rækkefølge", () => {
     expect(genaabningsTrin("underskrevet")).toBe("afholdt");
     expect(ok("lukket", { art: "genaabn" }, { ...ctx, lukketFraTrin: "underskrevet" })).toMatchObject({ til: "afholdt", start: null });
   });
-  it("underskrevet er slut for motoren: ingen handling tilladt, heller ikke luk", () => {
+  it("udloeb fra underskrevet (19/9): død dag 60 UDEN at der blev sendt en faktura → lukket «udloebet», ikke «betalte_ikke»", () => {
+    expect(ok("underskrevet", { art: "udloeb" })).toMatchObject({ til: "lukket", lukkeaarsag: "udloebet", annuller: "alle", start: null });
+    // Samme genåbning som betalte_ikke: aftalen skal sendes igen.
+    expect(ok("lukket", { art: "genaabn" }, { ...ctx, lukketFraTrin: "underskrevet" })).toMatchObject({ til: "afholdt" });
+    // Systemets handling, ikke menneskets — som betalte_ikke.
+    expect(SYSTEM_HANDLINGER).toContain("udloeb");
+    expect(MENNESKE_HANDLINGER).not.toContain("udloeb");
+  });
+  it("underskrevet er slut for motoren: kun systemets to dødsdømme (betalte_ikke, udloeb) — ikke luk, ikke ikke_nu", () => {
     expect(dom("underskrevet", { art: "luk", aarsag: "andet" }).ok).toBe(false);
     expect(dom("underskrevet", { art: "ikke_nu" }).ok).toBe(false);
     expect(erAabentTrin("underskrevet")).toBe(false);

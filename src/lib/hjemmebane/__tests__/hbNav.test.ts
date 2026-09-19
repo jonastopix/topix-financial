@@ -90,6 +90,7 @@ describe("rådgiverens menu — det I bruger øverst (Jonas 8/9)", () => {
       ["Forside", "/", null],
       ["Virksomheder", "/virksomheder", null],
       ["Ansøgninger", "/ansoegninger", null],
+      ["Webinar", "/webinar", null],
       ["Indbakke", "/chat", null],
       ["Community", "/community", null],
       ["Indhold", "/admin/indhold", null],
@@ -129,10 +130,11 @@ describe("rådgiverens menu — det I bruger øverst (Jonas 8/9)", () => {
   });
   it("partneren får «Økonomi» sidst i den øverste blok, efter Indhold, uden blok-overskrift; aktiv på /oekonomi", () => {
     const p = bygHbNav({ isAdvisor: true, erAbonnent: false, active: "boardroom", isPartner: true });
-    expect(flad(p).slice(0, 8).map((n) => [n.label, n.to, n.blok])).toEqual([
+    expect(flad(p).slice(0, 9).map((n) => [n.label, n.to, n.blok])).toEqual([
       ["Forside", "/", null],
       ["Virksomheder", "/virksomheder", null],
       ["Ansøgninger", "/ansoegninger", null],
+      ["Webinar", "/webinar", null],
       ["Indbakke", "/chat", null],
       ["Community", "/community", null],
       ["Indhold", "/admin/indhold", null],
@@ -142,6 +144,23 @@ describe("rådgiverens menu — det I bruger øverst (Jonas 8/9)", () => {
     expect(flad(p).length).toBe(flad(nav).length + 1);
     expect(bygHbNav({ isAdvisor: true, erAbonnent: false, active: "oekonomi", isPartner: true }).find((n) => n.label === "Økonomi")?.active).toBe(true);
     expect(p.find((n) => n.label === "Økonomi")?.active).toBe(false);
+  });
+  /* «Webinar» (19/9): webinartallene — tilmeldte, deltagelse, annoncespor.
+     Til forskel fra «Økonomi» er punktet ALLE rådgiveres: det er ikke
+     omsætningstal, det er hvem der kommer. Medlemmet ser det aldrig. */
+  it("«Webinar» står efter «Ansøgninger» for enhver rådgiver, også uden partner", () => {
+    for (const n of [nav, bygHbNav({ isAdvisor: true, erAbonnent: false, active: "boardroom", isPartner: false })]) {
+      const labels = flad(n).map((x) => x.label);
+      expect(labels).toContain("Webinar");
+      expect(labels.indexOf("Webinar")).toBe(labels.indexOf("Ansøgninger") + 1);
+    }
+    expect(bygHbNav({ isAdvisor: true, erAbonnent: false, active: "webinar" }).find((n) => n.label === "Webinar")?.active).toBe(true);
+    expect(nav.find((n) => n.label === "Webinar")?.active).toBe(false);
+  });
+  it("et medlem ser ALDRIG «Webinar» — heller ikke som partner", () => {
+    for (const p of [false, true]) {
+      expect(flad(bygHbNav({ isAdvisor: false, erAbonnent: false, active: "boardroom", isPartner: p })).map((x) => x.to)).not.toContain("/webinar");
+    }
   });
   it("et medlem med isPartner får IKKE «Økonomi» — punktet hører til rådgivermenuen", () => {
     expect(flad(bygHbNav({ isAdvisor: false, erAbonnent: false, active: "boardroom", isPartner: true })).map((x) => x.label)).not.toContain("Økonomi");
