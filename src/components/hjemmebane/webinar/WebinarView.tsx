@@ -4,6 +4,8 @@ import { cn } from "@/lib/utils";
 import { HbCard } from "@/components/hjemmebane/HbCard";
 import { HbSection } from "@/components/hjemmebane/HbSection";
 import { useWebinarDashboard } from "@/hooks/webinarDashboard";
+import { AnnoncepriserAfsnit } from "@/components/hjemmebane/annoncer/AnnoncepriserAfsnit";
+import { PRIS_EYEBROW, PRIS_TITEL } from "@/lib/webinar/annoncepriser";
 import {
   AFHOLDTE_TOM_TEKST,
   brokOgPct,
@@ -505,6 +507,16 @@ export const WebinarView = ({ nu = new Date() }: { nu?: Date }) => {
               </div>
             )}
             {spor && <Spor spor={spor} />}
+          </HbSection>
+
+          {/* Hvad annoncerne koster pr. led (19/9). Afsnittet henter selv
+              forbruget og tager vores egne tal ind som props — så det kan
+              flyttes til en marketingflade uden at røre en linje. */}
+          <HbSection eyebrow={PRIS_EYEBROW} title={PRIS_TITEL} hairline className={sektion}>
+            <p className="mb-4 text-sm text-hb-ink-soft">
+              Det Meta ikke kan regne: resten af vejen. Prisen står altid med det antal, den er regnet på.
+            </p>
+            <AnnoncepriserAfsnit tilmeldinger={query.data?.tilmeldinger ?? []} ansoegninger={query.data?.ansoegninger ?? []} nu={nu} />
           </HbSection>
 
           <HbSection eyebrow={TID_EYEBROW} title={TID_TITEL} hairline className={sektion}>

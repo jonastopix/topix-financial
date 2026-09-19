@@ -25,7 +25,7 @@ import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.97.0
 import { planlaegTrappe } from "./rykkerkoe.ts";
 import { skrivPlan, annullerTrapper, udfoerOvergang, hentAnsoegning, virksomhedsnavnAf, REFERENCE_TYPE, sendSvarMailNu, tagPladsenLink, afslaaPladsenLink, type StraksUdfald } from "./ansoegningMotor.ts";
 import { skrivRaadgiverBesked } from "./raadgiverBesked.ts";
-import { afgoerSvar, erBloedUdgave, harTilbudUde, naesteIKoen, svarfristFra, type VentepladsRaekke, type VentepladsStatus } from "./ventelisteDom.ts";
+import { afgoerSvar, erBloedUdgave, harTilbudUde, klarTilTilbud, naesteIKoen, svarfristFra, type VentepladsRaekke, type VentepladsStatus } from "./ventelisteDom.ts";
 
 export const TYPE_VENTELISTE = "venteliste";
 const LOG = "[venteliste]";
@@ -37,7 +37,7 @@ export interface VentepladsRad extends VentepladsRaekke {
   tilbud_nr: number;
 }
 
-const FELTER = "id, ansoegning_id, company_id, status, hvorfor, sat_at, tilbudt_at, tilbud_udloeber_at, tilbud_nr";
+const FELTER = "id, ansoegning_id, company_id, status, hvorfor, sat_at, tilbudt_at, tilbud_udloeber_at, tilbud_nr, tidligst_tilbud_at";
 
 /** Alle levende rækker (venter/tilbudt) for én virksomhed, med ancienniteten fra ansøgningen. */
 export async function hentKoe(admin: SupabaseClient, companyId: string): Promise<VentepladsRad[]> {
@@ -74,17 +74,18 @@ function tilRad(r: Record<string, unknown>): VentepladsRad {
     tilbud_udloeber_at: (r.tilbud_udloeber_at as string | null) ?? null,
     tilbud_nr: (r.tilbud_nr as number) ?? 0,
     afvist_at: a?.lukket_at ?? null,
+    tidligst_tilbud_at: (r.tidligst_tilbud_at as string | null) ?? null,
   };
 }
 
 /** Sæt en afvist ansøgning i køen for en konkret virksomhed. 23505 = står der allerede. */
 export async function saetPaaVenteliste(
   admin: SupabaseClient,
-  i: { ansoegningId: string; companyId: string; hvorfor: string | null; satAf: string },
+  i: { ansoegningId: string; companyId: string; hvorfor: string | null; satAf: string; tidligstTilbudAt?: string | null },
 ): Promise<{ udfald: "sat"; id: string } | { udfald: "staar_allerede" }> {
   const { data, error } = await admin
     .from("ventepladser")
-    .insert({ ansoegning_id: i.ansoegningId, company_id: i.companyId, hvorfor: i.hvorfor, sat_af: i.satAf })
+    .insert({ ansoegning_id: i.ansoegningId, company_id: i.companyId, hvorfor: i.hvorfor, sat_af: i.satAf, tidligst_tilbud_at: i.tidligstTilbudAt ?? null })
     .select("id")
     .single();
   if (error?.code === "23505") return { udfald: "staar_allerede" };
@@ -115,7 +116,8 @@ export type TilbudsResultat =
  * et tilbud ude, sker intet. Tom kø → intet.
  */
 export async function tilbydPladsen(admin: SupabaseClient, companyId: string, nu: Date, tilbudNr = 1): Promise<TilbudsResultat> {
-  const koe = await hentKoe(admin, companyId);
+  // «Tidligst»-datoen (18/9): rækker der ikke må tilbydes endnu, er ikke med i køen i dag.
+  const koe = klarTilTilbud(await hentKoe(admin, companyId), nu);
   if (harTilbudUde(koe)) return { udfald: "tilbud_ude" };
   const naeste = naesteIKoen(koe);
   if (!naeste) return { udfald: "koen_er_tom" };

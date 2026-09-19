@@ -54,13 +54,17 @@ Deno.serve(async (req) => {
       const ansoegningId = typeof body.ansoegning_id === "string" ? body.ansoegning_id.trim() : "";
       const companyId = typeof body.company_id === "string" ? body.company_id.trim() : "";
       const hvorfor = typeof body.hvorfor === "string" ? body.hvorfor.trim().slice(0, 500) || null : null;
+      // «Tidligst»-dato (18/9): dansk dato «YYYY-MM-DD», valgfri — pladsen må først tilbydes den dag.
+      const tidligstRaa = typeof body.tidligst_tilbud_at === "string" ? body.tidligst_tilbud_at.trim() : "";
+      if (tidligstRaa && !/^\d{4}-\d{2}-\d{2}$/.test(tidligstRaa)) return json({ error: "tidligst_tilbud_at skal være «YYYY-MM-DD»" }, 400);
+      const tidligstTilbudAt = tidligstRaa || null;
       if (!UUID_RE.test(ansoegningId) || !UUID_RE.test(companyId)) return json({ error: "ansoegning_id og company_id skal være uuid" }, 400);
       const a = await hentAnsoegning(admin, ansoegningId);
       if (!a) return json({ error: "Ukendt ansøgning" }, 404);
       if (a.trin !== "lukket") return json({ error: "ansoegning_ikke_lukket", trin: a.trin }, 409);
       const { data: c } = await admin.from("companies").select("id, name").eq("id", companyId).maybeSingle();
       if (!c) return json({ error: "Ukendt virksomhed" }, 404);
-      const r = await saetPaaVenteliste(admin, { ansoegningId, companyId, hvorfor, satAf: callerId });
+      const r = await saetPaaVenteliste(admin, { ansoegningId, companyId, hvorfor, satAf: callerId, tidligstTilbudAt });
       console.log(`${LOG} saet: ansøgning ${ansoegningId} → kø for ${companyId} (${c.name}) af ${callerId}: ${r.udfald}`);
       return json({ ok: true, ...r, virksomhed: c.name }, r.udfald === "staar_allerede" ? 409 : 200);
     }

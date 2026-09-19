@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { erPladsLedig, forsidelinje, harTilbudUde, naesteIKoen, sorterKoe } from "@/lib/ventelisteDom";
+import { erPladsLedig, forsidelinje, harTilbudUde, klarTilTilbud, naesteIKoen, sorterKoe, venterPaaDato } from "@/lib/ventelisteDom";
 import { fjernFraVenteliste, hentVenteliste, tilbydPladsen } from "@/lib/hjemmebane/ventelisteApi";
 import { HbButton } from "../HbButton";
 
@@ -19,8 +19,12 @@ export const VentelisteHandlinger = ({ companyId, fornyelseStatus, efterSkrivnin
   const raekker = q.data ?? [];
   if (q.isLoading || raekker.length === 0) return null;
 
+  const nu = new Date();
   const koe = sorterKoe(raekker);
-  const naeste = naesteIKoen(raekker);
+  // «Tidligst»-datoen (18/9): den der må tilbydes i dag — de andre holdes tilbage og vises med datoen.
+  const naeste = naesteIKoen(klarTilTilbud(raekker, nu));
+  const holdtTilbage = venterPaaDato(raekker, nu);
+  const datoTekst = (iso: string) => new Date(`${iso}T12:00:00Z`).toLocaleDateString("da-DK", { day: "numeric", month: "long", year: "numeric", timeZone: "Europe/Copenhagen" });
   const tilbudUde = harTilbudUde(raekker);
   const ledig = erPladsLedig(fornyelseStatus);
   const navnAf = (id: string) => raekker.find((r) => r.id === id)?.ansoegerNavn ?? "?";
@@ -58,7 +62,7 @@ export const VentelisteHandlinger = ({ companyId, fornyelseStatus, efterSkrivnin
             <li key={r.id} className="flex flex-wrap items-center gap-2">
               <span className="text-hb-ink">{r.ansoegerNavn}</span>
               <span className="text-hb-ink-soft">
-                {r.status === "tilbudt" ? `· tilbudt, svar senest ${r.tilbud_udloeber_at ? new Date(r.tilbud_udloeber_at).toLocaleDateString("da-DK", { day: "numeric", month: "long", timeZone: "Europe/Copenhagen" }) : "?"}` : "· venter"}
+                {r.status === "tilbudt" ? `· tilbudt, svar senest ${r.tilbud_udloeber_at ? new Date(r.tilbud_udloeber_at).toLocaleDateString("da-DK", { day: "numeric", month: "long", timeZone: "Europe/Copenhagen" }) : "?"}` : r.tidligst_tilbud_at ? `· venter, tidligst ${datoTekst(r.tidligst_tilbud_at)}` : "· venter"}
                 {r.hvorfor ? ` · ${r.hvorfor}` : ""}
               </span>
               {r.status === "venter" && (
@@ -76,6 +80,11 @@ export const VentelisteHandlinger = ({ companyId, fornyelseStatus, efterSkrivnin
             {arbejder ? "Sender…" : linje.handling}
           </HbButton>
         </span>
+      )}
+      {ledig && !tilbudUde && !naeste && holdtTilbage.length > 0 && (
+        <p className="mt-1 text-xs text-hb-ink-soft" data-venteliste-tidligst={holdtTilbage[0].tidligst_tilbud_at ?? ""}>
+          Pladsen er ledig, men {navnAf(holdtTilbage[0].id)} må først tilbydes {datoTekst(holdtTilbage[0].tidligst_tilbud_at ?? "")} — køen venter til den dag.
+        </p>
       )}
       {!ledig && !tilbudUde && <p className="mt-1 text-xs text-hb-ink-soft">Pladsen er ikke ledig endnu ({fornyelseStatus}) — køen venter.</p>}
     </div>

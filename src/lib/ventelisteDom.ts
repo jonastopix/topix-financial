@@ -56,6 +56,13 @@ export interface VentepladsRaekke {
   sat_at: string;
   /** ansoegninger.lukket_at — ancienniteten. Null når ansøgningen ikke er lukket (bør ikke ske). */
   afvist_at: string | null;
+  /**
+   * Tidligste danske dato («YYYY-MM-DD») pladsen må tilbydes denne ansøger; null/udeladt =
+   * så snart pladsen er ledig. Jonas 18/9 om ABC/Doggybed: «De skal tilbydes når Doggybed
+   * er ude, så tingene er efter bogen.» — erPladsLedig siger «ledig» allerede ved «tilbyd
+   * ikke», FØR slutdatoen, så datoen holder køen tilbage til den dag.
+   */
+  tidligst_tilbud_at?: string | null;
 }
 
 const MS_PR_DAG = 86_400_000;
@@ -92,6 +99,33 @@ export function naesteIKoen(raekker: readonly VentepladsRaekke[]): VentepladsRae
 /** Har virksomheden allerede et tilbud ude (status «tilbudt»)? Så skal der ikke tilbydes igen. */
 export function harTilbudUde(raekker: readonly VentepladsRaekke[]): boolean {
   return raekker.some((r) => r.status === "tilbudt");
+}
+
+/** Dansk dato «YYYY-MM-DD» for et tidspunkt — uden imports (Intl, ens i Node og Deno). */
+export function danskDatoAf(nu: Date): string {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Copenhagen", year: "numeric", month: "2-digit", day: "2-digit" }).format(nu);
+}
+
+/** Er rækkens «tidligst»-dato nået (eller ikke sat)? Kun ventende rækker holdes tilbage. */
+export function erTidligstNaaet(r: Pick<VentepladsRaekke, "status" | "tidligst_tilbud_at">, nu: Date): boolean {
+  if (r.status !== "venter") return true;
+  const t = r.tidligst_tilbud_at;
+  if (!t || !/^\d{4}-\d{2}-\d{2}$/.test(t)) return true;
+  return danskDatoAf(nu) >= t;
+}
+
+/**
+ * Rækkerne der må tilbydes NU: ventende med nået (eller ingen) «tidligst»-dato, plus alt
+ * der ikke venter (tilbudt-rækker skal stadig tælle i harTilbudUde). Køens tilbud tager
+ * altid naesteIKoen(klarTilTilbud(alle, nu)) — aldrig naesteIKoen(alle) alene.
+ */
+export function klarTilTilbud(raekker: readonly VentepladsRaekke[], nu: Date): VentepladsRaekke[] {
+  return raekker.filter((r) => erTidligstNaaet(r, nu));
+}
+
+/** De ventende der holdes tilbage af en «tidligst»-dato — til linjen «X må først tilbydes 13. oktober». */
+export function venterPaaDato(raekker: readonly VentepladsRaekke[], nu: Date): VentepladsRaekke[] {
+  return sorterKoe(raekker).filter((r) => !erTidligstNaaet(r, nu));
 }
 
 /** Den bløde udgave når afvisningen er mere end 12 måneder gammel (kalendermåneder, UTC). */
