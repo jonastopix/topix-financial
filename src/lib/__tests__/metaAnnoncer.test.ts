@@ -6,15 +6,18 @@ import {
   erMetaObjektId,
   GRAPH_VERSION,
   heltalAf,
+  erUkendtFelt,
+  FELTER_MINIMALT,
+  FELTER_PR_TYPE,
   insightsUrl,
   isoDato,
   kommatalAf,
   oereAf,
   opslagbareIder,
   opslagUrl,
-  slagsAf,
   tilAnnoncekort,
   tilDagsraekker,
+  typeRaekkefoelge,
   udenToken,
   vindue,
   type Koblingslinje,
@@ -207,12 +210,39 @@ describe("tilAnnoncekort", () => {
   });
 });
 
-describe("slagsAf og doemKobling — trin 1's dom", () => {
-  it("annonce og kampagne kendes fra hinanden", () => {
-    expect(slagsAf({ creative: { id: "c" } })).toBe("ad");
-    expect(slagsAf({ adset: { id: "a" } })).toBe("ad");
-    expect(slagsAf({ objective: "OUTCOME_LEADS" })).toBe("campaign");
-    expect(slagsAf({ name: "kun et navn" })).toBeNull();
+describe("doemKobling — trin 1's dom", () => {
+  it("hver type bedes KUN om sine egne felter — det var fejlen 19/9", () => {
+    // «objective» bor på kampagnen, «campaign» og «creative» på annoncen.
+    // Blandes de, svarer Graph 400 «(#100) Tried accessing nonexisting field».
+    expect(FELTER_PR_TYPE.ad).not.toContain("objective");
+    expect(FELTER_PR_TYPE.campaign).not.toContain("creative");
+    expect(FELTER_PR_TYPE.campaign).not.toContain("campaign{");
+    expect(FELTER_PR_TYPE.adset).not.toContain("creative");
+    // Og hver type bærer sit eget kendetegn.
+    expect(FELTER_PR_TYPE.ad).toContain("creative{");
+    expect(FELTER_PR_TYPE.campaign).toContain("objective");
+    expect(FELTER_PR_TYPE.adset).toContain("optimization_goal");
+    // Det minimale feltsæt skal kunne stå på alle tre.
+    expect(FELTER_MINIMALT).toBe("id,name");
+  });
+
+  it("den forventede type prøves først — ét kald i det normale tilfælde", () => {
+    expect(typeRaekkefoelge("utm_content")[0]).toBe("ad");
+    expect(typeRaekkefoelge("utm_campaign")[0]).toBe("campaign");
+    // Alle tre prøves, så et forkert mærket felt stadig kan afgøres.
+    for (const felt of ["utm_content", "utm_campaign"] as const) {
+      expect([...typeRaekkefoelge(felt)].sort()).toEqual(["ad", "adset", "campaign"]);
+    }
+  });
+
+  it("«nonexisting field» er en TYPE-uenighed, ikke en fejl — så prøves den næste type", () => {
+    expect(erUkendtFelt({ code: 100, message: "(#100) Tried accessing nonexisting field (objective) on node type (Ad)" })).toBe(true);
+    expect(erUkendtFelt({ code: 100, message: "(#100) Tried accessing nonexisting field (campaign) on node type (Campaign)" })).toBe(true);
+    // Alt andet er en rigtig fejl og må ikke få os til at prøve videre.
+    expect(erUkendtFelt({ code: 803, message: "Some of the aliases you requested do not exist" })).toBe(false);
+    expect(erUkendtFelt({ code: 190, message: "Invalid OAuth access token" })).toBe(false);
+    expect(erUkendtFelt({ code: 100, message: "Invalid parameter" })).toBe(false);
+    expect(erUkendtFelt(null)).toBe(false);
   });
 
   const linje = (o: Partial<Koblingslinje> & Pick<Koblingslinje, "vaerdi" | "felt" | "udfald">): Koblingslinje => ({
@@ -239,9 +269,47 @@ describe("slagsAf og doemKobling — trin 1's dom", () => {
     expect(dom.annoncer_fundet).toBe(0);
   });
 
-  it("ingen id-lignende værdier: makroerne er ikke sat — og dommen siger netop det", () => {
-    const dom = doemKobling([linje({ vaerdi: "sommer", felt: "utm_content", udfald: "ikke_et_id", tilmeldinger: 597 })], 597);
+  it("et NAVN er ikke en fejl — det bærer sin egen mærkat og skal ikke slås op (19/9)", () => {
+    const dom = doemKobling(
+      [linje({ vaerdi: "IMG | 08-kontoret-skaerm | 2026-08-17", felt: "utm_content", udfald: "navn", navn: "IMG | 08-kontoret-skaerm | 2026-08-17", tilmeldinger: 208 })],
+      208,
+    );
+    expect(dom.navne).toBe(1);
+    expect(dom.tilmeldinger_med_navn).toBe(208);
+    expect(dom.tilmeldinger_uden_kilde).toBe(0);
+    // Hverken bevist eller BRUDT — der var intet at prøve.
     expect(dom.bevist).toBe(false);
+    expect(dom.konklusion).toContain("IKKE PRØVET");
+    expect(dom.konklusion).not.toContain("IKKE BEVIST");
+    expect(dom.konklusion).toContain("kan læses som de står");
+  });
+
+  it("DET MÅLTE BILLEDE 19/9: to id'er dækker 400, ni navne dækker resten af 608", () => {
+    const dom = doemKobling(
+      [
+        linje({ vaerdi: "120249061667400694", felt: "utm_content", udfald: "fundet", slags: "ad", navn: "Video A", tilmeldinger: 260 }),
+        linje({ vaerdi: "120249061667400695", felt: "utm_content", udfald: "fundet", slags: "ad", navn: "Video B", tilmeldinger: 140 }),
+        ...Array.from({ length: 9 }, (_, i) =>
+          linje({ vaerdi: `IMG | 08-mærkat-${i} | 2026-08-17`, felt: "utm_content", udfald: "navn", tilmeldinger: 208 / 9 })),
+        linje({ vaerdi: "120248713786520694", felt: "utm_campaign", udfald: "fundet", slags: "campaign", navn: "Webinar okt", tilmeldinger: 608 }),
+      ],
+      608,
+    );
+    expect(dom.bevist).toBe(true);
+    expect(dom.annoncer_fundet).toBe(2);
+    // «af 2», ikke «af 11» — navnene blev aldrig slået op og tæller ikke som mislykkede.
+    expect(dom.annoncer_i_alt).toBe(2);
+    expect(dom.navne).toBe(9);
+    expect(dom.tilmeldinger_daekket).toBe(400);
+    expect(Math.round(dom.tilmeldinger_med_navn)).toBe(208);
+    expect(Math.round(dom.tilmeldinger_uden_kilde)).toBe(0);
+    expect(dom.konklusion).toContain("BEVIST");
+    // Navnene nævnes OGSÅ i en grøn konklusion — ellers ligner de 208 et hul.
+    expect(dom.konklusion).toContain("NAVNE");
+  });
+
+  it("er ingen af mærkaterne id'er OG ingen navne, er makroerne slet ikke sat", () => {
+    const dom = doemKobling([], 597);
     expect(dom.konklusion).toContain("makroerne");
   });
 
@@ -256,7 +324,7 @@ describe("slagsAf og doemKobling — trin 1's dom", () => {
     // Så ER der slået noget op — og svaret skal handle om adgangen, ikke om makroerne.
     const dom = doemKobling(
       [
-        linje({ vaerdi: "sommer", felt: "utm_content", udfald: "ikke_et_id", tilmeldinger: 12 }),
+        linje({ vaerdi: "sommer", felt: "utm_content", udfald: "navn", tilmeldinger: 12 }),
         linje({ vaerdi: "120249061667400694", felt: "utm_content", udfald: "ikke_fundet", tilmeldinger: 585 }),
       ],
       597,

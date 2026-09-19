@@ -35,9 +35,12 @@ import { authenticateServiceRole, corsHeaders } from "../_shared/edgeFunctionAut
 import { ADS_TOKEN_MANGLER, ADS_TOKEN_NAVN, metaAdsToken } from "../_shared/metaAdsToken.ts";
 import {
   doemKobling,
+  erUkendtFelt,
+  FELTER_MINIMALT,
+  FELTER_PR_TYPE,
   opslagbareIder,
   opslagUrl,
-  slagsAf,
+  typeRaekkefoelge,
   udenToken,
   type Koblingsdom,
   type Koblingslinje,
@@ -87,49 +90,78 @@ async function hentVaerdier(
   return { content, campaign, iAlt: raekker.length };
 }
 
-/** Ét opslag hos Meta. Kaster aldrig — udfaldet bæres i linjen. */
+/** Ét Graph-kald. Svaret og evt. fejl ud — kaster aldrig. */
+async function graf(url: string): Promise<{ ok: boolean; status: number; svar: Record<string, unknown>; fejl: { message?: string; code?: number } | null }> {
+  const res = await fetch(url);
+  const tekst = await res.text();
+  let svar: Record<string, unknown>;
+  try {
+    svar = JSON.parse(tekst) as Record<string, unknown>;
+  } catch {
+    return { ok: false, status: res.status, svar: {}, fejl: { message: `ulæseligt svar: ${tekst.slice(0, 200)}` } };
+  }
+  return { ok: res.ok, status: res.status, svar, fejl: res.ok ? null : ((svar.error ?? {}) as { message?: string; code?: number }) };
+}
+
+/**
+ * Ét opslag hos Meta. Kaster aldrig — udfaldet bæres i linjen.
+ *
+ * TO TRIN (rettet 19/9 efter en rigtig kørsel):
+ *   1. MINIMALT felt (id, name) — findes objektet, og hvad hedder det? Det
+ *      felt har alle tre typer, så kaldet kan ikke fejle på en feltliste.
+ *   2. TYPENS EGNE felter, i den rækkefølge vi forventer (utm_content er en
+ *      annonce, utm_campaign en kampagne). Det første, der lykkes, ER typen.
+ *      Svarer Graph «nonexisting field», var det den forkerte type — så prøver
+ *      vi den næste i stedet for at give op.
+ *
+ * FØR: én fælles feltliste med alle tre typers felter. Den gav 400 på begge
+ * rigtige id'er — «(#100) Tried accessing nonexisting field (objective)» på
+ * annoncen og «(campaign)» på kampagnen. Vi bad hvert objekt om det andets felter.
+ */
 async function slaaOp(
   vaerdi: string,
   felt: "utm_content" | "utm_campaign",
   tilmeldinger: number,
   token: string,
 ): Promise<Koblingslinje> {
-  const url = opslagUrl(vaerdi, token);
+  const linje = (o: Partial<Koblingslinje>): Koblingslinje =>
+    ({ vaerdi, felt, udfald: "fejl", navn: null, slags: null, tilmeldinger, besked: null, ...o });
   try {
-    const res = await fetch(url);
-    const tekst = await res.text();
-    let svar: Record<string, unknown>;
-    try {
-      svar = JSON.parse(tekst) as Record<string, unknown>;
-    } catch {
-      return { vaerdi, felt, udfald: "fejl", navn: null, slags: null, tilmeldinger, besked: `ulæseligt svar (${res.status})` };
-    }
-    if (!res.ok) {
-      const fejl = (svar.error ?? {}) as { message?: string; code?: number };
-      // 803 = objektet findes ikke (eller tokenet har ikke adgang til det).
-      const ikkeFundet = fejl.code === 803 || /does not exist|cannot be loaded/i.test(fejl.message ?? "");
-      return {
-        vaerdi,
-        felt,
+    // 1. Findes objektet overhovedet?
+    const minimal = await graf(opslagUrl(vaerdi, token, FELTER_MINIMALT));
+    if (!minimal.ok) {
+      // 803 = objektet findes ikke, eller tokenet har ikke adgang til det.
+      const ikkeFundet = minimal.fejl?.code === 803 || /does not exist|cannot be loaded/i.test(minimal.fejl?.message ?? "");
+      return linje({
         udfald: ikkeFundet ? "ikke_fundet" : "fejl",
-        navn: null,
-        slags: null,
-        tilmeldinger,
-        besked: `${res.status}: ${fejl.message ?? tekst.slice(0, 200)}`,
-      };
+        besked: `${minimal.status}: ${minimal.fejl?.message ?? "ukendt fejl"}`,
+      });
     }
-    return {
-      vaerdi,
-      felt,
+    const navn = typeof minimal.svar.name === "string" ? minimal.svar.name : null;
+
+    // 2. Typens egne felter — den forventede først.
+    let sidsteBesked: string | null = null;
+    for (const type of typeRaekkefoelge(felt)) {
+      const svar = await graf(opslagUrl(vaerdi, token, FELTER_PR_TYPE[type]));
+      if (svar.ok) {
+        return linje({ udfald: "fundet", navn: (typeof svar.svar.name === "string" ? svar.svar.name : navn), slags: type });
+      }
+      if (!erUkendtFelt(svar.fejl)) {
+        // Ikke en type-uenighed — en rigtig fejl. Stop og sig hvad der skete.
+        return linje({ navn, besked: `${svar.status}: ${svar.fejl?.message ?? "ukendt fejl"}` });
+      }
+      sidsteBesked = svar.fejl?.message ?? null;
+    }
+    // Objektet findes, men er ingen af de tre typer, vi kender.
+    return linje({
       udfald: "fundet",
-      navn: typeof svar.name === "string" ? svar.name : null,
-      slags: slagsAf(svar),
-      tilmeldinger,
-      besked: null,
-    };
+      navn,
+      slags: null,
+      besked: `objektet findes, men er hverken annonce, annoncesæt eller kampagne (sidste svar: ${sidsteBesked ?? "?"})`,
+    });
   } catch (err) {
-    console.error(`${LOG} opslag fejlede for ${vaerdi} (${udenToken(url)}):`, err instanceof Error ? err.message : err);
-    return { vaerdi, felt, udfald: "fejl", navn: null, slags: null, tilmeldinger, besked: err instanceof Error ? err.message : String(err) };
+    console.error(`${LOG} opslag fejlede for ${vaerdi} (${udenToken(opslagUrl(vaerdi, token))}):`, err instanceof Error ? err.message : err);
+    return linje({ besked: err instanceof Error ? err.message : String(err) });
   }
 }
 
@@ -187,7 +219,9 @@ Deno.serve(async (req) => {
     if (!valgteIder) {
       for (const [v, antal] of content) {
         if (!opslagbareIder([v]).length) {
-          linjer.push({ vaerdi: v, felt: "utm_content", udfald: "ikke_et_id", navn: null, slags: null, tilmeldinger: antal, besked: "ligner ikke et Meta-objekt-id" });
+          // Et NAVN, vi selv har skrevet (august-kampagnen: «IMG | 08-kontoret-skaerm | 2026-08-17»).
+          // Det er ikke en fejl — mærkaten ER svaret, og der er intet at slå op.
+          linjer.push({ vaerdi: v, felt: "utm_content", udfald: "navn", navn: v, slags: null, tilmeldinger: antal, besked: "navn, ikke id — bruges som det er" });
         }
       }
     }

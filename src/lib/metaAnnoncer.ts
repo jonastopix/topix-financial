@@ -146,12 +146,53 @@ function q(params: Record<string, string>): string {
 }
 
 /** Felterne vi læser på ét objekt (annonce ELLER kampagne — Graph svarer med det, der findes). */
-export const OPSLAG_FELTER =
-  "id,name,effective_status,status,objective,campaign{id,name},adset{id,name},creative{id,title,body,image_url,thumbnail_url,video_id,link_url}";
+/**
+ * FELTER PR. OBJEKTTYPE — rettet 19/9 efter en rigtig kørsel.
+ *
+ * FEJLEN: én fælles feltliste med foreningen af alle tre typers felter. Graph
+ * afviser et felt, objektet ikke har, og hele kaldet fejler:
+ *   ad-id'et      → 400 «(#100) Tried accessing nonexisting field (objective)»
+ *   kampagne-id'et → 400 «… nonexisting field (campaign)»
+ * «objective» bor på kampagnen, «campaign» på annoncen. Et objekt kan ikke
+ * bedes om det andets felter.
+ *
+ * SÅDAN GØR VI I STEDET: spørg først med det MINIMALE feltsæt, som alle tre typer
+ * har (findes objektet overhovedet, og hvad hedder det?). Prøv derefter
+ * typernes egne feltsæt i den rækkefølge, vi FORVENTER — utm_content er en
+ * annonce, utm_campaign en kampagne. Det første, der lykkes, ER typen; vi
+ * gætter ikke, vi læser det af svaret.
+ */
+export const FELTER_MINIMALT = "id,name";
 
-/** Trin 1: slå ét id op. Tokenet sendes som parameter — aldrig i en log. */
-export function opslagUrl(id: string, token: string): string {
-  return `${GRAPH}/${encodeURIComponent(id)}?${q({ fields: OPSLAG_FELTER, access_token: token })}`;
+export const FELTER_PR_TYPE = {
+  ad: "id,name,status,effective_status,updated_time,campaign{id,name},adset{id,name},creative{id,title,body,image_url,thumbnail_url,video_id,link_url}",
+  campaign: "id,name,status,effective_status,objective",
+  adset: "id,name,status,effective_status,optimization_goal,daily_budget,lifetime_budget,campaign{id,name}",
+} as const;
+
+export type Objekttype = keyof typeof FELTER_PR_TYPE;
+
+/**
+ * Hvilken type prøver vi først? Den, feltet lover. Rammer vi rigtigt — og det
+ * gør vi næsten altid — er det ét kald; ellers højst tre.
+ */
+export function typeRaekkefoelge(felt: "utm_content" | "utm_campaign"): Objekttype[] {
+  return felt === "utm_campaign" ? ["campaign", "ad", "adset"] : ["ad", "campaign", "adset"];
+}
+
+/** Trin 1: slå ét id op med et bestemt feltsæt. Tokenet sendes som parameter — aldrig i en log. */
+export function opslagUrl(id: string, token: string, felter: string = FELTER_MINIMALT): string {
+  return `${GRAPH}/${encodeURIComponent(id)}?${q({ fields: felter, access_token: token })}`;
+}
+
+/**
+ * Er svaret en «dette felt findes ikke»-fejl? Så var det den forkerte type —
+ * ikke en manglende adgang, og ikke et objekt der ikke findes. Meta bruger kode
+ * 100 med netop den tekst.
+ */
+export function erUkendtFelt(fejl: { message?: string; code?: number } | null | undefined): boolean {
+  if (!fejl) return false;
+  return fejl.code === 100 && /nonexisting field/i.test(fejl.message ?? "");
 }
 
 /** Annoncerne på kontoen, med annoncesæt, kampagne og kreativ. */
@@ -322,7 +363,13 @@ export function tilAnnoncekort(raa: readonly Record<string, unknown>[]): Annonce
 
 // ── Trin 1: koblingen ──────────────────────────────────────────────────────
 
-export type Koblingsudfald = "fundet" | "ikke_fundet" | "ikke_et_id" | "fejl";
+/**
+ * «navn» er IKKE en fejl (rettet 19/9 efter målingen): ni af elleve utm_content
+ * er mærkater, vi selv har skrevet i august-kampagnen — «IMG | 08-kontoret-skaerm
+ * | 2026-08-17» og lignende. De skal ikke slås op hos Meta; de kan læses, som de
+ * står. Et id slås op, et navn bruges som det er.
+ */
+export type Koblingsudfald = "fundet" | "ikke_fundet" | "navn" | "fejl";
 
 export interface Koblingslinje {
   vaerdi: string;
@@ -330,22 +377,19 @@ export interface Koblingslinje {
   udfald: Koblingsudfald;
   /** Metas navn, når den svarede. */
   navn: string | null;
-  /** «ad» eller «campaign», udledt af hvad Graph svarede med. */
+  /** «ad» · «campaign» · «adset» — den type, hvis feltsæt Graph accepterede. */
   slags: string | null;
   tilmeldinger: number;
   besked: string | null;
 }
 
-/**
- * Hvad Graph svarede med — er det en annonce eller en kampagne? Graph siger
- * det ikke direkte på et id-opslag, men objekterne røber sig: en annonce har
- * et `creative` eller et `adset`; en kampagne har et `objective`.
+/*
+ * slagsAf ER FJERNET (19/9). Den gættede typen ud fra hvilke nøgler Graph
+ * havde sendt tilbage — et svært bevis, som desuden hvilede på den fælles
+ * feltliste, der viste sig at være selve fejlen. Nu kommer typen af, HVILKET
+ * feltsæt der lykkedes (FELTER_PR_TYPE): svarer objektet på annoncens felter,
+ * ER det en annonce. Et stærkere bevis, og ét, Meta selv afgiver.
  */
-export function slagsAf(svar: Record<string, unknown>): string | null {
-  if (svar.creative || svar.adset) return "ad";
-  if (svar.objective) return "campaign";
-  return null;
-}
 
 /**
  * Dommen over hele koblingen: er vores utm_content Metas ad_id?
@@ -355,14 +399,25 @@ export function slagsAf(svar: Record<string, unknown>): string | null {
  * linjerne siger, hvor komplet dækningen er.
  */
 export interface Koblingsdom {
+  /** Er utm_content Metas ad_id? Sandt, så snart ÉT id svarede som en annonce. */
   bevist: boolean;
-  /** Hvor mange af de opslagbare utm_content der blev fundet som annoncer. */
+  /** Af de utm_content, der ER id'er: hvor mange svarede som annoncer. */
   annoncer_fundet: number;
+  /** Hvor mange utm_content der blev slået op (altså lignede et id). */
   annoncer_i_alt: number;
   kampagner_fundet: number;
   kampagner_i_alt: number;
-  /** Tilmeldinger dækket af en utm_content, vi kunne slå op. */
+  /**
+   * utm_content, der er NAVNE, vi selv har skrevet — ikke id'er (19/9). De er
+   * læselige som de står og kræver intet opslag. IKKE en fejl.
+   */
+  navne: number;
+  /** Tilmeldinger dækket af et id, vi kunne slå op hos Meta. */
   tilmeldinger_daekket: number;
+  /** Tilmeldinger dækket af et navn — kendt uden Meta. */
+  tilmeldinger_med_navn: number;
+  /** Tilmeldinger, hvis utm_content hverken kunne slås op eller læses. */
+  tilmeldinger_uden_kilde: number;
   tilmeldinger_i_alt: number;
   konklusion: string;
 }
@@ -373,25 +428,46 @@ export function doemKobling(linjer: readonly Koblingslinje[], tilmeldingerIAlt: 
   const annoncerFundet = annoncer.filter((l) => l.udfald === "fundet" && l.slags === "ad");
   const kampagnerFundet = kampagner.filter((l) => l.udfald === "fundet" && l.slags === "campaign");
   const daekket = annoncerFundet.reduce((sum, l) => sum + l.tilmeldinger, 0);
+  // NAVNENE er en tredje gruppe, ikke en fejlgruppe (19/9): de bærer deres egen
+  // mærkat og kræver intet opslag. Tælles for sig, så svaret kan sige, hvor stor
+  // en del af flowet vi allerede kan læse uden Meta.
+  const navnelinjer = annoncer.filter((l) => l.udfald === "navn");
+  const medNavn = navnelinjer.reduce((sum, l) => sum + l.tilmeldinger, 0);
+  const udenKilde = Math.max(0, tilmeldingerIAlt - daekket - medNavn);
   // Tre udfald, og de må ikke blandes sammen: at INGEN værdi ligner et id
   // (makroerne er ikke sat) er en helt anden sag end at id'erne findes, men
   // ikke kan slås op (forkert konto eller manglende adgang). Det første er
   // vores egen opsætning; det andet er tokenets.
-  const annoncerSlaaetOp = annoncer.filter((l) => l.udfald !== "ikke_et_id");
+  const annoncerSlaaetOp = annoncer.filter((l) => l.udfald !== "navn");
   const bevist = annoncerFundet.length > 0;
-  const konklusion = bevist
-    ? `BEVIST: utm_content er Metas ad_id. ${annoncerFundet.length} af ${annoncerSlaaetOp.length} annonce-id'er svarede hos Meta og dækker ${daekket} af ${tilmeldingerIAlt} tilmeldinger.`
-    : annoncerSlaaetOp.length === 0
-      ? "IKKE AFGJORT: ingen af vores utm_content ligner et Meta-id — makroerne er formentlig ikke sat på annoncerne."
-      : "IKKE BEVIST: ingen af vores utm_content kunne slås op hos Meta. Enten hører de til en anden annoncekonto, eller tokenet mangler adgang til denne.";
+
+  // Navnene nævnes ALTID, når de findes — også i en grøn konklusion. Ellers ville
+  // svaret lyde, som om kun id'erne tæller, og halvdelen af tilmeldingerne ville
+  // se ud til at mangle en kilde, de faktisk har.
+  const navneSaetning = navnelinjer.length > 0
+    ? ` ${navnelinjer.length} af de øvrige utm_content er NAVNE, vi selv har skrevet (ikke id'er); de dækker ${medNavn} tilmeldinger og kan læses som de står — de skal ikke slås op.`
+    : "";
+
+  const grundlag = annoncerSlaaetOp.length === 0
+    ? navnelinjer.length > 0
+      // Ikke en fejl: alle mærkater er navne. Koblingen er hverken bevist eller brudt — den er ikke prøvet.
+      ? "IKKE PRØVET: ingen af vores utm_content er id'er, så der var intet at slå op."
+      : "IKKE AFGJORT: ingen af vores utm_content ligner et Meta-id — makroerne er formentlig ikke sat på annoncerne."
+    : bevist
+      ? `BEVIST: utm_content er Metas ad_id. ${annoncerFundet.length} af ${annoncerSlaaetOp.length} annonce-id'er svarede hos Meta og dækker ${daekket} af ${tilmeldingerIAlt} tilmeldinger.`
+      : "IKKE BEVIST: ingen af de utm_content, der ER id'er, kunne slås op hos Meta. Enten hører de til en anden annoncekonto, eller tokenet mangler adgang til denne.";
+
   return {
     bevist,
     annoncer_fundet: annoncerFundet.length,
-    annoncer_i_alt: annoncer.length,
+    annoncer_i_alt: annoncerSlaaetOp.length,
     kampagner_fundet: kampagnerFundet.length,
     kampagner_i_alt: kampagner.length,
+    navne: navnelinjer.length,
     tilmeldinger_daekket: daekket,
+    tilmeldinger_med_navn: medNavn,
+    tilmeldinger_uden_kilde: udenKilde,
     tilmeldinger_i_alt: tilmeldingerIAlt,
-    konklusion,
+    konklusion: grundlag + navneSaetning,
   };
 }
