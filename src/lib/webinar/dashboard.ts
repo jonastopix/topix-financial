@@ -36,6 +36,8 @@
  * nul), og fladen har en sætning til hver. Siden er rigtig i dag med nul
  * rækker og rigtig tirsdag med 330.
  */
+import { blevMedlem } from "@/lib/ansoegninger/ansoegningVisning";
+import type { Trin } from "@/lib/ansoegningTrin";
 import {
   datoKort,
   doemSetGrad,
@@ -74,11 +76,23 @@ export interface AnnoncesporFelter {
 /** Tilmeldingen som fladen læser den: webinarDom's række + annoncesporet. */
 export type Tilmelding = WebinarTilmelding & AnnoncesporFelter;
 
-/** Den indsendte ansøgning, reduceret til koblingen: mailen. */
+/**
+ * Den indsendte ansøgning, reduceret til det fladen bruger: mailen (koblingen),
+ * hvornår den kom (tiden), og de to felter «blev medlem» dømmes af.
+ *
+ * ÉN DEFINITION AF «BLEV MEDLEM». Vi opfinder ikke en her: dommen er husets
+ * egen `blevMedlem` i lib/ansoegninger/ansoegningVisning.ts — underskrevet OG
+ * virksomheden har en slutdato (sat af stripe-webhook ved BETALING). Samme
+ * sandhed som adgangen, og samme tal som ansøgningslisten viser. En anden
+ * definition her ville betyde to tal for det samme ord i samme hus.
+ */
 export interface AnsoegerMail {
   /** Små bogstaver, som webinar_tilmeldinger.email og ansoegninger.email (begge CHECK lower). */
   email: string;
   indsendt_at: string | null;
+  trin: Trin;
+  /** companies.contract_end_date gennem company_id — null når ansøgningen ikke blev en betalt virksomhed. */
+  virksomhed_slutdato: string | null;
 }
 
 // ── Små hjælpere ───────────────────────────────────────────────────────────
@@ -100,9 +114,32 @@ export function andel(taeller: number, naevner: number): number | null {
   return naevner <= 0 ? null : taeller / naevner;
 }
 
-/** «62 %» af en ANDEL (0–1). null → «–». */
+/**
+ * «62 %» af en ANDEL (0–1). null → «–».
+ *
+ * SMÅ TAL MÅ IKKE BLIVE TIL NUL (Jonas 19/9): 1 ansøgning ud af 594 er
+ * 0,168 % — afrundet til heltal bliver det «0 %», som læses som «ingen» og
+ * ligner en fejl. Derfor: en andel der ER nul, skriver «0 %»; en andel der
+ * er større end nul, men under 1 %, skriver én decimal med dansk komma
+ * («0,2 %»); og er den mindre end det en decimal kan vise, skriver den
+ * «<0,1 %». Ingen ægte forekomst kan forsvinde i en afrunding.
+ */
 export function pct(a: number | null): string {
-  return a === null ? "–" : `${Math.round(a * 100)} %`;
+  if (a === null) return "–";
+  if (a === 0) return "0 %";
+  const p = a * 100;
+  if (p >= 1) return `${Math.round(p)} %`;
+  if (p >= 0.05) return `${p.toFixed(1).replace(".", ",")} %`;
+  return "<0,1 %";
+}
+
+/**
+ * «29 af 91 · 32 %» (Jonas 19/9): brøken OG procenten sammen, så tallet kan
+ * læses uden at regne. Uden nævner: bare tallet.
+ */
+export function brokOgPct(taeller: number, naevner: number): string {
+  const a = andel(taeller, naevner);
+  return a === null ? String(taeller) : `${taeller} af ${naevner} · ${pct(a)}`;
 }
 
 /** «62 %» af et TAL der allerede er en procent (0–100). null → «–». */
@@ -301,6 +338,14 @@ export interface AfholdtSession extends Deltagelse {
   sessionType: string | null;
   /** «22/9» · null uden tid. */
   dato: string | null;
+  /** Af sessionens tilmeldte: hvor mange der har indsendt en ansøgning (Jonas 19/9, punkt 3). */
+  ansoegte: number;
+  /** ansoegte / tilmeldte. null uden tilmeldte. */
+  ansoegerAndel: number | null;
+  /** Af sessionens ANSØGERE: hvor mange der blev medlem (Jonas 19/9, punkt 4). */
+  blevMedlem: number;
+  /** blevMedlem / ansoegte — andelen af de ANSØGTE, ikke af de tilmeldte. null uden ansøgere. */
+  medlemAfAnsoegteAndel: number | null;
 }
 
 /**
@@ -310,7 +355,12 @@ export interface AfholdtSession extends Deltagelse {
  * Rækker uden sessionstid samles i én linje pr. webinar (optagelsen).
  * Fremtidige sessioner hører til §1 og er ikke med.
  */
-export function afholdteSessioner(raekker: readonly Tilmelding[], nu: Date): AfholdtSession[] {
+export function afholdteSessioner(
+  raekker: readonly Tilmelding[],
+  nu: Date,
+  ansoegte: ReadonlySet<string> = new Set(),
+  medlemmer: ReadonlySet<string> = new Set(),
+): AfholdtSession[] {
   const afholdt = raekker.filter((r) => { const t = tid(r.session_tid); return t === null || t <= nu.getTime(); });
   const grupper = new Map<string, Tilmelding[]>();
   for (const r of afholdt) {
@@ -321,6 +371,9 @@ export function afholdteSessioner(raekker: readonly Tilmelding[], nu: Date): Afh
     .map((liste) => {
       const t = tid(liste[0].session_tid);
       const sessionTid = t === null ? null : new Date(t).toISOString();
+      const mails = new Set(liste.map((r) => r.email));
+      const a = faellesAntal(mails, ansoegte);
+      const m = faellesAntal(mails, medlemmer);
       return {
         sessionTid,
         webinarId: liste[0].webinar_id,
@@ -328,6 +381,12 @@ export function afholdteSessioner(raekker: readonly Tilmelding[], nu: Date): Afh
         sessionType: liste.find((r) => tekst(r.session_type))?.session_type ?? null,
         dato: datoKort(sessionTid),
         ...taelDeltagelse(liste, nu),
+        ansoegte: a,
+        ansoegerAndel: andel(a, mails.size),
+        blevMedlem: m,
+        // Af de ANSØGTE, ikke af de tilmeldte: spørgsmålet er hvor god en
+        // ansøgning fra denne session er, ikke hvor mange der ansøgte.
+        medlemAfAnsoegteAndel: andel(m, a),
       };
     })
     .sort((a, b) => (tid(b.sessionTid) ?? -1) - (tid(a.sessionTid) ?? -1));
@@ -579,6 +638,28 @@ export function ansoegerMails(ansoegninger: readonly AnsoegerMail[]): Set<string
   return s;
 }
 
+/**
+ * Mailene på dem der BLEV MEDLEM. Dommen er husets egen (blevMedlem):
+ * underskrevet OG virksomheden har en slutdato — altså betalt. Vi gentager
+ * ikke betingelsen her; ændrer den sig ét sted, ændrer den sig begge.
+ */
+export function medlemsMails(ansoegninger: readonly AnsoegerMail[]): Set<string> {
+  const s = new Set<string>();
+  for (const a of ansoegninger) {
+    if (a.indsendt_at === null || !blevMedlem(a)) continue;
+    const m = tekst(a.email)?.toLowerCase();
+    if (m !== null && m !== undefined) s.add(m);
+  }
+  return s;
+}
+
+/** Hvor mange af mailene i `mails` der står i `mod`. */
+function faellesAntal(mails: Iterable<string>, mod: ReadonlySet<string>): number {
+  let n = 0;
+  for (const m of mails) if (mod.has(m)) n++;
+  return n;
+}
+
 /** Begge veje af koblingen — «af de tilmeldte ansøgte X» og «af ansøgerne var Y tilmeldt». */
 export function ansoegningskobling(raekker: readonly Tilmelding[], ansoegninger: readonly AnsoegerMail[]): Ansoegningskobling {
   const mails = ansoegerMails(ansoegninger);
@@ -595,6 +676,169 @@ export function ansoegningskobling(raekker: readonly Tilmelding[], ansoegninger:
   };
 }
 
+// ── Tragten: hele historien på én linje ────────────────────────────────────
+
+export interface TragtTrin {
+  navn: string;
+  /** Hvad tallet betyder — står under navnet, så ingen skal gætte. */
+  forklaring: string;
+  antal: number;
+  /** Andel af LEDDET FØR. null på første trin og når leddet før er nul. */
+  andelAfFoer: number | null;
+  /** Andel af FØRSTE led — så det sidste tal kan læses mod udgangspunktet. */
+  andelAfStart: number | null;
+}
+
+export interface Tragt {
+  trin: TragtTrin[];
+  /** Personer tragten er regnet på (= første trins antal). */
+  grundlag: number;
+  /**
+   * Personer der er tilmeldt en session som IKKE er afholdt endnu, og derfor
+   * med vilje står UDEN FOR tragten. Uden dette tal ville de 534 der venter
+   * på tirsdag, enten forsvinde eller — værre — tælle som frafald.
+   */
+  kommendeUdenfor: number;
+}
+
+/**
+ * Tilmeldte → mødte op → så det færdigt → ansøgte → blev medlem.
+ *
+ * REGNET PÅ DE AFHOLDTE ALENE (Jonas 19/9, punkt 5). Man kan ikke møde op
+ * til et webinar der ikke har været holdt: tog vi alle tilmeldte med, ville
+ * de 534 der venter på tirsdag, stå som 534 der ikke mødte op, og tragten
+ * ville sige noget usandt om markedsføringen. De står i stedet for sig selv
+ * i `kommendeUdenfor` og i afsnittet om det næste webinar.
+ *
+ * Hvert led er personer (unikke mails), og hvert led er en delmængde af det
+ * før — derfor kan andelen af leddet før aldrig overstige 1.
+ */
+export function tragt(
+  raekker: readonly Tilmelding[],
+  ansoegte: ReadonlySet<string>,
+  medlemmer: ReadonlySet<string>,
+  nu: Date,
+): Tragt {
+  const afholdt = raekker.filter((r) => { const t = tid(r.session_tid); return t === null || t <= nu.getTime(); });
+  const d = taelDeltagelse(afholdt, nu);
+  const mails = new Set(afholdt.map((r) => r.email));
+  const a = faellesAntal(mails, ansoegte);
+  const m = faellesAntal(mails, medlemmer);
+  const kommende = new Set(
+    raekker.filter((r) => { const t = tid(r.session_tid); return t !== null && t > nu.getTime(); }).map((r) => r.email),
+  );
+  const raa: Array<{ navn: string; forklaring: string; antal: number }> = [
+    { navn: "Tilmeldte", forklaring: "til et webinar der er afholdt", antal: d.tilmeldte },
+    { navn: "Mødte op", forklaring: "eWebinar så dem deltage", antal: d.moedteOp },
+    { navn: "Så det færdigt", forklaring: `${SET_GRAENSE_PROCENT} % eller mere`, antal: d.saaFaerdigt },
+    { navn: "Ansøgte", forklaring: "indsendt ansøgning, koblet på mailen", antal: a },
+    { navn: "Blev medlem", forklaring: "underskrevet og betalt", antal: m },
+  ];
+  const start = raa[0].antal;
+  return {
+    trin: raa.map((t, i) => ({
+      ...t,
+      andelAfFoer: i === 0 ? null : andel(t.antal, raa[i - 1].antal),
+      andelAfStart: andel(t.antal, start),
+    })),
+    grundlag: start,
+    kommendeUdenfor: kommende.size,
+  };
+}
+
+// ── Tiden fra tilmelding til ansøgning ─────────────────────────────────────
+
+export interface TidTilAnsoegning {
+  /** Personer der BÅDE har en tilmelding med tidspunkt og en indsendt ansøgning efter den. */
+  antal: number;
+  /** Gennemsnit i dage, én decimal. null når antal er 0. */
+  gennemsnitDage: number | null;
+  /** Median i dage — mere ærlig end gennemsnittet, når få sene trækker. null når antal er 0. */
+  medianDage: number | null;
+  hurtigsteDage: number | null;
+  langsomsteDage: number | null;
+  /**
+   * Personer der ansøgte FØR de meldte sig til webinaret. De er ikke en
+   * ventetid og indgår ikke i gennemsnittet — men de er ikke nul værd:
+   * de kom ind ad en anden dør, og webinaret var ikke det der hentede dem.
+   */
+  ansoegteFoerTilmelding: number;
+  /** Personer der ansøgte, men hvis tilmelding mangler et tidspunkt — kan ikke måles. */
+  udenTidspunkt: number;
+}
+
+const TOM_TID: TidTilAnsoegning = {
+  antal: 0, gennemsnitDage: null, medianDage: null, hurtigsteDage: null,
+  langsomsteDage: null, ansoegteFoerTilmelding: 0, udenTidspunkt: 0,
+};
+
+/**
+ * Hvor lang tid går der fra en person melder sig til, til hun ansøger?
+ * (Jonas 19/9, punkt 7 — det afgør hvornår I skal skrive til folk.)
+ *
+ * MÅLT PÅ DET DER FINDES: `webinar_tilmeldinger.registreret_at` og
+ * `ansoegninger.indsendt_at`. Begge er rigtige tidsstempler, så spørgsmålet
+ * kan besvares — men kun for dem der har BEGGE. Personens tid regnes fra
+ * hendes FØRSTE tilmelding (samme tilskrivning som annoncesporet) til
+ * ansøgningens indsendelse.
+ *
+ * BÅDE GENNEMSNIT OG MEDIAN. Gennemsnittet er det Jonas bad om; medianen
+ * står ved siden af, fordi én der ansøger efter 90 dage kan flytte et
+ * gennemsnit på tyve personer mere end den fortjener. Er de to langt fra
+ * hinanden, er det selv en oplysning.
+ */
+export function tidTilAnsoegning(
+  raekker: readonly Tilmelding[],
+  ansoegninger: readonly AnsoegerMail[],
+): TidTilAnsoegning {
+  const foerst = new Map<string, number>();
+  const udenTid = new Set<string>();
+  for (const r of raekker) {
+    const t = tid(r.registreret_at);
+    if (t === null) { if (!foerst.has(r.email)) udenTid.add(r.email); continue; }
+    udenTid.delete(r.email);
+    const haves = foerst.get(r.email);
+    if (haves === undefined || t < haves) foerst.set(r.email, t);
+  }
+  const dage: number[] = [];
+  let foer = 0;
+  let mangler = 0;
+  const set = new Set<string>();
+  for (const a of ansoegninger) {
+    const mail = tekst(a.email)?.toLowerCase();
+    const ind = tid(a.indsendt_at);
+    if (mail === null || mail === undefined || ind === null || set.has(mail)) continue;
+    set.add(mail);
+    const reg = foerst.get(mail);
+    if (reg === undefined) { if (udenTid.has(mail)) mangler++; continue; }
+    if (ind < reg) { foer++; continue; }
+    dage.push((ind - reg) / 86_400_000);
+  }
+  if (dage.length === 0) return { ...TOM_TID, ansoegteFoerTilmelding: foer, udenTidspunkt: mangler };
+  const sorteret = [...dage].sort((x, y) => x - y);
+  const midt = Math.floor(sorteret.length / 2);
+  const median = sorteret.length % 2 === 1 ? sorteret[midt] : (sorteret[midt - 1] + sorteret[midt]) / 2;
+  const en = (n: number) => Math.round(n * 10) / 10;
+  return {
+    antal: dage.length,
+    gennemsnitDage: en(dage.reduce((x, y) => x + y, 0) / dage.length),
+    medianDage: en(median),
+    hurtigsteDage: en(sorteret[0]),
+    langsomsteDage: en(sorteret[sorteret.length - 1]),
+    ansoegteFoerTilmelding: foer,
+    udenTidspunkt: mangler,
+  };
+}
+
+/** «3,5 dage» · «1 dag» · «under en dag». null → «–». */
+export function dageOrd(d: number | null): string {
+  if (d === null) return "–";
+  if (d < 1) return "under en dag";
+  const n = Math.round(d * 10) / 10;
+  const tekstTal = Number.isInteger(n) ? String(n) : n.toFixed(1).replace(".", ",");
+  return `${tekstTal} ${n === 1 ? "dag" : "dage"}`;
+}
+
 // ── Hele dommen ────────────────────────────────────────────────────────────
 
 export interface WebinarDashboard {
@@ -604,6 +848,10 @@ export interface WebinarDashboard {
   personer: number;
   /** Deltagelsen på tværs af ALT afholdt (ikke de kommende). */
   samlet: Deltagelse;
+  /** Tilmeldte → mødte op → så færdigt → ansøgte → blev medlem, øverst på fladen. */
+  tragt: Tragt;
+  /** Fra tilmelding til ansøgning — hvornår I skal skrive til folk. */
+  tid: TidTilAnsoegning;
   naeste: NaesteWebinar | null;
   afholdte: AfholdtSession[];
   /** Sporet over alle tilmeldinger. */
@@ -624,13 +872,16 @@ export interface DashboardInput {
 export function webinarDashboard(ind: DashboardInput, nu: Date): WebinarDashboard {
   const { tilmeldinger, ansoegninger, sporKolonnerFindes } = ind;
   const mails = ansoegerMails(ansoegninger);
+  const medlemmer = medlemsMails(ansoegninger);
   const naeste = naesteWebinar(tilmeldinger, nu);
-  const afholdte = afholdteSessioner(tilmeldinger, nu);
+  const afholdte = afholdteSessioner(tilmeldinger, nu, mails, medlemmer);
   const afholdtRaekker = tilmeldinger.filter((r) => { const t = tid(r.session_tid); return t === null || t <= nu.getTime(); });
   return {
     tom: tilmeldinger.length === 0,
     personer: new Set(tilmeldinger.map((r) => r.email)).size,
     samlet: taelDeltagelse(afholdtRaekker, nu),
+    tragt: tragt(tilmeldinger, mails, medlemmer, nu),
+    tid: tidTilAnsoegning(tilmeldinger, ansoegninger),
     naeste,
     afholdte,
     spor: annoncespor(tilmeldinger, mails, nu, sporKolonnerFindes),
@@ -651,5 +902,11 @@ export const SPOR_MANGLER_TEKST =
 export const SPOR_TOMT_TEKST =
   "Kolonnerne findes, men ingen tilmelding bærer et spor endnu. De næste tilmeldinger tager det med.";
 export const KOBLING_TOM_TEKST = "Ingen ansøgninger er indsendt endnu. Tallet står klar, så snart den første kommer.";
+export const TRAGT_EYEBROW = "Hele vejen";
+export const TRAGT_TITEL = "Fra tilmeldt til medlem";
+export const TRAGT_TOM_TEKST = "Ingen webinarer er afholdt endnu, så der er ingen vej at følge. Tragten fylder sig selv efter det første webinar.";
+export const TID_EYEBROW = "Tiden";
+export const TID_TITEL = "Fra tilmelding til ansøgning";
+export const TID_TOM_TEKST = "Ingen har både meldt sig til og ansøgt endnu. Tallet kan først regnes, når den første ansøgning kommer fra en mail, der også står i eWebinar.";
 export const AFHOLDTE_TOM_TEKST = "Ingen webinarer er afholdt endnu — eller ingen tilmelding bærer en session der er forbi.";
 export const NAESTE_TOM_TEKST = "Ingen kommende session. Ingen tilmelding peger på et tidspunkt efter nu.";

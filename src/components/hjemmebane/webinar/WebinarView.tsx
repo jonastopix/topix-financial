@@ -6,6 +6,8 @@ import { HbSection } from "@/components/hjemmebane/HbSection";
 import { useWebinarDashboard } from "@/hooks/webinarDashboard";
 import {
   AFHOLDTE_TOM_TEKST,
+  brokOgPct,
+  dageOrd,
   datoKort,
   datoLang,
   KOBLING_TOM_TEKST,
@@ -15,6 +17,12 @@ import {
   SET_GRAENSE_PROCENT,
   SPOR_MANGLER_TEKST,
   SPOR_TOMT_TEKST,
+  TID_EYEBROW,
+  TID_TITEL,
+  TID_TOM_TEKST,
+  TRAGT_EYEBROW,
+  TRAGT_TITEL,
+  TRAGT_TOM_TEKST,
   webinarDashboard,
   WEBINAR_EYEBROW,
   WEBINAR_FEJL_TEKST,
@@ -26,7 +34,9 @@ import {
   type Kampagnelinje,
   type NaesteWebinar,
   type Sporlinje,
+  type TidTilAnsoegning,
   type TilmeldtPrDag,
+  type Tragt,
   type WebinarDashboard,
 } from "@/lib/webinar/dashboard";
 
@@ -58,6 +68,30 @@ import {
 
 const sektion = "mt-10 md:mt-12";
 
+/**
+ * ÉN skabelon til både kolonneoverskrifterne og rækkerne (Jonas 19/9, punkt 1).
+ *
+ * FEJLEN DER VAR: header og rækker havde hver sit grid med en `auto`-kolonne.
+ * `auto` måles pr. grid, så overskriften «så færdigt» gjorde header-kolonnen
+ * bredere end rækkens tal — og tallene stod under den forkerte titel. Faste
+ * talbredder i ÉN delt konstant kan ikke drive fra hinanden; ændrer man
+ * bredden, ændrer den sig begge steder på én gang.
+ *
+ * Fem talkolonner: tilmeldt · mødte · færdigt · ansøgt · medlem — tragtens
+ * rækkefølge, så rækken læses som historien. Smalle på telefon, brede fra md.
+ */
+const TAL_GRID =
+  "grid grid-cols-[minmax(0,1fr)_repeat(5,2.75rem)_1.25rem] md:grid-cols-[minmax(0,1fr)_repeat(5,4.5rem)_1.5rem] items-baseline gap-x-1.5 md:gap-x-2";
+const SPOR_GRID =
+  "grid grid-cols-[minmax(0,1fr)_repeat(4,2.75rem)_1.25rem] md:grid-cols-[minmax(0,1fr)_repeat(4,4.5rem)_1.5rem] items-baseline gap-x-1.5 md:gap-x-2";
+
+const Overskrifter = ({ grid, navne }: { grid: string; navne: string[] }) => (
+  <div className={cn(grid, "border-b border-hb-line pb-1.5 text-[10px] font-medium uppercase leading-tight tracking-[0.12em] text-hb-ink-soft")}>
+    <span />
+    {navne.map((n) => <span key={n} className="text-right">{n}</span>)}
+  </div>
+);
+
 const StortTal = ({ label, tal, linje, testId }: { label: string; tal: string; linje?: string; testId: string }) => (
   <HbCard className="p-5 md:p-6" data-webinar-noegletal={testId}>
     <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft">{label}</p>
@@ -66,25 +100,45 @@ const StortTal = ({ label, tal, linje, testId }: { label: string; tal: string; l
   </HbCard>
 );
 
-/** Tilmeldinger pr. dag frem mod sessionen — søjler i SVG, som økonomisidens kontantkurve. */
+/**
+ * Tilmeldinger pr. dag frem mod sessionen — med TALLET over hver søjle
+ * (Jonas 19/9, punkt 2: «skal kunne læses, ikke kun ses som højder»).
+ *
+ * HTML, ikke SVG: en `preserveAspectRatio="none"`-SVG strækker sin tekst, og
+ * et strakt tal er netop det der ikke kan læses. Søjlerne er div'er, så
+ * tallene står i husets typografi i deres rigtige størrelse.
+ *
+ * Er der mange dage, ville hvert tal ikke kunne stå: fra 15 dage og op vises
+ * tallet kun på de dage der bærer noget — den højeste, den første og den
+ * sidste — mens søjlerne stadig tegner hele forløbet.
+ */
 const TilmeldtKurve = ({ prDag }: { prDag: TilmeldtPrDag[] }) => {
   if (prDag.length < 2) return null;
   const top = Math.max(...prDag.map((d) => d.antal));
-  const B = 100, H = 14, bredde = B / prDag.length;
-  const foerste = prDag[0], sidste = prDag[prDag.length - 1];
+  const alle = prDag.length <= 14;
+  const dagTekst = (dag: string) => datoKort(`${dag}T12:00:00Z`);
   return (
-    <div className="mt-4" data-webinar-tilmeldt-kurve={prDag.length}>
-      <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft">Tilmeldinger pr. dag · top {top}</p>
-      <svg viewBox={`0 0 ${B} ${H}`} preserveAspectRatio="none" className="mt-1.5 h-14 w-full" aria-hidden>
-        <line x1="0" x2={B} y1={H} y2={H} stroke="hsl(var(--hb-line))" strokeWidth="1" vectorEffect="non-scaling-stroke" />
-        {prDag.map((d) => {
-          const h = (d.antal / top) * H;
-          return <rect key={d.dag} x={(prDag.indexOf(d) * bredde + bredde * 0.15).toFixed(2)} y={(H - h).toFixed(2)} width={(bredde * 0.7).toFixed(2)} height={h.toFixed(2)} fill="hsl(var(--hb-sage))" />;
+    <div className="mt-5" data-webinar-tilmeldt-kurve={prDag.length}>
+      <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft">
+        Tilmeldinger pr. dag · top {top}
+      </p>
+      <div className="mt-2 flex items-end gap-[3px]">
+        {prDag.map((d, i) => {
+          const vis = alle || d.antal === top || i === 0 || i === prDag.length - 1;
+          return (
+            <div key={d.dag} className="flex min-w-0 flex-1 flex-col items-center" title={`${dagTekst(d.dag)}: ${d.antal}`}>
+              <span className={cn("mb-1 text-[10px] tabular-nums leading-none", vis ? "text-hb-ink-soft" : "invisible")}>{d.antal}</span>
+              <span
+                className="w-full rounded-t-[2px] bg-hb-sage"
+                style={{ height: `${Math.max(2, (d.antal / top) * 44)}px` }}
+              />
+            </div>
+          );
         })}
-      </svg>
-      <div className="mt-1 flex justify-between text-[11px] tabular-nums text-hb-ink-soft">
-        <span>{datoKort(`${foerste.dag}T12:00:00Z`)}</span>
-        <span>{datoKort(`${sidste.dag}T12:00:00Z`)}</span>
+      </div>
+      <div className="mt-1 flex justify-between border-t border-hb-line pt-1 text-[11px] tabular-nums text-hb-ink-soft">
+        <span>{dagTekst(prDag[0].dag)}</span>
+        <span>{dagTekst(prDag[prDag.length - 1].dag)}</span>
       </div>
     </div>
   );
@@ -120,13 +174,10 @@ const Naeste = ({ naeste }: { naeste: NaesteWebinar | null }) => {
   );
 };
 
-/** Fire tal på en række — de fire Jonas bad om, plus de to der ellers forsvandt i dem. */
-const Deltagelsestal = ({ s }: { s: AfholdtSession }) => (
-  <div className="grid grid-cols-4 gap-2 text-right text-sm tabular-nums">
-    <span className="text-hb-ink">{s.tilmeldte}</span>
-    <span className="text-hb-ink">{s.moedteOp}</span>
-    <span className="font-medium text-hb-evergreen">{s.saaFaerdigt}</span>
-    <span className="text-hb-ink-soft">{s.moedteIkke}</span>
+const Post = ({ navn, vaerdi, under }: { navn: string; vaerdi: string; under: string }) => (
+  <div>
+    <dt className="text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft">{navn}</dt>
+    <dd className="mt-0.5 tabular-nums text-hb-ink">{vaerdi} <span className="text-xs text-hb-ink-soft">· {under}</span></dd>
   </div>
 );
 
@@ -134,12 +185,16 @@ const AfholdtRaekke = ({ s }: { s: AfholdtSession }) => {
   const [aaben, setAaben] = useState(false);
   return (
     <li className="border-t border-hb-line py-3 last:border-b" data-webinar-session={s.sessionTid ?? "uden-tid"}>
-      <div className="grid grid-cols-[1fr_auto_1.5rem] items-baseline gap-3">
-        <div className="min-w-0">
-          <span className="text-sm font-medium text-hb-ink">{s.dato ?? (s.sessionType ?? "optagelsen")}</span>
-          {s.titel && <span className="ml-2 truncate text-sm text-hb-ink-soft">{s.titel}</span>}
-        </div>
-        <Deltagelsestal s={s} />
+      <div className={TAL_GRID}>
+        <span className="min-w-0 truncate text-sm font-medium text-hb-ink">
+          {s.dato ?? (s.sessionType ?? "optagelsen")}
+          {s.titel && <span className="ml-2 font-normal text-hb-ink-soft">{s.titel}</span>}
+        </span>
+        <span className="text-right text-sm tabular-nums text-hb-ink">{s.tilmeldte}</span>
+        <span className="text-right text-sm tabular-nums text-hb-ink-soft">{s.moedteOp}</span>
+        <span className="text-right text-sm tabular-nums font-medium text-hb-evergreen">{s.saaFaerdigt}</span>
+        <span className={cn("text-right text-sm tabular-nums", s.ansoegte > 0 ? "font-medium text-hb-rust" : "text-hb-ink-soft")}>{s.ansoegte}</span>
+        <span className={cn("text-right text-sm tabular-nums", s.blevMedlem > 0 ? "font-medium text-hb-ink" : "text-hb-ink-soft")}>{s.blevMedlem}</span>
         <button
           type="button"
           onClick={() => setAaben((a) => !a)}
@@ -150,10 +205,17 @@ const AfholdtRaekke = ({ s }: { s: AfholdtSession }) => {
           {aaben ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
         </button>
       </div>
+      {/* Brøk OG procent, så de tre tal Jonas spurgte om kan læses uden at regne
+          (punkt 3, 4 og 6). Står ude i venstre kolonne, ikke gemt i folden. */}
+      <p className="mt-1 text-xs text-hb-ink-soft" data-webinar-session-noegler>
+        mødte op {brokOgPct(s.moedteOp, s.tilmeldte)}
+        {" · "}ansøgte {brokOgPct(s.ansoegte, s.tilmeldte)}
+        {" · "}blev medlem {brokOgPct(s.blevMedlem, s.ansoegte)}
+      </p>
       {aaben && (
         <dl className="mt-2 grid grid-cols-2 gap-x-6 gap-y-1 text-sm md:grid-cols-4" data-webinar-session-fold>
-          <Post navn="Fremmøde" vaerdi={pct(s.fremmoedeAndel)} under={`${s.moedteOp} af ${s.tilmeldte}`} />
-          <Post navn={`Så ≥ ${SET_GRAENSE_PROCENT} %`} vaerdi={pct(s.gennemfoerselAndel)} under={`${s.saaFaerdigt} af de ${s.moedteOp} der mødte op`} />
+          <Post navn="Så det færdigt" vaerdi={pct(s.gennemfoerselAndel)} under={`${s.saaFaerdigt} af de ${s.moedteOp} der mødte op`} />
+          <Post navn="Mødte ikke op" vaerdi={String(s.moedteIkke)} under={`af ${s.tilmeldte} tilmeldte`} />
           <Post navn="Delvist" vaerdi={String(s.delvist)} under="var der, men ikke helt" />
           <Post
             navn="Gennemsnit set"
@@ -167,24 +229,8 @@ const AfholdtRaekke = ({ s }: { s: AfholdtSession }) => {
   );
 };
 
-const Post = ({ navn, vaerdi, under }: { navn: string; vaerdi: string; under: string }) => (
-  <div>
-    <dt className="text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft">{navn}</dt>
-    <dd className="mt-0.5 tabular-nums text-hb-ink">{vaerdi} <span className="text-xs text-hb-ink-soft">· {under}</span></dd>
-  </div>
-);
-
 const Kolonnehoveder = () => (
-  <div className="grid grid-cols-[1fr_auto_1.5rem] items-baseline gap-3 pb-1 text-[10px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft">
-    <span />
-    <div className="grid grid-cols-4 gap-2 text-right">
-      <span>tilmeldte</span>
-      <span>mødte op</span>
-      <span>så færdigt</span>
-      <span>mødte ikke</span>
-    </div>
-    <span />
-  </div>
+  <Overskrifter grid={TAL_GRID} navne={["tilmeldt", "mødte", "færdigt", "ansøgt", "medlem"]} />
 );
 
 /** 2. De afholdte webinarer. */
@@ -195,7 +241,95 @@ const Afholdte = ({ dom }: { dom: WebinarDashboard }) => {
       <Kolonnehoveder />
       <ul>{dom.afholdte.map((s) => <AfholdtRaekke key={`${s.webinarId}-${s.sessionTid ?? "uden"}`} s={s} />)}</ul>
       <p className="mt-3 text-xs text-hb-ink-soft">
-        «Mødte op» er dem eWebinar har set deltage; «så færdigt» er {SET_GRAENSE_PROCENT} % eller mere. Har en tilmelding ingen procent, afgør eWebinars egen tilstand.
+        Kolonnerne er tragtens rækkefølge: tilmeldt · mødte op · så det færdigt ({SET_GRAENSE_PROCENT} % eller mere) · ansøgte · blev medlem.
+        «Blev medlem» er husets egen dom — underskrevet OG betalt — og procenten under rækken er af de ANSØGTE, ikke af de tilmeldte.
+        Har en tilmelding ingen procent, afgør eWebinars egen tilstand.
+      </p>
+    </div>
+  );
+};
+
+/**
+ * TRAGTEN (Jonas 19/9, punkt 5): tilmeldte → mødte op → så færdigt → ansøgte
+ * → blev medlem, med tal OG procent af leddet før. Hele historien på én
+ * linje, så ingen skal regne den i hovedet.
+ *
+ * LODRET, ikke vandret: fem led med hver to tal kan ikke stå ved siden af
+ * hinanden på en telefon uden at blive til småt. Lodret får hvert led sin
+ * søjle (bredden er andelen af FØRSTE led), og formen på tragten kan ses
+ * ned ad siden.
+ *
+ * Tragten regnes KUN på afholdte webinarer — dommen sørger for det, og
+ * linjen nedenunder siger hvor mange der venter udenfor, så de hverken
+ * forsvinder eller tælles som frafald.
+ */
+const Tragten = ({ t }: { t: Tragt }) => {
+  if (t.grundlag === 0) {
+    return (
+      <p className="text-sm text-hb-ink-soft" data-webinar-tragt="tom">
+        {TRAGT_TOM_TEKST}
+        {t.kommendeUdenfor > 0 ? ` ${t.kommendeUdenfor} er tilmeldt et webinar, der ikke er afholdt endnu.` : ""}
+      </p>
+    );
+  }
+  return (
+    <div data-webinar-tragt={t.grundlag}>
+      <ul className="space-y-2.5">
+        {t.trin.map((trin) => (
+          <li key={trin.navn} className="grid grid-cols-[minmax(0,7.5rem)_1fr] items-center gap-3 md:grid-cols-[minmax(0,10rem)_1fr]" data-tragt-trin={trin.navn}>
+            <div className="min-w-0">
+              <p className="truncate text-sm font-medium text-hb-ink">{trin.navn}</p>
+              <p className="truncate text-[11px] text-hb-ink-soft">{trin.forklaring}</p>
+            </div>
+            <div className="min-w-0">
+              <div className="flex items-baseline gap-2">
+                <span className="font-editorial text-2xl font-medium leading-none text-hb-ink md:text-3xl">{trin.antal}</span>
+                <span className="text-xs text-hb-ink-soft">
+                  {trin.andelAfFoer === null ? "udgangspunktet" : `${pct(trin.andelAfFoer)} af leddet før`}
+                </span>
+              </div>
+              <span className="mt-1.5 block h-1.5 w-full overflow-hidden rounded-full bg-hb-line">
+                <span className="block h-full rounded-full bg-hb-sage" style={{ width: `${((trin.andelAfStart ?? 0) * 100).toFixed(1)}%` }} />
+              </span>
+            </div>
+          </li>
+        ))}
+      </ul>
+      <p className="mt-4 text-xs text-hb-ink-soft">
+        Regnet på de {t.grundlag} personer, hvis webinar ER afholdt — man kan ikke møde op til noget, der ikke har været.
+        {t.kommendeUdenfor > 0 ? ` ${t.kommendeUdenfor} er tilmeldt et kommende webinar og står uden for tragten.` : ""}
+      </p>
+    </div>
+  );
+};
+
+/**
+ * TIDEN (Jonas 19/9, punkt 7): hvor lang tid går der fra tilmelding til
+ * ansøgning? Gennemsnit OG median — én der ansøger efter 90 dage kan flytte
+ * et gennemsnit på tyve mere end den fortjener, og står de to langt fra
+ * hinanden, er dét selv en oplysning.
+ */
+const Tiden = ({ t }: { t: TidTilAnsoegning }) => {
+  if (t.antal === 0) {
+    return (
+      <p className="text-sm text-hb-ink-soft" data-webinar-tid="tom">
+        {TID_TOM_TEKST}
+        {t.ansoegteFoerTilmelding > 0 ? ` ${t.ansoegteFoerTilmelding} ansøgte FØR de meldte sig til — de kom ind ad en anden dør.` : ""}
+      </p>
+    );
+  }
+  return (
+    <div data-webinar-tid={t.antal}>
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4 md:gap-4">
+        <StortTal testId="tid-gennemsnit" label="Gennemsnit" tal={dageOrd(t.gennemsnitDage)} linje={`målt på ${t.antal}`} />
+        <StortTal testId="tid-median" label="Median" tal={dageOrd(t.medianDage)} linje="halvdelen er hurtigere" />
+        <StortTal testId="tid-hurtigste" label="Hurtigste" tal={dageOrd(t.hurtigsteDage)} linje="korteste vej ind" />
+        <StortTal testId="tid-langsomste" label="Langsomste" tal={dageOrd(t.langsomsteDage)} linje="længste vej ind" />
+      </div>
+      <p className="mt-4 text-xs text-hb-ink-soft">
+        Fra personens FØRSTE tilmelding til ansøgningen blev indsendt.
+        {t.ansoegteFoerTilmelding > 0 ? ` ${t.ansoegteFoerTilmelding} ansøgte før de meldte sig til og er ikke med — det er ikke en ventetid.` : ""}
+        {t.udenTidspunkt > 0 ? ` ${t.udenTidspunkt} kunne ikke måles, fordi tilmeldingen mangler et tidspunkt.` : ""}
       </p>
     </div>
   );
@@ -211,8 +345,8 @@ const Afholdte = ({ dom }: { dom: WebinarDashboard }) => {
  * står ved siden af. Sage som økonomisidens kontantsøjler; indrykkede
  * linjer får den smallere, så kampagnen bliver ved med at bære rækken.
  */
-const SporRaekke = ({ l, indrykket = false }: { l: Sporlinje; indrykket?: boolean }) => (
-  <div className={cn("grid grid-cols-[1fr_auto] items-baseline gap-3 py-2", indrykket && "pl-5")}>
+const SporRaekke = ({ l, indrykket = false, knap }: { l: Sporlinje; indrykket?: boolean; knap?: { aaben: boolean; slaaOm: () => void } }) => (
+  <div className={cn(SPOR_GRID, "py-2", indrykket && "pl-5")}>
     <div className="min-w-0">
       <span className={cn("truncate text-sm", indrykket ? "text-hb-ink-soft" : "font-medium text-hb-ink")}>{l.navn}</span>
       {l.raa.length > 0 && <span className="ml-2 text-xs text-hb-ink-soft">{l.raa.join(" · ")}</span>}
@@ -225,25 +359,26 @@ const SporRaekke = ({ l, indrykket = false }: { l: Sporlinje; indrykket?: boolea
         </span>
       )}
     </div>
-    <div className="grid grid-cols-4 gap-2 text-right text-sm tabular-nums">
-      <span className="text-hb-ink">{l.tilmeldte}</span>
-      <span className="text-hb-ink-soft">{l.moedteOp}</span>
-      <span className="text-hb-evergreen">{l.saaFaerdigt}</span>
-      <span className={cn(l.ansoegte > 0 ? "font-medium text-hb-rust" : "text-hb-ink-soft")}>{l.ansoegte}</span>
-    </div>
+    <span className="text-right text-sm tabular-nums text-hb-ink">{l.tilmeldte}</span>
+    <span className="text-right text-sm tabular-nums text-hb-ink-soft">{l.moedteOp}</span>
+    <span className="text-right text-sm tabular-nums text-hb-evergreen">{l.saaFaerdigt}</span>
+    <span className={cn("text-right text-sm tabular-nums", l.ansoegte > 0 ? "font-medium text-hb-rust" : "text-hb-ink-soft")}>{l.ansoegte}</span>
+    {knap ? (
+      <button
+        type="button"
+        onClick={knap.slaaOm}
+        aria-expanded={knap.aaben}
+        className="justify-self-end text-hb-ink-soft hover:text-hb-ink"
+        aria-label={`${knap.aaben ? "Skjul" : "Vis"} annoncerne i ${l.navn}`}
+      >
+        {knap.aaben ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+      </button>
+    ) : <span />}
   </div>
 );
 
 const SporHoveder = () => (
-  <div className="grid grid-cols-[1fr_auto] items-baseline gap-3 border-b border-hb-line pb-1 text-[10px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft">
-    <span />
-    <div className="grid grid-cols-4 gap-2 text-right">
-      <span>tilmeldte</span>
-      <span>mødte op</span>
-      <span>så færdigt</span>
-      <span>ansøgte</span>
-    </div>
-  </div>
+  <Overskrifter grid={SPOR_GRID} navne={["tilmeldt", "mødte", "færdigt", "ansøgt"]} />
 );
 
 const KampagneRaekke = ({ k }: { k: Kampagnelinje }) => {
@@ -251,16 +386,9 @@ const KampagneRaekke = ({ k }: { k: Kampagnelinje }) => {
   const flere = k.annoncer.length > 1 || (k.annoncer.length === 1 && k.annoncer[0].navn !== "uden annonce");
   return (
     <li className="border-t border-hb-line last:border-b" data-webinar-kampagne={k.navn}>
-      <div className="flex items-baseline gap-2">
-        <div className="min-w-0 flex-1"><SporRaekke l={k} /></div>
-        {flere ? (
-          <button type="button" onClick={() => setAaben((a) => !a)} aria-expanded={aaben} className="shrink-0 text-hb-ink-soft hover:text-hb-ink" aria-label={`${aaben ? "Skjul" : "Vis"} annoncerne i ${k.navn}`}>
-            {aaben ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-          </button>
-        ) : <span className="w-4 shrink-0" />}
-      </div>
+      <SporRaekke l={k} knap={flere ? { aaben, slaaOm: () => setAaben((a) => !a) } : undefined} />
       {aaben && flere && (
-        <div className="pb-2 pr-6" data-webinar-annoncer={k.annoncer.length}>
+        <div className="pb-2" data-webinar-annoncer={k.annoncer.length}>
           {k.annoncer.map((a) => <SporRaekke key={a.navn} l={a} indrykket />)}
         </div>
       )}
@@ -337,7 +465,12 @@ export const WebinarView = ({ nu = new Date() }: { nu?: Date }) => {
         <p className="mt-8 text-sm text-hb-ink-soft" data-webinar="tom">{WEBINAR_TOM_TEKST}</p>
       ) : (
         <>
-          <HbSection eyebrow="Det næste webinar" title="Hvem der venter, og hvornår" hairline className="mt-8">
+          {/* ØVERST, FØR ALT ANDET (Jonas 19/9, punkt 5): hele historien på én linje. */}
+          <HbSection eyebrow={TRAGT_EYEBROW} title={TRAGT_TITEL} hairline className="mt-8">
+            <Tragten t={dom.tragt} />
+          </HbSection>
+
+          <HbSection eyebrow="Det næste webinar" title="Hvem der venter, og hvornår" hairline className={sektion}>
             <Naeste naeste={dom.naeste} />
           </HbSection>
 
@@ -372,6 +505,11 @@ export const WebinarView = ({ nu = new Date() }: { nu?: Date }) => {
               </div>
             )}
             {spor && <Spor spor={spor} />}
+          </HbSection>
+
+          <HbSection eyebrow={TID_EYEBROW} title={TID_TITEL} hairline className={sektion}>
+            <p className="mb-4 text-sm text-hb-ink-soft">Hvornår I skal skrive til folk — målt fra tilmeldingen til ansøgningen blev indsendt.</p>
+            <Tiden t={dom.tid} />
           </HbSection>
 
           <HbSection eyebrow="Ansøgningerne" title="Hvor mange af de tilmeldte ansøgte" hairline className={sektion}>

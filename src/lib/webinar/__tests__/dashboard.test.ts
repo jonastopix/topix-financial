@@ -2,6 +2,11 @@ import { describe, expect, it } from "vitest";
 import {
   afholdteSessioner,
   andel,
+  brokOgPct,
+  dageOrd,
+  medlemsMails,
+  tidTilAnsoegning,
+  tragt,
   annoncespor,
   annonceAf,
   ansoegerMails,
@@ -18,8 +23,19 @@ import {
   UDEN_KAMPAGNE,
   vaertsnavn,
   webinarDashboard,
+  type AnsoegerMail,
   type Tilmelding,
 } from "@/lib/webinar/dashboard";
+
+/**
+ * Ansøgeren. `trin` og `virksomhed_slutdato` er de to felter husets
+ * blevMedlem dømmer på — «medlem» kræver BEGGE: underskrevet OG en slutdato
+ * (altså betalt). A() laver en ansøger der ikke blev medlem; M() en der gjorde.
+ */
+const A = (email: string, indsendt_at: string | null = "2026-09-18T10:00:00.000Z"): AnsoegerMail =>
+  ({ email, indsendt_at, trin: "ny", virksomhed_slutdato: null });
+const M = (email: string, indsendt_at = "2026-09-18T10:00:00.000Z"): AnsoegerMail =>
+  ({ email, indsendt_at, trin: "underskrevet", virksomhed_slutdato: "2027-09-18" });
 
 /**
  * Webinarfladens dom (udkast 19/9-2026). Tallene er PERSONER; graden
@@ -323,10 +339,7 @@ describe("ansoegningskobling — mailen er koblingen, og kun indsendte tæller",
   it("regner begge veje", () => {
     const k = ansoegningskobling(
       [R({ email: "a@x.dk" }), R({ email: "b@x.dk" }), R({ email: "c@x.dk" })],
-      [
-        { email: "a@x.dk", indsendt_at: "2026-09-18T10:00:00.000Z" },
-        { email: "z@x.dk", indsendt_at: "2026-09-18T10:00:00.000Z" },
-      ],
+      [A("a@x.dk"), A("z@x.dk")],
     );
     expect(k).toMatchObject({ tilmeldte: 3, ansoegte: 1, ansoegereIAlt: 2, ansoegereDerVarTilmeldt: 1 });
     expect(k.andelAfTilmeldte).toBeCloseTo(1 / 3);
@@ -334,12 +347,12 @@ describe("ansoegningskobling — mailen er koblingen, og kun indsendte tæller",
   });
 
   it("en kladde er ikke en ansøgning", () => {
-    const mails = ansoegerMails([{ email: "a@x.dk", indsendt_at: null }, { email: "b@x.dk", indsendt_at: "2026-09-18T10:00:00.000Z" }]);
+    const mails = ansoegerMails([A("a@x.dk", null), A("b@x.dk")]);
     expect([...mails]).toEqual(["b@x.dk"]);
   });
 
   it("mails normaliseres til små bogstaver — begge sider har CHECK lower", () => {
-    expect([...ansoegerMails([{ email: "  A@X.dk ", indsendt_at: "2026-09-18T10:00:00.000Z" }])]).toEqual(["a@x.dk"]);
+    expect([...ansoegerMails([A("  A@X.dk ")])]).toEqual(["a@x.dk"]);
   });
 
   it("nul ansøgninger giver nul og null-andele", () => {
@@ -359,7 +372,7 @@ describe("webinarDashboard — hele dommen", () => {
         R({ email: "c@x.dk", session_tid: T15, set_procent: 90, utm_source: "fb", utm_campaign: "aug" }),
         R({ email: "d@x.dk", session_tid: T15, state: "Missed" }),
       ],
-      ansoegninger: [{ email: "c@x.dk", indsendt_at: "2026-09-16T10:00:00.000Z" }],
+      ansoegninger: [A("c@x.dk", "2026-09-16T10:00:00.000Z")],
       sporKolonnerFindes: true,
     }, NU);
     expect(d.tom).toBe(false);
@@ -394,5 +407,191 @@ describe("webinarDashboard — hele dommen", () => {
     expect(d.samlet.fremmoedeAndel).toBeNull();
     expect(d.spor.sporFindes).toBe(false);
     expect(d.kobling.andelAfAnsoegere).toBeNull();
+  });
+});
+
+// ── Jonas' fire + mine tre (19/9, efter at han havde set siden) ────────────
+
+describe("pct — små tal må ikke blive til «0 %» der ligner en fejl", () => {
+  it("1 ud af 594 er 0,2 %, ikke 0 %", () => {
+    expect(pct(andel(1, 594))).toBe("0,2 %");
+  });
+
+  it("nul ER nul, og det skal stå som nul", () => {
+    expect(pct(0)).toBe("0 %");
+    expect(pct(andel(0, 594))).toBe("0 %");
+  });
+
+  it("under det en decimal kan vise, siger «<0,1 %» — aldrig «0,0 %»", () => {
+    expect(pct(andel(1, 5000))).toBe("<0,1 %");
+    expect(pct(0.0004)).toBe("<0,1 %");
+  });
+
+  it("fra 1 % og op rundes til heltal som før", () => {
+    expect(pct(0.0149)).toBe("1 %");
+    expect(pct(0.324)).toBe("32 %");
+    expect(pct(1)).toBe("100 %");
+  });
+
+  it("ingen nævner er «–», ikke «0 %» — de to betyder ikke det samme", () => {
+    expect(pct(null)).toBe("–");
+    expect(pct(andel(0, 0))).toBe("–");
+  });
+});
+
+describe("brokOgPct — brøken og procenten sammen", () => {
+  it("skriver «29 af 91 · 32 %»", () => {
+    expect(brokOgPct(29, 91)).toBe("29 af 91 · 32 %");
+  });
+
+  it("små tal beholder decimalen", () => {
+    expect(brokOgPct(1, 594)).toBe("1 af 594 · 0,2 %");
+  });
+
+  it("nul nævner giver bare tallet — «0 af 0 · –» ville være støj", () => {
+    expect(brokOgPct(0, 0)).toBe("0");
+  });
+});
+
+describe("medlemsMails — husets dom, ikke en ny", () => {
+  it("kræver BEGGE dele: underskrevet OG en slutdato", () => {
+    expect([...medlemsMails([M("m@x.dk"), A("a@x.dk")])]).toEqual(["m@x.dk"]);
+    // Underskrevet uden slutdato = underskrevet, men ikke betalt.
+    expect([...medlemsMails([{ email: "u@x.dk", indsendt_at: "2026-09-18T10:00:00.000Z", trin: "underskrevet", virksomhed_slutdato: null }])]).toEqual([]);
+    // Slutdato uden underskrift kan ikke forekomme, men må heller ikke tælle.
+    expect([...medlemsMails([{ email: "v@x.dk", indsendt_at: "2026-09-18T10:00:00.000Z", trin: "afholdt", virksomhed_slutdato: "2027-01-01" }])]).toEqual([]);
+  });
+
+  it("en kladde er aldrig medlem", () => {
+    expect([...medlemsMails([{ ...M("k@x.dk"), indsendt_at: null }])]).toEqual([]);
+  });
+});
+
+describe("afholdteSessioner — ansøgte og blev medlem pr. session", () => {
+  const raekker = [
+    R({ email: "a@x.dk", session_tid: T15, set_procent: 90 }),
+    R({ email: "b@x.dk", session_tid: T15, set_procent: 40 }),
+    R({ email: "c@x.dk", session_tid: T15, state: "Missed" }),
+    R({ email: "d@x.dk", session_tid: T15 }),
+  ];
+
+  it("procenten af de TILMELDTE der ansøgte, og af de ANSØGTE der blev medlem", () => {
+    const s = afholdteSessioner(raekker, NU, new Set(["a@x.dk", "b@x.dk"]), new Set(["a@x.dk"]))[0];
+    expect(s.ansoegte).toBe(2);
+    expect(s.ansoegerAndel).toBe(0.5); // 2 af 4 tilmeldte
+    expect(s.blevMedlem).toBe(1);
+    expect(s.medlemAfAnsoegteAndel).toBe(0.5); // 1 af 2 ANSØGTE, ikke af 4
+  });
+
+  it("uden ansøgere er medlemsandelen null, ikke 0 — der er intet at tage procent af", () => {
+    const s = afholdteSessioner(raekker, NU)[0];
+    expect(s.ansoegte).toBe(0);
+    expect(s.ansoegerAndel).toBe(0);
+    expect(s.blevMedlem).toBe(0);
+    expect(s.medlemAfAnsoegteAndel).toBeNull();
+  });
+
+  it("en ansøger der ikke var på sessionen, tælles ikke med på den", () => {
+    const s = afholdteSessioner(raekker, NU, new Set(["fremmed@x.dk"]))[0];
+    expect(s.ansoegte).toBe(0);
+  });
+});
+
+describe("tragt — tilmeldte → mødte op → så færdigt → ansøgte → blev medlem", () => {
+  const raekker = [
+    R({ email: "a@x.dk", session_tid: T15, set_procent: 90 }),
+    R({ email: "b@x.dk", session_tid: T15, set_procent: 90 }),
+    R({ email: "c@x.dk", session_tid: T15, set_procent: 40 }),
+    R({ email: "d@x.dk", session_tid: T15, state: "Missed" }),
+    R({ email: "e@x.dk", session_tid: T22 }),
+  ];
+
+  it("fem led, hvert med andel af leddet før OG af udgangspunktet", () => {
+    const t = tragt(raekker, new Set(["a@x.dk", "c@x.dk"]), new Set(["a@x.dk"]), NU);
+    expect(t.trin.map((x) => [x.navn, x.antal])).toEqual([
+      ["Tilmeldte", 4], ["Mødte op", 3], ["Så det færdigt", 2], ["Ansøgte", 2], ["Blev medlem", 1],
+    ]);
+    expect(t.trin[0].andelAfFoer).toBeNull();
+    expect(t.trin[1].andelAfFoer).toBe(0.75);
+    expect(t.trin[4].andelAfFoer).toBe(0.5);
+    expect(t.trin[4].andelAfStart).toBe(0.25);
+    expect(t.grundlag).toBe(4);
+  });
+
+  it("de KOMMENDE står uden for tragten — ellers ville de se ud som frafald", () => {
+    const t = tragt(raekker, new Set(), new Set(), NU);
+    expect(t.grundlag).toBe(4);
+    expect(t.kommendeUdenfor).toBe(1);
+  });
+
+  it("hvert led er en delmængde af det før — andelen kan aldrig overstige 1", () => {
+    const t = tragt(raekker, new Set(["a@x.dk", "c@x.dk"]), new Set(["a@x.dk"]), NU);
+    for (const x of t.trin) if (x.andelAfFoer !== null) expect(x.andelAfFoer).toBeLessThanOrEqual(1);
+  });
+
+  it("uden afholdte webinarer er tragten tom, men gyldig — ingen NaN", () => {
+    const t = tragt([R({ email: "e@x.dk", session_tid: T22 })], new Set(), new Set(), NU);
+    expect(t.grundlag).toBe(0);
+    expect(t.kommendeUdenfor).toBe(1);
+    for (const x of t.trin) { expect(x.antal).toBe(0); expect(x.andelAfStart).toBeNull(); }
+  });
+});
+
+describe("tidTilAnsoegning — hvornår I skal skrive til folk", () => {
+  const reg = (email: string, dag: string) => R({ email, registreret_at: `2026-09-${dag}T09:00:00.000Z`, session_tid: T22 });
+
+  it("gennemsnit, median og yderpunkter i dage", () => {
+    const t = tidTilAnsoegning(
+      [reg("a@x.dk", "01"), reg("b@x.dk", "01"), reg("c@x.dk", "01")],
+      [A("a@x.dk", "2026-09-03T09:00:00.000Z"), A("b@x.dk", "2026-09-05T09:00:00.000Z"), A("c@x.dk", "2026-09-11T09:00:00.000Z")],
+    );
+    expect(t.antal).toBe(3);
+    expect(t.medianDage).toBe(4);
+    expect(t.gennemsnitDage).toBe(5.3);
+    expect(t.hurtigsteDage).toBe(2);
+    expect(t.langsomsteDage).toBe(10);
+  });
+
+  it("regner fra personens FØRSTE tilmelding", () => {
+    const t = tidTilAnsoegning(
+      [reg("a@x.dk", "10"), { ...reg("a@x.dk", "01"), ewebinar_id: "r2" }],
+      [A("a@x.dk", "2026-09-11T09:00:00.000Z")],
+    );
+    expect(t.antal).toBe(1);
+    expect(t.gennemsnitDage).toBe(10);
+  });
+
+  it("den der ansøgte FØR tilmeldingen er ikke en ventetid — tælles for sig", () => {
+    const t = tidTilAnsoegning([reg("a@x.dk", "10")], [A("a@x.dk", "2026-09-02T09:00:00.000Z")]);
+    expect(t.antal).toBe(0);
+    expect(t.ansoegteFoerTilmelding).toBe(1);
+    expect(t.gennemsnitDage).toBeNull();
+  });
+
+  it("en tilmelding uden tidspunkt kan ikke måles og siges det", () => {
+    const t = tidTilAnsoegning([R({ email: "a@x.dk", registreret_at: null })], [A("a@x.dk")]);
+    expect(t.antal).toBe(0);
+    expect(t.udenTidspunkt).toBe(1);
+  });
+
+  it("en ansøger uden tilmelding tæller hverken med eller som umålelig", () => {
+    const t = tidTilAnsoegning([reg("a@x.dk", "01")], [A("fremmed@x.dk")]);
+    expect(t.antal).toBe(0);
+    expect(t.udenTidspunkt).toBe(0);
+    expect(t.ansoegteFoerTilmelding).toBe(0);
+  });
+
+  it("nul ansøgninger giver nuller og null, ikke NaN", () => {
+    expect(tidTilAnsoegning([reg("a@x.dk", "01")], [])).toMatchObject({ antal: 0, gennemsnitDage: null, medianDage: null });
+  });
+});
+
+describe("dageOrd — læsbar tid", () => {
+  it("entalsformen, decimalen og det korte ophold", () => {
+    expect(dageOrd(1)).toBe("1 dag");
+    expect(dageOrd(3.5)).toBe("3,5 dage");
+    expect(dageOrd(12)).toBe("12 dage");
+    expect(dageOrd(0.4)).toBe("under en dag");
+    expect(dageOrd(null)).toBe("–");
   });
 });
