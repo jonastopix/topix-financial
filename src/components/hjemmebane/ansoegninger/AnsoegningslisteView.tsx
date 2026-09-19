@@ -33,6 +33,7 @@ import { hbControlClasses } from "@/components/hjemmebane/admin/HbField";
 import { GRUPPE_ORD, gruppeFor, hvadVenter, listeOverskrift, taelVentende, virksomhedsnavnAf, LISTEGRUPPER, type Listegruppe } from "@/lib/ansoegninger/ansoegningVisning";
 import { filtrer, foersteLinje, sorterGruppe, STRIBE_ORD, STRIBE_RAEKKEFOELGE, stribeTal, tidTekst, venterPaa } from "@/lib/ansoegninger/ansoegningsliste";
 import { grundlagSomTekst, OMSAETNINGSINTERVALLER_KR } from "@/lib/ansoegningAnbefaling";
+import { webinarLinje } from "@/lib/webinarDom";
 import { AnsoegningHandlinger } from "./AnsoegningHandlinger";
 import { SendTilUnderskrift } from "../virksomhed/SendTilUnderskrift";
 import { hbButtonVariants } from "../HbButton";
@@ -54,6 +55,8 @@ const Fold = ({ a }: { a: AnsoegningRaekke }) => {
   const anb = a.anbefaling;
   const opslag = (a.cvr_opslag ?? {}) as Record<string, unknown>;
   const interval = a.omsaetningsinterval ? OMSAETNINGSINTERVALLER_KR[a.omsaetningsinterval]?.label ?? a.omsaetningsinterval : null;
+  // eWebinar (udkast 19/9): målingen står EFTER ansøgerens eget svar, som nu hedder «sagde ja/nej til webinaret».
+  const ewebinar = webinarLinje(a.webinar, new Date());
   return (
     <div className="border-t border-hb-line bg-hb-paper px-4 py-4" data-ansoegning-fold={a.id}>
       <div className="grid gap-4 sm:grid-cols-3">
@@ -72,7 +75,7 @@ const Fold = ({ a }: { a: AnsoegningRaekke }) => {
         )}
       </p>
       <p className="mt-1 text-xs text-hb-ink-soft">
-        {[interval ? `omsætning ${interval}` : null, typeof opslag.branche === "string" ? opslag.branche.toLowerCase() : null, a.set_webinar === "ja" ? "har set webinaret" : a.set_webinar === "nej" ? "har ikke set webinaret" : null].filter(Boolean).join(" · ") || "—"}
+        {[interval ? `omsætning ${interval}` : null, typeof opslag.branche === "string" ? opslag.branche.toLowerCase() : null, a.set_webinar === "ja" ? "sagde ja til webinaret" : a.set_webinar === "nej" ? "sagde nej til webinaret" : null, ewebinar ? `eWebinar: ${ewebinar}` : null].filter(Boolean).join(" · ") || "—"}
       </p>
       <AnsoegningHandlinger id={a.id} navn={virksomhedsnavnAf(a)} trin={a.trin} paaPause={a.paa_pause_til !== null} lukketFraTrin={a.lukket_fra_trin} kompakt />
       {/* E-underskriften også i folden (Jonas 18/9 aften): samme komponent, samme forudfyldte pris, samme forhåndsvisning —

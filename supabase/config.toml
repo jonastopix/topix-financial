@@ -102,6 +102,12 @@ project_id = "loiavmastgeieqyiwyyr"
     verify_jwt = true
   [functions.calendly-webhook]
     verify_jwt = false
+  # UDKAST 19/9 — eWebinar-webhook: Bucket C, afsenderen er eWebinar (ingen
+  # JWT). Beviset er HMAC-signaturen (X-EWebinar-Signature) over den RÅ body,
+  # verificeret af verifyEwebinarSignature (_shared/ewebinarSignatur.ts) FØR
+  # parsing og FØR service role — samme klasse som calendly-webhook ovenfor.
+  [functions.ewebinar-webhook]
+    verify_jwt = false
   [functions.bunny-content-admin]
     verify_jwt = false
   [functions.get-video-embed]

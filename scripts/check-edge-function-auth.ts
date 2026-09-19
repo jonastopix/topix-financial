@@ -133,6 +133,9 @@ const AUTH_PREDICATES: Predicate[] = [
   { name: "verifyMondayJwt()",            pattern: /\bverifyMondayJwt\s*\(/ },
   { name: "verifyWebhookRequest()",       pattern: /\bverifyWebhookRequest\s*\(/ },
   { name: "verifyCalendlySignature()",    pattern: /\bverifyCalendlySignature\s*\(/ },
+  // eWebinar (udkast 19/9): HMAC-SHA256 «t=,v1=» over den rå body — samme
+  // klasse som Stripe/Calendly. Se _shared/ewebinarSignatur.ts.
+  { name: "verifyEwebinarSignature()",    pattern: /\bverifyEwebinarSignature\s*\(/ },
 
   // Lovables e-mail-webhook: verifikationen sker INDE i pakken (se
   // hasVerifiedEmailWebhookHandler ovenfor — kald + pinnet version).

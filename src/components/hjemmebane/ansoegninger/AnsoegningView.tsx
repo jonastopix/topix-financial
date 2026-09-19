@@ -20,6 +20,7 @@ import { HbSection } from "@/components/hjemmebane/HbSection";
 import { hbControlClasses } from "@/components/hjemmebane/admin/HbField";
 import { cn } from "@/lib/utils";
 import { grundlagSomTekst, OMSAETNINGSINTERVALLER_KR } from "@/lib/ansoegningAnbefaling";
+import { MOD_SVAR_ORD, webinarLinje, webinarModSvar } from "@/lib/webinarDom";
 import { danskTidspunkt, erPaaPause, LUKKEAARSAG_ORD, TRIN_ORD, ventetid, virksomhedsnavnAf } from "@/lib/ansoegninger/ansoegningVisning";
 import { koelinjer, KOE_STATUS_ORD, sporlinjer } from "@/lib/ansoegninger/ansoegningSpor";
 import { AnsoegningHandlinger } from "./AnsoegningHandlinger";
@@ -155,6 +156,20 @@ export const AnsoegningView = ({ id }: { id: string | undefined }) => {
           <Linje label="Hjemmeside">{a.hjemmeside === "" ? "har ingen" : a.hjemmeside}</Linje>
           <Linje label="Kan starte">{a.start_tidspunkt ? START_ORD[a.start_tidspunkt] ?? a.start_tidspunkt : null}</Linje>
           <Linje label="Set webinaret">{a.set_webinar === "ja" ? "ja" : a.set_webinar === "nej" ? "nej" : null}</Linje>
+          {/* eWebinar (udkast 19/9): målingen ved siden af ansøgerens eget svar — «så 62 % af webinaret 22/9» er
+              stærkere end «ja». Ingen tilmelding på mailen siges også; modsiger målingen svaret, står det i rust. */}
+          <Linje label="eWebinar">
+            {(() => {
+              const linje = webinarLinje(a.webinar, nu);
+              const mod = webinarModSvar(a.set_webinar, a.webinar, nu);
+              return (
+                <span data-webinar-spor={a.webinar.length}>
+                  {linje ?? "ingen tilmelding på mailen"}
+                  {mod && mod !== "stemmer" && <span className="text-hb-rust"> · {MOD_SVAR_ORD[mod]}</span>}
+                </span>
+              );
+            })()}
+          </Linje>
           <Linje label="Kilde">{`${KILDE_ORD[a.kilde] ?? a.kilde}${a.kilde_raa ? ` (${a.kilde_raa})` : ""}`}</Linje>
         </div>
       </HbSection>

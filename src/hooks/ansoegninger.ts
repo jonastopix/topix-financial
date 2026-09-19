@@ -24,6 +24,8 @@ import type { Anbefaling } from "@/lib/ansoegningAnbefaling";
 import type { MenneskeHandling } from "@/lib/ansoegninger/ansoegningHandlinger";
 import type { Afslagsgrund } from "@/lib/ansoegningTrin";
 import { koeNummer } from "@/lib/afslagsTilbud";
+import { hentWebinarTilmeldingerForEmails } from "@/hooks/webinar";
+import type { WebinarTilmelding } from "@/lib/webinarDom";
 import type { VentepladsRaekke } from "@/lib/ventelisteDom";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -66,6 +68,8 @@ export interface AnsoegningRaekke {
   samtale_link: string | null;
   /** «Blev medlem» (18/9 aften): companies.contract_end_date gennem company_id — hentet i et andet opslag, ikke en kolonne på ansøgningen. */
   virksomhed_slutdato: string | null;
+  /** eWebinar (udkast 19/9): tilmeldingerne på samme mail — hentet i ét opslag (hooks/webinar), fail-soft tom. Dommen bor i lib/webinarDom. */
+  webinar: WebinarTilmelding[];
 }
 
 export const LISTE_KOLONNER =
@@ -77,7 +81,7 @@ export async function hentAnsoegninger(): Promise<AnsoegningRaekke[]> {
     .not("indsendt_at", "is", null)
     .order("trin_sat_at", { ascending: false })
     .limit(500);
-  const raekker = kraevRaekker(res, "ansoegninger") as Omit<AnsoegningRaekke, "virksomhed_slutdato">[];
+  const raekker = kraevRaekker(res, "ansoegninger") as Omit<AnsoegningRaekke, "virksomhed_slutdato" | "webinar">[];
   // «Blev medlem» dømmes gennem virksomheden (samme sandhed som adgangen): ét opslag på de virksomheder,
   // ansøgningerne blev til. Ingen ny kolonne, intet nyt i stripe-webhook. Fejler opslaget, er listen
   // stadig hel — så står de underskrevne som «venter på betaling», som før.
@@ -88,7 +92,14 @@ export async function hentAnsoegninger(): Promise<AnsoegningRaekke[]> {
     if (vRes.error) console.error("[ansoegninger] companies-opslag til «blev medlem» fejlede:", vRes.error.message);
     for (const v of (vRes.data ?? []) as { id: string; contract_end_date: string | null }[]) slutdatoer.set(v.id, v.contract_end_date);
   }
-  return raekker.map((r) => ({ ...r, virksomhed_slutdato: r.company_id ? (slutdatoer.get(r.company_id) ?? null) : null }));
+  // eWebinar (udkast 19/9): «så 62 % af webinaret 22/9» er stærkere end ansøgerens eget «ja». Ét opslag på alle
+  // listens mails; fejler det, står listen stadig — uden webinar-linjen (samme form som slutdatoerne ovenfor).
+  const webinar = await hentWebinarTilmeldingerForEmails(raekker.map((r) => r.email));
+  return raekker.map((r) => ({
+    ...r,
+    virksomhed_slutdato: r.company_id ? (slutdatoer.get(r.company_id) ?? null) : null,
+    webinar: r.email ? (webinar.get(r.email.trim().toLowerCase()) ?? []) : [],
+  }));
 }
 
 /** Detaljesidens række: alle svar + motorens felter. */
@@ -157,8 +168,10 @@ export async function hentAnsoegning(id: string): Promise<AnsoegningMedSpor> {
   ]);
   const raekker = kraevRaekker(aRes, "ansoegninger") as AnsoegningDetalje[];
   if (raekker.length === 0) throw new Error("Ansøgningen findes ikke");
+  // eWebinar (udkast 19/9): tilmeldingerne på ansøgerens mail — fail-soft (tom ved fejl).
+  const webinar = await hentWebinarTilmeldingerForEmails([raekker[0].email]);
   return {
-    ansoegning: raekker[0],
+    ansoegning: { ...raekker[0], webinar: raekker[0].email ? (webinar.get(raekker[0].email.trim().toLowerCase()) ?? []) : [] },
     beslutninger: kraevRaekker(bRes, "ansoegning_beslutninger") as Beslutning[],
     haendelser: kraevRaekker(hRes, "planlagte_haendelser") as PlanlagtHaendelse[],
   };
