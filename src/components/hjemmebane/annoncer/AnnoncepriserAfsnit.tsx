@@ -8,6 +8,8 @@ import { brokOgPct, pct, type AnsoegerMail, type Tilmelding } from "@/lib/webina
 import {
   annoncepriser,
   MODNING_FORKLARING,
+  periodeOrd,
+  udaekketTekst,
   PRIS_MANGLER_TEKST,
   PRIS_TOM_TEKST,
   PRIS_UDEN_FORBRUG_TEKST,
@@ -16,6 +18,7 @@ import {
   type Annoncepriser,
   type Pris,
   type Prislinje,
+  type VindueValg,
 } from "@/lib/webinar/annoncepriser";
 
 /**
@@ -39,6 +42,13 @@ const GRID =
 
 /** Prisen med sit antal — aldrig det ene uden det andet. */
 const Prisfelt = ({ p, enhed }: { p: Pris; enhed: string }) => {
+  if (p.tillid === "udaekket") {
+    return (
+      <span className="text-right text-sm tabular-nums text-hb-ink-soft" title="Forbruget dækker ikke hele perioden — prisen ville være for lav.">
+        –
+      </span>
+    );
+  }
   if (p.antal === 0) {
     return (
       <span className="text-right text-sm tabular-nums text-hb-ink-soft" title={`Ingen ${enhed} endnu — der er intet at dividere med.`}>
@@ -115,12 +125,13 @@ export const AnnoncepriserAfsnit = ({
 }) => {
   const query = useAnnonceforbrug();
   const [aabenKampagne, setAabenKampagne] = useState<string | null>(null);
+  const [valg, saetValg] = useState<VindueValg>("daekning");
   const dom = useMemo<Annoncepriser | null>(
     () =>
       query.data
-        ? annoncepriser({ tilmeldinger, ansoegninger, dage: query.data.dage, annoncer: query.data.annoncer, tilstand: query.data.tilstand }, nu)
+        ? annoncepriser({ tilmeldinger, ansoegninger, dage: query.data.dage, annoncer: query.data.annoncer, tilstand: query.data.tilstand, valg }, nu)
         : null,
-    [query.data, tilmeldinger, ansoegninger, nu],
+    [query.data, tilmeldinger, ansoegninger, nu, valg],
   );
 
   if (query.isError) {
@@ -138,11 +149,56 @@ export const AnnoncepriserAfsnit = ({
 
   return (
     <div data-pris={dom.perAnnonce.length}>
+      {/* PERIODEVÆLGEREN (19/9): kun de vinduer, forbruget FAKTISK dækker, kan
+          vælges. De øvrige står slukkede med grunden — et valg, der ville give
+          et forkert tal, er ikke et valg. */}
+      <div className="mb-4 flex flex-wrap gap-1 text-xs" role="group" aria-label="Vælg perioden prisen regnes over">
+        {dom.muligheder.map((m) => (
+          <button
+            key={m.valg}
+            type="button"
+            disabled={!m.daekket}
+            onClick={() => saetValg(m.valg)}
+            aria-pressed={valg === m.valg}
+            title={m.daekket ? (periodeOrd(m.vindue) ?? undefined) : `Forbruget dækker kun ${periodeOrd(dom.daekning) ?? "ingenting"} — for kort til dette vindue.`}
+            className={cn(
+              "rounded-full border px-3 py-1 transition-colors",
+              !m.daekket
+                ? "cursor-not-allowed border-hb-line text-hb-ink-soft/50"
+                : valg === m.valg
+                  ? "border-hb-evergreen bg-hb-evergreen/10 text-hb-evergreen"
+                  : "border-hb-line text-hb-ink-soft hover:text-hb-ink",
+            )}
+            data-vindue={m.valg}
+            data-daekket={m.daekket}
+          >
+            {m.navn}
+            {m.daekket && m.valg === "daekning" && periodeOrd(m.vindue) ? ` · ${periodeOrd(m.vindue)}` : ""}
+          </button>
+        ))}
+      </div>
+
+      {!dom.daekket && (
+        <p className="mb-4 text-sm text-hb-rust" data-pris-udaekket>{udaekketTekst(dom.vindue, dom.daekning)}</p>
+      )}
+
+      {/* Forskellen mellem hvad vi har forbrug for, og hvor længe der er kommet
+          tilmeldinger. Er den stor, er det dét, der gør et samlet tal misvisende. */}
+      {dom.daekket && dom.tilmeldingsspan && dom.daekning && dom.tilmeldingsspan.fra < dom.daekning.fra && (
+        <p className="mb-4 text-xs text-hb-ink-soft" data-pris-spaendforskel>
+          Tilmeldingerne går tilbage til {periodeOrd({ fra: dom.tilmeldingsspan.fra, til: dom.tilmeldingsspan.fra })}, men forbruget er kun hentet for {periodeOrd(dom.daekning)}.
+          Tallene nedenfor dækker KUN den periode — i begge ender.
+        </p>
+      )}
+
       {!dom.harForbrug && <p className="mb-4 text-sm text-hb-ink-soft" data-pris-nulforbrug>{PRIS_UDEN_FORBRUG_TEKST}</p>}
 
       <HbCard className="mb-5 p-5 md:p-6" data-pris-samlet={dom.samlet.forbrugOere}>
+        {/* PERIODEN STÅR VED BELØBET (19/9): et forbrug uden en periode kan ikke
+            holdes op mod noget — hverken mod Metas egne tal eller mod sig selv
+            i sidste uge. */}
         <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft">
-          Brugt i alt{dom.periode ? ` · ${dom.periode.fra} til ${dom.periode.til}` : ""}
+          Brugt{periodeOrd(dom.vindue) ? ` · ${periodeOrd(dom.vindue)}` : ""}
         </p>
         <p className="mt-2 font-editorial text-3xl font-medium leading-none text-hb-ink md:text-4xl">{kr(dom.samlet.forbrugOere)} kr.</p>
         <div className="mt-4">
