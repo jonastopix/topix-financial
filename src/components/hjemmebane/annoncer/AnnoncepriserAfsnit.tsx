@@ -7,8 +7,12 @@ import { kr } from "@/lib/oekonomi/omsaetning";
 import { brokOgPct, pct, type AnsoegerMail, type Tilmelding } from "@/lib/webinar/dashboard";
 import {
   annoncepriser,
+  FLERE_KAMPAGNER,
+  FLERE_KAMPAGNER_FORKLARING,
+  fremmoedeTekst,
   MODNING_FORKLARING,
   navnekoblingTekst,
+  valutaTekst,
   periodeOrd,
   udaekketTekst,
   PRIS_MANGLER_TEKST,
@@ -61,11 +65,15 @@ const Prisfelt = ({ p, enhed }: { p: Pris; enhed: string }) => {
   return (
     <span
       className={cn("text-right text-sm tabular-nums", tynd ? "text-hb-ink-soft" : "text-hb-ink")}
-      title={tynd ? `${p.antal} ${enhed}. ${TYND_FORKLARING}` : `${p.antal} ${enhed}`}
+      title={tynd ? `${kr(p.oerePrStk ?? 0)} kr. pr. stk., regnet på ${p.antal} ${enhed}. ${TYND_FORKLARING}` : `${kr(p.oerePrStk ?? 0)} kr. regnet på ${p.antal} ${enhed}`}
     >
-      <span className={cn(tynd && "opacity-70")}>{kr(p.oerePrStk ?? 0)}</span>
-      <span className="ml-1 text-[11px] text-hb-ink-soft">af {p.antal}</span>
-      {tynd && <span className="ml-0.5 text-[11px] text-hb-rust" aria-label="for tyndt">*</span>}
+      {/* ENHEDEN SKAL STÅ (Jonas 19/9): «46 af 572» siger ikke, hvad 46 er.
+          Beløbet bærer «kr.», nævneren bærer sin enhed. */}
+      <span className={cn("block", tynd && "opacity-70")}>
+        {kr(p.oerePrStk ?? 0)} kr.
+        {tynd && <span className="ml-0.5 text-hb-rust" aria-label="for tyndt">*</span>}
+      </span>
+      <span className="block text-[11px] font-normal leading-tight text-hb-ink-soft">af {p.antal} {enhed}</span>
     </span>
   );
 };
@@ -99,10 +107,10 @@ const Linje = ({ l, indrykket = false }: { l: Prislinje; indrykket?: boolean }) 
         )}
       </p>
       <p className="truncate text-[11px] text-hb-ink-soft">
-        {kr(l.forbrugOere)} kr.
-        {l.valutaer.length === 1 ? ` ${l.valutaer[0]}` : l.valutaer.length > 1 ? ` · ${l.valutaer.join(" + ")} — beløb i flere valutaer, læg dem ikke sammen` : ""}
-        {` · ${l.tilmeldte} tilmeldte · ${l.deltagere} mødte op`}
-        {l.fremmoedeAndel !== null ? ` (${pct(l.fremmoedeAndel)})` : ""}
+        {kr(l.forbrugOere)} kr.{valutaTekst(l.valutaer)}
+        {` · ${l.tilmeldte} tilmeldte · `}
+        {/* «0 mødte op (0 %)» ligner en fejl, når sessionen først er tirsdag. */}
+        {fremmoedeTekst(l)}
         {l.underNavn ? ` · ${l.underNavn}` : ""}
       </p>
     </div>
@@ -183,7 +191,13 @@ export const AnnoncepriserAfsnit = ({
             disabled={!m.daekket}
             onClick={() => saetValg(m.valg)}
             aria-pressed={valg === m.valg}
-            title={m.daekket ? (periodeOrd(m.vindue) ?? undefined) : `Forbruget dækker kun ${periodeOrd(dom.daekning) ?? "ingenting"} — for kort til dette vindue.`}
+            title={
+              m.daekket
+                ? m.afkortet
+                  ? `${periodeOrd(m.oensket)} ønsket — forbruget dækker ${periodeOrd(dom.daekning)}, så der regnes over ${periodeOrd(m.vindue)}. Både forbrug og tilmeldinger er filtreret på den periode.`
+                  : (periodeOrd(m.vindue) ?? undefined)
+                : `Der er intet forbrug i ${periodeOrd(m.oensket) ?? "dette vindue"} — forbruget dækker ${periodeOrd(dom.daekning) ?? "ingenting"}.`
+            }
             className={cn(
               "rounded-full border px-3 py-1 transition-colors",
               !m.daekket
@@ -196,10 +210,21 @@ export const AnnoncepriserAfsnit = ({
             data-daekket={m.daekket}
           >
             {m.navn}
-            {m.daekket && m.valg === "daekning" && periodeOrd(m.vindue) ? ` · ${periodeOrd(m.vindue)}` : ""}
+            {m.daekket && periodeOrd(m.vindue) ? ` · ${periodeOrd(m.vindue)}` : ""}
+            {m.afkortet && <span className="ml-1 text-hb-rust" aria-label="afkortet til forbrugets periode">*</span>}
           </button>
         ))}
       </div>
+
+      {/* AFKORTET (19/9): Metas tal halter en dag, så «sidste 7 dage» slutter
+          senere end forbruget rækker. Vi regner på overlappet og siger det —
+          i stedet for at gøre valget uvælgeligt, som første udgave gjorde. */}
+      {dom.afkortet && dom.vindue && (
+        <p className="mb-4 text-xs text-hb-ink-soft" data-pris-afkortet>
+          Der regnes over {periodeOrd(dom.vindue)} — forbruget rækker ikke længere end {periodeOrd(dom.daekning)}.
+          Både forbrug og tilmeldinger er filtreret på netop den periode.
+        </p>
+      )}
 
       {!dom.daekket && (
         <p className="mb-4 text-sm text-hb-rust" data-pris-udaekket>{udaekketTekst(dom.vindue, dom.daekning)}</p>
@@ -223,7 +248,9 @@ export const AnnoncepriserAfsnit = ({
         <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft">
           Brugt{periodeOrd(dom.vindue) ? ` · ${periodeOrd(dom.vindue)}` : ""}
         </p>
-        <p className="mt-2 font-editorial text-3xl font-medium leading-none text-hb-ink md:text-4xl">{kr(dom.samlet.forbrugOere)} kr.</p>
+        <p className="mt-2 font-editorial text-3xl font-medium leading-none text-hb-ink md:text-4xl">
+          {kr(dom.samlet.forbrugOere)} kr.<span className="text-base font-normal text-hb-ink-soft">{valutaTekst(dom.samlet.valutaer)}</span>
+        </p>
         <div className="mt-4">
           <Hoveder />
           <Linje l={dom.samlet} />
@@ -252,6 +279,11 @@ export const AnnoncepriserAfsnit = ({
                   </button>
                 )}
               </div>
+              {/* «Flere kampagner» skal forklares dér, hvor den står — ikke i en
+                  note under tabellen (Jonas 19/9: «en stjerne er ikke nok»). */}
+              {k.navn === FLERE_KAMPAGNER && (
+                <p className="px-0 pb-2 text-xs text-hb-ink-soft" data-flere-kampagner>{FLERE_KAMPAGNER_FORKLARING}</p>
+              )}
               {aaben && annoncer.map((a) => <Linje key={a.noegle} l={a} indrykket />)}
             </li>
           );

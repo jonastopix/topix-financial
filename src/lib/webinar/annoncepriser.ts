@@ -113,12 +113,36 @@ export function forbrugsdaekning(dage: readonly Forbrugsdag[]): Vindue | null {
 }
 
 /**
- * Kan vinduet regnes? KUN hvis forbruget dækker det helt. Rækker vinduet ud
- * over dækningen — bagud eller fremad — mangler der forbrug for en del af det,
- * og prisen ville blive for lav. Så vises den ikke.
+ * Kan vinduet regnes? KUN hvis forbruget dækker det helt.
+ *
+ * BRUGES STADIG til at sige, om et ØNSKET vindue er dækket fuldt ud — men det
+ * er ikke længere svaret på, om man må vælge det. Se `afkort`.
  */
 export function erDaekket(v: Vindue, daekning: Vindue | null): boolean {
   return daekning !== null && v.fra >= daekning.fra && v.til <= daekning.til;
+}
+
+/**
+ * Skær vinduet ned til det, forbruget faktisk dækker. null når de to ikke
+ * overlapper overhovedet.
+ *
+ * HVORFOR AFKORTE OG IKKE AFVISE (Jonas 19/9): den første udgave krævede, at
+ * hele det ønskede vindue lå inden for dækningen — og så kunne «sidste 7 dage»
+ * ALDRIG vælges. Metas tal halter en dag: dækningen sluttede 18/9, vinduet
+ * ville slutte i dag den 19/9, og kravet faldt på den ene dag, der endnu ikke
+ * var hentet. Det samme gjaldt «sidste 30 dage».
+ *
+ * Afkortningen bevarer det, værnet faktisk skulle beskytte: at TÆLLER og
+ * NÆVNER dækker samme periode. Begge ender filtreres på det AFKORTEDE vindue,
+ * så en dag uden forbrug heller ikke bidrager med tilmeldinger. Det eneste,
+ * der ændrer sig, er at vi siger «13.–18. september» i stedet for at nægte at
+ * svare — og at det står på skærmen, at der blev skåret.
+ */
+export function afkort(oensket: Vindue, daekning: Vindue | null): Vindue | null {
+  if (daekning === null) return null;
+  const fra = oensket.fra > daekning.fra ? oensket.fra : daekning.fra;
+  const til = oensket.til < daekning.til ? oensket.til : daekning.til;
+  return fra > til ? null : { fra, til };
 }
 
 /** «i dag» som dansk kalenderdag. */
@@ -138,9 +162,14 @@ export type VindueValg = "daekning" | "7dage" | "30dage";
 export interface VindueMulighed {
   valg: VindueValg;
   navn: string;
+  /** Det vindue der FAKTISK regnes over — afkortet til forbrugets dækning. */
   vindue: Vindue | null;
-  /** Falsk når forbruget ikke dækker hele vinduet — så kan prisen ikke regnes. */
+  /** Det brugeren bad om, før afkortningen. Til at forklare forskellen. */
+  oensket: Vindue | null;
+  /** Kan der regnes? Sandt så snart der er ét døgns overlap. */
   daekket: boolean;
+  /** Blev der skåret? Så står den rigtige periode på skærmen. */
+  afkortet: boolean;
 }
 
 /**
@@ -151,12 +180,21 @@ export interface VindueMulighed {
  */
 export function vinduesmuligheder(dage: readonly Forbrugsdag[], nu: Date): VindueMulighed[] {
   const d = forbrugsdaekning(dage);
-  const syv = sidsteDage(7, nu);
-  const tredive = sidsteDage(30, nu);
+  const byg = (valg: VindueValg, navn: string, oensket: Vindue | null): VindueMulighed => {
+    const vindue = oensket === null ? d : afkort(oensket, d);
+    return {
+      valg,
+      navn,
+      vindue,
+      oensket,
+      daekket: vindue !== null,
+      afkortet: oensket !== null && vindue !== null && (vindue.fra !== oensket.fra || vindue.til !== oensket.til),
+    };
+  };
   return [
-    { valg: "daekning", navn: "Perioden vi har forbrug for", vindue: d, daekket: d !== null },
-    { valg: "7dage", navn: "Sidste 7 dage", vindue: syv, daekket: erDaekket(syv, d) },
-    { valg: "30dage", navn: "Sidste 30 dage", vindue: tredive, daekket: erDaekket(tredive, d) },
+    byg("daekning", "Hele perioden", null),
+    byg("7dage", "Sidste 7 dage", sidsteDage(7, nu)),
+    byg("30dage", "Sidste 30 dage", sidsteDage(30, nu)),
   ];
 }
 
@@ -243,6 +281,11 @@ export interface Prislinje {
   valutaer: string[];
   tilmeldte: number;
   deltagere: number;
+  /**
+   * Personer hvis session ligger i FREMTIDEN. Uden dette tal ser «0 mødte op
+   * (0 %)» ud som et frafald, når sandheden er, at webinaret først er tirsdag.
+   */
+  kommende: number;
   ansoegte: number;
   medlemmer: number;
   prPrTilmelding: Pris;
@@ -292,6 +335,8 @@ export interface Annoncepriser {
   daekning: Vindue | null;
   /** Falsk når forbruget ikke dækker vinduet — alle priser er da UDAEKKET. */
   daekket: boolean;
+  /** Blev det ønskede vindue skåret ned til forbrugets periode? Står på skærmen. */
+  afkortet: boolean;
   /** Valgene og deres tilgængelighed, så fladen kan slukke dem uden at regne selv. */
   muligheder: VindueMulighed[];
   /** Tilmeldingernes eget spænd — så forskellen til dækningen kan ses, ikke gættes. */
@@ -364,6 +409,7 @@ function byggLinje(
     valutaer,
     tilmeldte: d.tilmeldte,
     deltagere: d.moedteOp,
+    kommende: d.kommende,
     ansoegte: a,
     medlemmer: m,
     prPrTilmelding: daekket ? pris(forbrugOere, d.tilmeldte) : UDAEKKET,
@@ -544,7 +590,7 @@ export function annoncepriser(ind: AnnoncepriserInput, nu: Date): Annoncepriser 
   // kan dække annoncer i flere kampagner, og så er der ikke ét rigtigt svar.
   // Den siger det i stedet for at vælge den første — «flere kampagner» er en
   // ærligere etiket end en tilfældig.
-  const FLERE = "flere kampagner";
+  const FLERE = FLERE_KAMPAGNER;
   const kampagneForNoegle = (noegle: string): { id: string; navn: string } => {
     const erNavn = noegle.startsWith("navn:");
     const vaerdi = noegle.slice(erNavn ? 5 : 3);
@@ -593,6 +639,7 @@ export function annoncepriser(ind: AnnoncepriserInput, nu: Date): Annoncepriser 
     vindue,
     daekning,
     daekket,
+    afkortet: valgt.afkortet,
     muligheder,
     tilmeldingsspan,
   };
@@ -627,6 +674,42 @@ export function navnekoblingTekst(l: Prislinje): string | null {
   return l.annoncer > 1
     ? `Koblet på annoncens NAVN, som ${l.annoncer} annoncer deler — deres forbrug er lagt sammen her. Havde de stået hver for sig, ville de samme ${l.tilmeldte} tilmeldinger være talt ${l.annoncer} gange.`
     : "Koblet på annoncens navn i stedet for dens id. Entydigt her, men kun fordi netop dette navn bæres af én annonce.";
+}
+
+/**
+ * Hvad fremmødet betyder — i ord, ikke som «0 %».
+ *
+ * JONAS 19/9: «Webinar | Adv+ | OM: 374 tilmeldte, 0 mødte op (0 %)» er
+ * RIGTIGT — deres session er tirsdag 22/9 — «men det ligner en fejl».
+ * Et nul, der i virkeligheden betyder «endnu ikke», skal sige det.
+ */
+export function fremmoedeTekst(l: Prislinje): string {
+  if (l.tilmeldte === 0) return "ingen tilmeldte";
+  if (l.deltagere === 0 && l.kommende > 0) {
+    return l.kommende === l.tilmeldte
+      ? "sessionen er ikke afholdt endnu"
+      : `${l.kommende} af ${l.tilmeldte} venter på en session, der ikke er afholdt endnu`;
+  }
+  const andelTekst = l.fremmoedeAndel === null ? "" : ` (${Math.round(l.fremmoedeAndel * 100)} %)`;
+  const venter = l.kommende > 0 ? ` · ${l.kommende} venter på et kommende webinar` : "";
+  return `${l.deltagere} mødte op${andelTekst}${venter}`;
+}
+
+/**
+ * «Flere kampagner»-rækken har brug for en sætning, ikke en stjerne
+ * (Jonas 19/9). Den opstår, når en linje er koblet på et ANNONCENAVN, som
+ * bæres af annoncer i forskellige kampagner — så findes der ikke ét rigtigt
+ * kampagnenavn, og at vælge det første ville være en gætning.
+ */
+export const FLERE_KAMPAGNER = "flere kampagner";
+export const FLERE_KAMPAGNER_FORKLARING =
+  "Denne række er annoncer, der er koblet på deres NAVN, og hvis navn bæres af annoncer i forskellige kampagner. Der findes derfor ikke ét rigtigt kampagnenavn for rækken — forbruget og tilmeldingerne er rigtige, men de fordeler sig på flere kampagner. Sæt {{campaign.id}} og {{ad.id}} i url_tags, så forsvinder rækken af sig selv.";
+
+/** Valutaen skrives KUN, når den ikke er kroner — «26.108 kr. DKK» er dobbelt. */
+export function valutaTekst(valutaer: readonly string[]): string {
+  const andre = valutaer.filter((v) => v.toUpperCase() !== "DKK");
+  if (valutaer.length > 1) return ` · beløb i ${valutaer.join(" + ")} — læg dem ikke sammen`;
+  return andre.length === 1 ? ` ${andre[0]}` : "";
 }
 
 export const PRIS_EYEBROW = "Hvad det koster";

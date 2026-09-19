@@ -28,7 +28,11 @@ import { TROVAERDIG_FRA } from "@/lib/webinar/annoncepriser";
  *      forbrug i præcis ét `forbrugPrNoegle`. En naiv join på annoncens
  *      NAVN gav fire linjer med de samme 53 tilmeldinger i hver — og fire
  *      forskellige priser for den samme annonce.
- *  10. Navne kobler, men er mærket som navne. At kassere dem (som første
+ *  10. Navne kobler, men er mærket som navne.
+ *  11. Hvert tal på fladen bærer sin ENHED, og valutaen skrives én gang
+ *      (Jonas 19/9: «46 af 572» siger ikke hvad 46 er; «26.108 kr. DKK» er
+ *      dobbelt). Og «0 mødte op (0 %)» erstattes af ord, når sessionen
+ *      ikke er afholdt endnu. At kassere dem (som første
  *      udgave gjorde) taber 9 af 11 utm_content og størstedelen af
  *      tilmeldingerne; at vise dem uden mærke skjuler, at de ikke er entydige.
  */
@@ -64,11 +68,17 @@ export const fladenRegnerIntet = (flade: string): boolean => {
 
 export const prisenBaererSitAntal = (flade: string): boolean => {
   const f = udenKommentarer(flade);
-  // Kernen: der findes ÉN komponent der viser en pris, og den viser altid antallet.
+  // Kernen: der findes ÉN komponent der viser en pris, og den viser altid
+  // antallet OG enheden. Optællingen af `kr(` er droppet (19/9): den talte
+  // også title-teksterne og faldt, da enheden kom ind — den målte formen,
+  // ikke reglen. Reglen er, at prisen ikke kan stå alene.
   const felt = f.slice(f.indexOf("const Prisfelt"), f.indexOf("const Hoveder"));
-  return felt.includes("af {p.antal}") && felt.includes("p.antal === 0") &&
-    // og ingen anden kr()-udskrivning af en pris uden for den komponent og totalen
-    (f.split("kr(").length - 1) <= 4;
+  if (felt === "") return false;
+  return felt.includes("af {p.antal} {enhed}") &&
+    felt.includes("p.antal === 0") &&
+    felt.includes('p.tillid === "udaekket"') &&
+    // Ingen ANDEN komponent må skrive en oerePrStk ud.
+    (f.split("oerePrStk").length - 1) === (felt.split("oerePrStk").length - 1);
 };
 
 export const nulGiverEnSaetning = (flade: string): boolean => {
@@ -142,6 +152,25 @@ export const navnekoblingErMaerket = (dom: string, flade: string): boolean => {
     d.includes("export type Koblingsform") &&
     f.includes('l.koblingsform === "navn"') &&
     f.includes("data-koblet-paa-navn");
+};
+
+// ── 11 ─────────────────────────────────────────────────────────────────────
+export const tallenBaererSinEnhed = (dom: string, flade: string): boolean => {
+  const d = udenKommentarer(dom);
+  const f = udenKommentarer(flade);
+  return (
+    // Beløbet har «kr.», nævneren har sin enhed.
+    /\{kr\(p\.oerePrStk \?\? 0\)\} kr\./.test(f) &&
+    /af \{p\.antal\} \{enhed\}/.test(f) &&
+    // Valutaen gennem ÉN dom, ikke inline — så «kr. DKK» ikke kan opstå igen.
+    d.includes("export function valutaTekst") &&
+    f.includes("valutaTekst(l.valutaer)") &&
+    !/l\.valutaer\[0\]/.test(f) &&
+    // Fremmødet i ord, ikke som procent direkte på linjen.
+    d.includes("export function fremmoedeTekst") &&
+    f.includes("fremmoedeTekst(l)") &&
+    !/\$\{pct\(l\.fremmoedeAndel\)\}/.test(f)
+  );
 };
 
 describe("annoncepriserne — kildeværn", () => {
@@ -223,6 +252,15 @@ describe("annoncepriserne — kildeværn", () => {
     expect(navnekoblingErMaerket(dom.replace(/adPrNavn\.has\(maerke\)/g, "false"), flade)).toBe(false);
     // Vises de uden mærke, skjules det, at de ikke er entydige.
     expect(navnekoblingErMaerket(dom, flade.replace(/data-koblet-paa-navn/g, "data-andet"))).toBe(false);
+  });
+
+  it("11. tallene bærer deres enhed, valutaen skrives én gang, fremmødet står i ord", () => {
+    const dom = laes(DOM), flade = laes(FLADE);
+    expect(tallenBaererSinEnhed(dom, flade)).toBe(true);
+    // Præcis de tre fejl Jonas så:
+    expect(tallenBaererSinEnhed(dom, flade.replace(/af \{p\.antal\} \{enhed\}/g, "af {p.antal}"))).toBe(false);
+    expect(tallenBaererSinEnhed(dom, `${flade}\nconst v = l.valutaer[0];`)).toBe(false);
+    expect(tallenBaererSinEnhed(dom, flade.replace(/fremmoedeTekst\(l\)/g, "`${pct(l.fremmoedeAndel)}`"))).toBe(false);
   });
 
   it("grænsen for et troværdigt tal står ét sted og er fem", () => {

@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
+  afkort,
   annoncepriser,
   erDaekket,
+  fremmoedeTekst,
+  valutaTekst,
   forbrugsdaekning,
   kanStolesPaa,
   periodeOrd,
@@ -337,11 +340,15 @@ describe("dækningen afgør, hvad der kan regnes", () => {
     expect(v).toEqual({ fra: "2026-09-12", til: "2026-09-18" });
   });
 
-  it("et UDÆKKET vindue giver INGEN pris — ikke et forkert tal", () => {
-    // 30 dage tilbage fra 19/9 rækker til 21/8; forbruget starter 12/9.
+  it("et vindue UDEN OVERLAP giver INGEN pris — ikke et forkert tal", () => {
+    // NY PRÆMIS 19/9: et vindue, der rækker ud over forbruget, AFKORTES nu i
+    // stedet for at blive afvist — ellers kunne «sidste 7 dage» aldrig vælges,
+    // fordi Metas tal halter en dag. Det, der stadig ikke kan regnes, er et
+    // vindue uden ét eneste døgns overlap. Derfor: forbrug i januar.
+    const langtVaek = [D(AD_A, 500_000, "2026-01-05")];
     const d = annoncepriser({
       tilmeldinger: [R({ email: "a@x.dk", utm_content: AD_A, registreret_at: "2026-09-14T09:00:00.000Z" })],
-      ansoegninger: [], dage: uge, annoncer: [], tilstand: "har", valg: "30dage",
+      ansoegninger: [], dage: langtVaek, annoncer: [], tilstand: "har", valg: "30dage",
     }, NU);
     expect(d.daekket).toBe(false);
     expect(d.samlet.prPrTilmelding.tillid).toBe("udaekket");
@@ -351,12 +358,14 @@ describe("dækningen afgør, hvad der kan regnes", () => {
     }
   });
 
-  it("mulighederne siger hvilke vinduer der KAN vælges", () => {
+  it("mulighederne siger hvilke vinduer der KAN vælges — og hvilke der blev afkortet", () => {
     const m = vinduesmuligheder(uge, NU);
-    expect(m.find((x) => x.valg === "daekning")).toMatchObject({ daekket: true, vindue: { fra: "2026-09-12", til: "2026-09-18" } });
-    // 19/9 er ikke i forbruget, så «sidste 7 dage» (13.–19.) rækker for langt frem.
-    expect(m.find((x) => x.valg === "7dage")?.daekket).toBe(false);
-    expect(m.find((x) => x.valg === "30dage")?.daekket).toBe(false);
+    expect(m.find((x) => x.valg === "daekning")).toMatchObject({ daekket: true, afkortet: false, vindue: { fra: "2026-09-12", til: "2026-09-18" } });
+    // 19/9 er ikke i forbruget, så «sidste 7 dage» (13.–19.) skæres til 13.–18.
+    // Den KAN vælges — det er rettelsen — men det står, at der blev skåret.
+    expect(m.find((x) => x.valg === "7dage")).toMatchObject({ daekket: true, afkortet: true, vindue: { fra: "2026-09-13", til: "2026-09-18" } });
+    // 30 dage rækker bagud til 21/8, hvor der heller ikke er forbrug — samme sag.
+    expect(m.find((x) => x.valg === "30dage")).toMatchObject({ daekket: true, afkortet: true, vindue: { fra: "2026-09-12", til: "2026-09-18" } });
   });
 
   it("uden forbrug kan INTET vindue vælges, og intet kan regnes", () => {
@@ -519,5 +528,119 @@ describe("et mærke der hverken er id eller kendt navn er stadig en blindgyde", 
     expect(d.brud.maerkeErIkkeId).toBe(1);
     expect(d.brud.kobletPaaNavn).toBe(0);
     expect(d.perAnnonce.map((l) => l.navn)).not.toContain("findes-ikke");
+  });
+});
+
+// ── Jonas' fire, set på siden 19/9 ────────────────────────────────────────
+
+describe("2. «sidste 7/30 dage» kan VÆLGES — vinduet afkortes i stedet for at afvises", () => {
+  /** Prods form: forbrug 17/8–18/9, og «i dag» er 19/9. */
+  const DAEK = [D(AD_A, 100_000, "2026-08-17"), D(AD_A, 200_000, "2026-09-18")];
+
+  it("afkort skærer til overlappet — og null når der intet er", () => {
+    const d = { fra: "2026-08-17", til: "2026-09-18" };
+    expect(afkort({ fra: "2026-09-13", til: "2026-09-19" }, d)).toEqual({ fra: "2026-09-13", til: "2026-09-18" });
+    expect(afkort({ fra: "2026-08-01", til: "2026-12-01" }, d)).toEqual(d);
+    expect(afkort({ fra: "2026-10-01", til: "2026-10-07" }, d)).toBeNull();
+    expect(afkort(d, null)).toBeNull();
+  });
+
+  it("DEN GAMLE FEJL: begge vinduer var uvælgelige, fordi Metas tal halter én dag", () => {
+    const syv = sidsteDage(7, NU);
+    const d = forbrugsdaekning(DAEK)!;
+    // Kun den forreste ende fejlede — startdatoen var fint dækket.
+    expect(syv.fra >= d.fra).toBe(true);
+    expect(syv.til <= d.til).toBe(false);
+    expect(erDaekket(syv, d)).toBe(false);
+    // Med afkortning kan der regnes alligevel.
+    expect(afkort(syv, d)).not.toBeNull();
+  });
+
+  it("alle tre valg er nu vælgelige, og de afkortede er mærket", () => {
+    const m = vinduesmuligheder(DAEK, NU);
+    expect(m.every((x) => x.daekket)).toBe(true);
+    expect(m.find((x) => x.valg === "7dage")).toMatchObject({
+      afkortet: true,
+      vindue: { fra: "2026-09-13", til: "2026-09-18" },
+      oensket: { fra: "2026-09-13", til: "2026-09-19" },
+    });
+    expect(m.find((x) => x.valg === "daekning")?.afkortet).toBe(false);
+  });
+
+  it("BEGGE ender filtreres på det AFKORTEDE vindue — ellers ville prisen blive for lav", () => {
+    const d = annoncepriser({
+      tilmeldinger: [
+        R({ email: "i@x.dk", utm_content: AD_A, registreret_at: "2026-09-14T09:00:00.000Z" }),
+        // 19/9 er uden for det afkortede vindue (det slutter 18/9) og må IKKE tælle.
+        R({ email: "u@x.dk", utm_content: AD_A, registreret_at: "2026-09-19T09:00:00.000Z" }),
+      ],
+      ansoegninger: [], dage: DAEK, annoncer: [], tilstand: "har", valg: "7dage",
+    }, NU);
+    expect(d.afkortet).toBe(true);
+    expect(d.vindue).toEqual({ fra: "2026-09-13", til: "2026-09-18" });
+    expect(d.samlet.tilmeldte).toBe(1);
+    expect(d.samlet.forbrugOere).toBe(200_000);
+    expect(d.samlet.prPrTilmelding.oerePrStk).toBe(200_000);
+  });
+
+  it("uden overlap kan der stadig ikke regnes", () => {
+    const m = vinduesmuligheder([D(AD_A, 100_000, "2026-01-05")], NU);
+    expect(m.find((x) => x.valg === "7dage")?.daekket).toBe(false);
+  });
+});
+
+describe("4. «0 mødte op (0 %)» når sessionen ikke er afholdt endnu", () => {
+  const kommende = [...Array(374).keys()].map((i) =>
+    R({ email: `k${i}@x.dk`, utm_content: AD_A, session_tid: T22, registreret_at: "2026-09-10T09:00:00.000Z" }));
+
+  it("siger det i ord i stedet for at vise nul procent", () => {
+    const d = annoncepriser({ tilmeldinger: kommende, ansoegninger: [], dage: [D(AD_A, 100_000)], annoncer: [], tilstand: "har" }, NU);
+    const l = d.samlet;
+    expect(l.tilmeldte).toBe(374);
+    expect(l.deltagere).toBe(0);
+    expect(l.kommende).toBe(374);
+    expect(fremmoedeTekst(l)).toBe("sessionen er ikke afholdt endnu");
+    expect(fremmoedeTekst(l)).not.toContain("0 %");
+  });
+
+  it("er kun NOGLE kommende, siges det som en delmængde", () => {
+    const d = annoncepriser({
+      tilmeldinger: [...kommende.slice(0, 3), R({ email: "m@x.dk", utm_content: AD_A, session_tid: T15, state: "Missed" })],
+      ansoegninger: [], dage: [D(AD_A, 100_000)], annoncer: [], tilstand: "har",
+    }, NU);
+    expect(fremmoedeTekst(d.samlet)).toContain("3 af 4 venter");
+  });
+
+  it("er sessionen afholdt, står procenten som før — og de ventende nævnes", () => {
+    const d = annoncepriser({
+      tilmeldinger: [
+        R({ email: "a@x.dk", utm_content: AD_A, session_tid: T15, set_procent: 90 }),
+        R({ email: "b@x.dk", utm_content: AD_A, session_tid: T15, state: "Missed" }),
+        R({ email: "c@x.dk", utm_content: AD_A, session_tid: T22 }),
+      ],
+      ansoegninger: [], dage: [D(AD_A, 100_000)], annoncer: [], tilstand: "har",
+    }, NU);
+    expect(fremmoedeTekst(d.samlet)).toContain("1 mødte op");
+    expect(fremmoedeTekst(d.samlet)).toContain("1 venter på et kommende webinar");
+  });
+
+  it("ingen tilmeldte siger det, i stedet for at dividere med nul", () => {
+    const d = annoncepriser({ tilmeldinger: [], ansoegninger: [], dage: [D(AD_A, 500_000)], annoncer: [], tilstand: "har" }, NU);
+    expect(fremmoedeTekst(d.perAnnonce[0])).toBe("ingen tilmeldte");
+  });
+});
+
+describe("1. valutaen skrives ÉN gang", () => {
+  it("kroner nævnes ikke to gange — «kr.» står i fladen, DKK udelades", () => {
+    expect(valutaTekst(["DKK"])).toBe("");
+    expect(valutaTekst([])).toBe("");
+  });
+
+  it("en ANDEN valuta nævnes, for så er «kr.» forkert", () => {
+    expect(valutaTekst(["EUR"])).toBe(" EUR");
+  });
+
+  it("flere valutaer advarer mod at lægge dem sammen", () => {
+    expect(valutaTekst(["DKK", "EUR"])).toContain("læg dem ikke sammen");
   });
 });
