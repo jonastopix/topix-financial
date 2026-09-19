@@ -33,6 +33,8 @@
 
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
 import { corsHeaders } from "../_shared/edgeFunctionAuth.ts";
+import { paabegyndt } from "../_shared/klaviyoHaendelser.ts";
+import { sendHvisMail } from "../_shared/klaviyoAfsendelse.ts";
 import { verifyAnsoegningstoken } from "../_shared/ansoegningToken.ts";
 import { KONTAKT_ADRESSE } from "../_shared/indgangsMail.ts";
 import { planlaegKladde, registrerIndsendelse } from "../_shared/ansoegningMotor.ts";
@@ -152,6 +154,11 @@ Deno.serve(async (req) => {
         console.error("[ansoegning-gem] insert fejlede:", error);
         return jsonResponse({ error: "Kunne ikke gemme — prøv igen." }, 500);
       }
+      // KLAVIYO (lag 2, 19/9): «Ansoegning paabegyndt». Fail-soft hele vejen —
+      // mangler nøglen, sker der intet, og en fejl hos Klaviyo kan ikke nå
+      // ansøgeren. Kun når vi har en mail; uden den er der ingen profil.
+      await sendHvisMail(adminClient, data.email, (mail) => paabegyndt(data.id, mail, kilde));
+
       // Kladde-påmindelsen er trappen «kladde» i den fælles rykkerkø (Jonas D6, 18/9):
       // én række dag 2 fra sidste gem, kun når der er en e-mail — ingen cron for sig.
       await planlaegKladde(adminClient, data, new Date());
