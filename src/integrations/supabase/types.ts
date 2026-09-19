@@ -3980,6 +3980,7 @@ export type Database = {
           email: string | null
           ewebinar_id: string | null
           id: string
+          kilde: string
           modtaget_at: string
           noegleform: string | null
           pluk_grund: string | null
@@ -3994,6 +3995,7 @@ export type Database = {
           email?: string | null
           ewebinar_id?: string | null
           id?: string
+          kilde?: string
           modtaget_at?: string
           noegleform?: string | null
           pluk_grund?: string | null
@@ -4008,6 +4010,7 @@ export type Database = {
           email?: string | null
           ewebinar_id?: string | null
           id?: string
+          kilde?: string
           modtaget_at?: string
           noegleform?: string | null
           pluk_grund?: string | null
