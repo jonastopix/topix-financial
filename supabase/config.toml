@@ -263,3 +263,13 @@ project_id = "loiavmastgeieqyiwyyr"
   # pg_cron via kald_edge (20260918210000) passerer gaten. Tørkørsel som standard.
   [functions.ansoegning-rykker-cron]
     verify_jwt = true
+  # Metas annoncer (19/9-2026, recon-meta-annoncer). BEGGE er Bucket B, samme
+  # form som indgangs-paamindelser-cron: authenticateServiceRole FØRST, kaldt
+  # gennem kald_edge med vault-nøglen. meta-annonce-opslag skriver INTET (trin
+  # 1: beviset for at utm_content er Metas ad_id); meta-annoncer-cron henter
+  # sidste syv dage og har tørkørsel som standard. Ingen af dem skriver hos
+  # Meta — kun ads_read.
+  [functions.meta-annonce-opslag]
+    verify_jwt = true
+  [functions.meta-annoncer-cron]
+    verify_jwt = true
