@@ -108,6 +108,13 @@ project_id = "loiavmastgeieqyiwyyr"
   # parsing og FØR service role — samme klasse som calendly-webhook ovenfor.
   [functions.ewebinar-webhook]
     verify_jwt = false
+  # UDKAST 19/9 — eWebinar-engangsimport: Bucket B (authenticateServiceRole),
+  # og verify_jwt = true er PÅKRÆVET for det mønster — gatewayen bærer
+  # signaturtjekket, funktionen læser role-claimet (check:verify-jwt låser
+  # det). Kaldes fra SQL editoren med service-role-nøglen, som
+  # berig-virksomheder. Tørkørsel som standard.
+  [functions.ewebinar-import]
+    verify_jwt = true
   [functions.bunny-content-admin]
     verify_jwt = false
   [functions.get-video-embed]
