@@ -47,6 +47,7 @@
 
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
 import { authenticateServiceRole, corsHeaders } from "../_shared/edgeFunctionAuth.ts";
+import { ukendteFelter, ukendteFelterBesked } from "../_shared/kendteFelter.ts";
 import { ADS_TOKEN_MANGLER, ADS_TOKEN_NAVN, metaAdsToken } from "../_shared/metaAdsToken.ts";
 import {
   annoncerUrl,
@@ -67,6 +68,13 @@ import {
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
 const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const LOG = "[meta-annoncer-cron]";
+
+/**
+ * De ENESTE felter, body'en må bære. Alt andet afvises med 400 — se
+ * _shared/kendteFelter.ts for hvorfor. Står der et nyt felt i koden, skal det
+ * også stå her, ellers afviser functionen sit eget kald.
+ */
+const KENDTE_FELTER = ["dry_run", "since", "until"] as const;
 
 interface Resultat {
   ok: boolean;
@@ -178,6 +186,18 @@ Deno.serve(async (req) => {
     if (raaBody?.dry_run === false) toerKoersel = false;
   } catch {
     /* ingen body, sikker tørkørsel */
+  }
+
+  // UKENDTE FELTER AFVISES (19/9, anden måling): et kald med
+  // {"vindue": {"since": …}} — datoerne pakket ind — havde begge felter
+  // `undefined` og faldt i grenen «ingen datoer givet». Syv dage, svar 200,
+  // ingen indvending. En body, man ikke forstår, må aldrig blive til en
+  // standardkørsel. Se _shared/kendteFelter.ts.
+  const ukendte = ukendteFelter(raaBody, KENDTE_FELTER);
+  if (ukendte.length > 0) {
+    const besked = ukendteFelterBesked(ukendte, KENDTE_FELTER);
+    console.error(`${LOG} ${besked}`);
+    return json({ ...tomtResultat(toerKoersel), ok: false, koerte: true, grund: "ukendt_felt", error: besked }, 400);
   }
 
   // VINDUET (19/9): «since»/«until» er valgfrie; uden dem de syv dage som før.
