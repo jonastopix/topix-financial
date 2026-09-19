@@ -15,6 +15,16 @@ import { CRON_VAGT_KEY, hentCronVagt } from "@/hooks/cronVagt";
 import { vagtLinje } from "@/lib/cronVagt";
 import { intetNytTekst, sidenSidstLinjeDele, sidenSidstNavneSep, sidenTekst } from "@/lib/sidenSidst";
 import { UBESVAREDE_OPSLAG_KEY, hentUbesvaredeOpslag } from "@/hooks/ubesvaredeOpslag";
+import { VENTER_PAA_BETALING_KEY, hentVenterPaaBetaling } from "@/hooks/venterPaaBetaling";
+import {
+  INGEN_VENTER_TEKST,
+  KORT_OVERSKRIFT as VENTER_OVERSKRIFT,
+  VIRKSOMHEDER_STI,
+  flereTekst as venterFlereTekst,
+  kortUdsnit as venterUdsnit,
+  venterPaaBetaling,
+  virksomhedsSti,
+} from "@/lib/hjemmebane/venterPaaBetaling";
 import {
   ALLE_BESVARET_TEKST,
   alderTekst,
@@ -92,7 +102,7 @@ import { raadgiverHentefejlTekst } from "@/lib/raadgiverHentefejl";
  * analyse-raadgivernes-forside.md §5–§6 forslag 2): «Under stregen» er
  * dommens egen rest og står nu lige under linjerne, før listen. Højre er
  * tre grupper — «I dag» (Sessioner i dag, Online nu, Ubesvarede opslag,
- * Driften KUN når rød), «Ugen» (Siden sidst), «Måneden» (Pulsen, Nye
+ * Driften KUN når rød, Venter på betaling), «Ugen» (Siden sidst), «Måneden» (Pulsen, Nye
  * medlemmer) — så det der er nu står øverst og månedstallene nederst. På
  * mobil: dommen → Under stregen → «I dag» → Jeres liste → Ugen/Måneden.
  * Målingslinjen er væk (PR 1).
@@ -469,6 +479,19 @@ export const RaadgiverForsideView = () => {
     enabled: !!user,
     staleTime: 60_000,
   });
+  // Venter på betaling (19/9, recon-indgangspaamindelser §5; hooks/
+  // venterPaaBetaling + lib/hjemmebane/venterPaaBetaling): ÉN liste over dem
+  // der har skrevet under og ikke betalt — den fandtes ikke før. Forsidens
+  // egne indgangslinjer kommer først fra dag 23 (alvor 60, vinduesporten), og
+  // femten på én gang drukner hinanden; kortet samler dem fra dag 0 med
+  // højst fem linjer. Egen hentning, så en fejl her ikke vælter dommen.
+  // Hook i topblokken, før nogen betinget return (React #310).
+  const venterQuery = useQuery({
+    queryKey: VENTER_PAA_BETALING_KEY,
+    queryFn: () => hentVenterPaaBetaling(),
+    enabled: !!user,
+    staleTime: 5 * 60_000,
+  });
   // Nye medlemmer (Jonas 16/9; hooks/kohorte + lib/hjemmebane/kohorte):
   // «N af M kom igen efter dag 1» med navnene på dem der ikke er kommet
   // igen. Nulpunktets regel (16/9 00:57) som ren dom over companies,
@@ -588,8 +611,9 @@ export const RaadgiverForsideView = () => {
           — højre kolonne efter TID, «Under stregen» op i venstre):
             venstre  række 1: dommen + Under stregen · række 2: Jeres liste
             højre    række 1: «I dag» (Sessioner i dag, Online nu, Ubesvarede
-                     opslag, Driften kun når rød) · række 2: «Ugen» (Siden
-                     sidst) og «Måneden» (Pulsen, Nye medlemmer)
+                     opslag, Driften kun når rød, Venter på betaling) ·
+                     række 2: «Ugen» (Siden sidst) og «Måneden» (Pulsen, Nye
+                     medlemmer)
           Under lg falder gridet til én kolonne i DOM-rækkefølgen: dommen →
           Under stregen → «I dag» → Jeres liste → Ugen/Måneden — det der er
           «nu» før listen, listen før månedstallene (medlemmets forside PR 3
@@ -812,6 +836,42 @@ export const RaadgiverForsideView = () => {
           // den røde linje står. Fejl siges stadig.
           return v.tone === "rust" ? <p className="pb-4 text-hb-rust">{v.tekst}</p> : null;
         })()}
+        {/* VENTER PÅ BETALING (19/9, recon-indgangspaamindelser §5): hvem har
+            skrevet under og ikke betalt — med hvor længe, og hvad vi har sendt
+            dem. Står SIDST i «I dag»: det er dagens arbejde, men det er ikke
+            det første man skal se. Rust på de to hvor nogen skal gøre noget nu
+            (prisen mangler, fristen er passeret). Højst fem linjer; flere →
+            «og N mere i indgangen» til virksomhedslisten. Fejl siges med husets
+            hentefejltekst — aldrig en tom liste, der ligner «alle har betalt». */}
+        <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft">{VENTER_OVERSKRIFT}</p>
+        {venterQuery.isLoading ? (
+          <div aria-hidden className="pb-4"><div className="h-3 w-2/3 animate-pulse rounded bg-hb-line/60" /></div>
+        ) : venterQuery.isError ? (
+          <p className="pb-4 text-xs">{raadgiverHentefejlTekst(venterQuery.error, "forsiden")}</p>
+        ) : venterQuery.data ? (
+          (() => {
+            const { liste, ialt } = venterPaaBetaling(venterQuery.data, new Date());
+            if (ialt === 0) return <p className="pb-4">{INGEN_VENTER_TEKST}</p>;
+            const { viste, flere } = venterUdsnit(liste);
+            return (
+              <ul className="space-y-1 pb-4" data-venter-paa-betaling={ialt}>
+                {viste.map((l) => (
+                  <li key={l.companyId}>
+                    <Link to={virksomhedsSti(l.companyId)} className={cn(TEKSTLINK, l.haster && "text-hb-rust")}>
+                      {l.navn}
+                    </Link>
+                    <span className="text-hb-ink-soft"> · {l.tekst}</span>
+                  </li>
+                ))}
+                {flere > 0 && (
+                  <li>
+                    <Link to={VIRKSOMHEDER_STI} className={TEKSTLINK}>{venterFlereTekst(flere)}</Link>
+                  </li>
+                )}
+              </ul>
+            );
+          })()
+        ) : null}
         </aside>
 
         {/* ── Venstre, række 2: Jeres liste (Jonas 8/9): UNDER DOMMEN, med

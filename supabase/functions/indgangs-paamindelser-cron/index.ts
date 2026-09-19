@@ -1,7 +1,15 @@
 // Indgangens påmindelser — dag 14, 25 og 31 efter betalingsmailen — og
 // DAG 60 (18/9 aften): en underskrevet, ubetalt aftale er død; ansøgningen
-// lukkes «betalte ikke» gennem motoren, rådgiverne får en klokke
-// (lukDoedAftale nederst; dommen er erAftaleDoed i _shared/betalingsfrist.ts).
+// lukkes gennem motoren, rådgiverne får en klokke (lukDoedAftale nederst;
+// dommen er erAftaleDoed i _shared/betalingsfrist.ts). RETTET 19/9:
+// lukkeårsagen afhænger af faktura_sendt_at — «betalte ikke» kun når der
+// FAKTISK blev sendt en faktura, ellers «udløbet». Se lukDoedAftales hoved.
+//
+// KØRSLEN STOPPER SELV (19/9): et tidsbudget (STANDARD_BUDGET_MS, kan hæves
+// med { "budget_ms": … }) og et stop ved rate limit (skalKoeStoppe). Femten
+// dag 31-rækker i én kørsel tager længere end kald_edge's standard-timeout,
+// og en afbrudt kørsel skal være vores egen beslutning, ikke pg_nets saks.
+// Rækkefølgen er ældste underskrift først, så ingen sultes.
 //
 // SAMME FORM SOM intro-reminder-cron: HTTP-indgang (IKKE Deno.cron — den
 // eksekveres aldrig på Supabases edge-runtime, målt 13/8),
@@ -44,6 +52,10 @@
 //     END IF;
 //   END $$;
 //
+// SIDEN 19/9 planlægges jobbet gennem public.kald_edge med en højere timeout
+// og et matchende budget — se migration 20260919160000. Formen nedenfor er
+// den oprindelige (rå net.http_post) og står som historik:
+//
 //   SELECT cron.schedule(
 //     'indgangs-paamindelser',
 //     '0 10 * * *',
@@ -76,12 +88,35 @@ import {
   betalingsfristDato,
   formatDanskDato,
   fornavnAf,
-  sendIndgangsMail,
+  sendIndgangsMailMedUdfald,
 } from "../_shared/indgangsMailAfsendelse.ts";
+import { skalKoeStoppe } from "../_shared/mailFejl.ts";
 
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
 const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const APP_URL = "https://app.theboardroom.dk";
+
+/**
+ * TIDSBUDGET (19/9, recon-indgangspaamindelser §4). Kald_edge kalder med en
+ * KLIENT-timeout; løber den ud, lukker pg_net forbindelsen og edge-funktionen
+ * AFBRYDES midt i løkken (målt 3/9 og 10/9). Dag 31 koster op til seks
+ * Stripe-kald + én mail pr. række — målt 16/9: ca. 3,5 sekunder. Femten
+ * underskrifter samme aften giver én dag med femten dag 31-rækker ≈ 50
+ * sekunder, og standard-timeouten er 30.
+ *
+ * Derfor stopper kørslen SELV, før timeouten gør det: så når den at stemple
+ * det den har gjort, at svare, og at sige hvor mange der er tilbage. De
+ * resterende tages næste døgn — intet tabes (stemplet sættes pr. række), og
+ * rækkefølgen er ÆLDSTE UNDERSKRIFT FØRST, så de samme aldrig sultes.
+ *
+ * STANDARD 25 s ligger under kald_edge's standard-timeout (30 s), så den er
+ * sikker uden nogen SQL-ændring. Jobbet kan give mere: migration
+ * 20260919160000 planlægger det med timeout 120 s og { "budget_ms": 100000 }.
+ * Budgettet skal ALTID være mindre end jobbets timeout.
+ */
+const STANDARD_BUDGET_MS = 25_000;
+/** Loftet følger kald_edge_loft_ms() (150 s) minus plads til at svare. */
+const MAKS_BUDGET_MS = 140_000;
 
 interface PaamindelsesResultat {
   ok: boolean;
@@ -105,12 +140,38 @@ interface PaamindelsesResultat {
   /** Sendingen fejlede (enqueue eller uventet) — stemples ikke, prøves igen i morgen. */
   fejlet: number;
   /**
+   * Kørslen stoppede SELV (19/9): "tid" = tidsbudgettet var brugt (se
+   * STANDARD_BUDGET_MS), "rate_limit" = udbyderen svarede 429 og de næste
+   * ville ramme samme mur (skalKoeStoppe, _shared/mailFejl.ts). null = alle
+   * kandidater blev behandlet.
+   */
+  afbrudt: null | "tid" | "rate_limit";
+  /** Kandidater der IKKE blev forsøgt, fordi kørslen stoppede. De tages næste døgn. */
+  resterende: number;
+  /** Tidsbudgettet for denne kørsel (ms) og hvor lang tid løkken faktisk tog. */
+  budget_ms: number;
+  varighed_ms: number;
+  /**
    * DØD PÅ DAG 60 (18/9 aften): underskrevet, ubetalt i AFTALE_DOED_DAG dage → ansøgningen lukkes
    * «betalte_ikke» gennem motoren (via koe) og rådgiverne får en klokke; ingen påmindelse/faktura
    * sendes for en død aftale. uden_ansoegning: linkrækken har intet ansoegning_id (Monday-vejen) —
    * intet at lukke. allerede: ansøgningen står ikke på «underskrevet» (lukket i går, eller genåbnet).
+   * TO ÅRSAGER (19/9): «betalte ikke» kræver at fakturaen ER sendt (faktura_sendt_at). Blev der
+   * aldrig bedt om pengene, lukkes der «udloebet» — se lukDoedAftale.
    */
-  doede: { lukket: number; ville_lukke: number; uden_ansoegning: number; allerede: number; fejlet: number };
+  doede: {
+    lukket: number;
+    ville_lukke: number;
+    uden_ansoegning: number;
+    allerede: number;
+    fejlet: number;
+    /**
+     * Af de lukkede: hvor mange der blev lukket «betalte ikke» (fakturaen VAR
+     * sendt) og hvor mange «udløbet» (der blev aldrig sendt en faktura — 19/9).
+     */
+    betalte_ikke: number;
+    udloebet: number;
+  };
   /** Fordeling af det der blev sendt / ville sendes, pr. trin. */
   pr_trin: Record<"14" | "25" | "31", number>;
   /** Dag 31: fakturaen via Stripe Invoicing (_shared/indgangsFaktura.ts), sendt FØR mailen. */
@@ -143,6 +204,8 @@ interface LinkRaekke {
   token: string;
   betalingsmail_sendt_at: string | null;
   sidste_paamindelse_dag: number | null;
+  /** Stemplet fra _shared/indgangsFaktura.ts — sat KUN når dag 31-fakturaen faktisk er sendt. */
+  faktura_sendt_at: string | null;
 }
 
 interface VirksomhedsRaekke {
@@ -181,7 +244,9 @@ function bygPaamindelse(
 async function koerPaamindelser(
   supabase: SupabaseClient,
   toerKoersel: boolean,
+  budgetMs: number,
 ): Promise<PaamindelsesResultat> {
+  const startMs = Date.now();
   const resultat: PaamindelsesResultat = {
     ok: true,
     dry_run: toerKoersel,
@@ -189,8 +254,12 @@ async function koerPaamindelser(
     sendt: 0,
     ville_sende: 0,
     sprunget_over: { ingen_forfalden: 0, betalt: 0, ingen_virksomhed: 0, ingen_email: 0 },
-    doede: { lukket: 0, ville_lukke: 0, uden_ansoegning: 0, allerede: 0, fejlet: 0 },
+    doede: { lukket: 0, ville_lukke: 0, uden_ansoegning: 0, allerede: 0, fejlet: 0, betalte_ikke: 0, udloebet: 0 },
     fejlet: 0,
+    afbrudt: null,
+    resterende: 0,
+    budget_ms: budgetMs,
+    varighed_ms: 0,
     pr_trin: { "14": 0, "25": 0, "31": 0 },
     faktura: { sendt: 0, fandtes_allerede: 0, uden_moms: [], ville_sende: 0 },
     faktura_i_haanden: [],
@@ -200,10 +269,14 @@ async function koerPaamindelser(
   //    ligger på companies og filtreres i trin 2 — to enkle opslag frem
   //    for et embedded filter; mængden er lille (nye medlemmer i deres
   //    første måned).
+  // ÆLDSTE UNDERSKRIFT FØRST (19/9): stopper kørslen på sit tidsbudget, skal
+  // de mest presserende være taget — og rækkefølgen skal være den samme hver
+  // dag, så de sidste i listen aldrig sultes flere døgn i træk.
   const { data: links, error: linkErr } = await supabase
     .from("company_betalingslink")
-    .select("company_id, ansoegning_id, prisniveau_oere, underskrevet_at, token, betalingsmail_sendt_at, sidste_paamindelse_dag")
-    .not("betalingsmail_sendt_at", "is", null);
+    .select("company_id, ansoegning_id, prisniveau_oere, underskrevet_at, token, betalingsmail_sendt_at, sidste_paamindelse_dag, faktura_sendt_at")
+    .not("betalingsmail_sendt_at", "is", null)
+    .order("underskrevet_at", { ascending: true });
   if (linkErr) {
     console.error("[indgangs-paamindelser-cron] company_betalingslink-opslag fejlede:", linkErr.message);
     return { ...resultat, ok: false, error: linkErr.message };
@@ -234,7 +307,18 @@ async function koerPaamindelser(
   resultat.fundet = kandidater.length;
   const now = new Date();
 
-  for (const link of kandidater) {
+  for (let i = 0; i < kandidater.length; i++) {
+    const link = kandidater[i];
+    // TIDSBUDGETTET (19/9): stop SELV, før kald_edge's timeout klipper os midt i
+    // en Stripe-faktura. Det der er stemplet, er stemplet; resten tages i morgen.
+    if (Date.now() - startMs >= budgetMs) {
+      resultat.afbrudt = "tid";
+      resultat.resterende = kandidater.length - i;
+      console.warn(
+        `[indgangs-paamindelser-cron] TIDSBUDGET brugt (${budgetMs} ms): ${resultat.resterende} af ${kandidater.length} kandidater blev ikke forsøgt i dag — de tages næste kørsel (ældste underskrift først). Er det gentaget, skal jobbets timeout og budget hæves (migration 20260919160000).`,
+      );
+      break;
+    }
     const company = virksomheder.get(link.company_id);
     if (!company) {
       resultat.sprunget_over.ingen_virksomhed++;
@@ -347,7 +431,7 @@ async function koerPaamindelser(
         faktura: fakturaBeloeb,
       });
 
-      const ok = await sendIndgangsMail({
+      const udfald = await sendIndgangsMailMedUdfald({
         adminClient: supabase,
         til,
         subject: mail.subject,
@@ -355,9 +439,21 @@ async function koerPaamindelser(
         label: `indgang-dag${trin}`,
         companyId: link.company_id,
       });
-      if (!ok) {
+      if (!udfald.sent) {
         // Stemplet sættes IKKE — prøves igen i morgen.
         resultat.fejlet++;
+        // RATE LIMIT (19/9): udbyderens loft er pr. time og deles af HELE
+        // arbejdsområdet. De næste ville ramme nøjagtig samme mur, hver med sin
+        // logrække — én besked er nok. Samme dom som send-notification-email og
+        // ansoegning-rykker-cron (skalKoeStoppe, _shared/mailFejl.ts).
+        if (skalKoeStoppe(udfald)) {
+          resultat.afbrudt = "rate_limit";
+          resultat.resterende = kandidater.length - i - 1;
+          console.error(
+            `[indgangs-paamindelser-cron] RATE LIMIT hos udbyderen — kørslen stopper. ${resultat.resterende} af ${kandidater.length} kandidater blev ikke forsøgt; intet er stemplet, så de tages næste kørsel.`,
+          );
+          break;
+        }
         continue;
       }
 
@@ -385,14 +481,38 @@ async function koerPaamindelser(
     }
   }
 
+  resultat.varighed_ms = Date.now() - startMs;
   return resultat;
 }
 
 /**
- * Dag 60 (18/9 aften): ansøgningen bag linkrækken lukkes «betalte_ikke» — motorens dom (underskrevet →
- * lukket, alle trapper annulleret, sporet skrevet via «koe»), så klokke til rådgiverne. Virksomheden
- * røres IKKE (den er oprettet ved underskriften) — hvad der skal ske med den, er økonomisidens
- * beslutning (README). Tørkørsel: tæller ville_lukke, skriver intet.
+ * Hvorfor blev der aldrig sendt en faktura? Ren dom over de tre kendte grunde — teksten går ordret i
+ * klokken, så en rådgiver kan se, hvad der skulle have været gjort. Rækkefølgen er cronens egen:
+ * prisen spærrer før mailen, mailen før fakturaen.
+ */
+function aarsagUdenFaktura(link: LinkRaekke, company: VirksomhedsRaekke): string {
+  if (link.prisniveau_oere === null) return "prisniveauet blev aldrig sat, så hverken betalingsmail eller faktura kunne sendes";
+  if (!(company.contact_email ?? "").trim()) return "virksomheden har ingen kontaktmail, så hverken betalingsmail eller faktura kunne sendes";
+  return "fakturaen kunne ikke sendes — se faktura_i_haanden i cronens svar og loggen fra _shared/indgangsFaktura.ts";
+}
+
+/**
+ * Dag 60 (18/9 aften): ansøgningen bag linkrækken lukkes gennem motoren (underskrevet → lukket, alle
+ * trapper annulleret, sporet skrevet via «koe»), så klokke til rådgiverne. Virksomheden røres IKKE
+ * (den er oprettet ved underskriften) — hvad der skal ske med den, er økonomisidens beslutning
+ * (README). Tørkørsel: tæller ville_lukke, skriver intet.
+ *
+ * TO ÅRSAGER, IKKE ÉN (19/9, recon-indgangspaamindelser §3 og §6). erAftaleDoed dømmer «alt andet end
+ * betalt», og det rammer også de aftaler, hvor der ALDRIG blev bedt om pengene: prisen blev aldrig
+ * sat (afventer_pris — så er der ikke engang sendt en dag 0-mail), kontaktmailen er tom, eller
+ * fakturaen fejlede hver dag fra 31 til 60. Før 19/9 fik alle tre lukkeårsagen «betalte ikke» og en
+ * klokke, der sagde «fakturaen fra dag 31 er ubetalt» — om en faktura, der ikke findes, og med
+ * skylden lagt hos en, der aldrig blev spurgt. Stemplet faktura_sendt_at (sat KUN når Stripe har
+ * sendt, _shared/indgangsFaktura.ts) afgør nu:
+ *   sat   → betalte_ikke · lukkeårsag «betalte_ikke» · klokken nævner fakturaens dato
+ *   tom   → udloeb       · lukkeårsag «udloebet»    · klokken siger, at der aldrig blev sendt en, og hvorfor
+ * Begge veje er samme død og samme genåbning («afholdt»); begge værdier er kendt af databasens to
+ * CHECK-lister i forvejen, så der følger ingen migration med.
  */
 async function lukDoedAftale(
   supabase: SupabaseClient,
@@ -412,27 +532,39 @@ async function lukDoedAftale(
     resultat.doede.allerede++;
     return;
   }
+  // Fakturaen afgør årsagen (19/9). Stemplet, ikke dagstallet: dag 31 kan være
+  // passeret, uden at der nogensinde gik en faktura.
+  const fakturaSendt = (link.faktura_sendt_at ?? "").trim();
+  const betalteIkke = fakturaSendt !== "";
+  const aarsag = betalteIkke ? "betalte ikke" : "udløbet";
+
   if (toerKoersel) {
     resultat.doede.ville_lukke++;
-    console.log(`[indgangs-paamindelser-cron] TØRKØRSEL ville lukke ansøgningen «betalte ikke» for ${company.name} (${link.company_id}, dag ${dage})`);
+    console.log(`[indgangs-paamindelser-cron] TØRKØRSEL ville lukke ansøgningen «${aarsag}» for ${company.name} (${link.company_id}, dag ${dage})`);
     return;
   }
-  const res = await udfoerOvergang(supabase, { ansoegning: a, handling: { art: "betalte_ikke" }, via: "koe", truffetAf: null, nu: now });
+  const handling = betalteIkke ? ({ art: "betalte_ikke" } as const) : ({ art: "udloeb" } as const);
+  const res = await udfoerOvergang(supabase, { ansoegning: a, handling, via: "koe", truffetAf: null, nu: now });
   if (res.ok === false) {
-    console.error(`[indgangs-paamindelser-cron] betalte_ikke afvist for ${a.id} (${company.name}): ${res.grund}`);
+    console.error(`[indgangs-paamindelser-cron] ${handling.art} afvist for ${a.id} (${company.name}): ${res.grund}`);
     resultat.doede.fejlet++;
     return;
   }
   const navn = virksomhedsnavnAf(a);
+  const halen = `Virksomheden «${company.name}» står stadig i platformen uden slutdato — se økonomisiden.`;
   await skrivRaadgiverBesked(supabase, {
     type: RAADGIVER_BESKED.lukket_af_koen,
-    title: `Lukket: ${navn} betalte ikke`,
-    body: `Dag ${dage} efter underskriften — fakturaen fra dag 31 er ubetalt. Ansøgningen er lukket «betalte ikke» og kan genåbnes. Virksomheden «${company.name}» står stadig i platformen uden slutdato — se økonomisiden.`,
+    title: betalteIkke ? `Lukket: ${navn} betalte ikke` : `Lukket: ${navn} blev aldrig bedt om pengene`,
+    body: betalteIkke
+      ? `Dag ${dage} efter underskriften — fakturaen fra dag 31 (sendt ${formatDanskDato(new Date(fakturaSendt))}) er ubetalt. Ansøgningen er lukket «betalte ikke» og kan genåbnes. ${halen}`
+      : `Dag ${dage} efter underskriften — og der blev ALDRIG sendt en faktura: ${aarsagUdenFaktura(link, company)}. Ansøgningen er derfor lukket «udløbet», ikke «betalte ikke»: ${navn} er aldrig blevet bedt om pengene. Den kan genåbnes. ${halen}`,
     reference_type: REFERENCE_TYPE,
     reference_id: a.id,
   });
   resultat.doede.lukket++;
-  console.log(`[indgangs-paamindelser-cron] ansøgningen ${a.id} lukket «betalte ikke» (${company.name}, dag ${dage})`);
+  if (betalteIkke) resultat.doede.betalte_ikke++;
+  else resultat.doede.udloebet++;
+  console.log(`[indgangs-paamindelser-cron] ansøgningen ${a.id} lukket «${aarsag}» (${company.name}, dag ${dage})`);
 }
 
 Deno.serve(async (req) => {
@@ -443,10 +575,25 @@ Deno.serve(async (req) => {
 
   // TØRKØRSEL default: uden body findes kandidaterne og logges, men intet
   // sendes og intet skrives. Kun et eksplicit { "dry_run": false } sender.
+  //
+  // budget_ms (19/9): hvor længe løkken må køre, før den stopper SELV og svarer.
+  // Skal altid være mindre end kalderens timeout — se STANDARD_BUDGET_MS. Et
+  // ulæseligt eller urimeligt tal falder tilbage på standarden frem for at
+  // vælte kørslen: en cron skal køre, også når nogen har skrevet noget sludder
+  // i jobbets body.
   let toerKoersel = true;
+  let budgetMs = STANDARD_BUDGET_MS;
   try {
     const body = await req.json();
     if (body?.dry_run === false) toerKoersel = false;
+    const oensket = Number(body?.budget_ms);
+    if (Number.isFinite(oensket) && oensket >= 1_000 && oensket <= MAKS_BUDGET_MS) {
+      budgetMs = Math.floor(oensket);
+    } else if (body?.budget_ms !== undefined) {
+      console.warn(
+        `[indgangs-paamindelser-cron] budget_ms=${JSON.stringify(body?.budget_ms)} er uden for 1000..${MAKS_BUDGET_MS} — bruger standarden ${STANDARD_BUDGET_MS} ms`,
+      );
+    }
   } catch {
     /* ingen body, sikker tørkørsel */
   }
@@ -455,7 +602,7 @@ Deno.serve(async (req) => {
     auth: { persistSession: false, autoRefreshToken: false },
   });
 
-  const resultat = await koerPaamindelser(supabase, toerKoersel);
+  const resultat = await koerPaamindelser(supabase, toerKoersel, budgetMs);
   console.log("[indgangs-paamindelser-cron] Summary:", JSON.stringify(resultat));
 
   return new Response(JSON.stringify(resultat), {

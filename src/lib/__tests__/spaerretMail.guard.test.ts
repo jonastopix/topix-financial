@@ -35,19 +35,29 @@ export function funktionsBlok(kilde: string, navn: string): string {
   return kilde.slice(start, slut === -1 ? kilde.length : slut + 2);
 }
 
-/** 1. sendIndgangsMail: i `if (!resultat.sent) {`-grenen står et
-    recipient_suppressed-tjek med meldSpaerretMail(…) FØR `return false`. */
+/** 1. sendIndgangsMailMedUdfald (kernen, 19/9 — før da hed den sendIndgangsMail):
+    i `if (!resultat.sent) {`-grenen står et recipient_suppressed-tjek med
+    meldSpaerretMail(…) FØR den returnerer det ikke-sendte udfald. Spærringen
+    må ikke kunne falde ud, når indpakningen skiftes. */
 export function sendIndgangsMailMelderSpaerret(kilde: string): boolean {
-  const blok = funktionsBlok(udenKommentarer(kilde), "sendIndgangsMail");
+  const blok = funktionsBlok(udenKommentarer(kilde), "sendIndgangsMailMedUdfald");
   const gren = blok.indexOf("if (!resultat.sent) {");
   if (gren === -1) return false;
-  const retur = blok.indexOf("return false", gren);
+  const retur = blok.indexOf("return { sent: false", gren);
   if (retur === -1) return false;
   const grenTekst = blok.slice(gren, retur);
   return (
     grenTekst.includes('resultat.reason === "recipient_suppressed"') &&
     grenTekst.includes("await meldSpaerretMail(adminClient, { label, companyId, modtager: til })")
   );
+}
+
+/** 1b. Indpakningen (19/9): sendIndgangsMail returnerer STADIG boolean og går
+    gennem kernen — de seks øvrige kaldere er uændrede, og ingen af dem kan
+    komme uden om spærrings-klokken. */
+export function indpakningenGaarGennemKernen(kilde: string): boolean {
+  const blok = funktionsBlok(udenKommentarer(kilde), "sendIndgangsMail");
+  return blok.includes("): Promise<boolean> {") && blok.includes("await sendIndgangsMailMedUdfald(args)");
 }
 
 /** 2. Kvitteringsgrenen: fra `label: LABEL_KVITTERING` til den næste `console.log(`
@@ -103,9 +113,12 @@ describe("spaerretMail.guard — klokken ringer i de to spærrings-grene", () =>
   const webhook = laes(WEBHOOK);
   const besked = laes(BESKED);
 
-  it("1. sendIndgangsMail kalder meldSpaerretMail i recipient_suppressed-grenen, før return false", () => {
+  it("1. sendIndgangsMailMedUdfald kalder meldSpaerretMail i recipient_suppressed-grenen, før den returnerer udfaldet", () => {
     expect(sendIndgangsMailMelderSpaerret(afsendelse)).toBe(true);
-    // Returtypen er stadig boolean — ingen kalder ændres.
+  });
+
+  it("1b. sendIndgangsMail er stadig boolean og går gennem kernen — ingen kalder ændres, ingen kommer uden om klokken", () => {
+    expect(indpakningenGaarGennemKernen(afsendelse)).toBe(true);
     expect(funktionsBlok(afsendelse, "sendIndgangsMail")).toContain("): Promise<boolean> {");
   });
 
@@ -142,15 +155,20 @@ describe("spaerretMail.guard — klokken ringer i de to spærrings-grene", () =>
   });
 
   it("VÆRNET VIRKER: kopier med fejlen indsat fanges (filerne er ikke rørt)", () => {
-    // 1: kaldet fjernet fra sendIndgangsMail
+    // 1: kaldet fjernet fra kernen
     const kopiA = afsendelse.replace("await meldSpaerretMail(adminClient, { label, companyId, modtager: til });", "");
     expect(kopiA).not.toBe(afsendelse);
     expect(sendIndgangsMailMelderSpaerret(kopiA)).toBe(false);
-    // 1b: kaldet flyttet EFTER return false (dødt kode) fanges også
-    const kopiA2 = afsendelse
-      .replace("    if (resultat.reason === \"recipient_suppressed\") {\n      await meldSpaerretMail(adminClient, { label, companyId, modtager: til });\n    }\n    return false;", "    return false;\n    if (resultat.reason === \"recipient_suppressed\") {\n      await meldSpaerretMail(adminClient, { label, companyId, modtager: til });\n    }");
+    // 1b: kaldet flyttet EFTER returneringen af udfaldet (dødt kode) fanges også
+    const RETUR_UDFALD = "    return { sent: false, reason: resultat.reason };";
+    const SPAERRINGSGREN = "    if (resultat.reason === \"recipient_suppressed\") {\n      await meldSpaerretMail(adminClient, { label, companyId, modtager: til });\n    }\n";
+    const kopiA2 = afsendelse.replace(SPAERRINGSGREN + RETUR_UDFALD, RETUR_UDFALD + "\n" + SPAERRINGSGREN);
     expect(kopiA2).not.toBe(afsendelse);
     expect(sendIndgangsMailMelderSpaerret(kopiA2)).toBe(false);
+    // 1c: en indpakning der sender UDEN OM kernen (og dermed uden om klokken) fanges
+    const kopiA3 = afsendelse.replace("await sendIndgangsMailMedUdfald(args)", "await sendManagedEmail(args as never)");
+    expect(kopiA3).not.toBe(afsendelse);
+    expect(indpakningenGaarGennemKernen(kopiA3)).toBe(false);
     // 2: kvitteringsgrenen uden kaldet
     const kopiB = webhook.replace("await meldSpaerretMail(adminClient, { label: LABEL_KVITTERING, companyId: args.companyId, modtager: til });", "");
     expect(kopiB).not.toBe(webhook);

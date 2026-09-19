@@ -33,6 +33,7 @@ import { computeMembershipTier, type MembershipTier } from "@/lib/membershipTier
 import { afgoerFornyelsestilstand, type Fornyelsesbeslutning } from "@/lib/fornyelse";
 import { beslutningsOrd, fornyelsesBadge, type FornyelseBadge } from "@/lib/fornyelsesOrd";
 import { afgoerBetalingsfrist, type Betalingsfriststatus } from "@/lib/betalingsfrist";
+import { erSikkertFakturalink } from "@/lib/betalEfterFristen";
 import { afgoerForsidensDom, FORM, type OpgaveSlags, type VirksomhedTilDom } from "@/lib/forsidensDom";
 import { beloebTekst, harFakturaLink, kortDato, datoOgTid, stripeSagde, traekBadgeTekst, traekLabel } from "@/lib/traek";
 import { vejenIndTekst } from "@/lib/ansoegninger/vejenInd";
@@ -1758,6 +1759,36 @@ const Blok7 = ({
             {c.fornyelsespris_oere != null && <Linje label="Fornyelsespris">{formatKr(c.fornyelsespris_oere)} ekskl. moms</Linje>}
             {c.subscription_status && <Linje label="Abonnement">{c.subscription_status}{c.subscription_current_period_end ? ` · til ${formatDato(c.subscription_current_period_end)}` : ""}</Linje>}
             {d.betalingslink && <Linje label="Underskrevet">{formatDato(d.betalingslink.underskrevet_at)}</Linje>}
+            {/* HVAD ER SENDT (19/9, recon-indgangspaamindelser §5): både
+                sidste_paamindelse_dag og faktura_sendt_at blev hentet og vist
+                ingen steder — en rådgiver kunne ikke se, om dag 14 var gået,
+                eller hvornår fakturaen blev sendt. Samme form som fornyelsens
+                «Varsel sendt»/«Påmindelse sendt» nedenfor: linjerne kommer til
+                efterhånden, så forløbet kan læses.
+                «Seneste», ikke «alle»: cronen sender højst én påmindelse og
+                springer over, hvad der er løbet fra (betalingsfrist.ts:197) —
+                dag 25 uden dag 14 før er det normale, ikke en fejl. */}
+            {d.betalingslink?.sidste_paamindelse_dag != null && (
+              <Linje label="Seneste påmindelse">Dag {d.betalingslink.sidste_paamindelse_dag}</Linje>
+            )}
+            {d.betalingslink?.faktura_sendt_at && (
+              <Linje label="Faktura sendt">
+                {formatDato(d.betalingslink.faktura_sendt_at)}
+                {erSikkertFakturalink(d.betalingslink.faktura_url) && (
+                  <>
+                    {" · "}
+                    <a
+                      href={d.betalingslink.faktura_url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-hb-evergreen underline-offset-4 hover:underline"
+                    >
+                      se fakturaen
+                    </a>
+                  </>
+                )}
+              </Linje>
+            )}
             {/* E-underskriften (UDKAST 18/9): uden linkrække er der ikke
                 skrevet under endnu — herfra sendes aftalegrundlaget. Med
                 linkrække er underskriften sket (e-underskrift eller Monday). */}

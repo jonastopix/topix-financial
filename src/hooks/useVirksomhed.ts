@@ -209,8 +209,11 @@ export interface VirksomhedsData {
     prisniveau_oere: number | null;
     underskrevet_at: string;
     betalingsmail_sendt_at: string | null;
+    /** 14 | 25 | 31 — det trin indgangs-paamindelser-cron SIDST fik sendt. */
     sidste_paamindelse_dag: number | null;
     faktura_sendt_at: string | null;
+    /** Stripes hosted_invoice_url — samme kolonne /betal bruger (migration 20260916150000). */
+    faktura_url: string | null;
   } | null;
   /** Ansøgningen bag virksomheden (18/9 aften, «vejen ind»): null ad Monday-vejen/import — eller når opslaget fejler (fail-soft: siden viser bare ingen linje). */
   ansoegning: { id: string; indsendt_at: string | null; samtale_start: string | null; konverteret_at: string | null; kilde: string | null } | null;
@@ -320,7 +323,7 @@ async function hentVirksomhed(companyId: string): Promise<VirksomhedsData | null
       .order("periode_start", { ascending: false }),
     supabase
       .from("company_betalingslink")
-      .select("prisniveau_oere, underskrevet_at, betalingsmail_sendt_at, sidste_paamindelse_dag, faktura_sendt_at")
+      .select("prisniveau_oere, underskrevet_at, betalingsmail_sendt_at, sidste_paamindelse_dag, faktura_sendt_at, faktura_url")
       .eq("company_id", companyId)
       .maybeSingle(),
     supabase

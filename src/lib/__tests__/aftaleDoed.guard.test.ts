@@ -18,9 +18,21 @@ const VISNING = "src/lib/ansoegninger/ansoegningVisning.ts";
 export const doedGaarGennemMotoren = (cron: string): boolean =>
   cron.includes("if (erAftaleDoed(tilstand)) {") &&
   cron.indexOf("if (erAftaleDoed(tilstand)) {") < cron.indexOf("const trin = tilstand.paamindelse_forfalden;") &&
-  cron.includes('handling: { art: "betalte_ikke" }, via: "koe"') &&
+  cron.includes('via: "koe", truffetAf: null') &&
   cron.includes('a.trin !== "underskrevet"') &&
   !cron.includes('.from("ansoegninger").update(');
+
+/** ÅRSAGEN (19/9): faktura_sendt_at — ikke dagstallet — afgør, om der lukkes
+    «betalte ikke» eller «udløbet», og BEGGE grene skal findes. Stemplet skal
+    hentes med i opslaget, ellers er dommen truffet på undefined. */
+export const aarsagenFoelgerFakturaen = (cron: string): boolean =>
+  cron.includes("faktura_sendt_at") &&
+  cron.includes("const betalteIkke = fakturaSendt !== \"\";") &&
+  cron.includes('({ art: "betalte_ikke" } as const)') &&
+  cron.includes('({ art: "udloeb" } as const)') &&
+  cron.includes("const handling = betalteIkke ?") &&
+  // Klokken må ikke påstå en faktura, der ikke findes.
+  cron.includes("der blev ALDRIG sendt en faktura");
 export const blevMedlemGennemVirksomheden = (hook: string, visning: string, webhook: string): boolean =>
   hook.includes('tabel("companies").select("id, contract_end_date")') &&
   visning.includes('a.trin === "underskrevet" && !!a.virksomhed_slutdato') &&
@@ -37,9 +49,19 @@ describe("aftaleDoed.guard — dag 60 og «blev medlem»", () => {
     expect(LUKKEAARSAGER).toContain("betalte_ikke");
     expect(SYSTEM_HANDLINGER).toContain("betalte_ikke");
   });
+  it("årsagen følger fakturaen (19/9): begge grene findes, og stemplet hentes med", () => {
+    expect(aarsagenFoelgerFakturaen(udenKommentarer(laes(CRON)))).toBe(true);
+    // «udløbet» er kendt af koden i forvejen — ingen migration følger med.
+    expect(LUKKEAARSAGER).toContain("udloebet");
+    expect(SYSTEM_HANDLINGER).toContain("udloeb");
+  });
   it("selvbevis", () => {
     const cron = udenKommentarer(laes(CRON));
-    expect(doedGaarGennemMotoren(cron.replace('handling: { art: "betalte_ikke" }, via: "koe"', 'handling: { art: "luk", aarsag: "andet" }, via: "koe"'))).toBe(false);
+    expect(doedGaarGennemMotoren(cron.replace('via: "koe", truffetAf: null', 'via: "raadgiver", truffetAf: null'))).toBe(false);
+    // Årsagen: fjernes den ene gren, er alle døde pludselig «betalte ikke» igen.
+    expect(aarsagenFoelgerFakturaen(cron.replace('({ art: "udloeb" } as const)', '({ art: "betalte_ikke" } as const)'))).toBe(false);
+    // — eller dømmes på dagstallet frem for stemplet.
+    expect(aarsagenFoelgerFakturaen(cron.replace("const betalteIkke = fakturaSendt !== \"\";", "const betalteIkke = dage >= 31;"))).toBe(false);
     expect(doedGaarGennemMotoren(cron.replace("if (erAftaleDoed(tilstand)) {", "if (false) {"))).toBe(false);
     expect(doedGaarGennemMotoren(cron + '\n.from("ansoegninger").update({ trin: "lukket" })')).toBe(false);
     expect(blevMedlemGennemVirksomheden(udenKommentarer(laes(HOOK)), udenKommentarer(laes(VISNING)), "ansoegninger")).toBe(false);

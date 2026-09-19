@@ -82,6 +82,8 @@ export type HbAktiv =
   | "ansoegninger"
   /** /oekonomi (Ø2, 18/9): økonomioverblikket — kun partnere. */
   | "oekonomi"
+  /** /webinar (19/9): webinartallene — tilmeldte, deltagelse, annoncespor. Alle rådgivere. */
+  | "webinar"
   /** /deling (14/9): «Fortæl det videre», sidste punkt i medlemmets menu. */
   | "deling";
 
@@ -154,6 +156,10 @@ export function raadgiverensNav(active: HbAktiv, isPartner = false): HbNavEntry[
     { label: "Virksomheder", to: "/virksomheder", active: active === "virksomheder" },
     // Jonas 18/9 (flow-gennemgangen §7): pipelinen skal kunne findes uden om forsidens linje.
     { label: "Ansøgninger", to: "/ansoegninger", active: active === "ansoegninger" },
+    // Jonas 19/9: webinartallene skal kunne findes uden om ansøgningerne —
+    // de 330 tilmeldte er pipelinen FØR pipelinen. Alle rådgivere, ikke kun
+    // partnere: det er ikke omsætningstal, det er hvem der kommer.
+    { label: "Webinar", to: "/webinar", active: active === "webinar" },
     { label: "Indbakke", to: "/chat", active: active === "chat" },
     { label: "Community", to: "/community", active: active === "community" },
     { label: "Indhold", to: "/admin/indhold" },

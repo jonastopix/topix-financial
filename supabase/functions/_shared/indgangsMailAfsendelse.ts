@@ -50,10 +50,23 @@ export interface SendIndgangsMailArgs {
 }
 
 /**
- * Sender én af indgangens mails gennem Lovable's mail-API.
- * true = sendt. false = spærret modtager eller fejl; det er logget.
+ * Udfaldet af ét sendeforsøg — formen er sendManagedEmails to første felter,
+ * så skalKoeStoppe (_shared/mailFejl.ts) kan dømme den direkte uden
+ * oversættelse. Tilføjet 19/9, fordi indgangs-paamindelser-cron skal kunne
+ * STOPPE kravlen ved en rate limit i stedet for at køre alle femten mod
+ * samme mur (recon-indgangspaamindelser §4).
  */
-export async function sendIndgangsMail(args: SendIndgangsMailArgs): Promise<boolean> {
+export type IndgangsMailUdfald = {
+  sent: boolean;
+  reason?: "recipient_suppressed" | "rate_limited" | "failed";
+};
+
+/**
+ * Sender én af indgangens mails gennem Lovable's mail-API og siger HVORFOR
+ * den ikke gik. Kernen; sendIndgangsMail nedenfor er den boolske indpakning,
+ * som alle øvrige kaldere bruger uændret.
+ */
+export async function sendIndgangsMailMedUdfald(args: SendIndgangsMailArgs): Promise<IndgangsMailUdfald> {
   const { adminClient, til, subject, html, label, companyId } = args;
 
   const resultat = await sendManagedEmail({
@@ -76,11 +89,20 @@ export async function sendIndgangsMail(args: SendIndgangsMailArgs): Promise<bool
     if (resultat.reason === "recipient_suppressed") {
       await meldSpaerretMail(adminClient, { label, companyId, modtager: til });
     }
-    return false;
+    return { sent: false, reason: resultat.reason };
   }
 
   console.log(`[indgangsMail:${label}] sendt for company ${companyId} (message_id ${resultat.messageId})`);
-  return true;
+  return { sent: true };
+}
+
+/**
+ * Sender én af indgangens mails gennem Lovable's mail-API.
+ * true = sendt. false = spærret modtager eller fejl; det er logget.
+ */
+export async function sendIndgangsMail(args: SendIndgangsMailArgs): Promise<boolean> {
+  const udfald = await sendIndgangsMailMedUdfald(args);
+  return udfald.sent;
 }
 
 /**

@@ -39,6 +39,14 @@
  * jer. Virksomheden er allerede oprettet og røres IKKE her. Genåbnes den,
  * lander den på «afholdt» (aftalen skal sendes igen).
  *
+ * TO ÅRSAGER, IKKE ÉN (19/9, recon-indgangspaamindelser §3): «betalte ikke»
+ * må kun skrives, når der FAKTISK blev sendt en faktura. Blev der aldrig bedt
+ * om pengene — prisen blev aldrig sat (afventer_pris), kontaktmailen er tom,
+ * eller fakturaen fejlede hver dag fra 31 til 60 — er aftalen UDLØBET, og
+ * cronen siger udloeb: underskrevet → lukket «udloebet». Samme død, samme
+ * genåbning, men skylden står det rigtige sted. Begge værdier er kendt af
+ * databasens to CHECK-lister i forvejen (ingen migration).
+ *
  * PAUSE SAT AF ET MENNESKE (Jonas 18/9, «den varige vej»): saet_pause bærer
  * en dato og er tilladt fra ethvert åbent trin — ny, indkaldt, booket,
  * afholdt, aftalegrundlag_sendt — både uden pause og med en (flyt datoen),
@@ -266,7 +274,9 @@ export function genaabningsTrin(lukketFra: Trin | null): Trin {
 export function afgoerOvergang(fra: Trin, h: Handling, ctx: OvergangsKontekst): OvergangsDom {
   if (fra === "underskrevet") {
     // Den ene undtagelse (filhovedet): dag 60 uden betaling — betalingsforløbets cron lukker.
+    // TO ÅRSAGER: betalte_ikke når fakturaen ER sendt, udloeb når den aldrig blev det.
     if (h.art === "betalte_ikke") return OK({ til: "lukket", lukkeaarsag: "betalte_ikke", annuller: "alle" });
+    if (h.art === "udloeb") return OK({ til: "lukket", lukkeaarsag: "udloebet", annuller: "alle" });
     return AFVIST("underskrevet: motoren har afleveret til betalingsforløbet — ingen handling herfra");
   }
 

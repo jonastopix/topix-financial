@@ -73,6 +73,7 @@ const Ansoegninger = lazy(() => import("./pages/Ansoegninger"));
 const Ansoegning = lazy(() => import("./pages/Ansoegning"));
 const Forside = lazy(() => import("./pages/Forside"));
 const Oekonomi = lazy(() => import("./pages/Oekonomi"));
+const Webinar = lazy(() => import("./pages/Webinar"));
 
 // Lazy — demo routes (no auth)
 const DemoLayout = lazy(() => import("./demo/DemoLayout"));
@@ -312,6 +313,7 @@ const App = () => (
               <Route path="/forside" element={<AdvisorRoute><Forside /></AdvisorRoute>} />
               {/* Økonomioverblikket (Ø2, 18/9): kun partnere. Tom side indtil Ø3. */}
               <Route path="/oekonomi" element={<PartnerRoute><Oekonomi /></PartnerRoute>} />
+              <Route path="/webinar" element={<AdvisorRoute><Webinar /></AdvisorRoute>} />
               {/* Kontoen i Hjemmebane (9/9): navn, adgangskode, login, log ud — for alle roller. */}
               <Route path="/konto" element={<ProtectedRoute><Konto /></ProtectedRoute>} />
               {/* Delingskreativen (14/9, første skridt): én kreativ på skærmen. Intet menupunkt endnu. */}
