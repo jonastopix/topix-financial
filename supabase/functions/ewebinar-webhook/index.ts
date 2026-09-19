@@ -129,7 +129,7 @@ Deno.serve(async (req: Request) => {
   //    (ny vinder, null overskriver aldrig, procenten gaar aldrig ned), upsert.
   const { data: eksisterende, error: laesFejl } = await admin
     .from("webinar_tilmeldinger")
-    .select("ewebinar_id, email, navn, webinar_id, webinar_titel, session_tid, session_type, registreret_at, state, sidste_action, attended, subscribed, set_procent, set_procent_kilde")
+    .select("ewebinar_id, email, navn, webinar_id, webinar_titel, session_tid, session_type, registreret_at, state, sidste_action, attended, subscribed, set_procent, set_procent_kilde, utm_source, utm_medium, utm_campaign, utm_content, utm_term, fbclid, origin, first_origin, referrer, first_referrer, widget_source, by, land, enhed, tidszone")
     .eq("ewebinar_id", t.ewebinar_id)
     .maybeSingle();
   if (laesFejl) {

@@ -13,7 +13,10 @@ import {
   doemSetGrad,
   findProcent,
   fletTilmelding,
+  parametreFra,
+  plukAnnoncespor,
   plukTilmelding,
+  procentFraTekst,
   SET_GRAENSE_PROCENT,
   somProcent,
   tilmeldingTekst,
@@ -82,6 +85,21 @@ function raekke(over: Partial<WebinarTilmelding> = {}): WebinarTilmelding {
     subscribed: null,
     set_procent: null,
     set_procent_kilde: null,
+    utm_source: null,
+    utm_medium: null,
+    utm_campaign: null,
+    utm_content: null,
+    utm_term: null,
+    fbclid: null,
+    origin: null,
+    first_origin: null,
+    referrer: null,
+    first_referrer: null,
+    widget_source: null,
+    by: null,
+    land: null,
+    enhed: null,
+    tidszone: null,
     ...over,
   };
 }
@@ -106,6 +124,25 @@ describe("plukTilmelding — dokumentationens eksempel", () => {
       subscribed: "Subscribed",
       set_procent: null,
       set_procent_kilde: null,
+      // 19/9: præmissen er UDVIDET med vilje — annoncesporet plukkes nu også
+      // (fund i det rigtige API-svar). Gammel forventning: de fjorten felter
+      // ovenfor alene. «Hasn't started» bærer intet tal, så set_procent er
+      // stadig null; eksemplet har ingen utm'er eller fbclid i sine URL'er.
+      utm_source: null,
+      utm_medium: null,
+      utm_campaign: null,
+      utm_content: null,
+      utm_term: null,
+      fbclid: null,
+      origin: "https://ilove.ewebinar.com/webinar/ewebinar-overview-and-demo-24842",
+      first_origin: "https://ilove.ewebinar.com/webinar/ewebinar-overview-and-demo-24842",
+      referrer: "https://app.ewebinar.com/",
+      first_referrer: "https://app.ewebinar.com/",
+      widget_source: "Widget",
+      by: "New Jersey",
+      land: "US",
+      enhed: "Desktop",
+      tidszone: "New Jersey/America",
     });
   });
 
@@ -286,5 +323,145 @@ describe("webinarTal — pr. person, i alt og pr. webinar, og det næste", () =>
 
   it("tom liste: nuller og intet næste", () => {
     expect(webinarTal([], NU)).toEqual({ personer: 0, harSet: 0, delvistSet: 0, moedteIkke: 0, ukendt: 0, kommende: 0, naeste: null, perWebinar: [] });
+  });
+});
+
+/**
+ * ANNONCESPORET (fund 19/9 i det rigtige API-svar): hele vejen fra en Meta-
+ * annonce til en tilmelding, i egne felter. Fixturen er et svar som det Jonas
+ * målte — utm'erne og fbclid i origin-URL'en, kilden «topix-webinar-side».
+ */
+const MED_ANNONCE = {
+  ...EKSEMPEL,
+  origin: "https://topix.dk/webinar?utm_source=fb&utm_medium=paid&utm_campaign=webinar-sep&utm_content=annonce-3&fbclid=IwAR-abc123",
+  firstOrigin: "https://topix.dk/?utm_source=google&utm_term=regnskab",
+  referrer: "https://www.facebook.com/",
+  firstReferrer: "https://www.google.com/",
+  source: "topix-webinar-side",
+  city: "Aarhus",
+  country: "DK",
+  timezone: "Europe/Copenhagen",
+  deviceTypeWhenRegistered: "Mobile",
+};
+
+describe("parametreFra — query-parametrene i en URL", () => {
+  it("læser parametre med normaliserede nøgler", () => {
+    expect(parametreFra("https://x.dk/a?utm_source=fb&FBCLID=abc")).toEqual({ utmsource: "fb", fbclid: "abc" });
+  });
+
+  it("tomme værdier, ikke-URL'er, tom streng og ikke-strenge giver et tomt kort", () => {
+    expect(parametreFra("https://x.dk/a?utm_source=")).toEqual({});
+    expect(parametreFra("ikke en url")).toEqual({});
+    expect(parametreFra("")).toEqual({});
+    expect(parametreFra(null)).toEqual({});
+    expect(parametreFra(42)).toEqual({});
+  });
+});
+
+describe("plukAnnoncespor — fra felter ELLER fra URL'erne", () => {
+  it("plukker utm'erne og fbclid UD af origin, og de øvrige felter direkte", () => {
+    expect(plukAnnoncespor(MED_ANNONCE)).toEqual({
+      utm_source: "fb",
+      utm_medium: "paid",
+      utm_campaign: "webinar-sep",
+      utm_content: "annonce-3",
+      // firstOrigin bærer utm_term; origin har den ikke — begge URL'er læses.
+      utm_term: "regnskab",
+      fbclid: "IwAR-abc123",
+      origin: MED_ANNONCE.origin,
+      first_origin: MED_ANNONCE.firstOrigin,
+      referrer: "https://www.facebook.com/",
+      first_referrer: "https://www.google.com/",
+      widget_source: "topix-webinar-side",
+      by: "Aarhus",
+      land: "DK",
+      enhed: "Mobile",
+      tidszone: "Europe/Copenhagen",
+    });
+  });
+
+  it("origin vinder over firstOrigin: «hvor de kom ind» før «hvor vi først så dem»", () => {
+    const spor = plukAnnoncespor(MED_ANNONCE);
+    expect(spor.utm_source).toBe("fb");
+  });
+
+  it("et felt på objektet selv vinder over URL'ens parameter", () => {
+    const spor = plukAnnoncespor({ ...MED_ANNONCE, utm_source: "direkte-felt" });
+    expect(spor.utm_source).toBe("direkte-felt");
+  });
+
+  it("navneformer er ligegyldige: utmSource ≡ utm_source ≡ UTM-Source", () => {
+    expect(plukAnnoncespor({ utmSource: "fb" }).utm_source).toBe("fb");
+    expect(plukAnnoncespor({ "UTM-Source": "fb" }).utm_source).toBe("fb");
+    expect(plukAnnoncespor({ origin: "https://x.dk?utmCampaign=k" }).utm_campaign).toBe("k");
+  });
+
+  it("uden annoncespor er alle femten null — felterne må gerne mangle", () => {
+    const spor = plukAnnoncespor({ email: "a@b.dk" });
+    expect(Object.values(spor).every((v) => v === null)).toBe(true);
+    expect(Object.keys(spor)).toHaveLength(15);
+  });
+
+  it("plukTilmelding bærer sporet med — det er dét der gør vejen fra annonce til medlem synlig", () => {
+    const p = plukTilmelding(MED_ANNONCE);
+    expect(p.ok).toBe(true);
+    if (p.ok === false) return;
+    expect(p.tilmelding.utm_campaign).toBe("webinar-sep");
+    expect(p.tilmelding.fbclid).toBe("IwAR-abc123");
+    expect(p.tilmelding.enhed).toBe("Mobile");
+  });
+});
+
+describe("procentFraTekst og attended — fund 19/9, bevises 22/9", () => {
+  it("«Hasn't started» bærer intet tal (det målte svar for en der ikke har set noget)", () => {
+    expect(procentFraTekst("Hasn't started")).toBeNull();
+    expect(plukTilmelding(EKSEMPEL)).toMatchObject({ ok: true });
+    const p = plukTilmelding(EKSEMPEL);
+    expect(p.ok && p.tilmelding.set_procent).toBeNull();
+  });
+
+  it("et tal i attended læses — som rent tal, med procenttegn, eller midt i en sætning", () => {
+    expect(procentFraTekst("78")).toBe(78);
+    expect(procentFraTekst("78%")).toBe(78);
+    expect(procentFraTekst("78 %")).toBe(78);
+    expect(procentFraTekst("Watched 78% of webinar")).toBe(78);
+    expect(procentFraTekst("62,5 %")).toBe(62.5);
+    expect(procentFraTekst(78)).toBe(78);
+  });
+
+  it("tekst uden procent bliver ALDRIG til et tal — «45 minutes» er ikke 45 %", () => {
+    expect(procentFraTekst("45 minutes")).toBeNull();
+    expect(procentFraTekst("Attended")).toBeNull();
+    expect(procentFraTekst("Missed")).toBeNull();
+    expect(procentFraTekst(null)).toBeNull();
+    expect(procentFraTekst(undefined)).toBeNull();
+    expect(procentFraTekst("120%")).toBeNull();
+  });
+
+  it("plukket bruger attended som procentkilde, når intet navngivet felt har tallet", () => {
+    const p = plukTilmelding({ ...EKSEMPEL, attended: "Watched 78%" });
+    expect(p.ok && p.tilmelding.set_procent).toBe(78);
+    expect(p.ok && p.tilmelding.set_procent_kilde).toBe("attended");
+  });
+
+  it("et navngivet procentfelt vinder over attended", () => {
+    const p = plukTilmelding({ ...EKSEMPEL, attended: "10%", watchedPercent: 91 });
+    expect(p.ok && p.tilmelding.set_procent).toBe(91);
+    expect(p.ok && p.tilmelding.set_procent_kilde).toBe("watchedPercent");
+  });
+
+  it("doemSetGrad læser attended, når rækken blev gemt uden tal — grænsen er den samme 75", () => {
+    expect(doemSetGrad(raekke({ attended: "78%", session_tid: "2026-09-01T17:00:00Z" }), NU)).toBe("set");
+    expect(doemSetGrad(raekke({ attended: "62%", session_tid: "2026-09-01T17:00:00Z" }), NU)).toBe("delvist");
+    expect(doemSetGrad(raekke({ attended: "75 %", session_tid: "2026-09-01T17:00:00Z" }), NU)).toBe("set");
+    // «Hasn't started» ændrer intet: en fremtidig session er stadig «tilmeldt».
+    expect(doemSetGrad(raekke({ attended: "Hasn't started" }), NU)).toBe("tilmeldt");
+    // Det gemte tal vinder over attended.
+    expect(doemSetGrad(raekke({ set_procent: 91, attended: "10%" }), NU)).toBe("set");
+  });
+
+  it("teksten til rådgiveren viser tallet fra attended", () => {
+    expect(tilmeldingTekst(raekke({ attended: "62%", set_procent: 62, session_tid: "2026-09-01T17:00:00Z" }), NU))
+      .toBe("så 62 % af webinaret 1/9 (delvist)");
   });
 });

@@ -22,7 +22,7 @@ const tabel = (navn: string) => supabase.from(navn as any) as any;
 export const WEBINAR_TILMELDINGER_KEY = ["webinar-tilmeldinger"] as const;
 
 export const TILMELDING_KOLONNER =
-  "ewebinar_id, email, navn, webinar_id, webinar_titel, session_tid, session_type, registreret_at, state, sidste_action, attended, subscribed, set_procent, set_procent_kilde";
+  "ewebinar_id, email, navn, webinar_id, webinar_titel, session_tid, session_type, registreret_at, state, sidste_action, attended, subscribed, set_procent, set_procent_kilde, utm_source, utm_medium, utm_campaign, utm_content, utm_term, fbclid, origin, first_origin, referrer, first_referrer, widget_source, by, land, enhed, tidszone";
 
 /** numeric kommer som streng fra PostgREST — tallet skal være et tal for dommen. */
 function somRaekke(r: Record<string, unknown>): WebinarTilmelding {
