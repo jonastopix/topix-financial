@@ -4024,12 +4024,20 @@ export type Database = {
       webinar_tilmeldinger: {
         Row: {
           attended: string | null
+          by: string | null
           created_at: string
           email: string
+          enhed: string | null
           ewebinar_id: string
+          fbclid: string | null
+          first_origin: string | null
+          first_referrer: string | null
           id: string
+          land: string | null
           navn: string | null
+          origin: string | null
           raa: Json | null
+          referrer: string | null
           registreret_at: string | null
           session_tid: string | null
           session_type: string | null
@@ -4039,18 +4047,33 @@ export type Database = {
           sidste_haendelse_at: string | null
           state: string | null
           subscribed: string | null
+          tidszone: string | null
           updated_at: string
+          utm_campaign: string | null
+          utm_content: string | null
+          utm_medium: string | null
+          utm_source: string | null
+          utm_term: string | null
           webinar_id: string
           webinar_titel: string | null
+          widget_source: string | null
         }
         Insert: {
           attended?: string | null
+          by?: string | null
           created_at?: string
           email: string
+          enhed?: string | null
           ewebinar_id: string
+          fbclid?: string | null
+          first_origin?: string | null
+          first_referrer?: string | null
           id?: string
+          land?: string | null
           navn?: string | null
+          origin?: string | null
           raa?: Json | null
+          referrer?: string | null
           registreret_at?: string | null
           session_tid?: string | null
           session_type?: string | null
@@ -4060,18 +4083,33 @@ export type Database = {
           sidste_haendelse_at?: string | null
           state?: string | null
           subscribed?: string | null
+          tidszone?: string | null
           updated_at?: string
+          utm_campaign?: string | null
+          utm_content?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+          utm_term?: string | null
           webinar_id: string
           webinar_titel?: string | null
+          widget_source?: string | null
         }
         Update: {
           attended?: string | null
+          by?: string | null
           created_at?: string
           email?: string
+          enhed?: string | null
           ewebinar_id?: string
+          fbclid?: string | null
+          first_origin?: string | null
+          first_referrer?: string | null
           id?: string
+          land?: string | null
           navn?: string | null
+          origin?: string | null
           raa?: Json | null
+          referrer?: string | null
           registreret_at?: string | null
           session_tid?: string | null
           session_type?: string | null
@@ -4081,9 +4119,16 @@ export type Database = {
           sidste_haendelse_at?: string | null
           state?: string | null
           subscribed?: string | null
+          tidszone?: string | null
           updated_at?: string
+          utm_campaign?: string | null
+          utm_content?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+          utm_term?: string | null
           webinar_id?: string
           webinar_titel?: string | null
+          widget_source?: string | null
         }
         Relationships: []
       }
