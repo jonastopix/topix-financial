@@ -822,6 +822,16 @@ skrivende edge functions bruger `SUPABASE_SERVICE_ROLE_KEY`.
   kun `webinar_haendelser` (rå log, idempotent på SHA-256 af body) og
   `webinar_tilmeldinger` — service_role ALL, advisor SELECT, ingen
   klientskrivning. Kildeværn `ewebinarWebhook.guard`.
+- `ewebinar-import` (udkast 19/9-2026) — Bucket B m. `verify_jwt = true`:
+  `authenticateServiceRole(req)` FØR `EWEBINAR_API_KEY` læses og FØR
+  service-role-klienten. Engangshentning af eWebinars eksisterende
+  registranter over REST (`GET /v2/registrants`, `nextCursor`-paginering);
+  **tørkørsel som standard** — kun `{"dry_run": false}` skriver. Skriver de
+  samme to tabeller som webhooken gennem webhookens egen dom
+  (`plukTilmelding` + `fletTilmelding`), med `ewebinar_id` som nøgle: de to
+  veje kan ikke skabe dubletter, og importen kan aldrig sænke en kendt
+  procent. `EWEBINAR_API_KEY` er team-scoped («equivalent to a user login»)
+  og må kun stå i Lovable-secrets. Kildeværn `ewebinarImport.guard`.
 - `send-report-reminder` — service-role-only gate
 - `manage-advisor` — admin role gate + service-role operations
 - `process-pending-invitation` — self-only guard + server-verified email
