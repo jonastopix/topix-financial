@@ -106,8 +106,16 @@ export function kladdenPlanlaeggesEfterSkrivning(gem: string): boolean {
   const insertKald = krop.indexOf("await planlaegKladde(adminClient, data, new Date())");
   const update = krop.indexOf(".update(opdatering)");
   const updateKald = krop.indexOf("await planlaegKladde(adminClient, gemt, new Date())");
+  // NY PRÆMIS 19/9 kl. 22.30: gem-grenens select bærer nu også `kilde`, fordi
+  // «Ansoegning paabegyndt» flyttede hertil og skal kende kilden. Værnet
+  // krævede før den NØJAGTIGE streng og faldt på en tilføjet kolonne — det
+  // målte formen, ikke behovet. Nu kræves de FELTER, planlægningen bruger:
+  // en ekstra kolonne er harmløs, en manglende falder stadig.
+  const selects = [...krop.matchAll(/\.select\("([^"]+)"\)/g)].map((m) => m[1].split(",").map((f) => f.trim()));
+  const baerer = (kraevede: string[]) => selects.some((felter) => kraevede.every((f) => felter.includes(f)));
   return insert >= 0 && insertKald > insert && update >= 0 && updateKald > update &&
-    krop.includes('.select("id, token, email, updated_at, indsendt_at")') && krop.includes('.select("id, email, updated_at, indsendt_at")');
+    baerer(["id", "token", "email", "updated_at", "indsendt_at"]) &&
+    baerer(["id", "email", "updated_at", "indsendt_at"]);
 }
 export const ingenEgenCron = (funktioner: string[]): boolean => !funktioner.includes("ansoegning-paamindelse-cron");
 

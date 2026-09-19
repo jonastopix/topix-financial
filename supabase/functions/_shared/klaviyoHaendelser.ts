@@ -87,32 +87,68 @@ export interface Afsendelse {
  * pointen: når lag 3's agent senere skriver til Klaviyo, skal alt kunne læses
  * bagud, også det der ikke blev til noget.
  */
+/** Kan mailen bære en Klaviyo-profil? Profilen findes på mailen; uden den er der ingen modtager. */
+export function brugbarMail(email: string | null | undefined): string | null {
+  const m = typeof email === "string" ? email.trim().toLowerCase() : "";
+  return m !== "" && m.includes("@") ? m : null;
+}
+
+/** Skriv sporet. KASTER ALDRIG — en fejlet logning må ikke vælte kalderen. */
+async function skrivSpor(
+  skriver: SporSkriver | null,
+  i: HaendelseInput,
+  spor: KlaviyoSpor,
+  krop: unknown,
+): Promise<void> {
+  if (!skriver) return;
+  try {
+    const { error } = await skriver.from("klaviyo_haendelser").insert({
+      metric: i.metric,
+      email: (typeof i.email === "string" ? i.email : "").trim().toLowerCase(),
+      unikt_id: i.uniktId,
+      udfald: spor.udfald,
+      status: spor.status,
+      varighed_ms: spor.varighed_ms,
+      sendt: krop,
+      svar: spor.svar,
+      grund: spor.grund,
+    });
+    if (error) console.error(`[klaviyo] sporet kunne ikke skrives for ${i.metric}/${i.uniktId}:`, error.message);
+  } catch (e) {
+    console.error(`[klaviyo] sporet kastede for ${i.metric}/${i.uniktId}:`, e);
+  }
+}
+
 export async function sendHaendelse(
   skriver: SporSkriver | null,
   noegle: string | null | undefined,
   i: HaendelseInput,
   valg: Parameters<typeof kald>[2] = {},
 ): Promise<Afsendelse> {
-  const krop = byggHaendelse(i);
-  const svar = await kald(noegle, "/events/", { ...valg, metode: "POST", krop });
-  if (skriver) {
-    try {
-      const { error } = await skriver.from("klaviyo_haendelser").insert({
-        metric: i.metric,
-        email: i.email.trim().toLowerCase(),
-        unikt_id: i.uniktId,
-        udfald: svar.spor.udfald,
-        status: svar.spor.status,
-        varighed_ms: svar.spor.varighed_ms,
-        sendt: krop,
-        svar: svar.spor.svar,
-        grund: svar.spor.grund,
-      });
-      if (error) console.error(`[klaviyo] sporet kunne ikke skrives for ${i.metric}/${i.uniktId}:`, error.message);
-    } catch (e) {
-      console.error(`[klaviyo] sporet kastede for ${i.metric}/${i.uniktId}:`, e);
-    }
+  // UDEN MAIL SENDES DER INTET — MEN DER LOGGES (19/9 kl. 22.30).
+  // Før returnerede kaldet i tavshed, og nul rækker kunne betyde både «intet
+  // skete» og «intet KUNNE ske». De to har helt forskellige årsager, og det
+  // kostede en kodelæsning at skelne dem. Rækken bærer hvad vi VILLE have
+  // sendt, så det er læsbart bagud hvad der manglede.
+  const mail = brugbarMail(i.email);
+  if (mail === null) {
+    const spor: KlaviyoSpor = {
+      udfald: "ingen_mail",
+      metode: "POST",
+      sti: "/events/",
+      status: null,
+      svar: null,
+      grund: "ingen mailadresse — Klaviyos profil findes på mailen, så der er ingen modtager",
+      varighed_ms: 0,
+    };
+    await skrivSpor(skriver, i, spor, { ikke_sendt: "ingen_mail", metric: i.metric, unique_id: i.uniktId });
+    console.error(`[klaviyo] ${i.metric}/${i.uniktId} ikke sendt: ingen mailadresse`);
+    return { sendt: false, spor };
   }
+
+  const krop = byggHaendelse({ ...i, email: mail });
+  const svar = await kald(noegle, "/events/", { ...valg, metode: "POST", krop });
+  await skrivSpor(skriver, i, svar.spor, krop);
   if (!svar.ok && svar.spor.udfald !== "ingen_noegle") {
     console.error(`[klaviyo] ${i.metric} ikke sendt (${svar.spor.udfald}): ${svar.spor.grund ?? ""}`);
   }

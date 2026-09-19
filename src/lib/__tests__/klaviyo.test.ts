@@ -10,6 +10,7 @@ import {
 } from "../../../supabase/functions/_shared/klaviyo.ts";
 import {
   blevMedlem,
+  brugbarMail,
   byggHaendelse,
   HAENDELSE,
   paabegyndt,
@@ -196,5 +197,69 @@ describe("sporet — også det der IKKE blev sendt", () => {
   it("uden en skriver sendes hændelsen stadig", async () => {
     const r = await sendHaendelse(null, NOEGLE, paabegyndt("a1", "a@x.dk", null), { fetchImpl: svarer(202) });
     expect(r.sendt).toBe(true);
+  });
+});
+
+// ── «ingen_mail»: den tavse sti, målt i prod 19/9 kl. 22.22 ───────────────
+
+describe("uden mail sendes intet — men det LOGGES", () => {
+  const skriver = () => {
+    const insert = vi.fn(async (_r: Record<string, unknown>) => ({ error: null }));
+    return { from: vi.fn((_t: string) => ({ insert })), insert };
+  };
+
+  it("brugbarMail afviser tom, whitespace og noget uden snabel-a", () => {
+    expect(brugbarMail("A@X.dk")).toBe("a@x.dk");
+    expect(brugbarMail("  a@x.dk  ")).toBe("a@x.dk");
+    expect(brugbarMail("")).toBeNull();
+    expect(brugbarMail("   ")).toBeNull();
+    expect(brugbarMail("ikke en mail")).toBeNull();
+    expect(brugbarMail(null)).toBeNull();
+    expect(brugbarMail(undefined)).toBeNull();
+  });
+
+  it("DEN FEJL DER VAR: uden mail blev der hverken sendt eller logget — nu logges der", async () => {
+    const s = skriver();
+    const f = svarer(202);
+    const r = await sendHaendelse(s, NOEGLE, paabegyndt("a1", "", null), { fetchImpl: f });
+    expect(r.sendt).toBe(false);
+    expect(r.spor.udfald).toBe("ingen_mail");
+    expect(f).not.toHaveBeenCalled();
+    // …og rækken FINDES.
+    expect(s.insert).toHaveBeenCalledTimes(1);
+    const raekke = s.insert.mock.calls[0][0];
+    expect(raekke).toMatchObject({ metric: "Ansoegning paabegyndt", unikt_id: "a1", udfald: "ingen_mail", email: "" });
+    expect(raekke.grund).toContain("ingen mailadresse");
+  });
+
+  it("rækken bærer metric og id, så det kan ses HVAD der ikke blev sendt", async () => {
+    const s = skriver();
+    await sendHaendelse(s, NOEGLE, blevMedlem("c1", "2027-09-19", "", 5_000_000), { fetchImpl: svarer(202) });
+    const raekke = s.insert.mock.calls[0][0];
+    expect(raekke.metric).toBe("Blev medlem");
+    expect(raekke.unikt_id).toBe("c1:2027-09-19");
+    expect(felt(raekke.sendt, "ikke_sendt")).toBe("ingen_mail");
+  });
+
+  it("«ingen_mail» og «ingen_noegle» er FORSKELLIGE udfald — de har forskellige årsager", async () => {
+    const udenMail = await sendHaendelse(null, NOEGLE, paabegyndt("a1", "", null), { fetchImpl: svarer(202) });
+    const udenNoegle = await sendHaendelse(null, undefined, paabegyndt("a1", "a@x.dk", null), { fetchImpl: svarer(202) });
+    expect(udenMail.spor.udfald).toBe("ingen_mail");
+    expect(udenNoegle.spor.udfald).toBe("ingen_noegle");
+  });
+
+  it("mailen normaliseres ÉN gang — kroppen og sporet er enige", async () => {
+    const s = skriver();
+    await sendHaendelse(s, NOEGLE, paabegyndt("a1", "  A@X.DK ", null), { fetchImpl: svarer(202) });
+    const raekke = s.insert.mock.calls[0][0];
+    expect(raekke.email).toBe("a@x.dk");
+    expect(felt(raekke.sendt, "data.attributes.profile.data.attributes.email")).toBe("a@x.dk");
+  });
+
+  it("KASTER STADIG ALDRIG, når logningen af «ingen_mail» fejler", async () => {
+    const fejl = vi.spyOn(console, "error").mockImplementation(() => {});
+    const s = { from: vi.fn((_t: string) => ({ insert: vi.fn(async (_r: Record<string, unknown>) => ({ error: { message: "nede" } })) })) };
+    await expect(sendHaendelse(s, NOEGLE, paabegyndt("a1", "", null), { fetchImpl: svarer(202) })).resolves.toMatchObject({ sendt: false });
+    fejl.mockRestore();
   });
 });

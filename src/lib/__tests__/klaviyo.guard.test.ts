@@ -17,6 +17,13 @@ import { KLAVIYO_SECRET } from "../../../supabase/functions/_shared/klaviyo.ts";
  *   4. Revisionen er pinnet og sendes på hvert kald.
  *   5. Sporet skrives også ved «ingen_noegle» — ellers kan «vi har ingen
  *      hændelser» ikke skelnes fra «Klaviyo afviste dem».
+ *   7. SPORET HAR INGEN TAVS STI (19/9 kl. 22.30): der findes ingen `return`
+ *      i `sendHaendelse` FØR sporet er skrevet. Den ene undtagelse kostede
+ *      «Ansoegning paabegyndt» — nul rækker, og en kodelæsning for at finde ud
+ *      af hvorfor.
+ *   8. «Ansoegning paabegyndt» sendes fra «gem»-grenen, når mailen kommer ind
+ *      — ALDRIG fra «opret», hvor der kun er et CVR-nummer.
+ *
  *   6. Migrationen har INGEN unikhedsregel på (metric, unikt_id): dubletter
  *      afvises hos Klaviyo, og sporet skal vise hvert forsøg.
  */
@@ -47,12 +54,20 @@ export const kaldstederneGaarGennemEt = (gem: string, motor: string, stripe: str
     alle.every((k) => (k.split("sendHvisMail(").length - 1) >= 1);
 };
 
-export const ingenKanKastes = (afsendelse: string, gem: string, motor: string, stripe: string): boolean => {
+/**
+ * NY PRÆMIS 19/9 kl. 22.30: hændelsen bygges nu af KALDEREN, ikke af en
+ * `byg`-funktion inde i `sendHvisMail` — så metric og id er kendt, også når
+ * mailen mangler. Invarianten er uændret: intet fra afsendelsen kan kastes ud
+ * til en ansøger eller en Stripe-webhook. Der er nu TO try/catch'e at holde
+ * på: `sendHvisMail` om hele kaldet, og `skrivSpor` om logningen.
+ */
+export const ingenKanKastes = (afsendelse: string, haendelser: string, gem: string, motor: string, stripe: string): boolean => {
   const a = udenKommentarer(afsendelse);
-  const tryCatch = /export async function sendHvisMail\((?:(?!^export )[\s\S])*?try \{(?:(?!^export )[\s\S])*?\} catch \(e\) \{/m.test(a);
-  const bygInde = a.indexOf("try {") < a.indexOf("byg(mail)");
+  const h = udenKommentarer(haendelser);
+  const krop = (k: string, navn: string) =>
+    new RegExp(`function ${navn}\\((?:(?!\\nexport |\\nasync function |\\nfunction )[\\s\\S])*?try \\{(?:(?!\\nexport |\\nasync function |\\nfunction )[\\s\\S])*?\\} catch \\(e\\) \\{`).test(k);
   const afventes = [gem, motor, stripe].map(udenKommentarer).every((k) => /await sendHvisMail\(/.test(k));
-  return tryCatch && bygInde && afventes;
+  return krop(a, "sendHvisMail") && krop(h, "skrivSpor") && afventes;
 };
 
 export const noeglenLaesesEtSted = (klient: string, haendelser: string, afsendelse: string): boolean => {
@@ -68,13 +83,20 @@ export const revisionenErPinnet = (klient: string): boolean => {
     k.includes("revision: valg.revision ?? KLAVIYO_REVISION");
 };
 
+/**
+ * NY PRÆMIS: selve insert'et bor nu i `skrivSpor`, og `sendHaendelse` kalder
+ * den på BEGGE stier — den tomme mail og det rigtige kald. Værnet tæller
+ * kaldene i stedet for at lede efter insert'et inde i `sendHaendelse`.
+ */
 export const sporetDaekkerOgsaaDetUsendte = (haendelser: string): boolean => {
   const h = udenKommentarer(haendelser);
   const iSend = h.slice(h.indexOf("export async function sendHaendelse"));
-  // Logningen må IKKE ligge bag en «kun hvis ok»-gren.
-  return iSend.includes('.from("klaviyo_haendelser").insert(') &&
-    !/if \(svar\.ok\)[\s\S]{0,80}\.from\("klaviyo_haendelser"\)/.test(iSend) &&
-    iSend.includes("udfald: svar.spor.udfald");
+  return h.includes('.from("klaviyo_haendelser").insert(') &&
+    // To kald: ingen_mail-stien og den almindelige.
+    (iSend.split("skrivSpor(").length - 1) === 2 &&
+    // Og logningen må ALDRIG ligge bag en «kun hvis ok»-gren.
+    !/if \(svar\.ok\)[\s\S]{0,120}skrivSpor\(/.test(iSend) &&
+    h.includes("udfald: spor.udfald");
 };
 
 export const sporetHarIngenUnikhedsregel = (sql: string): boolean =>
@@ -82,6 +104,32 @@ export const sporetHarIngenUnikhedsregel = (sql: string): boolean =>
   !/unique\s*\(/i.test(sql) &&
   !/on conflict/i.test(sql) &&
   /enable row level security/i.test(sql);
+
+// ── 7 ──────────────────────────────────────────────────────────────────────
+export const ingenTavsSti = (haendelser: string): boolean => {
+  const h = udenKommentarer(haendelser);
+  const krop = h.slice(h.indexOf("export async function sendHaendelse"));
+  // Hver «return» i sendHaendelse skal komme EFTER en skrivSpor.
+  const foerste = krop.indexOf("return");
+  const spor = krop.indexOf("skrivSpor(");
+  return spor !== -1 && foerste > spor &&
+    // Og den tomme mail skal have sit eget, navngivne udfald.
+    krop.includes('udfald: "ingen_mail"') &&
+    h.includes("export function brugbarMail");
+};
+
+// ── 8 ──────────────────────────────────────────────────────────────────────
+export const paabegyndtKommerFraGem = (gem: string): boolean => {
+  const g = udenKommentarer(gem);
+  const opret = g.indexOf('handling === "opret"');
+  const gemGren = g.indexOf('handling === "gem"');
+  const kald = g.indexOf("paabegyndt(");
+  // Kaldet skal ligge EFTER «gem»-grenen begynder, ikke i «opret».
+  return opret !== -1 && gemGren !== -1 && kald !== -1 && kald > gemGren && gemGren > opret &&
+    g.includes('"email" in del.svar') &&
+    // Præcis ét kald.
+    (g.split("paabegyndt(").length - 1) === 1;
+};
 
 describe("Klaviyo — kildeværn", () => {
   it("1. de tre kaldsteder går gennem sendHvisMail", () => {
@@ -92,10 +140,11 @@ describe("Klaviyo — kildeværn", () => {
   });
 
   it("2. intet kaldsted kan kastes fra", () => {
-    const a = laes(AFSENDELSE), g = laes(GEM), m = laes(MOTOR), s = laes(STRIPE);
-    expect(ingenKanKastes(a, g, m, s)).toBe(true);
-    expect(ingenKanKastes(a.replace("} catch (e) {", "} finally {"), g, m, s)).toBe(false);
-    expect(ingenKanKastes(a, g.replace(/await sendHvisMail\(/g, "void sendHvisMail("), m, s)).toBe(false);
+    const a = laes(AFSENDELSE), h = laes(HAENDELSER), g = laes(GEM), m = laes(MOTOR), s = laes(STRIPE);
+    expect(ingenKanKastes(a, h, g, m, s)).toBe(true);
+    expect(ingenKanKastes(a.replace(/\} catch \(e\) \{/g, "} finally {"), h, g, m, s)).toBe(false);
+    expect(ingenKanKastes(a, h.replace(/\} catch \(e\) \{/g, "} finally {"), g, m, s)).toBe(false);
+    expect(ingenKanKastes(a, h, g.replace(/await sendHvisMail\(/g, "void sendHvisMail("), m, s)).toBe(false);
   });
 
   it("3. nøglen læses ét sted, og fundamentet er Deno-frit", () => {
@@ -116,9 +165,25 @@ describe("Klaviyo — kildeværn", () => {
   it("5. sporet dækker også det, der aldrig blev sendt", () => {
     const h = laes(HAENDELSER);
     expect(sporetDaekkerOgsaaDetUsendte(h)).toBe(true);
-    expect(sporetDaekkerOgsaaDetUsendte(h.replace('if (skriver) {', 'if (skriver && svar.ok) {'))).toBe(true);
-    // Den rigtige mutation: logningen bag en ok-gren.
+    // Fjernes den ene af de to skrivSpor-kald, falder værnet.
+    expect(sporetDaekkerOgsaaDetUsendte(h.replace('await skrivSpor(skriver, i, spor, { ikke_sendt: "ingen_mail"', 'await intet(skriver, i, spor, { ikke_sendt: "ingen_mail"'))).toBe(false);
     expect(sporetDaekkerOgsaaDetUsendte(h.replace('.from("klaviyo_haendelser").insert(', 'X('))).toBe(false);
+  });
+
+  it("7. sporet har ingen tavs sti", () => {
+    const h = laes(HAENDELSER);
+    expect(ingenTavsSti(h)).toBe(true);
+    // Præcis den fejl der var: en return før sporet skrives.
+    expect(ingenTavsSti(h.replace("export async function sendHaendelse(", "export async function sendHaendelse(\n  // @ts-expect-error\n  return;\n"))).toBe(false);
+    expect(ingenTavsSti(h.replace(/udfald: "ingen_mail"/g, 'udfald: "fejl"'))).toBe(false);
+  });
+
+  it("8. «Ansoegning paabegyndt» sendes fra gem, ikke fra opret", () => {
+    const g = laes(GEM);
+    expect(paabegyndtKommerFraGem(g)).toBe(true);
+    // Flyttes den tilbage til «opret»-grenen, falder værnet.
+    expect(paabegyndtKommerFraGem(g.replace(/handling === "gem"/g, 'handling === "XX"'))).toBe(false);
+    expect(paabegyndtKommerFraGem(g.replace(/"email" in del\.svar/g, "true"))).toBe(false);
   });
 
   it("6. migrationen har ingen unikhedsregel — sporet skal vise hvert forsøg", () => {

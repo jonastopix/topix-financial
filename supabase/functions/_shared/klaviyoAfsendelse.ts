@@ -15,22 +15,19 @@ import { KLAVIYO_SECRET } from "./klaviyo.ts";
 import { sendHaendelse, type HaendelseInput, type SporSkriver } from "./klaviyoHaendelser.ts";
 
 /**
- * Send hændelsen, hvis der er en mailadresse. KASTER ALDRIG — heller ikke hvis
- * `byg` selv kaster, hvilket er grunden til at også DEN er inde i try'en.
+ * Send hændelsen. KASTER ALDRIG.
  *
- * Uden mail sker der intet: Klaviyos profil findes på mailen, og en hændelse
- * uden profil har ingen modtager. Uden nøgle sker der heller intet — det er en
- * gyldig tilstand, ikke en fejl (samme kontrakt som Meta-hentningen).
+ * NAVNET ER BEHOLDT, MEN BETYDNINGEN ER SKÆRPET (19/9 kl. 22.30): den sender
+ * stadig kun, når der er en mail — men den er ikke længere TAVS, når der ikke
+ * er. `sendHaendelse` skriver en række med udfaldet «ingen_mail», så en
+ * manglende modtager kan ses i sporet i stedet for at kræve en kodelæsning.
+ *
+ * Hændelsen bygges af KALDEREN, ikke her. Så er metric og unikt id kendt,
+ * også når mailen mangler — og det er netop dét, rækken skal bære.
  */
-export async function sendHvisMail(
-  skriver: SporSkriver | null,
-  email: string | null | undefined,
-  byg: (mail: string) => HaendelseInput,
-): Promise<void> {
+export async function sendHvisMail(skriver: SporSkriver | null, i: HaendelseInput): Promise<void> {
   try {
-    const mail = typeof email === "string" ? email.trim() : "";
-    if (mail === "" || !mail.includes("@")) return;
-    await sendHaendelse(skriver, Deno.env.get(KLAVIYO_SECRET), byg(mail));
+    await sendHaendelse(skriver, Deno.env.get(KLAVIYO_SECRET), i);
   } catch (e) {
     // Sidste værn. Intet herfra må nå en ansøger eller en Stripe-webhook.
     console.error("[klaviyo] afsendelsen kastede — hændelsen er tabt, kalderen går videre:", e);
