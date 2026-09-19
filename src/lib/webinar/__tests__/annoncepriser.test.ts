@@ -1,7 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
   annoncepriser,
+  erDaekket,
+  forbrugsdaekning,
   kanStolesPaa,
+  periodeOrd,
+  sidsteDage,
+  udaekketTekst,
+  vinduesmuligheder,
   pris,
   STABIL_FRA,
   TROVAERDIG_FRA,
@@ -38,7 +44,14 @@ const R = (r: Partial<Tilmelding> & { email: string }): Tilmelding => ({
 });
 const A = (email: string): AnsoegerMail => ({ email, indsendt_at: "2026-09-18T10:00:00.000Z", trin: "ny", virksomhed_slutdato: null });
 const M = (email: string): AnsoegerMail => ({ email, indsendt_at: "2026-09-18T10:00:00.000Z", trin: "underskrevet", virksomhed_slutdato: "2027-09-18" });
-const D = (ad_id: string, oere: number, dato = "2026-09-15", campaign_id: string | null = KAMP): Forbrugsdag =>
+/**
+ * Forbrugsdagens standard-dato er DEN SAMME dag som R()'s standard
+ * `registreret_at` (10/9). Det er ikke kosmetik: efter rettelsen 19/9 regnes
+ * prisen over ét vindue i begge ender, så en fixture med forbrug den 15. og
+ * tilmeldinger den 10. beskriver netop den fejl, rettelsen forbyder — og de
+ * ti prøver, der brugte den, fejlede med rette.
+ */
+const D = (ad_id: string, oere: number, dato = "2026-09-10", campaign_id: string | null = KAMP): Forbrugsdag =>
   ({ ad_id, campaign_id, dato, valuta: "DKK", forbrug_oere: oere });
 const N = (ad_id: string, navn: string, kampagne_navn = "Webinar sep"): Annoncenavn =>
   ({ ad_id, campaign_id: KAMP, navn, kampagne_navn });
@@ -91,17 +104,22 @@ describe("NUL DATA — tre tilstande, ingen af dem er «0 kr.»", () => {
     expect(annoncepriser({ ...tomInd, tilstand: "tom" }, NU).harForbrug).toBe(false);
     const medNuldage = annoncepriser({ ...tomInd, dage: [D(AD_A, 0)], tilstand: "har" }, NU);
     expect(medNuldage.harForbrug).toBe(false);
-    expect(medNuldage.periode).toEqual({ fra: "2026-09-15", til: "2026-09-15" });
+    expect(medNuldage.vindue).toEqual({ fra: "2026-09-10", til: "2026-09-10" });
   });
 
-  it("tilmeldinger UDEN forbrug giver stadig antal — men ingen pris", () => {
+  it("UDEN forbrug findes der intet vindue — og så tælles intet (ny præmis 19/9)", () => {
+    // Før rettelsen viste vi antal uden en periode. Det kan vi ikke længere:
+    // uden forbrug er der ingen dækning, og et antal uden et vindue kan ikke
+    // holdes op mod noget. Fladen viser i stedet tilstandens sætning.
     const d = annoncepriser(
       { tilmeldinger: [R({ email: "a@x.dk", utm_content: AD_A })], ansoegninger: [], dage: [], annoncer: [], tilstand: "tom" },
       NU,
     );
-    expect(d.samlet.tilmeldte).toBe(1);
-    expect(d.samlet.forbrugOere).toBe(0);
-    expect(d.samlet.prPrTilmelding.oerePrStk).toBe(0);
+    expect(d.vindue).toBeNull();
+    expect(d.daekket).toBe(false);
+    expect(d.samlet.prPrTilmelding.tillid).toBe("udaekket");
+    // Tilmeldingernes eget spænd står der stadig — det er en kendsgerning.
+    expect(d.tilmeldingsspan).toEqual({ fra: "2026-09-10", til: "2026-09-10" });
   });
 
   it("alt tomt kaster ikke og giver ingen NaN", () => {
@@ -109,7 +127,7 @@ describe("NUL DATA — tre tilstande, ingen af dem er «0 kr.»", () => {
     expect(d.samlet.prPrMedlem.oerePrStk).toBeNull();
     expect(d.perAnnonce).toEqual([]);
     expect(d.perKampagne).toEqual([]);
-    expect(d.periode).toBeNull();
+    expect(d.vindue).toBeNull();
   });
 });
 
@@ -164,6 +182,9 @@ describe("hele kæden — fra annonce til medlem", () => {
   it("samme person to gange tælles ÉN gang — ved sin FØRSTE tilmelding", () => {
     const d = annoncepriser({
       ...ind,
+      // Forbruget dækker BEGGE tilmeldingsdage, så det er tilskrivningen der
+      // prøves her — ikke vinduet (det har sin egen blok nedenfor).
+      dage: [D(AD_A, 300_000, "2026-09-01"), D(AD_B, 200_000, "2026-09-10")],
       tilmeldinger: [
         R({ email: "z@x.dk", ewebinar_id: "r1", utm_content: AD_A, registreret_at: "2026-09-01T09:00:00.000Z" }),
         R({ email: "z@x.dk", ewebinar_id: "r2", utm_content: AD_B, registreret_at: "2026-09-10T09:00:00.000Z" }),
@@ -191,11 +212,18 @@ describe("KÆDEBRUDDENE — talt, ikke skjult", () => {
   it("et mærke der ikke ligner et Meta-id tælles for sig — makroen er ikke sat", () => {
     const d = annoncepriser({
       tilmeldinger: [R({ email: "a@x.dk", utm_content: "sommer-kampagne" }), R({ email: "b@x.dk", utm_content: "3" })],
-      ansoegninger: [], dage: [], annoncer: [], tilstand: "har",
+      // Forbrug på samme dag som tilmeldingerne — ellers findes der intet
+      // vindue, og bruddene ville ikke kunne tælles.
+      ansoegninger: [], dage: [D(AD_A, 100_000)], annoncer: [], tilstand: "har",
     }, NU);
     expect(d.brud.maerkeErIkkeId).toBe(2);
     expect(d.brud.udenAnnoncemaerke).toBe(0);
-    expect(d.perAnnonce).toEqual([]);
+    // Ingen af de to mærker bliver til en annoncelinje — de KAN ikke slås op.
+    expect(d.perAnnonce.map((x) => x.noegle)).not.toContain("sommer-kampagne");
+    expect(d.perAnnonce.map((x) => x.noegle)).not.toContain("3");
+    // AD_A står der derimod, fordi den har forbrug uden en eneste tilmelding.
+    expect(d.perAnnonce.map((x) => x.noegle)).toEqual([AD_A]);
+    expect(d.perAnnonce[0].tilmeldte).toBe(0);
   });
 
   it("annonce med forbrug uden tilmeldinger vises som en linje med nuller — det er dens pointe", () => {
@@ -212,7 +240,8 @@ describe("KÆDEBRUDDENE — talt, ikke skjult", () => {
   it("tilmelding der peger på en annonce uden forbrug tælles også", () => {
     const d = annoncepriser({
       tilmeldinger: [R({ email: "a@x.dk", utm_content: AD_A })],
-      ansoegninger: [], dage: [], annoncer: [], tilstand: "har",
+      // Forbrug på en ANDEN annonce: vinduet findes, men AD_A har intet forbrug.
+      ansoegninger: [], dage: [D(AD_B, 100_000)], annoncer: [], tilstand: "har",
     }, NU);
     expect(d.brud.udenForbrug).toBe(1);
   });
@@ -244,5 +273,119 @@ describe("de kommende tæller ikke som deltagere", () => {
     expect(d.samlet.deltagere).toBe(0);
     expect(d.samlet.prPrDeltager.oerePrStk).toBeNull();
     expect(d.samlet.prPrTilmelding.oerePrStk).toBe(100_000);
+  });
+});
+
+// ── VINDUET: fejlen Jonas fandt 19/9 ──────────────────────────────────────
+
+describe("ét vindue i BEGGE ender — fejlen der gav en pris fem gange for lav", () => {
+  /**
+   * Prods form, forenklet til samme forhold: forbruget er hentet for ÉN uge
+   * (12.–18. september), mens tilmeldingerne går tilbage til 17. august.
+   * Den gamle kode delte hele forbruget med ALLE tilmeldinger.
+   */
+  const FORBRUG = [D(AD_A, 546_400, "2026-09-15")];
+  const iUgen = [...Array(20).keys()].map((i) =>
+    R({ email: `u${i}@x.dk`, utm_content: AD_A, registreret_at: `2026-09-1${5 + (i % 4)}T09:00:00.000Z` }));
+  const foerUgen = [...Array(80).keys()].map((i) =>
+    R({ email: `f${i}@x.dk`, utm_content: AD_A, registreret_at: `2026-08-${20 + (i % 9)}T09:00:00.000Z` }));
+  const ind = { tilmeldinger: [...foerUgen, ...iUgen], ansoegninger: [], dage: FORBRUG, annoncer: [], tilstand: "har" as const };
+
+  it("tæller KUN de tilmeldinger, der faldt i forbrugets vindue", () => {
+    const d = annoncepriser(ind, NU);
+    expect(d.vindue).toEqual({ fra: "2026-09-15", til: "2026-09-15" });
+    // 15/9 alene: hver fjerde af de tyve i ugen.
+    expect(d.samlet.tilmeldte).toBe(5);
+    expect(d.samlet.forbrugOere).toBe(546_400);
+    expect(d.samlet.prPrTilmelding.oerePrStk).toBe(546_400 / 5);
+  });
+
+  it("DEN GAMLE FEJL: havde vi delt med alle 100, var prisen blevet fem gange for lav", () => {
+    const d = annoncepriser(ind, NU);
+    const rigtig = d.samlet.prPrTilmelding.oerePrStk!;
+    const gammelForkert = Math.round(546_400 / 100);
+    expect(rigtig).toBeGreaterThan(gammelForkert * 4);
+    expect(d.samlet.tilmeldte).not.toBe(100);
+  });
+
+  it("tilmeldingernes eget spænd står ved siden af, så forskellen kan SES", () => {
+    const d = annoncepriser(ind, NU);
+    expect(d.tilmeldingsspan?.fra).toBe("2026-08-20");
+    expect(d.daekning).toEqual({ fra: "2026-09-15", til: "2026-09-15" });
+  });
+});
+
+describe("dækningen afgør, hvad der kan regnes", () => {
+  const uge = [D(AD_A, 500_000, "2026-09-12"), D(AD_A, 46_400, "2026-09-18")];
+
+  it("forbrugsdaekning er min og maks dato", () => {
+    expect(forbrugsdaekning(uge)).toEqual({ fra: "2026-09-12", til: "2026-09-18" });
+    expect(forbrugsdaekning([])).toBeNull();
+  });
+
+  it("erDaekket er sand KUN når vinduet ligger helt inden for dækningen", () => {
+    const d = { fra: "2026-09-12", til: "2026-09-18" };
+    expect(erDaekket({ fra: "2026-09-13", til: "2026-09-17" }, d)).toBe(true);
+    expect(erDaekket(d, d)).toBe(true);
+    expect(erDaekket({ fra: "2026-09-11", til: "2026-09-18" }, d)).toBe(false); // for langt bagud
+    expect(erDaekket({ fra: "2026-09-12", til: "2026-09-19" }, d)).toBe(false); // for langt frem
+    expect(erDaekket(d, null)).toBe(false);
+  });
+
+  it("sidsteDage er INKLUSIVE i begge ender — 7 dage er syv dage", () => {
+    const v = sidsteDage(7, new Date("2026-09-18T08:00:00.000Z"));
+    expect(v).toEqual({ fra: "2026-09-12", til: "2026-09-18" });
+  });
+
+  it("et UDÆKKET vindue giver INGEN pris — ikke et forkert tal", () => {
+    // 30 dage tilbage fra 19/9 rækker til 21/8; forbruget starter 12/9.
+    const d = annoncepriser({
+      tilmeldinger: [R({ email: "a@x.dk", utm_content: AD_A, registreret_at: "2026-09-14T09:00:00.000Z" })],
+      ansoegninger: [], dage: uge, annoncer: [], tilstand: "har", valg: "30dage",
+    }, NU);
+    expect(d.daekket).toBe(false);
+    expect(d.samlet.prPrTilmelding.tillid).toBe("udaekket");
+    expect(d.samlet.prPrTilmelding.oerePrStk).toBeNull();
+    for (const p of [d.samlet.prPrDeltager, d.samlet.prPrAnsoegning, d.samlet.prPrMedlem]) {
+      expect(p.oerePrStk).toBeNull();
+    }
+  });
+
+  it("mulighederne siger hvilke vinduer der KAN vælges", () => {
+    const m = vinduesmuligheder(uge, NU);
+    expect(m.find((x) => x.valg === "daekning")).toMatchObject({ daekket: true, vindue: { fra: "2026-09-12", til: "2026-09-18" } });
+    // 19/9 er ikke i forbruget, så «sidste 7 dage» (13.–19.) rækker for langt frem.
+    expect(m.find((x) => x.valg === "7dage")?.daekket).toBe(false);
+    expect(m.find((x) => x.valg === "30dage")?.daekket).toBe(false);
+  });
+
+  it("uden forbrug kan INTET vindue vælges, og intet kan regnes", () => {
+    const m = vinduesmuligheder([], NU);
+    expect(m.every((x) => !x.daekket)).toBe(true);
+    const d = annoncepriser({ tilmeldinger: [], ansoegninger: [], dage: [], annoncer: [], tilstand: "tom" }, NU);
+    expect(d.daekket).toBe(false);
+    expect(d.vindue).toBeNull();
+  });
+});
+
+describe("periodeOrd og udaekketTekst — perioden skal kunne læses", () => {
+  it("samme måned bliver til ét månedsnavn", () => {
+    expect(periodeOrd({ fra: "2026-09-12", til: "2026-09-18" })).toBe("12.–18. september");
+  });
+
+  it("én dag er én dag; to måneder er to navne", () => {
+    expect(periodeOrd({ fra: "2026-09-15", til: "2026-09-15" })).toBe("15. september");
+    expect(periodeOrd({ fra: "2026-08-17", til: "2026-09-18" })).toBe("17. august – 18. september");
+    expect(periodeOrd(null)).toBeNull();
+  });
+
+  it("den udækkede sætning nævner hvad vi FAKTISK har", () => {
+    const t = udaekketTekst({ fra: "2026-08-21", til: "2026-09-19" }, { fra: "2026-09-12", til: "2026-09-18" });
+    expect(t).toContain("12.–18. september");
+    expect(t).toContain("kan ikke regnes");
+  });
+
+  it("uden forbrug siger den det, i stedet for at nævne et tomt spænd", () => {
+    expect(udaekketTekst(null, null)).toContain("intet forbrug hentet");
   });
 });

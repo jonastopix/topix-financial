@@ -18,6 +18,11 @@ import { TROVAERDIG_FRA } from "@/lib/webinar/annoncepriser";
  *      regex her. To domme om «er det et ad_id» ville før eller siden
  *      svare forskelligt.
  *   6. Tilstanden læses af 42P01 alene; enhver anden fejl kaster.
+ *   7. ÉT VINDUE I BEGGE ENDER (fejl fundet af Jonas 19/9): forbruget og
+ *      tilmeldingerne filtreres med SAMME vindue, før noget tælles. Den
+ *      første udgave delte al forbrug med alle tilmeldinger og gav en pris
+ *      fem gange for lav.
+ *   8. Perioden står på skærmen, og en pris uden dækning vises ALDRIG.
  */
 
 const laes = (sti: string) => readFileSync(resolve(process.cwd(), sti), "utf8");
@@ -81,6 +86,30 @@ export const tilstandenLaesesAf42P01 = (hook: string): boolean => {
     h.includes('tilstand: dage.length === 0 ? "tom" : "har"');
 };
 
+// ── 7 ──────────────────────────────────────────────────────────────────────
+export const etVindueIBeggeEnder = (dom: string): boolean => {
+  const d = udenKommentarer(dom);
+  // Begge ender filtreres med det SAMME `vindue`.
+  const forbrug = /alleDage\.filter\(\(x\) => iVindue\(tekst\(x\.dato\), vindue\)\)/.test(d);
+  const tilmeldinger = /alleFoerste\.filter\(\(r\) => iVindue\(dagKey\(r\.registreret_at\), vindue\)\)/.test(d);
+  // Og ingen af linjerne må regne på det ufiltrerede sæt.
+  const ingenUfiltreret = !/byggLinje\([^)]*alleDage/.test(d) && !/byggLinje\([^)]*alleFoerste/.test(d);
+  return forbrug && tilmeldinger && ingenUfiltreret;
+};
+
+// ── 8 ──────────────────────────────────────────────────────────────────────
+export const udaekketVisesIkke = (dom: string, flade: string): boolean => {
+  const d = udenKommentarer(dom);
+  const f = udenKommentarer(flade);
+  return d.includes("export const UDAEKKET: Pris") &&
+    /prPrTilmelding: daekket \? pris\(/.test(d) &&
+    /prPrMedlem: daekket \? pris\(/.test(d) &&
+    // Fladen viser perioden og siger hvorfor, når den ikke kan regnes.
+    f.includes("periodeOrd(dom.vindue)") &&
+    f.includes("udaekketTekst(dom.vindue, dom.daekning)") &&
+    f.includes('p.tillid === "udaekket"');
+};
+
 describe("annoncepriserne — kildeværn", () => {
   it("1. afsnittet kan flyttes til en marketingflade uden ændringer", () => {
     const flade = laes(FLADE), webinar = laes(WEBINAR);
@@ -126,6 +155,22 @@ describe("annoncepriserne — kildeværn", () => {
     expect(tilstandenLaesesAf42P01(hook)).toBe(true);
     expect(tilstandenLaesesAf42P01(hook.replace('fejl.code === "42P01"', "true"))).toBe(false);
     expect(tilstandenLaesesAf42P01(hook.replace('throw new HentningsFejl("meta_annonce_dag"', "return TOMT; //("))).toBe(false);
+  });
+
+  it("7. forbrug og tilmeldinger filtreres med SAMME vindue", () => {
+    const dom = laes(DOM);
+    expect(etVindueIBeggeEnder(dom)).toBe(true);
+    // Præcis den gamle fejl: den ene ende ufiltreret.
+    expect(etVindueIBeggeEnder(dom.replace(/alleDage\.filter\(\(x\) => iVindue\(tekst\(x\.dato\), vindue\)\)/g, "alleDage"))).toBe(false);
+    expect(etVindueIBeggeEnder(dom.replace(/alleFoerste\.filter\(\(r\) => iVindue\(dagKey\(r\.registreret_at\), vindue\)\)/g, "alleFoerste"))).toBe(false);
+  });
+
+  it("8. uden dækning vises ingen pris, og perioden står på skærmen", () => {
+    const dom = laes(DOM), flade = laes(FLADE);
+    expect(udaekketVisesIkke(dom, flade)).toBe(true);
+    expect(udaekketVisesIkke(dom.replace(/daekket \? pris\(/g, "true ? pris("), flade)).toBe(false);
+    expect(udaekketVisesIkke(dom, flade.replace(/periodeOrd\(dom\.vindue\)/g, '""'))).toBe(false);
+    expect(udaekketVisesIkke(dom, flade.replace(/p\.tillid === "udaekket"/g, "false"))).toBe(false);
   });
 
   it("grænsen for et troværdigt tal står ét sted og er fem", () => {

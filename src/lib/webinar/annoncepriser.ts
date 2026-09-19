@@ -38,6 +38,7 @@
 import { erMetaObjektId } from "@/lib/metaAnnoncer";
 import {
   andel,
+  dagKey,
   taelDeltagelse,
   type AnsoegerMail,
   type Tilmelding,
@@ -71,6 +72,94 @@ export interface Annoncenavn {
  */
 export type Forbrugstilstand = "mangler" | "tom" | "har";
 
+// ── Vinduet ────────────────────────────────────────────────────────────────
+
+/**
+ * ET VINDUE, IKKE TO (fejl fundet af Jonas 19/9-2026).
+ *
+ * Den første udgave delte ALT forbrug med ALLE tilmeldinger. Målt i prod:
+ * Metas forbrug var hentet for 12.–18. september (87 dagsrækker, 5.464 kr.),
+ * mens tilmeldingerne var talt siden 17. august (608 stk.). Resultatet var en
+ * pris pr. tilmelding omkring FEM GANGE for lav — et tal man kan træffe
+ * forkerte beslutninger på, og som ikke kunne holdes op mod Metas egne
+ * (Webinar-kampagnen 150,74 kr./lead, VSL 58,19 kr./lead over 30 dage).
+ *
+ * Derfor: enhver pris regnes over ét vindue, og BEGGE ender filtreres ens.
+ * Datoerne er danske kalenderdage «YYYY-MM-DD», og de er INKLUSIVE i begge
+ * ender — «12.–18. september» betyder syv dage, ikke seks.
+ */
+export interface Vindue {
+  fra: string;
+  til: string;
+}
+
+/** Ligger dagen i vinduet? Streng-sammenligning er nok: «YYYY-MM-DD» sorterer som datoer. */
+export function iVindue(dag: string | null, v: Vindue): boolean {
+  return dag !== null && dag >= v.fra && dag <= v.til;
+}
+
+/**
+ * Hvilket vindue HAR vi forbrug for? Min og maks dato i dagsrækkerne.
+ * null når der ingen dage er — og så kan ingen pris regnes.
+ *
+ * Bemærk hvad dette IKKE er: et løfte om, at hver eneste dag i spændet har en
+ * række. En dag uden forbrug har ingen række, og det er rigtigt. Spændet siger
+ * kun, hvor langt vores viden rækker — uden for det ved vi ingenting, og dét
+ * er forskellen på «nul kroner» og «vi har ikke hentet det».
+ */
+export function forbrugsdaekning(dage: readonly Forbrugsdag[]): Vindue | null {
+  const datoer = dage.map((x) => tekst(x.dato)).filter((d): d is string => d !== null).sort();
+  return datoer.length === 0 ? null : { fra: datoer[0], til: datoer[datoer.length - 1] };
+}
+
+/**
+ * Kan vinduet regnes? KUN hvis forbruget dækker det helt. Rækker vinduet ud
+ * over dækningen — bagud eller fremad — mangler der forbrug for en del af det,
+ * og prisen ville blive for lav. Så vises den ikke.
+ */
+export function erDaekket(v: Vindue, daekning: Vindue | null): boolean {
+  return daekning !== null && v.fra >= daekning.fra && v.til <= daekning.til;
+}
+
+/** «i dag» som dansk kalenderdag. */
+export function idag(nu: Date): string {
+  return dagKey(nu.toISOString()) ?? nu.toISOString().slice(0, 10);
+}
+
+/** Vinduet «de sidste N dage til og med i dag», inklusive begge ender. */
+export function sidsteDage(antal: number, nu: Date): Vindue {
+  const til = idag(nu);
+  const fra = dagKey(new Date(Date.parse(`${til}T12:00:00Z`) - (antal - 1) * 86_400_000).toISOString()) ?? til;
+  return { fra, til };
+}
+
+export type VindueValg = "daekning" | "7dage" | "30dage";
+
+export interface VindueMulighed {
+  valg: VindueValg;
+  navn: string;
+  vindue: Vindue | null;
+  /** Falsk når forbruget ikke dækker hele vinduet — så kan prisen ikke regnes. */
+  daekket: boolean;
+}
+
+/**
+ * De vinduer, man kan vælge — og for hvert, om forbruget rækker.
+ * «Dækningen» er altid dækket pr. definition; de to andre kun, hvis vi har
+ * hentet så langt tilbage. Fladen viser de udækkede som slukkede med grunden,
+ * frem for at lade dem give et forkert tal.
+ */
+export function vinduesmuligheder(dage: readonly Forbrugsdag[], nu: Date): VindueMulighed[] {
+  const d = forbrugsdaekning(dage);
+  const syv = sidsteDage(7, nu);
+  const tredive = sidsteDage(30, nu);
+  return [
+    { valg: "daekning", navn: "Perioden vi har forbrug for", vindue: d, daekket: d !== null },
+    { valg: "7dage", navn: "Sidste 7 dage", vindue: syv, daekket: erDaekket(syv, d) },
+    { valg: "30dage", navn: "Sidste 30 dage", vindue: tredive, daekket: erDaekket(tredive, d) },
+  ];
+}
+
 // ── Prisen ─────────────────────────────────────────────────────────────────
 
 /**
@@ -88,7 +177,15 @@ export const TROVAERDIG_FRA = 5;
 /** Og her holder det op med at være indikativt og bliver til et tal, man kan styre efter. */
 export const STABIL_FRA = 25;
 
-export type Tillid = "ingen" | "tynd" | "indikativ" | "stabil";
+export type Tillid = "udaekket" | "ingen" | "tynd" | "indikativ" | "stabil";
+
+/**
+ * Prisen kan IKKE regnes, fordi forbruget ikke dækker vinduet. Ikke «0», ikke
+ * «–» af mangel på tæller: et navngivet afslag, så fladen kan sige hvorfor.
+ * Jonas 19/9: «Hellere *forbruget dækker kun 12.–18. september* end et tal,
+ * der er fem gange forkert.»
+ */
+export const UDAEKKET: Pris = { forbrugOere: 0, antal: 0, oerePrStk: null, tillid: "udaekket" };
 
 export interface Pris {
   /** Kendsgerning: hvad der er brugt. */
@@ -166,8 +263,16 @@ export interface Annoncepriser {
   perAnnonce: Prislinje[];
   perKampagne: Prislinje[];
   brud: Kaedebrud;
-  /** Nyeste og ældste dato i forbruget — så «pr. medlem» kan læses mod alderen. */
-  periode: { fra: string; til: string } | null;
+  /** Vinduet tallene ER regnet over. Står på skærmen — et beløb uden periode er ikke et tal. */
+  vindue: Vindue | null;
+  /** Hvad vi HAR forbrug for. Er vindue bredere end denne, kan prisen ikke regnes. */
+  daekning: Vindue | null;
+  /** Falsk når forbruget ikke dækker vinduet — alle priser er da UDAEKKET. */
+  daekket: boolean;
+  /** Valgene og deres tilgængelighed, så fladen kan slukke dem uden at regne selv. */
+  muligheder: VindueMulighed[];
+  /** Tilmeldingernes eget spænd — så forskellen til dækningen kan ses, ikke gættes. */
+  tilmeldingsspan: Vindue | null;
 }
 
 // ── Regnestykket ───────────────────────────────────────────────────────────
@@ -197,6 +302,12 @@ function foersteTilmeldingPrPerson(raekker: readonly Tilmelding[]): Tilmelding[]
   return [...kort.values()];
 }
 
+/**
+ * Én linje, regnet over ÉT vindue. `raekker` og `dage` er allerede filtreret
+ * af kalderen med samme vindue — det er hele rettelsen: tæller og nævner må
+ * aldrig dække hver sin periode. `daekket` er falsk, når forbruget ikke
+ * rækker over vinduet; så får hver pris `UDAEKKET`, og tallene står alene.
+ */
 function byggLinje(
   noegle: string,
   navn: string,
@@ -206,6 +317,7 @@ function byggLinje(
   ansoegte: ReadonlySet<string>,
   medlemmer: ReadonlySet<string>,
   nu: Date,
+  daekket: boolean,
 ): Prislinje {
   const d = taelDeltagelse(raekker, nu);
   const mails = new Set(raekker.map((r) => r.email));
@@ -227,10 +339,10 @@ function byggLinje(
     deltagere: d.moedteOp,
     ansoegte: a,
     medlemmer: m,
-    prPrTilmelding: pris(forbrugOere, d.tilmeldte),
-    prPrDeltager: pris(forbrugOere, d.moedteOp),
-    prPrAnsoegning: pris(forbrugOere, a),
-    prPrMedlem: pris(forbrugOere, m),
+    prPrTilmelding: daekket ? pris(forbrugOere, d.tilmeldte) : UDAEKKET,
+    prPrDeltager: daekket ? pris(forbrugOere, d.moedteOp) : UDAEKKET,
+    prPrAnsoegning: daekket ? pris(forbrugOere, a) : UDAEKKET,
+    prPrMedlem: daekket ? pris(forbrugOere, m) : UDAEKKET,
     fremmoedeAndel: andel(d.moedteOp, d.tilmeldte),
   };
 }
@@ -244,14 +356,37 @@ export interface AnnoncepriserInput {
   dage: readonly Forbrugsdag[];
   annoncer: readonly Annoncenavn[];
   tilstand: Forbrugstilstand;
+  /** Hvilket vindue der regnes over. Standard: præcis det, vi har forbrug for. */
+  valg?: VindueValg;
 }
 
 /** Ét kald, ét svar. Fladen regner intet. */
 export function annoncepriser(ind: AnnoncepriserInput, nu: Date): Annoncepriser {
-  const { tilmeldinger, ansoegninger, dage, annoncer, tilstand } = ind;
+  const { tilmeldinger, ansoegninger, dage: alleDage, annoncer, tilstand, valg = "daekning" } = ind;
   const ansoegte = ansoegerMails(ansoegninger);
   const medlemmer = medlemsMails(ansoegninger);
-  const personer = foersteTilmeldingPrPerson(tilmeldinger);
+
+  // ── VINDUET FØRST (rettelse 19/9) ───────────────────────────────────────
+  // Tæller og nævner skal dække SAMME periode. Derfor vælges vinduet her, og
+  // BEGGE ender filtreres med det, før noget tælles. Standard er præcis den
+  // periode, vi har forbrug for — den er altid dækket, og det er det vindue,
+  // der giver et tal, man kan holde op mod Metas egne.
+  const muligheder = vinduesmuligheder(alleDage, nu);
+  const valgt = muligheder.find((m) => m.valg === valg) ?? muligheder[0];
+  const daekning = forbrugsdaekning(alleDage);
+  const vindue = valgt.vindue;
+  const daekket = valgt.daekket && vindue !== null;
+
+  const dage = vindue === null ? [] : alleDage.filter((x) => iVindue(tekst(x.dato), vindue));
+  const alleFoerste = foersteTilmeldingPrPerson(tilmeldinger);
+  // Personen hører til vinduet, hvis hendes FØRSTE tilmelding faldt i det —
+  // samme tilskrivning som annoncen selv. Uden et vindue tælles ingen.
+  const personer = vindue === null ? [] : alleFoerste.filter((r) => iVindue(dagKey(r.registreret_at), vindue));
+
+  const tilmeldingsdage = alleFoerste.map((r) => dagKey(r.registreret_at)).filter((d): d is string => d !== null).sort();
+  const tilmeldingsspan = tilmeldingsdage.length === 0
+    ? null
+    : { fra: tilmeldingsdage[0], til: tilmeldingsdage[tilmeldingsdage.length - 1] };
 
   const navnKort = new Map(annoncer.map((a) => [a.ad_id, a]));
 
@@ -288,7 +423,7 @@ export function annoncepriser(ind: AnnoncepriserInput, nu: Date): Annoncepriser 
         tekst(kort?.kampagne_navn),
         perAd.get(ad) ?? [],
         forbrugPrAd.get(ad) ?? [],
-        ansoegte, medlemmer, nu,
+        ansoegte, medlemmer, nu, daekket,
       );
     })
     .sort(stoerstForbrugFoerst);
@@ -312,7 +447,7 @@ export function annoncepriser(ind: AnnoncepriserInput, nu: Date): Annoncepriser 
     perKampagneRaekker.set(k.id, post);
   }
   const perKampagne = [...perKampagneRaekker.entries()]
-    .map(([id, p]) => byggLinje(id, p.navn, null, p.raekker, p.dage, ansoegte, medlemmer, nu))
+    .map(([id, p]) => byggLinje(id, p.navn, null, p.raekker, p.dage, ansoegte, medlemmer, nu, daekket))
     .sort(stoerstForbrugFoerst);
 
   // ── I alt ───────────────────────────────────────────────────────────────
@@ -320,9 +455,8 @@ export function annoncepriser(ind: AnnoncepriserInput, nu: Date): Annoncepriser 
   // kostede en tilmelding» handler om det, pengene gav — og de tilmeldinger,
   // der kom ind uden mærke, er også kommet et sted fra. Fladen viser bruddene
   // ved siden af, så det kan ses, hvor stor den ukendte del er.
-  const samlet = byggLinje("i alt", "I alt", null, personer, dage, ansoegte, medlemmer, nu);
+  const samlet = byggLinje("i alt", "I alt", null, personer, dage, ansoegte, medlemmer, nu, daekket);
 
-  const datoer = dage.map((x) => tekst(x.dato)).filter((d): d is string => d !== null).sort();
   return {
     tilstand,
     harForbrug: dage.some((x) => Number.isFinite(x.forbrug_oere) && x.forbrug_oere > 0),
@@ -330,11 +464,36 @@ export function annoncepriser(ind: AnnoncepriserInput, nu: Date): Annoncepriser 
     perAnnonce,
     perKampagne,
     brud,
-    periode: datoer.length > 0 ? { fra: datoer[0], til: datoer[datoer.length - 1] } : null,
+    vindue,
+    daekning,
+    daekket,
+    muligheder,
+    tilmeldingsspan,
   };
 }
 
 // ── Ordene ─────────────────────────────────────────────────────────────────
+
+/** «12.–18. september» — ét spænd, ét månedsnavn når begge ender er samme måned. */
+export function periodeOrd(v: Vindue | null): string | null {
+  if (v === null) return null;
+  const d = (s: string) => new Date(`${s}T12:00:00Z`);
+  const dag = (s: string) => String(d(s).getUTCDate());
+  const maaned = (s: string) =>
+    new Intl.DateTimeFormat("da-DK", { month: "long", timeZone: "UTC" }).format(d(s));
+  if (v.fra === v.til) return `${dag(v.fra)}. ${maaned(v.fra)}`;
+  return maaned(v.fra) === maaned(v.til)
+    ? `${dag(v.fra)}.–${dag(v.til)}. ${maaned(v.til)}`
+    : `${dag(v.fra)}. ${maaned(v.fra)} – ${dag(v.til)}. ${maaned(v.til)}`;
+}
+
+/** Sætningen når vinduet ikke er dækket — den skal nævne, hvad vi FAKTISK har. */
+export function udaekketTekst(vindue: Vindue | null, daekning: Vindue | null): string {
+  const d = periodeOrd(daekning);
+  if (d === null) return "Der er intet forbrug hentet endnu, så ingen pris kan regnes.";
+  const v = periodeOrd(vindue);
+  return `Prisen kan ikke regnes for ${v ?? "det valgte vindue"}: forbruget dækker kun ${d}. Et tal regnet på tværs af to perioder ville være for lavt — derfor står der ingenting.`;
+}
 
 export const PRIS_EYEBROW = "Hvad det koster";
 export const PRIS_TITEL = "Pris pr. tilmelding, deltager, ansøgning og medlem";
