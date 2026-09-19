@@ -17,7 +17,7 @@ import { UNDERSTOETTEDE_SKRIVEVEJE_FLADE } from "@/lib/forslagFlade";
 import { afgoerFornyelsestilstand, type Fornyelsesbeslutning } from "@/lib/fornyelse";
 import { afgoerBetalingsfrist } from "@/lib/betalingsfrist";
 import { erKunde } from "@/lib/raadgiverensKunder";
-import { erPladsLedig, harTilbudUde, naesteIKoen, sorterKoe, type VentepladsStatus } from "@/lib/ventelisteDom";
+import { erPladsLedig, harTilbudUde, klarTilTilbud, naesteIKoen, sorterKoe, type VentepladsStatus } from "@/lib/ventelisteDom";
 import { ansoegerNavn } from "@/lib/hjemmebane/ventelisteApi";
 import { factsToDanishMetrics } from "@/lib/factsAdapter";
 import { momErGyldig, type DataBasis } from "@/lib/dataGrundlag";
@@ -137,6 +137,7 @@ interface VentepladsRad {
   company_id: string | null;
   status: VentepladsStatus;
   sat_at: string;
+  tidligst_tilbud_at?: string | null;
   ansoegninger: { lukket_at: string | null; navn: string | null; email: string | null; cvr_opslag: { navn?: string | null } | null } | null;
 }
 
@@ -362,7 +363,7 @@ export const hentAdvisorDashboard = () =>
         // fornyelsestilstanden pr. virksomhed — «pladsen er ledig».
         (supabase
           .from("ventepladser" as any)
-          .select("id, ansoegning_id, company_id, status, sat_at, ansoegninger(lukket_at, navn, email, cvr_opslag)")
+          .select("id, ansoegning_id, company_id, status, sat_at, tidligst_tilbud_at, ansoegninger(lukket_at, navn, email, cvr_opslag)")
           .in("status", ["venter", "tilbudt"])
           .limit(2000) as any),
         // Pulsen, tal 2: forslag der er SVARET på inden for SVAR_VINDUE_DAGE —
@@ -1032,8 +1033,9 @@ export const hentAdvisorDashboard = () =>
           beslutning: beslutningByCompany.get(cid) ?? null,
         }, now);
         if (!erPladsLedig(tilstand.status)) continue;
-        const raekker = liste.map((v) => ({ id: v.id, ansoegning_id: v.ansoegning_id, company_id: v.company_id, status: v.status, sat_at: v.sat_at, afvist_at: v.ansoegninger?.lukket_at ?? null }));
-        const naeste = naesteIKoen(raekker);
+        const raekker = liste.map((v) => ({ id: v.id, ansoegning_id: v.ansoegning_id, company_id: v.company_id, status: v.status, sat_at: v.sat_at, afvist_at: v.ansoegninger?.lukket_at ?? null, tidligst_tilbud_at: v.tidligst_tilbud_at ?? null }));
+        // «Tidligst»-datoen (18/9): forsiden foreslår kun den der må tilbydes i dag.
+        const naeste = naesteIKoen(klarTilTilbud(raekker, now));
         const naesteRad = naeste ? liste.find((v) => v.id === naeste.id) ?? null : null;
         venteliste.push({
           companyId: cid,

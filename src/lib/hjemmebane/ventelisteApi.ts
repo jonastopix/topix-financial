@@ -26,7 +26,7 @@ export function ansoegerNavn(a: { navn: string | null; email: string | null; cvr
 export async function hentVenteliste(companyId: string): Promise<VentepladsVisning[]> {
   const { data, error } = await supabase
     .from("ventepladser" as never)
-    .select("id, ansoegning_id, company_id, status, hvorfor, sat_at, tilbud_udloeber_at, ansoegninger(lukket_at, navn, email, cvr_opslag)" as never)
+    .select("id, ansoegning_id, company_id, status, hvorfor, sat_at, tilbud_udloeber_at, tidligst_tilbud_at, ansoegninger(lukket_at, navn, email, cvr_opslag)" as never)
     .eq("company_id" as never, companyId as never)
     .in("status" as never, ["venter", "tilbudt"] as never);
   if (error) throw new Error(error.message);
@@ -41,6 +41,7 @@ export async function hentVenteliste(companyId: string): Promise<VentepladsVisni
       sat_at: r.sat_at as string,
       tilbud_udloeber_at: (r.tilbud_udloeber_at as string | null) ?? null,
       afvist_at: a?.lukket_at ?? null,
+      tidligst_tilbud_at: (r.tidligst_tilbud_at as string | null) ?? null,
       ansoegerNavn: ansoegerNavn(a),
     };
   });
@@ -70,6 +71,6 @@ export function tilbydPladsen(companyId: string): Promise<Record<string, unknown
 export function fjernFraVenteliste(ventepladsId: string): Promise<Record<string, unknown>> {
   return kald({ handling: "fjern", venteplads_id: ventepladsId });
 }
-export function saetPaaVenteliste(ansoegningId: string, companyId: string, hvorfor: string | null): Promise<Record<string, unknown>> {
-  return kald({ handling: "saet", ansoegning_id: ansoegningId, company_id: companyId, hvorfor });
+export function saetPaaVenteliste(ansoegningId: string, companyId: string, hvorfor: string | null, tidligstTilbudAt: string | null = null): Promise<Record<string, unknown>> {
+  return kald({ handling: "saet", ansoegning_id: ansoegningId, company_id: companyId, hvorfor, tidligst_tilbud_at: tidligstTilbudAt });
 }
