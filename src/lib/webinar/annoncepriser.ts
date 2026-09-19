@@ -220,9 +220,21 @@ export function kanStolesPaa(p: Pris): boolean {
 
 // ── Linjen ─────────────────────────────────────────────────────────────────
 
+/**
+ * Hvordan linjen blev koblet til tilmeldingerne.
+ *   id     — utm_content var annoncens ad_id. Entydigt.
+ *   navn   — utm_content var annoncens NAVN. Flere annoncer kan bære det
+ *            samme navn; deres forbrug er lagt sammen i denne ene linje.
+ *   intet  — annoncen har forbrug, men ingen tilmelding peger på den.
+ */
+export type Koblingsform = "id" | "navn" | "intet";
+
 export interface Prislinje {
   /** ad_id, campaign_id eller «i alt». */
   noegle: string;
+  koblingsform: Koblingsform;
+  /** Antal annoncer linjen dækker. Over 1 betyder, at de deler navn. */
+  annoncer: number;
   navn: string;
   /** Kampagnens navn, når linjen er en annonce. */
   underNavn: string | null;
@@ -245,14 +257,25 @@ export interface Prislinje {
 export interface Kaedebrud {
   /** Tilmeldinger uden utm_content overhovedet: kan aldrig knyttes til en annonce. */
   udenAnnoncemaerke: number;
-  /** utm_content der findes, men ikke ligner et Meta-id (makroen er ikke sat). */
+  /**
+   * utm_content der hverken er et Meta-id ELLER matcher en annonces navn.
+   * Det er den ægte blindgyde: mærket peger på noget, vi ikke har.
+   */
   maerkeErIkkeId: number;
-  /** utm_content der ligner et id, men som vi ikke har forbrug på. */
+  /** utm_content der kobler, men som vi ikke har forbrug på. */
   udenForbrug: number;
   /** Annoncer med forbrug, som ingen tilmelding peger på. */
   forbrugUdenTilmeldinger: number;
   /** Personer i alt — nævneren for de tre første. */
   personer: number;
+  /**
+   * Tilmeldinger koblet på ANNONCENS NAVN i stedet for dens id (19/9).
+   * Navnet er ikke entydigt: flere annoncer kan bære det samme. De slås
+   * sammen til ÉN linje med forbruget lagt sammen — se `delteNavne`.
+   */
+  kobletPaaNavn: number;
+  /** Hvor mange linjer der dækker flere annoncer, fordi de deler navn. */
+  delteNavne: number;
 }
 
 export interface Annoncepriser {
@@ -318,6 +341,8 @@ function byggLinje(
   medlemmer: ReadonlySet<string>,
   nu: Date,
   daekket: boolean,
+  koblingsform: Koblingsform,
+  antalAnnoncer: number,
 ): Prislinje {
   const d = taelDeltagelse(raekker, nu);
   const mails = new Set(raekker.map((r) => r.email));
@@ -331,6 +356,8 @@ function byggLinje(
   const valutaer = [...new Set(dage.map((x) => tekst(x.valuta)).filter((v): v is string => v !== null))].sort();
   return {
     noegle,
+    koblingsform,
+    annoncer: antalAnnoncer,
     navn,
     underNavn,
     forbrugOere,
@@ -390,40 +417,115 @@ export function annoncepriser(ind: AnnoncepriserInput, nu: Date): Annoncepriser 
 
   const navnKort = new Map(annoncer.map((a) => [a.ad_id, a]));
 
-  // ── Kædebruddene, talt før noget grupperes ──────────────────────────────
+  // ── KOBLINGEN (rettet 19/9 efter Jonas' måling) ─────────────────────────
+  //
+  // FEJLEN DER VAR — to af dem, og de er hinandens spejlbillede:
+  //
+  //   1. MIN: kun utm_content der LIGNER et Meta-id blev koblet. Målt i prod
+  //      er 9 af 11 værdier annoncens NAVN, ikke dens id — så koden kasserede
+  //      dem i `maerkeErIkkeId`, og med dem størstedelen af tilmeldingerne.
+  //      «4 - Gammel video-ad – Copy» med 382 tilmeldinger forsvandt helt.
+  //
+  //   2. DEN NÆRLIGGENDE: at join'e på navn uden videre. Navnet er IKKE
+  //      entydigt — «IMG | 11-maaneskin | 2026-08-17» bæres af FIRE annoncer,
+  //      og en naiv join giver fire linjer med ALLE 53 tilmeldinger i hver.
+  //      Prisen bliver 2, 24, 27 og 37 kr. for den samme annonce.
+  //
+  // RETTELSEN: ÉN NØGLE PR. TILMELDING, ÉN GRUPPE PR. ANNONCE.
+  //   · Er utm_content et Meta-id → nøglen er `id:<id>`.
+  //   · Er den et navn, mindst én annonce bærer → nøglen er `navn:<navn>`,
+  //     og ALLE de annoncers forbrug lægges sammen i den ene linje.
+  //   · Ellers er mærket en blindgyde og tælles som brud.
+  // Annoncerne partitioneres med samme regel, så hver annonces forbrug havner
+  // i præcis én gruppe: id vinder over navn, når begge peger på den.
+  //
+  // Konsekvensen, som er hele pointen: en tilmelding kan ikke ligge i to
+  // linjer, og et forbrug kan ikke tælles to gange. Værnet i
+  // annoncepriser.guard + dom-prøven håndhæver det.
   const brud: Kaedebrud = {
     udenAnnoncemaerke: 0, maerkeErIkkeId: 0, udenForbrug: 0,
     forbrugUdenTilmeldinger: 0, personer: personer.length,
+    kobletPaaNavn: 0, delteNavne: 0,
   };
+
   const forbrugPrAd = new Map<string, Forbrugsdag[]>();
   for (const x of dage) {
     const liste = forbrugPrAd.get(x.ad_id);
     if (liste) liste.push(x); else forbrugPrAd.set(x.ad_id, [x]);
   }
 
-  const perAd = new Map<string, Tilmelding[]>();
+  // Navn → de annoncer der bærer det. Flere kan dele ét navn; det er fejlen.
+  const adPrNavn = new Map<string, string[]>();
+  for (const a of annoncer) {
+    const n = tekst(a.navn);
+    if (n === null) continue;
+    const liste = adPrNavn.get(n);
+    if (liste) liste.push(a.ad_id); else adPrNavn.set(n, [a.ad_id]);
+  }
+
+  const idNoegle = (v: string) => `id:${v}`;
+  const navnNoegle = (v: string) => `navn:${v}`;
+
+  // 1. Tilmeldingerne: ÉN nøgle hver, eller et brud.
+  const perNoegle = new Map<string, Tilmelding[]>();
+  const brugteIdNoegler = new Set<string>();
+  const brugteNavne = new Set<string>();
   for (const r of personer) {
     const maerke = tekst(r.utm_content);
     if (maerke === null) { brud.udenAnnoncemaerke++; continue; }
-    if (!erMetaObjektId(maerke)) { brud.maerkeErIkkeId++; continue; }
-    if (!forbrugPrAd.has(maerke)) brud.udenForbrug++;
-    const liste = perAd.get(maerke);
-    if (liste) liste.push(r); else perAd.set(maerke, [r]);
+    let noegle: string | null = null;
+    if (erMetaObjektId(maerke)) {
+      noegle = idNoegle(maerke);
+      brugteIdNoegler.add(maerke);
+    } else if (adPrNavn.has(maerke)) {
+      noegle = navnNoegle(maerke);
+      brugteNavne.add(maerke);
+      brud.kobletPaaNavn++;
+    } else {
+      brud.maerkeErIkkeId++;
+      continue;
+    }
+    const liste = perNoegle.get(noegle);
+    if (liste) liste.push(r); else perNoegle.set(noegle, [r]);
   }
-  for (const ad of forbrugPrAd.keys()) if (!perAd.has(ad)) brud.forbrugUdenTilmeldinger++;
+
+  // 2. Annoncerne: hver i PRÆCIS én gruppe. Id vinder over navn.
+  const forbrugPrNoegle = new Map<string, Forbrugsdag[]>();
+  const antalAnnoncerPrNoegle = new Map<string, number>();
+  const laegTil = (noegle: string, d: readonly Forbrugsdag[]) => {
+    const liste = forbrugPrNoegle.get(noegle);
+    if (liste) liste.push(...d); else forbrugPrNoegle.set(noegle, [...d]);
+    antalAnnoncerPrNoegle.set(noegle, (antalAnnoncerPrNoegle.get(noegle) ?? 0) + 1);
+  };
+  for (const [ad, d] of forbrugPrAd) {
+    if (brugteIdNoegler.has(ad)) { laegTil(idNoegle(ad), d); continue; }
+    const n = tekst(navnKort.get(ad)?.navn ?? null);
+    if (n !== null && brugteNavne.has(n)) { laegTil(navnNoegle(n), d); continue; }
+    laegTil(idNoegle(ad), d);
+  }
+
+  // 3. Bruddene, målt på grupperne.
+  for (const noegle of perNoegle.keys()) if (!forbrugPrNoegle.has(noegle)) brud.udenForbrug += perNoegle.get(noegle)!.length;
+  for (const noegle of forbrugPrNoegle.keys()) if (!perNoegle.has(noegle)) brud.forbrugUdenTilmeldinger++;
+  for (const [noegle, antal] of antalAnnoncerPrNoegle) if (antal > 1 && noegle.startsWith("navn:")) brud.delteNavne++;
 
   // ── Pr. annonce ─────────────────────────────────────────────────────────
-  const alleAd = new Set([...perAd.keys(), ...forbrugPrAd.keys()]);
-  const perAnnonce = [...alleAd]
-    .map((ad) => {
-      const kort = navnKort.get(ad) ?? null;
+  const alleNoegler = new Set([...perNoegle.keys(), ...forbrugPrNoegle.keys()]);
+  const perAnnonce = [...alleNoegler]
+    .map((noegle) => {
+      const erNavn = noegle.startsWith("navn:");
+      const vaerdi = noegle.slice(erNavn ? 5 : 3);
+      const kort = erNavn ? null : navnKort.get(vaerdi) ?? null;
+      const harTilmeldinger = perNoegle.has(noegle);
       return byggLinje(
-        ad,
-        tekst(kort?.navn) ?? ad,
-        tekst(kort?.kampagne_navn),
-        perAd.get(ad) ?? [],
-        forbrugPrAd.get(ad) ?? [],
+        noegle,
+        erNavn ? vaerdi : tekst(kort?.navn) ?? vaerdi,
+        erNavn ? null : tekst(kort?.kampagne_navn),
+        perNoegle.get(noegle) ?? [],
+        forbrugPrNoegle.get(noegle) ?? [],
         ansoegte, medlemmer, nu, daekket,
+        harTilmeldinger ? (erNavn ? "navn" : "id") : "intet",
+        antalAnnoncerPrNoegle.get(noegle) ?? 0,
       );
     })
     .sort(stoerstForbrugFoerst);
@@ -438,16 +540,40 @@ export function annoncepriser(ind: AnnoncepriserInput, nu: Date): Annoncepriser 
     const id = tekst(kort?.campaign_id) ?? tekst(fraDage?.campaign_id ?? null) ?? "uden kampagne";
     return { id, navn: tekst(kort?.kampagne_navn) ?? id };
   };
-  const perKampagneRaekker = new Map<string, { navn: string; raekker: Tilmelding[]; dage: Forbrugsdag[] }>();
-  for (const ad of alleAd) {
-    const k = kampagneAf(ad);
-    const post = perKampagneRaekker.get(k.id) ?? { navn: k.navn, raekker: [], dage: [] };
-    post.raekker.push(...(perAd.get(ad) ?? []));
-    post.dage.push(...(forbrugPrAd.get(ad) ?? []));
+  // Kampagnen udledes af GRUPPEN, ikke af den enkelte annonce: en navnegruppe
+  // kan dække annoncer i flere kampagner, og så er der ikke ét rigtigt svar.
+  // Den siger det i stedet for at vælge den første — «flere kampagner» er en
+  // ærligere etiket end en tilfældig.
+  const FLERE = "flere kampagner";
+  const kampagneForNoegle = (noegle: string): { id: string; navn: string } => {
+    const erNavn = noegle.startsWith("navn:");
+    const vaerdi = noegle.slice(erNavn ? 5 : 3);
+    const ads = erNavn ? (adPrNavn.get(vaerdi) ?? []) : [vaerdi];
+    const ids = new Set<string>();
+    let navn: string | null = null;
+    for (const ad of ads) {
+      const kort = navnKort.get(ad);
+      const fraDage = forbrugPrAd.get(ad)?.find((x) => tekst(x.campaign_id));
+      const id = tekst(kort?.campaign_id) ?? tekst(fraDage?.campaign_id ?? null);
+      if (id !== null) { ids.add(id); navn = navn ?? tekst(kort?.kampagne_navn); }
+    }
+    if (ids.size === 0) return { id: "uden kampagne", navn: "uden kampagne" };
+    if (ids.size > 1) return { id: FLERE, navn: FLERE };
+    const id = [...ids][0];
+    return { id, navn: navn ?? id };
+  };
+
+  const perKampagneRaekker = new Map<string, { navn: string; raekker: Tilmelding[]; dage: Forbrugsdag[]; annoncer: number }>();
+  for (const noegle of alleNoegler) {
+    const k = kampagneForNoegle(noegle);
+    const post = perKampagneRaekker.get(k.id) ?? { navn: k.navn, raekker: [], dage: [], annoncer: 0 };
+    post.raekker.push(...(perNoegle.get(noegle) ?? []));
+    post.dage.push(...(forbrugPrNoegle.get(noegle) ?? []));
+    post.annoncer += antalAnnoncerPrNoegle.get(noegle) ?? 0;
     perKampagneRaekker.set(k.id, post);
   }
   const perKampagne = [...perKampagneRaekker.entries()]
-    .map(([id, p]) => byggLinje(id, p.navn, null, p.raekker, p.dage, ansoegte, medlemmer, nu, daekket))
+    .map(([id, p]) => byggLinje(id, p.navn, null, p.raekker, p.dage, ansoegte, medlemmer, nu, daekket, "id", p.annoncer))
     .sort(stoerstForbrugFoerst);
 
   // ── I alt ───────────────────────────────────────────────────────────────
@@ -455,7 +581,7 @@ export function annoncepriser(ind: AnnoncepriserInput, nu: Date): Annoncepriser 
   // kostede en tilmelding» handler om det, pengene gav — og de tilmeldinger,
   // der kom ind uden mærke, er også kommet et sted fra. Fladen viser bruddene
   // ved siden af, så det kan ses, hvor stor den ukendte del er.
-  const samlet = byggLinje("i alt", "I alt", null, personer, dage, ansoegte, medlemmer, nu, daekket);
+  const samlet = byggLinje("i alt", "I alt", null, personer, dage, ansoegte, medlemmer, nu, daekket, "id", forbrugPrAd.size);
 
   return {
     tilstand,
@@ -493,6 +619,14 @@ export function udaekketTekst(vindue: Vindue | null, daekning: Vindue | null): s
   if (d === null) return "Der er intet forbrug hentet endnu, så ingen pris kan regnes.";
   const v = periodeOrd(vindue);
   return `Prisen kan ikke regnes for ${v ?? "det valgte vindue"}: forbruget dækker kun ${d}. Et tal regnet på tværs af to perioder ville være for lavt — derfor står der ingenting.`;
+}
+
+/** Forklaringen på en linje koblet via navnet — den skal stå ved tallet, ikke i en note. */
+export function navnekoblingTekst(l: Prislinje): string | null {
+  if (l.koblingsform !== "navn") return null;
+  return l.annoncer > 1
+    ? `Koblet på annoncens NAVN, som ${l.annoncer} annoncer deler — deres forbrug er lagt sammen her. Havde de stået hver for sig, ville de samme ${l.tilmeldte} tilmeldinger være talt ${l.annoncer} gange.`
+    : "Koblet på annoncens navn i stedet for dens id. Entydigt her, men kun fordi netop dette navn bæres af én annonce.";
 }
 
 export const PRIS_EYEBROW = "Hvad det koster";

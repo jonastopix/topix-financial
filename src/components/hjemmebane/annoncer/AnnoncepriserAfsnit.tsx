@@ -8,6 +8,7 @@ import { brokOgPct, pct, type AnsoegerMail, type Tilmelding } from "@/lib/webina
 import {
   annoncepriser,
   MODNING_FORKLARING,
+  navnekoblingTekst,
   periodeOrd,
   udaekketTekst,
   PRIS_MANGLER_TEKST,
@@ -82,7 +83,21 @@ const Hoveder = () => (
 const Linje = ({ l, indrykket = false }: { l: Prislinje; indrykket?: boolean }) => (
   <div className={cn(GRID, "py-2", indrykket && "pl-4")}>
     <div className="min-w-0">
-      <p className={cn("truncate text-sm", indrykket ? "text-hb-ink-soft" : "font-medium text-hb-ink")}>{l.navn}</p>
+      <p className={cn("flex min-w-0 items-baseline gap-1.5 text-sm", indrykket ? "text-hb-ink-soft" : "font-medium text-hb-ink")}>
+        <span className="truncate">{l.navn}</span>
+        {/* KOBLET PÅ NAVN (19/9): mærket skal stå ved tallet, ikke i en note.
+            Et navn er ikke entydigt — flere annoncer kan bære det, og så er
+            deres forbrug lagt sammen i denne ene linje. */}
+        {l.koblingsform === "navn" && (
+          <span
+            className="shrink-0 rounded-full border border-hb-rust/40 px-1.5 py-px text-[10px] font-medium uppercase tracking-[0.1em] text-hb-rust"
+            title={navnekoblingTekst(l) ?? undefined}
+            data-koblet-paa-navn={l.annoncer}
+          >
+            navn{l.annoncer > 1 ? ` · ${l.annoncer} annoncer` : ""}
+          </span>
+        )}
+      </p>
       <p className="truncate text-[11px] text-hb-ink-soft">
         {kr(l.forbrugOere)} kr.
         {l.valutaer.length === 1 ? ` ${l.valutaer[0]}` : l.valutaer.length > 1 ? ` · ${l.valutaer.join(" + ")} — beløb i flere valutaer, læg dem ikke sammen` : ""}
@@ -106,11 +121,19 @@ const Brud = ({ dom }: { dom: Annoncepriser }) => {
     b.udenForbrug > 0 ? `${b.udenForbrug} peger på en annonce, vi ikke har forbrug på` : null,
     b.forbrugUdenTilmeldinger > 0 ? `${b.forbrugUdenTilmeldinger} ${b.forbrugUdenTilmeldinger === 1 ? "annonce har" : "annoncer har"} kostet penge uden en eneste tilmelding` : null,
   ].filter((x): x is string => x !== null);
-  if (dele.length === 0) return null;
+  const navne = b.kobletPaaNavn > 0
+    ? `${brokOgPct(b.kobletPaaNavn, b.personer)} er koblet på annoncens NAVN i stedet for dens id${b.delteNavne > 0 ? `, og ${b.delteNavne} ${b.delteNavne === 1 ? "navn bæres" : "navne bæres"} af flere annoncer — deres forbrug er lagt sammen i én linje hver` : ""}. Sæt {{ad.id}} i url_tags, så bliver koblingen entydig.`
+    : null;
+  if (dele.length === 0 && navne === null) return null;
   return (
-    <p className="mt-3 text-xs text-hb-rust" data-pris-brud={dele.length}>
-      <span className="font-medium">Hvor kæden brister:</span> {dele.join(" · ")}.
-    </p>
+    <>
+      {dele.length > 0 && (
+        <p className="mt-3 text-xs text-hb-rust" data-pris-brud={dele.length}>
+          <span className="font-medium">Hvor kæden brister:</span> {dele.join(" · ")}.
+        </p>
+      )}
+      {navne && <p className="mt-2 text-xs text-hb-ink-soft" data-pris-navnekobling={b.kobletPaaNavn}>{navne}</p>}
+    </>
   );
 };
 

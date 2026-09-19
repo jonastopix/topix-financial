@@ -143,7 +143,7 @@ describe("hele kæden — fra annonce til medlem", () => {
 
   it("pr. annonce: forbrug, antal og fire priser", () => {
     const d = annoncepriser(ind, NU);
-    const a = d.perAnnonce.find((x) => x.noegle === AD_A);
+    const a = d.perAnnonce.find((x) => x.noegle === `id:${AD_A}`);
     expect(a?.navn).toBe("Annonce A");
     expect(a?.forbrugOere).toBe(400_000);
     expect(a).toMatchObject({ tilmeldte: 3, deltagere: 2, ansoegte: 1, medlemmer: 1 });
@@ -155,14 +155,14 @@ describe("hele kæden — fra annonce til medlem", () => {
 
   it("ET medlem giver en TYND pris — den vises, men er markeret", () => {
     const d = annoncepriser(ind, NU);
-    const a = d.perAnnonce.find((x) => x.noegle === AD_A);
+    const a = d.perAnnonce.find((x) => x.noegle === `id:${AD_A}`);
     expect(a?.prPrMedlem.antal).toBe(1);
     expect(a?.prPrMedlem.tillid).toBe("tynd");
     expect(kanStolesPaa(a!.prPrMedlem)).toBe(false);
   });
 
   it("annoncen uden medlemmer får INGEN pris pr. medlem — ikke «0 kr.»", () => {
-    const b = annoncepriser(ind, NU).perAnnonce.find((x) => x.noegle === AD_B);
+    const b = annoncepriser(ind, NU).perAnnonce.find((x) => x.noegle === `id:${AD_B}`);
     expect(b?.medlemmer).toBe(0);
     expect(b?.prPrMedlem.oerePrStk).toBeNull();
     expect(b?.prPrAnsoegning.oerePrStk).toBe(200_000);
@@ -176,7 +176,7 @@ describe("hele kæden — fra annonce til medlem", () => {
   });
 
   it("sorteret efter forbrug, størst først", () => {
-    expect(annoncepriser(ind, NU).perAnnonce.map((x) => x.noegle)).toEqual([AD_A, AD_B]);
+    expect(annoncepriser(ind, NU).perAnnonce.map((x) => x.noegle)).toEqual([`id:${AD_A}`, `id:${AD_B}`]);
   });
 
   it("samme person to gange tælles ÉN gang — ved sin FØRSTE tilmelding", () => {
@@ -192,8 +192,8 @@ describe("hele kæden — fra annonce til medlem", () => {
       ansoegninger: [],
     }, NU);
     expect(d.samlet.tilmeldte).toBe(1);
-    expect(d.perAnnonce.find((x) => x.noegle === AD_A)?.tilmeldte).toBe(1);
-    expect(d.perAnnonce.find((x) => x.noegle === AD_B)?.tilmeldte).toBe(0);
+    expect(d.perAnnonce.find((x) => x.noegle === `id:${AD_A}`)?.tilmeldte).toBe(1);
+    expect(d.perAnnonce.find((x) => x.noegle === `id:${AD_B}`)?.tilmeldte).toBe(0);
   });
 });
 
@@ -219,10 +219,10 @@ describe("KÆDEBRUDDENE — talt, ikke skjult", () => {
     expect(d.brud.maerkeErIkkeId).toBe(2);
     expect(d.brud.udenAnnoncemaerke).toBe(0);
     // Ingen af de to mærker bliver til en annoncelinje — de KAN ikke slås op.
-    expect(d.perAnnonce.map((x) => x.noegle)).not.toContain("sommer-kampagne");
-    expect(d.perAnnonce.map((x) => x.noegle)).not.toContain("3");
+    expect(d.perAnnonce.map((x) => x.noegle)).not.toContain("navn:sommer-kampagne");
+    expect(d.perAnnonce.map((x) => x.noegle)).not.toContain("navn:3");
     // AD_A står der derimod, fordi den har forbrug uden en eneste tilmelding.
-    expect(d.perAnnonce.map((x) => x.noegle)).toEqual([AD_A]);
+    expect(d.perAnnonce.map((x) => x.noegle)).toEqual([`id:${AD_A}`]);
     expect(d.perAnnonce[0].tilmeldte).toBe(0);
   });
 
@@ -387,5 +387,137 @@ describe("periodeOrd og udaekketTekst — perioden skal kunne læses", () => {
 
   it("uden forbrug siger den det, i stedet for at nævne et tomt spænd", () => {
     expect(udaekketTekst(null, null)).toContain("intet forbrug hentet");
+  });
+});
+
+// ── KOBLINGEN: fejlen Jonas målte i prod 19/9 kl. 18.20 ───────────────────
+
+describe("navne kobler — men kun ÉN gang", () => {
+  const NAVN = "IMG | 11-maaneskin | 2026-08-17";
+  /** Fire annoncer bærer det SAMME navn — præcis som i prod. */
+  const FIRE = [
+    { ad_id: "120240000000000001", campaign_id: KAMP, navn: NAVN, kampagne_navn: "Webinar sep" },
+    { ad_id: "120240000000000002", campaign_id: KAMP, navn: NAVN, kampagne_navn: "Webinar sep" },
+    { ad_id: "120240000000000003", campaign_id: KAMP, navn: NAVN, kampagne_navn: "Webinar sep" },
+    { ad_id: "120240000000000004", campaign_id: KAMP, navn: NAVN, kampagne_navn: "Webinar sep" },
+  ];
+  const FORBRUG = [D("120240000000000001", 10_000), D("120240000000000002", 20_000), D("120240000000000003", 30_000), D("120240000000000004", 40_000)];
+  /** 53 personer, alle med NAVNET i utm_content — ikke et id. */
+  const TILMELDTE = [...Array(53).keys()].map((i) => R({ email: `n${i}@x.dk`, utm_content: NAVN }));
+  const ind = { tilmeldinger: TILMELDTE, ansoegninger: [], dage: FORBRUG, annoncer: FIRE, tilstand: "har" as const };
+
+  it("ÉN linje, ikke fire — og forbruget er lagt sammen", () => {
+    const d = annoncepriser(ind, NU);
+    const navnelinjer = d.perAnnonce.filter((l) => l.koblingsform === "navn");
+    expect(navnelinjer).toHaveLength(1);
+    expect(navnelinjer[0].navn).toBe(NAVN);
+    expect(navnelinjer[0].annoncer).toBe(4);
+    expect(navnelinjer[0].forbrugOere).toBe(100_000);
+    expect(navnelinjer[0].tilmeldte).toBe(53);
+  });
+
+  it("DEN GAMLE FEJL: fire linjer med 53 hver ville give fire forskellige priser", () => {
+    const d = annoncepriser(ind, NU);
+    const l = d.perAnnonce.find((x) => x.koblingsform === "navn")!;
+    // Rigtigt: 100.000 øre / 53.
+    expect(l.prPrTilmelding.oerePrStk).toBe(Math.round(100_000 / 53));
+    // Den naive join ville have givet 10.000/53, 20.000/53, 30.000/53, 40.000/53.
+    for (const forkert of [10_000, 20_000, 30_000, 40_000]) {
+      expect(l.prPrTilmelding.oerePrStk).not.toBe(Math.round(forkert / 53));
+    }
+  });
+
+  it("de fire annoncer optræder IKKE også hver for sig", () => {
+    const d = annoncepriser(ind, NU);
+    for (const ad of ["120240000000000001", "120240000000000002", "120240000000000003", "120240000000000004"]) {
+      expect(d.perAnnonce.map((l) => l.noegle)).not.toContain(`id:${ad}`);
+    }
+    expect(d.brud.delteNavne).toBe(1);
+    expect(d.brud.kobletPaaNavn).toBe(53);
+  });
+
+  it("id VINDER over navn, når begge peger på samme annonce", () => {
+    const d = annoncepriser({
+      ...ind,
+      tilmeldinger: [...TILMELDTE, R({ email: "id@x.dk", utm_content: "120240000000000001" })],
+    }, NU);
+    const viaId = d.perAnnonce.find((l) => l.noegle === "id:120240000000000001");
+    const viaNavn = d.perAnnonce.find((l) => l.koblingsform === "navn");
+    expect(viaId?.tilmeldte).toBe(1);
+    expect(viaId?.forbrugOere).toBe(10_000);           // den nævntes forbrug er IKKE i navnegruppen
+    expect(viaNavn?.forbrugOere).toBe(90_000);          // de tre øvrige
+    expect(viaNavn?.annoncer).toBe(3);
+  });
+});
+
+describe("VÆRN: en tilmelding må aldrig ligge i mere end én række", () => {
+  const NAVN = "delt navn";
+  const opsaetninger: Array<{ hvad: string; ind: Parameters<typeof annoncepriser>[0] }> = [
+    {
+      hvad: "navne delt af flere annoncer",
+      ind: {
+        tilmeldinger: [...Array(10).keys()].map((i) => R({ email: `a${i}@x.dk`, utm_content: NAVN })),
+        ansoegninger: [],
+        dage: [D("120250000000000001", 10_000), D("120250000000000002", 20_000)],
+        annoncer: [
+          { ad_id: "120250000000000001", campaign_id: KAMP, navn: NAVN, kampagne_navn: "K" },
+          { ad_id: "120250000000000002", campaign_id: KAMP, navn: NAVN, kampagne_navn: "K" },
+        ],
+        tilstand: "har",
+      },
+    },
+    {
+      hvad: "id og navn blandet",
+      ind: {
+        tilmeldinger: [
+          R({ email: "x@x.dk", utm_content: "120250000000000001" }),
+          R({ email: "y@x.dk", utm_content: NAVN }),
+          R({ email: "z@x.dk", utm_content: "intet-match" }),
+          R({ email: "w@x.dk" }),
+        ],
+        ansoegninger: [],
+        dage: [D("120250000000000001", 10_000), D("120250000000000002", 20_000)],
+        annoncer: [
+          { ad_id: "120250000000000001", campaign_id: KAMP, navn: NAVN, kampagne_navn: "K" },
+          { ad_id: "120250000000000002", campaign_id: KAMP, navn: NAVN, kampagne_navn: "K" },
+        ],
+        tilstand: "har",
+      },
+    },
+  ];
+
+  for (const { hvad, ind } of opsaetninger) {
+    it(`summen af rækkernes tilmeldte overstiger aldrig antallet af personer — ${hvad}`, () => {
+      const d = annoncepriser(ind, NU);
+      const sum = d.perAnnonce.reduce((n, l) => n + l.tilmeldte, 0);
+      expect(sum).toBeLessThanOrEqual(d.samlet.tilmeldte);
+      const kampagnesum = d.perKampagne.reduce((n, l) => n + l.tilmeldte, 0);
+      expect(kampagnesum).toBeLessThanOrEqual(d.samlet.tilmeldte);
+    });
+
+    it(`forbruget lægges aldrig sammen to gange — ${hvad}`, () => {
+      const d = annoncepriser(ind, NU);
+      const iAlt = ind.dage.reduce((n, x) => n + x.forbrug_oere, 0);
+      expect(d.perAnnonce.reduce((n, l) => n + l.forbrugOere, 0)).toBe(iAlt);
+      expect(d.perKampagne.reduce((n, l) => n + l.forbrugOere, 0)).toBe(iAlt);
+      expect(d.samlet.forbrugOere).toBe(iAlt);
+    });
+
+    it(`hver annonce hører til PRÆCIS én linje — ${hvad}`, () => {
+      const d = annoncepriser(ind, NU);
+      expect(d.perAnnonce.reduce((n, l) => n + l.annoncer, 0)).toBe(ind.dage.length);
+    });
+  }
+});
+
+describe("et mærke der hverken er id eller kendt navn er stadig en blindgyde", () => {
+  it("tælles i maerkeErIkkeId og bliver ikke til en linje", () => {
+    const d = annoncepriser({
+      tilmeldinger: [R({ email: "a@x.dk", utm_content: "findes-ikke" })],
+      ansoegninger: [], dage: [D(AD_A, 100_000)], annoncer: [N(AD_A, "Rigtig")], tilstand: "har",
+    }, NU);
+    expect(d.brud.maerkeErIkkeId).toBe(1);
+    expect(d.brud.kobletPaaNavn).toBe(0);
+    expect(d.perAnnonce.map((l) => l.navn)).not.toContain("findes-ikke");
   });
 });
