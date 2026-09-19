@@ -100,9 +100,16 @@ describe("cvrKilde.guard — virksomhedsOprettelse.ts slår op hos DataCVR med n
 describe("cvrKilde.guard — berig-virksomheder bruger samme opslag og holder sig under DataCVR's grænse", () => {
   const berig = udenKommentarer(laes(BERIG));
 
-  it("importerer slaaCvrOp fra virksomhedsOprettelse.ts og nævner ikke hentCvrData", () => {
-    expect(berig).toContain('import { slaaCvrOp, type CvrSvar } from "../_shared/virksomhedsOprettelse.ts";');
+  /* NY PRÆMIS 19/9: berigelsen bruger `slaaOpOgGem` i stedet for `slaaCvrOp`.
+     Samme kilde, samme modul, samme returtype — men opslaget GEMMES nu i
+     cvr_opslag_cache, så det kan tælles af dagsloftet. Uden det var 20 opslag
+     pr. kørsel usynlige for tælleren og for klokken ved 80 %. Værnet holder
+     stadig på, at kilden er husets og at hentCvrData er væk. */
+  it("importerer slaaOpOgGem fra virksomhedsOprettelse.ts og nævner ikke hentCvrData", () => {
+    expect(berig).toContain('import { slaaOpOgGem, type CvrSvar } from "../_shared/virksomhedsOprettelse.ts";');
     expect(berig).not.toContain("hentCvrData");
+    // Og den må ikke falde tilbage til den uden cache-skrivning.
+    expect(berig).not.toMatch(/await slaaCvrOp\(/);
   });
 
   it("MAKS_OPSLAG er 20", () => {
