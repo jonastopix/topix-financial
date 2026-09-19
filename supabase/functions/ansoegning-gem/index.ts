@@ -33,7 +33,7 @@
 
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
 import { corsHeaders } from "../_shared/edgeFunctionAuth.ts";
-import { paabegyndt } from "../_shared/klaviyoHaendelser.ts";
+import { brugbarMail, paabegyndt } from "../_shared/klaviyoHaendelser.ts";
 import { sendHvisMail } from "../_shared/klaviyoAfsendelse.ts";
 import { verifyAnsoegningstoken } from "../_shared/ansoegningToken.ts";
 import { KONTAKT_ADRESSE } from "../_shared/indgangsMail.ts";
@@ -154,10 +154,10 @@ Deno.serve(async (req) => {
         console.error("[ansoegning-gem] insert fejlede:", error);
         return jsonResponse({ error: "Kunne ikke gemme — prøv igen." }, 500);
       }
-      // KLAVIYO (lag 2, 19/9): «Ansoegning paabegyndt». Fail-soft hele vejen —
-      // mangler nøglen, sker der intet, og en fejl hos Klaviyo kan ikke nå
-      // ansøgeren. Kun når vi har en mail; uden den er der ingen profil.
-      await sendHvisMail(adminClient, data.email, (mail) => paabegyndt(data.id, mail, kilde));
+      // KLAVIYO: «Ansoegning paabegyndt» sendes IKKE her. Målt 19/9 kl. 22.22:
+      // «opret» sker ved FØRSTE gem, og første skærm er CVR — mailen kommer
+      // først på skærm 6. `data.email` er null her, og hændelsen kunne derfor
+      // aldrig sendes. Den er flyttet til «gem»-grenen, hvor mailen kommer ind.
 
       // Kladde-påmindelsen er trappen «kladde» i den fælles rykkerkø (Jonas D6, 18/9):
       // én række dag 2 fra sidste gem, kun når der er en e-mail — ingen cron for sig.
@@ -215,11 +215,26 @@ Deno.serve(async (req) => {
         .from("ansoegninger")
         .update(opdatering)
         .eq("id", ansoegning.id)
-        .select("id, email, updated_at, indsendt_at")
+        .select("id, email, kilde, updated_at, indsendt_at")
         .single();
       if (error || !gemt) {
         console.error("[ansoegning-gem] update fejlede:", error);
         return jsonResponse({ error: "Kunne ikke gemme — prøv igen." }, 500);
+      }
+
+      // KLAVIYO (flyttet hertil 19/9 kl. 22.30): «Ansoegning paabegyndt».
+      //
+      // HER, og ikke ved «opret»: Klaviyos profil findes på MAILEN, og mailen
+      // indtastes på skærm 6 («kontakt»). Ved første gem er der kun et
+      // CVR-nummer, og hændelsen kunne aldrig sendes — målt i prod med nul
+      // rækker i sporet.
+      //
+      // Betingelsen er, at mailen netop er KOMMET IND i dette gem. Det sker
+      // én gang pr. ansøgning i praksis. Retter ansøgeren sin mail senere,
+      // sendes den igen — og det er harmløst: `unique_id` er ansøgningens id,
+      // og Klaviyo registrerer kun den første pr. (profil, metric, id).
+      if ("email" in del.svar && brugbarMail(gemt?.email) !== null) {
+        await sendHvisMail(adminClient, paabegyndt(ansoegning.id, gemt.email as string, (gemt.kilde as string | null) ?? null));
       }
       // Nyt gem = nyt anker: forrige kladde-række annulleres, en ny planlægges (regel 1 + Jonas D6).
       await planlaegKladde(adminClient, gemt, new Date());

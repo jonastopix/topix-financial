@@ -71,6 +71,15 @@ export const TIMEOUT_MS = 3000;
 export type KlaviyoUdfald =
   | "ok"
   | "ingen_noegle"
+  /**
+   * Der var ingen mailadresse at knytte profilen til, så kaldet blev aldrig
+   * forsøgt. Tilføjet 19/9 kl. 22.30 efter at «Ansoegning paabegyndt» viste
+   * sig at være strukturelt ustartbar UDEN at efterlade ét eneste spor:
+   * `sendHvisMail` returnerede i tavshed, og nul rækker betød både «intet
+   * skete» og «intet KUNNE ske». Diagnosen krævede en kodelæsning; med denne
+   * række tager den ti sekunder.
+   */
+  | "ingen_mail"
   | "noegle_afvist"
   | "loft"
   | "ugyldig"

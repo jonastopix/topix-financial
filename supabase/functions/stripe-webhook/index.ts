@@ -854,10 +854,15 @@ async function meldBlevMedlem(
   listeprisOere: number,
 ): Promise<void> {
   try {
+    // MÅLT 19/9: companies.contact_email er NULLABLE, og huset behandler «tom
+    // kontaktmail» som en kendt tilstand (indgangs-paamindelser-cron). Derfor
+    // returnerer vi IKKE i tavshed, når den mangler — vi sender hændelsen ind
+    // med tom mail, og sporet får en række med udfaldet «ingen_mail». Ellers
+    // ville et medlem uden kontaktmail forsvinde sporløst, præcis som
+    // «Ansoegning paabegyndt» gjorde.
     const { data } = await adminClient.from("companies").select("contact_email").eq("id", companyId).maybeSingle();
-    const mail = typeof data?.contact_email === "string" ? data.contact_email.trim() : "";
-    if (mail === "") return;
-    await sendHvisMail(adminClient, mail, (m) => blevMedlem(companyId, periodeSlut, m, listeprisOere));
+    const mail = typeof data?.contact_email === "string" ? data.contact_email : "";
+    await sendHvisMail(adminClient, blevMedlem(companyId, periodeSlut, mail, listeprisOere));
   } catch (e) {
     console.error(`[stripe-webhook] Klaviyo «Blev medlem» kastede for ${companyId}:`, e);
   }

@@ -260,13 +260,16 @@ export async function registrerIndsendelse(admin: SupabaseClient, id: string, nu
   // en fejl hos Klaviyo må aldrig kunne stoppe en indsendelse, og derfor står
   // den EFTER anbefalingen er regnet og FØR trinnet skrives — et kald der
   // kaster, ville ellers kunne efterlade ansøgningen uden trin.
-  await sendHvisMail(admin, a.email, (mail) =>
-    sendt(id, mail, {
-      kilde: a.kilde ?? null,
-      branche: a.cvr_opslag?.branche ?? null,
-      omsaetningsinterval: a.omsaetningsinterval ?? null,
-      antal_ansatte: a.antal_ansatte ?? null,
-    }, nu));
+  // MÅLT 19/9: mailen er ALTID til stede her. «indsend» afviser med 400
+  // («Ansøgningen er ikke færdig»), hvis ikke hvert felt validerer, og
+  // email-feltet kræver en gyldig adresse. Skulle den mod forventning mangle,
+  // efterlader sendHaendelse nu en række med udfaldet «ingen_mail».
+  await sendHvisMail(admin, sendt(id, a.email ?? "", {
+    kilde: a.kilde ?? null,
+    branche: a.cvr_opslag?.branche ?? null,
+    omsaetningsinterval: a.omsaetningsinterval ?? null,
+    antal_ansatte: a.antal_ansatte ?? null,
+  }, nu));
 
   // Kladdens påmindelse er overflødig nu — reaktionen (indsendelsen) annullerer trappen (regel 1).
   await annullerTrapper(admin, id, ["kladde"], "indsendt", nu);
