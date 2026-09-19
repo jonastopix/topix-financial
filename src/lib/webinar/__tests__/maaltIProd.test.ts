@@ -1,12 +1,15 @@
 import { describe, expect, it } from "vitest";
 import {
   annoncespor,
+  brokOgPct,
+  dageOrd,
   kildeAf,
   kunPaaFbclid,
   naesteWebinar,
   pct,
   taelDeltagelse,
   webinarDashboard,
+  type AnsoegerMail,
   type Tilmelding,
 } from "@/lib/webinar/dashboard";
 
@@ -40,6 +43,12 @@ const TITEL = "Sådan får du styr på tallene";
 const NU = new Date("2026-09-19T08:00:00.000Z");
 const SESSION_22_9 = "2026-09-22T08:00:00.000Z";
 const SESSION_AUG = "2026-08-26T08:00:00.000Z";
+
+/** Ansøger der ikke blev medlem · ansøger der gjorde (underskrevet OG betalt). */
+const A = (email: string, indsendt_at = "2026-09-18T10:00:00.000Z"): AnsoegerMail =>
+  ({ email, indsendt_at, trin: "ny", virksomhed_slutdato: null });
+const M = (email: string, indsendt_at = "2026-09-18T10:00:00.000Z"): AnsoegerMail =>
+  ({ email, indsendt_at, trin: "underskrevet", virksomhed_slutdato: "2027-09-18" });
 
 const K_AUG = "Webinar | Adv+ | OM";
 const K_BRED = "Webinar | Sep | Bred";
@@ -176,7 +185,9 @@ describe("fordelingen over fire kilder — og de 12 på fbclid alene", () => {
     expect(pct(fb.andelAfHelhed)).toBe("89 %");
     expect(pct(ig.andelAfHelhed)).toBe("9 %");
     expect(pct(direkte.andelAfHelhed)).toBe("2 %");
-    expect(pct(nyhedsbrev.andelAfHelhed)).toBe("1 %");
+    // 4 af 594 er 0,673 %. Den gamle heltalsafrunding skrev «1 %» og gjorde
+    // fire personer til flere end de er; decimalreglen (19/9) siger 0,7 %.
+    expect(pct(nyhedsbrev.andelAfHelhed)).toBe("0,7 %");
     // Andelene summerer til 1 — ingen person er talt to gange eller tabt.
     expect(s.kilder.reduce((n, k) => n + (k.andelAfHelhed ?? 0), 0)).toBeCloseTo(1);
   });
@@ -283,12 +294,98 @@ describe("det næste webinar — de 534 til 22/9, ikke de 594", () => {
 describe("ansøgningerne oven på de rigtige tal", () => {
   it("koblingen rammer pr. kilde og pr. kampagne, ikke kun i alt", () => {
     // Ti ansøgere: fem fra Facebook-blokken, fem fra Instagram-blokken.
-    const ansoegere = [...Array(5).keys()].map((i) => ({ email: `person-${i}@x.dk`, indsendt_at: "2026-09-18T10:00:00.000Z" }))
-      .concat([...Array(5).keys()].map((i) => ({ email: `person-${515 + i}@x.dk`, indsendt_at: "2026-09-18T10:00:00.000Z" })));
+    const ansoegere = [...Array(5).keys()].map((i) => A(`person-${i}@x.dk`))
+      .concat([...Array(5).keys()].map((i) => A(`person-${515 + i}@x.dk`)));
     const d = webinarDashboard({ tilmeldinger: RAEKKER, ansoegninger: ansoegere, sporKolonnerFindes: true }, NU);
     expect(d.kobling).toMatchObject({ tilmeldte: 594, ansoegte: 10, ansoegereIAlt: 10 });
     expect(d.spor.kilder.find((k) => k.navn === "Facebook")?.ansoegte).toBe(5);
     expect(d.spor.kilder.find((k) => k.navn === "Instagram")?.ansoegte).toBe(5);
     expect(d.spor.kampagner.find((k) => k.navn === K_AUG)?.ansoegte).toBe(5);
+  });
+});
+
+// ── Jonas' fire + mine tre, målt på de rigtige tal ────────────────────────
+
+describe("tragten på prod-tallene — hele historien på én linje", () => {
+  it("regnes på august-sessionens 60, ikke på alle 594", () => {
+    const d = webinarDashboard({ tilmeldinger: RAEKKER, ansoegninger: [], sporKolonnerFindes: true }, NU);
+    expect(d.tragt.grundlag).toBe(60);
+    expect(d.tragt.kommendeUdenfor).toBe(534);
+    expect(d.tragt.trin.map((t) => [t.navn, t.antal])).toEqual([
+      ["Tilmeldte", 60], ["Mødte op", 29], ["Så det færdigt", 19], ["Ansøgte", 0], ["Blev medlem", 0],
+    ]);
+    expect(pct(d.tragt.trin[1].andelAfFoer)).toBe("48 %");
+    expect(pct(d.tragt.trin[2].andelAfFoer)).toBe("66 %");
+  });
+
+  it("de 534 der venter på tirsdag, står ALDRIG som frafald", () => {
+    const d = webinarDashboard({ tilmeldinger: RAEKKER, ansoegninger: [], sporKolonnerFindes: true }, NU);
+    // Havde de været med, ville «mødte op» have været 29 af 594 = 5 %.
+    expect(d.tragt.trin[0].antal).not.toBe(594);
+    expect(pct(d.tragt.trin[1].andelAfFoer)).not.toBe("5 %");
+  });
+
+  it("ÉN ansøger ud af de 60 giver 2 %, og ét medlem ud af én ansøger giver 100 %", () => {
+    const d = webinarDashboard(
+      { tilmeldinger: RAEKKER, ansoegninger: [M("person-0@x.dk")], sporKolonnerFindes: true },
+      NU,
+    );
+    expect(d.tragt.trin[3]).toMatchObject({ navn: "Ansøgte", antal: 1 });
+    expect(pct(d.tragt.trin[3].andelAfFoer)).toBe("5 %"); // 1 af de 19 der så det færdigt
+    expect(d.tragt.trin[4]).toMatchObject({ navn: "Blev medlem", antal: 1 });
+    expect(pct(d.tragt.trin[4].andelAfFoer)).toBe("100 %");
+    expect(pct(d.tragt.trin[4].andelAfStart)).toBe("2 %");
+  });
+});
+
+describe("ét lille tal i en stor bunke må ikke forsvinde", () => {
+  it("1 ansøger ud af 594 tilmeldte er «0,2 %» — ikke «0 %»", () => {
+    const d = webinarDashboard(
+      { tilmeldinger: RAEKKER, ansoegninger: [A("person-300@x.dk")], sporKolonnerFindes: true },
+      NU,
+    );
+    expect(d.kobling.ansoegte).toBe(1);
+    expect(pct(d.kobling.andelAfTilmeldte)).toBe("0,2 %");
+    expect(pct(d.kobling.andelAfTilmeldte)).not.toBe("0 %");
+  });
+
+  it("brøken står ved siden af, så 1 af 594 kan læses uden at regne", () => {
+    expect(brokOgPct(1, 594)).toBe("1 af 594 · 0,2 %");
+    expect(brokOgPct(29, 60)).toBe("29 af 60 · 48 %");
+  });
+});
+
+describe("pr. session: ansøgte og blev medlem på prod-tallene", () => {
+  it("august-sessionen bærer begge procenter, hver med sin egen nævner", () => {
+    const ansoegere = [...Array(6).keys()].map((i) => (i < 2 ? M(`person-${i}@x.dk`) : A(`person-${i}@x.dk`)));
+    const d = webinarDashboard({ tilmeldinger: RAEKKER, ansoegninger: ansoegere, sporKolonnerFindes: true }, NU);
+    const aug = d.afholdte[0];
+    expect(aug.ansoegte).toBe(6);
+    expect(pct(aug.ansoegerAndel)).toBe("10 %"); // 6 af 60 TILMELDTE
+    expect(aug.blevMedlem).toBe(2);
+    expect(pct(aug.medlemAfAnsoegteAndel)).toBe("33 %"); // 2 af 6 ANSØGTE — ikke af 60
+  });
+});
+
+describe("tiden fra tilmelding til ansøgning på prod-tallene", () => {
+  it("august-folkene meldte sig 20/8; ansøger de 1/9, er der gået 12 dage", () => {
+    const d = webinarDashboard(
+      {
+        tilmeldinger: RAEKKER,
+        ansoegninger: [A("person-0@x.dk", "2026-09-01T09:00:00.000Z"), A("person-1@x.dk", "2026-09-03T09:00:00.000Z")],
+        sporKolonnerFindes: true,
+      },
+      NU,
+    );
+    expect(d.tid.antal).toBe(2);
+    expect(d.tid.hurtigsteDage).toBe(12);
+    expect(d.tid.langsomsteDage).toBe(14);
+    expect(d.tid.gennemsnitDage).toBe(13);
+    expect(dageOrd(d.tid.gennemsnitDage)).toBe("13 dage");
+  });
+
+  it("i dag — nul ansøgninger — er tiden tom og siger det, uden at kaste", () => {
+    const d = webinarDashboard({ tilmeldinger: RAEKKER, ansoegninger: [], sporKolonnerFindes: true }, NU);
+    expect(d.tid).toMatchObject({ antal: 0, gennemsnitDage: null, medianDage: null, ansoegteFoerTilmelding: 0 });
   });
 });

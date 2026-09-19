@@ -31,6 +31,14 @@ import { ANNONCESPOR_KOLONNER } from "@/lib/webinar/kolonner";
  *   9. fbclid slår referrer i kildeAf, og tallet vises på fladen. Uden
  *      reglen ville 12 Facebook-klik stå som «direkte»; uden tallet kunne
  *      tilskrivningen ikke efterprøves.
+ *  10. OVERSKRIFT OG RÆKKE DELER ÉN GRID-SKABELON (Jonas 19/9, punkt 1).
+ *      Fejlen der var: hver havde sit eget grid med en `auto`-kolonne, og
+ *      `auto` måles pr. grid — så tallene stod under den forkerte titel.
+ *      Værnet nægter `auto` i skabelonerne og kræver at begge bruger den
+ *      samme konstant.
+ *  11. «Blev medlem» er HUSETS dom (blevMedlem i ansoegningVisning), ikke
+ *      en ny betingelse skrevet her — ellers ville to tal i samme hus
+ *      kunne betyde det samme ord forskelligt.
  */
 
 const laes = (sti: string) => readFileSync(resolve(process.cwd(), sti), "utf8");
@@ -91,12 +99,22 @@ export const kolonnelistenStemmer = (sql: string, liste: readonly string[]): boo
 // ── 6 ──────────────────────────────────────────────────────────────────────
 export const hentningenErForsigtig = (hook: string): boolean => {
   const kode = udenKommentarer(hook);
+  // `.data ?? []` gør en FEJL til et TOMT svar (recon-tavse-fejl.md) og er
+  // forbudt på de opslag siden ikke kan undvære. ÉN undtagelse er tilladt
+  // og navngivet: berigelsen med companies.contract_end_date til «blev
+  // medlem» — den MÅ fejle uden at vælte tallene, præcis som
+  // hooks/ansoegninger.ts gør det, og den skal så logge fejlen. Alt andet
+  // end netop den ene, med netop den log, falder værnet på.
+  const bloede = kode.match(/\.data\s*(?:\?\?|\|\|)\s*\[\]/g) ?? [];
+  const beriget = bloede.length === 0 ||
+    (bloede.length === 1 &&
+      /\(vRes\.data \?\? \[\]\)/.test(kode) &&
+      /if \(vRes\.error\) console\.error\(/.test(kode));
   return kode.includes("if (!erUkendtKolonne(fuld.error)) throw new HentningsFejl(") &&
     kode.includes("erUkendtKolonne") &&
-    // Begge opslag går gennem kraevRaekker — ingen `res.data ?? []`.
+    // De to opslag siden ikke kan undvære, går gennem kraevRaekker.
     (kode.split("kraevRaekker(").length - 1) >= 3 &&
-    !/\.data\s*\|\|\s*\[\]/.test(kode) &&
-    !/\.data\s*\?\?\s*\[\]/.test(kode) &&
+    beriget &&
     kode.includes('.not("indsendt_at", "is", null)');
 };
 
@@ -131,6 +149,32 @@ export const fbclidSlaarReferrer = (dom: string, view: string): boolean => {
     utm < fb && fb < ref &&
     d.includes("kunFbclid: personRaekker.filter(kunPaaFbclid).length") &&
     udenKommentarer(view).includes("spor.kunFbclid");
+};
+
+// ── 10 ─────────────────────────────────────────────────────────────────────
+export const opstillingenFlugter = (view: string): boolean => {
+  const v = udenKommentarer(view);
+  // Skabelonerne findes, er faste (ingen `auto`), og bruges af BÅDE
+  // overskrifterne og rækkerne.
+  for (const navn of ["TAL_GRID", "SPOR_GRID"]) {
+    const m = new RegExp(`const ${navn} =\\s*\n?\\s*"([^"]+)"`).exec(v);
+    if (!m) return false;
+    if (/\bauto\b/.test(m[1])) return false;
+    if (!/repeat\(\d+,/.test(m[1])) return false;
+    // Mindst to brugssteder ud over selve erklæringen: header + række.
+    if ((v.split(navn).length - 1) < 3) return false;
+  }
+  return v.includes("<Overskrifter grid={TAL_GRID}") && v.includes("<Overskrifter grid={SPOR_GRID}");
+};
+
+// ── 11 ─────────────────────────────────────────────────────────────────────
+export const medlemsdommenErHusets = (dom: string): boolean => {
+  const d = udenKommentarer(dom);
+  return d.includes('import { blevMedlem } from "@/lib/ansoegninger/ansoegningVisning"') &&
+    d.includes("blevMedlem(a)") &&
+    // Ingen egen betingelse: hverken trinnet eller slutdatoen må sammenlignes her.
+    !/trin\s*===\s*["']underskrevet["']/.test(d) &&
+    !/virksomhed_slutdato\s*!==\s*null/.test(d);
 };
 
 // ── Dommene mod de rigtige filer, og mod en kopi med fejlen indsat ─────────
@@ -180,7 +224,10 @@ describe("webinarfladens kildeværn", () => {
     const hook = laes(HOOK);
     expect(hentningenErForsigtig(hook)).toBe(true);
     expect(hentningenErForsigtig(hook.replace("if (!erUkendtKolonne(fuld.error)) throw new HentningsFejl(", "if (false) throw new HentningsFejl("))).toBe(false);
+    // Et EKSTRA blødt opslag — ud over den ene navngivne berigelse — falder.
     expect(hentningenErForsigtig(`${hook}\nconst r = res.data ?? [];`)).toBe(false);
+    // Berigelsen uden sin fejllog falder også: et tavst fald er det værnet findes for.
+    expect(hentningenErForsigtig(hook.replace("if (vRes.error) console.error(", "if (false) noop("))).toBe(false);
     expect(hentningenErForsigtig(hook.replace('.not("indsendt_at", "is", null)', ""))).toBe(false);
   });
 
@@ -204,6 +251,23 @@ describe("webinarfladens kildeværn", () => {
     expect(fbclidSlaarReferrer(byttet, view)).toBe(false);
     // Skjules tallet på fladen, falder værnet.
     expect(fbclidSlaarReferrer(dom, view.replace(/spor\.kunFbclid/g, "0"))).toBe(false);
+  });
+
+  it("10. overskrifter og rækker deler én fast grid-skabelon", () => {
+    const view = laes(VIEW);
+    expect(opstillingenFlugter(view)).toBe(true);
+    // Præcis fejlen Jonas så: en auto-kolonne, der måles pr. grid.
+    expect(opstillingenFlugter(view.replace("repeat(5,2.75rem)", "repeat(5,auto)"))).toBe(false);
+    // Overskriften holder op med at bruge skabelonen.
+    expect(opstillingenFlugter(view.replace("<Overskrifter grid={TAL_GRID}", "<Overskrifter grid={\"grid grid-cols-6\"}"))).toBe(false);
+    expect(opstillingenFlugter(view.replace(/SPOR_GRID/g, "x"))).toBe(false);
+  });
+
+  it("11. «blev medlem» er husets dom, ikke en ny betingelse", () => {
+    const dom = laes(DOM);
+    expect(medlemsdommenErHusets(dom)).toBe(true);
+    expect(medlemsdommenErHusets(dom.replace(/blevMedlem\(a\)/g, 'a.trin === "underskrevet"'))).toBe(false);
+    expect(medlemsdommenErHusets(`${dom}\nconst egen = a.trin === "underskrevet" && a.virksomhed_slutdato !== null;`)).toBe(false);
   });
 
   it("7. menupunktet er alle rådgiveres, og HbAktiv kender «webinar»", () => {
