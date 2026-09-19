@@ -8,7 +8,10 @@
  *
  * TRE TING BOR HER:
  *   plukTilmelding   — læs de felter vi kender ud af eWebinars registrant-
- *                      payload (help/webhook), inkl. procenten hvis den er der.
+ *                      payload (help/webhook), inkl. procenten hvis den er der,
+ *                      og HELE ANNONCESPORET (plukAnnoncespor: utm'erne, fbclid
+ *                      ud af origin, referrer, by/land/enhed/tidszone, widget-
+ *                      kilden) — i egne felter, ikke kun i den rå payload.
  *   doemSetGrad      — «har set / delvist set / mødte ikke op» UDLEDT AF
  *                      TALLET (≥ 75 %), ikke af hvilken hændelse der kom.
  *   webinarTal       — «hvor mange har set webinaret» og «hvor mange er
@@ -64,6 +67,35 @@ export interface WebinarTilmelding {
   set_procent: number | null;
   /** Hvilket felt i payloaden procenten kom fra (måles mod første rigtige payload). */
   set_procent_kilde: string | null;
+
+  // ── ANNONCESPORET (målt 19/9 i et rigtigt API-svar) ──────────────────────
+  // Hele vejen fra en bestemt Meta-annonce til et medlem, gemt i EGNE kolonner
+  // — ikke kun i den rå payload, så den kan søges og tælles uden at bygge noget.
+  // Læses både fra felter på objektet og fra query-parametrene i origin/
+  // firstOrigin/registrationLink (plukAnnoncespor), så det er ligegyldigt hvor
+  // eWebinar lægger dem.
+  /** fx «fb». */
+  utm_source: string | null;
+  /** fx «paid». */
+  utm_medium: string | null;
+  utm_campaign: string | null;
+  utm_content: string | null;
+  utm_term: string | null;
+  /** Metas klik-id — plukket UD af origin som sit eget felt. Meta-opsætningen skal bruge præcis det. */
+  fbclid: string | null;
+  /** Siden tilmeldingen kom fra (bærer typisk utm'erne og fbclid). */
+  origin: string | null;
+  first_origin: string | null;
+  referrer: string | null;
+  first_referrer: string | null;
+  /** eWebinars «Widget Source» — fx «topix-webinar-side». */
+  widget_source: string | null;
+  by: string | null;
+  land: string | null;
+  /** deviceTypeWhenRegistered — fx «Desktop». */
+  enhed: string | null;
+  /** IANA-tidszone som eWebinar skriver den. */
+  tidszone: string | null;
 }
 
 export type PlukGrund = "ikke_et_objekt" | "uden_id" | "uden_email" | "uden_webinar_id";
@@ -94,6 +126,85 @@ export function somProcent(v: unknown): number | null {
     return n >= 0 && n <= 100 ? n : null;
   }
   return null;
+}
+
+/**
+ * Procenten i en FRITEKST — «78 %», «Watched 78%», «78% of webinar».
+ * Bruges KUN på `attended` (målt 19/9: feltet findes og stod på «Hasn't
+ * started» for en der ikke havde set noget; hvad det siger for en der HAR
+ * set noget, kan først måles efter webinaret 22/9). Et procenttegn kræves,
+ * når strengen ikke er et rent tal — ellers ville «45 minutes» blive til
+ * 45 %.
+ */
+export function procentFraTekst(v: unknown): number | null {
+  const helt = somProcent(v);
+  if (helt !== null) return helt;
+  if (typeof v !== "string") return null;
+  const m = v.match(/(\d{1,3}(?:[.,]\d+)?)\s*%/);
+  if (!m) return null;
+  const n = Number(m[1].replace(",", "."));
+  return n >= 0 && n <= 100 ? n : null;
+}
+
+/** Nøgler sammenlignes uden store bogstaver, bindestreger og understreger: utm_source ≡ utmSource ≡ UTM-Source. */
+function normaliserNoegle(k: string): string {
+  return k.toLowerCase().replace(/[-_\s]/g, "");
+}
+
+/** Query-parametrene i en URL, med normaliserede nøgler. Ikke-URL'er giver et tomt kort. */
+export function parametreFra(url: unknown): Record<string, string> {
+  if (typeof url !== "string" || url.trim() === "") return {};
+  try {
+    const ud: Record<string, string> = {};
+    for (const [k, v] of new URL(url).searchParams.entries()) {
+      if (v !== "") ud[normaliserNoegle(k)] = v;
+    }
+    return ud;
+  } catch {
+    return {};
+  }
+}
+
+/** Annoncesporets felter — hentet fra objektet selv ELLER fra URL'erne i det. */
+export type Annoncespor = Pick<
+  WebinarTilmelding,
+  "utm_source" | "utm_medium" | "utm_campaign" | "utm_content" | "utm_term" | "fbclid" |
+  "origin" | "first_origin" | "referrer" | "first_referrer" | "widget_source" | "by" | "land" | "enhed" | "tidszone"
+>;
+
+export function plukAnnoncespor(r: Record<string, unknown>): Annoncespor {
+  const top: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(r)) top[normaliserNoegle(k)] = v;
+  // Landingssidens URL bærer typisk utm'erne og fbclid; rækkefølgen er
+  // «hvor personen faktisk kom ind» før «første gang vi så dem».
+  const urler = [parametreFra(r.origin), parametreFra(r.firstOrigin), parametreFra(r.registrationLink)];
+  const hent = (navn: string): string | null => {
+    const n = normaliserNoegle(navn);
+    const fraTop = somTekst(top[n]);
+    if (fraTop) return fraTop;
+    for (const u of urler) {
+      const v = somTekst(u[n]);
+      if (v) return v;
+    }
+    return null;
+  };
+  return {
+    utm_source: hent("utm_source"),
+    utm_medium: hent("utm_medium"),
+    utm_campaign: hent("utm_campaign"),
+    utm_content: hent("utm_content"),
+    utm_term: hent("utm_term"),
+    fbclid: hent("fbclid"),
+    origin: somTekst(r.origin),
+    first_origin: somTekst(r.firstOrigin),
+    referrer: somTekst(r.referrer),
+    first_referrer: somTekst(r.firstReferrer),
+    widget_source: somTekst(r.source),
+    by: somTekst(r.city),
+    land: somTekst(r.country),
+    enhed: somTekst(r.deviceTypeWhenRegistered),
+    tidszone: somTekst(r.timezone),
+  };
 }
 
 /**
@@ -142,7 +253,12 @@ export function plukTilmelding(raa: unknown): Pluk {
   const webinarId = somTekst(r.webinarId);
   if (!webinarId) return { ok: false, grund: "uden_webinar_id" };
   const navn = somTekst(r.name) ?? [somTekst(r.firstName), somTekst(r.lastName)].filter((s): s is string => !!s).join(" ") ?? null;
-  const procent = findProcent(r);
+  // Procenten: først de navngivne felter (findProcent), derefter `attended`
+  // som fritekst — feltet findes (målt 19/9) og bærer formentlig tallet eller
+  // en status, når nogen HAR set noget. Bevises tirsdag 22/9.
+  const fundet = findProcent(r);
+  const fraAttended = fundet === null ? procentFraTekst(r.attended) : null;
+  const procent = fundet ?? (fraAttended !== null ? { procent: fraAttended, kilde: "attended" } : null);
   return {
     ok: true,
     tilmelding: {
@@ -160,6 +276,7 @@ export function plukTilmelding(raa: unknown): Pluk {
       subscribed: somTekst(r.subscribed),
       set_procent: procent?.procent ?? null,
       set_procent_kilde: procent?.kilde ?? null,
+      ...plukAnnoncespor(r),
     },
   };
 }
@@ -187,7 +304,7 @@ export function fletTilmelding(eksisterende: WebinarTilmelding | null, ny: Webin
 
 // ── Dommen ─────────────────────────────────────────────────────────────────
 
-export type TilDom = Pick<WebinarTilmelding, "set_procent" | "state" | "session_tid">;
+export type TilDom = Pick<WebinarTilmelding, "set_procent" | "state" | "session_tid"> & Partial<Pick<WebinarTilmelding, "attended">>;
 
 /**
  * TALLET FØRST (Jonas 19/9): har vi en procent over nul, afgør den alt —
@@ -198,8 +315,14 @@ export type TilDom = Pick<WebinarTilmelding, "set_procent" | "state" | "session_
  * Ellers: fremtidig session → tilmeldt; forbi → ukendt.
  */
 export function doemSetGrad(t: TilDom, nu: Date): SetGrad {
-  if (t.set_procent !== null && t.set_procent > 0) {
-    return t.set_procent >= SET_GRAENSE_PROCENT ? "set" : "delvist";
+  // Tallet vi gemte — ellers et tal i `attended` (fundet 19/9: feltet findes;
+  // hvad det siger for en der HAR set noget, måles 22/9). Rækker gemt FØR
+  // attended blev læst ved plukket, dømmes derfor også rigtigt.
+  const procent = t.set_procent !== null && t.set_procent !== undefined && t.set_procent > 0
+    ? t.set_procent
+    : procentFraTekst(t.attended);
+  if (procent !== null && procent > 0) {
+    return procent >= SET_GRAENSE_PROCENT ? "set" : "delvist";
   }
   const state = (t.state ?? "").toLowerCase();
   if (state === "watched") return "set";

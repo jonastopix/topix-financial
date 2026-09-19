@@ -78,6 +78,21 @@ describe("plukRestRegistrant — samme plukker som webhooken", () => {
       subscribed: "Subscribed",
       set_procent: null,
       set_procent_kilde: null,
+      utm_source: null,
+      utm_medium: null,
+      utm_campaign: null,
+      utm_content: null,
+      utm_term: null,
+      fbclid: null,
+      origin: null,
+      first_origin: null,
+      referrer: null,
+      first_referrer: null,
+      widget_source: null,
+      by: null,
+      land: null,
+      enhed: null,
+      tidszone: null,
     });
   });
 
@@ -113,6 +128,11 @@ describe("fletningen — importen må aldrig sænke det webhooken allerede ved",
     session_type: "Scheduled", registreret_at: "2026-09-10T08:24:01.263Z",
     state: "Watched", sidste_action: "WatchedWebinar", attended: "Attended", subscribed: "Subscribed",
     set_procent: 78, set_procent_kilde: "watchedPercent",
+    // Annoncesporet fra den oprindelige tilmelding — importen må ikke slette det.
+    utm_source: "fb", utm_medium: "paid", utm_campaign: "webinar-sep", utm_content: "annonce-3", utm_term: null,
+    fbclid: "IwAR-abc123", origin: "https://topix.dk/webinar?fbclid=IwAR-abc123", first_origin: null,
+    referrer: "https://www.facebook.com/", first_referrer: null, widget_source: "topix-webinar-side",
+    by: "Aarhus", land: "DK", enhed: "Mobile", tidszone: "Europe/Copenhagen",
   };
 
   it("import uden procent og uden state efter en webhook med begge: intet tabes", () => {
@@ -124,6 +144,10 @@ describe("fletningen — importen må aldrig sænke det webhooken allerede ved",
     expect(flettet.state).toBe("Watched");
     expect(flettet.sidste_action).toBe("WatchedWebinar");
     expect(flettet.session_type).toBe("Scheduled");
+    // ANNONCESPORET OVERLEVER importen: REST-svaret bærer det ikke, og null overskriver aldrig.
+    expect(flettet.utm_campaign).toBe("webinar-sep");
+    expect(flettet.fbclid).toBe("IwAR-abc123");
+    expect(flettet.widget_source).toBe("topix-webinar-side");
     expect(erForskellig(fraWebhook, flettet)).toBe(false);
   });
 

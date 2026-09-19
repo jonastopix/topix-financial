@@ -80,8 +80,9 @@ const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 /** Hvor mange rækker der læses/skrives ad gangen. 330 er to-tre klumper. */
 const KLUMPE = 200;
 
+/** Alle kolonner dommen kender — inkl. annoncesporet (19/9), så fletningen ser hele rækken. */
 const TILMELDING_KOLONNER =
-  "ewebinar_id, email, navn, webinar_id, webinar_titel, session_tid, session_type, registreret_at, state, sidste_action, attended, subscribed, set_procent, set_procent_kilde";
+  "ewebinar_id, email, navn, webinar_id, webinar_titel, session_tid, session_type, registreret_at, state, sidste_action, attended, subscribed, set_procent, set_procent_kilde, utm_source, utm_medium, utm_campaign, utm_content, utm_term, fbclid, origin, first_origin, referrer, first_referrer, widget_source, by, land, enhed, tidszone";
 
 interface WebinarLinje {
   webinarId: string;
