@@ -23,6 +23,14 @@ import { TROVAERDIG_FRA } from "@/lib/webinar/annoncepriser";
  *      første udgave delte al forbrug med alle tilmeldinger og gav en pris
  *      fem gange for lav.
  *   8. Perioden står på skærmen, og en pris uden dækning vises ALDRIG.
+ *   9. ÉN NØGLE PR. TILMELDING (fejl målt i prod 19/9 18:20): hver
+ *      tilmelding lægges i præcis ét `perNoegle`-spand, og hver annonces
+ *      forbrug i præcis ét `forbrugPrNoegle`. En naiv join på annoncens
+ *      NAVN gav fire linjer med de samme 53 tilmeldinger i hver — og fire
+ *      forskellige priser for den samme annonce.
+ *  10. Navne kobler, men er mærket som navne. At kassere dem (som første
+ *      udgave gjorde) taber 9 af 11 utm_content og størstedelen af
+ *      tilmeldingerne; at vise dem uden mærke skjuler, at de ikke er entydige.
  */
 
 const laes = (sti: string) => readFileSync(resolve(process.cwd(), sti), "utf8");
@@ -110,6 +118,32 @@ export const udaekketVisesIkke = (dom: string, flade: string): boolean => {
     f.includes('p.tillid === "udaekket"');
 };
 
+// ── 9 ──────────────────────────────────────────────────────────────────────
+export const enNoeglePrTilmelding = (dom: string): boolean => {
+  const d = udenKommentarer(dom);
+  // Løkken over personer skal ENDE i ét `continue` eller ét push — aldrig
+  // begge veje for samme række.
+  const harEtSpand = /const liste = perNoegle\.get\(noegle\);\s*\n\s*if \(liste\) liste\.push\(r\); else perNoegle\.set\(noegle, \[r\]\);/.test(d);
+  // Annoncerne partitioneres: id vinder, så navn, så egen id-gruppe — hver
+  // med et `continue`, så ingen annonce falder i to spande.
+  const partitioneret = /if \(brugteIdNoegler\.has\(ad\)\) \{ laegTil\(idNoegle\(ad\), d\); continue; \}/.test(d) &&
+    /if \(n !== null && brugteNavne\.has\(n\)\) \{ laegTil\(navnNoegle\(n\), d\); continue; \}/.test(d);
+  // Og de gamle, dobbelttællende spande må ikke være tilbage.
+  const ingenGamle = !/\bperAd\b/.test(d) && !/\balleAd\b/.test(d);
+  return harEtSpand && partitioneret && ingenGamle;
+};
+
+// ── 10 ─────────────────────────────────────────────────────────────────────
+export const navnekoblingErMaerket = (dom: string, flade: string): boolean => {
+  const d = udenKommentarer(dom);
+  const f = udenKommentarer(flade);
+  return d.includes("adPrNavn.has(maerke)") &&
+    d.includes("brud.kobletPaaNavn++") &&
+    d.includes("export type Koblingsform") &&
+    f.includes('l.koblingsform === "navn"') &&
+    f.includes("data-koblet-paa-navn");
+};
+
 describe("annoncepriserne — kildeværn", () => {
   it("1. afsnittet kan flyttes til en marketingflade uden ændringer", () => {
     const flade = laes(FLADE), webinar = laes(WEBINAR);
@@ -171,6 +205,24 @@ describe("annoncepriserne — kildeværn", () => {
     expect(udaekketVisesIkke(dom.replace(/daekket \? pris\(/g, "true ? pris("), flade)).toBe(false);
     expect(udaekketVisesIkke(dom, flade.replace(/periodeOrd\(dom\.vindue\)/g, '""'))).toBe(false);
     expect(udaekketVisesIkke(dom, flade.replace(/p\.tillid === "udaekket"/g, "false"))).toBe(false);
+  });
+
+  it("9. én nøgle pr. tilmelding, én gruppe pr. annonce", () => {
+    const dom = laes(DOM);
+    expect(enNoeglePrTilmelding(dom)).toBe(true);
+    // Fjernes partitioneringens `continue`, kan en annonce havne to steder.
+    expect(enNoeglePrTilmelding(dom.replace(/\{ laegTil\(idNoegle\(ad\), d\); continue; \}/g, "{ laegTil(idNoegle(ad), d); }"))).toBe(false);
+    // Og de gamle spande må ikke genopstå.
+    expect(enNoeglePrTilmelding(`${dom}\nconst perAd = new Map();`)).toBe(false);
+  });
+
+  it("10. navne kobler, men er mærket som navne", () => {
+    const dom = laes(DOM), flade = laes(FLADE);
+    expect(navnekoblingErMaerket(dom, flade)).toBe(true);
+    // Kasseres navnene igen, taber vi 9 af 11 mærker.
+    expect(navnekoblingErMaerket(dom.replace(/adPrNavn\.has\(maerke\)/g, "false"), flade)).toBe(false);
+    // Vises de uden mærke, skjules det, at de ikke er entydige.
+    expect(navnekoblingErMaerket(dom, flade.replace(/data-koblet-paa-navn/g, "data-andet"))).toBe(false);
   });
 
   it("grænsen for et troværdigt tal står ét sted og er fem", () => {
