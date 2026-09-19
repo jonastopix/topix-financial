@@ -813,6 +813,15 @@ skrivende edge functions bruger `SUPABASE_SERVICE_ROLE_KEY`.
   uden header (Mondays board-webhook sender ingen) den delte hemmelighed
   `?noegle=` i URL'en mod `MONDAY_WEBHOOK_SECRET`, sammenlignet i konstant
   tid (`_shared/konstantTidLighed.ts`). Challenge-svaret ligger før værnet.
+- `ewebinar-webhook` (udkast 19/9-2026) — Bucket C: `verifyEwebinarSignature`
+  (`_shared/ewebinarSignatur.ts`) over den RÅ body (`req.text()`) FØR
+  `JSON.parse` og FØR service-role-klienten; HMAC-SHA256 over
+  «<X-EWebinar-Timestamp>.<body>» mod `EWEBINAR_WEBHOOK_SIGNING_SECRET`
+  (UTF-8- og hex-nøgleform prøves, den der matchede logges), sammenlignet i
+  konstant tid. 401 uden match; 503 uden secret; 500 kun ved DB-fejl. Skriver
+  kun `webinar_haendelser` (rå log, idempotent på SHA-256 af body) og
+  `webinar_tilmeldinger` — service_role ALL, advisor SELECT, ingen
+  klientskrivning. Kildeværn `ewebinarWebhook.guard`.
 - `send-report-reminder` — service-role-only gate
 - `manage-advisor` — admin role gate + service-role operations
 - `process-pending-invitation` — self-only guard + server-verified email
