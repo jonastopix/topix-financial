@@ -1,5 +1,7 @@
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
 import { sikrIndgangsInvitation, type IndgangsInvitationResultat } from "../_shared/sikrIndgangsInvitation.ts";
+import { blevMedlem } from "../_shared/klaviyoHaendelser.ts";
+import { sendHvisMail } from "../_shared/klaviyoAfsendelse.ts";
 import { sendManagedEmail } from "../_shared/managedEmail.ts";
 import {
   beloebFraFaktura,
@@ -836,6 +838,28 @@ async function skrivIndgangsKontrakt(
   if (error) {
     console.error(`[stripe-webhook] kontrakt-opdatering (indgang) fejlede${kontekst}:`, error);
     throw new Error("Failed to update contract dates");
+  }
+  // KLAVIYO (lag 2, 19/9): «Blev medlem». EFTER kontrakten er skrevet — vi
+  // melder kun det, der er sket. Unikt id er (company, periodeslut), så alle
+  // fire kaldsteder (to gensendelser) giver samme id, og Klaviyo tæller det
+  // ÉN gang. Fail-soft: et marketingværktøj må aldrig kunne vælte en betaling.
+  await meldBlevMedlem(adminClient, companyId, periode.periode_slut, listeprisOere);
+}
+
+/** «Blev medlem» til Klaviyo. KASTER ALDRIG — heller ikke hvis mailen ikke kan findes. */
+async function meldBlevMedlem(
+  adminClient: SupabaseClient,
+  companyId: string,
+  periodeSlut: string,
+  listeprisOere: number,
+): Promise<void> {
+  try {
+    const { data } = await adminClient.from("companies").select("contact_email").eq("id", companyId).maybeSingle();
+    const mail = typeof data?.contact_email === "string" ? data.contact_email.trim() : "";
+    if (mail === "") return;
+    await sendHvisMail(adminClient, mail, (m) => blevMedlem(companyId, periodeSlut, m, listeprisOere));
+  } catch (e) {
+    console.error(`[stripe-webhook] Klaviyo «Blev medlem» kastede for ${companyId}:`, e);
   }
 }
 

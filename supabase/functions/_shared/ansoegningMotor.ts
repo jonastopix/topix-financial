@@ -51,6 +51,8 @@ import { pauseTil, planlaegTrappe, svarMailTrin, type KoeHandling, type Modtager
 import { kbhTilUtc } from "./hverdage.ts";
 import { afgoerAnbefaling, grundlagSomTekst, type Anbefaling, type AnbefalingsInput } from "./ansoegningAnbefaling.ts";
 import { afgoerFremdrift, OMSAETNINGSINTERVALLER, TOMME_SVAR, type AnsoegningsSvar, type CvrVisning, cvrMangler } from "./ansoegningSkema.ts";
+import { sendt } from "./klaviyoHaendelser.ts";
+import { sendHvisMail } from "./klaviyoAfsendelse.ts";
 import { opretEllerGenbrugVirksomhed } from "./virksomhedsOprettelse.ts";
 import { udloesIndgangsBetalingsmail } from "./indgangsBetalingsmail.ts";
 import { skrivRaadgiverBesked } from "./raadgiverBesked.ts";
@@ -254,6 +256,18 @@ export async function registrerIndsendelse(admin: SupabaseClient, id: string, nu
   if (cvrMangler(a.cvr_opslag)) {
     anbefaling.grundlag.unshift("CVR ikke slået op — virksomhedsnavnet er ansøgerens eget");
   }
+  // KLAVIYO (lag 2, 19/9): «Ansoegning sendt» med de fire egenskaber. Fail-soft:
+  // en fejl hos Klaviyo må aldrig kunne stoppe en indsendelse, og derfor står
+  // den EFTER anbefalingen er regnet og FØR trinnet skrives — et kald der
+  // kaster, ville ellers kunne efterlade ansøgningen uden trin.
+  await sendHvisMail(admin, a.email, (mail) =>
+    sendt(id, mail, {
+      kilde: a.kilde ?? null,
+      branche: a.cvr_opslag?.branche ?? null,
+      omsaetningsinterval: a.omsaetningsinterval ?? null,
+      antal_ansatte: a.antal_ansatte ?? null,
+    }, nu));
+
   // Kladdens påmindelse er overflødig nu — reaktionen (indsendelsen) annullerer trappen (regel 1).
   await annullerTrapper(admin, id, ["kladde"], "indsendt", nu);
   const { error } = await admin
