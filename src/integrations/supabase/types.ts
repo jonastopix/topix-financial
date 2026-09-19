@@ -3973,6 +3973,117 @@ export type Database = {
           },
         ]
       }
+      webinar_haendelser: {
+        Row: {
+          action: string | null
+          aftryk: string
+          email: string | null
+          ewebinar_id: string | null
+          id: string
+          modtaget_at: string
+          noegleform: string | null
+          pluk_grund: string | null
+          raa: Json
+          signatur_t: number | null
+          state: string | null
+          webinar_id: string | null
+        }
+        Insert: {
+          action?: string | null
+          aftryk: string
+          email?: string | null
+          ewebinar_id?: string | null
+          id?: string
+          modtaget_at?: string
+          noegleform?: string | null
+          pluk_grund?: string | null
+          raa: Json
+          signatur_t?: number | null
+          state?: string | null
+          webinar_id?: string | null
+        }
+        Update: {
+          action?: string | null
+          aftryk?: string
+          email?: string | null
+          ewebinar_id?: string | null
+          id?: string
+          modtaget_at?: string
+          noegleform?: string | null
+          pluk_grund?: string | null
+          raa?: Json
+          signatur_t?: number | null
+          state?: string | null
+          webinar_id?: string | null
+        }
+        Relationships: []
+      }
+      webinar_tilmeldinger: {
+        Row: {
+          attended: string | null
+          created_at: string
+          email: string
+          ewebinar_id: string
+          id: string
+          navn: string | null
+          raa: Json | null
+          registreret_at: string | null
+          session_tid: string | null
+          session_type: string | null
+          set_procent: number | null
+          set_procent_kilde: string | null
+          sidste_action: string | null
+          sidste_haendelse_at: string | null
+          state: string | null
+          subscribed: string | null
+          updated_at: string
+          webinar_id: string
+          webinar_titel: string | null
+        }
+        Insert: {
+          attended?: string | null
+          created_at?: string
+          email: string
+          ewebinar_id: string
+          id?: string
+          navn?: string | null
+          raa?: Json | null
+          registreret_at?: string | null
+          session_tid?: string | null
+          session_type?: string | null
+          set_procent?: number | null
+          set_procent_kilde?: string | null
+          sidste_action?: string | null
+          sidste_haendelse_at?: string | null
+          state?: string | null
+          subscribed?: string | null
+          updated_at?: string
+          webinar_id: string
+          webinar_titel?: string | null
+        }
+        Update: {
+          attended?: string | null
+          created_at?: string
+          email?: string
+          ewebinar_id?: string
+          id?: string
+          navn?: string | null
+          raa?: Json | null
+          registreret_at?: string | null
+          session_tid?: string | null
+          session_type?: string | null
+          set_procent?: number | null
+          set_procent_kilde?: string | null
+          sidste_action?: string | null
+          sidste_haendelse_at?: string | null
+          state?: string | null
+          subscribed?: string | null
+          updated_at?: string
+          webinar_id?: string
+          webinar_titel?: string | null
+        }
+        Relationships: []
+      }
       weekly_focus: {
         Row: {
           actions_generated: number
