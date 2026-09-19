@@ -108,6 +108,11 @@ project_id = "loiavmastgeieqyiwyyr"
   # parsing og FØR service role — samme klasse som calendly-webhook ovenfor.
   [functions.ewebinar-webhook]
     verify_jwt = false
+  # Lag 3: Klaviyo-motoren. Bucket A m. verify_jwt = true (PR #267-moenstret):
+  # authenticateUser + advisor-gate FOER service role. AEndrer kundekommunikation,
+  # saa der skal staa et menneske bag - ogsaa naar lag 4 er en agent.
+  [functions.klaviyo-motor]
+    verify_jwt = true
   # UDKAST 19/9 — eWebinar-engangsimport: Bucket B (authenticateServiceRole),
   # og verify_jwt = true er PÅKRÆVET for det mønster — gatewayen bærer
   # signaturtjekket, funktionen læser role-claimet (check:verify-jwt låser
