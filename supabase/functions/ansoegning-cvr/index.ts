@@ -29,11 +29,12 @@
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
 import { corsHeaders } from "../_shared/edgeFunctionAuth.ts";
 import { verifyAnsoegningstoken } from "../_shared/ansoegningToken.ts";
-import { hentDataCvrRaa, udfaldAf } from "../_shared/virksomhedsOprettelse.ts";
-import { tolkCvrTilAnsoeger } from "../_shared/cvrAnsoeger.ts";
+import { hentDataCvrRaa } from "../_shared/virksomhedsOprettelse.ts";
+import { cacheRaekkeAf, type CvrCacheRaekke } from "../_shared/cvrCache.ts";
 import { type CvrVisning, cvrSaetning, normaliserCvr } from "../_shared/ansoegningSkema.ts";
 import { skrivRaadgiverBesked } from "../_shared/raadgiverBesked.ts";
 import { cvrLoftBesked, type CvrLoftGrund } from "../_shared/cvrLoftBesked.ts";
+import { DAGSLOFT_STANDARD, doemLoft, LOFT_NOEGLE, LOFT_SECRET, vaelgLoft } from "../_shared/cvrLoft.ts";
 import { kbhDato } from "../_shared/hverdage.ts";
 
 function jsonResponse(body: unknown, status = 200): Response {
@@ -55,22 +56,46 @@ const CACHE_DAGE_FINDES_IKKE = 1;
  * gratisplanen (25/dag delt med berigelsen).
  */
 /**
- * DAGSLOFTET, eksplicit (generalprøvens brist 6, 18/9). Regnestykket bag standarden:
- * DataCVR's betalte plan er 1.500 opslag pr. måned ≈ 50 pr. dag, og nøglen deles med
- * berig-virksomheder (MAKS_OPSLAG 20 pr. kørsel), import-application og monday-webhook.
- * 50 − 20 − 10 (reserve til import/Monday) = 20 til ansøgningerne. På GRATISPLANEN
- * (25 pr. dag) skal secret'en sættes til 5 — ellers æder ansøgningerne berigelsens kvote.
- * Secret'en ANSOEGNING_CVR_DAGSLOFT overstyrer altid (README: hvad Jonas bekræfter hos DataCVR).
- * Rammes loftet, får rådgiverne én klokke pr. dag (cvrLoftBesked) — ansøgeren fortsætter
- * med fallback-feltet.
+ * DAGSLOFTET bor nu i _shared/cvrLoft.ts og læses PR. KALD (19/9, recon-boelgen-2 §3):
+ * app_config['ansoegning_cvr_dagsloft'] → secret'en ANSOEGNING_CVR_DAGSLOFT →
+ * DAGSLOFT_STANDARD. Jonas kan hæve det med én linje SQL uden en udrulning, og en
+ * ubrugelig værdi (tastefejl) springes over med en log i stedet for at blive NaN og
+ * slukke loftet lydløst — den gamle linje her var `Number(env ?? "20")`, og
+ * `brugt >= NaN` er altid falsk.
+ *
+ * Standarden er uændret 20; regnestykket bag den står i cvrLoft.ts.
  */
-export const DAGSLOFT_STANDARD = 20;
-const DAGSLOFT = Number(Deno.env.get("ANSOEGNING_CVR_DAGSLOFT") ?? String(DAGSLOFT_STANDARD));
+export { DAGSLOFT_STANDARD };
 
-/** Klokken til rådgiverne når loftet rammes — én pr. dag pr. grund (dedup på titlen). Kaster aldrig. */
-async function meldLoftRamt(adminClient: SupabaseClient, grund: CvrLoftGrund): Promise<void> {
+/**
+ * Dagens loft, læst af app_config med secret og standard som reserve. Kaster
+ * aldrig: fejler opslaget, bruges secret/standard, så et databasenedbrud
+ * ikke også lukker CVR-opslaget.
+ */
+async function hentLoft(adminClient: SupabaseClient): Promise<number> {
+  let fraConfig: unknown = null;
   try {
-    const r = await skrivRaadgiverBesked(adminClient, cvrLoftBesked(grund, kbhDato(new Date()), DAGSLOFT));
+    const { data, error } = await adminClient
+      .from("app_config")
+      .select("config_value")
+      .eq("config_key", LOFT_NOEGLE)
+      .maybeSingle();
+    if (error) console.error("[ansoegning-cvr] app_config-opslag til dagsloftet fejlede:", error.message);
+    else fraConfig = data?.config_value ?? null;
+  } catch (e) {
+    console.error("[ansoegning-cvr] app_config-opslag til dagsloftet kastede:", e);
+  }
+  const svar = vaelgLoft(fraConfig, Deno.env.get(LOFT_SECRET));
+  for (const a of svar.afvist) {
+    console.error(`[ansoegning-cvr] dagsloftet fra ${a.kilde} kunne ikke bruges («${a.vaerdi}»: ${a.grund}) — springer over`);
+  }
+  return svar.loft;
+}
+
+/** Klokken til rådgiverne — én pr. dag pr. grund (dedup på titlen). Kaster aldrig. */
+async function meldLoft(adminClient: SupabaseClient, grund: CvrLoftGrund, loft: number, brugt = 0): Promise<void> {
+  try {
+    const r = await skrivRaadgiverBesked(adminClient, cvrLoftBesked(grund, kbhDato(new Date()), loft, brugt));
     if (r.fejl.length > 0) console.error("[ansoegning-cvr] klokken om loftet fejlede:", r.fejl.join("; "));
   } catch (e) {
     console.error("[ansoegning-cvr] klokken om loftet kastede:", e);
@@ -82,12 +107,8 @@ type Svar =
   | { udfald: "findes_ikke" }
   | { udfald: "utilgaengelig" };
 
-interface CacheRaekke {
-  cvr: string;
-  udfald: "fundet" | "findes_ikke";
-  visning: CvrVisning | null;
-  slaaet_op_at: string;
-}
+/** Rækken i cachen er den DELTE form (_shared/cvrCache.ts) — ikke en lokal kopi. */
+type CacheRaekke = CvrCacheRaekke;
 
 async function fraCache(adminClient: SupabaseClient, cvr: string): Promise<CacheRaekke | null> {
   const { data, error } = await adminClient
@@ -141,38 +162,48 @@ Deno.serve(async (req) => {
     // ── Cache, ellers ét rigtigt opslag under dagsloftet ───────────────
     let raekke = await fraCache(adminClient, cvr);
     let svar: Svar;
+    let loft = DAGSLOFT_STANDARD;
+    let dom = doemLoft(0, loft);
     if (raekke) {
       svar = raekke.udfald === "fundet" && raekke.visning
         ? { udfald: "fundet", visning: raekke.visning, saetning: cvrSaetning(raekke.visning) }
         : { udfald: "findes_ikke" };
-    } else if ((await opslagIDag(adminClient)) >= DAGSLOFT) {
-      console.warn(`[ansoegning-cvr] dagsloftet (${DAGSLOFT}) er nået — CVR ${cvr} ikke slået op`);
+    } else if ((dom = doemLoft(await opslagIDag(adminClient), (loft = await hentLoft(adminClient)))).tilstand === "ramt") {
+      console.warn(`[ansoegning-cvr] dagsloftet (${loft}) er nået — CVR ${cvr} ikke slået op`);
       svar = { udfald: "utilgaengelig" };
-      await meldLoftRamt(adminClient, "dagsloft");
+      await meldLoft(adminClient, "dagsloft", loft);
     } else {
-      const raa = await hentDataCvrRaa(cvr);
-      const udfald = udfaldAf(raa);
-      const visning = raa.slags === "svar" && udfald.udfald === "fundet" ? tolkCvrTilAnsoeger(raa.body) : null;
+      // ADVARSLEN FØR LOFTET (19/9): ved 80 % af dagens loft får rådgiverne én
+      // klokke, mens der stadig er plads — en besked EFTER er en obduktion,
+      // ikke en advarsel. Egen titel, så den ikke dedup'er mod stop-beskeden.
+      if (dom.tilstand === "advarsel") await meldLoft(adminClient, "naermer_sig", loft, loft - dom.resterende);
+      // ÉN rækkebygger for alle tre skrivere (19/9, _shared/cvrCache.ts): den rå
+      // body læses ét sted, så en række skrevet af berigelsen eller af
+      // aftaleudsendelsen har samme form som formularens — og ikke havner som
+      // «fundet uden visning», hvilket ansøgeren ville se som «findes ikke».
+      const bygget = cacheRaekkeAf(cvr, await hentDataCvrRaa(cvr));
+      const udfald = bygget.udfald;
+      const visning = bygget.raekke?.visning ?? null;
 
       if (udfald.udfald === "fundet" && visning) {
-        raekke = { cvr, udfald: "fundet", visning, slaaet_op_at: new Date().toISOString() };
+        raekke = bygget.raekke;
         svar = { udfald: "fundet", visning, saetning: cvrSaetning(visning) };
       } else if (udfald.udfald === "findes_ikke") {
-        raekke = { cvr, udfald: "findes_ikke", visning: null, slaaet_op_at: new Date().toISOString() };
+        raekke = bygget.raekke;
         svar = { udfald: "findes_ikke" };
       } else {
         const grund = udfald.udfald === "fejl" ? ` — ${udfald.grund}` : "";
         console.warn(`[ansoegning-cvr] CVR ${cvr}: ${udfald.udfald}${grund}`);
         svar = { udfald: "utilgaengelig" };
         // DataCVR selv siger stop (429) → rådgiverne skal vide det; fejl/nøgle mangler er en anden sag (logget).
-        if (udfald.udfald === "graense") await meldLoftRamt(adminClient, "datacvr");
+        if (udfald.udfald === "graense") await meldLoft(adminClient, "datacvr", loft);
       }
 
       if (raekke) {
         // Cachen bærer KUN de syv + visningens felter — aldrig den rå body.
         const { error } = await adminClient
           .from("cvr_opslag_cache")
-          .upsert({ ...raekke, svar: udfald.udfald === "fundet" ? udfald.svar : null }, { onConflict: "cvr" });
+          .upsert(raekke, { onConflict: "cvr" });
         if (error) console.error("[ansoegning-cvr] cache-skrivning fejlede:", error);
       }
     }

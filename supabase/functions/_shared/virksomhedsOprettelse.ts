@@ -49,6 +49,7 @@ import {
   type VirksomhedsInput,
 } from "./virksomhedsraekke.ts";
 import { dataCvrUrl, tolkDataCvrSvar, type CvrOpslag } from "./cvrOpslag.ts";
+import { cacheRaekkeAf, gemICache, type CacheSkriver } from "./cvrCache.ts";
 
 export type { CvrSvar, VirksomhedsInput };
 export type { CvrOpslag };
@@ -144,6 +145,29 @@ export async function slaaCvrOp(cvr: string): Promise<CvrOpslag> {
     console.warn(`[virksomhedsOprettelse] CVR ${cvr}: opslag ${opslag.udfald}${grund}`);
   }
   return opslag;
+}
+
+/**
+ * Slå op hos DataCVR OG gem resultatet i cvr_opslag_cache (19/9-2026).
+ *
+ * BRUG DENNE, ikke `slaaCvrOp`, fra enhver kalder der har en databaseklient.
+ * `slaaCvrOp` slår op uden at efterlade spor: dens opslag kan ikke tælles af
+ * `opslagIDag`, og derfor kunne dagsloftet og klokken ved 80 % tale om en
+ * delmængde af det faktiske forbrug på nøglen. Med 25 opslag i døgnet er den
+ * blindhed større end selve loftet.
+ *
+ * Samme returtype som `slaaCvrOp`, så kalderens egen logik er uændret.
+ * Rækken bygges af `cacheRaekkeAf` — ét sted for alle tre skrivere.
+ */
+export async function slaaOpOgGem(skriver: CacheSkriver, cvr: string): Promise<CvrOpslag> {
+  const raa = await hentDataCvrRaa(cvr);
+  const { raekke, udfald } = cacheRaekkeAf(cvr, raa);
+  if (udfald.udfald !== "fundet") {
+    const grund = udfald.udfald === "fejl" ? ` — ${udfald.grund}` : "";
+    console.warn(`[virksomhedsOprettelse] CVR ${cvr}: opslag ${udfald.udfald}${grund}`);
+  }
+  await gemICache(skriver, raekke);
+  return udfald;
 }
 
 export interface OpretValg {

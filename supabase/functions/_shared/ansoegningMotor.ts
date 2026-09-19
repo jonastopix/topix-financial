@@ -50,7 +50,7 @@ import {
 import { pauseTil, planlaegTrappe, svarMailTrin, type KoeHandling, type Modtager, type PlanlagtRaekke } from "./rykkerkoe.ts";
 import { kbhTilUtc } from "./hverdage.ts";
 import { afgoerAnbefaling, grundlagSomTekst, type Anbefaling, type AnbefalingsInput } from "./ansoegningAnbefaling.ts";
-import { afgoerFremdrift, OMSAETNINGSINTERVALLER, TOMME_SVAR, type AnsoegningsSvar, type CvrVisning } from "./ansoegningSkema.ts";
+import { afgoerFremdrift, OMSAETNINGSINTERVALLER, TOMME_SVAR, type AnsoegningsSvar, type CvrVisning, cvrMangler } from "./ansoegningSkema.ts";
 import { opretEllerGenbrugVirksomhed } from "./virksomhedsOprettelse.ts";
 import { udloesIndgangsBetalingsmail } from "./indgangsBetalingsmail.ts";
 import { skrivRaadgiverBesked } from "./raadgiverBesked.ts";
@@ -251,7 +251,7 @@ export async function registrerIndsendelse(admin: SupabaseClient, id: string, nu
   }
   // CVR ikke slået op (fortsatte uden opslag, eller nøglen/kvoten var væk): sig det, så
   // rådgiveren ser HVORFOR der står «tvivl», og at navnet er ansøgerens eget.
-  if (!a.cvr_opslag || a.cvr_opslag.kilde === "ansoeger") {
+  if (cvrMangler(a.cvr_opslag)) {
     anbefaling.grundlag.unshift("CVR ikke slået op — virksomhedsnavnet er ansøgerens eget");
   }
   // Kladdens påmindelse er overflødig nu — reaktionen (indsendelsen) annullerer trappen (regel 1).

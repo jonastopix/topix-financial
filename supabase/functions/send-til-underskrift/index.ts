@@ -65,7 +65,7 @@ import { aftaleLinkMail, aftaleUrl } from "../_shared/underskriftMail.ts";
 import { hentAnsoegning, udfoerOvergang, virksomhedsnavnAf, type AnsoegningRaekke } from "../_shared/ansoegningMotor.ts";
 import { KENDTE_FELTNAVNE } from "../_shared/aftalefelter.ts";
 import { afgoerUnderskriftStop, type KendtVirksomhed } from "../_shared/underskriftStop.ts";
-import { slaaCvrOp } from "../_shared/virksomhedsOprettelse.ts";
+import { slaaOpOgGem } from "../_shared/virksomhedsOprettelse.ts";
 import type { CvrSvar } from "../_shared/virksomhedsraekke.ts";
 
 const LOG = "[send-til-underskrift]";
@@ -98,7 +98,11 @@ async function hentCvrAdresse(admin: SupabaseClient, cvr: string | null): Promis
   if (error) console.warn(`${LOG} cvr_opslag_cache fejlede for ${cvr}:`, error.message);
   const fraCache = adresseAfCvrSvar((data?.svar ?? null) as CvrSvar | null);
   if (fraCache.adresse || fraCache.postnummer || fraCache.by) return fraCache;
-  const opslag = await slaaCvrOp(cvr);
+  // 19/9: gemmes nu i cvr_opslag_cache (slaaOpOgGem). Den her slår KUN op, når
+  // adressen ikke er i cachen — altså netop på de ansøgninger, dagsloftet
+  // allerede har gjort tynde. Før skrev den ikke tilbage, så samme virksomhed
+  // kostede et nyt opslag hver gang aftalen blev sendt, usynligt for tælleren.
+  const opslag = await slaaOpOgGem(admin, cvr);
   return opslag.udfald === "fundet" ? adresseAfCvrSvar(opslag.svar) : INGEN_ADRESSE;
 }
 

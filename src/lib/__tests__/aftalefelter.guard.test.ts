@@ -63,7 +63,13 @@ export const forhaandsvisningenSkriverIntet = (k: string): boolean => {
 /** 5: adresse/postnummer/by udfyldes fra ejeren (companies eller cvr_opslag_cache.svar / slaaCvrOp), og et kendt felt uden værdi afvises (tomme → 422) — også i afsendelsen, ikke kun i forhåndsvisningen. */
 export const adressenErVaernet = (k: string): boolean =>
   /adresse: ejer\.adresse \?\? "",\s*postnummer: ejer\.postnummer \?\? "",\s*by: ejer\.by \?\? "",/.test(k) &&
-  k.includes('.from("cvr_opslag_cache").select("svar")') && k.includes("await slaaCvrOp(cvr)") &&
+  // NY PRÆMIS 19/9: opslaget går gennem `slaaOpOgGem`, som SKRIVER svaret
+  // tilbage i cvr_opslag_cache. Før læste denne function cachen uden nogensinde
+  // at fylde den — så samme virksomhed kostede et nyt DataCVR-opslag hver gang
+  // en aftale blev sendt, usynligt for dagsloftet. Invarianten er uændret:
+  // cachen læses først, og først derefter slås der op.
+  k.includes('.from("cvr_opslag_cache").select("svar")') && k.includes("await slaaOpOgGem(admin, cvr)") &&
+  !/await slaaCvrOp\(/.test(k) &&
   /const tomme = Object\.entries\(felter\)\.filter\(\(\[k, v\]\) => !v && skabelon\.tekst\.includes/.test(k) &&
   k.includes('return jsonResponse({ error: "felter_tomme", tomme }, 422);');
 

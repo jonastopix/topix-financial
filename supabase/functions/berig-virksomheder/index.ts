@@ -54,7 +54,8 @@
 
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
 import { authenticateServiceRole, corsHeaders } from "../_shared/edgeFunctionAuth.ts";
-import { slaaCvrOp, type CvrSvar } from "../_shared/virksomhedsOprettelse.ts";
+import { slaaOpOgGem, type CvrSvar } from "../_shared/virksomhedsOprettelse.ts";
+
 import {
   BERIGELSES_FELTER,
   beregnBerigelse,
@@ -245,7 +246,11 @@ async function koerBerigelse(supabase: SupabaseClient, dryRun: boolean): Promise
         } else {
           if (rapport.opslag.brugt > 0) await sov(PAUSE_MS);
           rapport.opslag.brugt++;
-          const opslag = await slaaCvrOp(v.cvr_number!.trim());
+          // 19/9: opslaget GEMMES nu i cvr_opslag_cache (slaaOpOgGem), præcis som
+          // formularen gør. Berigelsens egen logik er uændret — samme returtype,
+          // samme håndtering; det eneste nye er, at opslaget kan TÆLLES. Uden det
+          // var 20 opslag pr. kørsel usynlige for dagsloftet og for klokken ved 80 %.
+          const opslag = await slaaOpOgGem(supabase, v.cvr_number!.trim());
           if (opslag.udfald === "fundet") {
             cvrSvar = opslag.svar;
           } else {

@@ -31,6 +31,7 @@ import { erPaaPause } from "@/lib/ansoegningTrin";
 import { raadgiverHentefejlTekst } from "@/lib/raadgiverHentefejl";
 import { hbControlClasses } from "@/components/hjemmebane/admin/HbField";
 import { GRUPPE_ORD, gruppeFor, hvadVenter, listeOverskrift, taelVentende, virksomhedsnavnAf, LISTEGRUPPER, type Listegruppe } from "@/lib/ansoegninger/ansoegningVisning";
+import { cvrMangler } from "@/lib/ansoegning/skema";
 import { filtrer, foersteLinje, sorterGruppe, STRIBE_ORD, STRIBE_RAEKKEFOELGE, stribeTal, tidTekst, venterPaa } from "@/lib/ansoegninger/ansoegningsliste";
 import { grundlagSomTekst, OMSAETNINGSINTERVALLER_KR } from "@/lib/ansoegningAnbefaling";
 import { webinarLinje } from "@/lib/webinarDom";
@@ -100,7 +101,22 @@ const Raekke = ({ a, nu, aaben, onToggle }: { a: AnsoegningRaekke; nu: Date; aab
       <summary className="cursor-pointer list-none transition-colors hover:bg-hb-sage/20 [&::-webkit-details-marker]:hidden">
         <div className="grid grid-cols-1 gap-x-4 gap-y-1 px-4 py-3 sm:grid-cols-[2fr_1.3fr_1.3fr_2fr] sm:items-center">
           <div className="min-w-0">
-            <p className="truncate text-[15px] font-medium leading-snug text-hb-ink">{virksomhedsnavnAf(a)}</p>
+            <p className="flex min-w-0 items-baseline gap-1.5 text-[15px] font-medium leading-snug text-hb-ink">
+              <span className="truncate">{virksomhedsnavnAf(a)}</span>
+              {/* TYND ANSØGNING (19/9, recon-boelgen-2 §3): anbefalingen er regnet UDEN
+                  branche, alder og ansatte, fordi CVR aldrig blev slået op. Det stod kun
+                  i folden — og en bunke på tredive læses lukket. Rust, fordi det er et
+                  forbehold ved tallet, ikke en fejl ved ansøgeren. */}
+              {cvrMangler(a.cvr_opslag as { kilde?: "datacvr" | "ansoeger" } | null) && (
+                <span
+                  className="shrink-0 rounded-full border border-hb-rust/40 px-1.5 py-px text-[10px] font-medium uppercase tracking-[0.1em] text-hb-rust"
+                  title="CVR blev ikke slået op — anbefalingen er regnet uden branche, stiftelsesår og status. Navnet er ansøgerens eget."
+                  data-uden-cvr
+                >
+                  uden CVR
+                </span>
+              )}
+            </p>
             <p className="truncate text-xs text-hb-ink-soft">{[a.navn, a.email].filter(Boolean).join(" · ") || "—"}</p>
           </div>
           <p className={cn("truncate text-sm", side === "os" ? "font-medium text-hb-rust" : "text-hb-ink-soft")}>{hvadVenter(a, nu)}</p>

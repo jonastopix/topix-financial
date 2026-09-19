@@ -65,18 +65,33 @@ export const ipKunSomHash = (gem: string): boolean =>
   gem.includes("ip_hash: ipHash") && !/ip_hash:\s*ip\b/.test(gem) && gem.includes('sha256Hex(`${ip}:${dag}`)');
 
 /** CVR-funktionen slår op gennem husets kilde — aldrig sin egen fetch. */
+/**
+ * NY PRÆMIS 19/9: `udfaldAf` kaldes ikke længere her — rækken bygges af den
+ * DELTE `cacheRaekkeAf` (_shared/cvrCache.ts), som alle tre skrivere bruger.
+ * Invarianten er uændret: hentningen går gennem husets `hentDataCvrRaa`, og
+ * functionen har ingen egen fetch.
+ */
 export const cvrGennemHusetsKilde = (cvr: string): boolean =>
-  cvr.includes('import { hentDataCvrRaa, udfaldAf } from "../_shared/virksomhedsOprettelse.ts"') && !/\bfetch\s*\(/.test(cvr);
+  cvr.includes('import { hentDataCvrRaa } from "../_shared/virksomhedsOprettelse.ts"') &&
+  cvr.includes('import { cacheRaekkeAf, type CvrCacheRaekke } from "../_shared/cvrCache.ts"') &&
+  !/\bfetch\s*\(/.test(cvr);
 
 /** Cachen bærer aldrig den rå body — upsert'en skriver kun svar + visning. */
 export const cachenUdenRaaBody = (cvr: string): boolean => !/upsert\([^)]*\bbody\b/.test(cvr) && !/raa\.body/.test(cvr.split("tolkCvrTilAnsoeger(raa.body)").join(""));
 
-/** Dagsloftet tjekkes før opslaget — i handler-kroppen. */
+/**
+ * Dagsloftet tjekkes før opslaget — i handler-kroppen.
+ *
+ * NY PRÆMIS 19/9: loftet LÆSES nu også pr. kald (hentLoft → app_config),
+ * og læsningen skal ske før opslaget, ikke bare tællingen. Ellers kunne et
+ * hævet loft først gælde fra næste ansøger.
+ */
 export function dagsloftFoerOpslag(cvr: string): boolean {
   const krop = serveKrop(cvr);
-  const loft = krop.indexOf("opslagIDag(");
+  const taelling = krop.indexOf("opslagIDag(");
+  const laesning = krop.indexOf("hentLoft(");
   const opslag = krop.indexOf("hentDataCvrRaa(");
-  return loft > 0 && opslag > 0 && loft < opslag;
+  return taelling > 0 && laesning > 0 && opslag > 0 && taelling < opslag && laesning < opslag;
 }
 
 /**
@@ -234,8 +249,14 @@ describe("ansoegning.guard — VÆRNET VIRKER: kopier med fejlen indsat fanges (
   it("en egen fetch i cvr-funktionen → falsk; rå body i upsert → falsk; loftet efter opslaget → falsk", () => {
     expect(cvrGennemHusetsKilde(cvr + "\nconst r = await fetch(url);\n")).toBe(false);
     expect(cachenUdenRaaBody(cvr.replace("{ onConflict: \"cvr\" }", "{ body: raa.body, onConflict: \"cvr\" }"))).toBe(false);
-    const kopi = cvr.replace("} else if ((await opslagIDag(adminClient)) >= DAGSLOFT) {", "} else if (false) {") + "\nif ((await opslagIDag(adminClient)) >= DAGSLOFT) {}\n";
-    expect(dagsloftFoerOpslag(kopi)).toBe(false);
+    // Loftet flyttet EFTER opslaget (den nye form, 19/9): både tællingen og
+    // læsningen skal stå før hentDataCvrRaa, ellers er kvoten allerede brugt.
+    const flyttet = cvr.replace(
+      '} else if ((dom = doemLoft(await opslagIDag(adminClient), (loft = await hentLoft(adminClient)))).tilstand === "ramt") {',
+      "} else if (false) {",
+    );
+    expect(flyttet, "mutationen ramte ikke — linjen har skiftet form").not.toBe(cvr);
+    expect(dagsloftFoerOpslag(flyttet + "\nif ((await opslagIDag(adminClient)) >= (await hentLoft(adminClient))) {}\n")).toBe(false);
   });
 
   it("et log-kald med tokenet → fanges", () => {

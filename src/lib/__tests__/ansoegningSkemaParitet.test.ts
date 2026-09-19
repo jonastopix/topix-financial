@@ -27,6 +27,34 @@ describe("ansoegningSkema — parity between src/lib and supabase/functions/_sha
     expect(denoModul.PAAMINDELSE_EFTER_DAGE).toBe(srcModul.PAAMINDELSE_EFTER_DAGE);
   });
 
+  /* cvrMangler (19/9): «tynd ansøgning» — regnet uden branche, alder og status.
+     Motoren skriver forbeholdet i grundlaget, listen viser mærket «uden CVR» på
+     den lukkede række. Bliver de to uenige om hvad tynd betyder, står der ét sted
+     et forbehold, som det andet sted ikke viser. */
+  it("cvrMangler dømmer ens på begge sider", () => {
+    const tilfaelde = [
+      null,
+      undefined,
+      {},
+      { kilde: "ansoeger" as const },
+      { kilde: "datacvr" as const },
+      { kilde: "ansoeger" as const, navn: "Nordic Byg ApS" },
+    ];
+    for (const t of tilfaelde) {
+      expect(denoModul.cvrMangler(t), JSON.stringify(t)).toBe(srcModul.cvrMangler(t));
+    }
+    // Og dommen selv: intet opslag ELLER ansøgerens eget navn = tynd.
+    expect(srcModul.cvrMangler(null)).toBe(true);
+    expect(srcModul.cvrMangler(undefined)).toBe(true);
+    expect(srcModul.cvrMangler({ kilde: "ansoeger" })).toBe(true);
+    expect(srcModul.cvrMangler({ kilde: "datacvr" })).toBe(false);
+    // UDELADT kilde betyder DataCVR (CvrVisning.kilde: «Udeladt/datacvr = DataCVR»),
+    // så et opslag uden feltet er IKKE tyndt. Dommen er ordret motorens gamle
+    // betingelse — den er flyttet, ikke ændret; et opslag der lykkedes, men kom
+    // tomt tilbage, er en anden sag og dømmes ikke her.
+    expect(srcModul.cvrMangler({})).toBe(false);
+  });
+
   for (const [i, s] of svar.entries()) {
     it(`dommene er ens for svar ${i}`, () => {
       for (const id of srcModul.FELTER) expect(denoModul.validerFelt(id, s[id])).toEqual(srcModul.validerFelt(id, s[id]));

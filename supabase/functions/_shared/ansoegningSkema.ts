@@ -410,6 +410,27 @@ export interface CvrVisning {
   kilde?: "datacvr" | "ansoeger";
 }
 
+/**
+ * Er ansøgningen TYND — altså regnet uden CVR-registrets oplysninger?
+ * (19/9-2026, recon-boelgen-2 §3.)
+ *
+ * Sandt når der aldrig blev slået op (`cvr_opslag` er null), eller når
+ * ansøgeren selv tastede navnet, fordi opslaget ikke kunne foretages
+ * (`kilde: "ansoeger"` — dagsloftet, DataCVR's grænse eller en fejl).
+ *
+ * KONSEKVENSEN, som er hele grunden til at det har et navn: anbefalingen
+ * regnes UDEN branche, stiftelsesår, selskabsform og status. Den er ikke
+ * forkert — den er regnet på mindre. Motoren skriver det i grundlaget, og
+ * listen viser det på den lukkede række, så det kan ses uden at folde ud.
+ *
+ * ÉN DOM, TO STEDER: denne fil er spejlet (src/lib/ansoegning/skema.ts ↔
+ * supabase/functions/_shared/ansoegningSkema.ts) med paritetstest, så
+ * motoren og fladen ikke kan blive uenige om hvad «tynd» betyder.
+ */
+export function cvrMangler(cvrOpslag: { kilde?: "datacvr" | "ansoeger" } | null | undefined): boolean {
+  return !cvrOpslag || cvrOpslag.kilde === "ansoeger";
+}
+
 /** «2019-05-01» → 2019; ulæseligt → null. Splitter selv (aldrig new Date()). */
 export function stiftetAarAf(dato: string | null | undefined): number | null {
   const m = (dato ?? "").match(/^(\d{4})-\d{2}-\d{2}/);
