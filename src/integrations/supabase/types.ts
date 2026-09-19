@@ -3203,6 +3203,108 @@ export type Database = {
           },
         ]
       }
+      meta_annonce: {
+        Row: {
+          ad_id: string
+          adsaet_navn: string | null
+          adset_id: string | null
+          billede_url: string | null
+          brodtekst: string | null
+          campaign_id: string | null
+          effective_status: string | null
+          kampagne_navn: string | null
+          link_url: string | null
+          navn: string | null
+          opdateret_at: string
+          overskrift: string | null
+          raa: Json | null
+          status: string | null
+          video_id: string | null
+        }
+        Insert: {
+          ad_id: string
+          adsaet_navn?: string | null
+          adset_id?: string | null
+          billede_url?: string | null
+          brodtekst?: string | null
+          campaign_id?: string | null
+          effective_status?: string | null
+          kampagne_navn?: string | null
+          link_url?: string | null
+          navn?: string | null
+          opdateret_at?: string
+          overskrift?: string | null
+          raa?: Json | null
+          status?: string | null
+          video_id?: string | null
+        }
+        Update: {
+          ad_id?: string
+          adsaet_navn?: string | null
+          adset_id?: string | null
+          billede_url?: string | null
+          brodtekst?: string | null
+          campaign_id?: string | null
+          effective_status?: string | null
+          kampagne_navn?: string | null
+          link_url?: string | null
+          navn?: string | null
+          opdateret_at?: string
+          overskrift?: string | null
+          raa?: Json | null
+          status?: string | null
+          video_id?: string | null
+        }
+        Relationships: []
+      }
+      meta_annonce_dag: {
+        Row: {
+          ad_id: string
+          adset_id: string | null
+          campaign_id: string | null
+          dato: string
+          forbrug_oere: number
+          frekvens: number | null
+          hentet_at: string
+          klik: number | null
+          link_klik: number | null
+          raa: Json | null
+          raekkevidde: number | null
+          valuta: string
+          visninger: number | null
+        }
+        Insert: {
+          ad_id: string
+          adset_id?: string | null
+          campaign_id?: string | null
+          dato: string
+          forbrug_oere: number
+          frekvens?: number | null
+          hentet_at?: string
+          klik?: number | null
+          link_klik?: number | null
+          raa?: Json | null
+          raekkevidde?: number | null
+          valuta: string
+          visninger?: number | null
+        }
+        Update: {
+          ad_id?: string
+          adset_id?: string | null
+          campaign_id?: string | null
+          dato?: string
+          forbrug_oere?: number
+          frekvens?: number | null
+          hentet_at?: string
+          klik?: number | null
+          link_klik?: number | null
+          raa?: Json | null
+          raekkevidde?: number | null
+          valuta?: string
+          visninger?: number | null
+        }
+        Relationships: []
+      }
       milestones: {
         Row: {
           baseline: string | null
