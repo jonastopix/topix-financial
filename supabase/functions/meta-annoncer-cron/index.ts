@@ -55,10 +55,11 @@ import {
   kontoUrl,
   insightsUrl,
   MAKS_SIDER,
+  delVindue,
+  laesVindue,
   tilAnnoncekort,
   tilDagsraekker,
   udenToken,
-  vindue,
   type Annoncekort,
   type Dagsraekke,
 } from "../_shared/metaAnnoncer.ts";
@@ -82,7 +83,26 @@ interface Resultat {
   dubletter: string[];
   /** Sider hentet; rammer den MAKS_SIDER, er der mere, vi ikke fik. */
   sider: { annoncer: number; insights: number };
+  /**
+   * Vinduet delt i kald (19/9). Et langt vindue bliver til flere insights-kald
+   * à højst CHUNK_DAGE dage — Metas eget råd. Listen siger hvilke der blev hentet,
+   * så en afbrudt kørsel kan ses og gentages for resten.
+   */
+  stykker: { since: string; until: string; raekker: number }[];
   error?: string;
+}
+
+function tomtResultat(toerKoersel: boolean): Resultat {
+  return {
+    ok: true,
+    dry_run: toerKoersel,
+    koerte: false,
+    annoncer: { hentet: 0, skrevet: 0 },
+    dage: { hentet: 0, skrevet: 0, sprunget: [] },
+    dubletter: [],
+    sider: { annoncer: 0, insights: 0 },
+    stykker: [],
+  };
 }
 
 function json(r: Resultat, status = 200): Response {
@@ -152,22 +172,27 @@ Deno.serve(async (req) => {
   if (auth !== true) return auth;
 
   let toerKoersel = true;
+  let raaBody: Record<string, unknown> | null = null;
   try {
-    const body = await req.json();
-    if (body?.dry_run === false) toerKoersel = false;
+    raaBody = (await req.json()) as Record<string, unknown>;
+    if (raaBody?.dry_run === false) toerKoersel = false;
   } catch {
     /* ingen body, sikker tørkørsel */
   }
 
-  const tom: Resultat = {
-    ok: true,
-    dry_run: toerKoersel,
-    koerte: false,
-    annoncer: { hentet: 0, skrevet: 0 },
-    dage: { hentet: 0, skrevet: 0, sprunget: [] },
-    dubletter: [],
-    sider: { annoncer: 0, insights: 0 },
-  };
+  // VINDUET (19/9): «since»/«until» er valgfrie; uden dem de syv dage som før.
+  // FØR denne ændring læste cronen KUN «dry_run» — et kald med datoer hentede de
+  // sidste syv dage og sagde ingenting. Nu afvises alt, der ikke kan forstås.
+  const nu = new Date();
+  const vindueSvar = laesVindue(raaBody, nu);
+  if (!vindueSvar.ok) {
+    console.error(`${LOG} vinduet blev afvist: ${vindueSvar.fejl}`);
+    return json({ ...tomtResultat(toerKoersel), ok: false, koerte: true, grund: "ugyldigt_vindue", error: vindueSvar.fejl }, 400);
+  }
+  const v = vindueSvar.vindue;
+  const stykker = delVindue(v);
+
+  const tom = tomtResultat(toerKoersel);
 
   // Secrets FØRST. Mangler de, er det en tilstand — ikke en fejl.
   // To mulige navne på tokenet (19/9-2026, midlertidigt) — _shared/metaAdsToken.ts.
@@ -187,8 +212,6 @@ Deno.serve(async (req) => {
     });
   }
 
-  const nu = new Date();
-  const v = vindue(nu, DAGE_BAGUD);
   const supabase = createClient(supabaseUrl, serviceKey, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
@@ -212,8 +235,21 @@ Deno.serve(async (req) => {
     const a = await hentAlle(annoncerUrl(konto!, token!));
     const kort = tilAnnoncekort(a.data);
 
-    // 3. Tallene, pr. annonce pr. dag.
-    const i = await hentAlle(insightsUrl(konto!, token!, v));
+    // 3. Tallene, pr. annonce pr. dag — ÉT KALD PR. STYKKE.
+    //    Et langt vindue deles (delVindue), fordi Metas egen vejledning siger
+    //    «limit your query by limiting the date range», og fordi fejl 1487534
+    //    rammer kald, der henter mere end systemet kan klare. Ældste stykke
+    //    først, så en afbrudt kørsel efterlader en sammenhængende historik.
+    const raaInsights: Record<string, unknown>[] = [];
+    let siderInsights = 0;
+    const stykkeRapport: { since: string; until: string; raekker: number }[] = [];
+    for (const stykke of stykker) {
+      const del = await hentAlle(insightsUrl(konto!, token!, stykke));
+      raaInsights.push(...del.data);
+      siderInsights += del.sider;
+      stykkeRapport.push({ since: stykke.since, until: stykke.until, raekker: del.data.length });
+    }
+    const i = { data: raaInsights, sider: siderInsights };
     const { raekker, sprunget } = tilDagsraekker(i.data, valuta);
     const dub = dubletter(raekker);
     if (dub.length > 0) {
@@ -231,16 +267,17 @@ Deno.serve(async (req) => {
       dage: { hentet: raekker.length, skrevet: 0, sprunget },
       dubletter: dub,
       sider: { annoncer: a.sider, insights: i.sider },
+      stykker: stykkeRapport,
     };
 
     if (toerKoersel) {
-      console.log(`${LOG} TØRKØRSEL: ${kort.length} annoncer og ${raekker.length} dagsrækker ville blive skrevet (${v.since} → ${v.until}, ${valuta}).`);
+      console.log(`${LOG} TØRKØRSEL: ${kort.length} annoncer og ${raekker.length} dagsrækker ville blive skrevet (${v.since} → ${v.until} i ${stykker.length} kald, ${valuta}).`);
       return json(resultat);
     }
 
     resultat.annoncer.skrevet = await skrivAnnoncer(supabase, kort, nu);
     resultat.dage.skrevet = await skrivDage(supabase, raekker, nu);
-    console.log(`${LOG} skrev ${resultat.annoncer.skrevet} annoncer og ${resultat.dage.skrevet} dagsrækker (${v.since} → ${v.until}, ${valuta}).`);
+    console.log(`${LOG} skrev ${resultat.annoncer.skrevet} annoncer og ${resultat.dage.skrevet} dagsrækker (${v.since} → ${v.until} i ${stykker.length} kald, ${valuta}).`);
     return json(resultat);
   } catch (err) {
     const aarsag = err instanceof Error ? err.message : String(err);
