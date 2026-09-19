@@ -155,15 +155,28 @@ export const KVITTERING = {
 } as const;
 
 /**
- * PERSONDATA — UDKAST TIL JONAS. Ikke juridisk rådgivning; skal læses af et
- * menneske før det går i luften (Jonas 18/9, punkt 4). Den korte linje står
- * under «Send ansøgningen»; den lange tekst bor i persondata.ts og vises på
- * PERSONDATA_STI.
+ * PERSONDATA. Den korte linje står under «Send ansøgningen»; den lange tekst
+ * bor i persondata.ts og vises på PERSONDATA_STI.
+ *
+ * ORDLYDEN ER GODKENDT AF JONAS 19/9-2026 — ret den ikke alene.
+ *
+ * HVORFOR DEN BLEV RETTET: den gamle linje nævnte kun 12 måneder og 30 dage, og
+ * den lovede «Du kan altid bede om at få dem slettet». Det løfte kan vi ikke
+ * holde for den, der har skrevet under: revisionssporet bag en underskrift kan
+ * med vilje ikke slettes (databasetriggere håndhæver det), og den lange tekst
+ * siger det nu rent ud. En linje, der lover mere end vi kan holde, bliver et
+ * problem netop den dag, nogen beder om at blive slettet. Femårsfristen står
+ * derfor med tal — «længere» får folk til at gætte på det værste.
+ *
+ * FORMEN PÅ SKÆRMEN er «{SAMTYKKE_LINJE} {link med SAMTYKKE_LINK}»
+ * (AnsoegSkaerm.tsx). Jonas' godkendte ordlyd slutter med «Læs hvordan», og det
+ * er linkets tekst — ellers ville der stå to opfordringer efter hinanden.
+ * Læst i sammenhæng bliver det præcis den godkendte sætning.
  */
 export const PERSONDATA_STI = "/ansoeg/persondata";
 export const SAMTYKKE_LINJE =
-  "Når du sender, gemmer vi dine svar, så Morten og Jonas kan vurdere din ansøgning. Vi gemmer dem i op til 12 måneder; en ufærdig ansøgning slettes efter 30 dage. Du kan altid bede om at få dem slettet.";
-export const SAMTYKKE_LINK = "Sådan behandler vi dine oplysninger";
+  "Når du sender, gemmer vi dine svar, så Morten og Jonas kan vurdere din ansøgning. En ufærdig ansøgning slettes efter 30 dage, en sendt efter op til 12 måneder. Skriver du senere under på en aftale, gemmer vi dokumentationen for den i fem år.";
+export const SAMTYKKE_LINK = "Læs hvordan";
 
 /** 409 fra «indsend»: mailen har allerede en åben, indsendt ansøgning (A's ansoegninger_aaben_email_uidx). */
 export const ALLEREDE = {
