@@ -137,6 +137,12 @@ export function erDaekket(v: Vindue, daekning: Vindue | null): boolean {
  * så en dag uden forbrug heller ikke bidrager med tilmeldinger. Det eneste,
  * der ændrer sig, er at vi siger «13.–18. september» i stedet for at nægte at
  * svare — og at det står på skærmen, at der blev skåret.
+ *
+ * SAMME MØNSTER ANDETSTEDS (19/9): `marketing/maalingsdom.ts:maalMails` fandt
+ * den anden ende af den — dér var det NÆVNEREN, der dækkede en periode, som
+ * ikke var gået endnu («0 % ansøgte inden 48 timer», tretten timer efter
+ * webinaret). Reglen bag begge: tæller og nævner skal dække samme periode, og
+ * en periode, der ikke er gået, er ikke en periode.
  */
 export function afkort(oensket: Vindue, daekning: Vindue | null): Vindue | null {
   if (daekning === null) return null;
