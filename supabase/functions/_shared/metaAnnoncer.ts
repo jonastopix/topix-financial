@@ -90,10 +90,113 @@ export function isoDato(d: Date): string {
  * — dagens tal er ufærdige, og en halv dag i historikken ser ud som et fald.
  * Kørslen kl. 07 dansk henter altså 12/10–18/10, når den kører den 19.
  */
-export function vindue(nu: Date, dageBagud: number = DAGE_BAGUD): { since: string; until: string } {
+export function vindue(nu: Date, dageBagud: number = DAGE_BAGUD): Vindue {
   const til = new Date(nu.getTime() - 86_400_000);
   const fra = new Date(til.getTime() - (dageBagud - 1) * 86_400_000);
   return { since: isoDato(fra), until: isoDato(til) };
+}
+
+export interface Vindue {
+  since: string;
+  until: string;
+}
+
+/**
+ * LOFTET på et selvvalgt vindue (19/9). Metas dokumentation har ingen hård
+ * grænse på `time_range`, men den siger to ting, der tilsammen sætter en:
+ *   «Limit your query by limiting the date range or number of ad ids», og
+ *   fejl 1487534, når ét kald henter mere, end systemet kan klare.
+ * `date_preset = maximum` rækker 37 måneder tilbage — det er horisonten, ikke
+ * en anbefaling.
+ *
+ * 400 dage er valgt så et års bagudhentning kan lade sig gøre i én kommando,
+ * mens «to år ved et uheld» bliver afvist med en besked frem for at køre i
+ * timevis. Skal der mere, er det en bevidst handling: flere kald med hver sit
+ * vindue.
+ */
+export const MAKS_VINDUE_DAGE = 400;
+
+/**
+ * Et langt vindue DELES i flere kald — det er Metas eget råd («break down the
+ * query into smaller queries by using filters like date range»), og det holder
+ * hvert kald lille nok til at svare synkront.
+ *
+ * 31 dage er valgt af en målbar grund: med `time_increment=1` er antallet af
+ * rækker annoncer × dage. Elleve annoncer × 31 dage = 341 rækker, altså ÉN side
+ * ved `limit=500`. Vokser antallet af annoncer, vokser sideantallet — ikke
+ * risikoen for at kaldet vælter.
+ */
+export const CHUNK_DAGE = 31;
+
+/** «YYYY-MM-DD», og en dato der findes. Ingen Date-parsing på en løs streng. */
+export function erIsoDato(v: unknown): v is string {
+  if (typeof v !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(v)) return false;
+  const d = new Date(`${v}T00:00:00Z`);
+  return !Number.isNaN(d.getTime()) && isoDato(d) === v;
+}
+
+/** Hele kalenderdøgn mellem to ISO-datoer, inklusive begge. */
+export function dageIVindue(v: Vindue): number {
+  return Math.round((Date.parse(`${v.until}T00:00:00Z`) - Date.parse(`${v.since}T00:00:00Z`)) / 86_400_000) + 1;
+}
+
+export type VindueSvar = { ok: true; vindue: Vindue; valgt: boolean } | { ok: false; fejl: string };
+
+/**
+ * Vinduet fra kaldets body — `since`/`until` er VALGFRIE, og uden dem gælder de
+ * syv dage som før.
+ *
+ * HVORFOR DEN FINDES (målt 19/9): cronen læste KUN `dry_run`. Et kald med
+ * {"since": "2026-08-01", "until": "2026-09-19"} hentede derfor de sidste syv
+ * dage og sagde ingenting om det — tallene så rigtige ud og dækkede den
+ * forkerte periode. Et felt, der ignoreres i tavshed, er værre end et felt,
+ * der afvises: derfor svarer den nu med en FEJL på alt, den ikke forstår.
+ *
+ * Fem afvisninger, hver med sin grund:
+ *   · kun den ene af de to sat       — et halvt vindue er et gæt
+ *   · ikke «YYYY-MM-DD»              — Meta vil have netop den form
+ *   · until før since                — byttet om
+ *   · until i dag eller i fremtiden   — dagens tal er ufærdige (samme regel som standardvinduet)
+ *   · længere end MAKS_VINDUE_DAGE   — se loftet ovenfor
+ */
+export function laesVindue(body: Record<string, unknown> | null | undefined, nu: Date): VindueSvar {
+  const since = body?.since;
+  const until = body?.until;
+  if (since === undefined && until === undefined) return { ok: true, vindue: vindue(nu), valgt: false };
+  if (since === undefined || until === undefined) {
+    return { ok: false, fejl: "sæt både «since» og «until», eller ingen af dem — et halvt vindue er et gæt" };
+  }
+  if (!erIsoDato(since) || !erIsoDato(until)) {
+    return { ok: false, fejl: `«since» og «until» skal være «YYYY-MM-DD» (fik ${JSON.stringify(since)} og ${JSON.stringify(until)})` };
+  }
+  const v: Vindue = { since, until };
+  if (v.until < v.since) return { ok: false, fejl: `«until» (${v.until}) ligger før «since» (${v.since})` };
+  const iGaar = isoDato(new Date(nu.getTime() - 86_400_000));
+  if (v.until > iGaar) {
+    return { ok: false, fejl: `«until» (${v.until}) må højst være i går (${iGaar}) — dagens tal er ufærdige` };
+  }
+  const dage = dageIVindue(v);
+  if (dage > MAKS_VINDUE_DAGE) {
+    return { ok: false, fejl: `vinduet er ${dage} dage; loftet er ${MAKS_VINDUE_DAGE}. Del det i flere kald.` };
+  }
+  return { ok: true, vindue: v, valgt: true };
+}
+
+/**
+ * Deler et vindue i stykker à højst `chunk` dage — ÆLDSTE FØRST, så en afbrudt
+ * kørsel efterlader en sammenhængende historik bagfra og ikke huller.
+ * Et vindue, der allerede er kort nok, giver ét stykke.
+ */
+export function delVindue(v: Vindue, chunk: number = CHUNK_DAGE): Vindue[] {
+  const ud: Vindue[] = [];
+  const slut = Date.parse(`${v.until}T00:00:00Z`);
+  let fra = Date.parse(`${v.since}T00:00:00Z`);
+  while (fra <= slut) {
+    const til = Math.min(fra + (chunk - 1) * 86_400_000, slut);
+    ud.push({ since: isoDato(new Date(fra)), until: isoDato(new Date(til)) });
+    fra = til + 86_400_000;
+  }
+  return ud;
 }
 
 // ── Pengene ────────────────────────────────────────────────────────────────

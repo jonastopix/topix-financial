@@ -6,7 +6,13 @@ import {
   erMetaObjektId,
   GRAPH_VERSION,
   heltalAf,
+  CHUNK_DAGE,
+  dageIVindue,
+  delVindue,
+  erIsoDato,
   erUkendtFelt,
+  laesVindue,
+  MAKS_VINDUE_DAGE,
   FELTER_MINIMALT,
   FELTER_PR_TYPE,
   insightsUrl,
@@ -335,5 +341,90 @@ describe("doemKobling — trin 1's dom", () => {
 
   it("nul linjer vælter ikke dommen", () => {
     expect(doemKobling([], 0).bevist).toBe(false);
+  });
+});
+
+// ── Vinduet: hele perioden, ikke kun de sidste syv dage (19/9) ───────────────
+
+describe("laesVindue — «since»/«until» må aldrig ignoreres i tavshed", () => {
+  const NU = new Date("2026-09-19T05:00:00Z");
+
+  it("uden datoer: de syv dage som før", () => {
+    const r = laesVindue(null, NU);
+    expect(r).toEqual({ ok: true, vindue: { since: "2026-09-12", until: "2026-09-18" }, valgt: false });
+    expect(laesVindue({ dry_run: false }, NU)).toMatchObject({ ok: true, valgt: false });
+  });
+
+  it("med datoer: præcis det vindue, der blev bedt om — Jonas' eget kald", () => {
+    const r = laesVindue({ dry_run: false, since: "2026-08-01", until: "2026-09-19" }, new Date("2026-09-20T05:00:00Z"));
+    expect(r).toEqual({ ok: true, vindue: { since: "2026-08-01", until: "2026-09-19" }, valgt: true });
+  });
+
+  it("DEN FEJL DER VAR: et halvt vindue afvises frem for at blive til syv dage", () => {
+    expect(laesVindue({ since: "2026-08-01" }, NU)).toMatchObject({ ok: false });
+    expect(laesVindue({ until: "2026-09-18" }, NU)).toMatchObject({ ok: false });
+    // Og beskeden siger hvorfor — ikke bare «ugyldig».
+    const r = laesVindue({ since: "2026-08-01" }, NU) as { ok: false; fejl: string };
+    expect(r.fejl).toContain("halvt vindue");
+  });
+
+  it("formen skal være «YYYY-MM-DD», og datoen skal findes", () => {
+    for (const d of ["1. august", "2026-8-1", "2026-13-01", "2026-02-30", "", 20260801]) {
+      expect(laesVindue({ since: d, until: "2026-09-18" }, NU)).toMatchObject({ ok: false });
+    }
+    expect(erIsoDato("2026-02-30")).toBe(false);
+    expect(erIsoDato("2026-02-28")).toBe(true);
+  });
+
+  it("byttet om, eller i dag/fremtiden — dagens tal er ufærdige", () => {
+    expect(laesVindue({ since: "2026-09-18", until: "2026-08-01" }, NU)).toMatchObject({ ok: false });
+    // «i dag» er 19/9 → until må højst være 18/9.
+    expect(laesVindue({ since: "2026-09-01", until: "2026-09-19" }, NU)).toMatchObject({ ok: false });
+    expect(laesVindue({ since: "2026-09-01", until: "2026-09-18" }, NU)).toMatchObject({ ok: true });
+  });
+
+  it("LOFTET: to år ved et uheld bliver afvist, et år går igennem", () => {
+    expect(laesVindue({ since: "2024-09-18", until: "2026-09-18" }, NU)).toMatchObject({ ok: false });
+    const toAar = laesVindue({ since: "2024-09-18", until: "2026-09-18" }, NU) as { ok: false; fejl: string };
+    expect(toAar.fejl).toContain(String(MAKS_VINDUE_DAGE));
+    expect(laesVindue({ since: "2025-09-18", until: "2026-09-18" }, NU)).toMatchObject({ ok: true });
+    // Præcis på loftet er tilladt; én dag over er ikke.
+    const slut = "2026-09-18";
+    const paaLoftet = new Date(Date.parse(`${slut}T00:00:00Z`) - (MAKS_VINDUE_DAGE - 1) * 86_400_000).toISOString().slice(0, 10);
+    expect(dageIVindue({ since: paaLoftet, until: slut })).toBe(MAKS_VINDUE_DAGE);
+    expect(laesVindue({ since: paaLoftet, until: slut }, NU)).toMatchObject({ ok: true });
+    const overLoftet = new Date(Date.parse(`${slut}T00:00:00Z`) - MAKS_VINDUE_DAGE * 86_400_000).toISOString().slice(0, 10);
+    expect(laesVindue({ since: overLoftet, until: slut }, NU)).toMatchObject({ ok: false });
+  });
+});
+
+describe("delVindue — lange vinduer deles i flere kald", () => {
+  it("et kort vindue er ét kald", () => {
+    expect(delVindue({ since: "2026-09-12", until: "2026-09-18" })).toEqual([{ since: "2026-09-12", until: "2026-09-18" }]);
+  });
+
+  it("Jonas' periode (17/8 → 18/9) bliver to kald, ældste først, uden huller og uden overlap", () => {
+    const stykker = delVindue({ since: "2026-08-17", until: "2026-09-18" });
+    expect(stykker).toHaveLength(2);
+    expect(stykker[0]).toEqual({ since: "2026-08-17", until: "2026-09-16" });
+    expect(stykker[1]).toEqual({ since: "2026-09-17", until: "2026-09-18" });
+    // Ældste først: en afbrudt kørsel efterlader sammenhængende historik bagfra.
+    expect(stykker[0].since < stykker[1].since).toBe(true);
+  });
+
+  it("stykkerne dækker vinduet præcis — hver dag én gang", () => {
+    const v = { since: "2026-01-01", until: "2026-06-30" };
+    const stykker = delVindue(v);
+    expect(stykker.reduce((sum, s) => sum + dageIVindue(s), 0)).toBe(dageIVindue(v));
+    for (let i = 1; i < stykker.length; i++) {
+      const forrigeSlut = Date.parse(`${stykker[i - 1].until}T00:00:00Z`);
+      const denneStart = Date.parse(`${stykker[i].since}T00:00:00Z`);
+      expect(denneStart - forrigeSlut).toBe(86_400_000); // dagen efter — hverken hul eller overlap
+    }
+    expect(stykker.every((s) => dageIVindue(s) <= CHUNK_DAGE)).toBe(true);
+  });
+
+  it("et vindue på én dag er ét stykke på én dag", () => {
+    expect(delVindue({ since: "2026-09-18", until: "2026-09-18" })).toEqual([{ since: "2026-09-18", until: "2026-09-18" }]);
   });
 });
