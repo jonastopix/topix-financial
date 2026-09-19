@@ -2843,6 +2843,57 @@ export type Database = {
         }
         Relationships: []
       }
+      klaviyo_spor: {
+        Row: {
+          aendringer: Json
+          created_at: string
+          efter: Json | null
+          foer: Json | null
+          grund: string | null
+          handling: string
+          id: string
+          kladde_rettelser: Json
+          klaviyo_id: string | null
+          klaviyo_type: string
+          sendt: Json | null
+          toerkoersel: boolean
+          udfald: string
+          udfoert_af: string
+        }
+        Insert: {
+          aendringer?: Json
+          created_at?: string
+          efter?: Json | null
+          foer?: Json | null
+          grund?: string | null
+          handling: string
+          id?: string
+          kladde_rettelser?: Json
+          klaviyo_id?: string | null
+          klaviyo_type: string
+          sendt?: Json | null
+          toerkoersel?: boolean
+          udfald: string
+          udfoert_af: string
+        }
+        Update: {
+          aendringer?: Json
+          created_at?: string
+          efter?: Json | null
+          foer?: Json | null
+          grund?: string | null
+          handling?: string
+          id?: string
+          kladde_rettelser?: Json
+          klaviyo_id?: string | null
+          klaviyo_type?: string
+          sendt?: Json | null
+          toerkoersel?: boolean
+          udfald?: string
+          udfoert_af?: string
+        }
+        Relationships: []
+      }
       kontrakter: {
         Row: {
           betalingsmodel: string
