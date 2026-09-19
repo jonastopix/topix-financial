@@ -13,7 +13,7 @@
 // Der er ingen bruger her — det er et opslag, en rådgiver beder om gennem
 // SQL-editoren eller kald_edge, præcis som husets øvrige crons kaldes.
 //
-// SIGER PÆNT FRA UDEN TOKEN. Mangler META_ADS_TOKEN, svarer den 200 med
+// SIGER PÆNT FRA UDEN TOKEN. Mangler tokenet, svarer den 200 med
 // { ok: true, koerte: false, grund: "secret_mangler" } og en linje om, hvad
 // der skal sættes — ikke en 500 og ikke en stacktrace. En manglende secret er
 // en tilstand, ikke en fejl; det er samme regel som _shared/indgangsFaktura.ts
@@ -32,6 +32,7 @@
 
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
 import { authenticateServiceRole, corsHeaders } from "../_shared/edgeFunctionAuth.ts";
+import { ADS_TOKEN_MANGLER, ADS_TOKEN_NAVN, metaAdsToken } from "../_shared/metaAdsToken.ts";
 import {
   doemKobling,
   opslagbareIder,
@@ -139,16 +140,20 @@ Deno.serve(async (req) => {
   if (auth !== true) return auth;
 
   // Secret'en FØRST — så en manglende nøgle svarer pænt frem for at ligne en fejl.
-  const token = Deno.env.get("META_ADS_TOKEN")?.trim() || null;
+  // To mulige navne (19/9-2026, midlertidigt) — grunden står i _shared/metaAdsToken.ts.
+  const { token, navn } = metaAdsToken();
   if (!token) {
-    console.log(`${LOG} META_ADS_TOKEN mangler — intet slået op.`);
+    console.log(`${LOG} ${ADS_TOKEN_NAVN} mangler — intet slået op.`);
     return json({
       ok: true,
       koerte: false,
       grund: "secret_mangler",
-      mangler: ["META_ADS_TOKEN"],
-      error: "Sæt META_ADS_TOKEN i Lovable → Cloud → Secrets. README §1 siger, hvor tokenet hentes i Meta Business.",
+      mangler: [ADS_TOKEN_NAVN],
+      error: ADS_TOKEN_MANGLER,
     });
+  }
+  if (navn !== ADS_TOKEN_NAVN) {
+    console.warn(`${LOG} bruger ${navn} som Marketing API-token — midlertidigt, se _shared/metaAdsToken.ts.`);
   }
 
   let valgteIder: string[] | null = null;

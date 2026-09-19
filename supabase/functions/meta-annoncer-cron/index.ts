@@ -47,6 +47,7 @@
 
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
 import { authenticateServiceRole, corsHeaders } from "../_shared/edgeFunctionAuth.ts";
+import { ADS_TOKEN_MANGLER, ADS_TOKEN_NAVN, metaAdsToken } from "../_shared/metaAdsToken.ts";
 import {
   annoncerUrl,
   DAGE_BAGUD,
@@ -169,16 +170,20 @@ Deno.serve(async (req) => {
   };
 
   // Secrets FØRST. Mangler de, er det en tilstand — ikke en fejl.
-  const token = Deno.env.get("META_ADS_TOKEN")?.trim() || null;
+  // To mulige navne på tokenet (19/9-2026, midlertidigt) — _shared/metaAdsToken.ts.
+  const { token, navn } = metaAdsToken();
   const konto = Deno.env.get("META_AD_ACCOUNT_ID")?.trim() || null;
-  const mangler = [!token && "META_ADS_TOKEN", !konto && "META_AD_ACCOUNT_ID"].filter(Boolean) as string[];
+  const mangler = [!token && ADS_TOKEN_NAVN, !konto && "META_AD_ACCOUNT_ID"].filter(Boolean) as string[];
+  if (token && navn !== ADS_TOKEN_NAVN) {
+    console.warn(`${LOG} bruger ${navn} som Marketing API-token — midlertidigt, se _shared/metaAdsToken.ts.`);
+  }
   if (mangler.length > 0) {
     console.log(`${LOG} ${mangler.join(" og ")} mangler — intet hentet.`);
     return json({
       ...tom,
       grund: "secret_mangler",
       mangler,
-      error: "Sæt secrets i Lovable → Cloud → Secrets. README §1 siger, hvor de hentes i Meta Business.",
+      error: ADS_TOKEN_MANGLER,
     });
   }
 
