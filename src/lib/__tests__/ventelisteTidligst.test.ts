@@ -10,15 +10,26 @@ const r = (id: string, o: Partial<VentepladsRaekke> = {}): VentepladsRaekke => (
 const ABC = r("abc", { afvist_at: "2025-09-16T10:04:27.000Z", tidligst_tilbud_at: "2026-10-13" });
 
 /*
- * FØRST: eksporterne findes. Målt 19/9 (fund fra et andet vindue): da de ni
- * ændrede filer forsvandt ud af arbejdstræet, var netop disse femten prøver
- * GRØNNE — fordi vitest transpilerer uden at typechecke, så en named export,
- * der ikke findes, bliver `undefined` i stedet for en fejl. Efterprøvet med en
- * midlertidig prøvefil: `typeof findesSletIkke === "undefined"`, og prøven
- * bestod. Kun `tsc` fangede det (TS2305).
+ * FØRST: eksporterne findes. Et bagstop foran bagstoppet — forsvinder en af
+ * dommene ud af modulet, fejler denne ene prøve med det samme og med et
+ * læseligt navn, i stedet for at fejlen viser sig som «X is not a function»
+ * spredt ud over de otte prøver nedenfor. `tsc` fanger det også (TS2459), og
+ * gør det i produktionskoden (AdvisorDashboard, VentelisteHandlinger) — værnet
+ * her er hurtigere at læse, ikke mere dækkende.
  *
- * Denne ene prøve gør «modulet eksporterer det ikke længere» til ÉN rød prøve
- * i stedet for femten tavse grønne. Den koster intet og må ikke fjernes.
+ * RETTET 19/9. Her stod før, at prøverne nedenfor havde været GRØNNE, mens
+ * dommene var væk, og at vitest derfor kunne tie om en manglende export. Det
+ * var forkert. Påstanden kom fra et andet vindue, som havde kørt `tsc` og
+ * `vitest` to minutter fra hinanden i et arbejdstræ, der blev repareret
+ * imellem de to kørsler — to tilstande læst som ét billede.
+ *
+ * Den kontrollerede efterprøvning (ren kopi, dette værn fjernet, `export`
+ * fjernet fra de fire domme i BEGGE spejle) gav `8 failed | 1 passed` og
+ * «danskDatoAf is not a function». Prøverne fejler højlydt. En prøve er kun
+ * tavs, hvis den REFERERER en import uden at kalde den — disse kalder.
+ *
+ * Værnet bliver, fordi det fejler tidligere og mere læseligt. Det lukker
+ * ingen hul, for der var intet.
  */
 describe("eksporterne findes overhovedet", () => {
   it("alle fire domme er funktioner — ikke undefined", () => {
