@@ -2801,6 +2801,48 @@ export type Database = {
         }
         Relationships: []
       }
+      klaviyo_haendelser: {
+        Row: {
+          email: string
+          grund: string | null
+          id: string
+          metric: string
+          sendt: Json
+          sendt_at: string
+          status: number | null
+          svar: string | null
+          udfald: string
+          unikt_id: string
+          varighed_ms: number | null
+        }
+        Insert: {
+          email: string
+          grund?: string | null
+          id?: string
+          metric: string
+          sendt: Json
+          sendt_at?: string
+          status?: number | null
+          svar?: string | null
+          udfald: string
+          unikt_id: string
+          varighed_ms?: number | null
+        }
+        Update: {
+          email?: string
+          grund?: string | null
+          id?: string
+          metric?: string
+          sendt?: Json
+          sendt_at?: string
+          status?: number | null
+          svar?: string | null
+          udfald?: string
+          unikt_id?: string
+          varighed_ms?: number | null
+        }
+        Relationships: []
+      }
       kontrakter: {
         Row: {
           betalingsmodel: string
