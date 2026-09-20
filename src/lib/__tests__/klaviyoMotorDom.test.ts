@@ -7,16 +7,7 @@
  * afvisninger, dommene værner mod, er ordret dem Klaviyo svarede 19/9.
  */
 import { describe, expect, it } from "vitest";
-import {
-  bevarDefinition,
-  bygMailData,
-  doemSkabelon,
-  erHeltKladde,
-  hvadAendres,
-  KLADDE,
-  tvingKladde,
-  type FlowhandlingsDefinition,
-} from "../../../supabase/functions/_shared/klaviyoMotorDom.ts";
+import { bevarDefinition, bygMailData, doemAfvigelse, doemBetingelser, doemFlowAfvigelse, doemSkabelon, doemSkabelonKobling, erHeltKladde, type FlowhandlingsDefinition, hvadAendres, KLADDE, tvingKladde } from "../../../supabase/functions/_shared/klaviyoMotorDom.ts";
 
 /** Formen fra en rigtig læsning — id, type, links og hele data. */
 const FOER: FlowhandlingsDefinition = {
@@ -219,5 +210,263 @@ describe("hvadAendres — et menneske skal kunne læse ændringen på ét blik",
   it("tåler null i begge ender", () => {
     expect(hvadAendres(null, null)).toEqual([]);
     expect(hvadAendres(null, { a: 1 })).toEqual([{ felt: "a", foer: null, efter: 1 }]);
+  });
+});
+
+// ── doemBetingelser ────────────────────────────────────────────────────────
+
+/** Den målte form fra kontoens eget flow «Onboarding, new subscriber & no order». */
+const gyldigtFilter = () => ({
+  condition_groups: [{
+    conditions: [{
+      type: "profile-metric",
+      metric_id: "SMSxaW",
+      measurement: "count",
+      measurement_filter: { type: "numeric", operator: "equals", value: 0 },
+      timeframe_filter: { type: "date", operator: "flow-start" },
+      metric_filters: null,
+    }],
+  }],
+});
+
+describe("doemBetingelser", () => {
+  it("tager den målte form fra en rigtig konto", () => {
+    const d = doemBetingelser(gyldigtFilter());
+    expect(d.ok).toBe(true);
+    if (d.ok === true) expect(d.vaerdi).toEqual(gyldigtFilter());
+  });
+
+  it("null er et gyldigt svar og betyder «ryd filteret»", () => {
+    const d = doemBetingelser(null);
+    expect(d.ok).toBe(true);
+    if (d.ok === true) expect(d.vaerdi).toBeNull();
+  });
+
+  it("beholder felter, vi ikke kender — vi dømmer form, ikke ordforråd", () => {
+    const med = { ...gyldigtFilter(), noget_nyt_fra_klaviyo: 42 };
+    const d = doemBetingelser(med);
+    expect(d.ok).toBe(true);
+    if (d.ok === true) expect((d.vaerdi as Record<string, unknown>).noget_nyt_fra_klaviyo).toBe(42);
+  });
+
+  it("tillader en betingelsestype, vi ikke kender, når den har en type", () => {
+    const d = doemBetingelser({ condition_groups: [{ conditions: [{ type: "noget-helt-nyt", hvadsomhelst: true }] }] });
+    expect(d.ok).toBe(true);
+  });
+
+  it.each([
+    ["en streng", "profile-metric"],
+    ["et tal", 7],
+    ["en liste", [{ conditions: [] }]],
+  ])("afviser %s", (_navn, vaerdi) => {
+    expect(doemBetingelser(vaerdi).ok).toBe(false);
+  });
+
+  it("afviser et tomt objekt — condition_groups mangler", () => {
+    const d = doemBetingelser({});
+    expect(d.ok).toBe(false);
+    if (d.ok === false) expect(d.fejl).toBe("betingelser_ugyldige");
+  });
+
+  it("afviser tomme condition_groups", () => {
+    expect(doemBetingelser({ condition_groups: [] }).ok).toBe(false);
+  });
+
+  it("afviser en gruppe uden conditions", () => {
+    expect(doemBetingelser({ condition_groups: [{ conditions: [] }] }).ok).toBe(false);
+  });
+
+  it("afviser en betingelse uden type", () => {
+    expect(doemBetingelser({ condition_groups: [{ conditions: [{ metric_id: "SMSxaW" }] }] }).ok).toBe(false);
+  });
+
+  // DEN VIGTIGSTE: webinar-sagen i miniature. Metrikken fandtes ikke, og en
+  // pladsholder ville have set ud som en tekst, der virkede.
+  it("afviser profile-metric uden metric_id", () => {
+    const f = gyldigtFilter();
+    delete (f.condition_groups[0].conditions[0] as Record<string, unknown>).metric_id;
+    const d = doemBetingelser(f);
+    expect(d.ok).toBe(false);
+    if (d.ok === false) expect(d.forklaring).toContain("metric_id");
+  });
+
+  it.each([["en pladsholder", "<id>"], ["tom", ""], ["for kort", "abc"], ["for lang", "SMSxaW77"]])(
+    "afviser metric_id, der er %s",
+    (_navn, id) => {
+      const f = gyldigtFilter();
+      (f.condition_groups[0].conditions[0] as Record<string, unknown>).metric_id = id;
+      expect(doemBetingelser(f).ok).toBe(false);
+    },
+  );
+
+  it("peger på den gruppe og betingelse, der fejler", () => {
+    const f = gyldigtFilter();
+    f.condition_groups.push({ conditions: [{ type: "profile-metric", metric_id: "nej" }] } as never);
+    const d = doemBetingelser(f);
+    expect(d.ok).toBe(false);
+    if (d.ok === false) expect(d.forklaring).toContain("condition_groups[1].conditions[0]");
+  });
+});
+
+describe("bygMailData — betingelser", () => {
+  const foer = { message: { subject_line: "Emne", additional_filters: null }, status: "live" };
+
+  it("udeladt rører ikke filteret", () => {
+    const ud = bygMailData(foer, { emne: "Nyt" });
+    expect((ud.message as Record<string, unknown>).additional_filters).toBeNull();
+    expect(Object.keys(ud.message as object)).toContain("additional_filters");
+  });
+
+  it("et objekt sættes som additional_filters", () => {
+    const ud = bygMailData(foer, { betingelser: gyldigtFilter() as never });
+    expect((ud.message as Record<string, unknown>).additional_filters).toEqual(gyldigtFilter());
+  });
+
+  it("null rydder filteret", () => {
+    const med = { message: { subject_line: "Emne", additional_filters: gyldigtFilter() }, status: "live" };
+    const ud = bygMailData(med, { betingelser: null });
+    expect((ud.message as Record<string, unknown>).additional_filters).toBeNull();
+  });
+});
+
+// ── doemAfvigelse: skabelon-klonen, målt 19/9 kl. 23:17 ────────────────────
+
+const defMed = (skabelonId: string) => ({
+  id: "117754032",
+  type: "send-email",
+  links: { next: "117754027" },
+  data: { status: "live", message: { template_id: skabelonId, subject_line: "Emne", id: "XYgG3S" } },
+});
+
+describe("doemAfvigelse", () => {
+  it("siger intet, når svaret er det, vi sendte", () => {
+    const r = doemAfvigelse(defMed("TVbT4b"), defMed("TVbT4b"));
+    expect(r.afvigelser).toEqual([]);
+    expect(r.besked).toBeNull();
+  });
+
+  // DEN RIGTIGE SAG: vi sendte TVbT4b, EFTER bar SYKyM6.
+  it("fanger klonen og navngiver begge id'er", () => {
+    const r = doemAfvigelse(defMed("TVbT4b"), defMed("SYKyM6"));
+    expect(r.afvigelser).toEqual([
+      { felt: "data.message.template_id", vi_sendte: "TVbT4b", klaviyo_satte: "SYKyM6" },
+    ]);
+    expect(r.besked).toContain("KLONEDE");
+    expect(r.besked).toContain("TVbT4b");
+    expect(r.besked).toContain("SYKyM6");
+    // Det vigtigste for et menneske, der læser sporet et halvt år senere.
+    expect(r.besked).toContain("frakoblet");
+  });
+
+  it("er generel: fanger også en ombytning, vi ikke har set før", () => {
+    const sendt = defMed("TVbT4b");
+    const efter = defMed("TVbT4b");
+    (efter.data.message as Record<string, unknown>).subject_line = "Noget Klaviyo fandt på";
+    const r = doemAfvigelse(sendt, efter);
+    expect(r.afvigelser).toHaveLength(1);
+    expect(r.besked).toContain("subject_line");
+    expect(r.besked).not.toContain("KLONEDE");
+  });
+
+  it("nævner både klonen og de øvrige, når begge dele sker", () => {
+    const efter = defMed("SYKyM6");
+    (efter.data.message as Record<string, unknown>).subject_line = "Ændret";
+    const r = doemAfvigelse(defMed("TVbT4b"), efter);
+    expect(r.afvigelser).toHaveLength(2);
+    expect(r.besked).toContain("KLONEDE");
+    expect(r.besked).toContain("subject_line");
+  });
+});
+
+describe("doemSkabelonKobling", () => {
+  // Kloner fra den rigtige kørsel.
+  const iBrug = ["SYKyM6", "Yn3dix", "Tx9m4j", "VjzeyN"];
+
+  it("godkender den skabelon, flowet faktisk bruger", () => {
+    const d = doemSkabelonKobling("SYKyM6", iBrug);
+    expect(d.ok).toBe(true);
+  });
+
+  it("afviser originalen, som er frakoblet", () => {
+    const d = doemSkabelonKobling("TVbT4b", iBrug);
+    expect(d.ok).toBe(false);
+    if (d.ok === false) {
+      expect(d.fejl).toBe("skabelon_frakoblet");
+      // Den skal sige, hvad man SKAL rette — ikke kun at man tog fejl.
+      expect(d.forklaring).toContain("SYKyM6");
+      expect(d.forklaring).toContain("frakoblet");
+    }
+  });
+
+  it("siger det tydeligt, når flowet slet ingen mails har", () => {
+    const d = doemSkabelonKobling("TVbT4b", []);
+    expect(d.ok).toBe(false);
+    if (d.ok === false) expect(d.forklaring).toContain("ingen mailhandlinger");
+  });
+});
+
+// ── doemFlowAfvigelse: den rigtige sag fra QYVEpj, 19/9 kl. 23:34 ─────────
+
+const flowDef = (over: { tid?: string; skabelon?: string; id?: string; metric?: string } = {}) => ({
+  triggers: [{
+    type: "date",
+    date_profile_property: "eWebinar",
+    trigger_time: over.tid ?? "11:00:00",
+    ...(over.metric ? { internal_metric_id: over.metric } : {}),
+  }],
+  reentry_criteria: { duration: 14, unit: "day" },
+  entry_action_id: over.id ?? "t-start",
+  actions: [
+    { [over.id ? "id" : "temporary_id"]: over.id ?? "t-start", type: "target-date", data: {} },
+    {
+      [over.id ? "id" : "temporary_id"]: over.id ?? "t-mail1",
+      type: "send-email",
+      data: { status: "draft", message: { name: "Efter 01 — Tak fordi du var med", template_id: over.skabelon ?? "TYDpbi", subject_line: "Tak", preview_text: "Se det igen", additional_filters: null, from_email: "noreply@send.topix.dk", from_label: "Morten Larsen", reply_to_email: "kontakt@topix.dk" } },
+    },
+  ],
+});
+
+describe("doemFlowAfvigelse", () => {
+  it("tier, når vi fik det, vi bad om — også når id'erne er blevet rigtige", () => {
+    const r = doemFlowAfvigelse(flowDef(), flowDef({ id: "117759058" }));
+    expect(r.afvigelser).toEqual([]);
+    expect(r.besked).toBeNull();
+  });
+
+  it("ser bort fra internal_metric_id, som Klaviyo selv tildeler", () => {
+    const r = doemFlowAfvigelse(flowDef(), flowDef({ metric: "SMmxTN" }));
+    expect(r.afvigelser).toEqual([]);
+  });
+
+  // DEN RIGTIGE SAG: vi sendte 11:00:00, Klaviyo gemte 00:00:00.
+  it("fanger, at Klaviyo flyttede udløsningstidspunktet", () => {
+    const r = doemFlowAfvigelse(flowDef(), flowDef({ tid: "00:00:00" }));
+    expect(r.afvigelser).toEqual([
+      { felt: "udloeser.trigger_time", vi_sendte: "11:00:00", klaviyo_satte: "00:00:00" },
+    ]);
+    expect(r.besked).toContain("11:00:00");
+    expect(r.besked).toContain("00:00:00");
+    expect(r.besked).not.toContain("KLONEDE");
+  });
+
+  it("fanger klonen og navngiver begge id'er", () => {
+    const r = doemFlowAfvigelse(flowDef(), flowDef({ skabelon: "WndiUL" }));
+    expect(r.besked).toContain("KLONEDE");
+    expect(r.besked).toContain("TYDpbi → WndiUL");
+    expect(r.besked).toContain("frakoblet");
+  });
+
+  it("siger begge dele, når begge dele skete — som de gjorde", () => {
+    const r = doemFlowAfvigelse(flowDef(), flowDef({ tid: "00:00:00", skabelon: "WndiUL" }));
+    expect(r.afvigelser).toHaveLength(2);
+    expect(r.besked).toContain("KLONEDE");
+    expect(r.besked).toContain("trigger_time");
+  });
+
+  it("matcher mails på navn, ikke på rækkefølge", () => {
+    const sendt = flowDef();
+    const efter = flowDef({ id: "117759058" });
+    efter.actions.reverse();
+    expect(doemFlowAfvigelse(sendt, efter).afvigelser).toEqual([]);
   });
 });

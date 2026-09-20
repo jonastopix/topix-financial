@@ -20,9 +20,15 @@
 //   laes_skabelon    { skabelon_id }
 //   laes_kampagne    { kampagne_id }
 //   opret_skabelon   { navn, redigeringstype, html? | definition?, tekst? }
-//   ret_skabelon     { skabelon_id, navn?, html?, definition?, tekst? }
+//   ret_skabelon     { skabelon_id, navn?, html?, definition?, tekst?, flow_id? }
+//                    flow_id: efterprøv FØRST, at skabelonen er den, flowet
+//                    faktisk bruger. Klaviyo kloner ved kobling, så originalen
+//                    er frakoblet — en rettelse i den rammer ingen.
 //   ret_flowmail     { handling_id, skabelon_id?, emne?, forhaandstekst?,
-//                      afsender_mail?, afsender_navn?, svaradresse? }
+//                      afsender_mail?, afsender_navn?, svaradresse?,
+//                      betingelser? }
+//                    betingelser: objekt = sæt filteret, null = ryd det,
+//                    udeladt = rør det ikke. De tre er forskellige.
 //   opret_flow       { navn, definition }
 //
 // LAG 4 ER IKKE BYGGET HER. Denne function er det, agenten får lov at kalde —
@@ -45,7 +51,7 @@ import {
   skrivSpor,
   type Udfald,
 } from "../_shared/klaviyoMotor.ts";
-import type { Redigeringstype } from "../_shared/klaviyoMotorDom.ts";
+import type { Betingelser, Redigeringstype } from "../_shared/klaviyoMotorDom.ts";
 
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
 const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -61,6 +67,27 @@ const tekst = (v: unknown): string | undefined => (typeof v === "string" && v.tr
 /** null skal kunne sendes med vilje (ryd feltet); undefined betyder «rør ikke». */
 const tekstEllerNull = (v: unknown): string | null | undefined =>
   v === null ? null : typeof v === "string" ? v.trim() : undefined;
+
+/**
+ * Betingelserne læses IKKE med en hjælper, der gør alt ukendt til undefined.
+ *
+ * For de øvrige felter er det harmløst: en talværdi i `emne` bliver til «rør
+ * ikke», og mailen står, som den stod. For `betingelser` ville samme tavshed
+ * betyde, at et filter, kalderen troede blev sat, aldrig blev det — og mailen
+ * gik til alle. Derfor er svaret her tredelt, og alt andet er en 400.
+ */
+type BetingelsesLaesning =
+  | { ok: true; vaerdi: Betingelser | null | undefined }
+  | { ok: false; grund: string };
+
+const laesBetingelser = (v: unknown): BetingelsesLaesning => {
+  if (v === undefined) return { ok: true, vaerdi: undefined };
+  if (v === null) return { ok: true, vaerdi: null };
+  if (typeof v !== "object" || Array.isArray(v)) {
+    return { ok: false, grund: "betingelser skal være et objekt, null (ryd) eller udeladt (rør ikke)" };
+  }
+  return { ok: true, vaerdi: v as Betingelser };
+};
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -115,7 +142,7 @@ Deno.serve(async (req: Request) => {
         const ud = await laesFlow(k, id);
         await skrivSpor(admin, {
           handling: "laes_flow", klaviyo_id: id, klaviyo_type: "flow", toerkoersel: true,
-          foer: ud.flow, sendt: null, efter: null, aendringer: [], kladde_rettelser: [],
+          foer: ud.flow, sendt: null, efter: null, aendringer: [], kladde_rettelser: [], klaviyo_afveg: [],
           udfald: "toerkoersel", grund: null, udfoert_af: callerId,
         });
         return json(200, {
@@ -132,7 +159,7 @@ Deno.serve(async (req: Request) => {
         const s = await laesSkabelon(k, id);
         await skrivSpor(admin, {
           handling: "laes_skabelon", klaviyo_id: id, klaviyo_type: "template", toerkoersel: true,
-          foer: s, sendt: null, efter: null, aendringer: [], kladde_rettelser: [],
+          foer: s, sendt: null, efter: null, aendringer: [], kladde_rettelser: [], klaviyo_afveg: [],
           udfald: "toerkoersel", grund: null, udfoert_af: callerId,
         });
         return json(200, { skabelon: s });
@@ -143,7 +170,7 @@ Deno.serve(async (req: Request) => {
         const ud = await laesKampagne(k, id);
         await skrivSpor(admin, {
           handling: "laes_kampagne", klaviyo_id: id, klaviyo_type: "campaign", toerkoersel: true,
-          foer: ud.kampagne, sendt: null, efter: null, aendringer: [], kladde_rettelser: [],
+          foer: ud.kampagne, sendt: null, efter: null, aendringer: [], kladde_rettelser: [], klaviyo_afveg: [],
           udfald: "toerkoersel", grund: null, udfoert_af: callerId,
         });
         return json(200, ud);
@@ -170,11 +197,14 @@ Deno.serve(async (req: Request) => {
           html: tekst(body.html),
           definition: body.definition as Record<string, unknown> | undefined,
           tekst: tekst(body.tekst),
+          flowId: tekst(body.flow_id),
         }, valg);
         return svar(ud);
       }
       case "ret_flowmail": {
         const id = tekst(body.handling_id);
+        const b = laesBetingelser(body.betingelser);
+        if (b.ok === false) return json(400, { error: b.grund });
         if (!id) return json(400, { error: "handling_id mangler" });
         const ud = await retFlowmail(k, admin, id, {
           skabelonId: tekstEllerNull(body.skabelon_id),
@@ -183,6 +213,7 @@ Deno.serve(async (req: Request) => {
           afsenderMail: tekstEllerNull(body.afsender_mail),
           afsenderNavn: tekstEllerNull(body.afsender_navn),
           svaradresse: tekstEllerNull(body.svaradresse),
+          betingelser: b.vaerdi,
         }, valg);
         return svar(ud);
       }
