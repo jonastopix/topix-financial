@@ -285,3 +285,10 @@ project_id = "loiavmastgeieqyiwyyr"
   # webinarId er låst til PROEVE-webinar, id'et skal starte med PROEVE-.
   [functions.ewebinar-proeve]
     verify_jwt = true
+  # Klaviyos hændelser tilbage til os (19/9-2026, lag 5). Bucket B, samme form
+  # som indgangs-paamindelser-cron: authenticateServiceRole FØRST, kaldt gennem
+  # kald_edge med vault-nøglen. Tørkørsel som standard — uden «dry_run: false»
+  # hentes der, men skrives ikke. Læser KUN hos Klaviyo (GET /events), skriver
+  # intet derovre.
+  [functions.klaviyo-hentning-cron]
+    verify_jwt = true
