@@ -78,7 +78,7 @@ export const PERSONDATA_AFSNIT: readonly PersondataAfsnit[] = [
     titel: "Hvem ser dem",
     afsnit: [
       "Morten Larsen og Jonas Herlev, som læser og vurderer ansøgningerne, og de rådgivere, der arbejder for The Boardroom.",
-      "Vores leverandører behandler oplysningerne på vores vegne og efter vores instruks: Supabase (databasen, via Lovable Cloud, i EU), Lovable (afsendelse af e-mail, i EU), DataCVR (opslaget i CVR-registret — de får kun CVR-nummeret, i Danmark), Calendly (dit navn, din e-mail og din virksomhed, når du booker en samtale, i USA) og eWebinar (din tilmelding og deltagelse, hvis du har set webinaret, i USA).",
+      "Vores leverandører behandler oplysningerne på vores vegne og efter vores instruks: Supabase (databasen, via Lovable Cloud, i EU), Lovable (afsendelse af e-mail, i EU), DataCVR (opslaget i CVR-registret — de får kun CVR-nummeret, i Danmark), Calendly (dit navn, din e-mail og din virksomhed, når du booker en samtale, i USA), eWebinar (din tilmelding og deltagelse, hvis du har set webinaret, i USA) og Klaviyo (din e-mail og hvor du kom fra, når du begynder en ansøgning — og virksomhedens branche, omsætningsinterval og antal ansatte, når du sender den; det styrer, hvilke af vores egne mails om The Boardroom du får, i USA).",
       "Vi sælger aldrig dine oplysninger. Ud over leverandørerne ovenfor videregiver vi dem ikke.",
     ],
   },
@@ -106,7 +106,7 @@ export const PERSONDATA_AFSNIT: readonly PersondataAfsnit[] = [
  *    på den registreredes anmodning, eller om noget af det snarere er en
  *    berettiget interesse — og om det i så fald skal stå anderledes.
  *
- * 2. OVERFØRSLERNE TIL USA. Calendly og eWebinar behandler begge
+ * 2. OVERFØRSLERNE TIL USA. Calendly, eWebinar og Klaviyo behandler alle
  *    personoplysninger uden for EU/EØS. Grundlaget for overførslen skal
  *    fastlægges og nævnes, hvis det kræves — og det skal afgøres, om teksten
  *    skal sige mere end blot «i USA».
