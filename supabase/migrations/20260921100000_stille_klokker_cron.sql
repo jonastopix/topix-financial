@@ -1,4 +1,14 @@
--- IKKE KØRT. DEPLOY: manuelt i Lovable → SQL editor efter merge (FØR Update-klik).
+-- KØRT i prod — målt 20/9-2026 aften (Jonas): cron.job 566 «stille-klokker», schedule 30 4 * * *, active.
+-- Rækkefølgen holdt: merge (#1048, cdc90353) → EKSPLICIT deploy af stille-klokker-cron fra build-chat →
+-- tørkørsel → svaret læst i net._http_response (laes-toerkoersel.sql) → migrationen.
+--
+-- TØRKØRSLEN (fundet 28 · ingen_bruger 3 · ingen_login 4 · ringet 0 · fandtes 0 · fejl 0) ramte alle syv:
+--   ingen_bruger: WESDEX (234 dage), Din økonomiafdeling (207), Two Socks (206)
+--   ingen_login:  Brick Works (145, trin 2), TuaMea (138, trin 2), Capture IT (97, trin 1), Homie (95, trin 1)
+--   tavse:        Pro-Vision og E-skilte = ikke_aktiv (regel 2 virker) · aktiv = 19
+-- UMÅLT I PROD: grenen for_tidligt (betalt uden bruger, under 30 dage) — Din Forsikringsret og Nordic By Hand
+-- har allerede brugere og står blandt de 19. Grenen er kun dækket af stilleDom.test.ts.
+-- Første rigtige kørsel: 21/9 kl. 06:30 dansk — de syv ringer for første gang.
 --
 -- De to klokker, der ikke fandtes (20/9-2026): «betalt, ingen bruger» og
 -- «ingen login» — stille-klokker-cron, én gang i døgnet. Dommen og
