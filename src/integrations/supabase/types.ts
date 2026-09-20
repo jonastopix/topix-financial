@@ -709,6 +709,7 @@ export type Database = {
           cvr_bekraeftet: boolean
           cvr_opslag: Json | null
           email: string | null
+          fbclid: string | null
           hjemmeside: string | null
           id: string
           indsendt_at: string | null
@@ -716,6 +717,7 @@ export type Database = {
           kilde: string
           kilde_raa: string | null
           konverteret_at: string | null
+          landing: string | null
           lukkeaarsag: string | null
           lukket_af: string | null
           lukket_at: string | null
@@ -727,6 +729,7 @@ export type Database = {
           paa_pause_til: string | null
           pris_oere: number | null
           proevet: string | null
+          referrer: string | null
           rykkere_sendt: number
           samtale_link: string | null
           samtale_slut: string | null
@@ -739,6 +742,11 @@ export type Database = {
           trin_sat_at: string
           udfordring: string | null
           updated_at: string
+          utm_campaign: string | null
+          utm_content: string | null
+          utm_medium: string | null
+          utm_source: string | null
+          utm_term: string | null
         }
         Insert: {
           afslagsgrund?: string | null
@@ -752,6 +760,7 @@ export type Database = {
           cvr_bekraeftet?: boolean
           cvr_opslag?: Json | null
           email?: string | null
+          fbclid?: string | null
           hjemmeside?: string | null
           id?: string
           indsendt_at?: string | null
@@ -759,6 +768,7 @@ export type Database = {
           kilde?: string
           kilde_raa?: string | null
           konverteret_at?: string | null
+          landing?: string | null
           lukkeaarsag?: string | null
           lukket_af?: string | null
           lukket_at?: string | null
@@ -770,6 +780,7 @@ export type Database = {
           paa_pause_til?: string | null
           pris_oere?: number | null
           proevet?: string | null
+          referrer?: string | null
           rykkere_sendt?: number
           samtale_link?: string | null
           samtale_slut?: string | null
@@ -782,6 +793,11 @@ export type Database = {
           trin_sat_at?: string
           udfordring?: string | null
           updated_at?: string
+          utm_campaign?: string | null
+          utm_content?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+          utm_term?: string | null
         }
         Update: {
           afslagsgrund?: string | null
@@ -795,6 +811,7 @@ export type Database = {
           cvr_bekraeftet?: boolean
           cvr_opslag?: Json | null
           email?: string | null
+          fbclid?: string | null
           hjemmeside?: string | null
           id?: string
           indsendt_at?: string | null
@@ -802,6 +819,7 @@ export type Database = {
           kilde?: string
           kilde_raa?: string | null
           konverteret_at?: string | null
+          landing?: string | null
           lukkeaarsag?: string | null
           lukket_af?: string | null
           lukket_at?: string | null
@@ -813,6 +831,7 @@ export type Database = {
           paa_pause_til?: string | null
           pris_oere?: number | null
           proevet?: string | null
+          referrer?: string | null
           rykkere_sendt?: number
           samtale_link?: string | null
           samtale_slut?: string | null
@@ -825,6 +844,11 @@ export type Database = {
           trin_sat_at?: string
           udfordring?: string | null
           updated_at?: string
+          utm_campaign?: string | null
+          utm_content?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+          utm_term?: string | null
         }
         Relationships: [
           {
