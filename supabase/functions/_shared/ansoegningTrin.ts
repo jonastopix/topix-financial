@@ -127,18 +127,19 @@ export type Kilde = (typeof KILDER)[number];
 // tjekker ventepladsen selv (ventepladsErTilbudt i cronen).
 // «afslag» (18/9): afslagsmailen dag 0 — lever også på en LUKKET ansøgning
 // (TRAPPER_PAA_LUKKET i rykkerkoe.ts: køen kræver trin = lukket).
-export const TRAPPER_NAVNE = ["kladde", "indsendt", "indkaldt", "booket", "aftalegrundlag", "pause", "venteplads", "afslag"] as const;
+export const TRAPPER_NAVNE = ["kladde", "indsendt", "ny", "indkaldt", "booket", "afholdt", "aftalegrundlag", "pause", "venteplads", "afslag"] as const;
 export type Trappe = (typeof TRAPPER_NAVNE)[number];
 
 /** Grunden bag et nej: nichen er optaget (ventelisten), for tidligt, andet. Værd at kende også uden tilbud (Jonas 18/9). */
 export const AFSLAGSGRUNDE = ["niche", "for_tidligt", "andet"] as const;
 export type Afslagsgrund = (typeof AFSLAGSGRUNDE)[number];
 
-/** Hvad en grund fører med sig — niche: ventelisten og afslagsmailen; for_tidligt: afslagsmailen; andet/ingen: intet (Jonas skriver selv). */
+/** Hvad en grund fører med sig — niche: ventelisten og afslagsmailen; for_tidligt og andet: afslagsmailen (ingen grund = andet). */
 export function afslagsFoelger(grund: Afslagsgrund | null | undefined): { venteliste: boolean; afslagsmail: boolean } {
   if (grund === "niche") return { venteliste: true, afslagsmail: true };
   if (grund === "for_tidligt") return { venteliste: false, afslagsmail: true };
-  return { venteliste: false, afslagsmail: false };
+  // «andet» (20/9, recon §5.5): teksten fandtes, men blev aldrig sendt — ansøgeren hørte aldrig noget. Nu sendes den.
+  return { venteliste: false, afslagsmail: true };
 }
 
 export type Handling =
@@ -150,6 +151,7 @@ export type Handling =
   | { art: "tilbud" }
   | { art: "afslag"; grund?: Afslagsgrund }
   | { art: "underskrevet" }
+  | { art: "ikke_moedt" }
   | { art: "svarer_ikke" }
   | { art: "udloeb" }
   | { art: "ikke_nu" }
@@ -315,7 +317,7 @@ export function afgoerOvergang(fra: Trin, h: Handling, ctx: OvergangsKontekst): 
 
   switch (fra) {
     case "ny":
-      if (h.art === "tal_med_dem") return OK({ til: "indkaldt", start: { trappe: "indkaldt", anker: "nu" }, beslutning: true });
+      if (h.art === "tal_med_dem") return OK({ til: "indkaldt", annuller: ["ny"], start: { trappe: "indkaldt", anker: "nu" }, beslutning: true });
       if (h.art === "afvis") return OK({ til: "lukket", lukkeaarsag: "afslag_efter_ansoegning", annuller: "alle", beslutning: true, ...afslagetsFoelger(h) });
       if (h.art === "tilbud" || h.art === "underskrevet") return AFVIST("direkte tilbud findes ikke: fra «ny» kan man kun indkalde eller afvise");
       break;
@@ -324,12 +326,14 @@ export function afgoerOvergang(fra: Trin, h: Handling, ctx: OvergangsKontekst): 
       if (h.art === "svarer_ikke") return OK({ til: "lukket", lukkeaarsag: "svarer_ikke", annuller: "alle" });
       break;
     case "booket":
-      if (h.art === "afholdt") return OK({ til: "afholdt", annuller: ["booket"] });
+      if (h.art === "afholdt") return OK({ til: "afholdt", annuller: ["booket"], start: { trappe: "afholdt", anker: "nu" } });
       if (h.art === "aflys_booking") return OK({ til: "indkaldt", annuller: ["booket"], start: { trappe: "indkaldt", anker: "nu", fraTrinNr: 1 } }); // ingen ny dag 0-indkaldelse: aflysningsmailen bærer «vælg en ny tid»; rykkerne dag 2/7/11 og dag 14 kører
       if (h.art === "book") return OK({ til: "booket", annuller: ["booket"], start: { trappe: "booket", anker: "samtale" } }); // flytning: ny tid, ny trappe
       break;
     case "afholdt":
-      if (h.art === "tilbud") return OK({ til: "aftalegrundlag_sendt", start: { trappe: "aftalegrundlag", anker: "nu" }, beslutning: true });
+      if (h.art === "tilbud") return OK({ til: "aftalegrundlag_sendt", annuller: ["afholdt"], start: { trappe: "aftalegrundlag", anker: "nu" }, beslutning: true });
+      // «Kom ikke» (20/9, recon §5.4): tilbage til indkaldelsen, som ved aflysning — rykkerne dag 2/7/11 og dag 14 kører; ingen ny dag 0-mail.
+      if (h.art === "ikke_moedt") return OK({ til: "indkaldt", annuller: ["afholdt", "booket"], start: { trappe: "indkaldt", anker: "nu", fraTrinNr: 1 } });
       if (h.art === "afslag") return OK({ til: "lukket", lukkeaarsag: "afslag_efter_samtale", annuller: "alle", beslutning: true, ...afslagetsFoelger(h) });
       break;
     case "aftalegrundlag_sendt":
@@ -348,6 +352,10 @@ export function erAabentTrin(trin: Trin): boolean {
 /** Hvilket trin en trappe hører til — køen tjekker at ansøgningen stadig står dér før den sender. */
 export function trappensTrin(trappe: Trappe): Trin | null {
   switch (trappe) {
+    case "ny":
+      return "ny"; // rådgiver-rykkerne (20/9): kun så længe ingen har trykket
+    case "afholdt":
+      return "afholdt"; // samme: kun så længe tilbud/afslag/«kom ikke» udestår
     case "indkaldt":
       return "indkaldt";
     case "booket":

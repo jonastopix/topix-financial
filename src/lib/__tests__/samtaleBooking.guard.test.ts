@@ -60,7 +60,8 @@ export const handlingFnErRigtig = (k: string): boolean =>
   foer(k, "await bookIKalenderen(ansoegning, start)", "await udfoerOvergang(admin, {") &&
   foer(k, "await udfoerOvergang(admin, {", "await meldSamtaleAendring(admin, {") &&
   k.includes("if (samtale?.eventUri) await aflysIKalenderen(samtale.eventUri, ") &&
-  k.includes('const RAADGIVER_SAMTALE: readonly string[] = ["book", "aflys_booking"];');
+  // «ikke_moedt» (20/9): «kom ikke» er rådgiverens handling fra afholdt — samme vej som book/aflys_booking, uden om MENNESKE_HANDLINGER.
+  k.includes('const RAADGIVER_SAMTALE: readonly string[] = ["book", "aflys_booking", "ikke_moedt"];');
 export const motorErRigtig = (k: string): boolean =>
   k.includes('if (updErr.code === "23505") return { ok: false, status: 409') && !/afklaringUrl|bygBookingUrl|calendly\.com/.test(k);
 export const kunCalendlyApiTalerMedCalendly = (filer: Array<[string, string]>): boolean =>

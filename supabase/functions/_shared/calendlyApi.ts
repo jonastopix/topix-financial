@@ -98,6 +98,18 @@ export async function opretBooking(args: { eventType: string; start: string; ema
   return { inviteeUri, eventUri };
 }
 
+/**
+ * Invitee-ressourcen (20/9, no-show): målt 20/9 på en rigtig invitee — den bærer `tracking`
+ * (salesforce_uuid/utm_content = VORES id), `event` (scheduled_event-URI) og `no_show`
+ * ({ uri, created_at } | null). Bruges når et webhook-event ikke selv bærer tracking.
+ */
+export async function hentInvitee(inviteeUri: string): Promise<{ tracking: { salesforce_uuid?: string | null; utm_content?: string | null } | null; event: string | null; no_show: { uri: string; created_at: string } | null } | null> {
+  if (!/^https:\/\/api\.calendly\.com\/scheduled_events\/[0-9a-f-]+\/invitees\/[0-9a-f-]+$/i.test(inviteeUri)) return null;
+  const svar = await kald<{ resource?: { tracking?: { salesforce_uuid?: string | null; utm_content?: string | null } | null; event?: string | null; no_show?: { uri: string; created_at: string } | null } }>(inviteeUri);
+  const r = svar.resource;
+  if (!r) return null;
+  return { tracking: r.tracking ?? null, event: typeof r.event === "string" ? r.event : null, no_show: r.no_show ?? null };
+}
 export async function hentMoedeLink(eventUri: string): Promise<string | null> {
   const data = await kald<{ resource?: { location?: { join_url?: string | null; type?: string } } }>(eventUri);
   const j = data.resource?.location?.join_url;

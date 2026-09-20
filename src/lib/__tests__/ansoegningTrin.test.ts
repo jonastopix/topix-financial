@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { erPaaPause, afgoerOvergang, erAabentTrin, genaabningsTrin, KILDER, LUKKEAARSAGER, MENNESKE_HANDLINGER, SYSTEM_HANDLINGER, TRIN, trappensTrin, type Handling, type Trin, type OvergangsKontekst } from "@/lib/ansoegningTrin";
+import { afslagsFoelger, erPaaPause, afgoerOvergang, erAabentTrin, genaabningsTrin, KILDER, LUKKEAARSAGER, MENNESKE_HANDLINGER, SYSTEM_HANDLINGER, TRIN, trappensTrin, type Handling, type Trin, type OvergangsKontekst } from "@/lib/ansoegningTrin";
 import { KILDER as SKEMA_KILDER } from "@/lib/ansoegning/skema";
 
 const ctx: OvergangsKontekst = { paaPause: false, lukketFraTrin: null };
@@ -36,7 +36,7 @@ describe("ansoegningTrin — formen", () => {
 
 describe("ansoegningTrin — de fem trin i rækkefølge", () => {
   it("ny → indkaldt ved «tal med dem» (beslutning 1, starter indkaldt-trappen fra nu)", () => {
-    expect(ok("ny", { art: "tal_med_dem" })).toMatchObject({ til: "indkaldt", start: { trappe: "indkaldt", anker: "nu" }, beslutning: true, annuller: [] });
+    expect(ok("ny", { art: "tal_med_dem" })).toMatchObject({ til: "indkaldt", start: { trappe: "indkaldt", anker: "nu" }, beslutning: true, annuller: ["ny"] }); // ["ny"] (20/9): rådgiver-rykkerne stopper, når nogen trykker
   });
   it("ny → lukket «afslag_efter_ansoegning» ved afvis", () => {
     expect(ok("ny", { art: "afvis" })).toMatchObject({ til: "lukket", lukkeaarsag: "afslag_efter_ansoegning", annuller: "alle", beslutning: true });
@@ -168,5 +168,38 @@ describe("ansoegningTrin — reaktioner annullerer, pause og lukning", () => {
     expect(trappensTrin("booket")).toBe("booket");
     expect(trappensTrin("aftalegrundlag")).toBe("aftalegrundlag_sendt");
     expect(trappensTrin("pause")).toBeNull();
+  });
+});
+
+describe("ansoegningTrin — rådgiveren rykkes, no-show, afslag «andet» (20/9)", () => {
+  it("booket → afholdt starter trappen «afholdt» (rådgiver-rykkeren dag 2)", () => {
+    const d = dom("booket", { art: "afholdt" });
+    expect(d.ok).toBe(true);
+    if (d.ok === true) expect(d.overgang.start).toEqual({ trappe: "afholdt", anker: "nu" });
+  });
+  it("afholdt → «kom ikke» fører tilbage til indkaldt fra trin 1, som en aflysning", () => {
+    const d = dom("afholdt", { art: "ikke_moedt" });
+    expect(d.ok).toBe(true);
+    if (d.ok === true) {
+      expect(d.overgang.til).toBe("indkaldt");
+      expect(d.overgang.annuller).toEqual(["afholdt", "booket"]);
+      expect(d.overgang.start).toEqual({ trappe: "indkaldt", anker: "nu", fraTrinNr: 1 });
+    }
+  });
+  it("«kom ikke» er ikke tilladt fra andre trin", () => {
+    for (const fra of ["ny", "indkaldt", "booket", "aftalegrundlag_sendt"] as const) expect(dom(fra, { art: "ikke_moedt" }).ok).toBe(false);
+  });
+  it("ny → tal_med_dem annullerer «ny»-trappen; afholdt → tilbud annullerer «afholdt»", () => {
+    const a = dom("ny", { art: "tal_med_dem" }); expect(a.ok === true && a.overgang.annuller).toEqual(["ny"]);
+    const b = dom("afholdt", { art: "tilbud" }); expect(b.ok === true && b.overgang.annuller).toEqual(["afholdt"]);
+  });
+  it("afslag «andet» sender nu afslagsmailen — teksten fandtes, men blev aldrig sendt", () => {
+    expect(afslagsFoelger("andet")).toEqual({ venteliste: false, afslagsmail: true });
+    expect(afslagsFoelger(null)).toEqual({ venteliste: false, afslagsmail: true });
+    expect(afslagsFoelger("niche")).toEqual({ venteliste: true, afslagsmail: true });
+  });
+  it("trappensTrin: ny og afholdt bindes til deres trin, så køen stopper, når nogen trykker", () => {
+    expect(trappensTrin("ny")).toBe("ny");
+    expect(trappensTrin("afholdt")).toBe("afholdt");
   });
 });

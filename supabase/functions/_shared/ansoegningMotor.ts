@@ -80,6 +80,8 @@ export const RAADGIVER_BESKED = {
   /** Ansøgeren tog selv pausen af fra statussiden (18/9 aften) — værd at reagere hurtigt på. */
   genoptaget: "ansoegning_genoptaget",
   underskrevet: "ansoegning_underskrevet",
+  /** En webhook (Calendly no-show) ville ændre trinnet, men dommen sagde nej (20/9). En tavs afvisning i en log er også et signal, ingen kan se. */
+  webhook_afvist: "ansoegning_webhook_afvist",
 } as const;
 export const REFERENCE_TYPE = "ansoegning";
 
@@ -354,6 +356,14 @@ export async function registrerIndsendelse(admin: SupabaseClient, id: string, nu
   } catch (err) {
     console.error("[ansoegningMotor] rådgivermail kastede:", err);
   }
+  // Rådgiveren rykkes (20/9, recon §5.2): trappen «ny» — dag 3 og 7 til kontakt@, så længe
+  // ingen har trykket. Fejler planlægningen, er indsendelsen stadig registreret.
+  try {
+    const plan = planlaegTrappe({ ansoegningId: a.id, trappe: "ny", anker: nu, nu });
+    await skrivPlan(admin, plan);
+  } catch (err) {
+    console.error("[ansoegningMotor] ny-trappen (rådgiver-rykkerne) kunne ikke planlægges:", err);
+  }
   return { ok: true, anbefaling, allerede: false, kvittering };
 }
 
@@ -527,6 +537,7 @@ export async function koeMailKontekst(admin: SupabaseClient, a: AnsoegningRaekke
     // Kvitteringen (trappen «indsendt», 18/9): det ansøgeren skrev, så de kan se vi har det.
     svar: { udfordring: a.udfordring, proevet: a.proevet, omTolvMaaneder: a.om_tolv_maaneder },
     venteplads: i.venteplads,
+    raadgiverUrl: `${APP_URL}/ansoegninger/${a.id}`,
   };
 }
 
@@ -548,7 +559,7 @@ export type KoeSendeUdfald =
  */
 export async function sendKoeMail(admin: SupabaseClient, raekke: KoeRaekke, a: AnsoegningRaekke, nu: Date, i: { venteplads: VentepladsKontekst | null; vej: "koe" | "straks" }): Promise<KoeSendeUdfald> {
   const email = (a.email ?? "").toLowerCase();
-  if (!email) {
+  if (!email && raekke.modtager !== "raadgiver") {
     await admin.from("planlagte_haendelser").update({ status: "fejlet", fejl: "ansøgningen har ingen e-mail", fejl_antal: raekke.fejl_antal + 1 }).eq("id", raekke.id);
     return { udfald: "ingen_adresse" };
   }
@@ -559,7 +570,8 @@ export async function sendKoeMail(admin: SupabaseClient, raekke: KoeRaekke, a: A
   }
   const res = await sendManagedEmail({
     adminClient: admin,
-    to: email,
+    // Rådgiver-rykkerne (20/9) går til kontakt@ uden om bounce-spærringen — ansøgerens adresse er ligegyldig for dem.
+    to: raekke.modtager === "raadgiver" ? raadgiverModtager(nu) : email,
     subject: mail.emne,
     html: mail.html,
     text: mail.tekst,

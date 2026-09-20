@@ -109,7 +109,7 @@ function raadgiverKlokke(a: AnsoegningRaekke, handling: KoeHandling): { type: st
   const navn = virksomhedsnavnAf(a);
   switch (handling) {
     case "marker_afholdt":
-      return { type: RAADGIVER_BESKED.afholdt, title: `Samtalen med ${navn} er afholdt`, body: "Tilbud eller afslag? Beslutningen er din." };
+      return { type: RAADGIVER_BESKED.afholdt, title: `Samtalen med ${navn} er slut — kom de?`, body: "Tilbud, afslag — eller «kom ikke», så ryger de tilbage til indkaldelsen med rykkerne. Om to dage rykker køen dig på mail." };
     case "luk_svarer_ikke":
       return { type: RAADGIVER_BESKED.lukket_af_koen, title: `Lukket: ${navn} svarede ikke`, body: "Tre rykkere uden booking. Kan genåbnes fra ansøgningen." };
     case "udloeb":
@@ -208,7 +208,7 @@ async function koer(admin: SupabaseClient, toer: boolean, nu: Date): Promise<Res
         if (toer) {
           console.log(`[ansoegning-rykker-cron] TØRKØRSEL ville sende ${raekke.skabelon} til ${email || "(ingen adresse)"} (${virksomhedsnavnAf(a)})`);
           r.ville_sende++;
-          if (email) harFaaet.add(email);
+          if (email && raekke.modtager === "ansoeger") harFaaet.add(email);
           continue;
         }
         const ventepladsKontekst: VentepladsKontekst | null = venteplads
@@ -221,7 +221,7 @@ async function koer(admin: SupabaseClient, toer: boolean, nu: Date): Promise<Res
           : null;
         const res = await sendKoeMail(admin, raekke, a, nu, { venteplads: ventepladsKontekst, vej: "koe" });
         if (res.udfald === "sendt") {
-          harFaaet.add(email);
+          if (raekke.modtager === "ansoeger") harFaaet.add(email);
           r.sendte++;
           continue;
         }

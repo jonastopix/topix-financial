@@ -62,6 +62,11 @@
  *                 niche med pladsen i køen (C's venteliste). Lever på en
  *                 LUKKET ansøgning (TRAPPER_PAA_LUKKET) — køen annullerer
  *                 den ikke for det.
+ *   ny            anker = indsendelsen. Dag 3 og 7: mail til kontakt@ (rådgiveren), fordi
+ *                 kvitteringen lover «et par hverdage». Annulleres af tal_med_dem/afvis.
+ *   afholdt       anker = afholdt-markeringen. Dag 2: mail til kontakt@ — tilbud, afslag
+ *                 eller «kom ikke» udestår. (20/9: rådgiveren var den eneste, der aldrig
+ *                 blev rykket.)
  *   Efter underskrift: INGEN trappe her — platformens eksisterende
  *   betalingsforløb (company_betalingslink, indgangs-paamindelser-cron:
  *   30 dage, faktura dag 31) overtager.
@@ -119,6 +124,18 @@ export const TRAPPER: Record<Trappe, readonly TrappeTrin[]> = {
   // ansøgning» med det ansøgeren skrev. Følger vinduet (aften → næste hverdag kl. 07) og dagsreglen.
   // Ingen «ikke nu»-linje (der er intet at sætte på pause endnu); tal_med_dem annullerer den ikke.
   indsendt: [{ trinNr: 0, dag: 0, handling: "send_mail", skabelon: "ansoegning-kvittering", modtager: "ansoeger" }],
+  // RÅDGIVEREN RYKKES (20/9, recon §5): «ny» og «afholdt» er de to trin, hvor systemet
+  // venter på et menneske, og hvor det eneste signal var en klokke i en browser.
+  // Kvitteringen lover «et par hverdage» — dag 3 og dag 7 holder os til det. Anker =
+  // indsendelsen. Til kontakt@ (raadgiverModtager), aldrig til ansøgeren. Annulleres
+  // af «tal med dem» og «afvis».
+  ny: [
+    { trinNr: 0, dag: 3, handling: "send_mail", skabelon: "ansoegning-ny-raadgiver-rykker-1", modtager: "raadgiver" },
+    { trinNr: 1, dag: 7, handling: "send_mail", skabelon: "ansoegning-ny-raadgiver-rykker-2", modtager: "raadgiver" },
+  ],
+  // Samtalen er slut, ansøgeren hørte «jeg sender aftalegrundlaget». Dag 2 uden tilbud,
+  // afslag eller «kom ikke» → mail til kontakt@. Anker = afholdt-markeringen.
+  afholdt: [{ trinNr: 0, dag: 2, handling: "send_mail", skabelon: "ansoegning-afholdt-raadgiver-rykker", modtager: "raadgiver" }],
   indkaldt: [
     { trinNr: 0, dag: 0, handling: "send_mail", skabelon: "ansoegning-indkaldelse", modtager: "ansoeger" },
     { trinNr: 1, dag: 2, handling: "send_mail", skabelon: "ansoegning-indkaldt-rykker-1", modtager: "ansoeger" },

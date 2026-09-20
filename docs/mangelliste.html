@@ -2893,6 +2893,11 @@
   <h2>Drift og fundament — ydeevne, overvågning, RLS, døde felter</h2>
   <p class="lede">Ingen fejlovervågning. Hændelser findes ved manuel måling, ikke af nogen alarm — RLS-hullet 3/9 blev fundet med en lånt identitet, ikke af et værn.</p>
   <div class="grid">
+    <div class="card decision new" id="a20-princip-signal-browser" data-status="beslutning" data-spor="1" data-rammer="raadgiver">
+      <h3>Princip: et signal, kun en browser kan vise, er ikke et signal</h3>
+      <p>Målt 20/9 i ansøgningsflowet: hver gang systemet venter på ansøgeren, er der en trappe med rykkere og en frist. Hver gang det venter på os (trin «ny», «afholdt», «pause slut»), var det eneste signal en klokke i en browser — og klokken forlader aldrig browseren. Rådgiveren var den eneste i forløbet, der aldrig blev rykket. Regel: et trin, der venter på os, får en trappe til kontakt@. Lagt ind 20/9 aften: trappen «ny» (dag 3/7) og «afholdt» (dag 2), «kom ikke» fra afholdt. Udkast: ~/Downloads/udkast-raadgiver-rykkes.</p>
+      <div class="meta"><span class="tag ny">Ny 20/9</span><span class="tag size">Mellem</span></div>
+    </div>
     <div class="card new" id="a20-spf-theboardroom" data-status="mangler" data-spor="senere" data-rammer="alle">
       <h3><code>theboardroom.dk</code> har ingen SPF-record — bogført som manglende 7/9, stadig ikke sat 20/9</h3>
       <p>Målt 20/9 via DNS: kun <code>google-site-verification</code> som TXT, MX Google, DMARC <code>p=none</code>, DKIM <code>google._domainkey</code> ✓. Platformens mails går via Lovables <code>notify.theboardroom.dk</code> (Mailgun EU, SPF ✓, delegeret), så DE er dækket — men <strong>Google Workspace-mails fra <code>jonas@theboardroom.dk</code> fejler SPF</strong> og består kun på DKIM. Med <code>p=none</code> er der ingen straf i dag; den dag DMARC strammes (som på topix.dk), går de i karantæne. Én record i Cloudflare: <code>v=spf1 include:_spf.google.com ~all</code>. (recon-levering §1.2, §6 pkt. 8)</p>

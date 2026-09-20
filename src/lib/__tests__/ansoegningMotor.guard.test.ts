@@ -159,7 +159,8 @@ describe("ansoegningMotor.guard — de otte domme på repoets filer", () => {
       // (svaret er ja/nej til pladsen), afslaget (et nej har ingen pause at sætte) — og den
       // SIDSTE mail i indkaldt- og aftalegrundlags-trappen (Jonas 6: «der skal de vælge»).
       const udenPause = s === "ansoegning-kvittering" || s.startsWith("ansoegning-samtale-") || s === "ansoegning-kladde-paamindelse" || s.startsWith("ansoegning-venteplads-") || s === "ansoegning-afslag" ||
-        s === "ansoegning-indkaldt-rykker-3" || s === "ansoegning-aftalegrundlag-rykker-4";
+        s === "ansoegning-indkaldt-rykker-3" || s === "ansoegning-aftalegrundlag-rykker-4" ||
+        s.includes("-raadgiver-"); // rådgiver-rykkerne (20/9): modtageren er Jonas — der er ingen pause at sætte
       // Pausen er en KNAP (Jonas 1): linket står i en href (bulletproofButton escaper « " », ikke «&»), og teksten bærer knapteksten.
       expect(m!.html.includes(`href="${KONTEKST.ikkeNuUrl}"`), s).toBe(!udenPause);
       expect(m!.html.includes(PAUSE.knap), s).toBe(!udenPause);
