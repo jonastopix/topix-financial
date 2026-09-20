@@ -309,8 +309,15 @@ export function doemSetGrad(t: TilDom, nu: Date): SetGrad {
   const state = (t.state ?? "").toLowerCase();
   if (state === "watched") return "set";
   if (state === "joined") return "delvist";
-  if (state === "missed" || state === "notjoined") return "moedte_ikke";
-  if (t.session_tid !== null && Date.parse(t.session_tid) > nu.getTime()) return "tilmeldt";
+  // «MØDTE IKKE OP» KAN FØRST VÆRE SANDT, NÅR SESSIONEN ER SKET (20/9,
+  // recon-platformsiden §2.1). Sender eWebinar «NotJoined»/«Missed» allerede
+  // ved tilmelding, ville ordet ellers blive til «Moedte ikke op» i Klaviyo
+  // FØR webinaret, og no-show-flowet ville fyre på hver ny tilmeldt. Målt
+  // 20/9: 33 rigtige tilmeldinger, alle «Registered» — men ingen har set
+  // eWebinar melde om en rigtig session endnu. Derfor kommer TIDEN før ordet.
+  const fremtid = t.session_tid !== null && Date.parse(t.session_tid) > nu.getTime();
+  if (state === "missed" || state === "notjoined") return fremtid ? "tilmeldt" : "moedte_ikke";
+  if (fremtid) return "tilmeldt";
   return "ukendt";
 }
 

@@ -1007,7 +1007,38 @@
        Indgangen · Betaling og fornyelse · Dine tal · Chat og
        rådgiverforløbet · Opgaver og milepæle · Fællesskabet ·
        Rådgiverfladen · Design og konvergens · Drift og fundament · Idéer.
-    2. Læg kortet i afsnittets <div class="grid">.
+    2. Læg kortet i afsnittets <div class="grid">
+    <div class="card new" id="a20-klaviyo-gensend" data-status="mangler" data-spor="senere" data-rammer="medlem">
+      <h3>En Klaviyo-hændelse, der fejlede (timeout/5xx/loft), er tabt for altid — sporet ved det, ingen gensender</h3>
+      <p>Tilmeldingen er skrevet med den nye grad FØR Klaviyo kaldes; næste POST siger derfor «ingen», og eWebinars gensendelse af samme body rammer aftryk-reglen. Rækken i <code>klaviyo_haendelser</code> har <code>udfald ≠ ok</code>, og delindekset <code>klaviyo_haendelser_udfald_idx</code> er bygget til en gensender — der ikke findes. Én cron eller knap: gensend samme krop; <code>unique_id</code> gør det sikkert. (recon-platformsiden §1.2, §6 pkt. 6)</p>
+      <div class="meta"><span class="tag ny">Ny 20/9</span><span class="tag rust">Tirsdag aftens forsikring</span><span class="tag size">Mellem</span></div>
+    </div>
+    <div class="card new" id="a20-klaviyo-klokke" data-status="mangler" data-spor="senere" data-rammer="raadgiver">
+      <h3>Ingen ser fejlede Klaviyo-hændelser — én linje på forsiden fra <code>udfald &lt;&gt; 'ok'</code></h3>
+      <p>«N Klaviyo-hændelser fejlede det sidste døgn» fra samme delindeks. I dag skal nogen åbne tabellen for at vide det. (recon-platformsiden §6 pkt. 7)</p>
+      <div class="meta"><span class="tag ny">Ny 20/9</span><span class="tag size">Lille</span></div>
+    </div>
+    <div class="card new" id="a20-set-procent-vaern" data-status="mangler" data-spor="senere" data-rammer="raadgiver">
+      <h3>«Procenten går aldrig ned» hviler kun på koden — to POST'er i samme sekund kan gemme 40 % på en, der så 82</h3>
+      <p>Begge læser <code>kendt</code> før nogen skriver; sidste skriver vinder. Klaviyo ender rigtigt (<code>unique_id</code>), tabellen kan være forkert. BEFORE UPDATE-trigger med <code>greatest(old, new)</code> — eller upsert med <code>greatest</code>. (recon-platformsiden §2.5, §6 pkt. 8)</p>
+      <div class="meta"><span class="tag ny">Ny 20/9</span><span class="tag size">Lille</span></div>
+    </div>
+    <div class="card new" id="a20-import-fremmoede" data-status="beslutning" data-spor="senere" data-rammer="medlem">
+      <h3>Missede webhooken live-opdateringen, og importen fangede den bagefter, får personen aldrig en hændelse</h3>
+      <p>Importen skriver graden uden at sende (bevidst — ingen tilbageskrivning); webhooken ser så <code>gradFoer = set</code> → «ingen». Beslut, om importen må sende for sessioner inden for <code>FRISK_DAGE</code>. (recon-platformsiden §4, §6 pkt. 9)</p>
+      <div class="meta"><span class="tag gold">Beslutning</span><span class="tag ny">Ny 20/9</span><span class="tag size">Lille</span></div>
+    </div>
+    <div class="card new" id="a20-replay-deltog" data-status="beslutning" data-spor="senere" data-rammer="ingen">
+      <h3>En replay-seer bliver «Deltog i webinar» i Klaviyo — uden session, uden frisk — ved et tilfælde</h3>
+      <p>Replay/OnDemand har <code>session_tid = null</code>; første POST med «Watched» sender «deltog». Flowet udløses ikke (ikke frisk), men historikken og dommen (lag 6) tæller dem. Ikke forkert — ikke besluttet. (recon-platformsiden §2.2, §6 pkt. 10)</p>
+      <div class="meta"><span class="tag gold">Beslutning</span><span class="tag ny">Ny 20/9</span><span class="tag size">Lille</span></div>
+    </div>
+    <div class="card new" id="a20-ingen-noegle-warn" data-status="mangler" data-spor="senere" data-rammer="ingen">
+      <h3>Går <code>KLAVIYO_API_KEY</code> tabt ved en rotation, er hele dagen ét stille spor af <code>ingen_noegle</code>-rækker</h3>
+      <p>Bevidst uden <code>console.error</code> («ikke en fejl»). Én <code>console.warn</code> pr. isolat-start koster intet. (recon-platformsiden §1.5, §6 pkt. 11)</p>
+      <div class="meta"><span class="tag ny">Ny 20/9</span><span class="tag size">Lille</span></div>
+    </div>
+.
     3. Skabelon:
 
        <div class="card blocked new" data-status="fejl" data-spor="1" data-rammer="medlem">
