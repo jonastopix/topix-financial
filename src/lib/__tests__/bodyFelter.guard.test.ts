@@ -60,6 +60,9 @@ const STRIKS: readonly string[] = [
   "meta-annoncer-cron",
   // Prøve-udløb for fremmøde (20/9): tre felter, alt andet afvises.
   "ewebinar-proeve",
+
+  // Lag 5 (20/9): Klaviyos hændelser tilbage. Striks fra første linje.
+  "klaviyo-hentning-cron",
 ];
 
 /**
