@@ -59,19 +59,28 @@ import type { SetGrad } from "./webinarDom.ts";
  * består, og det hviler nu på noget, Klaviyo beviseligt kan læse.
  *
  * TÆRSKLEN STÅR ÉT STED. Den, der bygger et flow, skal kunne slå den op:
- * en session er frisk, når den ligger inden for FRISK_DAGE døgn af nu — til
- * begge sider. Fortiden er den, der betyder noget (en tilbageskrivning har
- * gamle sessioner); fremtiden er harmløs (der sendes ingen hændelser for
- * sessioner, der ikke er sket, jf. afgoerOvergang).
+ * en session er frisk, når den er SKET inden for de sidste FRISK_DAGE døgn.
+ *
+ * KUN BAGUD (20/9, recon-platformsiden §3). Den første udgave regnede til
+ * begge sider og hvilede på, at der aldrig opstår en hændelse for en session,
+ * der ikke er sket. Det er ikke `afgoerOvergang`, der sikrer det — det var
+ * `doemSetGrad`, og kun for «tilmeldt», ikke for «mødte ikke op». Med et
+ * ensidigt vindue er antagelsen væk: en hændelse om en session i morgen kan
+ * ikke være frisk, uanset hvad eWebinar sender. Lobbyen (man joiner lidt før
+ * starttiden) får FRISK_FOER_MS; mere end det er ikke en session, der er sket.
  */
 export const FRISK_DAGE = 3;
 export const FRISK_VAERDI = "ja";
+/** Lobbyen: «Joined» kan komme op til en time før den planlagte start. */
+export const FRISK_FOER_MS = 60 * 60_000;
 
 export function erFrisk(sessionTid: string | null, nu: Date): boolean {
   if (sessionTid === null) return false;
   const t = Date.parse(sessionTid);
   if (!Number.isFinite(t)) return false;
-  return Math.abs(nu.getTime() - t) <= FRISK_DAGE * 86_400_000;
+  // Positiv = sessionen ligger i fortiden. Aldrig Math.abs — fremtiden er ikke frisk.
+  const siden = nu.getTime() - t;
+  return siden >= -FRISK_FOER_MS && siden <= FRISK_DAGE * 86_400_000;
 }
 
 /** De to grader, der betyder «var der». `set` og `delvist` — ikke tallet. */
@@ -126,15 +135,21 @@ export interface FremmoedeInput {
 }
 
 /**
- * Bygger hændelsen. Returnerer null, når der ikke er en brugbar mail —
- * Klaviyos profil findes på mailen, og uden den er der ingen modtager.
+ * Bygger hændelsen. Returnerer null KUN ved «ingen» overgang.
+ *
+ * INGEN BRUGBAR MAIL ER IKKE «INGEN HÆNDELSE» (20/9, recon-platformsiden
+ * §1.1). Før returnerede vi null her, når mailen manglede et @ — og hændelsen
+ * forsvandt uden ét spor, mens graden allerede var gemt, så næste POST sagde
+ * «ingen» for altid. Det var præcis det hul, #1032 lukkede for de tre andre
+ * hændelser — i `sendHaendelse`, som denne null gik udenom. Nu bygges den
+ * alligevel, med den rå mail; `sendHaendelse` afgør, at den ikke kan sendes,
+ * og skriver rækken «ingen_mail», så det kan læses bagud, hvad der manglede.
  *
  * `set_procent` sendes som TAL. `grad` som tekst ved siden af. Se filhovedet.
  */
 export function byggFremmoede(o: Overgang, i: FremmoedeInput): HaendelseInput | null {
   if (o === "ingen") return null;
-  const mail = brugbarMail(i.email);
-  if (mail === null) return null;
+  const mail = brugbarMail(i.email) ?? (typeof i.email === "string" ? i.email : "");
 
   return {
     metric: o === "deltog" ? HAENDELSE.deltog : HAENDELSE.moedteIkke,

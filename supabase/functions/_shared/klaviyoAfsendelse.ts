@@ -12,10 +12,13 @@
  * eller fejlhåndteringen — kun hvilken hændelse der skete.
  */
 import { KLAVIYO_SECRET } from "./klaviyo.ts";
-import { sendHaendelse, type HaendelseInput, type SporSkriver } from "./klaviyoHaendelser.ts";
+import { sendHaendelse, type Afsendelse, type HaendelseInput, type SporSkriver } from "./klaviyoHaendelser.ts";
 
 /**
- * Send hændelsen. KASTER ALDRIG.
+ * Send hændelsen. KASTER ALDRIG — men SIGER, hvad der skete (20/9,
+ * recon-platformsiden §1.3): udfaldet returneres, så et kaldsted kan logge
+ * «sendt» eller «ikke sendt (timeout)» i stedet for «sendt» for alt. Før
+ * returnerede den void, og webhookens log sagde «fremmoede sendt» uanset.
  *
  * NAVNET ER BEHOLDT, MEN BETYDNINGEN ER SKÆRPET (19/9 kl. 22.30): den sender
  * stadig kun, når der er en mail — men den er ikke længere TAVS, når der ikke
@@ -25,11 +28,15 @@ import { sendHaendelse, type HaendelseInput, type SporSkriver } from "./klaviyoH
  * Hændelsen bygges af KALDEREN, ikke her. Så er metric og unikt id kendt,
  * også når mailen mangler — og det er netop dét, rækken skal bære.
  */
-export async function sendHvisMail(skriver: SporSkriver | null, i: HaendelseInput): Promise<void> {
+export async function sendHvisMail(skriver: SporSkriver | null, i: HaendelseInput): Promise<Afsendelse> {
   try {
-    await sendHaendelse(skriver, Deno.env.get(KLAVIYO_SECRET), i);
+    return await sendHaendelse(skriver, Deno.env.get(KLAVIYO_SECRET), i);
   } catch (e) {
     // Sidste værn. Intet herfra må nå en ansøger eller en Stripe-webhook.
     console.error("[klaviyo] afsendelsen kastede — hændelsen er tabt, kalderen går videre:", e);
+    return {
+      sendt: false,
+      spor: { udfald: "fejl", metode: "POST", sti: "/events/", status: null, svar: null, grund: `afsendelsen kastede: ${String(e).slice(0, 300)}`, varighed_ms: 0 },
+    };
   }
 }

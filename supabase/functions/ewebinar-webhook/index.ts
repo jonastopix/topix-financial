@@ -183,12 +183,24 @@ Deno.serve(async (req: Request) => {
     sessionTid: flettet.session_tid,
     tid: nu,
   });
+  //     LOGGEN SKAL SIGE SANDHEDEN (20/9, recon-platformsiden §1.3): foer stod
+  //     «fremmoede sendt» uanset udfald, og svaret til eWebinar sagde det samme.
+  //     Tirsdag aften er loggen det, nogen kigger i. Nu logges `sendt` og
+  //     udfaldet — og de sendes med i svaret, saa en proeve kan laese dem.
+  let fremmoedeSendt: boolean | null = null;
+  let fremmoedeUdfald: string | null = null;
   if (haendelse) {
     // KASTER ALDRIG (sendHvisMail). En marketingmail maa ikke kunne faa
     // eWebinar til at gensende — raekken er allerede skrevet ovenfor.
-    await sendHvisMail(admin, haendelse);
-    console.log(`[ewebinar-webhook] fremmoede sendt: ${overgang} (${gradFoer ?? "ny"} -> ${grad}) for ${flettet.ewebinar_id}.`);
+    const a = await sendHvisMail(admin, haendelse);
+    fremmoedeSendt = a.sendt;
+    fremmoedeUdfald = a.spor.udfald;
+    if (a.sendt) {
+      console.log(`[ewebinar-webhook] fremmoede sendt: ${overgang} (${gradFoer ?? "ny"} -> ${grad}) for ${flettet.ewebinar_id}.`);
+    } else {
+      console.error(`[ewebinar-webhook] fremmoede IKKE sendt (${a.spor.udfald}): ${overgang} (${gradFoer ?? "ny"} -> ${grad}) for ${flettet.ewebinar_id} — ${a.spor.grund ?? ""}`);
+    }
   }
 
-  return json(200, { received: true, ewebinar_id: flettet.ewebinar_id, grad, fremmoede: overgang });
+  return json(200, { received: true, ewebinar_id: flettet.ewebinar_id, grad, fremmoede: overgang, fremmoede_sendt: fremmoedeSendt, fremmoede_udfald: fremmoedeUdfald });
 });

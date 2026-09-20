@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { afgoerOvergang, byggFremmoede, erFrisk, FRISK_DAGE, FRISK_VAERDI } from "../../../supabase/functions/_shared/webinarHaendelser";
+import { afgoerOvergang, byggFremmoede, erFrisk, FRISK_DAGE, FRISK_VAERDI, FRISK_FOER_MS } from "../../../supabase/functions/_shared/webinarHaendelser";
+import { sendHaendelse, type SporSkriver } from "../../../supabase/functions/_shared/klaviyoHaendelser";
 import { HAENDELSE, byggHaendelse } from "../../../supabase/functions/_shared/klaviyoHaendelser";
 import { doemSetGrad, SET_GRAENSE_PROCENT, type SetGrad } from "../../../supabase/functions/_shared/webinarDom";
 
@@ -127,9 +128,19 @@ describe("frisk-mærket — Klaviyo læser session_tid som streng, så friskhede
     expect(erFrisk(over, nu)).toBe(false);
   });
 
-  it("til begge sider: en session i morgen er også frisk; en om en uge er ikke", () => {
-    expect(erFrisk(dage(-1), nu)).toBe(true);
+  it("KUN BAGUD (20/9): en session i går er frisk; en i morgen er IKKE — uanset hvad eWebinar sender", () => {
+    expect(erFrisk(dage(1), nu)).toBe(true);
+    expect(erFrisk(dage(-1), nu)).toBe(false);
     expect(erFrisk(dage(-7), nu)).toBe(false);
+    // Og derfor kan «Moedte ikke op» for en session i morgen aldrig bære mærket.
+    expect(byggFremmoede("moedte_ikke", input({ grad: "moedte_ikke", sessionTid: dage(-1), tid: nu }))!.egenskaber!.frisk).toBeNull();
+  });
+
+  it("lobbyen: «Joined» op til en time før den planlagte start er frisk; mere end det er ikke", () => {
+    const foer = (ms: number) => new Date(nu.getTime() + ms).toISOString();
+    expect(erFrisk(foer(30 * 60_000), nu)).toBe(true);
+    expect(erFrisk(foer(FRISK_FOER_MS), nu)).toBe(true);
+    expect(erFrisk(foer(FRISK_FOER_MS + 60_000), nu)).toBe(false);
   });
 
   it("uden sessionstid eller med ugyldig: ikke frisk", () => {
@@ -169,10 +180,29 @@ describe("byggFremmoede — når der ikke skal sendes", () => {
   it("«ingen» giver null", () => {
     expect(byggFremmoede("ingen", input())).toBeNull();
   });
-  it("uden brugbar mail giver null — Klaviyos profil findes på mailen", () => {
+  it("UDEN BRUGBAR MAIL BYGGES HÆNDELSEN ALLIGEVEL (20/9) — så sporet kan sige «ingen_mail» i stedet for ingenting", () => {
+    // Før: null her, og hændelsen forsvandt uden ét spor, mens graden allerede var gemt.
     for (const email of [null, undefined, "", "   ", "ikke-en-mail"]) {
-      expect(byggFremmoede("deltog", input({ email }))).toBeNull();
+      const h = byggFremmoede("deltog", input({ email }));
+      expect(h).not.toBeNull();
+      expect(h!.metric).toBe("Deltog i webinar");
+      expect(h!.uniktId).toContain(":");
     }
+  });
+
+  it("…og sendHaendelse skriver så rækken «ingen_mail» med metric og unikt id — intet sendes", async () => {
+    const raekker: Record<string, unknown>[] = [];
+    const skriver: SporSkriver = { from: () => ({ insert: (r: unknown) => { raekker.push(r as Record<string, unknown>); return Promise.resolve({ error: null }); } }) };
+    const h = byggFremmoede("moedte_ikke", input({ grad: "moedte_ikke", email: "ikke-en-mail", ewebinarId: "reg-9" }))!;
+    let kaldt = false;
+    const a = await sendHaendelse(skriver, "pk_test", h, { fetchImpl: (async () => { kaldt = true; return new Response("", { status: 202 }); }) as unknown as typeof fetch });
+    expect(a.sendt).toBe(false);
+    expect(a.spor.udfald).toBe("ingen_mail");
+    expect(kaldt).toBe(false);
+    expect(raekker).toHaveLength(1);
+    expect(raekker[0].udfald).toBe("ingen_mail");
+    expect(raekker[0].metric).toBe("Moedte ikke op");
+    expect(raekker[0].unikt_id).toBe("reg-9:moedte_ikke");
   });
   it("mailen normaliseres til små bogstaver", () => {
     expect(byggFremmoede("deltog", input())!.email).toBe("test.person@gmail.com");

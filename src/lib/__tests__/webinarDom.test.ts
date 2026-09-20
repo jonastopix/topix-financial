@@ -200,14 +200,25 @@ describe("doemSetGrad — tallet først, så eWebinars ord", () => {
 
   it("0 % er «intet tal endnu»: state afgør", () => {
     expect(doemSetGrad(raekke({ set_procent: 0, state: "Watched" }), NU)).toBe("set");
-    expect(doemSetGrad(raekke({ set_procent: 0, state: "Missed" }), NU)).toBe("moedte_ikke");
+    // Sessionen er sket (20/9-reglen: før sessionen er «Missed» blot «tilmeldt»).
+    expect(doemSetGrad(raekke({ set_procent: 0, state: "Missed", session_tid: "2026-09-01T17:00:00Z" }), NU)).toBe("moedte_ikke");
   });
 
   it("uden tal: Watched → set, Joined → delvist, Missed/NotJoined → mødte ikke op, uanset store/små bogstaver", () => {
     expect(doemSetGrad(raekke({ state: "Watched" }), NU)).toBe("set");
     expect(doemSetGrad(raekke({ state: "joined" }), NU)).toBe("delvist");
-    expect(doemSetGrad(raekke({ state: "Missed" }), NU)).toBe("moedte_ikke");
-    expect(doemSetGrad(raekke({ state: "NotJoined" }), NU)).toBe("moedte_ikke");
+    expect(doemSetGrad(raekke({ state: "Missed", session_tid: "2026-09-01T17:00:00Z" }), NU)).toBe("moedte_ikke");
+    expect(doemSetGrad(raekke({ state: "NotJoined", session_tid: "2026-09-01T17:00:00Z" }), NU)).toBe("moedte_ikke");
+  });
+
+  it("«Missed»/«NotJoined» FØR sessionen er «tilmeldt» — mødte ikke op kan først være sandt, når sessionen er sket (20/9)", () => {
+    // Sender eWebinar «NotJoined» ved tilmelding, må det ikke blive en hændelse før webinaret.
+    expect(doemSetGrad(raekke({ state: "NotJoined", session_tid: "2026-09-22T17:00:00Z" }), NU)).toBe("tilmeldt");
+    expect(doemSetGrad(raekke({ state: "Missed", session_tid: "2026-09-22T17:00:00Z" }), NU)).toBe("tilmeldt");
+    // Efter sessionen gælder ordet.
+    expect(doemSetGrad(raekke({ state: "Missed", session_tid: "2026-09-01T17:00:00Z" }), NU)).toBe("moedte_ikke");
+    // Og et tal vinder stadig over alt — også før sessionen.
+    expect(doemSetGrad(raekke({ state: "Missed", session_tid: "2026-09-22T17:00:00Z", set_procent: 40 }), NU)).toBe("delvist");
   });
 
   it("Registered: fremtidig session → tilmeldt; forbi eller uden tid → ukendt", () => {
@@ -255,7 +266,9 @@ describe("ordene til rådgiveren", () => {
     expect(tilmeldingTekst(raekke({ set_procent: 62.4, state: "Joined" }), NU)).toBe("så 62 % af webinaret 22/9 (delvist)");
     expect(tilmeldingTekst(raekke({ state: "Watched" }), NU)).toBe("så webinaret 22/9 (procent ukendt)");
     expect(tilmeldingTekst(raekke({ state: "Joined" }), NU)).toBe("deltog i webinaret 22/9 (procent ukendt)");
-    expect(tilmeldingTekst(raekke({ state: "Missed" }), NU)).toBe("tilmeldt webinaret 22/9, mødte ikke op");
+    expect(tilmeldingTekst(raekke({ state: "Missed", session_tid: "2026-09-01T17:00:00Z" }), NU)).toBe("tilmeldt webinaret 1/9, mødte ikke op");
+    // Før sessionen er «Missed» ikke et fravær endnu (20/9).
+    expect(tilmeldingTekst(raekke({ state: "Missed" }), NU)).toBe("tilmeldt webinaret 22/9");
     expect(tilmeldingTekst(raekke(), NU)).toBe("tilmeldt webinaret 22/9");
     expect(tilmeldingTekst(raekke({ session_tid: "2026-09-01T17:00:00Z" }), NU)).toBe("tilmeldt webinaret 1/9 (deltagelse ukendt)");
     expect(tilmeldingTekst(raekke({ session_tid: null, session_type: "Replay", state: "Watched", set_procent: 80 }), NU)).toBe("så 80 % af optagelsen");
