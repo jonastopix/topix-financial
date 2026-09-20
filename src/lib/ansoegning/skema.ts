@@ -345,6 +345,109 @@ export function afgoerFremdrift(svar: AnsoegningsSvar): Fremdrift {
   };
 }
 
+// ── Annoncesporet ──────────────────────────────────────────────────────────
+
+/**
+ * ANNONCESPORET på ansøgningen (udkast 2, 21/9-2026): det klik, der bragte
+ * personen til /ansoeg — læst ÉN gang ved mount, sammen med kilden, og sendt
+ * med «opret». Samme otte ting som webinartilmeldingen bærer (migration
+ * 20260919150000): fem utm-felter, Metas klik-id, landingssiden og referreren.
+ *
+ * HVORFOR: det direkte spor (theboardroom.dk → /ansoeg) havde ingen
+ * annonce-tilskrivning overhovedet — en ansøgning vidste, at den kom «fra
+ * sitet», ikke fra hvilken kampagne eller annonce (recon-to-spor §2). Sitet
+ * bærer nu klikket videre (udkast 1); her tages det imod.
+ *
+ * REGLERNE: strenge trimmes og afkortes; fbclid er kun URL-sikre tegn
+ * (Metas eget format), alt andet er null; landing er URL'en uden ?t= (tokenet
+ * må aldrig gemmes to steder). Tomt bliver null — aldrig en tom streng.
+ * Ingen dom her: værdierne gemmes, som de kom. Oversættelsen (fb → Facebook)
+ * sker ved LÆSNING i annoncekilde.ts, ét sted.
+ */
+export const ANNONCESPOR_FELTER = ["utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term", "fbclid", "landing", "referrer"] as const;
+export type AnnoncesporFelt = (typeof ANNONCESPOR_FELTER)[number];
+export type Annoncespor = Record<AnnoncesporFelt, string | null>;
+
+export const SPOR_MAKS = 255;
+export const LANDING_MAKS = 1000;
+export const FBCLID_PARAM = "fbclid";
+
+export const TOMT_ANNONCESPOR: Annoncespor = {
+  utm_source: null, utm_medium: null, utm_campaign: null, utm_content: null, utm_term: null,
+  fbclid: null, landing: null, referrer: null,
+};
+
+/** Metas klik-id: kun URL-sikre tegn, højst SPOR_MAKS. Alt andet er null — et forkert id er værre end intet. */
+export function laesFbclid(s: string | null | undefined): string | null {
+  const t = (s ?? "").trim();
+  return t && t.length <= SPOR_MAKS && /^[A-Za-z0-9_-]+$/.test(t) ? t : null;
+}
+
+const sporTekst = (v: unknown, maks: number): string | null => {
+  if (typeof v !== "string") return null;
+  const t = v.trim().slice(0, maks);
+  return t === "" ? null : t;
+};
+
+/** Landingssiden uden ?t= — en genoptaget side bærer tokenet i URL'en, og det hører ikke til i et spor. */
+export function landingUdenToken(href: string | null | undefined): string | null {
+  const h = (href ?? "").trim();
+  if (!h) return null;
+  try {
+    const u = new URL(h);
+    u.searchParams.delete(TOKEN_PARAM);
+    return sporTekst(u.toString(), LANDING_MAKS);
+  } catch {
+    return sporTekst(h, LANDING_MAKS);
+  }
+}
+
+export interface AnnoncesporInput {
+  /** searchParams.get — den URL, siden blev åbnet med. */
+  get: (navn: string) => string | null;
+  href: string | null | undefined;
+  referrer: string | null | undefined;
+}
+
+/** Fladen: sporet af den URL, /ansoeg blev åbnet med. */
+export function laesAnnoncespor(input: AnnoncesporInput): Annoncespor {
+  return {
+    utm_source: sporTekst(input.get("utm_source"), SPOR_MAKS),
+    utm_medium: sporTekst(input.get("utm_medium"), SPOR_MAKS),
+    utm_campaign: sporTekst(input.get("utm_campaign"), SPOR_MAKS),
+    utm_content: sporTekst(input.get("utm_content"), SPOR_MAKS),
+    utm_term: sporTekst(input.get("utm_term"), SPOR_MAKS),
+    fbclid: laesFbclid(input.get(FBCLID_PARAM)),
+    landing: landingUdenToken(input.href),
+    referrer: sporTekst(input.referrer, SPOR_MAKS),
+  };
+}
+
+/**
+ * Serveren: det, klienten sendte som `annoncespor`, dømt fail-closed pr. felt —
+ * ukendte nøgler ignoreres, forkerte typer bliver null, fbclid efterprøves igen.
+ * Ikke et objekt → det tomme spor. Serveren stoler aldrig på fladens dom.
+ */
+export function annoncesporAf(raa: unknown): Annoncespor {
+  if (!raa || typeof raa !== "object" || Array.isArray(raa)) return { ...TOMT_ANNONCESPOR };
+  const o = raa as Record<string, unknown>;
+  return {
+    utm_source: sporTekst(o.utm_source, SPOR_MAKS),
+    utm_medium: sporTekst(o.utm_medium, SPOR_MAKS),
+    utm_campaign: sporTekst(o.utm_campaign, SPOR_MAKS),
+    utm_content: sporTekst(o.utm_content, SPOR_MAKS),
+    utm_term: sporTekst(o.utm_term, SPOR_MAKS),
+    fbclid: laesFbclid(typeof o.fbclid === "string" ? o.fbclid : null),
+    landing: landingUdenToken(typeof o.landing === "string" ? o.landing : null),
+    referrer: sporTekst(o.referrer, SPOR_MAKS),
+  };
+}
+
+/** Er der overhovedet noget at gemme? Så sparer vi en update på en tom række. */
+export function harAnnoncespor(s: Annoncespor): boolean {
+  return ANNONCESPOR_FELTER.some((f) => s[f] !== null);
+}
+
 // ── Kilden ─────────────────────────────────────────────────────────────────
 
 export interface KildeInput {

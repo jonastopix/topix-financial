@@ -2,6 +2,12 @@ import { describe, expect, it } from "vitest";
 import {
   afgoerFremdrift,
   afgoerKilde,
+  annoncesporAf,
+  harAnnoncespor,
+  laesAnnoncespor,
+  laesFbclid,
+  landingUdenToken,
+  TOMT_ANNONCESPOR,
   ansatteTekst,
   cvrSaetning,
   FELTER,
@@ -226,5 +232,49 @@ describe("CVR-sætningen — det der vises tilbage", () => {
     expect(stiftetAarAf("2019-05-01")).toBe(2019);
     expect(stiftetAarAf("2019")).toBeNull();
     expect(stiftetAarAf(null)).toBeNull();
+  });
+});
+
+describe("annoncesporet — læst én gang, gemt som det kom (udkast 2, 21/9)", () => {
+  const params = new URLSearchParams("kilde=direkte&utm_source=fb&utm_campaign=120248713786520694&utm_content=120249061667400694&fbclid=IwAR0abc-_XYZ&t=hemmeligt-token");
+  it("fladen: utm, fbclid, landing (uden ?t=) og referrer", () => {
+    const spor = laesAnnoncespor({ get: (n) => params.get(n), href: `https://app.theboardroom.dk/ansoeg?${params.toString()}`, referrer: "https://theboardroom.dk/" });
+    expect(spor).toEqual({
+      utm_source: "fb", utm_medium: null, utm_campaign: "120248713786520694", utm_content: "120249061667400694", utm_term: null,
+      fbclid: "IwAR0abc-_XYZ",
+      landing: "https://app.theboardroom.dk/ansoeg?kilde=direkte&utm_source=fb&utm_campaign=120248713786520694&utm_content=120249061667400694&fbclid=IwAR0abc-_XYZ",
+      referrer: "https://theboardroom.dk/",
+    });
+    expect(spor.landing).not.toContain("hemmeligt-token");
+    expect(harAnnoncespor(spor)).toBe(true);
+  });
+  it("uden parametre: alt null, og intet at gemme — ikke tomme strenge", () => {
+    const tom = laesAnnoncespor({ get: () => null, href: "", referrer: "" });
+    expect(tom).toEqual(TOMT_ANNONCESPOR);
+    expect(harAnnoncespor(tom)).toBe(false);
+    // En landing uden parametre er stadig et spor (siden blev åbnet).
+    expect(harAnnoncespor(laesAnnoncespor({ get: () => null, href: "https://app.theboardroom.dk/ansoeg", referrer: null }))).toBe(true);
+  });
+  it("fbclid: kun Metas URL-sikre tegn, højst 255 — alt andet er null", () => {
+    expect(laesFbclid("IwAR0abc-_XYZ")).toBe("IwAR0abc-_XYZ");
+    expect(laesFbclid(" IwAR0 ")).toBe("IwAR0");
+    expect(laesFbclid("<script>")).toBeNull();
+    expect(laesFbclid("a".repeat(256))).toBeNull();
+    expect(laesFbclid("")).toBeNull();
+  });
+  it("landing: tokenet fjernes, ugyldig URL bevares som tekst, lange afkortes", () => {
+    expect(landingUdenToken("https://x.dk/ansoeg?t=abc&utm_source=fb")).toBe("https://x.dk/ansoeg?utm_source=fb");
+    expect(landingUdenToken("ikke en url")).toBe("ikke en url");
+    expect(landingUdenToken("https://x.dk/" + "a".repeat(2000))!.length).toBe(1000);
+    expect(landingUdenToken(null)).toBeNull();
+  });
+  it("serveren: annoncesporAf dømmer pr. felt, ignorerer ukendte nøgler, tåler alt", () => {
+    expect(annoncesporAf({ utm_source: " fb ", fbclid: "IwAR0", landing: "https://x.dk/?t=tok&a=1", referrer: 7, ond: "x", utm_term: "" }))
+      .toEqual({ ...TOMT_ANNONCESPOR, utm_source: "fb", fbclid: "IwAR0", landing: "https://x.dk/?a=1" });
+    expect(annoncesporAf(null)).toEqual(TOMT_ANNONCESPOR);
+    expect(annoncesporAf("fb")).toEqual(TOMT_ANNONCESPOR);
+    expect(annoncesporAf([1])).toEqual(TOMT_ANNONCESPOR);
+    expect(annoncesporAf({ fbclid: "<x>" }).fbclid).toBeNull();
+    expect(annoncesporAf({ utm_source: "a".repeat(300) }).utm_source!.length).toBe(255);
   });
 });

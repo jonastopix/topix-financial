@@ -64,6 +64,10 @@ const STRIKS: readonly string[] = [
   // Lag 5 (20/9): Klaviyos hændelser tilbage. Striks fra første linje.
   "klaviyo-hentning-cron",
 
+  // Ansøgningsformularens gem (21/9, udkast 2): ni felter på tværs af fire
+  // handlinger, målt i api.ts og holdt af ansoegningGemKendteFelter.guard.
+  "ansoegning-gem",
+
   // De to klokker (20/9): dry_run og nu, alt andet afvises.
   "stille-klokker-cron",
 ];
@@ -91,7 +95,6 @@ const AFVENTER: readonly string[] = [
   "ai-data-chat",
   "ai-financial-feedback",
   "ansoegning-cvr",
-  "ansoegning-gem",
   "ansoegning-handling",
   "ansoegning-link",
   "ansoegning-rykker-cron",
