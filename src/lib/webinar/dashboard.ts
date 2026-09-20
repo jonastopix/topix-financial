@@ -45,6 +45,8 @@ import {
   type SetGrad,
   type WebinarTilmelding,
 } from "@/lib/webinarDom";
+// Kanalens navn af utm_source bor i annoncekilde.ts (20/9) — ét hjem, spejlet til serveren.
+import { kildeNavn } from "@/lib/webinar/annoncekilde";
 
 export { SET_GRAENSE_PROCENT };
 
@@ -394,19 +396,6 @@ export function afholdteSessioner(
 
 // ── 3. Annoncesporet ───────────────────────────────────────────────────────
 
-/**
- * Kildens navn ud fra utm_source. Små, EKSPLICITTE oversættelser — alt
- * andet står som annoncøren skrev det, så en ny kilde aldrig forsvinder i
- * en «andet»-spand vi selv har fundet på.
- */
-const KILDE_NAVNE: Record<string, string> = {
-  fb: "Facebook", facebook: "Facebook", meta: "Facebook",
-  ig: "Instagram", instagram: "Instagram",
-  li: "LinkedIn", linkedin: "LinkedIn",
-  google: "Google", adwords: "Google", youtube: "YouTube",
-  email: "E-mail", mail: "E-mail", newsletter: "E-mail", klaviyo: "E-mail",
-};
-
 /** Værtsnavnet uden «www.» — «https://www.facebook.com/x» → «facebook.com». */
 export function vaertsnavn(url: string | null | undefined): string | null {
   const s = tekst(url);
@@ -432,7 +421,7 @@ export function vaertsnavn(url: string | null | undefined): string | null {
  */
 export function kildeAf(r: Tilmelding): string {
   const kilde = tekst(r.utm_source);
-  if (kilde !== null) return KILDE_NAVNE[kilde.toLowerCase()] ?? kilde;
+  if (kilde !== null) return kildeNavn(kilde);
   if (tekst(r.fbclid) !== null) return "Facebook";
   const henvisning = vaertsnavn(r.referrer) ?? vaertsnavn(r.first_referrer);
   if (henvisning !== null) return henvisning;
