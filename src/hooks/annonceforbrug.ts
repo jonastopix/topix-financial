@@ -20,7 +20,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { HentningsFejl, kraevRaekker } from "@/lib/kraevRaekker";
-import type { Annoncenavn, Forbrugsdag, Forbrugstilstand } from "@/lib/webinar/annoncepriser";
+import type { Annoncenavn, Forbrugsdag, Forbrugstilstand, HentningStatus } from "@/lib/webinar/annoncepriser";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 const tabel = (navn: string) => supabase.from(navn as any) as any;
@@ -29,6 +29,8 @@ export const ANNONCEFORBRUG_KEY = ["annonceforbrug"] as const;
 
 export const DAG_KOLONNER = "ad_id, campaign_id, dato, valuta, forbrug_oere";
 export const ANNONCE_KOLONNER = "ad_id, campaign_id, navn, kampagne_navn";
+/** Statusrækken (meta_hentning, migration 20260921090000) — så fladen kan sige, at hentningen fejlede. */
+export const HENTNING_KOLONNER = "sidste_koersel, sidste_udfald, sidste_fejl, hentet_til";
 
 const GRAENSE = 5000;
 
@@ -49,9 +51,11 @@ export interface Annonceforbrug {
   dage: Forbrugsdag[];
   annoncer: Annoncenavn[];
   tilstand: Forbrugstilstand;
+  /** null = ingen statusrække (tabellen mangler, eller hentningen har aldrig kørt rigtigt). */
+  hentning: HentningStatus | null;
 }
 
-const TOMT: Annonceforbrug = { dage: [], annoncer: [], tilstand: "mangler" };
+const TOMT: Annonceforbrug = { dage: [], annoncer: [], tilstand: "mangler", hentning: null };
 
 /** bigint kommer som streng fra PostgREST — beløbet skal være et tal for dommen. */
 function somDag(r: Record<string, unknown>): Forbrugsdag {
@@ -87,7 +91,24 @@ export async function hentAnnonceforbrug(): Promise<Annonceforbrug> {
     }));
   }
 
-  return { dage, annoncer, tilstand: dage.length === 0 ? "tom" : "har" };
+  // Statusrækken må gerne mangle (migrationen 21/9 ikke kørt, eller aldrig en
+  // rigtig kørsel): så dømmer fladen på dækningen alene (hentningslinje). Fail-soft
+  // — linjen er en oplysning ved siden af tallene, ikke en forudsætning for dem.
+  let hentning: HentningStatus | null = null;
+  const statusSvar = await tabel("meta_hentning").select(HENTNING_KOLONNER).eq("art", "annoncer").maybeSingle();
+  if (statusSvar.error) {
+    if (!erUkendtTabel(statusSvar.error)) console.error("[annonceforbrug] meta_hentning-opslag fejlede:", statusSvar.error.message);
+  } else if (statusSvar.data) {
+    const r = statusSvar.data as Record<string, unknown>;
+    hentning = {
+      sidste_koersel: String(r.sidste_koersel ?? ""),
+      sidste_udfald: String(r.sidste_udfald ?? ""),
+      sidste_fejl: (r.sidste_fejl as string | null) ?? null,
+      hentet_til: (r.hentet_til as string | null) ?? null,
+    };
+  }
+
+  return { dage, annoncer, tilstand: dage.length === 0 ? "tom" : "har", hentning };
 }
 
 /** Rådgivere alene — RLS ville ellers give tomme lister, der lignede «ingen annoncer». */
