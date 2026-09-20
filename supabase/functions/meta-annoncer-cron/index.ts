@@ -57,6 +57,13 @@
 // vindue()/isoDato i _shared/metaAnnoncer.ts skal regne «i går» i kontoens
 // zone i stedet for UTC — en kodeændring, ikke en SQL-rettelse.
 //
+// GENUDRULNING 21/9 (#1045 → skub): efter merget viste «View code» den nye
+// kilde (markøren ovenfor), men den KØRENDE bundle var den gamle — den rigtige
+// kørsel skrev 371 annoncer og 93 dagsrækker, men ingen meta_hentning-række,
+// og konto.tidszone var null. «View code» beviste altså kilden, ikke driften.
+// Beviset for driften er svaret selv: konto.tidszone udfyldt og én række i
+// meta_hentning. Denne linje findes kun for at tvinge en ny build.
+//
 // Kør den FØRST i hånden uden body (tørkørsel) og læs svaret.
 
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
