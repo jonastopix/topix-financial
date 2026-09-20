@@ -278,3 +278,10 @@ project_id = "loiavmastgeieqyiwyyr"
     verify_jwt = true
   [functions.meta-annoncer-cron]
     verify_jwt = true
+  # Prøve-udløb for fremmøde (20/9). Bucket B, samme form som de øvrige croner:
+  # authenticateServiceRole FØRST, kaldt gennem kald_edge. Bygger en PROEVE-
+  # registrant, signerer den med webhookens egen nøgle INDEFRA og kalder den
+  # rigtige ewebinar-webhook. Signerer ALDRIG en krop, kalderen har skrevet —
+  # webinarId er låst til PROEVE-webinar, id'et skal starte med PROEVE-.
+  [functions.ewebinar-proeve]
+    verify_jwt = true

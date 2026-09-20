@@ -58,6 +58,8 @@ export function afviserUkendteFelter(kilde: string): boolean {
 /** Dem, der afviser ukendte felter i dag. Listen skal VOKSE. */
 const STRIKS: readonly string[] = [
   "meta-annoncer-cron",
+  // Prøve-udløb for fremmøde (20/9): tre felter, alt andet afvises.
+  "ewebinar-proeve",
 ];
 
 /**
