@@ -9,6 +9,10 @@ import {
   kanStolesPaa,
   periodeOrd,
   sidsteDage,
+  hentningslinje,
+  manglerTekst,
+  manglendeDage,
+  antalDage,
   udaekketTekst,
   vinduesmuligheder,
   pris,
@@ -335,9 +339,13 @@ describe("dækningen afgør, hvad der kan regnes", () => {
     expect(erDaekket(d, null)).toBe(false);
   });
 
-  it("sidsteDage er INKLUSIVE i begge ender — 7 dage er syv dage", () => {
+  it("sidsteDage er INKLUSIVE i begge ender og slutter I GÅR — 7 dage er syv HELE dage (21/9)", () => {
+    // Den 18/9 kl. 10 dansk: i går er 17/9, og syv hele dage er 11.–17.
     const v = sidsteDage(7, new Date("2026-09-18T08:00:00.000Z"));
-    expect(v).toEqual({ fra: "2026-09-12", til: "2026-09-18" });
+    expect(v).toEqual({ fra: "2026-09-11", til: "2026-09-17" });
+    expect(antalDage(v)).toBe(7);
+    // Lige efter midnat dansk tid (22:30Z = 00:30 dansk den 20/9): i går er 19/9.
+    expect(sidsteDage(7, new Date("2026-09-19T22:30:00.000Z"))).toEqual({ fra: "2026-09-13", til: "2026-09-19" });
   });
 
   it("et vindue UDEN OVERLAP giver INGEN pris — ikke et forkert tal", () => {
@@ -361,11 +369,15 @@ describe("dækningen afgør, hvad der kan regnes", () => {
   it("mulighederne siger hvilke vinduer der KAN vælges — og hvilke der blev afkortet", () => {
     const m = vinduesmuligheder(uge, NU);
     expect(m.find((x) => x.valg === "daekning")).toMatchObject({ daekket: true, afkortet: false, vindue: { fra: "2026-09-12", til: "2026-09-18" } });
-    // 19/9 er ikke i forbruget, så «sidste 7 dage» (13.–19.) skæres til 13.–18.
-    // Den KAN vælges — det er rettelsen — men det står, at der blev skåret.
-    expect(m.find((x) => x.valg === "7dage")).toMatchObject({ daekket: true, afkortet: true, vindue: { fra: "2026-09-13", til: "2026-09-18" } });
-    // 30 dage rækker bagud til 21/8, hvor der heller ikke er forbrug — samme sag.
-    expect(m.find((x) => x.valg === "30dage")).toMatchObject({ daekket: true, afkortet: true, vindue: { fra: "2026-09-12", til: "2026-09-18" } });
+    // Den 19/9 er «sidste 7 dage» de syv HELE dage 12.–18. (21/9: i dag er
+    // ikke med — den hentes aldrig). Forbruget dækker dem alle: intet skåret.
+    expect(m.find((x) => x.valg === "7dage")).toMatchObject({ daekket: true, afkortet: false, vindue: { fra: "2026-09-12", til: "2026-09-18" }, mangler: { antal: 0 } });
+    // 30 dage rækker bagud til 20/8, hvor der ikke er forbrug — skæres til 12.–18.,
+    // og de 23 dage FØR er «aldrig hentet», ikke «ikke hentet endnu».
+    expect(m.find((x) => x.valg === "30dage")).toMatchObject({
+      daekket: true, afkortet: true, vindue: { fra: "2026-09-12", til: "2026-09-18" },
+      mangler: { foer: { fra: "2026-08-20", til: "2026-09-11" }, efter: null, antal: 23 },
+    });
   });
 
   it("uden forbrug kan INTET vindue vælges, og intet kan regnes", () => {
@@ -533,9 +545,10 @@ describe("et mærke der hverken er id eller kendt navn er stadig en blindgyde", 
 
 // ── Jonas' fire, set på siden 19/9 ────────────────────────────────────────
 
-describe("2. «sidste 7/30 dage» kan VÆLGES — vinduet afkortes i stedet for at afvises", () => {
-  /** Prods form: forbrug 17/8–18/9, og «i dag» er 19/9. */
+describe("2. «sidste 7/30 dage» kan VÆLGES — vinduet afkortes i stedet for at afvises, og det, der mangler, siges", () => {
+  /** Prods form 20/9 (Jonas): forbrug 17/8–18/9, og «i dag» er 20/9 — så mangler 19/9. */
   const DAEK = [D(AD_A, 100_000, "2026-08-17"), D(AD_A, 200_000, "2026-09-18")];
+  const NU20 = new Date("2026-09-20T08:00:00.000Z");
 
   it("afkort skærer til overlappet — og null når der intet er", () => {
     const d = { fra: "2026-08-17", til: "2026-09-18" };
@@ -546,7 +559,7 @@ describe("2. «sidste 7/30 dage» kan VÆLGES — vinduet afkortes i stedet for 
   });
 
   it("DEN GAMLE FEJL: begge vinduer var uvælgelige, fordi Metas tal halter én dag", () => {
-    const syv = sidsteDage(7, NU);
+    const syv = sidsteDage(7, NU20);
     const d = forbrugsdaekning(DAEK)!;
     // Kun den forreste ende fejlede — startdatoen var fint dækket.
     expect(syv.fra >= d.fra).toBe(true);
@@ -556,15 +569,66 @@ describe("2. «sidste 7/30 dage» kan VÆLGES — vinduet afkortes i stedet for 
     expect(afkort(syv, d)).not.toBeNull();
   });
 
-  it("alle tre valg er nu vælgelige, og de afkortede er mærket", () => {
-    const m = vinduesmuligheder(DAEK, NU);
+  it("alle tre valg er vælgelige, de afkortede er mærket — og det, der mangler, står med grund", () => {
+    const m = vinduesmuligheder(DAEK, NU20);
     expect(m.every((x) => x.daekket)).toBe(true);
     expect(m.find((x) => x.valg === "7dage")).toMatchObject({
       afkortet: true,
       vindue: { fra: "2026-09-13", til: "2026-09-18" },
       oensket: { fra: "2026-09-13", til: "2026-09-19" },
+      mangler: { foer: null, efter: { fra: "2026-09-19", til: "2026-09-19" }, antal: 1 },
     });
-    expect(m.find((x) => x.valg === "daekning")?.afkortet).toBe(false);
+    expect(m.find((x) => x.valg === "daekning")).toMatchObject({ afkortet: false, mangler: { antal: 0 } });
+  });
+
+  it("DEN NYE FEJL (Jonas 20/9): «sidste 7 dage» var fem dage — i dag var med i vinduet og kunne aldrig hentes", () => {
+    // Den 19/9 med forbrug til 18/9: alt er hentet. Syv hele dage er 12.–18. — INTET mangler.
+    const m = vinduesmuligheder(DAEK, NU).find((x) => x.valg === "7dage")!;
+    expect(m.oensket).toEqual({ fra: "2026-09-12", til: "2026-09-18" });
+    expect(m.afkortet).toBe(false);
+    expect(m.mangler.antal).toBe(0);
+    expect(manglerTekst(m)).toBeNull();
+  });
+
+  it("manglendeDage skelner «ikke hentet endnu» (efter) fra «aldrig hentet» (foer)", () => {
+    const d = { fra: "2026-09-13", til: "2026-09-18" };
+    expect(manglendeDage({ fra: "2026-09-13", til: "2026-09-20" }, d, null)).toEqual({ foer: null, efter: { fra: "2026-09-19", til: "2026-09-20" }, antal: 2 });
+    expect(manglendeDage({ fra: "2026-09-10", til: "2026-09-18" }, d, null)).toEqual({ foer: { fra: "2026-09-10", til: "2026-09-12" }, efter: null, antal: 3 });
+    expect(manglendeDage({ fra: "2026-09-10", til: "2026-09-20" }, d, null).antal).toBe(5);
+    // hentetTil FRA STATUSRÆKKEN: 19/9 blev hentet, men ingen annonce leverede → ikke en mangel, men nul.
+    expect(manglendeDage({ fra: "2026-09-13", til: "2026-09-20" }, d, "2026-09-19")).toEqual({ foer: null, efter: { fra: "2026-09-20", til: "2026-09-20" }, antal: 1 });
+    // Ingen dækning: alt mangler.
+    expect(manglendeDage({ fra: "2026-09-13", til: "2026-09-19" }, null, null)).toEqual({ foer: { fra: "2026-09-13", til: "2026-09-19" }, efter: null, antal: 7 });
+  });
+
+  it("manglerTekst siger hvad der mangler, hvorfor, og hvad der SÅ regnes på — med begge antal", () => {
+    const m = vinduesmuligheder(DAEK, NU20).find((x) => x.valg === "7dage")!;
+    expect(manglerTekst(m)).toBe(
+      "Forbruget for 19. september er ikke hentet endnu. Prisen er regnet på 13.–18. september (6 af 7 dage), og tilmeldinger tælles over de samme 6 dage.",
+    );
+    const foer = { oensket: { fra: "2026-08-10", til: "2026-08-20" }, vindue: { fra: "2026-08-17", til: "2026-08-20" }, mangler: manglendeDage({ fra: "2026-08-10", til: "2026-08-20" }, { fra: "2026-08-17", til: "2026-09-18" }, null) };
+    expect(manglerTekst(foer)).toBe(
+      "Forbruget for 10.–16. august er aldrig hentet. Prisen er regnet på 17.–20. august (4 af 11 dage), og tilmeldinger tælles over de samme 4 dage.",
+    );
+  });
+
+  it("hentningslinje: fejl, udeblevet, gammel forbrugsdag, ingen status — og null når alt er som det skal", () => {
+    const d = { fra: "2026-08-17", til: "2026-09-18" };
+    // Fejlet i nat.
+    expect(hentningslinje({ sidste_koersel: "2026-09-20T03:33:00.000Z", sidste_udfald: "fejl", sidste_fejl: "Meta svarede 500", hentet_til: null }, d, NU20)?.tekst)
+      .toBe("Hentningen af forbruget fejlede 20/9 kl. 05:33 — Meta svarede 500. Tallene stopper ved 18. september.");
+    // Udeblevet i to døgn.
+    expect(hentningslinje({ sidste_koersel: "2026-09-18T03:33:00.000Z", sidste_udfald: "ok", sidste_fejl: null, hentet_til: "2026-09-17" }, d, NU20)?.tekst)
+      .toBe("Hentningen af forbruget har ikke kørt siden 18/9 kl. 05:33. Tallene stopper ved 17. september.");
+    // Kørte i nat, men nyeste dag er 18/9 (i går er 19/9).
+    expect(hentningslinje({ sidste_koersel: "2026-09-20T03:33:00.000Z", sidste_udfald: "ok", sidste_fejl: null, hentet_til: "2026-09-18" }, d, NU20)?.tekst)
+      .toBe("Hentningen kørte 20/9 kl. 05:33, men nyeste forbrugsdag er 18. september — kører der annoncer?");
+    // Alt som det skal: grøn er ingen nyhed.
+    expect(hentningslinje({ sidste_koersel: "2026-09-20T03:33:00.000Z", sidste_udfald: "ok", sidste_fejl: null, hentet_til: "2026-09-19" }, d, NU20)).toBeNull();
+    // Ingen statusrække: dømmes på dækningen — 18/9 mod i går 19/9 er én dag uden hentning.
+    expect(hentningslinje(null, d, NU20)?.tekst).toMatch(/^Nyeste forbrugsdag er 18\. september — 1 dag uden hentning/);
+    expect(hentningslinje(null, { fra: "2026-08-17", til: "2026-09-19" }, NU20)).toBeNull();
+    expect(hentningslinje(null, null, NU20)).toBeNull();
   });
 
   it("BEGGE ender filtreres på det AFKORTEDE vindue — ellers ville prisen blive for lav", () => {
@@ -575,8 +639,11 @@ describe("2. «sidste 7/30 dage» kan VÆLGES — vinduet afkortes i stedet for 
         R({ email: "u@x.dk", utm_content: AD_A, registreret_at: "2026-09-19T09:00:00.000Z" }),
       ],
       ansoegninger: [], dage: DAEK, annoncer: [], tilstand: "har", valg: "7dage",
-    }, NU);
+    }, NU20);
     expect(d.afkortet).toBe(true);
+    expect(d.mangler).toEqual({ foer: null, efter: { fra: "2026-09-19", til: "2026-09-19" }, antal: 1 });
+    expect(d.hentetTil).toBe("2026-09-18");
+    expect(d.valg).toBe("7dage");
     expect(d.vindue).toEqual({ fra: "2026-09-13", til: "2026-09-18" });
     expect(d.samlet.tilmeldte).toBe(1);
     expect(d.samlet.forbrugOere).toBe(200_000);

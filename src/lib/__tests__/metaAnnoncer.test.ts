@@ -22,6 +22,8 @@ import {
   opslagbareIder,
   opslagUrl,
   tilAnnoncekort,
+  kontoUrl,
+  ANNONCE_FELTER,
   tilDagsraekker,
   typeRaekkefoelge,
   udenToken,
@@ -202,6 +204,24 @@ describe("tilAnnoncekort", () => {
       navn: "Webinar — video A", adsaet_navn: "25-55 DK", kampagne_navn: "Webinar okt",
       overskrift: "Få styr på tallene", brodtekst: "Gratis webinar for SMV'er", billede_url: "https://x/i.jpg",
     });
+  });
+
+  it("url_tags tages med som de står — makroer eller navne (21/9, så skiftet 20/9 kan måles)", () => {
+    const kort = tilAnnoncekort([
+      { id: "1", creative: { url_tags: "utm_source={{site_source_name}}&utm_campaign={{campaign.id}}&utm_content={{ad.id}}" } },
+      { id: "2", creative: { url_tags: "utm_content={{ad.name}}" } },
+      { id: "3", creative: { link_url: "https://x" } },
+    ]);
+    expect(kort.map((k) => k.url_tags)).toEqual([
+      "utm_source={{site_source_name}}&utm_campaign={{campaign.id}}&utm_content={{ad.id}}",
+      "utm_content={{ad.name}}",
+      null,
+    ]);
+  });
+
+  it("ANNONCE_FELTER beder om url_tags, og kontoen om sin tidszone", () => {
+    expect(ANNONCE_FELTER).toMatch(/creative\{[^}]*url_tags[^}]*\}/);
+    expect(kontoUrl("act_1", "T")).toContain("timezone_name");
   });
 
   it("thumbnail bruges når image_url mangler (video-annoncer)", () => {

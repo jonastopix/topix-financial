@@ -298,8 +298,14 @@ export function erUkendtFelt(fejl: { message?: string; code?: number } | null | 
 }
 
 /** Annoncerne på kontoen, med annoncesæt, kampagne og kreativ. */
+/**
+ * `creative{url_tags}` (21/9, B's ønske): de url-parametre, Meta sætter på
+ * hvert klik — «utm_content={{ad.id}}» eller «utm_content={{ad.name}}». Med
+ * feltet i kortet kan det MÅLES, om skiftet fra navne til id'er 20/9 greb på
+ * alle annoncer, i stedet for at vente på en tilmelding fra hver.
+ */
 export const ANNONCE_FELTER =
-  "id,name,status,effective_status,updated_time,adset{id,name},campaign{id,name},creative{id,title,body,image_url,thumbnail_url,video_id,link_url}";
+  "id,name,status,effective_status,updated_time,adset{id,name},campaign{id,name},creative{id,title,body,image_url,thumbnail_url,video_id,link_url,url_tags}";
 
 export function annoncerUrl(kontoId: string, token: string, limit = 100): string {
   return `${GRAPH}/${encodeURIComponent(kontoId)}/ads?${q({ fields: ANNONCE_FELTER, limit: String(limit), access_token: token })}`;
@@ -331,7 +337,7 @@ export function insightsUrl(kontoId: string, token: string, v: { since: string; 
 /** Kontoen — valutaen og spærren (spend_cap). Læses hver kørsel, så valutaen aldrig gættes. */
 export function kontoUrl(kontoId: string, token: string): string {
   return `${GRAPH}/${encodeURIComponent(kontoId)}?${q({
-    fields: "id,account_id,name,currency,spend_cap,amount_spent,account_status",
+    fields: "id,account_id,name,currency,spend_cap,amount_spent,account_status,timezone_name",
     access_token: token,
   })}`;
 }
@@ -373,6 +379,8 @@ export interface Annoncekort {
   billede_url: string | null;
   video_id: string | null;
   link_url: string | null;
+  /** Metas url_tags på kreativet — makroerne, som de står. null når Meta ikke gav feltet. */
+  url_tags: string | null;
 }
 
 const tekst = (v: unknown): string | null => {
@@ -458,6 +466,7 @@ export function tilAnnoncekort(raa: readonly Record<string, unknown>[]): Annonce
       billede_url: tekst(kreativ?.image_url) ?? tekst(kreativ?.thumbnail_url),
       video_id: tekst(kreativ?.video_id),
       link_url: tekst(kreativ?.link_url),
+      url_tags: tekst(kreativ?.url_tags),
     });
   }
   return ud;

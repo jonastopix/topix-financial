@@ -156,11 +156,67 @@ export function idag(nu: Date): string {
   return dagKey(nu.toISOString()) ?? nu.toISOString().slice(0, 10);
 }
 
-/** Vinduet «de sidste N dage til og med i dag», inklusive begge ender. */
+/**
+ * Vinduet «de sidste N HELE dage» — til og med I GÅR, inklusive begge ender.
+ *
+ * RETTET 21/9 (Jonas: «Sidste 7 dage · 14.–18. september» den 20/9 er fem
+ * dage, ikke syv): den første udgave sluttede vinduet I DAG. Men dagens tal
+ * hentes ALDRIG — hentningen (meta-annoncer-cron, `vindue(nu, 7)`) slutter
+ * bevidst i går, fordi en halv dag ser ud som et fald. Et vindue, der rækker
+ * ind i i dag, mangler derfor altid mindst én dag og blev ALTID afkortet — og
+ * så hed fem dage «sidste 7 dage». Nu betyder «sidste 7 dage» det samme her
+ * som i hentningen: de syv hele dage, der er gået. Mangler en af dem, er det
+ * en RIGTIG mangel (se `manglendeDage`), ikke en, vi selv har bygget ind.
+ */
 export function sidsteDage(antal: number, nu: Date): Vindue {
-  const til = idag(nu);
+  const til = dagKey(new Date(nu.getTime() - 86_400_000).toISOString()) ?? idag(nu);
   const fra = dagKey(new Date(Date.parse(`${til}T12:00:00Z`) - (antal - 1) * 86_400_000).toISOString()) ?? til;
   return { fra, til };
+}
+
+/** Dagen efter — «YYYY-MM-DD» + 1. */
+function dagenEfter(dag: string): string {
+  return dagKey(new Date(Date.parse(`${dag}T12:00:00Z`) + 86_400_000).toISOString()) ?? dag;
+}
+
+/** Antal dage i et vindue, inklusive begge ender. */
+export function antalDage(v: Vindue): number {
+  return Math.round((Date.parse(`${v.til}T12:00:00Z`) - Date.parse(`${v.fra}T12:00:00Z`)) / 86_400_000) + 1;
+}
+
+/**
+ * DE DAGE, DER MANGLER — adskilt fra «afkortet» (21/9).
+ *
+ * `afkort` siger, hvad der regnes på. Den siger ikke, HVORFOR resten mangler,
+ * og det er to forskellige ting:
+ *   efter — dage efter det sidst hentede: hentningen har ikke kørt (Meta nede,
+ *           cron væk, fejl). Det er en mangel, der går over, når den kører.
+ *   foer  — dage før den ældste forbrugsrække: vi har aldrig hentet så langt
+ *           tilbage. Det er en mangel, der kun går over ved bagudhentning.
+ *
+ * «Hentet til» er `hentetTil` (meta_hentning.hentet_til — nyeste dato, der
+ * FAKTISK fik en række), ellers dækningens sidste dag. En dag INDEN FOR
+ * dækningen uden rækker mangler IKKE — den er nul (ingen levering), og det
+ * er rigtigt. Uden `hentetTil` kan de to ikke skelnes i halen; så gælder
+ * dækningen.
+ */
+export interface ManglendeDage {
+  foer: Vindue | null;
+  efter: Vindue | null;
+  /** Dage i alt, der mangler — foer + efter. 0 = intet mangler. */
+  antal: number;
+}
+
+export function manglendeDage(oensket: Vindue, daekning: Vindue | null, hentetTil: string | null): ManglendeDage {
+  if (daekning === null) return { foer: oensket, efter: null, antal: antalDage(oensket) };
+  const hentet = hentetTil !== null && hentetTil > daekning.til ? hentetTil : daekning.til;
+  const foer = oensket.fra < daekning.fra ? { fra: oensket.fra, til: daekning.fra > oensket.til ? oensket.til : dagenFoer(daekning.fra) } : null;
+  const efter = oensket.til > hentet ? { fra: hentet < oensket.fra ? oensket.fra : dagenEfter(hentet), til: oensket.til } : null;
+  return { foer, efter, antal: (foer ? antalDage(foer) : 0) + (efter ? antalDage(efter) : 0) };
+}
+
+function dagenFoer(dag: string): string {
+  return dagKey(new Date(Date.parse(`${dag}T12:00:00Z`) - 86_400_000).toISOString()) ?? dag;
 }
 
 export type VindueValg = "daekning" | "7dage" | "30dage";
@@ -176,6 +232,8 @@ export interface VindueMulighed {
   daekket: boolean;
   /** Blev der skåret? Så står den rigtige periode på skærmen. */
   afkortet: boolean;
+  /** Hvilke dage af det ØNSKEDE vindue, vi ikke har forbrug for — og hvorfor. Tom for «Hele perioden». */
+  mangler: ManglendeDage;
 }
 
 /**
@@ -184,7 +242,7 @@ export interface VindueMulighed {
  * hentet så langt tilbage. Fladen viser de udækkede som slukkede med grunden,
  * frem for at lade dem give et forkert tal.
  */
-export function vinduesmuligheder(dage: readonly Forbrugsdag[], nu: Date): VindueMulighed[] {
+export function vinduesmuligheder(dage: readonly Forbrugsdag[], nu: Date, hentetTil: string | null = null): VindueMulighed[] {
   const d = forbrugsdaekning(dage);
   const byg = (valg: VindueValg, navn: string, oensket: Vindue | null): VindueMulighed => {
     const vindue = oensket === null ? d : afkort(oensket, d);
@@ -195,6 +253,7 @@ export function vinduesmuligheder(dage: readonly Forbrugsdag[], nu: Date): Vindu
       oensket,
       daekket: vindue !== null,
       afkortet: oensket !== null && vindue !== null && (vindue.fra !== oensket.fra || vindue.til !== oensket.til),
+      mangler: oensket === null ? { foer: null, efter: null, antal: 0 } : manglendeDage(oensket, d, hentetTil),
     };
   };
   return [
@@ -343,6 +402,12 @@ export interface Annoncepriser {
   daekket: boolean;
   /** Blev det ønskede vindue skåret ned til forbrugets periode? Står på skærmen. */
   afkortet: boolean;
+  /** De dage, der mangler i det valgte vindue — og hvorfor (21/9). */
+  mangler: ManglendeDage;
+  /** Nyeste dato, hentningen FAKTISK skrev — fra meta_hentning, ellers dækningens sidste dag. */
+  hentetTil: string | null;
+  /** Det valg, der blev regnet på — så fladen kan finde sin mulighed uden at gætte. */
+  valg: VindueValg;
   /** Valgene og deres tilgængelighed, så fladen kan slukke dem uden at regne selv. */
   muligheder: VindueMulighed[];
   /** Tilmeldingernes eget spænd — så forskellen til dækningen kan ses, ikke gættes. */
@@ -437,6 +502,12 @@ export interface AnnoncepriserInput {
   tilstand: Forbrugstilstand;
   /** Hvilket vindue der regnes over. Standard: præcis det, vi har forbrug for. */
   valg?: VindueValg;
+  /**
+   * Nyeste dato, hentningen FAKTISK skrev (meta_hentning.hentet_til, 21/9).
+   * Uden den gælder dækningens sidste dag — og så kan «nul levering» og «ikke
+   * hentet» ikke skelnes i halen.
+   */
+  hentetTil?: string | null;
 }
 
 /** Ét kald, ét svar. Fladen regner intet. */
@@ -450,9 +521,10 @@ export function annoncepriser(ind: AnnoncepriserInput, nu: Date): Annoncepriser 
   // BEGGE ender filtreres med det, før noget tælles. Standard er præcis den
   // periode, vi har forbrug for — den er altid dækket, og det er det vindue,
   // der giver et tal, man kan holde op mod Metas egne.
-  const muligheder = vinduesmuligheder(alleDage, nu);
-  const valgt = muligheder.find((m) => m.valg === valg) ?? muligheder[0];
   const daekning = forbrugsdaekning(alleDage);
+  const hentetTil = ind.hentetTil ?? daekning?.til ?? null;
+  const muligheder = vinduesmuligheder(alleDage, nu, hentetTil);
+  const valgt = muligheder.find((m) => m.valg === valg) ?? muligheder[0];
   const vindue = valgt.vindue;
   const daekket = valgt.daekket && vindue !== null;
 
@@ -646,6 +718,9 @@ export function annoncepriser(ind: AnnoncepriserInput, nu: Date): Annoncepriser 
     daekning,
     daekket,
     afkortet: valgt.afkortet,
+    mangler: valgt.mangler,
+    hentetTil,
+    valg: valgt.valg,
     muligheder,
     tilmeldingsspan,
   };
@@ -664,6 +739,100 @@ export function periodeOrd(v: Vindue | null): string | null {
   return maaned(v.fra) === maaned(v.til)
     ? `${dag(v.fra)}.–${dag(v.til)}. ${maaned(v.til)}`
     : `${dag(v.fra)}. ${maaned(v.fra)} – ${dag(v.til)}. ${maaned(v.til)}`;
+}
+
+/**
+ * Sætningen ved MANGLENDE dage (21/9): hvad der ikke er hentet, og hvad der
+ * så regnes på — med begge antal, så «6 af 7 dage» står der, ikke «sidste 7
+ * dage» om fem. Tilmeldinger tælles over de samme dage; det siges, fordi
+ * det er hele reglen (#1024).
+ */
+export function manglerTekst(m: Pick<VindueMulighed, "oensket" | "vindue" | "mangler">): string | null {
+  if (m.oensket === null || m.mangler.antal === 0) return null;
+  const dele: string[] = [];
+  if (m.mangler.efter) dele.push(`forbruget for ${periodeOrd(m.mangler.efter)} er ikke hentet endnu`);
+  if (m.mangler.foer) dele.push(`forbruget for ${periodeOrd(m.mangler.foer)} er aldrig hentet`);
+  const grund = dele.join(", og ");
+  const hvorfor = grund.charAt(0).toUpperCase() + grund.slice(1);
+  if (m.vindue === null) return `${hvorfor}. Ingen pris kan regnes for ${periodeOrd(m.oensket)}.`;
+  const n = antalDage(m.vindue);
+  return `${hvorfor}. Prisen er regnet på ${periodeOrd(m.vindue)} (${n} af ${antalDage(m.oensket)} dage), og tilmeldinger tælles over de samme ${n} dage.`;
+}
+
+/** Sådan står statusrækken (meta_hentning, art 'annoncer') for fladen. */
+export interface HentningStatus {
+  sidste_koersel: string;
+  sidste_udfald: string;
+  sidste_fejl: string | null;
+  hentet_til: string | null;
+}
+
+export interface Hentningslinje {
+  tone: "rust";
+  tekst: string;
+}
+
+/**
+ * Hvor gammel må statusrækken være, før FLADEN siger «har ikke kørt». 26 timer
+ * — IKKE vagtens 2 timer (Jonas 21/9), og forskellen er bevidst: vagten læser
+ * ÉN gang, kl. 04:33, en time efter slottet, så «ældre end 2 t» betyder «ikke
+ * kørt i nat». Fladen læses hele dagen; kl. 14 er en rigtig kørsel fra 03:33
+ * ti timer gammel, og 2 timer ville være rust døgnet rundt. 26 timer = «ikke
+ * kørt siden i går nat» — det, en rådgiver skal reagere på.
+ */
+export const HENTNING_UDEBLEVET_TIMER = 26;
+
+/** «20/9 kl. 05:33» i dansk tid — bygget af delene, så formatet ikke afhænger af runtime'ens ICU. */
+function klokkeOrd(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  const dele = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "numeric", hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Europe/Copenhagen" }).formatToParts(d);
+  const del = (type: string) => dele.find((x) => x.type === type)?.value ?? "?";
+  // en-GB giver «09» for måneden — Number() fjerner nullet, så det bliver «20/9».
+  return `${Number(del("day"))}/${Number(del("month"))} kl. ${del("hour")}:${del("minute")}`;
+}
+
+/**
+ * LINJEN OM HENTNINGEN (21/9): Meta kan være nede, en hentning kan fejle, og
+ * så skal fladen SIGE det — ikke regne videre på færre dage og kalde det det
+ * samme. Grøn er ingen nyhed (samme regel som driftslinjen på forsiden): så
+ * er svaret null. Rust, når
+ *   · sidste kørsel ikke var ok (fejlteksten står med),
+ *   · sidste kørsel er ældre end HENTNING_UDEBLEVET_TIMER,
+ *   · kørslen var ok, men nyeste forbrugsdag er ældre end i går,
+ *   · der slet ingen statusrække er, og dækningen slutter før i går.
+ */
+export function hentningslinje(status: HentningStatus | null, daekning: Vindue | null, nu: Date): Hentningslinje | null {
+  const igaar = dagKey(new Date(nu.getTime() - 86_400_000).toISOString());
+  const stopper = (dag: string | null) => (dag ? ` Tallene stopper ved ${periodeOrd({ fra: dag, til: dag })}.` : "");
+  if (status !== null) {
+    const sidst = status.hentet_til ?? daekning?.til ?? null;
+    if (status.sidste_udfald !== "ok") {
+      return {
+        tone: "rust",
+        tekst: `Hentningen af forbruget fejlede ${klokkeOrd(status.sidste_koersel)}${status.sidste_fejl ? ` — ${status.sidste_fejl}` : ""}.${stopper(sidst)}`,
+      };
+    }
+    const alderTimer = (nu.getTime() - Date.parse(status.sidste_koersel)) / 3_600_000;
+    if (Number.isFinite(alderTimer) && alderTimer > HENTNING_UDEBLEVET_TIMER) {
+      return { tone: "rust", tekst: `Hentningen af forbruget har ikke kørt siden ${klokkeOrd(status.sidste_koersel)}.${stopper(sidst)}` };
+    }
+    if (igaar !== null && sidst !== null && sidst < igaar) {
+      return {
+        tone: "rust",
+        tekst: `Hentningen kørte ${klokkeOrd(status.sidste_koersel)}, men nyeste forbrugsdag er ${periodeOrd({ fra: sidst, til: sidst })} — kører der annoncer?`,
+      };
+    }
+    return null;
+  }
+  if (daekning !== null && igaar !== null && daekning.til < igaar) {
+    const dage = antalDage({ fra: daekning.til, til: igaar }) - 1;
+    return {
+      tone: "rust",
+      tekst: `Nyeste forbrugsdag er ${periodeOrd({ fra: daekning.til, til: daekning.til })} — ${dage} ${dage === 1 ? "dag" : "dage"} uden hentning, og ingen hentning er registreret. Kør meta-annoncer-cron, eller læs meta_hentning.`,
+    };
+  }
+  return null;
 }
 
 /** Sætningen når vinduet ikke er dækket — den skal nævne, hvad vi FAKTISK har. */

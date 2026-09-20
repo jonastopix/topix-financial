@@ -32,16 +32,30 @@
 // SIGER PÆNT FRA UDEN SECRETS: 200 med { ok: true, koerte: false,
 // grund: "secret_mangler" } og hvad der mangler. Ikke en 500.
 //
-// PLANLÆGNING (kør MANUELT i SQL editoren, ikke som migration — vault-nøglen
-// slås op live). Slottet 05:00 UTC = 07:00 dansk er ledigt og ligger efter
-// Metas døgnskifte:
+// PLANLÆGNING (21/9): migration 20260921090000_meta_annoncer_cron.sql —
+// 'meta-annoncer' kl. 03:33 UTC (05:33 dansk sommertid), efter Metas
+// døgnskifte og før nogen rådgiver er oppe. Minuttet :33 deler slot med
+// ingen (målt mod alle cron.schedule i migrationerne 21/9). Den gamle
+// kommentar her sagde 05:00 UTC — det slot har agent-runs-opbevaring.
 //
-//   SELECT cron.schedule(
-//     'meta-annoncer',
-//     '0 5 * * *',
-//     $job$ SELECT public.kald_edge('meta-annoncer-cron', '{"dry_run": false}'::jsonb, 60000, 86400000); $job$
-//   );
-//   SELECT jobid, jobname, schedule, active FROM cron.job WHERE jobname = 'meta-annoncer';
+// EN CRON, INGEN SER FEJLE, ER VÆRRE END INGEN CRON (21/9). Derfor to ting:
+//   1. Hver RIGTIG kørsel (dry_run=false) skriver én statusrække i
+//      meta_hentning (art 'annoncer'): udfald, fejl, vindue, hentet_til, tal.
+//      Tørkørsler skriver den ikke — de skriver ingenting, det er reglen.
+//   2. Fejler en rigtig kørsel, får rådgiverne en klokke (type 'drift',
+//      skrivRaadgiverBesked — samme klokke som vagten). Titlen bærer datoen,
+//      så det er én klokke pr. fejldag, ikke én pr. forsøg.
+//   Udebliver kørslen HELT (cron væk, vault-nøgle væk, timeout før catch),
+//   kan functionen ikke sige det selv — det gør meta_hentning_vagt() i SQL
+//   (samme migration), som dømmer på statusrækkens alder kl. 04:33 UTC:
+//   ældre end 2 timer = ikke kørt i nat = rød (Jonas 21/9).
+//
+// TIDSZONEN MÅLES, IKKE ANTAGES: konto.tidszone i svaret (Metas timezone_name).
+// Slottet 03:33 UTC forudsætter Europe/Copenhagen (Metas døgn lukker 22:00
+// UTC om sommeren). Er svaret en anden zone, gælder migrationens filhoved
+// (20260921090000): slottet flyttes til ≥ 3 timer efter DEN zones midnat, og
+// vindue()/isoDato i _shared/metaAnnoncer.ts skal regne «i går» i kontoens
+// zone i stedet for UTC — en kodeændring, ikke en SQL-rettelse.
 //
 // Kør den FØRST i hånden uden body (tørkørsel) og læs svaret.
 
@@ -49,6 +63,7 @@ import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supa
 import { authenticateServiceRole, corsHeaders } from "../_shared/edgeFunctionAuth.ts";
 import { ukendteFelter, ukendteFelterBesked } from "../_shared/kendteFelter.ts";
 import { ADS_TOKEN_MANGLER, ADS_TOKEN_NAVN, metaAdsToken } from "../_shared/metaAdsToken.ts";
+import { skrivRaadgiverBesked } from "../_shared/raadgiverBesked.ts";
 import {
   annoncerUrl,
   DAGE_BAGUD,
@@ -84,7 +99,7 @@ interface Resultat {
   grund?: string;
   mangler?: string[];
   vindue?: { since: string; until: string };
-  konto?: { id: string; valuta: string; spend_cap_oere: number | null; forbrugt_oere: number | null; status: number | null };
+  konto?: { id: string; valuta: string; spend_cap_oere: number | null; forbrugt_oere: number | null; status: number | null; tidszone: string | null };
   annoncer: { hentet: number; skrevet: number };
   dage: { hentet: number; skrevet: number; sprunget: { ad_id: string | null; dato: string | null; grund: string }[] };
   /** To rækker for samme (annonce, dato) — så gav time_increment=1 ikke én række pr. dag. Skal ses. */
@@ -173,6 +188,44 @@ async function skrivDage(supabase: SupabaseClient, raekker: readonly Dagsraekke[
   return med.length;
 }
 
+/**
+ * Statusrækken i meta_hentning — én pr. art, overskrives hver rigtige kørsel.
+ * KASTER ALDRIG: en status, der ikke kunne skrives, må ikke koste kørslen (og
+ * den dukker op som «ikke kørt siden …» hos meta_hentning_vagt alligevel).
+ */
+async function skrivStatus(
+  supabase: SupabaseClient,
+  nu: Date,
+  s: { udfald: "ok" | "fejl" | "secret_mangler"; fejl: string | null; vindue: { since: string; until: string } | null; hentetTil: string | null; tal: Record<string, unknown> },
+): Promise<void> {
+  const { error } = await supabase.from("meta_hentning").upsert(
+    {
+      art: "annoncer",
+      sidste_koersel: nu.toISOString(),
+      sidste_udfald: s.udfald,
+      sidste_fejl: s.fejl,
+      vindue_fra: s.vindue?.since ?? null,
+      vindue_til: s.vindue?.until ?? null,
+      hentet_til: s.hentetTil,
+      tal: s.tal,
+    },
+    { onConflict: "art" },
+  );
+  if (error) console.error(`${LOG} statusrækken kunne ikke skrives (${s.udfald}): ${error.message}`);
+}
+
+/** Klokken ved en fejlet RIGTIG kørsel — én pr. dag (titlen bærer datoen; skrivRaadgiverBesked dedup'er på titel). */
+async function klokkeVedFejl(supabase: SupabaseClient, nu: Date, aarsag: string): Promise<void> {
+  const dag = nu.toISOString().slice(0, 10);
+  const r = await skrivRaadgiverBesked(supabase, {
+    type: "drift",
+    title: `Meta-hentningen fejlede ${dag} — forbruget pr. annonce står stille`,
+    body: `meta-annoncer-cron: ${aarsag.slice(0, 400)}. Kør den i hånden (tørkørsel først), eller læs meta_hentning.`,
+    reference_type: "meta_hentning",
+  });
+  if (r.fejl.length) console.error(`${LOG} klokken kunne ikke skrives: ${r.fejl.join("; ")}`);
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -224,6 +277,12 @@ Deno.serve(async (req) => {
   }
   if (mangler.length > 0) {
     console.log(`${LOG} ${mangler.join(" og ")} mangler — intet hentet.`);
+    if (!toerKoersel) {
+      // En PLANLAGT kørsel uden secrets er en fejl, der skal ses — ikke en tilstand.
+      const sb = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } });
+      await skrivStatus(sb, nu, { udfald: "secret_mangler", fejl: `${mangler.join(" og ")} mangler`, vindue: v, hentetTil: null, tal: {} });
+      await klokkeVedFejl(sb, nu, `${mangler.join(" og ")} mangler i Lovable → Secrets`);
+    }
     return json({
       ...tom,
       grund: "secret_mangler",
@@ -249,6 +308,8 @@ Deno.serve(async (req) => {
       spend_cap_oere: typeof k.spend_cap === "string" || typeof k.spend_cap === "number" ? Number(k.spend_cap) : null,
       forbrugt_oere: typeof k.amount_spent === "string" || typeof k.amount_spent === "number" ? Number(k.amount_spent) : null,
       status: typeof k.account_status === "number" ? k.account_status : null,
+      // Metas døgn slutter i KONTOENS tidszone — det er den, cron-slottet skal dømmes mod.
+      tidszone: typeof k.timezone_name === "string" ? k.timezone_name : null,
     };
 
     // 2. Beskrivelserne.
@@ -298,10 +359,23 @@ Deno.serve(async (req) => {
     resultat.annoncer.skrevet = await skrivAnnoncer(supabase, kort, nu);
     resultat.dage.skrevet = await skrivDage(supabase, raekker, nu);
     console.log(`${LOG} skrev ${resultat.annoncer.skrevet} annoncer og ${resultat.dage.skrevet} dagsrækker (${v.since} → ${v.until} i ${stykker.length} kald, ${valuta}).`);
+    // hentet_til = den nyeste dato, der FAKTISK fik en række — ikke vinduets kant.
+    const hentetTil = raekker.reduce<string | null>((m, r) => (m === null || r.dato > m ? r.dato : m), null);
+    await skrivStatus(supabase, nu, {
+      udfald: "ok",
+      fejl: null,
+      vindue: v,
+      hentetTil,
+      tal: { annoncer: resultat.annoncer, dage: { hentet: raekker.length, skrevet: resultat.dage.skrevet, sprunget: sprunget.length }, dubletter: dub.length, sider: resultat.sider, stykker: stykker.length, tidszone: kontoLinje.tidszone },
+    });
     return json(resultat);
   } catch (err) {
     const aarsag = err instanceof Error ? err.message : String(err);
     console.error(`${LOG} kørslen fejlede:`, aarsag);
+    if (!toerKoersel) {
+      await skrivStatus(supabase, nu, { udfald: "fejl", fejl: aarsag.slice(0, 1000), vindue: v, hentetTil: null, tal: {} });
+      await klokkeVedFejl(supabase, nu, aarsag);
+    }
     return json({ ...tom, ok: false, koerte: true, vindue: v, error: aarsag }, 500);
   }
 });

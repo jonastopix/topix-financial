@@ -10,6 +10,8 @@ import {
   FLERE_KAMPAGNER,
   FLERE_KAMPAGNER_FORKLARING,
   fremmoedeTekst,
+  hentningslinje,
+  manglerTekst,
   MODNING_FORKLARING,
   navnekoblingTekst,
   valutaTekst,
@@ -160,7 +162,7 @@ export const AnnoncepriserAfsnit = ({
   const dom = useMemo<Annoncepriser | null>(
     () =>
       query.data
-        ? annoncepriser({ tilmeldinger, ansoegninger, dage: query.data.dage, annoncer: query.data.annoncer, tilstand: query.data.tilstand, valg }, nu)
+        ? annoncepriser({ tilmeldinger, ansoegninger, dage: query.data.dage, annoncer: query.data.annoncer, tilstand: query.data.tilstand, valg, hentetTil: query.data.hentning?.hentet_til ?? null }, nu)
         : null,
     [query.data, tilmeldinger, ansoegninger, nu, valg],
   );
@@ -178,8 +180,17 @@ export const AnnoncepriserAfsnit = ({
     return <p className="text-sm text-hb-ink-soft" data-pris="tom">{PRIS_TOM_TEKST}</p>;
   }
 
+  const hentning = hentningslinje(query.data?.hentning ?? null, dom.daekning, nu);
+  const valgtMulighed = dom.muligheder.find((m) => m.valg === dom.valg) ?? null;
+
   return (
     <div data-pris={dom.perAnnonce.length}>
+      {/* HENTNINGEN (21/9): Meta kan være nede, en hentning kan fejle — så skal
+          det stå HER, over tallene, i stedet for at tallene stille stopper ved
+          en ældre dag. Grøn er ingen nyhed og får ingen linje. */}
+      {hentning && (
+        <p className="mb-4 text-sm text-hb-rust" data-pris-hentning>{hentning.tekst}</p>
+      )}
       {/* PERIODEVÆLGEREN (19/9): kun de vinduer, forbruget FAKTISK dækker, kan
           vælges. De øvrige står slukkede med grunden — et valg, der ville give
           et forkert tal, er ikke et valg. */}
@@ -193,9 +204,7 @@ export const AnnoncepriserAfsnit = ({
             aria-pressed={valg === m.valg}
             title={
               m.daekket
-                ? m.afkortet
-                  ? `${periodeOrd(m.oensket)} ønsket — forbruget dækker ${periodeOrd(dom.daekning)}, så der regnes over ${periodeOrd(m.vindue)}. Både forbrug og tilmeldinger er filtreret på den periode.`
-                  : (periodeOrd(m.vindue) ?? undefined)
+                ? (manglerTekst(m) ?? periodeOrd(m.vindue) ?? undefined)
                 : `Der er intet forbrug i ${periodeOrd(m.oensket) ?? "dette vindue"} — forbruget dækker ${periodeOrd(dom.daekning) ?? "ingenting"}.`
             }
             className={cn(
@@ -209,20 +218,27 @@ export const AnnoncepriserAfsnit = ({
             data-vindue={m.valg}
             data-daekket={m.daekket}
           >
+            {/* PERIODEN ER DEN ØNSKEDE (21/9): «Sidste 7 dage» viser de syv dage,
+                ikke de fem, vi tilfældigvis har. Mangler nogen, står det ved siden
+                af — tallet er ærligt frem for pænt. */}
             {m.navn}
-            {m.daekket && periodeOrd(m.vindue) ? ` · ${periodeOrd(m.vindue)}` : ""}
-            {m.afkortet && <span className="ml-1 text-hb-rust" aria-label="afkortet til forbrugets periode">*</span>}
+            {m.daekket && periodeOrd(m.oensket ?? m.vindue) ? ` · ${periodeOrd(m.oensket ?? m.vindue)}` : ""}
+            {m.mangler.antal > 0 && (
+              <span className="ml-1 text-hb-rust" data-mangler={m.mangler.antal}>
+                · mangler {m.mangler.efter && m.mangler.foer ? `${m.mangler.antal} dage` : periodeOrd(m.mangler.efter ?? m.mangler.foer)}
+              </span>
+            )}
           </button>
         ))}
       </div>
 
-      {/* AFKORTET (19/9): Metas tal halter en dag, så «sidste 7 dage» slutter
-          senere end forbruget rækker. Vi regner på overlappet og siger det —
-          i stedet for at gøre valget uvælgeligt, som første udgave gjorde. */}
-      {dom.afkortet && dom.vindue && (
-        <p className="mb-4 text-xs text-hb-ink-soft" data-pris-afkortet>
-          Der regnes over {periodeOrd(dom.vindue)} — forbruget rækker ikke længere end {periodeOrd(dom.daekning)}.
-          Både forbrug og tilmeldinger er filtreret på netop den periode.
+      {/* MANGLENDE DAGE (19/9 → 21/9): vi regner på det, der er hentet, og
+          SIGER hvad der mangler og hvorfor — «ikke hentet endnu» eller «aldrig
+          hentet» — med begge antal («6 af 7 dage»). Første udgave sagde kun
+          «afkortet», og perioden på knappen var den afkortede. */}
+      {valgtMulighed && dom.mangler.antal > 0 && (
+        <p className="mb-4 text-xs text-hb-rust" data-pris-afkortet data-pris-mangler={dom.mangler.antal}>
+          {manglerTekst(valgtMulighed)}
         </p>
       )}
 
