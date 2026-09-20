@@ -25,13 +25,21 @@
 
 export const PROEVE_PRAEFIKS = "PROEVE-";
 export const PROEVE_WEBINAR_ID = "PROEVE-webinar";
-export const PROEVE_SESSION = "2026-09-22T10:00:00.000Z";
+/**
+ * SESSIONSTIDEN ER ET PARAMETER (20/9, C's §0.5). Den første udgave havde en
+ * konstant to dage ude i fremtiden — og flowenes trigger-filter siger «i de
+ * sidste 3 dage», som er fortid. Prøvehændelserne kunne derfor aldrig bevise
+ * filteret; de ville være blevet afvist og have LIGNET et fejlende filter.
+ * Standard er NU. Vil man prøve filteret, sendes `session_tid` = nu minus en
+ * time. Vil man prøve «tilmeldt», sendes en tid i fremtiden.
+ */
+export const PROEVE_SESSION_STANDARD = (nu: Date): string => nu.toISOString();
 
 export const TRIN = ["tilmeldt", "deltog", "moedte_ikke"] as const;
 export type Trin = (typeof TRIN)[number];
 
 /** Alt, prøven forstår. Andet afvises — se _shared/kendteFelter.ts. */
-export const KENDTE_FELTER = ["trin", "email", "registrant_id"] as const;
+export const KENDTE_FELTER = ["trin", "email", "registrant_id", "session_tid"] as const;
 
 export function erTrin(v: unknown): v is Trin {
   return typeof v === "string" && (TRIN as readonly string[]).includes(v);
@@ -54,14 +62,14 @@ export const FORVENTET: Record<Trin, "ingen" | "deltog" | "moedte_ikke"> = {
  * læser: id, email, webinarId, state, action, sessionTime, watchedPercent.
  * Formen er den samme som proev-fremmoede.ts sendte udefra — flyttet herind.
  */
-export function byggRegistrant(trin: Trin, registrantId: string, email: string, nu: Date): Record<string, unknown> {
+export function byggRegistrant(trin: Trin, registrantId: string, email: string, nu: Date, sessionTid: string = PROEVE_SESSION_STANDARD(nu)): Record<string, unknown> {
   const basis = {
     id: registrantId,
     email,
     name: "Proeve Person",
     webinarId: PROEVE_WEBINAR_ID,
     webinarTitle: "PRØVE — må slettes",
-    sessionTime: PROEVE_SESSION,
+    sessionTime: sessionTid,
     sessionType: "live",
     registeredTime: nu.toISOString(),
   };

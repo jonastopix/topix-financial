@@ -8,6 +8,11 @@
  *   -- og derefter, med SAMME registrant_id (standard: PROEVE-fremmoede-01):
  *   SELECT public.kald_edge('ewebinar-proeve',
  *     '{"trin":"deltog","email":"jonas+proeve1@topix.dk"}'::jsonb, 60000, NULL);
+ *   -- trigger-filteret (C's §0.5): flowet i manual, NYT id, session en time tilbage:
+ *   SELECT public.kald_edge('ewebinar-proeve',
+ *     jsonb_build_object('trin','deltog','email','jonas+proeve3@topix.dk',
+ *       'registrant_id','PROEVE-fremmoede-03',
+ *       'session_tid', to_char(now() at time zone 'UTC' - interval '1 hour','YYYY-MM-DD"T"HH24:MI:SS"Z"')), 60000, NULL);
  *   -- svaret: SELECT status_code, content FROM net._http_response WHERE id = <id>;
  *
  * HVAD DEN GØR: bygger prøve-registranten (ewebinarProeve.ts), signerer den med
@@ -61,11 +66,20 @@ Deno.serve(async (req: Request) => {
     return json({ ok: false, grund: "ikke_et_proeve_id", error: `«registrant_id» skal starte med ${PROEVE_PRAEFIKS} — et rigtigt registrant-id kan aldrig passere her` }, 400);
   }
 
+  // SESSIONSTIDEN (20/9): valgfri, ISO. Standard: nu. «nu minus en time»
+  // beviser trigger-filteret; en fremtidig tid giver graden «tilmeldt».
+  let sessionTid: string | undefined;
+  if (body?.session_tid !== undefined) {
+    const t = typeof body.session_tid === "string" ? Date.parse(body.session_tid) : NaN;
+    if (!Number.isFinite(t)) return json({ ok: false, grund: "ugyldig_session_tid", error: "«session_tid» skal være ISO-8601, fx 2026-09-20T09:00:00Z" }, 400);
+    sessionTid = new Date(t).toISOString();
+  }
+
   const secret = Deno.env.get("EWEBINAR_WEBHOOK_SIGNING_SECRET");
   if (!secret) return json({ ok: false, grund: "ingen_noegle", error: "EWEBINAR_WEBHOOK_SIGNING_SECRET er ikke sat i denne function" }, 503);
 
   const nu = new Date();
-  const registrant = byggRegistrant(trin, registrantId, email, nu);
+  const registrant = byggRegistrant(trin, registrantId, email, nu, sessionTid);
   // RÅ streng ÉN gang — den signeres og den sendes. Genserialisering brækker signaturen.
   const raa = JSON.stringify(registrant);
   const tidsstempel = Math.floor(nu.getTime() / 1000).toString();
@@ -100,6 +114,7 @@ Deno.serve(async (req: Request) => {
     trin,
     registrant_id: registrantId,
     email,
+    session_tid: registrant.sessionTime,
     sendt: registrant,
     webhook_status: status,
     webhook_svar: svar ?? svarTekst.slice(0, 500),
