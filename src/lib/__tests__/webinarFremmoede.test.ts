@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { afgoerOvergang, byggFremmoede } from "../../../supabase/functions/_shared/webinarHaendelser";
+import { afgoerOvergang, byggFremmoede, erFrisk, FRISK_DAGE, FRISK_VAERDI } from "../../../supabase/functions/_shared/webinarHaendelser";
 import { HAENDELSE, byggHaendelse } from "../../../supabase/functions/_shared/klaviyoHaendelser";
 import { doemSetGrad, SET_GRAENSE_PROCENT, type SetGrad } from "../../../supabase/functions/_shared/webinarDom";
 
@@ -91,6 +91,55 @@ describe("byggFremmoede — 75 %-grænsen ligger IKKE i navnet", () => {
     const paaGraensen = byggFremmoede("deltog", input({ setProcent: SET_GRAENSE_PROCENT }))!;
     expect(typeof paaGraensen.egenskaber!.set_procent).toBe("number");
     expect(paaGraensen.egenskaber!.set_procent).toBe(75);
+  });
+});
+
+describe("frisk-mærket — Klaviyo læser session_tid som streng, så friskheden regnes her", () => {
+  const nu = new Date("2026-09-22T12:00:00.000Z");
+  const dage = (n: number) => new Date(nu.getTime() - n * 86_400_000).toISOString();
+
+  it("tærsklen står ét sted, og den er tre dage", () => {
+    expect(FRISK_DAGE).toBe(3);
+    expect(FRISK_VAERDI).toBe("ja");
+  });
+
+  it("inden for tærsklen: «ja» — som STRENG, ikke boolean", () => {
+    const h = byggFremmoede("deltog", input({ sessionTid: dage(0.5), tid: nu }))!;
+    expect(h.egenskaber!.frisk).toBe("ja");
+    const krop = byggHaendelse(h) as Record<string, any>;
+    expect(krop.data.attributes.properties.frisk).toBe("ja");
+    expect(typeof krop.data.attributes.properties.frisk).toBe("string");
+  });
+
+  it("uden for tærsklen: FRAVÆRENDE — aldrig «nej». Det er fail-closed.", () => {
+    const h = byggFremmoede("deltog", input({ sessionTid: dage(FRISK_DAGE + 1), tid: nu }))!;
+    expect(h.egenskaber!.frisk).toBeNull();
+    const krop = byggHaendelse(h) as Record<string, any>;
+    expect("frisk" in krop.data.attributes.properties).toBe(false);
+    // En tilbageskrivning fra august passerer aldrig «frisk equals ja».
+    expect(erFrisk("2026-08-25T17:00:00.000Z", nu)).toBe(false);
+  });
+
+  it("grænsen er tærsklen selv — et minut over, og mærket er væk", () => {
+    const paa = new Date(nu.getTime() - FRISK_DAGE * 86_400_000).toISOString();
+    const over = new Date(nu.getTime() - FRISK_DAGE * 86_400_000 - 60_000).toISOString();
+    expect(erFrisk(paa, nu)).toBe(true);
+    expect(erFrisk(over, nu)).toBe(false);
+  });
+
+  it("til begge sider: en session i morgen er også frisk; en om en uge er ikke", () => {
+    expect(erFrisk(dage(-1), nu)).toBe(true);
+    expect(erFrisk(dage(-7), nu)).toBe(false);
+  });
+
+  it("uden sessionstid eller med ugyldig: ikke frisk", () => {
+    expect(erFrisk(null, nu)).toBe(false);
+    expect(erFrisk("ikke-en-dato", nu)).toBe(false);
+    expect(byggFremmoede("moedte_ikke", input({ grad: "moedte_ikke", sessionTid: null, tid: nu }))!.egenskaber!.frisk).toBeNull();
+  });
+
+  it("begge hændelser bærer mærket — ikke kun «deltog»", () => {
+    expect(byggFremmoede("moedte_ikke", input({ grad: "moedte_ikke", sessionTid: dage(1), tid: nu }))!.egenskaber!.frisk).toBe("ja");
   });
 });
 
