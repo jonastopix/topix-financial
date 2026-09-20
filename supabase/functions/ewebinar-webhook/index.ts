@@ -1,6 +1,8 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
 import { verifyEwebinarSignature } from "../_shared/ewebinarSignatur.ts";
 import { doemSetGrad, fletTilmelding, plukTilmelding, type WebinarTilmelding } from "../_shared/webinarDom.ts";
+import { afgoerOvergang, byggFremmoede } from "../_shared/webinarHaendelser.ts";
+import { sendHvisMail } from "../_shared/klaviyoAfsendelse.ts";
 import { sha256Hex } from "../_shared/aftryk.ts";
 
 // Bucket C: ekstern webhook fra eWebinar (udkast 19/9-2026,
@@ -155,5 +157,38 @@ Deno.serve(async (req: Request) => {
     `[ewebinar-webhook] ${flettet.sidste_action ?? "?"} (state ${flettet.state ?? "?"}) registrant ${flettet.ewebinar_id} webinar ${flettet.webinar_id} ` +
       `procent=${flettet.set_procent ?? "?"}${flettet.set_procent_kilde ? ` (${flettet.set_procent_kilde})` : ""} grad=${grad} noegleform=${dom.form}.`,
   );
-  return json(200, { received: true, ewebinar_id: flettet.ewebinar_id, grad });
+
+  // 10. FREMMOEDE TIL KLAVIYO (19/9, recon-klaviyo-fremmoede). Klaviyo ved intet
+  //     om fremmoede: profilens eneste egenskab er `eWebinar`, en datostreng, og
+  //     den OVERSKRIVES ved naeste tilmelding. Efter-flowet er datostyret og
+  //     fyrer derfor paa alle tilmeldte — ogsaa dem der aldrig kom.
+  //
+  //     HER, og ikke i en cron: webhooken har baade den gamle raekke (`kendt`)
+  //     og den nye (`flettet`) i haanden og kan se OVERGANGEN. En cron ville
+  //     skulle udlede den af en tilstand, og saa er vi tilbage ved
+  //     oejebliksbilledet. Den ved det ogsaa foerst — «1,5 time efter» har ikke
+  //     raad til at vente paa naeste koersel.
+  //
+  //     KUN VED SKIFT. eWebinar POSTer ved hver aendring; sendte vi hver gang,
+  //     ville «deltog» staa femten gange paa samme person.
+  const gradFoer = kendt ? doemSetGrad(kendt, nu) : null;
+  const overgang = afgoerOvergang(gradFoer, grad);
+  const haendelse = byggFremmoede(overgang, {
+    ewebinarId: flettet.ewebinar_id,
+    email: flettet.email,
+    grad,
+    setProcent: flettet.set_procent ?? null,
+    webinarId: flettet.webinar_id,
+    webinarTitel: flettet.webinar_titel ?? null,
+    sessionTid: flettet.session_tid,
+    tid: nu,
+  });
+  if (haendelse) {
+    // KASTER ALDRIG (sendHvisMail). En marketingmail maa ikke kunne faa
+    // eWebinar til at gensende — raekken er allerede skrevet ovenfor.
+    await sendHvisMail(admin, haendelse);
+    console.log(`[ewebinar-webhook] fremmoede sendt: ${overgang} (${gradFoer ?? "ny"} -> ${grad}) for ${flettet.ewebinar_id}.`);
+  }
+
+  return json(200, { received: true, ewebinar_id: flettet.ewebinar_id, grad, fremmoede: overgang });
 });

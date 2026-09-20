@@ -27,6 +27,12 @@ export const HAENDELSE = {
   paabegyndt: "Ansoegning paabegyndt",
   sendt: "Ansoegning sendt",
   medlem: "Blev medlem",
+  // Fremmøde (19/9): TO navne, ikke tre. 75 %-grænsen ligger bevidst IKKE i
+  // navnet — den er vores dom, den er flyttet én gang før, og i et metric-navn
+  // ville den være støbt fast hos Klaviyo. Tallet sendes som `set_procent`.
+  // Se _shared/webinarHaendelser.ts.
+  deltog: "Deltog i webinar",
+  moedteIkke: "Moedte ikke op",
 } as const;
 export type Haendelsesnavn = (typeof HAENDELSE)[keyof typeof HAENDELSE];
 
