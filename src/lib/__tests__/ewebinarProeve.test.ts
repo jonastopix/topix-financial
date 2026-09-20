@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   byggRegistrant, byggSignaturHeadere, erProeveId, erTrin, FORVENTET,
-  KENDTE_FELTER, PROEVE_PRAEFIKS, PROEVE_WEBINAR_ID, TRIN,
+  KENDTE_FELTER, PROEVE_PRAEFIKS, PROEVE_WEBINAR_ID, TRIN, PROEVE_SESSION_STANDARD,
 } from "../../../supabase/functions/_shared/ewebinarProeve";
 import { hmacSha256Hex, noegleformer, verifyEwebinarSignature } from "../../../supabase/functions/_shared/ewebinarSignatur";
 import { plukTilmelding, doemSetGrad } from "../../../supabase/functions/_shared/webinarDom";
@@ -29,7 +29,7 @@ describe("ewebinarProeve — låsen: den er ikke et signerings-orakel", () => {
   });
 
   it("kun tre felter forstås; trin er lukket", () => {
-    expect(KENDTE_FELTER).toEqual(["trin", "email", "registrant_id"]);
+    expect(KENDTE_FELTER).toEqual(["trin", "email", "registrant_id", "session_tid"]);
     expect(erTrin("deltog")).toBe(true);
     expect(erTrin("Deltog")).toBe(false);
     expect(erTrin("set")).toBe(false);
@@ -38,7 +38,8 @@ describe("ewebinarProeve — låsen: den er ikke et signerings-orakel", () => {
 
 describe("ewebinarProeve — kroppen læses af webhookens egen pluk og dom", () => {
   it("tilmeldt: pluk → tilmeldt-grad før sessionen → ingen overgang", () => {
-    const pluk = plukTilmelding(byggRegistrant("tilmeldt", "PROEVE-x", "A@B.dk", NU));
+    // Standard-sessionen er NU — «tilmeldt» kræver en tid i fremtiden, givet eksplicit.
+    const pluk = plukTilmelding(byggRegistrant("tilmeldt", "PROEVE-x", "A@B.dk", NU, "2026-09-22T10:00:00.000Z"));
     expect(pluk.ok).toBe(true);
     if (!pluk.ok) return;
     expect(pluk.tilmelding.email).toBe("a@b.dk");
@@ -64,6 +65,25 @@ describe("ewebinarProeve — kroppen læses af webhookens egen pluk og dom", () 
     const grad = doemSetGrad(pluk.tilmelding, NU);
     expect(grad).toBe("moedte_ikke");
     expect(afgoerOvergang(null, grad)).toBe(FORVENTET.moedte_ikke);
+  });
+});
+
+describe("ewebinarProeve — sessionstiden er et parameter (C's §0.5)", () => {
+  it("standard er NU — ikke en dato ude i fremtiden", () => {
+    expect(byggRegistrant("deltog", "PROEVE-x", "a@b.dk", NU).sessionTime).toBe(NU.toISOString());
+    expect(PROEVE_SESSION_STANDARD(NU)).toBe(NU.toISOString());
+  });
+  it("en session en time tilbage går igennem uændret — det er filter-prøven", () => {
+    const enTimeSiden = new Date(NU.getTime() - 3_600_000).toISOString();
+    const r = byggRegistrant("deltog", "PROEVE-fremmoede-03", "a@b.dk", NU, enTimeSiden);
+    expect(r.sessionTime).toBe(enTimeSiden);
+    const pluk = plukTilmelding(r);
+    expect(pluk.ok && doemSetGrad(pluk.tilmelding, NU)).toBe("set");
+  });
+  it("med standard-session er «tilmeldt» ukendt, ikke tilmeldt — og sender stadig intet", () => {
+    const pluk = plukTilmelding(byggRegistrant("tilmeldt", "PROEVE-x", "a@b.dk", NU));
+    expect(pluk.ok && doemSetGrad(pluk.tilmelding, NU)).toBe("ukendt");
+    expect(afgoerOvergang(null, "ukendt")).toBe(FORVENTET.tilmeldt);
   });
 });
 
