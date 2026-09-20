@@ -63,6 +63,9 @@ const STRIKS: readonly string[] = [
 
   // Lag 5 (20/9): Klaviyos hændelser tilbage. Striks fra første linje.
   "klaviyo-hentning-cron",
+
+  // De to klokker (20/9): dry_run og nu, alt andet afvises.
+  "stille-klokker-cron",
 ];
 
 /**
