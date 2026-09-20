@@ -256,8 +256,9 @@ egenskab, aldrig et råt felt at dømme på.
    mennesker i sig, ikke 354 (de 310 faldt ud, da fire mails blev nyoprettet
    19/9 aften), og countdown-forsinkelsen 1 → 2 dage pegede den forkerte vej
    (regnes fra webinar-datoen: 2 = søndag). Optakten er to kampagner til
-   listen `Sz5fdA`: «1 dag før» mandag 14:00, «på dagen» tirsdag 07:00
-   (`koereplan-tirsdag.md` §1b). Kampagnerne til 13/10 bygges på samme måde
+   listen `Sz5fdA`: «1 dag før» mandag kl. 12:00, «på dagen» tirsdag kl. 05:00
+   (Jonas rettede tidszonen i fladen før planlægningen; C målte tiderne i
+   Klaviyos API — køreplanens 14:00/07:00 var før rettelsen). Kampagnerne til 13/10 bygges på samme måde
    (`koereplan-13-10.md`).
 7. **Medlemmet** — 28 betalende målt på `kontrakter` (21 i Stripe, 7 via
    e-conomic); 5 har aldrig fået en bruger ind, 4 er holdt op med at logge
