@@ -1008,36 +1008,6 @@
        rådgiverforløbet · Opgaver og milepæle · Fællesskabet ·
        Rådgiverfladen · Design og konvergens · Drift og fundament · Idéer.
     2. Læg kortet i afsnittets <div class="grid">
-    <div class="card new" id="a20-klaviyo-gensend" data-status="mangler" data-spor="senere" data-rammer="medlem">
-      <h3>En Klaviyo-hændelse, der fejlede (timeout/5xx/loft), er tabt for altid — sporet ved det, ingen gensender</h3>
-      <p>Tilmeldingen er skrevet med den nye grad FØR Klaviyo kaldes; næste POST siger derfor «ingen», og eWebinars gensendelse af samme body rammer aftryk-reglen. Rækken i <code>klaviyo_haendelser</code> har <code>udfald ≠ ok</code>, og delindekset <code>klaviyo_haendelser_udfald_idx</code> er bygget til en gensender — der ikke findes. Én cron eller knap: gensend samme krop; <code>unique_id</code> gør det sikkert. (recon-platformsiden §1.2, §6 pkt. 6)</p>
-      <div class="meta"><span class="tag ny">Ny 20/9</span><span class="tag rust">Tirsdag aftens forsikring</span><span class="tag size">Mellem</span></div>
-    </div>
-    <div class="card new" id="a20-klaviyo-klokke" data-status="mangler" data-spor="senere" data-rammer="raadgiver">
-      <h3>Ingen ser fejlede Klaviyo-hændelser — én linje på forsiden fra <code>udfald &lt;&gt; 'ok'</code></h3>
-      <p>«N Klaviyo-hændelser fejlede det sidste døgn» fra samme delindeks. I dag skal nogen åbne tabellen for at vide det. (recon-platformsiden §6 pkt. 7)</p>
-      <div class="meta"><span class="tag ny">Ny 20/9</span><span class="tag size">Lille</span></div>
-    </div>
-    <div class="card new" id="a20-set-procent-vaern" data-status="mangler" data-spor="senere" data-rammer="raadgiver">
-      <h3>«Procenten går aldrig ned» hviler kun på koden — to POST'er i samme sekund kan gemme 40 % på en, der så 82</h3>
-      <p>Begge læser <code>kendt</code> før nogen skriver; sidste skriver vinder. Klaviyo ender rigtigt (<code>unique_id</code>), tabellen kan være forkert. BEFORE UPDATE-trigger med <code>greatest(old, new)</code> — eller upsert med <code>greatest</code>. (recon-platformsiden §2.5, §6 pkt. 8)</p>
-      <div class="meta"><span class="tag ny">Ny 20/9</span><span class="tag size">Lille</span></div>
-    </div>
-    <div class="card new" id="a20-import-fremmoede" data-status="beslutning" data-spor="senere" data-rammer="medlem">
-      <h3>Missede webhooken live-opdateringen, og importen fangede den bagefter, får personen aldrig en hændelse</h3>
-      <p>Importen skriver graden uden at sende (bevidst — ingen tilbageskrivning); webhooken ser så <code>gradFoer = set</code> → «ingen». Beslut, om importen må sende for sessioner inden for <code>FRISK_DAGE</code>. (recon-platformsiden §4, §6 pkt. 9)</p>
-      <div class="meta"><span class="tag gold">Beslutning</span><span class="tag ny">Ny 20/9</span><span class="tag size">Lille</span></div>
-    </div>
-    <div class="card new" id="a20-replay-deltog" data-status="beslutning" data-spor="senere" data-rammer="ingen">
-      <h3>En replay-seer bliver «Deltog i webinar» i Klaviyo — uden session, uden frisk — ved et tilfælde</h3>
-      <p>Replay/OnDemand har <code>session_tid = null</code>; første POST med «Watched» sender «deltog». Flowet udløses ikke (ikke frisk), men historikken og dommen (lag 6) tæller dem. Ikke forkert — ikke besluttet. (recon-platformsiden §2.2, §6 pkt. 10)</p>
-      <div class="meta"><span class="tag gold">Beslutning</span><span class="tag ny">Ny 20/9</span><span class="tag size">Lille</span></div>
-    </div>
-    <div class="card new" id="a20-ingen-noegle-warn" data-status="mangler" data-spor="senere" data-rammer="ingen">
-      <h3>Går <code>KLAVIYO_API_KEY</code> tabt ved en rotation, er hele dagen ét stille spor af <code>ingen_noegle</code>-rækker</h3>
-      <p>Bevidst uden <code>console.error</code> («ikke en fejl»). Én <code>console.warn</code> pr. isolat-start koster intet. (recon-platformsiden §1.5, §6 pkt. 11)</p>
-      <div class="meta"><span class="tag ny">Ny 20/9</span><span class="tag size">Lille</span></div>
-    </div>
 .
     3. Skabelon:
 
@@ -1888,6 +1858,26 @@
   <h2>Indgangen — fra ansøgning til aktivt medlem</h2>
   <p class="lede">Ansøgningsflowet bor i platformen fra 18/9 (#984–#1010): formular, motor, kø, venteliste, e-underskrift, booking — og Jonas har været hele vejen igennem (18/9 aften). Kæden fra underskrift til adgang er hel og bevist (OVERLEVERING DEL 2). Det der står, er det basen skal bekræfte før prøven, hullerne omkring kæden, ankomstens løse ender og beviserne der udestår.</p>
   <div class="grid">
+    <div class="card blocked new" id="a20-kollision-ni-mails" data-status="beslutning" data-spor="senere" data-rammer="medlem">
+      <h3>Ni mails på én dag til den, der gør præcis det, vi beder om — fire systemer, ingen ved noget om hinanden</h3>
+      <p>Tirsdag for én, der tilmelder sig mandag, deltager, ansøger og booker: eWebinar-bekræftelse · Klaviyo «Du har en plads» · link en time før · «Det er i dag» · «Morten skriver #3» kl. 10:15 · «Tak fordi du var med» · kvittering · indkaldelse · Calendly-bekræftelse (engelsk) · «Samtalen er booket». <strong>Fra ni til seks uden at miste noget:</strong> Klaviyos tilmeldingsbekræftelse ELLER eWebinars (vælg én); Calendlys engelske bekræftelse væk (platformens er dansk og straks); «Morten skriver» aldrig på en webinardag; indkaldelsen på næste hverdag kl. 09, når kvitteringen gik i dag (én linje i <code>afgoerSending</code>). Rettes efter tirsdag. (recon-kollisioner §2 og «Fund 5»)</p>
+      <div class="meta"><span class="tag gold">Beslutning</span><span class="tag ny">Ny 20/9</span><span class="tag size">Lille</span></div>
+    </div>
+    <div class="card blocked new" id="a20-afmeld-platform" data-status="mangler" data-spor="senere" data-rammer="medlem">
+      <h3>Ingen af platformens mails kan afmeldes — og en afmelding i Klaviyo når aldrig platformen</h3>
+      <p>Målt i koden 20/9: ingen afsendelse læser Klaviyos samtykke; intet lytter på «Unsubscribed from Email Marketing» (<code>RwPaFG</code>); <code>recipient_suppressed</code> er Resends bounces/klager, ikke afmelding; ingen <code>List-Unsubscribe</code>-header, intet afmeld-link. Kun medlemmer kan slå to rytmer fra (<code>notification_email_prefs</code>); ansøgere har ingen profil. Gråzonen er de gentagne skub (samtale-rykker ×3, aftalegrundlags-rykker ×4), kladde-påmindelsen, venteplads-tilbud og fornyelsens «sidste chance». <strong>Til juristen i næste uge</strong> — <code>~/Downloads/recon-kollisioner/til-juristen.md</code> er dokumentet. Byg uanset svar: tabellen <code>kontakt_ikke</code>, header + link i gråzone-mails, <code>afgoerSending</code> læser den, og lag 5's hentning tager <code>RwPaFG</code> som fjerde art (én linje i <code>METRIK</code>). (recon-kollisioner §4–5)</p>
+      <div class="meta"><span class="tag rust">Jura — afventer juristen</span><span class="tag ny">Ny 20/9</span><span class="tag size">Mellem</span></div>
+    </div>
+    <div class="card new" id="a20-calendly-sprog" data-status="mangler" data-spor="1" data-rammer="medlem">
+      <h3>Bookingbekræftelsen kommer to gange — Calendlys på engelsk, platformens på dansk</h3>
+      <p>Platformen sender «Samtalen er booket» straks ved <code>invitee.created</code>; Calendly sender sin egen samtidig, og eventtypen «Afklaringssamtale» har <code>locale: en</code>. Calendlys bekræftelse og påmindelser kan ikke læses gennem API'et — de er standard, medmindre nogen har slået dem fra i fladen. <strong>Jonas slår Calendlys fra eller sætter dansk 20/9.</strong> Samme gælder Calendlys påmindelser mod platformens «I morgen»/«I dag: vores snak». (recon-kollisioner fund 4)</p>
+      <div class="meta"><span class="tag ny">Ny 20/9</span><span class="tag size">Lille</span></div>
+    </div>
+    <div class="card new" id="a20-mangelliste-kort-i-kommentar" data-status="fejl" data-spor="1" data-rammer="ingen">
+      <h3>Seks Klaviyo-kort fra 20/9 (<code>a20-klaviyo-gensend</code> m.fl.) ligger inde i filens instruktions-kommentar og vises ikke</h3>
+      <p>Målt: <code>id="a20-klaviyo-gensend"</code> står på linje ~1011, og den nærmeste <code>&lt;!--</code> før den er linje 2 uden en <code>--&gt;</code> imellem — kortene er HTML-kommentar. «Det er den, der overlever» gælder kun det, der står i en <code>&lt;div class="grid"&gt;</code>. Flyt de seks til Indgangen/Drift.</p>
+      <div class="meta"><span class="tag rust">Live fejl</span><span class="tag ny">Ny 20/9</span><span class="tag size">Lille</span></div>
+    </div>
     <div class="card new loest" id="a18-oprydning-proeve" data-status="loest" data-spor="1" data-rammer="raadgiver">
       <h3>Oprydningen efter Jonas' prøve er KØRT 19/9 kl. 00:40–00:45 — men BlueNordix blev slettet i stedet for Nordic Closers (navnene byttet om), og PDF'en i bucket «aftaler» skal slettes i hånden, hvis den ligger</h3>
       <p><strong>KØRT 19/9 00:40–00:45 (Jonas).</strong> Væk: begge FLOOR1-prøveansøgninger (jh@jonasherlev.dk og jonas@topix.dk) med virksomhed, aftale, underskrift, betalingslink, kø og spor; de ti lukkede fra Monday; BlueNordix. <strong>Fejlen:</strong> BlueNordix blev slettet som spam, men det var Nordic Closers, der var spam — Jonas byttede om på navnene; Nordic Closers blev derefter slettet, BlueNordix ikke hentet tilbage («skidt med BlueNordix») — og da Monday blev slukket helt kl. ca. 00:50, kan data heller ikke hentes derfra. <strong>Tilbage i prod:</strong> FlowAgent ApS (samtale mandag 21/9 kl. 10 — påmindelse kl. 7 og «afholdt» kl. 11 i køen) og Nordivox Studio (pause til 10/12); fire kø-rækker, alle rigtige. <strong>Rest:</strong> PDF'en i Storage-fanen (SQL må ikke). <strong>Læring:</strong> SQL'en fejlede tre gange (storage-sletning, <code>protect_ansoegning_motor_fields</code> via ON DELETE SET NULL, en kolonne i order by der ikke fandtes) — SQL til prod køres igennem i en rigtig Postgres, før den sendes. OVERLEVERING DEL 2 «18. september» §15.1.</p>
@@ -2903,6 +2893,41 @@
   <h2>Drift og fundament — ydeevne, overvågning, RLS, døde felter</h2>
   <p class="lede">Ingen fejlovervågning. Hændelser findes ved manuel måling, ikke af nogen alarm — RLS-hullet 3/9 blev fundet med en lånt identitet, ikke af et værn.</p>
   <div class="grid">
+    <div class="card new" id="a20-spf-theboardroom" data-status="mangler" data-spor="senere" data-rammer="alle">
+      <h3><code>theboardroom.dk</code> har ingen SPF-record — bogført som manglende 7/9, stadig ikke sat 20/9</h3>
+      <p>Målt 20/9 via DNS: kun <code>google-site-verification</code> som TXT, MX Google, DMARC <code>p=none</code>, DKIM <code>google._domainkey</code> ✓. Platformens mails går via Lovables <code>notify.theboardroom.dk</code> (Mailgun EU, SPF ✓, delegeret), så DE er dækket — men <strong>Google Workspace-mails fra <code>jonas@theboardroom.dk</code> fejler SPF</strong> og består kun på DKIM. Med <code>p=none</code> er der ingen straf i dag; den dag DMARC strammes (som på topix.dk), går de i karantæne. Én record i Cloudflare: <code>v=spf1 include:_spf.google.com ~all</code>. (recon-levering §1.2, §6 pkt. 8)</p>
+      <div class="meta"><span class="tag ny">Ny 20/9</span><span class="tag size">Lille</span></div>
+    </div>
+    <div class="card new" id="a20-klaviyo-gensend" data-status="mangler" data-spor="senere" data-rammer="medlem">
+      <h3>En Klaviyo-hændelse, der fejlede (timeout/5xx/loft), er tabt for altid — sporet ved det, ingen gensender</h3>
+      <p>Tilmeldingen er skrevet med den nye grad FØR Klaviyo kaldes; næste POST siger derfor «ingen», og eWebinars gensendelse af samme body rammer aftryk-reglen. Rækken i <code>klaviyo_haendelser</code> har <code>udfald ≠ ok</code>, og delindekset <code>klaviyo_haendelser_udfald_idx</code> er bygget til en gensender — der ikke findes. Én cron eller knap: gensend samme krop; <code>unique_id</code> gør det sikkert. (recon-platformsiden §1.2, §6 pkt. 6)</p>
+      <div class="meta"><span class="tag ny">Ny 20/9</span><span class="tag rust">Tirsdag aftens forsikring</span><span class="tag size">Mellem</span></div>
+    </div>
+    <div class="card new" id="a20-klaviyo-klokke" data-status="mangler" data-spor="senere" data-rammer="raadgiver">
+      <h3>Ingen ser fejlede Klaviyo-hændelser — én linje på forsiden fra <code>udfald &lt;&gt; 'ok'</code></h3>
+      <p>«N Klaviyo-hændelser fejlede det sidste døgn» fra samme delindeks. I dag skal nogen åbne tabellen for at vide det. (recon-platformsiden §6 pkt. 7)</p>
+      <div class="meta"><span class="tag ny">Ny 20/9</span><span class="tag size">Lille</span></div>
+    </div>
+    <div class="card new" id="a20-set-procent-vaern" data-status="mangler" data-spor="senere" data-rammer="raadgiver">
+      <h3>«Procenten går aldrig ned» hviler kun på koden — to POST'er i samme sekund kan gemme 40 % på en, der så 82</h3>
+      <p>Begge læser <code>kendt</code> før nogen skriver; sidste skriver vinder. Klaviyo ender rigtigt (<code>unique_id</code>), tabellen kan være forkert. BEFORE UPDATE-trigger med <code>greatest(old, new)</code> — eller upsert med <code>greatest</code>. (recon-platformsiden §2.5, §6 pkt. 8)</p>
+      <div class="meta"><span class="tag ny">Ny 20/9</span><span class="tag size">Lille</span></div>
+    </div>
+    <div class="card new" id="a20-import-fremmoede" data-status="beslutning" data-spor="senere" data-rammer="medlem">
+      <h3>Missede webhooken live-opdateringen, og importen fangede den bagefter, får personen aldrig en hændelse</h3>
+      <p>Importen skriver graden uden at sende (bevidst — ingen tilbageskrivning); webhooken ser så <code>gradFoer = set</code> → «ingen». Beslut, om importen må sende for sessioner inden for <code>FRISK_DAGE</code>. (recon-platformsiden §4, §6 pkt. 9)</p>
+      <div class="meta"><span class="tag gold">Beslutning</span><span class="tag ny">Ny 20/9</span><span class="tag size">Lille</span></div>
+    </div>
+    <div class="card new" id="a20-replay-deltog" data-status="beslutning" data-spor="senere" data-rammer="ingen">
+      <h3>En replay-seer bliver «Deltog i webinar» i Klaviyo — uden session, uden frisk — ved et tilfælde</h3>
+      <p>Replay/OnDemand har <code>session_tid = null</code>; første POST med «Watched» sender «deltog». Flowet udløses ikke (ikke frisk), men historikken og dommen (lag 6) tæller dem. Ikke forkert — ikke besluttet. (recon-platformsiden §2.2, §6 pkt. 10)</p>
+      <div class="meta"><span class="tag gold">Beslutning</span><span class="tag ny">Ny 20/9</span><span class="tag size">Lille</span></div>
+    </div>
+    <div class="card new" id="a20-ingen-noegle-warn" data-status="mangler" data-spor="senere" data-rammer="ingen">
+      <h3>Går <code>KLAVIYO_API_KEY</code> tabt ved en rotation, er hele dagen ét stille spor af <code>ingen_noegle</code>-rækker</h3>
+      <p>Bevidst uden <code>console.error</code> («ikke en fejl»). Én <code>console.warn</code> pr. isolat-start koster intet. (recon-platformsiden §1.5, §6 pkt. 11)</p>
+      <div class="meta"><span class="tag ny">Ny 20/9</span><span class="tag size">Lille</span></div>
+    </div>
     <div class="card new" id="m17-migrationer-ikke-koert" data-status="fejl" data-spor="6" data-rammer="ingen">
       <h3>20 migrationer siger «IKKE KØRT» i filhovedet — flere er beviseligt kørt (20260916150000 14:18, 20260916170000 16:12, 20260917100000 18:42, 20260917110000 21:41, 20260917120000 22:26); filhovederne føres à jour med tidspunkt og CSV</h3>
       <p><code>rapport-fase0c.md</code>'s kontrol <code>git grep -n "IKKE KØRT" supabase/migrations</code> gav 21 træffere efter 0c (én er den nye <code>20260917130000</code>). Blandt de 20: <code>20260909100000_siden_sidst</code> (RPC'en bruges), <code>20260911050000_doeren_gaeldende_slutdato</code>, og de fem ovenfor med kørselstidspunkt og CSV i OVERLEVERING. Filhovedet er den eneste kvittering for en migration (Lovable kører ikke <code>schema_migrations</code>) — et forkert «IKKE KØRT» får den næste til at køre den igen. Ret: ét PR med kørselstidspunkt + CSV-navn i hvert filhoved; det ukendte står som «IKKE MÅLT». Historik: OVERLEVERING DEL 2 «16. september (eftermiddag og aften) og 17. september (nat)» §45 (a).</p>
