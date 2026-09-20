@@ -378,12 +378,21 @@ const raaAf = (s: string): string => s.trim().slice(0, RAA_MAKS);
  * ?kilde= vi ikke kender, bliver «andet» med parameteren som spor — aldrig
  * kastet væk, aldrig gættet til noget bedre.
  */
+/**
+ * Aliasser for ?kilde= — ord, et link kan sende, som BETYDER en kendt kilde.
+ * `website` (21/9-2026): theboardroom.dk's syv «Ansøg»-knapper sendte
+ * `?kilde=website`, og det ord kendte vi ikke, så den første rigtige ansøgning
+ * fra sitet ville være landet som «andet». Sitet rettes til `direkte`; aliaset
+ * er sikkerhedsnettet for et gammelt link i en mail eller en knap, nogen glemmer.
+ * Det rå ord bevares i `raa`, så man kan se, hvad linket faktisk sagde.
+ */
+export const KILDE_ALIAS: Readonly<Record<string, Kilde>> = { website: "direkte" };
+
 export function afgoerKilde(input: KildeInput): KildeDom {
   const k = (input.kilde ?? "").trim().toLowerCase();
   if (k) {
-    return (KILDER as readonly string[]).includes(k)
-      ? { kilde: k as Kilde, raa: raaAf(k) }
-      : { kilde: "andet", raa: raaAf(k) };
+    const kendt = (KILDER as readonly string[]).includes(k) ? (k as Kilde) : KILDE_ALIAS[k];
+    return kendt ? { kilde: kendt, raa: raaAf(k) } : { kilde: "andet", raa: raaAf(k) };
   }
   const utm = (input.utmSource ?? "").trim().toLowerCase();
   if (utm) {

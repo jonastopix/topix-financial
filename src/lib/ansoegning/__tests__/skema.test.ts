@@ -174,6 +174,14 @@ describe("afgoerKilde — parameter over utm over referrer", () => {
     expect(afgoerKilde({ kilde: "nyhedsbrev", utmSource: null, referrer: null })).toEqual({ kilde: "andet", raa: "nyhedsbrev" });
   });
 
+  it("?kilde=website er sitets ord for direkte (21/9) — aliasset, ikke «andet», og det rå ord bevares", () => {
+    // theboardroom.dk's knapper sendte ?kilde=website; uden aliaset landede sitets ansøgninger som «andet».
+    expect(afgoerKilde({ kilde: "website", utmSource: "fb", referrer: "https://theboardroom.dk/" })).toEqual({ kilde: "direkte", raa: "website" });
+    expect(afgoerKilde({ kilde: " Website ", utmSource: null, referrer: null })).toEqual({ kilde: "direkte", raa: "website" });
+    // Aliasset gælder KUN kendte ord — et nyt ukendt ord er stadig «andet» med sporet.
+    expect(afgoerKilde({ kilde: "site", utmSource: null, referrer: null })).toEqual({ kilde: "andet", raa: "site" });
+  });
+
   it("utm_source: linkedin/webinar genkendes, resten er andet", () => {
     expect(afgoerKilde({ kilde: "", utmSource: "LinkedIn_post", referrer: null })).toEqual({ kilde: "linkedin", raa: "linkedin_post" });
     expect(afgoerKilde({ kilde: null, utmSource: "webinar-sept", referrer: null })).toEqual({ kilde: "webinar", raa: "webinar-sept" });
