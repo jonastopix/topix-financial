@@ -29,22 +29,24 @@ Migrationsfilen i repoet er kanonisk historik — Lovable's SQL editor er den fa
 
 ## Deployment af edge functions
 
-Edge functions auto-deployer fra git-merge til main. Bekræftet empirisk via canary-eksperimentet i PR #15/16 (2026-05-11): kommentar-ændring i `get-advisor-alerts` var live i prod-koden ("View code") efter merge, FØR "Update"-knap blev klikket. Frontend-canary samme PR krævede derimod Update-klik for at blive synlig.
+Merge udruller IKKE en edge function. Målt 20/9-2026 aften på fem functions i samme aften: `meta-annoncer-cron` (#1045), `ansoegning-rykker-cron`, `ansoegning-handling` og `calendly-webhook` (#1046) og `stille-klokker-cron` (#1048, en helt ny function) skulle alle udrulles eksplicit fra Lovables build-chat, før den nye kode kørte. Canary-eksperimentet fra 2026-05-11 (PR #15/16), der viste kilden i «View code» efter merge, målte kilden — ikke driften.
 
 CLI-kanalen (`supabase functions deploy <name>`, `supabase functions list`) fejler med 403/privileges, samme klasse af fejl som `supabase db push`. Lovable Cloud hoster Supabase-projektet, og udviklerens egen CLI-konto har ikke management-rettigheder. CLI er ikke deploy-kanalen.
 
-Workflow ved nye eller ændrede functions:
-1. Skriv/redigér function-fil under `supabase/functions/<name>/`.
-2. Commit + PR + merge til main (almindeligt git-flow).
-3. Hvis PR'en også rører `src/`-filer: klik "Update" i Lovable for at publish'e frontend-builden.
-4. Verificér i Lovable → Edge functions → vælg function → "View code".
+Rækkefølgen ved nye eller ændrede functions:
+1. Skriv/redigér function-fil under `supabase/functions/<name>/`. Byg beviset ind fra starten: et nyt felt i svaret, en række i en ny tabel, en markør — noget, KUN den nye kode kan svare.
+2. Commit + PR + merge til main (almindeligt git-flow). Merget lægger kilden hos Lovable; den kører ikke.
+3. **Eksplicit deploy fra Lovable build-chat** — bed om udrulning af functionen ved navn. En NY function er aldrig i drift, før dette er sket.
+4. **Beviset:** én kørsel, der svarer med det, kun den nye kode kan svare (en tørkørsel, hvis functionen har en: `SELECT public.kald_edge('<name>');` og svaret læst i `net._http_response`). Svarer den med det gamle — eller med intet — er den ikke udrullet, uanset hvad «View code» viser.
+5. Hvis PR'en også rører `src/`-filer: klik "Update" i Lovable for at publish'e frontend-builden.
+6. Først derefter det, der forudsætter driften: cron-jobbet (migrationen i SQL editor), webhook-URL'en hos tredjepart, mails der peger på functionen.
 
 UI-quirk ved verifikation: feltet "Last updated" på function-listen er IKKE pålideligt — det kan vise forældet timestamp efter en fersk deploy. "Deployments"-tælleren eller den faktiske source-kode i "View code" viser, hvad Lovable HAR af kilde. Brug aldrig "Last updated" til at konkludere om en deploy er gået igennem.
 
-**«View code» er heller ikke beviset for DRIFTEN (målt 21/9-2026, #1045):** efter merget viste «View code» den nye kilde med markøren, men den KØRENDE bundle var den gamle — kørslen skrev 371 annoncer og 93 dagsrækker, men ingen række i den nye tabel `meta_hentning`, og `konto.tidszone` (nyt felt) var null. Kilden i editoren og bundlen i drift er to ting. **Beviset for en udrulning er en kørsel, der svarer med noget, KUN den nye kode kan svare** — et nyt felt i svaret, en række i en ny tabel, en ny markør i responsen. Byg det ind fra starten: en function-ændring, der ikke kan ses i sit eget svar, kan ikke bevises udrullet. Skub ved behov: en kommentarlinje i `index.ts` → merge igen.
+**«View code» er heller ikke beviset for DRIFTEN (målt 21/9-2026, #1045):** efter merget viste «View code» den nye kilde med markøren, men den KØRENDE bundle var den gamle — kørslen skrev 371 annoncer og 93 dagsrækker, men ingen række i den nye tabel `meta_hentning`, og `konto.tidszone` (nyt felt) var null. Kilden i editoren og bundlen i drift er to ting. **Beviset for en udrulning er en kørsel, der svarer med noget, KUN den nye kode kan svare** — et nyt felt i svaret, en række i en ny tabel, en ny markør i responsen. Byg det ind fra starten: en function-ændring, der ikke kan ses i sit eget svar, kan ikke bevises udrullet. Skub: eksplicit deploy fra build-chat (trin 3) — et nyt merge udruller ikke.
 
-**Asymmetri-note** (bekræftet 2026-05-11): De tre deploy-lag har forskellige kanaler:
-- **Edge functions** (`supabase/functions/`): auto fra git-merge til main. Ingen manuel handling påkrævet.
+**Asymmetri-note** (rettet 20/9-2026): De tre deploy-lag har forskellige kanaler:
+- **Edge functions** (`supabase/functions/`): manuel via Lovable build-chat, EFTER merge. Merget lægger kilden; udrulningen er en eksplicit handling, og beviset er en kørsel.
 - **Frontend** (`src/`): manuel via Lovable "Update"-knap. Et merge alene aktiverer Update-knappen men ændrer ikke prod-builden på `app.theboardroom.dk` før klikket.
 - **Migrationer** (`supabase/migrations/`): manuel via Lovable → SQL editor. Hverken merge eller Update trigger migrations-deploy.
 
