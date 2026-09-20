@@ -33,12 +33,16 @@
 
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
 import { corsHeaders } from "../_shared/edgeFunctionAuth.ts";
+import { ukendteFelter, ukendteFelterBesked } from "../_shared/kendteFelter.ts";
 import { brugbarMail, paabegyndt } from "../_shared/klaviyoHaendelser.ts";
 import { sendHvisMail } from "../_shared/klaviyoAfsendelse.ts";
 import { verifyAnsoegningstoken } from "../_shared/ansoegningToken.ts";
 import { KONTAKT_ADRESSE } from "../_shared/indgangsMail.ts";
 import { planlaegKladde, registrerIndsendelse } from "../_shared/ansoegningMotor.ts";
 import {
+  annoncesporAf,
+  harAnnoncespor,
+  type Annoncespor,
   afgoerFremdrift,
   type AnsoegningsSvar,
   KILDER,
@@ -55,6 +59,16 @@ function jsonResponse(body: unknown, status = 200): Response {
 }
 
 const HANDLINGER = ["opret", "hent", "gem", "indsend"] as const;
+
+/**
+ * DE ENESTE felter, body'en må bære — på tværs af de fire handlinger (21/9,
+ * BAGLOG → STRIKS). Målt i src/lib/ansoegning/api.ts: opret sender kilde,
+ * kilde_raa, annoncespor, svar, firma; hent token; gem token, svar,
+ * cvr_bekraeftet, virksomhedsnavn; indsend token, svar. Kildeværnet
+ * ansoegningGemKendteFelter.guard holder listen op mod api.ts — et nyt felt
+ * i klienten uden plads her afvises med 400, og værnet går rødt først.
+ */
+const KENDTE_FELTER = ["handling", "token", "kilde", "kilde_raa", "annoncespor", "svar", "firma", "cvr_bekraeftet", "virksomhedsnavn"] as const;
 type Handling = (typeof HANDLINGER)[number];
 
 /**
@@ -105,6 +119,13 @@ function svarAf(raekke: Record<string, unknown>): AnsoegningsSvar {
   return ud as unknown as AnsoegningsSvar;
 }
 
+/** Annoncesporet på rækken — kaster aldrig. Tomt spor = ingen update. */
+async function gemAnnoncespor(admin: SupabaseClient, id: string, spor: Annoncespor): Promise<void> {
+  if (!harAnnoncespor(spor)) return;
+  const { error } = await admin.from("ansoegninger").update(spor).eq("id", id);
+  if (error) console.error(`[ansoegning-gem] annoncesporet kunne ikke gemmes på ${id}: ${error.message}`);
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   if (req.method !== "POST") return jsonResponse({ error: "Kun POST" }, 405);
@@ -113,6 +134,14 @@ Deno.serve(async (req) => {
     const body = await req.json().catch(() => null);
     const handling = body?.handling as Handling | undefined;
     if (!handling || !HANDLINGER.includes(handling)) return jsonResponse({ error: "Ukendt handling" }, 400);
+    // En body, man ikke forstår, må aldrig blive til en stille standardkørsel
+    // (_shared/kendteFelter.ts). Før tokenet: det er formen, der afvises, ikke rækken.
+    const ukendte = ukendteFelter(body, KENDTE_FELTER);
+    if (ukendte.length > 0) {
+      const besked = ukendteFelterBesked(ukendte, KENDTE_FELTER);
+      console.error(`[ansoegning-gem] ${besked}`);
+      return jsonResponse({ error: besked }, 400);
+    }
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -154,6 +183,11 @@ Deno.serve(async (req) => {
         console.error("[ansoegning-gem] insert fejlede:", error);
         return jsonResponse({ error: "Kunne ikke gemme — prøv igen." }, 500);
       }
+      // ANNONCESPORET (udkast 2, 21/9): en EGEN update efter insert'en, fail-soft —
+      // mangler kolonnerne (migration 20260921120000 ikke kørt), eller fejler
+      // skrivningen, koster det ansøgeren intet. Sporet er en oplysning, ikke rækken.
+      await gemAnnoncespor(adminClient, data.id, annoncesporAf(body?.annoncespor));
+
       // KLAVIYO: «Ansoegning paabegyndt» sendes IKKE her. Målt 19/9 kl. 22.22:
       // «opret» sker ved FØRSTE gem, og første skærm er CVR — mailen kommer
       // først på skærm 6. `data.email` er null her, og hændelsen kunne derfor

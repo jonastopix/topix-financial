@@ -28,6 +28,7 @@ import {
   type FeltId,
   HJEMMESIDE_INGEN,
   KILDE_PARAM,
+  laesAnnoncespor,
   SKAERME,
   TOKEN_PARAM,
   TOMME_SVAR,
@@ -112,6 +113,15 @@ const Ansoeg = () => {
       referrer: typeof document !== "undefined" ? document.referrer : null,
     }),
   );
+  // Annoncesporet (udkast 2, 21/9): samme øjeblik, samme URL — utm_*, fbclid,
+  // landing (uden ?t=) og referrer. Sendes med «opret», gemmes på rækken.
+  const annoncespor = useRef(
+    laesAnnoncespor({
+      get: (navn) => searchParams.get(navn),
+      href: typeof window !== "undefined" ? window.location.href : null,
+      referrer: typeof document !== "undefined" ? document.referrer : null,
+    }),
+  );
 
   const fremdrift = useMemo(() => afgoerFremdrift(svar), [svar]);
 
@@ -169,7 +179,7 @@ const Ansoeg = () => {
       setGemmer(true);
       try {
         if (!token) {
-          const o = await opretAnsoegning({ kilde: kilde.current.kilde, kilde_raa: kilde.current.raa, svar: del, firma: honning });
+          const o = await opretAnsoegning({ kilde: kilde.current.kilde, kilde_raa: kilde.current.raa, annoncespor: annoncespor.current, svar: del, firma: honning });
           husk(o.token);
           if (navn) await gemSvar(o.token, {}, false, navn);
         } else {
