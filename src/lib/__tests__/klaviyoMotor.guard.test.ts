@@ -19,6 +19,7 @@ const CONFIG = "supabase/config.toml";
 // 210000, ikke 200000: A tog 200000 til klaviyo_haendelser, mens dette blev
 // skrevet. To migrationer med samme tidsstempel har ingen bestemt rækkefølge.
 const MIGRATION = "supabase/migrations/20260919210000_klaviyo_spor.sql";
+const AFVEG_MIGRATION = "supabase/migrations/20260919230000_klaviyo_spor_afveg.sql";
 
 describe("klaviyoMotor.guard", () => {
   it("1. Bucket A: authenticateUser → has_role → FØRST derefter service role", () => {
@@ -79,6 +80,69 @@ describe("klaviyoMotor.guard", () => {
     expect(m).toContain("export interface KlaviyoKlient");
   });
 
+  it("5b. REGEL 5: læsningen er ufiltreret — ellers mangler definition.id", () => {
+    // Målt 19/9: fields[flow-action]=definition.type,definition.links,definition.data
+    // returnerer en definition UDEN definition.id — netop det felt, hvis
+    // fravær gav den første 400. Regel 3 («hele definitionen tilbage») kan
+    // ikke holde, hvis læsningen selv har smidt noget væk.
+    const m = kode(MOTOR);
+    const krop = m.slice(m.indexOf("export async function laesFlowhandling"), m.indexOf("export async function laesFlowhandling") + 800);
+    expect(krop).toContain('`/flow-actions/${encodeURIComponent(handlingId)}/`');
+    // SPARSE FIELDSET, ikke ethvert ord «fields». `additional-fields[flow]`
+    // er det MODSATTE — den tilføjer definitionen til svaret, og laesFlow kan
+    // ikke undvære den. Derfor kræver mønsteret, at «fields» står lige efter
+    // ? eller &, som en sparse fieldset gør, og ikke efter «additional-».
+    const SPARSE = /[?&]fields(%5B|\[)/;
+    expect(krop, "læsningen må ikke feltfiltrere").not.toMatch(SPARSE);
+    // Og ingen anden læsning i motoren må gøre det.
+    expect(m, "en feltfiltreret læsning duer aldrig som grundlag for en skrivning").not.toMatch(SPARSE);
+    // Selvbevis: mønsteret SKAL acceptere den, motoren faktisk bruger.
+    expect(m, "additional-fields må ikke fanges som feltfiltrering").toContain("additional-fields%5Bflow%5D=definition");
+  });
+
+  it("7. betingelsen dømmes FØR body'en bygges, og en ugyldig sendes aldrig", () => {
+    const m = kode(MOTOR);
+    const krop = m.slice(m.indexOf("export async function retFlowmail"));
+    const dom = krop.indexOf("doemBetingelser(aendring.betingelser)");
+    const byg = krop.indexOf("bevarDefinition(foerDef");
+    expect(dom).toBeGreaterThan(0);
+    expect(byg).toBeGreaterThan(dom);
+    // Fail-closed: et ugyldigt filter bliver til «afvist», ikke til et kald.
+    expect(krop.slice(dom, byg)).toContain('udfald: "afvist"');
+    // Og HTTP-indgangen må ikke gøre et ukendt betingelsesfelt til «rør ikke».
+    const f = kode(FUNKTION);
+    expect(f).toContain("laesBetingelser(body.betingelser)");
+    expect(f).toContain("betingelser: b.vaerdi");
+  });
+
+  it("8. REGEL 6: en skrivning sammenlignes med svaret, og afvigelsen spores", () => {
+    const m = kode(MOTOR);
+    const krop = m.slice(m.indexOf("export async function retFlowmail"));
+    // Læs EFTER, sammenlign, og læg BEGGE id'er i sporet.
+    const efter = krop.indexOf("await laesFlowhandling(k, handlingId)");
+    const doem = krop.indexOf("doemAfvigelse(dom.vaerdi, efterDef)");
+    expect(efter).toBeGreaterThan(0);
+    expect(doem).toBeGreaterThan(efter);
+    expect(krop).toContain("klaviyo_afveg: afvigelser");
+    // Og det skal SIGES — ikke kun gemmes.
+    expect(krop).toContain("console.warn");
+    expect(krop).toContain("grund: besked");
+    // OGSÅ EN OPRETTELSE efterprøves — svaret på POST'en er ikke bevis.
+    const opret = m.slice(m.indexOf("export async function opretFlow"));
+    expect(opret).toContain("doemFlowAfvigelse(kladde, efterDef)");
+    expect(opret).toContain("klaviyo_afveg: afvigelser");
+    // Kan EFTER ikke læses, skal det siges — ikke stiltiende bestås.
+    expect(opret).toContain("IKKE efterprøvet");
+    // Koblingstjekket findes, og det er fail-closed.
+    const skab = m.slice(m.indexOf("export async function retSkabelon"));
+    expect(skab).toContain("doemSkabelonKobling(skabelonId");
+    expect(skab).toContain('udfald: "afvist"');
+    // Migrationen, kolonnen kræver, er IKKE KØRT.
+    const sql = laes(AFVEG_MIGRATION);
+    expect(sql.startsWith("-- IKKE KØRT.")).toBe(true);
+    expect(sql).toContain("add column if not exists klaviyo_afveg");
+  });
+
   it("6. config.toml har verify_jwt = true, og migrationen er IKKE KØRT", () => {
     expect(laes(CONFIG)).toMatch(/\[functions\.klaviyo-motor\]\s*\n\s*verify_jwt = true/);
     const sql = laes(MIGRATION);
@@ -106,6 +170,47 @@ describe("klaviyoMotor.guard — dommene fanger fejlen på en kopi", () => {
     const uden = m.replace(/valg\.skriv !== true/g, "false");
     expect(uden).not.toBe(m);
     expect(uden.includes("valg.skriv !== true")).toBe(false);
+  });
+
+  it("5b. en feltfiltreret læsning → falsk", () => {
+    const m = kode(MOTOR);
+    const med = m.replace(
+      /`\/flow-actions\/\$\{encodeURIComponent\(handlingId\)\}\/`/g,
+      "`/flow-actions/${encodeURIComponent(handlingId)}/?fields%5Bflow-action%5D=definition.data`",
+    );
+    expect(med).not.toBe(m);
+    expect(/[?&]fields(%5B|\[)/.test(med)).toBe(true);
+    // Og mutationen må ikke bare være «additional-fields» igen.
+    expect(/[?&]fields(%5B|\[)/.test(m)).toBe(false);
+  });
+
+  it("7. dommen efter body'en → falsk", () => {
+    const m = kode(MOTOR);
+    const krop = m.slice(m.indexOf("export async function retFlowmail"));
+    const uden = krop.replace(/doemBetingelser\(aendring\.betingelser\)/g, "({ ok: true })");
+    expect(uden).not.toBe(krop);
+    expect(uden.includes("doemBetingelser(aendring.betingelser)")).toBe(false);
+  });
+
+  it("8. sammenligningen fjernet → falsk", () => {
+    const m = kode(MOTOR);
+    const uden = m.replace(/doemAfvigelse\(dom\.vaerdi, efterDef\)/g, "({ afvigelser: [], besked: null })");
+    expect(uden).not.toBe(m);
+    expect(uden.includes("doemAfvigelse(dom.vaerdi, efterDef)")).toBe(false);
+  });
+
+  it("8c. efterprøvningen af en oprettelse fjernet → falsk", () => {
+    const m = kode(MOTOR);
+    const uden = m.replace(/doemFlowAfvigelse\(kladde, efterDef\)/g, "({ afvigelser: [], besked: null })");
+    expect(uden).not.toBe(m);
+    expect(uden.includes("doemFlowAfvigelse(kladde, efterDef)")).toBe(false);
+  });
+
+  it("8b. koblingstjekket fjernet → falsk", () => {
+    const m = kode(MOTOR);
+    const uden = m.replace(/doemSkabelonKobling\(skabelonId/g, "({ ok: true } as never)?.x ?? (skabelonId");
+    expect(uden).not.toBe(m);
+    expect(uden.includes("doemSkabelonKobling(skabelonId")).toBe(false);
   });
 
   it("4. kladde-tvangen fjernet → falsk", () => {

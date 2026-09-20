@@ -26,14 +26,19 @@
  * edge function ved at bede om noget dumt.
  */
 import {
+  type Afvigelse,
   bevarDefinition,
   bygMailData,
+  doemAfvigelse,
+  doemBetingelser,
+  doemFlowAfvigelse,
   doemSkabelon,
-  hvadAendres,
-  tvingKladde,
+  doemSkabelonKobling,
   type FlowhandlingsDefinition,
+  hvadAendres,
   type MailAendring,
   type SkabelonInput,
+  tvingKladde,
 } from "./klaviyoMotorDom.ts";
 
 // ── Grænsefladen mod A's klient (MÅLT i _shared/klaviyo.ts 19/9) ────
@@ -127,6 +132,12 @@ export interface SporPost {
   aendringer: Array<{ felt: string; foer: unknown; efter: unknown }>;
   /** Statusser, dommen tvang til kladde. Tom liste = intet gik live. */
   kladde_rettelser: string[];
+  /**
+   * Hvad Klaviyo lavede om af sig selv — først og fremmest den skabelon-klon,
+   * der opstår, når en skabelon kobles på en flowmail. Begge id'er står her,
+   * så klonen kan findes igen; den kan ikke findes i skabelonlisten.
+   */
+  klaviyo_afveg: Afvigelse[];
   udfald: "toerkoersel" | "skrevet" | "afvist" | "fejl";
   grund: string | null;
   /** Rådgiveren bag handlingen. Aldrig null — en agent handler på vegne af et menneske. */
@@ -263,7 +274,7 @@ export async function opretSkabelon(
   if (dom.ok === false) {
     return afslut(admin, {
       handling: "opret_skabelon", klaviyo_id: null, klaviyo_type: "template", toerkoersel: valg.skriv !== true,
-      foer: null, sendt: null, efter: null, aendringer: [], kladde_rettelser: [],
+      foer: null, sendt: null, efter: null, aendringer: [], kladde_rettelser: [], klaviyo_afveg: [],
       udfald: "afvist", grund: `${dom.fejl}: ${dom.forklaring}`, udfoert_af: valg.udfoertAf,
     });
   }
@@ -272,39 +283,87 @@ export async function opretSkabelon(
     return afslut(admin, {
       handling: "opret_skabelon", klaviyo_id: null, klaviyo_type: "template", toerkoersel: true,
       foer: null, sendt: body, efter: null, aendringer: hvadAendres({}, dom.vaerdi as Record<string, unknown>),
-      kladde_rettelser: [], udfald: "toerkoersel", grund: null, udfoert_af: valg.udfoertAf,
+      kladde_rettelser: [], klaviyo_afveg: [], udfald: "toerkoersel", grund: null, udfoert_af: valg.udfoertAf,
     });
   }
   const r = await k.kald<{ data: Record<string, unknown> }>("POST", "/templates/", body);
   if (!r.ok) {
     return afslut(admin, {
       handling: "opret_skabelon", klaviyo_id: null, klaviyo_type: "template", toerkoersel: false,
-      foer: null, sendt: body, efter: null, aendringer: [], kladde_rettelser: [],
+      foer: null, sendt: body, efter: null, aendringer: [], kladde_rettelser: [], klaviyo_afveg: [],
       udfald: "fejl", grund: grundFra(r.spor), udfoert_af: valg.udfoertAf,
     });
   }
   return afslut(admin, {
     handling: "opret_skabelon", klaviyo_id: (r.krop?.data?.id as string) ?? null, klaviyo_type: "template", toerkoersel: false,
     foer: null, sendt: body, efter: r.krop?.data ?? null, aendringer: hvadAendres({}, dom.vaerdi as Record<string, unknown>),
-    kladde_rettelser: [], udfald: "skrevet", grund: null, udfoert_af: valg.udfoertAf,
+    kladde_rettelser: [], klaviyo_afveg: [], udfald: "skrevet", grund: null, udfoert_af: valg.udfoertAf,
   });
 }
 
 /** Ret en skabelon. FØR læses altid først — sporet skal kunne læses bagud. */
+/**
+ * De skabeloner, et flow FAKTISK bruger — læst af flowets mailhandlinger.
+ *
+ * Findes kun, fordi klonen ikke kan slås op nogen anden vej: skabelonlisten
+ * viser den ikke. Flowet er den eneste kilde til, hvad der rent faktisk sendes.
+ */
+export async function skabelonerIBrug(
+  k: KlaviyoKlient,
+  flowId: string,
+): Promise<Array<{ handlingId: string; navn: string; skabelonId: string }>> {
+  const svar = await laesFlow(k, flowId);
+  const med = svar.handlinger;
+  const ud: Array<{ handlingId: string; navn: string; skabelonId: string }> = [];
+  for (const h of med) {
+    if (h.type !== "flow-action") continue;
+    const def = ((h.attributes as Record<string, unknown>)?.definition ?? {}) as FlowhandlingsDefinition;
+    if (def.type !== "send-email") continue;
+    const besked = ((def.data ?? {}).message ?? {}) as Record<string, unknown>;
+    const skabelonId = besked.template_id;
+    if (typeof skabelonId !== "string" || skabelonId === "") continue;
+    ud.push({ handlingId: String(h.id ?? ""), navn: String(besked.name ?? ""), skabelonId });
+  }
+  return ud;
+}
+
 export async function retSkabelon(
   k: KlaviyoKlient,
   admin: SporKlient,
   skabelonId: string,
-  aendring: { navn?: string; html?: string; definition?: Record<string, unknown>; tekst?: string },
+  aendring: { navn?: string; html?: string; definition?: Record<string, unknown>; tekst?: string; flowId?: string },
   valg: SkrivValg,
 ): Promise<Udfald> {
+  // KOBLINGSTJEKKET FØRST — før vi overhovedet læser skabelonen. Er den ikke
+  // den, flowet bruger, ville rettelsen lykkes og ramme ingen.
+  if (aendring.flowId !== undefined) {
+    let iBrug: Array<{ handlingId: string; navn: string; skabelonId: string }>;
+    try {
+      iBrug = await skabelonerIBrug(k, aendring.flowId);
+    } catch (err) {
+      return afslut(admin, {
+        handling: "ret_skabelon", klaviyo_id: skabelonId, klaviyo_type: "template", toerkoersel: valg.skriv !== true,
+        foer: null, sendt: null, efter: null, aendringer: [], kladde_rettelser: [], klaviyo_afveg: [],
+        udfald: "fejl", grund: `kunne ikke læse flowet ${aendring.flowId} — ${err instanceof Error ? err.message : String(err)}`,
+        udfoert_af: valg.udfoertAf,
+      });
+    }
+    const kobling = doemSkabelonKobling(skabelonId, iBrug.map((x) => x.skabelonId));
+    if (kobling.ok === false) {
+      return afslut(admin, {
+        handling: "ret_skabelon", klaviyo_id: skabelonId, klaviyo_type: "template", toerkoersel: valg.skriv !== true,
+        foer: null, sendt: null, efter: null, aendringer: [], kladde_rettelser: [], klaviyo_afveg: [],
+        udfald: "afvist", grund: `${kobling.fejl}: ${kobling.forklaring}`, udfoert_af: valg.udfoertAf,
+      });
+    }
+  }
   let foer: Record<string, unknown>;
   try {
     foer = await laesSkabelon(k, skabelonId);
   } catch (err) {
     return afslut(admin, {
       handling: "ret_skabelon", klaviyo_id: skabelonId, klaviyo_type: "template", toerkoersel: valg.skriv !== true,
-      foer: null, sendt: null, efter: null, aendringer: [], kladde_rettelser: [],
+      foer: null, sendt: null, efter: null, aendringer: [], kladde_rettelser: [], klaviyo_afveg: [],
       udfald: "fejl", grund: `kunne ikke læse FØR — ${err instanceof Error ? err.message : String(err)}`, udfoert_af: valg.udfoertAf,
     });
   }
@@ -313,7 +372,7 @@ export async function retSkabelon(
   if (type === "SYSTEM_DRAGGABLE" && aendring.html !== undefined) {
     return afslut(admin, {
       handling: "ret_skabelon", klaviyo_id: skabelonId, klaviyo_type: "template", toerkoersel: valg.skriv !== true,
-      foer, sendt: null, efter: null, aendringer: [], kladde_rettelser: [],
+      foer, sendt: null, efter: null, aendringer: [], kladde_rettelser: [], klaviyo_afveg: [],
       udfald: "afvist", grund: "html_paa_system_draggable: skabelonen er SYSTEM_DRAGGABLE — html ville ødelægge den visuelle editor. Brug definition.",
       udfoert_af: valg.udfoertAf,
     });
@@ -321,7 +380,7 @@ export async function retSkabelon(
   if (type !== "SYSTEM_DRAGGABLE" && aendring.definition !== undefined) {
     return afslut(admin, {
       handling: "ret_skabelon", klaviyo_id: skabelonId, klaviyo_type: "template", toerkoersel: valg.skriv !== true,
-      foer, sendt: null, efter: null, aendringer: [], kladde_rettelser: [],
+      foer, sendt: null, efter: null, aendringer: [], kladde_rettelser: [], klaviyo_afveg: [],
       udfald: "afvist", grund: `definition_paa_code: skabelonen er ${type || "CODE/USER_DRAGGABLE"} — definition er ikke tilladt. Brug html.`,
       udfoert_af: valg.udfoertAf,
     });
@@ -339,7 +398,7 @@ export async function retSkabelon(
   if (valg.skriv !== true) {
     return afslut(admin, {
       handling: "ret_skabelon", klaviyo_id: skabelonId, klaviyo_type: "template", toerkoersel: true,
-      foer, sendt: body, efter: null, aendringer, kladde_rettelser: [],
+      foer, sendt: body, efter: null, aendringer, kladde_rettelser: [], klaviyo_afveg: [],
       udfald: "toerkoersel", grund: null, udfoert_af: valg.udfoertAf,
     });
   }
@@ -347,14 +406,14 @@ export async function retSkabelon(
   if (!r.ok) {
     return afslut(admin, {
       handling: "ret_skabelon", klaviyo_id: skabelonId, klaviyo_type: "template", toerkoersel: false,
-      foer, sendt: body, efter: null, aendringer, kladde_rettelser: [],
+      foer, sendt: body, efter: null, aendringer, kladde_rettelser: [], klaviyo_afveg: [],
       udfald: "fejl", grund: grundFra(r.spor), udfoert_af: valg.udfoertAf,
     });
   }
   const efter = await laesSkabelon(k, skabelonId);
   return afslut(admin, {
     handling: "ret_skabelon", klaviyo_id: skabelonId, klaviyo_type: "template", toerkoersel: false,
-    foer, sendt: body, efter, aendringer, kladde_rettelser: [], udfald: "skrevet", grund: null, udfoert_af: valg.udfoertAf,
+    foer, sendt: body, efter, aendringer, kladde_rettelser: [], klaviyo_afveg: [], udfald: "skrevet", grund: null, udfoert_af: valg.udfoertAf,
   });
 }
 
@@ -376,7 +435,7 @@ export async function retFlowmail(
   } catch (err) {
     return afslut(admin, {
       handling: "ret_flowmail", klaviyo_id: handlingId, klaviyo_type: "flow-action", toerkoersel: valg.skriv !== true,
-      foer: null, sendt: null, efter: null, aendringer: [], kladde_rettelser: [],
+      foer: null, sendt: null, efter: null, aendringer: [], kladde_rettelser: [], klaviyo_afveg: [],
       udfald: "fejl", grund: `kunne ikke læse FØR — ${err instanceof Error ? err.message : String(err)}`, udfoert_af: valg.udfoertAf,
     });
   }
@@ -384,15 +443,28 @@ export async function retFlowmail(
   if (foerDef?.type !== "send-email") {
     return afslut(admin, {
       handling: "ret_flowmail", klaviyo_id: handlingId, klaviyo_type: "flow-action", toerkoersel: valg.skriv !== true,
-      foer: foerDef, sendt: null, efter: null, aendringer: [], kladde_rettelser: [],
+      foer: foerDef, sendt: null, efter: null, aendringer: [], kladde_rettelser: [], klaviyo_afveg: [],
       udfald: "afvist", grund: `handlingen er «${foerDef?.type ?? "ukendt"}», ikke send-email`, udfoert_af: valg.udfoertAf,
     });
+  }
+  // BETINGELSEN DØMMES FØR BODY'EN BYGGES. Et filter, vi ikke kan stå inde
+  // for, må aldrig nå Klaviyo: ses der bort fra det, går mailen til alle, og
+  // det er tavst. Rækkefølgen er låst af værnet.
+  if (aendring.betingelser !== undefined) {
+    const bDom = doemBetingelser(aendring.betingelser);
+    if (bDom.ok === false) {
+      return afslut(admin, {
+        handling: "ret_flowmail", klaviyo_id: handlingId, klaviyo_type: "flow-action", toerkoersel: valg.skriv !== true,
+        foer: foerDef, sendt: null, efter: null, aendringer: [], kladde_rettelser: [], klaviyo_afveg: [],
+        udfald: "afvist", grund: `${bDom.fejl}: ${bDom.forklaring}`, udfoert_af: valg.udfoertAf,
+      });
+    }
   }
   const dom = bevarDefinition(foerDef, { data: bygMailData(foerDef.data ?? null, aendring) });
   if (dom.ok === false) {
     return afslut(admin, {
       handling: "ret_flowmail", klaviyo_id: handlingId, klaviyo_type: "flow-action", toerkoersel: valg.skriv !== true,
-      foer: foerDef, sendt: null, efter: null, aendringer: [], kladde_rettelser: [],
+      foer: foerDef, sendt: null, efter: null, aendringer: [], kladde_rettelser: [], klaviyo_afveg: [],
       udfald: "afvist", grund: `${dom.fejl}: ${dom.forklaring}`, udfoert_af: valg.udfoertAf,
     });
   }
@@ -402,7 +474,7 @@ export async function retFlowmail(
   if (valg.skriv !== true) {
     return afslut(admin, {
       handling: "ret_flowmail", klaviyo_id: handlingId, klaviyo_type: "flow-action", toerkoersel: true,
-      foer: foerDef, sendt: body, efter: null, aendringer, kladde_rettelser: [],
+      foer: foerDef, sendt: body, efter: null, aendringer, kladde_rettelser: [], klaviyo_afveg: [],
       udfald: "toerkoersel", grund: null, udfoert_af: valg.udfoertAf,
     });
   }
@@ -410,15 +482,22 @@ export async function retFlowmail(
   if (!r.ok) {
     return afslut(admin, {
       handling: "ret_flowmail", klaviyo_id: handlingId, klaviyo_type: "flow-action", toerkoersel: false,
-      foer: foerDef, sendt: body, efter: null, aendringer, kladde_rettelser: [],
+      foer: foerDef, sendt: body, efter: null, aendringer, kladde_rettelser: [], klaviyo_afveg: [],
       udfald: "fejl", grund: grundFra(r.spor), udfoert_af: valg.udfoertAf,
     });
   }
   const efterRaa = await laesFlowhandling(k, handlingId);
+  const efterDef = ((efterRaa.attributes as Record<string, unknown>)?.definition ?? null) as FlowhandlingsDefinition | null;
+  // DET, VI SENDTE, MOD DET, DER KOM TILBAGE. Klaviyo kloner skabelonen ved
+  // koblingen og svarer med klonens id. Kaldet lykkes, så intet råber op af
+  // sig selv — derfor råber vi. Begge id'er i sporet, så klonen kan findes.
+  const { afvigelser, besked } = doemAfvigelse(dom.vaerdi, efterDef);
+  if (besked) console.warn(`${LOG} ret_flowmail ${handlingId}: ${besked}`);
   return afslut(admin, {
     handling: "ret_flowmail", klaviyo_id: handlingId, klaviyo_type: "flow-action", toerkoersel: false,
-    foer: foerDef, sendt: body, efter: (efterRaa.attributes as Record<string, unknown>)?.definition ?? null,
-    aendringer, kladde_rettelser: [], udfald: "skrevet", grund: null, udfoert_af: valg.udfoertAf,
+    foer: foerDef, sendt: body, efter: efterDef,
+    aendringer, kladde_rettelser: [], klaviyo_afveg: afvigelser,
+    udfald: "skrevet", grund: besked, udfoert_af: valg.udfoertAf,
   });
 }
 
@@ -447,14 +526,14 @@ export async function opretFlow(
       handling: "opret_flow", klaviyo_id: null, klaviyo_type: "flow", toerkoersel: true,
       foer: null, sendt: body, efter: null,
       aendringer: hvadAendres(input.definition, kladde as Record<string, unknown>),
-      kladde_rettelser: rettede, udfald: "toerkoersel", grund: null, udfoert_af: valg.udfoertAf,
+      kladde_rettelser: rettede, klaviyo_afveg: [], udfald: "toerkoersel", grund: null, udfoert_af: valg.udfoertAf,
     });
   }
   const r = await k.kald<{ data: Record<string, unknown> }>("POST", "/flows/", body);
   if (!r.ok) {
     return afslut(admin, {
       handling: "opret_flow", klaviyo_id: null, klaviyo_type: "flow", toerkoersel: false,
-      foer: null, sendt: body, efter: null, aendringer: [], kladde_rettelser: rettede,
+      foer: null, sendt: body, efter: null, aendringer: [], kladde_rettelser: rettede, klaviyo_afveg: [],
       udfald: "fejl", grund: grundFra(r.spor), udfoert_af: valg.udfoertAf,
     });
   }
@@ -467,11 +546,34 @@ export async function opretFlow(
     // menneske, før lag 4 får lov at bruge vejen.
     const uventet = status && status.toLowerCase() !== "draft" ? ` ADVARSEL: flowet blev oprettet med status «${status}», ikke draft.` : "";
     if (uventet) console.error(`${LOG} opret_flow ${nyId}:${uventet}`);
+
+    // SAMME SPØRGSMÅL SOM VED EN RETTELSE (regel 6): fik vi det, vi bad om?
+    // Målt 19/9 kl. 23:34 på QYVEpj: vi sendte trigger_time «11:00:00», og
+    // Klaviyo gemte «00:00:00» — uden fejl og uden advarsel. Samtidig blev
+    // alle fem skabeloner klonet. En oprettelse skal efterprøves lige så
+    // meget som en rettelse; svaret på POST'en er ikke bevis for noget.
+    let afvigelser: Afvigelse[] = [];
+    let afvigBesked: string | null = null;
+    if (nyId) {
+      try {
+        const efterFlow = await laesFlow(k, nyId);
+        const efterDef = ((efterFlow.flow.attributes as Record<string, unknown>)?.definition ?? null);
+        const dom = doemFlowAfvigelse(kladde, efterDef);
+        afvigelser = dom.afvigelser;
+        afvigBesked = dom.besked;
+        if (afvigBesked) console.warn(`${LOG} opret_flow ${nyId}: ${afvigBesked}`);
+      } catch (err) {
+        afvigBesked = `flowet blev oprettet, men EFTER kunne ikke læses — afvigelser er IKKE efterprøvet: ${err instanceof Error ? err.message : String(err)}`;
+        console.error(`${LOG} opret_flow ${nyId}: ${afvigBesked}`);
+      }
+    }
+    const grunde = [uventet.trim(), afvigBesked].filter((x): x is string => !!x);
     return afslut(admin, {
       handling: "opret_flow", klaviyo_id: nyId, klaviyo_type: "flow", toerkoersel: false,
       foer: null, sendt: body, efter: svar.data ?? null,
       aendringer: hvadAendres(input.definition, kladde as Record<string, unknown>),
-      kladde_rettelser: rettede, udfald: "skrevet", grund: uventet.trim() || null, udfoert_af: valg.udfoertAf,
+      kladde_rettelser: rettede, klaviyo_afveg: afvigelser,
+      udfald: "skrevet", grund: grunde.length > 0 ? grunde.join(" ") : null, udfoert_af: valg.udfoertAf,
     });
   }
 }

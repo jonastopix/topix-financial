@@ -50,7 +50,9 @@ export type DomFejl =
   | "html_paa_system_draggable"
   | "definition_paa_code"
   | "indhold_mangler"
-  | "ukendt_redigeringstype";
+  | "ukendt_redigeringstype"
+  | "betingelser_ugyldige"
+  | "skabelon_frakoblet";
 
 export type Dom<T> = { ok: true; vaerdi: T } | { ok: false; fejl: DomFejl; forklaring: string };
 
@@ -204,6 +206,25 @@ export interface MailAendring {
   afsenderMail?: string | null;
   afsenderNavn?: string | null;
   svaradresse?: string | null;
+  /**
+   * Det betingede filter på mailen — Klaviyos `additional_filters`.
+   *
+   * `undefined` = rør ikke. `null` = ryd filteret (send til alle, der når
+   * hertil). Et objekt = sæt dette filter. De tre er IKKE det samme, og netop
+   * derfor må feltet ikke læses med en hjælper, der laver alt ukendt om til
+   * undefined: «rør ikke» og «ryd» ville så være samme handling.
+   */
+  betingelser?: Betingelser | null;
+}
+
+/**
+ * Formen på et betinget filter, målt 19/9 i kontoens eget flow «Onboarding,
+ * new subscriber & no order». Vi holder den løs med vilje — Klaviyo har flere
+ * betingelsestyper, end vi kender — men de bærende led er faste.
+ */
+export interface Betingelser {
+  condition_groups: Array<{ conditions: Array<Record<string, unknown>> }>;
+  [andet: string]: unknown;
 }
 
 const MAIL_FELT: Record<keyof MailAendring, string> = {
@@ -213,6 +234,7 @@ const MAIL_FELT: Record<keyof MailAendring, string> = {
   afsenderMail: "from_email",
   afsenderNavn: "from_label",
   svaradresse: "reply_to_email",
+  betingelser: "additional_filters",
 };
 
 /**
@@ -221,6 +243,209 @@ const MAIL_FELT: Record<keyof MailAendring, string> = {
  * betyder «sæt til tom» — de to er ikke det samme, og forskellen er hele
  * grunden til, at et felt kan ryddes med vilje.
  */
+/**
+ * Dømmer et betinget filter, FØR det sendes.
+ *
+ * HVORFOR DEN FINDES, OG HVORFOR DEN ER FAIL-CLOSED. `additional_filters` er
+ * et «send kun hvis»-filter. Sender vi et filter, Klaviyo ikke forstår, er der
+ * to udfald, og begge er tavse: enten afvises kaldet, eller også ses der bort
+ * fra filteret — og så går mailen til ALLE, der når hertil. Det andet udfald er
+ * præcis den fejl, betingelsen skulle forhindre, og det ville ingen opdage
+ * før mailen lå i indbakken.
+ *
+ * Derfor: kan vi ikke stå inde for filteret, sender vi det ikke. En betingelse,
+ * vi er i tvivl om, er farligere end ingen betingelse, fordi den ser ud som om
+ * den virker.
+ *
+ * `null` er et gyldigt svar og betyder «ryd filteret» — det er en udtrykkelig
+ * handling, ikke en tvivl.
+ */
+export function doemBetingelser(v: unknown): Dom<Betingelser | null> {
+  if (v === null) return { ok: true, vaerdi: null };
+  if (typeof v !== "object" || Array.isArray(v)) {
+    return { ok: false, fejl: "betingelser_ugyldige", forklaring: "Betingelserne skal være et objekt eller null." };
+  }
+  const o = v as Record<string, unknown>;
+  const grupper = o.condition_groups;
+  if (!Array.isArray(grupper) || grupper.length === 0) {
+    return { ok: false, fejl: "betingelser_ugyldige", forklaring: "condition_groups mangler eller er tom." };
+  }
+  for (let g = 0; g < grupper.length; g++) {
+    const gruppe = grupper[g] as Record<string, unknown> | null;
+    if (!gruppe || typeof gruppe !== "object") {
+      return { ok: false, fejl: "betingelser_ugyldige", forklaring: `condition_groups[${g}] er ikke et objekt.` };
+    }
+    const betingelser = gruppe.conditions;
+    if (!Array.isArray(betingelser) || betingelser.length === 0) {
+      return { ok: false, fejl: "betingelser_ugyldige", forklaring: `condition_groups[${g}].conditions mangler eller er tom.` };
+    }
+    for (let c = 0; c < betingelser.length; c++) {
+      const b = betingelser[c] as Record<string, unknown> | null;
+      const sti = `condition_groups[${g}].conditions[${c}]`;
+      if (!b || typeof b !== "object") {
+        return { ok: false, fejl: "betingelser_ugyldige", forklaring: `${sti} er ikke et objekt.` };
+      }
+      if (typeof b.type !== "string" || b.type.trim() === "") {
+        return { ok: false, fejl: "betingelser_ugyldige", forklaring: `${sti}.type mangler.` };
+      }
+      // DEN VIGTIGSTE: en metrik-betingelse uden metric_id er den fælde, hele
+      // webinar-sagen handlede om. Metrikken fandtes ikke, og en pladsholder
+      // ville være gået igennem som tekst.
+      if (b.type === "profile-metric") {
+        const id = b.metric_id;
+        if (typeof id !== "string" || !/^[A-Za-z0-9]{6}$/.test(id)) {
+          return {
+            ok: false,
+            fejl: "betingelser_ugyldige",
+            forklaring: `${sti}.metric_id er ikke et Klaviyo-id (seks tegn, bogstaver og tal). Slå metrikken op først — findes den ikke, kan betingelsen ikke sættes.`,
+          };
+        }
+      }
+    }
+  }
+  return { ok: true, vaerdi: o as Betingelser };
+}
+
+/**
+ * Hvad Klaviyo lavede om, UDEN at vi bad om det.
+ *
+ * DEN FÆLDE, DEN FINDES FOR (målt 19/9 kl. 23:17): kobler man en skabelon på
+ * en flowmail, KLONER Klaviyo den. Vi sendte `TVbT4b`; EFTER bar `SYKyM6` —
+ * en kopi med samme navn, oprettet i selve PATCH-øjeblikket. Originalen er
+ * frakoblet fra det sekund. Retter man den bagefter, sker der INTET i flowet,
+ * og man opdager det aldrig, for kaldet lykkes.
+ *
+ * Værre: klonerne kan ikke findes med `GET /api/templates`. Både
+ * `any(id,[…])` og et filter på oprettelsestidspunktet giver tom liste. De
+ * findes kun, hvis man kender id'et i forvejen.
+ *
+ * DERFOR ER DEN GENEREL, ikke en tjek af template_id. Vi sammenligner det, vi
+ * sendte, med det, der kom tilbage — felt for felt. Så fanges kloningen, og
+ * også enhver anden tavs ombytning, vi endnu ikke har opdaget. En regel, der
+ * kun kender den fælde, vi allerede er faldet i, fanger ikke den næste.
+ *
+ * Det er IKKE en fejl. Det er Klaviyos normale adfærd. Men den skal siges
+ * højt, og begge id'er skal i sporet, så klonen kan findes igen.
+ */
+export interface Afvigelse {
+  felt: string;
+  vi_sendte: unknown;
+  klaviyo_satte: unknown;
+}
+
+export function doemAfvigelse(
+  sendtDefinition: unknown,
+  efterDefinition: unknown,
+): { afvigelser: Afvigelse[]; besked: string | null } {
+  const afvigelser = hvadAendres(
+    sendtDefinition as Record<string, unknown>,
+    efterDefinition as Record<string, unknown>,
+  ).map((a) => ({ felt: a.felt, vi_sendte: a.foer, klaviyo_satte: a.efter }));
+
+  if (afvigelser.length === 0) return { afvigelser, besked: null };
+
+  const skabelon = afvigelser.find((a) => a.felt === "data.message.template_id");
+  const dele: string[] = [];
+  if (skabelon) {
+    dele.push(
+      `Klaviyo KLONEDE skabelonen: vi koblede ${String(skabelon.vi_sendte)} på, og flowmailen bruger nu ${String(skabelon.klaviyo_satte)}. ` +
+        `${String(skabelon.vi_sendte)} er frakoblet — en rettelse dér ændrer INTET i flowet. Klonen kan ikke findes i skabelonlisten, kun på id.`,
+    );
+  }
+  const andre = afvigelser.filter((a) => a.felt !== "data.message.template_id");
+  if (andre.length > 0) {
+    dele.push(`Klaviyo ændrede også ${andre.map((a) => a.felt).join(", ")} uden at vi bad om det.`);
+  }
+  return { afvigelser, besked: dele.join(" ") };
+}
+
+/**
+ * Samme spørgsmål som `doemAfvigelse`, men for et HELT flow.
+ *
+ * MÅLT 19/9 kl. 23:34: vi oprettede QYVEpj med `trigger_time: "11:00:00"`.
+ * Klaviyo gemte `"00:00:00"`. Ingen fejl, ingen advarsel — flowet så bare
+ * anderledes ud, end vi bad om. Samtidig blev alle fem skabeloner klonet.
+ *
+ * Et flow kan ikke sammenlignes råt felt for felt: handlingernes
+ * `temporary_id` bliver til rigtige `id`'er, så ALT ville se ændret ud. Derfor
+ * skæres begge sider ned til det, der kan sammenlignes meningsfuldt —
+ * udløseren, genindtrædelsen og hver mail matchet på sit navn — og resten
+ * lades i fred. En sammenligning, der råber ved hver oprettelse, bliver
+ * ignoreret, og så fanger den heller ikke den ene gang, det gælder.
+ */
+function flowTilSammenligning(definition: unknown): Record<string, unknown> {
+  const d = (definition ?? {}) as Record<string, unknown>;
+  const ud: Record<string, unknown> = {};
+  const udloesere = d.triggers;
+  if (Array.isArray(udloesere) && udloesere.length > 0) {
+    for (const [k, v] of Object.entries(udloesere[0] as Record<string, unknown>)) {
+      // internal_metric_id tildeles af Klaviyo ved oprettelsen — ikke en afvigelse.
+      if (k === "internal_metric_id") continue;
+      ud[`udloeser.${k}`] = v;
+    }
+  }
+  if (d.reentry_criteria !== undefined) ud["genindtraedelse"] = d.reentry_criteria;
+  for (const h of (Array.isArray(d.actions) ? d.actions : []) as Array<Record<string, unknown>>) {
+    if (h.type !== "send-email") continue;
+    const besked = (((h.data ?? {}) as Record<string, unknown>).message ?? {}) as Record<string, unknown>;
+    const navn = String(besked.name ?? "");
+    if (navn === "") continue;
+    for (const felt of ["template_id", "subject_line", "preview_text", "additional_filters", "from_email", "from_label", "reply_to_email"]) {
+      ud[`mail[${navn}].${felt}`] = besked[felt];
+    }
+  }
+  return ud;
+}
+
+export function doemFlowAfvigelse(
+  sendtDefinition: unknown,
+  efterDefinition: unknown,
+): { afvigelser: Afvigelse[]; besked: string | null } {
+  const afvigelser = hvadAendres(flowTilSammenligning(sendtDefinition), flowTilSammenligning(efterDefinition))
+    .map((a) => ({ felt: a.felt, vi_sendte: a.foer, klaviyo_satte: a.efter }));
+  if (afvigelser.length === 0) return { afvigelser, besked: null };
+
+  const kloner = afvigelser.filter((a) => a.felt.endsWith("].template_id"));
+  const andre = afvigelser.filter((a) => !a.felt.endsWith("].template_id"));
+  const dele: string[] = [];
+  if (kloner.length > 0) {
+    dele.push(
+      `Klaviyo KLONEDE ${kloner.length} skabelon(er): ` +
+        kloner.map((k) => `${String(k.vi_sendte)} → ${String(k.klaviyo_satte)}`).join(", ") +
+        ". Originalerne er frakoblet — ret klonerne, ikke dem. Klonerne kan ikke findes i skabelonlisten.",
+    );
+  }
+  if (andre.length > 0) {
+    dele.push(
+      "Klaviyo ændrede også: " +
+        andre.map((a) => `${a.felt} (vi sendte ${JSON.stringify(a.vi_sendte)}, Klaviyo satte ${JSON.stringify(a.klaviyo_satte)})`).join("; ") +
+        ".",
+    );
+  }
+  return { afvigelser, besked: dele.join(" ") };
+}
+
+/**
+ * Er den skabelon, nogen er ved at rette, overhovedet den flowet bruger?
+ *
+ * Følgen af kloningen: «skabelonen til mailen» og «skabelonen flowet bruger»
+ * er to forskellige ting, så snart mailen har været koblet én gang. Den her
+ * dom er fail-closed, fordi den tavse vej er den farlige: at rette originalen
+ * lykkes, ser rigtigt ud i sporet, og rammer ingen.
+ */
+export function doemSkabelonKobling(skabelonId: string, iBrug: readonly string[]): Dom<string> {
+  if (iBrug.includes(skabelonId)) return { ok: true, vaerdi: skabelonId };
+  return {
+    ok: false,
+    fejl: "skabelon_frakoblet",
+    forklaring:
+      iBrug.length === 0
+        ? `Flowet bruger ingen skabeloner — der er ingen mailhandlinger at rette. ${skabelonId} hører ikke til her.`
+        : `${skabelonId} er ikke den skabelon, flowet bruger. Flowet bruger ${iBrug.join(", ")}. ` +
+          `Klaviyo kloner en skabelon, når den kobles på en flowmail, så originalen er frakoblet — en rettelse i ${skabelonId} ville ikke ændre noget i flowet.`,
+  };
+}
+
 export function bygMailData(foerData: Record<string, unknown> | null | undefined, aendring: MailAendring): Record<string, unknown> {
   const data = { ...(foerData ?? {}) };
   const besked = { ...((data.message as Record<string, unknown>) ?? {}) };
