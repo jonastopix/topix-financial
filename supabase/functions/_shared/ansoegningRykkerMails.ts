@@ -80,6 +80,8 @@ export interface MailKontekst {
   afslag?: AfslagsIndhold | null;
   /** Kvitteringen (18/9): de tre svar ansøgeren skrev — så de kan se, vi har dem. */
   svar?: { udfordring: string | null; proevet: string | null; omTolvMaaneder: string | null } | null;
+  /** Rådgiverens side for ansøgningen — kun rådgiver-rykkerne bruger den (20/9). */
+  raadgiverUrl?: string | null;
 }
 
 /**
@@ -387,6 +389,40 @@ const BYGGERE: Record<string, (k: MailKontekst) => Udkast> = {
 // når der var en samtale (efterSamtale = lukkeaarsag afslag_efter_samtale).
 // Det siddende medlem nævnes ALDRIG ved navn (Jonas 18/9): køen er «pladsen i
 // jeres niche», og teksten kommer fra koeSaetningTilAnsoeger, som ikke kender navnet.
+// ── RÅDGIVER-RYKKERNE (20/9, recon §5.2/§5.3): til kontakt@, aldrig til ansøgeren ──
+// Ingen «Hej Lisbeth» — modtageren er Jonas. Ingen pause-knap. Ét link: ansøgningen.
+// Ordene siger, hvad ansøgeren blev lovet, og hvor mange dage der er gået.
+BYGGERE["ansoegning-ny-raadgiver-rykker-1"] = (k) => ({
+  emne: `Ansøgning venter: ${k.virksomhedsnavn} — 3 hverdage uden svar`,
+  eyebrow: "Til Jonas og Morten",
+  afsnit: [
+    `${k.fornavn ? `${k.fornavn}, ` : ""}${k.virksomhedsnavn} sendte en ansøgning for tre hverdage siden. Kvitteringen lovede: «Du hører fra os inden for et par hverdage.»`,
+    "Ingen har trykket «tal med dem» eller «afvis». Ansøgningen står på «ny», og ansøgeren hører intet, før nogen gør.",
+  ],
+  knap: { tekst: "Åbn ansøgningen →", href: k.raadgiverUrl ?? k.statusUrl },
+  ikkeNu: false,
+});
+BYGGERE["ansoegning-ny-raadgiver-rykker-2"] = (k) => ({
+  emne: `Ansøgning venter stadig: ${k.virksomhedsnavn} — 7 dage`,
+  eyebrow: "Til Jonas og Morten",
+  afsnit: [
+    `Det er en uge siden, ${k.fornavn ? `${k.fornavn}, ` : ""}${k.virksomhedsnavn} sendte en ansøgning. Vi lovede «et par hverdage».`,
+    "Det er den sidste rykker herfra. Tal med dem, eller afvis — begge dele er bedre end tavshed.",
+  ],
+  knap: { tekst: "Åbn ansøgningen →", href: k.raadgiverUrl ?? k.statusUrl },
+  ikkeNu: false,
+});
+BYGGERE["ansoegning-afholdt-raadgiver-rykker"] = (k) => ({
+  emne: `Samtalen med ${k.virksomhedsnavn} er to dage gammel — tilbud, afslag eller «kom ikke»?`,
+  eyebrow: "Til Jonas og Morten",
+  afsnit: [
+    `Samtalen med ${k.fornavn ? `${k.fornavn}, ` : ""}${k.virksomhedsnavn} blev markeret afholdt for to dage siden. De hørte «jeg sender aftalegrundlaget». Det er ikke sendt.`,
+    "Send til e-underskrift, giv afslag — eller markér «kom ikke», hvis de ikke dukkede op; så ryger de tilbage til indkaldelsen med rykkerne.",
+  ],
+  knap: { tekst: "Åbn ansøgningen →", href: k.raadgiverUrl ?? k.statusUrl },
+  ikkeNu: false,
+});
+
 BYGGERE["ansoegning-afslag"] = (k) => {
   const a = k.afslag ?? { grundTekst: "", ventepladser: [], efterSamtale: false };
   const tak = a.efterSamtale

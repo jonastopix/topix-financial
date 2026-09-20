@@ -9,6 +9,8 @@
  * Mortens gratis ret på virksomheden.
  */
 import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import {
   skalWebhookAflyse,
   skalWebhookBooke,
@@ -38,8 +40,11 @@ describe("doemCalendlyEvent — routing før DB", () => {
     expect(doemCalendlyEvent({ eventType: "invitee.canceled", rescheduled: "true" })).toEqual({ handling: "aflys" });
   });
 
-  it("alt andet → ignorér (ubehandlet event-type): no-show, recap, ukendt, manglende", () => {
-    for (const eventType of ["invitee_no_show.created", "invitee_no_show.deleted", "meeting_recap.created", "routing_form_submission.created", "", undefined, null, 42]) {
+  it("invitee_no_show.created → «kom ikke» (20/9): platformen skal VIDE det, ikke spørge", () => {
+    expect(doemCalendlyEvent({ eventType: "invitee_no_show.created", rescheduled: false })).toEqual({ handling: "ikke_moedt" });
+  });
+  it("alt andet → ignorér (ubehandlet event-type): no-show slettet, recap, ukendt, manglende", () => {
+    for (const eventType of ["invitee_no_show.deleted", "meeting_recap.created", "routing_form_submission.created", "", undefined, null, 42]) {
       expect(doemCalendlyEvent({ eventType, rescheduled: false })).toEqual({ handling: "ignorer", grund: "ubehandlet_event_type" });
     }
   });
@@ -171,5 +176,36 @@ describe("calendlyWebhookDom — ansøgningsmotorens to værn (rettelser 19/9)",
     expect(skalWebhookBooke({ trin: "booket", samtaleStart: start, ansoegningEventUri: A, payloadEventUri: B, payloadStart: "2026-09-22T07:00:00Z" })).toEqual({ book: true });
     expect(skalWebhookBooke({ trin: "indkaldt", samtaleStart: null, ansoegningEventUri: null, payloadEventUri: A, payloadStart: start })).toEqual({ book: true });
     expect(skalWebhookBooke({ trin: "booket", samtaleStart: null, ansoegningEventUri: null, payloadEventUri: A, payloadStart: null })).toEqual({ book: true });
+  });
+});
+
+describe("calendly-webhook — kildeværn for no-show-grenen (20/9): «en tavs afvisning i en webhook er også et signal, ingen kan se»", () => {
+  const kode = readFileSync(resolve(process.cwd(), "supabase/functions/calendly-webhook/index.ts"), "utf8").replace(/\/\/[^\n]*/g, "");
+  it("grenen findes, EFTER book-grenen og FØR aflysningen, og udfører ikke_moedt via calendly", () => {
+    const book = kode.indexOf('if (dom.handling === "book")');
+    const noShow = kode.indexOf('if (dom.handling === "ikke_moedt")');
+    const aflys = kode.indexOf("const cancelerType = event?.payload?.cancellation?.canceler_type;");
+    expect(book).toBeGreaterThan(0);
+    expect(noShow).toBeGreaterThan(book);
+    expect(aflys).toBeGreaterThan(noShow);
+    expect(kode.slice(noShow, aflys)).toContain('handling: { art: "ikke_moedt" }, via: "calendly"');
+  });
+  it("kun ansøgningens eget event tæller (samme vagt som aflysning), og ukendt id ignoreres med 200", () => {
+    const gren = kode.slice(kode.indexOf('if (dom.handling === "ikke_moedt")'), kode.indexOf("const cancelerType ="));
+    expect(gren).toContain("skalWebhookAflyse({ ansoegningEventUri: ansoegning.calendly_event_uri, payloadEventUri: noShowEventUri })");
+    expect(gren).toContain('skipped: "ikke en ansoegning"');
+  });
+  it("en AFVIST overgang skriver en klokke til rådgiveren — ikke kun en log — og svarer 200", () => {
+    const gren = kode.slice(kode.indexOf('if (dom.handling === "ikke_moedt")'), kode.indexOf("const cancelerType ="));
+    expect(gren).toContain("if (res.ok === false)");
+    expect(gren).toContain("type: RAADGIVER_BESKED.webhook_afvist");
+    expect(gren).toContain("skrivRaadgiverBesked(admin, {");
+    expect(gren).toContain("reference_id: ansoegning.id");
+  });
+  it("id'et hentes fra invitee-opslaget KUN for no-show uden tracking, og et fejlet opslag giver 500 (retry)", () => {
+    const trin5 = kode.slice(kode.indexOf("let bookingId: string ="), kode.indexOf("if (!bookingId || !isUuid(bookingId)) {"));
+    expect(trin5).toContain('event?.event === "invitee_no_show.created"');
+    expect(trin5).toContain("await hentInvitee(inviteeUri)");
+    expect(trin5).toContain('return json(500, { error: "invitee lookup failed" })');
   });
 });

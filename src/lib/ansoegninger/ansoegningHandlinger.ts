@@ -42,7 +42,7 @@ export interface Knap {
   kraeverPris: boolean;
   /** Kræver en dato (saet_pause) — dialogen viser datovælgeren, standard tre måneder frem. */
   kraeverDato: boolean;
-  /** Afvis/afslag: dialogen spørger om grunden (niche → venteliste + afslagsmail, for tidligt → afslagsmail, andet → intet). */
+  /** Afvis/afslag: dialogen spørger om grunden (niche → venteliste + afslagsmail, for tidligt og andet → afslagsmail). */
   kraeverAfslagsgrund: boolean;
   /** Én linje til dialogen/tooltippen: hvad sker der. */
   forklaring: string;
@@ -50,8 +50,10 @@ export interface Knap {
 
 const KNAPPE: Record<FladeHandling, Omit<Knap, "handling">> = {
   tal_med_dem: { tekst: "Indkald til samtale", stor: true, farlig: false, bekraeft: false, kraeverAarsag: false, kraeverPris: false, kraeverDato: false, kraeverAfslagsgrund: false, forklaring: "Jonas inviterer til en afklaringssamtale — indkaldelsen sendes i dag i sendevinduet, rykkere dag 2, 7 og 11 — uden svar lukkes den «svarer ikke» dag 14." },
-  afvis: { tekst: "Afvis", stor: true, farlig: true, bekraeft: true, kraeverAarsag: false, kraeverPris: false, kraeverDato: false, kraeverAfslagsgrund: true, forklaring: "Ansøgningen lukkes som «afslag efter ansøgningen». Ansøgeren får ingen mail fra køen — afslaget skriver I selv. Kan genåbnes, men ikke fortrydes uden spor." },
-  afslag: { tekst: "Afslut", stor: true, farlig: true, bekraeft: true, kraeverAarsag: false, kraeverPris: false, kraeverDato: false, kraeverAfslagsgrund: true, forklaring: "Ansøgningen lukkes som «afslag efter samtalen». Ingen mail fra køen — afslaget skriver I selv." },
+  afvis: { tekst: "Afvis", stor: true, farlig: true, bekraeft: true, kraeverAarsag: false, kraeverPris: false, kraeverDato: false, kraeverAfslagsgrund: true, forklaring: "Ansøgningen lukkes som «afslag efter ansøgningen». Afslagsmailen sendes i sendevinduet med den valgte grund — også ved «andet» (20/9). Kan genåbnes, men ikke fortrydes uden spor." },
+  afslag: { tekst: "Afslut", stor: true, farlig: true, bekraeft: true, kraeverAarsag: false, kraeverPris: false, kraeverDato: false, kraeverAfslagsgrund: true, forklaring: "Ansøgningen lukkes som «afslag efter samtalen». Afslagsmailen sendes i sendevinduet med den valgte grund — også ved «andet» (20/9)." },
+  // «Kom ikke» (20/9, recon §5.4): samtalen blev markeret afholdt ved sluttid, men ingen dukkede op. Tilbage til indkaldelsen med rykkerne dag 2/7/11 — ingen ny dag 0-mail.
+  ikke_moedt: { tekst: "Kom ikke", stor: false, farlig: false, bekraeft: true, kraeverAarsag: false, kraeverPris: false, kraeverDato: false, kraeverAfslagsgrund: false, forklaring: "Ansøgeren dukkede ikke op. Tilbage til «indkaldt»: rykkerne dag 2, 7 og 11 kører igen, og dag 14 lukkes den «svarer ikke». Ingen ny indkaldelsesmail — rykker 1 bærer «vælg en ny tid»." },
   afholdt: { tekst: "Markér samtalen som afholdt", stor: false, farlig: false, bekraeft: false, kraeverAarsag: false, kraeverPris: false, kraeverDato: false, kraeverAfslagsgrund: false, forklaring: "Køen gør det selv når samtalen er slut — kun hvis I tog den før tid." },
   underskrevet: { tekst: "Underskrevet på papir", stor: false, farlig: false, bekraeft: true, kraeverAarsag: false, kraeverPris: true, kraeverDato: false, kraeverAfslagsgrund: false, forklaring: "Kun til de sjældne papirtilfælde — e-underskriften er vejen. Prisen sættes her (forudfyldt 50.000, kan skiftes). Virksomheden oprettes med ansøgningens id, betalingslinket og dag 0-mailen sendes — det eksisterende betalingsforløb (30 dage, faktura dag 31) overtager. Kan ikke fortrydes." },
   luk: { tekst: "Luk", stor: false, farlig: true, bekraeft: true, kraeverAarsag: true, kraeverPris: false, kraeverDato: false, kraeverAfslagsgrund: false, forklaring: "Lukkes med den valgte årsag; alle planlagte rykkere annulleres." },
@@ -62,7 +64,7 @@ const KNAPPE: Record<FladeHandling, Omit<Knap, "handling">> = {
 };
 
 /** Rækkefølgen knapperne står i. */
-const RAEKKEFOELGE: readonly FladeHandling[] = ["tal_med_dem", "afvis", "afslag", "afholdt", "underskrevet", "genaabn", "genoptag", "saet_pause", "luk"];
+const RAEKKEFOELGE: readonly FladeHandling[] = ["tal_med_dem", "afvis", "afslag", "ikke_moedt", "afholdt", "underskrevet", "genaabn", "genoptag", "saet_pause", "luk"];
 
 export interface KnapKontekst {
   trin: Trin;

@@ -49,7 +49,8 @@ describe("rykkerkoe — trapperne som Jonas satte dem", () => {
   it("ingen trappe efter underskrift — betalingsforløbet er platformens eksisterende", () => {
     // «venteplads» (udkast 18/9): ventelistens 7-dages tilbud — også før betalingsforløbet, på en lukket ansøgning.
     // «afslag» (18/9): afslagsmailen dag 0 — på en lukket ansøgning, aldrig efter underskrift.
-    expect(Object.keys(TRAPPER).sort()).toEqual(["afslag", "aftalegrundlag", "booket", "indkaldt", "indsendt", "kladde", "pause", "venteplads"]);
+    // «ny» og «afholdt» (20/9): rådgiver-rykkerne — de to trin, hvor systemet venter på et menneske.
+    expect(Object.keys(TRAPPER).sort()).toEqual(["afholdt", "afslag", "aftalegrundlag", "booket", "indkaldt", "indsendt", "kladde", "ny", "pause", "venteplads"]);
     expect(KOE_SKABELONER.some((s) => /betal|faktura|underskr/.test(s))).toBe(false);
   });
 });
@@ -208,5 +209,23 @@ describe("svarMailTrin — dag 0-mailen der er svar på en handling (Jonas 18/9,
   });
   it("kladden (dag 2), samtalens påmindelser (dag −1/0 kl. 07) og pausen er tidsbestemte — de bliver i vinduet", () => {
     expect(["kladde", "booket", "pause"].map((t) => svarMailTrin(t as never))).toEqual([null, null, null]);
+  });
+});
+
+describe("rykkerkoe — rådgiveren rykkes (20/9, recon §5: «et signal, kun en browser kan vise, er ikke et signal»)", () => {
+  it("ny: dag 3 og dag 7 → mail til RÅDGIVEREN, aldrig til ansøgeren; ingen lukning", () => {
+    expect(TRAPPER.ny.map((t) => [t.dag, t.handling, t.modtager, t.skabelon])).toEqual([
+      [3, "send_mail", "raadgiver", "ansoegning-ny-raadgiver-rykker-1"],
+      [7, "send_mail", "raadgiver", "ansoegning-ny-raadgiver-rykker-2"],
+    ]);
+    expect(TRAPPER.ny.some((t) => t.modtager === "ansoeger")).toBe(false);
+  });
+  it("afholdt: dag 2 → mail til rådgiveren — tilbud, afslag eller «kom ikke» udestår", () => {
+    expect(TRAPPER.afholdt.map((t) => [t.dag, t.handling, t.modtager, t.skabelon])).toEqual([
+      [2, "send_mail", "raadgiver", "ansoegning-afholdt-raadgiver-rykker"],
+    ]);
+  });
+  it("de tre nye skabeloner er med i KOE_SKABELONER", () => {
+    for (const s of ["ansoegning-ny-raadgiver-rykker-1", "ansoegning-ny-raadgiver-rykker-2", "ansoegning-afholdt-raadgiver-rykker"]) expect(KOE_SKABELONER).toContain(s);
   });
 });

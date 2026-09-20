@@ -79,7 +79,8 @@ describe("enumsMatcherDatabasen.guard — koden og databasen kender de samme væ
   it("aftalens statusser (aftale_underskrift_status_check) = AFTALE_STATUSSER", () => expect(sammenlign("aftale_underskrift.status", AFTALE_STATUSSER, senesteListe(migrationer, M.aftaleStatus)?.vaerdier ?? null)).toEqual([]));
 
   it("VÆRNET VIRKER: en migration uden «indsendt» → koden kender en trappe, databasen ikke; en ekstra DB-værdi → død værdi; kommentarlinjer tæller ikke", () => {
-    const uden = migrationer.map((x) => ({ fil: x.fil, tekst: x.tekst.replace("'kladde', 'indsendt', 'indkaldt'", "'kladde', 'indkaldt'") }));
+    // Fjerner «indsendt» uanset naboerne (20/9: listen fik «ny» ind mellem indsendt og indkaldt, og en ordret erstatning fandt intet).
+    const uden = migrationer.map((x) => ({ fil: x.fil, tekst: x.tekst.replace(/'indsendt',\s*/g, "") }));
     expect(sammenlign("trappe", TRAPPER_NAVNE, senesteListe(uden, M.trappe)!.vaerdier)).toEqual(["trappe: koden kender «indsendt», databasen gør ikke — en migration mangler"]);
     expect(sammenlign("trappe", TRAPPER_NAVNE, [...TRAPPER_NAVNE, "spoegelse"])).toEqual(["trappe: databasen tillader «spoegelse», koden kender den ikke — død værdi eller manglende kode"]);
     const medKommentar = [...migrationer, { fil: "zz_kommentar.sql", tekst: udenKommentarlinjer("-- alter table x add constraint planlagte_haendelser_trappe_check check (trappe in ('kun_kommentar'))") }];

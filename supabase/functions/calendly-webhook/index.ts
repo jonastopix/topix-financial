@@ -1,7 +1,8 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
 import { doemCalendlyEvent, genaabnerRet, skalWebhookAflyse, skalWebhookBooke } from "../_shared/calendlyWebhookDom.ts";
-import { hentMoedeLink } from "../_shared/calendlyApi.ts";
-import { hentAnsoegning, udfoerOvergang } from "../_shared/ansoegningMotor.ts";
+import { hentInvitee, hentMoedeLink } from "../_shared/calendlyApi.ts";
+import { hentAnsoegning, RAADGIVER_BESKED, REFERENCE_TYPE, udfoerOvergang, virksomhedsnavnAf } from "../_shared/ansoegningMotor.ts";
+import { skrivRaadgiverBesked } from "../_shared/raadgiverBesked.ts";
 import { meldSamtaleAendring } from "../_shared/samtaleBesked.ts";
 
 // Bucket C: ekstern webhook fra Calendly. Signaturverifikation FOER parsing.
@@ -118,7 +119,26 @@ Deno.serve(async (req: Request) => {
   // 5. Udtraek VORES booking-id. salesforce_uuid er Calendlys dedikerede pass-through; utm_content
   //    er fallback. Mangler/ugyldigt -> 200 (fremmed event, ikke vores; Calendly maa ikke retry'e).
   const tracking = event?.payload?.tracking || {};
-  const bookingId: string = tracking.salesforce_uuid || tracking.utm_content || "";
+  let bookingId: string = tracking.salesforce_uuid || tracking.utm_content || "";
+  // NO-SHOW (20/9): Calendlys dokumentation for invitee_no_show.created kunne ikke læses
+  // maskinelt, så om payload'en bærer `tracking`, er UMÅLT. Derfor defensivt: bærer
+  // payload'en ikke vores id, men en invitee-URI, slås invitee'en op — DEN bærer tracking
+  // (målt 20/9 på en rigtig invitee). Kun for no-show; alt andet uden id er fremmed som før.
+  let noShowEventUri: string | null = typeof event?.payload?.event === "string" ? event.payload.event : null;
+  if ((!bookingId || !isUuid(bookingId)) && event?.event === "invitee_no_show.created") {
+    const inviteeUri = typeof event?.payload?.invitee === "string" ? event.payload.invitee : typeof event?.payload?.uri === "string" && /\/invitees\//.test(event.payload.uri) ? event.payload.uri : null;
+    if (inviteeUri) {
+      try {
+        const invitee = await hentInvitee(inviteeUri);
+        bookingId = invitee?.tracking?.salesforce_uuid || invitee?.tracking?.utm_content || "";
+        noShowEventUri = invitee?.event ?? noShowEventUri;
+        console.log(`[calendly-webhook] invitee_no_show.created: id fra invitee-opslag: ${bookingId || "(intet)"}.`);
+      } catch (err) {
+        console.error("[calendly-webhook] invitee_no_show.created: invitee-opslaget fejlede, Calendly proever igen:", err);
+        return json(500, { error: "invitee lookup failed" });
+      }
+    }
+  }
   if (!bookingId || !isUuid(bookingId)) {
     console.log("[calendly-webhook] Fremmed event uden gyldigt booking-id, ignoreres.");
     return json(200, { received: true, skipped: "fremmed event" });
@@ -237,6 +257,41 @@ Deno.serve(async (req: Request) => {
     return json(200, { received: true });
   }
 
+  if (dom.handling === "ikke_moedt") {
+    // NO-SHOW (20/9, recon-ansoegningsmails §5.4): Jonas markerede i Calendly, at ansøgeren
+    // ikke kom. Spejler aflysningsgrenen: kun ansøgninger (session_bookings har ingen
+    // fremmøde-dom), kun hvis eventet er ansøgningens, og overgangen «ikke_moedt» er kun
+    // tilladt fra «afholdt» → tilbage til «indkaldt» med rykkerne fra trin 1.
+    const ansoegning = await hentAnsoegning(admin, bookingId);
+    if (!ansoegning) {
+      console.log(`[calendly-webhook] invitee_no_show.created: ${bookingId} er ikke en ansøgning — ignoreres.`);
+      return json(200, { received: true, skipped: "ikke en ansoegning" });
+    }
+    const vagt = skalWebhookAflyse({ ansoegningEventUri: ansoegning.calendly_event_uri, payloadEventUri: noShowEventUri });
+    if (vagt.aflys === false) {
+      console.log(`[calendly-webhook] invitee_no_show.created: ansøgning ${bookingId} springes over — ${vagt.grund}.`);
+      return json(200, { received: true, ansoegning: bookingId, skipped: vagt.grund });
+    }
+    const res = await udfoerOvergang(admin, { ansoegning, handling: { art: "ikke_moedt" }, via: "calendly", truffetAf: null, nu: new Date() });
+    console.log(`[calendly-webhook] invitee_no_show.created: ansøgning ${bookingId} → ${res.ok ? res.til : `uændret (${res.grund})`}.`);
+    if (res.ok === false) {
+      // EN TAVS AFVISNING ER OGSAA ET SIGNAL, INGEN KAN SE (Jonas 20/9). Kommer no-show'et
+      // efter «tilbud» (aftalen er sendt) eller efter lukning, siger dommen nej — og det er
+      // rigtigt. Men Jonas markerede noget i Calendly, som platformen ikke tog imod: det skal
+      // han se som en klokke, ikke kun i en function-log. 200: Calendly skal ikke retry'e.
+      if (res.status < 500) {
+        await skrivRaadgiverBesked(admin, {
+          type: RAADGIVER_BESKED.webhook_afvist,
+          title: `Calendly meldte no-show for ${virksomhedsnavnAf(ansoegning)} — men trinnet er «${ansoegning.trin}»`,
+          body: `Dommen afviste: ${res.grund}. Er aftalen sendt til én, der ikke mødte op, så luk eller genåbn i hånden.`,
+          reference_type: REFERENCE_TYPE,
+          reference_id: ansoegning.id,
+        });
+      }
+      return json(res.status >= 500 ? 500 : 200, { received: true, ansoegning: bookingId, skipped: res.grund });
+    }
+    return json(200, { received: true, ansoegning: bookingId, trin: res.til });
+  }
   // dom.handling === "aflys": aegte aflysning. Hvem der aflyste OG hvilket spor raekken er
   // paa afgoer om en ret genaabnes (genaabnerRet, testet):
   //   host aflyser Mortens inkluderede ('morten', 0) -> intro_session_used_at nulstilles.

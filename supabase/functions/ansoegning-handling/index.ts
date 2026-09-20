@@ -47,7 +47,7 @@ import { saetPaaVenteliste } from "../_shared/venteliste.ts";
 import { sendSvarMailNu, type StraksUdfald } from "../_shared/ansoegningMotor.ts";
 
 /** Rådgiverens to samtalehandlinger — uden for MENNESKE_HANDLINGER (de er ikke knapper i handlingsrækken, men i afsnittet «Samtalen»). */
-const RAADGIVER_SAMTALE: readonly string[] = ["book", "aflys_booking"];
+const RAADGIVER_SAMTALE: readonly string[] = ["book", "aflys_booking", "ikke_moedt"]; // ikke_moedt (20/9): «kom ikke» fra afholdt → indkaldt
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status, headers: { ...corsHeaders, "Content-Type": "application/json" } });

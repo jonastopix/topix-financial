@@ -104,6 +104,10 @@ export const SKABELON_ORD: Record<string, string> = {
   "ansoegning-afslag": "afslagsmailen",
   "ansoegning-venteplads-tilbud": "ventelistens tilbud om pladsen",
   "ansoegning-venteplads-rykker": "rykker om ventepladsen",
+  // Rådgiver-rykkerne (20/9): til kontakt@, ikke til ansøgeren — sporet skal kunne sige det.
+  "ansoegning-ny-raadgiver-rykker-1": "rykker 1 til rådgiveren om den nye ansøgning",
+  "ansoegning-ny-raadgiver-rykker-2": "sidste rykker til rådgiveren om den nye ansøgning",
+  "ansoegning-afholdt-raadgiver-rykker": "rykker til rådgiveren efter samtalen",
 };
 
 /** Køens interne handlinger — nøglerne SKAL være alle KoeHandling ud over send_mail (TRAPPER); låst af ansoegningSporOrd.guard. */

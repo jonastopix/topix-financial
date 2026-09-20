@@ -55,11 +55,16 @@ export type CalendlyHandling =
   | { handling: "book" }
   /** Ægte aflysning → status cancelled; genåbning afgøres bagefter af genaabnerGratis. */
   | { handling: "aflys" }
+  | { handling: "ikke_moedt" }
   /** Rør intet, svar 200 uden retry. */
   | { handling: "ignorer"; grund: "flytning" | "ubehandlet_event_type" };
 
 export function doemCalendlyEvent(i: CalendlyEventInput): CalendlyHandling {
   if (i.eventType === "invitee.created") return { handling: "book" };
+  // Calendlys no-show-markering (20/9): «invitee_no_show.created» — kræver at abonnementet
+  // sender den (Jonas: Calendly → Integrations → Webhooks, begge spor). Platformen skal VIDE
+  // det, ikke spørge. Webhookens index.ts skal udføre overgangen ikke_moedt på den (skitse, ikke skrevet).
+  if (i.eventType === "invitee_no_show.created") return { handling: "ikke_moedt" };
   if (i.eventType === "invitee.canceled") {
     // Flytning: Calendly sender canceled (rescheduled=true) + en ny created.
     // Rækken forbliver booked indtil den følgende created bekræfter den nye tid.

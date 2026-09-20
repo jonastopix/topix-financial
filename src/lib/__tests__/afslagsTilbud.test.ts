@@ -7,23 +7,23 @@ import type { VentepladsRaekke } from "@/lib/ventelisteDom";
 const ctx = { paaPause: false, lukketFraTrin: null };
 
 describe("afslagsTilbud — grunden bag nej'et, ventelisten ved niche, afslagsmailen; «svarer ikke» og «andet» giver intet", () => {
-  it("afslagsFoelger: niche → venteliste + afslagsmail; for_tidligt → afslagsmail; andet/ingen → intet", () => {
+  it("afslagsFoelger: niche → venteliste + afslagsmail; for_tidligt, andet og ingen grund → afslagsmail (andet: 20/9, recon §5.5 — teksten fandtes, men gik aldrig)", () => {
     expect(AFSLAGSGRUNDE).toEqual(["niche", "for_tidligt", "andet"]);
     expect(afslagsFoelger("niche")).toEqual({ venteliste: true, afslagsmail: true });
     expect(afslagsFoelger("for_tidligt")).toEqual({ venteliste: false, afslagsmail: true });
-    expect(afslagsFoelger("andet")).toEqual({ venteliste: false, afslagsmail: false });
-    expect(afslagsFoelger(null)).toEqual({ venteliste: false, afslagsmail: false });
+    expect(afslagsFoelger("andet")).toEqual({ venteliste: false, afslagsmail: true });
+    expect(afslagsFoelger(null)).toEqual({ venteliste: false, afslagsmail: true });
   });
 
-  it("afvis/afslag med grund skriver grunden og planlægger afslagsmailen (trappen afslag); «andet», ingen grund og «svarer ikke» planlægger intet", () => {
+  it("afvis/afslag med grund skriver grunden og planlægger afslagsmailen (trappen afslag); «andet» og ingen grund planlægger også afslagsmailen (20/9); «svarer ikke» planlægger intet", () => {
     const niche = afgoerOvergang("ny", { art: "afvis", grund: "niche" }, ctx);
     expect(niche.ok && niche.overgang).toMatchObject({ til: "lukket", lukkeaarsag: "afslag_efter_ansoegning", afslagsgrund: "niche", start: { trappe: "afslag", anker: "nu" }, annuller: "alle" });
     const forTidligt = afgoerOvergang("afholdt", { art: "afslag", grund: "for_tidligt" }, ctx);
     expect(forTidligt.ok && forTidligt.overgang).toMatchObject({ lukkeaarsag: "afslag_efter_samtale", afslagsgrund: "for_tidligt", start: { trappe: "afslag", anker: "nu" } });
     const andet = afgoerOvergang("ny", { art: "afvis", grund: "andet" }, ctx);
-    expect(andet.ok && andet.overgang).toMatchObject({ afslagsgrund: "andet", start: null });
+    expect(andet.ok && andet.overgang).toMatchObject({ afslagsgrund: "andet", start: { trappe: "afslag", anker: "nu" } });
     const uden = afgoerOvergang("ny", { art: "afvis" }, ctx);
-    expect(uden.ok && uden.overgang).toMatchObject({ afslagsgrund: null, start: null });
+    expect(uden.ok && uden.overgang).toMatchObject({ afslagsgrund: null, start: { trappe: "afslag", anker: "nu" } });
     // «svarer ikke» er køens lukning — ingen grund, ingen mail
     const svarerIkke = afgoerOvergang("indkaldt", { art: "svarer_ikke" }, ctx);
     expect(svarerIkke.ok && svarerIkke.overgang).toMatchObject({ lukkeaarsag: "svarer_ikke", afslagsgrund: null, start: null });

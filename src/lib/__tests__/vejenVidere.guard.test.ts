@@ -99,7 +99,9 @@ describe("vejenVidere.guard — de otte rettelser på repoets filer", () => {
 describe("vejenVidere.guard — dommene fanger fejlen på en kopi", () => {
   it("1./2. webhook uden værnene fælder dom 1/2; en dom med IO fælder «rene»", () => {
     const w = udenKommentarer(laes(WEBHOOK));
-    expect(aflysGrenErRigtig(w.replace("if (vagt.aflys === false)", "if (false)"))).toBe(false);
+    // Vagten står nu i TO grene (aflys + ikke_moedt, 20/9) — mutationen skal ramme alle
+    // forekomster, ellers består dommen på den gren, der ikke blev rørt (replace uden /g).
+    expect(aflysGrenErRigtig(w.split("if (vagt.aflys === false)").join("if (false)"))).toBe(false);
     expect(aflysGrenErRigtig(w.replace("skalWebhookAflyse({ ansoegningEventUri: ansoegning.calendly_event_uri, payloadEventUri: aflystEventUri })", "({ aflys: true })"))).toBe(false);
     expect(bookGrenErRigtig(w.replace("skalWebhookBooke({", "((_x: unknown) => ({ book: true }))({"))).toBe(false);
     expect(bookGrenErRigtig(w.replace("eventUri, moedeLink }", "eventUri }"))).toBe(false);
