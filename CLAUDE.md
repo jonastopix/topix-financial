@@ -39,7 +39,9 @@ Workflow ved nye eller ændrede functions:
 3. Hvis PR'en også rører `src/`-filer: klik "Update" i Lovable for at publish'e frontend-builden.
 4. Verificér i Lovable → Edge functions → vælg function → "View code".
 
-UI-quirk ved verifikation: feltet "Last updated" på function-listen er IKKE pålideligt — det kan vise forældet timestamp efter en fersk deploy. "Deployments"-tælleren eller den faktiske source-kode i "View code" er sandheden. Hvis "Deployments"-tælleren heller ikke synes at opdatere pålideligt, er "View code" det definitive bevis. Brug aldrig "Last updated" til at konkludere om en deploy er gået igennem.
+UI-quirk ved verifikation: feltet "Last updated" på function-listen er IKKE pålideligt — det kan vise forældet timestamp efter en fersk deploy. "Deployments"-tælleren eller den faktiske source-kode i "View code" viser, hvad Lovable HAR af kilde. Brug aldrig "Last updated" til at konkludere om en deploy er gået igennem.
+
+**«View code» er heller ikke beviset for DRIFTEN (målt 21/9-2026, #1045):** efter merget viste «View code» den nye kilde med markøren, men den KØRENDE bundle var den gamle — kørslen skrev 371 annoncer og 93 dagsrækker, men ingen række i den nye tabel `meta_hentning`, og `konto.tidszone` (nyt felt) var null. Kilden i editoren og bundlen i drift er to ting. **Beviset for en udrulning er en kørsel, der svarer med noget, KUN den nye kode kan svare** — et nyt felt i svaret, en række i en ny tabel, en ny markør i responsen. Byg det ind fra starten: en function-ændring, der ikke kan ses i sit eget svar, kan ikke bevises udrullet. Skub ved behov: en kommentarlinje i `index.ts` → merge igen.
 
 **Asymmetri-note** (bekræftet 2026-05-11): De tre deploy-lag har forskellige kanaler:
 - **Edge functions** (`supabase/functions/`): auto fra git-merge til main. Ingen manuel handling påkrævet.
