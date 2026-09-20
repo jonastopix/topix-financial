@@ -44,6 +44,36 @@
 import { HAENDELSE, brugbarMail, type HaendelseInput } from "./klaviyoHaendelser.ts";
 import type { SetGrad } from "./webinarDom.ts";
 
+/**
+ * ── FRISK-MÆRKET (20/9, C's fund) ───────────────────────────────────────────
+ * Klaviyo læser `session_tid` som STRENG (inferred_type «string», målt). Et
+ * datofilter på den er dødt — uden rettelse kommer INGEN ind i flowene.
+ *
+ * Derfor regnes friskheden HER, i koden, og sendes som en streng Klaviyo kan
+ * sammenligne: `frisk: "ja"`. Flowenes filter er «frisk equals ja» — en
+ * strenglighed, ingen datolæsning.
+ *
+ * FAIL-CLOSED MED VILJE: mærket er ENTEN «ja» ELLER FRAVÆRENDE. Aldrig «nej».
+ * En hændelse uden mærket — gammel kode, en tilbageskrivning, en fejl —
+ * passerer aldrig et filter på «ja». Værnet mod at backfill udløser flowene
+ * består, og det hviler nu på noget, Klaviyo beviseligt kan læse.
+ *
+ * TÆRSKLEN STÅR ÉT STED. Den, der bygger et flow, skal kunne slå den op:
+ * en session er frisk, når den ligger inden for FRISK_DAGE døgn af nu — til
+ * begge sider. Fortiden er den, der betyder noget (en tilbageskrivning har
+ * gamle sessioner); fremtiden er harmløs (der sendes ingen hændelser for
+ * sessioner, der ikke er sket, jf. afgoerOvergang).
+ */
+export const FRISK_DAGE = 3;
+export const FRISK_VAERDI = "ja";
+
+export function erFrisk(sessionTid: string | null, nu: Date): boolean {
+  if (sessionTid === null) return false;
+  const t = Date.parse(sessionTid);
+  if (!Number.isFinite(t)) return false;
+  return Math.abs(nu.getTime() - t) <= FRISK_DAGE * 86_400_000;
+}
+
 /** De to grader, der betyder «var der». `set` og `delvist` — ikke tallet. */
 const VAR_DER: readonly SetGrad[] = ["set", "delvist"];
 
@@ -120,6 +150,8 @@ export function byggFremmoede(o: Overgang, i: FremmoedeInput): HaendelseInput | 
       set_procent: i.setProcent,
       grad: i.grad,
       ewebinar_id: i.ewebinarId,
+      // «ja» eller fraværende — aldrig «nej». byggHaendelse udelader null.
+      frisk: erFrisk(i.sessionTid, i.tid ?? new Date()) ? FRISK_VAERDI : null,
     },
     // Hændelsen SKETE, da vi dømte den — ikke da vi nåede at sende den.
     tid: i.tid,
