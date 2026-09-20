@@ -204,3 +204,69 @@ mail-loft, CVR-loft, rådgiverlisten ved 30 nye, tidsplan og beredskab) og
 - **CVR-loftet** (`docs/OVERLEVERING.md` «19.–20. september» §3): 20/dag,
   klokken ved 80 %, berigelsen slået fra hele ugen 21.–26/9.
 - Onsdag morgen: dommen svarer «observation» — og det er rigtigt.
+
+## 8. 20. september — sporet lukkes fra klik til ansøgning, og fem felter viste sig at være observationer
+
+**Princippet, der binder dagen sammen: et felt, vi ikke selv sætter, er en
+observation — aldrig en nøgle.** Fem gange betød et felt ikke det, det hed:
+eWebinars `eWebinar`-egenskab er en dato, der overskrives ved gentilmelding
+(`recon-klaviyo-fremmoede`); Klaviyo læser `session_tid` som «string», så et
+datofilter i et flow er dødt (#1040 → egenskaben `frisk`, regnet hos os);
+`utm_source` er den bogstavelige værdi af én parameter i linket — tre
+annoncegenerationer, fem stavemåder (#1044); `companies.status` er en
+beslutning, et menneske har taget, og `subscription_status` er
+exit-abonnentens felt — ingen af dem betyder «betaler»
+(`recon-medlemsforloebet/fund-status-og-betalende.md`); og Stripes eget
+`status` er `canceled` på 19 løbende abonnementer, fordi de kører på en
+schedule. **Reglen:** nøglen udledes ved læsning, ét sted, med tests —
+`annoncekilde.ts` for kanalen, `webinarDom.ts` for fremmødet, `stilleDom.ts`
+for stilheden, `kontrakter` for «betaler». Klaviyo får den færdige dom som
+egenskab, aldrig et råt felt at dømme på.
+
+**Det, der ændrede sig — i rækkefølge langs kæden (§0):**
+
+1. **Annoncen** — `url_tags` på ALLE annoncer sat til den kanoniske streng
+   med id'er, ikke navne (Jonas 20/9; `recon-meta-annoncer` §11):
+   `utm_source={{site_source_name}}&utm_medium=paid&utm_campaign={{campaign.id}}&utm_term={{adset.id}}&utm_content={{ad.id}}`.
+   Intet arves fra konto, kampagne eller annoncesæt — hver ny annonce skal
+   have strengen selv, ellers dør sporet stille (`brud.maerkeErIkkeId`).
+   Hentningen kører nu af sig selv: cron `meta-annoncer` 03:33 UTC,
+   `meta-hentning-vagt` 04:33 (#1045; tabellen `meta_hentning`) — og den
+   første kørsel blev beviset for, at «View code» ikke er driften (#1047).
+2. **Kanalen** — `src/lib/webinar/annoncekilde.ts` + `_shared`-spejl (#1044):
+   fb/facebook → Facebook, ig → Instagram, th → Threads, an → Audience
+   Network, msg → Messenger; en sjette værdi er en rød prøve, indtil nogen
+   oversætter den.
+3. **Sitet** — theboardroom.dk's syv «Ansøg om en plads»-knapper sendte
+   `?kilde=website` uden klikkets parametre (`udkast-to-spor-1` §A, Jonas i
+   Lovable): nu `?kilde=direkte` + `sessionStorage`-klikket følger med; og
+   platformen kender `website` som alias for `direkte` (#1049).
+   topix.dk/webinar/optagelse's to knapper førte ind i SuperForm-formularen
+   til det Monday-board, der blev slukket 19/9 00:50 (`recon-landingssider`
+   §0) → `app.theboardroom.dk/ansoeg?kilde=webinar`.
+4. **Døren** — `/ansoeg` gemmer de otte annoncespor-felter (utm_*, `fbclid`,
+   landing, referrer) på ansøgningen, fail-soft (#1052; migration
+   `20260921120000` kørt før merge). Beviset er en «opret» med
+   `?utm_content=TESTAD` — værdierne på nyeste række, ikke «View code».
+5. **Forløbet** — rådgiveren rykkes som ansøgeren (#1046): trin, der venter på
+   os, har en trappe til kontakt@; «kom de?»-klokken efter samtalen. Calendly
+   markerer aldrig no-show (0 af 33 invitees på syv måneder) — klokken er den
+   eneste kilde.
+6. **Optakten** — flowet `UiECQS` slukket 20/9 kl. 16: det havde syv
+   mennesker i sig, ikke 354 (de 310 faldt ud, da fire mails blev nyoprettet
+   19/9 aften), og countdown-forsinkelsen 1 → 2 dage pegede den forkerte vej
+   (regnes fra webinar-datoen: 2 = søndag). Optakten er to kampagner til
+   listen `Sz5fdA`: «1 dag før» mandag 14:00, «på dagen» tirsdag 07:00
+   (`koereplan-tirsdag.md` §1b). Kampagnerne til 13/10 bygges på samme måde
+   (`koereplan-13-10.md`).
+7. **Medlemmet** — 28 betalende målt på `kontrakter` (21 i Stripe, 7 via
+   e-conomic); 5 har aldrig fået en bruger ind, 4 er holdt op med at logge
+   ind; to klokker med trappe (#1048, `stilleDom.ts`, cron `stille-klokker`
+   04:30 UTC). Målt på de udløbne: med bruger fornyede 3 af 4, uden 1 af 12,
+   7 kan ikke måles — sletningen dag 45 tog beviset (mangelliste
+   `a20-bevis-slettes-dag-45`).
+
+**Det, der stadig ikke er bevist:** at annoncens id når hele vejen ind i en
+rigtig ansøgning (TESTAD-prøven er kunstig); at `meta_hentning` får sin første
+række i nat; at kampagnerne sender mandag 14:05 (Recipients ≈ 354). §7's liste
+gælder stadig.

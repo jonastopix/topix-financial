@@ -256,13 +256,18 @@ grænseflade, §10–11 er prøven og mønstret).
 | 5 | **En PATCH på en flowhandling skal sende hele definitionen tilbage**, inkl. id og links; feltfiltreret læsning taber `definition.id`. | Læs ufiltreret før en PATCH. Fundet ved at blive afvist to gange. | #1032, #1035 (regel 5) |
 | 6 | **«0 % ansøgte inden 48 timer» tretten timer efter webinaret.** | En periode, der ikke er gået, er ikke en periode. Samme fejl som annoncepriserne (#1024), set fra den anden side — se `docs/webinaret-og-annoncerne.md` §5. De to steder henviser nu til hinanden. | #1033 (værn-regel 11) |
 | 7 | **Klaviyo ombyttede `trigger_time`** (bad om kl. 11, fik midnat) uden at sige det. | Sammenlign sendt med svar — generelt, ikke pr. kendt fælde. | #1035 |
+| 8 | **Et felt, vi ikke selv sætter, er en observation — aldrig en nøgle** (20/9): `session_tid` er «string» hos Klaviyo, så et datofilter i et flow er dødt (#1040 → `frisk`); `utm_source` er den bogstavelige værdi i linket (#1044); eWebinars `eWebinar`-egenskab er en dato, der overskrives ved gentilmelding. | Nøglen udledes hos os ved læsning, ét sted, med tests — Klaviyo får den færdige dom som egenskab. | #1040, #1044; `docs/webinaret-og-annoncerne.md` §8 |
+| 9 | **Countdown-forsinkelser regnes fra webinar-datoen, ikke fra forrige trin** — 1 → 2 dage flyttede «Vi ses i morgen» fra mandag til søndag; og **310 faldt ud af optakten**, da fire mails blev nyoprettet (flowet havde syv i sig, ikke 354). | En Klaviyo-forsinkelse måles på en tidligere kørsel, før den rettes; «waiting» pr. trin læses, før nogen stoler på et flow. Optakten er kampagner til en liste. | `UiECQS` slukket 20/9 kl. 16; `koereplan-tirsdag.md` §1b; OVERLEVERING «20. september» §5a–b |
 
 ---
 
 ## 8. Hvad der venter — i rækkefølge
 
-0. **FØR tirsdag 22/9 kl. 13:30: det gamle efter-webinar-flow `YcBF9f` slås
-   fra.** Det udløses datostyret kl. 13:30 på eWebinar-datoen; er det live,
+0. **FØR tirsdag 22/9 kl. 13:00 (`koereplan-tirsdag.md` §1.3): det gamle efter-webinar-flow `YcBF9f` slås
+   fra.** Før-webinar-flowet `UiECQS` ER slukket 20/9 kl. 16 og tændes ikke igen —
+   optakten er to kampagner til listen `Sz5fdA` (§7 række 9). Lag 5's migration
+   `20260920100000` er IKKE kørt, så cronen `klaviyo-hentning` findes ikke i prod endnu.
+ Det udløses datostyret kl. 13:30 på eWebinar-datoen; er det live,
    får alle 345 tilmeldte dobbelt post (det gamle datostyrede + det nye
    hændelsesstyrede). Målt (Jonas 20/9): nul modtagere i syv dage — ingen
    sidder i det, det kan slås fra nu.

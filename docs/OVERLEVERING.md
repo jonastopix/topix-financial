@@ -9677,6 +9677,56 @@ Kilder: `gh pr list` (merge-tider UTC → dansk +2), commit-beskederne (`git log
 
 *(c) Det gamle efter-webinar-flow `YcBF9f` — vinduet lukker tirsdag kl. 13:30.* Flowet udløses datostyret kl. 13:30 på eWebinar-datoen (`recon-klaviyo-fremmoede`: profil-egenskaben `eWebinar` = datostreng). Er det live tirsdag, får alle 345 tilmeldte dobbelt post: det gamle datostyrede flow OG det nye, hændelsesstyrede. **Målt (Jonas 20/9): nul modtagere i syv dage** — ingen sidder i det nu, så det kan slås fra uden at nogen taber en mail. **Skal ske FØR tirsdag 22/9 kl. 13:30.** Står i DEL 3 «20/9 og frem» øverst.
 
+### 20. september (dag og aften) — elleve merges (#1041–#1052, 13:30 → 22:33 dansk): klokkerne, sporet fra klik til ansøgning, cronen der aldrig kørte — og tre principper, der gælder alt fremover
+
+Kilder: `gh pr list` (merge-tider UTC → dansk +2), commit-beskederne (læst, ikke skrevet af), udkastmapperne i `~/Downloads/` (`udkast-stille-klokker`, `udkast-meta-cron`, `udkast-raadgiver-rykkes`, `udkast-annoncekilde`, `udkast-to-spor-1/-2`), reconerne (`recon-medlemsforloebet`, `recon-foer-webinaret`, `recon-kollisioner`, `recon-meta-kaeden`, `recon-landingssider`), Jonas' prod-målinger i SQL-editoren og i Stripe, og reflogget i det delte træ. Formiddagens del (#1034–#1040) står i «19.–20. september» ovenfor. **Emner: §1 merges · §2 migrationer og cron-jobs · §3 det, der blev ændret uden for repoet · §4 tre principper · §5 fejlene · §6 det, der venter.**
+
+**0. DAGEN I ÉN LINJE.** I morges kunne ingen se, at ti af 28 betalende medlemmer ikke bruger platformen, at rådgiveren var den eneste i ansøgningsforløbet, der aldrig blev rykket, at Meta-hentningen aldrig kørte af sig selv, eller at et klik fra sitet tabte sin annonce på vej ind. I aften ringer to klokker om de ti, rådgiveren rykkes som ansøgeren, hentningen kører kl. 03:33, og klikket bærer sin annonce hele vejen til ansøgningen. Og fem edge functions, der blev merget, kom ikke i drift af sig selv — det er dagens vigtigste lærdom (§4c, §5c).
+
+**1. MERGES.** Én linje pr. PR. Udrulning: «Update» = frontend; «fn:» = edge function, **eksplicit fra build-chat** (§4c); «migr.» = migration (tilstand i §2). Tallene er PR'ens egne.
+
+| PR | Commit | Tid | Hvad | Udrulning · tests |
+|---|---|---|---|---|
+| #1041 | `35291bd4` | 13:30 | **Ingen har mødt ikke op til noget, der ikke er sket endnu:** «missed» om en fremtidig session = tilmeldt; friskheden kun bagud (en time før start → tre døgn tilbage); ingen tavs udeladelse i sporet; loggen siger det, der skete. | fn: ewebinar-webhook |
+| #1042 | `fa766dca` | 14:41 | **Elleve fund fra søndagens fire gennemgange** (recon-kollisioner, -klaviyosiden, -foer-webinaret, -levering): fire systemer mailer de samme mennesker uden at vide det om hinanden (ni mails på én dag, seks er nok); ingen af platformens mails kan afmeldes → juristen; og seks kort fra i dag lå inde i mangellistens instruktions-kommentar og blev aldrig vist. | docs |
+| #1044 | `a119e203` | 18:27 | **Kanalens navn får ét hjem:** `utm_source` er den bogstavelige værdi af én parameter (fb, facebook, ig, th, an); oversættelsen i `src/lib/webinar/annoncekilde.ts` + `_shared`-spejl, kildeværn mod prod-værdierne — en sjette er en rød prøve. | Update · 463/6417 |
+| #1045 | `0816010b` | 18:35 | **Hentningen kørte aldrig af sig selv:** cron `meta-annoncer` 03:33 UTC og `meta-hentning-vagt` 04:33; `meta_hentning`-tabellen; fladen kaldte fem dage for syv. | migr. `20260921090000` (kørt FØR merge) · fn: meta-annoncer-cron · Update |
+| #1046 | `5c78a339` | 19:00 | **Rådgiveren var den eneste i forløbet, der aldrig blev rykket:** trapper for trin, der venter på os (ny, afholdt), til kontakt@ — som ansøgeren får sin; «kom de?»-klokken efter samtalen. | migr. `20260920200000` (kørt FØR merge, ~20:45) · fn: ansoegning-rykker-cron, ansoegning-handling, calendly-webhook · Update · 463/6437 |
+| #1047 | `0dc3bae1` | 19:07 | **«View code» beviste kilden, ikke driften:** skub af meta-annoncer-cron; CLAUDE.md-afsnit om, at kilden i editoren og bundlen i drift er to ting. | fn: meta-annoncer-cron (eksplicit) |
+| #1048 | `cdc90353` | 19:32 | **Ti af 28 betaler og bruger ikke — ingen klokke ringede:** `stilleDom.ts` (spejlet), `stille-klokker-cron`, to klokker med trappe (30·60·90 / 90·120·150 + vinduet), tærskler målt; mangelliste-kort: sletningen dag 45 tager beviset. | migr. `20260921100000` (kørt EFTER tørkørsel) · fn: stille-klokker-cron · 466/6466 |
+| #1049 | `ba64bbe0` | 20:00 | **«website» er sitets ord for «direkte»** — aliaset i skemaet; sitets syv knapper rettet af Jonas i Lovable (§3c). | Update |
+| #1050 | `266c958f` | 20:10 | **Klokkerne er tændt:** migrationens filhoved bogfører job 566 og tørkørslens syv; `for_tidligt`-grenen står som umålt. | docs |
+| #1051 | `917e4b1c` | 20:16 | **Merge lægger kilden. Den udruller ikke:** CLAUDE.md «Deployment af edge functions» skrevet som rækkefølgen (§4c). | docs |
+| #1052 | `ec7b2e04` | 20:33 | **Klikket nåede døren, og døren tog ikke imod:** `/ansoeg` gemmer de otte annoncespor-felter (utm_*, fbclid, landing, referrer) på ansøgningen; fail-soft; beviset er en «opret» med `?utm_content=TESTAD`. | migr. `20260921120000` (kørt FØR merge) · fn: ansoegning-gem · Update · 467/6477 |
+
+Ikke merget: **#1043** (`docs/moedelink-rettelse`, recon-kollisioner' rettelse af rådet om Calendly — kalenderinvitationen er det eneste, der garanteret bærer mødelinket) står åben. Lovables egne commits på main: `2a213cb3`/`a00a1ce7` (19:11, `types.ts` +37: `meta_hentning`, `url_tags`) og `f9670fd8`/`0f278f85` (20:37).
+
+**2. MIGRATIONER OG CRON-JOBS I PROD (Lovable SQL editor; Jonas).** Fire migrationer kørt: `20260920200000_planlagte_haendelser_trappe_raadgiver` (CHECK udvidet med ny/afholdt, ~20:45, FØR #1046), `20260921090000_meta_annoncer_cron` (FØR #1045; EFTER-SQL fem rækker), `20260921100000_stille_klokker_cron` (EFTER tørkørslen — job 566), `20260921120000_ansoegninger_annoncespor` (otte kolonner, målt udefra 200, FØR #1052). **Ikke kørt:** `20260920100000_klaviyo_mailhaendelser` (lag 5, #1038) — cronen `klaviyo-hentning` findes derfor ikke i prod endnu. Tre cron-jobs oprettet: `meta-annoncer` `33 3 * * *`, `meta-hentning-vagt` `33 4 * * *`, `stille-klokker` `30 4 * * *` (job 566). Første kørsler i nat/i morgen tidlig: hentningen 05:33 dansk, vagten 06:33, klokkerne 06:30.
+
+**3. DET, DER BLEV ÆNDRET UDEN FOR REPOET.** *(a) Meta:* `url_tags` sat på ALLE annoncer til den kanoniske streng med id'er, ikke navne — `utm_source={{site_source_name}}&utm_medium=paid&utm_campaign={{campaign.id}}&utm_term={{adset.id}}&utm_content={{ad.id}}` (Jonas 20/9; `recon-meta-annoncer` §11). Intet arves fra konto/kampagne/annoncesæt — hver ny annonce skal have strengen selv. *(b) Klaviyo:* før-webinar-flowet `UiECQS` slukket (draft) kl. 16 — det havde syv mennesker i sig, ikke 354 (§5b); optakten sendes i stedet som to kampagner til listen `Sz5fdA` (354 importeret fra `webinar_tilmeldinger` kl. 13:44): «Webinar 22-09 — 1 dag før» mandag 21/9 14:00 og «— på dagen» tirsdag 07:00, smart sending fra, planlagt (ikke kladde); to Klaviyo-mails rettet af Jonas i Klaviyo — *[Jonas: skriv de to id'er her; de står ikke i repoet]*. *(c) Sites:* theboardroom.dk's syv «Ansøg om en plads»-knapper sendte `?kilde=website` uden klikkets parametre → `?kilde=direkte` + `sessionStorage`-klikket følger med (`udkast-to-spor-1` §A, Jonas i Lovable); topix.dk/webinar/optagelse's to knapper førte ind i SuperForm-formularen til det Monday-board, der blev slukket 19/9 00:50 → `app.theboardroom.dk/ansoeg?kilde=webinar` (`recon-landingssider` §0). *(d) Stripe:* de 28 betalende afstemt mod begge konti — 21 ses i Stripe, 7 betaler gennem e-conomic og findes kun i `kontrakter` (`recon-medlemsforloebet/fund-status-og-betalende.md` §9).
+
+**4. TRE PRINCIPPER, DER GÆLDER ALT FREMOVER.** Hvert har sit hjem; her står kun sætningen og henvisningen.
+
+*(a) Et signal, kun en browser kan vise, er ikke et signal.* Rådgiveren var den eneste i ansøgningsforløbet, der aldrig blev rykket: hvert trin, der ventede på ansøgeren, havde en trappe med rykkere; hvert trin, der ventede på os, havde en klokke i en browser — og klokken forlader aldrig browseren. Det var dér, salget gik i stå. **Reglen:** et trin, der venter på os, får en trappe til kontakt@, som et trin, der venter på dem, får en trappe til ansøgeren. Hjem: CLAUDE.md «Ansøgningsmotoren» (#1046, `udkast-raadgiver-rykkes`); samme tanke bag stille-klokkerne (#1048): systemet vidste det, og ingen fik det at vide.
+
+*(b) Et felt, vi ikke selv sætter, er en observation — aldrig en nøgle.* Fem gange i dag betød et felt ikke det, det hed: eWebinars `eWebinar` er en dato, der overskrives; `session_tid` er «string» hos Klaviyo (#1040 → `frisk`); `utm_source` er den bogstavelige værdi i linket (#1044); `companies.status`/`subscription_status` er en beslutning hhv. exit-abonnentens felt, ikke «betaler»; og Stripes eget `status` er `canceled` på 19 løbende abonnementer. **Reglen:** nøgler udledes ved læsning, ét sted, med tests — aldrig af et felt, en anden sætter. Hjem: `docs/webinaret-og-annoncerne.md` §8 og `docs/marketingmotoren.md` §7.
+
+*(c) Merge lægger kilden; den udruller ikke.* Fem edge functions merget i aften, ingen i drift af sig selv: `meta-annoncer-cron`, `ansoegning-rykker-cron`, `ansoegning-handling`, `calendly-webhook`, `stille-klokker-cron`. **Reglen** er rækkefølgen: byg beviset ind → merge → eksplicit deploy ved navn fra build-chat → én kørsel, der svarer med noget, kun den nye kode kan svare → Update hvis `src/` → først derefter cron-job/webhook-URL/mails. Hjem: CLAUDE.md «Deployment af edge functions» (#1047, #1051). DEL 4's «uenighed om auto-deploy» er afgjort (nedenfor).
+
+**5. FEJLENE — hvad vi troede, hvad der viste sig, hvad det ændrer.**
+
+*(a) Countdown-retningen vendt forkert (Klaviyo `UiECQS`, kl. 11:30).* Troede: forsinkelsen `83200413` regnes fra forrige trin, så 1 → 2 dage flytter «Vi ses i morgen» væk fra søndag. Viste sig (`recon-foer-webinaret` §1, målt på august): countdown-forsinkelser i flowet regnes **fra webinar-datoen** — med 1 landede mailen 24/8 14:01, dagen før 25/8; for 22/9 er 1 = mandag 14:00 (rigtigt) og 2 = **søndag 14:00** — 85 minutter FØR målingen, og der gik intet ud, fordi ingen sad i trinnet. Ændrer: en Klaviyo-forsinkelse rettes aldrig ud fra, hvad den hedder — den måles på en tidligere kørsel først; og flowet blev slukket samme eftermiddag (§3b).
+
+*(b) De 310, der faldt ud af optakten.* Troede: de 310, der kom ind 19/9 kl. 09:05, sad i flowet og ville få «3 dage før», «i morgen» og «i dag». Viste sig: da de fire mails blev nyoprettet 19/9 aften, faldt de ud — flowet havde **syv** mennesker i sig, ikke 354 (`koereplan-tirsdag` §1.4), og det nye countdown-trin «3 dage før 08:45» lå tyve minutter FØR de kom ind. Ændrer: optakten er kampagner til en liste (§3b), ikke et flow, og «waiting»-tallet pr. trin læses, før nogen stoler på et flow. Kampagnerne til 13/10 bygges på samme måde (`koereplan-13-10.md`).
+
+*(c) «View code» beviste kilden, ikke driften (#1045 → #1047).* Troede: «View code» efter merge = koden kører (canary'en fra maj). Viste sig: hentningen skrev 371 annoncer og 93 dagsrækker uden at røre `meta_hentning`, og `konto.tidszone` var null — bundlen var den gamle, mens editoren viste den nye kilde. Ændrer: beviset er en kørsel, der svarer med noget, kun den nye kode kan svare — og udrulningen er eksplicit (§4c). Aftenen tog en time længere, fordi CLAUDE.md sagde det forkerte; rettet i #1051.
+
+*(d) `git commit <pathspec>` afgrænser ikke i et delt indeks (A, 21:59).* Troede: en pathspec på commit tager kun de nævnte filer. Viste sig: i det delte træ lå en andens stagede hunk i samme indeks — A fangede det i `--stat` med det samme, `reset --soft`, den fremmede fil ud, ny commit `0016cccf` med kun egne tre, hunken sat tilbage som staged, identisk (+11/−1), PR verificeret til tre filer FØR merge. Ændrer: `git diff --cached --stat` læses ordret før hver commit, og den skal vise præcis mine filer.
+
+*(e) To gange committede et vindue på en andens gren (21:56 og 22:15).* Troede: «på min gren» gælder, indtil jeg selv skifter. Viste sig (reflog): 21:53:32 lavede B `docs/stille-klokker-koert` og stagede én fil; 21:53:38 — seks sekunder senere — skiftede A træet til `feat/kilde-direkte`; B's commit 21:56 (`f6686d73`) landede på A's gren med A's tre filer indeni. Og 22:14:47 skiftede C træet fra B's `docs/edge-deploy-er-eksplicit` til sin egen; B's værn (`branch = min gren && merge`) stoppede rigtigt — men B's `git checkout main` 22:15:10 flyttede træet VÆK fra C's gren med C's ni uafsluttede filer. Intet tabt begge gange, én time tabt. Ændrer: **måling og handling i SAMME kommando** — `[ "$(git branch --show-current)" = "<min gren>" ] && git commit …`, og det samme for `git checkout`; `gh pr merge` uden `--delete-branch` rører ikke træet; står træet på en andens gren, er turen slut. (DEL 4.)
+
+**6. DET, DER VENTER — I RÆKKEFØLGE.** (1) I nat/i morgen tidlig: første kørsel af `meta-annoncer` 05:33 dansk (én række i `meta_hentning`), vagten 06:33, klokkerne 06:30 — de syv ringer for første gang; Jonas' tre linjer står i `udkast-stille-klokker/README.md`. (2) Mandag 14:00: kampagnen «1 dag før» — Recipients ≈ 354 kl. 14:05; listen genimporteres inden kl. 13. (3) Tirsdag: `koereplan-tirsdag.md` §1 — tænd `Wq3MkG`/`SDVvCW`, sluk `YcBF9f` senest 13:00, rør ikke `WFzxH9`; på-dagen-kampagnen 07:00. (4) Onsdag: `koereplan-onsdag.md`. (5) Lag 5's migration `20260920100000` køres i hånden, når Jonas siger til — først da findes `klaviyo-hentning`. (6) #1043 merges eller lukkes. (7) Mangelliste-kortet `a20-bevis-slettes-dag-45`: sletningen skal selv bogføre «havde bruger» og «var aktiv», før den sletter. (8) De to Klaviyo-mail-id'er i §3b skrives ind.
+
 ## DEL 3 · Det der venter
 
 ### 20/9 og frem — rækkefølgen (matcher «20/9 — START HER»; skrevet 20/9 formiddag)
@@ -11234,13 +11284,27 @@ De konkrete ting der har kostet tid. Led efter dem.
   pr. konto er svaret 16/9 — men DataCVR's grænse er uafklaret (25 pr. dag
   ifølge dokumentationen, «25 kald om måneden» ifølge Jonas 12:28; ikke
   målt). (DEL 2 «16. september (middag)» §3)
-- **CLAUDE.md og OVERLEVERING er uenige om auto-deploy af edge
-  functions.** `CLAUDE.md:32, :45` siger «auto fra git-merge til main.
-  Ingen manuel handling påkrævet.» (canary PR #15/16, 2026-05-11); DEL 4
-  siger at en ændret delt fil udrulles eksplicit (fund 1 16/9 formiddag:
-  `import-application` kørte kode fra før #883). Ikke målt hvem der har
-  ret. Indtil en canary har afgjort det: udrul eksplicit, og bevis med «View
-  code». (DEL 2 «16. september (middag)» §5)
+- **Merge lægger kilden; den udruller ikke (afgjort 20/9 aften — DEL 4's
+  «uenighed» er lukket).** Fem functions merget samme aften, ingen i drift af
+  sig selv (`meta-annoncer-cron`, `ansoegning-rykker-cron`,
+  `ansoegning-handling`, `calendly-webhook`, `stille-klokker-cron`). «View
+  code» viser, hvad Lovable HAR af kilde, ikke hvad der kører (#1047).
+  Rækkefølgen: merge → eksplicit deploy ved navn fra build-chat → én kørsel,
+  der svarer med noget, kun den nye kode kan svare → Update hvis `src/` →
+  først derefter cron/webhook-URL/mails. CLAUDE.md «Deployment af edge
+  functions» (#1051). (DEL 2 «20. september» §4c, §5c)
+- **`git commit <pathspec>` afgrænser ikke i et delt indeks (A, 20/9
+  21:59).** En andens stagede hunk lå i samme indeks og kom med. Læs `git diff
+  --cached --stat` ordret før hver commit — den skal vise præcis dine filer.
+  (DEL 2 «20. september» §5d)
+- **Et vindue committede på en andens gren — to gange samme aften (20/9
+  21:56 og 22:15).** Grenen skiftede seks sekunder efter `git add`; commit'en
+  landede på en peers gren med peers filer. Og `git checkout main` flyttede
+  træet væk fra en anden peers gren med ni uafsluttede filer. Måling og
+  handling i SAMME kommando: `[ "$(git branch --show-current)" = "<min gren>" ]
+  && git commit …` — og det samme for `git checkout`; `gh pr merge` uden
+  `--delete-branch` rører ikke træet; står træet på en andens gren, er turen
+  slut. (DEL 2 «20. september» §5e)
 - **En kvittering vist fra lokal state kan lyve.** «Tak for svaret.» fra
   `useState` stod, selv om skrivningen fejlede og cachen blev rullet
   tilbage. Vis kvitteringen fra det der faktisk står i cachen
@@ -11446,3 +11510,6 @@ Skal ikke genforhandles uden ny måling.
 - **Exit-koden afgør, ikke «Test Files N passed» (16/9 aften).** Hele slutningen skrives ordret inkl. `echo $?`. (DEL 2 §42; DEL 4)
 - **`deno check` køres med `--node-modules-dir=none` — aldrig `auto` (16/9 aften).** (DEL 2 §41; DEL 4)
 - **Virksomhedssiden bygges efter analysens fem forslag (Jonas: «Ja på alle» — fem A'er).** PR 1 (#944): Planen i midten før tallene i fuld bredde, chatten lavere, aftalen foldet; PR 2: forberedelsen læser planen, blok 1-køen med skridt-titler. (DEL 2 §44)
+- **Et signal, kun en browser kan vise, er ikke et signal (20/9).** Et trin, der venter på os, får en trappe til kontakt@, som et trin, der venter på dem, får en trappe til ansøgeren. Hjem: CLAUDE.md «Ansøgningsmotoren»; #1046, #1048. (DEL 2 «20. september» §4a)
+- **Et felt, vi ikke selv sætter, er en observation — aldrig en nøgle (20/9).** Nøgler udledes ved læsning, ét sted, med tests. Hjem: `docs/webinaret-og-annoncerne.md` §8, `docs/marketingmotoren.md` §7. (DEL 2 «20. september» §4b)
+- **Merge lægger kilden; den udruller ikke (20/9).** Eksplicit deploy fra build-chat, og beviset er en kørsel, der svarer med noget, kun den nye kode kan svare. Hjem: CLAUDE.md «Deployment af edge functions». (DEL 2 «20. september» §4c; DEL 4)
