@@ -3315,6 +3315,7 @@ export type Database = {
           overskrift: string | null
           raa: Json | null
           status: string | null
+          url_tags: string | null
           video_id: string | null
         }
         Insert: {
@@ -3332,6 +3333,7 @@ export type Database = {
           overskrift?: string | null
           raa?: Json | null
           status?: string | null
+          url_tags?: string | null
           video_id?: string | null
         }
         Update: {
@@ -3349,6 +3351,7 @@ export type Database = {
           overskrift?: string | null
           raa?: Json | null
           status?: string | null
+          url_tags?: string | null
           video_id?: string | null
         }
         Relationships: []
@@ -3398,6 +3401,39 @@ export type Database = {
           raekkevidde?: number | null
           valuta?: string
           visninger?: number | null
+        }
+        Relationships: []
+      }
+      meta_hentning: {
+        Row: {
+          art: string
+          hentet_til: string | null
+          sidste_fejl: string | null
+          sidste_koersel: string
+          sidste_udfald: string
+          tal: Json
+          vindue_fra: string | null
+          vindue_til: string | null
+        }
+        Insert: {
+          art: string
+          hentet_til?: string | null
+          sidste_fejl?: string | null
+          sidste_koersel: string
+          sidste_udfald: string
+          tal?: Json
+          vindue_fra?: string | null
+          vindue_til?: string | null
+        }
+        Update: {
+          art?: string
+          hentet_til?: string | null
+          sidste_fejl?: string | null
+          sidste_koersel?: string
+          sidste_udfald?: string
+          tal?: Json
+          vindue_fra?: string | null
+          vindue_til?: string | null
         }
         Relationships: []
       }
@@ -4690,6 +4726,7 @@ export type Database = {
         Returns: boolean
       }
       mark_notifications_seen: { Args: never; Returns: number }
+      meta_hentning_vagt: { Args: never; Returns: string }
       opret_community_svar: {
         Args: { p_indhold: string; p_indhold_json?: Json; p_traad_id: string }
         Returns: string
