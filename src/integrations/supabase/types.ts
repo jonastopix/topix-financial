@@ -2853,6 +2853,7 @@ export type Database = {
           handling: string
           id: string
           kladde_rettelser: Json
+          klaviyo_afveg: Json
           klaviyo_id: string | null
           klaviyo_type: string
           sendt: Json | null
@@ -2869,6 +2870,7 @@ export type Database = {
           handling: string
           id?: string
           kladde_rettelser?: Json
+          klaviyo_afveg?: Json
           klaviyo_id?: string | null
           klaviyo_type: string
           sendt?: Json | null
@@ -2885,6 +2887,7 @@ export type Database = {
           handling?: string
           id?: string
           kladde_rettelser?: Json
+          klaviyo_afveg?: Json
           klaviyo_id?: string | null
           klaviyo_type?: string
           sendt?: Json | null
@@ -4114,6 +4117,7 @@ export type Database = {
           sat_at: string
           status: string
           svaret_at: string | null
+          tidligst_tilbud_at: string | null
           tilbud_nr: number
           tilbud_udloeber_at: string | null
           tilbudt_at: string | null
@@ -4130,6 +4134,7 @@ export type Database = {
           sat_at?: string
           status?: string
           svaret_at?: string | null
+          tidligst_tilbud_at?: string | null
           tilbud_nr?: number
           tilbud_udloeber_at?: string | null
           tilbudt_at?: string | null
@@ -4146,6 +4151,7 @@ export type Database = {
           sat_at?: string
           status?: string
           svaret_at?: string | null
+          tidligst_tilbud_at?: string | null
           tilbud_nr?: number
           tilbud_udloeber_at?: string | null
           tilbudt_at?: string | null
