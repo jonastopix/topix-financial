@@ -62,10 +62,20 @@ describe("kildeværn: App.tsx kobler begge caches på fejllogningen", () => {
     expect(app, "den tomme QueryClient må ikke komme tilbage").not.toContain("new QueryClient();");
   });
 
-  it("adfærden er urørt: ingen throwOnError, ingen retry-politik i klienten", () => {
+  it("fejladfærden er urørt: ingen throwOnError, ingen retry-politik i klienten", () => {
     const klient = app.slice(app.indexOf("const queryClient = new QueryClient("), app.indexOf("});", app.indexOf("const queryClient = new QueryClient(")) + 3);
     expect(klient).not.toContain("throwOnError");
     expect(klient).not.toContain("retry");
-    expect(klient).not.toContain("defaultOptions");
+  });
+
+  it("staleTime er sat ÉT sted (20/9, recon-ydeevne): 60 s i defaultOptions — og intet andet i defaults", () => {
+    // NY PRÆMIS 20/9: før stod her «ingen defaultOptions», fordi adfærden skulle
+    // være urørt. Målt: staleTime 0 gav ~25 kald pr. faneskift på forsiden.
+    // Nu må defaults rumme PRÆCIS staleTime — ikke refetchOnWindowFocus: false
+    // (så ville en time gammel fane aldrig opdatere), ikke retry, ikke throwOnError.
+    const klient = app.slice(app.indexOf("const queryClient = new QueryClient("), app.indexOf("});", app.indexOf("const queryClient = new QueryClient(")) + 3);
+    const defaults = /defaultOptions:\s*\{\s*queries:\s*\{([^}]*)\}\s*,?\s*\}/.exec(klient);
+    expect(defaults, "defaultOptions.queries skal findes").not.toBeNull();
+    expect(defaults![1].replace(/\s+/g, " ").trim()).toBe("staleTime: 60_000");
   });
 });

@@ -88,9 +88,22 @@ const DemoHandouts = lazy(() => import("./demo/DemoHandouts"));
 // GLOBAL FEJLLOGNING (7/9, recon-tavse-fejl.md): før var dette
 // `new QueryClient()` uden caches, og ingen query- eller mutationsfejl
 // blev nogensinde logget. onError her sender fejlen til konsollen og til
-// Sentry med nøglen som kontekst (src/lib/fejllogning.ts). Adfærden er i
-// øvrigt UÆNDRET: ingen throwOnError, ingen ændret retry, ingen toasts.
+// Sentry med nøglen som kontekst (src/lib/fejllogning.ts). Ingen
+// throwOnError, ingen ændret retry, ingen toasts.
+//
+// STALETIME (20/9, recon-ydeevne §0.2): TanStack's standard er staleTime 0 +
+// refetchOnWindowFocus true — hvert faneskift genhentede ALT uden egen
+// staleTime (forsiden: ~25 kald). Jonas arbejder i Lovable, SQL-editoren og
+// app'en på skift; det var «langsomt at arbejde i». Stormen kom fra
+// staleTime 0, ikke fra fokus-genhentningen: med 60 s bliver et hurtigt
+// skift gratis, og en tilbagevenden efter fem minutter henter stadig friskt
+// (refetchOnWindowFocus er stadig standard = true — den rammer kun det, der
+// ER gammelt). Det, der SKAL være friskt hvert sekund, bæres af realtime
+// (klokken, chatten, online) eller sætter sin egen staleTime/refetchInterval.
 const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: { staleTime: 60_000 },
+  },
   queryCache: new QueryCache({
     onError: (error, query) => logQueryFejl(error, query.queryKey),
   }),
