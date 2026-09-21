@@ -1,5 +1,6 @@
--- IKKE KØRT. DEPLOY: manuelt i Lovable → SQL editor efter merge (FØR Update-klik).
--- TIDSSTEMPLET 23:50 (rettet 21/9: «240000» er ikke et gyldigt klokkeslæt).
+-- KØRT i prod — 21/9-2026 kl. 21:15 (Jonas, Lovable SQL editor), efter merge, med en vagt først. EFTER: job 570, '52 4 * * *', aktiv.
+-- TIDSSTEMPLET er 02:10 (omnummereret 21/9, da udkastet blev flyttet over på det nye grundlag;
+-- det oprindelige «240000» er ikke et gyldigt klokkeslæt).
 -- RÆKKEFØLGEN: EFTER 20260922020000_webinar_delinger.sql (tabellerne og protect_webinar_deling_spor
 -- med cascade-undtagelsen — uden den ville denne DELETE fejle på sporet). Ingen edge function, ingen
 -- udrulning: ren SQL i et cron-job.

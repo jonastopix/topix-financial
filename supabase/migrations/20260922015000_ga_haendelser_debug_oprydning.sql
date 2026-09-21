@@ -1,4 +1,4 @@
--- IKKE KØRT. DEPLOY: manuelt i Lovable → SQL editor efter merge (FØR Update-klik).
+-- KØRT i prod — 21/9-2026 kl. 21:15 (Jonas, Lovable SQL editor), efter merge, med en vagt først. EFTER: 0 testrækker slettet — bogført no-op.
 -- RÆKKEFØLGEN: EFTER 20260922010000_ga_haendelser.sql (kørt i prod 21/9 kl. 17:48) og FØR
 -- udrulningen af den rettede ga-send-cron. Den skal køres, INDEN beviset tages om.
 --

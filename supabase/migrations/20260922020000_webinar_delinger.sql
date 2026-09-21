@@ -1,4 +1,4 @@
--- IKKE KØRT. DEPLOY: manuelt i Lovable → SQL editor efter merge (FØR Update-klik).
+-- KØRT i prod — 21/9-2026 kl. 21:15 (Jonas, Lovable SQL editor), efter merge, med en vagt først. EFTER: rls true/true, 5 politikker, trigger 1.
 -- RÆKKEFØLGEN — LÆS DEN (CLAUDE.md «Deployment af edge functions»):
 --   1. DENNE migration (tabellerne) — FØR udrulningen. Mål:
 --      GET /rest/v1/webinar_delinger?select=id&limit=0 → 200 (anon-nøglen fra bundlen).

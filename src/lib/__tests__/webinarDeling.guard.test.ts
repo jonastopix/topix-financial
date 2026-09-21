@@ -22,7 +22,8 @@ import { ANNONCESPOR_KOLONNER, UDLEDTE_KOLONNER } from "@/lib/webinar/kolonner";
  *      deling_id NOT NULL, ingen «afvist_ukendt» i CHECK'en, og triggeren er
  *      protect_aftale_spor-formen: UPDATE afvises altid, DELETE kun direkte
  *      (pg_trigger_depth() <= 1) — cascaden fra webinar_delinger slipper igennem;
- *      anon får intet; rådgivere læser; «-- IKKE KØRT» først.
+ *      anon får intet; rådgivere læser; migrationen bogført KØRT i prod (21/9 21:15, efter
+ *      merge — filhovedet rettet ved bogføringen; var «IKKE KØRT» indtil da).
  *   5. BUCKET A i webinar-deling: authenticateUser før createClient; has_role via
  *      callerClient.rpc; tokenet dannes af crypto.getRandomValues og gemmes kun som
  *      token_aftryk; svaret bærer token kun i «opret».
@@ -38,7 +39,7 @@ import { ANNONCESPOR_KOLONNER, UDLEDTE_KOLONNER } from "@/lib/webinar/kolonner";
  *      intervallet '12 months' og udvælgelsen least(coalesce(lukket_at, udloeber_at),
  *      udloeber_at) < now() - interval — kun lukkede eller udløbne; slottet 04:52
  *      rammer ingen anden plan (målt over alle cron.schedule i migrationerne);
- *      «-- IKKE KØRT» først; unschedule.
+ *      migrationen bogført KØRT i prod (21/9 21:15); unschedule.
  */
 
 const laes = (sti: string) => readFileSync(resolve(process.cwd(), sti), "utf8");
@@ -128,7 +129,7 @@ export const sporetErInsertOnly = (delt: string, deling: string, migration: stri
   const triggerKrop = m.match(/create or replace function public\.protect_webinar_deling_spor\(\)[\s\S]*?\$\$;/)?.[0] ?? "";
   return sporKald.length >= 2 && sporKald.every((k) => k === "insert") &&
     !/delingId: string \| null/.test(kode) && !/deling_id: null/.test(kode) && !/afvist_ukendt/.test(kode) &&
-    migration.startsWith("-- IKKE KØRT. DEPLOY:") &&
+    migration.startsWith("-- KØRT i prod — 21/9-2026 kl. 21:15") &&
     /deling_id\s+uuid not null references public\.webinar_delinger\(id\) on delete cascade/.test(m) &&
     !/afvist_ukendt/.test(m) && /'vist', 'afvist_udloebet', 'afvist_lukket'/.test(m) &&
     /if tg_op = 'UPDATE' then\s+raise exception/.test(triggerKrop) &&
@@ -229,7 +230,7 @@ export const opbevaringenErRigtig = (mig: string): boolean => {
   const m = udenSql(mig);
   const job = m.match(/\$job\$([\s\S]*?)\$job\$/)?.[1] ?? "";
   const saetninger = job.split(";").map((x) => x.trim()).filter(Boolean);
-  return mig.startsWith("-- IKKE KØRT. DEPLOY:") &&
+  return mig.startsWith("-- KØRT i prod — 21/9-2026 kl. 21:15") &&
     /cron\.schedule\(\s*'webinar-delinger-opbevaring',\s*'52 4 \* \* \*'/.test(m) &&
     saetninger.length === 1 && /^DELETE FROM public\.webinar_delinger\s+WHERE least\(coalesce\(lukket_at, udloeber_at\), udloeber_at\) < now\(\) - interval '12 months'$/.test(saetninger[0]) &&
     (m.match(/interval '/g) ?? []).length === 1 && !/kald_edge|net\.http_post|security definer|WITH /i.test(m) &&
@@ -300,7 +301,8 @@ describe("webinarDeling.guard — dommene fanger fejlen på en kopi", () => {
     expect(sporetErInsertOnly(delt, deling, mig + '\ncreate policy "x" on public.webinar_deling_spor for update using (true);\n')).toBe(false);
     expect(sporetErInsertOnly(delt, deling, mig.replace("token_aftryk  text not null,", "token_aftryk  text not null,\n  token         uuid not null,"))).toBe(false);
     expect(sporetErInsertOnly(delt, deling, mig + '\ncreate policy "y" on public.webinar_delinger for select to anon using (true);\n')).toBe(false);
-    expect(sporetErInsertOnly(delt, deling, mig.replace("-- IKKE KØRT. DEPLOY:", "-- DEPLOY:"))).toBe(false);
+    // #1064-formen: mutationen på den FAKTISKE fil — tilbage til «IKKE KØRT» falder, for den ER kørt (21:15).
+    expect(sporetErInsertOnly(delt, deling, mig.replace("-- KØRT i prod — 21/9-2026 kl. 21:15", "-- IKKE KØRT. DEPLOY:"))).toBe(false);
     // Rettelse 2: triggeren uden cascade-undtagelsen (nægter ALT), eller med undtagelsen vendt, fælder.
     // split/join: udtrykket står også i filhovedets citat — .replace ville kun ramme kommentaren (mutationstest-lærdommen).
     expect(sporetErInsertOnly(delt, deling, mig.split("if pg_trigger_depth() <= 1 then").join("if true then"))).toBe(false);
@@ -331,9 +333,12 @@ describe("webinarDeling.guard — dommene fanger fejlen på en kopi", () => {
     const o = laes(MIG_OPBEVARING);
     expect(opbevaringenErRigtig(o.split("interval '12 months'").join("interval '6 months'"))).toBe(false);
     expect(opbevaringenErRigtig(o.replace("WHERE least(coalesce(lukket_at, udloeber_at), udloeber_at) < now() - interval '12 months'", "WHERE oprettet_at < now() - interval '12 months'"))).toBe(false);
-    expect(opbevaringenErRigtig(o.replace("'52 4 * * *'", "'4 4 * * *'"))).toBe(false);
+    // Mutationen skal ramme den FAKTISKE plan, ikke filhovedets bogføring (som siden 21/9 selv
+    // citerer «'52 4 * * *'»): derfor cron.schedule-linjen, ikke første forekomst i filen.
+    expect(opbevaringenErRigtig(o.replace("cron.schedule(\n  'webinar-delinger-opbevaring',\n  '52 4 * * *',", "cron.schedule(\n  'webinar-delinger-opbevaring',\n  '4 4 * * *',"))).toBe(false);
     expect(opbevaringenErRigtig(o.replace("  $job$\n);", "  SELECT public.kald_edge('x');\n  $job$\n);"))).toBe(false);
-    expect(opbevaringenErRigtig(o.replace("-- IKKE KØRT. DEPLOY:", "-- DEPLOY:"))).toBe(false);
+    // #1064-formen: tilbage til «IKKE KØRT» falder — opbevaringsjobbet ER kørt (21:15, job 570).
+    expect(opbevaringenErRigtig(o.replace("-- KØRT i prod — 21/9-2026 kl. 21:15", "-- IKKE KØRT. DEPLOY:"))).toBe(false);
     const planer = cronUdtryk(MIG_DIR);
     expect(kolliderer(52, [...planer, { fil: "x", job: "andet", udtryk: "52 9 * * *" }], "webinar-delinger-opbevaring")).toEqual(["andet (52 9 * * *)"]);
   });
