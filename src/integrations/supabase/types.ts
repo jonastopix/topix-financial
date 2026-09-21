@@ -709,7 +709,9 @@ export type Database = {
           cvr_bekraeftet: boolean
           cvr_opslag: Json | null
           email: string | null
+          fbc_cookie: string | null
           fbclid: string | null
+          fbp: string | null
           ga_client_id: string | null
           ga_session_id: string | null
           hjemmeside: string | null
@@ -724,6 +726,7 @@ export type Database = {
           lukket_af: string | null
           lukket_at: string | null
           lukket_fra_trin: string | null
+          meta_fravalg: boolean
           navn: string | null
           note: string | null
           om_tolv_maaneder: string | null
@@ -763,7 +766,9 @@ export type Database = {
           cvr_bekraeftet?: boolean
           cvr_opslag?: Json | null
           email?: string | null
+          fbc_cookie?: string | null
           fbclid?: string | null
+          fbp?: string | null
           ga_client_id?: string | null
           ga_session_id?: string | null
           hjemmeside?: string | null
@@ -778,6 +783,7 @@ export type Database = {
           lukket_af?: string | null
           lukket_at?: string | null
           lukket_fra_trin?: string | null
+          meta_fravalg?: boolean
           navn?: string | null
           note?: string | null
           om_tolv_maaneder?: string | null
@@ -817,7 +823,9 @@ export type Database = {
           cvr_bekraeftet?: boolean
           cvr_opslag?: Json | null
           email?: string | null
+          fbc_cookie?: string | null
           fbclid?: string | null
+          fbp?: string | null
           ga_client_id?: string | null
           ga_session_id?: string | null
           hjemmeside?: string | null
@@ -832,6 +840,7 @@ export type Database = {
           lukket_af?: string | null
           lukket_at?: string | null
           lukket_fra_trin?: string | null
+          meta_fravalg?: boolean
           navn?: string | null
           note?: string | null
           om_tolv_maaneder?: string | null
