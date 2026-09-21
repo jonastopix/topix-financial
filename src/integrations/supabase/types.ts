@@ -742,6 +742,7 @@ export type Database = {
           trin_sat_at: string
           udfordring: string | null
           updated_at: string
+          user_agent: string | null
           utm_campaign: string | null
           utm_content: string | null
           utm_medium: string | null
@@ -793,6 +794,7 @@ export type Database = {
           trin_sat_at?: string
           udfordring?: string | null
           updated_at?: string
+          user_agent?: string | null
           utm_campaign?: string | null
           utm_content?: string | null
           utm_medium?: string | null
@@ -844,6 +846,7 @@ export type Database = {
           trin_sat_at?: string
           udfordring?: string | null
           updated_at?: string
+          user_agent?: string | null
           utm_campaign?: string | null
           utm_content?: string | null
           utm_medium?: string | null
@@ -3427,6 +3430,68 @@ export type Database = {
           visninger?: number | null
         }
         Relationships: []
+      }
+      meta_haendelser: {
+        Row: {
+          ansoegning_id: string
+          art: string
+          created_at: string
+          event_id: string
+          event_time: string
+          events_received: number | null
+          fejl: string | null
+          forsoeg: number
+          sendt_at: string | null
+          sidste_forsoeg_at: string
+          status: number | null
+          svar: string | null
+          test_event_code: string | null
+          udfald: string
+          varighed_ms: number | null
+        }
+        Insert: {
+          ansoegning_id: string
+          art: string
+          created_at?: string
+          event_id: string
+          event_time: string
+          events_received?: number | null
+          fejl?: string | null
+          forsoeg?: number
+          sendt_at?: string | null
+          sidste_forsoeg_at?: string
+          status?: number | null
+          svar?: string | null
+          test_event_code?: string | null
+          udfald: string
+          varighed_ms?: number | null
+        }
+        Update: {
+          ansoegning_id?: string
+          art?: string
+          created_at?: string
+          event_id?: string
+          event_time?: string
+          events_received?: number | null
+          fejl?: string | null
+          forsoeg?: number
+          sendt_at?: string | null
+          sidste_forsoeg_at?: string
+          status?: number | null
+          svar?: string | null
+          test_event_code?: string | null
+          udfald?: string
+          varighed_ms?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meta_haendelser_ansoegning_id_fkey"
+            columns: ["ansoegning_id"]
+            isOneToOne: false
+            referencedRelation: "ansoegninger"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       meta_hentning: {
         Row: {
