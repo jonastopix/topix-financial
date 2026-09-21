@@ -4367,6 +4367,74 @@ export type Database = {
           },
         ]
       }
+      webinar_deling_spor: {
+        Row: {
+          deling_id: string
+          detaljer: Json | null
+          haendelse: string
+          id: number
+          ip: string | null
+          tidspunkt: string
+          user_agent: string | null
+        }
+        Insert: {
+          deling_id: string
+          detaljer?: Json | null
+          haendelse: string
+          id?: never
+          ip?: string | null
+          tidspunkt?: string
+          user_agent?: string | null
+        }
+        Update: {
+          deling_id?: string
+          detaljer?: Json | null
+          haendelse?: string
+          id?: never
+          ip?: string | null
+          tidspunkt?: string
+          user_agent?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "webinar_deling_spor_deling_id_fkey"
+            columns: ["deling_id"]
+            isOneToOne: false
+            referencedRelation: "webinar_delinger"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      webinar_delinger: {
+        Row: {
+          id: string
+          lukket_at: string | null
+          navn: string
+          oprettet_af: string
+          oprettet_at: string
+          token_aftryk: string
+          udloeber_at: string
+        }
+        Insert: {
+          id?: string
+          lukket_at?: string | null
+          navn: string
+          oprettet_af: string
+          oprettet_at?: string
+          token_aftryk: string
+          udloeber_at: string
+        }
+        Update: {
+          id?: string
+          lukket_at?: string | null
+          navn?: string
+          oprettet_af?: string
+          oprettet_at?: string
+          token_aftryk?: string
+          udloeber_at?: string
+        }
+        Relationships: []
+      }
       webinar_haendelser: {
         Row: {
           action: string | null
