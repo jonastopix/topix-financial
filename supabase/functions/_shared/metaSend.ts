@@ -30,6 +30,15 @@
  *      rettigheder (10, 200–299) — det må ALDRIG blive «ugyldig» (som aldrig prøves igen).
  *      Dommen står i doemMetaSvar: MIDLERTIDIGE_KODER eller is_transient → fejl; NOEGLE_KODER
  *      (uden kode: type OAuthException eller 401/403) → ingen_noegle; øvrige 4xx → ugyldig; 5xx → fejl.
+ *  10. (rettelse 21/9 aften, docs/tracking.md §6 punkt 9) EN NØGLE UDEN ADGANG TIL DATASÆTTET
+ *      GEMMER SIG BAG KODE 100. Metas fejlreference for 100 med error_subcode 33, ordret:
+ *      «Unsupported post request. This error may occur if your access token is not added as a
+ *      system user with appropriate permissions to the ad account that owns a Custom Audience.»
+ *      (https://developers.facebook.com/docs/marketing-api/error-reference/) — altså
+ *      RETTIGHEDER, ikke payload. Kode 100 alene er «Invalid parameter» og bliver «ugyldig»
+ *      som før; kun PARRET (100, 33) løftes til ingen_noegle, så hændelsen prøves igen, når
+ *      adgangen er givet. «ugyldig» prøves aldrig igen, og en nøglefejl, der lander dér,
+ *      ville tabe hændelsen for altid.
  *
  * METAS DOKUMENTATION, citeret (hentet 21/9-2026):
  *   fbc — https://developers.facebook.com/docs/marketing-api/conversions-api/parameters/fbp-and-fbc/
@@ -253,6 +262,19 @@ export const erNoegleKode = (kode: number): boolean => NOEGLE_KODER.includes(kod
 /** Midlertidigt (downtime/throttling — «Wait and retry»): 1, 2, 4, 17, 32, 341, 613 → fejl (prøves igen). */
 export const MIDLERTIDIGE_KODER: readonly number[] = [1, 2, 4, 17, 32, 341, 613];
 
+/**
+ * Nøgle/rettighed, der gemmer sig bag en ANDEN kode — parret (code, error_subcode).
+ * (100, 33) er Metas måde at sige «objektet findes ikke, eller din nøgle må det ikke»:
+ * «Unsupported post request. This error may occur if your access token is not added as a
+ * system user with appropriate permissions to the ad account …» (error-reference).
+ * Uden dette par ville en nøgle uden adgang til datasættet blive dømt «ugyldig» — og
+ * «ugyldig» prøves ALDRIG igen. Listen er parvis med vilje: kode 100 alene er en
+ * payloadfejl og skal blive ved med at være det.
+ */
+export const NOEGLE_SUBKODER: readonly (readonly [number, number])[] = [[100, 33]];
+export const erNoegleSubkode = (kode: number | null, subkode: number | null): boolean =>
+  kode !== null && subkode !== null && NOEGLE_SUBKODER.some(([k, s]) => k === kode && s === subkode);
+
 interface MetaFejl { message?: string; type?: string; code?: number; error_subcode?: number; is_transient?: boolean }
 
 /**
@@ -260,10 +282,12 @@ interface MetaFejl { message?: string; type?: string; code?: number; error_subco
  * Dømmes på FEJLKODEN (rettelse 21/9 aften), i denne rækkefølge:
  *   1. midlertidig (MIDLERTIDIGE_KODER eller is_transient: true) → «fejl» — FØR typen, fordi
  *      throttling også bærer type OAuthException (Metas eget eksempel på kode 32);
- *   2. nøgle/rettighed → «ingen_noegle»: KODEN afgør, når der er en (NOEGLE_KODER, 200–299);
- *      uden kode afgør typen (OAuthException — Metas ord: «If no subcode is present, the login
- *      status or access token has expired …») eller HTTP 401/403. Kode 100 «Invalid parameter»
- *      bærer i praksis også type OAuthException — det er en payloadfejl, ikke nøglen;
+ *   2. nøgle/rettighed → «ingen_noegle»: KODEN afgør, når der er en (NOEGLE_KODER, 200–299),
+ *      og PARRET (kode, error_subcode) afgør for dem, der gemmer sig bag kode 100 —
+ *      (100, 33) er en manglende rettighed på datasættet, ikke en payloadfejl (NOEGLE_SUBKODER).
+ *      Uden kode afgør typen (OAuthException — Metas ord: «If no subcode is present, the login
+ *      status or access token has expired …») eller HTTP 401/403. Kode 100 UDEN subkode 33
+ *      er «Invalid parameter» og bærer i praksis også type OAuthException — en payloadfejl;
  *   3. andre 4xx (fx kode 100) → «ugyldig» — den eneste, der aldrig prøves igen;
  *   4. 5xx og alt andet → «fejl».
  */
@@ -276,9 +300,10 @@ export function doemMetaSvar(status: number, tekst: string): { udfald: SporUdfal
   }
   const e = (krop?.error ?? null) as MetaFejl | null;
   const kode = typeof e?.code === "number" ? e.code : null;
-  const fejl = e?.message ? `${e.message}${kode !== null ? ` (kode ${kode}${typeof e?.error_subcode === "number" ? `/${e.error_subcode}` : ""})` : ""}` : tekst.slice(0, 300);
+  const subkode = typeof e?.error_subcode === "number" ? e.error_subcode : null;
+  const fejl = e?.message ? `${e.message}${kode !== null ? ` (kode ${kode}${subkode !== null ? `/${subkode}` : ""})` : ""}` : tekst.slice(0, 300);
   if ((kode !== null && MIDLERTIDIGE_KODER.includes(kode)) || e?.is_transient === true) return { udfald: "fejl", events_received: null, fejl, kode };
-  if (kode !== null ? erNoegleKode(kode) : (e?.type === "OAuthException" || status === 401 || status === 403)) return { udfald: "ingen_noegle", events_received: null, fejl, kode };
+  if (kode !== null ? (erNoegleKode(kode) || erNoegleSubkode(kode, subkode)) : (e?.type === "OAuthException" || status === 401 || status === 403)) return { udfald: "ingen_noegle", events_received: null, fejl, kode };
   if (status >= 400 && status < 500) return { udfald: "ugyldig", events_received: null, fejl, kode };
   return { udfald: "fejl", events_received: null, fejl, kode };
 }

@@ -84,6 +84,9 @@ const STRIKS: readonly string[] = [
   // Metas Conversions API (udkast 21/9 aften): dry_run, nu, test_event_code og
   // ansoegning_id, alt andet afvises.
   "meta-send-cron",
+
+  // Google Analytics (udkast 21/9 aften): dry_run, nu, debug og ansoegning_id.
+  "ga-send-cron",
 ];
 
 /**

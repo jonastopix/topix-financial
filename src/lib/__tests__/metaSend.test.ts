@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   alarmNoegle, alarmTekst, type AnsoegningTilMeta, bygFbc, bygPayload, doem, doemMetaSvar, erIVindue, erTestEventCode, eventId,
-  findForbudteNoegler, FORBUDTE_NOEGLER, laasErAktiv, maaForsoeges, META_DATASET_ID, META_EVENT, META_SEND_TOKEN_NAVN,
+  erNoegleSubkode, findForbudteNoegler, FORBUDTE_NOEGLER, NOEGLE_SUBKODER, laasErAktiv, maaForsoeges, META_DATASET_ID, META_EVENT, META_SEND_TOKEN_NAVN,
   META_VINDUE_DAGE, senderRigtigt, SPRUNGET_GRUNDE,
 } from "../../../supabase/functions/_shared/metaSend.ts";
 import { laesUserAgent, sporMedUserAgent, USER_AGENT_MAKS } from "../../../supabase/functions/_shared/ansoegningUserAgent.ts";
@@ -145,6 +145,27 @@ describe("metaSend — idempotensen (sporet)", () => {
     // Kode 100 = en rigtig fejl i payloaden — den eneste, der aldrig prøves igen.
     const k100 = '{"error":{"message":"Invalid parameter","type":"OAuthException","code":100,"error_subcode":2804003,"fbtrace_id":"A1"}}';
     expect(doemMetaSvar(400, k100)).toEqual({ udfald: "ugyldig", events_received: null, fejl: "Invalid parameter (kode 100/2804003)", kode: 100 });
+    // 100/33 er IKKE en payloadfejl: Metas error-reference kalder den en manglende rettighed
+    // («your access token is not added as a system user with appropriate permissions»).
+    // Den skal prøves igen, når adgangen er givet — «ugyldig» ville tabe hændelsen for altid.
+    const k100_33 = '{"error":{"message":"Unsupported post request. Object with ID \'858180112996496\' does not exist, cannot be loaded due to missing permissions, or does not support this operation. Please read the Graph API documentation at https://developers.facebook.com/docs/graph-api","type":"GraphMethodException","code":100,"error_subcode":33,"fbtrace_id":"A1b2C3d4E5f"}}';
+    const dom100_33 = doemMetaSvar(400, k100_33);
+    expect(dom100_33.udfald).toBe("ingen_noegle");
+    expect(dom100_33.kode).toBe(100);
+    expect(dom100_33.fejl).toContain("(kode 100/33)");
+    expect(dom100_33.fejl).toContain("missing permissions");
+    // Og den prøves igen — modsat «ugyldig».
+    expect(maaForsoeges({ event_id: "x", udfald: dom100_33.udfald, forsoeg: 2 })).toEqual({ ok: true });
+    // Parret er præcist: kode 100 med en ANDEN subkode er stadig en payloadfejl, og
+    // subkode 33 under en anden kode er ikke automatisk en nøglefejl.
+    expect(doemMetaSvar(400, '{"error":{"message":"x","code":100,"error_subcode":1234}}').udfald).toBe("ugyldig");
+    expect(doemMetaSvar(400, '{"error":{"message":"x","code":100}}').udfald).toBe("ugyldig");
+    expect(erNoegleSubkode(100, 33)).toBe(true);
+    expect(erNoegleSubkode(100, 34)).toBe(false);
+    expect(erNoegleSubkode(101, 33)).toBe(false);
+    expect(erNoegleSubkode(null, 33)).toBe(false);
+    expect(erNoegleSubkode(100, null)).toBe(false);
+    expect(NOEGLE_SUBKODER.map(([k, sub]) => `${k}/${sub}`)).toEqual(["100/33"]);
     // Throttling bærer OGSÅ type OAuthException (Metas eksempel på kode 32) — det er midlertidigt, ikke nøglen.
     const k4 = '{"error":{"message":"(#4) Application request limit reached","type":"OAuthException","code":4,"fbtrace_id":"A2"}}';
     expect(doemMetaSvar(400, k4)).toEqual({ udfald: "fejl", events_received: null, fejl: "(#4) Application request limit reached (kode 4)", kode: 4 });

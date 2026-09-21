@@ -27,7 +27,7 @@ på en side, ingen når (§2, §5). Sandheden er rækken i `ansoegninger`: `crea
 
 **(c) Rækkefølgen:** Meta (inkl. Instagram) først, så **Google Analytics**, så LinkedIn.
 GA kom foran LinkedIn 21/9 (chatten), fordi GA bruges i dag — LinkedIn-annoncer kører
-ikke endnu. Klaviyo får allerede «Ansoegning paabegyndt» og «Ansoegning sendt»
+ikke endnu. **LinkedIn er udskudt (Jonas 21/9): delingen af `/webinar` går foran.** Klaviyo får allerede «Ansoegning paabegyndt» og «Ansoegning sendt»
 fra platformen (lag 2). **TikTok bruges IKKE — pixlen skal fjernes** fra begge
 GTM-containere, og derefter fra banner og cookiepolitik.
 
@@ -77,6 +77,7 @@ cookien ellers ikke findes, og teksterne skal være sande.
 | 21 | **Klaviyo «Ansoegning sendt»** | `_shared/ansoegningMotor.ts:269–274` | indsendelse (`indsendt_at` sat) | e-mail; kilde, branche, omsaetningsinterval, antal_ansatte | Klaviyo | som 20 | i drift (lag 2) |
 | 22 | **Meta Conversions API fra platformen** | `Lead application_started` / `application_submitted` fra `ansoegninger` (§4) | cron-job, der læser `ansoegninger` | `fbc`, hashet eget id, user agent (kun rækker med `fbclid`) — aldrig navn/e-mail/telefon/IP/CVR/svar | Meta, datasæt 858180112996496 | persondatateksten (§1e) | **i drift 21/9 aften** — bevist i Test events 16:13; **låsen slået til 16:30 og bevist i kørslen 16:43** (job 568 sender nu for alvor); §4 |
 | 23 | **Google Analytics' id'er på ansøgningen** | `ansoegninger.ga_client_id` / `ga_session_id`, gemt ved «opret» | fladen læser `_ga` og `_ga_6LHR66CDJ4` ved mount; egen fail-soft update efter annoncesporet | GA's klient-id og session-id — **gemmes kun, sendes endnu ikke** til nogen | (ingen modtager endnu) | samtykket på theboardroom.dk: uden «Acceptér» findes cookierne ikke, og begge felter er null | **#1071 (`edfa4f89`) i drift 21/9 17:25** — ga_client_id/ga_session_id gemmes ved opret, kun med samtykke; sendes endnu ikke; §4a |
+| 24 | **Google Analytics — afsendelsen fra platformen** | `application_started` / `application_submitted` til `G-6LHR66CDJ4` (Measurement Protocol) | cron-job, der læser `ansoegninger` og `ga_haendelser` | GA's eget klient-id og session-id, kilden og utm-mærkerne, hændelsens tidspunkt — aldrig navn/e-mail/telefon/CVR/svar | Google Analytics (EU-værten) | samtykket på theboardroom.dk (uden cookie ingen hændelse) + persondatateksten | **under udrulning 21/9 aften** — `GA4_SEND_SECRET` sat; **sporet og låsen KØRT 17:48** (`ga_haendelser`: rls true, 2 politikker, 0 rækker; `ga_send_aktiv` false, til beviset er set i Realtime) |
 
 ### 2.1 Ansøgningsvejen i platformen (målt 21/9, repo `ac8ec575`)
 
@@ -181,7 +182,7 @@ Modprøven er det, der gør 404'eren til et bevis: uden den kunne 404 også vær
 
 1. **Afsendelsen** (Measurement Protocol) er ikke bygget — recon-ga4.md §0 viser, hvad der mangler: `api_secret`, `session_id` i kaldet, `engagement_time_msec`, `consent`, og en modtager.
 2. **Cross-domain-listen** i GA4 dækker ikke `app.theboardroom.dk` (recon-ga4.md §3.2) — uden den er `_ga` sat på theboardroom.dk stadig læsbar (eTLD+1), men linket bærer ikke `_gl`.
-3. Secret'en `GA4_SEND_SECRET` er ikke oprettet (§7).
+3. ~~Secret'en `GA4_SEND_SECRET` er ikke oprettet~~ — **oprettet i GA4 og sat i Lovable 21/9 aften** (§7); afsendelsen er under udrulning, se §2 række 24.
 
 ---
 
@@ -207,7 +208,7 @@ Modprøven er det, der gør 404'eren til et bevis: uden den kunne 404 også vær
 6. **LinkedIn- og GA4-hændelser fra platformen** (rækkefølgen i §1c) — ikke skitseret.
 7. **LØST 21/9** (#1069 og rettelsen af videregiver-sætningen): Persondatateksten i platformen: tillægget om, at vi SENDER klik-id, eget id og user agent til Meta (§1e) — tekst til Jonas, før §4 går i drift. Sentry nævnes ikke i teksten.
 8. `webinar_signup` på topix.dk/webinar/tak går ingen steder (#13) — skal den?
-9. **En nøgle uden adgang til datasættet meldes som kode 100 / `error_subcode` 33** («Object … does not exist, cannot be loaded due to missing permissions»). Kode 100 er i dag en payloadfejl → `ugyldig`, og `ugyldig` prøves aldrig igen — men det her er en nøglefejl, der retter sig selv, når adgangen gives. Skal dømmes `ingen_noegle` (slå Metas dokumentation op og citér den, når det rettes — subkoden er ikke verificeret her).
+9. ~~**En nøgle uden adgang til datasættet meldes som kode 100 / `error_subcode` 33**~~ — **LØST 21/9 aften (udkast-meta-100-33).** Metas fejlreference bærer det: for 100 med `error_subcode` 33 står der «Unsupported post request. This error may occur if your access token is not added as a system user with appropriate permissions to the ad account that owns a Custom Audience.» ([error-reference](https://developers.facebook.com/docs/marketing-api/error-reference/)) — altså rettigheder, ikke payload. `doemMetaSvar` har nu `NOEGLE_SUBKODER = [[100, 33]]`: PARRET løftes til `ingen_noegle` (prøves igen, når adgangen gives), mens kode 100 alene bliver ved med at være `ugyldig`. Prøvet med den rigtige fejlkrop i `metaSend.test.ts`.
 10. **Persondatateksten i platformen siger «Supabase (databasen, via Lovable Cloud, i EU)»**, mens theboardroom.dk's privatlivspolitik 21/9 fik «EU» fjernet igen, fordi regionen ikke er målt. Mål, hvor databasen faktisk ligger, og gør de to tekster ens.
 11. **`referrer` er TOM på ansøgninger fra theboardroom.dk** — målt på begge prøver 21/9 (A og B, §4a). `document.referrer` når ikke frem til `/ansoeg`. Årsagen er **umålt**: enten en `Referrer-Policy` (fx `no-referrer` / `strict-origin`) eller `rel="noreferrer"` på ansøg-linket. Følgen: kolonnen `ansoegninger.referrer` kan ikke bruges til at afgøre kilden — `kilde` og `utm_*` kan.
 
@@ -224,6 +225,6 @@ Modprøven er det, der gør 404'eren til et bevis: uden den kunne 404 også vær
 | GTM `GTM-NL33PM5M` / GA4 `G-6LHR66CDJ4` | theboardroom.dk (`~/Projekter/theboardroom-topix/index.html`) | — | i drift |
 | GTM `GTM-57M8R72D` / GA4 `G-9S4NL9FKGK` | topix.dk (`~/Projekter/topix-reimagined/index.html`) | — | i drift |
 | LinkedIn partner `7995353`, TikTok `CVKMIDBC77U1BR7NB7MG`, Stape `nofikexx.topix.dk` | kun i GTM-containerne | — | i drift via GTM |
-| `GA4_SEND_SECRET` (navn fra `udkast-ga-send`) | — | Measurement Protocol mod `G-6LHR66CDJ4`, når afsendelsen bygges | **ikke oprettet endnu** (og ingen API secret i GA4 — recon-ga4.md §6 punkt 1) |
+| `GA4_SEND_SECRET` | `_shared/gaSend.ts` (navnet), læst KUN i `_shared/gaSendAfsendelse.ts` | Measurement Protocol mod `G-6LHR66CDJ4` | **oprettet af Jonas i GA4 21/9 aften** (web-strømmen `G-6LHR66CDJ4`) og **sat i Lovable som `GA4_SEND_SECRET`** — bevises ved første rigtige hændelse i Realtime |
 | `KLAVIYO_API_KEY` | `_shared/klaviyo.ts:50` | lag 2/3 | i drift |
 | `VITE_SENTRY_DSN` | `src/main.tsx:22` | Sentry (kun PROD) | i drift |
