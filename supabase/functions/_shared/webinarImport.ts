@@ -37,6 +37,9 @@
  * src/lib/__tests__/webinarImport.test.ts.
  */
 import { plukTilmelding, type Pluk, type WebinarTilmelding } from "./webinarDom.ts";
+import { doemSetGrad, type SetGrad } from "./webinarDom.ts";
+import { afgoerOvergang, byggFremmoede, type Overgang } from "./webinarHaendelser.ts";
+import type { HaendelseInput } from "./klaviyoHaendelser.ts";
 
 /** REST-feltnavne oversat til webhookens, så én plukker kan læse begge. */
 export function somWebhookForm(raa: Record<string, unknown>): Record<string, unknown> {
@@ -204,4 +207,127 @@ export function kanoniskJson(v: unknown): string {
     .filter(([, vv]) => vv !== undefined)
     .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
   return `{${poster.map(([k, vv]) => `${JSON.stringify(k)}:${kanoniskJson(vv)}`).join(",")}}`;
+}
+
+// ── Fremmøde for ÉN session (udkast 21/9-2026, recon-no-show-sender / recon-import-fremmoede) ──
+//
+// HVORFOR: melder eWebinar ikke selv no-shows via webhooken, kan importen
+// hente sessionens registranter bagefter og sende fremmøde-hændelserne ad
+// SAMME vej som webhooken — samme dom (doemSetGrad), samme overgang
+// (afgoerOvergang), samme krop (byggFremmoede) og dermed samme unique_id
+// `${ewebinar_id}:${grad}`. Sender eWebinar alligevel signalet senere,
+// kasserer Klaviyo dubletten (klaviyo.ts filhoved: «only the first processed
+// event will be recorded»).
+//
+// «Mødte ikke op» sendes IKKE ud fra stilhed: dommen er eWebinars eget
+// `state` (Missed/NotJoined) efter sessionen, som ved webhooken. En registrant,
+// eWebinar stadig kalder «Registered», dømmes «ukendt» og sender intet.
+//
+// Rene funktioner — testet i src/lib/__tests__/webinarImport.test.ts.
+
+/** Formen på `session_dato` i body'en: dansk kalenderdato. */
+export const SESSION_DATO_FORM = /^\d{4}-\d{2}-\d{2}$/;
+
+/** «2026-09-22» og en dato, der findes. «2026-02-30» og «22/9» afvises. */
+export function gyldigSessionDato(v: unknown): v is string {
+  if (typeof v !== "string" || !SESSION_DATO_FORM.test(v)) return false;
+  const t = Date.parse(`${v}T00:00:00Z`);
+  return Number.isFinite(t) && new Date(t).toISOString().slice(0, 10) === v;
+}
+
+/** Kalenderdatoen i Europe/Copenhagen for et ISO-tidspunkt; null uden tid eller ved ugyldig tid. */
+export function danskDato(iso: string | null): string | null {
+  if (iso === null) return null;
+  const t = Date.parse(iso);
+  if (!Number.isFinite(t)) return null;
+  const dele = new Intl.DateTimeFormat("en-US", { timeZone: "Europe/Copenhagen", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date(t));
+  const hent = (type: string) => dele.find((d) => d.type === type)?.value ?? "";
+  return `${hent("year")}-${hent("month")}-${hent("day")}`;
+}
+
+/** Ligger tilmeldingens session på den danske dato? Replay/OnDemand (session_tid null) aldrig. */
+export function erISessionen(t: Pick<WebinarTilmelding, "session_tid">, sessionDato: string): boolean {
+  return t.session_tid !== null && danskDato(t.session_tid) === sessionDato;
+}
+
+export interface FremmoedeDom {
+  ewebinar_id: string;
+  email: string;
+  grad_foer: SetGrad | null;
+  grad: SetGrad;
+  overgang: Overgang;
+  /** Præcis den hændelse, webhooken ville have bygget — null ved «ingen». */
+  haendelse: HaendelseInput | null;
+}
+
+/**
+ * Webhookens trin 155–185 som én ren funktion: gradFoer af den kendte række,
+ * grad af den flettede, overgangen, og hændelsen med PRÆCIS webhookens felter
+ * (ewebinar-webhook/index.ts:176–185). `nu` er importens ur — det bliver
+ * hændelsens `time` og grundlaget for `frisk`, som ved webhooken.
+ */
+export function doemFremmoedeForImport(foer: WebinarTilmelding | null, flettet: WebinarTilmelding, nu: Date): FremmoedeDom {
+  const gradFoer = foer ? doemSetGrad(foer, nu) : null;
+  const grad = doemSetGrad(flettet, nu);
+  const overgang = afgoerOvergang(gradFoer, grad);
+  const haendelse = byggFremmoede(overgang, {
+    ewebinarId: flettet.ewebinar_id,
+    email: flettet.email,
+    grad,
+    setProcent: flettet.set_procent ?? null,
+    webinarId: flettet.webinar_id,
+    webinarTitel: flettet.webinar_titel ?? null,
+    sessionTid: flettet.session_tid,
+    tid: nu,
+  });
+  return { ewebinar_id: flettet.ewebinar_id, email: flettet.email, grad_foer: gradFoer, grad, overgang, haendelse };
+}
+
+/** Én linje i svaret pr. hændelse, der ville blive / blev sendt. */
+export interface FremmoedeLinje {
+  email: string;
+  ewebinar_id: string;
+  grad_foer: SetGrad | null;
+  grad: SetGrad;
+  overgang: Overgang;
+  unique_id: string;
+  frisk: "ja" | null;
+  /** Kun efter en rigtig kørsel: klaviyo.ts' udfald (ok · timeout · loft · …). */
+  udfald?: string;
+}
+
+export function somFremmoedeLinje(d: FremmoedeDom): FremmoedeLinje {
+  const frisk = d.haendelse?.egenskaber?.frisk;
+  return {
+    email: d.email,
+    ewebinar_id: d.ewebinar_id,
+    grad_foer: d.grad_foer,
+    grad: d.grad,
+    overgang: d.overgang,
+    unique_id: d.haendelse?.uniktId ?? `${d.ewebinar_id}:${d.grad}`,
+    frisk: frisk === "ja" ? "ja" : null,
+  };
+}
+
+/** Beviset i svaret: det, KUN den nye kode kan svare. */
+export interface FremmoedeRapport {
+  session_dato: string;
+  /** Registranter, hvis session ligger på datoen (dansk tid). */
+  i_sessionen: number;
+  overgange: Record<Overgang, number>;
+  /** Tørkørsel: det, der VILLE blive sendt. */
+  ville_sende?: FremmoedeLinje[];
+  /** Rigtig kørsel: det, der blev forsøgt sendt, med udfald pr. linje. */
+  sendt?: FremmoedeLinje[];
+  /** Antal pr. udfald (ok · timeout · fejl · loft · ingen_noegle · ingen_mail · …). Tom i tørkørsel. */
+  udfald: Record<string, number>;
+  fejl: string[];
+  /** Rigtig kørsel: tidsbudgettet var brugt, før alle var sendt — INTET er skrevet; kør igen. */
+  afbrudt?: boolean;
+  /** Antal hændelser, der ikke nåede at blive sendt (kun når afbrudt). */
+  udsat?: number;
+}
+
+export function tomFremmoedeRapport(sessionDato: string): FremmoedeRapport {
+  return { session_dato: sessionDato, i_sessionen: 0, overgange: { deltog: 0, moedte_ikke: 0, ingen: 0 }, udfald: {}, fejl: [] };
 }

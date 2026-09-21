@@ -30,6 +30,24 @@
 //                           (webinar_haendelser, kilde 'import') og de
 //                           aktuelle rækker (webinar_tilmeldinger).
 //
+// FREMMØDE FOR ÉN SESSION (udkast 21/9-2026, recon-no-show-sender /
+// recon-import-fremmoede). Bruges KUN, hvis eWebinar ikke selv melder no-shows
+// via webhooken. Med { "send_fremmoede": true, "session_dato": "YYYY-MM-DD" }
+// (dansk dato) dømmes de registranter, hvis session ligger på datoen, som
+// webhooken dømmer dem: gradFoer af den kendte række, grad af den flettede,
+// afgoerOvergang, byggFremmoede — SAMME unique_id `${ewebinar_id}:${grad}`.
+//   tørkørsel (standard)     sender intet; svaret viser `fremmoede.ville_sende`.
+//   dry_run: false           SENDER FØRST (fem ad gangen gennem sendHvisMail),
+//                            SKRIVER BAGEFTER — omvendt af webhooken, se
+//                            koerImport trin 5. Et tidsbudget (BUDGET_MS)
+//                            afbryder afsendelsen, før edge-loftet gør det;
+//                            så skrives INTET, svaret siger `afbrudt: true`,
+//                            og kørslen køres blot igen. Svaret bærer
+//                            `fremmoede.sendt` + udfald pr. type. Det er
+//                            beviset på den nye kode.
+// Replay/OnDemand (session_tid null) kommer aldrig i betragtning. Uden de to
+// felter er ALT som før. Ukendte felter afvises (kendteFelter.ts, STRIKS).
+//
 // INGEN DUBLETTER, uanset rækkefølge: nøglen er registrantens id
 // (webinar_tilmeldinger.ewebinar_id, UNIQUE), og fletningen er webhookens
 // egen (fletTilmelding) — den nye værdi vinder, null overskriver aldrig en
@@ -62,14 +80,24 @@ import {
 } from "../_shared/ewebinarApi.ts";
 import { doemSetGrad, fletTilmelding, type SetGrad, type WebinarTilmelding } from "../_shared/webinarDom.ts";
 import {
+  doemFremmoedeForImport,
   erForskellig,
+  erISessionen,
   feltRapport,
+  gyldigSessionDato,
   kanoniskJson,
   plukRestRegistrant,
+  somFremmoedeLinje,
+  tomFremmoedeRapport,
   type FeltRapport,
+  type FremmoedeDom,
+  type FremmoedeRapport,
   type ImportRaekke,
 } from "../_shared/webinarImport.ts";
 import { sha256Hex } from "../_shared/aftryk.ts";
+import { ukendteFelter, ukendteFelterBesked } from "../_shared/kendteFelter.ts";
+// Afsendelsen til Klaviyo: KUN gennem sendHvisMail (nøglen læses dér, ikke her).
+import { sendHvisMail } from "../_shared/klaviyoAfsendelse.ts";
 
 /** Ét sted læses miljøet til eWebinar-klienten, som er Deno-fri (og derfor testbar i vitest). */
 const miljoe = (navn: string): string | undefined => Deno.env.get(navn);
@@ -77,8 +105,28 @@ const miljoe = (navn: string): string | undefined => Deno.env.get(navn);
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
 const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
+/** De felter, body'en må have. Alt andet afvises med 400 (bodyFelter.guard: STRIKS). */
+export const KENDTE_FELTER = ["maal", "dry_run", "send_fremmoede", "session_dato"] as const;
+
 /** Hvor mange rækker der læses/skrives ad gangen. 330 er to-tre klumper. */
 const KLUMPE = 200;
+
+/**
+ * TIDSBUDGETTET for afsendelsen — målt fra functionens start (Deno.serve).
+ *
+ * Regnestykket: edge-loftet er 150 s («Request idle timeout», kald_edge_loft_ms).
+ * Budgettet er 100 s, så der er 50 s tilbage til det, der kommer EFTER den
+ * sidste pulje: den pulje, der var i gang, da budgettet blev brugt (værst
+ * 5 × Klaviyo-timeout 3 s = én pulje på 3 s + skrivSpor-inserts), de seks
+ * upserts (⌈597/200⌉ klumper × log + rækker) og svaret. Hentningen tæller
+ * MED i budgettet (den ligger før afsendelsen): tre sider à op til 20 s +
+ * pauser = op til 61 s hentning efterlader 39 s afsendelse = ~78 puljer à
+ * 0,5 s = 390 hændelser; ved 10 sider (204 s) er budgettet brugt, før den
+ * første pulje sendes, og svaret siger afbrudt med udsat = alle.
+ */
+export const BUDGET_MS = 100_000;
+/** Puljen: fem afsendelser ad gangen (sendHvisMail kaster aldrig). Klaviyos loft er 350/s. */
+export const PULJE = 5;
 
 /** Alle kolonner dommen kender — inkl. annoncesporet (19/9), så fletningen ser hele rækken. */
 const TILMELDING_KOLONNER =
@@ -119,7 +167,14 @@ interface ImportRapport {
   sprunget_over: ImportRaekke[];
   /** Skrivningen (kun ved dry_run: false). */
   skrevet?: { log_raekker: number; tilmeldinger: number; fejl: string[] };
+  /** Fremmøde for én session (kun ved send_fremmoede: true) — beviset på den nye kode. */
+  fremmoede?: FremmoedeRapport;
   error?: string;
+}
+
+/** Hvad kalderen bad om, når fremmøde skal sendes. null = som før. */
+interface FremmoedeValg {
+  sessionDato: string;
 }
 
 function json(status: number, body: Record<string, unknown>): Response {
@@ -153,7 +208,7 @@ async function laesEksisterende(admin: SupabaseClient, ids: string[]): Promise<M
   return kort;
 }
 
-async function koerImport(admin: SupabaseClient, api: ApiOpsaetning, dryRun: boolean): Promise<ImportRapport> {
+async function koerImport(admin: SupabaseClient, api: ApiOpsaetning, dryRun: boolean, fremmoede: FremmoedeValg | null, start: number): Promise<ImportRapport> {
   const nu = new Date();
 
   // 1. HENT ALT. Ingen updatedSince: engangsimporten vil have historikken med.
@@ -205,6 +260,10 @@ async function koerImport(admin: SupabaseClient, api: ApiOpsaetning, dryRun: boo
   const eksisterende = await laesEksisterende(admin, plukket.map((p) => p.t.ewebinar_id));
   const tilSkrivning: { raa: Record<string, unknown>; flettet: WebinarTilmelding; ny: boolean }[] = [];
   const perWebinar = new Map<string, WebinarLinje>();
+  // Fremmøde-dommene for sessionen — regnet HER, hvor både den kendte række
+  // (foer) og den flettede (flettet) er i hånden, præcis som webhooken har dem.
+  const fremmoedeDomme: FremmoedeDom[] = [];
+  const fremmoedeRapport = fremmoede ? tomFremmoedeRapport(fremmoede.sessionDato) : null;
 
   for (const { raa, t } of plukket) {
     const foer = eksisterende.get(t.ewebinar_id) ?? null;
@@ -215,6 +274,13 @@ async function koerImport(admin: SupabaseClient, api: ApiOpsaetning, dryRun: boo
     else if (aendret) rapport.raekker.opdateret++;
     else rapport.raekker.uaendret++;
     tilSkrivning.push({ raa, flettet, ny });
+
+    if (fremmoede && fremmoedeRapport && erISessionen(flettet, fremmoede.sessionDato)) {
+      fremmoedeRapport.i_sessionen++;
+      const dom = doemFremmoedeForImport(foer, flettet, nu);
+      fremmoedeRapport.overgange[dom.overgang]++;
+      if (dom.haendelse) fremmoedeDomme.push(dom);
+    }
 
     if (flettet.set_procent !== null) {
       rapport.procent.med_tal++;
@@ -238,9 +304,61 @@ async function koerImport(admin: SupabaseClient, api: ApiOpsaetning, dryRun: boo
   }
   rapport.webinarer = [...perWebinar.values()].sort((a, b) => b.registranter - a.registranter);
 
+  if (fremmoedeRapport) {
+    // Tørkørslen viser det, der VILLE blive sendt; den rigtige kørsel fylder `sendt` nedenfor.
+    if (dryRun) fremmoedeRapport.ville_sende = fremmoedeDomme.map(somFremmoedeLinje);
+    rapport.fremmoede = fremmoedeRapport;
+  }
+
   if (dryRun) return rapport;
 
-  // 5. SKRIVNINGEN. Loggen først (den er beviset på hvad vi modtog), så de
+  // 5. FREMMØDET FØRST — SEND FØRST, SKRIV BAGEFTER. Omvendt af webhooken
+  //    (rækken før Klaviyo), med vilje: afbrydes kørslen — tidsbudgettet
+  //    nedenfor eller edge-loftet — er INTET skrevet, så en ny kørsel læser de
+  //    samme kendte rækker, ser de samme overgange og sender igen; Klaviyo
+  //    kasserer de allerede sendte på unique_id («only the first processed
+  //    event will be recorded»). En fejlet afsendelse ligger stadig i
+  //    klaviyo_haendelser, fordi sendHvisMail skriver sporet selv, også ved
+  //    timeout/loft/fejl — dér finder klaviyo-gensend-cron den. Skrev vi
+  //    rækkerne først, ville en afbrudt kørsel efterlade de usendte uden
+  //    spor OG uden overgang (gradFoer = grad ved næste kørsel) — tabt for
+  //    både gensenderen og en genkørsel.
+  //    Fem ad gangen (PULJE); sendHvisMail kaster aldrig. Budgettet tjekkes
+  //    før hver pulje: er det brugt, stoppes afsendelsen, intet skrives, og
+  //    svaret siger afbrudt + udsat. Kørslen køres blot igen.
+  let afbrudt = false;
+  if (fremmoede !== null && fremmoedeRapport) {
+    const sendt: FremmoedeRapport["sendt"] = [];
+    const koe = fremmoedeDomme.filter((d) => d.haendelse !== null);
+    for (let i = 0; i < koe.length; i += PULJE) {
+      if (Date.now() - start > BUDGET_MS) {
+        afbrudt = true;
+        break;
+      }
+      const pulje = koe.slice(i, i + PULJE);
+      const svar = await Promise.all(pulje.map((d) => sendHvisMail(admin, d.haendelse!)));
+      svar.forEach((a, j) => {
+        const dom = pulje[j];
+        const udfald = a.spor.udfald;
+        fremmoedeRapport.udfald[udfald] = (fremmoedeRapport.udfald[udfald] ?? 0) + 1;
+        sendt.push({ ...somFremmoedeLinje(dom), udfald });
+        if (!a.sendt) fremmoedeRapport.fejl.push(`${dom.ewebinar_id} (${dom.overgang}): ${udfald}${a.spor.grund ? ` — ${a.spor.grund}` : ""}`);
+      });
+    }
+    fremmoedeRapport.sendt = sendt;
+    if (afbrudt) {
+      fremmoedeRapport.afbrudt = true;
+      fremmoedeRapport.udsat = koe.length - sendt.length;
+    }
+    console.log(
+      `[ewebinar-import] fremmoede ${fremmoede.sessionDato}: ${sendt.length} sendt, udfald ${JSON.stringify(fremmoedeRapport.udfald)}, ${fremmoedeRapport.fejl.length} fejl` +
+        (afbrudt ? `, AFBRUDT efter ${Math.round((Date.now() - start) / 1000)} s — ${fremmoedeRapport.udsat} udsat, intet skrevet` : "") + ".",
+    );
+  }
+  // AFBRUDT-VÆRNET: intet skrives i denne kørsel — de samme overgange skal ses igen næste gang.
+  if (afbrudt) return rapport;
+
+  // 6. SKRIVNINGEN. Loggen først (den er beviset på hvad vi modtog), så de
   //    aktuelle rækker. Fejl standser ikke resten — de samles i rapporten.
   const skrevet = { log_raekker: 0, tilmeldinger: 0, fejl: [] as string[] };
 
@@ -277,10 +395,13 @@ async function koerImport(admin: SupabaseClient, api: ApiOpsaetning, dryRun: boo
 
   rapport.skrevet = skrevet;
   rapport.ok = skrevet.fejl.length === 0;
+
   return rapport;
 }
 
 Deno.serve(async (req: Request) => {
+  // Tidsbudgettets nulpunkt: functionens start, før auth og hentning.
+  const start = Date.now();
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
@@ -289,13 +410,43 @@ Deno.serve(async (req: Request) => {
   const auth = authenticateServiceRole(req);
   if (auth !== true) return auth;
 
+  // Body'en: tom = {} (tørkørsel), ellers JSON via req.json() — det er den
+  // form, bodyFelter.guard genkender som «læser body-felter», og som
+  // sætter denne function på STRIKS-listen. Ikke-JSON er stadig 400.
   let body: Record<string, unknown> = {};
-  try {
-    const tekst = await req.text();
-    if (tekst.trim() !== "") body = JSON.parse(tekst) as Record<string, unknown>;
-  } catch {
-    return json(400, { error: "body er ikke JSON" });
+  const tekst = await req.clone().text();
+  if (tekst.trim() !== "") {
+    try {
+      body = (await req.json()) as Record<string, unknown>;
+    } catch {
+      return json(400, { error: "body er ikke JSON" });
+    }
   }
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    return json(400, { error: "body skal være et JSON-objekt" });
+  }
+
+  // UKENDTE FELTER AFVISES (kendteFelter.ts): et felt, vi ikke forstår, må
+  // aldrig blive til en standardkørsel.
+  const ukendte = ukendteFelter(body, KENDTE_FELTER);
+  if (ukendte.length > 0) {
+    const besked = ukendteFelterBesked(ukendte, KENDTE_FELTER);
+    console.error(`[ewebinar-import] ${besked}`);
+    return json(400, { ok: false, grund: "ukendt_felt", error: besked });
+  }
+
+  // FREMMØDE FOR ÉN SESSION: begge felter, eller ingen af dem.
+  if (body.send_fremmoede !== undefined && typeof body.send_fremmoede !== "boolean") {
+    return json(400, { ok: false, grund: "ugyldigt_send_fremmoede", error: "«send_fremmoede» skal være true eller false" });
+  }
+  const sendFremmoede = body.send_fremmoede === true;
+  if (sendFremmoede && !gyldigSessionDato(body.session_dato)) {
+    return json(400, { ok: false, grund: "ugyldig_session_dato", error: "«send_fremmoede»: true kræver «session_dato» som dansk dato «YYYY-MM-DD», fx 2026-09-22" });
+  }
+  if (!sendFremmoede && body.session_dato !== undefined) {
+    return json(400, { ok: false, grund: "session_dato_uden_send", error: "«session_dato» bruges kun sammen med «send_fremmoede»: true — uden den ville feltet blive ignoreret i tavshed" });
+  }
+  const fremmoede: FremmoedeValg | null = sendFremmoede ? { sessionDato: body.session_dato as string } : null;
 
   // Nøglen — pænt fra, ikke et 500, når den mangler.
   let api: ApiOpsaetning;
@@ -310,6 +461,11 @@ Deno.serve(async (req: Request) => {
   }
 
   const admin = createClient(supabaseUrl, serviceKey);
+
+  // Målingen og fremmødet er to forskellige kald — sammen ville det ene blive ignoreret i tavshed.
+  if (body.maal !== undefined && sendFremmoede) {
+    return json(400, { ok: false, grund: "maal_og_send", error: "«maal» og «send_fremmoede» bruges hver for sig" });
+  }
 
   try {
     // MÅLINGEN: én registrant, alle felter, intet skrives.
@@ -349,11 +505,12 @@ Deno.serve(async (req: Request) => {
 
     // Tørkørsel som standard; kun et eksplicit dry_run: false skriver.
     const dryRun = body.dry_run !== false;
-    const rapport = await koerImport(admin, api, dryRun);
+    const rapport = await koerImport(admin, api, dryRun, fremmoede, start);
     console.log(
       `[ewebinar-import] ${dryRun ? "TØRKØRSEL" : "SKREVET"}: ${rapport.hentet.registranter} registranter på ${rapport.hentet.sider} side(r), ` +
         `${rapport.webinarer.length} webinar(er); ny ${rapport.raekker.ny}, opdateret ${rapport.raekker.opdateret}, uændret ${rapport.raekker.uaendret}, ` +
-        `sprunget over ${rapport.raekker.sprunget_over}; med procent ${rapport.procent.med_tal}, uden ${rapport.procent.uden_tal}.`,
+        `sprunget over ${rapport.raekker.sprunget_over}; med procent ${rapport.procent.med_tal}, uden ${rapport.procent.uden_tal}` +
+        (rapport.fremmoede ? `; fremmoede ${rapport.fremmoede.session_dato}: ${rapport.fremmoede.i_sessionen} i sessionen, ${JSON.stringify(rapport.fremmoede.overgange)}` : "") + ".",
     );
     return json(rapport.ok ? 200 : 500, rapport as unknown as Record<string, unknown>);
   } catch (err) {
