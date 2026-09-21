@@ -26,6 +26,8 @@ export const HANDLING_ORD: Record<string, string> = {
   book: "bookede samtalen",
   aflys_booking: "aflyste samtalen",
   afholdt: "markerede samtalen som afholdt",
+  // 21/9: sætningen er «{hvem} {hvad}» — et nøgent «kom ikke» ville sige, at RÅDGIVEREN udeblev.
+  ikke_moedt: "markerede «kom ikke» — ansøgeren dukkede ikke op",
   tilbud: "sendte aftalegrundlaget",
   afslag: "gav afslag efter samtalen",
   underskrevet: "registrerede underskriften — virksomheden er oprettet",
