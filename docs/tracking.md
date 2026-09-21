@@ -75,7 +75,8 @@ cookien ellers ikke findes, og teksterne skal være sande.
 | 19 | **Sentry** | app.theboardroom.dk (`src/main.tsx:21–27`) | fejl + 10 % traces | fejl, query-nøgler; `sendDefaultPii` ikke sat, ingen replay | Sentry | ingen banner; ikke nævnt i persondatateksten | i drift |
 | 20 | **Klaviyo «Ansoegning paabegyndt»** | platform, server: `ansoegning-gem` «gem»-grenen (`index.ts:270–272`) | e-mail kommer ind (skærm 6 «kontakt», «Næste») | profil = e-mail; properties `{kilde}`; unique_id = ansøgnings-id. Ingen utm/fbclid/telefon | Klaviyo (USA) | persondatateksten (`persondata.ts:81`) | i drift (lag 2) |
 | 21 | **Klaviyo «Ansoegning sendt»** | `_shared/ansoegningMotor.ts:269–274` | indsendelse (`indsendt_at` sat) | e-mail; kilde, branche, omsaetningsinterval, antal_ansatte | Klaviyo | som 20 | i drift (lag 2) |
-| 22 | **Meta Conversions API fra platformen** | `Lead application_started` / `application_submitted` fra `ansoegninger` (§4) | cron-job, der læser `ansoegninger` | `fbc`, hashet eget id, user agent (kun rækker med `fbclid`) — aldrig navn/e-mail/telefon/IP/CVR/svar | Meta, datasæt 858180112996496 | persondatateksten (§1e) | **i drift 21/9 aften, bevist i Test events kl. 16:13** — låsen er stadig false, så kun testkode-vejen sender; §4 |
+| 22 | **Meta Conversions API fra platformen** | `Lead application_started` / `application_submitted` fra `ansoegninger` (§4) | cron-job, der læser `ansoegninger` | `fbc`, hashet eget id, user agent (kun rækker med `fbclid`) — aldrig navn/e-mail/telefon/IP/CVR/svar | Meta, datasæt 858180112996496 | persondatateksten (§1e) | **i drift 21/9 aften** — bevist i Test events 16:13; **låsen slået til 16:30 og bevist i kørslen 16:43** (job 568 sender nu for alvor); §4 |
+| 23 | **Google Analytics' id'er på ansøgningen** | `ansoegninger.ga_client_id` / `ga_session_id`, gemt ved «opret» | fladen læser `_ga` og `_ga_6LHR66CDJ4` ved mount; egen fail-soft update efter annoncesporet | GA's klient-id og session-id — **gemmes kun, sendes endnu ikke** til nogen | (ingen modtager endnu) | samtykket på theboardroom.dk: uden «Acceptér» findes cookierne ikke, og begge felter er null | **#1071 (`edfa4f89`) i drift 21/9 17:25** — ga_client_id/ga_session_id gemmes ved opret, kun med samtykke; sendes endnu ikke; §4a |
 
 ### 2.1 Ansøgningsvejen i platformen (målt 21/9, repo `ac8ec575`)
 
@@ -146,12 +147,41 @@ Ikke ændret 21/9 (§5, §6): GTM-containerne, TikTok, Stape, eWebinars pixel, p
 - **Annoncesporet må aldrig tabes på grund af user agent.** Fejler `ansoegning-gem`s update MED user agent (fx fordi kolonnen mangler), prøves straks igen med sporet alene, og begge fejl logges. Klik-id og utm er vigtigere end user agent.
 - **A's to rettelser af chatten** (chatten tog fejl, koden har ret): `fbc`-indekset er **1**, ikke 2 — Metas regel for server-genereret uden `_fbc`-cookie er «use the value 1», uanset hvor mange led domænet har. Og **testhændelser TÆLLER** — chatten sagde fejlagtigt, at de ikke gør.
 
-### Tilbage
+### Tilbage — gjort 21/9 aften
 
-1. Persondatatekst-rettelsen (denne PR): linjen «Ud over leverandørerne ovenfor …» modsagde Meta-afsnittet.
-2. **Update** i Lovable, så den rettede tekst står på den levende side (`src/`-ændring).
-3. **Låsen slås til**: `UPDATE public.app_config SET config_value = 'true'::jsonb … WHERE config_key = 'meta_send_aktiv';` — først derefter sender job 568 for alvor.
-4. **Prøvekladden slettes** (`fcff2198-e19b-4de7-b608-a87eb6755bae`).
+1. ~~Persondatatekst-rettelsen~~ — merget som #1070.
+2. ~~**Update** i Lovable~~ — klikket; den rettede tekst står på den levende side.
+3. ~~**Låsen slås til**~~ — **slået til 16:30** (`meta_send_aktiv`: før `false` → efter `true`, 1 række opdateret). **Bevist i kørslen 16:43:** `laas_aktiv: true`, `sender_rigtigt: true`, og prøvekladden blev sprunget over som `allerede_sendt` (idempotensen holdt — den var sendt 16:13). Job 568 sender nu for alvor.
+4. ~~**Prøvekladden slettes**~~ — `fcff2198-e19b-4de7-b608-a87eb6755bae` **slettet 16:47** med sit spor. Vagtet: FK-målingen først viste, at kun `meta_haendelser` pegede på rækken, så cascade tog sporet med.
+
+---
+
+## 4a. Google Analytics — opsamlingen (#1071, i drift 21/9 17:25)
+
+**Merget som `edfa4f89`.** Migration `20260922003000` (kolonnerne `ga_client_id`, `ga_session_id`) **KØRT i prod 17:01, FØR merge**, med en vagt først; efter: begge `text`, nullable, med kommentar. `ansoegning-gem` og `meta-send-cron` **udrullet fra `edfa4f89`** — værktøjets resultat ordret: «Successfully deployed edge functions: ansoegning-gem, meta-send-cron».
+
+**Hvad den gør:** fladen læser `_ga` og `_ga_6LHR66CDJ4` fra `document.cookie` ÉN gang ved mount (begge sessionsformater, GS1 og GS2); findes de ikke, er begge null — aldrig et gæt, aldrig et genereret id. Nyt body-felt `ga` (STRIKS); serveren dømmer formen igen (`gaAf`) og skriver i en EGEN fail-soft update EFTER annoncesporet, så en fejl her aldrig kan koste klik-id, utm eller user agent. Begge felter står i `FORBUDTE_NOEGLER` — de når aldrig Metas payload. **Sendes endnu ikke til Google.**
+
+### Beviset for RÆKKEFØLGEN — deploy FØR Update
+
+`ansoegning-gem` er STRIKS: den afviser ukendte body-felter. Havde Update stået først, ville den GAMLE function have mødt det nye felt `ga` fra den nye flade og svaret 400 på **hver eneste ansøgning**. Derfor blev functionen udrullet først — og det blev bevist, før Update blev klikket:
+
+- **Kald 13321** — `{handling: "hent", token: <falsk>, ga: {...}}` → **404 «Ukendt eller lukket ansøgning»**. Ikke 400. Altså kendte den nye function feltet `ga` og nåede frem til tokenet.
+- **Modprøve 13323** — samme kald med et opdigtet felt `xyz` → **400 «Ukendt felt i body: xyz. Kendte felter: annoncespor, cvr_bekraeftet, firma, ga, handling, …»**. To ting på én gang: felterne tjekkes FØR tokenet, og `ga` står på listen.
+
+Modprøven er det, der gør 404'eren til et bevis: uden den kunne 404 også være den gamle function, der ignorerede et ukendt felt. Først derefter blev Update klikket.
+
+### Beviserne på skærmen (17:28–17:30)
+
+- **Prøve A, 17:28** (privat Chrome-vindue, «Acceptér» i cookiebanneret): `ga_client_id = 1810362206.1790004485`, `ga_session_id = 1790004484` — altså 17:28:04, sekundet hvor samtykket blev givet og GA satte cookien. Formen er præcis den, parseren kræver.
+- **Prøve B, 17:29** («Afvis»): **begge null** — og `kilde` og `landing` gemt som altid. Det er modprøven, der beviser, at GA-updaten ikke kan koste annoncesporet: den kørte slet ikke, og sporet stod der.
+- Begge prøvekladder **slettet 17:30**, vagtet (præcis 2 rækker — talt før og efter).
+
+### Tilbage for GA
+
+1. **Afsendelsen** (Measurement Protocol) er ikke bygget — recon-ga4.md §0 viser, hvad der mangler: `api_secret`, `session_id` i kaldet, `engagement_time_msec`, `consent`, og en modtager.
+2. **Cross-domain-listen** i GA4 dækker ikke `app.theboardroom.dk` (recon-ga4.md §3.2) — uden den er `_ga` sat på theboardroom.dk stadig læsbar (eTLD+1), men linket bærer ikke `_gl`.
+3. Secret'en `GA4_SEND_SECRET` er ikke oprettet (§7).
 
 ---
 
@@ -179,6 +209,7 @@ Ikke ændret 21/9 (§5, §6): GTM-containerne, TikTok, Stape, eWebinars pixel, p
 8. `webinar_signup` på topix.dk/webinar/tak går ingen steder (#13) — skal den?
 9. **En nøgle uden adgang til datasættet meldes som kode 100 / `error_subcode` 33** («Object … does not exist, cannot be loaded due to missing permissions»). Kode 100 er i dag en payloadfejl → `ugyldig`, og `ugyldig` prøves aldrig igen — men det her er en nøglefejl, der retter sig selv, når adgangen gives. Skal dømmes `ingen_noegle` (slå Metas dokumentation op og citér den, når det rettes — subkoden er ikke verificeret her).
 10. **Persondatateksten i platformen siger «Supabase (databasen, via Lovable Cloud, i EU)»**, mens theboardroom.dk's privatlivspolitik 21/9 fik «EU» fjernet igen, fordi regionen ikke er målt. Mål, hvor databasen faktisk ligger, og gør de to tekster ens.
+11. **`referrer` er TOM på ansøgninger fra theboardroom.dk** — målt på begge prøver 21/9 (A og B, §4a). `document.referrer` når ikke frem til `/ansoeg`. Årsagen er **umålt**: enten en `Referrer-Policy` (fx `no-referrer` / `strict-origin`) eller `rel="noreferrer"` på ansøg-linket. Følgen: kolonnen `ansoegninger.referrer` kan ikke bruges til at afgøre kilden — `kilde` og `utm_*` kan.
 
 ---
 
@@ -193,5 +224,6 @@ Ikke ændret 21/9 (§5, §6): GTM-containerne, TikTok, Stape, eWebinars pixel, p
 | GTM `GTM-NL33PM5M` / GA4 `G-6LHR66CDJ4` | theboardroom.dk (`~/Projekter/theboardroom-topix/index.html`) | — | i drift |
 | GTM `GTM-57M8R72D` / GA4 `G-9S4NL9FKGK` | topix.dk (`~/Projekter/topix-reimagined/index.html`) | — | i drift |
 | LinkedIn partner `7995353`, TikTok `CVKMIDBC77U1BR7NB7MG`, Stape `nofikexx.topix.dk` | kun i GTM-containerne | — | i drift via GTM |
+| `GA4_SEND_SECRET` (navn fra `udkast-ga-send`) | — | Measurement Protocol mod `G-6LHR66CDJ4`, når afsendelsen bygges | **ikke oprettet endnu** (og ingen API secret i GA4 — recon-ga4.md §6 punkt 1) |
 | `KLAVIYO_API_KEY` | `_shared/klaviyo.ts:50` | lag 2/3 | i drift |
 | `VITE_SENTRY_DSN` | `src/main.tsx:22` | Sentry (kun PROD) | i drift |
