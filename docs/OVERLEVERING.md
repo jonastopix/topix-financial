@@ -1,22 +1,22 @@
 # Overlevering
 
-> ## 22/9 — START HER (skrevet 21/9 middag efter #1063; HEAD `d8ec07ca`. DEL 2 «21. september» §0–§12 og Bilag A. Aftenens tillæg — døgnmålingen af indekserne ~23:02 — følger for sig. De ældre START HER-blokke står ORDRET under deres datoer i DEL 2.)
+> ## 22/9 — START HER (skrevet 21/9 sen aften efter #1078 og oprydningen 23:43; HEAD `49697491`. DEL 2 «21. september» §0–§12 og Bilag A, og «21. september (aften)». Detaljerne om tracking står i `docs/tracking.md` — ikke her. Blokken fra 21/9 middag står ORDRET under sin dato i DEL 2.)
 >
-> **DAGEN (21/9):** **seks merges #1058–#1063.** Nattens tre kørsler bevist (meta-annoncer 05:33, stille-klokker 06:30 — de syv ringede, vagten grøn); 180 navne-rækker oversat til `ad_id_udledt` 08:40 før næste overskrivning (#1059); en fejlet Klaviyo-hændelse sendes igen af sig selv (#1061, job 567); importen kan sende «Mødte ikke op» ud fra eWebinars eget svar, hvis webhooken tier i morgen (#1062); og en rådgiver kan ikke længere tro, at der ikke går mail, når der gør (#1063). Lovable-commits på main: `ac260495` + `7c7811a3` (kun `types.ts`).
+> **WEBINARET TIRSDAG 22/9 KL. 09.** Flowene er klar: `Wq3MkG` og `SDVvCW` er **tændt**, og `YcBF9f` er **slukket** (Jonas 21/9 ~23:40 — `tirsdag-en-side.md` sagde «senest 13:00»; gjort aftenen før). Resten af `tirsdag-en-side.md` gælder.
 >
-> **WEBINARET TIRSDAG 22/9 KL. 09** — planen står i `~/Downloads/tirsdag-en-side.md` (opdateret 21/9): `Wq3MkG`/`SDVvCW` er live (tænd dem ikke — live siden søndag 20/9, mail 1 går en time efter hændelsen), sluk `YcBF9f` senest 13:00, rør ikke `WFzxH9`; forespørgslerne S → S+1 t, S+2 t, S+3 t; **send ALDRIG «Moedte ikke op» i hånden**; kør aldrig `ewebinar-proeve` mod jonasherlev@hotmail.com i dag.
+> **KL. 08 — Google Analytics' rapport for 21/9.** Rapporter → Engagement → Hændelser, med sidesti-kolonnen: står `application_started` med sidesti «(not set)»? Så er platformens GA-afsendelse bevist i rapporterne → markér `application_submitted` som **nøglehændelse**.
 >
-> **GENSENDEREN (job 567, `1-59/5 * * * *`):** `klaviyo-gensend-cron` sender en fejlet Klaviyo-hændelse igen (timeout · fejl · loft · ingen_noegle · noegle_afvist; afstand 5 · 2^(n−1) min, højst 6 forsøg), Klaviyo kasserer dubletten på `unique_id`; alarm = mail til `raadgiverModtager` + drift-klokke. Bevist 10:52 (svar 13091), første planlagte kørsel 10:56:00 succeeded (§8).
+> **KL. 08:30 — indeksmålingen igen** (samme SQL som 21/9 22:34) — effekten af ANALYZE alene. Se «21. september (aften)» §6.
 >
-> **IMPORTENS NO-SHOW-VEJ (#1062):** tier eWebinar om no-shows (afgøres S+3 t), kan `ewebinar-import` sende fremmødet for én session — `{"dry_run": false, "send_fremmoede": true, "session_dato": "2026-09-22"}` efter en tørkørsel med samme to felter, hvis `ville_sende` er læst og Jonas har besluttet. Sender først (fem ad gangen), skriver bagefter; budget 100 s → `afbrudt: true` = kør igen. **Reglen: importen køres ALDRIG med `dry_run: false` uden `send_fremmoede: true`** (§9). Tørkørslen 11:32 tog ~73 s på 14 sider — margenen er lille.
+> **EFTER WEBINARET:** de første rigtige ansøgninger giver rækker i `meta_haendelser` og `ga_haendelser`, og «Ansøgning – påbegyndt» og «Ansøgning – sendt» bliver aktive i Events Manager.
 >
-> **ONSDAG 23/9:** `ad_id_udledt` skal stadig være 180 (SQL'en i bilag A skrev 180 — mål det efter cronen 05:33); første dom «observation» — det er rigtigt, ikke en fejl; **RLS-omskrivningen** (`(select user_company_id(auth.uid()))` som initplan) er flyttet til onsdag (§2). **I AFTEN 21/9:** døgnmålingen af indekserne pr. indeks ~23:02 — tillægget følger; FØR-tallet for RLS er ≈ 14.828 opslag/time på `company_members` (§2).
+> **FØRSTE «TAL MED DEM»:** se «Kvalificeret» i Events Manager, og opret derefter den **fjerde** brugerdefinerede konvertering (Jonas; chatten dikterer felterne). Der er ingen kvalificeringer, bookinger eller betalinger i de sidste syv dage, så det er den første rigtige hændelse, der beviser trin 2's tre arter.
 >
-> **«KOM IKKE» (A bygger 21/9):** knappen findes ikke i fladen, og køen markerer «afholdt» ved sluttid uanset fremmøde (§10; kort `a21-kom-ikke`). **REDIGERBARE MAILS** efter webinaret — afslagsmailen først, recon først (kort `a21-redigerbare-mails`).
+> **ONSDAG 23/9:** klokke-mailen (`udkast-klokke-mail`, migrationerne 030000/031000) · **RLS-omskrivningen** (`~/Downloads/recon-rls-initplan.md` — `has_role` skal med, ikke kun `user_company_id`) · **cron-vagten** (`~/Downloads/recon-cron-vagt.md`) · `GA4_SEND_SECRET` skiftes, fordi værdien har stået i chatten · `ad_id_udledt` stadig 180 · første dom «observation».
 >
-> **KØREPLANEN TIL 13/10:** kampagnerne til webinaret 13/10 bygges i uge 39, planlagt senest **6/10** (`koereplan-13-10.md`; DEL 3).
+> **MARKETINGMANDEN** skifter selv to kampagners mål i egen timing (dokumentet §5, sendt 21/9 aften).
 >
-> **RETTET I DAG, DÉR HVOR DET STÅR:** webinaret er kl. 09, ikke kl. 19 (START HER 20/9); på-dagen-kampagnen 05:00, ikke 07:00; indekserne kørt 20/9, ikke 22/9; nøglen hedder `ansoegning_cvr_dagsloft`; listens import 13:44 er UTC; migrationen `20260919120000` (#1011) ER KØRT (målt 11:43).
+> **SENERE:** LinkedIn · de **35 migrationer**, der stadig bærer «IKKE KØRT» i filhovedet, selv om de er kørt (fund i #1078) · dubletten `20260918230000` (to filer, samme tidsstempel; fund i #1074).
 >
 > **Arbejdsformen står i DEL 0 og DEL 1.**
 
@@ -9896,6 +9896,47 @@ begin
 end
 $$;
 ```
+
+### 21. september (aften) — Meta trin 2 i drift, Events Manager ryddet op, ydeevnen målt
+
+**Detaljerne om tracking står i `docs/tracking.md`** — trin 2's udrulning og beviser (§4), Events Manager-fundene og de tre nye konverteringer (§4), sites og dokumentet til marketingmanden (§3), de besvarede spørgsmål (§5, §6) og fejlsporet (§8). De skrives ikke to steder. Her står kun det, der ikke er tracking.
+
+#### §6 · Ydeevnen — målt 21/9 22:34–22:37 (til onsdag)
+
+**Indeksmålingen 22:34:54** ligger 23 t 32 min efter FØR-målingen 20/9 23:02:40 — altså ikke et helt døgn. Dagen 08:32 → 22:34 (14,05 t): `company_members` fik **+120.450 seq scans / +8.817 idx** = **93,2 % seq** (natten: 4,9 %), ≈ **9.202 opslag/time**. `conversations` +273 seq / ca. +1.900 idx · `messages` +107 / ca. +1.050 · `profiles` +420 / +1.334 · `advisor_notifications` +263 seq / 160 idx i alt (823 rækker). En anden tabel ved navn `messages` (0 rækker, 0 scans) står i `pg_stat_user_tables` — formentlig et andet skema; **umålt**.
+
+**ANALYZE 22:37** på alle 56 public-tabeller uden `last_analyze`/`last_autoanalyze`. FØR-listen er gemt; størst var `user_roles` med **5.556.824 seq_scan** mod 12.118 idx på 47 rækker, og `company_members` med **2.625.120 / 142.784**. EFTER: `company_members`' skøn 28 = faktisk 28.
+
+**Chattens hypotese var forkert.** Planlæggeren kendte allerede størrelsen — skøn 30 før, 28 efter, og 28 er det faktiske tal, efter at de to gæster blev slettet 21/9. Et seq scan af 28 rækker ER det billigste. Problemet er **antallet af kald**: RLS-hjælperne evalueres pr. række. **`has_role` (som læser `user_roles`) er den største synder, ikke `company_members`.** Onsdagens RLS-omskrivning — `(select …)` som initplan — skal derfor dække **både** `user_company_id(auth.uid())` og `has_role(auth.uid(), …)`. Reconen: `~/Downloads/recon-rls-initplan.md` (B, 21/9 aften).
+
+**Måles igen 22/9 kl. 08:30** med samme SQL — effekten af ANALYZE alene.
+
+#### §8 · To fejl om arbejdsformen (de fire andre står i `docs/tracking.md` §8)
+
+1. **Chatten påstod en måling, den ikke havde set (22:50).** Den skrev «Nu er det klart», som om «Aktivitetseksempler» var modtaget, og beskrev `lead_source: ewebinar` og platformens Leads fra app.theboardroom.dk. Intet af det var set. Rettet højt i næste svar; A's prompt rettet, så det ikke blev bogført som en måling; den rigtige eksport (22:49) viste to kampagner, og beslutningen om at omdøbe Lead blev **trukket tilbage**. **Regel: beskriv aldrig et skærmbillede eller en fil, der ikke er modtaget — og en beslutning, der hviler på en påstået måling, tages om, når målingen kommer.**
+2. **A's vagt ventede på commit-id'et `6ace2d7d`** som forfader til HEAD. Et squash-merge bevarer aldrig en grens commit-id, så vagten kunne aldrig blive sand. **Regel: vent på INDHOLD i main — en linje, en fil — aldrig på en grens commit-id.**
+
+#### START HER som den stod 21/9 middag — flyttet ned 21/9 sen aften (ordret)
+
+> ## 22/9 — START HER (skrevet 21/9 middag efter #1063; HEAD `d8ec07ca`. DEL 2 «21. september» §0–§12 og Bilag A. Aftenens tillæg — døgnmålingen af indekserne ~23:02 — følger for sig. De ældre START HER-blokke står ORDRET under deres datoer i DEL 2.)
+>
+> **DAGEN (21/9):** **seks merges #1058–#1063.** Nattens tre kørsler bevist (meta-annoncer 05:33, stille-klokker 06:30 — de syv ringede, vagten grøn); 180 navne-rækker oversat til `ad_id_udledt` 08:40 før næste overskrivning (#1059); en fejlet Klaviyo-hændelse sendes igen af sig selv (#1061, job 567); importen kan sende «Mødte ikke op» ud fra eWebinars eget svar, hvis webhooken tier i morgen (#1062); og en rådgiver kan ikke længere tro, at der ikke går mail, når der gør (#1063). Lovable-commits på main: `ac260495` + `7c7811a3` (kun `types.ts`).
+>
+> **WEBINARET TIRSDAG 22/9 KL. 09** — planen står i `~/Downloads/tirsdag-en-side.md` (opdateret 21/9): `Wq3MkG`/`SDVvCW` er live (tænd dem ikke — live siden søndag 20/9, mail 1 går en time efter hændelsen), sluk `YcBF9f` senest 13:00, rør ikke `WFzxH9`; forespørgslerne S → S+1 t, S+2 t, S+3 t; **send ALDRIG «Moedte ikke op» i hånden**; kør aldrig `ewebinar-proeve` mod jonasherlev@hotmail.com i dag.
+>
+> **GENSENDEREN (job 567, `1-59/5 * * * *`):** `klaviyo-gensend-cron` sender en fejlet Klaviyo-hændelse igen (timeout · fejl · loft · ingen_noegle · noegle_afvist; afstand 5 · 2^(n−1) min, højst 6 forsøg), Klaviyo kasserer dubletten på `unique_id`; alarm = mail til `raadgiverModtager` + drift-klokke. Bevist 10:52 (svar 13091), første planlagte kørsel 10:56:00 succeeded (§8).
+>
+> **IMPORTENS NO-SHOW-VEJ (#1062):** tier eWebinar om no-shows (afgøres S+3 t), kan `ewebinar-import` sende fremmødet for én session — `{"dry_run": false, "send_fremmoede": true, "session_dato": "2026-09-22"}` efter en tørkørsel med samme to felter, hvis `ville_sende` er læst og Jonas har besluttet. Sender først (fem ad gangen), skriver bagefter; budget 100 s → `afbrudt: true` = kør igen. **Reglen: importen køres ALDRIG med `dry_run: false` uden `send_fremmoede: true`** (§9). Tørkørslen 11:32 tog ~73 s på 14 sider — margenen er lille.
+>
+> **ONSDAG 23/9:** `ad_id_udledt` skal stadig være 180 (SQL'en i bilag A skrev 180 — mål det efter cronen 05:33); første dom «observation» — det er rigtigt, ikke en fejl; **RLS-omskrivningen** (`(select user_company_id(auth.uid()))` som initplan) er flyttet til onsdag (§2). **I AFTEN 21/9:** døgnmålingen af indekserne pr. indeks ~23:02 — tillægget følger; FØR-tallet for RLS er ≈ 14.828 opslag/time på `company_members` (§2).
+>
+> **«KOM IKKE» (A bygger 21/9):** knappen findes ikke i fladen, og køen markerer «afholdt» ved sluttid uanset fremmøde (§10; kort `a21-kom-ikke`). **REDIGERBARE MAILS** efter webinaret — afslagsmailen først, recon først (kort `a21-redigerbare-mails`).
+>
+> **KØREPLANEN TIL 13/10:** kampagnerne til webinaret 13/10 bygges i uge 39, planlagt senest **6/10** (`koereplan-13-10.md`; DEL 3).
+>
+> **RETTET I DAG, DÉR HVOR DET STÅR:** webinaret er kl. 09, ikke kl. 19 (START HER 20/9); på-dagen-kampagnen 05:00, ikke 07:00; indekserne kørt 20/9, ikke 22/9; nøglen hedder `ansoegning_cvr_dagsloft`; listens import 13:44 er UTC; migrationen `20260919120000` (#1011) ER KØRT (målt 11:43).
+>
+> **Arbejdsformen står i DEL 0 og DEL 1.**
 
 ## DEL 3 · Det der venter
 

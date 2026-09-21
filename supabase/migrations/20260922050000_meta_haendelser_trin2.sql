@@ -1,4 +1,4 @@
--- IKKE KØRT. DEPLOY: manuelt i Lovable → SQL editor efter merge (FØR Update-klik).
+-- KØRT i prod — 21/9-2026 kl. 23:20 (Jonas, Lovable SQL editor), før udrulningen, med en vagt først. EFTER: art-CHECK med started, submitted, kvalificeret, booket, purchase; 0 rækker uden for.
 --
 -- META TRIN 2: TRE HÆNDELSER MERE I SPORET (22/9-2026, Jonas 21/9 22:25).
 --

@@ -37,8 +37,8 @@ import { PERSONDATA_AFSNIT } from "@/lib/ansoegning/persondata";
  *      Rækkefølgen er stadig: hvorfra → GA-opsamlingen (gaOpsamling.guard dom 6) → Meta.
  *  10. METAS COOKIER ÉT STED (22/9): én parser i skema.ts (+ spejlet), fladen læser ved mount,
  *      body'en bærer «meta», serveren dømmer formen igen, og værdien røres aldrig.
- *  11. DE TO META-MIGRATIONER: trin 1 bogført «KØRT i prod … 22:15» (kørt FØR merge 21/9),
- *      trin 2 med «IKKE KØRT»-linjen ordret først og præcis ÉN udvidet CHECK — og trin 2
+ *  11. DE TO META-MIGRATIONER: begge bogført KØRT i prod 21/9 — trin 1 «… 22:15» (FØR merge),
+ *      trin 2 «… 23:20» (før udrulningen; var «IKKE KØRT» indtil da) med præcis ÉN udvidet CHECK — og trin 2
  *      sorterer efter hver eneste kørte migration.
  *  12. ALLE ANSØGERE + FRAVALGET: «ingen_fbclid» findes ikke længere, ANSØGNINGSforespørgslen
  *      filtrerer ikke på fbclid (webinaropslaget gør med rette), og meta_fravalg dømmes FØRST.
@@ -326,10 +326,10 @@ export const udvidelsesMigrationen = (sql: string): boolean => {
     !/drop column/.test(s) && (s.match(/add column if not exists/g) ?? []).length === 3;
 };
 
-/** Trin 2's migration: IKKE KØRT først, præcis ÉN udvidet CHECK, ingen ny tabel, intet drop af data. */
+/** Trin 2's migration: KØRT-hovedet først (ordret — kørt i prod 21/9 23:20), præcis ÉN udvidet CHECK, ingen ny tabel, intet drop af data. */
 export const trin2Migrationen = (sql: string): boolean => {
   const t = udenSql(sql);
-  return sql.startsWith("-- IKKE KØRT. DEPLOY: manuelt i Lovable → SQL editor efter merge (FØR Update-klik).\n") &&
+  return sql.startsWith("-- KØRT i prod — 21/9-2026 kl. 23:20") &&
     /alter table public\.meta_haendelser drop constraint if exists meta_haendelser_art_check;/.test(t) &&
     /check \(art in \('started', 'submitted', 'kvalificeret', 'booket', 'purchase'\)\)/.test(t) &&
     t.includes("comment on column public.meta_haendelser.art is") &&
@@ -485,15 +485,16 @@ describe("metaSend.guard — Metas Conversions API fra platformen", () => {
   it("10. Metas cookier læses ét sted, sendes som «meta», dømmes igen serverside og røres aldrig", () => {
     expect(metaCookierneEtSted(laes(SKEMA), laes(GEM), laes(SIDE), laes(API), alleFiler())).toBe(true);
   });
-  it("11. trin 1 bogført KØRT, trin 2 «IKKE KØRT» ordret først — og trin 2 sorterer EFTER hver eneste kørte migration", () => {
-    // Trin 1 ER kørt i prod (21/9 22:15, FØR merge), og udvidelsesMigrationen kræver derfor
-    // KØRT-hovedet. Trin 2 er ikke kørt endnu og skal bære «IKKE KØRT» ordret.
+  it("11. begge meta-migrationer bogført KØRT — og trin 2 er den sidste kørte i mappen", () => {
+    // Begge ER nu kørt i prod: trin 1 21/9 22:15 (FØR merge), trin 2 21/9 23:20 (før
+    // udrulningen af meta-send-cron). Begge domme kræver derfor KØRT-hovedet ordret.
     expect(udvidelsesMigrationen(laes(MIG_UDV))).toBe(true);
     expect(trin2Migrationen(laes(MIG_TRIN2))).toBe(true);
-    // Reglen, der erstatter «min migration er sidst i mappen» (trin 2 lagde en mere ovenpå):
-    // en migration, der ikke er kørt, må aldrig sortere før en, der ER kørt — det var dén
-    // fejl, der tog forsiden ned i tolv timer 19/9. Efter bogføringen af trin 1 er det KUN
-    // trin 2, der er ukørt af vores to, og trin 1 er selv den sidste kørte.
+    // Reglen, der erstattede «min migration er sidst i mappen»: en migration, der ikke er
+    // kørt, må aldrig sortere før en, der ER kørt — det var dén fejl, der tog forsiden ned
+    // i tolv timer 19/9. Efter bogføringen af trin 2 har vi INGEN ukørte filer tilbage, og
+    // dommen vender derfor den anden vej: ingen af vores to må stå på ikke-kørt-listen, og
+    // trin 2 skal være den sidste kørte i hele mappen.
     //
     // DOMMEN GÆLDER KUN VORES EGNE FILER, med vilje. Målt 22/9: 35 ældre migrationer bærer
     // stadig «IKKE KØRT» i filhovedet, selv om de er kørt i prod (samme modsigelse som
@@ -501,14 +502,13 @@ describe("metaSend.guard — Metas Conversions API fra platformen", () => {
     // derfor være rød af en grund, der ikke er vores — og et rødt værn, man lærer at se
     // bort fra, er intet værn. Oprydningen står i README'en som et fund.
     const { koert, ikkeKoert } = migrationsOrden(MIG_DIR);
-    expect(koert).toContain("20260922040000_ansoegninger_meta_udvidelse.sql");
-    expect(ikkeKoert).toContain("20260922050000_meta_haendelser_trin2.sql");
-    const sidsteKoerte = koert[koert.length - 1];
-    const vores = ["20260922050000_meta_haendelser_trin2.sql"];
-    const forSent = vores.filter((f) => f <= sidsteKoerte);
-    expect(`sorterer før den kørte ${sidsteKoerte}: ${forSent.join(", ")}`).toBe(`sorterer før den kørte ${sidsteKoerte}: `);
+    const vores = ["20260922040000_ansoegninger_meta_udvidelse.sql", "20260922050000_meta_haendelser_trin2.sql"];
+    for (const f of vores) expect(koert).toContain(f);
+    const stadigUkoert = vores.filter((f) => ikkeKoert.includes(f));
+    expect(`vores ukørte: ${stadigUkoert.join(", ")}`).toBe("vores ukørte: ");
+    expect(koert[koert.length - 1]).toBe("20260922050000_meta_haendelser_trin2.sql");
     // Og trin 2 skal komme efter trin 1 — den udvider jo den tabel, trin 1 ikke rører.
-    expect(vores[0] > "20260922040000_ansoegninger_meta_udvidelse.sql").toBe(true);
+    expect(vores[1] > vores[0]).toBe(true);
   });
   it("12. alle ansøgere (ingen fbclid-filtrering, «ingen_fbclid» findes ikke) og fravalget dømmes FØRST", () => {
     expect(alleAnsoegereOgFravalg(laes(DOM), laes(CRON))).toBe(true);
@@ -610,6 +610,12 @@ describe("metaSend.guard — dommene fanger fejlen på en kopi", () => {
     expect(udvidelsesMigrationen(m.replace("-- KØRT i prod — 21/9-2026 kl. 22:15", "-- IKKE KØRT. DEPLOY:"))).toBe(false);
     expect(udvidelsesMigrationen(m.replace("  add column if not exists meta_fravalg boolean not null default false;", "  add column if not exists meta_fravalg boolean null;"))).toBe(false);
     expect(udvidelsesMigrationen(m.replace("comment on column public.ansoegninger.meta_fravalg is", "-- comment on column public.ansoegninger.meta_fravalg is"))).toBe(false);
+    const t = laes(MIG_TRIN2);
+    expect(trin2Migrationen(t.replace("-- KØRT i prod — 21/9-2026 kl. 23:20", "-- Migration: tre arter mere"))).toBe(false);
+    // #1064-formen: tilbage til «IKKE KØRT» falder — den ER kørt (21/9 23:20, før udrulningen).
+    expect(trin2Migrationen(t.replace("-- KØRT i prod — 21/9-2026 kl. 23:20", "-- IKKE KØRT. DEPLOY:"))).toBe(false);
+    // Og den mindste udvidelse: en art mindre i CHECK'en fælder den.
+    expect(trin2Migrationen(t.replace("'started', 'submitted', 'kvalificeret', 'booket', 'purchase'", "'started', 'submitted', 'kvalificeret', 'booket'"))).toBe(false);
   });
   it("13. et standardnavn på «Kvalificeret», en CRM-hændelse med user agent, eller website-formen på alle, fælder dom 13", () => {
     // PRÆCIS DEN FEJL, det danske navn findes for: kollision med eWebinars egen pixel på samme datasæt.

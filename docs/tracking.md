@@ -179,6 +179,14 @@ Pixlens Lead-tags (#2, #3) har intet `eventID` — dedup mod platformens hændel
 
 **Fejlen i den første beviskommando, bogført:** den ledte kun efter script-stier på formen `assets/…` — ikke `./…`-formen, som chunk-listen bruger — og meldte «ikke fundet» om noget, den ikke havde ledt efter. «Ikke fundet» var «ikke ledt». Anden kørsel ledte i alle chunks. Regel: et negativt fund kræver, at søgningen bevises at ramme det, den skal finde (samme som «tavs dom ligner grøn dom»).
 
+**topix.dk — PR #3 (`8b36731`), 21/9 aften:** privatlivspolitikken fik A's sætning om webinarets klik-id i afsnittet om indsamlede oplysninger, ordret:
+
+> «Tilmelder du dig vores webinar via en annonce, gemmer vi det klik-id, Meta satte på linket. Ansøger du senere om medlemskab, bruger vi det til at fortælle Meta, at annoncen virkede — sammen med en krypteret udgave af din e-mail og dit navn. Selve din tilmelding deler vi ikke med Meta.»
+
+**Begge sites er publiceret** efter aftenens merges (Jonas 21/9 23:4x): theboardroom.dk `0f0c335` (TikTok ud) og topix.dk `8b36731`.
+
+**Dokumentet til marketingmanden** — `tracking-til-marketing-22-09-2026.pdf`, tre sider: hændelserne, det slukkede, de to kampagner med annoncesæt-id'er, de tre nye konverteringer, hans to skift af mål i egen timing, GA4 og datakvaliteten. **Sendt 21/9 23:4x sammen med et nyt privat `/webinar`-link til Nicklas.** Det gamle link er lukket, fordi dets token stod i chatten (§6 punkt 13).
+
 ### GTM-containerne — ændret 21/9 kl. 21:35–22:05 (Jonas, med chatten)
 
 Dette er første gang containerne selv er rørt; linjen ovenfor gjaldt frem til 21:35.
@@ -244,9 +252,52 @@ Migrationen `20260922040000` **KØRT i prod 22:15, FØR merge**, med en vagt fø
 4. **22:30 — testhændelse `TEST51467`.** Metas Test events viste **Lead, «Behandlet», fra Server**, `content_name: application_started`, handlingskilde `website`, og brugerdatanøglerne **«Land, E-mail, Eksternt id, Browser-id, Fornavn, Efternavn, Telefon, Brugeragent»** — otte, hvor der før stod tre.
 5. **22:30 — låsen slået til.** Job 568 sender nu for alvor, også for ansøgere uden klik-id.
 
-**Prøvekladden slettes 22/9 kl. 08**, efter GA-tjekket i §4a — den bærer både GA-id'et og Meta-hændelsen, så den skal stå, til begge er aflæst.
+~~**Prøvekladden slettes 22/9 kl. 08**, efter GA-tjekket i §4a — den bærer både GA-id'et og Meta-hændelsen, så den skal stå, til begge er aflæst.~~ — **SLETTET 21/9 kl. 23:43** sammen med GA-prøven, se «Oprydningen» nedenfor. Hændelserne ligger stadig hos Google og Meta, så morgenens GA-tjek bruger **rapporten**, ikke kladden.
 
 **KENDT SVAGHED, rettes i trin 2:** navnet deles ved første mellemrum, så «Jonas Breum Herlev» giver `fn` = `jonas` og `ln` = `breumherlev`. Meta forventer efternavnet alene. **Sidste ord skal være `ln`.** Det rammer alle ansøgere med mellemnavn, og et forkert aftryk matcher ingen — det er et tabt match, ikke en lækket oplysning.
+
+### Trin 2 (#1078, `49697491`) — Kvalificeret, Schedule og Purchase, i drift 21/9 kl. 23:28
+
+Migrationen `20260922050000_meta_haendelser_trin2.sql` **KØRT i prod 21/9 kl. 23:20** (Jonas, Lovable SQL editor), efter merge-start men **FØR udrulningen**, med en vagt først — art-CHECK'en skulle indeholde `started` og ikke `kvalificeret`. EFTER: `CHECK ((art = ANY (ARRAY['started', 'submitted', 'kvalificeret', 'booket', 'purchase'])))`, **0 rækker uden for**. #1078 merget som `49697491`, suiten grøn med 488 filer og 6.908 prøver.
+
+**Låsen `meta_send_aktiv` slået fra kl. 23:28** (den havde stået `true` siden 22:30), så første kørsel med den nye kode ikke sendte syv dages CRM-hændelser for alvor, før nogen havde set dem. `meta-send-cron` **udrullet fra `49697491`** — værktøjets resultat ordret: «Successfully deployed edge functions: meta-send-cron».
+
+**Beviset, tørkørsel 23:29 (kald 13585):** status 200, `dry_run: true`, `laas_aktiv: false`, `kandidater: 2`, `ville_sende: []`, `payload_afvist: 0`, `alarm: ingen`. Grundene, ordret: `ingen_user_agent 2` · `ikke_indsendt 1` · `ikke_kvalificeret 2` · `ikke_booket 2` · `ikke_betalt 2` · `ingen_beloeb 0` · `allerede_sendt 1`. **De tre nye grunde findes kun i trin 2 — altså kører den nye kode.** De to kandidater var chattens egne prøvekladder: `79a82aec` uden user agent (fra før udvidelsen) og `6cff9f4a`, hvis `started` allerede var sendt.
+
+**Fund: der er ingen kvalificeringer, bookinger eller betalinger i de sidste syv dage.** Der er altså intet at sende bagud og intet at vise i Metas testvisning uden at fabrikere en beslutning i en append-only tabel — det er fravalgt. **Kvalificeret, Schedule og Purchase bevises ved den første rigtige hændelse**, altså første «Tal med dem» efter webinaret 22/9: se den i Events Manager, og opret derefter den fjerde brugerdefinerede konvertering «Kvalificeret».
+
+**Låsen `true` igen** (~23:30, målt `true` 23:43), og **Update** klikket med persondatateksten om samtale, booking og betaling.
+
+### Oprydningen 21/9 kl. 23:43
+
+Begge prøvekladder **slettet**, vagtet — præcis 2 rækker, begge ikke indsendt: `79a82aec-1e1e-40cd-80ce-ba8d4249e29d` (GA-prøven 18:02) og `6cff9f4a-ad44-40cc-b707-69b5564efebc` (Meta-prøven 22:27). Sporene fulgte med som cascade. **EFTER: 0 kladder, 0 meta-spor, 0 ga-spor; `meta_send_aktiv` = true, `ga_send_aktiv` = true.** Hændelserne selv ligger stadig hos Google og Meta.
+
+### Metas Events Manager — målt 21/9 22:40–23:37 (datasæt «Topix.dk» 858180112996496)
+
+**Oversigten:** «5.456 kr. annonceudgifter påvirket af lav datakvalitet» og «Forbedr din matchkvalitet ved at sende flere parametre» (høj prioritet). Integrationer: API for konverteringer plus Meta-pixel. Websites: topix.dk og 8 flere.
+
+**Hændelsen «Lead»:** aktiv, matchkvalitet 7,8; **356 hændelser 24/8–20/9 — 254 fra browseren, 102 fra serveren**; «Hændelsesdækning 0 %»; deduplikering «Opfylder ikke anbefalede fremgangsmåder». **Fire annoncesæt** med mål «Leads» og «Optimering, målretning»:
+
+| Annoncesæt-id | Navn | Forbrug |
+|---|---|---|
+| `120248713786770694` | Default \| Business Page Owner… | 7.547,78 kr |
+| `120248713786760694` | Default \| Open Targeting \| OM | 4.626,03 kr |
+| `120242386310820694` | Default \| Open Targeting \| OM | 1.786,78 kr |
+| `120242386845280694` | Default \| Business Page Owner… | 2.966,14 kr |
+
+Metas eksport af 13 eksempler (22:49) er bogført i #1078 og dækker to kampagner.
+
+**Brugerdefinerede konverteringer FØR (23:31):** «Google Trafik» (id `964899862274375`, 70, aktiv) og «Ansøgning modtaget» (id `1745883260128691`: Lead, URL indeholder `https://theboardroom.dk/ansogning-modtaget`, værdi 50.000,00 DKK, website; 12). **«Ansøgning modtaget» er DØD fra 21/9** — siden er nedlagt (§3) og tagget på pause. Den arkiveres af marketingmanden, når ingen kampagne bruger den.
+
+**Oprettet af Jonas 23:35–23:37**, alle tre «Inaktiv» med 0 — normalt, fordi en brugerdefineret konvertering kun tæller hændelser efter oprettelsen. Meta tillader ikke at ændre en eksisterende konverterings regel, og derfor er de nye:
+
+| Navn | Id | Regel |
+|---|---|---|
+| «Ansøgning – sendt» | **`1095961763387558`** | website · Lead · `content_name` er lig med `application_submitted` · ingen værdi |
+| «Ansøgning – påbegyndt» | **`2948029405548506`** | website · Lead · `content_name` er lig med `application_started` |
+| «Webinar – tilmelding» | **`290860161976498?`** — sidste ciffer er ulæseligt på skærmbilledet | website · Lead · URL indeholder `topix.dk/webinar` |
+
+**Den fjerde, «Kvalificeret», mangler endnu** og oprettes efter den første rigtige kvalificering.
 
 ---
 
@@ -313,8 +364,8 @@ Googles anbefalede bevis er **DebugView med `debug_mode`** ([verify-implementati
 2. ~~**Samtykkekrav på Lead- og GA4-tags:** taggene siger ikke selv, hvad de kræver.~~ — **GJORT 21/9 (§3):** samtykkeoversigten er slået til og gennemgået på theboardroom.dk; alle Meta-, LinkedIn- og Stape-tags kræver `ad_storage`, intet at rette. På topix.dk manglede «Facebook - boardroom_intent» (HTML) sit krav — det er sat og udgivet.
 3. ~~**Navn og e-mail ud af dataLayer på topix.dk/webinar**~~ — **AFGJORT 21/9 (§3): «dataLayer - ewebinar_form_submit» BEVARES**, fordi Klaviyos Identify bruger den. GA4-taggene «email_added» og «generate_lead» sender ikke e-mailen som parameter — kun via Googles «user-provided data», som Google-tagget krypterer — og beholdes efter princip (g).
 4. ~~**Fjern TikTok-pixlen** (tag 96/130 på theboardroom.dk, tag 30 på topix.dk) — derefter banner og cookiepolitik uden TikTok (`_ttp`).~~ — **GJORT 21/9:** begge containere har pixlen på **pause** og udgivet (§3), og teksterne er renset i PR #3 (theboardroom.dk) og PR #2 (topix.dk). TikTok bruges ikke.
-5. **eWebinars pixel:** hvilke hændelser sender eWebinar for 858180112996496, og fra hvilke sider (tilmelding, join, replay)? Aflæses i eWebinar → Integrations.
-6. **Stape-serverens tags** (`nofikexx.topix.dk`): hvilke klienter og tags (Meta CAPI? GA4? LinkedIn?), hvilket datasæt/token. Kun i GTM's server-container.
+5. ~~**eWebinars pixel:** hvilke hændelser sender eWebinar for 858180112996496, og fra hvilke sider?~~ — **LØST 21/9 22:40 i Events Manager (§4):** eWebinars egen pixel sender **«Visit Registration»** (3,3 tusind), **«Fuldfør registrering»** (= CompleteRegistration, 587) og **«Joined Session»** (38, sidst for 27 dage siden). Derfor undgår vores fravalg af webinarhændelser fra serveren en dobbelttælling.
+6. ~~**Stape-serverens tags** (`nofikexx.topix.dk`): hvilke klienter og tags, hvilket datasæt/token?~~ — **LØST 21/9 (§4):** **Stape sender GA4's hændelser videre til Meta som API-hændelser**: `user_engagement`, `scroll`, `form_start`, `cta_click`, `email_added` (matchkvalitet 7,7), `ewebinar` (7,7), `click`, `webinar_intent` og `boardroom_intent`. Containeren hedder «Topix - Server side», sGTM-container **GTM-T3GRBJMG**, domæne `nofikexx.topix.dk`, EU North (Holland), 3.518 af 500.000 requests brugt (skærmbillede 22:42). Jonas har adgang til Stape.
 7. **Nye tilpassede konverteringer på platformens hændelser** — `application_started` og `application_submitted` kommer nu fra serveren (§4). Konverteringerne i Events Manager skal pege på dem, ikke på de pausede GTM-tags.
 8. **Kampagnernes konverteringsmål** — hvilke annoncer optimerer mod hvad, når målet skifter til platformens hændelser.
 9. **Aflæsningerne, der ikke kan måles herfra** (recon-tracking §6): Events Manager → Events pr. hændelse og pr. `event_source_url` (kommer app.theboardroom.dk overhovedet?), Connection method (browser/server), Deduplication, Event match quality; Custom conversions («fuldendt ansøgning», «opstart»: regel, kilde, «last received»); Settings → Conversions API / System Users (navn, «last used», scopes); Automatic advanced matching; Ads Manager → url_tags på alle aktive annoncer. GTM → Versions (tag-navne, hvem publicerede version 6), server-containeren, Consent Overview. GA4 (G-6LHR66CDJ4, G-9S4NL9FKGK) → Events sidste 7 dage, Key events, cross-domain, Measurement Protocol secrets (`GA4_API_SECRET` i sitets `ga4-track`). Klaviyo → «Active on site» fra topix.dk. Stape-kontoen → request-loggen for `/data`.
@@ -324,7 +375,7 @@ Googles anbefalede bevis er **DebugView med `debug_mode`** ([verify-implementati
 ## 6. Åbent — til beslutning
 
 1. ~~Datasættets **«Automatisk websitematchning» står Til**~~ — **AFGJORT 21/9 (chatten): den forbliver slået til** (den står Til i dag; der skal intet gøres). Den kan sende krypteret e-mail/telefon fra formularer på siderne (fx topix.dk/webinar) uden om §1d, men virker kun for besøgende, der har givet samtykke, og §1g gælder: hellere lidt for lempelige end et stramt garn af frygt.
-2. Datasættet er **delt med virksomheden «Sentury ApS» (583122777451953)** — hvem er det?
+2. ~~Datasættet er **delt med virksomheden «Sentury ApS» (583122777451953)** — hvem er det?~~ — **LØST 21/9 22:40 (Jonas):** konsulenter, huset sparrer med. Jonas har styr på dem.
 3. **Ingen domæne-tilladelsesliste** på datasættet.
 4. Hvad datasættet **«The Boardroom — annoncer» (1259647116283770)** bruges til.
 5. Privatlivspolitikkens **Circle.so- og Monday.com-linjer** (theboardroom.dk `PrivacyPolicy.tsx:92`, `:94`).
@@ -338,6 +389,7 @@ Googles anbefalede bevis er **DebugView med `debug_mode`** ([verify-implementati
 13. **Prøvedelingen «Nicklas - Marketingkonsulenten» er LUKKET og må ikke genåbnes** — tokenet har stået i chatten 21/9 (delingen af `/webinar`, se CLAUDE.md's afsnit om delingen). Nicklas får et nyt link. Et lukket link svarer 403 «ukendt», og oprydningsjobbet (job 570) sletter deling og spor 12 måneder efter lukningen.
 
 14. **Cron-vagten tæller vores egne beviskald.** `vagt_cron` tæller ALLE non-200-svar i `net._http_response` — også de manuelle prøvekald, vi selv sender fra SQL editoren. Målt 21/9: 1×400 + 1×404 kl. 18:07 (STRIKS-modprøven, §4a) og 2×403 kl. 22:07 — alle fire er vores egne beviser, ikke fejl i drift. Vagten bør kun tælle **planlagte jobs**; ellers vænner vi os til at overse den, og så tier den dagen, noget faktisk går galt.
+    **Reconen (B, 21/9 aften, `~/Downloads/recon-cron-vagt.md`):** den gældende `vagt_cron` (`20260916170000_vagtens_samlemail.sql:114`) kobler et svar i `net._http_response` til den cron-kørsel, der startede ≤ 2 min før (`:252–258`) — **rent tidsligt**. Et manuelt kald arver derfor et jobs id og tælles med i `v_jobs_ikke_200`, hvis tærskel er ≥ 2. `kald_edge` returnerer `net.http_post`s id, som ER `net._http_response.id`, men ingen gemmer det. **Rettelsen (onsdag):** cron-kaldene gemmer id'et, og vagten tæller kun dem. Mønstret findes allerede i huset: `meta_hentning_vagt`.
 
 ---
 
@@ -355,3 +407,14 @@ Googles anbefalede bevis er **DebugView med `debug_mode`** ([verify-implementati
 | `GA4_SEND_SECRET` | `_shared/gaSend.ts` (navnet), læst KUN i `_shared/gaSendAfsendelse.ts` | Measurement Protocol mod `G-6LHR66CDJ4` | **oprettet af Jonas i GA4 21/9 aften** (web-strømmen `G-6LHR66CDJ4`) og **sat i Lovable som `GA4_SEND_SECRET`**. **Værdien har stået i chatten 21/9 — skal skiftes ud** (lav prioritet: en Measurement Protocol-nøgle kan kun SENDE hændelser, ikke læse data). Sat på ny ~21:00 med den værdi, DebugView beviste (§4a) |
 | `KLAVIYO_API_KEY` | `_shared/klaviyo.ts:50` | lag 2/3 | i drift |
 | `VITE_SENTRY_DSN` | `src/main.tsx:22` | Sentry (kun PROD) | i drift |
+
+---
+
+## 8. Fejlsporet — aftenens fejl 21/9, og reglerne de gav
+
+Fire af aftenens seks fejl handler om tracking; de to øvrige står i `docs/OVERLEVERING.md` under «21. september (aften)».
+
+1. **Chatten påstod en måling, den ikke havde set (22:50).** Den skrev «Nu er det klart», som om «Aktivitetseksempler» var modtaget, og beskrev `lead_source: ewebinar` og platformens Leads fra app.theboardroom.dk. **Intet af det var set.** Rettet højt i næste svar, og A's prompt rettet, så det ikke blev bogført som en måling. Den rigtige eksport (22:49) viste noget andet — to kampagner — og beslutningen om at omdøbe Lead blev derefter **trukket tilbage**. **Regel: beskriv aldrig et skærmbillede eller en fil, der ikke er modtaget — og en beslutning, der hviler på en påstået måling, tages om, når målingen kommer.**
+2. **Chatten antog, at GA-ejendommen «Topix DK» var den forkerte** (18:08). Den rummer begge strømme. Jonas rettede det.
+3. **Pladsholderen `KALD_ID` i en SQL** (21:23) — chatten skulle have skrevet en forespørgsel, der fandt svaret selv. Rettet til `created > now() - interval '2 minutes'`.
+4. **GA Realtid viste ikke Measurement Protocol-hændelserne**, selv om DebugView viste dem (20:57–20:59). **Regel: DebugView med `debug_mode` er beviset for MP; Realtid og dagens rapporter er det ikke.**
