@@ -188,6 +188,8 @@ export function bygPayload(r: AnsoegningTilMeta, art: Art, tid: Date, externalId
 export const FORBUDTE_NOEGLER = [
   "em", "ph", "fn", "ln", "ge", "db", "ct", "st", "zp", "country", "client_ip_address", "fbp", "subscription_id", "lead_id",
   "email", "navn", "telefon", "cvr", "svar", "ip", "ip_hash", "udfordring", "hjemmeside", "virksomhedsnavn",
+  // GA's id'er (21/9 aften) hører til Google, aldrig til Metas payload.
+  "ga_client_id", "ga_session_id",
 ] as const;
 
 /** Stierne til enhver forbudt nøgle i objektet — tom = rent. */

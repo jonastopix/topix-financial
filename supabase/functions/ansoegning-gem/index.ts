@@ -42,6 +42,9 @@ import { KONTAKT_ADRESSE } from "../_shared/indgangsMail.ts";
 import { planlaegKladde, registrerIndsendelse } from "../_shared/ansoegningMotor.ts";
 import {
   annoncesporAf,
+  gaAf,
+  harGa,
+  type GaOpsamling,
   harAnnoncespor,
   type Annoncespor,
   afgoerFremdrift,
@@ -69,7 +72,7 @@ const HANDLINGER = ["opret", "hent", "gem", "indsend"] as const;
  * ansoegningGemKendteFelter.guard holder listen op mod api.ts — et nyt felt
  * i klienten uden plads her afvises med 400, og værnet går rødt først.
  */
-const KENDTE_FELTER = ["handling", "token", "kilde", "kilde_raa", "annoncespor", "svar", "firma", "cvr_bekraeftet", "virksomhedsnavn"] as const;
+const KENDTE_FELTER = ["handling", "token", "kilde", "kilde_raa", "annoncespor", "ga", "svar", "firma", "cvr_bekraeftet", "virksomhedsnavn"] as const;
 type Handling = (typeof HANDLINGER)[number];
 
 /**
@@ -137,6 +140,18 @@ async function gemAnnoncespor(admin: SupabaseClient, id: string, spor: Annoncesp
   if (fejlUden) console.error(`[ansoegning-gem] annoncesporet (uden user agent) kunne heller ikke gemmes på ${id}: ${fejlUden.message}`);
 }
 
+/**
+ * GA's klient-id og session-id på rækken (21/9 aften) — kaster aldrig. En EGEN update
+ * EFTER gemAnnoncespor, aldrig i insert'en og aldrig i samme update som sporet: en fejl
+ * her (kolonnerne mangler — migration 20260922003000 — eller andet) må ikke kunne koste
+ * klik-id, utm eller user agent. Kun når mindst ét felt er sat. Fejler den: log, gå videre.
+ */
+async function gemGa(admin: SupabaseClient, id: string, ga: GaOpsamling): Promise<void> {
+  if (!harGa(ga)) return;
+  const { error: gaFejl } = await admin.from("ansoegninger").update({ ga_client_id: ga.client_id, ga_session_id: ga.session_id }).eq("id", id);
+  if (gaFejl) console.error(`[ansoegning-gem] GA-id'erne kunne ikke gemmes på ${id}: ${gaFejl.message}`);
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   if (req.method !== "POST") return jsonResponse({ error: "Kun POST" }, 405);
@@ -200,6 +215,9 @@ Deno.serve(async (req) => {
       // USER AGENT (21/9 aften): fra request-headeren, KUN når fbclid er sat — samme fail-soft
       // update som sporet. Meta kræver client_user_agent for website-hændelser (meta-send-cron).
       await gemAnnoncespor(adminClient, data.id, annoncesporAf(body?.annoncespor), laesUserAgent(req));
+      // GA (21/9 aften): klient-id og session-id fra theboardroom.dk's cookies — dømt igen
+      // serverside (gaAf), gemt i sin EGEN fail-softe update efter sporet. Sendes endnu ikke.
+      await gemGa(adminClient, data.id, gaAf(body?.ga));
 
       // KLAVIYO: «Ansoegning paabegyndt» sendes IKKE her. Målt 19/9 kl. 22.22:
       // «opret» sker ved FØRSTE gem, og første skærm er CVR — mailen kommer

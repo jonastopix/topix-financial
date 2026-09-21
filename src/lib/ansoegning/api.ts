@@ -9,7 +9,7 @@
  */
 import { FunctionsHttpError } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
-import type { Annoncespor, AnsoegningsSvar, CvrVisning, FeltId, Fremdrift, Kilde } from "./skema";
+import type { Annoncespor, AnsoegningsSvar, CvrVisning, FeltId, Fremdrift, GaOpsamling, Kilde } from "./skema";
 
 export class AnsoegningsFejl extends Error {
   status: number;
@@ -39,7 +39,7 @@ export interface OpretSvar {
   fremdrift: Fremdrift;
 }
 /** `firma` er honningfeltet — tomt for et menneske. Serveren svarer som om alt gik godt, når det er udfyldt. */
-export function opretAnsoegning(args: { kilde: Kilde; kilde_raa: string | null; annoncespor: Annoncespor; svar: Partial<AnsoegningsSvar>; firma: string }): Promise<OpretSvar> {
+export function opretAnsoegning(args: { kilde: Kilde; kilde_raa: string | null; annoncespor: Annoncespor; ga: GaOpsamling; svar: Partial<AnsoegningsSvar>; firma: string }): Promise<OpretSvar> {
   return kald<OpretSvar>("ansoegning-gem", { handling: "opret", ...args });
 }
 

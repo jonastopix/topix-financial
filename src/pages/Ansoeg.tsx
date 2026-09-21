@@ -29,6 +29,7 @@ import {
   HJEMMESIDE_INGEN,
   KILDE_PARAM,
   laesAnnoncespor,
+  laesGa,
   SKAERME,
   TOKEN_PARAM,
   TOMME_SVAR,
@@ -122,6 +123,10 @@ const Ansoeg = () => {
       referrer: typeof document !== "undefined" ? document.referrer : null,
     }),
   );
+  // GA's klient-id og session-id (21/9 aften): _ga og _ga_6LHR66CDJ4 fra document.cookie,
+  // læst ÉN gang ved mount som sporet. Findes de ikke (intet samtykke på theboardroom.dk),
+  // er begge null — aldrig et gæt. Sendes med «opret», gemmes i en egen fail-soft update.
+  const ga = useRef(laesGa(typeof document !== "undefined" ? document.cookie : null));
 
   const fremdrift = useMemo(() => afgoerFremdrift(svar), [svar]);
 
@@ -179,7 +184,7 @@ const Ansoeg = () => {
       setGemmer(true);
       try {
         if (!token) {
-          const o = await opretAnsoegning({ kilde: kilde.current.kilde, kilde_raa: kilde.current.raa, annoncespor: annoncespor.current, svar: del, firma: honning });
+          const o = await opretAnsoegning({ kilde: kilde.current.kilde, kilde_raa: kilde.current.raa, annoncespor: annoncespor.current, ga: ga.current, svar: del, firma: honning });
           husk(o.token);
           if (navn) await gemSvar(o.token, {}, false, navn);
         } else {

@@ -32,7 +32,9 @@ import { PERSONDATA_AFSNIT } from "@/lib/ansoegning/persondata";
  *   8. ALARMEN: kun rigtig kørsel med fejlede > 0; nøglen bærer datoen (kbhDato); loggen
  *      slås op FØR sendManagedEmail; til driftModtager(); klokke drift.
  *   9. PERSONDATATEKSTEN: Meta-afsnittet står ORDRET (godkendt af Jonas 21/9), og
- *      «gemmer»-afsnittet nævner browseren.
+ *      «gemmer»-afsnittet nævner browseren. Rettet 21/9 aften: mellem de to står nu
+ *      GA-afsnittet (godkendt 21/9, ordret i gaOpsamling.guard dom 6), så Meta-afsnittet
+ *      er +2, ikke +1.
  */
 
 const ROD = process.cwd();
@@ -208,7 +210,9 @@ describe("metaSend.guard — Metas Conversions API fra platformen", () => {
     const gemmer = PERSONDATA_AFSNIT.find((a) => a.titel === "Hvad vi gemmer")!.afsnit;
     expect(gemmer).toContain(META_TEKST_ORDRET);
     expect(gemmer.some((a) => a.includes("gemmer vi det klik-id, Meta selv satte på linket, og hvilken slags browser du brugte."))).toBe(true);
-    expect(gemmer.indexOf(META_TEKST_ORDRET)).toBe(gemmer.findIndex((a) => a.includes("hvilken slags browser du brugte.")) + 1);
+    const browser = gemmer.findIndex((a) => a.includes("hvilken slags browser du brugte."));
+    expect(gemmer[browser + 1]).toContain("Google Analytics");
+    expect(gemmer.indexOf(META_TEKST_ORDRET)).toBe(browser + 2);
   });
 });
 
