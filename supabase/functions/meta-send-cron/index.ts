@@ -41,6 +41,18 @@
 // KASTER ALDRIG mod én hændelse: fejler én, tælles den, og de andre sendes. Vælter hele
 // kørslen (databasen væk), er svaret 500 med grunden.
 //
+// ── TRIN 2, 22/9-2026 (Jonas 21/9 22:25; designet i _shared/metaSend.ts pkt. 15–19) ──
+//   TRE HÆNDELSER MERE, alle på ansøgningen: «Kvalificeret» (første tal_med_dem), «Schedule»
+//     (første book) og «Purchase» (første indgangsperiode). Samme cron, samme spor, samme lås.
+//   KANDIDATREGLEN ER OMSKREVET: en Purchase sker 30–60 dage EFTER ansøgningen, så «oprettet
+//     eller indsendt i vinduet» ville aldrig finde den. Kandidaten er nu en ansøgning, hvor
+//     NOGET er sket i vinduet — oprettelse/indsendelse, en beslutning eller en betaling.
+//   DE TRE ER CRM-HÆNDELSER, ikke website: action_source «system_generated» + custom_data
+//     event_source «crm». De bærer hverken user agent eller event_source_url, og dommen
+//     kræver dem ikke — ellers ville hver ansøgning fra før 21/9 aften være udelukket.
+//   WEBINARETS KLIK-ID er tredje led i fbc-kæden (efter URL og cookie).
+//   WEBINARHÆNDELSER BYGGES IKKE: eWebinars raa har ingen user agent (målt 21/9 22:12).
+//
 // ── UDVIDELSEN 22/9-2026 (Jonas 21/9 aften; hele designet i _shared/metaSend.ts pkt. 11–14) ──
 //   ALLE ANSØGERE: filteret på fbclid er væk — webinarvejen bærer intet klik-id og var usynlig.
 //   HASHET BRUGERDATA: em, ph, fn, ln og country normaliseres efter Metas egne regler og
@@ -64,9 +76,9 @@ import { skrivRaadgiverBesked } from "../_shared/raadgiverBesked.ts";
 import { sendTilMeta } from "../_shared/metaSendAfsendelse.ts";
 import {
   ALARM_KLOKKE_TYPE, ALARM_MAIL_LABEL, alarmNoegle, alarmTekst, type AnsoegningTilMeta, type Art, ARTER, type BrugerdataNoegle,
-  brugerdataNoegler, bygFbpFelt, bygPayload, doem, erTestEventCode, eventId, fbcKilde, type FejletAfsendelse, findForbudteNoegler,
-  hashBrugerdata, laasErAktiv, maaForsoeges, META_SEND_LAAS_NOEGLE, META_VINDUE_DAGE, normaliserBrugerdata, senderRigtigt,
-  type SporRaekke, type SprungetGrund,
+  brugerdataNoegler, bygFbpFelt, bygPayload, doem, erCrmArt, erTestEventCode, eventId, type FbcKilde, fbcKilde,
+  type FejletAfsendelse, findForbudteNoegler, hashBrugerdata, laasErAktiv, maaForsoeges, META_SEND_LAAS_NOEGLE, META_VINDUE_DAGE,
+  normaliserBrugerdata, senderRigtigt, type SporRaekke, type SprungetGrund,
 } from "../_shared/metaSend.ts";
 
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -85,7 +97,11 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
  * hele rækken til normaliserBrugerdata og ser kun aftryk igen. cvr, svar, hjemmeside,
  * udfordring og ip_hash står ikke her og hentes aldrig.
  */
-const RAEKKE_FELTER = "id, created_at, indsendt_at, fbclid, landing, user_agent, email, navn, telefon, fbp, fbc_cookie, meta_fravalg";
+const RAEKKE_FELTER = "id, created_at, indsendt_at, fbclid, landing, user_agent, email, navn, telefon, fbp, fbc_cookie, meta_fravalg, company_id";
+/** Trin 2: de to beslutninger, der bliver til hændelser. Første række pr. (ansøgning, handling) tæller. */
+const BESLUTNINGS_HANDLINGER = ["tal_med_dem", "book"] as const;
+/** Trin 2: medlemskabets FØRSTE betaling. «fornyelse» er ikke en Purchase — den er en fornyelse. */
+const PERIODE_ART_INDGANG = "indgang";
 
 const json = (krop: unknown, status = 200) =>
   new Response(JSON.stringify(krop), { status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
@@ -96,8 +112,12 @@ interface Plan {
   ansoegning_id: string;
   art: Art;
   event_time: string;
-  /** klik_id · cookie · ingen — hvor fbc kommer fra. */
-  fbc_kilde: "klik_id" | "cookie" | "ingen";
+  /** klik_id · cookie · webinar · ingen — hvilket led fbc kom fra (trin 2: webinaret er led 3). */
+  fbc_kilde: FbcKilde;
+  /** website · crm — hvilken action_source hændelsen bærer (trin 2). */
+  slags: "website" | "crm";
+  /** Kun purchase: beløbet i kroner, som det ville blive sendt. */
+  value?: number;
   fbp: boolean;
   /** em/ph/fn/ln/country, som de VILLE blive sendt (hashet). Kun navnene. */
   brugerdata: BrugerdataNoegle[];
@@ -132,7 +152,11 @@ function tomt(a: { toer: boolean; laas: boolean; test: string | null; id: string
   return {
     ok: true, dry_run: a.toer, laas_aktiv: a.laas, sender_rigtigt: senderRigtigt({ dryRun: a.toer, laasAktiv: a.laas, testEventCode: a.test }),
     test_event_code: a.test, ansoegning_id: a.id, nu: a.nu.toISOString(), kandidater: 0, ville_sende: [],
-    sprunget: { fravalgt: 0, ingen_user_agent: 0, ingen_landing: 0, ikke_indsendt: 0, ingen_tidspunkt: 0, for_gammel: 0, allerede_sendt: 0, ugyldig: 0 },
+    sprunget: {
+      fravalgt: 0, ingen_user_agent: 0, ingen_landing: 0, ikke_indsendt: 0,
+      ikke_kvalificeret: 0, ikke_booket: 0, ikke_betalt: 0, ingen_beloeb: 0,
+      ingen_tidspunkt: 0, for_gammel: 0, allerede_sendt: 0, ugyldig: 0,
+    },
     sendt: 0, payload_afvist: 0, fejlede: 0, fejlede_liste: [], udsat: 0, alarm: "ingen", fejl: [],
   };
 }
@@ -144,31 +168,174 @@ async function hentLaas(admin: SupabaseClient): Promise<boolean> {
   return laasErAktiv((data as { config_value?: unknown } | null)?.config_value ?? null);
 }
 
+/** Rækken, som den kommer af basen — trin 2's afledte felter slås op bagefter (berig). */
+type RaaAnsoegning = Omit<
+  AnsoegningTilMeta,
+  "kvalificeret_at" | "booket_at" | "purchase_at" | "purchase_beloeb_oere" | "webinar_fbclid" | "webinar_fbclid_at"
+> & { company_id: string | null };
+
+const chunk = <T>(a: readonly T[], n: number): T[][] => {
+  const ud: T[][] = [];
+  for (let i = 0; i < a.length; i += n) ud.push(a.slice(i, i + n));
+  return ud;
+};
+
 /**
- * Kandidaterne i vinduet (+ 1 dags luft; dommen afgør præcist), side for side.
- * UDVIDET 22/9 (pkt. 11): filteret `.not("fbclid", "is", null)` er VÆK. Webinarvejen
- * (annonce → topix.dk → mail → /ansoeg?kilde=webinar) bærer intet klik-id og var derfor
- * usynlig for Meta. Fravalget filtreres HELLER IKKE her — doem springer det over med
- * grunden «fravalgt», så tallet kan ses i svaret i stedet for at forsvinde.
+ * KANDIDATERNE (omskrevet i trin 2).
+ *
+ * Før var reglen «ansøgninger, der er oprettet eller indsendt i vinduet». Den holder ikke
+ * længere: en Purchase sker typisk 30–60 dage EFTER ansøgningen, og en kvalificering dage
+ * efter. Ansøgningen ville for længst være ude af vinduet, og hændelsen ville aldrig blive
+ * sendt. Kandidaten er derfor nu: en ansøgning, hvor NOGET er sket inden for vinduet —
+ *   (a) oprettet eller indsendt,
+ *   (b) en beslutning truffet («tal_med_dem» eller «book»),
+ *   (c) en indgangsperiode skrevet (betalingen).
+ * Dommen (doem) afgør bagefter præcist pr. art. Fravalget filtreres IKKE her — det springes
+ * over med grunden «fravalgt», så tallet kan ses i svaret i stedet for at forsvinde.
  */
-async function hentKandidater(admin: SupabaseClient, nu: Date, ansoegningId: string | null): Promise<AnsoegningTilMeta[]> {
+async function hentRaaKandidater(admin: SupabaseClient, nu: Date, ansoegningId: string | null): Promise<RaaAnsoegning[]> {
   if (ansoegningId) {
     const { data, error } = await admin.from("ansoegninger").select(RAEKKE_FELTER).eq("id", ansoegningId).maybeSingle();
     if (error) throw new Error(`ansoegninger: ${error.message}`);
-    return data ? [data as unknown as AnsoegningTilMeta] : [];
+    return data ? [data as unknown as RaaAnsoegning] : [];
   }
   const fra = new Date(nu.getTime() - (META_VINDUE_DAGE + 1) * 86_400_000).toISOString();
-  const ud: AnsoegningTilMeta[] = [];
+  const ids = new Set<string>();
+
+  // (b) beslutninger i vinduet → ansøgnings-id'er
+  {
+    const { data, error } = await admin.from("ansoegning_beslutninger").select("ansoegning_id")
+      .in("handling", [...BESLUTNINGS_HANDLINGER]).gte("truffet_at", fra).limit(SIDE * 5);
+    if (error) throw new Error(`ansoegning_beslutninger: ${error.message}`);
+    for (const r of (data ?? []) as { ansoegning_id: string }[]) ids.add(r.ansoegning_id);
+  }
+  // (c) indgangsperioder i vinduet → virksomheds-id'er → ansøgnings-id'er
+  const betalteCompanyIds: string[] = [];
+  {
+    const { data, error } = await admin.from("company_perioder").select("company_id")
+      .eq("art", PERIODE_ART_INDGANG).gte("created_at", fra).limit(SIDE * 5);
+    if (error) throw new Error(`company_perioder: ${error.message}`);
+    for (const r of (data ?? []) as { company_id: string }[]) betalteCompanyIds.push(r.company_id);
+  }
+  for (const del of chunk([...new Set(betalteCompanyIds)], 300)) {
+    // Den dokumenterede bagvej fra betaling til ansøgning (recon §b.3).
+    const { data, error } = await admin.from("company_betalingslink").select("ansoegning_id").in("company_id", del).not("ansoegning_id", "is", null);
+    if (error) throw new Error(`company_betalingslink: ${error.message}`);
+    for (const r of (data ?? []) as { ansoegning_id: string }[]) ids.add(r.ansoegning_id);
+  }
+
+  const ud = new Map<string, RaaAnsoegning>();
+  // (a) vinduets egne + (c) virksomhedernes ansøgninger: companies.id == ansoegninger.id ved
+  // ny virksomhed, ansoegninger.company_id ved CVR-genbrug — begge veje tages med.
   for (let start = 0; ; start += SIDE) {
     const { data, error } = await admin.from("ansoegninger").select(RAEKKE_FELTER)
       .or(`created_at.gte.${fra},indsendt_at.gte.${fra}`)
       .order("created_at", { ascending: true }).order("id", { ascending: true })
       .range(start, start + SIDE - 1);
     if (error) throw new Error(`ansoegninger: ${error.message}`);
-    const rk = (data ?? []) as unknown as AnsoegningTilMeta[];
-    ud.push(...rk);
-    if (rk.length < SIDE) return ud;
+    const rk = (data ?? []) as unknown as RaaAnsoegning[];
+    for (const r of rk) ud.set(r.id, r);
+    if (rk.length < SIDE) break;
   }
+  for (const del of chunk([...new Set(betalteCompanyIds)], 300)) {
+    const { data, error } = await admin.from("ansoegninger").select(RAEKKE_FELTER)
+      .or(`id.in.(${del.join(",")}),company_id.in.(${del.join(",")})`);
+    if (error) throw new Error(`ansoegninger (betalte): ${error.message}`);
+    for (const r of ((data ?? []) as unknown as RaaAnsoegning[])) ud.set(r.id, r);
+  }
+  const manglende = [...ids].filter((i) => !ud.has(i));
+  for (const del of chunk(manglende, 300)) {
+    const { data, error } = await admin.from("ansoegninger").select(RAEKKE_FELTER).in("id", del);
+    if (error) throw new Error(`ansoegninger (beslutninger): ${error.message}`);
+    for (const r of ((data ?? []) as unknown as RaaAnsoegning[])) ud.set(r.id, r);
+  }
+  return [...ud.values()];
+}
+
+/** Første «tal_med_dem» og første «book» pr. ansøgning — hændelsen er den FØRSTE, ikke den seneste. */
+async function hentBeslutningstider(admin: SupabaseClient, ids: readonly string[]): Promise<Map<string, { tal_med_dem: string | null; book: string | null }>> {
+  const ud = new Map<string, { tal_med_dem: string | null; book: string | null }>();
+  for (const del of chunk(ids, 300)) {
+    const { data, error } = await admin.from("ansoegning_beslutninger").select("ansoegning_id, handling, truffet_at")
+      .in("ansoegning_id", del).in("handling", [...BESLUTNINGS_HANDLINGER]).order("truffet_at", { ascending: true });
+    if (error) throw new Error(`ansoegning_beslutninger: ${error.message}`);
+    for (const r of (data ?? []) as { ansoegning_id: string; handling: string; truffet_at: string }[]) {
+      const p = ud.get(r.ansoegning_id) ?? { tal_med_dem: null, book: null };
+      if (r.handling === "tal_med_dem" && p.tal_med_dem === null) p.tal_med_dem = r.truffet_at;
+      if (r.handling === "book" && p.book === null) p.book = r.truffet_at;
+      ud.set(r.ansoegning_id, p);
+    }
+  }
+  return ud;
+}
+
+/** Første indgangsperiode pr. virksomhed — tidspunktet OG beløbet. En fornyelse er ikke en Purchase. */
+async function hentBetalinger(admin: SupabaseClient, companyIds: readonly string[]): Promise<Map<string, { at: string; oere: number }>> {
+  const ud = new Map<string, { at: string; oere: number }>();
+  for (const del of chunk(companyIds, 300)) {
+    const { data, error } = await admin.from("company_perioder").select("company_id, created_at, beloeb_oere")
+      .in("company_id", del).eq("art", PERIODE_ART_INDGANG).order("created_at", { ascending: true });
+    if (error) throw new Error(`company_perioder: ${error.message}`);
+    for (const r of (data ?? []) as { company_id: string; created_at: string; beloeb_oere: number }[]) {
+      if (!ud.has(r.company_id)) ud.set(r.company_id, { at: r.created_at, oere: r.beloeb_oere });
+    }
+  }
+  return ud;
+}
+
+/**
+ * Webinartilmeldingernes klik-id pr. mail (trin 2, pkt. 17). Koblingen er e-mail alene, begge
+ * lower — husets eneste kobling mellem webinar og ansøgning (tabelkommentaren i
+ * 20260919130000: «Kobles til ansoegninger på email (begge lower).»). Kun rækker MED et
+ * klik-id; dommen (bygFbcFelt) vælger den seneste FØR ansøgningen og inden for 90 dage.
+ */
+async function hentWebinarKlikId(admin: SupabaseClient, emails: readonly string[]): Promise<Map<string, { fbclid: string; at: string | null }[]>> {
+  const ud = new Map<string, { fbclid: string; at: string | null }[]>();
+  for (const del of chunk(emails, 300)) {
+    const { data, error } = await admin.from("webinar_tilmeldinger").select("email, fbclid, registreret_at, created_at")
+      .in("email", del).not("fbclid", "is", null);
+    if (error) throw new Error(`webinar_tilmeldinger: ${error.message}`);
+    for (const r of (data ?? []) as { email: string; fbclid: string; registreret_at: string | null; created_at: string }[]) {
+      const liste = ud.get(r.email) ?? [];
+      liste.push({ fbclid: r.fbclid, at: r.registreret_at ?? r.created_at });
+      ud.set(r.email, liste);
+    }
+  }
+  return ud;
+}
+
+/**
+ * Den seneste tilmelding FØR ansøgningen — valgt her, fordi «seneste før» er en sortering,
+ * ikke en dom. Gyldigheden (90 dage) afgøres af den rene dom i metaSend.ts.
+ */
+function nyesteWebinarFoer(liste: readonly { fbclid: string; at: string | null }[], foer: string): { fbclid: string; at: string } | null {
+  const graense = Date.parse(foer);
+  let bedst: { fbclid: string; at: string } | null = null;
+  for (const r of liste) {
+    if (r.at === null) continue;
+    const t = Date.parse(r.at);
+    if (!Number.isFinite(t) || (Number.isFinite(graense) && t > graense)) continue;
+    if (bedst === null || t > Date.parse(bedst.at)) bedst = { fbclid: r.fbclid, at: r.at };
+  }
+  return bedst;
+}
+
+/** Rå række + de fire opslag → den fulde række, dommen og payloaden læser. */
+export function berig(
+  r: RaaAnsoegning,
+  beslutninger: { tal_med_dem: string | null; book: string | null } | undefined,
+  betaling: { at: string; oere: number } | undefined,
+  webinar: { fbclid: string; at: string } | null,
+): AnsoegningTilMeta {
+  return {
+    ...r,
+    kvalificeret_at: beslutninger?.tal_med_dem ?? null,
+    booket_at: beslutninger?.book ?? null,
+    purchase_at: betaling?.at ?? null,
+    purchase_beloeb_oere: betaling?.oere ?? null,
+    webinar_fbclid: webinar?.fbclid ?? null,
+    webinar_fbclid_at: webinar?.at ?? null,
+  };
 }
 
 async function hentSpor(admin: SupabaseClient, eventIds: string[]): Promise<Map<string, SporRaekke>> {
@@ -219,7 +386,24 @@ export async function koerMetaSend(
   const laas = await hentLaas(admin);
   const r = tomt({ toer: a.toerKoersel, laas, test: a.testEventCode, id: a.ansoegningId, nu: a.nu });
 
-  const kandidater = await hentKandidater(admin, a.nu, a.ansoegningId);
+  // Trin 2: rækkerne først, derefter de fire opslag, der gør dem til hændelser.
+  const raa = await hentRaaKandidater(admin, a.nu, a.ansoegningId);
+  const ids = raa.map((k) => k.id);
+  const companyIds = [...new Set(raa.map((k) => k.company_id ?? k.id))];
+  const emails = [...new Set(raa.map((k) => (k.email ?? "").trim().toLowerCase()).filter((e) => e !== ""))];
+  const [beslutninger, betalinger, webinarer] = await Promise.all([
+    hentBeslutningstider(admin, ids),
+    hentBetalinger(admin, companyIds),
+    emails.length > 0 ? hentWebinarKlikId(admin, emails) : Promise.resolve(new Map<string, { fbclid: string; at: string | null }[]>()),
+  ]);
+  const kandidater = raa.map((k) =>
+    berig(
+      k,
+      beslutninger.get(k.id),
+      betalinger.get(k.company_id ?? k.id),
+      nyesteWebinarFoer(webinarer.get((k.email ?? "").trim().toLowerCase()) ?? [], k.created_at),
+    )
+  );
   r.kandidater = kandidater.length;
   const alleIds = kandidater.flatMap((k) => ARTER.map((art) => eventId(k.id, art)));
   const spor = await hentSpor(admin, alleIds);
@@ -236,7 +420,9 @@ export async function koerMetaSend(
       planer.push({
         plan: {
           event_id: id, ansoegning_id: k.id, art, event_time: d.tid.toISOString(),
-          fbc_kilde: fbcKilde(k.fbclid, k.fbc_cookie), fbp: bygFbpFelt(k.fbp) !== null,
+          fbc_kilde: fbcKilde(k), fbp: bygFbpFelt(k.fbp) !== null,
+          slags: erCrmArt(art) ? "crm" : "website",
+          ...(art === "purchase" ? { value: (k.purchase_beloeb_oere ?? 0) / 100 } : {}),
           brugerdata: brugerdataNoegler(normaliserBrugerdata(k)),
           forsoeg: (spor.get(id)?.forsoeg ?? 0) + 1,
         },

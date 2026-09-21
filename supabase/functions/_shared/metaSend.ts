@@ -57,6 +57,40 @@
  *      adgangen er givet. «ugyldig» prøves aldrig igen, og en nøglefejl, der lander dér,
  *      ville tabe hændelsen for altid.
  *
+ *
+ * ── TRIN 2 (22/9-2026, Jonas 21/9 22:25 — «det ultimative setup», princip (g)) ──
+ *  15. TRE NYE HÆNDELSER, alle på ANSØGNINGEN: «Kvalificeret» (rådgiverens tal_med_dem),
+ *      «Schedule» (den FØRSTE book) og «Purchase» (medlemskabets første betaling). Samme cron,
+ *      samme spor, samme lås, samme alarm — ingen ny function, ingen ny secret, ingen ny cron.
+ *      event_id: «<ansoegning_id>:kvalificeret|booket|purchase», som sporets egen CHECK kræver.
+ *  16. DE TRE ER IKKE WEBSITE-HÆNDELSER. De sker i VORES system: rådgiveren trykker i fladen,
+ *      Calendly-webhooken skriver bookingen, Stripe-webhooken skriver perioden. Vi har ingen
+ *      browser at pege på, og ansøgningens user agent hører til et ANDET øjeblik — at sende den
+ *      ville være en påstand om noget, vi ikke har målt. Meta dokumenterer præcis denne sag som
+ *      CRM-integrationen: action_source «system_generated» + custom_data.event_source «crm» +
+ *      lead_event_source. Derfor bærer de tre HVERKEN client_user_agent ELLER event_source_url
+ *      (som Meta kun kræver for website-hændelser), og dommen kræver dem ikke.
+ *  17. WEBINARETS KLIK-ID PÅ ANSØGNINGEN. fbc-rækkefølgen er nu: (1) URL'ens fbclid, (2) _fbc-
+ *      cookien ordret, (3) WEBINARTILMELDINGENS fbclid — den seneste tilmelding på samme mail
+ *      FØR ansøgningens created_at, med et klik-id. 655 af 675 tilmeldinger bar ét (målt i prod
+ *      21/9 22:12), og webinarvejen bærer intet klik-id i sit eget link. Tidspunktet er
+ *      tilmeldingens registreret_at (ellers dens created_at) — Metas egen regel: «If you don't
+ *      save the _fbc cookie, use the timestamp when you first observed or received this fbclid
+ *      value». GYLDIGHEDEN: Meta angiver INGEN udløbstid for et fbclid, men anbefaler _fbc-
+ *      cookien «with the 90 days expiration time». Et klik-id, Metas egen cookie ville have
+ *      tabt, bruger vi ikke — derfor WEBINAR_FBCLID_MAKS_DAGE = 90.
+ *  18. WEBINARHÆNDELSER BYGGES IKKE (bevidst fravalg 21/9 22:12). eWebinars raa bærer INGEN
+ *      user agent — 675 tilmeldinger gennemgået, 0 rækker med «agent» i nøglerne (der er
+ *      deviceTypeWhenRegistered og deviceTypeWhenWatching, men ingen UA-streng). En tilmelding
+ *      ER en website-hændelse, og Meta kræver client_user_agent for dem; at kalde den
+ *      «system_generated» ville være usandt, for et menneske udfyldte en formular i en browser.
+ *      Så hellere ingen hændelse end en forkert action_source.
+ *  19. PURCHASE'S BELØB er company_perioder.beloeb_oere (art «indgang») omregnet til KRONER.
+ *      Målt: kontrakter.pris_eks_moms_oere er SAMME tal (_shared/kontraktRaekke.ts:100 —
+ *      «pris_eks_moms_oere: Math.round(input.beloeb_oere)»), men kontraktrækken skrives
+ *      fail-soft og kan mangle, mens perioden er den række, der UDLØSER hændelsen og er
+ *      «not null». Valutaen bor ikke i koden, men på Stripe-priserne bag lookup_key, og er
+ *      MÅLT 21/9 22:33: alle 15 priser på produktet «The Boardroom — medlemskab» er DKK.
  * METAS DOKUMENTATION, citeret (hentet 21/9-2026):
  *   fbc — https://developers.facebook.com/docs/marketing-api/conversions-api/parameters/fbp-and-fbc/
  *     «version.subdomainIndex.creationTime.<fbclid>» · subdomainIndex «which domain the
@@ -103,6 +137,40 @@
  *     phone number (ph)». IKKE FUNDET på nogen af siderne (målt 22/9): en advarsel mod tomme eller
  *     pladsholder-værdier i user_data. Reglen «aldrig et tomt felt» er derfor VORES (Jonas 21/9),
  *     ikke Metas — og den står, fordi et tomt aftryk er et aftryk af den tomme streng.
+ *   CRM-hændelser — https://developers.facebook.com/docs/marketing-api/conversions-api/conversion-leads-integration/crm-integration/3-implementing-the-crm-integration/
+ *     (hentet 22/9-2026) Metas eget krav for hændelser, der kommer ud af virksomhedens system:
+ *     action_source «system_generated»; custom_data SKAL bære «event_source»: «crm» og
+ *     «lead_event_source»: «The name of the CRM where the events are coming from»; user_data
+ *     skal bære mindst ét kundeoplysningsfelt. Metas eget eksempel:
+ *       { "event_name": "Lead", "event_time": 1664577963, "action_source": "system_generated",
+ *         "user_data": { "lead_id": …, "em": […], "ph": […] },
+ *         "custom_data": { "lead_event_source": "Your CRM", "event_source": "crm" } }
+ *     Hændelsesnavnene er «advertiser-defined», og siden viser en tragt med trin som «Raw Lead»,
+ *     «Marketing Qualified Lead», «Sales Opportunity» og «Converted». client_user_agent og
+ *     event_source_url nævnes IKKE for disse hændelser. lead_id er Metas eget id fra Lead Ads —
+ *     vi har det ikke (vores leads kommer fra en formular, ikke fra Lead Ads), og det bliver
+ *     stående på FORBUDTE_NOEGLER.
+ *   action_source — https://developers.facebook.com/docs/marketing-api/conversions-api/parameters/server-event
+ *     «email» · «website» — «Conversion was made on your website.» · «app» · «phone_call» ·
+ *     «chat» · «physical_store» · «system_generated» — «Conversion happened automatically, for
+ *     example, a subscription renewal that's set to auto-pay each month.» · «business_messaging»
+ *     · «other» — «Conversion happened in a way not listed.» Samme side om navnet: event_name er
+ *     «A standard event or custom event name», og om dedup: «This ID can be any unique string
+ *     chosen by the advertiser» · «For deduplication, the eventID from a browser or app event
+ *     must match the event_id in the corresponding server event.»
+ *   Schedule og Purchase — https://developers.facebook.com/docs/meta-pixel/reference
+ *     «Schedule — When a person books an appointment to visit one of your locations.» ·
+ *     «Purchase — When a purchase is made or checkout flow is completed.» For Purchase:
+ *     «Required: currency and value». Begge er Metas STANDARDhændelser; «Kvalificeret» er en
+ *     custom event med vores eget danske navn, så den aldrig kan kollidere med eWebinars egen
+ *     pixel — som kører på SAMME datasæt-id 858180112996496 med umålte hændelser.
+ *   fbc'ets levetid — https://developers.facebook.com/docs/marketing-api/conversions-api/parameters/fbp-and-fbc/
+ *     «If you don't save the _fbc cookie, use the timestamp when you first observed or received
+ *     this fbclid value» · cookien anbefales sat «with the 90 days expiration time» · «These
+ *     values are subject to change over multiple browser sessions, so we recommend refreshing a
+ *     user's profile with the latest value whenever possible.» INGEN udløbstid for selve
+ *     fbclid'et står på siden (målt 22/9) — 90 dage er den eneste levetid, Meta dokumenterer,
+ *     og den bruges derfor som grænse for et klik-id lånt fra webinartilmeldingen.
  *   test_event_code — https://developers.facebook.com/docs/marketing-api/conversions-api/using-the-api
  *     «Events sent with test_event_code are not dropped. They flow into Events Manager and
  *     are used for targeting and ads measurement purposes.» · «The test_event_code field
@@ -150,13 +218,45 @@ export const META_TIMEOUT_MS = 8000;
 /** user agent afkortes som aftale_spor (aftale-underskrift/index.ts). */
 export const USER_AGENT_MAKS = 512;
 
-export const ARTER = ["started", "submitted"] as const;
+export const ARTER = ["started", "submitted", "kvalificeret", "booket", "purchase"] as const;
 export type Art = (typeof ARTER)[number];
 
-/** Metas standardnavn Lead for begge; content_name som hjemmesidens gamle GTM-tags (recon §0 #2–3). */
-export const META_EVENT: Readonly<Record<Art, { event_name: "Lead"; content_name: string }>> = {
+/**
+ * DE TO SLAGS HÆNDELSER (trin 2, pkt. 16).
+ *   WEBSITE: ansøgeren sad selv i en browser på app.theboardroom.dk. Meta kræver
+ *     client_user_agent og event_source_url for dem — og vi HAR dem.
+ *   CRM: hændelsen skete i VORES system (rådgiverens klik, Calendly-webhooken,
+ *     Stripe-webhooken). Ingen browser at pege på. Metas CRM-integration er den
+ *     dokumenterede vej: action_source «system_generated» + event_source «crm».
+ */
+export const ARTER_WEBSITE = ["started", "submitted"] as const;
+export const ARTER_CRM = ["kvalificeret", "booket", "purchase"] as const;
+export const erCrmArt = (art: Art): boolean => (ARTER_CRM as readonly string[]).includes(art);
+
+/** Metas navn for CRM-kilden — custom_data.lead_event_source: «The name of the CRM where the events are coming from». */
+export const LEAD_EVENT_SOURCE = "The Boardroom";
+/** custom_data.event_source, ordret af Metas CRM-vejledning. */
+export const EVENT_SOURCE_CRM = "crm";
+/**
+ * Valutaen for Purchase. MÅLT 21/9-2026 kl. 22:33 i Stripes dashboard: produktet
+ * «The Boardroom — medlemskab» (prod_VBBXP0VYDpEtek) har 15 priser, og ALLE 15 er DKK
+ * (fx «50,000.00kr DKK» og «4,375.00kr DKK Per month»). Den bor ikke i koden — kun på
+ * Stripe-priserne bag lookup_key — så den står her som ÉT sted, og en ny måling er én
+ * linje at rette. Et forkert currency kan ikke kaldes tilbage fra Metas rapporter.
+ */
+export const META_VALUTA = "DKK";
+
+/**
+ * Hændelsesnavnene. Lead, Schedule og Purchase er Metas STANDARDhændelser;
+ * «Kvalificeret» er en custom event med vores eget danske navn, så den aldrig kan
+ * kollidere med eWebinars egen pixel på SAMME datasæt (858180112996496, hændelser umålte).
+ */
+export const META_EVENT: Readonly<Record<Art, { event_name: string; content_name: string }>> = {
   started: { event_name: "Lead", content_name: "application_started" },
   submitted: { event_name: "Lead", content_name: "application_submitted" },
+  kvalificeret: { event_name: "Kvalificeret", content_name: "application_qualified" },
+  booket: { event_name: "Schedule", content_name: "application_scheduled" },
+  purchase: { event_name: "Purchase", content_name: "membership_purchase" },
 };
 
 export function eventId(ansoegningId: string, art: Art): string {
@@ -195,7 +295,7 @@ export interface AnsoegningTilMeta {
   user_agent: string | null;
   /** Hashes til em — «application_started» sker på skærm 1 (CVR), hvor den endnu er null. */
   email: string | null;
-  /** Hashes til fn + ln (ét felt i formularen; første ord er fornavnet). */
+  /** Hashes til fn + ln (ét felt i formularen; FØRSTE ord er fornavnet, SIDSTE er efternavnet). */
   navn: string | null;
   /** Hashes til ph. */
   telefon: string | null;
@@ -205,7 +305,24 @@ export interface AnsoegningTilMeta {
   fbc_cookie: string | null;
   /** Fravalget (pkt. 14): true → der sendes intet om denne ansøgning, nogensinde. */
   meta_fravalg: boolean | null;
+
+  // ── Trin 2: tidspunkter, cronen slår op ét sted og rækker ind hertil ──
+  /** Første «tal_med_dem» (ansoegning_beslutninger.truffet_at). Null = ikke kvalificeret endnu. */
+  kvalificeret_at: string | null;
+  /** Første «book» (ansoegning_beslutninger.truffet_at). Null = aldrig booket. */
+  booket_at: string | null;
+  /** Medlemskabets første betaling (company_perioder.created_at, art «indgang»). */
+  purchase_at: string | null;
+  /** Samme rækkes beloeb_oere — Purchase'ens value. Null = intet beløb at sende. */
+  purchase_beloeb_oere: number | null;
+  /** Webinartilmeldingens klik-id (pkt. 17): seneste tilmelding på samme mail FØR created_at. */
+  webinar_fbclid: string | null;
+  /** Tilmeldingens registreret_at (ellers dens created_at) — tidspunktet vi først SÅ klik-id'et. */
+  webinar_fbclid_at: string | null;
 }
+
+/** Metas eneste dokumenterede levetid for et klik-id: _fbc-cookien anbefales «with the 90 days expiration time». */
+export const WEBINAR_FBCLID_MAKS_DAGE = 90;
 
 // ── Brugerdata: normaliseringen efter Metas regler (citeret i filhovedet) ────
 
@@ -246,11 +363,17 @@ export function normaliserNavnedel(v: string): string | null {
   return s === "" ? null : s;
 }
 
-/** Ét navnefelt → fornavn + efternavn: første ord er fornavnet, resten efternavnet. Ét ord alene → intet ln. */
+/**
+ * Ét navnefelt → fornavn + efternavn: FØRSTE ord er fornavnet, SIDSTE ord er efternavnet
+ * (Jonas 21/9 22:40). Mellemnavne springes over — «Jonas Breum Herlev» er «jonas» + «herlev»,
+ * ikke «jonas» + «breumherlev». Grunden er Metas match: det er fornavn og efternavn, en profil
+ * hos Meta bærer, og et sammenskrevet mellemnavn+efternavn matcher ingen.
+ * Ét ord alene → intet ln; hellere et felt mindre end et forkert.
+ */
 export function normaliserNavn(v: string | null | undefined): { fn: string | null; ln: string | null } {
   const ord = (v ?? "").trim().split(/\s+/).filter((o) => o !== "");
   if (ord.length === 0) return { fn: null, ln: null };
-  return { fn: normaliserNavnedel(ord[0]), ln: ord.length > 1 ? normaliserNavnedel(ord.slice(1).join(" ")) : null };
+  return { fn: normaliserNavnedel(ord[0]), ln: ord.length > 1 ? normaliserNavnedel(ord[ord.length - 1]) : null };
 }
 
 export const BRUGERDATA_NOEGLER = ["em", "ph", "fn", "ln", "country"] as const;
@@ -288,25 +411,57 @@ export const FBC_FORM = /^fb\.\d{1,3}\.\d{1,20}\.[A-Za-z0-9_-]{1,400}$/;
 /** _fbp: «version.subdomainIndex.creationTime.randomnumber». */
 export const FBP_FORM = /^fb\.\d{1,3}\.\d{1,20}\.\d{1,30}$/;
 
+/** Hvor fbc'et kommer fra — tre led, i den rækkefølge. */
+export type FbcKilde = "klik_id" | "cookie" | "webinar" | "ingen";
+
 /**
- * fbc: URL'ens klik-id har FORRANG — vi så det selv og kender tidspunktet (created_at).
- * Ellers Metas egen _fbc-cookie ORDRET: «We recommend that you always send _fbc and _fbp
- * browser cookie values in the fbc and fbp event parameters, respectively, when available.»
- * og «ClickID value is case sensitive - do not apply any modifications before using».
- * Serveren dømmer formen igen; en cookie uden Metas form sendes ikke. Er der ingen af delene,
- * sendes fbc slet ikke — og hændelsen sendes stadig, nu på em/ph/fn/ln/external_id.
+ * Er webinarets lånte klik-id stadig brugbart? Tilmeldingen skal ligge FØR ansøgningen
+ * (ellers er det ikke det klik, der førte hertil) og højst WEBINAR_FBCLID_MAKS_DAGE før.
+ * Meta angiver ingen udløbstid for et fbclid; 90 dage er den eneste levetid, Meta
+ * dokumenterer (_fbc-cookiens anbefalede udløb), og et klik-id, Metas egen cookie ville
+ * have tabt, låner vi ikke.
  */
-export function bygFbcFelt(fbclid: string | null | undefined, fbcCookie: string | null | undefined, setTid: Date): string | null {
-  const klik = (fbclid ?? "").trim();
-  if (klik !== "") return bygFbc(klik, setTid);
-  const c = (fbcCookie ?? "").trim();
-  return FBC_FORM.test(c) ? c : null;
+export function webinarKlikIdGaelder(webinarTid: Date | null, ansoegningTid: Date | null): boolean {
+  if (webinarTid === null || ansoegningTid === null) return false;
+  const alder = ansoegningTid.getTime() - webinarTid.getTime();
+  return alder >= 0 && alder <= WEBINAR_FBCLID_MAKS_DAGE * 86_400_000;
 }
 
-/** Hvor fbc kom fra — til tørkørslen og sporet. Aldrig værdien. */
-export function fbcKilde(fbclid: string | null | undefined, fbcCookie: string | null | undefined): "klik_id" | "cookie" | "ingen" {
-  if ((fbclid ?? "").trim() !== "") return "klik_id";
-  return FBC_FORM.test((fbcCookie ?? "").trim()) ? "cookie" : "ingen";
+/** Webinartilmeldingens klik-id, hvis det gælder — ellers null. Tiden er den, vi først SÅ id'et. */
+function webinarFbc(r: AnsoegningTilMeta): string | null {
+  const klik = (r.webinar_fbclid ?? "").trim();
+  if (klik === "") return null;
+  const set = somTid(r.webinar_fbclid_at);
+  return webinarKlikIdGaelder(set, somTid(r.created_at)) ? bygFbc(klik, set as Date) : null;
+}
+
+/**
+ * fbc i TRE LED (trin 2, pkt. 17):
+ *   1. URL'ens klik-id — vi så det selv, og tidspunktet er ansøgningens created_at.
+ *   2. Metas egen _fbc-cookie, ORDRET: «We recommend that you always send _fbc and _fbp
+ *      browser cookie values in the fbc and fbp event parameters, respectively, when
+ *      available.» og «ClickID value is case sensitive - do not apply any modifications
+ *      before using». Serveren dømmer formen igen; en cookie uden Metas form sendes ikke.
+ *   3. WEBINARTILMELDINGENS klik-id, med tilmeldingens registreret_at som tidspunkt —
+ *      Metas regel: «If you don't save the _fbc cookie, use the timestamp when you first
+ *      observed or received this fbclid value». Det er dette led, der gør webinarvejen
+ *      (annonce → topix.dk → mail → /ansoeg?kilde=webinar) synlig: linket bærer intet
+ *      klik-id, men tilmeldingen gør — 655 af 675, målt i prod 21/9 22:12.
+ * Er der ingen af delene, sendes fbc slet ikke, og hændelsen sendes stadig på em/ph/fn/ln.
+ */
+export function bygFbcFelt(r: AnsoegningTilMeta, setTid: Date): string | null {
+  const klik = (r.fbclid ?? "").trim();
+  if (klik !== "") return bygFbc(klik, setTid);
+  const c = (r.fbc_cookie ?? "").trim();
+  if (FBC_FORM.test(c)) return c;
+  return webinarFbc(r);
+}
+
+/** Hvilket led fbc'et kom fra — til tørkørslen og beviset. Aldrig værdien. */
+export function fbcKilde(r: AnsoegningTilMeta): FbcKilde {
+  if ((r.fbclid ?? "").trim() !== "") return "klik_id";
+  if (FBC_FORM.test((r.fbc_cookie ?? "").trim())) return "cookie";
+  return webinarFbc(r) !== null ? "webinar" : "ingen";
 }
 
 /** _fbp ordret, når den har Metas form; ellers sendes fbp ikke. */
@@ -318,47 +473,102 @@ export function bygFbpFelt(fbp: string | null | undefined): string | null {
 /**
  * Sprunget over, med grund. «ingen_fbclid» UDGIK 22/9 (pkt. 11): klik-id'et er ikke længere
  * adgangsbetingelsen, og webinarvejen har intet. «fravalgt» kom til (pkt. 14).
+ * TRIN 2: tre grunde mere, én pr. ny art — «ikke_kvalificeret», «ikke_booket», «ikke_betalt» —
+ * plus «ingen_beloeb», fordi en Purchase uden value og currency afvises af Meta («Required:
+ * currency and value») og derfor aldrig skal sendes.
  */
-export const SPRUNGET_GRUNDE = ["fravalgt", "ingen_user_agent", "ingen_landing", "ikke_indsendt", "ingen_tidspunkt", "for_gammel"] as const;
+export const SPRUNGET_GRUNDE = [
+  "fravalgt", "ingen_user_agent", "ingen_landing", "ikke_indsendt",
+  "ikke_kvalificeret", "ikke_booket", "ikke_betalt", "ingen_beloeb",
+  "ingen_tidspunkt", "for_gammel",
+] as const;
 export type SprungetGrund = (typeof SPRUNGET_GRUNDE)[number];
 
 export type Dom = { ok: true; tid: Date } | { ok: false; grund: SprungetGrund };
 
+/** Hændelsens tidspunkt pr. art — ÉT sted, så dommen og payloaden aldrig kan blive uenige. */
+export function raaTidFor(r: AnsoegningTilMeta, art: Art): string | null {
+  switch (art) {
+    case "started": return r.created_at;
+    case "submitted": return r.indsendt_at;
+    case "kvalificeret": return r.kvalificeret_at;
+    case "booket": return r.booket_at;
+    case "purchase": return r.purchase_at;
+  }
+}
+
+/** Grunden, når hændelsen slet ikke er sket endnu. */
+const IKKE_SKET: Readonly<Record<Art, SprungetGrund>> = {
+  started: "ingen_tidspunkt",
+  submitted: "ikke_indsendt",
+  kvalificeret: "ikke_kvalificeret",
+  booket: "ikke_booket",
+  purchase: "ikke_betalt",
+};
+
 /**
  * Dommen pr. (ansøgning, art): må den sendes, og med hvilket event_time?
+ *
  * FRAVALGET STÅR FØRST — en ansøger, der har bedt sig fri, prøves ikke af på noget andet.
- * Meta kræver client_user_agent og event_source_url for website-hændelser; mangler en af dem,
- * sendes der intet. Klik-id'et er IKKE et krav længere.
+ *
+ * USER AGENT OG LANDING KRÆVES KUN AF WEBSITE-HÆNDELSERNE (trin 2, pkt. 16). Meta kræver
+ * client_user_agent og event_source_url for website-hændelser, og de to findes kun for
+ * started/submitted. De tre CRM-hændelser bærer dem ikke og skal derfor ikke måles på dem —
+ * ellers ville hver eneste ansøgning fra FØR 21/9 aften (user agent-kolonnen fandtes ikke)
+ * være udelukket fra Kvalificeret, Schedule og Purchase for altid.
+ *
+ * PURCHASE KRÆVER ET BELØB: «Required: currency and value».
  */
 export function doem(r: AnsoegningTilMeta, art: Art, nu: Date): Dom {
   if (r.meta_fravalg === true) return { ok: false, grund: "fravalgt" };
-  if (!r.user_agent || r.user_agent.trim() === "") return { ok: false, grund: "ingen_user_agent" };
-  if (!r.landing || r.landing.trim() === "") return { ok: false, grund: "ingen_landing" };
-  if (art === "submitted" && !r.indsendt_at) return { ok: false, grund: "ikke_indsendt" };
-  const tid = somTid(art === "started" ? r.created_at : r.indsendt_at);
+  if (!erCrmArt(art)) {
+    if (!r.user_agent || r.user_agent.trim() === "") return { ok: false, grund: "ingen_user_agent" };
+    if (!r.landing || r.landing.trim() === "") return { ok: false, grund: "ingen_landing" };
+  }
+  const raa = raaTidFor(r, art);
+  if (!raa) return { ok: false, grund: IKKE_SKET[art] };
+  if (art === "purchase" && !(typeof r.purchase_beloeb_oere === "number" && r.purchase_beloeb_oere > 0)) {
+    return { ok: false, grund: "ingen_beloeb" };
+  }
+  const tid = somTid(raa);
   if (tid === null) return { ok: false, grund: "ingen_tidspunkt" };
   if (!erIVindue(tid, nu)) return { ok: false, grund: "for_gammel" };
   return { ok: true, tid };
 }
 
 export interface MetaPayload {
-  event_name: "Lead";
+  event_name: string;
   event_time: number;
   event_id: string;
-  action_source: "website";
-  event_source_url: string;
-  /** external_id og client_user_agent altid; em/ph/fn/ln/country og fbc/fbp KUN når de findes. */
-  user_data: HashetBrugerdata & { external_id: string[]; client_user_agent: string; fbc?: string; fbp?: string };
-  custom_data: { content_name: string };
+  /** «website» for de to ansøgningshændelser, «system_generated» for de tre CRM-hændelser. */
+  action_source: "website" | "system_generated";
+  /** Kun website-hændelser: Meta kræver den for dem — og kun for dem. */
+  event_source_url?: string;
+  /** external_id altid; em/ph/fn/ln/country og fbc/fbp KUN når de findes; client_user_agent kun website. */
+  user_data: HashetBrugerdata & { external_id: string[]; client_user_agent?: string; fbc?: string; fbp?: string };
+  /** content_name altid; event_source/lead_event_source kun CRM; value/currency kun Purchase. */
+  custom_data: { content_name: string; event_source?: string; lead_event_source?: string; value?: number; currency?: string };
 }
 
 /**
  * Payloaden — præcis de tilladte felter, og INTET felt uden værdi. externalIdAftryk er
  * sha256Hex(ansøgnings-id) og `hashet` er hashBrugerdata(normaliserBrugerdata(r)); begge
  * regnes af kalderen, så dommen her er synkron og ren.
- * fbc's tidspunkt er created_at — første gang vi så fbclid'et (Metas regel), ikke hændelsens tid.
+ *
+ * fbc's tidspunkt for led 1 er created_at — første gang vi så fbclid'et (Metas regel), ikke
+ * hændelsens tid. Led 3 (webinaret) bærer sit eget tidspunkt, jf. bygFbcFelt.
+ *
  * SPREDNINGEN ER MED VILJE: `...hashet` lægger kun de nøgler ind, der findes, og fbc/fbp
  * kommer kun med, når de ikke er null. Et `fbc: null` ville være en værdi, ikke et fravær.
+ *
+ * DE TO SLAGS (trin 2, pkt. 16):
+ *   website  → action_source «website» + event_source_url + client_user_agent (Metas krav).
+ *   CRM      → action_source «system_generated» + custom_data { event_source: «crm»,
+ *              lead_event_source } og HVERKEN url ELLER user agent: Meta kræver dem ikke,
+ *              og ansøgningens user agent hører til et andet øjeblik end rådgiverens klik,
+ *              Calendly-bookingen eller Stripe-betalingen. Vi påstår ikke en browser, vi
+ *              ikke har set.
+ *   Purchase → dertil value (KRONER) og currency, som Meta kræver: «Required: currency and value».
  */
 export function bygPayload(
   r: AnsoegningTilMeta,
@@ -368,23 +578,37 @@ export function bygPayload(
   hashet: HashetBrugerdata,
 ): MetaPayload {
   const set = somTid(r.created_at) ?? tid;
-  const fbc = bygFbcFelt(r.fbclid, r.fbc_cookie, set);
+  const fbc = bygFbcFelt(r, set);
   const fbp = bygFbpFelt(r.fbp);
+  const crm = erCrmArt(art);
+  const ua = (r.user_agent ?? "").trim().slice(0, USER_AGENT_MAKS);
   return {
     event_name: META_EVENT[art].event_name,
     event_time: Math.floor(tid.getTime() / 1000),
     event_id: eventId(r.id, art),
-    action_source: "website",
-    event_source_url: (r.landing ?? "").trim(),
+    action_source: crm ? "system_generated" : "website",
+    ...(crm ? {} : { event_source_url: (r.landing ?? "").trim() }),
     user_data: {
       ...hashet,
       external_id: [externalIdAftryk],
-      client_user_agent: (r.user_agent ?? "").trim().slice(0, USER_AGENT_MAKS),
+      ...(crm || ua === "" ? {} : { client_user_agent: ua }),
       ...(fbc !== null ? { fbc } : {}),
       ...(fbp !== null ? { fbp } : {}),
     },
-    custom_data: { content_name: META_EVENT[art].content_name },
+    custom_data: {
+      content_name: META_EVENT[art].content_name,
+      ...(crm ? { event_source: EVENT_SOURCE_CRM, lead_event_source: LEAD_EVENT_SOURCE } : {}),
+      ...(art === "purchase" ? { value: oereTilKroner(r.purchase_beloeb_oere ?? 0), currency: META_VALUTA } : {}),
+    },
   };
+}
+
+/**
+ * Øre → kroner med to decimaler. Meta vil have beløbet i valutaens hovedenhed
+ * («"currency": "USD", "value": 100.00»), og huset regner i øre overalt.
+ */
+export function oereTilKroner(oere: number): number {
+  return Math.round(oere) / 100;
 }
 
 /**

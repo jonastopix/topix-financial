@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
-  AFTRYK_FORM, alarmNoegle, alarmTekst, type AnsoegningTilMeta, BRUGERDATA_NOEGLER, brugerdataNoegler, bygFbc, bygFbcFelt,
-  bygFbpFelt, bygPayload, doem, doemMetaSvar, erIVindue, erKunAftryk, erNoegleSubkode, erRaaTal, erTestEventCode, eventId,
-  fbcKilde, findForbudteNoegler, FORBUDTE_NOEGLER, HASHEDE_NOEGLER, hashBrugerdata, laasErAktiv, maaForsoeges, META_DATASET_ID,
-  META_EVENT, META_LAND, META_SEND_TOKEN_NAVN, META_VINDUE_DAGE, NOEGLE_SUBKODER, normaliserBrugerdata, normaliserEmail,
-  normaliserNavn, normaliserTelefon, senderRigtigt, SPRUNGET_GRUNDE,
+  AFTRYK_FORM, alarmNoegle, alarmTekst, type AnsoegningTilMeta, type Art, ARTER, ARTER_CRM, BRUGERDATA_NOEGLER,
+  brugerdataNoegler, bygFbc, bygFbcFelt, bygFbpFelt, bygPayload, doem, doemMetaSvar, erCrmArt, erIVindue, erKunAftryk,
+  erNoegleSubkode, erRaaTal, erTestEventCode, EVENT_SOURCE_CRM, eventId, fbcKilde, findForbudteNoegler, FORBUDTE_NOEGLER,
+  HASHEDE_NOEGLER, hashBrugerdata, laasErAktiv, LEAD_EVENT_SOURCE, maaForsoeges, META_DATASET_ID, META_EVENT, META_LAND,
+  META_SEND_TOKEN_NAVN, META_VALUTA, META_VINDUE_DAGE, NOEGLE_SUBKODER, normaliserBrugerdata, normaliserEmail,
+  normaliserNavn, normaliserTelefon, oereTilKroner, raaTidFor, senderRigtigt, SPRUNGET_GRUNDE, WEBINAR_FBCLID_MAKS_DAGE,
+  webinarKlikIdGaelder,
 } from "../../../supabase/functions/_shared/metaSend.ts";
 import { laesUserAgent, sporMedUserAgent, USER_AGENT_MAKS } from "../../../supabase/functions/_shared/ansoegningUserAgent.ts";
 
@@ -27,8 +29,19 @@ const R = (o: Partial<AnsoegningTilMeta> = {}): AnsoegningTilMeta => ({
   user_agent: "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15",
   email: PERSON.email, navn: PERSON.navn, telefon: PERSON.telefon,
   fbp: "fb.1.1790017100000.1234567890", fbc_cookie: "fb.1.1790017100000.IwARcookieVaerdi", meta_fravalg: false,
+  // Trin 2: de afledte tidspunkter. Standarden er «intet er sket endnu» — hver prøve
+  // sætter selv det, den handler om, så en hændelse aldrig sniger sig med ved et uheld.
+  kvalificeret_at: null, booket_at: null, purchase_at: null, purchase_beloeb_oere: null,
+  webinar_fbclid: null, webinar_fbclid_at: null,
   ...o,
 });
+/** Trin 2: en ansøgning, hvor alt er sket — til CRM-hændelserne. */
+const HELE_VEJEN: Partial<AnsoegningTilMeta> = {
+  kvalificeret_at: "2026-09-22T09:00:00.000Z",
+  booket_at: "2026-09-22T09:10:00.000Z",
+  purchase_at: "2026-09-22T09:20:00.000Z",
+  purchase_beloeb_oere: 5_250_000,
+};
 const AFTRYK = "a".repeat(64);
 /** En hasher, prøven kan regne med: 64 hex, forskellig pr. input, og synlig i påstandene. */
 const hash = async (v: string): Promise<string> => {
@@ -85,12 +98,23 @@ describe("metaSend — normaliseringen efter Metas egne regler", () => {
   });
   it("fn/ln: «Lowercase only with no punctuation» — tegnsætning fjernes, æøå bliver stående (UTF-8)", () => {
     expect(normaliserNavn("Anna Andersen")).toEqual({ fn: "anna", ln: "andersen" });
-    expect(normaliserNavn("  Anne-Marie   Bøgh-Sørensen ")).toEqual({ fn: "annemarie", ln: "bøghsørensen" });
-    expect(normaliserNavn("Jens Peter Åkjær Nielsen")).toEqual({ fn: "jens", ln: "peteråkjærnielsen" });
+    expect(normaliserNavn("  Anne-Marie   Hansen-Berg ")).toEqual({ fn: "annemarie", ln: "hansenberg" });
     expect(normaliserNavn("Mary")).toEqual({ fn: "mary", ln: null }); // ét ord: intet efternavn — og intet tomt ln
     expect(normaliserNavn("O'Brien Jr.")).toEqual({ fn: "obrien", ln: "jr" });
     for (const v of [null, undefined, "", "   "]) expect(normaliserNavn(v), String(v)).toEqual({ fn: null, ln: null });
     expect(normaliserNavn("!!! ???")).toEqual({ fn: null, ln: null }); // kun tegnsætning → intet at sende
+  });
+  it("EFTERNAVNET ER SIDSTE ORD, ikke resten samlet (Jonas 21/9 22:40) — mellemnavne springes over", () => {
+    // De fire tilfælde, reglen blev afgjort på.
+    expect(normaliserNavn("Jonas Breum Herlev")).toEqual({ fn: "jonas", ln: "herlev" });
+    expect(normaliserNavn("Anne-Marie Hansen-Berg")).toEqual({ fn: "annemarie", ln: "hansenberg" });
+    expect(normaliserNavn("Anna Andersen")).toEqual({ fn: "anna", ln: "andersen" });
+    expect(normaliserNavn("Mary")).toEqual({ fn: "mary", ln: null });
+    // Den gamle regel ville have givet «breumherlev» — et efternavn, ingen Meta-profil bærer.
+    expect(normaliserNavn("Jonas Breum Herlev").ln).not.toBe("breumherlev");
+    expect(normaliserNavn("Jens Peter Åkjær Nielsen")).toEqual({ fn: "jens", ln: "nielsen" });
+    // Fire ord, hvor det sidste er tegnsætning alene → intet ln, hellere end et tomt felt.
+    expect(normaliserNavn("Jens Peter .")).toEqual({ fn: "jens", ln: null });
   });
   it("country: «the lowercase, 2-letter country codes in ISO 3166-1 alpha-2» — dk, altid", () => {
     expect(META_LAND).toBe("dk");
@@ -135,22 +159,51 @@ describe("metaSend — hashningen: kun de felter, ansøgningen HAR (aldrig et to
   });
 });
 
-describe("metaSend — fbc og fbp: klik-id'et har forrang, cookien sendes ordret", () => {
+describe("metaSend — fbc i tre led: klik-id, cookie, webinar (trin 2, pkt. 17)", () => {
   const set = new Date("2026-09-21T19:00:00.000Z");
-  it("URL'ens fbclid vinder over cookien", () => {
-    expect(bygFbcFelt("IwAR0abc", "fb.1.1790017100000.IwARcookie", set)).toBe("fb.1.1790017200000.IwAR0abc");
-    expect(fbcKilde("IwAR0abc", "fb.1.1790017100000.IwARcookie")).toBe("klik_id");
+  const WEB = { webinar_fbclid: "IwARwebinarKlik", webinar_fbclid_at: "2026-09-15T10:00:00.000Z" };
+  it("LED 1 — URL'ens fbclid vinder over både cookien og webinaret", () => {
+    const r = R({ fbc_cookie: "fb.1.1790017100000.IwARcookie", ...WEB });
+    expect(bygFbcFelt(r, set)).toBe("fb.1.1790017200000.IwAR0abcDEF_123-xyz");
+    expect(fbcKilde(r)).toBe("klik_id");
   });
-  it("uden fbclid sendes _fbc ORDRET — ingen ændring af klik-id'et («do not apply any modifications»)", () => {
-    expect(bygFbcFelt(null, "fb.1.1790017100000.IwARCookieVaerdi", set)).toBe("fb.1.1790017100000.IwARCookieVaerdi");
-    expect(bygFbcFelt("  ", "fb.2.17.abcDEF-_", set)).toBe("fb.2.17.abcDEF-_");
-    expect(fbcKilde(null, "fb.1.1790017100000.IwARcookie")).toBe("cookie");
+  it("LED 2 — uden fbclid sendes _fbc ORDRET, og den vinder over webinaret («do not apply any modifications»)", () => {
+    const r = R({ fbclid: null, fbc_cookie: "fb.1.1790017100000.IwARCookieVaerdi", ...WEB });
+    expect(bygFbcFelt(r, set)).toBe("fb.1.1790017100000.IwARCookieVaerdi");
+    expect(fbcKilde(r)).toBe("cookie");
+    expect(bygFbcFelt(R({ fbclid: "  ", fbc_cookie: "fb.2.17.abcDEF-_" }), set)).toBe("fb.2.17.abcDEF-_");
   });
-  it("en cookie uden Metas form sendes ikke — og uden nogen af delene sendes fbc slet ikke", () => {
-    for (const c of [null, undefined, "", "fb.1.abc.def", "1.1.1.1", "fbq.1.2.3", "fb.1.2"]) {
-      expect(bygFbcFelt(null, c, set), String(c)).toBeNull();
-      expect(fbcKilde(null, c), String(c)).toBe("ingen");
+  it("LED 3 — WEBINARVEJEN: uden klik-id i linket og uden cookie bruges tilmeldingens klik-id, med TILMELDINGENS tidspunkt", () => {
+    const r = R({ fbclid: null, fbc_cookie: null, ...WEB });
+    // Metas regel: «use the timestamp when you first observed or received this fbclid value».
+    expect(bygFbcFelt(r, set)).toBe(`fb.1.${Date.parse("2026-09-15T10:00:00.000Z")}.IwARwebinarKlik`);
+    expect(fbcKilde(r)).toBe("webinar");
+  });
+  it("uden nogen af de tre led sendes fbc slet ikke", () => {
+    const r = R({ fbclid: null, fbc_cookie: null, webinar_fbclid: null, webinar_fbclid_at: null });
+    expect(bygFbcFelt(r, set)).toBeNull();
+    expect(fbcKilde(r)).toBe("ingen");
+  });
+  it("en cookie uden Metas form falder videre til webinaret i stedet for at blive sendt", () => {
+    for (const c of ["", "fb.1.abc.def", "1.1.1.1", "fbq.1.2.3", "fb.1.2"]) {
+      const r = R({ fbclid: null, fbc_cookie: c, ...WEB });
+      expect(fbcKilde(r), c).toBe("webinar");
     }
+  });
+  it("90-DAGESGRÆNSEN: et klik-id, Metas egen cookie ville have tabt, låner vi ikke", () => {
+    const ansoegning = new Date("2026-09-21T19:00:00.000Z");
+    expect(webinarKlikIdGaelder(new Date("2026-09-15T10:00:00.000Z"), ansoegning)).toBe(true);
+    expect(webinarKlikIdGaelder(new Date(ansoegning.getTime() - 90 * 86_400_000), ansoegning)).toBe(true);
+    expect(webinarKlikIdGaelder(new Date(ansoegning.getTime() - 90 * 86_400_000 - 1000), ansoegning)).toBe(false);
+    // En tilmelding EFTER ansøgningen er ikke det klik, der førte hertil.
+    expect(webinarKlikIdGaelder(new Date(ansoegning.getTime() + 1000), ansoegning)).toBe(false);
+    expect(webinarKlikIdGaelder(null, ansoegning)).toBe(false);
+    expect(WEBINAR_FBCLID_MAKS_DAGE).toBe(90);
+  });
+  it("for gammelt eller for sent webinar-klik → fbc sendes ikke, og kilden er «ingen»", () => {
+    const gammel = R({ fbclid: null, fbc_cookie: null, webinar_fbclid: "IwARgammel", webinar_fbclid_at: "2026-01-01T00:00:00.000Z" });
+    expect(bygFbcFelt(gammel, set)).toBeNull();
+    expect(fbcKilde(gammel)).toBe("ingen");
   });
   it("fbp: «version.subdomainIndex.creationTime.randomnumber» — sidste led er et TAL", () => {
     expect(bygFbpFelt("fb.1.1790017100000.1234567890")).toBe("fb.1.1790017100000.1234567890");
@@ -158,9 +211,13 @@ describe("metaSend — fbc og fbp: klik-id'et har forrang, cookien sendes ordret
   });
 });
 
-describe("metaSend — sprunget over med grund (fravalg, user agent eller landing)", () => {
-  it("de seks grunde — «ingen_fbclid» findes ikke længere (22/9: alle ansøgere sendes)", () => {
-    expect([...SPRUNGET_GRUNDE]).toEqual(["fravalgt", "ingen_user_agent", "ingen_landing", "ikke_indsendt", "ingen_tidspunkt", "for_gammel"]);
+describe("metaSend — sprunget over med grund (fravalg, user agent, landing, og hændelser der ikke er sket)", () => {
+  it("de ti grunde — «ingen_fbclid» findes ikke (22/9), og tre nye kom til med trin 2", () => {
+    expect([...SPRUNGET_GRUNDE]).toEqual([
+      "fravalgt", "ingen_user_agent", "ingen_landing", "ikke_indsendt",
+      "ikke_kvalificeret", "ikke_booket", "ikke_betalt", "ingen_beloeb",
+      "ingen_tidspunkt", "for_gammel",
+    ]);
     expect(SPRUNGET_GRUNDE).not.toContain("ingen_fbclid" as never);
     expect(doem(R({ meta_fravalg: true }), "started", NU)).toEqual({ ok: false, grund: "fravalgt" });
     expect(doem(R({ user_agent: null }), "started", NU)).toEqual({ ok: false, grund: "ingen_user_agent" });
@@ -169,13 +226,46 @@ describe("metaSend — sprunget over med grund (fravalg, user agent eller landin
     expect(doem(R({ indsendt_at: null }), "started", NU).ok).toBe(true); // en kladde: started sendes, submitted ikke
     expect(doem(R({ created_at: "ikke en dato" }), "started", NU)).toEqual({ ok: false, grund: "ingen_tidspunkt" });
   });
+  it("TRIN 2 — de tre hændelser, der ikke er sket endnu, har hver sin grund", () => {
+    expect(doem(R(), "kvalificeret", NU)).toEqual({ ok: false, grund: "ikke_kvalificeret" });
+    expect(doem(R(), "booket", NU)).toEqual({ ok: false, grund: "ikke_booket" });
+    expect(doem(R(), "purchase", NU)).toEqual({ ok: false, grund: "ikke_betalt" });
+  });
+  it("TRIN 2 — tidspunktet pr. art kommer ét sted fra, og dommen bruger netop det", () => {
+    const r = R(HELE_VEJEN);
+    expect(raaTidFor(r, "started")).toBe(r.created_at);
+    expect(raaTidFor(r, "submitted")).toBe(r.indsendt_at);
+    expect(raaTidFor(r, "kvalificeret")).toBe(r.kvalificeret_at);
+    expect(raaTidFor(r, "booket")).toBe(r.booket_at);
+    expect(raaTidFor(r, "purchase")).toBe(r.purchase_at);
+    expect(doem(r, "kvalificeret", NU)).toEqual({ ok: true, tid: new Date("2026-09-22T09:00:00.000Z") });
+    expect(doem(r, "booket", NU)).toEqual({ ok: true, tid: new Date("2026-09-22T09:10:00.000Z") });
+    expect(doem(r, "purchase", NU)).toEqual({ ok: true, tid: new Date("2026-09-22T09:20:00.000Z") });
+  });
+  it("PURCHASE KRÆVER ET BELØB — Metas «Required: currency and value»", () => {
+    expect(doem(R({ ...HELE_VEJEN, purchase_beloeb_oere: null }), "purchase", NU)).toEqual({ ok: false, grund: "ingen_beloeb" });
+    expect(doem(R({ ...HELE_VEJEN, purchase_beloeb_oere: 0 }), "purchase", NU)).toEqual({ ok: false, grund: "ingen_beloeb" });
+  });
+  it("CRM-HÆNDELSERNE KRÆVER HVERKEN USER AGENT ELLER LANDING — ellers var hver ansøgning fra før 21/9 aften udelukket", () => {
+    const gammel = R({ ...HELE_VEJEN, user_agent: null, landing: null });
+    for (const art of ARTER_CRM) expect(doem(gammel, art, NU).ok, art).toBe(true);
+    // De to website-hændelser er uændret strenge.
+    expect(doem(gammel, "started", NU)).toEqual({ ok: false, grund: "ingen_user_agent" });
+    expect(doem(gammel, "submitted", NU)).toEqual({ ok: false, grund: "ingen_user_agent" });
+  });
+  it("FRAVALGET gælder ALLE fem arter og dømmes FØRST", () => {
+    const fravalgt = R({ ...HELE_VEJEN, meta_fravalg: true, user_agent: null, landing: null });
+    for (const art of ARTER) expect(doem(fravalgt, art, NU), art).toEqual({ ok: false, grund: "fravalgt" });
+  });
+  it("7-DAGESVINDUET gælder også de tre nye: en betaling fra i forgårs sendes, en fra sidste måned ikke", () => {
+    expect(doem(R({ ...HELE_VEJEN, purchase_at: "2026-09-20T09:00:00.000Z" }), "purchase", NU).ok).toBe(true);
+    expect(doem(R({ ...HELE_VEJEN, purchase_at: "2026-08-20T09:00:00.000Z" }), "purchase", NU)).toEqual({ ok: false, grund: "for_gammel" });
+  });
   it("WEBINARVEJEN: uden klik-id, uden cookier — ansøgningen sendes nu (før: sprunget over)", () => {
     const webinar = R({ fbclid: null, fbc_cookie: null, fbp: null, landing: "https://app.theboardroom.dk/ansoeg?kilde=webinar" });
     expect(doem(webinar, "submitted", NU)).toEqual({ ok: true, tid: new Date("2026-09-22T08:45:00.000Z") });
   });
-  it("FRAVALGET dømmes FØRST: en fravalgt ansøger uden user agent tælles som «fravalgt», ikke som noget andet", () => {
-    expect(doem(R({ meta_fravalg: true, user_agent: null, landing: null }), "started", NU)).toEqual({ ok: false, grund: "fravalgt" });
-    // null og false er ikke et fravalg — kolonnen har default false, og en gammel række kan være null.
+  it("null og false er ikke et fravalg — kolonnen har default false, og en gammel række kan være null", () => {
     expect(doem(R({ meta_fravalg: null }), "started", NU).ok).toBe(true);
     expect(doem(R({ meta_fravalg: false }), "started", NU).ok).toBe(true);
   });
@@ -267,6 +357,113 @@ describe("metaSend — payloaden: de tilladte felter, HASHET persondata, intet t
     expect(erKunAftryk(AFTRYK)).toBe(true);
     expect(erKunAftryk(["A".repeat(64)])).toBe(false); // store bogstaver er ikke husets aftryk
     expect(erKunAftryk([])).toBe(false);
+  });
+});
+
+describe("metaSend — trin 2: navnene, CRM-formen og Purchase'ens beløb", () => {
+  const byg = async (art: Art, o: Partial<AnsoegningTilMeta> = {}) => {
+    const r = R({ ...HELE_VEJEN, ...o });
+    const d = doem(r, art, NU);
+    if (d.ok !== true) throw new Error(`dommen sagde nej: ${d.grund}`);
+    return bygPayload(r, art, d.tid, AFTRYK, await hashBrugerdata(normaliserBrugerdata(r), hash));
+  };
+
+  it("de fem arter og deres navne: Lead × 2, og Metas standarder Schedule og Purchase plus vores egen «Kvalificeret»", () => {
+    expect([...ARTER]).toEqual(["started", "submitted", "kvalificeret", "booket", "purchase"]);
+    expect(META_EVENT.started.event_name).toBe("Lead");
+    expect(META_EVENT.submitted.event_name).toBe("Lead");
+    expect(META_EVENT.kvalificeret.event_name).toBe("Kvalificeret");
+    expect(META_EVENT.booket.event_name).toBe("Schedule");
+    expect(META_EVENT.purchase.event_name).toBe("Purchase");
+    // «Kvalificeret» er ikke et af Metas standardnavne — derfor kan eWebinars egen pixel på
+    // SAMME datasæt ikke kollidere med den.
+    const metasStandarder = ["Lead", "Schedule", "Purchase", "CompleteRegistration", "Contact", "SubmitApplication", "ViewContent", "Subscribe", "StartTrial"];
+    expect(metasStandarder).not.toContain(META_EVENT.kvalificeret.event_name);
+    expect([...ARTER_CRM]).toEqual(["kvalificeret", "booket", "purchase"]);
+    for (const a of ARTER_CRM) expect(erCrmArt(a), a).toBe(true);
+    expect(erCrmArt("started")).toBe(false);
+    expect(erCrmArt("submitted")).toBe(false);
+  });
+
+  it("event_id'erne har sporets egen form «<ansoegning_id>:<art>»", () => {
+    for (const art of ARTER) expect(eventId(ID, art)).toBe(`${ID}:${art}`);
+    expect(eventId(ID, "purchase")).toBe(`${ID}:purchase`);
+  });
+
+  it("KVALIFICERET er en CRM-hændelse: system_generated + event_source «crm», og HVERKEN user agent ELLER url", async () => {
+    const p = await byg("kvalificeret");
+    expect(p.event_name).toBe("Kvalificeret");
+    expect(p.action_source).toBe("system_generated");
+    expect(p.custom_data.event_source).toBe("crm");
+    expect(p.custom_data.lead_event_source).toBe("The Boardroom");
+    expect(EVENT_SOURCE_CRM).toBe("crm");
+    expect(LEAD_EVENT_SOURCE).toBe("The Boardroom");
+    // Metas CRM-side nævner dem ikke, og ansøgningens user agent hører til et ANDET øjeblik.
+    expect("event_source_url" in p).toBe(false);
+    expect("client_user_agent" in p.user_data).toBe(false);
+    // Men personen kendes stadig — det er hele pointen.
+    expect(Object.keys(p.user_data).sort()).toEqual(["country", "em", "external_id", "fbc", "fbp", "fn", "ln", "ph"]);
+    expect(p.event_time).toBe(Math.floor(Date.parse("2026-09-22T09:00:00.000Z") / 1000));
+  });
+
+  it("SCHEDULE bærer Metas standardnavn og samme CRM-form", async () => {
+    const p = await byg("booket");
+    expect(p.event_name).toBe("Schedule");
+    expect(p.action_source).toBe("system_generated");
+    expect(p.custom_data.content_name).toBe("application_scheduled");
+    expect(p.custom_data.value).toBeUndefined();
+    expect(p.custom_data.currency).toBeUndefined();
+  });
+
+  it("PURCHASE bærer value i KRONER og currency — Metas «Required: currency and value»", async () => {
+    const p = await byg("purchase");
+    expect(p.event_name).toBe("Purchase");
+    expect(p.action_source).toBe("system_generated");
+    expect(p.custom_data.value).toBe(52_500);   // 5.250.000 øre = 52.500 kr (50.000 + 5 % ratetillæg)
+    expect(p.custom_data.currency).toBe("DKK");
+    expect(META_VALUTA).toBe("DKK");
+    // Øre er husets enhed; Meta vil have hovedenheden («"value": 100.00»).
+    expect(oereTilKroner(5_000_000)).toBe(50_000);
+    expect(oereTilKroner(4_000_050)).toBe(40_000.5);
+    expect(oereTilKroner(0)).toBe(0);
+  });
+
+  it("KUN Purchase bærer et beløb — de fire andre må ikke have value eller currency", async () => {
+    for (const art of ["started", "submitted", "kvalificeret", "booket"] as const) {
+      const p = await byg(art);
+      expect("value" in p.custom_data, art).toBe(false);
+      expect("currency" in p.custom_data, art).toBe(false);
+    }
+  });
+
+  it("KUN CRM-hændelser bærer event_source — de to website-hændelser er uændrede", async () => {
+    for (const art of ["started", "submitted"] as const) {
+      const p = await byg(art);
+      expect(p.action_source, art).toBe("website");
+      expect("event_source" in p.custom_data, art).toBe(false);
+      expect("lead_event_source" in p.custom_data, art).toBe(false);
+      expect(typeof p.event_source_url, art).toBe("string");
+      expect(typeof p.user_data.client_user_agent, art).toBe("string");
+    }
+  });
+
+  it("VÆRNET GÆLDER ALLE FEM: ingen rå værdi, intet uhashet felt, ingen forbudt nøgle", async () => {
+    for (const art of ARTER) {
+      const p = await byg(art);
+      expect(findForbudteNoegler(p), art).toEqual([]);
+      const json = JSON.stringify(p);
+      for (const v of Object.values(PERSON)) expect(json.includes(v), `${art}: ${v}`).toBe(false);
+      expect(json, art).not.toMatch(/@/);
+    }
+    // Metas lead_id (fra Lead Ads) har vi ikke — den bliver stående som forbudt.
+    expect(FORBUDTE_NOEGLER).toContain("lead_id");
+    const p = await byg("purchase");
+    expect(findForbudteNoegler({ ...p, user_data: { ...p.user_data, lead_id: 123 } })).toEqual(["user_data.lead_id: forbudt nøgle"]);
+  });
+
+  it("webinarets klik-id følger med på CRM-hændelserne — det er dét, der kobler medlemmet til annoncen", async () => {
+    const p = await byg("purchase", { fbclid: null, fbc_cookie: null, webinar_fbclid: "IwARwebinarKlik", webinar_fbclid_at: "2026-09-15T10:00:00.000Z" });
+    expect(p.user_data.fbc).toBe(`fb.1.${Date.parse("2026-09-15T10:00:00.000Z")}.IwARwebinarKlik`);
   });
 });
 
