@@ -710,6 +710,8 @@ export type Database = {
           cvr_opslag: Json | null
           email: string | null
           fbclid: string | null
+          ga_client_id: string | null
+          ga_session_id: string | null
           hjemmeside: string | null
           id: string
           indsendt_at: string | null
@@ -762,6 +764,8 @@ export type Database = {
           cvr_opslag?: Json | null
           email?: string | null
           fbclid?: string | null
+          ga_client_id?: string | null
+          ga_session_id?: string | null
           hjemmeside?: string | null
           id?: string
           indsendt_at?: string | null
@@ -814,6 +818,8 @@ export type Database = {
           cvr_opslag?: Json | null
           email?: string | null
           fbclid?: string | null
+          ga_client_id?: string | null
+          ga_session_id?: string | null
           hjemmeside?: string | null
           id?: string
           indsendt_at?: string | null
