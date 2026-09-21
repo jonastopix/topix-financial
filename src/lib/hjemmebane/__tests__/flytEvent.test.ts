@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { erTidsaendring, gemKnapTekst, planlaegGem } from "@/lib/hjemmebane/flytEvent";
+import { erTidsaendring, flytSvarTekst, gemKnapTekst, planlaegGem } from "@/lib/hjemmebane/flytEvent";
 
 /* «Gem» på et event (udkast 18/9): tiden på et PUBLICERET event går gennem
    flyt-event (besked til de tilmeldte); resten, kladder og aflyste gemmes som
@@ -59,11 +59,50 @@ describe("planlaegGem — hvad går hvor", () => {
   });
 });
 
-describe("gemKnapTekst", () => {
-  it("uden flytning: «Gem»; med flytning: siger at de tilmeldte får besked", () => {
-    expect(gemKnapTekst({ flytning: null, rest: {} }, 5)).toBe("Gem");
-    expect(gemKnapTekst({ flytning: { starts_at: "x" }, rest: {} }, 1)).toBe("Gem — 1 tilmeldt får besked om den nye tid");
-    expect(gemKnapTekst({ flytning: { starts_at: "x" }, rest: {} }, 7)).toBe("Gem — 7 tilmeldte får besked om den nye tid");
-    expect(gemKnapTekst({ flytning: { starts_at: "x" }, rest: {} }, 0)).toBe("Gem — den nye tid");
+describe("gemKnapTekst (21/9: tæller de tilmeldte OG de andre med adgang)", () => {
+  const flyt = { flytning: { starts_at: "x" }, rest: {} };
+  it("uden flytning: «Gem» — uanset tal", () => {
+    expect(gemKnapTekst({ flytning: null, rest: {} }, 5, 3)).toBe("Gem");
+  });
+  it("med flytning: begge grupper nævnes, ental/flertal hver for sig", () => {
+    expect(gemKnapTekst(flyt, 1, 1)).toBe("Gem — 1 tilmeldt og 1 anden får besked om den nye tid");
+    expect(gemKnapTekst(flyt, 7, 12)).toBe("Gem — 7 tilmeldte og 12 andre får besked om den nye tid");
+    expect(gemKnapTekst(flyt, 0, 4)).toBe("Gem — 0 tilmeldte og 4 andre får besked om den nye tid");
+    expect(gemKnapTekst(flyt, 3, 0)).toBe("Gem — 3 tilmeldte og 0 andre får besked om den nye tid");
+  });
+  it("ingen med adgang overhovedet: «Gem — den nye tid»", () => {
+    expect(gemKnapTekst(flyt, 0, 0)).toBe("Gem — den nye tid");
+  });
+});
+
+describe("flytSvarTekst — beviset på skærmen (21/9): kun den nye function kan levere tallene", () => {
+  it("publiceret, svaret har notified_grupper → «Flyttet — … fik besked om den nye tid»", () => {
+    expect(flytSvarTekst({ ok: true, moved: true, recipients: 26, grupper: { tilmeldte: 7, andre: 19 }, notified: 26, notified_grupper: { tilmeldte: 7, andre: 19 } }))
+      .toBe("Flyttet — 7 tilmeldte og 19 andre fik besked om den nye tid");
+    expect(flytSvarTekst({ ok: true, moved: true, notified_grupper: { tilmeldte: 1, andre: 1 } }))
+      .toBe("Flyttet — 1 tilmeldt og 1 anden fik besked om den nye tid");
+    expect(flytSvarTekst({ ok: true, moved: true, notified_grupper: { tilmeldte: 0, andre: 0 } }))
+      .toBe("Flyttet — 0 tilmeldte og 0 andre fik besked om den nye tid");
+  });
+  it("kladde, svaret har grupper (ingen notified_grupper) → «Flyttet — kladde, ingen besked (… får besked, når den er publiceret og flyttes)»", () => {
+    expect(flytSvarTekst({ ok: true, moved: true, notified: 0, status: "draft", grupper: { tilmeldte: 7, andre: 18 } }))
+      .toBe("Flyttet — kladde, ingen besked (7 tilmeldte og 18 andre får besked, når den er publiceret og flyttes)");
+    expect(flytSvarTekst({ ok: true, moved: true, notified: 0, status: "draft", grupper: { tilmeldte: 1, andre: 1 } }))
+      .toBe("Flyttet — kladde, ingen besked (1 tilmeldt og 1 anden får besked, når den er publiceret og flyttes)");
+  });
+  it("svaret UDEN grupper (den gamle function) → «Flyttet» og intet andet", () => {
+    expect(flytSvarTekst({ ok: true, moved: true, recipients: 7, notified: 7 })).toBe("Flyttet");
+    expect(flytSvarTekst({ ok: true, moved: true, notified: 0, status: "draft" })).toBe("Flyttet");
+  });
+  it("notify_error → eventet er flyttet, men beskederne gik ikke — også når tallene findes", () => {
+    const t = flytSvarTekst({ ok: true, moved: true, grupper: { tilmeldte: 7, andre: 19 }, notified: 0, notified_grupper: { tilmeldte: 0, andre: 0 }, notify_error: "insert failed" });
+    expect(t).toBe("Flyttet — men beskederne gik ikke: insert failed");
+    expect(t).toContain("Flyttet");
+    expect(t).not.toContain("fik besked");
+  });
+  it("ingen flytning (null/undefined) eller uændret tid → null: den almindelige «Gemt · tid»", () => {
+    expect(flytSvarTekst(null)).toBeNull();
+    expect(flytSvarTekst(undefined)).toBeNull();
+    expect(flytSvarTekst({ ok: true, unchanged: true, notified: 0 })).toBeNull();
   });
 });

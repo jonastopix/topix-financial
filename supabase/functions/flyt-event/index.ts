@@ -1,28 +1,35 @@
 /**
- * flyt-event — flyt dato/tid på et event OG giv de tilmeldte besked
- * (UDKAST 18/9-2026, recon-event-aendring.md §7).
+ * flyt-event — flyt dato/tid på et event OG giv ALLE med adgang besked
+ * (UDKAST 18/9-2026, recon-event-aendring.md §7; udvidet 21/9 efter Jonas'
+ * beslutning, recon-eventflytning.md).
  *
  * Bucket A, kopi af cancel-events skelet: authenticateUser →
  * advisor-rolletjek via user_roles → service-role.
  *
- * Målt (reconen): en datoændring var en almindelig UPDATE fra editoren —
+ * Målt (reconen 18/9): en datoændring var en almindelig UPDATE fra editoren —
  * ingen klokke, ingen mail, ingen kalenderopdatering. Denne funktion er
  * den ENE vej for en flytning af et publiceret event; editoren sender
  * aldrig starts_at/ends_at til updateEvent for et publiceret event
  * (kildeværn flytEvent.guard).
  *
+ * MODTAGERNE (21/9): ikke længere kun de tilmeldte. SQL-funktionen
+ * public.event_svar_grupper(event_id) (migration 20260921210000, samme regel
+ * som _shared/eventSvar.ts) giver alle med ADGANG til eventet (events-RLS'ens
+ * har_aktivt_medlemskab), uden rådgivere, i tre grupper. De TILMELDTE får
+ * tekst A (flyttetBesked: «passer det stadig?»); KAN IKKE og HAR IKKE SVARET
+ * får tekst B (nytTidspunktBesked: «måske passer det bedre nu»). Samme
+ * dedup-form for begge — én besked pr. person pr. ny tid.
+ *
  * Rækkefølgen: modtagerne læses FØR (som cancel-event), UPDATE FØR
  * beskederne (publish-event-reglen: fejler den, sendes intet), derefter
- * writeNotificationToMany med flyttetBesked. Modtagere = tilmeldte
- * (response='attending' AND cancelled_at IS NULL) — kun dem der har sat
- * tid af; afbud får ingen besked. Udkast (status='draft') → kun UPDATE,
- * ingen besked. Uændret tid → no-op. Aflyst → 409. Dedup bærer den nye
- * starttid: event_flyttet:{id}:{ny starts_at}.
+ * writeNotificationToMany to gange (A, så B). Udkast (status='draft') → kun
+ * UPDATE, ingen besked. Uændret tid → no-op. Aflyst → 409.
  */
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
 import { authenticateUser, corsHeaders } from "../_shared/edgeFunctionAuth.ts";
 import { writeNotificationToMany } from "../_shared/notificationWriter.ts";
-import { erFlytning, flyttetBesked } from "../_shared/eventMails.ts";
+import { erFlytning, flyttetBesked, nytTidspunktBesked } from "../_shared/eventMails.ts";
+import { delModtagere, type GruppeRaekke } from "../_shared/eventSvar.ts";
 
 const LOG = "[flyt-event]";
 
@@ -87,18 +94,15 @@ Deno.serve(async (req) => {
   if (nySlut !== undefined) patch.ends_at = nySlut;
   if (!erFlytning(event, patch)) return json({ ok: true, unchanged: true, notified: 0 });
 
-  // Modtagerne FØR opdateringen (cancel-event): tilmeldte, ikke afmeldt.
-  const { data: regs, error: regsError } = await admin
-    .from("event_registrations")
-    .select("user_id")
-    .eq("event_id", eventId)
-    .eq("response", "attending")
-    .is("cancelled_at", null);
-  if (regsError) {
-    console.error(`${LOG} registrations lookup failed:`, regsError);
-    return json({ error: "Registrations lookup failed" }, 500);
+  // Modtagerne FØR opdateringen (cancel-event): ALLE med adgang, i tre
+  // grupper — SQL'ens ene regel (event_svar_grupper), delt i A og B her.
+  const { data: grupper, error: grupperError } = await admin.rpc("event_svar_grupper", { p_event_id: eventId });
+  if (grupperError) {
+    console.error(`${LOG} event_svar_grupper failed:`, grupperError);
+    return json({ error: "Recipients lookup failed" }, 500);
   }
-  const recipientIds = [...new Set((regs ?? []).map((r: { user_id: string }) => r.user_id))];
+  const modtagere = delModtagere((grupper ?? []) as GruppeRaekke[]);
+  const recipientIds = [...modtagere.tilmeldte, ...modtagere.andre];
 
   // UPDATE FØR beskederne: fejler den, sendes intet.
   const { error: updateError } = await admin.from("events").update(patch).eq("id", eventId);
@@ -110,26 +114,39 @@ Deno.serve(async (req) => {
   // Kun et PUBLICERET event har tilmeldte der skal have besked; en kladde
   // flyttes i stilhed (ingen kan have set den).
   if (event.status !== "published") {
-    console.log(`${LOG} moved ${eventId} (${event.status}) — no notifications`);
-    return json({ ok: true, moved: true, notified: 0, status: event.status });
+    // BEVISET for udrulningen (CLAUDE.md «Deployment af edge functions»):
+    // også en kladde svarer med `grupper` — det gjorde koden før 21/9 ikke.
+    // Flyt en kladde efter deployet: svaret bærer feltet, eller bundlen er gammel.
+    console.log(`${LOG} moved ${eventId} (${event.status}) — no notifications`, { grupper: { tilmeldte: modtagere.tilmeldte.length, andre: modtagere.andre.length } });
+    return json({ ok: true, moved: true, notified: 0, status: event.status, grupper: { tilmeldte: modtagere.tilmeldte.length, andre: modtagere.andre.length } });
   }
 
-  let notified = 0;
+  const tilMail = { id: event.id, title: event.title, starts_at: nyStart, meet_url: event.meet_url };
+  const notifiedGrupper = { tilmeldte: 0, andre: 0 };
   let notifyError: string | undefined;
-  if (recipientIds.length > 0) {
-    try {
-      notified = await writeNotificationToMany(
-        admin,
-        recipientIds,
-        flyttetBesked({ id: event.id, title: event.title, starts_at: nyStart, meet_url: event.meet_url }, event.starts_at),
-      );
-    } catch (e) {
-      // Eventet ER flyttet; beskederne udeblev. Sig det, kast ikke (publish-event).
-      notifyError = e instanceof Error ? e.message : String(e);
-      console.error(`${LOG} notifications failed:`, notifyError);
+  try {
+    // Tekst A til de tilmeldte, tekst B til de andre — samme dedup-nøgle, så én person får højst én.
+    if (modtagere.tilmeldte.length > 0) {
+      notifiedGrupper.tilmeldte = await writeNotificationToMany(admin, modtagere.tilmeldte, flyttetBesked(tilMail, event.starts_at));
     }
+    if (modtagere.andre.length > 0) {
+      notifiedGrupper.andre = await writeNotificationToMany(admin, modtagere.andre, nytTidspunktBesked(tilMail, event.starts_at));
+    }
+  } catch (e) {
+    // Eventet ER flyttet; beskederne udeblev. Sig det, kast ikke (publish-event).
+    notifyError = e instanceof Error ? e.message : String(e);
+    console.error(`${LOG} notifications failed:`, notifyError);
   }
+  const notified = notifiedGrupper.tilmeldte + notifiedGrupper.andre;
 
-  console.log(`${LOG} done`, { event_id: eventId, from: event.starts_at, to: nyStart, recipients: recipientIds.length, notified });
-  return json({ ok: true, moved: true, recipients: recipientIds.length, notified, ...(notifyError ? { notify_error: notifyError } : {}) });
+  console.log(`${LOG} done`, { event_id: eventId, from: event.starts_at, to: nyStart, recipients: recipientIds.length, grupper: { tilmeldte: modtagere.tilmeldte.length, andre: modtagere.andre.length }, notified, notified_grupper: notifiedGrupper });
+  return json({
+    ok: true,
+    moved: true,
+    recipients: recipientIds.length,
+    grupper: { tilmeldte: modtagere.tilmeldte.length, andre: modtagere.andre.length },
+    notified,
+    notified_grupper: notifiedGrupper,
+    ...(notifyError ? { notify_error: notifyError } : {}),
+  });
 });

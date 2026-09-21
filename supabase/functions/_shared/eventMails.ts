@@ -21,9 +21,14 @@
  *    hvert 15. min, så ethvert event rammes mindst én gang (dedup tager
  *    resten), og mailkøens 15 min forsinkelse lander mailen 40–75 min før.
  *
- * FLYTNING (udkast 18/9-2026, recon-event-aendring.md §7): når dato/tid på
- * et PUBLICERET event ændres, får de tilmeldte én klokke + én mail med gammel
- * og ny tid (flyttetBesked). Dedup bærer den NYE starttid, så en anden
+ * FLYTNING (udkast 18/9-2026, recon-event-aendring.md §7; udvidet 21/9,
+ * recon-eventflytning.md): når dato/tid på et PUBLICERET event ændres, får
+ * ALLE med adgang til eventet én klokke + én mail — de tilmeldte tekst A
+ * (flyttetBesked: «passer det stadig?»), de andre (kan ikke + har ikke
+ * svaret) tekst B (nytTidspunktBesked: «måske passer det bedre nu»).
+ * Grupperne dømmes i _shared/eventSvar.ts (samme regel som SQL'en
+ * event_svar_grupper). Dedup har SAMME form for begge: event_flyttet:{id}:{ny
+ * starts_at} — én besked pr. person pr. ny tid, uanset gruppe; en anden
  * flytning giver en ny besked, men et retry af samme flytning ikke gør.
  * Dommen «er patchen en flytning?» (erFlytning) er ren og deles af
  * flyt-event (server) og editoren (via src/lib/hjemmebane/flytEvent.ts).
@@ -142,26 +147,49 @@ export function omEnTimeBesked(e: EventTilMail): Besked {
   };
 }
 
+/** Dedup-nøglen for en flytning — SAMME form for tekst A og B: én besked pr. person pr. ny tid. */
+export function flytningDedupKey(eventId: string, nyStartsAt: string): string {
+  return `event_flyttet:${eventId}:${new Date(nyStartsAt).toISOString()}`;
+}
+
 /**
- * «Ny tid: …» — til de TILMELDTE (attending, ikke afmeldt) når et publiceret
- * event flyttes. Teksten er UDKAST til Jonas' godkendelse (README).
- * Dedup: event_flyttet:{id}:{ny starts_at som ISO/UTC} — én besked pr.
- * modtager pr. ny tid.
+ * TEKST A — «Ny tid: …» — til de TILMELDTE (gruppen «tilmeldt» i
+ * eventSvar.ts) når et publiceret event flyttes. Teksten er godkendt af Jonas
+ * 21/9, ordret. Dedup: event_flyttet:{id}:{ny starts_at som ISO/UTC}.
  */
 export function flyttetBesked(e: EventTilMail, gammelStartsAt: string): Besked {
-  const nyIso = new Date(e.starts_at).toISOString();
   return {
     type: "event_flyttet",
     priority: "important",
     title: `Ny tid: ${e.title}`,
-    // Jonas' udgave (18/9): den NYE tid først og fremhævet, så den gamle.
+    // Godkendt af Jonas 21/9: den NYE tid først, så den gamle, så spørgsmålet.
     body:
-      `Sessionen er flyttet til ${datoOrd(e.starts_at)} kl. ${tidOrd(e.starts_at)}. Den var sat til ${datoOrd(gammelStartsAt)} kl. ${tidOrd(gammelStartsAt)}.` +
+      `Vi har flyttet sessionen til ${datoOrd(e.starts_at)} kl. ${tidOrd(e.starts_at)}. Den var sat til ${datoOrd(gammelStartsAt)} kl. ${tidOrd(gammelStartsAt)}. Passer det stadig? Hvis ikke, kan du melde afbud på eventsiden.` +
       `${e.meet_url ? " Mødelinket er det samme." : ""}` +
       " Har du lagt den i din kalender, så hent den igen fra eventsiden.",
     reference_type: "event",
     reference_id: e.id,
     deep_link: `/events/${e.id}`,
-    dedup_key: `event_flyttet:${e.id}:${nyIso}`,
+    dedup_key: flytningDedupKey(e.id, e.starts_at),
+  };
+}
+
+/**
+ * TEKST B — «Nyt tidspunkt: …» — til dem, der KAN IKKE eller HAR IKKE SVARET
+ * (eventSvar.ts), når et publiceret event flyttes. Godkendt af Jonas 21/9,
+ * ordret. Samme dedup-form som tekst A, så én person aldrig får begge.
+ */
+export function nytTidspunktBesked(e: EventTilMail, gammelStartsAt: string): Besked {
+  return {
+    type: "event_nyt_tidspunkt",
+    priority: "important",
+    title: `Nyt tidspunkt: ${e.title}`,
+    body:
+      `Sessionen er flyttet til ${datoOrd(e.starts_at)} kl. ${tidOrd(e.starts_at)} (før ${datoOrd(gammelStartsAt)} kl. ${tidOrd(gammelStartsAt)}). ` +
+      "Måske passer det bedre nu — du kan tilmelde dig på eventsiden.",
+    reference_type: "event",
+    reference_id: e.id,
+    deep_link: `/events/${e.id}`,
+    dedup_key: flytningDedupKey(e.id, e.starts_at),
   };
 }

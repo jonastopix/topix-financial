@@ -62,10 +62,53 @@ export function planlaegGem(
   return { flytning, rest };
 }
 
-/** Knappens tekst når udkastet indeholder en flytning af et publiceret event. */
-export function gemKnapTekst(plan: Gemplan, tilmeldte: number): string {
+/**
+ * Knappens tekst når udkastet indeholder en flytning af et publiceret event
+ * (21/9): begge grupper tæller — de tilmeldte (tekst A) og de andre med
+ * adgang (kan ikke + har ikke svaret, tekst B). Tallene kommer fra
+ * get_event_svaroversigt (samme regel som flyt-event bruger).
+ */
+export function gemKnapTekst(plan: Gemplan, tilmeldte: number, andre: number): string {
   if (!plan.flytning) return "Gem";
-  return tilmeldte > 0
-    ? `Gem — ${tilmeldte} tilmeldt${tilmeldte === 1 ? "" : "e"} får besked om den nye tid`
-    : "Gem — den nye tid";
+  if (tilmeldte === 0 && andre === 0) return "Gem — den nye tid";
+  return `Gem — ${grupperOrd(tilmeldte, andre)} får besked om den nye tid`;
+}
+
+function grupperOrd(tilmeldte: number, andre: number): string {
+  const t = `${tilmeldte} tilmeldt${tilmeldte === 1 ? "" : "e"}`;
+  const a = `${andre} ${andre === 1 ? "anden" : "andre"}`;
+  return `${t} og ${a}`;
+}
+
+/** flyt-events svar, som fladen læser det (adminContentApi.flytEvent). Felterne
+    `grupper`/`notified_grupper` findes KUN i koden fra 21/9 — de er beviset på,
+    at den nye function er udrullet (CLAUDE.md «Deployment af edge functions»). */
+export interface FlytSvar {
+  ok: boolean;
+  moved?: boolean;
+  unchanged?: boolean;
+  status?: string;
+  recipients?: number;
+  notified?: number;
+  grupper?: { tilmeldte: number; andre: number };
+  notified_grupper?: { tilmeldte: number; andre: number };
+  notify_error?: string;
+}
+
+/**
+ * BEVISET PÅ SKÆRMEN (21/9): den stille kvittering i EditorBar, når en
+ * flytning er gemt. Tallene kan kun komme fra den nye function — svarer den
+ * gamle, står der bare «Flyttet». null = ingen flytning (eller uændret tid):
+ * kvitteringen er den almindelige «Gemt · tid».
+ */
+export function flytSvarTekst(svar: FlytSvar | null | undefined): string | null {
+  if (!svar || svar.unchanged) return null;
+  if (svar.notify_error) return `Flyttet — men beskederne gik ikke: ${svar.notify_error}`;
+  if (svar.notified_grupper) {
+    return `Flyttet — ${grupperOrd(svar.notified_grupper.tilmeldte, svar.notified_grupper.andre)} fik besked om den nye tid`;
+  }
+  if (svar.grupper) {
+    return `Flyttet — kladde, ingen besked (${grupperOrd(svar.grupper.tilmeldte, svar.grupper.andre)} får besked, når den er publiceret og flyttes)`;
+  }
+  return "Flyttet";
 }
