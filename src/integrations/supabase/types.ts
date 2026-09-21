@@ -4486,6 +4486,13 @@ export type Database = {
       }
       community_json_til_tekst: { Args: { p_doc: Json }; Returns: string }
       compute_facts_metrics_hash: { Args: { _metrics: Json }; Returns: string }
+      event_svar_grupper: {
+        Args: { p_event_id: string }
+        Returns: {
+          gruppe: string
+          user_id: string
+        }[]
+      }
       get_all_advisor_profiles: {
         Args: never
         Returns: {
@@ -4614,6 +4621,15 @@ export type Database = {
           website: string
           working_on: string
           working_on_updated_at: string
+        }[]
+      }
+      get_event_svaroversigt: {
+        Args: { p_event_id: string }
+        Returns: {
+          company_name: string
+          full_name: string
+          gruppe: string
+          user_id: string
         }[]
       }
       get_member_directory: {
