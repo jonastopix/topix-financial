@@ -1,4 +1,4 @@
--- IKKE KØRT. DEPLOY: manuelt i Lovable → SQL editor efter merge (FØR Update-klik).
+-- KØRT i prod — 21/9-2026 kl. 22:15 (Jonas, Lovable SQL editor), FØR merge, med en vagt først. EFTER: fbc_cookie text null · fbp text null · meta_fravalg boolean not null default false.
 --
 -- META-UDVIDELSEN: METAS EGNE COOKIER OG FRAVALGET (22/9-2026, Jonas 21/9 aften).
 --
