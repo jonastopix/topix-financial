@@ -80,6 +80,10 @@ const STRIKS: readonly string[] = [
 
   // Webinarets tidspunkt på profilen (21/9): dry_run, nu og email, alt andet afvises.
   "klaviyo-profil-cron",
+
+  // Metas Conversions API (udkast 21/9 aften): dry_run, nu, test_event_code og
+  // ansoegning_id, alt andet afvises.
+  "meta-send-cron",
 ];
 
 /**

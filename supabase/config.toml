@@ -309,3 +309,10 @@ project_id = "loiavmastgeieqyiwyyr"
   # to tb_naeste_webinar-felter gennem klaviyoAfsendelse (nøglen læses ét sted).
   [functions.klaviyo-profil-cron]
     verify_jwt = true
+  # Metas Conversions API fra platformen (udkast 21/9-2026 aften). Bucket B,
+  # authenticateServiceRole FØRST, kaldt gennem kald_edge hvert 5. minut. Tørkørsel
+  # som standard; sender for alvor kun med «dry_run: false» OG (låsen
+  # app_config.meta_send_aktiv ELLER en test_event_code). Læser KUN
+  # META_SEND_TOKEN (metaSendAfsendelse.ts) — aldrig META_CAPI_TOKEN/META_ADS_TOKEN.
+  [functions.meta-send-cron]
+    verify_jwt = true

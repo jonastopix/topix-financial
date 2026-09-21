@@ -2,7 +2,9 @@
  * src/lib/ansoegning/persondata.ts
  *
  * Persondatateksten til ansøgningen. ORDLYDEN ER GODKENDT AF JONAS 19/9-2026
- * og skal gengives ordret — den er skrevet som ét stykke og redigeres som ét
+ * — og Meta-afsnittet under «Hvad vi gemmer» (afsendelsen til Metas Conversions
+ * API) samt «og hvilken slags browser du brugte» i afsnittet om klik-id'et er
+ * godkendt af Jonas 21/9-2026 (udkast-meta-send). Teksten skal gengives ordret — den er skrevet som ét stykke og redigeres som ét
  * stykke. Skal noget ændres, kommer den nye ordlyd fra Jonas, ikke herfra.
  *
  * FORMEN: `PERSONDATA_TITEL` er sidens h1; hvert element i `PERSONDATA_AFSNIT`
@@ -42,7 +44,8 @@ export const PERSONDATA_AFSNIT: readonly PersondataAfsnit[] = [
     afsnit: [
       "Det, du selv skriver i formularen: virksomhedens CVR-nummer, hjemmeside, omsætningsinterval og antal ansatte; dit navn, din e-mail og dit telefonnummer; dine svar på de tre spørgsmål om udfordring, hvad du har prøvet, og hvor du vil hen; hvornår du kan starte, og om du har set vores webinar.",
       "Det, vi slår op om virksomheden i CVR-registret ud fra nummeret: navn, stiftelsesår, branche, selskabsform, antal ansatte og adresse. Vi henter ikke oplysninger om ejere eller andre personer.",
-      "Hvor du kom fra — for eksempel vores webinar, en annonce, LinkedIn eller direkte — og de mærker, der står i linket, du klikkede på. Kom du fra en annonce på Facebook eller Instagram, gemmer vi det klik-id, Meta selv satte på linket.",
+      "Hvor du kom fra — for eksempel vores webinar, en annonce, LinkedIn eller direkte — og de mærker, der står i linket, du klikkede på. Kom du fra en annonce på Facebook eller Instagram, gemmer vi det klik-id, Meta selv satte på linket, og hvilken slags browser du brugte.",
+      "Kom du fra en annonce på Facebook eller Instagram, fortæller vi Meta, at der er sket noget — at en ansøgning er påbegyndt, og at den er sendt. Vi sender kun det klik-id, Meta selv satte på linket, hvilken slags browser du brugte, og et id, vi selv har lavet. Vi sender aldrig dit navn, din e-mail, dit telefonnummer, dit CVR-nummer eller dine svar. Kom du ikke fra en annonce, sender vi ingenting. Vil du helst være fri, så skriv til kontakt@theboardroom.dk.",
       "En anonymiseret dags-nøgle for din internetadresse, som vi kun bruger til at begrænse misbrug af formularen. Selve adressen gemmes ikke her.",
       "Har du tilmeldt dig vores webinar, gemmer vi også din tilmelding og din deltagelse: hvornår du meldte dig til, om du deltog, og hvor stor en del af webinaret du så. Bruger du samme e-mailadresse til at ansøge, kobler vi de to sammen, så vi ved, at du har set det.",
       "Skriver du under på et aftalegrundlag, gemmer vi det underskrevne dokument sammen med et revisionsspor: dit navn, tidspunktet, din internetadresse og hvilken browser du brugte. Sporet kan ikke ændres eller slettes bagefter — det er netop dets formål, for det er beviset for, at aftalen blev indgået.",
