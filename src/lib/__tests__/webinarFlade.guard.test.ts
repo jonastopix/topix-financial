@@ -36,6 +36,9 @@ import { ANNONCESPOR_KOLONNER } from "@/lib/webinar/kolonner";
  *      `auto` måles pr. grid — så tallene stod under den forkerte titel.
  *      Værnet nægter `auto` i skabelonerne og kræver at begge bruger den
  *      samme konstant.
+ *  12. DE SMÅ BOKSE ER DOMMENS: rækken under den store tegner
+ *      naeste.efterfoelgende; grænsen på tre bor i dashboard.ts, ikke i fladen;
+ *      ingen graf i de små; tom liste tegner ingenting.
  *  11. «Blev medlem» er HUSETS dom (blevMedlem i ansoegningVisning), ikke
  *      en ny betingelse skrevet her — ellers ville to tal i samme hus
  *      kunne betyde det samme ord forskelligt.
@@ -179,6 +182,33 @@ export const medlemsdommenErHusets = (dom: string): boolean => {
 
 // ── Dommene mod de rigtige filer, og mod en kopi med fejlen indsat ─────────
 
+// ── 12 ─────────────────────────────────────────────────────────────────────
+/**
+ * DE SMÅ BOKSE ER DOMMENS (21/9-2026). Rækken under den store boks tegner
+ * `naeste.efterfoelgende` og intet andet: tallet, tidspunktet og den relative
+ * tid er allerede regnet i dashboard.ts, og grænsen på tre bor DÉR — ikke i
+ * fladen. Ellers ville /webinar og /delt/webinar kunne vise hver sit antal
+ * bokse, for den delte visning tegner den samme dom fra serveren.
+ * Ingen graf i de små, og tom liste tegner ingenting.
+ */
+export const smaaBokseErDommens = (view: string, dom: string): boolean => {
+  const v = udenKommentarer(view), d = udenKommentarer(dom);
+  const boks = v.slice(v.indexOf("const EfterNaeste = "), v.indexOf("const Naeste = "));
+  return (
+    d.includes("export const KOMMENDE_EFTER_NAESTE_MAKS = 3;") &&
+    /\.slice\(1, 1 \+ KOMMENDE_EFTER_NAESTE_MAKS\)/.test(d) &&
+    !v.includes("KOMMENDE_EFTER_NAESTE_MAKS") && !/\.slice\(/.test(boks) &&
+    v.includes("sessioner={naeste.efterfoelgende}") &&
+    boks.includes("sessioner.map((s) => (") &&
+    boks.includes("if (sessioner.length === 0) return null;") &&
+    boks.includes('{datoLang(s.sessionTid) ?? "tidspunkt ukendt"}') &&
+    boks.includes("{s.omHvorLaenge}") &&
+    !boks.includes("TilmeldtKurve") && !boks.includes("prDag") &&
+    /<Naeste naeste=\{naeste\} \/>\s*\n\s*\{naeste !== null && <EfterNaeste sessioner=\{naeste\.efterfoelgende\} \/>\}/.test(v) &&
+    v.includes("<NaesteAfsnit naeste={dom.naeste} />")
+  );
+};
+
 describe("webinarfladens kildeværn", () => {
   it("1. ruten /webinar er lazy og bag AdvisorRoute", () => {
     const app = laes(APP);
@@ -275,5 +305,25 @@ describe("webinarfladens kildeværn", () => {
     expect(navpunktetErRigtigt(nav)).toBe(true);
     expect(navpunktetErRigtigt(nav.replace('| "webinar"', ""))).toBe(false);
     expect(navpunktetErRigtigt(nav.replace('{ label: "Webinar", to: "/webinar", active: active === "webinar" }', ""))).toBe(false);
+  });
+
+  it("12. de små bokse tegner dommens efterfoelgende — grænsen bor i dommen, ingen graf, tom liste tegner intet", () => {
+    expect(smaaBokseErDommens(laes(VIEW), laes(DOM))).toBe(true);
+  });
+
+  it("12b. grænsen flyttet til fladen, en graf i de små, eller en tom liste der tegner en stribe, fælder dom 12", () => {
+    const view = laes(VIEW), dom = laes(DOM);
+    // Grænsen gentaget i fladen: /webinar og /delt/webinar kunne vise hver sit antal bokse.
+    expect(smaaBokseErDommens(view.replace("sessioner.map((s) => (", "sessioner.slice(0, 3).map((s) => ("), dom)).toBe(false);
+    // Grænsen væk af dommen.
+    expect(smaaBokseErDommens(view, dom.replace("export const KOMMENDE_EFTER_NAESTE_MAKS = 3;", "export const KOMMENDE_EFTER_NAESTE_MAKS = 99;"))).toBe(false);
+    // «Spring den næste over» fjernet — så ville den store boks også stå som en lille.
+    expect(smaaBokseErDommens(view, dom.replace(".slice(1, 1 + KOMMENDE_EFTER_NAESTE_MAKS)", ".slice(0, KOMMENDE_EFTER_NAESTE_MAKS)"))).toBe(false);
+    // En graf i de små.
+    expect(smaaBokseErDommens(view.replace("{s.omHvorLaenge}", "{s.omHvorLaenge}<TilmeldtKurve prDag={[]} />"), dom)).toBe(false);
+    // Tom liste tegner en tom stribe i stedet for ingenting.
+    expect(smaaBokseErDommens(view.replace("if (sessioner.length === 0) return null;", ""), dom)).toBe(false);
+    // Rækken koblet fra den store boks.
+    expect(smaaBokseErDommens(view.replace("<NaesteAfsnit naeste={dom.naeste} />", "<Naeste naeste={dom.naeste} />"), dom)).toBe(false);
   });
 });

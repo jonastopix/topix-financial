@@ -250,6 +250,65 @@ export interface TilmeldtPrDag {
   antal: number;
 }
 
+/**
+ * En programsat session EFTER den næste — de små bokse under den store
+ * (Jonas 21/9-2026 23:45). Samme tal og samme formatering som den store, bare
+ * uden grafen: antal tilmeldte, tidspunktet og hvor længe der er til.
+ * Bærer ALDRIG rækkerne — de små bokse skal ikke kunne lække en mail.
+ */
+export interface KommendeSession {
+  sessionTid: string;
+  titel: string | null;
+  /** Personer tilmeldt PRÆCIS denne session (unikke mails), som den store boks' `personer`. */
+  personer: number;
+  /** «om 22 dage» — samme funktion som den store boks bruger. */
+  omHvorLaenge: string | null;
+}
+
+/**
+ * Hvor mange små bokse rækken må bære. Tre er et designvalg, ikke en måling:
+ * en fjerde ville presse dem under læsbar bredde på en telefon. Grænsen står
+ * HER og ikke i fladen, så den delte visning (/delt/webinar) viser det samme —
+ * den tegner den samme dom, men har ikke adgang til rækkerne bag den.
+ */
+export const KOMMENDE_EFTER_NAESTE_MAKS = 3;
+
+/**
+ * De nærmeste programsatte sessioner EFTER den næste, i datoorden, højst
+ * KOMMENDE_EFTER_NAESTE_MAKS.
+ *
+ * Sessionen er enheden, ikke webinaret: to kørsler af samme webinar er to
+ * bokse. Rækker UDEN session_tid (Replay og OnDemand) tælles ikke med — de er
+ * ikke programsat og kan pr. definition ikke ligge efter den næste, præcis som
+ * i naesteWebinar. Tidszonen er Europe/Copenhagen overalt, fordi omHvorLaenge
+ * og datoLang begge regner i danske kalenderdage.
+ *
+ * Tom liste når der ikke er nogen session efter den næste — så tegner fladen
+ * ingen række.
+ */
+export function kommendeEfterNaeste(raekker: readonly Tilmelding[], nu: Date): KommendeSession[] {
+  const perSession = new Map<number, Tilmelding[]>();
+  for (const r of raekker) {
+    const t = tid(r.session_tid);
+    if (t === null || t <= nu.getTime()) continue;
+    const liste = perSession.get(t);
+    if (liste) liste.push(r); else perSession.set(t, [r]);
+  }
+  return [...perSession.keys()]
+    .sort((a, b) => a - b)
+    .slice(1, 1 + KOMMENDE_EFTER_NAESTE_MAKS)
+    .map((t) => {
+      const mine = perSession.get(t) as Tilmelding[];
+      const sessionTid = new Date(t).toISOString();
+      return {
+        sessionTid,
+        titel: mine.find((r) => tekst(r.webinar_titel))?.webinar_titel ?? null,
+        personer: new Set(mine.map((r) => r.email)).size,
+        omHvorLaenge: omHvorLaenge(sessionTid, nu),
+      };
+    });
+}
+
 export interface NaesteWebinar {
   sessionTid: string;
   webinarId: string;
@@ -271,6 +330,11 @@ export interface NaesteWebinar {
    * registreret_at. Tom liste når ingen tilmelding har et tidspunkt.
    */
   prDag: TilmeldtPrDag[];
+  /**
+   * De nærmeste programsatte sessioner EFTER denne, højst tre (21/9-2026).
+   * Tom liste = der er ikke flere, og fladen tegner ingen række.
+   */
+  efterfoelgende: KommendeSession[];
   /** De rækker sessionen består af — annoncesporet regnes på dem. */
   raekker: Tilmelding[];
 }
@@ -305,6 +369,7 @@ export function naesteWebinar(raekker: readonly Tilmelding[], nu: Date): NaesteW
     kommendeSessioner,
     omHvorLaenge: omHvorLaenge(sessionTid, nu),
     prDag: [...prDagKort.entries()].map(([dag, antal]) => ({ dag, antal })).sort((a, b) => a.dag.localeCompare(b.dag)),
+    efterfoelgende: kommendeEfterNaeste(raekker, nu),
     raekker: mine,
   };
 }
