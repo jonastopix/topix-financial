@@ -1,4 +1,4 @@
--- IKKE KØRT. DEPLOY: manuelt i Lovable → SQL editor efter merge (FØR Update-klik).
+-- KØRT i prod — 21/9-2026 kl. 10:54 (Jonas, Lovable SQL editor): cron.job 567 «klaviyo-gensend», schedule 1-59/5 * * * *. Rækkefølgen holdt: eksplicit deploy (første kald 10:48 → 404; anden anmodning udrullede) → tørkørsel 10:50 (svar 13090: 7 rækker/7 grupper, alle ok) → bevis 10:52 (svar 13091: bevis_id 54491c22… «Ansoegning sendt» sendt igen, ok/202/194 ms — Klaviyo kasserede dubletten, stadig præcis én hændelse) → migrationen 10:54 → første planlagte kørsel 10:56:00 succeeded (svar 13093: dry_run false, 8 rækker/8 grupper ok, 0 gensendt).
 -- RÆKKEFØLGEN — LÆS DEN (CLAUDE.md «Deployment af edge functions»; stille-klokker-formen 20/9):
 --   1. merge til main (kilden lander hos Lovable; den kører ikke)
 --   2. EKSPLICIT deploy af klaviyo-gensend-cron fra Lovables build-chat — en NY function er

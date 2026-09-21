@@ -1858,10 +1858,32 @@
   <h2>Indgangen — fra ansøgning til aktivt medlem</h2>
   <p class="lede">Ansøgningsflowet bor i platformen fra 18/9 (#984–#1010): formular, motor, kø, venteliste, e-underskrift, booking — og Jonas har været hele vejen igennem (18/9 aften). Kæden fra underskrift til adgang er hel og bevist (OVERLEVERING DEL 2). Det der står, er det basen skal bekræfte før prøven, hullerne omkring kæden, ankomstens løse ender og beviserne der udestår.</p>
   <div class="grid">
-    <div class="card new" id="a20-navne-til-ad-id" data-status="mangler" data-spor="1" data-rammer="raadgiver">
+    <div class="card new" id="a21-kom-ikke" data-status="mangler" data-spor="1" data-rammer="medlem">
+      <h3>«Kom ikke» mangler i fladen — og køen markerer «afholdt» ved sluttid uanset fremmøde, så et afslag kan takke for en snak, der ikke fandt sted</h3>
+      <p>«Kom ikke» findes ikke som knap (<code>ikke_moedt</code> står ikke i <code>MENNESKE_HANDLINGER</code>) — reconens tabel tog fejl; A fandt det i udkastet (recon-afholdt-og-afslut, 21/9). Køen markerer selv «afholdt» ved samtalens sluttid (cronens tider: hverdage 07:00–17:45) og skriver klokken «kom de?». «Tak for snakken» står kun efter en samtale (afslag fra «afholdt»). A bygger i dag (21/9).</p>
+      <p><strong>Målt 12:24:</strong> <code>ansoegning_beslutninger_handling_check</code> har 16 værdier inkl. <code>betalte_ikke</code> — <code>ikke_moedt</code> mangler. Beslutningsrækken for <code>ikke_moedt</code> afvises af basen, fra Calendly-webhooken i dag og fra knappen, når den kommer; fejlen logges kun i functionen. A lukker det i samme udkast (migration + listerne).</p>
+      <div class="meta"><span class="tag gold">A bygger 21/9</span><span class="tag ny">Ny 21/9</span></div>
+    </div>
+    <div class="card new" id="a21-redigerbare-mails" data-status="mangler" data-spor="1" data-rammer="medlem">
+      <h3>Redigerbare mails — afslagsmailen først: den redigerede tekst gemmes på afslaget, så reserve-køen sender den; kø-sætningen ved niche bevares</h3>
+      <p>Dialogen viser i dag mailen ordret (<code>afslagsMailTekst</code>, samme bygger som sender, #1063), men rådgiveren kan ikke rette den. Efter webinaret; recon først.</p>
+      <div class="meta"><span class="tag gold">Efter webinaret · recon først</span><span class="tag ny">Ny 21/9</span></div>
+    </div>
+    <div class="card new" id="a21-mailloftet" data-status="mangler" data-spor="1" data-rammer="raadgiver">
+      <h3>Mailloftet: rådgivermailen om ny ansøgning tabes ved 429; ingen alarm ved <code>rate_limited</code>; ingen vagt på rykkerkøen</h3>
+      <p>Én ansøgning = to app-mails straks (kvittering + rådgivermail). Ved 429: kvitteringen får en reserve i køen (næste sendevindue, højst 3 forsøg); rådgivermailen om ny ansøgning tabes; samtalens bekræftelse tabes; ingen alarm ved <code>rate_limited</code> når ud af browseren; ingen vagt på <code>planlagte_haendelser</code>. Loftet 300/time (Support 18/9) — umålt, om det gælder i dag. (A, <code>recon-mailloft-tirsdag.md</code>, 21/9.)</p>
+      <div class="meta"><span class="tag ny">Ny 21/9</span></div>
+    </div>
+    <div class="card new" id="a21-afholdt-rykker-tekst" data-status="mangler" data-spor="1" data-rammer="medlem">
+      <h3>Afholdt-rykkerens tekst forudsætter «De hørte «jeg sender aftalegrundlaget»»</h3>
+      <p>Rykkeren til kontakt@ dag 2 efter «afholdt» (<code>ansoegning-afholdt-raadgiver-rykker</code>) siger, at ansøgeren hørte «jeg sender aftalegrundlaget» — det holder ikke, når «afholdt» blev sat af køen ved sluttid uden fremmøde (se a21-kom-ikke). Fundet 21/9.</p>
+      <div class="meta"><span class="tag ny">Ny 21/9</span></div>
+    </div>
+    <div class="card new loest" id="a20-navne-til-ad-id" data-status="loest" data-spor="1" data-rammer="raadgiver">
       <h3>182 tilmeldinger bærer annoncens NAVN i utm_content — oversæt dem til ad_id i en ny kolonne <code>ad_id_udledt</code> FØR cronen kl. 03:33 overskriver navnene</h3>
+      <p><strong>LØST 21/9 — engangs-SQL'en kørt 08:40 (fail-closed DO-blok: oversat 180 · stadig_navn 2 · fejl_id 0 · tre_navne_afviger 0) + #1059 (<code>c2bf71dd</code>): kolonnen <code>ad_id_udledt</code>, migration <code>20260921130000</code> kørt 08:39 FØR merge; bevis <code>data-pris-udledt</code> i <code>Webinar-BOZlcjO9.js</code> og REST <code>select=ad_id_udledt&amp;limit=0</code> → 200. Rettelse: cronens «03:33» er UTC — første overskrivning skete 05:33 dansk, FØR målingen 08:38 (182 navne-rækker, 180 entydige, 2 flertydige «Adv » / «Adv+»). Kendt unøjagtighed → kort a21-ad-id-kommentar.</strong></p>
       <p>De gamle links satte <code>{{ad.name}}</code>; skiftet til <code>{{ad.id}}</code> skete 20/9 (recon-meta-annoncer §11). Et navn er ikke en nøgle: «4 - Gammel video-ad – Copy» bæres af to annoncer i samme sæt (målt 19/9). Oversættelsen er et JOIN mod <code>meta_annonce</code> (kampagne_navn, adsaet_navn, navn) — og <code>meta-annoncer-cron</code> overskriver navnene hver nat, så et omdøbt navn matcher aldrig mere. <strong>Råværdien røres ikke</strong> (dagens regel): resultatet står i <code>ad_id_udledt</code>, som annoncepriser læser før navnet, aldrig før et rigtigt id. Udkastet ligger: <code>~/Downloads/udkast-ad-id-udledt</code> — <code>sql/00-maal-foerst.sql</code> (Jonas kører: hvor mange er entydige, og hvorfor ikke resten), migration <code>20260921130000</code>, <code>sql/01-oversaet.sql</code> (kun entydige, FØR/EFTER, kontrol, rollback), ni filer, suite 468/6489. Det, der ikke kan oversættes (to annoncer med samme navn i samme sæt, slettet hos Meta, aldrig et annoncenavn) forbliver navne-koblet og vises som i dag.</p>
-      <div class="meta"><span class="tag rust">HASTER — før 03:33</span><span class="tag gold">Udkast klar · SQL først</span><span class="tag size">Lille</span><span class="tag ny">Ny 20/9</span></div>
+      <div class="meta"><span class="tag loest">Lukket 21/9 — 180 oversat 08:40 + #1059</span><span class="tag rust">HASTER — før 03:33</span><span class="tag gold">Udkast klar · SQL først</span><span class="tag size">Lille</span><span class="tag ny">Ny 20/9</span></div>
     </div>
     <div class="card new" id="a20-calendly-no-show" data-status="mangler" data-spor="1" data-rammer="raadgiver">
       <h3>Calendly kan melde no-show selv — men abonnementet sender ikke <code>invitee_no_show.created</code>, og Jonas har aldrig markeret ét (0 af 33 invitees siden februar)</h3>
@@ -1887,6 +1909,11 @@
       <h3>Kreativbiblioteket — opgaven blev formuleret til C, men aldrig sendt; den findes ikke som kort, ikke som recon, ikke som udkast</h3>
       <p>Målt 20/9 aften: ordet «kreativbibliotek» står i ingen fil i <code>~/Downloads</code> eller repoet. Jonas (20/9): «C fik opgaven, men den blev aldrig sendt.» Kortet er derfor en pladsholder med det, der vides: et bibliotek over de kreativer, annoncerne kører med (billede, tekst, link, <code>url_tags</code>), som <code>meta_annonce</code> allerede henter dele af (<code>overskrift</code>, <code>brodtekst</code>, <code>billede_url</code>, <code>video_id</code>, <code>link_url</code>, og fra 21/9 <code>url_tags</code>). Jonas skriver opgaven ind her, som den var tænkt — ellers slettes kortet ved næste gennemgang.</p>
       <div class="meta"><span class="tag gold">Jonas: skriv opgaven ind</span><span class="tag size">Ukendt</span><span class="tag ny">Ny 20/9</span></div>
+    </div>
+    <div class="card decision new" id="a21-webinar-tidspunkt" data-status="beslutning" data-spor="1" data-rammer="medlem">
+      <h3>Webinarets tidspunkt skal stå på Klaviyo-profilen — påmindelsesmailene nævner ikke tiden, og sessionerne ligger på forskellige tider (22/9 kl. 9, 13/10 kl. 11)</h3>
+      <p>Målt i Klaviyo 12:3x (21/9): eWebinar skriver kun profilfeltet <code>eWebinar</code> = «09/22/2026» (dato, ingen tid). Kampagnen «på dagen» 22/9 har fået «i dag kl. 9.00» i teksten (Jonas). <strong>BESLUTTET (Jonas 21/9):</strong> platformen skriver selv tidspunktet på Klaviyo-profilen ud fra <code>webinar_tilmeldinger.session_tid</code>, færdigt formateret på dansk, så flowets mails viser det dynamisk; skal være bevist før kampagnerne til 13/10 (frist 6/10). Recon først (B). OVERLEVERING «21. september» §14b.</p>
+      <div class="meta"><span class="tag gold">Besluttet · recon først</span><span class="tag gold">Frist 6/10</span><span class="tag ny">Ny 21/9</span></div>
     </div>
     <div class="card decision new" id="a20-profilmodel" data-status="beslutning" data-spor="senere" data-rammer="medlem">
       <h3>Profilmodellen — hvad Klaviyo BØR vide om en person (<code>naeste_webinar</code>, <code>tb_ansoegning_trin</code>, aktiveringsraten) — findes som model (A's recon), ikke som kode</h3>
@@ -1980,11 +2007,12 @@
       <p><strong>LUKKET 18/9 AFTEN — bogført så det ikke koster en time næste gang.</strong> Bookingen i egen flade (#996) opretter og aflyser i Calendly (<code>POST /invitees</code>, <code>POST …/cancellation</code>) og kræver skrive-scope. Den <code>CALENDLY_API_KEY</code>, der lå som secret, var lavet til læsning (tider, mødelink, webhooken) — Calendly svarede 403 «Insufficient scope», som koden viser som 502 «Kalenderen kunne ikke …». Jonas lavede en ny personlig adgangsnøgle med <code>scheduled_events:write</code> og satte den som secret; derefter gik booking, flytning og aflysning igennem i prøven. Læren: «nøglen virker til at læse» beviser ikke, at den kan skrive — scopes vælges, når nøglen laves. Ingen kode. OVERLEVERING DEL 2 «18. september» §12.</p>
       <div class="meta"><span class="tag loest">Lukket 18/9 — ny nøgle med skrive-scope</span><span class="tag">Secret, ikke kode</span><span class="tag ny">Ny 18/9</span><span class="tag size">Lille</span></div>
     </div>
-    <div class="card new" id="a18-migrationer" data-status="mangler" data-spor="1" data-rammer="raadgiver">
+    <div class="card new loest" id="a18-migrationer" data-status="loest" data-spor="1" data-rammer="raadgiver">
       <h3>Fjorten migrationer skrevet 18/9 — hvilke der er kørt, står ikke i repoet: kør SQL'en i §2, og kør <code>20260919120000</code> («betalte_ikke», #1011) FØR <code>indgangs-paamindelser-cron</code> udrulles</h3>
+      <p><strong>LØST 21/9 — <code>20260919120000</code> (#1011) ER KØRT: FØR-målingen 11:43 (før <code>20260921170000</code>) viste <code>ansoegninger_lukkeaarsag_check</code> med 8 værdier inkl. <code>betalte_ikke</code>, selvom dette kort og OVERLEVERING sagde «IKKE KØRT».</strong></p>
       <p><strong>19/9 nat:</strong> #1011 (merget 00:59, efter oprydningen) lagde den fjortende migration: lukkeårsagen og systemhandlingen <code>betalte_ikke</code> i to CHECK-lister. Den er IKKE kørt — kører cronen før den, afviser basen lukningen på dag 60 i stilhed (mønsteret i §4, sjette gang). SQL'en i §2 har fået kolonnen <code>t19_120</code> (false indtil den er kørt). Det oprindelige kort: alle tolv bærer «IKKE KØRT» i filhovedet (repoet er historik, SQL editor er kanalen). C's kontrol 18/9 aften: <code>planlagte_haendelser_trappe_check</code> uden «indsendt» ⇒ køens reserve-kvittering afvises i stilhed (0 rækker, 0 mails — samme hul som #999 lukkede i koden). #1002 sender kvitteringen synkront, så ansøgeren får den — men reserven og enum-værnets præmis holder kun, hvis migrationen er kørt. Én forespørgsel, der svarer for alle fjorten, står i OVERLEVERING DEL 2 «18. september» §2 (forventet: 3 · 1 · 1 · 4 · uden 'senere' · med 'saet_pause' · 1 · 1 · '&gt;= 1' · 1 · 2 · med 'indsendt' · true · true). Uafklarede: <code>20260918230000_…uden_senere</code>, <code>20260918260000_antal_ansatte_mindst_1</code> (recon «vejen ind» pkt. 6), <code>20260918290000_aftale_uforanderlig</code> (merget 19:16), <code>20260919100000</code>.</p>
       <p><strong>20/9 aften:</strong> den femtende, <code>20260920200000_planlagte_haendelser_trappe_raadgiver</code> (rådgiver-rykkes, #1046), ER kørt i prod FØR merge — FØR/EFTER-SQL på constrainten bekræftet af Jonas (uden → med <code>ny</code>/<code>afholdt</code>). De øvrige fjorten: uændret status.</p>
-      <div class="meta"><span class="tag gold">FØR cronen udrulles</span><span class="tag">SQL, ikke kode</span><span class="tag ny">Ny 18/9</span><span class="tag size">Lille</span></div>
+      <div class="meta"><span class="tag loest">Lukket 21/9 — 20260919120000 kørt (målt 11:43)</span><span class="tag gold">FØR cronen udrulles</span><span class="tag">SQL, ikke kode</span><span class="tag ny">Ny 18/9</span><span class="tag size">Lille</span></div>
     </div>
     <div class="card new loest" id="a18-aftale-v3" data-status="loest" data-spor="1" data-rammer="raadgiver">
       <h3>Er aftale_skabelon version 3 aktiv i prod? Med v2 svarer «send til e-underskrift» 422 — intet kan sendes</h3>
@@ -2711,6 +2739,11 @@
   <h2>Fællesskabet — community, netværk, events, akademiet</h2>
   <p class="lede">Konverteret og i drift; opslagsmailen bærer siden 3/9. Det der mangler, er indhold, søgning, events' små led og idéerne der først giver mening når fundamentet bærer.</p>
   <div class="grid">
+    <div class="card decision new" id="a21-eventflytning-til-alle" data-status="beslutning" data-spor="6" data-rammer="medlem">
+      <h3>Mailen om et flyttet event går kun til dem, der har svaret «deltager» — den skal gå til alle med adgang, med to tekster</h3>
+      <p>I dag sendes mailen om ændret dato/tid kun til dem, der har svaret «deltager». <strong>BESLUTTET (Jonas 21/9):</strong> den går til alle med adgang til eventet (<code>har_aktivt_medlemskab</code>); to tekster — «vi har flyttet, passer det stadig?» til dem, der sagde ja, og «nyt tidspunkt, måske passer det nu» til resten; sendes straks, kun når dato eller tid ændres, ikke ved tekstrettelser (ikke via samlemailen kl. 17). Recon først. OVERLEVERING «21. september» §14c.</p>
+      <div class="meta"><span class="tag gold">Besluttet · recon først</span><span class="tag ny">Ny 21/9</span></div>
+    </div>
     <div class="card loest new" id="m16-praesentation-uden-forslag" data-status="loest" data-spor="1" data-rammer="medlem">
       <h3>Præsentationen uden foreslået tekst — Jonas' beslutning B: tom composer, «Fortæl med dine egne ord, hvem du er.»</h3>
       <p><strong>JONAS 16/9 MIDDAG, ordret:</strong> «Jeg synes ikke vi skal komme med forslag til tekst. De skal præsentere sig som de har lyst til. Det gør det mere personligt.» Valg B: composeren tom (ingen titel, ingen afsnit fra profilen, ingen eksempler); pladsholder «Fortæl med dine egne ord, hvem du er.»; tjeklistens beskrivelse «Et opslag om hvem du er.»; mail A's punkt «Præsentér dig i fællesskabet — et opslag om hvem du er.» Afløser «Intet krav, kun eksemplerne» fra natten og afgør formiddagens fund 7 («med et udkast ud fra din profil» var usandt for en tom profil).</p>
@@ -2962,6 +2995,46 @@
   <h2>Drift og fundament — ydeevne, overvågning, RLS, døde felter</h2>
   <p class="lede">Ingen fejlovervågning. Hændelser findes ved manuel måling, ikke af nogen alarm — RLS-hullet 3/9 blev fundet med en lånt identitet, ikke af et værn.</p>
   <div class="grid">
+    <div class="card new" id="a21-filhoveder-koert" data-status="mangler" data-spor="senere" data-rammer="ingen">
+      <h3>Fire migrationer er kørt, men filhovedet siger stadig «IKKE KØRT» — reglen fra 20/9 kan få dem kørt igen</h3>
+      <p><code>20260919210000_klaviyo_spor</code>, <code>20260919230000_klaviyo_spor_afveg</code>, <code>20260921090000_meta_annoncer_cron</code> og <code>20260921120000_ansoegninger_annoncespor</code> starter med «-- IKKE KØRT. DEPLOY: …», selvom de er kørt (OVERLEVERING «19.–20. september» §2, «20. september» §2). Den, der kører migrationer, scanner mappen efter den linje (CLAUDE.md «Nye migrations») — så de kan blive kørt igen. Om de tåler det, er umålt. De to fra 21/9 (<code>160000</code>, <code>170000</code>) er rettet i bogføringen; deres kildeværn pinnede den gamle første linje og blev rettet med. B's fund ved bogføringen 21/9 — OVERLEVERING «21. september» §14d.</p>
+      <div class="meta"><span class="tag ny">Ny 21/9</span></div>
+    </div>
+    <div class="card new" id="a21-princip-1-klokker" data-status="mangler" data-spor="senere" data-rammer="raadgiver">
+      <h3>Princip 1: stille-klokkerne og Meta-vagten skal nå mail — i dag er begge signaler, kun en browser kan vise</h3>
+      <p><code>stille-klokker</code> og <code>meta_hentning_vagt()</code> skriver kun <code>advisor_notifications</code>, og intet mailer den tabel (<code>send-notification-email</code> læser kun <code>notifications</code>; <code>ADVISOR_EMAIL_DISABLED</code>). Gensenderen (#1061) er bygget med mail fra start. Målt 21/9 (§12).</p>
+      <div class="meta"><span class="tag ny">Ny 21/9</span></div>
+    </div>
+    <div class="card new" id="a21-ad-id-kommentar" data-status="mangler" data-spor="senere" data-rammer="ingen">
+      <h3><code>ad_id_udledt</code>-kommentaren (coalesce) rettes i fil og i prod</h3>
+      <p>Kommentarer i koden og kolonnekommentaren i prod siger <code>coalesce(ad_id_udledt, utm_content)</code>; koden lader et rigtigt id vinde (#1059). Kendt unøjagtighed, målt 21/9.</p>
+      <div class="meta"><span class="tag ny">Ny 21/9</span></div>
+    </div>
+    <div class="card new" id="a21-smaa-tabeller-statistik" data-status="mangler" data-spor="senere" data-rammer="ingen">
+      <h3>Små tabeller uden statistik: <code>company_members</code> er aldrig analyseret — mål hvilke flere</h3>
+      <p><code>company_members</code> har 30 rækker (29 virksomheder, 30 brugere), ikke 95; analyze/autoanalyze/autovacuum er tomme, <code>n_tup_del</code> 21 i hele perioden. Målt 21/9 08:32–08:34 (døgnmålingen af indekserne). Mål, hvilke flere små tabeller der aldrig er analyseret.</p>
+      <div class="meta"><span class="tag ny">Ny 21/9</span></div>
+    </div>
+    <div class="card new" id="a21-stille-klokker-27" data-status="mangler" data-spor="senere" data-rammer="raadgiver">
+      <h3>Stille-klokkerne: <code>fundet: 27</code> mod 28 betalende; E-skilte <code>ikke_aktiv</code></h3>
+      <p>Første rigtige kørsel 21/9 06:30 (job 566, svar 12997): <code>ringet: 7</code> (ingen_bruger 3, ingen_login 4), <code>fandtes: 0</code>, <code>fejlet: 0</code>, <code>fundet: 27</code>, tavse: aktiv 19, ikke_aktiv 1 (E-skilte ApS). 27 fundet mod 28 betalende — hvorfor, er umålt. Titlens tal er trappetrinnet, ikke dagene (Brick Works: 146 dage, titel 120).</p>
+      <div class="meta"><span class="tag ny">Ny 21/9</span></div>
+    </div>
+    <div class="card new" id="a21-soendagens-fem-haendelser" data-status="mangler" data-spor="senere" data-rammer="medlem">
+      <h3>Søndagens 4 «Deltog» + 1 «Mødte ikke op» 14:38–14:44 — hvem, og ramte de et flow?</h3>
+      <p>Sporet 21/9 09:32: 9 forsøg nogensinde, alle ok/202, 180–234 ms. Fem af dem er fremmøde-hændelser søndag 20/9 14:38–14:44. Hvem de er, og om de ramte <code>Wq3MkG</code>/<code>SDVvCW</code>, er umålt.</p>
+      <div class="meta"><span class="tag ny">Ny 21/9</span></div>
+    </div>
+    <div class="card new" id="a21-import-hentning" data-status="mangler" data-spor="senere" data-rammer="ingen">
+      <h3>Importens hentning: 14 sider / ~70 s; <code>updatedSince</code>, hvis budgettet ikke rækker</h3>
+      <p>Tørkørslen 11:32 (svar 13117): 653 registranter, 14 sider, afkortet false; hentningen tog højst ~73 s (kald ~11:32:43, svar senest 11:33:56). Tidsbudgettet 100 s holder til ~300 afsendelser, men margenen er lille; <code>updatedSince</code> er løsningen, hvis hentningen alene bruger budgettet (#1062).</p>
+      <div class="meta"><span class="tag ny">Ny 21/9</span></div>
+    </div>
+    <div class="card new" id="a21-email-send-log-unikt-indeks" data-status="mangler" data-spor="senere" data-rammer="ingen">
+      <h3><code>email_send_log</code>s unikke indeks påstås, findes ikke i migrationerne — mål i prod</h3>
+      <p>«UNIQUE (message_id) WHERE status = 'sent'» påstås i tre kommentarer, findes ikke i migrationerne (A, <code>recon-mailloft-tirsdag.md</code>, 21/9). Mål i prod, om indekset findes.</p>
+      <div class="meta"><span class="tag ny">Ny 21/9</span></div>
+    </div>
     <div class="card new" id="a20-url-tags-vaern" data-status="mangler" data-spor="senere" data-rammer="raadgiver">
       <h3>Ads Manager har ingen standard for URL-parametre — en ny annonce uden <code>{{ad.id}}</code> opdages først, når tilmeldingerne bærer et navn igen. Kolonnen <code>url_tags</code> hentes nu (21/9) — det, der mangler, er linjen, der råber</h3>
       <p><code>url_tags</code> er et felt på kreativet; intet konto-, kampagne- eller annoncesæt-niveau arves (recon-meta-annoncer §11.4 — §3's «kan sættes én gang på annoncesættet» var forkert). Den eneste indbyggede mekanisme er «Duplicate». A's migration <code>20260921090000</code> gav <code>meta_annonce.url_tags</code>, og cronen henter feltet. Tilbage: én linje på forsiden/annoncesiden — «N aktive annoncer med klik, hvis url_tags mangler {{ad.id}}» — så en glemt annonce ses dagen efter, ikke om tre uger. Og den kanoniske streng ét sted (docs/webinaret-og-annoncerne.md): <code>utm_source={{site_source_name}}&amp;utm_medium=paid&amp;utm_campaign={{campaign.id}}&amp;utm_term={{adset.id}}&amp;utm_content={{ad.id}}</code>.</p>
@@ -2972,10 +3045,11 @@
       <p>Målt 20/9 kl. 22:35 i den udrullede chunk (<code>WebinarOptagelse-2FFSTfwC.js</code>): begge hrefs er <code>app.theboardroom.dk/ansoeg?kilde=webinar</code> (rettet, <code>a20-optagelse-superform</code> lukket), men <code>ctaDestination:"superform_boardroom"</code> står på begge. Harmløst for ansøgeren; i GTM/analytics hedder klikkene noget, der ikke findes mere. Omdøb til fx <code>platform_ansoeg</code> — sitet topix.dk, ikke repoet. Og samme sted: et link til theboardroom.dk i selve Boardroom-afsnittet (i dag kun i footeren), så den, der vil læse, før hun ansøger, har en vej (recon-landingssider §6 pkt. 5).</p>
       <div class="meta"><span class="tag">Sitet, ikke repoet</span><span class="tag size">Lille</span><span class="tag ny">Ny 20/9</span></div>
     </div>
-    <div class="card new" id="a20-staletime" data-status="mangler" data-spor="senere" data-rammer="ingen">
+    <div class="card new loest" id="a20-staletime" data-status="loest" data-spor="senere" data-rammer="ingen">
       <h3>staleTime — én linje i <code>App.tsx</code>, så et faneskift ikke henter alt igen; udkast, ikke merget (indekserne er kørt)</h3>
+      <p><strong>LØST 21/9 — #1060 (<code>ecc008c6</code>): <code>defaultOptions: { queries: { staleTime: 60_000 } }</code>, intet andet; bevis <code>defaultOptions:{queries:{staleTime:6e4}}</code> i <code>index-BURtbxxx.js</code>. Rettelse: indekserne blev kørt 20/9 ~23:05, ikke «22/9 nat».</strong></p>
       <p><code>~/Downloads/udkast-ydeevne</code> (22/9 nat): to udkast, to PR'er. 1-indekser: 19 <code>create index if not exists</code> på det målte (29 foreslået, 10 dækket i prod) — <strong>KØRT i aften</strong> i SQL-editoren. 2-staletime: én linje i <code>App.tsx</code> (QueryClient default) + værnet rettet til den nye præmis — kanalen er merge → Update-klik, rollback er én linje tilbage. Måles på antal kald pr. faneskift (Network → Clear → skift). Det, der kan gå galt: en liste, der er 60 s gammel, når nogen kigger — derfor ikke <code>refetchOnWindowFocus: false</code> (udkastets §2). Recon-ydeevne §6 har rækkefølgen; browserens faktiske tid og prods statistik er Jonas' to målinger.</p>
-      <div class="meta"><span class="tag gold">Udkast klar · Update-klik</span><span class="tag size">Lille</span><span class="tag ny">Ny 20/9</span></div>
+      <div class="meta"><span class="tag loest">Lukket 21/9 — #1060</span><span class="tag gold">Udkast klar · Update-klik</span><span class="tag size">Lille</span><span class="tag ny">Ny 20/9</span></div>
     </div>
     <div class="card decision new" id="a20-princip-signal-browser" data-status="beslutning" data-spor="1" data-rammer="raadgiver">
       <h3>Princip: et signal, kun en browser kan vise, er ikke et signal</h3>
@@ -2987,21 +3061,23 @@
       <p>Målt 20/9 via DNS: kun <code>google-site-verification</code> som TXT, MX Google, DMARC <code>p=none</code>, DKIM <code>google._domainkey</code> ✓. Platformens mails går via Lovables <code>notify.theboardroom.dk</code> (Mailgun EU, SPF ✓, delegeret), så DE er dækket — men <strong>Google Workspace-mails fra <code>jonas@theboardroom.dk</code> fejler SPF</strong> og består kun på DKIM. Med <code>p=none</code> er der ingen straf i dag; den dag DMARC strammes (som på topix.dk), går de i karantæne. Én record i Cloudflare: <code>v=spf1 include:_spf.google.com ~all</code>. (recon-levering §1.2, §6 pkt. 8)</p>
       <div class="meta"><span class="tag ny">Ny 20/9</span><span class="tag size">Lille</span></div>
     </div>
-    <div class="card new" id="a20-klaviyo-gensend" data-status="mangler" data-spor="senere" data-rammer="medlem">
+    <div class="card new loest" id="a20-klaviyo-gensend" data-status="loest" data-spor="senere" data-rammer="medlem">
       <h3>En Klaviyo-hændelse, der fejlede (timeout/5xx/loft), er tabt for altid — sporet ved det, ingen gensender</h3>
+      <p><strong>LØST 21/9 — #1061 (<code>d360f2d2</code>): <code>klaviyo-gensend-cron</code>, migration <code>20260921160000</code> kørt 10:54 → job 567 (<code>1-59/5 * * * *</code>); bevis 10:52 (svar 13091): én ok-række sendt igen, Klaviyo kasserede dubletten på <code>unique_id</code> — stadig præcis én hændelse; første planlagte kørsel 10:56:00 succeeded. Alarm med mail til <code>raadgiverModtager</code> + drift-klokke fra start. Rettelse: «tabt for altid» var forkert — hele kroppen var gemt i <code>klaviyo_haendelser.sendt</code>, men intet sendte igen. (= nr. 7 på de-20-listen, <code>~/Downloads/de-20-for-nye-medlemmer.md</code>.)</strong></p>
       <p>Tilmeldingen er skrevet med den nye grad FØR Klaviyo kaldes; næste POST siger derfor «ingen», og eWebinars gensendelse af samme body rammer aftryk-reglen. Rækken i <code>klaviyo_haendelser</code> har <code>udfald ≠ ok</code>, og delindekset <code>klaviyo_haendelser_udfald_idx</code> er bygget til en gensender — der ikke findes. Én cron eller knap: gensend samme krop; <code>unique_id</code> gør det sikkert. (recon-platformsiden §1.2, §6 pkt. 6)</p>
       <p><strong>Flettet 20/9</strong> (var <code>a20-klaviyo-klokke</code>): og ingen SER dem — i dag skal nogen åbne tabellen. Én linje på rådgiverens forside, «N Klaviyo-hændelser fejlede det sidste døgn», fra samme delindeks (recon-platformsiden §6 pkt. 7). Gensender + linje er ét kort: den ene uden den anden er enten blind eller tandløs.</p>
-      <div class="meta"><span class="tag ny">Ny 20/9</span><span class="tag rust">Tirsdag aftens forsikring</span><span class="tag size">Mellem</span></div>
+      <div class="meta"><span class="tag loest">Lukket 21/9 — #1061, job 567</span><span class="tag ny">Ny 20/9</span><span class="tag rust">Tirsdag aftens forsikring</span><span class="tag size">Mellem</span></div>
     </div>
     <div class="card new" id="a20-set-procent-vaern" data-status="mangler" data-spor="senere" data-rammer="raadgiver">
       <h3>«Procenten går aldrig ned» hviler kun på koden — to POST'er i samme sekund kan gemme 40 % på en, der så 82</h3>
       <p>Begge læser <code>kendt</code> før nogen skriver; sidste skriver vinder. Klaviyo ender rigtigt (<code>unique_id</code>), tabellen kan være forkert. BEFORE UPDATE-trigger med <code>greatest(old, new)</code> — eller upsert med <code>greatest</code>. (recon-platformsiden §2.5, §6 pkt. 8)</p>
       <div class="meta"><span class="tag ny">Ny 20/9</span><span class="tag size">Lille</span></div>
     </div>
-    <div class="card new" id="a20-import-fremmoede" data-status="beslutning" data-spor="senere" data-rammer="medlem">
+    <div class="card new loest" id="a20-import-fremmoede" data-status="loest" data-spor="senere" data-rammer="medlem">
       <h3>Missede webhooken live-opdateringen, og importen fangede den bagefter, får personen aldrig en hændelse</h3>
+      <p><strong>LØST 21/9 — #1062 (<code>44b12d10</code>): importen kan sende fremmødet for én session (<code>send_fremmoede</code> + <code>session_dato</code>, dansk dato) med webhookens egen dom; sender FØRST (fem ad gangen), skriver bagefter; tidsbudget 100 s — brugt → intet skrives, kør igen. Tørkørsel bevist 11:32 (svar 13117: <code>i_sessionen 367, overgange ingen 367 · deltog 0 · moedte_ikke 0, ville_sende []</code>; 653 registranter, 14 sider). Jonas' beslutning: vej B — eWebinars eget svar, ikke stilhed. Regel til tirsdag: importen køres ALDRIG med <code>dry_run: false</code> uden <code>send_fremmoede: true</code>.</strong></p>
       <p>Importen skriver graden uden at sende (bevidst — ingen tilbageskrivning); webhooken ser så <code>gradFoer = set</code> → «ingen». Beslut, om importen må sende for sessioner inden for <code>FRISK_DAGE</code>. (recon-platformsiden §4, §6 pkt. 9)</p>
-      <div class="meta"><span class="tag gold">Beslutning</span><span class="tag ny">Ny 20/9</span><span class="tag size">Lille</span></div>
+      <div class="meta"><span class="tag loest">Lukket 21/9 — #1062, tørkørsel bevist</span><span class="tag gold">Beslutning</span><span class="tag ny">Ny 20/9</span><span class="tag size">Lille</span></div>
     </div>
     <div class="card new" id="a20-replay-deltog" data-status="beslutning" data-spor="senere" data-rammer="ingen">
       <h3>En replay-seer bliver «Deltog i webinar» i Klaviyo — uden session, uden frisk — ved et tilfælde</h3>

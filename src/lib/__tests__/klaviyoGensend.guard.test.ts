@@ -17,7 +17,8 @@ import { afstandMinutter, MAKS_FORSOEG, TRAPPE_MINUTTER } from "../../../supabas
  *      ikke om (ingen byggHaendelse: samme unique_id, samme time, samme frisk).
  *   4. config.toml har verify_jwt = true, og KENDTE_FELTER er præcis
  *      dry_run · nu · bevis_id.
- *   5. Migrationen er IKKE KØRT, planlægger hvert 5. minut på offset 1 med
+ *   5. Migrationen er bogført KØRT i prod (21/9 10:54, job 567 — filhovedet rettet i bogføringen 21/9;
+ *      var «IKKE KØRT» indtil da), planlægger hvert 5. minut på offset 1 med
  *      kald_edge('klaviyo-gensend-cron', …, 60000, 300000).
  *   6. Beviset kræver en ok-række (400 ellers).
  *   7. Regnestykket i konstanterne holder: 5+10+20+40+80 = 155, seks forsøg.
@@ -86,7 +87,7 @@ export const kendteFelterErTre = (funktion: string): boolean =>
 
 // ── 5 ──────────────────────────────────────────────────────────────────────
 export const migrationenPlanlaeggerRigtigt = (sql: string): boolean =>
-  sql.startsWith("-- IKKE KØRT. DEPLOY:") &&
+  sql.startsWith("-- KØRT i prod — 21/9-2026 kl. 10:54") &&
   /cron\.schedule\(\s*'klaviyo-gensend',\s*'1-59\/5 \* \* \* \*'/.test(sql) &&
   /kald_edge\(\s*'klaviyo-gensend-cron',\s*'\{"dry_run": false\}'::jsonb,\s*60000,[^\n]*\n\s*300000/.test(sql) &&
   sql.includes("cron.unschedule('klaviyo-gensend')");
@@ -143,10 +144,11 @@ describe("klaviyoGensend.guard — gensenderen", () => {
     expect(kendteFelterErTre(f.replace(/ukendteFelterBesked\(/g, "besked("))).toBe(false);
   });
 
-  it("5. migrationen er IKKE KØRT og planlægger hvert 5. minut på offset 1 med 60 s / 5 min", () => {
+  it("5. migrationen er bogført KØRT i prod (job 567) og planlægger hvert 5. minut på offset 1 med 60 s / 5 min", () => {
     const sql = laes(MIGRATION);
     expect(migrationenPlanlaeggerRigtigt(sql)).toBe(true);
-    expect(migrationenPlanlaeggerRigtigt(sql.replace("-- IKKE KØRT. DEPLOY:", "-- KØRT. DEPLOY:"))).toBe(false);
+    // Filhovedet må ikke falde tilbage til «IKKE KØRT» — migrationen ER kørt (job 567).
+    expect(migrationenPlanlaeggerRigtigt(sql.replace("-- KØRT i prod — 21/9-2026 kl. 10:54", "-- IKKE KØRT. DEPLOY:"))).toBe(false);
     expect(migrationenPlanlaeggerRigtigt(sql.replace("'1-59/5 * * * *'", "'*/5 * * * *'"))).toBe(false);
     expect(migrationenPlanlaeggerRigtigt(sql.replace("300000 ", "900000 "))).toBe(false);
   });
