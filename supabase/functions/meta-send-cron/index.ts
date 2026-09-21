@@ -22,12 +22,13 @@
 // KØRSLEN:
 //   1. Låsen læses (app_config) — fail-closed: kan den ikke læses, er den lukket.
 //   2. Kandidaterne: ansoegninger med created_at ELLER indsendt_at inden for 7 dage +
-//      lidt luft, KUN kolonnerne id, created_at, indsendt_at, fbclid, landing, user_agent.
-//      Dommen (doem) siger pr. (ansøgning, started/submitted): send, eller sprunget over
-//      med grund. Sporet siger, hvad der allerede er sendt eller ugyldigt (maaForsoeges) —
-//      intet forsøgsloft: ingen_noegle/fejl/timeout prøves igen ved hver kørsel, til «for_gammel».
-//   3. Tørkørsel: svaret bærer ville_sende (event_id, art, event_time, fbc-præfiks —
-//      aldrig user agent eller fbclid i klartekst) og sprunget pr. grund.
+//      lidt luft, KUN kolonnerne i RAEKKE_FELTER. Dommen (doem) siger pr. (ansøgning,
+//      started/submitted): send, eller sprunget over med grund. Sporet siger, hvad der
+//      allerede er sendt eller ugyldigt (maaForsoeges) — intet forsøgsloft:
+//      ingen_noegle/fejl/timeout prøves igen ved hver kørsel, til «for_gammel».
+//   3. Tørkørsel: svaret bærer ville_sende (event_id, art, event_time, fbc-KILDEN og
+//      NAVNENE på de brugerdata, der ville blive sendt — aldrig en værdi, aldrig et
+//      klik-id eller en user agent i klartekst) og sprunget pr. grund.
 //   4. Rigtig kørsel: én hændelse pr. kald (sendTilMeta), sekventielt inden for
 //      BUDGET_MS; sporet skrives FØR svaret (upsert på event_id: udfald, forsoeg,
 //      status, svar, fejl, test_event_code, sendt_at). Payloaden går gennem
@@ -39,6 +40,18 @@
 //
 // KASTER ALDRIG mod én hændelse: fejler én, tælles den, og de andre sendes. Vælter hele
 // kørslen (databasen væk), er svaret 500 med grunden.
+//
+// ── UDVIDELSEN 22/9-2026 (Jonas 21/9 aften; hele designet i _shared/metaSend.ts pkt. 11–14) ──
+//   ALLE ANSØGERE: filteret på fbclid er væk — webinarvejen bærer intet klik-id og var usynlig.
+//   HASHET BRUGERDATA: em, ph, fn, ln og country normaliseres efter Metas egne regler og
+//     SHA-256'es i denne fil (hashBrugerdata), aldrig i klartekst videre. Kun de felter,
+//     ansøgningen HAR — «application_started» sker på skærm 1, hvor mail og navn mangler.
+//   METAS COOKIER: fbp og fbc_cookie fra theboardroom.dk; URL'ens fbclid har forrang på fbc.
+//   FRAVALG: meta_fravalg = true → sprunget over med grunden «fravalgt», før alt andet.
+//   VÆRNET AFVISER ÉN HÆNDELSE, IKKE HELE KØRSLEN (rettelse): før returnerede en afvist
+//     payload 500 for hele kørslen — én bots user agent med et snabel-a kunne dermed have
+//     standset alle afsendelser. Nu tælles den som fejlet (alarm), sporet skrives ikke, og
+//     de øvrige sendes.
 
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
 import { authenticateServiceRole, corsHeaders } from "../_shared/edgeFunctionAuth.ts";
@@ -50,9 +63,10 @@ import { indgangsMailHtml } from "../_shared/indgangsMail.ts";
 import { skrivRaadgiverBesked } from "../_shared/raadgiverBesked.ts";
 import { sendTilMeta } from "../_shared/metaSendAfsendelse.ts";
 import {
-  ALARM_KLOKKE_TYPE, ALARM_MAIL_LABEL, alarmNoegle, alarmTekst, type AnsoegningTilMeta, type Art, ARTER, bygPayload, doem,
-  erTestEventCode, eventId, type FejletAfsendelse, findForbudteNoegler, laasErAktiv, maaForsoeges, META_SEND_LAAS_NOEGLE,
-  META_VINDUE_DAGE, senderRigtigt, type SporRaekke, type SprungetGrund,
+  ALARM_KLOKKE_TYPE, ALARM_MAIL_LABEL, alarmNoegle, alarmTekst, type AnsoegningTilMeta, type Art, ARTER, type BrugerdataNoegle,
+  brugerdataNoegler, bygFbpFelt, bygPayload, doem, erTestEventCode, eventId, fbcKilde, type FejletAfsendelse, findForbudteNoegler,
+  hashBrugerdata, laasErAktiv, maaForsoeges, META_SEND_LAAS_NOEGLE, META_VINDUE_DAGE, normaliserBrugerdata, senderRigtigt,
+  type SporRaekke, type SprungetGrund,
 } from "../_shared/metaSend.ts";
 
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -65,12 +79,30 @@ export const KENDTE_FELTER = ["dry_run", "nu", "test_event_code", "ansoegning_id
 export const BUDGET_MS = 45_000;
 const SIDE = 1000;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const RAEKKE_FELTER = "id, created_at, indsendt_at, fbclid, landing, user_agent";
+/**
+ * KUN disse kolonner. email, navn og telefon kom til 22/9 og læses for ÉT formål: at blive
+ * normaliseret og hashet af _shared/metaSend.ts. Cronen rører dem ALDRIG selv — den sender
+ * hele rækken til normaliserBrugerdata og ser kun aftryk igen. cvr, svar, hjemmeside,
+ * udfordring og ip_hash står ikke her og hentes aldrig.
+ */
+const RAEKKE_FELTER = "id, created_at, indsendt_at, fbclid, landing, user_agent, email, navn, telefon, fbp, fbc_cookie, meta_fravalg";
 
 const json = (krop: unknown, status = 200) =>
   new Response(JSON.stringify(krop), { status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
-interface Plan { event_id: string; ansoegning_id: string; art: Art; event_time: string; fbc_praefiks: string; forsoeg: number }
+/** Tørkørslens plan: hvad der VILLE blive sendt — nøglerne, aldrig værdierne. */
+interface Plan {
+  event_id: string;
+  ansoegning_id: string;
+  art: Art;
+  event_time: string;
+  /** klik_id · cookie · ingen — hvor fbc kommer fra. */
+  fbc_kilde: "klik_id" | "cookie" | "ingen";
+  fbp: boolean;
+  /** em/ph/fn/ln/country, som de VILLE blive sendt (hashet). Kun navnene. */
+  brugerdata: BrugerdataNoegle[];
+  forsoeg: number;
+}
 
 export interface MetaSendResultat {
   ok: boolean;
@@ -86,6 +118,8 @@ export interface MetaSendResultat {
   ville_sende: Plan[];
   sprunget: Record<SprungetGrund | "allerede_sendt" | "ugyldig", number>;
   sendt: number;
+  /** Payloads, værnet afviste (vores fejl, ikke Metas) — sporet skrives IKKE, så de prøves igen efter en rettelse. */
+  payload_afvist: number;
   fejlede: number;
   fejlede_liste: FejletAfsendelse[];
   udsat: number;
@@ -98,8 +132,8 @@ function tomt(a: { toer: boolean; laas: boolean; test: string | null; id: string
   return {
     ok: true, dry_run: a.toer, laas_aktiv: a.laas, sender_rigtigt: senderRigtigt({ dryRun: a.toer, laasAktiv: a.laas, testEventCode: a.test }),
     test_event_code: a.test, ansoegning_id: a.id, nu: a.nu.toISOString(), kandidater: 0, ville_sende: [],
-    sprunget: { ingen_fbclid: 0, ingen_user_agent: 0, ingen_landing: 0, ikke_indsendt: 0, ingen_tidspunkt: 0, for_gammel: 0, allerede_sendt: 0, ugyldig: 0 },
-    sendt: 0, fejlede: 0, fejlede_liste: [], udsat: 0, alarm: "ingen", fejl: [],
+    sprunget: { fravalgt: 0, ingen_user_agent: 0, ingen_landing: 0, ikke_indsendt: 0, ingen_tidspunkt: 0, for_gammel: 0, allerede_sendt: 0, ugyldig: 0 },
+    sendt: 0, payload_afvist: 0, fejlede: 0, fejlede_liste: [], udsat: 0, alarm: "ingen", fejl: [],
   };
 }
 
@@ -110,7 +144,13 @@ async function hentLaas(admin: SupabaseClient): Promise<boolean> {
   return laasErAktiv((data as { config_value?: unknown } | null)?.config_value ?? null);
 }
 
-/** Kandidaterne i vinduet (+ 1 dags luft; dommen afgør præcist), side for side. KUN de seks kolonner. */
+/**
+ * Kandidaterne i vinduet (+ 1 dags luft; dommen afgør præcist), side for side.
+ * UDVIDET 22/9 (pkt. 11): filteret `.not("fbclid", "is", null)` er VÆK. Webinarvejen
+ * (annonce → topix.dk → mail → /ansoeg?kilde=webinar) bærer intet klik-id og var derfor
+ * usynlig for Meta. Fravalget filtreres HELLER IKKE her — doem springer det over med
+ * grunden «fravalgt», så tallet kan ses i svaret i stedet for at forsvinde.
+ */
 async function hentKandidater(admin: SupabaseClient, nu: Date, ansoegningId: string | null): Promise<AnsoegningTilMeta[]> {
   if (ansoegningId) {
     const { data, error } = await admin.from("ansoegninger").select(RAEKKE_FELTER).eq("id", ansoegningId).maybeSingle();
@@ -122,7 +162,6 @@ async function hentKandidater(admin: SupabaseClient, nu: Date, ansoegningId: str
   for (let start = 0; ; start += SIDE) {
     const { data, error } = await admin.from("ansoegninger").select(RAEKKE_FELTER)
       .or(`created_at.gte.${fra},indsendt_at.gte.${fra}`)
-      .not("fbclid", "is", null)
       .order("created_at", { ascending: true }).order("id", { ascending: true })
       .range(start, start + SIDE - 1);
     if (error) throw new Error(`ansoegninger: ${error.message}`);
@@ -194,7 +233,15 @@ export async function koerMetaSend(
       const id = eventId(k.id, art);
       const m = maaForsoeges(spor.get(id) ?? null);
       if (!m.ok) { r.sprunget[m.grund]++; continue; }
-      planer.push({ plan: { event_id: id, ansoegning_id: k.id, art, event_time: d.tid.toISOString(), fbc_praefiks: `fb.1.${Date.parse(k.created_at)}.…`, forsoeg: (spor.get(id)?.forsoeg ?? 0) + 1 }, raekke: k, tid: d.tid });
+      planer.push({
+        plan: {
+          event_id: id, ansoegning_id: k.id, art, event_time: d.tid.toISOString(),
+          fbc_kilde: fbcKilde(k.fbclid, k.fbc_cookie), fbp: bygFbpFelt(k.fbp) !== null,
+          brugerdata: brugerdataNoegler(normaliserBrugerdata(k)),
+          forsoeg: (spor.get(id)?.forsoeg ?? 0) + 1,
+        },
+        raekke: k, tid: d.tid,
+      });
     }
   }
   r.ville_sende = planer.map((p) => p.plan);
@@ -203,12 +250,22 @@ export async function koerMetaSend(
 
   for (const p of planer) {
     if (Date.now() - a.startMs > BUDGET_MS) { r.udsat++; continue; }
-    const payload = bygPayload(p.raekke, p.plan.art, p.tid, await sha256Hex(p.raekke.id));
+    // Brugerdataene normaliseres og hashes HER — klarteksten findes kun i dette udtryk og
+    // forlader aldrig funktionen. Aftrykkene er det eneste, bygPayload nogensinde ser.
+    const hashet = await hashBrugerdata(normaliserBrugerdata(p.raekke), sha256Hex);
+    const payload = bygPayload(p.raekke, p.plan.art, p.tid, await sha256Hex(p.raekke.id), hashet);
     const forbudte = findForbudteNoegler(payload);
     if (forbudte.length > 0) {
-      console.error(`${LOG} SVAR AFVIST — persondata i payloaden:`, forbudte.join(", "));
-      r.ok = false; r.fejl.push(`payload_afvist: ${forbudte.join(", ")}`);
-      return { status: 500, resultat: r };
+      // ÉN hændelse afvises, ikke hele kørslen (rettelse 22/9). En rå værdi i ét felt —
+      // fx en e-mail i en bots user agent — må ikke kunne standse alle de andre. Sporet
+      // skrives IKKE: det er VORES fejl, og hændelsen skal prøves igen, når den er rettet.
+      // Alarmen kommer alligevel, fordi den tælles med blandt de fejlede.
+      console.error(`${LOG} PAYLOAD AFVIST — ${p.plan.event_id}:`, forbudte.join(", "));
+      r.payload_afvist++;
+      r.fejl.push(`payload_afvist ${p.plan.event_id}: ${forbudte.join(", ")}`);
+      r.fejlede++;
+      r.fejlede_liste.push({ event_id: p.plan.event_id, udfald: "ugyldig", fejl: `værnet afviste payloaden: ${forbudte.join(", ")}`, forsoeg: p.plan.forsoeg });
+      continue;
     }
     const svar = await sendTilMeta(payload, a.testEventCode);
     const { error } = await admin.from("meta_haendelser").upsert({

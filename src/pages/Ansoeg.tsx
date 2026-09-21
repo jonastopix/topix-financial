@@ -30,6 +30,7 @@ import {
   KILDE_PARAM,
   laesAnnoncespor,
   laesGa,
+  laesMetaCookies,
   SKAERME,
   TOKEN_PARAM,
   TOMME_SVAR,
@@ -127,6 +128,10 @@ const Ansoeg = () => {
   // læst ÉN gang ved mount som sporet. Findes de ikke (intet samtykke på theboardroom.dk),
   // er begge null — aldrig et gæt. Sendes med «opret», gemmes i en egen fail-soft update.
   const ga = useRef(laesGa(typeof document !== "undefined" ? document.cookie : null));
+  // Metas egne cookier (22/9): _fbp og _fbc fra theboardroom.dk, læst SAMME sted og samme
+  // øjeblik som GA's — én parser, intet gæt. Findes de ikke, er begge null. Værdien røres
+  // ikke: Meta vil have cookien ordret («do not apply any modifications before using»).
+  const metaCookies = useRef(laesMetaCookies(typeof document !== "undefined" ? document.cookie : null));
 
   const fremdrift = useMemo(() => afgoerFremdrift(svar), [svar]);
 
@@ -184,7 +189,7 @@ const Ansoeg = () => {
       setGemmer(true);
       try {
         if (!token) {
-          const o = await opretAnsoegning({ kilde: kilde.current.kilde, kilde_raa: kilde.current.raa, annoncespor: annoncespor.current, ga: ga.current, svar: del, firma: honning });
+          const o = await opretAnsoegning({ kilde: kilde.current.kilde, kilde_raa: kilde.current.raa, annoncespor: annoncespor.current, ga: ga.current, meta: metaCookies.current, svar: del, firma: honning });
           husk(o.token);
           if (navn) await gemSvar(o.token, {}, false, navn);
         } else {
