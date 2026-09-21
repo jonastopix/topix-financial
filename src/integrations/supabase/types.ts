@@ -2670,6 +2670,68 @@ export type Database = {
         }
         Relationships: []
       }
+      ga_haendelser: {
+        Row: {
+          ansoegning_id: string
+          art: string
+          created_at: string
+          debug: boolean
+          event_id: string
+          event_time: string
+          fejl: string | null
+          forsoeg: number
+          sendt_at: string | null
+          sidste_forsoeg_at: string
+          status: number | null
+          svar: string | null
+          udfald: string
+          validering: Json | null
+          varighed_ms: number | null
+        }
+        Insert: {
+          ansoegning_id: string
+          art: string
+          created_at?: string
+          debug?: boolean
+          event_id: string
+          event_time: string
+          fejl?: string | null
+          forsoeg?: number
+          sendt_at?: string | null
+          sidste_forsoeg_at?: string
+          status?: number | null
+          svar?: string | null
+          udfald: string
+          validering?: Json | null
+          varighed_ms?: number | null
+        }
+        Update: {
+          ansoegning_id?: string
+          art?: string
+          created_at?: string
+          debug?: boolean
+          event_id?: string
+          event_time?: string
+          fejl?: string | null
+          forsoeg?: number
+          sendt_at?: string | null
+          sidste_forsoeg_at?: string
+          status?: number | null
+          svar?: string | null
+          udfald?: string
+          validering?: Json | null
+          varighed_ms?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ga_haendelser_ansoegning_id_fkey"
+            columns: ["ansoegning_id"]
+            isOneToOne: false
+            referencedRelation: "ansoegninger"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       handout_lever_milestones: {
         Row: {
           created_at: string
