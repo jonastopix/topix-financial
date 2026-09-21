@@ -73,6 +73,10 @@ const STRIKS: readonly string[] = [
 
   // Gensenderen for klaviyo_haendelser (21/9): dry_run, nu og bevis_id, alt andet afvises.
   "klaviyo-gensend-cron",
+
+  // Engangsimporten (udkast 21/9, fremmøde for én session): maal, dry_run,
+  // send_fremmoede og session_dato — alt andet afvises. Læser nu med req.json().
+  "ewebinar-import",
 ];
 
 /**

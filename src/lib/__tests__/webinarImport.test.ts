@@ -9,15 +9,23 @@
  */
 import { describe, expect, it } from "vitest";
 import {
+  danskDato,
+  doemFremmoedeForImport,
   erForskellig,
+  erISessionen,
   feltRapport,
   feltRapportSomMarkdown,
+  gyldigSessionDato,
   KENDTE_NOEGLER,
   kanoniskJson,
   plukRestRegistrant,
+  somFremmoedeLinje,
   somWebhookForm,
+  tomFremmoedeRapport,
 } from "../../../supabase/functions/_shared/webinarImport.ts";
 import { fletTilmelding, plukTilmelding, type WebinarTilmelding } from "../../../supabase/functions/_shared/webinarDom.ts";
+import { afgoerOvergang, byggFremmoede } from "../../../supabase/functions/_shared/webinarHaendelser.ts";
+import { byggHaendelse } from "../../../supabase/functions/_shared/klaviyoHaendelser.ts";
 
 /** REST-formen, ordret efter V2Registrant-skemaet. */
 const REST = {
@@ -224,5 +232,139 @@ describe("kanoniskJson — aftrykket må ikke afhænge af nøglerækkefølgen", 
     expect(kanoniskJson({ a: 1, b: undefined })).toBe(kanoniskJson({ a: 1 }));
     expect(kanoniskJson(null)).toBe("null");
     expect(kanoniskJson("x")).toBe('"x"');
+  });
+});
+
+// ── Fremmøde for ÉN session (udkast 21/9) ──────────────────────────────────
+
+describe("session_dato — dansk kalenderdato", () => {
+  it("gyldigSessionDato: «2026-09-22» ja; «22/9», «2026-02-30», tal og tom nej", () => {
+    expect(gyldigSessionDato("2026-09-22")).toBe(true);
+    expect(gyldigSessionDato("2026-02-29")).toBe(false); // 2026 er ikke skudår
+    expect(gyldigSessionDato("2026-02-30")).toBe(false);
+    expect(gyldigSessionDato("22/9-2026")).toBe(false);
+    expect(gyldigSessionDato("2026-9-22")).toBe(false);
+    expect(gyldigSessionDato("")).toBe(false);
+    expect(gyldigSessionDato(20260922)).toBe(false);
+    expect(gyldigSessionDato(null)).toBe(false);
+  });
+
+  it("danskDato: grænsen ligger ved dansk midnat — 22:30 UTC 21/9 ER 22/9, 21:59 UTC er 21/9", () => {
+    expect(danskDato("2026-09-21T22:30:00.000Z")).toBe("2026-09-22"); // 00:30 dansk sommertid
+    expect(danskDato("2026-09-21T21:59:59.000Z")).toBe("2026-09-21"); // 23:59:59 dansk
+    expect(danskDato("2026-09-22T07:00:00.000Z")).toBe("2026-09-22"); // kl. 09 dansk
+    expect(danskDato("2026-09-22T21:59:59.000Z")).toBe("2026-09-22");
+    expect(danskDato("2026-09-22T22:00:00.000Z")).toBe("2026-09-23");
+    // Vintertid: én times forskydning, ikke to.
+    expect(danskDato("2026-12-01T23:30:00.000Z")).toBe("2026-12-02");
+    expect(danskDato("2026-12-01T22:30:00.000Z")).toBe("2026-12-01");
+    expect(danskDato(null)).toBeNull();
+    expect(danskDato("ikke-en-dato")).toBeNull();
+  });
+
+  it("erISessionen: kun sessioner på datoen; replay/OnDemand (session_tid null) ALDRIG", () => {
+    expect(erISessionen({ session_tid: "2026-09-22T07:00:00.000Z" }, "2026-09-22")).toBe(true);
+    expect(erISessionen({ session_tid: "2026-09-21T22:30:00.000Z" }, "2026-09-22")).toBe(true);
+    expect(erISessionen({ session_tid: "2026-09-21T21:00:00.000Z" }, "2026-09-22")).toBe(false);
+    expect(erISessionen({ session_tid: "2026-09-23T07:00:00.000Z" }, "2026-09-22")).toBe(false);
+    expect(erISessionen({ session_tid: null }, "2026-09-22")).toBe(false);
+  });
+});
+
+describe("doemFremmoedeForImport — webhookens dom, med importens ur", () => {
+  const SESSION = "2026-09-22T07:00:00.000Z"; // kl. 09 dansk
+  const NU_EFTER = new Date("2026-09-22T12:00:00.000Z"); // tre timer efter sessionen er slut
+  const NU_FOER = new Date("2026-09-22T05:00:00.000Z"); // to timer før
+  // Grundrækken plukkes med webhookens egen plukker — så den har alle kolonner.
+  const grund = plukTilmelding({ id: "reg_1", email: "a@b.dk", webinarId: "14166", webinarTitle: "Mortens webinar", sessionTime: SESSION, state: "Registered", action: "Registered" });
+  if (!grund.ok) throw new Error("fixturen kunne ikke plukkes");
+  const raekke = (over: Partial<WebinarTilmelding>): WebinarTilmelding => ({ ...grund.tilmelding, ...over });
+
+  it("Missed efter sessionen, foer Registered → moedte_ikke, og hændelsen bygges", () => {
+    const foer = raekke({ state: "Registered" });
+    const flettet = fletTilmelding(foer, raekke({ state: "Missed", sidste_action: "MissedWebinar" }));
+    const d = doemFremmoedeForImport(foer, flettet, NU_EFTER);
+    expect(d.grad_foer).toBe("ukendt"); // Registered + session forbi = ukendt (webinarDom.ts:338–339)
+    expect(d.grad).toBe("moedte_ikke");
+    expect(d.overgang).toBe("moedte_ikke");
+    expect(d.haendelse?.metric).toBe("Moedte ikke op");
+    expect(d.haendelse?.uniktId).toBe("reg_1:moedte_ikke");
+  });
+
+  it("ingen kendt række (foer null) + Missed efter sessionen → moedte_ikke", () => {
+    const d = doemFremmoedeForImport(null, raekke({ state: "Missed" }), NU_EFTER);
+    expect(d.grad_foer).toBeNull();
+    expect(d.overgang).toBe("moedte_ikke");
+  });
+
+  it("foer Watched → ingen: en der mødte op, bliver aldrig til en der ikke gjorde", () => {
+    const foer = raekke({ state: "Watched", set_procent: 82, set_procent_kilde: "watchedPercent" });
+    const flettet = fletTilmelding(foer, raekke({ state: "Missed" }));
+    const d = doemFremmoedeForImport(foer, flettet, NU_EFTER);
+    expect(d.grad_foer).toBe("set");
+    expect(d.grad).toBe("set"); // procenten går aldrig ned, og tallet vinder
+    expect(d.overgang).toBe("ingen");
+    expect(d.haendelse).toBeNull();
+  });
+
+  it("Missed FØR sessionen → grad tilmeldt → ingen (ingen har mødt ikke op til noget, der ikke er sket)", () => {
+    const d = doemFremmoedeForImport(raekke({ state: "Registered" }), raekke({ state: "Missed" }), NU_FOER);
+    expect(d.grad).toBe("tilmeldt");
+    expect(d.overgang).toBe("ingen");
+    expect(d.haendelse).toBeNull();
+  });
+
+  it("Registered efter sessionen (eWebinar har ikke sagt noget) → ukendt → ingen: intet sendes ud fra stilhed", () => {
+    const d = doemFremmoedeForImport(raekke({ state: "Registered" }), raekke({ state: "Registered" }), NU_EFTER);
+    expect(d.grad).toBe("ukendt");
+    expect(d.overgang).toBe("ingen");
+  });
+
+  it("Watched med 82 % efter sessionen, foer Registered → deltog", () => {
+    const foer = raekke({ state: "Registered" });
+    const flettet = fletTilmelding(foer, raekke({ state: "Watched", set_procent: 82, set_procent_kilde: "watchedPercent" }));
+    const d = doemFremmoedeForImport(foer, flettet, NU_EFTER);
+    expect(d.overgang).toBe("deltog");
+    expect(d.haendelse?.uniktId).toBe("reg_1:set");
+    expect(d.haendelse?.egenskaber?.set_procent).toBe(82);
+  });
+
+  it("replay (session_tid null) → erISessionen falsk, så dommen kaldes aldrig — og selv kaldt bærer den intet frisk-mærke", () => {
+    const r = raekke({ session_tid: null, session_type: "Replay", state: "Missed" });
+    expect(erISessionen(r, "2026-09-22")).toBe(false);
+    const d = doemFremmoedeForImport(null, r, NU_EFTER);
+    expect(d.haendelse?.egenskaber?.frisk).toBeNull();
+  });
+
+  it("unique_id, krop og time er IDENTISKE med det, webhooken bygger for samme række og samme ur", () => {
+    const foer = raekke({ state: "Registered" });
+    const flettet = fletTilmelding(foer, raekke({ state: "Missed" }));
+    const d = doemFremmoedeForImport(foer, flettet, NU_EFTER);
+    // Webhookens egne linjer (ewebinar-webhook/index.ts:174–185), ordret:
+    const overgang = afgoerOvergang("ukendt", "moedte_ikke");
+    const webhook = byggFremmoede(overgang, {
+      ewebinarId: flettet.ewebinar_id,
+      email: flettet.email,
+      grad: "moedte_ikke",
+      setProcent: flettet.set_procent ?? null,
+      webinarId: flettet.webinar_id,
+      webinarTitel: flettet.webinar_titel ?? null,
+      sessionTid: flettet.session_tid,
+      tid: NU_EFTER,
+    });
+    expect(d.haendelse).toEqual(webhook);
+    expect(byggHaendelse(d.haendelse!)).toEqual(byggHaendelse(webhook!));
+    expect(byggHaendelse(d.haendelse!).data).toMatchObject({ attributes: { unique_id: "reg_1:moedte_ikke", time: NU_EFTER.toISOString() } });
+    // frisk: sessionen var tre timer siden — inden for FRISK_DAGE.
+    expect(d.haendelse?.egenskaber?.frisk).toBe("ja");
+  });
+
+  it("somFremmoedeLinje og tomFremmoedeRapport — svarets form", () => {
+    const d = doemFremmoedeForImport(null, raekke({ state: "Missed" }), NU_EFTER);
+    expect(somFremmoedeLinje(d)).toEqual({
+      email: "a@b.dk", ewebinar_id: "reg_1", grad_foer: null, grad: "moedte_ikke", overgang: "moedte_ikke",
+      unique_id: "reg_1:moedte_ikke", frisk: "ja",
+    });
+    expect(tomFremmoedeRapport("2026-09-22")).toEqual({ session_dato: "2026-09-22", i_sessionen: 0, overgange: { deltog: 0, moedte_ikke: 0, ingen: 0 }, udfald: {}, fejl: [] });
   });
 });
