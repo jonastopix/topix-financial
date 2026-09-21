@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ANNONCESPOR_KOLONNER, erUkendtKolonne, medAnnoncespor, udenAnnoncespor } from "@/lib/webinar/kolonner";
+import { ANNONCESPOR_KOLONNER, erUkendtKolonne, medAnnoncespor, medUdledte, udenAnnoncespor, udenUdledte, UDLEDTE_KOLONNER } from "@/lib/webinar/kolonner";
 
 /** hooks/webinar.ts's liste, som den ser ud ved HEAD — kopieret hertil, så
     testen ikke rejser en Supabase-klient. Kildeværnet holder den ens. */
@@ -61,5 +61,18 @@ describe("erUkendtKolonne — kun 42703 må føre til en genhentning uden sporet
     expect(erUkendtKolonne({ message: "Failed to fetch" })).toBe(false);
     expect(erUkendtKolonne({ code: "42501", message: "permission denied for table webinar_tilmeldinger" })).toBe(false);
     expect(erUkendtKolonne({ code: "42P01", message: 'relation "public.webinar_tilmeldinger" does not exist' })).toBe(false);
+  });
+});
+
+describe("de udledte kolonner (ad_id_udledt) — egen liste, egen af-/påsætning", () => {
+  it("UDLEDTE_KOLONNER er ikke en del af annoncesporet", () => {
+    expect(UDLEDTE_KOLONNER).toEqual(["ad_id_udledt"]);
+    expect(medAnnoncespor("a, b")).not.toContain("ad_id_udledt");
+  });
+  it("medUdledte sætter kolonnen præcis én gang; udenUdledte tager den af igen", () => {
+    expect(medUdledte("a, b")).toBe("a, b, ad_id_udledt");
+    expect(medUdledte("a, ad_id_udledt, b")).toBe("a, b, ad_id_udledt");
+    expect(udenUdledte("a, ad_id_udledt, b")).toBe("a, b");
+    expect(udenUdledte(medUdledte(medAnnoncespor("a")))).toBe(medAnnoncespor("a"));
   });
 });

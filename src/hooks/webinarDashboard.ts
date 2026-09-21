@@ -35,7 +35,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { HentningsFejl, kraevRaekker } from "@/lib/kraevRaekker";
 import { TILMELDING_KOLONNER } from "@/hooks/webinar";
-import { erUkendtKolonne, medAnnoncespor, udenAnnoncespor } from "@/lib/webinar/kolonner";
+import { erUkendtKolonne, medAnnoncespor, medUdledte, udenAnnoncespor } from "@/lib/webinar/kolonner";
 import type { AnsoegerMail, Tilmelding } from "@/lib/webinar/dashboard";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -62,6 +62,17 @@ export async function hentTilmeldingerMedSpor(): Promise<{ raekker: Tilmelding[]
   const q = (kolonner: string) =>
     tabel("webinar_tilmeldinger").select(kolonner).order("session_tid", { ascending: false, nullsFirst: false }).limit(GRAENSE);
 
+  // Tre forsøg, hver ét trin fattigere — og KUN når kolonnen mangler (42703):
+  //   1. sporet + de udledte (ad_id_udledt, migration 20260921130000)
+  //   2. sporet alene (den udledte kolonne er ikke kørt endnu)
+  //   3. uden sporet (annoncesporet er ikke kørt endnu)
+  // Uden trin 2 ville én ny kolonne, der mangler, koste HELE sporet (fladen
+  // faldt tilbage til «uden spor», selvom sporet var der).
+  const medAlt = await q(medUdledte(medAnnoncespor(TILMELDING_KOLONNER)));
+  if (!medAlt.error) {
+    return { raekker: (kraevRaekker(medAlt, "webinar_tilmeldinger") as Record<string, unknown>[]).map(somRaekke), sporKolonnerFindes: true };
+  }
+  if (!erUkendtKolonne(medAlt.error)) throw new HentningsFejl("webinar_tilmeldinger", medAlt.error.message || "ukendt fejl");
   const fuld = await q(medAnnoncespor(TILMELDING_KOLONNER));
   if (!fuld.error) {
     return { raekker: (kraevRaekker(fuld, "webinar_tilmeldinger") as Record<string, unknown>[]).map(somRaekke), sporKolonnerFindes: true };
