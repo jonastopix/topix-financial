@@ -44,11 +44,51 @@ matcher ingen. Grunden: Metas Event Match Quality («Sending additional customer
 information parameters may help increase Event Match Quality»), og at ansøgeren kan bede
 sig fri (`ansoegninger.meta_fravalg`).
 
+**(d2) «LEAD» DELES MED ANNONCERNE — OG BLIVER STÅENDE** (målt og besluttet 21/9-2026
+22:44–22:49). Platformens `application_started` og `application_submitted` sendes fortsat som
+Metas standardnavn **`Lead`** med `content_name` som parameter. En omdøbning til egne navne
+blev overvejet og **forkastet** — begrundelsen står nedenfor.
+
+**Det, der ER målt i Events Manager (datasæt 858180112996496):**
+
+| Måling | Resultat |
+|---|---|
+| Annoncesæt, der bruger «Lead» som mål «Leads» | **fire**: `120248713786770694`, `120248713786760694`, `120242386310820694`, `120242386845280694` |
+| Leads 24/8–20/9 | **356** — 254 fra browser, 102 fra server (API for konverteringer) |
+| Deduplikering | «opfylder ikke anbefalede fremgangsmåder» |
+| Kildetype | alle 356 med kildetypen **website** |
+| Hvilke domæner og tags de 356 kommer fra | **UMÅLT** |
+| Platformens egne hændelser (`meta_haendelser`, 22:48) | **ÉN hændelse nogensinde** — `6cff9f4a…:started`, sendt 22:30 med testkode. **Ingen rigtige ansøgninger er sendt som Lead.** |
+
+**Metas eksport af 13 Lead-eksempler (22:49) viser to kampagner bag navnet:**
+
+| Kampagne | Annoncesæt | Kilde | Hvad hændelsen faktisk er |
+|---|---|---|---|
+| Webinarkampagnen `120248713786520694` | `120248713786770694`, `120248713786760694` | **server** (Stape) | webinartilmeldinger — `placedURL` `topix.dk/webinar?…fbclid…`, data `{"currency":"DKK"}` |
+| Den direkte kampagne `120242386310830694` | `120242386845280694` (formentlig også `120242386310820694`) | **browser** | GTM-taggets **knapklik** — `content_name` `application_started` fra `theboardroom.dk/?utm_…`. Taget er sat på pause 21/9 ca. 21:40 |
+| samme | samme | **browser** | det falske «sendt»-tag — `content_name` `application_submitted` fra `theboardroom.dk/ansogning-modtaget` **og fra `https://lovable.dev/`** (Lovables forhåndsvisning af sitet) |
+
+**HVORFOR «LEAD» BLIVER STÅENDE:** den direkte kampagnes Lead-signal var et knapklik og en
+tak-side, der ikke målte en ansøgning — og begge dele er nu slukket. Platformens rigtige
+ansøgninger er dermed **erstatningen** for det falske signal, ikke en forurening af det. En
+omdøbning ville have efterladt den direkte kampagnes annoncesæt **uden signal før webinaret**.
+
+**Adskillelsen af webinartilmeldinger og ansøgninger sker i Events Manager** med tilpassede
+konverteringer og regler på `content_name` og URL — **ikke i koden**. Koden sender ét ærligt
+navn med en ærlig parameter; hvad annoncesættene optimerer på, er en indstilling.
+
+**RETTET SAMME AFTEN, så det ikke står som en måling:** det blev undervejs påstået, at Metas
+«Aktivitetseksempler» viste webinar-Leads med `lead_source` «ewebinar» fra topix.dk side om
+side med platformens Leads fra app.theboardroom.dk. **Det er ikke set.** Kun tabellerne
+ovenfor er målt. Påstanden står her alene for at sikre, at den ikke bliver gentaget som et fund.
+
 **(e) Ingen jurist** — besluttet af Jonas 21/9: vi løser det ud fra, hvad vi mener er
 rigtigt. User agent sendes, fordi Meta kræver den for website-hændelser
 (developers.facebook.com, Conversions API Parameters: «Website events … require the
 client_user_agent, action_source, and event_source_url parameters»), den gælder kun
 annonce-ansøgere (kun rækker med `fbclid`), og den står i persondatateksten.
+**TRIN 2 (22/9):** de tre nye hændelser er CRM-hændelser, ikke website-hændelser — de sker i vores eget system (rådgiverens klik, Calendly-webhooken, Stripe-webhooken), og Meta dokumenterer netop den sag som `action_source: "system_generated"` + `custom_data.event_source: "crm"`. De bærer derfor hverken user agent eller `event_source_url`: ansøgningens user agent hører til et ANDET øjeblik, og at sende den ville være en påstand om en browser, vi ikke har set.
+
 **Rettet 22/9:** user agent gemmes nu for **ALLE** ansøgere, fordi alle ansøgninger sendes
 — webinarvejen (annonce → topix.dk → mail → `/ansoeg?kilde=webinar`) bærer intet klik-id
 og var derfor usynlig for Meta. Uden user agent kan hændelsen slet ikke sendes.
@@ -89,6 +129,7 @@ cookien ellers ikke findes, og teksterne skal være sande.
 | 20 | **Klaviyo «Ansoegning paabegyndt»** | platform, server: `ansoegning-gem` «gem»-grenen (`index.ts:270–272`) | e-mail kommer ind (skærm 6 «kontakt», «Næste») | profil = e-mail; properties `{kilde}`; unique_id = ansøgnings-id. Ingen utm/fbclid/telefon | Klaviyo (USA) | persondatateksten (`persondata.ts:81`) | i drift (lag 2) |
 | 21 | **Klaviyo «Ansoegning sendt»** | `_shared/ansoegningMotor.ts:269–274` | indsendelse (`indsendt_at` sat) | e-mail; kilde, branche, omsaetningsinterval, antal_ansatte | Klaviyo | som 20 | i drift (lag 2) |
 | 22 | **Meta Conversions API fra platformen** | `Lead application_started` / `application_submitted` fra `ansoegninger` (§4) | cron-job, der læser `ansoegninger` | **fra 22/9: ALLE ansøgninger** (ikke kun rækker med `fbclid`) — `fbc` (URL'ens klik-id, ellers `_fbc`-cookien ordret), `fbp`, hashet eget id, user agent, og **SHA-256-hashet** `em`/`ph`/`fn`/`ln`/`country` — aldrig IP/CVR/svar og aldrig en værdi i klartekst | Meta, datasæt 858180112996496 | persondatateksten (§1e) | **i drift 21/9 aften** — bevist i Test events 16:13; **låsen slået til 16:30 og bevist i kørslen 16:43** (job 568 sender nu for alvor); §4 |
+| 22b | **Meta — Kvalificeret · Schedule · Purchase** (trin 2) | `ansoegning_beslutninger` (`tal_med_dem`, `book`) og `company_perioder` (art `indgang`) | samme cron, `meta-send-cron` | `action_source: system_generated` + `custom_data { event_source: "crm", lead_event_source }`; user_data som ansøgningens (hashet em/ph/fn/ln/country, external_id, fbc, fbp) — **ingen user agent, ingen url**; Purchase bærer desuden `value` (kroner) og `currency` | Meta, samme datasæt | persondatateksten (§1e) | **udkast 22/9** — §4b |
 | 23 | **Google Analytics' id'er på ansøgningen** | `ansoegninger.ga_client_id` / `ga_session_id`, gemt ved «opret» | fladen læser `_ga` og `_ga_6LHR66CDJ4` ved mount; egen fail-soft update efter annoncesporet | GA's klient-id og session-id — **gemmes kun, sendes endnu ikke** til nogen | (ingen modtager endnu) | samtykket på theboardroom.dk: uden «Acceptér» findes cookierne ikke, og begge felter er null | **#1071 (`edfa4f89`) i drift 21/9 17:25** — ga_client_id/ga_session_id gemmes ved opret, kun med samtykke; sendes endnu ikke; §4a |
 | 24 | **Google Analytics — afsendelsen fra platformen** | `application_started` / `application_submitted` til `G-6LHR66CDJ4` (Measurement Protocol) | cron-job, der læser `ansoegninger` og `ga_haendelser` | GA's eget klient-id og session-id, kilden og utm-mærkerne, hændelsens tidspunkt — aldrig navn/e-mail/telefon/CVR/svar | Google Analytics (EU-værten) | samtykket på theboardroom.dk (uden cookie ingen hændelse) + persondatateksten | **#1073 i drift 21/9 21:02** — sporet og låsen KØRT 17:48, cron-migrationen KØRT 21:02 (job 569, låsen slået til samtidig). Nøgle, strøm, klient-id og hændelsesform **bevist i DebugView 20:57–20:59**; Realtid og dagens rapporter viste dem ikke. Platformens egen hændelse tjekkes 22/9 kl. 08. §4a |
 

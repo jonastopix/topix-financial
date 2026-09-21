@@ -37,11 +37,19 @@ import { PERSONDATA_AFSNIT } from "@/lib/ansoegning/persondata";
  *      Rækkefølgen er stadig: hvorfra → GA-opsamlingen (gaOpsamling.guard dom 6) → Meta.
  *  10. METAS COOKIER ÉT STED (22/9): én parser i skema.ts (+ spejlet), fladen læser ved mount,
  *      body'en bærer «meta», serveren dømmer formen igen, og værdien røres aldrig.
- *  11. UDVIDELSENS MIGRATION: «KØRT i prod … 22:15»-linjen ordret først (kørt FØR merge 21/9;
- *      var «IKKE KØRT» indtil da), de tre kolonner med kommentarer,
- *      intet drop — og et tidsstempel efter alle andre migrationer i mappen.
- *  12. ALLE ANSØGERE + FRAVALGET: «ingen_fbclid» findes ikke længere, kandidatforespørgslen
- *      filtrerer ikke på fbclid, og meta_fravalg dømmes FØRST i doem.
+ *  11. DE TO META-MIGRATIONER: trin 1 bogført «KØRT i prod … 22:15» (kørt FØR merge 21/9),
+ *      trin 2 med «IKKE KØRT»-linjen ordret først og præcis ÉN udvidet CHECK — og trin 2
+ *      sorterer efter hver eneste kørte migration.
+ *  12. ALLE ANSØGERE + FRAVALGET: «ingen_fbclid» findes ikke længere, ANSØGNINGSforespørgslen
+ *      filtrerer ikke på fbclid (webinaropslaget gør med rette), og meta_fravalg dømmes FØRST.
+ *  13. TRIN 2 — NAVNENE OG DE TO SLAGS: fem arter; Lead/Schedule/Purchase er Metas standarder,
+ *      «Kvalificeret» er vores eget navn; CRM-arterne bærer system_generated + event_source
+ *      «crm» + lead_event_source og HVERKEN client_user_agent ELLER event_source_url; dommen
+ *      kræver user agent og landing af website-arterne alene.
+ *  14. TRIN 2 — FBC I TRE LED: URL → _fbc-cookien ordret → webinartilmeldingens klik-id med
+ *      TILMELDINGENS eget tidspunkt, bundet af 90 dage. Ét opslag, «nyeste FØR ansøgningen».
+ *  15. TRIN 2 — PURCHASE: value i KRONER, currency ét sted, beløbet fra den FØRSTE
+ *      indgangsperiode (en fornyelse er ikke et køb), og ingen Purchase uden beløb.
  */
 
 const ROD = process.cwd();
@@ -62,6 +70,22 @@ const MIG_SPOR = "supabase/migrations/20260921234000_meta_haendelser.sql";
 const MIG_CRON = "supabase/migrations/20260921235500_meta_send_cron.sql";
 const MIG_DIR = "supabase/migrations";
 const MIG_UDV = "supabase/migrations/20260922040000_ansoegninger_meta_udvidelse.sql";
+const MIG_TRIN2 = "supabase/migrations/20260922050000_meta_haendelser_trin2.sql";
+
+/**
+ * Migrationsmappen delt i to efter filhovedets FØRSTE linje. Husreglen er, at den, der kører
+ * migrationer, scanner mappen efter «-- IKKE KØRT. DEPLOY:» — så en ukørt migration, der
+ * sorterer før en kørt, bliver sprunget over (19/9: forsiden nede i tolv timer).
+ */
+export function migrationsOrden(dir: string): { koert: string[]; ikkeKoert: string[] } {
+  const koert: string[] = [], ikkeKoert: string[] = [];
+  for (const fil of readdirSync(resolve(ROD, dir)).filter((f) => f.endsWith(".sql")).sort()) {
+    const foerste = laes(`${dir}/${fil}`).split("\n")[0] ?? "";
+    if (foerste.startsWith("-- IKKE KØRT. DEPLOY:")) ikkeKoert.push(fil);
+    else if (/^--\s*KØRT i prod/.test(foerste)) koert.push(fil);
+  }
+  return { koert, ikkeKoert };
+}
 const SKEMA = "src/lib/ansoegning/skema.ts";
 const SKEMA_DENO = "supabase/functions/_shared/ansoegningSkema.ts";
 const SIDE = "src/pages/Ansoeg.tsx";
@@ -82,7 +106,7 @@ function alleFiler(): { sti: string; kilde: string }[] {
 }
 
 export const META_TEKST_ORDRET =
-  "Vi fortæller Meta, at der er sket noget — at en ansøgning er påbegyndt, og at den er sendt — så vi kan se, om vores annoncer virker. Vi sender en krypteret udgave af din e-mail, dit telefonnummer og dit navn, det klik-id og de cookies, Meta selv har sat, hvilken slags browser du brugte, og et id, vi selv har lavet. Meta kan ikke se selve oplysningerne, men kan genkende dem, hvis du har en profil hos Meta med samme e-mail eller telefonnummer. Vi sender aldrig dit CVR-nummer eller dine svar. Vil du helst være fri, så skriv til kontakt@theboardroom.dk.";
+  "Vi fortæller Meta, at der er sket noget — at en ansøgning er påbegyndt, at den er sendt, at vi har sagt ja til en samtale, at der er booket en tid, og at et medlemskab er betalt — så vi kan se, om vores annoncer virker. Ved betalingen fortæller vi også, hvad medlemskabet kostede. Vi sender en krypteret udgave af din e-mail, dit telefonnummer og dit navn, det klik-id og de cookies, Meta selv har sat, hvilken slags browser du brugte, og et id, vi selv har lavet. Klikket kan også være det, du gjorde, da du tilmeldte dig vores webinar. Meta kan ikke se selve oplysningerne, men kan genkende dem, hvis du har en profil hos Meta med samme e-mail eller telefonnummer. Vi sender aldrig dit CVR-nummer eller dine svar. Vil du helst være fri, så skriv til kontakt@theboardroom.dk.";
 
 /** FORSLAGET, der venter på Jonas: «hvor du kom fra» skal skille de tre ting ad. */
 export const HVORFRA_TEKST_ORDRET =
@@ -111,7 +135,7 @@ export const ingenUhashetPersondata = (dom: string, cron: string): boolean => {
   const d = udenKommentarer(dom), c = udenKommentarer(cron);
   const byg = d.slice(d.indexOf("export function bygPayload("), d.indexOf("export const FORBUDTE_NOEGLER"));
   const citat = (t: string) => dom.includes(t);
-  return /user_data: \{\s*\n\s*\.\.\.hashet,\s*\n\s*external_id: \[externalIdAftryk\],\s*\n\s*client_user_agent: [^\n]*\n\s*\.\.\.\(fbc !== null \? \{ fbc \} : \{\}\),\s*\n\s*\.\.\.\(fbp !== null \? \{ fbp \} : \{\}\),\s*\n\s*\},/.test(byg) &&
+  return /user_data: \{\s*\n\s*\.\.\.hashet,\s*\n\s*external_id: \[externalIdAftryk\],\s*\n\s*\.\.\.\(crm \|\| ua === "" \? \{\} : \{ client_user_agent: ua \}\),\s*\n\s*\.\.\.\(fbc !== null \? \{ fbc \} : \{\}\),\s*\n\s*\.\.\.\(fbp !== null \? \{ fbp \} : \{\}\),\s*\n\s*\},/.test(byg) &&
     !/\br\.(email|navn|telefon)\b/.test(byg) &&
     d.includes('export const HASHEDE_NOEGLER = ["em", "ph", "fn", "ln", "country", "external_id"] as const;') &&
     d.includes("export const AFTRYK_FORM = /^[0-9a-f]{64}$/;") &&
@@ -120,11 +144,19 @@ export const ingenUhashetPersondata = (dom: string, cron: string): boolean => {
     citat("Trim any leading and trailing spaces. Convert all characters to lowercase.") &&
     citat("Remove symbols, letters, and any leading zeros. Phone numbers") &&
     citat("Lowercase only with no punctuation.") &&
+    // Efternavnet er SIDSTE ord, ikke resten samlet (Jonas 21/9 22:40): «Jonas Breum Herlev»
+    // skal give «herlev», ikke «breumherlev» — et sammenskrevet mellemnavn matcher ingen profil.
+    d.includes("return { fn: normaliserNavnedel(ord[0]), ln: ord.length > 1 ? normaliserNavnedel(ord[ord.length - 1]) : null };") &&
     citat("Use the lowercase, 2-letter country codes in ISO 3166-1 alpha-2.") &&
     // cronen: præcis de tolv kolonner, aldrig klarteksten i hånden, hashning før payloaden
-    c.includes('const RAEKKE_FELTER = "id, created_at, indsendt_at, fbclid, landing, user_agent, email, navn, telefon, fbp, fbc_cookie, meta_fravalg";') &&
+    c.includes('const RAEKKE_FELTER = "id, created_at, indsendt_at, fbclid, landing, user_agent, email, navn, telefon, fbp, fbc_cookie, meta_fravalg, company_id";') &&
     !/\b(cvr|ip_hash|udfordring|hjemmeside)\b/.test(c) &&
-    !/\b[A-Za-z.]*(p\.raekke|k)\.(email|navn|telefon)\b/.test(c) &&
+    // navn og telefon læses ALDRIG i hånden af cronen — kun dommen rører dem. E-mailen er
+    // undtaget ÉT sted: den er nøglen til webinartilmeldingen (trin 2, pkt. 17), og den
+    // bruges som opslagsnøgle, aldrig som en værdi i payloaden.
+    !/\.(navn|telefon)\b/.test(c) &&
+    // AFSENDELSESLØKKEN må ikke røre klarteksten overhovedet — der går alt gennem dommen.
+    !/\.(email|navn|telefon)\b/.test(c.slice(c.indexOf("for (const p of planer) {"), c.indexOf("if (r.fejlede > 0) await skrivAlarm("))) &&
     c.includes("const hashet = await hashBrugerdata(normaliserBrugerdata(p.raekke), sha256Hex);") &&
     foer(c, "const hashet = await hashBrugerdata(", "const payload = bygPayload(") &&
     foer(c, "const forbudte = findForbudteNoegler(payload);", "await sendTilMeta(payload, a.testEventCode)") &&
@@ -294,6 +326,19 @@ export const udvidelsesMigrationen = (sql: string): boolean => {
     !/drop column/.test(s) && (s.match(/add column if not exists/g) ?? []).length === 3;
 };
 
+/** Trin 2's migration: IKKE KØRT først, præcis ÉN udvidet CHECK, ingen ny tabel, intet drop af data. */
+export const trin2Migrationen = (sql: string): boolean => {
+  const t = udenSql(sql);
+  return sql.startsWith("-- IKKE KØRT. DEPLOY: manuelt i Lovable → SQL editor efter merge (FØR Update-klik).\n") &&
+    /alter table public\.meta_haendelser drop constraint if exists meta_haendelser_art_check;/.test(t) &&
+    /check \(art in \('started', 'submitted', 'kvalificeret', 'booket', 'purchase'\)\)/.test(t) &&
+    t.includes("comment on column public.meta_haendelser.art is") &&
+    // Den MINDSTE udvidelse: ingen ny tabel, ingen ny kolonne, intet slettet.
+    !/create table/i.test(t) && !/add column/i.test(t) && !/drop table/i.test(t) && !/delete from/i.test(t) &&
+    !/drop constraint meta_haendelser_event_id_form/.test(t) &&
+    (t.match(/add constraint/g) ?? []).length === 1;
+};
+
 // ── 12 ─────────────────────────────────────────────────────────────────────
 /**
  * ALLE ANSØGERE + FRAVALGET (pkt. 11 og 14): «ingen_fbclid» findes ikke længere som grund,
@@ -303,12 +348,96 @@ export const udvidelsesMigrationen = (sql: string): boolean => {
 export const alleAnsoegereOgFravalg = (dom: string, cron: string): boolean => {
   const d = udenKommentarer(dom), c = udenKommentarer(cron);
   const doemBlok = d.slice(d.indexOf("export function doem("), d.indexOf("export interface MetaPayload"));
-  return d.includes('export const SPRUNGET_GRUNDE = ["fravalgt", "ingen_user_agent", "ingen_landing", "ikke_indsendt", "ingen_tidspunkt", "for_gammel"] as const;') &&
+  const grunde = d.slice(d.indexOf("export const SPRUNGET_GRUNDE = ["), d.indexOf("] as const;", d.indexOf("export const SPRUNGET_GRUNDE = [")));
+  return /"fravalgt",\s*"ingen_user_agent",\s*"ingen_landing",\s*"ikke_indsendt",/.test(grunde) &&
+    /"ikke_kvalificeret",\s*"ikke_booket",\s*"ikke_betalt",\s*"ingen_beloeb",/.test(grunde) &&
+    /"ingen_tidspunkt",\s*"for_gammel",/.test(grunde) &&
     !/ingen_fbclid/.test(d) && !/ingen_fbclid/.test(c) &&
     doemBlok.includes('if (r.meta_fravalg === true) return { ok: false, grund: "fravalgt" };') &&
     foer(doemBlok, 'grund: "fravalgt"', 'grund: "ingen_user_agent"') &&
-    !/\.not\("fbclid", "is", null\)/.test(c) &&
+    // ANSØGNINGSFORESPØRGSLEN må ikke filtrere på klik-id. Bemærk: webinaropslaget (trin 2)
+    // filtrerer med rette på fbclid — det er dér, klik-id'et ER pointen — så forbuddet
+    // gælder kun de forespørgsler, der henter ansøgninger.
+    !/from\("ansoegninger"\)[\s\S]{0,400}\.not\("fbclid"/.test(c) &&
+    /from\("webinar_tilmeldinger"\)[\s\S]{0,300}\.not\("fbclid", "is", null\)/.test(c) &&
     c.includes("fravalgt: 0,");
+};
+
+// ── 13 ─────────────────────────────────────────────────────────────────────
+/**
+ * TRIN 2 — NAVNENE OG DE TO SLAGS. Lead, Schedule og Purchase er Metas standardnavne;
+ * «Kvalificeret» er vores eget, så den aldrig kan kollidere med eWebinars egen pixel på
+ * samme datasæt. Og de tre CRM-arter SKAL bære action_source «system_generated» +
+ * custom_data event_source «crm» og lead_event_source — og HVERKEN client_user_agent
+ * ELLER event_source_url, som Meta kun kræver for website-hændelser.
+ */
+export const arterneOgFormen = (dom: string): boolean => {
+  const d = udenKommentarer(dom);
+  const byg = d.slice(d.indexOf("export function bygPayload("), d.indexOf("export function oereTilKroner"));
+  return d.includes('export const ARTER = ["started", "submitted", "kvalificeret", "booket", "purchase"] as const;') &&
+    d.includes('export const ARTER_CRM = ["kvalificeret", "booket", "purchase"] as const;') &&
+    d.includes('kvalificeret: { event_name: "Kvalificeret", content_name: "application_qualified" },') &&
+    d.includes('booket: { event_name: "Schedule", content_name: "application_scheduled" },') &&
+    d.includes('purchase: { event_name: "Purchase", content_name: "membership_purchase" },') &&
+    d.includes('export const EVENT_SOURCE_CRM = "crm";') &&
+    d.includes('export const LEAD_EVENT_SOURCE = "The Boardroom";') &&
+    // Payloaden skelner, og gør det på erCrmArt — ikke på en liste, der kan skride fra ARTER_CRM.
+    byg.includes("const crm = erCrmArt(art);") &&
+    byg.includes('action_source: crm ? "system_generated" : "website",') &&
+    byg.includes("...(crm ? {} : { event_source_url: (r.landing ?? \"\").trim() }),") &&
+    byg.includes('...(crm ? { event_source: EVENT_SOURCE_CRM, lead_event_source: LEAD_EVENT_SOURCE } : {}),') &&
+    /\.\.\.\(crm \|\| ua === "" \? \{\} : \{ client_user_agent: ua \}\),/.test(byg) &&
+    // Dommen må kun kræve user agent og landing af website-hændelserne.
+    /if \(!erCrmArt\(art\)\) \{[\s\S]{0,260}grund: "ingen_landing"[\s\S]{0,20}\}/.test(d);
+};
+
+// ── 14 ─────────────────────────────────────────────────────────────────────
+/**
+ * TRIN 2 — FBC I TRE LED, i den rækkefølge: URL'ens klik-id, så _fbc-cookien ORDRET, så
+ * webinartilmeldingens klik-id. Webinarleddet bærer TILMELDINGENS tidspunkt (Metas regel om
+ * «when you first observed or received this fbclid value») og er bundet af 90 dage — den
+ * eneste levetid, Meta dokumenterer. Cronen henter det ét sted og vælger «nyeste før».
+ */
+export const fbcITreLed = (dom: string, cron: string): boolean => {
+  const d = udenKommentarer(dom), c = udenKommentarer(cron);
+  const byg = d.slice(d.indexOf("export function bygFbcFelt("), d.indexOf("/** Hvilket led fbc"));
+  const kilde = d.slice(d.indexOf("export function fbcKilde("), d.indexOf("export function bygFbpFelt("));
+  return d.includes("export const WEBINAR_FBCLID_MAKS_DAGE = 90;") &&
+    // rækkefølgen i koden ER rækkefølgen i dommen
+    foer(byg, "if (klik !== \"\") return bygFbc(klik, setTid);", "if (FBC_FORM.test(c)) return c;") &&
+    foer(byg, "if (FBC_FORM.test(c)) return c;", "return webinarFbc(r);") &&
+    foer(kilde, '"klik_id"', '"cookie"') && foer(kilde, '"cookie"', '"webinar"') &&
+    // webinarleddet bruger tilmeldingens EGET tidspunkt, ikke ansøgningens
+    d.includes("const set = somTid(r.webinar_fbclid_at);") &&
+    d.includes("return webinarKlikIdGaelder(set, somTid(r.created_at)) ? bygFbc(klik, set as Date) : null;") &&
+    // og 90-dagesgrænsen gælder BEGGE veje: ikke ældre end 90 dage, og ikke efter ansøgningen
+    /const alder = ansoegningTid\.getTime\(\) - webinarTid\.getTime\(\);\s*\n\s*return alder >= 0 && alder <= WEBINAR_FBCLID_MAKS_DAGE \* 86_400_000;/.test(d) &&
+    // cronen: ét opslag, koblet på lower(email), og «nyeste FØR ansøgningen» vælges i koden
+    c.includes('from("webinar_tilmeldinger")') && (c.match(/from\("webinar_tilmeldinger"\)/g) ?? []).length === 1 &&
+    c.includes("function nyesteWebinarFoer(") && c.includes("if (!Number.isFinite(t) || (Number.isFinite(graense) && t > graense)) continue;") &&
+    /\(k\.email \?\? ""\)\.trim\(\)\.toLowerCase\(\)/.test(c);
+};
+
+// ── 15 ─────────────────────────────────────────────────────────────────────
+/**
+ * TRIN 2 — PURCHASE'ENS BELØB. Metas krav er «Required: currency and value». value er
+ * KRONER (Meta vil have hovedenheden), currency står ét sted, og kilden er den FØRSTE
+ * indgangsperiode — en fornyelse er ikke et køb. Dommen nægter en Purchase uden beløb.
+ */
+export const purchaseBeloebet = (dom: string, cron: string): boolean => {
+  const d = udenKommentarer(dom), c = udenKommentarer(cron);
+  const byg = d.slice(d.indexOf("export function bygPayload("), d.indexOf("export function oereTilKroner"));
+  return d.includes('export const META_VALUTA = "DKK";') &&
+    byg.includes('...(art === "purchase" ? { value: oereTilKroner(r.purchase_beloeb_oere ?? 0), currency: META_VALUTA } : {}),') &&
+    d.includes("return Math.round(oere) / 100;") &&
+    // ingen Purchase uden beløb — Meta afviser den, og et 0-køb er ikke et køb
+    d.includes('if (art === "purchase" && !(typeof r.purchase_beloeb_oere === "number" && r.purchase_beloeb_oere > 0)) {') &&
+    d.includes('return { ok: false, grund: "ingen_beloeb" };') &&
+    // kilden: FØRSTE række med art «indgang», beløbet fra samme række
+    c.includes('const PERIODE_ART_INDGANG = "indgang";') &&
+    /from\("company_perioder"\)\.select\("company_id, created_at, beloeb_oere"\)[\s\S]{0,200}\.eq\("art", PERIODE_ART_INDGANG\)[\s\S]{0,120}ascending: true/.test(c) &&
+    c.includes("if (!ud.has(r.company_id)) ud.set(r.company_id, { at: r.created_at, oere: r.beloeb_oere });") &&
+    !/fornyelse/.test(c);
 };
 
 describe("metaSend.guard — Metas Conversions API fra platformen", () => {
@@ -337,6 +466,11 @@ describe("metaSend.guard — Metas Conversions API fra platformen", () => {
     expect(gemmer.indexOf(META_TEKST_ORDRET)).toBe(hvorfra + 2);
     // Teksten skal sige det, koden GØR — og ikke mere.
     expect(META_TEKST_ORDRET).toContain("en krypteret udgave af din e-mail, dit telefonnummer og dit navn");
+    // TRIN 2: teksten skal nævne de tre nye hændelser, beløbet og webinar-klikket —
+    // ellers lover den færre ting, end koden sender.
+    expect(META_TEKST_ORDRET).toContain("at vi har sagt ja til en samtale, at der er booket en tid, og at et medlemskab er betalt");
+    expect(META_TEKST_ORDRET).toContain("Ved betalingen fortæller vi også, hvad medlemskabet kostede.");
+    expect(META_TEKST_ORDRET).toContain("Klikket kan også være det, du gjorde, da du tilmeldte dig vores webinar.");
     expect(META_TEKST_ORDRET).toContain("de cookies, Meta selv har sat");
     expect(META_TEKST_ORDRET).toContain("Vi sender aldrig dit CVR-nummer eller dine svar.");
     expect(META_TEKST_ORDRET).toContain("Vil du helst være fri, så skriv til kontakt@theboardroom.dk.");
@@ -351,13 +485,42 @@ describe("metaSend.guard — Metas Conversions API fra platformen", () => {
   it("10. Metas cookier læses ét sted, sendes som «meta», dømmes igen serverside og røres aldrig", () => {
     expect(metaCookierneEtSted(laes(SKEMA), laes(GEM), laes(SIDE), laes(API), alleFiler())).toBe(true);
   });
-  it("11. udvidelsens migration: KØRT-hovedet ordret først, de tre kolonner med kommentarer, intet drop — og et tidsstempel efter alle andre", () => {
+  it("11. trin 1 bogført KØRT, trin 2 «IKKE KØRT» ordret først — og trin 2 sorterer EFTER hver eneste kørte migration", () => {
+    // Trin 1 ER kørt i prod (21/9 22:15, FØR merge), og udvidelsesMigrationen kræver derfor
+    // KØRT-hovedet. Trin 2 er ikke kørt endnu og skal bære «IKKE KØRT» ordret.
     expect(udvidelsesMigrationen(laes(MIG_UDV))).toBe(true);
-    const alle = readdirSync(resolve(ROD, MIG_DIR)).filter((f) => f.endsWith(".sql")).sort();
-    expect(alle[alle.length - 1]).toBe("20260922040000_ansoegninger_meta_udvidelse.sql");
+    expect(trin2Migrationen(laes(MIG_TRIN2))).toBe(true);
+    // Reglen, der erstatter «min migration er sidst i mappen» (trin 2 lagde en mere ovenpå):
+    // en migration, der ikke er kørt, må aldrig sortere før en, der ER kørt — det var dén
+    // fejl, der tog forsiden ned i tolv timer 19/9. Efter bogføringen af trin 1 er det KUN
+    // trin 2, der er ukørt af vores to, og trin 1 er selv den sidste kørte.
+    //
+    // DOMMEN GÆLDER KUN VORES EGNE FILER, med vilje. Målt 22/9: 35 ældre migrationer bærer
+    // stadig «IKKE KØRT» i filhovedet, selv om de er kørt i prod (samme modsigelse som
+    // recon-meta-kvalificeret-medlem-webinar.md §0 fandt). En dom over hele mappen ville
+    // derfor være rød af en grund, der ikke er vores — og et rødt værn, man lærer at se
+    // bort fra, er intet værn. Oprydningen står i README'en som et fund.
+    const { koert, ikkeKoert } = migrationsOrden(MIG_DIR);
+    expect(koert).toContain("20260922040000_ansoegninger_meta_udvidelse.sql");
+    expect(ikkeKoert).toContain("20260922050000_meta_haendelser_trin2.sql");
+    const sidsteKoerte = koert[koert.length - 1];
+    const vores = ["20260922050000_meta_haendelser_trin2.sql"];
+    const forSent = vores.filter((f) => f <= sidsteKoerte);
+    expect(`sorterer før den kørte ${sidsteKoerte}: ${forSent.join(", ")}`).toBe(`sorterer før den kørte ${sidsteKoerte}: `);
+    // Og trin 2 skal komme efter trin 1 — den udvider jo den tabel, trin 1 ikke rører.
+    expect(vores[0] > "20260922040000_ansoegninger_meta_udvidelse.sql").toBe(true);
   });
   it("12. alle ansøgere (ingen fbclid-filtrering, «ingen_fbclid» findes ikke) og fravalget dømmes FØRST", () => {
     expect(alleAnsoegereOgFravalg(laes(DOM), laes(CRON))).toBe(true);
+  });
+  it("13. trin 2: de fem arter, Metas standardnavne, vores eget «Kvalificeret» — og CRM-formen uden user agent og url", () => {
+    expect(arterneOgFormen(laes(DOM))).toBe(true);
+  });
+  it("14. trin 2: fbc i tre led (URL → cookie → webinar), tilmeldingens eget tidspunkt, 90-dagesgrænsen, ét opslag", () => {
+    expect(fbcITreLed(laes(DOM), laes(CRON))).toBe(true);
+  });
+  it("15. trin 2: Purchase bærer value i kroner og currency ét sted; beløbet er FØRSTE indgangsperiode; ingen Purchase uden beløb", () => {
+    expect(purchaseBeloebet(laes(DOM), laes(CRON))).toBe(true);
   });
 });
 
@@ -380,10 +543,15 @@ describe("metaSend.guard — dommene fanger fejlen på en kopi", () => {
     expect(ingenUhashetPersondata(dom, cron.replace("const hashet = await hashBrugerdata(normaliserBrugerdata(p.raekke), sha256Hex);", "const hashet = { em: [p.raekke.email ?? \"\"] };"))).toBe(false);
     // En kolonne mere i select'en.
     expect(ingenUhashetPersondata(dom, cron.replace('landing, user_agent, email, navn, telefon', 'landing, user_agent, email, navn, telefon, cvr'))).toBe(false);
+    // TRIN 2: klarteksten læst i AFSENDELSESLØKKEN fælder dommen, selv om opslaget uden for
+    // løkken må bruge e-mailen som nøgle.
+    expect(ingenUhashetPersondata(dom, cron.replace("const hashet = await hashBrugerdata(normaliserBrugerdata(p.raekke), sha256Hex);", "const hashet = await hashBrugerdata(normaliserBrugerdata(p.raekke), sha256Hex);\n    console.log(p.raekke.email);"))).toBe(false);
     // Værnet kørt, men uden virkning.
     expect(ingenUhashetPersondata(dom, cron.replace("const forbudte = findForbudteNoegler(payload);", "const forbudte: string[] = [];"))).toBe(false);
     // Metas normaliseringsregel fjernet fra filhovedet — grundlaget må ikke kunne forsvinde.
     expect(ingenUhashetPersondata(dom.replace("Trim any leading and trailing spaces. Convert all characters to lowercase.", "…"), cron)).toBe(false);
+    // Efternavnet tilbage til «resten samlet» — den regel, der blev afgjort væk 21/9 22:40.
+    expect(ingenUhashetPersondata(dom.replace("normaliserNavnedel(ord[ord.length - 1])", 'normaliserNavnedel(ord.slice(1).join(" "))'), cron)).toBe(false);
   });
   it("3. afsendelse uden låsen/testkoden, eller dry_run vendt, fælder dom 3", () => {
     expect(toerkoerselOgLaas(cron.replace("if (!r.sender_rigtigt) return { status: 200, resultat: r };", "if (a.toerKoersel) return { status: 200, resultat: r };"), dom)).toBe(false);
@@ -443,9 +611,57 @@ describe("metaSend.guard — dommene fanger fejlen på en kopi", () => {
     expect(udvidelsesMigrationen(m.replace("  add column if not exists meta_fravalg boolean not null default false;", "  add column if not exists meta_fravalg boolean null;"))).toBe(false);
     expect(udvidelsesMigrationen(m.replace("comment on column public.ansoegninger.meta_fravalg is", "-- comment on column public.ansoegninger.meta_fravalg is"))).toBe(false);
   });
+  it("13. et standardnavn på «Kvalificeret», en CRM-hændelse med user agent, eller website-formen på alle, fælder dom 13", () => {
+    // PRÆCIS DEN FEJL, det danske navn findes for: kollision med eWebinars egen pixel på samme datasæt.
+    expect(arterneOgFormen(dom.replace('kvalificeret: { event_name: "Kvalificeret", content_name: "application_qualified" },', 'kvalificeret: { event_name: "Lead", content_name: "application_qualified" },'))).toBe(false);
+    expect(arterneOgFormen(dom.replace('booket: { event_name: "Schedule", content_name: "application_scheduled" },', 'booket: { event_name: "Booking", content_name: "application_scheduled" },'))).toBe(false);
+    // action_source låst til website for alle — så ville de tre CRM-hændelser mangle det, Meta kræver.
+    expect(arterneOgFormen(dom.replace('action_source: crm ? "system_generated" : "website",', 'action_source: "website",'))).toBe(false);
+    // user agent sendt på CRM-hændelserne: en påstand om en browser, vi ikke har set.
+    expect(arterneOgFormen(dom.replace('...(crm || ua === "" ? {} : { client_user_agent: ua }),', "client_user_agent: ua,"))).toBe(false);
+    // event_source/lead_event_source væk — Metas CRM-side kræver dem begge.
+    expect(arterneOgFormen(dom.replace("...(crm ? { event_source: EVENT_SOURCE_CRM, lead_event_source: LEAD_EVENT_SOURCE } : {}),", ""))).toBe(false);
+    // dommen kræver user agent af ALLE igen: hver ansøgning fra før 21/9 aften ville ryge ud.
+    expect(arterneOgFormen(dom.replace("if (!erCrmArt(art)) {", "if (true) {"))).toBe(false);
+  });
+  it("14. et led byttet om, ansøgningens tid på webinarleddet, eller 90-dagesgrænsen udvandet, fælder dom 14", () => {
+    // cookien foran URL'ens klik-id — vi ville tabe det id, vi selv så.
+    const byttet = dom
+      .split('  if (klik !== "") return bygFbc(klik, setTid);\n  const c = (r.fbc_cookie ?? "").trim();\n  if (FBC_FORM.test(c)) return c;')
+      .join('  const c = (r.fbc_cookie ?? "").trim();\n  if (FBC_FORM.test(c)) return c;\n  if (klik !== "") return bygFbc(klik, setTid);');
+    expect(byttet).not.toBe(dom);
+    expect(fbcITreLed(byttet, cron)).toBe(false);
+    // webinarleddet med ANSØGNINGENS tid — så ville fbc'et lyve om, hvornår klikket skete.
+    expect(fbcITreLed(dom.replace("const set = somTid(r.webinar_fbclid_at);", "const set = somTid(r.created_at);"), cron)).toBe(false);
+    // grænsen fjernet: et klik-id fra et halvt år siden ville blive lånt.
+    expect(fbcITreLed(dom.replace("return alder >= 0 && alder <= WEBINAR_FBCLID_MAKS_DAGE * 86_400_000;", "return true;"), cron)).toBe(false);
+    // «nyeste før» fjernet i cronen — en tilmelding EFTER ansøgningen ville kunne vinde.
+    expect(fbcITreLed(dom, cron.replace("if (!Number.isFinite(t) || (Number.isFinite(graense) && t > graense)) continue;", "if (!Number.isFinite(t)) continue;"))).toBe(false);
+    // et andet sted, der også slår webinaret op — parseren skal bo ét sted.
+    expect(fbcITreLed(dom, cron + '\nconst x = admin.from("webinar_tilmeldinger").select("fbclid");\n')).toBe(false);
+  });
+  it("15. et beløb i øre, en hardkodet valuta, en fornyelse talt med, eller en Purchase uden beløb, fælder dom 15", () => {
+    // øre sendt som value: 5.250.000 «kroner» i Metas rapporter.
+    expect(purchaseBeloebet(dom.replace("value: oereTilKroner(r.purchase_beloeb_oere ?? 0)", "value: r.purchase_beloeb_oere ?? 0"), cron)).toBe(false);
+    // valutaen skrevet ind i payloaden i stedet for ét sted — så kan en måling ikke rettes ét sted.
+    expect(purchaseBeloebet(dom.replace("currency: META_VALUTA", 'currency: "DKK"'), cron)).toBe(false);
+    // kravet om et beløb fjernet — Meta afviser hændelsen, og et 0-køb er ikke et køb.
+    expect(purchaseBeloebet(dom.replace('if (art === "purchase" && !(typeof r.purchase_beloeb_oere === "number" && r.purchase_beloeb_oere > 0)) {', "if (false) {"), cron)).toBe(false);
+    // art-filteret væk: en FORNYELSE ville blive til et køb. GLOBALT (split/join) — udtrykket
+    // står to steder (kandidatopslaget og beløbsopslaget), og .replace() uden /g ramte kun
+    // det første, så mutationen ikke bed. Samme fælde som mutationstest-replace-med-g.
+    const udenArt = cron.split('.eq("art", PERIODE_ART_INDGANG)').join("");
+    expect(udenArt).not.toBe(cron);
+    expect(purchaseBeloebet(dom, udenArt)).toBe(false);
+    // «første» byttet til «seneste»: et andet kontraktår ville blive medlemskabets køb.
+    expect(purchaseBeloebet(dom, cron.replace("if (!ud.has(r.company_id)) ud.set(r.company_id, { at: r.created_at, oere: r.beloeb_oere });", "ud.set(r.company_id, { at: r.created_at, oere: r.beloeb_oere });"))).toBe(false);
+  });
   it("12. fbclid-filteret tilbage, «ingen_fbclid» genopstået, eller fravalget dømt for sent, fælder dom 12", () => {
     // PRÆCIS DEN GAMLE KODE: filteret, der gjorde webinarvejen usynlig for Meta.
     expect(alleAnsoegereOgFravalg(dom, cron.replace('.or(`created_at.gte.${fra},indsendt_at.gte.${fra}`)', '.or(`created_at.gte.${fra},indsendt_at.gte.${fra}`)\n      .not("fbclid", "is", null)'))).toBe(false);
+    // TRIN 2: webinaropslaget SKAL derimod filtrere på fbclid — ellers henter det rækker
+    // uden klik-id og lader «nyeste før» vælge en tom.
+    expect(alleAnsoegereOgFravalg(dom, cron.replace('.in("email", del).not("fbclid", "is", null)', '.in("email", del)'))).toBe(false);
     expect(alleAnsoegereOgFravalg(dom.replace('if (r.meta_fravalg === true) return { ok: false, grund: "fravalgt" };', ""), cron)).toBe(false);
     // Fravalget dømt EFTER user agent: en fravalgt ansøger uden user agent ville så blive
     // talt som «ingen_user_agent» — og tallet for fravalg ville lyve.

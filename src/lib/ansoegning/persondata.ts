@@ -79,6 +79,20 @@
  * FRAVALGET er nu mere end en adresse i en tekst: ansoegninger.meta_fravalg (migration
  * 20260922040000) får meta-send-cron til at springe ansøgningen over. Sættes i hånden med
  * én SQL, indtil der er en knap i rådgiverfladen. Punkt 5 i noten til juristen nedenfor.
+ *
+ * META TRIN 2, 22/9-2026 — GODKENDT 21/9 (chatten, med Jonas' fulde mandat). Meta-afsnittet er udvidet, fordi
+ * platformen fra 22/9 fortæller Meta om tre ting mere: at rådgiveren har sagt ja til en samtale
+ * («Kvalificeret»), at der er booket en tid («Schedule») og at et medlemskab er betalt
+ * («Purchase»). Tre ændringer i ordlyden, hver med sin grund:
+ *   (a) opremsningen «påbegyndt … sendt» er udvidet med samtale, booking og betaling. Uden det
+ *       ville teksten love færre hændelser, end koden sender.
+ *   (b) «Ved betalingen fortæller vi også, hvad medlemskabet kostede.» Purchase BÆRER beløbet
+ *       (Meta kræver value og currency), og et beløb er en oplysning om kunden. Den skal stå.
+ *   (c) «Klikket kan også være det, du gjorde, da du tilmeldte dig vores webinar.» Fra 22/9 er
+ *       webinartilmeldingens klik-id tredje led i fbc-kæden, når linket til ansøgningen ikke
+ *       selv bar et. Teksten sagde før «det klik-id … Meta selv har sat» uden at sige HVOR
+ *       klikket skete — og det sted er et andet besøg, på et andet domæne.
+ * Låst ordret af metaSend.guard dom 9.
  */
 
 export interface PersondataAfsnit {
@@ -102,7 +116,7 @@ export const PERSONDATA_AFSNIT: readonly PersondataAfsnit[] = [
       "Det, vi slår op om virksomheden i CVR-registret ud fra nummeret: navn, stiftelsesår, branche, selskabsform, antal ansatte og adresse. Vi henter ikke oplysninger om ejere eller andre personer.",
       "Hvor du kom fra — for eksempel vores webinar, en annonce, LinkedIn eller direkte — og de mærker, der står i linket, du klikkede på. Vi gemmer altid, hvilken slags browser du brugte. Kom du fra en annonce på Facebook eller Instagram, gemmer vi også det klik-id, Meta selv satte på linket. Har du sagt ja til cookies på theboardroom.dk, gemmer vi desuden de cookies, Meta selv har sat i din browser.",
       "Har du sagt ja til cookies på theboardroom.dk, gemmer vi også det id, Google Analytics har givet din browser, så vi kan se, hvilken kanal din ansøgning kom fra.",
-      "Vi fortæller Meta, at der er sket noget — at en ansøgning er påbegyndt, og at den er sendt — så vi kan se, om vores annoncer virker. Vi sender en krypteret udgave af din e-mail, dit telefonnummer og dit navn, det klik-id og de cookies, Meta selv har sat, hvilken slags browser du brugte, og et id, vi selv har lavet. Meta kan ikke se selve oplysningerne, men kan genkende dem, hvis du har en profil hos Meta med samme e-mail eller telefonnummer. Vi sender aldrig dit CVR-nummer eller dine svar. Vil du helst være fri, så skriv til kontakt@theboardroom.dk.",
+      "Vi fortæller Meta, at der er sket noget — at en ansøgning er påbegyndt, at den er sendt, at vi har sagt ja til en samtale, at der er booket en tid, og at et medlemskab er betalt — så vi kan se, om vores annoncer virker. Ved betalingen fortæller vi også, hvad medlemskabet kostede. Vi sender en krypteret udgave af din e-mail, dit telefonnummer og dit navn, det klik-id og de cookies, Meta selv har sat, hvilken slags browser du brugte, og et id, vi selv har lavet. Klikket kan også være det, du gjorde, da du tilmeldte dig vores webinar. Meta kan ikke se selve oplysningerne, men kan genkende dem, hvis du har en profil hos Meta med samme e-mail eller telefonnummer. Vi sender aldrig dit CVR-nummer eller dine svar. Vil du helst være fri, så skriv til kontakt@theboardroom.dk.",
       "Har du sagt ja til cookies på theboardroom.dk, fortæller vi også Google Analytics, at en ansøgning er påbegyndt, og at den er sendt. Vi sender det id, Google Analytics selv har givet din browser, og hvor du kom fra — aldrig dit navn, din e-mail, dit telefonnummer, dit CVR-nummer eller dine svar. Har du ikke sagt ja til cookies, sender vi ingenting.",
       "En anonymiseret dags-nøgle for din internetadresse, som vi kun bruger til at begrænse misbrug af formularen. Selve adressen gemmes ikke her.",
       "Har du tilmeldt dig vores webinar, gemmer vi også din tilmelding og din deltagelse: hvornår du meldte dig til, om du deltog, og hvor stor en del af webinaret du så. Bruger du samme e-mailadresse til at ansøge, kobler vi de to sammen, så vi ved, at du har set det.",
