@@ -18,7 +18,9 @@
 //   flytning (nyt event, det gamle aflyses). Ansøgeren får mail straks;
 //   ingen klokke — rådgiveren handlede selv (samtaleBeskedDom).
 //   afvis/afslag tager valgfrit afslagsgrund ∈ niche · for_tidligt · andet
-//   (niche og for_tidligt giver afslagsmailen; andet giver ingen mail).
+//   (alle tre giver afslagsmailen, 20/9; niche giver desuden ventelisten).
+//   luk med lukkeaarsag «andet» KRÆVER begrundelse (Jonas 21/9) — dømt i
+//   ansoegningTrin.erLukBegrundelseGyldig, samme dom som fladens knap; 400 uden.
 //   VENTELISTEN REJSER MED (19/9, Jonas 18/9 pkt. 8): afslagsmailen sendes
 //   STRAKS, og pladsen skal stå i den — derfor tager afvis/afslag valgfrit
 //   venteliste_company_id (+ venteliste_hvorfor): lukningen først, så C's
@@ -37,7 +39,7 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
 import { authenticateUser, corsHeaders } from "../_shared/edgeFunctionAuth.ts";
-import { AFSLAGSGRUNDE, LUKKEAARSAGER, MENNESKE_HANDLINGER, type Afslagsgrund, type Handling, type Lukkeaarsag } from "../_shared/ansoegningTrin.ts";
+import { AFSLAGSGRUNDE, erLukBegrundelseGyldig, LUKKEAARSAGER, MENNESKE_HANDLINGER, type Afslagsgrund, type Handling, type Lukkeaarsag } from "../_shared/ansoegningTrin.ts";
 import { hentAnsoegning, udfoerOvergang, type Samtale } from "../_shared/ansoegningMotor.ts";
 import { erSlotLedig, slutAf } from "../_shared/samtaleSlots.ts";
 import { CalendlyFejl } from "../_shared/calendlyApi.ts";
@@ -103,6 +105,10 @@ Deno.serve(async (req) => {
   const handling = body.handling === "samtale_tider" ? null : laesHandling(body);
   if (!handling && body.handling !== "samtale_tider") return json({ error: "Ukendt handling (lukkeaarsag mangler ved luk, eller pause_til mangler/er ikke efter i dag ved saet_pause)" }, 400);
   const begrundelse = typeof body.begrundelse === "string" ? body.begrundelse.trim().slice(0, 2000) || null : null;
+  // «Andet» uden ord er ingen årsag (Jonas 21/9): fail-closed her, ikke kun i fladen.
+  if (handling?.art === "luk" && !erLukBegrundelseGyldig(handling.aarsag, begrundelse)) {
+    return json({ error: "begrundelse_kraeves", grund: "Lukkeårsagen «Andet» kræver en begrundelse — skriv, hvorfor ansøgningen lukkes uden svar." }, 400);
+  }
   const aftaleUrl = typeof body.aftale_url === "string" && /^https:\/\//.test(body.aftale_url.trim()) ? body.aftale_url.trim() : null;
   const prisOere = typeof body.pris_oere === "number" && Number.isInteger(body.pris_oere) && body.pris_oere > 0 ? body.pris_oere : null;
   // Ventelisten med i samme kald (kun afvis/afslag): pladsen sættes efter lukningen og FØR afslagsmailen.

@@ -14,8 +14,9 @@ describe("ansoegningTrin — formen", () => {
   it("syv trin, syv lukkeårsager, fem kilder; de fire ting fra Mondays statusfelt er adskilt", () => {
     expect(TRIN).toEqual(["ny", "indkaldt", "booket", "afholdt", "aftalegrundlag_sendt", "underskrevet", "lukket"]);
     expect(TRIN.length).toBe(7);
-    expect(LUKKEAARSAGER.length).toBe(8); // syv + betalte_ikke (dag 60, 18/9 aften)
+    expect(LUKKEAARSAGER.length).toBe(9); // syv + betalte_ikke (dag 60, 18/9 aften) + gensidigt_ikke_match (21/9)
     expect(LUKKEAARSAGER).toContain("betalte_ikke");
+    expect(LUKKEAARSAGER).toContain("gensidigt_ikke_match");
     expect(KILDER).toEqual(["webinar", "anbefaling", "linkedin", "direkte", "andet"]);
     expect([...KILDER]).toEqual([...SKEMA_KILDER]); // B's liste (ansoegningSkema) — én sandhed
     // Ingen etiket bærer et forsøgsnummer eller en rykker

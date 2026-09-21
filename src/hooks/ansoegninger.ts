@@ -303,6 +303,18 @@ export async function hentVentepladserForAnsoegning(ansoegningId: string): Promi
   return ud;
 }
 
+/**
+ * Pladser, der VENTER hos én virksomhed — forhåndsvisningen i afslagsdialogen (21/9) regner den
+ * NYE plads' nummer som antal + 1 (koeNummerForNy). Kun status «venter»: sorterKoe (ventelisteDom)
+ * tæller kun dem, og koeNummer i den sendte mail gør det samme; en «tilbudt» plads står uden for
+ * køen. Kun læsning (RLS advisor SELECT); pladsen sættes af ansoegning-handling.
+ */
+export const KOE_LAENGDE_KEY = (companyId: string) => ["ansoegning-koe-laengde", companyId] as const;
+export async function hentKoeLaengde(companyId: string): Promise<number> {
+  const raekker = kraevRaekker(await tabel("ventepladser").select("id").eq("company_id", companyId).eq("status", "venter"), "ventepladser") as { id: string }[];
+  return raekker.length;
+}
+
 /** Efter en handling: listen, ansøgningen og forsiden (dommens linje) hentes igen. */
 export async function invaliderAnsoegninger(queryClient: QueryClient, id?: string): Promise<void> {
   await Promise.all([

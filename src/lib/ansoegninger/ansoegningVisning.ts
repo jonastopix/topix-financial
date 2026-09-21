@@ -46,6 +46,7 @@ export const LUKKEAARSAG_ORD: Record<Lukkeaarsag, string> = {
   udloebet: "aftalegrundlaget udløb",
   trak_sig: "trak sig",
   dublet: "dublet",
+  gensidigt_ikke_match: "gensidigt ikke et match",
   andet: "andet",
   betalte_ikke: "betalte ikke — lukket dag 60 efter underskriften",
 };
