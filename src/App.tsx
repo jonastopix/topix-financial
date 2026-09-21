@@ -74,6 +74,7 @@ const Ansoegning = lazy(() => import("./pages/Ansoegning"));
 const Forside = lazy(() => import("./pages/Forside"));
 const Oekonomi = lazy(() => import("./pages/Oekonomi"));
 const Webinar = lazy(() => import("./pages/Webinar"));
+const DeltWebinar = lazy(() => import("./pages/DeltWebinar"));
 
 // Lazy — demo routes (no auth)
 const DemoLayout = lazy(() => import("./demo/DemoLayout"));
@@ -254,6 +255,11 @@ const App = () => (
                   her fra linkmailen med ?token=<uuid>. Uguardet som /betal —
                   alle kald går gennem edge-funktionen aftale-underskrift. */}
               <Route path="/aftale" element={<Aftale />} />
+              {/* /webinar delt med en ekstern (UDKAST 21/9): en person UDEN konto
+                  lander her fra et privat link med ?t=<token>. Uguardet som /aftale —
+                  alle kald går gennem edge-funktionen webinar-delt, som kun svarer
+                  med det færdige dashboard. Ingen skal, ingen navigation. */}
+              <Route path="/delt/webinar" element={<DeltWebinar />} />
               <Route path="/onboarding" element={<OnboardingRedirect />} />
               <Route path="/" element={<MemberRoute><Index /></MemberRoute>} />
               {/* Rapportering-GO (2026-08-06): /reports bærer Hb-rapporteringen.

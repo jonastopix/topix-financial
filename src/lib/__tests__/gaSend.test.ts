@@ -3,7 +3,7 @@ import {
   alarmNoegle, alarmTekst, type AnsoegningTilGa, bygPayload, doem, doemGaSvar, ENGAGEMENT_TIME_MSEC, erIVindue, eventId,
   findForbudteNoegler, FORBUDTE_NOEGLER, GA_DEBUG_STI, GA_EVENT_NAVN, GA_HOST, GA_JOIN_TIMER, GA_MEASUREMENT_ID,
   GA_SEND_SECRET_NAVN, GA_STI, GA_VINDUE_TIMER, kanJoines, laasErAktiv, maaForsoeges, PARAMETER_NAVNE, senderRigtigt,
-  SPRUNGET_GRUNDE, VAERDI_MAKS,
+  skalSkriveSpor, SPOR_UDFALD, SPRUNGET_GRUNDE, VAERDI_MAKS,
 } from "../../../supabase/functions/_shared/gaSend.ts";
 
 /**
@@ -169,6 +169,27 @@ describe("gaSend — idempotensen: intet forsøgsloft, vinduet er loftet", () =>
     expect(maaForsoeges({ event_id: "x", udfald: "fejl", forsoeg: 2 })).toEqual({ ok: true });
     expect(maaForsoeges({ event_id: "x", udfald: "timeout", forsoeg: 99 })).toEqual({ ok: true });
     expect(maaForsoeges({ event_id: "x", udfald: "ingen_noegle", forsoeg: 500 })).toEqual({ ok: true });
+  });
+});
+
+describe("gaSend — en debug-kørsel må aldrig efterlade en «sendt»-række (fejlen i #1073)", () => {
+  it("debug: KUN valideringens NEJ skrives; en gyldig validering skriver intet", () => {
+    expect(skalSkriveSpor("ugyldig", true)).toBe(true);
+    for (const u of ["sendt", "fejl", "timeout", "ingen_noegle"] as const) expect(skalSkriveSpor(u, true), u).toBe(false);
+  });
+  it("rigtig kørsel: ALT skrives — uændret", () => {
+    for (const u of SPOR_UDFALD) expect(skalSkriveSpor(u, false), u).toBe(true);
+  });
+  it("FEJLEN, prøvet som den ville være sket: validering → rigtig afsendelse springes IKKE over", () => {
+    // Før rettelsen upsertede debug-kørslen {udfald: "sendt"}, og maaForsoeges sagde «allerede_sendt».
+    expect(maaForsoeges({ event_id: "x", udfald: "sendt", forsoeg: 1 })).toEqual({ ok: false, grund: "allerede_sendt" });
+    // Efter rettelsen skrives den række slet ikke — sporet er tomt, og hændelsen må sendes.
+    expect(skalSkriveSpor("sendt", true)).toBe(false);
+    expect(maaForsoeges(null)).toEqual({ ok: true });
+  });
+  it("valideringens NEJ blokerer stadig — også når det kom fra en debug-kørsel", () => {
+    expect(skalSkriveSpor("ugyldig", true)).toBe(true);
+    expect(maaForsoeges({ event_id: "x", udfald: "ugyldig", forsoeg: 1 })).toEqual({ ok: false, grund: "ugyldig" });
   });
 });
 

@@ -165,6 +165,11 @@ const AUTH_PREDICATES: Predicate[] = [
   // læses kun serverside). Se _shared/aftaletokenAuth.ts.
   { name: "verifyAftaletoken()",          pattern: /\bverifyAftaletoken\s*\(/ },
 
+  // UDKAST 21/9 — /webinar delt gennem et privat link: samme klasse som
+  // verifyAftaletoken (kalderen har ingen session; tokenet er 256 bit og gemmes
+  // kun som SHA-256-aftryk, sammenlignet i konstant tid). Se _shared/delingstokenAuth.ts.
+  { name: "verifyDelingstoken()",         pattern: /\bverifyDelingstoken\s*\(/ },
+
   // Shape-based: `Bearer ${...}` template compared against a request
   // header (=== or !==). Excludes outbound fetch-header assignments
   // by syntactic shape, not by variable name.

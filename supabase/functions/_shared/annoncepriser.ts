@@ -1,53 +1,20 @@
 /**
- * Hvad annoncerne koster PR. LED (udkast 19/9-2026).
- *
- * Meta kan fortælle, hvad en annonce kostede, og hvor mange der klikkede.
- * Den kan ikke fortælle, hvor mange af dem der meldte sig til webinaret, mødte
- * op, ansøgte og blev medlem. Det er den eneste del, der er vores — og det er
- * derfor, denne fil findes.
- *
- * KÆDEN, MÅLT (recon-meta-annoncer §3 + §7.1, og målingerne i prod 19/9):
- *
- *   meta_annonce_dag.forbrug_oere
- *        │  ad_id
- *   meta_annonce.ad_id  ──?──  webinar_tilmeldinger.utm_content   ← LED 1, UBEVIST
- *        │                            │ email (begge CHECK lower)
- *        │                     ansoegninger.email                 ← LED 2, bevist
- *        │                            │ company_id + contract_end_date
- *        │                     companies                          ← LED 3, bevist
- *
- * LED 1 ER IKKE BEVIST, og det siger fladen. Recon'en viser, at Metas
- * `url_tags`-makroer (`{{ad.id}}`) ER mekanismen, og at vores utm_content-
- * værdier LIGNER Meta-id'er (18 cifre, «1202…»). Men ét Graph-kald afgør det,
- * og tokenet er ikke godkendt endnu. Indtil da bruger vi `erMetaObjektId` som
- * dom om, hvorvidt en værdi overhovedet KAN være et ad_id — og vi tæller
- * eksplicit dem, der ikke kan (§ brud). Vi lader aldrig som om, kæden er hel.
- *
- * ET TAL ER EN KENDSGERNING, ET FORHOLD ER EN VURDERING. Forbruget og
- * antallet er målt; prisen pr. led er en division, og en division med et lille
- * tal er støj. «50.000 kr. pr. medlem» af ét medlem ud af 597 tilmeldte siger
- * intet om det næste medlem. Derfor bærer hver pris sit `antal` og sin
- * `tillid`, og fladen viser ALTID antallet ved siden af prisen.
- *
- * SPEJLET i supabase/functions/_shared/annoncepriser.ts (udkast webinar-deling
- * 21/9-2026) — kroppen er ordret ens på nær import-stierne; pariteten låses af
- * src/lib/__tests__/webinarDashboard.paritet.test.ts.
- *
- * LEDDENE MODNES IKKE LIGE HURTIGT. Pris pr. tilmelding kan aflæses dagen
- * efter; pris pr. medlem tager uger, fordi en ansøgning skal gennem samtale,
- * aftale og betaling. En annonce fra i går har derfor FOR HØJ pris pr. medlem,
- * ikke fordi den er dårlig, men fordi medlemmerne ikke er nået frem endnu.
- * Det står på fladen ved siden af tallet, ikke kun her.
+ * annoncepriser — SPEJL af src/lib/webinar/annoncepriser.ts (udkast webinar-deling
+ * 21/9-2026). Serveren (webinar-delt) regner prisen pr. led for den delte side
+ * med SAMME dom som fladen. Kroppen efter dette filhoved er ordret ens med
+ * src-udgaven på nær import-stierne (@/lib/… ↔ ./…); pariteten låses af
+ * src/lib/__tests__/webinarDashboard.paritet.test.ts. Begrundelserne står i
+ * src-udgavens filhoved.
  */
-import { erMetaObjektId } from "@/lib/metaAnnoncer";
+import { erMetaObjektId } from "./metaAnnoncer.ts";
 import {
   andel,
   dagKey,
   taelDeltagelse,
   type AnsoegerMail,
   type Tilmelding,
-} from "@/lib/webinar/dashboard";
-import { ansoegerMails, medlemsMails } from "@/lib/webinar/dashboard";
+} from "./webinarDashboard.ts";
+import { ansoegerMails, medlemsMails } from "./webinarDashboard.ts";
 
 // ── Det vi læser ───────────────────────────────────────────────────────────
 

@@ -3,6 +3,7 @@ import { ChevronDown, ChevronUp } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { HbCard } from "@/components/hjemmebane/HbCard";
 import { useAnnonceforbrug } from "@/hooks/annonceforbrug";
+import type { HentningStatus } from "@/lib/webinar/annoncepriser";
 import { kr } from "@/lib/oekonomi/omsaetning";
 import { brokOgPct, pct, type AnsoegerMail, type Tilmelding } from "@/lib/webinar/dashboard";
 import {
@@ -152,32 +153,26 @@ const Brud = ({ dom }: { dom: Annoncepriser }) => {
   );
 };
 
-export const AnnoncepriserAfsnit = ({
-  tilmeldinger,
-  ansoegninger,
+/**
+ * VISNINGEN — tegner et FÆRDIGT prisdashboard (udkast webinar-deling 21/9-2026).
+ * Adskilt fra hentningen, så samme visning får data fra ENTEN hooken
+ * (AnnoncepriserAfsnit, rådgiveren) ELLER functionen webinar-delt
+ * (DeltWebinar, den eksterne — periodevælgeren er dér et nyt kald).
+ */
+export const AnnoncepriserVisning = ({
+  dom,
+  hentningStatus,
+  valg,
+  onValg,
   nu = new Date(),
 }: {
-  tilmeldinger: readonly Tilmelding[];
-  ansoegninger: readonly AnsoegerMail[];
+  dom: Annoncepriser;
+  hentningStatus: HentningStatus | null;
+  valg: VindueValg;
+  onValg: (v: VindueValg) => void;
   nu?: Date;
 }) => {
-  const query = useAnnonceforbrug();
   const [aabenKampagne, setAabenKampagne] = useState<string | null>(null);
-  const [valg, saetValg] = useState<VindueValg>("daekning");
-  const dom = useMemo<Annoncepriser | null>(
-    () =>
-      query.data
-        ? annoncepriser({ tilmeldinger, ansoegninger, dage: query.data.dage, annoncer: query.data.annoncer, tilstand: query.data.tilstand, valg, hentetTil: query.data.hentning?.hentet_til ?? null }, nu)
-        : null,
-    [query.data, tilmeldinger, ansoegninger, nu, valg],
-  );
-
-  if (query.isError) {
-    return <p className="text-sm text-hb-rust" data-pris="fejl">Annonceforbruget kunne ikke hentes. Tallene på resten af siden er upåvirkede.</p>;
-  }
-  if (query.isPending || dom === null) {
-    return <div className="h-24 animate-pulse rounded-hb bg-hb-line/60" data-pris="henter" />;
-  }
   if (dom.tilstand === "mangler") {
     return <p className="text-sm text-hb-ink-soft" data-pris="mangler">{PRIS_MANGLER_TEKST}</p>;
   }
@@ -185,7 +180,7 @@ export const AnnoncepriserAfsnit = ({
     return <p className="text-sm text-hb-ink-soft" data-pris="tom">{PRIS_TOM_TEKST}</p>;
   }
 
-  const hentning = hentningslinje(query.data?.hentning ?? null, dom.daekning, nu);
+  const hentning = hentningslinje(hentningStatus, dom.daekning, nu);
   const valgtMulighed = dom.muligheder.find((m) => m.valg === dom.valg) ?? null;
 
   return (
@@ -205,7 +200,7 @@ export const AnnoncepriserAfsnit = ({
             key={m.valg}
             type="button"
             disabled={!m.daekket}
-            onClick={() => saetValg(m.valg)}
+            onClick={() => onValg(m.valg)}
             aria-pressed={valg === m.valg}
             title={
               m.daekket
@@ -317,6 +312,36 @@ export const AnnoncepriserAfsnit = ({
       </p>
     </div>
   );
+};
+
+
+/** Rådgiverens afsnit: henter forbruget selv, tager egne tal ind som props, regner én dom — og tegner med visningen ovenfor. */
+export const AnnoncepriserAfsnit = ({
+  tilmeldinger,
+  ansoegninger,
+  nu = new Date(),
+}: {
+  tilmeldinger: readonly Tilmelding[];
+  ansoegninger: readonly AnsoegerMail[];
+  nu?: Date;
+}) => {
+  const query = useAnnonceforbrug();
+  const [valg, saetValg] = useState<VindueValg>("daekning");
+  const dom = useMemo<Annoncepriser | null>(
+    () =>
+      query.data
+        ? annoncepriser({ tilmeldinger, ansoegninger, dage: query.data.dage, annoncer: query.data.annoncer, tilstand: query.data.tilstand, valg, hentetTil: query.data.hentning?.hentet_til ?? null }, nu)
+        : null,
+    [query.data, tilmeldinger, ansoegninger, nu, valg],
+  );
+
+  if (query.isError) {
+    return <p className="text-sm text-hb-rust" data-pris="fejl">Annonceforbruget kunne ikke hentes. Tallene på resten af siden er upåvirkede.</p>;
+  }
+  if (query.isPending || dom === null) {
+    return <div className="h-24 animate-pulse rounded-hb bg-hb-line/60" data-pris="henter" />;
+  }
+  return <AnnoncepriserVisning dom={dom} hentningStatus={query.data?.hentning ?? null} valg={valg} onValg={saetValg} nu={nu} />;
 };
 
 export default AnnoncepriserAfsnit;

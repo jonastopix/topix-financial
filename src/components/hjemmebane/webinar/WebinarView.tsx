@@ -40,7 +40,9 @@ import {
   type TilmeldtPrDag,
   type Tragt,
   type WebinarDashboard,
+  type WebinarDashboardSvar,
 } from "@/lib/webinar/dashboard";
+import type { ReactNode } from "react";
 
 /**
  * /webinar — webinartallene for rådgiverne (udkast 19/9-2026).
@@ -147,7 +149,7 @@ const TilmeldtKurve = ({ prDag }: { prDag: TilmeldtPrDag[] }) => {
 };
 
 /** 1. Det næste webinar — hvornår, og hvor mange. */
-const Naeste = ({ naeste }: { naeste: NaesteWebinar | null }) => {
+const Naeste = ({ naeste }: { naeste: Omit<NaesteWebinar, "raekker"> | null }) => {
   if (naeste === null) return <p className="text-sm text-hb-ink-soft" data-webinar-naeste="tom">{NAESTE_TOM_TEKST}</p>;
   return (
     <HbCard className="p-5 md:p-6" data-webinar-naeste={naeste.personer}>
@@ -236,7 +238,7 @@ const Kolonnehoveder = () => (
 );
 
 /** 2. De afholdte webinarer. */
-const Afholdte = ({ dom }: { dom: WebinarDashboard }) => {
+const Afholdte = ({ dom }: { dom: WebinarDashboardSvar }) => {
   if (dom.afholdte.length === 0) return <p className="text-sm text-hb-ink-soft" data-webinar-afholdte="tom">{AFHOLDTE_TOM_TEKST}</p>;
   return (
     <div data-webinar-afholdte={dom.afholdte.length}>
@@ -422,7 +424,7 @@ const Spor = ({ spor }: { spor: Annoncespor }) => {
 };
 
 /** 4. Fra tilmelding til ansøgning. */
-const Kobling = ({ dom }: { dom: WebinarDashboard }) => {
+const Kobling = ({ dom }: { dom: WebinarDashboardSvar }) => {
   const k = dom.kobling;
   if (k.ansoegereIAlt === 0) return <p className="text-sm text-hb-ink-soft" data-webinar-kobling="tom">{KOBLING_TOM_TEKST}</p>;
   return (
@@ -444,13 +446,26 @@ const Skelet = () => (
   </div>
 );
 
-export const WebinarView = ({ nu = new Date() }: { nu?: Date }) => {
-  const query = useWebinarDashboard();
+/**
+ * VISNINGEN — tegner et FÆRDIGT dashboard (udkast webinar-deling 21/9-2026).
+ * Adskilt fra hentningen, så samme visning får data fra ENTEN hooken
+ * (WebinarView, rådgiveren) ELLER functionen webinar-delt (DeltWebinar, den
+ * eksterne). Typen er WebinarDashboardSvar — dashboardet uden de rå rækker —
+ * så den delte side aldrig kan få dem, og rådgiverens fulde dom passer
+ * strukturelt. Prisafsnittet gives ind som `priser` (rådgiveren:
+ * AnnoncepriserAfsnit med sin egen hentning; den eksterne: AnnoncepriserVisning
+ * med functionens færdige priser). Ingen links ud af siden.
+ */
+export const WebinarVisning = ({
+  tilstand,
+  dom,
+  priser,
+}: {
+  tilstand: "henter" | "fejl" | "klar";
+  dom: WebinarDashboardSvar | null;
+  priser: ReactNode;
+}) => {
   const [kunNaeste, setKunNaeste] = useState(false);
-  const dom = useMemo<WebinarDashboard | null>(
-    () => (query.data ? webinarDashboard(query.data, nu) : null),
-    [query.data, nu],
-  );
   const spor = dom === null ? null : kunNaeste && dom.sporNaeste !== null ? dom.sporNaeste : dom.spor;
 
   return (
@@ -459,9 +474,9 @@ export const WebinarView = ({ nu = new Date() }: { nu?: Date }) => {
       <h1 className="mt-2 font-editorial text-4xl font-medium leading-[1.1] tracking-tight text-hb-ink md:text-5xl">{WEBINAR_TITEL}</h1>
       <p className="mt-2 text-sm text-hb-ink-soft">{WEBINAR_UNDERLINJE}</p>
 
-      {query.isError ? (
+      {tilstand === "fejl" ? (
         <p className="mt-8 text-sm text-hb-rust" data-webinar="fejl">{WEBINAR_FEJL_TEKST}</p>
-      ) : query.isPending || dom === null ? (
+      ) : tilstand === "henter" || dom === null ? (
         <div className="mt-8"><Skelet /></div>
       ) : dom.tom ? (
         <p className="mt-8 text-sm text-hb-ink-soft" data-webinar="tom">{WEBINAR_TOM_TEKST}</p>
@@ -509,14 +524,14 @@ export const WebinarView = ({ nu = new Date() }: { nu?: Date }) => {
             {spor && <Spor spor={spor} />}
           </HbSection>
 
-          {/* Hvad annoncerne koster pr. led (19/9). Afsnittet henter selv
-              forbruget og tager vores egne tal ind som props — så det kan
-              flyttes til en marketingflade uden at røre en linje. */}
+          {/* Hvad annoncerne koster pr. led (19/9). Afsnittet gives ind: rådgiveren
+              med AnnoncepriserAfsnit (henter selv forbruget), den eksterne med
+              AnnoncepriserVisning (functionens færdige priser). */}
           <HbSection eyebrow={PRIS_EYEBROW} title={PRIS_TITEL} hairline className={sektion}>
             <p className="mb-4 text-sm text-hb-ink-soft">
               Det Meta ikke kan regne: resten af vejen. Prisen står altid med det antal, den er regnet på.
             </p>
-            <AnnoncepriserAfsnit tilmeldinger={query.data?.tilmeldinger ?? []} ansoegninger={query.data?.ansoegninger ?? []} nu={nu} />
+            {priser}
           </HbSection>
 
           <HbSection eyebrow={TID_EYEBROW} title={TID_TITEL} hairline className={sektion}>
@@ -531,6 +546,22 @@ export const WebinarView = ({ nu = new Date() }: { nu?: Date }) => {
         </>
       )}
     </div>
+  );
+};
+
+/** Rådgiverens /webinar: ÉN kilde (useWebinarDashboard), ÉN dom (webinarDashboard) — og visningen ovenfor. */
+export const WebinarView = ({ nu = new Date() }: { nu?: Date }) => {
+  const query = useWebinarDashboard();
+  const dom = useMemo<WebinarDashboard | null>(
+    () => (query.data ? webinarDashboard(query.data, nu) : null),
+    [query.data, nu],
+  );
+  return (
+    <WebinarVisning
+      tilstand={query.isError ? "fejl" : query.isPending ? "henter" : "klar"}
+      dom={dom}
+      priser={<AnnoncepriserAfsnit tilmeldinger={query.data?.tilmeldinger ?? []} ansoegninger={query.data?.ansoegninger ?? []} nu={nu} />}
+    />
   );
 };
 

@@ -1,4 +1,4 @@
--- IKKE KØRT. DEPLOY: manuelt i Lovable → SQL editor efter merge (FØR Update-klik).
+-- KØRT i prod — 21/9-2026 kl. 21:02 (Jonas, Lovable SQL editor), efter merge, med en vagt først. EFTER: job 569 ga-send, '2,12,22,32,42,54 * * * *', aktiv; låsen ga_send_aktiv slået til samtidig (false → true).
 -- RÆKKEFØLGEN: SIDST — efter 20260922003000 (kolonnerne), 20260922010000 (sporet + låsen),
 -- merge, eksplicit deploy af ga-send-cron, og beviset (README): debug-kørslen med tom
 -- validationMessages og ÉN rigtig hændelse i GA4 Realtime. Jobbet kører TØRT, indtil låsen

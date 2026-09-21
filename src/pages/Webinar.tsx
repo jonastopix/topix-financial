@@ -1,15 +1,19 @@
 import "@/styles/hjemmebane.css";
 import { HbMemberShell } from "@/components/hjemmebane/HbMemberShell";
 import { WebinarView } from "@/components/hjemmebane/webinar/WebinarView";
+import { WebinarDelinger } from "@/components/hjemmebane/webinar/WebinarDelinger";
 
 /** /webinar (udkast 19/9-2026) — webinartallene for rådgiverne: hvor mange
     der er tilmeldt det næste, hvordan de afholdte gik, hvor de kom fra
     (annonce og kilde), og hvor mange af dem der ansøgte. Ruten gates af
     AdvisorRoute (App.tsx). Tynd wrapper i Hb-skallen (Oekonomi-mønstret);
-    fladen er WebinarView, dommen lib/webinar/dashboard.ts. */
+    fladen er WebinarView, dommen lib/webinar/dashboard.ts. Nederst: de private
+    links til eksterne (WebinarDelinger, udkast 21/9) — egen fil, så fladen
+    selv stadig henter intet. */
 const Webinar = () => (
   <HbMemberShell active="webinar">
     <WebinarView />
+    <WebinarDelinger />
   </HbMemberShell>
 );
 
