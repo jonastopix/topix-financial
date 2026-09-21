@@ -68,7 +68,7 @@ annonce-ansøgere (kun rækker med `fbclid`), og den står i persondatateksten.
 | 19 | **Sentry** | app.theboardroom.dk (`src/main.tsx:21–27`) | fejl + 10 % traces | fejl, query-nøgler; `sendDefaultPii` ikke sat, ingen replay | Sentry | ingen banner; ikke nævnt i persondatateksten | i drift |
 | 20 | **Klaviyo «Ansoegning paabegyndt»** | platform, server: `ansoegning-gem` «gem»-grenen (`index.ts:270–272`) | e-mail kommer ind (skærm 6 «kontakt», «Næste») | profil = e-mail; properties `{kilde}`; unique_id = ansøgnings-id. Ingen utm/fbclid/telefon | Klaviyo (USA) | persondatateksten (`persondata.ts:81`) | i drift (lag 2) |
 | 21 | **Klaviyo «Ansoegning sendt»** | `_shared/ansoegningMotor.ts:269–274` | indsendelse (`indsendt_at` sat) | e-mail; kilde, branche, omsaetningsinterval, antal_ansatte | Klaviyo | som 20 | i drift (lag 2) |
-| 22 | **Meta Conversions API fra platformen** | `Lead application_started` / `application_submitted` fra `ansoegninger` (§4) | cron-job, der læser `ansoegninger` | `fbc`, hashet eget id, user agent (kun rækker med `fbclid`) — aldrig navn/e-mail/telefon/IP/CVR/svar | Meta, datasæt 858180112996496 | persondatateksten (§1e) | **under bygning (21/9 aften)** — §4 |
+| 22 | **Meta Conversions API fra platformen** | `Lead application_started` / `application_submitted` fra `ansoegninger` (§4) | cron-job, der læser `ansoegninger` | `fbc`, hashet eget id, user agent (kun rækker med `fbclid`) — aldrig navn/e-mail/telefon/IP/CVR/svar | Meta, datasæt 858180112996496 | persondatateksten (§1e) | **i drift 21/9 aften, bevist i Test events kl. 16:13** — låsen er stadig false, så kun testkode-vejen sender; §4 |
 
 ### 2.1 Ansøgningsvejen i platformen (målt 21/9, repo `ac8ec575`)
 
@@ -116,19 +116,35 @@ Ikke ændret 21/9 (§5, §6): GTM-containerne, TikTok, Stape, eWebinars pixel, p
 
 ---
 
-## 4. Under bygning (21/9 aften) — platformens Conversions API
+## 4. Platformens Conversions API — i drift 21/9 aften, bevist
 
-Detaljerne udfyldes, når udkastet er merget. Det, der er besluttet:
+**#1069 (`dc3142d8`) merget 21/9.** Migrationerne `20260921233000` (kolonnen `ansoegninger.user_agent`) og `20260921234000` (sporet `meta_haendelser` + låsen `app_config.meta_send_aktiv` = false) **KØRT i prod 15:50, FØR merge** (Jonas, Lovable SQL editor, med en vagt først; efter: `user_agent text` · sporet med RLS true, 2 politikker, 0 rækker · låsen false). `ansoegning-gem` og `meta-send-cron` **udrullet** fra Lovables build-chat — værktøjets resultat ordret: «Successfully deployed edge functions: ansoegning-gem, meta-send-cron». Secret `META_SEND_TOKEN` sat af Jonas (Events Manager-token, genereret med Dataset Quality API, kun datasættet «Topix.dk» — ikke «The Boardroom — annoncer» 1259647116283770). Cron-migrationen `20260921235500` **kørt 16:18** (efter merge, med en vagt først): job **568 «meta-send»**, `3,8,13,18,23,28,38,43,48,53,58 * * * *`, `active: true`. Låsen er stadig false, så jobbet **tørkører** ved hver kørsel, til den slås til.
 
-- **Et selvstændigt cron-job**, der læser `ansoegninger` og sender **`Lead application_started`** (første gem) og **`Lead application_submitted`** (indsendelse) til Meta — ikke fra `ansoegning-gem`/motoren selv.
-- **User agent gemmes fra 21/9 aften**, kun på rækker med `fbclid` (§1e).
-- **En lås i `app_config`** til beviset: hændelserne sendes med `test_event_code`, til de er set ankomme i Events Manager → Test events (§1a). Først derefter uden.
-- **Datasæt 858180112996496** (= pixlen på begge sites og hos eWebinar).
-- **En NY nøgle**, genereret af Jonas 21/9 i Events Manager (med Dataset Quality API), kun til datasættet «Topix.dk» — ikke «The Boardroom — annoncer» (1259647116283770).
-- **Den gamle `META_CAPI_TOKEN` er annoncehentningens `ads_read`-nøgle** (nødnavn, `_shared/metaAdsToken.ts`) og røres ikke. CAPI får sin egen secret.
-- Payload efter §1d: `event_name`, `event_time`, `event_id` (ansøgnings-id), `action_source: "website"`, `event_source_url` (`landing`), `user_data { external_id (hashet), fbc, client_user_agent }`. Ikke `em`, `ph`, `client_ip_address`.
+**Sådan virker det:** et selvstændigt cron-job læser `ansoegninger` (kun seks kolonner) og sender `Lead application_started` (event_time = `created_at`) og `Lead application_submitted` (`indsendt_at`) til datasæt 858180112996496. `event_id` = `<ansøgnings-id>:started`/`:submitted`. Payload efter §1d: `event_name`, `event_time`, `event_id`, `action_source: "website"`, `event_source_url` (= `landing`), `user_data { external_id (hashet ansøgnings-id), fbc, client_user_agent }` — aldrig `em`, `ph`, `client_ip_address`. User agent gemmes ved «opret», kun på rækker med `fbclid`. Låsen i `app_config` (standard false) holder kørslen i tørkørsel; en `test_event_code` åbner uden låsen — det er bevisets vej. Den gamle `META_CAPI_TOKEN` er annoncehentningens `ads_read`-nøgle (nødnavn, `_shared/metaAdsToken.ts`) og er urørt.
 
-Åbent i bygningen: `fbc`'s subdomain-indeks (`fb.1.` vs. `fb.2.` for `app.theboardroom.dk` — måles på første testhændelse); kliktidspunktet (ingen kolonne — `created_at` er første gem); dedup mod pixlens Lead-tags (de har intet `eventID`, §5).
+### Beviserne (21/9 aften) — princip 1a
+
+**Bevis 1, kl. 16:10 — sporet gemmes.** Prøvekladde oprettet fra `/ansoeg?fbclid=IwARproeve123&kilde=direkte` → ansøgning `fcff2198-e19b-4de7-b608-a87eb6755bae` med `fbclid`, `landing` og `user_agent` («Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) …») gemt på rækken. Kolonnen virker i prod, og user agent skrives kun fordi `fbclid` er sat.
+
+**Bevis 2, kl. 16:11 — tørkørslen dømmer rigtigt.** `dry_run: true`, `laas_aktiv: false`, `sender_rigtigt: false`, `kandidater: 1`. `ville_sende`: `…:started` med `event_time` 14:10:09.406Z og `fbc` `fb.1.1789999809406` — altså `created_at` regnet om til millisekunder, som Metas regel siger. `sprunget: { ikke_indsendt: 1 }` (kladden er ikke indsendt, så `submitted` springes over med grund).
+
+**Bevis 3, kl. 16:13 — hændelsen ankom hos Meta.** Én hændelse sendt med `test_event_code TEST51467` + `ansoegning_id`. Sporet: `udfald: sendt`, `status: 200`, `events_received: 1`. I Events Manager → Test events: **Lead «Behandlet», fra Server, «Manuel opsætning»**, hændelses-id `…:started`, `content_name: application_started`, handlingskilde `website`, brugerdatanøgler «Eksternt id, Klik-id, Brugeragent» — præcis de tre, og ingen kontaktoplysninger.
+
+**Bogført om bevis 3:** hændelsen **tæller i Metas statistik**. Metas ord: hændelser med `test_event_code` «are not dropped. They flow into Events Manager and are used for targeting and ads measurement purposes» (Conversions API → Using the API). Datasættet har altså ét «påbegyndt» med et **falsk klik-id** (`IwARproeve123`) og ingen annonce bag. Det er prisen for beviset, og det er kendt — ikke en fejl at lede efter senere.
+
+### Rettelser før merge — og hvorfor
+
+- **Metas fejlsvar dømmes på fejlkoden, ikke kun HTTP-status.** Graph API svarer 400 også for en ugyldig nøgle (kode 190) og manglende rettigheder (10, 200–299). Med den gamle dom («alt 4xx = ugyldig») ville en forkert nøgle have stemplet hver hændelse «ugyldig» — og «ugyldig» prøves aldrig igen. Hele aftenens trafik var gået tabt for altid. Nu: nøgle/rettighed → `ingen_noegle`; midlertidigt (1, 2, 4, 17, 32, 341, 613 eller `is_transient`) → `fejl`; øvrige 4xx → `ugyldig`; 5xx → `fejl`. Citaterne står i `_shared/metaSend.ts`' filhoved.
+- **Intet forsøgsloft.** Loftet var 6 forsøg, og cronen kører hvert 5. minut — den ville have opgivet efter 30 minutter. **Metas 7-dagesvindue er loftet**: `ingen_noegle`, `fejl` og `timeout` prøves igen ved hver kørsel, til dommen siger `for_gammel`. Kun `sendt` og `ugyldig` prøves aldrig igen.
+- **Annoncesporet må aldrig tabes på grund af user agent.** Fejler `ansoegning-gem`s update MED user agent (fx fordi kolonnen mangler), prøves straks igen med sporet alene, og begge fejl logges. Klik-id og utm er vigtigere end user agent.
+- **A's to rettelser af chatten** (chatten tog fejl, koden har ret): `fbc`-indekset er **1**, ikke 2 — Metas regel for server-genereret uden `_fbc`-cookie er «use the value 1», uanset hvor mange led domænet har. Og **testhændelser TÆLLER** — chatten sagde fejlagtigt, at de ikke gør.
+
+### Tilbage
+
+1. Persondatatekst-rettelsen (denne PR): linjen «Ud over leverandørerne ovenfor …» modsagde Meta-afsnittet.
+2. **Update** i Lovable, så den rettede tekst står på den levende side (`src/`-ændring).
+3. **Låsen slås til**: `UPDATE public.app_config SET config_value = 'true'::jsonb … WHERE config_key = 'meta_send_aktiv';` — først derefter sender job 568 for alvor.
+4. **Prøvekladden slettes** (`fcff2198-e19b-4de7-b608-a87eb6755bae`).
 
 ---
 
@@ -152,8 +168,10 @@ Detaljerne udfyldes, når udkastet er merget. Det, der er besluttet:
 4. Hvad datasættet **«The Boardroom — annoncer» (1259647116283770)** bruges til.
 5. Privatlivspolitikkens **Circle.so- og Monday.com-linjer** (theboardroom.dk `PrivacyPolicy.tsx:92`, `:94`).
 6. **LinkedIn- og GA4-hændelser fra platformen** (rækkefølgen i §1c) — ikke skitseret.
-7. Persondatateksten i platformen: tillægget om, at vi SENDER klik-id, eget id og user agent til Meta (§1e) — tekst til Jonas, før §4 går i drift. Sentry nævnes ikke i teksten.
+7. **LØST 21/9** (#1069 og rettelsen af videregiver-sætningen): Persondatateksten i platformen: tillægget om, at vi SENDER klik-id, eget id og user agent til Meta (§1e) — tekst til Jonas, før §4 går i drift. Sentry nævnes ikke i teksten.
 8. `webinar_signup` på topix.dk/webinar/tak går ingen steder (#13) — skal den?
+9. **En nøgle uden adgang til datasættet meldes som kode 100 / `error_subcode` 33** («Object … does not exist, cannot be loaded due to missing permissions»). Kode 100 er i dag en payloadfejl → `ugyldig`, og `ugyldig` prøves aldrig igen — men det her er en nøglefejl, der retter sig selv, når adgangen gives. Skal dømmes `ingen_noegle` (slå Metas dokumentation op og citér den, når det rettes — subkoden er ikke verificeret her).
+10. **Persondatateksten i platformen siger «Supabase (databasen, via Lovable Cloud, i EU)»**, mens theboardroom.dk's privatlivspolitik 21/9 fik «EU» fjernet igen, fordi regionen ikke er målt. Mål, hvor databasen faktisk ligger, og gør de to tekster ens.
 
 ---
 
@@ -164,7 +182,7 @@ Detaljerne udfyldes, når udkastet er merget. Det, der er besluttet:
 | `META_ADS_TOKEN` | `_shared/metaAdsToken.ts:34` | Marketing API (læsende) | ikke sat |
 | `META_CAPI_TOKEN` | `metaAdsToken.ts:36` (nødnavn) | bærer i dag Marketing API-tokenet (`ads_read`) | i drift som nødnavn — røres ikke (§4) |
 | `META_AD_ACCOUNT_ID` | `meta-annoncer-cron` | `act_<id>` | skal være sat |
-| ny CAPI-secret (navn afgøres i udkastet) | — | Conversions API, datasæt 858180112996496 | genereret af Jonas 21/9, ikke sat i Lovable endnu — åbent |
+| `META_SEND_TOKEN` | `_shared/metaSend.ts:57` (navnet), læst KUN i `_shared/metaSendAfsendelse.ts` | Conversions API, datasæt 858180112996496 | sat i Lovable af Jonas 21/9 aften; bevist i brug 16:13 (status 200, `events_received: 1`) |
 | GTM `GTM-NL33PM5M` / GA4 `G-6LHR66CDJ4` | theboardroom.dk (`~/Projekter/theboardroom-topix/index.html`) | — | i drift |
 | GTM `GTM-57M8R72D` / GA4 `G-9S4NL9FKGK` | topix.dk (`~/Projekter/topix-reimagined/index.html`) | — | i drift |
 | LinkedIn partner `7995353`, TikTok `CVKMIDBC77U1BR7NB7MG`, Stape `nofikexx.topix.dk` | kun i GTM-containerne | — | i drift via GTM |

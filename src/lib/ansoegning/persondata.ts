@@ -23,6 +23,13 @@
  * arbejdsmærker i brødteksten er fjernet: de stod i den tekst ANSØGEREN
  * læser, og en ansøger skal ikke se vores egne noter. Det, der stadig skal
  * ses af en jurist, står i noten nederst i filen — aldrig i teksten.
+ *
+ * RETTET 21/9-2026 (aften, godkendt af Jonas): linjen under «Hvem ser dem» sagde «Ud
+ * over leverandørerne ovenfor videregiver vi dem ikke.» — og MODSAGDE dermed afsnittet
+ * ovenfor om, at vi fortæller Meta, at en ansøgning er påbegyndt og sendt, når ansøgeren
+ * kom fra en annonce. Fundet ved gennemlæsning af den levende side efter udrulningen af
+ * #1069 (meta-send-cron). Meta er ikke en leverandør, der behandler på vores instruks —
+ * derfor står undtagelsen nu i selve sætningen, og de to afsnit siger det samme.
  */
 
 export interface PersondataAfsnit {
@@ -82,7 +89,7 @@ export const PERSONDATA_AFSNIT: readonly PersondataAfsnit[] = [
     afsnit: [
       "Morten Larsen og Jonas Herlev, som læser og vurderer ansøgningerne, og de rådgivere, der arbejder for The Boardroom.",
       "Vores leverandører behandler oplysningerne på vores vegne og efter vores instruks: Supabase (databasen, via Lovable Cloud, i EU), Lovable (afsendelse af e-mail, i EU), DataCVR (opslaget i CVR-registret — de får kun CVR-nummeret, i Danmark), Calendly (dit navn, din e-mail og din virksomhed, når du booker en samtale, i USA), eWebinar (din tilmelding og deltagelse, hvis du har set webinaret, i USA) og Klaviyo (din e-mail og hvor du kom fra, når du begynder en ansøgning — og virksomhedens branche, omsætningsinterval og antal ansatte, når du sender den; det styrer, hvilke af vores egne mails om The Boardroom du får, i USA).",
-      "Vi sælger aldrig dine oplysninger. Ud over leverandørerne ovenfor videregiver vi dem ikke.",
+      "Vi sælger aldrig dine oplysninger. Ud over leverandørerne ovenfor, og det vi fortæller Meta, når du kom fra en annonce, videregiver vi dem ikke.",
     ],
   },
   {
