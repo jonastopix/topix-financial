@@ -125,6 +125,45 @@ async function skrivSpor(
   }
 }
 
+/** En række fra klaviyo_haendelser, som gensenderen sender igen — kroppen præcis som den blev gemt. */
+export interface GemtHaendelse {
+  metric: string;
+  email: string;
+  unikt_id: string;
+  /** klaviyo_haendelser.sendt — den krop, der blev sendt første gang. */
+  sendt: unknown;
+}
+
+/**
+ * Send en GEMT krop igen og skriv sporet (gensenderen, 21/9-2026 —
+ * _shared/klaviyoGensend.ts har dommen, klaviyo-gensend-cron kalder).
+ *
+ * KROPPEN RØRES IKKE: samme unique_id, samme time, samme frisk. Klaviyo
+ * kasserer en dublet med samme unique_id for samme profil og metric, så en
+ * gensendelse af noget, der faktisk nåede frem, er harmløs. Derfor bygges der
+ * intet her — `byggHaendelse` ville sætte et nyt `time`.
+ *
+ * HVERT FORSØG ER EN NY RÆKKE, med de samme felter som skrivSpor skriver for
+ * et første forsøg. INGEN RETURN FØR SPORET ER SKREVET (klaviyo.guard dom 7,
+ * gentaget for denne funktion i klaviyoGensend.guard). Kaster ikke selv —
+ * `kald` kaster aldrig, og `skrivSpor` fanger alt; det sidste værn ligger i
+ * klaviyoAfsendelse.gensendHvisGemt.
+ */
+export async function gensendGemtKrop(
+  skriver: SporSkriver | null,
+  noegle: string | null | undefined,
+  raekke: GemtHaendelse,
+  valg: Parameters<typeof kald>[2] = {},
+): Promise<Afsendelse> {
+  const i: HaendelseInput = { metric: raekke.metric as Haendelsesnavn, email: raekke.email, uniktId: raekke.unikt_id };
+  const svar = await kald(noegle, "/events/", { ...valg, metode: "POST", krop: raekke.sendt });
+  await skrivSpor(skriver, i, svar.spor, raekke.sendt);
+  if (!svar.ok && svar.spor.udfald !== "ingen_noegle") {
+    console.error(`[klaviyo] gensendelse af ${i.metric}/${i.uniktId} fejlede igen (${svar.spor.udfald}): ${svar.spor.grund ?? ""}`);
+  }
+  return { sendt: svar.ok, spor: svar.spor };
+}
+
 export async function sendHaendelse(
   skriver: SporSkriver | null,
   noegle: string | null | undefined,
