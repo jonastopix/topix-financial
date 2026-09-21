@@ -40,6 +40,17 @@
  * Google. Ordet «anonyme» er taget ud med vilje: id'et er tilfældigt, men det genkender
  * samme browser igen — og så er det ikke anonymt. Ordlyden er låst af gaOpsamling.guard
  * dom 6 og metaSend.guard dom 9.
+ *
+ * GA-AFSENDELSEN, godkendt 21/9-2026 (chatten, med Jonas' fulde mandat; udkast-ga-send):
+ * ét nyt afsnit under «Hvad vi gemmer», lige efter Meta-afsnittet, og en tilføjelse til
+ * «Vi sælger aldrig …»-sætningen, så Google står der som Meta gør. Grund: fra det øjeblik
+ * ga-send-cron er i drift, FORTÆLLER vi Google Analytics om påbegyndt og sendt ansøgning —
+ * og teksten skal være sand om det, koden GØR. Det, vi sender, er GA's eget klient-id
+ * (og session-id), hvor ansøgeren kom fra (kilde og utm-mærker) og hændelsens tidspunkt;
+ * aldrig navn, mail, telefon, CVR eller svar (Googles egen politik forbyder det, og
+ * gaSend.guard dom 2 fælder det). Betingelsen er den samme som for opsamlingen: cookien
+ * findes kun, når ansøgeren har sagt ja på theboardroom.dk. Ordlyden låses af
+ * gaSend.guard dom 8, så den ikke kan skride ubemærket.
  */
 
 export interface PersondataAfsnit {
@@ -64,6 +75,7 @@ export const PERSONDATA_AFSNIT: readonly PersondataAfsnit[] = [
       "Hvor du kom fra — for eksempel vores webinar, en annonce, LinkedIn eller direkte — og de mærker, der står i linket, du klikkede på. Kom du fra en annonce på Facebook eller Instagram, gemmer vi det klik-id, Meta selv satte på linket, og hvilken slags browser du brugte.",
       "Har du sagt ja til cookies på theboardroom.dk, gemmer vi også det id, Google Analytics har givet din browser, så vi kan se, hvilken kanal din ansøgning kom fra.",
       "Kom du fra en annonce på Facebook eller Instagram, fortæller vi Meta, at der er sket noget — at en ansøgning er påbegyndt, og at den er sendt. Vi sender kun det klik-id, Meta selv satte på linket, hvilken slags browser du brugte, og et id, vi selv har lavet. Vi sender aldrig dit navn, din e-mail, dit telefonnummer, dit CVR-nummer eller dine svar. Kom du ikke fra en annonce, sender vi ingenting. Vil du helst være fri, så skriv til kontakt@theboardroom.dk.",
+      "Har du sagt ja til cookies på theboardroom.dk, fortæller vi også Google Analytics, at en ansøgning er påbegyndt, og at den er sendt. Vi sender det id, Google Analytics selv har givet din browser, og hvor du kom fra — aldrig dit navn, din e-mail, dit telefonnummer, dit CVR-nummer eller dine svar. Har du ikke sagt ja til cookies, sender vi ingenting.",
       "En anonymiseret dags-nøgle for din internetadresse, som vi kun bruger til at begrænse misbrug af formularen. Selve adressen gemmes ikke her.",
       "Har du tilmeldt dig vores webinar, gemmer vi også din tilmelding og din deltagelse: hvornår du meldte dig til, om du deltog, og hvor stor en del af webinaret du så. Bruger du samme e-mailadresse til at ansøge, kobler vi de to sammen, så vi ved, at du har set det.",
       "Skriver du under på et aftalegrundlag, gemmer vi det underskrevne dokument sammen med et revisionsspor: dit navn, tidspunktet, din internetadresse og hvilken browser du brugte. Sporet kan ikke ændres eller slettes bagefter — det er netop dets formål, for det er beviset for, at aftalen blev indgået.",
@@ -100,7 +112,7 @@ export const PERSONDATA_AFSNIT: readonly PersondataAfsnit[] = [
     afsnit: [
       "Morten Larsen og Jonas Herlev, som læser og vurderer ansøgningerne, og de rådgivere, der arbejder for The Boardroom.",
       "Vores leverandører behandler oplysningerne på vores vegne og efter vores instruks: Supabase (databasen, via Lovable Cloud, i EU), Lovable (afsendelse af e-mail, i EU), DataCVR (opslaget i CVR-registret — de får kun CVR-nummeret, i Danmark), Calendly (dit navn, din e-mail og din virksomhed, når du booker en samtale, i USA), eWebinar (din tilmelding og deltagelse, hvis du har set webinaret, i USA) og Klaviyo (din e-mail og hvor du kom fra, når du begynder en ansøgning — og virksomhedens branche, omsætningsinterval og antal ansatte, når du sender den; det styrer, hvilke af vores egne mails om The Boardroom du får, i USA).",
-      "Vi sælger aldrig dine oplysninger. Ud over leverandørerne ovenfor, og det vi fortæller Meta, når du kom fra en annonce, videregiver vi dem ikke.",
+      "Vi sælger aldrig dine oplysninger. Ud over leverandørerne ovenfor, det vi fortæller Meta, når du kom fra en annonce, og det vi fortæller Google Analytics, når du har sagt ja til cookies, videregiver vi dem ikke.",
     ],
   },
   {

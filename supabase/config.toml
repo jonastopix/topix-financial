@@ -316,3 +316,10 @@ project_id = "loiavmastgeieqyiwyyr"
   # META_SEND_TOKEN (metaSendAfsendelse.ts) — aldrig META_CAPI_TOKEN/META_ADS_TOKEN.
   [functions.meta-send-cron]
     verify_jwt = true
+  # Google Analytics 4 fra platformen (udkast 21/9-2026 aften). Bucket B,
+  # authenticateServiceRole FØRST, kaldt gennem kald_edge cirka hvert tiende minut.
+  # Tørkørsel som standard; sender kun med «dry_run: false» OG (låsen
+  # app_config.ga_send_aktiv ELLER «debug: true», som rammer Googles valideringsserver).
+  # Læser KUN GA4_SEND_SECRET (gaSendAfsendelse.ts) — aldrig sitets GA4_API_SECRET.
+  [functions.ga-send-cron]
+    verify_jwt = true
