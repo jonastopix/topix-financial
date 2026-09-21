@@ -20,6 +20,7 @@ import { vaerterForEvent } from "@/lib/hjemmebane/vaerter";
 import { listVaerterForEvents } from "@/lib/hjemmebane/vaerterApi";
 import { HbAvatar } from "../HbAvatar";
 import { HbVaerter } from "./HbVaerter";
+import { EventSvaroversigt } from "./EventSvaroversigt";
 import { bygKalenderfil, kalenderfilnavn, kanFoejeTilKalender } from "@/lib/kalenderfil";
 import { HbButton, hbButtonVariants } from "../HbButton";
 import { HbVideoEmbed } from "../akademi/HbVideoEmbed";
@@ -69,7 +70,7 @@ const ParticipantAvatar = ({ participant }: { participant: EventParticipant }) =
 );
 
 export const EventDetailView = ({ eventId }: { eventId: string }) => {
-  const { user } = useAuth();
+  const { user, isAdvisor } = useAuth();
   const queryClient = useQueryClient();
 
   const eventQuery = useQuery({
@@ -413,6 +414,10 @@ export const EventDetailView = ({ eventId }: { eventId: string }) => {
             </ul>
           )}
         </div>
+
+        {/* Rådgiverens svaroversigt (21/9) — KUN bag isAdvisor; medlemmer ser
+            kun deltagerlisten ovenfor. Komponenten svarer selv null uden rollen. */}
+        {isAdvisor && <EventSvaroversigt eventId={eventId} />}
       </section>
     </div>
   );

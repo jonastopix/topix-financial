@@ -6,7 +6,8 @@ import { INGEN_RAADGIVERE } from "@/lib/hjemmebane/ansigter";
 import { tilUdkast, validerVaerter, type VaertUdkast } from "@/lib/hjemmebane/vaerter";
 import { listVaerterForEvents, saveVaerter } from "@/lib/hjemmebane/vaerterApi";
 import { gemEventOgVaerter } from "@/lib/hjemmebane/gemEventOgVaerter";
-import { gemKnapTekst, planlaegGem } from "@/lib/hjemmebane/flytEvent";
+import { flytSvarTekst, gemKnapTekst, planlaegGem } from "@/lib/hjemmebane/flytEvent";
+import { hentEventSvaroversigt } from "@/lib/hjemmebane/eventSvarApi";
 import {
   type ContentItem,
   type EventRow,
@@ -51,11 +52,26 @@ export const EventEditor = forwardRef<EditorHandle, EventEditorProps>(
     const queryClient = useQueryClient();
     const [savedAt, setSavedAt] = useState<Date | null>(null);
     const [error, setError] = useState<string | null>(null);
+    // BEVISET PÅ SKÆRMEN (21/9): flyt-events svar som stille kvittering i
+    // EditorBar («Flyttet — 7 tilmeldte og 19 andre fik besked …»). Tallene
+    // kan kun komme fra den nye function; den gamle giver bare «Flyttet».
+    const [kvittering, setKvittering] = useState<string | null>(null);
 
     const form = { ...event, ...draft } as EventRow;
     // VÆRTER (PR 4b): egen tabel (event_vaerter), eget udkast — null = urørt
     // (det gemte vises). Gemmes SAMMEN med eventet i persist/publicér.
     const vaerterQuery = useQuery({ queryKey: ["admin-events", "vaerter", event.id], queryFn: () => listVaerterForEvents([event.id]) });
+    // SVARGRUPPERNE (21/9): knapteksten ved en flytning tæller både de
+    // tilmeldte og de andre med adgang — samme RPC og samme regel som
+    // flyt-event sender efter. Kun for publicerede events (kladder har ingen).
+    const svarQuery = useQuery({
+      queryKey: ["event", event.id, "svaroversigt"],
+      queryFn: () => hentEventSvaroversigt(event.id),
+      enabled: event.status === "published",
+    });
+    const svarTal = svarQuery.data?.tal;
+    const tilmeldteTal = svarTal ? svarTal.tilmeldt : registrationCount;
+    const andreTal = svarTal ? svarTal.kan_ikke + svarTal.har_ikke_svaret : 0;
     const raadgivereQuery = useRaadgivere();
     const [vaerterDraft, setVaerterDraft] = useState<VaertUdkast[] | null>(null);
     const vaerter: VaertUdkast[] = vaerterDraft ?? (vaerterQuery.data ?? []).map(tilUdkast);
@@ -84,10 +100,12 @@ export const EventEditor = forwardRef<EditorHandle, EventEditorProps>(
           gemEvent: () => gemEventEllerFlyt(event, patch),
           gemVaerter,
         }),
-      onSuccess: () => {
+      onSuccess: (gemt) => {
         void queryClient.invalidateQueries({ queryKey: ["admin-events"] });
+        void queryClient.invalidateQueries({ queryKey: ["event", event.id, "svaroversigt"] });
         setSavedAt(new Date());
         setError(null);
+        setKvittering(flytSvarTekst(gemt?.flytSvar));
         onSaved();
       },
       onError: (err: Error) => setError(err.message),
@@ -108,6 +126,7 @@ export const EventEditor = forwardRef<EditorHandle, EventEditorProps>(
         return;
       }
       setError(null);
+      setKvittering(null);
       mutation.mutate(patch);
     };
 
@@ -209,9 +228,10 @@ export const EventEditor = forwardRef<EditorHandle, EventEditorProps>(
             dirty={dirty}
             saving={mutation.isPending}
             savedAt={savedAt}
+            kvittering={kvittering}
             error={error}
             onSave={() => persist()}
-            saveLabel={gemKnapTekst(planlaegGem(event, draft), registrationCount)}
+            saveLabel={gemKnapTekst(planlaegGem(event, draft), tilmeldteTal, andreTal)}
             actions={actions}
             deleteSpec={
               // Events har intet 'archived' — de afsluttede tilstande

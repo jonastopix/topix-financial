@@ -105,6 +105,8 @@ interface EditorBarProps {
   dirty: boolean;
   saving: boolean;
   savedAt: Date | null;
+  /** Sat = erstatter «Gemt» i den stille kvittering (21/9: flyt-events svar, «Flyttet — N tilmeldte og M andre fik besked …»). */
+  kvittering?: string | null;
   error?: string | null;
   onSave: () => void;
   /** Knappens tekst når «Gem» gør mere end at gemme (udkast 18/9: «Gem — N tilmeldte får besked om den nye tid»). Standard «Gem». */
@@ -121,6 +123,7 @@ export const EditorBar = ({
   dirty,
   saving,
   savedAt,
+  kvittering,
   error,
   onSave,
   saveLabel,
@@ -186,7 +189,9 @@ export const EditorBar = ({
       ) : dirty ? (
         "Ugemte ændringer"
       ) : savedAt ? (
-        `Gemt · ${formatClock(savedAt)}`
+        `${kvittering ?? "Gemt"} · ${formatClock(savedAt)}`
+      ) : kvittering ? (
+        kvittering
       ) : null}
     </p>
     <div className="flex items-center gap-2">
