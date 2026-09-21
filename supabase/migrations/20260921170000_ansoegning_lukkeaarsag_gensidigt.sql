@@ -1,4 +1,4 @@
--- IKKE KØRT. DEPLOY: manuelt i Lovable → SQL editor efter merge (FØR Update-klik).
+-- KØRT i prod — 21/9-2026 kl. 11:45 (Jonas, Lovable SQL editor), FØR merge (#1063). FØR-måling 11:43: ansoegninger_lukkeaarsag_check med 8 værdier inkl. betalte_ikke (= 20260919120000 ER kørt, selvom OVERLEVERING og mangellisten sagde «IKKE KØRT»); EFTER: 9 værdier.
 -- Kan køres FØR eller EFTER merge: den tilføjer kun en værdi til en CHECK-liste. Men den
 -- SKAL være kørt, før Update klikkes — ellers afviser basen «Luk uden svar» med årsagen
 -- «Gensidigt ikke et match» (23514), og rådgiveren får en fejl-toast.

@@ -16,7 +16,8 @@ import { bygRykkerMail, type MailKontekst } from "../../../supabase/functions/_s
  *      og bærer ingen egen afslagstekst; mailbyggeren kalder den samme funktion; teksten bor i
  *      afslagsTilbud.ts (begge spejle).
  *   4. ansoegning-handling afviser luk med «andet» uden begrundelse (400) FØR overgangen.
- *   5. Migrationen: IKKE KØRT, drop if exists, den fulde liste = LUKKEAARSAGER (også betalte_ikke),
+ *   5. Migrationen: bogført KØRT i prod (21/9 11:45, FØR merge — filhovedet rettet i bogføringen 21/9;
+ *      var «IKKE KØRT» indtil da), drop if exists, den fulde liste = LUKKEAARSAGER (også betalte_ikke),
  *      FØR-SQL med pg_get_constraintdef.
  *   6. De forældede kommentarer «andet giver ingen mail» er væk (handling, ansoegningTrin ×2, rykkerkoe ×2).
  *   7. «Kom ikke»-forklaringen lover ikke «vælg en ny tid» — den citerer rykker 1's faktiske emne.
@@ -88,7 +89,7 @@ export const migrationenErRigtig = (sql: string, aarsager: readonly string[]): b
   const m = k.match(/ansoegninger_lukkeaarsag_check\s*check\s*\(\s*lukkeaarsag is null or lukkeaarsag in \(([^)]*)\)/);
   if (!m) return false;
   const db = [...m[1].matchAll(/'([^']*)'/g)].map((x) => x[1]);
-  return sql.startsWith("-- IKKE KØRT. DEPLOY:") &&
+  return sql.startsWith("-- KØRT i prod — 21/9-2026 kl. 11:45") &&
     k.includes("drop constraint if exists ansoegninger_lukkeaarsag_check") &&
     aarsager.every((a) => db.includes(a)) && db.every((a) => aarsager.includes(a)) &&
     db.includes("gensidigt_ikke_match") && db.includes("betalte_ikke") &&
@@ -112,7 +113,7 @@ describe("afslagLuk.guard — de syv domme på repoets filer", () => {
   it("2. forklaringer og ord nævner ikke mail", () => expect(forklaringerneNaevnerIkkeMail(laes(HANDLINGER), laes(VISNING))).toBe(true));
   it("3. forhåndsvisningen er mailens — samme funktion, teksten i afslagsTilbud (begge spejle)", () => expect(forhaandsvisningenErMailens(laes(DIALOG), laes(MAILS), laes(DOM_SRC), laes(DOM_DENO))).toBe(true));
   it("4. ansoegning-handling afviser «andet» uden begrundelse med 400 før overgangen", () => expect(handlingenAfviserAndetUdenBegrundelse(laes(HANDLING_FN))).toBe(true));
-  it("5. migrationen: IKKE KØRT, drop if exists, den fulde liste = LUKKEAARSAGER, FØR-SQL", () => expect(migrationenErRigtig(laes(MIGRATION), LUKKEAARSAGER)).toBe(true));
+  it("5. migrationen: bogført KØRT i prod (11:45), drop if exists, den fulde liste = LUKKEAARSAGER, FØR-SQL", () => expect(migrationenErRigtig(laes(MIGRATION), LUKKEAARSAGER)).toBe(true));
   it("6. de forældede kommentarer er væk", () => expect(ingenForaeldedeKommentarer(FORAELDEDE.map(laes))).toBe(true));
   it("7. «Kom ikke» citerer rykker 1's emne og lover ikke «vælg en ny tid»", () => {
     const emne = bygRykkerMail("ansoegning-indkaldt-rykker-1", K)!.emne;
@@ -149,12 +150,12 @@ describe("afslagLuk.guard — dommene fanger fejlen på en kopi", () => {
     const blok = h.slice(i, j);
     expect(handlingenAfviserAndetUdenBegrundelse(h.replace(blok, "").replace("console.log(`[ansoegning-handling] ${handling.art}", blok + "\n  console.log(`[ansoegning-handling] ${handling.art}"))).toBe(false);
   });
-  it("5. en liste uden betalte_ikke, uden drop if exists, eller uden IKKE KØRT fælder dom 5", () => {
+  it("5. en liste uden betalte_ikke, uden drop if exists, eller et filhoved tilbage på IKKE KØRT fælder dom 5", () => {
     const sql = laes(MIGRATION);
     expect(migrationenErRigtig(sql.replace("'gensidigt_ikke_match', 'andet', 'betalte_ikke'))", "'gensidigt_ikke_match', 'andet'))"), LUKKEAARSAGER)).toBe(false);
     // Alle forekomster — rollback-kommentaren i filhovedet bærer også sætningen, og den tæller ikke.
     expect(migrationenErRigtig(sql.replace(/drop constraint if exists ansoegninger_lukkeaarsag_check/g, "drop constraint ansoegninger_lukkeaarsag_check"), LUKKEAARSAGER)).toBe(false);
-    expect(migrationenErRigtig(sql.replace("-- IKKE KØRT. DEPLOY:", "-- KØRT. DEPLOY:"), LUKKEAARSAGER)).toBe(false);
+    expect(migrationenErRigtig(sql.replace("-- KØRT i prod — 21/9-2026 kl. 11:45", "-- IKKE KØRT. DEPLOY:"), LUKKEAARSAGER)).toBe(false);
     expect(migrationenErRigtig(sql, [...LUKKEAARSAGER, "spoegelse"])).toBe(false);
   });
   it("6. den gamle sætning tilbage i én fil fælder dom 6", () => {

@@ -36,7 +36,7 @@ CLI-kanalen (`supabase functions deploy <name>`, `supabase functions list`) fejl
 Rækkefølgen ved nye eller ændrede functions:
 1. Skriv/redigér function-fil under `supabase/functions/<name>/`. Byg beviset ind fra starten: et nyt felt i svaret, en række i en ny tabel, en markør — noget, KUN den nye kode kan svare.
 2. Commit + PR + merge til main (almindeligt git-flow). Merget lægger kilden hos Lovable; den kører ikke.
-3. **Eksplicit deploy fra Lovable build-chat** — bed om udrulning af functionen ved navn. En NY function er aldrig i drift, før dette er sket.
+3. **Eksplicit deploy fra Lovable build-chat** — bed om udrulning af functionen ved navn. En NY function er aldrig i drift, før dette er sket. Build-chatten kan skrive «udruller nu» og stoppe (målt to gange 21/9-2026: `klaviyo-gensend-cron` — kald 10:48 → 404, først anden anmodning udrullede; `ewebinar-import` — stoppede igen, og en anmodning om at KØRE deploy-værktøjet og vise resultatet virkede). Anmodningen skal bede den KØRE deploy-værktøjet og vise resultatet; kun et kald (trin 4) beviser udrulningen.
 4. **Beviset:** én kørsel, der svarer med det, kun den nye kode kan svare (en tørkørsel, hvis functionen har en: `SELECT public.kald_edge('<name>');` og svaret læst i `net._http_response`). Svarer den med det gamle — eller med intet — er den ikke udrullet, uanset hvad «View code» viser.
 5. Hvis PR'en også rører `src/`-filer: klik "Update" i Lovable for at publish'e frontend-builden.
 6. Først derefter det, der forudsætter driften: cron-jobbet (migrationen i SQL editor), webhook-URL'en hos tredjepart, mails der peger på functionen.
@@ -140,12 +140,14 @@ Se `supabase/SECURITY_BASELINE.md` for den autoritative checklist.
 - Filnavn: `<YYYYMMDDHHMMSS>_<beskrivelse>.sql`.
 - **Filhovedets FØRSTE linje er `-- IKKE KØRT. DEPLOY: manuelt i Lovable → SQL editor efter merge (FØR Update-klik).`** — forklaringen kommer derunder. Den, der kører migrationer, scanner mappen efter den linje: `20260919090000_ventepladser_tidligst.sql` startede med forklaringen, blev sprunget over, og forsiden var nede for alle rådgivere i tolv timer (19/9 ca. 19:20 → 20/9 08:15; `docs/OVERLEVERING.md` «19.–20. september» §5).
 - En frontend eller function, der læser en ny kolonne, når ikke Update/udrulning, før kolonnen er MÅLT i prod: `GET /rest/v1/<tabel>?select=<kolonne>&limit=0` med anon-nøglen → 200 (42703 = mangler; RLS afgør ikke, om kolonnen findes). tsc og suiten kan ikke se det — kolonnenavne er strenge bag `as any`.
+- Anon-nøglen til den måling står i den udrullede bundle (`index-*.js` på `app.theboardroom.dk`), ikke i `src/integrations/supabase/client.ts` (21/9-2026).
 - Hvis migrationen rører noget der står i `supabase/SECURITY_BASELINE.md`, opdater baseline-dokumentet i samme PR.
 - Ingen `DROP POLICY` uden begrundelse i migration-kommentar.
 
 ## Git-flow
 
 - Lovable skriver til `main`. Claude Code arbejder altid på feature-branches → PR → merge.
+- Lovable committer `src/integrations/supabase/types.ts` direkte på `main` efter en migration (typegenereringen; målt 21/9-2026: `ac260495` + `7c7811a3` efter `20260921130000`). Startværnet MÅLER derfor HEAD (`git rev-parse --short HEAD`) — det antager den ikke.
 - Pull før hver session: `git pull origin main`.
 - Lovable og Claude Code skriver ALDRIG samtidig.
 
