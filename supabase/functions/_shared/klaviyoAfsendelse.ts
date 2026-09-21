@@ -12,7 +12,7 @@
  * eller fejlhåndteringen — kun hvilken hændelse der skete.
  */
 import { KLAVIYO_SECRET } from "./klaviyo.ts";
-import { sendHaendelse, type Afsendelse, type HaendelseInput, type SporSkriver } from "./klaviyoHaendelser.ts";
+import { gensendGemtKrop, sendHaendelse, type Afsendelse, type GemtHaendelse, type HaendelseInput, type SporSkriver } from "./klaviyoHaendelser.ts";
 
 /**
  * Send hændelsen. KASTER ALDRIG — men SIGER, hvad der skete (20/9,
@@ -37,6 +37,27 @@ export async function sendHvisMail(skriver: SporSkriver | null, i: HaendelseInpu
     return {
       sendt: false,
       spor: { udfald: "fejl", metode: "POST", sti: "/events/", status: null, svar: null, grund: `afsendelsen kastede: ${String(e).slice(0, 300)}`, varighed_ms: 0 },
+    };
+  }
+}
+
+/**
+ * Send en GEMT krop igen (gensenderen, 21/9-2026). KASTER ALDRIG — samme
+ * kontrakt som sendHvisMail: nøglen læses HER, ét sted, og gives ind til
+ * gensendGemtKrop, som sender kroppen uændret og skriver sporet. Fejler
+ * noget alligevel, svares «fejl» uden en række — og cronen tæller det.
+ *
+ * Kun klaviyo-gensend-cron kalder den. Kroppen kommer fra
+ * klaviyo_haendelser.sendt og bygges ikke om.
+ */
+export async function gensendHvisGemt(skriver: SporSkriver | null, raekke: GemtHaendelse): Promise<Afsendelse> {
+  try {
+    return await gensendGemtKrop(skriver, Deno.env.get(KLAVIYO_SECRET), raekke);
+  } catch (e) {
+    console.error(`[klaviyo] gensendelsen af ${raekke.metric}/${raekke.unikt_id} kastede — cronen går videre:`, e);
+    return {
+      sendt: false,
+      spor: { udfald: "fejl", metode: "POST", sti: "/events/", status: null, svar: null, grund: `gensendelsen kastede: ${String(e).slice(0, 300)}`, varighed_ms: 0 },
     };
   }
 }

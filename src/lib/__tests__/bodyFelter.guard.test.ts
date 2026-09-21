@@ -70,6 +70,9 @@ const STRIKS: readonly string[] = [
 
   // De to klokker (20/9): dry_run og nu, alt andet afvises.
   "stille-klokker-cron",
+
+  // Gensenderen for klaviyo_haendelser (21/9): dry_run, nu og bevis_id, alt andet afvises.
+  "klaviyo-gensend-cron",
 ];
 
 /**
