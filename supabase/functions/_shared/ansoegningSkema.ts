@@ -548,6 +548,69 @@ export function harGa(g: GaOpsamling): boolean {
   return g.client_id !== null || g.session_id !== null;
 }
 
+// ── Metas egne cookier (_fbp og _fbc) ──────────────────────────────────────
+/**
+ * METAS COOKIER FRA theboardroom.dk (22/9-2026, udkast-meta-udvidelse pkt. 13).
+ *
+ * Metas dokumentation, ordret
+ * (https://developers.facebook.com/docs/marketing-api/conversions-api/parameters/fbp-and-fbc/):
+ *   «When the Meta Pixel is installed on a website, and the Pixel uses first-party cookies,
+ *    the Pixel automatically saves a unique identifier to an _fbp cookie»
+ *   _fbp-formen: «version.subdomainIndex.creationTime.randomnumber, where: version is always
+ *    this prefix: fb»
+ *   «We recommend that you always send _fbc and _fbp browser cookie values in the fbc and fbp
+ *    event parameters, respectively, when available.»
+ *   «ClickID value is case sensitive - do not apply any modifications before using, such as
+ *    lower or upper case.»
+ *
+ * HVORFOR DE KAN LÆSES HERFRA: Pixelen på theboardroom.dk sætter førsteparts-cookier på
+ * topdomænet, og app.theboardroom.dk er et underdomæne — nøjagtig som GA's _ga (samme
+ * begrundelse, samme parser, samme sted). Findes de ikke (intet samtykke, eller en anden
+ * indgang), er begge null — ALDRIG et gæt, ALDRIG et genereret id.
+ *
+ * VÆRDIEN SENDES ORDRET. Derfor bliver den heller ikke rørt her: vi dømmer kun FORMEN og
+ * sender så den streng, Meta selv skrev. Serveren dømmer formen igen (metaCookiesAf).
+ */
+export const META_FBP_COOKIE = "_fbp";
+export const META_FBC_COOKIE = "_fbc";
+/** fb.<subdomæneindeks>.<ms>.<tilfældigt tal> */
+export const META_FBP_FORM = /^fb\.\d{1,3}\.\d{1,20}\.\d{1,30}$/;
+/** fb.<subdomæneindeks>.<ms>.<fbclid> — klik-id'et har samme URL-sikre tegnsæt som laesFbclid. */
+export const META_FBC_FORM = /^fb\.\d{1,3}\.\d{1,20}\.[A-Za-z0-9_-]{1,400}$/;
+
+export interface MetaCookies {
+  fbp: string | null;
+  fbc: string | null;
+}
+export const TOMME_META_COOKIES: MetaCookies = { fbp: null, fbc: null };
+
+/** Fladen: Metas to cookier ud af document.cookie — én gang ved mount, som sporet og GA. */
+export function laesMetaCookies(cookie: string | null | undefined): MetaCookies {
+  const fbp = cookieVaerdi(cookie, META_FBP_COOKIE);
+  const fbc = cookieVaerdi(cookie, META_FBC_COOKIE);
+  return {
+    fbp: fbp !== null && META_FBP_FORM.test(fbp) ? fbp : null,
+    fbc: fbc !== null && META_FBC_FORM.test(fbc) ? fbc : null,
+  };
+}
+
+/** Serveren: det, klienten sendte som `meta`, dømt fail-closed pr. felt med samme former. Ikke et objekt → tomt. */
+export function metaCookiesAf(raa: unknown): MetaCookies {
+  if (!raa || typeof raa !== "object" || Array.isArray(raa)) return { ...TOMME_META_COOKIES };
+  const o = raa as Record<string, unknown>;
+  const fbp = typeof o.fbp === "string" ? o.fbp.trim() : "";
+  const fbc = typeof o.fbc === "string" ? o.fbc.trim() : "";
+  return {
+    fbp: META_FBP_FORM.test(fbp) ? fbp : null,
+    fbc: META_FBC_FORM.test(fbc) ? fbc : null,
+  };
+}
+
+/** Er der overhovedet noget at gemme? */
+export function harMetaCookies(m: MetaCookies): boolean {
+  return m.fbp !== null || m.fbc !== null;
+}
+
 // ── Kilden ─────────────────────────────────────────────────────────────────
 
 export interface KildeInput {

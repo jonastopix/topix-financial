@@ -9,13 +9,30 @@
  *   1. Ansøgningens afsendelse rører vi ikke: Meta-afsendelsen er et SELVSTÆNDIGT
  *      cron-job, der læser ansoegninger og sender det, der ikke er sendt. Idempotent
  *      gennem sporet meta_haendelser (event_id unik) og Metas egen dedup på event_id.
- *   2. Browserens user agent gemmes ved «opret» — KUN når fbclid er sat.
+ *   2. Browserens user agent gemmes ved «opret» — for ALLE (rettet 22/9; før: kun med fbclid).
  *   3. To hændelser, begge Lead: content_name «application_started» (created_at =
  *      første gem) og «application_submitted» (indsendt_at). event_id
- *      «<ansøgnings-id>:started» / «:submitted». user_data = { fbc, external_id
- *      (SHA-256 af ansøgnings-id), client_user_agent } — ALDRIG em, ph,
- *      client_ip_address, navn, CVR eller svar. Uden fbclid, user agent eller
- *      landing sendes intet (tælles som sprunget over med grund).
+ *      «<ansøgnings-id>:started» / «:submitted».
+ *  11. (UDVIDELSEN 22/9-2026, Jonas 21/9 aften — «det ultimative setup») ALLE ANSØGERE,
+ *      ikke kun dem med fbclid. Webinarvejen (annonce → topix.dk → mail → /ansoeg?kilde=webinar)
+ *      bærer INTET klik-id, og var derfor usynlig for Meta. Kandidaten er nu enhver ansøgning
+ *      i 7-dagesvinduet med user agent og landing; klik-id'et er blevet ét signal blandt flere,
+ *      ikke adgangsbetingelsen. Derfor er «ingen_fbclid» væk af SPRUNGET_GRUNDE.
+ *  12. HASHET E-MAIL, TELEFON OG NAVN i user_data (em, ph, fn, ln) + country, normaliseret
+ *      PRÆCIS efter Metas regler (citeret nedenfor) og SHA-256'et. Kun de felter, ansøgningen
+ *      HAR: «application_started» sker på skærm 1 (CVR), hvor hverken mail eller navn findes
+ *      endnu — så sendes de ikke. ET TOMT ELLER UHASHET FELT SENDES ALDRIG: en tom streng i em
+ *      er ikke «ingen e-mail» for Meta, den er en værdi. Vogtet af HASHEDE_NOEGLER (64 hex) og
+ *      af scanningen for rå e-mail/telefon i HELE payloaden (findForbudteNoegler).
+ *      ALDRIG CVR, svar eller rå værdier.
+ *  13. METAS EGNE COOKIER fra theboardroom.dk: _fbp og _fbc læses af fladen ved mount (samme
+ *      mønster som GA — én parser, intet gæt, null når de mangler) og gemmes i ansoegninger.fbp
+ *      og .fbc_cookie. I payloaden har URL'ens fbclid FORRANG på fbc (vi så det selv og kender
+ *      tidspunktet); ellers sendes _fbc-cookien ORDRET. fbp sendes, når den er der.
+ *  14. FRAVALG: ansoegninger.meta_fravalg (boolean, default false). Er den true, springes
+ *      ansøgningen over med grunden «fravalgt» — FØR alt andet i dommen. Persondatateksten
+ *      lover «Vil du helst være fri, så skriv til kontakt@theboardroom.dk», og dette er
+ *      håndtaget, der indfrier det løfte.
  *   4. Låsen app_config.meta_send_aktiv (standard false): besluttet af Jonas
  *      21/9-2026 — ingen jurist; låsen er bevisets, ikke juraens. Cronen tørkører
  *      mens den er false; beviset sendes med test_event_code (tilladt uden lås);
@@ -57,6 +74,35 @@
  *     «The client_user_agent is required for website events shared using the Conversions
  *     API.» (Do not hash) · external_id: «Hashing recommended» · fbc: «Do not hash» ·
  *     «You must provide at least one of the following user_data parameters».
+ *   brugerdata (em/ph/fn/ln/country) — samme customer-information-parameters-side (hentet 22/9-2026):
+ *     «You must provide at least one of the following user_data parameters with the correct
+ *     formatting in your request.» · em: «Hashing required.» «Trim any leading and trailing
+ *     spaces. Convert all characters to lowercase.» (eksempel: «john_smith@gmail.com») ·
+ *     ph: «Hashing required.» «Remove symbols, letters, and any leading zeros. Phone numbers
+ *     must include a country code» · «Always include the country code as part of your customers'
+ *     phone numbers.» (eksempel: «(650)555-1212» → «16505551212») · fn/ln: «Hashing required.»
+ *     «Lowercase only with no punctuation. If using special characters, the text must be encoded
+ *     in UTF-8 format.» (eksempel: «Mary» → «mary») · country: «Hashing required.» «Use the
+ *     lowercase, 2-letter country codes in ISO 3166-1 alpha-2.» · external_id: «Hashing
+ *     recommended.» · client_user_agent: «Do not hash.» Felternes type er «string or list<string>»
+ *     — derfor sendes hvert aftryk som en etliste, som external_id altid har gjort.
+ *   fbp/fbc-cookierne — https://developers.facebook.com/docs/marketing-api/conversions-api/parameters/fbp-and-fbc/
+ *     «When the Meta Pixel is installed on a website, and the Pixel uses first-party cookies, the
+ *     Pixel automatically saves a unique identifier to an _fbp cookie» · fbp-formen:
+ *     «version.subdomainIndex.creationTime.randomnumber, where: version is always this prefix: fb» ·
+ *     «We recommend that you always send _fbc and _fbp browser cookie values in the fbc and fbp
+ *     event parameters, respectively, when available.» — altså cookieværdien SOM DEN ER ·
+ *     «ClickID value is case sensitive - do not apply any modifications before using, such as
+ *     lower or upper case.» · «If the _fbc cookie is not available because there is no Meta Pixel
+ *     running on the website, it is still possible to send the fbc event parameter with the
+ *     Conversion API event if an fbclid query parameter is in the URL of the current page request.»
+ *   match quality — https://developers.facebook.com/docs/marketing-api/conversions-api/best-practices
+ *     «Sending additional customer information parameters may help increase Event Match Quality.» ·
+ *     påkrævet for website-hændelser: action_source, event_source_url og client_user_agent ·
+ *     «high-quality customer information parameters» nævner «email address (em) … name (fn and ln),
+ *     phone number (ph)». IKKE FUNDET på nogen af siderne (målt 22/9): en advarsel mod tomme eller
+ *     pladsholder-værdier i user_data. Reglen «aldrig et tomt felt» er derfor VORES (Jonas 21/9),
+ *     ikke Metas — og den står, fordi et tomt aftryk er et aftryk af den tomme streng.
  *   test_event_code — https://developers.facebook.com/docs/marketing-api/conversions-api/using-the-api
  *     «Events sent with test_event_code are not dropped. They flow into Events Manager and
  *     are used for targeting and ads measurement purposes.» · «The test_event_code field
@@ -134,7 +180,12 @@ export function erIVindue(tid: Date, nu: Date): boolean {
   return alder >= 0 && alder <= META_VINDUE_DAGE * 86_400_000;
 }
 
-/** Rækken, cronen læser — og INTET andet (ingen navn, email, telefon, cvr, svar). */
+/**
+ * Rækken, cronen læser. E-mail, navn og telefon står her for ÉT formål: at blive
+ * normaliseret og HASHET (normaliserBrugerdata + hashBrugerdata). De forlader aldrig
+ * huset råt — værnet findForbudteNoegler prøver den færdige payload for netop det.
+ * CVR, svar, hjemmeside og ip_hash læses ikke (RAEKKE_FELTER i cronen).
+ */
 export interface AnsoegningTilMeta {
   id: string;
   created_at: string;
@@ -142,16 +193,145 @@ export interface AnsoegningTilMeta {
   fbclid: string | null;
   landing: string | null;
   user_agent: string | null;
+  /** Hashes til em — «application_started» sker på skærm 1 (CVR), hvor den endnu er null. */
+  email: string | null;
+  /** Hashes til fn + ln (ét felt i formularen; første ord er fornavnet). */
+  navn: string | null;
+  /** Hashes til ph. */
+  telefon: string | null;
+  /** Metas egen _fbp-cookie fra theboardroom.dk, ordret. */
+  fbp: string | null;
+  /** Metas egen _fbc-cookie, ordret — bruges kun når URL'en ikke bar et fbclid. */
+  fbc_cookie: string | null;
+  /** Fravalget (pkt. 14): true → der sendes intet om denne ansøgning, nogensinde. */
+  meta_fravalg: boolean | null;
 }
 
-export const SPRUNGET_GRUNDE = ["ingen_fbclid", "ingen_user_agent", "ingen_landing", "ikke_indsendt", "ingen_tidspunkt", "for_gammel"] as const;
+// ── Brugerdata: normaliseringen efter Metas regler (citeret i filhovedet) ────
+
+/** Metas land for alle vores ansøgere: «Use the lowercase, 2-letter country codes in ISO 3166-1 alpha-2.» */
+export const META_LAND = "dk";
+/** Landekoden, der sættes foran et otte-cifret (dansk) nummer. */
+export const META_LANDEKODE = "45";
+/** En e-mail, vi tør sende et aftryk af: præcis ét snabel-a og mindst ét punktum i domænet. */
+export const EMAIL_FORM = /^[^\s@]+@[^\s@.]+(\.[^\s@.]+)+$/;
+
+/** em: «Trim any leading and trailing spaces. Convert all characters to lowercase.» Duer den ikke som e-mail, sendes den ikke. */
+export function normaliserEmail(v: string | null | undefined): string | null {
+  const s = (v ?? "").trim().toLowerCase();
+  return EMAIL_FORM.test(s) ? s : null;
+}
+
+/**
+ * ph: «Remove symbols, letters, and any leading zeros. Phone numbers must include a country
+ * code» — Metas eget eksempel «(650)555-1212» → «16505551212».
+ * VORES ANTAGELSE, skrevet frem: præcis 8 cifre er et dansk nummer og får 45 foran (formularen
+ * beder om et dansk nummer, og ansøgerne er danske SMV'er). 9–15 cifre bærer allerede sin
+ * landekode og sendes, som de står. Alt andet er ikke et nummer → null, og så sendes ph slet ikke.
+ */
+export function normaliserTelefon(v: string | null | undefined): string | null {
+  const cifre = (v ?? "").replace(/\D/g, "").replace(/^0+/, "");
+  if (cifre.length === 8) return `${META_LANDEKODE}${cifre}`;
+  return cifre.length >= 9 && cifre.length <= 15 ? cifre : null;
+}
+
+/**
+ * fn/ln: «Lowercase only with no punctuation. If using special characters, the text must be
+ * encoded in UTF-8 format.» Tegnsætningen FJERNES (den erstattes ikke af mellemrum):
+ * «Anne-Marie» → «annemarie». æ, ø og å er bogstaver (\p{L}) og bliver stående — UTF-8 er
+ * netop det, Meta tillader.
+ */
+export function normaliserNavnedel(v: string): string | null {
+  const s = v.toLowerCase().replace(/[^\p{L}\p{N}]/gu, "");
+  return s === "" ? null : s;
+}
+
+/** Ét navnefelt → fornavn + efternavn: første ord er fornavnet, resten efternavnet. Ét ord alene → intet ln. */
+export function normaliserNavn(v: string | null | undefined): { fn: string | null; ln: string | null } {
+  const ord = (v ?? "").trim().split(/\s+/).filter((o) => o !== "");
+  if (ord.length === 0) return { fn: null, ln: null };
+  return { fn: normaliserNavnedel(ord[0]), ln: ord.length > 1 ? normaliserNavnedel(ord.slice(1).join(" ")) : null };
+}
+
+export const BRUGERDATA_NOEGLER = ["em", "ph", "fn", "ln", "country"] as const;
+export type BrugerdataNoegle = (typeof BRUGERDATA_NOEGLER)[number];
+export type BrugerdataRaa = Record<BrugerdataNoegle, string | null>;
+export type HashetBrugerdata = Partial<Record<BrugerdataNoegle, string[]>>;
+
+/** Ansøgningens felter, normaliseret efter Metas regler — stadig i klartekst, aldrig sendt sådan. */
+export function normaliserBrugerdata(r: AnsoegningTilMeta): BrugerdataRaa {
+  const navn = normaliserNavn(r.navn);
+  return { em: normaliserEmail(r.email), ph: normaliserTelefon(r.telefon), fn: navn.fn, ln: navn.ln, country: META_LAND };
+}
+
+/** Hvilke nøgler ville blive sendt — til tørkørslen og beviset. ALDRIG værdierne. */
+export function brugerdataNoegler(raa: BrugerdataRaa): BrugerdataNoegle[] {
+  return BRUGERDATA_NOEGLER.filter((n) => typeof raa[n] === "string" && raa[n] !== "");
+}
+
+/**
+ * Hasher KUN de felter, ansøgningen HAR (Jonas 21/9): et tomt eller uhashet felt sendes
+ * aldrig — en tom streng i em er ikke «ingen e-mail» for Meta, den er en værdi, og aftrykket
+ * af den tomme streng er et gyldigt aftryk, der matcher ingen. Hasheren gives ind
+ * (sha256Hex fra aftryk.ts), så denne fil forbliver Deno-fri og crypto-fri.
+ */
+export async function hashBrugerdata(raa: BrugerdataRaa, hash: (s: string) => Promise<string>): Promise<HashetBrugerdata> {
+  const ud: HashetBrugerdata = {};
+  for (const n of brugerdataNoegler(raa)) ud[n] = [await hash(raa[n] as string)];
+  return ud;
+}
+
+// ── Metas egne cookier ──────────────────────────────────────────────────────
+
+/** _fbc: «version.subdomainIndex.creationTime.<fbclid>», version altid «fb». */
+export const FBC_FORM = /^fb\.\d{1,3}\.\d{1,20}\.[A-Za-z0-9_-]{1,400}$/;
+/** _fbp: «version.subdomainIndex.creationTime.randomnumber». */
+export const FBP_FORM = /^fb\.\d{1,3}\.\d{1,20}\.\d{1,30}$/;
+
+/**
+ * fbc: URL'ens klik-id har FORRANG — vi så det selv og kender tidspunktet (created_at).
+ * Ellers Metas egen _fbc-cookie ORDRET: «We recommend that you always send _fbc and _fbp
+ * browser cookie values in the fbc and fbp event parameters, respectively, when available.»
+ * og «ClickID value is case sensitive - do not apply any modifications before using».
+ * Serveren dømmer formen igen; en cookie uden Metas form sendes ikke. Er der ingen af delene,
+ * sendes fbc slet ikke — og hændelsen sendes stadig, nu på em/ph/fn/ln/external_id.
+ */
+export function bygFbcFelt(fbclid: string | null | undefined, fbcCookie: string | null | undefined, setTid: Date): string | null {
+  const klik = (fbclid ?? "").trim();
+  if (klik !== "") return bygFbc(klik, setTid);
+  const c = (fbcCookie ?? "").trim();
+  return FBC_FORM.test(c) ? c : null;
+}
+
+/** Hvor fbc kom fra — til tørkørslen og sporet. Aldrig værdien. */
+export function fbcKilde(fbclid: string | null | undefined, fbcCookie: string | null | undefined): "klik_id" | "cookie" | "ingen" {
+  if ((fbclid ?? "").trim() !== "") return "klik_id";
+  return FBC_FORM.test((fbcCookie ?? "").trim()) ? "cookie" : "ingen";
+}
+
+/** _fbp ordret, når den har Metas form; ellers sendes fbp ikke. */
+export function bygFbpFelt(fbp: string | null | undefined): string | null {
+  const v = (fbp ?? "").trim();
+  return FBP_FORM.test(v) ? v : null;
+}
+
+/**
+ * Sprunget over, med grund. «ingen_fbclid» UDGIK 22/9 (pkt. 11): klik-id'et er ikke længere
+ * adgangsbetingelsen, og webinarvejen har intet. «fravalgt» kom til (pkt. 14).
+ */
+export const SPRUNGET_GRUNDE = ["fravalgt", "ingen_user_agent", "ingen_landing", "ikke_indsendt", "ingen_tidspunkt", "for_gammel"] as const;
 export type SprungetGrund = (typeof SPRUNGET_GRUNDE)[number];
 
 export type Dom = { ok: true; tid: Date } | { ok: false; grund: SprungetGrund };
 
-/** Dommen pr. (ansøgning, art): må den sendes, og med hvilket event_time? */
+/**
+ * Dommen pr. (ansøgning, art): må den sendes, og med hvilket event_time?
+ * FRAVALGET STÅR FØRST — en ansøger, der har bedt sig fri, prøves ikke af på noget andet.
+ * Meta kræver client_user_agent og event_source_url for website-hændelser; mangler en af dem,
+ * sendes der intet. Klik-id'et er IKKE et krav længere.
+ */
 export function doem(r: AnsoegningTilMeta, art: Art, nu: Date): Dom {
-  if (!r.fbclid || r.fbclid.trim() === "") return { ok: false, grund: "ingen_fbclid" };
+  if (r.meta_fravalg === true) return { ok: false, grund: "fravalgt" };
   if (!r.user_agent || r.user_agent.trim() === "") return { ok: false, grund: "ingen_user_agent" };
   if (!r.landing || r.landing.trim() === "") return { ok: false, grund: "ingen_landing" };
   if (art === "submitted" && !r.indsendt_at) return { ok: false, grund: "ikke_indsendt" };
@@ -167,17 +347,29 @@ export interface MetaPayload {
   event_id: string;
   action_source: "website";
   event_source_url: string;
-  user_data: { fbc: string; external_id: string[]; client_user_agent: string };
+  /** external_id og client_user_agent altid; em/ph/fn/ln/country og fbc/fbp KUN når de findes. */
+  user_data: HashetBrugerdata & { external_id: string[]; client_user_agent: string; fbc?: string; fbp?: string };
   custom_data: { content_name: string };
 }
 
 /**
- * Payloaden — præcis de tilladte felter. externalIdAftryk er sha256Hex(ansøgnings-id),
- * regnet af kalderen (aftryk.ts), så dommen her er synkron og ren.
+ * Payloaden — præcis de tilladte felter, og INTET felt uden værdi. externalIdAftryk er
+ * sha256Hex(ansøgnings-id) og `hashet` er hashBrugerdata(normaliserBrugerdata(r)); begge
+ * regnes af kalderen, så dommen her er synkron og ren.
  * fbc's tidspunkt er created_at — første gang vi så fbclid'et (Metas regel), ikke hændelsens tid.
+ * SPREDNINGEN ER MED VILJE: `...hashet` lægger kun de nøgler ind, der findes, og fbc/fbp
+ * kommer kun med, når de ikke er null. Et `fbc: null` ville være en værdi, ikke et fravær.
  */
-export function bygPayload(r: AnsoegningTilMeta, art: Art, tid: Date, externalIdAftryk: string): MetaPayload {
+export function bygPayload(
+  r: AnsoegningTilMeta,
+  art: Art,
+  tid: Date,
+  externalIdAftryk: string,
+  hashet: HashetBrugerdata,
+): MetaPayload {
   const set = somTid(r.created_at) ?? tid;
+  const fbc = bygFbcFelt(r.fbclid, r.fbc_cookie, set);
+  const fbp = bygFbpFelt(r.fbp);
   return {
     event_name: META_EVENT[art].event_name,
     event_time: Math.floor(tid.getTime() / 1000),
@@ -185,30 +377,81 @@ export function bygPayload(r: AnsoegningTilMeta, art: Art, tid: Date, externalId
     action_source: "website",
     event_source_url: (r.landing ?? "").trim(),
     user_data: {
-      fbc: bygFbc((r.fbclid ?? "").trim(), set),
+      ...hashet,
       external_id: [externalIdAftryk],
       client_user_agent: (r.user_agent ?? "").trim().slice(0, USER_AGENT_MAKS),
+      ...(fbc !== null ? { fbc } : {}),
+      ...(fbp !== null ? { fbp } : {}),
     },
     custom_data: { content_name: META_EVENT[art].content_name },
   };
 }
 
-/** Nøgler, der ALDRIG må stå i det, vi sender: Metas kontakt-/personfelter og vores egne. */
+/**
+ * Nøgler, der ALDRIG må stå i det, vi sender. em, ph, fn, ln og country STOD her indtil 22/9
+ * — de sendes nu HASHET og vogtes i stedet af HASHEDE_NOEGLER nedenfor, som kræver et
+ * 64-tegns aftryk. Det samme gælder fbp, der nu er et tilladt felt med Metas egen form.
+ * Tilbage står Metas øvrige kontaktfelter, som vi hverken har eller vil sende, og vores egne
+ * ord for ansøgerens oplysninger — de må ikke kunne snige sig ind som en nøgle.
+ */
 export const FORBUDTE_NOEGLER = [
-  "em", "ph", "fn", "ln", "ge", "db", "ct", "st", "zp", "country", "client_ip_address", "fbp", "subscription_id", "lead_id",
+  "ge", "db", "ct", "st", "zp", "client_ip_address", "subscription_id", "lead_id",
   "email", "navn", "telefon", "cvr", "svar", "ip", "ip_hash", "udfordring", "hjemmeside", "virksomhedsnavn",
   // GA's id'er (21/9 aften) hører til Google, aldrig til Metas payload.
   "ga_client_id", "ga_session_id",
 ] as const;
 
-/** Stierne til enhver forbudt nøgle i objektet — tom = rent. */
+/** Nøgler, hvis værdi SKAL være et 64-tegns SHA-256-aftryk (Metas «Hashing required»). */
+export const HASHEDE_NOEGLER = ["em", "ph", "fn", "ln", "country", "external_id"] as const;
+export const AFTRYK_FORM = /^[0-9a-f]{64}$/;
+
+/** En rå e-mail — hvor som helst i payloaden, også midt i en landing-URL. */
+export const RAA_EMAIL_FORM = /[^\s@,;"']+@[^\s@,;"']+\.[A-Za-z]{2,}/;
+/** Tegnene, et telefonnummer/CVR kan være skrevet med. */
+const TAL_TEGN_FORM = /^\+?[\d\s()./-]+$/;
+/** Et landepræfiks midt i en streng — «+45 12 34 56 78» i en URL er lige så meget et læk. */
+export const RAA_LANDEKODE_FORM = /\+45[\s-]?(?:\d[\s-]?){8}/;
+
+/**
+ * Er HELE strengen et telefonnummer eller et CVR (8–15 cifre)? Kun hele strenge, med vilje:
+ * fbc og fbp indeholder lange cifferrækker («fb.1.1790017200000.…»), men også bogstaver og
+ * punktummer, så de rammes ikke — og et aftryk er 64 tegn og dermed uden for grænsen.
+ */
+export function erRaaTal(v: string): boolean {
+  const t = v.trim();
+  if (t === "" || t.length > 20 || !TAL_TEGN_FORM.test(t)) return false;
+  const cifre = t.replace(/\D/g, "").length;
+  return cifre >= 8 && cifre <= 15;
+}
+
+/** Er værdien et aftryk — eller en ikke-tom liste af aftryk? */
+export function erKunAftryk(v: unknown): boolean {
+  if (typeof v === "string") return AFTRYK_FORM.test(v);
+  return Array.isArray(v) && v.length > 0 && v.every((x) => typeof x === "string" && AFTRYK_FORM.test(x));
+}
+
+/**
+ * Værnet, kørt på DET FAKTISKE OBJEKT lige før afsendelsen. Tre ting fælder en payload:
+ *   1. en forbudt nøgle, hvor som helst;
+ *   2. en hashet nøgle, hvis værdi ikke er et 64-tegns aftryk (tom streng, uhashet værdi,
+ *      tom liste) — «send ALDRIG et tomt eller uhashet felt» (Jonas 21/9);
+ *   3. en rå e-mail eller et rået tal (telefon/CVR) som VÆRDI, hvor som helst.
+ * Hvert fund bærer sin sti og sin grund. Tom liste = payloaden er ren.
+ */
 export function findForbudteNoegler(obj: unknown, sti = ""): string[] {
+  if (typeof obj === "string") {
+    const ud: string[] = [];
+    if (RAA_EMAIL_FORM.test(obj)) ud.push(`${sti}: rå e-mail`);
+    if (erRaaTal(obj) || RAA_LANDEKODE_FORM.test(obj)) ud.push(`${sti}: rå telefon/CVR`);
+    return ud;
+  }
   if (obj === null || typeof obj !== "object") return [];
   const ud: string[] = [];
   if (Array.isArray(obj)) { obj.forEach((v, i) => ud.push(...findForbudteNoegler(v, `${sti}[${i}]`))); return ud; }
   for (const [k, v] of Object.entries(obj as Record<string, unknown>)) {
     const her = sti ? `${sti}.${k}` : k;
-    if ((FORBUDTE_NOEGLER as readonly string[]).includes(k)) ud.push(her);
+    if ((FORBUDTE_NOEGLER as readonly string[]).includes(k)) ud.push(`${her}: forbudt nøgle`);
+    if ((HASHEDE_NOEGLER as readonly string[]).includes(k) && !erKunAftryk(v)) ud.push(`${her}: ikke et 64-tegns aftryk`);
     ud.push(...findForbudteNoegler(v, her));
   }
   return ud;

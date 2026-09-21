@@ -31,14 +31,27 @@ ikke endnu. **LinkedIn er udskudt (Jonas 21/9): delingen af `/webinar` går fora
 fra platformen (lag 2). **TikTok bruges IKKE — pixlen skal fjernes** fra begge
 GTM-containere, og derefter fra banner og cookiepolitik.
 
-**(d) Ingen persondata til Meta.** Aldrig navn, e-mail, telefon, IP, CVR eller svar.
-Kun klik-id'et (`fbc`), vores eget id (hashet) og browserens user agent.
+**(d) Ingen persondata til Meta.** ~~Aldrig navn, e-mail, telefon, IP, CVR eller svar.
+Kun klik-id'et (`fbc`), vores eget id (hashet) og browserens user agent.~~
+**OMGJORT 22/9 (Jonas 21/9 aften, «det ultimative setup, vi går ikke på kompromis» —
+princip (g)):** vi sender nu også en **SHA-256-hashet** e-mail (`em`), telefon (`ph`),
+fornavn (`fn`), efternavn (`ln`) og land (`country`), normaliseret præcis efter Metas
+egne regler. Det, der stadig ALDRIG sendes: **IP, CVR, svar — og enhver værdi i
+klartekst.** Værnet (`findForbudteNoegler`) kræver nu, at `em/ph/fn/ln/country/external_id`
+er 64 hex-tegn, og afviser en rå e-mail eller et rået tal hvor som helst i payloaden.
+**Et tomt felt sendes aldrig** — en tom streng ville blive til et gyldigt aftryk, der
+matcher ingen. Grunden: Metas Event Match Quality («Sending additional customer
+information parameters may help increase Event Match Quality»), og at ansøgeren kan bede
+sig fri (`ansoegninger.meta_fravalg`).
 
 **(e) Ingen jurist** — besluttet af Jonas 21/9: vi løser det ud fra, hvad vi mener er
 rigtigt. User agent sendes, fordi Meta kræver den for website-hændelser
 (developers.facebook.com, Conversions API Parameters: «Website events … require the
 client_user_agent, action_source, and event_source_url parameters»), den gælder kun
 annonce-ansøgere (kun rækker med `fbclid`), og den står i persondatateksten.
+**Rettet 22/9:** user agent gemmes nu for **ALLE** ansøgere, fordi alle ansøgninger sendes
+— webinarvejen (annonce → topix.dk → mail → `/ansoeg?kilde=webinar`) bærer intet klik-id
+og var derfor usynlig for Meta. Uden user agent kan hændelsen slet ikke sendes.
 
 **(f) Jonas godkender kun tekster.** Resten styres af chatten — og fra 21/9 aften har
 chatten Jonas' fulde mandat, også til teksterne (GA-afsnittet i persondatateksten er
@@ -75,7 +88,7 @@ cookien ellers ikke findes, og teksterne skal være sande.
 | 19 | **Sentry** | app.theboardroom.dk (`src/main.tsx:21–27`) | fejl + 10 % traces | fejl, query-nøgler; `sendDefaultPii` ikke sat, ingen replay | Sentry | ingen banner; ikke nævnt i persondatateksten | i drift |
 | 20 | **Klaviyo «Ansoegning paabegyndt»** | platform, server: `ansoegning-gem` «gem»-grenen (`index.ts:270–272`) | e-mail kommer ind (skærm 6 «kontakt», «Næste») | profil = e-mail; properties `{kilde}`; unique_id = ansøgnings-id. Ingen utm/fbclid/telefon | Klaviyo (USA) | persondatateksten (`persondata.ts:81`) | i drift (lag 2) |
 | 21 | **Klaviyo «Ansoegning sendt»** | `_shared/ansoegningMotor.ts:269–274` | indsendelse (`indsendt_at` sat) | e-mail; kilde, branche, omsaetningsinterval, antal_ansatte | Klaviyo | som 20 | i drift (lag 2) |
-| 22 | **Meta Conversions API fra platformen** | `Lead application_started` / `application_submitted` fra `ansoegninger` (§4) | cron-job, der læser `ansoegninger` | `fbc`, hashet eget id, user agent (kun rækker med `fbclid`) — aldrig navn/e-mail/telefon/IP/CVR/svar | Meta, datasæt 858180112996496 | persondatateksten (§1e) | **i drift 21/9 aften** — bevist i Test events 16:13; **låsen slået til 16:30 og bevist i kørslen 16:43** (job 568 sender nu for alvor); §4 |
+| 22 | **Meta Conversions API fra platformen** | `Lead application_started` / `application_submitted` fra `ansoegninger` (§4) | cron-job, der læser `ansoegninger` | **fra 22/9: ALLE ansøgninger** (ikke kun rækker med `fbclid`) — `fbc` (URL'ens klik-id, ellers `_fbc`-cookien ordret), `fbp`, hashet eget id, user agent, og **SHA-256-hashet** `em`/`ph`/`fn`/`ln`/`country` — aldrig IP/CVR/svar og aldrig en værdi i klartekst | Meta, datasæt 858180112996496 | persondatateksten (§1e) | **i drift 21/9 aften** — bevist i Test events 16:13; **låsen slået til 16:30 og bevist i kørslen 16:43** (job 568 sender nu for alvor); §4 |
 | 23 | **Google Analytics' id'er på ansøgningen** | `ansoegninger.ga_client_id` / `ga_session_id`, gemt ved «opret» | fladen læser `_ga` og `_ga_6LHR66CDJ4` ved mount; egen fail-soft update efter annoncesporet | GA's klient-id og session-id — **gemmes kun, sendes endnu ikke** til nogen | (ingen modtager endnu) | samtykket på theboardroom.dk: uden «Acceptér» findes cookierne ikke, og begge felter er null | **#1071 (`edfa4f89`) i drift 21/9 17:25** — ga_client_id/ga_session_id gemmes ved opret, kun med samtykke; sendes endnu ikke; §4a |
 | 24 | **Google Analytics — afsendelsen fra platformen** | `application_started` / `application_submitted` til `G-6LHR66CDJ4` (Measurement Protocol) | cron-job, der læser `ansoegninger` og `ga_haendelser` | GA's eget klient-id og session-id, kilden og utm-mærkerne, hændelsens tidspunkt — aldrig navn/e-mail/telefon/CVR/svar | Google Analytics (EU-værten) | samtykket på theboardroom.dk (uden cookie ingen hændelse) + persondatateksten | **#1073 i drift 21/9 21:02** — sporet og låsen KØRT 17:48, cron-migrationen KØRT 21:02 (job 569, låsen slået til samtidig). Nøgle, strøm, klient-id og hændelsesform **bevist i DebugView 20:57–20:59**; Realtid og dagens rapporter viste dem ikke. Platformens egen hændelse tjekkes 22/9 kl. 08. §4a |
 
@@ -94,7 +107,7 @@ cookien ellers ikke findes, og teksterne skal være sande.
 | kliktidspunkt (til `fbc = fb.<idx>.<ms>.<fbclid>`) | **ingen kolonne** — nærmeste `created_at` (første gem) | nærmeste `registreret_at` |
 | `_fbc` / `_fbp` | ikke fundet (app'en har ingen pixel, der sætter dem) | ikke fundet |
 | `event_source_url` | `landing` (URL uden `?t=`, ≤ 1000) | `origin` / `first_origin` |
-| `client_user_agent` | **ikke fundet 21/9 middag** (kun på `aftale_underskrift`) — **gemmes fra 21/9 aften, kun med `fbclid`** (§4) | `enhed` (deviceType), ikke UA |
+| `client_user_agent` | **ikke fundet 21/9 middag** (kun på `aftale_underskrift`) — **gemmes fra 21/9 aften; fra 22/9 for ALLE, ikke kun med `fbclid`** (§4) | `enhed` (deviceType), ikke UA |
 | `client_ip_address` | kun `ip_hash` (sha256(ip + dag), irreversibel) — sendes ikke (§1d) | i `raa` — sendes ikke |
 | `event_time` (≤ 7 dage bagud) | `created_at` / `indsendt_at` | `registreret_at` |
 | `event_id` | ansøgnings-id (uuid) | `ewebinar_id` |
@@ -129,7 +142,12 @@ Ikke ændret 21/9 (§5, §6): GTM-containerne, TikTok, Stape, eWebinars pixel, p
 
 **#1069 (`dc3142d8`) merget 21/9.** Migrationerne `20260921233000` (kolonnen `ansoegninger.user_agent`) og `20260921234000` (sporet `meta_haendelser` + låsen `app_config.meta_send_aktiv` = false) **KØRT i prod 15:50, FØR merge** (Jonas, Lovable SQL editor, med en vagt først; efter: `user_agent text` · sporet med RLS true, 2 politikker, 0 rækker · låsen false). `ansoegning-gem` og `meta-send-cron` **udrullet** fra Lovables build-chat — værktøjets resultat ordret: «Successfully deployed edge functions: ansoegning-gem, meta-send-cron». Secret `META_SEND_TOKEN` sat af Jonas (Events Manager-token, genereret med Dataset Quality API, kun datasættet «Topix.dk» — ikke «The Boardroom — annoncer» 1259647116283770). Cron-migrationen `20260921235500` **kørt 16:18** (efter merge, med en vagt først): job **568 «meta-send»**, `3,8,13,18,23,28,38,43,48,53,58 * * * *`, `active: true`. Låsen er stadig false, så jobbet **tørkører** ved hver kørsel, til den slås til.
 
-**Sådan virker det:** et selvstændigt cron-job læser `ansoegninger` (kun seks kolonner) og sender `Lead application_started` (event_time = `created_at`) og `Lead application_submitted` (`indsendt_at`) til datasæt 858180112996496. `event_id` = `<ansøgnings-id>:started`/`:submitted`. Payload efter §1d: `event_name`, `event_time`, `event_id`, `action_source: "website"`, `event_source_url` (= `landing`), `user_data { external_id (hashet ansøgnings-id), fbc, client_user_agent }` — aldrig `em`, `ph`, `client_ip_address`. User agent gemmes ved «opret», kun på rækker med `fbclid`. Låsen i `app_config` (standard false) holder kørslen i tørkørsel; en `test_event_code` åbner uden låsen — det er bevisets vej. Den gamle `META_CAPI_TOKEN` er annoncehentningens `ads_read`-nøgle (nødnavn, `_shared/metaAdsToken.ts`) og er urørt.
+**Sådan virker det:** et selvstændigt cron-job læser `ansoegninger` (kun seks kolonner) og sender `Lead application_started` (event_time = `created_at`) og `Lead application_submitted` (`indsendt_at`) til datasæt 858180112996496. `event_id` = `<ansøgnings-id>:started`/`:submitted`. Payload efter §1d: `event_name`, `event_time`, `event_id`, `action_source: "website"`, `event_source_url` (= `landing`), `user_data { external_id (hashet ansøgnings-id), fbc, client_user_agent }` — aldrig `em`, `ph`, `client_ip_address`. User agent gemmes ved «opret», kun på rækker med `fbclid`.
+**UDVIDET 22/9 (udkast-meta-udvidelse):** kandidaten er nu ENHVER ansøgning i vinduet med
+user agent og landing; `user_data` bærer også `em`, `ph`, `fn`, `ln` og `country` som
+SHA-256-aftryk (kun de felter, ansøgningen HAR) samt `fbp` og — når URL'en ikke bar et
+`fbclid` — `_fbc`-cookien ordret. Nye kolonner `fbp`, `fbc_cookie`, `meta_fravalg`
+(migration `20260922040000`). User agent gemmes nu for ALLE. Låsen i `app_config` (standard false) holder kørslen i tørkørsel; en `test_event_code` åbner uden låsen — det er bevisets vej. Den gamle `META_CAPI_TOKEN` er annoncehentningens `ads_read`-nøgle (nødnavn, `_shared/metaAdsToken.ts`) og er urørt.
 
 ### Beviserne (21/9 aften) — princip 1a
 

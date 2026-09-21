@@ -30,7 +30,9 @@ import { PERSONDATA_AFSNIT } from "@/lib/ansoegning/persondata";
  *      låsen 'false'::jsonb; cron-minutterne rammer ingen anden plan (målt over alle
  *      cron.schedule + de udkast, der ikke er merget); kald_edge 60000/480000.
  *   8. PERSONDATATEKSTEN: GA-afsendelsesafsnittet og den tilpassede «Vi sælger aldrig …»
- *      står ORDRET (forslag 21/9 — venter på Jonas).
+ *      står ORDRET (forslag 21/9 — venter på Jonas). Rettet 22/9: Meta-afsnittet, som GA's
+ *      står LIGE EFTER, begynder nu «Vi fortæller Meta …», og «Vi sælger aldrig …» har
+ *      mistet forbeholdet «når du kom fra en annonce» — vi sender for alle.
  *   9. ALARMEN: kun rigtig kørsel med fejlede > 0; nøglen bærer datoen; loggen slås op FØR
  *      sendManagedEmail; til driftModtager(); klokke drift med reference_type ga_haendelser.
  */
@@ -60,7 +62,7 @@ const MIG_DIR = "supabase/migrations";
 export const GA_SEND_TEKST_ORDRET =
   "Har du sagt ja til cookies på theboardroom.dk, fortæller vi også Google Analytics, at en ansøgning er påbegyndt, og at den er sendt. Vi sender det id, Google Analytics selv har givet din browser, og hvor du kom fra — aldrig dit navn, din e-mail, dit telefonnummer, dit CVR-nummer eller dine svar. Har du ikke sagt ja til cookies, sender vi ingenting.";
 export const SAELGER_ORDRET =
-  "Vi sælger aldrig dine oplysninger. Ud over leverandørerne ovenfor, det vi fortæller Meta, når du kom fra en annonce, og det vi fortæller Google Analytics, når du har sagt ja til cookies, videregiver vi dem ikke.";
+  "Vi sælger aldrig dine oplysninger. Ud over leverandørerne ovenfor, det vi fortæller Meta, og det vi fortæller Google Analytics, når du har sagt ja til cookies, videregiver vi dem ikke.";
 
 // ── 1 ──────────────────────────────────────────────────────────────────────
 export const noeglenEtSted = (dom: string, afsendelse: string, cron: string): boolean => {
@@ -231,7 +233,11 @@ describe("gaSend.guard — Google Analytics fra platformen", () => {
     expect(gemmer).toContain(GA_SEND_TEKST_ORDRET);
     expect(hvemSer).toContain(SAELGER_ORDRET);
     // Afsendelsesafsnittet står LIGE EFTER Meta-afsnittet, så de to «fortæller vi»-afsnit står sammen.
-    expect(gemmer.indexOf(GA_SEND_TEKST_ORDRET)).toBe(gemmer.findIndex((a) => a.startsWith("Kom du fra en annonce på Facebook eller Instagram, fortæller vi Meta")) + 1);
+    // 22/9: Meta-afsnittet begynder nu «Vi fortæller Meta …» (før: «Kom du fra en annonce …»),
+    // fordi vi fra 22/9 sender for ALLE ansøgere — ikke kun dem, der kom fra en annonce.
+    // «Vi sælger aldrig …» er rettet samme sted og af samme grund: forbeholdet «når du kom
+    // fra en annonce» passede ikke længere på det, koden GØR.
+    expect(gemmer.indexOf(GA_SEND_TEKST_ORDRET)).toBe(gemmer.findIndex((a) => a.startsWith("Vi fortæller Meta, at der er sket noget")) + 1);
   });
   it("9. alarmen: kun rigtig kørsel med fejlede > 0; én pr. døgn; loggen først; driftModtager; drift-klokke", () => expect(alarmenErRigtig(laes(CRON), laes(DOM))).toBe(true));
 });

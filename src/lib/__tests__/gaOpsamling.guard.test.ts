@@ -11,7 +11,8 @@
  *      samme update), kun når harGa, og kaster aldrig.
  *   4. ALDRIG I INSERT'EN: insert'en i «opret» bærer ingen ga_-nøgle.
  *   5. IKKE I META-PAYLOADEN: FORBUDTE_NOEGLER indeholder ga_client_id og ga_session_id.
- *   6. FLADEN OG BODY'EN: Ansoeg.tsx læser document.cookie gennem laesGa ét sted og sender
+ *   6. FLADEN OG BODY'EN (udvidet 22/9: også Metas cookier): Ansoeg.tsx læser document.cookie
+ *      gennem laesGa og laesMetaCookies — hver læsning lige ind i sin parser — og sender
  *      `ga: ga.current` med «opret»; KENDTE_FELTER kender «ga»; serveren dømmer med gaAf.
  *      Persondatateksten bærer GA-afsnittet ORDRET (godkendt 21/9, chatten med Jonas' fulde
  *      mandat — uden ordet «anonyme») lige efter «hvor du kom fra».
@@ -113,7 +114,15 @@ export const fladenOgBodyen = (side: string, api: string, gem: string): string[]
   const s = udenKommentarer(side), a = udenKommentarer(api), g = udenKommentarer(gem);
   const fejl: string[] = [];
   if (!s.includes('const ga = useRef(laesGa(typeof document !== "undefined" ? document.cookie : null));')) fejl.push("Ansoeg.tsx læser ikke document.cookie gennem laesGa ét sted");
-  if ((s.match(/document\.cookie/g) ?? []).length !== 1) fejl.push("document.cookie læses flere steder i Ansoeg.tsx");
+  // 22/9: der er nu TO læsninger af document.cookie i Ansoeg.tsx — GA's og Metas. Reglen er
+  // ikke «kun én læsning», men «hver læsning går lige ind i en navngiven parser, og ingen
+  // parser cookien i hånden». Derfor tælles læsningerne, og hver enkelt holdes op mod sin linje.
+  const cookieLinjer = s.split("\n").filter((l) => l.includes("document.cookie"));
+  if (cookieLinjer.length !== 2) fejl.push(`document.cookie læses ${cookieLinjer.length} steder i Ansoeg.tsx — forventede 2 (GA og Meta)`);
+  if (!cookieLinjer.every((l) => /(laesGa|laesMetaCookies)\(typeof document !== "undefined" \? document\.cookie : null\)/.test(l))) {
+    fejl.push("en læsning af document.cookie i Ansoeg.tsx går ikke lige ind i laesGa eller laesMetaCookies");
+  }
+  if (!s.includes('const metaCookies = useRef(laesMetaCookies(typeof document !== "undefined" ? document.cookie : null));')) fejl.push("Ansoeg.tsx læser ikke Metas cookier gennem laesMetaCookies ét sted");
   if (!s.includes("ga: ga.current,")) fejl.push("«opret» sender ikke ga");
   if (!/opretAnsoegning\(args: \{[^}]*ga: GaOpsamling;/.test(a)) fejl.push("api.ts' opret-type mangler ga");
   const m = /const KENDTE_FELTER = \[([^\]]*)\] as const;/.exec(g);
@@ -178,7 +187,10 @@ describe("gaOpsamling.guard — dommene fanger fejlen på en kopi", () => {
   });
   it("6. «opret» uden ga, KENDTE_FELTER uden «ga», eller GA-afsnittet et andet sted, fælder dom 6", () => {
     expect(fladenOgBodyen(side.replace("ga: ga.current, ", ""), api, gem)).not.toEqual([]);
-    expect(fladenOgBodyen(side, api, gem.replace('"annoncespor", "ga", "svar"', '"annoncespor", "svar"'))).not.toEqual([]);
+    expect(fladenOgBodyen(side, api, gem.replace('"annoncespor", "ga", "meta", "svar"', '"annoncespor", "meta", "svar"'))).not.toEqual([]);
+    // 22/9: en håndparset cookie i fladen skal stadig fælde dommen — det er hele pointen.
+    expect(fladenOgBodyen(side.replace('const ga = useRef(laesGa(typeof document !== "undefined" ? document.cookie : null));', 'const ga = useRef(document.cookie.split("_ga=")[1]);'), api, gem)).not.toEqual([]);
+    expect(fladenOgBodyen(side.replace('const metaCookies = useRef(laesMetaCookies(typeof document !== "undefined" ? document.cookie : null));', ""), api, gem)).not.toEqual([]);
     const gemmer = PERSONDATA_AFSNIT.find((x) => x.titel === "Hvad vi gemmer")!;
     const flyttet = [...gemmer.afsnit.filter((x) => x !== GA_TEKST_ORDRET), GA_TEKST_ORDRET];
     expect(gaAfsnittetStaarRigtigt([{ titel: "Hvad vi gemmer", afsnit: flyttet }])).toBe(false);

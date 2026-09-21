@@ -51,6 +51,34 @@
  * gaSend.guard dom 2 fælder det). Betingelsen er den samme som for opsamlingen: cookien
  * findes kun, når ansøgeren har sagt ja på theboardroom.dk. Ordlyden låses af
  * gaSend.guard dom 8, så den ikke kan skride ubemærket.
+ *
+ * META-UDVIDELSEN, 22/9-2026 — TO ÆNDRINGER I «HVAD VI GEMMER»:
+ *
+ * (a) META-AFSNITTET er ERSTATTET, og den nye ordlyd er GODKENDT AF CHATTEN MED JONAS'
+ *     FULDE MANDAT (21/9 aften). Den gamle tekst sagde «Kom du fra en annonce …, sender vi
+ *     kun det klik-id …» og «Vi sender aldrig dit navn, din e-mail, dit telefonnummer».
+ *     Begge dele holdt op med at være sandt samme aften: platformen sender nu for ALLE
+ *     ansøgere (ikke kun annonce-ansøgere) og sender en SHA-256-hashet udgave af e-mail,
+ *     telefon og navn. En tekst, der lover noget, koden ikke gør, er værre end ingen tekst.
+ *     Ordet «krypteret» er valgt frem for «hashet»: det er ikke det præcise fagord, men det
+ *     er det ord, en ansøger forstår — og sætningen efter forklarer, hvad det betyder i
+ *     praksis («Meta kan ikke se selve oplysningerne, men kan genkende dem …»).
+ *     Låst ordret af metaSend.guard dom 9.
+ *
+ * (b) AFSNITTET OM «HVOR DU KOM FRA» er godkendt 21/9 (chatten, med Jonas' fulde mandat). Grunden til, at
+ *     det skal rettes: user agent og Metas cookier gemmes fra 22/9 for ALLE, ikke kun for
+ *     annonce-ansøgere, og den gamle sætning bandt begge dele til «Kom du fra en annonce».
+ *     Teksten adskiller de tre: browseren altid, klik-id'et kun fra en annonce, cookierne
+ *     kun med samtykke. Det er den ENESTE nye ordlyd i denne omgang, og den er markeret her,
+ *     så den kan ses igennem som ét stykke. Sætningen skal blive ved med at begynde med
+ *     «Hvor du kom fra», fordi gaOpsamling.guard dom 6 placerer GA-afsnittet lige efter den.
+ *
+ * (c) «VI SÆLGER ALDRIG …» har mistet forbeholdet «når du kom fra en annonce» om Meta, af
+ *     samme grund som (a). Låst af gaSend.guard dom 8.
+ *
+ * FRAVALGET er nu mere end en adresse i en tekst: ansoegninger.meta_fravalg (migration
+ * 20260922040000) får meta-send-cron til at springe ansøgningen over. Sættes i hånden med
+ * én SQL, indtil der er en knap i rådgiverfladen. Punkt 5 i noten til juristen nedenfor.
  */
 
 export interface PersondataAfsnit {
@@ -72,9 +100,9 @@ export const PERSONDATA_AFSNIT: readonly PersondataAfsnit[] = [
     afsnit: [
       "Det, du selv skriver i formularen: virksomhedens CVR-nummer, hjemmeside, omsætningsinterval og antal ansatte; dit navn, din e-mail og dit telefonnummer; dine svar på de tre spørgsmål om udfordring, hvad du har prøvet, og hvor du vil hen; hvornår du kan starte, og om du har set vores webinar.",
       "Det, vi slår op om virksomheden i CVR-registret ud fra nummeret: navn, stiftelsesår, branche, selskabsform, antal ansatte og adresse. Vi henter ikke oplysninger om ejere eller andre personer.",
-      "Hvor du kom fra — for eksempel vores webinar, en annonce, LinkedIn eller direkte — og de mærker, der står i linket, du klikkede på. Kom du fra en annonce på Facebook eller Instagram, gemmer vi det klik-id, Meta selv satte på linket, og hvilken slags browser du brugte.",
+      "Hvor du kom fra — for eksempel vores webinar, en annonce, LinkedIn eller direkte — og de mærker, der står i linket, du klikkede på. Vi gemmer altid, hvilken slags browser du brugte. Kom du fra en annonce på Facebook eller Instagram, gemmer vi også det klik-id, Meta selv satte på linket. Har du sagt ja til cookies på theboardroom.dk, gemmer vi desuden de cookies, Meta selv har sat i din browser.",
       "Har du sagt ja til cookies på theboardroom.dk, gemmer vi også det id, Google Analytics har givet din browser, så vi kan se, hvilken kanal din ansøgning kom fra.",
-      "Kom du fra en annonce på Facebook eller Instagram, fortæller vi Meta, at der er sket noget — at en ansøgning er påbegyndt, og at den er sendt. Vi sender kun det klik-id, Meta selv satte på linket, hvilken slags browser du brugte, og et id, vi selv har lavet. Vi sender aldrig dit navn, din e-mail, dit telefonnummer, dit CVR-nummer eller dine svar. Kom du ikke fra en annonce, sender vi ingenting. Vil du helst være fri, så skriv til kontakt@theboardroom.dk.",
+      "Vi fortæller Meta, at der er sket noget — at en ansøgning er påbegyndt, og at den er sendt — så vi kan se, om vores annoncer virker. Vi sender en krypteret udgave af din e-mail, dit telefonnummer og dit navn, det klik-id og de cookies, Meta selv har sat, hvilken slags browser du brugte, og et id, vi selv har lavet. Meta kan ikke se selve oplysningerne, men kan genkende dem, hvis du har en profil hos Meta med samme e-mail eller telefonnummer. Vi sender aldrig dit CVR-nummer eller dine svar. Vil du helst være fri, så skriv til kontakt@theboardroom.dk.",
       "Har du sagt ja til cookies på theboardroom.dk, fortæller vi også Google Analytics, at en ansøgning er påbegyndt, og at den er sendt. Vi sender det id, Google Analytics selv har givet din browser, og hvor du kom fra — aldrig dit navn, din e-mail, dit telefonnummer, dit CVR-nummer eller dine svar. Har du ikke sagt ja til cookies, sender vi ingenting.",
       "En anonymiseret dags-nøgle for din internetadresse, som vi kun bruger til at begrænse misbrug af formularen. Selve adressen gemmes ikke her.",
       "Har du tilmeldt dig vores webinar, gemmer vi også din tilmelding og din deltagelse: hvornår du meldte dig til, om du deltog, og hvor stor en del af webinaret du så. Bruger du samme e-mailadresse til at ansøge, kobler vi de to sammen, så vi ved, at du har set det.",
@@ -112,7 +140,7 @@ export const PERSONDATA_AFSNIT: readonly PersondataAfsnit[] = [
     afsnit: [
       "Morten Larsen og Jonas Herlev, som læser og vurderer ansøgningerne, og de rådgivere, der arbejder for The Boardroom.",
       "Vores leverandører behandler oplysningerne på vores vegne og efter vores instruks: Supabase (databasen, via Lovable Cloud, i EU), Lovable (afsendelse af e-mail, i EU), DataCVR (opslaget i CVR-registret — de får kun CVR-nummeret, i Danmark), Calendly (dit navn, din e-mail og din virksomhed, når du booker en samtale, i USA), eWebinar (din tilmelding og deltagelse, hvis du har set webinaret, i USA) og Klaviyo (din e-mail og hvor du kom fra, når du begynder en ansøgning — og virksomhedens branche, omsætningsinterval og antal ansatte, når du sender den; det styrer, hvilke af vores egne mails om The Boardroom du får, i USA).",
-      "Vi sælger aldrig dine oplysninger. Ud over leverandørerne ovenfor, det vi fortæller Meta, når du kom fra en annonce, og det vi fortæller Google Analytics, når du har sagt ja til cookies, videregiver vi dem ikke.",
+      "Vi sælger aldrig dine oplysninger. Ud over leverandørerne ovenfor, det vi fortæller Meta, og det vi fortæller Google Analytics, når du har sagt ja til cookies, videregiver vi dem ikke.",
     ],
   },
   {
@@ -156,6 +184,14 @@ export const PERSONDATA_AFSNIT: readonly PersondataAfsnit[] = [
  *    Supabase (via Lovable Cloud), Lovable, DataCVR, Calendly og eWebinar.
  *    Teksten siger, at de behandler «på vores vegne og efter vores instruks»
  *    — det skal være sandt for hver enkelt, før teksten går i luften.
+ *
+ * 5. DET, DER ALLEREDE ER SENDT (22/9). Fravalget standser fremtidige afsendelser, men
+ *    kalder ikke tilbage, hvad Meta og Google allerede har fået. Det skal afgøres, om
+ *    teksten skal sige det, og hvad vi i givet fald gør ved en sletteanmodning — vejen er
+ *    Metas og Googles egne sletteværktøjer, ikke vores database. Bemærk samtidig, at vi fra
+ *    22/9 sender en hashet e-mail, et hashet telefonnummer og et hashet navn til Meta: det
+ *    er stadig personoplysninger, og retsgrundlaget er den berettigede interesse i at måle
+ *    markedsføringen, som står under «Hvorfor».
  *
  * Se også `SAMTYKKE_LINJE` i `spoergsmaal.ts`: den korte linje under «Send
  * ansøgningen» opsummerer kun 12 måneder og 30 dage og nævner hverken

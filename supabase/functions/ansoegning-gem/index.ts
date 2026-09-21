@@ -43,6 +43,9 @@ import { planlaegKladde, registrerIndsendelse } from "../_shared/ansoegningMotor
 import {
   annoncesporAf,
   gaAf,
+  harMetaCookies,
+  type MetaCookies,
+  metaCookiesAf,
   harGa,
   type GaOpsamling,
   harAnnoncespor,
@@ -72,7 +75,7 @@ const HANDLINGER = ["opret", "hent", "gem", "indsend"] as const;
  * ansoegningGemKendteFelter.guard holder listen op mod api.ts — et nyt felt
  * i klienten uden plads her afvises med 400, og værnet går rødt først.
  */
-const KENDTE_FELTER = ["handling", "token", "kilde", "kilde_raa", "annoncespor", "ga", "svar", "firma", "cvr_bekraeftet", "virksomhedsnavn"] as const;
+const KENDTE_FELTER = ["handling", "token", "kilde", "kilde_raa", "annoncespor", "ga", "meta", "svar", "firma", "cvr_bekraeftet", "virksomhedsnavn"] as const;
 type Handling = (typeof HANDLINGER)[number];
 
 /**
@@ -124,18 +127,22 @@ function svarAf(raekke: Record<string, unknown>): AnsoegningsSvar {
 }
 
 /**
- * Annoncesporet (+ user agent) på rækken — kaster aldrig. Tomt spor = ingen update.
+ * Annoncesporet (+ user agent) på rækken — kaster aldrig. Er der hverken spor eller user
+ * agent, er der intet at skrive.
+ * USER AGENT FOR ALLE (22/9, pkt. 4): betingelsen «kun med fbclid» er væk, og derfor er
+ * betingelsen for at skrive noget nu «spor ELLER user agent» — en webinar-ansøger har ingen
+ * utm-mærker, men skal alligevel have sin user agent, ellers kan hændelsen ikke sendes.
  * ANNONCESPORET MÅ ALDRIG TABES PÅ GRUND AF USER AGENT (rettelse 21/9 aften): fejler
  * updaten MED user agent (kolonnen mangler — migration 20260921233000 — eller en anden fejl
  * på feltet), prøves STRAKS igen med sporet alene, og begge fejl logges — så klik-id'et og
  * utm aldrig koster på user agent. Ingen af delene koster ansøgeren noget.
  */
 async function gemAnnoncespor(admin: SupabaseClient, id: string, spor: Annoncespor, userAgent: string | null): Promise<void> {
-  if (!harAnnoncespor(spor)) return;
+  if (!harAnnoncespor(spor) && userAgent === null) return;
   const { error } = await admin.from("ansoegninger").update(sporMedUserAgent(spor, userAgent)).eq("id", id);
   if (!error) return;
   console.error(`[ansoegning-gem] annoncesporet (med user agent) kunne ikke gemmes på ${id}: ${error.message}`);
-  if (!spor.fbclid) return; // uden fbclid var der ingen user agent i updaten — intet at prøve igen
+  if (userAgent === null || !harAnnoncespor(spor)) return; // updaten bar kun det ene — intet at prøve igen
   const { error: fejlUden } = await admin.from("ansoegninger").update({ ...spor }).eq("id", id);
   if (fejlUden) console.error(`[ansoegning-gem] annoncesporet (uden user agent) kunne heller ikke gemmes på ${id}: ${fejlUden.message}`);
 }
@@ -150,6 +157,18 @@ async function gemGa(admin: SupabaseClient, id: string, ga: GaOpsamling): Promis
   if (!harGa(ga)) return;
   const { error: gaFejl } = await admin.from("ansoegninger").update({ ga_client_id: ga.client_id, ga_session_id: ga.session_id }).eq("id", id);
   if (gaFejl) console.error(`[ansoegning-gem] GA-id'erne kunne ikke gemmes på ${id}: ${gaFejl.message}`);
+}
+
+/**
+ * Metas egne cookier (_fbp, _fbc) på rækken (22/9) — kaster aldrig. EN EGEN update EFTER
+ * gemGa, af samme grund som GA har sin: en fejl her (kolonnerne mangler — migration
+ * 20260922040000 — eller andet) må ikke kunne koste klik-id, utm, user agent eller GA's
+ * id'er. Kun når mindst ét felt er sat. Værdierne skrives ORDRET, som Meta kræver.
+ */
+async function gemMetaCookies(admin: SupabaseClient, id: string, meta: MetaCookies): Promise<void> {
+  if (!harMetaCookies(meta)) return;
+  const { error: metaFejl } = await admin.from("ansoegninger").update({ fbp: meta.fbp, fbc_cookie: meta.fbc }).eq("id", id);
+  if (metaFejl) console.error(`[ansoegning-gem] Metas cookier kunne ikke gemmes på ${id}: ${metaFejl.message}`);
 }
 
 Deno.serve(async (req) => {
@@ -212,12 +231,17 @@ Deno.serve(async (req) => {
       // ANNONCESPORET (udkast 2, 21/9): en EGEN update efter insert'en, fail-soft —
       // mangler kolonnerne (migration 20260921120000 ikke kørt), eller fejler
       // skrivningen, koster det ansøgeren intet. Sporet er en oplysning, ikke rækken.
-      // USER AGENT (21/9 aften): fra request-headeren, KUN når fbclid er sat — samme fail-soft
-      // update som sporet. Meta kræver client_user_agent for website-hændelser (meta-send-cron).
+      // USER AGENT (21/9 aften, udvidet 22/9): fra request-headeren, for ALLE ansøgere — samme
+      // fail-soft update som sporet. Meta kræver client_user_agent for website-hændelser, og
+      // siden ALLE ansøgninger nu sendes (meta-send-cron pkt. 11), ville en manglende user
+      // agent gøre webinar-ansøgeren usendelig.
       await gemAnnoncespor(adminClient, data.id, annoncesporAf(body?.annoncespor), laesUserAgent(req));
       // GA (21/9 aften): klient-id og session-id fra theboardroom.dk's cookies — dømt igen
       // serverside (gaAf), gemt i sin EGEN fail-softe update efter sporet. Sendes endnu ikke.
       await gemGa(adminClient, data.id, gaAf(body?.ga));
+      // METAS COOKIER (22/9): _fbp og _fbc fra theboardroom.dk, dømt igen serverside
+      // (metaCookiesAf), i sin EGEN fail-softe update efter GA's. Sendes af meta-send-cron.
+      await gemMetaCookies(adminClient, data.id, metaCookiesAf(body?.meta));
 
       // KLAVIYO: «Ansoegning paabegyndt» sendes IKKE her. Målt 19/9 kl. 22.22:
       // «opret» sker ved FØRSTE gem, og første skærm er CVR — mailen kommer

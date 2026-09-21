@@ -71,6 +71,19 @@ describe("ansoegningSkema — parity between src/lib and supabase/functions/_sha
     expect(denoModul.cvrSaetning(v)).toBe(srcModul.cvrSaetning(v));
   });
 
+  it("Metas cookier dømmes ens på begge sider (22/9)", () => {
+    const tilfaelde: unknown[] = [
+      null, undefined, "x", [], {},
+      { fbp: "fb.1.1790017100000.1234567890", fbc: "fb.1.1790017100000.IwAR0abc" },
+      { fbp: "pjat", fbc: " fb.2.17.abcDEF-_ " },
+      { fbp: 7, fbc: null },
+    ];
+    for (const t of tilfaelde) expect(denoModul.metaCookiesAf(t), JSON.stringify(t)).toEqual(srcModul.metaCookiesAf(t));
+    const cookie = "_ga=GA1.1.1.2; _fbp=fb.1.1790017100000.1234567890; _fbc=fb.1.1790017100000.IwAR0abc";
+    expect(denoModul.laesMetaCookies(cookie)).toEqual(srcModul.laesMetaCookies(cookie));
+    expect(denoModul.TOMME_META_COOKIES).toEqual(srcModul.TOMME_META_COOKIES);
+  });
+
   it("kroppen er ordret ens (filhovedet er den eneste forskel)", () => {
     const uden = (s: string) => s.replace(/^\/\*\*[\s\S]*?\*\/\n/, "");
     const src = uden(readFileSync(resolve(process.cwd(), "src/lib/ansoegning/skema.ts"), "utf8"));
