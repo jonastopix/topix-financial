@@ -188,6 +188,8 @@ export const MENNESKE_HANDLINGER: readonly HandlingsArt[] = [
   "tal_med_dem",
   "afvis",
   "afholdt",
+  // «Kom ikke» (21/9): som afholdt både et menneske (knappen på «afholdt») og systemet (Calendlys no-show).
+  "ikke_moedt",
   "tilbud",
   "afslag",
   "underskrevet",
@@ -202,6 +204,7 @@ export const SYSTEM_HANDLINGER: readonly HandlingsArt[] = [
   "book",
   "aflys_booking",
   "afholdt",
+  "ikke_moedt",
   "svarer_ikke",
   "udloeb",
   "ikke_nu",

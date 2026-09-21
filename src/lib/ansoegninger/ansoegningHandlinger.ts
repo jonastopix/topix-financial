@@ -80,6 +80,11 @@ const KNAPPE: Record<FladeHandling, Omit<Knap, "handling">> = {
 /** Rækkefølgen knapperne står i. */
 const RAEKKEFOELGE: readonly FladeHandling[] = ["tal_med_dem", "afvis", "afslag", "ikke_moedt", "afholdt", "underskrevet", "genaabn", "genoptag", "saet_pause", "luk"];
 
+// «Kom ikke» (Jonas 21/9): ikke_moedt står i MENNESKE_HANDLINGER (som afholdt — menneske OG system), så
+// knappen kommer gennem det ene filter nedenfor. Køen markerer afholdt ved sluttid, uanset om nogen kom;
+// uden knappen ville et «Giv afslag» takke for en snak, der aldrig fandt sted. Serveren tager den imod
+// i RAADGIVER_SAMTALE (ansoegning-handling) — urørt.
+
 export interface KnapKontekst {
   trin: Trin;
   paaPause: boolean;

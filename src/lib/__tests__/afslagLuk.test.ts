@@ -42,8 +42,8 @@ describe("1. knapperne fra «afholdt»: «Giv afslag» og «Luk uden svar» side
     expect(store.find((k) => k.handling === "luk")!.kraeverAarsag).toBe(true);
     expect(store.find((k) => k.handling === "afslag")!.kraeverAfslagsgrund).toBe(true);
   });
-  it("reserven fra «afholdt» er kun «Sæt på pause» — «Kom ikke» står i RAEKKEFOELGE, men ikke i MENNESKE_HANDLINGER, så knapperFor viser den aldrig (fund 21/9: no-show kommer kun fra Calendly-webhooken)", () => {
-    expect(knapperFor(AFHOLDT).filter((k) => !k.stor).map((k) => k.handling)).toEqual(["saet_pause"]);
+  it("reserven fra «afholdt»: «Kom ikke» (21/9, i MENNESKE_HANDLINGER) og «Sæt på pause» — ikke «Markér afholdt», ikke «Underskrevet på papir»", () => {
+    expect(knapperFor(AFHOLDT).filter((k) => !k.stor).map((k) => k.handling)).toEqual(["ikke_moedt", "saet_pause"]);
   });
 });
 

@@ -213,7 +213,11 @@ export async function hentSamtaleTider(ansoegningId: string): Promise<{ slots: s
 
 export async function udfoerHandling(input: {
   ansoegningId: string;
-  /** Menneskets handlinger — plus samtalens to (book med samtaleStart, aflys_booking) fra afsnittet «Samtalen» (udkast 18/9). */
+  /**
+   * Menneskets handlinger — plus samtalens to (book med samtaleStart, aflys_booking) fra afsnittet
+   * «Samtalen» (udkast 18/9). «ikke_moedt» («Kom ikke», 21/9) er dækket af MenneskeHandling: typen
+   * udelukker kun systemets seks, og serveren tager den imod i RAADGIVER_SAMTALE.
+   */
   handling: MenneskeHandling | "book" | "aflys_booking";
   begrundelse?: string | null;
   lukkeaarsag?: Lukkeaarsag | null;
