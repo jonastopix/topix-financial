@@ -57,8 +57,8 @@
  *                 påmindelse som trappe i den fælles kø (Jonas D6, 18/9),
  *                 ikke en cron for sig. Køen sender kun hvis ansøgningen
  *                 stadig er en kladde (indsendt_at null) med e-mail.
- *   afslag        anker = afvisningen/afslaget (grund niche/for_tidligt;
- *                 «andet» giver ingen mail). Dag 0: afslagsmailen — ved
+ *   afslag        anker = afvisningen/afslaget (alle tre grunde giver
+ *                 afslagsmailen, 20/9). Dag 0: afslagsmailen — ved
  *                 niche med pladsen i køen (C's venteliste). Lever på en
  *                 LUKKET ansøgning (TRAPPER_PAA_LUKKET) — køen annullerer
  *                 den ikke for det.

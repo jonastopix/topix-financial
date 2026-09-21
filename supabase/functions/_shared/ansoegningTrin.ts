@@ -73,7 +73,9 @@
  * venteliste), FOR TIDLIGT eller ANDET. «Svarer ikke» giver intet. Er
  * grunden niche eller for_tidligt, planlægges afslagsmailen (trappen
  * «afslag», dag 0) — ved niche med pladsen i køen («I står nummer N i
- * køen»). «andet» giver ingen mail: Jonas skriver selv. Abonnementet
+ * køen»). ALLE TRE GRUNDE giver afslagsmailen (20/9, recon §5.5 — «andet»
+ * gav før ingen mail, og ansøgeren hørte aldrig noget). Et nej UDEN mail er
+ * knappen «Luk uden svar» (luk med årsag), ikke en afslagsgrund. Abonnementet
  * «Dine tal» er taget helt ud (Jonas 18/9: «Det skal slet ikke nævnes»)
  * — README'en siger hvad der skal til, hvis det kobles på senere.
  *
@@ -106,10 +108,26 @@ export const LUKKEAARSAGER = [
   "udloebet",
   "trak_sig",
   "dublet",
+  // 21/9 (Jonas): samtalen viste, at det ikke er et match — for begge parter. Lukkes UDEN mail
+  // (luk starter ingen trappe); afslagsmailen er «afslag», som altid sender.
+  "gensidigt_ikke_match",
   "andet",
   "betalte_ikke",
 ] as const;
 export type Lukkeaarsag = (typeof LUKKEAARSAGER)[number];
+
+/**
+ * «Andet» som lukkeårsag SKAL bære en begrundelse (Jonas 21/9): uden den siger sporet
+ * intet om, hvorfor en ansøger blev lukket uden svar. Dømt ét sted, brugt af fladen
+ * (knappen er død uden tekst) og af ansoegning-handling (400) — fail-closed.
+ */
+export function lukKraeverBegrundelse(aarsag: Lukkeaarsag): boolean {
+  return aarsag === "andet";
+}
+
+export function erLukBegrundelseGyldig(aarsag: Lukkeaarsag, begrundelse: string | null | undefined): boolean {
+  return !lukKraeverBegrundelse(aarsag) || (begrundelse ?? "").trim().length > 0;
+}
 
 // B's fem (ansoegningSkema.ts KILDER) — byte-ens liste; ansoegningMotor.guard låser den.
 export const KILDER = ["webinar", "anbefaling", "linkedin", "direkte", "andet"] as const;

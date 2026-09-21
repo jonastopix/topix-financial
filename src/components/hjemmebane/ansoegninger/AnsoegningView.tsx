@@ -90,7 +90,7 @@ export const AnsoegningView = ({ id }: { id: string | undefined }) => {
           {a.paa_pause_til ? ` · på pause til ${a.paa_pause_til}` : ""}{a.lukkeaarsag ? ` · ${LUKKEAARSAG_ORD[a.lukkeaarsag]}` : ""}
           {a.company_id ? <> · <Link to={`/virksomhed/${a.company_id}`} className="text-hb-evergreen underline-offset-4 hover:underline">virksomheden</Link></> : null}
         </p>
-        <AnsoegningHandlinger id={a.id} navn={navn} trin={a.trin} paaPause={erPaaPause(a.paa_pause_til, nu)} lukketFraTrin={a.lukket_fra_trin} />
+        <AnsoegningHandlinger id={a.id} navn={navn} ansoegerNavn={a.navn} trin={a.trin} paaPause={erPaaPause(a.paa_pause_til, nu)} lukketFraTrin={a.lukket_fra_trin} />
         {/* E-underskriften fra ansøgningen (generalprøvens brist 1, 18/9): samme komponent som
             virksomhedssiden, med ansoegning_id. Kun efter samtalen («afholdt») og ved gensendelse
             («aftalegrundlag_sendt»), aldrig på pause — samme vilkår som functionen selv stiller.

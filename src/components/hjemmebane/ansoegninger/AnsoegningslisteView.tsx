@@ -78,7 +78,7 @@ const Fold = ({ a }: { a: AnsoegningRaekke }) => {
       <p className="mt-1 text-xs text-hb-ink-soft">
         {[interval ? `omsætning ${interval}` : null, typeof opslag.branche === "string" ? opslag.branche.toLowerCase() : null, a.set_webinar === "ja" ? "sagde ja til webinaret" : a.set_webinar === "nej" ? "sagde nej til webinaret" : null, ewebinar ? `eWebinar: ${ewebinar}` : null].filter(Boolean).join(" · ") || "—"}
       </p>
-      <AnsoegningHandlinger id={a.id} navn={virksomhedsnavnAf(a)} trin={a.trin} paaPause={a.paa_pause_til !== null} lukketFraTrin={a.lukket_fra_trin} kompakt />
+      <AnsoegningHandlinger id={a.id} navn={virksomhedsnavnAf(a)} ansoegerNavn={a.navn} trin={a.trin} paaPause={a.paa_pause_til !== null} lukketFraTrin={a.lukket_fra_trin} kompakt />
       {/* E-underskriften også i folden (Jonas 18/9 aften): samme komponent, samme forudfyldte pris, samme forhåndsvisning —
           efter samtalen og ved gensendelse, ikke på pause. */}
       {(a.trin === "afholdt" || a.trin === "aftalegrundlag_sendt") && !erPaaPause(a.paa_pause_til, new Date()) && (

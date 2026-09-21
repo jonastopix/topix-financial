@@ -12,9 +12,11 @@ describe("ansoegningHandlinger — knapperne følger afgoerOvergang (fladen gæt
     expect(k.find((x) => x.handling === "afvis")!.bekraeft).toBe(true);
     expect(k.find((x) => x.handling === "tal_med_dem")!.bekraeft).toBe(false);
   });
-  it("afholdt: kun «Afslut» som stor knap — «Send aftalegrundlag» (indtastet link) er ude af fladen (18/9 aften: e-underskriften er vejen)", () => {
+  it("afholdt: «Giv afslag» og «Luk uden svar» som de to store (21/9) — «Send aftalegrundlag» (indtastet link) er ude af fladen (18/9 aften: e-underskriften er vejen)", () => {
     const k = knapperFor(ctx("afholdt"));
-    expect(k.filter((x) => x.stor).map((x) => x.handling)).toEqual(["afslag"]);
+    expect(k.filter((x) => x.stor).map((x) => [x.handling, x.tekst])).toEqual([["afslag", "Giv afslag"], ["luk", "Luk uden svar"]]);
+    // Kun dér: på de andre trin er «Luk uden svar» reserve.
+    for (const trin of ["ny", "indkaldt", "booket", "aftalegrundlag_sendt"] as const) expect(knapperFor(ctx(trin)).find((x) => x.handling === "luk")!.stor).toBe(false);
     expect(k.map((x) => x.handling)).not.toContain("tilbud");
     expect(k.find((x) => x.handling === "afslag")!.bekraeft).toBe(true);
   });
@@ -36,9 +38,9 @@ describe("ansoegningHandlinger — knapperne følger afgoerOvergang (fladen gæt
     expect(knapperFor(ctx("underskrevet"))).toEqual([]);
     expect(knapperFor({ trin: "lukket", paaPause: false, lukketFraTrin: "indkaldt" }).map((x) => x.handling)).toEqual(["genaabn"]);
   });
-  it("luk kræver årsag; kun trak_sig/dublet/andet kan vælges (afslagene har egne knapper, resten er køens)", () => {
+  it("luk kræver årsag; kun trak_sig/dublet/gensidigt_ikke_match/andet kan vælges (afslagene har egne knapper, resten er køens)", () => {
     expect(knapperFor(ctx("ny")).find((x) => x.handling === "luk")!.kraeverAarsag).toBe(true);
-    expect([...LUKKEAARSAGER_TIL_VALG]).toEqual(["trak_sig", "dublet", "andet"]);
+    expect([...LUKKEAARSAGER_TIL_VALG]).toEqual(["trak_sig", "dublet", "gensidigt_ikke_match", "andet"]);
   });
   it("saet_pause: reserve fra alle åbne trin, bekræftes med dato (standard tre måneder frem); hedder «Flyt pausen» med en pause i forvejen", () => {
     for (const trin of ["ny", "indkaldt", "booket", "afholdt", "aftalegrundlag_sendt"] as const) {

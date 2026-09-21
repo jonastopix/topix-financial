@@ -52,7 +52,7 @@
 import { indgangsMailHtml, KONTAKT_ADRESSE } from "./indgangsMail.ts";
 import { ANSOEG_STI, TOKEN_PARAM } from "./ansoegningSkema.ts";
 import { TZ } from "./hverdage.ts";
-import { koeSaetningTilAnsoeger, type AfslagsIndhold } from "./afslagsTilbud.ts";
+import { afslagsMailTekst, type AfslagsIndhold } from "./afslagsTilbud.ts";
 
 export const HILSEN_JONAS = "Venlig hilsen\nJonas Herlev";
 export const PROCESTEKST = "Morten og Jonas læser og vurderer, om The Boardroom er det rigtige for dig. Jonas inviterer dig til en uforpligtende snak, hvor I begge tager stilling til, om der er et match.";
@@ -423,20 +423,18 @@ BYGGERE["ansoegning-afholdt-raadgiver-rykker"] = (k) => ({
   ikkeNu: false,
 });
 
+// 21/9: emne og afsnit kommer fra afslagsMailTekst (afslagsTilbud.ts, begge spejle) — den SAMME
+// kode bygger forhåndsvisningen i rådgiverens dialog, så det, hun ser, er det, der sendes.
 BYGGERE["ansoegning-afslag"] = (k) => {
-  const a = k.afslag ?? { grundTekst: "", ventepladser: [], efterSamtale: false };
-  const tak = a.efterSamtale
-    ? `Tak for din ansøgning for ${k.virksomhedsnavn} — og tak for snakken.`
-    : `Tak for din ansøgning for ${k.virksomhedsnavn}.`;
-  const afsnit = [`${hej(k)},`, `${tak} Vi må sige nej denne gang. ${a.grundTekst}`.trim()];
-  if (a.ventepladser.length > 0) {
-    afsnit.push(`Men vi vil gerne have jer med, når der bliver plads: ${koeSaetningTilAnsoeger(a.ventepladser)}. Bliver pladsen ledig, skriver vi til dig — så har du syv dage til at sige ja, før den går videre til den næste.`);
-  }
-  afsnit.push("Har du spørgsmål, så svar bare på denne mail.");
+  const t = afslagsMailTekst({
+    fornavn: k.fornavn,
+    virksomhedsnavn: k.virksomhedsnavn,
+    afslag: k.afslag ?? { grundTekst: "", ventepladser: [], efterSamtale: false },
+  });
   return {
-    emne: a.ventepladser.length > 0 ? "Vores svar på din ansøgning — og din plads i køen" : "Vores svar på din ansøgning",
+    emne: t.emne,
     eyebrow: "Din ansøgning til The Boardroom",
-    afsnit,
+    afsnit: t.afsnit,
     knap: null,
     ikkeNu: false,
   };

@@ -71,10 +71,14 @@ export const handlingenSaetterPladsenFoerMailen = (h: string): boolean =>
   h.includes("svarMailStraks: ventelisteCompanyId === null") &&
   foer(h, "await saetPaaVenteliste(admin, { ansoegningId, companyId: ventelisteCompanyId,", 'await sendSvarMailNu(admin, frisk, "afslag", nu)') &&
   foer(h, "const res = await udfoerOvergang(admin, {", "await saetPaaVenteliste(admin, { ansoegningId, companyId: ventelisteCompanyId,");
-/** Mailbyggeren kender kun ansøgerens sætning — ikke rådgiverens tekst med navn, ikke feltet virksomhed. */
-export const mailenErRigtig = (k: string): boolean =>
-  k.includes("koeSaetningTilAnsoeger(a.ventepladser)") && !k.includes("koeTekstTilRaadgiver") && !/\.virksomhed\b/.test(k) &&
-  k.includes('BYGGERE["ansoegning-afslag"]');
+/**
+ * Mailbyggeren kender kun ansøgerens sætning — ikke rådgiverens tekst med navn, ikke feltet virksomhed.
+ * 21/9 (udkast-afslag-luk): selve teksten bor i afslagsTilbud.ts (afslagsMailTekst), så dialogens
+ * forhåndsvisning bygges af samme kode; byggeren kalder den. Dommen læser derfor begge filer.
+ */
+export const mailenErRigtig = (k: string, dom: string): boolean =>
+  dom.includes("koeSaetningTilAnsoeger(a.ventepladser)") && !k.includes("koeTekstTilRaadgiver") && !/\.virksomhed\b/.test(k) &&
+  k.includes('BYGGERE["ansoegning-afslag"]') && k.includes("afslagsMailTekst({");
 export const migrationenErRigtig = (sql: string): boolean =>
   sql.includes("add column if not exists afslagsgrund text") &&
   /check \(trappe in \('kladde', 'indkaldt', 'booket', 'aftalegrundlag', 'pause', 'venteplads', 'afslag'\)\)/.test(sql) &&
@@ -107,7 +111,7 @@ describe("afslagTilbud.guard — de otte domme på repoets filer", () => {
   });
   it("4. mailen: nummeret, aldrig navnet; «tak for snakken» kun efter samtale; ingen «ikke nu»", () => {
     expect([...RYKKER_SKABELONER].sort()).toEqual([...KOE_SKABELONER].sort());
-    expect(mailenErRigtig(udenKommentarer(laes(MAILS)))).toBe(true);
+    expect(mailenErRigtig(udenKommentarer(laes(MAILS)), udenKommentarer(laes(DOM_DENO)))).toBe(true);
     const koe = bygRykkerMail("ansoegning-afslag", K)!;
     expect(koe.tekst).toContain("I står nummer 2 i køen til pladsen i jeres niche");
     expect(koe.tekst).not.toMatch(/hos /);
@@ -151,9 +155,10 @@ describe("afslagTilbud.guard — dommene fanger fejlen på en kopi", () => {
     expect(handlingenSaetterPladsenFoerMailen(h.replace(plads, "0;") + `\n${plads} hvorfor: null, satAf: userId });`)).toBe(false);
   });
   it("4. en mailbygger der bruger rådgiverens tekst eller feltet virksomhed fælder dom 4", () => {
-    const k = udenKommentarer(laes(MAILS));
-    expect(mailenErRigtig(k.replace("koeSaetningTilAnsoeger(a.ventepladser)", "a.ventepladser.map(koeTekstTilRaadgiver).join(', ')"))).toBe(false);
-    expect(mailenErRigtig(k + "\nconst x = (p: { virksomhed: string }) => p.virksomhed;")).toBe(false);
+    const k = udenKommentarer(laes(MAILS)), dom = udenKommentarer(laes(DOM_DENO));
+    expect(mailenErRigtig(k.replace("afslagsMailTekst({", "egenTekst({"), dom)).toBe(false);
+    expect(mailenErRigtig(k, dom.replace("koeSaetningTilAnsoeger(a.ventepladser)", "a.ventepladser.map(koeTekstTilRaadgiver).join(', ')"))).toBe(false);
+    expect(mailenErRigtig(k + "\nconst x = (p: { virksomhed: string }) => p.virksomhed;", dom)).toBe(false);
   });
   it("5. unionen uden venteplads, SECURITY DEFINER eller en abonnementskolonne fælder dom 5", () => {
     const sql = udenSqlKommentarer(laes(MIGRATION));
