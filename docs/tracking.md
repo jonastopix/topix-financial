@@ -25,8 +25,9 @@ en hvilken som helst knap på theboardroom.dk, og `Lead application_submitted` e
 på en side, ingen når (§2, §5). Sandheden er rækken i `ansoegninger`: `created_at`
 (første gem) og `indsendt_at` (indsendelse).
 
-**(c) Rækkefølgen:** Meta (inkl. Instagram) først, så LinkedIn (kommer snart), så
-Google Analytics. Klaviyo får allerede «Ansoegning paabegyndt» og «Ansoegning sendt»
+**(c) Rækkefølgen:** Meta (inkl. Instagram) først, så **Google Analytics**, så LinkedIn.
+GA kom foran LinkedIn 21/9 (chatten), fordi GA bruges i dag — LinkedIn-annoncer kører
+ikke endnu. Klaviyo får allerede «Ansoegning paabegyndt» og «Ansoegning sendt»
 fra platformen (lag 2). **TikTok bruges IKKE — pixlen skal fjernes** fra begge
 GTM-containere, og derefter fra banner og cookiepolitik.
 
@@ -39,7 +40,13 @@ rigtigt. User agent sendes, fordi Meta kræver den for website-hændelser
 client_user_agent, action_source, and event_source_url parameters»), den gælder kun
 annonce-ansøgere (kun rækker med `fbclid`), og den står i persondatateksten.
 
-**(f) Jonas godkender kun tekster.** Resten styres af chatten.
+**(f) Jonas godkender kun tekster.** Resten styres af chatten — og fra 21/9 aften har
+chatten Jonas' fulde mandat, også til teksterne (GA-afsnittet i persondatateksten er
+afgjort sådan). Ordlyden låses af et værn, så den ikke kan skride ubemærket.
+
+**(g) Hellere lidt for lempelige og mere data end et stramt garn af frygt.** Jonas står
+på mål for det. Grænsen er loven, ikke frygten: GA's id gemmes kun med samtykke, fordi
+cookien ellers ikke findes, og teksterne skal være sande.
 
 ---
 
@@ -162,7 +169,7 @@ Ikke ændret 21/9 (§5, §6): GTM-containerne, TikTok, Stape, eWebinars pixel, p
 
 ## 6. Åbent — til beslutning
 
-1. Datasættets **«Automatisk websitematchning» står Til** — kan sende krypteret e-mail/telefon fra formularer på siderne (fx topix.dk/webinar) uden om §1d.
+1. ~~Datasættets **«Automatisk websitematchning» står Til**~~ — **AFGJORT 21/9 (chatten): den forbliver slået til** (den står Til i dag; der skal intet gøres). Den kan sende krypteret e-mail/telefon fra formularer på siderne (fx topix.dk/webinar) uden om §1d, men virker kun for besøgende, der har givet samtykke, og §1g gælder: hellere lidt for lempelige end et stramt garn af frygt.
 2. Datasættet er **delt med virksomheden «Sentury ApS» (583122777451953)** — hvem er det?
 3. **Ingen domæne-tilladelsesliste** på datasættet.
 4. Hvad datasættet **«The Boardroom — annoncer» (1259647116283770)** bruges til.

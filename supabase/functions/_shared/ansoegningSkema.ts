@@ -437,6 +437,117 @@ export function harAnnoncespor(s: Annoncespor): boolean {
   return ANNONCESPOR_FELTER.some((f) => s[f] !== null);
 }
 
+// ── Google Analytics' klient-id og session-id (21/9-2026 aften) ─────────────
+/*
+ * HVORFOR: platformen har intet GA, og linket fra theboardroom.dk bærer ikke
+ * GA's id (recon-ga4.md §0, §3). Det, der binder en ansøgning til besøgets kilde
+ * i GA4, er client_id (_ga) og session_id (_ga_<id>) — og de to cookies er
+ * læsbare fra app.theboardroom.dk, når GA's cookie_domain er standarden 'auto'
+ * (= theboardroom.dk). Her læses de ÉN gang ved mount, som annoncesporet, og
+ * gemmes ved «opret» i en egen fail-soft update. Afsendelsen til GA er IKKE
+ * bygget (beslutning 21/9 16:45) — kun opsamlingen.
+ *
+ * FORMATERNE, citeret (Google dokumenterer kun navn og formål — «_ga … Used to
+ * distinguish users», «_ga_<container-id> … Used to persist session state»,
+ * https://support.google.com/analytics/answer/11397207 — ikke værdiens form):
+ *   _ga:          «GA1.1.860784081.1732738496» — «Its format (GA1.1.xxx.xxx) has
+ *                 not changed» (optimizesmart.com/blog/understanding-google-
+ *                 analytics-4-cookies-_ga-cookie/). client_id = de to sidste
+ *                 punktum-dele.
+ *   _ga_<id> GS1: «GS1.1.1746825440.14.0.17468254406.0.0.295082955 … Values are in
+ *                 fixed positions» — session-id er tredje del (thyngster.com/
+ *                 google-analytics-4-cookie-format-change-from-gs1-to-gs2-explained/).
+ *   _ga_<id> GS2: «GS2.1.s1746825440$o14$g0$t1746825440$j60$l0$h295082955 … Uses
+ *                 dollar signs ($) as separators after the header … Prefix
+ *                 Meanings: s – Session ID, o – Session Number, g – Session Engaged,
+ *                 t – Last Hit Timestamp» (samme side; skiftet «in the first week of
+ *                 May 2025», optimizesmart). session_id = feltet med præfiks «s».
+ *
+ * REGLEN: findes cookien ikke (intet samtykke på theboardroom.dk, eller et andet
+ * domæne), eller passer værdien ikke formen, er svaret null — ALDRIG et gæt,
+ * ALDRIG et genereret id. Serveren dømmer igen (gaAf) med samme former.
+ */
+export const GA_MAALING_ID = "G-6LHR66CDJ4";
+/** _ga_<measurement-id uden «G-»>: sessionscookien for theboardroom.dk's ejendom. */
+export const GA_SESSION_COOKIE = "_ga_6LHR66CDJ4";
+export const GA_CLIENT_COOKIE = "_ga";
+/** client_id: «<tal>.<tal>» — de to sidste dele af _ga. */
+export const GA_CLIENT_ID_FORM = /^\d{1,20}\.\d{1,20}$/;
+/** session_id: kun cifre (et unix-sekundtal). */
+export const GA_SESSION_ID_FORM = /^\d{1,20}$/;
+
+export interface GaOpsamling {
+  client_id: string | null;
+  session_id: string | null;
+}
+export const TOM_GA: GaOpsamling = { client_id: null, session_id: null };
+
+/** Værdien af én cookie i en document.cookie-streng («a=1; b=2»); tom eller fraværende → null. */
+export function cookieVaerdi(cookie: string | null | undefined, navn: string): string | null {
+  if (typeof cookie !== "string" || cookie === "") return null;
+  for (const del of cookie.split(";")) {
+    const t = del.trim();
+    if (!t.startsWith(`${navn}=`)) continue;
+    const v = t.slice(navn.length + 1).trim();
+    return v === "" ? null : v;
+  }
+  return null;
+}
+
+/** _ga → client_id: «GA1.<n>.<tal>.<tal>» → «<tal>.<tal>». Alt andet → null. */
+export function laesGaClientId(vaerdi: string | null | undefined): string | null {
+  if (typeof vaerdi !== "string") return null;
+  const dele = vaerdi.trim().split(".");
+  if (dele.length < 4 || !/^GA\d+$/.test(dele[0])) return null;
+  const id = `${dele[dele.length - 2]}.${dele[dele.length - 1]}`;
+  return GA_CLIENT_ID_FORM.test(id) ? id : null;
+}
+
+/** _ga_<id> → session_id: GS2 «…s<id>$…» (feltet med præfiks s) eller GS1 «GS1.1.<id>.…» (tredje del). Alt andet → null. */
+export function laesGaSessionId(vaerdi: string | null | undefined): string | null {
+  if (typeof vaerdi !== "string") return null;
+  const v = vaerdi.trim();
+  if (/^GS2\.\d+\./.test(v)) {
+    const rest = v.replace(/^GS2\.\d+\./, "");
+    for (const felt of rest.split("$")) {
+      if (!felt.startsWith("s")) continue;
+      const id = felt.slice(1);
+      return GA_SESSION_ID_FORM.test(id) ? id : null;
+    }
+    return null;
+  }
+  if (/^GS1\.\d+\./.test(v)) {
+    const id = v.split(".")[2] ?? "";
+    return GA_SESSION_ID_FORM.test(id) ? id : null;
+  }
+  return null;
+}
+
+/** Fladen: de to id'er ud af document.cookie — én gang ved mount, som annoncesporet. */
+export function laesGa(cookie: string | null | undefined): GaOpsamling {
+  return {
+    client_id: laesGaClientId(cookieVaerdi(cookie, GA_CLIENT_COOKIE)),
+    session_id: laesGaSessionId(cookieVaerdi(cookie, GA_SESSION_COOKIE)),
+  };
+}
+
+/** Serveren: det, klienten sendte som `ga`, dømt fail-closed pr. felt med samme former. Ikke et objekt → tomt. */
+export function gaAf(raa: unknown): GaOpsamling {
+  if (!raa || typeof raa !== "object" || Array.isArray(raa)) return { ...TOM_GA };
+  const o = raa as Record<string, unknown>;
+  const c = typeof o.client_id === "string" ? o.client_id.trim() : "";
+  const s = typeof o.session_id === "string" ? o.session_id.trim() : "";
+  return {
+    client_id: GA_CLIENT_ID_FORM.test(c) ? c : null,
+    session_id: GA_SESSION_ID_FORM.test(s) ? s : null,
+  };
+}
+
+/** Er der overhovedet noget at gemme? */
+export function harGa(g: GaOpsamling): boolean {
+  return g.client_id !== null || g.session_id !== null;
+}
+
 // ── Kilden ─────────────────────────────────────────────────────────────────
 
 export interface KildeInput {

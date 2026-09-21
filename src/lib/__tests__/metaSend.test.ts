@@ -88,7 +88,10 @@ describe("metaSend — payloaden: kun de tilladte felter, ingen persondata", () 
     const json = JSON.stringify(p);
     for (const v of Object.values(PERSON)) expect(json.includes(v), v).toBe(false);
     expect(json).not.toMatch(/@/);
-    for (const n of ["em", "ph", "client_ip_address", "fbp", "email", "navn", "telefon", "cvr", "svar"]) expect(FORBUDTE_NOEGLER).toContain(n);
+    for (const n of ["em", "ph", "client_ip_address", "fbp", "email", "navn", "telefon", "cvr", "svar", "ga_client_id", "ga_session_id"]) expect(FORBUDTE_NOEGLER).toContain(n);
+    // GA's id'er (21/9 aften) må aldrig følge med til Meta.
+    expect(findForbudteNoegler({ ...p, user_data: { ...p.user_data, ga_client_id: "1.2" } })).toEqual(["user_data.ga_client_id"]);
+    expect(findForbudteNoegler({ ...p, custom_data: { ...p.custom_data, ga_session_id: "3" } })).toEqual(["custom_data.ga_session_id"]);
   });
   it("fbc's tidspunkt er created_at (første gang vi så fbclid'et), også for submitted; user agent afkortes til 512", () => {
     const s = bygPayload(R({ user_agent: "x".repeat(700) }), "started", new Date("2026-09-21T19:00:00.000Z"), AFTRYK);
