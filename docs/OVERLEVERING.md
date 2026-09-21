@@ -9899,6 +9899,8 @@ $$;
 
 ## DEL 3 · Det der venter
 
+**Tracking (Meta, LinkedIn, GA4, TikTok, Stape, eWebinar, Klaviyo — hvad der sendes til hvem, principperne fra 21/9, det åbne):** `docs/tracking.md` er husets ENE dokument om det fra 21/9; recon-/rapportfilerne i `~/Downloads` er kilder.
+
 ### 22/9 og frem — rækkefølgen (matcher «22/9 — START HER»; skrevet 21/9 middag)
 
 | hvornår | hvad | hvor det står |
