@@ -9897,7 +9897,7 @@ end
 $$;
 ```
 
-### 21. september (aften) — Meta trin 2 i drift, Events Manager ryddet op, ydeevnen målt
+### 21. september (aften) — Meta trin 2 i drift, Events Manager ryddet op, ydeevnen målt, og /webinar fik de næste sessioner (#1080, 22/9 ~00:05)
 
 **Detaljerne om tracking står i `docs/tracking.md`** — trin 2's udrulning og beviser (§4), Events Manager-fundene og de tre nye konverteringer (§4), sites og dokumentet til marketingmanden (§3), de besvarede spørgsmål (§5, §6) og fejlsporet (§8). De skrives ikke to steder. Her står kun det, der ikke er tracking.
 
@@ -9915,6 +9915,16 @@ $$;
 
 1. **Chatten påstod en måling, den ikke havde set (22:50).** Den skrev «Nu er det klart», som om «Aktivitetseksempler» var modtaget, og beskrev `lead_source: ewebinar` og platformens Leads fra app.theboardroom.dk. Intet af det var set. Rettet højt i næste svar; A's prompt rettet, så det ikke blev bogført som en måling; den rigtige eksport (22:49) viste to kampagner, og beslutningen om at omdøbe Lead blev **trukket tilbage**. **Regel: beskriv aldrig et skærmbillede eller en fil, der ikke er modtaget — og en beslutning, der hviler på en påstået måling, tages om, når målingen kommer.**
 2. **A's vagt ventede på commit-id'et `6ace2d7d`** som forfader til HEAD. Et squash-merge bevarer aldrig en grens commit-id, så vagten kunne aldrig blive sand. **Regel: vent på INDHOLD i main — en linje, en fil — aldrig på en grens commit-id.**
+
+#### §9 · /webinar fik de næste sessioner under den store boks (#1080, `e88c881c`, 22/9 ~00:05)
+
+Ønsket af Jonas 21/9 kl. 23:45. `/webinar` viser nu op til **tre mindre bokse** under den store — én pr. programsat session **efter den næste**, hver med antal tilmeldte (unikke mails på præcis den session), tidspunkt, «om N dage» og titel. **Ingen graf**, og en tom liste tegner ingen række.
+
+Beregningen `kommendeEfterNaeste` og grænsen `KOMMENDE_EFTER_NAESTE_MAKS = 3` ligger i **dommen** — i begge spejle, `src/lib/webinar/dashboard.ts` og `supabase/functions/_shared/webinarDashboard.ts` — og lægges i feltet `naeste.efterfoelgende`. Feltet **bærer aldrig rækker**, så boksene kan gå ud gennem delingen uden persondata. Værn: `webinarFlade.guard` dom 12.
+
+**Udrullet:** `webinar-delt` — værktøjets resultat ordret: «Successfully deployed edge functions: webinar-delt» — og Update klikket. **Set af Jonas på `/webinar`: én boks**, fordi kun én session efter 22/9 er programsat.
+
+Detaljerne om delingen selv står i `CLAUDE.md`s afsnit «/webinar delt med eksterne».
 
 #### START HER som den stod 21/9 middag — flyttet ned 21/9 sen aften (ordret)
 
