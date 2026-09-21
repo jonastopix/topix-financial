@@ -37,6 +37,7 @@ import { ukendteFelter, ukendteFelterBesked } from "../_shared/kendteFelter.ts";
 import { brugbarMail, paabegyndt } from "../_shared/klaviyoHaendelser.ts";
 import { sendHvisMail } from "../_shared/klaviyoAfsendelse.ts";
 import { verifyAnsoegningstoken } from "../_shared/ansoegningToken.ts";
+import { laesUserAgent, sporMedUserAgent } from "../_shared/ansoegningUserAgent.ts";
 import { KONTAKT_ADRESSE } from "../_shared/indgangsMail.ts";
 import { planlaegKladde, registrerIndsendelse } from "../_shared/ansoegningMotor.ts";
 import {
@@ -119,11 +120,21 @@ function svarAf(raekke: Record<string, unknown>): AnsoegningsSvar {
   return ud as unknown as AnsoegningsSvar;
 }
 
-/** Annoncesporet på rækken — kaster aldrig. Tomt spor = ingen update. */
-async function gemAnnoncespor(admin: SupabaseClient, id: string, spor: Annoncespor): Promise<void> {
+/**
+ * Annoncesporet (+ user agent) på rækken — kaster aldrig. Tomt spor = ingen update.
+ * ANNONCESPORET MÅ ALDRIG TABES PÅ GRUND AF USER AGENT (rettelse 21/9 aften): fejler
+ * updaten MED user agent (kolonnen mangler — migration 20260921233000 — eller en anden fejl
+ * på feltet), prøves STRAKS igen med sporet alene, og begge fejl logges — så klik-id'et og
+ * utm aldrig koster på user agent. Ingen af delene koster ansøgeren noget.
+ */
+async function gemAnnoncespor(admin: SupabaseClient, id: string, spor: Annoncespor, userAgent: string | null): Promise<void> {
   if (!harAnnoncespor(spor)) return;
-  const { error } = await admin.from("ansoegninger").update(spor).eq("id", id);
-  if (error) console.error(`[ansoegning-gem] annoncesporet kunne ikke gemmes på ${id}: ${error.message}`);
+  const { error } = await admin.from("ansoegninger").update(sporMedUserAgent(spor, userAgent)).eq("id", id);
+  if (!error) return;
+  console.error(`[ansoegning-gem] annoncesporet (med user agent) kunne ikke gemmes på ${id}: ${error.message}`);
+  if (!spor.fbclid) return; // uden fbclid var der ingen user agent i updaten — intet at prøve igen
+  const { error: fejlUden } = await admin.from("ansoegninger").update({ ...spor }).eq("id", id);
+  if (fejlUden) console.error(`[ansoegning-gem] annoncesporet (uden user agent) kunne heller ikke gemmes på ${id}: ${fejlUden.message}`);
 }
 
 Deno.serve(async (req) => {
@@ -186,7 +197,9 @@ Deno.serve(async (req) => {
       // ANNONCESPORET (udkast 2, 21/9): en EGEN update efter insert'en, fail-soft —
       // mangler kolonnerne (migration 20260921120000 ikke kørt), eller fejler
       // skrivningen, koster det ansøgeren intet. Sporet er en oplysning, ikke rækken.
-      await gemAnnoncespor(adminClient, data.id, annoncesporAf(body?.annoncespor));
+      // USER AGENT (21/9 aften): fra request-headeren, KUN når fbclid er sat — samme fail-soft
+      // update som sporet. Meta kræver client_user_agent for website-hændelser (meta-send-cron).
+      await gemAnnoncespor(adminClient, data.id, annoncesporAf(body?.annoncespor), laesUserAgent(req));
 
       // KLAVIYO: «Ansoegning paabegyndt» sendes IKKE her. Målt 19/9 kl. 22.22:
       // «opret» sker ved FØRSTE gem, og første skærm er CVR — mailen kommer

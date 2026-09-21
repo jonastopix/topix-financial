@@ -18,16 +18,19 @@
  * De to bør ikke dele nøgle. Se README-punktet «Navnene bør ryddes op» i
  * ~/Downloads/recon-meta-annoncer/ og ~/Downloads/udkast-meta-capi/ §5.
  *
- * ── DEN DAG CONVERSIONS API GÅR I DRIFT, SKAL DENNE FALDBACK VÆK ────────────
- * Så vil META_CAPI_TOKEN bære et token med adgang til PIXLEN (`ads_management`
- * på datasettet) — ikke til annoncekontoen. Falder vi da tilbage på det,
- * kalder Marketing API med et token, der ikke har adgang, og svaret bliver
- * 403'er, som ingen leder efter.
+ * ── CONVERSIONS API HAR FÅET SIT EGET NAVN (21/9-2026 aften) ───────────────
+ * Afsendelsen til Meta (meta-send-cron, _shared/metaSendAfsendelse.ts) læser
+ * META_SEND_TOKEN — et NYT navn — og aldrig META_CAPI_TOKEN. Nødnavnet her
+ * kolliderer derfor ikke længere med afsendelsen: META_CAPI_TOKEN kan blive
+ * ved med at bære ads_read-tokenet, indtil META_ADS_TOKEN er sat og faldbacken
+ * ryddes. Den dag META_CAPI_TOKEN sættes til noget andet, går Marketing API
+ * i stå — så navnet skal stadig ryddes, bare ikke i aften.
  *
  * DET ER IKKE OVERLADT TIL HUKOMMELSEN: kildeværnet
- * src/lib/__tests__/metaTokenAdskillelse.guard.test.ts går RØDT i samme
- * øjeblik `_shared/metaCapi.ts` findes i repoet, hvis denne fil stadig nævner
- * META_CAPI_TOKEN. Suiten tvinger oprydningen; ingen skal huske den.
+ * src/lib/__tests__/metaTokenAdskillelse.guard.test.ts går RØDT, hvis
+ * `_shared/metaCapi.ts` (det gamle udkasts navn) lander med faldbacken tilbage
+ * (dom 4), og hvis afsendelsens filer nævner META_CAPI_TOKEN/META_ADS_TOKEN
+ * eller denne fil nævner META_SEND_TOKEN (dom 6).
  */
 
 /** Det rigtige navn. Sættes det, bruges det, og faldbacken er uden betydning. */
