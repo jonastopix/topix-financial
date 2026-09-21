@@ -4284,6 +4284,7 @@ export type Database = {
       }
       webinar_tilmeldinger: {
         Row: {
+          ad_id_udledt: string | null
           attended: string | null
           by: string | null
           created_at: string
@@ -4320,6 +4321,7 @@ export type Database = {
           widget_source: string | null
         }
         Insert: {
+          ad_id_udledt?: string | null
           attended?: string | null
           by?: string | null
           created_at?: string
@@ -4356,6 +4358,7 @@ export type Database = {
           widget_source?: string | null
         }
         Update: {
+          ad_id_udledt?: string | null
           attended?: string | null
           by?: string | null
           created_at?: string
