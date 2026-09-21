@@ -240,6 +240,7 @@ Googles anbefalede bevis er **DebugView med `debug_mode`** ([verify-implementati
 10. **Persondatateksten i platformen siger «Supabase (databasen, via Lovable Cloud, i EU)»**, mens theboardroom.dk's privatlivspolitik 21/9 fik «EU» fjernet igen, fordi regionen ikke er målt. Mål, hvor databasen faktisk ligger, og gør de to tekster ens.
 11. **`referrer` er TOM på ansøgninger fra theboardroom.dk** — målt på begge prøver 21/9 (A og B, §4a). `document.referrer` når ikke frem til `/ansoeg`. Årsagen er **umålt**: enten en `Referrer-Policy` (fx `no-referrer` / `strict-origin`) eller `rel="noreferrer"` på ansøg-linket. Følgen: kolonnen `ansoegninger.referrer` kan ikke bruges til at afgøre kilden — `kilde` og `utm_*` kan.
 12. **GTM-tagget på `/ansogning-modtaget` fyrede et FALSK `application_submitted` 21/9** — set i GA4-rapporten (til `G-6LHR66CDJ4`, og formentlig også som `Lead` til Meta, da de to tags deler trigger). Ingen ansøger kan nå den side fra platformen (§2 række 3), så hændelsen er ikke en ansøgning. Det er **konkret bevis for marketingmandens punkt 1** (§5): triggeren skal om, og `application_started` skal væk fra `cta_click`.
+13. **Prøvedelingen «Nicklas - Marketingkonsulenten» er LUKKET og må ikke genåbnes** — tokenet har stået i chatten 21/9 (delingen af `/webinar`, se CLAUDE.md's afsnit om delingen). Nicklas får et nyt link. Et lukket link svarer 403 «ukendt», og oprydningsjobbet (job 570) sletter deling og spor 12 måneder efter lukningen.
 
 ---
 

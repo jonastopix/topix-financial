@@ -208,9 +208,11 @@ describe("gaSend.guard — Google Analytics fra platformen", () => {
   it("4. tørkørsel er standard; låsen (app_config, fail-closed) eller debug åbner kun med dry_run: false", () => expect(toerkoerselOgLaas(laes(CRON), laes(DOM))).toBe(true));
   it("5. STRIKS-body og Bucket B med verify_jwt = true", () => expect(striksOgBucketB(laes(CRON), laes(CONFIG))).toBe(true));
   it("6. sporet skrives efter hvert kald, før tællingen — og der er intet forsøgsloft", () => expect(sporetOgIntetLoft(laes(CRON), laes(DOM))).toBe(true));
-  it("7b. oprydningen efter #1073: IKKE KØRT, én sætning, og den rører kun debug-rækker med udfald «sendt»", () => {
+  it("7b. oprydningen efter #1073: bogført KØRT i prod (21/9 21:15, 0 rækker slettet), én sætning, og den rører kun debug-rækker med udfald «sendt»", () => {
     const m = laes(MIG_OPRYDNING);
-    expect(m.startsWith("-- IKKE KØRT. DEPLOY:")).toBe(true);
+    expect(m.startsWith("-- KØRT i prod — 21/9-2026 kl. 21:15")).toBe(true);
+    // #1064-formen: tilbage til «IKKE KØRT» falder — den ER kørt (bogført no-op: 0 rækker).
+    expect(m.replace("-- KØRT i prod — 21/9-2026 kl. 21:15", "-- IKKE KØRT. DEPLOY:").startsWith("-- KØRT i prod — 21/9-2026 kl. 21:15")).toBe(false);
     const sql = udenSql(m);
     expect(/delete from public\.ga_haendelser\s+where debug = true\s+and udfald = 'sendt';/.test(sql)).toBe(true);
     expect(sql.split(";").filter((x) => x.trim() !== "")).toHaveLength(1);
