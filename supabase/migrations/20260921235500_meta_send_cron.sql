@@ -1,4 +1,4 @@
--- IKKE KØRT. DEPLOY: manuelt i Lovable → SQL editor efter merge (FØR Update-klik).
+-- KØRT i prod — 21/9-2026 kl. 16:18 (Jonas, Lovable SQL editor), efter merge, med en vagt først. EFTER: job 568 meta-send, active true; låsen meta_send_aktiv stadig false (tørkørsel).
 -- RÆKKEFØLGEN: SIDST — efter 20260921233000 (kolonnen), 20260921234000 (sporet + låsen), merge,
 -- eksplicit deploy af ansoegning-gem OG meta-send-cron, Update, og beviset (README): én
 -- hændelse med test_event_code + ansoegning_id set i Metas Test events. Jobbet kører tørt,

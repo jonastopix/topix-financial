@@ -24,8 +24,9 @@ import { PERSONDATA_AFSNIT } from "@/lib/ansoegning/persondata";
  *      klik-id'et og utm aldrig tabes på grund af user agent.
  *   6. SPORET FØR SVARET: upsert på meta_haendelser (onConflict event_id) inde i løkken,
  *      før r.sendt/r.fejlede tælles.
- *   7. MIGRATIONERNE: de to første bogført KØRT i prod (21/9 15:50, FØR merge — filhovederne
- *      rettet ved ilægningen; var «IKKE KØRT» indtil da), cron-migrationen stadig «-- IKKE KØRT»; kolonnen user_agent text; sporet med
+ *   7. MIGRATIONERNE: alle tre bogført KØRT i prod — de to første 21/9 15:50 (FØR merge),
+ *      cron-migrationen 21/9 16:18 (EFTER merge, job 568 «meta-send», låsen stadig false);
+ *      filhovederne rettet, efterhånden som de blev kørt (var «IKKE KØRT» indtil da); kolonnen user_agent text; sporet med
  *      event_id primary key, udfald-CHECK, låsen 'false'::jsonb; cron-minutterne rammer
  *      ingen anden plan (målt over alle cron.schedule + udkastene), kald_edge 60000/300000.
  *   8. ALARMEN: kun rigtig kørsel med fejlede > 0; nøglen bærer datoen (kbhDato); loggen
@@ -161,7 +162,7 @@ export function kolliderer(minut: number, planer: readonly { job: string; udtryk
 export const migrationerneErRigtige = (ua: string, spor: string, cron: string): boolean => {
   const u = udenSql(ua), s = udenSql(spor), c = udenSql(cron);
   return ua.startsWith("-- KØRT i prod — 21/9-2026 kl. 15:50") && spor.startsWith("-- KØRT i prod — 21/9-2026 kl. 15:50") &&
-    cron.startsWith("-- IKKE KØRT. DEPLOY:") &&
+    cron.startsWith("-- KØRT i prod — 21/9-2026 kl. 16:18") &&
     /ALTER TABLE public\.ansoegninger\s+ADD COLUMN IF NOT EXISTS user_agent text NULL;/.test(u) &&
     s.includes("create table if not exists public.meta_haendelser") && /event_id\s+text primary key/.test(s) &&
     /check \(udfald in \('sendt', 'fejl', 'timeout', 'ugyldig', 'ingen_noegle'\)\)/.test(s) &&
@@ -195,7 +196,7 @@ describe("metaSend.guard — Metas Conversions API fra platformen", () => {
   it("4. STRIKS-body og Bucket B med verify_jwt = true", () => expect(striksOgBucketB(laes(CRON), laes(CONFIG))).toBe(true));
   it("5. user agent gemmes kun med fbclid, i den fail-softe update, ≤ 512 — og af ingen anden function", () => expect(userAgentKunMedFbclid(laes(GEM), laes(UA), filer)).toBe(true));
   it("6. sporet skrives (upsert på event_id) efter hvert kald, før tællingen — uden payloaden", () => expect(sporetFoerSvaret(laes(CRON))).toBe(true));
-  it("7. migrationerne: de to første bogført KØRT i prod (15:50), cron-migrationen IKKE KØRT, kolonnen, sporet + låsen false, cron-minutterne uden kollision", () => {
+  it("7. migrationerne: alle tre bogført KØRT i prod (15:50 × 2, cron 16:18), kolonnen, sporet + låsen false, cron-minutterne uden kollision", () => {
     expect(migrationerneErRigtige(laes(MIG_UA), laes(MIG_SPOR), laes(MIG_CRON))).toBe(true);
     const planer = cronUdtryk(MIG_DIR);
     for (const m of [3, 8, 13, 18, 23, 28, 38, 43, 48, 53, 58]) expect(`${m}: ${kolliderer(m, planer, "meta-send").join(", ")}`).toBe(`${m}: `);
@@ -248,15 +249,15 @@ describe("metaSend.guard — dommene fanger fejlen på en kopi", () => {
     expect(sporetFoerSvaret(cron.replace("test_event_code: a.testEventCode, varighed_ms: svar.varighed_ms,", "test_event_code: a.testEventCode, varighed_ms: svar.varighed_ms, payload: payload,"))).toBe(false);
     expect(sporetFoerSvaret(cron.replace('{ onConflict: "event_id" }', '{ onConflict: "ansoegning_id" }'))).toBe(false);
   });
-  it("7. en anden lås-standard, et kollisionsminut, et filhoved tilbage på IKKE KØRT på de to kørte, eller KØRT på cron-migrationen fælder dom 7", () => {
+  it("7. en anden lås-standard, et kollisionsminut, eller et filhoved tilbage på IKKE KØRT på en af de tre kørte migrationer fælder dom 7", () => {
     const ua = laes(MIG_UA), spor = laes(MIG_SPOR), c = laes(MIG_CRON);
     expect(migrationerneErRigtige(ua, spor.replace("'meta_send_aktiv', 'false'::jsonb", "'meta_send_aktiv', 'true'::jsonb"), c)).toBe(false);
     expect(migrationerneErRigtige(ua, spor, c.replace("'3,8,13,18,23,28,38,43,48,53,58 * * * *'", "'*/5 * * * *'"))).toBe(false);
     // #1064-formen: mutationen på den faktiske fil — tilbage til «IKKE KØRT» falder, for de ER kørt (15:50).
     expect(migrationerneErRigtige(ua.replace("-- KØRT i prod — 21/9-2026 kl. 15:50", "-- IKKE KØRT. DEPLOY:"), spor, c)).toBe(false);
     expect(migrationerneErRigtige(ua, spor.replace("-- KØRT i prod — 21/9-2026 kl. 15:50", "-- IKKE KØRT. DEPLOY:"), c)).toBe(false);
-    // Cron-migrationen er IKKE kørt — et KØRT-hoved på den falder.
-    expect(migrationerneErRigtige(ua, spor, c.replace("-- IKKE KØRT. DEPLOY:", "-- KØRT i prod — 21/9-2026 kl. 15:50"))).toBe(false);
+    // Cron-migrationen ER kørt (16:18) — et hoved tilbage på «IKKE KØRT» falder.
+    expect(migrationerneErRigtige(ua, spor, c.replace("-- KØRT i prod — 21/9-2026 kl. 16:18", "-- IKKE KØRT. DEPLOY:"))).toBe(false);
     expect(kolliderer(33, cronUdtryk(MIG_DIR), "meta-send").some((s) => s.includes("33"))).toBe(true);
   });
   it("8. alarmen i tørkørslen, eller til rådgiveradressen, fælder dom 8", () => {
