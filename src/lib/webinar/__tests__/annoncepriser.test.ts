@@ -711,3 +711,42 @@ describe("1. valutaen skrives ÉN gang", () => {
     expect(valutaTekst(["DKK", "EUR"])).toContain("læg dem ikke sammen");
   });
 });
+
+describe("ad_id_udledt — navnet oversat til et id, råværdien urørt (20/9)", () => {
+  const NAVN = "4 - Gammel video-ad – Copy";
+  const annoncer = [N(AD_A, NAVN), N(AD_B, "IMG | 11-maaneskin | 2026-08-17")];
+  const dage = [D(AD_A, 60_000), D(AD_B, 40_000)];
+  const ind = (tilmeldinger: Tilmelding[]) => ({ tilmeldinger, ansoegninger: [], dage, annoncer, tilstand: "har" as const });
+
+  it("en navne-række MED ad_id_udledt ligger i id-linjen, tælles i kobletViaUdledt, og utm_content er stadig navnet", () => {
+    const r = R({ email: "a@x.dk", utm_content: NAVN, ad_id_udledt: AD_A });
+    const d = annoncepriser(ind([r]), NU);
+    const linje = d.perAnnonce.find((x) => x.noegle === `id:${AD_A}`);
+    expect(linje?.tilmeldte).toBe(1);
+    expect(linje?.koblingsform).toBe("id");
+    expect(d.perAnnonce.map((x) => x.noegle)).not.toContain(`navn:${NAVN}`);
+    expect(d.brud.kobletViaUdledt).toBe(1);
+    expect(d.brud.kobletPaaNavn).toBe(0);
+    expect(r.utm_content).toBe(NAVN);
+  });
+
+  it("uden ad_id_udledt er navne-rækken koblet på navn som før — oversættelsen er ikke antaget", () => {
+    const d = annoncepriser(ind([R({ email: "b@x.dk", utm_content: NAVN, ad_id_udledt: null })]), NU);
+    expect(d.perAnnonce.map((x) => x.noegle)).toContain(`navn:${NAVN}`);
+    expect(d.brud.kobletPaaNavn).toBe(1);
+    expect(d.brud.kobletViaUdledt).toBe(0);
+  });
+
+  it("er utm_content allerede et id, vinder det — en afvigende ad_id_udledt ignoreres", () => {
+    const d = annoncepriser(ind([R({ email: "c@x.dk", utm_content: AD_B, ad_id_udledt: AD_A })]), NU);
+    expect(d.perAnnonce.find((x) => x.noegle === `id:${AD_B}`)?.tilmeldte).toBe(1);
+    expect(d.perAnnonce.find((x) => x.noegle === `id:${AD_A}`)?.tilmeldte).toBe(0);
+    expect(d.brud.kobletViaUdledt).toBe(0);
+  });
+
+  it("en udledt værdi, der ikke ligner et Meta-id, bruges ikke — rækken falder tilbage på navnet", () => {
+    const d = annoncepriser(ind([R({ email: "d@x.dk", utm_content: NAVN, ad_id_udledt: "ikke-et-id" })]), NU);
+    expect(d.perAnnonce.map((x) => x.noegle)).toContain(`navn:${NAVN}`);
+    expect(d.brud.kobletViaUdledt).toBe(0);
+  });
+});

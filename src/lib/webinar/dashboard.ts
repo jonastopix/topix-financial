@@ -73,6 +73,12 @@ export interface AnnoncesporFelter {
   land?: string | null;
   enhed?: string | null;
   tidszone?: string | null;
+  /**
+   * UDLEDT, ikke rå (migration 20260921130000): Metas ad_id oversat af navnet i
+   * utm_content ved et entydigt match mod meta_annonce. utm_content røres aldrig.
+   * null = ikke oversat. annoncepriser læser coalesce(ad_id_udledt, utm_content).
+   */
+  ad_id_udledt?: string | null;
 }
 
 /** Tilmeldingen som fladen læser den: webinarDom's række + annoncesporet. */

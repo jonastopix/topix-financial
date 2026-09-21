@@ -143,6 +143,11 @@ const Brud = ({ dom }: { dom: Annoncepriser }) => {
         </p>
       )}
       {navne && <p className="mt-2 text-xs text-hb-ink-soft" data-pris-navnekobling={b.kobletPaaNavn}>{navne}</p>}
+      {b.kobletViaUdledt > 0 && (
+        <p className="mt-2 text-xs text-hb-ink-soft" data-pris-udledt={b.kobletViaUdledt}>
+          {brokOgPct(b.kobletViaUdledt, b.personer)} bar annoncens navn og er oversat til dens id (ad_id_udledt, entydigt match mod meta_annonce) — de tæller i id-linjen. Råværdien er urørt.
+        </p>
+      )}
     </>
   );
 };

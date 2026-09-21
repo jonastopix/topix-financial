@@ -384,6 +384,13 @@ export interface Kaedebrud {
   kobletPaaNavn: number;
   /** Hvor mange linjer der dækker flere annoncer, fordi de deler navn. */
   delteNavne: number;
+  /**
+   * Tilmeldinger koblet på ad_id_udledt (20/9): utm_content var et NAVN, som
+   * sql/01-oversaet.sql oversatte entydigt til et ad_id. De ligger i id-linjen
+   * som de rå id-rækker — men tallet vises, så det kan ses, at en del af linjen
+   * er oversat, ikke målt. Råværdien i utm_content er urørt.
+   */
+  kobletViaUdledt: number;
 }
 
 export interface Annoncepriser {
@@ -569,7 +576,7 @@ export function annoncepriser(ind: AnnoncepriserInput, nu: Date): Annoncepriser 
   const brud: Kaedebrud = {
     udenAnnoncemaerke: 0, maerkeErIkkeId: 0, udenForbrug: 0,
     forbrugUdenTilmeldinger: 0, personer: personer.length,
-    kobletPaaNavn: 0, delteNavne: 0,
+    kobletPaaNavn: 0, delteNavne: 0, kobletViaUdledt: 0,
   };
 
   const forbrugPrAd = new Map<string, Forbrugsdag[]>();
@@ -598,7 +605,15 @@ export function annoncepriser(ind: AnnoncepriserInput, nu: Date): Annoncepriser 
     const maerke = tekst(r.utm_content);
     if (maerke === null) { brud.udenAnnoncemaerke++; continue; }
     let noegle: string | null = null;
-    if (erMetaObjektId(maerke)) {
+    // Den UDLEDTE vinder over navnet, aldrig over et rigtigt id: er utm_content
+    // allerede et id, er der intet at oversætte (sql/01-oversaet.sql skriver
+    // kun på navne-rækker — men koden stoler ikke på det).
+    const udledt = tekst(r.ad_id_udledt);
+    if (!erMetaObjektId(maerke) && udledt !== null && erMetaObjektId(udledt)) {
+      noegle = idNoegle(udledt);
+      brugteIdNoegler.add(udledt);
+      brud.kobletViaUdledt++;
+    } else if (erMetaObjektId(maerke)) {
       noegle = idNoegle(maerke);
       brugteIdNoegler.add(maerke);
     } else if (adPrNavn.has(maerke)) {
