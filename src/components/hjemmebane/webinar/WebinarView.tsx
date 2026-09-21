@@ -34,6 +34,7 @@ import {
   type AfholdtSession,
   type Annoncespor,
   type Kampagnelinje,
+  type KommendeSession,
   type NaesteWebinar,
   type Sporlinje,
   type TidTilAnsoegning,
@@ -148,6 +149,41 @@ const TilmeldtKurve = ({ prDag }: { prDag: TilmeldtPrDag[] }) => {
   );
 };
 
+/**
+ * De programsatte sessioner EFTER den næste — op til tre små bokse under den
+ * store (Jonas 21/9-2026 23:45). Samme kort, samme typografi og samme farver
+ * som den store, i mindre skala: tallet i font-editorial, tidspunktet i
+ * datoLang og den relative tid i omHvorLaenge — alt sammen dommens egne
+ * værdier, fladen regner intet.
+ *
+ * INGEN GRAF: kurven svarer på «hvordan fyldes den op», og det spørgsmål
+ * hører til den session, der er lige om hjørnet. Tre små kurver ville være tre
+ * gæt om noget, der ikke er begyndt endnu.
+ *
+ * Tom liste → ingen række overhovedet (ikke en tom stribe). På telefon stables
+ * boksene; fra md står de tre ved siden af hinanden.
+ */
+const EfterNaeste = ({ sessioner }: { sessioner: readonly KommendeSession[] }) => {
+  if (sessioner.length === 0) return null;
+  return (
+    <div className="mt-3 grid gap-3 md:mt-4 md:grid-cols-3 md:gap-4" data-webinar-efter-naeste={sessioner.length}>
+      {sessioner.map((s) => (
+        <HbCard key={s.sessionTid} className="p-4 md:p-5" data-webinar-kommende-session={s.personer}>
+          <p className="font-editorial text-3xl font-medium leading-none text-hb-ink md:text-4xl">{s.personer}</p>
+          <p className="mt-1 text-xs text-hb-ink-soft">tilmeldte</p>
+          <p className="mt-3 font-editorial text-base font-medium leading-tight text-hb-ink md:text-lg">
+            {datoLang(s.sessionTid) ?? "tidspunkt ukendt"}
+          </p>
+          <p className="mt-1 text-xs text-hb-ink-soft">
+            {s.omHvorLaenge}
+            {s.titel ? ` · ${s.titel}` : ""}
+          </p>
+        </HbCard>
+      ))}
+    </div>
+  );
+};
+
 /** 1. Det næste webinar — hvornår, og hvor mange. */
 const Naeste = ({ naeste }: { naeste: Omit<NaesteWebinar, "raekker"> | null }) => {
   if (naeste === null) return <p className="text-sm text-hb-ink-soft" data-webinar-naeste="tom">{NAESTE_TOM_TEKST}</p>;
@@ -177,6 +213,14 @@ const Naeste = ({ naeste }: { naeste: Omit<NaesteWebinar, "raekker"> | null }) =
     </HbCard>
   );
 };
+
+/** Den store boks og rækken af små under den — ét afsnit, ét dom-objekt. */
+const NaesteAfsnit = ({ naeste }: { naeste: Omit<NaesteWebinar, "raekker"> | null }) => (
+  <>
+    <Naeste naeste={naeste} />
+    {naeste !== null && <EfterNaeste sessioner={naeste.efterfoelgende} />}
+  </>
+);
 
 const Post = ({ navn, vaerdi, under }: { navn: string; vaerdi: string; under: string }) => (
   <div>
@@ -488,7 +532,7 @@ export const WebinarVisning = ({
           </HbSection>
 
           <HbSection eyebrow="Det næste webinar" title="Hvem der venter, og hvornår" hairline className={sektion}>
-            <Naeste naeste={dom.naeste} />
+            <NaesteAfsnit naeste={dom.naeste} />
           </HbSection>
 
           <HbSection eyebrow="Afholdt" title="Session for session" hairline className={sektion}>

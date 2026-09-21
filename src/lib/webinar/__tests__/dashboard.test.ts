@@ -15,6 +15,8 @@ import {
   datoLang,
   kampagneAf,
   kildeAf,
+  kommendeEfterNaeste,
+  KOMMENDE_EFTER_NAESTE_MAKS,
   naesteWebinar,
   omHvorLaenge,
   pct,
@@ -593,5 +595,94 @@ describe("dageOrd — læsbar tid", () => {
     expect(dageOrd(12)).toBe("12 dage");
     expect(dageOrd(0.4)).toBe("under en dag");
     expect(dageOrd(null)).toBe("–");
+  });
+});
+
+describe("kommendeEfterNaeste — de små bokse under den store (21/9-2026)", () => {
+  // Fire programsatte sessioner efter den næste (22/9): 29/9, 6/10, 13/10, 20/10.
+  const SENERE = ["2026-09-29T08:00:00.000Z", "2026-10-06T08:00:00.000Z", "2026-10-13T08:00:00.000Z", "2026-10-20T08:00:00.000Z"];
+  const MANGE = [
+    R({ email: "a@x.dk" }), R({ email: "b@x.dk" }), // 22/9 — den NÆSTE, må ikke være en lille boks
+    ...SENERE.flatMap((t, i) => [R({ email: `s${i}-1@x.dk`, session_tid: t }), R({ email: `s${i}-2@x.dk`, session_tid: t })]),
+  ];
+
+  it("kun sessionerne EFTER den næste, i datoorden — den næste er den store boks", () => {
+    const k = kommendeEfterNaeste(MANGE, NU);
+    expect(k.map((s) => s.sessionTid)).toEqual(SENERE.slice(0, 3));
+    expect(k.map((s) => s.sessionTid)).not.toContain(T22);
+    // Datoorden, ikke rækkefølgen i input: den omvendte liste giver samme svar.
+    expect(kommendeEfterNaeste([...MANGE].reverse(), NU).map((s) => s.sessionTid)).toEqual(SENERE.slice(0, 3));
+  });
+
+  it("GRÆNSEN ER TRE — den fjerde session tegnes ikke", () => {
+    expect(KOMMENDE_EFTER_NAESTE_MAKS).toBe(3);
+    expect(kommendeEfterNaeste(MANGE, NU)).toHaveLength(3);
+    expect(kommendeEfterNaeste(MANGE, NU).map((s) => s.sessionTid)).not.toContain(SENERE[3]);
+  });
+
+  it("tallet er PERSONER pr. session — samme mail to gange tæller én gang", () => {
+    const dubletter = [
+      R({ email: "a@x.dk" }),
+      R({ email: "b@x.dk", session_tid: SENERE[0] }),
+      R({ email: "b@x.dk", session_tid: SENERE[0], ewebinar_id: "en-anden-raekke" }),
+      R({ email: "c@x.dk", session_tid: SENERE[0] }),
+    ];
+    const k = kommendeEfterNaeste(dubletter, NU);
+    expect(k).toHaveLength(1);
+    expect(k[0].personer).toBe(2);
+  });
+
+  it("SESSIONER UDEN session_tid tæller ikke med — Replay og OnDemand er ikke programsat", () => {
+    const medReplay = [
+      R({ email: "a@x.dk" }),
+      R({ email: "r1@x.dk", session_tid: null, session_type: "Replay" }),
+      R({ email: "r2@x.dk", session_tid: null, session_type: "OnDemand" }),
+      R({ email: "s@x.dk", session_tid: SENERE[0] }),
+    ];
+    const k = kommendeEfterNaeste(medReplay, NU);
+    expect(k).toHaveLength(1);
+    expect(k[0].sessionTid).toBe(SENERE[0]);
+    // Og en session, der ligger FØR nu, er ikke kommende.
+    expect(kommendeEfterNaeste([R({ email: "g@x.dk", session_tid: T08 }), ...medReplay], NU)).toHaveLength(1);
+  });
+
+  it("tidspunktet og den relative tid regnes i dansk tid, som den store boks", () => {
+    const k = kommendeEfterNaeste(MANGE, NU);
+    // 19/9 → 29/9 er ti danske kalenderdage, uanset at der er sommertid imellem.
+    expect(k[0].omHvorLaenge).toBe("om 10 dage");
+    expect(k[0].omHvorLaenge).toBe(omHvorLaenge(k[0].sessionTid, NU));
+    // Samme formatering som den store: datoLang i Europe/Copenhagen.
+    expect(datoLang(k[0].sessionTid)).toContain("29. september");
+    expect(k[1].omHvorLaenge).toBe("om 17 dage");
+  });
+
+  it("titlen kommer med, når sessionen har en — ellers null", () => {
+    const k = kommendeEfterNaeste(MANGE, NU);
+    expect(k[0].titel).toBe("Sådan får du styr på tallene");
+    const uden = [R({ email: "a@x.dk" }), R({ email: "b@x.dk", session_tid: SENERE[0], webinar_titel: null })];
+    expect(kommendeEfterNaeste(uden, NU)[0].titel).toBeNull();
+  });
+
+  it("ingen session efter den næste → tom liste, og fladen tegner ingen række", () => {
+    expect(kommendeEfterNaeste([R({ email: "a@x.dk" }), R({ email: "b@x.dk" })], NU)).toEqual([]);
+    expect(kommendeEfterNaeste([], NU)).toEqual([]);
+    // Kun afholdte sessioner: heller ingen.
+    expect(kommendeEfterNaeste([R({ email: "a@x.dk", session_tid: T08 })], NU)).toEqual([]);
+  });
+
+  it("de små bokse bærer ALDRIG rækkerne — kun fire felter", () => {
+    for (const s of kommendeEfterNaeste(MANGE, NU)) {
+      expect(Object.keys(s).sort()).toEqual(["omHvorLaenge", "personer", "sessionTid", "titel"]);
+    }
+  });
+
+  it("naesteWebinar bærer dem videre som `efterfoelgende`", () => {
+    const n = naesteWebinar(MANGE, NU);
+    expect(n?.sessionTid).toBe(T22);
+    expect(n?.efterfoelgende).toEqual(kommendeEfterNaeste(MANGE, NU));
+    expect(n?.efterfoelgende).toHaveLength(3);
+    // Den store boks' egne tal er urørte af tilføjelsen.
+    expect(n?.personer).toBe(2);
+    expect(n?.kommendeSessioner).toBe(5);
   });
 });
