@@ -37,7 +37,8 @@ import { PERSONDATA_AFSNIT } from "@/lib/ansoegning/persondata";
  *      Rækkefølgen er stadig: hvorfra → GA-opsamlingen (gaOpsamling.guard dom 6) → Meta.
  *  10. METAS COOKIER ÉT STED (22/9): én parser i skema.ts (+ spejlet), fladen læser ved mount,
  *      body'en bærer «meta», serveren dømmer formen igen, og værdien røres aldrig.
- *  11. UDVIDELSENS MIGRATION: «IKKE KØRT»-linjen ordret først, de tre kolonner med kommentarer,
+ *  11. UDVIDELSENS MIGRATION: «KØRT i prod … 22:15»-linjen ordret først (kørt FØR merge 21/9;
+ *      var «IKKE KØRT» indtil da), de tre kolonner med kommentarer,
  *      intet drop — og et tidsstempel efter alle andre migrationer i mappen.
  *  12. ALLE ANSØGERE + FRAVALGET: «ingen_fbclid» findes ikke længere, kandidatforespørgslen
  *      filtrerer ikke på fbclid, og meta_fravalg dømmes FØRST i doem.
@@ -280,10 +281,10 @@ export const metaCookierneEtSted = (skema: string, gem: string, side: string, ap
 };
 
 // ── 11 ─────────────────────────────────────────────────────────────────────
-/** Migrationen: IKKE KØRT først (ordret), præcis de tre kolonner med kommentarer, intet drop. */
+/** Migrationen: KØRT-hovedet først (ordret — kørt i prod 21/9 22:15), præcis de tre kolonner med kommentarer, intet drop. */
 export const udvidelsesMigrationen = (sql: string): boolean => {
   const s = udenSql(sql);
-  return sql.startsWith("-- IKKE KØRT. DEPLOY: manuelt i Lovable → SQL editor efter merge (FØR Update-klik).\n") &&
+  return sql.startsWith("-- KØRT i prod — 21/9-2026 kl. 22:15") &&
     /add column if not exists fbp\s+text\s+null,/.test(s) &&
     /add column if not exists fbc_cookie\s+text\s+null,/.test(s) &&
     /add column if not exists meta_fravalg boolean not null default false;/.test(s) &&
@@ -350,7 +351,7 @@ describe("metaSend.guard — Metas Conversions API fra platformen", () => {
   it("10. Metas cookier læses ét sted, sendes som «meta», dømmes igen serverside og røres aldrig", () => {
     expect(metaCookierneEtSted(laes(SKEMA), laes(GEM), laes(SIDE), laes(API), alleFiler())).toBe(true);
   });
-  it("11. udvidelsens migration: «IKKE KØRT» ordret først, de tre kolonner med kommentarer, intet drop — og et tidsstempel efter alle andre", () => {
+  it("11. udvidelsens migration: KØRT-hovedet ordret først, de tre kolonner med kommentarer, intet drop — og et tidsstempel efter alle andre", () => {
     expect(udvidelsesMigrationen(laes(MIG_UDV))).toBe(true);
     const alle = readdirSync(resolve(ROD, MIG_DIR)).filter((f) => f.endsWith(".sql")).sort();
     expect(alle[alle.length - 1]).toBe("20260922040000_ansoegninger_meta_udvidelse.sql");
@@ -434,9 +435,11 @@ describe("metaSend.guard — dommene fanger fejlen på en kopi", () => {
     expect(metaCookierneEtSted(skema, gem.replace("await gemMetaCookies(adminClient, data.id, metaCookiesAf(body?.meta));", ""), side, api, alle)).toBe(false);
     expect(metaCookierneEtSted(skema, gem, side.replace("meta: metaCookies.current,", ""), api, alle)).toBe(false);
   });
-  it("11. et andet filhoved, en kolonne mindre, eller et drop, fælder dom 11", () => {
+  it("11. et andet filhoved, et hoved tilbage på «IKKE KØRT», en kolonne mindre, eller et drop, fælder dom 11", () => {
     const m = laes(MIG_UDV);
-    expect(udvidelsesMigrationen(m.replace("-- IKKE KØRT. DEPLOY: manuelt i Lovable → SQL editor efter merge (FØR Update-klik).", "-- Migration: Metas cookier"))).toBe(false);
+    expect(udvidelsesMigrationen(m.replace("-- KØRT i prod — 21/9-2026 kl. 22:15", "-- Migration: Metas cookier"))).toBe(false);
+    // #1064-formen: tilbage til «IKKE KØRT» falder — den ER kørt (21/9 22:15, FØR merge).
+    expect(udvidelsesMigrationen(m.replace("-- KØRT i prod — 21/9-2026 kl. 22:15", "-- IKKE KØRT. DEPLOY:"))).toBe(false);
     expect(udvidelsesMigrationen(m.replace("  add column if not exists meta_fravalg boolean not null default false;", "  add column if not exists meta_fravalg boolean null;"))).toBe(false);
     expect(udvidelsesMigrationen(m.replace("comment on column public.ansoegninger.meta_fravalg is", "-- comment on column public.ansoegninger.meta_fravalg is"))).toBe(false);
   });

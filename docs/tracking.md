@@ -130,11 +130,27 @@ Pixlens Lead-tags (#2, #3) har intet `eventID` — dedup mod platformens hændel
 
 **theboardroom.dk — PR #1 (`3849aa5`):** Consent Mode-standarden i `index.html`: `ad_storage`, `ad_user_data`, `ad_personalization`, `analytics_storage`, `personalization_storage` → `'denied'`; `functionality_storage`, `security_storage` → `'granted'`; `+ wait_for_update: 500` (som topix.dk). GTM-indlæsningen urørt. Bannertekst: «Vi bruger cookies til analyse, videoafspilning og til at måle vores annoncer (Meta, LinkedIn og TikTok).» (godkendt af Jonas 21/9). Privatlivspolitikken: ansøgningsformularen er platformen — «The Boardroom-platformen (app.theboardroom.dk) – ansøgningsformular (Supabase via Lovable Cloud)» (godkendt; «, EU» taget ud — hvor databasen ligger, er ikke målt). `/ansogning-modtaget` urørt (GTM-reglen for «fuldendt ansøgning» hænger på den, til platformens hændelser er i drift).
 
+**theboardroom.dk — PR #2 (`4a61b19`), 21/9 aften:** `/ansogning-modtaget` er **nedlagt**. Ruten er nu `<Navigate to="/" replace />` (replace, så den gamle adresse ikke lægger sig i historikken), og siden er slettet. Den fyrede GTM's `Lead` og GA4's `application_submitted`, hver gang nogen landede der — og ingen ansøger er kommet dertil siden 18/9, hvor ansøgningen flyttede ind i platformen (§2 række 3). **Bevist på det levende site:** 26 filer gennemsøgt, 0 træf på siden og på `trackFormSubmitted`. Det lukker §6 punkt 12.
+
+**TikTok ud af teksterne 21/9 aften** — pixlen er sat på pause i begge containere (se GTM-afsnittet nedenfor), og så må teksterne ikke længere sige, at vi bruger den. **theboardroom.dk PR #3 (`0f0c335`):** banneret siger nu «(Meta og LinkedIn)»; linjen `<li><strong>TikTok Pixel</strong> – annoncemåling (Singapore/USA, samtykkebaseret)</li>` er væk af privatlivspolitikken, markedsføringslinjen nævner kun Meta og LinkedIn, og cookiepolitikkens række `_ttp / _tt_*` er fjernet. **topix.dk PR #2 (`62057b1`):** marketingcookie-linjen siger «Meta, Google Ads og LinkedIn», `<li>TikTok (pixel)</li>` er væk af tredjepartslisten, og `_ttp`-posten er ude af cookiepolitikkens tabel. Nul forekomster af «tiktok» tilbage i nogen af de to `src`-træer.
+
 **Bevist på de levende sider 21/9 (curl):** `ad_storage: 'denied'` på begge sites; «vores annoncer», «Lovable Cloud» og `platform_ansoeg` fundet i bundlerne; SuperForm-id'et og `superform_boardroom` ikke fundet i 27 (theboardroom) / 26 (topix) filer.
 
 **Fejlen i den første beviskommando, bogført:** den ledte kun efter script-stier på formen `assets/…` — ikke `./…`-formen, som chunk-listen bruger — og meldte «ikke fundet» om noget, den ikke havde ledt efter. «Ikke fundet» var «ikke ledt». Anden kørsel ledte i alle chunks. Regel: et negativt fund kræver, at søgningen bevises at ramme det, den skal finde (samme som «tavs dom ligner grøn dom»).
 
-Ikke ændret 21/9 (§5, §6): GTM-containerne, TikTok, Stape, eWebinars pixel, privatlivspolitikkens Monday.com- og Circle.so-linjer, legatets egen SuperForm (`Legat.tsx:10`, andet formular-id).
+### GTM-containerne — ændret 21/9 kl. 21:35–22:05 (Jonas, med chatten)
+
+Dette er første gang containerne selv er rørt; linjen ovenfor gjaldt frem til 21:35.
+
+**theboardroom.dk (GTM-NL33PM5M)** — seks tags sat på **PAUSE** og udgivet: «Facebook - application_started», «Facebook - application_submitted», «GA4 - application_started», «GA4 - application_submitted», «Tiktok - Pageview» og «TikTok – purchase». De fire første er nu platformens arbejde (§4): de fyrede på `cta_click` og på den nedlagte tak-side, altså på noget andet end en ansøgning. **Samtykkeoversigten er slået til og gennemgået:** alle Meta-, LinkedIn- og Stape-tags kræver `ad_storage` — intet at rette. Det lukker §5 punkt 1 og 2.
+
+**topix.dk (GTM-57M8R72D)** — «Tiktok - Pageview» på pause. «Facebook - boardroom_intent» (et HTML-tag) manglede et samtykkekrav og kræver nu `ad_storage`; udgivet.
+
+**Bevaret med vilje:** «dataLayer - ewebinar_form_submit» bliver stående, fordi Klaviyos Identify bruger den. GA4-taggene «email_added» og «generate_lead» sender **ikke** e-mailen som parameter — den går kun via Googles «user-provided data», som Google-tagget krypterer — og de beholdes efter princip (g). Det afgør §5 punkt 3.
+
+**Rester, der endnu ikke er slukket:** de fire «purchase»-tags på theboardroom.dk (Facebook, GA4, LinkedIn, Stape). Betalingen sker i platformen, så de måler ikke det, de tror. De sættes på pause, når platformens `Purchase` kører.
+
+Ikke ændret 21/9 (§5, §6): Stape, eWebinars pixel, privatlivspolitikkens Monday.com- og Circle.so-linjer, legatets egen SuperForm (`Legat.tsx:10`, andet formular-id).
 
 ---
 
@@ -143,7 +159,7 @@ Ikke ændret 21/9 (§5, §6): GTM-containerne, TikTok, Stape, eWebinars pixel, p
 **#1069 (`dc3142d8`) merget 21/9.** Migrationerne `20260921233000` (kolonnen `ansoegninger.user_agent`) og `20260921234000` (sporet `meta_haendelser` + låsen `app_config.meta_send_aktiv` = false) **KØRT i prod 15:50, FØR merge** (Jonas, Lovable SQL editor, med en vagt først; efter: `user_agent text` · sporet med RLS true, 2 politikker, 0 rækker · låsen false). `ansoegning-gem` og `meta-send-cron` **udrullet** fra Lovables build-chat — værktøjets resultat ordret: «Successfully deployed edge functions: ansoegning-gem, meta-send-cron». Secret `META_SEND_TOKEN` sat af Jonas (Events Manager-token, genereret med Dataset Quality API, kun datasættet «Topix.dk» — ikke «The Boardroom — annoncer» 1259647116283770). Cron-migrationen `20260921235500` **kørt 16:18** (efter merge, med en vagt først): job **568 «meta-send»**, `3,8,13,18,23,28,38,43,48,53,58 * * * *`, `active: true`. Låsen er stadig false, så jobbet **tørkører** ved hver kørsel, til den slås til.
 
 **Sådan virker det:** et selvstændigt cron-job læser `ansoegninger` (kun seks kolonner) og sender `Lead application_started` (event_time = `created_at`) og `Lead application_submitted` (`indsendt_at`) til datasæt 858180112996496. `event_id` = `<ansøgnings-id>:started`/`:submitted`. Payload efter §1d: `event_name`, `event_time`, `event_id`, `action_source: "website"`, `event_source_url` (= `landing`), `user_data { external_id (hashet ansøgnings-id), fbc, client_user_agent }` — aldrig `em`, `ph`, `client_ip_address`. User agent gemmes ved «opret», kun på rækker med `fbclid`.
-**UDVIDET 22/9 (udkast-meta-udvidelse):** kandidaten er nu ENHVER ansøgning i vinduet med
+**UDVIDET — i drift 21/9 22:30 (#1076, `f14ef4ed`; se afsnittet nedenfor):** kandidaten er nu ENHVER ansøgning i vinduet med
 user agent og landing; `user_data` bærer også `em`, `ph`, `fn`, `ln` og `country` som
 SHA-256-aftryk (kun de felter, ansøgningen HAR) samt `fbp` og — når URL'en ikke bar et
 `fbclid` — `_fbc`-cookien ordret. Nye kolonner `fbp`, `fbc_cookie`, `meta_fravalg`
@@ -172,6 +188,24 @@ SHA-256-aftryk (kun de felter, ansøgningen HAR) samt `fbp` og — når URL'en i
 2. ~~**Update** i Lovable~~ — klikket; den rettede tekst står på den levende side.
 3. ~~**Låsen slås til**~~ — **slået til 16:30** (`meta_send_aktiv`: før `false` → efter `true`, 1 række opdateret). **Bevist i kørslen 16:43:** `laas_aktiv: true`, `sender_rigtigt: true`, og prøvekladden blev sprunget over som `allerede_sendt` (idempotensen holdt — den var sendt 16:13). Job 568 sender nu for alvor.
 4. ~~**Prøvekladden slettes**~~ — `fcff2198-e19b-4de7-b608-a87eb6755bae` **slettet 16:47** med sit spor. Vagtet: FK-målingen først viste, at kun `meta_haendelser` pegede på rækken, så cascade tog sporet med.
+
+### Udvidelsen (#1076, `f14ef4ed`) — alle ansøgere, hashet, i drift 21/9 kl. 22:30
+
+Migrationen `20260922040000` **KØRT i prod 22:15, FØR merge**, med en vagt først; efter: `fbc_cookie text null` · `fbp text null` · `meta_fravalg boolean not null default false`. `ansoegning-gem` og `meta-send-cron` **udrullet fra `f14ef4ed`** — værktøjets resultat ordret: «Successfully deployed edge functions: ansoegning-gem, meta-send-cron».
+
+**STRIKS-beviset, FØR Update** (samme rækkefølge som §4a, og af samme grund — fladen sender nu feltet `meta`): kald **13534** med `{hent, falsk token, xyz}` → **400 «Kendte felter: annoncespor, cvr_bekraeftet, firma, ga, handling, kilde, kilde_raa, meta, svar, token, virksomhedsnavn»**. `meta` står på listen, altså kendte den kørende function feltet, og felterne tjekkes stadig før tokenet.
+
+**Beviskæden, ét stræk:**
+
+1. **22:26 — låsen slået fra.** `meta_send_aktiv` → `false`, så cron-job 568 ikke nåede at sende prøvekladden, før testkoden var på plads. Låsen er bevisets redskab, ikke juraens (§1g).
+2. **22:27 — prøvekladde `6cff9f4a-ad44-40cc-b707-69b5564efebc`** oprettet i et privat vindue med «Acceptér» og kontaktskærmen udfyldt: `fbp` = `fb.1.1790022…`, user agent, GA-id, e-mail, navn og telefon gemt. **Ingen `_fbc`** — vinduet kom ikke fra en annonce, og det er netop webinarvejen.
+3. **22:27 — tørkørsel (kald 13538).** Brugerdatanøgler `[em, ph, fn, ln, country]`, `fbp: true`, `fbc_kilde: "ingen"`, `payload_afvist: 0` — og grunden «ingen_fbclid» findes ikke længere. En ansøger uden klik-id er nu en kandidat.
+4. **22:30 — testhændelse `TEST51467`.** Metas Test events viste **Lead, «Behandlet», fra Server**, `content_name: application_started`, handlingskilde `website`, og brugerdatanøglerne **«Land, E-mail, Eksternt id, Browser-id, Fornavn, Efternavn, Telefon, Brugeragent»** — otte, hvor der før stod tre.
+5. **22:30 — låsen slået til.** Job 568 sender nu for alvor, også for ansøgere uden klik-id.
+
+**Prøvekladden slettes 22/9 kl. 08**, efter GA-tjekket i §4a — den bærer både GA-id'et og Meta-hændelsen, så den skal stå, til begge er aflæst.
+
+**KENDT SVAGHED, rettes i trin 2:** navnet deles ved første mellemrum, så «Jonas Breum Herlev» giver `fn` = `jonas` og `ln` = `breumherlev`. Meta forventer efternavnet alene. **Sidste ord skal være `ln`.** Det rammer alle ansøgere med mellemnavn, og et forkert aftryk matcher ingen — det er et tabt match, ikke en lækket oplysning.
 
 ---
 
@@ -234,13 +268,15 @@ Googles anbefalede bevis er **DebugView med `debug_mode`** ([verify-implementati
 
 ## 5. Åbent — marketingmandens liste
 
-1. **GTM `Lead application_started`** (theboardroom.dk, tag 138) fyrer på `cta_click` — skal trigges af **`begin_checkout`** (kun «Ansøg om en plads»). Og `eventID` på Lead-tags, så platformens hændelser (§4) kan dedupes.
-2. **Samtykkekrav på Lead- og GA4-tags:** tag 138/123 (Lead), 140/143 og de øvrige GA4-event-tags har ingen consent-liste (målt i containeren). Med default `denied` (§3) fyrer `fbq` ikke før accept — men taggene selv siger ikke, hvad de kræver.
-3. **Navn og e-mail ud af dataLayer på topix.dk/webinar:** HTML-tagget på `gtm.dom` lægger `user_data:{name, email}` i klartekst ved klik på «Tilmeld dig» (#12).
-4. **Fjern TikTok-pixlen** (tag 96/130 på theboardroom.dk, tag 30 på topix.dk) — derefter banner og cookiepolitik uden TikTok (`_ttp`).
+1. ~~**GTM `Lead application_started`** (theboardroom.dk, tag 138) fyrer på `cta_click` — skal trigges af **`begin_checkout`**. Og `eventID` på Lead-tags, så platformens hændelser (§4) kan dedupes.~~ — **GJORT 21/9 21:35–22:05 (§3):** de fire tags «Facebook/GA4 - application_started/submitted» er sat på **pause** og udgivet. Hændelserne kommer nu fra platformen alene, så der er intet at deduplikere og ingen trigger at rette.
+2. ~~**Samtykkekrav på Lead- og GA4-tags:** taggene siger ikke selv, hvad de kræver.~~ — **GJORT 21/9 (§3):** samtykkeoversigten er slået til og gennemgået på theboardroom.dk; alle Meta-, LinkedIn- og Stape-tags kræver `ad_storage`, intet at rette. På topix.dk manglede «Facebook - boardroom_intent» (HTML) sit krav — det er sat og udgivet.
+3. ~~**Navn og e-mail ud af dataLayer på topix.dk/webinar**~~ — **AFGJORT 21/9 (§3): «dataLayer - ewebinar_form_submit» BEVARES**, fordi Klaviyos Identify bruger den. GA4-taggene «email_added» og «generate_lead» sender ikke e-mailen som parameter — kun via Googles «user-provided data», som Google-tagget krypterer — og beholdes efter princip (g).
+4. ~~**Fjern TikTok-pixlen** (tag 96/130 på theboardroom.dk, tag 30 på topix.dk) — derefter banner og cookiepolitik uden TikTok (`_ttp`).~~ — **GJORT 21/9:** begge containere har pixlen på **pause** og udgivet (§3), og teksterne er renset i PR #3 (theboardroom.dk) og PR #2 (topix.dk). TikTok bruges ikke.
 5. **eWebinars pixel:** hvilke hændelser sender eWebinar for 858180112996496, og fra hvilke sider (tilmelding, join, replay)? Aflæses i eWebinar → Integrations.
 6. **Stape-serverens tags** (`nofikexx.topix.dk`): hvilke klienter og tags (Meta CAPI? GA4? LinkedIn?), hvilket datasæt/token. Kun i GTM's server-container.
-7. **Aflæsningerne, der ikke kan måles herfra** (recon-tracking §6): Events Manager → Events pr. hændelse og pr. `event_source_url` (kommer app.theboardroom.dk overhovedet?), Connection method (browser/server), Deduplication, Event match quality; Custom conversions («fuldendt ansøgning», «opstart»: regel, kilde, «last received»); Settings → Conversions API / System Users (navn, «last used», scopes); Automatic advanced matching; Ads Manager → url_tags på alle aktive annoncer. GTM → Versions (tag-navne, hvem publicerede version 6), server-containeren, Consent Overview. GA4 (G-6LHR66CDJ4, G-9S4NL9FKGK) → Events sidste 7 dage, Key events, cross-domain, Measurement Protocol secrets (`GA4_API_SECRET` i sitets `ga4-track`). Klaviyo → «Active on site» fra topix.dk. Stape-kontoen → request-loggen for `/data`.
+7. **Nye tilpassede konverteringer på platformens hændelser** — `application_started` og `application_submitted` kommer nu fra serveren (§4). Konverteringerne i Events Manager skal pege på dem, ikke på de pausede GTM-tags.
+8. **Kampagnernes konverteringsmål** — hvilke annoncer optimerer mod hvad, når målet skifter til platformens hændelser.
+9. **Aflæsningerne, der ikke kan måles herfra** (recon-tracking §6): Events Manager → Events pr. hændelse og pr. `event_source_url` (kommer app.theboardroom.dk overhovedet?), Connection method (browser/server), Deduplication, Event match quality; Custom conversions («fuldendt ansøgning», «opstart»: regel, kilde, «last received»); Settings → Conversions API / System Users (navn, «last used», scopes); Automatic advanced matching; Ads Manager → url_tags på alle aktive annoncer. GTM → Versions (tag-navne, hvem publicerede version 6), server-containeren, Consent Overview. GA4 (G-6LHR66CDJ4, G-9S4NL9FKGK) → Events sidste 7 dage, Key events, cross-domain, Measurement Protocol secrets (`GA4_API_SECRET` i sitets `ga4-track`). Klaviyo → «Active on site» fra topix.dk. Stape-kontoen → request-loggen for `/data`.
 
 ---
 
@@ -257,8 +293,10 @@ Googles anbefalede bevis er **DebugView med `debug_mode`** ([verify-implementati
 9. ~~**En nøgle uden adgang til datasættet meldes som kode 100 / `error_subcode` 33**~~ — **LØST 21/9 aften (udkast-meta-100-33).** Metas fejlreference bærer det: for 100 med `error_subcode` 33 står der «Unsupported post request. This error may occur if your access token is not added as a system user with appropriate permissions to the ad account that owns a Custom Audience.» ([error-reference](https://developers.facebook.com/docs/marketing-api/error-reference/)) — altså rettigheder, ikke payload. `doemMetaSvar` har nu `NOEGLE_SUBKODER = [[100, 33]]`: PARRET løftes til `ingen_noegle` (prøves igen, når adgangen gives), mens kode 100 alene bliver ved med at være `ugyldig`. Prøvet med den rigtige fejlkrop i `metaSend.test.ts`.
 10. **Persondatateksten i platformen siger «Supabase (databasen, via Lovable Cloud, i EU)»**, mens theboardroom.dk's privatlivspolitik 21/9 fik «EU» fjernet igen, fordi regionen ikke er målt. Mål, hvor databasen faktisk ligger, og gør de to tekster ens.
 11. **`referrer` er TOM på ansøgninger fra theboardroom.dk** — målt på begge prøver 21/9 (A og B, §4a). `document.referrer` når ikke frem til `/ansoeg`. Årsagen er **umålt**: enten en `Referrer-Policy` (fx `no-referrer` / `strict-origin`) eller `rel="noreferrer"` på ansøg-linket. Følgen: kolonnen `ansoegninger.referrer` kan ikke bruges til at afgøre kilden — `kilde` og `utm_*` kan.
-12. **GTM-tagget på `/ansogning-modtaget` fyrede et FALSK `application_submitted` 21/9** — set i GA4-rapporten (til `G-6LHR66CDJ4`, og formentlig også som `Lead` til Meta, da de to tags deler trigger). Ingen ansøger kan nå den side fra platformen (§2 række 3), så hændelsen er ikke en ansøgning. Det er **konkret bevis for marketingmandens punkt 1** (§5): triggeren skal om, og `application_started` skal væk fra `cta_click`.
+12. **LØST 21/9 aften** (site-PR #2 `4a61b19` + pausen af de fire tags, §3). ~~**GTM-tagget på `/ansogning-modtaget` fyrede et FALSK `application_submitted` 21/9** — set i GA4-rapporten (til `G-6LHR66CDJ4`, og formentlig også som `Lead` til Meta, da de to tags deler trigger). Ingen ansøger kan nå den side fra platformen (§2 række 3), så hændelsen er ikke en ansøgning. Det er **konkret bevis for marketingmandens punkt 1** (§5): triggeren skal om, og `application_started` skal væk fra `cta_click`.~~ Siden er nedlagt (omdirigerer til «/»), og de fire tags er på pause — hændelsen kan ikke fyre mere. Bevist på det levende site: 0 træf i 26 filer.
 13. **Prøvedelingen «Nicklas - Marketingkonsulenten» er LUKKET og må ikke genåbnes** — tokenet har stået i chatten 21/9 (delingen af `/webinar`, se CLAUDE.md's afsnit om delingen). Nicklas får et nyt link. Et lukket link svarer 403 «ukendt», og oprydningsjobbet (job 570) sletter deling og spor 12 måneder efter lukningen.
+
+14. **Cron-vagten tæller vores egne beviskald.** `vagt_cron` tæller ALLE non-200-svar i `net._http_response` — også de manuelle prøvekald, vi selv sender fra SQL editoren. Målt 21/9: 1×400 + 1×404 kl. 18:07 (STRIKS-modprøven, §4a) og 2×403 kl. 22:07 — alle fire er vores egne beviser, ikke fejl i drift. Vagten bør kun tælle **planlagte jobs**; ellers vænner vi os til at overse den, og så tier den dagen, noget faktisk går galt.
 
 ---
 
