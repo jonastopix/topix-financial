@@ -1,57 +1,25 @@
 /**
- * Webinarfladens dom (udkast 19/9-2026) — de fire spørgsmål Jonas stillede,
- * regnet ÉT sted, så fladen kun tegner:
+ * webinarDashboard — SPEJL af src/lib/webinar/dashboard.ts (udkast webinar-deling
+ * 21/9-2026). Serveren (webinar-delt) regner det delte dashboard med SAMME dom
+ * som fladen, så en ekstern ser de samme tal — og aldrig rækkerne bag dem.
  *
- *   1. Hvor mange er tilmeldt det næste webinar, og hvornår er det?
- *   2. For hvert AFHOLDT webinar: tilmeldte · mødte op · så det færdigt ·
- *      mødte ikke op.
- *   3. HVOR KOM DE FRA: pr. annonce (utm_campaign/utm_content) og pr. kilde
- *      (Facebook, direkte, andet) — hele vejen fra annoncen til deltagelsen.
- *   4. Hvor mange af de tilmeldte der ANSØGTE. Koblingen er mailen.
- *
- * ARBEJDSDELINGEN. Graden af deltagelse («set» ≥ 75 % · «delvist» ·
- * «mødte ikke op» · «tilmeldt» · «ukendt») er IKKE regnet her — den er
- * webinarDom.doemSetGrad, spejlet i supabase/functions/_shared/webinarDom.ts
- * med paritetstest. Denne fil grupperer og tæller dommen; den fælder den
- * aldrig selv. Ét sted, én grænse.
- *
- * TÆLLEENHEDEN ER PERSONER, ikke rækker — som webinarDom.webinarTal. Én mail
- * tæller én gang pr. session, og bedste grad vinder (en «Left» efter en
- * «Watched» må ikke gøre en seer til en der faldt fra).
- *
- * ANNONCESPORET TILSKRIVES PERSONENS FØRSTE TILMELDING (tidligste
- * registreret_at). En person der meldte sig til to gange fra to annoncer kan
- * ikke tælles to steder uden at 330 bliver til 340; annoncen der hentede
- * hende ind, er den første. De personer hvis tilmeldinger bærer FORSKELLIGE
- * kilder, tælles i `flereKilder` — tvetydigheden vises, den skjules ikke.
- *
- * ANNONCESPORET KAN MANGLE. Kolonnerne kommer med migration
- * 20260919150000_webinar_annoncespor.sql, og plukket med
- * webinarDom.plukAnnoncespor. Indtil begge er kørt, er felterne `undefined`,
- * og dommen svarer `sporFindes: false` i stedet for at vise nuller som var
- * de målte. Fladen siger det rent ud. Ingen af de øvrige tre spørgsmål
- * afhænger af sporet.
- *
- * SPEJLET i supabase/functions/_shared/webinarDashboard.ts (udkast webinar-deling
- * 21/9-2026): serveren regner det delte dashboard med SAMME dom. Kroppen efter
- * filhovedet er ordret ens på nær import-stierne (@/lib/… ↔ ./…); pariteten
- * låses af src/lib/__tests__/webinarDashboard.paritet.test.ts.
- *
- * NUL DATA ER ET GYLDIGT SVAR. Hver dom har en tom form (`null`, tom liste,
- * nul), og fladen har en sætning til hver. Siden er rigtig i dag med nul
- * rækker og rigtig tirsdag med 330.
+ * Kroppen efter dette filhoved er ordret ens med src-udgaven på nær
+ * import-stierne (@/lib/… ↔ ./…); enhver ændring dér SKAL også laves her.
+ * Pariteten (tekst OG svar på samme input) låses af
+ * src/lib/__tests__/webinarDashboard.paritet.test.ts. Begrundelserne står i
+ * src-udgavens filhoved.
  */
-import { blevMedlem } from "@/lib/ansoegninger/ansoegningVisning";
-import type { Trin } from "@/lib/ansoegningTrin";
+import { blevMedlem } from "./blevMedlem.ts";
+import type { Trin } from "./ansoegningTrin.ts";
 import {
   datoKort,
   doemSetGrad,
   SET_GRAENSE_PROCENT,
   type SetGrad,
   type WebinarTilmelding,
-} from "@/lib/webinarDom";
+} from "./webinarDom.ts";
 // Kanalens navn af utm_source bor i annoncekilde.ts (20/9) — ét hjem, spejlet til serveren.
-import { kildeNavn } from "@/lib/webinar/annoncekilde";
+import { kildeNavn } from "./annoncekildeStreng.ts";
 
 export { SET_GRAENSE_PROCENT };
 

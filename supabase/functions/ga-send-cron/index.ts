@@ -24,7 +24,9 @@
 //      sprunget pr. grund. Ingen client_id, intet session_id i svaret.
 //   5. Rigtig kørsel: én hændelse pr. kald, sekventielt inden for BUDGET_MS. Payloaden går
 //      gennem findForbudteNoegler FØR afsendelsen (500 payload_afvist frem for et læk), og
-//      sporet skrives efter hvert kald (upsert på event_id).
+//      sporet skrives efter hvert kald (upsert på event_id) — MEN en debug-kørsel skriver kun
+//      valideringens NEJ (skalSkriveSpor, rettelse 21/9 aften: ellers spiste beviset sig selv),
+//      og dens gyldige tælles som «valideret», ikke «sendt».
 //   6. Alarm (princip 1): fejlede > 0 i en rigtig kørsel → én mail pr. døgn til driftModtager
 //      + drift-klokke (reference_type "ga_haendelser"). Klokke-mail-udkastet skal have
 //      «ga_haendelser» på SELVMAILENDE_REFERENCER, når begge er i drift (README).
@@ -42,7 +44,7 @@ import { sendTilGa } from "../_shared/gaSendAfsendelse.ts";
 import {
   ALARM_KLOKKE_TYPE, ALARM_MAIL_LABEL, alarmNoegle, alarmTekst, type AnsoegningTilGa, type Art, ARTER, bygPayload, doem,
   eventId, type FejletAfsendelse, findForbudteNoegler, GA_MEASUREMENT_ID, GA_SEND_LAAS_NOEGLE, GA_VINDUE_TIMER,
-  kanJoines, laasErAktiv, maaForsoeges, senderRigtigt, type SporRaekke, type SprungetGrund,
+  kanJoines, laasErAktiv, maaForsoeges, senderRigtigt, skalSkriveSpor, type SporRaekke, type SprungetGrund,
 } from "../_shared/gaSend.ts";
 
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -77,6 +79,8 @@ export interface GaSendResultat {
   ville_sende: Plan[];
   sprunget: Record<SprungetGrund | "allerede_sendt" | "ugyldig", number>;
   sendt: number;
+  /** Gyldige i en DEBUG-kørsel: payloaden blev godkendt af valideringsserveren, men er ikke i GA. */
+  valideret: number;
   fejlede: number;
   fejlede_liste: FejletAfsendelse[];
   /** Sendt, men ældre end 48 timer: tælles og kan ikke længere joines med besøget. */
@@ -93,7 +97,7 @@ function tomt(a: { toer: boolean; laas: boolean; debug: boolean; id: string | nu
     sender_rigtigt: senderRigtigt({ dryRun: a.toer, laasAktiv: a.laas, debug: a.debug }),
     maalings_id: GA_MEASUREMENT_ID, ansoegning_id: a.id, nu: a.nu.toISOString(), kandidater: 0, ville_sende: [],
     sprunget: { ingen_ga_client_id: 0, ikke_indsendt: 0, ingen_tidspunkt: 0, for_gammel: 0, allerede_sendt: 0, ugyldig: 0 },
-    sendt: 0, fejlede: 0, fejlede_liste: [], for_sent_til_join: 0, udsat: 0, alarm: "ingen", fejl: [],
+    sendt: 0, valideret: 0, fejlede: 0, fejlede_liste: [], for_sent_til_join: 0, udsat: 0, alarm: "ingen", fejl: [],
   };
 }
 
@@ -204,15 +208,24 @@ export async function koerGaSend(
       return { status: 500, resultat: r };
     }
     const svar = await sendTilGa(payload, a.debug);
-    const { error } = await admin.from("ga_haendelser").upsert({
-      event_id: p.plan.event_id, ansoegning_id: p.plan.ansoegning_id, art: p.plan.art, event_time: p.plan.event_time,
-      udfald: svar.udfald, forsoeg: p.plan.forsoeg, sidste_forsoeg_at: a.nu.toISOString(), sendt_at: svar.udfald === "sendt" ? a.nu.toISOString() : null,
-      status: svar.status, validering: svar.validering, svar: svar.svar, fejl: svar.fejl, debug: a.debug, varighed_ms: svar.varighed_ms,
-    }, { onConflict: "event_id" });
-    if (error) { r.fejl.push(`spor ${p.plan.event_id}: ${error.message}`); console.error(`${LOG} SPOR IKKE SKREVET for ${p.plan.event_id}:`, error.message); }
+    // SPORET: en debug-kørsel skriver KUN valideringens NEJ (skalSkriveSpor, rettelse 21/9 aften).
+    // Ellers ville en validering efterlade en «sendt»-række, og den rigtige afsendelse bagefter
+    // ville springe hændelsen over som «allerede_sendt» — beviset ville spise sig selv.
+    if (skalSkriveSpor(svar.udfald, a.debug)) {
+      const { error } = await admin.from("ga_haendelser").upsert({
+        event_id: p.plan.event_id, ansoegning_id: p.plan.ansoegning_id, art: p.plan.art, event_time: p.plan.event_time,
+        udfald: svar.udfald, forsoeg: p.plan.forsoeg, sidste_forsoeg_at: a.nu.toISOString(), sendt_at: svar.udfald === "sendt" ? a.nu.toISOString() : null,
+        status: svar.status, validering: svar.validering, svar: svar.svar, fejl: svar.fejl, debug: a.debug, varighed_ms: svar.varighed_ms,
+      }, { onConflict: "event_id" });
+      if (error) { r.fejl.push(`spor ${p.plan.event_id}: ${error.message}`); console.error(`${LOG} SPOR IKKE SKREVET for ${p.plan.event_id}:`, error.message); }
+    }
     if (svar.udfald === "sendt") {
-      r.sendt++;
-      if (!p.plan.kan_joines) r.for_sent_til_join++;
+      // I en debug-kørsel er «sendt» kun valideringens ja — hændelsen er ikke i GA.
+      if (a.debug) r.valideret++;
+      else {
+        r.sendt++;
+        if (!p.plan.kan_joines) r.for_sent_til_join++;
+      }
     } else {
       r.fejlede++;
       r.fejlede_liste.push({ event_id: p.plan.event_id, udfald: svar.udfald, fejl: svar.fejl, forsoeg: p.plan.forsoeg });

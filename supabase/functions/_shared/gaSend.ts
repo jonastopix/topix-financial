@@ -253,11 +253,51 @@ export interface SporRaekke {
 }
 
 /**
+ * SKAL KALDET I SPORET? (rettelse 21/9 aften — fejlen i #1073.)
+ *
+ * FEJLEN: en debug-kørsel (`dry_run: false` + `debug: true`) rammer Googles valideringsserver,
+ * som IKKE lander i rapporter — men den upsertede alligevel sporet med udfald «sendt» og
+ * `sendt_at` sat. `maaForsoeges` så kun på udfaldet, så den RIGTIGE afsendelse bagefter sprang
+ * hændelsen over som «allerede_sendt». README's egen bevisrækkefølge (bevis 2 debug → bevis 3
+ * rigtig) ville derfor have fejlet: valideringen ville have spist beviset.
+ *
+ * RETTELSEN — og hvorfor den er skruet sådan sammen: i stedet for at lære `maaForsoeges` at
+ * læse `debug` (og dermed have en regel, nogen kan glemme ét sted), fjernes MULIGHEDEN for
+ * at forveksle: **en debug-kørsel skriver kun i sporet, når valideringen siger NEJ.** Så kan
+ * der aldrig opstå en række med «sendt» og `debug = true`, og `maaForsoeges` kan blive ved
+ * med at dømme på udfaldet alene.
+ *
+ * Tre grunde til at det er den robuste løsning frem for et ekstra `debug`-argument:
+ *   1. Sandheden står i rækken selv. Enhver læser — et menneske, en SQL, en fremtidig
+ *      funktion — kan stole på, at «sendt» betyder «hændelsen er i GA».
+ *      `ga_haendelser_sendt_hel` (CHECK: (udfald = 'sendt') = (sendt_at is not null)) holder
+ *      dermed op med at kunne lyve.
+ *   2. Den fejler sikkert. Glemmer nogen reglen, findes der ingen række — og ingen række
+ *      betyder «prøv igen», ikke «spring over».
+ *   3. Den kræver ingen ny tilstand og ingen skemaændring på en tabel, der allerede er kørt
+ *      i prod (21/9 kl. 17:48).
+ *
+ * Valideringens NEJ skrives derimod ALTID: «ugyldig» er den ene ting, en debug-kørsel må
+ * huske, fordi payloaden så er forkert og ikke skal sendes, før den er rettet. Fejl, timeout
+ * og manglende nøgle i en debug-kørsel skrives ikke: de siger intet om hændelsen, kun om
+ * valideringsserveren, og de står i svaret.
+ */
+export function skalSkriveSpor(udfald: SporUdfald, debug: boolean): boolean {
+  return debug ? udfald === "ugyldig" : true;
+}
+
+/**
  * Idempotensen — og VINDUET ER LOFTET. Der er intet forsøgsloft: så længe hændelsen er
  * inden for 72 timer, prøver vi igen (Measurement Protocol svarer aldrig med en fejlkode,
  * så et «fejl» er netværk eller 5xx — forbigående af natur). «sendt» sendes aldrig igen,
  * fordi Google ikke dedup'er; «ugyldig» (valideringen sagde nej) sendes ikke igen, før
  * payloaden er rettet.
+ *
+ * DEN DØMMER PÅ UDFALDET ALENE — med vilje. Den behøver ikke kende `debug`, fordi
+ * `skalSkriveSpor` sørger for, at en debug-kørsel aldrig efterlader en «sendt»-række
+ * (rettelse 21/9 aften). Skulle nogen en dag skrive en alligevel, ville denne dom sige
+ * «allerede_sendt» om noget, der aldrig nåede Google — derfor låser gaSend.guard dom 6,
+ * at upsert'en går gennem skalSkriveSpor.
  */
 export function maaForsoeges(spor: SporRaekke | null): { ok: true } | { ok: false; grund: "allerede_sendt" | "ugyldig" } {
   if (!spor) return { ok: true };
@@ -269,7 +309,11 @@ export function maaForsoeges(spor: SporRaekke | null): { ok: true } | { ok: fals
 export interface Valideringsbesked { fieldPath?: string; description?: string; validationCode?: string }
 
 /**
- * Svaret. Produktions-endpointet siger intet (Googles egne ord ovenfor): 2xx = «sendt»,
+ * Svaret. I en DEBUG-kørsel betyder «sendt» kun, at valideringen ikke havde indvendinger —
+ * hændelsen er IKKE i GA («Events sent to the validation server don't show up in reports»).
+ * Kørslen tæller den derfor som `valideret`, og `skalSkriveSpor` holder den ude af sporet.
+ *
+ * Produktions-endpointet siger intet (Googles egne ord ovenfor): 2xx = «sendt»,
  * og en forkert api_secret ville se nøjagtig sådan ud. Valideringsserveren svarer med
  * validationMessages: tom liste = gyldig, ellers «ugyldig» med beskederne.
  */

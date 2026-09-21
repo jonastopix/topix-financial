@@ -247,6 +247,10 @@ to the entire access-control model.
 
 ---
 
+### `protect_webinar_deling_spor()` on `webinar_deling_spor BEFORE UPDATE OR DELETE` (udkast webinar-deling 21/9-2026, migration `20260922020000`)
+
+Mirror of `protect_aftale_spor` (same body, same rule): UPDATE always raises; DELETE raises only when direct (`pg_trigger_depth() <= 1` inside the trigger) — the cascade from `webinar_delinger` runs inside the RI trigger (depth 2) and passes, so a share and its trail can be deleted together (`oprettet_af` is `on delete restrict`). The trail (`webinar_deling_spor`) is append-only for every role including `service_role`. No SECURITY DEFINER; `search_path = public`. Not exercised in a real Postgres in the draft (no local/WASM Postgres) — the migration header carries the transaction-and-rollback probe; the SQL is locked by `webinarDeling.guard` dom 4.
+
 ## 4. Data Normalization Triggers
 
 ### `trg_normalize_invitation_email` on `company_invitations BEFORE INSERT`
@@ -748,6 +752,14 @@ skrivende edge functions bruger `SUPABASE_SERVICE_ROLE_KEY`.
 - **Sporet (`aftale_spor`) er append-only:** INSERT/SELECT for service_role, SELECT for rådgivere, ingen UPDATE/DELETE-politik for nogen; kildeværnet låser at koden kun indsætter.
 - **Én ejer pr. aftale:** CHECK præcis én af `company_id`/`ansoegning_id` (D1: virksomheden oprettes ved underskriften af A's motor, `udfoerOvergang(underskrevet, via e_signatur)`). Underskriften sender ALDRIG invitationen og skriver aldrig kontraktdatoer — adgang gives ved betaling (`stripe-webhook`, urørt).
 - Kildeværn: `src/lib/__tests__/aftaleUnderskrift.guard.test.ts` (9 domme + 8 selvbeviser).
+
+### Webinar-delingen (`webinar_delinger`, `webinar_deling_spor`) — udkast 21/9-2026, migration `20260922020000`
+
+- **Modtageren har INGEN konto og INGEN politik.** Alt går gennem edge-funktionen `webinar-delt` (`verify_jwt = false`, bevidst) med tokenet som legitimation: `verifyDelingstoken` (`_shared/delingstokenAuth.ts`) FØR enhver anden databaseadgang — samme klasse som `verifyAftaletoken`; registreret som prædikat i `scripts/check-edge-function-auth.ts`. **Nyt i huset: tokenet gemmes KUN som SHA-256-aftryk** (`token_aftryk`, UNIQUE, CHECK hex-64); opslag på aftryk-lighed med service role, derefter konstant-tid-sammenligning (`konstantTidLighed.ts`). Tokenet er 256 bit (32 bytes `crypto.getRandomValues`, base64url) og findes kun i svaret ved oprettelsen og i modtagerens link. Ukendt/udløbet/lukket giver ÉT svar udadtil (403 `ukendt`); grunden står i sporet.
+- **Svaret bærer ingen rå rækker:** `webinar-delt` regner dashboardet på serveren (spejlede domme `_shared/webinarDashboard.ts`, `_shared/annoncepriser.ts`) og går svaret igennem for tilmeldingens personfelter (`findForbudteNoegler`) før det sendes — 500 `svar_afvist` frem for et læk. Kildeværn: `src/lib/__tests__/webinarDeling.guard.test.ts` + prøven på svar-objektet i `webinarDeling.test.ts`.
+- **Rådgivere:** SELECT på `webinar_delinger` og `webinar_deling_spor` (listen). Opret/forlæng/luk går KUN gennem `webinar-deling` (Bucket A: `authenticateUser` + `has_role` advisor via `callerClient.rpc`, `verify_jwt = true`), så en deling aldrig findes uden spor.
+- **Opbevaring 12 måneder (Jonas 21/9):** cron-jobbet `webinar-delinger-opbevaring` (`52 4 * * *`, migration `20260922021000`, ren SQL) sletter delinger 12 måneder efter det tidligste passerede af `lukket_at`/`udloeber_at`; sporet følger med cascaden. Antallet står i `cron.job_run_details.return_message` («DELETE n»).
+- **Sporet er append-only:** INSERT/SELECT for service_role, SELECT for rådgivere, ingen UPDATE/DELETE-politik, og `protect_webinar_deling_spor` (§3) nægter UPDATE altid og DELETE direkte (cascaden fra `webinar_delinger` slipper igennem). Hver visning og afvisning PÅ EN KENDT DELING logges med IP/user-agent (`deling_id NOT NULL`); et ukendt token skrives aldrig i sporet (det kan ikke slettes, og der er ingen rate-limit) — kun i functionens log, uden tokenet.
 
 ## 6. Security Outcomes from Hardening Patches 5–10
 

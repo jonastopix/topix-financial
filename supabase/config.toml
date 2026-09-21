@@ -8,6 +8,14 @@ project_id = "loiavmastgeieqyiwyyr"
   # klasse som opret-indgangs-checkout (verifyBetalingstoken).
   [functions.aftale-underskrift]
     verify_jwt = false
+  # UDKAST 21/9 — /webinar delt gennem et privat link. verify_jwt = FALSE, bevidst:
+  # kalderen er /delt/webinar — en ekstern UDEN session og uden konto. Beskyttelsen
+  # er delingstokenet i body, verificeret af verifyDelingstoken
+  # (_shared/delingstokenAuth.ts: SHA-256-aftryk, konstant tid) FØR enhver
+  # service-role-handling — samme klasse som aftale-underskrift. Svarer KUN med det
+  # færdige dashboard (ingen rå rækker), og hver visning står i webinar_deling_spor.
+  [functions.webinar-delt]
+    verify_jwt = false
   # Samme begrundelse som get-community-billed-url nedenfor: ny Bucket
   # A-funktion, gatewayen bærer signaturtjekket (PR #267-mønstret).
   # Advisor-gate via has_role FØR service-role-konstruktion.
@@ -322,4 +330,9 @@ project_id = "loiavmastgeieqyiwyyr"
   # app_config.ga_send_aktiv ELLER «debug: true», som rammer Googles valideringsserver).
   # Læser KUN GA4_SEND_SECRET (gaSendAfsendelse.ts) — aldrig sitets GA4_API_SECRET.
   [functions.ga-send-cron]
+    verify_jwt = true
+  # Rådgiverens forvaltning af private links til /webinar (udkast 21/9-2026).
+  # Bucket A: authenticateUser FØRST, rådgiver-gate via has_role gennem
+  # callerClient, FØRST derefter service role (opret · forlaeng · luk).
+  [functions.webinar-deling]
     verify_jwt = true

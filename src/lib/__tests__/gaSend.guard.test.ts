@@ -18,11 +18,15 @@ import { PERSONDATA_AFSNIT } from "@/lib/ansoegning/persondata";
  *      første sendTilGa; låsen læses af app_config fail-closed.
  *   5. STRIKS-BODY + BUCKET B: KENDTE_FELTER præcis dry_run · nu · debug · ansoegning_id;
  *      authenticateServiceRole før createClient; config verify_jwt = true.
- *   6. SPORET FØR TÆLLINGEN, OG INTET FORSØGSLOFT: upsert på event_id inde i løkken før
- *      r.sendt/r.fejlede; maaForsoeges nævner intet forsøgstal.
- *   7. MIGRATIONERNE: sporet (010000) bogført KØRT i prod (21/9 17:48, FØR merge — filhovedet
- *      rettet ved ilægningen; var «IKKE KØRT» indtil da), cron-migrationen (011000) stadig
- *      «-- IKKE KØRT»; sporet med event_id primary key og udfald-CHECK;
+ *   6. SPORET FØR TÆLLINGEN, INTET FORSØGSLOFT — OG EN DEBUG-KØRSEL EFTERLADER INGEN
+ *      «SENDT»-RÆKKE (rettelse 21/9 aften, fejlen i #1073): upsert på event_id inde i løkken
+ *      før r.sendt/r.fejlede, og upsert'en står bag `if (skalSkriveSpor(svar.udfald, a.debug))`,
+ *      hvis regel er «debug ? udfald === "ugyldig" : true». En gyldig validering tælles som
+ *      `valideret`, ikke `sendt`. maaForsoeges nævner intet forsøgstal.
+ *   7. MIGRATIONERNE: begge bogført KØRT i prod — sporet (010000) 21/9 17:48 (FØR merge) og
+ *      cron-migrationen (011000) 21/9 21:02 (EFTER merge; job 569, låsen slået til samtidig);
+ *      filhovederne rettet, efterhånden som de blev kørt (var «IKKE KØRT» indtil da);
+ *      sporet med event_id primary key og udfald-CHECK;
  *      låsen 'false'::jsonb; cron-minutterne rammer ingen anden plan (målt over alle
  *      cron.schedule + de udkast, der ikke er merget); kald_edge 60000/480000.
  *   8. PERSONDATATEKSTEN: GA-afsendelsesafsnittet og den tilpassede «Vi sælger aldrig …»
@@ -49,6 +53,7 @@ const CRON = "supabase/functions/ga-send-cron/index.ts";
 const CONFIG = "supabase/config.toml";
 const MIG_SPOR = "supabase/migrations/20260922010000_ga_haendelser.sql";
 const MIG_CRON = "supabase/migrations/20260922011000_ga_send_cron.sql";
+const MIG_OPRYDNING = "supabase/migrations/20260922015000_ga_haendelser_debug_oprydning.sql";
 const MIG_DIR = "supabase/migrations";
 
 /** FORSLAGET, ordret (21/9 aften — venter på Jonas i chatten). */
@@ -128,6 +133,13 @@ export const sporetOgIntetLoft = (cron: string, dom: string): boolean => {
     foer(loekke, "await sendTilGa(", 'from("ga_haendelser").upsert({') &&
     foer(loekke, '{ onConflict: "event_id" }', 'if (svar.udfald === "sendt") {') &&
     !/payload:/.test(loekke) &&
+    // Rettelse 21/9 aften (#1073): upsert'en står BAG skalSkriveSpor, og reglen bor i den rene dom.
+    loekke.includes("if (skalSkriveSpor(svar.udfald, a.debug)) {") &&
+    foer(loekke, "if (skalSkriveSpor(svar.udfald, a.debug)) {", 'from("ga_haendelser").upsert({') &&
+    d.includes('return debug ? udfald === "ugyldig" : true;') &&
+    // …og en gyldig validering tælles som «valideret», aldrig som «sendt».
+    loekke.includes("if (a.debug) r.valideret++;") &&
+    foer(loekke, "if (a.debug) r.valideret++;", "r.sendt++;") &&
     // Intet forsøgsloft: dommen nævner hverken MAKS_FORSOEG eller en talsammenligning på forsoeg.
     !/MAKS_FORSOEG|forsoeg\s*>=|forsoeg\s*>/.test(maa) && maa.includes('grund: "allerede_sendt"') && maa.includes('grund: "ugyldig"');
 };
@@ -166,7 +178,7 @@ export function kolliderer(minut: number, planer: readonly { job: string; udtryk
 export const migrationerneErRigtige = (spor: string, cron: string): boolean => {
   const s = udenSql(spor), c = udenSql(cron);
   return spor.startsWith("-- KØRT i prod — 21/9-2026 kl. 17:48") &&
-    cron.startsWith("-- IKKE KØRT. DEPLOY:") &&
+    cron.startsWith("-- KØRT i prod — 21/9-2026 kl. 21:02") &&
     s.includes("create table if not exists public.ga_haendelser") && /event_id\s+text primary key/.test(s) &&
     /check \(udfald in \('sendt', 'fejl', 'timeout', 'ugyldig', 'ingen_noegle'\)\)/.test(s) &&
     s.includes("values ('ga_send_aktiv', 'false'::jsonb,") && s.includes("enable row level security") &&
@@ -196,7 +208,15 @@ describe("gaSend.guard — Google Analytics fra platformen", () => {
   it("4. tørkørsel er standard; låsen (app_config, fail-closed) eller debug åbner kun med dry_run: false", () => expect(toerkoerselOgLaas(laes(CRON), laes(DOM))).toBe(true));
   it("5. STRIKS-body og Bucket B med verify_jwt = true", () => expect(striksOgBucketB(laes(CRON), laes(CONFIG))).toBe(true));
   it("6. sporet skrives efter hvert kald, før tællingen — og der er intet forsøgsloft", () => expect(sporetOgIntetLoft(laes(CRON), laes(DOM))).toBe(true));
-  it("7. migrationerne: sporet bogført KØRT i prod (17:48), cron-migrationen IKKE KØRT, låsen false, cron-minutterne uden kollision", () => {
+  it("7b. oprydningen efter #1073: IKKE KØRT, én sætning, og den rører kun debug-rækker med udfald «sendt»", () => {
+    const m = laes(MIG_OPRYDNING);
+    expect(m.startsWith("-- IKKE KØRT. DEPLOY:")).toBe(true);
+    const sql = udenSql(m);
+    expect(/delete from public\.ga_haendelser\s+where debug = true\s+and udfald = 'sendt';/.test(sql)).toBe(true);
+    expect(sql.split(";").filter((x) => x.trim() !== "")).toHaveLength(1);
+    expect(/debug = false/.test(sql)).toBe(false);
+  });
+  it("7. migrationerne: begge bogført KØRT i prod (sporet 17:48, cron 21:02), låsen false i filen, cron-minutterne uden kollision", () => {
     expect(migrationerneErRigtige(laes(MIG_SPOR), laes(MIG_CRON))).toBe(true);
     const planer = cronUdtryk(MIG_DIR);
     for (const m of [2, 12, 22, 32, 42, 54]) expect(`${m}: ${kolliderer(m, planer, "ga-send").join(", ")}`).toBe(`${m}: `);
@@ -240,18 +260,24 @@ describe("gaSend.guard — dommene fanger fejlen på en kopi", () => {
     expect(striksOgBucketB(cron.replace('["dry_run", "nu", "debug", "ansoegning_id"]', '["dry_run", "nu", "debug", "ansoegning_id", "email"]'), laes(CONFIG))).toBe(false);
     expect(striksOgBucketB(cron, laes(CONFIG).replace("[functions.ga-send-cron]\n    verify_jwt = true", "[functions.ga-send-cron]\n    verify_jwt = false"))).toBe(false);
   });
-  it("6. et forsøgsloft indført, eller sporet skrevet efter tællingen, fælder dom 6", () => {
+  it("6. et forsøgsloft indført, sporet skrevet efter tællingen, eller EN DEBUG-KØRSEL DER SKRIVER «SENDT», fælder dom 6", () => {
+    // PRÆCIS FEJLEN I #1073: upsert'en uden for skalSkriveSpor — en validering ville efterlade «sendt».
+    expect(sporetOgIntetLoft(cron.replace("if (skalSkriveSpor(svar.udfald, a.debug)) {", "if (true) {"), dom)).toBe(false);
+    // Reglen udvandet, så debug også skriver: fælder.
+    expect(sporetOgIntetLoft(cron, dom.replace('return debug ? udfald === "ugyldig" : true;', "return true;"))).toBe(false);
+    // En gyldig validering talt som en rigtig afsendelse: fælder.
+    expect(sporetOgIntetLoft(cron.replace("if (a.debug) r.valideret++;", "if (false) r.valideret++;"), dom)).toBe(false);
     expect(sporetOgIntetLoft(cron, dom.replace('  if (spor.udfald === "ugyldig") return { ok: false, grund: "ugyldig" };', '  if (spor.udfald === "ugyldig") return { ok: false, grund: "ugyldig" };\n  if (spor.forsoeg >= 6) return { ok: false, grund: "ugyldig" };'))).toBe(false);
     expect(sporetOgIntetLoft(cron.replace('{ onConflict: "event_id" }', '{ onConflict: "ansoegning_id" }'), dom)).toBe(false);
   });
-  it("7. en anden lås-standard, et kollisionsminut, et filhoved tilbage på IKKE KØRT på sporet, eller KØRT på cron-migrationen fælder dom 7", () => {
+  it("7. en anden lås-standard, et kollisionsminut, eller et filhoved tilbage på IKKE KØRT på en af de to kørte migrationer fælder dom 7", () => {
     const spor = laes(MIG_SPOR), c = laes(MIG_CRON);
     expect(migrationerneErRigtige(spor.replace("'ga_send_aktiv', 'false'::jsonb", "'ga_send_aktiv', 'true'::jsonb"), c)).toBe(false);
     expect(migrationerneErRigtige(spor, c.split("'2,12,22,32,42,54 * * * *'").join("'2,12,22,32,42,52 * * * *'"))).toBe(false);
     // #1064-formen: mutationen på den FAKTISKE fil — tilbage til «IKKE KØRT» falder, for sporet ER kørt (17:48).
     expect(migrationerneErRigtige(spor.replace("-- KØRT i prod — 21/9-2026 kl. 17:48", "-- IKKE KØRT. DEPLOY:"), c)).toBe(false);
-    // Cron-migrationen er IKKE kørt — et KØRT-hoved på den falder.
-    expect(migrationerneErRigtige(spor, c.replace("-- IKKE KØRT. DEPLOY:", "-- KØRT i prod — 21/9-2026 kl. 17:48"))).toBe(false);
+    // #1064-formen, også for cron-migrationen: den ER kørt (21:02), så «IKKE KØRT» falder.
+    expect(migrationerneErRigtige(spor, c.replace("-- KØRT i prod — 21/9-2026 kl. 21:02", "-- IKKE KØRT. DEPLOY:"))).toBe(false);
     expect(kolliderer(52, [...cronUdtryk(MIG_DIR)], "ga-send").some((s) => s.includes("opbevaring"))).toBe(true);
   });
   it("9. alarmen i tørkørslen, eller til rådgiveradressen, fælder dom 9", () => {
