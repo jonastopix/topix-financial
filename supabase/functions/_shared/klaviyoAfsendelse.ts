@@ -13,6 +13,8 @@
  */
 import { KLAVIYO_SECRET } from "./klaviyo.ts";
 import { gensendGemtKrop, sendHaendelse, type Afsendelse, type GemtHaendelse, type HaendelseInput, type SporSkriver } from "./klaviyoHaendelser.ts";
+import { bygProfilKrop, PROFIL_STI, skrivProfil, type ProfilSkriver, type ProfilSkrivning } from "./klaviyoProfil.ts";
+import type { Profilvaerdier } from "./klaviyoDato.ts";
 
 /**
  * Send hændelsen. KASTER ALDRIG — men SIGER, hvad der skete (20/9,
@@ -58,6 +60,30 @@ export async function gensendHvisGemt(skriver: SporSkriver | null, raekke: GemtH
     return {
       sendt: false,
       spor: { udfald: "fejl", metode: "POST", sti: "/events/", status: null, svar: null, grund: `gensendelsen kastede: ${String(e).slice(0, 300)}`, varighed_ms: 0 },
+    };
+  }
+}
+
+/**
+ * Skriv (eller fjern) webinar-felterne på PROFILEN for én mail (udkast 21/9-2026,
+ * klaviyoProfil.ts). KASTER ALDRIG — samme kontrakt som sendHvisMail: nøglen
+ * læses HER, ét sted, og gives ind. Fejler noget alligevel, svares «fejl»
+ * uden en række — og cronen tæller det. Kun klaviyo-profil-cron kalder den.
+ */
+export async function skrivProfilHvisNoegle(
+  skriver: ProfilSkriver | null,
+  email: string,
+  oensket: Profilvaerdier | null,
+  nu: Date,
+): Promise<ProfilSkrivning> {
+  try {
+    return await skrivProfil(skriver, Deno.env.get(KLAVIYO_SECRET), email, oensket, { nuDato: nu });
+  } catch (e) {
+    console.error(`[klaviyo] profilskrivningen for ${email} kastede — cronen går videre:`, e);
+    return {
+      sendt: false,
+      spor: { udfald: "fejl", metode: "POST", sti: PROFIL_STI, status: null, svar: null, grund: `profilskrivningen kastede: ${String(e).slice(0, 300)}`, varighed_ms: 0 },
+      krop: bygProfilKrop(email, oensket),
     };
   }
 }

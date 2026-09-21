@@ -77,6 +77,9 @@ const STRIKS: readonly string[] = [
   // Engangsimporten (udkast 21/9, fremmøde for én session): maal, dry_run,
   // send_fremmoede og session_dato — alt andet afvises. Læser nu med req.json().
   "ewebinar-import",
+
+  // Webinarets tidspunkt på profilen (21/9): dry_run, nu og email, alt andet afvises.
+  "klaviyo-profil-cron",
 ];
 
 /**

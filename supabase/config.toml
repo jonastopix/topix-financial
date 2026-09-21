@@ -303,3 +303,9 @@ project_id = "loiavmastgeieqyiwyyr"
   # gemte kroppe igen gennem klaviyoAfsendelse (nøglen læses ét sted).
   [functions.klaviyo-gensend-cron]
     verify_jwt = true
+  # Webinarets tidspunkt på Klaviyo-profilen (21/9-2026). Bucket B,
+  # authenticateServiceRole FØRST, kaldt gennem kald_edge hver time. Tørkørsel som
+  # standard — uden «dry_run: false» regnes der, men intet skrives. Skriver KUN de
+  # to tb_naeste_webinar-felter gennem klaviyoAfsendelse (nøglen læses ét sted).
+  [functions.klaviyo-profil-cron]
+    verify_jwt = true
