@@ -82,8 +82,18 @@ export const AFMELD_LOFT_VEDVARENDE_PR_MINUT = 750;
 /** Referencens grænse: «Maximum 100 profiles per call». Vi bruger 1 — se filhovedet. */
 export const AFMELD_MAKS_PR_KALD = 100;
 
-/** Hvor afmeldingen kom fra. Skrives i sporet, så en række kan spores tilbage. */
-export const AFMELD_KILDER = ["webhook", "import", "bagud"] as const;
+/**
+ * Hvor afmeldingen kom fra. Skrives i sporet, så en række kan spores tilbage.
+ *
+ * `webinar_mail` (22/9-2026): afmeldingslinket i PLATFORMENS egne
+ * før-webinar-mails. Jonas besluttede, at ét klik skal betyde ét: den
+ * afmelder både husets webinarmails (webinar_afmeldinger) og Klaviyos globale
+ * e-mailmarkedsføring — samme regel og samme kald som en afmelding i eWebinar.
+ * Listen SKAL holdes i takt med CHECK'en i migrationen
+ * 20260922180000_klaviyo_afmeldinger_webinar_mail.sql; kildeværnet
+ * webinarMail.guard dom 7 holder de to op mod hinanden.
+ */
+export const AFMELD_KILDER = ["webhook", "import", "bagud", "webinar_mail"] as const;
 export type AfmeldKilde = (typeof AFMELD_KILDER)[number];
 
 /**

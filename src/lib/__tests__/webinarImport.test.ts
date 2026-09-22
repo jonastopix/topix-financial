@@ -72,6 +72,9 @@ describe("plukRestRegistrant — samme plukker som webhooken", () => {
     expect(p.ok).toBe(true);
     if (p.ok === false) return;
     expect(p.tilmelding).toEqual({
+      join_link: null,
+      kalender_link: null,
+      replay_link: null,
       ewebinar_id: "abCD1234Efg56",
       email: "john.doe@defaultmail.com",
       navn: "John Doe",
@@ -141,6 +144,7 @@ describe("fletningen — importen må aldrig sænke det webhooken allerede ved",
     fbclid: "IwAR-abc123", origin: "https://topix.dk/webinar?fbclid=IwAR-abc123", first_origin: null,
     referrer: "https://www.facebook.com/", first_referrer: null, widget_source: "topix-webinar-side",
     by: "Aarhus", land: "DK", enhed: "Mobile", tidszone: "Europe/Copenhagen",
+    join_link: null, kalender_link: null, replay_link: null,
   };
 
   it("import uden procent og uden state efter en webhook med begge: intet tabes", () => {

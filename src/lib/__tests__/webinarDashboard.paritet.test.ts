@@ -76,7 +76,7 @@ describe("webinarDashboard.paritet — kildeteksten", () => {
 const NU = new Date("2026-09-19T08:00:00.000Z");
 const T22 = "2026-09-22T08:00:00.000Z";
 const T15 = "2026-09-15T08:00:00.000Z";
-const SPOR = { utm_source: "fb", utm_medium: "paid", utm_campaign: "Webinar sep", utm_content: "120212345678901234", utm_term: null, fbclid: "IwAR0abc", origin: "https://theboardroom.dk/webinar?fbclid=IwAR0abc", first_origin: null, referrer: "https://l.facebook.com/", first_referrer: null, widget_source: "topix-webinar-side", by: "Aarhus", land: "Denmark", enhed: "Desktop", tidszone: "Europe/Copenhagen", ad_id_udledt: null };
+const SPOR = { utm_source: "fb", utm_medium: "paid", utm_campaign: "Webinar sep", utm_content: "120212345678901234", utm_term: null, fbclid: "IwAR0abc", origin: "https://theboardroom.dk/webinar?fbclid=IwAR0abc", first_origin: null, referrer: "https://l.facebook.com/", first_referrer: null, widget_source: "topix-webinar-side", by: "Aarhus", land: "Denmark", enhed: "Desktop", tidszone: "Europe/Copenhagen", ad_id_udledt: null, join_link: null, kalender_link: null, replay_link: null };
 const R = (email: string, navn: string, session_tid: string, ekstra: Partial<webDash.Tilmelding> = {}): webDash.Tilmelding => ({
   ewebinar_id: `id-${email}-${session_tid}`, email, navn, webinar_id: "w1", webinar_titel: "Sådan får du styr på tallene", session_tid, session_type: "Scheduled",
   registreret_at: "2026-09-10T09:00:00.000Z", state: "Watched", sidste_action: null, attended: "true", subscribed: null, set_procent: 80, set_procent_kilde: "watchedPercentage",

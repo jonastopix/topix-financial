@@ -70,6 +70,7 @@ const TOMT = {
   origin: null, first_origin: null, referrer: null, first_referrer: null,
   widget_source: "topix-webinar-side", by: "Aarhus", land: "DK",
   enhed: "Mobile", tidszone: "Europe/Copenhagen",
+  join_link: null, kalender_link: null, replay_link: null,
 } as const;
 
 /** 594 rækker sat sammen så hver enkelt af målingens fordelinger går op. */

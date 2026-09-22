@@ -38,6 +38,7 @@ const UDEN_SPOR = {
   utm_source: null, utm_medium: null, utm_campaign: null, utm_content: null, utm_term: null,
   fbclid: null, origin: null, first_origin: null, referrer: null, first_referrer: null,
   widget_source: null, by: null, land: null, enhed: null, tidszone: null,
+  join_link: null, kalender_link: null, replay_link: null,
 } as const;
 
 const R = (r: Partial<Tilmelding> & { email: string }): Tilmelding => ({
