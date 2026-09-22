@@ -4457,6 +4457,33 @@ export type Database = {
           },
         ]
       }
+      webinar_afmeldinger: {
+        Row: {
+          afmeldt_at: string
+          email: string
+          ip: string | null
+          kilde: string
+          session_tid: string | null
+          user_agent: string | null
+        }
+        Insert: {
+          afmeldt_at?: string
+          email: string
+          ip?: string | null
+          kilde?: string
+          session_tid?: string | null
+          user_agent?: string | null
+        }
+        Update: {
+          afmeldt_at?: string
+          email?: string
+          ip?: string | null
+          kilde?: string
+          session_tid?: string | null
+          user_agent?: string | null
+        }
+        Relationships: []
+      }
       webinar_deling_spor: {
         Row: {
           deling_id: string
@@ -4573,6 +4600,57 @@ export type Database = {
         }
         Relationships: []
       }
+      webinar_mails: {
+        Row: {
+          art: string
+          email: string
+          emne: string | null
+          ewebinar_id: string | null
+          forsoegt_at: string
+          grund: string | null
+          id: string
+          invitation: string | null
+          mailgun_id: string | null
+          session_tid: string
+          status: number | null
+          svar: string | null
+          udfald: string
+          varighed_ms: number | null
+        }
+        Insert: {
+          art: string
+          email: string
+          emne?: string | null
+          ewebinar_id?: string | null
+          forsoegt_at?: string
+          grund?: string | null
+          id?: string
+          invitation?: string | null
+          mailgun_id?: string | null
+          session_tid: string
+          status?: number | null
+          svar?: string | null
+          udfald: string
+          varighed_ms?: number | null
+        }
+        Update: {
+          art?: string
+          email?: string
+          emne?: string | null
+          ewebinar_id?: string | null
+          forsoegt_at?: string
+          grund?: string | null
+          id?: string
+          invitation?: string | null
+          mailgun_id?: string | null
+          session_tid?: string
+          status?: number | null
+          svar?: string | null
+          udfald?: string
+          varighed_ms?: number | null
+        }
+        Relationships: []
+      }
       webinar_tilmeldinger: {
         Row: {
           ad_id_udledt: string | null
@@ -4586,12 +4664,15 @@ export type Database = {
           first_origin: string | null
           first_referrer: string | null
           id: string
+          join_link: string | null
+          kalender_link: string | null
           land: string | null
           navn: string | null
           origin: string | null
           raa: Json | null
           referrer: string | null
           registreret_at: string | null
+          replay_link: string | null
           session_tid: string | null
           session_type: string | null
           set_procent: number | null
@@ -4623,12 +4704,15 @@ export type Database = {
           first_origin?: string | null
           first_referrer?: string | null
           id?: string
+          join_link?: string | null
+          kalender_link?: string | null
           land?: string | null
           navn?: string | null
           origin?: string | null
           raa?: Json | null
           referrer?: string | null
           registreret_at?: string | null
+          replay_link?: string | null
           session_tid?: string | null
           session_type?: string | null
           set_procent?: number | null
@@ -4660,12 +4744,15 @@ export type Database = {
           first_origin?: string | null
           first_referrer?: string | null
           id?: string
+          join_link?: string | null
+          kalender_link?: string | null
           land?: string | null
           navn?: string | null
           origin?: string | null
           raa?: Json | null
           referrer?: string | null
           registreret_at?: string | null
+          replay_link?: string | null
           session_tid?: string | null
           session_type?: string | null
           set_procent?: number | null
