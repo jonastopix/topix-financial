@@ -10,17 +10,26 @@ export interface EksisterendeRaekke {
   advisor_id: string | null;
   reference_id: string | null;
   title: string;
+  /** Læses med (raadgiverBesked.ts), så kunUlaeste kan dømme. Valgfri: ældre kaldere af den rene dom uden feltet er uændrede. */
+  read_at?: string | null;
 }
 
-/** Ren: hvilke rådgivere mangler rækken? Dedup på reference_id, ellers på titlen. Fælles rækker (advisor_id null) tæller ikke. */
+/**
+ * Ren: hvilke rådgivere mangler rækken? Dedup PR. RÅDGIVER på reference_id, ellers på titlen.
+ * Fælles rækker (advisor_id null) tæller ikke. Standard: en læst række spærrer stadig.
+ * kunUlaeste (Jonas 21/9, kun notify-community-svar): kun rækker med read_at null spærrer —
+ * én ULÆST klokke pr. rådgiver; læst den, giver næste besked en ny.
+ */
 export function raadgivereUdenRaekke(
   raadgivere: readonly string[],
   eksisterende: readonly EksisterendeRaekke[],
   besked: { title: string; reference_id?: string | null },
+  kunUlaeste = false,
 ): string[] {
   const har = new Set<string>();
   for (const r of eksisterende) {
     if (!r.advisor_id) continue;
+    if (kunUlaeste && r.read_at) continue;
     const match = besked.reference_id ? r.reference_id === besked.reference_id : r.title === besked.title;
     if (match) har.add(r.advisor_id);
   }

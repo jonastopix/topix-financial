@@ -33,7 +33,7 @@
 // ALARM (princip 1, 20/9): kald_edge er asynkron, så cron.job_run_details siger
 // «succeeded», uanset om functionen svarede 500 — ingen så en kørsel med fejlede
 // skrivninger. En RIGTIG kørsel med fejlede > 0 giver derfor en mail til
-// raadgiverModtager (managedEmail) og en drift-klokke — samme vej som
+// driftModtager (managedEmail; Jonas 21/9: kun Jonas ved drift) og en drift-klokke — samme vej som
 // klaviyo-gensend-cron — men HØJST ÉN MAIL PR. DANSK KALENDERDØGN
 // (profilAlarmNoegle bærer datoen; email_send_log slås op FØR afsendelsen).
 // Svaret bærer feltet alarm: sendt · allerede_sendt_i_dag · ingen.
@@ -46,7 +46,7 @@ import { authenticateServiceRole, corsHeaders } from "../_shared/edgeFunctionAut
 import { ukendteFelter, ukendteFelterBesked } from "../_shared/kendteFelter.ts";
 import { skrivRaadgiverBesked } from "../_shared/raadgiverBesked.ts";
 import { sendManagedEmail } from "../_shared/managedEmail.ts";
-import { raadgiverModtager } from "../_shared/raadgiverModtager.ts";
+import { driftModtager } from "../_shared/driftModtager.ts";
 import { indgangsMailHtml } from "../_shared/indgangsMail.ts";
 import { skrivProfilHvisNoegle } from "../_shared/klaviyoAfsendelse.ts";
 import { afviger, naesteSessionPrMail, profilVaerdier, type Profilvaerdier, type SidstSkrevet, type TilmeldingTid } from "../_shared/klaviyoDato.ts";
@@ -223,8 +223,8 @@ async function skrivAlarm(admin: SupabaseClient, fejlede: readonly FejletSkrivni
       });
       const res = await sendManagedEmail({
         adminClient: admin,
-        // Modtageren går uden om bounce-spærringen på kontakt@ (raadgiverModtager.ts, 18/9 → 19/10-2026).
-        to: raadgiverModtager(nu),
+        // Driftsalarmen går til driftModtager — ét sted (driftModtager.ts, 21/9), ikke til rådgiveradressen.
+        to: driftModtager(),
         subject: tekst.emne,
         html,
         text: tekst.tekst,

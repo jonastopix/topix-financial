@@ -137,7 +137,7 @@ export async function skrivProfil(
 //
 // kald_edge er asynkron: cron.job_run_details siger «succeeded», uanset om functionen
 // svarede 500. Ingen så en kørsel, hvor skrivningerne fejlede. Derfor: en rigtig
-// kørsel med fejlede > 0 giver en MAIL til raadgiverModtager (managedEmail) og en
+// kørsel med fejlede > 0 giver en MAIL til driftModtager (managedEmail; kun Jonas, 21/9) og en
 // drift-klokke — samme vej som klaviyo-gensend-cron. HØJST ÉN MAIL PR. DANSK
 // KALENDERDØGN: nøglen bærer datoen, ikke timen (cronen kører hver time, og en
 // vedvarende fejl må ikke give en mail i timen). Teksterne er rene og prøves her.

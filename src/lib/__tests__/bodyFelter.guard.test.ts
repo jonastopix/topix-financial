@@ -91,6 +91,9 @@ const STRIKS: readonly string[] = [
   // Afmeldingerne bagud (udkast 22/9): dry_run, nu og email — alt andet afvises.
   "klaviyo-afmeld-bagud",
 
+  // Rådgivernes klokker som mail (udkast 21/9): dry_run og nu, alt andet afvises.
+  "klokke-mail-cron",
+
   // /webinar delt med en ekstern (udkast 21/9): t og valg (webinar-delt);
   // handling, navn, dage og id (webinar-deling). Alt andet afvises.
   "webinar-delt",
