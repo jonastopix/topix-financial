@@ -1634,6 +1634,62 @@
     ebitda_margin_pct-noten. Talt med grep på div-taggene: før 186 (inkl.
     skabelonen i kommentaren) og 56 lukkede; efter 198 og 57 lukkede.
     Lukket: 1 (bliver stående). Omskrevet: 2. Tilføjet: 12.
+  RØRT 22/9 NAT (bogført i OVERLEVERING DEL 2 «22. september (nat)»; grundlag
+  docs/mangelliste-gennemgang-22-09.md og A/B's recon af alle 256 kort mod koden
+  på 28205c76 — recon-mangelliste-A.md og recon-mangelliste-B.md)
+    Alle 256 kort holdt op mod koden, ét ad gangen. Besluttet af chatten med
+    Jonas' fulde mandat 22/9 nat («vi får opdateret listen grundigt en gang for
+    alle»).
+    LUKKET (9, bliver stående). Fra kodegennemgangen (4): a21-kom-ikke (#1065,
+    migrationen kørt 21/9 12:37) · m17-doggybed-budget (#965, rimelighedsgrænsen
+    i virksomhedsSignaler.ts; budgetrækken er data, ikke kode) ·
+    a21-eventflytning-til-alle (#1067, bevist i drift) ·
+    a21-smaa-tabeller-statistik (ANALYZE kørt 21/9 22:37 på alle 56 tabeller —
+    hypotesen om en tom tabel holdt ikke; se a22-rls-initplan).
+    Fra PROD-MÅLINGEN 22/9 kl. 03:47 (A's maal-beviser-22-09.sql, ét
+    resultatsæt, kørt af Jonas) (5): m17-moms-webhook (3 træk siden 18/9 bærer
+    moms_oere, 0 uden) · m16-livja-kort (TBR-0007 betalt 16/9 09:27) ·
+    m17-en-plan-fase0 (0 nye dubletter siden 17/9) · m17-en-plan-fase5 (0 af 2
+    AI-forslag bryder reglen) · w9 (migrationen 20260909150000 ER kørt — city og
+    stiftet_aar står i de tre RPC'er).
+    ARKIVERET (14, én linje hver i «Arkiv 16/9»-sektionen): a18-meta-capi
+    (afløst af meta-send-cron) · «Beviser der udestår …» (dobbelt: listens eget
+    filter) · a20-princip-signal-browser (et princip, ikke en opgave) ·
+    m16e-lisbeth-alarm-mails · a21-soendagens-fem-haendelser (forældet) · n14-1
+    (Monday slukket) · «Indholdsmodellen er gaflet …» · «Den gamle skals
+    company-picker …» · w18 · «Én bruger med flere virksomheder …» ·
+    «Push-kanal …» · «Sekvensmotoren …» — og de to flettede nedenfor.
+    FLETTET (2): a21-mailloftet → n14-11 (samme sag; loftet 300/time er
+    oplyst, ikke målt) · a21-filhoveder-koert → m17-migrationer-ikke-koert
+    (#1078 talte 35 filhoveder, der siger «IKKE KØRT», selvom de er kørt —
+    de fire er blandt dem. Én PR).
+    OMSKREVET (6, hver med ét «Recon 22/9:»-afsnit): a18-tre-fra-monday (koden
+    er i main; tilbage er en måling) · w2 (kodestatus umålt; arbejdet er
+    skærmbeviser) · «Budgettets tre skjulte fejl …» (punkt 2 løst siden 5/8) ·
+    m17-xlsx-combined-navne (delvist: PDF-vejen kender navnene) ·
+    a21-webinar-tidspunkt (kode i main #1066; bevis før 6/10) · m14-mails
+    (står nu som beslutning, ikke mangel).
+    OMSKREVET EFTER PROD-MÅLINGEN 03:47 (4, hver med et «Målt 22/9 03:47:»-
+    afsnit): m16-traek-grund (0 traek_fejlet-klokker siden 16/9 01:19) ·
+    m17-gennemgangen-af-de-8 (3 virksomheder har over 3 aktive mål, var 8; 37 af
+    51 har ingen) · m15-vinduet (vindue 2 måles efter 22/9 kl. 13 dansk; CARMA er
+    den eneste) · a18-tre-fra-monday (§D-teksten ERSTATTET: 0 ventepladser i
+    prod overhovedet, og ingen af de tre ansøgninger findes — udkastets SQL er
+    ALDRIG kørt. Lev Positiv og Tatti kan tilbydes nu; ABC først efter 13/10).
+    TILFØJET (7, Ny 22/9): Indgangen — a22-ga-mp-rapporter (platformens
+    hændelser ses ikke i GA4's rapporter; tjek kl. 08) · a22-meta-crm-bevis
+    (Kvalificeret/Schedule/Purchase bevises ved den første rigtige) ·
+    a22-kampagnernes-maal (Nicklas, egen timing). Drift — a22-ga4-secret-skift
+    · a22-rls-initplan (hjælperne kaldes pr. række; onsdag) ·
+    a22-cron-vagt-tidsjoin (vagten tæller vores egne prøvekald) ·
+    a22-migration-dublet (20260918230000 brugt to gange).
+    Talt med grep på kortenes div-tag (class card) og på lukket-status: før
+    257 og 73 lukkede; efter 250 og 82 lukkede. Regnestykket: 257 − 14
+    arkiverede + 7 nye = 250 kort (de lukkede bliver stående), og 73 + 4 + 5
+    nylukkede = 82. Begge tal er rå grep-tal, som de tidligere RØRT-afsnit
+    bruger dem — filhovedets egne omtaler tæller med i begge ender.
+    Lukket: 9 (4 + 5 efter prod-målingen). Arkiveret: 14. Flettet: 2.
+    Omskrevet: 10 (6 + 4 efter prod-målingen). Tilføjet: 7.
   RØRT 19/9 NAT (bogført i OVERLEVERING DEL 2 «18. september» §0–§15;
   udkast ~/Downloads/udkast-bogfoering-18-9-hel/ — bygget videre på
   udkast-bogfoering-18-9 fra kl. 21)
@@ -1858,21 +1914,33 @@
   <h2>Indgangen — fra ansøgning til aktivt medlem</h2>
   <p class="lede">Ansøgningsflowet bor i platformen fra 18/9 (#984–#1010): formular, motor, kø, venteliste, e-underskrift, booking — og Jonas har været hele vejen igennem (18/9 aften). Kæden fra underskrift til adgang er hel og bevist (OVERLEVERING DEL 2). Det der står, er det basen skal bekræfte før prøven, hullerne omkring kæden, ankomstens løse ender og beviserne der udestår.</p>
   <div class="grid">
-    <div class="card new" id="a21-kom-ikke" data-status="mangler" data-spor="1" data-rammer="medlem">
+    <div class="card new" id="a22-ga-mp-rapporter" data-status="mangler" data-spor="1" data-rammer="ingen">
+      <h3>Platformens hændelser til Google Analytics er ikke set i GA4's rapporter</h3>
+      <p><code>ga-send-cron</code> er i drift (job 569, låsen <code>true</code> 21:02). Measurement Protocol er bevist modtaget i DebugView: <code>tracking_test_debug</code> 20:57:58 og <code>tracking_test_debug_session</code> 20:59:34 med <code>session_id</code> og <code>timestamp_micros</code>. Men platformens egne <code>application_started</code> (18:04 og 22:27) stod IKKE i rapporten for 21/9 kl. 00:09 — de fire <code>application_started</code> dér var GTM-klik kl. 14, 15 og 17.</p>
+      <p><strong>Sådan afgøres det:</strong> tjek rapporten for 21/9 igen d. 22/9. Står <code>tracking_test_debug*</code> der, men platformens ikke, ligger fejlen i platformens hændelser. Detaljen: <code>docs/tracking.md</code> §4a.</p>
+      <div class="meta"><span class="tag gold">Kl. 08 22/9</span><span class="tag ny">Ny 22/9</span><span class="tag size">Lille</span></div>
+    </div>
+    <div class="card new" id="a22-meta-crm-bevis" data-status="mangler" data-spor="1" data-rammer="raadgiver">
+      <h3>Kvalificeret, Schedule og Purchase er i drift fra 21/9 23:28 — de bevises ved den første rigtige hændelse</h3>
+      <p>Der er ingen kvalificeringer, bookinger eller betalinger i de sidste syv dage (tørkørsel 13585), så der er intet at sende bagud og intet at vise i Metas testvisning uden at fabrikere en beslutning i en append-only tabel — det er fravalgt.</p>
+      <p><strong>Vejen:</strong> første «Tal med dem» → se «Kvalificeret» i Events Manager → opret den fjerde brugerdefinerede konvertering (Jonas; felterne dikteres af chatten). Detaljen: <code>docs/tracking.md</code> §4.</p>
+      <div class="meta"><span class="tag gold">Efter webinaret</span><span class="tag ny">Ny 22/9</span></div>
+    </div>
+    <div class="card new" id="a22-kampagnernes-maal" data-status="mangler" data-spor="senere" data-rammer="ingen">
+      <h3>Nicklas skifter to kampagners konverteringsmål — i egen timing</h3>
+      <p>Webinarkampagnen <code>120248713786520694</code> → «Webinar – tilmelding»; den direkte <code>120242386310830694</code> → «Ansøgning – sendt» (eller «påbegyndt»). Dokumentet <code>tracking-til-marketing-22-09-2026.pdf</code> er sendt 21/9 aften.</p>
+      <div class="meta"><span class="tag gold">Nicklas</span><span class="tag ny">Ny 22/9</span></div>
+    </div>
+    <div class="card new loest" id="a21-kom-ikke" data-status="loest" data-spor="1" data-rammer="medlem">
       <h3>«Kom ikke» mangler i fladen — og køen markerer «afholdt» ved sluttid uanset fremmøde, så et afslag kan takke for en snak, der ikke fandt sted</h3>
-      <p>«Kom ikke» findes ikke som knap (<code>ikke_moedt</code> står ikke i <code>MENNESKE_HANDLINGER</code>) — reconens tabel tog fejl; A fandt det i udkastet (recon-afholdt-og-afslut, 21/9). Køen markerer selv «afholdt» ved samtalens sluttid (cronens tider: hverdage 07:00–17:45) og skriver klokken «kom de?». «Tak for snakken» står kun efter en samtale (afslag fra «afholdt»). A bygger i dag (21/9).</p>
+      <p><strong>LØST 22/9 — «Kom ikke» er bygget i #1065 (<code>3e262816</code>, 21/9): <code>ikke_moedt</code> står i <code>MENNESKE_HANDLINGER</code> (<code>src/lib/ansoegningTrin.ts:187,192</code>), overgangen afholdt → indkaldt (<code>:357</code>), og migrationen <code>20260921180000_ansoegning_beslutninger_ikke_moedt.sql</code> er KØRT 21/9 kl. 12:37. Bekræftet af A's recon 22/9. Sætningen nedenfor om, at <code>ikke_moedt</code> ikke står i <code>MENNESKE_HANDLINGER</code>, er ikke længere sand.</strong> «Kom ikke» findes ikke som knap (<code>ikke_moedt</code> står ikke i <code>MENNESKE_HANDLINGER</code>) — reconens tabel tog fejl; A fandt det i udkastet (recon-afholdt-og-afslut, 21/9). Køen markerer selv «afholdt» ved samtalens sluttid (cronens tider: hverdage 07:00–17:45) og skriver klokken «kom de?». «Tak for snakken» står kun efter en samtale (afslag fra «afholdt»). A bygger i dag (21/9).</p>
       <p><strong>Målt 12:24:</strong> <code>ansoegning_beslutninger_handling_check</code> har 16 værdier inkl. <code>betalte_ikke</code> — <code>ikke_moedt</code> mangler. Beslutningsrækken for <code>ikke_moedt</code> afvises af basen, fra Calendly-webhooken i dag og fra knappen, når den kommer; fejlen logges kun i functionen. A lukker det i samme udkast (migration + listerne).</p>
-      <div class="meta"><span class="tag gold">A bygger 21/9</span><span class="tag ny">Ny 21/9</span></div>
+      <div class="meta"><span class="tag loest">Lukket 22/9 — #1065, migration kørt 12:37</span><span class="tag gold">A bygger 21/9</span><span class="tag ny">Ny 21/9</span></div>
     </div>
     <div class="card new" id="a21-redigerbare-mails" data-status="mangler" data-spor="1" data-rammer="medlem">
       <h3>Redigerbare mails — afslagsmailen først: den redigerede tekst gemmes på afslaget, så reserve-køen sender den; kø-sætningen ved niche bevares</h3>
       <p>Dialogen viser i dag mailen ordret (<code>afslagsMailTekst</code>, samme bygger som sender, #1063), men rådgiveren kan ikke rette den. Efter webinaret; recon først.</p>
       <div class="meta"><span class="tag gold">Efter webinaret · recon først</span><span class="tag ny">Ny 21/9</span></div>
-    </div>
-    <div class="card new" id="a21-mailloftet" data-status="mangler" data-spor="1" data-rammer="raadgiver">
-      <h3>Mailloftet: rådgivermailen om ny ansøgning tabes ved 429; ingen alarm ved <code>rate_limited</code>; ingen vagt på rykkerkøen</h3>
-      <p>Én ansøgning = to app-mails straks (kvittering + rådgivermail). Ved 429: kvitteringen får en reserve i køen (næste sendevindue, højst 3 forsøg); rådgivermailen om ny ansøgning tabes; samtalens bekræftelse tabes; ingen alarm ved <code>rate_limited</code> når ud af browseren; ingen vagt på <code>planlagte_haendelser</code>. Loftet 300/time (Support 18/9) — umålt, om det gælder i dag. (A, <code>recon-mailloft-tirsdag.md</code>, 21/9.)</p>
-      <div class="meta"><span class="tag ny">Ny 21/9</span></div>
     </div>
     <div class="card new" id="a21-afholdt-rykker-tekst" data-status="mangler" data-spor="1" data-rammer="medlem">
       <h3>Afholdt-rykkerens tekst forudsætter «De hørte «jeg sender aftalegrundlaget»»</h3>
@@ -1913,7 +1981,8 @@
     <div class="card decision new" id="a21-webinar-tidspunkt" data-status="beslutning" data-spor="1" data-rammer="medlem">
       <h3>Webinarets tidspunkt skal stå på Klaviyo-profilen — påmindelsesmailene nævner ikke tiden, og sessionerne ligger på forskellige tider (22/9 kl. 9, 13/10 kl. 11)</h3>
       <p>Målt i Klaviyo 12:3x (21/9): eWebinar skriver kun profilfeltet <code>eWebinar</code> = «09/22/2026» (dato, ingen tid). Kampagnen «på dagen» 22/9 har fået «i dag kl. 9.00» i teksten (Jonas). <strong>BESLUTTET (Jonas 21/9):</strong> platformen skriver selv tidspunktet på Klaviyo-profilen ud fra <code>webinar_tilmeldinger.session_tid</code>, færdigt formateret på dansk, så flowets mails viser det dynamisk; skal være bevist før kampagnerne til 13/10 (frist 6/10). Recon først (B). OVERLEVERING «21. september» §14b.</p>
-      <div class="meta"><span class="tag gold">Besluttet · recon først</span><span class="tag gold">Frist 6/10</span><span class="tag ny">Ny 21/9</span></div>
+      <p><strong>Recon 22/9 (A):</strong> fikset i koden i #1066 (<code>ac8ec575</code>). Tilbage: udrulning og bevis i drift før 6/10 — et felt på en Klaviyo-profil med <code>session_tid</code> formateret på dansk.</p>
+      <div class="meta"><span class="tag gold">Kode i main · bevis før 6/10</span><span class="tag gold">Besluttet · recon først</span><span class="tag gold">Frist 6/10</span><span class="tag ny">Ny 21/9</span></div>
     </div>
     <div class="card decision new" id="a20-profilmodel" data-status="beslutning" data-spor="senere" data-rammer="medlem">
       <h3>Profilmodellen — hvad Klaviyo BØR vide om en person (<code>naeste_webinar</code>, <code>tb_ansoegning_trin</code>, aktiveringsraten) — findes som model (A's recon), ikke som kode</h3>
@@ -1991,11 +2060,6 @@
       <p>Bouncen kom, fordi postkassen ikke var sat op (viderestillingen manglede); spærringer med kilden «bounce» kan IKKE fjernes manuelt — hverken af Lovable eller fra koden — og udløber selv 18/10-2026 kl. 20:47. Adressen virker nu. #1007 (<code>_shared/raadgiverModtager.ts</code>): alt der SENDES TIL kontakt@ (rådgivermailen om ny ansøgning; aftale-kvitteringen til jer og «rådgiver mangler pris», hvis <code>RAADGIVER_MAIL_TIL</code> er kontakt@) går til jonas@theboardroom.dk indtil <strong>19/10-2026 kl. 00:00 dansk</strong>, derefter kontakt@ igen — datoen og grunden står i filhovedet; replyTo og «skriv til kontakt@» i teksterne er urørte. <strong>19/10:</strong> <code>select created_at, recipient_email, status from public.email_send_log where template_name = 'ansoegning-ny-raadgiver' order by created_at desc limit 5;</code> — modtager kontakt@, status sent. <strong>19/11:</strong> suiten fejler bevidst og minder om at fjerne omvejen. Rådgivermails suppressed 18/9 20:47–22:14 gensendes ikke af sig selv (idempotensnøgle) — ansøgningerne står i fladen. Tjek også <code>RAADGIVER_MAIL_TIL</code> i secrets. OVERLEVERING DEL 2 «18. september» §13.</p>
       <div class="meta"><span class="tag gold">19/10 kl. 00:00 — kontrollér</span><span class="tag">Skifter selv tilbage</span><span class="tag ny">Ny 18/9</span><span class="tag size">Lille</span></div>
     </div>
-    <div class="card decision" id="a18-meta-capi" data-status="beslutning" data-spor="1" data-rammer="medlem">
-      <h3>Meta Conversions API på ansøgningsflowet ligger som udkast — intet sendes før juristen har svaret om persondatateksten og secrets er sat</h3>
-      <p>Jonas sagde ja til <code>recon-meta-sporing</code> (han ejer pixlen 858180112996496). <code>~/Downloads/udkast-meta-capi/</code> (bygget på #1009): <code>_shared/metaCapi.ts</code> kaster aldrig (8 s timeout, udfald sendt/slået fra/fejl), hændelserne bygges med hashet mail/telefon og aldrig rå persondata i payloaden; uden secrets gør koden ingenting. §4 i README'en er en persondatatekst mærket «UDKAST TIL JONAS — ikke juridisk rådgivning». Rækkefølgen: juristens svar → Jonas godkender teksten → secrets → merge. OVERLEVERING DEL 2 «18. september» §15.3.</p>
-      <div class="meta"><span class="tag gold">Venter på juristen</span><span class="tag">Udkast, ikke merget</span><span class="tag ny">Ny 18/9</span><span class="tag size">Mellem</span></div>
-    </div>
     <div class="card new" id="a18-studio-mini" data-status="mangler" data-spor="1" data-rammer="raadgiver">
       <h3>Studio Mini ApS står som «active» med kontrakt udløbet 5/9 og beslutningen «tilbyd ikke» — rettes til «tidligere» (økonomisiden; ventelisten er upåvirket)</h3>
       <p>Målt i <code>udkast-venteliste-tre</code> §5: fornyelsesdommen læser slutdato + beslutning og siger <code>udloebet_tilbyd_ikke</code> (rigtigt — pladsen er ledig for Tatti). Men alt der læser <code>companies.status</code> (virksomhedslisten, «aktive kunder», ansøgningens dubletdom «findes allerede som … (CVR, active, …)», sletteordningen dag 45) ser Studio Mini som aktiv. Jonas 18/9: rettes til «tidligere» (som Alina). Hvem der skulle have skiftet status ved afsked — Monday-webhooket, fornyelsesvarsel-cronen eller en hånd — er ikke målt. OVERLEVERING DEL 2 «18. september» §14.</p>
@@ -2023,7 +2087,8 @@
       <h3>De TRE afviste fra Monday skal på ventelisten — udkastet ligger klar i <code>~/Downloads/udkast-venteliste-tre/</code> (SQL + «tidligst»-datoen i koden): Lev Positiv → Alina Beauty &amp; Skincare (plads ledig), Tatti ApS → Studio Mini ApS (plads ledig), ABC hundeudstyr → Doggybed FØRST EFTER 13. oktober</h3>
       <p><strong>Jonas (ordret om ABC): «de skal tilbydes når Doggybed er ude, så tingene er efter bogen».</strong> Alina Beauty &amp; Skincare (778c7899…, tidligere, kontrakt udløb 29/5-2026) og Studio Mini ApS (4e42c9fa…, udløb 5/9-2026, «tilbyd ikke») har pladsen LEDIG i dag — Lev Positiv og Tatti kan tilbydes, så snart rækkerne er inde (Lev Positiv og ABC får den bløde mail, afvist for over 12 måneder siden; Tatti den almindelige). Doggybed (382fd787…) er aktiv til <strong>13/10-2026</strong> med «tilbyd ikke» — og målt i ventelistedommen (<code>erPladsLedig</code>) gør «tilbyd ikke» pladsen ledig MED DET SAMME (<code>klar_til_afsked</code>), så virksomhedssiden ville vise «Tilbyd pladsen til ABC» i dag. <strong>DERFOR: kodedelen FØRST</strong> — <code>tidligst_tilbud_at</code> på ventepladsen (migration <code>20260919090000</code> + dommen <code>klarTilTilbud</code> i begge spejle, functionen, virksomhedssiden, forsiden) lægges ind og merges, migrationen køres, og FØRST DEREFTER køres <code>tre-afviste-paa-ventelisten.sql</code> (FØR/indsæt/EFTER; ABC's række bærer datoen 2026-10-13). Rækkefølgen: (1) oprydningen efter prøven — kørt 19/9 00:45, (2) kodeudkastet + migrationen <code>20260919090000</code> (tidligst-datoen), (3) SQL'en — lukket med <code>afslag_efter_ansoegning</code> + <code>niche</code>, <code>lukket_at</code> = Monday-datoen (blød mail til Lev Positiv og ABC, almindelig til Tatti), ingen rykkere. Lev Positivs CVR har ti cifre (tomt); omsætningen «35»/«3» står tomt. Studio Mini ApS står som <code>active</code> med kontrakt udløbet 5/9 og «tilbyd ikke» — rettes til «tidligere» på virksomhedssiden (økonomisiden, ikke ventelisten). OVERLEVERING DEL 2 «18. september» §7, §14, §15.2.</p>
       <p>Importen 18/9 tog 14 ansøgninger (4 levende + 10 lukkede); de tre med en identificerbar konkurrent (ABC hundeudstyr ↔ Doggybed + to) står som lukkede uden venteplads. C's dom (#989): «tilbyd_ikke» ⇒ <code>klar_til_afsked</code> ⇒ pladsen er ledig NU — Doggybed er aktiv til 13/10-2026, og virksomhedssiden viser knappen «Tilbyd pladsen til ABC hundeudstyr» i dag; <code>tilbydPladsen</code> tjekker ikke ledig-dommen. Udkastet <code>~/Downloads/udkast-venteliste-tre/</code> (SQL <code>tre-afviste-paa-ventelisten.sql</code> + migration <code>20260919090000</code> med <code>tidligst_tilbud_at</code> + kode) ligger, IKKE merget. Rækkefølge: merge + kør migrationen → kør SQL'en → se de tre på virksomhedssiderne. Efter Jonas' prøve. OVERLEVERING DEL 2 «18. september» §7, §8.2–3.</p>
-      <div class="meta"><span class="tag gold">Efter prøven — udkastet ligger</span><span class="tag">Ventelisten</span><span class="tag ny">Ny 18/9</span><span class="tag size">Lille</span></div>
+      <p><strong>Målt 22/9 03:47:</strong> der er <strong>0 ventepladser i prod</strong> — i alt, både levende og afsluttede — og ingen ansøgning fra Lev Positiv, Tatti eller ABC hundeudstyr (søgt på navn og <code>cvr_opslag-&gt;&gt;'navn'</code>). Koden («tidligst»-datoen) er i main, men udkastets SQL er <strong>ALDRIG kørt</strong>. Lev Positiv og Tatti kan tilbydes nu, fordi Alinas og Studio Minis pladser er ledige; ABC først efter 13/10.</p>
+      <div class="meta"><span class="tag rust">SQL ikke kørt</span><span class="tag gold">Efter prøven — udkastet ligger</span><span class="tag">Ventelisten</span><span class="tag ny">Ny 18/9</span><span class="tag size">Lille</span></div>
     </div>
     <div class="card new" id="a18-carma-25-9" data-status="mangler" data-spor="1" data-rammer="raadgiver">
       <h3>CARMA STUDIO er i sit fornyelsesvindue til 25/9 — første virksomhed hvor «tilbyd ikke» møder ventelisten</h3>
@@ -2204,12 +2269,8 @@
     <div class="card new" id="w2" data-status="mangler" data-spor="1" data-rammer="medlem">
       <h3>Ankomstens løse ender: indlogget browser ubevist (#919), fejl i bekræftelseslinket (§7.4), mailen lover den gamle vej (§7.7) — og to «opret»-veje på samme skærm</h3>
       <p>#919 beviste 16/9 14:35 brugt/dødt link og eksisterende mail på skærm. Tilbage: «Du er logget ind som …» (<code>InvitationTilLoggetInd</code>) ubevist; §7.4 og §7.7 fra <code>docs/indgangen-overhaling.md</code> uprøvede; kosmetik — linjens «Opret konto alligevel» og formens egen «Opret konto»-knap fører samme sted hen (set 14:35:22; var eget kort m16e-signup-to-opret-veje). Prøves i næste gennemkørsel, ikke som eget arbejde. Historik: OVERLEVERING DEL 2 «16. september (eftermiddag og aften)» §9.</p>
+      <p><strong>Recon 22/9 (A):</strong> kodestatus umålt — arbejdet er beviser på skærm (indlogget browser, §7.4, §7.7) plus kosmetik; ingen ny kode kendt.</p>
       <div class="meta"><span class="tag gold">I DRIFT — BEVIS UDESTÅR: indlogget browser</span><span class="tag rust">22/9 · nr. 2 af 18</span><span class="tag size">Lille</span></div>
-    </div>
-    <div class="card new" data-status="mangler" data-spor="1" data-rammer="ingen">
-      <h3>Beviser der udestår — 20 udrulninger der venter på adfærd i drift, samlet ét sted</h3>
-      <p>Hvert punkt har sit eget kort med «I DRIFT — BEVIS UDESTÅR». <strong>Kommer af sig selv:</strong> «Online nu» (et kundemedlem på forsiden, #931) · klokken ved et medlemsopslag (#920) · «Ubesvarede opslag» (#921) · alarm kun for seneste måned (#923, næste historiske måned) · påmindelsesmailenes tekst (#922, næste dag 14/25/31) · Fjeldgaardshops faktura 18/9 (footer + periode, #905) · Livja 19/9 · vindue 2 til CARMA 22/9 · YKRG 29/9 (vurdering) · kohortelinjen 29/9. <strong>Kræver et Update-klik og et gennemløb:</strong> forløbslinjen (#914) · «Svar pr. lektion» uden Topix.dk (#916) · Fremdrift-fanens fejllinje (#926) · klokkens chatbesked → samtalen (#927) · handouts/klokken ved hentefejl (#928) · svar med citat (#930) · trækhistorikkens ni linjer på Livjas side. <strong>Kræver en hændelse:</strong> en spærret adresse (#911, #915) · en import uden tak (#917) · en tilbagevendende kunde (#902) · et rigtigt 429 (#857) · en fejlet invitation (#859) · køens udløbet-regel (#896) · første «Kunne du bruge den?»-svar · oprettelse med CVR gennem DataCVR (#910) · owner-rollen ad SQL-vejen · #883 på importvejen (eget kort). Historik: OVERLEVERING DEL 2 «14. september» §12–§25, «16. september» (nat, formiddag, middag, eftermiddag og aften).</p>
-      <div class="meta"><span class="tag gold">Bevis</span><span class="tag">20 ubeviste udrulninger</span><span class="tag size">Lille</span></div>
     </div>
     <div class="card new" data-status="mangler" data-spor="1" data-rammer="ingen">
       <h3>Fem nedarvede fejl i importens parser er låst i test som «NEDARVET FEJL» — ikke rettet; (A) ramte 16/9</h3>
@@ -2289,10 +2350,10 @@
       <p>Pro-Vision 12 · Anja Hahn 12 · Smag &amp; Slægt 12 · Christian Jensen/Courier Copenhagen 12 · Mads Nørskov 4 · Olsen &amp; Kompagni 2 (+ 2 åbne) · Lizbeth Falk 1 — mail, CVR, navn og planens kilder gav ingen virksomhed (Anja Hahn deler kun startdato med Alina Beauty). <strong>Beslutning (Jonas):</strong> en <code>companies</code>-række (status <code>tidligere</code>) til dem så historikken kan indsættes (174 → +55), eller kun i <code>invoices.csv</code>? Kontoen lukkes efter migreringen. Uændret efter #933 (17/9): de syv står i README «IKKE MED» — kun Jonas kan afgøre om de får en række. Historik: OVERLEVERING DEL 2 «16. september (eftermiddag og aften)» §34, §40.</p>
       <div class="meta"><span class="tag gold">Jonas</span><span class="tag">Før den gamle konto lukkes</span><span class="tag size">Lille (SQL)</span></div>
     </div>
-    <div class="card new" id="m17-moms-webhook" data-status="mangler" data-spor="1" data-rammer="medlem">
+    <div class="card new loest" id="m17-moms-webhook" data-status="loest" data-spor="1" data-rammer="medlem">
       <h3>Momsen pr. betaling fra Stripes total_taxes (#934) — webhooken har ikke skrevet en række endnu; bevis: Fjeldgaardshops træk 18/9 giver moms_oere på TBR-nnnn</h3>
-      <p><strong>I DRIFT — BEVIS UDESTÅR.</strong> #934 <code>1f2b8c1f</code> 16/9 22:23:45; migrationen <code>20260917120000</code> kørt 22:26 (<code>…_22-26-02.csv</code>: moms ukendt 9 | 177 | 4); backfill 22:27 (<code>…_22-27-33.csv</code>: «raekker 177 | kendt 177 | ukendt 0», «20.0 % — 190 raekker», «942,876.72 kr.» ekskl. moms); syv functions udrullet 22:28; fladerne ekskl. moms set 22:31. Det der IKKE er set: en række skrevet af <code>stripe-webhook</code> med <code>moms_oere</code> fra <code>total_taxes[].amount</code> (basil) — første lejlighed er Fjeldgaardshops træk 18/9. NULL vises som «inkl. moms». Historik: OVERLEVERING DEL 2 «16. september (eftermiddag og aften) og 17. september (nat)» §41; <code>rapport-moms.md</code>.</p>
-      <div class="meta"><span class="tag gold">I DRIFT — BEVIS UDESTÅR: Fjeldgaardshop 18/9</span><span class="tag ny">Ny 17/9</span><span class="tag size">Lille</span></div>
+      <p><strong>LØST 22/9 — målt i prod kl. 03:47: <strong>3 træk skrevet af <code>stripe-webhook</code> siden 18/9 bærer <code>moms_oere</code></strong> — Fjeldgaardshop TBR-0009 (87.500 øre af 437.500, 18/9 01:01), Homie TBR-0011 (109.375 af 546.875, 20/9) og KJ AUTO TBR-0010 (32.813 af 164.063, 20/9); <strong>0 uden</strong>.</strong> <strong>I DRIFT — BEVIS UDESTÅR.</strong> #934 <code>1f2b8c1f</code> 16/9 22:23:45; migrationen <code>20260917120000</code> kørt 22:26 (<code>…_22-26-02.csv</code>: moms ukendt 9 | 177 | 4); backfill 22:27 (<code>…_22-27-33.csv</code>: «raekker 177 | kendt 177 | ukendt 0», «20.0 % — 190 raekker», «942,876.72 kr.» ekskl. moms); syv functions udrullet 22:28; fladerne ekskl. moms set 22:31. Det der IKKE er set: en række skrevet af <code>stripe-webhook</code> med <code>moms_oere</code> fra <code>total_taxes[].amount</code> (basil) — første lejlighed er Fjeldgaardshops træk 18/9. NULL vises som «inkl. moms». Historik: OVERLEVERING DEL 2 «16. september (eftermiddag og aften) og 17. september (nat)» §41; <code>rapport-moms.md</code>.</p>
+      <div class="meta"><span class="tag loest">Lukket 22/9 — målt i prod 03:47</span><span class="tag gold">I DRIFT — BEVIS UDESTÅR: Fjeldgaardshop 18/9</span><span class="tag ny">Ny 17/9</span><span class="tag size">Lille</span></div>
     </div>
     <div class="card new" id="m17-ykrg-juni" data-status="mangler" data-spor="1" data-rammer="ingen">
       <h3>YKRG's junibetaling er udestående — sendt via e-conomic i stedet for Stripe; ikke i company_traek før den er betalt</h3>
@@ -2310,11 +2371,6 @@
             <p><strong>Set 17/9 nat (OVERLEVERING §45 f):</strong> den nye kontos fakturaer bærer stadig footeren kontakt@topix.dk (set på Livjas TBR-0007) — kontoens fakturatekst er Jonas' 16/9 ca. 01:12; footeren er en anden indstilling. Bevis: Fjeldgaardshops faktura 18/9.</p>
       <p><strong>Flettet 20/9</strong> (var <code>m15-fakturatekst</code>): notat «Tak fordi du er medlem af The Boardroom.» og footer «… · kontakt@theboardroom.dk · theboardroom.dk» er kontoens Invoice settings, ændret af Jonas 16/9 01:12; Livjas TBR-0007 beholder den gamle. Ét kort for alt, der står i Stripe Dashboard og ikke i koden — bevis: første faktura efter 16/9.</p>
 <div class="meta"><span class="tag gold">Delvist løst 16/9 — kontonavnet står</span><span class="tag">Stripe Dashboard, ikke kode</span><span class="tag size">Lille</span></div>
-    </div>
-    <div class="card new" id="m16e-lisbeth-alarm-mails" data-status="beslutning" data-spor="1" data-rammer="medlem">
-      <h3>Lisbeth Gade fik to alarm-mails 16/9 («Bankovertræk i Maj 2026» 14:20:07, «… Juni 2026» 14:25:06) for historiske måneder — skal hun have en linje?</h3>
-      <p>Tre mails på fem minutter efter hendes historik-upload (14:20:06 «Din rapport kunne ikke behandles», 14:20:07 og 14:25:06 bankovertræk maj/juni); fire mere stemplet uden mail i hånden 15:29. Reglen er lukket i kode (#923). <strong>Jonas:</strong> en linje til hende om at de gamle alarmer var støj fra historikken — eller lade det ligge? Historik: OVERLEVERING DEL 2 «16. september (eftermiddag og aften)» §14.</p>
-      <div class="meta"><span class="tag gold">Jonas</span><span class="tag size">Lille</span></div>
     </div>
     <div class="card new" id="m16e-alarmer-seneste-maaned-bevis" data-status="mangler" data-spor="1" data-rammer="medlem">
       <h3>Alarmer til medlemmer kun for den seneste afsluttede måned — og aldrig som mail (#923) — I DRIFT IFØLGE LOVABLE, BEVIS UDESTÅR</h3>
@@ -2355,6 +2411,7 @@
     <div class="card new" id="m15-vinduet" data-status="mangler" data-spor="7" data-rammer="medlem">
       <h3>Et udløbet medlem i forlængelsesvinduet: vinduesmail 1 bevist (CARMA 16/9 13:00), vindue 2 kommer 22/9; køens udløbet-regel er stadig ubevist</h3>
       <p>Bygget efter Jonas 15/9 (to mails i vinduet, dag 1 og 11, kun ved «tilbyd»; udløbne får ikke platformens mails). Vinduesmail 1 til camilla@carmastudio.dk sent 13:00:07 med <code>vindue_1_sendt_at</code> sat (#898 i drift). <strong>Udestår:</strong> vindue 2 den 22/9 kl. 11 UTC (<code>fornyelse-vindue2</code>), og køens udløbet-regel (#896: alle brugerens virksomheder expired → stemples uden mail) — kræver en række til et udløbet medlem. Søgning på /virksomheder finder dem (bevist 15/9). Historik: OVERLEVERING DEL 2 «15. september» §14–§17; «16. september (eftermiddag og aften)» §3.</p>
+      <p><strong>Målt 22/9 03:47:</strong> vindue 2 måles efter 22/9 kl. 13:00 dansk (cronen kører 11 UTC). CARMA er den eneste med «tilbyd» og passeret slutdato.</p>
       <div class="meta"><span class="tag gold">I DRIFT — BEVIS UDESTÅR: vindue 2 til CARMA 22/9</span><span class="tag size">Mellem</span></div>
     </div>
     <div class="card loest" id="m14-migration" data-status="loest" data-spor="1" data-rammer="raadgiver">
@@ -2384,19 +2441,21 @@
       <p><strong>Fund 20 (14/9, migreringen; OVERLEVERING DEL 2 «14. september» §43):</strong> <code>companies</code> siger kontrakt 3/5-2026 → 3/3-2027 for BR Roset — TI måneder. Alle andre rate-abonnementer er tolv træk over et år (reglen «12 træk i alt»). Ikke afklaret. Det skal afgøres FØR hendes gamle abonnement annulleres og det nye ophør sættes endeligt: er slutdatoen i platformen forkert (ret <code>contract_end_date</code>), er det en aftale om ti rater (så skal det nye abonnements <code>cancel_at</code> følge det), eller noget tredje? BR Roset er også én af de tre med anden mail i platformen end i Stripe (RNL@ mod bsl@) — kortet nedenfor.</p>
       <div class="meta"><span class="tag loest">Lukket 15/9 — startdatoen rettet, 7 + 5 = 12</span><span class="tag ny">Ny 14/9</span><span class="tag">Fund 20</span><span class="tag rust">Før hendes gamle abonnement annulleres</span><span class="tag size">Lille</span></div>
     </div>
-    <div class="card new" id="m14-mails" data-status="mangler" data-spor="1" data-rammer="ingen">
+    <div class="card decision new" id="m14-mails" data-status="beslutning" data-spor="1" data-rammer="ingen">
       <h3>Tre af de flyttede har en anden mail i platformen end i Stripe (BR Roset, Homie, Two Socks) — kobl aldrig på mail eller navn alene</h3>
       <p>Koblingen Stripe-kunde → virksomhed skal gå på kunde-id eller CVR (remm. = Launch Lab ApS i Stripe; ANLA GLAS = ANLA A/S; Two Socks = «TS Warehuose»). Trækhistorikken 16/9 koblede de 20 på bevis (<code>traekhistorik/README.md</code> trin 2). <strong>Åbent:</strong> skal de tre have samme mail begge steder, og hvilken? Historik: OVERLEVERING DEL 2 «14. september» §43; «15. september» §4.</p>
+      <p><strong>Recon 22/9:</strong> reglen «kobl på kunde-id eller CVR» står i CLAUDE.md; tilbage er kun Jonas' beslutning om de tre mails.</p>
       <div class="meta"><span class="tag gold">Kobl på kunde-id eller CVR</span><span class="tag size">Lille</span></div>
     </div>
-    <div class="card new" id="m16-livja-kort" data-status="mangler" data-spor="1" data-rammer="medlem">
+    <div class="card new loest" id="m16-livja-kort" data-status="loest" data-spor="1" data-rammer="medlem">
       <h3>Livjas kort er lukket af banken (invalid_account, do_not_try_again) — nyt kort før Stripes næste forsøg 19/9 01:01 UTC</h3>
-      <p>Første træk på den nye konto (TBR-0007, 4.375 kr.) fejlede 15/9 23:01 UTC; begge betalingsmidler er samme Visa ****2994. Fakturaen er <code>open</code> og kan betales med et andet kort via <code>hosted_invoice_url</code>. Ikke en fejl i platformen. <strong>Jonas:</strong> Lotte Seheim skal have et nyt kort; de næste træk (16/10; 15/11 23:00 dansk). Historik: OVERLEVERING DEL 2 «16. september (nat)» §4.</p>
-      <div class="meta"><span class="tag gold">Jonas — før 19/9</span><span class="tag size">Lille (ingen kode)</span></div>
+      <p><strong>LØST 22/9 — målt i prod kl. 03:47: TBR-0007 står betalt 16/9 kl. 09:27 (fejl_kode <code>card_declined</code> / <code>invalid_account</code> på første forsøg). Kortet i Stripe er ikke aflæst — betalingen er beviset.</strong> Første træk på den nye konto (TBR-0007, 4.375 kr.) fejlede 15/9 23:01 UTC; begge betalingsmidler er samme Visa ****2994. Fakturaen er <code>open</code> og kan betales med et andet kort via <code>hosted_invoice_url</code>. Ikke en fejl i platformen. <strong>Jonas:</strong> Lotte Seheim skal have et nyt kort; de næste træk (16/10; 15/11 23:00 dansk). Historik: OVERLEVERING DEL 2 «16. september (nat)» §4.</p>
+      <div class="meta"><span class="tag loest">Lukket 22/9 — TBR-0007 betalt 16/9 09:27</span><span class="tag gold">Jonas — før 19/9</span><span class="tag size">Lille (ingen kode)</span></div>
     </div>
     <div class="card new" id="m16-traek-grund" data-status="mangler" data-spor="1" data-rammer="raadgiver">
       <h3>Et fejlet træk fortæller nu hvorfor, og perioden er abonnementslinjens — rettet #905, bevis ved næste fejlede træk</h3>
       <p><code>hentTraekFejl</code> går fakturaen → <code>/v1/invoice_payments</code> → PaymentIntent og skriver grunden på dansk i klokken («… medlemmet skal have et nyt kort» ved <code>do_not_try_again</code>); perioden læses fra linjen. Livjas række og klokker rettet i hånden 16/9 01:19. <strong>Bevis:</strong> Fjeldgaardshop 18/9 (perioden) og næste fejlede træk (grunden). Historik: OVERLEVERING DEL 2 «16. september (nat)» §4.</p>
+      <p><strong>Målt 22/9 03:47:</strong> 0 klokker af typen <code>traek_fejlet</code> siden 16/9 01:19 — intet træk er fejlet siden, eller webhooken nåede det ikke; de to kan kun skelnes i Stripe. Bevis ved næste fejlede træk.</p>
       <div class="meta"><span class="tag gold">I DRIFT — BEVIS UDESTÅR: 18/9 og næste fejlede træk</span><span class="tag size">Lille</span></div>
     </div>
     <div class="card new" id="m15-gamle-fakturaer" data-status="mangler" data-spor="1" data-rammer="ingen">
@@ -2478,6 +2537,7 @@
     <div class="card new" id="m17-xlsx-combined-navne" data-status="mangler" data-spor="2" data-rammer="medlem">
       <h3>XLSX-resultatopgørelsen og combined-skabelonen kender ikke «Løn, gager og honorarer», «Personaleomkostninger», «Leasing» og «Finansieringsomkostninger» — de falder i øvrige omkostninger (kontrolsummen går op, navnet er forkert)</h3>
       <p>#976 gav de to skabeloner øvrige omkostninger for grupper uden nøgle, så tallet lukker; men <code>LABEL_MATCHERS</code>/<code>PNL_LABEL_MATCHERS</code> matcher «lønninger», «pensioner &amp; sociale», «øvrige personaleudgifter», «finansieringsudgifter» — BRILLEVÆRK-navnene (målt i PDF'en) ville lande i other_costs, hvis et regneark viser dem. Én linje pr. matcher når en fil viser formen; PDF-udgaven er rettet i udkastet ovenfor. Historik: OVERLEVERING DEL 2 «17. september» §7, <code>udkast-saldobalance-pdf-grupper/README.md</code> §3.</p>
+      <p><strong>Recon 22/9 (A):</strong> delvist — PDF-vejen kender navnene; XLSX-resultatopgørelsen og combined-skabelonen gør ikke.</p>
       <div class="meta"><span class="tag ny">Ny 17/9</span><span class="tag size">Lille</span></div>
     </div>
     <div class="card new" id="m17-kontrolsum-forside-snapshot" data-status="mangler" data-spor="2" data-rammer="raadgiver">
@@ -2513,6 +2573,7 @@
     <div class="card new" data-status="fejl" data-spor="senere" data-rammer="ingen">
       <h3>Budgettets tre skjulte fejl: dobbeltrækker pr. bruger i budget_targets, en ubrugt SQL-funktion med forskudt månedsindeks, og agentens budget-mod-realiseret svarer tomt</h3>
       <p>(1) UNIQUE (company_id, user_id, category, period) tillader én række pr. bruger — <code>.find()</code> tager den første, <code>decodeBudgetRows</code> den sidste; om dubletter findes i prod: ikke målt (SQL i <code>recon-kort29.md</code> §6d). (2) <code>get_my_group_budget_summary</code> regner 1..12 hvor klienten skriver 0..11 — ingen kalder; kandidat til slettelisten. (3) <code>run-company-agent</code>s <code>get_budget_vs_actual</code> matcher engelske metric-navne mod danske kategorier. Ingen flade rammes i dag. Historik: OVERLEVERING DEL 2 «13. september» §24.</p>
+      <p><strong>Recon 22/9 (A):</strong> punkt (2) er løst siden 5/8 — <code>get_my_group_budget_summary</code> blev droppet i <code>20260805224500_drop_koncern_objects.sql:44</code>. Tilbage: (1) og (3).</p>
       <div class="meta"><span class="tag gold">Kræver prod (1)</span><span class="tag size">Lille</span></div>
     </div>
     <div class="card new loest" id="w8" data-status="loest" data-spor="1" data-rammer="medlem">
@@ -2586,10 +2647,10 @@
       <p>Brancheafsnittet er væk fra /kpis (#834, 13/9) — tilbage er ugefokus' T6 og <code>IndstillingerView</code>s synk til <code>kpi_benchmarks</code>. Målt 13/9: 6 af 18 «under» på ebitda handler om underskud, ikke branchen; 36 domme, tre «indenfor». Mål først hvor ofte T6 fyrer (<code>weekly_focus</code> med BENCHMARK_BELOW pr. måned). CVR-branche mod faktisk branche (var eget kort): uenigheden er sand (10 af 10 målte 4/9) men blokerer ingen — falder triggeren, falder også to-felt-modellen. Historik: OVERLEVERING DEL 2 «13. september»; <code>recon-brancheafsnittet.md</code> §4.</p>
       <div class="meta"><span class="tag gold">Beslutning</span><span class="tag">Kræver prod</span><span class="tag size">Lille</span></div>
     </div>
-    <div class="card new" id="m17-doggybed-budget" data-status="fejl" data-spor="2" data-rammer="raadgiver">
+    <div class="card new loest" id="m17-doggybed-budget" data-status="loest" data-spor="2" data-rammer="raadgiver">
       <h3>Doggybed «Omsætning 21776% over budgettet» på rådgiverens forside (17/9 00:06) — et budgettal tæt på nul mod en rigtig omsætning; tallet er sandt og ubrugeligt</h3>
-      <p>Set på forsiden ved skærmbeviset for fase 4 (17/9 00:06). Linjen regner rigtigt på det der står i <code>budget_targets</code>; fejlen er budgettet (eller en delmåned mod en hel). Mål først Doggybeds budgetrækker og den måned linjen peger på (kræver prod); dernæst enten rettes budgettet af rådgiveren, eller forsidens dom får en rimelighedsgrænse (som «tal der ikke kan passe», kortet ovenfor). Historik: OVERLEVERING DEL 2 «16. september (eftermiddag og aften) og 17. september (nat)» §45 (d).</p>
-      <div class="meta"><span class="tag gold">Set 17/9 00:06</span><span class="tag ny">Ny 17/9</span><span class="tag">Kræver prod</span><span class="tag size">Lille</span></div>
+      <p><strong>LØST 22/9 — rimelighedsgrænsen i forsidens dom kom med #965 (<code>e4fbcd25</code>, 17/9): <code>RIMELIGHED_PCT_MAX</code> og <code>RIMELIGHED_GRUNDLAG_MIN_KR</code> i <code>src/lib/virksomhedsSignaler.ts:96–125, 402</code>, med Doggybed-sagen som testcase. Selve budgetrækken for 2026-08 (35 kr.) er data, ikke kode. Bekræftet af B's recon 22/9.</strong> Set på forsiden ved skærmbeviset for fase 4 (17/9 00:06). Linjen regner rigtigt på det der står i <code>budget_targets</code>; fejlen er budgettet (eller en delmåned mod en hel). Mål først Doggybeds budgetrækker og den måned linjen peger på (kræver prod); dernæst enten rettes budgettet af rådgiveren, eller forsidens dom får en rimelighedsgrænse (som «tal der ikke kan passe», kortet ovenfor). Historik: OVERLEVERING DEL 2 «16. september (eftermiddag og aften) og 17. september (nat)» §45 (d).</p>
+      <div class="meta"><span class="tag loest">Lukket 22/9 — #965, rimelighedsgrænsen</span><span class="tag gold">Set 17/9 00:06</span><span class="tag ny">Ny 17/9</span><span class="tag">Kræver prod</span><span class="tag size">Lille</span></div>
     </div>
     <div class="card new loest" data-status="loest" data-spor="2" data-rammer="medlem">
       <h3>Tal der ikke kan passe står på skærmen (resultatmargin 259,4 % og −101,4 % som «measured») — og nøglen ebitda_margin_pct lyver om formlen</h3>
@@ -2640,11 +2701,6 @@
       <h3>Blok 3 på virksomhedssiden — emnerne venter på klassificeringen af de 588 menneskebeskeder mod de ni emner</h3>
       <p>Besluttet 4/9: AI klassificerer uden for tråden som et idempotent engangsjob (mønster <code>berig-virksomheder</code>); MÅL om listen (<code>docs/emneliste.md</code>) rammer, og bestem derefter formen. Rammer den ikke, står opgave-historikken som opsamling. Det eneste der mangler på virksomhedssiden. Historik: OVERLEVERING DEL 2 «Rådgiverfladen — designet er låst 3/9 aften» §11 punkt 7.</p>
       <div class="meta"><span class="tag gold">Mål før flade</span><span class="tag size">Stor</span></div>
-    </div>
-    <div class="card" data-status="mangler" data-spor="senere" data-rammer="ingen">
-      <h3>Indholdsmodellen er gaflet: chattens content er flad tekst, Community er struktureret JSON (Tiptap)</h3>
-      <p>Ingen rammes i dag, og intet er målt siden kortet blev skrevet 2/9. Afgør sammen med «Systembeskeder ud af chatstrømmen» og «Henvis til et tal» — de tre rører samme strøm. Ingen handling før en af dem bygges.</p>
-      <div class="meta"><span class="tag gold">Ikke målt siden 2/9</span><span class="tag size">Stor</span></div>
     </div>
     <div class="card" data-status="mangler" data-spor="senere" data-rammer="medlem">
       <h3>Systembeskeder ud af chatstrømmen — et filter: chatten viser user (og ai når medlemmet selv bad om analysen); system går til klokken</h3>
@@ -2700,10 +2756,10 @@
       <p><strong>Planen</strong> (<code>~/Downloads/plan-en-plan.md</code>, vindue A 16/9 aften): fase 0 stramninger uden ny model (dubletkontrol + ét forslag i de tre skrivere; udløbne synlige for rådgiveren + tekstrettelsen «din afgørelse»; døde statusser/flader og cron-filhoveder) · fase 1 datamodellen (<code>maal_id</code>, motoren <code>maal.ts</code>) · fase 2 rådgiveren sætter målene (<code>maal-skriv</code>, RLS-migration — grønt lys) · fase 3 medlemmets flade («Dine mål» erstatter /milestones) · fase 4 rådgiverens forside (mål uden bevægelse, refleksion der søger hjælp) · fase 5 skriverne mod målene. Hver fase merges og bevises for sig; 5–7 arbejdsdage. <strong>Foldet ind fra tidligere kort:</strong> refleksionens udgang (besluttet 4/9: en refleksion giver altid noget; nu et skridt under et aktivt mål — fase 4 giver linjen «refleksion der søger hjælp» på rådgiverens forside) · agentsporet (udløser og tavshed er de to åbne spørgsmål; «hvor gammelt» er afgjort: ISO-ugen, #800) · det gamle epic's spørgsmål 2 (besked ved nyt skridt) og 4 (refleksionen). Historik: OVERLEVERING DEL 2 «16. september (eftermiddag og aften)» §36; <code>recon-opgaver-og-milestones.md</code>; <code>docs/opgave-model-design.md</code>.</p>
       <div class="meta"><span class="tag loest">Lukket 17/9 — fase 2 og 4 på skærm 23:30 og 00:06</span><span class="tag gold">Jonas 16/9: «1. Ja 2. Enig med dig 3. Enig med dig»</span><span class="tag size">Stor (epic)</span></div>
     </div>
-    <div class="card new" id="m17-en-plan-fase0" data-status="mangler" data-spor="5" data-rammer="medlem">
+    <div class="card new loest" id="m17-en-plan-fase0" data-status="loest" data-spor="5" data-rammer="medlem">
       <h3>«Én plan» fase 0a+0b (#935, #936): dubletkontrol og højst ét åbent forslag for AI'en; udløbne forslag synlige for rådgiveren — I DRIFT, BEVIS UDESTÅR</h3>
-      <p>#935 <code>a7b31dfc</code> 16/9 22:46:05 — motoren <code>skridtForslag</code> (normaliseret titel, 30 døgn alle statusser) i de tre skrivere; tre functions udrullet 22:55. #936 <code>565129fc</code> 22:55:01 — udløbne forslag (seneste fem, foldet) og «din afgørelse» kun med godkend-vej; frontend kræver Update-klik. <strong>Bevis:</strong> mandag 21/9 06 UTC: 0 nye dubletter &lt;30 dage i reconens 1d (prod 16/9 19:03: «3 | 14»); virksomhedssidens fold-ud med udløbne titler. Historik: OVERLEVERING DEL 2 «16. september (eftermiddag og aften) og 17. september (nat)» §44.</p>
-      <div class="meta"><span class="tag gold">I DRIFT — BEVIS UDESTÅR: mandag 21/9 06 UTC</span><span class="tag ny">Ny 17/9</span><span class="tag size">Bevis</span></div>
+      <p><strong>LØST 22/9 — målt i prod kl. 03:47: <strong>0 nye dubletter</strong> (samme normaliserede titel, samme virksomhed, inden for 30 døgn) siden 17/9.</strong> #935 <code>a7b31dfc</code> 16/9 22:46:05 — motoren <code>skridtForslag</code> (normaliseret titel, 30 døgn alle statusser) i de tre skrivere; tre functions udrullet 22:55. #936 <code>565129fc</code> 22:55:01 — udløbne forslag (seneste fem, foldet) og «din afgørelse» kun med godkend-vej; frontend kræver Update-klik. <strong>Bevis:</strong> mandag 21/9 06 UTC: 0 nye dubletter &lt;30 dage i reconens 1d (prod 16/9 19:03: «3 | 14»); virksomhedssidens fold-ud med udløbne titler. Historik: OVERLEVERING DEL 2 «16. september (eftermiddag og aften) og 17. september (nat)» §44.</p>
+      <div class="meta"><span class="tag loest">Lukket 22/9 — 0 nye dubletter</span><span class="tag gold">I DRIFT — BEVIS UDESTÅR: mandag 21/9 06 UTC</span><span class="tag ny">Ny 17/9</span><span class="tag size">Bevis</span></div>
     </div>
     <div class="card new" id="m17-en-plan-fase1" data-status="mangler" data-spor="5" data-rammer="medlem">
       <h3>«Én plan» fase 1 (#938): company_actions.maal_id, milestones.completed_at, motoren maal.ts — et lukket skridt rykker målets fremdrift — I DRIFT, BEVIS UDESTÅR</h3>
@@ -2715,14 +2771,15 @@
       <p>#941 <code>d7d2dc95</code> 17/9 00:03:46 (vindue B); <code>foreslaa-opgave</code> udrullet 00:07; frontend kræver Update-klik. Jonas: målvælgeren er valgfri («B»). <strong>Bevis:</strong> «Dine mål» med en MEDLEMSKONTO: mål med skridt, fremdrift der rykker når et skridt lukkes (#938), «Marker som nået», målvælgeren i rådgiverens chat med «Uden mål» som gyldigt valg. Historik: OVERLEVERING DEL 2 «16. september (eftermiddag og aften) og 17. september (nat)» §44.</p>
       <div class="meta"><span class="tag gold">I DRIFT — BEVIS UDESTÅR: skærm med medlemskonto</span><span class="tag ny">Ny 17/9</span><span class="tag size">Bevis</span></div>
     </div>
-    <div class="card new" id="m17-en-plan-fase5" data-status="mangler" data-spor="5" data-rammer="medlem">
+    <div class="card new loest" id="m17-en-plan-fase5" data-status="loest" data-spor="5" data-rammer="medlem">
       <h3>«Én plan» fase 5 (#942): AI'en foreslår kun skridt mod et aktivt mål; ingen forslag under gennemgang eller uden mål; «N kunder har ingen mål» på forsiden — I DRIFT, BEVIS UDESTÅR</h3>
-      <p>#942 <code>af031477</code> 17/9 00:14:33; fem functions udrullet 00:20 (generate-weekly-focus, run-company-agent, foreslaa-opgave, opgave-luk, maal-skriv). Jonas: «Ja det er i orden». <strong>Bevis:</strong> mandag 21/9 06 UTC: kun forslag med <code>maal_id</code> mod aktive mål; «gennemgang først» og «ingen aktive mål» i loggen for de 8 og de 15; forsiden efter Update: «15 kunder har ingen mål — sæt dem sammen med medlemmet» (prod 16/9 23:23: 15 af 29). Historik: OVERLEVERING DEL 2 «16. september (eftermiddag og aften) og 17. september (nat)» §44.</p>
-      <div class="meta"><span class="tag gold">I DRIFT — BEVIS UDESTÅR: mandag 21/9 06 UTC + forsiden</span><span class="tag ny">Ny 17/9</span><span class="tag size">Bevis</span></div>
+      <p><strong>LØST 22/9 — målt i prod kl. 03:47: reglen holder. <strong>0 af 2</strong> AI-forslag (<code>agent</code>/<code>ai_weekly</code>) siden 17/9 00:20 er uden <code>maal_id</code>, mod et ikke-aktivt mål eller hos en virksomhed med 0 eller over 3 aktive mål. Forsidens «N kunder har ingen mål» er ikke set på skærm.</strong> #942 <code>af031477</code> 17/9 00:14:33; fem functions udrullet 00:20 (generate-weekly-focus, run-company-agent, foreslaa-opgave, opgave-luk, maal-skriv). Jonas: «Ja det er i orden». <strong>Bevis:</strong> mandag 21/9 06 UTC: kun forslag med <code>maal_id</code> mod aktive mål; «gennemgang først» og «ingen aktive mål» i loggen for de 8 og de 15; forsiden efter Update: «15 kunder har ingen mål — sæt dem sammen med medlemmet» (prod 16/9 23:23: 15 af 29). Historik: OVERLEVERING DEL 2 «16. september (eftermiddag og aften) og 17. september (nat)» §44.</p>
+      <div class="meta"><span class="tag loest">Lukket 22/9 — reglen holder, 0 af 2</span><span class="tag gold">I DRIFT — BEVIS UDESTÅR: mandag 21/9 06 UTC + forsiden</span><span class="tag ny">Ny 17/9</span><span class="tag size">Bevis</span></div>
     </div>
     <div class="card new" id="m17-gennemgangen-af-de-8" data-status="mangler" data-spor="5" data-rammer="raadgiver">
       <h3>Gennemgangen af de 8 virksomheder med flere end tre aktive mål (Floren Engros 17, BR Roset 14, Rallysupport 11, Booking Innovation 8, Brick Works 8, Fjeldgaardshop 7, Rezycl 6, Warburg VVS 5) — rådgiveren beholder højst tre; indtil da ingen AI-forslag</h3>
       <p>Målt 16/9 23:23 (<code>…_23-23-46.csv</code>: «8 virksomheder over 3 | max 17»). Florens 17 var AI-dubletter (kilde agent/ai, ingen fremdrift siden 30/6) — intet parkeres automatisk; gennemgangen er rådgiverens i Planen på virksomhedssiden (#939: aktivér/parkér/nået/slet). Fase 5 (Jonas: «Ja det er i orden»): ingen AI-forslag til de 8 før de er nede på tre. <strong>Bevis:</strong> SQL «virksomheder over 3 = 0» og forsiden uden «8 virksomheder har mål til gennemgang». Historik: OVERLEVERING DEL 2 «16. september (eftermiddag og aften) og 17. september (nat)» §44, §45 (c).</p>
+      <p><strong>Målt 22/9 03:47:</strong> 3 virksomheder har over 3 aktive mål (var 8), 11 har 1–3, og 37 har 0 — af 51 i <code>companies</code> (inkl. legat, gæster og tidligere; tallet for betalende er ikke målt). Kun 2 AI-forslag siden 17/9: «Én plan» foreslår kun mod aktive mål, og de fleste har ingen.</p>
       <div class="meta"><span class="tag gold">Rådgiverarbejde, ingen kode</span><span class="tag ny">Ny 17/9</span><span class="tag size">Mellem (8 samtaler)</span></div>
     </div>
     <div class="card new" id="m17-legat-tre-maal" data-status="fejl" data-spor="5" data-rammer="medlem">
@@ -2739,10 +2796,10 @@
   <h2>Fællesskabet — community, netværk, events, akademiet</h2>
   <p class="lede">Konverteret og i drift; opslagsmailen bærer siden 3/9. Det der mangler, er indhold, søgning, events' små led og idéerne der først giver mening når fundamentet bærer.</p>
   <div class="grid">
-    <div class="card decision new" id="a21-eventflytning-til-alle" data-status="beslutning" data-spor="6" data-rammer="medlem">
+    <div class="card decision new loest" id="a21-eventflytning-til-alle" data-status="loest" data-spor="6" data-rammer="medlem">
       <h3>Mailen om et flyttet event går kun til dem, der har svaret «deltager» — den skal gå til alle med adgang, med to tekster</h3>
-      <p>I dag sendes mailen om ændret dato/tid kun til dem, der har svaret «deltager». <strong>BESLUTTET (Jonas 21/9):</strong> den går til alle med adgang til eventet (<code>har_aktivt_medlemskab</code>); to tekster — «vi har flyttet, passer det stadig?» til dem, der sagde ja, og «nyt tidspunkt, måske passer det nu» til resten; sendes straks, kun når dato eller tid ændres, ikke ved tekstrettelser (ikke via samlemailen kl. 17). Recon først. OVERLEVERING «21. september» §14c.</p>
-      <div class="meta"><span class="tag gold">Besluttet · recon først</span><span class="tag ny">Ny 21/9</span></div>
+      <p><strong>LØST 22/9 — bygget i #1067 (<code>092eb70f</code>, 21/9): mailen går til alle med adgang med to tekster, og rådgiveren har en svaroversigt. <code>flyt-event</code> er udrullet, og det er bevist i drift (Livja 7/1/18). Bekræftet af B's recon.</strong> I dag sendes mailen om ændret dato/tid kun til dem, der har svaret «deltager». <strong>BESLUTTET (Jonas 21/9):</strong> den går til alle med adgang til eventet (<code>har_aktivt_medlemskab</code>); to tekster — «vi har flyttet, passer det stadig?» til dem, der sagde ja, og «nyt tidspunkt, måske passer det nu» til resten; sendes straks, kun når dato eller tid ændres, ikke ved tekstrettelser (ikke via samlemailen kl. 17). Recon først. OVERLEVERING «21. september» §14c.</p>
+      <div class="meta"><span class="tag loest">Lukket 22/9 — #1067, bevist i drift</span><span class="tag gold">Besluttet · recon først</span><span class="tag ny">Ny 21/9</span></div>
     </div>
     <div class="card loest new" id="m16-praesentation-uden-forslag" data-status="loest" data-spor="1" data-rammer="medlem">
       <h3>Præsentationen uden foreslået tekst — Jonas' beslutning B: tom composer, «Fortæl med dine egne ord, hvem du er.»</h3>
@@ -2808,10 +2865,10 @@
       <p><code>rabataftaler</code>/<code>partners</code> er fremtidssikret til det; et valgfrit partner-felt på pushet og et kort i feedet. Formen før indholdet giver tomme flader. Historik: <code>docs/hjemmebane/c0-datamodel.md:74, 131</code>.</p>
       <div class="meta"><span class="tag gold">Vent på indhold</span><span class="tag size">Lille</span></div>
     </div>
-    <div class="card new" id="w9" data-status="mangler" data-spor="1" data-rammer="medlem">
+    <div class="card new loest" id="w9" data-status="loest" data-spor="1" data-rammer="medlem">
       <h3>Profilens faktalinje («Bastant Design · Design · Aarhus · stiftet 2019 · medlem siden marts 2026») mangler i RPC'en — er migration 20260909150000 kørt i prod?</h3>
-      <p>Præsentationen er afgjort og bevist (Jonas: ingen foreslået tekst, #912; ansøgningens tekster må aldrig bruges). Tilbage: <code>city</code>/<code>start_date</code> i <code>get_member_directory</code>-RPC'erne — om migrationen er kørt i prod er IKKE MÅLT (<code>pg_get_functiondef</code>). Analysens nr. 10. Historik: OVERLEVERING DEL 2 «14. september» §31; «16. september (formiddag)» §4, «(middag)» §6.</p>
-      <div class="meta"><span class="tag gold">KAN IKKE AFGØRES: er 20260909150000 kørt?</span><span class="tag rust">22/9 · nr. 9 af 18</span><span class="tag size">Lille</span></div>
+      <p><strong>LØST 22/9 — målt i prod kl. 03:47: migrationen <code>20260909150000</code> ER kørt. <code>get_member_directory()</code>, <code>get_member_profile(uuid)</code> og <code>get_event_participants(uuid)</code> bærer <code>city</code> og <code>stiftet_aar</code> (aflæst med <code>pg_get_functiondef</code>).</strong> Præsentationen er afgjort og bevist (Jonas: ingen foreslået tekst, #912; ansøgningens tekster må aldrig bruges). Tilbage: <code>city</code>/<code>start_date</code> i <code>get_member_directory</code>-RPC'erne — om migrationen er kørt i prod er IKKE MÅLT (<code>pg_get_functiondef</code>). Analysens nr. 10. Historik: OVERLEVERING DEL 2 «14. september» §31; «16. september (formiddag)» §4, «(middag)» §6.</p>
+      <div class="meta"><span class="tag loest">Lukket 22/9 — 20260909150000 er kørt</span><span class="tag gold">KAN IKKE AFGØRES: er 20260909150000 kørt?</span><span class="tag rust">22/9 · nr. 9 af 18</span><span class="tag size">Lille</span></div>
     </div>
     <div class="card new" data-status="mangler" data-spor="senere" data-rammer="raadgiver">
       <h3>Profilredigering hører på ens egen profilside — og rådgivere kan ikke rette deres egen netværksprofil siden #757</h3>
@@ -2832,11 +2889,6 @@
       <h3>Events har ingen lokation — et fysisk event kan ikke sige hvor</h3>
       <p>Kræver kolonne, editorfelt, eventsiden og kalenderfilens LOCATION (<code>lib/kalenderfil.ts</code>). I dag står kun «Online» når der er et Meet-link. Historik: OVERLEVERING DEL 2 «10. september, nat».</p>
       <div class="meta"><span class="tag size">Lille</span></div>
-    </div>
-    <div class="card new" id="w18" data-status="ide" data-spor="senere" data-rammer="medlem">
-      <h3>Community-idéerne der er tilbage: top posts (én query), svar-mails til alle i tråden (beslutning) — like fra feedet er bygget (#880), nudge-formen droppet</h3>
-      <p>Top posts kræver reaktioner at sortere på (<code>community_reaktioner</code>, <code>community_visninger</code> findes). Svar mailer kun de nævnte — opt-in pr. tråd eller alle deltagere er en beslutning. Like uden notifikation er bevidst (Jonas 14/9). Efter Circle-exit, sammen med video-kortet. Historik: OVERLEVERING DEL 2 «14. september» §35.</p>
-      <div class="meta"><span class="tag rust">22/9 · nr. 18 af 18</span><span class="tag size">Lille</span></div>
     </div>
     <div class="card new" data-status="ide" data-spor="7" data-rammer="medlem">
       <h3>Affiliate: et medlem der henviser et nyt MEDLEM får 10.000 kr. (Jonas 14/9) — attribution, udbetaling og flade er ikke undersøgt; efter 22/9</h3>
@@ -2927,11 +2979,6 @@
       <p>remove-member og delete-company er fjernet (13/9); lækagerne i <code>hardDeleteCompany</code> er lukket (#830: filer slettes, fejlet kontosletning står i svaret — ubevist, ingen kalder i src). Det der skal bygges: samme vej som virksomheder (#734): markering, 7 dages frist, cron med tørkørsel, kaskaderne løst først (rapporter med godkendte tal → owner eller NULL), stempel. «Skift owner» er én UPDATE på to <code>company_members</code>-rækker, admin-only — kan bygges før resten. Eksisterende efterladenskaber (målt 13/9: 129 filer uden ejer, 4 forældreløse konti, 30 frakoblede invitationer = arkivspor): måling af hvem de tilhører før noget slettes; storage kun gennem API'et. Historik: OVERLEVERING DEL 2 «13. september»; <code>recon-efterladenskaberne.md</code>.</p>
       <div class="meta"><span class="tag size">Mellem</span></div>
     </div>
-    <div class="card new" data-status="ide" data-spor="6" data-rammer="raadgiver">
-      <h3>Den gamle skals company-picker lander på /virksomheder efter «Vis som virksomhed» — formentlig hører man til på medlemmets forside</h3>
-      <p>Chattens læsning 13/9, ikke målt. Pickeren har <code>c.id</code>, så <code>/virksomhed/{id}</code> eller «/» er mulige. AppSidebar lever kun på de gamle sider (Guide, AnnualBaseline, LegatDashboard, PulseCheckin) og dør med konvergensen — ret kun hvis den ses. Historik: OVERLEVERING DEL 2 «13. september» (#826).</p>
-      <div class="meta"><span class="tag gold">Idé — dør med konvergensen</span><span class="tag size">Lille</span></div>
-    </div>
   </div>
   </section>
 
@@ -2995,10 +3042,27 @@
   <h2>Drift og fundament — ydeevne, overvågning, RLS, døde felter</h2>
   <p class="lede">Ingen fejlovervågning. Hændelser findes ved manuel måling, ikke af nogen alarm — RLS-hullet 3/9 blev fundet med en lånt identitet, ikke af et værn.</p>
   <div class="grid">
-    <div class="card new" id="a21-filhoveder-koert" data-status="mangler" data-spor="senere" data-rammer="ingen">
-      <h3>Fire migrationer er kørt, men filhovedet siger stadig «IKKE KØRT» — reglen fra 20/9 kan få dem kørt igen</h3>
-      <p><code>20260919210000_klaviyo_spor</code>, <code>20260919230000_klaviyo_spor_afveg</code>, <code>20260921090000_meta_annoncer_cron</code> og <code>20260921120000_ansoegninger_annoncespor</code> starter med «-- IKKE KØRT. DEPLOY: …», selvom de er kørt (OVERLEVERING «19.–20. september» §2, «20. september» §2). Den, der kører migrationer, scanner mappen efter den linje (CLAUDE.md «Nye migrations») — så de kan blive kørt igen. Om de tåler det, er umålt. De to fra 21/9 (<code>160000</code>, <code>170000</code>) er rettet i bogføringen; deres kildeværn pinnede den gamle første linje og blev rettet med. B's fund ved bogføringen 21/9 — OVERLEVERING «21. september» §14d.</p>
-      <div class="meta"><span class="tag ny">Ny 21/9</span></div>
+    <div class="card new" id="a22-ga4-secret-skift" data-status="mangler" data-spor="senere" data-rammer="ingen">
+      <h3><code>GA4_SEND_SECRET</code>s værdi har stået i chatten 21/9 — den skiftes ud</h3>
+      <p>Lav prioritet: en Measurement Protocol-nøgle kan kun sende, ikke læse. Vejen: ny nøgle i GA4 → ny værdi i Lovable → bevis i DebugView (med <code>read -s</code>, så værdien aldrig står i chatten) → den gamle slettes.</p>
+      <div class="meta"><span class="tag ny">Ny 22/9</span><span class="tag size">Lille</span></div>
+    </div>
+    <div class="card new" id="a22-rls-initplan" data-status="mangler" data-spor="1" data-rammer="alle">
+      <h3>Adgangsreglerne kalder <code>user_company_id(auth.uid())</code> og <code>has_role(auth.uid(), …)</code> pr. række — <code>user_roles</code> er scannet 5.556.824 gange, <code>company_members</code> 2.625.120</h3>
+      <p>Målt 21/9 22:34–22:37. I dagen 08:32–22:34 fik <code>company_members</code> 93 % sekventielle scans, ca. 9.200 opslag i timen. Løsningen er Supabases egen anbefaling: pak hjælperne i <code>(select …)</code>, så de bliver en initplan, der køres én gang pr. forespørgsel i stedet for én gang pr. række.</p>
+      <p>Recon: <code>~/Downloads/recon-rls-initplan.md</code> (B, 21/9). Onsdag. Mål igen efter.</p>
+      <div class="meta"><span class="tag rust">Onsdag 23/9</span><span class="tag ny">Ny 22/9</span><span class="tag size">Mellem</span></div>
+    </div>
+    <div class="card new" id="a22-cron-vagt-tidsjoin" data-status="mangler" data-spor="senere" data-rammer="ingen">
+      <h3>Cron-vagten tæller vores manuelle prøvekald som cron-fejl</h3>
+      <p><code>vagt_cron</code> kobler et svar til den cron-kørsel, der startede ≤ 2 min før (<code>20260916170000_vagtens_samlemail.sql:252–258</code>) — rent tidsligt. To alarmer 21/9 (18:07 og 22:07) var vores egne beviser. <code>kald_edge</code> returnerer <code>net._http_response</code>s id, men ingen gemmer det.</p>
+      <p>Recon: <code>~/Downloads/recon-cron-vagt.md</code> (B, 21/9).</p>
+      <div class="meta"><span class="tag ny">Ny 22/9</span><span class="tag size">Lille</span></div>
+    </div>
+    <div class="card new" id="a22-migration-dublet" data-status="mangler" data-spor="senere" data-rammer="ingen">
+      <h3>Tidsstemplet <code>20260918230000</code> bruges af to migrationer</h3>
+      <p><code>20260918230000_ansoegning_beslutninger_saet_pause.sql</code> og <code>20260918230000_ansoegning_start_tidspunkt_uden_senere.sql</code>. Fundet af B ved #1074. Skader intet i dag, men en migrationskørsel efter navn kan tage den forkerte.</p>
+      <div class="meta"><span class="tag ny">Ny 22/9</span><span class="tag size">Lille</span></div>
     </div>
     <div class="card new" id="a21-princip-1-klokker" data-status="mangler" data-spor="senere" data-rammer="raadgiver">
       <h3>Princip 1: stille-klokkerne og Meta-vagten skal nå mail — i dag er begge signaler, kun en browser kan vise</h3>
@@ -3010,19 +3074,14 @@
       <p>Kommentarer i koden og kolonnekommentaren i prod siger <code>coalesce(ad_id_udledt, utm_content)</code>; koden lader et rigtigt id vinde (#1059). Kendt unøjagtighed, målt 21/9.</p>
       <div class="meta"><span class="tag ny">Ny 21/9</span></div>
     </div>
-    <div class="card new" id="a21-smaa-tabeller-statistik" data-status="mangler" data-spor="senere" data-rammer="ingen">
+    <div class="card new loest" id="a21-smaa-tabeller-statistik" data-status="loest" data-spor="senere" data-rammer="ingen">
       <h3>Små tabeller uden statistik: <code>company_members</code> er aldrig analyseret — mål hvilke flere</h3>
-      <p><code>company_members</code> har 30 rækker (29 virksomheder, 30 brugere), ikke 95; analyze/autoanalyze/autovacuum er tomme, <code>n_tup_del</code> 21 i hele perioden. Målt 21/9 08:32–08:34 (døgnmålingen af indekserne). Mål, hvilke flere små tabeller der aldrig er analyseret.</p>
-      <div class="meta"><span class="tag ny">Ny 21/9</span></div>
+      <p><strong>LØST 22/9 — <code>ANALYZE</code> kørt 21/9 kl. 22:37 på alle 56 public-tabeller uden <code>last_analyze</code>/<code>last_autoanalyze</code> (FØR-listen: <code>user_roles</code> 5.556.824 seq_scan, <code>company_members</code> 2.625.120). EFTER: <code>company_members</code>' skøn 28 = faktisk 28. Hypotesen om, at planlæggeren troede tabellen var tom, holdt ikke — skønnet var 30 før. Se det nye kort <code>a22-rls-initplan</code>. Prod-handling; B kunne ikke se den i koden.</strong> <code>company_members</code> har 30 rækker (29 virksomheder, 30 brugere), ikke 95; analyze/autoanalyze/autovacuum er tomme, <code>n_tup_del</code> 21 i hele perioden. Målt 21/9 08:32–08:34 (døgnmålingen af indekserne). Mål, hvilke flere små tabeller der aldrig er analyseret.</p>
+      <div class="meta"><span class="tag loest">Lukket 22/9 — ANALYZE kørt 22:37</span><span class="tag ny">Ny 21/9</span></div>
     </div>
     <div class="card new" id="a21-stille-klokker-27" data-status="mangler" data-spor="senere" data-rammer="raadgiver">
       <h3>Stille-klokkerne: <code>fundet: 27</code> mod 28 betalende; E-skilte <code>ikke_aktiv</code></h3>
       <p>Første rigtige kørsel 21/9 06:30 (job 566, svar 12997): <code>ringet: 7</code> (ingen_bruger 3, ingen_login 4), <code>fandtes: 0</code>, <code>fejlet: 0</code>, <code>fundet: 27</code>, tavse: aktiv 19, ikke_aktiv 1 (E-skilte ApS). 27 fundet mod 28 betalende — hvorfor, er umålt. Titlens tal er trappetrinnet, ikke dagene (Brick Works: 146 dage, titel 120).</p>
-      <div class="meta"><span class="tag ny">Ny 21/9</span></div>
-    </div>
-    <div class="card new" id="a21-soendagens-fem-haendelser" data-status="mangler" data-spor="senere" data-rammer="medlem">
-      <h3>Søndagens 4 «Deltog» + 1 «Mødte ikke op» 14:38–14:44 — hvem, og ramte de et flow?</h3>
-      <p>Sporet 21/9 09:32: 9 forsøg nogensinde, alle ok/202, 180–234 ms. Fem af dem er fremmøde-hændelser søndag 20/9 14:38–14:44. Hvem de er, og om de ramte <code>Wq3MkG</code>/<code>SDVvCW</code>, er umålt.</p>
       <div class="meta"><span class="tag ny">Ny 21/9</span></div>
     </div>
     <div class="card new" id="a21-import-hentning" data-status="mangler" data-spor="senere" data-rammer="ingen">
@@ -3050,11 +3109,6 @@
       <p><strong>LØST 21/9 — #1060 (<code>ecc008c6</code>): <code>defaultOptions: { queries: { staleTime: 60_000 } }</code>, intet andet; bevis <code>defaultOptions:{queries:{staleTime:6e4}}</code> i <code>index-BURtbxxx.js</code>. Rettelse: indekserne blev kørt 20/9 ~23:05, ikke «22/9 nat».</strong></p>
       <p><code>~/Downloads/udkast-ydeevne</code> (22/9 nat): to udkast, to PR'er. 1-indekser: 19 <code>create index if not exists</code> på det målte (29 foreslået, 10 dækket i prod) — <strong>KØRT i aften</strong> i SQL-editoren. 2-staletime: én linje i <code>App.tsx</code> (QueryClient default) + værnet rettet til den nye præmis — kanalen er merge → Update-klik, rollback er én linje tilbage. Måles på antal kald pr. faneskift (Network → Clear → skift). Det, der kan gå galt: en liste, der er 60 s gammel, når nogen kigger — derfor ikke <code>refetchOnWindowFocus: false</code> (udkastets §2). Recon-ydeevne §6 har rækkefølgen; browserens faktiske tid og prods statistik er Jonas' to målinger.</p>
       <div class="meta"><span class="tag loest">Lukket 21/9 — #1060</span><span class="tag gold">Udkast klar · Update-klik</span><span class="tag size">Lille</span><span class="tag ny">Ny 20/9</span></div>
-    </div>
-    <div class="card decision new" id="a20-princip-signal-browser" data-status="beslutning" data-spor="1" data-rammer="raadgiver">
-      <h3>Princip: et signal, kun en browser kan vise, er ikke et signal</h3>
-      <p>Målt 20/9 i ansøgningsflowet: hver gang systemet venter på ansøgeren, er der en trappe med rykkere og en frist. Hver gang det venter på os (trin «ny», «afholdt», «pause slut»), var det eneste signal en klokke i en browser — og klokken forlader aldrig browseren. Rådgiveren var den eneste i forløbet, der aldrig blev rykket. Regel: et trin, der venter på os, får en trappe til kontakt@. Lagt ind 20/9 aften: trappen «ny» (dag 3/7) og «afholdt» (dag 2), «kom ikke» fra afholdt. Udkast: ~/Downloads/udkast-raadgiver-rykkes.</p>
-      <div class="meta"><span class="tag ny">Ny 20/9</span><span class="tag size">Mellem</span></div>
     </div>
     <div class="card new" id="a20-spf-theboardroom" data-status="mangler" data-spor="senere" data-rammer="alle">
       <h3><code>theboardroom.dk</code> har ingen SPF-record — bogført som manglende 7/9, stadig ikke sat 20/9</h3>
@@ -3092,6 +3146,7 @@
     <div class="card new" id="m17-migrationer-ikke-koert" data-status="fejl" data-spor="6" data-rammer="ingen">
       <h3>20 migrationer siger «IKKE KØRT» i filhovedet — flere er beviseligt kørt (20260916150000 14:18, 20260916170000 16:12, 20260917100000 18:42, 20260917110000 21:41, 20260917120000 22:26); filhovederne føres à jour med tidspunkt og CSV</h3>
       <p><code>rapport-fase0c.md</code>'s kontrol <code>git grep -n "IKKE KØRT" supabase/migrations</code> gav 21 træffere efter 0c (én er den nye <code>20260917130000</code>). Blandt de 20: <code>20260909100000_siden_sidst</code> (RPC'en bruges), <code>20260911050000_doeren_gaeldende_slutdato</code>, og de fem ovenfor med kørselstidspunkt og CSV i OVERLEVERING. Filhovedet er den eneste kvittering for en migration (Lovable kører ikke <code>schema_migrations</code>) — et forkert «IKKE KØRT» får den næste til at køre den igen. Ret: ét PR med kørselstidspunkt + CSV-navn i hvert filhoved; det ukendte står som «IKKE MÅLT». Historik: OVERLEVERING DEL 2 «16. september (eftermiddag og aften) og 17. september (nat)» §45 (a).</p>
+      <p><strong>OMSKREVET 22/9:</strong> #1078 (A's indlægning 21/9) talte <strong>35 migrationer</strong>, der stadig bærer «IKKE KØRT» i filhovedet, selvom de er kørt — blandt dem de fire fra <code>a21-filhoveder-koert</code>: <code>20260919210000_klaviyo_spor</code>, <code>20260919230000_klaviyo_spor_afveg</code>, <code>20260921090000_meta_annoncer_cron</code> og <code>20260921120000_ansoegninger_annoncespor</code>. Én PR.</p>
       <div class="meta"><span class="tag gold">Kontrol 16/9 23:02 — 21 træffere</span><span class="tag ny">Ny 17/9</span><span class="tag size">Lille (20 filhoveder)</span></div>
     </div>
     <div class="card new loest" id="m16e-vagt-samlemail" data-status="loest" data-spor="6" data-rammer="raadgiver">
@@ -3260,15 +3315,11 @@
       <p>Alle kan kaldes med et admin-JWT; ingen kalder i src; ingen frist, intet stempel, ingen tørkørsel (undtagen hard_delete_company). Lækagen er lukket (#830). Husets mønster er <code>src/lib/sletning.ts</code> (#734). Historik: <code>recon-efterladenskaberne.md</code>.</p>
       <div class="meta"><span class="tag gold">Beslutning</span><span class="tag size">Lille (beslutning) · Mellem (omlægning)</span></div>
     </div>
-    <div class="card new" id="n14-1" data-status="mangler" data-spor="senere" data-rammer="ingen">
-      <h3>hzlkypibayzkkumwohap — et fremmed Supabase-projekt som Mondays automationer pegede på 21/3–14/9; fik det data?</h3>
-      <p>Ref'en har nul træffere i repoet og git-historikken; den fremmede vært svarer 200 uden signaturtjek. Automationen er slået fra 14/9. Om modtageren gemte noget: ikke målt, og kan ikke måles herfra. Historik: OVERLEVERING DEL 2 «14. september» §1.</p>
-      <div class="meta"><span class="tag gold">Uafklaret</span><span class="tag size">Lille</span></div>
-    </div>
     <div class="card new" id="n14-11" data-status="fejl" data-spor="1" data-rammer="medlem">
       <h3>Mailloftet er pr. time og pr. workspace — Lovable Support hævede det til 300 app-mails/time 18/9 (gældende straks); 429-grenen er stadig ubevist, og bogføringen ligger som udkast</h3>
       <p><strong>OMSKREVET 18/9:</strong> Support svarede 18/9 — loftet for hele arbejdsområdet 100 → 300 i timen, gældende straks, ét loft som ALT deler; tilbud om en plan efter 22/9, Jonas svarer. Regnestykket for webinaraftenen (15 nye ansøgere på én aften): højst ca. 30 mails i timen fra ansøgningsflowet (kvittering + rådgivermail pr. ansøgning; indkaldelserne først onsdag 07 i sendevinduet); den tungeste time er stadig samlemailen kl. 17 med én pr. medlem. Loftet for påbegyndte ansøgninger er 300/time (#999), pr. netværk 30/time (#992). Bogføringen (diff til OVERLEVERING DEL 2 «14. september» §13 og DEL 4) ligger i <code>~/Downloads/udkast-bogfoering-mailgraense/</code> — IKKE merget. Nedenfor som det stod 16/9.</p>
       <p>Samlemailen (bevist 16/9 17:00) og dagskvoten (#882) tog det meste af risikoen. Tilbage: (1) et rigtigt 429 skal stå som <code>rate_limited</code> i loggen og stoppe begge løkker — kun et 429 kan vise det; (2) Lovable Support (sendt 14/9) — ingen svar; (3) afsendelsesvinduet 07–20 dansk betyder at en stille kø efter 20 ikke er en fejl. Historik: OVERLEVERING DEL 2 «14. september» §13, §37; «15. september» §8–§16; «16. september (eftermiddag og aften)» §21.</p>
+      <p><strong>FLETTET 22/9 — <code>a21-mailloftet</code> ind her (samme sag):</strong> Én ansøgning = to app-mails straks (kvittering + rådgivermail). Ved 429: kvitteringen får en reserve i køen (næste sendevindue, højst 3 forsøg); rådgivermailen om ny ansøgning tabes; samtalens bekræftelse tabes; ingen alarm ved <code>rate_limited</code> når ud af browseren; ingen vagt på <code>planlagte_haendelser</code>. Loftet 300/time er oplyst af Lovable Support 18/9 — umålt, om det gælder i dag. (A, <code>recon-mailloft-tirsdag.md</code>, 21/9.)</p>
       <div class="meta"><span class="tag gold">Chattens 10 altafgørende 16/9 (betalingslinket i køen)</span><span class="tag">Support svarede 18/9: 300/time</span><span class="tag">Bogføring ikke merget</span><span class="tag size">Mellem</span></div>
     </div>
     <div class="card new" id="a19-tekstudgaven-dobbelt-knap" data-status="mangler" data-spor="senere" data-rammer="medlem">
@@ -3303,25 +3354,10 @@
       <p>Den anden retning af «Online nu» (#931 viser medlemmer for rådgiverne). Ingen presence nødvendig — 80 % af værdien på en dag. Chattens 10 idéer 16/9 (1). Historik: <code>ideerne-skarpt.md</code>.</p>
       <div class="meta"><span class="tag gold">Chattens 10 idéer 16/9 (1)</span><span class="tag size">Lille</span></div>
     </div>
-    <div class="card new" data-status="ide" data-spor="senere" data-rammer="medlem">
-      <h3>Én bruger med flere virksomheder — parkeret: prod 11/9 har 0 brugere med to company_members-rækker; useAuth tager .limit(1)</h3>
-      <p>Bliver en fejl den dag nogen har to (den anden virksomhed ses aldrig). Mål igen før det bygges: <code>company_members GROUP BY user_id HAVING count(*) &gt; 1</code>. Historik: BACKLOG 13/8.</p>
-      <div class="meta"><span class="tag gold">Parkeret — målt 11/9: 0</span><span class="tag size">Mellem</span></div>
-    </div>
     <div class="card new" id="m16-maaske-relevant" data-status="mangler" data-spor="senere" data-rammer="medlem">
       <h3>«Måske relevant for dig» — lektionen der passer til ugens fokus, regelbaseret V1; merget #932 21:09 (rettet før merge: suiten sluttede med exit 1), bevis udestår</h3>
       <p>Regeltabellen trigger → handout-modul (<code>MODUL_FOR_TRIGGER</code>), <code>lektionerForModul</code> som motor, gennemførte udelades, højst 2, linjen under fokuskortet på medlemmets forside. «brugbar»-vægten er inert i V1 (RLS: medlemmet ser kun egne rækker — et tal for alle kræver en RPC). Grundlaget er smalt (14 lektioner med modul). <strong>Bevis:</strong> et medlem med aktivt ugefokus, en trigger i tabellen og en publiceret, ikke gennemført lektion i modulet → linjen. Chattens 10 idéer 16/9 (5). <strong>I DRIFT — BEVIS UDESTÅR:</strong> #932 <code>2c36ff2e</code> 16/9 21:09:06; første udgave meldte «Test Files 275 passed» men sluttede med exit 1 («storage.getItem is not a function») — rettet med <code>progressState.ts</code> før merge (§42); frontend kræver Update-klik. Historik: OVERLEVERING DEL 2 «16. september (eftermiddag og aften)» §33 og §42; <code>rapport-maaske-relevant.md</code>.</p>
       <div class="meta"><span class="tag gold">I DRIFT — BEVIS UDESTÅR (merget #932 21:09)</span><span class="tag">Chattens 10 idéer 16/9 (5)</span><span class="tag size">Mellem</span></div>
-    </div>
-    <div class="card new" data-status="ide" data-spor="senere" data-rammer="medlem">
-      <h3>Push-kanal (service worker) findes ikke — parkeret: mail + klokke er formen, ingen har bedt om push</h3>
-      <p>Service worker, VAPID-nøgler, en <code>push_subscriptions</code>-tabel og en gren i mailmotoren, den dag nogen beder om det. Historik: <code>nudge-recon.md:302</code>.</p>
-      <div class="meta"><span class="tag gold">Parkeret 11/9</span><span class="tag size">Mellem</span></div>
-    </div>
-    <div class="card new" data-status="ide" data-spor="senere" data-rammer="ingen">
-      <h3>Sekvensmotoren — tre sekvenser i samme form (legat, onboarding, indgang) med hver sin dommer; bliver et kort ved den fjerde</h3>
-      <p>Tre rene funktioner i Bucket B + tørkørsel + <code>kald_edge</code> skalerer. Fornyelsens varsler er allerede en fjerde af samme form — signalet er den dag en femte opstår. Historik: <code>nudge-recon.md:126, 305</code>.</p>
-      <div class="meta"><span class="tag gold">Parkeret 11/9</span><span class="tag size">Stor</span></div>
     </div>
     <div class="card decision" data-status="beslutning" data-spor="senere" data-rammer="raadgiver">
       <h3>To rådgivere til hundrede virksomheder — et produktspørgsmål før et værktøjsspørgsmål: skal I være flere, skal rådgiver-onboarding og rettigheder tænkes ind nu</h3>
@@ -3442,6 +3478,20 @@
     <li><strong>m16-lovable-log-fravaer</strong> · «Lovables loglager kan ikke bruges som bevis for fravær — «ingen loglinjer» for en function der beviseligt kørte» · En fælde, ikke et kort — står i OVERLEVERING DEL 4 («Lovables loglager kan ikke bruges som bevis for fravær»); ingen handling. · 16/9 aften (anden runde)</li>
     <li><strong>n14-2</strong> · «Lovables afmeldingslink står under transaktionelle mails — «Unsubscribe from these emails», på engelsk» · Afklaret 16/9: afmeldingslinket er et vilkår hos Lovable (kan ikke fjernes; en afmeldt adresse spærres for alt); konsekvensen er bygget (#911 klokken; #915 invitationen «spærret» — eget kort). · 16/9 aften (anden runde)</li>
     <li><strong>status</strong> · «Status 11. september (sektionen «Til i morgen tidlig» — fem game changers, fire på en time, tallene 10/9)» · Sektionen er historik fra 10/9 nat (129 kort, game changers 1–5, «fire på en time») og afløst af Rækkefølgen 17/9 og frem; game changer-tagsene står på kortene. Teksten står i OVERLEVERING DEL 2 «10. september, nat». · 16/9 aften (anden runde)</li>
+    <li><strong>a18-meta-capi</strong> · «Meta Conversions API på ansøgningsflowet ligger som udkast — intet sendes før juristen har svaret om persondatateksten og secrets er sat» · AFLØST 22/9: Meta Conversions API er i drift ad en anden vej — <code>meta-send-cron</code> (#1069, #1076, #1078) og låsen <code>meta_send_aktiv</code>; <code>_shared/metaCapi.ts</code> findes ikke. Juristen kommer ikke (a18-jurist). · 22/9 nat</li>
+    <li><strong>—</strong> · «Beviser der udestår — 20 udrulninger der venter på adfærd i drift, samlet ét sted» · DOBBELT 22/9: samlekort; listens eget filter «I DRIFT — BEVIS UDESTÅR» viser det samme. · 22/9 nat</li>
+    <li><strong>a20-princip-signal-browser</strong> · «Princip: et signal, kun en browser kan vise, er ikke et signal» · BESLUTTET VÆK 22/9: et princip, ikke en opgave — står i CLAUDE.md «Tre principper» og i OVERLEVERING DEL 2 «20. september» §4. · 22/9 nat</li>
+    <li><strong>m16e-lisbeth-alarm-mails</strong> · «Lisbeth Gade fik to alarm-mails 16/9 («Bankovertræk i Maj 2026» 14:20:07, «… Juni 2026» 14:25:06) for historiske måneder — skal hun have en linje?» · BESLUTTET VÆK 22/9: reglen er lukket i kode (#923); en linje til hende seks dage efter mailene giver ikke mening. · 22/9 nat</li>
+    <li><strong>a21-soendagens-fem-haendelser</strong> · «Søndagens 4 «Deltog» + 1 «Mødte ikke op» 14:38–14:44 — hvem, og ramte de et flow?» · FORÆLDET 22/9: søndagens fem fremmøde-hændelser 20/9. · 22/9 nat</li>
+    <li><strong>n14-1</strong> · «hzlkypibayzkkumwohap — et fremmed Supabase-projekt som Mondays automationer pegede på 21/3–14/9; fik det data?» · ACCEPTERET 22/9: kan ikke måles herfra; Monday-automationen er slukket 14/9, og Monday er slukket helt 19/9. · 22/9 nat</li>
+    <li><strong>—</strong> · «Indholdsmodellen er gaflet: chattens content er flad tekst, Community er struktureret JSON (Tiptap)» · INGEN HANDLING 22/9: kortet siger det selv; afgøres, hvis «Systembeskeder ud af chatstrømmen» eller «Spørg din rådgiver om det her» bygges. · 22/9 nat</li>
+    <li><strong>—</strong> · «Den gamle skals company-picker lander på /virksomheder efter «Vis som virksomhed» — formentlig hører man til på medlemmets forside» · DØR MED KONVERGENSEN 22/9: kortet siger selv «ret kun hvis den ses». · 22/9 nat</li>
+    <li><strong>w18</strong> · «Community-idéerne der er tilbage: top posts (én query), svar-mails til alle i tråden (beslutning) — like fra feedet er bygget (#880), nudge-formen…» · LAV VÆRDI 22/9: giver først mening, når der er trafik at sortere; like fra feedet er bygget (#880). · 22/9 nat</li>
+    <li><strong>—</strong> · «Én bruger med flere virksomheder — parkeret: prod 11/9 har 0 brugere med to company_members-rækker; useAuth tager .limit(1)» · PARKERET 22/9: 0 i prod (målt 11/9). Genopstår den dag nogen har to. · 22/9 nat</li>
+    <li><strong>—</strong> · «Push-kanal (service worker) findes ikke — parkeret: mail + klokke er formen, ingen har bedt om push» · PARKERET 22/9: ingen har bedt om det. · 22/9 nat</li>
+    <li><strong>—</strong> · «Sekvensmotoren — tre sekvenser i samme form (legat, onboarding, indgang) med hver sin dommer; bliver et kort ved den fjerde» · PARKERET 22/9: bliver et kort ved den femte sekvens. · 22/9 nat</li>
+    <li><strong>a21-mailloftet</strong> · «Mailloftet: rådgivermailen om ny ansøgning tabes ved 429; ingen alarm ved rate_limited; ingen vagt på rykkerkøen» · FLETTET 22/9 ind i n14-11 — samme sag. · 22/9 nat</li>
+    <li><strong>a21-filhoveder-koert</strong> · «Fire migrationer er kørt, men filhovedet siger stadig «IKKE KØRT» — reglen fra 20/9 kan få dem kørt igen» · FLETTET 22/9 ind i m17-migrationer-ikke-koert. · 22/9 nat</li>
   </ul>
   </section>
 

@@ -9948,6 +9948,26 @@ Detaljerne om delingen selv står i `CLAUDE.md`s afsnit «/webinar delt med ekst
 >
 > **Arbejdsformen står i DEL 0 og DEL 1.**
 
+### 22. september (nat) — mangellisten gennemgået, alle 256 kort holdt op mod koden
+
+Chatten gik hele listen igennem kort for kort, med A's recon af kort 1–128 og B's recon af kort 129–256 som grundlag, begge målt på `28205c76`. Besluttet med Jonas' fulde mandat: «vi får opdateret listen grundigt en gang for alle». Analysen ligger i **`docs/mangelliste-gennemgang-22-09.md`**; reconerne i `~/Downloads/recon-mangelliste-A.md` og `~/Downloads/recon-mangelliste-B.md`. Selve registret er `docs/mangelliste.html` — detaljerne står dér og i gennemgangen, ikke her.
+
+| Handling | Antal | Hvad |
+|---|---:|---|
+| Lukket (bliver stående) | 9 | Fra kodegennemgangen: `a21-kom-ikke` · `m17-doggybed-budget` · `a21-eventflytning-til-alle` · `a21-smaa-tabeller-statistik`. Fra prod-målingen 03:47: `m17-moms-webhook` · `m16-livja-kort` · `m17-en-plan-fase0` · `m17-en-plan-fase5` · `w9` |
+| Arkiveret (én linje i «Arkiv 16/9») | 14 | heraf 12 afløste, dobbelte eller besluttet væk, og 2 flettede |
+| Flettet | 2 | `a21-mailloftet` → `n14-11` · `a21-filhoveder-koert` → `m17-migrationer-ikke-koert` |
+| Omskrevet | 10 | Efter reconen: `a18-tre-fra-monday` · `w2` · «Budgettets tre skjulte fejl …» · `m17-xlsx-combined-navne` · `a21-webinar-tidspunkt` · `m14-mails`. Efter prod-målingen: `m16-traek-grund` · `m17-gennemgangen-af-de-8` · `m15-vinduet` · `a18-tre-fra-monday` (teksten erstattet) |
+| Tilføjet (Ny 22/9) | 7 | Indgangen: `a22-ga-mp-rapporter`, `a22-meta-crm-bevis`, `a22-kampagnernes-maal` · Drift: `a22-ga4-secret-skift`, `a22-rls-initplan`, `a22-cron-vagt-tidsjoin`, `a22-migration-dublet` |
+
+**Tællingen**, målt med grep på kortenes div-tag og på lukket-status, som de tidligere RØRT-afsnit gør det: **før 257 kort og 73 lukkede, efter 250 og 82**. Regnestykket går op: 257 − 14 arkiverede + 7 nye = 250, og 73 + 4 + 5 nylukkede = 82. HTML'en er efterprøvet med `html.parser`: 0 fejl, ingen uafsluttede tags.
+
+**Prod-målingen kl. 03:47** (A's `~/Downloads/maal-beviser-22-09.sql`, ét resultatsæt, kørt af Jonas) lukkede fem kort mere og skrev fire om. Den bar også ét fund, der gik den anden vej: **`a18-tre-fra-monday` viste sig værre end antaget** — der er 0 ventepladser i prod overhovedet, og ingen af de tre ansøgninger findes. Koden er i main, men udkastets SQL er aldrig kørt. Lev Positiv og Tatti kan tilbydes nu; ABC først efter 13/10.
+
+**De syv nye kort er aftenens åbne punkter.** Tre hører til morgenen efter webinaret: om platformens hændelser står i GA4's rapport, om Kvalificeret, Schedule og Purchase kan bevises ved den første rigtige hændelse, og at Nicklas skifter to kampagners mål i egen timing. Fire er drift: RLS-hjælperne, der kaldes pr. række, cron-vagtens tidslige join, dubletten i et migrationstidsstempel, og `GA4_SEND_SECRET`, hvis værdi har stået i chatten.
+
+---
+
 ## DEL 3 · Det der venter
 
 **Tracking (Meta, LinkedIn, GA4, TikTok, Stape, eWebinar, Klaviyo — hvad der sendes til hvem, principperne fra 21/9, det åbne):** `docs/tracking.md` er husets ENE dokument om det fra 21/9; recon-/rapportfilerne i `~/Downloads` er kilder.
