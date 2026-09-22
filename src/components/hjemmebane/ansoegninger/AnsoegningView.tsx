@@ -12,7 +12,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { kraevRaekker } from "@/lib/kraevRaekker";
-import { ANSOEGNING_KEY, gemNoteOgPris, hentAnsoegning, hentVentepladserForAnsoegning, invaliderAnsoegninger, VENTEPLADSER_KEY } from "@/hooks/ansoegninger";
+import { ANSOEGNING_KEY, gemNoteOgPris, hentAnsoegning, hentVentepladserForAnsoegning, invaliderAnsoegninger, slaaCvrOpManuelt, VENTEPLADSER_KEY } from "@/hooks/ansoegninger";
 import { fjernFraVenteliste } from "@/lib/hjemmebane/ventelisteApi";
 import { koeTekstTilRaadgiver } from "@/lib/afslagsTilbud";
 import { raadgiverHentefejlTekst } from "@/lib/raadgiverHentefejl";
@@ -24,6 +24,7 @@ import { grundlagSomTekst, OMSAETNINGSINTERVALLER_KR } from "@/lib/ansoegningAnb
 import { MOD_SVAR_ORD, webinarLinje, webinarModSvar } from "@/lib/webinarDom";
 import { danskTidspunkt, erPaaPause, LUKKEAARSAG_ORD, TRIN_ORD, ventetid, virksomhedsnavnAf } from "@/lib/ansoegninger/ansoegningVisning";
 import { koelinjer, KOE_STATUS_ORD, sporlinjer } from "@/lib/ansoegninger/ansoegningSpor";
+import { kanSlaaOp, knapTekst, opslagsBesked } from "@/lib/ansoegninger/cvrManueltOpslag";
 import { AnsoegningHandlinger } from "./AnsoegningHandlinger";
 import { SamtaleAfsnit } from "./SamtaleAfsnit";
 import { SendTilUnderskrift } from "../virksomhed/SendTilUnderskrift";
@@ -64,6 +65,18 @@ export const AnsoegningView = ({ id }: { id: string | undefined }) => {
     mutationFn: async () => { await gemNoteOgPris(id!, { note: (note ?? "").trim() || null }); await invaliderAnsoegninger(queryClient, id); },
     onSuccess: () => { setNote(null); toast.success("Noten er gemt"); },
     onError: (e: Error) => toast.error("Noten blev ikke gemt", { description: e.message }),
+  });
+  // Rådgiverens manuelle CVR-opslag (22/9). «Findes ikke» og «dagsloftet er nået»
+  // er SVAR, ikke fejl — de vises som en rolig linje fra dommen, ikke som en
+  // rød toast. Kun et rigtigt brud (ingen session, ikke rådgiver) kaster.
+  const slaaOp = useMutation({
+    mutationFn: async () => {
+      const svar = await slaaCvrOpManuelt(id!);
+      if (svar.skrevet) await invaliderAnsoegninger(queryClient, id);
+      return svar;
+    },
+    onSuccess: (svar) => (svar.ok ? toast.success(svar.besked) : toast.message(svar.besked)),
+    onError: (e: Error) => toast.error("CVR-opslaget kunne ikke køres", { description: e.message }),
   });
 
   if (!id) return <p className="text-sm text-hb-rust">Ingen ansøgning valgt.</p>;
@@ -181,6 +194,25 @@ export const AnsoegningView = ({ id }: { id: string | undefined }) => {
       </HbSection>
 
       <HbSection eyebrow="CVR-opslaget" hairline className="mt-12">
+        {/* MANUELT OPSLAG (Jonas 22/9): kørte systemet det ikke — de tre fra Monday
+            kom ind med cvr_opslag NULL — kan rådgiveren hente det selv. Knappen
+            vises KUN ved et CVR på otte cifre (dommens kanSlaaOp); ellers står
+            linjen, der siger hvorfor. Ordene er dommens, ikke fladens. */}
+        <div className="mb-3 flex flex-wrap items-center gap-3" data-cvr-opslag={kanSlaaOp(a.cvr) ? "kan" : "kan-ikke"}>
+          {kanSlaaOp(a.cvr) ? (
+            <button
+              type="button"
+              onClick={() => slaaOp.mutate()}
+              disabled={slaaOp.isPending}
+              className="text-sm font-medium text-hb-evergreen underline-offset-4 hover:underline disabled:opacity-50"
+            >
+              {slaaOp.isPending ? "Slår op…" : knapTekst(a.cvr_opslag !== null)}
+            </button>
+          ) : (
+            <p className="text-sm text-hb-ink-soft">{opslagsBesked("intet_cvr")}</p>
+          )}
+          {slaaOp.data && <span className="text-xs text-hb-ink-soft">{slaaOp.data.besked}</span>}
+        </div>
         {a.cvr ? (
           <div className="divide-y divide-hb-line">
             <Linje label="CVR">{a.cvr}{a.cvr_bekraeftet ? " · bekræftet af ansøgeren" : ""}</Linje>

@@ -30,7 +30,7 @@ import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supa
 import { corsHeaders } from "../_shared/edgeFunctionAuth.ts";
 import { verifyAnsoegningstoken } from "../_shared/ansoegningToken.ts";
 import { hentDataCvrRaa } from "../_shared/virksomhedsOprettelse.ts";
-import { cacheRaekkeAf, type CvrCacheRaekke } from "../_shared/cvrCache.ts";
+import { cacheRaekkeAf, type CvrCacheRaekke, erFriskCache } from "../_shared/cvrCache.ts";
 import { type CvrVisning, cvrSaetning, normaliserCvr } from "../_shared/ansoegningSkema.ts";
 import { skrivRaadgiverBesked } from "../_shared/raadgiverBesked.ts";
 import { cvrLoftBesked, type CvrLoftGrund } from "../_shared/cvrLoftBesked.ts";
@@ -44,10 +44,6 @@ function jsonResponse(body: unknown, status = 200): Response {
   });
 }
 
-/** Et fundet CVR genbruges fra cachen i så mange dage. */
-const CACHE_DAGE_FUNDET = 30;
-/** «Findes ikke» genbruges én dag — en nystiftet virksomhed dukker op. */
-const CACHE_DAGE_FINDES_IKKE = 1;
 /**
  * Rigtige opslag pr. dag herfra (cache-misses). JONAS 18/9: den betalte
  * Start-plan (1.500/md.) — «fem om dagen holder ikke til et webinarhold».
@@ -121,9 +117,9 @@ async function fraCache(adminClient: SupabaseClient, cvr: string): Promise<Cache
     return null;
   }
   if (!data) return null;
-  const alderDage = (Date.now() - new Date(data.slaaet_op_at).getTime()) / 86_400_000;
-  const graense = data.udfald === "fundet" ? CACHE_DAGE_FUNDET : CACHE_DAGE_FINDES_IKKE;
-  return alderDage <= graense ? (data as CacheRaekke) : null;
+  // Friskheden bor i _shared/cvrCache.ts (22/9) — samme tal som rådgiverens
+  // manuelle opslag læser, så de to aldrig kan blive uenige.
+  return erFriskCache(data.udfald, data.slaaet_op_at) ? (data as CacheRaekke) : null;
 }
 
 async function opslagIDag(adminClient: SupabaseClient): Promise<number> {

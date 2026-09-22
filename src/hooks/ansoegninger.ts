@@ -254,6 +254,33 @@ export async function udfoerHandling(input: {
   return data as HandlingsSvar;
 }
 
+/**
+ * Rådgiverens manuelle CVR-opslag for ÉN ansøgning (22/9-2026,
+ * `ansoegning-cvr-opslag`, Bucket A). Kaster ALDRIG for en almindelig afvisning
+ * — «findes ikke», «dagsloftet er nået» og «intet CVR» er SVAR, ikke fejl, og
+ * fladen skriver dem som en rolig linje. Kun en rigtig fejl (ingen session,
+ * ikke rådgiver, netværket væk) kaster.
+ */
+export interface CvrOpslagSvar {
+  ok: boolean;
+  udfald: "fundet" | "findes_ikke" | "utilgaengelig" | "dagsloft" | "intet_cvr" | "ukendt_ansoegning";
+  besked: string;
+  visning: { navn: string; stiftet_aar: number | null; antal_ansatte: string | null; selskabsform: string | null; branche: string | null; status: string | null } | null;
+  skrevet: boolean;
+  fra_cache: boolean;
+}
+
+export async function slaaCvrOpManuelt(ansoegningId: string): Promise<CvrOpslagSvar> {
+  const { data: { session } } = await supabase.auth.getSession();
+  const { data, error } = await supabase.functions.invoke("ansoegning-cvr-opslag", {
+    body: { ansoegning_id: ansoegningId },
+    headers: { Authorization: `Bearer ${session?.access_token}` },
+  });
+  if (error) throw new Error(await laesFejl(error));
+  if (data?.error) throw new Error(String(data.error));
+  return data as CvrOpslagSvar;
+}
+
 /** FunctionsHttpError bærer svaret i `context` (en Response); kroppens `error` er dommens grund. */
 async function laesFejl(error: unknown): Promise<string> {
   const ctx = (error as { context?: unknown })?.context;

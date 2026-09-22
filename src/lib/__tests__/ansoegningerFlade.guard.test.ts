@@ -49,15 +49,29 @@ export const ruterneErRigtige = (app: string): boolean =>
   app.includes('const Ansoegning = lazy(() => import("./pages/Ansoegning"));') &&
   !/<MemberRoute><Ansoegning/.test(app);
 
-export const hookenErRigtig = (h: string): boolean =>
-  h.includes('supabase.functions.invoke("ansoegning-handling"') &&
-  // Nye præmis (samtalen i kalenderen, 18/9): hooken har FLERE kald til ansoegning-handling (udfoerHandling, hentSamtaleTider) — hvert kald bærer Bearer.
-  (h.split('functions.invoke("ansoegning-handling"').length - 1) >= 1 &&
-  h.split("headers: { Authorization: `Bearer ${session?.access_token}` }").length - 1 === h.split('functions.invoke("ansoegning-handling"').length - 1 &&
-  h.includes("if (error) throw new Error(await laesFejl(error));") &&
-  h.split("if (data?.error) throw new Error(String(data.error));").length - 1 === h.split('functions.invoke("ansoegning-handling"').length - 1 &&
-  h.includes('queryKey: ["advisor-dashboard"]') &&
-  h.includes('.not("indsendt_at", "is", null)');
+/**
+ * NY PRÆMIS 22/9: hooken kalder nu mere end én function — `slaaCvrOpManuelt`
+ * går til `ansoegning-cvr-opslag` (rådgiverens manuelle CVR-opslag). Tællingen
+ * var pinnet til NAVNET «ansoegning-handling», og et nyt kald med både Bearer
+ * og begge fejl-tjek ville have fældet værnet for at gøre det rigtige.
+ *
+ * Dommen er derfor gjort BREDERE og dermed strengere: KRAVET GÆLDER NU HVERT
+ * ENESTE `functions.invoke(` i hooken — Bearer på alle, `data?.error`-tjek på
+ * alle. Et nyt kald uden Bearer fælder den nu, også til en anden function.
+ */
+export const hookenErRigtig = (h: string): boolean => {
+  const kald = h.split("supabase.functions.invoke(").length - 1;
+  return (
+    h.includes('supabase.functions.invoke("ansoegning-handling"') &&
+    kald >= 2 &&
+    h.split("headers: { Authorization: `Bearer ${session?.access_token}` }").length - 1 === kald &&
+    h.includes("if (error) throw new Error(await laesFejl(error));") &&
+    h.split("if (error) throw new Error(await laesFejl(error));").length - 1 === kald &&
+    h.split("if (data?.error) throw new Error(String(data.error));").length - 1 === kald &&
+    h.includes('queryKey: ["advisor-dashboard"]') &&
+    h.includes('.not("indsendt_at", "is", null)')
+  );
+};
 
 export const knapperneErRigtige = (k: string): boolean =>
   k.includes("knapperFor({ trin, paaPause, lukketFraTrin })") &&

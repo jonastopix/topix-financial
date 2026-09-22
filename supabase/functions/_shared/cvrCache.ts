@@ -57,6 +57,32 @@ function udfaldAfRaa(raa: RaaSvar): CvrOpslag {
   return tolkDataCvrSvar(raa.status, raa.body);
 }
 
+/**
+ * HVOR LÆNGE EN RÆKKE I CACHEN ER FRISK — ÉT HJEM (22/9-2026).
+ *
+ * Tallene stod som lokale konstanter i ansoegning-cvr. Da rådgiverens manuelle
+ * opslag (ansoegning-cvr-opslag) skulle læse den SAMME cache med den SAMME
+ * friskhed, ville en kopi have været to tal for det samme — og to functions,
+ * der efter et halvt år er uenige om, hvornår et opslag er gammelt.
+ */
+/** Et fundet CVR genbruges fra cachen i så mange dage. */
+export const CACHE_DAGE_FUNDET = 30;
+/** «Findes ikke» genbruges én dag — en nystiftet virksomhed dukker op. */
+export const CACHE_DAGE_FINDES_IKKE = 1;
+
+/**
+ * Er rækken stadig frisk? Ren funktion over rækkens eget udfald og alder.
+ * Ugyldig `slaaet_op_at` er IKKE frisk (fail-closed): hellere ét opslag for
+ * meget end en visning, der stammer fra en dato, vi ikke kan læse.
+ */
+export function erFriskCache(udfald: "fundet" | "findes_ikke", slaaetOpAt: string, nu: Date = new Date()): boolean {
+  const t = Date.parse(slaaetOpAt);
+  if (!Number.isFinite(t)) return false;
+  const alderDage = (nu.getTime() - t) / 86_400_000;
+  if (alderDage < 0) return false;
+  return alderDage <= (udfald === "fundet" ? CACHE_DAGE_FUNDET : CACHE_DAGE_FINDES_IKKE);
+}
+
 /** Rækken i cvr_opslag_cache. Samme form fra alle tre skrivere. */
 export interface CvrCacheRaekke {
   cvr: string;
