@@ -1,4 +1,5 @@
--- IKKE KØRT. DEPLOY: manuelt i Lovable → SQL editor efter merge, FØR klaviyo-profil-cron
+-- KØRT i prod — 22/9-2026 kl. 14:24 (Jonas, Lovable SQL editor), FØR udrulningen af klaviyo-profil-cron. EFTER: tabellen public.klaviyo_profil + 2 politikker (SELECT authenticated, ALL service_role). Bevist i drift 14:3x: tørkørsel 14304 (tilmeldinger_laest 212, saet 212, skrevet 0) og rigtig skrivning 14306 til a.skougaard@outlook.dk (udfald ok, status 201), læst tilbage i Klaviyo gennem API et.
+-- RÆKKEFØLGEN, og hvorfor den var sådan: tabellen SKULLE stå, før klaviyo-profil-cron
 -- udrulles. Uden tabellen kan cronen ikke huske, hvad den skrev — og så ville hver kørsel
 -- skrive alle igen (kun ændringer skrives: det er hele pointen med tabellen).
 --

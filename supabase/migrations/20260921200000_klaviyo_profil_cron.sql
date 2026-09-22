@@ -1,4 +1,4 @@
--- IKKE KØRT. DEPLOY: manuelt i Lovable → SQL editor efter merge (FØR Update-klik).
+-- KØRT i prod — 22/9-2026 kl. 14:31 (Jonas, Lovable SQL editor), EFTER tabellen (14:24) og EFTER udrulningen af klaviyo-profil-cron. EFTER: job 571, udtryk «17 * * * *», active.
 -- RÆKKEFØLGEN — LÆS DEN (CLAUDE.md «Deployment af edge functions»; stille-klokker-formen 20/9):
 --   1. tabel-migrationen 20260921190000_klaviyo_profil.sql (FØR udrulningen)
 --   2. merge til main (kilden lander hos Lovable; den kører ikke)

@@ -129,7 +129,7 @@ cookien ellers ikke findes, og teksterne skal være sande.
 | 20 | **Klaviyo «Ansoegning paabegyndt»** | platform, server: `ansoegning-gem` «gem»-grenen (`index.ts:270–272`) | e-mail kommer ind (skærm 6 «kontakt», «Næste») | profil = e-mail; properties `{kilde}`; unique_id = ansøgnings-id. Ingen utm/fbclid/telefon | Klaviyo (USA) | persondatateksten (`persondata.ts:81`) | i drift (lag 2) |
 | 21 | **Klaviyo «Ansoegning sendt»** | `_shared/ansoegningMotor.ts:269–274` | indsendelse (`indsendt_at` sat) | e-mail; kilde, branche, omsaetningsinterval, antal_ansatte | Klaviyo | som 20 | i drift (lag 2) |
 | 22 | **Meta Conversions API fra platformen** | `Lead application_started` / `application_submitted` fra `ansoegninger` (§4) | cron-job, der læser `ansoegninger` | **fra 22/9: ALLE ansøgninger** (ikke kun rækker med `fbclid`) — `fbc` (URL'ens klik-id, ellers `_fbc`-cookien ordret), `fbp`, hashet eget id, user agent, og **SHA-256-hashet** `em`/`ph`/`fn`/`ln`/`country` — aldrig IP/CVR/svar og aldrig en værdi i klartekst | Meta, datasæt 858180112996496 | persondatateksten (§1e) | **i drift 21/9 aften** — bevist i Test events 16:13; **låsen slået til 16:30 og bevist i kørslen 16:43** (job 568 sender nu for alvor); §4 |
-| 22b | **Meta — Kvalificeret · Schedule · Purchase** (trin 2) | `ansoegning_beslutninger` (`tal_med_dem`, `book`) og `company_perioder` (art `indgang`) | samme cron, `meta-send-cron` | `action_source: system_generated` + `custom_data { event_source: "crm", lead_event_source }`; user_data som ansøgningens (hashet em/ph/fn/ln/country, external_id, fbc, fbp) — **ingen user agent, ingen url**; Purchase bærer desuden `value` (kroner) og `currency` | Meta, samme datasæt | persondatateksten (§1e) | **BEVIST I DRIFT 22/9 14:03** — `meta_haendelser` for webinarets 6 ansøgere: started 6 · submitted 5 · **kvalificeret 3** · **booket 1**, alle sendt. `purchase` mangler af den rigtige grund (en betaling sker 30–60 dage efter). **Udestår (Jonas):** den fjerde brugerdefinerede konvertering «Kvalificeret» i Events Manager. §4b |
+| 22b | **Meta — Kvalificeret · Schedule · Purchase** (trin 2) | `ansoegning_beslutninger` (`tal_med_dem`, `book`) og `company_perioder` (art `indgang`) | samme cron, `meta-send-cron` | `action_source: system_generated` + `custom_data { event_source: "crm", lead_event_source }`; user_data som ansøgningens (hashet em/ph/fn/ln/country, external_id, fbc, fbp) — **ingen user agent, ingen url**; Purchase bærer desuden `value` (kroner) og `currency` | Meta, samme datasæt | persondatateksten (§1e) | **BEVIST I DRIFT 22/9 14:03** — `meta_haendelser` for webinarets 6 ansøgere: started 6 · submitted 5 · **kvalificeret 3** · **booket 1**, alle sendt. `purchase` mangler af den rigtige grund (en betaling sker 30–60 dage efter). **Aktive i Events Manager 22/9 14:45:** «Kvalificeret» (API, 3) og «Planlægning»/Schedule (API, 1); Lead **EMQ 8,5/10** (var 7,8). Den fjerde brugerdefinerede konvertering oprettet 14:5x — se §4c. §4b |
 | 23 | **Google Analytics' id'er på ansøgningen** | `ansoegninger.ga_client_id` / `ga_session_id`, gemt ved «opret» | fladen læser `_ga` og `_ga_6LHR66CDJ4` ved mount; egen fail-soft update efter annoncesporet | GA's klient-id og session-id — **gemmes kun, sendes endnu ikke** til nogen | (ingen modtager endnu) | samtykket på theboardroom.dk: uden «Acceptér» findes cookierne ikke, og begge felter er null | **#1071 (`edfa4f89`) i drift 21/9 17:25** — ga_client_id/ga_session_id gemmes ved opret, kun med samtykke; sendes endnu ikke; §4a |
 | 24 | **Google Analytics — afsendelsen fra platformen** | `application_started` / `application_submitted` til `G-6LHR66CDJ4` (Measurement Protocol) | cron-job, der læser `ansoegninger` og `ga_haendelser` | GA's eget klient-id og session-id, kilden og utm-mærkerne, hændelsens tidspunkt — aldrig navn/e-mail/telefon/CVR/svar | Google Analytics (EU-værten) | samtykket på theboardroom.dk (uden cookie ingen hændelse) + persondatateksten | **#1073 i drift 21/9 21:02** — sporet og låsen KØRT 17:48, cron-migrationen KØRT 21:02 (job 569, låsen slået til samtidig). Nøgle, strøm, klient-id og hændelsesform **bevist i DebugView 20:57–20:59**; Realtid og dagens rapporter viste dem ikke. **Platformens egne hændelser bevist i rapporten 22/9 08:13** (beviset står ét sted: §4a). §4a |
 | 25 | **Klaviyo — afmelding fra eWebinar** | `_shared/klaviyoAfmelding.ts` via `ewebinar-webhook` (i samme kald som beskeden), `klaviyo-gensend-cron` (fejlede igen) og `klaviyo-afmeld-bagud` (fejet) | eWebinar melder `action = Unsubscribed`, eller `subscribed` skifter til Unsubscribed | **kun mailadressen** — `POST /api/profile-subscription-bulk-delete-jobs` med `subscriptions.email.marketing.consent = "UNSUBSCRIBED"`. Intet `list_id` (globalt), ingen sms/push, intet telefonnummer | Klaviyo (USA) | personens egen afmelding — dette FJERNER et samtykke, det giver ikke et | **i drift 22/9 13:57**, bevist på tre profiler læst tilbage hos Klaviyo 13:58 (OVERLEVERING «22. september (dagen)» §2). Egen secret `KLAVIYO_AFMELD_KEY`; #1088. **Webhook-grenen er kode, ikke drift** — bevises af næste rigtige Unsubscribed |
@@ -299,6 +299,49 @@ Metas eksport af 13 eksempler (22:49) er bogført i #1078 og dækker to kampagne
 | «Webinar – tilmelding» | **`290860161976498?`** — sidste ciffer er ulæseligt på skærmbilledet | website · Lead · URL indeholder `topix.dk/webinar` |
 
 **Den fjerde, «Kvalificeret», mangler endnu** og oprettes efter den første rigtige kvalificering.
+
+---
+
+## 4c. Events Manager — målt 22/9 kl. 14:45–14:50
+
+**Trin 2's to nye hændelser er Aktive:** «Kvalificeret» (API, **3**) og
+«Planlægning»/Schedule (API, **1**). **Lead EMQ er steget fra 7,8 til 8,5 af 10**
+efter udvidelsen med hashede felter (§4b).
+
+### To domæner, der begge kunne have ført et forkert sted hen
+
+- **`calendly.com` er Calendlys EGEN pixel**, med `invitee_*`-hændelser. Den er
+  **ikke** en dublet af vores `Schedule`, og der er **ingen dobbelttælling** at
+  rette. Havde vi læst den som vores, ville næste skridt have været at fjerne en
+  hændelse, der skal være der.
+- **`599e87f7-….lovableproject.com` er Lovables forhåndsvisning.** Den **må ikke
+  bekræftes som domæne** i Events Manager. Et bekræftet forhåndsvisningsdomæne
+  ville binde datasættet til en adresse, der skifter.
+
+### Den fjerde brugerdefinerede konvertering — oprettet, men UMÅLT
+
+Oprettet 22/9 kl. 14:5x: **Website** · hændelse `Kvalificeret` · regel
+*Event Parameters* `event_source = crm`.
+
+**Det, der ikke vides:** om en **Website**-konvertering overhovedet tæller vores
+`system_generated`-hændelser. De tre CRM-arter bærer med vilje
+`action_source: "system_generated"` og hverken user agent eller
+`event_source_url` (§4b) — og en Website-konvertering kan være defineret til kun
+at se website-hændelser.
+
+**Sådan afgøres det, uden at gætte:** ved den **første «Tal med dem» efter
+22/9** — står konverteringen **Aktiv**, tæller den; står den **Inaktiv**, skal
+reglen om. Det er punkt 3 i «26/9 — START HER».
+
+### Metas egne anbefalinger — noteret, ikke gjort
+
+1. **IP-adresse på hændelserne.** Vi sender den bevidst ikke i dag
+   («Aldrig IP, CVR, svar eller en værdi i klartekst», CLAUDE.md). At tage den
+   med er en beslutning om persondata, ikke en teknisk justering.
+2. **`fbp`-dækning** — hvor mange hændelser bærer browser-id'et.
+3. **Avanceret matchning på sitet.**
+
+Ingen af de tre er besluttet. De står her, så de ikke skal findes igen.
 
 ---
 

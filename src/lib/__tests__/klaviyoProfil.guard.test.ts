@@ -16,7 +16,8 @@ import { resolve } from "node:path";
  *   5. STRIKS-BODY: KENDTE_FELTER præcis dry_run · nu · email; ukendteFelter + -Besked kaldes.
  *   6. BUCKET B: authenticateServiceRole FØR createClient; config.toml verify_jwt = true.
  *   7. TILSTANDEN SKRIVES FØR HVER RETURN i skrivProfil (klaviyo.guard dom 7's regel).
- *   8. MIGRATIONERNE: begge starter «-- IKKE KØRT. DEPLOY:»; tabellen med RLS og udfald-CHECK
+ *   8. MIGRATIONERNE: begge bogført KØRT i prod 22/9 — tabellen «… kl. 14:24», cronen
+ *      «… kl. 14:31» (vendt 22/9; var «IKKE KØRT» indtil da); tabellen med RLS og udfald-CHECK
  *      uden SECURITY DEFINER; cron-jobbet på et minut, INGEN anden plan rammer hver time
  *      (målt over alle cron.schedule i migrationerne), kald_edge med 60000/3600000.
  *   9. ALARMEN (princip 1): kun en RIGTIG kørsel med fejlede > 0 kalder skrivAlarm; nøglen
@@ -141,7 +142,13 @@ export function kolliderer(minut: number, planer: readonly { job: string; udtryk
 }
 export const migrationerneErRigtige = (tabel: string, cron: string): boolean => {
   const t = udenSqlKommentarer(tabel), c = udenSqlKommentarer(cron);
-  return tabel.startsWith("-- IKKE KØRT. DEPLOY:") && cron.startsWith("-- IKKE KØRT. DEPLOY:") &&
+  // VENDT 22/9 kl. 14:24 og 14:31: BEGGE migrationer ER kørt i prod (Jonas, Lovable
+  // SQL editor) — filhovederne sagde «IKKE KØRT» indtil da. Dommen er vendt, ikke
+  // fjernet: den krævede før den ene linje, nu kræver den den anden med KLOKKESLÆTTET,
+  // og den afviser stadig det forkerte hoved. Samme form som afslagLuk.guard dom 5 og
+  // klaviyoAfmelding.guard dom 7. Rækkefølgen stod i hovederne og blev overholdt:
+  // tabellen FØR cronen, og cronen EFTER udrulningen af functionen.
+  return tabel.startsWith("-- KØRT i prod — 22/9-2026 kl. 14:24") && cron.startsWith("-- KØRT i prod — 22/9-2026 kl. 14:31") &&
     t.includes("create table if not exists public.klaviyo_profil") && t.includes("enable row level security") &&
     /klaviyo_profil_udfald_check check \(udfald in \('ok', 'ingen_noegle', 'noegle_afvist', 'loft', 'ugyldig', 'fejl', 'timeout'\)\)/.test(t) &&
     t.includes("email = lower(email)") && !/security definer/i.test(t) && !/security definer/i.test(c) &&
@@ -174,7 +181,7 @@ describe("klaviyoProfil.guard — de ni domme på repoets filer", () => {
   it("5. STRIKS-body: dry_run · nu · email", () => expect(striksBody(laes(FUNKTION))).toBe(true));
   it("6. Bucket B: service role før klienten; verify_jwt = true", () => expect(bucketB(laes(FUNKTION), laes(CONFIG))).toBe(true));
   it("7. tilstanden skrives før hver return i skrivProfil", () => expect(tilstandFoerHverReturn(laes(PROFIL))).toBe(true));
-  it("8. migrationerne: IKKE KØRT, tabel med RLS og CHECK, cron på minut 17 med 60000/3600000 — og minut 17 er ledigt hver time", () => {
+  it("8. migrationerne: bogført KØRT i prod (14:24 og 14:31), tabel med RLS og CHECK, cron på minut 17 med 60000/3600000 — og minut 17 er ledigt hver time", () => {
     expect(migrationerneErRigtige(laes(MIG_TABEL), laes(MIG_CRON))).toBe(true);
     const planer = cronUdtryk(MIG_DIR);
     expect(planer.length).toBeGreaterThanOrEqual(25);
@@ -222,7 +229,7 @@ describe("klaviyoProfil.guard — dommene fanger fejlen på en kopi", () => {
     const p = laes(PROFIL);
     expect(tilstandFoerHverReturn(p.replace("await skrivTilstand(skriver, mail, oensket, svar.spor, nu);\n", ""))).toBe(false);
   });
-  it("8. et andet minut, der kolliderer, eller en migration uden IKKE KØRT fælder dom 8 — og kolliderer() ser */5, 1-59/5 og :07", () => {
+  it("8. et andet minut, en migration tilbage på IKKE KØRT, eller et forkert klokkeslæt fælder dom 8 — og kolliderer() ser */5, 1-59/5 og :07", () => {
     const planer = cronUdtryk(MIG_DIR);
     expect(kolliderer(0, planer, "klaviyo-profil").length).toBeGreaterThan(0); // */5 og */15
     expect(kolliderer(6, planer, "klaviyo-profil").some((s) => s.includes("1-59/5"))).toBe(true); // gensenderen
@@ -231,7 +238,13 @@ describe("klaviyoProfil.guard — dommene fanger fejlen på en kopi", () => {
     expect(minutterI("*/15 * * * *")).toEqual([0, 15, 30, 45]);
     expect(minutterI("1-59/5 * * * *")).toEqual([1, 6, 11, 16, 21, 26, 31, 36, 41, 46, 51, 56]);
     expect(minutterI("33 3 * * *")).toEqual([33]);
-    expect(migrationerneErRigtige(laes(MIG_TABEL).replace("-- IKKE KØRT. DEPLOY:", "-- KØRT. DEPLOY:"), laes(MIG_CRON))).toBe(false);
+    // #1064-formen, på DEN FAKTISKE fil: tilbage til «IKKE KØRT» falder — begge ER kørt.
+    expect(migrationerneErRigtige(laes(MIG_TABEL).replace("-- KØRT i prod — 22/9-2026 kl. 14:24", "-- IKKE KØRT. DEPLOY:"), laes(MIG_CRON))).toBe(false);
+    expect(migrationerneErRigtige(laes(MIG_TABEL), laes(MIG_CRON).replace("-- KØRT i prod — 22/9-2026 kl. 14:31", "-- IKKE KØRT. DEPLOY:"))).toBe(false);
+    // Et forkert klokkeslæt falder også — hovedet skal bære DEN kørsel, der fandt sted.
+    expect(migrationerneErRigtige(laes(MIG_TABEL).replace("kl. 14:24", "kl. 09:00"), laes(MIG_CRON))).toBe(false);
+    // Og en forklaring skubbet op foran linje 1 falder (ventepladser-fælden).
+    expect(migrationerneErRigtige(`-- En forklaring først\n${laes(MIG_TABEL)}`, laes(MIG_CRON))).toBe(false);
     expect(migrationerneErRigtige(laes(MIG_TABEL), laes(MIG_CRON).replace("'17 * * * *'", "'7 * * * *'"))).toBe(false);
     expect(migrationerneErRigtige(laes(MIG_TABEL), laes(MIG_CRON).replace("3600000 ", "900000 "))).toBe(false);
   });
