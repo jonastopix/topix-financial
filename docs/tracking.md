@@ -131,7 +131,7 @@ cookien ellers ikke findes, og teksterne skal være sande.
 | 22 | **Meta Conversions API fra platformen** | `Lead application_started` / `application_submitted` fra `ansoegninger` (§4) | cron-job, der læser `ansoegninger` | **fra 22/9: ALLE ansøgninger** (ikke kun rækker med `fbclid`) — `fbc` (URL'ens klik-id, ellers `_fbc`-cookien ordret), `fbp`, hashet eget id, user agent, og **SHA-256-hashet** `em`/`ph`/`fn`/`ln`/`country` — aldrig IP/CVR/svar og aldrig en værdi i klartekst | Meta, datasæt 858180112996496 | persondatateksten (§1e) | **i drift 21/9 aften** — bevist i Test events 16:13; **låsen slået til 16:30 og bevist i kørslen 16:43** (job 568 sender nu for alvor); §4 |
 | 22b | **Meta — Kvalificeret · Schedule · Purchase** (trin 2) | `ansoegning_beslutninger` (`tal_med_dem`, `book`) og `company_perioder` (art `indgang`) | samme cron, `meta-send-cron` | `action_source: system_generated` + `custom_data { event_source: "crm", lead_event_source }`; user_data som ansøgningens (hashet em/ph/fn/ln/country, external_id, fbc, fbp) — **ingen user agent, ingen url**; Purchase bærer desuden `value` (kroner) og `currency` | Meta, samme datasæt | persondatateksten (§1e) | **udkast 22/9** — §4b |
 | 23 | **Google Analytics' id'er på ansøgningen** | `ansoegninger.ga_client_id` / `ga_session_id`, gemt ved «opret» | fladen læser `_ga` og `_ga_6LHR66CDJ4` ved mount; egen fail-soft update efter annoncesporet | GA's klient-id og session-id — **gemmes kun, sendes endnu ikke** til nogen | (ingen modtager endnu) | samtykket på theboardroom.dk: uden «Acceptér» findes cookierne ikke, og begge felter er null | **#1071 (`edfa4f89`) i drift 21/9 17:25** — ga_client_id/ga_session_id gemmes ved opret, kun med samtykke; sendes endnu ikke; §4a |
-| 24 | **Google Analytics — afsendelsen fra platformen** | `application_started` / `application_submitted` til `G-6LHR66CDJ4` (Measurement Protocol) | cron-job, der læser `ansoegninger` og `ga_haendelser` | GA's eget klient-id og session-id, kilden og utm-mærkerne, hændelsens tidspunkt — aldrig navn/e-mail/telefon/CVR/svar | Google Analytics (EU-værten) | samtykket på theboardroom.dk (uden cookie ingen hændelse) + persondatateksten | **#1073 i drift 21/9 21:02** — sporet og låsen KØRT 17:48, cron-migrationen KØRT 21:02 (job 569, låsen slået til samtidig). Nøgle, strøm, klient-id og hændelsesform **bevist i DebugView 20:57–20:59**; Realtid og dagens rapporter viste dem ikke. Platformens egen hændelse tjekkes 22/9 kl. 08. §4a |
+| 24 | **Google Analytics — afsendelsen fra platformen** | `application_started` / `application_submitted` til `G-6LHR66CDJ4` (Measurement Protocol) | cron-job, der læser `ansoegninger` og `ga_haendelser` | GA's eget klient-id og session-id, kilden og utm-mærkerne, hændelsens tidspunkt — aldrig navn/e-mail/telefon/CVR/svar | Google Analytics (EU-værten) | samtykket på theboardroom.dk (uden cookie ingen hændelse) + persondatateksten | **#1073 i drift 21/9 21:02** — sporet og låsen KØRT 17:48, cron-migrationen KØRT 21:02 (job 569, låsen slået til samtidig). Nøgle, strøm, klient-id og hændelsesform **bevist i DebugView 20:57–20:59**; Realtid og dagens rapporter viste dem ikke. **Platformens egne hændelser bevist i rapporten 22/9 08:13** (beviset står ét sted: §4a). §4a |
 
 ### 2.1 Ansøgningsvejen i platformen (målt 21/9, repo `ac8ec575`)
 
@@ -350,9 +350,16 @@ Googles anbefalede bevis er **DebugView med `debug_mode`** ([verify-implementati
 - **~21:00:** `GA4_SEND_SECRET` sat på ny i Lovable med den beviste værdi — den eneste ubekendte, der var tilbage.
 - **21:02:** låsen slået til, og **cron-job 569 oprettet** (minutterne 2, 12, 22, 32, 42, 54).
 
-#### Åbent
+#### Beviset i rapporten — 22/9 kl. 08:13: platformens hændelser ER talt
 
-**Platformens egen hændelse** — `79a82aec…:started`, sendt 18:04:53 med status 204 — ses den i rapporten for 21/9? Tjekkes **22/9 kl. 08** i Rapporter → Engagement → Hændelser: `application_started` med sidesti **«(not set)»** (en MP-hændelse har ingen sidesti; de to `application_started` med sidesti «/» er GTM's, se §6). **Prøvekladden `79a82aec-1e1e-40cd-80ce-ba8d4249e29d` slettes derefter.**
+**Bevist i rapporten 22/9 08:13.** Rapporter → Engagement → Hændelser, dagen **21/9**, `application_started` med sekundær dimension **Time**:
+
+- **Time 18 = 2 hændelser fra 1 bruger** — Jonas' GTM-klik 18:02 og **platformens egen hændelse 18:04**, samme klient-id (derfor to hændelser, én bruger).
+- **Time 22 = 1 hændelse** — **platformens**, fra prøvekladden 22:27. GTM-tagget var slukket fra 21:40, så den kan kun være platformens.
+
+**Kl. 00:09 stod de ikke der endnu.** Measurement Protocol behandles langsommere end browserens hændelser. **Realtid og dagens rapport er ikke beviset — rapporten dagen efter er.** Det er reglen, der gælder næste gang, en MP-hændelse skal efterprøves.
+
+Prøvekladden `79a82aec-1e1e-40cd-80ce-ba8d4249e29d` var allerede slettet 21/9 kl. 23:43 (§4, «Oprydningen») — hændelserne lå hos Google, så beviset kunne hentes uden den.
 
 **Uafhængigt af det:** cross-domain-listen i GA4 dækker ikke `app.theboardroom.dk` (recon-ga4.md §3.2) — `_ga` sat på theboardroom.dk er stadig læsbar (eTLD+1), men linket bærer ikke `_gl`.
 
