@@ -17,6 +17,7 @@ import { fjernFraVenteliste } from "@/lib/hjemmebane/ventelisteApi";
 import { koeTekstTilRaadgiver } from "@/lib/afslagsTilbud";
 import { raadgiverHentefejlTekst } from "@/lib/raadgiverHentefejl";
 import { HbSection } from "@/components/hjemmebane/HbSection";
+import { EksterntLink } from "@/components/hjemmebane/EksterntLink";
 import { hbControlClasses } from "@/components/hjemmebane/admin/HbField";
 import { cn } from "@/lib/utils";
 import { grundlagSomTekst, OMSAETNINGSINTERVALLER_KR } from "@/lib/ansoegningAnbefaling";
@@ -153,7 +154,12 @@ export const AnsoegningView = ({ id }: { id: string | undefined }) => {
           <Linje label="Om tolv måneder">{a.om_tolv_maaneder}</Linje>
           <Linje label="Omsætning">{interval}</Linje>
           <Linje label="Ansatte">{a.antal_ansatte ?? null}</Linje>
-          <Linje label="Hjemmeside">{a.hjemmeside === "" ? "har ingen" : a.hjemmeside}</Linje>
+          {/* Hjemmesiden skal kunne klikkes (Jonas 22/9). «» er svaret «vi har ingen»,
+              ikke en adresse — og en værdi, der ikke er en http(s)-adresse, bliver
+              stående som tekst; dommen er eksterntHref's. */}
+          <Linje label="Hjemmeside">
+            {a.hjemmeside === "" ? "har ingen" : a.hjemmeside === null ? null : <EksterntLink vaerdi={a.hjemmeside} />}
+          </Linje>
           <Linje label="Kan starte">{a.start_tidspunkt ? START_ORD[a.start_tidspunkt] ?? a.start_tidspunkt : null}</Linje>
           <Linje label="Set webinaret">{a.set_webinar === "ja" ? "ja" : a.set_webinar === "nej" ? "nej" : null}</Linje>
           {/* eWebinar (udkast 19/9): målingen ved siden af ansøgerens eget svar — «så 62 % af webinaret 22/9» er

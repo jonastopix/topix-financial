@@ -2,7 +2,8 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
-import { externalHref, getMemberProfile } from "@/lib/hjemmebane/memberProfile";
+import { getMemberProfile } from "@/lib/hjemmebane/memberProfile";
+import { eksterntHref } from "@/lib/eksterntLink";
 import { PROFIL_STI } from "@/lib/hjemmebane/profilUdfyldt";
 import {
   PROFIL_FELTER,
@@ -94,11 +95,13 @@ export const MemberProfileView = ({ userId }: { userId: string }) => {
   const dele = profilensDele(profile);
   const mangler = isOwn ? manglerSaetning(profile) : null;
   const harNoget = PROFIL_FELTER.some((f) => dele[f.noegle] !== null);
-  // externalHref: prod-data mangler ofte protokol (www.brroset.dk), og et
-  // <a href="www.brroset.dk"> er en RELATIV sti — klikket ville blive på
-  // app.theboardroom.dk i stedet for at føre ud af siden.
-  const websiteHref = externalHref(profile.website);
-  const linkedinHref = externalHref(profile.linkedin_url);
+  // eksterntHref (flyttet 22/9 fra memberProfile, med skemakontrol): prod-data
+  // mangler ofte protokol (www.brroset.dk), og et <a href="www.brroset.dk"> er
+  // en RELATIV sti — klikket ville blive på app.theboardroom.dk i stedet for at
+  // føre ud af siden. Er værdien ikke en adresse («mailto:…», «LinkedIn»),
+  // svarer den null, og linket tegnes slet ikke.
+  const websiteHref = eksterntHref(profile.website);
+  const linkedinHref = eksterntHref(profile.linkedin_url);
   const links = [
     websiteHref ? { label: "Website", href: websiteHref } : null,
     linkedinHref ? { label: "LinkedIn", href: linkedinHref } : null,
