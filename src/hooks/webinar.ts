@@ -21,8 +21,19 @@ const tabel = (navn: string) => supabase.from(navn as any) as any;
 
 export const WEBINAR_TILMELDINGER_KEY = ["webinar-tilmeldinger"] as const;
 
+/**
+ * BEDØMMELSEN HENTES SOM TEKSTSTI, IKKE SOM `raa` (22/9-2026). eWebinars
+ * stjerner står i `raa->>'interactionsSummary'` — én fritekst pr. registrant.
+ * Vi henter PRÆCIS den sti og aldrig hele `raa`: den rå payload bærer alt, eWebinar
+ * ved om personen, og den skal hverken i en browser eller gennem delingen.
+ * Kolonnen `raa` har altid været der (migration 20260919130000), så der er
+ * ingen 42703-sti at falde tilbage på — men er nøglen fraværende i JSON'en,
+ * svarer PostgREST null, og dommen siger «ingen bedømmelse».
+ * Samme udtryk står ORDRET i supabase/functions/webinar-delt (GRUND_KOLONNER),
+ * så den delte visning ser det samme; låst af webinarDeling.guard dom 11.
+ */
 export const TILMELDING_KOLONNER =
-  "ewebinar_id, email, navn, webinar_id, webinar_titel, session_tid, session_type, registreret_at, state, sidste_action, attended, subscribed, set_procent, set_procent_kilde, utm_source, utm_medium, utm_campaign, utm_content, utm_term, fbclid, origin, first_origin, referrer, first_referrer, widget_source, by, land, enhed, tidszone";
+  "ewebinar_id, email, navn, webinar_id, webinar_titel, session_tid, session_type, registreret_at, state, sidste_action, attended, subscribed, set_procent, set_procent_kilde, utm_source, utm_medium, utm_campaign, utm_content, utm_term, fbclid, origin, first_origin, referrer, first_referrer, widget_source, by, land, enhed, tidszone, interactions:raa->>interactionsSummary";
 
 /** numeric kommer som streng fra PostgREST — tallet skal være et tal for dommen. */
 function somRaekke(r: Record<string, unknown>): WebinarTilmelding {

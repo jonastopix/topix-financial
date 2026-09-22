@@ -42,6 +42,9 @@ import { ANNONCESPOR_KOLONNER } from "@/lib/webinar/kolonner";
  *  11. «Blev medlem» er HUSETS dom (blevMedlem i ansoegningVisning), ikke
  *      en ny betingelse skrevet her — ellers ville to tal i samme hus
  *      kunne betyde det samme ord forskelligt.
+ *  13. BEDØMMELSEN ER DOMMENS: stjernen, tallet og de fem søjler tegnes af
+ *      afholdte[].bedoemmelse; skalaen bor i dashboard.ts; fladen dividerer
+ *      aldrig med stemmerne, og «ingen stemmer» tegner INTET — ikke «0».
  */
 
 const laes = (sti: string) => readFileSync(resolve(process.cwd(), sti), "utf8");
@@ -209,6 +212,44 @@ export const smaaBokseErDommens = (view: string, dom: string): boolean => {
   );
 };
 
+// ── 13 ─────────────────────────────────────────────────────────────────────
+/**
+ * BEDØMMELSEN ER DOMMENS (22/9-2026). Elementet ved hver afholdt session
+ * tegner `s.bedoemmelse` og intet andet: gennemsnittet er formateret i
+ * dommen (`gennemsnitTekst`), ordet «stemmer» bøjes i dommen (`stemmerOrd`),
+ * søjlernes højde er dommens `andel`, og skalaen (BEDOEMMELSE_MAKS) står i
+ * dashboard.ts — ikke i fladen, for /webinar og /delt/webinar tegner det
+ * SAMME dom, og to skalaer ville give to billeder af samme session.
+ *
+ * Og: ingen stemmer tegner INTET. En tom bedømmelse ville stå som «0 · 0
+ * stemmer» og ligne en måling, hvor der ikke er nogen.
+ */
+export const bedoemmelsenErDommens = (view: string, dom: string): boolean => {
+  const v = udenKommentarer(view), d = udenKommentarer(dom);
+  const i = v.indexOf("const Bedoemmelsen = "), j = v.indexOf("const AfholdtRaekke = ");
+  if (i === -1 || j === -1 || i > j) return false;
+  const boks = v.slice(i, j);
+  return (
+    // Dommen: skalaen, tallet pr. session, og at «ingen stemmer» er null.
+    d.includes("export const BEDOEMMELSE_MAKS = 5;") &&
+    d.includes("bedoemmelse: bedoemmelse(liste),") &&
+    d.includes("if (stemmer === 0) return null;") &&
+    d.includes("andel: andel(a, stemmer)") &&
+    // Fladen: dommens fordeling, dommens tekst, dommens bøjning.
+    boks.includes("b.fordeling.map((t) => (") &&
+    boks.includes("{b.gennemsnitTekst}") &&
+    boks.includes("{stemmerOrd(b.stemmer)}") &&
+    boks.includes("(t.andel ?? 0) * 100") &&
+    // Tom bedømmelse tegner intet.
+    v.includes("{s.bedoemmelse !== null && (") &&
+    // Ingen skala og ingen regning i fladen.
+    !boks.includes("BEDOEMMELSE_MAKS") &&
+    !/\/\s*b\.stemmer/.test(v) &&
+    !v.includes("stemmer === 0") &&
+    !/"0 stemmer"|'0 stemmer'/.test(v)
+  );
+};
+
 describe("webinarfladens kildeværn", () => {
   it("1. ruten /webinar er lazy og bag AdvisorRoute", () => {
     const app = laes(APP);
@@ -309,6 +350,30 @@ describe("webinarfladens kildeværn", () => {
 
   it("12. de små bokse tegner dommens efterfoelgende — grænsen bor i dommen, ingen graf, tom liste tegner intet", () => {
     expect(smaaBokseErDommens(laes(VIEW), laes(DOM))).toBe(true);
+  });
+
+  it("13. bedømmelsen tegner dommens tal og fordeling — skalaen bor i dommen, tom bedømmelse tegner intet", () => {
+    expect(bedoemmelsenErDommens(laes(VIEW), laes(DOM))).toBe(true);
+  });
+
+  it("13b. en skala i fladen, en regning på stemmerne, eller et element uden stemmer, fælder dom 13", () => {
+    const view = laes(VIEW), dom = laes(DOM);
+    // Skalaen gentaget i fladen: /webinar og /delt/webinar kunne vise hver sit billede.
+    expect(bedoemmelsenErDommens(view.replace("{stemmerOrd(b.stemmer)}", "{stemmerOrd(b.stemmer)}{BEDOEMMELSE_MAKS}"), dom)).toBe(false);
+    // Skalaen flyttet i dommen uden at fladen følger med.
+    expect(bedoemmelsenErDommens(view, dom.replace("export const BEDOEMMELSE_MAKS = 5;", "export const BEDOEMMELSE_MAKS = 10;"))).toBe(false);
+    // Fladen regner selv en andel ud af stemmerne.
+    expect(bedoemmelsenErDommens(`${view}\nconst egen = t.antal / b.stemmer;`, dom)).toBe(false);
+    // Tom bedømmelse tegner en tom stribe i stedet for ingenting.
+    expect(bedoemmelsenErDommens(view.replace("{s.bedoemmelse !== null && (", "{true && ("), dom)).toBe(false);
+    // «0 stemmer» skrevet i fladen.
+    expect(bedoemmelsenErDommens(view.replace("{stemmerOrd(b.stemmer)}", '"0 stemmer"'), dom)).toBe(false);
+    // Nul-bedømmelsen tilbage i dommen: så ville hver session uden stemmer få et element.
+    expect(bedoemmelsenErDommens(view, dom.replace("if (stemmer === 0) return null;", ""))).toBe(false);
+    // Fordelingen hjemmelavet i fladen i stedet for dommens.
+    expect(bedoemmelsenErDommens(view.replace("b.fordeling.map((t) => (", "[1, 2, 3, 4, 5].map((t) => ("), dom)).toBe(false);
+    // Bedømmelsen koblet fra sessionen i dommen.
+    expect(bedoemmelsenErDommens(view, dom.replace("bedoemmelse: bedoemmelse(liste),", ""))).toBe(false);
   });
 
   it("12b. grænsen flyttet til fladen, en graf i de små, eller en tom liste der tegner en stribe, fælder dom 12", () => {

@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { ChevronDown, ChevronUp } from "lucide-react";
+import { ChevronDown, ChevronUp, Star } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { HbCard } from "@/components/hjemmebane/HbCard";
 import { HbSection } from "@/components/hjemmebane/HbSection";
@@ -8,6 +8,7 @@ import { AnnoncepriserAfsnit } from "@/components/hjemmebane/annoncer/Annoncepri
 import { PRIS_EYEBROW, PRIS_TITEL } from "@/lib/webinar/annoncepriser";
 import {
   AFHOLDTE_TOM_TEKST,
+  bedoemmelseTekst,
   brokOgPct,
   dageOrd,
   datoKort,
@@ -19,6 +20,7 @@ import {
   SET_GRAENSE_PROCENT,
   SPOR_MANGLER_TEKST,
   SPOR_TOMT_TEKST,
+  stemmerOrd,
   TID_EYEBROW,
   TID_TITEL,
   TID_TOM_TEKST,
@@ -33,6 +35,7 @@ import {
   WEBINAR_UNDERLINJE,
   type AfholdtSession,
   type Annoncespor,
+  type Bedoemmelse,
   type Kampagnelinje,
   type KommendeSession,
   type NaesteWebinar,
@@ -229,6 +232,39 @@ const Post = ({ navn, vaerdi, under }: { navn: string; vaerdi: string; under: st
   </div>
 );
 
+/**
+ * DELTAGERNES BEDØMMELSE af en afholdt session (Jonas 22/9-2026) — lille og
+ * roligt: stjernen, tallet, fem smalle søjler og antallet.
+ *
+ * INGEN STEMMER TEGNER INTET. Dommen svarer `null`, og der står ikke «0
+ * stemmer»: et nul ligner en måling, og der er ingen. Derfor findes elementet
+ * simpelthen ikke på en session, ingen har bedømt.
+ *
+ * SØJLERNE ER DOMMENS ANDELE (`fordeling[].andel`) — fladen lægger ikke
+ * stemmerne sammen til en nævner, præcis som fordelingssøjlen i annoncesporet.
+ * Fem søjler, 1 til 5, altid alle fem: en fordeling med huller kan ikke læses.
+ *
+ * Samme element på /delt/webinar — det er den samme komponent og det samme
+ * dom, og bedømmelsen bærer hverken mail eller række.
+ */
+const Bedoemmelsen = ({ b }: { b: Bedoemmelse }) => (
+  <span className="inline-flex items-center gap-2" data-webinar-bedoemmelse={b.stemmer} title={bedoemmelseTekst(b)}>
+    <Star className="h-3 w-3 shrink-0 fill-hb-sage text-hb-sage" aria-hidden />
+    <span className="text-xs font-medium tabular-nums text-hb-ink">{b.gennemsnitTekst}</span>
+    <span className="flex items-end gap-[2px]" aria-hidden>
+      {b.fordeling.map((t) => (
+        <span key={t.stjerner} className="relative block h-3 w-[3px] overflow-hidden rounded-[1px] bg-hb-line">
+          <span
+            className="absolute inset-x-0 bottom-0 rounded-[1px] bg-hb-sage"
+            style={{ height: `${((t.andel ?? 0) * 100).toFixed(1)}%` }}
+          />
+        </span>
+      ))}
+    </span>
+    <span className="text-xs text-hb-ink-soft">{stemmerOrd(b.stemmer)}</span>
+  </span>
+);
+
 const AfholdtRaekke = ({ s }: { s: AfholdtSession }) => {
   const [aaben, setAaben] = useState(false);
   return (
@@ -260,6 +296,11 @@ const AfholdtRaekke = ({ s }: { s: AfholdtSession }) => {
         {" · "}ansøgte {brokOgPct(s.ansoegte, s.tilmeldte)}
         {" · "}blev medlem {brokOgPct(s.blevMedlem, s.ansoegte)}
       </p>
+      {s.bedoemmelse !== null && (
+        <p className="mt-1.5">
+          <Bedoemmelsen b={s.bedoemmelse} />
+        </p>
+      )}
       {aaben && (
         <dl className="mt-2 grid grid-cols-2 gap-x-6 gap-y-1 text-sm md:grid-cols-4" data-webinar-session-fold>
           <Post navn="Så det færdigt" vaerdi={pct(s.gennemfoerselAndel)} under={`${s.saaFaerdigt} af de ${s.moedteOp} der mødte op`} />

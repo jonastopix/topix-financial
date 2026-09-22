@@ -115,8 +115,22 @@ describe("webinarDeling — svaret til den eksterne bærer ingen persondata", ()
     }
     expect(json).not.toMatch(/@/);
   });
+  it("BEDØMMELSEN går ud som TAL — eWebinars fritekst gør ikke", () => {
+    // Fixturen bærer to interactionsSummary-tekster (Erik 5, Frida 4). Svaret skal
+    // bære dommen — 4,5 på sessionen 15/9 — og ALDRIG teksten selv: den er eWebinars
+    // rå payload om personen, og den delte side er en ekstern.
+    expect(json).not.toContain("Interactions");
+    expect(json).not.toContain("Del din feedback");
+    expect(json).not.toContain("calltoaction");
+    expect(json).not.toContain("interactions");
+    const s15 = svar.dashboard.afholdte.find((a) => a.dato === "15/9");
+    expect(s15?.bedoemmelse?.stemmer).toBe(2);
+    expect(s15?.bedoemmelse?.gennemsnitTekst).toBe("4,5");
+    expect(s15?.bedoemmelse?.fordeling.map((t) => t.antal)).toEqual([0, 0, 0, 1, 1]);
+  });
   it("men tallene, annonce-/kampagnenavnene og webinartitlen ER der — som på /webinar", () => {
-    expect(svar.dashboard.personer).toBe(4);
+    // 6 personer siden 22/9: de fire oprindelige + Erik og Frida, som bærer bedømmelsen.
+    expect(svar.dashboard.personer).toBe(6);
     expect(svar.dashboard.naeste?.personer).toBe(2);
     expect(svar.dashboard.naeste?.titel).toBe("Sådan får du styr på tallene");
     expect(json).toContain("Annonce A");

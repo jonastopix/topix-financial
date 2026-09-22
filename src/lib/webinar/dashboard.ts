@@ -86,8 +86,19 @@ export interface AnnoncesporFelter {
   ad_id_udledt?: string | null;
 }
 
-/** Tilmeldingen som fladen læser den: webinarDom's række + annoncesporet. */
-export type Tilmelding = WebinarTilmelding & AnnoncesporFelter;
+/**
+ * Bedømmelsens ene felt (Jonas 22/9-2026): eWebinars `interactionsSummary`,
+ * hentet som TEKST og intet andet (`interactions:raa->>interactionsSummary`).
+ * VALGFRI som annoncesporet: typen skal kunne læses både før og efter
+ * hentningen er lagt om, og dommen svarer «ingen bedømmelse» uden den.
+ */
+export interface BedoemmelseFelter {
+  /** eWebinars fritekst pr. registrant — én linje pr. interaktion. Se «Bedømmelsen» nedenfor. */
+  interactions?: string | null;
+}
+
+/** Tilmeldingen som fladen læser den: webinarDom's række + annoncesporet + bedømmelsens tekst. */
+export type Tilmelding = WebinarTilmelding & AnnoncesporFelter & BedoemmelseFelter;
 
 /**
  * Den indsendte ansøgning, reduceret til det fladen bruger: mailen (koblingen),
@@ -274,6 +285,131 @@ export function taelDeltagelse(raekker: readonly Tilmelding[], nu: Date): Deltag
   return d;
 }
 
+// ── Bedømmelsen ────────────────────────────────────────────────────────────
+
+/**
+ * Deltagernes bedømmelse af en AFHOLDT session (Jonas 22/9-2026).
+ *
+ * KILDEN ER EN FRITEKST, IKKE ET FELT. eWebinar har ingen bedømmelses-kolonne;
+ * stjernerne står i registrantens `interactionsSummary` — én tekst med en
+ * linje pr. interaktion. Målt i prod 22/9 kl. 10:52 på sessionen 22/9 kl. 09:
+ *
+ *     -- Interactions --
+ *
+ *     Feedback: Del din feedback!: 5
+ *     CallToAction: calltoaction_ansgTilTheBoardroom: Clicked
+ *
+ * 55 af 384 tilmeldte bar feltet, 40 bar en Feedback-linje. Det er altså et
+ * felt, VI IKKE SELV SÆTTER — en observation, aldrig en nøgle
+ * (docs/marketingmotoren.md §8). Derfor læses teksten ÉT sted, her, med prøver
+ * på de tekster prod faktisk bærer; resten af huset ser kun det færdige tal.
+ *
+ * INGEN MAILS, INGEN RÆKKER. Bedømmelsen er tal og andele — intet andet — så
+ * den kan gå ud gennem delingen til en ekstern uden at bære en person.
+ */
+
+/** Skalaen eWebinar spørger på. Ét sted, så prøver, dom og flade ikke kan drive fra hinanden. */
+export const BEDOEMMELSE_MIN = 1;
+export const BEDOEMMELSE_MAKS = 5;
+
+export interface BedoemmelseTrin {
+  /** Trinnet på skalaen: BEDOEMMELSE_MIN … BEDOEMMELSE_MAKS. */
+  stjerner: number;
+  antal: number;
+  /** antal / stemmer — søjlens højde, regnet HER, så fladen ikke skal lægge sammen. */
+  andel: number | null;
+}
+
+export interface Bedoemmelse {
+  /** PERSONER med en gyldig stemme (unikke mails) — ikke antal linjer. */
+  stemmer: number;
+  /** Gennemsnittet med ÉN decimal — 4.5, ikke 4.4999999999. */
+  gennemsnit: number;
+  /** «4,5» — dansk komma, færdig til fladen. */
+  gennemsnitTekst: string;
+  /** Hele skalaen i rækkefølge, også de trin ingen har stemt på. */
+  fordeling: BedoemmelseTrin[];
+}
+
+/**
+ * Linjens form: «Feedback: <titel>: <tal>».
+ *
+ * Titlen kan selv bære et kolon, så tallet læses efter det SIDSTE kolon
+ * (grådigt `.*`), og linjen skal SLUTTE der. Derfor matcher hverken
+ * «CallToAction: …: Clicked» eller «Feedback: X: 4.5» — en bedømmelse, vi
+ * ikke kan læse som et helt tal, er ingen bedømmelse, og et gæt ville stå i
+ * gennemsnittet resten af sessionens liv.
+ */
+const FEEDBACK_LINJE = /^Feedback:\s*(?:.*):\s*(\d+)\s*$/;
+
+/**
+ * Personens ENE stemme ud af en eller flere interaktionstekster: den SENESTE
+ * gyldige Feedback-linje.
+ *
+ * «Seneste» er rækkefølgen i teksten. eWebinar giver os ingen tid pr. linje,
+ * og rækkefølgen er det eneste, der findes — det er en antagelse, ikke en
+ * måling, og den står her, hvor den kan rettes ét sted.
+ *
+ * UGYLDIGE LINJER SPRINGES OVER frem for at nulstille: en ulæselig linje til
+ * sidst må ikke kunne slette en gyldig stemme, der står over den.
+ */
+export function stemmeAf(tekster: readonly (string | null | undefined)[]): number | null {
+  let sidste: number | null = null;
+  for (const t of tekster) {
+    if (typeof t !== "string") continue;
+    for (const raa of t.split("\n")) {
+      const m = FEEDBACK_LINJE.exec(raa.trim());
+      if (m === null) continue;
+      const n = Number(m[1]);
+      if (!Number.isInteger(n) || n < BEDOEMMELSE_MIN || n > BEDOEMMELSE_MAKS) continue;
+      sidste = n;
+    }
+  }
+  return sidste;
+}
+
+/**
+ * Bedømmelsen for en liste tilmeldinger — ÉN STEMME PR. PERSON, uanset hvor
+ * mange rækker eller linjer personen har (samme regel som taelDeltagelse:
+ * tallene er personer, ikke tilmeldinger).
+ *
+ * INGEN STEMMER GIVER `null`, ikke en nul-bedømmelse. «0 stemmer · 0,0» er et
+ * tal, der ligner en måling, og der er ingen — fladen skal kunne tegne
+ * ingenting i stedet.
+ */
+export function bedoemmelse(raekker: readonly Tilmelding[]): Bedoemmelse | null {
+  const prPerson = new Map<string, (string | null | undefined)[]>();
+  for (const r of raekker) laegI(prPerson, r.email, r.interactions);
+  const antal = new Map<number, number>();
+  let stemmer = 0;
+  let sum = 0;
+  for (const tekster of prPerson.values()) {
+    const s = stemmeAf(tekster);
+    if (s === null) continue;
+    stemmer++;
+    sum += s;
+    antal.set(s, (antal.get(s) ?? 0) + 1);
+  }
+  if (stemmer === 0) return null;
+  const gennemsnit = Math.round((sum / stemmer) * 10) / 10;
+  const fordeling: BedoemmelseTrin[] = [];
+  for (let n = BEDOEMMELSE_MIN; n <= BEDOEMMELSE_MAKS; n++) {
+    const a = antal.get(n) ?? 0;
+    fordeling.push({ stjerner: n, antal: a, andel: andel(a, stemmer) });
+  }
+  return { stemmer, gennemsnit, gennemsnitTekst: gennemsnit.toFixed(1).replace(".", ","), fordeling };
+}
+
+/** «1 stemme» · «40 stemmer» — ental og flertal hører til i dommen, ikke i fladen. */
+export function stemmerOrd(stemmer: number): string {
+  return `${stemmer} ${stemmer === 1 ? "stemme" : "stemmer"}`;
+}
+
+/** Hele sætningen til skærmlæseren og title-attributten: «Bedømmelse 4,5 af 5 · 40 stemmer». */
+export function bedoemmelseTekst(b: Bedoemmelse): string {
+  return `Bedømmelse ${b.gennemsnitTekst} af ${BEDOEMMELSE_MAKS} · ${stemmerOrd(b.stemmer)}`;
+}
+
 // ── 1. Det næste webinar ───────────────────────────────────────────────────
 
 export interface TilmeldtPrDag {
@@ -409,6 +545,11 @@ export function naesteWebinar(raekker: readonly Tilmelding[], nu: Date): NaesteW
 // ── 2. De afholdte webinarer ───────────────────────────────────────────────
 
 export interface AfholdtSession extends Deltagelse {
+  /**
+   * Deltagernes bedømmelse af sessionen — null når ingen har stemt (22/9-2026).
+   * Bærer kun tal og andele, aldrig en mail: den går også ud gennem delingen.
+   */
+  bedoemmelse: Bedoemmelse | null;
   /** null for Replay/OnDemand — ingen sessionstid, men stadig deltagelse. */
   sessionTid: string | null;
   webinarId: string;
@@ -465,6 +606,7 @@ export function afholdteSessioner(
         // Af de ANSØGTE, ikke af de tilmeldte: spørgsmålet er hvor god en
         // ansøgning fra denne session er, ikke hvor mange der ansøgte.
         medlemAfAnsoegteAndel: andel(m, a),
+        bedoemmelse: bedoemmelse(liste),
       };
     })
     .sort((a, b) => (tid(b.sessionTid) ?? -1) - (tid(a.sessionTid) ?? -1));
