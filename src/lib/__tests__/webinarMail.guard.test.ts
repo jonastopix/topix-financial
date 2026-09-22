@@ -28,6 +28,10 @@ import { resolve } from "node:path";
  *   8. BEKRÆFTELSEN GÅR GENNEM MIME'EN: kun `bekraeftelse` bruger
  *      sendMailgunMime, invitationen hentes fail-soft, og Content-Type'en er
  *      ORDRET den, Outlook kræver for at vise Ja/Nej.
+ *   9. BEKRÆFTELSEN GÅR ALDRIG BAGUD: BEKRAEFTELSE_FRA står ORDRET som
+ *      22/9-2026 17:03Z i BEGGE spejle, dommen sammenligner tilmeldingens
+ *      registreret_at mod den fail-closed, og cronen LÆSER kolonnen.
+ *      Uden den linje ville 216 mennesker få en bekræftelse, de har fået før.
  */
 
 const laes = (sti: string) => readFileSync(resolve(process.cwd(), sti), "utf8");
@@ -64,6 +68,8 @@ const MIG_KILDE = "supabase/migrations/20260922180000_klaviyo_afmeldinger_webina
 const MIME = "supabase/functions/_shared/mimeInvitation.ts";
 const MIG = "supabase/migrations/20260922171000_webinar_mails.sql";
 const CONFIG = "supabase/config.toml";
+const DOM = "supabase/functions/_shared/webinarMailDom.ts";
+const DOM_SPEJL = "src/lib/webinar/mailDom.ts";
 
 // ── 1 ──────────────────────────────────────────────────────────────────────
 export const bucketBOgLaas = (cron: string, config: string): boolean => {
@@ -190,6 +196,32 @@ export const bekraeftelsenGaarGennemMime = (cron: string, mime: string): boolean
   );
 };
 
+// ── 9 ──────────────────────────────────────────────────────────────────────
+/**
+ * Konstanten er ét øjeblik, ét sted — og den er en STRENG, ikke et regnestykke,
+ * så en læser kan se datoen uden at regne. Dommen skal både sammenligne mod
+ * den OG afvise et ulæseligt registreret_at; kun den ene halvdel er værre end
+ * ingenting, for `Date.parse("")` er NaN, og NaN < noget er false.
+ */
+export const bekraeftelsenKunFremad = (dom: string, spejl: string, cron: string): boolean => {
+  const ORDRET = 'export const BEKRAEFTELSE_FRA = "2026-09-22T17:03:00Z";';
+  const f = udenKommentarer(dom);
+  return (
+    dom.includes(ORDRET) && spejl.includes(ORDRET) &&
+    // Fail-closed: BÅDE «kan ikke læses» OG «før grænsen» giver samme svar.
+    f.includes('const registreret = Date.parse(i.registreretAt ?? "");') &&
+    f.includes("if (!Number.isFinite(registreret) || registreret < BEKRAEFTELSE_FRA_MS) {") &&
+    f.includes('return { send: false, art, grund: "for_tidlig_tilmelding" };') &&
+    // KUN bekræftelsen — porten må aldrig gælde påmindelserne.
+    f.includes('if (art === "bekraeftelse") {') &&
+    // Og tilmeldingstidspunktet skal faktisk NÅ dommen: kolonnen i selectet,
+    // feltet på rækken, og feltet videre i kaldet.
+    f.includes("registreret_at: string | null;") &&
+    f.includes("registreretAt: r.registreret_at,") &&
+    udenKommentarer(cron).includes("session_tid, registreret_at,")
+  );
+};
+
 describe("webinarMail.guard — platformens før-webinar-mails", () => {
   it("1. Bucket B, tørkørsel som standard, og låsen fail-closed", () => expect(bucketBOgLaas(laes(CRON), laes(CONFIG))).toBe(true));
   it("2. Mailgun EU, ingen sporing, nøglen ét sted", () => expect(euOgIngenSporing(laes(SEND), laes(CRON))).toBe(true));
@@ -199,6 +231,7 @@ describe("webinarMail.guard — platformens før-webinar-mails", () => {
   it("6. de tre personlige links kan aldrig gå ud til en ekstern", () => expect(linkeneErPersonlige(laes(SVAR))).toBe(true));
   it("7. afmeldingen rammer også Klaviyo, og kilde-listen er i takt med CHECK'en", () => expect(etKlikEnBetydning(laes(AFMELD), laes(AFMELDING), laes(MIG_KILDE))).toBe(true));
   it("8. bekræftelsen går gennem MIME'en med den rigtige Content-Type", () => expect(bekraeftelsenGaarGennemMime(laes(CRON), laes(MIME))).toBe(true));
+  it("9. bekræftelsen sendes aldrig bagud, og tidspunktet når dommen", () => expect(bekraeftelsenKunFremad(laes(DOM), laes(DOM_SPEJL), laes(CRON))).toBe(true));
 });
 
 describe("webinarMail.guard — dommene fanger fejlen på en kopi", () => {
@@ -262,5 +295,25 @@ describe("webinarMail.guard — dommene fanger fejlen på en kopi", () => {
     expect(bekraeftelsenGaarGennemMime(haard, mime)).toBe(false);
     // Indholdsdommen fjernet: en HTML-fejlside kunne vedhæftes.
     expect(bekraeftelsenGaarGennemMime(cron, mime.split("if (!/BEGIN:VCALENDAR/i.test(tekst) || !/BEGIN:VEVENT/i.test(tekst)) {").join("if (false) {"))).toBe(false);
+  });
+
+  it("en flyttet dato, en halv fail-closed, en port over alle arter, eller en manglende kolonne fælder dom 9", () => {
+    const dom = laes(DOM), spejl = laes(DOM_SPEJL);
+    const FRA = 'export const BEKRAEFTELSE_FRA = "2026-09-22T17:03:00Z";';
+    // Datoen flyttet — i det ene spejl, eller i begge.
+    const flyttet = 'export const BEKRAEFTELSE_FRA = "2020-01-01T00:00:00Z";';
+    expect(bekraeftelsenKunFremad(dom.split(FRA).join(flyttet), spejl, cron)).toBe(false);
+    expect(bekraeftelsenKunFremad(dom, spejl.split(FRA).join(flyttet), cron)).toBe(false);
+    // Kun halvdelen af fail-closed: et ulæseligt tidspunkt ville slippe igennem
+    // som «ikke før grænsen», fordi NaN < tal er false.
+    expect(bekraeftelsenKunFremad(
+      dom.split("if (!Number.isFinite(registreret) || registreret < BEKRAEFTELSE_FRA_MS) {")
+         .join("if (registreret < BEKRAEFTELSE_FRA_MS) {"), spejl, cron)).toBe(false);
+    // Porten lagt over ALLE arter — så ville påmindelserne også stoppe.
+    expect(bekraeftelsenKunFremad(dom.split('if (art === "bekraeftelse") {').join("if (true) {"), spejl, cron)).toBe(false);
+    // Tidspunktet når aldrig dommen: feltet droppet i kaldet, eller kolonnen
+    // droppet i cronens select.
+    expect(bekraeftelsenKunFremad(dom.split("registreretAt: r.registreret_at,").join(""), spejl, cron)).toBe(false);
+    expect(bekraeftelsenKunFremad(dom, spejl, cron.split("session_tid, registreret_at,").join("session_tid,"))).toBe(false);
   });
 });

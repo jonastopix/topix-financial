@@ -27,7 +27,7 @@ describe("webinarMailDom.paritet — kildeteksten", () => {
   });
 
   it("VÆRNET VIRKER: en ændring i kun det ene spejl fanges", () => {
-    const a = krop(laes(SRC)).replace("export const SEN_TILMELDING_NAADE_MS = 2 * 3_600_000;", "export const SEN_TILMELDING_NAADE_MS = 99;");
+    const a = krop(laes(SRC)).replace('export const BEKRAEFTELSE_FRA = "2026-09-22T17:03:00Z";', 'export const BEKRAEFTELSE_FRA = "2020-01-01T00:00:00Z";');
     expect(a).not.toBe(krop(laes(SRC)));
     expect(krop(laes(DENO))).not.toBe(a);
   });
@@ -43,23 +43,30 @@ describe("webinarMailDom.paritet — dommene svarer ens", () => {
     }
   });
 
-  it("doemMail i alle kombinationer af de fire grunde", () => {
+  it("doemMail i alle kombinationer af grundene — også BEKRAEFTELSE_FRA's to sider", () => {
     for (const art of deno.ARTER) {
       for (const afmeldt of [true, false]) {
         for (const alleredeSendt of [true, false]) {
-          for (const nu of ["2026-10-01T06:00:00Z", "2026-10-06T06:05:00Z", "2026-10-13T08:05:00Z", "2026-10-13T12:00:00Z"]) {
-            const i = { art, sessionTid: SESSION, email: "a@x.dk", afmeldt, alleredeSendt, nu: new Date(nu) };
-            expect(deno.doemMail(i), `${art}/${afmeldt}/${alleredeSendt}/${nu}`).toEqual(src.doemMail(i));
+          for (const registreretAt of [null, "2026-09-22T17:02:59Z", "2026-09-22T17:03:00Z", "2026-09-23T08:00:00Z"]) {
+            for (const nu of ["2026-10-01T06:00:00Z", "2026-10-06T06:05:00Z", "2026-10-13T08:05:00Z", "2026-10-13T12:00:00Z"]) {
+              const i = { art, sessionTid: SESSION, email: "a@x.dk", registreretAt, afmeldt, alleredeSendt, nu: new Date(nu) };
+              expect(deno.doemMail(i), `${art}/${registreretAt}/${afmeldt}/${alleredeSendt}/${nu}`).toEqual(src.doemMail(i));
+            }
           }
         }
       }
     }
   });
 
+  it("BEKRAEFTELSE_FRA er det samme øjeblik i begge spejle", () => {
+    expect(deno.BEKRAEFTELSE_FRA).toBe(src.BEKRAEFTELSE_FRA);
+    expect(deno.BEKRAEFTELSE_FRA_MS).toBe(src.BEKRAEFTELSE_FRA_MS);
+  });
+
   it("planlaegKoersel, noegle og kalenderlinkene", () => {
     const raekker = [{
       ewebinar_id: "r1", email: "a@x.dk", navn: "A", session_tid: SESSION,
-      webinar_titel: "W", subscribed: "subscribed", sidste_action: "Registered",
+      registreret_at: "2026-09-23T08:00:00.000Z", webinar_titel: "W", subscribed: "subscribed", sidste_action: "Registered",
       join_link: "https://j", kalender_link: "https://k", replay_link: null,
     }];
     const i = { raekker, afmeldte: new Set<string>(), sendte: new Set<string>(), nu: new Date("2026-10-06T06:05:00Z") };

@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
-  ARTER, doemMail, erAfmeldtIEwebinar, googleKalenderUrl, kbhTilUtc, noegle,
-  outlookKalenderUrl, PLANEN, planlaegKoersel, planlagtTid, SEN_TILMELDING_NAADE_MS,
+  ARTER, BEKRAEFTELSE_FRA, BEKRAEFTELSE_FRA_MS, doemMail, erAfmeldtIEwebinar,
+  googleKalenderUrl, kbhTilUtc, noegle, outlookKalenderUrl, PLANEN, planlaegKoersel,
+  planlagtTid, SEN_TILMELDING_NAADE_MS,
   type MailArt, type Tilmeldt,
 } from "@/lib/webinar/mailDom";
 
@@ -18,6 +19,8 @@ const R = (r: Partial<Tilmeldt> & { email: string }): Tilmeldt => ({
   ewebinar_id: `id-${r.email}`,
   navn: "Test Person",
   session_tid: SESSION,
+  // Efter BEKRAEFTELSE_FRA, så de gamle prøver måler det, de altid har målt.
+  registreret_at: "2026-09-23T08:00:00.000Z",
   webinar_titel: "Webinar med Morten Larsen",
   subscribed: "subscribed",
   sidste_action: "Registered",
@@ -65,7 +68,7 @@ describe("planlagtTid — de fem tidspunkter, i dansk tid", () => {
 });
 
 describe("doemMail — rækkefølgen er fail-closed", () => {
-  const basis = { sessionTid: SESSION, email: "a@x.dk", afmeldt: false, alleredeSendt: false };
+  const basis = { sessionTid: SESSION, email: "a@x.dk", registreretAt: "2026-09-23T08:00:00.000Z", afmeldt: false, alleredeSendt: false };
 
   it("sender, når tidspunktet er passeret og intet taler imod", () => {
     const d = doemMail({ ...basis, art: "syv_dage", nu: dansk("2026-10-06T06:00:01.000Z") });
@@ -217,8 +220,8 @@ describe("planlaegKoersel — én person, uanset hvor mange registreringer", () 
   });
 });
 
-describe("bekraeftelse — forfalden straks, også bagud", () => {
-  const basis = { sessionTid: SESSION, email: "a@x.dk", afmeldt: false, alleredeSendt: false };
+describe("bekraeftelse — forfalden straks, men aldrig bagud", () => {
+  const basis = { sessionTid: SESSION, email: "a@x.dk", registreretAt: "2026-09-23T08:00:00.000Z", afmeldt: false, alleredeSendt: false };
 
   it("er FØRST i ARTER og i PLANEN", () => {
     expect(ARTER[0]).toBe("bekraeftelse");
@@ -235,9 +238,7 @@ describe("bekraeftelse — forfalden straks, også bagud", () => {
     }
   });
 
-  it("BAGUD: den er aldrig «for sent» — det er hele pointen", () => {
-    // Jonas' fund: eWebinars bekræftelse var slået FRA indtil 22/9 15:50, så
-    // de fleste af de ~212 til 13/10 har aldrig fået en. De skal have den nu.
+  it("den er aldrig «for sent» — en ny tilmeldt får den også dagen før", () => {
     const d = doemMail({ ...basis, art: "bekraeftelse", nu: dansk("2026-10-12T23:00:00Z") });
     expect(d).toEqual({ send: true, art: "bekraeftelse", planlagt: dansk("2026-10-12T23:00:00Z") });
   });
@@ -269,6 +270,75 @@ describe("bekraeftelse — forfalden straks, også bagud", () => {
     // «om en uge» og «om tre dage» er for sent — de kommer ikke med.
     expect(arter).not.toContain("syv_dage");
     expect(arter).not.toContain("tre_dage");
+  });
+});
+
+describe("BEKRAEFTELSE_FRA — bekræftelsen sendes aldrig bagud", () => {
+  const basis = { sessionTid: SESSION, email: "a@x.dk", afmeldt: false, alleredeSendt: false };
+  // 22/9-2026 kl. 19:03 dansk = 17:03Z — øjeblikket eWebinars egen bekræftelse
+  // blev slukket, og platformens tog over (Jonas 22/9 ca. 19:05).
+  const ET_SEKUND_FOER = "2026-09-22T17:02:59.000Z";
+  const PRAECIS = "2026-09-22T17:03:00.000Z";
+  const NU = dansk("2026-09-23T09:00:00.000Z");
+
+  it("konstanten er ét øjeblik, og det er 22/9-2026 17:03Z", () => {
+    expect(BEKRAEFTELSE_FRA).toBe("2026-09-22T17:03:00Z");
+    expect(BEKRAEFTELSE_FRA_MS).toBe(Date.parse("2026-09-22T17:03:00Z"));
+    expect(new Date(BEKRAEFTELSE_FRA_MS).toISOString()).toBe("2026-09-22T17:03:00.000Z");
+  });
+
+  it("ET SEKUND FØR: ikke forfalden", () => {
+    expect(doemMail({ ...basis, art: "bekraeftelse", registreretAt: ET_SEKUND_FOER, nu: NU }))
+      .toEqual({ send: false, art: "bekraeftelse", grund: "for_tidlig_tilmelding" });
+  });
+
+  it("PRÆCIS på sekundet: forfalden — grænsen er med", () => {
+    const d = doemMail({ ...basis, art: "bekraeftelse", registreretAt: PRAECIS, nu: NU });
+    expect(d).toEqual({ send: true, art: "bekraeftelse", planlagt: NU });
+  });
+
+  it("NULL eller ulæselig: ikke forfalden (fail-closed)", () => {
+    for (const reg of [null, undefined, "", "i går", "0000"]) {
+      expect(doemMail({ ...basis, art: "bekraeftelse", registreretAt: reg, nu: NU }), String(reg))
+        .toEqual({ send: false, art: "bekraeftelse", grund: "for_tidlig_tilmelding" });
+    }
+  });
+
+  it("DE FEM PÅMINDELSER ER URØRTE — de går også til en gammel tilmelding", () => {
+    // Samme tilmelding som den, bekræftelsen afvises på: 17:02:59Z, altså før
+    // overtagelsen. Påmindelserne dømmes udelukkende på sessionens tidspunkt.
+    for (const reg of [ET_SEKUND_FOER, null, undefined]) {
+      expect(doemMail({ ...basis, art: "syv_dage", registreretAt: reg, nu: dansk("2026-10-06T06:05:00.000Z") }).send, `syv_dage/${reg}`).toBe(true);
+      expect(doemMail({ ...basis, art: "tre_dage", registreretAt: reg, nu: dansk("2026-10-10T06:05:00.000Z") }).send, `tre_dage/${reg}`).toBe(true);
+      expect(doemMail({ ...basis, art: "en_dag", registreretAt: reg, nu: dansk("2026-10-12T06:05:00.000Z") }).send, `en_dag/${reg}`).toBe(true);
+      expect(doemMail({ ...basis, art: "dagen", registreretAt: reg, nu: dansk("2026-10-13T05:35:00.000Z") }).send, `dagen/${reg}`).toBe(true);
+      expect(doemMail({ ...basis, art: "en_time", registreretAt: reg, nu: dansk("2026-10-13T08:05:00.000Z") }).send, `en_time/${reg}`).toBe(true);
+    }
+  });
+
+  it("KØRSLEN: den gamle tilmeldte får påmindelsen, ikke bekræftelsen", () => {
+    const { sendinger, sprunget } = planlaegKoersel({
+      raekker: [
+        R({ email: "gammel@x.dk", registreret_at: ET_SEKUND_FOER }),
+        R({ email: "ny@x.dk", registreret_at: PRAECIS }),
+      ],
+      afmeldte: new Set(), sendte: new Set(),
+      nu: dansk("2026-10-06T06:05:00.000Z"),
+    });
+    const arter = (mail: string) => sendinger.filter((s) => s.email === mail).map((s) => s.art).sort();
+    expect(arter("gammel@x.dk")).toEqual(["syv_dage"]);
+    expect(arter("ny@x.dk")).toEqual(["bekraeftelse", "syv_dage"]);
+    expect(sprunget.for_tidlig_tilmelding).toBe(1);
+  });
+
+  it("KØRSLEN: en række uden registreret_at får heller ikke bekræftelsen", () => {
+    const { sendinger, sprunget } = planlaegKoersel({
+      raekker: [R({ email: "uden@x.dk", registreret_at: null })],
+      afmeldte: new Set(), sendte: new Set(),
+      nu: dansk("2026-10-06T06:05:00.000Z"),
+    });
+    expect(sendinger.map((s) => s.art)).toEqual(["syv_dage"]);
+    expect(sprunget.for_tidlig_tilmelding).toBe(1);
   });
 });
 

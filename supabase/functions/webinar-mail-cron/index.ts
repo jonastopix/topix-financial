@@ -15,6 +15,11 @@
 //   slås til. Prøven virker uden låsen, netop fordi den er begrænset til én
 //   adresse; det er den ene undtagelse, og den står her, ikke i en kommentar.
 //
+// BEKRÆFTELSEN GÅR IKKE BAGUD (Jonas 22/9 ca. 19:05): dommens BEKRAEFTELSE_FRA
+// = 22/9-2026 17:03Z holder arten «bekraeftelse» til tilmeldinger, der er
+// kommet EFTER eWebinars egen bekræftelse blev slukket. De ældre tælles som
+// «for_tidlig_tilmelding». De fem påmindelser er urørte og går til alle.
+//
 // HVEM, HVAD, HVORNÅR bor i _shared/webinarMailDom.ts (ren, spejlet, prøvet).
 // TEKSTEN bor i _shared/webinarMailTekster.ts (Mortens fire fra Klaviyo-flowet
 // UiECQS + den nye «om en time»). AFSENDELSEN i _shared/mailgunAfsendelse.ts
@@ -115,7 +120,7 @@ const tomt = (a: { toer: boolean; laas: boolean; email: string | null; art: stri
   ok: true, dry_run: a.toer, laas_aktiv: a.laas, sender_rigtigt: a.senderRigtigt,
   nu: a.nu.toISOString(), email: a.email, art: a.art,
   tilmeldinger_laest: 0, afmeldte_laest: 0, sendte_foer: 0, skal_sendes: 0,
-  sprunget: { afmeldt: 0, ingen_session: 0, ingen_mail: 0, for_sent: 0, endnu_ikke: 0, sessionen_begyndt: 0, allerede_sendt: 0 },
+  sprunget: { afmeldt: 0, ingen_session: 0, ingen_mail: 0, for_sent: 0, endnu_ikke: 0, sessionen_begyndt: 0, allerede_sendt: 0, for_tidlig_tilmelding: 0 },
   sendt: 0, fejlede: 0, udsat: 0, dublet: 0, med_invitation: 0, uden_invitation: 0, eksempler: [], fejl: [],
 });
 
@@ -130,7 +135,7 @@ async function koer(a: { admin: SupabaseClient; toerKoersel: boolean; laas: bool
   const graense = new Date(a.nu.getTime() - 3 * 86_400_000).toISOString();
   const raekker = await alleSider<Tilmeldt>((fra, til) => {
     let q = a.admin.from("webinar_tilmeldinger")
-      .select("ewebinar_id, email, navn, session_tid, webinar_titel, subscribed, sidste_action, join_link, kalender_link, replay_link")
+      .select("ewebinar_id, email, navn, session_tid, registreret_at, webinar_titel, subscribed, sidste_action, join_link, kalender_link, replay_link")
       .gte("session_tid", graense);
     if (a.email) q = q.eq("email", a.email);
     return q.order("ewebinar_id", { ascending: true }).range(fra, til);

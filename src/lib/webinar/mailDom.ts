@@ -36,15 +36,13 @@ export interface Plan {
    * Eller: FORFALDEN STRAKS, så længe sessionen ligger i fremtiden.
    *
    * Bekræftelsen har intet tidspunkt at regne fra — den skal gå, så snart vi
-   * ved, at personen er tilmeldt, og den skal gå BAGUD til alle, der allerede
-   * er tilmeldt uden at have fået en. (Jonas' fund 22/9: eWebinars egen
-   * bekræftelse var slået FRA indtil kl. 15:50, så de fleste af de ~212 til
-   * 13/10 har aldrig fået én.)
+   * ved, at personen er tilmeldt.
    *
    * En «straks»-mail har derfor INGEN nåde-regel: den kan ikke være for sent
    * på den, for den har aldrig haft et tidspunkt at komme for sent til.
-   * Den eneste dør, der lukker den, er sporet — én ok-række pr. person og
-   * session — og at sessionen er begyndt.
+   * Dørene, der lukker den, er sporet (én ok-række pr. person og session),
+   * at sessionen er begyndt — og BEKRAEFTELSE_FRA, som holder den fremad:
+   * «straks» betyder fra nu af, ikke bagud over alle gamle tilmeldinger.
    */
   straks?: boolean;
   /** Må mailen først sendes, når sessionen IKKE er begyndt? */
@@ -73,6 +71,33 @@ export const PLANEN: readonly Plan[] = [
  * forsinket, er stadig rigtig. En mail, der er en dag forsinket, er ikke.
  */
 export const SEN_TILMELDING_NAADE_MS = 2 * 3_600_000;
+
+/**
+ * BEKRÆFTELSEN SENDES ALDRIG BAGUD (Jonas 22/9-2026 ca. kl. 19:05).
+ *
+ * «Straks»-reglen ovenfor gør bekræftelsen forfalden for ENHVER tilmelding
+ * uden en ok-række i sporet — også dem, der meldte sig for måneder siden og
+ * for længst HAR fået en bekræftelse et andet sted fra. Det er ikke en
+ * teoretisk risiko: målt samme aften har Klaviyos flowmail WFzxH9 sendt
+ * bekræftelsen til 556 modtagere de sidste 90 dage, og eWebinars egen danske
+ * bekræftelse gik fra kl. 15:50 til 19:03. Tørkørslen kl. 18:54 viste 216
+ * forfaldne mails — alle af arten «bekraeftelse», alle til 13/10-holdet, alle
+ * til folk, der allerede havde fået én.
+ *
+ * Skillelinjen er det øjeblik, eWebinars bekræftelse blev slukket, og
+ * platformens tog over: 22/9-2026 kl. 19:03 dansk = 17:03 UTC. Er tilmeldingen
+ * ÆLDRE end det, har et andet system bekræftet den, og vi sender ikke igen.
+ *
+ * Konstanten har ÉT hjem — her, i dommen, i begge spejle. Cronen kender den
+ * ikke, og der er ingen parameter at sætte forkert.
+ *
+ * KUN bekræftelsen. De fem påmindelser er urørte og går til alle: ingen anden
+ * har sendt dem, og en påmindelse til en gammel tilmelding er stadig rigtig.
+ */
+export const BEKRAEFTELSE_FRA = "2026-09-22T17:03:00Z";
+
+/** Samme øjeblik som millisekunder — udregnet én gang, aldrig i dommen. */
+export const BEKRAEFTELSE_FRA_MS = Date.parse(BEKRAEFTELSE_FRA);
 
 export const TZ = "Europe/Copenhagen";
 
@@ -143,7 +168,9 @@ export type Springgrund =
   | "for_sent"
   | "endnu_ikke"
   | "sessionen_begyndt"
-  | "allerede_sendt";
+  | "allerede_sendt"
+  // Bekræftelse til en tilmelding fra FØR overtagelsen (BEKRAEFTELSE_FRA).
+  | "for_tidlig_tilmelding";
 
 export type MailDom =
   | { send: true; art: MailArt; planlagt: Date }
@@ -159,6 +186,8 @@ export function doemMail(i: {
   art: MailArt;
   sessionTid: string | null;
   email: string | null | undefined;
+  /** Tilmeldingens registreret_at. KRÆVET — porten foran bekræftelsen er fail-closed. */
+  registreretAt: string | null | undefined;
   afmeldt: boolean;
   alleredeSendt: boolean;
   nu: Date;
@@ -171,6 +200,16 @@ export function doemMail(i: {
   if (i.sessionTid === null) return { send: false, art, grund: "ingen_session" };
   const sessionMs = Date.parse(i.sessionTid);
   if (!Number.isFinite(sessionMs)) return { send: false, art, grund: "ingen_session" };
+
+  // BEKRÆFTELSEN KUN FREMAD. En tilmelding fra før overtagelsen er bekræftet
+  // af et andet system — og et ulæseligt tidspunkt tæller som «før», fordi vi
+  // hellere undlader en bekræftelse end sender en dublet til 216 mennesker.
+  if (art === "bekraeftelse") {
+    const registreret = Date.parse(i.registreretAt ?? "");
+    if (!Number.isFinite(registreret) || registreret < BEKRAEFTELSE_FRA_MS) {
+      return { send: false, art, grund: "for_tidlig_tilmelding" };
+    }
+  }
 
   const plan = PLANEN.find((p) => p.art === art);
   if (!plan) return { send: false, art, grund: "ingen_session" };
@@ -202,6 +241,8 @@ export interface Tilmeldt {
   email: string;
   navn: string | null;
   session_tid: string | null;
+  /** Tilmeldingstidspunktet — bekræftelsens port (BEKRAEFTELSE_FRA). */
+  registreret_at: string | null;
   webinar_titel: string | null;
   subscribed: string | null;
   sidste_action: string | null;
@@ -264,7 +305,7 @@ export function planlaegKoersel(i: {
 }): { sendinger: Sending[]; sprunget: Record<Springgrund, number> } {
   const sprunget: Record<Springgrund, number> = {
     afmeldt: 0, ingen_session: 0, ingen_mail: 0, for_sent: 0,
-    endnu_ikke: 0, sessionen_begyndt: 0, allerede_sendt: 0,
+    endnu_ikke: 0, sessionen_begyndt: 0, allerede_sendt: 0, for_tidlig_tilmelding: 0,
   };
 
   // 1. Én person pr. (mail, session).
@@ -294,6 +335,7 @@ export function planlaegKoersel(i: {
         art,
         sessionTid: r.session_tid,
         email: mail,
+        registreretAt: r.registreret_at,
         afmeldt,
         alleredeSendt: r.session_tid !== null && i.sendte.has(noegle(mail, r.session_tid, art)),
         nu: i.nu,
