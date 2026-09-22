@@ -204,6 +204,7 @@ export type Database = {
           company_id: string | null
           created_at: string
           id: string
+          mailet_at: string | null
           member_id: string
           read_at: string | null
           reference_id: string | null
@@ -217,6 +218,7 @@ export type Database = {
           company_id?: string | null
           created_at?: string
           id?: string
+          mailet_at?: string | null
           member_id: string
           read_at?: string | null
           reference_id?: string | null
@@ -230,6 +232,7 @@ export type Database = {
           company_id?: string | null
           created_at?: string
           id?: string
+          mailet_at?: string | null
           member_id?: string
           read_at?: string | null
           reference_id?: string | null
