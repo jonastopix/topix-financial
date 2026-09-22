@@ -9974,6 +9974,183 @@ Chatten gik hele listen igennem kort for kort, med A's recon af kort 1–128 og 
 
 ---
 
+### 22. september (dagen) — webinaret afholdt og målt, afmeldingerne i drift, CARMAs vindue 2 bevist
+
+Webinaret kl. 09 var dagens prøve på alt, der er bygget siden 19/9. Tallene er
+målt kl. 10:24 med `~/Downloads/maal-webinar-22-09.sql` (ét resultatsæt, kørt af
+Jonas).
+
+#### 1. Webinaret — 384 tilmeldte, 159 deltog, og fremmødet nåede Klaviyo
+
+| | antal |
+|---|---:|
+| Tilmeldte | **384** |
+| **Deltog** | **159** — heraf set (≥ 75 %) **112**, delvist **47** |
+| Mødte ikke op | **224** |
+| Ukendt (sessionen forbi, intet sagt) | 1 |
+
+Dommen er husets egen (`_shared/webinarDom.ts:doemSetGrad`, grænsen 75 %);
+tallene er ikke gemt noget sted, de er regnet af `set_procent`.
+
+**Hændelserne til Klaviyo (lag 2) holdt.** «Deltog i webinar» **214 hændelser
+fordelt på 159 profiler**, «Moedte ikke op» **225 på 224 profiler** —
+`frisk = ja` på alle, **ingen profil fik begge**, og de **2 timeouts blev
+gensendt** af `klaviyo-gensend-cron` (job 567). Flere hændelser end profiler er
+ventet: `unique_id` er `<ewebinar_id>:<grad>`, og en person, der går fra
+«delvist» til «set», får to — Klaviyo kasserer dubletten, ikke opgraderingen.
+
+**«Deltog» sendes ved login, ikke ved slutningen.** Første hændelse faldt
+**09:00:04** med grad «delvist»: `doemSetGrad` svarer «delvist» på state
+`Joined`, og `afgoerOvergang` sender ved skiftet fra intet til «var der». Det er
+rigtigt — en, der lige er logget ind, ER mødt op — men det skal huskes, når
+tallet læses: «deltog» betyder «kom ind ad døren», og de 112 «set» er dem, der
+blev.
+
+**Køreplanens åbne spørgsmål er besvaret: eWebinar TIER IKKE.** Planen havde en
+reservevej (`ewebinar-import` med `send_fremmoede: true`), som kun skulle bruges,
+hvis eWebinar ikke selv meldte fravær. Målingen viser, at eWebinar **sender
+Missed/NotJoined for alle 224**. Importens no-show-vej blev derfor **ikke brugt
+og skal ikke bruges** — den bliver stående som beredskab.
+
+**Færre i flowene end tilmeldte, og det er ikke en fejl.** `Wq3MkG` og `SDVvCW`
+kræver medlemskab af **Hovedlisten** OG samtykke. Tilmelding til et webinar er
+ikke det samme som samtykke til markedsføring, så en tilmeldt uden begge dele
+modtager intet. **AFGJORT SAMME DAG ~14:10 (Jonas, ordret): «Hovedliste»-kravet
+BLIVER — tilmeldte, der ikke står på Hovedliste, skal IKKE ind.** Det er ikke en
+mangel, der skal rettes; det er grænsen, huset vil have. Hændelserne sendes
+uændret for alle 384 — det er flowets optagelseskrav, der er snævert, ikke lag 2.
+
+**Fundet, der ikke var planlagt: `klaviyo_profil` findes IKKE i prod.** #1066
+(webinarets tidspunkt på profilen) er merget, men migrationen `20260921190000`
+er aldrig kørt, og `klaviyo-profil-cron` er derfor ikke i drift. Det er samme
+klasse som `a18-tre-fra-monday`: koden er i main, men SQL'en er ikke kørt.
+Kortet `a21-webinar-tidspunkt` bærer målingen.
+
+#### 1b. Ansøgerne efter webinaret — 6 oprettet, 5 indsendt, og Meta trin 2 bevist
+
+Målt kl. 14:03 (A's `~/Downloads/maal-ansoegere-22-09.sql`).
+
+**Seks ansøgninger blev oprettet 09:51–09:56** — altså i de fem minutter lige
+efter webinarets slutning. **Fem blev indsendt:** alle med `kilde = webinar`,
+alle `Watched` **81–100 %**, og median **22 minutter** fra oprettelse til
+indsendelse. De fem står nu som **1 booket · 2 indkaldt · 2 lukket**.
+
+**Den sjette er en kladde** — og den er lærerig: `kilde = direkte` (ikke
+webinar), nået til **skridt 7 af 12**, stoppet ved «udfordring», sidst gemt
+**10:45**. Rykkerkøen har allerede lagt en påmindelse til **24/9 kl. 10:00**
+(dag 2 kl. 10 efter sidste gem). Ingen skal gøre noget — køen gør det.
+
+At alle fem indsendte så **81–100 %** af webinaret er den stærkeste kobling,
+dagen gav: de, der bliver til ansøgninger, er dem, der bliver siddende.
+
+**Meta trin 2 er BEVIST I DRIFT.** `meta_haendelser` for de seks:
+
+| art | antal |
+|---|---:|
+| `started` | **6** |
+| `submitted` | **5** |
+| `kvalificeret` | **3** |
+| `booket` | **1** |
+
+**Alle sendt.** Det lukker kortet `a22-meta-crm-bevis`: «Kvalificeret» og
+«Schedule» er ikke længere kode, der venter på sin første hændelse — de er set i
+drift. `purchase` mangler stadig af den rigtige grund: en betaling sker 30–60
+dage efter ansøgningen.
+
+**Udestår (Jonas):** den **fjerde brugerdefinerede konvertering «Kvalificeret»**
+i Events Manager. Hændelsen ankommer; konverteringen, der optimerer mod den,
+findes ikke endnu.
+
+**Og et fund, der IKKE er en fejl: 0 af de 6 har `ga_client_id`**, så der gik
+**ingen GA-hændelser** for dem. Forklaringen er **umålt**, men nærliggende: de
+kom fra webinaret (topix.dk / eWebinar) og har aldrig været på
+`theboardroom.dk`, hvor GA-cookien sættes. `ga-send-cron` sender kun for rækker
+med et klient-id, og det er med vilje — et opfundet `client_id` ville skabe en
+ny bruger i GA hver gang. Står som fund i `docs/tracking.md` §5.
+
+#### 2. Afmeldingerne — fra eWebinar til Klaviyo, bevist i drift kl. 13:57
+
+**9 unikke mailadresser** havde afmeldt sig i eWebinar. **6 af dem afmeldte
+Jonas i hånden i Klaviyo kl. 11:18** (efter chattens forslag og Jonas' ja), mens
+resten af kæden blev bygget.
+
+Rækkefølgen, som den faktisk gik — og det er husets rækkefølge for en ny
+function, ikke en tilfældighed:
+
+| kl. | hvad | bevis |
+|---|---|---|
+| 11:13 | målingen `maal-ewebinar-afmeldinger.sql` | 9 unikke mails |
+| 11:18 | 6 afmeldt i hånden i Klaviyo | chatten, Jonas' ja |
+| — | `KLAVIYO_AFMELD_KEY` oprettet i Klaviyo og sat i Lovable | profiles/list/subscriptions: **Full Access** |
+| **13:26** | migration `20260922060000_klaviyo_afmeldinger.sql` **KØRT i prod**, FØR merge | tabel · 2 politikker · 4 indekser · `klaviyo_afmeld_aktiv = false` |
+| — | `ewebinar-webhook`, `klaviyo-gensend-cron`, `klaviyo-afmeld-bagud` udrullet | build-chatten |
+| **13:54** | tørkørsel, kald **14273** | **9 kandidater** = præcis de 9 fra 11:13 |
+| **13:56** | låsen `klaviyo_afmeld_aktiv` **false → true** | FØR-målingen viste `false` |
+| **13:56** | kald **14276** — `laas_aktiv: true`, men **uden** `{"dry_run": false}` | **tørkørte stadig.** Den dobbelte sikring virker, som i `meta-send-cron`: låsen alene sender ikke |
+| **13:57** | kald **14277** med `{"dry_run": false}` | **sendt 9 · lykkedes 9 · fejlede 0** |
+| **13:58** | verificeret i Klaviyo gennem API'et | se nedenfor |
+
+**Beviset er tre profiler, læst tilbage hos Klaviyo — ikke vores eget svar:**
+
+- `vera@natur-klinikken.dk` — **havde ingen profil**; den blev **OPRETTET som
+  UNSUBSCRIBED 11:57:17 UTC**. Det er præcis, hvad Klaviyos reference lover:
+  «If a profile cannot be found matching the given identifier(s), a new profile
+  will be created and then unsubscribed.» Den ene af de ni, der ikke fandtes
+  11:13, findes nu — og med det rigtige samtykke.
+- `newsletter@stenbryggen.dk` — var `NEVER_SUBSCRIBED` **og** blokeret; nu
+  **UNSUBSCRIBED 11:57:16 UTC**. Den bekræfter forskellen, beslutningen bygger
+  på: undertrykkelse og samtykke er to ting, og vi flytter samtykket.
+- `info@metteolsen.dk` — **uændret** UNSUBSCRIBED fra 19/9. Idempotensen holder.
+- De **6 fra kl. 11:18 er uændrede**. Et gentaget kald sætter samme tilstand
+  igen; den unikke regel i sporet (`(email) WHERE udfald = 'ok'`) sørger for, at
+  de aldrig prøves igen.
+
+**Låsen bliver stående på `true`.**
+
+**Det, der IKKE er bevist endnu: den LEVENDE webhook-vej.** Alle ni gik gennem
+bagud-fejet (`kilde = 'bagud'`). At en afmelding, der ankommer fra eWebinar,
+bliver til en afmelding i Klaviyo **i samme kald**, bevises først af den næste
+rigtige Unsubscribed — og beviset er en række i `klaviyo_afmeldinger` med
+**`kilde = 'webhook'`**. Indtil da er webhook-grenen kode, ikke drift.
+
+Mekanismen står i `CLAUDE.md` («Afmeldinger fra eWebinar til Klaviyo») og i
+`~/Downloads/udkast-ewebinar-afmelding/README.md`; grundlaget i
+`~/Downloads/recon-ewebinar-afmelding.md`. Merget som **#1088** (`d3646919`).
+
+#### 3. CARMA — fornyelsesvinduets anden halvdel, bevist kl. 13:46
+
+Vindue 2 er **bevist i drift**: stempel **13:00:10**, mailen
+«fornyelse-vindue2» **sendt 13:00:11**, cron **545 succeeded**, og svaret bar
+**sendt 2** — `vindue_2` 1 (CARMA) og `varsel_2` 1 (PHILBERT).
+
+Det lukker **første halvdel** af kortet `m15-vinduet`: vinduet åbner, og mailen
+går. **Anden halvdel (#896)** — den, der kræver en række, hvor vinduet og
+varslet støder sammen — venter stadig på en række at prøve på.
+
+#### 3b. Onsdagens plan er ændret — klokke-mailen frem, RLS-omskrivningen tilbage
+
+**Jonas 22/9:** klokke-mailen (`udkast-klokke-mail`, migrationerne 030000/031000)
+**bliver på planen** til onsdag 23/9. **RLS-omskrivningen (`a22-rls-initplan`)
+udskydes til «senere»** — og grunden er en måling, ikke en nedprioritering:
+**målt 22/9 kl. 04:52 som Jonas med RLS tager forsidens 32 forespørgsler
+tilsammen 785 ms** kørt én ad gangen, den tungeste 162 ms. Basen er altså ikke
+flaskehalsen; ventetiden ligger foran den (`a22-forside-langsom`).
+Seq-scan-tallene fra 08:15 er stadig rigtige — de koster bare ikke det, de ser
+ud til.
+
+#### 4. Merget, men ikke på skærmen endnu
+
+- **#1086** — deltagernes bedømmelse pr. afholdt session på `/webinar`.
+  `webinar-delt` er udrullet. **Update-klik og skærmbevis udestår.**
+- **#1087** — hjemmesiden på ansøgningen er et link, og kun rigtige webadresser
+  bliver links. **Update-klik og skærmbevis udestår.**
+
+Begge er frontend (`src/`), og frontend deployes ikke af et merge: Update-knappen
+er den eneste kanal (`CLAUDE.md`, «Deployment af frontend»). Indtil klikket er
+prod-builden på `app.theboardroom.dk` uændret.
+
+---
+
 ## DEL 3 · Det der venter
 
 **Tracking (Meta, LinkedIn, GA4, TikTok, Stape, eWebinar, Klaviyo — hvad der sendes til hvem, principperne fra 21/9, det åbne):** `docs/tracking.md` er husets ENE dokument om det fra 21/9; recon-/rapportfilerne i `~/Downloads` er kilder.
@@ -9988,7 +10165,7 @@ Chatten gik hele listen igennem kort for kort, med A's recon af kort 1–128 og 
 | **22/9 efter S+3 t — importens no-show-vej, KUN hvis eWebinar tier** | tørkørsel med `send_fremmoede: true` + `session_dato: "2026-09-22"` → læs `ville_sende` → Jonas beslutter → rigtig kørsel. Reglen: importen køres ALDRIG med `dry_run: false` uden `send_fremmoede: true`. Efter en rigtig kørsel kan tirsdagssidens kontrol-SQL ikke bruges (`sidste_haendelse_at` sættes på alle) | DEL 2 «21. september» §9; `udkast-import-fremmoede/README.md` §5 |
 | **23/9 onsdag — `ad_id_udledt` stadig 180** | mål efter cronen 05:33: 180 oversat 08:40 (bilag A), 2 stadig navn | DEL 2 «21. september» §3 |
 | **23/9 onsdag morgen — første dom «observation»** | forventet: kun ét webinar, ingen anbefaling, ingen ændring — det er rigtigt | `docs/marketingmotoren.md` §6 |
-| **23/9 onsdag — RLS-omskrivningen** | `(select user_company_id(auth.uid()))` som initplan i policierne; FØR-tal ≈ 14.828 opslag/time på `company_members` (nat, før staleTime) | DEL 2 «21. september» §2 |
+| ~~**23/9 onsdag — RLS-omskrivningen**~~ **UDSKUDT (Jonas 22/9): «senere»** | Basen er IKKE forsidens flaskehals: alle 32 forespørgsler tager tilsammen **785 ms** kørt én ad gangen (målt 22/9 04:52 som Jonas med RLS, tungeste 162 ms). Seq-scan-tallene er rigtige, men koster ikke det, de ser ud til. **Onsdag går til klokke-mailen i stedet** (`udkast-klokke-mail`, migrationerne 030000/031000) | DEL 2 «21. september» §2; kort `a22-rls-initplan`, `a22-forside-langsom` |
 | **21/9 — «Kom ikke» (A bygger)** | knappen findes ikke; køen markerer «afholdt» ved sluttid uanset fremmøde | DEL 2 «21. september» §10; kort `a21-kom-ikke` |
 | **efter webinaret — redigerbare mails** | afslagsmailen først; recon først | kort `a21-redigerbare-mails` |
 | **senest 6/10 — køreplanen til 13/10** | kampagnerne bygges i uge 39, planlagt senest 6/10 | `koereplan-13-10.md`; kort «179 er tilmeldt webinaret 13/10» |

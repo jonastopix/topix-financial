@@ -205,6 +205,51 @@ mail-loft, CVR-loft, rådgiverlisten ved 30 nye, tidsplan og beredskab) og
   klokken ved 80 %, berigelsen slået fra hele ugen 21.–26/9.
 - Onsdag morgen: dommen svarer «observation» — og det er rigtigt.
 
+## 7b. Tirsdag 22/9 — AFHOLDT og målt kl. 10:24
+
+`maal-webinar-22-09.sql`, ét resultatsæt, kørt af Jonas. Fuld bogføring i
+`docs/OVERLEVERING.md` «22. september (dagen)» §1 — her står kun tallene og
+de to ting, der ændrer, hvad vi ved.
+
+| | antal |
+|---|---:|
+| Tilmeldte | **384** |
+| **Deltog** | **159** (set ≥ 75 %: **112** · delvist: **47**) |
+| Mødte ikke op | **224** |
+| Ukendt | 1 |
+
+**Til Klaviyo:** «Deltog i webinar» 214 hændelser / 159 profiler · «Moedte ikke
+op» 225 / 224 · `frisk = ja` på alle · **ingen profil fik begge** · 2 timeouts
+gensendt af job 567. Flere hændelser end profiler er ventet: `unique_id` er
+`<ewebinar_id>:<grad>`, og en opgradering fra «delvist» til «set» er en ny
+hændelse, ikke en dublet.
+
+**Det, §7 skulle bevise, er bevist** — med to tilføjelser:
+
+1. **eWebinar TIER IKKE.** Reservevejen i køreplanen (`ewebinar-import` med
+   `send_fremmoede: true`, kun hvis eWebinar ikke selv meldte fravær) var ikke
+   nødvendig: eWebinar sendte **Missed/NotJoined for alle 224**. Importens
+   no-show-vej blev ikke brugt og bliver stående som beredskab.
+2. **«Deltog» sendes ved LOGIN, ikke ved slutningen.** Første hændelse faldt
+   **09:00:04** med grad «delvist» — `doemSetGrad` svarer «delvist» på state
+   `Joined`. Rigtigt, men det skal huskes, når tallet læses: 159 «deltog»
+   betyder «kom ind ad døren»; **112** er dem, der blev.
+
+**Og et fund, der ikke var planlagt:** `klaviyo_profil` **findes ikke i prod**.
+#1066 er merget, men migrationen `20260921190000` er aldrig kørt, så
+`klaviyo-profil-cron` er ikke i drift — samme klasse som `a18-tre-fra-monday`:
+koden er i main, SQL'en er ikke kørt. Kort: `a21-webinar-tidspunkt`.
+
+**Færre i flowene end tilmeldte — og det BLIVER sådan.** `Wq3MkG`/`SDVvCW`
+kræver medlemskab af **Hovedlisten** OG samtykke. **AFGJORT 22/9 ~14:10 (Jonas,
+ordret): «Hovedliste»-kravet BLIVER — tilmeldte, der ikke står på Hovedliste,
+skal IKKE ind.** En webinartilmelding er ikke i sig selv samtykke til
+markedsføring, og flowene må ikke optage nogen på det grundlag. Følgen, som er
+tilsigtet: hændelsen når Klaviyo for alle 384, men flowet optager kun dem, der
+allerede må modtage. Ingen ændring i lag 2.
+
+---
+
 ## 8. 20. september — sporet lukkes fra klik til ansøgning, og fem felter viste sig at være observationer
 
 **Princippet, der binder dagen sammen: et felt, vi ikke selv sætter, er en
