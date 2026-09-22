@@ -37,7 +37,9 @@ import { PERSONDATA_AFSNIT } from "@/lib/ansoegning/persondata";
  *      Rækkefølgen er stadig: hvorfra → GA-opsamlingen (gaOpsamling.guard dom 6) → Meta.
  *  10. METAS COOKIER ÉT STED (22/9): én parser i skema.ts (+ spejlet), fladen læser ved mount,
  *      body'en bærer «meta», serveren dømmer formen igen, og værdien røres aldrig.
- *  11. DE TO META-MIGRATIONER: begge bogført KØRT i prod 21/9 — trin 1 «… 22:15» (FØR merge),
+ *  11. DE TO META-MIGRATIONER (linjen om «sidste kørte i mappen» strammet 22/9 til
+ *      ventepladser-reglen som ren dom — se ukoerteFoerKoerte):
+ *      begge bogført KØRT i prod 21/9 — trin 1 «… 22:15» (FØR merge),
  *      trin 2 «… 23:20» (før udrulningen; var «IKKE KØRT» indtil da) med præcis ÉN udvidet CHECK — og trin 2
  *      sorterer efter hver eneste kørte migration.
  *  12. ALLE ANSØGERE + FRAVALGET: «ingen_fbclid» findes ikke længere, ANSØGNINGSforespørgslen
@@ -85,6 +87,24 @@ export function migrationsOrden(dir: string): { koert: string[]; ikkeKoert: stri
     else if (/^--\s*KØRT i prod/.test(foerste)) koert.push(fil);
   }
   return { koert, ikkeKoert };
+}
+
+/**
+ * VENTEPLADSER-REGLEN som en ren dom (tilføjet 22/9, udkast-ewebinar-afmelding).
+ *
+ * «En migration, der ikke er kørt, må aldrig sortere før en, der ER kørt» — det
+ * var dén fejl, der tog forsiden ned i tolv timer 19/9. Svarer de filer, der
+ * BRYDER reglen. Begrænset til stykket fra `fra` og frem, fordi 35 ældre filer
+ * fejlagtigt bærer «IKKE KØRT» (se dom 11); en dom over hele mappen ville være
+ * rød af en grund, der ikke er vores — og et rødt værn, man lærer at se bort
+ * fra, er intet værn.
+ */
+export function ukoerteFoerKoerte(koert: readonly string[], ikkeKoert: readonly string[], fra: string): string[] {
+  const k = [...koert].filter((f) => f >= fra).sort();
+  const u = [...ikkeKoert].filter((f) => f >= fra).sort();
+  const sidste = k[k.length - 1];
+  if (sidste === undefined) return [];
+  return u.filter((f) => f < sidste);
 }
 const SKEMA = "src/lib/ansoegning/skema.ts";
 const SKEMA_DENO = "supabase/functions/_shared/ansoegningSkema.ts";
@@ -506,7 +526,18 @@ describe("metaSend.guard — Metas Conversions API fra platformen", () => {
     for (const f of vores) expect(koert).toContain(f);
     const stadigUkoert = vores.filter((f) => ikkeKoert.includes(f));
     expect(`vores ukørte: ${stadigUkoert.join(", ")}`).toBe("vores ukørte: ");
-    expect(koert[koert.length - 1]).toBe("20260922050000_meta_haendelser_trin2.sql");
+    // STRAMMET 22/9 kl. 13:26 (udkast-ewebinar-afmelding). Linjen var:
+    //   expect(koert[koert.length - 1]).toBe("20260922050000_meta_haendelser_trin2.sql")
+    // — sand, så længe trin 2 var den nyeste migration OVERHOVEDET. Samme dag blev
+    // 20260922060000_klaviyo_afmeldinger.sql kørt i prod (13:26, FØR merge), og den
+    // sorterer efter. Dommen var altså en DATERET IAGTTAGELSE, ikke invarianten.
+    // Invarianten står i afsnittet ovenfor og er nu skrevet ud som en ren dom:
+    // ingen UKØRT fil må sortere før den sidst kørte — på stykket fra vores to og frem.
+    expect(ukoerteFoerKoerte(koert, ikkeKoert, vores[0])).toEqual([]);
+    // Og trin 2 er stadig den sidste kørte TIL OG MED sit eget tidsstempel — den
+    // oprindelige linjes bid, bevaret for alt, der ligger før den.
+    const tilOgMedTrin2 = koert.filter((f) => f <= vores[1]);
+    expect(tilOgMedTrin2[tilOgMedTrin2.length - 1]).toBe("20260922050000_meta_haendelser_trin2.sql");
     // Og trin 2 skal komme efter trin 1 — den udvider jo den tabel, trin 1 ikke rører.
     expect(vores[1] > vores[0]).toBe(true);
   });
@@ -616,6 +647,12 @@ describe("metaSend.guard — dommene fanger fejlen på en kopi", () => {
     expect(trin2Migrationen(t.replace("-- KØRT i prod — 21/9-2026 kl. 23:20", "-- IKKE KØRT. DEPLOY:"))).toBe(false);
     // Og den mindste udvidelse: en art mindre i CHECK'en fælder den.
     expect(trin2Migrationen(t.replace("'started', 'submitted', 'kvalificeret', 'booket', 'purchase'", "'started', 'submitted', 'kvalificeret', 'booket'"))).toBe(false);
+    // VENTEPLADSER-REGLEN bider: en UKØRT fil, der sorterer før den sidst kørte, fanges.
+    expect(ukoerteFoerKoerte(["20260101_a.sql", "20260103_c.sql"], ["20260102_b.sql"], "20260101_a.sql")).toEqual(["20260102_b.sql"]);
+    // En ukørt fil EFTER den sidst kørte er den normale arbejdsgang — og fældes ikke.
+    expect(ukoerteFoerKoerte(["20260101_a.sql", "20260103_c.sql"], ["20260104_d.sql"], "20260101_a.sql")).toEqual([]);
+    // Og reglen ser kun på stykket fra «fra» og frem: en ældre ukørt fil er ikke vores.
+    expect(ukoerteFoerKoerte(["20260103_c.sql"], ["20260101_gammel.sql"], "20260103_c.sql")).toEqual([]);
   });
   it("13. et standardnavn på «Kvalificeret», en CRM-hændelse med user agent, eller website-formen på alle, fælder dom 13", () => {
     // PRÆCIS DEN FEJL, det danske navn findes for: kollision med eWebinars egen pixel på samme datasæt.
