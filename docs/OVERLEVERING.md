@@ -4,9 +4,9 @@
 >
 > **WEBINARET TIRSDAG 22/9 KL. 09.** Flowene er klar: `Wq3MkG` og `SDVvCW` er **tændt**, og `YcBF9f` er **slukket** (Jonas 21/9 ~23:40 — `tirsdag-en-side.md` sagde «senest 13:00»; gjort aftenen før). Resten af `tirsdag-en-side.md` gælder.
 >
-> **KL. 08 — Google Analytics' rapport for 21/9.** Rapporter → Engagement → Hændelser, med sidesti-kolonnen: står `application_started` med sidesti «(not set)»? Så er platformens GA-afsendelse bevist i rapporterne → markér `application_submitted` som **nøglehændelse**.
+> **~~KL. 08 — Google Analytics' rapport for 21/9.~~ GJORT 22/9 kl. 08:13 — platformens GA-afsendelse ER bevist i rapporten.** Rapporter → Engagement → Hændelser, 21/9, `application_started` med sekundær dimension **Time**: time 18 = 2 hændelser fra 1 bruger (GTM-klikket 18:02 + platformens 18:04, samme klient-id), time 22 = 1 hændelse (platformens fra prøvekladden 22:27 — GTM-tagget var slukket fra 21:40). **Kl. 00:09 stod de ikke der endnu: Measurement Protocol behandles langsommere end browserens hændelser — realtid og dagens rapport er ikke beviset, rapporten dagen efter er.** Beviset står ét sted: `docs/tracking.md` §4a («Beviset i rapporten»); kortet `a22-ga-mp-rapporter` i mangellisten er lukket. **Tilbage: markér `application_submitted` som nøglehændelse** (Jonas, i GA4).
 >
-> **KL. 08:30 — indeksmålingen igen** (samme SQL som 21/9 22:34) — effekten af ANALYZE alene. Se «21. september (aften)» §6.
+> **~~KL. 08:30 — indeksmålingen igen~~ GJORT 22/9 kl. 08:15** (samme SQL som 21/9 22:34) — effekten af `ANALYZE` alene: `company_members` +29.530 seq / +2.341 idx (92,7 % seq), `user_roles` 5.722.999 seq_scan. **`ANALYZE` ændrede ikke valget** — for en tabel på 28 rækker er et seq scan det billigste; løftestangen er antallet af kald (RLS-hjælperne pr. række). Tallene står på kortet `a22-rls-initplan`; se «21. september (aften)» §6.
 >
 > **EFTER WEBINARET:** de første rigtige ansøgninger giver rækker i `meta_haendelser` og `ga_haendelser`, og «Ansøgning – påbegyndt» og «Ansøgning – sendt» bliver aktive i Events Manager.
 >

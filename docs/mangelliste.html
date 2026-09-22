@@ -1634,6 +1634,27 @@
     ebitda_margin_pct-noten. Talt med grep på div-taggene: før 186 (inkl.
     skabelonen i kommentaren) og 56 lukkede; efter 198 og 57 lukkede.
     Lukket: 1 (bliver stående). Omskrevet: 2. Tilføjet: 12.
+  RØRT 22/9 08:15 — MORGENENS BEVISER (bogført i docs/OVERLEVERING.md
+  «22/9 — START HER»; GA-beviset i sin helhed i docs/tracking.md §4a)
+    To kort lukket på målinger taget mellem 08:13 og 08:16, og ét udvidet
+    med morgenens tal. Ingen kode rørt; ingen nye kort.
+    LUKKET (2, bliver stående): m16e-messages-indeks (indekset FANDTES —
+    pg_indexes 08:16: ix_messages_conversation_created (conversation_id,
+    created_at), brugt 196 gange, plus ix_messages_ulaeste; oprettet med
+    indeksarbejdet 20/9, men kortet blev ikke lukket dengang — det bar
+    stadig «Jonas 22/9: gør det», og tagget står) · a22-ga-mp-rapporter
+    (GA4's rapport for 21/9, aflæst 08:13: platformens hændelser ER talt;
+    kl. 00:09 stod de der ikke — Measurement Protocol behandles langsommere
+    end browserens hændelser, så realtid og dagens rapport er ikke beviset,
+    rapporten dagen efter er).
+    UDVIDET (1): a22-rls-initplan — målt 08:15, natten efter ANALYZE 21/9
+    22:37: company_members +29.530 seq / +2.341 idx (92,7 % seq),
+    user_roles 5.722.999 seq_scan. ANALYZE ændrede ikke valget; for en
+    tabel på 28 rækker er et seq scan det billigste, og løftestangen er
+    antallet af kald. Kortet står åbent til onsdag.
+    Talt med grep på kortenes div-tag (class card) og på lukket-status:
+    før 242 og 83 lukkede; efter 242 og 85 lukkede.
+    Lukket: 2 (bliver stående). Udvidet: 1. Tilføjet: 0. Arkiveret: 0.
   RØRT 22/9 MORGEN — JONAS' BESLUTNINGER (taget kl. ~04:45 i overblikket
   «Mangellisten — hvad gør vi først?»; bogført i OVERLEVERING DEL 2
   «22. september (nat)»)
@@ -1980,11 +2001,11 @@
   <h2>Indgangen — fra ansøgning til aktivt medlem</h2>
   <p class="lede">Ansøgningsflowet bor i platformen fra 18/9 (#984–#1010): formular, motor, kø, venteliste, e-underskrift, booking — og Jonas har været hele vejen igennem (18/9 aften). Kæden fra underskrift til adgang er hel og bevist (OVERLEVERING DEL 2). Det der står, er det basen skal bekræfte før prøven, hullerne omkring kæden, ankomstens løse ender og beviserne der udestår.</p>
   <div class="grid">
-    <div class="card new" id="a22-ga-mp-rapporter" data-status="mangler" data-spor="1" data-rammer="ingen">
+    <div class="card new loest" id="a22-ga-mp-rapporter" data-status="loest" data-spor="1" data-rammer="ingen">
       <h3>Platformens hændelser til Google Analytics er ikke set i GA4's rapporter</h3>
-      <p><code>ga-send-cron</code> er i drift (job 569, låsen <code>true</code> 21:02). Measurement Protocol er bevist modtaget i DebugView: <code>tracking_test_debug</code> 20:57:58 og <code>tracking_test_debug_session</code> 20:59:34 med <code>session_id</code> og <code>timestamp_micros</code>. Men platformens egne <code>application_started</code> (18:04 og 22:27) stod IKKE i rapporten for 21/9 kl. 00:09 — de fire <code>application_started</code> dér var GTM-klik kl. 14, 15 og 17.</p>
+      <p><strong>LØST 22/9 — bevist i GA4's rapport. Rapporter → Engagement → Hændelser, 21/9, <code>application_started</code> med sekundær dimension Time (22/9 08:13): time 18 = 2 hændelser fra 1 bruger (Jonas' GTM-klik 18:02 + platformens hændelse 18:04, samme klient-id), time 22 = 1 hændelse (platformens fra prøvekladden 22:27 — GTM-tagget var slukket fra 21:40). Kl. 00:09 stod de ikke der endnu: Measurement Protocol behandles langsommere end browserens hændelser. Realtid og dagens rapport er ikke beviset — rapporten dagen efter er.</strong> <code>ga-send-cron</code> er i drift (job 569, låsen <code>true</code> 21:02). Measurement Protocol er bevist modtaget i DebugView: <code>tracking_test_debug</code> 20:57:58 og <code>tracking_test_debug_session</code> 20:59:34 med <code>session_id</code> og <code>timestamp_micros</code>. Men platformens egne <code>application_started</code> (18:04 og 22:27) stod IKKE i rapporten for 21/9 kl. 00:09 — de fire <code>application_started</code> dér var GTM-klik kl. 14, 15 og 17.</p>
       <p><strong>Sådan afgøres det:</strong> tjek rapporten for 21/9 igen d. 22/9. Står <code>tracking_test_debug*</code> der, men platformens ikke, ligger fejlen i platformens hændelser. Detaljen: <code>docs/tracking.md</code> §4a.</p>
-      <div class="meta"><span class="tag gold">Kl. 08 22/9</span><span class="tag ny">Ny 22/9</span><span class="tag size">Lille</span></div>
+      <div class="meta"><span class="tag loest">Lukket 22/9 — set i rapporten 08:13</span><span class="tag gold">Kl. 08 22/9</span><span class="tag ny">Ny 22/9</span><span class="tag size">Lille</span></div>
     </div>
     <div class="card new" id="a22-meta-crm-bevis" data-status="mangler" data-spor="1" data-rammer="raadgiver">
       <h3>Kvalificeret, Schedule og Purchase er i drift fra 21/9 23:28 — de bevises ved den første rigtige hændelse</h3>
@@ -3085,6 +3106,7 @@
     <div class="card new" id="a22-rls-initplan" data-status="mangler" data-spor="1" data-rammer="alle">
       <h3>Adgangsreglerne kalder <code>user_company_id(auth.uid())</code> og <code>has_role(auth.uid(), …)</code> pr. række — <code>user_roles</code> er scannet 5.556.824 gange, <code>company_members</code> 2.625.120</h3>
       <p>Målt 21/9 22:34–22:37. I dagen 08:32–22:34 fik <code>company_members</code> 93 % sekventielle scans, ca. 9.200 opslag i timen. Løsningen er Supabases egen anbefaling: pak hjælperne i <code>(select …)</code>, så de bliver en initplan, der køres én gang pr. forespørgsel i stedet for én gang pr. række.</p>
+      <p>Målt 22/9 08:15 (natten efter <code>ANALYZE</code> 21/9 22:37): <code>company_members</code> +29.530 seq / +2.341 idx (92,7 % seq), <code>user_roles</code> 5.722.999 seq_scan. <code>ANALYZE</code> ændrede ikke valget — for en tabel på 28 rækker er et seq scan det billigste; løftestangen er antallet af kald (RLS-hjælperne pr. række).</p>
       <p>Recon: <code>~/Downloads/recon-rls-initplan.md</code> (B, 21/9). Onsdag. Mål igen efter.</p>
       <div class="meta"><span class="tag rust">Onsdag 23/9</span><span class="tag ny">Ny 22/9</span><span class="tag size">Mellem</span></div>
     </div>
@@ -3196,10 +3218,10 @@
       <p>Set ved udrulningen af #922 (13:39 UTC). Bucket C-reglen er signaturverifikation FØR parsing; en tom body skal give 401, ikke 500. Rammer ingen i drift (Monday sender altid JSON), men svaret lyver om årsagen. Ikke målt: linjen i <code>monday-webhook/index.ts</code> hvor <code>req.json()</code> står før værnet. Historik: OVERLEVERING DEL 2 «16. september (eftermiddag og aften)» §13.</p>
       <div class="meta"><span class="tag gold">Set i udrulningssvar</span><span class="tag size">Lille</span></div>
     </div>
-    <div class="card new" id="m16e-messages-indeks" data-status="mangler" data-spor="senere" data-rammer="ingen">
+    <div class="card new loest" id="m16e-messages-indeks" data-status="loest" data-spor="senere" data-rammer="ingen">
       <h3>messages har intet indeks på conversation_id — panerne, mark_messages_read og ulæst-tællingerne filtrerer på den</h3>
-      <p>Målt 16/9 17:58: kun <code>messages_pkey</code> (og nu det delvise indeks på <code>svar_paa_id</code>). Panerne, <code>mark_messages_read</code> og ulæst-tællingerne filtrerer på <code>conversation_id</code>; med 10–15 nye medlemmer og længere tråde vokser tabellen. Ét indeks <code>(conversation_id, created_at)</code> i en egen migration — <code>EXPLAIN</code> i prod først. Det generelle greb: Supabases Query performance/index advisor — Jonas ser om Lovable udstiller det. Historik: OVERLEVERING DEL 2 «16. september (eftermiddag og aften)» §30.</p>
-      <div class="meta"><span class="tag gold">Jonas 22/9: gør det</span><span class="tag gold">Målt 17:58</span><span class="tag size">Lille</span></div>
+      <p><strong>LØST 22/9 — indekset findes: <code>pg_indexes</code> 22/9 08:16: <code>ix_messages_conversation_created ON public.messages USING btree (conversation_id, created_at)</code>, brugt 196 gange (<code>pg_stat_user_indexes</code> 08:15); desuden <code>ix_messages_ulaeste (conversation_id) WHERE read_at IS NULL</code>. Oprettet med indeksarbejdet 20/9; kortet blev ikke lukket dengang.</strong> Målt 16/9 17:58: kun <code>messages_pkey</code> (og nu det delvise indeks på <code>svar_paa_id</code>). Panerne, <code>mark_messages_read</code> og ulæst-tællingerne filtrerer på <code>conversation_id</code>; med 10–15 nye medlemmer og længere tråde vokser tabellen. Ét indeks <code>(conversation_id, created_at)</code> i en egen migration — <code>EXPLAIN</code> i prod først. Det generelle greb: Supabases Query performance/index advisor — Jonas ser om Lovable udstiller det. Historik: OVERLEVERING DEL 2 «16. september (eftermiddag og aften)» §30.</p>
+      <div class="meta"><span class="tag loest">Lukket 22/9 — indekset findes, målt 08:16</span><span class="tag gold">Jonas 22/9: gør det</span><span class="tag gold">Målt 17:58</span><span class="tag size">Lille</span></div>
     </div>
     <div class="card new" id="m16-auto-deploy-canary" data-status="mangler" data-spor="1" data-rammer="ingen">
       <h3>Hvilken kode kører? CLAUDE.md siger edge functions auto-deployer fra merge, OVERLEVERING siger en ændret delt fil udrulles eksplicit — mål det med en canary, og lad hver function svare med sin commit-SHA</h3>
