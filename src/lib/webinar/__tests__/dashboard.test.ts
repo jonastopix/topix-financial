@@ -15,6 +15,8 @@ import {
   annoncespor,
   annonceAf,
   ansoegerMails,
+  ansoegerTider,
+  medlemsTider,
   ansoegningskobling,
   dagKey,
   datoLang,
@@ -52,6 +54,14 @@ const M = (email: string, indsendt_at = "2026-09-18T10:00:00.000Z"): AnsoegerMai
  * NU er sat til lørdag 19/9-2026 kl. 10.00 dansk tid, så det næste webinar
  * i fixturen er tirsdag 22/9 — Jonas' rigtige situation.
  */
+/**
+ * Ansøgermængden, som tragten vil have den: mail → indsendelsestidspunkt.
+ * Standarden 18/9 ligger EFTER T15 (15/9), så de gamle prøver måler det, de
+ * altid har målt — grænsen er kun i vejen for en ansøgning fra FØR sessionen.
+ */
+const tider = (mails: readonly string[], indsendt = "2026-09-18T10:00:00.000Z"): Map<string, number> =>
+  new Map(mails.map((m) => [m, Date.parse(indsendt)]));
+
 const NU = new Date("2026-09-19T08:00:00.000Z");
 const T22 = "2026-09-22T08:00:00.000Z";
 const T15 = "2026-09-15T08:00:00.000Z";
@@ -484,7 +494,7 @@ describe("afholdteSessioner — ansøgte og blev medlem pr. session", () => {
   ];
 
   it("procenten af de TILMELDTE der ansøgte, og af de ANSØGTE der blev medlem", () => {
-    const s = afholdteSessioner(raekker, NU, new Set(["a@x.dk", "b@x.dk"]), new Set(["a@x.dk"]))[0];
+    const s = afholdteSessioner(raekker, NU, tider(["a@x.dk", "b@x.dk"]), tider(["a@x.dk"]))[0];
     expect(s.ansoegte).toBe(2);
     expect(s.ansoegerAndel).toBe(0.5); // 2 af 4 tilmeldte
     expect(s.blevMedlem).toBe(1);
@@ -500,8 +510,98 @@ describe("afholdteSessioner — ansøgte og blev medlem pr. session", () => {
   });
 
   it("en ansøger der ikke var på sessionen, tælles ikke med på den", () => {
-    const s = afholdteSessioner(raekker, NU, new Set(["fremmed@x.dk"]))[0];
+    const s = afholdteSessioner(raekker, NU, tider(["fremmed@x.dk"]))[0];
     expect(s.ansoegte).toBe(0);
+  });
+});
+
+describe("GRÆNSEN I TID — en tidligere ansøger tæller ikke med igen", () => {
+  /**
+   * MÅLT I PROD 22/9-2026 22:58 (Lovable SQL): sessionen 22/9 havde 384
+   * tilmeldte, og kolonnen «ansøgt» viste 6. Fem var indsendt samme formiddag;
+   * den sjette var indsendt 8/7-2025 — en lukket ansøgning lagt ind fra Monday,
+   * hvis person blot havde meldt sig til dagens webinar. Tallet skal være 5.
+   */
+  const SESSION = "2026-09-22T07:00:00.000Z";      // 22/9 kl. 09:00 dansk
+  const EFTER = new Date("2026-09-22T20:00:00.000Z");
+  const DAGENS = "2026-09-22T07:51:00.000Z";        // 09:51 dansk
+  const GAMMEL = "2025-07-08T09:00:00.000Z";        // 8/7-2025
+
+  const seks = ["en@x.dk", "to@x.dk", "tre@x.dk", "fire@x.dk", "fem@x.dk", "levpositiv@x.dk"];
+  const sessionens = seks.map((email) => R({ email, session_tid: SESSION, set_procent: 90 }));
+
+  it("DAGENS TILFÆLDE ORDRET: 6 tilmeldte med en indsendt ansøgning → tallet er 5", () => {
+    const ansoegere = new Map<string, number>([
+      ...seks.slice(0, 5).map((m) => [m, Date.parse(DAGENS)] as [string, number]),
+      ["levpositiv@x.dk", Date.parse(GAMMEL)],
+    ]);
+    const s = afholdteSessioner(sessionens, EFTER, ansoegere)[0];
+    expect(s.tilmeldte).toBe(6);
+    expect(s.ansoegte).toBe(5);
+    // Uden grænsen ville den have været 6 — det var fejlen.
+    expect(s.ansoegte).not.toBe(6);
+  });
+
+  it("«blev medlem» deler mængden og får SAMME grænse", () => {
+    const ansoegere = new Map([["levpositiv@x.dk", Date.parse(GAMMEL)], ["en@x.dk", Date.parse(DAGENS)]]);
+    const medlemmer = new Map([["levpositiv@x.dk", Date.parse(GAMMEL)], ["en@x.dk", Date.parse(DAGENS)]]);
+    const s = afholdteSessioner(sessionens, EFTER, ansoegere, medlemmer)[0];
+    expect(s.ansoegte).toBe(1);
+    expect(s.blevMedlem).toBe(1);
+  });
+
+  it("GRÆNSEN ER SKARP: præcis på session_tid tæller IKKE, ét millisekund efter tæller", () => {
+    const paa = new Map([["en@x.dk", Date.parse(SESSION)]]);
+    const efter = new Map([["en@x.dk", Date.parse(SESSION) + 1]]);
+    const foer = new Map([["en@x.dk", Date.parse(SESSION) - 1]]);
+    expect(afholdteSessioner(sessionens, EFTER, paa)[0].ansoegte).toBe(0);
+    expect(afholdteSessioner(sessionens, EFTER, efter)[0].ansoegte).toBe(1);
+    expect(afholdteSessioner(sessionens, EFTER, foer)[0].ansoegte).toBe(0);
+  });
+
+  it("EN KLADDE TÆLLES IKKE — den når aldrig ind i mængden", () => {
+    // ansoegerTider er den eneste vej ind, og den springer indsendt_at null over.
+    const ansoegere = ansoegerTider([
+      { email: "en@x.dk", indsendt_at: null, trin: "ny", virksomhed_slutdato: null },
+      { email: "to@x.dk", indsendt_at: DAGENS, trin: "ny", virksomhed_slutdato: null },
+    ]);
+    expect(ansoegere.has("en@x.dk")).toBe(false);
+    expect(afholdteSessioner(sessionens, EFTER, ansoegere)[0].ansoegte).toBe(1);
+  });
+
+  it("EN PERSON MED TO ANSØGNINGER tælles ÉN gang — og hører til den NYESTE", () => {
+    const ansoegere = ansoegerTider([
+      { email: "en@x.dk", indsendt_at: GAMMEL, trin: "lukket", virksomhed_slutdato: null },
+      { email: "en@x.dk", indsendt_at: DAGENS, trin: "ny", virksomhed_slutdato: null },
+    ]);
+    expect(ansoegere.size).toBe(1);
+    expect(ansoegere.get("en@x.dk")).toBe(Date.parse(DAGENS));
+    expect(afholdteSessioner(sessionens, EFTER, ansoegere)[0].ansoegte).toBe(1);
+    // Og omvendt: kun den gamle → hun tæller ikke.
+    const kunGammel = ansoegerTider([{ email: "en@x.dk", indsendt_at: GAMMEL, trin: "lukket", virksomhed_slutdato: null }]);
+    expect(afholdteSessioner(sessionens, EFTER, kunGammel)[0].ansoegte).toBe(0);
+  });
+
+  it("EN SESSION UDEN TIDSPUNKT (Replay) har ingen grænse — og tæller som før", () => {
+    const replay = [R({ email: "en@x.dk", session_tid: null, set_procent: 90 })];
+    const kunGammel = new Map([["en@x.dk", Date.parse(GAMMEL)]]);
+    const s = afholdteSessioner(replay, EFTER, kunGammel)[0];
+    expect(s.sessionTid).toBeNull();
+    expect(s.ansoegte).toBe(1);
+  });
+
+  it("TRAGTEN bruger personens FØRSTE afholdte session som grænse", () => {
+    // Hun var med i marts OG 22/9, og ansøgte i april: webinaret hentede hende.
+    const MARTS = "2026-03-10T09:00:00.000Z";
+    const APRIL = Date.parse("2026-04-01T09:00:00.000Z");
+    const raekker = [
+      R({ email: "en@x.dk", session_tid: MARTS, set_procent: 90 }),
+      R({ email: "en@x.dk", session_tid: SESSION, set_procent: 90 }),
+    ];
+    expect(tragt(raekker, new Map([["en@x.dk", APRIL]]), new Map(), EFTER).trin[3].antal).toBe(1);
+    // Lev Positiv: kun 22/9, ansøgning fra 2025 → ikke med.
+    const lev = [R({ email: "levpositiv@x.dk", session_tid: SESSION, set_procent: 90 })];
+    expect(tragt(lev, new Map([["levpositiv@x.dk", Date.parse(GAMMEL)]]), new Map(), EFTER).trin[3].antal).toBe(0);
   });
 });
 
@@ -515,7 +615,7 @@ describe("tragt — tilmeldte → mødte op → så færdigt → ansøgte → bl
   ];
 
   it("fem led, hvert med andel af leddet før OG af udgangspunktet", () => {
-    const t = tragt(raekker, new Set(["a@x.dk", "c@x.dk"]), new Set(["a@x.dk"]), NU);
+    const t = tragt(raekker, tider(["a@x.dk", "c@x.dk"]), tider(["a@x.dk"]), NU);
     expect(t.trin.map((x) => [x.navn, x.antal])).toEqual([
       ["Tilmeldte", 4], ["Mødte op", 3], ["Så det færdigt", 2], ["Ansøgte", 2], ["Blev medlem", 1],
     ]);
@@ -527,18 +627,18 @@ describe("tragt — tilmeldte → mødte op → så færdigt → ansøgte → bl
   });
 
   it("de KOMMENDE står uden for tragten — ellers ville de se ud som frafald", () => {
-    const t = tragt(raekker, new Set(), new Set(), NU);
+    const t = tragt(raekker, new Map(), new Map(), NU);
     expect(t.grundlag).toBe(4);
     expect(t.kommendeUdenfor).toBe(1);
   });
 
   it("hvert led er en delmængde af det før — andelen kan aldrig overstige 1", () => {
-    const t = tragt(raekker, new Set(["a@x.dk", "c@x.dk"]), new Set(["a@x.dk"]), NU);
+    const t = tragt(raekker, tider(["a@x.dk", "c@x.dk"]), tider(["a@x.dk"]), NU);
     for (const x of t.trin) if (x.andelAfFoer !== null) expect(x.andelAfFoer).toBeLessThanOrEqual(1);
   });
 
   it("uden afholdte webinarer er tragten tom, men gyldig — ingen NaN", () => {
-    const t = tragt([R({ email: "e@x.dk", session_tid: T22 })], new Set(), new Set(), NU);
+    const t = tragt([R({ email: "e@x.dk", session_tid: T22 })], new Map(), new Map(), NU);
     expect(t.grundlag).toBe(0);
     expect(t.kommendeUdenfor).toBe(1);
     for (const x of t.trin) { expect(x.antal).toBe(0); expect(x.andelAfStart).toBeNull(); }

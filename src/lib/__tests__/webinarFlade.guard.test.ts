@@ -42,6 +42,12 @@ import { ANNONCESPOR_KOLONNER } from "@/lib/webinar/kolonner";
  *  11. «Blev medlem» er HUSETS dom (blevMedlem i ansoegningVisning), ikke
  *      en ny betingelse skrevet her — ellers ville to tal i samme hus
  *      kunne betyde det samme ord forskelligt.
+ *  14. TRAGTENS GRÆNSE I TID BOR I DOMMEN: «ansøgt» og «blev medlem» tæller
+ *      kun ansøgninger indsendt EFTER sessionen (indsendt_at > session_tid,
+ *      skarpt). Grænsen regnes i faellesEfter — ikke i fladen, som hverken må
+ *      kende indsendt_at eller filtrere paa tid. Hooken og webinar-delt skal
+ *      hente indsendt_at, ellers har dommen intet at maale mod.
+ *      (Fejlen 22/9-2026: 6 i «ansoegt», hvoraf én ansoegte 8/7-2025.)
  *  13. BEDØMMELSEN ER DOMMENS: stjernen, tallet og de fem søjler tegnes af
  *      afholdte[].bedoemmelse; skalaen bor i dashboard.ts; fladen dividerer
  *      aldrig med stemmerne, og «ingen stemmer» tegner INTET — ikke «0».
@@ -250,6 +256,32 @@ export const bedoemmelsenErDommens = (view: string, dom: string): boolean => {
   );
 };
 
+// ── 14 ──────────────────────────────────────────────────────────────────────
+/**
+ * Graensen er dommens. Tre ting skal holde paa én gang:
+ *   a) dommen HAR graensen, skarp, ét sted (faellesEfter med t > g),
+ *   b) begge led bruger den (ansoegte OG blevMedlem i afholdteSessioner),
+ *   c) begge hentere beder om indsendt_at — uden den er maengden tom.
+ * Og fladen maa hverken kende feltet eller filtrere paa tid.
+ */
+export const graensenBorIDommen = (dom: string, view: string, hook: string, delt: string): boolean => {
+  const d = udenKommentarer(dom);
+  const v = udenKommentarer(view);
+  return (
+    d.includes("function faellesEfter(") &&
+    d.includes("if (g === null || t > g) n++;") &&
+    !/t >= g/.test(d) &&
+    d.includes("const a = faellesEfter(mails, ansoegte, graense);") &&
+    d.includes("const m = faellesEfter(mails, medlemmer, graense);") &&
+    /select\("email, indsendt_at, trin, company_id"\)/.test(udenKommentarer(hook)) &&
+    /select\("email, indsendt_at, trin, company_id"\)/.test(udenKommentarer(delt)) &&
+    !v.includes("indsendt_at") &&
+    !/session_tid[\s\S]{0,40}[<>]/.test(v)
+  );
+};
+
+const DELT = "supabase/functions/webinar-delt/index.ts";
+
 describe("webinarfladens kildeværn", () => {
   it("1. ruten /webinar er lazy og bag AdvisorRoute", () => {
     const app = laes(APP);
@@ -332,6 +364,21 @@ describe("webinarfladens kildeværn", () => {
     // Overskriften holder op med at bruge skabelonen.
     expect(opstillingenFlugter(view.replace("<Overskrifter grid={TAL_GRID}", "<Overskrifter grid={\"grid grid-cols-6\"}"))).toBe(false);
     expect(opstillingenFlugter(view.replace(/SPOR_GRID/g, "x"))).toBe(false);
+  });
+
+  it("14. tragtens grænse i tid bor i dommen — fladen regner ikke selv", () => {
+    const dom = laes(DOM), view = laes(VIEW), hook = laes(HOOK), delt = laes(DELT);
+    expect(graensenBorIDommen(dom, view, hook, delt)).toBe(true);
+    // Grænsen fjernet, eller gjort blød: begge er fejlen fra 22/9 igen.
+    expect(graensenBorIDommen(dom.split("if (g === null || t > g) n++;").join("if (g === null || t >= g) n++;"), view, hook, delt)).toBe(false);
+    expect(graensenBorIDommen(dom.split("const a = faellesEfter(mails, ansoegte, graense);").join("const a = faellesAntal(mails, new Set(ansoegte.keys()));"), view, hook, delt)).toBe(false);
+    // «Blev medlem» sluppet uden om grænsen, mens «ansøgt» beholder den.
+    expect(graensenBorIDommen(dom.split("const m = faellesEfter(mails, medlemmer, graense);").join("const m = faellesAntal(mails, new Set(medlemmer.keys()));"), view, hook, delt)).toBe(false);
+    // Tidspunktet hentes ikke — dommen har intet at måle mod.
+    expect(graensenBorIDommen(dom, view, hook.split("email, indsendt_at, trin, company_id").join("email, trin, company_id"), delt)).toBe(false);
+    expect(graensenBorIDommen(dom, view, hook, delt.split("email, indsendt_at, trin, company_id").join("email, trin, company_id"))).toBe(false);
+    // Fladen begynder at regne selv.
+    expect(graensenBorIDommen(dom, `${view}\nconst egne = a.filter((x) => x.indsendt_at > s.sessionTid);`, hook, delt)).toBe(false);
   });
 
   it("11. «blev medlem» er husets dom, ikke en ny betingelse", () => {

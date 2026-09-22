@@ -525,11 +525,16 @@ export interface AfholdtSession extends Deltagelse {
   sessionType: string | null;
   /** «22/9» · null uden tid. */
   dato: string | null;
-  /** Af sessionens tilmeldte: hvor mange der har indsendt en ansøgning (Jonas 19/9, punkt 3). */
+  /**
+   * Af sessionens tilmeldte: hvor mange der har indsendt en ansøgning EFTER
+   * sessionen begyndte (`indsendt_at > session_tid`, skarpt). En tidligere
+   * ansøger, der melder sig til igen, tæller IKKE — filhovedet og målingen
+   * 22/9-2026.
+   */
   ansoegte: number;
   /** ansoegte / tilmeldte. null uden tilmeldte. */
   ansoegerAndel: number | null;
-  /** Af sessionens ANSØGERE: hvor mange der blev medlem (Jonas 19/9, punkt 4). */
+  /** Af sessionens ANSØGERE (samme grænse i tid): hvor mange der blev medlem. */
   blevMedlem: number;
   /** blevMedlem / ansoegte — andelen af de ANSØGTE, ikke af de tilmeldte. null uden ansøgere. */
   medlemAfAnsoegteAndel: number | null;
@@ -545,8 +550,8 @@ export interface AfholdtSession extends Deltagelse {
 export function afholdteSessioner(
   raekker: readonly Tilmelding[],
   nu: Date,
-  ansoegte: ReadonlySet<string> = new Set(),
-  medlemmer: ReadonlySet<string> = new Set(),
+  ansoegte: ReadonlyMap<string, number> = new Map(),
+  medlemmer: ReadonlyMap<string, number> = new Map(),
 ): AfholdtSession[] {
   const afholdt = raekker.filter((r) => { const t = tid(r.session_tid); return t === null || t <= nu.getTime(); });
   const grupper = new Map<string, Tilmelding[]>();
@@ -559,8 +564,11 @@ export function afholdteSessioner(
       const t = tid(liste[0].session_tid);
       const sessionTid = t === null ? null : new Date(t).toISOString();
       const mails = new Set(liste.map((r) => r.email));
-      const a = faellesAntal(mails, ansoegte);
-      const m = faellesAntal(mails, medlemmer);
+      // GRÆNSEN: kun ansøgninger indsendt EFTER denne session begyndte.
+      // Samme grænse for begge led — de deler mængden.
+      const graense = () => t;
+      const a = faellesEfter(mails, ansoegte, graense);
+      const m = faellesEfter(mails, medlemmer, graense);
       return {
         sessionTid,
         webinarId: liste[0].webinar_id,
@@ -828,10 +836,77 @@ export function medlemsMails(ansoegninger: readonly AnsoegerMail[]): Set<string>
   return s;
 }
 
+/**
+ * Mail → den SENESTE indsendelse (ms). Kladder er ikke med (`indsendt_at`
+ * null), og en ulæselig dato tæller som ingen.
+ *
+ * SENESTE, ikke første, og nøglen er MAILEN: en person med to ansøgninger —
+ * en gammel og en ny — tælles ÉN gang, og hun hører til den nye. Ellers ville
+ * en gammel, lukket ansøgning kunne holde en ny ansøger ude af tragten.
+ */
+export function ansoegerTider(ansoegninger: readonly AnsoegerMail[]): Map<string, number> {
+  const ud = new Map<string, number>();
+  for (const a of ansoegninger) {
+    const t = tid(a.indsendt_at);
+    if (t === null) continue;
+    const m = tekst(a.email)?.toLowerCase();
+    if (m === null || m === undefined) continue;
+    const haves = ud.get(m);
+    if (haves === undefined || t > haves) ud.set(m, t);
+  }
+  return ud;
+}
+
+/**
+ * Det samme for dem, der BLEV MEDLEM. Tidspunktet er stadig ansøgningens
+ * indsendelse — ikke betalingens: spørgsmålet er, om denne session bragte
+ * ansøgningen, og medlemskabet er ansøgningens udfald.
+ */
+export function medlemsTider(ansoegninger: readonly AnsoegerMail[]): Map<string, number> {
+  const ud = new Map<string, number>();
+  for (const a of ansoegninger) {
+    if (!blevMedlem(a)) continue;
+    const t = tid(a.indsendt_at);
+    if (t === null) continue;
+    const m = tekst(a.email)?.toLowerCase();
+    if (m === null || m === undefined) continue;
+    const haves = ud.get(m);
+    if (haves === undefined || t > haves) ud.set(m, t);
+  }
+  return ud;
+}
+
 /** Hvor mange af mailene i `mails` der står i `mod`. */
 function faellesAntal(mails: Iterable<string>, mod: ReadonlySet<string>): number {
   let n = 0;
   for (const m of mails) if (mod.has(m)) n++;
+  return n;
+}
+
+/**
+ * Hvor mange af `mails` der har en indsendelse EFTER deres egen grænse.
+ *
+ * Grænsen gives som en funktion, fordi de to kaldere har hver sin: en session
+ * har ÉT tidspunkt for alle, mens den samlede tragt har personens FØRSTE
+ * afholdte session — «ansøgte hun, efter hun første gang var med?».
+ *
+ * `null` fra `graense` betyder, at der ikke ER et tidspunkt at måle mod
+ * (Replay/OnDemand har ingen session_tid). Da tælles enhver indsendelse, som
+ * før grænsen fandtes — at udelade dem ville lave et andet, tavst tab.
+ * SKARPT større: `indsendt_at > graense`, aldrig `>=`.
+ */
+function faellesEfter(
+  mails: Iterable<string>,
+  tider: ReadonlyMap<string, number>,
+  graense: (mail: string) => number | null,
+): number {
+  let n = 0;
+  for (const m of mails) {
+    const t = tider.get(m);
+    if (t === undefined) continue;
+    const g = graense(m);
+    if (g === null || t > g) n++;
+  }
   return n;
 }
 
@@ -890,15 +965,27 @@ export interface Tragt {
  */
 export function tragt(
   raekker: readonly Tilmelding[],
-  ansoegte: ReadonlySet<string>,
-  medlemmer: ReadonlySet<string>,
+  ansoegte: ReadonlyMap<string, number>,
+  medlemmer: ReadonlyMap<string, number>,
   nu: Date,
 ): Tragt {
   const afholdt = raekker.filter((r) => { const t = tid(r.session_tid); return t === null || t <= nu.getTime(); });
   const d = taelDeltagelse(afholdt, nu);
   const mails = new Set(afholdt.map((r) => r.email));
-  const a = faellesAntal(mails, ansoegte);
-  const m = faellesAntal(mails, medlemmer);
+  // GRÆNSEN PR. PERSON: hendes FØRSTE afholdte session. Den samlede tragt er
+  // summen over sessioner, og spørgsmålet er det samme — ansøgte hun, EFTER
+  // hun første gang var med? Personer, hvis sessioner alle mangler tidspunkt
+  // (Replay), får null og tælles som før (faellesEfter).
+  const foersteSession = new Map<string, number>();
+  for (const r of afholdt) {
+    const t = tid(r.session_tid);
+    if (t === null) continue;
+    const haves = foersteSession.get(r.email);
+    if (haves === undefined || t < haves) foersteSession.set(r.email, t);
+  }
+  const graense = (mail: string) => foersteSession.get(mail) ?? null;
+  const a = faellesEfter(mails, ansoegte, graense);
+  const m = faellesEfter(mails, medlemmer, graense);
   const kommende = new Set(
     raekker.filter((r) => { const t = tid(r.session_tid); return t !== null && t > nu.getTime(); }).map((r) => r.email),
   );
@@ -1062,16 +1149,21 @@ export function udenRaekker(dom: WebinarDashboard): WebinarDashboardSvar {
 /** Ét kald, ét svar. Fladen regner intet selv. */
 export function webinarDashboard(ind: DashboardInput, nu: Date): WebinarDashboard {
   const { tilmeldinger, ansoegninger, sporKolonnerFindes } = ind;
+  // TO FORMER AF SAMME MÆNGDE: tragten (§2) skal kende TIDSPUNKTET for at
+  // kunne sætte grænsen; annoncesporet (§3) og koblingen (§4) spørger om noget
+  // andet og bruger stadig mailene alene — se filhovedet.
   const mails = ansoegerMails(ansoegninger);
   const medlemmer = medlemsMails(ansoegninger);
+  const ansoegtTider = ansoegerTider(ansoegninger);
+  const medlemTider = medlemsTider(ansoegninger);
   const naeste = naesteWebinar(tilmeldinger, nu);
-  const afholdte = afholdteSessioner(tilmeldinger, nu, mails, medlemmer);
+  const afholdte = afholdteSessioner(tilmeldinger, nu, ansoegtTider, medlemTider);
   const afholdtRaekker = tilmeldinger.filter((r) => { const t = tid(r.session_tid); return t === null || t <= nu.getTime(); });
   return {
     tom: tilmeldinger.length === 0,
     personer: new Set(tilmeldinger.map((r) => r.email)).size,
     samlet: taelDeltagelse(afholdtRaekker, nu),
-    tragt: tragt(tilmeldinger, mails, medlemmer, nu),
+    tragt: tragt(tilmeldinger, ansoegtTider, medlemTider, nu),
     tid: tidTilAnsoegning(tilmeldinger, ansoegninger),
     naeste,
     afholdte,
