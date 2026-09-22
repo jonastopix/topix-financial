@@ -30,8 +30,9 @@
 //      inden for et tidsbudget (BUDGET_MS) under cron-timeouten på 60 s; det,
 //      der ikke nås, hedder «udsat» og tages næste kørsel (5 min senere).
 //   4. Alarm (princip 1): opgivne grupper og grupper med nøglefejl giver EN
-//      MAIL til raadgiverModtager(nu) ad husets rådgivervej (sendManagedEmail,
-//      som «ny ansøgning»-mailen) OG en drift-klokke (skrivRaadgiverBesked).
+//      MAIL til driftModtager() (Jonas 21/9: «når noget går galt, skal kun være
+//      Jonas» — ikke raadgiverModtager, som skifter til kontakt@ 19/10) ad husets
+//      vej (sendManagedEmail) OG en drift-klokke (skrivRaadgiverBesked).
 //      Højst én mail pr. time: idempotensnøglen bærer dansk dato og time, og
 //      email_send_log slås op FØR afsendelsen, så udbyderen ikke skal dedup'e
 //      for os. Klokkens titel bærer samme dato og time — dedup på titlen.
@@ -58,7 +59,7 @@ import { authenticateServiceRole, corsHeaders } from "../_shared/edgeFunctionAut
 import { ukendteFelter, ukendteFelterBesked } from "../_shared/kendteFelter.ts";
 import { skrivRaadgiverBesked } from "../_shared/raadgiverBesked.ts";
 import { sendManagedEmail } from "../_shared/managedEmail.ts";
-import { raadgiverModtager } from "../_shared/raadgiverModtager.ts";
+import { driftModtager } from "../_shared/driftModtager.ts";
 import { indgangsMailHtml } from "../_shared/indgangsMail.ts";
 import { afmeldHvisNoegle, gensendHvisGemt } from "../_shared/klaviyoAfsendelse.ts";
 import { type AfmeldSporRaekke, vaelgGenafmeldinger } from "../_shared/klaviyoAfmelding.ts";
@@ -243,8 +244,8 @@ async function skrivAlarm(admin: SupabaseClient, grupper: readonly AlarmGruppe[]
       });
       const res = await sendManagedEmail({
         adminClient: admin,
-        // Modtageren går uden om bounce-spærringen på kontakt@ (raadgiverModtager.ts, 18/9 → 19/10-2026).
-        to: raadgiverModtager(nu),
+        // Driftsalarmen går til driftModtager — ét sted (driftModtager.ts, 21/9), ikke til rådgiveradressen.
+        to: driftModtager(),
         subject: tekst.emne,
         html,
         text: tekst.tekst,

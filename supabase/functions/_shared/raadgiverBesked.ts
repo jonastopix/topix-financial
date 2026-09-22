@@ -10,7 +10,12 @@
  *     advisor_id = auth.uid() OR advisor_id IS NULL), så «læst» er den
  *     enkeltes — læser Jonas beskeden, står den stadig hos Morten;
  *   - dedup med NOT EXISTS før insert: samme advisor_id + type + reference
- *     (reference_id, eller titlen når referencen mangler) giver ikke to.
+ *     (reference_id, eller titlen når referencen mangler) giver ikke to —
+ *     PR. RÅDGIVER (raadgivereUdenRaekke samler advisor_id'er med en række),
+ *     og uanset read_at: en læst række spærrer stadig. Det er standard for
+ *     alle kaldere. Én kalder (notify-community-svar, Jonas 21/9) beder om
+ *     dedupKunUlaeste: kun rækker med read_at IS NULL spærrer, så en tråd
+ *     giver én ULÆST klokke pr. rådgiver — læst den, ringer næste svar igen.
  * De fem ældre edge-writere (send-slack-*, run-company-agent) skriver én
  * fælles række uden advisor_id; den form deles ikke her, netop pga. «læst».
  *
@@ -58,9 +63,16 @@ export interface RaadgiverBeskedResultat {
   fejl: string[];
 }
 
+/** Valgfri indstilling. Standard (tom) = uændret adfærd for alle kaldere. */
+export interface SkrivValg {
+  /** Dedup kun mod ULÆSTE rækker (read_at null — dømt i raadgivereUdenRaekke): én ulæst klokke pr. rådgiver; en læst spærrer ikke. Kun notify-community-svar (klokkeCommunitySvar.guard). */
+  dedupKunUlaeste?: boolean;
+}
+
 export async function skrivRaadgiverBesked(
   admin: SupabaseClient,
   besked: RaadgiverBesked,
+  valg: SkrivValg = {},
 ): Promise<RaadgiverBeskedResultat> {
   const resultat: RaadgiverBeskedResultat = { raadgivere: 0, skrevet: 0, fandtes: 0, fejl: [] };
   const log = `[raadgiverBesked] ${besked.type}`;
@@ -80,7 +92,7 @@ export async function skrivRaadgiverBesked(
 
     let q = admin
       .from("advisor_notifications")
-      .select("advisor_id, reference_id, title")
+      .select("advisor_id, reference_id, title, read_at")
       .eq("type", besked.type)
       .in("advisor_id", raadgivere);
     q = besked.reference_id ? q.eq("reference_id", besked.reference_id) : q.eq("title", besked.title);
@@ -93,7 +105,7 @@ export async function skrivRaadgiverBesked(
       return resultat;
     }
 
-    const mangler = raadgivereUdenRaekke(raadgivere, (eksisterende ?? []) as EksisterendeRaekke[], besked);
+    const mangler = raadgivereUdenRaekke(raadgivere, (eksisterende ?? []) as EksisterendeRaekke[], besked, valg.dedupKunUlaeste === true);
     resultat.fandtes = raadgivere.length - mangler.length;
     if (mangler.length === 0) return resultat;
 

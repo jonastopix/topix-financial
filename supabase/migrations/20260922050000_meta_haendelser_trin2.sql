@@ -24,6 +24,9 @@
 -- (trin 1). Tidsstemplet 22/9 kl. 05:00 ligger efter alt i main og efter de to migrationer i
 -- udkast-klokke-mail (20260922030000/031000), som endnu ikke er kørt. En migration, der ikke
 -- er kørt, må aldrig sortere før en, der er.
+-- NOTE 22/9-2026 (tilføjet, historikken urørt): denne migration blev kørt 21/9 kl. 23:20, mens
+-- klokke-mailens to STADIG ikke var kørt — altså præcis det, sætningen ovenfor advarer mod.
+-- Derfor blev de to omnummereret til 20260922070000/071000, da klokke-mailen blev lagt ind.
 --
 -- FØR-SQL (ét resultatsæt — kør FØR migrationen, gem CSV):
 --   select conname, pg_get_constraintdef(oid) as definition

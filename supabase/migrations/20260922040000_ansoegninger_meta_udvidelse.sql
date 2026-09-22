@@ -38,6 +38,9 @@
 -- TIDSSTEMPLET 22/9 04:00 er valgt EFTER alt i main (seneste: 20260922021000) og efter de
 -- to migrationer i udkast-klokke-mail (20260922030000 / 20260922031000), som endnu ikke er
 -- kørt. En migration, der ikke er kørt, må aldrig sortere før en, der er.
+-- NOTE 22/9-2026 (tilføjet, historikken urørt): denne migration blev kørt 21/9 kl. 22:15, mens
+-- klokke-mailens to STADIG ikke var kørt. De blev derfor omnummereret til
+-- 20260922070000/071000, da klokke-mailen blev lagt ind.
 --
 -- FØR-SQL (ét resultatsæt — kør FØR migrationen, gem CSV):
 --   select column_name, data_type, is_nullable, column_default
