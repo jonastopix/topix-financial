@@ -2,6 +2,11 @@ import { describe, expect, it } from "vitest";
 import {
   afholdteSessioner,
   andel,
+  bedoemmelse,
+  bedoemmelseTekst,
+  BEDOEMMELSE_MAKS,
+  stemmeAf,
+  stemmerOrd,
   brokOgPct,
   dageOrd,
   medlemsMails,
@@ -684,5 +689,117 @@ describe("kommendeEfterNaeste — de små bokse under den store (21/9-2026)", ()
     // Den store boks' egne tal er urørte af tilføjelsen.
     expect(n?.personer).toBe(2);
     expect(n?.kommendeSessioner).toBe(5);
+  });
+});
+
+/**
+ * BEDØMMELSEN (22/9-2026). Teksterne er eWebinars egne, som de står i
+ * `raa->>'interactionsSummary'` i prod — målt 22/9 kl. 10:52 på sessionen
+ * 22/9 kl. 09. Derfor `\n` ordret, med den tomme linje under overskriften:
+ * det er formen, dommen skal kunne læse.
+ */
+const I = (linjer: string) => `-- Interactions --\n\n${linjer}`;
+const FEEDBACK_5 = I("Feedback: Del din feedback!: 5\n");
+const FEEDBACK_4 = I("Feedback: Del din feedback!: 4\n");
+const KUN_CTA = I("CallToAction: calltoaction_ansgTilTheBoardroom: Clicked\n");
+const CTA_OG_FEEDBACK = I("CallToAction: calltoaction_ansgTilTheBoardroom: Clicked\nFeedback: Del din feedback!: 3\n");
+
+describe("stemmeAf — dagens tekster, og alt det der ikke er en stemme", () => {
+  it("læser tallet i prods egen tekst", () => {
+    expect(stemmeAf([FEEDBACK_5])).toBe(5);
+    expect(stemmeAf([CTA_OG_FEEDBACK])).toBe(3);
+  });
+
+  it("tom tekst, kun CallToAction, null og undefined giver ingen stemme", () => {
+    expect(stemmeAf([])).toBeNull();
+    expect(stemmeAf([""])).toBeNull();
+    expect(stemmeAf([I("")])).toBeNull();
+    expect(stemmeAf([KUN_CTA])).toBeNull();
+    expect(stemmeAf([null, undefined])).toBeNull();
+  });
+
+  it("tal uden for skalaen, kommatal og en linje uden titel er ikke en stemme", () => {
+    expect(stemmeAf([I("Feedback: Del din feedback!: 0\n")])).toBeNull();
+    expect(stemmeAf([I("Feedback: Del din feedback!: 6\n")])).toBeNull();
+    expect(stemmeAf([I("Feedback: Del din feedback!: 50\n")])).toBeNull();
+    expect(stemmeAf([I("Feedback: Del din feedback!: 4.5\n")])).toBeNull();
+    expect(stemmeAf([I("Feedback: Del din feedback!: fem\n")])).toBeNull();
+    // Uden titel er der kun ét kolon — så er det ikke eWebinars form, og vi gætter ikke.
+    expect(stemmeAf([I("Feedback: 5\n")])).toBeNull();
+  });
+
+  it("flere Feedback-linjer: den SENESTE gyldige vinder, og en ugyldig sletter ikke en gyldig", () => {
+    expect(stemmeAf([I("Feedback: A: 2\nFeedback: B: 5\n")])).toBe(5);
+    expect(stemmeAf([I("Feedback: A: 5\nFeedback: B: 2\n")])).toBe(2);
+    expect(stemmeAf([I("Feedback: A: 4\nFeedback: B: 9\n")])).toBe(4);
+    // Flere rækker for samme person læses i rækkefølge — sidste gyldige vinder.
+    expect(stemmeAf([FEEDBACK_5, FEEDBACK_4])).toBe(4);
+  });
+
+  it("en titel med kolon i: tallet læses efter det SIDSTE kolon", () => {
+    expect(stemmeAf([I("Feedback: Sig det ligeud: hvad synes du?: 4\n")])).toBe(4);
+  });
+});
+
+describe("bedoemmelse — én stemme pr. person, ingen stemmer giver null", () => {
+  it("samler stemmer, gennemsnit med én decimal og hele skalaen", () => {
+    const b = bedoemmelse([
+      R({ email: "a@x.dk", interactions: FEEDBACK_5 }),
+      R({ email: "b@x.dk", interactions: FEEDBACK_5 }),
+      R({ email: "c@x.dk", interactions: FEEDBACK_4 }),
+      R({ email: "d@x.dk", interactions: KUN_CTA }),
+    ]);
+    expect(b).not.toBeNull();
+    expect(b!.stemmer).toBe(3);
+    expect(b!.gennemsnit).toBe(4.7);
+    expect(b!.gennemsnitTekst).toBe("4,7");
+    expect(b!.fordeling.map((t) => t.stjerner)).toEqual([1, 2, 3, 4, 5]);
+    expect(b!.fordeling.map((t) => t.antal)).toEqual([0, 0, 0, 1, 2]);
+    expect(b!.fordeling[4].andel).toBeCloseTo(2 / 3);
+    expect(b!.fordeling[0].andel).toBe(0);
+  });
+
+  it("samme person i to rækker er ÉN stemme", () => {
+    const b = bedoemmelse([
+      R({ email: "a@x.dk", ewebinar_id: "r1", interactions: FEEDBACK_5 }),
+      R({ email: "a@x.dk", ewebinar_id: "r2", interactions: FEEDBACK_4 }),
+    ]);
+    expect(b!.stemmer).toBe(1);
+    // Rækkefølgen afgør: den seneste tekst er r2.
+    expect(b!.gennemsnit).toBe(4);
+  });
+
+  it("ingen stemmer giver null — ikke en nul-bedømmelse", () => {
+    expect(bedoemmelse([])).toBeNull();
+    expect(bedoemmelse([R({ email: "a@x.dk" })])).toBeNull();
+    expect(bedoemmelse([R({ email: "a@x.dk", interactions: KUN_CTA })])).toBeNull();
+  });
+
+  it("dansk komma, ental og flertal, og hele sætningen", () => {
+    const b = bedoemmelse([R({ email: "a@x.dk", interactions: I("Feedback: A: 4\n") }), R({ email: "b@x.dk", interactions: FEEDBACK_5 })])!;
+    expect(b.gennemsnitTekst).toBe("4,5");
+    expect(stemmerOrd(1)).toBe("1 stemme");
+    expect(stemmerOrd(40)).toBe("40 stemmer");
+    expect(bedoemmelseTekst(b)).toBe(`Bedømmelse 4,5 af ${BEDOEMMELSE_MAKS} · 2 stemmer`);
+  });
+});
+
+describe("afholdteSessioner — bedømmelsen følger sessionen", () => {
+  it("hver session får sin egen, og en session uden stemmer får null", () => {
+    const s = afholdteSessioner([
+      R({ email: "a@x.dk", session_tid: T15, interactions: FEEDBACK_5 }),
+      R({ email: "b@x.dk", session_tid: T15, interactions: FEEDBACK_4 }),
+      R({ email: "c@x.dk", session_tid: T08 }),
+    ], NU);
+    expect(s).toHaveLength(2);
+    expect(s[0].bedoemmelse!.stemmer).toBe(2);
+    expect(s[0].bedoemmelse!.gennemsnitTekst).toBe("4,5");
+    expect(s[1].bedoemmelse).toBeNull();
+  });
+
+  it("bedømmelsen bærer hverken mail eller række", () => {
+    const b = afholdteSessioner([R({ email: "a@x.dk", session_tid: T15, interactions: FEEDBACK_5 })], NU)[0].bedoemmelse!;
+    expect(JSON.stringify(b)).not.toContain("@");
+    expect(Object.keys(b).sort()).toEqual(["fordeling", "gennemsnit", "gennemsnitTekst", "stemmer"]);
   });
 });

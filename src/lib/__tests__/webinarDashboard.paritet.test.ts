@@ -88,6 +88,12 @@ export const FIXTURE = {
     R("bo@firma.dk", "Bo Berg", T15, { set_procent: 20, by: "Odense" }),
     R("carl@firma.dk", "Carl Clausen", T22, { state: "Registered", attended: null, set_procent: null }),
     R("dorte@firma.dk", "Dorte Dam", T22, { utm_content: "annonce-b", fbclid: null }),
+    // Bedømmelsen (22/9-2026): eWebinars egen tekst, så begge spejle skal LÆSE den ens,
+    // ikke bare svare null. Bo har to linjer — den seneste gyldige er hans stemme.
+    R("erik@firma.dk", "Erik Eng", T15, { interactions: "-- Interactions --\n\nFeedback: Del din feedback!: 5\n" }),
+    R("frida@firma.dk", "Frida Fog", T15, {
+      interactions: "-- Interactions --\n\nFeedback: A: 2\nFeedback: Del din feedback!: 4\nCallToAction: calltoaction_ansgTilTheBoardroom: Clicked\n",
+    }),
   ],
   ansoegninger: [
     { email: "anna@firma.dk", indsendt_at: "2026-09-16T10:00:00.000Z", trin: "underskrevet" as const, virksomhed_slutdato: "2027-09-16" },

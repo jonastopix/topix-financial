@@ -34,6 +34,12 @@ import { ANNONCESPOR_KOLONNER, UDLEDTE_KOLONNER } from "@/lib/webinar/kolonner";
  *   8. FLADEN: WebinarView henter stadig ét sted (useWebinarDashboard) og giver
  *      visningen et FÆRDIGT dom; WebinarVisning tager WebinarDashboardSvar;
  *      Webinar.tsx monterer WebinarDelinger; hooken danner aldrig et token.
+ *  11. BEDØMMELSENS KILDE HENTES BEGGE STEDER OG SOM TEKSTSTI (22/9-2026):
+ *      både fladens TILMELDING_KOLONNER og functionens GRUND_KOLONNER beder om
+ *      PRÆCIS `interactions:raa->>interactionsSummary` — aldrig hele `raa`.
+ *      Uden den i functionen ville den delte visning mangle bedømmelsen, som
+ *      rådgiverens side viser; med hele `raa` ville eWebinars fulde payload
+ *      om personen blive hentet ind i et svar, der skal ud til en ekstern.
  *  10. OPBEVARING 12 MÅNEDER (Jonas 21/9): cron-jobbet webinar-delinger-opbevaring er ren
  *      SQL (ingen kald_edge/net.http_post), én bar DELETE på webinar_delinger med
  *      intervallet '12 months' og udvælgelsen least(coalesce(lukket_at, udloeber_at),
@@ -62,6 +68,7 @@ const SIDE = "src/pages/DeltWebinar.tsx";
 const VIEW = "src/components/hjemmebane/webinar/WebinarView.tsx";
 const WEBINAR_SIDE = "src/pages/Webinar.tsx";
 const HOOK = "src/hooks/webinarDelinger.ts";
+const HOOK_WEBINAR = "src/hooks/webinar.ts";
 const BASELINE = "supabase/SECURITY_BASELINE.md";
 
 // ── 1 ──────────────────────────────────────────────────────────────────────
@@ -238,6 +245,17 @@ export const opbevaringenErRigtig = (mig: string): boolean => {
     mig.includes("cron.unschedule('webinar-delinger-opbevaring')") && mig.includes("12 MÅNEDER") && mig.includes("21/9-2026");
 };
 
+// ── 11 ─────────────────────────────────────────────────────────────────────
+/** Ordret det udtryk, begge hentninger skal bede om — og aldrig hele `raa`. */
+export const BEDOEMMELSE_KILDE = "interactions:raa->>interactionsSummary";
+
+export const bedoemmelsensKildeHentesBeggeSteder = (delt: string, hook: string): boolean => {
+  const grund = udenKommentarer(delt).match(/export const GRUND_KOLONNER =\s*\n?\s*"([^"]+)"/)?.[1] ?? "";
+  const flade = udenKommentarer(hook).match(/export const TILMELDING_KOLONNER =\s*\n?\s*"([^"]+)"/)?.[1] ?? "";
+  const barRaa = (s: string) => s.split(",").map((x) => x.trim()).includes("raa");
+  return grund.includes(BEDOEMMELSE_KILDE) && flade.includes(BEDOEMMELSE_KILDE) && !barRaa(grund) && !barRaa(flade);
+};
+
 describe("webinarDeling.guard — /webinar delt gennem et privat link", () => {
   it("1. tokenet verificeres først, og afvisningen er ét svar (403 ukendt) med grunden i sporet", () => expect(tokenetFoerst(laes(DELT))).toBe(true));
   it("2. aftryk, form før opslag, konstant tid, aldrig en token-kolonne", () => expect(aftrykOgKonstantTid(laes(AUTH))).toBe(true));
@@ -262,6 +280,10 @@ describe("webinarDeling.guard — /webinar delt gennem et privat link", () => {
     expect(kolliderer(0, planer, "webinar-delinger-opbevaring").length).toBeGreaterThan(0);
     expect(minutterI("52 4 * * *")).toEqual([52]);
   });
+  it("11. bedømmelsens kilde hentes som tekststi i BEGGE hentninger, aldrig som hele raa", () => {
+    expect(bedoemmelsensKildeHentesBeggeSteder(laes(DELT), laes(HOOK_WEBINAR))).toBe(true);
+  });
+
   it("9. SECURITY_BASELINE bogfører tabellerne, prædikatet og triggeren", () => {
     const b = laes(BASELINE);
     expect(b).toContain("### Webinar-delingen (`webinar_delinger`, `webinar_deling_spor`)");
@@ -342,6 +364,14 @@ describe("webinarDeling.guard — dommene fanger fejlen på en kopi", () => {
     const planer = cronUdtryk(MIG_DIR);
     expect(kolliderer(52, [...planer, { fil: "x", job: "andet", udtryk: "52 9 * * *" }], "webinar-delinger-opbevaring")).toEqual(["andet (52 9 * * *)"]);
   });
+  it("11. kilden væk i functionen, væk i fladen, eller hele raa hentet, fælder dom 11", () => {
+    const h = laes(HOOK_WEBINAR);
+    expect(bedoemmelsensKildeHentesBeggeSteder(delt.split(", interactions:raa->>interactionsSummary").join(""), h)).toBe(false);
+    expect(bedoemmelsensKildeHentesBeggeSteder(delt, h.split(", interactions:raa->>interactionsSummary").join(""))).toBe(false);
+    expect(bedoemmelsensKildeHentesBeggeSteder(delt.split("interactions:raa->>interactionsSummary").join("raa"), h)).toBe(false);
+    expect(bedoemmelsensKildeHentesBeggeSteder(delt, h.split("interactions:raa->>interactionsSummary").join("raa"))).toBe(false);
+  });
+
   it("8. et token dannet i browseren, eller listen uden montering, fælder dom 8", () => {
     expect(fladenErDelt(laes(VIEW), laes(WEBINAR_SIDE), laes(HOOK) + "\nconst t = crypto.getRandomValues(new Uint8Array(32));\n")).toBe(false);
     expect(fladenErDelt(laes(VIEW), laes(WEBINAR_SIDE).replace("<WebinarDelinger />", ""), laes(HOOK))).toBe(false);

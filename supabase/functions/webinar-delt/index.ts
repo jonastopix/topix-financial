@@ -53,8 +53,12 @@ const LOG = "[webinar-delt]";
 export const KENDTE_FELTER = ["t", "valg"] as const;
 
 // ── Kolonnerne — de samme som fladens (src/hooks/webinar.ts, src/lib/webinar/kolonner.ts; låst af webinarDeling.guard) ──
+// Bedømmelsen (22/9-2026) hentes som TEKSTSTI — `interactions:raa->>interactionsSummary`
+// — og aldrig som hele `raa`: den rå payload bærer alt, eWebinar ved om personen.
+// Teksten forlader ALDRIG serveren; dommen (webinarDashboard.bedoemmelse) svarer
+// kun med tal og andele, og findForbudteNoegler går svaret igennem som før.
 export const GRUND_KOLONNER =
-  "ewebinar_id, email, navn, webinar_id, webinar_titel, session_tid, session_type, registreret_at, state, sidste_action, attended, subscribed, set_procent, set_procent_kilde";
+  "ewebinar_id, email, navn, webinar_id, webinar_titel, session_tid, session_type, registreret_at, state, sidste_action, attended, subscribed, set_procent, set_procent_kilde, interactions:raa->>interactionsSummary";
 export const ANNONCESPOR_KOLONNER = [
   "utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term",
   "fbclid", "origin", "first_origin", "referrer", "first_referrer", "widget_source",
