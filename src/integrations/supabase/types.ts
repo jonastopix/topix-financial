@@ -2905,6 +2905,45 @@ export type Database = {
         }
         Relationships: []
       }
+      klaviyo_afmeldinger: {
+        Row: {
+          email: string
+          ewebinar_id: string | null
+          forsoegt_at: string
+          grund: string | null
+          id: string
+          kilde: string
+          status: number | null
+          svar: string | null
+          udfald: string
+          varighed_ms: number | null
+        }
+        Insert: {
+          email: string
+          ewebinar_id?: string | null
+          forsoegt_at?: string
+          grund?: string | null
+          id?: string
+          kilde: string
+          status?: number | null
+          svar?: string | null
+          udfald: string
+          varighed_ms?: number | null
+        }
+        Update: {
+          email?: string
+          ewebinar_id?: string | null
+          forsoegt_at?: string
+          grund?: string | null
+          id?: string
+          kilde?: string
+          status?: number | null
+          svar?: string | null
+          udfald?: string
+          varighed_ms?: number | null
+        }
+        Relationships: []
+      }
       klaviyo_haendelser: {
         Row: {
           email: string
