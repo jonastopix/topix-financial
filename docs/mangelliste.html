@@ -1634,6 +1634,37 @@
     ebitda_margin_pct-noten. Talt med grep på div-taggene: før 186 (inkl.
     skabelonen i kommentaren) og 56 lukkede; efter 198 og 57 lukkede.
     Lukket: 1 (bliver stående). Omskrevet: 2. Tilføjet: 12.
+  RØRT 22/9 SEN NAT — TO KORT: MAILENE NÅR IKKE FREM, OG SPORINGEN AF DEM
+  (bogført i docs/OVERLEVERING.md DEL 2 «22. september (dagen)» §14–§15;
+  grundlag ~/Downloads/maal-mailmaengde.sql, recon-mailsporing.md og
+  recon-platformens-mails-mailgun.md)
+    TILFØJET (2, Ny 22/9). Ingen andre kort rørt.
+    a22-mails-naar-ikke-frem — HASTER, og det er dagens største fund. Målt
+    22:24 over email_send_log (is_test = false), 1.928 rækker siden 7/4: 1.111
+    sendt · 60 fejlet · 756 HVERKEN-ELLER (39 % af alle rækker har ingen dom) ·
+    rate_limited 0. Pr. skabelon fejler to af dem OFTERE, end de lykkes — og det
+    er netop de to, et nyt medlem møder først: signup 21/38 og legat-welcome
+    5/26. Loftet er MÅLT og er ikke flaskehalsen: travleste time nogensinde er
+    78 mails = 26 % af 300/time — men elleve mails fik alligevel 429 «High
+    demand» 14/9 kl. 11:10–11:15, så Lovable afviser også ved deres EGEN
+    spidsbelastning. UMÅLT og det første, der skal gøres: hvad «failed» og de
+    756 «øvrige» betyder i tabellen (skriver managedEmail statusserne, eller
+    står rækker som «pending» for evigt?), og om en fejlet mail virkelig aldrig
+    nåede frem — det kræver, at ÉN mail følges hele vejen: email_send_log →
+    Lovables svar → indbakken. KONSEKVENS: begrundelsen for at flytte
+    platformens mails til Mailgun er en ANDEN end troet — ikke loftet, men
+    leveringen. Lagt som PUNKT 1 i «26/9 — START HER», over alt andet.
+    a22-mailsporing — BESLUTTET af Jonas: levering JA · klik JA · åbninger NEJ
+    (Apple Mail Privacy Protection og Gmails proxy gør åbningstal til maskintal,
+    og en usynlig pixel i en servicemail til folk uden markedsføringssamtykke er
+    ikke i orden). Tre skærme, syv målinger og fire beslutninger, der er Jonas'.
+    MÅLING 4 står først og er mærket: overlever afmeldingslinkets query-streng
+    Mailguns viderestilling? De andre seks kan rettes bagefter — et
+    afmeldingslink, der ikke virker, kan ikke gøres om. Frist: uge 40, efter at
+    webinarmailene har kørt, og før 13/10. De fire svar venter i START HER.
+    Talt med grep på kortenes div-tag (class card) og på lukket-status:
+    før 251 og 94 lukkede; efter 253 og 94 lukkede.
+    Lukket: 0. Tilføjet: 2.
   RØRT 22/9 NAT — PLATFORMENS WEBINARMAILS I DRIFT, VENTELISTEN UNDER
   ANSØGNINGER (bogført i docs/OVERLEVERING.md DEL 2 «22. september (dagen)»
   §8–§13; mailene i docs/webinaret-og-annoncerne.md §7e og
@@ -2210,6 +2241,25 @@
       <h3>Ventelisten kunne kun betjenes fra virksomhedssiden — og et tidligere medlem står ikke i Virksomheder-listen</h3>
       <p><strong>LØST 22/9 — #1096 merget, Update klikket, i drift.</strong> Jonas 22/9 18:3x (ordret): «Det kunne være smart, at vi havde ventelisten under ansøgninger. Det her er for bøvlet.» <strong>Det målte bøvl:</strong> for at tilbyde Tatti pladsen hos Studio Mini måtte han åbne <code>/virksomhed/&lt;id&gt;</code> direkte fra en URL, fordi Studio Mini er et TIDLIGERE medlem og derfor ikke står i Virksomheder-listen — og knappen «Tilbyd» tegnedes kun dér (<code>VirksomhedView.tsx:1833</code>). <strong>Nu:</strong> fanen «3 VENTELISTE» på <code>/ansoegninger</code> med tilstand pr. plads (kan tilbydes nu · tilbudt til &lt;dato&gt; · venter på dato · venter i kø · venter på pladsen), og «Tilbyd pladsen» også på ansøgningen selv. <strong>Ingen ny motor:</strong> ÉN dom (<code>bygVentelisteOverblik</code>) komponerer husets fem eksisterende domme, og knappen kalder samme <code>tilbydPladsen</code> som før — værnet <code>ventelisteOverblik.guard</code> (6 domme) låser, at fladen ikke regner selv. Historik: OVERLEVERING DEL 2 «22. september (dagen)» §12.</p>
       <div class="meta"><span class="tag loest">Lukket 22/9 — #1096, i drift</span><span class="tag gold">Jonas 22/9: «Det her er for bøvlet»</span><span class="tag ny">Ny 22/9</span></div>
+    </div>
+    <div class="card new" id="a22-mails-naar-ikke-frem" data-status="fejl" data-spor="1" data-rammer="alle">
+      <h3>Platformens mails når ikke frem — næsten HALVDELEN af alle udsendelser står hverken som sendt eller fejlet</h3>
+      <p><strong>MÅLT 22/9 kl. 22:24</strong> (A's <code>maal-mailmaengde.sql</code> over <code>email_send_log</code>, <code>is_test = false</code>): <strong>1.928 rækker siden 7/4</strong> — heraf <strong>«sent» 1.111</strong> · <strong>«failed» 60</strong> · «suppressed» 1 · <strong>ØVRIGE (hverken sendt eller fejlet) 756</strong> · «rate_limited» 0. De 756 er tallet, der gør det til dagens største fund: <strong>39 % af alle rækker har ingen dom</strong>.</p>
+      <p><strong>Pr. skabelon (sendt/fejlet), de værste:</strong> <code>notification-chat_aggregated</code> 215/194 · <code>notification-report_review_ready</code> 100/99 · <code>report-reminder</code> 96/64 · <code>invitation</code> 76/68 · <code>notification-event_reminder</code> 77/58 · <code>signup</code> <strong>21/38</strong> · <code>legat-welcome</code> <strong>5/26</strong> · <code>monthly-digest</code> 23/23. To af dem fejler OFTERE, end de lykkes — og <code>signup</code> og <code>legat-welcome</code> er de mails, et nyt medlem møder FØRST.</p>
+      <p><strong>Loftet er IKKE flaskehalsen — det er målt.</strong> Travleste time nogensinde er <strong>78 mails</strong> (14/9 kl. 09 UTC) = <strong>26 % af Lovables loft på 300/time</strong>. Men 14/9 kl. 11:10–11:15 fejlede <strong>ELLEVE mails</strong> med «<code>Email API error: 429 {status 429, type rate_limited, title High demand! Please try again in a moment.}</code>» — i en time med langt under 300 mails. <strong>Lovable afviser altså også ved deres EGEN spidsbelastning</strong>, ikke kun ved vores loft. Status <code>rate_limited</code> fandtes ikke dengang (migration <code>20260915210000</code>), så de elleve står som «failed».</p>
+      <p><strong>UMÅLT — og det er det FØRSTE, der skal gøres:</strong> hvad «failed» og de 756 «øvrige» overhovedet betyder i denne tabel. Skrives statusserne af <code>managedEmail</code>, eller står rækker som «pending» for evigt, fordi ingen opdaterer dem? Og nåede en mail, der står som fejlet, virkelig aldrig frem? <strong>Det kræver, at ÉN mail følges hele vejen: <code>email_send_log</code> → Lovables svar → modtagerens indbakke.</strong> Uden den ene kæde er 756 et tal uden betydning — det kan lige så godt være en manglende skrivning som en manglende mail.</p>
+      <p><strong>KONSEKVENS — begrundelsen for at flytte platformens mails til Mailgun er en ANDEN, end vi troede.</strong> Den var loftet på 300/time; målingen viser, at vi aldrig har været over 26 % af det. Grunden er <strong>leveringen</strong>: at vi ikke kan se, om vores mails kommer frem, og at de skabeloner, et nyt medlem møder først, fejler oftere end de lykkes. Recon: <code>~/Downloads/maal-mailmaengde.sql</code> og <code>~/Downloads/recon-platformens-mails-mailgun.md</code>. Historik: OVERLEVERING DEL 2 «22. september (dagen)» §14.</p>
+      <div class="meta"><span class="tag rust">HASTER — 756 uden dom, 39 % af alle rækker</span><span class="tag rust">Punkt 1 i START HER 26/9</span><span class="tag gold">Målt 22/9 22:24</span><span class="tag ny">Ny 22/9</span><span class="tag size">Mellem</span></div>
+    </div>
+    <div class="card decision new" id="a22-mailsporing" data-status="beslutning" data-spor="1" data-rammer="raadgiver">
+      <h3>Sporing af platformens webinarmails — levering, afvisning og klik</h3>
+      <p><strong>BESLUTTET (Jonas 22/9): levering JA · klik JA · åbninger NEJ.</strong> Grunden til fravalget er, at åbningstal ikke længere måler noget: <strong>Apple Mail Privacy Protection henter pixelen på forhånd for alle</strong>, og <strong>Gmail henter billeder gennem sin egen proxy</strong> — tallet ville tælle maskiner, ikke mennesker. Og en usynlig sporingspixel i en <strong>servicemail til folk uden markedsføringssamtykke</strong> er ikke i orden. Levering og klik er noget andet: de svarer på «kom mailen frem» og «virkede knappen», og begge er hændelser, personen selv udløser.</p>
+      <p><strong>Tre skærme (recon §4):</strong> <strong>(1)</strong> én linje pr. programsat session på <code>/webinar</code> — sendt · leveret · afvist · undervejs · klik fra N personer, foldet ud pr. art, så en kørsel med 384 sendte og 12 leverede kan ses med det samme. <strong>(2)</strong> Platform → E-mail-log får et filter «Kilde», og udfoldningen af den enkelte mail viser hændelsernes tidslinje, som de kom (<code>accepted</code> · <code>delivered</code> · <code>clicked</code> med URL'en) samt Mailguns egen <code>reason</code> ved en <code>permanent_fail</code>. <strong>(3)</strong> Én stille linje pr. person i ansøgnings- og tilmeldingsvisningen — «6 sendt · 6 leveret · sidst klikket …» — så rådgiveren kan se, om personen overhovedet har fået vores mails, før hun ringer.</p>
+      <p><strong>Syv målinger FØR noget slås til (recon §5) — ingen kræver en beslutning, kun en kørsel. MÅLING 4 GØRES FØRST:</strong></p>
+      <p><strong>4. Overlever query-strengen Mailguns viderestilling?</strong> Målt på <strong>afmeldingslinket</strong>, som er det, der gør ondt (§2.3). <strong>Den må ikke gøres forkert: de andre seks kan rettes bagefter, men et afmeldingslink, der ikke virker, kan ikke gøres om</strong> — mailen er sendt, og personen har trykket forgæves. Derefter: <strong>1.</strong> webhook-kroppens form (<code>{signature, event-data}</code> eller flad, §1a) · <strong>2.</strong> om <code>webinar_mails.mailgun_id</code> matcher webhookens <code>message-id</code> ORDRET (§3) · <strong>3.</strong> om href'en i VML-kommentaren omskrives (§2.1) · <strong>5.</strong> om Mailgun overhovedet sporer klik i en MIME, vi selv bygger — bekræftelsen (§2.4) · <strong>6.</strong> om <code>tracking protocol</code> står på HTTPS på <code>email.webinar.topix.dk</code> (§1d) · <strong>7.</strong> om Mailguns EGEN «unsubscribe tracking» står SLÅET FRA på domænet (§2.3).</p>
+      <p><strong>Fire beslutninger, der er Jonas' — de venter i START HER:</strong> <strong>(A)</strong> <code>htmlonly</code> eller <code>yes</code>? <code>htmlonly</code> lader ren tekst stå urørt, så afmeldings- og joinlink i tekstdelen bliver ved med at pege det rigtige sted; prisen er, at klik fra rene tekstlæsere ikke måles. <strong>(B)</strong> Skal afmeldingslinket spores overhovedet? <code>disable-tracking=true</code> kan holde netop det uden for omskrivningen — vi ser dem stadig i <code>webinar_afmeldinger</code>, så tabet er lille; for kalenderrækkens tre links er svaret formentlig det modsatte. <strong>(C)</strong> Skal personlige links stå i Mailguns klik-log? joinLink og Apple-<code>.ics</code> bærer eWebinar-attendee-id'er, så det er én oplysning mere ud af huset om en navngiven person. <strong>Ingen jurist har set på det</strong> — som med <code>meta_send_aktiv</code>. <strong>(D)</strong> Skal der være en lås? En <code>webinar_mail_sporing_aktiv</code> (standard false, som husets tre andre) ville lade os sende med sporing til ÉN adresse først og se hændelserne komme ind, før 384 mails går ud med omskrevne links.</p>
+      <p><strong>FRIST: bygges uge 40</strong> — efter at webinarmailene har kørt et stykke tid, og <strong>FØR 13/10</strong>. Recon: <code>~/Downloads/recon-mailsporing.md</code>. Se også <code>docs/webinaret-og-annoncerne.md</code> §7e.</p>
+      <div class="meta"><span class="tag gold">Jonas: fire svar udestår</span><span class="tag rust">Måling 4 først — kan ikke gøres om</span><span class="tag">Uge 40, før 13/10</span><span class="tag ny">Ny 22/9</span><span class="tag size">Mellem</span></div>
     </div>
     <div class="card new" id="a22-webinarmail-foerste-hold" data-status="mangler" data-spor="1" data-rammer="medlem">
       <h3>Platformens webinarmails er i drift — men den første mail til et HELT hold går først 6/10 kl. 08:00 til ~217</h3>
