@@ -1,4 +1,4 @@
--- IKKE KØRT. DEPLOY: manuelt i Lovable → SQL editor efter merge (FØR Update-klik).
+-- KØRT i prod — 22/9-2026 kl. 17:36 (Jonas, Lovable SQL editor), EFTER kolonnen (17:20), udrulningen (~17:22), tørkørslen (17:24) og den første rigtige kørsel i hånden (17:33). FØR: «(findes ikke)». EFTER: cron.job 572, jobnavn klokke-mail, «4-59/15 * * * *», active.
 -- RÆKKEFØLGEN — LÆS DEN (CLAUDE.md «Deployment af edge functions»):
 --   1. kolonne-migrationen 20260922070000_advisor_notifications_mailet_at.sql (FØR udrulningen)
 --   2. merge til main (kilden lander hos Lovable; den kører ikke)

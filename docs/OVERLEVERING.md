@@ -4,7 +4,9 @@
 >
 > **INTET HASTER, OG INTET ER GÅET I STYKKER.** Alt herunder er ting, der har kørt uden opsyn i tre dage og nu skal AFLÆSES. Rækkefølgen er efter, hvad der taber sig, hvis det venter.
 >
-> **1. KLOKKE-MAILEN — DE FØRSTE MAILS.** **Jonas 22/9 ~15:15: i drift i dag.** Følge: alarmerne går til Jonas, mens han har fri 23.–25/9; Morten får community og morgenmailen. Tre veje: **alarm til Jonas straks** · **community til hver rådgiver straks** · **morgenmailen kl. 07 til hver rådgiver**. Er udrulningen og første kørsel gået som planlagt, er der gået **tre morgenmails** (23., 24. og 25/9), før nogen læser dette. **Tjek:** kom de? Ser de rigtige ud? `email_send_log` på klokke-mailens `template_name`, og indbakken. Kom der INGEN, er det første spørgsmål, om der var noget at melde — en tom morgen skal ikke give en mail.
+> **1. KLOKKE-MAILEN — I DRIFT FRA 22/9 kl. 17:33.** Beslutningen kl. ~15:15, i drift to en halv time senere: **cron-job 572**, «4-59/15 * * * *», active fra 17:36. Første rigtige kørsel 17:33 sendte **3 mails** — alarm → jonas@theboardroom.dk 17:33:10, community → morten@molainvest.dk 17:33:11, morgen → morten@molainvest.dk 17:33:12 — og stemplede **14 klokker**. Følge: alarmerne går til Jonas, mens han har fri 23.–25/9; Morten får community og morgenmailen.
+>
+> **TO TING AT AFLÆSE.** (a) **Kørslerne fra 17:49 og frem:** en kørsel UDEN nyt må **ikke** give en mail — `select template_name, sent_at from email_send_log where template_name like 'klokke-mail-%' order by sent_at;` skal IKKE vise en mail hvert kvarter. (b) **Morgenmailen 23/9 kl. 07:04** — den første, der er dømt af hverdags-reglen. Er den der, og siger den det rigtige? Og 26/9 skal den sige «siden fredag kl. 07», ikke «i går».
 >
 > **2. DEN FØRSTE LEVENDE AFMELDING** — den eneste, der beviser en gren, ingen har set køre. `select kilde, count(*) from public.klaviyo_afmeldinger group by kilde;` Står der en række med **`kilde = 'webhook'`**, er webhook-grenen bevist i drift, og kortet `a22-afmelding-webhook-bevis` kan lukkes. Kommer der ingen afmeldinger, er der intet galt — der er bare ingen, der har afmeldt sig.
 >
@@ -28,7 +30,7 @@
 >
 > **12. RESTEN AF JONAS' «GØR DET»** (omgang 3). Af de 20+1 kort fra 22/9 morgen er en del lukket i løbet af dagen; mangellistens filter «Jonas 22/9: gør det» viser, hvad der står tilbage.
 >
-> **DET, DER KØRER AF SIG SELV IMENS** (klokke-mailen kun, hvis udrulningen 22/9 gik igennem — se punkt 1)**:** **klokke-mailen (morgenmail kl. 07 hver dag + alarmer straks)** · afmeldingerne (webhook + gensender hvert 5. min) · `klaviyo-profil-cron` (hver time :17, første kørsel 22/9 15:17) · rykkerkøen · `meta-send-cron` og `ga-send-cron` · fornyelseskæden. Ingen af dem kræver opsyn; alle skriver deres eget spor.
+> **DET, DER KØRER AF SIG SELV IMENS:** **klokke-mailen (job 572, hvert kvarter på :04/:19/:34/:49 — morgenmail kl. 07:04 + alarmer straks)** · afmeldingerne (webhook + gensender hvert 5. min) · `klaviyo-profil-cron` (hver time :17, første kørsel 22/9 15:17) · rykkerkøen · `meta-send-cron` og `ga-send-cron` · fornyelseskæden. Ingen af dem kræver opsyn; alle skriver deres eget spor.
 >
 > **Arbejdsformen står i DEL 0 og DEL 1.**
 
@@ -10143,7 +10145,7 @@ varslet støder sammen — venter stadig på en række at prøve på.
 
 **Jonas 22/9:** klokke-mailen (`udkast-klokke-mail`) **bliver på planen** til
 onsdag 23/9. ~~onsdag 23/9~~ — **RETTET ~15:15 samme dag (Jonas): i drift i
-dag**, se §6. **RLS-omskrivningen (`a22-rls-initplan`)
+dag — og den KOM i drift kl. 17:33**, se §6. **RLS-omskrivningen (`a22-rls-initplan`)
 udskydes til «senere»** — og grunden er en måling, ikke en nedprioritering:
 **målt 22/9 kl. 04:52 som Jonas med RLS tager forsidens 32 forespørgsler
 tilsammen 785 ms** kørt én ad gangen, den tungeste 162 ms. Basen er altså ikke
@@ -10287,14 +10289,35 @@ grønt (`~/Downloads/udkast-xlsx-navne`, 493 filer · 7005 prøver), men det rø
 berørte **nuværende** medlemmer. At lægge det ind før tre fridage ville betyde,
 at ingen så, hvad der flyttede sig.
 
-#### 6. Klokke-mailen besluttet — og cronens første kørsel
+#### 6. Klokke-mailen i drift kl. 17:33 — og cronens første kørsel
 
 **Jonas 22/9 ~15:15: i drift i dag.** Følge: alarmerne går til Jonas, mens han
 har fri 23.–25/9; Morten får community og morgenmailen.
 
-Den stod på onsdagens plan (§3b) og blev rykket frem. **Den er BESLUTTET, ikke
-udrullet:** udkastet (`udkast-klokke-mail`) lægges ind samme eftermiddag, og
-«i drift» skrives først, når udrulningen og første kørsel er bevist.
+Den stod på onsdagens plan (§3b) og blev rykket frem — **og den NÅEDE i drift
+samme eftermiddag.** Merget som «Klokken som mail» (#1091, 21 filer), og så
+rækkefølgen fra migrationernes egne hoveder, trin for trin:
+
+| kl. | trin | bevis |
+|---|---|---|
+| **17:20** | migration `20260922070000` (kolonnen) KØRT | FØR 17:19: kolonne og indeks fandtes IKKE; **22 ulæste klokker** med rådgiver de sidste 7 dage. EFTER: `mailet_at timestamptz` + `advisor_notifications_umailet_idx` |
+| **~17:22** | fire functions udrullet | `klokke-mail-cron` · `notify-community-svar` · `klaviyo-gensend-cron` · `klaviyo-profil-cron` |
+| **17:24** | tørkørsel, kald **14454** | rådgivere: Jonas (jonas@topix.dk) og Morten (morten@molainvest.dk) · `raekker_laest` **22** · alarm **5** → jonas@theboardroom.dk · community **1** → Morten · morgen **8** → Morten · `sprunget`: aldrig 7, venter_paa_morgen 1 · **`ukendte` []** · **`fejl` []** |
+| **17:33** | **første rigtige kørsel**, kald **14463** | **3 mails sendt:** `klokke-mail-alarm` → jonas@theboardroom.dk **17:33:10** · `klokke-mail-community` → morten@molainvest.dk **17:33:11** · `klokke-mail-morgen` → morten@molainvest.dk **17:33:12**. **14 klokker stemplet** (drift 4, stille_ingen_login 4, stille_ingen_bruger 3, community_opslag 1, ansoegning_pause_slut 1, traek_fejlet 1) |
+| **17:36** | migration `20260922071000` (cron-jobbet) KØRT | FØR: «(findes ikke)». EFTER: **cron.job 572**, `klokke-mail`, «4-59/15 * * * *», active |
+
+**`ukendte []` er det tal, der betyder mest.** Feltet er værnets krog: står der en
+klokke-type, som ingen af de tre lister kender, mailes den ikke — og så ville en
+rådgiver vente på et signal, der aldrig kom. Den var tom ved første kørsel.
+
+**Alarmens «25 mails usendt» er historik, ikke et problem** (målt 17:26): de to
+klokker bag tallet er fra **16/9 kl. 15:07 og 16:07**, og der er **0 usendte
+lige nu**. Alarmen viste altså en gammel tilstand, fordi det var første gang,
+nogen mailede den — ikke fordi noget hænger.
+
+**Tilbage at aflæse** (punkt 1 i «26/9 — START HER»): kørslerne fra **17:49** —
+en kørsel uden nyt må **ikke** give en mail — og **morgenmailen 23/9 kl. 07:04**,
+den første, der dømmes af hverdags-reglen.
 
 Tre veje:
 
@@ -10304,9 +10327,8 @@ Tre veje:
 | **Community** | hver rådgiver | straks |
 | **Morgenmail** | hver rådgiver | **kl. 07** |
 
-Følgen, der skal huskes ved aflæsningen 26/9: går udrulningen igennem samme
-eftermiddag, er der gået **tre morgenmails** (23., 24. og 25/9), før nogen
-læser dem. Det er punkt 1 i «26/9 — START HER».
+Følgen, der skal huskes ved aflæsningen 26/9: der er gået **tre morgenmails**
+(23., 24. og 25/9), før nogen læser dem — den første 23/9 kl. 07:04. Det er punkt 1 i «26/9 — START HER».
 **En tom morgen skal ikke give en mail** — kom der ingen, er det første
 spørgsmål, om der var noget at melde.
 
@@ -10315,6 +10337,78 @@ spørgsmål, om der var noget at melde.
 minutter efter at cron-migrationen blev kørt. Det er den kørsel, punkt 5 i
 START HER beder om at aflæse i `klaviyo_profil` — og den ligger altså allerede
 bag os, når Jonas kommer tilbage.
+
+#### 7. Aftenen — mailvejene ryddet op, og to fund vi ikke selv kan rette
+
+**a) SPF på `theboardroom.dk` er SAT ~16:02.** Målt på `ns1–3.simply.com`:
+`"v=spf1 include:_spf.google.com ~all"`. Kortet `a20-spf-theboardroom` er lukket.
+
+**Kortet tog fejl om ét, og det er værd at huske:** DNS for `theboardroom.dk`
+ligger hos **Simply.com**, ikke hos Cloudflare. De to domæner ligger hvert sit
+sted — `topix.dk` ligger hos **Cloudflare**. En rettelse, der blev ledt efter
+det forkerte sted, ville se ud, som om den ikke virkede.
+
+**b) `topix.dk`s SPF nævner ikke Google — et FUND, ikke en rettelse.** Målt:
+`"v=spf1 include:mailgun.org include:_spf.herodesk-mails.io ~all"`, og DMARC
+`p=quarantine adkim=s aspf=s` — karantæne ved fejl **og** streng justering på
+både DKIM og SPF. Sender nogen som `@topix.dk` gennem Google Workspace, fejler
+SPF, og den strenge justering gør, at et DKIM-match på et underdomæne ikke
+redder den. **Om nogen faktisk gør det, er UMÅLT** — og derfor er det et fund:
+at føje `_spf.google.com` til uden at vide, om Google bruges, ville være at
+gætte. Kort: `a22-spf-topix`.
+
+**c) eWebinars `.ics` ligger åbent — og vi kan ikke rette det.** Målt 22/9 med
+`curl`: **HTTP 200 uden login**. `METHOD:REQUEST`, `ORGANIZER` Morten Larsen,
+`ATTENDEE` med `RSVP=TRUE`, `LOCATION`/`URL` = den tilmeldtes **personlige
+joinLink**.
+
+**Fundet, der gør det til mere end en detalje:** `attendeeId` er **fortløbende**,
+og filen bærer **navn og e-mail**. Listen kan altså i princippet gennemløbes af
+enhver, der tæller opad. Det er eWebinars design, ikke vores opsætning, og der
+er ingen indstilling hos os at skrue på. **Handlingen er at melde det til
+eWebinar** — og indtil da at vide, at deltagerlisten til et webinar ikke er
+fortrolig. Kort: `a22-ewebinar-ics-aaben`.
+
+**d) Bekræftelsesmailen var slået FRA hos eWebinar — og Klaviyo lovede noget,
+der ikke var sandt.** Klaviyos bekræftelsesflow `WFzxH9` skrev «Du har fået en
+kalenderinvitation». Det var **ikke sandt**, så længe eWebinars egen bekræftelse
+var slukket: der kom ingen invitation.
+
+Jonas rettede begge ender ~15:50: **eWebinars bekræftelse slået TIL** med dansk
+tekst (den bærer `invite.ics` som vedhæftning — Apple Mail viste «Siri fandt en
+begivenhed»), og **Klaviyos `WFzxH9` SLUKKET**. Én bekræftelse, fra den der
+faktisk vedhæfter kalenderen.
+
+Det er samme klasse som resten af dagen: **en tekst, der beskriver noget, systemet
+ikke gør, er en fejl** — også når mailen selv går igennem.
+
+**e) BESLUTTET (Jonas 22/9): før-webinar-mailene flytter til vores egen Mailgun.**
+
+| | |
+|---|---|
+| **Før webinaret** | platformen sender til **ALLE tilmeldte** via egen **Mailgun EU** |
+| **Efter webinaret** | **Klaviyo beholder** det (uændret) |
+| **Afsender** | «Morten Larsen \<morten@webinar.topix.dk\>» |
+| **Reply-To** | kontakt@topix.dk |
+
+Grunden til, at det kan lade sig gøre for alle: Klaviyo-flowene kræver
+Hovedlisten og samtykke (§1), og det krav **bliver**. En før-webinar-mail til
+en tilmeldt er ikke markedsføring på et samtykke — den er en besked om det, de
+har tilmeldt sig.
+
+**Opsat 22/9 kl. 16:4x–17:0x:** Mailgun-konto (Topix.dk ApS) · domænet
+`webinar.topix.dk` i **EU** · shared IP · **DKIM 2048** · DNS i **Cloudflare**
+(SPF, DKIM, MX `mxa`/`mxb.eu.mailgun.org`, CNAME `email.webinar` →
+`eu.mailgun.org`, **DNS only**). **Mailgun verificerede alle fem kl. 16:56.**
+Domæne-sendenøglen ligger som **`MAILGUN_SENDING_KEY`** i Lovable.
+
+**Fravalgt med begrundelse:** Red Sift-DMARC — ingen datadeling, og `topix.dk`s
+egen DMARC dækker allerede.
+
+**UMÅLT:** planen (Foundation 50k) er **ikke bekræftet**. Det tal afgør, hvor
+mange mails vi må sende, og det er ikke set.
+
+**A bygger udkastet** (`udkast-webinar-foer-flow`).
 
 ---
 
@@ -10332,7 +10426,7 @@ bag os, når Jonas kommer tilbage.
 | **22/9 efter S+3 t — importens no-show-vej, KUN hvis eWebinar tier** | tørkørsel med `send_fremmoede: true` + `session_dato: "2026-09-22"` → læs `ville_sende` → Jonas beslutter → rigtig kørsel. Reglen: importen køres ALDRIG med `dry_run: false` uden `send_fremmoede: true`. Efter en rigtig kørsel kan tirsdagssidens kontrol-SQL ikke bruges (`sidste_haendelse_at` sættes på alle) | DEL 2 «21. september» §9; `udkast-import-fremmoede/README.md` §5 |
 | **23/9 onsdag — `ad_id_udledt` stadig 180** | mål efter cronen 05:33: 180 oversat 08:40 (bilag A), 2 stadig navn | DEL 2 «21. september» §3 |
 | **23/9 onsdag morgen — første dom «observation»** | forventet: kun ét webinar, ingen anbefaling, ingen ændring — det er rigtigt | `docs/marketingmotoren.md` §6 |
-| ~~**23/9 onsdag — RLS-omskrivningen**~~ **UDSKUDT (Jonas 22/9): «senere»** | Basen er IKKE forsidens flaskehals: alle 32 forespørgsler tager tilsammen **785 ms** kørt én ad gangen (målt 22/9 04:52 som Jonas med RLS, tungeste 162 ms). Seq-scan-tallene er rigtige, men koster ikke det, de ser ud til. ~~Onsdag går til klokke-mailen i stedet~~ — **BESLUTTET af Jonas 22/9 ~15:15: i drift i dag**, altså udrullet samme eftermiddag i stedet for onsdag. Onsdag 23/9 er dermed fri | DEL 2 «21. september» §2; kort `a22-rls-initplan`, `a22-forside-langsom` |
+| ~~**23/9 onsdag — RLS-omskrivningen**~~ **UDSKUDT (Jonas 22/9): «senere»** | Basen er IKKE forsidens flaskehals: alle 32 forespørgsler tager tilsammen **785 ms** kørt én ad gangen (målt 22/9 04:52 som Jonas med RLS, tungeste 162 ms). Seq-scan-tallene er rigtige, men koster ikke det, de ser ud til. ~~Onsdag går til klokke-mailen i stedet~~ — **Jonas 22/9 ~15:15: i drift i dag. I DRIFT kl. 17:33** (cron-job 572 fra 17:36), altså udrullet samme eftermiddag i stedet for onsdag. Onsdag 23/9 er dermed fri | DEL 2 «21. september» §2; kort `a22-rls-initplan`, `a22-forside-langsom` |
 | **21/9 — «Kom ikke» (A bygger)** | knappen findes ikke; køen markerer «afholdt» ved sluttid uanset fremmøde | DEL 2 «21. september» §10; kort `a21-kom-ikke` |
 | **efter webinaret — redigerbare mails** | afslagsmailen først; recon først | kort `a21-redigerbare-mails` |
 | **senest 6/10 — køreplanen til 13/10** | kampagnerne bygges i uge 39, planlagt senest 6/10 | `koereplan-13-10.md`; kort «179 er tilmeldt webinaret 13/10» |

@@ -409,6 +409,68 @@ Prøvekladden `79a82aec-1e1e-40cd-80ce-ba8d4249e29d` var allerede slettet 21/9 k
 
 ---
 
+## 4d. Mailvejene — målt og ændret 22/9 aften
+
+Tracking er ikke kun pixels: **hvem der må sende som os**, afgøres af DNS, og
+det blev målt og ændret samme aften.
+
+### De to domæner ligger hvert sit sted — og det er let at lede forkert
+
+| domæne | DNS hos | SPF (målt 22/9) | DMARC |
+|---|---|---|---|
+| `theboardroom.dk` | **Simply.com** (`ns1–3.simply.com`) | **SAT ~16:02:** `v=spf1 include:_spf.google.com ~all` | `p=none` |
+| `topix.dk` | **Cloudflare** | `v=spf1 include:mailgun.org include:_spf.herodesk-mails.io ~all` | `p=quarantine adkim=s aspf=s` |
+
+**Kortet `a20-spf-theboardroom` antog Cloudflare for begge. Det var forkert**, og
+det er værd at huske: en DNS-rettelse, der ledes efter det forkerte sted, ser ud,
+som om den ikke virkede.
+
+**Fundet på `topix.dk`, som IKKE er rettet:** SPF nævner **ikke Google**, og
+DMARC står `p=quarantine` med **streng** justering (`adkim=s aspf=s`) — et
+DKIM-match på et underdomæne tæller ikke. Sender nogen som `@topix.dk` gennem
+Google Workspace, kan mailen havne i karantæne. **Om nogen gør det, er UMÅLT**,
+og at føje `_spf.google.com` til uden at vide det ville være at gætte. Kort:
+`a22-spf-topix`.
+
+### Ny afsendervej: `webinar.topix.dk` (Mailgun EU)
+
+**BESLUTTET (Jonas 22/9):** før-webinar-mails sendes af platformen til **ALLE
+tilmeldte** gennem egen Mailgun EU; Klaviyo beholder efter-webinaret. Afsender
+«Morten Larsen \<morten@webinar.topix.dk\>», Reply-To kontakt@topix.dk.
+
+Opsat 16:4x–17:0x, **verificeret af Mailgun 16:56** (alle fem poster): konto
+Topix.dk ApS · `webinar.topix.dk` i **EU** · shared IP · **DKIM 2048** · DNS i
+**Cloudflare**: SPF, DKIM, MX `mxa`/`mxb.eu.mailgun.org`, CNAME `email.webinar`
+→ `eu.mailgun.org` (**DNS only** — ikke proxy). Secret: **`MAILGUN_SENDING_KEY`**
+(domæne-sendenøgle, ikke kontoens).
+
+**Fravalgt med begrundelse:** Red Sift-DMARC — ingen datadeling, og `topix.dk`s
+egen DMARC dækker. **UMÅLT:** planen (Foundation 50k) er ikke bekræftet; det tal
+afgør sendeloftet.
+
+### eWebinars `.ics` ligger åbent — et fund om PERSONDATA, ikke om tracking
+
+Målt 22/9 med `curl`: **HTTP 200 uden login**. Filen bærer `ORGANIZER` (Morten
+Larsen), `ATTENDEE` med `RSVP=TRUE` og **navn + e-mail**, samt `LOCATION`/`URL`
+= den tilmeldtes **personlige joinLink**. **`attendeeId` er fortløbende**, så
+listen kan i princippet gennemløbes af enhver, der tæller opad.
+
+Det er **eWebinars design**, ikke vores opsætning, og der er ingen indstilling
+hos os. **Handlingen er at melde det til eWebinar.** Indtil da gælder: en
+deltagerliste til et webinar er ikke fortrolig — og det bør indgå, næste gang
+nogen overvejer, hvad der må ligge bag et webinar-link. Kort:
+`a22-ewebinar-ics-aaben`.
+
+### Bekræftelsen sagde noget, der ikke var sandt
+
+Klaviyos flow `WFzxH9` skrev «Du har fået en kalenderinvitation», mens
+**eWebinars egen bekræftelse var slået FRA**. Rettet ~15:50: eWebinars
+bekræftelse **TIL** (dansk tekst, vedhæfter `invite.ics`), Klaviyos `WFzxH9`
+**SLUKKET**. En tekst, der beskriver noget, systemet ikke gør, er en fejl — også
+når mailen selv går igennem.
+
+---
+
 ## 5. Åbent — marketingmandens liste
 
 1. ~~**GTM `Lead application_started`** (theboardroom.dk, tag 138) fyrer på `cta_click` — skal trigges af **`begin_checkout`**. Og `eventID` på Lead-tags, så platformens hændelser (§4) kan dedupes.~~ — **GJORT 21/9 21:35–22:05 (§3):** de fire tags «Facebook/GA4 - application_started/submitted» er sat på **pause** og udgivet. Hændelserne kommer nu fra platformen alene, så der er intet at deduplikere og ingen trigger at rette.

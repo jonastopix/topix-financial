@@ -179,6 +179,32 @@ læst tilbage, men at MAILEN viser det, er ikke set.
 
 ---
 
+### 2.3 Arbejdsdelingen ændret 22/9 — før webinaret er vores, efter er Klaviyos
+
+**BESLUTTET (Jonas 22/9):** platformen sender **før-webinar-mailene til ALLE
+tilmeldte** gennem vores egen **Mailgun EU**; **Klaviyo beholder
+efter-webinaret**. Afsender «Morten Larsen \<morten@webinar.topix.dk\>»,
+Reply-To kontakt@topix.dk.
+
+**Hvorfor det ikke er i strid med Hovedliste-kravet (§2.1):** flowene `Wq3MkG`/
+`SDVvCW` kræver Hovedlisten OG samtykke, og det krav bliver. En før-webinar-mail
+til en tilmeldt er **ikke markedsføring på et samtykke** — den er en besked om
+det, personen selv har tilmeldt sig. Derfor kan den gå til alle 384, mens
+flowene stadig kun optager dem, der må modtage.
+
+**Følgen for lag 2:** hændelserne er uændrede. Det, der flytter, er hvem der
+SENDER før webinaret — ikke hvad Klaviyo får at vide.
+
+Opsætningen (Mailgun-konto, `webinar.topix.dk` i EU, DKIM 2048, DNS i
+Cloudflare, `MAILGUN_SENDING_KEY`) står i `docs/webinaret-og-annoncerne.md` §7d.
+**UMÅLT: planen (Foundation 50k) er ikke bekræftet.**
+
+Samme aften blev **Klaviyos bekræftelsesflow `WFzxH9` SLUKKET** og eWebinars
+egen bekræftelse slået TIL: Klaviyos mail lovede en kalenderinvitation, der ikke
+kom, fordi eWebinars bekræftelse var slået fra.
+
+---
+
 ## 3. Lag 3 — motoren (#1032, 19/9 22:47; #1035, 20/9 08:24)
 
 **Evnen til at handle:** læse og skrive flows, handlinger og skabeloner.

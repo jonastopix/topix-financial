@@ -1634,6 +1634,48 @@
     ebitda_margin_pct-noten. Talt med grep på div-taggene: før 186 (inkl.
     skabelonen i kommentaren) og 56 lukkede; efter 198 og 57 lukkede.
     Lukket: 1 (bliver stående). Omskrevet: 2. Tilføjet: 12.
+  RØRT 22/9 AFTEN — KLOKKE-MAILEN I DRIFT, MAILVEJENE RYDDET OP (bogført i
+  docs/OVERLEVERING.md DEL 2 «22. september (dagen)» §6–§7; mailvejene i
+  docs/tracking.md §4d; bekræftelsen og Mailgun i
+  docs/webinaret-og-annoncerne.md §7d og docs/marketingmotoren.md §2.3)
+    KLOKKE-MAILEN ER I DRIFT — ikke længere kun besluttet. Merget som «Klokken
+    som mail» (#1091, 21 filer). Migration 20260922070000 KØRT 17:20 (FØR
+    17:19: kolonne og indeks fandtes ikke, 22 ulæste klokker med rådgiver de
+    sidste 7 dage; EFTER: mailet_at + advisor_notifications_umailet_idx) · fire
+    functions udrullet ~17:22 · tørkørsel 17:24 (kald 14454: raekker_laest 22,
+    alarm 5 → jonas@theboardroom.dk, community 1 → Morten, morgen 8 → Morten,
+    ukendte [] og fejl []) · FØRSTE RIGTIGE KØRSEL 17:33 (kald 14463): 3 mails
+    sendt 17:33:10–12, 14 klokker stemplet · migration 20260922071000 KØRT
+    17:36: cron.job 572, «4-59/15 * * * *», active. Begge filhoveder rettet til
+    KØRT, og klokkeMail.guard dom 8 VENDT (ikke fjernet) med mutationer.
+    Alarmens «25 mails usendt» (målt 17:26) er HISTORIK, ikke et problem:
+    klokkerne er fra 16/9 15:07 og 16:07, og der er 0 usendte lige nu.
+    LUKKET (1, bliver stående): a20-spf-theboardroom — SPF SAT ~16:02, målt på
+    ns1–3.simply.com: «v=spf1 include:_spf.google.com ~all». Kortet tog fejl om
+    ét: DNS for theboardroom.dk ligger hos SIMPLY, ikke Cloudflare (topix.dk
+    ligger hos Cloudflare) — en rettelse, der ledes efter det forkerte sted,
+    ser ud, som om den ikke virkede.
+    TILFØJET (2, Ny 22/9): a22-spf-topix (topix.dk's SPF nævner IKKE Google, og
+    DMARC står p=quarantine adkim=s aspf=s — sender nogen som @topix.dk via
+    Google Workspace, kan mailen havne i karantæne; om nogen gør det, er UMÅLT,
+    så det er et fund, ikke en rettelse) · a22-ewebinar-ics-aaben (eWebinars
+    .ics svarer HTTP 200 uden login, bærer navn + e-mail og et personligt
+    joinLink, og attendeeId er FORTLØBENDE — listen kan i princippet
+    gennemløbes. eWebinars design; vi kan ikke rette det, kun melde det).
+    IKKE ET KORT: (a) bekræftelsen — Klaviyos WFzxH9 skrev «Du har fået en
+    kalenderinvitation», mens eWebinars egen bekræftelse var SLÅET FRA. Rettet
+    ~15:50: eWebinars TIL med dansk tekst (vedhæfter invite.ics), Klaviyos
+    WFzxH9 SLUKKET. En tekst, der beskriver noget, systemet ikke gør, er en
+    fejl — også når mailen går igennem. (b) BESLUTTET (Jonas): før-webinar-mails
+    sendes af platformen til ALLE tilmeldte via egen Mailgun EU; Klaviyo
+    beholder efter-webinaret. Afsender «Morten Larsen
+    <morten@webinar.topix.dk>», Reply-To kontakt@topix.dk. Opsat 16:4x–17:0x og
+    verificeret af Mailgun 16:56; secret MAILGUN_SENDING_KEY. Red Sift-DMARC
+    fravalgt (ingen datadeling). UMÅLT: planen (Foundation 50k) er ikke
+    bekræftet. A bygger udkast-webinar-foer-flow.
+    Talt med grep på kortenes div-tag (class card) og på lukket-status:
+    før 247 og 91 lukkede; efter 249 og 92 lukkede.
+    Lukket: 1 (bliver stående). Tilføjet: 2.
   RØRT 22/9 KL. 15 — DAGENS SIDSTE TIME, OG START HER TIL JONAS' FØRSTE DAG
   TILBAGE (bogført i docs/OVERLEVERING.md DEL 2 «22. september (dagen)» §5;
   Meta i docs/tracking.md §4c; webinarets tidspunkt i docs/marketingmotoren.md
@@ -2114,6 +2156,16 @@
       <strong>Rækkefølgen:</strong> 9 unikke mails målt 11:13 · 6 afmeldt i hånden 11:18 · <code>KLAVIYO_AFMELD_KEY</code> oprettet (profiles/list/subscriptions) · migration <code>20260922060000</code> KØRT i prod 13:26 · <code>ewebinar-webhook</code>, <code>klaviyo-gensend-cron</code> og <code>klaviyo-afmeld-bagud</code> udrullet · tørkørsel 13:54 (kald 14273): <strong>9 kandidater = præcis de 9 fra 11:13</strong> · låsen <code>klaviyo_afmeld_aktiv</code> false → true 13:56 · kald 14276 <strong>tørkørte stadig</strong> (låsen true, men uden <code>dry_run: false</code> — den dobbelte sikring virker, som i <code>meta-send-cron</code>) · kald 14277 med <code>{"dry_run": false}</code> 13:57: <strong>sendt 9 · lykkedes 9 · fejlede 0</strong>.
       <strong>Beviset, læst tilbage hos Klaviyo 13:58 gennem API'et:</strong> <code>vera@natur-klinikken.dk</code> havde INGEN profil og blev OPRETTET som UNSUBSCRIBED 11:57:17 UTC (præcis hvad Klaviyos reference lover) · <code>newsletter@stenbryggen.dk</code> var NEVER_SUBSCRIBED og blokeret, nu UNSUBSCRIBED 11:57:16 UTC · <code>info@metteolsen.dk</code> uændret UNSUBSCRIBED fra 19/9 · de 6 fra 11:18 uændrede. Idempotensen holder (unik på <code>(email) where udfald = 'ok'</code>). Låsen bliver stående på true. Mekanismen står i CLAUDE.md og <code>docs/tracking.md</code> §2 række 25; se det nye kort <code>a22-afmelding-webhook-bevis</code> for det, der mangler.</p>
       <div class="meta"><span class="tag loest">Lukket 22/9 — 9 af 9, bevist hos Klaviyo 13:58</span><span class="tag gold">Jonas 22/9: «Lige nu gør jeg det manuelt»</span><span class="tag ny">Ny 22/9</span></div>
+    </div>
+    <div class="card new" id="a22-spf-topix" data-status="mangler" data-spor="senere" data-rammer="ingen">
+      <h3><code>topix.dk</code>s SPF nævner ikke Google, og DMARC står <code>p=quarantine</code> med streng justering — et fund, ikke en rettelse</h3>
+      <p>Målt 22/9 (DNS hos <strong>Cloudflare</strong> — modsat theboardroom.dk, der ligger hos Simply): SPF er <code>"v=spf1 include:mailgun.org include:_spf.herodesk-mails.io ~all"</code>. <strong>Google er IKKE med.</strong> DMARC står <code>p=quarantine adkim=s aspf=s</code> — altså karantæne ved fejl OG <em>streng</em> justering på både DKIM og SPF, hvor underdomæner ikke tæller som match. <strong>Følgen, hvis nogen sender som <code>@topix.dk</code> gennem Google Workspace:</strong> SPF fejler, og den strenge justering gør, at et DKIM-match på et underdomæne ikke redder den — mailen kan havne i karantæne. <strong>Det er IKKE målt, om nogen faktisk gør det</strong>, og derfor er dette et fund og ikke en rettelse: at føje <code>_spf.google.com</code> til uden at vide, om Google bruges, ville være at gætte. Historik: OVERLEVERING DEL 2 «22. september (dagen)» §7.</p>
+      <div class="meta"><span class="tag gold">Fund — mål om nogen sender som @topix.dk via Google</span><span class="tag ny">Ny 22/9</span><span class="tag size">Lille</span></div>
+    </div>
+    <div class="card new" id="a22-ewebinar-ics-aaben" data-status="mangler" data-spor="senere" data-rammer="ingen">
+      <h3>eWebinars <code>.ics</code> ligger åbent uden login, bærer navn + e-mail, og <code>attendeeId</code> er fortløbende — meld det til eWebinar</h3>
+      <p>Målt 22/9 med <code>curl</code>: kalenderfilen svarer <strong>HTTP 200 uden login</strong>. Indholdet: <code>METHOD:REQUEST</code>, <code>ORGANIZER</code> Morten Larsen, <code>ATTENDEE</code> med <code>RSVP=TRUE</code>, og <code>LOCATION</code>/<code>URL</code> = tilmeldtes <strong>personlige joinLink</strong>. <strong>FUNDET:</strong> <code>attendeeId</code> i URL'en er <strong>fortløbende</strong>, og filen bærer <strong>navn og e-mail</strong> — så listen kan i princippet gennemløbes af enhver, der tæller opad, og hver fil giver et navn, en mail og et personligt join-link. <strong>Det er eWebinars design, ikke en fejl i vores opsætning</strong>, og vi kan ikke rette det: der er ingen indstilling hos os. <strong>Handlingen er derfor at MELDE det til eWebinar</strong> — og indtil da at vide, at deltagerlisten til et webinar ikke er fortrolig. Historik: OVERLEVERING DEL 2 «22. september (dagen)» §7.</p>
+      <div class="meta"><span class="tag rust">Meld til eWebinar — vi kan ikke rette det selv</span><span class="tag gold">Målt 22/9 med curl</span><span class="tag ny">Ny 22/9</span></div>
     </div>
     <div class="card new" id="a22-cvr-opslag-knap" data-status="mangler" data-spor="1" data-rammer="raadgiver">
       <h3>De tre nye ventepladser har <code>cvr_opslag = NULL</code> — fladen viser «&lt;navn&gt;s virksomhed» og tomme CVR-felter</h3>
@@ -3305,10 +3357,11 @@
       <p><code>~/Downloads/udkast-ydeevne</code> (22/9 nat): to udkast, to PR'er. 1-indekser: 19 <code>create index if not exists</code> på det målte (29 foreslået, 10 dækket i prod) — <strong>KØRT i aften</strong> i SQL-editoren. 2-staletime: én linje i <code>App.tsx</code> (QueryClient default) + værnet rettet til den nye præmis — kanalen er merge → Update-klik, rollback er én linje tilbage. Måles på antal kald pr. faneskift (Network → Clear → skift). Det, der kan gå galt: en liste, der er 60 s gammel, når nogen kigger — derfor ikke <code>refetchOnWindowFocus: false</code> (udkastets §2). Recon-ydeevne §6 har rækkefølgen; browserens faktiske tid og prods statistik er Jonas' to målinger.</p>
       <div class="meta"><span class="tag loest">Lukket 21/9 — #1060</span><span class="tag gold">Udkast klar · Update-klik</span><span class="tag size">Lille</span><span class="tag ny">Ny 20/9</span></div>
     </div>
-    <div class="card new" id="a20-spf-theboardroom" data-status="mangler" data-spor="senere" data-rammer="alle">
+    <div class="card new loest" id="a20-spf-theboardroom" data-status="loest" data-spor="senere" data-rammer="alle">
       <h3><code>theboardroom.dk</code> har ingen SPF-record — bogført som manglende 7/9, stadig ikke sat 20/9</h3>
+      <p><strong>LØST 22/9 ~16:02 — SPF er SAT.</strong> Målt på <code>ns1–3.simply.com</code>: <code>"v=spf1 include:_spf.google.com ~all"</code>. <strong>Og kortet tog fejl om ét: DNS for theboardroom.dk ligger hos Simply.com, IKKE hos Cloudflare.</strong> Det er værd at huske, fordi de to domæner ligger hvert sit sted — <code>topix.dk</code> ligger hos Cloudflare (se kortet <code>a22-spf-topix</code>). En rettelse, der blev ledt efter det forkerte sted, ville se ud som om den ikke virkede.</p>
       <p>Målt 20/9 via DNS: kun <code>google-site-verification</code> som TXT, MX Google, DMARC <code>p=none</code>, DKIM <code>google._domainkey</code> ✓. Platformens mails går via Lovables <code>notify.theboardroom.dk</code> (Mailgun EU, SPF ✓, delegeret), så DE er dækket — men <strong>Google Workspace-mails fra <code>jonas@theboardroom.dk</code> fejler SPF</strong> og består kun på DKIM. Med <code>p=none</code> er der ingen straf i dag; den dag DMARC strammes (som på topix.dk), går de i karantæne. Én record i Cloudflare: <code>v=spf1 include:_spf.google.com ~all</code>. (recon-levering §1.2, §6 pkt. 8)</p>
-      <div class="meta"><span class="tag gold">Jonas 22/9: senere</span><span class="tag ny">Ny 20/9</span><span class="tag size">Lille</span></div>
+      <div class="meta"><span class="tag loest">Lukket 22/9 16:02 — SPF sat hos Simply</span><span class="tag gold">Jonas 22/9: senere</span><span class="tag ny">Ny 20/9</span><span class="tag size">Lille</span></div>
     </div>
     <div class="card new loest" id="a20-klaviyo-gensend" data-status="loest" data-spor="senere" data-rammer="medlem">
       <h3>En Klaviyo-hændelse, der fejlede (timeout/5xx/loft), er tabt for altid — sporet ved det, ingen gensender</h3>

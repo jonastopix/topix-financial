@@ -267,6 +267,41 @@ trin 9). Fristen er kampagnerne til 13/10, altså senest **6/10**.
 
 ---
 
+## 7d. Bekræftelsen og før-webinar-mailene — ændret 22/9 aften
+
+**Bekræftelsen kom fra den forkerte ende.** Klaviyos flow `WFzxH9` skrev «Du har
+fået en kalenderinvitation», mens **eWebinars egen bekræftelse var slået FRA** —
+så der kom ingen invitation. Jonas rettede begge ~15:50: eWebinars bekræftelse
+**TIL** med dansk tekst (den vedhæfter `invite.ics`; Apple Mail viste «Siri fandt
+en begivenhed»), og Klaviyos `WFzxH9` **SLUKKET**. Én bekræftelse, fra den der
+faktisk vedhæfter kalenderen.
+
+**BESLUTTET (Jonas 22/9): før-webinar-mailene flytter til vores egen Mailgun.**
+Platformen sender til **ALLE tilmeldte** via **Mailgun EU**; **Klaviyo beholder
+efter-webinaret**. Afsender «Morten Larsen \<morten@webinar.topix.dk\>»,
+Reply-To kontakt@topix.dk.
+
+Grunden til, at det kan lade sig gøre for alle: Klaviyo-flowene kræver
+Hovedlisten OG samtykke (§7b), og det krav bliver. En før-webinar-mail til en
+tilmeldt er ikke markedsføring på et samtykke — den er en besked om det, de har
+tilmeldt sig.
+
+**Opsat 16:4x–17:0x, verificeret af Mailgun 16:56:** konto (Topix.dk ApS) ·
+`webinar.topix.dk` i EU · shared IP · DKIM 2048 · DNS i Cloudflare (SPF, DKIM,
+MX `mxa`/`mxb.eu.mailgun.org`, CNAME `email.webinar` → `eu.mailgun.org`, DNS
+only) · secret `MAILGUN_SENDING_KEY`. **UMÅLT: planen (Foundation 50k) er ikke
+bekræftet.** A bygger `udkast-webinar-foer-flow`.
+
+### Et fund, vi ikke selv kan rette: eWebinars `.ics`
+
+Målt 22/9 med `curl`: **HTTP 200 uden login**. `METHOD:REQUEST`, `ORGANIZER`
+Morten Larsen, `ATTENDEE` `RSVP=TRUE`, `LOCATION`/`URL` = personligt joinLink.
+**`attendeeId` er fortløbende, og filen bærer navn + e-mail** — listen kan i
+princippet gennemløbes. eWebinars design; **meld det til dem**. Indtil da:
+deltagerlisten til et webinar er ikke fortrolig. Kort: `a22-ewebinar-ics-aaben`.
+
+---
+
 ## 8. 20. september — sporet lukkes fra klik til ansøgning, og fem felter viste sig at være observationer
 
 **Princippet, der binder dagen sammen: et felt, vi ikke selv sætter, er en

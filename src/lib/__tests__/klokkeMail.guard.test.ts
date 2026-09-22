@@ -28,7 +28,8 @@ import { ALARM_TYPER, ALDRIG_TYPER, COMMUNITY_TYPER, klassificer, LEGACY_TYPER, 
  *      hentRaekker.
  *   7. ÉN GANG: email_send_log slås op FØR sendManagedEmail; stemplingen kommer
  *      EFTER res.sent; rækkerne stemples kun hvor mailet_at endnu er null.
- *   8. MIGRATIONERNE: begge starter «-- IKKE KØRT. DEPLOY:»; kolonnen mailet_at
+ *   8. MIGRATIONERNE: begge bogført KØRT i prod 22/9 — kolonnen «… kl. 17:20»,
+ *      cron-jobbet «… kl. 17:36» (vendt 22/9; var «IKKE KØRT» indtil da); kolonnen mailet_at
  *      timestamptz og delindekset; cron-jobbet '4-59/15 * * * *' rammer intet andet
  *      minut i nogen plan (målt over alle cron.schedule i migrationerne), kald_edge
  *      60000/900000, unschedule.
@@ -269,7 +270,14 @@ export function kolliderer(minut: number, planer: readonly { job: string; udtryk
 }
 export const migrationerneErRigtige = (kolonne: string, cron: string): boolean => {
   const k = udenSqlKommentarer(kolonne), c = udenSqlKommentarer(cron);
-  return kolonne.startsWith("-- IKKE KØRT. DEPLOY:") && cron.startsWith("-- IKKE KØRT. DEPLOY:") &&
+  // VENDT 22/9 kl. 17:20 og 17:36: BEGGE migrationer ER kørt i prod (Jonas, Lovable
+  // SQL editor) — filhovederne sagde «IKKE KØRT» indtil da. Dommen er vendt, ikke
+  // fjernet: den krævede før den ene linje, nu kræver den den anden MED KLOKKESLÆTTET,
+  // og den afviser stadig det forkerte hoved. Samme form som klaviyoProfil.guard dom 8
+  // og klaviyoAfmelding.guard dom 7. Rækkefølgen stod i hovederne og blev overholdt:
+  // kolonnen (17:20) FØR udrulningen (~17:22), og cron-jobbet (17:36) FØRST efter
+  // tørkørslen (17:24) og den første rigtige kørsel i hånden (17:33).
+  return kolonne.startsWith("-- KØRT i prod — 22/9-2026 kl. 17:20") && cron.startsWith("-- KØRT i prod — 22/9-2026 kl. 17:36") &&
     /ALTER TABLE public\.advisor_notifications\s+ADD COLUMN IF NOT EXISTS mailet_at timestamptz NULL;/.test(k) &&
     /CREATE INDEX IF NOT EXISTS advisor_notifications_umailet_idx[\s\S]*WHERE advisor_id IS NOT NULL AND read_at IS NULL AND mailet_at IS NULL;/.test(k) &&
     !/security definer/i.test(k) && !/drop policy/i.test(k) &&
@@ -311,7 +319,7 @@ describe("klokkeMail.guard — rådgivernes klokker som mail", () => {
   it("5. STRIKS-body (dry_run · nu) og Bucket B med verify_jwt = true", () => expect(striksOgBucketB(funktion, laes(CONFIG))).toBe(true));
   it("6. queryen: kun rækker med advisor_id, ulæste, umailede, i vinduet, side for side", () => expect(queryenErRigtig(funktion)).toBe(true));
   it("7. én gang: loggen først, stemplingen efter sendt, kun hvor mailet_at er null", () => expect(mailesEnGang(funktion)).toBe(true));
-  it("8. migrationerne: IKKE KØRT, kolonnen og indekset, cron 4-59/15 uden kollision, kald_edge 60000/900000", () => {
+  it("8. migrationerne: bogført KØRT i prod (17:20 og 17:36), kolonnen og indekset, cron 4-59/15 uden kollision, kald_edge 60000/900000", () => {
     expect(migrationerneErRigtige(laes(MIG_KOLONNE), laes(MIG_CRON))).toBe(true);
     const planer = cronUdtryk(MIG_DIR);
     expect(planer.some((p) => p.job === "klokke-mail" && p.udtryk === "4-59/15 * * * *")).toBe(true);
@@ -382,7 +390,7 @@ describe("klokkeMail.guard — dommene fanger fejlen på en kopi", () => {
     expect(mailesEnGang(funktion.replace('from("email_send_log")', 'from("noget_andet")'))).toBe(false);
     expect(mailesEnGang(funktion.replace('.in("id", ids).is("mailet_at", null)', '.in("id", ids)'))).toBe(false);
   });
-  it("8. et minut, der kolliderer, eller en migration uden IKKE KØRT, fælder dom 8 — og kolliderer() ser */5, 1-59/5, :07, :17 og faste tider", () => {
+  it("8. et minut, der kolliderer, en migration tilbage på IKKE KØRT, eller et forkert klokkeslæt fælder dom 8 — og kolliderer() ser */5, 1-59/5, :07, :17 og faste tider", () => {
     const planer = cronUdtryk(MIG_DIR);
     expect(kolliderer(0, planer, "klokke-mail").length).toBeGreaterThan(0);
     expect(kolliderer(6, planer, "klokke-mail").some((s) => s.includes("1-59/5"))).toBe(true);
@@ -392,7 +400,15 @@ describe("klokkeMail.guard — dommene fanger fejlen på en kopi", () => {
     expect(kolliderer(4, [...planer, { fil: "x", job: "andet-job", udtryk: "4 9 * * *" }], "klokke-mail")).toEqual(["andet-job (4 9 * * *)"]);
     expect(minutterI("4-59/15 * * * *")).toEqual([4, 19, 34, 49]);
     const k = laes(MIG_KOLONNE), c = laes(MIG_CRON);
-    expect(migrationerneErRigtige(k.replace("-- IKKE KØRT. DEPLOY:", "-- DEPLOY:"), c)).toBe(false);
+    // #1064-formen, på DE FAKTISKE filer: tilbage til «IKKE KØRT» falder — begge ER kørt.
+    expect(migrationerneErRigtige(k.replace("-- KØRT i prod — 22/9-2026 kl. 17:20", "-- IKKE KØRT. DEPLOY:"), c)).toBe(false);
+    expect(migrationerneErRigtige(k, c.replace("-- KØRT i prod — 22/9-2026 kl. 17:36", "-- IKKE KØRT. DEPLOY:"))).toBe(false);
+    // Et forkert klokkeslæt falder også — hovedet skal bære DEN kørsel, der fandt sted.
+    expect(migrationerneErRigtige(k.replace("kl. 17:20", "kl. 09:00"), c)).toBe(false);
+    // Og cron-jobbet må ikke stå som kørt FØR kolonnen: rækkefølgen er hele pointen.
+    expect(migrationerneErRigtige(k, c.replace("kl. 17:36", "kl. 17:10"))).toBe(false);
+    // En forklaring skubbet op foran linje 1 falder (ventepladser-fælden).
+    expect(migrationerneErRigtige(`-- En forklaring først\n${k}`, c)).toBe(false);
     expect(migrationerneErRigtige(k, c.replace("'4-59/15 * * * *'", "'3-59/15 * * * *'"))).toBe(false);
     expect(migrationerneErRigtige(k.replace("mailet_at timestamptz NULL", "mailet_at text NULL"), c)).toBe(false);
   });
