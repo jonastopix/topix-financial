@@ -145,7 +145,8 @@ export const ingenKlaviyoTags = (tekster: string): boolean => {
     !/\{\{\s*person/.test(t) &&
     t.includes("a.afmeldUrl") &&
     t.includes("webinarTekst(new Date(a.sessionTid))") &&
-    // Alle fem arter har en emnelinje.
+    // De fem påmindelser har en emnelinje, i rækkefølge; bekraeftelse er
+    // den sjette art og står først i EMNER, før syv_dage.
     /syv_dage:[\s\S]{0,80}tre_dage:[\s\S]{0,80}en_dag:[\s\S]{0,60}dagen:[\s\S]{0,40}en_time:/.test(t)
   );
 };
