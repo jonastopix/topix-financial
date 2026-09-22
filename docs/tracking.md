@@ -445,8 +445,7 @@ Topix.dk ApS · `webinar.topix.dk` i **EU** · shared IP · **DKIM 2048** · DNS
 (domæne-sendenøgle, ikke kontoens).
 
 **Fravalgt med begrundelse:** Red Sift-DMARC — ingen datadeling, og `topix.dk`s
-egen DMARC dækker. **UMÅLT:** planen (Foundation 50k) er ikke bekræftet; det tal
-afgør sendeloftet.
+egen DMARC dækker. **Planen er Foundation** (bekræftet af Jonas 22/9 aften) — det er sendeloftet.
 
 ### eWebinars `.ics` ligger åbent — et fund om PERSONDATA, ikke om tracking
 

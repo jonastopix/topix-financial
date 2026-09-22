@@ -197,11 +197,33 @@ SENDER før webinaret — ikke hvad Klaviyo får at vide.
 
 Opsætningen (Mailgun-konto, `webinar.topix.dk` i EU, DKIM 2048, DNS i
 Cloudflare, `MAILGUN_SENDING_KEY`) står i `docs/webinaret-og-annoncerne.md` §7d.
-**UMÅLT: planen (Foundation 50k) er ikke bekræftet.**
+**Planen er Foundation** (bekræftet af Jonas 22/9 aften).
 
 Samme aften blev **Klaviyos bekræftelsesflow `WFzxH9` SLUKKET** og eWebinars
 egen bekræftelse slået TIL: Klaviyos mail lovede en kalenderinvitation, der ikke
 kom, fordi eWebinars bekræftelse var slået fra.
+
+---
+
+### 2.4 Arbejdsdelingen ER flyttet — i drift 22/9 kl. 19:29
+
+§2.3 var beslutningen; dette er driften. Platformen sender nu **selv** alle
+før-webinar-mails (cron.job 573, `webinar-mail-cron`), og **Klaviyo beholder
+efter-webinaret uændret** (`Wq3MkG`, `SDVvCW`).
+
+**Slukket hos Klaviyo samme aften:** `WFzxH9` (bekræftelsen) og `UiECQS`.
+**Slukket hos eWebinar:** bekræftelsen (19:03) og 1-times-påmindelsen.
+**Beholdt hos eWebinar:** 10-minutters-påmindelsen, oversat til dansk 22/9.
+
+**Følgen for lag 2 er stadig ingen.** Hændelserne til Klaviyo er uændrede — det,
+der flyttede, er hvem der SENDER, ikke hvad Klaviyo får at vide. Dommen i lag 6
+tæller fortsat det, der faktisk blev sendt.
+
+**Én regel, der kom ud af det, og som gælder bredere:** bekræftelsen sendes
+aldrig bagud (`BEKRAEFTELSE_FRA`, se `docs/webinaret-og-annoncerne.md` §7e).
+Grundlaget er to summer — 556 hos Klaviyo, eWebinars 15:50–19:03 — og **ikke en
+måling pr. person**. Den slags beslutning skal bære sin egen usikkerhed i
+teksten, ikke skjule den.
 
 ---
 

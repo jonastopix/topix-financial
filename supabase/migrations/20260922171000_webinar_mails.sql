@@ -1,4 +1,4 @@
--- IKKE KØRT. DEPLOY: manuelt i Lovable → SQL editor efter merge (FØR Update-klik),
+-- KØRT i prod — 22/9-2026 kl. 18:49 (Jonas, Lovable SQL editor), FØR udrulningen. EFTER: tabellerne webinar_mails og webinar_afmeldinger, 4 politikker, den unikke regel webinar_mails_en_pr_person_uidx, og låsen skrevet «ikke sat → false».
 -- EFTER 20260922170000_webinar_tilmeldinger_links.sql og FØR functionerne udrulles.
 --
 -- PLATFORMENS FØR-WEBINAR-MAILS (Jonas 22/9-2026): platformen sender selv de
