@@ -1,5 +1,15 @@
 # Mangellisten — gennemgang af alle kort
 
+## Rettet 22/9 kl. 04 — reglen og de rettede lister
+
+**Reglen (Jonas 22/9):** «Vi skal ikke bruge tid på tidligere medlemmer.»
+
+Tal i listen skal gælde **nuværende betalende medlemmer** efter husets egen dom `erIGrundmaengden` (`supabase/functions/_shared/stilleDom.ts:196–205`) — **26 målt i prod 22/9 kl. 04:04** (A's `~/Downloads/maal-medlemmer-22-09.sql`).
+
+**Den anden regel (Jonas 22/9):** «Ingen beslutning på et grundlag, der ikke findes. Et tal holdes op mod, hvor længe det målte har eksisteret, og hvornår medlemmet startede — ellers er det ikke et grundlag.»
+
+Listerne 1–4 herunder er FØRSTE udgave og talte også tidligere medlemmer, legat og gæster med (fx «37 af 51 uden mål», Studio Mini). **De gældende lister: `docs/mangelliste-lister-22-09.md` (tredje udgave).**
+
 Natten til 22/9-2026. Kilde: `docs/mangelliste.html` på main (257 kort, heraf 48 lukkede og skabelonen). Hvert af de **209 åbne kort** er læst og vurderet. Vurderingen af *værdi* og *indsats* er min. **Status i koden** er målt af A (kort 1–128, `recon-mangelliste-A.md`) og B (kort 129–256, `-B.md`); hvor recon'en har rettet min første læsning, står det ved kortet.
 
 Indsats: **XS** under en time · **S** en halv dag · **M** en til tre dage · **L** en uge eller mere · **—** ikke kodearbejde.
