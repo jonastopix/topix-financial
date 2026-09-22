@@ -4,37 +4,50 @@
 >
 > **INTET HASTER, OG INTET ER GÅET I STYKKER.** Alt herunder er ting, der har kørt uden opsyn i tre dage og nu skal AFLÆSES. Rækkefølgen er efter, hvad der taber sig, hvis det venter.
 >
-> **1. KLOKKE-MAILEN — I DRIFT FRA 22/9 kl. 17:33.** Beslutningen kl. ~15:15, i drift to en halv time senere: **cron-job 572**, «4-59/15 * * * *», active fra 17:36. Første rigtige kørsel 17:33 sendte **3 mails** — alarm → jonas@theboardroom.dk 17:33:10, community → morten@molainvest.dk 17:33:11, morgen → morten@molainvest.dk 17:33:12 — og stemplede **14 klokker**. Følge: alarmerne går til Jonas, mens han har fri 23.–25/9; Morten får community og morgenmailen.
+> **1. PLATFORMENS MAILS NÅR IKKE FREM — START HER, FØR ALT ANDET.** Målt 22/9 kl. 22:24 over `email_send_log` (`is_test = false`), 1.928 rækker siden 7/4: **1.111 sendt · 60 fejlet · 756 hverken-eller.** De 756 er 39 % af alle rækker, og `signup` og `legat-welcome` — de mails, et nyt medlem møder FØRST — fejler oftere, end de lykkes (21/38 og 5/26).
+>
+> **Det første, der skal måles, er ikke flere tal, men ÉN mail hele vejen:** `email_send_log` → Lovables svar → modtagerens indbakke. Først dér ved vi, om «failed» og de 756 «øvrige» betyder «kom aldrig frem» eller bare «ingen skrev status tilbage». **Loftet er målt og er IKKE årsagen:** travleste time nogensinde er 78 mails = 26 % af 300/time — men elleve mails fik alligevel 429 «High demand» 14/9, så Lovable afviser også ved deres egen spidsbelastning. Kort: `a22-mails-naar-ikke-frem`. Det ændrer begrundelsen for Mailgun-flytningen fra *loftet* til *leveringen*.
+>
+> **2. KLOKKE-MAILEN — I DRIFT FRA 22/9 kl. 17:33.** Beslutningen kl. ~15:15, i drift to en halv time senere: **cron-job 572**, «4-59/15 * * * *», active fra 17:36. Første rigtige kørsel 17:33 sendte **3 mails** — alarm → jonas@theboardroom.dk 17:33:10, community → morten@molainvest.dk 17:33:11, morgen → morten@molainvest.dk 17:33:12 — og stemplede **14 klokker**. Følge: alarmerne går til Jonas, mens han har fri 23.–25/9; Morten får community og morgenmailen.
 >
 > **TO TING AT AFLÆSE.** (a) **Kørslerne fra 17:49 og frem:** en kørsel UDEN nyt må **ikke** give en mail — `select template_name, sent_at from email_send_log where template_name like 'klokke-mail-%' order by sent_at;` skal IKKE vise en mail hvert kvarter. (b) **Morgenmailen 23/9 kl. 07:04** — den første, der er dømt af hverdags-reglen. Er den der, og siger den det rigtige? Og 26/9 skal den sige «siden fredag kl. 07», ikke «i går».
 >
-> **2. PLATFORMENS WEBINARMAILS — I DRIFT FRA 22/9 kl. 19:29.** cron.job 573, elleve gange i timen. Første kørsel: `sendt 1 · med_invitation 1 · fejlede 0`, og **`for_tidlig_tilmelding` 593** (bekræftelsen sendes aldrig bagud, §9). **Tjek:** `select art, udfald, count(*) from public.webinar_mails group by 1,2;` og kørslerne. Over tre dage bør der være **få** rækker — de næste forfaldne er først 6/10.
+> **3. PLATFORMENS WEBINARMAILS — I DRIFT FRA 22/9 kl. 19:29.** cron.job 573, elleve gange i timen. Første kørsel: `sendt 1 · med_invitation 1 · fejlede 0`, og **`for_tidlig_tilmelding` 593** (bekræftelsen sendes aldrig bagud, §9). **Tjek:** `select art, udfald, count(*) from public.webinar_mails group by 1,2;` og kørslerne. Over tre dage bør der være **få** rækker — de næste forfaldne er først 6/10.
 >
 > **DEN FØRSTE RIGTIGE FØR-MAIL GÅR 6/10 kl. 08:00** til ~**217** (syv dage før 13/10). Det er den første, der går til et helt hold, og den kan ikke prøves af igen. Er noget galt i teksten eller knappen, skal det findes FØR 6/10.
 >
 > **eWebinars 10-minutters-påmindelse er den ENESTE, de har tilbage** — oversat til dansk 22/9. Alt andet før webinaret er platformens; alt efter er Klaviyos.
 >
-> **3. DEN FØRSTE LEVENDE AFMELDING** — den eneste, der beviser en gren, ingen har set køre. `select kilde, count(*) from public.klaviyo_afmeldinger group by kilde;` Står der en række med **`kilde = 'webhook'`**, er webhook-grenen bevist i drift, og kortet `a22-afmelding-webhook-bevis` kan lukkes. Kommer der ingen afmeldinger, er der intet galt — der er bare ingen, der har afmeldt sig.
+> **4. MAILSPORINGEN — FIRE SVAR, DER VENTER PÅ DIG.** Besluttet 22/9: **levering JA · klik JA · åbninger NEJ** (Apple Mail Privacy Protection og Gmails proxy gør åbningstal til maskintal, og en usynlig pixel i en servicemail til folk uden markedsføringssamtykke er ikke i orden). Bygges **uge 40, før 13/10**. Fire ting er dine, og intet bygges, før de er svaret:
 >
-> **4. KLADDENS PÅMINDELSE 24/9 kl. 10:00.** Rykkerkøen lagde den selv (ansøgningen fra 22/9 10:45, skridt 7 af 12, `kilde = direkte`). Gik den? `planlagte_haendelser` + `email_send_log`. Det er køens første rigtige prøve på en kladde.
+> **(A)** `htmlonly` eller `yes`? — `htmlonly` lader ren tekst stå urørt, så afmeldings- og joinlink dér peger det rigtige sted; prisen er, at klik fra rene tekstlæsere ikke måles.
+> **(B)** Skal afmeldingslinket spores overhovedet? — vi ser dem alligevel i `webinar_afmeldinger`; for kalenderrækkens links er svaret formentlig det modsatte.
+> **(C)** Skal personlige links (joinLink, Apple-`.ics` med attendee-id) stå i Mailguns klik-log? — én oplysning mere ud af huset om en navngiven person. **Ingen jurist har set på det.**
+> **(D)** Skal der være en lås (`webinar_mail_sporing_aktiv`, standard false)? — så kan sporingen prøves på ÉN adresse, før 384 mails går ud med omskrevne links.
 >
-> **5. KONVERTERINGEN «Kvalificeret» — AKTIV ELLER INAKTIV?** Events Manager → Brugerdefinerede konverteringer. Den blev oprettet 22/9 14:5x som **Website** med reglen `event_source = crm`, og det er **UMÅLT**, om en Website-konvertering tæller vores `system_generated`-hændelser. **Aktiv = den tæller. Inaktiv = reglen skal om.** Ses ved den første «Tal med dem» efter 22/9.
+> **Og én måling skal gøres FØRST, uanset svarene:** overlever afmeldingslinkets query-streng Mailguns viderestilling? De andre seks målinger kan rettes bagefter — **et afmeldingslink, der ikke virker, kan ikke gøres om.** Kort: `a22-mailsporing`; recon: `~/Downloads/recon-mailsporing.md`.
 >
-> **6. KLAVIYO-PROFIL-CRONENS KØRSLER** (job 571, hver time på minut 17, i drift fra 22/9 14:31). `select udfald, count(*) from public.klaviyo_profil group by udfald;` Forventet: `ok` på de 212 med en kommende session. Andet end `ok` → se `AFMELD_AARSAG`-agtige forklaringer i `klaviyoProfil.ts`' alarmtekst; cronen mailer selv ved fejl (højst én mail pr. døgn).
+> **5. DEN FØRSTE LEVENDE AFMELDING** — den eneste, der beviser en gren, ingen har set køre. `select kilde, count(*) from public.klaviyo_afmeldinger group by kilde;` Står der en række med **`kilde = 'webhook'`**, er webhook-grenen bevist i drift, og kortet `a22-afmelding-webhook-bevis` kan lukkes. Kommer der ingen afmeldinger, er der intet galt — der er bare ingen, der har afmeldt sig.
 >
-> **7. PREVIEW AF FLOWMAILEN MED TIDSPUNKTET.** Tagget `{{ person|lookup:'tb_naeste_webinar_tekst'|default:'på det tidspunkt, du er tilmeldt' }}` skal ind i **`WFzxH9`** og **`UiECQS`** + kampagnerne til 13/10, og **kortet `a21-webinar-tidspunkt` lukkes først efter en Preview** (`koereplan-webinar-tidspunkt.md` trin 9). Feltet ER skrevet og verificeret på en rigtig profil — det, der mangler, er at mailen viser det.
+> **6. KLADDENS PÅMINDELSE 24/9 kl. 10:00.** Rykkerkøen lagde den selv (ansøgningen fra 22/9 10:45, skridt 7 af 12, `kilde = direkte`). Gik den? `planlagte_haendelser` + `email_send_log`. Det er køens første rigtige prøve på en kladde.
 >
-> **8. SVAR FRA LEV POSITIV OG TATTI.** ~~Tilbyd dem pladsen~~ — **GJORT 22/9 kl. 18:28: begge mails er sendt** (Lev Positiv i den bløde udgave, afvist > 12 mdr.), **frist 29/9**. Siger de ja, genåbnes ansøgningen til «ny», og klokken kommer i morgenmailen — **og så er næste skridt dit: tryk «Tal med dem»**, det er dét, der sender indkaldelsen med bookinglinket. Svarer de ikke, går pladsen videre af sig selv dag 7. **ABC hundeudstyr er spærret til 13/10** af `tidligst_tilbud_at` — køen holder den selv tilbage. Fanen «Venteliste» på `/ansoegninger` viser tilstanden.
+> **7. KONVERTERINGEN «Kvalificeret» — AKTIV ELLER INAKTIV?** Events Manager → Brugerdefinerede konverteringer. Den blev oprettet 22/9 14:5x som **Website** med reglen `event_source = crm`, og det er **UMÅLT**, om en Website-konvertering tæller vores `system_generated`-hændelser. **Aktiv = den tæller. Inaktiv = reglen skal om.** Ses ved den første «Tal med dem» efter 22/9.
 >
-> **9. CVR-KNAPPEN er i drift** (#1093) og blev brugt 22/9: alle tre fra Monday slået op (Tatti ApS, ABC HUNDEUDSTYR ApS, LEV POSITIV ApS). Anettes CVR **36203609** sat i hånden 18:15 (FØR: NULL). Intet udestår her.
+> **8. KLAVIYO-PROFIL-CRONENS KØRSLER** (job 571, hver time på minut 17, i drift fra 22/9 14:31). `select udfald, count(*) from public.klaviyo_profil group by udfald;` Forventet: `ok` på de 212 med en kommende session. Andet end `ok` → se `AFMELD_AARSAG`-agtige forklaringer i `klaviyoProfil.ts`' alarmtekst; cronen mailer selv ved fejl (højst én mail pr. døgn).
 >
-> **10. LØNPOSTERNE — det parkerede** (`m17-xlsx-combined-navne`). Udkastet er færdigt og grønt i `~/Downloads/udkast-xlsx-navne`, men det rører **den delte læsemotor** og flytter beløb fra «øvrige omkostninger» til løn i allerede læste rapporter. **Lægges i drift med Jonas til stede**, sammen med en genkørsel af de berørte **nuværende** medlemmer (kandidat-SQL i udkastets README §6).
+> **9. PREVIEW AF FLOWMAILEN MED TIDSPUNKTET.** Tagget `{{ person|lookup:'tb_naeste_webinar_tekst'|default:'på det tidspunkt, du er tilmeldt' }}` skal ind i **`WFzxH9`** og **`UiECQS`** + kampagnerne til 13/10, og **kortet `a21-webinar-tidspunkt` lukkes først efter en Preview** (`koereplan-webinar-tidspunkt.md` trin 9). Feltet ER skrevet og verificeret på en rigtig profil — det, der mangler, er at mailen viser det.
 >
-> **11. PHILBERT UDLØBER 29/9.** Kontrakten løber ud; fornyelseskæden bør have varslet. Tjek at den gjorde.
+> **10. SVAR FRA LEV POSITIV OG TATTI.** ~~Tilbyd dem pladsen~~ — **GJORT 22/9 kl. 18:28: begge mails er sendt** (Lev Positiv i den bløde udgave, afvist > 12 mdr.), **frist 29/9**. Siger de ja, genåbnes ansøgningen til «ny», og klokken kommer i morgenmailen — **og så er næste skridt dit: tryk «Tal med dem»**, det er dét, der sender indkaldelsen med bookinglinket. Svarer de ikke, går pladsen videre af sig selv dag 7. **ABC hundeudstyr er spærret til 13/10** af `tidligst_tilbud_at` — køen holder den selv tilbage. Fanen «Venteliste» på `/ansoegninger` viser tilstanden.
 >
-> **12. KLAVIYO-KAMPAGNERNE TIL 13/10 — senest 6/10.** Køreplanen (`koereplan-13-10.md`) siger uge 39. **Tidspunkts-tagget skal med** (punkt 6) — og husk, at kampagnerne nu er det ENESTE, Klaviyo sender før webinaret; bekræftelse og påmindelser er platformens.
+> **11. CVR-KNAPPEN er i drift** (#1093) og blev brugt 22/9: alle tre fra Monday slået op (Tatti ApS, ABC HUNDEUDSTYR ApS, LEV POSITIV ApS). Anettes CVR **36203609** sat i hånden 18:15 (FØR: NULL). Intet udestår her.
 >
-> **13. RESTEN AF JONAS' «GØR DET»** (omgang 3). Af de 20+1 kort fra 22/9 morgen er en del lukket i løbet af dagen; mangellistens filter «Jonas 22/9: gør det» viser, hvad der står tilbage.
+> **12. LØNPOSTERNE — det parkerede** (`m17-xlsx-combined-navne`). Udkastet er færdigt og grønt i `~/Downloads/udkast-xlsx-navne`, men det rører **den delte læsemotor** og flytter beløb fra «øvrige omkostninger» til løn i allerede læste rapporter. **Lægges i drift med Jonas til stede**, sammen med en genkørsel af de berørte **nuværende** medlemmer (kandidat-SQL i udkastets README §6).
+>
+> **13. PHILBERT UDLØBER 29/9.** Kontrakten løber ud; fornyelseskæden bør have varslet. Tjek at den gjorde.
+>
+> **14. KLAVIYO-KAMPAGNERNE TIL 13/10 — senest 6/10.** Køreplanen (`koereplan-13-10.md`) siger uge 39. **Tidspunkts-tagget skal med** (punkt 6) — og husk, at kampagnerne nu er det ENESTE, Klaviyo sender før webinaret; bekræftelse og påmindelser er platformens.
+>
+> **15. RESTEN AF JONAS' «GØR DET»** (omgang 3). Af de 20+1 kort fra 22/9 morgen er en del lukket i løbet af dagen; mangellistens filter «Jonas 22/9: gør det» viser, hvad der står tilbage.
 >
 > **DET, DER KØRER AF SIG SELV IMENS:** **klokke-mailen (job 572, hvert kvarter på :04/:19/:34/:49 — morgenmail kl. 07:04 + alarmer straks)** · afmeldingerne (webhook + gensender hvert 5. min) · `klaviyo-profil-cron` (hver time :17, første kørsel 22/9 15:17) · rykkerkøen · `meta-send-cron` og `ga-send-cron` · fornyelseskæden. Ingen af dem kræver opsyn; alle skriver deres eget spor.
 >
@@ -10560,6 +10573,105 @@ til «ny», og klokken kommer i morgenmailen.
 Planen er **Foundation** (bekræftet af Jonas 22/9). Den stod som **UMÅLT** i
 `docs/tracking.md` §4d, `docs/webinaret-og-annoncerne.md` §7d og
 `docs/marketingmotoren.md` §2.3 — alle tre er rettet.
+
+#### 14. Kl. 22:24 — dagens største fund: vi ved ikke, om vores mails kommer frem
+
+A's `~/Downloads/maal-mailmaengde.sql` over `email_send_log` (`is_test = false`),
+**1.928 rækker siden 7/4**:
+
+| status | antal |
+|---|---:|
+| **sent** | **1.111** |
+| **failed** | **60** |
+| suppressed | 1 |
+| **øvrige — hverken sendt eller fejlet** | **756** |
+| rate_limited | 0 |
+
+**De 756 er fundet.** 39 % af alle rækker har **ingen dom**. De er hverken
+lykkedes eller fejlet; de står bare.
+
+**Pr. skabelon (sendt/fejlet):**
+
+| skabelon | sendt | fejlet |
+|---|---:|---:|
+| `notification-chat_aggregated` | 215 | 194 |
+| `notification-report_review_ready` | 100 | 99 |
+| `report-reminder` | 96 | 64 |
+| `invitation` | 76 | 68 |
+| `notification-event_reminder` | 77 | 58 |
+| **`signup`** | **21** | **38** |
+| **`legat-welcome`** | **5** | **26** |
+| `monthly-digest` | 23 | 23 |
+
+**To af dem fejler oftere, end de lykkes — og det er netop de to, et nyt medlem
+møder FØRST.** `signup` og `legat-welcome` er den første mail, huset nogensinde
+sender til en person.
+
+**Loftet er IKKE flaskehalsen, og det er målt.** Travleste time nogensinde:
+**78 mails** (14/9 kl. 09 UTC) = **26 %** af Lovables loft på 300/time.
+
+Men **14/9 kl. 11:10–11:15 fejlede ELLEVE mails** med
+`Email API error: 429 {status 429, type rate_limited, title High demand! Please try again in a moment.}`
+— i en time med langt under 300 mails. **Lovable afviser altså også ved deres
+EGEN spidsbelastning**, ikke kun ved vores loft. Status `rate_limited` fandtes
+ikke dengang (migration `20260915210000`), så de elleve står som «failed».
+
+##### Det, der skal måles først — og det er ikke flere tal
+
+**Hvad betyder «failed» og de 756 «øvrige» overhovedet i denne tabel?** Skrives
+statusserne af `managedEmail`, eller står rækker som «pending» for evigt, fordi
+ingen opdaterer dem bagefter? Og nåede en mail, der står som fejlet, **virkelig**
+aldrig frem?
+
+**Det kræver, at ÉN mail følges hele vejen:** `email_send_log` → Lovables svar →
+modtagerens indbakke. Uden den ene kæde er 756 et tal uden betydning — det kan
+lige så godt være en manglende **skrivning** som en manglende **mail**. Derfor er
+det punkt 1 i «26/9 — START HER», og derfor er det en måling og ikke en
+rettelse.
+
+##### Konsekvensen: Mailgun-flytningen har en anden begrundelse end troet
+
+Begrundelsen for at flytte platformens mails til Mailgun
+(`~/Downloads/recon-platformens-mails-mailgun.md`) var **loftet på 300/time**.
+Målingen viser, at vi aldrig har været over **26 %** af det.
+
+**Grunden er leveringen**, ikke mængden: at vi ikke kan se, om vores mails kommer
+frem, og at de skabeloner, et nyt medlem møder først, fejler oftere end de
+lykkes. Det er en stærkere grund end den, vi havde — men det er en **anden**, og
+den skal stå rigtigt, før nogen bygger på den.
+
+Kort: `a22-mails-naar-ikke-frem`.
+
+---
+
+#### 15. Sporingen af webinarmailene — besluttet, ikke bygget
+
+**Jonas 22/9: levering JA · klik JA · åbninger NEJ.**
+
+Fravalget af åbninger er ikke en forsigtighed, det er en måling, der ikke måler:
+**Apple Mail Privacy Protection henter sporingspixelen på forhånd for alle**, og
+**Gmail henter billeder gennem sin egen proxy**. Tallet ville tælle maskiner. Og
+en usynlig pixel i en **servicemail til folk uden markedsføringssamtykke** er
+ikke i orden. Levering og klik er noget andet: de svarer på «kom den frem» og
+«virkede knappen», og begge udløses af personen selv.
+
+**Tre skærme** (recon §4): én linje pr. session på `/webinar`, foldet ud pr. art
+— dér viser en fejl sig, hvis «en_time» har 384 sendt og 12 leverede · E-mail-
+loggen med et kilde-filter og hændelsernes tidslinje under den enkelte mail ·
+én stille linje pr. person i ansøgningsvisningen, så rådgiveren kan se, om de
+overhovedet har fået vores mails, før hun ringer.
+
+**Syv målinger før noget slås til — og måling 4 gøres FØRST:** overlever
+afmeldingslinkets query-streng Mailguns viderestilling? **De andre seks kan
+gøres forkert og rettes. Et afmeldingslink, der ikke virker, kan ikke gøres om.**
+
+**Fire beslutninger er Jonas'** og venter i START HER: `htmlonly` mod `yes` ·
+om afmeldingslinket overhovedet skal spores · om personlige links (joinLink,
+Apple-`.ics` med attendee-id) må stå i Mailguns klik-log — **ingen jurist har set
+på det**, som med `meta_send_aktiv` · og om der skal være en lås.
+
+**Frist: uge 40**, efter at webinarmailene har kørt, og **før 13/10**. Recon:
+`~/Downloads/recon-mailsporing.md`. Kort: `a22-mailsporing`.
 
 ---
 
