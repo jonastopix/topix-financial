@@ -23,6 +23,9 @@
  *   divide-hb-line, hbControlClasses til søgefeltet).
  */
 import { useState } from "react";
+import { VentelisteOverblik } from "./VentelisteOverblik";
+import { antalKanTilbydes } from "@/lib/ansoegninger/ventelisteOverblik";
+import { hentVentelisteOverblik, VENTELISTE_OVERBLIK_KEY } from "@/hooks/ventelisteOverblik";
 import { Link } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
@@ -137,6 +140,12 @@ export const AnsoegningslisteView = () => {
   const [aabenId, setAabenId] = useState<string | null>(null);
   const [filter, setFilter] = useState<Listegruppe | null>(null);
   const [query, setQuery] = useState("");
+  // VENTELISTEN (udkast 22/9): en egen fane ved siden af striben. Tallet er
+  // dommens — antalKanTilbydes tæller kun dem, knappen faktisk virker på, så
+  // en fane med «2» betyder to tryk, ikke to rækker.
+  const [venteliste, setVenteliste] = useState(false);
+  const vq = useQuery({ queryKey: [...VENTELISTE_OVERBLIK_KEY], queryFn: () => hentVentelisteOverblik(), enabled: !!user && !!isAdvisor, staleTime: 30_000 });
+  const kanTilbydes = antalKanTilbydes(vq.data ?? []);
 
   const alle = q.data ?? [];
   const stribe = stribeTal(alle, nu);
@@ -177,6 +186,22 @@ export const AnsoegningslisteView = () => {
             </li>
           );
         })}
+        <li>
+          <button
+            type="button"
+            onClick={() => { setVenteliste(!venteliste); setFilter(null); setAabenId(null); }}
+            aria-pressed={venteliste}
+            data-stribe-trin="venteliste"
+            className={cn(
+              "flex items-baseline gap-2 rounded-full border px-3 py-1.5 text-sm transition-colors",
+              venteliste ? "border-hb-ink bg-hb-ink text-white" : "border-hb-line bg-hb-surface text-hb-ink hover:bg-hb-sage/20",
+              !venteliste && (vq.data?.length ?? 0) === 0 && "text-hb-ink-soft",
+            )}
+          >
+            <span className={cn("font-editorial text-xl leading-none", !venteliste && kanTilbydes > 0 && "text-hb-rust")}>{vq.data?.length ?? 0}</span>
+            <span className="text-xs uppercase tracking-[0.12em]">Venteliste</span>
+          </button>
+        </li>
       </ol>
 
       <div className="mt-6 flex flex-wrap items-center gap-3">
@@ -192,7 +217,9 @@ export const AnsoegningslisteView = () => {
         )}
       </div>
 
-      {q.isLoading ? (
+      {venteliste ? (
+        <VentelisteOverblik />
+      ) : q.isLoading ? (
         <p className="mt-8 text-sm text-hb-ink-soft">Henter ansøgningerne…</p>
       ) : q.isError ? (
         <p className="mt-8 text-sm text-hb-rust">{raadgiverHentefejlTekst(q.error, "ansoegningerne")}</p>
