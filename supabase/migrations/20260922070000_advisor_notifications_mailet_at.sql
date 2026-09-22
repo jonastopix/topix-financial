@@ -1,4 +1,4 @@
--- IKKE KØRT. DEPLOY: manuelt i Lovable → SQL editor efter merge (FØR Update-klik).
+-- KØRT i prod — 22/9-2026 kl. 17:20 (Jonas, Lovable SQL editor), FØR udrulningen af klokke-mail-cron. FØR 17:19: kolonnen mailet_at og indekset fandtes ikke; 22 ulæste klokker med rådgiver de sidste 7 dage. EFTER: mailet_at timestamptz + advisor_notifications_umailet_idx.
 -- RÆKKEFØLGEN — LÆS DEN (CLAUDE.md «Deployment af edge functions»; efter webinaret 22/9):
 --   1. DENNE migration (kolonnen) — FØR udrulningen: functionen læser og skriver mailet_at,
 --      og en manglende kolonne vælter hver kørsel (42703).
@@ -18,12 +18,14 @@
 --      SELECT count(*) FROM public.advisor_notifications WHERE mailet_at IS NOT NULL;
 --   6. FØRST derefter cron-migrationen 20260922071000_klokke_mail_cron.sql.
 --
--- TIDSSTEMPLET er 03:00 (omnummereret 21/9 aften). Det var først 21:00, så 21:50 — men begge lå
--- FØR migrationer, der i mellemtiden er KØRT i prod: 20260921210000 er B's event_svar_grupper
--- (kørt 21/9 kl. 14:27), 20260922003000 er GA-kolonnerne (kørt kl. 17:01) og 20260922010000 er
--- GA-sporet (kørt kl. 17:48). En migration, der endnu ikke er kørt, må ikke sortere før dem, der
--- er — den, der scanner mappen, læser rækkefølgen som historik. 03:00/03:10 ligger efter alt i
--- main og efter webinar-delingens 20260922020000/20260922021000.
+-- TIDSSTEMPLET er 07:00 — og det er blevet flyttet TRE gange, hver gang af samme grund:
+-- først 21:00, så 21:50, så 03:00, og endelig 07:00/07:10, da udkastet blev lagt ind 22/9.
+-- Hver gang lå det forrige valg FØR migrationer, der i mellemtiden var KØRT i prod — senest
+-- 20260922040000 (kørt 21/9 kl. 22:15), 20260922050000 (kl. 23:20), 20260922060000 (22/9 kl.
+-- 13:26) og 20260921190000/200000 (kl. 14:24/14:31). En migration, der endnu ikke er kørt, må
+-- ikke sortere før dem, der er — den, der scanner mappen, læser rækkefølgen som historik.
+-- LÆRDOMMEN, som de tre flytninger er beviset på: et tidsstempel i et udkast er ikke gyldigt,
+-- fordi det var gyldigt, da udkastet blev skrevet. Det skal MÅLES igen ved indlægningen.
 --
 -- KLOKKEN SOM MAIL (udkast 21/9-2026, recon-klokker-mail.md): rådgivernes klokker forlod aldrig
 -- browseren. klokke-mail-cron sender dem — ALARM til driftModtager, COMMUNITY og MORGEN til hver
