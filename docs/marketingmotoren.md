@@ -148,6 +148,37 @@ uændret for alle, og dommen i lag 6 tæller dem, der faktisk fik en mail.
 
 ---
 
+### 2.2 Webinarets tidspunkt på profilen — I DRIFT 22/9 kl. 14:31
+
+`klaviyo-profil-cron` skriver nu to felter på Klaviyo-profilen for hver tilmeldt
+med en kommende session, **altid sammen**:
+
+```
+tb_naeste_webinar        «2026-10-13 11:00:00»        (Klaviyos datoform, dansk tid)
+tb_naeste_webinar_tekst  «tirsdag 13. oktober kl. 11.00»
+```
+
+**Rækkefølgen, som den faktisk gik:** functionen udrullet ~14:25 · migrationen
+`20260921190000_klaviyo_profil` **KØRT 14:24** (tabel + 2 politikker) · tørkørsel
+kald **14304** (`tilmeldinger_laest` 212, `saet` 212, `skrevet` 0) · rigtig
+skrivning kald **14306** til `a.skougaard@outlook.dk` (**ok**, status **201**) ·
+**verificeret i Klaviyo gennem API'et** med de to værdier ovenfor · cron-migrationen
+`20260921200000` **KØRT 14:31** → **job 571**, «17 * * * *», active.
+
+**`afmeldte_udeladt: 0` i tørkørslen er #1088's markør.** Feltet findes kun i
+den kode, der udelader afmeldte (`a22-afmelding-klaviyo`), så tallet svarer på to
+ting på én gang: ingen af de 212 er afmeldt, **og** afmeldingsudkastet er i den
+kørende bundle. Det er formen, CLAUDE.md beder om — «et svar, kun den nye kode
+kan give».
+
+**Tilbage, og det er Jonas':** tagget
+`{{ person|lookup:'tb_naeste_webinar_tekst'|default:'på det tidspunkt, du er tilmeldt' }}`
+i **`WFzxH9`** og **`UiECQS`** samt kampagnerne til 13/10. **Kortet
+`a21-webinar-tidspunkt` lukkes først efter en Preview** — feltet er skrevet og
+læst tilbage, men at MAILEN viser det, er ikke set.
+
+---
+
 ## 3. Lag 3 — motoren (#1032, 19/9 22:47; #1035, 20/9 08:24)
 
 **Evnen til at handle:** læse og skrive flows, handlinger og skabeloner.

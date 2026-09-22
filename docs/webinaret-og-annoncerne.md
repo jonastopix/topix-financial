@@ -250,6 +250,23 @@ allerede må modtage. Ingen ændring i lag 2.
 
 ---
 
+## 7c. Webinarets tidspunkt på profilen — i drift 22/9 kl. 14:31
+
+Påmindelsesmailene nævnte ikke tidspunktet, og sessionerne ligger på forskellige
+tider (22/9 kl. 9, 13/10 kl. 11). eWebinar skriver kun en DATO uden tid
+(«09/22/2026»), så platformen skriver selv tidspunktet.
+
+I drift 22/9: job **571**, hver time på minut 17. Beviset er én rigtig skrivning
+(kald 14306, status 201) **læst tilbage i Klaviyo gennem API'et**:
+`tb_naeste_webinar` «2026-10-13 11:00:00» og `tb_naeste_webinar_tekst` «tirsdag
+13. oktober kl. 11.00». Detaljerne i `docs/marketingmotoren.md` §2.2.
+
+**Ikke lukket endnu:** tagget skal ind i `WFzxH9` og `UiECQS` + kampagnerne til
+13/10, og kortet lukkes efter en **Preview** (`koereplan-webinar-tidspunkt.md`
+trin 9). Fristen er kampagnerne til 13/10, altså senest **6/10**.
+
+---
+
 ## 8. 20. september — sporet lukkes fra klik til ansøgning, og fem felter viste sig at være observationer
 
 **Princippet, der binder dagen sammen: et felt, vi ikke selv sætter, er en
