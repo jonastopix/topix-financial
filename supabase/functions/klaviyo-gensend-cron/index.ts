@@ -60,7 +60,8 @@ import { skrivRaadgiverBesked } from "../_shared/raadgiverBesked.ts";
 import { sendManagedEmail } from "../_shared/managedEmail.ts";
 import { raadgiverModtager } from "../_shared/raadgiverModtager.ts";
 import { indgangsMailHtml } from "../_shared/indgangsMail.ts";
-import { gensendHvisGemt } from "../_shared/klaviyoAfsendelse.ts";
+import { afmeldHvisNoegle, gensendHvisGemt } from "../_shared/klaviyoAfsendelse.ts";
+import { type AfmeldSporRaekke, vaelgGenafmeldinger } from "../_shared/klaviyoAfmelding.ts";
 import {
   ALARM_KLOKKE_TYPE,
   ALARM_MAIL_LABEL,
@@ -134,6 +135,24 @@ export interface GensendResultat {
   alarm_klokke: string;
   /** Kun i en bevis-kørsel: rækken, hvis krop blev sendt igen, og det nye udfald. */
   bevis: { id: string; metric: string; unikt_id: string; udfald_foer: string; udfald_nu: string | null } | null;
+  /** AFMELDINGER (22/9-2026): fejlede afmeldinger, der prøves igen. */
+  afmeld: {
+    /** Rækker læst i klaviyo_afmeldinger. */
+    spor_laest: number;
+    /** Mails, der er forsøgt afmeldt. */
+    mails: number;
+    /** Mails med en ok-række — færdige. */
+    afmeldt: number;
+    /** Mails uden ok-række, forsøgt for nylig — venter. */
+    venter: number;
+    /** Mails uden ok-række, prøves igen nu. */
+    proev: string[];
+    /** Faktisk forsøgt igen (0 i tørkørsel). */
+    forsoegt: number;
+    lykkedes: number;
+    fejlede_igen: number;
+    udsat: number;
+  };
   fejl: string[];
 }
 
@@ -155,11 +174,37 @@ function tomtResultat(toerKoersel: boolean, nu: Date): GensendResultat {
     gensend: [], opgivet: [], konfiguration: [],
     ignoreret: { ok: 0, venter: 0, for_gammel: 0, ingen_mail: 0, ikke_sendt: 0, ubrugelig: 0 },
     gensendt: 0, lykkedes: 0, fejlede_igen: 0, udsat: 0,
-    alarm_grupper: [], alarm_mail: "ingen", alarm_klokke: "ingen", bevis: null, fejl: [],
+    alarm_grupper: [], alarm_mail: "ingen", alarm_klokke: "ingen", bevis: null,
+    afmeld: { spor_laest: 0, mails: 0, afmeldt: 0, venter: 0, proev: [], forsoegt: 0, lykkedes: 0, fejlede_igen: 0, udsat: 0 },
+    fejl: [],
   };
 }
 
 const RAEKKE_FELTER = "id, sendt_at, metric, email, unikt_id, udfald, sendt";
+
+/**
+ * AFMELDINGERNE (22/9-2026, ~/Downloads/udkast-ewebinar-afmelding). Hele
+ * sporet, side for side — INTET VINDUE. En marketinghændelse taber sin værdi
+ * og opgives efter 24 timer og seks forsøg (vaelgGensendelser); en AFMELDING
+ * gør ikke: den skal lykkes, uanset hvor gammel den er. Derfor er reglen her
+ * kun «har mailen en ok-række?», og tabellen holdes lille af netop den regel
+ * — en vellykket afmelding skriver sin sidste række og bliver aldrig valgt igen.
+ *
+ * DENNE FUNCTION PRØVER KUN DET, DER ALLEREDE ER FORSØGT. De mails, der aldrig
+ * er forsøgt (historikken fra før udrulningen), hentes af klaviyo-afmeld-bagud,
+ * som læser eWebinar-siden. To jobs, én tabel hver — ingen af dem gætter.
+ */
+async function hentAfmeldSpor(admin: SupabaseClient): Promise<AfmeldSporRaekke[]> {
+  const ud: AfmeldSporRaekke[] = [];
+  for (let start = 0; ; start += SIDE) {
+    const { data, error } = await admin.from("klaviyo_afmeldinger").select("email, udfald, forsoegt_at")
+      .order("forsoegt_at", { ascending: true }).range(start, start + SIDE - 1);
+    if (error) throw new Error(`klaviyo_afmeldinger: ${error.message}`);
+    const rk = (data ?? []) as AfmeldSporRaekke[];
+    ud.push(...rk);
+    if (rk.length < SIDE) return ud;
+  }
+}
 
 /** Hent alle rækker i vinduet, side for side — aldrig et tavst loft. */
 async function hentRaekker(admin: SupabaseClient, fra: Date, til: Date): Promise<GensendRaekke[]> {
@@ -278,6 +323,16 @@ export async function koerGensend(
   r.ignoreret = udvalg.ignoreret;
   r.alarm_grupper = alarmGrupper(udvalg, a.nu);
 
+  // ── Afmeldingerne: dømmes FØR tørkørslens return, så en tørkørsel viser dem ──
+  const afmeldSpor = await hentAfmeldSpor(admin);
+  r.afmeld.spor_laest = afmeldSpor.length;
+  const forsoegteMails = [...new Set(afmeldSpor.map((x) => x.email.trim().toLowerCase()))];
+  r.afmeld.mails = forsoegteMails.length;
+  const genafmeld = vaelgGenafmeldinger(forsoegteMails, afmeldSpor, a.nu);
+  r.afmeld.afmeldt = genafmeld.afmeldt.length;
+  r.afmeld.venter = genafmeld.venter.length;
+  r.afmeld.proev = genafmeld.proev;
+
   if (a.toerKoersel) {
     if (r.alarm_grupper.length > 0) { r.alarm_mail = "toerkoersel"; r.alarm_klokke = "toerkoersel"; }
     return { status: 200, resultat: r };
@@ -289,6 +344,15 @@ export async function koerGensend(
     const svar = await gensendHvisGemt(admin, { metric: g.metric, email: g.email, unikt_id: g.unikt_id, sendt: g.krop });
     r.gensendt++;
     if (svar.sendt) r.lykkedes++; else r.fejlede_igen++;
+  }
+
+  // Afmeldingerne igen — samme budget, samme sekventielle form. `kilde: "bagud"`,
+  // fordi rækken ikke kommer fra en ny eWebinar-besked, men fra et fej bagud i sporet.
+  for (const mail of genafmeld.proev) {
+    if (Date.now() - a.startMs > BUDGET_MS) { r.afmeld.udsat++; continue; }
+    const svar = await afmeldHvisNoegle(admin, { email: mail, kilde: "bagud", ewebinarId: null }, a.nu);
+    r.afmeld.forsoegt++;
+    if (svar.sendt) r.afmeld.lykkedes++; else r.afmeld.fejlede_igen++;
   }
 
   if (r.alarm_grupper.length > 0) await skrivAlarm(admin, r.alarm_grupper, a.nu, r);

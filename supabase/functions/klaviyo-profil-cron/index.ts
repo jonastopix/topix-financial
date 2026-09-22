@@ -77,6 +77,8 @@ export interface ProfilResultat {
   tilmeldinger_laest: number;
   /** Rækker i klaviyo_profil (det, platformen har skrevet før). */
   tilstand_laest: number;
+  /** Mails udeladt, fordi de er afmeldt i eWebinar (22/9-2026). */
+  afmeldte_udeladt: number;
   /** Personer med en kommende session. */
   med_kommende: number;
   /** Personer, der skal have felterne SAT (ny eller ændret værdi). */
@@ -121,7 +123,7 @@ export async function koerProfil(
 ): Promise<ProfilResultat> {
   const r: ProfilResultat = {
     ok: true, dry_run: a.toerKoersel, nu: a.nu.toISOString(), email: a.email,
-    tilmeldinger_laest: 0, tilstand_laest: 0, med_kommende: 0, saet: 0, fjern: 0, uaendret: 0,
+    tilmeldinger_laest: 0, tilstand_laest: 0, afmeldte_udeladt: 0, med_kommende: 0, saet: 0, fjern: 0, uaendret: 0,
     skrevet: 0, lykkedes: 0, fejlede: 0, udsat: 0, eksempler: [], fejlede_liste: [], alarm: "ingen", fejl: [],
   };
 
@@ -132,6 +134,25 @@ export async function koerProfil(
     return q.order("session_tid", { ascending: true }).order("email", { ascending: true }).range(fra, til);
   });
   r.tilmeldinger_laest = tilmeldinger.length;
+
+  // 1b. AFMELDTE UDELADES (22/9-2026, ~/Downloads/udkast-ewebinar-afmelding).
+  //     Udvalget ovenfor spurgte kun om session_tid — ikke om personen stadig
+  //     vil have mails. En afmeldt profil skal ikke have webinarets tidspunkt
+  //     skrevet paa sig. Laest paa ALLE personens raekker (ogsaa aeldre
+  //     registranter), fordi afmeldingen kan staa paa en anden tilmelding end
+  //     den kommende. `ilike` uden jokertegn = lighed uden hensyn til store
+  //     bogstaver — samme regel som webinarAfmelding.erAfmeldt (lower()).
+  //     FOELGEN, bevidst: et tb_naeste_webinar, der ALLEREDE stod paa en
+  //     profil, foer personen afmeldte sig, bliver staaende. Det er inert —
+  //     profilen faar ingen markedsfoering — og en oprydning ville selv vaere
+  //     en skrivning. Staar i README'ens «aabent».
+  const afmeldteRaekker = await alleSider<{ email: string }>((fra, til) => {
+    let q = admin.from("webinar_tilmeldinger").select("email")
+      .or("subscribed.ilike.unsubscribed,sidste_action.ilike.unsubscribed");
+    if (a.email) q = q.eq("email", a.email);
+    return q.order("email", { ascending: true }).range(fra, til);
+  });
+  const afmeldte = new Set<string>(afmeldteRaekker.map((x) => x.email.trim().toLowerCase()));
 
   // 2. Det, platformen har skrevet før — så fjernelser og uændrede kan dømmes.
   const tilstand = await alleSider<ProfilRaekke>((fra, til) => {
@@ -148,6 +169,7 @@ export async function koerProfil(
   const mails = new Set<string>([...naeste.keys(), ...sidst.keys()]);
   const plan: { email: string; oensket: Profilvaerdier | null }[] = [];
   for (const email of [...mails].sort()) {
+    if (afmeldte.has(email)) { r.afmeldte_udeladt++; continue; }
     const oensket = profilVaerdier(naeste.get(email) ?? null);
     const foer = sidst.get(email) ?? null;
     if (!afviger(oensket, foer)) {

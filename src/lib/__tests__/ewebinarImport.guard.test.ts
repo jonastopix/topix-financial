@@ -82,9 +82,24 @@ describe("ewebinarImport.guard", () => {
     expect(laes(CONFIG)).toMatch(/\[functions\.ewebinar-webhook\]\s*\n\s*verify_jwt = false/);
     // Webhooken sætter ikke FELTET kilde i sine upserts: migrationens default ('webhook')
     // bærer den, så webhooken ikke skal ændres. (set_procent_kilde er et andet felt og står der.)
+    //
+    // STRAMMET 22/9 (udkast-ewebinar-afmelding): dommen var «ordet kilde: findes
+    // ingen steder i webhooken» — og den holdt kun, så længe webhooken skrev til
+    // netop to tabeller. Afmeldingen sender nu `kilde: "webhook"` med til
+    // klaviyo_afmeldinger, som ER et felt, den SKAL sætte. Præmissen er den
+    // samme; dommen er nu skåret til DE TO UPSERTS, hvor feltet ikke må stå,
+    // og den siger samtidig, at det ENESTE kilde: i filen er afmeldingens.
     const w = kode(WEBHOOK);
-    expect(w).not.toMatch(/(^|[^_a-zA-Z])kilde\s*:/);
+    const iLog = w.indexOf('.from("webinar_haendelser")');
+    const iSlutUpserts = w.indexOf('onConflict: "ewebinar_id"');
+    expect(iLog).toBeGreaterThan(-1);
+    expect(iSlutUpserts).toBeGreaterThan(iLog);
+    const upserts = w.slice(iLog, iSlutUpserts);
+    expect(upserts).not.toMatch(/(^|[^_a-zA-Z])kilde\s*:/);
     expect(w).toContain("set_procent_kilde");
+    // Det eneste kilde: i hele filen er afmeldingens — og det er ordret «webhook».
+    const alleKilder = [...w.matchAll(/(?:^|[^_a-zA-Z])kilde\s*:\s*("[^"]*")?/g)].map((m) => m[1] ?? "(uden streng)");
+    expect(alleKilder).toEqual(['"webhook"']);
   });
 
   it("dom 6: SEND FØRST, SKRIV BAGEFTER — afsendelsen efter tørkørsels-returen, FØR begge upserts, og upserts springes over, når afbrudt", () => {

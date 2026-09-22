@@ -2,7 +2,8 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
 import { verifyEwebinarSignature } from "../_shared/ewebinarSignatur.ts";
 import { doemSetGrad, fletTilmelding, plukTilmelding, type WebinarTilmelding } from "../_shared/webinarDom.ts";
 import { afgoerOvergang, byggFremmoede } from "../_shared/webinarHaendelser.ts";
-import { sendHvisMail } from "../_shared/klaviyoAfsendelse.ts";
+import { afmeldHvisNoegle, sendHvisMail } from "../_shared/klaviyoAfsendelse.ts";
+import { erAfmeldt, skalAfmeldes } from "../_shared/webinarAfmelding.ts";
 import { sha256Hex } from "../_shared/aftryk.ts";
 
 // Bucket C: ekstern webhook fra eWebinar (udkast 19/9-2026,
@@ -17,6 +18,12 @@ import { sha256Hex } from "../_shared/aftryk.ts";
 // eWebinars registrant-id), hvor procenten aldrig gaar ned (fletTilmelding).
 // Dommen «har set / delvist / moedte ikke op» ligger i _shared/webinarDom.ts
 // (ren, testet) og regnes af laeserne — her logges den kun.
+//
+// AFMELDINGEN VIDERE TIL KLAVIYO (22/9-2026, ~/Downloads/recon-ewebinar-afmelding.md):
+// eWebinars «Unsubscribed» blev gemt og ellers ikke brugt til noget. Nu goer den to
+// ting i samme kald: (a) mailen afmeldes fra e-mailmarkedsfoering hos Klaviyo
+// (afmeldHvisNoegle), og (b) fremmoede-haendelsen SENDES IKKE for en tilmelding, der
+// er afmeldt. Begge fail-soft: en afmelding maa aldrig faa eWebinar til at gensende.
 //
 // SVARKODERNE: 401 uden gyldig signatur (afvis, aldrig retry); 503 uden
 // hemmelighed (ikke konfigureret endnu); 400 naar en aegte besked ikke er
@@ -158,6 +165,32 @@ Deno.serve(async (req: Request) => {
       `procent=${flettet.set_procent ?? "?"}${flettet.set_procent_kilde ? ` (${flettet.set_procent_kilde})` : ""} grad=${grad} noegleform=${dom.form}.`,
   );
 
+  // 9b. AFMELDINGEN TIL KLAVIYO (22/9-2026). EFTER fletningen, saa raekken staar
+  //     skrevet foerst — praecis som fremmoedet nedenfor. Dommen faar den NYE
+  //     besked (`t`), ikke den flettede: fletningen lader null staa, saa en besked
+  //     uden `action` ville arve en aeldre «Unsubscribed» og se ud som en ny
+  //     afmelding hver gang (webinarAfmelding.ts).
+  //
+  //     EN GANG PR. MAIL bor i SPORET, ikke her: klaviyo_afmeldinger er unik paa
+  //     (email) where udfald = 'ok'. To registranter med samme mail giver altsaa
+  //     hoejst én vellykket afmelding.
+  //
+  //     FAIL-SOFT: afmeldHvisNoegle kaster aldrig. En afmelding maa ikke kunne faa
+  //     eWebinar til at gensende — raekken er allerede skrevet ovenfor.
+  const afmeldes = skalAfmeldes(kendt, t);
+  let afmeldSendt: boolean | null = null;
+  let afmeldUdfald: string | null = null;
+  if (afmeldes) {
+    const a = await afmeldHvisNoegle(admin, { email: flettet.email, kilde: "webhook", ewebinarId: flettet.ewebinar_id }, nu);
+    afmeldSendt = a.sendt;
+    afmeldUdfald = a.spor.udfald;
+    if (a.sendt) {
+      console.log(`[ewebinar-webhook] afmeldt hos Klaviyo: ${flettet.email} (registrant ${flettet.ewebinar_id}).`);
+    } else {
+      console.error(`[ewebinar-webhook] afmeldingen af ${flettet.email} gik IKKE igennem (${a.spor.udfald}) — ${a.spor.grund ?? ""}`);
+    }
+  }
+
   // 10. FREMMOEDE TIL KLAVIYO (19/9, recon-klaviyo-fremmoede). Klaviyo ved intet
   //     om fremmoede: profilens eneste egenskab er `eWebinar`, en datostreng, og
   //     den OVERSKRIVES ved naeste tilmelding. Efter-flowet er datostyret og
@@ -171,8 +204,15 @@ Deno.serve(async (req: Request) => {
   //
   //     KUN VED SKIFT. eWebinar POSTer ved hver aendring; sendte vi hver gang,
   //     ville «deltog» staa femten gange paa samme person.
+  //
+  //     PORTEN (22/9): en tilmelding, der ER afmeldt, faar INGEN fremmoede-
+  //     haendelse. Det er ikke en optimering — det er det, afmeldingen betyder.
+  //     Dommen ser paa den FLETTEDE raekke (tilstanden, som den staar nu) OG paa
+  //     den nye besked, saa baade «subscribed = Unsubscribed» og en ankommen
+  //     «action = Unsubscribed» lukker porten. Vaernet: klaviyoAfmelding.guard dom 4.
+  const erAfmeldtNu = erAfmeldt(flettet) || erAfmeldt(t);
   const gradFoer = kendt ? doemSetGrad(kendt, nu) : null;
-  const overgang = afgoerOvergang(gradFoer, grad);
+  const overgang = erAfmeldtNu ? "ingen" : afgoerOvergang(gradFoer, grad);
   const haendelse = byggFremmoede(overgang, {
     ewebinarId: flettet.ewebinar_id,
     email: flettet.email,
@@ -202,5 +242,18 @@ Deno.serve(async (req: Request) => {
     }
   }
 
-  return json(200, { received: true, ewebinar_id: flettet.ewebinar_id, grad, fremmoede: overgang, fremmoede_sendt: fremmoedeSendt, fremmoede_udfald: fremmoedeUdfald });
+  return json(200, {
+    received: true,
+    ewebinar_id: flettet.ewebinar_id,
+    grad,
+    fremmoede: overgang,
+    fremmoede_sendt: fremmoedeSendt,
+    fremmoede_udfald: fremmoedeUdfald,
+    // Det, KUN den nye kode kan svare (CLAUDE.md, «Deployment af edge functions»
+    // trin 4): tre felter om afmeldingen. Er de der ikke i svaret, koerer den
+    // gamle bundle — uanset hvad «View code» viser.
+    afmeldt: erAfmeldtNu,
+    afmeld_sendt: afmeldSendt,
+    afmeld_udfald: afmeldUdfald,
+  });
 });

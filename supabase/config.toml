@@ -315,6 +315,13 @@ project_id = "loiavmastgeieqyiwyyr"
   # authenticateServiceRole FØRST, kaldt gennem kald_edge hver time. Tørkørsel som
   # standard — uden «dry_run: false» regnes der, men intet skrives. Skriver KUN de
   # to tb_naeste_webinar-felter gennem klaviyoAfsendelse (nøglen læses ét sted).
+  # Afmeldingerne bagud (22/9-2026). Bucket B, authenticateServiceRole FØRST,
+  # kaldt gennem kald_edge. Tørkørsel som standard OG bag app_config
+  # .klaviyo_afmeld_aktiv — uden begge sendes intet. Afmelder mails, der står
+  # som Unsubscribed i eWebinar uden en ok-række i klaviyo_afmeldinger.
+  # Nøglen (KLAVIYO_AFMELD_KEY) læses ét sted: klaviyoAfsendelse.afmeldHvisNoegle.
+  [functions.klaviyo-afmeld-bagud]
+    verify_jwt = true
   [functions.klaviyo-profil-cron]
     verify_jwt = true
   # Metas Conversions API fra platformen (udkast 21/9-2026 aften). Bucket B,

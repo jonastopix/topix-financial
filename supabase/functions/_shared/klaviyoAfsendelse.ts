@@ -14,6 +14,7 @@
 import { KLAVIYO_SECRET } from "./klaviyo.ts";
 import { gensendGemtKrop, sendHaendelse, type Afsendelse, type GemtHaendelse, type HaendelseInput, type SporSkriver } from "./klaviyoHaendelser.ts";
 import { bygProfilKrop, PROFIL_STI, skrivProfil, type ProfilSkriver, type ProfilSkrivning } from "./klaviyoProfil.ts";
+import { afmeld, AFMELD_STI, type AfmeldInput, type Afmelding, type AfmeldSkriver, bygAfmeldKrop, KLAVIYO_AFMELD_SECRET } from "./klaviyoAfmelding.ts";
 import type { Profilvaerdier } from "./klaviyoDato.ts";
 
 /**
@@ -84,6 +85,32 @@ export async function skrivProfilHvisNoegle(
       sendt: false,
       spor: { udfald: "fejl", metode: "POST", sti: PROFIL_STI, status: null, svar: null, grund: `profilskrivningen kastede: ${String(e).slice(0, 300)}`, varighed_ms: 0 },
       krop: bygProfilKrop(email, oensket),
+    };
+  }
+}
+/**
+ * Afmeld ÉN mail fra e-mailmarkedsføring hos Klaviyo (udkast 22/9-2026,
+ * klaviyoAfmelding.ts). KASTER ALDRIG — samme kontrakt som de tre ovenfor.
+ *
+ * NØGLEN ER EN ANDEN, OG DET ER MED VILJE. Afmeldingen kræver scopes, som
+ * `KLAVIYO_API_KEY` ikke har — og Klaviyo tillader ikke, at man tilfoejer et
+ * scope til en eksisterende privat noegle («you cannot add a scope to an
+ * existing private key», api_overview). Derfor `KLAVIYO_AFMELD_KEY`, laest
+ * HER og kun her, praecis som den anden. Kaldstederne kender ingen af dem.
+ */
+export async function afmeldHvisNoegle(
+  skriver: AfmeldSkriver | null,
+  i: AfmeldInput,
+  nu: Date,
+): Promise<Afmelding> {
+  try {
+    return await afmeld(skriver, Deno.env.get(KLAVIYO_AFMELD_SECRET), i, { nuDato: nu });
+  } catch (e) {
+    console.error(`[klaviyo] afmeldingen af ${i.email} kastede — kalderen gaar videre:`, e);
+    return {
+      sendt: false,
+      spor: { udfald: "fejl", metode: "POST", sti: AFMELD_STI, status: null, svar: null, grund: `afmeldingen kastede: ${String(e).slice(0, 300)}`, varighed_ms: 0 },
+      krop: bygAfmeldKrop(i.email),
     };
   }
 }

@@ -88,6 +88,9 @@ const STRIKS: readonly string[] = [
   // Google Analytics (udkast 21/9 aften): dry_run, nu, debug og ansoegning_id.
   "ga-send-cron",
 
+  // Afmeldingerne bagud (udkast 22/9): dry_run, nu og email — alt andet afvises.
+  "klaviyo-afmeld-bagud",
+
   // /webinar delt med en ekstern (udkast 21/9): t og valg (webinar-delt);
   // handling, navn, dage og id (webinar-deling). Alt andet afvises.
   "webinar-delt",
