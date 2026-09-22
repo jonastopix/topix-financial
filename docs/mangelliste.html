@@ -1683,13 +1683,33 @@
     · a22-rls-initplan (hjælperne kaldes pr. række; onsdag) ·
     a22-cron-vagt-tidsjoin (vagten tæller vores egne prøvekald) ·
     a22-migration-dublet (20260918230000 brugt to gange).
+    RETTET 04:04 — REGLEN «VI SKAL IKKE BRUGE TID PÅ TIDLIGERE MEDLEMMER»
+    (Jonas 22/9). Tal i listen skal gælde NUVÆRENDE BETALENDE efter husets egen
+    dom erIGrundmaengden (_shared/stilleDom.ts:196–205): 26 målt i prod 22/9
+    kl. 04:04 (A's maal-medlemmer-22-09.sql). De gældende lister står i
+    docs/mangelliste-lister-22-09.md (tredje udgave); gennemgangens lister 1–4
+    var første udgave og talte legat, gæster og tidligere med. Det, der står
+    tilbage: a18-studio-mini LUKKET (status «tidligere», målt 04:04) · «Tre
+    virksomheder rammer aldrig fornyelsesordningen …» ARKIVERET (to findes
+    ikke, den tredje har en gratis kontrakt — ingen er betalende) ·
+    m17-koerelisten og m17-saldobalance-pdf-uden-i-alt (Topix.dk ApS er gæst,
+    er_kunde = false) · w12 (PHILBERTs kontrakt udløber 29/9-2026) ·
+    m17-gennemgangen-af-de-8 (3 af de 26 har over 3 aktive mål — Rallysupport
+    11, Booking Innovation 8, Rezycl 6; målene er fra 16–17/9, så at mange
+    endnu ikke har ét, er udgangspunktet, ikke et fund).
+    TRUKKET TILBAGE SAMME NAT: chattens tal om svar på forslag (90 dage), mål
+    og «faldet ud» — holdt op mod et vindue længere end funktionerne har
+    eksisteret. «19 af 27 kunder er faldet ud …» står urørt med sit eget
+    kriterium og sin næste måling 8/10; 03:47-tallet «37 af 51» er trukket
+    tilbage.
     Talt med grep på kortenes div-tag (class card) og på lukket-status: før
-    257 og 73 lukkede; efter 250 og 82 lukkede. Regnestykket: 257 − 14
+    257 og 73 lukkede; efter kodegennemgangen 250 og 82; efter rettelsen 04:04
+    og tilbagetrækningen 249 og 83 lukkede. Regnestykket: 257 − 14
     arkiverede + 7 nye = 250 kort (de lukkede bliver stående), og 73 + 4 + 5
     nylukkede = 82. Begge tal er rå grep-tal, som de tidligere RØRT-afsnit
     bruger dem — filhovedets egne omtaler tæller med i begge ender.
-    Lukket: 9 (4 + 5 efter prod-målingen). Arkiveret: 14. Flettet: 2.
-    Omskrevet: 10 (6 + 4 efter prod-målingen). Tilføjet: 7.
+    Lukket: 10 (4 + 5 efter prod-målingen + 1 ved rettelsen 04:04).
+    Arkiveret: 15 (14 + 1). Flettet: 2. Omskrevet: 15 (6 + 4 + 5). Tilføjet: 7.
   RØRT 19/9 NAT (bogført i OVERLEVERING DEL 2 «18. september» §0–§15;
   udkast ~/Downloads/udkast-bogfoering-18-9-hel/ — bygget videre på
   udkast-bogfoering-18-9 fra kl. 21)
@@ -2060,11 +2080,11 @@
       <p>Bouncen kom, fordi postkassen ikke var sat op (viderestillingen manglede); spærringer med kilden «bounce» kan IKKE fjernes manuelt — hverken af Lovable eller fra koden — og udløber selv 18/10-2026 kl. 20:47. Adressen virker nu. #1007 (<code>_shared/raadgiverModtager.ts</code>): alt der SENDES TIL kontakt@ (rådgivermailen om ny ansøgning; aftale-kvitteringen til jer og «rådgiver mangler pris», hvis <code>RAADGIVER_MAIL_TIL</code> er kontakt@) går til jonas@theboardroom.dk indtil <strong>19/10-2026 kl. 00:00 dansk</strong>, derefter kontakt@ igen — datoen og grunden står i filhovedet; replyTo og «skriv til kontakt@» i teksterne er urørte. <strong>19/10:</strong> <code>select created_at, recipient_email, status from public.email_send_log where template_name = 'ansoegning-ny-raadgiver' order by created_at desc limit 5;</code> — modtager kontakt@, status sent. <strong>19/11:</strong> suiten fejler bevidst og minder om at fjerne omvejen. Rådgivermails suppressed 18/9 20:47–22:14 gensendes ikke af sig selv (idempotensnøgle) — ansøgningerne står i fladen. Tjek også <code>RAADGIVER_MAIL_TIL</code> i secrets. OVERLEVERING DEL 2 «18. september» §13.</p>
       <div class="meta"><span class="tag gold">19/10 kl. 00:00 — kontrollér</span><span class="tag">Skifter selv tilbage</span><span class="tag ny">Ny 18/9</span><span class="tag size">Lille</span></div>
     </div>
-    <div class="card new" id="a18-studio-mini" data-status="mangler" data-spor="1" data-rammer="raadgiver">
+    <div class="card new loest" id="a18-studio-mini" data-status="loest" data-spor="1" data-rammer="raadgiver">
       <h3>Studio Mini ApS står som «active» med kontrakt udløbet 5/9 og beslutningen «tilbyd ikke» — rettes til «tidligere» (økonomisiden; ventelisten er upåvirket)</h3>
-      <p>Målt i <code>udkast-venteliste-tre</code> §5: fornyelsesdommen læser slutdato + beslutning og siger <code>udloebet_tilbyd_ikke</code> (rigtigt — pladsen er ledig for Tatti). Men alt der læser <code>companies.status</code> (virksomhedslisten, «aktive kunder», ansøgningens dubletdom «findes allerede som … (CVR, active, …)», sletteordningen dag 45) ser Studio Mini som aktiv. Jonas 18/9: rettes til «tidligere» (som Alina). Hvem der skulle have skiftet status ved afsked — Monday-webhooket, fornyelsesvarsel-cronen eller en hånd — er ikke målt. OVERLEVERING DEL 2 «18. september» §14.</p>
+      <p><strong>LØST 22/9 — <code>companies.status</code> = <code>'tidligere'</code> (målt 04:04). Rettet før gennemgangen.</strong> Målt i <code>udkast-venteliste-tre</code> §5: fornyelsesdommen læser slutdato + beslutning og siger <code>udloebet_tilbyd_ikke</code> (rigtigt — pladsen er ledig for Tatti). Men alt der læser <code>companies.status</code> (virksomhedslisten, «aktive kunder», ansøgningens dubletdom «findes allerede som … (CVR, active, …)», sletteordningen dag 45) ser Studio Mini som aktiv. Jonas 18/9: rettes til «tidligere» (som Alina). Hvem der skulle have skiftet status ved afsked — Monday-webhooket, fornyelsesvarsel-cronen eller en hånd — er ikke målt. OVERLEVERING DEL 2 «18. september» §14.</p>
       <p><strong>Flettet 20/9</strong> (var <code>m17-studio-mini-ud</code>, Betaling): tilbyd-rækken bliver <code>udloebet_vindue_lukket</code> 20/9 af sig selv (Jonas 16/9: «De er på vej ud.»). Beslutningen er den samme ét sted: står de som udløbet medlem, eller sættes status «tidligere» (samme vej som #734)?</p>
-      <div class="meta"><span class="tag gold">Jonas 18/9: «tidligere»</span><span class="tag">Virksomhedssiden (Farlig zone) — og hvorfor cronen ikke gjorde det</span><span class="tag ny">Ny 18/9</span><span class="tag size">Lille</span></div>
+      <div class="meta"><span class="tag loest">Lukket 22/9 — status 'tidligere' (målt 04:04)</span><span class="tag gold">Jonas 18/9: «tidligere»</span><span class="tag">Virksomhedssiden (Farlig zone) — og hvorfor cronen ikke gjorde det</span><span class="tag ny">Ny 18/9</span><span class="tag size">Lille</span></div>
     </div>
     <div class="card new loest" id="a18-calendly-scope" data-status="loest" data-spor="1" data-rammer="raadgiver">
       <h3>Calendly-nøglen havde ikke <code>scheduled_events:write</code> — bookingen fra vores flade blev afvist med 403 «Insufficient scope»; ny personlig adgangsnøgle lavet 18/9 aften</h3>
@@ -2398,11 +2418,6 @@
       <p>Studio Mini (slut 5/9) står med beslutning <code>tilbyd</code> og gyldig pris (20.000 kr.), men FORLÆNGER IKKE (Jonas 6/9). Tilstanden findes nu (#678, 7/9), så rækken KAN ryddes. I dag (7/9) er de dag 2 i vinduet; fra 20/9 lukker vinduet af sig selv, og rækken bliver <code>udloebet_vindue_lukket</code> uden at nogen rører den. Indtil da viser gaten dem et tilbud, hvis de logger ind. Beslutningen er om rækken skal ryddes FØR. CARMA STUDIO (7/9, <code>tilbyd</code>) håndteres manuelt i dialog.</p>
       <div class="meta"><span class="tag loest">Lukket 15/9 — tilbyd ikke, Jonas</span><span class="tag ny">Ny 6/9</span><span class="tag gold">Beslutning</span><span class="tag">Lukker selv 20/9</span><span class="tag size">Lille</span></div>
     </div>
-    <div class="card decision new" data-status="beslutning" data-spor="7" data-rammer="raadgiver">
-      <h3>Tre virksomheder rammer aldrig fornyelsesordningen: Alexander Lund og Martin Larsen uden slutdato, Bastant Design uden indgangspris</h3>
-      <p>De to uden <code>contract_end_date</code> får <code>ingen_slutdato</code> og står aldrig i fornyelsessektionen; Bastant (31/12-2027) uden pris giver et tomt tilbudskort ved «tilbyd». Hvad de tre skal have, er en samtale, ikke kode. Historik: OVERLEVERING DEL 3 «samtale, målt 6/9».</p>
-      <div class="meta"><span class="tag gold">Beslutning</span><span class="tag size">Lille</span></div>
-    </div>
     <div class="card new" data-status="mangler" data-spor="7" data-rammer="ingen">
       <h3>CARMAs slutdato er flyttet i hånden (7/9 → 11/9) — data siger noget andet end kontrakten</h3>
       <p>Flyttet 7/9 18:23 så hendes fornyelseslink kunne virke; hun er nu udløbet i forlængelsesvinduet med «tilbyd» til og med 25/9 (vindue 2 den 22/9). Afstemmer nogen mod Stripe, e-conomic eller aftalen, er 11/9 ikke kontraktens dato. Kortet lukker når fornyelsen er betalt eller afstemningen er sket. Historik: OVERLEVERING DEL 2 «15. september» §14.</p>
@@ -2522,11 +2537,13 @@
     <div class="card new" id="m17-koerelisten" data-status="mangler" data-spor="1" data-rammer="medlem">
       <h3>Kørelisten: PDF- og AI-rapporterne, ANLA 14, Warburg 8 og BR Roset 20 er ikke genkørt — resultatet ændres for Floren-typen og Rezycl-typen, grupperne for resten</h3>
       <p>Rækkefølgen og forventet virkning pr. virksomhed: <code>udkast-tilstand-efter/README.md</code> §3 (Rezycl → Floren → Capture IT → BRILLEVÆRK → Doggybed → KJ AUTO → Rallysupport → Topix.dk → Nordic → remm. → Brick Works igen → Warburg → Livja → BR Roset → resten); <code>02-hvad-en-genkoersel-aendrer.sql</code> siger pr. rapport hvad der sker uden at køre den. Snapshot (<code>udkast-genkoersel-plan/03-snapshot-og-rollback.sql</code>) FØR første hold: der findes intet før-billede i databasen. Hold à 10 i «Genkør rapporter»; <code>01-tilstand-pr-virksomhed.sql</code> som nulpunkt og efter hvert hold. Historik: OVERLEVERING DEL 2 «17. september» §5, §8.</p>
+      <p><strong>Målt 22/9 04:04:</strong> Topix.dk ApS er gæst (<code>er_kunde = false</code>) — tages ud. De øvrige nævnte er nuværende betalende.</p>
       <div class="meta"><span class="tag ny">Ny 17/9</span><span class="tag rust">Genkørsel</span><span class="tag size">Mellem</span></div>
     </div>
     <div class="card new" id="m17-saldobalance-pdf-uden-i-alt" data-status="mangler" data-spor="1" data-rammer="medlem">
       <h3>PDF-grupperne som træ er MERGET (#982, <code>dbe98d36</code>, 22:50) — udrulning af extract-financial-data og genkørsel af KJ AUTO, Rallysupport, Topix.dk, Nordic By Hand, remm., Doggybed, BRILLEVÆRK, Floren Engros og Capture IT udestår</h3>
       <p>Målt 17/9 ~22:00 i KJ AUTO's fil (grupper uden «i alt», grupper inde i grupper: «Løn i alt» inde i «Personaleudgifter», lejeindtægter inde i «Udlejning af fast ejendom») → <code>cost_lines_present</code> FAIL efter #978's genkørsel; og i prod 21:59 for BRILLEVÆRK (løn tom: «Løn, gager og honorarer i alt» matchede ikke). Rettelsen (<code>_shared/gruppetrae.ts</code>, begge PDF-skabeloner) er i HEAD; KJ AUTO målt: alle grupper, balancen, kontrolsum 0. Vejen: udrul eksplicit → «Genkør rapporter», skabelon c) og b), hold à 10 → «Godkend alle der er PASS». Bevis: <code>groups_from_tree</code> i <code>quality_signals.ai_checks</code>, udækket ≈ 0 i <code>04-efter-billede.sql</code>. Historik: OVERLEVERING DEL 2 «17. september» §1 (sidste række), §7; <code>~/Downloads/udkast-saldobalance-pdf-grupper/README.md</code>.</p>
+      <p><strong>Målt 22/9 04:04:</strong> Topix.dk ApS er gæst (<code>er_kunde = false</code>) — tages ud. De øvrige nævnte er nuværende betalende.</p>
       <div class="meta"><span class="tag ny">Ny 17/9</span><span class="tag rust">Udrulning + genkørsel</span><span class="tag size">Lille</span></div>
     </div>
     <div class="card new" id="m17-ai-skema-grupper" data-status="mangler" data-spor="2" data-rammer="medlem">
@@ -2590,6 +2607,7 @@
     <div class="card blocked new" id="w12" data-status="fejl" data-spor="1" data-rammer="medlem">
       <h3>PHILBERT: to filer strander stadig — en e-conomic-PDF i layoutet «Almindelig» uden skabelon, og en XLSX med 391,62 kr. i gross_profit_sum</h3>
       <p>Parseren er urørt af #864 (kortet siger nu vejen, ikke løsningen). (1) <code>sourceFingerprint.ts:40-56</code> vælger dokumenttype på ÉT ord; «Almindelig» rammer ingen af de to e-conomic-skabeloner — åbn filen i storage først og se om det er fem linjers regex eller en 400-linjers skabelon, eller bed hende eksportere «Saldobalance». (2) XLSX: en linje mellem omsætning og dækningsbidrag som vareforbrugs-matcheren ikke tager — formentlig én regel. SQL til filerne står på kortets historik. Chattens 10 altafgørende 16/9 (7). Historik: OVERLEVERING DEL 2 «14. september» §25; <code>recon-to-maaneder.md</code>.</p>
+      <p><strong>Målt 22/9 04:04:</strong> PHILBERTs kontrakt udløber 29/9-2026.</p>
       <div class="meta"><span class="tag gold">Chattens 10 altafgørende 16/9 (7)</span><span class="tag rust">22/9 · nr. 12 af 18</span><span class="tag">Kræver filerne</span><span class="tag size">Mellem</span></div>
     </div>
     <div class="card decision new" data-status="beslutning" data-spor="senere" data-rammer="medlem">
@@ -2779,7 +2797,7 @@
     <div class="card new" id="m17-gennemgangen-af-de-8" data-status="mangler" data-spor="5" data-rammer="raadgiver">
       <h3>Gennemgangen af de 8 virksomheder med flere end tre aktive mål (Floren Engros 17, BR Roset 14, Rallysupport 11, Booking Innovation 8, Brick Works 8, Fjeldgaardshop 7, Rezycl 6, Warburg VVS 5) — rådgiveren beholder højst tre; indtil da ingen AI-forslag</h3>
       <p>Målt 16/9 23:23 (<code>…_23-23-46.csv</code>: «8 virksomheder over 3 | max 17»). Florens 17 var AI-dubletter (kilde agent/ai, ingen fremdrift siden 30/6) — intet parkeres automatisk; gennemgangen er rådgiverens i Planen på virksomhedssiden (#939: aktivér/parkér/nået/slet). Fase 5 (Jonas: «Ja det er i orden»): ingen AI-forslag til de 8 før de er nede på tre. <strong>Bevis:</strong> SQL «virksomheder over 3 = 0» og forsiden uden «8 virksomheder har mål til gennemgang». Historik: OVERLEVERING DEL 2 «16. september (eftermiddag og aften) og 17. september (nat)» §44, §45 (c).</p>
-      <p><strong>Målt 22/9 03:47:</strong> 3 virksomheder har over 3 aktive mål (var 8), 11 har 1–3, og 37 har 0 — af 51 i <code>companies</code> (inkl. legat, gæster og tidligere; tallet for betalende er ikke målt). Kun 2 AI-forslag siden 17/9: «Én plan» foreslår kun mod aktive mål, og de fleste har ingen.</p>
+      <p><strong>Målt 22/9 04:04</strong> blandt de 26 nuværende betalende (<code>erIGrundmaengden</code>): <strong>3 har over 3 aktive mål</strong> — Rallysupport 11, Booking Innovation 8, Rezycl 6. For dem foreslår AI'en intet, før rådgiveren har valgt højst tre. (Målene er fra 16–17/9 — at mange endnu ikke har ét, er udgangspunktet, ikke et fund.) 03:47-tallet «37 af 51» talte hele <code>companies</code> med og er trukket tilbage.</p>
       <div class="meta"><span class="tag gold">Rådgiverarbejde, ingen kode</span><span class="tag ny">Ny 17/9</span><span class="tag size">Mellem (8 samtaler)</span></div>
     </div>
     <div class="card new" id="m17-legat-tre-maal" data-status="fejl" data-spor="5" data-rammer="medlem">
@@ -3492,6 +3510,7 @@
     <li><strong>—</strong> · «Sekvensmotoren — tre sekvenser i samme form (legat, onboarding, indgang) med hver sin dommer; bliver et kort ved den fjerde» · PARKERET 22/9: bliver et kort ved den femte sekvens. · 22/9 nat</li>
     <li><strong>a21-mailloftet</strong> · «Mailloftet: rådgivermailen om ny ansøgning tabes ved 429; ingen alarm ved rate_limited; ingen vagt på rykkerkøen» · FLETTET 22/9 ind i n14-11 — samme sag. · 22/9 nat</li>
     <li><strong>a21-filhoveder-koert</strong> · «Fire migrationer er kørt, men filhovedet siger stadig «IKKE KØRT» — reglen fra 20/9 kan få dem kørt igen» · FLETTET 22/9 ind i m17-migrationer-ikke-koert. · 22/9 nat</li>
+    <li><strong>—</strong> · «Tre virksomheder rammer aldrig fornyelsesordningen: Alexander Lund og Martin Larsen uden slutdato, Bastant Design uden indgangspris» · IKKE BETALENDE 22/9: Alexander Lund og Martin Larsen findes ikke som virksomheder (søgt 22/9 04:04), og Bastant Design har en gratis kontrakt (0 kr.) — ingen af dem er betalende. · 22/9 kl. 04:04</li>
   </ul>
   </section>
 
