@@ -13,7 +13,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { kraevRaekker } from "@/lib/kraevRaekker";
 import { ANSOEGNING_KEY, gemNoteOgPris, hentAnsoegning, hentVentepladserForAnsoegning, invaliderAnsoegninger, slaaCvrOpManuelt, VENTEPLADSER_KEY } from "@/hooks/ansoegninger";
-import { fjernFraVenteliste } from "@/lib/hjemmebane/ventelisteApi";
+import { fjernFraVenteliste, tilbydPladsen } from "@/lib/hjemmebane/ventelisteApi";
+import { hentVentelisteOverblik, VENTELISTE_OVERBLIK_KEY } from "@/hooks/ventelisteOverblik";
+import { TILSTAND_ORD } from "@/lib/ansoegninger/ventelisteOverblik";
+import { HbButton } from "@/components/hjemmebane/HbButton";
 import { koeTekstTilRaadgiver } from "@/lib/afslagsTilbud";
 import { raadgiverHentefejlTekst } from "@/lib/raadgiverHentefejl";
 import { HbSection } from "@/components/hjemmebane/HbSection";
@@ -56,6 +59,26 @@ export const AnsoegningView = ({ id }: { id: string | undefined }) => {
   const raadgivere = useQuery({ queryKey: [...RAADGIVERE_KEY], queryFn: hentRaadgivere, enabled: !!user && !!isAdvisor, staleTime: 10 * 60_000 });
   const [note, setNote] = useState<string | null>(null);
   const ventepladser = useQuery({ queryKey: [...VENTEPLADSER_KEY(id ?? "")], queryFn: () => hentVentepladserForAnsoegning(id!), enabled: !!id && !!user && !!isAdvisor });
+  // TILBYD FRA ANSØGNINGEN (udkast 22/9): samme dom som fanen, samme kald som
+  // virksomhedssiden. Overblikket hentes helt og filtreres på DENNE ansøgning —
+  // tilstanden afhænger af hele køen hos virksomheden, ikke kun af egen række.
+  const overblik = useQuery({ queryKey: [...VENTELISTE_OVERBLIK_KEY], queryFn: () => hentVentelisteOverblik(), enabled: !!id && !!user && !!isAdvisor, staleTime: 30_000 });
+  const minePladser = (overblik.data ?? []).filter((r) => r.ansoegningId === id);
+  const [tilbyder, setTilbyder] = useState<string | null>(null);
+  const tilbyd = async (r: { ventepladsId: string; companyId: string; ansoegerNavn: string }) => {
+    if (tilbyder) return;
+    setTilbyder(r.ventepladsId);
+    try {
+      await tilbydPladsen(r.companyId);
+      await queryClient.invalidateQueries({ queryKey: [...VENTELISTE_OVERBLIK_KEY] });
+      await queryClient.invalidateQueries({ queryKey: [...VENTEPLADSER_KEY(id ?? "")] });
+      toast.success(`Pladsen er tilbudt ${r.ansoegerNavn} — 7 dage, køen kører selv`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Tilbuddet blev ikke sendt");
+    } finally {
+      setTilbyder(null);
+    }
+  };
   const fjern = useMutation({
     mutationFn: async (ventepladsId: string) => { await fjernFraVenteliste(ventepladsId); await invaliderAnsoegninger(queryClient, id); },
     onSuccess: () => toast.success("Fjernet fra køen"),
@@ -139,6 +162,19 @@ export const AnsoegningView = ({ id }: { id: string | undefined }) => {
                     <span className="text-hb-ink-soft"> · sat {danskTidspunkt(p.sat_at)}{p.hvorfor ? ` · ${p.hvorfor}` : ""}</span>
                     {" "}<Link to={`/virksomhed/${p.company_id}`} className="text-hb-evergreen underline-offset-4 hover:underline">virksomheden</Link>
                   </span>
+                  {(() => {
+                    const o = minePladser.find((r) => r.ventepladsId === p.id);
+                    if (!o) return null;
+                    return (
+                      <span className="shrink-0 text-xs text-hb-ink-soft" data-tilstand={o.tilstand}>{TILSTAND_ORD[o.tilstand]}</span>
+                    );
+                  })()}
+                  {minePladser.some((r) => r.ventepladsId === p.id && r.tilstand === "kan_tilbydes_nu") && (
+                    <HbButton type="button" variant="secondary" className="h-8 shrink-0 px-3 text-xs" disabled={tilbyder !== null}
+                      onClick={() => { const o = minePladser.find((r) => r.ventepladsId === p.id)!; void tilbyd(o); }}>
+                      {tilbyder === p.id ? "Sender…" : "Tilbyd pladsen"}
+                    </HbButton>
+                  )}
                   <button type="button" disabled={fjern.isPending} onClick={() => fjern.mutate(p.id)} className="shrink-0 text-xs text-hb-rust underline-offset-4 hover:underline disabled:opacity-50">Fjern</button>
                 </li>
               ))}
